@@ -1,6 +1,6 @@
 // 珍宝系统:数据驱动的珍宝定义 + 牌堆管理。
 // 新增珍宝 = 往 TREASURES 加一条 TreasureDef。牌堆自动初始化。
-import type { TreasureDef } from "./types";
+import type { TreasureDef, TradeFormula } from "./types";
 
 export const TREASURES: TreasureDef[] = [
   { id: "edict", name: "带血的诏书", level: 9, count: 1, desc: "衣带诏,董承受命" },
@@ -20,6 +20,13 @@ export const TREASURE_PRICE: Record<number, number> = {
 /** 珍宝指导价(分):查表兜底 等级×100。集中一处,供引擎/UI 复用。 */
 export function guidePriceOf(level: number): number {
   return TREASURE_PRICE[level] ?? level * 100;
+}
+
+/** 贸易售价:markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
+export function tradePriceOf(guidePrice: number, trade: TradeFormula | undefined, levelMult: number): number {
+  if (trade?.type === "markup") return guidePrice + trade.param * levelMult;
+  if (trade?.type === "multiply") return guidePrice * trade.param * levelMult;
+  return guidePrice * 1.5 * levelMult;
 }
 
 /** 城池等级 → 贸易/赠宝倍率。 */

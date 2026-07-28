@@ -19,13 +19,14 @@ import type {
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
 import { buy as buyProp, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
+import { serializeGame } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
 import { CHANCE_EVENTS, FATE_EVENTS } from "./events";
 import { formatMoney } from "./money";
 import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
-import { CITY_LEVEL_MULTIPLIER, createTreasureDeck, guidePriceOf } from "./treasures";
+import { CITY_LEVEL_MULTIPLIER, createTreasureDeck, guidePriceOf, tradePriceOf } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
 
 type Catalog = MapCatalog;
@@ -79,11 +80,11 @@ export class GameEngine {
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 赠宝/贸易:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
 
-  private activeIndex = 0;
-  private draftOrder: number[] = [];
-  private draftRolls: number[] = [];
+  activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
+  draftOrder: number[] = []; // public:同上
+  draftRolls: number[] = []; // public:同上
   private currentDraftIndex = 0;
-  private takenCapitalIndices = new Set<number>();
+  takenCapitalIndices = new Set<number>(); // public:同上
   private usedGuohao = new Set<string>();
 
   isOver = false;
@@ -148,6 +149,10 @@ export class GameEngine {
   }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
+  }
+  /** 选 tileIndex 为都城的玩家(无则 null)。供 UI 查询都城归属,集中一处防漂移。 */
+  capitalOwnerOf(tileIndex: number): Player | null {
+    return this.players.find((p) => p.capitalIndex === tileIndex) ?? null;
   }
   get pendingHaltIsOnPath(): boolean {
     return (
@@ -785,15 +790,7 @@ export class GameEngine {
       this.logEvent("rent", owner.guohao, `${owner.guohao} 赠「${treasure.name}」给 ${mover.guohao},城升至 Lv.${holding?.level},朝廷赏 ${formatMoney(guidePrice)}`, `treasureGift owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} reward=${guidePrice} newCityLevel=${holding?.level}`, guidePrice);
     } else {
       // 贸易:访客付钱得宝(不可拒绝)。售价 = 指导价 × 贸易公式 × 等级倍率
-      const tradeFormula = def.trade;
-      let price: number;
-      if (tradeFormula?.type === "markup") {
-        price = guidePrice + tradeFormula.param * levelMult; // 加价:指导价 + 加价额×等级倍率(等级越高加越多)
-      } else if (tradeFormula?.type === "multiply") {
-        price = guidePrice * tradeFormula.param * levelMult; // 翻倍:指导价×城倍率(1.5/2/3/5)×等级倍率
-      } else {
-        price = guidePrice * 1.5 * levelMult; // 默认:保底高于指导价(防漏配 trade)
-      }
+      const price = tradePriceOf(guidePrice, def.trade, levelMult); // 贸易售价(集中公式,必高于指导价)
       mover.treasures.push(treasure);
       const r = this.payOrLiquidate(mover, owner, price);
       if (r === "liquidating") return; // 清算自救;访客已得宝,凑不够破产时珍宝经 settleDebt 转回城主
@@ -1047,58 +1044,6 @@ export class GameEngine {
 
   // ──────────────────────────── 调试快照(供 window.__dafung / 测试) ────────────────────────────
   snapshot() {
-    return {
-      phase: this.phase,
-      setupPhase: this.setupPhase,
-      turnPhase: this.turnPhase,
-      turnNumber: this.turnNumber,
-      round: this.round,
-      activeIndex: this.activeIndex,
-      targetNetWorth: this.targetNetWorth,
-      isOver: this.isOver,
-      winner: this.winner ? this.winner.id : null,
-      winReason: this.winReason,
-      draftOrder: this.draftOrder,
-      draftRolls: this.draftRolls,
-      currentSetupPlayerIndex: this.currentSetupPlayerIndex,
-      takenCapitalIndices: [...this.takenCapitalIndices],
-      pendingHaltIsOnPath: this.pendingHaltIsOnPath,
-      pendingDebt: this.pendingDebt ? { amount: this.pendingDebt.amount, creditor: this.pendingDebt.creditor?.id ?? null } : null,
-      currentBranchShortcutId: this.currentBranchShortcut()?.id ?? null,
-      players: this.players.map((p) => ({
-        id: p.id,
-        name: p.guohao || p.name,
-        guohao: p.guohao,
-        colorIndex: p.colorIndex,
-        isBot: p.isBot,
-        cash: p.cash,
-        warrants: p.warrants,
-        netWorth: netWorth(p),
-        isBankrupt: p.isBankrupt,
-        position: p.position,
-        capitalIndex: p.capitalIndex,
-        pendingBranch: p.pendingBranch,
-        properties: p.properties.map((h) => ({
-          propertyId: h.propertyId,
-          level: h.level,
-          group: h.group,
-        })),
-        heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
-        treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
-      })),
-      offeredHeroes: this.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
-      lastRoll: this.lastRoll,
-      lastMove: this.lastMove
-        ? {
-            landIndex: this.lastMove.landIndex,
-            passedCapital: this.lastMove.passedCapital,
-            capitalIndex: this.lastMove.capitalIndex,
-            traversed: this.lastMove.traversed,
-          }
-        : null,
-      lastLandOutcomeKind: this.lastLandOutcome?.kind ?? null,
-      lastLandOutcomeProperty: this.lastLandOutcome?.property?.id ?? null,
-      logCount: this.log.length,
-    };
+    return serializeGame(this);
   }
 }

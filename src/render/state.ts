@@ -515,7 +515,7 @@ export class App {
     const def = e.catalog.get(tile.propertyId);
     if (!def) return;
     const owner = e.findOwner(def.id);
-    const isCapital = e.players.some((p) => p.capitalIndex === idx);
+    const isCapital = e.capitalOwnerOf(idx) != null;
     const rents = def.rentByLevel.map((r, i) => `L${i} ${formatMoney(r)}`).join(" · ");
     const ownerText = owner ? `持有:${owner.guohao}` : "无主";
     const capText = isCapital ? ` · 都城 Lv.${owner?.properties.find((h) => h.propertyId === def.id)?.level ?? 0}` : "";
