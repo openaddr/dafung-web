@@ -22,7 +22,16 @@ document.body.appendChild(verTag);
 async function loadDefaultMap() {
   // 优先用编辑器保存的自定义地图;没有才用内置 sanguo.json
   const saved = localStorage.getItem("dafung-custom-map");
-  if (saved) return loadMap(JSON.parse(saved));
+  if (saved) {
+    try {
+      return loadMap(JSON.parse(saved));
+    } catch (err) {
+      // 自定义地图校验失败(如旧版存档城池重叠、版本不符)——清掉坏档,回退内置地图,
+      // 避免一张坏图卡死整个游戏。
+      console.warn("自定义地图加载失败,回退内置地图:", (err as Error).message);
+      localStorage.removeItem("dafung-custom-map");
+    }
+  }
   const res = await fetch("/maps/sanguo.json");
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   return loadMap(await res.json());

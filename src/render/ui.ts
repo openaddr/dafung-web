@@ -4,6 +4,7 @@ import type { SeatConfig } from "@core/game";
 import { playerColor, rgba, GUOHAO_POOL } from "@core/theme";
 import { netWorth } from "@core/networth";
 import { formatMoney } from "@core/money";
+import { isSingleCjk } from "@core/constants";
 import { el, clear } from "./dom";
 import { IS_DEV } from "../version";
 
@@ -73,9 +74,11 @@ export function renderPlayers(engine: GameEngine, playersEl: HTMLElement): void 
             ...(p.isBot ? [el("span", { class: "bot-tag" }, ["智"])] : []),
           ]),
           el("div", { class: "pc-meta" }, [`${p.properties.length}城 · 都${capitalName}`]),
+          ...(p.heroes.length ? [el("div", { class: "pc-heroes" }, [p.heroes.map((h) => h.name).join(" · ")])] : []),
         ]),
         el("div", {}, [
           el("div", { class: "pc-cash" }, [formatMoney(p.cash)]),
+          el("div", { class: "pc-warrants" }, [`委任 ${p.warrants}`]),
           el("div", { class: "pc-networth" }, [`身价 ${formatMoney(netWorth(p))}`]),
         ]),
       ],
@@ -222,8 +225,11 @@ export function createDecisionScroll(
   if (outcome.kind === "PropertyAvailable" && outcome.property) {
     const def = outcome.property;
     const rentList = def.rentByLevel.slice(0, 3).map((r, i) => `L${i} ${formatMoney(r)}`).join(" / ");
-    return createScroll(parent, `进驻「${tile.name}」`, `购入价 ${formatMoney(def.purchasePrice)} · 租金 ${rentList}…`, [
-      { label: `购地 ${formatMoney(def.purchasePrice)}`, action: "buy", primary: engine.activePlayer.cash >= def.purchasePrice },
+    const buyer = engine.activePlayer;
+    const canBuy = buyer.cash >= def.purchasePrice && buyer.warrants >= 1;
+    const reason = buyer.warrants < 1 ? "委任状不足" : buyer.cash < def.purchasePrice ? "银两不足" : null;
+    return createScroll(parent, `进驻「${tile.name}」`, `购入价 ${formatMoney(def.purchasePrice)} · 消耗 1 委任状 · 租金 ${rentList}…`, [
+      { label: reason ? `购地(${reason})` : `购地 (1委任 + ${formatMoney(def.purchasePrice)})`, action: "buy", primary: canBuy },
       { label: "不取", action: "skip" },
     ]);
   }
@@ -389,7 +395,7 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
       const isBot = sel.value === "bot";
       let guohao = input.value.trim();
       if (!isBot) {
-        if (!/^[㐀-鿿]$/.test(guohao)) {
+        if (!isSingleCjk(guohao)) {
           hint.textContent = `诸侯 ${i + 1} 的国号需为单个汉字。`;
           return;
         }

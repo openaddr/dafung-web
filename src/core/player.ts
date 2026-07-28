@@ -1,5 +1,6 @@
 // 玩家构造与查询 helper。对应 C# 版 Players/Player.cs。
 import type { Player, PropertyHolding } from "./types";
+import { STARTING_WARRANTS } from "./constants";
 
 export interface CreatePlayerOpts {
   id: string;
@@ -20,11 +21,15 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     colorIndex: opts.colorIndex,
     isBot: opts.isBot,
     cash: opts.startingCash,
+    warrants: STARTING_WARRANTS,
     isBankrupt: false,
     position: 0,
     capitalIndex: -1,
     pendingBranch: null,
     properties: [],
+    heroes: [],
+    treasures: [],
+    heroLastFired: {},
   };
 }
 

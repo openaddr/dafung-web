@@ -13,6 +13,8 @@ export interface PlayerSnap {
   capitalIndex: number;
   isBankrupt: boolean;
   properties: { propertyId: string; level: number }[];
+  treasures: { id: string; level: number }[];
+  heroes: { id: string }[];
 }
 
 export interface Snapshot {
@@ -60,14 +62,9 @@ export async function drivePickCapital(page: Page) {
       await page.waitForTimeout(1100); // bot 自动选都延时
       continue;
     }
-    const free = await page.evaluate((taken: number[]) => {
-      const els = Array.from(document.querySelectorAll("[data-tile]"));
-      for (const e of els) {
-        const i = parseInt(e.getAttribute("data-tile")!, 10);
-        if (!taken.includes(i)) return i;
-      }
-      return -1;
-    }, s.takenCapitalIndices);
+    const free = await page.evaluate(
+      () => (window as unknown as { __dafung?: { engine?: { firstAvailableCapitalIndex(): number } } }).__dafung?.engine?.firstAvailableCapitalIndex() ?? -1,
+    );
     if (free < 0) return;
     await page.click(`[data-tile='${free}']`);
     await page.click('[data-action="confirm"]');

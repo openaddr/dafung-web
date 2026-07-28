@@ -14,7 +14,7 @@ test("AI loop:全程不变量合法 + 终局", async ({ page }) => {
       if (!p.isBankrupt && p.cash < 0) throw new Error(`不变量违规:T${s.turnNumber} ${p.guohao} cash=${p.cash}<0`);
       if (p.position < 0 || p.position > 50) throw new Error(`不变量违规:T${s.turnNumber} ${p.guohao} pos=${p.position}`);
       if (p.netWorth < 0) throw new Error(`不变量违规:T${s.turnNumber} ${p.guohao} nw=${p.netWorth}<0`);
-      if (p.isBankrupt && (p.cash !== 0 || p.properties.length !== 0)) throw new Error(`破产残留:${p.guohao}`);
+      if (p.isBankrupt && (p.cash !== 0 || p.properties.length !== 0 || p.treasures.length !== 0 || p.heroes.length !== 0)) throw new Error(`破产残留:${p.guohao}`);
     }
     // 人类回合处理弹窗 + 掷骰;bot 自动
     await dismissScroll(page);

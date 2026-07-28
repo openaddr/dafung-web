@@ -1,27 +1,16 @@
-// AI 诸侯:回合 EV 决策(掷骰/驻跸/支线/买/升级),Simple/Normal 两档。
+// AI 诸侯:回合 EV 决策(抽签/驻跸/支线/买/升级),Simple/Normal 两档。
 // 对应 C# 版 Flow/BotController.cs(选都已并入 GameEngine.aiChooseCapital)。
 import type { GameEngine } from "./game";
-import type { Player, ShortcutDef } from "./types";
+import type { Player } from "./types";
 import { findHolding } from "./player";
-
-const expectedShortcutValue = (sc: ShortcutDef): number => {
-  const c = sc.consequence;
-  if (c.kind === "FixedCost") return -c.amount;
-  return (c.win.cashDelta + c.lose.cashDelta) / 2;
-};
-
-const worstCaseCost = (sc: ShortcutDef): number => {
-  const c = sc.consequence;
-  if (c.kind === "FixedCost") return c.amount;
-  return Math.max(0, -c.lose.cashDelta);
-};
+import { supplyFor } from "./economy";
 
 function estimateCapitalSupply(engine: GameEngine, p: Player): number {
   const tile = engine.board.at(p.capitalIndex);
   const def = engine.catalog.get(tile.propertyId);
   const h = findHolding(p, def?.id ?? "");
   const lvl = h?.level ?? 0;
-  return (def?.resupplyPerLevel ?? 0) * (lvl + 1);
+  return supplyFor(def?.resupplyPerLevel, lvl);
 }
 
 function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {
@@ -57,13 +46,8 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingBranch": {
-      const sc = engine.board.getShortcut(p.position);
-      const canAfford = !sc || p.cash >= worstCaseCost(sc);
-      const takeShortcut =
-        !!sc &&
-        canAfford &&
-        (simple ? engine.dice.nextFloat() < 0.5 : expectedShortcutValue(sc) >= 0);
-      engine.selectBranch(takeShortcut ? "Shortcut" : "Main");
+      // 小路免费=纯捷径(省步),总有利 → 总走小路
+      engine.selectBranch("Shortcut");
       break;
     }
 
@@ -71,7 +55,7 @@ export function botAct(engine: GameEngine): void {
       const outcome = engine.lastLandOutcome;
       if (outcome?.kind === "PropertyAvailable" && outcome.property) {
         const def = outcome.property;
-        const want = p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
+        const want = p.warrants >= 1 && p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
         if (want) engine.buyProperty();
         else engine.endDecision();
       } else if (outcome?.kind === "OwnProperty" && outcome.property) {
@@ -82,6 +66,44 @@ export function botAct(engine: GameEngine): void {
       } else {
         engine.endDecision();
       }
+      break;
+    }
+
+    case "AwaitingHeroPick": {
+      // bot 招贤纳士:随机选一位
+      const count = engine.offeredHeroes.length;
+      if (count > 0) engine.resolveHeroPick(Math.floor(engine.dice.nextFloat() * count));
+      else engine.resolveHeroPick(0);
+      break;
+    }
+
+    case "AwaitingTreasureOwner": {
+      // bot 城主:有珍宝 → 低级赠宝(升级),高级贸易(赚钱);Simple 随机
+      const owner = engine.players[engine.treasureVisitor?.ownerIdx ?? 0];
+      const treasures = owner.treasures;
+      if (treasures.length === 0) { engine.resolveTreasureOwner({ type: "skip" }); break; }
+      const pick = treasures[Math.floor(engine.dice.nextFloat() * treasures.length)];
+      const trade = simple ? engine.dice.nextFloat() < 0.4 : pick.level >= 6;
+      engine.resolveTreasureOwner({ type: trade ? "trade" : "gift", treasureId: pick.id });
+      break;
+    }
+
+    case "AwaitingBankruptcySettle": {
+      // bot 清算:卖资产到够(优先名士→低珍宝→城,排除都城),再 confirm
+      const p = engine.activePlayer;
+      const debt = engine.pendingDebt!;
+      const cap = engine.board.at(p.capitalIndex)?.propertyId;
+      while (p.cash < debt.amount) {
+        if (p.heroes.length) { engine.cashHeroBankruptcy(p.heroes[0].id); continue; }
+        if (p.treasures.length) {
+          const low = [...p.treasures].sort((a, b) => a.level - b.level)[0];
+          engine.sellTreasureBankruptcy(low.id); continue;
+        }
+        const sellable = p.properties.find((h) => h.propertyId !== cap);
+        if (sellable) { engine.sellPropertyBankruptcy(sellable.propertyId); continue; }
+        break;
+      }
+      engine.confirmBankruptcySettle();
       break;
     }
 

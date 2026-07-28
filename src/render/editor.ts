@@ -4,6 +4,9 @@ import { createBoardSvg } from "./board";
 import { loadMap } from "@core/board-loader";
 import { el, svg } from "./dom";
 import { formatMoney } from "@core/money";
+import { MIN_TILE_DIST } from "@core/constants";
+import { findTooClosePairs } from "@core/geometry";
+import { svgCoordHelpers } from "./svg-util";
 import type { MapData } from "@core/types";
 
 export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => void, onPlay: (mapData: MapData) => void) {
@@ -31,18 +34,10 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     rerender();
     renderPanel();
   }
-  // 重叠城检测(task 3.3)
+  // 重叠/过近城检测:与加载器共用 MIN_TILE_DIST + findTooClosePairs,红圈高亮
   function overlappingTiles(): number[] {
-    const idxs = new Set<number>();
-    for (let i = 0; i < mapData.tiles.length; i++) {
-      for (let j = i + 1; j < mapData.tiles.length; j++) {
-        if (mapData.tiles[i].pos[0] === mapData.tiles[j].pos[0] && mapData.tiles[i].pos[1] === mapData.tiles[j].pos[1]) {
-          idxs.add(i);
-          idxs.add(j);
-        }
-      }
-    }
-    return [...idxs];
+    const pts = mapData.tiles.map((t) => ({ x: t.pos[0], y: t.pos[1] }));
+    return [...new Set(findTooClosePairs(pts, MIN_TILE_DIST).flat())];
   }
 
   const boardWrap = el("div", { class: "board-wrap" });
@@ -72,10 +67,9 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string) as MapData;
-          mapData.tiles = data.tiles;
-          mapData.shortcuts = data.shortcuts ?? [];
-          if (data.targetNetWorth) mapData.targetNetWorth = data.targetNetWorth;
-          if (data.startingCash) mapData.startingCash = data.startingCash;
+          loadMap(data, { lenient: true }); // 校验合法性(失败进 catch)
+          Object.assign(mapData, data); // 全字段迁移(含 version/maxLevel/resupplyPerLevel)
+          mapData.shortcuts ??= [];
           selected = 0;
           rerender();
           renderPanel();
@@ -100,10 +94,8 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     try {
       const res = await fetch("/maps/sanguo.json");
       const data = (await res.json()) as MapData;
-      mapData.tiles = data.tiles;
-      mapData.shortcuts = data.shortcuts ?? [];
-      if (data.targetNetWorth) mapData.targetNetWorth = data.targetNetWorth;
-      if (data.startingCash) mapData.startingCash = data.startingCash;
+      Object.assign(mapData, data); // 全字段重置(含 version/maxLevel/resupplyPerLevel)
+      mapData.shortcuts ??= [];
       selected = 0;
       rerender();
       renderPanel();
@@ -133,21 +125,15 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
   root.innerHTML = "";
   root.appendChild(layout);
 
-  // 屏幕坐标 → SVG viewBox 坐标
-  function svgPoint(svg: SVGSVGElement, clientX: number, clientY: number) {
-    const pt = svg.createSVGPoint();
-    pt.x = clientX;
-    pt.y = clientY;
-    const ctm = svg.getScreenCTM();
-    if (!ctm) return { x: clientX, y: clientY };
-    const p = pt.matrixTransform(ctm.inverse());
-    return { x: p.x, y: p.y };
+  // 屏幕坐标 → SVG viewBox 坐标(形参 svgEl,避免 shadow dom 的 svg 助手)
+  function svgPoint(svgEl: SVGSVGElement, clientX: number, clientY: number) {
+    return svgCoordHelpers(svgEl).toSvg(clientX, clientY);
   }
 
   function rerender() {
     boardWrap.innerHTML = "";
     try {
-      const map = loadMap(mapData);
+      const map = loadMap(mapData, { lenient: true });
       const view = createBoardSvg(map.board, map.catalog);
       boardWrap.appendChild(view.root);
       // 3.3 重叠城红圈高亮
@@ -224,7 +210,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     addBtn.addEventListener("click", () => {
       if (fromSel.value === toSel.value) { alert("起点和终点不能相同"); return; }
       mapData.shortcuts.push({
-        id: `sc-${mapData.shortcuts.length + 1}-${fromSel.value}-${toSel.value}`,
+        id: `sc-${crypto.randomUUID()}`,
         from: fromSel.value,
         to: toSel.value,
         consequence: { kind: "FixedCost", amount: Number(amtInp.value) || 100 },

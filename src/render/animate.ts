@@ -5,9 +5,9 @@ import { playerColor, rgba } from "@core/theme";
 import type { BoardView } from "./board";
 import { svg, el } from "./dom";
 import { formatMoney } from "@core/money";
-
-const delay = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-const SIGN_FACES = ["一", "二", "三", "四", "五", "六"]; // 签筒:抽签 1-6 用汉字
+import { SIGN_FACES, TOKEN_SLOT_OFFSETS } from "@core/constants";
+import { polylinePath, svgCoordHelpers } from "./svg-util";
+import { delay } from "./timings";
 
 export interface Animator {
   animateDice(die: number): Promise<void>;
@@ -24,13 +24,9 @@ export function createAnimator(
   boardView: BoardView,
 ): Animator {
   /** SVG 逻辑坐标 → board-wrap 内像素(用于 HTML 浮层定位)。 */
+  const coord = svgCoordHelpers(svgEl);
   function logicToClient(x: number, y: number): { left: number; top: number } {
-    const pt = svgEl.createSVGPoint();
-    pt.x = x;
-    pt.y = y;
-    const ctm = svgEl.getScreenCTM();
-    if (!ctm) return { left: 0, top: 0 };
-    const s = pt.matrixTransform(ctm);
+    const s = coord.toClient(x, y);
     const r = boardWrap.getBoundingClientRect();
     return { left: s.x - r.left, top: s.y - r.top };
   }
@@ -62,10 +58,7 @@ export function createAnimator(
       boardView.updateTokens(engine);
       return;
     }
-    // 终点偏移量(与 updateTokens 的同格错位一致):落格时直接落到偏移位,避免"先中心再左移"
-    const OFFSETS = [
-      { x: -22, y: -8 }, { x: 22, y: -8 }, { x: -22, y: 20 }, { x: 22, y: 20 },
-    ];
+    // 终点偏移量:与 updateTokens 共用 TOKEN_SLOT_OFFSETS,落格直接落到偏移位,避免"先中心再左移"
     const byTile = new Map<number, string[]>();
     for (const p of engine.players) {
       if (p.isBankrupt) continue;
@@ -74,7 +67,7 @@ export function createAnimator(
       byTile.set(p.position, arr);
     }
     const slot = Math.max(0, (byTile.get(target) ?? [moverId]).indexOf(moverId));
-    const off = OFFSETS[slot % OFFSETS.length];
+    const off = TOKEN_SLOT_OFFSETS[slot % TOKEN_SLOT_OFFSETS.length];
 
     let prev = path.from;
     for (const tile of path.traversed) {
@@ -106,7 +99,7 @@ export function createAnimator(
     const b = board.positionOf(to);
     const wps = board.edgeWaypoints(from, to);
     const pts = [a, ...wps, b];
-    const d = pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+    const d = polylinePath(pts);
     const p = svg("path", { class: "road-flow active", d });
     boardView.flowLayer.appendChild(p);
     setTimeout(() => p.remove(), 700);

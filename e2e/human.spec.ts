@@ -67,6 +67,7 @@ test("人类落格无主城:购买扣款并获得地产", async ({ page }) => {
 });
 
 test("落点有主城(付租)不触发 doRoll 死锁(防 lastRoll reset 回归)", async ({ page }) => {
+  test.setTimeout(120_000); // 14 次迭代 × 固定等待 + bot 回合偶尔吃满 60s,放宽到 120s 防时序 flake
   // seed=42 在 T7 会出现"幽落魏的城付租":rollAndMove 内部 endTurn 会 reset lastRoll,
   // 修复前 doRoll 的 animateDice(lastRoll.die) 崩 → botFlow 异常 → busy 卡 true → 人类按钮死锁。
   // 单元测试直调 rollAndMove 不经 doRoll,e2e 全 bot 断言宽松,都漏测。此测试锁死该路径。
@@ -74,7 +75,13 @@ test("落点有主城(付租)不触发 doRoll 死锁(防 lastRoll reset 回归)"
   for (let i = 0; i < 14; i++) {
     const s = await snap(page);
     if (s.isOver) break;
-    if (s.players[s.activeIndex].isBot) { await page.waitForTimeout(2500); continue; }
+    if (s.players[s.activeIndex].isBot) {
+      await page.waitForTimeout(2500);
+      // 过关交涉:bot 踩人类城 → 人类需响应(toll-owner/visitor 弹窗)
+      await dismissScroll(page);
+      await page.waitForTimeout(500);
+      continue;
+    }
     await dismissScroll(page);
     if (s.turnPhase === "Roll") {
       // 核心防回归:人类回合按钮必须 enabled(死锁时卡 disabled,toBeEnabled 会超时失败)

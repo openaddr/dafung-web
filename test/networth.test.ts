@@ -14,17 +14,15 @@ describe("身价计算", () => {
     expect(netWorth(p)).toBe(2000);
   });
 
-  it("现金 + 地产账面价值(购入+升级)", () => {
+  it("买城/升级只花现金,不增净资产(城池账面不计)", () => {
     const p = createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: 1000 });
-    buy(p, changan); // -400,账面 +400
-    upgrade(p, changan); // -200,账面 +200
-    // 现金 400 + 账面(400+200)=1000
-    expect(netWorth(p)).toBe(1000);
+    buy(p, changan); // -400
+    upgrade(p, changan); // -200
+    expect(netWorth(p)).toBe(400); // 仅剩现金(旧会计入 400+200 账面=1000)
   });
 
-  it("都城计入身价(建城费 + 升级)", () => {
+  it("都城建成后不计账面", () => {
     const p = createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: 2500 });
-    // 模拟建都城:建城费 800 作为 holding.purchasePrice
     p.cash -= changan.buildCost;
     p.properties.push({
       propertyId: changan.id,
@@ -34,6 +32,6 @@ describe("身价计算", () => {
       level: 0,
       maxLevel: changan.maxLevel,
     });
-    expect(netWorth(p)).toBe(2500); // 1700 + 800
+    expect(netWorth(p)).toBe(1700); // 仅剩现金(旧会计入 800 账面=2500)
   });
 });

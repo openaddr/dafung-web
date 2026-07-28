@@ -1,12 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { buy, upgrade, computeRent, settleDebt } from "@core/economy";
+import { buy, upgrade, settleDebt } from "@core/economy";
 import { createPlayer } from "@core/player";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(sanguoData).catalog;
 
 const changan = catalog.get("prop-changan")!; // a 组,¥400,Lv 租 [20,60,...]
-const hangu = catalog.get("prop-hangu")!; // a 组,¥200
 
 function mk(cash = 1000) {
   return createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: cash });
@@ -43,24 +42,9 @@ describe("地产交易", () => {
   it("满级拒绝升级", () => {
     const p = mk(100000);
     buy(p, changan);
-    for (let i = 0; i < 5; i++) upgrade(p, changan);
+    for (let i = 0; i < 3; i++) upgrade(p, changan);
     expect(upgrade(p, changan).status).toBe("AlreadyMaxLevel");
-    expect(p.properties[0].level).toBe(5);
-  });
-
-  it("租金:按等级;拥有整组 ×2", () => {
-    const owner = mk(100000);
-    // 买 a 组全部:长安/函谷关/洛阳/许昌/宛/邺城
-    for (const id of catalog.groupMembers("a")) buy(owner, catalog.get(id)!);
-    // 拥有整组前先测单城?这里直接整组,租金应 ×2
-    const baseRent = computeRent(changan, owner, catalog);
-    expect(baseRent).toBe(changan.rentByLevel[0] * 2); // Lv0 ×2
-
-    // 只持有部分:不 ×2
-    const owner2 = mk(100000);
-    buy(owner2, changan);
-    buy(owner2, hangu);
-    expect(computeRent(changan, owner2, catalog)).toBe(changan.rentByLevel[0]);
+    expect(p.properties[0].level).toBe(3);
   });
 });
 
@@ -74,18 +58,21 @@ describe("破产裁决", () => {
     expect(b.cash).toBe(200);
   });
 
-  it("现金不足:破产,资产转移债主", () => {
+  it("现金不足:破产,资产(地产+珍宝)转移债主", () => {
     const a = mk(1000);
     const b = mk(0);
     buy(a, changan); // a 有地产(现金 600)
+    a.treasures.push({ id: "seal", name: "玉玺", level: 10, count: 1, desc: "" });
     a.cash = 100; // 模拟现金耗尽
     const bankrupt = settleDebt(a, b, 500);
     expect(bankrupt).toBe(true);
     expect(a.isBankrupt).toBe(true);
     expect(a.cash).toBe(0);
     expect(a.properties).toHaveLength(0);
+    expect(a.treasures).toHaveLength(0); // 珍宝转移
     expect(b.cash).toBe(100); // a 的现金给 b
     expect(b.properties).toHaveLength(1); // 地产转移
+    expect(b.treasures).toHaveLength(1); // 珍宝转移
   });
 
   it("无债主(税/关税):现金不足破产,资产销毁", () => {

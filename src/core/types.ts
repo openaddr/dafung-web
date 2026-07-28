@@ -12,10 +12,9 @@ export type TileType =
   | "Tax"
   | "Chance"
   | "Fate"
-  | "Shop"
   | "Stock"
-  | "Airport"
-  | "Jail";
+  | "Wolong"
+  | "TreasureCity"; // 宝物城:不可购买;落格触发珍宝判定
 
 /** 单个格子定义。IsCapitalEligible=可作都城;Region=区域分组(美术配色)。 */
 export interface TileDef {
@@ -40,10 +39,8 @@ export interface PropertyDef {
   rentByLevel: number[]; // 长度 maxLevel+1
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
+  trade?: TradeFormula; // 贸易公式:翻倍(multiply)或加价(markup);缺省=指导价×等级倍率
 }
-
-export const rentFor = (def: PropertyDef, level: number): number =>
-  def.rentByLevel[level];
 
 /** 支路(捷径)后果。 */
 export type ShortcutConsequence =
@@ -81,9 +78,6 @@ export interface PropertyHolding {
   maxLevel: number;
 }
 
-export const holdingBookValue = (h: PropertyHolding): number =>
-  h.purchasePrice + h.totalUpgradeCost;
-
 export const canUpgrade = (h: PropertyHolding): boolean => h.level < h.maxLevel;
 
 /** 玩家。CapitalIndex=-1 表示尚未选都。 */
@@ -94,11 +88,15 @@ export interface Player {
   colorIndex: number;
   isBot: boolean;
   cash: number;
+  warrants: number; // 委任状:进驻(买)新城的额度;经过自己都城补充。
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
   pendingBranch: BranchChoice | null;
   properties: PropertyHolding[];
+  heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
+  treasures: TreasureDef[]; // 持有的珍宝
+  heroLastFired: Record<string, number>; // 名士技能冷却:heroId → 上次触发的 round(供 cooldown 判定)
 }
 
 /** 移动路径。Traversed=真实 tile 索引(末尾为落点);Waypoints=动画途经位置序列(含支路途经点)。 */
@@ -109,11 +107,11 @@ export interface MovePath {
   passedCapital: boolean;
   capitalIndex: number;
   waypoints: BoardPos[];
+  overshoot: number; // 必停都城:被截断后剩余未走的步数(用于补偿计算)
 }
 
 export interface DiceRoll {
-  die: number; // 1–6
-  sum: number; // 单骰 = die
+  die: number; // 1–6(单骰;移动步数 = die)
 }
 
 /** 落格结果。 */
@@ -140,6 +138,9 @@ export type TurnPhase =
   | "AwaitingCapitalHalt"
   | "AwaitingBranch"
   | "AwaitingDecision"
+  | "AwaitingHeroPick"
+  | "AwaitingTreasureOwner"
+  | "AwaitingBankruptcySettle"
   | "Land"
   | "EndTurn"
   | "GameOver";
@@ -157,13 +158,8 @@ export interface VictoryResult {
 }
 
 export interface TransactionResult {
-  status: "Ok" | "InsufficientFunds" | "NotOwned" | "AlreadyMaxLevel";
+  status: "Ok" | "InsufficientFunds" | "NotOwned" | "AlreadyMaxLevel" | "NoWarrant";
   newLevel?: number;
-}
-
-export interface RentResult {
-  amount: number;
-  causedBankruptcy: boolean;
 }
 
 /** 战报事件(简报行 + 详情审计行共享同一事件源)。 */
@@ -198,6 +194,12 @@ export interface MapData {
   tiles: MapTile[];
   shortcuts: MapShortcut[];
 }
+/** 贸易公式:multiply=翻倍(指导价×param×等级倍率);markup=加价((指导价+param)×等级倍率)。 */
+export interface TradeFormula {
+  type: "multiply" | "markup";
+  param: number;
+}
+
 export interface MapTile {
   id: string;
   name: string;
@@ -209,6 +211,7 @@ export interface MapTile {
   upgrade?: number;
   buildCost?: number;
   rentByLevel?: number[];
+  trade?: TradeFormula;
 }
 export interface MapShortcut {
   id: string;
@@ -216,4 +219,52 @@ export interface MapShortcut {
   to: string; // tile id
   consequence: ShortcutConsequence;
   waypoints?: number[][]; // 可选:手配支路途经点 [[x,y],...]
+}
+
+/** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */
+export type GameCommand =
+  | { type: "rollAndMove" }
+  | { type: "haltAtCapital" }
+  | { type: "continueMove" }
+  | { type: "selectBranch"; kind: RouteKind }
+  | { type: "buyProperty" }
+  | { type: "upgradeProperty" }
+  | { type: "endDecision" }
+  | { type: "resolveHeroPick"; index: number }
+  | { type: "resolveTreasureOwner"; action: { type: "gift" | "trade" | "skip"; treasureId?: string } }
+  | { type: "sellTreasureBankruptcy"; treasureId: string }
+  | { type: "sellPropertyBankruptcy"; propId: string }
+  | { type: "cashHeroBankruptcy"; heroId: string }
+  | { type: "confirmBankruptcySettle" };
+
+// ── 珍宝系统 ──
+export interface TreasureDef {
+  id: string;          // 唯一(牌堆展开后含序号)
+  name: string;
+  level: number;      // 1-10
+  count?: number;     // 牌堆中数量(仅 TREASURES 表用)
+  desc?: string;      // 风味描述
+  effect?: string;    // 预留:被动效果(暂不实现)
+}
+
+// ── 名士(英雄)系统:数据驱动的被动/触发技能。新增技能 = 给 HeroSkill 加一种 kind +
+// 在 game.ts 的对应时机(heroMoveBonus 查询 / fireHeroTriggers 派发)加一个分支。
+export type HeroSkill =
+  // 被动:移动步数 +N(在 rollAndMove 计算步数时计入)
+  | { kind: "moveBonus"; steps: number }
+  // 触发:场上任意人掷出 face → 持有者 +gain(每次掷骰后派发)
+  | { kind: "onAnyRoll"; face: number; gain: number }
+  // 触发:任意其他玩家被动失去银两 → 持有者 +gain(在租金/税/天命/小路损失后派发)
+  | { kind: "onOtherLoseCash"; gain: number };
+// 将来扩展(在此加 kind,再到 game.ts 对应时机接一处):
+//   onTurnStart(回合开始) | onLand(自己落格) | rentImmune(免租) | reroll(重掷)
+//   capitalSupplyBonus(过都城补给倍率) | buyDiscount(买城折扣)…
+
+export interface HeroDef {
+  id: string;
+  name: string; // 周瑜
+  title: string; // 火烧赤壁(称号,风味)
+  desc: string; // 给玩家看的技能说明
+  skill: HeroSkill;
+  cooldown?: number; // 可选:冷却回合数(每 N 轮可触发一次);undefined = 永久被动/每次都触发
 }

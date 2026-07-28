@@ -44,8 +44,3 @@ export function svg<K extends keyof SVGElementTagNameMap>(
 export function clear(node: Element): void {
   while (node.firstChild) node.removeChild(node.firstChild);
 }
-
-/** 仅在内容变化时更新文本,减少重排。 */
-export function setText(node: Element, text: string): void {
-  if (node.textContent !== text) node.textContent = text;
-}

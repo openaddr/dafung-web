@@ -5,6 +5,7 @@ import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 import { netWorth } from "@core/networth";
+import { HEROES } from "@core/heroes";
 
 const MAP = loadMap(sanguoData);
 
@@ -29,9 +30,9 @@ function finishSetup(e: GameEngine) {
     if (e.players[idx].isBot) {
       e.aiSetupStep();
     } else {
-      const taken = new Set(e.snapshot().takenCapitalIndices);
-      const tile = e.board.tiles.find((t) => !taken.has(t.index))!;
-      e.pickCapital(idx, tile.index);
+      const capIdx = e.firstAvailableCapitalIndex();
+      if (capIdx < 0) break;
+      e.pickCapital(idx, capIdx);
     }
   }
 }
@@ -79,8 +80,11 @@ function autoResolve(e: GameEngine) {
   let guard = 0;
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
     if (e.turnPhase === "AwaitingCapitalHalt") e.continueMove();
-    else if (e.turnPhase === "AwaitingBranch") e.selectBranch("Main");
+    else if (e.turnPhase === "AwaitingBranch") e.selectBranch("Shortcut");
     else if (e.turnPhase === "AwaitingDecision") e.endDecision();
+    else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(0);
+    else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
+    else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
     else break;
   }
 }
@@ -91,7 +95,18 @@ describe("回合与胜负", () => {
     finishSetup(e);
     e.rollAndMove();
     expect(e.lastRoll).not.toBeNull();
-    expect(e.turnPhase).not.toBe("Roll");
+    expect(e.lastMove).not.toBeNull(); // 掷骰后已移动(落 TreasureCity 会同步探宝 endTurn 回 Roll,属正常)
+  });
+
+  it("endTurn 不清空 lastRoll/lastMove(doRoll 动画依赖;防回归)", () => {
+    // rollAndMove 落己城/付租时会内部 endTurn;doRoll 的 animateDice/animateMove 在其后读,
+    // 故 endTurn 绝不能清空 lastRoll/lastMove(曾因此死锁,见 e2e human.spec:69)。
+    const e = makeEngine(1);
+    finishSetup(e);
+    e.rollAndMove();
+    autoResolve(e);
+    expect(e.lastRoll).not.toBeNull();
+    expect(e.lastMove).not.toBeNull();
   });
 
   it("目标身价达标触发胜利", () => {
@@ -137,5 +152,105 @@ describe("回合与胜负", () => {
     expect(s.players[0]).toHaveProperty("netWorth");
     expect(s.players[0]).toHaveProperty("position");
     expect(s.activeIndex).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("委任状", () => {
+  it("开局每人 3 张委任状", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    expect(e.players.every((p) => p.warrants === 3)).toBe(true);
+    expect(e.snapshot().players.every((p) => p.warrants === 3)).toBe(true);
+  });
+
+  it("买城消耗 1 委任状并获得地产", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const buyer = e.activePlayer;
+    const def = e.catalog.get("prop-luoyang")!;
+    e.turnPhase = "AwaitingDecision";
+    e.lastLandOutcome = { kind: "PropertyAvailable", property: def };
+    const w0 = buyer.warrants;
+    const props0 = buyer.properties.length;
+    e.buyProperty();
+    expect(buyer.warrants).toBe(w0 - 1); // 消耗 1 委任状
+    expect(buyer.properties.length).toBe(props0 + 1); // 获得地产
+  });
+
+  it("0 委任状时买城被拒(NoWarrant),不消耗、不获得", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const buyer = e.activePlayer;
+    const def = e.catalog.get("prop-luoyang")!;
+    buyer.warrants = 0;
+    const props0 = buyer.properties.length;
+    e.turnPhase = "AwaitingDecision";
+    e.lastLandOutcome = { kind: "PropertyAvailable", property: def };
+    e.buyProperty();
+    expect(buyer.warrants).toBe(0); // 未消耗
+    expect(buyer.properties.length).toBe(props0); // 未获得
+  });
+});
+
+describe("名士(英雄)", () => {
+  const hero = (id: string) => HEROES.find((h) => h.id === id)!;
+
+  it("周瑜·moveBonus:移动步数 +1", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.activePlayer.heroes.push(hero("zhouyu"));
+    e.rollAndMove();
+    const rollLog = e.log.filter((ev) => ev.category === "roll").pop()!;
+    expect(rollLog.detail).toContain("bonus=1");
+  });
+
+  it("张星彩·onAnyRoll:掷出 6 时持有者 +20,非 6 不触发", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const holder = e.players[1];
+    holder.heroes.push(hero("zhangxingcai"));
+    const cash0 = holder.cash;
+    (e as any).fireOnAnyRoll(6);
+    expect(holder.cash).toBe(cash0 + 20);
+    const cash1 = holder.cash;
+    (e as any).fireOnAnyRoll(3);
+    expect(holder.cash).toBe(cash1); // 非 6 不加
+  });
+
+  it("曹丕·onOtherLoseCash:他人失财时 +50,自己失财不触发", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const holder = e.players[1];
+    holder.heroes.push(hero("caopi"));
+    const cash0 = holder.cash;
+    (e as any).fireOnOtherLoseCash(e.players[0]);
+    expect(holder.cash).toBe(cash0 + 50);
+    const cash1 = holder.cash;
+    (e as any).fireOnOtherLoseCash(holder); // 自己失财 → 不触发
+    expect(holder.cash).toBe(cash1);
+  });
+
+  it("招贤纳士:三选一 → 选一位获得名士", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const picker = e.activePlayer;
+    expect(picker.heroes.length).toBe(0);
+    (e as any).tryRecruitHero(picker);
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
+    expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
+    e.resolveHeroPick(0);
+    expect(picker.heroes.length).toBe(1); // resolveHeroPick → endTurn 切了玩家,用 picker 引用
+    expect(picker.heroes[0].skill).toBeDefined();
+  });
+
+  it("回合计数:全员各行动一次后 round +1", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    expect(e.round).toBe(1);
+    for (let i = 0; i < e.players.length; i++) {
+      e.rollAndMove();
+      autoResolve(e);
+    }
+    expect(e.round).toBe(2);
   });
 });

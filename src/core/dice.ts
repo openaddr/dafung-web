@@ -25,8 +25,7 @@ export function createDice(seed?: number): Dice {
   const rollDie = (): number => 1 + Math.floor(rng() * 6);
   return {
     roll(): DiceRoll {
-      const die = rollDie();
-      return { die, sum: die };
+      return { die: rollDie() };
     },
     rollDie,
     nextFloat: rng,

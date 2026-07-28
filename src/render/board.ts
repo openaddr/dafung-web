@@ -1,13 +1,15 @@
 // 棋盘 SVG 渲染:宣纸背景 + 远山河川 + 主路褐带/支路虚线 + 程序化城门 + 王旗都城 + 旌旗棋子。
 // 所有交互元素带语义 id/data,供 Playwright 精确查询。
 import type { Board } from "@core/board";
-import type { TileType } from "@core/types";
+import type { Player, TileDef } from "@core/types";
 import type { GameEngine } from "@core/game";
 import { playerColor, groupColor, Theme, rgba } from "@core/theme";
 import { findHolding } from "@core/player";
 import type { MapCatalog } from "@core/board-loader";
 import { svg, clear } from "./dom";
 import { formatMoney } from "@core/money";
+import { TOKEN_SLOT_OFFSETS } from "@core/constants";
+import { polylinePath } from "./svg-util";
 
 // viewBox:贴紧城池实际范围 + 少量边距(收紧后城池整体放大约 12%)
 const VB_X = -1050;
@@ -27,10 +29,7 @@ export interface BoardView {
   resetView(): void;
 }
 
-let activeCatalog: MapCatalog | null = null;
 export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZoom?: boolean }): BoardView {
-  activeCatalog = catalog;
-  const NS = "http://www.w3.org/2000/svg";
   const root = svg("svg", {
     id: "board",
     viewBox: `${VB_X} ${VB_Y} ${VB_W} ${VB_H}`,
@@ -69,7 +68,7 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
 
   // ── 城池层 ──
   const tileLayer = svg("g", { id: "tiles" });
-  for (const tile of board.tiles) tileLayer.appendChild(buildGate(tile, board));
+  for (const tile of board.tiles) tileLayer.appendChild(buildGate(tile, board, catalog));
   // 城池接近重叠时:鼠标悬停哪个,哪个提到最上层(SVG 无 z-index,靠 DOM 顺序,后=上)。
   // 关键:仅在「未按下按键」(buttons===0)时重排。按下期间的 pointerover(指针轻微位移跨过
   // 子元素)会再次 appendChild,把 mousedown 目标节点移走,Chrome 据此吞掉随后的 click ——
@@ -125,12 +124,7 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       arr.push(p.id);
       byTile.set(p.position, arr);
     }
-    const offsets = [
-      { x: -22, y: -8 },
-      { x: 22, y: -8 },
-      { x: -22, y: 20 },
-      { x: 22, y: 20 },
-    ];
+    const offsets = TOKEN_SLOT_OFFSETS;
     for (const p of engine.players) {
       // setup 阶段未选都:不显示棋子(选完都城后才在都城出现,避免默认堆在长安)
       if (engine.phase === "Setup" && p.capitalIndex < 0) {
@@ -272,8 +266,6 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
     root.style.cursor = "grab";
   }
 
-  // 让 buildGate / buildToken 可访问
-  void NS;
   return { root, updateTiles, updateTokens, setTokenPosition, tokenOf, tileCenter, fxLayer, flowLayer, resetView };
 }
 
@@ -306,7 +298,7 @@ function drawRoads(layer: SVGGElement, board: Board) {
     const b = board.positionOf(to);
     const wps = board.edgeWaypoints(from, to);
     const pts = [a, ...wps, b];
-    const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+    const d = polylinePath(pts);
     layer.appendChild(
       svg("path", { class: "road-main", d, "data-segment": `${from}-${to}` }),
     );
@@ -316,7 +308,7 @@ function drawRoads(layer: SVGGElement, board: Board) {
     const a = board.positionOf(sc.branchNode);
     const b = board.positionOf(sc.rejoinNode);
     const pts = [a, ...sc.sideWaypoints, b];
-    const d = pts.map((p, idx) => `${idx === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+    const d = polylinePath(pts);
     layer.appendChild(
       svg("path", { class: "road-side", d, "data-shortcut": sc.id }),
     );
@@ -363,7 +355,7 @@ function drawBuilding(g: SVGGElement, size: "large" | "medium" | "small") {
 }
 
 // ── 城池图标 ──
-function buildGate(tile: { index: number; name: string; position: { x: number; y: number }; propertyId: string | null; region: string | null; type: TileType; size?: "large" | "medium" | "small" }, board: Board) {
+function buildGate(tile: TileDef, board: Board, catalog: MapCatalog) {
   const sizeScale = tile.size === "small" ? 0.8 : tile.size === "medium" ? 0.9 : 1;
   const g = svg("g", {
     class: "tile",
@@ -379,10 +371,10 @@ function buildGate(tile: { index: number; name: string; position: { x: number; y
   g.appendChild(svg("circle", { class: "capital-glow", r: 70, fill: rgba(Theme.goldBright), style: "filter:blur(9px)" }));
   g.appendChild(svg("rect", { class: "tile-border", x: -52, y: -44, width: 104, height: 88, rx: 10, fill: "rgba(247,236,208,0.92)", stroke: "rgba(60,45,20,0.25)", "stroke-width": 2.5 }));
 
-  // 非城池格(机遇/命运/税关/商市):大字 icon,无建筑
-  if (tile.type === "Chance" || tile.type === "Fate" || tile.type === "Tax" || tile.type === "Stock") {
-    const c = tile.type === "Chance" ? Theme.goldBright : tile.type === "Stock" ? Theme.money : Theme.danger;
-    const icon = tile.type === "Chance" ? "吉" : tile.type === "Fate" ? "凶" : tile.type === "Tax" ? "税" : "市";
+  // 非城池格(锦囊/天命/税关/商市/卧龙岗):大字 icon,无建筑
+  if (tile.type === "Chance" || tile.type === "Fate" || tile.type === "Tax" || tile.type === "Stock" || tile.type === "Wolong") {
+    const c = tile.type === "Wolong" ? Theme.goldBright : tile.type === "Chance" ? Theme.goldBright : tile.type === "Stock" ? Theme.money : Theme.danger;
+    const icon = tile.type === "Wolong" ? "龙" : tile.type === "Chance" ? "吉" : tile.type === "Fate" ? "凶" : tile.type === "Tax" ? "税" : "市";
     g.appendChild(svg("rect", { class: "tile-band", x: -46, y: -44, width: 92, height: 8, rx: 2, fill: rgba(c) }));
     g.appendChild(svg("text", { x: 0, y: 22, "text-anchor": "middle", "font-family": "var(--font-brush)", "font-size": 48, "font-weight": 700, fill: rgba(c) }, [icon]));
     g.appendChild(svg("text", { class: "tile-name", x: 0, y: -16, "text-anchor": "middle", "font-family": "var(--font-deco)", "font-size": 16, fill: rgba(Theme.inkDim) }, [tile.name]));
@@ -397,7 +389,7 @@ function buildGate(tile: { index: number; name: string; position: { x: number; y
 
   // 城名 + 购入价
   g.appendChild(svg("text", { class: "tile-name", x: 0, y: 28, "text-anchor": "middle", "font-family": "var(--font-deco)", "font-size": 22, "font-weight": 700, fill: rgba(Theme.ink) }, [tile.name]));
-  g.appendChild(svg("text", { class: "tile-price", x: 0, y: 42, "text-anchor": "middle", "font-family": "var(--font-deco)", "font-size": 14, fill: rgba(Theme.inkDim) }, [formatMoney(Number(priceOf(tile)) || 0)]));
+  g.appendChild(svg("text", { class: "tile-price", x: 0, y: 42, "text-anchor": "middle", "font-family": "var(--font-deco)", "font-size": 14, fill: rgba(Theme.inkDim) }, [formatMoney(Number(priceOf(tile, catalog)) || 0)]));
 
   // 等级 pips 容器
   g.appendChild(svg("g", { class: "tile-pips" }));
@@ -418,13 +410,13 @@ function buildGate(tile: { index: number; name: string; position: { x: number; y
 }
 
 // 展示购入价(落格购买用)。
-function priceOf(tile: { propertyId: string | null }): string {
-  const def = activeCatalog?.get(tile.propertyId ?? "") ?? null;
+function priceOf(tile: TileDef, catalog: MapCatalog): string {
+  const def = catalog.get(tile.propertyId ?? "") ?? null;
   return def ? String(def.purchasePrice) : "";
 }
 
 // ── 旌旗棋子(国号 + 玩家色)──
-function buildToken(p: { id: string; guohao: string; colorIndex: number }): SVGElement {
+function buildToken(p: Pick<Player, "id" | "guohao" | "colorIndex">): SVGElement {
   const c = playerColor(p.colorIndex);
   const g = svg("g", { class: "token", "data-player": p.id, transform: "translate(0 0)" });
   const flag = svg("g", { class: "token-flag" });

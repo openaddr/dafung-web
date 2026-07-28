@@ -50,6 +50,17 @@ describe("地图校验(非法应抛可读错误)", () => {
     const d = base(); d.tiles[1].pos = [...d.tiles[0].pos];
     expect(() => loadMap(d)).toThrow(/重叠/);
   });
+  it("lenient 跳过间距校验(编辑器实时预览用)", () => {
+    const d = base();
+    d.tiles[1].pos = [d.tiles[0].pos[0] + 10, d.tiles[0].pos[1]]; // 距离 10 < 80
+    expect(() => loadMap(d)).toThrow(/重叠/);
+    expect(() => loadMap(d, { lenient: true })).not.toThrow();
+  });
+  it("CoinFlip win/lose 符号非法抛错", () => {
+    const d = base();
+    d.shortcuts[1].consequence = { kind: "CoinFlip", win: { cashDelta: -5 }, lose: { cashDelta: 5 } };
+    expect(() => loadMap(d)).toThrow(/不能为负|不能为正/);
+  });
   it("捷径 from 引用无效", () => {
     const d = base(); d.shortcuts[0].from = "no-such-tile";
     expect(() => loadMap(d)).toThrow(/from 引用无效/);

@@ -2,14 +2,10 @@
 import type {
   Player,
   PropertyDef,
-  RentResult,
   TransactionResult,
 } from "./types";
 import { canUpgrade } from "./types";
 import { findHolding } from "./player";
-import type { MapCatalog } from "./board-loader";
-
-type Catalog = MapCatalog;
 
 /** 购买无主地产。现金不足拒绝。 */
 export function buy(buyer: Player, def: PropertyDef): TransactionResult {
@@ -39,15 +35,9 @@ export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
   return { status: "Ok", newLevel: h.level };
 }
 
-/** 按当前等级租金;若业主拥有该街区组全部,租金 ×2。 */
-export function computeRent(def: PropertyDef, owner: Player, cat: Catalog): number {
-  const h = findHolding(owner, def.id);
-  if (!h) throw new Error(`Player ${owner.id} does not own ${def.id}.`);
-  const rent = def.rentByLevel[h.level];
-  const ownsGroup = cat
-    .groupMembers(def.group)
-    .every((id) => findHolding(owner, id) != null);
-  return ownsGroup ? rent * 2 : rent;
+/** 都城补给 = resupplyPerLevel × (level+1);def/level 缺失时为 0。集中一处,供引擎/bot/UI 复用。 */
+export function supplyFor(resupplyPerLevel: number | undefined, level: number | undefined): number {
+  return (resupplyPerLevel ?? 0) * ((level ?? 0) + 1);
 }
 
 /**
@@ -67,20 +57,12 @@ export function settleDebt(
   // 现金不足:先掏空现金给债主,然后破产转移资产
   if (creditor) creditor.cash += player.cash;
   player.cash = 0;
-  if (creditor) creditor.properties.push(...player.properties);
+  if (creditor) {
+    creditor.properties.push(...player.properties);
+    creditor.treasures.push(...player.treasures);
+  }
   player.properties = [];
+  player.treasures = [];
   player.isBankrupt = true;
   return true;
-}
-
-/** 收取租金;不足清偿触发破产。 */
-export function chargeRent(
-  payer: Player,
-  owner: Player,
-  def: PropertyDef,
-  cat: Catalog,
-): RentResult {
-  const amount = computeRent(def, owner, cat);
-  const causedBankruptcy = settleDebt(payer, owner, amount);
-  return { amount, causedBankruptcy };
 }

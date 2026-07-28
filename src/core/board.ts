@@ -15,6 +15,7 @@ export interface Board {
     steps: number,
     capitalIndex: number,
     pendingBranch?: BranchChoice | null,
+    stopAtCapital?: boolean,
   ): MovePath;
   edgeWaypoints(from: number, to: number, threshold?: number): BoardPos[];
 }
@@ -90,6 +91,7 @@ export function createBoard(tiles: TileDef[], shortcuts: ShortcutDef[]): Board {
     steps: number,
     capitalIndex: number,
     pendingBranch: BranchChoice | null = null,
+    stopAtCapital = false,
   ): MovePath => {
     if (steps < 0) throw new RangeError("steps must be >= 0");
     const traversed: number[] = [];
@@ -116,11 +118,14 @@ export function createBoard(tiles: TileDef[], shortcuts: ShortcutDef[]): Board {
         for (const bp of edgeWaypoints(prev, current)) waypoints.push(bp);
         waypoints.push(positionOf(current));
       }
+      // 必停都城:经过自己的都城时截断(不能再越过)
+      if (stopAtCapital && capitalIndex >= 0 && current === capitalIndex) break;
     }
 
     const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
     const passedCapital = capitalIndex >= 0 && traversed.includes(capitalIndex);
-    return { from: fromIndex, traversed, landIndex, passedCapital, capitalIndex, waypoints };
+    const overshoot = steps - traversed.length;
+    return { from: fromIndex, traversed, landIndex, passedCapital, capitalIndex, waypoints, overshoot };
   };
 
   return {

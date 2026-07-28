@@ -10,6 +10,8 @@ import type {
   ShortcutDef,
   TileDef,
 } from "./types";
+import { MIN_TILE_DIST } from "./constants";
+import { findTooClosePairs } from "./geometry";
 
 const SUPPORTED_VERSION = 1;
 
@@ -32,13 +34,19 @@ function fail(msg: string): never {
   throw new Error(`地图校验失败:${msg}`);
 }
 
+/** 版本迁移:旧存档字段补全/转换。当前 v1→v1 无操作;升版本时在此递增转换,
+ *  避免老存档被版本检查直接拒绝(配合 main.ts 的降级兜底,保住自定义地图)。 */
+function migrate(data: MapData): MapData {
+  return data;
+}
+
 /**
  * 把已解析的地图 JSON 校验并构建为运行时对象。
  * 入参用 unknown:JSON import 推断的字面量类型(如 consequence.kind: string)
  * 与判别联合不兼容,内部统一 cast 成 MapData 再校验。
  */
-export function loadMap(data: unknown): LoadedMap {
-  const d = data as MapData;
+export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap {
+  const d = migrate(data as MapData);
   if (d.version !== SUPPORTED_VERSION) {
     fail(`不支持的地图版本 ${d.version}(当前支持 v${SUPPORTED_VERSION})`);
   }
@@ -75,15 +83,13 @@ export function loadMap(data: unknown): LoadedMap {
     };
   });
 
-  // 坐标不重叠:最小间距 MIN_DIST(含完全重合),防止城池 UI 互相压盖
-  const MIN_DIST = 80;
-  for (let i = 0; i < positions.length; i++) {
-    for (let j = i + 1; j < positions.length; j++) {
-      const dx = positions[i].x - positions[j].x;
-      const dy = positions[i].y - positions[j].y;
-      if (dx * dx + dy * dy < MIN_DIST * MIN_DIST) {
-        fail(`第 ${i + 1} 格与第 ${j + 1} 格距离过近,UI 会重叠(需 ≥ ${MIN_DIST})`);
-      }
+  // 坐标不重叠:最小间距(含完全重合),防止城池 UI 互相压盖。阈值与编辑器共用 MIN_TILE_DIST。
+  // lenient(编辑器实时预览用)跳过此项——拖拽中途允许暂时靠近,由编辑器红圈高亮提示。
+  if (!opts?.lenient) {
+    const tooClose = findTooClosePairs(positions, MIN_TILE_DIST);
+    if (tooClose.length) {
+      const [i, j] = tooClose[0];
+      fail(`第 ${i + 1} 格与第 ${j + 1} 格距离过近,UI 会重叠(需 ≥ ${MIN_TILE_DIST})`);
     }
   }
 
@@ -107,6 +113,7 @@ export function loadMap(data: unknown): LoadedMap {
       rentByLevel: rent,
       buildCost: t.buildCost ?? 0,
       resupplyPerLevel: resupply,
+      trade: t.trade,
     });
   });
 
@@ -134,6 +141,10 @@ export function loadMap(data: unknown): LoadedMap {
     if (fromIdx == null) fail(`第 ${i + 1} 条捷径 from 引用无效:${s.from}`);
     if (toIdx == null) fail(`第 ${i + 1} 条捷径 to 引用无效:${s.to}`);
     if (fromIdx === toIdx) fail(`第 ${i + 1} 条捷径 from 与 to 相同`);
+    if (s.consequence.kind === "CoinFlip") {
+      if (s.consequence.win.cashDelta < 0) fail(`第 ${i + 1} 条捷径 win 不能为负(胜应为得)`);
+      if (s.consequence.lose.cashDelta > 0) fail(`第 ${i + 1} 条捷径 lose 不能为正(败应为失)`);
+    }
     const sideWaypoints = Array.isArray(s.waypoints) && s.waypoints.length
       ? s.waypoints.map((wp) => ({ x: wp[0], y: wp[1] }))
       : sideArc(positions[fromIdx], positions[toIdx], positions);

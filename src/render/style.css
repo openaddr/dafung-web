@@ -284,6 +284,23 @@ select,
   color: var(--ink-dim);
   text-align: right;
 }
+.pc-warrants {
+  font-size: 12px;
+  color: var(--gold);
+  font-weight: 700;
+  text-align: right;
+}
+.pc-heroes {
+  font-size: 10px;
+  color: var(--gold);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.player-card.resting {
+  opacity: 0.5;
+  filter: grayscale(0.5);
+}
 .bot-tag {
   font-size: 9px;
   background: var(--ink-dim);
@@ -300,17 +317,6 @@ select,
   gap: 12px;
   justify-content: center;
   padding: 10px 6px;
-}
-.dice-tray {
-  width: 64px;
-  height: 64px;
-  border-radius: 12px;
-  background: linear-gradient(145deg, #fbf3df, #e6d3a8);
-  border: 2px solid var(--gold);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 4px 10px rgba(120, 90, 40, 0.25), inset 0 1px 3px rgba(255, 255, 255, 0.6);
 }
 .dice-face {
   width: 58px;
