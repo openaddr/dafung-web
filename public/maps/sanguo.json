@@ -46,11 +46,16 @@
     { "id": "prop-wujun", "name": "吴郡", "pos": [1120, 240], "group": "h", "region": "江东", "price": 200, "upgrade": 100, "buildCost": 450, "rentByLevel": [10, 30, 90, 270, 400, 550], "trade": {"type": "markup", "param": 200} },
     { "id": "prop-kuiji", "name": "会稽", "pos": [1040, 360], "group": "h", "region": "江东", "price": 200, "upgrade": 100, "buildCost": 450, "rentByLevel": [10, 30, 90, 270, 400, 550], "trade": {"type": "markup", "param": 200} }
   ],
-  "shortcuts": [
-    { "id": "hangu-bypass",  "from": "prop-hangu",   "to": "prop-xuchang",  "consequence": { "kind": "FixedCost", "amount": 120 } },
-    { "id": "chibi-bypass",  "from": "prop-chibi",   "to": "prop-jiangling","consequence": { "kind": "CoinFlip", "win": { "cashDelta": 0 },    "lose": { "cashDelta": -200 } } },
-    { "id": "huarong-bypass","from": "prop-huarong", "to": "prop-jiaozhou","consequence": { "kind": "FixedCost", "amount": 150 } },
-    { "id": "jiange-bypass", "from": "prop-jiange",  "to": "prop-yongzhou","consequence": { "kind": "CoinFlip", "win": { "cashDelta": 0 },    "lose": { "cashDelta": -100 } } },
-    { "id": "ziwu-bypass",   "from": "prop-ziwu",    "to": "prop-changan", "consequence": { "kind": "CoinFlip", "win": { "cashDelta": 300 },  "lose": { "cashDelta": -250 } } }
-  ]
+  "branch": {
+    "id": "zhongyuan-side",
+    "start": "prop-xuchang",
+    "end": "prop-xiangyang",
+    "cells": [
+      { "kind": "treasure", "pos": [410, 125] },
+      { "kind": "treasure", "pos": [465, 148] },
+      { "kind": "event",    "pos": [485, 180] },
+      { "kind": "treasure", "pos": [465, 212] },
+      { "kind": "penalty",  "pos": [410, 235] }
+    ]
+  }
 }

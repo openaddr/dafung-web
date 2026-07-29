@@ -28,7 +28,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     history.pop();
     const prev = history[history.length - 1];
     mapData.tiles = JSON.parse(JSON.stringify(prev.tiles)) as MapData["tiles"];
-    mapData.shortcuts = JSON.parse(JSON.stringify(prev.shortcuts)) as MapData["shortcuts"];
+    if (prev.branch != null) mapData.branch = JSON.parse(JSON.stringify(prev.branch)) as MapData["branch"];
     lastSnapshot = JSON.stringify(mapData);
     selected = Math.min(selected, mapData.tiles.length - 1);
     rerender();
@@ -69,7 +69,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
           const data = JSON.parse(reader.result as string) as MapData;
           loadMap(data, { lenient: true }); // 校验合法性(失败进 catch)
           Object.assign(mapData, data); // 全字段迁移(含 version/maxLevel/resupplyPerLevel)
-          mapData.shortcuts ??= [];
+          if (data.branch == null) mapData.branch = null;
           selected = 0;
           rerender();
           renderPanel();
@@ -95,7 +95,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
       const res = await fetch("/maps/sanguo.json");
       const data = (await res.json()) as MapData;
       Object.assign(mapData, data); // 全字段重置(含 version/maxLevel/resupplyPerLevel)
-      mapData.shortcuts ??= [];
+      if (data.branch == null) mapData.branch = null;
       selected = 0;
       rerender();
       renderPanel();
@@ -200,69 +200,21 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     }
     panel.appendChild(el("div", { style: "margin-top:10px;font-size:12px;color:var(--ink-dim)" }, [`坐标:[${t.pos[0]}, ${t.pos[1]}](拖拽城池改)`]));
 
-    // 捷径编辑(task 3.1):下拉选 from/to + 代价 + 加/删
-    panel.appendChild(el("h4", { style: "margin:14px 0 6px;font-family:var(--font-deco);border-top:1px solid rgba(140,110,60,0.3);padding-top:10px" }, ["捷径(小路)"]));
-    const fromSel = el("select", { style: "font-size:12px" }, mapData.tiles.map((tt) => el("option", { value: tt.id }, [`#${mapData.tiles.indexOf(tt)} ${tt.name}`]))) as HTMLSelectElement;
-    const toSel = el("select", { style: "font-size:12px" }, mapData.tiles.map((tt) => el("option", { value: tt.id }, [`#${mapData.tiles.indexOf(tt)} ${tt.name}`]))) as HTMLSelectElement;
-    toSel.selectedIndex = 1;
-    const amtInp = el("input", { type: "number", value: "100", style: "width:5em;font-size:13px" }) as HTMLInputElement;
-    const addBtn = el("button", { class: "btn", style: "margin-left:6px" }, ["加"]) as HTMLButtonElement;
-    addBtn.addEventListener("click", () => {
-      if (fromSel.value === toSel.value) { alert("起点和终点不能相同"); return; }
-      mapData.shortcuts.push({
-        id: `sc-${crypto.randomUUID()}`,
-        from: fromSel.value,
-        to: toSel.value,
-        consequence: { kind: "FixedCost", amount: Number(amtInp.value) || 100 },
-      });
-      rerender();
-      renderPanel();
-    });
-    panel.appendChild(el("div", { style: "margin-bottom:6px" }, [fromSel, el("span", {}, [" → "]), toSel]));
-    panel.appendChild(el("div", { style: "margin-bottom:10px" }, [el("span", { style: "font-size:13px" }, ["代价(两) "]), amtInp, addBtn]));
-    for (const sc of mapData.shortcuts) {
-      const fromT = mapData.tiles.find((tt) => tt.id === sc.from);
-      const toT = mapData.tiles.find((tt) => tt.id === sc.to);
-      const amt = sc.consequence.kind === "FixedCost" ? sc.consequence.amount : 0;
-      const delBtn = el("button", { class: "btn", style: "margin-left:6px;font-size:11px;padding:2px 6px" }, ["删"]) as HTMLButtonElement;
-      delBtn.addEventListener("click", () => {
-        mapData.shortcuts = mapData.shortcuts.filter((x) => x !== sc);
-        rerender();
-        renderPanel();
-      });
-      panel.appendChild(el("div", { style: "font-size:12px;margin:3px 0;color:var(--ink-dim)" }, [`${fromT?.name ?? sc.from} → ${toT?.name ?? sc.to} ${formatMoney(amt)}`, delBtn]));
-      // 路线控制点 waypoints(task 3.2):中点加 / 坐标列 / 删
-      const wps = sc.waypoints ?? [];
-      for (let wi = 0; wi < wps.length; wi++) {
-        const idx = wi;
-        const wpDel = el("button", { class: "btn", style: "margin-left:6px;font-size:11px;padding:2px 6px" }, ["×"]) as HTMLButtonElement;
-        wpDel.addEventListener("click", () => {
-          if (sc.waypoints) {
-            sc.waypoints.splice(idx, 1);
-            if (sc.waypoints.length === 0) sc.waypoints = undefined;
-            rerender();
-            renderPanel();
-          }
-        });
-        panel.appendChild(el("div", { style: "font-size:11px;margin:2px 0 2px 16px;color:var(--ink-dim)" }, [`控制点${idx}: [${wps[idx][0]}, ${wps[idx][1]}]`, wpDel]));
-      }
-      const addWpBtn = el("button", { class: "btn", style: "font-size:11px;margin:2px 0 6px 16px;padding:2px 6px" }, ["+ 控制点"]) as HTMLButtonElement;
-      addWpBtn.addEventListener("click", () => {
-        if (!sc.waypoints) sc.waypoints = [];
-        const fromPos = mapData.tiles.find((t) => t.id === sc.from)?.pos;
-        const toPos = mapData.tiles.find((t) => t.id === sc.to)?.pos;
-        const mid = fromPos && toPos ? [Math.round((fromPos[0] + toPos[0]) / 2), Math.round((fromPos[1] + toPos[1]) / 2)] : [0, 0];
-        sc.waypoints.push(mid);
-        rerender();
-        renderPanel();
-      });
-      panel.appendChild(addWpBtn);
+    // 辅路提示(只读:辅路数据由地图作者在 JSON 中手配,编辑器暂不提供可视化编辑)
+    if (mapData.branch) {
+      const b = mapData.branch;
+      const fromT = mapData.tiles.find((tt) => tt.id === b.start);
+      const toT = mapData.tiles.find((tt) => tt.id === b.end);
+      const counts = b.cells.reduce<Record<string, number>>((m, c) => { m[c.kind] = (m[c.kind] ?? 0) + 1; return m; }, {});
+      const summary = Object.entries(counts).map(([k, v]) => `${k === "treasure" ? "珍宝" : k === "event" ? "锦囊" : "中伏"}×${v}`).join(" · ");
+      panel.appendChild(el("h4", { style: "margin:14px 0 6px;font-family:var(--font-deco);border-top:1px solid rgba(140,110,60,0.3);padding-top:10px" }, ["辅路(只读)"]));
+      panel.appendChild(el("div", { style: "font-size:12px;color:var(--ink-dim)" }, [`${fromT?.name ?? b.start} → ${toT?.name ?? b.end} · ${b.cells.length} 格 · ${summary}`]));
     }
 
     // 平衡提示(task 4.5)
     const total = mapData.tiles.reduce((s, t) => s + (t.price || 0), 0);
     const prices = mapData.tiles.map((t) => t.price ?? 0).sort((a, b) => a - b);
-    panel.appendChild(el("div", { style: "margin-top:14px;font-size:12px;color:var(--ink-dim);border-top:1px solid rgba(140,110,60,0.3);padding-top:10px" }, [`城 ${mapData.tiles.length} · 捷径 ${mapData.shortcuts.length} · 总价 ${formatMoney(total)} · 单城 ${formatMoney(prices[0])}~${formatMoney(prices[prices.length - 1])}`]));
+    panel.appendChild(el("div", { style: "margin-top:14px;font-size:12px;color:var(--ink-dim);border-top:1px solid rgba(140,110,60,0.3);padding-top:10px" }, [`城 ${mapData.tiles.length} · 辅路 ${mapData.branch ? mapData.branch.cells.length + " 格" : "无"} · 总价 ${formatMoney(total)} · 单城 ${formatMoney(prices[0])}~${formatMoney(prices[prices.length - 1])}`]));
   }
 
   function fieldRow(label: string, val: string, on: (v: string) => void): HTMLElement {

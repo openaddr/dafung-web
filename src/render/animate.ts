@@ -46,18 +46,36 @@ export function createAnimator(
 
   async function animateMove(engine: GameEngine, moverId: string): Promise<void> {
     const path = engine.lastMove;
-    if (!path || path.traversed.length === 0) {
+    if (!path) {
       boardView.updateTokens(engine);
       return;
     }
     const player = engine.players.find((p) => p.id === moverId);
     if (!player) return;
     const token = boardView.tokenOf(moverId);
-    const target = player.position;
     if (!token) {
       boardView.updateTokens(engine);
       return;
     }
+    // 辅路逐格行进:沿 branchWaypoints 推进(无主路 traversed,或汇入后接主路 traversed)
+    if (path.branchWaypoints && path.branchWaypoints.length > 0) {
+      const start = path.from;
+      let prev = board.positionOf(start);
+      for (const wp of path.branchWaypoints) {
+        const dist = Math.hypot(wp.x - prev.x, wp.y - prev.y);
+        const dur = Math.min(0.46, Math.max(0.08, dist / 720));
+        token.style.transitionDuration = `${dur}s`;
+        boardView.setTokenPosition(moverId, wp.x, wp.y, false);
+        await delay(dur * 1000 + 10);
+        prev = wp;
+      }
+      token.style.transitionDuration = "";
+    }
+    if (path.traversed.length === 0) {
+      boardView.updateTokens(engine);
+      return;
+    }
+    const target = player.position;
     // 终点偏移量:与 updateTokens 共用 TOKEN_SLOT_OFFSETS,落格直接落到偏移位,避免"先中心再左移"
     const byTile = new Map<number, string[]>();
     for (const p of engine.players) {
@@ -111,7 +129,11 @@ export function createAnimator(
       const player = engine.players[f.playerIndex];
       if (!player) continue;
       const atPos = f.atTile != null ? board.positionOf(f.atTile) : null;
-      const tokenPos = board.positionOf(player.position);
+      // 玩家在辅路上时,浮动金额锚到辅路格坐标(否则 atTile=起点 tile 会与棋子分离)
+      const onBranchPos = player.onBranch != null && board.branch
+        ? board.branch.cells[player.onBranch.step]?.position ?? null
+        : null;
+      const tokenPos = onBranchPos ?? board.positionOf(player.position);
       const x = atPos?.x ?? tokenPos.x;
       const y = atPos?.y ?? tokenPos.y;
       const c = logicToClient(x, y);

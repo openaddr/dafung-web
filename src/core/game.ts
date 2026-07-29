@@ -1,6 +1,7 @@
 // 游戏引擎:开局三段式(国号→点将定序→选都)+ 回合状态机 + 胜负判定 + 战报日志。
 // 对应 C# 版 Flow/(SetupController/TurnFlowController) + Game/(GameRunner/VictoryDetector)。
 import type { Board } from "./board";
+import type { BranchCell } from "./board";
 import type { Dice } from "./dice";
 import type {
   AiDifficulty,
@@ -130,7 +131,8 @@ export class GameEngine {
       isBankrupt: false,
       position: 0,
       capitalIndex: -1,
-      pendingBranch: null,
+      onBranch: null,
+      skipTurns: 0,
       properties: [],
       heroes: [],
       treasures: [],
@@ -161,8 +163,9 @@ export class GameEngine {
       this.lastMove.landIndex !== this.lastMove.capitalIndex
     );
   }
-  currentBranchShortcut() {
-    return this.board.getShortcut(this.activePlayer.position);
+  /** 当前活跃玩家所在主路 tile 是否为辅路起点(供 UI 决定是否弹辅路抉择)。 */
+  currentTileIsBranchStart(): boolean {
+    return this.activePlayer.onBranch == null && this.board.getBranchStart(this.activePlayer.position);
   }
   alivePlayers(): Player[] {
     return this.players.filter((p) => !p.isBankrupt);
@@ -252,7 +255,7 @@ export class GameEngine {
     const score = (t: TileDef): number => {
       const def = this.catalog.get(t.propertyId);
       if (!def) return -Infinity;
-      let value = (def.rentByLevel[3] * 4.0) / def.buildCost;
+      let value = (def.resupplyPerLevel * 8.0) / def.buildCost; // 都城价值=补给性价比(本作不收租,看 resupplyPerLevel)
       value +=
         this.difficulty === "Simple"
           ? this.dice.nextFloat() * 2.0
@@ -324,7 +327,8 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
-  /** 抽签 → 移动 → 若路径含都城(非落点)进入驻跸抉择;否则直接落格。 */
+  /** 抽签 → 移动(主路或辅路逐格)→ 若路径含都城(非落点)进入驻跸抉择;否则直接落格。
+   *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell。 */
   rollAndMove(): void {
     if (this.turnPhase !== "Roll") {
       this.warn(`RollAndMove 在非 Roll 阶段(${this.turnPhase})被调用`);
@@ -340,21 +344,21 @@ export class GameEngine {
       mover.position,
       steps,
       mover.capitalIndex,
-      mover.pendingBranch,
+      mover.onBranch,
       false, // 不截断:经过都城时由 rollAndMove 触发 AwaitingCapitalHalt 抉择
     );
     const fromPos = mover.position;
-    const usedBranch = mover.pendingBranch;
     this.lastMove = path;
+    const destName = path.landBranchStep != null && this.board.branch
+      ? `辅路第${path.landBranchStep + 1}格`
+      : this.board.at(path.landIndex).name;
     this.logEvent(
       "roll",
       mover.guohao,
-      `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus ? `(+${moveBonus})` : ""} → ${this.board.at(path.landIndex).name}`,
-      `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus} from=#${fromPos} land=#${path.landIndex} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
+      `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus ? `(+${moveBonus})` : ""} → ${destName}`,
+      `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
     );
 
-    // 经过自己的都城(起点)→ 颁发委任状,无论后续驻跸或行军。
-    // 克制"运气好跑得快、一圈把城全占"——买城需要委任状,数量有限。
     // 经过自己的都城(起点)→ 颁发委任状(无论后续驻跸或行军)。
     // 克制"运气好跑得快、一圈把城全占"——买城需要委任状,数量有限。
     if (path.passedCapital) {
@@ -367,7 +371,8 @@ export class GameEngine {
       );
     }
     // 经过都城且落点不是都城 → 抉择:驻跸(补给+结束)or 继续行军到落点
-    if (path.passedCapital && path.landIndex !== mover.capitalIndex) {
+    // (辅路落格不会触发驻跸:辅路格不是都城)
+    if (path.landBranchStep == null && path.passedCapital && path.landIndex !== mover.capitalIndex) {
       this.turnPhase = "AwaitingCapitalHalt";
       this.logEvent(
         "system",
@@ -377,9 +382,28 @@ export class GameEngine {
       );
       return; // 等 haltAtCapital / continueMove
     }
-    // 否则直接到落点(落点=都城 或 路径不经过都城)
+    // 辅路逐格落点:落辅路第 step 格 → 触发该格效果
+    if (path.landBranchStep != null && this.board.branch) {
+      mover.onBranch = { step: path.landBranchStep };
+      this.turnPhase = "Land";
+      const cell = this.board.branch.cells[path.landBranchStep];
+      this.resolveBranchCell(mover, cell);
+      return;
+    }
+    // 主路落点(含从辅路汇入:endNode 及之后)
+    mover.onBranch = null; // 已在主路(清掉原 onBranch)
     mover.position = path.landIndex;
-    if (usedBranch != null) mover.pendingBranch = null;
+    // 落在辅路起点(且未在辅路)→ 弹入口抉择
+    if (this.board.getBranchStart(path.landIndex)) {
+      this.turnPhase = "AwaitingBranch";
+      this.logEvent(
+        "branch",
+        mover.guohao,
+        `${mover.guohao} 至辅路要隘「${this.board.at(path.landIndex).name}」:走大路 or 入辅路`,
+        `awaitingBranch player=${mover.id} tile=#${path.landIndex}`,
+      );
+      return; // 等 selectBranch
+    }
     this.turnPhase = "Land";
     this.resolveLanding();
   }
@@ -392,7 +416,6 @@ export class GameEngine {
     }
     const mover = this.activePlayer;
     mover.position = mover.capitalIndex;
-    if (mover.pendingBranch != null) mover.pendingBranch = null;
     const supply = this.applyResupply(mover);
     this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
     this.turnPhase = "Land";
@@ -407,29 +430,36 @@ export class GameEngine {
     }
     const mover = this.activePlayer;
     mover.position = this.lastMove!.landIndex;
-    if (mover.pendingBranch != null) mover.pendingBranch = null;
     this.turnPhase = "Land";
     this.resolveLanding();
   }
 
-  /** 选大路/小路:记录路线偏好(pendingBranch)并结束本回合。下回合掷骰时按此行军。
-   *  小路免费(纯捷径,不再结算后果/跳 rejoin)。大路也必设 pendingBranch,
-   *  否则下回合 endTurn 会因 pendingBranch==null 重入 AwaitingBranch(死循环)。 */
+  /** 辅路入口抉择:"Main"=走大路(起点 tile 按普通城落格,可购买等);
+   *  "Branch"=入辅路(置 onBranch={step:0},立即触发第 0 格效果)。
+   *  复用 AwaitingBranch 阶段 + selectBranch(改语义,不新加 phase)。 */
   selectBranch(kind: RouteKind): void {
     if (this.turnPhase !== "AwaitingBranch") {
       this.warn(`SelectBranch 在非 AwaitingBranch 阶段(${this.turnPhase})被调用`);
       return;
     }
     const p = this.activePlayer;
-    p.pendingBranch = { fromNode: p.position, kind };
+    const tile = this.board.at(p.position);
     this.logEvent(
       "branch",
       p.guohao,
-      `${p.guohao} 于 ${this.board.at(p.position).name} 取${kind === "Shortcut" ? "小路" : "大路"}`,
+      `${p.guohao} 于「${tile.name}」取${kind === "Branch" ? "辅路" : "大路"}`,
       `selectBranch player=${p.id} kind=${kind} at=#${p.position} cash=${p.cash}`,
     );
-    this.lastLandOutcome = { kind: "Noop" };
-    this.endTurn();
+    if (kind === "Branch" && this.board.branch) {
+      // 入辅路:站在第 0 格并触发其效果(resolveBranchCell 自行管理 turnPhase/endTurn)
+      p.onBranch = { step: 0 };
+      this.turnPhase = "Land";
+      this.resolveBranchCell(p, this.board.branch.cells[0]);
+      return;
+    }
+    // 走大路:起点 tile 按普通落格处理(可购买/升级/交涉等)
+    this.turnPhase = "Land";
+    this.resolveLanding();
   }
 
   buyProperty(): void {
@@ -531,26 +561,7 @@ export class GameEngine {
     // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
     if (tile.type === "Chance" || tile.type === "Fate") {
       const pool = tile.type === "Chance" ? CHANCE_EVENTS : FATE_EVENTS;
-      const ev = pool[Math.floor(this.dice.nextFloat() * pool.length)];
-      let bankrupt = false;
-      if (ev.cashDelta >= 0) {
-        mover.cash += ev.cashDelta;
-      } else {
-        const r = this.payOrLiquidate(mover, null, -ev.cashDelta);
-        if (r === "liquidating") return; // 进入清算,confirm 后 endTurn
-        bankrupt = r === "bankrupt";
-      }
-      this.pushFloater(mover, ev.cashDelta, tile.index, ev.cashDelta >= 0 ? "income" : "expense");
-      if (ev.cashDelta < 0) this.fireOnOtherLoseCash(mover);
-      this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 落 ${tile.name}:${ev.text} ${ev.cashDelta >= 0 ? "+" : "−"}${formatMoney(Math.abs(ev.cashDelta))}${bankrupt ? " → 破产" : ""}`,
-        `${tile.type!.toLowerCase()} player=${mover.id} event=${ev.id} delta=${ev.cashDelta} cash=${mover.cash}`,
-        ev.cashDelta,
-      );
-      this.endTurn();
+      this.applyRandomEvent(mover, tile.name, tile.index, pool, tile.type!.toLowerCase());
       return;
     }
     // 税关(Tax):固定缴税 ¥200
@@ -668,26 +679,25 @@ export class GameEngine {
       return;
     }
     this.advanceToNextActive();
+    // 中伏跳过:若新活跃玩家 skipTurns>0,扣 1 并继续推进到下一位(直到找到可行动者)
+    let safety = 0;
+    while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
+      const skipped = this.activePlayer;
+      skipped.skipTurns -= 1;
+      this.logEvent(
+        "branch",
+        skipped.guohao,
+        `${skipped.guohao} 中伏未消,跳过本回合`,
+        `skipTurn player=${skipped.id} remaining=${skipped.skipTurns}`,
+      );
+      this.advanceToNextActive();
+    }
     // 回合计数:当回合循环回到本轮起始玩家(draftOrder 中首个存活者)→ 轮次 +1
     const leader = this.draftOrder.find((i) => !this.players[i].isBankrupt);
     if (leader !== undefined && this.activeIndex === leader) this.round += 1;
-    // 离开分歧点(若上一回合设了 PendingBranch 且已移动):清空
-    const p = this.activePlayer;
-    if (p.pendingBranch != null && p.position !== p.pendingBranch.fromNode)
-      p.pendingBranch = null;
-    // 抵达分歧点起点:下回合掷骰前先选路(pendingBranch==null 表示尚未选)。
-    // 已选(pendingBranch!=null,且仍站在起点)→ 直接 Roll,避免重入 AwaitingBranch 死循环。
-    if (p.pendingBranch == null && this.board.getShortcut(p.position) != null) {
-      this.turnPhase = "AwaitingBranch";
-      this.logEvent(
-        "branch",
-        p.guohao,
-        `${p.guohao} 至要隘 ${this.board.at(p.position).name},抉择:大路 / 小路`,
-        `awaitingBranch player=${p.id} tile=#${p.position}`,
-      );
-    } else {
-      this.turnPhase = "Roll";
-    }
+    // 辅路入口抉择由 rollAndMove 落格到 startNode 时触发(本回合内 selectBranch 处理);
+    // endTurn 不再重复设置 AwaitingBranch,否则选"大路"停在起点的玩家每回合被反复提示。
+    this.turnPhase = "Roll";
     this.turnNumber += 1;
     // 不重置 lastRoll / lastMove:doRoll 的骰子翻滚与行军动画在 rollAndMove 之后执行,
     // 而落点有主(付租/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
@@ -729,10 +739,15 @@ export class GameEngine {
   // ──────────────────────────── 珍宝交涉(赠宝/贸易) ────────────────────────────
   /** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
   private resolveTreasureCity(mover: Player, tile: TileDef): void {
+    this.drawTreasureAt(mover, tile.name, tile.index);
+  }
+  /** 抽珍宝并拼点判定(复用于宝物城落格 + 辅路 treasure 格)。
+   *  sourceName=来源名(城名/「辅路探宝」),atTile=浮动金额锚点 tile 索引。 */
+  private drawTreasureAt(mover: Player, sourceName: string, atTile: number): void {
     this.lastLandOutcome = { kind: "Noop" };
     this.turnPhase = "Land";
     if (this.treasureDeck.length === 0) {
-      this.logEvent("system", mover.guohao, `${mover.guohao} 至「${tile.name}」,珍宝已被搜刮一空`, `treasureEmpty player=${mover.id}`);
+      this.logEvent("system", mover.guohao, `${mover.guohao} 至「${sourceName}」,珍宝已被搜刮一空`, `treasureEmpty player=${mover.id}`);
       this.endTurn();
       return;
     }
@@ -747,13 +762,69 @@ export class GameEngine {
     if (roll >= treasure.level) {
       // 成功:获得珍宝
       mover.treasures.push(treasure);
-      this.pushFloater(mover, guidePrice, mover.position, "income");
-      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${tile.name}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`, `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`, guidePrice);
+      this.pushFloater(mover, guidePrice, atTile, "income");
+      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`, `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`, guidePrice);
     } else {
       // 失败:珍宝放回牌堆底
       this.treasureDeck.push(treasure);
-      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${tile.name}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} < ${treasure.level},失之交臂`, `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`);
+      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} < ${treasure.level},失之交臂`, `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`);
     }
+    this.endTurn();
+  }
+
+  /** 随机事件(锦囊/天命 + 辅路 event 格):抽一条事件,结算 cashDelta(经 payOrLiquidate)。 */
+  private applyRandomEvent(
+    mover: Player,
+    sourceName: string,
+    atTile: number,
+    pool: ReadonlyArray<{ id: string; text: string; cashDelta: number }>,
+    logTag: string,
+  ): void {
+    this.lastLandOutcome = { kind: "Noop" };
+    this.turnPhase = "Land";
+    const ev = pool[Math.floor(this.dice.nextFloat() * pool.length)];
+    let bankrupt = false;
+    if (ev.cashDelta >= 0) {
+      mover.cash += ev.cashDelta;
+    } else {
+      const r = this.payOrLiquidate(mover, null, -ev.cashDelta);
+      if (r === "liquidating") return; // 进入清算,confirm 后 endTurn
+      bankrupt = r === "bankrupt";
+    }
+    this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
+    if (ev.cashDelta < 0) this.fireOnOtherLoseCash(mover);
+    this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 落 ${sourceName}:${ev.text} ${ev.cashDelta >= 0 ? "+" : "−"}${formatMoney(Math.abs(ev.cashDelta))}${bankrupt ? " → 破产" : ""}`,
+      `${logTag} player=${mover.id} event=${ev.id} delta=${ev.cashDelta} cash=${mover.cash}`,
+      ev.cashDelta,
+    );
+    this.endTurn();
+  }
+
+  /** 辅路格落格:treasure=拼点探宝(复用 drawTreasureAt);event=锦囊(复用 applyRandomEvent);
+   *  penalty=中伏,skipTurns=1(下回合跳过)。 */
+  private resolveBranchCell(mover: Player, cell: BranchCell): void {
+    if (cell.kind === "treasure") {
+      this.drawTreasureAt(mover, "辅路探宝", mover.position);
+      return;
+    }
+    if (cell.kind === "event") {
+      this.applyRandomEvent(mover, "辅路锦囊", mover.position, CHANCE_EVENTS, "branchChance");
+      return;
+    }
+    // penalty:中伏,下回合跳过
+    this.lastLandOutcome = { kind: "Noop" };
+    this.turnPhase = "Land";
+    mover.skipTurns = 1;
+    this.logEvent(
+      "branch",
+      mover.guohao,
+      `${mover.guohao} 在辅路中伏,下回合跳过`,
+      `branchPenalty player=${mover.id} skipTurns=1`,
+    );
     this.endTurn();
   }
 

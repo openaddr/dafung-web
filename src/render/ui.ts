@@ -224,11 +224,10 @@ export function createDecisionScroll(
   const tile = engine.board.at(engine.activePlayer.position);
   if (outcome.kind === "PropertyAvailable" && outcome.property) {
     const def = outcome.property;
-    const rentList = def.rentByLevel.slice(0, 3).map((r, i) => `L${i} ${formatMoney(r)}`).join(" / ");
     const buyer = engine.activePlayer;
     const canBuy = buyer.cash >= def.purchasePrice && buyer.warrants >= 1;
     const reason = buyer.warrants < 1 ? "委任状不足" : buyer.cash < def.purchasePrice ? "银两不足" : null;
-    return createScroll(parent, `进驻「${tile.name}」`, `购入价 ${formatMoney(def.purchasePrice)} · 消耗 1 委任状 · 租金 ${rentList}…`, [
+    return createScroll(parent, `进驻「${tile.name}」`, `购入价 ${formatMoney(def.purchasePrice)} · 消耗 1 委任状`, [
       { label: reason ? `购地(${reason})` : `购地 (1委任 + ${formatMoney(def.purchasePrice)})`, action: "buy", primary: canBuy },
       { label: "不取", action: "skip" },
     ]);

@@ -42,31 +42,11 @@ export interface PropertyDef {
   trade?: TradeFormula; // 贸易公式:翻倍(multiply)或加价(markup);缺省=指导价×等级倍率
 }
 
-/** 支路(捷径)后果。 */
-export type ShortcutConsequence =
-  | { kind: "FixedCost"; amount: number }
-  | { kind: "CoinFlip"; win: BranchEffect; lose: BranchEffect };
+/** 辅路格种类:treasure=拼点探宝,event=锦囊随机事件,penalty=中伏跳一回合。 */
+export type BranchCellKind = "treasure" | "event" | "penalty";
 
-export interface BranchEffect {
-  cashDelta: number; // 正=收入,负=支出
-}
-
-/** 分歧点的捷径(小路)。SideWaypoints 为 1–2 个独立坐标途经点。 */
-export interface ShortcutDef {
-  id: string;
-  branchNode: number;
-  rejoinNode: number;
-  sideWaypoints: BoardPos[];
-  consequence: ShortcutConsequence;
-}
-
-export type RouteKind = "Main" | "Shortcut";
-
-/** 踩中分歧点后设定的路线选择;离开分歧点后清空。 */
-export interface BranchChoice {
-  fromNode: number;
-  kind: RouteKind;
-}
+/** 路线抉择:大路(主环)/ 辅路(支线逐格行进)。 */
+export type RouteKind = "Main" | "Branch";
 
 /** 玩家持有的地产。账面价值 = 购入价 + 累计升级费。 */
 export interface PropertyHolding {
@@ -92,14 +72,19 @@ export interface Player {
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
-  pendingBranch: BranchChoice | null;
+  onBranch: { step: number } | null; // 在分岔辅路第几格(null=在主路)
+  skipTurns: number; // 待跳过的回合计数(辅路 penalty 格触发)
   properties: PropertyHolding[];
   heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
   heroLastFired: Record<string, number>; // 名士技能冷却:heroId → 上次触发的 round(供 cooldown 判定)
 }
 
-/** 移动路径。Traversed=真实 tile 索引(末尾为落点);Waypoints=动画途经位置序列(含支路途经点)。 */
+/** 移动路径。
+ *  Traversed=主路真实 tile 索引(辅路逐格时不填,改用 branchWaypoints);
+ *  Waypoints=主路动画途经位置(避城弧线);
+ *  LandBranchStep!=null 表示落辅路该 step 格(landIndex 为主路起点占位);
+ *  BranchWaypoints=辅路逐格行进的坐标序列(主路时为空)。 */
 export interface MovePath {
   from: number;
   traversed: number[];
@@ -108,6 +93,8 @@ export interface MovePath {
   capitalIndex: number;
   waypoints: BoardPos[];
   overshoot: number; // 必停都城:被截断后剩余未走的步数(用于补偿计算)
+  landBranchStep: number | null; // null=落主路 landIndex;number=落辅路第 step 格
+  branchWaypoints: BoardPos[]; // 辅路行军坐标序列(主路时为 [])
 }
 
 export interface DiceRoll {
@@ -192,7 +179,7 @@ export interface MapData {
   maxLevel: number;
   resupplyPerLevel: number;
   tiles: MapTile[];
-  shortcuts: MapShortcut[];
+  branch?: MapBranch | null; // 分岔辅路(可空;旧版 shortcuts 字段已废弃)
 }
 /** 贸易公式:multiply=翻倍(指导价×param×等级倍率);markup=加价((指导价+param)×等级倍率)。 */
 export interface TradeFormula {
@@ -213,12 +200,18 @@ export interface MapTile {
   rentByLevel?: number[];
   trade?: TradeFormula;
 }
-export interface MapShortcut {
+
+/** 分岔辅路格(JSON 形式):kind + 手配坐标。 */
+export interface MapBranchCell {
+  kind: BranchCellKind;
+  pos: number[]; // [x, y] 辅路格坐标(地图作者手配)
+}
+/** 分岔辅路(JSON 形式):start/end 为主路 tile id;cells 为支线格子(逐格掷骰沿此推进)。 */
+export interface MapBranch {
   id: string;
-  from: string; // tile id
-  to: string; // tile id
-  consequence: ShortcutConsequence;
-  waypoints?: number[][]; // 可选:手配支路途经点 [[x,y],...]
+  start: string; // tile id(主路起点)
+  end: string; // tile id(主路终点)
+  cells: MapBranchCell[];
 }
 
 /** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */

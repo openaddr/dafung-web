@@ -12,7 +12,6 @@ const BAD_OVERLAP_MAP = {
     { id: "a", name: "坏城A", pos: [0, 0], group: "a", region: "x", price: 200, upgrade: 100, buildCost: 450, rentByLevel: [10, 30, 90, 270, 400, 550] },
     { id: "b", name: "坏城B", pos: [10, 0], group: "a", region: "x", price: 200, upgrade: 100, buildCost: 450, rentByLevel: [10, 30, 90, 270, 400, 550] },
   ],
-  shortcuts: [],
 };
 
 test("坏档(城池重叠)自动降级到内置地图,不卡死且清档", async ({ page }) => {

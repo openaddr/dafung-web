@@ -1,13 +1,12 @@
 // 地图加载器:把 MapData(JSON)校验并构建为运行时对象(Board + catalog + 属性)。
-// 主路 = tiles 数组顺序闭合环;捷径 from/to 用 tile id 引用,sideWaypoints 默认用避城算法,
-// 若 JSON 提供 waypoints 则手配覆盖。校验失败抛可读错误。
-import { createBoard, sideArc } from "./board";
-import type { Board } from "./board";
+// 主路 = tiles 数组顺序闭合环;分岔辅路 branch 的 start/end 用 tile id 引用,
+// cells 的坐标由 JSON 手配。校验失败抛可读错误。
+import { createBoard } from "./board";
+import type { Board, BoardBranch, BranchCell } from "./board";
 import type {
   BoardPos,
   MapData,
   PropertyDef,
-  ShortcutDef,
   TileDef,
 } from "./types";
 import { MIN_TILE_DIST } from "./constants";
@@ -24,7 +23,7 @@ export interface LoadedMap {
   board: Board;
   properties: PropertyDef[];
   tiles: TileDef[];
-  shortcuts: ShortcutDef[];
+  branch: BoardBranch | null;
   catalog: MapCatalog;
   targetNetWorth: number;
   startingCash: number;
@@ -134,35 +133,31 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     },
   };
 
-  // shortcuts(from/to 为 tile id,解析为 index;sideWaypoints 默认避城,可手配覆盖)
-  const shortcuts: ShortcutDef[] = (d.shortcuts ?? []).map((s, i) => {
-    const fromIdx = idToIdx.get(s.from);
-    const toIdx = idToIdx.get(s.to);
-    if (fromIdx == null) fail(`第 ${i + 1} 条捷径 from 引用无效:${s.from}`);
-    if (toIdx == null) fail(`第 ${i + 1} 条捷径 to 引用无效:${s.to}`);
-    if (fromIdx === toIdx) fail(`第 ${i + 1} 条捷径 from 与 to 相同`);
-    if (s.consequence.kind === "CoinFlip") {
-      if (s.consequence.win.cashDelta < 0) fail(`第 ${i + 1} 条捷径 win 不能为负(胜应为得)`);
-      if (s.consequence.lose.cashDelta > 0) fail(`第 ${i + 1} 条捷径 lose 不能为正(败应为失)`);
-    }
-    const sideWaypoints = Array.isArray(s.waypoints) && s.waypoints.length
-      ? s.waypoints.map((wp) => ({ x: wp[0], y: wp[1] }))
-      : sideArc(positions[fromIdx], positions[toIdx], positions);
-    return {
-      id: s.id,
-      branchNode: fromIdx,
-      rejoinNode: toIdx,
-      sideWaypoints,
-      consequence: s.consequence,
-    };
-  });
+  // 分岔辅路(start/end 为 tile id,解析为 index;cells 坐标由 JSON 手配)
+  let branch: BoardBranch | null = null;
+  if (d.branch) {
+    const b = d.branch;
+    const startIdx = idToIdx.get(b.start);
+    const endIdx = idToIdx.get(b.end);
+    if (startIdx == null) fail(`辅路 start 引用无效:${b.start}`);
+    if (endIdx == null) fail(`辅路 end 引用无效:${b.end}`);
+    if (startIdx === endIdx) fail("辅路 start 与 end 相同");
+    if (!Array.isArray(b.cells) || b.cells.length === 0) fail("辅路 cells 为空");
+    const cells: BranchCell[] = b.cells.map((c, i) => {
+      if (c.kind !== "treasure" && c.kind !== "event" && c.kind !== "penalty")
+        fail(`辅路第 ${i + 1} 格 kind 非法:${String(c.kind)}`);
+      if (!Array.isArray(c.pos) || c.pos.length !== 2) fail(`辅路第 ${i + 1} 格 pos 格式错误`);
+      return { kind: c.kind, position: { x: c.pos[0], y: c.pos[1] } };
+    });
+    branch = { id: b.id, startNode: startIdx, endNode: endIdx, cells };
+  }
 
-  const board = createBoard(tiles, shortcuts);
+  const board = createBoard(tiles, branch);
   return {
     board,
     properties,
     tiles,
-    shortcuts,
+    branch,
     catalog,
     targetNetWorth: d.targetNetWorth,
     startingCash: d.startingCash,

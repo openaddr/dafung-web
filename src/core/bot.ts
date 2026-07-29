@@ -20,7 +20,14 @@ function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): nu
   const owner = engine.findOwner(def.id);
   if (!owner) return def.purchasePrice / 4; // 可买
   if (owner === p) return def.upgradeCost / 4; // 可升级
-  return -def.rentByLevel[1]; // 落他人地产,付租(按 Lv1 估)
+  return 0; // 落他人城:不收租(城主无珍宝=无事;有珍宝则城主择赠/贸易,访客不可控,估中性)
+}
+
+/** 辅路入口抉择:走大路时下一落点的近似价值(平均掷骰 3.5 步后的 tile)。 */
+function estimateBranchMainEv(engine: GameEngine, p: Player): number {
+  const n = engine.board.count;
+  const dest = (p.position + 4) % n; // 约 3-4 步后的主路落点
+  return estimateDestValue(engine, p, dest);
 }
 
 /** 驱动当前 bot 回合的一步决策;UI 在 bot 回合轮询调用直到进入下一玩家或 GameOver。 */
@@ -46,9 +53,27 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingBranch": {
-      // 小路免费=纯捷径(省步),总有利 → 总走小路
-      engine.selectBranch("Shortcut");
-      break;
+      // 辅路入口抉择:Simple 随机;Normal 估辅路 EV(treasure≈指导价期望 + event 轻微正 − penalty 风险)vs 主路落点价值
+      if (simple) {
+        engine.selectBranch(engine.dice.nextFloat() < 0.5 ? "Main" : "Branch");
+        return;
+      }
+      const branch = engine.board.branch;
+      let branchEv = 0;
+      if (branch) {
+        const cells = branch.cells;
+        // 平均掷骰 3.5:辅路每格约 1/3.5 概率被踩中(简化估)
+        const hitProb = 1 / 3.5;
+        for (const c of cells) {
+          if (c.kind === "treasure") branchEv += hitProb * 120; // 探宝期望(拼点成功率×指导价,粗估)
+          else if (c.kind === "event") branchEv += hitProb * 30; // 锦囊轻微正期望
+          else branchEv -= hitProb * 180; // 中伏:跳一回合的机会成本
+        }
+      }
+      // 主路:下一落点价值(起点 tile 之后约 3.5 步)
+      const mainEv = estimateBranchMainEv(engine, p);
+      engine.selectBranch(branchEv >= mainEv ? "Branch" : "Main");
+      return;
     }
 
     case "AwaitingDecision": {

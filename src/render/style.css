@@ -12,7 +12,7 @@
   --money: #4a7a4a;
   --danger: #b23a2e;
   --road-main: #8a6a3f;
-  --road-side: #c47a2a;
+  --road-branch: #c47a2a;
   --inkwash: #9c8a5e;
 
   --g-a: #8a5a3a;
@@ -59,7 +59,7 @@ body {
 
 #app {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 380px;
+  grid-template-columns: minmax(0, 1fr) clamp(280px, 26vw, 380px);
   height: 100vh;
   width: 100vw;
   gap: 0;
@@ -127,13 +127,13 @@ select,
   stroke-linejoin: round;
   opacity: 0.38;
 }
-.road-side {
+.road-branch {
   fill: none;
-  stroke: var(--road-side);
+  stroke: var(--road-branch);
   stroke-width: 8;
   stroke-linecap: round;
   stroke-dasharray: 14 8;
-  opacity: 0.92;
+  opacity: 0.9;
   animation: side-flow 1.4s linear infinite;
 }
 @keyframes side-flow {
@@ -432,7 +432,7 @@ select,
 .log-cat-upgrade { color: #8a6a1f; }
 .log-cat-rent { color: var(--danger); }
 .log-cat-supply { color: var(--money); }
-.log-cat-branch { color: var(--road-side); }
+.log-cat-branch { color: var(--road-branch); }
 .log-cat-halt { color: #4a6a8a; }
 .log-cat-victory { color: var(--gold); font-weight: 700; }
 .log-cat-system { color: var(--ink-dim); font-style: italic; }
@@ -838,10 +838,10 @@ select,
   opacity: 0.82;
 }
 
-@media (max-width: 880px) {
+@media (max-width: 860px) {
   #app {
     grid-template-columns: 1fr;
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(260px, 1fr) auto;
   }
   .sidebar {
     max-height: 42vh;

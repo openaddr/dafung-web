@@ -1,7 +1,7 @@
 // 棋盘 SVG 渲染:宣纸背景 + 远山河川 + 主路褐带/支路虚线 + 程序化城门 + 王旗都城 + 旌旗棋子。
 // 所有交互元素带语义 id/data,供 Playwright 精确查询。
 import type { Board } from "@core/board";
-import type { Player, TileDef } from "@core/types";
+import type { BoardPos, Player, TileDef } from "@core/types";
 import type { GameEngine } from "@core/game";
 import { playerColor, groupColor, Theme, rgba } from "@core/theme";
 import { findHolding } from "@core/player";
@@ -68,7 +68,7 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
 
   // ── 城池层 ──
   const tileLayer = svg("g", { id: "tiles" });
-  for (const tile of board.tiles) tileLayer.appendChild(buildGate(tile, board, catalog));
+  for (const tile of board.tiles) tileLayer.appendChild(buildGate(tile, catalog));
   // 城池接近重叠时:鼠标悬停哪个,哪个提到最上层(SVG 无 z-index,靠 DOM 顺序,后=上)。
   // 关键:仅在「未按下按键」(buttons===0)时重排。按下期间的 pointerover(指针轻微位移跨过
   // 子元素)会再次 appendChild,把 mousedown 目标节点移走,Chrome 据此吞掉随后的 click ——
@@ -116,14 +116,24 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
   }
 
   function updateTokens(engine: GameEngine, skipPlayerId?: string) {
-    // 同格错位:统计每个 tile 上的玩家
-    const byTile = new Map<number, string[]>();
+    // 同格错位:统计每个"位置键"上的玩家(辅路用 step 合成键,避免辅路玩家与起点 tile 叠加)
+    const posKey = (p: Player): string =>
+      p.onBranch != null && board.branch ? `b${p.onBranch.step}` : String(p.position);
+    const byTile = new Map<string, string[]>();
     for (const p of engine.players) {
       if (p.isBankrupt) continue;
-      const arr = byTile.get(p.position) ?? [];
+      const key = posKey(p);
+      const arr = byTile.get(key) ?? [];
       arr.push(p.id);
-      byTile.set(p.position, arr);
+      byTile.set(key, arr);
     }
+    /** 玩家当前渲染坐标(辅路上则取辅路格坐标)。 */
+    const renderPos = (p: Player): BoardPos => {
+      if (p.onBranch != null && board.branch) {
+        return board.branch.cells[p.onBranch.step]?.position ?? board.positionOf(p.position);
+      }
+      return board.positionOf(p.position);
+    };
     const offsets = TOKEN_SLOT_OFFSETS;
     for (const p of engine.players) {
       // setup 阶段未选都:不显示棋子(选完都城后才在都城出现,避免默认堆在长安)
@@ -135,8 +145,8 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       // 跳过指定玩家:行军动画期间由 animateMove 接管,避免 fullRender 把棋子提前拽到终点
       if (p.id === skipPlayerId) continue;
       let t = tokenEls.get(p.id);
-      const pos = board.positionOf(p.position);
-      const mates = byTile.get(p.position) ?? [p.id];
+      const pos = renderPos(p);
+      const mates = byTile.get(posKey(p)) ?? [p.id];
       const slot = Math.max(0, mates.indexOf(p.id));
       const off = offsets[slot % offsets.length];
       if (!t) {
@@ -287,7 +297,7 @@ function drawMountainsAndRivers(root: SVGSVGElement) {
   root.appendChild(rivers);
 }
 
-// ── 驿道:主路(粗褐) + 支路(细虚赭橙)──
+// ── 驿道:主路(粗褐) + 辅路(虚赭橙,连起点/各格/终点)──
 function drawRoads(layer: SVGGElement, board: Board) {
   const n = board.count;
   // 主路:逐段,长边带蜿蜒途经点
@@ -303,15 +313,28 @@ function drawRoads(layer: SVGGElement, board: Board) {
       svg("path", { class: "road-main", d, "data-segment": `${from}-${to}` }),
     );
   }
-  // 支路
-  for (const sc of board.shortcuts) {
-    const a = board.positionOf(sc.branchNode);
-    const b = board.positionOf(sc.rejoinNode);
-    const pts = [a, ...sc.sideWaypoints, b];
-    const d = polylinePath(pts);
+  // 辅路:起点 → 各 cell → 终点
+  const branch = board.branch;
+  if (branch) {
+    const start = board.positionOf(branch.startNode);
+    const end = board.positionOf(branch.endNode);
+    const pts = [start, ...branch.cells.map((c) => c.position), end];
     layer.appendChild(
-      svg("path", { class: "road-side", d, "data-shortcut": sc.id }),
+      svg("path", { class: "road-branch", d: polylinePath(pts), "data-branch": branch.id }),
     );
+    for (let i = 0; i < branch.cells.length; i++) {
+      const c = branch.cells[i];
+      const color = c.kind === "treasure" ? Theme.goldBright : c.kind === "event" ? Theme.gold : Theme.danger;
+      const icon = c.kind === "treasure" ? "宝" : c.kind === "event" ? "囊" : "伏";
+      const g = svg("g", { class: "branch-cell", "data-branch-cell": String(i), transform: `translate(${c.position.x} ${c.position.y})` });
+      g.appendChild(svg("circle", { r: 18, fill: rgba(Theme.panel), stroke: rgba(color), "stroke-width": 2 }));
+      g.appendChild(svg("text", { "text-anchor": "middle", y: 6, "font-family": "var(--font-brush)", "font-size": 18, fill: rgba(color), "font-weight": 700 }, [icon]));
+      layer.appendChild(g);
+    }
+    // 起点⇄标记:在起点 tile 旁画辅路入口记号
+    const sg = svg("g", { transform: `translate(${start.x + 44} ${start.y - 34})` });
+    sg.appendChild(svg("text", { "font-size": 28, fill: rgba(Theme.roadSide), "font-weight": 700 }, ["⇄"]));
+    layer.appendChild(sg);
   }
 }
 
@@ -355,7 +378,7 @@ function drawBuilding(g: SVGGElement, size: "large" | "medium" | "small") {
 }
 
 // ── 城池图标 ──
-function buildGate(tile: TileDef, board: Board, catalog: MapCatalog) {
+function buildGate(tile: TileDef, catalog: MapCatalog) {
   const sizeScale = tile.size === "small" ? 0.8 : tile.size === "medium" ? 0.9 : 1;
   const g = svg("g", {
     class: "tile",
@@ -364,7 +387,6 @@ function buildGate(tile: TileDef, board: Board, catalog: MapCatalog) {
     "data-name": tile.name,
     transform: `translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale})`,
   });
-  const isBranch = board.getShortcut(tile.index) != null;
 
   // 命中高亮底 + 都城/焦点光晕 + 持有者铭牌边框
   g.appendChild(svg("circle", { class: "tile-hilite", r: 62, fill: rgba(Theme.gold), opacity: "0" }));
@@ -400,11 +422,6 @@ function buildGate(tile: TileDef, board: Board, catalog: MapCatalog) {
   flag.appendChild(svg("polygon", { points: "0,-88 32,-79 0,-70", fill: "rgba(60,60,60,1)", stroke: "rgba(40,28,10,0.7)", "stroke-width": 1 }));
   flag.appendChild(svg("text", { class: "tile-flag-text", x: 11, y: -77, "text-anchor": "middle", "font-family": "var(--font-brush)", "font-size": 16, fill: "#fff" }));
   g.appendChild(flag);
-
-  // 捷径分歧标记
-  if (isBranch) {
-    g.appendChild(svg("text", { x: 44, y: -34, "font-size": 28, fill: rgba(Theme.roadSide), "font-weight": 700 }, ["⇄"]));
-  }
 
   return g;
 }

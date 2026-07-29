@@ -91,8 +91,7 @@ export class App {
     // 骰子面
     this.refs.diceFace.textContent = e.lastRoll ? SIGN_FACES[e.lastRoll.die - 1] : "签";
 
-    // 行军按钮:人类回合掷骰(Roll)或分歧点选路(AwaitingBranch)前都可用。
-    // AwaitingBranch 时点行军 → doRoll 入口拦截,弹选路卷轴而非掷骰。
+    // 行军按钮:人类回合 Roll(掷骰)或 AwaitingBranch(辅路入口抉择,点此弹卷轴而非掷骰)启用。
     const humanTurn =
       e.phase === "Playing" &&
       !e.activePlayer.isBot &&
@@ -178,8 +177,8 @@ export class App {
         return this.onHalt("continue");
       case "main":
         return this.onBranch("Main");
-      case "shortcut":
-        return this.onBranch("Shortcut");
+      case "branch":
+        return this.onBranch("Branch");
       case "buy":
         return this.onDecision("buy");
       case "upgrade":
@@ -282,18 +281,18 @@ export class App {
 
   private async doRoll() {
     const e = this.engine;
-    // 分歧点选路:下回合掷骰前先选大路/小路。选完 selectBranch→endTurn,不进入 rollAndMove。
+    // 辅路入口抉择(落格到 startNode 后):点行军按钮 → 弹选路卷轴(不掷骰)。
+    // 正常流程由 afterLand 直接弹卷轴;此处兜底处理卷轴已关/AwaitingBranch 态再次触发。
     if (e.turnPhase === "AwaitingBranch") {
       if (e.activePlayer.isBot) {
         this.busy = true;
         await botDelay();
-        botAct(e); // AwaitingBranch → selectBranch → endTurn
+        botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
         this.animator.spawnFloaters(e);
         this.fullRender();
         if (e.isOver) return this.showVictory();
-        return this.onTurnAdvanced();
+        return this.afterLand();
       }
-      // 人类:弹选路卷轴,等 onBranch
       this.showBranchScroll();
       this.busy = false;
       return;
@@ -330,9 +329,23 @@ export class App {
     await this.afterLand();
   }
 
-  /** 落格后:决策 / 回合结束。统一处理 bot 与人类。(分歧点选路已移到 doRoll 入口) */
-  private async afterLand() {
+  /** 落格后:辅路入口抉择 / 决策 / 回合结束。统一处理 bot 与人类。 */
+  private async afterLand(): Promise<void> {
     const e = this.engine;
+    if (e.turnPhase === "AwaitingBranch") {
+      // 落到辅路起点:bot 直接决策;人类弹选路卷轴
+      if (e.activePlayer.isBot) {
+        await botDelay();
+        botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
+        this.animator.spawnFloaters(e);
+        this.fullRender();
+        if (e.isOver) return this.showVictory();
+        return this.afterLand(); // 入辅路触发首格 / 走大路落格后可能进入决策
+      }
+      this.showBranchScroll();
+      this.busy = false;
+      return;
+    }
     if (e.turnPhase === "AwaitingDecision") {
       if (e.activePlayer.isBot) {
         await botDelay();
@@ -402,9 +415,6 @@ export class App {
     this.animator.showTurnBanner(e.activePlayer.guohao, e.activePlayer.colorIndex);
     if (e.activePlayer.isBot) {
       this.scheduleBot();
-    } else if (e.turnPhase === "AwaitingBranch") {
-      // 人类新回合即站在分歧点:直接弹选路卷轴(行军前先择路)
-      this.showBranchScroll();
     }
   }
 
@@ -424,7 +434,7 @@ export class App {
     await this.afterLand();
   }
 
-  private async onBranch(kind: "Main" | "Shortcut") {
+  private async onBranch(kind: "Main" | "Branch") {
     if (this.busy) return;
     const e = this.engine;
     if (e.turnPhase !== "AwaitingBranch") return;
@@ -434,7 +444,8 @@ export class App {
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.isOver) return this.showVictory();
-    this.onTurnAdvanced();
+    // 选 Branch 触发辅路首格效果,选 Main 按普通城落格:都可能进入决策/清算/下回合
+    await this.afterLand();
   }
 
   private async onDecision(action: "buy" | "upgrade" | "skip") {
@@ -491,15 +502,15 @@ export class App {
   private showBranchScroll() {
     this.hideOverlay();
     const e = this.engine;
-    const sc = e.currentBranchShortcut();
     const tile = e.board.at(e.activePlayer.position);
-    const dest = sc ? e.board.at(sc.rejoinNode) : null;
-    const preview = sc
-      ? `大路:沿主驿道前行。小路:直插「${dest?.name}」(捷径,免通行费)。`
+    const branch = e.board.branch;
+    const cellCount = branch?.cells.length ?? 0;
+    const preview = branch
+      ? `大路:沿主驿道前行。辅路:另辟蹊径(${cellCount} 格,沿途或探珍宝、或遇锦囊,亦有中伏之险),逐格行进至终点汇入主路。`
       : "大路:沿主驿道前行";
-    this.overlay = createScroll(this.boardWrap, `要隘「${tile.name}」`, preview, [
+    this.overlay = createScroll(this.boardWrap, `辅路要隘「${tile.name}」`, preview, [
       { label: "走大路", action: "main", primary: true },
-      { label: "抄小路", action: "shortcut" },
+      { label: "入辅路", action: "branch" },
     ]);
   }
 
@@ -516,14 +527,13 @@ export class App {
     if (!def) return;
     const owner = e.findOwner(def.id);
     const isCapital = e.capitalOwnerOf(idx) != null;
-    const rents = def.rentByLevel.map((r, i) => `L${i} ${formatMoney(r)}`).join(" · ");
     const ownerText = owner ? `持有:${owner.guohao}` : "无主";
     const capText = isCapital ? ` · 都城 Lv.${owner?.properties.find((h) => h.propertyId === def.id)?.level ?? 0}` : "";
     this.hideOverlay();
     this.overlay = createScroll(
       this.boardWrap,
       `「${tile.name}」`,
-      `${tile.region} · ${ownerText}${capText} · 购入 ${formatMoney(def.purchasePrice)} · 租金 ${rents}`,
+      `${tile.region} · ${ownerText}${capText} · 购入 ${formatMoney(def.purchasePrice)}`,
       [],
       () => this.hideOverlay(),
     );

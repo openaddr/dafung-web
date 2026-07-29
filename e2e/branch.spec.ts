@@ -1,17 +1,28 @@
-// 分歧路(捷径)重做 e2e:抵达分歧点起点后,下回合掷骰前先弹选路卷轴;
-// 选小路(免费捷径)→ 再下回合 rollAndMove 经捷径行军至 rejoin 节点。
-// 覆盖:doRoll 入口的 AwaitingBranch 拦截、selectBranch 设 pendingBranch、
-// rollAndMove 用 pendingBranch 走捷径(board.computePath 第一步 = rejoin)。
+// 分岔辅路 e2e:落到辅路起点(许昌)→ 弹入口抉择 → 入辅路逐格掷骰 → 终点汇入主路。
+// 覆盖:doRoll 入口 AwaitingBranch 拦截弹卷轴、selectBranch(Branch) 置 onBranch={step:0}
+// + 触发首格、后续 rollAndMove 沿 branch.cells 推进(branchWaypoints)、到终点清 onBranch 落 endNode。
 import { test, expect } from "@playwright/test";
 import { setupAndPlay, snap } from "./helpers";
 
-// 赤壁(#11):无主 Property 型分歧点,rejoin = 江陵(#14)。主路 11→12→13→14,
-// 小路 11⇒14(一步直达)。落此城可购买(像普通无主城),购买后下回合掷骰前再选路。
-const BRANCH_TILE = 11;
-const REJOIN_TILE = 14;
+// 辅路:许昌(#5)→ 襄阳(#8),5 格(珍宝/珍宝/锦囊/珍宝/中伏)。
+const BRANCH_START_NAME = "许昌";
+const BRANCH_END_NAME = "襄阳";
 
-/** 等到轮到人类(p0)且为 Roll 阶段。选都定序 + 先手差异下,首回合可能是 bot 先行。 */
-async function waitForHumanRoll(page: import("@playwright/test").Page, timeoutMs = 30000) {
+async function branchStartIndex(page: import("@playwright/test").Page): Promise<number> {
+  return page.evaluate((name) => {
+    const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
+    return eng.board.tiles.find((t: any) => t.name === name).index;
+  }, BRANCH_START_NAME);
+}
+async function branchEndIndex(page: import("@playwright/test").Page): Promise<number> {
+  return page.evaluate((name) => {
+    const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
+    return eng.board.tiles.find((t: any) => t.name === name).index;
+  }, BRANCH_END_NAME);
+}
+
+/** 等到轮到人类(p0)且为 Roll 阶段。 */
+async function waitForHumanRoll(page: import("@playwright/test").Page, timeoutMs = 30000): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const s = await snap(page);
@@ -22,50 +33,70 @@ async function waitForHumanRoll(page: import("@playwright/test").Page, timeoutMs
   return false;
 }
 
-test("分歧点:掷骰前弹选路卷轴,选小路走捷径抵达 rejoin", async ({ page }) => {
-  test.setTimeout(60_000);
+test("辅路:落起点弹抉择,入辅路逐格行进,终点汇入主路", async ({ page }) => {
+  test.setTimeout(90_000);
   await setupAndPlay(page, "2", 20260728); // p0=人类,p1=bot
-  // 先手可能为 bot,等到轮到人类(p0)再布置场景
   expect(await waitForHumanRoll(page)).toBe(true);
 
-  // 模拟"上回合落格停在分歧点":把 p0 放到赤壁,强制 AwaitingBranch(pendingBranch==null)。
-  // 这正是 engine.endTurn 推进到分歧点起点时自动设置的状态。
-  await page.evaluate((branch) => {
-    const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
-    eng.players[0].position = branch;
-    eng.players[0].pendingBranch = null;
-    eng.turnPhase = "AwaitingBranch";
-  }, BRANCH_TILE);
+  const startIdx = await branchStartIndex(page);
+  const endIdx = await branchEndIndex(page);
 
-  // 点「行军」→ onRoll→doRoll 入口拦截 AwaitingBranch → 弹选路卷轴(不掷骰)
+  // 模拟"上回合落格停在辅路起点":把 p0 放到许昌,强制 AwaitingBranch。
+  await page.evaluate((start) => {
+    const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
+    eng.players[0].position = start;
+    eng.players[0].onBranch = null;
+    eng.turnPhase = "AwaitingBranch";
+  }, startIdx);
+
+  // 点「行军」→ onRoll→doRoll 入口拦截 AwaitingBranch → 弹辅路抉择卷轴(不掷骰)
   await expect(page.locator("#roll-btn")).toBeEnabled({ timeout: 5000 });
   await page.locator("#roll-btn").click();
   await expect(page.locator(".scroll-overlay")).toBeVisible({ timeout: 3000 });
-  await expect(page.locator(".scroll-overlay")).toContainText("赤壁");
+  await expect(page.locator(".scroll-overlay")).toContainText("许昌");
+  await expect(page.locator(".scroll-overlay")).toContainText("辅路");
 
-  // 选小路 → selectBranch 设 pendingBranch{Shortcut}+endTurn → 切到 bot(p1)
-  await page.locator('.scroll-overlay [data-action="shortcut"]').click();
+  // 入辅路 → selectBranch("Branch"):onBranch={step:0} + 触发第 0 格(珍宝拼点)
+  await page.locator('.scroll-overlay [data-action="branch"]').click();
   await page.waitForTimeout(300);
-  const pb = await page.evaluate(() => {
+  const after1 = await page.evaluate(() => {
     const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
-    return eng.players[0].pendingBranch;
+    return { onBranch: eng.players[0].onBranch, turnPhase: eng.turnPhase };
   });
-  expect(pb).toEqual({ fromNode: BRANCH_TILE, kind: "Shortcut" });
+  expect(after1.onBranch).toEqual({ step: 0 }); // 已在辅路第 0 格
 
-  // 等 bot 走完一回合,轮到 p0:pendingBranch 已设 → endTurn 不再 AwaitingBranch → Roll
-  expect(await waitForHumanRoll(page)).toBe(true);
+  // 驱动若干回合(自动抉择),直到 p0 离开辅路(汇入主路)或回合用尽
+  let rejoined = false;
+  for (let i = 0; i < 40; i++) {
+    // 等到轮到人类 Roll
+    if (!(await waitForHumanRoll(page))) break;
+    // 若仍 in 辅路,掷骰推进;若已汇入主路(endNode 或更远),收尾判定
+    const st = await page.evaluate(() => {
+      const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
+      return { onBranch: eng.players[0].onBranch, pos: eng.players[0].position };
+    });
+    if (st.onBranch == null) {
+      rejoined = true;
+      break;
+    }
+    await page.locator("#roll-btn").click();
+    await page.waitForTimeout(1800); // 掷骰 + 行军 + bot 一回合
+    // 关掉可能弹出的卷轴(决策/招贤等),点主按钮
+    const overlay = await page.$(".scroll-overlay");
+    if (overlay) {
+      await page.click('.scroll-overlay .btn-primary').catch(() => {});
+      await page.waitForTimeout(300);
+    }
+  }
 
-  // 掷骰:rollAndMove 用 pendingBranch 走小路,computePath 第一步直达 rejoin(江陵#14)
-  await page.locator("#roll-btn").click();
-  await page.waitForTimeout(2500);
-  const post = await page.evaluate(() => {
+  // 校验:已汇入主路(无论落在 endNode 还是更远)
+  expect(rejoined).toBe(true);
+  const final = await page.evaluate(() => {
     const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
-    const mv = eng.lastMove;
-    return {
-      firstStep: mv && mv.traversed && mv.traversed.length > 0 ? mv.traversed[0] : null,
-      fromTile: mv ? mv.from : null,
-    };
+    return { onBranch: eng.players[0].onBranch, pos: eng.players[0].position };
   });
-  expect(post.fromTile).toBe(BRANCH_TILE); // 确认从分歧点起步
-  expect(post.firstStep).toBe(REJOIN_TILE); // 第一步经捷径直达 rejoin(江陵)
+  expect(final.onBranch).toBeNull();
+  // 位置应在 endNode 或之后(主路上),不再停在起点
+  expect(final.pos).not.toBe(startIdx);
+  void endIdx;
 });

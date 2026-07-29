@@ -1,26 +1,40 @@
-// 棋盘逻辑:有序、首尾相接的不规则环 + 分歧点支路。计算移动路径与下一节点;不含渲染/游戏流程。
-// 对应 C# 版 Board.cs(GameBoard)。
-import type { BoardPos, BranchChoice, MovePath, ShortcutDef, TileDef } from "./types";
+// 棋盘逻辑:有序、首尾相接的不规则主环 + 至多一条分岔辅路。
+// 计算移动路径与下一节点;不含渲染/游戏流程。对应 C# 版 Board.cs(GameBoard)。
+import type { BoardPos, MovePath, TileDef, BranchCellKind } from "./types";
+
+/** 辅路运行时格(含坐标,由 board-loader 从 JSON 解析)。 */
+export interface BranchCell {
+  kind: BranchCellKind;
+  position: BoardPos;
+}
+/** 辅路运行时形态:startNode/endNode 为主路 tile index;cells 含坐标。 */
+export interface BoardBranch {
+  id: string;
+  startNode: number;
+  endNode: number;
+  cells: BranchCell[];
+}
 
 export interface Board {
   readonly count: number;
   readonly tiles: readonly TileDef[];
-  readonly shortcuts: readonly ShortcutDef[];
-  getShortcut(branchNode: number): ShortcutDef | null;
+  readonly branch: BoardBranch | null;
+  /** 该主路 tile 是否辅路起点。 */
+  getBranchStart(tileIndex: number): boolean;
   at(index: number): TileDef;
   positionOf(index: number): BoardPos;
-  next(current: number, choice: BranchChoice | null): number;
+  next(current: number): number;
   computePath(
     fromIndex: number,
     steps: number,
     capitalIndex: number,
-    pendingBranch?: BranchChoice | null,
+    onBranch?: { step: number } | null,
     stopAtCapital?: boolean,
   ): MovePath;
   edgeWaypoints(from: number, to: number, threshold?: number): BoardPos[];
 }
 
-/** 避城弧线:在 a→b 的两个法向量方向中,选离其他城池更远的弧线途经点。主路与支路共用。 */
+/** 避城弧线:在 a→b 的两个法向量方向中,选离其他城池更远的弧线途经点。主路与辅路共用。 */
 export function sideArc(a: BoardPos, b: BoardPos, others: BoardPos[]): BoardPos[] {
   const dx = b.x - a.x;
   const dy = b.y - a.y;
@@ -52,31 +66,20 @@ export function sideArc(a: BoardPos, b: BoardPos, others: BoardPos[]): BoardPos[
   return best;
 }
 
-export function createBoard(tiles: TileDef[], shortcuts: ShortcutDef[]): Board {
+export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Board {
   const ordered = [...tiles].sort((a, b) => a.index - b.index);
   if (ordered.length === 0) throw new Error("Board must have at least one tile.");
-  const byBranchNode = new Map<number, ShortcutDef>();
-  for (const s of shortcuts) byBranchNode.set(s.branchNode, s);
 
   const count = ordered.length;
   const normalize = (index: number): number => ((index % count) + count) % count;
 
   const at = (index: number): TileDef => ordered[normalize(index)];
   const positionOf = (index: number): BoardPos => ordered[normalize(index)].position;
-  const getShortcut = (branchNode: number): ShortcutDef | null =>
-    byBranchNode.get(branchNode) ?? null;
+  const br: BoardBranch | null = branch ?? null;
+  const getBranchStart = (tileIndex: number): boolean =>
+    br != null && normalize(tileIndex) === normalize(br.startNode);
 
-  const next = (current: number, choice: BranchChoice | null): number => {
-    if (
-      choice != null &&
-      choice.fromNode === current &&
-      choice.kind === "Shortcut" &&
-      byBranchNode.has(current)
-    ) {
-      return byBranchNode.get(current)!.rejoinNode;
-    }
-    return normalize(current + 1);
-  };
+  const next = (current: number): number => normalize(current + 1);
 
   const edgeWaypoints = (from: number, to: number, threshold = 300): BoardPos[] => {
     const a = positionOf(from);
@@ -86,53 +89,94 @@ export function createBoard(tiles: TileDef[], shortcuts: ShortcutDef[]): Board {
     return sideArc(a, b, others);
   };
 
+  /** 主路行军(不含辅路):逐格 +1,长边带蜿蜒途经点,必停都城截断。 */
+  const computePathMain = (
+    fromIndex: number,
+    steps: number,
+    capitalIndex: number,
+    stopAtCapital: boolean,
+  ): MovePath => {
+    const traversed: number[] = [];
+    const waypoints: BoardPos[] = [];
+    let current = fromIndex;
+    for (let i = 0; i < steps; i++) {
+      const prev = current;
+      current = normalize(current + 1);
+      traversed.push(current);
+      for (const bp of edgeWaypoints(prev, current)) waypoints.push(bp);
+      waypoints.push(positionOf(current));
+      // 必停都城:经过自己的都城时截断(不能再越过)
+      if (stopAtCapital && capitalIndex >= 0 && current === capitalIndex) break;
+    }
+    const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
+    const passedCapital = capitalIndex >= 0 && traversed.includes(capitalIndex);
+    const overshoot = steps - traversed.length;
+    return {
+      from: fromIndex, traversed, landIndex, passedCapital, capitalIndex,
+      waypoints, overshoot, landBranchStep: null, branchWaypoints: [],
+    };
+  };
+
   const computePath = (
     fromIndex: number,
     steps: number,
     capitalIndex: number,
-    pendingBranch: BranchChoice | null = null,
+    onBranch: { step: number } | null = null,
     stopAtCapital = false,
   ): MovePath => {
     if (steps < 0) throw new RangeError("steps must be >= 0");
-    const traversed: number[] = [];
-    const waypoints: BoardPos[] = [];
-    let current = fromIndex;
 
-    for (let i = 0; i < steps; i++) {
-      const stepChoice: BranchChoice | null = i === 0 ? pendingBranch : null;
-      const takeShortcut =
-        stepChoice?.kind === "Shortcut" &&
-        stepChoice.fromNode === current &&
-        byBranchNode.has(current);
-
-      if (takeShortcut) {
-        const shortcut = byBranchNode.get(current)!;
-        for (const wp of shortcut.sideWaypoints) waypoints.push(wp);
-        current = shortcut.rejoinNode;
-        traversed.push(current);
-        waypoints.push(positionOf(current));
-      } else {
-        const prev = current;
-        current = normalize(current + 1);
-        traversed.push(current);
-        for (const bp of edgeWaypoints(prev, current)) waypoints.push(bp);
-        waypoints.push(positionOf(current));
+    // 辅路逐格行进
+    if (onBranch != null && br != null) {
+      const N = br.cells.length;
+      const step = onBranch.step;
+      // 从当前格 step 走到 endNode(主路)需要 (N - step) 步:经 step+1..N-1 各格,再落 endNode
+      const stepsToRejoin = N - step;
+      if (steps < stepsToRejoin) {
+        // 仍在辅路:落到第 (step + steps) 格
+        const newStep = step + steps;
+        const branchWaypoints: BoardPos[] = [];
+        for (let s = step + 1; s <= newStep; s++) branchWaypoints.push(br.cells[s].position);
+        return {
+          from: fromIndex,
+          traversed: [],
+          landIndex: fromIndex, // 占位:辅路落格时主路位置仍是起点
+          passedCapital: false,
+          capitalIndex,
+          waypoints: [],
+          overshoot: 0,
+          landBranchStep: newStep,
+          branchWaypoints,
+        };
       }
-      // 必停都城:经过自己的都城时截断(不能再越过)
-      if (stopAtCapital && capitalIndex >= 0 && current === capitalIndex) break;
+      // 汇入主路:先走完辅路到 endNode,剩余步数走主路
+      const mainSteps = steps - stepsToRejoin;
+      const branchWaypoints: BoardPos[] = [];
+      for (let s = step + 1; s <= N - 1; s++) branchWaypoints.push(br.cells[s].position);
+      branchWaypoints.push(positionOf(br.endNode));
+      const mainPath = computePathMain(br.endNode, mainSteps, capitalIndex, stopAtCapital);
+      return {
+        from: fromIndex,
+        traversed: mainPath.traversed,
+        landIndex: mainSteps === 0 ? br.endNode : mainPath.landIndex,
+        passedCapital: mainPath.passedCapital,
+        capitalIndex,
+        waypoints: mainPath.waypoints,
+        overshoot: mainPath.overshoot,
+        landBranchStep: null, // 已汇入主路
+        branchWaypoints,
+      };
     }
 
-    const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
-    const passedCapital = capitalIndex >= 0 && traversed.includes(capitalIndex);
-    const overshoot = steps - traversed.length;
-    return { from: fromIndex, traversed, landIndex, passedCapital, capitalIndex, waypoints, overshoot };
+    // 主路行军
+    return computePathMain(fromIndex, steps, capitalIndex, stopAtCapital);
   };
 
   return {
     count,
     tiles: ordered,
-    shortcuts: [...shortcuts],
-    getShortcut,
+    branch: br,
+    getBranchStart,
     at,
     positionOf,
     next,

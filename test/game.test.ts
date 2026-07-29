@@ -80,7 +80,7 @@ function autoResolve(e: GameEngine) {
   let guard = 0;
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
     if (e.turnPhase === "AwaitingCapitalHalt") e.continueMove();
-    else if (e.turnPhase === "AwaitingBranch") e.selectBranch("Shortcut");
+    else if (e.turnPhase === "AwaitingBranch") e.selectBranch("Branch");
     else if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(0);
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
@@ -254,3 +254,79 @@ describe("名士(英雄)", () => {
     expect(e.round).toBe(2);
   });
 });
+
+describe("分岔辅路", () => {
+  const BRANCH_START = MAP.tiles.findIndex((t) => t.name === "许昌"); // 辅路起点
+  const BRANCH_END = MAP.tiles.findIndex((t) => t.name === "襄阳"); // 辅路终点
+
+  /** 把当前活跃玩家放到辅路起点并设 AwaitingBranch(模拟落格到起点)。 */
+  function landOnBranchStart(e: GameEngine) {
+    const p = e.activePlayer;
+    p.position = BRANCH_START;
+    p.onBranch = null;
+    e.turnPhase = "AwaitingBranch" as any;
+  }
+
+  it("入口抉择 selectBranch(Branch):置 onBranch={step:0} 并触发第 0 格(treasure)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    landOnBranchStart(e);
+    e.selectBranch("Branch");
+    expect(p.onBranch).toEqual({ step: 0 });
+    // 第 0 格=treasure → drawTreasureAt:拼点成功 treasures+1,失败放回牌堆。两种都合法,只校验状态推进
+    expect(e.turnPhase === "Roll" || e.turnPhase === "AwaitingBankruptcySettle").toBe(true);
+  });
+
+  it("入口抉择 selectBranch(Main):按普通城落格(许昌可购买)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    landOnBranchStart(e);
+    e.selectBranch("Main");
+    expect(p.onBranch).toBeNull();
+    expect(p.position).toBe(BRANCH_START);
+    // 许昌是无主城 → AwaitingDecision(可购买)
+    expect(e.turnPhase).toBe("AwaitingDecision");
+  });
+
+  it("辅路逐格掷骰:onBranch.step 推进;落辅路格(未到终点)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    // 直接置入辅路第 0 格,Roll 阶段
+    p.onBranch = { step: 0 };
+    p.position = BRANCH_START;
+    e.turnPhase = "Roll";
+    // 用确定骰(seed=1)只校验:掷骰后仍在辅路或已汇入(取决于点数),且不崩
+    e.rollAndMove();
+    autoResolve(e);
+    // 落格后要么仍在辅路(step 增),要么已汇入 endNode 之后。两种都合法。
+    const stillOnBranch = p.onBranch != null;
+    const rejoined = p.onBranch == null && p.position !== BRANCH_START;
+    expect(stillOnBranch || rejoined).toBe(true);
+  });
+
+  it("penalty 格触发 skipTurns:踩中第 4 格(中伏)→ 下回合被跳过", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    // 直接置入辅路第 4 格(penalty)并调用 resolveBranchCell
+    p.onBranch = { step: 4 };
+    p.position = BRANCH_START;
+    e.turnPhase = "Land" as any;
+    (e as any).resolveBranchCell(p, e.board.branch!.cells[4]);
+    expect(p.skipTurns).toBe(1);
+    // 战报含"中伏"
+    expect(e.log.some((ev) => ev.category === "branch" && ev.brief.includes("中伏"))).toBe(true);
+  });
+
+  it("辅路终点汇入:从 step0 走完所有格 → 清 onBranch,落 endNode(主路)", () => {
+    const board = MAP.board;
+    const N = board.branch!.cells.length;
+    const path = board.computePath(BRANCH_START, N, -1, { step: 0 });
+    expect(path.landBranchStep).toBeNull();
+    expect(path.landIndex).toBe(BRANCH_END);
+  });
+});
+
