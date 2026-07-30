@@ -105,7 +105,10 @@ export function renderWarlog(
     state.rendered = 0;
   }
   const frag = document.createDocumentFragment();
-  for (let i = state.rendered; i < all.length; i++) {
+  // 重建(state.rendered=0)时只渲染最近 300 条,避免渲染数千 DOM 节点再裁剪。
+  // 增量(state.rendered>0)时从上次断点继续,不重复渲染旧条目。
+  const start = state.rendered === 0 ? Math.max(0, all.length - 300) : state.rendered;
+  for (let i = start; i < all.length; i++) {
     const e = all[i];
     const text = mode === "brief" ? e.brief : e.detail;
     const amt =

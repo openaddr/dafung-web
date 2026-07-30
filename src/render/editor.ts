@@ -28,7 +28,8 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     history.pop();
     const prev = history[history.length - 1];
     mapData.tiles = JSON.parse(JSON.stringify(prev.tiles)) as MapData["tiles"];
-    if (prev.branch != null) mapData.branch = JSON.parse(JSON.stringify(prev.branch)) as MapData["branch"];
+    // 无脑赋值(而非 if 判断):从有辅路撤销到无辅路时,确保 branch 被清空为 null
+    mapData.branch = prev.branch != null ? JSON.parse(JSON.stringify(prev.branch)) as MapData["branch"] : null;
     lastSnapshot = JSON.stringify(mapData);
     selected = Math.min(selected, mapData.tiles.length - 1);
     rerender();

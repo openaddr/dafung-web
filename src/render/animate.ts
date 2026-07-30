@@ -150,9 +150,10 @@ export function createAnimator(
       const onBranchPos = player.onBranch != null && board.branch
         ? board.branch.cells[player.onBranch.step]?.position ?? null
         : null;
-      const tokenPos = onBranchPos ?? board.positionOf(player.position);
-      const x = atPos?.x ?? tokenPos.x;
-      const y = atPos?.y ?? tokenPos.y;
+      // 优先级:辅路格 > 事件 tile > 玩家主路位置(辅路时 atTile=起点 tile 会偏移)
+      const tokenPos = board.positionOf(player.position);
+      const x = onBranchPos?.x ?? atPos?.x ?? tokenPos.x;
+      const y = onBranchPos?.y ?? atPos?.y ?? tokenPos.y;
       const c = logicToClient(x, y);
       spawnFloater(c.left, c.top, f.amount);
       if (f.kind === "supply") spawnCoins(c.left, c.top);

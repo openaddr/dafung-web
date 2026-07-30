@@ -76,6 +76,7 @@ export class GameEngine {
   turnPhase: TurnPhase = "Roll";
   turnNumber = 0;
   round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名士技能冷却等使用)
+  private roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   private recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
@@ -243,7 +244,20 @@ export class GameEngine {
     if (idx < 0) return false;
     if (!this.players[idx].isBot) return false;
     const tileIdx = this.aiChooseCapital();
-    if (tileIdx >= 0) this.pickCapital(idx, tileIdx);
+    if (tileIdx >= 0) {
+      const r = this.pickCapital(idx, tileIdx);
+      if (!r.ok) {
+        // 极端地图(buildCost 全 > 现金):pickCapital 失败,推进 draft 防死循环
+        this.warn(`AI 选都失败(${r.reason ?? "未知"}),跳过`);
+        this.currentDraftIndex++;
+        if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+      }
+    } else {
+      // 无可选都城:推进 draft 防死循环
+      this.warn("AI 无可选都城,跳过");
+      this.currentDraftIndex++;
+      if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+    }
     return true;
   }
 
@@ -315,6 +329,7 @@ export class GameEngine {
     this.phase = "Playing";
     this.turnPhase = "Roll";
     this.activeIndex = this.draftOrder[0] ?? 0;
+    this.roundAnchor = this.activeIndex; // 固定轮次锚点,不随破产漂移
     this.turnNumber = 1;
     this.treasureDeck = createTreasureDeck(); // 初始化珍宝牌堆
     this.round = 1;
@@ -369,6 +384,8 @@ export class GameEngine {
     // 经过都城且落点不是都城 → 抉择:驻跸(补给+结束)or 继续行军到落点
     // (辅路落格不会触发驻跸:辅路格不是都城)
     if (path.landBranchStep == null && path.passedCapital && path.landIndex !== mover.capitalIndex) {
+      // 辅路汇入主路后路过都城:onBranch 必须清,否则 token 视觉停在旧辅路 cell。
+      mover.onBranch = null;
       this.turnPhase = "AwaitingCapitalHalt";
       this.logEvent(
         "system",
@@ -684,9 +701,13 @@ export class GameEngine {
       );
       this.advanceToNextActive();
     }
-    // 回合计数:当回合循环回到本轮起始玩家(draftOrder 中首个存活者)→ 轮次 +1
-    const leader = this.draftOrder.find((i) => !this.players[i].isBankrupt);
-    if (leader !== undefined && this.activeIndex === leader) this.round += 1;
+    // 回合计数:当回合循环回到本轮起始玩家(固定锚点)→ 轮次 +1。
+    // 锚点不随破产漂移:若锚点玩家破产,用 draftOrder 中首个存活者作为新锚点。
+    if (this.players[this.roundAnchor].isBankrupt) {
+      const next = this.draftOrder.find((i) => !this.players[i].isBankrupt);
+      if (next !== undefined) this.roundAnchor = next;
+    }
+    if (this.activeIndex === this.roundAnchor) this.round += 1;
     // 辅路入口抉择由 rollAndMove 落格到 startNode 时触发(本回合内 selectBranch 处理);
     // endTurn 不再重复设置 AwaitingBranch,否则选"大路"停在起点的玩家每回合被反复提示。
     this.turnPhase = "Roll";
@@ -897,6 +918,9 @@ export class GameEngine {
   private finalizeBankruptcy(p: Player): void {
     for (const h of p.heroes) this.recruitedHeroIds.delete(h.id);
     p.heroes = [];
+    // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
+    // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
+    p.capitalIndex = -1;
   }
 
   sellTreasureBankruptcy(treasureId: string): void {

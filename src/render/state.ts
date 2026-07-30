@@ -51,6 +51,7 @@ export class App {
   private overlay: HTMLElement | null = null;
   private hint: HTMLElement | null = null;
   private thinking: HTMLElement | null = null;
+  private flashHintTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(config: EngineConfig & { map: LoadedMap }) {
     const { map, ...rest } = config;
@@ -254,8 +255,8 @@ export class App {
       this.handlePickCapital(idx);
       return;
     }
-    // 对局中:查看城池详情(只读)
-    if (e.phase === "Playing") this.showTileDetail(idx);
+    // 对局中:查看城池详情(只读)。有卷轴弹窗时不弹详情,避免覆盖决策/破产卷轴。
+    if (e.phase === "Playing" && this.overlay == null) this.showTileDetail(idx);
   }
 
   private handlePickCapital(idx: number) {
@@ -624,7 +625,13 @@ export class App {
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.isOver) return this.showVictory();
-    if ((e.turnPhase as string) === "AwaitingBankruptcySettle") { this.showBankruptcyScroll(); this.busy = false; return; }
+    if ((e.turnPhase as string) === "AwaitingBankruptcySettle") {
+      // 访客可能破产:bot 自己清算,人类才弹卷轴
+      if (e.activePlayer.isBot) return this.runBotResolve();
+      this.showBankruptcyScroll();
+      this.busy = false;
+      return;
+    }
     this.onTurnAdvanced();
   }
 
@@ -728,12 +735,18 @@ export class App {
     this.hint = null;
   }
   private flashHint(text: string) {
+    // 清掉上一个 setTimeout,避免 stale prev 竞态(多次 flash 导致旧文本覆盖新文本)
+    if (this.flashHintTimer != null) {
+      clearTimeout(this.flashHintTimer);
+      this.flashHintTimer = null;
+    }
     if (!this.hint) {
       this.showPickHint(text);
     } else {
       const prev = this.hint.textContent;
       this.hint.textContent = text;
-      setTimeout(() => {
+      this.flashHintTimer = setTimeout(() => {
+        this.flashHintTimer = null;
         if (this.hint) this.hint.textContent = prev;
       }, 1500);
     }
