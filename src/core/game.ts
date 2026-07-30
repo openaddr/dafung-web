@@ -625,26 +625,27 @@ export class GameEngine {
     }
   }
 
-  /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。 */
-  capitalSupplyOf(player: Player): number {
+  /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。
+   *  返回 { supply, level }:supply=补给金额,level=都城当前等级。
+   *  一并返回 level 是为让 applyResupply 写日志时免再做一次 board.at+findHolding(原重复查找)。 */
+  capitalSupplyOf(player: Player): { supply: number; level: number } {
     const tile = this.board.at(player.capitalIndex);
     const def = this.catalog.get(tile.propertyId);
     const h = findHolding(player, def?.id ?? "");
-    return supplyFor(def?.resupplyPerLevel, h?.level);
+    return { supply: supplyFor(def?.resupplyPerLevel, h?.level), level: h?.level ?? 0 };
   }
 
-  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf。 */
+  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。 */
   private applyResupply(mover: Player): number {
-    const supply = this.capitalSupplyOf(mover);
+    const { supply, level } = this.capitalSupplyOf(mover);
     if (supply > 0) {
-      const lvl = findHolding(mover, this.board.at(mover.capitalIndex).propertyId ?? "")?.level ?? 0;
       mover.cash += supply;
       this.pushFloater(mover, supply, mover.capitalIndex, "supply");
       this.logEvent(
         "supply",
         mover.guohao,
-        `${mover.guohao} 都城补给 +${formatMoney(supply)}(Lv.${lvl})`,
-        `supply player=${mover.id} capital=#${mover.capitalIndex} level=${lvl} amount=${supply} cash=${mover.cash}`,
+        `${mover.guohao} 都城补给 +${formatMoney(supply)}(Lv.${level})`,
+        `supply player=${mover.id} capital=#${mover.capitalIndex} level=${level} amount=${supply} cash=${mover.cash}`,
         supply,
       );
     }

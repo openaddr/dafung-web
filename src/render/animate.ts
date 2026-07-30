@@ -137,8 +137,12 @@ export function createAnimator(
 
   function spawnFloaters(engine: GameEngine): void {
     const fs = engine.drainFloaters();
-    if (fs.some((f) => f.amount > 0)) audio.play("coin"); // 有收入(补给/赏银/贸易售价)→ 铜钱声
+    let coinPlayed = false; // 合并 some() + for():一次遍历里首次见 amount>0 即播铜钱声,消除第二遍扫描
     for (const f of fs) {
+      if (!coinPlayed && f.amount > 0) {
+        audio.play("coin"); // 有收入(补给/赏银/贸易售价)→ 铜钱声
+        coinPlayed = true;
+      }
       const player = engine.players[f.playerIndex];
       if (!player) continue;
       const atPos = f.atTile != null ? board.positionOf(f.atTile) : null;

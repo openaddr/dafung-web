@@ -4,7 +4,7 @@ import type { GameEngine } from "./game";
 import type { Player } from "./types";
 
 function estimateCapitalSupply(engine: GameEngine, p: Player): number {
-  return engine.capitalSupplyOf(p);
+  return engine.capitalSupplyOf(p).supply;
 }
 
 function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {

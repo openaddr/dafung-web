@@ -73,12 +73,15 @@ const SNAP_Y = DIE_SIZE / 2;  // 静息/吸附时骰中心 y(贴地)
  * - roll(die):随机初速度+角速度掷出 → world.step 步进 → 几次弹跳衰减 → 吸附旋转让 die 面朝上。
  * - showFace(die):静息姿态(die 面朝上)。
  * - cleanup():dispose 全部 GL 资源。
+ * - onHit(intensity):物理碰撞 callback,供上层接 diceHit 音效(0~1 强度)。
  */
 export class ThreeDice {
   readonly available: boolean;
 
   private mount: HTMLElement;
   private rng: () => number;
+  private readonly onHit?: (intensity: number) => void;
+  private collideListener: ((e: { contact: { getImpactVelocityAlongNormal(): number } }) => void) | null = null;
 
   private renderer: THREE.WebGLRenderer | null = null;
   private scene: THREE.Scene | null = null;
@@ -91,10 +94,15 @@ export class ThreeDice {
   private rafId = 0;
   private rolling = false;
   private disposed = false;
+  /** diceHit 节流:碰撞 callback 上次触发时间(ms),相邻碰撞间隔 < 60ms 时合并,
+   *  免一次翻滚几十次碰撞创建大量 AudioBufferSource 拖慢物理步进(e2e 时序敏感)。 */
+  private lastHitMs = 0;
+  private static readonly HIT_THROTTLE_MS = 60;
 
-  constructor(mount: HTMLElement, rng: () => number) {
+  constructor(mount: HTMLElement, rng: () => number, onHit?: (intensity: number) => void) {
     this.mount = mount;
     this.rng = rng;
+    this.onHit = onHit;
     // 探测 WebGL:可用(含 swiftshader 软件渲染)→ 真实 3D 乱滚;不可用 → available=false,
     // 上层 animate.ts 自动回退旧文字切换动画。e2e 经 swiftshader 跑真实 3D 路径。
     this.available = this.init();
@@ -203,6 +211,24 @@ export class ThreeDice {
     world.addBody(diceBody);
     this.diceBody = diceBody;
 
+    // 物理碰撞 → onHit callback(供上层接 diceHit 音效;按冲击速度归一化为 0~1 强度)。
+    // 阈值 0.5 m/s 以下不算(免静置微抖动反复触发);相邻碰撞 <60ms 合并(节流,免翻滚期间
+    // 创建大量 AudioBufferSource 拖慢物理步进)。
+    if (this.onHit) {
+      const listener = (e: { contact: { getImpactVelocityAlongNormal(): number } }) => {
+        if (!this.onHit || this.disposed) return;
+        const now = performance.now();
+        if (now - this.lastHitMs < ThreeDice.HIT_THROTTLE_MS) return;
+        const impact = Math.abs(e.contact.getImpactVelocityAlongNormal());
+        if (impact > 0.5) {
+          this.lastHitMs = now;
+          this.onHit(Math.min(1, impact / 5));
+        }
+      };
+      diceBody.addEventListener("collide", listener as unknown as (...args: unknown[]) => void);
+      this.collideListener = listener;
+    }
+
     return true;
   }
 
@@ -221,6 +247,7 @@ export class ThreeDice {
     }
     cancelAnimationFrame(this.rafId);
     this.rolling = true;
+    this.lastHitMs = 0; // 重置节流:新一次掷骰的首次碰撞不被上一次掷骰压制
 
     const body = this.diceBody;
     const world = this.world;
@@ -376,6 +403,10 @@ export class ThreeDice {
     this.disposed = true;
     cancelAnimationFrame(this.rafId);
     this.rolling = false;
+    if (this.diceBody && this.collideListener) {
+      this.diceBody.removeEventListener("collide", this.collideListener as unknown as (...args: unknown[]) => void);
+      this.collideListener = null;
+    }
     for (const t of this.textures) t.dispose();
     this.textures = [];
     if (this.diceMesh) {

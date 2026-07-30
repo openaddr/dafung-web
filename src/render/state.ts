@@ -74,7 +74,8 @@ export class App {
     const physicsRng = createDice(
       typeof rest.seed === "number" ? (rest.seed ^ 0x5eed) >>> 0 : undefined,
     ).nextFloat;
-    this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng);
+    // 3D 骰子物理碰撞 → diceHit 音效(按冲击速度归一化强度 0~1)。
+    this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng, (intensity) => this.audio.play("diceHit", { intensity }));
     this.audio = new SynthAudioPlayer();
     this.animator = createAnimator(boardWrap, this.boardView.root, board, this.boardView, this.threeDice, this.audio);
 
@@ -421,6 +422,13 @@ export class App {
     botAct(e);
     this.animator.spawnFloaters(e);
     this.fullRender();
+    // bot 城主贸易可能致人类访客破产 → turnPhase=AwaitingBankruptcySettle(人类要清算)。
+    // 此时不能 onTurnAdvanced(rollBtn 禁用 + 无破产卷轴 = 软锁),改弹破产清算卷轴给人类。
+    if (e.turnPhase === "AwaitingBankruptcySettle") {
+      this.showBankruptcyScroll();
+      this.busy = false;
+      return;
+    }
     return this.onTurnAdvanced();
   }
 
@@ -474,9 +482,16 @@ export class App {
     this.hideOverlay();
     if (action === "buy") {
       e.buyProperty();
-      if (e.lastTransaction?.status === "Ok") this.animator.stampSeal(e.activePlayer.position, "据");
-    } else if (action === "upgrade") e.upgradeProperty();
-    else e.endDecision();
+      if (e.lastTransaction?.status === "Ok") {
+        this.animator.stampSeal(e.activePlayer.position, "据");
+        this.audio.play("buy");
+      }
+    } else if (action === "upgrade") {
+      e.upgradeProperty();
+      if (e.lastTransaction?.status === "Ok") this.audio.play("upgrade");
+    } else {
+      e.endDecision();
+    }
     this.animator.spawnFloaters(e);
     this.fullRender();
     return this.onTurnAdvanced();
@@ -604,6 +619,8 @@ export class App {
     this.busy = true;
     this.hideOverlay();
     e.resolveTreasureOwner(action);
+    // 赠宝/贸易:访客得宝(无论城主赠予或买入)→ 珍宝音;跳过无声。
+    if (action.type !== "skip") this.audio.play("treasure");
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.isOver) return this.showVictory();
@@ -644,9 +661,12 @@ export class App {
     this.hideOverlay();
     if (action === "confirm") {
       this.busy = true;
+      const settler = e.activePlayer; // confirm 后 endTurn 会推进活跃玩家,先捕获
       e.confirmBankruptcySettle();
       this.animator.spawnFloaters(e);
       this.fullRender();
+      // 变卖仍不足 → 破产:播破产音(settler.isBankrupt 在 settleDebt 中置 true)
+      if (settler.isBankrupt) this.audio.play("bankrupt");
       return this.onTurnAdvanced();
     }
     const [verb, ...rest] = action.split("-");
@@ -682,7 +702,9 @@ export class App {
     this.overlay = v;
   }
 
-  /** 释放 WebGL/Audio 等长生命周期资源(restart 或将来联机重连时调用)。 */
+  /** 释放 WebGL/Audio 等长生命周期资源。
+   *  当前唯一调用方 restart() 紧跟 reload(),同步销毁的成果被整页销毁——看似冗余但无害,
+   *  保留是为将来联机重连(network-client 切房间/换地图不刷页)铺路:那时 destroy() 是必需的。 */
   destroy(): void {
     this.threeDice.cleanup();
     this.audio.dispose();
