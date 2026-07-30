@@ -318,6 +318,21 @@ select,
   justify-content: center;
   padding: 10px 6px;
 }
+/* 3D 物理骰盘容器(three.js canvas 挂载点);与 fallback .dice-face 同尺寸 */
+.dice-3d {
+  width: 58px;
+  height: 58px;
+  border-radius: 9px;
+  overflow: hidden;
+  background: linear-gradient(145deg, #d9c79b, #b69a5c);
+  border: 2px solid #6e5a2c;
+  box-shadow: 0 3px 8px rgba(120, 90, 40, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.4);
+  position: relative;
+}
+/* WebGL 探测成功:容器加 .available,隐藏紧邻的 fallback 文字面 */
+.dice-3d.available + .dice-face {
+  display: none;
+}
 .dice-face {
   width: 58px;
   height: 58px;

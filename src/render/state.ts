@@ -9,6 +9,7 @@ import { createBoardSvg } from "./board";
 import type { BoardView } from "./board";
 import { createAnimator } from "./animate";
 import type { Animator } from "./animate";
+import { ThreeDice } from "./dice3d";
 import {
   createLayout,
   renderPlayers,
@@ -37,6 +38,7 @@ export class App {
   engine: GameEngine;
   boardView: BoardView;
   animator: Animator;
+  threeDice: ThreeDice;
   refs: SidebarRefs;
   boardWrap: HTMLElement;
 
@@ -61,7 +63,16 @@ export class App {
     const resetBtn = el("button", { class: "btn board-reset", title: "还原总览" }, ["总览"]) as HTMLButtonElement;
     resetBtn.addEventListener("click", () => this.boardView.resetView());
     boardWrap.appendChild(resetBtn);
-    this.animator = createAnimator(boardWrap, this.boardView.root, board, this.boardView);
+    // 3D 物理骰子:挂到侧栏骰盘容器。
+    // 物理随机用「独立种子流」而非 engine.dice.nextFloat:若共用游戏随机流,每次掷骰
+    // 动画都会向前推进游戏 RNG,使同一 seed 在 3D 开/关下产生不同游戏结果——破坏可复现
+    // 性,也会让依赖 seed 的 e2e 流程漂移。这里从同一 seed 派生独立流:既种子化可复现,
+    // 又完全不影响核心游戏逻辑(core 零改动)。
+    const physicsRng = createDice(
+      typeof rest.seed === "number" ? (rest.seed ^ 0x5eed) >>> 0 : undefined,
+    ).nextFloat;
+    this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng);
+    this.animator = createAnimator(boardWrap, this.boardView.root, board, this.boardView, this.threeDice);
 
     this.bindEvents();
     window.__dafung = {
@@ -69,6 +80,7 @@ export class App {
       snapshot: () => this.engine.snapshot(),
       board,
       botAct: () => botAct(this.engine), // 调试用:对当前玩家执行一次 bot 决策
+      threeDice: this.threeDice, // 调试用:读 3D 骰子姿态
     };
 
     this.fullRender();
@@ -355,6 +367,14 @@ export class App {
         if (e.isOver) return this.showVictory();
         return this.onTurnAdvanced();
       }
+      if (this.singleDecisionAction() === "skip") {
+        // 只剩"放弃"一个有效选项(委任/银两不足、满级):不弹卷轴,直接跳过
+        e.endDecision();
+        this.animator.spawnFloaters(e);
+        this.fullRender();
+        if (e.isOver) return this.showVictory();
+        return this.onTurnAdvanced();
+      }
       this.showDecisionScroll();
       this.busy = false;
       return;
@@ -512,6 +532,20 @@ export class App {
       { label: "走大路", action: "main", primary: true },
       { label: "入辅路", action: "branch" },
     ]);
+  }
+
+  /** 决策只剩"放弃"一个有效选项(委任/银两不足、满级)→ 返回 "skip" 免弹;否则 null(多选项照常弹)。 */
+  private singleDecisionAction(): "skip" | null {
+    const e = this.engine;
+    const outcome = e.lastLandOutcome;
+    const p = e.activePlayer;
+    if (outcome?.kind === "PropertyAvailable" && outcome.property) {
+      if (!(p.cash >= outcome.property.purchasePrice && p.warrants >= 1)) return "skip";
+    } else if (outcome?.kind === "OwnProperty" && outcome.property) {
+      const h = p.properties.find((x) => x.propertyId === outcome.property!.id);
+      if ((h?.level ?? 0) >= outcome.property.maxLevel || p.cash < outcome.property.upgradeCost) return "skip";
+    }
+    return null;
   }
 
   private showDecisionScroll() {

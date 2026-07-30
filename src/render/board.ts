@@ -172,16 +172,22 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       const isCapital = engine.players.some((p) => p.capitalIndex === tile.index);
       const capitalOwner = engine.players.find((p) => p.capitalIndex === tile.index) ?? null;
 
-      // 持有者边框
+      // 持有者边框(玩家色 + 加粗 + 淡底,一眼辨归属)
       const border = g.querySelector(".tile-border") as SVGElement | null;
       if (border) {
         if (owner) {
           const c = playerColor(owner.colorIndex);
           border.setAttribute("stroke", rgba(c));
-          border.setAttribute("stroke-opacity", "0.9");
+          border.setAttribute("stroke-opacity", "0.95");
+          border.setAttribute("stroke-width", "4");
+          border.setAttribute("fill", rgba(c));
+          border.setAttribute("fill-opacity", "0.12");
         } else {
           border.setAttribute("stroke", "rgba(60,45,20,0.25)");
           border.setAttribute("stroke-opacity", "0.5");
+          border.setAttribute("stroke-width", "2.5");
+          border.setAttribute("fill", "rgba(247,236,208,0.92)");
+          border.setAttribute("fill-opacity", "1");
         }
       }
       // 王旗(都城)
@@ -199,21 +205,36 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
           g.classList.remove("tile-capital");
         }
       }
-      // 等级 pips
+      // 持有者小旌旗(非都城持有者,玩家色三角+国号,多城串联一眼辨归属)
+      const oflag = g.querySelector(".tile-owner-flag") as SVGElement | null;
+      if (oflag) {
+        const opoly = oflag.querySelector("polygon") as SVGElement | null;
+        const otext = oflag.querySelector(".tile-owner-flag-text") as SVGElement | null;
+        if (owner && !(isCapital && capitalOwner)) {
+          const c = playerColor(owner.colorIndex);
+          oflag.style.display = "";
+          if (opoly) opoly.setAttribute("fill", rgba(c));
+          if (otext) otext.textContent = owner.guohao;
+        } else {
+          oflag.style.display = "none";
+        }
+      }
+      // 等级 pips(持有者用玩家色,无主金)
       const pips = g.querySelector(".tile-pips") as SVGElement | null;
       if (pips) {
         clear(pips);
         const lvl = holding?.level ?? 0;
+        const pipColor = owner ? playerColor(owner.colorIndex) : Theme.goldBright;
         for (let i = 0; i < lvl; i++) {
           pips.appendChild(
-            svg("circle", { cx: -36 + i * 14, cy: 16, r: 4.5, fill: rgba(Theme.goldBright) }),
+            svg("circle", { cx: -36 + i * 14, cy: 16, r: 4.5, fill: rgba(pipColor) }),
           );
         }
       }
-      // 持有者色带叠加(都城用金色,普通用玩家色淡)
+      // 顶部色带:有持有者→玩家色(一眼辨归属);无主→区域色
       const band = g.querySelector(".tile-band") as SVGElement | null;
       if (band && def) {
-        band.setAttribute("fill", rgba(groupColor(def.group)));
+        band.setAttribute("fill", owner ? rgba(playerColor(owner.colorIndex)) : rgba(groupColor(def.group)));
       }
       // 选都阶段:已被选的城标灰禁用
       const taken = engine.phase === "Setup" && isCapital;
@@ -422,6 +443,12 @@ function buildGate(tile: TileDef, catalog: MapCatalog) {
   flag.appendChild(svg("polygon", { points: "0,-88 32,-79 0,-70", fill: "rgba(60,60,60,1)", stroke: "rgba(40,28,10,0.7)", "stroke-width": 1 }));
   flag.appendChild(svg("text", { class: "tile-flag-text", x: 11, y: -77, "text-anchor": "middle", "font-family": "var(--font-brush)", "font-size": 16, fill: "#fff" }));
   g.appendChild(flag);
+  // 持有者小旌旗(非都城;默认隐藏)—— 右上角小三角+国号,玩家色,多城串联一眼辨归属
+  const oflag = svg("g", { class: "tile-owner-flag", style: "display:none" });
+  oflag.appendChild(svg("line", { x1: 40, y1: -28, x2: 40, y2: -50, stroke: "rgba(50,35,15,0.8)", "stroke-width": 1.5 }));
+  oflag.appendChild(svg("polygon", { points: "40,-50 58,-45 40,-40", fill: "rgba(60,60,60,1)" }));
+  oflag.appendChild(svg("text", { class: "tile-owner-flag-text", x: 49, y: -42, "text-anchor": "middle", "font-family": "var(--font-brush)", "font-size": 11, fill: "#fff" }));
+  g.appendChild(oflag);
 
   return g;
 }

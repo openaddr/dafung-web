@@ -8,6 +8,7 @@ import { formatMoney } from "@core/money";
 import { SIGN_FACES, TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { polylinePath, svgCoordHelpers } from "./svg-util";
 import { delay } from "./timings";
+import type { ThreeDice } from "./dice3d";
 
 export interface Animator {
   animateDice(die: number): Promise<void>;
@@ -22,6 +23,7 @@ export function createAnimator(
   svgEl: SVGSVGElement,
   board: Board,
   boardView: BoardView,
+  threeDice: ThreeDice,
 ): Animator {
   /** SVG 逻辑坐标 → board-wrap 内像素(用于 HTML 浮层定位)。 */
   const coord = svgCoordHelpers(svgEl);
@@ -32,6 +34,11 @@ export function createAnimator(
   }
 
   async function animateDice(die: number): Promise<void> {
+    // WebGL 可用 → 真实 3D 物理乱滚;否则走旧文字切换 fallback。
+    if (threeDice.available) {
+      await threeDice.roll(die);
+      return;
+    }
     const diceEl = document.getElementById("dice-face");
     if (!diceEl) return;
     diceEl.classList.add("rolling");

@@ -18,7 +18,14 @@ export default defineConfig({
   projects: [
     {
       name: "chromium",
-      use: { ...devices["Desktop Chrome"] },
+      use: {
+        ...devices["Desktop Chrome"],
+        // headless Chromium 默认无 GPU,WebGL 不可用会导致 3D 骰子 fallback。
+        // 强制 swiftshader 软件渲染 WebGL,使 e2e 跑真实 3D 路径(与实机一致)。
+        launchOptions: {
+          args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+        },
+      },
     },
   ],
   webServer: {

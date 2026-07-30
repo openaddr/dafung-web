@@ -21,5 +21,11 @@ export default defineConfig({
   build: {
     target: "es2022",
     sourcemap: true,
+    rollupOptions: {
+      output: {
+        // three.js + cannon-es 拆独立 chunk:浏览器并行加载 + 长期缓存(改游戏代码不重下引擎)
+        manualChunks: { three: ["three"], cannon: ["cannon-es"] },
+      },
+    },
   },
 });
