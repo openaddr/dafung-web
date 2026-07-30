@@ -2,15 +2,9 @@
 // 对应 C# 版 Flow/BotController.cs(选都已并入 GameEngine.aiChooseCapital)。
 import type { GameEngine } from "./game";
 import type { Player } from "./types";
-import { findHolding } from "./player";
-import { supplyFor } from "./economy";
 
 function estimateCapitalSupply(engine: GameEngine, p: Player): number {
-  const tile = engine.board.at(p.capitalIndex);
-  const def = engine.catalog.get(tile.propertyId);
-  const h = findHolding(p, def?.id ?? "");
-  const lvl = h?.level ?? 0;
-  return supplyFor(def?.resupplyPerLevel, lvl);
+  return engine.capitalSupplyOf(p);
 }
 
 function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {
@@ -109,7 +103,7 @@ export function botAct(engine: GameEngine): void {
       if (treasures.length === 0) { engine.resolveTreasureOwner({ type: "skip" }); break; }
       const pick = treasures[Math.floor(engine.dice.nextFloat() * treasures.length)];
       const trade = simple ? engine.dice.nextFloat() < 0.4 : pick.level >= 6;
-      engine.resolveTreasureOwner({ type: trade ? "trade" : "gift", treasureId: pick.id });
+      engine.resolveTreasureOwner(trade ? { type: "trade", treasureId: pick.id } : { type: "gift", treasureId: pick.id });
       break;
     }
 

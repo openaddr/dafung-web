@@ -92,7 +92,6 @@ export interface MovePath {
   passedCapital: boolean;
   capitalIndex: number;
   waypoints: BoardPos[];
-  overshoot: number; // 必停都城:被截断后剩余未走的步数(用于补偿计算)
   landBranchStep: number | null; // null=落主路 landIndex;number=落辅路第 step 格
   branchWaypoints: BoardPos[]; // 辅路行军坐标序列(主路时为 [])
 }
@@ -121,7 +120,6 @@ export interface LandOutcome {
 /** 回合阶段。 */
 export type TurnPhase =
   | "Roll"
-  | "Move"
   | "AwaitingCapitalHalt"
   | "AwaitingBranch"
   | "AwaitingDecision"
@@ -224,7 +222,7 @@ export type GameCommand =
   | { type: "upgradeProperty" }
   | { type: "endDecision" }
   | { type: "resolveHeroPick"; index: number }
-  | { type: "resolveTreasureOwner"; action: { type: "gift" | "trade" | "skip"; treasureId?: string } }
+  | { type: "resolveTreasureOwner"; action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" } }
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }
   | { type: "cashHeroBankruptcy"; heroId: string }

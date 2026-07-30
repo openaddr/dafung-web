@@ -14,6 +14,7 @@ import type {
   PropertyDef,
   RouteKind,
   TileDef,
+  TransactionResult,
   TurnPhase,
   VictoryReason,
 } from "./types";
@@ -95,7 +96,7 @@ export class GameEngine {
   lastRoll: DiceRoll | null = null;
   lastMove: MovePath | null = null;
   lastLandOutcome: LandOutcome | null = null;
-  lastTransaction: { status: string; newLevel?: number } | null = null;
+  lastTransaction: TransactionResult | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
@@ -265,7 +266,6 @@ export class GameEngine {
     return [...eligible].sort((a, b) => score(b) - score(a))[0].index;
   }
 
-  /** 选都(人类需 UI 二次确认后调用;AI 自动)。 */
   /** 选都辅助:第一个可作都城且未被占的 tile index(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用。 */
   firstAvailableCapitalIndex(): number {
     const t = this.board.tiles.find((x) => x.isCapitalEligible && !this.takenCapitalIndices.has(x.index));
@@ -330,10 +330,7 @@ export class GameEngine {
   /** 抽签 → 移动(主路或辅路逐格)→ 若路径含都城(非落点)进入驻跸抉择;否则直接落格。
    *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell。 */
   rollAndMove(): void {
-    if (this.turnPhase !== "Roll") {
-      this.warn(`RollAndMove 在非 Roll 阶段(${this.turnPhase})被调用`);
-      return;
-    }
+    if (!this.assertPhase("Roll", "RollAndMove")) return;
     const mover = this.activePlayer;
     const roll = this.dice.roll();
     this.lastRoll = roll;
@@ -345,7 +342,6 @@ export class GameEngine {
       steps,
       mover.capitalIndex,
       mover.onBranch,
-      false, // 不截断:经过都城时由 rollAndMove 触发 AwaitingCapitalHalt 抉择
     );
     const fromPos = mover.position;
     this.lastMove = path;
@@ -410,10 +406,7 @@ export class GameEngine {
 
   /** 驻跸都城(放弃剩余步数),结算补给。 */
   haltAtCapital(): void {
-    if (this.turnPhase !== "AwaitingCapitalHalt") {
-      this.warn(`HaltAtCapital 在非 AwaitingCapitalHalt 阶段(${this.turnPhase})被调用`);
-      return;
-    }
+    if (!this.assertPhase("AwaitingCapitalHalt", "HaltAtCapital")) return;
     const mover = this.activePlayer;
     mover.position = mover.capitalIndex;
     const supply = this.applyResupply(mover);
@@ -424,10 +417,7 @@ export class GameEngine {
 
   /** 继续行军到原定落点。 */
   continueMove(): void {
-    if (this.turnPhase !== "AwaitingCapitalHalt") {
-      this.warn(`ContinueMove 在非 AwaitingCapitalHalt 阶段(${this.turnPhase})被调用`);
-      return;
-    }
+    if (!this.assertPhase("AwaitingCapitalHalt", "ContinueMove")) return;
     const mover = this.activePlayer;
     mover.position = this.lastMove!.landIndex;
     this.turnPhase = "Land";
@@ -438,10 +428,7 @@ export class GameEngine {
    *  "Branch"=入辅路(置 onBranch={step:0},立即触发第 0 格效果)。
    *  复用 AwaitingBranch 阶段 + selectBranch(改语义,不新加 phase)。 */
   selectBranch(kind: RouteKind): void {
-    if (this.turnPhase !== "AwaitingBranch") {
-      this.warn(`SelectBranch 在非 AwaitingBranch 阶段(${this.turnPhase})被调用`);
-      return;
-    }
+    if (!this.assertPhase("AwaitingBranch", "SelectBranch")) return;
     const p = this.activePlayer;
     const tile = this.board.at(p.position);
     this.logEvent(
@@ -463,8 +450,9 @@ export class GameEngine {
   }
 
   buyProperty(): void {
-    if (this.turnPhase !== "AwaitingDecision" || this.lastLandOutcome?.property == null) {
-      this.warn("BuyProperty 在非决策阶段或无待决策地产被调用");
+    if (!this.assertPhase("AwaitingDecision", "BuyProperty")) return;
+    if (this.lastLandOutcome?.property == null) {
+      this.warn("BuyProperty 无待决策地产");
       return;
     }
     const def = this.lastLandOutcome.property;
@@ -492,8 +480,9 @@ export class GameEngine {
   }
 
   upgradeProperty(): void {
-    if (this.turnPhase !== "AwaitingDecision" || this.lastLandOutcome?.property == null) {
-      this.warn("UpgradeProperty 在非决策阶段或无待决策地产被调用");
+    if (!this.assertPhase("AwaitingDecision", "UpgradeProperty")) return;
+    if (this.lastLandOutcome?.property == null) {
+      this.warn("UpgradeProperty 无待决策地产");
       return;
     }
     const def = this.lastLandOutcome.property;
@@ -513,10 +502,7 @@ export class GameEngine {
   }
 
   endDecision(): void {
-    if (this.turnPhase !== "AwaitingDecision") {
-      this.warn(`EndDecision 在非决策阶段(${this.turnPhase})被调用`);
-      return;
-    }
+    if (!this.assertPhase("AwaitingDecision", "EndDecision")) return;
     this.logEvent("system", this.activePlayer.guohao, `${this.activePlayer.guohao} 按兵不动`, `skip player=${this.activePlayer.id}`);
     this.endTurn();
   }
@@ -639,14 +625,19 @@ export class GameEngine {
     }
   }
 
-  /** 都城补给 = ResupplyPerLevel × (Level+1)。 */
-  private applyResupply(mover: Player): number {
-    const tile = this.board.at(mover.capitalIndex);
+  /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。 */
+  capitalSupplyOf(player: Player): number {
+    const tile = this.board.at(player.capitalIndex);
     const def = this.catalog.get(tile.propertyId);
-    const holding = findHolding(mover, def?.id ?? "");
-    const lvl = holding?.level ?? 0;
-    const supply = supplyFor(def?.resupplyPerLevel, lvl);
+    const h = findHolding(player, def?.id ?? "");
+    return supplyFor(def?.resupplyPerLevel, h?.level);
+  }
+
+  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf。 */
+  private applyResupply(mover: Player): number {
+    const supply = this.capitalSupplyOf(mover);
     if (supply > 0) {
+      const lvl = findHolding(mover, this.board.at(mover.capitalIndex).propertyId ?? "")?.level ?? 0;
       mover.cash += supply;
       this.pushFloater(mover, supply, mover.capitalIndex, "supply");
       this.logEvent(
@@ -830,7 +821,7 @@ export class GameEngine {
 
   /** 城主抉择:赠宝(送出珍宝+城升级+朝廷赏银)或 贸易(卖珍宝给访客,不可拒绝)。 */
   resolveTreasureOwner(action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" }): void {
-    if (this.turnPhase !== "AwaitingTreasureOwner") { this.warn("ResolveTreasureOwner 在非 AwaitingTreasureOwner 阶段被调用"); return; }
+    if (!this.assertPhase("AwaitingTreasureOwner", "ResolveTreasureOwner")) return;
     const tv = this.treasureVisitor!;
     const owner = this.players[tv.ownerIdx];
     const mover = this.activePlayer;
@@ -908,7 +899,7 @@ export class GameEngine {
   }
 
   sellTreasureBankruptcy(treasureId: string): void {
-    if (this.turnPhase !== "AwaitingBankruptcySettle") { this.warn("SellTreasureBankruptcy 在非清算阶段被调用"); return; }
+    if (!this.assertPhase("AwaitingBankruptcySettle", "SellTreasureBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.treasures.findIndex((t) => t.id === treasureId);
     if (idx < 0) { this.warn(`珍宝 ${treasureId} 不在手中`); return; }
@@ -920,7 +911,7 @@ export class GameEngine {
   }
 
   sellPropertyBankruptcy(propId: string): void {
-    if (this.turnPhase !== "AwaitingBankruptcySettle") { this.warn("SellPropertyBankruptcy 在非清算阶段被调用"); return; }
+    if (!this.assertPhase("AwaitingBankruptcySettle", "SellPropertyBankruptcy")) return;
     const p = this.activePlayer;
     if (propId === this.board.at(p.capitalIndex)?.propertyId) { this.warn("都城不可变卖"); return; }
     const idx = p.properties.findIndex((h) => h.propertyId === propId);
@@ -932,7 +923,7 @@ export class GameEngine {
   }
 
   cashHeroBankruptcy(heroId: string): void {
-    if (this.turnPhase !== "AwaitingBankruptcySettle") { this.warn("CashHeroBankruptcy 在非清算阶段被调用"); return; }
+    if (!this.assertPhase("AwaitingBankruptcySettle", "CashHeroBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.heroes.findIndex((h) => h.id === heroId);
     if (idx < 0) { this.warn(`名士 ${heroId} 不在手中`); return; }
@@ -944,7 +935,7 @@ export class GameEngine {
   }
 
   confirmBankruptcySettle(): void {
-    if (this.turnPhase !== "AwaitingBankruptcySettle") { this.warn("ConfirmBankruptcySettle 在非清算阶段被调用"); return; }
+    if (!this.assertPhase("AwaitingBankruptcySettle", "ConfirmBankruptcySettle")) return;
     const p = this.activePlayer;
     const debt = this.pendingDebt!;
     this.pendingDebt = null;
@@ -976,12 +967,8 @@ export class GameEngine {
       case "upgradeProperty": return this.upgradeProperty();
       case "endDecision": return this.endDecision();
       case "resolveHeroPick": return this.resolveHeroPick(cmd.index);
-      case "resolveTreasureOwner": {
-        const a = cmd.action;
-        if (a.type === "skip") this.resolveTreasureOwner({ type: "skip" });
-        else if (a.treasureId) this.resolveTreasureOwner({ type: a.type as "gift" | "trade", treasureId: a.treasureId });
-        return;
-      }
+      case "resolveTreasureOwner":
+        return this.resolveTreasureOwner(cmd.action);
       case "sellTreasureBankruptcy": return this.sellTreasureBankruptcy(cmd.treasureId);
       case "sellPropertyBankruptcy": return this.sellPropertyBankruptcy(cmd.propId);
       case "cashHeroBankruptcy": return this.cashHeroBankruptcy(cmd.heroId);
@@ -1047,14 +1034,12 @@ export class GameEngine {
     }
   }
 
-  /** 招揽名士:从剩余(未被招揽)池中随机抽一位;满额或无货则跳过。 */
   /** 招贤纳士:从剩余名士池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */
   private tryRecruitHero(mover: Player): void {
     if (mover.heroes.length >= HERO_CAPACITY) { this.endTurn(); return; }
     const available = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
     if (available.length === 0) { this.endTurn(); return; }
-    const shuffled = [...available].sort(() => this.dice.nextFloat() - 0.5);
-    this.offeredHeroes = shuffled.slice(0, Math.min(3, shuffled.length));
+    this.offeredHeroes = shuffle(available, this.dice.nextFloat).slice(0, 3);
     this.turnPhase = "AwaitingHeroPick";
     this.logEvent(
       "setup",
@@ -1066,10 +1051,7 @@ export class GameEngine {
 
   /** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用)。 */
   resolveHeroPick(index: number): void {
-    if (this.turnPhase !== "AwaitingHeroPick") {
-      this.warn(`ResolveHeroPick 在非 AwaitingHeroPick 阶段被调用`);
-      return;
-    }
+    if (!this.assertPhase("AwaitingHeroPick", "ResolveHeroPick")) return;
     const hero = this.offeredHeroes[index];
     if (hero) {
       this.activePlayer.heroes.push(hero);
@@ -1094,6 +1076,13 @@ export class GameEngine {
     amount?: number,
   ): void {
     this.log.push({ turn: this.turnNumber, player, brief, detail, category, amount });
+  }
+  private assertPhase(expected: TurnPhase, label: string): boolean {
+    if (this.turnPhase !== expected) {
+      this.warn(`${label} 在非 ${expected} 阶段(${this.turnPhase})被调用`);
+      return false;
+    }
+    return true;
   }
   private warn(msg: string): void {
     this.logEvent("system", null, `[警告] ${msg}`, `warn: ${msg}`);

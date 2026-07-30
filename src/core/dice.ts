@@ -15,7 +15,7 @@ export function mulberry32(seed: number): () => number {
 
 export interface Dice {
   roll(): DiceRoll;
-  /** CoinFlip 用:返回 1–6,>=4 视为胜(便于调参)。 */
+  /** 返回 1–6,供掷骰定序/拼点复用。 */
   rollDie(): number;
   nextFloat(): number;
 }

@@ -29,7 +29,6 @@ export interface Board {
     steps: number,
     capitalIndex: number,
     onBranch?: { step: number } | null,
-    stopAtCapital?: boolean,
   ): MovePath;
   edgeWaypoints(from: number, to: number, threshold?: number): BoardPos[];
 }
@@ -89,12 +88,11 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
     return sideArc(a, b, others);
   };
 
-  /** 主路行军(不含辅路):逐格 +1,长边带蜿蜒途经点,必停都城截断。 */
+  /** 主路行军(不含辅路):逐格 +1,长边带蜿蜒途经点。 */
   const computePathMain = (
     fromIndex: number,
     steps: number,
     capitalIndex: number,
-    stopAtCapital: boolean,
   ): MovePath => {
     const traversed: number[] = [];
     const waypoints: BoardPos[] = [];
@@ -105,15 +103,12 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
       traversed.push(current);
       for (const bp of edgeWaypoints(prev, current)) waypoints.push(bp);
       waypoints.push(positionOf(current));
-      // 必停都城:经过自己的都城时截断(不能再越过)
-      if (stopAtCapital && capitalIndex >= 0 && current === capitalIndex) break;
     }
     const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
     const passedCapital = capitalIndex >= 0 && traversed.includes(capitalIndex);
-    const overshoot = steps - traversed.length;
     return {
       from: fromIndex, traversed, landIndex, passedCapital, capitalIndex,
-      waypoints, overshoot, landBranchStep: null, branchWaypoints: [],
+      waypoints, landBranchStep: null, branchWaypoints: [],
     };
   };
 
@@ -122,7 +117,6 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
     steps: number,
     capitalIndex: number,
     onBranch: { step: number } | null = null,
-    stopAtCapital = false,
   ): MovePath => {
     if (steps < 0) throw new RangeError("steps must be >= 0");
 
@@ -144,7 +138,6 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
           passedCapital: false,
           capitalIndex,
           waypoints: [],
-          overshoot: 0,
           landBranchStep: newStep,
           branchWaypoints,
         };
@@ -154,7 +147,7 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
       const branchWaypoints: BoardPos[] = [];
       for (let s = step + 1; s <= N - 1; s++) branchWaypoints.push(br.cells[s].position);
       branchWaypoints.push(positionOf(br.endNode));
-      const mainPath = computePathMain(br.endNode, mainSteps, capitalIndex, stopAtCapital);
+      const mainPath = computePathMain(br.endNode, mainSteps, capitalIndex);
       return {
         from: fromIndex,
         traversed: mainPath.traversed,
@@ -162,14 +155,13 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
         passedCapital: mainPath.passedCapital,
         capitalIndex,
         waypoints: mainPath.waypoints,
-        overshoot: mainPath.overshoot,
         landBranchStep: null, // 已汇入主路
         branchWaypoints,
       };
     }
 
     // 主路行军
-    return computePathMain(fromIndex, steps, capitalIndex, stopAtCapital);
+    return computePathMain(fromIndex, steps, capitalIndex);
   };
 
   return {

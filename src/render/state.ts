@@ -10,6 +10,8 @@ import type { BoardView } from "./board";
 import { createAnimator } from "./animate";
 import type { Animator } from "./animate";
 import { ThreeDice } from "./dice3d";
+import { SynthAudioPlayer } from "./audio";
+import type { AudioPlayer } from "./audio";
 import {
   createLayout,
   renderPlayers,
@@ -39,6 +41,7 @@ export class App {
   boardView: BoardView;
   animator: Animator;
   threeDice: ThreeDice;
+  audio: AudioPlayer;
   refs: SidebarRefs;
   boardWrap: HTMLElement;
 
@@ -72,7 +75,8 @@ export class App {
       typeof rest.seed === "number" ? (rest.seed ^ 0x5eed) >>> 0 : undefined,
     ).nextFloat;
     this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng);
-    this.animator = createAnimator(boardWrap, this.boardView.root, board, this.boardView, this.threeDice);
+    this.audio = new SynthAudioPlayer();
+    this.animator = createAnimator(boardWrap, this.boardView.root, board, this.boardView, this.threeDice, this.audio);
 
     this.bindEvents();
     window.__dafung = {
@@ -175,7 +179,8 @@ export class App {
       if (sub === "skip") return this.onTreasureOwner({ type: "skip" });
       const [verb, ...rest] = sub.split("-");
       const treasureId = rest.join("-");
-      if (verb === "gift" || verb === "trade") return this.onTreasureOwner({ type: verb, treasureId });
+      if (verb === "gift") return this.onTreasureOwner({ type: "gift", treasureId });
+      if (verb === "trade") return this.onTreasureOwner({ type: "trade", treasureId });
     }
     if (action.startsWith("bk-")) {
       const sub = action.slice("bk-".length);
@@ -203,6 +208,17 @@ export class App {
   private hideOverlay() {
     this.overlay?.remove();
     this.overlay = null;
+  }
+
+  /** 统一卷轴入口:先清旧覆盖层,再 createScroll 并赋值给 this.overlay。 */
+  private openScroll(
+    title: string,
+    desc: string,
+    buttons: { label: string; action: string; primary?: boolean }[],
+    onClose?: () => void,
+  ): void {
+    this.hideOverlay();
+    this.overlay = createScroll(this.boardWrap, title, desc, buttons, onClose);
   }
 
   // ─────────────────────── 开局:选都 ───────────────────────
@@ -345,34 +361,28 @@ export class App {
   private async afterLand(): Promise<void> {
     const e = this.engine;
     if (e.turnPhase === "AwaitingBranch") {
-      // 落到辅路起点:bot 直接决策;人类弹选路卷轴
+      // 落到辅路起点:bot 直接决策;人类弹选路卷轴。
+      // 注意:辅路入口 bot 选完后需重走 afterLand(入辅路触发首格 / 走大路落格后可能进入决策),
+      // 末尾是 afterLand 而非推进回合,故不能复用 runBotResolve,保留独立 bot 分支。
       if (e.activePlayer.isBot) {
         await botDelay();
         botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
         this.animator.spawnFloaters(e);
         this.fullRender();
         if (e.isOver) return this.showVictory();
-        return this.afterLand(); // 入辅路触发首格 / 走大路落格后可能进入决策
+        return this.afterLand();
       }
       this.showBranchScroll();
       this.busy = false;
       return;
     }
     if (e.turnPhase === "AwaitingDecision") {
-      if (e.activePlayer.isBot) {
-        await botDelay();
-        botAct(e); // buy/upgrade/endDecision → endTurn
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        if (e.isOver) return this.showVictory();
-        return this.onTurnAdvanced();
-      }
+      if (e.activePlayer.isBot) return this.runBotResolve();
       if (this.singleDecisionAction() === "skip") {
         // 只剩"放弃"一个有效选项(委任/银两不足、满级):不弹卷轴,直接跳过
         e.endDecision();
         this.animator.spawnFloaters(e);
         this.fullRender();
-        if (e.isOver) return this.showVictory();
         return this.onTurnAdvanced();
       }
       this.showDecisionScroll();
@@ -380,14 +390,7 @@ export class App {
       return;
     }
     if (e.turnPhase === "AwaitingHeroPick") {
-      if (e.activePlayer.isBot) {
-        await botDelay();
-        botAct(e); // resolveHeroPick → endTurn
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        if (e.isOver) return this.showVictory();
-        return this.onTurnAdvanced();
-      }
+      if (e.activePlayer.isBot) return this.runBotResolve();
       this.showHeroPickScroll();
       this.busy = false;
       return;
@@ -395,35 +398,30 @@ export class App {
     if (e.turnPhase === "AwaitingTreasureOwner") {
       // 城主抉择(赠宝/贸易/跳过);城主可能是 bot 或人类
       const owner = e.players[e.treasureVisitor?.ownerIdx ?? 0];
-      if (owner.isBot) {
-        await botDelay();
-        botAct(e);
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        if (e.isOver) return this.showVictory();
-        return this.onTurnAdvanced();
-      }
+      if (owner.isBot) return this.runBotResolve();
       this.showTreasureOwnerScroll();
       this.busy = false;
       return;
     }
     if (e.turnPhase === "AwaitingBankruptcySettle") {
-      if (e.activePlayer.isBot) {
-        await botDelay();
-        botAct(e);
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        if (e.isOver) return this.showVictory();
-        return this.onTurnAdvanced();
-      }
+      if (e.activePlayer.isBot) return this.runBotResolve();
       this.showBankruptcyScroll();
       this.busy = false;
       return;
     }
     // 已 endTurn
     this.fullRender();
-    if (e.isOver) return this.showVictory();
-    this.onTurnAdvanced();
+    return this.onTurnAdvanced();
+  }
+
+  /** bot 抉择通用流程:延迟 → botAct → 浮动金额 → 渲染 → 推进回合(isOver 由 onTurnAdvanced 统一拦截)。 */
+  private async runBotResolve(): Promise<void> {
+    const e = this.engine;
+    await botDelay();
+    botAct(e);
+    this.animator.spawnFloaters(e);
+    this.fullRender();
+    return this.onTurnAdvanced();
   }
 
   private onTurnAdvanced() {
@@ -481,8 +479,7 @@ export class App {
     else e.endDecision();
     this.animator.spawnFloaters(e);
     this.fullRender();
-    if (e.isOver) return this.showVictory();
-    this.onTurnAdvanced();
+    return this.onTurnAdvanced();
   }
 
   // ─────────────────────── AI 调度 ───────────────────────
@@ -501,15 +498,13 @@ export class App {
 
   // ─────────────────────── 弹层 ───────────────────────
   private showHaltScroll() {
-    this.hideOverlay();
     const e = this.engine;
     const cap = e.board.at(e.lastMove!.capitalIndex);
     const dest = e.board.at(e.lastMove!.landIndex);
     const def = e.catalog.get(cap.propertyId);
     const h = e.activePlayer.properties.find((p) => p.propertyId === def?.id);
     const supply = supplyFor(def?.resupplyPerLevel, h?.level);
-    this.overlay = createScroll(
-      this.boardWrap,
+    this.openScroll(
       "军至都城",
       `路过都城「${cap.name}」:驻跸可补给 +${formatMoney(supply)},或继续行军至「${dest.name}」。`,
       [
@@ -520,7 +515,6 @@ export class App {
   }
 
   private showBranchScroll() {
-    this.hideOverlay();
     const e = this.engine;
     const tile = e.board.at(e.activePlayer.position);
     const branch = e.board.branch;
@@ -528,7 +522,7 @@ export class App {
     const preview = branch
       ? `大路:沿主驿道前行。辅路:另辟蹊径(${cellCount} 格,沿途或探珍宝、或遇锦囊,亦有中伏之险),逐格行进至终点汇入主路。`
       : "大路:沿主驿道前行";
-    this.overlay = createScroll(this.boardWrap, `辅路要隘「${tile.name}」`, preview, [
+    this.openScroll(`辅路要隘「${tile.name}」`, preview, [
       { label: "走大路", action: "main", primary: true },
       { label: "入辅路", action: "branch" },
     ]);
@@ -563,9 +557,7 @@ export class App {
     const isCapital = e.capitalOwnerOf(idx) != null;
     const ownerText = owner ? `持有:${owner.guohao}` : "无主";
     const capText = isCapital ? ` · 都城 Lv.${owner?.properties.find((h) => h.propertyId === def.id)?.level ?? 0}` : "";
-    this.hideOverlay();
-    this.overlay = createScroll(
-      this.boardWrap,
+    this.openScroll(
       `「${tile.name}」`,
       `${tile.region} · ${ownerText}${capText} · 购入 ${formatMoney(def.purchasePrice)}`,
       [],
@@ -578,8 +570,7 @@ export class App {
     const offered = e.offeredHeroes;
     if (!offered.length) return;
     const desc = offered.map((h, i) => `${i + 1}. ${h.name}·${h.title} — ${h.desc}`).join("  ／  ");
-    this.overlay = createScroll(
-      this.boardWrap,
+    this.openScroll(
       "招贤纳士",
       desc,
       offered.map((h, i) => ({ label: h.name, action: `heropick-${i}`, primary: i === 0 })),
@@ -599,23 +590,20 @@ export class App {
       buttons.push({ label: `卖·${t.name}`, action: `treasure-trade-${t.id}` });
     }
     buttons.push({ label: "不赠不卖", action: "treasure-skip", primary: true });
-    this.overlay = createScroll(
-      this.boardWrap,
+    this.openScroll(
       `${owner.guohao}·珍宝抉择`,
       `${mover.guohao} 落「${tile.name}」。${owner.guohao} 可选一件珍宝:赠宝(访客得宝、城升级、朝廷赏指导价银)或贸易(访客付银得宝,售价=指导价×城池公式×等级倍率)。`,
       buttons,
     );
   }
 
-  private async onTreasureOwner(action: { type: "gift" | "trade" | "skip"; treasureId?: string }) {
+  private async onTreasureOwner(action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" }) {
     if (this.busy) return;
     const e = this.engine;
     if (e.turnPhase !== "AwaitingTreasureOwner") return;
     this.busy = true;
     this.hideOverlay();
-    e.resolveTreasureOwner(
-      action as { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" },
-    );
+    e.resolveTreasureOwner(action);
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.isOver) return this.showVictory();
@@ -643,8 +631,7 @@ export class App {
     }
     buttons.push({ label: "结算", action: "bk-confirm", primary: true });
     const owe = Math.max(0, debt.amount - p.cash);
-    this.overlay = createScroll(
-      this.boardWrap,
+    this.openScroll(
       `${p.guohao}·变卖自救`,
       `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按购入价、名士 200 分)。`,
       buttons,
@@ -660,7 +647,6 @@ export class App {
       e.confirmBankruptcySettle();
       this.animator.spawnFloaters(e);
       this.fullRender();
-      if (e.isOver) return this.showVictory();
       return this.onTurnAdvanced();
     }
     const [verb, ...rest] = action.split("-");
@@ -671,7 +657,7 @@ export class App {
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.turnPhase === "AwaitingBankruptcySettle") this.showBankruptcyScroll(); // 仍清算 → 重弹
-    else { if (e.isOver) return this.showVictory(); this.onTurnAdvanced(); }
+    else this.onTurnAdvanced();
   }
 
   private async onHeroPick(idx: number) {
@@ -683,12 +669,12 @@ export class App {
     e.resolveHeroPick(idx);
     this.animator.spawnFloaters(e);
     this.fullRender();
-    if (e.isOver) return this.showVictory();
-    this.onTurnAdvanced();
+    return this.onTurnAdvanced();
   }
 
   private showVictory() {
     this.busy = true;
+    this.audio.play("victory");
     this.fullRender();
     this.hideOverlay();
     const v = createVictory(this.engine, () => this.restart());
@@ -696,7 +682,14 @@ export class App {
     this.overlay = v;
   }
 
+  /** 释放 WebGL/Audio 等长生命周期资源(restart 或将来联机重连时调用)。 */
+  destroy(): void {
+    this.threeDice.cleanup();
+    this.audio.dispose();
+  }
+
   private restart() {
+    this.destroy();
     window.location.reload();
   }
 

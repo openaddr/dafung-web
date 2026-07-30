@@ -130,7 +130,7 @@ export function createScroll(
   parent: HTMLElement,
   title: string,
   desc: string,
-  choices: { label: string; action: string; primary?: boolean; danger?: boolean }[],
+  choices: { label: string; action: string; primary?: boolean }[],
   onClose?: () => void,
 ): HTMLElement {
   const overlay = el("div", { class: "scroll-overlay" }, [
@@ -146,7 +146,7 @@ export function createScroll(
           el(
             "button",
             {
-              class: `btn ${c.primary ? "btn-primary" : ""} ${c.danger ? "btn-danger" : ""}`,
+              class: `btn ${c.primary ? "btn-primary" : ""}`,
               "data-action": c.action,
             },
             [c.label],

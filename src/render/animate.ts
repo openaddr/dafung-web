@@ -9,6 +9,7 @@ import { SIGN_FACES, TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { polylinePath, svgCoordHelpers } from "./svg-util";
 import { delay } from "./timings";
 import type { ThreeDice } from "./dice3d";
+import type { AudioPlayer } from "./audio";
 
 export interface Animator {
   animateDice(die: number): Promise<void>;
@@ -24,6 +25,7 @@ export function createAnimator(
   board: Board,
   boardView: BoardView,
   threeDice: ThreeDice,
+  audio: AudioPlayer,
 ): Animator {
   /** SVG 逻辑坐标 → board-wrap 内像素(用于 HTML 浮层定位)。 */
   const coord = svgCoordHelpers(svgEl);
@@ -34,9 +36,11 @@ export function createAnimator(
   }
 
   async function animateDice(die: number): Promise<void> {
+    audio.play("diceRoll");
     // WebGL 可用 → 真实 3D 物理乱滚;否则走旧文字切换 fallback。
     if (threeDice.available) {
       await threeDice.roll(die);
+      audio.play("diceLand");
       return;
     }
     const diceEl = document.getElementById("dice-face");
@@ -48,6 +52,7 @@ export function createAnimator(
     }
     diceEl.textContent = SIGN_FACES[die - 1];
     diceEl.classList.remove("rolling");
+    audio.play("diceLand");
     await delay(170);
   }
 
@@ -132,6 +137,7 @@ export function createAnimator(
 
   function spawnFloaters(engine: GameEngine): void {
     const fs = engine.drainFloaters();
+    if (fs.some((f) => f.amount > 0)) audio.play("coin"); // 有收入(补给/赏银/贸易售价)→ 铜钱声
     for (const f of fs) {
       const player = engine.players[f.playerIndex];
       if (!player) continue;
@@ -182,6 +188,7 @@ export function createAnimator(
       boardWrap.appendChild(banner);
     }
     banner.textContent = `【${guohao}】之回合`;
+    audio.play("banner");
     banner.style.setProperty("--player-color", rgba(playerColor(colorIndex)));
     banner.classList.remove("show");
     void banner.offsetWidth; // 重启动画
@@ -198,6 +205,7 @@ export function createAnimator(
       [char],
     );
     boardWrap.appendChild(seal);
+    audio.play("stamp");
     setTimeout(() => seal.remove(), 900);
   }
 

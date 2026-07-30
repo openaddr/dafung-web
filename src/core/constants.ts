@@ -21,9 +21,6 @@ export const BUY_WARRANT_COST = 1; // 进驻一座城消耗的委任状数(扩�
 // 名士(英雄):每人最多持有的数量
 export const HERO_CAPACITY = 3;
 
-// 必停都城补偿:每超出 1 步补偿的银两(分)。例:离都城 2 步掷出 6 → 超出 4 → 补 4×50=200
-export const CAP_OVERSHOOT_RATE = 50;
-
 /** 单个 CJK 汉字判定(国号校验共用;core 层,不依赖 DOM)。 */
 export function isSingleCjk(s: string): boolean {
   return /^[㐀-鿿]$/.test(s);

@@ -15,20 +15,6 @@
   --road-branch: #c47a2a;
   --inkwash: #9c8a5e;
 
-  --g-a: #8a5a3a;
-  --g-b: #3a6a8a;
-  --g-c: #7a3a6a;
-  --g-d: #c47a2a;
-  --g-e: #5a8a4a;
-  --g-f: #9a3a2a;
-  --g-g: #2a6a8a;
-  --g-h: #2a8a7a;
-
-  --p-0: #2a6a8a;
-  --p-1: #b23a2e;
-  --p-2: #5a8a4a;
-  --p-3: #7a3a6a;
-
   --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
   --font-body: "Noto Serif SC", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
   --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;
@@ -297,10 +283,6 @@ select,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.player-card.resting {
-  opacity: 0.5;
-  filter: grayscale(0.5);
-}
 .bot-tag {
   font-size: 9px;
   background: var(--ink-dim);
@@ -395,10 +377,6 @@ select,
 @keyframes breathe {
   0%, 100% { box-shadow: 0 2px 6px rgba(120, 90, 40, 0.2), 0 0 0 0 rgba(212, 175, 55, 0.5); }
   50% { box-shadow: 0 2px 6px rgba(120, 90, 40, 0.2), 0 0 0 8px rgba(212, 175, 55, 0); }
-}
-.btn-danger {
-  border-color: var(--danger);
-  color: var(--danger);
 }
 
 /* 战报 */
@@ -548,12 +526,6 @@ select,
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
-}
-.scroll .choice-preview {
-  font-size: 12px;
-  color: var(--ink-dim);
-  text-align: center;
-  margin-top: 8px;
 }
 
 /* 确认框(选都) */
