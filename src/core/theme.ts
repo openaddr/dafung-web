@@ -1,5 +1,11 @@
 // 古风水墨设计系统:宣纸色板、墨/朱砂/赭石/石青/金/青绿、地产分组色、玩家色。
 // 改这里即全局换肤。对应 C# 版 DafungTheme.cs。
+//
+// ⚠️ 配色双源同步:本文件 hex 字面量与 src/render/style.css 的 :root CSS 变量是两套源
+// (SVG/Canvas 走 TS,DOM 文字/边框走 CSS 变量),靠人工保持一致。
+// 改本文件任一 hex → 同步改 style.css :root 对应变量(--bg / --gold / --road-main …);
+// 反之亦然。CSS 变量名 = hex 字段名 kebab-case(如 goldBright → --gold-bright)。
+// core 零 DOM 依赖(CLAUDE.md 规则 1),故不能从 CSS 反向 import,只能双源 + 注释互引。
 
 export interface Rgb {
   r: number;

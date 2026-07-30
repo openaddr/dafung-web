@@ -1,5 +1,7 @@
 // 引擎全状态序列化(调试 window.__dafung / 联机广播数据包)。God view,读 engine public 字段。
 // 从 game.ts 提取,集中序列化逻辑,便于联机时复用 + 单独演进。
+// 联机化(CLAUDE.md 规则 5):本函数输出 = 服务器可广播给各端的完整可观测状态;
+// 瞬时反馈(floaters / dice 动画状态)不在此列 —— 各端独立 spawn,避免高频小包。
 import type { GameEngine } from "./game";
 import { netWorth } from "./networth";
 
@@ -19,6 +21,13 @@ export function serializeGame(e: GameEngine) {
     draftRolls: e.draftRolls,
     currentSetupPlayerIndex: e.currentSetupPlayerIndex,
     takenCapitalIndices: [...e.takenCapitalIndices],
+    // 已选国号(联机 Setup 阶段同步,防止重复国号)
+    usedGuohao: [...e.usedGuohao],
+    // 已招名士 id(联机端据此排除已招候选,保持招贤池一致)
+    recruitedHeroIds: [...e.recruitedHeroIds],
+    // 剩余珍宝牌堆(联机端需复现同一抽牌序列;若不愿向各端暴露,可改为只发 length,但抽牌
+    // 结果由 server nextFloat 决定,故牌堆内容对齐是必要的)
+    treasureDeck: e.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
     pendingHaltIsOnPath: e.pendingHaltIsOnPath,
     pendingDebt: e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null,
     branchStartTile: e.board.branch ? e.board.branch.startNode : null,
@@ -44,16 +53,23 @@ export function serializeGame(e: GameEngine) {
     })),
     offeredHeroes: e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
     lastRoll: e.lastRoll,
+    // lastMove 全量坐标(waypoints/branchWaypoints)随行军动画坐标一并序列化:
+    // 联机端收到 snapshot 时,行军动画可能尚未播放(或断线重连后需补播),需坐标才能复现路径。
     lastMove: e.lastMove
       ? {
+          from: e.lastMove.from,
           landIndex: e.lastMove.landIndex,
           passedCapital: e.lastMove.passedCapital,
           capitalIndex: e.lastMove.capitalIndex,
           traversed: e.lastMove.traversed,
+          waypoints: e.lastMove.waypoints,
+          branchWaypoints: e.lastMove.branchWaypoints,
+          landBranchStep: e.lastMove.landBranchStep,
         }
       : null,
     lastLandOutcomeKind: e.lastLandOutcome?.kind ?? null,
     lastLandOutcomeProperty: e.lastLandOutcome?.property?.id ?? null,
     logCount: e.log.length,
+    // floaters:瞬时反馈(drainFloaters 已清空),联机各端独立 spawn,不序列化。
   };
 }

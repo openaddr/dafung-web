@@ -77,7 +77,8 @@ export class GameEngine {
   turnNumber = 0;
   round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名士技能冷却等使用)
   private roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
-  private recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
+  // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
+  recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 赠宝/贸易:当前城主视角
@@ -88,7 +89,8 @@ export class GameEngine {
   draftRolls: number[] = []; // public:同上
   private currentDraftIndex = 0;
   takenCapitalIndices = new Set<number>(); // public:同上
-  private usedGuohao = new Set<string>();
+  // public:供 snapshot/联机序列化(已选国号集合,联机重建 Setup 用)。
+  usedGuohao = new Set<string>();
 
   isOver = false;
   winner: Player | null = null;

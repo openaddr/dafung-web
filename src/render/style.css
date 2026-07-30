@@ -1,5 +1,9 @@
 /* 群雄逐鹿 — 古风水墨设计系统(CSS)。配色对应 src/core/theme.ts。 */
 
+/* ⚠️ 配色双源同步:以下 :root 变量值必须与 src/core/theme.ts 的 Theme 对象 hex 字段一致
+   (字段名 camelCase → 变量名 kebab-case,如 goldBright → --gold-bright)。
+   改任一端 → 同步另一端,否则 SVG(DOM 走 TS theme)与 HTML 文字/边框(走 CSS 变量)会出现色差。
+   core/ 零 DOM 依赖,不能从 TS 编译期校验 CSS,只能双源 + 注释互引。 */
 :root {
   --bg: #e8dcc0;
   --bg-deep: #d9c9a3;

@@ -266,7 +266,8 @@ export class App {
     const player = e.players[cur];
     if (player.isBot) return;
     const tile = e.board.at(idx);
-    const taken = e.snapshot().takenCapitalIndices.includes(idx);
+    // 直接读引擎 Set,免全量 snapshot 分配(finding: efficiency)
+    const taken = e.takenCapitalIndices.has(idx);
     if (!tile.isCapitalEligible || taken) {
       this.flashHint("该城不可选或已被据");
       return;

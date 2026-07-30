@@ -68,7 +68,37 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
 
   // ── 城池层 ──
   const tileLayer = svg("g", { id: "tiles" });
-  for (const tile of board.tiles) tileLayer.appendChild(buildGate(tile, catalog));
+  // buildGate 时一次性缓存每个 tile 的子元素引用,updateTiles 直接读缓存,免 fullRender 时
+  // 40 tile × (getElementById + 6-8 querySelector) ≈ 300 次 DOM 查询(finding: efficiency)。
+  interface TileChildren {
+    g: SVGGElement;
+    border: SVGElement | null;
+    flag: SVGElement | null;
+    flagText: SVGElement | null;
+    ownerFlag: SVGElement | null;
+    ownerFlagPoly: SVGElement | null;
+    ownerFlagText: SVGElement | null;
+    pips: SVGGElement | null;
+    band: SVGElement | null;
+    name: SVGElement | null;
+  }
+  const tileChildren = new Map<number, TileChildren>();
+  for (const tile of board.tiles) {
+    const g = buildGate(tile, catalog);
+    tileLayer.appendChild(g);
+    tileChildren.set(tile.index, {
+      g,
+      border: g.querySelector(".tile-border") as SVGElement | null,
+      flag: g.querySelector(".tile-flag") as SVGElement | null,
+      flagText: g.querySelector(".tile-flag-text") as SVGElement | null,
+      ownerFlag: g.querySelector(".tile-owner-flag") as SVGElement | null,
+      ownerFlagPoly: g.querySelector(".tile-owner-flag polygon") as SVGElement | null,
+      ownerFlagText: g.querySelector(".tile-owner-flag-text") as SVGElement | null,
+      pips: g.querySelector(".tile-pips") as SVGGElement | null,
+      band: g.querySelector(".tile-band") as SVGElement | null,
+      name: g.querySelector(".tile-name") as SVGElement | null,
+    });
+  }
   // 城池接近重叠时:鼠标悬停哪个,哪个提到最上层(SVG 无 z-index,靠 DOM 顺序,后=上)。
   // 关键:仅在「未按下按键」(buttons===0)时重排。按下期间的 pointerover(指针轻微位移跨过
   // 子元素)会再次 appendChild,把 mousedown 目标节点移走,Chrome 据此吞掉随后的 click ——
@@ -116,13 +146,12 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
   }
 
   function updateTokens(engine: GameEngine, skipPlayerId?: string) {
-    // 同格错位:统计每个"位置键"上的玩家(辅路用 step 合成键,避免辅路玩家与起点 tile 叠加)
-    const posKey = (p: Player): string =>
-      p.onBranch != null && board.branch ? `b${p.onBranch.step}` : String(p.position);
+    // 同格错位:统计每个"位置键"上的玩家(键=playerSlotKey:辅路用 step 合成键,
+    // 避免辅路玩家与主路起点 tile 叠加)
     const byTile = new Map<string, string[]>();
     for (const p of engine.players) {
       if (p.isBankrupt) continue;
-      const key = posKey(p);
+      const key = playerSlotKey(p, board);
       const arr = byTile.get(key) ?? [];
       arr.push(p.id);
       byTile.set(key, arr);
@@ -146,7 +175,7 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       if (p.id === skipPlayerId) continue;
       let t = tokenEls.get(p.id);
       const pos = renderPos(p);
-      const mates = byTile.get(posKey(p)) ?? [p.id];
+      const mates = byTile.get(playerSlotKey(p, board)) ?? [p.id];
       const slot = Math.max(0, mates.indexOf(p.id));
       const off = offsets[slot % offsets.length];
       if (!t) {
@@ -164,8 +193,9 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
 
   function updateTiles(engine: GameEngine) {
     for (const tile of board.tiles) {
-      const g = document.getElementById(`tile-${tile.index}`);
-      if (!g) continue;
+      const tc = tileChildren.get(tile.index);
+      if (!tc) continue;
+      const { g, border, flag, flagText, ownerFlag, ownerFlagPoly, ownerFlagText, pips, band, name } = tc;
       const def = engine.catalog.get(tile.propertyId);
       const owner = def ? engine.findOwner(def.id) : null;
       const holding = owner && def ? findHolding(owner, def.id) : null;
@@ -173,7 +203,6 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       const capitalOwner = engine.players.find((p) => p.capitalIndex === tile.index) ?? null;
 
       // 持有者边框(玩家色 + 加粗 + 淡底,一眼辨归属)
-      const border = g.querySelector(".tile-border") as SVGElement | null;
       if (border) {
         if (owner) {
           const c = playerColor(owner.colorIndex);
@@ -191,8 +220,6 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
         }
       }
       // 王旗(都城)
-      const flag = g.querySelector(".tile-flag") as SVGElement | null;
-      const flagText = g.querySelector(".tile-flag-text") as SVGElement | null;
       if (flag && flagText) {
         if (isCapital && capitalOwner) {
           const c = playerColor(capitalOwner.colorIndex);
@@ -206,21 +233,17 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
         }
       }
       // 持有者小旌旗(非都城持有者,玩家色三角+国号,多城串联一眼辨归属)
-      const oflag = g.querySelector(".tile-owner-flag") as SVGElement | null;
-      if (oflag) {
-        const opoly = oflag.querySelector("polygon") as SVGElement | null;
-        const otext = oflag.querySelector(".tile-owner-flag-text") as SVGElement | null;
+      if (ownerFlag) {
         if (owner && !(isCapital && capitalOwner)) {
           const c = playerColor(owner.colorIndex);
-          oflag.style.display = "";
-          if (opoly) opoly.setAttribute("fill", rgba(c));
-          if (otext) otext.textContent = owner.guohao;
+          ownerFlag.style.display = "";
+          if (ownerFlagPoly) ownerFlagPoly.setAttribute("fill", rgba(c));
+          if (ownerFlagText) ownerFlagText.textContent = owner.guohao;
         } else {
-          oflag.style.display = "none";
+          ownerFlag.style.display = "none";
         }
       }
       // 等级 pips(持有者用玩家色,无主金)
-      const pips = g.querySelector(".tile-pips") as SVGElement | null;
       if (pips) {
         clear(pips);
         const lvl = holding?.level ?? 0;
@@ -232,7 +255,6 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
         }
       }
       // 顶部色带:有持有者→玩家色(一眼辨归属);无主→区域色
-      const band = g.querySelector(".tile-band") as SVGElement | null;
       if (band && def) {
         band.setAttribute("fill", owner ? rgba(playerColor(owner.colorIndex)) : rgba(groupColor(def.group)));
       }
@@ -242,10 +264,12 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
       // 对局焦点:当前回合玩家所在城池(脉动金环,见 .tile-active)
       const isActive = engine.phase === "Playing" && engine.activePlayer.position === tile.index;
       g.classList.toggle("tile-active", isActive);
-      (g.querySelector(".tile-name") as SVGElement).setAttribute(
-        "fill",
-        isCapital ? rgba(Theme.goldBright) : rgba(Theme.ink),
-      );
+      if (name) {
+        name.setAttribute(
+          "fill",
+          isCapital ? rgba(Theme.goldBright) : rgba(Theme.ink),
+        );
+      }
     }
   }
 
@@ -298,6 +322,13 @@ export function createBoardSvg(board: Board, catalog: MapCatalog, opts?: { panZo
   }
 
   return { root, updateTiles, updateTokens, setTokenPosition, tokenOf, tileCenter, fxLayer, flowLayer, resetView };
+}
+
+/** 玩家所在的「格子槽位键」:辅路上则按辅路 step 分组(避免辅路玩家与主路起点 tile 的玩家叠加),
+ *  主路上则按 position。updateTokens(棋盘渲染)与 animateMove(行军动画终点偏移)必须共用
+ *  同一函数,否则落格偏移会先错后纠,产生可见抖动(finding: token slot 一致性)。 */
+export function playerSlotKey(p: Pick<Player, "position" | "onBranch">, board: Board): string {
+  return p.onBranch != null && board.branch ? `b${p.onBranch.step}` : String(p.position);
 }
 
 // ── 远山与江河(装饰层)──

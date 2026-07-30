@@ -48,6 +48,7 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `src/core/heroes.ts` | 名士数据表(数据驱动,新增英雄只改此文件) |
 | `src/core/treasures.ts` | 珍宝数据表 + 牌堆(数据驱动,新增珍宝只改此文件) |
 | `src/core/constants.ts` | 全局共享常量(委任状/都城补偿/签面等) |
+| `src/core/theme.ts` | 配色 Theme 对象(SVG/Canvas 用)。**hex 字面量须与 `src/render/style.css` :root 人工同步**——core 零 DOM,不能编译期校验 |
 | `src/render/state.ts` | App 控制器(热座专用,将来重写) |
 | `src/render/board.ts` | SVG 棋盘渲染 + 缩放平移 |
 | `src/render/ui.ts` | 布局/侧栏/弹窗/设置屏 |

@@ -3,6 +3,7 @@ import type { Board } from "@core/board";
 import type { GameEngine } from "@core/game";
 import { playerColor, rgba } from "@core/theme";
 import type { BoardView } from "./board";
+import { playerSlotKey } from "./board";
 import { svg, el } from "./dom";
 import { formatMoney } from "@core/money";
 import { SIGN_FACES, TOKEN_SLOT_OFFSETS } from "@core/constants";
@@ -88,15 +89,17 @@ export function createAnimator(
       return;
     }
     const target = player.position;
-    // 终点偏移量:与 updateTokens 共用 TOKEN_SLOT_OFFSETS,落格直接落到偏移位,避免"先中心再左移"
-    const byTile = new Map<number, string[]>();
+    // 终点偏移量:与 updateTokens 共用 playerSlotKey(辅路上键不同,避免辅路玩家被错误计入
+    // 主路落点的同格槽位,导致 mover 先落到 slot 1 再被 updateTokens 拨回 slot 0 的抖动)。
+    const byTile = new Map<string, string[]>();
     for (const p of engine.players) {
       if (p.isBankrupt) continue;
-      const arr = byTile.get(p.position) ?? [];
+      const key = playerSlotKey(p, board);
+      const arr = byTile.get(key) ?? [];
       arr.push(p.id);
-      byTile.set(p.position, arr);
+      byTile.set(key, arr);
     }
-    const slot = Math.max(0, (byTile.get(target) ?? [moverId]).indexOf(moverId));
+    const slot = Math.max(0, (byTile.get(playerSlotKey(player, board)) ?? [moverId]).indexOf(moverId));
     const off = TOKEN_SLOT_OFFSETS[slot % TOKEN_SLOT_OFFSETS.length];
 
     let prev = path.from;
