@@ -76,7 +76,8 @@ export class GameEngine {
   turnPhase: TurnPhase = "Roll";
   turnNumber = 0;
   round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名士技能冷却等使用)
-  private roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
+  // public:供 snapshot/联机序列化(轮次锚点需跨进程恢复,否则恢复后 round 计数会漂移)。
+  roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
   recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
@@ -87,7 +88,8 @@ export class GameEngine {
   activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
   draftOrder: number[] = []; // public:同上
   draftRolls: number[] = []; // public:同上
-  private currentDraftIndex = 0;
+  // public:供 snapshot/联机序列化(选都进度需跨进程恢复,否则恢复后无法继续选都)。
+  currentDraftIndex = 0;
   takenCapitalIndices = new Set<number>(); // public:同上
   // public:供 snapshot/联机序列化(已选国号集合,联机重建 Setup 用)。
   usedGuohao = new Set<string>();
@@ -1132,5 +1134,114 @@ export class GameEngine {
   // ──────────────────────────── 调试快照(供 window.__dafung / 测试) ────────────────────────────
   snapshot() {
     return serializeGame(this);
+  }
+
+  // ──────────────────────────── 跨进程重建(CLI 持久化 / 联机快照恢复) ────────────────────────────
+  // 用 serialized snapshot 重建引擎状态。前提:构造时 seats/target/startingCash 已匹配快照;
+  // 本方法只覆盖可变状态。无法恢复的瞬时字段(floaters/lastTransaction)清空。
+  restoreFromSnapshot(s: ReturnType<GameEngine["snapshot"]>): void {
+    this.phase = s.phase;
+    this.setupPhase = s.setupPhase;
+    this.turnPhase = s.turnPhase;
+    this.turnNumber = s.turnNumber;
+    this.round = s.round;
+    this.roundAnchor = s.roundAnchor;
+    this.activeIndex = s.activeIndex;
+    this.isOver = s.isOver;
+    this.winReason = s.winReason;
+    this.draftOrder = [...s.draftOrder];
+    this.draftRolls = [...s.draftRolls];
+    this.currentDraftIndex = s.currentDraftIndex;
+    this.takenCapitalIndices = new Set(s.takenCapitalIndices);
+    this.usedGuohao = new Set(s.usedGuohao);
+    this.recruitedHeroIds = new Set(s.recruitedHeroIds);
+    this.treasureDeck = s.treasureDeck.map((t) => ({
+      id: t.id,
+      name: t.name,
+      level: t.level,
+      desc: t.desc,
+    }));
+    this.treasureVisitor = s.treasureVisitor
+      ? {
+          // catalog.get 返回 PropertyDef | null;snapshot 写入时保证 propertyId 合法
+          def: this.catalog.get(s.treasureVisitor.propertyId) as PropertyDef,
+          ownerIdx: s.treasureVisitor.ownerIdx,
+        }
+      : null;
+    this.pendingDebt = s.pendingDebt
+      ? {
+          amount: s.pendingDebt.amount,
+          creditor: this.players.find((p) => p.id === s.pendingDebt!.creditor) ?? null,
+        }
+      : null;
+    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存 id/name/title/desc,丢 skill/cooldown)
+    this.offeredHeroes = s.offeredHeroes
+      .map((h) => HEROES.find((H) => H.id === h.id))
+      .filter((h): h is HeroDef => h != null);
+    this.lastRoll = s.lastRoll;
+    this.lastMove = s.lastMove
+      ? {
+          from: s.lastMove.from,
+          traversed: [...s.lastMove.traversed],
+          landIndex: s.lastMove.landIndex,
+          passedCapital: s.lastMove.passedCapital,
+          capitalIndex: s.lastMove.capitalIndex,
+          waypoints: [...s.lastMove.waypoints],
+          landBranchStep: s.lastMove.landBranchStep,
+          branchWaypoints: [...s.lastMove.branchWaypoints],
+        }
+      : null;
+    // lastLandOutcome:只重构 kind+property(够 buy/upgrade 用);amount/resupply/causedBankruptcy 丢失
+    if (s.lastLandOutcomeKind && s.lastLandOutcomeProperty) {
+      const def = this.catalog.get(s.lastLandOutcomeProperty);
+      this.lastLandOutcome = def ? { kind: s.lastLandOutcomeKind, property: def } : null;
+    } else {
+      this.lastLandOutcome = null;
+    }
+    this.lastTransaction = null;
+    this.log = s.log ? [...s.log] : [];
+    this.floaters = [];
+
+    // 玩家状态(覆盖构造时设的初值)
+    s.players.forEach((ps, i) => {
+      const p = this.players[i];
+      p.guohao = ps.guohao;
+      p.cash = ps.cash;
+      p.warrants = ps.warrants;
+      p.isBankrupt = ps.isBankrupt;
+      p.position = ps.position;
+      p.capitalIndex = ps.capitalIndex;
+      p.onBranch = ps.onBranch ? { step: ps.onBranch.step } : null;
+      p.skipTurns = ps.skipTurns;
+      // heroes:查 HEROES 表补 skill/cooldown(snapshot 故意只存展示字段)
+      p.heroes = ps.heroes
+        .map((h) => HEROES.find((H) => H.id === h.id))
+        .filter((h): h is HeroDef => h != null);
+      p.heroLastFired = { ...ps.heroLastFired };
+      p.treasures = ps.treasures.map((t) => ({
+        id: t.id,
+        name: t.name,
+        level: t.level,
+        desc: t.desc,
+      }));
+      // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
+      p.properties = ps.properties.map((h) => {
+        const def = this.catalog.get(h.propertyId);
+        return {
+          propertyId: h.propertyId,
+          group: h.group ?? def?.group ?? "z",
+          purchasePrice: def?.purchasePrice ?? def?.buildCost ?? 0,
+          totalUpgradeCost: 0, // 已丢失(本作净资产=仅现金,不影响逻辑)
+          level: h.level,
+          maxLevel: def?.maxLevel ?? 5,
+        };
+      });
+    });
+
+    // winner:从 id 反查玩家
+    this.winner = s.winner ? this.players.find((p) => p.id === s.winner) ?? null : null;
+
+    // PRNG 状态:跨进程续掷(必须最后设,前面 catalog/Set 等不动 dice)
+    if (typeof s.rngState === "number") this.dice.setRngState(s.rngState);
   }
 }

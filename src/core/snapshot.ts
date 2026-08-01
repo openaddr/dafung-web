@@ -1,4 +1,4 @@
-// 引擎全状态序列化(调试 window.__dafung / 联机广播数据包)。God view,读 engine public 字段。
+// 引擎全状态序列化(调试 window.__dafung / 联机广播数据包 / CLI 持久化)。God view,读 engine public 字段。
 // 从 game.ts 提取,集中序列化逻辑,便于联机时复用 + 单独演进。
 // 联机化(CLAUDE.md 规则 5):本函数输出 = 服务器可广播给各端的完整可观测状态;
 // 瞬时反馈(floaters / dice 动画状态)不在此列 —— 各端独立 spawn,避免高频小包。
@@ -12,13 +12,16 @@ export function serializeGame(e: GameEngine) {
     turnPhase: e.turnPhase,
     turnNumber: e.turnNumber,
     round: e.round,
+    roundAnchor: e.roundAnchor,
     activeIndex: e.activeIndex,
     targetNetWorth: e.targetNetWorth,
+    startingCash: e.startingCash,
     isOver: e.isOver,
     winner: e.winner ? e.winner.id : null,
     winReason: e.winReason,
     draftOrder: e.draftOrder,
     draftRolls: e.draftRolls,
+    currentDraftIndex: e.currentDraftIndex,
     currentSetupPlayerIndex: e.currentSetupPlayerIndex,
     takenCapitalIndices: [...e.takenCapitalIndices],
     // 已选国号(联机 Setup 阶段同步,防止重复国号)
@@ -28,11 +31,16 @@ export function serializeGame(e: GameEngine) {
     // 剩余珍宝牌堆(联机端需复现同一抽牌序列;若不愿向各端暴露,可改为只发 length,但抽牌
     // 结果由 server nextFloat 决定,故牌堆内容对齐是必要的)
     treasureDeck: e.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
+    treasureVisitor: e.treasureVisitor
+      ? { propertyId: e.treasureVisitor.def.id, ownerIdx: e.treasureVisitor.ownerIdx }
+      : null,
     pendingHaltIsOnPath: e.pendingHaltIsOnPath,
     pendingDebt: e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null,
     branchStartTile: e.board.branch ? e.board.branch.startNode : null,
     branchEndTile: e.board.branch ? e.board.branch.endNode : null,
     currentTileIsBranchStart: e.currentTileIsBranchStart(),
+    // PRNG 状态:CLI/联机跨进程续掷(不丢 rng 连续性)
+    rngState: e.dice.getRngState(),
     players: e.players.map((p) => ({
       id: p.id,
       name: p.guohao || p.name,
@@ -49,6 +57,8 @@ export function serializeGame(e: GameEngine) {
       skipTurns: p.skipTurns,
       properties: p.properties.map((h) => ({ propertyId: h.propertyId, level: h.level, group: h.group })),
       heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
+      // 名士冷却记录(跨进程恢复 cooldown 判定)
+      heroLastFired: { ...p.heroLastFired },
       treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
     })),
     offeredHeroes: e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
@@ -70,6 +80,8 @@ export function serializeGame(e: GameEngine) {
     lastLandOutcomeKind: e.lastLandOutcome?.kind ?? null,
     lastLandOutcomeProperty: e.lastLandOutcome?.property?.id ?? null,
     logCount: e.log.length,
+    // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
+    log: e.log,
     // floaters:瞬时反馈(drainFloaters 已清空),联机各端独立 spawn,不序列化。
   };
 }
