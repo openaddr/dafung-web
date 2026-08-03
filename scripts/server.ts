@@ -228,7 +228,8 @@ function fingerprint(e: GameEngine): string {
   ].join("|");
 }
 /** 连续驱动服务器控制的决策点,直到轮到人类(在线或冻结)/ 游戏结束 / 无进展。
- *  关键:冻结的人类座位不被驱动(seatControlled=false)→ 游戏等其重连或房主接管。 */
+ *  关键:冻结的人类座位不被驱动(seatControlled=false)→ 游戏等其重连或房主接管。
+ *  每步 persist+broadcast:客户端(联机模式)能逐步看到 bot/接管座位的动作,而非一次性跳到终态。 */
 function driveBots(r: RoomSession): void {
   const e = r.engine;
   if (!e) return;
@@ -238,6 +239,8 @@ function driveBots(r: RoomSession): void {
     if (!seatControlled(r, decisionOwnerSeat(e))) break; // 人类拥有决策(在线或冻结)→ 停
     const before = fingerprint(e);
     botAct(e);
+    persistRoom(r);
+    broadcast(r);
     if (e.isOver) break;
     if (fingerprint(e) === before) break; // 无进展 → 停(防死循环)
   }
@@ -412,9 +415,9 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     );
     autoSetup(engine);
     room.engine = engine;
-    driveBots(room);
     persistRoom(room);
-    broadcast(room);
+    broadcast(room); // 开局首帧
+    driveBots(room); // bot 座位先驱动到人类/待输入(逐步广播)
     return sendJson(res, 200, { ok: true, ...statusOf(engine) });
   }
 
@@ -458,9 +461,9 @@ function authorizeUpgrade(url: URL): { room: RoomSession; seat: number } | null 
 function applyCommand(room: RoomSession, cmd: GameCommand): void {
   if (!room.engine) return;
   room.engine.submitCommand(cmd);
-  driveBots(room);
   persistRoom(room);
-  broadcast(room);
+  broadcast(room); // 人类命令结果先推
+  driveBots(room); // bot/接管座位的连锁决策,逐步 persist+broadcast
 }
 function attachWs(room: RoomSession, seat: number, ws: WebSocket): void {
   // 重连夺回(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即从接管集合移除
@@ -481,9 +484,9 @@ function attachWs(room: RoomSession, seat: number, ws: WebSocket): void {
   const detach = () => {
     if (room.seats[seat].conn === ws) room.seats[seat].conn = null;
     transferHostIfNeeded(room); // host 掉线 → 移交
-    driveBots(room); // 接管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/接管)
     persistRoom(room);
-    broadcast(room);
+    broadcast(room); // 先推"该座离线"
+    driveBots(room); // 接管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/接管)
   };
   ws.on("close", detach);
   ws.on("error", detach);

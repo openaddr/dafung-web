@@ -1,9 +1,11 @@
-// 入口:加载样式 → 显示开局设置屏 → 创建 App 进入对局。
+// 入口:加载样式 → 模式选择(热座 / 联机)→ 进入对局。
 import "./render/style.css";
 import { createSetupScreen } from "./render/ui";
 import { createEditor } from "./render/editor";
 import type { SetupResult } from "./render/ui";
 import { App } from "./render/state";
+import { NetworkClient } from "./render/network-client";
+import { el } from "./render/dom";
 import { VERSION } from "./version";
 import { loadMap } from "./core/board-loader";
 
@@ -38,6 +40,35 @@ async function loadDefaultMap() {
 }
 
 function bootstrap() {
+  root.innerHTML = "";
+  // 模式选择:热座(单设备轮流) / 联机(每人一设备,经服务器)
+  const hotseatBtn = el("button", { class: "btn btn-primary" }, ["热座(本地)"]) as HTMLButtonElement;
+  const onlineBtn = el("button", { class: "btn" }, ["联机(在线)"]) as HTMLButtonElement;
+  const overlay = el("div", { class: "scroll-overlay" }, [
+    el("div", { class: "scroll", style: "max-width:340px;text-align:center;" }, [
+      el("h2", { class: "scroll-title" }, ["群雄逐鹿"]),
+      el("p", { style: "color:var(--ink-dim,#9c6b3f);" }, ["选择对局模式"]),
+      el("div", { class: "choices", style: "flex-direction:column;gap:10px;" }, [hotseatBtn, onlineBtn]),
+    ]),
+  ]);
+  hotseatBtn.addEventListener("click", () => {
+    overlay.remove();
+    showHotseatSetup();
+  });
+  onlineBtn.addEventListener("click", async () => {
+    overlay.remove();
+    try {
+      const map = await loadDefaultMap();
+      root.innerHTML = "";
+      new NetworkClient(map, location.origin);
+    } catch (err) {
+      root.innerHTML = `<div style="padding:40px;color:#b23a2e;font-family:serif">地图加载失败:${(err as Error).message}</div>`;
+    }
+  });
+  root.appendChild(overlay);
+}
+
+function showHotseatSetup() {
   root.innerHTML = "";
   createSetupScreen(root, async (r: SetupResult) => {
     root.innerHTML = "";
