@@ -1,46 +1,73 @@
-// 权威引擎服务器(联机化第 2 步):多房间 + WebSocket + 静态托管 + 落盘恢复。
+// 权威引擎服务器(联机化第 2 步):多房间 + 大厅 + 掉线模型 + WebSocket + 静态托管 + 落盘恢复。
 // 运行:npm run serve  (env: PORT / HOST / ROOMS_DIR / STATIC_DIR)
 //
-// 模型:Map<roomId, RoomSession> 内存挂多局,每局一条 GameEngine;每次变更落
-// rooms/<roomId>.json(含 seatToken,重启可恢复 + 重连凭据不丢)。
-// 客户端:WS 连 /ws?room=&seat=&token= → 发 {type:"cmd",cmd:GameCommand},
-//        收 {type:"snapshot", roomId, ...engineSnapshot}。
+// 生命周期(ADR-0004 大厅 + ADR-0005 seatToken + ADR-0002 掉线):
+//   POST /room/new {seats,bot?,seed?...}   → Lobby,建房者=Seat0(host),领 token
+//   POST /room/join {roomId}               → 凭码占第一个空 human Seat,领 token
+//   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(doDraftRoll 自动国号)+ autoSetup
+//   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
+//   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
+//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...},收 lobby/snapshot
+// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
+//      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/multiplayer.md + docs/adr/0001..0005。
-//
-// 本文件 = 任务 6(骨架)。seatToken/大厅细化(任务 7)、掉线冻结/房主出口(任务 8)
-// 在此之上叠加;客户端网络层(任务 9)、大厅 UI(任务 10)在 src/render 侧。
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { createReadStream } from "node:fs";
-import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { randomBytes, randomInt } from "node:crypto";
 import { WebSocket, WebSocketServer } from "ws";
 import { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
-import { autoResolveBots, autoSetup, createEngine, statusOf, type GameConfig } from "./engine-helpers";
+import { botAct } from "../src/core/bot";
+import { autoSetup, createEngine, statusOf } from "./engine-helpers";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
-// 去掉易混的 I/L/O,降低口传房间码出错率
-const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
+const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
+// botAct 能驱动的相位(其它相位是引擎内部过渡,无需外部驱动)
+const INPUT_PHASES = new Set([
+  "Roll",
+  "AwaitingCapitalHalt",
+  "AwaitingBranch",
+  "AwaitingDecision",
+  "AwaitingHeroPick",
+  "AwaitingTreasureOwner",
+  "AwaitingBankruptcySettle",
+]);
 
 // ──────────────────────────── 房间(Room)────────────────────────────
+interface SeatState {
+  kind: "human" | "bot"; // bot 座位:服务器驱动,人类不可领
+  token: string | null; // human 座位:未领=null,领后=不可猜 token(ADR-0005)
+  conn: WebSocket | null; // 当前连接;null=未连/掉线
+}
+interface HostConfig {
+  seed?: number;
+  target?: number;
+  difficulty?: AiDifficulty;
+}
 interface RoomSession {
   roomId: string;
-  engine: GameEngine;
-  config: GameConfig;
-  seatTokens: string[]; // seat 索引 → 不可猜 token(Seat 归属凭证,ADR-0005;持久化以便重启后重连)
-  conns: Map<number, WebSocket>; // seat → 当前连接(掉线处理见任务 8)
+  seatCount: number;
+  seats: SeatState[];
+  hostSeat: number; // 当前 host 座位(开局=0;host 掉线则移交,ADR-0002)
+  takeover: Set<number>; // 房主强令 bot 接管的人类座位(重连时移除=夺回)
+  hostConfig: HostConfig;
+  engine: GameEngine | null; // null = Lobby
 }
 interface RoomRecord {
   roomId: string;
-  snapshot: ReturnType<GameEngine["snapshot"]>;
-  config: GameConfig;
-  seatTokens: string[];
+  seatCount: number;
+  seats: { kind: "human" | "bot"; token: string | null }[];
+  hostSeat: number;
+  takeover: number[];
+  hostConfig: HostConfig;
+  snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 
 const rooms = new Map<string, RoomSession>();
@@ -52,26 +79,41 @@ function roomPath(roomId: string): string {
 function persistRoom(r: RoomSession): void {
   const rec: RoomRecord = {
     roomId: r.roomId,
-    snapshot: r.engine.snapshot(),
-    config: r.config,
-    seatTokens: r.seatTokens,
+    seatCount: r.seatCount,
+    seats: r.seats.map((s) => ({ kind: s.kind, token: s.token })),
+    hostSeat: r.hostSeat,
+    takeover: [...r.takeover],
+    hostConfig: r.hostConfig,
+    snapshot: r.engine ? r.engine.snapshot() : null,
   };
   writeFileSync(roomPath(r.roomId), JSON.stringify(rec, null, 2), "utf-8");
 }
+function dummySeats(n: number): SeatConfig[] {
+  return Array.from({ length: n }, (_, i) => ({ name: `座 ${i + 1}`, isBot: false }));
+}
 function hydrate(rec: RoomRecord): RoomSession {
-  const engine = createEngine(rec.config, false);
-  engine.restoreFromSnapshot(rec.snapshot);
-  return { roomId: rec.roomId, engine, config: rec.config, seatTokens: rec.seatTokens, conns: new Map() };
+  let engine: GameEngine | null = null;
+  if (rec.snapshot) {
+    engine = createEngine({ seats: dummySeats(rec.seatCount), ...rec.hostConfig }, false);
+    engine.restoreFromSnapshot(rec.snapshot);
+  }
+  return {
+    roomId: rec.roomId,
+    seatCount: rec.seatCount,
+    seats: rec.seats.map((s) => ({ ...s, conn: null })),
+    hostSeat: rec.hostSeat ?? 0,
+    takeover: new Set(rec.takeover ?? []),
+    hostConfig: rec.hostConfig,
+    engine,
+  };
 }
 
-// 启动:确保目录 + 扫描恢复所有进行中的房间
 mkdirSync(ROOMS_DIR, { recursive: true });
 for (const f of readdirSync(ROOMS_DIR)) {
   if (!f.endsWith(".json")) continue;
   try {
     const rec = JSON.parse(readFileSync(join(ROOMS_DIR, f), "utf-8")) as RoomRecord;
-    const s = hydrate(rec);
-    rooms.set(s.roomId, s);
+    rooms.set(rec.roomId, hydrate(rec));
   } catch (e) {
     console.warn(`[server] 跳过损坏的房间文件 ${f}:${e instanceof Error ? e.message : e}`);
   }
@@ -122,33 +164,8 @@ function intField(body: Record<string, unknown>, key: string, fallback: number):
   if (!Number.isFinite(n)) throw httpError(400, `${key} 不是整数`);
   return n;
 }
-function parseSeatConfig(body: Record<string, unknown>): GameConfig {
-  const seatsNum = intField(body, "seats", 2);
-  if (!(seatsNum >= 2 && seatsNum <= 4)) throw httpError(400, "seats 必须 2-4");
-  const botIdx = new Set(
-    String(body.bot ?? "")
-      .split(",")
-      .map((s) => s.trim())
-      .filter(Boolean)
-      .map((s) => {
-        const n = parseInt(s, 10);
-        if (!Number.isFinite(n)) throw httpError(400, `bot 索引非法:${s}`);
-        return n;
-      }),
-  );
-  const seats: SeatConfig[] = [];
-  for (let i = 0; i < seatsNum; i++) seats.push({ name: `座 ${i + 1}`, isBot: botIdx.has(i) });
-  const difficulty = body.difficulty as AiDifficulty | undefined;
-  if (difficulty != null && difficulty !== "Simple" && difficulty !== "Normal") {
-    throw httpError(400, "difficulty 只能是 Simple | Normal");
-  }
-  return {
-    seats,
-    targetNetWorth: body.target != null ? intField(body, "target", 0) : undefined,
-    startingCash: body.startingCash != null ? intField(body, "startingCash", 0) : undefined,
-    difficulty,
-    seed: body.seed != null ? intField(body, "seed", 0) : undefined,
-  };
+function newToken(): string {
+  return randomBytes(18).toString("base64url");
 }
 function newRoomId(): string {
   for (let i = 0; i < 100; i++) {
@@ -158,18 +175,106 @@ function newRoomId(): string {
   }
   throw httpError(500, "房间码生成失败(冲突过多)");
 }
-function newToken(): string {
-  return randomBytes(18).toString("base64url");
-}
 
-// ──────────────────────────── 广播 ────────────────────────────
+// ──────────────────────────── 视图 + 广播 ────────────────────────────
+function seatMeta(r: RoomSession) {
+  return r.seats.map((s, i) => ({
+    seat: i,
+    kind: s.kind,
+    taken: s.token != null,
+    online: s.conn != null && s.conn.readyState === WebSocket.OPEN,
+    // 该座位当前是否由服务器驱动:开局前 bot 座位;开局后 bot 座位或被房主接管的座位
+    controlled: r.engine ? r.engine.players[i].isBot || r.takeover.has(i) : s.kind === "bot",
+  }));
+}
+function lobbyView(r: RoomSession) {
+  return {
+    type: "lobby" as const,
+    roomId: r.roomId,
+    seatCount: r.seatCount,
+    host: r.hostSeat,
+    started: r.engine != null,
+    seats: seatMeta(r),
+  };
+}
 function clientView(r: RoomSession) {
-  return { type: "snapshot" as const, roomId: r.roomId, ...r.engine.snapshot() };
+  return r.engine
+    ? { type: "snapshot" as const, roomId: r.roomId, host: r.hostSeat, seats: seatMeta(r), ...r.engine.snapshot() }
+    : lobbyView(r);
 }
 function broadcast(r: RoomSession): void {
   const msg = JSON.stringify(clientView(r));
-  for (const ws of r.conns.values()) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+  for (const s of r.seats) if (s.conn && s.conn.readyState === WebSocket.OPEN) s.conn.send(msg);
+}
+
+// ──────────────────────────── bot/接管驱动(ADR-0002 接管)────────────────────────────
+/** 当前决策归属哪个座位:大部分相位=active;AwaitingTreasureOwner=城主(可能≠访客)。 */
+function decisionOwnerSeat(e: GameEngine): number {
+  return e.turnPhase === "AwaitingTreasureOwner" ? e.treasureVisitor?.ownerIdx ?? e.activeIndex : e.activeIndex;
+}
+/** 该座位当前是否由服务器驱动(原始 bot,或被房主接管的人类座位)。 */
+function seatControlled(r: RoomSession, seat: number): boolean {
+  return r.engine != null && (r.engine.players[seat]?.isBot || r.takeover.has(seat));
+}
+/** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。 */
+function fingerprint(e: GameEngine): string {
+  return [
+    e.phase,
+    e.setupPhase,
+    e.turnPhase,
+    e.activeIndex,
+    e.currentDraftIndex,
+    e.players.map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`).join(","),
+  ].join("|");
+}
+/** 连续驱动服务器控制的决策点,直到轮到人类(在线或冻结)/ 游戏结束 / 无进展。
+ *  关键:冻结的人类座位不被驱动(seatControlled=false)→ 游戏等其重连或房主接管。 */
+function driveBots(r: RoomSession): void {
+  const e = r.engine;
+  if (!e) return;
+  let guard = 0;
+  while (e.phase !== "GameOver" && guard++ < 500) {
+    if (!INPUT_PHASES.has(e.turnPhase)) break;
+    if (!seatControlled(r, decisionOwnerSeat(e))) break; // 人类拥有决策(在线或冻结)→ 停
+    const before = fingerprint(e);
+    botAct(e);
+    if (e.isOver) break;
+    if (fingerprint(e) === before) break; // 无进展 → 停(防死循环)
+  }
+}
+
+// ──────────────────────────── host 移交 + 解散(ADR-0002)────────────────────────────
+function isOnline(s: SeatState): boolean {
+  return s.conn != null && s.conn.readyState === WebSocket.OPEN;
+}
+/** host 离线 → 身份移交在场最久(最低索引)的在线真人;无在线真人则保持(等重连)。 */
+function transferHostIfNeeded(r: RoomSession): void {
+  const cur = r.seats[r.hostSeat];
+  if (cur && cur.kind === "human" && isOnline(cur)) return;
+  for (let i = 0; i < r.seats.length; i++) {
+    if (r.seats[i].kind === "human" && isOnline(r.seats[i])) {
+      r.hostSeat = i;
+      return;
+    }
+  }
+}
+function dismissRoom(r: RoomSession): void {
+  const msg = JSON.stringify({ type: "dismissed" as const, roomId: r.roomId });
+  for (const s of r.seats) {
+    if (s.conn && s.conn.readyState !== WebSocket.CLOSED) {
+      try {
+        s.conn.send(msg);
+        s.conn.close();
+      } catch {
+        /* 忽略 */
+      }
+    }
+  }
+  rooms.delete(r.roomId);
+  try {
+    unlinkSync(roomPath(r.roomId));
+  } catch {
+    /* 忽略 */
   }
 }
 
@@ -217,8 +322,12 @@ const HELP = {
   endpoints: {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
-    "POST /room/new": "建房 body:{seats?,bot?,seed?,autoSetup?} → {roomId, seatTokens[], ...status}",
-    "WS  /ws?room=&seat=&token=": "加入房间 Seat;发 {type:'cmd',cmd:GameCommand},收 {type:'snapshot',...}",
+    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}",
+    "POST /room/join": "入座 body:{roomId} → {seat,seatToken,...lobby}",
+    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host)",
+    "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
+    "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
+    "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...},收 lobby/snapshot/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   env: { PORT, HOST, ROOMS_DIR, STATIC_DIR },
@@ -239,20 +348,99 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   }
   if (method !== "POST") throw httpError(405, `不支持的方法:${method}`);
 
-  const body = await readBody(req);
-  const obj = asObject(body);
+  const obj = asObject(await readBody(req));
+
   if (path === "/room/new") {
-    const config = parseSeatConfig(obj);
-    const engine = createEngine(config);
-    if (obj.autoSetup) autoSetup(engine);
-    autoResolveBots(engine); // 开局若已有 bot 座位,先驱动到人类/待输入
+    const seatCount = intField(obj, "seats", 2);
+    if (!(seatCount >= 2 && seatCount <= 4)) throw httpError(400, "seats 必须 2-4");
+    const botIdx = new Set(
+      String(obj.bot ?? "")
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .map((s) => parseInt(s, 10))
+        .filter((n) => Number.isInteger(n) && n >= 0 && n < seatCount),
+    );
+    if (botIdx.has(0)) throw httpError(400, "host(Seat 0)必须是真人");
+    const difficulty = obj.difficulty as AiDifficulty | undefined;
+    if (difficulty != null && difficulty !== "Simple" && difficulty !== "Normal") {
+      throw httpError(400, "difficulty 只能是 Simple | Normal");
+    }
+    const hostConfig: HostConfig = {
+      seed: obj.seed != null ? intField(obj, "seed", 0) : undefined,
+      target: obj.target != null ? intField(obj, "target", 0) : undefined,
+      difficulty,
+    };
     const roomId = newRoomId();
-    const seatTokens = engine.players.map(() => newToken());
-    const room: RoomSession = { roomId, engine, config, seatTokens, conns: new Map() };
+    const seats: SeatState[] = Array.from({ length: seatCount }, (_, i) => ({
+      kind: botIdx.has(i) ? "bot" : "human",
+      token: null,
+      conn: null,
+    }));
+    seats[0].token = newToken();
+    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), hostConfig, engine: null };
     rooms.set(roomId, room);
     persistRoom(room);
-    return sendJson(res, 200, { ok: true, roomId, seatTokens, ...statusOf(engine) });
+    return sendJson(res, 200, { ok: true, seat: 0, seatToken: seats[0].token, ...lobbyView(room) });
   }
+
+  if (path === "/room/join") {
+    const room = rooms.get(String(obj.roomId ?? ""));
+    if (!room) throw httpError(404, "房间不存在");
+    if (room.engine) throw httpError(409, "对局已开始,不可加入");
+    const idx = room.seats.findIndex((s) => s.kind === "human" && s.token == null);
+    if (idx < 0) throw httpError(409, "房间已满(无空座位)");
+    const token = newToken();
+    room.seats[idx].token = token;
+    persistRoom(room);
+    broadcast(room);
+    return sendJson(res, 200, { ok: true, seat: idx, seatToken: token, ...lobbyView(room) });
+  }
+
+  if (path === "/room/start") {
+    const room = rooms.get(String(obj.roomId ?? ""));
+    if (!room) throw httpError(404, "房间不存在");
+    if (room.engine) throw httpError(409, "对局已开始");
+    if (obj.seatToken !== room.seats[room.hostSeat].token) throw httpError(403, "仅 host 可开局");
+    const seatsCfg: SeatConfig[] = room.seats.map((s, i) => ({
+      name: `座 ${i + 1}`,
+      isBot: s.kind === "bot" || s.token == null, // 未领的人类座位自动 bot 填充
+    }));
+    const engine = createEngine(
+      { seats: seatsCfg, seed: room.hostConfig.seed, targetNetWorth: room.hostConfig.target, difficulty: room.hostConfig.difficulty },
+      true,
+    );
+    autoSetup(engine);
+    room.engine = engine;
+    driveBots(room);
+    persistRoom(room);
+    broadcast(room);
+    return sendJson(res, 200, { ok: true, ...statusOf(engine) });
+  }
+
+  if (path === "/room/takeover") {
+    const room = rooms.get(String(obj.roomId ?? ""));
+    if (!room || !room.engine) throw httpError(404, "对局不存在");
+    if (obj.seatToken !== room.seats[room.hostSeat].token) throw httpError(403, "仅 host 可接管");
+    const seat = intField(obj, "seat", -1);
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw httpError(400, "seat 非法");
+    if (room.seats[seat].kind === "bot") throw httpError(400, "该座位本就是 bot");
+    room.takeover.add(seat);
+    driveBots(room); // 若该 seat 正轮到,立即 bot 驱动解冻
+    persistRoom(room);
+    broadcast(room);
+    return sendJson(res, 200, { ok: true, takeover: seat, ...statusOf(room.engine) });
+  }
+
+  if (path === "/room/dismiss") {
+    const room = rooms.get(String(obj.roomId ?? ""));
+    if (!room) throw httpError(404, "房间不存在");
+    if (obj.seatToken !== room.seats[room.hostSeat].token) throw httpError(403, "仅 host 可解散");
+    const id = room.roomId;
+    dismissRoom(room);
+    return sendJson(res, 200, { ok: true, dismissed: id });
+  }
+
   throw httpError(404, `未知路由:${path}`);
 }
 
@@ -263,21 +451,22 @@ function authorizeUpgrade(url: URL): { room: RoomSession; seat: number } | null 
   const token = url.searchParams.get("token");
   const room = roomId ? rooms.get(roomId) : undefined;
   if (!room) return null;
-  if (!Number.isInteger(seat) || seat < 0 || seat >= room.seatTokens.length) return null;
-  if (!token || token !== room.seatTokens[seat]) return null; // ADR-0005:token = Seat 归属
+  if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) return null;
+  if (!token || token !== room.seats[seat].token) return null;
   return { room, seat };
 }
-
 function applyCommand(room: RoomSession, cmd: GameCommand): void {
+  if (!room.engine) return;
   room.engine.submitCommand(cmd);
-  autoResolveBots(room.engine); // bot 座位 / bot 城主自动驱动到人类/待输入
+  driveBots(room);
   persistRoom(room);
   broadcast(room);
 }
-
 function attachWs(room: RoomSession, seat: number, ws: WebSocket): void {
-  room.conns.set(seat, ws);
-  ws.send(JSON.stringify(clientView(room))); // 连上即推当前快照
+  // 重连夺回(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即从接管集合移除
+  room.takeover.delete(seat);
+  room.seats[seat].conn = ws;
+  ws.send(JSON.stringify(clientView(room)));
   ws.on("message", (data) => {
     let msg: { type?: string; cmd?: GameCommand };
     try {
@@ -287,12 +476,17 @@ function attachWs(room: RoomSession, seat: number, ws: WebSocket): void {
       return;
     }
     if (msg?.type === "cmd" && msg.cmd) applyCommand(room, msg.cmd);
-    else ws.send(JSON.stringify({ type: "error", error: "expected {type:'cmd',cmd:...}" }));
+    else ws.send(JSON.stringify({ type: "error", error: room.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始" }));
   });
-  ws.on("close", () => {
-    room.conns.delete(seat); // 任务 8 在此加冻结/房主出口
-  });
-  ws.on("error", () => room.conns.delete(seat));
+  const detach = () => {
+    if (room.seats[seat].conn === ws) room.seats[seat].conn = null;
+    transferHostIfNeeded(room); // host 掉线 → 移交
+    driveBots(room); // 接管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/接管)
+    persistRoom(room);
+    broadcast(room);
+  };
+  ws.on("close", detach);
+  ws.on("error", detach);
 }
 
 // ──────────────────────────── 启动 ────────────────────────────
@@ -326,5 +520,5 @@ server.on("upgrade", (req, socket, head) => {
 server.listen(PORT, HOST, () => {
   console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
   console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${rooms.size} 局)  静态:${STATIC_DIR}`);
-  console.log("[server] GET /help 查看接口;WS /ws?room=&seat=&token=");
+  console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");
 });
