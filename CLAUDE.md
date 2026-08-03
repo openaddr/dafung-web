@@ -53,6 +53,9 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `src/render/board.ts` | SVG 棋盘渲染 + 缩放平移 |
 | `src/render/ui.ts` | 布局/侧栏/弹窗/设置屏 |
 | `src/render/animate.ts` | 骰子/行军/横幅/浮动金额/印章动画 |
+| `scripts/cli.ts` | 纯 CLI(每命令一进程,state.json 持久,AI 可完整测试对局) |
+| `scripts/server.ts` | 权威引擎 HTTP 服务(联机化第 1 步:内存常驻引擎 + REST + 落盘) |
+| `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
 - **签筒**:单骰 1-6(不使用双骰,移动距离短便于追踪)
@@ -73,4 +76,12 @@ npm run build      # tsc --noEmit && vite build
 npm test           # 单元测试(Vitest)
 npm run test:e2e   # e2e(Playwright,需先 npm run build)
 npm run preview    # 本地预览(http://localhost:4173)
+npm run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)
+npm run typecheck:scripts  # 类型检查 scripts/(CLI + server,主 build 不含)
+npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 格式)
 ```
+
+## 联机化进度(终局目标)
+- **第 1 步(已完成)**:`scripts/server.ts` —— Node 常驻引擎,REST 接口(`/new` `/cmd` `/auto` `/bot-step` `/status` `/log` `/board` `/full`),落 `state.json` 与 CLI 互换。CORS 已开,供浏览器直连。
+- **第 2 步(待做)**:`src/render/state.ts` → `network-client` —— 浏览器 fetch server 发 `submitCommand` + 收 snapshot 渲染(CLAUDE.md 红线 4 已预留)。
+- **第 3 步(待做)**:CLI 连 server —— 不再用本地 state.json,改为 fetch server。

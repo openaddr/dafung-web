@@ -9,3 +9,4 @@ test-results/
 # CLI 运行时状态(每命令一进程的引擎持久化文件)
 state.json
 state.*.json
+.env
