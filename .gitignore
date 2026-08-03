@@ -9,4 +9,7 @@ test-results/
 # CLI 运行时状态(每命令一进程的引擎持久化文件)
 state.json
 state.*.json
+# 引擎服务器房间落盘目录(默认 ./rooms;e2e 用 ./tmp/e2e-rooms)
+rooms/
+tmp/
 .env

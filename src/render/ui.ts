@@ -277,7 +277,7 @@ export interface SetupResult {
   difficulty: "Simple" | "Normal";
 }
 
-export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult) => void, onEdit?: () => void): void {
+export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult) => void, onEdit?: () => void, onOnline?: () => void): void {
   const screen = el("div", { class: "setup-screen" });
   const card = el("div", { class: "setup-card" });
 
@@ -370,6 +370,8 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
   const startBtn = el("button", { class: "btn btn-primary", id: "start-btn" }, ["起兵"]) as HTMLButtonElement;
   const editBtn = el("button", { class: "btn", id: "edit-btn", style: "margin-left:10px" }, ["编辑地图"]) as HTMLButtonElement;
   editBtn.addEventListener("click", () => onEdit?.());
+  const onlineBtn = onOnline ? (el("button", { class: "btn", id: "online-btn", style: "margin-left:10px" }, ["联机对战"]) as HTMLButtonElement) : null;
+  onlineBtn?.addEventListener("click", () => onOnline?.());
 
   card.appendChild(el("h3", { style: "font-family:var(--font-deco);font-size:16px;margin:0 0 10px;letter-spacing:3px;" }, ["开局布阵"]));
   card.appendChild(
@@ -387,7 +389,7 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
   card.appendChild(seatsBox);
   card.appendChild(el("div", { style: "font-size:12px;color:var(--ink-dim);margin:8px 0 2px;font-family:var(--font-deco);" }, ["字盘快选国号:"]));
   card.appendChild(pool);
-  card.appendChild(el("div", { class: "setup-actions" }, [startBtn, editBtn]));
+  card.appendChild(el("div", { class: "setup-actions" }, onlineBtn ? [startBtn, editBtn, onlineBtn] : [startBtn, editBtn]));
   card.appendChild(hint);
 
   startBtn.addEventListener("click", () => {

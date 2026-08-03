@@ -28,10 +28,26 @@ export default defineConfig({
       },
     },
   ],
-  webServer: {
-    command: "npm run serve:e2e",
-    url: "http://localhost:4173",
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // 两个 webServer:热座用 vite preview(纯静态 4173);联机用引擎服务器(托管 dist + WS,3010)。
+  // 两者都需要先 npm run build 产出 dist/。
+  webServer: [
+    {
+      command: "npm run serve:e2e",
+      url: "http://localhost:4173",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+    },
+    {
+      command: "npm run serve",
+      url: "http://localhost:3010/health",
+      reuseExistingServer: !process.env.CI,
+      timeout: 120_000,
+      env: {
+        STATIC_DIR: "./dist",
+        ROOMS_DIR: "./tmp/e2e-rooms",
+        PORT: "3010",
+        HOST: "127.0.0.1",
+      },
+    },
+  ],
 });
