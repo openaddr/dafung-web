@@ -13,3 +13,4 @@ state.*.json
 rooms/
 tmp/
 .env
+.scratch/

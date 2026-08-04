@@ -85,3 +85,17 @@ npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 
 - **第 1 步(已完成)**:`scripts/server.ts` —— Node 常驻引擎,REST 接口(`/new` `/cmd` `/auto` `/bot-step` `/status` `/log` `/board` `/full`),落 `state.json` 与 CLI 互换。CORS 已开,供浏览器直连。
 - **第 2 步(待做)**:`src/render/state.ts` → `network-client` —— 浏览器 fetch server 发 `submitCommand` + 收 snapshot 渲染(CLAUDE.md 红线 4 已预留)。
 - **第 3 步(待做)**:CLI 连 server —— 不再用本地 state.json,改为 fetch server。
+
+## Agent skills
+
+### Issue tracker
+
+本地 markdown:issue/spec 存 `.scratch/<feature>/`(spec.md + issues/NN-slug.md)。见 `docs/agents/issue-tracker.md`。
+
+### Triage labels
+
+默认五标签(needs-triage / needs-info / ready-for-agent / ready-for-human / wontfix)。见 `docs/agents/triage-labels.md`。
+
+### Domain docs
+
+单上下文:`CONTEXT.md`(根)+ `docs/adr/`。见 `docs/agents/domain.md`。
