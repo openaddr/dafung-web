@@ -84,16 +84,28 @@ export async function setupAndPlay(page: Page, seats: string, seed?: number): Pr
 /** 若有卷轴弹层,点指定 action;不传则点主按钮。返回是否处理了弹层。 */
 export async function dismissScroll(page: Page, action?: string): Promise<boolean> {
   const overlay = await page.$(".scroll-overlay");
-  if (!overlay) return false;
-  if (action) {
-    await page.click(`.scroll-overlay [data-action="${action}"]`).catch(() => {});
-  } else {
-    const primary = await page.$(".scroll-overlay .btn-primary");
-    if (primary) await primary.click();
-    else await page.click('.scroll-overlay [data-action]').catch(() => {});
+  if (overlay) {
+    if (action) {
+      await page.click(`.scroll-overlay [data-action="${action}"]`).catch(() => {});
+    } else {
+      const primary = await page.$(".scroll-overlay .btn-primary");
+      if (primary) await primary.click();
+      else await page.click('.scroll-overlay [data-action]').catch(() => {});
+    }
+    await page.waitForTimeout(300);
+    return true;
   }
-  await page.waitForTimeout(300);
-  return true;
+  // P2: 常规决策改侧栏内嵌——无卷轴时点 action-inline 按钮
+  // 优先 btn-primary(走大路/驻跸/可购地);否则首个未禁用的(避开 disabled 的"购地(不足)")
+  const inline = action
+    ? await page.$(`.action-inline [data-action="${action}"]`)
+    : (await page.$(".action-inline .btn-primary")) ?? (await page.$('.action-inline [data-action]:not([disabled])'));
+  if (inline) {
+    await inline.click();
+    await page.waitForTimeout(300);
+    return true;
+  }
+  return false;
 }
 
 /** 等待 bot 完成一个回合(掷骰 + 动画 + 决策)。 */

@@ -62,11 +62,8 @@ test("全 bot 演示局能自行推进并终局", async ({ page }) => {
       await waitForBot(page, 2200);
       continue;
     }
-    // 人类回合:自动处理弹窗 + 掷骰
-    if (await page.$(".scroll-overlay")) {
-      await page.locator(".scroll-overlay .btn-primary").first().click().catch(() => {});
-      await page.waitForTimeout(600);
-    }
+    // 人类回合:自动处理弹窗/内嵌决策(P2:常规决策在内嵌)+ 掷骰
+    await dismissScroll(page);
     if (await page.locator("#roll-btn").isEnabled()) await page.locator("#roll-btn").click();
     await page.waitForTimeout(1600);
     if (s.turnNumber === lastTurn) await page.waitForTimeout(1000);

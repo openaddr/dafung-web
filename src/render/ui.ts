@@ -6,16 +6,20 @@ import { netWorth } from "@core/networth";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import { el, clear } from "./dom";
+import { assetImg, treasureAssetImg } from "./assets";
 import { IS_DEV } from "../version";
 
 export interface SidebarRefs {
   root: HTMLElement;
   roundInfo: HTMLElement;
-  playersEl: HTMLElement;
+  statusEl: HTMLElement; // P1: 回合状态(活跃玩家大卡)
+  playersEl: HTMLElement; // P4 改紧凑条
   diceFace: HTMLElement; // fallback 文字面(WebGL 不可用时显示)
   dice3d: HTMLElement;   // three.js 骰盘挂载点(WebGL 可用时覆盖 fallback)
   rollBtn: HTMLButtonElement;
   actionZone: HTMLElement;
+  actionInline: HTMLElement; // P2: 内嵌常规决策按钮(买/扩军/驻跸/选路)
+  handEl: HTMLElement; // P3: 手牌(珍宝/名士卡)
   warlogList: HTMLElement;
   tabs: HTMLElement[];
 }
@@ -27,12 +31,15 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
   app.appendChild(boardWrap);
 
   const roundInfo = el("span", { class: "round-info" });
+  const statusEl = el("div", { class: "status-bar", id: "status-bar" });
   const playersEl = el("div", { class: "players", id: "players" });
   // 骰盘:3D 容器(优先,WebGL 可用时由 ThreeDice 挂 canvas)+ 文字面(始终存在,3D 可用时 CSS 隐藏作 fallback)
   const dice3d = el("div", { class: "dice-3d", id: "dice-3d" });
   const diceFace = el("span", { class: "dice-face", id: "dice-face" }, ["签"]);
   const rollBtn = el("button", { class: "btn btn-primary breathe", id: "roll-btn" }, ["行军"]) as HTMLButtonElement;
-  const actionZone = el("div", { class: "action-zone" }, [dice3d, diceFace, rollBtn]);
+  const actionInline = el("div", { class: "action-inline", id: "action-inline" });
+  const actionZone = el("div", { class: "action-zone" }, [dice3d, diceFace, rollBtn, actionInline]);
+  const handEl = el("div", { class: "hand", id: "hand" });
   const warlogList = el("div", { class: "warlog-list", id: "warlog" });
   const tabBrief = el("span", { class: "tab active", "data-mode": "brief" }, ["简报"]);
   const tabDetail = el("span", { class: "tab", "data-mode": "detail" }, ["详情"]);
@@ -40,19 +47,133 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
 
   const sidebar = el("div", { class: "sidebar" }, [
     el("div", { class: "title-banner" }, ["群雄逐鹿", el("small", {}, ["· 三国大富翁 ·"])]),
-    el("div", { class: "section" }, [
-      el("h3", {}, ["诸侯", roundInfo]),
-      playersEl,
+    // 4 区(玩家为主的重构):状态 / 动作 / 手牌 / 流(其他玩家+战报)
+    el("div", { class: "zone status-zone section" }, [
+      el("h3", {}, ["回合", roundInfo]),
+      statusEl,
     ]),
     actionZone,
-    el("div", { class: "section warlog" }, [
-      el("h3", {}, ["战报", el("span", { class: "tab-row" }, tabs)]),
+    el("div", { class: "zone hand-zone section" }, [
+      el("h3", {}, ["手牌"]),
+      handEl,
+    ]),
+    el("div", { class: "zone feed-zone section warlog" }, [
+      el("h3", {}, ["诸侯 · 战报", el("span", { class: "tab-row" }, tabs)]),
+      playersEl,
       warlogList,
     ]),
   ]);
 
   app.appendChild(sidebar);
-  return { boardWrap, sidebar: { root: sidebar, roundInfo, playersEl, diceFace, dice3d, rollBtn, actionZone, warlogList, tabs } };
+  return {
+    boardWrap,
+    sidebar: { root: sidebar, roundInfo, statusEl, playersEl, diceFace, dice3d, rollBtn, actionZone, actionInline, handEl, warlogList, tabs },
+  };
+}
+
+/** P2: 常规决策(驻跸/选路/买扩军)渲染成侧栏内嵌按钮;非交互或复杂相位 → 清空(由 CSS :empty 收起)。
+ *  按钮 data-action 走既有 dispatchAction(halt/continue/main/branch/buy/upgrade/skip)。
+ *  复杂相位(招贤/赠宝贸易/破产)不在此处理,仍弹卷轴(要展示卡面)。 */
+export function renderActionInline(engine: GameEngine, box: HTMLElement, interactive: boolean): void {
+  clear(box);
+  if (!interactive || engine.phase !== "Playing") return;
+  const add = (label: string, action: string, opts: { primary?: boolean; disabled?: boolean } = {}) => {
+    box.appendChild(
+      el("button", {
+        class: `btn ${opts.primary ? "btn-primary" : ""}`,
+        "data-action": action,
+        disabled: opts.disabled ?? false,
+      }, [label]),
+    );
+  };
+  const tp = engine.turnPhase;
+  if (tp === "AwaitingCapitalHalt" && engine.lastMove) {
+    const cap = engine.board.at(engine.lastMove.capitalIndex);
+    const dest = engine.board.at(engine.lastMove.landIndex);
+    add(`驻跸·${cap.name}`, "halt", { primary: true });
+    add(`继续→${dest.name}`, "continue");
+    return;
+  }
+  if (tp === "AwaitingBranch") {
+    add("走大路", "main", { primary: true });
+    add("入辅路", "branch");
+    return;
+  }
+  if (tp === "AwaitingDecision") {
+    const o = engine.lastLandOutcome;
+    const p = engine.activePlayer;
+    if (o?.kind === "PropertyAvailable" && o.property) {
+      const def = o.property;
+      const canBuy = p.cash >= def.purchasePrice && p.warrants >= 1;
+      const reason = p.warrants < 1 ? "委任不足" : "银两不足";
+      add(canBuy ? `购地 ${formatMoney(def.purchasePrice)}·1委任` : `购地(${reason})`, "buy", { primary: canBuy, disabled: !canBuy });
+      add("不取", "skip");
+      return;
+    }
+    if (o?.kind === "OwnProperty" && o.property) {
+      const def = o.property;
+      const h = p.properties.find((x) => x.propertyId === def.id);
+      const lvl = h?.level ?? 0;
+      const canUp = lvl < def.maxLevel && p.cash >= def.upgradeCost;
+      add(canUp ? `扩军 ${formatMoney(def.upgradeCost)}` : `扩军(${lvl >= def.maxLevel ? "满级" : "银两不足"})`, "upgrade", { primary: canUp, disabled: !canUp });
+      add("按兵", "skip");
+      return;
+    }
+  }
+}
+/** P3: 手牌区——渲染 viewSeat 玩家的珍宝 + 名士(小卡,带素材;点击 onDetail 看详情)。
+ *  viewSeat:热座=activeIndex(屏幕跟随活跃玩家);联机=自己的 seat。 */
+export function renderHand(
+  engine: GameEngine,
+  handEl: HTMLElement,
+  viewSeat: number,
+  onDetail: (kind: "treasure" | "hero", id: string) => void,
+): void {
+  clear(handEl);
+  const p = engine.players[viewSeat];
+  if (!p) return;
+  for (const t of p.treasures) {
+    const card = el("div", { class: "hand-card hand-treasure", title: `${t.name} · Lv${t.level}` });
+    const img = treasureAssetImg(t.id, "hand-icon");
+    if (img) card.appendChild(img);
+    else card.appendChild(el("div", { class: "hand-icon-fallback" }, [`Lv${t.level}`]));
+    card.appendChild(el("div", { class: "hc-name" }, [t.name]));
+    card.addEventListener("click", () => onDetail("treasure", t.id));
+    handEl.appendChild(card);
+  }
+  for (const h of p.heroes) {
+    const card = el("div", { class: "hand-card hand-hero", title: `${h.name}·${h.title}` });
+    const img = assetImg("hero:" + h.id, "hand-portrait");
+    if (img) card.appendChild(img);
+    else card.appendChild(el("div", { class: "hand-portrait-fallback" }, [h.name.slice(0, 1)]));
+    card.appendChild(el("div", { class: "hc-name" }, [h.name]));
+    card.addEventListener("click", () => onDetail("hero", h.id));
+    handEl.appendChild(card);
+  }
+}
+
+export function renderStatusBar(engine: GameEngine, statusEl: HTMLElement): void {
+  clear(statusEl);
+  if (engine.phase === "Setup") {
+    statusEl.appendChild(el("div", { class: "status-line" }, ["开局布阵中…"]));
+    return;
+  }
+  if (engine.phase === "GameOver") {
+    const w = engine.winner;
+    statusEl.appendChild(el("div", { class: "status-line status-over" }, [w ? `「${w.guohao}」称帝` : "终局"]));
+    return;
+  }
+  const p = engine.activePlayer;
+  const col = rgba(playerColor(p.colorIndex));
+  statusEl.appendChild(
+    el("div", { class: "status-card", style: `--player-color:${col};` }, [
+      el("div", { class: "st-guohao" }, [p.guohao || "?"]),
+      el("div", { class: "st-info" }, [
+        el("div", { class: "st-turn" }, [`${p.guohao} 的回合`]),
+        el("div", { class: "st-meta" }, [`${formatMoney(p.cash)} · 委任 ${p.warrants} · 身价 ${formatMoney(netWorth(p))}`]),
+      ]),
+    ]),
+  );
 }
 
 /** 渲染玩家卡列表。 */
@@ -91,6 +212,43 @@ export function renderPlayers(engine: GameEngine, playersEl: HTMLElement): void 
 }
 
 /** 渲染战报(简报 / 详情)。增量追加已渲染数之后的新日志。 */
+/** P4: 其他玩家紧凑条(国号 badge + 银两 + 城数 + 状态)。取代旧大玩家卡,省侧栏纵向空间。 */
+export function renderOthers(engine: GameEngine, box: HTMLElement): void {
+  clear(box);
+  const activeId = engine.phase === "Playing" ? engine.activePlayer.id : null;
+  for (const p of engine.players) {
+    const col = rgba(playerColor(p.colorIndex));
+    const cls = ["po-row"];
+    if (p.id === activeId) cls.push("active");
+    if (p.isBankrupt) cls.push("bankrupt");
+    if (engine.isOver && engine.winner?.id === p.id) cls.push("winner");
+    box.appendChild(
+      el("div", { class: cls.join(" "), style: `--player-color:${col};` }, [
+        el("span", { class: "po-guohao" }, [p.guohao || "?"]),
+        el("span", { class: "po-name" }, [`${p.guohao || p.name}${p.isBot ? " 智" : ""}`]),
+        el("span", { class: "po-cash" }, [formatMoney(p.cash)]),
+        el("span", { class: "po-props" }, [`${p.properties.length}城`]),
+      ]),
+    );
+  }
+}
+
+/** P4: 日志分类 → 图标(战报图标化)。 */
+const LOG_ICON: Record<string, string> = {
+  roll: "🎲",
+  buy: "🏠",
+  upgrade: "⬆",
+  rent: "💸",
+  supply: "🌾",
+  branch: "⇄",
+  halt: "🏯",
+  treasure: "💎",
+  trade: "💎",
+  victory: "👑",
+  system: "·",
+  setup: "·",
+};
+
 export function renderWarlog(
   engine: GameEngine,
   listEl: HTMLElement,
@@ -118,7 +276,9 @@ export function renderWarlog(
     const amtSpan = amt
       ? el("span", { class: `amt ${e.amount! >= 0 ? "pos" : "neg"}` }, [amt])
       : null;
-    const line = el("div", { class: `log-line log-cat-${e.category}` }, [text, amtSpan]);
+    const icon = LOG_ICON[e.category] ?? "";
+    const iconSpan = icon ? el("span", { class: "log-icon" }, [icon]) : null;
+    const line = el("div", { class: `log-line log-cat-${e.category}` }, [iconSpan, text, amtSpan]);
     frag.appendChild(line);
   }
   listEl.appendChild(frag);
@@ -133,7 +293,7 @@ export function createScroll(
   parent: HTMLElement,
   title: string,
   desc: string,
-  choices: { label: string; action: string; primary?: boolean }[],
+  choices: { label: string | (Node | string)[]; action: string; primary?: boolean }[],
   onClose?: () => void,
 ): HTMLElement {
   const overlay = el("div", { class: "scroll-overlay" }, [
@@ -152,7 +312,7 @@ export function createScroll(
               class: `btn ${c.primary ? "btn-primary" : ""}`,
               "data-action": c.action,
             },
-            [c.label],
+            Array.isArray(c.label) ? c.label : [c.label],
           ),
         ),
       ),

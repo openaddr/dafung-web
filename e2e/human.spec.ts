@@ -40,7 +40,7 @@ test("人类落格无主城:购买扣款并获得地产", async ({ page }) => {
       continue;
     }
     if (s.turnPhase === "AwaitingDecision") {
-      const buyBtn = await page.$('.scroll-overlay [data-action="buy"]');
+      const buyBtn = await page.$('.action-inline [data-action="buy"]');
       if (buyBtn) {
         const buyerIdx = s.activeIndex;
         const beforeCash = s.players[buyerIdx].cash;

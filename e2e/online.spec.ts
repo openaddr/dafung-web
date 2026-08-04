@@ -31,8 +31,8 @@ test("联机:建房 vs bot → 开局 → 掷骰,snapshot 驱动渲染", async (
   // 战报增长了(我的抽签记录 + 可能的落格/bot 回合)
   await expect(page.locator("#warlog")).not.toHaveText(warlogBefore ?? "", { timeout: 10_000 });
 
-  // 诸侯卡至少显示了一座都城(开局选都完成):玩家卡 meta 含"都"+ 某城名而非"都—"
-  await expect(page.locator("#players")).toContainText(/都(?!—)/, { timeout: 10_000 });
+  // 开局选都完成:紧凑玩家条(P4 renderOthers)显示某玩家 ≥1 城(都城算 1 城)
+  await expect(page.locator("#players")).toContainText(/[1-9]\d*城/, { timeout: 10_000 });
 });
 
 test("联机:房间码拉起第二位玩家(模拟加入)", async ({ request }) => {

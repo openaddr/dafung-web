@@ -2,7 +2,7 @@
 // 覆盖:doRoll 入口 AwaitingBranch 拦截弹卷轴、selectBranch(Branch) 置 onBranch={step:0}
 // + 触发首格、后续 rollAndMove 沿 branch.cells 推进(branchWaypoints)、到终点清 onBranch 落 endNode。
 import { test, expect } from "@playwright/test";
-import { setupAndPlay, snap } from "./helpers";
+import { setupAndPlay, snap, dismissScroll } from "./helpers";
 
 // 辅路:许昌(#5)→ 襄阳(#8),5 格(珍宝/珍宝/锦囊/珍宝/中伏)。
 const BRANCH_START_NAME = "许昌";
@@ -43,21 +43,19 @@ test("辅路:落起点弹抉择,入辅路逐格行进,终点汇入主路", async
 
   // 模拟"上回合落格停在辅路起点":把 p0 放到许昌,强制 AwaitingBranch。
   await page.evaluate((start) => {
-    const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
-    eng.players[0].position = start;
-    eng.players[0].onBranch = null;
-    eng.turnPhase = "AwaitingBranch";
+    const d = (window as unknown as { __dafung: { engine: any; render: () => void } }).__dafung;
+    d.engine.players[0].position = start;
+    d.engine.players[0].onBranch = null;
+    d.engine.turnPhase = "AwaitingBranch";
+    d.render(); // 直接改 engine 后手动重渲,让侧栏内嵌按钮出现
   }, startIdx);
 
-  // 点「行军」→ onRoll→doRoll 入口拦截 AwaitingBranch → 弹辅路抉择卷轴(不掷骰)
-  await expect(page.locator("#roll-btn")).toBeEnabled({ timeout: 5000 });
-  await page.locator("#roll-btn").click();
-  await expect(page.locator(".scroll-overlay")).toBeVisible({ timeout: 3000 });
-  await expect(page.locator(".scroll-overlay")).toContainText("许昌");
-  await expect(page.locator(".scroll-overlay")).toContainText("辅路");
+  // P2: AwaitingBranch 改侧栏内嵌"走大路/入辅路"(行军钮此相已禁用,不再弹卷轴)
+  await expect(page.locator('.action-inline [data-action="branch"]')).toBeVisible({ timeout: 5000 });
+  await expect(page.locator(".action-inline")).toContainText("辅路");
 
   // 入辅路 → selectBranch("Branch"):onBranch={step:0} + 触发第 0 格(珍宝拼点)
-  await page.locator('.scroll-overlay [data-action="branch"]').click();
+  await page.locator('.action-inline [data-action="branch"]').click();
   await page.waitForTimeout(300);
   const after1 = await page.evaluate(() => {
     const eng = (window as unknown as { __dafung: { engine: any } }).__dafung.engine;
@@ -81,12 +79,8 @@ test("辅路:落起点弹抉择,入辅路逐格行进,终点汇入主路", async
     }
     await page.locator("#roll-btn").click();
     await page.waitForTimeout(1800); // 掷骰 + 行军 + bot 一回合
-    // 关掉可能弹出的卷轴(决策/招贤等),点主按钮
-    const overlay = await page.$(".scroll-overlay");
-    if (overlay) {
-      await page.click('.scroll-overlay .btn-primary').catch(() => {});
-      await page.waitForTimeout(300);
-    }
+    // 关掉可能弹出的卷轴/内嵌决策(招贤/赠宝/买地等)
+    await dismissScroll(page);
   }
 
   // 校验:已汇入主路(无论落在 endNode 还是更远)

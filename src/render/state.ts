@@ -14,19 +14,21 @@ import { SynthAudioPlayer } from "./audio";
 import type { AudioPlayer } from "./audio";
 import {
   createLayout,
-  renderPlayers,
+  renderActionInline,
+  renderHand,
+  renderOthers,
+  renderStatusBar,
   renderWarlog,
   createScroll,
   createConfirm,
-  createDecisionScroll,
   createVictory,
 } from "./ui";
 import type { SidebarRefs } from "./ui";
 import { el } from "./dom";
 import { SIGN_FACES, TAP_MAX_MOVE } from "@core/constants";
 import { guidePriceOf } from "@core/treasures";
-import { supplyFor } from "@core/economy";
 import { delay, BOT } from "./timings";
+import { loadAssetManifest, assetImg, treasureAssetImg } from "./assets";
 
 const botDelay = (ms: number = BOT.stepDelayMs): Promise<void> => delay(ms);
 
@@ -87,6 +89,7 @@ export class App {
       board,
       botAct: () => botAct(this.engine), // 调试用:对当前玩家执行一次 bot 决策
       threeDice: this.threeDice, // 调试用:读 3D 骰子姿态
+      render: () => this.fullRender(), // 调试/测试用:手动触发重渲(直接改 engine 后刷 UI)
     };
 
     this.fullRender();
@@ -94,12 +97,15 @@ export class App {
     this.engine.doDraftRoll();
     this.fullRender();
     this.advanceSetup();
+    // 素材 manifest 异步加载完后重渲一次(让 hero/treasure 图就位);未就绪期间走 SVG fallback
+    void loadAssetManifest().then(() => this.fullRender());
   }
 
   // ─────────────────────── 全量渲染 ───────────────────────
   fullRender(skipToken?: string) {
     const e = this.engine;
-    renderPlayers(e, this.refs.playersEl);
+    renderStatusBar(e, this.refs.statusEl);
+    renderOthers(e, this.refs.playersEl);
     this.boardView.updateTiles(e);
     this.boardView.updateTokens(e, skipToken);
 
@@ -109,14 +115,15 @@ export class App {
     // 骰子面
     this.refs.diceFace.textContent = e.lastRoll ? SIGN_FACES[e.lastRoll.die - 1] : "签";
 
-    // 行军按钮:人类回合 Roll(掷骰)或 AwaitingBranch(辅路入口抉择,点此弹卷轴而非掷骰)启用。
-    const humanTurn =
-      e.phase === "Playing" &&
-      !e.activePlayer.isBot &&
-      (e.turnPhase === "Roll" || e.turnPhase === "AwaitingBranch") &&
-      !this.busy;
-    this.refs.rollBtn.disabled = !humanTurn;
-    this.refs.rollBtn.classList.toggle("breathe", humanTurn);
+    // P2: 常规决策(驻跸/选路/买扩军)内嵌到侧栏 actionInline;复杂相位仍弹卷轴
+    const interactive = e.phase === "Playing" && !e.activePlayer.isBot && !this.busy;
+    renderActionInline(e, this.refs.actionInline, interactive);
+    // P3: 手牌(热座=活跃玩家;联机见 network-client 用 this.seat)
+    renderHand(e, this.refs.handEl, e.activeIndex, (k, id) => this.showHandDetail(k, id));
+    // 行军按钮仅 Roll 相位启用(AwaitingBranch 改由内嵌"走大路/入辅路")
+    const canRoll = interactive && e.turnPhase === "Roll";
+    this.refs.rollBtn.disabled = !canRoll;
+    this.refs.rollBtn.classList.toggle("breathe", canRoll);
 
     renderWarlog(e, this.refs.warlogList, this.warlogMode, this.warlogState);
   }
@@ -152,10 +159,18 @@ export class App {
     this.boardWrap.addEventListener("pointerup", onUp);
     this.boardWrap.addEventListener("pointercancel", () => { downTileIdx = null; });
 
-    // 覆盖层里的 HTML 按钮(购地/抉择/驻跸等,带 data-action)仍走 click
+    // 覆盖层里的 HTML 按钮(抉择/破产等,带 data-action)仍走 click
     this.boardWrap.addEventListener("click", (ev) => {
       const action = (ev.target as HTMLElement).closest("[data-action]")?.getAttribute("data-action");
       if (action) void this.dispatchAction(action);
+    });
+    // P2: 侧栏内嵌动作按钮(常规决策)走同一 dispatchAction
+    this.refs.root.addEventListener("click", (ev) => {
+      const action = (ev.target as HTMLElement).closest("[data-action]")?.getAttribute("data-action");
+      if (action) {
+        ev.stopPropagation();
+        void this.dispatchAction(action);
+      }
     });
 
     for (const tab of this.refs.tabs) {
@@ -216,7 +231,7 @@ export class App {
   private openScroll(
     title: string,
     desc: string,
-    buttons: { label: string; action: string; primary?: boolean }[],
+    buttons: { label: string | (Node | string)[]; action: string; primary?: boolean }[],
     onClose?: () => void,
   ): void {
     this.hideOverlay();
@@ -305,29 +320,13 @@ export class App {
   private onRoll() {
     const e = this.engine;
     if (this.busy || e.phase !== "Playing" || e.activePlayer.isBot) return;
-    // AwaitingBranch:掷骰前先选路(doRoll 入口拦截 → 弹选路卷轴,而非 rollAndMove)
-    if (e.turnPhase !== "Roll" && e.turnPhase !== "AwaitingBranch") return;
+    // P2: AwaitingBranch 改由侧栏内嵌"走大路/入辅路",行军按钮只管 Roll
+    if (e.turnPhase !== "Roll") return;
     void this.doRoll();
   }
 
   private async doRoll() {
     const e = this.engine;
-    // 辅路入口抉择(落格到 startNode 后):点行军按钮 → 弹选路卷轴(不掷骰)。
-    // 正常流程由 afterLand 直接弹卷轴;此处兜底处理卷轴已关/AwaitingBranch 态再次触发。
-    if (e.turnPhase === "AwaitingBranch") {
-      if (e.activePlayer.isBot) {
-        this.busy = true;
-        await botDelay();
-        botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        if (e.isOver) return this.showVictory();
-        return this.afterLand();
-      }
-      this.showBranchScroll();
-      this.busy = false;
-      return;
-    }
     this.busy = true;
     this.fullRender();
     const moverId = e.activePlayer.id;
@@ -341,7 +340,7 @@ export class App {
     await this.animator.animateDice(e.lastRoll.die);
 
     if (e.turnPhase === "AwaitingCapitalHalt") {
-      // 驻跸抉择:令牌未动,弹卷轴
+      // 驻跸抉择:令牌未动。P2:人类改侧栏内嵌(按钮由 renderActionInline 渲染)
       if (e.activePlayer.isBot) {
         await botDelay();
         botAct(e); // haltAtCapital / continueMove
@@ -349,8 +348,8 @@ export class App {
         this.animator.spawnFloaters(e);
         await this.afterLand();
       } else {
-        this.showHaltScroll();
         this.busy = false;
+        this.fullRender();
       }
       return;
     }
@@ -364,9 +363,7 @@ export class App {
   private async afterLand(): Promise<void> {
     const e = this.engine;
     if (e.turnPhase === "AwaitingBranch") {
-      // 落到辅路起点:bot 直接决策;人类弹选路卷轴。
-      // 注意:辅路入口 bot 选完后需重走 afterLand(入辅路触发首格 / 走大路落格后可能进入决策),
-      // 末尾是 afterLand 而非推进回合,故不能复用 runBotResolve,保留独立 bot 分支。
+      // 落到辅路起点:bot 直接决策;人类改侧栏内嵌(P2)
       if (e.activePlayer.isBot) {
         await botDelay();
         botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
@@ -375,21 +372,15 @@ export class App {
         if (e.isOver) return this.showVictory();
         return this.afterLand();
       }
-      this.showBranchScroll();
       this.busy = false;
+      this.fullRender();
       return;
     }
     if (e.turnPhase === "AwaitingDecision") {
       if (e.activePlayer.isBot) return this.runBotResolve();
-      if (this.singleDecisionAction() === "skip") {
-        // 只剩"放弃"一个有效选项(委任/银两不足、满级):不弹卷轴,直接跳过
-        e.endDecision();
-        this.animator.spawnFloaters(e);
-        this.fullRender();
-        return this.onTurnAdvanced();
-      }
-      this.showDecisionScroll();
+      // P2: 买/扩军/跳过改侧栏内嵌(由 renderActionInline 渲染)
       this.busy = false;
+      this.fullRender();
       return;
     }
     if (e.turnPhase === "AwaitingHeroPick") {
@@ -514,55 +505,22 @@ export class App {
   }
 
   // ─────────────────────── 弹层 ───────────────────────
-  private showHaltScroll() {
-    const e = this.engine;
-    const cap = e.board.at(e.lastMove!.capitalIndex);
-    const dest = e.board.at(e.lastMove!.landIndex);
-    const def = e.catalog.get(cap.propertyId);
-    const h = e.activePlayer.properties.find((p) => p.propertyId === def?.id);
-    const supply = supplyFor(def?.resupplyPerLevel, h?.level);
-    this.openScroll(
-      "军至都城",
-      `路过都城「${cap.name}」:驻跸可补给 +${formatMoney(supply)},或继续行军至「${dest.name}」。`,
-      [
-        { label: `驻跸 +${formatMoney(supply)}`, action: "halt", primary: true },
-        { label: `继续行军`, action: "continue" },
-      ],
-    );
-  }
+  // (P2) 常规决策卷轴方法 showHaltScroll/showBranchScroll/showDecisionScroll/singleDecisionAction
+  // 已移除——驻跸/选路/买扩军改由侧栏 renderActionInline 内嵌。复杂抉择(招贤/赠宝/破产)仍用卷轴。
 
-  private showBranchScroll() {
+  /** P3: 手牌卡点击 → 详情卷轴(珍宝/名士)。热座读活跃玩家手牌。 */
+  private showHandDetail(kind: "treasure" | "hero", id: string) {
     const e = this.engine;
-    const tile = e.board.at(e.activePlayer.position);
-    const branch = e.board.branch;
-    const cellCount = branch?.cells.length ?? 0;
-    const preview = branch
-      ? `大路:沿主驿道前行。辅路:另辟蹊径(${cellCount} 格,沿途或探珍宝、或遇锦囊,亦有中伏之险),逐格行进至终点汇入主路。`
-      : "大路:沿主驿道前行";
-    this.openScroll(`辅路要隘「${tile.name}」`, preview, [
-      { label: "走大路", action: "main", primary: true },
-      { label: "入辅路", action: "branch" },
-    ]);
-  }
-
-  /** 决策只剩"放弃"一个有效选项(委任/银两不足、满级)→ 返回 "skip" 免弹;否则 null(多选项照常弹)。 */
-  private singleDecisionAction(): "skip" | null {
-    const e = this.engine;
-    const outcome = e.lastLandOutcome;
     const p = e.activePlayer;
-    if (outcome?.kind === "PropertyAvailable" && outcome.property) {
-      if (!(p.cash >= outcome.property.purchasePrice && p.warrants >= 1)) return "skip";
-    } else if (outcome?.kind === "OwnProperty" && outcome.property) {
-      const h = p.properties.find((x) => x.propertyId === outcome.property!.id);
-      if ((h?.level ?? 0) >= outcome.property.maxLevel || p.cash < outcome.property.upgradeCost) return "skip";
+    if (kind === "treasure") {
+      const t = p.treasures.find((x) => x.id === id);
+      if (!t) return;
+      this.openScroll(t.name, `Lv${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}　${t.desc}`, [], () => this.hideOverlay());
+    } else {
+      const h = p.heroes.find((x) => x.id === id);
+      if (!h) return;
+      this.openScroll(`${h.name}·${h.title}`, h.desc, [], () => this.hideOverlay());
     }
-    return null;
-  }
-
-  private showDecisionScroll() {
-    this.hideOverlay();
-    const o = createDecisionScroll(this.boardWrap, this.engine);
-    if (o) this.overlay = o;
   }
 
   private showTileDetail(idx: number) {
@@ -590,7 +548,13 @@ export class App {
     this.openScroll(
       "招贤纳士",
       desc,
-      offered.map((h, i) => ({ label: h.name, action: `heropick-${i}`, primary: i === 0 })),
+      offered.map((h, i) => {
+        const label: (Node | string)[] = [];
+        const img = assetImg("hero:" + h.id, "hero-portrait");
+        if (img) label.push(img);
+        label.push(h.name);
+        return { label, action: `heropick-${i}`, primary: i === 0 };
+      }),
     );
   }
 
@@ -600,11 +564,18 @@ export class App {
     const owner = e.players[tv.ownerIdx];
     const mover = e.activePlayer;
     const tile = e.board.at(mover.position);
-    const buttons: { label: string; action: string; primary?: boolean }[] = [];
+    const buttons: { label: string | (Node | string)[]; action: string; primary?: boolean }[] = [];
     for (const t of owner.treasures) {
+      const withIcon = (text: string): (Node | string)[] => {
+        const c: (Node | string)[] = [];
+        const img = treasureAssetImg(t.id, "treasure-icon");
+        if (img) c.push(img);
+        c.push(text);
+        return c;
+      };
       const guide = guidePriceOf(t.level);
-      buttons.push({ label: `赠·${t.name} +${formatMoney(guide)}`, action: `treasure-gift-${t.id}` });
-      buttons.push({ label: `卖·${t.name}`, action: `treasure-trade-${t.id}` });
+      buttons.push({ label: withIcon(`赠·${t.name} +${formatMoney(guide)}`), action: `treasure-gift-${t.id}` });
+      buttons.push({ label: withIcon(`卖·${t.name}`), action: `treasure-trade-${t.id}` });
     }
     buttons.push({ label: "不赠不卖", action: "treasure-skip", primary: true });
     this.openScroll(

@@ -1,0 +1,50 @@
+{
+  "treasure:seal": {
+    "path": "assets/treasures/treasure-seal.png",
+    "source": "https://commons.wikimedia.org/wiki/File%3AInscription_on_Imperial_Seal_of_China_%22%E5%8F%97%E5%91%BD%E6%96%BC%E5%A4%A9_%E6%97%A2%E5%A3%BD%E6%B0%B8%E6%98%8C%22.svg",
+    "license": "Public domain",
+    "author": "Original: Li Si (李斯) Vector: Lệ Xuân",
+    "fetched_at": "2026-08-04",
+    "review_required": false
+  },
+  "treasure:lychee": {
+    "path": "assets/treasures/treasure-lychee.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3ALychee_fruits_and_seed.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Ivar Leidus",
+    "fetched_at": "2026-08-04",
+    "review_required": true
+  },
+  "treasure:qingnang": {
+    "path": "assets/treasures/treasure-qingnang.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3AChinese_woodcut%2C_Famous_medical_figures%3B_Portrait_of_Hua_Tuo_Wellcome_L0039320.jpg",
+    "license": "CC BY 4.0",
+    "author": "Gan Bozong (Tang period, 618-907)",
+    "fetched_at": "2026-08-04",
+    "review_required": true
+  },
+  "hero:caopi": {
+    "path": "assets/heroes/hero-caopi.png",
+    "source": "https://commons.wikimedia.org/wiki/File%3ACao_Pi_(Chinese_characters).svg",
+    "license": "Public domain",
+    "author": "White whirlwind",
+    "fetched_at": "2026-08-04",
+    "review_required": false
+  },
+  "treasure:hat": {
+    "path": "assets/treasures/treasure-hat.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3A(working_in_the_rice_paddy)_-_DPLA_-_bce27c50ddd1b3ca0870d27471aff6b0.jpg",
+    "license": "Public domain",
+    "author": "unknown",
+    "fetched_at": "2026-08-04",
+    "review_required": false
+  },
+  "tile:Wolong": {
+    "path": "assets/tiles/tile-Wolong.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File%3ADragon_and_butterfly_sugar_painting_artworks_in_Jinan%2C_China.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Sharklord123912",
+    "fetched_at": "2026-08-04",
+    "review_required": true
+  }
+}
