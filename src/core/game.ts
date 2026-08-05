@@ -28,7 +28,7 @@ import { CHANCE_EVENTS, FATE_EVENTS } from "./events";
 import { formatMoney } from "./money";
 import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
-import { CITY_LEVEL_MULTIPLIER, createTreasureDeck, guidePriceOf, tradePriceOf } from "./treasures";
+import { createTreasureDeck, guidePriceOf, premiumPriceOf } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
 
 type Catalog = MapCatalog;
@@ -82,7 +82,7 @@ export class GameEngine {
   recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
-  treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 赠宝/贸易:当前城主视角
+  treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
 
   activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
@@ -627,7 +627,7 @@ export class GameEngine {
       this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(${formatMoney(def.upgradeCost)})`, `own player=${mover.id} prop=${def.id}`);
       return;
     }
-    // 珍宝交涉:城主有珍宝 → 赠宝/贸易;无珍宝 → 无事发生
+    // 珍宝交涉:城主有珍宝 → 公道买卖/坐地起价;无珍宝 → 无事发生
     if (owner.treasures.length > 0) {
       this.treasureVisitor = { def, ownerIdx: this.players.indexOf(owner) };
       this.turnPhase = "AwaitingTreasureOwner";
@@ -635,7 +635,7 @@ export class GameEngine {
       this.logEvent(
         "rent",
         owner.guohao,
-        `${mover.guohao} 落「${tile.name}」,${owner.guohao} 可赠宝/贸易(${owner.treasures.length}件珍宝)`,
+        `${mover.guohao} 落「${tile.name}」,${owner.guohao} 可公道买卖/坐地起价(${owner.treasures.length}件珍宝)`,
         `treasureAwait owner=${owner.id} visitor=${mover.id} treasures=${owner.treasures.length}`,
       );
     } else {
@@ -753,7 +753,7 @@ export class GameEngine {
     }
   }
 
-  // ──────────────────────────── 珍宝交涉(赠宝/贸易) ────────────────────────────
+  // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
   /** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
   private resolveTreasureCity(mover: Player, tile: TileDef): void {
     this.drawTreasureAt(mover, tile.name, tile.index);
@@ -845,8 +845,9 @@ export class GameEngine {
     this.endTurn();
   }
 
-  /** 城主抉择:赠宝(送出珍宝+城升级+朝廷赏银)或 贸易(卖珍宝给访客,不可拒绝)。 */
-  resolveTreasureOwner(action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" }): void {
+  /** 城主抉择:公道买卖(指导价,玩家间付银)/ 坐地起价(加价出售,玩家间付银)/ 跳过。
+   *  两种交易都是 visitor → owner 玩家间付银(无银行注入);visitor 先得宝再付款。 */
+  resolveTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }): void {
     if (!this.assertPhase("AwaitingTreasureOwner", "ResolveTreasureOwner")) return;
     const tv = this.treasureVisitor!;
     const owner = this.players[tv.ownerIdx];
@@ -854,7 +855,7 @@ export class GameEngine {
     const def = tv.def;
 
     if (action.type === "skip") {
-      this.logEvent("system", owner.guohao, `${owner.guohao} 不赠不卖`, `treasureSkip owner=${owner.id}`);
+      this.logEvent("system", owner.guohao, `${owner.guohao} 不交易`, `treasureSkip owner=${owner.id}`);
       this.treasureVisitor = null;
       this.endTurn();
       return;
@@ -866,29 +867,24 @@ export class GameEngine {
     const guidePrice = guidePriceOf(treasure.level);
     const holding = findHolding(owner, def.id);
     const cityLevel = holding?.level ?? 0;
-    const levelMult = CITY_LEVEL_MULTIPLIER[cityLevel] ?? 1;
 
-    if (action.type === "gift") {
-      // 赠宝:访客得宝,城升级,朝廷赏银(银行注入 = 指导价)
-      mover.treasures.push(treasure);
-      if (holding && holding.level < def.maxLevel) holding.level += 1;
-      owner.cash += guidePrice; // 朝廷赏银(银行注入)
-      this.pushFloater(owner, guidePrice, owner.position, "income");
-      this.lastLandOutcome = { kind: "RentPaid", property: def, owner, amount: guidePrice };
-      this.logEvent("rent", owner.guohao, `${owner.guohao} 赠「${treasure.name}」给 ${mover.guohao},城升至 Lv.${holding?.level},朝廷赏 ${formatMoney(guidePrice)}`, `treasureGift owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} reward=${guidePrice} newCityLevel=${holding?.level}`, guidePrice);
-    } else {
-      // 贸易:访客付钱得宝(不可拒绝)。售价 = 指导价 × 贸易公式 × 等级倍率
-      const price = tradePriceOf(guidePrice, def.trade, levelMult); // 贸易售价(集中公式,必高于指导价)
-      mover.treasures.push(treasure);
-      const r = this.payOrLiquidate(mover, owner, price);
-      if (r === "liquidating") return; // 清算自救;访客已得宝,凑不够破产时珍宝经 settleDebt 转回城主
-      const bankrupt = r === "bankrupt";
-      this.pushFloater(mover, -price, mover.position, "expense");
-      this.pushFloater(owner, price, mover.position, "income");
-      if (price > 0) this.fireOnOtherLoseCash(mover);
-      this.lastLandOutcome = { kind: "RentPaid", property: def, owner, amount: price, causedBankruptcy: bankrupt };
-      this.logEvent("rent", owner.guohao, `${owner.guohao} 卖「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasureTrade owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
-    }
+    // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
+    const price = action.type === "fair"
+      ? guidePrice
+      : premiumPriceOf(guidePrice, def, cityLevel);
+
+    // visitor 先得宝,再付银给 owner(玩家间流转;与原 trade 分支一致)。
+    // 破产时珍宝经 settleDebt 转回 owner。
+    mover.treasures.push(treasure);
+    const r = this.payOrLiquidate(mover, owner, price);
+    if (r === "liquidating") return; // 清算自救
+    const bankrupt = r === "bankrupt";
+    this.pushFloater(mover, -price, mover.position, "expense");
+    this.pushFloater(owner, price, mover.position, "income");
+    if (price > 0) this.fireOnOtherLoseCash(mover);
+    this.lastLandOutcome = { kind: "RentPaid", property: def, owner, amount: price, causedBankruptcy: bankrupt };
+    const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
+    this.logEvent("rent", owner.guohao, `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
     this.treasureVisitor = null;
     this.endTurn();
   }

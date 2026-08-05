@@ -36,7 +36,7 @@ import {
 import type { SidebarRefs } from "./ui";
 import { el } from "./dom";
 import { SIGN_FACES, TAP_MAX_MOVE } from "@core/constants";
-import { guidePriceOf } from "@core/treasures";
+import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { assetImg, treasureAssetImg } from "./assets";
 
 export abstract class ClientController {
@@ -64,7 +64,7 @@ export abstract class ClientController {
   abstract get viewSeat(): number;
   /** 此刻能否操作:热座=活跃玩家是人类 && !busy,联机=轮到我决策 && !busy。 */
   abstract get interactive(): boolean;
-  /** 动作执行:热座=改引擎+动画+推进,联机=发 WS。action 形如 halt/buy/heropick-N/treasure-gift-X/bk-confirm。 */
+  /** 动作执行:热座=改引擎+动画+推进,联机=发 WS。action 形如 halt/buy/heropick-N/treasure-fair-X/bk-confirm。 */
   abstract dispatchAction(action: string): void;
   /** 行军按钮:热座=doRoll(动画+落格编排),联机=发 rollAndMove 命令。 */
   abstract onRoll(): void;
@@ -215,31 +215,46 @@ export abstract class ClientController {
     );
   }
 
+  /** Step 1 模式选择:{owner}·珍宝抉择 — 不交易 / 公道买卖 / 坐地起价 三按钮。 */
   protected showTreasureOwnerScroll() {
     const e = this.engine;
     const tv = e.treasureVisitor!;
     const owner = e.players[tv.ownerIdx];
     const mover = e.activePlayer;
     const tile = e.board.at(mover.position);
-    const buttons: { label: string | (Node | string)[]; action: string; primary?: boolean }[] = [];
-    for (const t of owner.treasures) {
-      const withIcon = (text: string): (Node | string)[] => {
-        const c: (Node | string)[] = [];
-        const img = treasureAssetImg(t.id, "treasure-icon");
-        if (img) c.push(img);
-        c.push(text);
-        return c;
-      };
-      const guide = guidePriceOf(t.level);
-      buttons.push({ label: withIcon(`赠·${t.name} +${formatMoney(guide)}`), action: `treasure-gift-${t.id}` });
-      buttons.push({ label: withIcon(`卖·${t.name}`), action: `treasure-trade-${t.id}` });
-    }
-    buttons.push({ label: "不赠不卖", action: "treasure-skip", primary: true });
+    const n = owner.treasures.length;
     this.openScroll(
       `${owner.guohao}·珍宝抉择`,
-      `${mover.guohao} 落「${tile.name}」。${owner.guohao} 可选一件珍宝:赠宝(访客得宝、城升级、朝廷赏指导价银)或贸易(访客付银得宝,售价=指导价×城池公式×等级倍率)。`,
-      buttons,
+      `${mover.guohao} 落「${tile.name}」。${owner.guohao} 有 ${n} 件珍宝。`,
+      [
+        { label: "不交易", action: "treasure-skip", primary: true },
+        { label: "公道买卖 · 按指导价", action: "treasure-mode-fair" },
+        { label: "坐地起价 · 加价出售", action: "treasure-mode-premium" },
+      ],
     );
+  }
+
+  /** Step 2 选珍宝:列出当前模式下每件珍宝 + 价格 + 图标,末尾「← 返回」回 Step 1。 */
+  protected showTreasurePickerScroll(mode: "fair" | "premium") {
+    const e = this.engine;
+    const tv = e.treasureVisitor!;
+    const owner = e.players[tv.ownerIdx];
+    const def = tv.def;
+    const holding = owner.properties.find((h) => h.propertyId === def.id);
+    const cityLevel = holding?.level ?? 0;
+    const buttons: { label: (Node | string)[]; action: string }[] = [];
+    for (const t of owner.treasures) {
+      const guide = guidePriceOf(t.level);
+      const price = mode === "fair" ? guide : premiumPriceOf(guide, def, cityLevel);
+      const c: (Node | string)[] = [];
+      const img = treasureAssetImg(t.id, "treasure-icon");
+      if (img) c.push(img);
+      c.push(`${t.name} → ${formatMoney(price)}`);
+      buttons.push({ label: c, action: `treasure-${mode}-${t.id}` });
+    }
+    buttons.push({ label: ["← 返回"], action: "treasure-back" });
+    const title = mode === "fair" ? "公道买卖·选珍宝" : "坐地起价·选珍宝";
+    this.openScroll(title, "选择要出售的珍宝:", buttons);
   }
 
   /** 破产清算卷轴:列珍宝(指导价)/非都城城(购入价)/名士(200),卖一件重弹,结算→confirm。 */

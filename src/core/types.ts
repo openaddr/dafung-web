@@ -39,7 +39,12 @@ export interface PropertyDef {
   rentByLevel: number[]; // 长度 maxLevel+1
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
-  trade?: TradeFormula; // 贸易公式:翻倍(multiply)或加价(markup);缺省=指导价×等级倍率
+  /** 坐地起价加价值(per-level,分银):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  tradeAdd?: number[];
+  /** 坐地起价乘数(per-level):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  tradeMult?: number[];
+  /** 旧贸易公式(向后兼容):premiumPriceOf 无 tradeAdd/tradeMult 时回退到此 × CITY_LEVEL_MULTIPLIER。 */
+  trade?: TradeFormula;
 }
 
 /** 辅路格种类:treasure=拼点探宝,event=锦囊随机事件,penalty=中伏跳一回合。 */
@@ -179,7 +184,8 @@ export interface MapData {
   tiles: MapTile[];
   branch?: MapBranch | null; // 分岔辅路(可空;旧版 shortcuts 字段已废弃)
 }
-/** 贸易公式:multiply=翻倍(指导价×param×等级倍率);markup=加价((指导价+param)×等级倍率)。 */
+/** 贸易公式(旧字段,向后兼容):multiply=翻倍(指导价×param×等级倍率);markup=加价(指导价+param×等级倍率)。
+ *  新字段 tradeAdd/tradeMult(per-level)优先;此字段仅作回退。 */
 export interface TradeFormula {
   type: "multiply" | "markup";
   param: number;
@@ -196,6 +202,10 @@ export interface MapTile {
   upgrade?: number;
   buildCost?: number;
   rentByLevel?: number[];
+  /** 坐地起价加价值(per-level,分银):与 PropertyDef 同义。 */
+  tradeAdd?: number[];
+  /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
+  tradeMult?: number[];
   trade?: TradeFormula;
 }
 
@@ -222,7 +232,7 @@ export type GameCommand =
   | { type: "upgradeProperty" }
   | { type: "endDecision" }
   | { type: "resolveHeroPick"; index: number }
-  | { type: "resolveTreasureOwner"; action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" } }
+  | { type: "resolveTreasureOwner"; action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" } }
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }
   | { type: "cashHeroBankruptcy"; heroId: string }

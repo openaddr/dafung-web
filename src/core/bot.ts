@@ -14,7 +14,7 @@ function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): nu
   const owner = engine.findOwner(def.id);
   if (!owner) return def.purchasePrice / 4; // 可买
   if (owner === p) return def.upgradeCost / 4; // 可升级
-  return 0; // 落他人城:不收租(城主无珍宝=无事;有珍宝则城主择赠/贸易,访客不可控,估中性)
+  return 0; // 落他人城:不收租(城主无珍宝=无事;有珍宝则城主择公道买卖/坐地起价,访客不可控,估中性)
 }
 
 /** 辅路入口抉择:走大路时下一落点的近似价值(平均掷骰 3.5 步后的 tile)。 */
@@ -97,13 +97,24 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingTreasureOwner": {
-      // bot 城主:有珍宝 → 低级赠宝(升级),高级贸易(赚钱);Simple 随机
+      // bot 城主:公道买卖(指导价)/坐地起价(加价)/跳过。
+      //  Normal:高等级珍宝(≥6)溢价卖,低等级公道卖,偶尔(20%)跳过。
+      //  Simple:随机 fair/premium/skip。
       const owner = engine.players[engine.treasureVisitor?.ownerIdx ?? 0];
       const treasures = owner.treasures;
       if (treasures.length === 0) { engine.resolveTreasureOwner({ type: "skip" }); break; }
       const pick = treasures[Math.floor(engine.dice.nextFloat() * treasures.length)];
-      const trade = simple ? engine.dice.nextFloat() < 0.4 : pick.level >= 6;
-      engine.resolveTreasureOwner(trade ? { type: "trade", treasureId: pick.id } : { type: "gift", treasureId: pick.id });
+      if (simple) {
+        const r = engine.dice.nextFloat();
+        if (r < 0.34) engine.resolveTreasureOwner({ type: "fair", treasureId: pick.id });
+        else if (r < 0.68) engine.resolveTreasureOwner({ type: "premium", treasureId: pick.id });
+        else engine.resolveTreasureOwner({ type: "skip" });
+        break;
+      }
+      // Normal
+      if (engine.dice.nextFloat() < 0.2) { engine.resolveTreasureOwner({ type: "skip" }); break; }
+      const mode = pick.level >= 6 ? "premium" : "fair";
+      engine.resolveTreasureOwner({ type: mode, treasureId: pick.id });
       break;
     }
 

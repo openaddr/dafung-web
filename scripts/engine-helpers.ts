@@ -152,7 +152,7 @@ export function promptFor(
     case "AwaitingHeroPick":
       return `${who} 招贤纳士:选名士(cmd {"type":"resolveHeroPick","index":0..2})`;
     case "AwaitingTreasureOwner":
-      return `${decisionOwner ?? who} 城主抉择:赠宝(gift <id>)/贸易(trade <id>)/跳过(tskip)`;
+      return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":
       return `${who} 破产清算:变卖(cmd {"type":"sellTreasureBankruptcy",...})或结算(confirm)`;
     case "Land":

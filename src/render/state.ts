@@ -58,8 +58,8 @@ export class App extends ClientController {
   }
 
   /** 热座动作分发:逐动作改引擎 + 动画 + 推进回合。action-string 解析与联机对称
-   *  (halt/buy/heropick-N/treasure-gift-X/bk-confirm…),但落到 onHalt/onDecision/… 而非 act→send。
-   *  返回 Promise<void> 是 OK 的:基类抽象签名是 :void,TS 允许 Promise<void> 覆写 void
+   *  (halt/buy/heropick-N/treasure-fair-X/treasure-mode-fair/bk-confirm…),但落到 onHalt/onDecision/…
+   *  而非 act→send。返回 Promise<void> 是 OK 的:基类抽象签名是 :void,TS 允许 Promise<void> 覆写 void
    *  (callback-style 放宽);bindEvents 里用 `void this.dispatchAction(...)` fire-and-forget。 */
   async dispatchAction(action: string): Promise<void> {
     if (action.startsWith("heropick-")) {
@@ -69,10 +69,16 @@ export class App extends ClientController {
     if (action.startsWith("treasure-")) {
       const sub = action.slice("treasure-".length);
       if (sub === "skip") return this.onTreasureOwner({ type: "skip" });
+      if (sub === "back") { this.showTreasureOwnerScroll(); return; }
+      if (sub.startsWith("mode-")) {
+        const mode = sub.slice("mode-".length);
+        if (mode === "fair" || mode === "premium") { this.showTreasurePickerScroll(mode); return; }
+        return; // 未知 mode,忽略
+      }
       const [verb, ...rest] = sub.split("-");
       const treasureId = rest.join("-");
-      if (verb === "gift") return this.onTreasureOwner({ type: "gift", treasureId });
-      if (verb === "trade") return this.onTreasureOwner({ type: "trade", treasureId });
+      if (verb === "fair") return this.onTreasureOwner({ type: "fair", treasureId });
+      if (verb === "premium") return this.onTreasureOwner({ type: "premium", treasureId });
     }
     if (action.startsWith("bk-")) {
       const sub = action.slice("bk-".length);
@@ -249,7 +255,7 @@ export class App extends ClientController {
       return;
     }
     if (e.turnPhase === "AwaitingTreasureOwner") {
-      // 城主抉择(赠宝/贸易/跳过);城主可能是 bot 或人类
+      // 城主抉择(公道买卖/坐地起价/跳过);城主可能是 bot 或人类
       const owner = e.players[e.treasureVisitor?.ownerIdx ?? 0];
       if (owner.isBot) return this.runBotResolve();
       this.showTreasureOwnerScroll();
@@ -368,14 +374,14 @@ export class App extends ClientController {
   // 已移除——驻跸/选路/买扩军改由侧栏 renderActionInline 内嵌。复杂抉择(招贤/赠宝/破产)仍用卷轴
   // (showHeroPickScroll/showTreasureOwnerScroll/showBankruptcyScroll 在基类)。
 
-  private async onTreasureOwner(action: { type: "gift"; treasureId: string } | { type: "trade"; treasureId: string } | { type: "skip" }) {
+  private async onTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }) {
     if (this.busy) return;
     const e = this.engine;
     if (e.turnPhase !== "AwaitingTreasureOwner") return;
     this.busy = true;
     this.hideOverlay();
     e.resolveTreasureOwner(action);
-    // 赠宝/贸易:访客得宝(无论城主赠予或买入)→ 珍宝音;跳过无声。
+    // 公道/坐地:访客得宝(无论买入)→ 珍宝音;跳过无声。
     if (action.type !== "skip") this.audio.play("treasure");
     this.animator.spawnFloaters(e);
     this.fullRender();

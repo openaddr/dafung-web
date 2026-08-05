@@ -94,7 +94,7 @@ function main(): void {
           "buy | upgrade | skip": "购买/扩军/跳过(AwaitingDecision)",
           "halt | continue": "驻跸/继续行军(AwaitingCapitalHalt)",
           "main | branch": "走大路/入辅路(AwaitingBranch)",
-          "gift <id> | trade <id> | tskip": "赠宝/贸易/跳过(AwaitingTreasureOwner)",
+          "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",
           "confirm": "破产清算结算(AwaitingBankruptcySettle)",
           "cmd <json>": "任意 GameCommand(JSON 字符串)",
           "status": "当前状态摘要 + prompt",
@@ -182,20 +182,20 @@ function main(): void {
         console.log(JSON.stringify({ ok: true, command: "branch", ...statusOf(engine) }, null, 2));
         return;
       }
-      case "gift": {
+      case "fair": {
         const treasureId = positionals[1];
-        if (!treasureId) throw new Error("用法:gift <treasureId>");
-        engine.submitCommand({ type: "resolveTreasureOwner", action: { type: "gift", treasureId } });
+        if (!treasureId) throw new Error("用法:fair <treasureId>");
+        engine.submitCommand({ type: "resolveTreasureOwner", action: { type: "fair", treasureId } });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "gift", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: true, command: "fair", ...statusOf(engine) }, null, 2));
         return;
       }
-      case "trade": {
+      case "premium": {
         const treasureId = positionals[1];
-        if (!treasureId) throw new Error("用法:trade <treasureId>");
-        engine.submitCommand({ type: "resolveTreasureOwner", action: { type: "trade", treasureId } });
+        if (!treasureId) throw new Error("用法:premium <treasureId>");
+        engine.submitCommand({ type: "resolveTreasureOwner", action: { type: "premium", treasureId } });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "trade", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: true, command: "premium", ...statusOf(engine) }, null, 2));
         return;
       }
       case "tskip": {

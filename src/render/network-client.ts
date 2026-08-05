@@ -71,7 +71,8 @@ export class NetworkClient extends ClientController {
   }
 
   /** 联机动作分发:解析 action-string → GameCommand → act→send(发 WS)。与热座对称的解析,
-   *  但落到 act(send)而非 onHalt/onDecision(改引擎+动画)。 */
+   *  但落到 act(send)而非 onHalt/onDecision(改引擎+动画)。
+   *  treasure-mode-fair/premium 与 treasure-back 是纯客户端 UI 跳步(不发命令,只重弹卷轴)。 */
   dispatchAction(action: string): void {
     if (action.startsWith("heropick-")) {
       return this.act({ type: "resolveHeroPick", index: parseInt(action.slice("heropick-".length), 10) });
@@ -79,10 +80,16 @@ export class NetworkClient extends ClientController {
     if (action.startsWith("treasure-")) {
       const sub = action.slice("treasure-".length);
       if (sub === "skip") return this.act({ type: "resolveTreasureOwner", action: { type: "skip" } });
+      if (sub === "back") { this.showTreasureOwnerScroll(); return; }
+      if (sub.startsWith("mode-")) {
+        const mode = sub.slice("mode-".length);
+        if (mode === "fair" || mode === "premium") { this.showTreasurePickerScroll(mode); return; }
+        return; // 未知 mode,忽略
+      }
       const [verb, ...rest] = sub.split("-");
       const treasureId = rest.join("-");
-      if (verb === "gift") return this.act({ type: "resolveTreasureOwner", action: { type: "gift", treasureId } });
-      if (verb === "trade") return this.act({ type: "resolveTreasureOwner", action: { type: "trade", treasureId } });
+      if (verb === "fair") return this.act({ type: "resolveTreasureOwner", action: { type: "fair", treasureId } });
+      if (verb === "premium") return this.act({ type: "resolveTreasureOwner", action: { type: "premium", treasureId } });
     }
     if (action.startsWith("bk-")) {
       const sub = action.slice("bk-".length);

@@ -112,6 +112,8 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       rentByLevel: rent,
       buildCost: t.buildCost ?? 0,
       resupplyPerLevel: resupply,
+      tradeAdd: t.tradeAdd,
+      tradeMult: t.tradeMult,
       trade: t.trade,
     });
   });
