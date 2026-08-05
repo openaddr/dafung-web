@@ -1206,6 +1206,7 @@ export class GameEngine {
     s.players.forEach((ps, i) => {
       const p = this.players[i];
       p.guohao = ps.guohao;
+      p.isBot = ps.isBot; // 恢复 isBot(联机客户端的占位引擎可能与服务器不一致)
       p.cash = ps.cash;
       p.warrants = ps.warrants;
       p.isBankrupt = ps.isBankrupt;

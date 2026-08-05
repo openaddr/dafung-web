@@ -50,6 +50,13 @@ export class NetworkClient extends ClientController {
         { name: "座 2", isBot: true },
       ],
     });
+    // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat
+    window.__dafung = {
+      engine: this.engine,
+      snapshot: () => this.engine.snapshot(),
+      seat: () => this.seat,
+      busy: () => this.busy,
+    };
     this.fullRender();
     void loadAssetManifest().then(() => this.fullRender());
     this.showConnectScreen();
@@ -146,6 +153,7 @@ export class NetworkClient extends ClientController {
     for (const n of [2, 3, 4]) seatsSel.appendChild(el("option", { value: String(n) }, [`${n} 座`]));
     const botIn = el("input", { class: "input", placeholder: "bot 座位号,逗号分隔(如 1,2)", style: "width:160px;" }) as HTMLInputElement;
     const seedIn = el("input", { class: "input", placeholder: "种子(可空)", style: "width:100px;" }) as HTMLInputElement;
+    const targetIn = el("input", { class: "input", placeholder: "目标身价(默认8000)", style: "width:150px;" }) as HTMLInputElement;
     const createBtn = el("button", { class: "btn btn-primary" }, ["建房"]) as HTMLButtonElement;
     createBtn.addEventListener("click", async () => {
       try {
@@ -153,7 +161,8 @@ export class NetworkClient extends ClientController {
         const seats = parseInt(seatsSel.value, 10);
         const bot = botIn.value.trim();
         const seed = seedIn.value.trim() ? parseInt(seedIn.value, 10) : undefined;
-        const r = await this.http("/room/new", { seats, bot, seed });
+        const target = targetIn.value.trim() ? parseInt(targetIn.value, 10) : undefined;
+        const r = await this.http("/room/new", { seats, bot, seed, target });
         this.roomId = r.roomId;
         this.seat = r.seat;
         this.seatToken = r.seatToken;
@@ -165,7 +174,7 @@ export class NetworkClient extends ClientController {
     });
     box.appendChild(el("div", { class: "field", style: "margin-top:14px;" }, [
       el("div", { style: "font-weight:600;margin-bottom:6px;" }, ["建房"]),
-      seatsSel, botIn, seedIn, createBtn,
+      seatsSel, botIn, seedIn, targetIn, createBtn,
     ]));
 
     // 加入
