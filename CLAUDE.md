@@ -86,6 +86,18 @@ npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 
 - **第 2 步(待做)**:`src/render/state.ts` → `network-client` —— 浏览器 fetch server 发 `submitCommand` + 收 snapshot 渲染(CLAUDE.md 红线 4 已预留)。
 - **第 3 步(待做)**:CLI 连 server —— 不再用本地 state.json,改为 fetch server。
 
+## 联机测试基础设施
+- **多客户端 e2e**:`e2e/multi-helpers.ts` 提供 `createClients(browser, n, opts)` / `actIfCan(page)` / `driveToGameOver(clients)` / `playRounds(clients, n)` / `assertSync(a, b)`。
+- **模式**:N 个独立 browser context(= N 台设备)同房,走真实 UI(非 REST 旁路);`actIfCan` 驱动活跃方(掷骰/内嵌/卷轴),循环到终局 + 同步断言。
+- **调试钩子**:network-client 暴露 `window.__dafung`(engine/seat/busy/snapshot),卡死时自动 dump 诊断。
+- **用法**:
+  ```ts
+  const { clients } = await createClients(browser, 2, { target: 3000 });
+  const { winner } = await driveToGameOver(clients);           // 完整对局到终局
+  // 场景测试:await playRounds(clients, 5); await clients[1].close(); // 测掉线/接管
+  ```
+- 跑:`npm run test:e2e`(含 `e2e/online-multi.spec.ts`)。
+
 ## Agent skills
 
 ### Issue tracker
