@@ -6,7 +6,7 @@ export interface BoardPos {
   y: number;
 }
 
-/** 格子类型。v2.0 棋盘仅放置 Property;其余类型保留枚举,落格 noop。 */
+/** 格子类型。v2.0 棋盘 Property/TreasureCity/Wolong/Tax/Stock/Chance/Fate 均有落格处理。 */
 export type TileType =
   | "Property"
   | "Tax"
@@ -50,7 +50,7 @@ export interface PropertyDef {
 /** 辅路格种类:treasure=拼点探宝,event=锦囊随机事件,penalty=中伏跳一回合。 */
 export type BranchCellKind = "treasure" | "event" | "penalty";
 
-/** 路线抉择:大路(主环)/ 辅路(支线逐格行进)。 */
+/** 路线抉择:大路(主环)/ 辅路(辅路逐格行进)。 */
 export type RouteKind = "Main" | "Branch";
 
 /** 玩家持有的地产。账面价值 = 购入价 + 累计升级费。 */
@@ -184,7 +184,7 @@ export interface MapData {
   tiles: MapTile[];
   branch?: MapBranch | null; // 分岔辅路(可空;旧版 shortcuts 字段已废弃)
 }
-/** 贸易公式(旧字段,向后兼容):multiply=翻倍(指导价×param×等级倍率);markup=加价(指导价+param×等级倍率)。
+/** 旧贸易公式(向后兼容;新字段 tradeAdd/tradeMult):multiply=翻倍(指导价×param×等级倍率);markup=加价(指导价+param×等级倍率)。
  *  新字段 tradeAdd/tradeMult(per-level)优先;此字段仅作回退。 */
 export interface TradeFormula {
   type: "multiply" | "markup";
@@ -214,7 +214,7 @@ export interface MapBranchCell {
   kind: BranchCellKind;
   pos: number[]; // [x, y] 辅路格坐标(地图作者手配)
 }
-/** 分岔辅路(JSON 形式):start/end 为主路 tile id;cells 为支线格子(逐格掷骰沿此推进)。 */
+/** 分岔辅路(JSON 形式):start/end 为主路 tile id;cells 为辅路格子(逐格掷骰沿此推进)。 */
 export interface MapBranch {
   id: string;
   start: string; // tile id(主路起点)

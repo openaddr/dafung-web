@@ -142,13 +142,13 @@ export function promptFor(
   }
   switch (tp) {
     case "Roll":
-      return `${who} 的回合:掷骰(roll)`;
+      return `${who} 的回合:行军(roll)`;
     case "AwaitingCapitalHalt":
       return `${who} 到达都城:驻跸(halt)或继续行军(continue)`;
     case "AwaitingBranch":
       return `${who} 到达辅路入口:走大路(main)或入辅路(branch)`;
     case "AwaitingDecision":
-      return `${who} 落城:购买(buy)/扩军(upgrade)/跳过(skip)`;
+      return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
     case "AwaitingHeroPick":
       return `${who} 招贤纳士:选名士(cmd {"type":"resolveHeroPick","index":0..2})`;
     case "AwaitingTreasureOwner":

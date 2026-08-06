@@ -8,7 +8,7 @@ export type SoundEvent =
   | "diceHit" // 骰子碰撞(物理事件,带 intensity 0~1)
   | "diceLand" // 骰子停下
   | "coin" // 铜钱(收入)
-  | "stamp" // 印章(购地/据城)
+  | "stamp" // 印章(建都/据城)
   | "banner" // 横幅(回合/事件)
   | "buy" // 购买成功
   | "upgrade" // 扩军

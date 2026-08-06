@@ -143,7 +143,7 @@ export function createAnimator(
     let coinPlayed = false; // 合并 some() + for():一次遍历里首次见 amount>0 即播铜钱声,消除第二遍扫描
     for (const f of fs) {
       if (!coinPlayed && f.amount > 0) {
-        audio.play("coin"); // 有收入(补给/赏银/贸易售价)→ 铜钱声
+        audio.play("coin"); // 有收入(补给/赏银/珍宝售价)→ 铜钱声
         coinPlayed = true;
       }
       const player = engine.players[f.playerIndex];
@@ -203,7 +203,7 @@ export function createAnimator(
     banner.classList.add("show");
   }
 
-  /** 朱砂印章"啪"地盖在城池上(建都/购地成功时)。 */
+  /** 朱砂印章"啪"地盖在城池上(建都/据城成功时)。 */
   function stampSeal(tileIndex: number, char: string): void {
     const pos = board.positionOf(tileIndex);
     const c = logicToClient(pos.x, pos.y - 20);

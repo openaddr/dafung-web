@@ -73,7 +73,7 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
 
 /** P2: 常规决策(驻跸/选路/买扩军)渲染成侧栏内嵌按钮;非交互或复杂相位 → 清空(由 CSS :empty 收起)。
  *  按钮 data-action 走既有 dispatchAction(halt/continue/main/branch/buy/upgrade/skip)。
- *  复杂相位(招贤/赠宝贸易/破产)不在此处理,仍弹卷轴(要展示卡面)。 */
+ *  复杂相位(招贤/珍宝交涉/破产)不在此处理,仍弹卷轴(要展示卡面)。 */
 export function renderActionInline(engine: GameEngine, box: HTMLElement, interactive: boolean): void {
   clear(box);
   if (!interactive || engine.phase !== "Playing") return;
@@ -105,7 +105,7 @@ export function renderActionInline(engine: GameEngine, box: HTMLElement, interac
     if (o?.kind === "PropertyAvailable" && o.property) {
       const def = o.property;
       const canBuy = p.cash >= def.purchasePrice && p.warrants >= 1;
-      const reason = p.warrants < 1 ? "委任不足" : "银两不足";
+      const reason = p.warrants < 1 ? "委任状不足" : "银两不足";
       add(canBuy ? `购地 ${formatMoney(def.purchasePrice)}·1委任` : `购地(${reason})`, "buy", { primary: canBuy, disabled: !canBuy });
       add("不取", "skip");
       return;
@@ -116,7 +116,7 @@ export function renderActionInline(engine: GameEngine, box: HTMLElement, interac
       const lvl = h?.level ?? 0;
       const canUp = lvl < def.maxLevel && p.cash >= def.upgradeCost;
       add(canUp ? `扩军 ${formatMoney(def.upgradeCost)}` : `扩军(${lvl >= def.maxLevel ? "满级" : "银两不足"})`, "upgrade", { primary: canUp, disabled: !canUp });
-      add("按兵", "skip");
+      add("按兵不动", "skip");
       return;
     }
   }
@@ -288,7 +288,7 @@ export function renderWarlog(
   listEl.scrollTop = listEl.scrollHeight;
 }
 
-// ── 卷轴抉择弹层(驻跸 / 支线)──
+// ── 卷轴抉择弹层(驻跸 / 辅路)──
 export function createScroll(
   parent: HTMLElement,
   title: string,

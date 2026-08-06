@@ -1,5 +1,5 @@
 // 客户端控制器基类(ADR-0006):持有热座(HotseatController/App)与联机(NetworkClient)
-// 两个客户端控制器的共享 scaffold + fullRender + bindEvents + 4 个 show*Scroll(招贤/赠宝/破产)
+// 两个客户端控制器的共享 scaffold + fullRender + bindEvents + 4 个 show*Scroll(招贤/珍宝交涉/破产)
 // + openScroll/hideOverlay/showHandDetail/showTileDetail/flashHint/setThinking/destroy。
 // 子类提供四个抽象成员:engine(渲染源)、viewSeat(视角座位)、interactive(此刻能否操作)、
 // dispatchAction(动作执行,各模式自己实现,不强行统一)。
@@ -11,7 +11,7 @@
 //   在 super() 之后赋值;fullRender 由子类在引擎就位后调。
 // - bindEvents 是模板方法:绑 rollBtn / 棋盘 tap / 覆盖层按钮 / 侧栏 action-inline / warlog tabs,
 //   所有交互调抽象 onRoll / onTileClick / dispatchAction —— 由子类实现。
-// - dispatchAction 不抽到基类:热座要逐动作动画(购地→印章、赠宝→珍宝音)+ 推进回合,
+// - dispatchAction 不抽到基类:热座要逐动作动画(购地→印章、珍宝交涉→珍宝音)+ 推进回合,
 //   联机只发命令等快照;动作执行是真正的差异点(动画味道属热座),塞进基类会污染接缝。
 import type { LoadedMap } from "@core/board-loader";
 import { formatMoney } from "@core/money";
@@ -196,7 +196,7 @@ export abstract class ClientController {
     this.overlay = createScroll(this.boardWrap, title, desc, buttons, onClose);
   }
 
-  // ─── 招贤/赠宝/破产卷轴(两边一致)───
+  // ─── 招贤/珍宝交涉/破产卷轴(两边一致)───
   protected showHeroPickScroll() {
     const e = this.engine;
     const offered = e.offeredHeroes;

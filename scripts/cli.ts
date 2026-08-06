@@ -62,7 +62,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   const seats: SeatConfig[] = [];
   for (let i = 0; i < seatsNum; i++) {
     seats.push({
-      name: `座 ${i + 1}`,
+      name: `诸侯 ${i + 1}`,
       isBot: botIdx.has(i),
       // guohao 留空,doDraftRoll 会从字池分配(对 bot 必要,对人类也省事)
     });
@@ -90,8 +90,8 @@ function main(): void {
           "new [--seats N] [--seed S] [--bot 0,1] [--target T]": "开新局(创建引擎 → doDraftRoll → 存)",
           "auto-setup": "自动跑选都到 Playing",
           "pick-capital <tileIndex>": "当前玩家选都",
-          "roll": "掷骰(rollAndMove)",
-          "buy | upgrade | skip": "购买/扩军/跳过(AwaitingDecision)",
+          "roll": "行军(rollAndMove)",
+          "buy | upgrade | skip": "购地/扩军/跳过(AwaitingDecision)",
           "halt | continue": "驻跸/继续行军(AwaitingCapitalHalt)",
           "main | branch": "走大路/入辅路(AwaitingBranch)",
           "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",

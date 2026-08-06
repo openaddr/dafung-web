@@ -46,8 +46,8 @@ export class NetworkClient extends ClientController {
     // 占位引擎:只为渲染就位(board/catalog 来自真实地图);首帧 snapshot 会覆盖全部可变状态。
     this.engine = new GameEngine(map.board, map.catalog, createDice(), {
       seats: [
-        { name: "座 1", isBot: false },
-        { name: "座 2", isBot: true },
+        { name: "诸侯 1", isBot: false },
+        { name: "诸侯 2", isBot: true },
       ],
     });
     // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat
@@ -157,7 +157,7 @@ export class NetworkClient extends ClientController {
 
     // 建房
     const seatsSel = el("select", { class: "input" }) as HTMLSelectElement;
-    for (const n of [2, 3, 4]) seatsSel.appendChild(el("option", { value: String(n) }, [`${n} 座`]));
+    for (const n of [2, 3, 4]) seatsSel.appendChild(el("option", { value: String(n) }, [`${n} 诸侯`]));
     const botIn = el("input", { class: "input", placeholder: "bot 座位号,逗号分隔(如 1,2)", style: "width:160px;" }) as HTMLInputElement;
     const seedIn = el("input", { class: "input", placeholder: "种子(可空)", style: "width:100px;" }) as HTMLInputElement;
     const targetIn = el("input", { class: "input", placeholder: "目标身价(默认8000)", style: "width:150px;" }) as HTMLInputElement;
@@ -228,7 +228,7 @@ export class NetworkClient extends ClientController {
         const tag = s.seat === this.seat ? "你" : s.kind === "bot" ? "bot" : s.taken ? "人" : "空";
         const host = s.seat === (this.roomMeta?.host ?? 0) ? " · 房主" : "";
         seatList.appendChild(el("div", { style: `padding:4px 0;${s.seat === this.seat ? "font-weight:700;" : ""}` }, [
-          `座 ${s.seat + 1} · ${tag}${host}${s.taken && !s.online ? " · 离线" : ""}`,
+          `诸侯 ${s.seat + 1} · ${tag}${host}${s.taken && !s.online ? " · 离线" : ""}`,
         ]));
       }
     };

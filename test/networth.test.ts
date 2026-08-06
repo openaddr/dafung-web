@@ -14,7 +14,7 @@ describe("身价计算", () => {
     expect(netWorth(p)).toBe(2000);
   });
 
-  it("买城/升级只花现金,不增净资产(城池账面不计)", () => {
+  it("买城/升级只花现金,不增身价(城池账面不计)", () => {
     const p = createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: 1000 });
     buy(p, changan); // -400
     upgrade(p, changan); // -200

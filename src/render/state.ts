@@ -280,7 +280,7 @@ export class App extends ClientController {
     botAct(e);
     this.animator.spawnFloaters(e);
     this.fullRender();
-    // bot 城主贸易可能致人类访客破产 → turnPhase=AwaitingBankruptcySettle(人类要清算)。
+    // bot 城主珍宝交涉可能致人类访客破产 → turnPhase=AwaitingBankruptcySettle(人类要清算)。
     // 此时不能 onTurnAdvanced(rollBtn 禁用 + 无破产卷轴 = 软锁),改弹破产清算卷轴给人类。
     if (e.turnPhase === "AwaitingBankruptcySettle") {
       this.showBankruptcyScroll();
@@ -371,7 +371,7 @@ export class App extends ClientController {
 
   // ─────────────────────── 抉择卷轴处理 ───────────────────────
   // (P2) 常规决策卷轴方法 showHaltScroll/showBranchScroll/showDecisionScroll/singleDecisionAction
-  // 已移除——驻跸/选路/买扩军改由侧栏 renderActionInline 内嵌。复杂抉择(招贤/赠宝/破产)仍用卷轴
+  // 已移除——驻跸/选路/买扩军改由侧栏 renderActionInline 内嵌。复杂抉择(招贤/珍宝交涉/破产)仍用卷轴
   // (showHeroPickScroll/showTreasureOwnerScroll/showBankruptcyScroll 在基类)。
 
   private async onTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }) {
@@ -381,7 +381,7 @@ export class App extends ClientController {
     this.busy = true;
     this.hideOverlay();
     e.resolveTreasureOwner(action);
-    // 公道/坐地:访客得宝(无论买入)→ 珍宝音;跳过无声。
+    // 公道/坐地:访客得宝→珍宝音;跳过无声。
     if (action.type !== "skip") this.audio.play("treasure");
     this.animator.spawnFloaters(e);
     this.fullRender();

@@ -1228,7 +1228,7 @@ export class GameEngine {
           propertyId: h.propertyId,
           group: h.group ?? def?.group ?? "z",
           purchasePrice: def?.purchasePrice ?? def?.buildCost ?? 0,
-          totalUpgradeCost: 0, // 已丢失(本作净资产=仅现金,不影响逻辑)
+          totalUpgradeCost: 0, // 已丢失(本作身价=仅现金,不影响逻辑)
           level: h.level,
           maxLevel: def?.maxLevel ?? 5,
         };
