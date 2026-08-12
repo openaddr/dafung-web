@@ -1,5 +1,5 @@
 // 棋盘逻辑:有序、首尾相接的不规则主环 + 至多一条分岔辅路。
-// 计算移动路径与下一节点;不含渲染/游戏流程。对应 C# 版 Board.cs(GameBoard)。
+// 计算移动路径与下一节点;不含渲染/游戏流程。
 import type { BoardPos, MovePath, TileDef, BranchCellKind } from "./types";
 
 /** 辅路运行时格(含坐标,由 board-loader 从 JSON 解析)。 */

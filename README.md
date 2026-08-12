@@ -1,18 +1,11 @@
 # 群雄逐鹿 · 三国大富翁(dafung-web)
 
-古风水墨三国主题大富翁的 **TypeScript + 浏览器** 重写版,源自 Godot/C# 项目 `dafung`。
-设计目标是**可被 AI 全自动测试与迭代**:纯 DOM/SVG 渲染 + `window.__dafung` 状态钩子 + Playwright 端到端测试。
-
-> 原版:`C:\Data\Godot\dafung`(Godot 4.6 + C# + openspec 规范驱动)。本项目忠实复刻其核心规则与视觉设计,改为浏览器可自动化测试的架构。
+古风水墨三国主题大富翁,**TypeScript + 纯 DOM/SVG** 实现。
+设计目标是**可被 AI 全自动测试与迭代**:原生 DOM 渲染 + `window.__dafung` 状态钩子 + Playwright 端到端测试。
 
 ## 玩法速览
 
-- **30 城主环**:三国郡县州,坐标按真实中国地图方位布点(横向拉伸)。
-- **5 处要隘捷径**:函谷关 / 赤壁 / 华容道 / 剑阁 / 子午谷,可选大路或抄小路(含代价 / 50·50 后果)。
-- **都城机制**(取代起点):开局选都,都城 = 地产 + 补给点,按等级补给 `¥150 × (Lv+1)`。
-- **地产经济**:购买 / 升级(Lv0–5)/ 租金(整组 ×2)/ 破产资产转移。
-- **胜利**:率先达到目标身价(默认 ¥8000)称帝,或群雄尽灭的最后一人。
-- **AI 诸侯**:Simple(随机)/ Normal(EV 启发式)两档,可 2–4 座、纯热座或混战。
+回合制格子桌游,2–4 人(纯热座或混战 AI)。三国郡县州构成 30 城主环,玩家开局选都城(取代起点),通过掷骰行军、买城扩军、拼点探宝、珍宝交涉积累现金;**身价 = 仅现金**,率先达到目标身价或群雄尽灭即称帝。完整规则见 **[RULES.md](./RULES.md)**。
 
 ## 技术栈
 
@@ -36,7 +29,7 @@ src/
     board.ts        GameBoard:ComputePath / Next / EdgeWaypoints
     dice.ts         可注入种子的骰子
     player.ts       玩家构造
-    economy.ts      购买 / 升级 / 租金 / 破产
+    economy.ts      购买 / 升级 / 破产裁决
     networth.ts     身价计算(单一口径)
     game.ts         回合状态机 + 开局三段式 + 胜负
     bot.ts          AI 决策(EV)
@@ -51,8 +44,6 @@ src/
 test/             Vitest 单元测试(路径 / 经济 / 身价 / 回合)
 e2e/              Playwright 端到端测试
 ```
-
-**核心对应关系**(与 C# 原版):`core/` ≄ `dafung.Core/`,`render/` ≄ `Main.cs / DafungUi.cs / DafungTheme.cs`。
 
 ## 运行
 
@@ -104,12 +95,6 @@ Claude(或任何 agent)可形成完整自动闭环:
 5. 失败 → 回 1 改
 
 **全程不变量**(`e2e/invariants.spec.ts` 自动检查):现金非负(非破产)、位置合法、身价非负、破产无残留、终局有 winner。任何违规立即失败,锁定回归。
-
-## 与原版差异
-
-- 股票 / 税格 / Chance / Fate 等类型保留枚举但 v2.0 未放置(与原版一致)。
-- 渲染从 Godot Canvas 改为 SVG + CSS 动画;字体改用 Web 字体(毛笔体 Ma Shan Zheng / 宋体 Noto Serif SC)。
-- 都城补给、驻跸、支线、破产、身价胜利等规则与原版 spec 一致。
 
 ## 配色(古风水墨)
 

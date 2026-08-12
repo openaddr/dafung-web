@@ -1,4 +1,4 @@
-// 骰子:可注入随机种子以便测试。单骰 1–6。对应 C# 版 Dice.cs(IDice)。
+// 骰子:可注入随机种子以便测试。单骰 1–6。
 import type { DiceRoll } from "./types";
 
 /** mulberry32:快速可种子化 PRNG。返回 next + 状态读写(供序列化跨进程续掷)。 */

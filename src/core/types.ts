@@ -1,4 +1,4 @@
-// 核心类型定义:与 Godot/C# 版 dafung.Core 等价,纯数据模型,无 DOM 依赖,可单元测试。
+// 核心类型定义:纯数据模型,无 DOM 依赖,可单元测试。
 
 /** 世界坐标(棋盘逻辑单位,View 层映射为像素)。 */
 export interface BoardPos {

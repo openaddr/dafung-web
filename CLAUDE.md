@@ -43,7 +43,7 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `src/core/game.ts` | GameEngine:回合状态机、胜负、日志、珍宝、名士、委任状 |
 | `src/core/types.ts` | 所有核心类型定义(TurnPhase、Player、HeroDef 等) |
 | `src/core/board.ts` | 棋盘:主路环、辅路、computePath(含必停都城) |
-| `src/core/economy.ts` | 地产交易:购买、升级、租金计算 |
+| `src/core/economy.ts` | 地产交易:购买、升级、破产裁决(本作无传统租金机制,落他人城走珍宝交涉) |
 | `src/core/bot.ts` | AI 决策(Simple/Normal 两档) |
 | `src/core/heroes.ts` | 名士数据表(数据驱动,新增名士只改此文件) |
 | `src/core/treasures.ts` | 珍宝数据表 + 牌堆(数据驱动,新增珍宝只改此文件) |
@@ -60,6 +60,9 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
+
+> 完整规则与数值表见 [`RULES.md`](./RULES.md)(以 `src/core/` 代码为权威)。本段为 AI 快速参考的速查卡。
+
 - **签筒**:单骰 1-6(不使用双骰,移动距离短便于追踪)
 - **货币**:白银制,1锭=100两=10000分(内部 cash 为"分")。**身价=仅现金**(珍宝/城池账面均不计;购地直接降身价,逼玩家管现金流)
 - **委任状**:起手3,+2/圈(过都城),买城耗1,扩军不耗

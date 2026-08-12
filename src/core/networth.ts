@@ -1,5 +1,4 @@
 // 身价计算:仅现金(单一口径,被胜利判定/排行榜/破产裁决复用)。
-// 对应 C# 版 Economy/NetWorthCalculator.cs。
 import type { Player } from "./types";
 
 /**

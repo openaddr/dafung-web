@@ -1,5 +1,4 @@
 // 游戏引擎:开局三段式(国号→点将定序→选都)+ 回合状态机 + 胜负判定 + 战报日志。
-// 对应 C# 版 Flow/(SetupController/TurnFlowController) + Game/(GameRunner/VictoryDetector)。
 import type { Board } from "./board";
 import type { BranchCell } from "./board";
 import type { Dice } from "./dice";

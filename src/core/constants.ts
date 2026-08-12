@@ -1,4 +1,4 @@
-// 全局共享常量(单一来源,避免多处重复导致漂移)。详见 openspec/changes/codebase-refactor。
+// 全局共享常量(单一来源,避免多处重复导致漂移)。数值说明见 RULES.md §11 关键数值表。
 // 抽签 1-6 的汉字签面(签筒主题;骰子机制不变,仅展示)
 export const SIGN_FACES = ["一", "二", "三", "四", "五", "六"];
 // 同格多棋子的错位槽(按 slot % length 取用;SVG local 坐标)

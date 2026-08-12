@@ -1,5 +1,5 @@
 // AI 诸侯:回合 EV 决策(抽签/驻跸/辅路/买/升级),Simple/Normal 两档。
-// 对应 C# 版 Flow/BotController.cs(选都已并入 GameEngine.aiChooseCapital)。
+// 选都决策在 GameEngine.aiChooseCapital。
 import type { GameEngine } from "./game";
 import type { Player } from "./types";
 

@@ -1,4 +1,4 @@
-// 玩家构造与查询 helper。对应 C# 版 Players/Player.cs。
+// 玩家构造与查询 helper。
 import type { Player, PropertyHolding } from "./types";
 import { STARTING_WARRANTS } from "./constants";
 
