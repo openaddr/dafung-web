@@ -6,6 +6,8 @@ test-results/
 .playwright-mcp/
 # screenshots/ 保留作为效果展示
 .claude/
+.idea/
+.reasonix/
 # CLI 运行时状态(每命令一进程的引擎持久化文件)
 state.json
 state.*.json
