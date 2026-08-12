@@ -4,7 +4,8 @@ test-results/
 *.log
 .DS_Store
 .playwright-mcp/
-# screenshots/ 保留作为效果展示
+# screenshots/ 不入库(本地调试截图)
+screenshots/
 .claude/
 .idea/
 .reasonix/
