@@ -54,7 +54,9 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `src/render/ui.ts` | 布局/侧栏/弹窗/设置屏 |
 | `src/render/animate.ts` | 骰子/行军/横幅/浮动金额/印章动画 |
 | `scripts/cli.ts` | 纯 CLI(每命令一进程,state.json 持久,AI 可完整测试对局) |
-| `scripts/server.ts` | 权威引擎 HTTP 服务(联机化第 1 步:内存常驻引擎 + REST + 落盘) |
+| `scripts/server.ts` | 权威引擎服务(联机化完成态:多房间 WebSocket + REST 大厅 + 静态托管 dist/ + 落盘恢复) |
+| `scripts/room.ts` | 房间编排(座位/接管/bot 驱动/host 移交/纯视图),零 WS 依赖 |
+| `scripts/room-persistence.ts` | 房间持久化适配器(FileRoomPersistence,可注入 InMemory 测试) |
 | `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
@@ -82,9 +84,12 @@ npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 
 ```
 
 ## 联机化进度(终局目标)
-- **第 1 步(已完成)**:`scripts/server.ts` —— Node 常驻引擎,REST 接口(`/new` `/cmd` `/auto` `/bot-step` `/status` `/log` `/board` `/full`),落 `state.json` 与 CLI 互换。CORS 已开,供浏览器直连。
-- **第 2 步(待做)**:`src/render/state.ts` → `network-client` —— 浏览器 fetch server 发 `submitCommand` + 收 snapshot 渲染(CLAUDE.md 红线 4 已预留)。
-- **第 3 步(待做)**:CLI 连 server —— 不再用本地 state.json,改为 fetch server。
+- **第 1 步(已完成)**:`scripts/server.ts` 常驻引擎 + 共享层(`engine-helpers.ts`)。`snapshot()`/`restoreFromSnapshot()` 全状态可序列化。
+- **第 2 步(已完成)**:多房间 WebSocket 服务 + 浏览器联机客户端 ——
+  - 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(房间编排)+ `scripts/room-persistence.ts`(落盘适配器)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、`rooms/<id>.json` 每手落盘 + 启动恢复、同进程静态托管 `dist/`。env:`PORT`(3000)/`HOST`(127.0.0.1,局域网需 0.0.0.0)/`ROOMS_DIR`/`STATIC_DIR`。
+  - 客户端:`src/render/network-client.ts`(WS 发 GameCommand、收 snapshot 重 hydrate 渲染)+ 开局屏「联机对战」按钮 / `?online=1` 直链;`serverUrl = location.origin`(服务器自托管网页,同源免填)。
+  - 已验:多客户端 e2e(`e2e/online-multi.spec.ts` 181 步完整对局)。
+- **第 3 步(待做)**:CLI 改 fetch server(弃本地 state.json)。部署真机验收(部署 runbook 见 `docs/multiplayer.md`,VPS + Caddy + systemd——注意该文档 §4/§6.8「第 2 步未做」描述已过时,实际已完成)。
 
 ## 联机测试基础设施
 - **多客户端 e2e**:`e2e/multi-helpers.ts` 提供 `createClients(browser, n, opts)` / `actIfCan(page)` / `driveToGameOver(clients)` / `playRounds(clients, n)` / `assertSync(a, b)`。
