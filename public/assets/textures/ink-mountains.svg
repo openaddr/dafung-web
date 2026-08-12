@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 水墨远山纹理 ink-mountains.svg
+     原创生成(公有领域 / CC0)。四层淡墨山脊由远及近,高斯模糊模拟墨韵晕染。
+     用法:作为棋盘背景远景层叠加(<image> 或 CSS),preserveAspectRatio="none" 可拉伸贴底。
+     配色对齐 src/render/style.css:--ink #2b2317,呼应 board.ts drawMountainsAndRivers。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="2400" height="520" viewBox="0 0 2400 520" preserveAspectRatio="none">
+  <defs>
+    <filter id="inkSoft" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur stdDeviation="5"/>
+    </filter>
+    <filter id="inkMid" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur stdDeviation="2.4"/>
+    </filter>
+    <filter id="inkHard" x="-5%" y="-20%" width="110%" height="140%">
+      <feGaussianBlur stdDeviation="1.2"/>
+    </filter>
+  </defs>
+  <g fill="#2b2317">
+    <!-- 最远层:极淡,轮廓最虚 -->
+    <path filter="url(#inkSoft)" fill-opacity="0.08"
+      d="M0,330 L160,290 L320,322 L480,275 L640,316 L800,284 L960,320 L1120,272 L1280,312 L1440,282 L1600,316 L1760,278 L1920,310 L2080,286 L2240,316 L2400,290 L2400,520 L0,520 Z"/>
+    <!-- 远山层 -->
+    <path filter="url(#inkSoft)" fill-opacity="0.14"
+      d="M0,380 L180,340 L360,372 L540,318 L720,360 L900,326 L1080,366 L1260,308 L1440,356 L1620,322 L1800,360 L1980,306 L2160,350 L2400,324 L2400,520 L0,520 Z"/>
+    <!-- 中景山 -->
+    <path filter="url(#inkMid)" fill-opacity="0.22"
+      d="M0,432 L220,388 L420,422 L640,360 L860,414 L1060,372 L1280,424 L1480,354 L1680,410 L1880,368 L2080,420 L2280,374 L2400,400 L2400,520 L0,520 Z"/>
+    <!-- 近景剪影:墨色最深,边缘略清 -->
+    <path filter="url(#inkHard)" fill-opacity="0.34"
+      d="M0,486 L260,448 L500,478 L740,438 L980,472 L1220,442 L1460,478 L1700,440 L1940,472 L2180,442 L2400,468 L2400,520 L0,520 Z"/>
+  </g>
+</svg>

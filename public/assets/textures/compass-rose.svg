@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 古风罗盘 compass-rose.svg
+     原创生成(公有领域 / CC0)。中式古地图罗盘:八方位尖角 + 东南西北 + 中心金枢。
+     用法:棋盘角落装饰 / 古地图装饰元素。<img src="/assets/textures/compass-rose.svg">。
+     配色对齐 src/render/style.css:--bg #e8dcc0 / --panel #f2e8cf / --gold #c8a13a / --ink #2b2317。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400" viewBox="0 0 400 400">
+  <defs>
+    <radialGradient id="dial" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#f2e8cf"/>
+      <stop offset="78%" stop-color="#e8dcc0"/>
+      <stop offset="100%" stop-color="#d9c9a3"/>
+    </radialGradient>
+  </defs>
+
+  <g transform="translate(200,200)" text-anchor="middle"
+     font-family="KaiTi, STKaiti, 'Noto Serif SC', serif">
+    <!-- 盘面 -->
+    <circle r="150" fill="url(#dial)" stroke="#6b5d40" stroke-width="2"/>
+    <circle r="150" fill="none" stroke="#c8a13a" stroke-width="1.5" opacity="0.75"/>
+    <circle r="132" fill="none" stroke="#8a6a3f" stroke-width="0.8" opacity="0.55"/>
+    <circle r="92" fill="none" stroke="#8a6a3f" stroke-width="0.8" opacity="0.45"/>
+
+    <!-- 外圈刻度:8 主刻度 + 8 副刻度,每 22.5° -->
+    <g stroke="#6b5d40" stroke-width="1.4" opacity="0.7">
+      <!-- 主刻度 r132→146 -->
+      <line x1="0" y1="-132" x2="0" y2="-146"/>
+      <line x1="0" y1="132" x2="0" y2="146"/>
+      <line x1="-132" y1="0" x2="-146" y2="0"/>
+      <line x1="132" y1="0" x2="146" y2="0"/>
+    </g>
+    <g stroke="#8a6a3f" stroke-width="1" opacity="0.5">
+      <line x1="-49.5" y1="-119.5" x2="-55" y2="-132.8"/>
+      <line x1="49.5" y1="-119.5" x2="55" y2="-132.8"/>
+      <line x1="-49.5" y1="119.5" x2="-55" y2="132.8"/>
+      <line x1="49.5" y1="119.5" x2="55" y2="132.8"/>
+    </g>
+
+    <!-- 主四向尖角(N 深,E/S/W 次深),菱形针 -->
+    <polygon points="0,-128 9,0 0,-26 -9,0" fill="#2b2317"/>
+    <polygon points="0,128 -9,0 0,26 9,0" fill="#6b5d40"/>
+    <polygon points="128,0 0,-9 26,0 0,9" fill="#6b5d40"/>
+    <polygon points="-128,0 0,9 -26,0 0,-9" fill="#6b5d40"/>
+
+    <!-- 次四向尖角(NE/SE/SW/NW)短而淡 -->
+    <g fill="#8a6a3f" opacity="0.85">
+      <polygon points="86,-86 6,-6 20,-20 6,-20"/>
+      <polygon points="86,86 6,6 20,20 6,20"/>
+      <polygon points="-86,86 -6,6 -20,20 -6,20"/>
+      <polygon points="-86,-86 -6,-6 -20,-20 -6,-20"/>
+    </g>
+
+    <!-- 中心金枢 -->
+    <circle r="16" fill="#c8a13a" stroke="#6b5d40" stroke-width="1.5"/>
+    <circle r="6" fill="#2b2317"/>
+
+    <!-- 方位字 -->
+    <g fill="#2b2317" font-size="20" font-weight="700">
+      <text x="0" y="-106" dominant-baseline="middle">北</text>
+      <text x="106" y="0" dominant-baseline="middle">东</text>
+      <text x="0" y="112" dominant-baseline="middle">南</text>
+      <text x="-106" y="0" dominant-baseline="middle">西</text>
+    </g>
+    <g fill="#6b5d40" font-size="13">
+      <text x="74" y="-70">东北</text>
+      <text x="74" y="82">东南</text>
+      <text x="-74" y="82">西南</text>
+      <text x="-74" y="-70">西北</text>
+    </g>
+  </g>
+</svg>

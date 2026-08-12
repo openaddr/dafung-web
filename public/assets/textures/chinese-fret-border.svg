@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 古风边框纹样 chinese-fret-border.svg
+     原创生成(公有领域 / CC0)。回纹(雷纹/万字纹)水平边框 + 祥云(ruyi)角饰单元。
+     用法:侧栏/弹窗/标题栏描金边框。可水平平铺(单元 80px)。
+     defs 内 #fretPattern / #ruyi 可被外部 SVG <use> 复用。
+     配色对齐 src/render/style.css:--gold #c8a13a。 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="480" height="80" viewBox="0 0 480 80">
+  <defs>
+    <!-- 回纹连续单元(80x40),方螺旋描线,无缝水平重复 -->
+    <pattern id="fretPattern" patternUnits="userSpaceOnUse" width="80" height="40" x="0" y="0">
+      <path d="M12,6 H68 V34 H24 V14 H56 V26 H40 V20"
+            fill="none" stroke="#c8a13a" stroke-width="2" stroke-linejoin="miter"/>
+    </pattern>
+    <!-- 祥云角饰(如意云头),供 <use href="#ruyi"> 单独引用 -->
+    <g id="ruyi">
+      <path d="M0,18 C14,4 34,4 42,18 C50,8 66,8 66,22 C56,20 44,22 40,30 C30,20 12,22 0,18 Z"
+            fill="none" stroke="#c8a13a" stroke-width="1.6" stroke-linejoin="round"/>
+      <path d="M30,22 C24,16 16,18 14,24 C20,24 26,24 30,22 Z"
+            fill="#c8a13a" fill-opacity="0.25" stroke="none"/>
+    </g>
+  </defs>
+
+  <!-- 上下双线(古风卷边) -->
+  <line x1="0" y1="6" x2="480" y2="6" stroke="#c8a13a" stroke-width="1.5"/>
+  <line x1="0" y1="74" x2="480" y2="74" stroke="#c8a13a" stroke-width="1.5"/>
+  <line x1="0" y1="10" x2="480" y2="10" stroke="#c8a13a" stroke-width="0.6" opacity="0.6"/>
+  <line x1="0" y1="70" x2="480" y2="70" stroke="#c8a13a" stroke-width="0.6" opacity="0.6"/>
+
+  <!-- 回纹边框主带(可水平平铺) -->
+  <rect x="0" y="20" width="480" height="40" fill="url(#fretPattern)"/>
+
+  <!-- 两端祥云角饰 -->
+  <use href="#ruyi" x="0" y="30"/>
+  <use href="#ruyi" x="480" y="30" transform="scale(-1,1)" transform-origin="480 30"/>
+</svg>

@@ -22,7 +22,7 @@ import type { BoardView } from "./board";
 import { createAnimator } from "./animate";
 import type { Animator } from "./animate";
 import { ThreeDice } from "./dice3d";
-import { SynthAudioPlayer } from "./audio";
+import { HybridAudioPlayer } from "./audio";
 import type { AudioPlayer } from "./audio";
 import {
   createLayout,
@@ -56,6 +56,7 @@ export abstract class ClientController {
   protected hint: HTMLElement | null = null;
   protected thinking: HTMLElement | null = null;
   protected flashHintTimer: ReturnType<typeof setTimeout> | null = null;
+  protected audioMuted = false;
 
   // ─── 抽象成员(子类提供)──
   /** 渲染源:热座=权威引擎,联机=快照重 hydrate 的只读引擎。 */
@@ -80,6 +81,9 @@ export abstract class ClientController {
     const resetBtn = el("button", { class: "btn board-reset", title: "还原总览" }, ["总览"]) as HTMLButtonElement;
     resetBtn.addEventListener("click", () => this.boardView.resetView());
     boardWrap.appendChild(resetBtn);
+    // 古风罗盘水印(右上角,缓慢旋转)——纯装饰
+    const compass = el("img", { class: "board-compass", src: "/assets/textures/compass-rose.svg", alt: "" }) as HTMLImageElement;
+    boardWrap.appendChild(compass);
     // 3D 物理骰子:挂到侧栏骰盘容器。
     // 物理随机用「独立种子流」而非 engine.dice.nextFloat:若共用游戏随机流,每次掷骰
     // 动画都会向前推进游戏 RNG,使同一 seed 在 3D 开/关下产生不同游戏结果——破坏可复现
@@ -88,7 +92,7 @@ export abstract class ClientController {
     const physicsRng = createDice(physicsSeed).nextFloat;
     // 3D 骰子物理碰撞 → diceHit 音效(按冲击速度归一化强度 0~1)。
     this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng, (intensity) => this.audio.play("diceHit", { intensity }));
-    this.audio = new SynthAudioPlayer();
+    this.audio = new HybridAudioPlayer();
     this.animator = createAnimator(boardWrap, this.boardView.root, map.board, this.boardView, this.threeDice, this.audio);
 
     this.bindEvents();
@@ -124,6 +128,16 @@ export abstract class ClientController {
   // ─────────────────────── 事件绑定(模板方法:调抽象 onRoll/onTileClick/dispatchAction)───────────────────────
   protected bindEvents() {
     this.refs.rollBtn.addEventListener("click", () => this.onRoll());
+
+    // 静音切换:点击切换 audio.setMuted + 切换 volume/mute 图标显示
+    this.refs.muteBtn.addEventListener("click", () => {
+      this.audioMuted = !this.audioMuted;
+      this.audio.setMuted(this.audioMuted);
+      const onIcon = this.refs.muteBtn.querySelector(".mute-on") as HTMLElement | null;
+      const offIcon = this.refs.muteBtn.querySelector(".mute-off") as HTMLElement | null;
+      if (onIcon) onIcon.style.display = this.audioMuted ? "none" : "block";
+      if (offIcon) offIcon.style.display = this.audioMuted ? "block" : "none";
+    });
 
     // 城池选择用 pointerdown→pointerup 的「轻点(tap)」判定,而非浏览器的 click。
     // 原因:城池很小(约 22px),按下后哪怕轻微移动(>~10px)也会让 mouseup 落到相邻城池或

@@ -22,6 +22,7 @@ export interface SidebarRefs {
   handEl: HTMLElement; // P3: 手牌(珍宝/名士卡)
   warlogList: HTMLElement;
   tabs: HTMLElement[];
+  muteBtn: HTMLButtonElement; // 静音切换
 }
 
 export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs } {
@@ -45,8 +46,15 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
   const tabDetail = el("span", { class: "tab", "data-mode": "detail" }, ["详情"]);
   const tabs = [tabBrief, tabDetail];
 
+  // 静音按钮(标题栏右侧)
+  const muteBtn = el("button", { class: "mute-btn", id: "mute-btn", title: "静音/开音" }) as HTMLButtonElement;
+  const muteIcon = el("img", { class: "mute-icon mute-on", src: "/assets/icons/volume.svg", alt: "" }) as HTMLImageElement;
+  const muteIconOff = el("img", { class: "mute-icon mute-off", src: "/assets/icons/mute.svg", alt: "", style: "display:none" }) as HTMLImageElement;
+  muteBtn.appendChild(muteIcon);
+  muteBtn.appendChild(muteIconOff);
+
   const sidebar = el("div", { class: "sidebar" }, [
-    el("div", { class: "title-banner" }, ["群雄逐鹿", el("small", {}, ["· 三国大富翁 ·"])]),
+    el("div", { class: "title-banner" }, ["群雄逐鹿", el("small", {}, ["· 三国大富翁 ·"]), muteBtn]),
     // 4 区(玩家为主的重构):状态 / 动作 / 手牌 / 流(其他玩家+战报)
     el("div", { class: "zone status-zone section" }, [
       el("h3", {}, ["回合", roundInfo]),
@@ -67,7 +75,7 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
   app.appendChild(sidebar);
   return {
     boardWrap,
-    sidebar: { root: sidebar, roundInfo, statusEl, playersEl, diceFace, dice3d, rollBtn, actionZone, actionInline, handEl, warlogList, tabs },
+    sidebar: { root: sidebar, roundInfo, statusEl, playersEl, diceFace, dice3d, rollBtn, actionZone, actionInline, handEl, warlogList, tabs, muteBtn },
   };
 }
 
@@ -235,7 +243,7 @@ export function renderOthers(engine: GameEngine, box: HTMLElement): void {
 
 /** P4: 日志分类 → 图标(战报图标化)。 */
 const LOG_ICON: Record<string, string> = {
-  roll: "🎲",
+  roll: "🎲", // 掷骰(保留 emoji;CSS .log-icon 统一着色)
   buy: "🏠",
   upgrade: "⬆",
   rent: "💸",
@@ -426,6 +434,34 @@ export function createVictory(engine: GameEngine, onRestart: () => void): HTMLEl
     ]),
   ]);
   overlay.querySelector("#restart-btn")!.addEventListener("click", onRestart);
+
+  // 烟花粒子:多波随机绽放
+  const fwColors = ["#d4af37", "#b23a2e", "#4a7a4a", "#2980b9", "#c47a2a", "#fff"];
+  function spawnFireworkBurst(cx: number, cy: number) {
+    const count = 16 + Math.floor(Math.random() * 10);
+    for (let i = 0; i < count; i++) {
+      const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;
+      const dist = 60 + Math.random() * 80;
+      const p = el("div", { class: "firework" });
+      p.style.left = `${cx}px`;
+      p.style.top = `${cy}px`;
+      p.style.background = fwColors[Math.floor(Math.random() * fwColors.length)];
+      p.style.setProperty("--dx", `${Math.cos(angle) * dist}px`);
+      p.style.setProperty("--dy", `${Math.sin(angle) * dist}px`);
+      p.style.setProperty("--fw-dur", `${1.2 + Math.random() * 0.6}s`);
+      overlay.appendChild(p);
+      setTimeout(() => p.remove(), 2000);
+    }
+  }
+  // 连续放 5 波
+  for (let wave = 0; wave < 5; wave++) {
+    setTimeout(() => {
+      const cx = 200 + Math.random() * 400;
+      const cy = 150 + Math.random() * 250;
+      spawnFireworkBurst(cx, cy);
+    }, wave * 600 + 300);
+  }
+
   return overlay;
 }
 

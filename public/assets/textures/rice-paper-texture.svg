@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 宣纸纹理 rice-paper-texture.svg
+     原创生成(公有领域 / CC0)。基于 feTurbulence(stitchTiles) 无缝平铺。
+     用法:CSS background-image:url('/assets/textures/rice-paper-texture.svg'); background-repeat:repeat;
+     可整张替代 src/render/board.ts 的 #paper 滤镜或叠加在 body 宣纸底之上。
+     配色对齐 src/render/style.css:--bg #e8dcc0 -->
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <!-- 长纤维(纵向丝缕,宣纸特征) -->
+    <filter id="longFiber" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="turbulence" baseFrequency="0.0025 0.06" numOctaves="2" seed="3" stitchTiles="stitch" result="lf"/>
+      <feColorMatrix in="lf" type="matrix" values="0 0 0 0 0.45  0 0 0 0 0.36  0 0 0 0 0.20  0 0 0 0.05 0"/>
+    </filter>
+    <!-- 大块渍痕(纸张厚薄不均的暗斑) -->
+    <filter id="blot" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.014" numOctaves="3" seed="7" stitchTiles="stitch" result="b"/>
+      <feColorMatrix in="b" type="matrix" values="0 0 0 0 0.52  0 0 0 0 0.41  0 0 0 0 0.24  0 0 0 0.07 0"/>
+    </filter>
+    <!-- 细密纤维颗粒(纸面颗粒感) -->
+    <filter id="grain" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="2" seed="11" stitchTiles="stitch" result="g"/>
+      <feColorMatrix in="g" type="matrix" values="0 0 0 0 0.60  0 0 0 0 0.50  0 0 0 0 0.31  0 0 0 0.09 0"/>
+    </filter>
+    <!-- 暖白高光(透光斑) -->
+    <filter id="hi" x="0%" y="0%" width="100%" height="100%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.008" numOctaves="2" seed="21" stitchTiles="stitch" result="h"/>
+      <feColorMatrix in="h" type="matrix" values="0 0 0 0 1  0 0 0 0 0.97  0 0 0 0 0.84  0 0 0 0.07 0"/>
+    </filter>
+  </defs>
+  <!-- 宣纸暖底 -->
+  <rect width="512" height="512" fill="#e8dcc0"/>
+  <rect width="512" height="512" filter="url(#longFiber)"/>
+  <rect width="512" height="512" filter="url(#blot)"/>
+  <rect width="512" height="512" filter="url(#hi)"/>
+  <rect width="512" height="512" filter="url(#grain)"/>
+</svg>

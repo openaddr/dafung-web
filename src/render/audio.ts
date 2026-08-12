@@ -28,17 +28,17 @@ export interface AudioPlayer {
  * 古风质感:骰子=木质碰撞噪声、铜钱=金属叮、印章=木石 thump、横幅=whoosh。
  */
 export class SynthAudioPlayer implements AudioPlayer {
-  private ctx: AudioContext | null = null;
-  private master: GainNode | null = null;
-  private muted = false;
-  private readonly volume = 0.5;
+  protected ctx: AudioContext | null = null;
+  protected master: GainNode | null = null;
+  protected muted = false;
+  protected readonly volume = 0.5;
   /** 噪声缓存(2 秒):diceRoll/banner/diceHit/stamp 共用同一份白噪声,
    *  各合成单元用随机 offset 取不同片段,免去每次 play 重新生成随机样本(消除 GC 抖动)。 */
   private noiseCache: AudioBuffer | null = null;
   private static readonly NOISE_CACHE_DUR = 2; // 秒(覆盖最长 diceRoll 0.4s × 余量)
 
   /** AudioContext 延迟创建(浏览器 autoplay policy:首次 play / 用户交互后 resume)。 */
-  private ensureCtx(): AudioContext | null {
+  protected ensureCtx(): AudioContext | null {
     if (this.muted) return null;
     if (!this.ctx) {
       const Ctor =
@@ -243,5 +243,79 @@ export class SynthAudioPlayer implements AudioPlayer {
   private victory(ctx: AudioContext): void {
     const notes = [523, 659, 784, 1047];
     notes.forEach((f, i) => setTimeout(() => this.tone(ctx, f, 0.3, "triangle", 0.25), i * 130));
+  }
+}
+
+// ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
+/** SoundEvent → 音频文件 URL 映射。缺失的 event 走合成回退。 */
+const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
+  diceRoll: "/assets/audio/drum-roll.ogg",
+  diceLand: "/assets/audio/woodblock-hit.ogg",
+  coin: "/assets/audio/coin-drop.ogg",
+  stamp: "/assets/audio/gong-hit.ogg",
+  banner: "/assets/audio/drum-roll.ogg",
+  buy: "/assets/audio/coins-shake.ogg",
+  treasure: "/assets/audio/guqin-note.ogg",
+  bankrupt: "/assets/audio/gong-long.ogg",
+  victory: "/assets/audio/victory-fanfare.ogg",
+  upgrade: "/assets/audio/woodblock-hit.ogg",
+};
+
+/**
+ * 混合音效播放器:优先播放 public/assets/audio/ 下的真实音效文件;
+ * 文件未加载 / 加载失败 / 无映射 → 回退到合成音(SynthAudioPlayer)。
+ * 调用方完全透明:构造、play(event)、setMuted、dispose 接口不变。
+ */
+export class HybridAudioPlayer extends SynthAudioPlayer {
+  private buffers = new Map<SoundEvent, AudioBuffer | null>(); // null = 加载失败,走合成
+
+  constructor() {
+    super();
+    void this.preload();
+  }
+
+  /** 后台预加载所有映射的音频文件;不阻塞构造。 */
+  private async preload(): Promise<void> {
+    const ctx = this.ensureCtx();
+    if (!ctx) return; // AudioContext 不可用 → 全部走合成
+    const entries = Object.entries(AUDIO_FILES) as [SoundEvent, string][];
+    await Promise.all(
+      entries.map(async ([event, url]) => {
+        try {
+          const res = await fetch(url);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const arr = await res.arrayBuffer();
+          const buf = await ctx.decodeAudioData(arr);
+          this.buffers.set(event, buf);
+        } catch {
+          this.buffers.set(event, null); // 标记失败,后续直接走合成
+        }
+      }),
+    );
+    // preload 完成:有 buffer 的走文件,无/null 的走合成
+  }
+
+  play(event: SoundEvent, opts?: { intensity?: number }): void {
+    const ctx = this.ensureCtx();
+    if (!ctx || !this.master) return;
+    const buf = this.buffers.get(event);
+    // 有真实音效 buffer → 播放文件
+    if (buf) {
+      const src = ctx.createBufferSource();
+      src.buffer = buf;
+      src.playbackRate.value = 0.92 + Math.random() * 0.16; // 轻微随机变调避免单调
+      const g = ctx.createGain();
+      g.gain.value = this.muted ? 0 : 0.6;
+      src.connect(g).connect(this.master);
+      src.start();
+      return;
+    }
+    // 无 buffer 或加载失败(null/未就绪)→ 合成回退
+    if (!AUDIO_FILES[event] || this.buffers.get(event) === null) {
+      super.play(event, opts);
+    } else {
+      // 文件还在加载中 → 临时合成
+      super.play(event, opts);
+    }
   }
 }

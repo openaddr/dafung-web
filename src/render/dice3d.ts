@@ -62,9 +62,9 @@ function createFaceTextures(): THREE.CanvasTexture[] {
   });
 }
 
-const DIE_SIZE = 1;           // 立方体边长(物理单位)
-const FIELD_W = 3.4;          // 骰盘物理宽(墙间距)
-const FIELD_D = 3.4;          // 骰盘物理深
+const DIE_SIZE = 1.6;          // 立方体边长(物理单位)——更大,全屏视觉
+const FIELD_W = 14;           // 骰盘物理宽(全屏大幅翻滚)
+const FIELD_D = 10;           // 骰盘物理深
 const SNAP_Y = DIE_SIZE / 2;  // 静息/吸附时骰中心 y(贴地)
 
 /**
@@ -79,6 +79,7 @@ export class ThreeDice {
   readonly available: boolean;
 
   private mount: HTMLElement;
+  private overlay: HTMLElement | null = null; // 全屏覆盖层
   private rng: () => number;
   private readonly onHit?: (intensity: number) => void;
   private collideListener: ((e: { contact: { getImpactVelocityAlongNormal(): number } }) => void) | null = null;
@@ -103,6 +104,11 @@ export class ThreeDice {
     this.mount = mount;
     this.rng = rng;
     this.onHit = onHit;
+    // 创建全屏覆盖层(掷骰时显示,平时隐藏)
+    this.overlay = document.createElement("div");
+    this.overlay.className = "dice-overlay";
+    this.overlay.style.display = "none";
+    document.body.appendChild(this.overlay);
     // 探测 WebGL:可用(含 swiftshader 软件渲染)→ 真实 3D 乱滚;不可用 → available=false,
     // 上层 animate.ts 自动回退旧文字切换动画。e2e 经 swiftshader 跑真实 3D 路径。
     this.available = this.init();
@@ -110,6 +116,10 @@ export class ThreeDice {
       // 标记容器,触发 CSS 隐藏 fallback 文字面
       this.mount.classList.add("available");
       this.showFace(1);
+      this.hideOverlay();
+    } else {
+      this.overlay.remove();
+      this.overlay = null;
     }
   }
 
@@ -126,15 +136,16 @@ export class ThreeDice {
       return false;
     }
 
-    const W = this.mount.clientWidth || 64;
-    const H = this.mount.clientHeight || 64;
+    // 全屏渲染到 overlay(而非侧栏小窗 mount)
+    const W = window.innerWidth;
+    const H = window.innerHeight;
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     renderer.setSize(W, H, false);
-    renderer.setClearColor(0x000000, 0); // 透明背景,透出容器底色
+    renderer.setClearColor(0x000000, 0); // 透明背景,透出 overlay 底色
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
-    this.mount.appendChild(renderer.domElement);
+    (this.overlay ?? this.mount).appendChild(renderer.domElement);
     this.renderer = renderer;
 
     // 场景 + 灯光(Ambient 主光 + 两道 Directional 模拟自然光,古风暖调)
@@ -148,9 +159,9 @@ export class ThreeDice {
     scene.add(dir2);
     this.scene = scene;
 
-    // 正交相机(略微俯视,既有立体感又方便认字)
+    // 正交相机(略微俯视;全屏适配大物理空间)
     const aspect = W / H;
-    const viewSize = 2.3;
+    const viewSize = 7; // 视野更大,覆盖全屏
     const camera = new THREE.OrthographicCamera(
       -viewSize * aspect, viewSize * aspect,
       viewSize, -viewSize,
@@ -232,12 +243,28 @@ export class ThreeDice {
     return true;
   }
 
-  /** 掷骰:物理乱滚 → 吸附到 die 面朝上,resolve。WebGL 不可用时立即 resolve。 */
+  /** 掷骰:物理乱滚 → 吸附到 die 面朝上,resolve。WebGL 不可用时立即 resolve。
+   *  全屏模式:掷骰前显示 overlay,完成后延迟 HIDE_DELAY_MS 隐藏。 */
   roll(die: number): Promise<void> {
     if (!this.available) return Promise.resolve();
+    this.showOverlay();
     return new Promise<void>((resolve) => {
-      void this.rollAsync(die, resolve);
+      void this.rollAsync(die, () => {
+        // 显示结果 600ms 后隐藏
+        setTimeout(() => this.hideOverlay(), 600);
+        resolve();
+      });
     });
+  }
+
+  /** 显示全屏骰子层。 */
+  private showOverlay(): void {
+    if (this.overlay) this.overlay.style.display = "block";
+  }
+
+  /** 隐藏全屏骰子层。 */
+  private hideOverlay(): void {
+    if (this.overlay) this.overlay.style.display = "none";
   }
 
   private rollAsync(die: number, done: () => void): void {
@@ -253,23 +280,23 @@ export class ThreeDice {
     const world = this.world;
     const rng = this.rng;
 
-    // 随机起手:位置(中心附近偏移)+ 速度(主要向上+水平随机)+ 角速度(三轴随机翻滚)。
-    // 参数 tuned 让骰子真实翻滚但 ~0.5-0.9s 内静止(配合下面 stillFrames/maxSteps 早停)。
+    // 随机起手:位置(偏左上方,模拟从手中扔出)+ 强速度(向右下大幅抛掷新
+    // 角速度更高(三轴快翻滚)。全屏模式参数——骰子要大范围翻滚、多次弹跳。
     body.wakeUp();
     body.position.set(
-      (rng() - 0.5) * 1.2,
-      1.6 + rng() * 0.7,
-      (rng() - 0.5) * 1.2,
+      -4 + (rng() - 0.5) * 1.5,
+      4 + rng() * 2,
+      -2 + (rng() - 0.5) * 1.5,
     );
     body.velocity.set(
-      (rng() - 0.5) * 3.5,
-      0.6 + rng() * 1.6,
-      (rng() - 0.5) * 3.5,
+      8 + rng() * 4,         // 主要向右抛掷
+      1 + rng() * 2,         // 向上腾起
+      (rng() - 0.5) * 3,
     );
     body.angularVelocity.set(
-      (rng() - 0.5) * 16,
-      (rng() - 0.5) * 16,
-      (rng() - 0.5) * 16,
+      18 + rng() * 14,
+      18 + rng() * 14,
+      18 + rng() * 14,
     );
     body.quaternion.setFromEuler(
       rng() * Math.PI * 2,
@@ -282,8 +309,8 @@ export class ThreeDice {
     // 墙钟判据:swiftshader 软渲每帧可能 50-150ms,按帧数判会拖到数秒(e2e 等待窗口爆掉)。
     // 改用真实经过时间,确保硬件 ~0.5-0.7s、swiftshader 也 ≤0.7s 收尾(+0.2s snap ≤0.9s),
     // 留足余量给行军动画 + 落格卷轴出现在 e2e 的固定等待窗口内。
-    const MIN_ROLL_MS = 250;   // 至少滚 0.25s,避免一触即停没乱滚感
-    const HARD_CAP_MS = 700;   // 0.7s 硬上限(与 GPU 帧率无关)
+    const MIN_ROLL_MS = 500;   // 至少滚 0.5s,全屏大幅翻滚要有足够的翻滚感
+    const HARD_CAP_MS = 1500;  // 1.5s 硬上限(全屏模式允许更长翻滚)
     let stillFrames = 0;
 
     const step = () => {
@@ -419,6 +446,10 @@ export class ThreeDice {
       this.renderer.dispose();
       this.renderer.domElement.remove();
       this.renderer = null;
+    }
+    if (this.overlay) {
+      this.overlay.remove();
+      this.overlay = null;
     }
     this.scene = null;
     this.camera = null;

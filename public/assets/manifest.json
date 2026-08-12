@@ -31,12 +31,79 @@
     "fetched_at": "2026-08-04",
     "review_required": false
   },
+  "hero:zhouyu": {
+    "path": "assets/heroes/hero-zhouyu.png",
+    "source": "https://commons.wikimedia.org/wiki/File:ZhouYu.jpg",
+    "license": "Public domain",
+    "author": "Unknown (Qing Dynasty edition of Romance of the Three Kingdoms)",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "hero:zhangxingcai": {
+    "path": "assets/heroes/hero-zhangxingcai.png",
+    "source": "https://commons.wikimedia.org/wiki/File:SunShangxiang.jpg",
+    "license": "Public domain",
+    "author": "Unknown (Qing Dynasty edition of Romance of the Three Kingdoms); Sun Shangxiang as fallback",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
   "treasure:hat": {
     "path": "assets/treasures/treasure-hat.jpg",
     "source": "https://commons.wikimedia.org/wiki/File%3A(working_in_the_rice_paddy)_-_DPLA_-_bce27c50ddd1b3ca0870d27471aff6b0.jpg",
     "license": "Public domain",
     "author": "unknown",
     "fetched_at": "2026-08-04",
+    "review_required": false
+  },
+  "treasure:edict": {
+    "path": "assets/treasures/treasure-edict.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Tongzhi_reign_Qing_dynasty_edict",
+    "license": "Public domain",
+    "author": "The imperial government of the Manchu Qing Dynasty",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "treasure:hu": {
+    "path": "assets/treasures/treasure-hu.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Bronze_Shang_Yang_Measure",
+    "license": "CC0",
+    "author": "Gary Todd",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:coin": {
+    "path": "assets/audio/coin-drop.ogg",
+    "license": "Public domain",
+    "author": "ezwa (pdsounds.org)",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:gong": {
+    "path": "assets/audio/gong-hit.ogg",
+    "license": "CC0",
+    "author": "stephan (pdsounds.org)",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:drum": {
+    "path": "assets/audio/drum-roll.ogg",
+    "license": "CC0",
+    "author": "Iwan Sounds and DIY",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:guqin": {
+    "path": "assets/audio/guqin-note.ogg",
+    "license": "CC0",
+    "author": "Wikimedia Commons",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:victory": {
+    "path": "assets/audio/victory-fanfare.ogg",
+    "license": "CC0",
+    "author": "Wikimedia Commons",
+    "fetched_at": "2026-08-07",
     "review_required": false
   },
   "tile:Wolong": {

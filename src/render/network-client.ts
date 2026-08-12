@@ -227,7 +227,10 @@ export class NetworkClient extends ClientController {
       for (const s of seats) {
         const tag = s.seat === this.seat ? "你" : s.kind === "bot" ? "bot" : s.taken ? "人" : "空";
         const host = s.seat === (this.roomMeta?.host ?? 0) ? " · 房主" : "";
-        seatList.appendChild(el("div", { style: `padding:4px 0;${s.seat === this.seat ? "font-weight:700;" : ""}` }, [
+        const dotClass = s.kind === "bot" ? "bot" : !s.taken ? "empty" : s.online ? "online" : "offline";
+        const rowClass = s.seat === this.seat ? "lobby-seat-row is-you" : "lobby-seat-row";
+        seatList.appendChild(el("div", { class: rowClass }, [
+          el("span", { class: `seat-dot ${dotClass}` }),
           `诸侯 ${s.seat + 1} · ${tag}${host}${s.taken && !s.online ? " · 离线" : ""}`,
         ]));
       }
