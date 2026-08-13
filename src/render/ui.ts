@@ -8,6 +8,9 @@ import { isSingleCjk } from "@core/constants";
 import { el, clear } from "./dom";
 import { assetImg, treasureAssetImg } from "./assets";
 import { IS_DEV } from "../version";
+import { createBoardSvg } from "./board";
+import type { MapEntry, MapSource } from "@core/map-source";
+import { loadMapById } from "@core/map-source";
 
 export interface SidebarRefs {
   root: HTMLElement;
@@ -471,9 +474,25 @@ export interface SetupResult {
   targetNetWorth: number;
   startingCash: number;
   difficulty: "Simple" | "Normal";
+  /** 选中的地图 id(延迟加载:起兵时才 loadMapById)。默认 sanguo。 */
+  mapId?: string;
 }
 
-export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult) => void, onEdit?: () => void, onOnline?: () => void): void {
+/** 选中地图变更回调(由 main.ts 传入:持久化到 localStorage)。 */
+export type OnMapChange = (mapId: string) => void;
+
+export function createSetupScreen(
+  parent: HTMLElement,
+  onStart: (r: SetupResult) => void,
+  onEdit?: () => void,
+  onOnline?: () => void,
+  /** 初始选中的地图 id(来自 localStorage,默认 sanguo)。 */
+  initialMapId: string = "sanguo",
+  /** 地图源(传入则显示「选择地图」按钮 + 二级屏)。 */
+  mapSource?: MapSource,
+  /** 选中地图变更时回调(main.ts 用它存 localStorage)。 */
+  onMapChange?: OnMapChange,
+): void {
   const screen = el("div", { class: "setup-screen" });
   const card = el("div", { class: "setup-card" });
 
@@ -569,6 +588,29 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
   const onlineBtn = onOnline ? (el("button", { class: "btn", id: "online-btn", style: "margin-left:10px" }, ["联机对战"]) as HTMLButtonElement) : null;
   onlineBtn?.addEventListener("click", () => onOnline?.());
 
+  // 当前选中的地图 id(可被「选择地图」二级屏改写)。默认 initialMapId(localStorage 记忆)。
+  let selectedMapId = initialMapId;
+  // 当前选中地图的展示名(默认用 id 占位,二级屏选定后会刷新为真实 name)。
+  const currentMapNameEl = el("span", { id: "selected-map-name", style: "font-family:var(--font-deco);color:var(--ink);" }, [initialMapId]);
+  // 「选择地图」按钮:传入 mapSource 才显示。点击打开二级屏。
+  const selectMapBtn = mapSource
+    ? (el("button", { class: "btn", id: "select-map-btn", style: "margin-left:10px" }, ["选择地图"]) as HTMLButtonElement)
+    : null;
+  selectMapBtn?.addEventListener("click", () => {
+    createMapSelectionScreen(parent, mapSource!, selectedMapId, (mapId, name) => {
+      selectedMapId = mapId;
+      currentMapNameEl.textContent = name;
+      onMapChange?.(mapId);
+    }, () => { /* 取消:无操作,保留原选择 */ });
+  });
+  // 首次显示设置屏:异步解析当前选中地图的展示名(id → name)。
+  if (selectMapBtn) {
+    void mapSource!.listMaps().then((entries) => {
+      const found = entries.find((e) => e.id === selectedMapId);
+      if (found) currentMapNameEl.textContent = found.name;
+    }).catch(() => { /* 忽略:保留 id 兜底 */ });
+  }
+
   card.appendChild(el("h3", { style: "font-family:var(--font-deco);font-size:16px;margin:0 0 10px;letter-spacing:3px;" }, ["开局布阵"]));
   card.appendChild(
     el(
@@ -585,7 +627,22 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
   card.appendChild(seatsBox);
   card.appendChild(el("div", { style: "font-size:12px;color:var(--ink-dim);margin:8px 0 2px;font-family:var(--font-deco);" }, ["字盘快选国号:"]));
   card.appendChild(pool);
-  card.appendChild(el("div", { class: "setup-actions" }, onlineBtn ? [startBtn, editBtn, onlineBtn] : [startBtn, editBtn]));
+  // 当前选中地图展示行(仅在「选择地图」入口可用时显示)
+  if (selectMapBtn) {
+    card.appendChild(
+      el("div", { style: "font-size:13px;margin:10px 0 2px;font-family:var(--font-deco);color:var(--ink-dim);display:flex;align-items:center;gap:8px;" }, [
+        el("span", {}, ["当前地图:"]),
+        currentMapNameEl,
+      ]),
+    );
+  }
+  card.appendChild(
+    el(
+      "div",
+      { class: "setup-actions" },
+      [startBtn, editBtn, ...(selectMapBtn ? [selectMapBtn] : []), ...(onlineBtn ? [onlineBtn] : [])],
+    ),
+  );
   card.appendChild(hint);
 
   startBtn.addEventListener("click", () => {
@@ -624,6 +681,7 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
       targetNetWorth: Number.isFinite(tnw) ? tnw : 8000,
       startingCash: Number.isFinite(cash) ? cash : 2500,
       difficulty: diffSel.value as "Simple" | "Normal",
+      mapId: selectedMapId,
     });
   });
 
@@ -631,4 +689,119 @@ export function createSetupScreen(parent: HTMLElement, onStart: (r: SetupResult)
   screen.appendChild(el("div", { class: "subtitle" }, ["— 三国大富翁 —"]));
   screen.appendChild(card);
   parent.appendChild(screen);
+}
+
+// ── 选择地图二级屏 ──
+// 列出 mapSource.listMaps() 的全部条目(内置 + 自建),每项展示名称/城池数/目标身价/描述。
+// 点击某项展开实时 SVG 棋盘预览(复用 createBoardSvg,需先 loadMapById)。
+// 「确认选择」回设置屏,带回调选定的 mapId。
+export function createMapSelectionScreen(
+  parent: HTMLElement,
+  mapSource: MapSource,
+  currentMapId: string,
+  onConfirm: (mapId: string, name: string) => void,
+  onCancel: () => void,
+): void {
+  const overlay = el("div", { class: "map-select-overlay" });
+  const panel = el("div", { class: "map-select-panel" });
+
+  panel.appendChild(el("h3", { style: "font-family:var(--font-deco);font-size:16px;margin:0 0 12px;letter-spacing:3px;" }, ["选择地图"]));
+  const loadingHint = el("div", { style: "color:var(--ink-dim);font-family:var(--font-deco);padding:24px 0;" }, ["载入地图清单…"]);
+  panel.appendChild(loadingHint);
+
+  overlay.appendChild(panel);
+  parent.appendChild(overlay);
+
+  // 当前在二级屏内选中的 mapId(临时态,确认后才回传)。默认 = 进来时的 currentMapId。
+  let picked = currentMapId;
+  // 预览容器(点击某项时填充 SVG;一次只渲一张)
+  let previewBox: HTMLElement | null = null;
+
+  // 异步加载清单后渲染列表
+  void mapSource.listMaps().then((entries: MapEntry[]) => {
+    if (!entries.length) {
+      loadingHint.textContent = "暂无可用地图。";
+      return;
+    }
+    clear(panel);
+    panel.appendChild(el("h3", { style: "font-family:var(--font-deco);font-size:16px;margin:0 0 12px;letter-spacing:3px;" }, ["选择地图"]));
+    const list = el("div", { class: "map-list", style: "display:flex;flex-direction:column;gap:8px;max-height:50vh;overflow-y:auto;" });
+    for (const e of entries) {
+      const isSelected = e.id === currentMapId;
+      const card = el(
+        "div",
+        {
+          class: `map-item${isSelected ? " selected" : ""}`,
+          "data-map-id": e.id,
+          style:
+            "border:1px solid rgba(140,110,60,0.4);border-radius:8px;padding:10px 12px;cursor:pointer;background:rgba(247,236,208,0.6);" +
+            (isSelected ? "border-color:var(--gold,#b8941f);background:rgba(184,148,31,0.1);" : ""),
+        },
+        [
+          el("div", { style: "display:flex;justify-content:space-between;align-items:baseline;gap:8px;" }, [
+            el("span", { style: "font-family:var(--font-deco);font-size:15px;font-weight:700;color:var(--ink);" }, [e.name]),
+            el("span", { style: "font-size:12px;color:var(--ink-dim);" }, [`${e.tileCount} 城 · 目标 ${formatMoney(e.targetNetWorth)}`]),
+          ]),
+          el("div", { style: "font-size:12px;color:var(--ink-dim);margin-top:4px;" }, [e.desc]),
+        ],
+      );
+      // 点击某项:选中 + 展开实时 SVG 预览(异步 loadMapById → createBoardSvg)
+      card.addEventListener("click", () => {
+        // 更新选中态(单选视觉)
+        list.querySelectorAll(".map-item").forEach((n) => n.classList.remove("selected"));
+        card.classList.add("selected");
+        picked = e.id;
+        // 渲染预览:一次只一张,先清旧预览
+        if (previewBox) {
+          previewBox.remove();
+          previewBox = null;
+        }
+        previewBox = el("div", { class: "map-preview", style: "margin-top:8px;border-top:1px dashed rgba(140,110,60,0.4);padding-top:10px;" });
+        const previewLoading = el("div", { style: "color:var(--ink-dim);font-size:12px;font-family:var(--font-deco);padding:8px 0;" }, [`预览「${e.name}」加载中…`]);
+        previewBox.appendChild(previewLoading);
+        panel.appendChild(previewBox);
+        // 异步加载并渲染棋盘(延迟加载:预览时才 loadMapById)
+        void loadMapById(mapSource, e.id)
+          .then((loaded) => {
+            clear(previewBox!);
+            const view = createBoardSvg(loaded.board, loaded.catalog);
+            const svgRoot = view.root;
+            svgRoot.style.maxWidth = "100%";
+            svgRoot.style.height = "auto";
+            svgRoot.style.maxHeight = "40vh";
+            svgRoot.style.background = "#e8dcc0";
+            svgRoot.style.borderRadius = "6px";
+            previewBox!.appendChild(svgRoot);
+          })
+          .catch((err) => {
+            clear(previewBox!);
+            previewBox!.appendChild(el("div", { style: "color:#b23a2e;font-size:12px;" }, [`预览失败:${(err as Error).message}`]));
+          });
+      });
+      list.appendChild(card);
+    }
+    panel.appendChild(list);
+
+    previewBox = el("div", { class: "map-preview", style: "margin-top:8px;" });
+    panel.appendChild(previewBox);
+
+    // 操作栏:确认选择 / 取消
+    panel.appendChild(
+      el("div", { class: "setup-actions", style: "margin-top:12px;" }, [
+        el("button", { class: "btn", id: "map-cancel-btn" }, ["取消"]),
+        el("button", { class: "btn btn-primary", id: "map-confirm-btn" }, ["确认选择"]),
+      ]),
+    );
+    const confirmBtn = panel.querySelector("#map-confirm-btn") as HTMLButtonElement;
+    const cancelBtn = panel.querySelector("#map-cancel-btn") as HTMLButtonElement;
+    confirmBtn.addEventListener("click", () => {
+      const entry = entries.find((x) => x.id === picked);
+      overlay.remove();
+      onConfirm(picked, entry ? entry.name : picked);
+    });
+    cancelBtn.addEventListener("click", () => {
+      overlay.remove();
+      onCancel();
+    });
+  });
 }

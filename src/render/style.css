@@ -987,6 +987,32 @@ select,
   justify-content: center;
   margin-top: 18px;
 }
+/* 选择地图二级屏(盖在设置屏 z-index:50 之上) */
+.map-select-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(40, 30, 15, 0.45);
+  z-index: 60;
+  animation: fade-in 0.25s ease;
+  padding: 16px;
+}
+.map-select-panel {
+  background: linear-gradient(180deg, #f7ecd0, #ecdcb4);
+  border: 3px double var(--gold);
+  border-radius: 8px;
+  padding: 20px 24px;
+  width: min(560px, 92vw);
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 10px 40px rgba(60, 40, 10, 0.4);
+}
+.map-item.selected {
+  border-color: var(--gold) !important;
+  background: rgba(184, 148, 31, 0.12) !important;
+}
 .setup-hint {
   text-align: center;
   color: var(--ink-dim);

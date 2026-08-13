@@ -13,6 +13,15 @@ import { getMapSource, DEFAULT_MAP_ID } from "./render/map-sources";
 
 const root = document.getElementById("app")!;
 
+/** localStorage key:记住上次选择的地图 id(刷新页面恢复)。 */
+const SELECTED_MAP_KEY = "dafung-selected-map";
+
+/** 读取上次选中的地图 id;无记录或失效则回退默认(DEFAULT_MAP_ID = sanguo)。 */
+function readSelectedMap(): string {
+  const saved = localStorage.getItem(SELECTED_MAP_KEY);
+  return saved || DEFAULT_MAP_ID;
+}
+
 // 角落版本号:每次代码改动递增(见 src/version.ts),便于确认打开的是最新构建
 const verTag = document.createElement("div");
 verTag.className = "version-tag";
@@ -56,8 +65,13 @@ function bootstrap() {
       root.innerHTML = "";
       const seedParam = new URLSearchParams(location.search).get("seed");
       const seed = seedParam ? parseInt(seedParam, 10) : undefined;
+      // 起兵时:持久化选中的地图 id + 用它加载地图(延迟加载)
+      const mapId = r.mapId || DEFAULT_MAP_ID;
       try {
-        const map = await loadSelectedMap();
+        localStorage.setItem(SELECTED_MAP_KEY, mapId);
+      } catch { /* localStorage 不可用(隐私模式)时静默忽略 */ }
+      try {
+        const map = await loadSelectedMap(mapId);
         new App({
           seats: r.seats,
           targetNetWorth: r.targetNetWorth,
@@ -100,6 +114,14 @@ function bootstrap() {
     },
     // 「联机对战」按钮
     () => void enterOnline(),
+    // 初始选中地图 id(localStorage 记忆,默认 sanguo)
+    readSelectedMap(),
+    // 地图源(传入后设置屏显示「选择地图」按钮 + 二级屏)
+    getMapSource(),
+    // 选中地图变更:持久化到 localStorage(刷新页面恢复)
+    (mapId: string) => {
+      try { localStorage.setItem(SELECTED_MAP_KEY, mapId); } catch { /* 忽略 */ }
+    },
   );
 }
 
