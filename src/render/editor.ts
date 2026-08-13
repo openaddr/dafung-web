@@ -7,8 +7,11 @@ import { formatMoney } from "@core/money";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
 import { svgCoordHelpers } from "./svg-util";
-import { getMapSource, DEFAULT_MAP_ID } from "./map-sources";
+import { getMapSource, DEFAULT_MAP_ID, LocalStorageMapSource } from "./map-sources";
 import type { MapData } from "@core/types";
+
+/** 自建图库实例(与 getMapSource() 单例共用同一个 localStorage)。 */
+const customStore = new LocalStorageMapSource();
 
 export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => void, onPlay: (mapData: MapData) => void) {
   let selected = 0;
@@ -46,8 +49,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
   const panel = el("div", { class: "editor-panel" });
   const exitBtn = el("button", { class: "btn", style: "flex:1" }, ["← 返回"]) as HTMLButtonElement;
   exitBtn.addEventListener("click", () => {
-    // 退出编辑器时自动保存,这样「返回 → 起兵」对局能用到刚才的编辑
-    localStorage.setItem("dafung-custom-map", JSON.stringify(mapData));
+    // 退出编辑器(不自动保存;用户需点「保存」写入图库)。返回设置屏。
     onExit();
   });
   const exportBtn = el("button", { class: "btn", style: "flex:1" }, ["导出"]) as HTMLButtonElement;
@@ -85,14 +87,19 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
   });
   const saveBtn = el("button", { class: "btn", style: "flex:1" }, ["保存"]) as HTMLButtonElement;
   saveBtn.addEventListener("click", () => {
-    localStorage.setItem("dafung-custom-map", JSON.stringify(mapData));
-    saveBtn.textContent = "已存!";
-    setTimeout(() => { saveBtn.textContent = "保存"; }, 1000);
+    // 保存到自建图库(多图,可命名)。prompt 输入地图名(默认「自建地图 N」,N = 当前图库数 + 1)。
+    const count = customStore.listCustomMaps().length;
+    const defaultName = `自建地图 ${count + 1}`;
+    const name = (prompt("请输入地图名:", defaultName) || "").trim();
+    if (!name) return; // 取消或空名 → 不保存
+    customStore.saveCustomMap(name, mapData);
+    const total = customStore.listCustomMaps().length;
+    saveBtn.textContent = `已存!图库共 ${total} 张`;
+    setTimeout(() => { saveBtn.textContent = "保存"; }, 1500);
   });
   const resetBtn = el("button", { class: "btn", style: "flex:1" }, ["重置"]) as HTMLButtonElement;
   resetBtn.addEventListener("click", async () => {
     if (!confirm("重置回内置地图?当前编辑会丢失。")) return;
-    localStorage.removeItem("dafung-custom-map");
     try {
       const data = await getMapSource().loadMapData(DEFAULT_MAP_ID);
       Object.assign(mapData, data); // 全字段重置(含 version/maxLevel/resupplyPerLevel)

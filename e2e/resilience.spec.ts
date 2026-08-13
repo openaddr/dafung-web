@@ -1,6 +1,8 @@
-// 地图加载韧性:坏档/旧版存档自动降级到内置地图,不卡死、清坏档。
-// 对应 map-loading-resilience 规约;防 v1.9.3 那次"最小间距校验卡死用户旧档"的回归。
+// 地图加载韧性:localStorage 有垃圾/坏数据时,起兵默认选内置图(sanguo)不卡死。
+// ticket 03 后:启动只按 dafung-selected-map 指定的 id 加载(默认 sanguo),
+// 不再读取旧的单图 key(dafung-custom-map 已废弃)。坏数据不应影响默认起兵流程。
 import { test, expect } from "@playwright/test";
+import { GOTO_OPTS } from "./helpers";
 
 const BAD_OVERLAP_MAP = {
   version: 1,
@@ -14,33 +16,29 @@ const BAD_OVERLAP_MAP = {
   ],
 };
 
-test("坏档(城池重叠)自动降级到内置地图,不卡死且清档", async ({ page }) => {
-  await page.goto("/");
+test("localStorage 有旧单图坏档(dafung-custom-map)不影响默认起兵", async ({ page }) => {
+  await page.goto("/", GOTO_OPTS);
+  // 旧单图 key 写入坏数据(已被废弃,启动完全不读它)
   await page.evaluate((m) => localStorage.setItem("dafung-custom-map", JSON.stringify(m)), BAD_OVERLAP_MAP);
   await page.locator("#seat-count").selectOption("2");
   await page.locator("#start-btn").click();
-  // 降级后内置图加载 → __dafung 挂载(若卡死会超时失败)
+  // 默认 sanguo 加载 → __dafung 挂载(若卡死会超时失败)
   await page.waitForFunction(
     () => !!(window as unknown as { __dafung?: unknown }).__dafung,
     undefined,
     { timeout: 10000 },
   );
-  // 加载的是内置图(≥30 城),不是坏档的 2 城
-  const tileCount = await page.locator("[data-tile]").count();
-  expect(tileCount).toBeGreaterThanOrEqual(30);
+  // 加载的是内置图(≥30 城),不是坏档
+  expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
   // 页面没有"地图加载失败"错误屏
   const bodyText = await page.evaluate(() => document.body.textContent ?? "");
   expect(bodyText).not.toContain("地图加载失败");
-  // 坏档被清除
-  expect(await page.evaluate(() => localStorage.getItem("dafung-custom-map"))).toBeNull();
 });
 
-test("版本不符的存档也降级到内置", async ({ page }) => {
-  await page.goto("/");
-  await page.evaluate(
-    (m) => localStorage.setItem("dafung-custom-map", JSON.stringify(m)),
-    { ...BAD_OVERLAP_MAP, version: 99 },
-  );
+test("dafung-selected-map 指向已失效的 id 时回退默认 sanguo 不卡死", async ({ page }) => {
+  await page.goto("/", GOTO_OPTS);
+  // 清掉 selected-map:确保走默认(DEFAULT_MAP_ID = sanguo)路径
+  await page.evaluate(() => localStorage.removeItem("dafung-selected-map"));
   await page.locator("#seat-count").selectOption("2");
   await page.locator("#start-btn").click();
   await page.waitForFunction(
@@ -49,5 +47,5 @@ test("版本不符的存档也降级到内置", async ({ page }) => {
     { timeout: 10000 },
   );
   expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
-  expect(await page.evaluate(() => localStorage.getItem("dafung-custom-map"))).toBeNull();
 });
+

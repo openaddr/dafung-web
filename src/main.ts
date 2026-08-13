@@ -84,13 +84,11 @@ function bootstrap() {
         mapLoadError(err);
       }
     },
-    // 「编辑地图」入口:加载地图原始 JSON 进入编辑器
+    // 「编辑地图」入口:加载默认内置图(sanguo)原始 JSON 进入编辑器。
+    // 保存时写入自建图库(多图),而非旧的单图覆盖;起兵用「选择地图」选自建图。
     async () => {
       try {
-        // 注:localStorage 单图(dafung-custom-map)是旧的编辑器存档,ticket 03 会升级为多图库。
-        // 此处保留旧行为,03 改造后编辑器从图库加载/保存。
-        const saved = localStorage.getItem("dafung-custom-map");
-        const data = saved ? JSON.parse(saved) : await getMapSource().loadMapData(DEFAULT_MAP_ID);
+        const data = await getMapSource().loadMapData(DEFAULT_MAP_ID);
         createEditor(root, data, () => bootstrap(), async (mapData) => {
           try {
             root.innerHTML = "";

@@ -96,3 +96,83 @@ test("选图后起兵能正常进入对局(snapshot 健康)", async ({ page }) =
   expect(s.phase).toBe("Setup");
   expect(s.players.length).toBe(2);
 });
+
+// ── 自建图(ticket 03):编辑器保存 → 图库 → 菜单可选可玩 ──
+
+/** 编辑器里保存一张自建图到 localStorage 图库。返回保存用的图名。 */
+async function saveCustomMapInEditor(page: import("@playwright/test").Page, name: string): Promise<void> {
+  await page.goto("/", GOTO_OPTS);
+  await page.locator("#edit-btn").click();
+  await page.locator("[data-tile]").first().waitFor({ state: "attached", timeout: 10000 });
+  // 「保存」会触发 prompt,接受并填入名字
+  page.once("dialog", (d) => d.accept(name));
+  await page.getByRole("button", { name: "保存" }).click();
+  // 等保存反馈(按钮文案变为「已存!…」)
+  await expect(page.getByRole("button", { name: /已存/ })).toBeVisible({ timeout: 5000 });
+}
+
+test("编辑器保存的自建图出现在「选择地图」菜单", async ({ page }) => {
+  const name = `我的自建图${Date.now()}`;
+  await saveCustomMapInEditor(page, name);
+  // 退出编辑器回设置屏
+  await page.getByRole("button", { name: /返回/ }).click();
+  // 打开「选择地图」:自建图条目应出现(custom- id 前缀 + 自定义名)
+  await page.locator("#select-map-btn").click();
+  const customItem = page.locator(".map-list .map-item").filter({ hasText: name });
+  await expect(customItem).toBeVisible({ timeout: 10000 });
+  // id 为 custom- 前缀
+  const customId = await customItem.getAttribute("data-map-id");
+  expect(customId).toMatch(/^custom-/);
+  // 描述为「自建地图」
+  await expect(customItem).toContainText("自建地图");
+});
+
+test("自建图可选可玩:选它起兵,棋盘用的是该图(snapshot 健康)", async ({ page }) => {
+  const name = `可玩自建图${Date.now()}`;
+  await saveCustomMapInEditor(page, name);
+  // 返回设置屏 → 选择地图 → 选自建图 → 确认
+  await page.getByRole("button", { name: /返回/ }).click();
+  await page.locator("#select-map-btn").click();
+  const customItem = page.locator(".map-list .map-item").filter({ hasText: name });
+  await expect(customItem).toBeVisible({ timeout: 10000 });
+  await customItem.click();
+  await page.locator("#map-confirm-btn").click();
+  // 回设置屏:当前地图名应刷新为自建图名
+  await expect(page.locator("#selected-map-name")).toHaveText(name);
+  // 起兵(2 诸侯,确定性 seed)
+  await page.locator("#seat-count").selectOption("2");
+  await page.locator("#start-btn").click();
+  await page.waitForFunction(() => !!(window as unknown as { __dafung?: unknown }).__dafung, undefined, { timeout: 10000 });
+  // 起兵用的是自建图:dafung-selected-map 应为 custom- 前缀
+  const stored = await page.evaluate(() => localStorage.getItem("dafung-selected-map"));
+  expect(stored).toMatch(/^custom-/);
+  // 快照健康(选都阶段)
+  const s = await snap(page);
+  expect(s.phase).toBe("Setup");
+  expect(s.players.length).toBe(2);
+});
+
+test("自建图持久化到 localStorage 图库(dafung-custom-maps 数组)", async ({ page }) => {
+  const name = `持久自建图${Date.now()}`;
+  await saveCustomMapInEditor(page, name);
+  // 图库数组应包含刚存的图(id custom- + 名字匹配)
+  const raw = await page.evaluate(() => localStorage.getItem("dafung-custom-maps"));
+  expect(raw).not.toBeNull();
+  const lib = JSON.parse(raw!) as Array<{ id: string; name: string }>;
+  const found = lib.find((e) => e.name === name);
+  expect(found).toBeTruthy();
+  expect(found!.id).toMatch(/^custom-/);
+});
+
+test("自建图能选可玩并预览:点开自建图项展开 SVG 棋盘预览", async ({ page }) => {
+  const name = `预览自建图${Date.now()}`;
+  await saveCustomMapInEditor(page, name);
+  await page.getByRole("button", { name: /返回/ }).click();
+  await page.locator("#select-map-btn").click();
+  const customItem = page.locator(".map-list .map-item").filter({ hasText: name });
+  await expect(customItem).toBeVisible({ timeout: 10000 });
+  await customItem.click();
+  // 预览容器内出现棋盘 SVG(id=board);自建图数据从 localStorage 读,异步加载
+  const previewSvg = page.locator(".map-preview #board");
+  await expect(previewSvg).toBeVisible({ timeout: 10000 });
+});
