@@ -7,6 +7,7 @@ import { formatMoney } from "@core/money";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
 import { svgCoordHelpers } from "./svg-util";
+import { getMapSource, DEFAULT_MAP_ID } from "./map-sources";
 import type { MapData } from "@core/types";
 
 export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => void, onPlay: (mapData: MapData) => void) {
@@ -93,8 +94,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
     if (!confirm("重置回内置地图?当前编辑会丢失。")) return;
     localStorage.removeItem("dafung-custom-map");
     try {
-      const res = await fetch("/maps/sanguo.json");
-      const data = (await res.json()) as MapData;
+      const data = await getMapSource().loadMapData(DEFAULT_MAP_ID);
       Object.assign(mapData, data); // 全字段重置(含 version/maxLevel/resupplyPerLevel)
       if (data.branch == null) mapData.branch = null;
       selected = 0;

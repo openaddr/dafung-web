@@ -8,6 +8,8 @@ import { App } from "./render/state";
 import { NetworkClient } from "./render/network-client";
 import { VERSION } from "./version";
 import { loadMap } from "./core/board-loader";
+import { loadMapById } from "./core/map-source";
+import { getMapSource, DEFAULT_MAP_ID } from "./render/map-sources";
 
 const root = document.getElementById("app")!;
 
@@ -20,23 +22,10 @@ verTag.style.cssText =
   "opacity:.6;font-family:var(--font-deco,serif);pointer-events:none;z-index:9999;letter-spacing:1px;";
 document.body.appendChild(verTag);
 
-/** 运行时 Fetch 地图 JSON:改 public/maps/*.json 后刷新页面即生效,无需 rebuild。 */
-async function loadDefaultMap() {
-  // 优先用编辑器保存的自定义地图;没有才用内置 sanguo.json
-  const saved = localStorage.getItem("dafung-custom-map");
-  if (saved) {
-    try {
-      return loadMap(JSON.parse(saved));
-    } catch (err) {
-      // 自定义地图校验失败(如旧版存档城池重叠、版本不符)——清掉坏档,回退内置地图,
-      // 避免一张坏图卡死整个游戏。
-      console.warn("自定义地图加载失败,回退内置地图:", (err as Error).message);
-      localStorage.removeItem("dafung-custom-map");
-    }
-  }
-  const res = await fetch("/maps/sanguo.json");
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return loadMap(await res.json());
+/** 按 mapId 从统一入口加载地图(取代硬编码 fetch sanguo.json)。
+ *  01 阶段:默认 id = sanguo,行为与改前一致。选图菜单在 ticket 02 接入后传入用户选的 id。 */
+async function loadSelectedMap(mapId: string = DEFAULT_MAP_ID) {
+  return loadMapById(getMapSource(), mapId);
 }
 
 function mapLoadError(err: unknown) {
@@ -46,7 +35,7 @@ function mapLoadError(err: unknown) {
 /** 进入联机:加载地图 → network-client(它自带 connect/lobby 屏)。 */
 async function enterOnline() {
   try {
-    const map = await loadDefaultMap();
+    const map = await loadSelectedMap();
     root.innerHTML = "";
     new NetworkClient(map, location.origin);
   } catch (err) {
@@ -68,7 +57,7 @@ function bootstrap() {
       const seedParam = new URLSearchParams(location.search).get("seed");
       const seed = seedParam ? parseInt(seedParam, 10) : undefined;
       try {
-        const map = await loadDefaultMap();
+        const map = await loadSelectedMap();
         new App({
           seats: r.seats,
           targetNetWorth: r.targetNetWorth,
@@ -81,11 +70,13 @@ function bootstrap() {
         mapLoadError(err);
       }
     },
-    // 「编辑地图」入口:加载内置地图 JSON 进入编辑器
+    // 「编辑地图」入口:加载地图原始 JSON 进入编辑器
     async () => {
       try {
+        // 注:localStorage 单图(dafung-custom-map)是旧的编辑器存档,ticket 03 会升级为多图库。
+        // 此处保留旧行为,03 改造后编辑器从图库加载/保存。
         const saved = localStorage.getItem("dafung-custom-map");
-        const data = saved ? JSON.parse(saved) : await (await fetch("/maps/sanguo.json")).json();
+        const data = saved ? JSON.parse(saved) : await getMapSource().loadMapData(DEFAULT_MAP_ID);
         createEditor(root, data, () => bootstrap(), async (mapData) => {
           try {
             root.innerHTML = "";

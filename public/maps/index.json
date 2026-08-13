@@ -1,0 +1,18 @@
+[
+  {
+    "id": "sanguo",
+    "name": "群雄逐鹿",
+    "file": "sanguo.json",
+    "desc": "30 城主环,三国郡县州,含 5 要隘辅路捷径",
+    "tileCount": 30,
+    "targetNetWorth": 8000
+  },
+  {
+    "id": "zhongyuan",
+    "name": "中原争霸",
+    "file": "zhongyuan.json",
+    "desc": "8 城小环,快节奏短局,适合 2 人速战",
+    "tileCount": 8,
+    "targetNetWorth": 5000
+  }
+]
