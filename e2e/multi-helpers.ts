@@ -20,6 +20,8 @@ export interface CreateClientsOptions {
   bot?: number[]; // bot 座位号(默认无)
   target?: number; // 目标身价(默认 3000,确保终局)
   seed?: number; // 种子(可选)
+  /** 地图 id(默认 sanguo)。ticket 05 后服务端要求开局前 host 必须先选图。 */
+  mapId?: string;
 }
 
 /** 创建 N 个独立浏览器 context + 走真实 UI 建房/加入/开局,返回各客户端 page。 */
@@ -28,7 +30,7 @@ export async function createClients(
   n: number,
   opts: CreateClientsOptions = {},
 ): Promise<{ clients: Page[]; roomId: string }> {
-  const { bot = [], target = 3000, seed } = opts;
+  const { bot = [], target = 3000, seed, mapId = "sanguo" } = opts;
   const clients: Page[] = [];
   for (let i = 0; i < n; i++) clients.push((await (await browser.newContext()).newPage()));
 
@@ -52,6 +54,9 @@ export async function createClients(
     await expect(c.getByRole("heading", { name: "大厅" })).toBeVisible({ timeout: 8000 });
   }
 
+  // host 选图(ticket 05:开局前必须选图;默认 sanguo)
+  await pickLobbyMap(host, mapId);
+
   // host 开局
   await host.getByRole("button", { name: "开局" }).click();
   // 所有客户端都进对局
@@ -59,6 +64,15 @@ export async function createClients(
     await expect(c.locator("#status-bar")).toContainText(/的回合/, { timeout: 20000 });
   }
   return { clients, roomId };
+}
+
+/** host 在大厅通过 UI 选图:点「选择地图」→ 选 mapId → 确认选择。
+ *  封装为可复用 helper(online-multi 与 online-map-pick 都用)。 */
+export async function pickLobbyMap(host: Page, mapId: string): Promise<void> {
+  await host.getByRole("button", { name: "选择地图" }).click();
+  const panel = host.locator(".map-select-panel");
+  await panel.locator(`[data-map-id="${mapId}"]`).click();
+  await panel.getByRole("button", { name: "确认选择" }).click();
 }
 
 /** 在某端推进一个可用动作(掷骰 / 内嵌常规决策 / 卷轴复杂决策)。无可用动作返回 false。 */

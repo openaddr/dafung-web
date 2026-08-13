@@ -10,10 +10,15 @@ import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/game";
 import type { GameCommand } from "@core/types";
-import { createVictory } from "./ui";
+import { isCustomId } from "@core/map-source";
+import { createVictory, createMapSelectionScreen } from "./ui";
 import { el } from "./dom";
 import { loadAssetManifest } from "./assets";
 import { ClientController } from "./client-controller";
+import { createBoardSvg } from "./board";
+import { createAnimator } from "./animate";
+import { getMapSource } from "./map-sources";
+import { loadMapById } from "@core/map-source";
 
 type Snapshot = ReturnType<GameEngine["snapshot"]>;
 interface SeatMeta {
@@ -24,32 +29,29 @@ interface SeatMeta {
   controlled: boolean;
 }
 type ServerMsg =
-  | { type: "lobby"; roomId: string; seatCount: number; host: number; started: boolean; seats: SeatMeta[] }
+  | { type: "lobby"; roomId: string; seatCount: number; host: number; started: boolean; mapId: string | null; seats: SeatMeta[] }
   | ({ type: "snapshot"; roomId: string; host: number; seats: SeatMeta[] } & Snapshot)
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 
 export class NetworkClient extends ClientController {
   engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
+  /** 当前选中地图 id(初始 = 默认图;lobby 广播 mapId 后同步)。 */
+  private mapId: string | null = null;
 
   private serverUrl: string;
   private ws: WebSocket | null = null;
   private roomId: string | null = null;
   seat = -1;
   private seatToken: string | null = null;
-  private roomMeta: { host: number; seats: SeatMeta[]; seatCount: number; started: boolean } | null = null;
+  private roomMeta: { host: number; seats: SeatMeta[]; seatCount: number; started: boolean; mapId: string | null } | null = null;
   private lobbyOverlay: HTMLElement | null = null;
 
   constructor(map: LoadedMap, serverUrl: string) {
     super(map); // physicsSeed 不传:联机物理骰子不需要可复现(服务器才是权威)
     this.serverUrl = serverUrl.replace(/\/$/, "");
     // 占位引擎:只为渲染就位(board/catalog 来自真实地图);首帧 snapshot 会覆盖全部可变状态。
-    this.engine = new GameEngine(map.board, map.catalog, createDice(), {
-      seats: [
-        { name: "诸侯 1", isBot: false },
-        { name: "诸侯 2", isBot: true },
-      ],
-    });
+    this.engine = this.makePlaceholderEngine(map);
     // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat
     window.__dafung = {
       engine: this.engine,
@@ -60,6 +62,42 @@ export class NetworkClient extends ClientController {
     this.fullRender();
     void loadAssetManifest().then(() => this.fullRender());
     this.showConnectScreen();
+  }
+
+  /** 用一张地图构建占位引擎(只为渲染就位;首帧 snapshot 覆盖可变状态)。 */
+  private makePlaceholderEngine(map: LoadedMap): GameEngine {
+    return new GameEngine(map.board, map.catalog, createDice(), {
+      seats: [
+        { name: "诸侯 1", isBot: false },
+        { name: "诸侯 2", isBot: true },
+      ],
+    });
+  }
+
+  /** 换图重建:非 Host 收到新 mapId 后,按 id fetch 内置图 + 重建占位引擎,
+   *  并替换基类的 boardView/animator(它们在构造时绑死了旧 map 的 board/svg)。
+   *  Host 自己选图时本地立即重建(乐观更新),无需等服务端回包。 */
+  private async rebuildForMap(mapId: string): Promise<void> {
+    if (mapId === this.mapId) return; // 同图不重建
+    let map: LoadedMap;
+    try {
+      map = await loadMapById(getMapSource(), mapId);
+    } catch (err) {
+      this.flashHint(`加载地图失败:${(err as Error).message}`);
+      return;
+    }
+    this.mapId = mapId;
+    // 重建占位引擎(board/catalog 来自新图)
+    this.engine = this.makePlaceholderEngine(map);
+    // 同步调试钩子指向新引擎
+    (window.__dafung as { engine: GameEngine }).engine = this.engine;
+    // 替换基类绑定的 boardView:移除旧 svg 根,挂新 svg
+    this.boardView.root.remove();
+    this.boardView = createBoardSvg(map.board, map.catalog, { panZoom: true });
+    this.boardWrap.appendChild(this.boardView.root);
+    // 替换 animator(它闭包持有旧 svg/boardView 引用)
+    this.animator = createAnimator(this.boardWrap, this.boardView.root, map.board, this.boardView, this.threeDice, this.audio);
+    this.fullRender();
   }
 
   // ─── 抽象成员实现 ───
@@ -221,6 +259,21 @@ export class NetworkClient extends ClientController {
     ]));
     const seatList = el("div", { class: "lobby-seats", style: "margin:10px 0;" });
     box.appendChild(seatList);
+    // 当前选中地图展示行:Host 可点「更换」选图(仅内置图);非 Host 只读显示图名。
+    const mapNameEl = el("span", { class: "lobby-map-name", style: "font-family:var(--font-deco);color:var(--ink);" }, ["加载中…"]);
+    const mapRow = el("div", { class: "lobby-map", style: "margin:8px 0;text-align:center;font-size:14px;" }, [
+      el("span", { style: "color:var(--ink-dim,#9c6b3f);" }, ["当前地图:"]),
+      mapNameEl,
+    ]);
+    box.appendChild(mapRow);
+    /** 按 roomMeta.mapId 解析地图名(内置图 fetch 清单;查不到则显示 id)。 */
+    const renderMapName = () => {
+      const id = this.roomMeta?.mapId ?? null;
+      mapNameEl.textContent = id ? id : "未选择";
+      if (id) {
+        void this.builtinMapName(id).then((name) => { mapNameEl.textContent = name; }).catch(() => { /* 保留 id 兜底 */ });
+      }
+    };
     const renderSeats = () => {
       seatList.innerHTML = "";
       const seats = this.roomMeta?.seats ?? [];
@@ -236,9 +289,28 @@ export class NetworkClient extends ClientController {
       }
     };
     renderSeats();
+    renderMapName();
     this.lobbyOverlay = overlay;
     (overlay as any)._renderSeats = renderSeats;
+    (overlay as any)._renderMapName = renderMapName;
     if (isHost) {
+      // Host:选择地图(仅内置图——过滤 custom- 前缀)。
+      const mapBtn = el("button", { class: "btn", style: "display:block;margin:0 auto 4px;" }, ["选择地图"]) as HTMLButtonElement;
+      mapBtn.addEventListener("click", () => {
+        createMapSelectionScreen(this.boardWrap, this.builtinMapSource(), this.mapId ?? "sanguo", async (mapId, _name) => {
+          try {
+            // 先乐观重建本地渲染(Host 立即看到新图);再发请求持久化到服务器。
+            await this.rebuildForMap(mapId);
+            await this.http("/room/map", { roomId: this.roomId, seatToken: this.seatToken, mapId });
+            // 服务端广播 lobby 会带回 mapId,触发非 Host 端重建。
+            this.roomMeta = { ...this.roomMeta!, mapId };
+            renderMapName();
+          } catch (err) {
+            this.flashHint((err as Error).message);
+          }
+        }, () => { /* 取消:无操作 */ });
+      });
+      box.appendChild(mapBtn);
       const startBtn = el("button", { class: "btn btn-primary", style: "display:block;margin:10px auto 0;" }, ["开局"]) as HTMLButtonElement;
       startBtn.addEventListener("click", async () => {
         try {
@@ -256,6 +328,26 @@ export class NetworkClient extends ClientController {
     this.boardWrap.appendChild(overlay);
   }
 
+  /** 仅内置图的 MapSource(过滤掉 custom- 自建图):联机模式只支持内置图。 */
+  private builtinMapSource() {
+    const src = getMapSource();
+    return {
+      listMaps: async () => (await src.listMaps()).filter((e) => !isCustomId(e.id)),
+      loadMapData: (id: string) => src.loadMapData(id),
+    };
+  }
+
+  /** 按 id 查内置图展示名(异步 fetch 清单);查不到回退 id 本身。 */
+  private async builtinMapName(id: string): Promise<string> {
+    try {
+      const entries = await this.builtinMapSource().listMaps();
+      const found = entries.find((e) => e.id === id);
+      return found ? found.name : id;
+    } catch {
+      return id;
+    }
+  }
+
   private connect() {
     if (!this.roomId || this.seat < 0 || !this.seatToken) return;
     const wsUrl = `${this.serverUrl.replace(/^http/, "ws")}/ws?room=${this.roomId}&seat=${this.seat}&token=${this.seatToken}`;
@@ -270,13 +362,22 @@ export class NetworkClient extends ClientController {
 
   private onMessage(msg: ServerMsg) {
     if (msg.type === "lobby") {
-      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seatCount, started: msg.started };
+      const prevMapId = this.roomMeta?.mapId ?? null;
+      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seatCount, started: msg.started, mapId: msg.mapId };
       const rerender = (this.lobbyOverlay as any)?._renderSeats;
       if (rerender) rerender();
+      const renderMapName = (this.lobbyOverlay as any)?._renderMapName;
+      if (renderMapName) renderMapName();
+      // 非 Host:mapId 变化时按 id fetch 内置图重建本地占位引擎渲染。
+      // Host 自己选图时已乐观重建,此处不重复(否则会多一次 fetch + 闪烁)。
+      const isHostSeat = this.seat === msg.host;
+      if (!isHostSeat && msg.mapId && msg.mapId !== prevMapId && msg.mapId !== this.mapId) {
+        void this.rebuildForMap(msg.mapId);
+      }
       return;
     }
     if (msg.type === "snapshot") {
-      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seats.length, started: true };
+      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seats.length, started: true, mapId: this.roomMeta?.mapId ?? null };
       this.lobbyOverlay?.remove();
       this.lobbyOverlay = null;
       this.engine.restoreFromSnapshot(msg as unknown as Snapshot);
