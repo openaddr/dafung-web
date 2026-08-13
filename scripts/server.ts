@@ -16,11 +16,13 @@
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createReadStream } from "node:fs";
+import { createReadStream, readFileSync } from "node:fs";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
+import { loadMap, type LoadedMap } from "../src/core/board-loader";
+import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { statusOf } from "./engine-helpers";
 import {
   RoomRegistry,
@@ -34,13 +36,45 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "127.0.0.1";
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
+const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
 const startedAt = Date.now();
+
+// ──────────────────────────── 内置地图加载(每房间各持自己的 LoadedMap)────────────────────────────
+// 服务器是 Node 环境,可读 fs(ADR-0007:fs 只在传输层,不在 room.ts)。
+// 读 public/maps/index.json 清单 + 对应 JSON,按 mapId 构建为 LoadedMap 并缓存。
+function loadCatalogEntries(): CatalogFileEntry[] {
+  const catalogPath = join(MAPS_DIR, "index.json");
+  if (!existsSync(catalogPath)) {
+    throw new Error(`地图清单不存在:${catalogPath}`);
+  }
+  const raw = JSON.parse(readFileSync(catalogPath, "utf-8"));
+  return parseCatalog(raw);
+}
+const CATALOG_ENTRIES = loadCatalogEntries();
+/** 合法 mapId 集合(供 registry.setMap 校验)。 */
+const VALID_MAP_IDS = new Set(CATALOG_ENTRIES.map((e) => e.id));
+/** id → CatalogFileEntry(用于查 file 名)。 */
+const CATALOG_BY_ID = new Map(CATALOG_ENTRIES.map((e) => [e.id, e] as const));
+/** LoadedMap 缓存:同一 mapId 只构建一次(地图只读,可安全跨房间共用构建结果)。 */
+const loadedMapCache = new Map<string, LoadedMap>();
+/** 按 mapId 加载内置图为 LoadedMap(带缓存)。找不到抛错。 */
+function loadMapById(mapId: string): LoadedMap {
+  const cached = loadedMapCache.get(mapId);
+  if (cached) return cached;
+  const entry = CATALOG_BY_ID.get(mapId);
+  if (!entry) throw new Error(`未知地图 id:${mapId}`);
+  const filePath = join(MAPS_DIR, entry.file);
+  const data = JSON.parse(readFileSync(filePath, "utf-8"));
+  const map = loadMap(data);
+  loadedMapCache.set(mapId, map);
+  return map;
+}
 
 // ──────────────────────────── 启动:注入持久化 + 恢复房间 ────────────────────────────
 mkdirSync(ROOMS_DIR, { recursive: true });
 const persistence = new FileRoomPersistence(ROOMS_DIR);
 const registry = new RoomRegistry(persistence);
-const restored = registry.restoreAll();
+const restored = registry.restoreAll(loadMapById);
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
@@ -172,15 +206,17 @@ const HELP = {
   endpoints: {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
-    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}",
+    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}(mapId=null)",
     "POST /room/join": "入座 body:{roomId} → {seat,seatToken,...lobby}",
-    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host)",
+    "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
+    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图)",
     "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...},收 lobby/snapshot/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
-  env: { PORT, HOST, ROOMS_DIR, STATIC_DIR },
+  maps: CATALOG_ENTRIES.map((e) => ({ id: e.id, name: e.name, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth })),
+  env: { PORT, HOST, ROOMS_DIR, STATIC_DIR, MAPS_DIR },
 };
 
 async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -230,9 +266,17 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 
+  if (path === "/room/map") {
+    const roomId = String(obj.roomId ?? "");
+    const mapId = String(obj.mapId ?? "");
+    const room = registry.setMap(roomId, mapId, String(obj.seatToken ?? ""), VALID_MAP_IDS);
+    broadcast(room.roomId); // 通知房间内其它人:地图已更新
+    return sendJson(res, 200, { ok: true, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+  }
+
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
-    const room = registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId));
+    const room = registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadMapById);
     return sendJson(res, 200, { ok: true, ...statusOf(room.engine!) });
   }
 

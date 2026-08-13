@@ -7,7 +7,8 @@ import { join, resolve } from "node:path";
 import type { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty } from "../src/core/types";
-import { createEngine } from "./engine-helpers";
+import type { LoadedMap } from "../src/core/board-loader";
+import { createEngine, MAP } from "./engine-helpers";
 
 // ──────────────────────────── 共享数据形状(传输层 / 持久化层都用)────────────────────────────
 export interface HostConfig {
@@ -30,6 +31,8 @@ export interface RoomRecord {
   hostSeat: number;
   takeover: number[];
   hostConfig: HostConfig;
+  /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
+  mapId: string | null;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 
@@ -107,22 +110,32 @@ function dummySeats(n: number): SeatConfig[] {
   return Array.from({ length: n }, (_, i) => ({ name: `座 ${i + 1}`, isBot: false }));
 }
 
-/** 从 RoomRecord 重建引擎(若有 snapshot)。null = Lobby 态(未开局)。 */
-export function engineFromRecord(rec: RoomRecord): GameEngine | null {
+/** 从 RoomRecord 重建引擎(若有 snapshot)。null = Lobby 态(未开局)。
+ *  mapProvider:按 mapId 返回 LoadedMap(恢复时用对应地图重建引擎,而非全局 sanguo)。
+ *  未提供 mapProvider 或 mapId 为空 → 退回默认 MAP(向后兼容旧记录 / 单机 CLI)。 */
+export function engineFromRecord(
+  rec: RoomRecord,
+  mapProvider?: (mapId: string) => LoadedMap,
+): GameEngine | null {
   if (!rec.snapshot) return null;
-  const engine = createEngine({ seats: dummySeats(rec.seatCount), ...rec.hostConfig }, false);
+  const map = rec.mapId && mapProvider ? mapProvider(rec.mapId) : MAP;
+  const engine = createEngine({ seats: dummySeats(rec.seatCount), ...rec.hostConfig }, false, map);
   engine.restoreFromSnapshot(rec.snapshot);
   return engine;
 }
 
 /** 把 RoomRecord 转成 RoomSession 的初始数据(座位不带 conn;takeover 转回 Set)。 */
-export function recordToSessionData(rec: RoomRecord): {
+export function recordToSessionData(
+  rec: RoomRecord,
+  mapProvider?: (mapId: string) => LoadedMap,
+): {
   roomId: string;
   seatCount: number;
   seats: PersistedSeat[];
   hostSeat: number;
   takeover: Set<number>;
   hostConfig: HostConfig;
+  mapId: string | null;
   engine: GameEngine | null;
 } {
   return {
@@ -132,6 +145,7 @@ export function recordToSessionData(rec: RoomRecord): {
     hostSeat: rec.hostSeat ?? 0,
     takeover: new Set(rec.takeover ?? []),
     hostConfig: rec.hostConfig,
-    engine: engineFromRecord(rec),
+    mapId: rec.mapId ?? null,
+    engine: engineFromRecord(rec, mapProvider),
   };
 }

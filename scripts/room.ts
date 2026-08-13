@@ -9,6 +9,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
+import type { LoadedMap } from "../src/core/board-loader";
 import { botAct } from "../src/core/bot";
 import { autoSetup, createEngine, statusOf } from "./engine-helpers";
 import {
@@ -34,6 +35,8 @@ export interface RoomSession {
   hostSeat: number; // 当前 host 座位(开局=0;host 掉线则移交,ADR-0002)
   takeover: Set<number>; // 房主强令 bot 接管的人类座位(重连时移除=夺回)
   hostConfig: HostConfig;
+  /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
+  mapId: string | null;
   engine: GameEngine | null; // null = Lobby
 }
 
@@ -70,6 +73,7 @@ export interface LobbyView {
   seatCount: number;
   host: number;
   started: boolean;
+  mapId: string | null;
   seats: ReturnType<typeof seatMeta>;
 }
 
@@ -80,6 +84,7 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
     seatCount: r.seatCount,
     host: r.hostSeat,
     started: r.engine != null,
+    mapId: r.mapId,
     seats: seatMeta(r, onlineSeats),
   };
 }
@@ -142,21 +147,22 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 启动恢复 ────────────────────────────
-  /** 从 persistence 把所有房间载入内存(启动时调一次)。 */
-  restoreAll(): number {
+  /** 从 persistence 把所有房间载入内存(启动时调一次)。
+   *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。 */
+  restoreAll(mapProvider?: (mapId: string) => LoadedMap): number {
     let count = 0;
     for (const id of this.persistence.listIds()) {
       const rec = this.persistence.load(id);
       if (!rec) continue;
-      this.rooms.set(rec.roomId, this.hydrate(rec));
+      this.rooms.set(rec.roomId, this.hydrate(rec, mapProvider));
       count++;
     }
     return count;
   }
 
   /** 内部:RoomRecord → RoomSession(零 WS 句柄;engine 重建走 persistence 层)。 */
-  private hydrate(rec: RoomRecord): RoomSession {
-    const data = recordToSessionData(rec);
+  private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
+    const data = recordToSessionData(rec, mapProvider);
     return {
       roomId: data.roomId,
       seatCount: data.seatCount,
@@ -164,6 +170,7 @@ export class RoomRegistry {
       hostSeat: data.hostSeat,
       takeover: data.takeover,
       hostConfig: data.hostConfig,
+      mapId: data.mapId,
       engine: data.engine,
     };
   }
@@ -203,7 +210,7 @@ export class RoomRegistry {
     }));
     const token = this.newToken();
     seats[0].token = token;
-    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), hostConfig, engine: null };
+    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), hostConfig, mapId: null, engine: null };
     this.rooms.set(roomId, room);
     this.persist(room);
     return { room, seat: 0, token };
@@ -222,13 +229,37 @@ export class RoomRegistry {
     return { room, seat: idx, token };
   }
 
+  /** host 选图:校验 caller 是 host、对局未开始、mapId 在清单内。
+   *  validMapIds:服务器从清单读出的合法 id 集合(注入,room.ts 不读 fs;ADR-0007)。
+   *  开局后调用 → 409(地图已锁定)。 */
+  setMap(roomId: string, mapId: string, callerSeatToken: string, validMapIds: Set<string>): RoomSession {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new RoomError(404, "房间不存在");
+    if (room.engine) throw new RoomError(409, "对局已开始,不可改图");
+    if (callerSeatToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可选图");
+    if (typeof mapId !== "string" || !validMapIds.has(mapId)) throw new RoomError(400, "未知地图");
+    room.mapId = mapId;
+    this.persist(room);
+    return room;
+  }
+
   /** host 开局:构造引擎(doDraftRoll 自动国号)+ autoSetup + driveBots。
-   *  onUpdate:开局首帧 + 每个 botAct 步后调(逐步直播,保留原 server.ts 行为)。 */
-  startGame(roomId: string, hostToken: string, onUpdate?: (room: RoomSession) => void): RoomSession {
+   *  onUpdate:开局首帧 + 每个 botAct 步后调(逐步直播,保留原 server.ts 行为)。
+   *  mapProvider:按 mapId 返回 LoadedMap(服务器从 public/maps 加载后注入;ADR-0007:
+   *  room.ts 不读 fs)。startGame 前必须 setMap,否则 400"请先选择地图"。 */
+  startGame(
+    roomId: string,
+    hostToken: string,
+    onUpdate?: (room: RoomSession) => void,
+    mapProvider?: (mapId: string) => LoadedMap,
+  ): RoomSession {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
     if (room.engine) throw new RoomError(409, "对局已开始");
     if (hostToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可开局");
+    if (room.mapId == null) throw new RoomError(400, "请先选择地图");
+    if (!mapProvider) throw new RoomError(500, "服务器未提供地图加载器");
+    const map = mapProvider(room.mapId);
     const seatsCfg: SeatConfig[] = room.seats.map((s, i) => ({
       name: `座 ${i + 1}`,
       isBot: s.kind === "bot" || s.token == null, // 未领的人类座位自动 bot 填充
@@ -241,6 +272,7 @@ export class RoomRegistry {
         difficulty: room.hostConfig.difficulty,
       },
       true,
+      map,
     );
     autoSetup(engine);
     room.engine = engine;
@@ -378,6 +410,7 @@ export class RoomRegistry {
       hostSeat: r.hostSeat,
       takeover: [...r.takeover],
       hostConfig: r.hostConfig,
+      mapId: r.mapId,
       snapshot: r.engine ? r.engine.snapshot() : null,
     };
     this.persistence.save(rec);

@@ -30,9 +30,10 @@ export interface PersistedState {
   config: GameConfig;
 }
 
-/** 全新引擎:构造 +(可选)国号摇骰定序。不落盘。 */
-export function createEngine(config: GameConfig, doDraft = true): GameEngine {
-  const engine = new GameEngine(MAP.board, MAP.catalog, createDice(config.seed), config satisfies EngineConfig);
+/** 全新引擎:构造 +(可选)国号摇骰定序。不落盘。
+ *  map 可选:传入则用该地图(联机每房间各持自己的 LoadedMap);省略则用默认 sanguo(CLI / 单机)。 */
+export function createEngine(config: GameConfig, doDraft = true, map: LoadedMap = MAP): GameEngine {
+  const engine = new GameEngine(map.board, map.catalog, createDice(config.seed), config satisfies EngineConfig);
   if (doDraft) engine.doDraftRoll();
   return engine;
 }

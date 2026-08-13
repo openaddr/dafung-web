@@ -2,8 +2,10 @@
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "vitest";
-import { RoomRegistry, RoomError } from "../scripts/room";
+import { RoomRegistry, RoomError, lobbyView } from "../scripts/room";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
+import { MAP } from "../scripts/engine-helpers";
+import type { LoadedMap } from "../src/core/board-loader";
 
 class InMemoryPersistence implements RoomPersistence {
   private readonly m = new Map<string, RoomRecord>();
@@ -36,8 +38,14 @@ function expectRoomError(fn: () => unknown, status: number): void {
   expect((caught as RoomError).status).toBe(status);
 }
 
-/** 建一个已开局的房间:seat0=host(human),其余非 bot 座位都 join(人类),bot 座位 bot。 */
-function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: number } = {}) {
+/** 测试用最小地图清单:sanguo(真实内置图)。setMap 校验用。 */
+const VALID_MAP_IDS = new Set(["sanguo", "zhongyuan"]);
+/** 测试用 mapProvider:所有 id 都返回同一张 sanguo 图(避免读 fs)。 */
+const testMapProvider = (_id: string): LoadedMap => MAP;
+
+/** 建一个已开局的房间:seat0=host(human),其余非 bot 座位都 join(人类),bot 座位 bot。
+ *  默认 host 先 setMap("sanguo") 再 startGame(startGame 要求已选图)。 */
+function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: number; mapId?: string } = {}) {
   const seats = opts.seats ?? 3;
   const botIdx = new Set(opts.bot ?? [2]);
   const reg = new RoomRegistry(new InMemoryPersistence());
@@ -48,7 +56,8 @@ function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: number 
   for (let i = 1; i < seats; i++) {
     if (!botIdx.has(i)) guestTokens.push(reg.joinSeat(roomId).token);
   }
-  reg.startGame(roomId, hostToken);
+  reg.setMap(roomId, opts.mapId ?? "sanguo", hostToken, VALID_MAP_IDS);
+  reg.startGame(roomId, hostToken, undefined, testMapProvider);
   return { reg, roomId, hostToken, guestTokens };
 }
 
@@ -173,6 +182,64 @@ describe("RoomRegistry · 重连夺回(attachSeat)", () => {
   });
 });
 
+describe("RoomRegistry · 选图(mapId / setMap)", () => {
+  it("createRoom:mapId 初始为 null", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    expect(room.mapId).toBeNull();
+  });
+
+  it("host setMap 后 mapId 更新 + lobbyView 含 mapId", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    reg.setMap(room.roomId, "sanguo", token, VALID_MAP_IDS);
+    expect(reg.get(room.roomId)!.mapId).toBe("sanguo");
+    // lobbyView 应返回 mapId 字段
+    const view = lobbyView(reg.get(room.roomId)!, new Set([0]));
+    expect(view.mapId).toBe("sanguo");
+  });
+
+  it("非 host setMap → 403", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    expectRoomError(() => reg.setMap(room.roomId, "sanguo", "not-host", VALID_MAP_IDS), 403);
+    // mapId 不变
+    expect(reg.get(room.roomId)!.mapId).toBeNull();
+  });
+
+  it("setMap 传不存在的 mapId → 400 且 mapId 不变", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    expectRoomError(() => reg.setMap(room.roomId, "ghost", token, VALID_MAP_IDS), 400);
+    expect(reg.get(room.roomId)!.mapId).toBeNull();
+  });
+
+  it("setMap 房间不存在 → 404", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    expectRoomError(() => reg.setMap("NOPE", "sanguo", "tok", VALID_MAP_IDS), 404);
+  });
+
+  it("未选图(startGame 前 mapId=null)→ 报错'请先选择地图'", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    // 注意:不 setMap,直接 startGame
+    let caught: unknown = null;
+    try {
+      reg.startGame(room.roomId, token, undefined, testMapProvider);
+    } catch (e) {
+      caught = e;
+    }
+    expect(caught).toBeInstanceOf(RoomError);
+    expect((caught as RoomError).status).toBe(400);
+    expect((caught as RoomError).message).toContain("请先选择地图");
+  });
+
+  it("对局已开始后再 setMap → 409", () => {
+    const { reg, roomId, hostToken } = setupStartedRoom({ seats: 2, bot: [1] });
+    expectRoomError(() => reg.setMap(roomId, "zhongyuan", hostToken, VALID_MAP_IDS), 409);
+  });
+});
+
 describe("RoomRegistry · 鉴权(validateSeat)", () => {
   it("正确 token → true;错误/空/越界/不存在 → false", () => {
     const { reg, roomId, hostToken } = setupStartedRoom({ seats: 3, bot: [2] });
@@ -197,19 +264,20 @@ describe("RoomRegistry · 命令 + onUpdate 直播", () => {
 });
 
 describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
-  it("新 registry 共享同一 persistence → restoreAll 恢复房间(引擎/hostSeat/相位)", () => {
+  it("新 registry 共享同一 persistence → restoreAll 恢复房间(引擎/hostSeat/相位/mapId)", () => {
     const persistence = new InMemoryPersistence();
     const reg1 = new RoomRegistry(persistence);
     const created = reg1.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: { seed: 7 } });
     reg1.joinSeat(created.room.roomId);
-    reg1.startGame(created.room.roomId, created.token);
+    reg1.setMap(created.room.roomId, "sanguo", created.token, VALID_MAP_IDS);
+    reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     const before = reg1.get(created.room.roomId)!;
     const beforeTurn = before.engine!.turnNumber;
     const beforePhase = before.engine!.phase;
 
-    // 模拟"进程重启":新 registry 同一 persistence
+    // 模拟"进程重启":新 registry 同一 persistence;restoreAll 带 mapProvider 恢复对应地图引擎
     const reg2 = new RoomRegistry(persistence);
-    const n = reg2.restoreAll();
+    const n = reg2.restoreAll(testMapProvider);
     expect(n).toBe(1);
     const restored = reg2.get(created.room.roomId)!;
     expect(restored).toBeDefined();
@@ -218,5 +286,6 @@ describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
     expect(restored.engine!.turnNumber).toBe(beforeTurn);
     expect(restored.hostSeat).toBe(before.hostSeat);
     expect(restored.seats.length).toBe(3);
+    expect(restored.mapId).toBe("sanguo");
   });
 });
