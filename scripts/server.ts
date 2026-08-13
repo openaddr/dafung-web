@@ -53,8 +53,6 @@ function loadCatalogEntries(): CatalogFileEntry[] {
 const CATALOG_ENTRIES = loadCatalogEntries();
 /** 合法 mapId 集合(供 registry.setMap 校验)。 */
 const VALID_MAP_IDS = new Set(CATALOG_ENTRIES.map((e) => e.id));
-/** 默认地图:清单第一项(建房即默认,向后兼容;Host 可在大厅改)。 */
-const DEFAULT_MAP_ID = CATALOG_ENTRIES[0]?.id ?? "sanguo";
 /** id → CatalogFileEntry(用于查 file 名)。 */
 const CATALOG_BY_ID = new Map(CATALOG_ENTRIES.map((e) => [e.id, e] as const));
 /** LoadedMap 缓存:同一 mapId 只构建一次(地图只读,可安全跨房间共用构建结果)。 */
@@ -258,8 +256,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       difficulty,
     };
     const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig });
-    // 建房即默认 sanguo(向后兼容:既有建房→开局流程不破坏;Host 仍可在大厅改图)。
-    registry.setMap(room.roomId, DEFAULT_MAP_ID, token, VALID_MAP_IDS);
+    // 建房时不设图(房间无地图);Host 须在大厅选图后再开局。startGame 会校验"已选图"。
     return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 

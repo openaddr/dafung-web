@@ -7,11 +7,8 @@ import { formatMoney } from "@core/money";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
 import { svgCoordHelpers } from "./svg-util";
-import { getMapSource, DEFAULT_MAP_ID, LocalStorageMapSource } from "./map-sources";
+import { getMapSource, getDefaultMapId } from "./map-sources";
 import type { MapData } from "@core/types";
-
-/** 自建图库实例(与 getMapSource() 单例共用同一个 localStorage)。 */
-const customStore = new LocalStorageMapSource();
 
 export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => void, onPlay: (mapData: MapData) => void) {
   let selected = 0;
@@ -87,13 +84,14 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
   });
   const saveBtn = el("button", { class: "btn", style: "flex:1" }, ["保存"]) as HTMLButtonElement;
   saveBtn.addEventListener("click", () => {
-    // 保存到自建图库(多图,可命名)。prompt 输入地图名(默认「自建地图 N」,N = 当前图库数 + 1)。
-    const count = customStore.listCustomMaps().length;
+    // 保存到自建图库(多图,可命名)。走 getMapSource() 单例,不自起实例。
+    const store = getMapSource();
+    const count = store.listCustomMaps().length;
     const defaultName = `自建地图 ${count + 1}`;
     const name = (prompt("请输入地图名:", defaultName) || "").trim();
     if (!name) return; // 取消或空名 → 不保存
-    customStore.saveCustomMap(name, mapData);
-    const total = customStore.listCustomMaps().length;
+    store.saveCustomMap(name, mapData);
+    const total = store.listCustomMaps().length;
     saveBtn.textContent = `已存!图库共 ${total} 张`;
     setTimeout(() => { saveBtn.textContent = "保存"; }, 1500);
   });
@@ -101,7 +99,7 @@ export function createEditor(root: HTMLElement, mapData: MapData, onExit: () => 
   resetBtn.addEventListener("click", async () => {
     if (!confirm("重置回内置地图?当前编辑会丢失。")) return;
     try {
-      const data = await getMapSource().loadMapData(DEFAULT_MAP_ID);
+      const data = await getMapSource().loadMapData(await getDefaultMapId());
       Object.assign(mapData, data); // 全字段重置(含 version/maxLevel/resupplyPerLevel)
       if (data.branch == null) mapData.branch = null;
       selected = 0;

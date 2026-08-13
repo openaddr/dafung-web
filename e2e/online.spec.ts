@@ -1,11 +1,12 @@
 // 联机 e2e:启动引擎服务器(3010,托管 dist + WS)→ 浏览器走 建房→开局→掷骰。
 // 锁定 network-client ↔ server 的回归(snapshot 驱动渲染 + WS 命令往返)。
 import { test, expect } from "@playwright/test";
+import { pickLobbyMap } from "./multi-helpers";
 
 // 引擎服务器(见 playwright.config.ts 第二个 webServer)。
 const ONLINE = "http://localhost:3010";
 
-test("联机:建房 vs bot → 开局 → 掷骰,snapshot 驱动渲染", async ({ page }) => {
+test("联机:建房 vs bot → 选图 → 开局 → 掷骰,snapshot 驱动渲染", async ({ page }) => {
   await page.goto(ONLINE + "/?online=1");
 
   // 建房:2 座,seat 1 为 bot(单人 vs bot)
@@ -14,6 +15,8 @@ test("联机:建房 vs bot → 开局 → 掷骰,snapshot 驱动渲染", async (
 
   // 进大厅:房间码 + 开局按钮
   await expect(page.getByRole("heading", { name: "大厅" })).toBeVisible();
+  // 开局前必须先选图(建房时不设图,Host 在大厅选)
+  await pickLobbyMap(page, "sanguo");
   await page.getByRole("button", { name: "开局" }).click();
 
   // 开局后:autoSetup(选都)+ 可能的 bot 先手,都由服务器逐步广播;最终轮到我(行军启用)

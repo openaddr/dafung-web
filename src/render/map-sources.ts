@@ -147,8 +147,12 @@ export class LocalStorageMapSource implements MapSource {
   }
 }
 
-/** 默认内置图 id(无历史选择时的回退)。 */
-export const DEFAULT_MAP_ID = "sanguo";
+/** 默认地图 id:清单第一项(与服务器侧一致;无历史选择时的回退)。
+ *  async 因清单需 fetch。无清单时回退 "sanguo"(保底)。 */
+export async function getDefaultMapId(): Promise<string> {
+  const maps = await getMapSource().listMaps();
+  return maps[0]?.id ?? "sanguo";
+}
 
 /**
  * 组合源:内置 + 自建。listMaps 合并两个源的条目;
@@ -178,6 +182,16 @@ export class CompositeMapSource implements MapSource {
   async loadMapData(id: string): Promise<MapData> {
     if (isCustomId(id) && this.custom) return this.custom.loadMapData(id);
     return this.builtin.loadMapData(id);
+  }
+
+  /** 自建图库操作(转发到 LocalStorageMapSource;供编辑器复用单例,不自起实例)。 */
+  saveCustomMap(name: string, data: MapData): string {
+    if (!(this.custom instanceof LocalStorageMapSource)) throw new Error("自建图库未启用");
+    return this.custom.saveCustomMap(name, data);
+  }
+  listCustomMaps(): CustomMapRecord[] {
+    if (!(this.custom instanceof LocalStorageMapSource)) return [];
+    return this.custom.listCustomMaps();
   }
 }
 

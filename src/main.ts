@@ -9,17 +9,17 @@ import { NetworkClient } from "./render/network-client";
 import { VERSION } from "./version";
 import { loadMap } from "./core/board-loader";
 import { loadMapById } from "./core/map-source";
-import { getMapSource, DEFAULT_MAP_ID } from "./render/map-sources";
+import { getMapSource, getDefaultMapId } from "./render/map-sources";
 
 const root = document.getElementById("app")!;
 
 /** localStorage key:记住上次选择的地图 id(刷新页面恢复)。 */
 const SELECTED_MAP_KEY = "dafung-selected-map";
 
-/** 读取上次选中的地图 id;无记录或失效则回退默认(DEFAULT_MAP_ID = sanguo)。 */
-function readSelectedMap(): string {
+/** 读取上次选中的地图 id;无记录则回退清单第一项。 */
+async function readSelectedMap(): Promise<string> {
   const saved = localStorage.getItem(SELECTED_MAP_KEY);
-  return saved || DEFAULT_MAP_ID;
+  return saved || getDefaultMapId();
 }
 
 // 角落版本号:每次代码改动递增(见 src/version.ts),便于确认打开的是最新构建
@@ -32,9 +32,10 @@ verTag.style.cssText =
 document.body.appendChild(verTag);
 
 /** 按 mapId 从统一入口加载地图(取代硬编码 fetch sanguo.json)。
- *  01 阶段:默认 id = sanguo,行为与改前一致。选图菜单在 ticket 02 接入后传入用户选的 id。 */
-async function loadSelectedMap(mapId: string = DEFAULT_MAP_ID) {
-  return loadMapById(getMapSource(), mapId);
+ *  无 mapId 时回退清单第一项。 */
+async function loadSelectedMap(mapId?: string) {
+  const id = mapId || (await getDefaultMapId());
+  return loadMapById(getMapSource(), id);
 }
 
 function mapLoadError(err: unknown) {
@@ -52,7 +53,7 @@ async function enterOnline() {
   }
 }
 
-function bootstrap() {
+async function bootstrap() {
   root.innerHTML = "";
   // 直链 / e2e:?online=1 跳过设置屏直接联机
   if (new URLSearchParams(location.search).has("online")) {
@@ -66,7 +67,7 @@ function bootstrap() {
       const seedParam = new URLSearchParams(location.search).get("seed");
       const seed = seedParam ? parseInt(seedParam, 10) : undefined;
       // 起兵时:持久化选中的地图 id + 用它加载地图(延迟加载)
-      const mapId = r.mapId || DEFAULT_MAP_ID;
+      const mapId = r.mapId || (await getDefaultMapId());
       try {
         localStorage.setItem(SELECTED_MAP_KEY, mapId);
       } catch { /* localStorage 不可用(隐私模式)时静默忽略 */ }
@@ -84,11 +85,11 @@ function bootstrap() {
         mapLoadError(err);
       }
     },
-    // 「编辑地图」入口:加载默认内置图(sanguo)原始 JSON 进入编辑器。
+    // 「编辑地图」入口:加载默认内置图(清单第一项)原始 JSON 进入编辑器。
     // 保存时写入自建图库(多图),而非旧的单图覆盖;起兵用「选择地图」选自建图。
     async () => {
       try {
-        const data = await getMapSource().loadMapData(DEFAULT_MAP_ID);
+        const data = await getMapSource().loadMapData(await getDefaultMapId());
         createEditor(root, data, () => bootstrap(), async (mapData) => {
           try {
             root.innerHTML = "";
@@ -112,8 +113,8 @@ function bootstrap() {
     },
     // 「联机对战」按钮
     () => void enterOnline(),
-    // 初始选中地图 id(localStorage 记忆,默认 sanguo)
-    readSelectedMap(),
+    // 初始选中地图 id(localStorage 记忆;无记忆则清单第一项)
+    await readSelectedMap(),
     // 地图源(传入后设置屏显示「选择地图」按钮 + 二级屏)
     getMapSource(),
     // 选中地图变更:持久化到 localStorage(刷新页面恢复)
@@ -123,4 +124,4 @@ function bootstrap() {
   );
 }
 
-bootstrap();
+void bootstrap();
