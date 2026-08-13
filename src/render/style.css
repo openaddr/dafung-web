@@ -479,21 +479,7 @@ select,
 .po-row .po-props { color: var(--ink-dim); flex: none; }
 /* 战报图标(P4) */
 .log-line .log-icon { margin-right: 4px; filter: grayscale(0.2); }
-/* 3D 物理骰盘容器(three.js canvas 挂载点);与 fallback .dice-face 同尺寸 */
-.dice-3d {
-  width: 58px;
-  height: 58px;
-  border-radius: 9px;
-  overflow: hidden;
-  background: linear-gradient(145deg, #d9c79b, #b69a5c);
-  border: 2px solid #6e5a2c;
-  box-shadow: 0 3px 8px rgba(120, 90, 40, 0.25), inset 0 1px 2px rgba(255, 255, 255, 0.4);
-  position: relative;
-}
-/* WebGL 探测成功:容器加 .available,隐藏紧邻的 fallback 文字面 */
-.dice-3d.available + .dice-face {
-  display: none;
-}
+/* 签面:显示当前点数(一~六)。3D 骰子全屏 overlay,侧栏仅此文字面。 */
 .dice-face {
   width: 58px;
   height: 58px;
@@ -1092,7 +1078,7 @@ select,
   .pc-meta, .pc-warrants, .pc-networth { font-size: 10px; }
   .warlog-list { font-size: 12px; line-height: 1.5; }
   .action-zone { padding: 4px 6px; gap: 8px; }
-  .dice-3d, .dice-face { width: 48px; height: 48px; font-size: 30px; }
+  .dice-face { width: 48px; height: 48px; font-size: 30px; }
   .btn { padding: 8px 16px; font-size: 14px; }
   .setup-screen h1 { font-size: 40px; letter-spacing: 8px; }
 }
@@ -1143,7 +1129,7 @@ select,
   .po-row .po-guohao { width: 18px; height: 18px; font-size: 12px; }
   .warlog-list { font-size: 11px; line-height: 1.4; }
   .action-zone { padding: 2px 6px; gap: 7px; }
-  .dice-3d, .dice-face { width: 44px; height: 44px; font-size: 26px; }
+  .dice-face { width: 44px; height: 44px; font-size: 26px; }
   .btn { padding: 6px 12px; font-size: 12px; letter-spacing: 1px; }
   .action-inline .btn { padding: 4px 9px; font-size: 11px; }
 }

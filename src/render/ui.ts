@@ -17,8 +17,7 @@ export interface SidebarRefs {
   roundInfo: HTMLElement;
   statusEl: HTMLElement; // P1: 回合状态(活跃玩家大卡)
   playersEl: HTMLElement; // P4 改紧凑条
-  diceFace: HTMLElement; // fallback 文字面(WebGL 不可用时显示)
-  dice3d: HTMLElement;   // three.js 骰盘挂载点(WebGL 可用时覆盖 fallback)
+  diceFace: HTMLElement; // 当前签面(一~六);3D 骰子全屏化后侧栏仅此文字
   rollBtn: HTMLButtonElement;
   actionZone: HTMLElement;
   actionInline: HTMLElement; // P2: 内嵌常规决策按钮(买/扩军/驻跸/选路)
@@ -37,12 +36,11 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
   const roundInfo = el("span", { class: "round-info" });
   const statusEl = el("div", { class: "status-bar", id: "status-bar" });
   const playersEl = el("div", { class: "players", id: "players" });
-  // 骰盘:3D 容器(优先,WebGL 可用时由 ThreeDice 挂 canvas)+ 文字面(始终存在,3D 可用时 CSS 隐藏作 fallback)
-  const dice3d = el("div", { class: "dice-3d", id: "dice-3d" });
+  // 签面:显示当前点数(一~六)。3D 骰子动画已全屏化(overlay),侧栏只留签面文字。
   const diceFace = el("span", { class: "dice-face", id: "dice-face" }, ["签"]);
   const rollBtn = el("button", { class: "btn btn-primary breathe", id: "roll-btn" }, ["行军"]) as HTMLButtonElement;
   const actionInline = el("div", { class: "action-inline", id: "action-inline" });
-  const actionZone = el("div", { class: "action-zone" }, [dice3d, diceFace, rollBtn, actionInline]);
+  const actionZone = el("div", { class: "action-zone" }, [diceFace, rollBtn, actionInline]);
   const handEl = el("div", { class: "hand", id: "hand" });
   const warlogList = el("div", { class: "warlog-list", id: "warlog" });
   const tabBrief = el("span", { class: "tab active", "data-mode": "brief" }, ["简报"]);
@@ -78,7 +76,7 @@ export function createLayout(): { boardWrap: HTMLElement; sidebar: SidebarRefs }
   app.appendChild(sidebar);
   return {
     boardWrap,
-    sidebar: { root: sidebar, roundInfo, statusEl, playersEl, diceFace, dice3d, rollBtn, actionZone, actionInline, handEl, warlogList, tabs, muteBtn },
+    sidebar: { root: sidebar, roundInfo, statusEl, playersEl, diceFace, rollBtn, actionZone, actionInline, handEl, warlogList, tabs, muteBtn },
   };
 }
 

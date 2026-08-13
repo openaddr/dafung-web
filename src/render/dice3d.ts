@@ -78,7 +78,6 @@ const SNAP_Y = DIE_SIZE / 2;  // 静息/吸附时骰中心 y(贴地)
 export class ThreeDice {
   readonly available: boolean;
 
-  private mount: HTMLElement;
   private overlay: HTMLElement | null = null; // 全屏覆盖层
   private rng: () => number;
   private readonly onHit?: (intensity: number) => void;
@@ -100,8 +99,7 @@ export class ThreeDice {
   private lastHitMs = 0;
   private static readonly HIT_THROTTLE_MS = 60;
 
-  constructor(mount: HTMLElement, rng: () => number, onHit?: (intensity: number) => void) {
-    this.mount = mount;
+  constructor(rng: () => number, onHit?: (intensity: number) => void) {
     this.rng = rng;
     this.onHit = onHit;
     // 创建全屏覆盖层(掷骰时显示,平时隐藏)
@@ -110,11 +108,9 @@ export class ThreeDice {
     this.overlay.style.display = "none";
     document.body.appendChild(this.overlay);
     // 探测 WebGL:可用(含 swiftshader 软件渲染)→ 真实 3D 乱滚;不可用 → available=false,
-    // 上层 animate.ts 自动回退旧文字切换动画。e2e 经 swiftshader 跑真实 3D 路径。
+    // 上层 animate.ts 自动回退旧文字切换动画。e2e 经 swiftshader 软件渲染跑真实 3D 路径。
     this.available = this.init();
     if (this.available) {
-      // 标记容器,触发 CSS 隐藏 fallback 文字面
-      this.mount.classList.add("available");
       this.showFace(1);
       this.hideOverlay();
     } else {
@@ -145,7 +141,8 @@ export class ThreeDice {
     renderer.domElement.style.width = "100%";
     renderer.domElement.style.height = "100%";
     renderer.domElement.style.display = "block";
-    (this.overlay ?? this.mount).appendChild(renderer.domElement);
+    // 全屏渲染到 overlay(3D 骰子脱离侧栏,overlay 是唯一挂载点)
+    this.overlay!.appendChild(renderer.domElement);
     this.renderer = renderer;
 
     // 场景 + 灯光(Ambient 主光 + 两道 Directional 模拟自然光,古风暖调)

@@ -91,7 +91,7 @@ export abstract class ClientController {
     // 又完全不影响核心游戏逻辑(core 零改动)。
     const physicsRng = createDice(physicsSeed).nextFloat;
     // 3D 骰子物理碰撞 → diceHit 音效(按冲击速度归一化强度 0~1)。
-    this.threeDice = new ThreeDice(this.refs.dice3d, physicsRng, (intensity) => this.audio.play("diceHit", { intensity }));
+    this.threeDice = new ThreeDice(physicsRng, (intensity) => this.audio.play("diceHit", { intensity }));
     this.audio = new HybridAudioPlayer();
     this.animator = createAnimator(boardWrap, this.boardView.root, map.board, this.boardView, this.threeDice, this.audio);
 
