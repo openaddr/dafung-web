@@ -33,7 +33,7 @@ import {
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
-const HOST = process.env.HOST ?? "127.0.0.1";
+const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域网设备(手机)可访问
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
 const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
