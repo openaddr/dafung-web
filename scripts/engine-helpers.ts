@@ -116,11 +116,11 @@ export function statusOf(e: GameEngine) {
   };
 }
 
-/** AwaitingTreasureOwner 阶段,真正做抉择的是城主(可能 ≠ active 玩家)。 */
+/** AwaitingTreasureOwner 阶段,真正做抉择的是城主(可能 ≠ active 玩家)。
+ *  归属座位统一走 engine.decisionOwner;treasureVisitor 缺失 → 无城主提示(原语义)。 */
 function decisionOwnerGuohao(e: GameEngine): string | undefined {
-  const idx = e.treasureVisitor?.ownerIdx;
-  if (idx == null) return undefined;
-  return e.players[idx]?.guohao;
+  if (e.turnPhase !== "AwaitingTreasureOwner" || e.treasureVisitor == null) return undefined;
+  return e.players[e.decisionOwner]?.guohao;
 }
 
 export function promptFor(
@@ -194,14 +194,14 @@ export function boardOf(e: GameEngine) {
 
 // ──────────────────────────── bot 自动驱动 ────────────────────────────
 // botAct 一次推进一个决策点;但要"轮到谁"取决于相位:大部分相位由 active 玩家抉择,
-// AwaitingTreasureOwner 例外——城主(可能 ≠ 访客)抉择。所以"是否该 bot 自动驱动"
-// 必须按相位判断归属,不能只看 active 玩家(与 state.ts runBotResolve 的两处触发一致)。
+// AwaitingTreasureOwner 例外——城主(可能 ≠ 访客)抉择。归属判断统一走 engine.decisionOwner
+// (收口,不再手抄 treasureVisitor 推导)。
 export function botOwnsDecision(e: GameEngine): boolean {
   switch (e.turnPhase) {
-    case "AwaitingTreasureOwner": {
-      const ownerIdx = e.treasureVisitor?.ownerIdx;
-      return ownerIdx != null && e.players[ownerIdx]?.isBot === true;
-    }
+    case "AwaitingTreasureOwner":
+      // 城主抉择(可能 ≠ 访客)。treasureVisitor 缺失 → 非法状态,不驱动(与原语义一致)。
+      if (e.treasureVisitor == null) return false;
+      return e.players[e.decisionOwner]?.isBot === true;
     case "AwaitingBankruptcySettle":
     case "Roll":
     case "AwaitingCapitalHalt":

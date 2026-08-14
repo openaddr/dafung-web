@@ -154,6 +154,14 @@ export class GameEngine {
   get activePlayer(): Player {
     return this.players[this.activeIndex];
   }
+  /** 当前决策归属哪个座位:大部分相位 = activeIndex;
+   *  AwaitingTreasureOwner(珍宝交涉)= 城主(treasureVisitor.ownerIdx,可能 ≠ 访客)。
+   *  收口此查询,避免各驱动方(network-client / room / engine-helpers / state)各自手抄推导。 */
+  get decisionOwner(): number {
+    return this.turnPhase === "AwaitingTreasureOwner"
+      ? this.treasureVisitor?.ownerIdx ?? this.activeIndex
+      : this.activeIndex;
+  }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
   }

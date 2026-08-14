@@ -255,8 +255,8 @@ export class App extends ClientController {
       return;
     }
     if (e.turnPhase === "AwaitingTreasureOwner") {
-      // 城主抉择(公道买卖/坐地起价/跳过);城主可能是 bot 或人类
-      const owner = e.players[e.treasureVisitor?.ownerIdx ?? 0];
+      // 城主抉择(公道买卖/坐地起价/跳过);城主可能是 bot 或人类。归属统一走 engine.decisionOwner。
+      const owner = e.players[e.decisionOwner];
       if (owner.isBot) return this.runBotResolve();
       this.showTreasureOwnerScroll();
       this.busy = false;

@@ -398,13 +398,8 @@ export class NetworkClient extends ClientController {
   }
 
   // ─────────────────────────── 决策分发 ───────────────────────────
-  /** 当前决策归属哪个座位(AwaitingTreasureOwner=城主,其余=active)。 */
-  private decisionOwner(): number {
-    const e = this.engine;
-    return e.turnPhase === "AwaitingTreasureOwner" ? e.treasureVisitor?.ownerIdx ?? e.activeIndex : e.activeIndex;
-  }
   private isMyDecision(): boolean {
-    return this.engine.phase === "Playing" && this.decisionOwner() === this.seat && !(this.engine.players[this.seat]?.isBot ?? true);
+    return this.engine.phase === "Playing" && this.engine.decisionOwner === this.seat && !(this.engine.players[this.seat]?.isBot ?? true);
   }
 
   /** 收到 snapshot 后:若是我的决策相位,弹对应卷轴;否则隐藏 + 提示等待。 */

@@ -104,11 +104,6 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>) {
 }
 
 // ──────────────────────────── bot/接管驱动(ADR-0002 接管)────────────────────────────
-/** 当前决策归属哪个座位:大部分相位=active;AwaitingTreasureOwner=城主(可能≠访客)。 */
-function decisionOwnerSeat(e: GameEngine): number {
-  return e.turnPhase === "AwaitingTreasureOwner" ? e.treasureVisitor?.ownerIdx ?? e.activeIndex : e.activeIndex;
-}
-
 /** 该座位当前是否由服务器驱动(原始 bot,或被房主接管的人类座位)。 */
 function seatControlled(r: RoomSession, seat: number): boolean {
   return r.engine != null && (r.engine.players[seat]?.isBot || r.takeover.has(seat));
@@ -391,7 +386,7 @@ export class RoomRegistry {
     let guard = 0;
     while (e.phase !== "GameOver" && guard++ < 500) {
       if (!INPUT_PHASES.has(e.turnPhase)) break;
-      if (!seatControlled(r, decisionOwnerSeat(e))) break; // 人类拥有决策(在线或冻结)→ 停
+      if (!seatControlled(r, e.decisionOwner)) break; // 人类拥有决策(在线或冻结)→ 停
       const before = fingerprint(e);
       botAct(e);
       this.persist(r);

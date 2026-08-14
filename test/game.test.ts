@@ -330,3 +330,35 @@ describe("分岔辅路", () => {
   });
 });
 
+
+describe("decisionOwner(决策归属统一查询)", () => {
+  it("常规相位 = activeIndex(Roll/Land/AwaitingDecision)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    e.turnPhase = "Roll";
+    expect(e.decisionOwner).toBe(e.activeIndex);
+    e.turnPhase = "AwaitingDecision";
+    expect(e.decisionOwner).toBe(e.activeIndex);
+  });
+
+  it("AwaitingTreasureOwner = 城主座位(≠ 访客)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const owner = e.players.find((p) => p !== mover)!;
+    const ownerIdx = e.players.indexOf(owner);
+    const def = e.catalog.get("prop-changan")!;
+    e.treasureVisitor = { def, ownerIdx };
+    e.turnPhase = "AwaitingTreasureOwner";
+    expect(e.decisionOwner).toBe(ownerIdx);
+    expect(e.decisionOwner).not.toBe(e.activeIndex);
+  });
+
+  it("AwaitingTreasureOwner 且 treasureVisitor 缺失 → 兜底 activeIndex(不崩)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    e.treasureVisitor = null;
+    e.turnPhase = "AwaitingTreasureOwner";
+    expect(e.decisionOwner).toBe(e.activeIndex);
+  });
+});
