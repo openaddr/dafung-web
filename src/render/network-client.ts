@@ -15,6 +15,7 @@ import { createVictory, createMapSelectionScreen } from "./ui";
 import { el } from "./dom";
 import { loadAssetManifest } from "./assets";
 import { ClientController } from "./client-controller";
+import { parseAction } from "./action-parser";
 import { createBoardSvg } from "./board";
 import { createAnimator } from "./animate";
 import { getMapSource } from "./map-sources";
@@ -108,52 +109,17 @@ export class NetworkClient extends ClientController {
     return this.isMyDecision() && !this.busy;
   }
 
-  /** 联机动作分发:解析 action-string → GameCommand → act→send(发 WS)。与热座对称的解析,
-   *  但落到 act(send)而非 onHalt/onDecision(改引擎+动画)。
-   *  treasure-mode-fair/premium 与 treasure-back 是纯客户端 UI 跳步(不发命令,只重弹卷轴)。 */
+  /** 联机动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
+   *  command 走 act→send(发 WS);UI 跳步(treasure-back / treasure-mode-*)只重弹卷轴。 */
   dispatchAction(action: string): void {
-    if (action.startsWith("heropick-")) {
-      return this.act({ type: "resolveHeroPick", index: parseInt(action.slice("heropick-".length), 10) });
+    const parsed = parseAction(action);
+    if (!parsed) return;
+    if (parsed.kind === "ui") {
+      if (parsed.ui === "treasure-back") { this.showTreasureOwnerScroll(); return; }
+      this.showTreasurePickerScroll(parsed.ui.mode);
+      return;
     }
-    if (action.startsWith("treasure-")) {
-      const sub = action.slice("treasure-".length);
-      if (sub === "skip") return this.act({ type: "resolveTreasureOwner", action: { type: "skip" } });
-      if (sub === "back") { this.showTreasureOwnerScroll(); return; }
-      if (sub.startsWith("mode-")) {
-        const mode = sub.slice("mode-".length);
-        if (mode === "fair" || mode === "premium") { this.showTreasurePickerScroll(mode); return; }
-        return; // 未知 mode,忽略
-      }
-      const [verb, ...rest] = sub.split("-");
-      const treasureId = rest.join("-");
-      if (verb === "fair") return this.act({ type: "resolveTreasureOwner", action: { type: "fair", treasureId } });
-      if (verb === "premium") return this.act({ type: "resolveTreasureOwner", action: { type: "premium", treasureId } });
-    }
-    if (action.startsWith("bk-")) {
-      const sub = action.slice("bk-".length);
-      if (sub === "confirm") return this.act({ type: "confirmBankruptcySettle" });
-      const [verb, ...rest] = sub.split("-");
-      const id = rest.join("-");
-      if (verb === "treasure") return this.act({ type: "sellTreasureBankruptcy", treasureId: id });
-      if (verb === "prop") return this.act({ type: "sellPropertyBankruptcy", propId: id });
-      if (verb === "hero") return this.act({ type: "cashHeroBankruptcy", heroId: id });
-    }
-    switch (action) {
-      case "halt":
-        return this.act({ type: "haltAtCapital" });
-      case "continue":
-        return this.act({ type: "continueMove" });
-      case "main":
-        return this.act({ type: "selectBranch", kind: "Main" });
-      case "branch":
-        return this.act({ type: "selectBranch", kind: "Branch" });
-      case "buy":
-        return this.act({ type: "buyProperty" });
-      case "upgrade":
-        return this.act({ type: "upgradeProperty" });
-      case "skip":
-        return this.act({ type: "endDecision" });
-    }
+    this.act(parsed.command);
   }
 
   onRoll() {

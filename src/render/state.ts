@@ -12,6 +12,7 @@ import { createConfirm, createVictory } from "./ui";
 import { delay, BOT } from "./timings";
 import { loadAssetManifest } from "./assets";
 import { ClientController } from "./client-controller";
+import { parseAction } from "./action-parser";
 
 const botDelay = (ms: number = BOT.stepDelayMs): Promise<void> => delay(ms);
 
@@ -57,49 +58,33 @@ export class App extends ClientController {
     return e.phase === "Playing" && !e.activePlayer.isBot && !this.busy;
   }
 
-  /** 热座动作分发:逐动作改引擎 + 动画 + 推进回合。action-string 解析与联机对称
-   *  (halt/buy/heropick-N/treasure-fair-X/treasure-mode-fair/bk-confirm…),但落到 onHalt/onDecision/…
-   *  而非 act→send。返回 Promise<void> 是 OK 的:基类抽象签名是 :void,TS 允许 Promise<void> 覆写 void
+  /** 热座动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
+   *  command 映射到逐动作处理器(改引擎 + 动画 + 推进回合);UI 跳步只重弹卷轴。
+   *  返回 Promise<void> 是 OK 的:基类抽象签名是 :void,TS 允许 Promise<void> 覆写 void
    *  (callback-style 放宽);bindEvents 里用 `void this.dispatchAction(...)` fire-and-forget。 */
   async dispatchAction(action: string): Promise<void> {
-    if (action.startsWith("heropick-")) {
-      const idx = parseInt(action.slice("heropick-".length), 10);
-      return this.onHeroPick(idx);
+    const parsed = parseAction(action);
+    if (!parsed) return;
+    if (parsed.kind === "ui") {
+      if (parsed.ui === "treasure-back") { this.showTreasureOwnerScroll(); return; }
+      this.showTreasurePickerScroll(parsed.ui.mode);
+      return;
     }
-    if (action.startsWith("treasure-")) {
-      const sub = action.slice("treasure-".length);
-      if (sub === "skip") return this.onTreasureOwner({ type: "skip" });
-      if (sub === "back") { this.showTreasureOwnerScroll(); return; }
-      if (sub.startsWith("mode-")) {
-        const mode = sub.slice("mode-".length);
-        if (mode === "fair" || mode === "premium") { this.showTreasurePickerScroll(mode); return; }
-        return; // 未知 mode,忽略
-      }
-      const [verb, ...rest] = sub.split("-");
-      const treasureId = rest.join("-");
-      if (verb === "fair") return this.onTreasureOwner({ type: "fair", treasureId });
-      if (verb === "premium") return this.onTreasureOwner({ type: "premium", treasureId });
-    }
-    if (action.startsWith("bk-")) {
-      const sub = action.slice("bk-".length);
-      if (sub === "confirm") return this.onBankruptcy("confirm");
-      return this.onBankruptcy(sub); // treasure-${id} / prop-${propId} / hero-${heroId}
-    }
-    switch (action) {
-      case "halt":
-        return this.onHalt("halt");
-      case "continue":
-        return this.onHalt("continue");
-      case "main":
-        return this.onBranch("Main");
-      case "branch":
-        return this.onBranch("Branch");
-      case "buy":
-        return this.onDecision("buy");
-      case "upgrade":
-        return this.onDecision("upgrade");
-      case "skip":
-        return this.onDecision("skip");
+    const cmd = parsed.command;
+    switch (cmd.type) {
+      case "haltAtCapital": return this.onHalt("halt");
+      case "continueMove": return this.onHalt("continue");
+      case "selectBranch": return this.onBranch(cmd.kind);
+      case "buyProperty": return this.onDecision("buy");
+      case "upgradeProperty": return this.onDecision("upgrade");
+      case "endDecision": return this.onDecision("skip");
+      case "resolveHeroPick": return this.onHeroPick(cmd.index);
+      case "resolveTreasureOwner": return this.onTreasureOwner(cmd.action);
+      case "confirmBankruptcySettle": return this.onBankruptcy({ type: "confirm" });
+      case "sellTreasureBankruptcy": return this.onBankruptcy({ type: "sellTreasure", id: cmd.treasureId });
+      case "sellPropertyBankruptcy": return this.onBankruptcy({ type: "sellProp", id: cmd.propId });
+      case "cashHeroBankruptcy": return this.onBankruptcy({ type: "cashHero", id: cmd.heroId });
+      case "rollAndMove": return; // 行军按钮走 onRoll,不经 action-string
     }
   }
 
@@ -396,11 +381,12 @@ export class App extends ClientController {
     this.onTurnAdvanced();
   }
 
-  private async onBankruptcy(action: string) {
+  /** 破产清算处理:结构化入参(收口后不再二次解析字符串)。 */
+  private async onBankruptcy(action: { type: "confirm" } | { type: "sellTreasure"; id: string } | { type: "sellProp"; id: string } | { type: "cashHero"; id: string }) {
     const e = this.engine;
     if (e.turnPhase !== "AwaitingBankruptcySettle") return;
     this.hideOverlay();
-    if (action === "confirm") {
+    if (action.type === "confirm") {
       this.busy = true;
       const settler = e.activePlayer; // confirm 后 endTurn 会推进活跃玩家,先捕获
       e.confirmBankruptcySettle();
@@ -410,11 +396,9 @@ export class App extends ClientController {
       if (settler.isBankrupt) this.audio.play("bankrupt");
       return this.onTurnAdvanced();
     }
-    const [verb, ...rest] = action.split("-");
-    const id = rest.join("-");
-    if (verb === "treasure") e.sellTreasureBankruptcy(id);
-    else if (verb === "prop") e.sellPropertyBankruptcy(id);
-    else if (verb === "hero") e.cashHeroBankruptcy(id);
+    if (action.type === "sellTreasure") e.sellTreasureBankruptcy(action.id);
+    else if (action.type === "sellProp") e.sellPropertyBankruptcy(action.id);
+    else if (action.type === "cashHero") e.cashHeroBankruptcy(action.id);
     this.animator.spawnFloaters(e);
     this.fullRender();
     if (e.turnPhase === "AwaitingBankruptcySettle") this.showBankruptcyScroll(); // 仍清算 → 重弹
