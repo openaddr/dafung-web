@@ -3,7 +3,9 @@
 // 传输层持 WS 句柄、知道 online 状态;视图/transferHost 都接 `onlineSeats: Set<number>` 作入参。
 // 持久化做成注入的 RoomPersistence 适配器。
 //
-// 行为与原 server.ts(2026-08-04 重构前)逐字节一致:客户端看到的 clientView/lobbyView 不变。
+// clientView/lobbyView 自 2026-08-14(架构待办③)起:snapshot 消息补齐 seatCount/started/mapId,
+// 与 lobby 消息的房间字段对齐——客户端从任一消息都能直接得到完整房间态,无需手抄推断。
+// (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/game";
@@ -90,13 +92,17 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
 }
 
 /** clientView:snapshot 态把 engine.snapshot() 展开;Lobby 态退化为 lobbyView。
- *  字段必须与原 server.ts 逐字节一致(网络客户端 network-client.ts 依赖)。 */
+ *  snapshot 分支携带与 lobby 相同的房间字段(roomId/seatCount/host/started/mapId/seats)
+ *  + 引擎快照展开(快照无同名键,不冲突)。 */
 export function clientView(r: RoomSession, onlineSeats: Set<number>) {
   return r.engine
     ? {
         type: "snapshot" as const,
         roomId: r.roomId,
+        seatCount: r.seatCount,
         host: r.hostSeat,
+        started: true,
+        mapId: r.mapId,
         seats: seatMeta(r, onlineSeats),
         ...r.engine.snapshot(),
       }

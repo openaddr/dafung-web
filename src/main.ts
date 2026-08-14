@@ -42,12 +42,14 @@ function mapLoadError(err: unknown) {
   root.innerHTML = `<div style="padding:40px;color:#b23a2e;font-family:serif">地图加载失败:${(err as Error).message}</div>`;
 }
 
-/** 进入联机:加载地图 → network-client(它自带 connect/lobby 屏)。 */
+/** 进入联机:加载默认地图 → network-client(它自带 connect/lobby 屏)。
+ *  把占位图的 mapId 一并传入:客户端据此跳过同图重建(lobby 广播同图时不重复 fetch)。 */
 async function enterOnline() {
   try {
-    const map = await loadSelectedMap();
+    const mapId = await getDefaultMapId();
+    const map = await loadMapById(getMapSource(), mapId);
     root.innerHTML = "";
-    new NetworkClient(map, location.origin);
+    new NetworkClient(map, location.origin, mapId);
   } catch (err) {
     mapLoadError(err);
   }

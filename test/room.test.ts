@@ -2,7 +2,7 @@
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "vitest";
-import { RoomRegistry, RoomError, lobbyView } from "../scripts/room";
+import { RoomRegistry, RoomError, lobbyView, clientView } from "../scripts/room";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -237,6 +237,30 @@ describe("RoomRegistry · 选图(mapId / setMap)", () => {
   it("对局已开始后再 setMap → 409", () => {
     const { reg, roomId, hostToken } = setupStartedRoom({ seats: 2, bot: [1] });
     expectRoomError(() => reg.setMap(roomId, "zhongyuan", hostToken, VALID_MAP_IDS), 409);
+  });
+});
+
+describe("clientView · snapshot 消息房间字段(架构待办③:协议自描述)", () => {
+  it("开局后 snapshot 分支携带 seatCount/started/mapId——客户端无需从 seats 推断手抄", () => {
+    const { reg, roomId } = setupStartedRoom({ seats: 3, bot: [2], mapId: "zhongyuan" });
+    const view = clientView(reg.get(roomId)!, new Set([0]));
+    expect(view.type).toBe("snapshot");
+    if (view.type !== "snapshot") throw new Error("expected snapshot");
+    expect(view.seatCount).toBe(3);
+    expect(view.started).toBe(true);
+    expect(view.mapId).toBe("zhongyuan");
+    expect(view.host).toBe(0);
+    expect(view.seats).toHaveLength(3);
+  });
+
+  it("未开局退化为 lobbyView:started=false、mapId=null、seatCount 齐全", () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 4, botIdx: new Set([3]), hostConfig: {} });
+    const view = clientView(reg.get(room.roomId)!, new Set());
+    expect(view.type).toBe("lobby");
+    expect(view.started).toBe(false);
+    expect(view.mapId).toBeNull();
+    expect(view.seatCount).toBe(4);
   });
 });
 

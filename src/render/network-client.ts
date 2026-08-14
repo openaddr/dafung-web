@@ -5,13 +5,13 @@
 //
 // 共享 scaffold/fullRender/bindEvents/openScroll/showHeroPickScroll/showTreasureOwnerScroll/
 // showBankruptcyScroll/showHandDetail/showTileDetail/flashHint/destroy 在 ClientController 基类
-// (ADR-0006)。本子类提供四个抽象成员 + 大厅(REST + WS)+ 决策归属判定 + 命令发送。
+// (ADR-0006)。本子类:连接屏(REST 建房/加入)+ WS 管理 + 换图重建 + 决策归属判定 + 命令发送。
+// 大厅屏是独立的持状态模块 LobbyController(架构待办 ③);换图重建由 lobby 广播单路径驱动。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/game";
 import type { GameCommand } from "@core/types";
-import { isCustomId } from "@core/map-source";
-import { createVictory, createMapSelectionScreen } from "./ui";
+import { createVictory } from "./ui";
 import { el } from "./dom";
 import { loadAssetManifest } from "./assets";
 import { ClientController } from "./client-controller";
@@ -20,37 +20,32 @@ import { createBoardSvg } from "./board";
 import { createAnimator } from "./animate";
 import { getMapSource } from "./map-sources";
 import { loadMapById } from "@core/map-source";
+import { LobbyController, type LobbyState } from "./lobby";
 
 type Snapshot = ReturnType<GameEngine["snapshot"]>;
-interface SeatMeta {
-  seat: number;
-  kind: "human" | "bot";
-  taken: boolean;
-  online: boolean;
-  controlled: boolean;
-}
 type ServerMsg =
-  | { type: "lobby"; roomId: string; seatCount: number; host: number; started: boolean; mapId: string | null; seats: SeatMeta[] }
-  | ({ type: "snapshot"; roomId: string; host: number; seats: SeatMeta[] } & Snapshot)
+  | ({ type: "lobby" } & LobbyState)
+  | ({ type: "snapshot"; roomId: string; seatCount: number; host: number; started: boolean; mapId: string | null; seats: LobbyState["seats"] } & Snapshot)
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 
 export class NetworkClient extends ClientController {
   engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
-  /** 当前选中地图 id(初始 = 默认图;lobby 广播 mapId 后同步)。 */
-  private mapId: string | null = null;
+  /** 当前渲染中的地图 id(构造时=初始占位图;lobby 广播 mapId 后同步)。 */
+  private mapId: string | null;
 
   private serverUrl: string;
   private ws: WebSocket | null = null;
   private roomId: string | null = null;
   seat = -1;
   private seatToken: string | null = null;
-  private roomMeta: { host: number; seats: SeatMeta[]; seatCount: number; started: boolean; mapId: string | null } | null = null;
-  private lobbyOverlay: HTMLElement | null = null;
+  private lobby: LobbyController | null = null;
+  private connectOverlay: HTMLElement | null = null;
 
-  constructor(map: LoadedMap, serverUrl: string) {
+  constructor(map: LoadedMap, serverUrl: string, mapId?: string | null) {
     super(map); // physicsSeed 不传:联机物理骰子不需要可复现(服务器才是权威)
     this.serverUrl = serverUrl.replace(/\/$/, "");
+    this.mapId = mapId ?? null; // 初始占位图的 id(与 map 一致);房间选图后由广播驱动重建
     // 占位引擎:只为渲染就位(board/catalog 来自真实地图);首帧 snapshot 会覆盖全部可变状态。
     this.engine = this.makePlaceholderEngine(map);
     // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat
@@ -75,9 +70,8 @@ export class NetworkClient extends ClientController {
     });
   }
 
-  /** 换图重建:非 Host 收到新 mapId 后,按 id fetch 内置图 + 重建占位引擎,
-   *  并替换基类的 boardView/animator(它们在构造时绑死了旧 map 的 board/svg)。
-   *  Host 自己选图时本地立即重建(乐观更新),无需等服务端回包。 */
+  /** 换图重建:收到 lobby 广播的新 mapId 后(host/非 host 同一条路径),按 id fetch 内置图
+   *  + 重建占位引擎,并替换基类的 boardView/animator(它们在构造时绑死了旧 map 的 board/svg)。 */
   private async rebuildForMap(mapId: string): Promise<void> {
     if (mapId === this.mapId) return; // 同图不重建
     let map: LoadedMap;
@@ -153,6 +147,9 @@ export class NetworkClient extends ClientController {
 
   private showConnectScreen() {
     this.hideOverlay();
+    this.lobby?.destroy();
+    this.lobby = null;
+    this.connectOverlay?.remove();
     const overlay = el("div", { class: "scroll-overlay" });
     const box = el("div", { class: "scroll", style: "max-width:420px;" });
     box.appendChild(el("h2", { class: "scroll-title" }, ["联机对局"]));
@@ -178,7 +175,7 @@ export class NetworkClient extends ClientController {
         this.seat = r.seat;
         this.seatToken = r.seatToken;
         this.connect();
-        this.showLobby(true);
+        this.openLobby(this.lobbyStateOf(r));
       } catch (err) {
         this.flashHint((err as Error).message);
       }
@@ -199,7 +196,7 @@ export class NetworkClient extends ClientController {
         this.seat = r.seat;
         this.seatToken = r.seatToken;
         this.connect();
-        this.showLobby(false);
+        this.openLobby(this.lobbyStateOf(r));
       } catch (err) {
         this.flashHint((err as Error).message);
       }
@@ -209,109 +206,31 @@ export class NetworkClient extends ClientController {
       codeIn, joinBtn,
     ]));
     overlay.appendChild(box);
-    this.lobbyOverlay = overlay;
+    this.connectOverlay = overlay;
     this.boardWrap.appendChild(overlay);
   }
 
-  private showLobby(isHost: boolean) {
-    this.lobbyOverlay?.remove();
-    const overlay = el("div", { class: "scroll-overlay" });
-    const box = el("div", { class: "scroll", style: "max-width:380px;" });
-    box.appendChild(el("h2", { class: "scroll-title" }, ["大厅"]));
-    const codeBox = el("div", { class: "lobby-code", style: "font-size:34px;letter-spacing:6px;font-family:var(--font-deco);text-align:center;margin:10px 0;" }, [this.roomId ?? "????"]);
-    box.appendChild(codeBox);
-    box.appendChild(el("p", { style: "text-align:center;color:var(--ink-dim,#9c6b3f);" }, [
-      isHost ? "把房间码发给同好;点开局后未满座位自动 bot 填充。" : "等待房主开局…",
-    ]));
-    const seatList = el("div", { class: "lobby-seats", style: "margin:10px 0;" });
-    box.appendChild(seatList);
-    // 当前选中地图展示行:Host 可点「更换」选图(仅内置图);非 Host 只读显示图名。
-    const mapNameEl = el("span", { class: "lobby-map-name", style: "font-family:var(--font-deco);color:var(--ink);" }, ["加载中…"]);
-    const mapRow = el("div", { class: "lobby-map", style: "margin:8px 0;text-align:center;font-size:14px;" }, [
-      el("span", { style: "color:var(--ink-dim,#9c6b3f);" }, ["当前地图:"]),
-      mapNameEl,
-    ]);
-    box.appendChild(mapRow);
-    /** 按 roomMeta.mapId 解析地图名(内置图 fetch 清单;查不到则显示 id)。 */
-    const renderMapName = () => {
-      const id = this.roomMeta?.mapId ?? null;
-      mapNameEl.textContent = id ? id : "未选择";
-      if (id) {
-        void this.builtinMapName(id).then((name) => { mapNameEl.textContent = name; }).catch(() => { /* 保留 id 兜底 */ });
-      }
-    };
-    const renderSeats = () => {
-      seatList.innerHTML = "";
-      const seats = this.roomMeta?.seats ?? [];
-      for (const s of seats) {
-        const tag = s.seat === this.seat ? "你" : s.kind === "bot" ? "bot" : s.taken ? "人" : "空";
-        const host = s.seat === (this.roomMeta?.host ?? 0) ? " · 房主" : "";
-        const dotClass = s.kind === "bot" ? "bot" : !s.taken ? "empty" : s.online ? "online" : "offline";
-        const rowClass = s.seat === this.seat ? "lobby-seat-row is-you" : "lobby-seat-row";
-        seatList.appendChild(el("div", { class: rowClass }, [
-          el("span", { class: `seat-dot ${dotClass}` }),
-          `诸侯 ${s.seat + 1} · ${tag}${host}${s.taken && !s.online ? " · 离线" : ""}`,
-        ]));
-      }
-    };
-    renderSeats();
-    renderMapName();
-    this.lobbyOverlay = overlay;
-    (overlay as any)._renderSeats = renderSeats;
-    (overlay as any)._renderMapName = renderMapName;
-    if (isHost) {
-      // Host:选择地图(仅内置图——过滤 custom- 前缀)。
-      const mapBtn = el("button", { class: "btn", style: "display:block;margin:0 auto 4px;" }, ["选择地图"]) as HTMLButtonElement;
-      mapBtn.addEventListener("click", () => {
-        createMapSelectionScreen(this.boardWrap, this.builtinMapSource(), this.mapId ?? "sanguo", async (mapId, _name) => {
-          try {
-            // 先乐观重建本地渲染(Host 立即看到新图);再发请求持久化到服务器。
-            await this.rebuildForMap(mapId);
-            await this.http("/room/map", { roomId: this.roomId, seatToken: this.seatToken, mapId });
-            // 服务端广播 lobby 会带回 mapId,触发非 Host 端重建。
-            this.roomMeta = { ...this.roomMeta!, mapId };
-            renderMapName();
-          } catch (err) {
-            this.flashHint((err as Error).message);
-          }
-        }, () => { /* 取消:无操作 */ });
-      });
-      box.appendChild(mapBtn);
-      const startBtn = el("button", { class: "btn btn-primary", style: "display:block;margin:10px auto 0;" }, ["开局"]) as HTMLButtonElement;
-      startBtn.addEventListener("click", async () => {
-        try {
-          startBtn.disabled = true;
-          await this.http("/room/start", { roomId: this.roomId, seatToken: this.seatToken });
-          // 开局后服务器会广播 snapshot,onSnapshot 收到即进入对局
-        } catch (err) {
-          startBtn.disabled = false;
-          this.flashHint((err as Error).message);
-        }
-      });
-      box.appendChild(startBtn);
-    }
-    overlay.appendChild(box);
-    this.boardWrap.appendChild(overlay);
+  /** 从 REST 响应(展开的 lobbyView 字段)取大厅态。 */
+  private lobbyStateOf(r: { roomId: string; seatCount: number; host: number; started: boolean; mapId: string | null; seats: LobbyState["seats"] }): LobbyState {
+    return { roomId: r.roomId, seatCount: r.seatCount, host: r.host, started: r.started, mapId: r.mapId, seats: r.seats };
   }
 
-  /** 仅内置图的 MapSource(过滤掉 custom- 自建图):联机模式只支持内置图。 */
-  private builtinMapSource() {
-    const src = getMapSource();
-    return {
-      listMaps: async () => (await src.listMaps()).filter((e) => !isCustomId(e.id)),
-      loadMapData: (id: string) => src.loadMapData(id),
-    };
-  }
-
-  /** 按 id 查内置图展示名(异步 fetch 清单);查不到回退 id 本身。 */
-  private async builtinMapName(id: string): Promise<string> {
-    try {
-      const entries = await this.builtinMapSource().listMaps();
-      const found = entries.find((e) => e.id === id);
-      return found ? found.name : id;
-    } catch {
-      return id;
-    }
+  /** 打开大厅屏(LobbyController 持状态模块,架构待办③):REST 回包给初始态,
+   *  之后由 WS lobby 广播 update;host 控件显隐由模块按 state.host 自管。 */
+  private openLobby(state: LobbyState) {
+    this.connectOverlay?.remove();
+    this.connectOverlay = null;
+    this.lobby?.destroy();
+    this.lobby = new LobbyController(this.boardWrap, this.seat, state, {
+      // 确认选图:仅发请求;本地换图由 lobby 广播单路径驱动(host/非 host 同路)。
+      onPickMap: async (mapId) => {
+        await this.http("/room/map", { roomId: this.roomId, seatToken: this.seatToken, mapId });
+      },
+      onStart: async () => {
+        await this.http("/room/start", { roomId: this.roomId, seatToken: this.seatToken });
+      },
+      onError: (message) => this.flashHint(message),
+    });
   }
 
   private connect() {
@@ -320,32 +239,25 @@ export class NetworkClient extends ClientController {
     this.ws = new WebSocket(wsUrl);
     this.ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data));
     this.ws.onclose = () => {
-      // 非被解散的断开:提示重连(简化:大厅态提示;对局态停留)
-      if (this.lobbyOverlay == null && this.engine.phase !== "GameOver") this.flashHint("连接断开,请刷新重连");
+      // 非被解散的断开:对局中提示重连;大厅/连接屏态不打扰(界面仍在)
+      if (this.lobby == null && this.connectOverlay == null && this.engine.phase !== "GameOver") this.flashHint("连接断开,请刷新重连");
     };
     this.ws.onerror = () => this.flashHint("连接错误");
   }
 
   private onMessage(msg: ServerMsg) {
     if (msg.type === "lobby") {
-      const prevMapId = this.roomMeta?.mapId ?? null;
-      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seatCount, started: msg.started, mapId: msg.mapId };
-      const rerender = (this.lobbyOverlay as any)?._renderSeats;
-      if (rerender) rerender();
-      const renderMapName = (this.lobbyOverlay as any)?._renderMapName;
-      if (renderMapName) renderMapName();
-      // 非 Host:mapId 变化时按 id fetch 内置图重建本地占位引擎渲染。
-      // Host 自己选图时已乐观重建,此处不重复(否则会多一次 fetch + 闪烁)。
-      const isHostSeat = this.seat === msg.host;
-      if (!isHostSeat && msg.mapId && msg.mapId !== prevMapId && msg.mapId !== this.mapId) {
-        void this.rebuildForMap(msg.mapId);
-      }
+      const { type: _msgType, ...state } = msg;
+      this.lobby?.update(state);
+      // 换图单一路径:任何端(host/非 host)都由 lobby 广播驱动重建,无乐观更新。
+      // rebuildForMap 自带同图守卫;本地已渲染同图时不重复 fetch。
+      if (state.mapId && state.mapId !== this.mapId) void this.rebuildForMap(state.mapId);
       return;
     }
     if (msg.type === "snapshot") {
-      this.roomMeta = { host: msg.host, seats: msg.seats, seatCount: msg.seats.length, started: true, mapId: this.roomMeta?.mapId ?? null };
-      this.lobbyOverlay?.remove();
-      this.lobbyOverlay = null;
+      // 房间字段(seatCount/started/mapId)已随消息携带(协议补字段),无需从 seats 推断手抄。
+      this.lobby?.destroy();
+      this.lobby = null;
       this.engine.restoreFromSnapshot(msg as unknown as Snapshot);
       this.busy = false;
       this.animator.spawnFloaters(this.engine); // 浮动金额反馈(若引擎有)
@@ -354,8 +266,8 @@ export class NetworkClient extends ClientController {
       return;
     }
     if (msg.type === "dismissed") {
-      this.lobbyOverlay?.remove();
-      this.lobbyOverlay = null;
+      this.lobby?.destroy();
+      this.lobby = null;
       this.overlay?.remove();
       this.overlay = null;
       this.flashHint("房主已解散房间");
