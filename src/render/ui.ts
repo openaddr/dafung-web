@@ -185,41 +185,6 @@ export function renderStatusBar(engine: GameEngine, statusEl: HTMLElement): void
   );
 }
 
-/** 渲染玩家卡列表。 */
-export function renderPlayers(engine: GameEngine, playersEl: HTMLElement): void {
-  clear(playersEl);
-  const activeId = engine.phase === "Playing" ? engine.activePlayer.id : null;
-  for (const p of engine.players) {
-    const col = rgba(playerColor(p.colorIndex));
-    const cls = ["player-card"];
-    if (p.id === activeId) cls.push("active");
-    if (p.isBankrupt) cls.push("bankrupt");
-    if (engine.isOver && engine.winner?.id === p.id) cls.push("winner");
-    const capitalName = p.capitalIndex >= 0 ? engine.board.at(p.capitalIndex).name : "—";
-    const card = el(
-      "div",
-      { class: cls.join(" "), style: `--player-color:${col};` },
-      [
-        el("div", { class: "pc-guohao" }, [p.guohao || "?"]),
-        el("div", { class: "pc-info" }, [
-          el("div", { class: "pc-name" }, [
-            p.guohao || p.name,
-            ...(p.isBot ? [el("span", { class: "bot-tag" }, ["智"])] : []),
-          ]),
-          el("div", { class: "pc-meta" }, [`${p.properties.length}城 · 都${capitalName}`]),
-          ...(p.heroes.length ? [el("div", { class: "pc-heroes" }, [p.heroes.map((h) => h.name).join(" · ")])] : []),
-        ]),
-        el("div", {}, [
-          el("div", { class: "pc-cash" }, [formatMoney(p.cash)]),
-          el("div", { class: "pc-warrants" }, [`委任 ${p.warrants}`]),
-          el("div", { class: "pc-networth" }, [`身价 ${formatMoney(netWorth(p))}`]),
-        ]),
-      ],
-    );
-    playersEl.appendChild(card);
-  }
-}
-
 /** 渲染战报(简报 / 详情)。增量追加已渲染数之后的新日志。 */
 /** P4: 其他玩家紧凑条(国号 badge + 银两 + 城数 + 状态)。取代旧大玩家卡,省侧栏纵向空间。 */
 export function renderOthers(engine: GameEngine, box: HTMLElement): void {
@@ -387,36 +352,6 @@ export function createConfirm(
   });
   parent.appendChild(overlay);
   return overlay;
-}
-
-// ── 决策弹层(买地 / 扩军 / 放弃)──
-export function createDecisionScroll(
-  parent: HTMLElement,
-  engine: GameEngine,
-): HTMLElement | null {
-  const outcome = engine.lastLandOutcome;
-  if (!outcome) return null;
-  const tile = engine.board.at(engine.activePlayer.position);
-  if (outcome.kind === "PropertyAvailable" && outcome.property) {
-    const def = outcome.property;
-    const buyer = engine.activePlayer;
-    const canBuy = buyer.cash >= def.purchasePrice && buyer.warrants >= 1;
-    const reason = buyer.warrants < 1 ? "委任状不足" : buyer.cash < def.purchasePrice ? "银两不足" : null;
-    return createScroll(parent, `进驻「${tile.name}」`, `购入价 ${formatMoney(def.purchasePrice)} · 消耗 1 委任状`, [
-      { label: reason ? `购地(${reason})` : `购地 (1委任 + ${formatMoney(def.purchasePrice)})`, action: "buy", primary: canBuy },
-      { label: "不取", action: "skip" },
-    ]);
-  }
-  if (outcome.kind === "OwnProperty" && outcome.property) {
-    const def = outcome.property;
-    const h = engine.activePlayer.properties.find((x) => x.propertyId === def.id);
-    const canUp = (h?.level ?? 0) < def.maxLevel && engine.activePlayer.cash >= def.upgradeCost;
-    return createScroll(parent, `经营「${tile.name}」`, `当前 Lv.${h?.level ?? 0} · 扩军 ${formatMoney(def.upgradeCost)} → 升租`, [
-      { label: `扩军 ${formatMoney(def.upgradeCost)}`, action: "upgrade", primary: canUp },
-      { label: "按兵不动", action: "skip" },
-    ]);
-  }
-  return null;
 }
 
 // ── 胜利庆典屏 ──

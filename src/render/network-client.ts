@@ -1,6 +1,6 @@
 // 联机客户端(红线 4:state.ts 拆出的 network-client)。
 // 与热座 App 并存:不跑引擎,只持一份「只读引擎」——收到服务器 snapshot 即
-// restoreFromSnapshot 重 hydrate,复用全部渲染层(renderPlayers/boardView/createScroll…)。
+// restoreFromSnapshot 重 hydrate,复用全部渲染层(renderOthers/boardView/createScroll…)。
 // 本地玩家的操作 → WS 发 GameCommand;bot/远程玩家的动作 → 由服务器逐步广播 snapshot 驱动渲染。
 //
 // 共享 scaffold/fullRender/bindEvents/openScroll/showHeroPickScroll/showTreasureOwnerScroll/
