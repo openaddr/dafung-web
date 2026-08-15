@@ -16,7 +16,7 @@
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { createReadStream, readFileSync } from "node:fs";
+import { appendFileSync, createReadStream, readFileSync } from "node:fs";
 import { existsSync, mkdirSync, statSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import { WebSocket, WebSocketServer } from "ws";
@@ -29,6 +29,8 @@ import {
   RoomError,
   clientView,
   lobbyView,
+  seatMeta,
+  type RoomEvent,
 } from "./room";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
@@ -73,7 +75,28 @@ function loadMapById(mapId: string): LoadedMap {
 // ──────────────────────────── 启动:注入持久化 + 恢复房间 ────────────────────────────
 mkdirSync(ROOMS_DIR, { recursive: true });
 const persistence = new FileRoomPersistence(ROOMS_DIR);
-const registry = new RoomRegistry(persistence);
+
+// ──────────────────────────── 可观测性:房间事件流水(JSONL)────────────────────────────
+// 目标:联机卡死类问题可事后归因。每房间两个落点:
+//   rooms/<code>.events.jsonl  —— 全量事件流(命令/bot 步进/停因/ws 连断,带时间戳)
+//   内存尾巴(每房最近 100 条) —— 供 GET /room/debug 免读盘快速返回
+// room.ts 的引擎侧事件经 RoomObserver 注入;传输层事件(cmd/ws-open/…)在此直接记录。
+const eventTail = new Map<string, unknown[]>();
+const TAIL_MAX = 100;
+function recordEvent(roomId: string, ev: Record<string, unknown>): void {
+  const line = { t: new Date().toISOString(), ...ev };
+  try {
+    appendFileSync(join(ROOMS_DIR, `${roomId}.events.jsonl`), JSON.stringify(line) + "\n", "utf-8");
+  } catch (err) {
+    console.warn(`[server] 事件落盘失败(${roomId}):`, (err as Error).message);
+  }
+  const tail = eventTail.get(roomId) ?? [];
+  tail.push(line);
+  if (tail.length > TAIL_MAX) tail.shift();
+  eventTail.set(roomId, tail);
+}
+const registry = new RoomRegistry(persistence, (roomId, ev: RoomEvent) =>
+  recordEvent(roomId, ev as Record<string, unknown>));
 const restored = registry.restoreAll(loadMapById);
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
@@ -212,6 +235,7 @@ const HELP = {
     "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图)",
     "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
+    "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...},收 lobby/snapshot/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
@@ -230,6 +254,27 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       return sendJson(res, 200, { ok: true, uptime: Math.floor((Date.now() - startedAt) / 1000), rooms: registry.size() });
     }
     if (path === "/help") return sendJson(res, 200, HELP);
+    // 调试端点:实时房间状态 + 最近事件尾巴(排障用;手机端无法开 devtools 时的现场)
+    if (path === "/room/debug") {
+      const roomId = url.searchParams.get("room") ?? "";
+      const room = registry.get(roomId);
+      if (!room) return sendJson(res, 404, { ok: false, error: `房间不存在:${roomId}` });
+      const e = room.engine;
+      return sendJson(res, 200, {
+        ok: true,
+        room: {
+          roomId,
+          phase: e?.phase ?? "Lobby",
+          turnPhase: e?.turnPhase ?? null,
+          activeIndex: e?.activeIndex ?? null,
+          hostSeat: room.hostSeat,
+          mapId: room.mapId,
+          takeover: [...room.takeover],
+          seats: seatMeta(room, onlineSeatsOf(roomId)),
+        },
+        events: (eventTail.get(roomId) ?? []).slice(-50),
+      });
+    }
     return serveStatic(res, path);
   }
   if (method !== "POST") throw httpError(405, `不支持的方法:${method}`);
@@ -256,6 +301,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       difficulty,
     };
     const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig });
+    recordEvent(room.roomId, { ev: "room-new", seatCount, bot: [...botIdx] });
     // 建房时不设图(房间无地图);Host 须在大厅选图后再开局。startGame 会校验"已选图"。
     return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
@@ -263,6 +309,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
   if (path === "/room/join") {
     const roomId = String(obj.roomId ?? "");
     const { room, seat, token } = registry.joinSeat(roomId);
+    recordEvent(roomId, { ev: "room-join", seat });
     broadcast(room.roomId); // 通知其它人:有人加入
     return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
@@ -271,7 +318,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const roomId = String(obj.roomId ?? "");
     const mapId = String(obj.mapId ?? "");
     const room = registry.setMap(roomId, mapId, String(obj.seatToken ?? ""), VALID_MAP_IDS);
-    broadcast(room.roomId); // 通知房间内其它人:地图已更新
+    broadcast(room.roomId); // 通知房间内其它人:地图已更新(map 事件由 observer 记流水)
     return sendJson(res, 200, { ok: true, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 
@@ -328,6 +375,7 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
     return;
   }
   socketsOf(roomId).set(seat, ws);
+  recordEvent(roomId, { ev: "ws-open", seat });
   ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId))));
   ws.on("message", (data) => {
     let msg: { type?: string; cmd?: GameCommand };
@@ -338,6 +386,7 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
       return;
     }
     if (msg?.type === "cmd" && msg.cmd) {
+      recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
       registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
     } else {
       const r = registry.get(roomId);
@@ -348,6 +397,7 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
     // 仅当当前映射还指向本 ws 时才移除(若已重连到新 ws,新连接保留)
     const cur = socketsOf(roomId).get(seat);
     if (cur === ws) socketsOf(roomId).delete(seat);
+    recordEvent(roomId, { ev: "ws-close", seat });
     // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + bot 接管判断
     const stillOnline = onlineSeatsOf(roomId);
     registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));

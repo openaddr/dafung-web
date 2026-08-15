@@ -41,6 +41,36 @@ export class NetworkClient extends ClientController {
   private seatToken: string | null = null;
   private lobby: LobbyController | null = null;
   private connectOverlay: HTMLElement | null = null;
+  /** 诊断环形缓冲(可观测性基建):最近 20 条服务器消息摘要 + 关键本地转移。
+   *  手机端无 devtools,经 window.__dafung.debug() 导出。 */
+  private debugLog: string[] = [];
+
+  /** 追加一条诊断记录(环形,上限 20 条)。 */
+  private note(entry: string): void {
+    const t = new Date().toISOString().slice(11, 23); // HH:mm:ss.SSS
+    this.debugLog.push(`${t} ${entry}`);
+    if (this.debugLog.length > 20) this.debugLog.shift();
+  }
+
+  /** 服务器消息 → 紧凑摘要(snapshot 全量太大,只记相位转移)。 */
+  private summarize(msg: ServerMsg): string {
+    if (msg.type === "snapshot") return `snapshot phase=${msg.phase} turn=${msg.turnPhase} active=${msg.activeIndex}`;
+    if (msg.type === "lobby") return `lobby host=${msg.host} map=${msg.mapId} online=${msg.seats.filter((s) => s.online).length}/${msg.seats.length}`;
+    return msg.type === "dismissed" ? "dismissed" : `error:${msg.error}`;
+  }
+
+  /** 诊断快照:排障时的客户端现场(手机上经 __dafung.debug() 导出)。 */
+  debugDump(): Record<string, unknown> {
+    return {
+      seat: this.seat,
+      busy: this.busy,
+      phase: this.engine.phase,
+      turnPhase: this.engine.turnPhase,
+      activeIndex: this.engine.activeIndex,
+      ws: this.ws?.readyState ?? "closed",
+      log: [...this.debugLog],
+    };
+  }
 
   constructor(map: LoadedMap, serverUrl: string, mapId?: string | null) {
     super(map); // physicsSeed 不传:联机物理骰子不需要可复现(服务器才是权威)
@@ -48,12 +78,13 @@ export class NetworkClient extends ClientController {
     this.mapId = mapId ?? null; // 初始占位图的 id(与 map 一致);房间选图后由广播驱动重建
     // 占位引擎:只为渲染就位(board/catalog 来自真实地图);首帧 snapshot 会覆盖全部可变状态。
     this.engine = this.makePlaceholderEngine(map);
-    // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat
+    // 调试/测试钩子:读客户端引擎状态(从 snapshot 还原)+ 自己的 seat + 诊断现场
     window.__dafung = {
       engine: this.engine,
       snapshot: () => this.engine.snapshot(),
       seat: () => this.seat,
       busy: () => this.busy,
+      debug: () => this.debugDump(),
     };
     this.fullRender();
     void loadAssetManifest().then(() => this.fullRender());
@@ -239,13 +270,15 @@ export class NetworkClient extends ClientController {
     this.ws = new WebSocket(wsUrl);
     this.ws.onmessage = (ev) => this.onMessage(JSON.parse(ev.data));
     this.ws.onclose = () => {
+      this.note("ws-close");
       // 非被解散的断开:对局中提示重连;大厅/连接屏态不打扰(界面仍在)
       if (this.lobby == null && this.connectOverlay == null && this.engine.phase !== "GameOver") this.flashHint("连接断开,请刷新重连");
     };
-    this.ws.onerror = () => this.flashHint("连接错误");
+    this.ws.onerror = () => this.note("ws-error");
   }
 
   private onMessage(msg: ServerMsg) {
+    this.note(this.summarize(msg));
     if (msg.type === "lobby") {
       const { type: _msgType, ...state } = msg;
       this.lobby?.update(state);
@@ -315,6 +348,7 @@ export class NetworkClient extends ClientController {
 
   /** 发命令 + 轻反馈。确认型(endDecision/buy/…)播对应音;结算类不在此处播。 */
   private act(cmd: GameCommand) {
+    this.note(`send ${cmd.type}`);
     this.hideOverlay();
     this.busy = true;
     this.send(cmd);

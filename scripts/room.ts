@@ -29,6 +29,27 @@ export interface SeatState {
   token: string | null; // human 座位:未领=null,领后=不可猜 token(ADR-0005)
 }
 
+// ──────────────────────────── 观测事件(可观测性基建)────────────────────────────
+// room.ts 不落盘(ADR-0007):关键转移以回调注入观察者,由传输层(server.ts)写 JSONL 流水。
+// 目标:联机卡死类问题(如"带 bot 开局卡住")可从流水直接定位停点与原因。
+export type RoomBotStopReason =
+  | "human-turn" // 轮到人类(在线或冻结)→ 正常等待
+  | "not-input-phase" // 引擎内部过渡相位,无需驱动
+  | "no-progress" // fingerprint 未变 → 防死循环熔断(异常信号)
+  | "game-over"
+  | "guard"; // 步数上限熔断(异常信号)
+
+export type RoomEvent =
+  | { ev: "start"; mapId: string }
+  | { ev: "map"; mapId: string }
+  | { ev: "takeover"; seat: number }
+  | { ev: "offline"; seat: number; online: number[] }
+  | { ev: "bot-step"; seat: number; turnPhase: string; active: number }
+  | { ev: "bot-stop"; reason: RoomBotStopReason; phase: string; turnPhase: string; active: number };
+
+/** 房间事件观察者(注入;测试与 server.ts 各持一份实现)。 */
+export type RoomObserver = (roomId: string, event: RoomEvent) => void;
+
 /** 单局房间会话:开局前后都用它(Lobby 态 engine=null)。 */
 export interface RoomSession {
   roomId: string;
@@ -137,9 +158,16 @@ export interface CreateRoomConfig {
 export class RoomRegistry {
   private readonly rooms = new Map<string, RoomSession>();
   private readonly persistence: RoomPersistence;
+  private readonly observer: RoomObserver | null;
 
-  constructor(persistence: RoomPersistence) {
+  constructor(persistence: RoomPersistence, observer?: RoomObserver) {
     this.persistence = persistence;
+    this.observer = observer ?? null;
+  }
+
+  /** 发一条观测事件(无观察者时为空操作)。 */
+  private observe(r: RoomSession, event: RoomEvent): void {
+    this.observer?.(r.roomId, event);
   }
 
   /** 房间码冲突检测:查内存 + persistence.exists(后者由适配器实现,默认查 fs)。 */
@@ -240,6 +268,7 @@ export class RoomRegistry {
     if (callerSeatToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可选图");
     if (typeof mapId !== "string" || !validMapIds.has(mapId)) throw new RoomError(400, "未知地图");
     room.mapId = mapId;
+    this.observe(room, { ev: "map", mapId });
     this.persist(room);
     return room;
   }
@@ -277,6 +306,7 @@ export class RoomRegistry {
     );
     autoSetup(engine);
     room.engine = engine;
+    this.observe(room, { ev: "start", mapId: room.mapId! });
     this.persist(room);
     onUpdate?.(room); // 开局首帧
     this.driveBots(room, onUpdate); // bot 座位先驱动到人类/待输入(逐步广播)
@@ -297,6 +327,7 @@ export class RoomRegistry {
     if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw new RoomError(400, "seat 非法");
     if (room.seats[seat].kind === "bot") throw new RoomError(400, "该座位本就是 bot");
     room.takeover.add(seat);
+    this.observe(room, { ev: "takeover", seat });
     this.driveBots(room, onUpdate); // 若该 seat 正轮到,立即 bot 驱动解冻(逐步 persist+onUpdate)
     this.persist(room);
     onUpdate?.(room); // 终态
@@ -341,6 +372,7 @@ export class RoomRegistry {
     void seat; // 保留参数以匹配 ADR-0007 接口语义;transport 保证 seat ∉ stillOnlineSeats。
     const room = this.rooms.get(roomId);
     if (!room) return;
+    this.observe(room, { ev: "offline", seat, online: [...stillOnlineSeats] });
     this.transferHostIfNeeded(room, stillOnlineSeats);
     this.persist(room);
     onUpdate?.(room); // 先推"该座离线 + 可能的 host 移交"
@@ -390,16 +422,21 @@ export class RoomRegistry {
     const e = r.engine;
     if (!e) return;
     let guard = 0;
+    let reason: RoomBotStopReason = "guard";
     while (e.phase !== "GameOver" && guard++ < 500) {
-      if (!INPUT_PHASES.has(e.turnPhase)) break;
-      if (!seatControlled(r, e.decisionOwner)) break; // 人类拥有决策(在线或冻结)→ 停
+      if (!INPUT_PHASES.has(e.turnPhase)) { reason = "not-input-phase"; break; }
+      if (!seatControlled(r, e.decisionOwner)) { reason = "human-turn"; break; }
+      const owner = e.decisionOwner;
       const before = fingerprint(e);
       botAct(e);
+      this.observe(r, { ev: "bot-step", seat: owner, turnPhase: e.turnPhase, active: e.activeIndex });
       this.persist(r);
       onUpdate?.(r); // 每步直播
-      if (e.isOver) break;
-      if (fingerprint(e) === before) break; // 无进展 → 停(防死循环)
+      if (e.isOver) { reason = "game-over"; break; }
+      if (fingerprint(e) === before) { reason = "no-progress"; break; }
     }
+    if (e.phase === "GameOver") reason = "game-over";
+    this.observe(r, { ev: "bot-stop", reason, phase: e.phase, turnPhase: e.turnPhase, active: e.activeIndex });
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────

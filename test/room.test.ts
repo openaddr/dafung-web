@@ -264,6 +264,63 @@ describe("clientView · snapshot 消息房间字段(架构待办③:协议自描
   });
 });
 
+describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => {
+  /** 收集型观察者:记录 (roomId, event) 对。 */
+  function observed() {
+    const events: { roomId: string; event: Record<string, unknown> }[] = [];
+    const reg = new RoomRegistry(new InMemoryPersistence(), (roomId, event) =>
+      events.push({ roomId, event: event as Record<string, unknown> }));
+    return { reg, events };
+  }
+
+  it("开局 + host 接管 seat0 → start/bot-step 序列 + 终局 bot-stop(game-over)", () => {
+    const { reg, events } = observed();
+    const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 1 } });
+    reg.setMap(room.roomId, "sanguo", token, VALID_MAP_IDS);
+    reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0=host 人类 → 停在 human-turn
+    expect(events.find((e) => e.event.ev === "start")).toBeTruthy();
+    const stops = events.filter((e) => e.event.ev === "bot-stop");
+    expect(stops[0].event.reason).toBe("human-turn");
+    // host 强令 bot 接管 seat0 → 全 bot 自行终局
+    reg.takeoverSeat(room.roomId, token, 0, undefined);
+    expect(events.find((e) => e.event.ev === "takeover")?.event.seat).toBe(0);
+    expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
+    expect(events.at(-1)?.event.ev).toBe("bot-stop");
+    expect(events.at(-1)?.event.reason).toBe("game-over");
+    // 所有事件都带正确的 roomId
+    expect(events.every((e) => e.roomId === room.roomId)).toBe(true);
+  });
+
+  it("人类座位在线 → bot-stop reason=human-turn(正常等待)", () => {
+    const { reg, events } = observed();
+    const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 42 } });
+    reg.setMap(room.roomId, "sanguo", token, VALID_MAP_IDS);
+    reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0 人类(host 已领 token)
+    const stops = events.filter((e) => e.event.ev === "bot-stop");
+    expect(stops.length).toBeGreaterThan(0);
+    expect(stops[0].event.reason).toBe("human-turn");
+  });
+
+  it("掉线 → offline 事件带 stillOnline 名单", () => {
+    const { reg, events } = observed();
+    const { room, token } = reg.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: {} });
+    reg.joinSeat(room.roomId);
+    reg.setMap(room.roomId, "sanguo", token, VALID_MAP_IDS);
+    reg.startGame(room.roomId, token, undefined, testMapProvider);
+    reg.markSeatOffline(room.roomId, 1, new Set([0]));
+    const off = events.find((e) => e.event.ev === "offline");
+    expect(off?.event.seat).toBe(1);
+    expect(off?.event.online).toEqual([0]);
+  });
+
+  it("无观察者 → 一切行为不变(空操作)", () => {
+    const { reg, roomId, hostToken } = setupStartedRoom({ seats: 2, bot: [1] });
+    expect(() => reg.applyCommand(roomId, { type: "rollAndMove" })).not.toThrow();
+    expect(reg.get(roomId)!.engine!.phase).toBe("Playing");
+    void hostToken;
+  });
+});
+
 describe("RoomRegistry · 鉴权(validateSeat)", () => {
   it("正确 token → true;错误/空/越界/不存在 → false", () => {
     const { reg, roomId, hostToken } = setupStartedRoom({ seats: 3, bot: [2] });
