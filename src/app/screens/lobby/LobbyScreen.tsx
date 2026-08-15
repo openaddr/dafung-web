@@ -6,7 +6,7 @@
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
 import { useEffect, useState } from "react";
 import { isCustomId } from "@core/map-source";
-import { getMapSource } from "@render/map-sources";
+import { getMapSource } from "@app/map-sources";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import type { OnlineController } from "@app/controllers/online";

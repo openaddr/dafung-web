@@ -10,7 +10,7 @@ import { createDice } from "@core/dice";
 import { GameEngine } from "@core/game";
 import type { GameCommand } from "@core/types";
 import { loadMapById } from "@core/map-source";
-import { FetchMapSource } from "@render/map-sources";
+import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";

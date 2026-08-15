@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import type { MapData } from "@core/types";
 import { formatMoney } from "@core/money";
-import { getMapSource } from "@render/map-sources";
+import { getMapSource } from "@app/map-sources";
 import { TID } from "./testids";
 
 export interface MapSelectPanelProps {

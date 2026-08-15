@@ -10,7 +10,7 @@ import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
-import { getMapSource } from "@render/map-sources";
+import { getMapSource } from "@app/map-sources";
 import { MapSelectPanel } from "./MapSelectPanel";
 import { TID } from "./testids";
 

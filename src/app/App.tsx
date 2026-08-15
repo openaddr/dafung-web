@@ -6,7 +6,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { loadMapById } from "@core/map-source";
 import type { MapData } from "@core/types";
-import { FetchMapSource, getDefaultMapId, getMapSource } from "@render/map-sources";
+import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";

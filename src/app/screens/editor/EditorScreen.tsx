@@ -19,7 +19,7 @@ import { loadMap } from "@core/board-loader";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
 import { formatMoney } from "@core/money";
-import { getMapSource } from "@render/map-sources";
+import { getMapSource } from "@app/map-sources";
 import { BoardView } from "@app/components/board/BoardView";
 import { TID } from "./testids";
 
