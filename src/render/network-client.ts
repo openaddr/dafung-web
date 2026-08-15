@@ -20,7 +20,7 @@ import { createBoardSvg } from "./board";
 import { createAnimator } from "./animate";
 import { getMapSource } from "./map-sources";
 import { loadMapById } from "@core/map-source";
-import { LobbyController, type LobbyState } from "./lobby";
+import { LobbyController, type LobbyState, type LobbySeatMeta } from "./lobby";
 
 type Snapshot = ReturnType<GameEngine["snapshot"]>;
 type ServerMsg =
@@ -41,6 +41,8 @@ export class NetworkClient extends ClientController {
   private seatToken: string | null = null;
   private lobby: LobbyController | null = null;
   private connectOverlay: HTMLElement | null = null;
+  /** 最新座位元数据(来自 lobby/snapshot 广播;托管态从这里读)。 */
+  private latestSeats: LobbySeatMeta[] = [];
   /** 诊断环形缓冲(可观测性基建):最近 20 条服务器消息摘要 + 关键本地转移。
    *  手机端无 devtools,经 window.__dafung.debug() 导出。 */
   private debugLog: string[] = [];
@@ -131,7 +133,23 @@ export class NetworkClient extends ClientController {
     return this.seat;
   }
   get interactive(): boolean {
-    return this.isMyDecision() && !this.busy;
+    return this.isMyDecision() && !this.busy && !this.autopilotOn; // 托管中不响应本地操作(服务器代打)
+  }
+
+  // ─── 托管(spec: autopilot):发 WS 消息,状态从广播回读 ───
+  protected override get autopilotSupported(): boolean {
+    return true;
+  }
+  protected override get autopilotOn(): boolean {
+    return this.latestSeats?.[this.seat]?.autoPilot ?? false;
+  }
+  protected override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify({ type: "autoPilot", on, speed }));
+      this.note(`autopilot ${on ? "on" : "off"} ${speed}`);
+    } else {
+      this.flashHint("连接未就绪");
+    }
   }
 
   /** 联机动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
@@ -281,6 +299,7 @@ export class NetworkClient extends ClientController {
     this.note(this.summarize(msg));
     if (msg.type === "lobby") {
       const { type: _msgType, ...state } = msg;
+      this.latestSeats = msg.seats;
       this.lobby?.update(state);
       // 换图单一路径:任何端(host/非 host)都由 lobby 广播驱动重建,无乐观更新。
       // rebuildForMap 自带同图守卫;本地已渲染同图时不重复 fetch。
@@ -289,6 +308,7 @@ export class NetworkClient extends ClientController {
     }
     if (msg.type === "snapshot") {
       // 房间字段(seatCount/started/mapId)已随消息携带(协议补字段),无需从 seats 推断手抄。
+      this.latestSeats = msg.seats;
       this.lobby?.destroy();
       this.lobby = null;
       this.engine.restoreFromSnapshot(msg as unknown as Snapshot);
@@ -313,10 +333,15 @@ export class NetworkClient extends ClientController {
     return this.engine.phase === "Playing" && this.engine.decisionOwner === this.seat && !(this.engine.players[this.seat]?.isBot ?? true);
   }
 
-  /** 收到 snapshot 后:若是我的决策相位,弹对应卷轴;否则隐藏 + 提示等待。 */
+  /** 收到 snapshot 后:若是我的决策相位,弹对应卷轴;否则隐藏 + 提示等待。
+   *  托管中即使轮到我也不弹(服务器 bot 代打,本地只旁观)。 */
   private refreshDecision() {
     const e = this.engine;
     if (e.phase === "GameOver") return this.showVictory();
+    if (this.autopilotOn) {
+      this.hideOverlay();
+      return;
+    }
     // 非我的决策:关卷轴(避免覆盖),提示谁的回合
     if (!this.isMyDecision()) {
       this.hideOverlay();

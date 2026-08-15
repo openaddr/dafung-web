@@ -315,6 +315,30 @@ select,
   padding: 10px 6px;
 }
 
+/* ── 托管控件行(spec: autopilot):托管/收回按钮 + 快慢切换 + 状态 ── */
+.autopilot-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+  margin-top: 6px;
+}
+.autopilot-row .btn {
+  padding: 3px 12px;
+  font-size: 13px;
+}
+#autopilot-speed {
+  width: auto;
+  padding: 2px 6px;
+  font-size: 12px;
+}
+.autopilot-status {
+  font-size: 12px;
+  color: var(--ink-dim, #9c6b3f);
+  font-family: var(--font-deco, serif);
+}
+
 /* ── 侧栏 4 区(P1 玩家为主重构):状态 / 动作 / 手牌 / 流 ── */
 /* 回合状态条 */
 .status-zone .status-bar { min-height: 24px; }

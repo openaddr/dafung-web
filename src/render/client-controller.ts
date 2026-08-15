@@ -58,6 +58,27 @@ export abstract class ClientController {
   protected flashHintTimer: ReturnType<typeof setTimeout> | null = null;
   protected audioMuted = false;
 
+  // ─── 托管 UI(spec: autopilot;单机/联机共用形态)──
+  protected autopilotRow: HTMLElement | null = null;
+  protected autopilotBtn: HTMLButtonElement | null = null;
+  protected autopilotSpeedSel: HTMLSelectElement | null = null;
+  protected autopilotStatusEl: HTMLElement | null = null;
+  protected autopilotSpeed: "fast" | "slow" = "fast";
+
+  /** 是否支持托管:联机=true;单机由本地驱动实现覆写。 */
+  protected get autopilotSupported(): boolean {
+    return false;
+  }
+  /** 我的座位当前是否托管中(子类覆写:联机读最新 seats 广播;单机读本地开关)。 */
+  protected get autopilotOn(): boolean {
+    return false;
+  }
+  /** 切换托管(子类覆写:联机发 WS 消息;单机本地驱动)。 */
+  protected setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
+    void on;
+    void speed;
+  }
+
   // ─── 抽象成员(子类提供)──
   /** 渲染源:热座=权威引擎,联机=快照重 hydrate 的只读引擎。 */
   abstract engine: GameEngine;
@@ -96,6 +117,51 @@ export abstract class ClientController {
     this.animator = createAnimator(boardWrap, this.boardView.root, map.board, this.boardView, this.threeDice, this.audio);
 
     this.bindEvents();
+    this.setupAutopilotUi();
+  }
+
+  /** 托管控件:侧栏动作区下方一行(托管/收回按钮 + 快慢切换 + 状态)。
+   *  随 fullRender 刷新可见性与文案;不支持的模式(默认)整行隐藏。
+   *  初始 display:none——构造期子类字段尚未初始化,不调 renderAutopilot。 */
+  private setupAutopilotUi(): void {
+    const row = el("div", { class: "autopilot-row", style: "display:none;" });
+    const btn = el("button", { class: "btn", id: "autopilot-btn" }, ["托管"]) as HTMLButtonElement;
+    btn.addEventListener("click", () => {
+      this.setAutoPilot(!this.autopilotOn, this.autopilotSpeed);
+      this.renderAutopilot();
+    });
+    const sel = el("select", { id: "autopilot-speed", class: "input", title: "托管速度" }, [
+      el("option", { value: "fast" }, ["快速"]),
+      el("option", { value: "slow" }, ["慢速"]),
+    ]) as HTMLSelectElement;
+    sel.addEventListener("change", () => {
+      this.autopilotSpeed = sel.value as "fast" | "slow";
+      if (this.autopilotOn) this.setAutoPilot(true, this.autopilotSpeed); // 托管中切速:立即生效
+      this.renderAutopilot();
+    });
+    const status = el("span", { class: "autopilot-status", id: "autopilot-status" }, []);
+    row.appendChild(btn);
+    row.appendChild(sel);
+    row.appendChild(status);
+    this.refs.actionZone.appendChild(row);
+    this.autopilotRow = row;
+    this.autopilotBtn = btn;
+    this.autopilotSpeedSel = sel;
+    this.autopilotStatusEl = status;
+  }
+
+  /** 刷新托管控件态(可见性/按钮文案/状态文字)。fullRender 每帧调。 */
+  protected renderAutopilot(): void {
+    const row = this.autopilotRow;
+    if (!row || !this.autopilotBtn) return;
+    const inGame = this.engine?.phase === "Playing";
+    row.style.display = this.autopilotSupported && inGame ? "" : "none";
+    const on = this.autopilotOn;
+    this.autopilotBtn.textContent = on ? "收回托管" : "托管";
+    this.autopilotBtn.classList.toggle("btn-primary", !on); // 托管中弱化主按钮
+    if (this.autopilotStatusEl) {
+      this.autopilotStatusEl.textContent = on ? `电脑代打中·${this.autopilotSpeed === "fast" ? "快" : "慢"}` : "";
+    }
   }
 
   // ─────────────────────── 全量渲染 ───────────────────────
@@ -123,6 +189,7 @@ export abstract class ClientController {
     this.refs.rollBtn.classList.toggle("breathe", canRoll);
 
     renderWarlog(e, this.refs.warlogList, this.warlogMode, this.warlogState);
+    this.renderAutopilot();
   }
 
   // ─────────────────────── 事件绑定(模板方法:调抽象 onRoll/onTileClick/dispatchAction)───────────────────────
