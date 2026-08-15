@@ -1,7 +1,7 @@
-// 热座控制器(原 App):本地多人轮流操作。引擎权威,动画编排 + AI 调度都在这。
+// 单机控制器(原 App):1 真人对阵电脑。引擎权威,动画编排 + AI 调度都在这。
 // 共享 scaffold/fullRender/bindEvents/openScroll/showHeroPickScroll/showTreasureOwnerScroll/
 // showBankruptcyScroll/showHandDetail/showTileDetail/flashHint/destroy 在 ClientController 基类
-// (ADR-0006)。本子类提供四个抽象成员 + 热座特有的开局定序选都、回合动画、AI 调度、卷轴处理。
+// (ADR-0006)。本子类提供四个抽象成员 + 单机特有的开局定序选都、回合动画、AI 调度、卷轴处理。
 import type { LoadedMap } from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { createDice } from "@core/dice";
@@ -58,7 +58,7 @@ export class App extends ClientController {
     return e.phase === "Playing" && !e.activePlayer.isBot && !this.busy;
   }
 
-  /** 热座动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
+  /** 单机动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
    *  command 映射到逐动作处理器(改引擎 + 动画 + 推进回合);UI 跳步只重弹卷轴。
    *  返回 Promise<void> 是 OK 的:基类抽象签名是 :void,TS 允许 Promise<void> 覆写 void
    *  (callback-style 放宽);bindEvents 里用 `void this.dispatchAction(...)` fire-and-forget。 */

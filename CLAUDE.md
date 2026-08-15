@@ -1,7 +1,7 @@
 # dafung-web — 群雄逐鹿(三国大富翁)
 
 ## 项目概况
-TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地热座模式**(单设备多人轮流操作),**终局目标是联机模式**(每人一台设备,WebSocket 同步)。
+TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。两种对局形态:**单机模式**(1 真人对阵电脑)与**联机模式**(每人一台设备,WebSocket 同步)。早期为本地热座(单设备多真人轮流),已移除。
 
 **项目性质(影响所有设计决策)**:个人项目,朋友圈子自用。**不考虑任何向前/向后兼容性**——不需要担心用户升级、旧版本数据迁移、API 兼容。只要当前版本能跑就行,需要重构就直接改。分析问题时不要把"兼容性""迁移"当作理由,除非用户明确要求。
 
@@ -23,9 +23,9 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 - ❌ `player.cash -= 200`(UI 层直接改引擎内部状态)
 - 这保证将来服务器可以审计/序列化每一次操作
 
-### 4. state.ts 是热座专用层,将来会重写
-- `src/render/state.ts` 的 `App` 类假设"活跃玩家就在这个屏幕前"
-- 将来联机时,这个文件会拆成 `network-client.ts`(发命令/收快照)+ 保留的本地渲染逻辑
+### 4. state.ts 是单机专用层
+- `src/render/state.ts` 的 `App` 类服务单机模式(恰 1 真人 + 电脑):假设"活跃人类玩家就在这个屏幕前"
+- 联机走 `network-client.ts`(发命令/收快照);两者共享 `client-controller.ts` 基类
 - **不要在 state.ts 里加新的引擎假设**;如果需要引擎做新事,先在引擎加方法,state.ts 只调用
 
 ### 5. 序列化友好
@@ -51,7 +51,7 @@ TypeScript + Vite 的纯 DOM/SVG 三国主题大富翁桌游。当前为**本地
 | `src/core/treasures.ts` | 珍宝数据表 + 牌堆(数据驱动,新增珍宝只改此文件) |
 | `src/core/constants.ts` | 全局共享常量(委任状/都城补偿/签面等) |
 | `src/core/theme.ts` | 配色 Theme 对象(SVG/Canvas 用)。**hex 字面量须与 `src/render/style.css` :root 人工同步**——core 零 DOM,不能编译期校验 |
-| `src/render/state.ts` | App 控制器(热座专用,将来重写) |
+| `src/render/state.ts` | App 控制器(单机专用:1 真人 + 电脑) |
 | `src/render/board.ts` | SVG 棋盘渲染 + 缩放平移 |
 | `src/render/ui.ts` | 布局/侧栏/弹窗/设置屏 |
 | `src/render/animate.ts` | 骰子/行军/横幅/浮动金额/印章动画 |
