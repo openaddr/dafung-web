@@ -3,16 +3,19 @@
 // 联机流程(阶段 8):SetupScreen.onOnline 或 ?online=1 → 占位图 + OnlineController
 // → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { loadMapById } from "@core/map-source";
+import type { MapData } from "@core/types";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@render/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
-import { setController } from "@app/controllers/registry";import { useGameStore } from "@app/store/gameStore";
+import { setController } from "@app/controllers/registry";
+import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { GameScreen } from "@app/screens/game/GameScreen";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { SetupScreen, type SetupConfig } from "@app/screens/setup/SetupScreen";
+import { EditorScreen } from "@app/screens/editor/EditorScreen";
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
 const MAP_PREF_KEY = "dafung.mapId";
@@ -109,8 +112,61 @@ export function App() {
     setScreen("setup");
   }, [setScreen]);
 
-  // 编辑器屏迁移前暂不可用:按钮隐藏(旧入口语义保留在 SetupScreen.onEdit)。
-  const handleEdit = useCallback(() => pushHint("地图编辑器迁移中,暂未开放"), [pushHint]);
+  // ── 编辑器(阶段 9):SetupScreen「编辑地图」→ EditorScreen。
+  // 起编地图:旧实现忽略传入 id 固定加载默认图,此处从选中图起编更直观(行为增强,注释存档)。
+  const [editorMap, setEditorMap] = useState<MapData | null>(null);
+  const handleEdit = useCallback(
+    async (mapId?: string) => {
+      try {
+        const source = new FetchMapSource();
+        const id = mapId ?? (await getDefaultMapId());
+        setEditorMap(await source.loadMapData(id));
+        setScreen("editor");
+      } catch (err) {
+        pushHint(`进入编辑器失败:${(err as Error).message}`);
+      }
+    },
+    [pushHint, setScreen],
+  );
+
+  // 保存:写入自建图库(localStorage 渠道,与旧编辑器一致);另存新图由 EditorScreen 自理
+  const handleEditorSave = useCallback(
+    (data: MapData) => {
+      // MapData 无名字段,用首格名兜底命名(图库列表展示用,允许重名)
+      getMapSource().saveCustomMap(data.tiles[0]?.name ?? "未命名地图", data);
+      pushHint("已存入自建图库");
+    },
+    [pushHint],
+  );
+
+  // 试玩:直接以编辑中的数据开局(不经图库,对照旧「试玩」语义)
+  const handleEditorStart = useCallback(
+    async (data: MapData) => {
+      try {
+        const { loadMap } = await import("@core/board-loader");
+        const map = loadMap(data);
+        const controller = new LocalController(map, {
+          seats: [
+            { name: "玩家一", isBot: false, guohao: "魏" },
+            { name: "bot二", isBot: true },
+            { name: "bot三", isBot: true },
+            { name: "bot四", isBot: true },
+          ],
+          seed: urlSeed(),
+        });
+        setController(controller, data);
+        const e = controller.engine;
+        e.doDraftRoll();
+        while (e.aiSetupStep()) { /* bot 选都步进 */ }
+        useGameStore.getState().syncFromEngine(e);
+        setScreen("game");
+        controller.onEnterGame();
+      } catch (err) {
+        pushHint(`试玩开局失败:${(err as Error).message}`);
+      }
+    },
+    [pushHint, setScreen],
+  );
 
   const handleMapChange = useCallback((mapId: string) => {
     try {
@@ -130,6 +186,16 @@ export function App() {
 
   if (screen === "game") return <GameScreen />;
   if (screen === "lobby") return <LobbyScreen onExit={handleExitLobby} />;
+  if (screen === "editor" && editorMap) {
+    return (
+      <EditorScreen
+        initialMap={editorMap}
+        onSave={handleEditorSave}
+        onExit={() => setScreen("setup")}
+        onStart={(data) => void handleEditorStart(data)}
+      />
+    );
+  }
   return (
     <SetupScreen
       onStart={handleStart}

@@ -32,8 +32,8 @@ export function setEngine(engine: GameEngine | null): void {
 
 // ──────────────────────────── store 定义 ────────────────────────────
 
-/** 应用当前屏(lobby = 联机大厅,阶段 8;后续可加 victory/editor)。 */
-export type Screen = "setup" | "lobby" | "game";
+/** 应用当前屏(lobby = 联机大厅;editor = 地图编辑器)。 */
+export type Screen = "setup" | "lobby" | "game" | "editor";
 
 export interface GameStoreState {
   // ── 引擎数据(快照;null = 尚未开局)──
