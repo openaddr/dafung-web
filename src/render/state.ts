@@ -55,7 +55,46 @@ export class App extends ClientController {
   }
   get interactive(): boolean {
     const e = this.engine;
-    return e.phase === "Playing" && !e.activePlayer.isBot && !this.busy;
+    return e.phase === "Playing" && !e.activePlayer.isBot && !this.busy && !this.apOn; // 托管中不响应本地操作
+  }
+
+  // ─── 托管(spec: autopilot 03):本地驱动,bot 代打人类决策 ───
+  private apOn = false;
+  protected override get autopilotSupported(): boolean {
+    return true;
+  }
+  protected override get autopilotOn(): boolean {
+    return this.apOn;
+  }
+  protected override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
+    this.apOn = on;
+    this.autopilotSpeed = speed;
+    this.renderAutopilot();
+    if (!on || this.busy || this.engine.phase !== "Playing") return;
+    // 正等待人类输入时开托管:立即接管
+    this.hideOverlay();
+    const e = this.engine;
+    if (e.turnPhase === "Roll" && !e.activePlayer.isBot) void this.botFlow();
+    else if (e.decisionOwner >= 0 && !e.players[e.decisionOwner].isBot) void this.autoResolve();
+  }
+
+  /** 托管代打一个非 Roll 决策点(珍宝交涉/招贤/破产等)。 */
+  private async autoResolve(): Promise<void> {
+    this.busy = true;
+    await this.runBotResolve();
+  }
+
+  /** bot 步进节奏:托管快速 = 0 延迟(瞬间决策);慢速与真 bot 复用既有节奏。 */
+  private async apPace(): Promise<void> {
+    if (this.apOn && this.autopilotSpeed === "fast") return;
+    await botDelay();
+  }
+
+  /** 该决策点是否由电脑代打(真 bot,或托管中的人类)。 */
+  private botDriven(): boolean {
+    const e = this.engine;
+    const p = e.players[e.decisionOwner];
+    return p?.isBot || (this.apOn && p != null && !p.isBot);
   }
 
   /** 单机动作分发:parseAction 统一解析(ADR-0006:解析共用,执行差异化)→
@@ -90,7 +129,7 @@ export class App extends ClientController {
 
   onRoll() {
     const e = this.engine;
-    if (this.busy || e.phase !== "Playing" || e.activePlayer.isBot) return;
+    if (this.busy || this.apOn || e.phase !== "Playing" || e.activePlayer.isBot) return;
     // P2: AwaitingBranch 改由侧栏内嵌"走大路/入辅路",行军按钮只管 Roll
     if (e.turnPhase !== "Roll") return;
     void this.doRoll();
@@ -171,7 +210,7 @@ export class App extends ClientController {
     this.hideHint();
     this.fullRender();
     this.animator.showTurnBanner(this.engine.activePlayer.guohao, this.engine.activePlayer.colorIndex);
-    if (this.engine.activePlayer.isBot) this.scheduleBot();
+    if (this.engine.activePlayer.isBot || this.apOn) this.scheduleBot();
   }
 
   // ─────────────────────── 回合:抽签 ───────────────────────
@@ -191,8 +230,8 @@ export class App extends ClientController {
 
     if (e.turnPhase === "AwaitingCapitalHalt") {
       // 驻跸抉择:令牌未动。P2:人类改侧栏内嵌(按钮由 renderActionInline 渲染)
-      if (e.activePlayer.isBot) {
-        await botDelay();
+      if (e.activePlayer.isBot || this.apOn) {
+        await this.apPace();
         botAct(e); // haltAtCapital / continueMove
         await this.animator.animateMove(e, moverId);
         this.animator.spawnFloaters(e);
@@ -214,8 +253,8 @@ export class App extends ClientController {
     const e = this.engine;
     if (e.turnPhase === "AwaitingBranch") {
       // 落到辅路起点:bot 直接决策;人类改侧栏内嵌(P2)
-      if (e.activePlayer.isBot) {
-        await botDelay();
+      if (this.botDriven()) {
+        await this.apPace();
         botAct(e); // AwaitingBranch → selectBranch(Main|Branch)
         this.animator.spawnFloaters(e);
         this.fullRender();
@@ -227,28 +266,27 @@ export class App extends ClientController {
       return;
     }
     if (e.turnPhase === "AwaitingDecision") {
-      if (e.activePlayer.isBot) return this.runBotResolve();
+      if (this.botDriven()) return this.runBotResolve();
       // P2: 买/扩军/跳过改侧栏内嵌(由 renderActionInline 渲染)
       this.busy = false;
       this.fullRender();
       return;
     }
     if (e.turnPhase === "AwaitingHeroPick") {
-      if (e.activePlayer.isBot) return this.runBotResolve();
+      if (this.botDriven()) return this.runBotResolve();
       this.showHeroPickScroll();
       this.busy = false;
       return;
     }
     if (e.turnPhase === "AwaitingTreasureOwner") {
       // 城主抉择(公道买卖/坐地起价/跳过);城主可能是 bot 或人类。归属统一走 engine.decisionOwner。
-      const owner = e.players[e.decisionOwner];
-      if (owner.isBot) return this.runBotResolve();
+      if (this.botDriven()) return this.runBotResolve();
       this.showTreasureOwnerScroll();
       this.busy = false;
       return;
     }
     if (e.turnPhase === "AwaitingBankruptcySettle") {
-      if (e.activePlayer.isBot) return this.runBotResolve();
+      if (this.botDriven()) return this.runBotResolve();
       this.showBankruptcyScroll();
       this.busy = false;
       return;
@@ -261,7 +299,7 @@ export class App extends ClientController {
   /** bot 抉择通用流程:延迟 → botAct → 浮动金额 → 渲染 → 推进回合(isOver 由 onTurnAdvanced 统一拦截)。 */
   private async runBotResolve(): Promise<void> {
     const e = this.engine;
-    await botDelay();
+    await this.apPace();
     botAct(e);
     this.animator.spawnFloaters(e);
     this.fullRender();
@@ -278,11 +316,11 @@ export class App extends ClientController {
   private onTurnAdvanced() {
     const e = this.engine;
     if (e.isOver) return this.showVictory();
-    // 人类回合:先释放 busy 再渲染
-    if (!e.activePlayer.isBot) this.busy = false;
+    // 人类回合:先释放 busy 再渲染(托管中保持 busy,由 botFlow 接管)
+    if (!e.activePlayer.isBot && !this.apOn) this.busy = false;
     this.fullRender();
     this.animator.showTurnBanner(e.activePlayer.guohao, e.activePlayer.colorIndex);
-    if (e.activePlayer.isBot) {
+    if (e.activePlayer.isBot || this.apOn) {
       this.scheduleBot();
     }
   }
@@ -342,6 +380,8 @@ export class App extends ClientController {
 
   // ─────────────────────── AI 调度 ───────────────────────
   private scheduleBot() {
+    // 托管快速:瞬间决策(不停顿);慢速与真 bot 用 800ms 思考停顿
+    if (this.apOn && this.autopilotSpeed === "fast") return void this.botFlow();
     this.setThinking(true);
     setTimeout(() => {
       this.setThinking(false);
