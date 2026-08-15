@@ -7,7 +7,6 @@ import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import { el, clear } from "./dom";
 import { assetImg, treasureAssetImg } from "./assets";
-import { IS_DEV } from "../version";
 import { createBoardSvg } from "./board";
 import type { MapEntry, MapSource } from "@core/map-source";
 import { loadMapById } from "@core/map-source";
@@ -429,24 +428,17 @@ export function createSetupScreen(
   const screen = el("div", { class: "setup-screen" });
   const card = el("div", { class: "setup-card" });
 
-  // DEV 模式:诸侯数 / 目标身价 / 起始现金 自由输入;PROD:下拉受限(身价三档、现金固定 2500)
-  const seatCountEl: HTMLElement = IS_DEV
-    ? el("input", { id: "seat-count", type: "number", value: "4", min: "1", max: "30", step: "1", style: "width:5em" })
-    : el("select", { id: "seat-count" }, [
-        el("option", { value: "2" }, ["2 诸侯"]),
-        el("option", { value: "3" }, ["3 诸侯"]),
-        el("option", { value: "4", selected: true }, ["4 诸侯"]),
-      ]);
-  const targetEl: HTMLElement = IS_DEV
-    ? el("input", { id: "target", type: "number", value: "8000", min: "500", step: "100", style: "width:6em" })
-    : el("select", { id: "target" }, [
-        el("option", { value: "5000" }, [`速战 ${formatMoney(5000)}`]),
-        el("option", { value: "8000", selected: true }, [`标准 ${formatMoney(8000)}`]),
-        el("option", { value: "12000" }, [`鏖战 ${formatMoney(12000)}`]),
-      ]);
-  const cashEl: HTMLElement | null = IS_DEV
-    ? el("input", { id: "start-cash", type: "number", value: "2500", min: "0", step: "100", style: "width:6em" })
-    : null;
+  // 诸侯数 / 目标身价:受限下拉(单机模式 = 1 真人 + 其余电脑;spec: solo-mode)
+  const seatCountEl: HTMLElement = el("select", { id: "seat-count" }, [
+    el("option", { value: "2" }, ["2 诸侯"]),
+    el("option", { value: "3" }, ["3 诸侯"]),
+    el("option", { value: "4", selected: true }, ["4 诸侯"]),
+  ]);
+  const targetEl: HTMLElement = el("select", { id: "target" }, [
+    el("option", { value: "5000" }, [`速战 ${formatMoney(5000)}`]),
+    el("option", { value: "8000", selected: true }, [`标准 ${formatMoney(8000)}`]),
+    el("option", { value: "12000" }, [`鏖战 ${formatMoney(12000)}`]),
+  ]);
 
   const diffSel = el("select", { id: "difficulty" }, [
     el("option", { value: "Normal", selected: true }, ["智将(EV)"]),
@@ -457,39 +449,32 @@ export function createSetupScreen(
   let focusedSeat = 0;
   const DEFAULT_GUOHAO = ["魏", "蜀", "吴", "燕"];
 
+  /** 重建座位表(单机模式:首行 = 你,其余行锁电脑,与联机大厅同构)。 */
   function rebuildSeats() {
     clear(seatsBox);
-    const n = Math.max(1, Math.min(30, parseInt((seatCountEl as HTMLInputElement).value, 10) || 4));
-    focusedSeat = Math.min(focusedSeat, n - 1);
+    const n = Math.max(2, Math.min(4, parseInt((seatCountEl as HTMLInputElement).value, 10) || 4));
+    focusedSeat = Math.min(focusedSeat, 0); // 唯一可编辑行是首行
     seatsBox.appendChild(
       el("div", { class: "seat-row", style: "font-family:var(--font-deco);color:var(--ink-dim);border-bottom:2px solid rgba(140,110,60,0.4);" }, [
         el("span", {}, [""]),
         el("span", {}, ["国号"]),
         el("span", {}, ["类型"]),
-        el("span", {}, [""]),
+        el("span", {}, []),
       ]),
     );
     for (let i = 0; i < n; i++) {
-      const isBot = i >= 1 && i >= n - Math.ceil(n / 2); // 后半默认电脑
+      const isBot = i >= 1; // 单机:仅首行为真人,其余全部电脑
       const color = rgba(playerColor(i));
       const input = el("input", { type: "text", maxlength: "1", "data-seat": String(i), placeholder: "？" }) as HTMLInputElement;
       input.disabled = isBot;
       input.value = isBot ? "机" : DEFAULT_GUOHAO[i] ?? "";
       input.addEventListener("focus", () => (focusedSeat = i));
-      const sel = el("select", { "data-seat": String(i) }, [
-        el("option", { value: "human", selected: !isBot }, ["人类"]),
-        el("option", { value: "bot", selected: isBot }, ["电脑"]),
-      ]) as HTMLSelectElement;
-      sel.addEventListener("change", () => {
-        const bot = sel.value === "bot";
-        input.disabled = bot;
-        input.value = bot ? "机" : DEFAULT_GUOHAO[i] ?? "";
-      });
+      const typeSpan = el("span", { style: "color:var(--ink-dim);font-family:var(--font-deco);" }, [isBot ? "电脑" : "你"]);
       seatsBox.appendChild(
         el("div", { class: "seat-row" }, [
           el("span", { class: "pc-guohao", style: `background:${color};width:26px;height:26px;font-size:18px;` }, [String(i + 1)]),
           input,
-          sel,
+          typeSpan,
           el("span", {}, []),
         ]),
       );
@@ -548,12 +533,11 @@ export function createSetupScreen(
   card.appendChild(
     el(
       "div",
-      { class: "seat-row", style: IS_DEV ? "grid-template-columns:1fr 1fr 1fr 1fr;" : "grid-template-columns:1fr 1fr 1fr;" },
+      { class: "seat-row", style: "grid-template-columns:1fr 1fr 1fr;" },
       [
         el("label", {}, ["诸侯数 ", seatCountEl]),
         el("label", {}, ["目标身价 ", targetEl]),
         el("label", {}, ["AI 难度 ", diffSel]),
-        ...(cashEl ? [el("label", {}, ["起始现金 ", cashEl])] : []),
       ],
     ),
   );
@@ -579,40 +563,24 @@ export function createSetupScreen(
   card.appendChild(hint);
 
   startBtn.addEventListener("click", () => {
-    const n = Math.max(1, Math.min(30, parseInt((seatCountEl as HTMLInputElement).value, 10) || 4));
+    const n = Math.max(2, Math.min(4, parseInt((seatCountEl as HTMLInputElement).value, 10) || 4));
     const seats: SeatConfig[] = [];
-    const used = new Set<string>();
-    for (let i = 0; i < n; i++) {
-      const input = seatsBox.querySelector(`input[data-seat="${i}"]`) as HTMLInputElement;
-      const sel = seatsBox.querySelector(`select[data-seat="${i}"]`) as HTMLSelectElement;
-      const isBot = sel.value === "bot";
-      let guohao = input.value.trim();
-      if (!isBot) {
-        if (!isSingleCjk(guohao)) {
-          hint.textContent = `诸侯 ${i + 1} 的国号需为单个汉字。`;
-          return;
-        }
-        if (used.has(guohao)) {
-          hint.textContent = `国号「${guohao}」已被其他诸侯使用。`;
-          return;
-        }
-        used.add(guohao);
-      } else {
-        guohao = ""; // bot 由引擎分配
-      }
-      seats.push({ name: `诸侯${i + 1}`, isBot, guohao: isBot ? undefined : guohao });
-    }
-    const humans = seats.filter((s) => !s.isBot).length;
-    if (humans === 0 && !IS_DEV) {
-      hint.textContent = "至少需要一位人类诸侯。";
+    // 单机:首行 = 你(校验国号),其余电脑(国号引擎分配)
+    const input = seatsBox.querySelector(`input[data-seat="0"]`) as HTMLInputElement;
+    const guohao = input.value.trim();
+    if (!isSingleCjk(guohao)) {
+      hint.textContent = "你的国号需为单个汉字。";
       return;
     }
+    seats.push({ name: "诸侯1", isBot: false, guohao });
+    for (let i = 1; i < n; i++) {
+      seats.push({ name: `诸侯${i + 1}`, isBot: true }); // bot 国号由引擎分配
+    }
     const tnw = parseInt((targetEl as HTMLInputElement).value, 10);
-    const cash = cashEl ? parseInt((cashEl as HTMLInputElement).value, 10) : 2500;
     onStart({
       seats,
       targetNetWorth: Number.isFinite(tnw) ? tnw : 8000,
-      startingCash: Number.isFinite(cash) ? cash : 2500,
+      startingCash: 2500,
       difficulty: diffSel.value as "Simple" | "Normal",
       mapId: selectedMapId,
     });
