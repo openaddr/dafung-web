@@ -1,0 +1,39 @@
+// 侧栏·诸侯紧凑条(对照旧 renderOthers):国号徽记 + 银两 + 城数;活跃/破产/胜者高亮。
+import { rgba, playerColor } from "@core/theme";
+import { formatMoney } from "@core/money";
+import type { GameSnapshot } from "@app/store/gameStore";
+import { TESTIDS } from "./testids";
+
+export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
+  return (
+    <div data-testid={TESTIDS.othersPanel} className="px-3 py-1">
+      {snapshot.players.map((p, seat) => {
+        const isActive = snapshot.phase === "Playing" && seat === snapshot.activeIndex;
+        const isWinner = snapshot.isOver && snapshot.winner === p.id;
+        return (
+          <div
+            key={p.id}
+            data-testid={TESTIDS.otherPlayer(seat)}
+            style={{ ["--player-color" as string]: rgba(playerColor(p.colorIndex)) }}
+            className={[
+              "flex items-center gap-1.5 rounded px-1 py-0.5 text-xs",
+              isActive ? "bg-gold/25" : "",
+              p.isBankrupt ? "opacity-40 line-through" : "",
+              isWinner ? "text-gold" : "",
+            ].join(" ")}
+          >
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-(--player-color) font-brush text-white">
+              {p.guohao || "?"}
+            </span>
+            <span className="truncate">
+              {p.guohao || p.name}
+              {p.isBot ? " 智" : ""}
+            </span>
+            <span className="ml-auto shrink-0 text-money">{formatMoney(p.cash)}</span>
+            <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}

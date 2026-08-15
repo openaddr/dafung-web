@@ -1,0 +1,13 @@
+/* React 层样式入口(Tailwind v4)。
+   - tailwindcss:引擎 + preflight
+   - tokens.css:自动生成的主题 token(gen:theme),配色唯一源是 core/theme.ts
+   其余全局样式(宣纸底纹、字体应用等)在迁移期逐步从旧 style.css 演化过来。 */
+@import "tailwindcss";
+@import "./tokens.css";
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+}

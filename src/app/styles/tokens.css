@@ -1,0 +1,27 @@
+/* ⚠️ 自动生成,勿手改 — 来源 src/core/theme.ts,运行 `npm run gen:theme` 再生成 */
+@theme {
+  --color-bg: #e8dcc0;
+  --color-bg-deep: #d9c9a3;
+  --color-panel: #f2e8cf;
+  --color-panel-hi: #e0d3ac;
+  --color-ink: #2b2317;
+  --color-ink-dim: #6b5d40;
+  --color-gold: #c8a13a;
+  --color-gold-bright: #d4af37;
+  --color-money: #4a7a4a;
+  --color-danger: #b23a2e;
+  --color-road-main: #8a6a3f;
+  --color-road-side: #c47a2a;
+  --color-inkwash: #9c8a5e;
+  --color-group-a: #8a5a3a;
+  --color-group-b: #3a6a8a;
+  --color-group-c: #7a3a6a;
+  --color-group-d: #c47a2a;
+  --color-group-e: #5a8a4a;
+  --color-group-f: #9a3a2a;
+  --color-group-g: #2a6a8a;
+  --color-group-h: #2a8a7a;
+  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+  --font-body: "Noto Serif SC", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+  --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;
+}

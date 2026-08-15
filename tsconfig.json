@@ -18,10 +18,12 @@
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
     "types": ["node"],
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],
-      "@render/*": ["src/render/*"]
+      "@render/*": ["src/render/*"],
+      "@app/*": ["src/app/*"]
     }
   },
   "include": ["src", "test", "e2e", "*.config.ts"]

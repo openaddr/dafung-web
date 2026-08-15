@@ -1,0 +1,189 @@
+// 单机(热座)控制器:构造权威 GameEngine,命令统一走 engine.submitCommand,
+// 每次引擎变化后 sync() 灌 store(渲染交给 React 组件)。
+// 阶段 6:接入动画/音效编排(orchestrator.playStepEffects)——
+// 命令 → busy 锁交互 → 表现编排(骰子→行军→浮字→印章/横幅)→ bot 异步调度。
+import type { LoadedMap } from "@core/board-loader";
+import { createDice } from "@core/dice";
+import { GameEngine, type EngineConfig } from "@core/game";
+import { botAct } from "@core/bot";
+import type { GameCommand } from "@core/types";
+import { setEngine, useGameStore } from "@app/store/gameStore";
+import { getAudio } from "@app/fx/audio";
+import {
+  beginMarch,
+  maybeShowTurnBanner,
+  playStepEffects,
+  stampSeal,
+} from "@app/fx/orchestrator";
+import { BOT, delay } from "@app/fx/timings";
+import { GameController } from "./controller";
+
+export class LocalController extends GameController {
+  private readonly _engine: GameEngine;
+  /** 表现编排进行中(掷骰/行军/bot 思考):锁本地交互防连点(旧 busy 的新等价物)。 */
+  private busy = false;
+
+  constructor(map: LoadedMap, config: EngineConfig) {
+    super();
+    // 权威引擎:骰子种子可注入(?seed= 可复现);物理骰子动画用独立随机流(见 DiceOverlay 注释)。
+    this._engine = new GameEngine(map.board, map.catalog, createDice(config.seed), config);
+    // 注册为全局引擎(命令入口/调试钩子共用;模块级单例,见 gameStore.ts 注释)
+    setEngine(this._engine);
+    this.sync();
+  }
+
+  get engine(): GameEngine {
+    return this._engine;
+  }
+
+  // 热座:视角跟随当前活跃玩家(人类座位)。busy(动画中)/bot 回合时交互关闭。
+  get viewSeat(): number {
+    return this._engine.activeIndex;
+  }
+  get interactive(): boolean {
+    return (
+      this._engine.phase === "Playing" &&
+      !this._engine.players[this._engine.activeIndex].isBot &&
+      !this.busy
+    );
+  }
+
+  // ─── 命令入口 ───
+  // 单机同样统一走 submitCommand(与联机共用一条命令路径):日后加回放/调试记录时
+  // 只需在这一个出口拦截,不必逐方法打点。表现编排异步进行,期间 busy 锁交互。
+  dispatchCommand(cmd: GameCommand): void {
+    if (!this.interactive) return; // 非本地人类决策时忽略(引擎自身也有相位守卫,双保险)
+    void this.runStep(() => this._engine.submitCommand(cmd), commandLabelOf(cmd));
+  }
+
+  roll(): void {
+    this.dispatchCommand({ type: "rollAndMove" });
+  }
+
+  /** 进入 Game 屏后调用一次:若开局即轮到 bot(或 Setup 余下全是 bot),接棒驱动;
+   *  轮到人类则只弹首回合横幅。幂等(busy 期间不重复启动)。 */
+  onEnterGame(): void {
+    if (this.busy) return;
+    void (async () => {
+      if (this._engine.phase === "Setup" || (this._engine.phase === "Playing" && this._engine.players[this._engine.activeIndex].isBot)) {
+        this.busy = true;
+        try {
+          await this.runBots();
+        } finally {
+          this.busy = false;
+          this.sync();
+        }
+      }
+      maybeShowTurnBanner(this._engine);
+    })();
+  }
+
+  tileClick(index: number): void {
+    const e = this._engine;
+    // Setup 选都阶段:点击=为当前选都玩家定都;对局中点击=查看详情(只读,交 UI 层弹详情)。
+    if (e.phase === "Setup" && e.setupPhase === "PickCapital") {
+      const playerIndex = e.currentSetupPlayerIndex;
+      if (playerIndex >= 0 && !e.players[playerIndex].isBot) {
+        void this.runPickCapital(playerIndex, index);
+      }
+      return;
+    }
+    // 城池详情卷轴改由 React 组件订阅 store 弹出,此处无需推进引擎。
+    void index;
+  }
+
+  /** 一次引擎推进的完整链(人类命令与 bot 步骤共用骨架):
+   *  引擎推进(run 注入)→ 起点锚定(行军类)→ sync → 表现编排 → bot 接棒 → 回合横幅。
+   *  busy 链首置位/链尾释放,期间 interactive=false 防连点。 */
+  private async runStep(run: () => void, cmdType: string): Promise<void> {
+    const e = this._engine;
+    this.busy = true;
+    this.sync();
+    try {
+      const prevPhase = e.turnPhase;
+      const prePlayer = e.players[e.activeIndex];
+      const moverId = e.activePlayer.id;
+      run();
+      // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
+      if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
+        beginMarch(e, moverId);
+      }
+      this.sync();
+      await playStepEffects(e, prevPhase, moverId, prePlayer, cmdType);
+      this.sync();
+      await this.runBots();
+      maybeShowTurnBanner(e);
+    } finally {
+      this.busy = false;
+      this.sync();
+    }
+  }
+
+  /** 人类选都:引擎落子 + 印章"筑"反馈 + bot 余下选都/进局接棒。 */
+  private async runPickCapital(playerIndex: number, index: number): Promise<void> {
+    const e = this._engine;
+    this.busy = true;
+    this.sync();
+    try {
+      e.pickCapital(playerIndex, index);
+      stampSeal(e, index, "筑");
+      this.sync();
+      await this.runBots();
+      maybeShowTurnBanner(e);
+    } finally {
+      this.busy = false;
+      this.sync();
+    }
+  }
+
+  // ─── bot 调度(异步,播节奏)──
+  /** 推进 bot 行动直至轮到人类或对局结束。
+   *  对照旧 state.ts 的 scheduleBot/botFlow:每步前 thinking + delay(BOT.stepDelayMs),
+   *  每步后按推进前 turnPhase 做同款表现(掷骰动画/行军/浮字/印章),保证 bot 与人类
+   *  走完全一致的表现链(e2e 时序也因此可预期)。非 bot 回合立即返回。 */
+  private async runBots(): Promise<void> {
+    const e = this._engine;
+    const store = useGameStore.getState();
+
+    // 选都阶段的 bot 步进要先于 Playing 循环:人类选都后余下 bot 仍处 Setup,
+    // 若只在 Playing 循环体内驱动(aiSetupStep),Setup 期的 bot 会永远轮空卡死流程。
+    while (e.phase === "Setup" && e.aiSetupStep()) {
+      store.setThinking(true);
+      this.sync();
+      await delay(BOT.stepDelayMs);
+      store.setThinking(false);
+      this.sync();
+    }
+    store.setThinking(false);
+
+    let safety = 0;
+    while (e.phase === "Playing" && e.players[e.activeIndex].isBot && safety++ < 500) {
+      store.setThinking(true);
+      this.sync();
+      await delay(BOT.stepDelayMs);
+      const prevPhase = e.turnPhase;
+      const prePlayer = e.players[e.activeIndex];
+      const moverId = e.activePlayer.id;
+      botAct(e);
+      if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
+        beginMarch(e, moverId);
+      }
+      store.setThinking(false);
+      this.sync();
+      await playStepEffects(e, prevPhase, moverId, prePlayer);
+      this.sync();
+      maybeShowTurnBanner(e);
+    }
+    if (e.isOver) {
+      getAudio().play("victory");
+      this.sync();
+    }
+  }
+}
+
+/** 命令 → 表现层标签(交涉"跳过"需要与公道/坐地区分音效,其余同 cmd.type)。 */
+function commandLabelOf(cmd: GameCommand): string {
+  return cmd.type === "resolveTreasureOwner" && cmd.action.type === "skip"
+    ? "resolveTreasureOwner_skip"
+    : cmd.type;
+}
