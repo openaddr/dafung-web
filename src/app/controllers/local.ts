@@ -36,14 +36,18 @@ export class LocalController extends GameController {
     return this._engine;
   }
 
-  // 热座:视角跟随当前活跃玩家(人类座位)。busy(动画中)/bot 回合时交互关闭。
+  // 热座:视角跟随「当前该行动的人类」。默认=活跃玩家;珍宝交涉相位决策方是城主
+  // (decisionOwner,可能 ≠ 访客),视角与交互都得跟城主走,否则城主视角永远渲染不出
+  // 可点按钮 → 单机遇到该相位死锁(e2e react-editor 巡检发现)。
   get viewSeat(): number {
-    return this._engine.activeIndex;
+    const e = this._engine;
+    return e.turnPhase === "AwaitingTreasureOwner" ? e.decisionOwner : e.activeIndex;
   }
   get interactive(): boolean {
+    // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变
     return (
       this._engine.phase === "Playing" &&
-      !this._engine.players[this._engine.activeIndex].isBot &&
+      !this._engine.players[this._engine.decisionOwner].isBot &&
       !this.busy
     );
   }
@@ -65,7 +69,7 @@ export class LocalController extends GameController {
   onEnterGame(): void {
     if (this.busy) return;
     void (async () => {
-      if (this._engine.phase === "Setup" || (this._engine.phase === "Playing" && this._engine.players[this._engine.activeIndex].isBot)) {
+      if (this._engine.phase === "Setup" || (this._engine.phase === "Playing" && this._engine.players[this._engine.decisionOwner].isBot)) {
         this.busy = true;
         try {
           await this.runBots();
@@ -157,7 +161,10 @@ export class LocalController extends GameController {
     store.setThinking(false);
 
     let safety = 0;
-    while (e.phase === "Playing" && e.players[e.activeIndex].isBot && safety++ < 500) {
+    // 用 decisionOwner 驱动:珍宝交涉相位决策方是城主而非访客——访客是人类、城主是
+    // bot 时若只看 activeIndex,城主 bot 永远不被调度(死锁另一半,见 viewSeat 注释)。
+    // 非珍宝相位 decisionOwner === activeIndex,行为不变。botAct 内部按相位自行分发。
+    while (e.phase === "Playing" && e.players[e.decisionOwner].isBot && safety++ < 500) {
       store.setThinking(true);
       this.sync();
       await delay(BOT.stepDelayMs);

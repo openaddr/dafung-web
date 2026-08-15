@@ -280,3 +280,14 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 破产清算 | 同 Normal | 优先名士→低等级珍宝→城(排除都城),卖到够再确认 |
 
 AI 选都评分:都城补给性价比(`resupplyPerLevel × 8 / buildCost`)+ 随机扰动(Simple 扰动大)([`game.ts:269` `aiChooseCapital`](src/core/game.ts))。
+
+---
+
+## 13. UI 层约定(React,`src/app/`)
+
+> 本节镜像 React 渲染层的实现约定(旧 `src/render/` 已删除)。规则细节以 `src/app/` 代码为权威。
+
+- **分层**:`store/`(zustand:gameStore 存引擎 snapshot + UI 态,netStore 存联机房间态)← `controllers/`(GameController 基类做"状态桥":local.ts 单机持权威引擎 / online.ts 联机持只读引擎 + WS)→ `screens/`(setup / lobby / game / editor 四屏)+ `components/board/`(SVG 棋盘)+ `fx/`(骰子/行军/浮字/横幅/印章/音效)。
+- **snapshot 驱动**:组件只订阅 store 声明式重渲;engine/controller 是带方法的实例,不进 zustand(模块级单例,registry.ts 收口)。
+- **data-testid**:常量集中定义在各屏的 `testids.ts`(如 `src/app/screens/game/testids.ts`),e2e 统一 import,避免字符串拼写漂移;命名 kebab-case,容器 `xxx-panel`、条目 `xxx-item`。棋盘格仍用 `data-tile="N"`。
+- **fx 编排时序**:`fx/orchestrator.ts` 把一次引擎推进翻译为 骰子→行军→浮字→印章/横幅 的表现序列(掷骰 `animateDice` → `animateMove` 行军 → `spawnFloaters` 消费 `engine.drainFloaters()` → 回合推进弹下家横幅)。UI 不得自造时序,一律走编排器。

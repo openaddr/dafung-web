@@ -37,13 +37,16 @@ export function App() {
   const screen = useGameStore((s) => s.screen);
   const setScreen = useGameStore((s) => s.setScreen);
   const pushHint = useGameStore((s) => s.pushHint);
+  const hint = useGameStore((s) => s.hint);
 
   // 正式开局:加载地图 → 构造单机控制器(引擎 setup 自动步进至轮到人类)→ 进 Game 屏。
   // 单机热座:guohao 全在 seats 里,doDraftRoll 定序后 bot 选都步进,轮到人类停。
   const handleStart = useCallback(
     async (config: SetupConfig) => {
       try {
-        const source = new FetchMapSource();
+        // 组合源:custom- 前缀走自建图库,内置图走 fetch(单用 FetchMapSource 会抛
+        // 「内置图清单中无此 id」——e2e react-editor 巡检发现)
+        const source = getMapSource();
         const map = await loadMapById(source, config.mapId);
         const controller = new LocalController(map, {
           seats: config.seats,
@@ -197,13 +200,26 @@ export function App() {
     );
   }
   return (
-    <SetupScreen
-      onStart={handleStart}
-      onEdit={handleEdit}
-      onOnline={() => void handleOnline()}
-      initialMapId={initialMapId}
-      onMapChange={handleMapChange}
-      mapSource={getMapSource()}
-    />
+    <div className="relative h-full">
+      <SetupScreen
+        onStart={handleStart}
+        onEdit={handleEdit}
+        onOnline={() => void handleOnline()}
+        initialMapId={initialMapId}
+        onMapChange={handleMapChange}
+        mapSource={getMapSource()}
+      />
+      {/* 设置屏也可见的错误提示:gameStore.hint 原本只在 Game 屏渲染,
+          起兵/进联机失败在 setup 屏静默(e2e react-resilience 巡检发现)。
+          Game 屏有自己的 hint 层,这里仅 setup 屏兜底。 */}
+      {hint && (
+        <div
+          data-testid="hint"
+          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/95 px-4 py-1 text-danger shadow"
+        >
+          {hint}
+        </div>
+      )}
+    </div>
   );
 }
