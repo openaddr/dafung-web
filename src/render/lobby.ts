@@ -15,6 +15,8 @@ export interface LobbySeatMeta {
   taken: boolean;
   online: boolean;
   controlled: boolean;
+  /** 自助托管中(bot 代打,身份仍是真人;spec: autopilot)。 */
+  autoPilot: boolean;
 }
 
 /** 大厅房间态:与服务器 lobby/snapshot 消息的房间字段一一对应(协议自描述,架构待办③)。 */

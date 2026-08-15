@@ -30,6 +30,8 @@ export interface RoomRecord {
   seats: PersistedSeat[];
   hostSeat: number;
   takeover: number[];
+  /** 自助托管(座位 → 速度);与 takeover 分离,重连不清除。 */
+  autoPilot: { seat: number; speed: "fast" | "slow" }[];
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
@@ -134,6 +136,7 @@ export function recordToSessionData(
   seats: PersistedSeat[];
   hostSeat: number;
   takeover: Set<number>;
+  autoPilot: Map<number, "fast" | "slow">;
   hostConfig: HostConfig;
   mapId: string | null;
   engine: GameEngine | null;
@@ -144,6 +147,7 @@ export function recordToSessionData(
     seats: rec.seats.map((s) => ({ ...s })),
     hostSeat: rec.hostSeat ?? 0,
     takeover: new Set(rec.takeover ?? []),
+    autoPilot: new Map((rec.autoPilot ?? []).map((a) => [a.seat, a.speed] as const)),
     hostConfig: rec.hostConfig,
     mapId: rec.mapId ?? null,
     engine: engineFromRecord(rec, mapProvider),

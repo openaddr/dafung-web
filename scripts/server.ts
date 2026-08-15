@@ -324,14 +324,14 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
 
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
-    const room = registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadMapById);
+    const room = await registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadMapById);
     return sendJson(res, 200, { ok: true, ...statusOf(room.engine!) });
   }
 
   if (path === "/room/takeover") {
     const roomId = String(obj.roomId ?? "");
     const seat = intField(obj, "seat", -1);
-    const room = registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () => broadcast(roomId));
+    const room = await registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () => broadcast(roomId));
     return sendJson(res, 200, { ok: true, takeover: seat, ...statusOf(room.engine!) });
   }
 
@@ -378,7 +378,7 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
   recordEvent(roomId, { ev: "ws-open", seat });
   ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId))));
   ws.on("message", (data) => {
-    let msg: { type?: string; cmd?: GameCommand };
+    let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string };
     try {
       msg = JSON.parse(data.toString());
     } catch {
@@ -387,7 +387,14 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
     }
     if (msg?.type === "cmd" && msg.cmd) {
       recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
-      registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
+      void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
+    } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
+      // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
+      const speed = msg.speed === "slow" ? "slow" : "fast";
+      recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
+      void registry
+        .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
+        .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
     } else {
       const r = registry.get(roomId);
       ws.send(JSON.stringify({ type: "error", error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始" }));
@@ -400,7 +407,7 @@ function attachWs(roomId: string, seat: number, ws: WebSocket): void {
     recordEvent(roomId, { ev: "ws-close", seat });
     // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + bot 接管判断
     const stillOnline = onlineSeatsOf(roomId);
-    registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
+    void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
   };
   ws.on("close", detach);
   ws.on("error", detach);
