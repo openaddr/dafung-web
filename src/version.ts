@@ -1,7 +1,4 @@
 // 应用版本号:每次代码改动后递增此处,显示在页面右下角(.version-tag)。
 // 用途:打开页面后可通过版本号确认看到的是不是最新构建。
 // 改动代码时记得同步 bump 这个值。
-export const VERSION = "v2.3.0";
-
-/** 开发模式(npm run dev 下 true,build 后 false)。开发模式放宽部分开局限制。 */
-export const IS_DEV = import.meta.env.DEV;
+export const VERSION = "v2.4.0";
