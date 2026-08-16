@@ -41,6 +41,26 @@ function MuteButton() {
 export function GameScreen() {
   // 城池详情(Playing 相位点城查看,本地 UI 态;Setup 相位点城是选都,走 controller)
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
+  // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
+  // 默认展开;收起态只留「展开」按钮 + 当前活跃玩家国号 + 我的现金竖排摘要。
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    try {
+      return localStorage.getItem("dafung.sidebar") !== "collapsed";
+    } catch {
+      return true;
+    }
+  });
+  const toggleSidebar = () => {
+    setSidebarOpen((open) => {
+      const next = !open;
+      try {
+        localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
+      } catch {
+        /* 隐私模式写失败不阻塞 */
+      }
+      return next;
+    });
+  };
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
   // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;总览复位按钮用)
@@ -182,18 +202,70 @@ export function GameScreen() {
         </span>
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶)。
-          S5 窄屏棋盘优先:宽屏仍 288px(w-72 同宽),md 断点以下改 w-[min(288px,45vw)]
-          可压缩——棋盘 flex-1 拿到至少 55vw,不再被固定侧栏挤到不可玩。
-          遗留:抽屉式折叠(成本高)未做;四区 flex-col + 各自 min-h-0 自适应,
-          压缩宽度下靠现有 overflow-hidden/内滚不破版。 */}
-      <aside className="flex w-[min(288px,45vw)] md:w-72 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel">
-        <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
-          群雄逐鹿
-          <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
-        </h1>
-        <StatusBar snapshot={snapshot} />
-        <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} interactive={interactive} />
-        <WarlogPanel snapshot={snapshot} />
+          S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
+          收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
+          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。 */}
+      <aside
+        data-testid={sidebarOpen ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
+        className={
+          "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
+          (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
+        }
+      >
+        {sidebarOpen ? (
+          <>
+            <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
+              群雄逐鹿
+              <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
+            </h1>
+            <StatusBar snapshot={snapshot} />
+            <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} interactive={interactive} />
+            <WarlogPanel snapshot={snapshot} />
+            {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
+            <button
+              type="button"
+              data-testid={TESTIDS.sidebarToggle}
+              title="收起侧栏(全屏看棋)"
+              onClick={toggleSidebar}
+              className="flex min-h-10 items-center justify-center border-t border-gold/40 bg-panel-hi font-brush text-ink-dim hover:text-ink"
+            >
+              »
+            </button>
+          </>
+        ) : (
+          /* 折叠窄条:展开按钮置顶 + 活跃玩家国号竖排 + 我的现金,信息不归零 */
+          <>
+            <button
+              type="button"
+              data-testid={TESTIDS.sidebarToggle}
+              title="展开侧栏"
+              onClick={toggleSidebar}
+              className="flex h-12 w-12 shrink-0 items-center justify-center border-b border-gold/40 bg-panel-hi font-brush text-ink-dim hover:text-ink"
+            >
+              «
+            </button>
+            <div className="flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-4">
+              <span
+                title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
+                className="font-brush text-xl text-ink"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}之回合
+              </span>
+              {localPlayer && (
+                <span
+                  title={`我的现金 ${localPlayer.cash}`}
+                  className="font-brush text-sm text-money"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  {localPlayer.cash >= 10000
+                    ? `${Math.floor(localPlayer.cash / 10000)}锭`
+                    : `${Math.floor(localPlayer.cash / 100)}两`}
+                </span>
+              )}
+            </div>
+          </>
+        )}
       </aside>
       </div>
     </AudioProvider>

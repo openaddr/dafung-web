@@ -7,6 +7,10 @@ export const TESTIDS = {
   handPanel: "hand-panel",
   othersPanel: "others-panel",
   warlogPanel: "warlog-panel",
+  /** 侧栏抽屉折叠(S5):展开态容器 / 折叠窄条容器 / 切换按钮(两态同名)。 */
+  sidebarPanel: "sidebar-panel",
+  sidebarCollapsed: "sidebar-collapsed",
+  sidebarToggle: "sidebar-toggle",
 
   // ── 状态栏(回合区)──
   roundInfo: "round-info",
