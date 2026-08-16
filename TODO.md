@@ -20,3 +20,4 @@
 - [x] **单机(LocalController)托管未接**(2026-08-16):旧版有 solo autopilot;基类已留 autopilotSupported 接缝,仅 OnlineController 实现 ✅ 已接(2026-08-16):autopilotSupported=true + 本地代打循环(单飞,botAct 按 decisionOwner 决策,fast=瞬间/slow=BOT.stepDelayMs),与 runBots busy 锁协同防双驱动,托管中 interactive 锁;基类补 autoPilotOn getter,HandPanel 单机自动出现托管行
 - [x] bun 工具链能兼容tauri吧? …✅ 已确认(2026-08-16):完全兼容——Tauri 只经 beforeDevCommand/beforeBuildCommand 调 bun run(已切换);APK 构建链(Rust/Cargo/Gradle)与 JS 工具链零交集;将来往 Rust 倾斜不受影响。详见 ADR-0009
 - [x] 每次点击行军开始移动后, 整个页面最右侧就会出现一个滚动条, 随之元素被整体往左侧挤压, 然后行军移动结束后, 页面滚动条又消失不见, 元素又向右移动, 如此反复, 这在视觉上很奇怪, 应当检查一下为什么会出现这种情况, 不能这样视觉反复跳动 ✅ 已修(2026-08-16):根因=React 版 app.css 迁移时丢了旧 style.css 的两处 overflow:hidden(html/body 与 board-wrap)——行军期间浮字/横幅等 fx 元素越界撑出滚动条,页面宽度反复伸缩导致元素横跳。已补回两处规则
+- [ ] **UI/UX 优化施工**(2026-08-16):完整评审已持久化至 docs/ui-improvements.md(P0 反馈断层 5 条 / P1 体验 5 条 / P2 打磨 9 条,每条带证据行号与验收标准)——按 P0→P1→P2 分波施工,进度以该文档勾选为准
