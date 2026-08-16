@@ -79,8 +79,10 @@ export function TreasureVisitorScroll({
             {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝。
           </p>
           <div className="flex flex-wrap justify-center gap-3">
+            {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
+                skip 分支,core/game.ts:893),城主不必在公道/坐地里二选一。 */}
             <ScrollButton primary testid={T.treasureSkip} onClick={() => onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })}>
-              不交易
+              暂不交易
             </ScrollButton>
             <ScrollButton testid={T.treasureModeFair} onClick={() => setMode("fair")}>
               公道买卖 · 按指导价

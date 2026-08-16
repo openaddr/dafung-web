@@ -16,8 +16,10 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
             data-testid={TESTIDS.otherPlayer(seat)}
             style={{ ["--player-color" as string]: rgba(playerColor(p.colorIndex)) }}
             className={[
-              "flex items-center gap-1.5 rounded px-1 py-0.5 text-xs",
-              isActive ? "bg-gold/25" : "",
+              "flex items-center gap-1.5 rounded px-1 py-0.5 text-xs border-l-[3px]",
+              // W3:活跃强调——左侧 3px 金竖条 + bg-gold/25 + 国号加重(三重线索,斜眼可辨;
+              // 非活跃也占 3px 透明边,避免状态切换时整行横向跳动)
+              isActive ? "bg-gold/25 border-l-gold" : "border-l-transparent",
               p.isBankrupt ? "opacity-40 line-through" : "",
               isWinner ? "text-gold" : "",
             ].join(" ")}
@@ -25,7 +27,7 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
             <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-(--player-color) font-brush text-white">
               {p.guohao || "?"}
             </span>
-            <span className="truncate">
+            <span className={"truncate" + (isActive ? " font-bold" : "")}>
               {p.guohao || p.name}
               {p.isBot ? " 智" : ""}
             </span>

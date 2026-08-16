@@ -190,7 +190,8 @@ export function SoloSetupScreen({
               data-testid={TID.guohaoChar(ch)}
               onClick={() => setGuohao(ch)}
               className={
-                "w-7 h-7 rounded border font-deco text-sm cursor-pointer transition-colors " +
+                // W5:触屏点击目标 28px→36px(w-9 h-9),字号微调到 text-base 仍保字盘密度
+                "w-9 h-9 rounded border font-deco text-base cursor-pointer transition-colors " +
                 (guohao === ch
                   ? "border-gold bg-gold/25 text-ink"
                   : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")

@@ -28,7 +28,8 @@ function MuteButton() {
       data-testid={TESTIDS.muteButton}
       title={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
-      className="absolute top-2 right-2 z-10 rounded border border-gold/50 bg-panel/90 px-2 py-0.5 font-brush text-sm text-ink-dim hover:text-ink"
+      // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变
+      className="absolute top-2 right-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
     >
       {audio.muted ? "♪" : "♫"}
     </button>
@@ -147,7 +148,8 @@ export function GameScreen() {
           data-testid={TESTIDS.resetView}
           title="总览复位"
           onClick={() => boardRef.current?.reset()}
-          className="absolute top-2 left-2 z-10 rounded border border-gold/50 bg-panel/90 px-2 py-0.5 font-brush text-sm text-ink-dim hover:text-ink"
+          // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变
+          className="absolute top-2 left-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
         >
           ⌖
         </button>

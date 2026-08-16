@@ -4,6 +4,8 @@ import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
+// W3:活跃卡呼吸描边 keyframe(局部样式,见 panels.css 注释)
+import "./panels.css";
 
 export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
   // 三种态:开局布阵 / 终局称帝 / 常规回合大卡(与旧 renderStatusBar 逐分支对齐)
@@ -24,7 +26,7 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
         data-testid={TESTIDS.statusCard}
         // 玩家色沿用旧的 CSS 变量注入模式(--player-color),子元素用任意值类取色
         style={{ ["--player-color" as string]: rgba(playerColor(p.colorIndex)) }}
-        className="mt-1 flex items-center gap-2 rounded border-l-4 bg-panel-hi px-2 py-1.5"
+        className="active-card-breath mt-1 flex items-center gap-2 rounded border-l-4 bg-panel-hi px-2 py-1.5"
       >
         <span
           data-testid={TESTIDS.statusGuohao}

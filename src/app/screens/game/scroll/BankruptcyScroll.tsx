@@ -34,41 +34,67 @@ export function BankruptcyScroll({
   onCommand,
 }: BankruptcyScrollProps) {
   const owe = Math.max(0, debtAmount - cash);
+  /* ── W4a:资产分组滚动 ──
+     为什么要分:破产时资产可能 20+ 件,旧平铺 flex-wrap 会把卷轴撑得比视口还高,
+     「结算」按钮被顶出屏幕外,玩家根本点不到;分「珍宝/城池/名士」三组、各组
+     max-h-56 内滚,并把「结算」钉在卷轴底部(不随内容滚),任何资产量下都可达。 */
+  const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
   return (
     <ScrollShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
-      <p data-testid={T.bankruptcyDebt} className="m-1 mb-3.5 text-center text-sm text-ink-dim">
+      <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
         现金不足,尚欠 {formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按购入价、名士 200 分)。
       </p>
-      <div className="flex flex-wrap justify-center gap-3">
-        {treasures.map((t) => (
-          <ScrollButton
-            key={t.id}
-            testid={T.bankruptcySellTreasure(t.id)}
-            onClick={() => onCommand({ type: "sellTreasureBankruptcy", treasureId: t.id })}
-          >
-            卖·{t.name} +{formatMoney(guidePriceOf(t.level))}
-          </ScrollButton>
-        ))}
-        {sellableProperties.map((p) => (
-          <ScrollButton
-            key={p.propId}
-            testid={T.bankruptcySellProp(p.propId)}
-            onClick={() => onCommand({ type: "sellPropertyBankruptcy", propId: p.propId })}
-          >
-            卖城·{p.name} +{formatMoney(p.purchasePrice)}
-          </ScrollButton>
-        ))}
-        {heroes.map((h) => (
-          <ScrollButton
-            key={h.id}
-            testid={T.bankruptcySellHero(h.id)}
-            onClick={() => onCommand({ type: "cashHeroBankruptcy", heroId: h.id })}
-          >
-            遣·{h.name} +{formatMoney(200)}
-          </ScrollButton>
-        ))}
+      <div className="flex max-h-[432px] flex-col gap-2 overflow-hidden">
+        <section className="flex min-h-0 flex-col">
+          <h4 className="mb-1 font-brush text-sm text-ink-dim">珍宝</h4>
+          <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            {treasures.map((t) => (
+              <ScrollButton
+                key={t.id}
+                testid={T.bankruptcySellTreasure(t.id)}
+                onClick={() => onCommand({ type: "sellTreasureBankruptcy", treasureId: t.id })}
+              >
+                卖·{t.name} +{formatMoney(guidePriceOf(t.level))}
+              </ScrollButton>
+            ))}
+            {treasures.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+          </div>
+        </section>
+        <section className="flex min-h-0 flex-col">
+          <h4 className="mb-1 font-brush text-sm text-ink-dim">城池</h4>
+          <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            {sellableProperties.map((p) => (
+              <ScrollButton
+                key={p.propId}
+                testid={T.bankruptcySellProp(p.propId)}
+                onClick={() => onCommand({ type: "sellPropertyBankruptcy", propId: p.propId })}
+              >
+                卖城·{p.name} +{formatMoney(p.purchasePrice)}
+              </ScrollButton>
+            ))}
+            {sellableProperties.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+          </div>
+        </section>
+        <section className="flex min-h-0 flex-col">
+          <h4 className="mb-1 font-brush text-sm text-ink-dim">名士</h4>
+          <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            {heroes.map((h) => (
+              <ScrollButton
+                key={h.id}
+                testid={T.bankruptcySellHero(h.id)}
+                onClick={() => onCommand({ type: "cashHeroBankruptcy", heroId: h.id })}
+              >
+                遣·{h.name} +{formatMoney(200)}
+              </ScrollButton>
+            ))}
+            {heroes.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+          </div>
+        </section>
+      </div>
+      {/* 结算钉底:在滚动容器之外,滚动资产列表时它纹丝不动 */}
+      <div className="mt-3 flex justify-center border-t border-[rgba(140,110,60,0.35)] pt-3">
         <ScrollButton primary testid={T.bankruptcyConfirm} onClick={() => onCommand({ type: "confirmBankruptcySettle" })}>
-          结算
+          {hasAny ? "结算" : "结算(无资产可卖,认破产)"}
         </ScrollButton>
       </div>
     </ScrollShell>

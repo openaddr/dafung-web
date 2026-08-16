@@ -14,6 +14,8 @@ import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { LID } from "./testids";
+// W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
+import "./lobby.css";
 
 export interface LobbyScreenProps {
   /** 退出联机回设置屏(接线方负责销毁 controller 与清 store)。 */
@@ -57,6 +59,25 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const [busy, setBusy] = useState(false); // 请求进行中:按钮防连点
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [mapName, setMapName] = useState<string | null>(null);
+  // W2:房间码「已复制」小态(1s 自清;不用 pushHint——那是错误/流程通道,复制是即时确认)
+  const [copied, setCopied] = useState(false);
+  // W2:等待文案轮换下标(3s 一换,制造"大厅还活着"的心跳感)
+  const [waitIdx, setWaitIdx] = useState(0);
+
+  // W2:等待文案轮换。非 host 换着法子说"等房主";host 未满座时换着法子催人入座。
+  // 依赖 (roomId/isHost/needMore) 变化时重置下标,避免切视角后先闪一句不合适的话。
+  const isHost = host === mySeat;
+  const needMore = seats.some((s) => !s.taken);
+  const waitLines = !isHost
+    ? ["等待房主开局…", "主公尚在谋划…", "稍安勿躁…"]
+    : ["虚位以待,静候群雄…", "坐等群雄入席…", "广发英雄帖…"];
+  useEffect(() => {
+    setWaitIdx(0);
+    const t = setInterval(() => setWaitIdx((i) => (i + 1) % waitLines.length), 3000);
+    return () => clearInterval(t); // 卸载/条件变化时必须清,否则离开大厅仍在 setState
+    // waitLines 按视角二选一后内容固定,长度恒 3,不列入依赖
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, isHost, needMore]);
 
   // 房间地图展示名(id → name;失败保留 id 兜底,对照旧 builtinMapName)
   useEffect(() => {
@@ -203,7 +224,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   }
 
   // ── 已入座:房间大厅 ──
-  const isHost = host === mySeat;
+  // W2:房间码点击复制(clipboard API + 1s「已复制」小态;房码是高频转述物,复制比抄写友好)
+  const copyRoomCode = () => {
+    navigator.clipboard?.writeText(roomId).then(
+      () => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1000);
+      },
+      () => pushHint("复制失败,请手动抄录", "info"),
+    );
+  };
   return (
     <div
       data-testid={LID.screen}
@@ -213,25 +243,35 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <ConnectionBanner />
       <div className="w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
         <h1 className="font-brush text-2xl text-ink tracking-[0.3em] text-center">大厅</h1>
-        {/* 房间码:大字 + 字距(对照旧 .lobby-code 的展示口径) */}
-        <div
+        {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本) */}
+        <button
+          type="button"
           data-testid={LID.roomCode}
-          className="mt-2 text-center font-brush text-4xl tracking-[0.4em] text-ink"
+          onClick={copyRoomCode}
+          title="点击复制房间码"
+          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] text-ink cursor-pointer hover:text-gold"
         >
           {roomId}
+        </button>
+        <div className="mt-1 text-center font-deco text-xs text-ink-dim">
+          {copied ? "已复制" : "点击复制"}
         </div>
         <div className="mt-1 text-center font-deco text-xs text-ink-dim">
-          {isHost ? "把房间码发给同好;点开局后未满座位自动 bot 填充。" : "等待房主开局…"}
+          {isHost
+            ? needMore
+              ? waitLines[waitIdx] // host 未满座:轮换催座文案
+              : "坐席已满,可开局;点开局后未入座自动 bot 填充。"
+            : waitLines[waitIdx] /* 非 host:轮换等待文案 */}
         </div>
 
-        {/* 座位列表 */}
+        {/* 座位列表(W2:key 含状态签名 → 入座/上下线时 remount 触发点亮动画) */}
         <div className="mt-3 flex flex-col gap-1">
           {seats.map((s) => (
             <div
-              key={s.seat}
+              key={`${s.seat}-${s.taken}-${s.kind}-${s.online ? 1 : 0}`}
               data-testid={LID.seatRow(s.seat)}
               className={
-                "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
+                "lobby-seat-in flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
                 (s.seat === mySeat ? "border-gold bg-gold/10 text-ink" : "border-ink/20 text-ink-dim")
               }
             >

@@ -54,15 +54,19 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           className="px-3"
           style={{ ["--player-color" as string]: rgba(playerColor(player.colorIndex)) }}
         >
-          {/* 头部:现金/委任(可断言的核心数值)*/}
-          <div className="flex items-center gap-2 text-sm">
+          {/* 头部:现金/委任。W3 字号阶梯三档:现金数值 text-lg brush(核心可断言数值)/
+              标签 text-xs / 卡片 text-xs——不再让 text-sm 混进来拉平层次 */}
+          <div className="flex items-baseline gap-2">
             <span
               data-testid={TESTIDS.handCash}
-              className="rounded bg-panel-hi px-2 py-0.5 font-brush text-money"
+              className="rounded bg-panel-hi px-2 py-0.5 font-brush text-lg text-money"
             >
               {formatMoney(player.cash)}
             </span>
-            <span data-testid={TESTIDS.handWarrants} className="rounded bg-panel-hi px-2 py-0.5">
+            <span
+              data-testid={TESTIDS.handWarrants}
+              className="rounded bg-panel-hi px-2 py-0.5 text-xs"
+            >
               委任 {player.warrants}
             </span>
           </div>
@@ -99,8 +103,10 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           </div>
         </div>
       )}
-      {/* 动作区:签面 + 行军 + 内嵌决策(所有按钮 disabled 绑定 interactive,单一来源 store) */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 px-3 pb-2">
+      {/* 动作区:签面 + 行军 + 内嵌决策(所有按钮 disabled 绑定 interactive,单一来源 store)。
+          W3:行军(primary)独占一行,内嵌决策另起一行——primary text-base 与 xs 混排
+          会让基线错位、视觉重心漂移,分行后主次一眼可分。 */}
+      <div className="mt-2 flex flex-wrap items-center gap-2 px-3">
         <span
           data-testid={TESTIDS.diceFace}
           className="rounded border border-gold/60 bg-panel-hi px-2 py-1 font-brush"
@@ -129,6 +135,9 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
             </>
           );
         })()}
+      </div>
+      {/* W3:内嵌决策独立成行(xs 档;primary 在 ActionInline 内部也自成一行) */}
+      <div className="px-3 pb-2 pt-1">
         <ActionInline snapshot={snapshot} controller={controller} interactive={interactive} pending={net.pending} />
       </div>
       {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
@@ -139,7 +148,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
             type="button"
             data-testid={TESTIDS.autopilotButton}
             onClick={() => controller.setAutoPilot(!autopilotOn, autopilotSpeed)}
-            className="rounded border border-ink/40 bg-panel-hi px-2 py-0.5 font-deco hover:bg-panel cursor-pointer"
+            // W5:触屏点击目标 ≥40px——py-2 + min-h-10 扩触达区,文字仍 text-xs 保密度
+            className="rounded border border-ink/40 bg-panel-hi px-3 py-2 min-h-10 font-deco hover:bg-panel cursor-pointer"
           >
             {autopilotOn ? "收回" : "托管"}
           </button>
@@ -205,25 +215,26 @@ function ActionInline({
   );
 
   const tp = snapshot.turnPhase;
-  if (tp === "AwaitingCapitalHalt" && snapshot.lastMove) {
-    // 驻跸抉择:目的地城名经 registry 静态上下文查(board 不可变,联机同路)
-    const capName = ctx?.board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城";
-    const destName = ctx?.board.at(snapshot.lastMove.landIndex)?.name ?? "下一城";
-    return (
-      <div data-testid={TESTIDS.actionInline} className="flex gap-2">
-        {add(`驻跸·${capName}`, "halt", { type: "haltAtCapital" }, { primary: true })}
-        {add(`继续→${destName}`, "continue", { type: "continueMove" })}
-      </div>
-    );
-  }
-  if (tp === "AwaitingBranch") {
-    return (
-      <div data-testid={TESTIDS.actionInline} className="flex gap-2">
-        {add("走大路", "main", { type: "selectBranch", kind: "Main" }, { primary: true })}
-        {add("入辅路", "branch", { type: "selectBranch", kind: "Branch" })}
-      </div>
-    );
-  }
+    if (tp === "AwaitingCapitalHalt" && snapshot.lastMove) {
+      // 驻跸抉择:目的地城名经 registry 静态上下文查(board 不可变,联机同路)
+      const capName = ctx?.board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城";
+      const destName = ctx?.board.at(snapshot.lastMove.landIndex)?.name ?? "下一城";
+      return (
+        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
+          {/* W3:primary 单独一行,不与 xs 次级动作混排 */}
+          <div>{add(`驻跸·${capName}`, "halt", { type: "haltAtCapital" }, { primary: true })}</div>
+          <div className="flex gap-2">{add(`继续→${destName}`, "continue", { type: "continueMove" })}</div>
+        </div>
+      );
+    }
+    if (tp === "AwaitingBranch") {
+      return (
+        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
+          <div>{add("走大路", "main", { type: "selectBranch", kind: "Main" }, { primary: true })}</div>
+          <div className="flex gap-2">{add("入辅路", "branch", { type: "selectBranch", kind: "Branch" })}</div>
+        </div>
+      );
+    }
   if (tp === "AwaitingDecision") {
     const p = snapshot.players[snapshot.activeIndex];
     const def = snapshot.lastLandOutcomeProperty
@@ -233,15 +244,17 @@ function ActionInline({
       const canBuy = p.cash >= def.purchasePrice && p.warrants >= 1;
       const reason = p.warrants < 1 ? "委任状不足" : "银两不足";
       return (
-        <div data-testid={TESTIDS.actionInline} className="flex gap-2">
-          {add(
-            `购地 ${formatMoney(def.purchasePrice)}·1委任`,
-            "buy",
-            { type: "buyProperty" },
-            // UI F1:原因从文案内嵌迁到 title + 旁注(与其他按钮同一机制)
-            { primary: canBuy, disabled: !canBuy, reason: canBuy ? undefined : reason },
-          )}
-          {add("不取", "skip", { type: "endDecision" })}
+        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
+          <div>
+            {add(
+              `购地 ${formatMoney(def.purchasePrice)}·1委任`,
+              "buy",
+              { type: "buyProperty" },
+              // UI F1:原因从文案内嵌迁到 title + 旁注(与其他按钮同一机制)
+              { primary: canBuy, disabled: !canBuy, reason: canBuy ? undefined : reason },
+            )}
+          </div>
+          <div className="flex gap-2">{add("不取", "skip", { type: "endDecision" })}</div>
         </div>
       );
     }
@@ -250,14 +263,16 @@ function ActionInline({
       const lvl = h?.level ?? 0;
       const canUp = lvl < def.maxLevel && p.cash >= def.upgradeCost;
       return (
-        <div data-testid={TESTIDS.actionInline} className="flex gap-2">
-          {add(
-            `扩军 ${formatMoney(def.upgradeCost)}`,
-            "upgrade",
-            { type: "upgradeProperty" },
-            { primary: canUp, disabled: !canUp, reason: canUp ? undefined : lvl >= def.maxLevel ? "已满级" : "银两不足" },
-          )}
-          {add("按兵不动", "skip", { type: "endDecision" })}
+        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
+          <div>
+            {add(
+              `扩军 ${formatMoney(def.upgradeCost)}`,
+              "upgrade",
+              { type: "upgradeProperty" },
+              { primary: canUp, disabled: !canUp, reason: canUp ? undefined : lvl >= def.maxLevel ? "已满级" : "银两不足" },
+            )}
+          </div>
+          <div className="flex gap-2">{add("按兵不动", "skip", { type: "endDecision" })}</div>
         </div>
       );
     }

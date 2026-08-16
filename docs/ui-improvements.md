@@ -43,32 +43,48 @@
 
 ## P1 · 体验显著提升
 
-- [ ] **W1 战报 emoji → 单字印章图标**
+- [x] **W1 战报 emoji → 单字印章图标**(2026-08-16:WarlogPanel 12 类 emoji → 单字小方章
+  20×20/border 1.5px/圆角 2/字 11px/rotate -4°,字表 掷置扩/税济通宝/禁卖胜/纪天,
+  朱砂(danger token)·黛青(#3f6a6b)·墨(ink-dim)三色集中定义;简报/详情同源;
+  scroll.css 加 warlog-stamp-in 盖入 0.3s,只动画最新一条防 300 条批量重放)
   证据:WarlogPanel.tsx:13-26(12 种 emoji)
   改法:换「单字小方章」(掷/置/伐/宝/贤/税/破/胜…),朱砂或黛青描边小章,旋转 -4°;
   图标表集中定义(icon 表:事件类型→字+色)
   验收:战报区零 emoji;截图对比风格统一;简报/详情两 tab 同步
 
-- [ ] **W2 大厅"活感" + 房间码复制**
+- [x] **W2 大厅"活感" + 房间码复制**(2026-08-16:①座位行 key 含状态签名 → 入座/上下线
+  remount 触发 scale+fade 点亮(lobby.css keyframes lobby-seat-in);②等待文案 3s 轮换——
+  非 host「等待房主开局/主公尚在谋划/稍安勿躁」、host 未满座「虚位以待/坐等群雄/广发英雄帖」,
+  setInterval 有 cleanup,视角切换重置下标;③房间码改 button 可点,navigator.clipboard 复制 +
+  「已复制」1s 小态 + xs「点击复制」提示,复制失败走 pushHint info)
   证据:LobbyScreen.tsx:199-289(等待静止);房间码无复制
   改法:①座位点亮动画(scale+fade in);②等待文案轮换(「虚位以待…」→「坐等群雄…」3s);
   ③房间码点击复制 + navigator.clipboard + 「已复制」提示;④开局 disabled 原因(F1 联动)
   验收:建房后肉眼可见动态;点房间码 → 剪贴板含码
 
-- [ ] **W3 手牌区字号阶梯 + 活跃强调**
+- [x] **W3 手牌区字号阶梯 + 活跃强调**(2026-08-16:①现金 text-lg brush / 标签 text-xs /
+  卡片 text-xs 三档;行军行与 ActionInline 分行,ActionInline 内 primary(驻跸/走大路/购地/
+  扩军)单独一行不与 xs 次级混排;②OthersPanel 活跃行左侧 3px 金竖条(非活跃透明占位防
+  横跳)+ bg-gold/25 + 国号 font-bold;③StatusBar 活跃卡 active-card-breath 呼吸描边,
+  2.4s 低透明度金圈(panels.css),subtle 不抢棋盘戏)
   证据:HandPanel.tsx:162(primary text-base 混 xs 行);OthersPanel.tsx:18-23(bg-gold/25 太轻)
   改法:①手牌区字号定三档:现金数值 text-lg brush / 标签 text-xs / 卡片 text-xs 统一,
   primary 动作单独一行;②诸侯列表活跃玩家加左侧金色竖条 + 微光;③回合横幅即逝后,
   StatusBar 活跃卡加呼吸描边
   验收:手牌区字号 ≤3 种;活跃玩家一眼可辨(斜眼测试)
 
-- [ ] **W4 破产卷轴分组滚动 + 交涉逃生口**
+- [x] **W4 破产卷轴分组滚动 + 交涉逃生口**(2026-08-16:BankruptcyScroll 分珍宝/城池/名士
+  三组,各组 max-h-56 内滚、空组显示「无」,「结算」钉底加分隔线不随滚,无资产时文案提示认破产;
+  TreasureVisitorScroll 模式步「暂不交易」发 resolveTreasureOwner skip——引擎已支持(core/game.ts:893),
+  UI 侧核对 action 形状 `{type:"skip"}` 后接线,第二步「← 返回」原有)
   证据:BankruptcyScroll.tsx:42-73(平铺无约束);TreasureVisitorScroll 两步流无逃生
   改法:破产列表分「珍宝/城池/名士」三组,组标题 + max-h 内滚;珍宝交涉 owner 视角
   第二步可返回(F已有 back)且模式步可「暂不交易」取消到等待(需引擎允许 skip——已有 skip 命令,接 UI)
   验收:资产 20+ 时不溢出;交涉可全程返回
 
-- [ ] **W5 点击目标 44px(触屏基线)**
+- [x] **W5 点击目标 44px(触屏基线)**(warlog tab 部分 2026-08-16:简报/详情按钮 py-2.5,
+  点击区 ≥40px 高,视觉字号不变;其余部分同日完成:GameScreen 复位/静音 min-h/w-10 + py-2、
+  HandPanel 托管按钮 py-2 + min-h-10、SoloSetup 字盘 w-7 h-7→w-9 h-9(36px,字号 text-base 保密度))
   证据:复位/静音按钮 py-0.5(约24px)、字盘 w-7 h-7(28px)、warlog tab、托管小按钮
   改法:全部提到 ≥40px 触达区(padding 扩大,视觉尺寸可不变——用伪元素/负 margin 保密度)
   验收:移动端可点;视觉密度不明显下降
@@ -105,3 +121,11 @@
   重连静默失效修复;hint 过期下沉 store 统一 1.8s、渲染统一 HintBar;大厅开局未选图
   title + xs 原因行。手测:?online=1 建房 → taskkill 服务器 → 横幅「连接中断,重连中…」
   出现 → 重启服务器 → 横幅自动消失。
+
+- W1/W4/W5-warlog(react-rewrite,2026-08-16,待 commit):战报 emoji 全部换单字印章
+  (朱砂/黛青/墨三色,新条目盖入动画);破产卷轴三组内滚 + 结算钉底;珍宝交涉模式步
+  可「暂不交易」skip;warlog tab 触达区 ≥40px。tsc/bun test/build/e2e(scrolls+solo)全绿。
+
+- W2/W3/W5-其余(react-rewrite,2026-08-16,待 commit):大厅座位点亮动画 + 等待文案 3s
+  轮换 + 房间码点击复制;手牌三档字号 + primary 独立行 + 活跃竖条/呼吸描边;复位/静音/
+  托管/字盘触达区提升。tsc/bun test/build/e2e(online+setup)全绿。
