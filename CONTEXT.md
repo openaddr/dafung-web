@@ -65,3 +65,9 @@ _Avoid_: busy 锁(实现细节)、调度器(过泛)
 **表现态视图(engine.presentation)**:
 引擎表现信息(lastRoll/lastMove/lastTransaction/drainFloaters)的唯一只读入口,把"谁写、谁读、何时失效"的不变量收进接口。写通道仅 applyPresentationMove。
 _Avoid_: 瞬时字段(语义含糊)
+
+## 交互
+
+**抉择卷轴(Decision Scroll)**:
+需要玩家权衡的多选操作(购地/扩军/驻跸/择路/招贤/交涉/破产)的唯一入口:轮到即自动弹出的卷轴弹窗,不可误关。侧栏手牌区只放信息与「行军」主行动,不放决策按钮。见 ADR-0012。
+_Avoid_: 决策按钮/内嵌决策(已废,勿再往侧栏加选择按钮)、确认框(语义过轻)
