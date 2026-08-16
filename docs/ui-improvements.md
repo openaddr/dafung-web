@@ -6,30 +6,37 @@
 
 ## P0 · 反馈断层(玩家会"懵"的时刻)
 
-- [ ] **F1 disabled 按钮零解释**
+- [x] **F1 disabled 按钮零解释**(HandPanel 部分 2026-08-16:reasonForDisabled 集中推导,title+旁注;买地/扩军内嵌文案收敛为 title。Lobby 部分 2026-08-16:开局未选图 title「需先选择地图」+ 下方 xs 原因行;建房/加入/选图 busy 灰 title「处理中…」,加入空码「请输入房间码」)
   证据:HandPanel.tsx:95-226(行军/内嵌决策)、LobbyScreen.tsx:268 附近(开局未选图)
   改法:每个 disabled 按钮给 title + 底部 xs 原因行(如「银两不足」「未轮到你」「未选地图」);
   买地/扩军已有文案内嵌原因(HandPanel.tsx:199/215)推广到全部
   验收:任意时刻按钮灰 → 悬停或旁注可知道原因;e2e 不回归
 
-- [ ] **F2 断线不可见**(最严重)
+- [x] **F2 断线不可见**(最严重)(2026-08-16:netStore.connection 三值透出(idle/open/closed/gaveUp,
+  online.ts onStatus 全量写入);shared/ConnectionBanner 挂 game 棋盘区顶部 z-20 + lobby 卡片上方,
+  testid=connection-banner;closed→「连接中断,重连中…」animate-pulse,gaveUp→「已断线,请刷新页面」,
+  重连成功自动消失。顺带修复 reconnecting-socket 默认 timer 方法简写致浏览器 Illegal invocation、
+  重连静默失效的存量 bug。注:Chromium setOffline 不断 WS,手测验收用杀服务器进程方式)
   证据:netStore.connected 无任何 UI 消费(grep src/screens 零命中)
   改法:对局屏与大厅屏顶部加常驻「连接中断·重连中(第 N 次)」横幅(bg-danger/90 白字,
   重连成功淡出);重连耗尽换「已断线,请刷新」
   验收:联机 e2e 用 page.context().setOffline(true) 断网 → 横幅出现;恢复 → 消失
 
-- [ ] **F3 pending 无 loading**
+- [x] **F3 pending 无 loading**(2026-08-16:online.ts 经 netStore.pending 透传;行军按钮「行军中…」+disabled,内嵌决策同款 label+…。大厅按钮 busy 未动)
   证据:online.ts:100-102(pending=true 锁按钮,无指示)
   改法:行军按钮/内嵌决策加「行军中…」态(文字变体或小 spinner);大厅按钮 busy 同理
   验收:联机发命令 → 按钮文案变化;快照到达 → 恢复
 
-- [ ] **F4 hint 三套口径**(game 1.5s 自清 / lobby 1.8s / App+solo-setup 永不过期)
+- [x] **F4 hint 三套口径**(game 1.5s 自清 / lobby 1.8s / App+solo-setup 永不过期)
+  (2026-08-16:过期下沉 gameStore/netStore 的 pushHint(msg, level?: "error"|"info")——store 持
+  1.8s 定时器、重复 push 先清旧;四处渲染点统一 shared/HintBar.tsx(error=红底白字 chip,
+  info=原面板/灰字行);GameScreen/LobbyScreen 的本地过期 useEffect 删除)
   证据:GameScreen.tsx:56-60、LobbyScreen.tsx:82-84、App.tsx:239-246(无 timer)
   改法:过期逻辑下沉 store(单一 timeout 常量 1.8s),App 层挂统一清理;错误类 hint 用
   更醒目样式(红底白字 chip)而非灰字,且可点击关闭
   验收:solo-setup 屏起兵失败 → 1.8s 后消失;三屏口径一致
 
-- [ ] **F5 cursor 撒谎**
+- [x] **F5 cursor 撒谎**(2026-08-16:CardDetailScroll 珍宝/名士详情卷轴,点卡弹出,testid=card-detail-scroll)
   证据:HandPanel.tsx:56-77(cursor-pointer + hover 但 onClick=undefined)
   改法:接珍宝/名士详情卷轴(TODO 阶段5b 遗留挂点);接不上则去掉 cursor/hover
   验收:点击卡片有响应(详情卷轴)或无误导光标
@@ -93,3 +100,8 @@
 ## 完成记录
 
 (格式:条目号 + commit + 一句话效果)
+
+- F2/F4 + F1-Lobby(react-rewrite,2026-08-16,待 commit):断线横幅三值透出 + 浏览器端
+  重连静默失效修复;hint 过期下沉 store 统一 1.8s、渲染统一 HintBar;大厅开局未选图
+  title + xs 原因行。手测:?online=1 建房 → taskkill 服务器 → 横幅「连接中断,重连中…」
+  出现 → 重启服务器 → 横幅自动消失。

@@ -21,6 +21,8 @@ export const TESTIDS = {
   handHero: (id: string) => `hand-hero-${id}` as const,
   diceFace: "dice-face",
   rollButton: "roll-button",
+  /** 珍宝/名士详情卷轴(HandPanel 点卡弹出;UI F5)。 */
+  cardDetailScroll: "card-detail-scroll",
   actionInline: "action-inline",
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 

@@ -1,7 +1,7 @@
 // Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
 //   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 诸侯·战报。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
@@ -13,6 +13,8 @@ import { HandPanel } from "./HandPanel";
 import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
+import { HintBar } from "@app/screens/shared/HintBar";
+import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { TESTIDS } from "./testids";
 import { VERSION } from "../../../version";
 
@@ -45,19 +47,13 @@ export function GameScreen() {
   const interactive = useGameStore((s) => s.interactive);
   const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
+  const hintLevel = useGameStore((s) => s.hintLevel);
   const thinking = useGameStore((s) => s.thinking);
-  const pushHint = useGameStore((s) => s.pushHint);
   const localPlayer = useLocalPlayer();
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
-
-  // hint 自动过期:store 只存文案不持定时器(见 gameStore.pushHint 注释),由本屏负责清
-  useEffect(() => {
-    if (!hint) return;
-    const t = setTimeout(() => pushHint(null), 1500); // 旧 flashHint 的 1.5s 口径
-    return () => clearTimeout(t);
-  }, [hint, pushHint]);
+  // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
   // 选都阶段的可点城池:可建都(Property)且未被据(对照旧版 selectable 计算)
   const selectableTiles = useMemo(() => {
@@ -95,6 +91,8 @@ export function GameScreen() {
       {/* 棋盘区(相对定位承载 hint/thinking/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
+        {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
+        <ConnectionBanner />
         <BoardView
           ref={boardRef}
           map={map}
@@ -121,14 +119,8 @@ export function GameScreen() {
             {setupHint}
           </div>
         )}
-        {hint && (
-          <div
-            data-testid={TESTIDS.hint}
-            className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/90 px-4 py-1 text-danger shadow"
-          >
-            {hint}
-          </div>
-        )}
+        {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
+        <HintBar hint={hint} level={hintLevel} />
         {(thinking || (snapshot.phase !== "GameOver" && snapshot.players[snapshot.activeIndex]?.isBot)) && (
           // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位)
           <div

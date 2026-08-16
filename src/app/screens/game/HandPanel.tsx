@@ -9,10 +9,24 @@ import type { GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
 import { getControllerContext } from "@app/controllers/registry";
+import { CardDetailScroll, type CardDetail } from "./CardDetailScroll";
 import { TESTIDS } from "./testids";
 
 // 签面数字 → 汉字(旧 dice-face 一~六 的展示口径)
 const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
+
+/** 行军按钮 disabled 原因(UI F1):从快照 + interactive + pending 集中推导,返回 null = 可用。
+ *  为什么集中一处:内嵌买地/扩军已把原因写在文案里,行军没有——这里补齐并统一口径,
+ *  悬停 title 与旁注灰字共用同一返回值,避免两套说法漂移。 */
+function reasonForDisabled(s: GameSnapshot, interactive: boolean, pending: boolean): string | null {
+  if (pending) return "行军中…";
+  if (!interactive) {
+    if (s.phase !== "Playing") return "非对局中";
+    return "未轮到你或托管中";
+  }
+  if (s.turnPhase !== "Roll") return "轮次未到,先完成当前抉择";
+  return null;
+}
 
 interface HandPanelProps {
   snapshot: GameSnapshot;
@@ -27,6 +41,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // 回落 controller.autoPilotOn(本地标记)。速度是本地 UI 态(切速时若在托管中立即重发)
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
+  // UI F5:当前查看详情的卡(珍宝/名士);null = 无卷轴
+  const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
   const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
   return (
     <section data-testid={TESTIDS.handPanel} className="flex min-h-0 flex-1 flex-col border-b border-gold/40">
@@ -58,8 +74,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 data-testid={TESTIDS.handTreasure(t.id)}
                 title={`Lv${t.level}`}
                 className="cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1 text-xs hover:bg-panel"
-                // TODO(阶段 5b/6):珍宝详情卷轴(旧 showHandDetail);本阶段点击暂无操作
-                onClick={undefined}
+                // UI F5:cursor-pointer 不再撒谎——点击弹出详情卷轴(对照旧 showHandDetail)
+                onClick={() => setCardDetail({ kind: "treasure", card: t })}
               >
                 <span className="text-gold">◆</span> {t.name} <span className="text-ink-dim">Lv{t.level}</span>
               </div>
@@ -70,8 +86,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 data-testid={TESTIDS.handHero(h.id)}
                 title={h.title}
                 className="cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1 text-xs hover:bg-panel"
-                // TODO(阶段 5b/6):名士详情卷轴;本阶段点击暂无操作
-                onClick={undefined}
+                // UI F5:同上,名士详情卷轴
+                onClick={() => setCardDetail({ kind: "hero", card: h })}
               >
                 <span className="text-danger">帥</span> {h.name} <span className="text-ink-dim">{h.title}</span>
               </div>
@@ -92,17 +108,28 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] ?? "签" : "签"}
         </span>
         {/* Wave3(候选2):roll() 一行转发已从基类删除,行军=标准命令直发(dispatchCommand 唯一入口) */}
-        <button
-          type="button"
-          data-testid={TESTIDS.rollButton}
-          disabled={!interactive || snapshot.turnPhase !== "Roll"}
-          onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
-          title="行军"
-          className="rounded border border-gold bg-gold/20 px-4 py-1 font-brush text-lg enabled:hover:bg-gold/40 disabled:opacity-40"
-        >
-          行军
-        </button>
-        <ActionInline snapshot={snapshot} controller={controller} interactive={interactive} />
+        {(() => {
+          // UI F1/F3:disabled 原因集中推导;pending(联机命令已发未回)显示「行军中…」
+          const reason = reasonForDisabled(snapshot, interactive, net.pending);
+          return (
+            <>
+              <button
+                type="button"
+                data-testid={TESTIDS.rollButton}
+                disabled={reason !== null}
+                onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+                title={reason ?? "行军"}
+                className="rounded border border-gold bg-gold/20 px-4 py-1 font-brush text-lg enabled:hover:bg-gold/40 disabled:opacity-40"
+              >
+                {net.pending ? "行军中…" : "行军"}
+              </button>
+              {reason && !net.pending && (
+                <span className="text-xs text-ink-dim">{reason}</span>
+              )}
+            </>
+          );
+        })()}
+        <ActionInline snapshot={snapshot} controller={controller} interactive={interactive} pending={net.pending} />
       </div>
       {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
           显隐):托管中 interactive 被锁,本地只旁观。对照旧 client-controller 的 autopilot-row。 */}
@@ -133,6 +160,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           {autopilotOn && <span className="text-gold">托管中</span>}
         </div>
       )}
+      {/* UI F5:珍宝/名士详情卷轴(点卡弹出;只读,唯一交互是关闭) */}
+      {cardDetail && <CardDetailScroll detail={cardDetail} onClose={() => setCardDetail(null)} />}
     </section>
   );
 }
@@ -143,25 +172,35 @@ function ActionInline({
   snapshot,
   controller,
   interactive,
+  pending,
 }: {
   snapshot: GameSnapshot;
   controller: GameController | null;
   interactive: boolean;
+  pending: boolean;
 }) {
-  if (!interactive || snapshot.phase !== "Playing") return null;
+  // UI F3:联机 pending 期间 interactive=false 但按钮仍渲染(只是锁住),让「…中」态可见而非闪没。
+  if ((!interactive && !pending) || snapshot.phase !== "Playing") return null;
   const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
   // 静态地图数据经 registry 上下文取(Wave3 候选5:渲染层不摸活引擎)
   const ctx = getControllerContext();
-  const add = (label: string, action: string, cmd: GameCommand, opts: { primary?: boolean; disabled?: boolean } = {}) => (
+  // UI F1:opts.reason 收敛 disabled 原因(买地/扩军原有的内嵌文案迁到 title,口径统一)
+  const add = (
+    label: string,
+    action: string,
+    cmd: GameCommand,
+    opts: { primary?: boolean; disabled?: boolean; reason?: string } = {},
+  ) => (
     <button
       type="button"
       key={action}
       data-testid={TESTIDS.actionButton(action)}
-      disabled={opts.disabled}
+      disabled={opts.disabled || !interactive}
       onClick={() => dispatch(cmd)}
+      title={opts.reason ?? (pending ? "处理中…" : label)}
       className={`rounded border px-2 py-0.5 text-xs ${opts.primary ? "border-gold bg-gold/20 font-brush text-base" : "border-ink/30 hover:bg-panel-hi"} disabled:opacity-40`}
     >
-      {label}
+      {pending ? `${label}…` : label}
     </button>
   );
 
@@ -196,10 +235,11 @@ function ActionInline({
       return (
         <div data-testid={TESTIDS.actionInline} className="flex gap-2">
           {add(
-            canBuy ? `购地 ${formatMoney(def.purchasePrice)}·1委任` : `购地(${reason})`,
+            `购地 ${formatMoney(def.purchasePrice)}·1委任`,
             "buy",
             { type: "buyProperty" },
-            { primary: canBuy, disabled: !canBuy },
+            // UI F1:原因从文案内嵌迁到 title + 旁注(与其他按钮同一机制)
+            { primary: canBuy, disabled: !canBuy, reason: canBuy ? undefined : reason },
           )}
           {add("不取", "skip", { type: "endDecision" })}
         </div>
@@ -212,10 +252,10 @@ function ActionInline({
       return (
         <div data-testid={TESTIDS.actionInline} className="flex gap-2">
           {add(
-            canUp ? `扩军 ${formatMoney(def.upgradeCost)}` : `扩军(${lvl >= def.maxLevel ? "满级" : "银两不足"})`,
+            `扩军 ${formatMoney(def.upgradeCost)}`,
             "upgrade",
             { type: "upgradeProperty" },
-            { primary: canUp, disabled: !canUp },
+            { primary: canUp, disabled: !canUp, reason: canUp ? undefined : lvl >= def.maxLevel ? "已满级" : "银两不足" },
           )}
           {add("按兵不动", "skip", { type: "endDecision" })}
         </div>

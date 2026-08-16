@@ -61,6 +61,10 @@ export class OnlineController extends GameController {
   get viewSeat(): number {
     return this.seat;
   }
+  /** pending 公开只读(UI F3:HandPanel 据此显示「行军中…」;写仍只发生在本类)。 */
+  get isPending(): boolean {
+    return this.pending;
+  }
   /** 我的座位托管中(从 netStore 的 seats 广播回读,与旧 latestSeats 等价)。 */
   get autoPilotOn(): boolean {
     const s = useNetStore.getState();
@@ -98,6 +102,9 @@ export class OnlineController extends GameController {
       return;
     }
     this.pending = true;
+    // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
+    // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
+    useNetStore.getState().setPending(true);
     this.sock.send(JSON.stringify({ type: "cmd", cmd }));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
@@ -180,9 +187,9 @@ export class OnlineController extends GameController {
     const sock = new ReconnectingSocket({ url: this.api.wsUrl({ roomId: this.roomId, seatToken: this.seatToken }, this.seat) });
     this.sock = sock;
     sock.onStatus((s) => {
-      if (s === "open") useNetStore.getState().setConnected(true);
-      else if (s === "closed") useNetStore.getState().setConnected(false); // UI 已会显示断连态
-      else useGameStore.getState().pushHint("重连失败,请刷新页面"); // gaveUp:10 次耗尽
+      // F2:全量状态入 netStore(断线横幅读 connection 三值),connected 由 setConnection
+      // 派生写入。并行边界:本回调是 F2 线唯一被授权改动的 online.ts 位置,其余勿动。
+      useNetStore.getState().setConnection(s);
     });
     sock.onError(() => {
       // 重连尝试期间的 error 不打扰(onclose 马上接管);仅正常在线时闪提示
@@ -213,6 +220,7 @@ export class OnlineController extends GameController {
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshot);
       this.pending = false;
+      useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
       this.fx.play(this.enteredGame && prevPhase === "Roll" && this._engine.turnPhase !== "Roll");
       this.sync();
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
@@ -260,5 +268,6 @@ export class OnlineController extends GameController {
     this.sock?.close();
     this.sock = null;
     this.pending = false;
+    useNetStore.getState().setPending(false); // UI F3:销毁时清 pending,防残留
   }
 }

@@ -17,7 +17,7 @@ import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
-import { TESTIDS } from "@app/screens/game/testids";
+import { HintBar } from "@app/screens/shared/HintBar";
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
 const MAP_PREF_KEY = "dafung.mapId";
@@ -40,6 +40,7 @@ export function App() {
   const setScreen = useGameStore((s) => s.setScreen);
   const pushHint = useGameStore((s) => s.pushHint);
   const hint = useGameStore((s) => s.hint);
+  const hintLevel = useGameStore((s) => s.hintLevel);
 
   // 正式开局:加载地图 → 构造单机控制器(引擎 setup 自动步进至轮到人类)→ 进 Game 屏。
   // 单机热座:guohao 全在 seats 里,doDraftRoll 定序后 bot 选都步进,轮到人类停。
@@ -139,7 +140,7 @@ export function App() {
     (data: MapData) => {
       // MapData 无名字段,用首格名兜底命名(图库列表展示用,允许重名)
       getMapSource().saveCustomMap(data.tiles[0]?.name ?? "未命名地图", data);
-      pushHint("已存入自建图库");
+        pushHint("已存入自建图库", "info");
     },
     [pushHint],
   );
@@ -211,14 +212,8 @@ export function App() {
           mapId={initialMapId}
           mapSource={getMapSource()}
         />
-        {hint && (
-          <div
-            data-testid={TESTIDS.hint}
-            className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/95 px-4 py-1 text-danger shadow"
-          >
-            {hint}
-          </div>
-        )}
+        {/* F4:统一 HintBar(起兵失败等);过期口径由 gameStore 统一 1.8s */}
+        <HintBar hint={hint} level={hintLevel} />
       </div>
     );
   }
@@ -236,14 +231,7 @@ export function App() {
       {/* 设置屏也可见的错误提示:gameStore.hint 原本只在 Game 屏渲染,
           起兵/进联机失败在 setup 屏静默(e2e react-resilience 巡检发现)。
           Game 屏有自己的 hint 层,这里仅 setup 屏兜底。 */}
-      {hint && (
-        <div
-          data-testid={TESTIDS.hint}
-          className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/95 px-4 py-1 text-danger shadow"
-        >
-          {hint}
-        </div>
-      )}
+      <HintBar hint={hint} level={hintLevel} />
     </div>
   );
 }

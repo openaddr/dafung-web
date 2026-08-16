@@ -11,6 +11,8 @@ import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import type { OnlineController } from "@app/controllers/online";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
+import { HintBar } from "@app/screens/shared/HintBar";
+import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { LID } from "./testids";
 
 export interface LobbyScreenProps {
@@ -46,6 +48,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const seats = useNetStore((s) => s.seats);
   const dismissed = useNetStore((s) => s.dismissed);
   const hint = useNetStore((s) => s.hint);
+  const hintLevel = useNetStore((s) => s.hintLevel);
   const pushHint = useNetStore((s) => s.pushHint);
 
   const [seatCount, setSeatCount] = useState(2);
@@ -76,12 +79,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     };
   }, [mapId]);
 
-  // hint 自动过期(与 Game 屏同口径:store 不持定时器)
-  useEffect(() => {
-    if (!hint) return;
-    const t = setTimeout(() => pushHint(null), 1800);
-    return () => clearTimeout(t);
-  }, [hint, pushHint]);
+  // F4:hint 过期已下沉 netStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
   const controller = getController() as OnlineController | null;
 
@@ -116,7 +114,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // ── 未入座:建房 / 加入 ──
   if (!roomId) {
     return (
-      <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center bg-bg p-6">
+      <div
+        data-testid={LID.screen}
+        className="relative flex min-h-full flex-col items-center justify-center bg-bg p-6"
+      >
+        {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
+        <ConnectionBanner />
         <h1 className="font-brush text-4xl text-ink tracking-widest mb-1">联机对局</h1>
         <div className="font-deco text-ink-dim mb-6 tracking-[0.4em]">— 群雄逐鹿 —</div>
         <div className="w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl flex flex-col gap-5">
@@ -150,6 +153,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               <button
                 data-testid={LID.create}
                 disabled={busy}
+                title={busy ? "处理中…" : undefined}
                 onClick={() =>
                   void guard(() =>
                     controller!.createRoom({
@@ -179,6 +183,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               <button
                 data-testid={LID.join}
                 disabled={busy || !joinCode.trim()}
+                // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
+                title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
                 onClick={() => void guard(() => controller!.joinRoom(joinCode.trim()))}
                 className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
               >
@@ -186,7 +192,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               </button>
             </div>
           </div>
-          {hint && <div className="font-deco text-xs text-danger">{hint}</div>}
+          {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
+          <HintBar hint={hint} level={hintLevel} variant="inline" />
           <button onClick={onExit} className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep self-start text-sm"}>
             返回设置
           </button>
@@ -198,7 +205,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // ── 已入座:房间大厅 ──
   const isHost = host === mySeat;
   return (
-    <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center bg-bg p-6">
+    <div
+      data-testid={LID.screen}
+      className="relative flex min-h-full flex-col items-center justify-center bg-bg p-6"
+    >
+      {/* F2 断线横幅:卡片上方常驻(重连成功自动消失) */}
+      <ConnectionBanner />
       <div className="w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
         <h1 className="font-brush text-2xl text-ink tracking-[0.3em] text-center">大厅</h1>
         {/* 房间码:大字 + 字距(对照旧 .lobby-code 的展示口径) */}
@@ -251,26 +263,38 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
         {/* host 控件:选图 + 开局(需先选图;开局后由首帧 snapshot 切屏) */}
         {isHost && (
-          <div className="mt-3 flex items-center justify-center gap-3">
-            <button
-              data-testid={LID.selectMap}
-              disabled={busy}
-              onClick={() => setShowMapSelect(true)}
-              className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep text-sm"}
-            >
-              选择地图
-            </button>
-            <button
-              data-testid={LID.start}
-              disabled={busy || !mapId}
-              onClick={() => void guard(() => controller!.startGame())}
-              className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold"}
-            >
-              开局
-            </button>
+          <div className="mt-3 flex flex-col items-center gap-1">
+            <div className="flex items-center justify-center gap-3">
+              <button
+                data-testid={LID.selectMap}
+                disabled={busy}
+                title={busy ? "处理中…" : undefined}
+                onClick={() => setShowMapSelect(true)}
+                className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep text-sm"}
+              >
+                选择地图
+              </button>
+              <button
+                data-testid={LID.start}
+                disabled={busy || !mapId}
+                // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
+                title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
+                onClick={() => void guard(() => controller!.startGame())}
+                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold"}
+              >
+                开局
+              </button>
+            </div>
+            {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
+            {!mapId && !busy && <div className="font-deco text-xs text-ink-dim">需先选择地图</div>}
           </div>
         )}
-        {hint && <div className="mt-2 text-center font-deco text-xs text-danger">{hint}</div>}
+        {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
+        {hint && (
+          <div className="mt-2">
+            <HintBar hint={hint} level={hintLevel} variant="inline" />
+          </div>
+        )}
       </div>
 
       {/* 选图二级屏:复用 setup 的 MapSelectPanel(仅内置图源) */}
