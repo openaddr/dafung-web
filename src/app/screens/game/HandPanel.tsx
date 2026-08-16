@@ -74,6 +74,10 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 <span className="text-danger">帥</span> {h.name} <span className="text-ink-dim">{h.title}</span>
               </div>
             ))}
+            {/* 空状态(对照旧 renderHand「暂无珍宝 · 名士」) */}
+            {player.treasures.length === 0 && player.heroes.length === 0 && (
+              <span className="text-xs text-ink-dim">暂无珍宝 · 名士</span>
+            )}
           </div>
         </div>
       )}

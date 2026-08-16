@@ -6,7 +6,7 @@ import type { Player } from "@core/types";
 import { BoardView } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
-import { AudioProvider } from "@app/fx/AudioProvider";
+import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
@@ -15,6 +15,24 @@ import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { TESTIDS } from "./testids";
+import { VERSION } from "../../../version";
+
+/** 静音开关:棋盘区右上小按钮(须挂在 AudioProvider 内读 context,故独立组件)。 */
+function MuteButton() {
+  const audio = useAudio();
+  if (!audio) return null;
+  return (
+    <button
+      type="button"
+      data-testid="mute-button"
+      title={audio.muted ? "开音" : "静音"}
+      onClick={audio.toggleMuted}
+      className="absolute top-2 right-2 z-10 rounded border border-gold/50 bg-panel/90 px-2 py-0.5 font-brush text-sm text-ink-dim hover:text-ink"
+    >
+      {audio.muted ? "♪" : "♫"}
+    </button>
+  );
+}
 
 export function GameScreen() {
   // 城池详情(Playing 相位点城查看,本地 UI 态;Setup 相位点城是选都,走 controller)
@@ -130,6 +148,12 @@ export function GameScreen() {
             onDetailClose={() => setDetailTileIndex(null)}
           />
         </div>
+        {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
+        <MuteButton />
+        {/* 版本角标(对照旧 main.ts 右下角,构建排查用) */}
+        <span className="pointer-events-none absolute right-1 bottom-0.5 font-body text-[10px] text-ink-dim/70">
+          {VERSION}
+        </span>
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶) */}
       <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel">
