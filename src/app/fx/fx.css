@@ -4,6 +4,24 @@
    不再写死同值——改色只需改 theme.ts 后 bun run gen:theme。
    例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
 
+/* ── 3D 骰子全屏覆盖层(ThreeDice append 到 body,样式必须在此定义)──
+   ⚠ 教训(2026-08-16):本规则原住旧 style.css,阶段 10 删旧层时被误删——
+   overlay 没有 fixed 定位就瘫在文档流末尾被 overflow:hidden 吃掉,骰子动画
+   自此隐形而 e2e(swiftshader)不验视觉,一路全绿未察觉。body 上挂载的元素
+   其样式必须随迁,不能只依赖组件内样式。 */
+.dice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(40, 30, 15, 0.35), rgba(20, 15, 5, 0.6));
+  animation: dice-overlay-in 0.2s ease;
+}
+@keyframes dice-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 /* 浮动金额 */
 .fx-floater {
   position: absolute;
