@@ -5,6 +5,11 @@
 .bv-tile {
   cursor: pointer;
 }
+/* 需求2·无主档:整城 0.92 的"安静感"——比有主城略退后,视线自然落在有主/都城上。
+   双类名提高优先级,确保不被 Tailwind 单类 .opacity-40(isTaken 灰阶)意外覆盖。 */
+.bv-tile.bv-unowned {
+  opacity: 0.92;
+}
 .bv-tile-hilite {
   opacity: 0;
   transition: opacity 0.15s ease;

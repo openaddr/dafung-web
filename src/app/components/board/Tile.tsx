@@ -5,6 +5,12 @@ import { memo } from "react";
 import type { TileDef } from "@core/types";
 import { Theme, groupColor, playerColor, rgba } from "@core/theme";
 
+/** 玩家色加深(f<1):领地铭牌要"深底白字",直接用原玩家色做底则与描边/旗同明度
+ *  缺乏层次,统一乘暗系数得到同色相的深底(zoom-out 后"色块=地盘"仍按色相可辨)。 */
+function shade(c: { r: number; g: number; b: number }, f: number) {
+  return { r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) };
+}
+
 export interface TileVisualState {
   /** 持有者 colorIndex(null=无主)。 */
   ownerColorIndex: number | null;
@@ -200,6 +206,8 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
     state.isActive ? "bv-active" : "",
     state.isTaken ? "opacity-40 grayscale" : "",
     state.isSelectable ? "bv-selectable" : "",
+    // 需求2·无主档:整城 0.92 安静感(城池格专属;isTaken 的 40% 灰阶更强,让位不叠加)
+    !ownerRgb && !state.isTaken && !isIconTile ? "bv-unowned" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -217,7 +225,8 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
       <circle className="bv-tile-hilite" r={62} fill={rgba(Theme.gold)} />
       <circle className="bv-capital-glow" r={70} fill={rgba(Theme.goldBright)} style={{ filter: "blur(9px)" }} />
 
-      {/* 持有者铭牌边框(玩家色 + 加粗 + 淡底;焦点城金环由 .bv-active 样式覆盖 stroke) */}
+      {/* 铭牌底(需求2 三档):无主=宣纸底淡墨边(低显著);有主(含都城)=深玩家色整块
+          染底 ≥85% 不透明——zoom-out 扫描时"色块=地盘"按色相即读,不依赖细节。 */}
       <rect
         className="bv-tile-border"
         x={-52}
@@ -225,8 +234,8 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
         width={104}
         height={88}
         rx={10}
-        fill={ownerRgb ? rgba(ownerRgb) : "rgba(247,236,208,0.92)"}
-        fillOpacity={ownerRgb ? 0.12 : 1}
+        fill={ownerRgb ? rgba(shade(ownerRgb, 0.58), 0.92) : "rgba(247,236,208,0.92)"}
+        fillOpacity={ownerRgb ? 0.92 : 1}
         stroke={
           state.isActive
             ? rgba(Theme.goldBright)
@@ -295,26 +304,39 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
         </>
       ) : (
         <>
-          {/* 有主城染瓦:玩家色 70% 叠在屋面上,与铭牌描边/色带同源(沿用 playerColor props,无新通道) */}
-          <Building size={tile.size ?? "medium"} tint={ownerRgb ? rgba(ownerRgb, 0.7) : null} />
-          {/* 军事重镇(large 档):左角楼顶烽火台剪影(小梯形)+ 一缕淡墨烟 */}
-          {tile.size === "large" ? (
-            <g>
-              <polygon points="-47,-31 -40,-31 -41.5,-39 -45.5,-39" fill="rgba(70,52,30,0.85)" />
-              <path d="M -43.5 -40 q 3 -4 1 -8 q -2 -3 1 -6" fill="none" stroke="rgba(90,80,70,0.5)" strokeWidth={1.2} />
+          {/* 需求2·都城① 金色城台底座:建筑脚下两层 rect(暗金座身+亮金座面,模拟上下渐变)。
+              不用 linearGradient:defs 在 StaticLayers(独占勿动),每城内联 defs 会产生重复 id 冲突。 */}
+          {isCapital ? (
+            <g className="bv-capital-pedestal">
+              <rect x={-62} y={9} width={124} height={12} rx={2} fill="rgba(178,140,50,0.6)" stroke="rgba(50,35,15,0.8)" strokeWidth={1.5} />
+              <rect x={-62} y={9} width={124} height={5.5} rx={2} fill="rgba(212,175,55,0.9)" />
             </g>
           ) : null}
+          {/* 需求2·都城④ 建筑整体 scale 1.08:以城脚(y=12)为锚,只向上长高="微抬升",
+              不踩进底座;无主/领地保持原尺度。 */}
+          <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
+            {/* 有主城染瓦:玩家色 70% 叠在屋面上,与铭牌描边/色带同源(沿用 playerColor props,无新通道) */}
+            <Building size={tile.size ?? "medium"} tint={ownerRgb ? rgba(ownerRgb, 0.7) : null} />
+            {/* 军事重镇(large 档):左角楼顶烽火台剪影(小梯形)+ 一缕淡墨烟 */}
+            {tile.size === "large" ? (
+              <g>
+                <polygon points="-47,-31 -40,-31 -41.5,-39 -45.5,-39" fill="rgba(70,52,30,0.85)" />
+                <path d="M -43.5 -40 q 3 -4 1 -8 q -2 -3 1 -6" fill="none" stroke="rgba(90,80,70,0.5)" strokeWidth={1.2} />
+              </g>
+            ) : null}
+          </g>
           {/* 分组色带(顶部):有持有者→玩家色;无主→区域色 */}
           <rect className="bv-tile-band" x={-46} y={-44} width={92} height={8} rx={2} fill={bandFill} />
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
           <NamePlaque name={tile.name} capital={isCapital} />
+          {/* 价格字:有主城铭牌已是深玩家色底,墨字不可读→白字;无主宣纸底保持墨字 */}
           <text
             x={0}
             y={42}
             textAnchor="middle"
             fontFamily="var(--font-deco)"
             fontSize={14}
-            fill={rgba(Theme.inkDim)}
+            fill={ownerRgb ? "rgba(255,252,240,0.95)" : rgba(Theme.inkDim)}
           >
             {price}
           </text>
@@ -335,7 +357,9 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 </g>
               ))}
           </g>
-          {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号 */}
+          {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
+              需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
+              仍可辨的形状级王权信号,不依赖文字/描边细节。 */}
           {isCapital && state.capitalColorIndex != null ? (
             <g className="bv-tile-flag">
               <line x1={0} y1={-40} x2={0} y2={-88} stroke="rgba(50,35,15,0.8)" strokeWidth={2} />
@@ -346,21 +370,33 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 <line x1={0} y1={-87} x2={0} y2={-83} />
                 <line x1={0} y1={-87} x2={3} y2={-84} />
               </g>
+              {/* 后层深色衬:略大略低一笔,让前层旗面在任何底色上都"浮"出来 */}
+              <polygon points="0,-90 47,-77.5 0,-65" fill="rgba(35,25,12,0.6)" />
               <polygon
-                points="0,-88 32,-79 0,-70"
+                points="0,-88 45,-76.5 0,-65"
                 fill={rgba(playerColor(state.capitalColorIndex))}
                 stroke={rgba(Theme.goldBright)}
                 strokeWidth={1.5}
               />
               <text
-                x={11}
-                y={-77}
+                x={15}
+                y={-74}
                 textAnchor="middle"
                 fontFamily="var(--font-brush)"
-                fontSize={16}
+                fontSize={17}
                 fill="#fff"
               >
                 {state.capitalGuohao}
+              </text>
+            </g>
+          ) : null}
+          {/* 需求2·都城③ 朱底金字方印「都」:右上角 14×14、旋转 -6°(手钤印的随意感)、
+              金边框;与领地区分"这是都城"的第二冗余信号(王旗之外印也认得)。 */}
+          {isCapital ? (
+            <g className="bv-capital-seal" transform="translate(49 -33) rotate(-6)">
+              <rect x={-7} y={-7} width={14} height={14} rx={1.5} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.2} />
+              <text x={0} y={4} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={10.5} fontWeight={700} fill={rgba(Theme.goldBright)}>
+                都
               </text>
             </g>
           ) : null}

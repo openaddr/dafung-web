@@ -4,7 +4,9 @@
 import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
-import { getController, getControllerMap } from "@app/controllers/registry";
+import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { formatMoney } from "@core/money";
+import { Theme } from "@core/theme";
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
@@ -12,6 +14,7 @@ import { useFxStore } from "@app/fx/fxStore";
 import { HandPanel } from "./HandPanel";
 import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
+import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
@@ -41,6 +44,9 @@ function MuteButton() {
 export function GameScreen() {
   // 城池详情(Playing 相位点城查看,本地 UI 态;Setup 相位点城是选都,走 controller)
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
+  // 选都二次确认的目标城(需求1):React 化时把旧版「确认筑城/另择他城」框弄丢了,
+  // 此处找回——点城只暂存目标,确认才落子;点其它可选城直接切换目标(弹窗内容跟随)。
+  const [pendingCapital, setPendingCapital] = useState<number | null>(null);
   // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
   // 默认展开;收起态只留「展开」按钮 + 当前活跃玩家国号 + 我的现金竖排摘要。
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -123,6 +129,20 @@ export function GameScreen() {
       ? `「${snapshot.players[snapshot.currentSetupPlayerIndex]?.guohao ?? "?"}」择一空城建都`
       : null;
 
+  // 待确认城的信息(城名/筑城价/区域名):catalog 是静态查询上下文,渲染期直取即可
+  const pendingCapitalInfo = useMemo(() => {
+    if (pendingCapital == null) return null;
+    const ctx = getControllerContext();
+    const tile = ctx?.board.tiles[pendingCapital];
+    const def = tile?.propertyId ? ctx?.catalog.get(tile.propertyId) : undefined;
+    if (!tile || !def) return null;
+    return {
+      name: tile.name,
+      price: formatMoney(def.purchasePrice),
+      region: Theme.groupNames[def.group] ?? "未知",
+    };
+  }, [pendingCapital]);
+
   return (
     <AudioProvider>
       {/* 3D 骰子(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
@@ -140,10 +160,10 @@ export function GameScreen() {
           players={players}
           onTileClick={(i) => {
             // 相位路由收口于此(Wave3 候选2,原 controller.tileClick 的职责上移):
-            // Playing=查看详情(本地 UI 态);Setup 选都期=落子(setupPickCapital,
-            // 单机实推进、联机默认 no-op,对屏幕两种模式无感)。testid 链路不变。
+            // Playing=查看详情(本地 UI 态);Setup 选都期=弹「定都于此?」确认框
+            // (需求1:点城不再直接落子,确认后才 setupPickCapital)。
             if (snapshot.phase === "Playing") setDetailTileIndex(i);
-            else controller?.setupPickCapital(i);
+            else if (selectableTiles?.has(i)) setPendingCapital(i);
           }}
           selectableTiles={selectableTiles}
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}
@@ -182,6 +202,31 @@ export function GameScreen() {
             onDetailClose={() => setDetailTileIndex(null)}
           />
         </div>
+        {/* 选都二次确认(需求1):遮罩不拦棋盘——弹窗开着仍可点其它可选城换目标。
+            相位离开 Setup(确认落子推进)时 pendingCapital 立即清空,弹窗随快照切换消失。 */}
+        {pendingCapitalInfo ? (
+          <ConfirmDialog
+            testid={TESTIDS.confirmCapital}
+            backdropBlocks={false}
+            title="定都于此?"
+            confirmLabel="确认筑城"
+            cancelLabel="另择他城"
+            onConfirm={() => {
+              const i = pendingCapital;
+              setPendingCapital(null);
+              if (i != null) controller?.setupPickCapital(i);
+            }}
+            onCancel={() => setPendingCapital(null)}
+          >
+            <p className="m-0 leading-7">
+              于 <b className="font-brush text-ink">{pendingCapitalInfo.name}</b> 筑城立都
+              <br />
+              筑城之资:<span className="text-money">{pendingCapitalInfo.price}</span>
+              <br />
+              所属区域:{pendingCapitalInfo.region}
+            </p>
+          </ConfirmDialog>
+        ) : null}
         {/* 总览复位(对照旧版 reset-view):置于左上,与右上的静音按钮错开 */}
         <button
           type="button"

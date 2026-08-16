@@ -4,7 +4,7 @@
 // - invariants.spec(全程不变量 + 终局)→ 全速战档驱动到胜利的不变量巡检
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { test, expect } from "@playwright/test";
-import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup } from "./react-helpers";
+import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital } from "./react-helpers";
 
 test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
   await quickStart(page);
@@ -135,7 +135,7 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   await page.getByTestId("setup-target").selectOption("5000"); // 速战
   await page.getByTestId("setup-seat-count").selectOption("2"); // 2 人局加速节奏
   await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
+  await pickCapital(page);
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
 
   let actions = 0;

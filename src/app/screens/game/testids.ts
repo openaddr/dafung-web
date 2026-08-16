@@ -51,6 +51,12 @@ export const TESTIDS = {
   /** 总览复位(还原 pan/zoom;等价旧 BoardView.resetView)。 */
   resetView: "reset-view",
 
+  // ── 选都二次确认弹窗 ──
+  /** 「定都于此?」确认框容器与两枚按钮(需求1:React 化时旧版确认框丢失,此处找回)。 */
+  confirmCapital: "confirm-capital",
+  confirmCapitalOk: "confirm-capital-ok",
+  confirmCapitalCancel: "confirm-capital-cancel",
+
   // ── 未开局兜底页(S9)──
   /** 「尚未开局」卡片的「回到首页」按钮(快照缺失时的引导逃生口)。 */
   notStartedBack: "not-started-back",

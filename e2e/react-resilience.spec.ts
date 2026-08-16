@@ -3,7 +3,7 @@
 // 联机刷新重入:服务器无 token 重入(online.ts 注释 TODO),刷新 ?room= 会重新走
 // 加入流程(满员则失败)——此处测降级不崩溃(意图同旧 resilience 的"重进"场景)。
 import { test, expect } from "@playwright/test";
-import { openSoloSetup } from "./react-helpers";
+import { openSoloSetup, pickCapital } from "./react-helpers";
 
 test("图库 localStorage 垃圾数据:选图清单忽略之,起兵不卡死", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("dafung-custom-maps", "not-json{{{"));
@@ -13,7 +13,7 @@ test("图库 localStorage 垃圾数据:选图清单忽略之,起兵不卡死", a
   await page.getByTestId("map-cancel").click();
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
+  await pickCapital(page);
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
 });
 

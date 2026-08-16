@@ -15,15 +15,22 @@ export function snap(page: Page): Promise<any> {
 
 /** UI 快速开局:goto(可选 ?seed=)→ 首页进单机配置页 → 起兵 → 点第一座可选城建都
  *  → 等轮到人类。行军按钮可用 ≠ bot 链结束(busy 在 bot 步间会短暂放开),紧接着读
- *  快照/断言会撞上 bot 仍在推进的竞态(TODO 记账的 e2e 抖动家族)。故补"局面稳定"
+ *  快照/断言会撞上 bot 仍在推进的竞态(TODO 记记账的 e2e 抖动家族)。故补"局面稳定"
  *  轮询:连续两次快照一致(300ms 间隔)才认为轮到人类且尘埃落定。 */
 export async function quickStart(page: Page, seed?: number): Promise<void> {
   await page.goto(seed != null ? `/?seed=${seed}` : "/");
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
+  await pickCapital(page);
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
   await waitSettled(page);
+}
+
+/** 选都两步走(需求1):点城 → 「定都于此?」确认框 → 确认筑城。
+ *  弹窗是新增交互,所有"点城即定都"的旧用例统一改走这里,防选择器散落漂移。 */
+export async function pickCapital(page: Page, nth = 0): Promise<void> {
+  await page.locator(".bv-tile.bv-selectable").nth(nth).click();
+  await page.getByTestId("confirm-capital-ok").click();
 }
 
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。 */

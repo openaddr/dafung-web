@@ -8,7 +8,7 @@ async function quickStart(page: Page): Promise<void> {
   await page.goto("/");
   await page.getByTestId("home-solo").click();
   await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
+  await page.getByTestId("confirm-capital-ok").click();
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
 }
 
