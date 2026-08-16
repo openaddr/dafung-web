@@ -94,7 +94,7 @@ export function GameScreen() {
       <div className="flex h-full w-full bg-bg text-ink">
       {/* 棋盘区(相对定位承载 hint/thinking/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
-      <div id="board-wrap" className="relative min-w-0 flex-1">
+      <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
         <BoardView
           ref={boardRef}
           map={map}
