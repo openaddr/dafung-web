@@ -91,7 +91,9 @@
 
 ## P2 · 打磨与系统性债
 
-- [ ] **S1 首页仪式感**:入场淡入 stagger(四按钮依次)+ 笔触下划线 hover;active 按压态
+- [x] **S1 首页仪式感**(2026-08-16:home/home.css——四按钮入场 stagger(80ms/个,
+  translateY 8px→0+fade,挂包裹层防动画 fill 锁 transform 压掉 :active);hover 笔触下划线
+  2px 金边 scaleX 0→1(伪元素,键盘 focus-visible 同效);active scale .97。testid/布局不变)
 - [ ] **S2 编辑器原生弹窗替换**:window.prompt/alert(LobbyScreen 与 EditorScreen)→ 卷轴式 ConfirmDialog/输入卷轴
 - [x] **S3 硬编码色收编**(2026-08-16,Scroll/卷轴/fx/lobby/victory 部分;Editor 危险色全套归
   EditorScreen 并行施工,遗留):theme.ts 新增 paper-hi/paper-lo/seal-qing/success 四 token
@@ -104,13 +106,19 @@
   容器百分比(水平 15%-85%、垂直 12%-60%);烟花六色中金/朱砂/青绿/赭橙改引
   var(--color-*),亮蓝 #2980b9 与纯白 #fff 为烟花表现专用色不入 theme 语义色板(组件常量
   +注释);遮罩暗金渐变与信息文字 rgba 收敛为组件常量 OVERLAY_BG/INFO_TEXT
-- [ ] **S5 侧栏响应式**:GameScreen w-72 shrink-0 → md: 断点折叠(棋盘优先,侧栏抽屉或底部);
-  Editor w-[380px] 同
-- [ ] **S6 符号表统一**:↶↷←▶⌖♪♫◆⇄ 混用 → 定义古风符号表(文档化后统一替换)
+- [x] **S5 侧栏响应式**(game 部分 2026-08-16:md 断点以下棋盘优先,侧栏
+  `w-[min(288px,45vw)]` 可压(棋盘保 ≥55vw),md+ 恢复 w-72;四区 flex-col 自适应。
+  遗留:抽屉式折叠成本高未做;Editor w-[380px] 部分(EditorScreen 非本批文件)未动)
+- [x] **S6 符号表统一**(2026-08-16:docs/ui-symbols.md 定「古风符号表」(每用途 1 符号);
+  独占文件内替换 GameScreen 静音 ♪/♫→♪/♪̶、复位 ⌖→◎;全项目盘点其余文件均已
+  符合符号表,遗留清单见 ui-symbols.md(无需替换项))
 - [x] **S7 仅颜色传达信息 ×3**(lobby 部分 2026-08-16:座位在线点旁加「在线/离线」xs 文字
-  标签(成功色/ink-dim,testid lobby-seat-online-N),不只靠颜色;棋盘归属与破产线部分待核)
+  标签(成功色/ink-dim,testid lobby-seat-online-N),不只靠颜色;game 部分 2026-08-16 核对:
+  OthersPanel 破产行 line-through+opacity-40 已有非颜色线索 ✓,胜者原仅 text-gold → 补
+  「胜」单字标记(与「智」同款后缀);棋盘归属有国号徽记+文字,非仅颜色)
 - [ ] **S8 SoloSetup 校验内联**:国号非法 → 输入框红边 + 即时提示(替代常驻灰字)
-- [ ] **S9 单机「未开局」兜底页**:GameScreen.tsx:74-77 一行灰字 → 引导回首页按钮
+- [x] **S9 单机「未开局」兜底页**(2026-08-16:GameScreen 一行灰字 → 居中卡片「尚未开局/
+  对局数据不存在或已丢失」+「回到首页」按钮 setScreen("setup"),testid=not-started-back)
 
 ## 摸底事实速查(施工时引用)
 
@@ -142,3 +150,9 @@
   (fx.css 11→0、卷轴渐变 4→0、WarlogPanel 2→0、Lobby emerald 1→0、Victory 烟花 6→2
   表现专用常量);烟花圆心改容器百分比自适应;tsc 因并行 SoloSetup WIP 暂报 1 错(非本
   批文件),bun test 167 绿、build 过、scrolls+online e2e 6/6 绿、gen:theme 幂等。
+
+- S1 + S5-game + S6 + S7-核对 + S9(react-rewrite,2026-08-16,待 commit):首页四按钮入场
+  stagger(80ms/个)/笔触下划线 hover/按压态(home.css);game 侧栏窄屏
+  w-[min(288px,45vw)] 棋盘优先(抽屉遗留);静音 ♪/♪̶、复位 ◎ 按符号表替换,符号表落
+  docs/ui-symbols.md(盘点:其余文件已一致);OthersPanel 胜者补「胜」字标记(破产行原有
+  line-through+opacity 非颜色线索 ✓);未开局灰字 → 卡片+回到首页(not-started-back)。

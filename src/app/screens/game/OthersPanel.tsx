@@ -31,6 +31,9 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
               {p.guohao || p.name}
               {p.isBot ? " 智" : ""}
             </span>
+            {/* S7 核对补漏:胜者原先仅靠 text-gold 金色区分(仅颜色传达信息),
+                补「胜」文字标记——与「智」同款单字后缀,颜色之外有明确文字线索 */}
+            {isWinner && <span className="shrink-0 font-brush text-gold">胜</span>}
             <span className="ml-auto shrink-0 text-money">{formatMoney(p.cash)}</span>
             <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>
           </div>

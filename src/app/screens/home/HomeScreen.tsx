@@ -9,6 +9,7 @@ import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
 import { HOME_TID } from "./testids";
+import "./home.css";
 
 export interface HomeScreenProps {
   /** 「单机模式」→ 次级配置页。 */
@@ -38,8 +39,26 @@ export function HomeScreen({
   // 与单机配置页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, selectedMapId);
 
+  // S1 仪式感三件套:入场 stagger(80ms/个,包裹层播动画)/ 笔触下划线 hover /
+  // 按压 scale .97,均在 home.css;testid 与布局(grid 结构)不变。
   const btnBase =
-    "rounded-lg border px-8 py-5 font-brush text-2xl tracking-[0.3em] cursor-pointer transition-colors";
+    "home-btn-brush rounded-lg border px-8 py-5 font-brush text-2xl tracking-[0.3em] cursor-pointer transition-colors";
+  const entries: Array<{
+    tid: string;
+    label: string;
+    onClick: () => void;
+    extra: string;
+  }> = [
+    { tid: HOME_TID.solo, label: "单机模式", onClick: onSolo, extra: " border-gold bg-gold/80 hover:bg-gold text-ink font-bold" },
+    { tid: HOME_TID.online, label: "联机模式", onClick: onOnline, extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
+    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true), extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
+    {
+      tid: HOME_TID.editMap,
+      label: "编辑地图",
+      onClick: () => onEdit(selectedMapId !== "sanguo" ? selectedMapId : undefined),
+      extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink",
+    },
+  ];
 
   return (
     <div
@@ -50,34 +69,18 @@ export function HomeScreen({
       <div className="font-deco text-ink-dim mt-2 mb-10 tracking-[0.5em]">— 三国大富翁 —</div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-[min(560px,92vw)]">
-        <button
-          data-testid={HOME_TID.solo}
-          onClick={onSolo}
-          className={btnBase + " border-gold bg-gold/80 hover:bg-gold text-ink font-bold"}
-        >
-          单机模式
-        </button>
-        <button
-          data-testid={HOME_TID.online}
-          onClick={onOnline}
-          className={btnBase + " border-ink/40 bg-panel hover:bg-panel-hi text-ink"}
-        >
-          联机模式
-        </button>
-        <button
-          data-testid={HOME_TID.selectMap}
-          onClick={() => setShowMapSelect(true)}
-          className={btnBase + " border-ink/40 bg-panel hover:bg-panel-hi text-ink"}
-        >
-          选择地图
-        </button>
-        <button
-          data-testid={HOME_TID.editMap}
-          onClick={() => onEdit(selectedMapId !== "sanguo" ? selectedMapId : undefined)}
-          className={btnBase + " border-ink/40 bg-panel hover:bg-panel-hi text-ink"}
-        >
-          编辑地图
-        </button>
+        {entries.map((e, i) => (
+          // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
+          <div key={e.tid} className="home-btn-in" style={{ animationDelay: `${i * 80}ms` }}>
+            <button
+              data-testid={e.tid}
+              onClick={e.onClick}
+              className={btnBase + e.extra}
+            >
+              {e.label}
+            </button>
+          </div>
+        ))}
       </div>
 
       {/* 当前选中地图回显(选择在二级面板完成后刷新;localStorage 记忆不变) */}

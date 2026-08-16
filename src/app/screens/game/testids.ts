@@ -46,4 +46,8 @@ export const TESTIDS = {
   muteButton: "mute-button",
   /** 总览复位(还原 pan/zoom;等价旧 BoardView.resetView)。 */
   resetView: "reset-view",
+
+  // ── 未开局兜底页(S9)──
+  /** 「尚未开局」卡片的「回到首页」按钮(快照缺失时的引导逃生口)。 */
+  notStartedBack: "not-started-back",
 } as const;

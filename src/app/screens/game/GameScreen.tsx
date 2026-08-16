@@ -31,7 +31,9 @@ function MuteButton() {
       // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变
       className="absolute top-2 right-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
     >
-      {audio.muted ? "♪" : "♫"}
+      {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线组合字符),不再 ♪/♫ 混用
+          两种音符表达"有无声"(语义弱);同一符号加删除线直观表"关闭"。 */}
+      {audio.muted ? "♪\u0336" : "♪"}
     </button>
   );
 }
@@ -69,8 +71,26 @@ export function GameScreen() {
   }, [map, snapshot]);
 
   if (!snapshot || !map) {
-    // 理论上 setScreen("game") 前必有 controller+map;防御一下,便于排查路由错误
-    return <div className="flex h-full items-center justify-center text-ink-dim">未开局</div>;
+    // S9 未开局兜底页:此前只是一行灰字,玩家会卡死在空屏。
+    // 理论上 setScreen("game") 前必有 controller+map(刷新丢快照/路由错误会到这里),
+    // 给「回到首页」逃生口而不是让玩家面对空棋盘干瞪眼。
+    const back = useGameStore.getState().setScreen;
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-bg p-6">
+        <div className="rounded-lg border-2 border-gold/60 bg-panel px-10 py-8 text-center shadow">
+          <div className="font-brush text-3xl text-ink tracking-widest">尚未开局</div>
+          <div className="mt-2 font-deco text-sm text-ink-dim">对局数据不存在或已丢失</div>
+          <button
+            type="button"
+            data-testid={TESTIDS.notStartedBack}
+            onClick={() => back("setup")}
+            className="mt-6 rounded-lg border border-gold bg-gold/80 px-8 py-3 font-brush text-xl tracking-[0.3em] text-ink hover:bg-gold cursor-pointer"
+          >
+            回到首页
+          </button>
+        </div>
+      </div>
+    );
   }
 
   // 快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):
@@ -151,7 +171,8 @@ export function GameScreen() {
           // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变
           className="absolute top-2 left-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
         >
-          ⌖
+          {/* S6 符号表统一:复位统一 ◎(圆心居中,古印感),不再用光学校准符号 ⌖ */}
+          ◎
         </button>
         {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
         <MuteButton />
@@ -160,8 +181,12 @@ export function GameScreen() {
           {VERSION}
         </span>
       </div>
-      {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶) */}
-      <aside className="flex w-72 shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel">
+      {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶)。
+          S5 窄屏棋盘优先:宽屏仍 288px(w-72 同宽),md 断点以下改 w-[min(288px,45vw)]
+          可压缩——棋盘 flex-1 拿到至少 55vw,不再被固定侧栏挤到不可玩。
+          遗留:抽屉式折叠(成本高)未做;四区 flex-col + 各自 min-h-0 自适应,
+          压缩宽度下靠现有 overflow-hidden/内滚不破版。 */}
+      <aside className="flex w-[min(288px,45vw)] md:w-72 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel">
         <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
           群雄逐鹿
           <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>

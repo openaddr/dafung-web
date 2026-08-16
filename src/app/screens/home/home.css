@@ -1,0 +1,51 @@
+/* 首页仪式感(S1):入场 stagger + 笔触下划线 + 按压态。
+   放在 home/ 目录内:这些样式只服务首屏导航,不污染全局体系;
+   动画只用 transform/opacity(GPU 合成,不触发布局)。 */
+
+/* 入场:translateY 8px→0 + 淡入;四个按钮用 animation-delay 各错开 80ms(见组件内联 style)。
+   注意挂在按钮的「包裹层」而非按钮本身:animation fill 会永久锁定 transform,
+   若同元素再写 :active scale 会被动画终态覆盖而失效,分层则互不干扰。
+   只在首挂载播一次(both 保持终态,页面内返回首页会重挂载再播,符合"仪式感"预期)。 */
+@keyframes home-btn-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.home-btn-in {
+  animation: home-btn-in 0.4s ease-out both;
+}
+
+/* hover 笔触下划线:2px 金色底边 scaleX 0→1。
+   用伪元素画线而非 border(bottom border 会改变盒高/引起跳动),
+   transform-origin 左起,像一笔从左划到右的笔锋。 */
+.home-btn-brush {
+  position: relative;
+  isolation: isolate;
+}
+.home-btn-brush::after {
+  content: "";
+  position: absolute;
+  left: 12%;
+  right: 12%;
+  bottom: 4px;
+  height: 2px;
+  background: var(--color-gold);
+  transform: scaleX(0);
+  transform-origin: left center;
+  transition: transform 0.25s ease-out;
+  /* hover 才显示;键盘 focus-visible 同样给(无障碍:不只鼠标路径) */
+}
+.home-btn-brush:hover::after,
+.home-btn-brush:focus-visible::after {
+  transform: scaleX(1);
+}
+
+/* 按压态:scale .97,给"按下有回应"的物理感(transition 放常态,松开回弹也平滑) */
+.home-btn-brush:active {
+  transform: scale(0.97);
+}
