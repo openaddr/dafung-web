@@ -36,6 +36,15 @@ export function serializeGame(e: GameEngine) {
       : null,
     pendingHaltIsOnPath: e.pendingHaltIsOnPath,
     pendingDebt: e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null,
+    // 珍宝交涉交割托管(买家付清价款前珍宝暂存;恢复后可继续清算/交割)
+    escrowTreasure: e.escrowTreasure
+      ? {
+          treasure: { id: e.escrowTreasure.treasure.id, name: e.escrowTreasure.treasure.name, level: e.escrowTreasure.treasure.level, desc: e.escrowTreasure.treasure.desc },
+          buyerIdx: e.escrowTreasure.buyerIdx,
+          sellerIdx: e.escrowTreasure.sellerIdx,
+          price: e.escrowTreasure.price,
+        }
+      : null,
     branchStartTile: e.board.branch ? e.board.branch.startNode : null,
     branchEndTile: e.board.branch ? e.board.branch.endNode : null,
     currentTileIsBranchStart: e.currentTileIsBranchStart(),
