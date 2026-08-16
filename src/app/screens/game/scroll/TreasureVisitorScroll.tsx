@@ -6,7 +6,7 @@ import { useState } from "react";
 import type { GameCommand } from "@core/types";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
-import type { TreasureDef } from "@core/types";
+import type { SnapshotTreasure } from "@app/store/gameStore";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
@@ -26,8 +26,8 @@ export interface TreasureVisitorScrollProps {
   visitorGuohao: string;
   /** 落脚城名。 */
   tileName: string;
-  /** 城主持有的珍宝。 */
-  treasures: TreasureDef[];
+  /** 城主持有的珍宝(快照展示子集;价格由 level 经 guidePriceOf/premiumPriceOf 推导)。 */
+  treasures: SnapshotTreasure[];
   /** 交涉城的定义(算坐地起价用)+ 当前城等级。 */
   property: TradePropertyInfo;
   cityLevel: number;
@@ -55,7 +55,7 @@ export function TreasureVisitorScroll({
       ? "公道买卖·选珍宝"
       : "坐地起价·选珍宝";
 
-  const priceOf = (t: TreasureDef, m: Mode) => {
+  const priceOf = (t: SnapshotTreasure, m: Mode) => {
     const guide = guidePriceOf(t.level);
     return m === "fair" ? guide : premiumPriceOf(guide, property, cityLevel);
   };

@@ -11,19 +11,20 @@
 // 3) props.layerRef:暴露棋子层 <g> 本体,便于批量查(如遍历所有棋子 z 序重排)。
 import { memo } from "react";
 import type { Board } from "@core/board";
-import type { BoardPos, Player } from "@core/types";
+import type { BoardPos } from "@core/types";
 import { playerColor, rgba } from "@core/theme";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { marchPos } from "@app/fx/useMarch";
+import type { BoardPlayer } from "./BoardView";
 
 /** 玩家所在的「格子槽位键」:与 src/render/board.ts 的 playerSlotKey 逻辑一致
  *  (辅路按 step 分组,主路按 position)。两端必须共用同一规则,否则落格偏移先错后纠、可见抖动。 */
-export function playerSlotKey(p: Pick<Player, "position" | "onBranch">, board: Board): string {
+export function playerSlotKey(p: Pick<BoardPlayer, "position" | "onBranch">, board: Board): string {
   return p.onBranch != null && board.branch ? `b${p.onBranch.step}` : String(p.position);
 }
 
 /** 玩家当前渲染坐标(辅路上则取辅路格坐标)。 */
-export function tokenRenderPos(p: Player, board: Board): BoardPos {
+export function tokenRenderPos(p: BoardPlayer, board: Board): BoardPos {
   if (p.onBranch != null && board.branch) {
     return board.branch.cells[p.onBranch.step]?.position ?? board.positionOf(p.position);
   }
@@ -31,7 +32,7 @@ export function tokenRenderPos(p: Player, board: Board): BoardPos {
 }
 
 export interface TokenSlot {
-  player: Player;
+  player: BoardPlayer;
   x: number;
   y: number;
   /** 0=正常,0.15=破产淡出,0=隐藏(未选都)。 */
@@ -40,7 +41,7 @@ export interface TokenSlot {
 
 interface TokenLayerProps {
   board: Board;
-  players: Player[];
+  players: BoardPlayer[];
   /** setup 阶段未选都城不显示棋子。 */
   setupUnselected: boolean;
   /** 行军动画接管中的玩家 id(跳过声明式定位)。 */
@@ -49,7 +50,7 @@ interface TokenLayerProps {
   layerRef?: React.Ref<SVGGElement>;
 }
 
-function TokenFlag({ p }: { p: Player }) {
+function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);
   return (
     <g className="bv-token-flag">

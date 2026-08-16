@@ -12,6 +12,11 @@ export type GameSnapshot = ReturnType<GameEngine["snapshot"]>;
 /** 快照里的玩家行(含派生 netWorth,且 heroes/treasures 只带展示字段)。 */
 export type SnapshotPlayer = GameSnapshot["players"][number];
 
+/** 快照里的珍宝行(serializeGame 只序列化 id/name/level/desc,不含价字段——价格由
+ *  展示层 guidePriceOf(level) 等推导)。卷轴组件的 props 按此声明,避免把快照珍宝
+ *  断言成含价字段的完整 TreasureDef。 */
+export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
+
 // ──────────────────────────── engine 引用管理 ────────────────────────────
 // engine 是带方法/循环引用的可变实例,不属于响应式数据:
 // ① 不序列化——zustand state 若混入 engine,DevTools/persist/浅比较全被污染;

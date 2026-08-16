@@ -1134,6 +1134,13 @@ export class GameEngine {
     return f;
   }
 
+  /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
+   *  写入一段外部推导的行军轨迹供动画层读取;null 清除。
+   *  唯一允许表现侧设置 lastMove 的合法入口(红线 3:引擎态变更须走公共方法)。 */
+  applyPresentationMove(path: MovePath | null): void {
+    this.lastMove = path;
+  }
+
   // ──────────────────────────── 调试快照(供 window.__dafung / 测试) ────────────────────────────
   snapshot() {
     return serializeGame(this);

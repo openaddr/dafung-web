@@ -26,6 +26,16 @@ export type ServerMsg =
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 
+/** REST 入座回包(对照 scripts/server.ts:/room/new、/room/join 端点返回:
+ *  {ok, seat, seatToken, ...lobbyView};lobbyView 房间字段与 WS 广播同构)。 */
+interface RoomJoinReply extends NetRoomFields {
+  ok: true;
+  /** 分到的座位(建房=0 即 host)。 */
+  seat: number;
+  /** 座位归属凭证(WS 连接与后续 REST 鉴权用)。 */
+  seatToken: string;
+}
+
 export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
   private serverUrl: string;
@@ -61,15 +71,11 @@ export class OnlineController extends GameController {
     const s = useNetStore.getState();
     return s.seats[s.mySeat]?.autoPilot ?? false;
   }
-  /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。 */
+  /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。
+   *  共享骨架在基类 canAct(单机/联机判定收口),此处补联机特有:须轮到「我的座位」,
+   *  差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。 */
   get interactive(): boolean {
-    return (
-      this._engine.phase === "Playing" &&
-      this._engine.decisionOwner === this.seat &&
-      !this._engine.players[this.seat]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn
-    );
+    return this._engine.decisionOwner === this.seat && this.canAct(this.pending, this.autoPilotOn);
   }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意)。 */
@@ -126,17 +132,17 @@ export class OnlineController extends GameController {
   }
 
   /** 建房并连接。返回房间信息(供大厅屏渲染)。 */
-  async createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number }): Promise<Record<string, unknown>> {
-    const r = await this.http("/room/new", opts);
-    await this.adoptRoom(r);
-    return r;
+  async createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number }): Promise<RoomJoinReply> {
+    const reply = this.parseRoomReply(await this.http("/room/new", opts));
+    await this.adoptRoom(reply);
+    return reply;
   }
 
   /** 按房间码加入并连接。 */
-  async joinRoom(roomId: string): Promise<Record<string, unknown>> {
-    const r = await this.http("/room/join", { roomId: roomId.toUpperCase() });
-    await this.adoptRoom(r);
-    return r;
+  async joinRoom(roomId: string): Promise<RoomJoinReply> {
+    const reply = this.parseRoomReply(await this.http("/room/join", { roomId: roomId.toUpperCase() }));
+    await this.adoptRoom(reply);
+    return reply;
   }
 
   /** host 选图:只发请求;本地换图由 lobby 广播单路径驱动(host/非 host 同路)。 */
@@ -151,25 +157,42 @@ export class OnlineController extends GameController {
     await this.http("/room/start", { roomId: this.roomId, seatToken: this.seatToken });
   }
 
-  /** 从 REST 回包取 roomId/seat/seatToken 并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
-  private async adoptRoom(r: Record<string, unknown>): Promise<void> {
-    this.roomId = r.roomId as string;
-    this.seat = r.seat as number;
-    this.seatToken = r.seatToken as string;
-    this.applyRoomFields(r);
+  /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */
+  private async adoptRoom(reply: RoomJoinReply): Promise<void> {
+    this.roomId = reply.roomId;
+    this.seat = reply.seat;
+    this.seatToken = reply.seatToken;
+    this.applyRoomFields(reply);
     useNetStore.getState().setMySeat(this.seat);
     useGameStore.getState().setViewSeat(this.seat);
     this.connect();
   }
 
+  /** REST 入座回包(/room/new、/room/join)的一次性收窄:
+   *  原先用 6 个 as 硬取字段,现按 server.ts 端点返回(ok + 入座凭证 + lobbyView 房间字段,
+   *  房间字段与 WS 广播同构)在此处集中做运行时校验/转换,后续代码全部走类型化字段。 */
+  private parseRoomReply(r: Record<string, unknown>): RoomJoinReply {
+    return {
+      ok: true,
+      roomId: String(r.roomId),
+      seat: Number(r.seat),
+      seatToken: String(r.seatToken),
+      host: Number(r.host),
+      started: r.started === true,
+      mapId: typeof r.mapId === "string" ? r.mapId : null,
+      // seats 数组结构由 server.ts seatMeta 产出,这里只做边界防御(非数组按空处理)
+      seats: Array.isArray(r.seats) ? (r.seats as NetRoomFields["seats"]) : [],
+    };
+  }
+
   /** REST 回包 / 广播里的房间字段 → netStore(lobby 与 snapshot 消息字段同构)。 */
-  private applyRoomFields(r: Record<string, unknown>): void {
+  private applyRoomFields(r: NetRoomFields): void {
     useNetStore.getState().setRoom({
-      roomId: r.roomId as string,
-      host: r.host as number,
-      started: r.started as boolean,
-      mapId: (r.mapId as string | null) ?? null,
-      seats: (r.seats as NetRoomFields["seats"]) ?? [],
+      roomId: r.roomId,
+      host: r.host,
+      started: r.started,
+      mapId: r.mapId ?? null,
+      seats: r.seats ?? [],
     });
   }
 
@@ -202,14 +225,15 @@ export class OnlineController extends GameController {
 
   private onMessage(msg: ServerMsg): void {
     if (msg.type === "lobby") {
-      this.applyRoomFields(msg as unknown as Record<string, unknown>);
+      // lobby/snapshot 两种消息都带完整 NetRoomFields(ServerMsg 已声明),直接透传
+      this.applyRoomFields(msg);
       // 换图单路径:lobby 广播的 mapId 驱动本地重建(占位引擎 + registry 的 MapData)。
       if (msg.mapId && msg.mapId !== this.mapId) void this.rebuildForMap(msg.mapId);
       return;
     }
     if (msg.type === "snapshot") {
       const { type: _t, ...snap } = msg;
-      this.applyRoomFields(msg as unknown as Record<string, unknown>);
+      this.applyRoomFields(msg);
       if (msg.mapId && msg.mapId !== this.mapId) {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
         this.mapId = msg.mapId;
@@ -259,8 +283,8 @@ export class OnlineController extends GameController {
   }
 
   /** 快照级表现:diff 上一快照 → 现金变动浮字 + 位置变动行军 + 回合横幅。
-   *  注意联机端 restoreFromSnapshot 会清空 engine.floaters/lastMove(瞬时态不序列化),
-   *  所以浮字/路径全部由 diff 推导,不走单机那条 drainFloaters/lastMove 通道。
+   *  浮字走 diff(floaters 不序列化);行军经 applyPresentationMove 注入 diff 推导的
+   *  轨迹(快照虽含 lastMove,但那是"发令端视角",重放以本地 diff 为准,语义更稳)。
    *  TODO(联机骰子动画):本地无掷骰授权(点数在服务器),骰面仅由侧栏签面文字展示;
    *  多端一致的表现方案(服务器广播 die + ThreeDice.roll(face) 已留缝)见 TODO.md。 */
   private playSnapshotEffects(): void {
@@ -290,8 +314,8 @@ export class OnlineController extends GameController {
     }
 
     // 行军异步播放,但棋子渲染必须立刻让位(否则 React 先画终点再被拽回起点):
-    // 先拼 lastMove 形状(主路前向逐格,与引擎 MovePath 同构)锚定旧位置,
-    // sync 渲染后再沿弧线补走;表现完清掉拼装值,避免污染后续判断。
+    // 经 applyPresentationMove(引擎合法表现通道)注入 diff 推导的轨迹锚定旧位置,
+    // sync 渲染后再沿弧线补走;表现完清掉,避免污染后续判断。
     if (movers.length > 0) {
       for (const m of movers) {
         const traversed: number[] = [];
@@ -300,7 +324,7 @@ export class OnlineController extends GameController {
           traversed.push(t);
           if (t === m.to) break;
         }
-        engine.lastMove = {
+        engine.applyPresentationMove({
           from: m.from,
           traversed,
           landIndex: m.to,
@@ -309,13 +333,13 @@ export class OnlineController extends GameController {
           waypoints: [],
           landBranchStep: null,
           branchWaypoints: [],
-        };
+        });
         beginMarch(engine, m.id);
         const id = m.id;
         this.fxQueue = this.fxQueue.then(() => animateMove(engine, id));
       }
       this.fxQueue = this.fxQueue.then(() => {
-        engine.lastMove = null;
+        engine.applyPresentationMove(null);
       });
     }
 

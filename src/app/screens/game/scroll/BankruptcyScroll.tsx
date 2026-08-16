@@ -1,9 +1,10 @@
 // 破产清算卷轴:对照旧 showBankruptcyScroll。
 // 卖珍宝(指导价)/卖非都城城(购入价)/遣名士(200)→ 每卖一件引擎更新 pendingDebt,
 // 主线接线后 snapshot 刷新会带着新数据重弹本卷轴;"结算"发 confirmBankruptcySettle。
-import type { GameCommand, TreasureDef } from "@core/types";
+import type { GameCommand } from "@core/types";
 import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
+import type { SnapshotTreasure } from "@app/store/gameStore";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
@@ -14,7 +15,8 @@ export interface BankruptcyScrollProps {
   cash: number;
   /** 债务总额(pendingDebt.amount)。 */
   debtAmount: number;
-  treasures: TreasureDef[];
+  /** 可变卖珍宝(快照展示子集;卖价由 level 经 guidePriceOf 推导)。 */
+  treasures: SnapshotTreasure[];
   /** 可卖城(id → 展示名 + 购入价)。都城已由调用方剔除(旧版同样跳过 capitalIndex)。 */
   sellableProperties: { propId: string; name: string; purchasePrice: number }[];
   /** 可遣散名士(每名 200)。 */

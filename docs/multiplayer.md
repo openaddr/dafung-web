@@ -73,7 +73,7 @@
 ```bash
 cd /opt
 git clone <repo> dafung-web && cd dafung-web
-npm ci && npm run build        # 产出 dist/
+bun install && bun run build   # 产出 dist/
 ```
 
 ### 6.3 应用 env(`/opt/dafung-web/.env.app`,与 SSH 凭据的 `.env` 分开)
@@ -94,13 +94,13 @@ Type=simple
 User=dafung
 WorkingDirectory=/opt/dafung-web
 EnvironmentFile=/opt/dafung-web/.env.app
-ExecStart=/opt/dafung-web/node_modules/.bin/tsx scripts/server.ts
+ExecStart=/usr/local/bin/bun scripts/server.ts
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
-> 直接用 tsx 跑 TS(确保 `npm ci` 装了 tsx:别设 `NODE_ENV=production` 跳过 devDeps)。将来可用 `esbuild` 把服务器打成 `dist-server/server.js`,用纯 `node` 跑、去掉运行时 tsx 依赖。
+> Bun 原生跑 TS(2026-08 自 tsx 迁移):无运行时转译依赖, `bun --version` ≥1.3 即可;原 tsx/esbuild 打包方案作废。
 
 ### 6.5 Caddy(`/etc/caddy/Caddyfile`)— 自动签 Let's Encrypt、自动续期,反代含 WS upgrade
 ```

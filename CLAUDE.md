@@ -88,7 +88,7 @@ bun run test:e2e   # e2e(Playwright,需先 bun run build)
 bun run preview    # 本地预览(http://localhost:4173)
 bun run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)
 bun run typecheck:scripts  # 类型检查 scripts/(CLI + server,主 build 不含)
-npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 格式)
+bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json 格式)
 ```
 
 ## 联机化进度(终局目标)

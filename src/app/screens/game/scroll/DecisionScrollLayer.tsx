@@ -2,7 +2,7 @@
 // 数据全部来自 gameStore 快照 + registry 的 engine/catalog(只读查询),命令统一经
 // controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
-import type { GameCommand, TreasureDef } from "@core/types";
+import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getEngine } from "@app/store/gameStore";
@@ -101,8 +101,8 @@ export function DecisionScrollLayer({
         guohao={me.guohao}
         cash={me.cash}
         debtAmount={snapshot.pendingDebt.amount}
-        // 快照珍宝是展示子集({id,name,level,desc}),价格由 guidePriceOf(level) 推导,形状兼容
-        treasures={me.treasures as unknown as TreasureDef[]}
+        // 快照珍宝即展示子集({id,name,level,desc}),组件 props 按该形状声明,价格由 level 推导
+        treasures={me.treasures}
         sellableProperties={me.properties
           .filter((h) => h.propertyId !== capitalPropId)
           .map((h) => {
@@ -139,7 +139,7 @@ export function DecisionScrollLayer({
               ownerGuohao={owner.guohao}
               visitorGuohao={visitor.guohao}
               tileName={board.at(visitor.position)?.name ?? ""}
-              treasures={owner.treasures as unknown as TreasureDef[]}
+              treasures={owner.treasures}
               property={{ id: propDef.id, tradeAdd: propDef.tradeAdd, tradeMult: propDef.tradeMult }}
               cityLevel={ownerLevel}
               onCommand={dispatch}

@@ -16,6 +16,7 @@ import { GameScreen } from "@app/screens/game/GameScreen";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { SetupScreen, type SetupConfig } from "@app/screens/setup/SetupScreen";
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
+import { TESTIDS } from "@app/screens/game/testids";
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
 const MAP_PREF_KEY = "dafung.mapId";
@@ -214,7 +215,7 @@ export function App() {
           Game 屏有自己的 hint 层,这里仅 setup 屏兜底。 */}
       {hint && (
         <div
-          data-testid="hint"
+          data-testid={TESTIDS.hint}
           className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/95 px-4 py-1 text-danger shadow"
         >
           {hint}

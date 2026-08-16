@@ -5,7 +5,7 @@
 //   pan/zoom → usePanZoom(viewBox)
 // 旧 src/render/board.ts 保留作视觉对照,勿删。
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
-import type { MapData, Player } from "@core/types";
+import type { MapData } from "@core/types";
 import { loadMap } from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
@@ -15,11 +15,29 @@ import { TokenLayer } from "./TokenLayer";
 import { panCursorClass, usePanZoom } from "./usePanZoom";
 import "./board.css";
 
+/** BoardView/TokenLayer 真正消费的玩家最小结构(棋盘渲染只需这些字段):
+ *  快照玩家 SnapshotPlayer 是本接口的结构子集,可直接透传——原先 GameScreen 用双重断言
+ *  把快照玩家冒充完整 Player(heroes/treasures 等字段棋盘并不消费),按真实消费面
+ *  声明后断言即可消灭。 */
+export interface BoardPlayer {
+  id: string;
+  guohao: string;
+  colorIndex: number;
+  position: number;
+  /** 在分岔辅路第几格(null=在主路)。 */
+  onBranch: { step: number } | null;
+  /** 都城主路索引(-1=未选都)。 */
+  capitalIndex: number;
+  isBankrupt: boolean;
+  /** 持有城(棋盘只用 propertyId/level 推导归属色与等级)。 */
+  properties: { propertyId: string; level: number }[];
+}
+
 export interface BoardViewProps {
   /** 地图数据(MapData JSON);内部经 loadMap 构建 Board/catalog。 */
   map: MapData;
   /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */
-  players: Player[];
+  players: BoardPlayer[];
   /** 当前视角座位 id(预留给镜头跟随/权限判定;当前渲染未用)。 */
   viewSeat?: string;
   /** 点击城池回调(索引)。 */

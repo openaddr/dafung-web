@@ -37,6 +37,9 @@ export const TESTIDS = {
   warlogTabDetail: "warlog-tab-detail",
 
   // ── 覆盖提示 ──
-  hint: "hint",
+  hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
   thinking: "thinking",
+
+  // ── 棋盘区小组件 ──
+  muteButton: "mute-button",
 } as const;

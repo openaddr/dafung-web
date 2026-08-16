@@ -360,7 +360,7 @@ async function handle(req: Request): Promise<Response> {
 }
 
 // ──────────────────────────── WebSocket(升级在 fetch 里做,生命周期在 handlers)────────────────────────────
-Bun.serve<{ roomId: string; seat: number }>({
+Bun.serve<WsSeat>({
   port: PORT,
   hostname: HOST,
   fetch(req, srv) {
@@ -432,7 +432,7 @@ Bun.serve<{ roomId: string; seat: number }>({
       void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
     },
   },
-} satisfies import("bun").ServeOptions<{ roomId: string; seat: number }> | undefined);
+} satisfies import("bun").ServeOptions<WsSeat> | undefined);
 
 console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
 console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);

@@ -2,7 +2,6 @@
 //   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 诸侯·战报。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 import { useEffect, useMemo, useState } from "react";
-import type { Player } from "@core/types";
 import { BoardView } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
@@ -24,7 +23,7 @@ function MuteButton() {
   return (
     <button
       type="button"
-      data-testid="mute-button"
+      data-testid={TESTIDS.muteButton}
       title={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
       className="absolute top-2 right-2 z-10 rounded border border-gold/50 bg-panel/90 px-2 py-0.5 font-brush text-sm text-ink-dim hover:text-ink"
@@ -75,9 +74,9 @@ export function GameScreen() {
     return <div className="flex h-full items-center justify-center text-ink-dim">未开局</div>;
   }
 
-  // 快照玩家是 Player 的展示子集(heroes/treasures 只带展示字段),BoardView 只消费
-  // colorIndex/guohao/properties/capitalIndex 等兼容字段,结构断言安全。
-  const players = snapshot.players as unknown as Player[];
+  // 快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):
+  // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
+  const players = snapshot.players;
 
   // 选都阶段的引导文案(对照旧 showPickHint:「X」择一空城建都)
   const setupHint =

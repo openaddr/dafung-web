@@ -44,12 +44,9 @@ export class LocalController extends GameController {
     return e.turnPhase === "AwaitingTreasureOwner" ? e.decisionOwner : e.activeIndex;
   }
   get interactive(): boolean {
-    // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变
-    return (
-      this._engine.phase === "Playing" &&
-      !this._engine.players[this._engine.decisionOwner].isBot &&
-      !this.busy
-    );
+    // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变。
+    // 共享骨架在基类 canAct(单机/联机判定逻辑收口,防两处漂移),此处只补差异锁 busy。
+    return this.canAct(this.busy);
   }
 
   // ─── 命令入口 ───
@@ -100,27 +97,35 @@ export class LocalController extends GameController {
    *  引擎推进(run 注入)→ 起点锚定(行军类)→ sync → 表现编排 → bot 接棒 → 回合横幅。
    *  busy 链首置位/链尾释放,期间 interactive=false 防连点。 */
   private async runStep(run: () => void, cmdType: string): Promise<void> {
-    const e = this._engine;
     this.busy = true;
     this.sync();
     try {
-      const prevPhase = e.turnPhase;
-      const prePlayer = e.players[e.activeIndex];
-      const moverId = e.activePlayer.id;
-      run();
-      // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
-      if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
-        beginMarch(e, moverId);
-      }
-      this.sync();
-      await playStepEffects(e, prevPhase, moverId, prePlayer, cmdType);
-      this.sync();
+      await this.runAnimatedStep(run, cmdType);
       await this.runBots();
-      maybeShowTurnBanner(e);
+      maybeShowTurnBanner(this._engine);
     } finally {
       this.busy = false;
       this.sync();
     }
+  }
+
+  /** 「一次引擎推进 + 表现编排」的共享骨架(原 runStep 与 runBots 循环体逐行重复,提取于此):
+   *  捕获推进前相位/玩家 → run() 推进 → 行军类先锚定起点 → sync → 播表现 → sync。
+   *  表现后的收尾两处顺序不同(人类步:先 bot 接棒再弹回合横幅;bot 步:直接弹横幅),
+   *  故 runBots/横幅留在调用方,时序与提取前一致。 */
+  private async runAnimatedStep(run: () => void, cmdType?: string): Promise<void> {
+    const e = this._engine;
+    const prevPhase = e.turnPhase;
+    const prePlayer = e.players[e.activeIndex];
+    const moverId = e.activePlayer.id;
+    run();
+    // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
+    if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
+      beginMarch(e, moverId);
+    }
+    this.sync();
+    await playStepEffects(e, prevPhase, moverId, prePlayer, cmdType);
+    this.sync();
   }
 
   /** 人类选都:引擎落子 + 印章"筑"反馈 + bot 余下选都/进局接棒。 */
@@ -168,17 +173,10 @@ export class LocalController extends GameController {
       store.setThinking(true);
       this.sync();
       await delay(BOT.stepDelayMs);
-      const prevPhase = e.turnPhase;
-      const prePlayer = e.players[e.activeIndex];
-      const moverId = e.activePlayer.id;
-      botAct(e);
-      if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
-        beginMarch(e, moverId);
-      }
+      // 思考标记与引擎推进在同一同步段内(之间无 await),先关标记再走共享骨架,
+      // 与旧顺序(推进后关)对渲染无行为差:两者都赶在本步首次 sync 渲染前完成。
       store.setThinking(false);
-      this.sync();
-      await playStepEffects(e, prevPhase, moverId, prePlayer);
-      this.sync();
+      await this.runAnimatedStep(() => botAct(e));
       maybeShowTurnBanner(e);
     }
     if (e.isOver) {

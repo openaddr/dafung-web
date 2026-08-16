@@ -35,13 +35,13 @@ export default defineConfig({
   // 两者都需要先 npm run build 产出 dist/。
   webServer: [
     {
-      command: "npm run serve:e2e",
+      command: "bun run serve:e2e",
       url: "http://localhost:4173",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     {
-      command: "npm run serve",
+      command: "bun run serve",
       url: "http://localhost:3010/health",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

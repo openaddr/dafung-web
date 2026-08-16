@@ -35,6 +35,14 @@ export abstract class GameController {
   /** 释放长生命周期资源(WS 连接等);无资源子类可不覆写。 */
   destroy(): void {}
 
+  /** interactive 判定的共享骨架(原先 local/online 各写一份,易漂移):
+   *  对局 Playing + 决策方(decisionOwner,含珍宝交涉相位)是人类座位。
+   *  子类把各自的差异锁作参数传入(单机 busy / 联机 pending、托管),任一为真即锁。 */
+  protected canAct(...locks: boolean[]): boolean {
+    const e = this.engine;
+    return e.phase === "Playing" && !e.players[e.decisionOwner]?.isBot && locks.every((l) => !l);
+  }
+
   // ─── 状态桥 ───
   /** 引擎变化后的统一出口:快照灌 store(旧 fullRender 的新等价物)。
    *  同时刷新 interactive 派生量,保证 UI 一次重渲拿到一致的状态。 */

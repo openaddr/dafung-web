@@ -2,7 +2,7 @@
   "name": "dafung-web",
   "version": "1.0.0",
   "private": true,
-  "description": "群雄逐鹿 — 三国古风水墨大富翁(TypeScript + DOM/SVG,浏览器可自动化测试)",
+  "description": "群雄逐鹿 — 三国古风水墨大富翁(React + Bun,浏览器可自动化测试)",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -18,8 +18,7 @@
     "tauri:desktop": "tauri dev",
     "tauri:android:dev": "tauri android dev",
     "tauri:android:build": "tauri android build",
-    "gen:theme": "bun scripts/generate-theme-tokens.ts",
-    "description": "群雄逐鹿 — 三国古风水墨大富翁(React + Bun)"
+    "gen:theme": "bun scripts/generate-theme-tokens.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.55.0",
@@ -44,7 +43,6 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "three": "^0.185.1",
-    "ws": "^8.21.1",
     "zustand": "^5.0.15"
   }
 }
