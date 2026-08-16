@@ -55,3 +55,13 @@ _Avoid_: 动画事件(过窄——含音效)、特效(语义模糊)
 **FxSink**:
 表现播放的四个能力(audio/骰子/浮层/棋子行军)收口成的窄接口。生产环境组装真实单例,测试用内存 sink 录制断言。
 _Avoid_: 渲染后端、特效引擎
+
+## 结构(客户端)
+
+**驱动仲裁(Drive Arbiter)**:
+"谁有资格推进本地引擎"的单点裁决(FIFO 互斥会话)。单机四路驱动(人类步/bot 接棒/托管/开局接棒)均经它排队,取代散落的 busy 布尔。见 ADR-0011。
+_Avoid_: busy 锁(实现细节)、调度器(过泛)
+
+**表现态视图(engine.presentation)**:
+引擎表现信息(lastRoll/lastMove/lastTransaction/drainFloaters)的唯一只读入口,把"谁写、谁读、何时失效"的不变量收进接口。写通道仅 applyPresentationMove。
+_Avoid_: 瞬时字段(语义含糊)
