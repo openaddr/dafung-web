@@ -34,26 +34,32 @@ test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ brow
   const guest = await (await browser.newContext()).newPage();
 
   // 建房 + 加入 + 开局(2 人房,速战身价)
+  // TODO #13:加入后 room-code 原 8s 短窗在全量负载下偶发不够(WS+大厅渲染 >8s,实测复现),
+  // 建房/加入 8s→30s、开局 20s→45s——只放宽轮询窗,断言强度不变。
   await host.goto(`${ONLINE}/?online=1`);
   await host.getByTestId("lobby-target").fill("3000");
   await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 8_000 });
+  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 8_000 });
+  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId("lobby-select-map").click();
   await host.getByTestId("map-item-sanguo").click();
   await host.getByTestId("map-confirm").click();
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 20_000 });
+    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
   }
 
   // 刷新 guest:无 token 重入,重走 ?room= 加入(满员 409 → 停留大厅并提示;无论哪种,UI 不崩溃)
-  await guest.reload();
-  await expect(guest.getByTestId("lobby-screen")).toBeVisible({ timeout: 15_000 });
-  // host 端对局不受影响
-  await expect(host.getByTestId("hand-panel")).toBeVisible();
+  // TODO #13:原 page.reload() 在全量并行下偶发 ERR_ABORTED——reload 的导航与 SPA 启动期的
+  // 路由跳转/WS 重连竞态,导航被应用自身 abort。改为 goto 同 URL(waitUntil: "load"):
+  // 语义等价(服务器无 token 重入,必然重走加入流程),但导航由测试显式等待 load 完成,
+  // 再断言 UI,不受路由竞态影响。断言窗也按全量负载给足 3 倍余量(15s→45s)。
+  await guest.goto(`${ONLINE}/?room=${roomId}`, { waitUntil: "load" });
+  await expect(guest.getByTestId("lobby-screen")).toBeVisible({ timeout: 45_000 });
+  // host 端对局不受影响(guest 重入的加入/满员广播可能短暂扰动,给轮询余量)
+  await expect(host.getByTestId("hand-panel")).toBeVisible({ timeout: 30_000 });
 
   await host.context().close();
   await guest.context().close();

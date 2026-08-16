@@ -3,6 +3,7 @@
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
 // 服务器可能已在跑(reuseExistingServer):若 3010 被旧进程占用且代码旧,先 kill 再跑。
 import { test, expect, type Page } from "@playwright/test";
+import { waitSettled } from "./react-helpers";
 
 const ONLINE = "http://localhost:3010";
 
@@ -53,11 +54,13 @@ test("双端联机:建房→加入→开局→各自行动→快照一致", asyn
   const guest = await (await browser.newContext()).newPage();
 
   // ── 建房(?online=1 直达大厅;低目标身价保证后续可推进)──
+  // TODO #13:建房/加入/开局各窗按全量并行负载放宽(8s→30s、20s→45s,约 4 倍余量):
+  // 负载尖峰下 WS 建连 + 大厅广播 + 首帧 snapshot 的到达时间抖动远超单跑。
   await host.goto(`${ONLINE}/?online=1`);
   await expect(host.getByTestId("lobby-screen")).toBeVisible();
   await host.getByTestId("lobby-target").fill("3000");
   await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 8000 });
+  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
   expect(roomId).toMatch(/^[A-Z]{4}$/);
 
@@ -76,14 +79,18 @@ test("双端联机:建房→加入→开局→各自行动→快照一致", asyn
   // ── 开局:双端都收到首帧 snapshot → 切 Game 屏 ──
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 20_000 });
+    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
     await expect(p.getByTestId("status-bar-panel")).toBeVisible();
   }
 
   // ── 双端各推进若干步(掷骰/决策/卷轴混合),模拟真实你来我往 ──
+  // ── 双端各推进若干步(掷骰/决策/卷轴混合),模拟真实你来我往 ──
+  // TODO #13:原 stall<40×250ms(=10s 盲预算)在全量并行负载下不够——WS 广播/渲染排队
+  // 可让按钮可用性迟到超过 10s,导致 actions<2 假失败。改为时间预算(90s,约 5 倍余量):
+  // 只要总时长没用完就继续轮询两端,状态(按钮可用)到了立刻行动,不做无谓盲等。
   let actions = 0;
-  let stall = 0;
-  while (actions < 6 && stall < 40) {
+  const deadline = Date.now() + 90_000;
+  while (actions < 6 && Date.now() < deadline) {
     let acted = false;
     for (const p of [host, guest]) {
       if (await actIfCan(p)) {
@@ -92,15 +99,22 @@ test("双端联机:建房→加入→开局→各自行动→快照一致", asyn
         break;
       }
     }
-    if (!acted) {
-      stall++;
-      await host.waitForTimeout(250);
-    }
+    if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/托管广播推进
   }
-  expect(actions).toBeGreaterThanOrEqual(2); // 至少双方各动过一手
+  expect(actions).toBeGreaterThanOrEqual(2); // 至少双方各动过一手(断言不降级)
 
-  // ── 同步断言:等广播沉降后,双端核心引擎态一致(assertSync 思想,改比快照核心字段)──
-  await host.waitForTimeout(400);
+  // ── 同步断言:双端核心引擎态一致(assertSync 思想,改比快照核心字段)──
+  // TODO #13:原固定 waitForTimeout(400) 后一次性 toEqual 在负载下撞上广播尚未沉降。
+  // 改为轮询收敛:持续比对两端核心态直到相等(30s 余量),收敛后再各自确认非瞬态
+  //(两端 waitSettled 后终判),杜绝"中途恰好相等"的假阳性。
+  await expect
+    .poll(
+      async () => JSON.stringify(await coreState(guest)) === JSON.stringify(await coreState(host)),
+      { timeout: 30_000, message: "双端核心引擎态收敛一致" },
+    )
+    .toBe(true);
+  // 收敛后再等两端各自局面稳定(连续快照一致),排除"恰好相等"的瞬态假阳性后终判
+  await Promise.all([waitSettled(host), waitSettled(guest)]);
   expect(await coreState(guest)).toEqual(await coreState(host));
 
   // ── 托管入口存在(联机专属;spec: autopilot)──

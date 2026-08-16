@@ -53,9 +53,8 @@ test("拖拽城池改坐标:坐标文本变化,可撤销还原", async ({ page }
   await page.mouse.down();
   await page.mouse.move(box.x + box.width / 2 + 60, box.y + box.height / 2 + 40, { steps: 4 });
   await page.mouse.up();
-  await page.waitForTimeout(200);
-  const pos1 = await posText(page);
-  expect(pos1).not.toBe(pos0);
+  // TODO #13:坐标写回是拖拽后异步生效,原固定 200ms 改为轮询坐标文本真的变化(5s 余量)
+  await expect.poll(() => posText(page), { timeout: 5_000 }).not.toBe(pos0);
   // 撤销拖拽:坐标还原
   await page.getByTestId("editor-undo").click();
   await expect.poll(() => posText(page)).toBe(pos0);

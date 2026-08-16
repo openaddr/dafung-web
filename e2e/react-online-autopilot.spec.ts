@@ -13,19 +13,20 @@ const ONLINE = "http://localhost:3010";
 async function twoClients(browser: Browser, target = 3000): Promise<[Page, Page]> {
   const host = await (await browser.newContext()).newPage();
   const guest = await (await browser.newContext()).newPage();
+  // TODO #13:建房/加入 8s→30s、开局 20s→45s——全量并行负载下 WS 广播到达抖动大
   await host.goto(`${ONLINE}/?online=1`);
   await host.getByTestId("lobby-target").fill(String(target));
   await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 8_000 });
+  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 8_000 });
+  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId("lobby-select-map").click();
   await host.getByTestId("map-item-sanguo").click();
   await host.getByTestId("map-confirm").click();
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 20_000 });
+    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
   }
   return [host, guest];
 }
@@ -54,16 +55,19 @@ test("双端快速托管:零输入到终局,两端胜者一致", async ({ browse
 });
 
 test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ browser }) => {
-  test.setTimeout(180_000);
+  // TODO #13:慢速托管全 bot 推进一轮到 host 决策点,全量并行负载下可达数分钟,
+  // 原 180s 测试超时 + 120s 行军轮询余量不足(实测偶发超时假失败),各翻倍。
+  test.setTimeout(360_000);
   const [host, guest] = await twoClients(browser);
   try {
     // 双端开慢速托管(慢速局不会秒完),host 收回后 guest 继续托管推进到 host 的决策点
     for (const c of [host, guest]) {
       await c.getByTestId("autopilot-speed").selectOption("slow");
-      // 高负载下生效广播偶发迟到:等 5s 未见「收回」才补点一次(避免双击翻转)
+      // TODO #13:高负载下生效广播可迟到超过原 5s 窗口,过早补点会双击翻转(托管刚开又关),
+      // 后续整局停摆。轮询窗放宽到 20s,且补点前即时复查,把翻转窗口压到一次读取内。
       await c.getByTestId("autopilot-button").click();
       let on = false;
-      for (let attempt = 0; attempt < 5 && !on; attempt++) {
+      for (let attempt = 0; attempt < 20 && !on; attempt++) {
         on = await c
           .getByTestId("autopilot-button")
           .textContent()
@@ -71,13 +75,15 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
           .catch(() => false);
         if (!on) await c.waitForTimeout(1_000);
       }
-      if (!on) await c.getByTestId("autopilot-button").click();
+      if (!on && (await c.getByTestId("autopilot-button").textContent().catch(() => "")) !== "收回") {
+        await c.getByTestId("autopilot-button").click();
+      }
     }
-    await expect(host.getByTestId("autopilot-button")).toHaveText("收回", { timeout: 10_000 });
-    // 收回同样带「未生效则补点」兜底(高负载下广播偶发丢失)
+    await expect(host.getByTestId("autopilot-button")).toHaveText("收回", { timeout: 30_000 });
+    // 收回同样带「未生效则补点」兜底(同上:20s 轮询窗 + 补点前复查,防双击翻转)
     await host.getByTestId("autopilot-button").click();
     let off = false;
-    for (let attempt = 0; attempt < 5 && !off; attempt++) {
+    for (let attempt = 0; attempt < 20 && !off; attempt++) {
       off = await host
         .getByTestId("autopilot-button")
         .textContent()
@@ -85,15 +91,15 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
         .catch(() => false);
       if (!off) await host.waitForTimeout(1_000);
     }
-    if (!off) {
+    if (!off && (await host.getByTestId("autopilot-button").textContent().catch(() => "")) !== "托管") {
       await host.getByTestId("autopilot-button").click();
     }
-    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 10_000 });
+    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 30_000 });
     // 对局仍在进行(guest 不托管则轮到 guest 时等待;host 的行军钮最终可用)
     await expect
       .poll(
         async () => host.getByTestId("roll-button").isEnabled().catch(() => false),
-        { timeout: 120_000, message: "收回后轮到 host 时行军可用" },
+        { timeout: 240_000, message: "收回后轮到 host 时行军可用" },
       )
       .toBe(true);
   } finally {

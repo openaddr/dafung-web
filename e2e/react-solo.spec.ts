@@ -4,7 +4,7 @@
 // - invariants.spec(全程不变量 + 终局)→ 全速战档驱动到胜利的不变量巡检
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { test, expect } from "@playwright/test";
-import { quickStart, force, snap, actIfCan, fmtMoney } from "./react-helpers";
+import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged } from "./react-helpers";
 
 test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
   await quickStart(page);
@@ -112,8 +112,11 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
       await force(page, `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`);
       continue;
     }
+    const before = JSON.stringify(s);
     if (!(await actIfCan(page))) break;
-    await page.waitForTimeout(200);
+    // TODO #13:原固定 200ms 在全量负载下不等决策链推进完就读快照,循环提前 break;
+    // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
+    await waitForSnapChanged(page, before).catch(() => {});
   }
   await expect(page.getByTestId("victory-screen")).toBeVisible({ timeout: 60_000 });
   const s = await snap(page);
@@ -166,7 +169,10 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
         stall = 0;
         continue;
       }
-      await page.waitForTimeout(300);
+      // TODO #13:原固定 300ms 盲等下 bot 链每步都计入 stall,负载下 60 次×300ms(18s)
+      // 不够 bot 想完,假失败。改为等"快照变化":bot 推进期间快照持续变化会立刻返回,
+      // 真正静止 2s 才算一次 stall——stall 语义从"等了 N 次"变成"局面真没动"。
+      await waitForSnapChanged(page, JSON.stringify(s2), 2_000).catch(() => {});
     }
   }
   if (!over) {

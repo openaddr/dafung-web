@@ -12,9 +12,11 @@ test("滚轮缩放:向上滚放大城池", async ({ page }) => {
   const box = (await svg.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.wheel(0, -400); // 向上滚 = 放大
-  await page.waitForTimeout(250);
-  const after = await tile.boundingBox();
-  expect(after!.width).toBeGreaterThan(before!.width);
+  // TODO #13:缩放是动画过渡,原固定 250ms 在全量负载下动画未完就读 boundingBox。
+  // 改为轮询"宽度真的变大了"(5s 余量),到位即断言通过。
+  await expect
+    .poll(async () => (await tile.boundingBox())?.width ?? 0, { timeout: 5_000 })
+    .toBeGreaterThan(before!.width);
 });
 
 test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
@@ -36,7 +38,8 @@ test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
   await page.mouse.down();
   await page.mouse.move(bg.x - 80, bg.y - 50, { steps: 5 });
   await page.mouse.up();
-  await page.waitForTimeout(150);
-  const vb1 = await svg.getAttribute("viewBox");
-  expect(vb1).not.toBe(vb0);
+  // TODO #13:平移同样有过渡动画,固定 150ms 改为轮询 viewBox 真的变化(5s 余量)
+  await expect
+    .poll(async () => await svg.getAttribute("viewBox"), { timeout: 5_000 })
+    .not.toBe(vb0);
 });

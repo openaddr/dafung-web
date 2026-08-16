@@ -39,6 +39,18 @@ export async function waitSettled(page: Page, timeout = 30_000): Promise<void> {
   );
 }
 
+/** 轮询等引擎快照相对 before(JSON 串)发生变化(TODO #13:固定等待改状态轮询)。
+ *  全量并行负载下,掷骰/bot 推进/UI 刷新的到达时间抖动可达秒级,固定 sleep(200/300)
+ *  在单跑够用、全量必抖。此处直接等"局面真的动了"再读数,超时 8s(约 5 倍余量)。
+ *  调用方对超时可 .catch(() => {}):动作确实不改变局面时(如纯 UI 翻页)容忍不变。 */
+export async function waitForSnapChanged(page: Page, before: string, timeout = 8_000): Promise<void> {
+  await page.waitForFunction(
+    (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
+    before,
+    { timeout, polling: 250 },
+  );
+}
+
 /** 等待 window.__dafung 挂载(地图异步 fetch 期间快照可能尚未就绪)。 */
 export async function waitForEngine(page: Page): Promise<void> {
   await page.waitForFunction(() => !!(window as any).__dafung?.snapshot?.(), undefined, { timeout: 15_000 });
