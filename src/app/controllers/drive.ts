@@ -8,8 +8,9 @@
 // - 防重入:同一 kind 已在队列 → 直接复用该次请求的 Promise(去重)。对照现状:
 //   人类步的二连点被 interactive(!busy) 拦在门外、托管靠 apLoopRunning 单飞、
 //   onEnterGame 靠 if(busy) return——它们都不该产生第二个排队者,去重只是兜底。
-// - isDriving() 是 busy 的查询等价物:interactive 锁(canAct 参数)改读它,
-//   busy 从此成为仲裁器私有态,local.ts 不再持有可被四处置位的布尔。
+// - isDriving() 是 busy 的查询等价物:interactive 锁(原 canAct 参数,已内联进
+//   各子类 interactive getter)改读它,busy 从此成为仲裁器私有态,local.ts 不再持有
+//   可被四处置位的布尔。
 //
 // 设计约束:requestDrive 在空闲时**同步**完成占用激活(返回前 isDriving() 已为真),
 // 以保持旧代码 `this.busy = true` 同步置位的时序语义——dispatchCommand 的

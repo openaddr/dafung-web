@@ -1,12 +1,12 @@
 // 决策卷轴路由层(阶段 6 接线):按 snapshot 相位决定弹哪个卷轴。
-// 数据全部来自 gameStore 快照 + registry 的 engine/catalog(只读查询),命令统一经
-// controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
+// 数据全部来自 gameStore 快照 + registry 的静态上下文(board/catalog 只读查询),
+// 命令统一经 controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
+// Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
-import { getEngine } from "@app/store/gameStore";
-import { getController, getControllerMap } from "@app/controllers/registry";
+import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import {
   BankruptcyScroll,
   HeroPickScroll,
@@ -33,12 +33,13 @@ export function DecisionScrollLayer({
 }: DecisionScrollLayerProps) {
   const controller = getController();
   const map = getControllerMap();
-  const engine = getEngine();
-  if (!map || !engine) return null;
+  const ctx = getControllerContext();
+  if (!map || !ctx) return null;
 
   const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
   const players = snapshot.players;
-  const board = engine.board;
+  const board = ctx.board;
+  const catalog = ctx.catalog;
 
   // ── 终局:胜利屏(全屏覆盖,优先级最高)──
   if (snapshot.phase === "GameOver" && snapshot.winner !== null) {
@@ -61,7 +62,7 @@ export function DecisionScrollLayer({
   // ── 城池详情(只读,任何时候可弹)──
   if (detailTileIndex !== null) {
     const tile = board.at(detailTileIndex);
-    const def = tile.propertyId ? engine.catalog.get(tile.propertyId) : null;
+    const def = tile.propertyId ? catalog.get(tile.propertyId) : null;
     if (def) {
       const ownerEntry = players.find((p) =>
         p.properties.some((h) => h.propertyId === tile.propertyId),
@@ -111,7 +112,7 @@ export function DecisionScrollLayer({
             return {
               propId: h.propertyId,
               name: tileIndex >= 0 ? board.at(tileIndex).name : h.propertyId,
-              purchasePrice: engine.catalog.get(h.propertyId)?.purchasePrice ?? 0,
+              purchasePrice: catalog.get(h.propertyId)?.purchasePrice ?? 0,
             };
           })}
         heroes={me.heroes.map((h) => ({ id: h.id, name: h.name }))}
@@ -129,7 +130,7 @@ export function DecisionScrollLayer({
       const isOwnerView = viewSeat === tv.ownerIdx;
       const isVisitorView = viewSeat === snapshot.activeIndex;
       if (isOwnerView || isVisitorView) {
-        const propDef = engine.catalog.get(tv.propertyId);
+        const propDef = catalog.get(tv.propertyId);
         const ownerLevel =
           owner.properties.find((h) => h.propertyId === tv.propertyId)?.level ?? 0;
         if (propDef) {

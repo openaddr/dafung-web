@@ -61,6 +61,15 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
+/** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
+ *  经 engine.presentation.drainFloaters() 消费(破坏性读)。 */
+export interface FloaterEvent {
+  playerIndex: number;
+  amount: number;
+  atTile?: number;
+  kind: "income" | "expense" | "supply";
+}
+
 export class GameEngine {
   readonly board: Board;
   readonly catalog: Catalog;
@@ -99,19 +108,43 @@ export class GameEngine {
   winner: Player | null = null;
   winReason: VictoryReason = "None";
 
-  lastRoll: DiceRoll | null = null;
-  lastMove: MovePath | null = null;
-  lastLandOutcome: LandOutcome | null = null;
-  lastTransaction: TransactionResult | null = null;
+  // ─── 表现态(Wave3 候选4 收口)───
+  // 四个字段(私有)语义曾散在注释里:floaters 读即破坏(渲染消费后清空)、
+  // lastMove 表现侧可写(applyPresentationMove)、lastRoll/lastTransaction 每帧重建。
+  // 现统一经 presentation 视图对外(见 getter),字段本身不再 public:
+  //  - 读:engine.presentation.lastRoll / lastMove / lastTransaction(只读);
+  //  - 浮字消费:engine.presentation.drainFloaters()(破坏性读,调用即清空);
+  //  - 表现写 lastMove 的唯一通道仍是 applyPresentationMove(保留原位)。
+  // 视图是方法的集合(非可序列化数据),不进 snapshot;序列化走 snapshot.ts 经视图读。
+  private lastRoll: DiceRoll | null = null;
+  private lastMove: MovePath | null = null;
+  lastLandOutcome: LandOutcome | null = null; // 非表现态(bot/快照消费的数据),维持 public
+  private lastTransaction: TransactionResult | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
-  floaters: {
-    playerIndex: number;
-    amount: number;
-    atTile?: number;
-    kind: "income" | "expense" | "supply";
-  }[] = [];
+  private floaters: FloaterEvent[] = [];
+
+  /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
+   *  drainFloaters 是破坏性读——取走全部浮字并清空,消费方(表现编排器)应一次取尽。 */
+  get presentation(): {
+    readonly lastRoll: DiceRoll | null;
+    readonly lastMove: MovePath | null;
+    readonly lastTransaction: TransactionResult | null;
+    /** 破坏性读:返回并清空全部待播浮字。 */
+    drainFloaters(): FloaterEvent[];
+  } {
+    return {
+      lastRoll: this.lastRoll,
+      lastMove: this.lastMove,
+      lastTransaction: this.lastTransaction,
+      drainFloaters: () => {
+        const f = this.floaters;
+        this.floaters = [];
+        return f;
+      },
+    };
+  }
 
   constructor(
     board: Board,
@@ -1151,6 +1184,7 @@ export class GameEngine {
   private warn(msg: string): void {
     this.logEvent("system", null, `[警告] ${msg}`, `warn: ${msg}`);
   }
+  /** 浮字入队(引擎内部结算时调用;对外消费走 presentation.drainFloaters)。 */
   private pushFloater(
     p: Player,
     amount: number,
@@ -1159,12 +1193,7 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 渲染层消费浮动反馈后调用清空。 */
-  drainFloaters() {
-    const f = this.floaters;
-    this.floaters = [];
-    return f;
-  }
+  // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
 
   /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
    *  写入一段外部推导的行军轨迹供动画层读取;null 清除。

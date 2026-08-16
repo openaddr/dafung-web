@@ -8,6 +8,7 @@ import type { GameCommand } from "@core/types";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
+import { getControllerContext } from "@app/controllers/registry";
 import { TESTIDS } from "./testids";
 
 // 签面数字 → 汉字(旧 dice-face 一~六 的展示口径)
@@ -90,11 +91,13 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
         >
           {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] ?? "签" : "签"}
         </span>
+        {/* Wave3(候选2):roll() 一行转发已从基类删除,行军=标准命令直发(dispatchCommand 唯一入口) */}
         <button
           type="button"
           data-testid={TESTIDS.rollButton}
           disabled={!interactive || snapshot.turnPhase !== "Roll"}
-          onClick={() => controller?.roll()}
+          onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+          title="行军"
           className="rounded border border-gold bg-gold/20 px-4 py-1 font-brush text-lg enabled:hover:bg-gold/40 disabled:opacity-40"
         >
           行军
@@ -147,6 +150,8 @@ function ActionInline({
 }) {
   if (!interactive || snapshot.phase !== "Playing") return null;
   const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
+  // 静态地图数据经 registry 上下文取(Wave3 候选5:渲染层不摸活引擎)
+  const ctx = getControllerContext();
   const add = (label: string, action: string, cmd: GameCommand, opts: { primary?: boolean; disabled?: boolean } = {}) => (
     <button
       type="button"
@@ -162,10 +167,9 @@ function ActionInline({
 
   const tp = snapshot.turnPhase;
   if (tp === "AwaitingCapitalHalt" && snapshot.lastMove) {
-    // 驻跸抉择:目的地城名需要 catalog(经控制器引擎读;联机只读引擎同样可查)
-    const engine = controller?.engine;
-    const capName = engine?.board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城";
-    const destName = engine?.board.at(snapshot.lastMove.landIndex)?.name ?? "下一城";
+    // 驻跸抉择:目的地城名经 registry 静态上下文查(board 不可变,联机同路)
+    const capName = ctx?.board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城";
+    const destName = ctx?.board.at(snapshot.lastMove.landIndex)?.name ?? "下一城";
     return (
       <div data-testid={TESTIDS.actionInline} className="flex gap-2">
         {add(`驻跸·${capName}`, "halt", { type: "haltAtCapital" }, { primary: true })}
@@ -184,7 +188,7 @@ function ActionInline({
   if (tp === "AwaitingDecision") {
     const p = snapshot.players[snapshot.activeIndex];
     const def = snapshot.lastLandOutcomeProperty
-      ? controller?.engine.catalog.get(snapshot.lastLandOutcomeProperty)
+      ? ctx?.catalog.get(snapshot.lastLandOutcomeProperty)
       : null;
     if (snapshot.lastLandOutcomeKind === "PropertyAvailable" && def) {
       const canBuy = p.cash >= def.purchasePrice && p.warrants >= 1;

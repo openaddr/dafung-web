@@ -100,12 +100,11 @@ export function GameScreen() {
           map={map}
           players={players}
           onTileClick={(i) => {
-            if (snapshot.phase === "Playing") {
-              // 对局中点城 = 查看详情(只读卷轴);选都阶段的点击仍交控制器推进引擎
-              setDetailTileIndex(i);
-            } else {
-              controller?.tileClick(i);
-            }
+            // 相位路由收口于此(Wave3 候选2,原 controller.tileClick 的职责上移):
+            // Playing=查看详情(本地 UI 态);Setup 选都期=落子(setupPickCapital,
+            // 单机实推进、联机默认 no-op,对屏幕两种模式无感)。testid 链路不变。
+            if (snapshot.phase === "Playing") setDetailTileIndex(i);
+            else controller?.setupPickCapital(i);
           }}
           selectableTiles={selectableTiles}
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}

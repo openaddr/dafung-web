@@ -39,7 +39,7 @@ export function botAct(engine: GameEngine): void {
         engine.haltAtCapital();
       } else {
         const supply = estimateCapitalSupply(engine, p);
-        const destValue = estimateDestValue(engine, p, engine.lastMove!.landIndex);
+        const destValue = estimateDestValue(engine, p, engine.presentation.lastMove!.landIndex);
         if (supply > destValue) engine.haltAtCapital();
         else engine.continueMove();
       }

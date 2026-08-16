@@ -20,12 +20,17 @@ export abstract class GameController {
   /** 此刻本地玩家能否操作(写进 store.interactive,UI 据此启用控件)。 */
   abstract get interactive(): boolean;
 
-  /** 统一命令入口(所有玩家操作都走 GameCommand,联机=网络协议消息)。 */
+  /** 统一命令入口(所有玩家操作都走 GameCommand,联机=网络协议消息)。
+   *  Wave3(候选2)收窄后的唯一抽象交互通道:roll 之类一行转发不再单设方法,
+   *  UI 直接 dispatchCommand({type:"rollAndMove"});Setup 落子走 setupPickCapital。 */
   abstract dispatchCommand(cmd: GameCommand): void;
-  /** 行军按钮。 */
-  abstract roll(): void;
-  /** 城池点击(单机 Setup=选都,Playing=查看详情;联机=只读详情)。 */
-  abstract tileClick(index: number): void;
+
+  /** Setup(PickCapital)期点城=为当前选都玩家定都(候选2 收口:相位路由归 GameScreen,
+   *  本方法只承载"落子"这一动作)。仅单机有此交互,故默认 no-op、LocalController 覆写
+   *  ——与 setAutoPilot 的接缝风格一致,屏幕组件对两种模式仍无感(不引入 instanceof)。
+   *  pickCapital 不是 GameCommand(不经 submitCommand),单机侧由 LocalController
+   *  包装驱动仲裁/印章表现/bot 接棒,故不并入 dispatchCommand。 */
+  setupPickCapital(_tileIndex: number): void {}
 
   /** 是否支持托管(联机 = true:服务器 bot 代打;单机也支持:本地 bot 代打)。 */
   autopilotSupported = false;
@@ -38,14 +43,6 @@ export abstract class GameController {
 
   /** 释放长生命周期资源(WS 连接等);无资源子类可不覆写。 */
   destroy(): void {}
-
-  /** interactive 判定的共享骨架(原先 local/online 各写一份,易漂移):
-   *  对局 Playing + 决策方(decisionOwner,含珍宝交涉相位)是人类座位。
-   *  子类把各自的差异锁作参数传入(单机 busy / 联机 pending、托管),任一为真即锁。 */
-  protected canAct(...locks: boolean[]): boolean {
-    const e = this.engine;
-    return e.phase === "Playing" && !e.players[e.decisionOwner]?.isBot && locks.every((l) => !l);
-  }
 
   // ─── 状态桥 ───
   /** 引擎变化后的统一出口:快照灌 store(旧 fullRender 的新等价物)。

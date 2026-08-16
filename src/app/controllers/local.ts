@@ -107,10 +107,16 @@ export class LocalController extends GameController {
   }
   get interactive(): boolean {
     // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变。
-    // 共享骨架在基类 canAct(单机/联机判定逻辑收口,防两处漂移),此处补差异锁
-    // 驱动仲裁态(Wave 2-A:旧 busy 改读仲裁器查询,时序等价——会话占用是同步置位)
+    // Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
+    // 差异锁 = 驱动仲裁态(Wave 2-A:旧 busy 改读仲裁器查询,时序等价——会话占用是同步置位)
     // 与托管(托管中本地不响应,代打循环全权驱动;对照旧 interactive 的 !apOn)。
-    return this.canAct(this.drive.isDriving() || this.apOn);
+    const e = this._engine;
+    return (
+      e.phase === "Playing" &&
+      !e.players[e.decisionOwner]?.isBot &&
+      !this.drive.isDriving() &&
+      !this.apOn
+    );
   }
 
   // ─── 命令入口 ───
@@ -119,10 +125,6 @@ export class LocalController extends GameController {
   dispatchCommand(cmd: GameCommand): void {
     if (!this.interactive) return; // 非本地人类决策时忽略(引擎自身也有相位守卫,双保险)
     void this.runStep(() => this._engine.submitCommand(cmd), commandLabelOf(cmd));
-  }
-
-  roll(): void {
-    this.dispatchCommand({ type: "rollAndMove" });
   }
 
   /** 进入 Game 屏后调用一次:若开局即轮到 bot(或 Setup 余下全是 bot),接棒驱动;
@@ -146,18 +148,15 @@ export class LocalController extends GameController {
     })();
   }
 
-  tileClick(index: number): void {
+  /** Setup(PickCapital)落子:为当前选都玩家定都(Wave3 候选2:原 tileClick 的
+   *  Setup 分支独立成口,相位路由已上移 GameScreen,Playing 详情查看归 UI 不进控制器)。 */
+  override setupPickCapital(index: number): void {
     const e = this._engine;
-    // Setup 选都阶段:点击=为当前选都玩家定都;对局中点击=查看详情(只读,交 UI 层弹详情)。
-    if (e.phase === "Setup" && e.setupPhase === "PickCapital") {
-      const playerIndex = e.currentSetupPlayerIndex;
-      if (playerIndex >= 0 && !e.players[playerIndex].isBot) {
-        void this.runPickCapital(playerIndex, index);
-      }
-      return;
+    const playerIndex = e.currentSetupPlayerIndex;
+    if (e.setupPhase !== "PickCapital") return;
+    if (playerIndex >= 0 && !e.players[playerIndex].isBot) {
+      void this.runPickCapital(playerIndex, index);
     }
-    // 城池详情卷轴改由 React 组件订阅 store 弹出,此处无需推进引擎。
-    void index;
   }
 
   /** 一次引擎推进的完整链(人类命令与 bot 步骤共用骨架):
@@ -189,7 +188,7 @@ export class LocalController extends GameController {
     const moverId = e.activePlayer.id;
     run();
     // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
-    if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
+    if (e.presentation.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
       this.fxSink.marchBegin(moverId);
     }
     this.sync();

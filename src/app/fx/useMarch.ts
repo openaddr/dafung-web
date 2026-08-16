@@ -43,7 +43,8 @@ function slotOffsetFor(engine: GameEngine, player: Player): { x: number; y: numb
 /** 命令提交后、sync 渲染前调用:把 mover 放进接管集并锚定在起点(path.from)。
  *  必须先于 sync——否则 React 会先渲染终态坐标,棋子闪现终点再被拽回。 */
 export function beginMarch(engine: GameEngine, moverId: string): void {
-  const path = engine.lastMove;
+  // 表现态经 presentation 视图读(Wave3 候选4);lastMove 可能是 applyPresentationMove 注入的 diff 轨迹。
+  const path = engine.presentation.lastMove;
   if (!path) return;
   const board = engine.board;
   const start = board.positionOf(path.from);
@@ -77,7 +78,7 @@ function highlightSegment(engine: GameEngine, from: number, to: number): void {
  */
 export async function animateMove(engine: GameEngine, moverId: string): Promise<void> {
   const e = engine;
-  const path = e.lastMove;
+  const path = e.presentation.lastMove;
   const player = e.players.find((p) => p.id === moverId);
   if (!path || !player) return;
   const board = e.board;

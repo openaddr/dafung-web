@@ -69,12 +69,15 @@ export async function animateDice(die: number): Promise<void> {
   audio.play("diceLand");
 }
 
-/** 引擎浮字 → cashDelta/supplyRain 事件(真正消费 engine.drainFloaters())。
+/** 引擎浮字 → cashDelta/supplyRain 事件(消费 presentation.drainFloaters 的破坏性读:
+ *  一次取尽后在本地数组上判定/遍历,与旧「先判 hasIncome 再 drain」等价)。
  *  锚定优先级照搬旧 spawnFloaters:atTile 格 → 辅路格(玩家在辅路上时,否则起点
  *  tile 会与棋子分离)→ 玩家位置。必须在提取期解析:依赖提取时刻的玩家状态。 */
-function drainFloaterEvents(engine: GameEngine): PresentationEvent[] {
-  const fs = engine.drainFloaters();
+function floaterEvents(engine: GameEngine): PresentationEvent[] {
+  const fs = engine.presentation.drainFloaters();
   const events: PresentationEvent[] = [];
+  // 铜钱声口径(旧 spawnFloaters:"有正收入就叮一声,每步一次"),按旧实现排在首个浮字之前
+  if (fs.some((f) => f.amount > 0)) events.push({ kind: "sound", event: "coin" });
   for (const f of fs) {
     const player = engine.players[f.playerIndex];
     if (!player) continue;
@@ -99,21 +102,10 @@ function drainFloaterEvents(engine: GameEngine): PresentationEvent[] {
   return events;
 }
 
-/** 浮字事件 + 铜钱声的合成口径(旧 spawnFloaters:"有正收入就叮一声,每步一次")。
- *  coin 音须在 drain 前判定,且按旧实现排在首个浮字之前(播放均瞬时,无可感差异)。 */
-function floaterEvents(engine: GameEngine): PresentationEvent[] {
-  const events: PresentationEvent[] = [];
-  // drain 前先判"有无正收入"(drain 会清空 engine.floaters,判定必须在消费前)
-  const hasIncome = engine.floaters.some((f) => f.amount > 0);
-  if (hasIncome) events.push({ kind: "sound", event: "coin" });
-  events.push(...drainFloaterEvents(engine));
-  return events;
-}
-
 /**
  * 单机提取器:把「一次引擎推进」(人类命令与 bot 步骤共用)提取为表现事件。
  * 与旧 playStepEffects 逐分支对齐(prevPhase 决定该步语义),仅产出数据不播任何东西。
- * @param engine    推进后的引擎(读 lastRoll/lastMove/lastTransaction/drainFloaters)
+ * @param engine    推进后的引擎(经 presentation 视图读 lastRoll/lastMove/lastTransaction/drainFloaters)
  * @param prevPhase 推进前的 turnPhase(决定该步的语义:Roll/驻跸/选路/决策/…)
  * @param moverId   推进前的活跃玩家(行军棋子;命令后引擎可能已推进回合)
  * @param prePlayer 推进前的活跃玩家对象(破产清算后读 isBankrupt 播破产音)
@@ -127,21 +119,23 @@ export function extractStepEvents(
   cmdType?: string,
 ): PresentationEvent[] {
   const events: PresentationEvent[] = [];
+  // 表现态统一经 presentation 视图读(Wave3 候选4:引擎字段已私有)
+  const view = engine.presentation;
 
   if (prevPhase === "Roll") {
-    const die = engine.lastRoll?.die;
+    const die = view.lastRoll?.die;
     if (die) events.push({ kind: "diceRolled", die });
     // 驻跸抉择:令牌未动,行军等 halt/continue 命令后再补(对照旧 doRoll 分支)
-    if (engine.turnPhase !== "AwaitingCapitalHalt" && engine.lastMove) {
-      events.push({ kind: "tokenMoved", playerId: moverId, path: engine.lastMove });
+    if (engine.turnPhase !== "AwaitingCapitalHalt" && view.lastMove) {
+      events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove });
     }
     events.push(...floaterEvents(engine));
     return events;
   }
 
   if (prevPhase === "AwaitingCapitalHalt") {
-    if (engine.lastMove) {
-      events.push({ kind: "tokenMoved", playerId: moverId, path: engine.lastMove }); // 补走余下路程
+    if (view.lastMove) {
+      events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove }); // 补走余下路程
     }
     events.push(...floaterEvents(engine));
     return events;
@@ -149,7 +143,7 @@ export function extractStepEvents(
 
   if (prevPhase === "AwaitingDecision") {
     // 以引擎 lastTransaction 判成败;买/扩军的表现差异由命令类型区分(控制器传入)
-    if (engine.lastTransaction?.status === "Ok") {
+    if (view.lastTransaction?.status === "Ok") {
       if (cmdType === "upgradeProperty") {
         events.push({ kind: "sound", event: "upgrade" });
       } else {

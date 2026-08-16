@@ -36,7 +36,7 @@ export class SnapshotEffects {
 
     // 0) 新掷骰 → diceRolled 事件(排在行军前,时序对齐单机 Roll 步的 骰子→行军 链)。
     if (newRoll) {
-      const die = engine.lastRoll?.die;
+      const die = engine.presentation.lastRoll?.die;
       if (die) events.push({ kind: "diceRolled", die });
     }
 

@@ -55,12 +55,12 @@ describe("单机提取器 extractStepEvents", () => {
     finishSetup(e);
     const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
     expect(events[0].kind).toBe("diceRolled");
-    if (events[0].kind === "diceRolled") expect(events[0].die).toBe(e.lastRoll!.die);
-    if (e.turnPhase !== "AwaitingCapitalHalt" && e.lastMove) {
+    if (events[0].kind === "diceRolled") expect(events[0].die).toBe(e.presentation.lastRoll!.die);
+    if (e.turnPhase !== "AwaitingCapitalHalt" && e.presentation.lastMove) {
       expect(events[1].kind).toBe("tokenMoved");
       if (events[1].kind === "tokenMoved") {
-        expect(events[1].path.from).toBe(e.lastMove.from);
-        expect(events[1].path.landIndex).toBe(e.lastMove.landIndex);
+        expect(events[1].path.from).toBe(e.presentation.lastMove.from);
+        expect(events[1].path.landIndex).toBe(e.presentation.lastMove.landIndex);
       }
     }
     // 事件顺序语义:骰子 → 行军 → (铜钱声/)浮字,不允许浮字先于行军
@@ -81,7 +81,7 @@ describe("单机提取器 extractStepEvents", () => {
     // 构造 halt 相位太依赖地图概率,此用例退化为:halt 分支在 lastMove 为空时不出行军事件
     const events = extractStepEvents(e, "AwaitingCapitalHalt", e.activePlayer.id);
     for (const ev of events) {
-      if (ev.kind === "tokenMoved") expect(e.lastMove).not.toBeNull();
+      if (ev.kind === "tokenMoved") expect(e.presentation.lastMove).not.toBeNull();
     }
   });
 
@@ -97,7 +97,7 @@ describe("单机提取器 extractStepEvents", () => {
     if (e.turnPhase !== "AwaitingDecision") return; // 该种子未落入可买格:跳过(分支由其它用例覆盖)
     const events = stepEvents(e, { type: "buyProperty" }, () => e.submitCommand({ type: "buyProperty" }));
     const kinds = events.map((ev) => ev.kind);
-    if (e.lastTransaction?.status === "Ok") {
+    if (e.presentation.lastTransaction?.status === "Ok") {
       expect(kinds).toContain("sealStamped");
       expect(kinds).toContain("sound");
       const seal = events.find((ev) => ev.kind === "sealStamped");

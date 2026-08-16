@@ -67,10 +67,17 @@ export class OnlineController extends GameController {
     return s.seats[s.mySeat]?.autoPilot ?? false;
   }
   /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。
-   *  共享骨架在基类 canAct(单机/联机判定收口),此处补联机特有:须轮到「我的座位」,
-   *  差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。 */
+   *  Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
+   *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。 */
   get interactive(): boolean {
-    return this._engine.decisionOwner === this.seat && this.canAct(this.pending, this.autoPilotOn);
+    const e = this._engine;
+    return (
+      e.decisionOwner === this.seat &&
+      e.phase === "Playing" &&
+      !e.players[e.decisionOwner]?.isBot &&
+      !this.pending &&
+      !this.autoPilotOn
+    );
   }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意)。 */
@@ -93,15 +100,6 @@ export class OnlineController extends GameController {
     this.pending = true;
     this.sock.send(JSON.stringify({ type: "cmd", cmd }));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
-  }
-
-  roll(): void {
-    this.dispatchCommand({ type: "rollAndMove" });
-  }
-
-  tileClick(index: number): void {
-    // 联机对局中点击只读查看详情(决策不靠点击);详情弹层归 React 组件。
-    void index;
   }
 
   /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
