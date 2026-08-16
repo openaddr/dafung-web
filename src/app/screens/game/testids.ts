@@ -42,4 +42,6 @@ export const TESTIDS = {
 
   // ── 棋盘区小组件 ──
   muteButton: "mute-button",
+  /** 总览复位(还原 pan/zoom;等价旧 BoardView.resetView)。 */
+  resetView: "reset-view",
 } as const;

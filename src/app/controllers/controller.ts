@@ -27,9 +27,13 @@ export abstract class GameController {
   /** 城池点击(单机 Setup=选都,Playing=查看详情;联机=只读详情)。 */
   abstract tileClick(index: number): void;
 
-  /** 是否支持托管(联机 = true:服务器 bot 代打;单机默认不支持)。 */
+  /** 是否支持托管(联机 = true:服务器 bot 代打;单机也支持:本地 bot 代打)。 */
   autopilotSupported = false;
-  /** 切换托管(联机覆写:发 WS {type:"autoPilot"};基类空实现)。 */
+  /** 托管生效态(UI「托管中」回读;基类默认关,子类覆写:联机=seats 广播回读,单机=本地标记)。 */
+  get autoPilotOn(): boolean {
+    return false;
+  }
+  /** 切换托管(子类覆写:联机发 WS {type:"autoPilot"};单机本地驱动)。 */
   setAutoPilot(_on: boolean, _speed: "fast" | "slow"): void {}
 
   /** 释放长生命周期资源(WS 连接等);无资源子类可不覆写。 */

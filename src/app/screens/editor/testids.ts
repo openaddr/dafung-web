@@ -6,6 +6,12 @@ export const TID = {
   save: "editor-save",
   /** 另存新图(写入 localStorage 自建图库)。 */
   saveAs: "editor-save-as",
+  /** 重置回内置图(undo 栈清空)。 */
+  reset: "editor-reset",
+  /** 导出当前地图为 JSON 文件下载。 */
+  export: "editor-export",
+  /** 从 JSON 文件导入地图(校验后替换编辑态,推入 undo)。 */
+  import: "editor-import",
   undo: "editor-undo",
   redo: "editor-redo",
   exit: "editor-exit",

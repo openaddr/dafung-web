@@ -23,6 +23,61 @@ export class LocalController extends GameController {
   /** 表现编排进行中(掷骰/行军/bot 思考):锁本地交互防连点(旧 busy 的新等价物)。 */
   private busy = false;
 
+  // ─── 托管(spec: autopilot 03 单机等价物):无服务器,本地 bot 代打人类决策 ───
+  override readonly autopilotSupported = true;
+  private apOn = false;
+  private apSpeed: "fast" | "slow" = "fast";
+  /** 代打循环单飞标记:防 setAutoPilot 重入/人类步收尾后重复起循环(双驱动)。 */
+  private apLoopRunning = false;
+  override get autoPilotOn(): boolean {
+    return this.apOn;
+  }
+
+  /** 开/关托管。开启即启动代打循环(单飞:正忙则循环持锁等待,当前表现链收尾后接手);
+   *  关闭由循环自退。speed 对照旧版:fast=瞬间决策(0 延迟),slow=与真 bot 同节奏。 */
+  override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
+    this.apSpeed = speed;
+    this.apOn = on;
+    this.sync();
+    if (on) void this.apLoop();
+  }
+
+  /** 托管代打循环:轮到本地人类座位时以 botAct 推进一步(引擎 player-agnostic,
+   *  botAct 按 decisionOwner 决策,热座下人类座位轮到时即代打),走与真 bot 完全一致的
+   *  表现链。与 runBots 的 busy 锁协同:忙则等待,自身步进持锁,不双驱动——真 bot 回合
+   *  仍由既有 runBots 接棒,循环只在「决策方是人类」时出手。 */
+  private async apLoop(): Promise<void> {
+    if (this.apLoopRunning) return; // 已有循环在轮询(开启时正忙的场景),复用即可
+    this.apLoopRunning = true;
+    try {
+      const e = this._engine;
+      while (this.apOn && !e.isOver) {
+        if (this.busy) {
+          await delay(80); // 人类步/真 bot 步进行中:等锁,不抢驱动
+          continue;
+        }
+        if (e.phase !== "Playing" || e.players[e.decisionOwner].isBot) {
+          await delay(200); // 无人类决策点(真 bot 轮次由 runBots 驱动/Setup 待手选)
+          continue;
+        }
+        this.busy = true;
+        this.sync();
+        try {
+          if (this.apSpeed === "slow") await delay(BOT.stepDelayMs);
+          await this.runAnimatedStep(() => botAct(e));
+          maybeShowTurnBanner(e);
+          await this.runBots(); // 代打后若轮到真 bot,沿用既有接棒
+        } finally {
+          this.busy = false;
+          this.sync();
+        }
+        if (this.apSpeed === "slow") await delay(BOT.stepDelayMs);
+      }
+    } finally {
+      this.apLoopRunning = false;
+    }
+  }
+
   constructor(map: LoadedMap, config: EngineConfig) {
     super();
     // 权威引擎:骰子种子可注入(?seed= 可复现);物理骰子动画用独立随机流(见 DiceOverlay 注释)。
@@ -45,8 +100,9 @@ export class LocalController extends GameController {
   }
   get interactive(): boolean {
     // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变。
-    // 共享骨架在基类 canAct(单机/联机判定逻辑收口,防两处漂移),此处只补差异锁 busy。
-    return this.canAct(this.busy);
+    // 共享骨架在基类 canAct(单机/联机判定逻辑收口,防两处漂移),此处补差异锁 busy
+    // 与托管(托管中本地不响应,代打循环全权驱动;对照旧 interactive 的 !apOn)。
+    return this.canAct(this.busy || this.apOn);
   }
 
   // ─── 命令入口 ───

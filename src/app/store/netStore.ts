@@ -58,7 +58,10 @@ const EMPTY: Pick<NetStoreState, "host" | "started" | "mapId" | "seats" | "mySea
 export const useNetStore = create<NetStoreState>((set) => ({
   roomId: "",
   ...EMPTY,
-  setRoom: (v) => set(v),
+  // started=true(开局首帧的 lobby/snapshot 都带)时顺手清掉残留 hint:
+  // "请先选择地图"等开局失败提示的过期定时器归 LobbyScreen,切屏(进对局)即被卸载,
+  // 若不清会一直留在 store,下次回大厅屏重闪(TODO #5 残留路径)。开局即视作时序已过。
+  setRoom: (v) => set(v.started ? { ...v, hint: null } : v),
   setMySeat: (mySeat) => set({ mySeat }),
   setConnected: (connected) => set({ connected }),
   setDismissed: () => set({ dismissed: true, connected: false }),

@@ -117,6 +117,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const dragRef = useRef<{ index: number; pointerId: number } | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; name: string } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const importInputRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   // 表单编辑的「编辑前快照」:焦点进入时记下,失焦时若内容变过则作为一个 undo 步
   // (对照旧版 input change 事件在失焦/回车才触发 → 一次编辑 = 一步 undo)
@@ -308,6 +309,51 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     onStart(clone(map));
   };
 
+  // 重置回内置图(对照旧 editor.ts resetBtn):深拷贝 initialMap 全字段重置,
+  // undo/redo 栈清空(旧版重置后不可撤销——回到起编点即"干净状态")。
+  const doReset = () => {
+    if (!window.confirm("重置回内置地图?当前编辑会丢失。")) return;
+    past.current = [];
+    future.current = [];
+    focusSnapshot.current = null;
+    setSelected(0);
+    setMap(clone(initialMap));
+    setHistoryTick((t) => t + 1);
+    setStatus("已重置");
+    window.setTimeout(() => setStatus(null), 1500);
+  };
+
+  // 导出 JSON(对照旧 editor.ts exportBtn):当前 MapData 下载为文件。
+  const doExport = () => {
+    const blob = new Blob([JSON.stringify(map, null, 2)], { type: "application/json" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "my-map.json";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  };
+
+  // 导入 JSON(对照旧 importBtn):严格 loadMap 校验 → 通过则替换编辑态(推入 undo 可撤回)。
+  const onImportFile = (ev: React.ChangeEvent<HTMLInputElement>) => {
+    const f = ev.target.files?.[0];
+    ev.target.value = ""; // 允许连续导入同一文件
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const data = JSON.parse(reader.result as string) as MapData;
+        loadMap(data); // 严格模式:非法 JSON/结构直接抛
+        apply(data);
+        setSelected(0);
+        setStatus("已导入");
+        window.setTimeout(() => setStatus(null), 1500);
+      } catch (err) {
+        window.alert(`导入失败:${(err as Error).message}`);
+      }
+    };
+    reader.readAsText(f);
+  };
+
   // 统计行(对照旧版面板底部的平衡提示)
   const stats = useMemo(() => {
     const prices = map.tiles.map((t) => t.price ?? 0).sort((a, b) => a - b);
@@ -365,7 +411,18 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           <button data-testid={TID.redo} className={btn} onClick={redo} disabled={future.current.length === 0}>↷ 重做</button>
           <button data-testid={TID.save} className={btn} onClick={doSave} disabled={!validation.ok}>保存</button>
           <button data-testid={TID.saveAs} className={btn} onClick={doSaveAs} disabled={!validation.ok}>另存新图</button>
+          <button data-testid={TID.export} className={btn} onClick={doExport}>导出</button>
+          <button data-testid={TID.import} className={btn} onClick={() => importInputRef.current?.click()}>导入</button>
+          <button data-testid={TID.reset} className={btn} onClick={doReset}>重置</button>
         </div>
+        {/* 导入文件选择(隐藏 input,按钮代点;对照旧版临时 input.click()) */}
+        <input
+          ref={importInputRef}
+          type="file"
+          accept=".json,application/json"
+          className="hidden"
+          onChange={onImportFile}
+        />
 
         <h3 className="font-brush mb-1 mt-3 text-xl text-ink">编辑地图</h3>
         <p className="mb-3 text-xs text-ink-dim">拖拽城池改位置(松手后自动连线);点击城池编辑属性。</p>

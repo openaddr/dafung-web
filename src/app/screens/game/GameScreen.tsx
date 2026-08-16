@@ -1,8 +1,8 @@
 // Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
 //   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 诸侯·战报。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
-import { useEffect, useMemo, useState } from "react";
-import { BoardView } from "@app/components/board/BoardView";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
@@ -38,6 +38,8 @@ export function GameScreen() {
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
+  // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;总览复位按钮用)
+  const boardRef = useRef<BoardViewHandle>(null);
   const map = getControllerMap();
   const snapshot = useGameStore((s) => s.snapshot);
   const interactive = useGameStore((s) => s.interactive);
@@ -94,6 +96,7 @@ export function GameScreen() {
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1">
         <BoardView
+          ref={boardRef}
           map={map}
           players={players}
           onTileClick={(i) => {
@@ -147,6 +150,16 @@ export function GameScreen() {
             onDetailClose={() => setDetailTileIndex(null)}
           />
         </div>
+        {/* 总览复位(对照旧版 reset-view):置于左上,与右上的静音按钮错开 */}
+        <button
+          type="button"
+          data-testid={TESTIDS.resetView}
+          title="总览复位"
+          onClick={() => boardRef.current?.reset()}
+          className="absolute top-2 left-2 z-10 rounded border border-gold/50 bg-panel/90 px-2 py-0.5 font-brush text-sm text-ink-dim hover:text-ink"
+        >
+          ⌖
+        </button>
         {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
         <MuteButton />
         {/* 版本角标(对照旧 main.ts 右下角,构建排查用) */}

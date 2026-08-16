@@ -22,10 +22,11 @@ interface HandPanelProps {
 }
 
 export function HandPanel({ snapshot, player, controller, interactive }: HandPanelProps) {
-  // 托管(联机):生效态从 netStore 的 seats 广播回读;速度是本地 UI 态(切速时若在托管中立即重发)
+  // 托管:联机从 netStore 的 seats 广播回读(本端已入座);单机未入座(mySeat=-1)
+  // 回落 controller.autoPilotOn(本地标记)。速度是本地 UI 态(切速时若在托管中立即重发)
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
-  const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? false;
+  const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
   return (
     <section data-testid={TESTIDS.handPanel} className="flex min-h-0 flex-1 flex-col border-b border-gold/40">
       <h3 className="px-3 pt-2 font-brush text-base">手牌</h3>
@@ -100,8 +101,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
         </button>
         <ActionInline snapshot={snapshot} controller={controller} interactive={interactive} />
       </div>
-      {/* 托管行(仅联机可见;单机控制器 autopilotSupported=false):托管中服务器 bot 代打,
-          interactive 被锁,本地只旁观。对照旧 client-controller 的 autopilot-row。 */}
+      {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
+          显隐):托管中 interactive 被锁,本地只旁观。对照旧 client-controller 的 autopilot-row。 */}
       {controller?.autopilotSupported && (
         <div className="flex items-center gap-2 px-3 pb-2 text-xs text-ink-dim">
           <button
