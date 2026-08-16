@@ -2,11 +2,12 @@
 // 意图来源(旧 spec → 此处):solo-mode.spec(座位/国号校验)、play.spec(开局渲染/选都就位)、
 // click.spec(点城选都的点击可靠性——React 版点城即定都,无确认框)。
 import { test, expect } from "@playwright/test";
-import { snap, waitForEngine } from "./react-helpers";
+import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
 
 test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", async ({ page }) => {
   await page.goto("/");
-  const screen = page.getByTestId("setup-screen");
+  await openSoloSetup(page);
+  const screen = page.getByTestId("solo-setup-screen");
   await expect(screen).toBeVisible();
   await expect(page.getByTestId("setup-seat-count")).toHaveValue("4");
   await expect(page.getByTestId("setup-target")).toHaveValue("8000");
@@ -30,16 +31,18 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
 
 test("字盘快选国号:点字更新真人国号", async ({ page }) => {
   await page.goto("/");
+  await openSoloSetup(page);
   await page.getByTestId("guohao-char-蜀").click();
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveValue("蜀");
 });
 
 test("国号非法(清空)起兵被拦:提示出现且未开局", async ({ page }) => {
   await page.goto("/");
+  await openSoloSetup(page);
   await page.getByTestId("setup-seat-0-guohao").fill("");
   await page.getByTestId("start-game").click();
   await expect(page.getByTestId("setup-hint")).toContainText("国号");
-  await expect(page.getByTestId("setup-screen")).toBeVisible();
+  await expect(page.getByTestId("solo-setup-screen")).toBeVisible();
   await expect(
     page.evaluate(() => !!(window as any).__dafung?.getEngine?.()),
   ).resolves.toBe(false);
@@ -47,6 +50,7 @@ test("国号非法(清空)起兵被拦:提示出现且未开局", async ({ page 
 
 test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号无重号", async ({ page }) => {
   await page.goto("/?seed=20260815");
+  await openSoloSetup(page);
   await page.getByTestId("setup-seat-count").selectOption("3");
   await page.getByTestId("start-game").click();
   await waitForEngine(page);

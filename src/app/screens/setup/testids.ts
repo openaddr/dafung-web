@@ -1,7 +1,8 @@
 // 本屏 data-testid 常量集中导出:测试选择器唯一来源,避免散落字符串拼写漂移。
 // 命名约定:kebab-case,语义 = 区块 + 用途;带参数的用工厂函数。
+// screen = 单机配置页(信息架构重构后由原 SetupScreen 迁来;首页 testids 见 home/)。
 export const TID = {
-  screen: "setup-screen",
+  screen: "solo-setup-screen",
   seatCount: "setup-seat-count",
   target: "setup-target",
   difficulty: "setup-difficulty",
@@ -13,9 +14,6 @@ export const TID = {
   guohaoChar: (ch: string) => `guohao-char-${ch}`,
   hint: "setup-hint",
   startGame: "start-game",
-  editMap: "edit-map",
-  selectMap: "select-map",
-  onlineGame: "online-game",
   currentMapName: "current-map-name",
   mapPanel: "map-select-panel",
   mapItem: (id: string) => `map-item-${id}`,

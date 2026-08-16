@@ -56,7 +56,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `src/app/store/netStore.ts` | 联机房间/座位态(lobby 广播灌入) |
 | `src/app/controllers/` | `controller.ts` 基类(状态桥)+ `local.ts` 单机 + `online.ts` 联机 + `registry.ts` 单例注册表 |
 | `src/app/components/board/` | SVG 棋盘(Tile/TokenLayer/StaticLayers)+ usePanZoom 缩放平移 |
-| `src/app/screens/` | setup / lobby / game / editor 四屏(各屏自带 testids.ts) |
+| `src/app/screens/` | home(首页四入口)/ setup(单机配置)+ lobby / game / editor(各屏自带 testids.ts) |
 | `src/app/fx/` | 表现层:骰子(ThreeDice 3D 物理骰)、行军、浮字、横幅、印章、音效(orchestrator.ts 编排时序) |
 | `scripts/cli.ts` | 纯 CLI(每命令一进程,state.json 持久,AI 可完整测试对局) |
 | `scripts/server.ts` | 权威引擎服务(联机化完成态:多房间 WebSocket + REST 大厅 + 静态托管 dist/ + 落盘恢复) |

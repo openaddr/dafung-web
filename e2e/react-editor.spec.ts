@@ -3,11 +3,11 @@
 // (保存进图库 localStorage / 出现在选图菜单 / 可选可玩 / 预览)+ 编辑器 undo/redo
 // (React 新增能力)与拖拽改坐标。
 import { test, expect, type Page } from "@playwright/test";
-import { snap, waitForEngine } from "./react-helpers";
+import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
 
 async function openEditor(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByTestId("edit-map").click();
+  await page.getByTestId("home-edit-map").click();
   await expect(page.getByTestId("editor-screen")).toBeVisible();
   await page.locator("[data-tile]").first().waitFor({ state: "attached", timeout: 10_000 });
 }
@@ -79,8 +79,8 @@ test("自建图出现在选图菜单(custom- 前缀 + 预览可展开)", async (
   page.once("dialog", (d) => d.accept(name));
   await page.getByTestId("editor-save-as").click();
   await page.getByTestId("editor-exit").click();
-  await expect(page.getByTestId("setup-screen")).toBeVisible();
-  await page.getByTestId("select-map").click();
+  await expect(page.getByTestId("home-screen")).toBeVisible();
+  await page.getByTestId("home-select-map").click();
   const customItem = page.locator('[data-testid^="map-item-custom-"]').filter({ hasText: name });
   await expect(customItem).toBeVisible({ timeout: 10_000 });
   await expect(customItem).toContainText("自建地图");
@@ -103,8 +103,8 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
   await page.getByTestId("editor-save-as").click();
   // 退出编辑器 → 选图菜单出现自建图条目(custom- 前缀 + 「自建地图」描述)
   await page.getByTestId("editor-exit").click();
-  await expect(page.getByTestId("setup-screen")).toBeVisible();
-  await page.getByTestId("select-map").click();
+  await expect(page.getByTestId("home-screen")).toBeVisible();
+  await page.getByTestId("home-select-map").click();
   const customItem = page.locator('[data-testid^="map-item-custom-"]').filter({ hasText: name });
   await expect(customItem).toBeVisible({ timeout: 10_000 });
   await expect(customItem).toContainText("自建地图");
@@ -115,6 +115,7 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
   await page.getByTestId("map-confirm").click();
   await expect(page.getByTestId("current-map-name")).toHaveText(name);
   expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toMatch(/^custom-/);
+  await openSoloSetup(page);
   await page.getByTestId("start-game").click();
   await waitForEngine(page);
   // 自建图 = sanguo 副本:30 主路城,进入选都阶段

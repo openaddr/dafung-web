@@ -3,9 +3,10 @@
 // 走 vite preview(4173)的 dist 产物——跑前需 npm run build。
 import { test, expect, type Page } from "@playwright/test";
 
-/** UI 快速开局:起兵 → 点第一座可选城建都 → 等轮到人类。 */
+/** UI 快速开局:首页进单机配置页 → 起兵 → 点第一座可选城建都 → 等轮到人类。 */
 async function quickStart(page: Page): Promise<void> {
   await page.goto("/");
+  await page.getByTestId("home-solo").click();
   await page.getByTestId("start-game").click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
@@ -79,7 +80,7 @@ test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
   `);
   await expect(page.getByTestId("victory-screen")).toBeVisible();
   await page.getByTestId("victory-restart").click();
-  await expect(page.getByTestId("setup-screen")).toBeVisible();
+  await expect(page.getByTestId("home-screen")).toBeVisible();
 });
 
 test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) => {

@@ -37,8 +37,8 @@ export function setEngine(engine: GameEngine | null): void {
 
 // ──────────────────────────── store 定义 ────────────────────────────
 
-/** 应用当前屏(lobby = 联机大厅;editor = 地图编辑器)。 */
-export type Screen = "setup" | "lobby" | "game" | "editor";
+/** 应用当前屏(setup = 首页;solo-setup = 单机配置页;lobby = 联机大厅;editor = 地图编辑器)。 */
+export type Screen = "setup" | "solo-setup" | "lobby" | "game" | "editor";
 
 export interface GameStoreState {
   // ── 引擎数据(快照;null = 尚未开局)──

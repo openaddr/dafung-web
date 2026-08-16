@@ -1,4 +1,4 @@
-// 地图选择面板(SetupScreen 内嵌二级屏):列出全部可选地图(内置 + 自建),
+// 地图选择面板(首页内嵌二级屏):列出全部可选地图(内置 + 自建),
 // 点击条目展开简化 SVG 预览(主路折线 + 城池圆点),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,
 // 而是直接基于 MapData 的 pos 坐标画简版(延迟加载:点选时才 loadMapData)。

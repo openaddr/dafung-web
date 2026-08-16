@@ -1,6 +1,6 @@
-// 根组件:按 store.screen 路由(setup / lobby / game)。
-// 正式开局流程:SetupScreen.onStart → loadMapById → LocalController → GameScreen。
-// 联机流程(阶段 8):SetupScreen.onOnline 或 ?online=1 → 占位图 + OnlineController
+// 根组件:按 store.screen 路由(setup 首页 / solo-setup 单机配置 / lobby / game / editor)。
+// 正式开局流程:首页「单机模式」→ SoloSetupScreen.onStart → loadMapById → LocalController → GameScreen。
+// 联机流程(阶段 8):首页「联机模式」或 ?online=1 → 占位图 + OnlineController
 // → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -14,7 +14,8 @@ import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { GameScreen } from "@app/screens/game/GameScreen";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
-import { SetupScreen, type SetupConfig } from "@app/screens/setup/SetupScreen";
+import { HomeScreen } from "@app/screens/home/HomeScreen";
+import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
 import { TESTIDS } from "@app/screens/game/testids";
 
@@ -116,7 +117,7 @@ export function App() {
     setScreen("setup");
   }, [setScreen]);
 
-  // ── 编辑器(阶段 9):SetupScreen「编辑地图」→ EditorScreen。
+  // ── 编辑器(阶段 9):首页「编辑地图」→ EditorScreen。
   // 起编地图:旧实现忽略传入 id 固定加载默认图,此处从选中图起编更直观(行为增强,注释存档)。
   const [editorMap, setEditorMap] = useState<MapData | null>(null);
   const handleEdit = useCallback(
@@ -200,12 +201,34 @@ export function App() {
       />
     );
   }
+  // 单机配置页:首页「单机模式」进入;起兵走原 handleStart;地图由首页选定后传入
+  if (screen === "solo-setup") {
+    return (
+      <div className="relative h-full">
+        <SoloSetupScreen
+          onStart={handleStart}
+          onBack={() => setScreen("setup")}
+          mapId={initialMapId}
+          mapSource={getMapSource()}
+        />
+        {hint && (
+          <div
+            data-testid={TESTIDS.hint}
+            className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/95 px-4 py-1 text-danger shadow"
+          >
+            {hint}
+          </div>
+        )}
+      </div>
+    );
+  }
+  // 首页:四个模式入口(单机 / 联机 / 选图 / 编辑),对局配置在 solo-setup 次级页
   return (
     <div className="relative h-full">
-      <SetupScreen
-        onStart={handleStart}
-        onEdit={handleEdit}
+      <HomeScreen
+        onSolo={() => setScreen("solo-setup")}
         onOnline={() => void handleOnline()}
+        onEdit={(mapId) => void handleEdit(mapId)}
         initialMapId={initialMapId}
         onMapChange={handleMapChange}
         mapSource={getMapSource()}

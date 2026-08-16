@@ -36,7 +36,7 @@ src/
     main.tsx        入口(createRoot + StrictMode)
     store/          zustand(gameStore 引擎快照 + UI 态;netStore 联机房间态)
     controllers/    GameController 基类 + local.ts(单机)+ online.ts(联机)+ registry.ts
-    screens/        setup / lobby / game(卷轴弹层)/ editor 四屏
+    screens/        home(首页)+ setup(单机配置)/ lobby / game(卷轴弹层)/ editor
     components/     SVG 棋盘(Tile / TokenLayer / usePanZoom)
     fx/             骰子(3D 物理骰)/ 行军 / 浮字 / 横幅 / 印章 / 音效(orchestrator 编排)
 test/             Vitest 单元测试(路径 / 经济 / 身价 / 回合)

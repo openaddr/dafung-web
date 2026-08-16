@@ -1,22 +1,23 @@
-// 开局设置屏(React 版):座位/国号/目标身价/AI 难度配置 + 地图选择 + 起兵。
-// 对照旧实现 src/render/ui.ts createSetupScreen;规则保持一致:
+// 单机模式配置页(信息架构重构):承接原 SetupScreen 的对局配置部分——
+// 诸侯数/目标身价/AI 难度/国号字盘/座位表 + 起兵。模式入口已上移到首页
+// (HomeScreen),此页只关心「怎么开这一局」,顶部回显当前选中地图名
+// (选图在首页完成,记忆仍走 localStorage)。规则与旧实现保持一致:
 // - 单机模式:2–4 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
 // - 目标身价:速战 5000 / 标准 8000 / 鏖战 12000;起始银两固定 2500(旧值)
-// 视觉用 Tailwind token(来源 tokens.css @theme),不迁旧 CSS 类名。
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { SeatConfig } from "@core/game";
 import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
-import { MapSelectPanel } from "./MapSelectPanel";
 import { TID } from "./testids";
+import { useMapName } from "./useMapName";
 
 /** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
  *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
- *  seed 可选:?seed= 复现参数由接线方解析后注入,设置屏不感知 URL。 */
+ *  seed 可选:?seed= 复现参数由接线方解析后注入,配置页不感知 URL。 */
 export interface SetupConfig {
   seats: SeatConfig[];
   targetNetWorth: number;
@@ -28,16 +29,12 @@ export interface SetupConfig {
   seed?: number;
 }
 
-export interface SetupScreenProps {
+export interface SoloSetupScreenProps {
   onStart: (config: SetupConfig) => void;
-  /** 「编辑地图」入口;mapId 语义 = 从该图起编(undefined = 默认内置图)。 */
-  onEdit: (mapId?: string) => void;
-  /** 联机入口(可选;不传则不显示按钮)。 */
-  onOnline?: () => void;
-  /** 初始选中的地图 id(来自 localStorage 记忆,旧默认 sanguo)。 */
-  initialMapId?: string;
-  /** 选中地图变更回调(接线方持久化到 localStorage;对照旧 onMapChange)。 */
-  onMapChange?: (mapId: string) => void;
+  /** 返回首页。 */
+  onBack: () => void;
+  /** 当前选中的地图 id(首页选图后传入,localStorage 记忆同一份)。 */
+  mapId?: string;
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
 }
@@ -48,42 +45,20 @@ const TARGET_LABEL: Record<number, string> = { 5000: "速战", 8000: "标准", 1
 /** 起始银两:旧实现硬编码 2500(与引擎默认一致),此处保持。 */
 const STARTING_CASH = 2500;
 
-export function SetupScreen({
+export function SoloSetupScreen({
   onStart,
-  onEdit,
-  onOnline,
-  initialMapId = "sanguo",
-  onMapChange,
+  onBack,
+  mapId = "sanguo",
   mapSource = getMapSource(),
-}: SetupScreenProps) {
+}: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);
   const [target, setTarget] = useState(8000);
   const [difficulty, setDifficulty] = useState<"Simple" | "Normal">("Normal");
   // 单机模式仅首行可编:真人国号默认「魏」(旧 DEFAULT_GUOHAO[0]);bot 国号引擎分配
   const [guohao, setGuohao] = useState("魏");
   const [hint, setHint] = useState("立国号、定诸侯,起兵逐鹿天下。");
-  const [selectedMapId, setSelectedMapId] = useState(initialMapId);
-  const [mapName, setMapName] = useState(initialMapId); // id 兜底,清单加载后刷新为真实名
-  const [showMapSelect, setShowMapSelect] = useState(false);
-
-  // 首次显示:解析当前选中地图的展示名(id → name;失败保留 id 兜底,对照旧实现)
-  useEffect(() => {
-    let alive = true;
-    mapSource
-      .listMaps()
-      .then((entries) => {
-        const found = entries.find((e) => e.id === selectedMapId);
-        if (alive && found) setMapName(found.name);
-      })
-      .catch(() => {
-        /* 忽略:清单加载失败时保留 id 兜底显示 */
-      });
-    return () => {
-      alive = false;
-    };
-    // 仅首挂载执行一次;selectedMapId 由选择屏回写 mapName,无需重复解析
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapSource]);
+  // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
+  const mapName = useMapName(mapSource, mapId);
 
   const start = () => {
     // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配
@@ -102,7 +77,7 @@ export function SetupScreen({
       targetNetWorth: target,
       startingCash: STARTING_CASH,
       difficulty,
-      mapId: selectedMapId,
+      mapId,
     });
   };
 
@@ -111,10 +86,15 @@ export function SetupScreen({
 
   return (
     <div data-testid={TID.screen} className="min-h-full flex flex-col items-center justify-center bg-bg p-6">
-      <h1 className="font-brush text-5xl text-ink tracking-widest">群雄逐鹿</h1>
-      <div className="font-deco text-ink-dim mt-1 mb-6 tracking-[0.5em]">— 三国大富翁 —</div>
+      <h1 className="font-brush text-4xl text-ink tracking-widest">单机模式</h1>
 
-      <div className="w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
+      <div className="w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl mt-4">
+        {/* 顶部回显首页选定的地图(换图请回首页「选择地图」) */}
+        <div className="font-deco text-sm text-ink-dim mb-4 flex items-center gap-2 border-b border-dashed border-ink/25 pb-3">
+          <span>当前地图:</span>
+          <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
+        </div>
+
         <h3 className="font-brush text-lg text-ink tracking-[0.3em] mb-3">开局布阵</h3>
 
         {/* 诸侯数 / 目标身价 / AI 难度:受限选择(单机 = 1 真人 + 其余电脑) */}
@@ -221,14 +201,15 @@ export function SetupScreen({
           ))}
         </div>
 
-        {/* 当前选中地图展示(选择在二级屏内完成) */}
-        <div className="font-deco text-[13px] text-ink-dim mt-3 flex items-center gap-2">
-          <span>当前地图:</span>
-          <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
-        </div>
-
-        {/* 操作区:起兵 / 编辑地图 / 选择地图 / 联机对战 */}
+        {/* 操作区:返回首页 / 起兵 */}
         <div className="flex items-center gap-2.5 mt-4">
+          <button
+            data-testid="solo-setup-back"
+            onClick={onBack}
+            className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep"}
+          >
+            返回
+          </button>
           <button
             data-testid={TID.startGame}
             onClick={start}
@@ -236,48 +217,10 @@ export function SetupScreen({
           >
             起兵
           </button>
-          <button
-            data-testid={TID.editMap}
-            onClick={() => onEdit(selectedMapId !== "sanguo" ? selectedMapId : undefined)}
-            className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep"}
-          >
-            编辑地图
-          </button>
-          <button
-            data-testid={TID.selectMap}
-            onClick={() => setShowMapSelect(true)}
-            className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep"}
-          >
-            选择地图
-          </button>
-          {onOnline && (
-            <button
-              data-testid={TID.onlineGame}
-              onClick={onOnline}
-              className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep"}
-            >
-              联机对战
-            </button>
-          )}
         </div>
 
         <div data-testid={TID.hint} className="font-deco text-xs text-ink-dim mt-3">{hint}</div>
       </div>
-
-      {/* 地图选择二级屏:确认后回写选中 id + 展示名(取消保留原选择) */}
-      {showMapSelect && (
-        <MapSelectPanel
-          mapSource={mapSource}
-          currentMapId={selectedMapId}
-          onConfirm={(mapId, name) => {
-            setSelectedMapId(mapId);
-            setMapName(name);
-            setShowMapSelect(false);
-            onMapChange?.(mapId);
-          }}
-          onCancel={() => setShowMapSelect(false)}
-        />
-      )}
     </div>
   );
 }
