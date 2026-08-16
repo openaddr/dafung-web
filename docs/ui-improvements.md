@@ -93,15 +93,22 @@
 
 - [ ] **S1 首页仪式感**:入场淡入 stagger(四按钮依次)+ 笔触下划线 hover;active 按压态
 - [ ] **S2 编辑器原生弹窗替换**:window.prompt/alert(LobbyScreen 与 EditorScreen)→ 卷轴式 ConfirmDialog/输入卷轴
-- [ ] **S3 硬编码色收编**:61 处非 token 色值(重灾区:fx.css 全部、卷轴渐变 #f7ecd0/#ecdcb4×3、
-  Editor 危险色全套 #b23a2e、LobbyScreen emerald、VictoryScreen 烟花/遮罩、棋盘 SVG rgba)
-  → 扩 tokens(--paper-hi/--paper-lo/--success 等)后逐一替换;fx.css 是否并入 @theme 讨论
-- [ ] **S4 胜利屏烟花自适应**:粒子坐标 200-600px magic number → vw/vh 百分比;色板入 token
+- [x] **S3 硬编码色收编**(2026-08-16,Scroll/卷轴/fx/lobby/victory 部分;Editor 危险色全套归
+  EditorScreen 并行施工,遗留):theme.ts 新增 paper-hi/paper-lo/seal-qing/success 四 token
+  (gen:theme 带出),卷轴体渐变 #f7ecd0/#ecdcb4 → from-paper-hi to-paper-lo(ScrollShell/
+  ConfirmDialog),WarlogPanel 印章黛青 #3f6a6b → seal-qing,LobbyScreen 在线点 emerald →
+  success,fx.css 全部主题色 hex → var(--color-*)(黑色阴影 rgba 字面量保留,投影非色板)。
+  遗留:棋盘 SVG Tile/StaticLayers 的 rgba 渲染层字面量(另一体系,量大)、卷轴阴影
+  rgba(60,40,10,.4)、胜利屏烟花亮蓝/纯白与遮罩暗金(表现专用色,集中常量见 S4)
+- [x] **S4 胜利屏烟花自适应**(2026-08-16):粒子圆心 200-600px/150-400px magic number →
+  容器百分比(水平 15%-85%、垂直 12%-60%);烟花六色中金/朱砂/青绿/赭橙改引
+  var(--color-*),亮蓝 #2980b9 与纯白 #fff 为烟花表现专用色不入 theme 语义色板(组件常量
+  +注释);遮罩暗金渐变与信息文字 rgba 收敛为组件常量 OVERLAY_BG/INFO_TEXT
 - [ ] **S5 侧栏响应式**:GameScreen w-72 shrink-0 → md: 断点折叠(棋盘优先,侧栏抽屉或底部);
   Editor w-[380px] 同
 - [ ] **S6 符号表统一**:↶↷←▶⌖♪♫◆⇄ 混用 → 定义古风符号表(文档化后统一替换)
-- [ ] **S7 仅颜色传达信息 ×3**:大厅在线点(加文字)、棋盘归属(玩家色+首字徽记已有 ✓ 核对)、
-  破产线(已有文字标?核对 OthersPanel)
+- [x] **S7 仅颜色传达信息 ×3**(lobby 部分 2026-08-16:座位在线点旁加「在线/离线」xs 文字
+  标签(成功色/ink-dim,testid lobby-seat-online-N),不只靠颜色;棋盘归属与破产线部分待核)
 - [ ] **S8 SoloSetup 校验内联**:国号非法 → 输入框红边 + 即时提示(替代常驻灰字)
 - [ ] **S9 单机「未开局」兜底页**:GameScreen.tsx:74-77 一行灰字 → 引导回首页按钮
 
@@ -129,3 +136,9 @@
 - W2/W3/W5-其余(react-rewrite,2026-08-16,待 commit):大厅座位点亮动画 + 等待文案 3s
   轮换 + 房间码点击复制;手牌三档字号 + primary 独立行 + 活跃竖条/呼吸描边;复位/静音/
   托管/字盘触达区提升。tsc/bun test/build/e2e(online+setup)全绿。
+
+- S3(Scroll/fx/lobby/victory)+ S4 + S7-lobby(react-rewrite,2026-08-16,待 commit):新增
+  paper-hi/paper-lo/seal-qing/success 四 token;范围内硬编码色 hex/语义色 19 处 → 3 处
+  (fx.css 11→0、卷轴渐变 4→0、WarlogPanel 2→0、Lobby emerald 1→0、Victory 烟花 6→2
+  表现专用常量);烟花圆心改容器百分比自适应;tsc 因并行 SoloSetup WIP 暂报 1 错(非本
+  批文件),bun test 167 绿、build 过、scrolls+online e2e 6/6 绿、gen:theme 幂等。

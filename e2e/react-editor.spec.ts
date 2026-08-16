@@ -17,6 +17,16 @@ function posText(page: Page) {
   return page.getByTestId("editor-tile-form").getByText(/^坐标:\[/).textContent();
 }
 
+/** S2:另存新图改走卷轴输入卷轴(原 window.prompt 的 dialog 处理同步替换,断言不变)。 */
+async function saveAs(page: Page, name: string): Promise<void> {
+  await page.getByTestId("editor-save-as").click();
+  const input = page.getByTestId("editor-name-input");
+  await expect(input).toBeVisible();
+  await input.fill(name);
+  await page.getByTestId("editor-input-ok").click();
+  await expect(page.getByTestId("editor-input-scroll")).toBeHidden();
+}
+
 test("打开编辑器:棋盘渲染 + 属性表单就位", async ({ page }) => {
   await openEditor(page);
   expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
@@ -63,8 +73,7 @@ test("拖拽城池改坐标:坐标文本变化,可撤销还原", async ({ page }
 test("另存新图:写入 localStorage 图库(dafung-custom-maps)", async ({ page }) => {
   await openEditor(page);
   const name = `自建图${Date.now()}`;
-  page.once("dialog", (d) => d.accept(name));
-  await page.getByTestId("editor-save-as").click();
+  await saveAs(page, name);
   const raw = await page.evaluate(() => localStorage.getItem("dafung-custom-maps"));
   expect(raw).toBeTruthy();
   const lib = JSON.parse(raw!) as Array<{ id: string; name: string }>;
@@ -76,8 +85,7 @@ test("另存新图:写入 localStorage 图库(dafung-custom-maps)", async ({ pag
 test("自建图出现在选图菜单(custom- 前缀 + 预览可展开)", async ({ page }) => {
   await openEditor(page);
   const name = `菜单自建图${Date.now()}`;
-  page.once("dialog", (d) => d.accept(name));
-  await page.getByTestId("editor-save-as").click();
+  await saveAs(page, name);
   await page.getByTestId("editor-exit").click();
   await expect(page.getByTestId("home-screen")).toBeVisible();
   await page.getByTestId("home-select-map").click();
@@ -99,8 +107,7 @@ test("自建图出现在选图菜单(custom- 前缀 + 预览可展开)", async (
 test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)", async ({ page }) => {
   await openEditor(page);
   const name = `可玩自建图${Date.now()}`;
-  page.once("dialog", (d) => d.accept(name));
-  await page.getByTestId("editor-save-as").click();
+  await saveAs(page, name);
   // 退出编辑器 → 选图菜单出现自建图条目(custom- 前缀 + 「自建地图」描述)
   await page.getByTestId("editor-exit").click();
   await expect(page.getByTestId("home-screen")).toBeVisible();

@@ -18,23 +18,38 @@ export interface VictoryScreenProps {
   onRestart: () => void;
 }
 
-// 旧版烟花配色
-const FW_COLORS = ["#d4af37", "#b23a2e", "#4a7a4a", "#2980b9", "#c47a2a", "#fff"];
+// 烟花配色(S3/S4 收编):主体五色引用 tokens.css 的 var(--color-*),单源 core/theme.ts;
+// 剩两色是"烟花表现专用色"(亮蓝闪点/纯白高光),不入 theme.ts 以免污染语义色板,集中在此注释。
+const FW_COLORS = [
+  "var(--color-gold-bright)", // 金
+  "var(--color-danger)", // 朱砂
+  "var(--color-money)", // 青绿
+  "var(--color-road-side)", // 赭橙
+  "#2980b9", // 亮蓝闪点:仅烟花使用,非语义色
+  "#fff", // 纯白高光:仅烟花使用
+];
+
+// 遮罩/信息文字色:庆祝屏专属氛围色(暗金墨晕),不进 theme 语义色板,集中常量。
+const OVERLAY_BG =
+  "radial-gradient(circle, rgba(40, 30, 10, 0.75), rgba(20, 15, 5, 0.92))";
+const INFO_TEXT = "rgba(255, 240, 200, 0.85)";
 
 interface Particle {
   key: string;
-  cx: number;
-  cy: number;
+  /** 圆心:容器百分比(S4 自适应,不再用 200-600px magic number)。 */
+  cxPct: number;
+  cyPct: number;
   dx: number;
   dy: number;
   color: string;
   dur: number;
 }
 
-/** 一波烟花:围绕随机圆心生成 16~26 个粒子(对照旧 spawnFireworkBurst)。 */
+/** 一波烟花:围绕随机圆心生成 16~26 个粒子(对照旧 spawnFireworkBurst)。
+ *  圆心用容器百分比(水平 15%-85%、垂直 12%-60%),任意窗口尺寸都不贴边/不挤中。 */
 function spawnBurst(keyPrefix: number): Particle[] {
-  const cx = 200 + Math.random() * 400;
-  const cy = 150 + Math.random() * 250;
+  const cxPct = 15 + Math.random() * 70;
+  const cyPct = 12 + Math.random() * 48;
   const count = 16 + Math.floor(Math.random() * 10);
   const out: Particle[] = [];
   for (let i = 0; i < count; i++) {
@@ -42,8 +57,8 @@ function spawnBurst(keyPrefix: number): Particle[] {
     const dist = 60 + Math.random() * 80;
     out.push({
       key: `${keyPrefix}-${i}`,
-      cx,
-      cy,
+      cxPct,
+      cyPct,
       dx: Math.cos(angle) * dist,
       dy: Math.sin(angle) * dist,
       color: FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)],
@@ -79,15 +94,16 @@ export function VictoryScreen({
   return (
     <div
       data-testid={T.victoryScreen}
-      className="victory-anim-overlay absolute inset-0 z-40 flex flex-col items-center justify-center bg-[radial-gradient(circle,rgba(40,30,10,0.75),rgba(20,15,5,0.92))]"
+      className="victory-anim-overlay absolute inset-0 z-40 flex flex-col items-center justify-center"
+      style={{ background: OVERLAY_BG }}
     >
       {particles.map((p) => (
         <span
           key={p.key}
           className="firework-particle"
           style={{
-            left: `${p.cx}px`,
-            top: `${p.cy}px`,
+            left: `${p.cxPct}%`,
+            top: `${p.cyPct}%`,
             background: p.color,
             ["--dx" as string]: `${p.dx}px`,
             ["--dy" as string]: `${p.dy}px`,
@@ -108,7 +124,7 @@ export function VictoryScreen({
       >
         「{guohao}」称帝
       </div>
-      <div data-testid={T.victoryInfo} className="mt-4 text-base text-[rgba(255,240,200,0.85)]">
+      <div data-testid={T.victoryInfo} className="mt-4 text-base" style={{ color: INFO_TEXT }}>
         终局身价 {finalNetWorthLabel} · 用时 {turnNumber} 回合 ·{" "}
         {winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}
       </div>

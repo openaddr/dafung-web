@@ -21,6 +21,9 @@ import { findTooClosePairs } from "@core/geometry";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
 import { BoardView } from "@app/components/board/BoardView";
+// S2:卷轴式弹窗——只 import 不改 scroll/ 目录(并行 agent 可能动它)
+import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
+import { ScrollShell, ScrollButton } from "@app/screens/game/scroll/ScrollShell";
 import { TID } from "./testids";
 
 export interface EditorScreenProps {
@@ -84,6 +87,53 @@ function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number): { x:
 /** 深拷贝快照(与旧版 JSON.parse(JSON.stringify(...)) 同手段)。 */
 const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
+/** S2:卷轴式输入卷轴——替代 window.prompt(原生弹窗在卷轴主题里出戏,且 E2E 里
+ *  dialog 处理与页面交互互斥)。scroll/ 的 ConfirmDialog 不支持输入,故在编辑器内
+ *  用 ScrollShell + ScrollButton 拼装,样式与 ConfirmDialog 小卡片形态对齐。 */
+function InputScroll({
+  title,
+  label,
+  defaultValue,
+  onOk,
+  onCancel,
+}: {
+  title: string;
+  label: string;
+  defaultValue: string;
+  onOk: (value: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(defaultValue);
+  return (
+    <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
+      {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
+      <label className="mb-4 flex flex-col gap-2 font-deco text-base text-ink">
+        {label}
+        <input
+          // 自动聚焦:prompt 的默认行为是直接可输入,卷轴版保持等价手感
+          autoFocus
+          data-testid="editor-name-input"
+          className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-deco text-base text-ink"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            // 回车确认 = prompt 的确定路径
+            if (e.key === "Enter") onOk(value.trim());
+          }}
+        />
+      </label>
+      <div className="flex flex-wrap justify-center gap-3">
+        <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(value.trim())}>
+          确定
+        </ScrollButton>
+        <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
+          取消
+        </ScrollButton>
+      </div>
+    </ScrollShell>
+  );
+}
+
 /** 棋盘渲染错误边界:BoardView 内部走严格 loadMap,编辑中途两城暂时重叠等情况会抛错,
  *  旧版此时显示「地图校验失败」文案;React 下必须用边界兜住,否则整屏白屏。
  *  key 绑 map 序列化,地图一变就重试渲染(重叠拉开后棋盘自动恢复)。 */
@@ -100,7 +150,7 @@ class BoardBoundary extends React.Component<
   }
   render() {
     if (this.state.error) {
-      return <div className="p-10 font-deco text-[#b23a2e]">地图校验失败:{this.state.error}</div>;
+      return <div className="p-10 font-deco text-danger">地图校验失败:{this.state.error}</div>;
     }
     return this.props.children;
   }
@@ -119,6 +169,10 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
+  // S2:弹窗态(prompt/confirm/alert 全部换成组件内卷轴,原生弹窗不再使用)
+  const [saveAsOpen, setSaveAsOpen] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [importError, setImportError] = useState<string | null>(null);
   // 表单编辑的「编辑前快照」:焦点进入时记下,失焦时若内容变过则作为一个 undo 步
   // (对照旧版 input change 事件在失焦/回车才触发 → 一次编辑 = 一步 undo)
   const focusSnapshot = useRef<MapData | null>(null);
@@ -192,7 +246,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       c.setAttribute("cy", String(y));
       c.setAttribute("r", "50");
       c.setAttribute("fill", "none");
-      c.setAttribute("stroke", "#b23a2e");
+      // S3:红圈描边走 --color-danger token(SVG 特性值用 var() 引用,与 Tailwind class 同源)
+      c.setAttribute("stroke", "var(--color-danger)");
       c.setAttribute("stroke-width", "3");
       c.setAttribute("stroke-dasharray", "6 4");
       c.setAttribute("opacity", "0.85");
@@ -294,11 +349,15 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
 
   const doSaveAs = () => {
     if (!validation.ok) return;
-    // 另存新图:直接写入 localStorage 自建图库(走进程级单例,与旧版保存按钮同渠道)
+    // S2:先弹卷轴输入名字(prompt → InputScroll),确认后再写入
+    setSaveAsOpen(true);
+  };
+
+  // 另存确认:校验名字非空后写库(空名/取消 → 不保存,同旧版 prompt 语义)
+  const confirmSaveAs = (name: string) => {
+    setSaveAsOpen(false);
+    if (!name) return;
     const store = getMapSource();
-    const count = store.listCustomMaps().length;
-    const name = (window.prompt("请输入地图名:", `自建地图 ${count + 1}`) ?? "").trim();
-    if (!name) return; // 取消或空名 → 不保存(同旧版)
     store.saveCustomMap(name, clone(map));
     setStatus(`已存入图库「${name}」`);
     window.setTimeout(() => setStatus(null), 1500);
@@ -311,8 +370,11 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
 
   // 重置回内置图(对照旧 editor.ts resetBtn):深拷贝 initialMap 全字段重置,
   // undo/redo 栈清空(旧版重置后不可撤销——回到起编点即"干净状态")。
-  const doReset = () => {
-    if (!window.confirm("重置回内置地图?当前编辑会丢失。")) return;
+  // S2:重置先弹 ConfirmDialog(window.confirm → 卷轴确认)
+  const doReset = () => setResetOpen(true);
+
+  const confirmReset = () => {
+    setResetOpen(false);
     past.current = [];
     future.current = [];
     focusSnapshot.current = null;
@@ -348,7 +410,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         setStatus("已导入");
         window.setTimeout(() => setStatus(null), 1500);
       } catch (err) {
-        window.alert(`导入失败:${(err as Error).message}`);
+        // S2:导入失败改卷轴提示(原生 alert 出戏且阻塞)
+        setImportError((err as Error).message);
       }
     };
     reader.readAsText(f);
@@ -368,7 +431,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const inputCls = "rounded border border-ink/30 bg-bg px-2 py-1 w-full";
 
   return (
-    <div data-testid={TID.screen} className="flex h-full overflow-hidden">
+    // S2:relative 作为卷轴弹层(absolute inset-0)的定位锚
+    <div data-testid={TID.screen} className="relative flex h-full overflow-hidden">
       {/* 棋盘区:外层包裹 div 负责城池拖拽(BoardView 本体不动,空白 pan/zoom 照常) */}
       <div className="relative min-w-0 flex-1">
         <div
@@ -403,8 +467,9 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         )}
       </div>
 
-      {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar) */}
-      <aside className="w-[380px] shrink-0 overflow-y-auto border-l-2 border-gold bg-gradient-to-b from-[#f7ecd0] to-[#ecdcb4] p-4">
+      {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar)。
+          S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行) */}
+      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l-2 border-gold bg-gradient-to-b from-[#f7ecd0] to-[#ecdcb4] p-4">
         <div className="flex flex-wrap gap-1.5">
           <button data-testid={TID.exit} className={btn} onClick={onExit}>← 返回</button>
           <button data-testid={TID.undo} className={btn} onClick={undo} disabled={past.current.length === 0}>↶ 撤销</button>
@@ -427,18 +492,20 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         <h3 className="font-brush mb-1 mt-3 text-xl text-ink">编辑地图</h3>
         <p className="mb-3 text-xs text-ink-dim">拖拽城池改位置(松手后自动连线);点击城池编辑属性。</p>
 
-        {/* 校验状态:严格 loadMap 失败 → 禁保存/试玩并显示原因(对照旧版试玩按钮禁用逻辑) */}
+        {/* 校验状态:严格 loadMap 失败 → 禁保存/试玩并显示原因(对照旧版试玩按钮禁用逻辑)。
+            S3:危险色收编为 token(border-danger/bg-danger/10/text-danger) */}
         {!validation.ok && (
-          <div data-testid={TID.validationError} className="mb-3 rounded border border-[#b23a2e]/60 bg-[#b23a2e]/10 p-2 text-xs text-[#b23a2e]">
+          <div data-testid={TID.validationError} className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
             {validation.error}
           </div>
         )}
         {overlapping.length > 0 && validation.ok && (
-          <div data-testid={TID.overlapWarning} className="mb-3 rounded border border-[#b23a2e]/60 bg-[#b23a2e]/10 p-2 text-xs text-[#b23a2e]">
+          <div data-testid={TID.overlapWarning} className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
             第 {overlapping.map((i) => i + 1).join("、")} 城距离过近(红圈标出),保存前请拉开。
           </div>
         )}
-        {status && <div className="mb-3 text-xs text-green-800">{status}</div>}
+        {/* S3:成功态文字用 --color-money token(原硬编码 text-green-800) */}
+        {status && <div className="mb-3 text-xs text-money">{status}</div>}
 
         {/* 属性面板(对照旧版 renderPanel) */}
         <div data-testid={TID.tileForm}>
@@ -536,6 +603,41 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           </button>
         )}
       </aside>
+
+      {/* S2:另存新图 —— 卷轴输入(默认名与旧 prompt 一致:自建地图 N+1) */}
+      {saveAsOpen && (
+        <InputScroll
+          title="另存新图"
+          label="请输入地图名:"
+          defaultValue={`自建地图 ${getMapSource().listCustomMaps().length + 1}`}
+          onOk={confirmSaveAs}
+          onCancel={() => setSaveAsOpen(false)}
+        />
+      )}
+      {/* S2:重置确认 —— ConfirmDialog(window.confirm 的卷轴替身) */}
+      {resetOpen && (
+        <ConfirmDialog
+          title="重置地图"
+          confirmLabel="重置"
+          cancelLabel="取消"
+          onConfirm={confirmReset}
+          onCancel={() => setResetOpen(false)}
+        >
+          重置回内置地图?当前编辑会丢失。
+        </ConfirmDialog>
+      )}
+      {/* S2:导入失败提示 —— info 型卷轴(window.alert 的卷轴替身,两按钮均可关闭) */}
+      {importError && (
+        <ConfirmDialog
+          title="导入失败"
+          confirmLabel="知道了"
+          cancelLabel="关闭"
+          onConfirm={() => setImportError(null)}
+          onCancel={() => setImportError(null)}
+        >
+          <span className="text-danger">{importError}</span>
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

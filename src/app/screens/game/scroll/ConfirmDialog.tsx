@@ -26,7 +26,7 @@ export function ConfirmDialog({
     <div className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]">
       <div
         data-testid={T.confirmDialog}
-        className="scroll-anim-unroll max-w-[400px] rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-[#f7ecd0] to-[#ecdcb4] px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)]"
+        className="scroll-anim-unroll max-w-[400px] rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)]"
       >
         <h2 data-testid={T.scrollTitle} className="m-0 mb-2 text-center font-brush text-xl tracking-[3px] text-ink">
           {title}

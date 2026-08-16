@@ -36,11 +36,15 @@ test("字盘快选国号:点字更新真人国号", async ({ page }) => {
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveValue("蜀");
 });
 
-test("国号非法(清空)起兵被拦:提示出现且未开局", async ({ page }) => {
+test("国号非法(清空)起兵被拦:内联红字 + 提示兜底,未开局", async ({ page }) => {
   await page.goto("/");
   await openSoloSetup(page);
   await page.getByTestId("setup-seat-0-guohao").fill("");
+  // S8:onChange 即校验 —— 红边 + 框下红字即时出现,不必等起兵
+  await expect(page.getByTestId("setup-guohao-error")).toContainText("单个汉字");
+  await expect(page.getByTestId("setup-seat-0-guohao")).toHaveClass(/border-danger/);
   await page.getByTestId("start-game").click();
+  // hint 兜底保留(断言不删)
   await expect(page.getByTestId("setup-hint")).toContainText("国号");
   await expect(page.getByTestId("solo-setup-screen")).toBeVisible();
   await expect(

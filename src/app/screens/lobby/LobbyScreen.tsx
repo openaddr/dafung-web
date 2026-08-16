@@ -283,10 +283,21 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     : !s.taken
                       ? "bg-transparent border border-ink/30"
                       : s.online
-                        ? "bg-emerald-600"
+                        ? "bg-success"
                         : "bg-ink/30")
                 }
+                data-testid={LID.seatOnline(s.seat)}
               />
+              {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
+              {s.taken && s.kind !== "bot" && (
+                <span
+                  className={
+                    "text-xs " + (s.online ? "text-success" : "text-ink-dim")
+                  }
+                >
+                  {s.online ? "在线" : "离线"}
+                </span>
+              )}
               <span className="text-ink">诸侯 {s.seat + 1}</span>
               <span>{seatTag(s, mySeat, host)}</span>
             </div>

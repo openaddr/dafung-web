@@ -57,11 +57,15 @@ export function SoloSetupScreen({
   // 单机模式仅首行可编:真人国号默认「魏」(旧 DEFAULT_GUOHAO[0]);bot 国号引擎分配
   const [guohao, setGuohao] = useState("魏");
   const [hint, setHint] = useState("立国号、定诸侯,起兵逐鹿天下。");
+  // S8:国号内联校验 —— onChange 即算,非法时输入框红边 + 框下红字;
+  // 默认值「魏」合法,首屏不误报;提交时的 hint 只作兜底,正常路径不再触发
+  const guohaoInvalid = !isSingleCjk(guohao.trim());
   // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, mapId);
 
   const start = () => {
-    // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配
+    // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配。
+    // S8:内联校验已即时提示,此处 hint 仅作兜底(正常路径不触发)
     const g = guohao.trim();
     if (!isSingleCjk(g)) {
       setHint("你的国号需为单个汉字。");
@@ -163,15 +167,27 @@ export function SoloSetupScreen({
                     机
                   </span>
                 ) : (
-                  <input
-                    data-testid={TID.seatGuohaoInput(i)}
-                    type="text"
-                    maxLength={1}
-                    value={guohao}
-                    placeholder="?"
-                    onChange={(e) => setGuohao(e.target.value)}
-                    className="w-16 rounded border border-ink/30 bg-bg px-2 py-1 font-deco text-center text-ink"
-                  />
+                  <div className="flex flex-col gap-0.5">
+                    <input
+                      data-testid={TID.seatGuohaoInput(i)}
+                      type="text"
+                      maxLength={1}
+                      value={guohao}
+                      placeholder="?"
+                      onChange={(e) => setGuohao(e.target.value)}
+                      // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
+                      className={
+                        "w-16 rounded border bg-bg px-2 py-1 font-deco text-center " +
+                        (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
+                      }
+                    />
+                    {/* S8:框下即时 xs 红字(替代提交后 hint 里才出现文案) */}
+                    {guohaoInvalid && (
+                      <span data-testid="setup-guohao-error" className="text-xs text-danger">
+                        国号需为单个汉字
+                      </span>
+                    )}
+                  </div>
                 )}
                 <span data-testid={TID.seatType(i)} className="font-deco text-sm text-ink-dim">
                   {isBot ? "电脑" : "你"}

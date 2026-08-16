@@ -10,6 +10,8 @@ export const LID = {
   // 房间区(已入座)
   roomCode: "room-code",
   seatRow: (n: number) => `lobby-seat-${n}` as const,
+  // S7:在线点文字化后,e2e 用它断言在线/离线标签(不只靠颜色)
+  seatOnline: (n: number) => `lobby-seat-online-${n}` as const,
   mapName: "lobby-map-name",
   selectMap: "lobby-select-map",
   start: "lobby-start",

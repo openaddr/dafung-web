@@ -76,7 +76,7 @@ export function ScrollShell({ title, children, onClose, testid, width = "md" }: 
       <div
         ref={bodyRef}
         data-testid={testid ?? T.scrollShell}
-        className={`scroll-anim-unroll relative rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-[#f7ecd0] to-[#ecdcb4] px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
+        className={`scroll-anim-unroll relative rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
           width === "lg" ? "max-w-[560px]" : "max-w-[460px]"
         }`}
       >

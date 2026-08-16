@@ -28,12 +28,16 @@ export const Theme = {
   bgDeep: hex("d9c9a3"), // 宣纸深(远山/阴影)
   panel: hex("f2e8cf"), // 浅宣纸面板
   panelHi: hex("e0d3ac"),
+  paperHi: hex("f7ecd0"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 纸面)
+  paperLo: hex("ecdcb4"), // 卷轴体渐变暗端
   ink: hex("2b2317"), // 墨黑(正文)
   inkDim: hex("6b5d40"),
   gold: hex("c8a13a"), // 金(主操作/王权)
   goldBright: hex("d4af37"), // 都城光晕
   money: hex("4a7a4a"), // 青绿(收入)
   danger: hex("b23a2e"), // 朱砂(扣减/税/破产)
+  success: hex("059669"), // 在线/成功(原 emerald-600,收编进单源)
+  sealQing: hex("3f6a6b"), // 黛青(战报印章次色,中性事件)
 
   // 驿道
   roadMain: hex("8a6a3f"), // 主路褐

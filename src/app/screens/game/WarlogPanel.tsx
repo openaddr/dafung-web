@@ -27,8 +27,8 @@ interface SealDef {
 const TONE_CLASS: Record<SealTone, string> = {
   // 朱砂:正红偏沉(直接用 danger token,与破产线同源色)
   cinnabar: "border-danger text-danger",
-  // 黛青:青黑偏蓝绿(收入/正向;token 里无对应色,局部定义保持三色在一处)
-  indigo: "border-[#3f6a6b] text-[#3f6a6b]",
+  // 黛青:青黑偏蓝绿(收入/正向;已收编 theme.ts seal-qing token)
+  indigo: "border-seal-qing text-seal-qing",
   // 墨色:系统记录,弱化存在感
   ink: "border-ink-dim text-ink-dim",
 };

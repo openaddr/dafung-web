@@ -4,12 +4,16 @@
   --color-bg-deep: #d9c9a3;
   --color-panel: #f2e8cf;
   --color-panel-hi: #e0d3ac;
+  --color-paper-hi: #f7ecd0;
+  --color-paper-lo: #ecdcb4;
   --color-ink: #2b2317;
   --color-ink-dim: #6b5d40;
   --color-gold: #c8a13a;
   --color-gold-bright: #d4af37;
   --color-money: #4a7a4a;
   --color-danger: #b23a2e;
+  --color-success: #059669;
+  --color-seal-qing: #3f6a6b;
   --color-road-main: #8a6a3f;
   --color-road-side: #c47a2a;
   --color-inkwash: #9c8a5e;
