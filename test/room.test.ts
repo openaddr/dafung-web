@@ -1,7 +1,7 @@
 // Room 模块单测(ADR-0007):房间逻辑首次可不开 socket / 不碰磁盘单测。
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError, lobbyView, clientView } from "../scripts/room";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
 import { MAP } from "../scripts/engine-helpers";

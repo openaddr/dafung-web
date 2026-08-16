@@ -13,7 +13,7 @@
 |----|------|
 | 语言 | TypeScript(strict) |
 | 构建 | Vite |
-| UI | React 19 + zustand + Tailwind CSS v4(token 由 `core/theme.ts` 单源生成,`npm run gen:theme`) |
+| UI | React 19 + zustand + Tailwind CSS v4(token 由 `core/theme.ts` 单源生成,`bun run gen:theme`) |
 | 单元测试 | Vitest |
 | 端到端测试 | Playwright |
 
@@ -46,23 +46,23 @@ e2e/              Playwright 端到端测试(含联机多客户端)
 ## 运行
 
 ```bash
-npm install            # 安装依赖
-npm run dev            # 开发服务器(http://localhost:5173)
-npm run build          # 类型检查 + 生产构建
-npm test               # 单元测试(Vitest,141 项)
-npm run test:e2e       # 端到端测试(Playwright,需先 build)
+bun install             # 安装依赖(快、省电;npm install 亦可)
+bun run dev            # 开发服务器(http://localhost:5173)
+bun run build          # 类型检查 + 生产构建
+bun test               # 单元测试(Vitest,141 项)
+bun run test:e2e       # 端到端测试(Playwright,需先 build)
 ```
 
 首次跑 e2e 需下载浏览器(国内网络用镜像,否则 ECONNRESET):
 
 ```bash
-PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.npmmirror.com/binaries/playwright npx playwright install chromium
+(e2e 已改用系统 Edge:playwright channel=msedge,无需下载 Chromium;换回锁定版见 playwright.config.ts 注释)
 ```
 
 确定性测试:`?seed=` 注入骰子种子,让落格/抉择序列可复现(供 e2e 与调试)——
 
 ```bash
-npm run dev   # 浏览器访问 http://localhost:5173/?seed=12345
+bun run dev   # 浏览器访问 http://localhost:5173/?seed=12345
 ```
 
 ## AI 自动化测试接口
@@ -89,8 +89,8 @@ e2e 共享工具见 `e2e/helpers.ts`(`setupAndPlay` / `drivePickCapital` / `snap
 Claude(或任何 agent)可形成完整自动闭环:
 
 1. 改代码(`src/` 或 `public/maps/*.json`)
-2. `npm run build && npm test`(类型 + 单元)
-3. `npm run test:e2e`(浏览器端到端,**含不变量** `e2e/invariants.spec.ts`)
+2. `bun run build && bun test`(类型 + 单元)
+3. `bun run test:e2e`(浏览器端到端,**含不变量** `e2e/invariants.spec.ts`)
 4. 或用 playwright MCP 实机驱动(`localhost:4173` PROD / `5173+` dev)+ `window.__dafung.snapshot()` 读状态
 5. 失败 → 回 1 改
 

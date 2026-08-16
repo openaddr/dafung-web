@@ -18,3 +18,4 @@
 - [ ] **旧版「总览复位」与编辑器「重置」按钮未迁移**(2026-08-16):棋盘 pan/zoom 复位与编辑器重置回内置图,React 版暂无对应 UI
 - [ ] **编辑器导出/导入 JSON 未迁移**(2026-08-16):旧 editor.ts L52-84 的逻辑,需要时可补
 - [ ] **单机(LocalController)托管未接**(2026-08-16):旧版有 solo autopilot;基类已留 autopilotSupported 接缝,仅 OnlineController 实现
+- [ ] bun 工具链能兼容tauri吧? 我还是需要保留tauri的能力的, 因为我最终是想能构建成apk的, 甚至最终最终可能往tauri的rs代码倾斜, 所以这个需要确定一下

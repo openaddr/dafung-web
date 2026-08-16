@@ -1,5 +1,5 @@
 // 纯 CLI:每命令一进程,引擎状态持久到 state.json(默认 ./state.json,--state path 覆盖)。
-// 运行:npx tsx scripts/cli.ts <command> [args] [--state path]
+// 运行:bun scripts/cli.ts <command> [args] [--state path]
 // 流程:load state.json → 重建引擎(restore) → 执行命令 → save state.json → stdout 输出 JSON。
 // 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用。
 import { resolve } from "node:path";

@@ -34,7 +34,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 
 ## 技术栈
 - 构建:Vite (TypeScript strict)
-- 渲染:React 19 + zustand + Tailwind CSS v4(token 由 `core/theme.ts` 单源生成:`npm run gen:theme`)
+- 渲染:React 19 + zustand + Tailwind CSS v4(token 由 `core/theme.ts` 单源生成:`bun run gen:theme`)
 - 测试:Vitest(单元) + Playwright(e2e)
 - 地图数据:`public/maps/sanguo.json`(运行时 fetch)
 - 部署:Tauri 2(Android APK,横屏,框架已搭未实测)
@@ -50,7 +50,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `src/core/heroes.ts` | 名士数据表(数据驱动,新增名士只改此文件) |
 | `src/core/treasures.ts` | 珍宝数据表 + 牌堆(数据驱动,新增珍宝只改此文件) |
 | `src/core/constants.ts` | 全局共享常量(委任状/都城补偿/签面等) |
-| `src/core/theme.ts` | 配色 Theme 对象(单源)。Tailwind token 由 `npm run gen:theme` 从此生成 `src/app/styles/tokens.css`,不再人工同步 |
+| `src/core/theme.ts` | 配色 Theme 对象(单源)。Tailwind token 由 `bun run gen:theme` 从此生成 `src/app/styles/tokens.css`,不再人工同步 |
 | `src/app/main.tsx` | React 入口(createRoot + StrictMode + `installDebugHooks`) |
 | `src/app/store/gameStore.ts` | zustand 全局态:引擎 snapshot + UI 态(viewSeat/interactive/screen 等) |
 | `src/app/store/netStore.ts` | 联机房间/座位态(lobby 广播灌入) |
@@ -82,12 +82,12 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 
 ## 验证命令
 ```bash
-npm run build      # tsc --noEmit && vite build
-npm test           # 单元测试(Vitest)
-npm run test:e2e   # e2e(Playwright,需先 npm run build)
-npm run preview    # 本地预览(http://localhost:4173)
-npm run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)
-npm run typecheck:scripts  # 类型检查 scripts/(CLI + server,主 build 不含)
+bun run build      # tsc --noEmit && vite build
+bun test           # 单元测试(Vitest)
+bun run test:e2e   # e2e(Playwright,需先 bun run build)
+bun run preview    # 本地预览(http://localhost:4173)
+bun run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)
+bun run typecheck:scripts  # 类型检查 scripts/(CLI + server,主 build 不含)
 npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 格式)
 ```
 
@@ -109,7 +109,7 @@ npx tsx scripts/cli.ts <command>  # 纯 CLI 测试(与 server 共用 state.json 
   const { winner } = await driveToGameOver(clients);           // 完整对局到终局
   // 场景测试:await playRounds(clients, 5); await clients[1].close(); // 测掉线/接管
   ```
-- 跑:`npm run test:e2e`(含 `e2e/online-multi.spec.ts`)。
+- 跑:`bun run test:e2e`(含 `e2e/online-multi.spec.ts`)。
 
 ## Agent skills
 

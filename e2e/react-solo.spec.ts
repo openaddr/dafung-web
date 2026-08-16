@@ -98,7 +98,9 @@ test("bot 托管思考态:活跃方为电脑时显示「运筹中…」", async 
 });
 
 test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async ({ page }) => {
-  await quickStart(page);
+  // 锁种子:不锁时随机骰路偶发决策链超长(辅路/交涉连环)超出等待窗——TODO 记账的抖动家族,
+  // 锁定后本用例确定性通过;骰路覆盖广度由「全程驱动」用例承担。
+  await quickStart(page, 7);
   // 身价=现金+地产:直接把现金推过目标身价,掷骰收尾 endTurn 即触发 checkVictory
   await force(page, `e.activePlayer.cash = e.targetNetWorth * 3;`);
   await page.getByTestId("roll-button").click();

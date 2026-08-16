@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
 import { sideArc } from "@core/board";
 import sanguoData from "../public/maps/sanguo.json";

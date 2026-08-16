@@ -1,6 +1,6 @@
 // LocalStorageMapSource 单测:自建图库(localStorage 数组)的增删查。
 // vitest 环境是 node(无 localStorage),通过构造函数注入内存 mock storage。
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach } from "bun:test";
 import { LocalStorageMapSource, type StorageLike } from "@app/map-sources";
 import { isCustomId } from "@core/map-source";
 import type { MapData } from "@core/types";

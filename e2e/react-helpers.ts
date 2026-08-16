@@ -13,12 +13,30 @@ export function snap(page: Page): Promise<any> {
   return page.evaluate(() => (window as any).__dafung.snapshot());
 }
 
-/** UI 快速开局:goto(可选 ?seed=)→ 起兵 → 点第一座可选城建都 → 等轮到人类。 */
+/** UI 快速开局:goto(可选 ?seed=)→ 起兵 → 点第一座可选城建都 → 等轮到人类。
+ *  行军按钮可用 ≠ bot 链结束(busy 在 bot 步间会短暂放开),紧接着读快照/断言会撞上
+ *  bot 仍在推进的竞态(TODO 记账的 e2e 抖动家族)。故补"局面稳定"轮询:
+ *  连续两次快照一致(300ms 间隔)才认为轮到人类且尘埃落定。 */
 export async function quickStart(page: Page, seed?: number): Promise<void> {
   await page.goto(seed != null ? `/?seed=${seed}` : "/");
   await page.getByTestId("start-game").click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  await waitSettled(page);
+}
+
+/** 等局面稳定:连续两次引擎快照一致(防在 bot 行动/动画中途读数)。 */
+export async function waitSettled(page: Page, timeout = 30_000): Promise<void> {
+  await page.waitForFunction(
+    async () => {
+      const read = () => JSON.stringify((window as any).__dafung.snapshot());
+      const a = read();
+      await new Promise((r) => setTimeout(r, 300));
+      return a === read();
+    },
+    undefined,
+    { timeout, polling: 400 },
+  );
 }
 
 /** 等待 window.__dafung 挂载(地图异步 fetch 期间快照可能尚未就绪)。 */

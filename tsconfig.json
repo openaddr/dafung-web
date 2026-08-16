@@ -17,7 +17,7 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
-    "types": ["node"],
+    "types": ["node", "bun"],
     "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {

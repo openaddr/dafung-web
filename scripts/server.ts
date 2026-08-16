@@ -1,5 +1,5 @@
 // 权威引擎服务器(联机化第 2 步)—— 瘦传输层(ADR-0007)。
-// 运行:npm run serve  (env: PORT / HOST / ROOMS_DIR / STATIC_DIR)
+// 运行:bun run serve  (env: PORT / HOST / ROOMS_DIR / STATIC_DIR)
 //
 // 本文件只管:HTTP 路由 + WS 生命周期 + broadcast + 静态托管 + 落盘目录注入。
 // 房间游戏编排(座位/接管/bot 驱动/host 移交/纯视图)全在 scripts/room.ts 的 RoomRegistry。
@@ -15,11 +15,10 @@
 // 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { appendFileSync, createReadStream, readFileSync } from "node:fs";
-import { existsSync, mkdirSync, statSync } from "node:fs";
+//
+// 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import { WebSocket, WebSocketServer } from "ws";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
@@ -42,7 +41,7 @@ const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
 const startedAt = Date.now();
 
 // ──────────────────────────── 内置地图加载(每房间各持自己的 LoadedMap)────────────────────────────
-// 服务器是 Node 环境,可读 fs(ADR-0007:fs 只在传输层,不在 room.ts)。
+// 服务器可读 fs(ADR-0007:fs 只在传输层,不在 room.ts)。
 // 读 public/maps/index.json 清单 + 对应 JSON,按 mapId 构建为 LoadedMap 并缓存。
 function loadCatalogEntries(): CatalogFileEntry[] {
   const catalogPath = join(MAPS_DIR, "index.json");
@@ -101,9 +100,16 @@ const restored = registry.restoreAll(loadMapById);
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
-const roomSockets = new Map<string, Map<number, WebSocket>>();
+// Bun 的 ServerWebSocket 以 data 携带 {roomId, seat}(upgrade 时注入,免反查)。
+export interface WsSeat {
+  roomId: string;
+  seat: number;
+}
+type SeatSocket = import("bun").ServerWebSocket<WsSeat>;
 
-function socketsOf(roomId: string): Map<number, WebSocket> {
+const roomSockets = new Map<string, Map<number, SeatSocket>>();
+
+function socketsOf(roomId: string): Map<number, SeatSocket> {
   let m = roomSockets.get(roomId);
   if (!m) {
     m = new Map();
@@ -148,22 +154,19 @@ function toHttpError(err: unknown): { status: number; message: string } {
   console.error("[server] 内部错误:", err);
   return { status: 500, message: err instanceof Error ? err.message : String(err) };
 }
-function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  const json = JSON.stringify(body);
-  res.writeHead(status, {
-    "Content-Type": "application/json; charset=utf-8",
-    "Content-Length": Buffer.byteLength(json),
-    "Access-Control-Allow-Origin": "*",
-    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type",
+};
+function sendJson(status: number, body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { "Content-Type": "application/json; charset=utf-8", ...CORS_HEADERS },
   });
-  res.end(json);
 }
-async function readBody(req: IncomingMessage): Promise<unknown> {
-  const chunks: Buffer[] = [];
-  for await (const c of req) chunks.push(c as Buffer);
-  if (chunks.length === 0) return undefined;
-  const text = Buffer.concat(chunks).toString("utf-8");
+async function readBody(req: Request): Promise<unknown> {
+  const text = await req.text();
   if (text.trim() === "") return undefined;
   try {
     return JSON.parse(text);
@@ -200,27 +203,26 @@ const MIME: Record<string, string> = {
   ".woff": "font/woff",
   ".webp": "image/webp",
 };
-function serveStatic(res: ServerResponse, urlPath: string): void {
+async function serveStatic(urlPath: string): Promise<Response> {
   if (!existsSync(STATIC_DIR)) {
-    sendJson(res, 404, { ok: false, error: `静态目录不存在:${STATIC_DIR}(先 npm run build)` });
-    return;
+    return sendJson(404, { ok: false, error: `静态目录不存在:${STATIC_DIR}(先 bun run build)` });
   }
   let rel = decodeURIComponent(urlPath);
   if (rel === "/" || rel === "") rel = "/index.html";
   const filePath = resolve(join(STATIC_DIR, rel));
   if (!filePath.startsWith(STATIC_DIR)) {
-    sendJson(res, 403, { ok: false, error: "forbidden" });
-    return;
+    return sendJson(403, { ok: false, error: "forbidden" });
   }
-  if (!existsSync(filePath) || !statSync(filePath).isFile()) {
-    sendJson(res, 404, { ok: false, error: `not found: ${urlPath}` });
-    return;
+  if (!existsSync(filePath)) {
+    return sendJson(404, { ok: false, error: `not found: ${urlPath}` });
   }
-  res.writeHead(200, {
-    "Content-Type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
-    "Cache-Control": "public, max-age=60",
+  const file = Bun.file(filePath);
+  return new Response(file, {
+    headers: {
+      "Content-Type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
+      "Cache-Control": "public, max-age=60",
+    },
   });
-  createReadStream(filePath).pipe(res);
 }
 
 // ──────────────────────────── HTTP 路由 ────────────────────────────
@@ -243,24 +245,24 @@ const HELP = {
   env: { PORT, HOST, ROOMS_DIR, STATIC_DIR, MAPS_DIR },
 };
 
-async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
-  const url = new URL(req.url ?? "/", "http://localhost");
+async function handle(req: Request): Promise<Response> {
+  const url = new URL(req.url);
   const path = url.pathname;
-  const method = req.method ?? "GET";
+  const method = req.method;
 
-  if (method === "OPTIONS") return sendJson(res, 204, {});
+  if (method === "OPTIONS") return sendJson(204, {});
   if (method === "GET") {
     if (path === "/health") {
-      return sendJson(res, 200, { ok: true, uptime: Math.floor((Date.now() - startedAt) / 1000), rooms: registry.size() });
+      return sendJson(200, { ok: true, uptime: Math.floor((Date.now() - startedAt) / 1000), rooms: registry.size() });
     }
-    if (path === "/help") return sendJson(res, 200, HELP);
+    if (path === "/help") return sendJson(200, HELP);
     // 调试端点:实时房间状态 + 最近事件尾巴(排障用;手机端无法开 devtools 时的现场)
     if (path === "/room/debug") {
       const roomId = url.searchParams.get("room") ?? "";
       const room = registry.get(roomId);
-      if (!room) return sendJson(res, 404, { ok: false, error: `房间不存在:${roomId}` });
+      if (!room) return sendJson(404, { ok: false, error: `房间不存在:${roomId}` });
       const e = room.engine;
-      return sendJson(res, 200, {
+      return sendJson(200, {
         ok: true,
         room: {
           roomId,
@@ -275,7 +277,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
         events: (eventTail.get(roomId) ?? []).slice(-50),
       });
     }
-    return serveStatic(res, path);
+    return serveStatic(path);
   }
   if (method !== "POST") throw httpError(405, `不支持的方法:${method}`);
 
@@ -303,7 +305,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig });
     recordEvent(room.roomId, { ev: "room-new", seatCount, bot: [...botIdx] });
     // 建房时不设图(房间无地图);Host 须在大厅选图后再开局。startGame 会校验"已选图"。
-    return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+    return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 
   if (path === "/room/join") {
@@ -311,7 +313,7 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const { room, seat, token } = registry.joinSeat(roomId);
     recordEvent(roomId, { ev: "room-join", seat });
     broadcast(room.roomId); // 通知其它人:有人加入
-    return sendJson(res, 200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+    return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 
   if (path === "/room/map") {
@@ -319,26 +321,26 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
     const mapId = String(obj.mapId ?? "");
     const room = registry.setMap(roomId, mapId, String(obj.seatToken ?? ""), VALID_MAP_IDS);
     broadcast(room.roomId); // 通知房间内其它人:地图已更新(map 事件由 observer 记流水)
-    return sendJson(res, 200, { ok: true, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+    return sendJson(200, { ok: true, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }
 
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
     const room = await registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadMapById);
-    return sendJson(res, 200, { ok: true, ...statusOf(room.engine!) });
+    return sendJson(200, { ok: true, ...statusOf(room.engine!) });
   }
 
   if (path === "/room/takeover") {
     const roomId = String(obj.roomId ?? "");
     const seat = intField(obj, "seat", -1);
     const room = await registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () => broadcast(roomId));
-    return sendJson(res, 200, { ok: true, takeover: seat, ...statusOf(room.engine!) });
+    return sendJson(200, { ok: true, takeover: seat, ...statusOf(room.engine!) });
   }
 
   if (path === "/room/dismiss") {
     const roomId = String(obj.roomId ?? "");
     const id = registry.dismissRoom(roomId, String(obj.seatToken ?? ""));
-    // 广播 dismissed 并断开所有连接(原 server.ts dismissRoom 行为)
+    // 广播 dismissed 并断开所有连接
     const msg = JSON.stringify({ type: "dismissed" as const, roomId: id });
     for (const ws of socketsOf(id).values()) {
       if (ws.readyState !== WebSocket.CLOSED) {
@@ -351,94 +353,87 @@ async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> 
       }
     }
     roomSockets.delete(id);
-    return sendJson(res, 200, { ok: true, dismissed: id });
+    return sendJson(200, { ok: true, dismissed: id });
   }
 
   throw httpError(404, `未知路由:${path}`);
 }
 
-// ──────────────────────────── WebSocket ────────────────────────────
-function authorizeUpgrade(url: URL): { roomId: string; seat: number } | null {
-  const roomId = url.searchParams.get("room");
-  const seat = parseInt(url.searchParams.get("seat") ?? "", 10);
-  const token = url.searchParams.get("token");
-  if (!roomId) return null;
-  if (!registry.validateSeat(roomId, seat, token)) return null;
-  return { roomId, seat };
-}
-
-function attachWs(roomId: string, seat: number, ws: WebSocket): void {
-  // 重连夺回(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即从接管集合移除。
-  const room = registry.attachSeat(roomId, seat);
-  if (!room) {
-    ws.close();
-    return;
-  }
-  socketsOf(roomId).set(seat, ws);
-  recordEvent(roomId, { ev: "ws-open", seat });
-  ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId))));
-  ws.on("message", (data) => {
-    let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string };
-    try {
-      msg = JSON.parse(data.toString());
-    } catch {
-      ws.send(JSON.stringify({ type: "error", error: "bad json" }));
-      return;
+// ──────────────────────────── WebSocket(升级在 fetch 里做,生命周期在 handlers)────────────────────────────
+Bun.serve<{ roomId: string; seat: number }>({
+  port: PORT,
+  hostname: HOST,
+  fetch(req, srv) {
+    const url = new URL(req.url);
+    if (url.pathname !== "/ws") {
+      // 普通路由;错误统一映射为 JSON(语义同旧 handle().catch)
+      return handle(req).catch((err) => {
+        const { status, message } = toHttpError(err);
+        return sendJson(status, { ok: false, error: message });
+      });
     }
-    if (msg?.type === "cmd" && msg.cmd) {
-      recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
-      void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
-    } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
-      // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-      const speed = msg.speed === "slow" ? "slow" : "fast";
-      recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
-      void registry
-        .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
-        .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
-    } else {
-      const r = registry.get(roomId);
-      ws.send(JSON.stringify({ type: "error", error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始" }));
+    // WS 升级:/ws?room=&seat=&token= 鉴权失败 → 401(同旧 upgrade 通道)
+    const roomId = url.searchParams.get("room");
+    const seat = parseInt(url.searchParams.get("seat") ?? "", 10);
+    const token = url.searchParams.get("token");
+    if (!roomId || !registry.validateSeat(roomId, seat, token)) {
+      return new Response("Unauthorized", { status: 401 });
     }
-  });
-  const detach = () => {
-    // 仅当当前映射还指向本 ws 时才移除(若已重连到新 ws,新连接保留)
-    const cur = socketsOf(roomId).get(seat);
-    if (cur === ws) socketsOf(roomId).delete(seat);
-    recordEvent(roomId, { ev: "ws-close", seat });
-    // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + bot 接管判断
-    const stillOnline = onlineSeatsOf(roomId);
-    void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
-  };
-  ws.on("close", detach);
-  ws.on("error", detach);
-}
+    if (!srv.upgrade(req, { data: { roomId, seat } })) {
+      return new Response("WebSocket upgrade failed", { status: 500 });
+    }
+    return undefined; // upgrade 成功后由 handlers 接管
+  },
+  websocket: {
+    open(ws) {
+      // 重连夺回(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即从接管集合移除。
+      const { roomId, seat } = ws.data;
+      const room = registry.attachSeat(roomId, seat);
+      if (!room) {
+        ws.close();
+        return;
+      }
+      socketsOf(roomId).set(seat, ws);
+      recordEvent(roomId, { ev: "ws-open", seat });
+      ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId))));
+    },
+    message(ws, raw) {
+      const { roomId, seat } = ws.data;
+      let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string };
+      try {
+        msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw).toString());
+      } catch {
+        ws.send(JSON.stringify({ type: "error", error: "bad json" }));
+        return;
+      }
+      if (msg?.type === "cmd" && msg.cmd) {
+        recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
+        void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
+      } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
+        // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
+        const speed = msg.speed === "slow" ? "slow" : "fast";
+        recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
+        void registry
+          .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
+          .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
+      } else {
+        const r = registry.get(roomId);
+        ws.send(JSON.stringify({ type: "error", error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始" }));
+      }
+    },
+    close(ws) {
+      const { roomId, seat } = ws.data;
+      // 仅当当前映射还指向本 ws 时才移除(若已重连到新 ws,新连接保留)
+      const cur = socketsOf(roomId).get(seat);
+      if (cur === ws) socketsOf(roomId).delete(seat);
+      recordEvent(roomId, { ev: "ws-close", seat });
+      // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + bot 接管判断
+      const stillOnline = onlineSeatsOf(roomId);
+      void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
+    },
+  },
+} satisfies import("bun").ServeOptions<{ roomId: string; seat: number }> | undefined);
 
-// ──────────────────────────── 启动 ────────────────────────────
-const server = createServer((req, res) => {
-  handle(req, res).catch((err) => {
-    const { status, message } = toHttpError(err);
-    sendJson(res, status, { ok: false, error: message });
-  });
-});
-
-const wss = new WebSocketServer({ noServer: true });
-server.on("upgrade", (req, socket, head) => {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  if (url.pathname !== "/ws") {
-    socket.destroy();
-    return;
-  }
-  const auth = authorizeUpgrade(url);
-  if (!auth) {
-    socket.write("HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n");
-    socket.destroy();
-    return;
-  }
-  wss.handleUpgrade(req, socket, head, (ws) => attachWs(auth.roomId, auth.seat, ws));
-});
-
-server.listen(PORT, HOST, () => {
-  console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
-  console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
-  console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");
-});
+console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
+console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
+console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");
