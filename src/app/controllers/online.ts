@@ -13,8 +13,9 @@ import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
-import { useFxStore } from "@app/fx/fxStore";
-import { animateDice, animateMove, beginMarch, maybeShowTurnBanner } from "@app/fx/orchestrator";
+import { createEngineSink } from "@app/fx/sinks";
+import { present, turnBannerEvent } from "@app/fx/orchestrator";
+import type { PresentationEvent } from "@app/fx/presentation";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
@@ -247,14 +248,17 @@ export class OnlineController extends GameController {
     }, delayMs);
   }
 
-  // ─── 快照表现(阶段 6):diff 驱动的浮字 + 行军 ───
-  /** 上一帧快照的玩家位置/现金(联机端无本地引擎推进事件,表现全靠相邻快照 diff)。 */
+  // ─── 快照表现(阶段 6 → Wave1 统一事件流):diff 提取事件 → present 播放 ───
+  /** 上一帧快照的玩家位置/现金/破产位(联机端无本地引擎推进事件,表现全靠相邻快照 diff)。 */
   private prevPos = new Map<string, { position: number; onStep: number | null }>();
   private prevCash = new Map<string, number>();
+  private prevBankrupt = new Set<string>();
   /** 表现链串行化:快照可能连续到达,排队播放避免两次行军互踩。 */
   private fxQueue: Promise<void> = Promise.resolve();
   /** 是否已在对局屏(首帧 snapshot 才切屏;之后重连/恢复不重复切)。 */
   private enteredGame = false;
+  /** 表现出口(Wave1):引擎经 getter 绑定(rebuildForMap 会整体替换引擎实例)。 */
+  private readonly fxSink = createEngineSink(() => this._engine);
 
   private onMessage(msg: ServerMsg): void {
     if (msg.type === "lobby") {
@@ -319,79 +323,91 @@ export class OnlineController extends GameController {
     this.sync();
   }
 
-  /** 快照级表现:diff 上一快照 → 骰子动画 + 现金变动浮字 + 位置变动行军 + 回合横幅。
+  /** 快照级表现(Wave1 改造为"提取 → 事件数组 → present"):diff 上一快照提取
+   *  diceRolled/cashDelta/tokenMoved/sound(bankrupt)/turnBanner 事件,统一交给
+   *  orchestrator.present 播放(与单机同一条播放路径,形状不再漂移)。
    *  浮字走 diff(floaters 不序列化);行军经 applyPresentationMove 注入 diff 推导的
    *  轨迹(快照虽含 lastMove,但那是"发令端视角",重放以本地 diff 为准,语义更稳)。
-   *  骰子(newRoll=true):本地无掷骰授权(点数在服务器),经 orchestrator.animateDice
-   *  触发 ThreeDice.roll(服务器权威 die)——各端轨迹/初始条件由本地随机流决定,
+   *  骰子(newRoll=true):本地无掷骰授权(点数在服务器),diceRolled 事件驱动
+   *  ThreeDice.roll(服务器权威 die)——各端轨迹/初始条件由本地随机流决定,
    *  各不相同没关系:**落面 = 服务器权威点数,多端一致**(TODO #2 的最终答案)。 */
   private playSnapshotEffects(newRoll: boolean): void {
     const engine = this._engine;
     const board = engine.board;
     const tileCount = board.tiles.length;
-    const fx = useFxStore.getState();
+    const events: PresentationEvent[] = [];
 
-    // 0) 新掷骰 → 3D 骰子动画(落面 = 服务器权威 die;本地只播表现)。
-    //    排在行军前,时序对齐单机 playStepEffects(prevPhase=Roll)的 骰子→行军 链。
+    // 0) 新掷骰 → diceRolled 事件(排在行军前,时序对齐单机 Roll 步的 骰子→行军 链)。
+    //    掷骰只在「本帧前引擎处于 Roll 阶段、本帧已离开」时发生(快照里的 lastRoll
+    //    对象每帧重建,不能靠引用/字段 diff,用阶段迁移判定最稳。首帧不算)。
     if (newRoll) {
       const die = engine.lastRoll?.die;
-      if (die) {
-        this.fxQueue = this.fxQueue.then(() => animateDice(die));
-      }
+      if (die) events.push({ kind: "diceRolled", die });
     }
 
-    // 1) 现金 diff → 浮字(锚到玩家当前格逻辑坐标)
+    // 1) 现金 diff → cashDelta 事件(锚到玩家当前格逻辑坐标)
     for (const p of engine.players) {
       const prev = this.prevCash.get(p.id);
       if (prev != null && p.cash !== prev) {
         const pos = board.positionOf(p.position);
-        fx.spawnFloater(pos.x, pos.y, p.cash - prev, false);
+        events.push({ kind: "cashDelta", playerId: p.id, amount: p.cash - prev, x: pos.x, y: pos.y, atTile: p.position });
       }
       this.prevCash.set(p.id, p.cash);
     }
 
-    // 2) 位置 diff → 行军(首帧只记位置,不动画;辅路进出不做主路行军)
-    const movers: { id: string; from: number; to: number }[] = [];
+    // 2) 位置 diff → tokenMoved 事件(首帧只记位置,不动画;辅路进出不做主路行军)。
+    //    棋子渲染必须立刻让位(否则 React 先画终点再被拽回):提取期同步经
+    //    applyPresentationMove(引擎合法表现通道)注入 diff 推导的轨迹锚定旧位置,
+    //    present 播放时再沿轨迹补走;表现完清掉注入,避免污染后续判断。
+    let marched = false;
     for (const p of engine.players) {
       const prev = this.prevPos.get(p.id);
       this.prevPos.set(p.id, { position: p.position, onStep: p.onBranch?.step ?? null });
       if (!prev || prev.onStep != null || p.onBranch != null) continue;
       if (p.position === prev.position) continue;
-      movers.push({ id: p.id, from: prev.position, to: p.position });
+      const traversed: number[] = [];
+      for (let i = 1; i <= tileCount; i++) {
+        const t = (prev.position + i) % tileCount;
+        traversed.push(t);
+        if (t === p.position) break;
+      }
+      const path = {
+        from: prev.position,
+        traversed,
+        landIndex: p.position,
+        passedCapital: false,
+        capitalIndex: -1,
+        waypoints: [],
+        landBranchStep: null,
+        branchWaypoints: [],
+      };
+      engine.applyPresentationMove(path);
+      this.fxSink.marchBegin(p.id);
+      events.push({ kind: "tokenMoved", playerId: p.id, path });
+      marched = true;
     }
 
-    // 行军异步播放,但棋子渲染必须立刻让位(否则 React 先画终点再被拽回起点):
-    // 经 applyPresentationMove(引擎合法表现通道)注入 diff 推导的轨迹锚定旧位置,
-    // sync 渲染后再沿弧线补走;表现完清掉,避免污染后续判断。
-    if (movers.length > 0) {
-      for (const m of movers) {
-        const traversed: number[] = [];
-        for (let i = 1; i <= tileCount; i++) {
-          const t = (m.from + i) % tileCount;
-          traversed.push(t);
-          if (t === m.to) break;
-        }
-        engine.applyPresentationMove({
-          from: m.from,
-          traversed,
-          landIndex: m.to,
-          passedCapital: false,
-          capitalIndex: -1,
-          waypoints: [],
-          landBranchStep: null,
-          branchWaypoints: [],
-        });
-        beginMarch(engine, m.id);
-        const id = m.id;
-        this.fxQueue = this.fxQueue.then(() => animateMove(engine, id));
+    // 2.5) 破产 diff → bankrupt 音效事件。**Wave1 唯一的有意行为变化**:对齐单机
+    //      playStepEffects(AwaitingBankruptcySettle → prePlayer.isBankrupt → 破产音)
+    //      ——此前联机完全缺失破产表现(架构报告候选 1+6 修复的漂移点)。
+    for (const p of engine.players) {
+      if (p.isBankrupt && !this.prevBankrupt.has(p.id)) {
+        events.push({ kind: "sound", event: "bankrupt" });
       }
+      if (p.isBankrupt) this.prevBankrupt.add(p.id);
+    }
+
+    // 3) 回合横幅事件(活跃座位变化时,orchestrator 内去重;排在行军后,不打架)
+    const banner = turnBannerEvent(engine);
+    if (banner) events.push(banner);
+
+    this.fxQueue = this.fxQueue.then(() => present(events, this.fxSink));
+    if (marched) {
+      // 清掉 diff 推导的 presentation 轨迹:真实引擎态(服务器权威)不被本地表现污染
       this.fxQueue = this.fxQueue.then(() => {
         engine.applyPresentationMove(null);
       });
     }
-
-    // 3) 回合横幅(活跃座位变化时;排在行军后,不打架)
-    this.fxQueue = this.fxQueue.then(() => maybeShowTurnBanner(engine));
   }
 
   destroy(): void {

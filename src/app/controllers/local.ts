@@ -8,18 +8,20 @@ import { GameEngine, type EngineConfig } from "@core/game";
 import { botAct } from "@core/bot";
 import type { GameCommand } from "@core/types";
 import { setEngine, useGameStore } from "@app/store/gameStore";
-import { getAudio } from "@app/fx/audio";
+import { createEngineSink } from "@app/fx/sinks";
 import {
-  beginMarch,
+  extractStepEvents,
   maybeShowTurnBanner,
-  playStepEffects,
-  stampSeal,
+  present,
 } from "@app/fx/orchestrator";
 import { BOT, delay } from "@app/fx/timings";
 import { GameController } from "./controller";
 
 export class LocalController extends GameController {
   private readonly _engine: GameEngine;
+  /** 表现出口(Wave1):提取事件经 present 播放到此 sink;生产实现组装既有单例,
+   *  引擎 getter 绑定本控制器的权威引擎。测试可注入 createMemorySink 断言事件流。 */
+  private readonly fxSink = createEngineSink(() => this._engine);
   /** 表现编排进行中(掷骰/行军/bot 思考):锁本地交互防连点(旧 busy 的新等价物)。 */
   private busy = false;
 
@@ -166,7 +168,8 @@ export class LocalController extends GameController {
   }
 
   /** 「一次引擎推进 + 表现编排」的共享骨架(原 runStep 与 runBots 循环体逐行重复,提取于此):
-   *  捕获推进前相位/玩家 → run() 推进 → 行军类先锚定起点 → sync → 播表现 → sync。
+   *  捕获推进前相位/玩家 → run() 推进 → 行军类先锚定起点 → sync → 提取表现事件 →
+   *  present 播放(骰子→行军→浮字,顺序=事件顺序)→ sync。
    *  表现后的收尾两处顺序不同(人类步:先 bot 接棒再弹回合横幅;bot 步:直接弹横幅),
    *  故 runBots/横幅留在调用方,时序与提取前一致。 */
   private async runAnimatedStep(run: () => void, cmdType?: string): Promise<void> {
@@ -177,10 +180,13 @@ export class LocalController extends GameController {
     run();
     // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
     if (e.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
-      beginMarch(e, moverId);
+      this.fxSink.marchBegin(moverId);
     }
     this.sync();
-    await playStepEffects(e, prevPhase, moverId, prePlayer, cmdType);
+    // Wave1:提取(读引擎表现态)与播放(FxSink)分离;旧 playStepEffects 内联链
+    // 的时序语义完整保留在 extractStepEvents 的分支与事件顺序里。
+    const events = extractStepEvents(e, prevPhase, moverId, prePlayer, cmdType);
+    await present(events, this.fxSink);
     this.sync();
   }
 
@@ -191,7 +197,7 @@ export class LocalController extends GameController {
     this.sync();
     try {
       e.pickCapital(playerIndex, index);
-      stampSeal(e, index, "筑");
+      this.fxSink.stampSeal(index, "筑");
       this.sync();
       await this.runBots();
       maybeShowTurnBanner(e);
@@ -236,7 +242,7 @@ export class LocalController extends GameController {
       maybeShowTurnBanner(e);
     }
     if (e.isOver) {
-      getAudio().play("victory");
+      this.fxSink.playSound("victory");
       this.sync();
     }
   }
