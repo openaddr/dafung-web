@@ -1,5 +1,13 @@
 [
   {
+    "id": "chessboard",
+    "name": "棋盘天下",
+    "file": "chessboard.json",
+    "desc": "网格对齐版,大致方位:外环八区、中原居中,许昌—襄阳辅路穿腹地",
+    "tileCount": 31,
+    "targetNetWorth": 8000
+  },
+  {
     "id": "sanguo",
     "name": "群雄逐鹿",
     "file": "sanguo.json",
@@ -14,13 +22,5 @@
     "desc": "8 城小环,快节奏短局,适合 2 人速战",
     "tileCount": 8,
     "targetNetWorth": 5000
-  },
-  {
-    "id": "chessboard",
-    "name": "棋盘天下",
-    "file": "chessboard.json",
-    "desc": "网格对齐版,大致方位:外环八区、中原居中,许昌—襄阳辅路穿腹地",
-    "tileCount": 31,
-    "targetNetWorth": 8000
   }
 ]
