@@ -1,9 +1,9 @@
 // 真实 3D 物理骰子(three.js + cannon-es):6 面汉字签面立方体在骰盘里真实乱滚。
-// 迁移自 src/render/dice3d.ts(无 @render 内部依赖,类体原样搬运),差异仅:
-//   roll(die?) 结果值可选——不传时由注入的 rng 本地随机;
-//   为将来「服务器权威骰子」留缝:联机端拿到服务器下发 die 后直接传入,
-//   物理翻滚只负责表现,点数来自参数而非本地物理结算(物理从来不决定点数,
-//   snap 阶段强行吸附到目标面,见 TODO.md「结尾 snap 到结果面」既有课题)。
+// 迁移自 src/render/dice3d.ts(无 @render 内部依赖,类体原样搬运),差异:
+//   roll(die?) 结果值可选——不传时由注入的 rng 本地随机;传值 = 权威点数(联机服务器下发)。
+//   落面由「反向求解」保证:先在同一物理世界离线试掷,找到能自然停在目标面的初始
+//   条件再实播(物理确定性 → 实播落面与试掷一致),全程无结尾 snap 翻面;静止后仅
+//   允许 <5° 的极小归正(吸收物理噪声),详见 rollAsync/solveLaunch 注释。
 // WebGL 不可用时降级为 no-op(available=false),上层走文字切换 fallback。
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
@@ -71,11 +71,59 @@ const FIELD_W = 14;           // 骰盘物理宽(全屏大幅翻滚)
 const FIELD_D = 10;           // 骰盘物理深
 const SNAP_Y = DIE_SIZE / 2;  // 静息/吸附时骰中心 y(贴地)
 
+/** die → 该面在骰子局部坐标下的单位法线(六面体常量)。 */
+const FACE_NORMALS: Record<number, THREE.Vector3> = {
+  1: new THREE.Vector3(0, 1, 0),
+  2: new THREE.Vector3(0, -1, 0),
+  3: new THREE.Vector3(1, 0, 0),
+  4: new THREE.Vector3(-1, 0, 0),
+  5: new THREE.Vector3(0, 0, 1),
+  6: new THREE.Vector3(0, 0, -1),
+};
+
+const WORLD_UP = new THREE.Vector3(0, 1, 0);
+
+/** 从任意姿态四元数(x/y/z/w 分量)求当前朝上的 die(1-6)。物理求解与诊断共用。 */
+function upFaceOf(q: { x: number; y: number; z: number; w: number }): number {
+  const quat = new THREE.Quaternion(q.x, q.y, q.z, q.w);
+  let best = -1;
+  let bestDot = -2;
+  for (const die of [1, 2, 3, 4, 5, 6]) {
+    const dot = FACE_NORMALS[die].clone().applyQuaternion(quat).y;
+    if (dot > bestDot) { bestDot = dot; best = die; }
+  }
+  return best;
+}
+
+/** 反向求解的落定目标姿态:在 current 的基础上,用「最小旋转」把 die 面法线掰到世界 +Y。
+ *  只绕 n×up 轴转,不锁 yaw——落定微调观感是「归正」而非「旋转」,且天然保持落点朝向。 */
+function alignFaceUp(current: THREE.Quaternion, die: number): THREE.Quaternion {
+  const n = FACE_NORMALS[die].clone().applyQuaternion(current);
+  const cosA = THREE.MathUtils.clamp(n.dot(WORLD_UP), -1, 1);
+  const angle = Math.acos(cosA);
+  if (angle < 1e-4) return current.clone();
+  const axis = n.clone().cross(WORLD_UP);
+  if (axis.lengthSq() < 1e-8) {
+    // n 与 up 共线但反向(理论上是 180° 翻面——求解 bug 兜底,任选水平轴)
+    axis.set(1, 0, 0);
+  }
+  axis.normalize();
+  return new THREE.Quaternion().setFromAxisAngle(axis, angle).multiply(current);
+}
+
+/** 一次掷出的初始条件(反向求解的解:保存后可原样重放,物理确定性保证轨迹一致)。 */
+interface LaunchState {
+  position: CANNON.Vec3;
+  quaternion: CANNON.Quaternion;
+  velocity: CANNON.Vec3;
+  angularVelocity: CANNON.Vec3;
+}
+
 /**
  * 真实 3D 物理骰子。
  * - 构造时探测 WebGL,失败 → available=false,roll/showFace 静默 no-op。
- * - roll(die?):随机初速度+角速度掷出 → world.step 步进 → 几次弹跳衰减 → 吸附旋转让 die 面朝上。
- *   die 省略时用注入的 rng 随机取 1-6(单机本地骰);联机将来传服务器权威点数。
+ * - roll(die?):反向求解初始条件后物理掷出,自然停在 die 面(静止后仅 <5° 微归正),
+ *   resolve。die 省略时用注入的 rng 随机取 1-6(单机本地骰);联机传服务器权威点数。
  * - showFace(die):静息姿态(die 面朝上)。
  * - cleanup():dispose 全部 GL 资源。
  * - onHit(intensity):物理碰撞 callback,供上层接 diceHit 音效(0~1 强度)。
@@ -242,9 +290,9 @@ export class ThreeDice {
     return true;
   }
 
-  /** 掷骰:物理乱滚 → 吸附到 die 面朝上,resolve。WebGL 不可用时立即 resolve。
+  /** 掷骰:反向求解初始条件 → 物理自然停在 die 面朝上,resolve。WebGL 不可用时立即 resolve。
    *  全屏模式:掷骰前显示 overlay,完成后延迟 600ms 隐藏。
-   *  die 省略 → 用注入 rng 本地随机(单机);传值 = 权威点数(将来联机服务器下发)。 */
+   *  die 省略 → 用注入 rng 本地随机(单机);传值 = 权威点数(联机服务器下发)。 */
   roll(die?: number): Promise<void> {
     const face = die ?? (Math.floor(this.rng() * 6) + 1);
     if (!this.available) return Promise.resolve();
@@ -279,33 +327,21 @@ export class ThreeDice {
 
     const body = this.diceBody;
     const world = this.world;
-    const rng = this.rng;
 
-    // 随机起手:位置(偏左上方,模拟从手中扔出)+ 强速度(向右下大幅抛掷新
-    // 角速度更高(三轴快翻滚)。全屏模式参数——骰子要大范围翻滚、多次弹跳。
-    body.wakeUp();
-    body.position.set(
-      -4 + (rng() - 0.5) * 1.5,
-      4 + rng() * 2,
-      -2 + (rng() - 0.5) * 1.5,
-    );
-    body.velocity.set(
-      8 + rng() * 4,         // 主要向右抛掷
-      1 + rng() * 2,         // 向上腾起
-      (rng() - 0.5) * 3,
-    );
-    body.angularVelocity.set(
-      18 + rng() * 14,
-      18 + rng() * 14,
-      18 + rng() * 14,
-    );
-    body.quaternion.setFromEuler(
-      rng() * Math.PI * 2,
-      rng() * Math.PI * 2,
-      rng() * Math.PI * 2,
-    );
+    // ── 反向求解(TODO #1 的根治):给定目标面,先在「无渲染」的同一物理世界里
+    // 反复试掷,直到某组初始条件(位置/姿态/线速度/角速度)模拟后**自然静止在目标面**,
+    // 再用该初始条件实播。cannon-es 定步长积分确定性的:同初始状态 → 同轨迹,因此
+    // 实播必然落在试掷验证过的面上,全程无 snap。期望 ~6 次命中(1/6),上限 40 次。
+    const solved = this.solveLaunch(die);
+    if (solved) {
+      this.applyLaunch(body, solved);
+    } else {
+      // 兜底(理论到不了:概率 (5/6)^40 ≈ 0.07%):退回旧随机起手 + 结尾 snap,并 warn。
+      console.warn(`[ThreeDice] reverse-solve exhausted for die=${die}, falling back to snap`);
+      this.applyLaunch(body, this.randomLaunch());
+    }
 
-    const targetQ = quatForDie(die);
+    const targetQ = solved ? null : quatForDie(die);
     const t0 = performance.now();
     // 墙钟判据:swiftshader 软渲每帧可能 50-150ms,按帧数判会拖到数秒(e2e 等待窗口爆掉)。
     // 改用真实经过时间,确保硬件 ~0.5-0.7s、swiftshader 也 ≤0.7s 收尾(+0.2s snap ≤0.9s)。
@@ -327,15 +363,120 @@ export class ThreeDice {
       const speed = body.velocity.length() + body.angularVelocity.length();
       if (speed < 0.8) stillFrames++; else stillFrames = 0;
 
-      // 滚够 MIN_ROLL_MS 后静止持续 3 帧 → 吸附;或墙钟硬上限 → 吸附(与 GPU 帧率无关)
+      // 滚够 MIN_ROLL_MS 后静止持续 3 帧 → 收尾;或墙钟硬上限(与 GPU 帧率无关)
       if ((elapsed > MIN_ROLL_MS && stillFrames > 3) || elapsed > HARD_CAP_MS) {
         this.rolling = false;
-        this.snapTo(targetQ, 200, done);
+        this.finishRoll(die, targetQ, done);
         return;
       }
       this.rafId = requestAnimationFrame(step);
     };
     this.rafId = requestAnimationFrame(step);
+  }
+
+  /** 随机起手:位置(偏左上方,模拟从手中扔出)+ 强速度(向右下大幅抛掷新
+   *  角速度更高(三轴快翻滚)。全屏模式参数——骰子要大范围翻滚、多次弹跳。 */
+  private randomLaunch(): LaunchState {
+    const rng = this.rng;
+    return {
+      position: new CANNON.Vec3(
+        -4 + (rng() - 0.5) * 1.5,
+        4 + rng() * 2,
+        -2 + (rng() - 0.5) * 1.5,
+      ),
+      quaternion: new CANNON.Quaternion().setFromEuler(
+        rng() * Math.PI * 2,
+        rng() * Math.PI * 2,
+        rng() * Math.PI * 2,
+      ),
+      velocity: new CANNON.Vec3(
+        8 + rng() * 4,         // 主要向右抛掷
+        1 + rng() * 2,         // 向上腾起
+        (rng() - 0.5) * 3,
+      ),
+      angularVelocity: new CANNON.Vec3(
+        18 + rng() * 14,
+        18 + rng() * 14,
+        18 + rng() * 14,
+      ),
+    };
+  }
+
+  /** 把初始条件原样写到 body 上(重放)。清力/力矩并唤醒,保证与试掷时完全同状态。 */
+  private applyLaunch(body: CANNON.Body, s: LaunchState): void {
+    body.position.copy(s.position);
+    body.quaternion.copy(s.quaternion);
+    body.velocity.copy(s.velocity);
+    body.angularVelocity.copy(s.angularVelocity);
+    body.force.setZero();
+    body.torque.setZero();
+    body.previousPosition.copy(s.position);
+    body.previousQuaternion.copy(s.quaternion);
+    body.interpolatedPosition.copy(s.position);
+    body.interpolatedQuaternion.copy(s.quaternion);
+    body.wakeUp();
+  }
+
+  /** 反向求解主循环:反复随机起手 + 离线(headless,无渲染)步进同一 world,
+   *  按 rollAsync 相同的「滚够 500ms 且静止 3 步」判据模拟到静止;若此时朝上的
+   *  面恰为目标 die,该初始条件即解。返回前把 body 重置为解,供实播重放。 */
+  private solveLaunch(die: number, maxTries = 40): LaunchState | null {
+    const body = this.diceBody!;
+    const world = this.world!;
+    for (let attempt = 0; attempt < maxTries; attempt++) {
+      const s = this.randomLaunch();
+      this.applyLaunch(body, s);
+      const restQ = this.simulateToRest(body, world);
+      if (restQ && upFaceOf(restQ) === die) {
+        this.applyLaunch(body, s); // 重放前重置到解的初始状态
+        return s;
+      }
+    }
+    return null;
+  }
+
+  /** headless 模拟到静止:定步长 1/60 连续 step(不渲染,毫秒级完成上百步)。
+   *  判据与实播一致:模拟时长 >500ms 且速度连续 3 步 <0.8;1.5s 硬上限仍未静止
+   *  (卡在墙边抖动等边缘)→ 返回 null(该初始条件不采纳)。
+   *  返回静止时的姿态;步进结果对 world 的副作用只有骰 body(地面/墙是静态体)。 */
+  private simulateToRest(body: CANNON.Body, world: CANNON.World): CANNON.Quaternion | null {
+    const dtMs = 1000 / 60;
+    let simMs = 0;
+    let stillSteps = 0;
+    while (simMs <= 1500) {
+      world.step(1 / 60);
+      simMs += dtMs;
+      const speed = body.velocity.length() + body.angularVelocity.length();
+      if (speed < 0.8) stillSteps++; else stillSteps = 0;
+      if (simMs > 500 && stillSteps > 3) return body.quaternion.clone();
+    }
+    return null;
+  }
+
+  /** 物理静止后的收尾:
+   *  - 反向求解路径:理论上已停在目标面,只做极小角(<5°,吸收物理噪声/浮点尾差)
+   *    的归正——用 alignFaceUp 的最小旋转(不锁 yaw),≤80ms 缓动,观感是「落定微调」。
+   *    这是兜底而非主路径:若修正角 >5°(说明求解/重放出了问题,如软渲掉帧撞上
+   *    HARD_CAP 提前截断)→ console.warn 便于排查,但仍用 ≤80ms 微调掰回目标面,
+   *    绝不做 180° 翻面式长 slerp。
+   *  - 求解耗尽兜底路径(targetQ 非 null):退回旧 200ms snap(应几乎不可达)。 */
+  private finishRoll(die: number, targetQ: THREE.Quaternion | null, done: () => void): void {
+    if (targetQ) {
+      this.snapTo(targetQ, 200, done);
+      return;
+    }
+    const mesh = this.diceMesh;
+    if (!mesh) { done(); return; }
+    const target = alignFaceUp(mesh.quaternion, die);
+    const angle = mesh.quaternion.angleTo(target);
+    if (angle > THREE.MathUtils.degToRad(5)) {
+      console.warn(`[ThreeDice] settle correction ${THREE.MathUtils.radToDeg(angle).toFixed(1)}deg exceeds 5deg for die=${die} — solver replay mismatch?`);
+    }
+    if (angle < 0.005) { // 已精确归正(<0.3°),不动画
+      done();
+      return;
+    }
+    this.snapTo(target, 80, done);
   }
 
   private syncMesh(): void {

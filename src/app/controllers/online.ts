@@ -14,7 +14,7 @@ import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { useFxStore } from "@app/fx/fxStore";
-import { animateMove, beginMarch, maybeShowTurnBanner } from "@app/fx/orchestrator";
+import { animateDice, animateMove, beginMarch, maybeShowTurnBanner } from "@app/fx/orchestrator";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
@@ -197,21 +197,54 @@ export class OnlineController extends GameController {
   }
 
   // ─── WS 连接管理 ───
+  /** 重连循环状态:onclose → 指数退避重连(带抖动);destroy 置位后不再重试。 */
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+  private reconnectAttempts = 0;
+  private closedByUs = false;
+  /** 退避参数:1s/2s/4s… 上限 30s,每次 ±30% 随机抖动(防多端同时断线同步风暴);
+   *  超过 10 次放弃。重连沿用原 seatToken 重升级——ADR-0002:token 夺回座位,
+   *  服务器侧已支持,重连成功后首帧 snapshot 照常 hydrate(与正常入座同路径)。 */
+  private static readonly RECONNECT_BASE_MS = 1000;
+  private static readonly RECONNECT_MAX_MS = 30000;
+  private static readonly RECONNECT_MAX_ATTEMPTS = 10;
+
   private connect(): void {
-    if (!this.roomId || this.seat < 0 || !this.seatToken) return;
+    if (this.closedByUs || !this.roomId || this.seat < 0 || !this.seatToken) return;
     const wsUrl = `${this.serverUrl.replace(/^http/, "ws")}/ws?room=${this.roomId}&seat=${this.seat}&token=${this.seatToken}`;
     this.ws = new WebSocket(wsUrl);
-    this.ws.onopen = () => useNetStore.getState().setConnected(true);
+    this.ws.onopen = () => {
+      this.reconnectAttempts = 0; // 连上即清零,下次断线从 1s 重新起退避
+      useNetStore.getState().setConnected(true);
+    };
     this.ws.onmessage = (ev) => this.onMessage(JSON.parse(String(ev.data)) as ServerMsg);
     this.ws.onclose = () => {
-      useNetStore.getState().setConnected(false);
-      // 对局中断开才打扰(大厅态界面仍在,座位仅显示离线)。重连=刷新重进(与旧行为一致);
-      // TODO(后续阶段):自动重连 + token 重入座。
-      if (this._engine.phase === "Playing" && useGameStore.getState().screen === "game") {
-        useGameStore.getState().pushHint("连接断开,请刷新重连");
-      }
+      if (this.closedByUs) return;
+      useNetStore.getState().setConnected(false); // UI 已会显示断连态
+      this.scheduleReconnect();
     };
-    this.ws.onerror = () => useNetStore.getState().pushHint("连接异常");
+    this.ws.onerror = () => {
+      // 重连尝试期间的 error 不打扰(onclose 马上接管);仅正常在线时闪提示
+      if (useNetStore.getState().connected) useNetStore.getState().pushHint("连接异常");
+    };
+  }
+
+  /** 指数退避重连调度。 */
+  private scheduleReconnect(): void {
+    if (this.closedByUs || this.reconnectTimer) return;
+    if (this.reconnectAttempts >= OnlineController.RECONNECT_MAX_ATTEMPTS) {
+      useGameStore.getState().pushHint("重连失败,请刷新页面");
+      return;
+    }
+    const backoff = Math.min(
+      OnlineController.RECONNECT_BASE_MS * 2 ** this.reconnectAttempts,
+      OnlineController.RECONNECT_MAX_MS,
+    );
+    const delayMs = backoff * (0.7 + Math.random() * 0.6); // ±30% 抖动
+    this.reconnectAttempts++;
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delayMs);
   }
 
   // ─── 快照表现(阶段 6):diff 驱动的浮字 + 行军 ───
@@ -233,6 +266,10 @@ export class OnlineController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, ...snap } = msg;
+      // 掷骰检测(联机骰子动画):掷骰只在「本帧前引擎处于 Roll 阶段、本帧已离开」时发生
+      // (rollAndMove 后 turnPhase 变为 决策/驻跸/下一回合)。快照里的 lastRoll 对象每帧
+      // 重建,不能靠引用/字段 diff,用阶段迁移判定最稳。首帧(占位引擎)不算。
+      const prevPhase = this._engine.turnPhase;
       this.applyRoomFields(msg);
       if (msg.mapId && msg.mapId !== this.mapId) {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
@@ -240,7 +277,7 @@ export class OnlineController extends GameController {
       }
       this._engine.restoreFromSnapshot(snap as GameSnapshot);
       this.pending = false;
-      this.playSnapshotEffects();
+      this.playSnapshotEffects(this.enteredGame && prevPhase === "Roll" && this._engine.turnPhase !== "Roll");
       this.sync();
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
@@ -282,16 +319,26 @@ export class OnlineController extends GameController {
     this.sync();
   }
 
-  /** 快照级表现:diff 上一快照 → 现金变动浮字 + 位置变动行军 + 回合横幅。
+  /** 快照级表现:diff 上一快照 → 骰子动画 + 现金变动浮字 + 位置变动行军 + 回合横幅。
    *  浮字走 diff(floaters 不序列化);行军经 applyPresentationMove 注入 diff 推导的
    *  轨迹(快照虽含 lastMove,但那是"发令端视角",重放以本地 diff 为准,语义更稳)。
-   *  TODO(联机骰子动画):本地无掷骰授权(点数在服务器),骰面仅由侧栏签面文字展示;
-   *  多端一致的表现方案(服务器广播 die + ThreeDice.roll(face) 已留缝)见 TODO.md。 */
-  private playSnapshotEffects(): void {
+   *  骰子(newRoll=true):本地无掷骰授权(点数在服务器),经 orchestrator.animateDice
+   *  触发 ThreeDice.roll(服务器权威 die)——各端轨迹/初始条件由本地随机流决定,
+   *  各不相同没关系:**落面 = 服务器权威点数,多端一致**(TODO #2 的最终答案)。 */
+  private playSnapshotEffects(newRoll: boolean): void {
     const engine = this._engine;
     const board = engine.board;
     const tileCount = board.tiles.length;
     const fx = useFxStore.getState();
+
+    // 0) 新掷骰 → 3D 骰子动画(落面 = 服务器权威 die;本地只播表现)。
+    //    排在行军前,时序对齐单机 playStepEffects(prevPhase=Roll)的 骰子→行军 链。
+    if (newRoll) {
+      const die = engine.lastRoll?.die;
+      if (die) {
+        this.fxQueue = this.fxQueue.then(() => animateDice(die));
+      }
+    }
 
     // 1) 现金 diff → 浮字(锚到玩家当前格逻辑坐标)
     for (const p of engine.players) {
@@ -348,6 +395,12 @@ export class OnlineController extends GameController {
   }
 
   destroy(): void {
+    // 先置位再 close:onclose 回调看到 closedByUs 直接返回,不触发重连
+    this.closedByUs = true;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
     this.ws?.close();
     this.ws = null;
     this.pending = false;
