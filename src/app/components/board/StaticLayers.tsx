@@ -69,6 +69,69 @@ export const TerrainLayer = memo(function TerrainLayer() {
   );
 });
 
+// ── 区域底色晕染 ──
+// 玩家不读区域名也能"感知"地域:每个地理区域(中原/荆楚/…)铺一层极淡的
+// 区域色 radial 晕染(峰值 opacity 8%,边缘渐隐到 0),城池/道路可读性不降。
+// 区域中心不写死布局,而是从 board.tiles 的 region(中文名,两张内置图均随
+// group 一起配置)反查 Theme.groupNames 得到 a–h,再取该区域城池坐标的
+// 几何中心 → 历史图 sanguo / 天下图 chessboard 自适应,自定义地图同样生效。
+/** 区域名(中原…)→ 分组键(a–h),预计算反查表。 */
+const REGION_TO_GROUP: ReadonlyMap<string, string> = new Map(
+  Object.entries(Theme.groupNames).map(([g, name]) => [name, g]),
+);
+
+interface RegionBlob {
+  group: string;
+  cx: number;
+  cy: number;
+  r: number;
+}
+
+/** 按 group 聚合城池坐标 → 每区域一个 {中心, 半径}。
+ *  半径 = 城池到中心最大距离 × 1.7(铺满整段区域带),再夹在 [240, 640]:
+ *  下限保证稀疏区域(如西凉 3 城)仍有成片色感,上限防大扩散糊到邻区。 */
+function regionBlobs(tiles: readonly { region: string | null; position: { x: number; y: number } }[]): RegionBlob[] {
+  const byGroup = new Map<string, { x: number; y: number }[]>();
+  for (const t of tiles) {
+    const g = t.region ? REGION_TO_GROUP.get(t.region) : undefined;
+    if (!g) continue; // 非地产格 / 未知区域名不参与晕染
+    let arr = byGroup.get(g);
+    if (!arr) byGroup.set(g, (arr = []));
+    arr.push(t.position);
+  }
+  const blobs: RegionBlob[] = [];
+  for (const [group, pts] of byGroup) {
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    const maxDist = Math.max(...pts.map((p) => Math.hypot(p.x - cx, p.y - cy)));
+    blobs.push({ group, cx, cy, r: Math.min(640, Math.max(240, maxDist * 1.7)) });
+  }
+  return blobs;
+}
+
+/** 区域底色层:8 个静态 radialGradient rect(无动画,渲染开销可忽略)。
+ *  渲染在 RoadsLayer 组内最前 = 宣纸底之上、道路之下——道路压色而不被色糊。 */
+const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board }) {
+  const blobs = regionBlobs(board.tiles);
+  if (!blobs.length) return null;
+  return (
+    <g id="bv-region-tint">
+      {blobs.map((b) => (
+        // gradientUnits=userSpaceOnUse:圆心即区域几何中心,不随 rect 尺寸缩放
+        <radialGradient key={b.group} id={`bv-tint-${b.group}`} gradientUnits="userSpaceOnUse" cx={b.cx} cy={b.cy} r={b.r}>
+          <stop offset="0%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.08} />
+          <stop offset="70%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.04} />
+          <stop offset="100%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0} />
+        </radialGradient>
+      ))}
+      {blobs.map((b) => (
+        // 整幅 viewBox rect 填充渐变:渐变自带半径控制范围,rect 只是"画布"
+        <rect key={`r-${b.group}`} x={VB.x} y={VB.y} width={VB.w} height={VB.h} fill={`url(#bv-tint-${b.group})`} />
+      ))}
+    </g>
+  );
+});
+
 // ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 辅路(虚赭橙 + 格子图标 + 起点⇄) ──
 export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) {
   const segments: React.ReactNode[] = [];
@@ -124,6 +187,8 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
 
   return (
     <g id="bv-roads">
+      {/* 区域底色先画,主/辅路压在其上 */}
+      <RegionTintLayer board={board} />
       {segments}
       {branchEls}
     </g>

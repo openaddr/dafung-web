@@ -19,8 +19,9 @@
   opacity: 0;
   transition: opacity 0.3s;
 }
+/* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点 */
 .bv-tile.bv-capital .bv-capital-glow {
-  animation: bv-pulse-glow 2.6s ease-in-out infinite;
+  animation: bv-pulse-glow 3.5s ease-in-out infinite;
 }
 .bv-tile.bv-active .bv-capital-glow {
   animation: bv-pulse-glow 1.8s ease-in-out infinite;
