@@ -13,4 +13,12 @@ export { VictoryScreen } from "./VictoryScreen";
 export type { VictoryScreenProps } from "./VictoryScreen";
 export { TileDetailScroll } from "./TileDetailScroll";
 export type { TileDetailScrollProps } from "./TileDetailScroll";
+export {
+  HaltDecisionScroll,
+  BranchDecisionScroll,
+  BuyDecisionScroll,
+  UpgradeDecisionScroll,
+} from "./DecisionScrolls";
+export { RentTable } from "./RentTable";
+export type { RentTableProperty } from "./RentTable";
 export { SCROLL_TESTIDS } from "./testids";

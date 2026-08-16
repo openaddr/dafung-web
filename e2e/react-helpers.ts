@@ -77,14 +77,16 @@ export function fmtMoney(cash: number): string {
   return parts.join("") || "0分";
 }
 
-/** 推进一步可用动作(掷骰 / 内嵌决策 / 卷轴主按钮);无可用动作返回 false。 */
+/** 推进一步可用动作(掷骰 → 卷轴内决策按钮);无可用动作返回 false。
+ *  交互重构后所有决策按钮都住在卷轴里,testid 沿用 action-*——选择器不变,
+ *  只是命中位置从侧栏搬进了弹层;scroll-* 兜底分支覆盖非 action 命名的卷轴按钮。 */
 export async function actIfCan(p: Page): Promise<boolean> {
   const roll = p.getByTestId("roll-button");
   if (await roll.isEnabled().catch(() => false)) {
     await roll.click();
     return true;
   }
-  // 只匹配按钮(action-inline 是容器 div,无 disabled 属性会误中导致空转)
+  // 只匹配按钮(决策卷轴容器是 div,无 disabled 属性会误中导致空转)
   const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
   if ((await inline.count()) > 0) {
     await inline.first().click();

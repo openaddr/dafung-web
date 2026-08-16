@@ -34,7 +34,7 @@ test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", 
   await expect(page.getByTestId("others-panel")).toBeVisible();
 });
 
-test("购地决策:内嵌按钮购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
+test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);
   // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)
   await force(page, `
@@ -43,6 +43,8 @@ test("购地决策:内嵌按钮购地扣银两 + 耗委任状 + 获得地产", a
     const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
     e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
   `);
+  // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
+  await expect(page.getByTestId("scroll-buy")).toBeVisible();
   await expect(page.getByTestId("action-buy")).toBeEnabled();
   const before = (await snap(page)).players[0];
   await page.getByTestId("action-buy").click();
@@ -63,6 +65,7 @@ test("扩军决策:己方城升级按钮可用(相位钩子构造 OwnProperty)",
     me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a", maxLevel: 5, totalUpgradeCost: 0 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
   `);
+  await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
   await expect(page.getByTestId("action-upgrade")).toBeEnabled();
   const before = (await snap(page)).players[0].cash;
   await page.getByTestId("action-upgrade").click();
@@ -77,7 +80,8 @@ test("分岔辅路:落辅路起点弹抉择,入辅路后进入辅路格", async 
     e.turnPhase = "AwaitingBranch";
     e.activePlayer.onBranch = null;
   `);
-  await expect(page.getByTestId("action-inline")).toContainText("辅路");
+  await expect(page.getByTestId("scroll-branch")).toBeVisible();
+  await expect(page.getByTestId("scroll-branch")).toContainText("辅路");
   await page.getByTestId("action-branch").click();
   // selectBranch("Branch"):onBranch={step:0} + 触发首格
   await expect

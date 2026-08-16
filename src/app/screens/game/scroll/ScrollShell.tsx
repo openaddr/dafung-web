@@ -21,21 +21,29 @@ export function ScrollButton({
   onClick,
   primary,
   testid,
+  // UI F1:决策类按钮可能不可选(银两/委任不足、满级)——disabled + title 原因,
+  // 口径与旧侧栏内嵌按钮一致,只是搬进卷轴后由 ScrollShell 统一观感
+  disabled,
+  title,
 }: {
   children: ReactNode;
   onClick: () => void;
   primary?: boolean;
   testid?: string;
+  disabled?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       data-testid={testid}
       onClick={onClick}
+      disabled={disabled}
+      title={title}
       className={
         primary
-          ? "cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-1.5 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45"
-          : "cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-1.5 font-brush text-base text-ink transition-colors hover:bg-panel"
+          ? "cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-1.5 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
+          : "cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-1.5 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
       }
     >
       {children}

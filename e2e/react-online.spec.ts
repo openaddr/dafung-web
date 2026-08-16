@@ -7,8 +7,9 @@ import { waitSettled } from "./react-helpers";
 
 const ONLINE = "http://localhost:3010";
 
-/** 推进一步可用动作(掷骰 / 内嵌决策 / 卷轴主按钮);无可用动作返回 false。
- *  选择器全部用 React 屏的 data-testid(对照旧 multi-helpers 的 actIfCan)。 */
+/** 推进一步可用动作(掷骰 → 卷轴内决策按钮);无可用动作返回 false。
+ *  选择器全部用 React 屏的 data-testid(对照旧 multi-helpers 的 actIfCan);
+ *  交互重构后决策按钮住在卷轴里,testid 沿用 action-,选择器无需变。 */
 async function actIfCan(p: Page): Promise<boolean> {
   const roll = p.getByTestId("roll-button");
   if (await roll.isEnabled().catch(() => false)) {

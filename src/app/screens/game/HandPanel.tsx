@@ -1,14 +1,14 @@
-// 侧栏·手牌 + 动作区(对照旧 renderHand + action-zone):
-// 头部:现金 / 委任状 / 国号;卡区:珍宝 + 名士(点击看详情卷轴——本阶段只留挂点);
-// 动作区:签面 + 行军按钮 + 内嵌常规决策按钮(买/扩军/驻跸/选路,对照 renderActionInline)。
+// 侧栏·手牌区(对照旧 renderHand + action-zone 的手牌部分):
+// 头部:现金 / 委任状 / 国号;卡区:珍宝 + 名士(点击看详情卷轴);
+// 动作区:签面 + 行军按钮(行军是主行动不是抉择,留守手牌区——交互重构已确认决策)。
+// 交互重构:原 ActionInline 内嵌决策(买/扩军/驻跸/选路)整体迁入卷轴体系
+// (DecisionScrollLayer 按相位自动弹出),手牌区不再有任何决策按钮。
 import { useState } from "react";
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
-import type { GameCommand } from "@core/types";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
-import { getControllerContext } from "@app/controllers/registry";
 import { CardDetailScroll, type CardDetail } from "./CardDetailScroll";
 import { TESTIDS } from "./testids";
 
@@ -136,10 +136,6 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           );
         })()}
       </div>
-      {/* W3:内嵌决策独立成行(xs 档;primary 在 ActionInline 内部也自成一行) */}
-      <div className="px-3 pb-2 pt-1">
-        <ActionInline snapshot={snapshot} controller={controller} interactive={interactive} pending={net.pending} />
-      </div>
       {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
           显隐):托管中 interactive 被锁,本地只旁观。对照旧 client-controller 的 autopilot-row。 */}
       {controller?.autopilotSupported && (
@@ -176,106 +172,3 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   );
 }
 
-/** 内嵌常规决策(对照旧 renderActionInline):驻跸/选路/买地/扩军。
- *  复杂相位(招贤/珍宝交涉/破产)不在侧栏,由卷轴弹层负责(阶段 5b/6)。 */
-function ActionInline({
-  snapshot,
-  controller,
-  interactive,
-  pending,
-}: {
-  snapshot: GameSnapshot;
-  controller: GameController | null;
-  interactive: boolean;
-  pending: boolean;
-}) {
-  // UI F3:联机 pending 期间 interactive=false 但按钮仍渲染(只是锁住),让「…中」态可见而非闪没。
-  if ((!interactive && !pending) || snapshot.phase !== "Playing") return null;
-  const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
-  // 静态地图数据经 registry 上下文取(Wave3 候选5:渲染层不摸活引擎)
-  const ctx = getControllerContext();
-  // UI F1:opts.reason 收敛 disabled 原因(买地/扩军原有的内嵌文案迁到 title,口径统一)
-  const add = (
-    label: string,
-    action: string,
-    cmd: GameCommand,
-    opts: { primary?: boolean; disabled?: boolean; reason?: string } = {},
-  ) => (
-    <button
-      type="button"
-      key={action}
-      data-testid={TESTIDS.actionButton(action)}
-      disabled={opts.disabled || !interactive}
-      onClick={() => dispatch(cmd)}
-      title={opts.reason ?? (pending ? "处理中…" : label)}
-      className={`rounded border px-2 py-0.5 text-xs ${opts.primary ? "border-gold bg-gold/20 font-brush text-base" : "border-ink/30 hover:bg-panel-hi"} disabled:opacity-40`}
-    >
-      {pending ? `${label}…` : label}
-    </button>
-  );
-
-  const tp = snapshot.turnPhase;
-    if (tp === "AwaitingCapitalHalt" && snapshot.lastMove) {
-      // 驻跸抉择:目的地城名经 registry 静态上下文查(board 不可变,联机同路)
-      const capName = ctx?.board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城";
-      const destName = ctx?.board.at(snapshot.lastMove.landIndex)?.name ?? "下一城";
-      return (
-        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
-          {/* W3:primary 单独一行,不与 xs 次级动作混排 */}
-          <div>{add(`驻跸·${capName}`, "halt", { type: "haltAtCapital" }, { primary: true })}</div>
-          <div className="flex gap-2">{add(`继续→${destName}`, "continue", { type: "continueMove" })}</div>
-        </div>
-      );
-    }
-    if (tp === "AwaitingBranch") {
-      return (
-        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
-          <div>{add("走大路", "main", { type: "selectBranch", kind: "Main" }, { primary: true })}</div>
-          <div className="flex gap-2">{add("入辅路", "branch", { type: "selectBranch", kind: "Branch" })}</div>
-        </div>
-      );
-    }
-  if (tp === "AwaitingDecision") {
-    const p = snapshot.players[snapshot.activeIndex];
-    const def = snapshot.lastLandOutcomeProperty
-      ? ctx?.catalog.get(snapshot.lastLandOutcomeProperty)
-      : null;
-    if (snapshot.lastLandOutcomeKind === "PropertyAvailable" && def) {
-      const canBuy = p.cash >= def.purchasePrice && p.warrants >= 1;
-      const reason = p.warrants < 1 ? "委任状不足" : "银两不足";
-      return (
-        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
-          <div>
-            {add(
-              `购地 ${formatMoney(def.purchasePrice)}·1委任`,
-              "buy",
-              { type: "buyProperty" },
-              // UI F1:原因从文案内嵌迁到 title + 旁注(与其他按钮同一机制)
-              { primary: canBuy, disabled: !canBuy, reason: canBuy ? undefined : reason },
-            )}
-          </div>
-          <div className="flex gap-2">{add("不取", "skip", { type: "endDecision" })}</div>
-        </div>
-      );
-    }
-    if (snapshot.lastLandOutcomeKind === "OwnProperty" && def) {
-      const h = p.properties.find((x) => x.propertyId === def.id);
-      const lvl = h?.level ?? 0;
-      const canUp = lvl < def.maxLevel && p.cash >= def.upgradeCost;
-      return (
-        <div data-testid={TESTIDS.actionInline} className="flex flex-col items-start gap-1">
-          <div>
-            {add(
-              `扩军 ${formatMoney(def.upgradeCost)}`,
-              "upgrade",
-              { type: "upgradeProperty" },
-              { primary: canUp, disabled: !canUp, reason: canUp ? undefined : lvl >= def.maxLevel ? "已满级" : "银两不足" },
-            )}
-          </div>
-          <div className="flex gap-2">{add("按兵不动", "skip", { type: "endDecision" })}</div>
-        </div>
-      );
-    }
-  }
-  return null;
-}
