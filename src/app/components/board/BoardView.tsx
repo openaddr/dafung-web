@@ -2,7 +2,7 @@
 //   defs 滤镜/远山河川/驿道 → 静态 memo 子组件(地图不变即不重渲)
 //   40 城池 → Tile(状态 props 驱动,React.memo 逐城重渲)
 //   棋子 → TokenLayer(CSS transform + transition 平滑过渡)
-//   pan/zoom → usePanZoom(viewBox)
+//   pan/zoom → usePanZoom(命令式 setAttribute viewBox,不触发 React 重渲)
 // 旧 src/render/board.ts 保留作视觉对照,勿删。
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { MapData } from "@core/types";
@@ -12,7 +12,8 @@ import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
 import { TokenLayer } from "./TokenLayer";
-import { panCursorClass, usePanZoom } from "./usePanZoom";
+import { FIT_VIEW_BOX, panCursorClass, usePanZoom } from "./usePanZoom";
+import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
 
 /** BoardView/TokenLayer 真正消费的玩家最小结构(棋盘渲染只需这些字段):
@@ -58,6 +59,8 @@ export interface BoardViewProps {
 /** ref 命令式句柄:还原总览视图(等价旧 BoardView.resetView)。 */
 export interface BoardViewHandle {
   reset: () => void;
+  /** C4 镜头跟随:缓动把视图中心平移到逻辑坐标 (cx,cy)(不强制改缩放)。 */
+  flyTo: (cx: number, cy: number) => void;
 }
 
 const TileLayer = memo(function TileLayerInner({
@@ -99,8 +102,10 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
 }, ref) {
   void viewSeat; // 预留:当前渲染不区分视角
   const svgRef = useRef<SVGSVGElement | null>(null);
-  const { viewBox, handlers, grabbing, reset } = usePanZoom(svgRef);
-  useImperativeHandle(ref, () => ({ reset }), [reset]);
+  // F1:viewBox 由 hook 命令式 setAttribute 更新,不产生 React 重渲;
+  // svg 的 viewBox prop 只下发一次初始总览值(FIT_VIEW_BOX 常量),此后 React 不改写。
+  const { handlers, grabbing, reset, flyTo } = usePanZoom(svgRef);
+  useImperativeHandle(ref, () => ({ reset, flyTo }), [reset, flyTo]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
   // 地图 → Board/catalog(地图引用不变则不重建;道路避城弧线计算在 RoadsLayer 内做)
@@ -126,41 +131,55 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     return [...list.filter((t) => t.index !== hoverTile), ...list.filter((t) => t.index === hoverTile)];
   }, [loaded.board.tiles, hoverTile]);
 
-  const tiles = (
-    <>
-      {orderedTiles.map((tile) => {
-        const def = loaded.catalog.get(tile.propertyId);
-        const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
-        const capitalP = players.find((p) => p.capitalIndex === tile.index) ?? null;
-        const state: TileVisualState = {
-          ownerColorIndex: holding ? holding.colorIndex : null,
-          ownerGuohao: holding ? holding.guohao : null,
-          level: holding?.level ?? 0,
-          capitalColorIndex: capitalP ? capitalP.colorIndex : null,
-          capitalGuohao: capitalP ? capitalP.guohao : null,
-          isActive: activeTileIndex === tile.index,
-          isTaken: !!(isSetupPhase && capitalP),
-          isSelectable: selectableTiles?.has(tile.index) ?? false,
-        };
-        return (
-          <Tile
-            key={tile.index}
-            tile={tile}
-            group={def?.group ?? ""}
-            price={def ? formatMoney(def.purchasePrice) : ""}
-            state={state}
-            onClick={handleTileClick ?? undefined}
-          />
-        );
-      })}
-    </>
+  // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
+  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
+  // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
+  const tileStates = useMemo(() => {
+    const m = new Map<number, TileVisualState>();
+    for (const tile of loaded.board.tiles) {
+      const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
+      const capitalP = players.find((p) => p.capitalIndex === tile.index) ?? null;
+      m.set(tile.index, {
+        ownerColorIndex: holding ? holding.colorIndex : null,
+        ownerGuohao: holding ? holding.guohao : null,
+        level: holding?.level ?? 0,
+        capitalColorIndex: capitalP ? capitalP.colorIndex : null,
+        capitalGuohao: capitalP ? capitalP.guohao : null,
+        isActive: activeTileIndex === tile.index,
+        isTaken: !!(isSetupPhase && capitalP),
+        isSelectable: selectableTiles?.has(tile.index) ?? false,
+      });
+    }
+    return m;
+  }, [loaded.board.tiles, holdings, players, activeTileIndex, isSetupPhase, selectableTiles]);
+
+  // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
+  const tiles = useMemo(
+    () => (
+      <>
+        {orderedTiles.map((tile) => {
+          const def = loaded.catalog.get(tile.propertyId);
+          return (
+            <Tile
+              key={tile.index}
+              tile={tile}
+              group={def?.group ?? ""}
+              price={def ? formatMoney(def.purchasePrice) : ""}
+              state={tileStates.get(tile.index)!}
+              onClick={handleTileClick ?? undefined}
+            />
+          );
+        })}
+      </>
+    ),
+    [orderedTiles, loaded.catalog, tileStates, handleTileClick],
   );
 
   return (
     <svg
       id="board"
       ref={svgRef}
-      viewBox={viewBox}
+      viewBox={FIT_VIEW_BOX}
       preserveAspectRatio="xMidYMid meet"
       className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
       {...handlers}
@@ -176,8 +195,11 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         skipTokenIds={skipTokenIds}
         layerRef={tokenLayerRef}
       />
-      {/* 特效层挂点(阶段 5/6:floater/coin 文本与道路流光),保持与旧版同顺序置于最上 */}
-      <g id="bv-fx" data-fx-layer="" />
+      {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。
+          D1:浮字/印章直接画进 SVG(坐标系与棋盘一致,pan/zoom 不脱锚)。 */}
+      <g id="bv-fx" data-fx-layer="">
+        <BoardFxLayer />
+      </g>
       <g id="bv-flow" data-flow-layer="" />
     </svg>
   );

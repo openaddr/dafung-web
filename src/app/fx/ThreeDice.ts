@@ -100,6 +100,16 @@ function consumeDiceFast(): boolean {
   return fast;
 }
 
+/** D2:模块级强制隐藏骰子 overlay。roll() 完成本会自己 hideOverlay,
+ *  但胜利屏挂载可能赶在 holdMs 定时器之前(终局瞬间切屏),残留的 z-45 骰子层
+ *  会压住胜利屏——胜利屏 mount 时调一次本函数兜住这个时序窗口。
+ *  直接按类名清(overlay 由本模块创建且类名唯一),不触碰实例内部状态。 */
+export function hideDiceOverlay(): void {
+  document.querySelectorAll<HTMLElement>(".dice-overlay").forEach((el) => {
+    el.style.display = "none";
+  });
+}
+
 /** 从任意姿态四元数(x/y/z/w 分量)求当前朝上的 die(1-6)。物理求解与诊断共用。 */
 function upFaceOf(q: { x: number; y: number; z: number; w: number }): number {
   const quat = new THREE.Quaternion(q.x, q.y, q.z, q.w);

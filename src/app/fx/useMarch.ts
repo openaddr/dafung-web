@@ -11,9 +11,10 @@
 import type { GameEngine } from "@core/game";
 import type { Player } from "@core/types";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
-import { playerSlotKey } from "@app/components/board/TokenLayer";
+import { playerSlotKey, tokenRenderPos } from "@app/components/board/TokenLayer";
 import { useFxStore } from "./fxStore";
 import { delay, FX, MARCH, nextFrame } from "./timings";
+import { boardCamera } from "@app/components/board/usePanZoom";
 
 /** 行军接管中的棋子当前坐标(逻辑系)。只在 beginMarch/段推进时写入,被 TokenLayer 读取。 */
 export const marchPos = new Map<string, { x: number; y: number }>();
@@ -83,6 +84,11 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
   if (!path || !player) return;
   const board = e.board;
 
+  // C4 镜头跟随:放大视图中行军终点可能在视野外——检查当前 viewBox 是否包含
+  // 终点(留 15% 边距),不含则缓动把镜头平移过去(不改缩放)。棋盘未挂载时
+  // boardCamera 为空(如编辑器),静默跳过。
+  followIfOffscreen(tokenRenderPos(player, board));
+
   // 接管集未含该棋子(调用方漏了 beginMarch):现场补,起点锚定 from。
   if (!marchPos.has(moverId)) beginMarch(e, moverId);
   // 等 React 把「跳过声明式定位 + marchPos 起点」渲染出来,再拿节点开始动画。
@@ -132,6 +138,17 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
 
   token.style.transitionDuration = "";
   endMarch(moverId);
+}
+
+/** C4:终点不在当前视图(含 15% 边距)时请求镜头缓动跟随。 */
+function followIfOffscreen(dest: { x: number; y: number }): void {
+  const vb = boardCamera.getView?.();
+  if (!vb) return;
+  const mx = vb.w * 0.15;
+  const my = vb.h * 0.15;
+  const inside =
+    dest.x >= vb.x + mx && dest.x <= vb.x + vb.w - mx && dest.y >= vb.y + my && dest.y <= vb.y + vb.h - my;
+  if (!inside) boardCamera.flyTo?.(dest.x, dest.y);
 }
 
 /** 结束接管:移除 marchPos + fxStore.marching,React 以终态接管定位。 */

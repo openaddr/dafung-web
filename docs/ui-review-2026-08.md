@@ -36,16 +36,16 @@
 
 ## 三、P1 — 游戏 HUD(10)
 
-- [ ] **G-3 「运筹中」覆盖不足 + 与 HintBar 叠位**(GameScreen.tsx:185-193);统一等待状态条:bot=「智将运筹中」/远端人类=「静候『魏』落子」,与 HintBar 分位
+- [x] **G-3 「运筹中」覆盖不足 + 与 HintBar 叠位**(GameScreen.tsx:185-193);统一等待状态条:bot=「智将运筹中」/远端人类=「静候『魏』落子」,与 HintBar 分位
 - [ ] **G-5 棋盘无常驻回合线索**(仅侧栏呼吸描边);棋盘角加回合 chip(国号色徽+「X的回合」)或活跃棋子常驻高亮环
 - [x] **G-7 卡牌 chip 点击目标 24px 无按下反馈**(HandPanel.tsx:75-98);min-h-9 + 边框加重 affordance
 - [x] **G-8 托管可见性弱**:折叠后完全消失;托管中给窄条常驻标记;speed select 提高触达;reason 文案区分「托管中」
 - [ ] **G-9 现金变化无就地反馈**(HandPanel.tsx:60-65);变化时 +/− 差值浮标;头部补自己身价
-- [ ] **G-12 战报无玩家颜色编码**(WarlogPanel.tsx:92-106);条目前置国号色徽,自己的事件淡底
-- [ ] **G-13 战报无轮次锚点/回最新**(WarlogPanel.tsx:88-108);按轮插「—第X轮—」分隔;上滚离底显示「回最新▾」
-- [ ] **G-16 联机对手抉择无过程反馈**(DecisionScrollLayer.tsx:161-219);非交互方显示「『魏』正在抉择」(并入 G-3 等待条)
+- [x] **G-12 战报无玩家颜色编码**(WarlogPanel.tsx:92-106);条目前置国号色徽,自己的事件淡底
+- [x] **G-13 战报无轮次锚点/回最新**(WarlogPanel.tsx:88-108);按轮插「—第X轮—」分隔;上滚离底显示「回最新▾」
+- [x] **G-16 联机对手抉择无过程反馈**(DecisionScrollLayer.tsx:161-219);非交互方显示「『魏』正在抉择」(并入 G-3 等待条)
 - [ ] **G-17 城详情×卡详情双层卷轴 z 序冲突**(GameScreen.tsx:196-204 + HandPanel.tsx:170);互斥或弹层栈
-- [ ] **G-21 债权人看不到「对方变卖抵债」**(DecisionScrollLayer.tsx:96-126);并入统一等待条
+- [x] **G-21 债权人看不到「对方变卖抵债」**(DecisionScrollLayer.tsx:96-126);并入统一等待条
 
 ## 四、P1 — 棋盘/演出/性能(11)
 
@@ -56,10 +56,10 @@
 - [x] **C1 每回合 1.2-2.1s 全屏骰子无 bot 减速**(ThreeDice.ts:348-349,303);bot 走半速(MIN_ROLL_MS→250/停留 600→250)
 - [ ] **C2 solveLaunch 同步最多 40 次物理模拟卡主线程**(ThreeDice.ts:335,423-436);solve 期间先 render 起手帧 + 限制预算
 - [x] **C3 回合横幅不占编排时长与下一骰重叠**(presentation.ts:60-61 / orchestrator.ts:46-48);showBanner 改 await
-- [ ] **C4 镜头不跟随行军**:放大时行军/浮字全在视野外(BoardView.tsx:100 / usePanZoom 无 flyTo);暴露 flyTo(x,y) + 行军开始目标不在视区则缓动跟随
-- [ ] **D1 浮字/印章拖拽棋盘时脱锚**(FxLayer.tsx:10-22);viewBox 版本注入依赖或画进 SVG #bv-fx 层
-- [ ] **E1 胜利演出全程无声**(VictoryScreen.tsx);入场鼓点/印章重音(复用 audio.ts sample)
-- [ ] **F1 pan/zoom 每帧 40 城全量 reconciliation**(BoardView.tsx:135-144 TileVisualState 内联对象击穿 memo);tiles JSX useMemo + viewBox 命令式 setAttribute 绕开 React
+- [x] **C4 镜头不跟随行军**:放大时行军/浮字全在视野外(BoardView.tsx:100 / usePanZoom 无 flyTo);暴露 flyTo(x,y) + 行军开始目标不在视区则缓动跟随
+- [x] **D1 浮字/印章拖拽棋盘时脱锚**(FxLayer.tsx:10-22);viewBox 版本注入依赖或画进 SVG #bv-fx 层
+- [x] **E1 胜利演出全程无声**(VictoryScreen.tsx);入场鼓点/印章重音(复用 audio.ts sample)
+- [x] **F1 pan/zoom 每帧 40 城全量 reconciliation**(BoardView.tsx:135-144 TileVisualState 内联对象击穿 memo);tiles JSX useMemo + viewBox 命令式 setAttribute 绕开 React
 
 ## 五、P1 — 移动端其余(5)
 

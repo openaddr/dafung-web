@@ -45,6 +45,7 @@ export const TESTIDS = {
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
   thinking: "thinking",
+  waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx)
 
   // ── 棋盘区小组件 ──
   muteButton: "mute-button",

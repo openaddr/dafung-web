@@ -13,6 +13,7 @@ import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandPanel } from "./HandPanel";
+import { WaitingBar } from "./WaitingBar";
 import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
 import { ConfirmDialog } from "./scroll/ConfirmDialog";
@@ -186,8 +187,17 @@ export function GameScreen() {
         )}
         {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
         <HintBar hint={hint} level={hintLevel} />
+        {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债,
+            替代旧「运筹中…」单一角标(文案按等待对象细分;thinking testid 保留在此) */}
+        <WaitingBar
+          snapshot={snapshot}
+          interactive={interactive}
+          viewSeat={viewSeat}
+          online={net.roomId !== ""}
+        />
         {(thinking || (snapshot.phase !== "GameOver" && snapshot.players[snapshot.activeIndex]?.isBot)) && (
-          // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位)
+          // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位;
+          // e2e react-solo 依赖此 testid)
           <div
             data-testid={TESTIDS.thinking}
             className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-ink/80 px-3 py-1 font-brush text-panel"

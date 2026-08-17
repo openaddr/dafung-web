@@ -34,7 +34,20 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
             {/* S7 核对补漏:胜者原先仅靠 text-gold 金色区分(仅颜色传达信息),
                 补「胜」文字标记——与「智」同款单字后缀,颜色之外有明确文字线索 */}
             {isWinner && <span className="shrink-0 font-brush text-gold">胜</span>}
-            <span className="ml-auto shrink-0 text-money">{formatMoney(p.cash)}</span>
+            {/* G-15:现金低于 1000两(危险线)加 ⚠ 并转 danger 色——现金是唯一活钱,
+                见底意味着下一步任何支出都可能触发变卖/破产;破产行已划线弱化,不再重复示警 */}
+            <span
+              className={
+                "ml-auto shrink-0 " + (!p.isBankrupt && p.cash < 1000 ? "text-danger" : "text-money")
+              }
+            >
+              {!p.isBankrupt && p.cash < 1000 ? "⚠ " : ""}
+              {formatMoney(p.cash)}
+            </span>
+            {/* G-15:身价小字(netWorth 含地产/珍宝估值,胜负口径;对照现金才有全局财势感) */}
+            <span className="shrink-0 text-[10px] text-ink-dim">
+              身价{formatMoney(p.netWorth)}
+            </span>
             <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>
           </div>
         );
