@@ -11,6 +11,7 @@ import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
 import { CardDetailScroll, type CardDetail } from "./CardDetailScroll";
 import { TESTIDS } from "./testids";
+import "./game-hud.css";
 
 // 签面数字 → 汉字(旧 dice-face 一~六 的展示口径)
 const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
@@ -18,11 +19,17 @@ const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
 /** 行军按钮 disabled 原因(UI F1):从快照 + interactive + pending 集中推导,返回 null = 可用。
  *  为什么集中一处:内嵌买地/扩军已把原因写在文案里,行军没有——这里补齐并统一口径,
  *  悬停 title 与旁注灰字共用同一返回值,避免两套说法漂移。 */
-function reasonForDisabled(s: GameSnapshot, interactive: boolean, pending: boolean): string | null {
+function reasonForDisabled(
+  s: GameSnapshot,
+  interactive: boolean,
+  pending: boolean,
+  autopilotOn: boolean,
+): string | null {
   if (pending) return "行军中…";
   if (!interactive) {
     if (s.phase !== "Playing") return "非对局中";
-    return "未轮到你或托管中";
+    // G-8:托管中与等待区分——托管可主动「收回」取回操作,提示语引导而非冷冰冰「未轮到你」
+    return autopilotOn ? "托管中,点「收回」取回操作" : "未轮到你";
   }
   if (s.turnPhase !== "Roll") return "轮次未到,先完成当前抉择";
   return null;
@@ -44,14 +51,19 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // UI F5:当前查看详情的卡(珍宝/名士);null = 无卷轴
   const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
   const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
+  // G-11:手牌区按内容定高(shrink-0),纵向弹性让给战报区;max-h-full +
+  // 区内 overflow-y-auto 兜住矮视口(布局约束)。头部/动作/托管行不参与压缩。
   return (
-    <section data-testid={TESTIDS.handPanel} className="flex min-h-0 flex-1 flex-col border-b border-gold/40">
-      <h3 className="px-3 pt-2 font-brush text-base">手牌</h3>
+    <section
+      data-testid={TESTIDS.handPanel}
+      className="flex max-h-full min-h-0 shrink-0 flex-col border-b border-gold/40"
+    >
+      <h3 className="shrink-0 px-3 pt-2 font-brush text-base">手牌</h3>
       {!player ? (
         <div className="px-3 py-2 text-sm text-ink-dim">未入座</div>
       ) : (
         <div
-          className="px-3"
+          className="min-h-0 overflow-y-auto px-3"
           style={{ ["--player-color" as string]: rgba(playerColor(player.colorIndex)) }}
         >
           {/* 头部:现金/委任。W3 字号阶梯三档:现金数值 text-lg brush(核心可断言数值)/
@@ -77,7 +89,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 key={t.id}
                 data-testid={TESTIDS.handTreasure(t.id)}
                 title={`Lv${t.level}`}
-                className="cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1 text-xs hover:bg-panel"
+                className="min-h-9 cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1.5 text-xs hover:border-gold/70 hover:bg-panel"
                 // UI F5:cursor-pointer 不再撒谎——点击弹出详情卷轴(对照旧 showHandDetail)
                 onClick={() => setCardDetail({ kind: "treasure", card: t })}
               >
@@ -89,7 +101,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 key={h.id}
                 data-testid={TESTIDS.handHero(h.id)}
                 title={h.title}
-                className="cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1 text-xs hover:bg-panel"
+                className="min-h-9 cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1.5 text-xs hover:border-gold/70 hover:bg-panel"
                 // UI F5:同上,名士详情卷轴
                 onClick={() => setCardDetail({ kind: "hero", card: h })}
               >
@@ -106,7 +118,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
       {/* 动作区:签面 + 行军 + 内嵌决策(所有按钮 disabled 绑定 interactive,单一来源 store)。
           W3:行军(primary)独占一行,内嵌决策另起一行——primary text-base 与 xs 混排
           会让基线错位、视觉重心漂移,分行后主次一眼可分。 */}
-      <div className="mt-2 flex flex-wrap items-center gap-2 px-3">
+      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2 px-3">
         <span
           data-testid={TESTIDS.diceFace}
           className="rounded border border-gold/60 bg-panel-hi px-2 py-1 font-brush"
@@ -116,7 +128,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
         {/* Wave3(候选2):roll() 一行转发已从基类删除,行军=标准命令直发(dispatchCommand 唯一入口) */}
         {(() => {
           // UI F1/F3:disabled 原因集中推导;pending(联机命令已发未回)显示「行军中…」
-          const reason = reasonForDisabled(snapshot, interactive, net.pending);
+          const reason = reasonForDisabled(snapshot, interactive, net.pending, autopilotOn);
           return (
             <>
               <button
@@ -125,7 +137,15 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 disabled={reason !== null}
                 onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
                 title={reason ?? "行军"}
-                className="rounded border border-gold bg-gold/20 px-4 py-1 font-brush text-lg enabled:hover:bg-gold/40 disabled:opacity-40"
+                /* P0-4 行军升格主 CTA:可用时实心金底 + 深墨字 + border-2 + min-h-10,
+                   可掷(reason=null)加轻微呼吸光晕(game-hud.css 的 keyframe,经
+                   Tailwind 任意值 animate-[...] 挂载);disabled 态维持灰底低透明。 */
+                className={
+                  "rounded px-4 font-brush text-lg disabled:opacity-40 " +
+                  (reason === null
+                    ? "min-h-10 border-2 border-gold bg-gold/80 text-ink hover:bg-gold animate-[game-cta-breathe_2s_ease-in-out_infinite]"
+                    : "border border-gold bg-gold/20 py-1 enabled:hover:bg-gold/40"
+                )}
               >
                 {net.pending ? "行军中…" : "行军"}
               </button>
@@ -139,7 +159,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
       {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
           显隐):托管中 interactive 被锁,本地只旁观。对照旧 client-controller 的 autopilot-row。 */}
       {controller?.autopilotSupported && (
-        <div className="flex items-center gap-2 px-3 pb-2 text-xs text-ink-dim">
+        <div className="flex shrink-0 items-center gap-2 px-3 pb-2 text-xs text-ink-dim">
           <button
             type="button"
             data-testid={TESTIDS.autopilotButton}

@@ -1,10 +1,10 @@
 // 联机大厅屏(阶段 8,对照旧 src/render/lobby.ts + network-client 的连接屏合并为一屏):
 // - 未入座:建房(诸侯数/目标身价)或凭房间码加入;
 // - 已入座:房间码 / 座位列表(在线·离线·bot·托管)/ 当前地图(host 可换)/ 房主开局;
-// - 被解散:提示 + 返回设置屏。
+// - 被解散:提示 + 返回首页。
 // 服务器地址固定 location.origin(网页与引擎服务器同源部署,scripts/server.ts 托管 dist);
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { isCustomId } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
@@ -31,15 +31,28 @@ function builtinMapSource() {
   };
 }
 
-/** 座位行的状态标签(对照旧 renderSeats:你/人/bot/空 + 房主 + 离线)。 */
+/** 座位行的状态标签(对照旧 renderSeats:你/人/电脑/空 + 房主 + 离线)。L-5:统一全中文,不混排「bot」。 */
 function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {
-  const who = s.seat === mySeat ? "你" : s.kind === "bot" ? "bot" : s.taken ? "人" : "空";
+  const who = s.seat === mySeat ? "你" : s.kind === "bot" ? "电脑" : s.taken ? "人" : "空";
   const suffix = [
     s.seat === host ? "房主" : "",
     s.taken && !s.online && s.kind === "human" ? "离线" : "",
     s.autoPilot ? "托管" : "",
   ].filter(Boolean).join("·");
   return suffix ? `${who}·${suffix}` : who;
+}
+
+/** 建房目标身价校验(L-2,零兜底:非法阻止提交并显式告知,不静默):
+ *  空 = 默认值合法;否则须为正整数且不超过上限(上限取服务器 intField 可表达范围的实用子集)。 */
+const TARGET_MAX = 99_999_999;
+function validateTarget(v: string): string | null {
+  const t = v.trim();
+  if (!t) return null;
+  if (!/^\d+$/.test(t)) return "目标身价需为正整数";
+  const n = parseInt(t, 10);
+  if (n <= 0) return "目标身价需大于 0";
+  if (n > TARGET_MAX) return `目标身价不能超过 ${TARGET_MAX}`;
+  return null;
 }
 
 export function LobbyScreen({ onExit }: LobbyScreenProps) {
@@ -55,6 +68,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   const [seatCount, setSeatCount] = useState(2);
   const [target, setTarget] = useState("");
+  // L-2:失焦校验后的错误文案(null = 合法或未校验);输入即清,提交前再全量校验
+  const [targetErr, setTargetErr] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState("");
   const [busy, setBusy] = useState(false); // 请求进行中:按钮防连点
   const [showMapSelect, setShowMapSelect] = useState(false);
@@ -63,6 +78,19 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const [copied, setCopied] = useState(false);
   // W2:等待文案轮换下标(3s 一换,制造"大厅还活着"的心跳感)
   const [waitIdx, setWaitIdx] = useState(0);
+  // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)
+  const mapSource = useMemo(builtinMapSource, []);
+  // L-8:刚「空→有人」的座位集合(仅这些行放入场动画);ref 记上一帧 taken 做状态 diff
+  const [seatEntered, setSeatEntered] = useState<ReadonlySet<number>>(new Set());
+  const prevTakenRef = useRef<Map<number, boolean>>(new Map());
+  // L-7:复制态自清定时器(卸载必须清,否则离开大厅后仍 setState)
+  const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (copyTimerRef.current != null) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
 
   // W2:等待文案轮换。非 host 换着法子说"等房主";host 未满座时换着法子催人入座。
   // 依赖 (roomId/isHost/needMore) 变化时重置下标,避免切视角后先闪一句不合适的话。
@@ -86,7 +114,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       return;
     }
     let alive = true;
-    builtinMapSource()
+    mapSource
       .listMaps()
       .then((entries) => {
         const found = entries.find((e) => e.id === mapId);
@@ -98,7 +126,15 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     return () => {
       alive = false;
     };
-  }, [mapId]);
+  }, [mapId, mapSource]);
+
+  // L-8:座位「空→有人」翻转检测(key 稳定后,入场动画只在此刻加 class;
+  // 上/下线、托管等状态翻转不再整行 remount 重放动画)。首帧视为入场,保留挂载点亮。
+  useEffect(() => {
+    const newly = seats.filter((s) => s.taken && !prevTakenRef.current.get(s.seat)).map((s) => s.seat);
+    for (const s of seats) prevTakenRef.current.set(s.seat, s.taken);
+    if (newly.length) setSeatEntered((prev) => new Set([...prev, ...newly]));
+  }, [seats]);
 
   // F4:hint 过期已下沉 netStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
@@ -126,7 +162,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6">
         <h1 className="font-brush text-3xl text-ink tracking-widest">房主已解散房间</h1>
         <button data-testid={LID.back} onClick={onExit} className={btnBase + " border-gold bg-gold/80"}>
-          返回设置
+          返回首页
         </button>
       </div>
     );
@@ -166,26 +202,37 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 <input
                   data-testid={LID.target}
                   value={target}
-                  onChange={(e) => setTarget(e.target.value)}
+                  inputMode="numeric"
+                  onChange={(e) => {
+                    setTarget(e.target.value);
+                    setTargetErr(null); // 修改即清错,失焦/提交再校验
+                  }}
+                  onBlur={() => setTargetErr(validateTarget(target))}
                   placeholder="如 3000"
-                  className={inputBase + " w-28"}
+                  className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
                 />
+                {/* L-2:非法/越界的显式原因行(不静默) */}
+                {targetErr && <span className="text-xs text-danger">{targetErr}</span>}
               </label>
               <button
                 data-testid={LID.create}
-                disabled={busy}
+                disabled={busy || targetErr != null}
                 title={busy ? "处理中…" : undefined}
-                onClick={() =>
+                onClick={() => {
+                  // L-2 零兜底:提交前再校验一次,非法则阻止并显示原因(不静默吞掉)
+                  const err = validateTarget(target);
+                  setTargetErr(err);
+                  if (err) return;
                   void guard(() =>
                     controller!.createRoom({
                       seats: seatCount,
                       target: target.trim() ? parseInt(target, 10) : undefined,
                     }),
-                  )
-                }
-                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold mt-5"}
+                  );
+                }}
+                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold self-end"}
               >
-                建房
+                {busy ? "处理中…" : "建房"}
               </button>
             </div>
           </div>
@@ -199,7 +246,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
                 placeholder="房间码"
                 maxLength={8}
-                className={inputBase + " w-24 tracking-[0.3em]"}
+                className={inputBase + " w-44 tracking-[0.3em]"}
               />
               <button
                 data-testid={LID.join}
@@ -209,14 +256,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 onClick={() => void guard(() => controller!.joinRoom(joinCode.trim()))}
                 className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
               >
-                加入
+                {busy ? "处理中…" : "加入"}
               </button>
             </div>
           </div>
           {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
           <HintBar hint={hint} level={hintLevel} variant="inline" />
           <button onClick={onExit} className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep self-start text-sm"}>
-            返回设置
+            返回首页
           </button>
         </div>
       </div>
@@ -229,7 +276,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     navigator.clipboard?.writeText(roomId).then(
       () => {
         setCopied(true);
-        setTimeout(() => setCopied(false), 1000);
+        // L-7:定时器入 ref,卸载 effect 统一清理(重复点击先清旧,防提前熄灭)
+        if (copyTimerRef.current != null) clearTimeout(copyTimerRef.current);
+        copyTimerRef.current = setTimeout(() => setCopied(false), 1000);
       },
       () => pushHint("复制失败,请手动抄录", "info"),
     );
@@ -264,14 +313,15 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             : waitLines[waitIdx] /* 非 host:轮换等待文案 */}
         </div>
 
-        {/* 座位列表(W2:key 含状态签名 → 入座/上下线时 remount 触发点亮动画) */}
+        {/* 座位列表(L8:key=座位号稳定;入场动画只在「空→有人」翻转时加 class,见 seatEntered effect) */}
         <div className="mt-3 flex flex-col gap-1">
           {seats.map((s) => (
             <div
-              key={`${s.seat}-${s.taken}-${s.kind}-${s.online ? 1 : 0}`}
+              key={s.seat}
               data-testid={LID.seatRow(s.seat)}
               className={
-                "lobby-seat-in flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
+                (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
+                "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
                 (s.seat === mySeat ? "border-gold bg-gold/10 text-ink" : "border-ink/20 text-ink-dim")
               }
             >
@@ -323,7 +373,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 onClick={() => setShowMapSelect(true)}
                 className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep text-sm"}
               >
-                选择地图
+                {busy ? "处理中…" : "选择地图"}
               </button>
               <button
                 data-testid={LID.start}
@@ -333,7 +383,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 onClick={() => void guard(() => controller!.startGame())}
                 className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold"}
               >
-                开局
+                {busy ? "处理中…" : "开局"}
               </button>
             </div>
             {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
@@ -346,12 +396,28 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             <HintBar hint={hint} level={hintLevel} variant="inline" />
           </div>
         )}
+
+        {/* P0-2:常驻「离开房间」入口(此前唯一退出=房主解散,玩家被困)。
+            服务端无 /room/leave 路由(scripts/server.ts 只有 new/join/map/start/takeover/dismiss),
+            故走本地退出:onExit = App.handleExitLobby(setController(null) → destroy 关 WS 清重连定时器
+            + netStore.reset + 回设置屏)。座位 token 服务器侧掉线冻结机制已有,重进可重新加入。 */}
+        <button
+          data-testid="lobby-leave"
+          disabled={busy}
+          title={busy ? "处理中…" : undefined}
+          onClick={() => {
+            if (!busy) onExit();
+          }}
+          className={btnBase + " border-ink/40 bg-panel hover:bg-bg-deep mt-3 mx-auto block text-sm"}
+        >
+          {busy ? "处理中…" : "离开房间"}
+        </button>
       </div>
 
-      {/* 选图二级屏:复用 setup 的 MapSelectPanel(仅内置图源) */}
+      {/* 选图二级屏:复用 setup 的 MapSelectPanel(仅内置图源;S-5:mapSource 已 useMemo 缓存) */}
       {showMapSelect && (
         <MapSelectPanel
-          mapSource={builtinMapSource()}
+          mapSource={mapSource}
           currentMapId={mapId}
           onConfirm={(id) => {
             setShowMapSelect(false);

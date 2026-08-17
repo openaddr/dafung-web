@@ -1,0 +1,11 @@
+/* 游戏主屏 HUD 专属动画(ui-review P0-4):行军主 CTA 可掷时的轻微呼吸光晕。
+ * 单独成文件避免与其他并行改动的样式文件冲突;仅 HandPanel 消费。 */
+@keyframes game-cta-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgb(212 175 55 / 0.45);
+  }
+  50% {
+    box-shadow: 0 0 0 5px rgb(212 175 55 / 0);
+  }
+}

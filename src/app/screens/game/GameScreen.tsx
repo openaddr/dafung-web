@@ -4,6 +4,7 @@
 import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
+import { useNetStore } from "@app/store/netStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import { formatMoney } from "@core/money";
 import { Theme } from "@core/theme";
@@ -79,6 +80,9 @@ export function GameScreen() {
   const hintLevel = useGameStore((s) => s.hintLevel);
   const thinking = useGameStore((s) => s.thinking);
   const localPlayer = useLocalPlayer();
+  // 托管标记与联机 pending(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
+  const net = useNetStore();
+  const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
@@ -289,7 +293,26 @@ export function GameScreen() {
             >
               «
             </button>
-            <div className="flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-4">
+            {/* P0-3 折叠窄条「轮到我」:轮到本地人类且非托管时整条金色微底 + 内描边,
+                一眼可辨不错过回合;底部挂竖排「行军」热钮(与主按钮同发 rollAndMove)。 */}
+            <div
+              className={
+                "flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-4 " +
+                (interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll"
+                  ? "bg-gold/10 ring-1 ring-gold/60 ring-inset"
+                  : "")
+              }
+            >
+              {/* G-8:托管中窄条常驻金色「托」印(竖排小方块),折叠后仍可见 */}
+              {autopilotOn && (
+                <span
+                  title="托管中,展开侧栏可收回"
+                  className="shrink-0 rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  托
+                </span>
+              )}
               <span
                 title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
                 className="font-brush text-xl text-ink"
@@ -299,14 +322,27 @@ export function GameScreen() {
               </span>
               {localPlayer && (
                 <span
-                  title={`我的现金 ${localPlayer.cash}`}
+                  title={`我的现金 ${formatMoney(localPlayer.cash)}`}
                   className="font-brush text-sm text-money"
                   style={{ writingMode: "vertical-rl" }}
                 >
-                  {localPlayer.cash >= 10000
-                    ? `${Math.floor(localPlayer.cash / 10000)}锭`
-                    : `${Math.floor(localPlayer.cash / 100)}两`}
+                  {/* G-2:与各面板同口径 formatMoney,不再手工换算丢精度 */}
+                  {formatMoney(localPlayer.cash)}
                 </span>
+              )}
+              {/* P0-3 行军热钮:命令与 HandPanel 主按钮一致(dispatchCommand 唯一入口),
+                  pending(联机已发未回)时禁用防连点 */}
+              {interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll" && (
+                <button
+                  type="button"
+                  title="行军"
+                  disabled={net.pending}
+                  onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+                  className="min-h-0 min-w-12 flex-1 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  {net.pending ? "行军中…" : "行军"}
+                </button>
               )}
             </div>
           </>

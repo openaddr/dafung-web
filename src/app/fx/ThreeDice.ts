@@ -8,6 +8,7 @@
 import * as THREE from "three";
 import * as CANNON from "cannon-es";
 import { SIGN_FACES } from "@core/constants";
+import { DICE } from "./timings";
 
 // BoxGeometry 材质位顺序:[+X, -X, +Y, -Y, +Z, -Z] = [right,left,top,bottom,front,back]。
 // 我们把 die 值贴到固定面,保证「die 面朝上时显示正确签面」。
@@ -83,6 +84,22 @@ const FACE_NORMALS: Record<number, THREE.Vector3> = {
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
+// ── C1 bot 半速掷骰(模块级速度开关)──
+// diceApi.roll 桥(DiceOverlay 挂载时绑定 dice.roll(face))只透传点数一个参数,
+// 速度标志由编排层 present() 在掷前调 setDiceFast 设置;roll() 读取后即复位,
+// 不残留到下一次掷骰。默认 false(人类全速)。
+let diceFast = false;
+/** 设置下一次掷骰的速度档(true = bot 半速)。 */
+export function setDiceFast(fast: boolean): void {
+  diceFast = fast;
+}
+/** 读取并复位速度标志(每次 roll 恰好消费一次)。 */
+function consumeDiceFast(): boolean {
+  const fast = diceFast;
+  diceFast = false;
+  return fast;
+}
+
 /** 从任意姿态四元数(x/y/z/w 分量)求当前朝上的 die(1-6)。物理求解与诊断共用。 */
 function upFaceOf(q: { x: number; y: number; z: number; w: number }): number {
   const quat = new THREE.Quaternion(q.x, q.y, q.z, q.w);
@@ -147,6 +164,8 @@ export class ThreeDice {
   private rafId = 0;
   private rolling = false;
   private disposed = false;
+  /** 正交相机视野半高(init 与 resize 共用,保证重配后构图一致)。 */
+  private static readonly VIEW_SIZE = 7;
   /** diceHit 节流:碰撞 callback 上次触发时间(ms),相邻碰撞间隔 < 60ms 时合并,
    *  免一次翻滚几十次碰撞创建大量 AudioBufferSource 拖慢物理步进(e2e 时序敏感)。 */
   private lastHitMs = 0;
@@ -166,11 +185,28 @@ export class ThreeDice {
     if (this.available) {
       this.showFace(1);
       this.hideOverlay();
+      // F3:监听窗口尺寸变化(全屏 overlay 的 renderer/相机随之重配)
+      window.addEventListener("resize", this.handleResize);
     } else {
       this.overlay.remove();
       this.overlay = null;
     }
   }
+
+  /** F3:窗口尺寸变化 → 重配 renderer 尺寸与正交相机 aspect(视野高度不变,横向裁切)。
+   *  arrow 字段绑定 this,cleanup 移除时引用稳定。 */
+  private readonly handleResize = (): void => {
+    if (this.disposed || !this.renderer || !this.camera) return;
+    const W = window.innerWidth;
+    const H = window.innerHeight;
+    this.renderer.setSize(W, H, false);
+    const aspect = W / H;
+    this.camera.left = -ThreeDice.VIEW_SIZE * aspect;
+    this.camera.right = ThreeDice.VIEW_SIZE * aspect;
+    this.camera.updateProjectionMatrix();
+    // 立即重绘一帧(非掷骰期间 raf 不在跑,不补帧会留旧尺寸残影)
+    if (this.scene && this.diceMesh) this.renderer.render(this.scene, this.camera);
+  };
 
   private init(): boolean {
     let renderer: THREE.WebGLRenderer;
@@ -210,7 +246,7 @@ export class ThreeDice {
 
     // 正交相机(略微俯视;全屏适配大物理空间)
     const aspect = W / H;
-    const viewSize = 7; // 视野更大,覆盖全屏
+    const viewSize = ThreeDice.VIEW_SIZE;
     const camera = new THREE.OrthographicCamera(
       -viewSize * aspect, viewSize * aspect,
       viewSize, -viewSize,
@@ -291,16 +327,21 @@ export class ThreeDice {
   }
 
   /** 掷骰:反向求解初始条件 → 物理自然停在 die 面朝上,resolve。WebGL 不可用时立即 resolve。
-   *  全屏模式:掷骰前显示 overlay,完成后延迟 600ms 隐藏。
+   *  全屏模式:掷骰前显示 overlay,完成后延迟 holdMs 隐藏。
+   *  C1:每次 roll 先消费模块级速度开关(setDiceFast),bot 半速 = 更短翻滚/硬上限/停留。
    *  die 省略 → 用注入 rng 本地随机(单机);传值 = 权威点数(联机服务器下发)。 */
   roll(die?: number): Promise<void> {
     const face = die ?? (Math.floor(this.rng() * 6) + 1);
     if (!this.available) return Promise.resolve();
+    const fast = consumeDiceFast();
+    const minRollMs = fast ? DICE.botMinRollMs : DICE.minRollMs;
+    const hardCapMs = fast ? DICE.botHardCapMs : DICE.hardCapMs;
+    const holdMs = fast ? DICE.botHoldMs : DICE.holdMs;
     this.showOverlay();
     return new Promise<void>((resolve) => {
-      void this.rollAsync(face, () => {
-        // 显示结果 600ms 后隐藏
-        setTimeout(() => this.hideOverlay(), 600);
+      void this.rollAsync(face, minRollMs, hardCapMs, () => {
+        // 显示结果 holdMs 后隐藏(bot 半速 250ms,人类 600ms)
+        setTimeout(() => this.hideOverlay(), holdMs);
         resolve();
       });
     });
@@ -316,7 +357,7 @@ export class ThreeDice {
     if (this.overlay) this.overlay.style.display = "none";
   }
 
-  private rollAsync(die: number, done: () => void): void {
+  private rollAsync(die: number, minRollMs: number, hardCapMs: number, done: () => void): void {
     if (!this.diceBody || !this.diceMesh || !this.world || !this.renderer || !this.scene || !this.camera) {
       done();
       return;
@@ -345,8 +386,7 @@ export class ThreeDice {
     const t0 = performance.now();
     // 墙钟判据:swiftshader 软渲每帧可能 50-150ms,按帧数判会拖到数秒(e2e 等待窗口爆掉)。
     // 改用真实经过时间,确保硬件 ~0.5-0.7s、swiftshader 也 ≤0.7s 收尾(+0.2s snap ≤0.9s)。
-    const MIN_ROLL_MS = 500;   // 至少滚 0.5s,全屏大幅翻滚要有足够的翻滚感
-    const HARD_CAP_MS = 1500;  // 1.5s 硬上限(全屏模式允许更长翻滚)
+    // 阈值由 roll() 按速度档传入(C1:bot 半速 250/900,人类 500/1500;见 timings.DICE)。
     let stillFrames = 0;
 
     const step = () => {
@@ -363,8 +403,8 @@ export class ThreeDice {
       const speed = body.velocity.length() + body.angularVelocity.length();
       if (speed < 0.8) stillFrames++; else stillFrames = 0;
 
-      // 滚够 MIN_ROLL_MS 后静止持续 3 帧 → 收尾;或墙钟硬上限(与 GPU 帧率无关)
-      if ((elapsed > MIN_ROLL_MS && stillFrames > 3) || elapsed > HARD_CAP_MS) {
+      // 滚够 minRollMs 后静止持续 3 帧 → 收尾;或墙钟硬上限(与 GPU 帧率无关)
+      if ((elapsed > minRollMs && stillFrames > 3) || elapsed > hardCapMs) {
         this.rolling = false;
         this.finishRoll(die, targetQ, done);
         return;
@@ -571,6 +611,8 @@ export class ThreeDice {
     this.disposed = true;
     cancelAnimationFrame(this.rafId);
     this.rolling = false;
+    // F3:解绑 resize 监听(与构造期的 addEventListener 成对)
+    window.removeEventListener("resize", this.handleResize);
     if (this.diceBody && this.collideListener) {
       this.diceBody.removeEventListener("collide", this.collideListener as unknown as (...args: unknown[]) => void);
       this.collideListener = null;

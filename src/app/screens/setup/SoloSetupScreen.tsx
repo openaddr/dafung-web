@@ -30,7 +30,9 @@ export interface SetupConfig {
 }
 
 export interface SoloSetupScreenProps {
-  onStart: (config: SetupConfig) => void;
+  /** P0-1:App 侧 handleStart 为 async(loadMapById+开局);允许返回 Promise,
+   *  配置页 await 其完成以驱动 busy 态,同步回调也兼容。 */
+  onStart: (config: SetupConfig) => void | Promise<void>;
   /** 返回首页。 */
   onBack: () => void;
   /** 当前选中的地图 id(首页选图后传入,localStorage 记忆同一份;必传,无兜底)。 */
@@ -63,7 +65,10 @@ export function SoloSetupScreen({
   // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, mapId);
 
-  const start = () => {
+  // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
+  const [busy, setBusy] = useState(false);
+
+  const start = async () => {
     // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配。
     // S8:内联校验已即时提示,此处 hint 仅作兜底(正常路径不触发)
     const g = guohao.trim();
@@ -76,13 +81,19 @@ export function SoloSetupScreen({
     for (let i = 1; i < seatCount; i++) {
       seats.push({ name: `诸侯${i + 1}`, isBot: true });
     }
-    onStart({
-      seats,
-      targetNetWorth: target,
-      startingCash: STARTING_CASH,
-      difficulty,
-      mapId,
-    });
+    setBusy(true);
+    try {
+      await onStart({
+        seats,
+        targetNetWorth: target,
+        startingCash: STARTING_CASH,
+        difficulty,
+        mapId,
+      });
+    } finally {
+      // 开局成功即切屏,此复位只服务于失败留在本页的情况
+      setBusy(false);
+    }
   };
 
   const btnBase =
@@ -109,7 +120,7 @@ export function SoloSetupScreen({
               data-testid={TID.seatCount}
               value={seatCount}
               onChange={(e) => setSeatCount(Number(e.target.value))}
-              className="rounded border border-ink/30 bg-bg px-2 py-1"
+              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
             >
               {[2, 3, 4].map((n) => (
                 <option key={n} value={n}>{n} 诸侯</option>
@@ -122,7 +133,7 @@ export function SoloSetupScreen({
               data-testid={TID.target}
               value={target}
               onChange={(e) => setTarget(Number(e.target.value))}
-              className="rounded border border-ink/30 bg-bg px-2 py-1"
+              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
             >
               {TARGET_OPTIONS.map((t) => (
                 <option key={t} value={t}>{TARGET_LABEL[t]} {formatMoney(t)}</option>
@@ -135,7 +146,7 @@ export function SoloSetupScreen({
               data-testid={TID.difficulty}
               value={difficulty}
               onChange={(e) => setDifficulty(e.target.value as "Simple" | "Normal")}
-              className="rounded border border-ink/30 bg-bg px-2 py-1"
+              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
             >
               <option value="Normal">智将(EV)</option>
               <option value="Simple">庸才(随机)</option>
@@ -177,7 +188,7 @@ export function SoloSetupScreen({
                       onChange={(e) => setGuohao(e.target.value)}
                       // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
                       className={
-                        "w-16 rounded border bg-bg px-2 py-1 font-deco text-center " +
+                        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-deco text-center " +
                         (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
                       }
                     />
@@ -229,10 +240,16 @@ export function SoloSetupScreen({
           </button>
           <button
             data-testid={TID.startGame}
-            onClick={start}
-            className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold"}
+            onClick={() => void start()}
+            // S-2:国号非法即禁点(title 说明原因);P0-1:busy 期防连点
+            disabled={guohaoInvalid || busy}
+            title={guohaoInvalid ? "国号需为单个汉字" : undefined}
+            className={
+              btnBase +
+              " border-gold bg-gold/80 hover:bg-gold font-bold py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+            }
           >
-            起兵
+            {busy ? "调兵遣将中…" : "起兵"}
           </button>
         </div>
 
