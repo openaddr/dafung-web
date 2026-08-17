@@ -81,25 +81,18 @@ export class LocalStorageMapSource implements MapSource {
     this.storage = storage;
   }
 
-  /** 读图库原始记录(解析失败/为空 → 空数组)。 */
+  /** 读图库原始记录(raw 缺失 = 空图库;解析失败 = 数据损坏,抛错而非静默清空)。 */
   private readAll(): CustomMapRecord[] {
     const raw = this.storage.getItem(CUSTOM_MAPS_KEY);
     if (!raw) return [];
-    try {
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? (parsed as CustomMapRecord[]) : [];
-    } catch {
-      return [];
-    }
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) throw new Error("自建图库数据损坏(非数组),拒绝静默清空");
+    return parsed as CustomMapRecord[];
   }
 
-  /** 写图库(序列化失败/无 storage 时静默忽略)。 */
+  /** 写图库(隐私模式/超限等写入异常直接上抛,让问题可见,不静默吞)。 */
   private writeAll(records: CustomMapRecord[]): void {
-    try {
-      this.storage.setItem(CUSTOM_MAPS_KEY, JSON.stringify(records));
-    } catch {
-      /* localStorage 不可用(隐私模式/超限)时静默忽略 */
-    }
+    this.storage.setItem(CUSTOM_MAPS_KEY, JSON.stringify(records));
   }
 
   /** 列出自建图记录(原始数据,供 saveDefaultName 推导编号等)。 */
@@ -151,12 +144,11 @@ export class LocalStorageMapSource implements MapSource {
  *  async 因清单需 fetch。无清单时回退 "sanguo"(保底)。 */
 export async function getDefaultMapId(): Promise<string> {
   const maps = await getMapSource().listMaps();
-  return maps[0]?.id ?? DEFAULT_MAP_ID;
+  // 零兜底原则:清单为空 = maps/index.json 加载失败/损坏,直接抛错暴露问题,
+  // 不退回任何硬编码 id(默认地图的唯一事实源 = 清单首项)。
+  if (maps.length === 0) throw new Error("地图清单为空:内置地图加载失败(index.json 缺失或损坏)");
+  return maps[0].id;
 }
-
-/** 默认地图 id 常量:应与 maps/index.json 首项一致(现 = 棋盘天下)。
- *  UI 层同步兜底(HomeScreen/Setup/Lobby 无记忆时的回退)统一引此常量,不再散落硬编码。 */
-export const DEFAULT_MAP_ID = "chessboard";
 
 /**
  * 组合源:内置 + 自建。listMaps 合并两个源的条目;

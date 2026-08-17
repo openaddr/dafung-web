@@ -3,18 +3,15 @@
 // 联机刷新重入:服务器无 token 重入(online.ts 注释 TODO),刷新 ?room= 会重新走
 // 加入流程(满员则失败)——此处测降级不崩溃(意图同旧 resilience 的"重进"场景)。
 import { test, expect } from "@playwright/test";
-import { openSoloSetup, pickCapital } from "./react-helpers";
+import { openSoloSetup } from "./react-helpers";
 
-test("图库 localStorage 垃圾数据:选图清单忽略之,起兵不卡死", async ({ page }) => {
+// 零兜底原则:图库数据损坏 = 启动时解析默认地图即抛,首页被拦在「地图清单加载中…」
+// 并显式报错(HintBar 显示失败原因)——损坏可见,不静默清空、不静默忽略。
+test("图库 localStorage 垃圾数据:首页显式报错(损坏可见,不静默清空)", async ({ page }) => {
   await page.addInitScript(() => localStorage.setItem("dafung-custom-maps", "not-json{{{"));
   await page.goto("/");
-  await page.getByTestId("home-select-map").click();
-  await expect(page.getByTestId("map-item-sanguo")).toBeVisible({ timeout: 10_000 });
-  await page.getByTestId("map-cancel").click();
-  await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
-  await pickCapital(page);
-  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  await expect(page.getByText("地图清单加载中…")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByText(/地图清单加载失败/)).toBeVisible({ timeout: 10_000 });
 });
 
 test("记忆的地图 id 失效:起兵被拦,停留设置屏(降级不崩溃)", async ({ page }) => {

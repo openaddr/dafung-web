@@ -11,7 +11,7 @@ import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
-import { getMapSource, DEFAULT_MAP_ID } from "@app/map-sources";
+import { getMapSource } from "@app/map-sources";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
 
@@ -33,8 +33,8 @@ export interface SoloSetupScreenProps {
   onStart: (config: SetupConfig) => void;
   /** 返回首页。 */
   onBack: () => void;
-  /** 当前选中的地图 id(首页选图后传入,localStorage 记忆同一份)。 */
-  mapId?: string;
+  /** 当前选中的地图 id(首页选图后传入,localStorage 记忆同一份;必传,无兜底)。 */
+  mapId: string;
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
 }
@@ -48,7 +48,7 @@ const STARTING_CASH = 2500;
 export function SoloSetupScreen({
   onStart,
   onBack,
-  mapId = DEFAULT_MAP_ID,
+  mapId,
   mapSource = getMapSource(),
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);

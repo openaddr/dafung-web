@@ -167,18 +167,19 @@ describe("LocalStorageMapSource(持久化与容错)", () => {
     expect(entries[0].id).toBe(id);
   });
 
-  it("localStorage 存了坏 JSON → listMaps 静默返回空数组(容错)", async () => {
+  // 零兜底原则:图库数据损坏必须抛错暴露,不做「静默清空」容错
+  it("localStorage 存了坏 JSON → listMaps 抛错(损坏可见)", async () => {
     const storage = makeMemoryStorage();
     storage.setItem("dafung-custom-maps", "{这不是合法json");
     const src = new LocalStorageMapSource(storage);
-    expect(await src.listMaps()).toEqual([]);
+    expect(src.listMaps()).rejects.toThrow();
   });
 
-  it("localStorage 存了非数组 → listMaps 静默返回空数组", async () => {
+  it("localStorage 存了非数组 → listMaps 抛错(损坏可见)", async () => {
     const storage = makeMemoryStorage();
     storage.setItem("dafung-custom-maps", JSON.stringify({ not: "array" }));
     const src = new LocalStorageMapSource(storage);
-    expect(await src.listMaps()).toEqual([]);
+    expect(src.listMaps()).rejects.toThrow(/非数组/);
   });
 
   it("存入完整 sanguo 数据能无损往返", async () => {

@@ -122,11 +122,10 @@ export function App() {
   // 起编地图:旧实现忽略传入 id 固定加载默认图,此处从选中图起编更直观(行为增强,注释存档)。
   const [editorMap, setEditorMap] = useState<MapData | null>(null);
   const handleEdit = useCallback(
-    async (mapId?: string) => {
+    async (mapId: string) => {
       try {
         const source = new FetchMapSource();
-        const id = mapId ?? (await getDefaultMapId());
-        setEditorMap(await source.loadMapData(id));
+        setEditorMap(await source.loadMapData(mapId));
         setScreen("editor");
       } catch (err) {
         pushHint(`进入编辑器失败:${(err as Error).message}`);
@@ -174,21 +173,29 @@ export function App() {
     [pushHint, setScreen],
   );
 
-  const handleMapChange = useCallback((mapId: string) => {
-    try {
+  const handleMapChange = useCallback(
+    (mapId: string) => {
       localStorage.setItem(MAP_PREF_KEY, mapId);
-    } catch {
-      /* 隐私模式等写入失败不阻塞换图 */
-    }
-  }, []);
+      // state 与 localStorage 同步(后续渲染读 state;两处永远一致)
+      setInitialMapId(mapId);
+    },
+    [],
+  );
 
-  const initialMapId = (() => {
-    try {
-      return localStorage.getItem(MAP_PREF_KEY) ?? undefined;
-    } catch {
-      return undefined;
-    }
-  })();
+  // 零兜底原则:默认地图唯一事实源 = 清单首项(getDefaultMapId,清单空即抛)。
+  // 无 localStorage 记忆时异步解析;失败显式报错,不静默回退任何硬编码 id。
+  const [initialMapId, setInitialMapId] = useState(() => localStorage.getItem(MAP_PREF_KEY));
+  useEffect(() => {
+    if (initialMapId) return;
+    let alive = true;
+    getDefaultMapId().then(
+      (id) => alive && setInitialMapId(id),
+      (err: Error) => pushHint(`地图清单加载失败:${err.message}`),
+    );
+    return () => {
+      alive = false;
+    };
+  }, [initialMapId, pushHint]);
 
   if (screen === "game") return <GameScreen />;
   if (screen === "lobby") return <LobbyScreen onExit={handleExitLobby} />;
@@ -202,8 +209,18 @@ export function App() {
       />
     );
   }
+  // 地图 id 未解析出(localStorage 无记忆且清单未回/失败)时不进依赖地图的屏:
+  // 首页/配置页的地图名与编辑器起编图都以它为入参,无值比给假默认更诚实。
+  if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {
+    return (
+      <div className="relative h-full">
+        <p className="p-8 font-deco text-ink-dim">地图清单加载中…</p>
+        <HintBar hint={hint} level={hintLevel} />
+      </div>
+    );
+  }
   // 单机配置页:首页「单机模式」进入;起兵走原 handleStart;地图由首页选定后传入
-  if (screen === "solo-setup") {
+  if (screen === "solo-setup" && initialMapId) {
     return (
       <div className="relative h-full">
         <SoloSetupScreen
@@ -218,20 +235,22 @@ export function App() {
     );
   }
   // 首页:四个模式入口(单机 / 联机 / 选图 / 编辑),对局配置在 solo-setup 次级页
-  return (
-    <div className="relative h-full">
-      <HomeScreen
-        onSolo={() => setScreen("solo-setup")}
-        onOnline={() => void handleOnline()}
-        onEdit={(mapId) => void handleEdit(mapId)}
-        initialMapId={initialMapId}
-        onMapChange={handleMapChange}
-        mapSource={getMapSource()}
-      />
-      {/* 设置屏也可见的错误提示:gameStore.hint 原本只在 Game 屏渲染,
-          起兵/进联机失败在 setup 屏静默(e2e react-resilience 巡检发现)。
-          Game 屏有自己的 hint 层,这里仅 setup 屏兜底。 */}
-      <HintBar hint={hint} level={hintLevel} />
-    </div>
-  );
+  if (screen === "setup" && initialMapId) {
+    return (
+      <div className="relative h-full">
+        <HomeScreen
+          onSolo={() => setScreen("solo-setup")}
+          onOnline={() => void handleOnline()}
+          onEdit={(mapId) => void handleEdit(mapId)}
+          initialMapId={initialMapId}
+          onMapChange={handleMapChange}
+          mapSource={getMapSource()}
+        />
+        {/* 设置屏也可见的错误提示:gameStore.hint 原本只在 Game 屏渲染,
+            起兵/进联机失败在 setup 屏静默(e2e react-resilience 巡检发现)。 */}
+        <HintBar hint={hint} level={hintLevel} />
+      </div>
+    );
+  }
+  return null;
 }

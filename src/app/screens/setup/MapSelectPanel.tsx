@@ -12,8 +12,8 @@ import { TID } from "./testids";
 export interface MapSelectPanelProps {
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
-  /** 进来时已选中的地图 id(默认选中态)。 */
-  currentMapId: string;
+  /** 进来时已选中的地图 id;null = 房间尚未选图,无预选(不兜底选第一张)。 */
+  currentMapId: string | null;
   onConfirm: (mapId: string, name: string) => void;
   onCancel: () => void;
 }
@@ -81,7 +81,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   const [entries, setEntries] = useState<MapEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 临时选中态:确认后才回传(与旧二级屏行为一致,取消不改变外层选择)
-  const [picked, setPicked] = useState(currentMapId);
+  const [picked, setPicked] = useState<string | null>(currentMapId);
   // 预览数据:点选时异步 loadMapData,一次只保留一张
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
@@ -169,10 +169,12 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
               <button
                 data-testid={TID.mapConfirm}
                 onClick={() => {
+                  if (picked === null) return; // 未选时按钮已禁用,此行为类型收窄守卫
                   const entry = entries.find((x) => x.id === picked);
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
-                className="rounded border border-gold bg-gold/80 px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-gold"
+                disabled={picked === null}
+                className="rounded border border-gold bg-gold/80 px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
               >
                 确认选择
               </button>
