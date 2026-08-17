@@ -13,11 +13,11 @@
 - [x] **P0-4 行军按钮视觉重量不足**:`bg-gold/20 px-4 py-1`≈30px 高,不像主 CTA(HandPanel.tsx:122-131);可掷时实心金底/min-h-10/微光呼吸
 
 ### 移动端
-- [ ] **P0-5 无双指 pinch 缩放**:usePanZoom 单指针模型,第二指落下当平移跳变(usePanZoom.ts:75-104);维护 `Map<pointerId,{x,y}>`,双指按距离比以中点为锚缩放
-- [ ] **P0-6 SVG 无 touch-action:none**:触屏拖棋盘与浏览器原生手势打架;board 容器加 `touchAction:"none"`(+ overscroll-behavior)
-- [ ] **P0-7 游戏屏无 <768px 布局**:侧栏并排压缩占 45vw(GameScreen.tsx:257);窄屏改覆盖式滑出抽屉(复用 sidebarOpen 态),需 useMediaQuery 基础设施
-- [ ] **P0-8 Android 未锁横屏**:tauri.conf/manifest 无 screenOrientation;目标横屏 APK 需 `sensorLandscape`
-- [ ] **P0-9 safe-area 未落地**:仅 index.html 注释,`env(safe-area-inset-*)` 全项目 0 使用;悬浮按钮(top-2/right-2)会被刘海/状态栏遮挡
+- [x] **P0-5 无双指 pinch 缩放**:usePanZoom 单指针模型,第二指落下当平移跳变(usePanZoom.ts:75-104);维护 `Map<pointerId,{x,y}>`,双指按距离比以中点为锚缩放
+- [x] **P0-6 SVG 无 touch-action:none**:触屏拖棋盘与浏览器原生手势打架;board 容器加 `touchAction:"none"`(+ overscroll-behavior)
+- [x] **P0-7 游戏屏无 <768px 布局**:侧栏并排压缩占 45vw(GameScreen.tsx:257);窄屏改覆盖式滑出抽屉(复用 sidebarOpen 态),需 useMediaQuery 基础设施
+- [x] **P0-8 Android 未锁横屏**:tauri.conf/manifest 无 screenOrientation;目标横屏 APK 需 `sensorLandscape`
+- [x] **P0-9 safe-area 未落地**:仅 index.html 注释,`env(safe-area-inset-*)` 全项目 0 使用;悬浮按钮(top-2/right-2)会被刘海/状态栏遮挡
 
 ## 二、P1 — 入口类屏(11)
 
@@ -63,12 +63,12 @@
 
 ## 五、P1 — 移动端其余(5)
 
-- [ ] **M-1 无 useMediaQuery/横竖屏检测基础设施**(全项目 0 matchMedia);建 hooks
-- [ ] **M-2 触屏无城池 tap 反馈**(board.css:17 hover-only);补 active/点击闪亮
-- [ ] **M-3 卷轴/大厅/配置按钮触达 <40px**(ScrollShell.tsx:45 / MapSelectPanel.tsx:165 / SoloSetupScreen.tsx:226 / LobbyScreen.tsx:186);统一 min-h-10
-- [ ] **M-4 prefers-reduced-motion 0 支持**(fx.css 6 组 / board.css 2 组 infinite);CSS media query 降级 + 骰子开关
-- [ ] **M-5 低端 GPU 无骰子降级**(ThreeDice.ts);帧率检测失败自动文字 fallback
-- [ ] **M-6 字体走 Google Fonts 在线**(index.html:12-15),APK 离线裸奔;本地化 @font-face
+- [x] **M-1 无 useMediaQuery/横竖屏检测基础设施**(全项目 0 matchMedia);建 hooks
+- [x] **M-2 触屏无城池 tap 反馈**(board.css:17 hover-only);补 active/点击闪亮
+- [x] **M-3 卷轴/大厅/配置按钮触达 <40px**(ScrollShell.tsx:45 / MapSelectPanel.tsx:165 / SoloSetupScreen.tsx:226 / LobbyScreen.tsx:186);统一 min-h-10
+- [x] **M-4 prefers-reduced-motion 0 支持**(fx.css 6 组 / board.css 2 组 infinite);CSS media query 降级 + 骰子开关
+- [x] **M-5 低端 GPU 无骰子降级**(ThreeDice.ts);帧率检测失败自动文字 fallback
+- [x] **M-6 字体走 Google Fonts 在线**(index.html:12-15),APK 离线裸奔;本地化 @font-face
 
 ## 六、P2 — 打磨项(29)
 

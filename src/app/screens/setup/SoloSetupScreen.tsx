@@ -96,8 +96,9 @@ export function SoloSetupScreen({
     }
   };
 
+  // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/起兵共用基类,只改尺寸)
   const btnBase =
-    "rounded border px-4 py-1.5 font-deco text-ink cursor-pointer transition-colors";
+    "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors";
 
   return (
     <div data-testid={TID.screen} className="min-h-full flex flex-col items-center justify-center bg-bg p-6">

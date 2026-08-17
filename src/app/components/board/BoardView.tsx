@@ -5,6 +5,7 @@
 //   pan/zoom → usePanZoom(命令式 setAttribute viewBox,不触发 React 重渲)
 // 旧 src/render/board.ts 保留作视觉对照,勿删。
 import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { MapData } from "@core/types";
 import { loadMap } from "@core/board-loader";
 import { formatMoney } from "@core/money";
@@ -77,7 +78,11 @@ const TileLayer = memo(function TileLayerInner({
     (ev: React.PointerEvent<SVGGElement>) => {
       if (ev.buttons !== 0) return;
       const t = (ev.target as Element).closest(".bv-tile");
-      onHover(t ? Number((t as Element).getAttribute("data-tile")) : null);
+      const next = t ? Number((t as Element).getAttribute("data-tile")) : null;
+      // flushSync 同步提交重排:高负载下 React 提交可能延迟到 pointerdown 之后才落地,
+      // 目标节点从指针下移走会吞掉 click(波3 e2e 8 并发实踩);同步提交保证 DOM 移动
+      // 发生在 pointerover 事件内,必然早于 pointerdown。
+      flushSync(() => onHover(next));
     },
     [onHover],
   );
@@ -181,6 +186,9 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
       ref={svgRef}
       viewBox={FIT_VIEW_BOX}
       preserveAspectRatio="xMidYMid meet"
+      /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管 viewBox 平移缩放打架);
+         overscroll contain 防拖到边缘时滚动整个页面。 */
+      style={{ touchAction: "none", overscrollBehavior: "contain" }}
       className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
       {...handlers}
     >

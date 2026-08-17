@@ -41,8 +41,8 @@ export interface PanZoom {
   handlers: {
     onPointerDown: (ev: React.PointerEvent<SVGSVGElement>) => void;
     onPointerMove: (ev: React.PointerEvent<SVGSVGElement>) => void;
-    onPointerUp: () => void;
-    onPointerCancel: () => void;
+    onPointerUp: (ev: React.PointerEvent<SVGSVGElement>) => void;
+    onPointerCancel: (ev: React.PointerEvent<SVGSVGElement>) => void;
   };
   /** 是否正在拖拽平移(用于切换 cursor)。 */
   grabbing: boolean;
@@ -78,8 +78,8 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     [apply],
   );
 
-  const panning = useRef(false);
-  const last = useRef({ x: 0, y: 0 });
+  // 多指追踪(P0-5):单指=平移;双指=按两指距离比缩放、以中点为锚(与 wheel 同源算法)。
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
   const [grabbing, setGrabbing] = useState(false);
   // flyTo 动画令牌:新 flyTo / 用户手动交互(pointerdown、滚轮)时作废进行中的缓动。
   const flyToken = useRef(0);
@@ -142,12 +142,19 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     return () => el.removeEventListener("wheel", onWheel);
   }, [svgRef, setView, cancelFly]);
 
+  // 双指几何快照:上一次两指距离与中点(pinch 每帧与上一帧比,增量式缩放)。
+  const pinchDist = useRef(0);
+
   const onPointerDown = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
     // 城池/按钮交给各自点击,不触发平移
     if ((ev.target as Element).closest(".bv-tile, button")) return;
     cancelFly();
-    panning.current = true;
-    last.current = { x: ev.clientX, y: ev.clientY };
+    pointers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+    if (pointers.current.size === 2) {
+      // 第二指落下:进入 pinch,记录初始两指距离
+      const [a, b] = pointers.current.values();
+      pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
+    }
     setGrabbing(true);
     try {
       ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -158,21 +165,45 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
 
   const onPointerMove = useCallback(
     (ev: React.PointerEvent<SVGSVGElement>) => {
-      if (!panning.current) return;
+      if (!pointers.current.has(ev.pointerId)) return; // 未按下(或目标在城池上)的悬停移动忽略
       const rect = ev.currentTarget.getBoundingClientRect();
-      const dx = ev.clientX - last.current.x;
-      const dy = ev.clientY - last.current.y;
-      last.current = { x: ev.clientX, y: ev.clientY };
+      // 先取上一帧位置再写入新位置——顺序颠倒会让 dx/dy 恒为 0(平移失效,波3实踩)
+      const prev = pointers.current.get(ev.pointerId)!;
+      pointers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
+      if (pointers.current.size >= 2) {
+        // 双指 pinch:按两指距离比缩放,以中点为锚(与 wheel 锚点算法同源)
+        const [a, b] = pointers.current.values();
+        const dist = Math.hypot(a.x - b.x, a.y - b.y);
+        if (pinchDist.current > 0 && dist > 0) {
+          // 与 wheel 的 Math.exp(deltaY*k) 同向:距离拉大→factor<1→viewBox 变小→放大
+          const factor = pinchDist.current / dist;
+          const cx = ((a.x + b.x) / 2 - rect.left) / rect.width;
+          const cy = ((a.y + b.y) / 2 - rect.top) / rect.height;
+          const vb = view.current;
+          const lx = vb.x + cx * vb.w;
+          const ly = vb.y + cy * vb.h;
+          setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
+        }
+        pinchDist.current = dist;
+        return;
+      }
+      // 单指平移(与 pinch 抬指回落后的行为一致:以剩余指位置为锚,不跳变)
+      const dx = ev.clientX - prev.x;
+      const dy = ev.clientY - prev.y;
       const vb = view.current;
       setView({ ...vb, x: vb.x - dx * (vb.w / rect.width), y: vb.y - dy * (vb.h / rect.height) });
     },
     [setView],
   );
 
-  const endPan = useCallback(() => {
-    if (panning.current) {
-      panning.current = false;
+  const endPan = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
+    pointers.current.delete(ev.pointerId);
+    if (pointers.current.size === 0) {
+      pinchDist.current = 0;
       setGrabbing(false);
+    } else if (pointers.current.size === 1) {
+      // pinch 中抬一指:回落为单指平移(锚点即剩余指最新位置,天然不跳变)
+      pinchDist.current = 0;
     }
   }, []);
 

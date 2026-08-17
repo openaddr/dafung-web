@@ -89,6 +89,16 @@ const WORLD_UP = new THREE.Vector3(0, 1, 0);
 // 速度标志由编排层 present() 在掷前调 setDiceFast 设置;roll() 读取后即复位,
 // 不残留到下一次掷骰。默认 false(人类全速)。
 let diceFast = false;
+
+// ── M-4 reduced-motion:系统「减弱动态效果」时跳过物理翻滚演出 ──
+// matchMedia 结果在运行期监听变化(用户中途改系统设置时立即生效)。
+// bun 测试环境无 window:该处只判环境,浏览器/WebView 内恒有 window。
+const motionQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
+export let reducedMotion = motionQuery?.matches ?? false;
+motionQuery?.addEventListener("change", () => {
+  reducedMotion = motionQuery.matches;
+});
+
 /** 设置下一次掷骰的速度档(true = bot 半速)。 */
 export function setDiceFast(fast: boolean): void {
   diceFast = fast;
@@ -339,11 +349,23 @@ export class ThreeDice {
   /** 掷骰:反向求解初始条件 → 物理自然停在 die 面朝上,resolve。WebGL 不可用时立即 resolve。
    *  全屏模式:掷骰前显示 overlay,完成后延迟 holdMs 隐藏。
    *  C1:每次 roll 先消费模块级速度开关(setDiceFast),bot 半速 = 更短翻滚/硬上限/停留。
+   *  M-4:系统「减弱动态效果」(reducedMotion)时跳过物理演出——直接摆到结果面,
+   *  overlay 只短暂停留 ~500ms 让玩家看清点数。
    *  die 省略 → 用注入 rng 本地随机(单机);传值 = 权威点数(联机服务器下发)。 */
   roll(die?: number): Promise<void> {
     const face = die ?? (Math.floor(this.rng() * 6) + 1);
     if (!this.available) return Promise.resolve();
-    const fast = consumeDiceFast();
+    const fast = consumeDiceFast(); // 每次掷骰恰好消费一次(reduced 路径直接丢弃)
+    if (reducedMotion) {
+      this.showOverlay();
+      this.showFace(face);
+      return new Promise<void>((resolve) => {
+        setTimeout(() => {
+          this.hideOverlay();
+          resolve();
+        }, 500);
+      });
+    }
     const minRollMs = fast ? DICE.botMinRollMs : DICE.minRollMs;
     const hardCapMs = fast ? DICE.botHardCapMs : DICE.hardCapMs;
     const holdMs = fast ? DICE.botHoldMs : DICE.holdMs;

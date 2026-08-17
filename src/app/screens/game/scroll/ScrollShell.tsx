@@ -42,8 +42,8 @@ export function ScrollButton({
       title={title}
       className={
         primary
-          ? "cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-1.5 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
-          : "cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-1.5 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
+          ? "cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-2 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
+          : "cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-2 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
       }
     >
       {children}

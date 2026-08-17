@@ -57,7 +57,7 @@ export function WaitingBar({ snapshot, interactive, viewSeat, online }: WaitingB
   return (
     <div
       data-testid={TESTIDS.waitingBar}
-      className="waiting-bar pointer-events-none absolute top-12 left-1/2 -translate-x-1/2 rounded-full border border-gold/50 bg-ink/80 px-3 py-0.5 font-brush text-sm text-panel shadow"
+      className="waiting-bar pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-full border border-gold/50 bg-ink/80 px-3 py-0.5 font-brush text-sm text-panel shadow"
     >
       {text}
       <span className="waiting-dots" aria-hidden />

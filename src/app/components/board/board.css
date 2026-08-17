@@ -14,7 +14,9 @@
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-.bv-tile:hover .bv-tile-hilite {
+.bv-tile:hover .bv-tile-hilite,
+/* M-2 触屏:无 hover,:active 由 touch 按压激活,给出等效按压反馈 */
+.bv-tile:active .bv-tile-hilite {
   opacity: 0.5;
 }
 .bv-tile.bv-selectable .bv-tile-hilite {
@@ -85,5 +87,16 @@
   }
   50% {
     transform: rotate(1.5deg);
+  }
+}
+
+/* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
+   (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动),保留静态视觉。 */
+@media (prefers-reduced-motion: reduce) {
+  .bv-token-flag,
+  .bv-tile.bv-capital .bv-capital-glow,
+  .bv-tile.bv-active .bv-capital-glow,
+  .bv-road-branch {
+    animation: none;
   }
 }

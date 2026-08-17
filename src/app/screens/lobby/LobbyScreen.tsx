@@ -152,8 +152,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     }
   };
 
+  // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
-    "rounded border px-4 py-1.5 font-deco text-ink cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+    "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   const inputBase = "rounded border border-ink/30 bg-bg px-2 py-1 font-deco text-ink";
 
   // ── 被解散:提示 + 返回(对照旧 dismissed → 回连接屏)──

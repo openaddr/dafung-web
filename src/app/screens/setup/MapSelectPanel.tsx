@@ -131,7 +131,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[min(680px,92vw)] max-h-[86vh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
+        className="w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
       >
         <h3 className="font-brush text-xl tracking-[0.3em] text-ink mb-3">选择地图</h3>
 
@@ -193,7 +193,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="rounded border border-ink/30 bg-panel-hi px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-bg-deep"
+                className="rounded border border-ink/30 bg-panel-hi px-4 py-2 font-deco text-ink cursor-pointer hover:bg-bg-deep"
               >
                 取消
               </button>
@@ -205,7 +205,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                className="rounded border border-gold bg-gold/80 px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
+                className="rounded border border-gold bg-gold/80 px-4 py-2 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
               >
                 确认选择
               </button>

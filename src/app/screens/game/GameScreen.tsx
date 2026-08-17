@@ -21,6 +21,7 @@ import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { TESTIDS } from "./testids";
+import { useIsNarrow } from "@app/hooks/use-media-query";
 import { VERSION } from "../../../version";
 
 /** 静音开关:棋盘区右上小按钮(须挂在 AudioProvider 内读 context,故独立组件)。 */
@@ -34,7 +35,7 @@ function MuteButton() {
       title={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
       // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变
-      className="absolute top-2 right-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+      className="absolute top-[calc(var(--safe-top)+8px)] right-[calc(var(--safe-right)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
     >
       {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线组合字符),不再 ♪/♫ 混用
           两种音符表达"有无声"(语义弱);同一符号加删除线直观表"关闭"。 */}
@@ -50,25 +51,35 @@ export function GameScreen() {
   // 此处找回——点城只暂存目标,确认才落子;点其它可选城直接切换目标(弹窗内容跟随)。
   const [pendingCapital, setPendingCapital] = useState<number | null>(null);
   // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
-  // 默认展开;收起态只留「展开」按钮 + 当前活跃玩家国号 + 我的现金竖排摘要。
+  // P0-7 窄屏(<768px)复用同一状态:侧栏变覆盖式滑入抽屉,只有 开/合 两态(无 w-12 窄条);
+  // 首访默认——桌面展开、窄屏收起(棋盘优先),其后按用户选择记忆。
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
-      return localStorage.getItem("dafung.sidebar") !== "collapsed";
+      const saved = localStorage.getItem("dafung.sidebar");
+      if (saved === "open") return true;
+      if (saved === "collapsed") return false;
+      return !window.matchMedia("(max-width: 767px)").matches;
     } catch {
       return true;
     }
   });
-  const toggleSidebar = () => {
-    setSidebarOpen((open) => {
-      const next = !open;
-      try {
-        localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
-      } catch {
-        /* 隐私模式写失败不阻塞 */
-      }
-      return next;
-    });
+  const setSidebar = (open: boolean) => {
+    setSidebarOpen(open);
+    try {
+      localStorage.setItem("dafung.sidebar", open ? "open" : "collapsed");
+    } catch {
+      /* 隐私模式写失败不阻塞 */
+    }
   };
+  const toggleSidebar = () => setSidebarOpen((open) => {
+    const next = !open;
+    try {
+      localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
+    } catch {
+      /* 隐私模式写失败不阻塞 */
+    }
+    return next;
+  });
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
   // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;总览复位按钮用)
@@ -84,6 +95,8 @@ export function GameScreen() {
   // 托管标记与联机 pending(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
   const net = useNetStore();
   const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
+  // P0-7 窄屏判定(<768px):决定侧栏走覆盖式抽屉还是桌面并排布局
+  const isNarrow = useIsNarrow();
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
@@ -128,6 +141,10 @@ export function GameScreen() {
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
 
+  // 「轮到我」条件(桌面窄条金框与窄屏浮动条共用口径):本地人类可操作且非托管的行军相位
+  const myTurnToRoll =
+    interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll";
+
   // 选都阶段的引导文案(对照旧 showPickHint:「X」择一空城建都)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
@@ -153,7 +170,7 @@ export function GameScreen() {
       {/* 3D 骰子(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
           生命周期=一局;行军按钮点击后控制器 busy 锁 interactive,骰子播放期间防连点。 */}
       <DiceOverlay />
-      <div className="flex h-full w-full bg-bg text-ink">
+      <div className="relative flex h-full w-full bg-bg text-ink">
       {/* 棋盘区(相对定位承载 hint/thinking/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
@@ -248,7 +265,7 @@ export function GameScreen() {
           title="总览复位"
           onClick={() => boardRef.current?.reset()}
           // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变
-          className="absolute top-2 left-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+          className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
         >
           {/* S6 符号表统一:复位统一 ◎(圆心居中,古印感),不再用光学校准符号 ⌖ */}
           ◎
@@ -259,19 +276,92 @@ export function GameScreen() {
         <span className="pointer-events-none absolute right-1 bottom-0.5 font-body text-[10px] text-ink-dim/70">
           {VERSION}
         </span>
+        {/* P0-7 窄屏浮动小条(侧栏抽屉收起时):把手 + 「轮到我」金框 + 行军热钮 + 「托」印。
+            波1 加在桌面折叠窄条上的信息在此平移到棋盘右缘,窄屏收起时行军入口不丢。 */}
+        {isNarrow && !sidebarOpen && (
+          <div
+            data-testid={TESTIDS.sidebarCollapsed}
+            className={
+              "absolute top-1/2 right-0 z-10 flex -translate-y-1/2 flex-col items-center gap-2 rounded-l border border-r-0 border-gold/60 bg-panel/95 px-1 py-2 shadow-md " +
+              (myTurnToRoll ? "bg-gold/10 ring-1 ring-gold/60" : "")
+            }
+          >
+            <button
+              type="button"
+              data-testid={TESTIDS.sidebarToggle}
+              title="展开侧栏"
+              onClick={toggleSidebar}
+              className="flex min-h-10 min-w-10 items-center justify-center rounded font-brush text-ink-dim hover:text-ink"
+            >
+              «
+            </button>
+            {/* G-8:托管中「托」印,收起态仍可见(点开抽屉可收回) */}
+            {autopilotOn && (
+              <span
+                title="托管中,展开侧栏可收回"
+                className="rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                托
+              </span>
+            )}
+            <span
+              title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
+              className="font-brush text-lg text-ink"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              {snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}
+            </span>
+            {localPlayer && (
+              <span
+                title={`我的现金 ${formatMoney(localPlayer.cash)}`}
+                className="font-brush text-sm text-money"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {formatMoney(localPlayer.cash)}
+              </span>
+            )}
+            {/* P0-3 行军热钮:与 HandPanel 主按钮同发 rollAndMove,pending 防连点 */}
+            {myTurnToRoll && (
+              <button
+                type="button"
+                title="行军"
+                disabled={net.pending}
+                onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+                className="min-h-10 min-w-10 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {net.pending ? "行军中…" : "行军"}
+              </button>
+            )}
+          </div>
+        )}
+        {/* P0-7 窄屏遮罩:抽屉展开时压暗棋盘,点击即收(点心即关) */}
+        {isNarrow && sidebarOpen && (
+          <div
+            data-testid="sidebar-backdrop"
+            className="absolute inset-0 z-10 bg-ink/40"
+            onClick={() => setSidebar(false)}
+          />
+        )}
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶)。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
-          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。 */}
+          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。
+          P0-7 窄屏(<768px)覆盖式抽屉:absolute 贴右滑入(translate 200ms),棋盘始终全宽;
+          无 w-12 中间态,收起态的信息挪到棋盘右缘浮动小条(见 board-wrap 内)。 */}
       <aside
-        data-testid={sidebarOpen ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
+        data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
         className={
-          "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
-          (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
+          isNarrow
+            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel shadow-2xl transition-transform duration-200 " +
+              (sidebarOpen ? "translate-x-0" : "translate-x-full")
+            : "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
+              (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
         }
       >
-        {sidebarOpen ? (
+        {sidebarOpen || isNarrow ? (
           <>
             <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
               群雄逐鹿
