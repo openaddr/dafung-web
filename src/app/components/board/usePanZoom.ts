@@ -7,8 +7,10 @@
 // 初始总览值(BoardView 传常量 prop,此后 React 不再触碰该属性)。
 import { useCallback, useEffect, useRef, useState } from "react";
 
-/** 总览 viewBox(贴紧城池范围 + 边距),与旧 board.ts 常量一致。 */
-export const FIT_VIEW = { x: -1050, y: -660, w: 2300, h: 1380 } as const;
+/** 总览 viewBox(贴紧城池范围 + 边距)。
+ *  #25 城池整体放大 1.15(见 Tile.TILE_SCALE)后,边距同步放宽 ~3%
+ *  (宽高比 1.667 保持不变,preserveAspectRatio 不产生新留白)。 */
+export const FIT_VIEW = { x: -1085, y: -680, w: 2370, h: 1420 } as const;
 
 /** 总览 viewBox 属性串(BoardView 作初始 prop 一次性下发,React 之后不再改写)。 */
 export const FIT_VIEW_BOX = `${FIT_VIEW.x} ${FIT_VIEW.y} ${FIT_VIEW.w} ${FIT_VIEW.h}`;

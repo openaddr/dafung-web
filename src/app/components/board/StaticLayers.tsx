@@ -8,6 +8,12 @@ import { Theme, rgba } from "@core/theme";
 // viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致
 const VB = { x: -1050, y: -660, w: 2300, h: 1380 } as const;
 
+// #24 边缘连续性:地形宣纸向外延展的画布(比 VB 大一圈),配 mask 渐隐——
+// 纸面/远山/江河沿椭圆带渐隐为透明,透出页面背景,消除 VB 边界的硬切。
+// PAD 决定淡出带厚度(≈560 逻辑单位):pan 到边缘(OVER=140)时仍处在渐变中段,不见底。
+const EDGE_PAD = 560;
+const O = { x: VB.x - EDGE_PAD, y: VB.y - EDGE_PAD, w: VB.w + EDGE_PAD * 2, h: VB.h + EDGE_PAD * 2 } as const;
+
 /** 点列 → path d(M/L 折线),与 render/svg-util.polylinePath 同式。 */
 function poly(pts: { x: number; y: number }[]): string {
   return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
@@ -31,6 +37,17 @@ export const BoardDefs = memo(function BoardDefs() {
       </radialGradient>
       {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
           blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
+      {/* #24 边缘渐隐 mask 渐变(objectBoundingBox 椭圆,与延展画布 O 同比例):
+          中心至 ~76% 全显(盖住全部城池活动区),76%→100% 由白转黑 = 地形渐隐为透明,
+          透出页面背景。白色=mask 可见,luminance 语义。 */}
+      <radialGradient id="bv-edge-fade" cx="50%" cy="50%" r="50%">
+        <stop offset="76%" stopColor="#fff" />
+        <stop offset="88%" stopColor="#666" />
+        <stop offset="100%" stopColor="#000" />
+      </radialGradient>
+      <mask id="bv-edge-mask" maskUnits="userSpaceOnUse" x={O.x} y={O.y} width={O.w} height={O.h}>
+        <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-edge-fade)" />
+      </mask>
       <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
         <stop offset="0%" stopColor="#d4af37" stopOpacity={0.55} />
         <stop offset="55%" stopColor="#d4af37" stopOpacity={0.28} />
@@ -49,9 +66,11 @@ export const TerrainLayer = memo(function TerrainLayer() {
     ["-1100,500 -800,470 -500,500 -200,470 100,500 100,620 -1100,620", "rgba(110,95,65,0.35)"],
   ];
   return (
-    <g>
-      <rect x={VB.x} y={VB.y} width={VB.w} height={VB.h} fill="#e8dcc0" />
-      <rect x={VB.x} y={VB.y} width={VB.w} height={VB.h} fill="url(#bv-paper)" opacity={0.5} />
+    // #24:整组地形(纸底/噪点/远山/江河/暗角)套边缘渐隐 mask——纸面画布从 VB
+    // 扩到 O,mask 让外围 ~560 逻辑单位平滑淡出至页面背景,消除外缘硬切。
+    <g mask="url(#bv-edge-mask)">
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#e8dcc0" />
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.5} />
       <g opacity={0.12}>
         {hills.map(([pts, fill], i) => (
           <path key={i} d={`M${pts} Z`} fill={fill} />

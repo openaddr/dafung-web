@@ -114,6 +114,13 @@ function Building({ size, tint }: { size: "large" | "medium" | "small"; tint?: s
   );
 }
 
+// ── #25 城池全局放大比例 ──
+// 旗/匾/印/价格签等所有元素随 <g> 整体 scale(等比,视觉口径统一;点击热区与
+// hover 重排随 SVG transform 同步放大,无需另调)。1.15 为全局统一比例:密城
+// (中原一带)相邻铭牌外缘 ~124×1.15≈143 < 常规格间距,不互相压盖;
+// FIT_VIEW 边距已同步 +3%(usePanZoom),总览下放大后城池群仍在视口内。
+const TILE_SCALE = 1.15;
+
 // ── 竖排木匾城名 ──
 // 局部常量:深木底 + 暖金边/铆钉,集中在此便于整体调色。
 const PLANK_FILL = "#3a2a1a";
@@ -224,7 +231,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
       id={`tile-${tile.index}`}
       data-tile={tile.index}
       data-name={tile.name}
-      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale})`}
+      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale * TILE_SCALE})`}
       onClick={onClick ? () => onClick(tile.index) : undefined}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
