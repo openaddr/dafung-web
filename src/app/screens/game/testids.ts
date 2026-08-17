@@ -52,9 +52,8 @@ export const TESTIDS = {
   /** 总览复位(还原 pan/zoom;等价旧 BoardView.resetView)。 */
   resetView: "reset-view",
 
-  // ── 选都二次确认弹窗 ──
-  /** 「定都于此?」确认框容器与两枚按钮(需求1:React 化时旧版确认框丢失,此处找回)。 */
-  confirmCapital: "confirm-capital",
+  // ── 选都确认(#35:按钮搬进城池详情卷轴,testid 不变,e2e 选择器零震荡)──
+  /** 详情卷轴选都模式的「定都于此」按钮(旧独立确认框容器 testid 已退役)。 */
   confirmCapitalOk: "confirm-capital-ok",
   confirmCapitalCancel: "confirm-capital-cancel",
 

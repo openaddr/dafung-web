@@ -5,9 +5,9 @@ import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
-import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { getController, getControllerMap } from "@app/controllers/registry";
 import { formatMoney } from "@core/money";
-import { Theme, playerColor, rgba } from "@core/theme";
+import { playerColor, rgba } from "@core/theme";
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
@@ -16,7 +16,6 @@ import { HandPanel } from "./HandPanel";
 import { WaitingBar } from "./WaitingBar";
 import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
-import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
@@ -45,11 +44,11 @@ function MuteButton() {
 }
 
 export function GameScreen() {
-  // 城池详情(Playing 相位点城查看,本地 UI 态;Setup 相位点城是选都,走 controller)
+  // 城池详情(Playing 相位点城查看;Setup 选都期点可选城也走详情,内嵌「定都于此」)
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
-  // 选都二次确认的目标城(需求1):React 化时把旧版「确认筑城/另择他城」框弄丢了,
-  // 此处找回——点城只暂存目标,确认才落子;点其它可选城直接切换目标(弹窗内容跟随)。
-  const [pendingCapital, setPendingCapital] = useState<number | null>(null);
+  // #35 详情卷轴的选都模式:选都期首击=查看详情,详情内确认才 setupPickCapital
+  // (整合旧 pendingCapital「定都于此?」确认框——确认框不再独立存在)。
+  const [detailPickCapital, setDetailPickCapital] = useState(false);
   // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
   // P0-7 窄屏(<768px)复用同一状态:侧栏变覆盖式滑入抽屉,只有 开/合 两态(无 w-12 窄条);
   // 首访默认——桌面展开、窄屏收起(棋盘优先),其后按用户选择记忆。
@@ -156,19 +155,16 @@ export function GameScreen() {
       ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」择一空城建都`
       : null;
 
-  // 待确认城的信息(城名/筑城价/区域名):catalog 是静态查询上下文,渲染期直取即可
-  const pendingCapitalInfo = useMemo(() => {
-    if (pendingCapital == null) return null;
-    const ctx = getControllerContext();
-    const tile = ctx?.board.tiles[pendingCapital];
-    const def = tile?.propertyId ? ctx?.catalog.get(tile.propertyId) : undefined;
-    if (!tile || !def) return null;
-    return {
-      name: tile.name,
-      price: formatMoney(def.purchasePrice),
-      region: Theme.groupNames[def.group] ?? "未知",
-    };
-  }, [pendingCapital]);
+  // 关详情卷轴(#35:一并退出选都模式)
+  const closeDetail = () => {
+    setDetailTileIndex(null);
+    setDetailPickCapital(false);
+  };
+  // #35 详情内「定都于此」:确认才落子推进
+  const confirmCapital = (i: number) => {
+    closeDetail();
+    controller?.setupPickCapital(i);
+  };
 
   return (
     <AudioProvider>
@@ -187,10 +183,21 @@ export function GameScreen() {
           players={players}
           onTileClick={(i) => {
             // 相位路由收口于此(Wave3 候选2,原 controller.tileClick 的职责上移):
-            // Playing=查看详情(本地 UI 态);Setup 选都期=弹「定都于此?」确认框
-            // (需求1:点城不再直接落子,确认后才 setupPickCapital)。
-            if (snapshot.phase === "Playing") setDetailTileIndex(i);
-            else if (selectableTiles?.has(i)) setPendingCapital(i);
+            // Playing=任何格查看详情(#33,含特殊地点);Setup 选都期:
+            // 可选城首击=详情卷轴(#35,确认在详情内),灰城点=即时 hint 反馈(#27)。
+            if (snapshot.phase === "Playing") {
+              setDetailTileIndex(i);
+            } else if (selectableTiles) {
+              if (selectableTiles.has(i)) {
+                setDetailTileIndex(i);
+                setDetailPickCapital(true);
+              } else {
+                const taken = snapshot.takenCapitalIndices.includes(i);
+                useGameStore
+                  .getState()
+                  .pushHint(taken ? "该城已被占据,另择他城" : "此处不可建都", "error");
+              }
+            }
           }}
           selectableTiles={selectableTiles}
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}
@@ -235,34 +242,11 @@ export function GameScreen() {
             viewSeat={viewSeat}
             interactive={interactive}
             detailTileIndex={detailTileIndex}
-            onDetailClose={() => setDetailTileIndex(null)}
+            onDetailClose={closeDetail}
+            detailPickCapital={detailPickCapital}
+            onConfirmCapital={confirmCapital}
           />
         </div>
-        {/* 选都二次确认(需求1):遮罩不拦棋盘——弹窗开着仍可点其它可选城换目标。
-            相位离开 Setup(确认落子推进)时 pendingCapital 立即清空,弹窗随快照切换消失。 */}
-        {pendingCapitalInfo ? (
-          <ConfirmDialog
-            testid={TESTIDS.confirmCapital}
-            backdropBlocks={false}
-            title="定都于此?"
-            confirmLabel="确认筑城"
-            cancelLabel="另择他城"
-            onConfirm={() => {
-              const i = pendingCapital;
-              setPendingCapital(null);
-              if (i != null) controller?.setupPickCapital(i);
-            }}
-            onCancel={() => setPendingCapital(null)}
-          >
-            <p className="m-0 leading-7">
-              于 <b className="font-brush text-ink">{pendingCapitalInfo.name}</b> 筑城立都
-              <br />
-              筑城之资:<span className="text-money">{pendingCapitalInfo.price}</span>
-              <br />
-              所属区域:{pendingCapitalInfo.region}
-            </p>
-          </ConfirmDialog>
-        ) : null}
         {/* G-5 常驻回合 chip:左上悬浮钮下方(避开复位钮),国号色圆徽 +「X之回合」;
             bot 活跃时附「运筹中」微标(与 WaitingBar 文案口径一致),只读不拦交互。 */}
         {snapshot.phase === "Playing" &&
@@ -400,7 +384,7 @@ export function GameScreen() {
               player={localPlayer}
               controller={controller}
               interactive={interactive}
-              onCardDetailOpen={() => setDetailTileIndex(null)}
+              onCardDetailOpen={closeDetail}
             />
             <WarlogPanel snapshot={snapshot} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
