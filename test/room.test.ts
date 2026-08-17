@@ -82,8 +82,17 @@ describe("RoomRegistry · 房间生命周期", () => {
   it("createRoom 拒绝 host=bot / 越界座位数", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
     await expectRoomError(() => reg.createRoom({ seatCount: 3, botIdx: new Set([0]), hostConfig: {} }), 400);
-    await expectRoomError(() => reg.createRoom({ seatCount: 5, botIdx: new Set(), hostConfig: {} }), 400);
+    await expectRoomError(() => reg.createRoom({ seatCount: 9, botIdx: new Set(), hostConfig: {} }), 400);
     await expectRoomError(() => reg.createRoom({ seatCount: 1, botIdx: new Set(), hostConfig: {} }), 400);
+  });
+
+  it("createRoom:座位上限 8(#29)", async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 8, botIdx: new Set(), hostConfig: {} });
+    expect(room.seats).toHaveLength(8);
+    // Seat0=host 已领 token,其余座位空置;国号预设槽起始全 null
+    expect(room.seats.slice(1).every((s) => s.token == null)).toBe(true);
+    expect(room.seats.every((s) => s.guohao == null)).toBe(true);
   });
 
   it("joinSeat:FCFS 占第一个空 human 座位;满后 409", async () => {
@@ -112,6 +121,50 @@ describe("RoomRegistry · 房间生命周期", () => {
   it("startGame:重复开局 → 409", async () => {
     const { reg, roomId, hostToken } = await setupStartedRoom();
     await expectRoomError(() => reg.startGame(roomId, hostToken), 409);
+  });
+});
+
+
+describe('RoomRegistry · 联机国号预设与重名前缀(autos 28)', () => {
+  it('joinSeat 带国号:合法单字写入座位;非法 → 400', async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 4, botIdx: new Set(), hostConfig: {} });
+    reg.joinSeat(room.roomId, '宁');
+    expect(room.seats[1].guohao).toBe('宁');
+    await expectRoomError(() => reg.joinSeat(room.roomId, 'AB'), 400);
+    await expectRoomError(() => reg.joinSeat(room.roomId, ''), 400);
+  });
+
+  it('开局:重名国号依次加方位前缀(宁→宁/东宁/西宁…),快照即最终国号', async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const created = reg.createRoom({ seatCount: 5, botIdx: new Set([4]), hostConfig: { seed: 7 } });
+    const roomId = created.room.roomId;
+    // host 未预设;三名加入者都用「宁」
+    reg.joinSeat(roomId, '宁');
+    reg.joinSeat(roomId, '宁');
+    reg.joinSeat(roomId, '宁');
+    reg.setMap(roomId, 'sanguo', created.token, VALID_MAP_IDS);
+    const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    const guohao = room.engine!.players.map((p) => p.guohao);
+    // seat0 未预设(引擎分配,不与已用冲突);seat1-3 依次 宁/东宁/西宁
+    expect(guohao[1]).toBe('宁');
+    expect(guohao[2]).toBe('东宁');
+    expect(guohao[3]).toBe('西宁');
+    expect(new Set(guohao).size).toBe(5); // 全局无重复(host 未预设由引擎分配)
+    // 最终国号体现在快照里(UI 直接显示)
+    expect(room.engine!.snapshot().players.map((p) => p.guohao)).toEqual(guohao);
+  });
+
+  it('开局:无重名则用原名;未预设座位由引擎从字池分配', async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const created = reg.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: { seed: 7 } });
+    const roomId = created.room.roomId;
+    reg.joinSeat(roomId, '燕');
+    reg.setMap(roomId, 'sanguo', created.token, VALID_MAP_IDS);
+    const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    const guohao = room.engine!.players.map((p) => p.guohao);
+    expect(guohao[1]).toBe('燕');
+    expect(new Set(guohao).size).toBe(3);
   });
 });
 

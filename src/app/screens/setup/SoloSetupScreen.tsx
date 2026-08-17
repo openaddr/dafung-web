@@ -2,7 +2,7 @@
 // 诸侯数/目标身价/AI 难度/国号字盘/座位表 + 起兵。模式入口已上移到首页
 // (HomeScreen),此页只关心「怎么开这一局」,顶部回显当前选中地图名
 // (选图在首页完成,记忆仍走 localStorage)。规则与旧实现保持一致:
-// - 单机模式:2–4 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
+// - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
 // - 目标身价:速战 5000 / 标准 8000 / 鏖战 12000;起始银两固定 2500(旧值)
 import { useState } from "react";
@@ -50,6 +50,8 @@ const TARGET_OPTIONS = [5000, 8000, 12000] as const;
 const TARGET_LABEL: Record<number, string> = { 5000: "速战", 8000: "标准", 12000: "鏖战" };
 /** 起始银两:旧实现硬编码 2500(与引擎默认一致),此处保持。 */
 const STARTING_CASH = 2500;
+/** 国号预设持久化 key(起兵成功后写入;下次进入默认带入;联机加入也读同一份)。 */
+export const GUOHAO_PREF_KEY = "dafung.guohao";
 
 export function SoloSetupScreen({
   onStart,
@@ -61,8 +63,8 @@ export function SoloSetupScreen({
   const [seatCount, setSeatCount] = useState(4);
   const [target, setTarget] = useState(8000);
   const [difficulty, setDifficulty] = useState<"Simple" | "Normal">("Normal");
-  // 单机模式仅首行可编:真人国号默认「魏」(旧 DEFAULT_GUOHAO[0]);bot 国号引擎分配
-  const [guohao, setGuohao] = useState("魏");
+  // 单机模式仅首行可编:真人国号默认读上次起兵用的国号(localStorage 无记录则「魏」);bot 国号引擎分配
+  const [guohao, setGuohao] = useState(() => localStorage.getItem(GUOHAO_PREF_KEY) ?? "魏");
   // S-8:hint 只承载错误提示(装饰文案上移副标题);null = 无错不渲染
   const [hint, setHint] = useState<string | null>(null);
   // S-3:配置页内嵌换图 —— 本地镜像当前 mapId(prop 不随换图变,显示走本地态)
@@ -99,6 +101,8 @@ export function SoloSetupScreen({
         difficulty,
         mapId: currentMap,
       });
+      // 起兵成功:记住本次国号,下次进入默认带入
+      localStorage.setItem(GUOHAO_PREF_KEY, g);
     } finally {
       // 开局成功即切屏,此复位只服务于失败留在本页的情况
       setBusy(false);
@@ -143,7 +147,7 @@ export function SoloSetupScreen({
               onChange={(e) => setSeatCount(Number(e.target.value))}
               className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
             >
-              {[2, 3, 4].map((n) => (
+              {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                 <option key={n} value={n}>{n} 诸侯</option>
               ))}
             </select>

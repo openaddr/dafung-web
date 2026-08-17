@@ -80,9 +80,8 @@ export function DecisionScrollLayer({
           property={{
             id: def.id,
             purchasePrice: def.purchasePrice,
-            upgradeCost: def.upgradeCost,
             maxLevel: def.maxLevel,
-            rentByLevel: def.rentByLevel,
+            valueByLevel: def.valueByLevel,
           }}
           ownerGuohao={ownerEntry?.guohao ?? null}
           ownerLevel={owned?.level ?? 0}
@@ -189,9 +188,8 @@ export function DecisionScrollLayer({
               region={tile?.region ?? ""}
               property={{
                 purchasePrice: def.purchasePrice,
-                upgradeCost: def.upgradeCost,
                 maxLevel: def.maxLevel,
-                rentByLevel: def.rentByLevel,
+                valueByLevel: def.valueByLevel,
               }}
               cash={p.cash}
               warrants={p.warrants}
@@ -203,13 +201,11 @@ export function DecisionScrollLayer({
           return (
             <UpgradeDecisionScroll
               tileName={tile?.name ?? def.id}
-              level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 0}
+              level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
               property={{
-                upgradeCost: def.upgradeCost,
                 maxLevel: def.maxLevel,
-                rentByLevel: def.rentByLevel,
+                valueByLevel: def.valueByLevel,
               }}
-              cash={p.cash}
               onCommand={dispatch}
             />
           );

@@ -21,6 +21,8 @@ export interface HostConfig {
 export interface PersistedSeat {
   kind: "human" | "bot";
   token: string | null;
+  /** 加入者预设国号(旧记录无此字段 → null);重名前缀在开局时统一分配。 */
+  guohao: string | null;
 }
 
 /** 落盘的房间记录:RoomSession 的纯数据投影。 */
@@ -144,7 +146,7 @@ export function recordToSessionData(
   return {
     roomId: rec.roomId,
     seatCount: rec.seatCount,
-    seats: rec.seats.map((s) => ({ ...s })),
+    seats: rec.seats.map((s) => ({ ...s, guohao: s.guohao ?? null })),
     hostSeat: rec.hostSeat ?? 0,
     takeover: new Set(rec.takeover ?? []),
     autoPilot: new Map((rec.autoPilot ?? []).map((a) => [a.seat, a.speed] as const)),

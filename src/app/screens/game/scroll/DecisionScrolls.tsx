@@ -7,7 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
-import { RentTable } from "./RentTable";
+import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -115,7 +115,7 @@ export function BuyDecisionScroll({
 }: {
   tileName: string;
   region: string;
-  property: { purchasePrice: number; upgradeCost: number; maxLevel: number; rentByLevel: number[] };
+  property: { purchasePrice: number; maxLevel: number; valueByLevel: number[] };
   cash: number;
   warrants: number;
   onCommand: (cmd: GameCommand) => void;
@@ -123,8 +123,8 @@ export function BuyDecisionScroll({
   // F1 口径(与旧 ActionInline 同源):银两或委任不足 → disabled + 原因(委任优先报)
   const canBuy = cash >= property.purchasePrice && warrants >= 1;
   const reason = warrants < 1 ? "委任状不足" : "银两不足";
-  // G-20:买不起时收益表默认折叠(决策已不可行,全表只是噪音);可点开查看
-  const [showRent, setShowRent] = useState(canBuy);
+  // G-20:买不起时价值表默认折叠(决策已不可行,全表只是噪音);可点开查看
+  const [showValues, setShowValues] = useState(canBuy);
   // G-19:1=购地(不可购时无效)2=不取
   useNumberShortcuts([
     () => { if (canBuy) onCommand({ type: "buyProperty" }); },
@@ -141,16 +141,16 @@ export function BuyDecisionScroll({
         持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
         <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(diff)}</span>
       </p>
-      {/* 复用城池详情的等级收益表:买地的权衡核心是逐级过路费回报(G-20:不可购时折叠) */}
-      {showRent ? (
-        <RentTable property={property} />
+      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,由到达触发) */}
+      {showValues ? (
+        <ValueTable property={property} />
       ) : (
         <button
           type="button"
-          onClick={() => setShowRent(true)}
+          onClick={() => setShowValues(true)}
           className="mx-auto mb-1 block font-deco text-xs text-gold underline cursor-pointer hover:text-ink"
         >
-          查看收益明细
+          查看等级价值
         </button>
       )}
       <div className="flex flex-wrap items-center justify-center gap-3">
@@ -177,49 +177,45 @@ export function BuyDecisionScroll({
   );
 }
 
-// ── 扩军抉择(AwaitingDecision + OwnProperty)──
+// ── 扩军抉择(AwaitingDecision + OwnProperty;升级免费,由到达城池触发)──
 export function UpgradeDecisionScroll({
   tileName,
   level,
   property,
-  cash,
   onCommand,
 }: {
   tileName: string;
   level: number;
-  property: { upgradeCost: number; maxLevel: number; rentByLevel: number[] };
-  cash: number;
+  property: { maxLevel: number; valueByLevel: number[] };
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // F1 口径:满级 / 银两不足 → disabled + 原因;收益变化 = 当前级 → 下一级过路费
+  // 满级 → disabled;升级免费,无银两门槛。价值变化 = 当前级 → 下一级城池价值
   const maxed = level >= property.maxLevel;
-  const canUp = !maxed && cash >= property.upgradeCost;
-  const reason = maxed ? "已满级" : "银两不足";
-  const rentNow = property.rentByLevel[level] ?? 0;
-  const rentNext = !maxed ? property.rentByLevel[level + 1] ?? rentNow : rentNow;
+  const valueNow = property.valueByLevel[level - 1] ?? 0;
+  const valueNext = !maxed ? property.valueByLevel[level] ?? valueNow : valueNow;
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
-    () => { if (canUp) onCommand({ type: "upgradeProperty" }); },
+    () => { if (!maxed) onCommand({ type: "upgradeProperty" }); },
     () => onCommand({ type: "endDecision" }),
   ]);
   return (
     <ScrollShell title="扩军抉择" testid={T.upgradeScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
-        「{tileName}」当前 Lv.{level} · 升级费 {formatMoney(property.upgradeCost)}
+        「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
       <p className="m-1 mb-3 text-center text-sm text-ink-dim">
-        过路费:{formatMoney(rentNow)} → {maxed ? "(已满级)" : formatMoney(rentNext)}
+        城池价值:{formatMoney(valueNow)} → {maxed ? "(已满级)" : formatMoney(valueNext)}
       </p>
       <div className="flex flex-wrap items-center justify-center gap-3">
         <ScrollButton
           primary
-          disabled={!canUp}
-          title={canUp ? undefined : reason}
+          disabled={maxed}
+          title={maxed ? "已满级" : undefined}
           shortcut={1}
           testid={TESTIDS.actionButton("upgrade")}
           onClick={() => onCommand({ type: "upgradeProperty" })}
         >
-          扩军 {formatMoney(property.upgradeCost)}
+          扩军(免费)
         </ScrollButton>
         <ScrollButton
           shortcut={2}
@@ -229,7 +225,7 @@ export function UpgradeDecisionScroll({
           按兵不动
         </ScrollButton>
       </div>
-      {!canUp && <p className="mt-2 text-center text-xs text-ink-dim">{reason}</p>}
+      {maxed && <p className="mt-2 text-center text-xs text-ink-dim">已满级</p>}
     </ScrollShell>
   );
 }

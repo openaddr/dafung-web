@@ -69,12 +69,16 @@ export const Theme = {
     h: "江东",
   } as Record<string, string>,
 
-  // 玩家色(4 色,用于旌旗/边框/王旗)
+  // 玩家色(8 色,用于旌旗/边框/王旗;上限 8 人,一席一色)
   playerColors: [
     hex("2a6a8a"), // 石青
     hex("b23a2e"), // 朱砂
     hex("5a8a4a"), // 青绿
     hex("7a3a6a"), // 紫
+    hex("c47a2a"), // 赭橙
+    hex("2a8a7a"), // 松绿
+    hex("9a7a1f"), // 鎏金
+    hex("4a3a2a"), // 玄茶
   ],
 } as const;
 

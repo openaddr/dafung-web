@@ -50,7 +50,7 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   const def = e.catalog.get(defId)!;
   owner.properties.push({
     propertyId: defId, group: def.group, purchasePrice: def.purchasePrice,
-    totalUpgradeCost: 0, level: 0, maxLevel: def.maxLevel,
+    level: 1, maxLevel: def.maxLevel,
   });
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };
@@ -82,11 +82,11 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-luoyang")!;
-    expect(def.tradeMult).toEqual([2, 4, 6, 10]); // 由旧 multiply(2) 转换
+    expect(def.tradeMult).toEqual([4, 6, 10]); // 逐级(Lv1-3),由旧 multiply(2) 转换
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // L0 tradeMult=2
+    const price = guide * 4; // Lv1 tradeMult=4
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(owner.treasures.length).toBe(0);
@@ -99,40 +99,40 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-xiangyang")!;
-    expect(def.tradeAdd).toEqual([300, 600, 900, 1500]); // 由旧 markup(300) 转换
+    expect(def.tradeAdd).toEqual([600, 900, 1500]); // 逐级(Lv1-3),由旧 markup(300) 转换
     const { mover, guide } = setupOwnerChoice(e, "prop-xiangyang");
     const moverCash0 = mover.cash;
-    const price = guide + 300; // L0 tradeAdd=300
+    const price = guide + 600; // Lv1 tradeAdd=600
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(mover.cash).toBe(moverCash0 - price);
     expect(price).toBeGreaterThan(guide);
   });
 
-  it("坐地起价随城等级提升:L2 价格 > L0 价格", () => {
+  it("坐地起价随城等级提升:Lv3 价格 > Lv1 价格", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-luoyang")!;
     const guide = TREASURE_PRICE[TLEVEL];
-    // L0 vs L2:tradeMult=[2,4,6,10]
-    const priceL0 = premiumPriceOf(guide, def, 0);
-    const priceL2 = premiumPriceOf(guide, def, 2);
-    expect(priceL0).toBe(guide * 2);
-    expect(priceL2).toBe(guide * 6);
-    expect(priceL2).toBeGreaterThan(priceL0);
+    // Lv1 vs Lv3:tradeMult=[4,6,10](等级 1..3)
+    const priceL1 = premiumPriceOf(guide, def, 1);
+    const priceL3 = premiumPriceOf(guide, def, 3);
+    expect(priceL1).toBe(guide * 4);
+    expect(priceL3).toBe(guide * 10);
+    expect(priceL3).toBeGreaterThan(priceL1);
   });
 
   it("premiumPriceOf:无 tradeAdd/tradeMult 时回退旧 trade 公式 + CITY_LEVEL_MULTIPLIER", () => {
     const guide = 1000;
-    // multiply(2) + level 1
+    // multiply(2) + Lv1(下标 = 等级-1)
     const p1 = premiumPriceOf(guide, { trade: { type: "multiply", param: 2 } }, 1);
-    expect(p1).toBe(guide * 2 * CITY_LEVEL_MULTIPLIER[1]);
-    // markup(300) + level 2
+    expect(p1).toBe(guide * 2 * CITY_LEVEL_MULTIPLIER[0]);
+    // markup(300) + Lv2
     const p2 = premiumPriceOf(guide, { trade: { type: "markup", param: 300 } }, 2);
-    expect(p2).toBe(guide + 300 * CITY_LEVEL_MULTIPLIER[2]);
+    expect(p2).toBe(guide + 300 * CITY_LEVEL_MULTIPLIER[1]);
     // 都没设:tradePriceOf 默认 ×1.5
-    const p3 = premiumPriceOf(guide, {}, 0);
-    expect(p3).toBe(tradePriceOf(guide, undefined, 1));
+    const p3 = premiumPriceOf(guide, {}, 1);
+    expect(p3).toBe(tradePriceOf(guide, undefined, CITY_LEVEL_MULTIPLIER[0]));
   });
 
   it("跳过:不交易,无珍宝/资金变化,结束回合", () => {
@@ -203,7 +203,7 @@ describe("珍宝系统", () => {
     finishSetup(e);
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // L0 tradeMult=2
+    const price = guide * 4; // Lv1 tradeMult=4
     mover.cash = price - 1;
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });

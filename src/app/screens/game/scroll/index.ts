@@ -19,6 +19,6 @@ export {
   BuyDecisionScroll,
   UpgradeDecisionScroll,
 } from "./DecisionScrolls";
-export { RentTable } from "./RentTable";
-export type { RentTableProperty } from "./RentTable";
 export { SCROLL_TESTIDS } from "./testids";
+export { ValueTable } from "./ValueTable";
+export type { ValueTableProperty } from "./ValueTable";

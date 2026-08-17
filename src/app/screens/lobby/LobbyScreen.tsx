@@ -193,7 +193,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   onChange={(e) => setSeatCount(Number(e.target.value))}
                   className={inputBase}
                 >
-                  {[2, 3, 4].map((n) => (
+                  {[2, 3, 4, 5, 6, 7, 8].map((n) => (
                     <option key={n} value={n}>{n} 诸侯</option>
                   ))}
                 </select>
@@ -254,7 +254,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 disabled={busy || !joinCode.trim()}
                 // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
                 title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
-                onClick={() => void guard(() => controller!.joinRoom(joinCode.trim()))}
+                onClick={() => void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem("dafung.guohao") ?? undefined))}
                 className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
               >
                 {busy ? "处理中…" : "加入"}

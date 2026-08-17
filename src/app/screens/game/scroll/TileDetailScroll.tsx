@@ -2,7 +2,7 @@
 // 展示:城名 / 地域 / 持有者(含都城等级)/ 购入价 / 等级收益表。
 import { formatMoney } from "@core/money";
 import { ScrollShell } from "./ScrollShell";
-import { RentTable } from "./RentTable";
+import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 export interface TileDetailScrollProps {
@@ -11,13 +11,12 @@ export interface TileDetailScrollProps {
   tileName: string;
   /** 地域名(如 幽州)。 */
   region: string;
-  /** 城池定义(价/等级/收益)。 */
+  /** 城池定义(价/等级/价值)。 */
   property: {
     id: string;
     purchasePrice: number;
-    upgradeCost: number;
     maxLevel: number;
-    rentByLevel: number[];
+    valueByLevel: number[];
   };
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
@@ -47,8 +46,8 @@ export function TileDetailScroll({
         {region} · {ownerText}
         {capText} · 购入 {formatMoney(property.purchasePrice)}
       </p>
-      {/* 等级收益表:抽成共用 RentTable(购地卷轴复用同一张表,避免两处漂移) */}
-      <RentTable property={property} />
+      {/* 等级价值表:抽成共用 ValueTable(购地卷轴复用同一张表,避免两处漂移) */}
+      <ValueTable property={property} />
     </ScrollShell>
   );
 }

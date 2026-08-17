@@ -8,94 +8,158 @@
     {
       "id": "prop-luoyang",
       "name": "洛阳",
-      "pos": [0, -160],
+      "pos": [
+        0,
+        -160
+      ],
       "group": "a",
       "region": "中原",
       "price": 350,
-      "upgrade": 180,
       "buildCost": 700,
-      "rentByLevel": [18, 50, 150, 420, 600, 780],
-      "tradeMult": [2, 4, 6, 10],
-      "tradeAdd": [0, 0, 0, 0]
+      "tradeMult": [
+        4,
+        6,
+        10
+      ],
+      "tradeAdd": [
+        0,
+        0,
+        0
+      ],
+      "valueByLevel": [
+        18,
+        50,
+        150
+      ]
     },
     {
       "id": "prop-hulaoguan",
       "name": "虎牢关",
-      "pos": [160, -110],
+      "pos": [
+        160,
+        -110
+      ],
       "group": "b",
       "region": "中原",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [15, 42, 120, 360, 500, 660]
+      "valueByLevel": [
+        15,
+        42,
+        120
+      ]
     },
     {
       "id": "prop-kaifeng",
       "name": "开封",
-      "pos": [200, 40],
+      "pos": [
+        200,
+        40
+      ],
       "group": "b",
       "region": "中原",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [15, 42, 120, 360, 500, 660]
+      "valueByLevel": [
+        15,
+        42,
+        120
+      ]
     },
     {
       "id": "prop-xuchang2",
       "name": "颍川",
-      "pos": [140, 170],
+      "pos": [
+        140,
+        170
+      ],
       "group": "c",
       "region": "中原",
       "price": 280,
-      "upgrade": 140,
       "buildCost": 560,
-      "rentByLevel": [14, 40, 110, 330, 460, 600]
+      "valueByLevel": [
+        14,
+        40,
+        110
+      ]
     },
     {
       "id": "prop-wancheng",
       "name": "宛城",
-      "pos": [0, 200],
+      "pos": [
+        0,
+        200
+      ],
       "group": "c",
       "region": "中原",
       "price": 280,
-      "upgrade": 140,
       "buildCost": 560,
-      "rentByLevel": [14, 40, 110, 330, 460, 600]
+      "valueByLevel": [
+        14,
+        40,
+        110
+      ]
     },
     {
       "id": "prop-xinye",
       "name": "新野",
-      "pos": [-140, 170],
+      "pos": [
+        -140,
+        170
+      ],
       "group": "d",
       "region": "中原",
       "price": 260,
-      "upgrade": 130,
       "buildCost": 520,
-      "rentByLevel": [12, 36, 100, 300, 420, 540]
+      "valueByLevel": [
+        12,
+        36,
+        100
+      ]
     },
     {
       "id": "prop-henei",
       "name": "河内",
-      "pos": [-200, 40],
+      "pos": [
+        -200,
+        40
+      ],
       "group": "d",
       "region": "中原",
       "price": 260,
-      "upgrade": 130,
       "buildCost": 520,
-      "rentByLevel": [12, 36, 100, 300, 420, 540]
+      "valueByLevel": [
+        12,
+        36,
+        100
+      ]
     },
     {
       "id": "prop-mengjin",
       "name": "孟津",
-      "pos": [-160, -110],
+      "pos": [
+        -160,
+        -110
+      ],
       "group": "a",
       "region": "中原",
       "price": 350,
-      "upgrade": 180,
       "buildCost": 700,
-      "rentByLevel": [18, 50, 150, 420, 600, 780],
-      "tradeMult": [2, 4, 6, 10],
-      "tradeAdd": [0, 0, 0, 0]
+      "tradeMult": [
+        4,
+        6,
+        10
+      ],
+      "tradeAdd": [
+        0,
+        0,
+        0
+      ],
+      "valueByLevel": [
+        18,
+        50,
+        150
+      ]
     }
   ]
 }

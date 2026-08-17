@@ -29,23 +29,24 @@ export function tradePriceOf(guidePrice: number, trade: TradeFormula | undefined
   return guidePrice * 1.5 * levelMult;
 }
 
-/** 城池等级 → 坐地起价倍率(旧 trade 公式回退用)。新字段 tradeAdd/tradeMult 由 sanguo.json 直接配置。 */
-export const CITY_LEVEL_MULTIPLIER = [1, 2, 3, 5]; // L0=×1, L1=×2, L2=×3, L3=×5
+/** 城池等级 → 坐地起价倍率(旧 trade 公式回退用;下标 = 等级-1,Lv1..3)。
+ *  新字段 tradeAdd/tradeMult 由地图 json 直接配置(同样下标 = 等级-1)。 */
+export const CITY_LEVEL_MULTIPLIER = [2, 3, 5]; // Lv1=×2, Lv2=×3, Lv3=×5
 
 /** 坐地起价售价(新公式,per-level 加值/乘数优先;无则回退旧 trade 公式)。
- *  公式:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加)。 */
+ *  公式:指导价 × tradeMult[cityLevel-1] + tradeAdd[cityLevel-1](先乘再加;cityLevel 1..3)。 */
 export function premiumPriceOf(
   guidePrice: number,
   def: { tradeAdd?: number[]; tradeMult?: number[]; trade?: TradeFormula },
   cityLevel: number,
 ): number {
-  const add = def.tradeAdd?.[cityLevel];
-  const mult = def.tradeMult?.[cityLevel];
+  const add = def.tradeAdd?.[cityLevel - 1];
+  const mult = def.tradeMult?.[cityLevel - 1];
   if (add != null || mult != null) {
     return Math.round(guidePrice * (mult ?? 1) + (add ?? 0)); // 先乘再加
   }
   // 回退:旧 trade 公式 + CITY_LEVEL_MULTIPLIER
-  return tradePriceOf(guidePrice, def.trade, CITY_LEVEL_MULTIPLIER[cityLevel] ?? 1);
+  return tradePriceOf(guidePrice, def.trade, CITY_LEVEL_MULTIPLIER[cityLevel - 1] ?? 1);
 }
 
 /** 初始化牌堆:展开所有珍宝为单独实例(如 荔枝 ×3 → 3 张)。 */
