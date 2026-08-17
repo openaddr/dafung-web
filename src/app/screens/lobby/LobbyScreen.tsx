@@ -6,7 +6,7 @@
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
 import { useEffect, useState } from "react";
 import { isCustomId } from "@core/map-source";
-import { getMapSource } from "@app/map-sources";
+import { getMapSource, DEFAULT_MAP_ID } from "@app/map-sources";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import type { OnlineController } from "@app/controllers/online";
@@ -352,7 +352,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       {showMapSelect && (
         <MapSelectPanel
           mapSource={builtinMapSource()}
-          currentMapId={mapId ?? "sanguo"}
+          currentMapId={mapId ?? DEFAULT_MAP_ID}
           onConfirm={(id) => {
             setShowMapSelect(false);
             // 只发请求;本地换图由 lobby 广播单路径驱动(见 online.ts rebuildForMap)

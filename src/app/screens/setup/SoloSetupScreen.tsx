@@ -11,7 +11,7 @@ import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
-import { getMapSource } from "@app/map-sources";
+import { getMapSource, DEFAULT_MAP_ID } from "@app/map-sources";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
 
@@ -48,7 +48,7 @@ const STARTING_CASH = 2500;
 export function SoloSetupScreen({
   onStart,
   onBack,
-  mapId = "sanguo",
+  mapId = DEFAULT_MAP_ID,
   mapSource = getMapSource(),
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);

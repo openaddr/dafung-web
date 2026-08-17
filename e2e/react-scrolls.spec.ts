@@ -1,21 +1,8 @@
 // React 迁移 · 阶段 7 验证门:决策卷轴全量行为测试(招贤/珍宝/破产/胜利/城池详情)。
 // 相位无法靠自然游玩稳定撞出,经 window.__dafung 调试钩子强制(仅测试用,见 registry.ts)。
 // 走 vite preview(4173)的 dist 产物——跑前需 npm run build。
-import { test, expect, type Page } from "@playwright/test";
-
-/** UI 快速开局:首页进单机配置页 → 起兵 → 点第一座可选城建都 → 等轮到人类。 */
-async function quickStart(page: Page): Promise<void> {
-  await page.goto("/");
-  await page.getByTestId("home-solo").click();
-  await page.getByTestId("start-game").click();
-  await page.getByTestId("confirm-capital-ok").click();
-  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
-}
-
-/** 强制引擎进入指定相位并同步 UI(测试专用通道)。 */
-async function force(page: Page, fn: string): Promise<void> {
-  await page.evaluate(`(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.sync(); })()`);
-}
+import { test, expect } from "@playwright/test";
+import { quickStart, force } from "./react-helpers";
 
 test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);

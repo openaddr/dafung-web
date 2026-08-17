@@ -151,8 +151,12 @@ export class LocalStorageMapSource implements MapSource {
  *  async 因清单需 fetch。无清单时回退 "sanguo"(保底)。 */
 export async function getDefaultMapId(): Promise<string> {
   const maps = await getMapSource().listMaps();
-  return maps[0]?.id ?? "sanguo";
+  return maps[0]?.id ?? DEFAULT_MAP_ID;
 }
+
+/** 默认地图 id 常量:应与 maps/index.json 首项一致(现 = 棋盘天下)。
+ *  UI 层同步兜底(HomeScreen/Setup/Lobby 无记忆时的回退)统一引此常量,不再散落硬编码。 */
+export const DEFAULT_MAP_ID = "chessboard";
 
 /**
  * 组合源:内置 + 自建。listMaps 合并两个源的条目;

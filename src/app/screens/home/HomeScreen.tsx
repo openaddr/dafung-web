@@ -4,7 +4,7 @@
 // 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
 import { useState } from "react";
 import type { MapSource } from "@core/map-source";
-import { getMapSource } from "@app/map-sources";
+import { getMapSource, DEFAULT_MAP_ID } from "@app/map-sources";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
@@ -18,7 +18,7 @@ export interface HomeScreenProps {
   onOnline: () => void;
   /** 「编辑地图」入口;从当前选中图起编(undefined = 默认内置图)。 */
   onEdit: (mapId?: string) => void;
-  /** 初始选中的地图 id(来自 localStorage 记忆,旧默认 sanguo)。 */
+  /** 初始选中的地图 id(来自 localStorage 记忆,默认 DEFAULT_MAP_ID)。 */
   initialMapId?: string;
   /** 选中地图变更回调(接线方持久化到 localStorage;对照旧 onMapChange)。 */
   onMapChange?: (mapId: string) => void;
@@ -30,7 +30,7 @@ export function HomeScreen({
   onSolo,
   onOnline,
   onEdit,
-  initialMapId = "sanguo",
+  initialMapId = DEFAULT_MAP_ID,
   onMapChange,
   mapSource = getMapSource(),
 }: HomeScreenProps) {
@@ -55,7 +55,7 @@ export function HomeScreen({
     {
       tid: HOME_TID.editMap,
       label: "编辑地图",
-      onClick: () => onEdit(selectedMapId !== "sanguo" ? selectedMapId : undefined),
+      onClick: () => onEdit(selectedMapId !== DEFAULT_MAP_ID ? selectedMapId : undefined),
       extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink",
     },
   ];
