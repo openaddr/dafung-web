@@ -94,7 +94,9 @@ export function GameScreen() {
   const localPlayer = useLocalPlayer();
   // 托管标记与联机 pending(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
   const net = useNetStore();
-  const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
+  // 托管态单源取值:联机=座位广播(已入座,seats[mySeat] 恒存在);单机=控制器本地标记。
+  // 不做链式回退——两种模式各有唯一事实源,取错源即暴露接线 bug。
+  const autopilotOn = net.roomId !== "" ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
   // P0-7 窄屏判定(<768px):决定侧栏走覆盖式抽屉还是桌面并排布局
   const isNarrow = useIsNarrow();
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
@@ -141,6 +143,9 @@ export function GameScreen() {
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
 
+  // 活跃方国号(引擎不变量:Playing 期 activeIndex 恒有效;非 Playing 不会被渲染消费)
+  const activeGuohao = snapshot.phase === "Playing" ? snapshot.players[snapshot.activeIndex].guohao : "";
+
   // 「轮到我」条件(桌面窄条金框与窄屏浮动条共用口径):本地人类可操作且非托管的行军相位
   const myTurnToRoll =
     interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll";
@@ -148,7 +153,7 @@ export function GameScreen() {
   // 选都阶段的引导文案(对照旧 showPickHint:「X」择一空城建都)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
-      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex]?.guohao ?? "?"}」择一空城建都`
+      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」择一空城建都`
       : null;
 
   // 待确认城的信息(城名/筑城价/区域名):catalog 是静态查询上下文,渲染期直取即可
@@ -327,11 +332,11 @@ export function GameScreen() {
               </span>
             )}
             <span
-              title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
+              title={`当前回合:${activeGuohao}`}
               className="font-brush text-lg text-ink"
               style={{ writingMode: "vertical-rl" }}
             >
-              {snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}
+              {activeGuohao}
             </span>
             {localPlayer && (
               <span
@@ -442,11 +447,11 @@ export function GameScreen() {
                 </span>
               )}
               <span
-                title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
+                title={`当前回合:${activeGuohao}`}
                 className="font-brush text-xl text-ink"
                 style={{ writingMode: "vertical-rl" }}
               >
-                {snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}之回合
+                {activeGuohao}之回合
               </span>
               {localPlayer && (
                 <span

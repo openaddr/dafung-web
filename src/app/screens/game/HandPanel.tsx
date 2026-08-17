@@ -52,7 +52,8 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
   // UI F5:当前查看详情的卡(珍宝/名士);null = 无卷轴
   const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
-  const autopilotOn = net.seats[net.mySeat]?.autoPilot ?? controller?.autoPilotOn ?? false;
+  // 托管态单源取值(与 GameScreen 同口径):联机=座位广播,单机=控制器本地标记
+  const autopilotOn = net.roomId !== "" ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
   // G-9 现金变化就地反馈:跨快照比对 cash 差值,现金 chip 右上浮出 +/− 标记
   // (game-hud.css 的 game-cash-float 1.2s 上浮消失;正=gold 负=danger)。
   const prevCashRef = useRef<number | null>(null);

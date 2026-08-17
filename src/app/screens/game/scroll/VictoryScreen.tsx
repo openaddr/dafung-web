@@ -5,7 +5,7 @@
 import { useEffect, useState } from "react";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
-import { hideDiceOverlay } from "@app/fx/ThreeDice";
+import { finishDiceOverlay } from "@app/fx/ThreeDice";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
@@ -100,7 +100,7 @@ export function VictoryScreen({
   const [showButton, setShowButton] = useState(false);
   useEffect(() => {
     // D2:终局瞬间切屏可能赶在骰子 holdMs 隐藏定时器之前,先清残留 overlay(z-45 压屏)。
-    hideDiceOverlay();
+    finishDiceOverlay();
     // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp),
     // 700ms 号角(victory)接棒,与下方视觉阶梯 0/300/600ms 同一节奏轨道。
     const audio = getAudio();

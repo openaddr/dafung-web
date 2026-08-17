@@ -156,11 +156,7 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
       pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
     }
     setGrabbing(true);
-    try {
-      ev.currentTarget.setPointerCapture(ev.pointerId);
-    } catch {
-      /* ignore */
-    }
+    ev.currentTarget.setPointerCapture(ev.pointerId);
   }, [cancelFly]);
 
   const onPointerMove = useCallback(

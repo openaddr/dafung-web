@@ -91,13 +91,14 @@ const WORLD_UP = new THREE.Vector3(0, 1, 0);
 let diceFast = false;
 
 // ── M-4 reduced-motion:系统「减弱动态效果」时跳过物理翻滚演出 ──
-// matchMedia 结果在运行期监听变化(用户中途改系统设置时立即生效)。
-// bun 测试环境无 window:该处只判环境,浏览器/WebView 内恒有 window。
-const motionQuery = typeof window !== "undefined" ? window.matchMedia("(prefers-reduced-motion: reduce)") : null;
-export let reducedMotion = motionQuery?.matches ?? false;
-motionQuery?.addEventListener("change", () => {
-  reducedMotion = motionQuery.matches;
-});
+// 惰性初始化:matchMedia 只在浏览器路径(roll)首次访问,bun 单测不 import 副作用、
+// 也无需环境守卫分支(零兜底:没有 window 就让 import 副作用不存在,而非判空)。
+let motionQuery: MediaQueryList | null = null;
+/** 当前是否偏好减弱动态(每次掷骰时读取,用户中途改系统设置立即生效)。 */
+function isReducedMotion(): boolean {
+  if (motionQuery === null) motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
+  return motionQuery.matches;
+}
 
 /** 设置下一次掷骰的速度档(true = bot 半速)。 */
 export function setDiceFast(fast: boolean): void {
@@ -110,11 +111,17 @@ function consumeDiceFast(): boolean {
   return fast;
 }
 
-/** D2:模块级强制隐藏骰子 overlay。roll() 完成本会自己 hideOverlay,
- *  但胜利屏挂载可能赶在 holdMs 定时器之前(终局瞬间切屏),残留的 z-45 骰子层
- *  会压住胜利屏——胜利屏 mount 时调一次本函数兜住这个时序窗口。
- *  直接按类名清(overlay 由本模块创建且类名唯一),不触碰实例内部状态。 */
-export function hideDiceOverlay(): void {
+// 待隐藏定时器(roll() 里登记;终局提前收场时由 finishDiceOverlay 取消)
+let pendingHideTimer: number | null = null;
+
+/** D2:骰子演出提前收场(终局切胜利屏时由 VictoryScreen mount 调用)。
+ *  这是生命周期规则而非兜底:对局结束 = 骰子表现层使命终结——取消 holdMs 待隐藏
+ *  定时器并立即隐藏,防止 z-45 残留压住胜利屏。overlay 类名由本模块创建且唯一。 */
+export function finishDiceOverlay(): void {
+  if (pendingHideTimer !== null) {
+    window.clearTimeout(pendingHideTimer);
+    pendingHideTimer = null;
+  }
   document.querySelectorAll<HTMLElement>(".dice-overlay").forEach((el) => {
     el.style.display = "none";
   });
@@ -356,7 +363,7 @@ export class ThreeDice {
     const face = die ?? (Math.floor(this.rng() * 6) + 1);
     if (!this.available) return Promise.resolve();
     const fast = consumeDiceFast(); // 每次掷骰恰好消费一次(reduced 路径直接丢弃)
-    if (reducedMotion) {
+    if (isReducedMotion()) {
       this.showOverlay();
       this.showFace(face);
       return new Promise<void>((resolve) => {
@@ -372,8 +379,9 @@ export class ThreeDice {
     this.showOverlay();
     return new Promise<void>((resolve) => {
       void this.rollAsync(face, minRollMs, hardCapMs, () => {
-        // 显示结果 holdMs 后隐藏(bot 半速 250ms,人类 600ms)
-        setTimeout(() => this.hideOverlay(), holdMs);
+        // 显示结果 holdMs 后隐藏(bot 半速 250ms,人类 600ms);
+        // 登记 id:终局提前收场(finishDiceOverlay)时取消,避免定时器后再动 display
+        pendingHideTimer = window.setTimeout(() => this.hideOverlay(), holdMs);
         resolve();
       });
     });
