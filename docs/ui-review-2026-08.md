@@ -74,45 +74,45 @@
 
 ### 入口
 - [x] H-5b 选图项缺 aria-pressed;预览城池字 fontSize 9 过小(MapSelectPanel.tsx:70,134)
-- [ ] S-6 表单控件点击区小、与首页按钮尺度断裂(SoloSetupScreen.tsx:112,125,180);统一 min-h-[40px]
-- [ ] S-7 bot 行占位「机」语义不明(SoloSetupScreen.tsx:166);改「电脑」或 title 说明
-- [ ] S-8 装饰 hint 与错误提示混用同位(SoloSetupScreen.tsx:59,239);装饰文案上移副标题
-- [ ] L-5 「bot」中英混排(LobbyScreen.tsx:36);统一中文
-- [ ] L-6 建房按钮 mt-5 硬对齐(LobbyScreen.tsx:186);self-end/grid items-end
-- [ ] L-7 copied 定时器不清理 + busy 仅靠 title(LobbyScreen.tsx:232);effect 清理 + 文案「处理中…」
-- [ ] L-8 座位状态翻转整行动画重放(LobbyScreen.tsx:271 key 含状态);动画只在入座事件
+- [x] S-6 表单控件点击区小、与首页按钮尺度断裂(SoloSetupScreen.tsx:112,125,180);统一 min-h-[40px]
+- [x] S-7 bot 行占位「机」语义不明(SoloSetupScreen.tsx:166);改「电脑」或 title 说明
+- [x] S-8 装饰 hint 与错误提示混用同位(SoloSetupScreen.tsx:59,239);装饰文案上移副标题
+- [x] L-5 「bot」中英混排(LobbyScreen.tsx:36);统一中文
+- [x] L-6 建房按钮 mt-5 硬对齐(LobbyScreen.tsx:186);self-end/grid items-end
+- [x] L-7 copied 定时器不清理 + busy 仅靠 title(LobbyScreen.tsx:232);effect 清理 + 文案「处理中…」
+- [x] L-8 座位状态翻转整行动画重放(LobbyScreen.tsx:271 key 含状态);动画只在入座事件
 
 ### HUD
-- [ ] G-2 折叠现金换算丢精度口径不一(GameScreen.tsx:306-309);统一 formatMoney
-- [ ] G-4 ConfirmDialog 无 Esc/焦点圈定(scroll/ConfirmDialog.tsx:32-45)
-- [ ] G-10 未入座空态浪费(HandPanel.tsx:50);「观战中」明确信息 + 隐藏动作区
-- [ ] G-11 手牌 flex-1 与战报 flex-[1.4] 比例颠倒(HandPanel.tsx:48 / WarlogPanel.tsx:67);手牌 shrink-0
-- [ ] G-14 战报 300 条全量渲染无 memo(WarlogPanel.tsx:65,89);窗口化或 memo 单条
-- [ ] G-15 OthersPanel 无身价/破产预警(OthersPanel.tsx:37-38);补身价小字或排序
-- [ ] G-18 卷轴拖拽后换城不复位(ScrollShell.tsx:67-76);children 变化重置 transform
-- [ ] G-19 ScrollButton 36px 低于 40 基线 + 决策无数字快捷键(ScrollShell.tsx:43-47)
-- [ ] G-20 买地卷轴信息过载,买不起仍展示全表(DecisionScrolls.tsx:94-121);「持有X·需Y·差Z」一行 + 折叠
+- [x] G-2 折叠现金换算丢精度口径不一(GameScreen.tsx:306-309);统一 formatMoney
+- [x] G-4 ConfirmDialog 无 Esc/焦点圈定(scroll/ConfirmDialog.tsx:32-45)
+- [x] G-10 未入座空态浪费(HandPanel.tsx:50);「观战中」明确信息 + 隐藏动作区
+- [x] G-11 手牌 flex-1 与战报 flex-[1.4] 比例颠倒(HandPanel.tsx:48 / WarlogPanel.tsx:67);手牌 shrink-0
+- [x] G-14 战报 300 条全量渲染无 memo(WarlogPanel.tsx:65,89);窗口化或 memo 单条
+- [x] G-15 OthersPanel 无身价/破产预警(OthersPanel.tsx:37-38);补身价小字或排序
+- [x] G-18 卷轴拖拽后换城不复位(ScrollShell.tsx:67-76);children 变化重置 transform
+- [x] G-19 ScrollButton 36px 低于 40 基线 + 决策无数字快捷键(ScrollShell.tsx:43-47)
+- [x] G-20 买地卷轴信息过载,买不起仍展示全表(DecisionScrolls.tsx:94-121);「持有X·需Y·差Z」一行 + 折叠
 
 ### 棋盘/演出
-- [ ] A3 区域晕染 8 层全幅叠加中央糊(StaticLayers.tsx:127-130);半径收紧或中央让位江河
-- [ ] A4 辅路「⇄」符号与水墨语境脱节(StaticLayers.tsx:179-183);换小旗/碑亭剪影,方向随 branch 走向
-- [ ] B3 王旗文字贴近三角尖端溢出(Tile.tsx:381-390);锚点右移或旗面改平行四边形
-- [ ] B4 「都」印 14px 总览失效(Tile.tsx:396);放大 ~20 或远距并入金座
-- [ ] B5 竖排匾 3 字行距 18/字 17 无间缝(Tile.tsx:130-131);step 20-21
-- [ ] C5 行军动画无取消令牌(resetFx 后 stale 演出继续)(useMarch.ts:79-135)
-- [ ] D2 dice overlay z-45 压胜利屏 z-40(fx.css:15 / VictoryScreen.tsx:97);victory 挂载清 overlay
-- [ ] D3 铜钱雨 🪙 emoji 与水墨语言相斥(FxLayer.tsx:45-48);换「泉」字或方孔钱剪影
-- [ ] D4 浮字 26px 固定屏幕像素高倍缩放失衡(fx.css:28);随视图缩放设下限
-- [ ] E2 胜利演出无叙事序列(VictoryScreen.tsx:94-136);四块 200-300ms 阶梯 + 再战钮延后
-- [ ] E3 烟花粒子固定像素大屏显小、波频略密(VictoryScreen.tsx:57,84);按容器尺寸缩放
-- [ ] F2 都城光晕 blur(9px) 滤镜动画常驻(Tile.tsx:226 / board.css:23-42);改 radialGradient 圆
-- [ ] F3 ThreeDice 不响应 resize(ThreeDice.ts:189-192);挂监听 cleanup
-- [ ] F4 feTurbulence 全幅滤镜缩放重算(StaticLayers.tsx:20-27);噪点预渲染 image 平铺(观察项)
+- [x] A3 区域晕染 8 层全幅叠加中央糊(StaticLayers.tsx:127-130);半径收紧或中央让位江河
+- [x] A4 辅路「⇄」符号与水墨语境脱节(StaticLayers.tsx:179-183);换小旗/碑亭剪影,方向随 branch 走向
+- [x] B3 王旗文字贴近三角尖端溢出(Tile.tsx:381-390);锚点右移或旗面改平行四边形
+- [x] B4 「都」印 14px 总览失效(Tile.tsx:396);放大 ~20 或远距并入金座
+- [x] B5 竖排匾 3 字行距 18/字 17 无间缝(Tile.tsx:130-131);step 20-21
+- [x] C5 行军动画无取消令牌(resetFx 后 stale 演出继续)(useMarch.ts:79-135)
+- [x] D2 dice overlay z-45 压胜利屏 z-40(fx.css:15 / VictoryScreen.tsx:97);victory 挂载清 overlay
+- [x] D3 铜钱雨 🪙 emoji 与水墨语言相斥(FxLayer.tsx:45-48);换「泉」字或方孔钱剪影
+- [x] D4 浮字 26px 固定屏幕像素高倍缩放失衡(fx.css:28);随视图缩放设下限
+- [x] E2 胜利演出无叙事序列(VictoryScreen.tsx:94-136);四块 200-300ms 阶梯 + 再战钮延后
+- [x] E3 烟花粒子固定像素大屏显小、波频略密(VictoryScreen.tsx:57,84);按容器尺寸缩放
+- [x] F2 都城光晕 blur(9px) 滤镜动画常驻(Tile.tsx:226 / board.css:23-42);改 radialGradient 圆
+- [x] F3 ThreeDice 不响应 resize(ThreeDice.ts:189-192);挂监听 cleanup
+- [x] F4 feTurbulence 全幅滤镜缩放重算(StaticLayers.tsx:20-27);噪点预渲染 image 平铺(观察项)
 
 ### 移动端
-- [ ] M-7 height:100%/86vh 移动浏览器抖动(app.css:16 / MapSelectPanel.tsx:117);100dvh
-- [ ] M-8 title 提示 13 处触屏不可见;关键信息常显或点击弹出
-- [ ] M-9 infinite pulse 动画移动端耗电;reduced-motion 或窄屏关闭
+- [x] M-7 height:100%/86vh 移动浏览器抖动(app.css:16 / MapSelectPanel.tsx:117);100dvh
+- [x] M-8 title 提示 13 处触屏不可见;关键信息常显或点击弹出
+- [x] M-9 infinite pulse 动画移动端耗电;reduced-motion 或窄屏关闭
 
 ## 实施波次(并行分片按文件所有权划分防冲突)
 
