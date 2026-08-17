@@ -9,3 +9,18 @@
     box-shadow: 0 0 0 5px rgb(212 175 55 / 0);
   }
 }
+
+/* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,1.2s 上浮渐隐后由组件移除。 */
+@keyframes game-cash-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-14px);
+  }
+}
+.game-cash-float {
+  animation: game-cash-float 1.2s ease-out forwards;
+}

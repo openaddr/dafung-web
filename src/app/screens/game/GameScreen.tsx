@@ -7,7 +7,7 @@ import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import { formatMoney } from "@core/money";
-import { Theme } from "@core/theme";
+import { Theme, playerColor, rgba } from "@core/theme";
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
@@ -258,6 +258,27 @@ export function GameScreen() {
             </p>
           </ConfirmDialog>
         ) : null}
+        {/* G-5 常驻回合 chip:左上悬浮钮下方(避开复位钮),国号色圆徽 +「X之回合」;
+            bot 活跃时附「运筹中」微标(与 WaitingBar 文案口径一致),只读不拦交互。 */}
+        {snapshot.phase === "Playing" &&
+          (() => {
+            const active = snapshot.players[snapshot.activeIndex];
+            if (!active) return null;
+            return (
+              <div className="pointer-events-none absolute top-[calc(var(--safe-top)+56px)] left-[calc(var(--safe-left)+8px)] z-10 flex items-center gap-1.5 rounded bg-panel/90 px-2 py-1 shadow">
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full font-brush text-xs text-white"
+                  style={{ backgroundColor: rgba(playerColor(active.colorIndex)) }}
+                >
+                  {active.guohao.charAt(0)}
+                </span>
+                <span className="font-brush text-sm text-ink">{active.guohao}之回合</span>
+                {active.isBot && (
+                  <span className="rounded bg-ink/80 px-1 font-brush text-xs text-panel">运筹中</span>
+                )}
+              </div>
+            );
+          })()}
         {/* 总览复位(对照旧版 reset-view):置于左上,与右上的静音按钮错开 */}
         <button
           type="button"
@@ -368,7 +389,14 @@ export function GameScreen() {
               <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
             </h1>
             <StatusBar snapshot={snapshot} />
-            <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} interactive={interactive} />
+            {/* G-17 双层卷轴互斥:手牌卡详情卷轴打开时关掉城详情卷轴(同一时刻只留一卷) */}
+            <HandPanel
+              snapshot={snapshot}
+              player={localPlayer}
+              controller={controller}
+              interactive={interactive}
+              onCardDetailOpen={() => setDetailTileIndex(null)}
+            />
             <WarlogPanel snapshot={snapshot} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
             <button

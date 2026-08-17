@@ -404,7 +404,15 @@ export class ThreeDice {
     // ── 反向求解(TODO #1 的根治):给定目标面,先在「无渲染」的同一物理世界里
     // 反复试掷,直到某组初始条件(位置/姿态/线速度/角速度)模拟后**自然静止在目标面**,
     // 再用该初始条件实播。cannon-es 定步长积分确定性的:同初始状态 → 同轨迹,因此
-    // 实播必然落在试掷验证过的面上,全程无 snap。期望 ~6 次命中(1/6),上限 40 次。
+    // 实播必然落在试掷验证过的面上,全程无 snap。期望 ~6 次命中(1/6);上限 12 次(C2 预算,耗尽走 snap 兜底)。
+    // ── C2 预算:反向求解是同步 CPU 工作(12 次试掷 × ≤1.5s headless 模拟),期间
+    //    rAF 不跑——软渲/低端设备上 overlay 会先白屏一拍。先进一次随机起手并渲染
+    //    一帧起手姿态,让骰子先出现在盘上,再进 solve。复用现有 syncMesh+render 路径。
+    const launch0 = this.randomLaunch();
+    this.applyLaunch(body, launch0);
+    this.syncMesh();
+    this.renderer.render(this.scene, this.camera);
+
     const solved = this.solveLaunch(die);
     if (solved) {
       this.applyLaunch(body, solved);
@@ -492,7 +500,7 @@ export class ThreeDice {
   /** 反向求解主循环:反复随机起手 + 离线(headless,无渲染)步进同一 world,
    *  按 rollAsync 相同的「滚够 500ms 且静止 3 步」判据模拟到静止;若此时朝上的
    *  面恰为目标 die,该初始条件即解。返回前把 body 重置为解,供实播重放。 */
-  private solveLaunch(die: number, maxTries = 40): LaunchState | null {
+  private solveLaunch(die: number, maxTries = 12): LaunchState | null {
     const body = this.diceBody!;
     const world = this.world!;
     for (let attempt = 0; attempt < maxTries; attempt++) {
