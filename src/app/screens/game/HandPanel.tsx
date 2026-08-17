@@ -99,12 +99,14 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
           style={{ ["--player-color" as string]: rgba(playerColor(player.colorIndex)) }}
         >
           {/* 头部:现金/委任。W3 字号阶梯三档:现金数值 text-lg brush(核心可断言数值)/
-              标签 text-xs / 卡片 text-xs——不再让 text-sm 混进来拉平层次 */}
-          <div className="flex flex-wrap items-baseline gap-2">
-            <span className="relative">
+              标签 text-xs / 卡片 text-xs——不再让 text-sm 混进来拉平层次。
+              #32 按钮体系:统计 chip 统一 min-h-9 + items-center + rounded + px-2.5,
+              与卡区/按钮同一圆角口径(ScrollButton 的 rounded),行内等高对齐。 */}
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="relative inline-flex min-h-9 items-center">
               <span
                 data-testid={TESTIDS.handCash}
-                className="rounded bg-panel-hi px-2 py-0.5 font-brush text-lg text-money"
+                className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money"
               >
                 {formatMoney(player.cash)}
               </span>
@@ -124,21 +126,23 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
             </span>
             <span
               data-testid={TESTIDS.handWarrants}
-              className="rounded bg-panel-hi px-2 py-0.5 text-xs"
+              className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
             >
               委任 {player.warrants}
             </span>
             {/* G-9:身价小字(netWorth 为快照派生字段,含地产/珍宝估值,自己非活跃时也可见) */}
-            <span className="text-xs text-ink-dim">身价 {formatMoney(player.netWorth)}</span>
+            <span className="min-h-9 py-1 text-xs text-ink-dim">身价 {formatMoney(player.netWorth)}</span>
           </div>
-          {/* 卡区:珍宝 + 名士。素材图属旧 render/assets 体系,阶段 6 再接;先用文字卡占位 */}
+          {/* 卡区:珍宝 + 名士。素材图属旧 render/assets 体系,阶段 6 再接;先用文字卡占位。
+              #32 按钮体系:卡 chip 统一 min-h-10(触屏 ≥40px 点击区)+ items-center +
+              rounded + px-2.5 gap-1.5,与头部 chip / 按钮同圆角同间距,列高一致。 */}
           <div className="mt-2 flex flex-wrap gap-1.5">
             {player.treasures.map((t) => (
               <div
                 key={t.id}
                 data-testid={TESTIDS.handTreasure(t.id)}
                 title={`Lv${t.level}`}
-                className="min-h-9 cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1.5 text-xs hover:border-gold/70 hover:bg-panel"
+                className="inline-flex min-h-10 cursor-pointer items-center rounded border border-gold/60 bg-panel-hi px-2.5 text-xs leading-none hover:border-gold hover:bg-panel"
                 // UI F5:cursor-pointer 不再撒谎——点击弹出详情卷轴(对照旧 showHandDetail)
                 onClick={() => {
                   setCardDetail({ kind: "treasure", card: t });
@@ -153,7 +157,7 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
                 key={h.id}
                 data-testid={TESTIDS.handHero(h.id)}
                 title={h.title}
-                className="min-h-9 cursor-pointer rounded border border-gold/60 bg-panel-hi px-2 py-1.5 text-xs hover:border-gold/70 hover:bg-panel"
+                className="inline-flex min-h-10 cursor-pointer items-center rounded border border-gold/60 bg-panel-hi px-2.5 text-xs leading-none hover:border-gold hover:bg-panel"
                 // UI F5:同上,名士详情卷轴
                 onClick={() => {
                   setCardDetail({ kind: "hero", card: h });
@@ -175,10 +179,12 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
           会让基线错位、视觉重心漂移,分行后主次一眼可分。
           G-10:未入座(观战)不渲染——无签可掷无军可行。 */}
       {player && (
-      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2 px-3">
+      <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2 px-3 pb-1">
+        {/* #32 按钮体系·一级(主行动):签面方 h-11 w-11 + 行军 h-11,同一行等高;
+            主 CTA 与卷轴决策按钮(ScrollButton)同圆角(rounded)/brush 字体,口径统一。 */}
         <span
           data-testid={TESTIDS.diceFace}
-          className="rounded border border-gold/60 bg-panel-hi px-2 py-1 font-brush"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gold/60 bg-panel-hi font-brush text-lg leading-none"
         >
           {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] ?? "签" : "签"}
         </span>
@@ -194,14 +200,15 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
                 disabled={reason !== null}
                 onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
                 title={reason ?? "行军"}
-                /* P0-4 行军升格主 CTA:可用时实心金底 + 深墨字 + border-2 + min-h-10,
-                   可掷(reason=null)加轻微呼吸光晕(game-hud.css 的 keyframe,经
-                   Tailwind 任意值 animate-[...] 挂载);disabled 态维持灰底低透明。 */
+                /* P0-4 行军升格主 CTA:#32 后可用/禁用两态同 h-11 同圆角,仅换皮——
+                   可掷=实心金底+深墨字+呼吸光晕(game-hud.css 的 keyframe,经 Tailwind
+                   任意值 animate-[...] 挂载);禁用=金描边灰底 + text-ink-dim
+                   (替代整按钮 opacity 压暗,原因旁注仍由 F1 提供)。 */
                 className={
-                  "rounded px-4 font-brush text-lg disabled:opacity-40 " +
+                  "h-11 min-w-24 cursor-pointer rounded border-2 px-5 font-brush text-lg leading-none transition-colors " +
                   (reason === null
-                    ? "min-h-10 border-2 border-gold bg-gold/80 text-ink hover:bg-gold animate-[game-cta-breathe_2s_ease-in-out_infinite]"
-                    : "border border-gold bg-gold/20 py-1 enabled:hover:bg-gold/40"
+                    ? "border-gold bg-gold/80 text-ink hover:bg-gold animate-[game-cta-breathe_2s_ease-in-out_infinite]"
+                    : "border-gold/50 bg-gold/15 text-ink-dim enabled:hover:bg-gold/40 disabled:cursor-not-allowed"
                 )}
               >
                 {net.pending ? "行军中…" : "行军"}
@@ -219,12 +226,13 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
           G-10:未入座(观战)不渲染——无座可托。 */}
       {player && controller?.autopilotSupported && (
         <div className="flex shrink-0 items-center gap-2 px-3 pb-2 text-xs text-ink-dim">
+          {/* #32 按钮体系·三级(小操作):托管/速度 h-10(触屏 ≥40px 基线,不因「小」破线),
+              rounded + text-xs 与主 CTA 同圆角阶梯,仅字号/内边距收小拉开层次。 */}
           <button
             type="button"
             data-testid={TESTIDS.autopilotButton}
             onClick={() => controller.setAutoPilot(!autopilotOn, autopilotSpeed)}
-            // W5:触屏点击目标 ≥40px——py-2 + min-h-10 扩触达区,文字仍 text-xs 保密度
-            className="rounded border border-ink/40 bg-panel-hi px-3 py-2 min-h-10 font-deco hover:bg-panel cursor-pointer"
+            className="h-10 cursor-pointer rounded border border-ink/40 bg-panel-hi px-3 font-deco text-xs leading-none hover:bg-panel"
           >
             {autopilotOn ? "收回" : "托管"}
           </button>
@@ -236,7 +244,7 @@ export function HandPanel({ snapshot, player, controller, interactive, onCardDet
               setAutopilotSpeed(speed);
               if (autopilotOn) controller.setAutoPilot(true, speed); // 托管中切速立即生效(旧行为)
             }}
-            className="rounded border border-ink/30 bg-bg px-1 py-0.5 font-deco text-ink-dim"
+            className="h-10 cursor-pointer rounded border border-ink/30 bg-bg px-2 font-deco text-xs leading-none text-ink-dim"
             aria-label="托管速度"
           >
             <option value="fast">快</option>
