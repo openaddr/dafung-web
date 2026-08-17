@@ -17,11 +17,12 @@
     "resolveJsonModule": true,
     "isolatedModules": true,
     "verbatimModuleSyntax": false,
-    "types": ["node"],
+    "types": ["node", "bun"],
+    "jsx": "react-jsx",
     "baseUrl": ".",
     "paths": {
       "@core/*": ["src/core/*"],
-      "@render/*": ["src/render/*"]
+      "@app/*": ["src/app/*"]
     }
   },
   "include": ["src", "test", "e2e", "*.config.ts"]

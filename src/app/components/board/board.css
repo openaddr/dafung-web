@@ -1,0 +1,89 @@
+/* 棋盘组件专属样式(与 tokens.css 同级;移植自 src/render/style.css 的棋盘段落)。
+   Tailwind 类无法表达的部分(keyframes / SVG 子选择器 hover / 伪动画)集中在此。 */
+
+/* ── 城池 ── */
+.bv-tile {
+  cursor: pointer;
+}
+/* 需求2·无主档:整城 0.92 的"安静感"——比有主城略退后,视线自然落在有主/都城上。
+   双类名提高优先级,确保不被 Tailwind 单类 .opacity-40(isTaken 灰阶)意外覆盖。 */
+.bv-tile.bv-unowned {
+  opacity: 0.92;
+}
+.bv-tile-hilite {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+.bv-tile:hover .bv-tile-hilite {
+  opacity: 0.5;
+}
+.bv-tile.bv-selectable .bv-tile-hilite {
+  opacity: 0.28;
+}
+.bv-capital-glow {
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+/* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点 */
+.bv-tile.bv-capital .bv-capital-glow {
+  animation: bv-pulse-glow 3.5s ease-in-out infinite;
+}
+.bv-tile.bv-active .bv-capital-glow {
+  animation: bv-pulse-glow 1.8s ease-in-out infinite;
+}
+@keyframes bv-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── 驿道 ── */
+.bv-road-main {
+  fill: none;
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.38;
+}
+.bv-road-branch {
+  fill: none;
+  stroke-width: 8;
+  stroke-linecap: round;
+  stroke-dasharray: 14 8;
+  opacity: 0.9;
+  animation: bv-side-flow 1.4s linear infinite;
+}
+@keyframes bv-side-flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+/* ── 棋子(旌旗)──
+   用 CSS transform 定位 + transition 平滑过渡(与旧 board.ts setTokenPosition 同机制:
+   SVG transform 属性不吃 CSS transition,必须走 style.transform)。 */
+.bv-token {
+  transition: transform 0.32s linear;
+  pointer-events: none;
+}
+.bv-token-flag {
+  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+/* 旌旗轻微"呼吸"(旗面摇曳感);行军动画(阶段 6)可直接覆盖 transform 过渡 */
+.bv-token-flag {
+  animation: bv-flag-sway 2.8s ease-in-out infinite;
+  transform-origin: 0 0;
+}
+@keyframes bv-flag-sway {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}

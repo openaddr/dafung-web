@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { netWorth } from "@core/networth";
 import { buy, upgrade } from "@core/economy";
 import { createPlayer } from "@core/player";

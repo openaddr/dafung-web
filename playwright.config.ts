@@ -20,7 +20,10 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        // headless Chromium 默认无 GPU,WebGL 不可用会导致 3D 骰子 fallback。
+        // 用系统 Edge(chromium 内核)免下载 playwright 自带浏览器。
+        // 注意:测试版本随本机 Edge 漂移(换机器需装 Edge);CI 场景删掉 channel 即回退下载版。
+        channel: "msedge",
+        // headless 无 GPU,WebGL 不可用会导致 3D 骰子 fallback。
         // 强制 swiftshader 软件渲染 WebGL,使 e2e 跑真实 3D 路径(与实机一致)。
         launchOptions: {
           args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
@@ -32,13 +35,13 @@ export default defineConfig({
   // 两者都需要先 npm run build 产出 dist/。
   webServer: [
     {
-      command: "npm run serve:e2e",
+      command: "bun run serve:e2e",
       url: "http://localhost:4173",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     {
-      command: "npm run serve",
+      command: "bun run serve",
       url: "http://localhost:3010/health",
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,

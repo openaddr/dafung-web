@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice } from "@core/dice";
@@ -146,5 +146,72 @@ describe("珍宝系统", () => {
     expect(owner.cash).toBe(ownerCash0);
     expect(mover.treasures.length).toBe(0);
     expect(e.turnPhase).toBe("Roll"); // 已 endTurn → 下一玩家 Roll
+  });
+
+  it("访客现金不足:珍宝进托管区,不可被访客变卖抵抗破产(套利封堵)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    const ownerCash0 = owner.cash;
+    mover.cash = guide - 1; // 现金不够付指导价
+    mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
+    e.resolveTreasureOwner({ type: "fair", treasureId: TID });
+    expect(mover.treasures.map((t) => t.id)).toEqual(["other-treasure"]); // 未得宝:珍宝在托管区
+    expect(e.escrowTreasure).not.toBeNull(); // 托管区有此珍宝
+    expect(e.pendingDebt).not.toBeNull(); // 进入破产清算
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    e.sellTreasureBankruptcy(TID); // 托管珍宝不在访客手中 → 拒绝,仅告警
+    expect(mover.cash).toBe(guide - 1); // 未借托管珍宝套现
+    expect(owner.cash).toBe(ownerCash0); // 城主尚未收款
+    expect(owner.treasures.length).toBe(0); // 也不在城主手中(在托管区)
+  });
+
+  it("清算自救成功:付清欠款后托管珍宝交货给买家", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    const ownerCash0 = owner.cash;
+    mover.cash = guide - 1;
+    // 给访客一件可变卖的其他珍宝(Lv2,指导价足以自救)
+    mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" });
+    e.resolveTreasureOwner({ type: "fair", treasureId: TID });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    e.sellTreasureBankruptcy("other-treasure"); // 只能变卖自己的旧藏
+    e.confirmBankruptcySettle();
+    expect(mover.treasures.map((t) => t.id)).toEqual([TID]); // 付清后托管珍宝交割
+    expect(e.escrowTreasure).toBeNull();
+    expect(mover.cash).toBe(guide - 1 + 200 - guide); // 变卖旧藏(Lv2=200)后恰好清偿,余 199
+    expect(owner.cash).toBe(ownerCash0 + guide); // 城主足额收款
+    expect(e.turnPhase).toBe("Roll"); // 已 endTurn
+  });
+
+  it("清算失败破产:托管珍宝退回卖家,不随买家资产转债主", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    mover.cash = guide - 1;
+    mover.treasures = []; // 无可变卖资产 → 直接破产(无清算阶段)
+    e.resolveTreasureOwner({ type: "fair", treasureId: TID });
+    expect(mover.isBankrupt).toBe(true);
+    expect(e.escrowTreasure).toBeNull();
+    expect(owner.treasures.map((t) => t.id)).toEqual([TID]); // 珍宝退回卖家
+    expect(mover.treasures.length).toBe(0);
+  });
+
+  it("坐地起价现金不足:同样进托管区,不得先得宝(premium 路径)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    const ownerCash0 = owner.cash;
+    const price = guide * 2; // L0 tradeMult=2
+    mover.cash = price - 1;
+    mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
+    e.resolveTreasureOwner({ type: "premium", treasureId: TID });
+    expect(mover.treasures.length).toBe(1); // 只有旧藏,托管珍宝未入袋
+    expect(mover.treasures[0].id).toBe("other-treasure");
+    expect(e.escrowTreasure).not.toBeNull();
+    expect(e.escrowTreasure!.price).toBe(price);
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    expect(owner.cash).toBe(ownerCash0);
   });
 });

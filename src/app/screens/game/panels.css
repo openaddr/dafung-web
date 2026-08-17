@@ -1,0 +1,16 @@
+/* 侧栏面板局部样式(W3):
+   - 活跃卡呼吸描边:回合横幅消散后侧栏仍要有"现在轮到谁"的持续线索;
+     2.4s 慢周期 + 低透明度金描边,subtle——提示而不抢棋盘的戏。 */
+@keyframes active-card-breath {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px rgba(200, 161, 58, 0.25);
+  }
+  50% {
+    box-shadow: 0 0 0 3px rgba(200, 161, 58, 0.12);
+  }
+}
+
+.active-card-breath {
+  animation: active-card-breath 2.4s ease-in-out infinite;
+}

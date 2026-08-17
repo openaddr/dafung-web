@@ -1,11 +1,9 @@
 // 古风水墨设计系统:宣纸色板、墨/朱砂/赭石/石青/金/青绿、地产分组色、玩家色。
 // 改这里即全局换肤。
 //
-// ⚠️ 配色双源同步:本文件 hex 字面量与 src/render/style.css 的 :root CSS 变量是两套源
-// (SVG/Canvas 走 TS,DOM 文字/边框走 CSS 变量),靠人工保持一致。
-// 改本文件任一 hex → 同步改 style.css :root 对应变量(--bg / --gold / --road-main …);
-// 反之亦然。CSS 变量名 = hex 字段名 kebab-case(如 goldBright → --gold-bright)。
-// core 零 DOM 依赖(CLAUDE.md 规则 1),故不能从 CSS 反向 import,只能双源 + 注释互引。
+// 配色唯一源:本文件 Theme 对象。Tailwind token 由 scripts/generate-theme-tokens.ts
+// 自动生成 src/app/styles/tokens.css(bun run gen:theme),改色只改这里——
+// 旧「与 style.css 双源人工同步」的约定已随 React/Tailwind 迁移作废。
 
 export interface Rgb {
   r: number;
@@ -30,12 +28,16 @@ export const Theme = {
   bgDeep: hex("d9c9a3"), // 宣纸深(远山/阴影)
   panel: hex("f2e8cf"), // 浅宣纸面板
   panelHi: hex("e0d3ac"),
+  paperHi: hex("f7ecd0"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 纸面)
+  paperLo: hex("ecdcb4"), // 卷轴体渐变暗端
   ink: hex("2b2317"), // 墨黑(正文)
   inkDim: hex("6b5d40"),
   gold: hex("c8a13a"), // 金(主操作/王权)
   goldBright: hex("d4af37"), // 都城光晕
   money: hex("4a7a4a"), // 青绿(收入)
   danger: hex("b23a2e"), // 朱砂(扣减/税/破产)
+  success: hex("059669"), // 在线/成功(原 emerald-600,收编进单源)
+  sealQing: hex("3f6a6b"), // 黛青(战报印章次色,中性事件)
 
   // 驿道
   roadMain: hex("8a6a3f"), // 主路褐

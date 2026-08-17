@@ -61,6 +61,15 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   return a;
 }
 
+/** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
+ *  经 engine.presentation.drainFloaters() 消费(破坏性读)。 */
+export interface FloaterEvent {
+  playerIndex: number;
+  amount: number;
+  atTile?: number;
+  kind: "income" | "expense" | "supply";
+}
+
 export class GameEngine {
   readonly board: Board;
   readonly catalog: Catalog;
@@ -83,6 +92,8 @@ export class GameEngine {
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
+  // 珍宝交涉交割托管:成交后买家付清价款前,珍宝暂存于此(序列化友好纯数据;买家不可变卖托管物抵债)。
+  escrowTreasure: { treasure: TreasureDef; buyerIdx: number; sellerIdx: number; price: number } | null = null;
 
   activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
   draftOrder: number[] = []; // public:同上
@@ -97,19 +108,43 @@ export class GameEngine {
   winner: Player | null = null;
   winReason: VictoryReason = "None";
 
-  lastRoll: DiceRoll | null = null;
-  lastMove: MovePath | null = null;
-  lastLandOutcome: LandOutcome | null = null;
-  lastTransaction: TransactionResult | null = null;
+  // ─── 表现态(Wave3 候选4 收口)───
+  // 四个字段(私有)语义曾散在注释里:floaters 读即破坏(渲染消费后清空)、
+  // lastMove 表现侧可写(applyPresentationMove)、lastRoll/lastTransaction 每帧重建。
+  // 现统一经 presentation 视图对外(见 getter),字段本身不再 public:
+  //  - 读:engine.presentation.lastRoll / lastMove / lastTransaction(只读);
+  //  - 浮字消费:engine.presentation.drainFloaters()(破坏性读,调用即清空);
+  //  - 表现写 lastMove 的唯一通道仍是 applyPresentationMove(保留原位)。
+  // 视图是方法的集合(非可序列化数据),不进 snapshot;序列化走 snapshot.ts 经视图读。
+  private lastRoll: DiceRoll | null = null;
+  private lastMove: MovePath | null = null;
+  lastLandOutcome: LandOutcome | null = null; // 非表现态(bot/快照消费的数据),维持 public
+  private lastTransaction: TransactionResult | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
-  floaters: {
-    playerIndex: number;
-    amount: number;
-    atTile?: number;
-    kind: "income" | "expense" | "supply";
-  }[] = [];
+  private floaters: FloaterEvent[] = [];
+
+  /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
+   *  drainFloaters 是破坏性读——取走全部浮字并清空,消费方(表现编排器)应一次取尽。 */
+  get presentation(): {
+    readonly lastRoll: DiceRoll | null;
+    readonly lastMove: MovePath | null;
+    readonly lastTransaction: TransactionResult | null;
+    /** 破坏性读:返回并清空全部待播浮字。 */
+    drainFloaters(): FloaterEvent[];
+  } {
+    return {
+      lastRoll: this.lastRoll,
+      lastMove: this.lastMove,
+      lastTransaction: this.lastTransaction,
+      drainFloaters: () => {
+        const f = this.floaters;
+        this.floaters = [];
+        return f;
+      },
+    };
+  }
 
   constructor(
     board: Board,
@@ -853,7 +888,8 @@ export class GameEngine {
   }
 
   /** 城主抉择:公道买卖(指导价,玩家间付银)/ 坐地起价(加价出售,玩家间付银)/ 跳过。
-   *  两种交易都是 visitor → owner 玩家间付银(无银行注入);visitor 先得宝再付款。 */
+   *  两种交易都是 visitor → owner 玩家间付银(无银行注入);成交后珍宝先进交割托管区(escrowTreasure),
+   *  买家付清价款才交货——托管中的珍宝不可被买家变卖抵债(防"得宝后变卖抵债"白嫖套利),买家破产则退回卖家。 */
   resolveTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }): void {
     if (!this.assertPhase("AwaitingTreasureOwner", "ResolveTreasureOwner")) return;
     const tv = this.treasureVisitor!;
@@ -870,8 +906,7 @@ export class GameEngine {
 
     const tIdx = owner.treasures.findIndex((t) => t.id === action.treasureId);
     if (tIdx < 0) { this.warn(`珍宝 ${action.treasureId} 不在手中`); return; }
-    const treasure = owner.treasures.splice(tIdx, 1)[0];
-    const guidePrice = guidePriceOf(treasure.level);
+    const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
     const holding = findHolding(owner, def.id);
     const cityLevel = holding?.level ?? 0;
 
@@ -880,12 +915,22 @@ export class GameEngine {
       ? guidePrice
       : premiumPriceOf(guidePrice, def, cityLevel);
 
-    // visitor 先得宝,再付银给 owner(玩家间流转;与原 trade 分支一致)。
-    // 破产时珍宝经 settleDebt 转回 owner。
-    mover.treasures.push(treasure);
+    const treasure = owner.treasures.splice(tIdx, 1)[0];
+
+    // 先付款后交货:珍宝进交割托管区,买家付清价款(可能经破产清算变卖其他资产自救)后才交割。
+    // 托管中的珍宝不在买家 treasures 里 → 不可被 sellTreasureBankruptcy 变卖抵债(封堵套利);
+    // 买家最终破产时,托管珍宝退回卖家。
+    this.escrowTreasure = {
+      treasure,
+      buyerIdx: this.players.indexOf(mover),
+      sellerIdx: tv.ownerIdx,
+      price,
+    };
     const r = this.payOrLiquidate(mover, owner, price);
-    if (r === "liquidating") return; // 清算自救
+    if (r === "liquidating") return; // 清算自救:escrow 挂起,confirmBankruptcySettle 里交割/退还
     const bankrupt = r === "bankrupt";
+    if (bankrupt) this.returnEscrowToSeller(); // 买家破产:珍宝退回卖家
+    else this.deliverEscrow(); // 付款到账:交货
     this.pushFloater(mover, -price, mover.position, "expense");
     this.pushFloater(owner, price, mover.position, "income");
     if (price > 0) this.fireOnOtherLoseCash(mover);
@@ -897,6 +942,24 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 破产清算(变卖资产自救) ────────────────────────────
+  /** 交割托管:买家付清价款 → 珍宝交货给买家。 */
+  private deliverEscrow(): void {
+    const e = this.escrowTreasure;
+    if (!e) return;
+    this.escrowTreasure = null;
+    this.players[e.buyerIdx].treasures.push(e.treasure);
+  }
+
+  /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。 */
+  private returnEscrowToSeller(): void {
+    const e = this.escrowTreasure;
+    if (!e) return;
+    this.escrowTreasure = null;
+    const seller = this.players[e.sellerIdx];
+    if (!seller.isBankrupt) seller.treasures.push(e.treasure);
+    else this.treasureDeck.push(e.treasure); // 卖家也已被清算出局 → 珍宝回牌堆
+  }
+
   /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。 */
   private payOrLiquidate(mover: Player, creditor: Player | null, amount: number): "ok" | "liquidating" | "bankrupt" {
     if (mover.cash >= amount) {
@@ -975,10 +1038,12 @@ export class GameEngine {
     if (p.cash >= debt.amount) {
       p.cash -= debt.amount;
       if (debt.creditor) debt.creditor.cash += debt.amount;
+      this.deliverEscrow(); // 清算自救成功:托管珍宝交货给买家
       this.logEvent("system", p.guohao, `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`, `bkConfirm player=${p.id} paid=${debt.amount}`);
     } else {
       settleDebt(p, debt.creditor, debt.amount);
       this.finalizeBankruptcy(p);
+      this.returnEscrowToSeller(); // 破产:未付款的托管珍宝退回卖家
       this.logEvent("system", p.guohao, `${p.guohao} 变卖殆尽仍不足,破产出局`, `bkBankrupt player=${p.id} debt=${debt.amount}`);
     }
     this.turnPhase = "Land";
@@ -1119,6 +1184,7 @@ export class GameEngine {
   private warn(msg: string): void {
     this.logEvent("system", null, `[警告] ${msg}`, `warn: ${msg}`);
   }
+  /** 浮字入队(引擎内部结算时调用;对外消费走 presentation.drainFloaters)。 */
   private pushFloater(
     p: Player,
     amount: number,
@@ -1127,11 +1193,13 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 渲染层消费浮动反馈后调用清空。 */
-  drainFloaters() {
-    const f = this.floaters;
-    this.floaters = [];
-    return f;
+  // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
+
+  /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
+   *  写入一段外部推导的行军轨迹供动画层读取;null 清除。
+   *  唯一允许表现侧设置 lastMove 的合法入口(红线 3:引擎态变更须走公共方法)。 */
+  applyPresentationMove(path: MovePath | null): void {
+    this.lastMove = path;
   }
 
   // ──────────────────────────── 调试快照(供 window.__dafung / 测试) ────────────────────────────
@@ -1175,6 +1243,19 @@ export class GameEngine {
       ? {
           amount: s.pendingDebt.amount,
           creditor: this.players.find((p) => p.id === s.pendingDebt!.creditor) ?? null,
+        }
+      : null;
+    this.escrowTreasure = s.escrowTreasure
+      ? {
+          treasure: {
+            id: s.escrowTreasure.treasure.id,
+            name: s.escrowTreasure.treasure.name,
+            level: s.escrowTreasure.treasure.level,
+            desc: s.escrowTreasure.treasure.desc,
+          },
+          buyerIdx: s.escrowTreasure.buyerIdx,
+          sellerIdx: s.escrowTreasure.sellerIdx,
+          price: s.escrowTreasure.price,
         }
       : null;
     // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存 id/name/title/desc,丢 skill/cooldown)

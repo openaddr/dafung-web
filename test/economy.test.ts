@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { buy, upgrade, settleDebt } from "@core/economy";
 import { createPlayer } from "@core/player";
 import sanguoData from "../public/maps/sanguo.json";

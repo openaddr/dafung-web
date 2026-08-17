@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice } from "@core/dice";
@@ -94,8 +94,8 @@ describe("回合与胜负", () => {
     const e = makeEngine(7);
     finishSetup(e);
     e.rollAndMove();
-    expect(e.lastRoll).not.toBeNull();
-    expect(e.lastMove).not.toBeNull(); // 掷骰后已移动(落 TreasureCity 会同步探宝 endTurn 回 Roll,属正常)
+    expect(e.presentation.lastRoll).not.toBeNull();
+    expect(e.presentation.lastMove).not.toBeNull(); // 掷骰后已移动(落 TreasureCity 会同步探宝 endTurn 回 Roll,属正常)
   });
 
   it("endTurn 不清空 lastRoll/lastMove(doRoll 动画依赖;防回归)", () => {
@@ -105,8 +105,8 @@ describe("回合与胜负", () => {
     finishSetup(e);
     e.rollAndMove();
     autoResolve(e);
-    expect(e.lastRoll).not.toBeNull();
-    expect(e.lastMove).not.toBeNull();
+    expect(e.presentation.lastRoll).not.toBeNull();
+    expect(e.presentation.lastMove).not.toBeNull();
   });
 
   it("目标身价达标触发胜利", () => {

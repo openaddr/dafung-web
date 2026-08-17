@@ -1,0 +1,16 @@
+/* React 层样式入口(Tailwind v4)。
+   - tailwindcss:引擎 + preflight
+   - tokens.css:自动生成的主题 token(gen:theme),配色唯一源是 core/theme.ts
+   其余全局样式(宣纸底纹、字体应用等)在迁移期逐步从旧 style.css 演化过来。 */
+@import "tailwindcss";
+@import "./tokens.css";
+
+html,
+body,
+#app {
+  height: 100%;
+  margin: 0;
+  /* 棋盘是全屏应用不是文档:任何 fx 元素(浮字/横幅/行军棋子)越界都不得撑出滚动条,
+     否则行军期间页面反复变宽变窄、元素横向跳动(TODO #22;旧 style.css 同款规则)。 */
+  overflow: hidden;
+}

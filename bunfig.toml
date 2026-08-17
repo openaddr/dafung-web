@@ -1,0 +1,4 @@
+# Bun 运行配置。测试根限定 test/(避免把 Playwright 的 e2e/*.spec.ts 当单测扫进来;
+# e2e 由 `bun run test:e2e` 驱动 Playwright,两套体系互不越界——同旧 vitest include 口径)。
+[test]
+root = "test"

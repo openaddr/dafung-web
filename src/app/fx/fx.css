@@ -1,0 +1,130 @@
+/* 瞬时特效样式:迁移自 src/render/style.css 的 floater/coin/turn-banner/seal
+   (keyframe 逐效果编排,时长与 fx/timings.ts 的 FX 常量保持一致)。
+   颜色一律引用 tokens.css 的 var(--color-*)(唯一源 core/theme.ts),
+   不再写死同值——改色只需改 theme.ts 后 bun run gen:theme。
+   例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
+
+/* ── 3D 骰子全屏覆盖层(ThreeDice append 到 body,样式必须在此定义)──
+   ⚠ 教训(2026-08-16):本规则原住旧 style.css,阶段 10 删旧层时被误删——
+   overlay 没有 fixed 定位就瘫在文档流末尾被 overflow:hidden 吃掉,骰子动画
+   自此隐形而 e2e(swiftshader)不验视觉,一路全绿未察觉。body 上挂载的元素
+   其样式必须随迁,不能只依赖组件内样式。 */
+.dice-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 45;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, rgba(40, 30, 15, 0.35), rgba(20, 15, 5, 0.6));
+  animation: dice-overlay-in 0.2s ease;
+}
+@keyframes dice-overlay-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 浮动金额 */
+.fx-floater {
+  position: absolute;
+  font-family: var(--font-brush);
+  font-size: 26px;
+  font-weight: 700;
+  pointer-events: none;
+  z-index: 20;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 0 8px currentColor;
+  animation: fx-float-up 1.3s ease-out forwards;
+}
+.fx-floater.pos { color: var(--color-money); }
+.fx-floater.neg { color: var(--color-danger); }
+@keyframes fx-float-up {
+  0% { transform: translate(-50%, 0) scale(0.6); opacity: 0; }
+  20% { transform: translate(-50%, -10px) scale(1.15); opacity: 1; }
+  100% { transform: translate(-50%, -70px) scale(1); opacity: 0; }
+}
+
+/* 铜钱雨 */
+.fx-coin {
+  position: absolute;
+  font-size: 22px;
+  pointer-events: none;
+  z-index: 19;
+  animation: fx-coin-rain 1.4s ease-in forwards;
+  filter: drop-shadow(0 0 4px var(--color-gold-bright));
+}
+@keyframes fx-coin-rain {
+  0% { transform: translate(0, 0) rotate(0); opacity: 0; }
+  15% { opacity: 1; }
+  100% { transform: translate(var(--dx, 0), 90px) rotate(540deg); opacity: 0; }
+}
+
+/* 回合旌旗横幅 */
+.fx-turn-banner {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  background: var(--player-color, var(--color-ink));
+  color: #fff;
+  font-family: var(--font-brush);
+  font-size: 28px;
+  padding: 6px 28px;
+  border-radius: 4px;
+  opacity: 0;
+  border: 3px solid var(--color-gold-bright);
+  box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+  letter-spacing: 8px;
+  pointer-events: none;
+  z-index: 25;
+  white-space: nowrap;
+  animation: fx-banner-fly 1.8s ease forwards;
+}
+@keyframes fx-banner-fly {
+  0% { transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); opacity: 0; }
+  20% { transform: translate(-50%, -50%) scale(1.05) rotate(0deg); opacity: 0.82; }
+  75% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.82; }
+  100% { transform: translate(-50%, -50%) scale(1.4) rotate(0deg); opacity: 0; }
+}
+
+/* 朱砂印章(建都/购城确认时"啪"地盖下) */
+.fx-seal {
+  position: absolute;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  width: 58px;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-brush);
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--color-paper); /* 印面米白:复用浅宣纸 token */
+  background: var(--color-danger);
+  border: 3px solid var(--color-paper);
+  border-radius: 9px;
+  box-shadow: 0 0 0 2px var(--color-danger), 0 6px 14px rgba(0, 0, 0, 0.3);
+  pointer-events: none;
+  z-index: 22;
+  opacity: 0;
+  animation: fx-seal-stamp 0.85s ease-out forwards;
+}
+@keyframes fx-seal-stamp {
+  0% { transform: translate(-50%, -50%) rotate(-12deg) scale(2.2); opacity: 0; }
+  18% { transform: translate(-50%, -50%) rotate(-8deg) scale(1); opacity: 1; }
+  65% { transform: translate(-50%, -50%) rotate(-8deg) scale(1); opacity: 1; }
+  100% { transform: translate(-50%, -50%) rotate(-8deg) scale(1.15); opacity: 0; }
+}
+
+/* 驿道流光(行军逐段高亮,由 useMarch 命令式追加到 #bv-flow) */
+.road-flow {
+  fill: none;
+  stroke: var(--color-gold-bright);
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0;
+  filter: drop-shadow(0 0 4px var(--color-gold-bright));
+}
+.road-flow.active {
+  animation: fx-flow-fade 0.5s ease forwards;
+}
+@keyframes fx-flow-fade {
+  0% { opacity: 0.95; }
+  100% { opacity: 0; }
+}

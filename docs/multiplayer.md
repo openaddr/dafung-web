@@ -1,6 +1,6 @@
 # 联机对局设计与部署
 
-> 状态:**设计已定**;实现分 3 步——第 1 步(权威服务器骨架)已完成,第 2 步(浏览器/CLI 接入)未做。本文是设计与部署依据。
+> 状态:**已联机可玩**——第 1 步(权威服务器骨架)与第 2 步(多房间 WS + 浏览器联机客户端)均已完成,仅剩第 3 步(CLI 改 fetch server)。本文是设计与部署依据。
 
 ## 1. 目标
 
@@ -49,9 +49,10 @@
 - `scripts/engine-helpers.ts` 共享层(序列化 / bot 自动驱动 / 状态摘要)
 - `src/core/*` 零 DOM;`snapshot()` / `restoreFromSnapshot()` 完整可序列化
 
-**待实现(第 2 步 — 真正"能联机玩"的关键)**:
-- 服务器:`Map<roomId, GameEngine>` 多房间;WebSocket upgrade;托管 `dist/`;大厅流程(建房 / 房间码 / FCFS / 房主开局);seatToken 签发;掉线冻结 + 房主解散/bot + 房主掉线移交;`rooms/<id>.json` 每手落盘 + 启动恢复
-- 客户端:`src/render/state.ts` → 网络客户端(WS 发 cmd、收 snapshot 渲染;保留热座模式或替换由你定)
+**已完成(第 2 步 — "能联机玩")**:
+- 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(多房间编排:座位/接管/bot 驱动/host 移交/纯视图)+ `scripts/room-persistence.ts`(每手落盘 + 启动恢复)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、同进程静态托管 `dist/`。
+- 客户端(React 版,取代旧 `src/render/network-client.ts`):`src/app/controllers/online.ts` 的 `OnlineController` —— REST 建房/加入/选图/开局,WS 发 `{type:"cmd"}` GameCommand;收 snapshot 即 `restoreFromSnapshot` 重 hydrate 只读引擎,经 `syncFromEngine` 灌 zustand store,React 组件声明式重渲。大厅 UI 归 `src/app/screens/lobby/LobbyScreen.tsx`(房间态走 `src/app/store/netStore.ts`)。单机与联机共用 `GameController` 基类(`src/app/controllers/controller.ts`),屏幕组件对两种模式无感。
+- 已验:多客户端 e2e(`e2e/online-multi.spec.ts` 完整对局)。
 
 **待实现(第 3 步)**:CLI 改 fetch server(弃本地 state.json)。
 
@@ -72,7 +73,7 @@
 ```bash
 cd /opt
 git clone <repo> dafung-web && cd dafung-web
-npm ci && npm run build        # 产出 dist/
+bun install && bun run build   # 产出 dist/
 ```
 
 ### 6.3 应用 env(`/opt/dafung-web/.env.app`,与 SSH 凭据的 `.env` 分开)
@@ -93,13 +94,13 @@ Type=simple
 User=dafung
 WorkingDirectory=/opt/dafung-web
 EnvironmentFile=/opt/dafung-web/.env.app
-ExecStart=/opt/dafung-web/node_modules/.bin/tsx scripts/server.ts
+ExecStart=/usr/local/bin/bun scripts/server.ts
 Restart=on-failure
 
 [Install]
 WantedBy=multi-user.target
 ```
-> 直接用 tsx 跑 TS(确保 `npm ci` 装了 tsx:别设 `NODE_ENV=production` 跳过 devDeps)。将来可用 `esbuild` 把服务器打成 `dist-server/server.js`,用纯 `node` 跑、去掉运行时 tsx 依赖。
+> Bun 原生跑 TS(2026-08 自 tsx 迁移):无运行时转译依赖, `bun --version` ≥1.3 即可;原 tsx/esbuild 打包方案作废。
 
 ### 6.5 Caddy(`/etc/caddy/Caddyfile`)— 自动签 Let's Encrypt、自动续期,反代含 WS upgrade
 ```
@@ -119,4 +120,4 @@ curl https://dafung.openaddr.cn/health    # 期望 {"ok":true,...}
 Tauri 构建时烘入 `wss://dafung.openaddr.cn`(dev 可覆盖);包内 `dist/` 连此地址。
 
 ### 6.8 当前限制
-⚠️ 现版 `scripts/server.ts` 是**单局 REST**,尚无多房间 / WS / 静态 / 大厅。**第 2 步完成后方可按本 runbook 跑联机**;现在部署只能用 REST 单局 + CLI 做验证。
+多房间 / WS / 静态托管 / 大厅均已就绪(第 2 步完成),可按本 runbook 部署联机。仅剩 CLI 尚未改走 server(第 3 步)。

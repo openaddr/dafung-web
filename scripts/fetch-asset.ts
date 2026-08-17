@@ -2,9 +2,9 @@
 // manifest.json + CREDITS.md。无原生依赖:用 Commons 缩略图参数控体积;SVG 源直接存。
 //
 // 用法:
-//   npx tsx scripts/fetch-asset.ts --id hero:zhouyu   --query "Zhou Yu Three Kingdoms portrait" --category heroes
-//   npx tsx scripts/fetch-asset.ts --id treasure:seal --query "Imperial Seal of China jade"      --category treasures --width 256
-//   npx tsx scripts/fetch-asset.ts --id treasure:seal --query "传国玉玺" --skip 1
+//   bun scripts/fetch-asset.ts --id hero:zhouyu   --query "Zhou Yu Three Kingdoms portrait" --category heroes
+//   bun scripts/fetch-asset.ts --id treasure:seal --query "Imperial Seal of China jade"      --category treasures --width 256
+//   bun scripts/fetch-asset.ts --id treasure:seal --query "传国玉玺" --skip 1
 //
 // 限 Wikimedia Commons。跳过非图文件(PDF/DjVu 书扫);优先 SVG/矢量;429 退避重试。
 import { existsSync, mkdirSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";

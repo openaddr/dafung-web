@@ -36,6 +36,15 @@ export function serializeGame(e: GameEngine) {
       : null,
     pendingHaltIsOnPath: e.pendingHaltIsOnPath,
     pendingDebt: e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null,
+    // 珍宝交涉交割托管(买家付清价款前珍宝暂存;恢复后可继续清算/交割)
+    escrowTreasure: e.escrowTreasure
+      ? {
+          treasure: { id: e.escrowTreasure.treasure.id, name: e.escrowTreasure.treasure.name, level: e.escrowTreasure.treasure.level, desc: e.escrowTreasure.treasure.desc },
+          buyerIdx: e.escrowTreasure.buyerIdx,
+          sellerIdx: e.escrowTreasure.sellerIdx,
+          price: e.escrowTreasure.price,
+        }
+      : null,
     branchStartTile: e.board.branch ? e.board.branch.startNode : null,
     branchEndTile: e.board.branch ? e.board.branch.endNode : null,
     currentTileIsBranchStart: e.currentTileIsBranchStart(),
@@ -62,19 +71,20 @@ export function serializeGame(e: GameEngine) {
       treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
     })),
     offeredHeroes: e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
-    lastRoll: e.lastRoll,
+    // 表现态字段经 presentation 视图读(Wave3 候选4:字段已私有,序列化格式不变)。
+    lastRoll: e.presentation.lastRoll,
     // lastMove 全量坐标(waypoints/branchWaypoints)随行军动画坐标一并序列化:
     // 联机端收到 snapshot 时,行军动画可能尚未播放(或断线重连后需补播),需坐标才能复现路径。
-    lastMove: e.lastMove
+    lastMove: e.presentation.lastMove
       ? {
-          from: e.lastMove.from,
-          landIndex: e.lastMove.landIndex,
-          passedCapital: e.lastMove.passedCapital,
-          capitalIndex: e.lastMove.capitalIndex,
-          traversed: e.lastMove.traversed,
-          waypoints: e.lastMove.waypoints,
-          branchWaypoints: e.lastMove.branchWaypoints,
-          landBranchStep: e.lastMove.landBranchStep,
+          from: e.presentation.lastMove.from,
+          landIndex: e.presentation.lastMove.landIndex,
+          passedCapital: e.presentation.lastMove.passedCapital,
+          capitalIndex: e.presentation.lastMove.capitalIndex,
+          traversed: e.presentation.lastMove.traversed,
+          waypoints: e.presentation.lastMove.waypoints,
+          branchWaypoints: e.presentation.lastMove.branchWaypoints,
+          landBranchStep: e.presentation.lastMove.landBranchStep,
         }
       : null,
     lastLandOutcomeKind: e.lastLandOutcome?.kind ?? null,
