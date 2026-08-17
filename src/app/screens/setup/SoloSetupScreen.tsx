@@ -222,10 +222,15 @@ export function SoloSetupScreen({
                         (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
                       }
                     />
-                    {/* S8:框下即时 xs 红字(替代提交后 hint 里才出现文案) */}
-                    {guohaoInvalid && (
+                    {guohaoInvalid ? (
+                      // S8:框下即时 xs 红字(替代提交后 hint 里才出现文案)
                       <span data-testid="setup-guohao-error" className="text-xs text-danger">
                         国号需为单个汉字
+                      </span>
+                    ) : (
+                      // #28 UI:国号预设的可感知说明 —— 告知起兵后会记住并默认带入(含联机)
+                      <span className="text-xs text-ink-dim">
+                        起兵后记住此国号,下次默认带入,联机加入时也自动使用
                       </span>
                     )}
                   </div>

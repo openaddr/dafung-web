@@ -11,6 +11,8 @@ import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import type { OnlineController } from "@app/controllers/online";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
+// #28:国号预设 key 与 SoloSetup 同源(起兵时写入,此处读出自动带入)
+import { GUOHAO_PREF_KEY } from "@app/screens/setup/SoloSetupScreen";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { LID } from "./testids";
@@ -254,7 +256,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 disabled={busy || !joinCode.trim()}
                 // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
                 title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
-                onClick={() => void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem("dafung.guohao") ?? undefined))}
+                onClick={() => void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined))}
                 className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
               >
                 {busy ? "处理中…" : "加入"}
