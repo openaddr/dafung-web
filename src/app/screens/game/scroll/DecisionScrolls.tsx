@@ -3,12 +3,28 @@
 // 卷轴轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
 // 按钮 testid 沿用旧 action-* 命名(action-halt/action-buy/…),文案与语义不变,
 // 只是位置从侧栏搬进卷轴,e2e 断言零语义变化。
+import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { RentTable } from "./RentTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
+
+/** G-19:数字快捷键(1/2/3)触发选项 —— 挂载绑、卸载解;actions 顺序即角标顺序。
+ *  Esc 不做(决策不可关是产品设定)。回调里的 disabled 判断由各卷轴自行收口。 */
+function useNumberShortcuts(actions: Array<() => void>) {
+  const ref = useRef(actions);
+  ref.current = actions;
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1 && n <= ref.current.length) ref.current[n - 1]();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
 
 // ── 驻跸或行进(AwaitingCapitalHalt)──
 export function HaltDecisionScroll({
@@ -20,6 +36,11 @@ export function HaltDecisionScroll({
   nextName: string;
   onCommand: (cmd: GameCommand) => void;
 }) {
+  // G-19:1=驻跸 2=行进
+  useNumberShortcuts([
+    () => onCommand({ type: "haltAtCapital" }),
+    () => onCommand({ type: "continueMove" }),
+  ]);
   return (
     <ScrollShell title="驻跸或行进" testid={T.haltScroll}>
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
@@ -28,12 +49,14 @@ export function HaltDecisionScroll({
       <div className="flex flex-wrap justify-center gap-3">
         <ScrollButton
           primary
+          shortcut={1}
           testid={TESTIDS.actionButton("halt")}
           onClick={() => onCommand({ type: "haltAtCapital" })}
         >
           驻跸·{capitalName}
         </ScrollButton>
         <ScrollButton
+          shortcut={2}
           testid={TESTIDS.actionButton("continue")}
           onClick={() => onCommand({ type: "continueMove" })}
         >
@@ -50,6 +73,11 @@ export function BranchDecisionScroll({
 }: {
   onCommand: (cmd: GameCommand) => void;
 }) {
+  // G-19:1=大路 2=辅路
+  useNumberShortcuts([
+    () => onCommand({ type: "selectBranch", kind: "Main" }),
+    () => onCommand({ type: "selectBranch", kind: "Branch" }),
+  ]);
   return (
     <ScrollShell title="驿道岔口" testid={T.branchScroll}>
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
@@ -58,12 +86,14 @@ export function BranchDecisionScroll({
       <div className="flex flex-wrap justify-center gap-3">
         <ScrollButton
           primary
+          shortcut={1}
           testid={TESTIDS.actionButton("main")}
           onClick={() => onCommand({ type: "selectBranch", kind: "Main" })}
         >
           走大路
         </ScrollButton>
         <ScrollButton
+          shortcut={2}
           testid={TESTIDS.actionButton("branch")}
           onClick={() => onCommand({ type: "selectBranch", kind: "Branch" })}
         >
@@ -93,24 +123,49 @@ export function BuyDecisionScroll({
   // F1 口径(与旧 ActionInline 同源):银两或委任不足 → disabled + 原因(委任优先报)
   const canBuy = cash >= property.purchasePrice && warrants >= 1;
   const reason = warrants < 1 ? "委任状不足" : "银两不足";
+  // G-20:买不起时收益表默认折叠(决策已不可行,全表只是噪音);可点开查看
+  const [showRent, setShowRent] = useState(canBuy);
+  // G-19:1=购地(不可购时无效)2=不取
+  useNumberShortcuts([
+    () => { if (canBuy) onCommand({ type: "buyProperty" }); },
+    () => onCommand({ type: "endDecision" }),
+  ]);
+  // G-20:资产行 —— 一眼看清持有/需付/差额(负差红字)
+  const diff = cash - property.purchasePrice;
   return (
     <ScrollShell title="购地抉择" testid={T.buyScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」{region ? ` · ${region}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
-      {/* 复用城池详情的等级收益表:买地的权衡核心是逐级过路费回报 */}
-      <RentTable property={property} />
+      <p className="m-1 mb-2.5 text-center text-sm text-ink">
+        持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
+        <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(diff)}</span>
+      </p>
+      {/* 复用城池详情的等级收益表:买地的权衡核心是逐级过路费回报(G-20:不可购时折叠) */}
+      {showRent ? (
+        <RentTable property={property} />
+      ) : (
+        <button
+          type="button"
+          onClick={() => setShowRent(true)}
+          className="mx-auto mb-1 block font-deco text-xs text-gold underline cursor-pointer hover:text-ink"
+        >
+          查看收益明细
+        </button>
+      )}
       <div className="flex flex-wrap items-center justify-center gap-3">
         <ScrollButton
           primary
           disabled={!canBuy}
           title={canBuy ? undefined : reason}
+          shortcut={1}
           testid={TESTIDS.actionButton("buy")}
           onClick={() => onCommand({ type: "buyProperty" })}
         >
           购地 {formatMoney(property.purchasePrice)}·1委任
         </ScrollButton>
         <ScrollButton
+          shortcut={2}
           testid={TESTIDS.actionButton("skip")}
           onClick={() => onCommand({ type: "endDecision" })}
         >
@@ -142,6 +197,11 @@ export function UpgradeDecisionScroll({
   const reason = maxed ? "已满级" : "银两不足";
   const rentNow = property.rentByLevel[level] ?? 0;
   const rentNext = !maxed ? property.rentByLevel[level + 1] ?? rentNow : rentNow;
+  // G-19:1=扩军(不可升时无效)2=按兵不动
+  useNumberShortcuts([
+    () => { if (canUp) onCommand({ type: "upgradeProperty" }); },
+    () => onCommand({ type: "endDecision" }),
+  ]);
   return (
     <ScrollShell title="扩军抉择" testid={T.upgradeScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
@@ -155,12 +215,14 @@ export function UpgradeDecisionScroll({
           primary
           disabled={!canUp}
           title={canUp ? undefined : reason}
+          shortcut={1}
           testid={TESTIDS.actionButton("upgrade")}
           onClick={() => onCommand({ type: "upgradeProperty" })}
         >
           扩军 {formatMoney(property.upgradeCost)}
         </ScrollButton>
         <ScrollButton
+          shortcut={2}
           testid={TESTIDS.actionButton("skip")}
           onClick={() => onCommand({ type: "endDecision" })}
         >

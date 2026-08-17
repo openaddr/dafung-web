@@ -25,9 +25,9 @@
 - [x] **H-2 入场动效断层**:标题/副标题瞬时出现,按钮才 stagger(home.css:9-21);标题先行淡入;MapSelectPanel 加 150-200ms 进出场
 - [x] **H-3 tracking-[0.3em/0.5em] 尾部字距溢出**致文字偏左(HomeScreen.tsx:45,69;LobbyScreen.tsx:252);末字负 margin 抵消
 - [x] **H-4 focus-visible 无轮廓**(home.css:43-46);补 outline 2px dashed ink
-- [ ] **H-5 「当前地图」行低对比(4.1:1)且不可点击**(SoloSetupScreen.tsx:96-100);提对比 + 整行可点唤起选图
+- [x] **H-5 「当前地图」行低对比(4.1:1)且不可点击**(SoloSetupScreen.tsx:96-100);提对比 + 整行可点唤起选图
 - [x] **S-2 国号非法时起兵仍可点**(SoloSetupScreen.tsx:230);`disabled={guohaoInvalid}` + title
-- [ ] **S-3 配置页换图绕四步**;当前地图行加「更换」内嵌 MapSelectPanel
+- [x] **S-3 配置页换图绕四步**;当前地图行加「更换」内嵌 MapSelectPanel
 - [x] **S-4 选图弹层错误态无重试、无 Esc/遮罩关闭**(MapSelectPanel.tsx:112-121);加 Esc 监听 + 遮罩点击关闭 + 重试按钮
 - [x] **S-5 大厅传 MapSelectPanel 的 mapSource 每渲染新建致重复拉取**(LobbyScreen.tsx:354 / MapSelectPanel.tsx:99);useMemo 或 effect dep 收敛
 - [x] **L-2 建房目标身价零校验,NaN 可直发**(LobbyScreen.tsx:166-182);inputMode=numeric + 失焦校验
@@ -49,10 +49,10 @@
 
 ## 四、P1 — 棋盘/演出/性能(11)
 
-- [ ] **A1 主环 ~1200px 对角线断裂 + 底部 510px 空档**(chessboard.json:wan→wolong→xiangyang);补 1-2 过渡格(渡口/驿站),底部空档同理;同步 index.json tileCount
-- [ ] **A2 中央大面积真空**(40 格全压边框,中央 1500×700 空);加粗江河水墨穿中央或区域晕染中心
-- [ ] **B1 总览缩放下匾额字 ≈6px 不可读**(Tile.tsx:125 注释的 13.6px 论证漏了 0.43 总览系数);两级设计:总览靠色块/旗形 LOD,放大读字;先修正注释
-- [ ] **B2 棋子旗/城旗/王旗三旗语法雷同**(TokenLayer.tsx:56-81 / Tile.tsx:404-419 / 363-392);棋子换形态或比例显著拉大+描边
+- [x] **A1 主环 ~1200px 对角线断裂 + 底部 510px 空档**(chessboard.json:wan→wolong→xiangyang);补 1-2 过渡格(渡口/驿站),底部空档同理;同步 index.json tileCount
+- [x] **A2 中央大面积真空**(40 格全压边框,中央 1500×700 空);加粗江河水墨穿中央或区域晕染中心
+- [x] **B1 总览缩放下匾额字 ≈6px 不可读**(Tile.tsx:125 注释的 13.6px 论证漏了 0.43 总览系数);两级设计:总览靠色块/旗形 LOD,放大读字;先修正注释
+- [x] **B2 棋子旗/城旗/王旗三旗语法雷同**(TokenLayer.tsx:56-81 / Tile.tsx:404-419 / 363-392);棋子换形态或比例显著拉大+描边
 - [x] **C1 每回合 1.2-2.1s 全屏骰子无 bot 减速**(ThreeDice.ts:348-349,303);bot 走半速(MIN_ROLL_MS→250/停留 600→250)
 - [ ] **C2 solveLaunch 同步最多 40 次物理模拟卡主线程**(ThreeDice.ts:335,423-436);solve 期间先 render 起手帧 + 限制预算
 - [x] **C3 回合横幅不占编排时长与下一骰重叠**(presentation.ts:60-61 / orchestrator.ts:46-48);showBanner 改 await

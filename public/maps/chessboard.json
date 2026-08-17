@@ -132,6 +132,15 @@
       "type": "Wolong"
     },
     {
+      "id": "tile-ferry-xinye",
+      "name": "新野驿站",
+      "type": "Chance",
+      "pos": [
+        610,
+        450
+      ]
+    },
+    {
       "id": "prop-xiangyang",
       "name": "襄阳",
       "pos": [
@@ -381,6 +390,15 @@
         400,
         600,
         1000
+      ]
+    },
+    {
+      "id": "tile-ferry-fuling",
+      "name": "涪陵渡",
+      "type": "Chance",
+      "pos": [
+        -750,
+        590
       ]
     },
     {

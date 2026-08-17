@@ -4,7 +4,7 @@
 //       匹配 snapshot.players;映射不到不加徽,宁缺勿错)。
 // G-13:按轮插「—第X轮—」分隔(轮界=轮锚点玩家开启新 turn,见 buildLogItems);
 //       上滚离底时显示「回最新 ▾」浮标(flex-col-reverse 下底部=scrollTop 0)。
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import { formatMoney } from "@core/money";
 import { rgba, playerColor } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -16,6 +16,8 @@ import "./scroll/scroll.css";
 
 /** 战报保留条数(与旧版 DOM 节点上限一致,防长局爆炸)。 */
 const MAX_LOG = 300;
+/** G-14:渲染窗口上限 —— 超出只渲染最近 150 条,顶部提示省略数。 */
+const RENDER_WINDOW = 150;
 
 /* ── W1:emoji → 单字小方章 ──
    为什么要换:旧 emoji(🎲💸💎…)是现代扁平风,与全局毛笔/水墨体系割裂;
@@ -108,6 +110,47 @@ function buildLogItems(log: LogEvent[], snapshot: GameSnapshot): LogItem[] {
   return items;
 }
 
+/** G-14:单条日志抽成 memo 组件 —— 通用渲染(snapshot 其它字段变化)不再逐条 reconcile。 */
+const LogRow = memo(function LogRow({
+  sealChar,
+  sealTone,
+  badgeGuohao,
+  badgeColorIndex,
+  text,
+  detailText,
+  mode,
+  amount,
+  stampIn,
+}: {
+  sealChar: string;
+  sealTone: SealTone;
+  badgeGuohao?: string;
+  badgeColorIndex: number;
+  text: string;
+  detailText: string;
+  mode: "brief" | "detail";
+  amount: number | null;
+  stampIn: boolean;
+}) {
+  return (
+    <div data-testid={TESTIDS.warlogItem} className="text-xs leading-5">
+      {/* 只给最新一条挂盖入动画:见 scroll.css 里 warlog-stamp-in 的注释 */}
+      <span className={`mr-1 inline-block ${stampIn ? "warlog-seal-anim" : ""}`}>
+        <Seal char={sealChar} tone={sealTone} />
+      </span>
+      {badgeGuohao != null && <PlayerBadge guohao={badgeGuohao} colorIndex={badgeColorIndex} />}
+      {mode === "brief" ? text : detailText}
+      {amount != null && (
+        <span className={amount >= 0 ? "text-money" : "text-danger"}>
+          {" "}
+          ({amount >= 0 ? "+" : "−"}
+          {formatMoney(Math.abs(amount))})
+        </span>
+      )}
+    </div>
+  );
+});
+
 export function WarlogPanel({ snapshot }: { snapshot: GameSnapshot }) {
   const [mode, setMode] = useState<"brief" | "detail">("brief");
   // G-13:上滚离底标记(flex-col-reverse 下底部 = scrollTop 0,离底 = scrollTop > 60)。
@@ -146,39 +189,51 @@ export function WarlogPanel({ snapshot }: { snapshot: GameSnapshot }) {
           onScroll={(e) => setAwayFromLatest(e.currentTarget.scrollTop > 60)}
           className="flex min-h-0 flex-1 flex-col-reverse gap-0.5 overflow-y-auto"
         >
-          {[...items].reverse().map((item, i) => {
-            if (item.kind === "sep") {
-              return (
-                <div
-                  key={item.key}
-                  className="py-0.5 text-center font-deco text-[10px] tracking-widest text-ink-dim/80"
-                >
-                  —第{item.round}轮—
-                </div>
-              );
-            }
-            const e = item.entry;
-            const seal = LOG_SEAL[e.category] ?? { char: "纪", tone: "ink" as SealTone };
-            // G-12:国号匹配到玩家才加色徽(宁缺勿错;system 类 player=null 自然无徽)。
-            const owner = e.player != null ? byGuohao.get(e.player) : undefined;
+          {/* G-14:窗口化 —— 超过 RENDER_WINDOW 条只渲染最近部分(时间序切片),顶部提示省略数 */}
+          {(() => {
+            const omitted = Math.max(0, items.length - RENDER_WINDOW);
+            const windowed = omitted > 0 ? items.slice(-RENDER_WINDOW) : items;
             return (
-              <div key={item.key} data-testid={TESTIDS.warlogItem} className="text-xs leading-5">
-                {/* 只给最新一条(i===0)挂盖入动画:见 scroll.css 里 warlog-stamp-in 的注释 */}
-                <span className={`mr-1 inline-block ${i === 0 ? "warlog-seal-anim" : ""}`}>
-                  <Seal {...seal} />
-                </span>
-                {owner && <PlayerBadge guohao={owner.guohao} colorIndex={owner.colorIndex} />}
-                {mode === "brief" ? e.brief : e.detail}
-                {e.amount != null && (
-                  <span className={e.amount >= 0 ? "text-money" : "text-danger"}>
-                    {" "}
-                    ({e.amount >= 0 ? "+" : "−"}
-                    {formatMoney(Math.abs(e.amount))})
-                  </span>
+              <>
+                {[...windowed].reverse().map((item, i) => {
+                  if (item.kind === "sep") {
+                    return (
+                      <div
+                        key={item.key}
+                        className="py-0.5 text-center font-deco text-[10px] tracking-widest text-ink-dim/80"
+                      >
+                        —第{item.round}轮—
+                      </div>
+                    );
+                  }
+                  const e = item.entry;
+                  const seal = LOG_SEAL[e.category] ?? { char: "纪", tone: "ink" as SealTone };
+                  // G-12:国号匹配到玩家才加色徽(宁缺勿错;system 类 player=null 自然无徽)。
+                  const owner = e.player != null ? byGuohao.get(e.player) : undefined;
+                  return (
+                    <LogRow
+                      key={item.key}
+                      sealChar={seal.char}
+                      sealTone={seal.tone}
+                      badgeGuohao={owner?.guohao}
+                      badgeColorIndex={owner?.colorIndex ?? 0}
+                      text={e.brief}
+                      detailText={e.detail}
+                      mode={mode}
+                      amount={e.amount ?? null}
+                      stampIn={i === 0}
+                    />
+                  );
+                })}
+                {/* flex-col-reverse 下最后的 DOM 子元素位于视觉顶部:省略提示钉在窗口顶端 */}
+                {omitted > 0 && (
+                  <div className="py-0.5 text-center font-deco text-[10px] text-ink-dim/80">
+                    已省略更早 {omitted} 条
+                  </div>
                 )}
-              </div>
+              </>
             );
-          })}
+          })()}
         </div>
         {/* G-13:上滚离底 → 「回最新」浮标钉在日志区底边内侧,点击滚回底部(scrollTop=0)。 */}
         {awayFromLatest && (

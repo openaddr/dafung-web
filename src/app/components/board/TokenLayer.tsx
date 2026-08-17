@@ -56,12 +56,19 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
     <g className="bv-token-flag">
       {/* 旗杆 */}
       <line x1={0} y1={0} x2={0} y2={-34} stroke="rgba(40,28,10,0.85)" strokeWidth={2.5} />
-      {/* 三角旌旗(玩家色) */}
+      {/* 三角旌旗(玩家色)。B2:白描边一圈——棋子是"人",要在城旗(燕尾)/王旗(双层大三角)
+          之外第一眼可辨,白边在任何底色上勾出旗形轮廓;原深色描边退为内侧次层。 */}
       <polygon
         points="0,-34 26,-26 0,-16"
         fill={rgba(c)}
-        stroke="rgba(40,28,10,0.6)"
-        strokeWidth={1}
+        stroke="rgba(255,252,240,0.95)"
+        strokeWidth={1.6}
+      />
+      <polygon
+        points="0,-34 26,-26 0,-16"
+        fill="none"
+        stroke="rgba(40,28,10,0.5)"
+        strokeWidth={0.6}
       />
       {/* 国号字 */}
       <text

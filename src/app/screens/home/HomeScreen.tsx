@@ -88,11 +88,16 @@ export function HomeScreen({
         ))}
       </div>
 
-      {/* 当前选中地图回显(选择在二级面板完成后刷新;localStorage 记忆不变) */}
-      <div className="font-deco text-[13px] text-ink-dim mt-6 flex items-center gap-2">
-        <span>当前地图:</span>
+      {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink) */}
+      <button
+        type="button"
+        onClick={() => setShowMapSelect(true)}
+        className="font-deco text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-panel-hi transition-colors"
+      >
+        <span className="text-ink-dim">当前地图:</span>
         <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
-      </div>
+        <span className="text-ink-dim text-xs">▾</span>
+      </button>
 
       {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择) */}
       {showMapSelect && (

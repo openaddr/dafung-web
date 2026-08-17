@@ -29,6 +29,13 @@ export const BoardDefs = memo(function BoardDefs() {
         <stop offset="60%" stopColor="#e8dcc0" stopOpacity={0} />
         <stop offset="100%" stopColor="#6b4f28" stopOpacity={0.28} />
       </radialGradient>
+      {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
+          blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
+      <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stopColor="#d4af37" stopOpacity={0.55} />
+        <stop offset="55%" stopColor="#d4af37" stopOpacity={0.28} />
+        <stop offset="100%" stopColor="#d4af37" stopOpacity={0} />
+      </radialGradient>
     </defs>
   );
 });
@@ -88,8 +95,10 @@ interface RegionBlob {
 }
 
 /** 按 group 聚合城池坐标 → 每区域一个 {中心, 半径}。
- *  半径 = 城池到中心最大距离 × 1.7(铺满整段区域带),再夹在 [240, 640]:
- *  下限保证稀疏区域(如西凉 3 城)仍有成片色感,上限防大扩散糊到邻区。 */
+ *  半径 = 城池到中心最大距离 × 系数,再夹在 [240, 640]:
+ *  下限保证稀疏区域(如西凉 3 城)仍有成片色感,上限防大扩散糊到邻区。
+ *  A3:系数 1.7 → 1.3——8 层全幅渐变在棋盘中央叠糊,收紧后每片晕染基本只罩
+ *  本区域城池带,中央让位给江河水墨;峰值 8% → 边缘 0 的渐变口径不变。 */
 function regionBlobs(tiles: readonly { region: string | null; position: { x: number; y: number } }[]): RegionBlob[] {
   const byGroup = new Map<string, { x: number; y: number }[]>();
   for (const t of tiles) {
@@ -104,7 +113,7 @@ function regionBlobs(tiles: readonly { region: string | null; position: { x: num
     const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
     const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
     const maxDist = Math.max(...pts.map((p) => Math.hypot(p.x - cx, p.y - cy)));
-    blobs.push({ group, cx, cy, r: Math.min(640, Math.max(240, maxDist * 1.7)) });
+    blobs.push({ group, cx, cy, r: Math.min(640, Math.max(240, maxDist * 1.3)) });
   }
   return blobs;
 }
@@ -175,12 +184,46 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
             </g>
           );
         })}
-        {/* 起点⇄标记:辅路入口记号 */}
-        <g transform={`translate(${start.x + 44} ${start.y - 34})`}>
-          <text fontSize={28} fill={rgba(Theme.roadSide)} fontWeight={700}>
-            ⇄
-          </text>
-        </g>
+        {/* A4 辅路入口记号:碑亭剪影(几笔水墨 path:宝顶+翘角亭盖+双柱+基座),
+            替代与水墨语境脱节的「⇄」字符;位置沿辅路首段走向偏移,并取背离棋盘
+            中心的法向侧,记号永远落在路外侧、不压主路。 */}
+        {(() => {
+          const first = branch.cells[0]?.position ?? end;
+          const dx = first.x - start.x;
+          const dy = first.y - start.y;
+          const len = Math.hypot(dx, dy) || 1;
+          const ux = dx / len;
+          const uy = dy / len;
+          // 法向两个候选,取与"起点→棋盘中心反向"更一致的一侧(朝路外)
+          const nx = -uy;
+          const ny = ux;
+          const side = nx * start.x + ny * start.y >= 0 ? 1 : -1;
+          const mx = start.x + ux * 46 + nx * side * 30;
+          const my = start.y + uy * 46 + ny * side * 30;
+          const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
+          return (
+            <g
+              transform={`translate(${mx} ${my}) rotate(${ang})`}
+              fill="none"
+              stroke={rgba(Theme.roadSide)}
+              strokeWidth={2.2}
+              strokeLinecap="round"
+              opacity={0.9}
+            >
+              {/* 宝顶 */}
+              <circle cx={0} cy={-12} r={1.8} fill={rgba(Theme.roadSide)} stroke="none" />
+              {/* 翘角亭盖(两笔弧) */}
+              <path d="M -12,-2 Q -8,-8 0,-9 Q 8,-8 12,-2" />
+              <path d="M -12,-2 Q -14,0 -15,2 M 12,-2 Q 14,0 15,2" strokeWidth={1.4} />
+              {/* 双柱 + 基座 */}
+              <line x1={-7} y1={-2} x2={-7} y2={9} />
+              <line x1={7} y1={-2} x2={7} y2={9} />
+              <path d="M -11,10 L 11,10" />
+              {/* 柱间一竖碑(点出"碑"亭) */}
+              <rect x={-1.5} y={0} width={3} height={8} fill={rgba(Theme.roadSide, 0.85)} stroke="none" />
+            </g>
+          );
+        })()}
       </>
     );
   }

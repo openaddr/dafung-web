@@ -12,6 +12,7 @@ import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
+import { MapSelectPanel } from "./MapSelectPanel";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
 
@@ -39,6 +40,9 @@ export interface SoloSetupScreenProps {
   mapId: string;
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
+  /** S-3:配置页内嵌换图回调 —— 确认换图后回传新 mapId(接线方持久化
+   *  localStorage 并更新自己的 initialMapId state;与 HomeScreen.onMapChange 同契约)。 */
+  onMapChange?: (mapId: string) => void;
 }
 
 /** 目标身价档位(旧实现固定三档)。 */
@@ -52,18 +56,23 @@ export function SoloSetupScreen({
   onBack,
   mapId,
   mapSource = getMapSource(),
+  onMapChange,
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);
   const [target, setTarget] = useState(8000);
   const [difficulty, setDifficulty] = useState<"Simple" | "Normal">("Normal");
   // 单机模式仅首行可编:真人国号默认「魏」(旧 DEFAULT_GUOHAO[0]);bot 国号引擎分配
   const [guohao, setGuohao] = useState("魏");
-  const [hint, setHint] = useState("立国号、定诸侯,起兵逐鹿天下。");
+  // S-8:hint 只承载错误提示(装饰文案上移副标题);null = 无错不渲染
+  const [hint, setHint] = useState<string | null>(null);
+  // S-3:配置页内嵌换图 —— 本地镜像当前 mapId(prop 不随换图变,显示走本地态)
+  const [currentMap, setCurrentMap] = useState(mapId);
+  const [showMapSelect, setShowMapSelect] = useState(false);
   // S8:国号内联校验 —— onChange 即算,非法时输入框红边 + 框下红字;
   // 默认值「魏」合法,首屏不误报;提交时的 hint 只作兜底,正常路径不再触发
   const guohaoInvalid = !isSingleCjk(guohao.trim());
   // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
-  const mapName = useMapName(mapSource, mapId);
+  const mapName = useMapName(mapSource, currentMap);
 
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
@@ -76,7 +85,7 @@ export function SoloSetupScreen({
       setHint("你的国号需为单个汉字。");
       return;
     }
-    setHint("立国号、定诸侯,起兵逐鹿天下。");
+    setHint(null);
     const seats: SeatConfig[] = [{ name: "诸侯1", isBot: false, guohao: g }];
     for (let i = 1; i < seatCount; i++) {
       seats.push({ name: `诸侯${i + 1}`, isBot: true });
@@ -88,7 +97,7 @@ export function SoloSetupScreen({
         targetNetWorth: target,
         startingCash: STARTING_CASH,
         difficulty,
-        mapId,
+        mapId: currentMap,
       });
     } finally {
       // 开局成功即切屏,此复位只服务于失败留在本页的情况
@@ -105,11 +114,22 @@ export function SoloSetupScreen({
       <h1 className="font-brush text-4xl text-ink tracking-widest">单机模式</h1>
 
       <div className="w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl mt-4">
-        {/* 顶部回显首页选定的地图(换图请回首页「选择地图」) */}
-        <div className="font-deco text-sm text-ink-dim mb-4 flex items-center gap-2 border-b border-dashed border-ink/25 pb-3">
+        {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
+        <div className="font-deco text-sm text-ink-dim mb-1 flex items-center gap-2">
           <span>当前地图:</span>
           <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
+          <button
+            type="button"
+            onClick={() => setShowMapSelect(true)}
+            className="rounded border border-gold/60 bg-panel-hi px-2.5 min-h-[32px] font-deco text-xs text-ink cursor-pointer transition-colors hover:bg-panel"
+          >
+            更换
+          </button>
         </div>
+        {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
+        <p className="font-deco text-xs text-ink-dim mb-4 border-b border-dashed border-ink/25 pb-3">
+          立国号、定诸侯,起兵逐鹿天下。
+        </p>
 
         <h3 className="font-brush text-lg text-ink tracking-[0.3em] mb-3">开局布阵</h3>
 
@@ -174,9 +194,14 @@ export function SoloSetupScreen({
                   {i + 1}
                 </span>
                 {isBot ? (
-                  // bot 行不可编:显示占位「机」,国号在对局 Guohao 阶段由引擎分配
-                  <span data-testid={TID.seatGuohaoInput(i)} className="font-deco text-ink-dim px-2 py-1 border border-transparent">
-                    机
+                  // bot 行不可编:显示占位「电脑」,国号在对局 Guohao 阶段由引擎分配
+                  // (S-7:title 补语义,触屏 hover 不可见也不误导——「电脑」自明)
+                  <span
+                    data-testid={TID.seatGuohaoInput(i)}
+                    title="开局由引擎分配国号"
+                    className="font-deco text-ink-dim px-2 py-1 border border-transparent"
+                  >
+                    电脑
                   </span>
                 ) : (
                   <div className="flex flex-col gap-0.5">
@@ -254,8 +279,25 @@ export function SoloSetupScreen({
           </button>
         </div>
 
-        <div data-testid={TID.hint} className="font-deco text-xs text-ink-dim mt-3">{hint}</div>
+        {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
+        {hint != null && (
+          <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-3">{hint}</div>
+        )}
       </div>
+
+      {/* S-3:内嵌选图二级屏(复用首页同款面板;确认后本地回显 + onMapChange 通知接线方) */}
+      {showMapSelect && (
+        <MapSelectPanel
+          mapSource={mapSource}
+          currentMapId={currentMap}
+          onConfirm={(id) => {
+            setCurrentMap(id);
+            setShowMapSelect(false);
+            onMapChange?.(id);
+          }}
+          onCancel={() => setShowMapSelect(false)}
+        />
+      )}
     </div>
   );
 }
