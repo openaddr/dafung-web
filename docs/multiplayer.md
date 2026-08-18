@@ -52,7 +52,7 @@
 **已完成(第 2 步 — "能联机玩")**:
 - 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(多房间编排:座位/接管/bot 驱动/host 移交/纯视图)+ `scripts/room-persistence.ts`(每手落盘 + 启动恢复)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、同进程静态托管 `dist/`。
 - 客户端(React 版,取代旧 `src/render/network-client.ts`):`src/app/controllers/online.ts` 的 `OnlineController` —— REST 建房/加入/选图/开局,WS 发 `{type:"cmd"}` GameCommand;收 snapshot 即 `restoreFromSnapshot` 重 hydrate 只读引擎,经 `syncFromEngine` 灌 zustand store,React 组件声明式重渲。大厅 UI 归 `src/app/screens/lobby/LobbyScreen.tsx`(房间态走 `src/app/store/netStore.ts`)。单机与联机共用 `GameController` 基类(`src/app/controllers/controller.ts`),屏幕组件对两种模式无感。
-- 已验:多客户端 e2e(`e2e/online-multi.spec.ts` 完整对局)。
+- 已验:多客户端 e2e(`e2e/react-online.spec.ts` 双端同步全流程)。
 
 **待实现(第 3 步)**:CLI 改 fetch server(弃本地 state.json)。
 

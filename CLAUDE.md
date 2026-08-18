@@ -83,15 +83,15 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **都城**:经过时弹抉择——驻跸(停都城拿补给+委任+招贤,结束回合)或继续行军到落点;巡幸都城(经过即触发)+2 委任状
 - **珍宝**:牌堆固定数量,等级 1-10 决定指导价;获得途径:① 落无主宝物城(TreasureCity)**拼点**(双骰 2-12)≥ 等级即得,② 落他人城且城主有宝时触发珍宝交涉
 - **珍宝交涉**(他人城):城主抉择——**公道买卖**(访客付指导价得宝,银两给城主,玩家间流转) / **坐地起价**(访客付指导价×城池加价[tradeMult/tradeAdd]得宝) / 不交易;访客不可拒
-- **城池等级**:0-3(maxLevel=3),扩军升级,满级后不可再升
+- **城池等级**:Lv.1-3(购入/建都即 Lv.1,maxLevel=3)。**本作无过路费/升级费**:自己到达己城可选免费扩军 +1 级;他人到达城池时该城自动免费 +1 级(满级封顶)
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。进辅路后**逐格掷骰**沿辅路格推进(每格触发:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),到终点汇入主路继续。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(语义改 Main|Branch)。
-- **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按购入价、名士换 200 分);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
+- **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
 
 ## 验证命令
 ```bash
 bun run build      # tsc --noEmit && vite build
-bun test           # 单元测试(Vitest)
+bun test           # 单元测试(bun:test,177 项)
 bun run test:e2e   # e2e(Playwright,需先 bun run build)
 bun run preview    # 本地预览(http://localhost:4173)
 bun run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)
@@ -104,20 +104,14 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 - **第 2 步(已完成)**:多房间 WebSocket 服务 + 浏览器联机客户端 ——
   - 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(房间编排)+ `scripts/room-persistence.ts`(落盘适配器)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、`rooms/<id>.json` 每手落盘 + 启动恢复、同进程静态托管 `dist/`。env:`PORT`(3000)/`HOST`(127.0.0.1,局域网需 0.0.0.0)/`ROOMS_DIR`/`STATIC_DIR`。
   - 客户端:`src/app/controllers/online.ts`(OnlineController:WS 发 GameCommand、收 snapshot 用 `restoreFromSnapshot` 重 hydrate 只读引擎后灌 store)+ setup 屏联机入口 / `?online=1` 直链;`serverUrl = location.origin`(服务器自托管网页,同源免填)。
-  - 已验:多客户端 e2e(`e2e/online-multi.spec.ts` 181 步完整对局)。
+  - 已验:多客户端 e2e(`e2e/react-online.spec.ts` 双端同步全流程,断线重连在 `react-resilience.spec.ts`)。
 - **第 3 步(待做)**:CLI 改 fetch server(弃本地 state.json)。部署真机验收(部署 runbook 见 `docs/multiplayer.md`,VPS + Caddy + systemd)。
 
 ## 联机测试基础设施
-- **多客户端 e2e**:`e2e/multi-helpers.ts` 提供 `createClients(browser, n, opts)` / `actIfCan(page)` / `driveToGameOver(clients)` / `playRounds(clients, n)` / `assertSync(a, b)`。
-- **模式**:N 个独立 browser context(= N 台设备)同房,走真实 UI(非 REST 旁路);`actIfCan` 驱动活跃方(掷骰/内嵌/卷轴),循环到终局 + 同步断言。
+- **多客户端 e2e**:`e2e/react-online.spec.ts` / `react-online-autopilot.spec.ts` / `react-resilience.spec.ts`,共享工具 `e2e/react-helpers.ts`(quickStart / pickCapital / snap / waitForSnapChanged / waitForEngine)。
+- **模式**:N 个独立 browser context(= N 台设备)同房,走真实 UI(非 REST 旁路);固定等待全部改状态轮询(waitForSnapChanged/expect.poll),慢速托管窗 240s。
 - **调试钩子**:registry.ts 的 `installDebugHooks` 暴露 `window.__dafung`(getEngine/setEngine/snapshot/sync/controller),卡死时可手动重灌快照排查。
-- **用法**:
-  ```ts
-  const { clients } = await createClients(browser, 2, { target: 3000 });
-  const { winner } = await driveToGameOver(clients);           // 完整对局到终局
-  // 场景测试:await playRounds(clients, 5); await clients[1].close(); // 测掉线/接管
-  ```
-- 跑:`bun run test:e2e`(含 `e2e/online-multi.spec.ts`)。
+- 跑:`bun run test:e2e`(10 个 react-*.spec,37 用例)。
 
 ## Agent skills
 
