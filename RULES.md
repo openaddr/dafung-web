@@ -35,7 +35,7 @@
 
 ### 阶段 3:选都(PickCapital)
 - 按定序顺序,每人选一座**可作都城**的空城作为自己的都城([`game.ts:336` `pickCapital`](src/core/game.ts))。
-- 选都即**建城**:付建城费(`buildCost`)、获得该城地产(**Lv.1**)、棋子落于此格、此处成为玩家的"起点"。
+- 选都即**建城**:付建城费(`buildCost`)、获得该城地产(**Lv.0**)、棋子落于此格、此处成为玩家的"起点"。
 - 首轮先行者为定序第一人([`game.ts:373-377` `finishSetup`](src/core/game.ts))。
 
 选都完成后进入 `Playing` 阶段,回合状态机启动。
@@ -79,7 +79,7 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 商市(Stock) | 行情波动 ±100~200([`game.ts:627-644`](src/core/game.ts)) |
 | 无主普通城 | 可购买(`AwaitingDecision`)([`game.ts:657-662`](src/core/game.ts)) |
 | 自己的普通城 | 可免费扩军(`AwaitingDecision`)([`game.ts:664-668`](src/core/game.ts)) |
-| 他人普通城 | 该城自动免费 +1 级,随后珍宝交涉或无事([§5.3](#53-落他人城自动升级--珍宝交涉)) |
+| 他人普通城 | 珍宝交涉或无事;**公道买卖成交才升级**([§5.3](#53-落他人城珍宝交涉公道买卖成交升级)) |
 
 ### 3.5 抉择(`AwaitingDecision` / `AwaitingTreasureOwner` / `AwaitingHeroPick` / `AwaitingBankruptcySettle`)
 玩家做出选择后回合结束。所有玩家操作统一走 `submitCommand`([`game.ts:1068`](src/core/game.ts)),详见各机制章节。
@@ -106,26 +106,26 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 
 ## 5. 地产经济
 
-> 本作**无过路费、无升级费**:升级全部免费,由"到达城池"触发。玩家收入全靠都城补给与卖珍宝([`economy.ts:1-2`](src/core/economy.ts) 注释)。
+> 本作**无过路费、无升级费**:自己到达己城可选免费扩军;他人落城不升级,仅当城主对访客的珍宝交涉选择公道买卖且成交时城池才 +1 级。玩家收入全靠都城补给与卖珍宝([`economy.ts:1-2`](src/core/economy.ts) 注释)。
 
 ### 5.1 购买(`buyProperty`)
 落到无主普通城,可花钱**进驻**([`economy.ts:12` `buy`](src/core/economy.ts),[`game.ts:515` `buyProperty`](src/core/game.ts)):
 - 消耗现金 `purchasePrice` **+ 1 张委任状**([`game.ts:529-532`](src/core/game.ts),[`constants.ts:19` `BUY_WARRANT_COST`](src/core/constants.ts))。
 - 委任状不足 → 拒绝(`NoWarrant`,UI 禁用购买按钮)([`game.ts:524-527`](src/core/game.ts))。
 - 现金不足 → 拒绝(`InsufficientFunds`)([`economy.ts:13`](src/core/economy.ts))。
-- **购入即为 Lv.1**([`economy.ts:19`](src/core/economy.ts),[`types.ts:56` 注释](src/core/types.ts))。
+- **购入即为 Lv.0**([`economy.ts:19`](src/core/economy.ts),[`types.ts:56` 注释](src/core/types.ts))。
 
 ### 5.2 升级 / 扩军(免费)
-**升级不花一分钱,由"到达城池"触发**([`economy.ts:26` `upgrade`](src/core/economy.ts)):
+**升级不花一分钱**([`economy.ts:26` `upgrade`](src/core/economy.ts)):
 - **自己到达己城**:可选免费扩军 +1 级([`game.ts:545` `upgradeProperty`](src/core/game.ts),[`game.ts:664-668`](src/core/game.ts))。
-- **他人到达城池**:该城**自动**免费 +1 级(满级自然封顶)([`game.ts:670-680`](src/core/game.ts))——对手兵临反而助长城池声势。
-- **城池等级 Lv.1 – Lv.3**(`maxLevel = 3`,由地图配置)([`board-loader.ts:54`](src/core/board-loader.ts),[`types.ts:38`](src/core/types.ts))。满级后不可再升(`AlreadyMaxLevel`)([`economy.ts:29`](src/core/economy.ts),[`types.ts:65` `canUpgrade`](src/core/types.ts))。
+- **他人到达城池不升级**:仅当城主对该访客的珍宝交涉选择**公道买卖且成交**时,城池才 +1 级(满级封顶;见 §5.3)。坐地起价 / 不交易 / 无交易发生均不升级。
+- **城池等级 Lv.0 – Lv.3**(`maxLevel = 3`,等级 0..maxLevel 共 4 级,由地图配置)([`board-loader.ts:54`](src/core/board-loader.ts),[`types.ts:38`](src/core/types.ts))。购入 / 建都即 Lv.0,满级后不可再升(`AlreadyMaxLevel`)([`economy.ts:29`](src/core/economy.ts),[`types.ts:65` `canUpgrade`](src/core/types.ts))。
 - 扩军**不消耗委任状**([`constants.ts:19` 注释](src/core/constants.ts))。
-- 各等级城池价值(变卖价)显式定义于地图 json 的 `valueByLevel` 数组(长度 = maxLevel,下标 = 等级-1)([`types.ts:39`](src/core/types.ts))。
+- 各等级城池价值(变卖价)显式定义于地图 json 的 `valueByLevel` 数组(长度 = maxLevel+1,下标 = 等级)([`types.ts:39`](src/core/types.ts))。
 
-### 5.3 落他人城:自动升级 + 珍宝交涉
+### 5.3 落他人城:珍宝交涉(公道买卖成交升级)
 **本作没有传统"付租金"机制。** 落到他人持有的城时([`game.ts:649` `resolveProperty`](src/core/game.ts)):
-1. 先触发该城**自动免费 +1 级**(见 §5.2,满级封顶)。
+1. **到达本身不升级**(升级是公道买卖成交的奖励,不白送)。
 2. 然后按城主状态结算:
 
 | 城主状态 | 处理 |
@@ -191,14 +191,15 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 
 | 抉择 | 售价 | 说明 |
 |---|---|---|
-| **公道买卖**(fair) | 指导价 | 访客付指导价得宝,银两给城主 |
-| **坐地起价**(premium) | 指导价 × tradeMult[Lv−1] + tradeAdd[Lv−1] | 按城池当前等级查表(先乘再加);无 per-level 配置时回退旧 trade 公式(指导价 ×1.5 × 等级倍率) |
+| **公道买卖**(fair) | 指导价 | 访客付指导价得宝,银两给城主;**交易达成 → 城池 +1 级**(满级封顶) |
+| **坐地起价**(premium) | 指导价 × tradeMult[Lv] + tradeAdd[Lv] | 按城池当前等级查表(先乘再加);无 per-level 配置时回退旧 trade 公式(指导价 ×1.5 × 等级倍率);**不升级** |
 | **不交易**(skip) | — | 无事发生 |
 
 - 售价均为**玩家间流转**(visitor → owner),无银行注入([`game.ts:899-901` 注释](src/core/game.ts))。
+- **公道买卖成交即升级**(挂在交易达成时;此后买家破产退宝**不回滚**——升级是对城主选择公道的奖励)([`game.ts` `resolveTreasureOwner` fair 分支](src/core/game.ts))。
 - **先付款后交货**:成交后珍宝先进**交割托管区**(escrow),买家付清价款(可能经破产清算变卖其他资产自救)才交割;托管中的珍宝不可被买家变卖抵债(防"得宝即卖"白嫖套利);买家最终破产则托管珍宝退回卖家([`game.ts:929-942`](src/core/game.ts),[`game.ts:954-970`](src/core/game.ts))。
 - 付不起价款则进入破产清算([§10](#10-破产清算))。
-- 坐地起价公式见 [`treasures.ts:38` `premiumPriceOf`](src/core/treasures.ts);回退等级倍率表 [`treasures.ts:34` `CITY_LEVEL_MULTIPLIER`](src/core/treasures.ts):**Lv1=×2,Lv2=×3,Lv3=×5**(下标 = 等级−1,共 3 条)。地图 json 可用 `tradeMult`/`tradeAdd`(同样下标 = 等级−1,长度 3)per-city 配置,如 sanguo 地图多数城 `tradeMult = [4, 6, 10]`。
+- 坐地起价公式见 [`treasures.ts:38` `premiumPriceOf`](src/core/treasures.ts);回退等级倍率表 [`treasures.ts:34` `CITY_LEVEL_MULTIPLIER`](src/core/treasures.ts):**Lv0=×1,Lv1=×2,Lv2=×3,Lv3=×5**(下标 = 等级,共 4 条)。地图 json 可用 `tradeMult`/`tradeAdd`(同样下标 = 等级,长度 4)per-city 配置,如 sanguo 地图翻倍城 `tradeMult = [2, 4, 6, 10]`、加价城 `tradeAdd = [300, 600, 900, 1500]`。
 
 ### 8.4 珍宝数据(见 [`treasures.ts`](src/core/treasures.ts))
 
@@ -234,7 +235,7 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 1. **现金够** → 直接扣款,继续。
 2. **现金不够但有可变卖资产** → 进入清算(`AwaitingBankruptcySettle`),玩家可逐项变卖自救([`game.ts:990` `hasMarketableAssets`](src/core/game.ts)):
    - 卖珍宝:按**指导价**变现([`game.ts:1005` `sellTreasureBankruptcy`](src/core/game.ts))。
-   - 卖城池:按**当前等级价值**(`valueByLevel[level−1]`)变现,都城不可卖([`game.ts:1017` `sellPropertyBankruptcy`](src/core/game.ts),[`economy.ts:35` `sellValueOf`](src/core/economy.ts))。
+   - 卖城池:按**当前等级价值**(`valueByLevel[level]`)变现,都城不可卖([`game.ts:1017` `sellPropertyBankruptcy`](src/core/game.ts),[`economy.ts:35` `sellValueOf`](src/core/economy.ts))。
    - 遣散名士:换 **¥200**([`game.ts:1031` `cashHeroBankruptcy`](src/core/game.ts))。
    - 凑够债务 → 清偿继续(托管珍宝交割);凑不够 → 真破产([`game.ts:1043` `confirmBankruptcySettle`](src/core/game.ts))。
 3. **无任何可变卖资产** → 直接破产。
@@ -254,24 +255,24 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 目标身价(默认) | ¥8000 | `game.ts:53` `DEFAULT_TARGET`;地图 `targetNetWorth` |
 | 起手现金(默认) | ¥2500 | `game.ts:54` `DEFAULT_CASH`;地图 `startingCash` |
 | 座位数 | **2–8** | `game.ts:162-163` |
-| 城池等级 | Lv.1–3(购入/建都即 Lv.1) | `types.ts:56`;地图 `maxLevel`;`board-loader.ts:54` |
-| 城池变卖价 | `valueByLevel[level−1]`(当前等级价值) | `economy.ts:35` `sellValueOf`;地图 `valueByLevel`(长度 3) |
-| 升级费 | **无**(升级免费,到达触发) | `economy.ts:25-31` `upgrade` |
+| 城池等级 | Lv.0–3 共 4 级(购入/建都即 Lv.0) | `types.ts:56`;地图 `maxLevel`;`board-loader.ts:54` |
+| 城池变卖价 | `valueByLevel[level]`(当前等级价值) | `economy.ts:35` `sellValueOf`;地图 `valueByLevel`(长度 4) |
+| 升级费 | **无**(自己到达己城可选免费扩军;公道买卖成交 +1 级) | `economy.ts:25-31` `upgrade`;`game.ts` `resolveTreasureOwner` |
 | 过路费/租金 | **无**(落他人城走珍宝交涉) | `game.ts:649` `resolveProperty` |
 | 起手委任状 | 3 | `constants.ts:17` `STARTING_WARRANTS` |
 | 经过都城 +委任状 | 2 | `constants.ts:18` `WARRANTS_PER_PASS` |
 | 买城耗委任状 | 1 | `constants.ts:19` `BUY_WARRANT_COST` |
 | 名士上限 | 3 | `constants.ts:22` `HERO_CAPACITY` |
 | 遣散名士换银 | ¥200 | `game.ts:1038` |
-| 都城补给公式 | resupplyPerLevel × 当前等级 Lv | `economy.ts:40` `supplyFor` |
+| 都城补给公式 | resupplyPerLevel × (当前等级 Lv + 1) | `economy.ts:40` `supplyFor` |
 | 都城补给系数(地图) | ¥150 | 地图 `resupplyPerLevel`;`board-loader.ts:55` |
 | 税关缴税 | ¥200 | `game.ts:616` |
 | 商市波动范围 | ±¥100~200 | `game.ts:629` |
 | 拼点骰子 | 双骰 2d6(2–12) | `game.ts:827-829` |
 | 珍宝等级范围 | 1–10 | `treasures.ts:5-12` |
 | 珍宝牌堆总数 | 14 | `treasures.ts:5-12`(展开 count) |
-| 坐地起价公式 | 指导价 × tradeMult[Lv−1] + tradeAdd[Lv−1] | `treasures.ts:38` `premiumPriceOf`;地图 `tradeMult`/`tradeAdd`(长度 3) |
-| 坐地起价回退倍率 | Lv1=×2,Lv2=×3,Lv3=×5 | `treasures.ts:34` `CITY_LEVEL_MULTIPLIER` |
+| 坐地起价公式 | 指导价 × tradeMult[Lv] + tradeAdd[Lv] | `treasures.ts:38` `premiumPriceOf`;地图 `tradeMult`/`tradeAdd`(长度 4) |
+| 坐地起价回退倍率 | Lv0=×1,Lv1=×2,Lv2=×3,Lv3=×5 | `treasures.ts:34` `CITY_LEVEL_MULTIPLIER` |
 | 身价口径 | 仅现金 | `networth.ts:9` `netWorth` |
 | 骰子 | 单骰 1–6 | `dice.ts`;`game.ts:396` |
 

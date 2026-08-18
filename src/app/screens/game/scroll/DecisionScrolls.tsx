@@ -141,7 +141,7 @@ export function BuyDecisionScroll({
         持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
         <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(diff)}</span>
       </p>
-      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,由到达触发) */}
+      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,Lv0 起逐级升) */}
       {showValues ? (
         <ValueTable property={property} />
       ) : (
@@ -177,7 +177,7 @@ export function BuyDecisionScroll({
   );
 }
 
-// ── 扩军抉择(AwaitingDecision + OwnProperty;升级免费,由到达城池触发)──
+// ── 扩军抉择(AwaitingDecision + OwnProperty;升级免费,由到达己城触发)──
 export function UpgradeDecisionScroll({
   tileName,
   level,
@@ -189,10 +189,10 @@ export function UpgradeDecisionScroll({
   property: { maxLevel: number; valueByLevel: number[] };
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // 满级 → disabled;升级免费,无银两门槛。价值变化 = 当前级 → 下一级城池价值
+  // 满级 → disabled;升级免费,无银两门槛。价值变化 = 当前级 → 下一级城池价值(下标 = 等级)
   const maxed = level >= property.maxLevel;
-  const valueNow = property.valueByLevel[level - 1] ?? 0;
-  const valueNext = !maxed ? property.valueByLevel[level] ?? valueNow : valueNow;
+  const valueNow = property.valueByLevel[level] ?? 0;
+  const valueNext = !maxed ? property.valueByLevel[level + 1] ?? valueNow : valueNow;
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
     () => { if (!maxed) onCommand({ type: "upgradeProperty" }); },

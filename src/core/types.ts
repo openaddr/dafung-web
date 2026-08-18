@@ -30,18 +30,19 @@ export interface TileDef {
 }
 
 /** 地产定义。BuildCost=选都建城费;ResupplyPerLevel=都城补给系数。
- *  本作无过路费/升级费:升级由「到达城池」免费触发(自己到达可选扩军,他人到达自动升级)。 */
+ *  本作无过路费/升级费:自己到达己城可选免费扩军;他人落城不升级,
+ *  仅当城主对该访客的珍宝交涉选择公道买卖且成交时 +1 级(满级封顶)。 */
 export interface PropertyDef {
   id: string;
   group: string; // 'a'..'h'
   purchasePrice: number;
-  maxLevel: number; // 等级数(默认 3;持有等级 1..maxLevel)
-  valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel,下标 level-1
+  maxLevel: number; // 最高等级(默认 3;持有等级 0..maxLevel,共 4 级)
+  valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
-  /** 坐地起价加价值(per-level,分银;下标=城池等级 1..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  /** 坐地起价加价值(per-level,分银;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeAdd?: number[];
-  /** 坐地起价乘数(per-level;下标=城池等级 1..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeMult?: number[];
   /** 旧贸易公式(向后兼容):premiumPriceOf 无 tradeAdd/tradeMult 时回退到此 × CITY_LEVEL_MULTIPLIER。 */
   trade?: TradeFormula;
@@ -53,7 +54,7 @@ export type BranchCellKind = "treasure" | "event" | "penalty";
 /** 路线抉择:大路(主环)/ 辅路(辅路逐格行进)。 */
 export type RouteKind = "Main" | "Branch";
 
-/** 玩家持有的地产。Level 1..maxLevel(购入/建都即为 Lv.1);升级免费(到达触发)。 */
+/** 玩家持有的地产。Level 0..maxLevel(购入/建都即为 Lv.0);升级免费(到达触发)。 */
 export interface PropertyHolding {
   propertyId: string;
   group: string;
@@ -199,7 +200,7 @@ export interface MapTile {
   region?: string;
   price?: number;
   buildCost?: number;
-  /** 各等级城池价值(变卖价),长度 = maxLevel,下标 level-1。 */
+  /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
   valueByLevel?: number[];
   /** 坐地起价加价值(per-level,分银):与 PropertyDef 同义。 */
   tradeAdd?: number[];

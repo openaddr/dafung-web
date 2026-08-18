@@ -17,7 +17,7 @@ function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): nu
     // 可免费扩军:价值 ≈ 升级后与当前等级城池价值之差 / 4(满级为 0)
     const h = p.properties.find((x) => x.propertyId === def.id);
     if (!h || h.level >= def.maxLevel) return 0;
-    return (def.valueByLevel[h.level] - def.valueByLevel[h.level - 1]) / 4;
+    return (def.valueByLevel[h.level + 1] - def.valueByLevel[h.level]) / 4;
   }
   return 0; // 落他人城:无过路费(城主无珍宝=无事;有珍宝则城主择公道买卖/坐地起价,访客不可控,估中性)
 }

@@ -334,7 +334,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   );
 
   const tile = map.tiles[selected];
-  const maxLevel = map.maxLevel ?? 5;
+  const maxLevel = map.maxLevel ?? 3;
   // 边界重试 key:任何地图变更(含把非法图修好)都触发 BoardBoundary 重渲染棋盘
   const mapKey = useMemo(() => JSON.stringify(map), [map]);
 
@@ -545,20 +545,20 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                 </label>
               ))}
 
-              {/* 等级价值表:逐级数字输入(Lv1..maxLevel;严格校验要求长度 = maxLevel) */}
+              {/* 等级价值表:逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1) */}
               <div className="mt-1 border-t border-ink/20 pt-2">
-                <div className="mb-1 text-xs text-ink-dim">城池价值表(Lv1~Lv{maxLevel})</div>
+                <div className="mb-1 text-xs text-ink-dim">城池价值表(Lv0~Lv{maxLevel})</div>
                 <div className="grid grid-cols-3 gap-1">
-                  {Array.from({ length: maxLevel }, (_, lvl) => (
+                  {Array.from({ length: maxLevel + 1 }, (_, lvl) => (
                     <label key={lvl} className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-ink-dim">Lv{lvl + 1}</span>
+                      <span className="text-[10px] text-ink-dim">Lv{lvl}</span>
                       <input
                         data-testid={TID.rentLevel(lvl)}
                         className="rounded border border-ink/30 bg-bg px-1 py-0.5 text-xs"
                         type="number"
                         value={String(tile.valueByLevel?.[lvl] ?? 0)}
                         onChange={(e) => {
-                          const values = [...(tile.valueByLevel ?? Array.from({ length: maxLevel }, () => 0))];
+                          const values = [...(tile.valueByLevel ?? Array.from({ length: maxLevel + 1 }, () => 0))];
                           values[lvl] = Number(e.target.value) || 0;
                           setTileField("valueByLevel", values);
                         }}

@@ -5,20 +5,20 @@ import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(sanguoData).catalog;
 
-const changan = catalog.get("prop-changan")!; // a 组,¥400,等级价值 [20,60,180]
+const changan = catalog.get("prop-changan")!; // a 组,¥400,等级价值 [20,60,180,500](Lv0-3)
 
 function mk(cash = 1000) {
   return createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: cash });
 }
 
 describe("地产交易", () => {
-  it("购买:扣现金、获 holding Lv1", () => {
+  it("购买:扣现金、获 holding Lv0", () => {
     const p = mk();
     const r = buy(p, changan);
     expect(r.status).toBe("Ok");
     expect(p.cash).toBe(600);
     expect(p.properties).toHaveLength(1);
-    expect(p.properties[0].level).toBe(1);
+    expect(p.properties[0].level).toBe(0);
     expect(p.properties[0].purchasePrice).toBe(400);
   });
 
@@ -34,27 +34,28 @@ describe("地产交易", () => {
     buy(p, changan);
     const r = upgrade(p, changan);
     expect(r.status).toBe("Ok");
-    expect(r.newLevel).toBe(2);
+    expect(r.newLevel).toBe(1);
     expect(p.cash).toBe(600); // 升级免费,现金不变
   });
 
-  it("满级拒绝升级(等级数 = maxLevel = 3)", () => {
+  it("满级拒绝升级(等级 0..maxLevel = 3,共 4 级)", () => {
     const p = mk(100000);
     buy(p, changan);
+    upgrade(p, changan); // Lv1
     upgrade(p, changan); // Lv2
     upgrade(p, changan); // Lv3
     expect(upgrade(p, changan).status).toBe("AlreadyMaxLevel");
     expect(p.properties[0].level).toBe(3);
-    expect(changan.valueByLevel).toHaveLength(3);
+    expect(changan.valueByLevel).toHaveLength(4);
   });
 
   it("变卖价 = 各等级城池价值(valueByLevel 显式定义)", () => {
     const p = mk(100000);
     buy(p, changan);
-    upgrade(p, changan); // Lv2
-    expect(sellValueOf(changan, 1)).toBe(20);
-    expect(sellValueOf(changan, 2)).toBe(60);
-    expect(sellValueOf(changan, 3)).toBe(180);
+    expect(sellValueOf(changan, 0)).toBe(20);
+    expect(sellValueOf(changan, 1)).toBe(60);
+    expect(sellValueOf(changan, 2)).toBe(180);
+    expect(sellValueOf(changan, 3)).toBe(500);
   });
 });
 

@@ -186,9 +186,9 @@ function NamePlaque({ name, capital, size }: { name: string; capital: boolean; s
 
 /** 等级旌旗插位:沿城墙横向排布(避开中央城楼/右侧木匾),按建筑档位给 3 个槽。 */
 const LEVEL_FLAG_XS: Record<"large" | "medium" | "small", number[]> = {
-  large: [-36, -24, -12],
-  medium: [-34, -22, -10],
-  small: [-14, -3, 8],
+  large: [-48, -36, -24, -12],
+  medium: [-46, -34, -22, -10],
+  small: [-25, -14, -3, 8],
 };
 
 /** 非城池格(锦囊/天命/税关/商市/卧龙岗)的大字 icon 配色。 */
@@ -368,11 +368,11 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           >
             {price}
           </text>
-          {/* 等级=城上旌旗(1-3 面沿城墙):持有者玩家色;满级(3)旗面描金。
+          {/* 等级=城上旌旗(0-3 面沿城墙,Lv0 无旗):持有者玩家色;满级(3)旗面描金。
               旧 pips 小圆点在 zoom-out 后信息量趋零,旗形轮廓仍是清晰色块,故整体替换不留旧实现。 */}
           <g className="bv-tile-pips">
             {LEVEL_FLAG_XS[tile.size ?? "medium"]
-              .slice(0, Math.min(state.level, 3))
+              .slice(0, Math.min(state.level, 4))
               .map((fx, i) => (
                 <g key={i}>
                   <line x1={fx} y1={-12} x2={fx} y2={-24} stroke="rgba(50,35,15,0.8)" strokeWidth={1.5} />

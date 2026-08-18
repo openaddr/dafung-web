@@ -56,13 +56,13 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
   expect(after.warrants).toBe(before.warrants - 1);
 });
 
-test("扩军决策:己方城升级免费(autos 31:到达免费升级,现金不变)", async ({ page }) => {
+test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   await force(page, `
     e.turnPhase = "AwaitingDecision";
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
-    me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a", maxLevel: 3 });
+    me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
   `);
   await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
@@ -73,7 +73,7 @@ test("扩军决策:己方城升级免费(autos 31:到达免费升级,现金不�
   await expect
     .poll(
       async () =>
-        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 2) != null,
+        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 1) != null,
       { timeout: 15_000 },
     )
     .toBe(true);

@@ -65,7 +65,7 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const pos: BoardPos = { x: t.pos[0], y: t.pos[1] };
     positions.push(pos);
     const type = (t.type ?? "Property") as TileDef["type"];
-    // 城池规模(Lv1 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
+    // 城池规模(Lv0 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
     const value = t.valueByLevel;
     const size: TileDef["size"] = type === "Property" && value
       ? value[0] >= 20 ? "large" : value[0] >= 10 ? "medium" : "small"
@@ -97,8 +97,8 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   d.tiles.forEach((t, i) => {
     if ((t.type ?? "Property") !== "Property") return;
     const values = t.valueByLevel;
-    if (!Array.isArray(values) || values.length !== maxLevel) {
-      fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel}`);
+    if (!Array.isArray(values) || values.length !== maxLevel + 1) {
+      fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
     }
     if ((t.price ?? 0) < 0 || (t.buildCost ?? 0) < 0) {
       fail(`第 ${i + 1} 城价格/buildCost 不能为负`);

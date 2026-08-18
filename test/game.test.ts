@@ -378,24 +378,72 @@ describe("decisionOwner(决策归属统一查询)", () => {
   });
 });
 
-describe("地产规则(3 级 / 无过路费升级费,autos 31)", () => {
-  it("到达他人城池:该城免费升级一级,访客不付银(无过路费)", () => {
+describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升级费)", () => {
+  it("购买:获 holding Lv0", () => {
+    const e = makeEngine(5);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const def = e.catalog.get(tile.propertyId)!;
+    mover.position = tile.index;
+    mover.warrants = 1;
+    e.turnPhase = "Land";
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    expect(e.turnPhase as string).toBe("AwaitingDecision");
+    e.buyProperty();
+    expect(mover.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
+  });
+
+  it("到达他人城池:不升级(无珍宝 → 无事发生,双方现金不变)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
-    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 1, maxLevel: def.maxLevel });
+    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
     mover.position = tile.index;
     const cash0 = mover.cash;
     e.turnPhase = "Land";
     (e as unknown as { resolveLanding: () => void }).resolveLanding();
-    // 城主无珍宝 → 自动升级后无事发生;等级 1→2,双方现金不变
-    expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(2);
+    // 城主无珍宝 → 无事发生;等级不变(升级只挂在公道买卖成交上)
+    expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
     expect(mover.cash).toBe(cash0);
-    expect(owner.cash).toBe(e.players.find((p) => p !== mover)!.cash);
     expect(e.turnPhase as string).toBe("Roll"); // endTurn 已推进
+  });
+
+  it("公道买卖成交:城池 +1 级;坐地起价/不交易不升级", () => {
+    const e = makeEngine(5);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const def = e.catalog.get(tile.propertyId)!;
+    const owner = e.players.find((p) => p !== mover)!;
+    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    const holding = () => owner.properties.find((x) => x.propertyId === def.id)!;
+    /** 手工置 AwaitingTreasureOwner(endTurn 会推进 activeIndex,每步拨回访客)。 */
+    const armTrade = (treasureId: string) => {
+      e.activeIndex = e.players.indexOf(mover);
+      e.treasureVisitor = { def, ownerIdx: e.players.indexOf(owner) };
+      e.turnPhase = "AwaitingTreasureOwner";
+      owner.treasures.push({ id: treasureId, name: "测试珍宝", level: 1, count: 1, desc: "" });
+    };
+
+    // fair:成交 → Lv0→1,访客得宝
+    armTrade("t-fair");
+    e.resolveTreasureOwner({ type: "fair", treasureId: "t-fair" });
+    expect(holding().level).toBe(1);
+    expect(mover.treasures).toHaveLength(1);
+
+    // premium:不升级
+    armTrade("t-premium");
+    e.resolveTreasureOwner({ type: "premium", treasureId: "t-premium" });
+    expect(holding().level).toBe(1);
+
+    // skip:不升级
+    armTrade("t-skip");
+    e.resolveTreasureOwner({ type: "skip" });
+    expect(holding().level).toBe(1);
   });
 
   it("自己到达己城:扩军免费(现金不变)", () => {
@@ -405,14 +453,14 @@ describe("地产规则(3 级 / 无过路费升级费,autos 31)", () => {
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
     const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 1, maxLevel: def.maxLevel });
+    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
     me.position = tile.index;
     e.turnPhase = "Land";
     (e as unknown as { resolveLanding: () => void }).resolveLanding();
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     const cash0 = me.cash;
     e.upgradeProperty();
-    expect(me.properties.find((x) => x.propertyId === def.id)!.level).toBe(2);
+    expect(me.properties.find((x) => x.propertyId === def.id)!.level).toBe(1);
     expect(me.cash).toBe(cash0); // 升级免费
   });
 });

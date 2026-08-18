@@ -352,7 +352,7 @@ export class GameEngine {
       propertyId: def.id,
       group: def.group,
       purchasePrice: def.buildCost,
-      level: 1,
+      level: 0,
       maxLevel: def.maxLevel,
     });
     player.capitalIndex = tileIndex;
@@ -667,17 +667,8 @@ export class GameEngine {
       this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
       return;
     }
-    // 他人到达城池:城池免费升级一级(本作无升级费,到达即升级;满级自然封顶)
-    const holding = findHolding(owner, def.id);
-    if (holding && canUpgrade(holding)) {
-      holding.level += 1;
-      this.logEvent(
-        "upgrade",
-        owner.guohao,
-        `${mover.guohao} 兵临「${tile.name}」,${owner.guohao} 之城声势渐壮,升 Lv.${holding.level}(免费)`,
-        `autoUpgrade prop=${def.id} owner=${owner.id} visitor=${mover.id} level=${holding.level}`,
-      );
-    }
+    // 他人到达城池不升级:仅当城主对该访客的珍宝交涉选择公道买卖且成交时才 +1 级
+    // (见 resolveTreasureOwner 的 fair 分支;坐地起价/不交易均不升级)。
     // 珍宝交涉:城主有珍宝 → 公道买卖/坐地起价;无珍宝 → 无事发生
     if (owner.treasures.length > 0) {
       this.treasureVisitor = { def, ownerIdx: this.players.indexOf(owner) };
@@ -897,6 +888,7 @@ export class GameEngine {
   }
 
   /** 城主抉择:公道买卖(指导价,玩家间付银)/ 坐地起价(加价出售,玩家间付银)/ 跳过。
+   *  公道买卖且成交 → 城池 +1 级(他人到达城池本身不升级,升级只挂在公道买卖上)。
    *  两种交易都是 visitor → owner 玩家间付银(无银行注入);成交后珍宝先进交割托管区(escrowTreasure),
    *  买家付清价款才交货——托管中的珍宝不可被买家变卖抵债(防"得宝后变卖抵债"白嫖套利),买家破产则退回卖家。 */
   resolveTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }): void {
@@ -917,7 +909,7 @@ export class GameEngine {
     if (tIdx < 0) { this.warn(`珍宝 ${action.treasureId} 不在手中`); return; }
     const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
     const holding = findHolding(owner, def.id);
-    const cityLevel = holding?.level ?? 1;
+    const cityLevel = holding?.level ?? 0;
 
     // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
     const price = action.type === "fair"
@@ -925,6 +917,18 @@ export class GameEngine {
       : premiumPriceOf(guidePrice, def, cityLevel);
 
     const treasure = owner.treasures.splice(tIdx, 1)[0];
+
+    // 公道买卖且交易达成 → 城池 +1 级(满级封顶)。升级是对城主选择公道的奖励:
+    // 挂在交易达成时(城主选定 fair 且珍宝已离手入托管),此后买家破产退宝也不回滚。
+    if (action.type === "fair" && holding && canUpgrade(holding)) {
+      holding.level += 1;
+      this.logEvent(
+        "upgrade",
+        owner.guohao,
+        `${owner.guohao} 公平交易,城池「${this.tileName(def)}」升 Lv.${holding.level}`,
+        `fairUpgrade prop=${def.id} owner=${owner.id} visitor=${mover.id} level=${holding.level}`,
+      );
+    }
 
     // 先付款后交货:珍宝进交割托管区,买家付清价款(可能经破产清算变卖其他资产自救)后才交割。
     // 托管中的珍宝不在买家 treasures 里 → 不可被 sellTreasureBankruptcy 变卖抵债(封堵套利);

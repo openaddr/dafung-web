@@ -24,6 +24,6 @@ export const TID = {
   dragGhost: "editor-drag-ghost",
   // 表单字段工厂:testid = editor-field-<key>
   field: (key: string) => `editor-field-${key}` as const,
-  /** 租金表第 lvl 级(Lv0..Lv maxLevel)。 */
+  /** 城池价值表第 lvl 级(Lv0..Lv maxLevel)。 */
   rentLevel: (lvl: number) => `editor-rent-${lvl}` as const,
 } as const;
