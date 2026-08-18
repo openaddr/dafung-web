@@ -103,9 +103,13 @@ export function GameScreen() {
   const marching = useFxStore((s) => s.marching);
   // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
-  // 选都阶段的可点城池:可建都(Property)且未被据(对照旧版 selectable 计算)
+  // 选都阶段的可点城池:可建都(Property)且未被据(对照旧版 selectable 计算)。
+  // 只在「轮到本地视角选都」时才高亮/可点——联机他人选都期间不给我的棋盘弹选都交互
+  // (TODO 弹窗弹错人:selectable 不判轮次导致他人选都时我点城弹出「定都于此」)。
   const selectableTiles = useMemo(() => {
     if (!map || !snapshot || snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return undefined;
+    const mySeat = net.roomId !== "" ? net.mySeat : 0; // 单机真人固定首座
+    if (snapshot.currentSetupPlayerIndex !== mySeat) return undefined;
     const taken = new Set(snapshot.takenCapitalIndices);
     const s = new Set<number>();
     map.tiles.forEach((t, i) => {
@@ -113,7 +117,7 @@ export function GameScreen() {
       if ((!t.type || t.type === "Property") && !taken.has(i)) s.add(i);
     });
     return s;
-  }, [map, snapshot]);
+  }, [map, snapshot, net.roomId, net.mySeat]);
 
   if (!snapshot || !map) {
     // S9 未开局兜底页:此前只是一行灰字,玩家会卡死在空屏。

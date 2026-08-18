@@ -94,7 +94,7 @@
 - [x] **S1 首页仪式感**(2026-08-16:home/home.css——四按钮入场 stagger(80ms/个,
   translateY 8px→0+fade,挂包裹层防动画 fill 锁 transform 压掉 :active);hover 笔触下划线
   2px 金边 scaleX 0→1(伪元素,键盘 focus-visible 同效);active scale .97。testid/布局不变)
-- [ ] **S2 编辑器原生弹窗替换**:window.prompt/alert(LobbyScreen 与 EditorScreen)→ 卷轴式 ConfirmDialog/输入卷轴
+- [x] **S2 编辑器原生弹窗替换**:window.prompt/alert(LobbyScreen 与 EditorScreen)→ 卷轴式 ConfirmDialog/输入卷轴(2026-08-16 随引擎波完成:EditorScreen InputScroll+ConfirmDialog,Lobby 无原生弹窗走 pushHint)
 - [x] **S3 硬编码色收编**(2026-08-16,Scroll/卷轴/fx/lobby/victory 部分;Editor 危险色全套归
   EditorScreen 并行施工,遗留):theme.ts 新增 paper-hi/paper-lo/seal-qing/success 四 token
   (gen:theme 带出),卷轴体渐变 #f7ecd0/#ecdcb4 → from-paper-hi to-paper-lo(ScrollShell/
@@ -116,7 +116,7 @@
   标签(成功色/ink-dim,testid lobby-seat-online-N),不只靠颜色;game 部分 2026-08-16 核对:
   OthersPanel 破产行 line-through+opacity-40 已有非颜色线索 ✓,胜者原仅 text-gold → 补
   「胜」单字标记(与「智」同款后缀);棋盘归属有国号徽记+文字,非仅颜色)
-- [ ] **S8 SoloSetup 校验内联**:国号非法 → 输入框红边 + 即时提示(替代常驻灰字)
+- [x] **S8 SoloSetup 校验内联**:国号非法 → 输入框红边 + 即时提示(替代常驻灰字)(2026-08-16 已随引擎波完成:border-danger + setup-guohao-error xs 红字)
 - [x] **S9 单机「未开局」兜底页**(2026-08-16:GameScreen 一行灰字 → 居中卡片「尚未开局/
   对局数据不存在或已丢失」+「回到首页」按钮 setScreen("setup"),testid=not-started-back)
 
