@@ -11,15 +11,17 @@ export const TREASURES: TreasureDef[] = [
   { id: "qingnang", name: "青囊书残卷", level: 5, count: 5, desc: "华佗遗书,残缺不全" },
 ];
 
-/** 等级 → 指导价(分)。Lv1-5 线性,Lv6+ 加速增长。 */
+/** 等级 → 指导价(分):Lv1-4 线性,Lv5+ 加速增长(1/2/3/4/6/8/12/16/22/30 两)。 */
 export const TREASURE_PRICE: Record<number, number> = {
-  1: 100, 2: 200, 3: 300, 4: 400, 5: 500,
-  6: 700, 7: 900, 8: 1200, 9: 1500, 10: 2000,
+  1: 100, 2: 200, 3: 300, 4: 400, 5: 600,
+  6: 800, 7: 1200, 8: 1600, 9: 2200, 10: 3000,
 };
 
-/** 珍宝指导价(分):查表兜底 等级×100。集中一处,供引擎/UI 复用。 */
+/** 珍宝指导价(分):查表;缺等级 = 数据 bug,直接抛错(零兜底)。集中一处,供引擎/UI 复用。 */
 export function guidePriceOf(level: number): number {
-  return TREASURE_PRICE[level] ?? level * 100;
+  const price = TREASURE_PRICE[level];
+  if (price == null) throw new Error(`珍宝等级 ${level} 无指导价(TREASURE_PRICE 缺项,数据 bug)`);
+  return price;
 }
 
 /** 贸易售价(旧公式,向后兼容):markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
@@ -31,7 +33,7 @@ export function tradePriceOf(guidePrice: number, trade: TradeFormula | undefined
 
 /** 城池等级 → 坐地起价倍率(旧 trade 公式回退用;下标 = 等级,Lv0..3)。
  *  新字段 tradeAdd/tradeMult 由地图 json 直接配置(同样下标 = 等级)。 */
-export const CITY_LEVEL_MULTIPLIER = [1, 2, 3, 5]; // L0=×1, L1=×2, L2=×3, L3=×5
+export const CITY_LEVEL_MULTIPLIER = [1.5, 2, 3, 5]; // L0=×1.5, L1=×2, L2=×3, L3=×5
 
 /** 坐地起价售价(新公式,per-level 加值/乘数优先;无则回退旧 trade 公式)。
  *  公式:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加;cityLevel 0..3)。 */

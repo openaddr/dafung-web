@@ -64,9 +64,9 @@ export function botAct(engine: GameEngine): void {
         // 平均掷骰 3.5:辅路每格约 1/3.5 概率被踩中(简化估)
         const hitProb = 1 / 3.5;
         for (const c of cells) {
-          if (c.kind === "treasure") branchEv += hitProb * 120; // 探宝期望(拼点成功率×指导价,粗估)
-          else if (c.kind === "event") branchEv += hitProb * 30; // 锦囊轻微正期望
-          else branchEv -= hitProb * 180; // 中伏:跳一回合的机会成本
+          if (c.kind === "treasure") branchEv += hitProb * 300; // 探宝期望(拼点成功率×指导价,粗估;经济 v2:珍宝 1-30 两)
+          else if (c.kind === "event") branchEv += hitProb * 100; // 锦囊轻微正期望
+          else branchEv -= hitProb * 500; // 中伏:跳一回合的机会成本
         }
       }
       // 主路:下一落点价值(起点 tile 之后约 3.5 步)

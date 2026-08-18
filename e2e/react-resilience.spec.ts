@@ -37,7 +37,7 @@ test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ brow
   // TODO #13:加入后 room-code 原 8s 短窗在全量负载下偶发不够(WS+大厅渲染 >8s,实测复现),
   // 建房/加入 8s→30s、开局 20s→45s——只放宽轮询窗,断言强度不变。
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-target").fill("3000");
+  await host.getByTestId("lobby-target").fill("30000");
   await host.getByTestId("lobby-create").click();
   await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";

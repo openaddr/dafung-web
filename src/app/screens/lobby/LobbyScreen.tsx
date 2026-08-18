@@ -211,7 +211,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     setTargetErr(null); // 修改即清错,失焦/提交再校验
                   }}
                   onBlur={() => setTargetErr(validateTarget(target))}
-                  placeholder="如 3000"
+                  placeholder="如 30000"
                   className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
                 />
                 {/* L-2:非法/越界的显式原因行(不静默) */}

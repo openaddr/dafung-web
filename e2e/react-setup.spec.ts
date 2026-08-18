@@ -10,7 +10,7 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   const screen = page.getByTestId("solo-setup-screen");
   await expect(screen).toBeVisible();
   await expect(page.getByTestId("setup-seat-count")).toHaveValue("4");
-  await expect(page.getByTestId("setup-target")).toHaveValue("8000");
+  await expect(page.getByTestId("setup-target")).toHaveValue("30000");
   await expect(page.getByTestId("setup-difficulty")).toHaveValue("Normal");
   await expect(page.getByTestId("current-map-name")).toHaveText("棋盘天下", { timeout: 10_000 });
 

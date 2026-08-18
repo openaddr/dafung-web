@@ -32,7 +32,7 @@ describe("loadMapById(统一加载入口)", () => {
     );
     const m = await loadMapById(src, "sanguo");
     expect(m.tiles.length).toBeGreaterThanOrEqual(30);
-    expect(m.targetNetWorth).toBe(8000);
+    expect(m.targetNetWorth).toBe(30000); // 经济 v2
   });
 
   it("不同 id 加载到不同地图", async () => {
@@ -48,7 +48,7 @@ describe("loadMapById(统一加载入口)", () => {
     );
     const [a, b] = await Promise.all([loadMapById(src, "sanguo"), loadMapById(src, "zhongyuan")]);
     expect(a.tiles.length).not.toBe(b.tiles.length);
-    expect(a.targetNetWorth).not.toBe(b.targetNetWorth);
+    expect(a.properties.length).not.toBe(b.properties.length); // 经济 v2:全局目标统一,以城数区分
   });
 
   it("自建图 id(custom- 前缀)与内置 id 走同一加载路径", async () => {

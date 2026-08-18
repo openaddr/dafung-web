@@ -116,14 +116,19 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   await page.getByTestId("roll-button").click();
   // 掷骰可能落在辅路起点/驻跸等决策格:把余下决策也推完才 endTurn 触发胜利判定;
   // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(见 react-solo 全程驱动用例注释),同样绕过
-  for (let i = 0; i < 10 && !(await snap(page)).isOver; i++) {
+  // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
+  // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
+  for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
     const s = await snap(page);
     if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
       await force(page, `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`);
       continue;
     }
     const before = JSON.stringify(s);
-    if (!(await actIfCan(page))) break;
+    if (!(await actIfCan(page))) {
+      await waitForSnapChanged(page, before).catch(() => {});
+      continue;
+    }
     // TODO #13:原固定 200ms 在全量负载下不等决策链推进完就读快照,循环提前 break;
     // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
     await waitForSnapChanged(page, before).catch(() => {});
@@ -138,7 +143,7 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   test.setTimeout(240_000);
   await page.goto("/?seed=1234");
   await openSoloSetup(page);
-  await page.getByTestId("setup-target").selectOption("5000"); // 速战
+  await page.getByTestId("setup-target").selectOption("15000"); // 速战(经济 v2)
   await page.getByTestId("setup-seat-count").selectOption("2"); // 2 人局加速节奏
   await page.getByTestId("start-game").click();
   await pickCapital(page);
@@ -155,7 +160,7 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
     }
     // 加速逼近终局:每 100 手给全员发银两(不破坏不变量,身价达标即触发胜利)
     if (actions % 15 === 0) {
-      await force(page, `for (const p of e.players) p.cash += 3000;`);
+      await force(page, `for (const p of e.players) p.cash += 6000;`);
     }
     // 不变量:现金/身价非负、位置合法、破产无残留(与旧 invariants.spec 同口径)
     for (const p of s.players) {

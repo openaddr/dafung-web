@@ -1,9 +1,9 @@
 {
   "version": 1,
-  "targetNetWorth": 8000,
-  "startingCash": 2500,
+  "targetNetWorth": 30000,
+  "startingCash": 10000,
   "maxLevel": 3,
-  "resupplyPerLevel": 150,
+  "resupplyPerLevel": 300,
   "tiles": [
     {
       "id": "prop-changan",
@@ -14,8 +14,8 @@
       ],
       "group": "a",
       "region": "中原",
-      "price": 400,
-      "buildCost": 800,
+      "price": 4000,
+      "buildCost": 2000,
       "tradeMult": [
         2,
         4,
@@ -23,11 +23,18 @@
         10
       ],
       "valueByLevel": [
-        20,
-        60,
-        180,
-        500
-      ]
+        1600,
+        2400,
+        3400,
+        4800
+      ],
+      "tradeAdd": [
+        300,
+        1200,
+        3000,
+        7000
+      ],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-xianyang",
@@ -56,8 +63,8 @@
       ],
       "group": "a",
       "region": "中原",
-      "price": 400,
-      "buildCost": 800,
+      "price": 4000,
+      "buildCost": 2000,
       "tradeMult": [
         2,
         4,
@@ -65,11 +72,18 @@
         10
       ],
       "valueByLevel": [
-        20,
-        60,
-        180,
-        500
-      ]
+        1600,
+        2400,
+        3400,
+        4800
+      ],
+      "tradeAdd": [
+        300,
+        1200,
+        3000,
+        7000
+      ],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-hulao",
@@ -89,20 +103,27 @@
       ],
       "group": "a",
       "region": "中原",
-      "price": 300,
-      "buildCost": 600,
+      "price": 3400,
+      "buildCost": 1700,
       "tradeAdd": [
         300,
-        600,
-        900,
-        1500
+        1000,
+        2500,
+        5500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1400,
+        2000,
+        2900,
+        4100
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-wan",
@@ -140,20 +161,27 @@
       ],
       "group": "b",
       "region": "荆楚",
-      "price": 300,
-      "buildCost": 600,
+      "price": 3400,
+      "buildCost": 1700,
       "tradeAdd": [
         300,
-        600,
-        900,
-        1500
+        1000,
+        2500,
+        5500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1400,
+        2000,
+        2900,
+        4100
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-jiangxia",
@@ -164,20 +192,27 @@
       ],
       "group": "b",
       "region": "荆楚",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2400,
+      "buildCost": 1200,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1800,
+        4000
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1000,
+        1400,
+        2000,
+        2900
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-wuchang",
@@ -188,20 +223,27 @@
       ],
       "group": "b",
       "region": "荆楚",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-chibi",
@@ -212,20 +254,27 @@
       ],
       "group": "b",
       "region": "荆楚",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2400,
+      "buildCost": 1200,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1800,
+        4000
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1000,
+        1400,
+        2000,
+        2900
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-changsha",
@@ -236,20 +285,27 @@
       ],
       "group": "c",
       "region": "岭南",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2200,
+      "buildCost": 1100,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1600,
+        3700
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        900,
+        1300,
+        1900,
+        2600
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "tile-fate-1",
@@ -269,20 +325,27 @@
       ],
       "group": "b",
       "region": "荆楚",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-huarong",
@@ -293,20 +356,27 @@
       ],
       "group": "c",
       "region": "岭南",
-      "price": 200,
-      "buildCost": 450,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        0,
+        0,
+        0,
+        0
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeMult": [
+        1.5,
+        2,
+        3,
+        5
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-lingling",
@@ -317,20 +387,27 @@
       ],
       "group": "c",
       "region": "岭南",
-      "price": 120,
-      "buildCost": 300,
+      "price": 1800,
+      "buildCost": 900,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        100,
+        500,
+        1300,
+        3000
       ],
       "valueByLevel": [
+        700,
+        1100,
+        1500,
+        2200
+      ],
+      "tradeMult": [
+        2,
         4,
-        20,
-        60,
-        180
-      ]
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "prop-jiaozhou",
@@ -341,20 +418,27 @@
       ],
       "group": "c",
       "region": "岭南",
-      "price": 120,
-      "buildCost": 300,
+      "price": 1800,
+      "buildCost": 900,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        100,
+        500,
+        1300,
+        3000
       ],
       "valueByLevel": [
+        700,
+        1100,
+        1500,
+        2200
+      ],
+      "tradeMult": [
+        2,
         4,
-        20,
-        60,
-        180
-      ]
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "tile-ferry-fuling",
@@ -374,20 +458,27 @@
       ],
       "group": "d",
       "region": "巴蜀",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2400,
+      "buildCost": 1200,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1800,
+        4000
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1000,
+        1400,
+        2000,
+        2900
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-chengdu",
@@ -398,20 +489,27 @@
       ],
       "group": "d",
       "region": "巴蜀",
-      "price": 400,
-      "buildCost": 800,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [
+        1.5,
         2,
-        4,
-        6,
-        10
+        3,
+        5
       ],
       "valueByLevel": [
-        20,
-        60,
-        180,
-        500
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeAdd": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-jiange",
@@ -422,20 +520,27 @@
       ],
       "group": "d",
       "region": "巴蜀",
-      "price": 200,
-      "buildCost": 450,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        0,
+        0,
+        0,
+        0
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeMult": [
+        1.5,
+        2,
+        3,
+        5
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-hanzhong",
@@ -446,20 +551,27 @@
       ],
       "group": "d",
       "region": "巴蜀",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-ziwu",
@@ -470,20 +582,27 @@
       ],
       "group": "d",
       "region": "巴蜀",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2400,
+      "buildCost": 1200,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1800,
+        4000
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1000,
+        1400,
+        2000,
+        2900
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-jieting",
@@ -494,20 +613,27 @@
       ],
       "group": "e",
       "region": "西凉",
-      "price": 200,
-      "buildCost": 450,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        0,
+        0,
+        0,
+        0
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeMult": [
+        1.5,
+        2,
+        3,
+        5
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-yongzhou",
@@ -518,20 +644,27 @@
       ],
       "group": "e",
       "region": "西凉",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2200,
+      "buildCost": 1100,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1600,
+        3700
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        900,
+        1300,
+        1900,
+        2600
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "prop-liangzhou",
@@ -542,20 +675,27 @@
       ],
       "group": "e",
       "region": "西凉",
-      "price": 120,
-      "buildCost": 300,
+      "price": 1800,
+      "buildCost": 900,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        100,
+        500,
+        1300,
+        3000
       ],
       "valueByLevel": [
+        700,
+        1100,
+        1500,
+        2200
+      ],
+      "tradeMult": [
+        2,
         4,
-        20,
-        60,
-        180
-      ]
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "prop-ye",
@@ -566,20 +706,27 @@
       ],
       "group": "a",
       "region": "中原",
-      "price": 400,
-      "buildCost": 800,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [
+        1.5,
         2,
-        4,
-        6,
-        10
+        3,
+        5
       ],
       "valueByLevel": [
-        20,
-        60,
-        180,
-        500
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeAdd": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-jinyang",
@@ -590,20 +737,27 @@
       ],
       "group": "f",
       "region": "并州",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-youzhou",
@@ -614,20 +768,27 @@
       ],
       "group": "f",
       "region": "幽燕",
-      "price": 200,
-      "buildCost": 450,
+      "price": 2200,
+      "buildCost": 1100,
       "tradeAdd": [
         200,
-        400,
-        600,
-        1000
+        700,
+        1600,
+        3700
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        900,
+        1300,
+        1900,
+        2600
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "tile-tax-1",
@@ -647,20 +808,27 @@
       ],
       "group": "f",
       "region": "幽燕",
-      "price": 120,
-      "buildCost": 300,
+      "price": 1800,
+      "buildCost": 900,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        100,
+        500,
+        1300,
+        3000
       ],
       "valueByLevel": [
+        700,
+        1100,
+        1500,
+        2200
+      ],
+      "tradeMult": [
+        2,
         4,
-        20,
-        60,
-        180
-      ]
+        6,
+        10
+      ],
+      "resupplyPerLevel": 200
     },
     {
       "id": "tile-chance-1",
@@ -680,20 +848,27 @@
       ],
       "group": "g",
       "region": "青徐",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-xuzhou",
@@ -704,20 +879,27 @@
       ],
       "group": "g",
       "region": "青徐",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-shouchun",
@@ -728,20 +910,27 @@
       ],
       "group": "g",
       "region": "青徐",
-      "price": 300,
-      "buildCost": 600,
+      "price": 2700,
+      "buildCost": 1400,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        200,
+        800,
+        2000,
+        4500
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1100,
+        1600,
+        2300,
+        3200
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-hefei",
@@ -752,20 +941,27 @@
       ],
       "group": "g",
       "region": "淮南",
-      "price": 300,
-      "buildCost": 600,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeAdd": [
-        300,
-        600,
-        900,
-        1500
+        0,
+        0,
+        0,
+        0
       ],
       "valueByLevel": [
-        14,
-        40,
-        110,
-        300
-      ]
+        1200,
+        1800,
+        2600,
+        3600
+      ],
+      "tradeMult": [
+        1.5,
+        2,
+        3,
+        5
+      ],
+      "resupplyPerLevel": 300
     },
     {
       "id": "prop-jianye",
@@ -776,8 +972,8 @@
       ],
       "group": "h",
       "region": "江东",
-      "price": 400,
-      "buildCost": 800,
+      "price": 4000,
+      "buildCost": 2000,
       "tradeMult": [
         2,
         4,
@@ -785,11 +981,18 @@
         10
       ],
       "valueByLevel": [
-        20,
-        60,
-        180,
-        500
-      ]
+        1600,
+        2400,
+        3400,
+        4800
+      ],
+      "tradeAdd": [
+        300,
+        1200,
+        3000,
+        7000
+      ],
+      "resupplyPerLevel": 400
     },
     {
       "id": "tile-stock-1",
@@ -809,20 +1012,27 @@
       ],
       "group": "h",
       "region": "江东",
-      "price": 200,
-      "buildCost": 450,
+      "price": 3800,
+      "buildCost": 1900,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        300,
+        1100,
+        2800,
+        6500
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1500,
+        2300,
+        3200,
+        4600
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-kuiji",
@@ -833,20 +1043,27 @@
       ],
       "group": "h",
       "region": "江东",
-      "price": 200,
-      "buildCost": 450,
+      "price": 3400,
+      "buildCost": 1700,
       "tradeAdd": [
-        200,
-        400,
-        600,
-        1000
+        300,
+        1000,
+        2500,
+        5500
       ],
       "valueByLevel": [
-        10,
-        30,
-        90,
-        270
-      ]
+        1400,
+        2000,
+        2900,
+        4100
+      ],
+      "tradeMult": [
+        2,
+        4,
+        6,
+        10
+      ],
+      "resupplyPerLevel": 400
     }
   ],
   "branch": {

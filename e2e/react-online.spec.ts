@@ -59,7 +59,7 @@ test("双端联机:建房→加入→开局→各自行动→快照一致", asyn
   // 负载尖峰下 WS 建连 + 大厅广播 + 首帧 snapshot 的到达时间抖动远超单跑。
   await host.goto(`${ONLINE}/?online=1`);
   await expect(host.getByTestId("lobby-screen")).toBeVisible();
-  await host.getByTestId("lobby-target").fill("3000");
+  await host.getByTestId("lobby-target").fill("30000");
   await host.getByTestId("lobby-create").click();
   await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";

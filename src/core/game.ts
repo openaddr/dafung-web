@@ -41,8 +41,8 @@ export interface SeatConfig {
 
 export interface EngineConfig {
   seats: SeatConfig[];
-  targetNetWorth?: number; // 默认 8000
-  startingCash?: number; // 默认 2500
+  targetNetWorth?: number; // 默认 30000
+  startingCash?: number; // 默认 10000
   difficulty?: AiDifficulty; // 默认 Normal
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
 }
@@ -50,8 +50,8 @@ export interface EngineConfig {
 export type EnginePhase = "Setup" | "Playing" | "GameOver";
 export type SetupPhase = "Guohao" | "PickCapital" | "Done";
 
-const DEFAULT_TARGET = 8000;
-const DEFAULT_CASH = 2500;
+const DEFAULT_TARGET = 30000;
+const DEFAULT_CASH = 10000;
 
 function shuffle<T>(arr: T[], rng: () => number): T[] {
   const a = [...arr];

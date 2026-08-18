@@ -22,7 +22,7 @@ const BOT_SEATS: SeatConfig[] = [
 ];
 
 function makeEngine(seed: number): GameEngine {
-  const cfg: EngineConfig = { seats: BOT_SEATS, targetNetWorth: 6000 };
+  const cfg: EngineConfig = { seats: BOT_SEATS, targetNetWorth: 30000 };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
 
@@ -46,7 +46,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     finishSetup(a);
     let steps = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 500) {
+    while (!a.isOver && guard++ < 5000) { // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) {
         steps++;
         // 联机路径:全新引擎 + restoreFromSnapshot(与 online.ts hydrate 同款)
@@ -65,7 +65,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     finishSetup(a);
     let n = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 500) {
+    while (!a.isOver && guard++ < 5000) { // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) n++;
     }
     expect(a.isOver).toBe(true);

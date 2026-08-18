@@ -9,8 +9,8 @@ test.describe.configure({ mode: "serial" });
 
 const ONLINE = "http://localhost:3010";
 
-/** 双端建房/加入/开局(低目标身价保证可终局),返回 [host, guest]。 */
-async function twoClients(browser: Browser, target = 3000): Promise<[Page, Page]> {
+/** 双端建房/加入/开局(经济 v2 标准目标 30000),返回 [host, guest]。 */
+async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page]> {
   const host = await (await browser.newContext()).newPage();
   const guest = await (await browser.newContext()).newPage();
   // TODO #13:建房/加入 8s→30s、开局 20s→45s——全量并行负载下 WS 广播到达抖动大

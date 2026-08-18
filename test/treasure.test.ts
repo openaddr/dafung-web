@@ -21,7 +21,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
     ],
-    targetNetWorth: 8000,
+    targetNetWorth: 30000,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -55,7 +55,7 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };
   e.turnPhase = "AwaitingTreasureOwner";
-  return { owner, mover: e.activePlayer, def, guide: TREASURE_PRICE[TLEVEL] ?? TLEVEL * 100 };
+  return { owner, mover: e.activePlayer, def, guide: TREASURE_PRICE[TLEVEL] };
 }
 
 describe("珍宝系统", () => {
@@ -78,15 +78,15 @@ describe("珍宝系统", () => {
     expect(owner.cash).toBe(ownerCash0 + guide); // 城主收银(玩家间)
   });
 
-  it("坐地起价(翻倍城·洛阳 tradeMult):售价 = 指导价×tradeMult[level],且高于指导价", () => {
+  it("坐地起价(翻倍城·成都 tradeMult):售价 = 指导价×tradeMult[level],且高于指导价", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const def = e.catalog.get("prop-luoyang")!;
-    expect(def.tradeMult).toEqual([2, 4, 6, 10]); // 逐级(Lv0-3),下标 = 等级
-    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    const def = e.catalog.get("prop-chengdu")!;
+    expect(def.tradeMult).toEqual([1.5, 2, 3, 5]); // 乘法城逐级(Lv0-3),下标 = 等级
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 tradeMult=2
+    const price = Math.round(guide * 1.5); // Lv0 tradeMult=1.5(乘法城)
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(owner.treasures.length).toBe(0);
@@ -99,10 +99,10 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-xiangyang")!;
-    expect(def.tradeAdd).toEqual([300, 600, 900, 1500]); // 逐级(Lv0-3),下标 = 等级
+    expect(def.tradeAdd).toEqual([300, 1000, 2500, 5500]); // 襄阳 34 两档(Lv0-3),下标 = 等级
     const { mover, guide } = setupOwnerChoice(e, "prop-xiangyang");
     const moverCash0 = mover.cash;
-    const price = guide + 300; // Lv0 tradeAdd=300
+    const price = guide * 2 + 300; // Lv0 = 指导价×tradeMult[0](2) + tradeAdd[0](300),先乘再加
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(mover.cash).toBe(moverCash0 - price);
@@ -112,13 +112,13 @@ describe("珍宝系统", () => {
   it("坐地起价随城等级提升:Lv3 价格 > Lv0 价格", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const def = e.catalog.get("prop-luoyang")!;
+    const def = e.catalog.get("prop-chengdu")!;
     const guide = TREASURE_PRICE[TLEVEL];
-    // Lv0 vs Lv3:tradeMult=[2,4,6,10](等级 0..3)
+    // Lv0 vs Lv3:乘法城 tradeMult=[1.5,2,3,5](等级 0..3)
     const priceL0 = premiumPriceOf(guide, def, 0);
     const priceL3 = premiumPriceOf(guide, def, 3);
-    expect(priceL0).toBe(guide * 2);
-    expect(priceL3).toBe(guide * 10);
+    expect(priceL0).toBe(Math.round(guide * 1.5));
+    expect(priceL3).toBe(guide * 5);
     expect(priceL3).toBeGreaterThan(priceL0);
   });
 
@@ -201,9 +201,9 @@ describe("珍宝系统", () => {
   it("坐地起价现金不足:同样进托管区,不得先得宝(premium 路径)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const { owner, mover, guide } = setupOwnerChoice(e, "prop-luoyang");
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 tradeMult=2
+    const price = Math.round(guide * 1.5); // Lv0 乘法城 tradeMult=1.5
     mover.cash = price - 1;
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });

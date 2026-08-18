@@ -206,6 +206,8 @@ export interface MapTile {
   tradeAdd?: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
   tradeMult?: number[];
+  /** 都城补给/级(分):内置地图逐城显式声明;缺省回退地图顶层 resupplyPerLevel(自定义地图用)。 */
+  resupplyPerLevel?: number;
   trade?: TradeFormula;
 }
 

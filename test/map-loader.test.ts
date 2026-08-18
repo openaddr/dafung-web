@@ -8,9 +8,9 @@ describe("地图加载器(合法)", () => {
     const m = loadMap(sanguoData);
     expect(m.tiles.length).toBeGreaterThanOrEqual(30);
     expect(m.board.count).toBe(m.tiles.length);
-    expect(m.targetNetWorth).toBe(8000);
-    expect(m.startingCash).toBe(2500);
-    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(400);
+    expect(m.targetNetWorth).toBe(30000);
+    expect(m.startingCash).toBe(10000);
+    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(4000); // 经济 v2:长安 40 两
   });
 
   it("主路按 tiles 数组顺序闭合", () => {

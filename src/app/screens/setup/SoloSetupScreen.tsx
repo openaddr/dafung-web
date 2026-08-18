@@ -4,7 +4,7 @@
 // (选图在首页完成,记忆仍走 localStorage)。规则与旧实现保持一致:
 // - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
-// - 目标身价:速战 5000 / 标准 8000 / 鏖战 12000;起始银两固定 2500(旧值)
+// - 目标身价:速战 15000 / 标准 30000 / 鏖战 60000;起始银两固定 10000(经济 v2)
 import { useState } from "react";
 import type { SeatConfig } from "@core/game";
 import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
@@ -46,10 +46,10 @@ export interface SoloSetupScreenProps {
 }
 
 /** 目标身价档位(旧实现固定三档)。 */
-const TARGET_OPTIONS = [5000, 8000, 12000] as const;
-const TARGET_LABEL: Record<number, string> = { 5000: "速战", 8000: "标准", 12000: "鏖战" };
-/** 起始银两:旧实现硬编码 2500(与引擎默认一致),此处保持。 */
-const STARTING_CASH = 2500;
+const TARGET_OPTIONS = [15000, 30000, 60000] as const;
+const TARGET_LABEL: Record<number, string> = { 15000: "速战", 30000: "标准", 60000: "鏖战" };
+/** 起始银两:经济 v2 硬编码 10000(与引擎默认/地图 startingCash 一致)。 */
+const STARTING_CASH = 10000;
 /** 国号预设持久化 key(起兵成功后写入;下次进入默认带入;联机加入也读同一份)。 */
 export const GUOHAO_PREF_KEY = "dafung.guohao";
 
@@ -61,7 +61,7 @@ export function SoloSetupScreen({
   onMapChange,
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);
-  const [target, setTarget] = useState(8000);
+  const [target, setTarget] = useState(30000);
   const [difficulty, setDifficulty] = useState<"Simple" | "Normal">("Normal");
   // 单机模式仅首行可编:真人国号默认读上次起兵用的国号(localStorage 无记录则「魏」);bot 国号引擎分配
   const [guohao, setGuohao] = useState(() => localStorage.getItem(GUOHAO_PREF_KEY) ?? "魏");

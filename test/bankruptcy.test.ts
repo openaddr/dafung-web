@@ -13,7 +13,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
     ],
-    targetNetWorth: 8000,
+    targetNetWorth: 30000,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -37,15 +37,15 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 100;
-    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 500
+    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600(经济 v2)
     const r = (e as any).payOrLiquidate(p, null, 200); // 欠 200,cash 100,有珍宝 → 清算
     expect(r).toBe("liquidating");
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     expect(e.pendingDebt?.amount).toBe(200);
-    e.sellTreasureBankruptcy("t1"); // 卖宝 +500 → cash 600
-    expect(p.cash).toBe(600);
+    e.sellTreasureBankruptcy("t1"); // 卖宝 +600 → cash 700
+    expect(p.cash).toBe(700);
     e.confirmBankruptcySettle(); // 凑够 → 扣 200
-    expect(p.cash).toBe(400);
+    expect(p.cash).toBe(500);
     expect(p.isBankrupt).toBe(false);
   });
 

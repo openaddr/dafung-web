@@ -9,7 +9,7 @@ import { HEROES } from "@core/heroes";
 
 const MAP = loadMap(sanguoData);
 
-function makeEngine(seed = 1, seats?: SeatConfig[], target = 8000) {
+function makeEngine(seed = 1, seats?: SeatConfig[], target = 30000) {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
@@ -59,7 +59,7 @@ describe("开局三段式", () => {
     finishSetup(e);
     for (const p of e.players) {
       const def = e.catalog.get(e.board.at(p.capitalIndex).propertyId)!;
-      expect(p.cash).toBe(2500 - def.buildCost);
+      expect(p.cash).toBe(10000 - def.buildCost); // 经济 v2 起手 10000
       expect(p.position).toBe(p.capitalIndex);
     }
   });

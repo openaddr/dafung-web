@@ -12,7 +12,7 @@
 
 | 方式 | 条件 | 代码 |
 |---|---|---|
-| **身价达标** | 任一玩家身价 ≥ 目标身价(默认 ¥8000) | `game.ts:785-792` |
+| **身价达标** | 任一玩家身价 ≥ 目标身价(默认 ¥30000,即 300 两) | `game.ts:785-792` |
 | **群雄尽灭** | 存活玩家仅剩一人(其余破产) | `game.ts:779-783` |
 
 身价达标时:先查当前活跃玩家,再查其余玩家,多人同时达标取身价最高者([`game.ts:784-792`](src/core/game.ts))。
@@ -207,14 +207,14 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 
 | 珍宝 | 等级 | 数量 | 指导价 |
 |---|---|---|---|
-| 传国玉玺 | 10 | 1 | ¥2000 |
-| 带血的诏书 | 9 | 1 | ¥1500 |
-| 新鲜的荔枝 | 9 | 3 | ¥1500 |
-| 青囊书残卷 | 5 | 5 | ¥500 |
+| 传国玉玺 | 10 | 1 | ¥3000 |
+| 带血的诏书 | 9 | 1 | ¥2200 |
+| 新鲜的荔枝 | 9 | 3 | ¥2200 |
+| 青囊书残卷 | 5 | 5 | ¥600 |
 | 小斛 | 3 | 3 | ¥300 |
 | 草帽 | 1 | 1 | ¥100 |
 
-指导价查表 [`treasures.ts:15` `TREASURE_PRICE`](src/core/treasures.ts):Lv1-5 线性(×100),Lv6+ 加速(700/900/1200/1500/2000)。
+指导价查表 [`treasures.ts` `TREASURE_PRICE`](src/core/treasures.ts)(经济 v2):Lv1-10 = 100/200/300/400/600/800/1200/1600/2200/3000 分(1~30 两);缺等级直接抛错(零兜底)。
 
 ---
 
@@ -252,8 +252,8 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 
 | 数值 | 值 | 出处 |
 |---|---|---|
-| 目标身价(默认) | ¥8000 | `game.ts:53` `DEFAULT_TARGET`;地图 `targetNetWorth` |
-| 起手现金(默认) | ¥2500 | `game.ts:54` `DEFAULT_CASH`;地图 `startingCash` |
+| 目标身价(默认) | ¥30000(300 两) | `game.ts` `DEFAULT_TARGET`;地图 `targetNetWorth` |
+| 起手现金(默认) | ¥10000(100 两) | `game.ts` `DEFAULT_CASH`;地图 `startingCash` |
 | 座位数 | **2–8** | `game.ts:162-163` |
 | 城池等级 | Lv.0–3 共 4 级(购入/建都即 Lv.0) | `types.ts:56`;地图 `maxLevel`;`board-loader.ts:54` |
 | 城池变卖价 | `valueByLevel[level]`(当前等级价值) | `economy.ts:35` `sellValueOf`;地图 `valueByLevel`(长度 4) |
@@ -265,14 +265,17 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 名士上限 | 3 | `constants.ts:22` `HERO_CAPACITY` |
 | 遣散名士换银 | ¥200 | `game.ts:1038` |
 | 都城补给公式 | resupplyPerLevel × (当前等级 Lv + 1) | `economy.ts:40` `supplyFor` |
-| 都城补给系数(地图) | ¥150 | 地图 `resupplyPerLevel`;`board-loader.ts:55` |
+| 都城补给/级(地图) | 逐城显式:边陲 200 / 中庸 300 / 沃野 400 / 乘法城 300(分) | 地图 tile `resupplyPerLevel`(缺省回退顶层,自定义地图用);`board-loader.ts` |
 | 税关缴税 | ¥200 | `game.ts:616` |
 | 商市波动范围 | ±¥100~200 | `game.ts:629` |
 | 拼点骰子 | 双骰 2d6(2–12) | `game.ts:827-829` |
 | 珍宝等级范围 | 1–10 | `treasures.ts:5-12` |
 | 珍宝牌堆总数 | 14 | `treasures.ts:5-12`(展开 count) |
 | 坐地起价公式 | 指导价 × tradeMult[Lv] + tradeAdd[Lv] | `treasures.ts:38` `premiumPriceOf`;地图 `tradeMult`/`tradeAdd`(长度 4) |
-| 坐地起价回退倍率 | Lv0=×1,Lv1=×2,Lv2=×3,Lv3=×5 | `treasures.ts:34` `CITY_LEVEL_MULTIPLIER` |
+| 坐地起价回退倍率 | Lv0=×1.5,Lv1=×2,Lv2=×3,Lv3=×5 | `treasures.ts` `CITY_LEVEL_MULTIPLIER` |
+| 城池价位档(经济 v2) | 18/22/24/27/34/38/40 两七档加法城 + 30 两固定乘法城(成都/邺城/剑阁/街亭/华容道/合肥,tradeMult=[1.5,2,3,5]) | 地图 json;一致性守卫 `test/map-economy-guard.test.ts` |
+| 城池变卖价系数 | 购价×[0.4,0.6,0.85,1.2](两取整) | 地图 `valueByLevel`;守卫测试 |
+| 建城费 | 购价×50%(两取整) | 地图 `buildCost`;守卫测试 |
 | 身价口径 | 仅现金 | `networth.ts:9` `netWorth` |
 | 骰子 | 单骰 1–6 | `dice.ts`;`game.ts:396` |
 

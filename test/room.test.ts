@@ -338,6 +338,10 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     await reg.takeoverSeat(room.roomId, token, 0, undefined);
     expect(events.find((e) => e.event.ev === "takeover")?.event.seat).toBe(0);
     expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
+    // 经济 v2(目标 30000)全 bot 对局超过单链 500 步:经 setTimeout 续链,轮询等终局
+    for (let i = 0; i < 900 && events.at(-1)?.event.reason !== "game-over"; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     expect(events.at(-1)?.event.ev).toBe("bot-stop");
     expect(events.at(-1)?.event.reason).toBe("game-over");
     // 所有事件都带正确的 roomId

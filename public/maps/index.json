@@ -5,7 +5,7 @@
     "file": "chessboard.json",
     "desc": "网格对齐版,大致方位:外环八区、中原居中;31 城主环 42 格,新野驿站/涪陵渡过渡,许昌—襄阳辅路穿腹地",
     "tileCount": 31,
-    "targetNetWorth": 8000
+    "targetNetWorth": 30000
   },
   {
     "id": "sanguo",
@@ -13,7 +13,7 @@
     "file": "sanguo.json",
     "desc": "30 城主环,三国郡县州,含 5 要隘辅路捷径",
     "tileCount": 30,
-    "targetNetWorth": 8000
+    "targetNetWorth": 30000
   },
   {
     "id": "zhongyuan",
@@ -21,6 +21,6 @@
     "file": "zhongyuan.json",
     "desc": "8 城小环,快节奏短局,适合 2 人速战",
     "tileCount": 8,
-    "targetNetWorth": 5000
+    "targetNetWorth": 30000
   }
 ]

@@ -110,7 +110,7 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       maxLevel,
       valueByLevel: values,
       buildCost: t.buildCost ?? 0,
-      resupplyPerLevel: resupply,
+      resupplyPerLevel: t.resupplyPerLevel ?? resupply, // 逐城显式优先;缺省回退地图顶层(自定义地图)
       tradeAdd: t.tradeAdd,
       tradeMult: t.tradeMult,
       trade: t.trade,

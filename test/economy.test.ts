@@ -5,9 +5,9 @@ import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(sanguoData).catalog;
 
-const changan = catalog.get("prop-changan")!; // a 组,¥400,等级价值 [20,60,180,500](Lv0-3)
+const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),等级价值 [1600,2400,3400,4800]
 
-function mk(cash = 1000) {
+function mk(cash = 10000) {
   return createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: cash });
 }
 
@@ -16,16 +16,16 @@ describe("地产交易", () => {
     const p = mk();
     const r = buy(p, changan);
     expect(r.status).toBe("Ok");
-    expect(p.cash).toBe(600);
+    expect(p.cash).toBe(6000);
     expect(p.properties).toHaveLength(1);
     expect(p.properties[0].level).toBe(0);
-    expect(p.properties[0].purchasePrice).toBe(400);
+    expect(p.properties[0].purchasePrice).toBe(4000);
   });
 
   it("现金不足拒绝购买", () => {
-    const p = mk(300);
+    const p = mk(3000);
     expect(buy(p, changan).status).toBe("InsufficientFunds");
-    expect(p.cash).toBe(300);
+    expect(p.cash).toBe(3000);
     expect(p.properties).toHaveLength(0);
   });
 
@@ -35,7 +35,7 @@ describe("地产交易", () => {
     const r = upgrade(p, changan);
     expect(r.status).toBe("Ok");
     expect(r.newLevel).toBe(1);
-    expect(p.cash).toBe(600); // 升级免费,现金不变
+    expect(p.cash).toBe(6000); // 升级免费,现金不变
   });
 
   it("满级拒绝升级(等级 0..maxLevel = 3,共 4 级)", () => {
@@ -52,10 +52,10 @@ describe("地产交易", () => {
   it("变卖价 = 各等级城池价值(valueByLevel 显式定义)", () => {
     const p = mk(100000);
     buy(p, changan);
-    expect(sellValueOf(changan, 0)).toBe(20);
-    expect(sellValueOf(changan, 1)).toBe(60);
-    expect(sellValueOf(changan, 2)).toBe(180);
-    expect(sellValueOf(changan, 3)).toBe(500);
+    expect(sellValueOf(changan, 0)).toBe(1600);
+    expect(sellValueOf(changan, 1)).toBe(2400);
+    expect(sellValueOf(changan, 2)).toBe(3400);
+    expect(sellValueOf(changan, 3)).toBe(4800);
   });
 });
 
@@ -70,9 +70,9 @@ describe("破产裁决", () => {
   });
 
   it("现金不足:破产,资产(地产+珍宝)转移债主", () => {
-    const a = mk(1000);
+    const a = mk(10000);
     const b = mk(0);
-    buy(a, changan); // a 有地产(现金 600)
+    buy(a, changan); // a 有地产(现金 6000)
     a.treasures.push({ id: "seal", name: "玉玺", level: 10, count: 1, desc: "" });
     a.cash = 100; // 模拟现金耗尽
     const bankrupt = settleDebt(a, b, 500);
