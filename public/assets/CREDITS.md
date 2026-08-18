@@ -18,3 +18,6 @@
 - **hero:caopi** — Public domain / White whirlwind — 5164B (220×118, image/svg+xml) — [source](https://commons.wikimedia.org/wiki/File%3ACao_Pi_(Chinese_characters).svg) — 2026-08-04
 - **treasure:hat** — Public domain / unknown — 18355B (220×177, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3A(working_in_the_rice_paddy)_-_DPLA_-_bce27c50ddd1b3ca0870d27471aff6b0.jpg) — 2026-08-04
 - **tile:Wolong** — CC BY-SA 4.0 / Sharklord123912 — 30329B (220×273, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3ADragon_and_butterfly_sugar_painting_artworks_in_Jinan%2C_China.jpg) — 2026-08-04 ⚠️ review_required
+- **hero:zhouyu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 周瑜·经典形象 — 206705B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=11615) — 2026-08-16
+- **hero:caopi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 曹丕·经典形象 SoniaTang — 166346B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9064) — 2026-08-16
+- **hero:zhangxingcai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 张星彩·经典形象 — 233186B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9705) — 2026-08-16

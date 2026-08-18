@@ -77,7 +77,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
-    p.heroes.push({ id: "zhouyu", name: "周瑜", title: "", desc: "", skill: { kind: "moveBonus", steps: 1 } });
+    p.heroes.push({ id: "zhouyu", name: "周瑜", title: "", desc: "", skill: { kind: "moveBonus", steps: 1 }, image: "/assets/heroes/hero-zhouyu-sgs.png" });
     (e as any).payOrLiquidate(p, null, 150); // 欠 150,有名士 → 清算
     e.cashHeroBankruptcy("zhouyu"); // +200,释放
     expect(p.cash).toBe(200);

@@ -267,4 +267,5 @@ export interface HeroDef {
   desc: string; // 给玩家看的技能说明
   skill: HeroSkill;
   cooldown?: number; // 可选:冷却回合数(每 N 轮可触发一次);undefined = 永久被动/每次都触发
+  image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
 }

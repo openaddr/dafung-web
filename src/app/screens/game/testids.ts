@@ -27,6 +27,8 @@ export const TESTIDS = {
   rollButton: "roll-button",
   /** 珍宝/名士详情卷轴(HandPanel 点卡弹出;UI F5)。 */
   cardDetailScroll: "card-detail-scroll",
+  /** 详情卷轴画像位(#36:3:4 容器,名士画像/珍宝纹样)。 */
+  cardDetailPortrait: "card-detail-portrait",
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 

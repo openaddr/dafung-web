@@ -31,6 +31,30 @@
     "fetched_at": "2026-08-04",
     "review_required": false
   },
+  "hero:zhouyu:sgs": {
+    "path": "assets/heroes/hero-zhouyu-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=11615",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)周瑜·经典形象 · wiki 上传者 屈南旗张",
+    "fetched_at": "2026-08-16",
+    "review_required": false
+  },
+  "hero:caopi:sgs": {
+    "path": "assets/heroes/hero-caopi-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=9064",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)曹丕·经典形象 · SoniaTang",
+    "fetched_at": "2026-08-16",
+    "review_required": false
+  },
+  "hero:zhangxingcai:sgs": {
+    "path": "assets/heroes/hero-zhangxingcai-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=9705",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)张星彩·经典形象",
+    "fetched_at": "2026-08-16",
+    "review_required": false
+  },
   "hero:zhouyu": {
     "path": "assets/heroes/hero-zhouyu.png",
     "source": "https://commons.wikimedia.org/wiki/File:ZhouYu.jpg",

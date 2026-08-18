@@ -65,12 +65,12 @@ export function serializeGame(e: GameEngine) {
       onBranch: p.onBranch,
       skipTurns: p.skipTurns,
       properties: p.properties.map((h) => ({ propertyId: h.propertyId, level: h.level, group: h.group })),
-      heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
+      heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc, image: h.image })),
       // 名士冷却记录(跨进程恢复 cooldown 判定)
       heroLastFired: { ...p.heroLastFired },
       treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
     })),
-    offeredHeroes: e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc })),
+    offeredHeroes: e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc, image: h.image })),
     // 表现态字段经 presentation 视图读(Wave3 候选4:字段已私有,序列化格式不变)。
     lastRoll: e.presentation.lastRoll,
     // lastMove 全量坐标(waypoints/branchWaypoints)随行军动画坐标一并序列化:
