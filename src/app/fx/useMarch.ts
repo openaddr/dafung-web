@@ -13,6 +13,7 @@ import type { Player } from "@core/types";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { playerSlotKey, tokenRenderPos } from "@app/components/board/TokenLayer";
 import { useFxStore } from "./fxStore";
+import { getAudio } from "./audio";
 import { delay, FX, MARCH, nextFrame } from "./timings";
 import { boardCamera } from "@app/components/board/usePanZoom";
 
@@ -122,6 +123,9 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
     endMarch(moverId);
     return;
   }
+  // #26 行军启动音:轻嗒瞬态(audio.ts 内置 50ms 去重 + 连发音量衰减,高频不吵)。
+  // 挪到节点确认之后,取消/未挂载的行军不出声。
+  getAudio().play("marchStart");
 
   /** 单段推进:设置 transitionDuration → 写 transform(命令式)→ 同步 marchPos(供重渲对齐)。
    *  返回本段结束后动画是否仍存活(C5:resetFx 中止)。 */

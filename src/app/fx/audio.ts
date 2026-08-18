@@ -10,6 +10,7 @@ export type SoundEvent =
   | "diceRoll" // 掷骰开始(翻滚启动)
   | "diceHit" // 骰子碰撞(物理事件,带 intensity 0~1)
   | "diceLand" // 骰子停下
+  | "marchStart" // 行军启动(高频触发:轻嗒瞬态,50ms 去重 + 连发音量衰减)
   | "coin" // 铜钱(收入)
   | "stamp" // 印章(建都/据城)
   | "banner" // 横幅(回合/事件)
@@ -41,6 +42,9 @@ export class SynthAudioPlayer implements AudioPlayer {
    *  各合成单元用随机 offset 取不同片段,免去每次 play 重新生成随机样本(消除 GC 抖动)。 */
   private noiseCache: AudioBuffer | null = null;
   private static readonly NOISE_CACHE_DUR = 2; // 秒(覆盖最长 diceRoll 0.4s × 余量)
+  /** marchStart 限流游标:上次触发时间 / 600ms 窗口内连发计数(见 play() 防吵注释)。 */
+  private lastMarchStart: number | null = null;
+  private marchRapidCount = 0;
 
   /** AudioContext 延迟创建(浏览器 autoplay policy:首次 play / 用户交互后 resume)。 */
   protected ensureCtx(): AudioContext | null {
@@ -77,6 +81,20 @@ export class SynthAudioPlayer implements AudioPlayer {
     const ctx = this.ensureCtx();
     if (!ctx || !this.master) return;
     const intensity = opts?.intensity ?? 1;
+    // marchStart 防吵:高频触发的行军启动音做两层限流——
+    //   ① 50ms 内同音去重(连点/多棋子同帧启动只响一次);
+    //   ② 600ms 窗口内连发时音量逐次衰减(最低到 40%),连续行军不叠加成噪声。
+    if (event === "marchStart") {
+      const now = performance.now();
+      const last = this.lastMarchStart;
+      if (last != null && now - last < 50) return;
+      const rapid = last != null && now - last < 600 ? this.marchRapidCount + 1 : 0;
+      this.lastMarchStart = now;
+      this.marchRapidCount = rapid;
+      const volScale = Math.max(0.4, 1 - rapid * 0.2);
+      this.marchStart(ctx, volScale);
+      return;
+    }
     switch (event) {
       case "diceRoll": this.diceRoll(ctx, intensity); break;
       case "diceHit": this.diceHit(ctx, intensity); break;
@@ -190,9 +208,18 @@ export class SynthAudioPlayer implements AudioPlayer {
     src.stop(ctx.currentTime + dur);
   }
 
-  // 骰子掷出(启动翻滚,~0.4s 衰减噪声 + 20ms attack ramp)
+  // 骰子掷出(#26 改浅:行军点击即掷骰,是全游戏最高频的触发。旧 0.4s 衰减噪声太重,
+  // 现改为 ~120ms 轻快沙锤瞬态:高频带通 + 快速下滑扫频,低音量,衰减快)
   private diceRoll(ctx: AudioContext, intensity: number): void {
-    this.noiseBurst(ctx, 0.4, "bandpass", 1800 + intensity * 400, 0.8, 0.32 * intensity, undefined, 20);
+    this.noiseBurst(ctx, 0.12, "bandpass", 2600 + intensity * 300, 1.5, 0.14 * intensity, 1400, 6);
+    this.tone(ctx, 1800, 0.05, "sine", 0.05 * intensity); // 极轻的起振点,给瞬态一个"头"
+  }
+
+  // 行军启动(#26:轻嗒瞬态,~70ms 高通噪声 + 微量高频正弦,衰减极快;
+  // volScale 由 play() 的连发衰减传入)
+  private marchStart(ctx: AudioContext, volScale: number): void {
+    this.noiseBurst(ctx, 0.07, "highpass", 3200, 0.7, 0.09 * volScale);
+    this.tone(ctx, 2400, 0.04, "sine", 0.03 * volScale);
   }
 
   // 骰子碰撞(短促噪声 burst,物理事件,随强度)
@@ -259,7 +286,8 @@ export class SynthAudioPlayer implements AudioPlayer {
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
 /** SoundEvent → 音频文件 URL 映射。缺失的 event 走合成回退。 */
 const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
-  diceRoll: "/assets/audio/drum-roll.ogg",
+  // diceRoll 不再映射文件:旧 drum-roll.ogg 是 4s 完整鼓滚奏,行军点击(=掷骰)是
+  // 全游戏最高频触发,太吵(#26)——改走上方合成轻快瞬态。banner 低频保留鼓滚奏。
   diceLand: "/assets/audio/woodblock-hit.ogg",
   coin: "/assets/audio/coin-drop.ogg",
   stamp: "/assets/audio/gong-hit.ogg",
