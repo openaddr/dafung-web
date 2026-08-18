@@ -114,12 +114,13 @@ function Building({ size, tint }: { size: "large" | "medium" | "small"; tint?: s
   );
 }
 
-// ── #25 城池全局放大比例 ──
+// ── #25/#39 城池全局放大比例 ──
 // 旗/匾/印/价格签等所有元素随 <g> 整体 scale(等比,视觉口径统一;点击热区与
-// hover 重排随 SVG transform 同步放大,无需另调)。1.15 为全局统一比例:密城
-// (中原一带)相邻铭牌外缘 ~124×1.15≈143 < 常规格间距,不互相压盖;
-// FIT_VIEW 边距已同步 +3%(usePanZoom),总览下放大后城池群仍在视口内。
-const TILE_SCALE = 1.15;
+// hover 重排随 SVG transform 同步放大,无需另调)。#39 在 1.15 基础上再放 ~35%
+// 至 1.55(等效原版 1.55x);配套三张地图城池坐标 1.4x 重排拉大间距(见
+// scripts/make-chessboard-map.ts 与 maps/*.json),常规格间距 ≥238 逻辑单位,
+// 铭牌外缘 ~104×1.55≈161,互不压盖;FIT_VIEW 已同步到新画布(usePanZoom)。
+const TILE_SCALE = 1.55;
 
 // ── 竖排木匾城名 ──
 // 局部常量:深木底 + 暖金边/铆钉,集中在此便于整体调色。

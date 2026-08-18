@@ -9,8 +9,8 @@
       "id": "prop-luoyang",
       "name": "洛阳",
       "pos": [
-        0,
-        -160
+        -40,
+        -236
       ],
       "group": "a",
       "region": "中原",
@@ -39,8 +39,8 @@
       "id": "prop-hulaoguan",
       "name": "虎牢关",
       "pos": [
-        160,
-        -110
+        184,
+        -166
       ],
       "group": "b",
       "region": "中原",
@@ -57,8 +57,8 @@
       "id": "prop-kaifeng",
       "name": "开封",
       "pos": [
-        200,
-        40
+        240,
+        44
       ],
       "group": "b",
       "region": "中原",
@@ -75,8 +75,8 @@
       "id": "prop-xuchang2",
       "name": "颍川",
       "pos": [
-        140,
-        170
+        156,
+        226
       ],
       "group": "c",
       "region": "中原",
@@ -93,8 +93,8 @@
       "id": "prop-wancheng",
       "name": "宛城",
       "pos": [
-        0,
-        200
+        -40,
+        268
       ],
       "group": "c",
       "region": "中原",
@@ -111,8 +111,8 @@
       "id": "prop-xinye",
       "name": "新野",
       "pos": [
-        -140,
-        170
+        -236,
+        226
       ],
       "group": "d",
       "region": "中原",
@@ -129,8 +129,8 @@
       "id": "prop-henei",
       "name": "河内",
       "pos": [
-        -200,
-        40
+        -320,
+        44
       ],
       "group": "d",
       "region": "中原",
@@ -147,8 +147,8 @@
       "id": "prop-mengjin",
       "name": "孟津",
       "pos": [
-        -160,
-        -110
+        -264,
+        -166
       ],
       "group": "a",
       "region": "中原",

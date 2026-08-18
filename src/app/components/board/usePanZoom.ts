@@ -8,15 +8,18 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** 总览 viewBox(贴紧城池范围 + 边距)。
- *  #25 城池整体放大 1.15(见 Tile.TILE_SCALE)后,边距同步放宽 ~3%
- *  (宽高比 1.667 保持不变,preserveAspectRatio 不产生新留白)。 */
-export const FIT_VIEW = { x: -1085, y: -680, w: 2370, h: 1420 } as const;
+ *  #39 城池间距 1.4x 重排 → 逻辑画布 3220×1932(StaticLayers VB 同源),
+ *  边距保持 ~3%(宽高比 1.667,preserveAspectRatio 不产生新留白)。 */
+export const FIT_VIEW = { x: -1558, y: -965, w: 3317, h: 1990 } as const;
 
 /** 总览 viewBox 属性串(BoardView 作初始 prop 一次性下发,React 之后不再改写)。 */
 export const FIT_VIEW_BOX = `${FIT_VIEW.x} ${FIT_VIEW.y} ${FIT_VIEW.w} ${FIT_VIEW.h}`;
 
 const MAX_ZOOM = 4;
-const OVER = 140; // 允许略超边界,便于平移到边缘城池
+// #38:允许超出总览边界约 = 边缘渐隐带(EDGE_PAD=700)的一半——pan 到极限时
+// 视口恰好落在地形渐隐带中段,能看到"纸面平滑淡出到页面背景"的效果(旧值 140
+// 根本平移不到渐隐区,是 #38"看不到效果"的根因之一)。
+const OVER = 350;
 
 export interface ViewBox {
   x: number;

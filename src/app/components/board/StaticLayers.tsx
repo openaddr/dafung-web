@@ -5,13 +5,21 @@ import { memo } from "react";
 import type { Board } from "@core/board";
 import { Theme, rgba } from "@core/theme";
 
-// viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致
-const VB = { x: -1050, y: -660, w: 2300, h: 1380 } as const;
+// viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致。
+// #39:城池间距 1.4x 重排(三张地图坐标同步放大)→ 逻辑画布以 (100,30) 为心等比 1.4x:
+// 2300×1380 → 3220×1932,远山河川由 TERRAIN_SCALE 变换跟随。
+const TERRAIN_SCALE = 1.4;
+const VB = { x: -1510, y: -936, w: 3220, h: 1932 } as const;
 
-// #24 边缘连续性:地形宣纸向外延展的画布(比 VB 大一圈),配 mask 渐隐——
-// 纸面/远山/江河沿椭圆带渐隐为透明,透出页面背景,消除 VB 边界的硬切。
-// PAD 决定淡出带厚度(≈560 逻辑单位):pan 到边缘(OVER=140)时仍处在渐变中段,不见底。
-const EDGE_PAD = 560;
+// #24/#38 边缘连续性:地形宣纸向外延展的画布(比 VB 大一圈),配 mask 四边线性渐隐——
+// 纸面在 VB 边界之外 EDGE_PAD 带宽内渐隐为透明,透出页面背景,消除边界的硬切。
+// #38 根因教训:旧实现用单个椭圆 radial 渐隐,渐隐带起点(约在 VB 边界外 260~410 单位)
+// 超出了 pan 钳制可达范围(OVER=140),用户永远平移不到渐变区 → 效果完全不可感知;
+// 且暗角/区域晕染 rect 裁在 VB 上,平移到边缘时反而是它们制造了新的硬切线。
+// 现:①渐隐带从 VB 边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD);
+// ②OVER(usePanZoom)放宽到带宽的一半,pan 到极限时正处渐变中段;
+// ③暗角/区域晕染 rect 一并扩到 O,不再有 VB 边界的裁切线。
+const EDGE_PAD = 700;
 const O = { x: VB.x - EDGE_PAD, y: VB.y - EDGE_PAD, w: VB.w + EDGE_PAD * 2, h: VB.h + EDGE_PAD * 2 } as const;
 
 /** 点列 → path d(M/L 折线),与 render/svg-util.polylinePath 同式。 */
@@ -37,16 +45,32 @@ export const BoardDefs = memo(function BoardDefs() {
       </radialGradient>
       {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
           blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
-      {/* #24 边缘渐隐 mask 渐变(objectBoundingBox 椭圆,与延展画布 O 同比例):
-          中心至 ~76% 全显(盖住全部城池活动区),76%→100% 由白转黑 = 地形渐隐为透明,
-          透出页面背景。白色=mask 可见,luminance 语义。 */}
-      <radialGradient id="bv-edge-fade" cx="50%" cy="50%" r="50%">
-        <stop offset="76%" stopColor="#fff" />
-        <stop offset="88%" stopColor="#666" />
-        <stop offset="100%" stopColor="#000" />
-      </radialGradient>
+      {/* #38 边缘渐隐 mask:白底全显 + 四边各一条 EDGE_PAD 宽的线性渐变带
+          (外缘黑=透明 → 内缘白=可见),渐变从 VB 边界起算。objectBoundingBox 单位
+          相对各自 band rect,天然横/纵向独立、无椭圆长短轴失配。四角处两条带
+          叠加(alpha 合成近似相乘)只会更快趋黑,无亮缝。白色=可见,luminance 语义。 */}
+      <linearGradient id="bv-edge-fade-l" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#000" />
+        <stop offset="1" stopColor="#fff" />
+      </linearGradient>
+      <linearGradient id="bv-edge-fade-r" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stopColor="#fff" />
+        <stop offset="1" stopColor="#000" />
+      </linearGradient>
+      <linearGradient id="bv-edge-fade-t" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#000" />
+        <stop offset="1" stopColor="#fff" />
+      </linearGradient>
+      <linearGradient id="bv-edge-fade-b" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" />
+        <stop offset="1" stopColor="#000" />
+      </linearGradient>
       <mask id="bv-edge-mask" maskUnits="userSpaceOnUse" x={O.x} y={O.y} width={O.w} height={O.h}>
-        <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-edge-fade)" />
+        <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#fff" />
+        <rect x={O.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-l)" />
+        <rect x={VB.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-r)" />
+        <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
+        <rect x={O.x} y={VB.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
       <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
         <stop offset="0%" stopColor="#d4af37" stopOpacity={0.55} />
@@ -71,11 +95,13 @@ export const TerrainLayer = memo(function TerrainLayer() {
     <g mask="url(#bv-edge-mask)">
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#e8dcc0" />
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.5} />
-      <g opacity={0.12}>
-        {hills.map(([pts, fill], i) => (
-          <path key={i} d={`M${pts} Z`} fill={fill} />
-        ))}
-      </g>
+      {/* #39 画布 1.4x:远山/江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。 */}
+      <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
+        <g opacity={0.12}>
+          {hills.map(([pts, fill], i) => (
+            <path key={i} d={`M${pts} Z`} fill={fill} />
+          ))}
+        </g>
       <g
         fill="none"
         stroke="rgba(70,110,140,0.28)"
@@ -90,7 +116,10 @@ export const TerrainLayer = memo(function TerrainLayer() {
           opacity={0.5}
         />
       </g>
-      <rect x={VB.x} y={VB.y} width={VB.w} height={VB.h} fill="url(#bv-vignette)" />
+      </g>
+      {/* 暗角铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的暗角矩形切线就是用户看到的硬边),
+          其暗角集中在四角、恰好落在渐隐带内,与 mask 叠加后自然消隐。 */}
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-vignette)" />
     </g>
   );
 });
@@ -153,8 +182,9 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
         </radialGradient>
       ))}
       {blobs.map((b) => (
-        // 整幅 viewBox rect 填充渐变:渐变自带半径控制范围,rect 只是"画布"
-        <rect key={`r-${b.group}`} x={VB.x} y={VB.y} width={VB.w} height={VB.h} fill={`url(#bv-tint-${b.group})`} />
+        // 整幅延展画布 rect 填充渐变:渐变自带半径控制范围,rect 只是"画布"
+        // (#38:铺到 O 而非 VB,避免 rect 在 VB 边界留下晕染断层线)
+        <rect key={`r-${b.group}`} x={O.x} y={O.y} width={O.w} height={O.h} fill={`url(#bv-tint-${b.group})`} />
       ))}
     </g>
   );

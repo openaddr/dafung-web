@@ -9,7 +9,7 @@
       "id": "prop-changan",
       "name": "长安",
       "pos": [
-        780,
+        1052,
         30
       ],
       "group": "a",
@@ -33,7 +33,7 @@
       "id": "prop-xianyang",
       "name": "咸阳",
       "pos": [
-        610,
+        814,
         30
       ],
       "type": "TreasureCity"
@@ -42,7 +42,7 @@
       "id": "prop-hangu",
       "name": "函谷关",
       "pos": [
-        440,
+        576,
         30
       ],
       "type": "TreasureCity"
@@ -51,7 +51,7 @@
       "id": "prop-luoyang",
       "name": "洛阳",
       "pos": [
-        270,
+        338,
         30
       ],
       "group": "a",
@@ -84,7 +84,7 @@
       "id": "prop-xuchang",
       "name": "许昌",
       "pos": [
-        -70,
+        -138,
         30
       ],
       "group": "a",
@@ -108,7 +108,7 @@
       "id": "prop-wan",
       "name": "宛城",
       "pos": [
-        -240,
+        -376,
         30
       ],
       "type": "TreasureCity"
@@ -117,8 +117,8 @@
       "id": "tile-wolong",
       "name": "卧龙岗",
       "pos": [
-        -70,
-        310
+        -138,
+        422
       ],
       "type": "Wolong"
     },
@@ -127,16 +127,16 @@
       "name": "新野驿站",
       "type": "Chance",
       "pos": [
-        610,
-        450
+        814,
+        618
       ]
     },
     {
       "id": "prop-xiangyang",
       "name": "襄阳",
       "pos": [
-        1120,
-        590
+        1528,
+        814
       ],
       "group": "b",
       "region": "荆楚",
@@ -159,8 +159,8 @@
       "id": "prop-jiangxia",
       "name": "江夏",
       "pos": [
-        950,
-        590
+        1290,
+        814
       ],
       "group": "b",
       "region": "荆楚",
@@ -183,8 +183,8 @@
       "id": "prop-wuchang",
       "name": "武昌",
       "pos": [
-        780,
-        590
+        1052,
+        814
       ],
       "group": "b",
       "region": "荆楚",
@@ -207,8 +207,8 @@
       "id": "prop-chibi",
       "name": "赤壁",
       "pos": [
-        610,
-        590
+        814,
+        814
       ],
       "group": "b",
       "region": "荆楚",
@@ -231,8 +231,8 @@
       "id": "prop-changsha",
       "name": "长沙",
       "pos": [
-        440,
-        590
+        576,
+        814
       ],
       "group": "c",
       "region": "岭南",
@@ -255,8 +255,8 @@
       "id": "tile-fate-1",
       "name": "天命",
       "pos": [
-        270,
-        590
+        338,
+        814
       ],
       "type": "Fate"
     },
@@ -265,7 +265,7 @@
       "name": "江陵",
       "pos": [
         100,
-        590
+        814
       ],
       "group": "b",
       "region": "荆楚",
@@ -288,8 +288,8 @@
       "id": "prop-huarong",
       "name": "华容道",
       "pos": [
-        -70,
-        590
+        -138,
+        814
       ],
       "group": "c",
       "region": "岭南",
@@ -312,8 +312,8 @@
       "id": "prop-lingling",
       "name": "零陵",
       "pos": [
-        -240,
-        590
+        -376,
+        814
       ],
       "group": "c",
       "region": "岭南",
@@ -336,8 +336,8 @@
       "id": "prop-jiaozhou",
       "name": "交州",
       "pos": [
-        -410,
-        590
+        -614,
+        814
       ],
       "group": "c",
       "region": "岭南",
@@ -361,16 +361,16 @@
       "name": "涪陵渡",
       "type": "Chance",
       "pos": [
-        -750,
-        590
+        -1090,
+        814
       ]
     },
     {
       "id": "prop-jiangzhou",
       "name": "江州",
       "pos": [
-        -920,
-        590
+        -1328,
+        814
       ],
       "group": "d",
       "region": "巴蜀",
@@ -393,8 +393,8 @@
       "id": "prop-chengdu",
       "name": "成都",
       "pos": [
-        -920,
-        450
+        -1328,
+        618
       ],
       "group": "d",
       "region": "巴蜀",
@@ -417,8 +417,8 @@
       "id": "prop-jiange",
       "name": "剑阁",
       "pos": [
-        -920,
-        310
+        -1328,
+        422
       ],
       "group": "d",
       "region": "巴蜀",
@@ -441,8 +441,8 @@
       "id": "prop-hanzhong",
       "name": "汉中",
       "pos": [
-        -920,
-        170
+        -1328,
+        226
       ],
       "group": "d",
       "region": "巴蜀",
@@ -465,7 +465,7 @@
       "id": "prop-ziwu",
       "name": "子午谷",
       "pos": [
-        -920,
+        -1328,
         30
       ],
       "group": "d",
@@ -489,8 +489,8 @@
       "id": "prop-jieting",
       "name": "街亭",
       "pos": [
-        -920,
-        -110
+        -1328,
+        -166
       ],
       "group": "e",
       "region": "西凉",
@@ -513,8 +513,8 @@
       "id": "prop-yongzhou",
       "name": "雍州",
       "pos": [
-        -920,
-        -250
+        -1328,
+        -362
       ],
       "group": "e",
       "region": "西凉",
@@ -537,8 +537,8 @@
       "id": "prop-liangzhou",
       "name": "凉州",
       "pos": [
-        -920,
-        -390
+        -1328,
+        -558
       ],
       "group": "e",
       "region": "西凉",
@@ -561,8 +561,8 @@
       "id": "prop-ye",
       "name": "邺城",
       "pos": [
-        -920,
-        -530
+        -1328,
+        -754
       ],
       "group": "a",
       "region": "中原",
@@ -585,8 +585,8 @@
       "id": "prop-jinyang",
       "name": "晋阳",
       "pos": [
-        -750,
-        -530
+        -1090,
+        -754
       ],
       "group": "f",
       "region": "并州",
@@ -609,8 +609,8 @@
       "id": "prop-youzhou",
       "name": "幽州",
       "pos": [
-        -580,
-        -530
+        -852,
+        -754
       ],
       "group": "f",
       "region": "幽燕",
@@ -633,8 +633,8 @@
       "id": "tile-tax-1",
       "name": "税关",
       "pos": [
-        -410,
-        -530
+        -614,
+        -754
       ],
       "type": "Tax"
     },
@@ -642,8 +642,8 @@
       "id": "prop-liaodong",
       "name": "辽东",
       "pos": [
-        -240,
-        -530
+        -376,
+        -754
       ],
       "group": "f",
       "region": "幽燕",
@@ -666,8 +666,8 @@
       "id": "tile-chance-1",
       "name": "锦囊",
       "pos": [
-        -70,
-        -530
+        -138,
+        -754
       ],
       "type": "Chance"
     },
@@ -676,7 +676,7 @@
       "name": "临淄",
       "pos": [
         100,
-        -530
+        -754
       ],
       "group": "g",
       "region": "青徐",
@@ -699,8 +699,8 @@
       "id": "prop-xuzhou",
       "name": "徐州",
       "pos": [
-        270,
-        -530
+        338,
+        -754
       ],
       "group": "g",
       "region": "青徐",
@@ -723,8 +723,8 @@
       "id": "prop-shouchun",
       "name": "寿春",
       "pos": [
-        440,
-        -530
+        576,
+        -754
       ],
       "group": "g",
       "region": "青徐",
@@ -747,8 +747,8 @@
       "id": "prop-hefei",
       "name": "合肥",
       "pos": [
-        610,
-        -530
+        814,
+        -754
       ],
       "group": "g",
       "region": "淮南",
@@ -771,8 +771,8 @@
       "id": "prop-jianye",
       "name": "建业",
       "pos": [
-        1120,
-        -530
+        1528,
+        -754
       ],
       "group": "h",
       "region": "江东",
@@ -795,8 +795,8 @@
       "id": "tile-stock-1",
       "name": "商市",
       "pos": [
-        1120,
-        -390
+        1528,
+        -558
       ],
       "type": "Stock"
     },
@@ -804,8 +804,8 @@
       "id": "prop-wujun",
       "name": "吴郡",
       "pos": [
-        1120,
-        -250
+        1528,
+        -362
       ],
       "group": "h",
       "region": "江东",
@@ -828,8 +828,8 @@
       "id": "prop-kuiji",
       "name": "会稽",
       "pos": [
-        1120,
-        -110
+        1528,
+        -166
       ],
       "group": "h",
       "region": "江东",
@@ -858,35 +858,35 @@
         "kind": "treasure",
         "pos": [
           100,
-          170
+          226
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          270,
-          170
+          338,
+          226
         ]
       },
       {
         "kind": "event",
         "pos": [
-          440,
-          310
+          576,
+          422
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          610,
-          310
+          814,
+          422
         ]
       },
       {
         "kind": "penalty",
         "pos": [
-          780,
-          450
+          1052,
+          618
         ]
       }
     ]

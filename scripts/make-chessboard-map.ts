@@ -14,8 +14,9 @@
 // 放在主环的中央横排(第 4 行)上,辅路作为环外捷径从许昌斜穿到襄阳,效果等同
 // "骨架 = 外环 + 中央通路"。
 //
-// 网格几何:viewBox {-1050,-660,2300,1380};13 列(列距 170)x 9 行(行距 140),
-// 网格中心对齐 viewBox 中心 (100, 30),四周留边距,最小间距 140 ≥ MIN_TILE_DIST(80)。
+// 网格几何:#39 城池再放大 + 拉大间距 → 逻辑画布 1.4x(StaticLayers VB
+// {-1510,-936,3220,1932});13 列(列距 238)x 9 行(行距 196),网格中心对齐
+// 画布中心 (100, 30),四周留边距,最小间距 196 ≥ MIN_TILE_DIST(80)。
 //
 // 运行:bun scripts/make-chessboard-map.ts(确定性输出,可随时重新生成)。
 
@@ -30,13 +31,12 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 const src = JSON.parse(readFileSync(resolve(root, "public/maps/sanguo.json"), "utf8")) as MapData;
 
-// ── 网格参数 ──
-// 列距 170 / 行距 140:与原 sanguo 的城池平均间距相当,13x9 恰好覆盖 viewBox。
+// ── 网格参数(#39:列距/行距 1.4x,城池散开)──
 const COLS = 13, ROWS = 9;
-const COL_STEP = 170, ROW_STEP = 140;
-// 网格居中于 viewBox 中心 (x=-1050+2300/2=100, y=-660+1380/2=30)
-const gx = (c: number) => -920 + c * COL_STEP; // 列 0..12 → x -920..1120
-const gy = (r: number) => -530 + r * ROW_STEP; // 行 0..8 → y -530..590
+const COL_STEP = 238, ROW_STEP = 196;
+// 网格居中于画布中心 (x=-1510+3220/2=100, y=-936+1932/2=30)
+const gx = (c: number) => 100 + (c - 6) * COL_STEP; // 列 0..12 → x -1328..1528
+const gy = (r: number) => 30 + (r - 4) * ROW_STEP; // 行 0..8 → y -754..814
 
 // ── 布局表:id → [col, row] ──
 // 主环走向(tiles 数组顺序 = 原 sanguo 顺序,未重排,只换坐标):

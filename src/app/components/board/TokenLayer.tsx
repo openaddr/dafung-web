@@ -52,10 +52,11 @@ interface TokenLayerProps {
   layerRef?: React.Ref<SVGGElement>;
 }
 
-/** #30 棋子放大比例:整体 scale 1.25(旗/字/印玺等比)——旌旗在 zoom-out 总览下
- *  仍是可辨色块。scale 落在独立 <g transform> 属性上,与 .bv-token 的 CSS
- *  style.transform(行军命令式写入 translate)互不覆盖。 */
-const TOKEN_SCALE = 1.25;
+/** #30/#39 棋子放大比例:整体 scale 1.4(旗/字/印玺等比)——旌旗在 zoom-out 总览下
+ *  仍是可辨色块;#39 城池放大到 1.55 后棋子从 1.25 联动提到 1.4,避免被放大后的
+ *  城池建筑/铭牌在视觉上压住。scale 落在独立 <g transform> 属性上,与 .bv-token
+ *  的 CSS style.transform(行军命令式写入 translate)互不覆盖。 */
+const TOKEN_SCALE = 1.4;
 
 function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);

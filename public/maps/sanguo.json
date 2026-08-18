@@ -9,8 +9,8 @@
       "id": "prop-changan",
       "name": "长安",
       "pos": [
-        -240,
-        0
+        -395,
+        -9
       ],
       "group": "a",
       "region": "中原",
@@ -33,8 +33,8 @@
       "id": "prop-xianyang",
       "name": "咸阳",
       "pos": [
-        -120,
-        -20
+        -208,
+        -40
       ],
       "type": "TreasureCity"
     },
@@ -42,8 +42,8 @@
       "id": "prop-hangu",
       "name": "函谷关",
       "pos": [
-        0,
-        -40
+        -21,
+        -71
       ],
       "type": "TreasureCity"
     },
@@ -51,8 +51,8 @@
       "id": "prop-luoyang",
       "name": "洛阳",
       "pos": [
-        200,
-        -20
+        218,
+        -45
       ],
       "group": "a",
       "region": "中原",
@@ -75,8 +75,8 @@
       "id": "prop-hulao",
       "name": "虎牢关",
       "pos": [
-        304,
-        4
+        408,
+        -44
       ],
       "type": "TreasureCity"
     },
@@ -84,8 +84,8 @@
       "id": "prop-xuchang",
       "name": "许昌",
       "pos": [
-        320,
-        110
+        408,
+        146
       ],
       "group": "a",
       "region": "中原",
@@ -108,8 +108,8 @@
       "id": "prop-wan",
       "name": "宛城",
       "pos": [
-        160,
-        140
+        168,
+        151
       ],
       "type": "TreasureCity"
     },
@@ -117,8 +117,8 @@
       "id": "tile-wolong",
       "name": "卧龙岗",
       "pos": [
-        200,
-        220
+        237,
+        328
       ],
       "type": "Wolong"
     },
@@ -126,8 +126,8 @@
       "id": "prop-xiangyang",
       "name": "襄阳",
       "pos": [
-        320,
-        220
+        427,
+        335
       ],
       "group": "b",
       "region": "荆楚",
@@ -150,8 +150,8 @@
       "id": "prop-jiangxia",
       "name": "江夏",
       "pos": [
-        480,
-        280
+        622,
+        375
       ],
       "group": "b",
       "region": "荆楚",
@@ -174,8 +174,8 @@
       "id": "prop-wuchang",
       "name": "武昌",
       "pos": [
-        600,
-        340
+        795,
+        454
       ],
       "group": "b",
       "region": "荆楚",
@@ -198,8 +198,8 @@
       "id": "prop-chibi",
       "name": "赤壁",
       "pos": [
-        680,
-        420
+        927,
+        591
       ],
       "group": "b",
       "region": "荆楚",
@@ -222,8 +222,8 @@
       "id": "prop-changsha",
       "name": "长沙",
       "pos": [
-        480,
-        520
+        632,
+        716
       ],
       "group": "c",
       "region": "岭南",
@@ -246,8 +246,8 @@
       "id": "tile-fate-1",
       "name": "天命",
       "pos": [
-        500,
-        660
+        660,
+        912
       ],
       "type": "Fate"
     },
@@ -255,8 +255,8 @@
       "id": "prop-jiangling",
       "name": "江陵",
       "pos": [
-        280,
-        480
+        352,
+        660
       ],
       "group": "b",
       "region": "荆楚",
@@ -279,8 +279,8 @@
       "id": "prop-huarong",
       "name": "华容道",
       "pos": [
-        160,
-        560
+        173,
+        761
       ],
       "group": "c",
       "region": "岭南",
@@ -303,8 +303,8 @@
       "id": "prop-lingling",
       "name": "零陵",
       "pos": [
-        0,
-        600
+        -40,
+        828
       ],
       "group": "c",
       "region": "岭南",
@@ -327,8 +327,8 @@
       "id": "prop-jiaozhou",
       "name": "交州",
       "pos": [
-        240,
-        640
+        307,
+        895
       ],
       "group": "c",
       "region": "岭南",
@@ -351,8 +351,8 @@
       "id": "prop-jiangzhou",
       "name": "江州",
       "pos": [
-        -80,
-        480
+        -152,
+        660
       ],
       "group": "d",
       "region": "巴蜀",
@@ -375,8 +375,8 @@
       "id": "prop-chengdu",
       "name": "成都",
       "pos": [
-        -400,
-        440
+        -600,
+        604
       ],
       "group": "d",
       "region": "巴蜀",
@@ -399,8 +399,8 @@
       "id": "prop-jiange",
       "name": "剑阁",
       "pos": [
-        -520,
-        340
+        -768,
+        464
       ],
       "group": "d",
       "region": "巴蜀",
@@ -423,8 +423,8 @@
       "id": "prop-hanzhong",
       "name": "汉中",
       "pos": [
-        -440,
-        220
+        -658,
+        302
       ],
       "group": "d",
       "region": "巴蜀",
@@ -447,8 +447,8 @@
       "id": "prop-ziwu",
       "name": "子午谷",
       "pos": [
-        -400,
-        100
+        -598,
+        122
       ],
       "group": "d",
       "region": "巴蜀",
@@ -471,8 +471,8 @@
       "id": "prop-jieting",
       "name": "街亭",
       "pos": [
-        -560,
-        60
+        -824,
+        72
       ],
       "group": "e",
       "region": "西凉",
@@ -495,8 +495,8 @@
       "id": "prop-yongzhou",
       "name": "雍州",
       "pos": [
-        -720,
-        80
+        -1048,
+        100
       ],
       "group": "e",
       "region": "西凉",
@@ -519,8 +519,8 @@
       "id": "prop-liangzhou",
       "name": "凉州",
       "pos": [
-        -960,
-        0
+        -1384,
+        -12
       ],
       "group": "e",
       "region": "西凉",
@@ -543,8 +543,8 @@
       "id": "prop-ye",
       "name": "邺城",
       "pos": [
-        -160,
-        -240
+        -264,
+        -348
       ],
       "group": "a",
       "region": "中原",
@@ -567,8 +567,8 @@
       "id": "prop-jinyang",
       "name": "晋阳",
       "pos": [
-        -80,
-        -380
+        -152,
+        -544
       ],
       "group": "f",
       "region": "并州",
@@ -591,8 +591,8 @@
       "id": "prop-youzhou",
       "name": "幽州",
       "pos": [
-        0,
-        -520
+        -40,
+        -740
       ],
       "group": "f",
       "region": "幽燕",
@@ -615,8 +615,8 @@
       "id": "tile-tax-1",
       "name": "税关",
       "pos": [
-        200,
-        -600
+        240,
+        -852
       ],
       "type": "Tax"
     },
@@ -624,8 +624,8 @@
       "id": "prop-liaodong",
       "name": "辽东",
       "pos": [
-        480,
-        -560
+        632,
+        -796
       ],
       "group": "f",
       "region": "幽燕",
@@ -648,8 +648,8 @@
       "id": "tile-chance-1",
       "name": "锦囊",
       "pos": [
-        680,
-        -500
+        912,
+        -712
       ],
       "type": "Chance"
     },
@@ -657,8 +657,8 @@
       "id": "prop-linzi",
       "name": "临淄",
       "pos": [
-        880,
-        -360
+        1192,
+        -516
       ],
       "group": "g",
       "region": "青徐",
@@ -681,8 +681,8 @@
       "id": "prop-xuzhou",
       "name": "徐州",
       "pos": [
-        1040,
-        -160
+        1416,
+        -236
       ],
       "group": "g",
       "region": "青徐",
@@ -705,8 +705,8 @@
       "id": "prop-shouchun",
       "name": "寿春",
       "pos": [
-        880,
-        0
+        1193,
+        -45
       ],
       "group": "g",
       "region": "青徐",
@@ -729,8 +729,8 @@
       "id": "prop-hefei",
       "name": "合肥",
       "pos": [
-        878,
-        88
+        1152,
+        141
       ],
       "group": "g",
       "region": "淮南",
@@ -753,8 +753,8 @@
       "id": "prop-jianye",
       "name": "建业",
       "pos": [
-        960,
-        120
+        1341,
+        160
       ],
       "group": "h",
       "region": "江东",
@@ -777,8 +777,8 @@
       "id": "tile-stock-1",
       "name": "商市",
       "pos": [
-        1180,
-        40
+        1612,
+        44
       ],
       "type": "Stock"
     },
@@ -786,8 +786,8 @@
       "id": "prop-wujun",
       "name": "吴郡",
       "pos": [
-        1120,
-        240
+        1528,
+        324
       ],
       "group": "h",
       "region": "江东",
@@ -810,8 +810,8 @@
       "id": "prop-kuiji",
       "name": "会稽",
       "pos": [
-        1040,
-        360
+        1416,
+        492
       ],
       "group": "h",
       "region": "江东",
@@ -839,36 +839,36 @@
       {
         "kind": "treasure",
         "pos": [
-          410,
-          125
+          534,
+          163
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          465,
-          148
+          611,
+          195
         ]
       },
       {
         "kind": "event",
         "pos": [
-          485,
-          180
+          639,
+          240
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          465,
-          212
+          611,
+          285
         ]
       },
       {
         "kind": "penalty",
         "pos": [
-          410,
-          235
+          534,
+          317
         ]
       }
     ]
