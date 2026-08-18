@@ -1290,13 +1290,18 @@ export class GameEngine {
           branchWaypoints: [...s.lastMove.branchWaypoints],
         }
       : null;
-    // lastLandOutcome:只重构 kind+property(够 buy/upgrade 用);amount/resupply/causedBankruptcy 丢失
-    if (s.lastLandOutcomeKind && s.lastLandOutcomeProperty) {
-      const def = this.catalog.get(s.lastLandOutcomeProperty);
-      this.lastLandOutcome = def ? { kind: s.lastLandOutcomeKind, property: def } : null;
-    } else {
-      this.lastLandOutcome = null;
-    }
+    // lastLandOutcome:完整恢复(kind/property/amount/resupply/causedBankruptcy);
+    // property 按 id 从 catalog 重构引用,无 property 的 outcome(如纯补给 OwnProperty)原样保留
+    this.lastLandOutcome = s.lastLandOutcome
+      ? {
+          kind: s.lastLandOutcome.kind,
+          // ?? undefined 仅类型归一(catalog.get 缺失返回 null;property 字段语义=无定义即缺席)
+          property: (s.lastLandOutcome.propertyId ? this.catalog.get(s.lastLandOutcome.propertyId) : undefined) ?? undefined,
+          amount: s.lastLandOutcome.amount ?? undefined,
+          resupply: s.lastLandOutcome.resupply ?? undefined,
+          causedBankruptcy: s.lastLandOutcome.causedBankruptcy ?? undefined,
+        }
+      : null;
     this.lastTransaction = null;
     this.log = s.log ? [...s.log] : [];
     this.floaters = [];

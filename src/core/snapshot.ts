@@ -89,6 +89,18 @@ export function serializeGame(e: GameEngine) {
       : null,
     lastLandOutcomeKind: e.lastLandOutcome?.kind ?? null,
     lastLandOutcomeProperty: e.lastLandOutcome?.property?.id ?? null,
+    // lastLandOutcome 完整量(engine 决策与 bot 消费 kind/property,战报/UI 消费金额):
+    // 恢复时按 propertyId 从 catalog 重构 property 引用;owner 不序列化(bot/UI 均不消费,
+    // 需要时由 property 归属查 holdings)。
+    lastLandOutcome: e.lastLandOutcome
+      ? {
+          kind: e.lastLandOutcome.kind,
+          propertyId: e.lastLandOutcome.property?.id ?? null,
+          amount: e.lastLandOutcome.amount ?? null,
+          resupply: e.lastLandOutcome.resupply ?? null,
+          causedBankruptcy: e.lastLandOutcome.causedBankruptcy ?? null,
+        }
+      : null,
     logCount: e.log.length,
     // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
     log: e.log,
