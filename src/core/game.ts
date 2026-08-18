@@ -102,6 +102,10 @@ export class GameEngine {
   // public:供 snapshot/联机序列化(选都进度需跨进程恢复,否则恢复后无法继续选都)。
   currentDraftIndex = 0;
   takenCapitalIndices = new Set<number>(); // public:同上
+  // 三选一选都(public:供 snapshot/联机序列化):当前选都玩家的 3 候选城(轮到时生成、选定/轮空后滚换);
+  // offeredCapitalHistory = 曾进过任何候选集的城(尽量不复用,保证跨玩家候选不重复;剩余不足时退化放行)。
+  offeredCapitals: number[] = [];
+  offeredCapitalHistory = new Set<number>();
   // public:供 snapshot/联机序列化(已选国号集合,联机重建 Setup 用)。
   usedGuohao = new Set<string>();
 
@@ -282,6 +286,7 @@ export class GameEngine {
     );
     this.setupPhase = "PickCapital";
     this.currentDraftIndex = 0;
+    this.rollOfferedCapitals(); // 为首位选都玩家生成三候选
   }
 
   /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动)。 */
@@ -296,24 +301,20 @@ export class GameEngine {
       if (!r.ok) {
         // 极端地图(buildCost 全 > 现金):pickCapital 失败,推进 draft 防死循环
         this.warn(`AI 选都失败(${r.reason ?? "未知"}),跳过`);
-        this.currentDraftIndex++;
-        if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+        this.skipCurrentDraftPick();
       }
     } else {
-      // 无可选都城:推进 draft 防死循环
+      // 无候选可选(剩余城耗尽):推进 draft 防死循环
       this.warn("AI 无可选都城,跳过");
-      this.currentDraftIndex++;
-      if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+      this.skipCurrentDraftPick();
     }
     return true;
   }
 
-  /** AI 选都评分:性价比 + 随机扰动,取最高分空城。 */
+  /** AI 选都评分:性价比 + 随机扰动,在三候选中取最高分。 */
   private aiChooseCapital(): number {
-    const eligible = this.board.tiles.filter(
-      (t) => t.isCapitalEligible && !this.takenCapitalIndices.has(t.index),
-    );
-    if (eligible.length === 0) return -1;
+    const candidates = this.offeredCapitals.map((i) => this.board.at(i));
+    if (candidates.length === 0) return -1;
     const score = (t: TileDef): number => {
       const def = this.catalog.get(t.propertyId);
       if (!def) return -Infinity;
@@ -324,13 +325,12 @@ export class GameEngine {
           : this.dice.nextFloat() * 0.3;
       return value;
     };
-    return [...eligible].sort((a, b) => score(b) - score(a))[0].index;
+    return [...candidates].sort((a, b) => score(b) - score(a))[0].index;
   }
 
-  /** 选都辅助:第一个可作都城且未被占的 tile index(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用。 */
+  /** 选都辅助:当前三候选首城(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用。 */
   firstAvailableCapitalIndex(): number {
-    const t = this.board.tiles.find((x) => x.isCapitalEligible && !this.takenCapitalIndices.has(x.index));
-    return t ? t.index : -1;
+    return this.offeredCapitals[0] ?? -1;
   }
 
   pickCapital(playerIndex: number, tileIndex: number): { ok: boolean; reason?: string } {
@@ -342,6 +342,8 @@ export class GameEngine {
     if (!tile.isCapitalEligible) return { ok: false, reason: "该城不可作都城" };
     if (this.takenCapitalIndices.has(tileIndex))
       return { ok: false, reason: "该城已被选" };
+    if (!this.offeredCapitals.includes(tileIndex))
+      return { ok: false, reason: "非本轮候选城" };
     const def = this.catalog.get(tile.propertyId);
     if (!def) return { ok: false, reason: "无地产定义" };
     const player = this.players[playerIndex];
@@ -367,7 +369,57 @@ export class GameEngine {
     );
     this.currentDraftIndex++;
     if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+    else this.rollOfferedCapitals(); // 为下一位选都玩家滚换三候选
     return { ok: true };
+  }
+
+  /** 选都轮空推进(极端地图 pickCapital 失败 / 无候选时跳过):进下一 draft 位或收尾。 */
+  private skipCurrentDraftPick(): void {
+    this.currentDraftIndex++;
+    if (this.currentDraftIndex >= this.players.length) this.finishSetup();
+    else this.rollOfferedCapitals();
+  }
+
+  /** 三选一候选生成:剩余可选城(未选都、未进过任何候选集)按建价分低/中/高三档,
+   *  每档各取一城(廉价/中档/高价拉开经济路线);档内地理分布用最远点采样——
+   *  首城档内随机,后两城取「与已选候选的最小欧氏距离」最大者前 3 名中随机(避免确定性感)。
+   *  退化:候选不足 3 时档位合并跨档补;剩余(排除历史候选)不足 3 时放行复用未中选的历史候选
+   *  (小地图如 zhongyuan 8 城仍可完成全员选都);剩余为 0 时候选为空(沿用 pickCapital 失败推进路径)。
+   *  全程用引擎骰子(rngState 随快照序列化),联机各端/恢复天然一致。 */
+  private rollOfferedCapitals(): void {
+    const eligible = this.board.tiles.filter(
+      (t) => t.isCapitalEligible && !this.takenCapitalIndices.has(t.index),
+    );
+    const fresh = eligible.filter((t) => !this.offeredCapitalHistory.has(t.index));
+    const pool = fresh.length >= 3 ? fresh : eligible;
+    const priced = pool
+      .map((t) => ({ tile: t, cost: this.catalog.get(t.propertyId)!.buildCost }))
+      .sort((a, b) => a.cost - b.cost);
+    const tiers: { tile: TileDef; cost: number }[][] = [[], [], []];
+    priced.forEach((x, i) => tiers[Math.min(2, Math.floor((i * 3) / Math.max(1, priced.length)))].push(x));
+    const dist2 = (a: TileDef, b: TileDef): number => {
+      const dx = a.position.x - b.position.x;
+      const dy = a.position.y - b.position.y;
+      return dx * dx + dy * dy;
+    };
+    const chosen: TileDef[] = [];
+    for (let k = 0; k < 3; k++) {
+      // 本档取过/空档时跨档补齐:从全部未入候选的剩余城中继续选
+      const rest = tiers[k].filter((x) => !chosen.includes(x.tile));
+      const src = rest.length > 0 ? rest : priced.filter((x) => !chosen.includes(x.tile));
+      if (src.length === 0) break;
+      if (chosen.length === 0) {
+        chosen.push(src[Math.floor(this.dice.nextFloat() * src.length)].tile);
+      } else {
+        const ranked = src
+          .map((x) => ({ x, d: Math.min(...chosen.map((c) => dist2(c, x.tile))) }))
+          .sort((a, b) => b.d - a.d);
+        const top = ranked.slice(0, Math.min(3, ranked.length));
+        chosen.push(top[Math.floor(this.dice.nextFloat() * top.length)].x.tile);
+      }
+    }
+    this.offeredCapitals = chosen.map((t) => t.index);
+    for (const i of this.offeredCapitals) this.offeredCapitalHistory.add(i);
   }
 
   private finishSetup(): void {
@@ -1239,6 +1291,8 @@ export class GameEngine {
     this.draftRolls = [...s.draftRolls];
     this.currentDraftIndex = s.currentDraftIndex;
     this.takenCapitalIndices = new Set(s.takenCapitalIndices);
+    this.offeredCapitals = [...s.offeredCapitals];
+    this.offeredCapitalHistory = new Set(s.offeredCapitalHistory);
     this.usedGuohao = new Set(s.usedGuohao);
     this.recruitedHeroIds = new Set(s.recruitedHeroIds);
     this.treasureDeck = s.treasureDeck.map((t) => ({

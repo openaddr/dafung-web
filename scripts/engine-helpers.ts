@@ -89,6 +89,7 @@ export function statusOf(e: GameEngine) {
     lastRoll: s.lastRoll?.die ?? null,
     branchStartTile: s.branchStartTile,
     rngState: s.rngState,
+    offeredCapitals: s.offeredCapitals,
     players: s.players.map((p) => ({
       guohao: p.guohao,
       isBot: p.isBot,
@@ -137,7 +138,7 @@ export function promptFor(
   if (phase === "Setup") {
     if (setupPhase === "Guohao") return `${who} 选国号(cmd 不支持,用 new 时 seats 带入)`;
     if (setupPhase === "PickCapital") {
-      return `${guohao} 选都:pick-capital <tileIndex>(auto-setup 自动跑完)`;
+      return `${guohao} 选都(三选一,见 status.offeredCapitals):pick-capital <tileIndex>(auto-setup 自动跑完)`;
     }
     return `${who} 开局中…`;
   }

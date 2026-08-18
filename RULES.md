@@ -33,10 +33,14 @@
 - 所有玩家掷骰,按点数从高到低确定选都顺序;平局重摇(≤6 人时保证无平局;>6 人接受并列、按玩家序破平)([`game.ts:246` `doDraftRoll`](src/core/game.ts))。
 - 国号留空的座位(如 bot)在此阶段从字池(`GUOHAO_POOL`)随机分配([`game.ts:248-260`](src/core/game.ts))。
 
-### 阶段 3:选都(PickCapital)
-- 按定序顺序,每人选一座**可作都城**的空城作为自己的都城([`game.ts:336` `pickCapital`](src/core/game.ts))。
+### 阶段 3:选都(PickCapital,三选一)
+- 按定序顺序轮到某玩家时,引擎先为其滚出 **3 座候选城**(`offeredCapitals`,快照随 rngState 序列化,联机/恢复各端一致),玩家只能从候选中选([`game.ts` `rollOfferedCapitals`](src/core/game.ts))。候选生成规则:
+  - 剩余可选城(未选都、未进过任何人的候选集)按建价排序分**低/中/高三档,每档各取一**(廉价/中档/高价拉开经济路线);
+  - 同组内**最远点采样**:首城档内随机,后两城取「与已选候选的最小欧氏距离」最大者前 3 名中随机(地理分散、避免确定性感);
+  - 退化:剩余不足 3 时档位合并;排除历史候选后不足 3 时放行复用未中选的历史候选(小地图仍可完成全员选都);剩余为 0 候选为空(沿用轮空推进)。
 - 选都即**建城**:付建城费(`buildCost`)、获得该城地产(**Lv.0**)、棋子落于此格、此处成为玩家的"起点"。
-- 首轮先行者为定序第一人([`game.ts:373-377` `finishSetup`](src/core/game.ts))。
+- 点非候选城被拒(reason `非本轮候选城`)([`game.ts` `pickCapital`](src/core/game.ts))。
+- 首轮先行者为定序第一人([`game.ts` `finishSetup`](src/core/game.ts))。
 
 选都完成后进入 `Playing` 阶段,回合状态机启动。
 
@@ -295,7 +299,7 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 珍宝交涉(城主) | fair/premium/skip 各 ~1/3 | 等级 ≥6 坐地起价,否则公道买卖;20% 概率跳过 |
 | 破产清算 | 同 Normal | 优先名士→低等级珍宝→城(排除都城),卖到够再确认 |
 
-AI 选都评分:都城补给性价比(`resupplyPerLevel × 8 / buildCost`)+ 随机扰动(Simple 扰动 0~2.0,Normal 0~0.3)([`game.ts:312` `aiChooseCapital`](src/core/game.ts))。
+AI 选都评分:在三候选(`offeredCapitals`)中取最高分——都城补给性价比(`resupplyPerLevel × 8 / buildCost`)+ 随机扰动(Simple 扰动 0~2.0,Normal 0~0.3)([`game.ts` `aiChooseCapital`](src/core/game.ts))。
 
 ---
 

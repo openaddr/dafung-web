@@ -103,20 +103,13 @@ export function GameScreen() {
   const marching = useFxStore((s) => s.marching);
   // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
-  // 选都阶段的可点城池:可建都(Property)且未被据(对照旧版 selectable 计算)。
-  // 只在「轮到本地视角选都」时才高亮/可点——联机他人选都期间不给我的棋盘弹选都交互
-  // (TODO 弹窗弹错人:selectable 不判轮次导致他人选都时我点城弹出「定都于此」)。
+  // 选都阶段的可点城池:引擎三选一候选(snapshot.offeredCapitals,含跨玩家不重复/价格分层保证)。
+  // 只在「轮到本地视角选都」时才高亮/可点——联机他人选都期间不给我的棋盘弹选都交互。
   const selectableTiles = useMemo(() => {
     if (!map || !snapshot || snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return undefined;
     const mySeat = net.roomId !== "" ? net.mySeat : 0; // 单机真人固定首座
     if (snapshot.currentSetupPlayerIndex !== mySeat) return undefined;
-    const taken = new Set(snapshot.takenCapitalIndices);
-    const s = new Set<number>();
-    map.tiles.forEach((t, i) => {
-      // board-loader:isCapitalEligible ⇔ type 为 Property(缺省即 Property)
-      if ((!t.type || t.type === "Property") && !taken.has(i)) s.add(i);
-    });
-    return s;
+    return new Set(snapshot.offeredCapitals);
   }, [map, snapshot, net.roomId, net.mySeat]);
 
   if (!snapshot || !map) {
@@ -153,10 +146,10 @@ export function GameScreen() {
   const myTurnToRoll =
     interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll";
 
-  // 选都阶段的引导文案(对照旧 showPickHint:「X」择一空城建都)
+  // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
-      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」择一空城建都`
+      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」三选一:于候选城中择一定都`
       : null;
 
   // 关详情卷轴(#35:一并退出选都模式)
@@ -199,7 +192,7 @@ export function GameScreen() {
                 const taken = snapshot.takenCapitalIndices.includes(i);
                 useGameStore
                   .getState()
-                  .pushHint(taken ? "该城已被占据,另择他城" : "此处不可建都", "error");
+                  .pushHint(taken ? "该城已被占据,另择他城" : "本轮三选一:仅候选之城可选", "error");
               }
             }
           }}

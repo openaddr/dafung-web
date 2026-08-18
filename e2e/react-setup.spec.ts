@@ -58,8 +58,8 @@ test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号�
   await page.getByTestId("start-game").click();
   await waitForEngine(page);
 
-  // 选都引导 hint + 二次确认框(需求1:点城先弹「定都于此?」再确认筑城)
-  await expect(page.getByTestId("hint")).toContainText("择一空城建都");
+  // 选都引导 hint(三选一)+ 二次确认框(需求1:点城先弹「定都于此?」再确认筑城)
+  await expect(page.getByTestId("hint")).toContainText("三选一");
   await pickCapital(page);
 
   // 等轮到人类(bot 选都 + 首回合自动推进)

@@ -24,6 +24,9 @@ export function serializeGame(e: GameEngine) {
     currentDraftIndex: e.currentDraftIndex,
     currentSetupPlayerIndex: e.currentSetupPlayerIndex,
     takenCapitalIndices: [...e.takenCapitalIndices],
+    // 三选一选都:当前选都玩家的候选城 + 历史候选集(恢复/联机各端保持候选一致)
+    offeredCapitals: [...e.offeredCapitals],
+    offeredCapitalHistory: [...e.offeredCapitalHistory],
     // 已选国号(联机 Setup 阶段同步,防止重复国号)
     usedGuohao: [...e.usedGuohao],
     // 已招名士 id(联机端据此排除已招候选,保持招贤池一致)
