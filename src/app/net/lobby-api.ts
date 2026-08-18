@@ -50,9 +50,9 @@ export class LobbyApi {
     return this.http("/room/new", opts).then((r) => this.parseRoomReply(r));
   }
 
-  /** 按房间码加入(POST /room/join;房间码统一大写,照搬原实现)。 */
-  joinRoom(roomId: string): Promise<RoomJoinReply> {
-    return this.http("/room/join", { roomId: roomId.toUpperCase() }).then((r) => this.parseRoomReply(r));
+  /** 按房间码加入(POST /room/join;房间码统一大写)。guohao=预设国号,重名时开局由服务器加方位前缀。 */
+  joinRoom(roomId: string, guohao?: string): Promise<RoomJoinReply> {
+    return this.http("/room/join", { roomId: roomId.toUpperCase(), guohao }).then((r) => this.parseRoomReply(r));
   }
 
   /** host 选图(POST /room/map;本地换图由 lobby 广播单路径驱动,无乐观更新)。 */

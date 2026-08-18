@@ -1,14 +1,17 @@
 // 卷轴容器:对照旧 render/ui.ts createScroll 的视觉骨架(宣纸底/双金边/标题栏/× 关闭/标题栏拖拽)。
 // 用 Tailwind token 重写;入场"展开"动画用 scroll.css 的 scroll-unroll keyframe。
-import { useRef, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import "./scroll.css";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 export interface ScrollShellProps {
   title: string;
   children: ReactNode;
-  /** 只有可放弃的卷轴(详情/确认)才传;抉择类必须选,不误关(与旧 createScroll 同策略)。 */
+  /** 只有可放弃的卷轴(详情/确认)才传;抉择类必须选,不误关(与旧 createScroll 同策略)。
+   *  传了 onClose 即支持:点遮罩空白关闭 + Esc 关闭(与 ConfirmDialog 的 Esc 惯例一致)。 */
   onClose?: () => void;
+  /** #34 详情卷轴去右上 ×:关闭改为 点遮罩/Esc(有明确动作的确认类卷轴仍保留 ×)。 */
+  hideClose?: boolean;
   /** 外层容器上的 data-testid(各决策卷轴用自己的 id)。 */
   testid?: string;
   /** 宽度档位:默认决策卷轴宽;详情类可窄一点。 */
@@ -25,6 +28,8 @@ export function ScrollButton({
   // 口径与旧侧栏内嵌按钮一致,只是搬进卷轴后由 ScrollShell 统一观感
   disabled,
   title,
+  // G-19:决策快捷键角标(1/2/3);仅展示用,按键监听在 DecisionScrolls
+  shortcut,
 }: {
   children: ReactNode;
   onClick: () => void;
@@ -32,6 +37,7 @@ export function ScrollButton({
   testid?: string;
   disabled?: boolean;
   title?: string;
+  shortcut?: number;
 }) {
   return (
     <button
@@ -41,18 +47,39 @@ export function ScrollButton({
       disabled={disabled}
       title={title}
       className={
-        primary
-          ? "cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-1.5 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
-          : "cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-1.5 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
+        (primary
+          ? "relative cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-2 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
+          : "relative cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-2 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
+        (shortcut != null ? " pr-5" : "")
       }
     >
       {children}
+      {shortcut != null && (
+        <span
+          aria-hidden="true"
+          className="absolute top-0.5 right-1 font-deco text-[10px] leading-none text-ink-dim"
+        >
+          {shortcut}
+        </span>
+      )}
     </button>
   );
 }
 
-export function ScrollShell({ title, children, onClose, testid, width = "md" }: ScrollShellProps) {
+export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md" }: ScrollShellProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
+  // #34:可关卷轴补 Esc 快捷键(此前只有遮罩点击/×;与 ConfirmDialog 的 Esc 惯例统一)
+  useEffect(() => {
+    if (!onClose) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
   // 标题栏手写拖拽(对照旧 createScroll 的 pointer 拖动):卷轴可被拖到不挡棋盘的位置。
   const drag = useRef<{ active: boolean; sx: number; sy: number; x: number; y: number }>({
     active: false, sx: 0, sy: 0, x: 0, y: 0,
@@ -74,6 +101,13 @@ export function ScrollShell({ title, children, onClose, testid, width = "md" }: 
     bodyRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
   };
   const endDrag = () => { drag.current.active = false; };
+
+  // G-18:卷轴内容/标题变化(如切到另一城的详情)时复位拖拽 transform——
+  // 旧实现换内容沿用上一次偏移,常表现为"卷轴飞出屏幕找不回"。
+  useEffect(() => {
+    drag.current = { active: false, sx: 0, sy: 0, x: 0, y: 0 };
+    if (bodyRef.current) bodyRef.current.style.transform = "";
+  }, [title, children]);
 
   return (
     <div
@@ -102,7 +136,7 @@ export function ScrollShell({ title, children, onClose, testid, width = "md" }: 
           >
             {title}
           </h2>
-          {onClose && (
+          {onClose && !hideClose && (
             <button
               type="button"
               data-testid={T.scrollClose}

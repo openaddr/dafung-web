@@ -29,19 +29,19 @@ export interface TileDef {
   size?: "large" | "medium" | "small";
 }
 
-/** 地产定义。BuildCost=选都建城费;ResupplyPerLevel=都城补给系数。 */
+/** 地产定义。BuildCost=选都建城费;ResupplyPerLevel=都城补给系数。
+ *  本作无过路费/升级费:升级由「到达城池」免费触发(自己到达可选扩军,他人到达自动升级)。 */
 export interface PropertyDef {
   id: string;
   group: string; // 'a'..'h'
   purchasePrice: number;
-  upgradeCost: number;
-  maxLevel: number; // 默认 5
-  rentByLevel: number[]; // 长度 maxLevel+1
+  maxLevel: number; // 等级数(默认 3;持有等级 1..maxLevel)
+  valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel,下标 level-1
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
-  /** 坐地起价加价值(per-level,分银):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  /** 坐地起价加价值(per-level,分银;下标=城池等级 1..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeAdd?: number[];
-  /** 坐地起价乘数(per-level):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  /** 坐地起价乘数(per-level;下标=城池等级 1..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeMult?: number[];
   /** 旧贸易公式(向后兼容):premiumPriceOf 无 tradeAdd/tradeMult 时回退到此 × CITY_LEVEL_MULTIPLIER。 */
   trade?: TradeFormula;
@@ -53,12 +53,11 @@ export type BranchCellKind = "treasure" | "event" | "penalty";
 /** 路线抉择:大路(主环)/ 辅路(辅路逐格行进)。 */
 export type RouteKind = "Main" | "Branch";
 
-/** 玩家持有的地产。账面价值 = 购入价 + 累计升级费。 */
+/** 玩家持有的地产。Level 1..maxLevel(购入/建都即为 Lv.1);升级免费(到达触发)。 */
 export interface PropertyHolding {
   propertyId: string;
   group: string;
   purchasePrice: number;
-  totalUpgradeCost: number;
   level: number;
   maxLevel: number;
 }
@@ -110,14 +109,14 @@ export type LandOutcomeKind =
   | "Noop"
   | "PropertyAvailable"
   | "OwnProperty"
-  | "RentPaid"
+  | "TreasureTrade"
   | "TaxPaid";
 
 export interface LandOutcome {
   kind: LandOutcomeKind;
   property?: PropertyDef;
   owner?: Player;
-  amount?: number; // 租金/税额
+  amount?: number; // 珍宝成交价/税额
   resupply?: number; // 都城补给
   causedBankruptcy?: boolean;
 }
@@ -164,7 +163,7 @@ export interface LogEvent {
     | "move"
     | "buy"
     | "upgrade"
-    | "rent"
+    | "trade"
     | "supply"
     | "tax"
     | "branch"
@@ -199,9 +198,9 @@ export interface MapTile {
   group?: string;
   region?: string;
   price?: number;
-  upgrade?: number;
   buildCost?: number;
-  rentByLevel?: number[];
+  /** 各等级城池价值(变卖价),长度 = maxLevel,下标 level-1。 */
+  valueByLevel?: number[];
   /** 坐地起价加价值(per-level,分银):与 PropertyDef 同义。 */
   tradeAdd?: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
@@ -268,4 +267,5 @@ export interface HeroDef {
   desc: string; // 给玩家看的技能说明
   skill: HeroSkill;
   cooldown?: number; // 可选:冷却回合数(每 N 轮可触发一次);undefined = 永久被动/每次都触发
+  image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
 }

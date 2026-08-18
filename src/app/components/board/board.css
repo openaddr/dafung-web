@@ -14,7 +14,9 @@
   opacity: 0;
   transition: opacity 0.15s ease;
 }
-.bv-tile:hover .bv-tile-hilite {
+.bv-tile:hover .bv-tile-hilite,
+/* M-2 触屏:无 hover,:active 由 touch 按压激活,给出等效按压反馈 */
+.bv-tile:active .bv-tile-hilite {
   opacity: 0.5;
 }
 .bv-tile.bv-selectable .bv-tile-hilite {
@@ -85,5 +87,50 @@
   }
   50% {
     transform: rotate(1.5deg);
+  }
+}
+
+/* ── #30 行军中棋子强调 ──
+   行军接管(skipTokenIds / marchPos 路径)期间:
+   - 旗子金边拖影:drop-shadow 金晕(金 = Theme.goldBright 212,175,55 的表现色,
+     集中于此处一条注释说明,不散落硬编码);
+   - 落脚指示环(TokenLayer 内 .bv-token-march-ring 圆):旋转 + 呼吸,
+     圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。 */
+.bv-token-march-ring {
+  opacity: 0;
+  /* 旋转以圆自身中心为轴(SVG 元素 CSS transform 默认以视口原点为轴,必须显式指定) */
+  transform-box: fill-box;
+  transform-origin: center;
+}
+.bv-token.bv-token-marching .bv-token-flag {
+  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.95)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+}
+.bv-token.bv-token-marching .bv-token-march-ring {
+  opacity: 1;
+  animation: bv-march-ring 0.9s linear infinite;
+}
+@keyframes bv-march-ring {
+  0% {
+    transform: rotate(0deg) scale(1);
+    opacity: 0.95;
+  }
+  50% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: rotate(360deg) scale(1);
+    opacity: 0.95;
+  }
+}
+
+/* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
+   (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动),保留静态视觉。 */
+@media (prefers-reduced-motion: reduce) {
+  .bv-token-flag,
+  .bv-token.bv-token-marching .bv-token-march-ring,
+  .bv-tile.bv-capital .bv-capital-glow,
+  .bv-tile.bv-active .bv-capital-glow,
+  .bv-road-branch {
+    animation: none;
   }
 }

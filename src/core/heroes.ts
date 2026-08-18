@@ -5,6 +5,7 @@ import type { HeroDef } from "./types";
 export const HEROES: HeroDef[] = [
   {
     id: "zhouyu",
+    image: "/assets/heroes/hero-zhouyu-sgs.png",
     name: "周瑜",
     title: "雅量高致",
     desc: "你的移动步数始终 +1",
@@ -12,6 +13,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "caopi",
+    image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
     title: "承继大统",
     desc: "其他玩家被动失去银两时,你 +50 分银",
@@ -19,6 +21,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "zhangxingcai",
+    image: "/assets/heroes/hero-zhangxingcai-sgs.png",
     name: "张星彩",
     title: "银翎飞骑",
     desc: "场上任意人掷出 6,你 +20 分银",

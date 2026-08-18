@@ -15,7 +15,14 @@ import type { SoundEvent } from "./audio";
 /** 表现事件:数组顺序 = 播放顺序(present 串行 await)。宁可少而精,按两侧现有
  *  调用收口;新增表现 = 加判别分支,而不是在控制器里另起内联链。 */
 export type PresentationEvent =
-  | { kind: "diceRolled"; die: number }
+  | {
+      kind: "diceRolled";
+      die: number;
+      /** C1:bot 驱动的掷骰走半速(提取期按推进前活跃玩家 isBot 判定)。
+       *  速度不进 FxSink.rollDice 签名——生产实现(sinks.ts)不透传附加参数,
+       *  由 present() 在掷前设置 ThreeDice 的模块级速度开关(见 orchestrator)。 */
+      fast?: boolean;
+    }
   | { kind: "tokenMoved"; playerId: string; path: MovePath }
   | {
       kind: "cashDelta";

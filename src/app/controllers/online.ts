@@ -126,9 +126,9 @@ export class OnlineController extends GameController {
     return reply;
   }
 
-  /** 按房间码加入并连接。 */
-  async joinRoom(roomId: string): Promise<RoomJoinReply> {
-    const reply = await this.api.joinRoom(roomId);
+  /** 按房间码加入并连接。guohao=预设国号(重名时开局由服务器加方位前缀)。 */
+  async joinRoom(roomId: string, guohao?: string): Promise<RoomJoinReply> {
+    const reply = await this.api.joinRoom(roomId, guohao);
     await this.adoptRoom(reply);
     return reply;
   }

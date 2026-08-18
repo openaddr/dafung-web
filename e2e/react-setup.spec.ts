@@ -14,11 +14,11 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   await expect(page.getByTestId("setup-difficulty")).toHaveValue("Normal");
   await expect(page.getByTestId("current-map-name")).toHaveText("棋盘天下", { timeout: 10_000 });
 
-  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号占位「机」)
+  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号占位「电脑」,S-7 改语义)
   await expect(page.getByTestId("setup-seat-0-guohao")).toBeEditable();
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveValue("魏");
   for (let i = 1; i < 4; i++) {
-    await expect(page.getByTestId(`setup-seat-${i}-guohao`)).toHaveText("机");
+    await expect(page.getByTestId(`setup-seat-${i}-guohao`)).toHaveText("电脑");
     await expect(page.getByTestId(`setup-seat-${i}-type`)).toHaveText("电脑");
   }
   await expect(page.getByTestId("setup-seat-0-type")).toHaveText("你");
@@ -36,16 +36,15 @@ test("字盘快选国号:点字更新真人国号", async ({ page }) => {
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveValue("蜀");
 });
 
-test("国号非法(清空)起兵被拦:内联红字 + 提示兜底,未开局", async ({ page }) => {
+test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", async ({ page }) => {
   await page.goto("/");
   await openSoloSetup(page);
   await page.getByTestId("setup-seat-0-guohao").fill("");
   // S8:onChange 即校验 —— 红边 + 框下红字即时出现,不必等起兵
   await expect(page.getByTestId("setup-guohao-error")).toContainText("单个汉字");
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveClass(/border-danger/);
-  await page.getByTestId("start-game").click();
-  // hint 兜底保留(断言不删)
-  await expect(page.getByTestId("setup-hint")).toContainText("国号");
+  // 评审二轮 S-2:国号非法时起兵按钮直接禁用(可点不动 → 不可点),hint 兜底退役
+  await expect(page.getByTestId("start-game")).toBeDisabled();
   await expect(page.getByTestId("solo-setup-screen")).toBeVisible();
   await expect(
     page.evaluate(() => !!(window as any).__dafung?.getEngine?.()),

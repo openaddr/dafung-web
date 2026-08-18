@@ -64,6 +64,21 @@ describe("开局三段式", () => {
     }
   });
 
+  it("支持 8 人开局(#29):每人都有都城、颜色与国号", () => {
+    const seats = Array.from({ length: 8 }, (_, i) => ({ name: `P${i + 1}`, isBot: true }));
+    const e = makeEngine(11, seats);
+    finishSetup(e);
+    expect(e.players).toHaveLength(8);
+    expect(e.players.every((p) => p.capitalIndex >= 0)).toBe(true);
+    expect(new Set(e.players.map((p) => p.colorIndex)).size).toBe(8);
+    expect(new Set(e.players.map((p) => p.guohao)).size).toBe(8);
+  });
+
+  it("9 座位被拒绝(上限 8)", () => {
+    const seats = Array.from({ length: 9 }, (_, i) => ({ name: `P${i + 1}`, isBot: true }));
+    expect(() => makeEngine(11, seats)).toThrow("2–8");
+  });
+
   it("AI 自动选都(全 bot 局也能完成 setup)", () => {
     const e = makeEngine(3, [
       { name: "A", isBot: true },
@@ -99,7 +114,7 @@ describe("回合与胜负", () => {
   });
 
   it("endTurn 不清空 lastRoll/lastMove(doRoll 动画依赖;防回归)", () => {
-    // rollAndMove 落己城/付租时会内部 endTurn;doRoll 的 animateDice/animateMove 在其后读,
+    // rollAndMove 落己城/结算时会内部 endTurn;doRoll 的 animateDice/animateMove 在其后读,
     // 故 endTurn 绝不能清空 lastRoll/lastMove(曾因此死锁,见 e2e human.spec:69)。
     const e = makeEngine(1);
     finishSetup(e);
@@ -287,7 +302,7 @@ describe("分岔辅路", () => {
     expect(p.onBranch).toBeNull();
     expect(p.position).toBe(BRANCH_START);
     // 许昌是无主城 → AwaitingDecision(可购买)
-    expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(e.turnPhase as string).toBe("AwaitingDecision");
   });
 
   it("辅路逐格掷骰:onBranch.step 推进;落辅路格(未到终点)", () => {
@@ -360,5 +375,44 @@ describe("decisionOwner(决策归属统一查询)", () => {
     e.treasureVisitor = null;
     e.turnPhase = "AwaitingTreasureOwner";
     expect(e.decisionOwner).toBe(e.activeIndex);
+  });
+});
+
+describe("地产规则(3 级 / 无过路费升级费,autos 31)", () => {
+  it("到达他人城池:该城免费升级一级,访客不付银(无过路费)", () => {
+    const e = makeEngine(5);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const def = e.catalog.get(tile.propertyId)!;
+    const owner = e.players.find((p) => p !== mover)!;
+    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 1, maxLevel: def.maxLevel });
+    mover.position = tile.index;
+    const cash0 = mover.cash;
+    e.turnPhase = "Land";
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    // 城主无珍宝 → 自动升级后无事发生;等级 1→2,双方现金不变
+    expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(2);
+    expect(mover.cash).toBe(cash0);
+    expect(owner.cash).toBe(e.players.find((p) => p !== mover)!.cash);
+    expect(e.turnPhase as string).toBe("Roll"); // endTurn 已推进
+  });
+
+  it("自己到达己城:扩军免费(现金不变)", () => {
+    const e = makeEngine(5);
+    finishSetup(e);
+    const me = e.activePlayer;
+    const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
+    const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
+    const def = e.catalog.get(tile.propertyId)!;
+    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 1, maxLevel: def.maxLevel });
+    me.position = tile.index;
+    e.turnPhase = "Land";
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    expect(e.turnPhase as string).toBe("AwaitingDecision");
+    const cash0 = me.cash;
+    e.upgradeProperty();
+    expect(me.properties.find((x) => x.propertyId === def.id)!.level).toBe(2);
+    expect(me.cash).toBe(cash0); // 升级免费
   });
 });

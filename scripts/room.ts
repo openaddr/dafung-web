@@ -11,6 +11,7 @@ import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
+import { isSingleCjk } from "../src/core/constants";
 import type { LoadedMap } from "../src/core/board-loader";
 import { botAct } from "../src/core/bot";
 import { autoSetup, createEngine, statusOf } from "./engine-helpers";
@@ -27,6 +28,7 @@ import {
 export interface SeatState {
   kind: "human" | "bot"; // bot 座位:服务器驱动,人类不可领
   token: string | null; // human 座位:未领=null,领后=不可猜 token(ADR-0005)
+  guohao: string | null; // 加入者预设国号(单汉字);null=未指定,开局由引擎分配
 }
 
 // ──────────────────────────── 观测事件(可观测性基建)────────────────────────────
@@ -84,6 +86,28 @@ const INPUT_PHASES = new Set([
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
+
+// ──────────────────────────── 国号重名前缀(autos 28)────────────────────────────
+/** 联机重名国号的方位前缀(定案 8 个:东西南北前后大小;座位 ≤8,一名+七前缀恰好够用)。 */
+export const GUOHAO_PREFIXES = ["东", "西", "南", "北", "前", "后", "大", "小"] as const;
+
+/** 重名国号分配:先到先得保留原名,后到者依次取未被占用的前缀国号(宁→东宁/西宁/…)。
+ *  null(未预设)与不重复的国号原样返回;顺序即座位顺序。 */
+export function resolveGuohaoClash(desired: ReadonlyArray<string | null>): Array<string | null> {
+  const used = new Set<string>();
+  return desired.map((g) => {
+    if (g == null) return null;
+    if (!used.has(g)) {
+      used.add(g);
+      return g;
+    }
+    const prefix = GUOHAO_PREFIXES.find((px) => !used.has(px + g));
+    if (prefix == null) throw new RoomError(500, "国号前缀耗尽(座位数超出 8)");
+    const final = prefix + g;
+    used.add(final);
+    return final;
+  });
+}
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
 /** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。 */
@@ -213,7 +237,7 @@ export class RoomRegistry {
     return {
       roomId: data.roomId,
       seatCount: data.seatCount,
-      seats: data.seats.map((s) => ({ kind: s.kind, token: s.token })),
+      seats: data.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao })),
       hostSeat: data.hostSeat,
       takeover: data.takeover,
       autoPilot: data.autoPilot,
@@ -249,12 +273,13 @@ export class RoomRegistry {
   /** 建房:Seat0=host(human,已领 token);其它座位按 botIdx 标记。返回 {room,seat,token}。 */
   createRoom(config: CreateRoomConfig): { room: RoomSession; seat: number; token: string } {
     const { seatCount, botIdx, hostConfig } = config;
-    if (!(seatCount >= 2 && seatCount <= 4)) throw new RoomError(400, "seats 必须 2-4");
+    if (!(seatCount >= 2 && seatCount <= 8)) throw new RoomError(400, "seats 必须 2-8");
     if (botIdx.has(0)) throw new RoomError(400, "host(Seat 0)必须是真人");
     const roomId = this.newRoomId();
     const seats: SeatState[] = Array.from({ length: seatCount }, (_, i) => ({
       kind: botIdx.has(i) ? "bot" : "human",
       token: null,
+      guohao: null,
     }));
     const token = this.newToken();
     seats[0].token = token;
@@ -264,15 +289,18 @@ export class RoomRegistry {
     return { room, seat: 0, token };
   }
 
-  /** 凭 roomId 加入第一个空 human 座位(FCFS)。返回 {room,seat,token}。 */
-  joinSeat(roomId: string): { room: RoomSession; seat: number; token: string } {
+  /** 凭 roomId 加入第一个空 human 座位(FCFS)。guohao=加入者预设国号(单汉字,可空)。
+   *  重名不在加入时处理:开局(startGame)统一做前缀分配,快照里的国号即最终国号。 */
+  joinSeat(roomId: string, guohao?: string): { room: RoomSession; seat: number; token: string } {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
     if (room.engine) throw new RoomError(409, "对局已开始,不可加入");
+    if (guohao != null && !isSingleCjk(guohao.trim())) throw new RoomError(400, "国号需为单个汉字");
     const idx = room.seats.findIndex((s) => s.kind === "human" && s.token == null);
     if (idx < 0) throw new RoomError(409, "房间已满(无空座位)");
     const token = this.newToken();
     room.seats[idx].token = token;
+    room.seats[idx].guohao = guohao != null ? guohao.trim() : null;
     this.persist(room);
     return { room, seat: idx, token };
   }
@@ -310,9 +338,12 @@ export class RoomRegistry {
     if (room.mapId == null) throw new RoomError(400, "请先选择地图");
     if (!mapProvider) throw new RoomError(500, "服务器未提供地图加载器");
     const map = mapProvider(room.mapId);
+    // 国号:预设者先到先得保留原名,重名者依次取方位前缀(宁→东宁/…);未预设/bot 由引擎分配
+    const finalGuohao = resolveGuohaoClash(room.seats.map((s) => s.guohao));
     const seatsCfg: SeatConfig[] = room.seats.map((s, i) => ({
       name: `座 ${i + 1}`,
       isBot: s.kind === "bot" || s.token == null, // 未领的人类座位自动 bot 填充
+      guohao: finalGuohao[i] ?? undefined,
     }));
     const engine = createEngine(
       {
@@ -511,7 +542,7 @@ export class RoomRegistry {
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
-      seats: r.seats.map((s): PersistedSeat => ({ kind: s.kind, token: s.token })),
+      seats: r.seats.map((s): PersistedSeat => ({ kind: s.kind, token: s.token, guohao: s.guohao })),
       hostSeat: r.hostSeat,
       takeover: [...r.takeover],
       autoPilot: [...r.autoPilot].map(([seat, speed]) => ({ seat, speed })),

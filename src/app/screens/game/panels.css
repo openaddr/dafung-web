@@ -14,3 +14,21 @@
 .active-card-breath {
   animation: active-card-breath 2.4s ease-in-out infinite;
 }
+
+/* ── G-3/16/21 等待状态条(WaitingBar.tsx)──
+   省略号呼吸:三个点用 ::after content + opacity 动画表达"进行中",
+   文案本身不动(细条内文字跳动会晃眼)。 */
+.waiting-dots::after {
+  content: "···";
+  margin-left: 2px;
+  animation: waiting-dots-breathe 1.2s ease-in-out infinite;
+}
+@keyframes waiting-dots-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}

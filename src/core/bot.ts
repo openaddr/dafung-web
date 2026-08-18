@@ -13,8 +13,13 @@ function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): nu
   if (!def) return 0;
   const owner = engine.findOwner(def.id);
   if (!owner) return def.purchasePrice / 4; // 可买
-  if (owner === p) return def.upgradeCost / 4; // 可升级
-  return 0; // 落他人城:不收租(城主无珍宝=无事;有珍宝则城主择公道买卖/坐地起价,访客不可控,估中性)
+  if (owner === p) {
+    // 可免费扩军:价值 ≈ 升级后与当前等级城池价值之差 / 4(满级为 0)
+    const h = p.properties.find((x) => x.propertyId === def.id);
+    if (!h || h.level >= def.maxLevel) return 0;
+    return (def.valueByLevel[h.level] - def.valueByLevel[h.level - 1]) / 4;
+  }
+  return 0; // 落他人城:无过路费(城主无珍宝=无事;有珍宝则城主择公道买卖/坐地起价,访客不可控,估中性)
 }
 
 /** 辅路入口抉择:走大路时下一落点的近似价值(平均掷骰 3.5 步后的 tile)。 */
@@ -78,8 +83,10 @@ export function botAct(engine: GameEngine): void {
         if (want) engine.buyProperty();
         else engine.endDecision();
       } else if (outcome?.kind === "OwnProperty" && outcome.property) {
-        const def = outcome.property;
-        const want = p.cash > def.upgradeCost * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
+        // 扩军免费:满级才按兵不动(Simple 保留随机性情)
+        const h = p.properties.find((x) => x.propertyId === outcome.property!.id);
+        const maxed = h == null || h.level >= outcome.property!.maxLevel;
+        const want = !maxed && (simple ? engine.dice.nextFloat() < 0.75 : true);
         if (want) engine.upgradeProperty();
         else engine.endDecision();
       } else {

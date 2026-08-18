@@ -1,6 +1,6 @@
 // 通用确认弹层:对照旧 createConfirm(选都确认等场景)。
 // 不走 ScrollShell 的完整卷轴,用旧 confirm-box 的小卡片形态(标题 + 正文 + 两按钮)。
-import type { ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import "./scroll.css";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
@@ -29,8 +29,42 @@ export function ConfirmDialog({
   backdropBlocks = true,
   testid,
 }: ConfirmDialogProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  // G-4:Esc = 取消;挂载即 focus 确认钮 + Tab 圈定在两个按钮间(简单 focus trap)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      const btns = rootRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])");
+      if (!btns || btns.length === 0) return;
+      const first = btns[0];
+      const last = btns[btns.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      } else if (!rootRef.current!.contains(document.activeElement)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    // 挂载时聚焦确认钮(键盘用户可直接 Enter 确认)
+    const btns = rootRef.current?.querySelectorAll<HTMLButtonElement>("button:not([disabled])");
+    (btns && btns.length > 0 ? btns[0] : null)?.focus();
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
   return (
     <div
+      ref={rootRef}
       className={
         "scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]" +
         (backdropBlocks ? "" : " pointer-events-none")

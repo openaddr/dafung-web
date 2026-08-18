@@ -1,6 +1,7 @@
 /* 大厅局部样式(W2 "活感"):
-   - 座位点亮:入座/状态变化时整行 scale+fade 进场,让"房间是活的"有可感知反馈;
-     触发方式是 React remount(key 含座位状态签名),动画只需定义一次。 */
+   - 座位点亮:入座(空→有人)时整行 scale+fade 进场,让"房间是活的"有可感知反馈;
+     L8:key 已改为稳定座位号,触发方式是组件按上一帧 taken diff 条件加 .lobby-seat-in,
+     上/下线·托管等状态翻转不再重放动画。 */
 @keyframes lobby-seat-in {
   from {
     opacity: 0;

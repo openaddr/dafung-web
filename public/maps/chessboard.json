@@ -15,21 +15,16 @@
       "group": "a",
       "region": "中原",
       "price": 400,
-      "upgrade": 200,
       "buildCost": 800,
-      "rentByLevel": [
-        20,
-        60,
-        180,
-        500,
-        700,
-        900
-      ],
       "tradeMult": [
-        2,
         4,
         6,
         10
+      ],
+      "valueByLevel": [
+        20,
+        60,
+        180
       ]
     },
     {
@@ -60,21 +55,16 @@
       "group": "a",
       "region": "中原",
       "price": 400,
-      "upgrade": 200,
       "buildCost": 800,
-      "rentByLevel": [
-        20,
-        60,
-        180,
-        500,
-        700,
-        900
-      ],
       "tradeMult": [
-        2,
         4,
         6,
         10
+      ],
+      "valueByLevel": [
+        20,
+        60,
+        180
       ]
     },
     {
@@ -96,21 +86,16 @@
       "group": "a",
       "region": "中原",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -132,6 +117,15 @@
       "type": "Wolong"
     },
     {
+      "id": "tile-ferry-xinye",
+      "name": "新野驿站",
+      "type": "Chance",
+      "pos": [
+        610,
+        450
+      ]
+    },
+    {
       "id": "prop-xiangyang",
       "name": "襄阳",
       "pos": [
@@ -141,21 +135,16 @@
       "group": "b",
       "region": "荆楚",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -168,21 +157,16 @@
       "group": "b",
       "region": "荆楚",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -195,21 +179,16 @@
       "group": "b",
       "region": "荆楚",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -222,21 +201,16 @@
       "group": "b",
       "region": "荆楚",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -249,21 +223,16 @@
       "group": "c",
       "region": "岭南",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -285,21 +254,16 @@
       "group": "b",
       "region": "荆楚",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -312,21 +276,16 @@
       "group": "c",
       "region": "岭南",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -339,21 +298,16 @@
       "group": "c",
       "region": "岭南",
       "price": 120,
-      "upgrade": 60,
       "buildCost": 300,
-      "rentByLevel": [
-        4,
-        20,
-        60,
-        180,
-        320,
-        450
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        4,
+        20,
+        60
       ]
     },
     {
@@ -366,21 +320,25 @@
       "group": "c",
       "region": "岭南",
       "price": 120,
-      "upgrade": 60,
       "buildCost": 300,
-      "rentByLevel": [
-        4,
-        20,
-        60,
-        180,
-        320,
-        450
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        4,
+        20,
+        60
+      ]
+    },
+    {
+      "id": "tile-ferry-fuling",
+      "name": "涪陵渡",
+      "type": "Chance",
+      "pos": [
+        -750,
+        590
       ]
     },
     {
@@ -393,21 +351,16 @@
       "group": "d",
       "region": "巴蜀",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -420,21 +373,16 @@
       "group": "d",
       "region": "巴蜀",
       "price": 400,
-      "upgrade": 200,
       "buildCost": 800,
-      "rentByLevel": [
-        20,
-        60,
-        180,
-        500,
-        700,
-        900
-      ],
       "tradeMult": [
-        2,
         4,
         6,
         10
+      ],
+      "valueByLevel": [
+        20,
+        60,
+        180
       ]
     },
     {
@@ -447,21 +395,16 @@
       "group": "d",
       "region": "巴蜀",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -474,21 +417,16 @@
       "group": "d",
       "region": "巴蜀",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -501,21 +439,16 @@
       "group": "d",
       "region": "巴蜀",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -528,21 +461,16 @@
       "group": "e",
       "region": "西凉",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -555,21 +483,16 @@
       "group": "e",
       "region": "西凉",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -582,21 +505,16 @@
       "group": "e",
       "region": "西凉",
       "price": 120,
-      "upgrade": 60,
       "buildCost": 300,
-      "rentByLevel": [
-        4,
-        20,
-        60,
-        180,
-        320,
-        450
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        4,
+        20,
+        60
       ]
     },
     {
@@ -609,21 +527,16 @@
       "group": "a",
       "region": "中原",
       "price": 400,
-      "upgrade": 200,
       "buildCost": 800,
-      "rentByLevel": [
-        20,
-        60,
-        180,
-        500,
-        700,
-        900
-      ],
       "tradeMult": [
-        2,
         4,
         6,
         10
+      ],
+      "valueByLevel": [
+        20,
+        60,
+        180
       ]
     },
     {
@@ -636,21 +549,16 @@
       "group": "f",
       "region": "并州",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -663,21 +571,16 @@
       "group": "f",
       "region": "幽燕",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -699,21 +602,16 @@
       "group": "f",
       "region": "幽燕",
       "price": 120,
-      "upgrade": 60,
       "buildCost": 300,
-      "rentByLevel": [
-        4,
-        20,
-        60,
-        180,
-        320,
-        450
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        4,
+        20,
+        60
       ]
     },
     {
@@ -735,21 +633,16 @@
       "group": "g",
       "region": "青徐",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -762,21 +655,16 @@
       "group": "g",
       "region": "青徐",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -789,21 +677,16 @@
       "group": "g",
       "region": "青徐",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -816,21 +699,16 @@
       "group": "g",
       "region": "淮南",
       "price": 300,
-      "upgrade": 150,
       "buildCost": 600,
-      "rentByLevel": [
-        14,
-        40,
-        110,
-        300,
-        450,
-        600
-      ],
       "tradeAdd": [
-        300,
         600,
         900,
         1500
+      ],
+      "valueByLevel": [
+        14,
+        40,
+        110
       ]
     },
     {
@@ -843,21 +721,16 @@
       "group": "h",
       "region": "江东",
       "price": 400,
-      "upgrade": 200,
       "buildCost": 800,
-      "rentByLevel": [
-        20,
-        60,
-        180,
-        500,
-        700,
-        900
-      ],
       "tradeMult": [
-        2,
         4,
         6,
         10
+      ],
+      "valueByLevel": [
+        20,
+        60,
+        180
       ]
     },
     {
@@ -879,21 +752,16 @@
       "group": "h",
       "region": "江东",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     },
     {
@@ -906,21 +774,16 @@
       "group": "h",
       "region": "江东",
       "price": 200,
-      "upgrade": 100,
       "buildCost": 450,
-      "rentByLevel": [
-        10,
-        30,
-        90,
-        270,
-        400,
-        550
-      ],
       "tradeAdd": [
-        200,
         400,
         600,
         1000
+      ],
+      "valueByLevel": [
+        10,
+        30,
+        90
       ]
     }
   ],

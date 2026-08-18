@@ -228,6 +228,7 @@ export function App() {
           onBack={() => setScreen("setup")}
           mapId={initialMapId}
           mapSource={getMapSource()}
+          onMapChange={handleMapChange}
         />
         {/* F4:统一 HintBar(起兵失败等);过期口径由 gameStore 统一 1.8s */}
         <HintBar hint={hint} level={hintLevel} />

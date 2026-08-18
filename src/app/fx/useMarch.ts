@@ -11,12 +11,32 @@
 import type { GameEngine } from "@core/game";
 import type { Player } from "@core/types";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
-import { playerSlotKey } from "@app/components/board/TokenLayer";
+import { playerSlotKey, tokenRenderPos } from "@app/components/board/TokenLayer";
 import { useFxStore } from "./fxStore";
+import { getAudio } from "./audio";
 import { delay, FX, MARCH, nextFrame } from "./timings";
+import { boardCamera } from "@app/components/board/usePanZoom";
 
 /** 行军接管中的棋子当前坐标(逻辑系)。只在 beginMarch/段推进时写入,被 TokenLayer 读取。 */
 export const marchPos = new Map<string, { x: number; y: number }>();
+
+// ── C5 行军取消令牌 ──
+// resetFx(重开局/切屏)清空 marching 集后,进行中的 animateMove 循环若不中止,
+// 会继续对已卸载/已被新对局接管的棋子节点写 transform(陈旧演出)。机制:
+// 订阅 fxStore,当某个「动画仍在进行」的棋子被外部(resetFx)从 marching 集移除时,
+// 递增全局 generation——所有在途循环在下一个段边界发现代际不符即自行终止。
+let marchGeneration = 0;
+/** 在途动画的棋子 id(endMarch 先于 removeMarching 注销,故正常收尾不会误触取消)。 */
+const activeMarches = new Set<string>();
+useFxStore.subscribe((state, prev) => {
+  for (const id of prev.marching) {
+    if (!state.marching.has(id) && activeMarches.has(id)) {
+      activeMarches.delete(id);
+      marchPos.delete(id);
+      marchGeneration++;
+    }
+  }
+});
 
 /** 段时长:匀速(时长 ∝ 距离),夹在 [minSegMs, maxSegMs](旧 animate.ts 的口径)。 */
 function segDuration(a: { x: number; y: number }, b: { x: number; y: number }): number {
@@ -82,31 +102,47 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
   const player = e.players.find((p) => p.id === moverId);
   if (!path || !player) return;
   const board = e.board;
+  // C5:捕获当前代际;resetFx 会递增它,循环在段边界检测到不一致即中止。
+  const gen = marchGeneration;
+  activeMarches.add(moverId);
+  /** 代际仍有效且节点仍挂载;失效时静默退出(resetFx 已清接管集/marchPos,
+   *  不再触碰节点——它可能已随旧棋盘卸载)。 */
+  const alive = (): boolean => gen === marchGeneration && marchPos.has(moverId);
+
+  // C4 镜头跟随:放大视图中行军终点可能在视野外——检查当前 viewBox 是否包含
+  // 终点(留 15% 边距),不含则缓动把镜头平移过去(不改缩放)。棋盘未挂载时
+  // boardCamera 为空(如编辑器),静默跳过。
+  followIfOffscreen(tokenRenderPos(player, board));
 
   // 接管集未含该棋子(调用方漏了 beginMarch):现场补,起点锚定 from。
   if (!marchPos.has(moverId)) beginMarch(e, moverId);
   // 等 React 把「跳过声明式定位 + marchPos 起点」渲染出来,再拿节点开始动画。
   await nextFrame();
   const token = document.querySelector<SVGGElement>(`#bv-tokens [data-token-player="${moverId}"]`);
-  if (!token) {
+  if (!token || !token.isConnected || !alive()) {
     endMarch(moverId);
     return;
   }
+  // #26 行军启动音:轻嗒瞬态(audio.ts 内置 50ms 去重 + 连发音量衰减,高频不吵)。
+  // 挪到节点确认之后,取消/未挂载的行军不出声。
+  getAudio().play("marchStart");
 
-  /** 单段推进:设置 transitionDuration → 写 transform(命令式)→ 同步 marchPos(供重渲对齐)。 */
-  const step = async (x: number, y: number): Promise<void> => {
+  /** 单段推进:设置 transitionDuration → 写 transform(命令式)→ 同步 marchPos(供重渲对齐)。
+   *  返回本段结束后动画是否仍存活(C5:resetFx 中止)。 */
+  const step = async (x: number, y: number): Promise<boolean> => {
     const from = marchPos.get(moverId) ?? { x, y };
     const dur = segDuration(from, { x, y });
     token.style.transitionDuration = `${dur / 1000}s`;
     token.style.transform = `translate(${x}px, ${y}px)`;
     marchPos.set(moverId, { x, y });
     await delay(dur + MARCH.segSlackMs);
+    return alive() && token.isConnected;
   };
 
   // 辅路逐格行进:沿 branchWaypoints 推进
   if (path.branchWaypoints && path.branchWaypoints.length > 0) {
     for (const wp of path.branchWaypoints) {
-      await step(wp.x, wp.y);
+      if (!(await step(wp.x, wp.y))) return endMarch(moverId);
     }
   }
 
@@ -122,7 +158,7 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
       const endPoint = isLast ? { x: center.x + off.x, y: center.y + off.y } : center;
       const pts = [board.positionOf(prevTile), ...wps, endPoint];
       for (let i = 1; i < pts.length; i++) {
-        await step(pts[i].x, pts[i].y);
+        if (!(await step(pts[i].x, pts[i].y))) return endMarch(moverId);
       }
       highlightSegment(e, prevTile, tile);
       prevTile = tile;
@@ -134,8 +170,22 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
   endMarch(moverId);
 }
 
-/** 结束接管:移除 marchPos + fxStore.marching,React 以终态接管定位。 */
+/** C4:终点不在当前视图(含 15% 边距)时请求镜头缓动跟随。 */
+function followIfOffscreen(dest: { x: number; y: number }): void {
+  const vb = boardCamera.getView?.();
+  if (!vb) return;
+  const mx = vb.w * 0.15;
+  const my = vb.h * 0.15;
+  const inside =
+    dest.x >= vb.x + mx && dest.x <= vb.x + vb.w - mx && dest.y >= vb.y + my && dest.y <= vb.y + vb.h - my;
+  if (!inside) boardCamera.flyTo?.(dest.x, dest.y);
+}
+
+/** 结束接管:移除 marchPos + fxStore.marching,React 以终态接管定位。
+ *  正常/取消(C5)统一走此收尾——先注销 activeMarches 再 removeMarching,
+ *  保证订阅器不会把正常收尾误判为外部取消。 */
 function endMarch(moverId: string): void {
+  activeMarches.delete(moverId);
   marchPos.delete(moverId);
   useFxStore.getState().removeMarching(moverId);
 }

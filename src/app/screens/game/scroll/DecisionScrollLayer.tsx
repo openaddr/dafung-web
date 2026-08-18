@@ -26,6 +26,9 @@ export interface DecisionScrollLayerProps {
   /** 城池详情(Playing 相位点城查看,GameScreen 本地态)。null = 不弹。 */
   detailTileIndex: number | null;
   onDetailClose: () => void;
+  /** #35 选都模式:详情卷轴内嵌「定都于此/再想想」(Setup PickCapital 期点可选城)。 */
+  detailPickCapital: boolean;
+  onConfirmCapital: (tileIndex: number) => void;
 }
 
 export function DecisionScrollLayer({
@@ -34,6 +37,8 @@ export function DecisionScrollLayer({
   interactive,
   detailTileIndex,
   onDetailClose,
+  detailPickCapital,
+  onConfirmCapital,
 }: DecisionScrollLayerProps) {
   const controller = getController();
   const map = getControllerMap();
@@ -63,34 +68,41 @@ export function DecisionScrollLayer({
     }
   }
 
-  // ── 城池详情(只读,任何时候可弹)──
+  // ── 城池详情(只读,任何时候可弹;#33 特殊地点同样展示类型说明)──
   if (detailTileIndex !== null) {
     const tile = board.at(detailTileIndex);
     const def = tile.propertyId ? catalog.get(tile.propertyId) : null;
-    if (def) {
-      const ownerEntry = players.find((p) =>
-        p.properties.some((h) => h.propertyId === tile.propertyId),
-      );
-      const owned = ownerEntry?.properties.find((h) => h.propertyId === tile.propertyId);
-      return (
-        <TileDetailScroll
-          tileIndex={detailTileIndex}
-          tileName={tile.name}
-          region={tile.region ?? ""}
-          property={{
-            id: def.id,
-            purchasePrice: def.purchasePrice,
-            upgradeCost: def.upgradeCost,
-            maxLevel: def.maxLevel,
-            rentByLevel: def.rentByLevel,
-          }}
-          ownerGuohao={ownerEntry?.guohao ?? null}
-          ownerLevel={owned?.level ?? 0}
-          isCapital={ownerEntry?.capitalIndex === detailTileIndex}
-          onClose={onDetailClose}
-        />
-      );
-    }
+    const ownerEntry = def
+      ? players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId))
+      : undefined;
+    const owned = ownerEntry?.properties.find((h) => h.propertyId === tile.propertyId);
+    return (
+      <TileDetailScroll
+        tileIndex={detailTileIndex}
+        tileName={tile.name}
+        tileType={tile.type}
+        region={tile.region ?? ""}
+        property={
+          def
+            ? {
+                id: def.id,
+                purchasePrice: def.purchasePrice,
+                maxLevel: def.maxLevel,
+                valueByLevel: def.valueByLevel,
+              }
+            : null
+        }
+        ownerGuohao={ownerEntry?.guohao ?? null}
+        ownerLevel={owned?.level ?? 0}
+        isCapital={ownerEntry?.capitalIndex === detailTileIndex}
+        onClose={onDetailClose}
+        pickCapital={
+          detailPickCapital
+            ? { onConfirm: () => onConfirmCapital(detailTileIndex) }
+            : undefined
+        }
+      />
+    );
   }
 
   // ── 破产清算:债务人在凑钱(热座=本地视角玩家)──
@@ -189,9 +201,8 @@ export function DecisionScrollLayer({
               region={tile?.region ?? ""}
               property={{
                 purchasePrice: def.purchasePrice,
-                upgradeCost: def.upgradeCost,
                 maxLevel: def.maxLevel,
-                rentByLevel: def.rentByLevel,
+                valueByLevel: def.valueByLevel,
               }}
               cash={p.cash}
               warrants={p.warrants}
@@ -203,13 +214,11 @@ export function DecisionScrollLayer({
           return (
             <UpgradeDecisionScroll
               tileName={tile?.name ?? def.id}
-              level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 0}
+              level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
               property={{
-                upgradeCost: def.upgradeCost,
                 maxLevel: def.maxLevel,
-                rentByLevel: def.rentByLevel,
+                valueByLevel: def.valueByLevel,
               }}
-              cash={p.cash}
               onCommand={dispatch}
             />
           );

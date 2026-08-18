@@ -67,7 +67,7 @@ function MiniMap({ data }: { data: MapData }) {
         return (
           <g key={i}>
             <circle cx={q.x} cy={q.y} r={7} fill="var(--color-panel)" stroke="var(--color-ink-dim)" strokeWidth={2} />
-            <text x={q.x} y={q.y + 3.5} textAnchor="middle" fontSize={9} fill="var(--color-ink)" fontFamily="var(--font-deco)">
+            <text x={q.x} y={q.y + 4} textAnchor="middle" fontSize={11} fill="var(--color-ink)" fontFamily="var(--font-deco)">
               {p.name.slice(0, 1)}
             </text>
           </g>
@@ -86,9 +86,13 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // 挂载时拉清单一次(fetch 内置清单 + localStorage 自建图,均可能失败需兜底提示)
+  // 挂载时拉清单一次(fetch 内置清单 + localStorage 自建图,均可能失败需兜底提示);
+  // S-4:清单拉取收敛为 reload,失败态可点「重试」重新拉取
+  const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
     let alive = true;
+    setEntries(null);
+    setError(null);
     mapSource
       .listMaps()
       .then((list) => alive && setEntries(list))
@@ -96,7 +100,16 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
     return () => {
       alive = false;
     };
-  }, [mapSource]);
+  }, [mapSource, reloadKey]);
+
+  // S-4:Esc 关闭弹层(与「取消」等价)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onCancel();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onCancel]);
 
   const pick = (entry: MapEntry) => {
     setPicked(entry.id);
@@ -112,13 +125,29 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   return (
     <div
       data-testid={TID.mapPanel}
+      // S-4:遮罩点击关闭(弹体 stopPropagation 防误关)
+      onClick={onCancel}
       className="fixed inset-0 z-20 flex items-center justify-center bg-ink/40 backdrop-blur-[1px]"
     >
-      <div className="w-[min(680px,92vw)] max-h-[86vh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
+      >
         <h3 className="font-brush text-xl tracking-[0.3em] text-ink mb-3">选择地图</h3>
 
         {!entries && !error && <p className="font-deco text-ink-dim py-6">载入地图清单…</p>}
-        {error && <p className="text-danger text-sm py-2">加载失败:{error}</p>}
+        {error && (
+          <div className="flex items-center gap-3 py-2">
+            <p className="text-danger text-sm">加载失败:{error}</p>
+            {/* S-4:失败态提供重试(重新 listMaps) */}
+            <button
+              onClick={() => setReloadKey((k) => k + 1)}
+              className="rounded border border-ink/30 bg-panel-hi px-4 min-h-[40px] font-deco text-ink cursor-pointer hover:bg-bg-deep"
+            >
+              重试
+            </button>
+          </div>
+        )}
         {entries && entries.length === 0 && <p className="font-deco text-ink-dim py-6">暂无可用地图。</p>}
 
         {entries && entries.length > 0 && (
@@ -131,6 +160,8 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                     key={e.id}
                     data-testid={TID.mapItem(e.id)}
                     onClick={() => pick(e)}
+                    // S-9:选中态语义化(切换语义用 aria-pressed 而非 aria-selected)
+                    aria-pressed={selected}
                     className={
                       "text-left rounded-lg border px-3 py-2.5 transition-colors cursor-pointer " +
                       (selected
@@ -162,7 +193,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="rounded border border-ink/30 bg-panel-hi px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-bg-deep"
+                className="rounded border border-ink/30 bg-panel-hi px-4 py-2 font-deco text-ink cursor-pointer hover:bg-bg-deep"
               >
                 取消
               </button>
@@ -174,7 +205,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                className="rounded border border-gold bg-gold/80 px-4 py-1.5 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
+                className="rounded border border-gold bg-gold/80 px-4 py-2 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
               >
                 确认选择
               </button>

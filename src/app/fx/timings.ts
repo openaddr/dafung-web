@@ -28,8 +28,22 @@ export const FX = {
   floaterMs: 1300,
   coinMs: 1500,
   bannerMs: 1900, // banner-fly 1.8s + 余量
+  /** C3 回合横幅占用编排时长:等横幅走到峰值停留段(1.8s 动画的 20%-75% 区间),
+   *  取 1.0s——下一演出(骰子)不再与横幅入场重叠,又不把回合节奏拖满全长。 */
+  bannerHoldMs: 1000,
   sealMs: 900,
   roadFlowMs: 700, // 驿道流光高亮存留
+} as const;
+
+/** 3D 骰子掷骰节奏(ThreeDice 实播墙钟判据;时长集中调参)。
+ *  C1 bot 掷骰半速:bot 回合节奏优先,翻滚/硬上限/落定停留全面减半。 */
+export const DICE = {
+  minRollMs: 500,   // 至少滚 0.5s(人类掷骰的翻滚感)
+  hardCapMs: 1500,  // 墙钟硬上限(与 GPU 帧率无关)
+  holdMs: 600,      // 落定后结果停留,再隐藏 overlay
+  botMinRollMs: 250,
+  botHardCapMs: 900,
+  botHoldMs: 250,
 } as const;
 
 export const delay = (ms: number): Promise<void> =>

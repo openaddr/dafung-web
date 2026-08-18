@@ -17,9 +17,10 @@ import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio } from "./audio";
 import { diceApi } from "./DiceOverlay";
+import { setDiceFast } from "./ThreeDice";
 import { useFxStore } from "./fxStore";
 import { animateMove, beginMarch } from "./useMarch";
-import { delay } from "./timings";
+import { delay, FX } from "./timings";
 import type { FxSink, PresentationEvent } from "./presentation";
 
 // ─────────────────────── 播放器 ───────────────────────
@@ -29,6 +30,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
   for (const ev of events) {
     switch (ev.kind) {
       case "diceRolled":
+        // C1:bot 掷骰半速——速度开关在掷前设置(roll 内即消费复位);
+        // 不走 FxSink 参数是因生产 sink(sinks.ts)不透传附加参数。
+        setDiceFast(ev.fast === true);
         await sink.rollDice(ev.die);
         break;
       case "tokenMoved":
@@ -44,7 +48,13 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         sink.stampSeal(ev.tileIndex, ev.char);
         break;
       case "turnBanner":
+        // C3:横幅占用编排时长——showBanner 本身异步置 store 即返回(音画由 CSS 动画
+        // 自走),此处显式等峰值停留段(FX.bannerHoldMs),下一演出(骰子)不再与横幅
+        // 入场重叠。不改 FxSink.showBanner 返回 Promise:生产实现(sinks.ts)返回
+        // void,签名收紧会在 fx/ 之外产生编译错误。单机横幅走命令式
+        // maybeShowTurnBanner(人类掷骰前无 present 路径横幅),首掷不受此延迟影响。
         sink.showBanner(ev.guohao, ev.colorIndex);
+        await delay(FX.bannerHoldMs);
         break;
       case "sound":
         sink.playSound(ev.event);
@@ -124,7 +134,8 @@ export function extractStepEvents(
 
   if (prevPhase === "Roll") {
     const die = view.lastRoll?.die;
-    if (die) events.push({ kind: "diceRolled", die });
+    // C1:推进前活跃玩家是 bot → 掷骰事件带 fast(播放侧走半速节奏)
+    if (die) events.push({ kind: "diceRolled", die, fast: prePlayer?.isBot === true });
     // 驻跸抉择:令牌未动,行军等 halt/continue 命令后再补(对照旧 doRoll 分支)
     if (engine.turnPhase !== "AwaitingCapitalHalt" && view.lastMove) {
       events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove });

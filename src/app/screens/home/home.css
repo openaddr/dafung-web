@@ -6,6 +6,27 @@
    注意挂在按钮的「包裹层」而非按钮本身:animation fill 会永久锁定 transform,
    若同元素再写 :active scale 会被动画终态覆盖而失效,分层则互不干扰。
    只在首挂载播一次(both 保持终态,页面内返回首页会重挂载再播,符合"仪式感"预期)。 */
+/* H-2 入场动效断层修补:标题/副标题先行淡入(0.3s),按钮 stagger(300ms 起)跟进,
+   总节奏 = 标题先现 → 副标题微迟(120ms)→ 按钮逐个入场(组件内联 delay 300+i*80)。
+   只动 transform/opacity,与按钮包裹层动画同策略(GPU 合成,不触发布局)。 */
+@keyframes home-title-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.home-title-in {
+  animation: home-title-in 0.3s ease-out both;
+}
+/* 副标题比标题晚 120ms,衔接自然(避免三块同时出现又同时断掉) */
+.home-title-in-sub {
+  animation: home-title-in 0.3s ease-out 0.12s both;
+}
+
 @keyframes home-btn-in {
   from {
     opacity: 0;
@@ -43,6 +64,18 @@
 .home-btn-brush:hover::after,
 .home-btn-brush:focus-visible::after {
   transform: scaleX(1);
+}
+
+/* H-1 金底变体:金底上金色笔触线不可见(同色),取反为墨线;
+   panel 底按钮保持上方金线不变。写在基础规则之后,同特异度后来者覆盖。 */
+.home-btn-gold::after {
+  background: var(--color-ink);
+}
+
+/* H-4 键盘 focus-visible 轮廓:虚线墨圈(与笔触下划线并存,鼠标路径不受影响) */
+.home-btn-brush:focus-visible {
+  outline: 2px dashed var(--color-ink);
+  outline-offset: 2px;
 }
 
 /* 按压态:scale .97,给"按下有回应"的物理感(transition 放常态,松开回弹也平滑) */

@@ -32,7 +32,7 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
     <div
       data-testid={TESTIDS.hint}
       className={
-        "pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
+        "pointer-events-none absolute top-[calc(var(--safe-top)+12px)] left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
         (level === "error" ? "bg-danger/95 text-white font-deco" : "bg-panel/95 text-ink font-deco")
       }
     >

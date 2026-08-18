@@ -114,6 +114,13 @@ function Building({ size, tint }: { size: "large" | "medium" | "small"; tint?: s
   );
 }
 
+// ── #25 城池全局放大比例 ──
+// 旗/匾/印/价格签等所有元素随 <g> 整体 scale(等比,视觉口径统一;点击热区与
+// hover 重排随 SVG transform 同步放大,无需另调)。1.15 为全局统一比例:密城
+// (中原一带)相邻铭牌外缘 ~124×1.15≈143 < 常规格间距,不互相压盖;
+// FIT_VIEW 边距已同步 +3%(usePanZoom),总览下放大后城池群仍在视口内。
+const TILE_SCALE = 1.15;
+
 // ── 竖排木匾城名 ──
 // 局部常量:深木底 + 暖金边/铆钉,集中在此便于整体调色。
 const PLANK_FILL = "#3a2a1a";
@@ -122,12 +129,18 @@ const PLANK_EDGE = "rgba(212,175,105,0.9)";
 /**
  * 竖排木匾(挂建筑右侧):深木底 + 1px 金边 + 顶部两枚铆钉;都城匾加宽 + 金底墨字 + 底部两缕流苏。
  * 方案取舍:选"逐字纵排"而非 SVG writing-mode(后者 Firefox/Safari 对 tb 支持参差,逐字定位最稳)。
- * 可读性:字号 17,最小城(整城 scale 0.8)缩放后仍 ≈13.6px,满足 ≥13px 等效可读红线,故不必退回横排。
+ *
+ * 两级可读设计(B1):总览(FIT_VIEW 2300 宽 → ~1000px 容器,缩放系数 ≈0.43)下
+ * 任何城名字都只有 ~6-8px——总览不指望读字,靠「色带=区域色相 / 旗形=归属」的形状层辨认
+ * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
+ * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
+ * large 17(×1)、medium 18(×0.9=16.2)、small 20(×0.8=16)——小城字号下限抬高补回缩放损失。
  */
-function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
+function NamePlaque({ name, capital, size }: { name: string; capital: boolean; size: "large" | "medium" | "small" }) {
   const chars = [...name].slice(0, 3); // 城名 2-3 字
   const w = capital ? 34 : 26;
-  const step = 18;
+  const fs = size === "small" ? 20 : size === "medium" ? 18 : 17;
+  const step = fs + 3; // B5:字距留缝(17→20),三字匾整体高度随之 +6
   const h = chars.length * step + 12;
   const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与色带/王旗/小旌旗重叠
   const y0 = -22;
@@ -153,7 +166,7 @@ function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
           y={y0 + 15 + i * step}
           textAnchor="middle"
           fontFamily="var(--font-deco)"
-          fontSize={17}
+          fontSize={fs}
           fontWeight={700}
           fill={capital ? rgba(Theme.ink) : "rgba(238,210,140,0.96)"}
         >
@@ -218,12 +231,15 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
       id={`tile-${tile.index}`}
       data-tile={tile.index}
       data-name={tile.name}
-      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale})`}
+      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale * TILE_SCALE})`}
       onClick={onClick ? () => onClick(tile.index) : undefined}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
       <circle className="bv-tile-hilite" r={62} fill={rgba(Theme.gold)} />
-      <circle className="bv-capital-glow" r={70} fill={rgba(Theme.goldBright)} style={{ filter: "blur(9px)" }} />
+      {/* F2:光晕改 radialGradient 圆(BoardDefs 定义,中心亮→边缘 0),去掉常驻 blur(9px)
+          滤镜——滤镜在 zoom 时每帧重算,渐变只是普通填充;脉动仍由 board.css 的 opacity
+          keyframe 驱动(bv-pulse-glow),视觉节奏不变。 */}
+      <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
 
       {/* 铭牌底(需求2 三档):无主=宣纸底淡墨边(低显著);有主(含都城)=深玩家色整块
           染底 ≥85% 不透明——zoom-out 扫描时"色块=地盘"按色相即读,不依赖细节。 */}
@@ -249,7 +265,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
 
       {isIconTile ? (
         <>
-          <rect className="bv-tile-band" x={-46} y={-44} width={92} height={8} rx={2} fill={bandFill} />
+          <rect className="bv-tile-band" x={-46} y={-44} width={92} height={10} rx={2} fill={bandFill} stroke="rgba(40,28,12,0.45)" strokeWidth={1} />
           {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。
               珍宝格的宝/囊/伏图标在 StaticLayers 辅路格上,此处不重复画。 */}
           {tile.type === "Stock" ? (
@@ -325,10 +341,22 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               </g>
             ) : null}
           </g>
-          {/* 分组色带(顶部):有持有者→玩家色;无主→区域色 */}
-          <rect className="bv-tile-band" x={-46} y={-44} width={92} height={8} rx={2} fill={bandFill} />
+          {/* 分组色带(顶部):有持有者→玩家色;无主→区域色。
+              B1 两级设计:总览读不了字,色带是"形状层"信号——加高一档并描深边,
+              让远看时色带在宣纸/铭牌底上仍有清晰的色块轮廓可辨。 */}
+          <rect
+            className="bv-tile-band"
+            x={-46}
+            y={-44}
+            width={92}
+            height={10}
+            rx={2}
+            fill={bandFill}
+            stroke="rgba(40,28,12,0.45)"
+            strokeWidth={1}
+          />
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
-          <NamePlaque name={tile.name} capital={isCapital} />
+          <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
           {/* 价格字:有主城铭牌已是深玩家色底,墨字不可读→白字;无主宣纸底保持墨字 */}
           <text
             x={0}
@@ -378,8 +406,9 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 stroke={rgba(Theme.goldBright)}
                 strokeWidth={1.5}
               />
+              {/* B3:三角尖端窄,文字锚点从 x=15 右移到形心偏内 x=19,避免国号挤向尖端溢出 */}
               <text
-                x={15}
+                x={19}
                 y={-74}
                 textAnchor="middle"
                 fontFamily="var(--font-brush)"
@@ -390,27 +419,35 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               </text>
             </g>
           ) : null}
-          {/* 需求2·都城③ 朱底金字方印「都」:右上角 14×14、旋转 -6°(手钤印的随意感)、
-              金边框;与领地区分"这是都城"的第二冗余信号(王旗之外印也认得)。 */}
+          {/* 需求2·都城③ 朱底金字方印「都」:右上角、旋转 -6°(手钤印的随意感)、金边框;
+              B4:14→20——总览(≈0.43 系数)下 14px 印已趋不可见,放大到 20 让远距仍是一粒
+              可辨的朱红方点;与领地区分"这是都城"的第二冗余信号(王旗之外印也认得)。 */}
           {isCapital ? (
             <g className="bv-capital-seal" transform="translate(49 -33) rotate(-6)">
-              <rect x={-7} y={-7} width={14} height={14} rx={1.5} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.2} />
-              <text x={0} y={4} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={10.5} fontWeight={700} fill={rgba(Theme.goldBright)}>
+              <rect x={-10} y={-10} width={20} height={20} rx={2} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.4} />
+              <text x={0} y={5} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={14} fontWeight={700} fill={rgba(Theme.goldBright)}>
                 都
               </text>
             </g>
           ) : null}
-          {/* 持有者小旌旗(非都城持有城):右上小三角 + 国号 */}
+          {/* B2 三旗语法分化:持有者城旗改「燕尾旗」(矩形 + 飞端 V 形缺口)——
+              与棋子的三角旗(人)、王旗的双层大三角(都)三形互斥,远看旗形即分类;
+              深描边压住轮廓,保证浅色玩家色旗面在宣纸上也可辨。 */}
           {!isCapital && ownerRgb ? (
             <g className="bv-tile-owner-flag">
               <line x1={40} y1={-28} x2={40} y2={-50} stroke="rgba(50,35,15,0.8)" strokeWidth={1.5} />
-              <polygon points="40,-50 58,-45 40,-40" fill={rgba(ownerRgb)} />
+              <polygon
+                points="40,-50 62,-50 55,-45 62,-40 40,-40"
+                fill={rgba(ownerRgb)}
+                stroke="rgba(40,28,12,0.55)"
+                strokeWidth={1}
+              />
               <text
-                x={49}
-                y={-42}
+                x={50}
+                y={-41.5}
                 textAnchor="middle"
                 fontFamily="var(--font-brush)"
-                fontSize={11}
+                fontSize={10.5}
                 fill="#fff"
               >
                 {state.ownerGuohao}

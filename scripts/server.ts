@@ -232,7 +232,7 @@ const HELP = {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
     "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}(mapId=null)",
-    "POST /room/join": "入座 body:{roomId} → {seat,seatToken,...lobby}",
+    "POST /room/join": "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图)",
     "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
@@ -310,8 +310,10 @@ async function handle(req: Request): Promise<Response> {
 
   if (path === "/room/join") {
     const roomId = String(obj.roomId ?? "");
-    const { room, seat, token } = registry.joinSeat(roomId);
-    recordEvent(roomId, { ev: "room-join", seat });
+    // 国号可选:带上则作为预设,开局时与房间内其它座位去重(重名加方位前缀)
+    const guohao = obj.guohao == null ? undefined : String(obj.guohao);
+    const { room, seat, token } = registry.joinSeat(roomId, guohao);
+    recordEvent(roomId, { ev: "room-join", seat, guohao: guohao ?? null });
     broadcast(room.roomId); // 通知其它人:有人加入
     return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }

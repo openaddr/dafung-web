@@ -19,7 +19,7 @@ import type {
 } from "./types";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
-import { buy as buyProp, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
+import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
 import { serializeGame } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
@@ -29,6 +29,7 @@ import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARR
 import { HEROES } from "./heroes";
 import { createTreasureDeck, guidePriceOf, premiumPriceOf } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
+import { canUpgrade } from "./types";
 
 type Catalog = MapCatalog;
 
@@ -158,8 +159,8 @@ export class GameEngine {
     this.targetNetWorth = config.targetNetWorth ?? DEFAULT_TARGET;
     this.startingCash = config.startingCash ?? DEFAULT_CASH;
     this.difficulty = config.difficulty ?? "Normal";
-    if (config.seats.length < 2 || config.seats.length > 4)
-      throw new Error("支持 2–4 个座位。");
+    if (config.seats.length < 2 || config.seats.length > 8)
+      throw new Error("支持 2–8 个座位。");
     this.players = config.seats.map((s, i) => ({
       id: `p${i}`,
       name: s.name,
@@ -351,8 +352,7 @@ export class GameEngine {
       propertyId: def.id,
       group: def.group,
       purchasePrice: def.buildCost,
-      totalUpgradeCost: 0,
-      level: 0,
+      level: 1,
       maxLevel: def.maxLevel,
     });
     player.capitalIndex = tileIndex;
@@ -552,13 +552,11 @@ export class GameEngine {
     const r = upgradeProp(this.activePlayer, def);
     this.lastTransaction = r;
     if (r.status === "Ok") {
-      this.pushFloater(this.activePlayer, -def.upgradeCost, this.activePlayer.position, "expense");
       this.logEvent(
         "upgrade",
         this.activePlayer.guohao,
-        `${this.activePlayer.guohao} 扩军「${this.tileName(def)}」至 Lv.${r.newLevel} ${formatMoney(def.upgradeCost)}`,
-        `upgrade player=${this.activePlayer.id} prop=${def.id} level=${r.newLevel} cost=${def.upgradeCost} cash=${this.activePlayer.cash}`,
-        -def.upgradeCost,
+        `${this.activePlayer.guohao} 扩军「${this.tileName(def)}」至 Lv.${r.newLevel}(免费)`,
+        `upgrade player=${this.activePlayer.id} prop=${def.id} level=${r.newLevel} cash=${this.activePlayer.cash}`,
       );
     }
     this.endTurn();
@@ -666,16 +664,27 @@ export class GameEngine {
     if (owner === mover) {
       this.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
       this.turnPhase = "AwaitingDecision";
-      this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(${formatMoney(def.upgradeCost)})`, `own player=${mover.id} prop=${def.id}`);
+      this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
       return;
+    }
+    // 他人到达城池:城池免费升级一级(本作无升级费,到达即升级;满级自然封顶)
+    const holding = findHolding(owner, def.id);
+    if (holding && canUpgrade(holding)) {
+      holding.level += 1;
+      this.logEvent(
+        "upgrade",
+        owner.guohao,
+        `${mover.guohao} 兵临「${tile.name}」,${owner.guohao} 之城声势渐壮,升 Lv.${holding.level}(免费)`,
+        `autoUpgrade prop=${def.id} owner=${owner.id} visitor=${mover.id} level=${holding.level}`,
+      );
     }
     // 珍宝交涉:城主有珍宝 → 公道买卖/坐地起价;无珍宝 → 无事发生
     if (owner.treasures.length > 0) {
       this.treasureVisitor = { def, ownerIdx: this.players.indexOf(owner) };
       this.turnPhase = "AwaitingTreasureOwner";
-      this.lastLandOutcome = { kind: "RentPaid", property: def, owner };
+      this.lastLandOutcome = { kind: "TreasureTrade", property: def, owner };
       this.logEvent(
-        "rent",
+        "trade",
         owner.guohao,
         `${mover.guohao} 落「${tile.name}」,${owner.guohao} 可公道买卖/坐地起价(${owner.treasures.length}件珍宝)`,
         `treasureAwait owner=${owner.id} visitor=${mover.id} treasures=${owner.treasures.length}`,
@@ -759,7 +768,7 @@ export class GameEngine {
     this.turnPhase = "Roll";
     this.turnNumber += 1;
     // 不重置 lastRoll / lastMove:doRoll 的骰子翻滚与行军动画在 rollAndMove 之后执行,
-    // 而落点有主(付租/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
+    // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
     // 下次 rollAndMove 会覆盖这两个值,故无需手动清空。
     this.lastLandOutcome = null;
     this.lastTransaction = null;
@@ -908,7 +917,7 @@ export class GameEngine {
     if (tIdx < 0) { this.warn(`珍宝 ${action.treasureId} 不在手中`); return; }
     const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
     const holding = findHolding(owner, def.id);
-    const cityLevel = holding?.level ?? 0;
+    const cityLevel = holding?.level ?? 1;
 
     // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
     const price = action.type === "fair"
@@ -934,9 +943,9 @@ export class GameEngine {
     this.pushFloater(mover, -price, mover.position, "expense");
     this.pushFloater(owner, price, mover.position, "income");
     if (price > 0) this.fireOnOtherLoseCash(mover);
-    this.lastLandOutcome = { kind: "RentPaid", property: def, owner, amount: price, causedBankruptcy: bankrupt };
+    this.lastLandOutcome = { kind: "TreasureTrade", property: def, owner, amount: price, causedBankruptcy: bankrupt };
     const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
-    this.logEvent("rent", owner.guohao, `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
+    this.logEvent("trade", owner.guohao, `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
     this.treasureVisitor = null;
     this.endTurn();
   }
@@ -1012,9 +1021,11 @@ export class GameEngine {
     const idx = p.properties.findIndex((h) => h.propertyId === propId);
     if (idx < 0) { this.warn(`城 ${propId} 不在手中`); return; }
     const h = p.properties.splice(idx, 1)[0];
-    p.cash += h.purchasePrice;
-    this.pushFloater(p, h.purchasePrice, p.position, "income");
-    this.logEvent("system", p.guohao, `${p.guohao} 变卖城池得 ${formatMoney(h.purchasePrice)}`, `bkSellProp player=${p.id} prop=${propId} +${h.purchasePrice}`, h.purchasePrice);
+    // 变卖价 = 该等级的城池价值(地图 json valueByLevel 显式定义),非购入价
+    const gain = sellValueOf(this.catalog.get(propId)!, h.level);
+    p.cash += gain;
+    this.pushFloater(p, gain, p.position, "income");
+    this.logEvent("system", p.guohao, `${p.guohao} 变卖城池得 ${formatMoney(gain)}`, `bkSellProp player=${p.id} prop=${propId} +${gain}`, gain);
   }
 
   cashHeroBankruptcy(heroId: string): void {
@@ -1316,9 +1327,8 @@ export class GameEngine {
           propertyId: h.propertyId,
           group: h.group ?? def?.group ?? "z",
           purchasePrice: def?.purchasePrice ?? def?.buildCost ?? 0,
-          totalUpgradeCost: 0, // 已丢失(本作身价=仅现金,不影响逻辑)
           level: h.level,
-          maxLevel: def?.maxLevel ?? 5,
+          maxLevel: def?.maxLevel ?? 3,
         };
       });
     });

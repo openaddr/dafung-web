@@ -51,7 +51,7 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   }
   if (!Array.isArray(d.tiles) || d.tiles.length === 0) fail("tiles 为空");
 
-  const maxLevel = d.maxLevel ?? 5;
+  const maxLevel = d.maxLevel ?? 3;
   const resupply = d.resupplyPerLevel ?? 0;
 
   // tiles + 坐标
@@ -65,10 +65,10 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const pos: BoardPos = { x: t.pos[0], y: t.pos[1] };
     positions.push(pos);
     const type = (t.type ?? "Property") as TileDef["type"];
-    // 城池规模(Lv0 租金推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
-    const rent = t.rentByLevel;
-    const size: TileDef["size"] = type === "Property" && rent
-      ? rent[0] >= 20 ? "large" : rent[0] >= 10 ? "medium" : "small"
+    // 城池规模(Lv1 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
+    const value = t.valueByLevel;
+    const size: TileDef["size"] = type === "Property" && value
+      ? value[0] >= 20 ? "large" : value[0] >= 10 ? "medium" : "small"
       : undefined;
     return {
       index: i,
@@ -96,20 +96,19 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   const properties: PropertyDef[] = [];
   d.tiles.forEach((t, i) => {
     if ((t.type ?? "Property") !== "Property") return;
-    const rent = t.rentByLevel;
-    if (!Array.isArray(rent) || rent.length < maxLevel + 1) {
-      fail(`第 ${i + 1} 城 rentByLevel 长度不足(需 ≥ ${maxLevel + 1})`);
+    const values = t.valueByLevel;
+    if (!Array.isArray(values) || values.length !== maxLevel) {
+      fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel}`);
     }
-    if ((t.price ?? 0) < 0 || (t.upgrade ?? 0) < 0 || (t.buildCost ?? 0) < 0) {
-      fail(`第 ${i + 1} 城价格/升级/buildCost 不能为负`);
+    if ((t.price ?? 0) < 0 || (t.buildCost ?? 0) < 0) {
+      fail(`第 ${i + 1} 城价格/buildCost 不能为负`);
     }
     properties.push({
       id: t.id,
       group: t.group ?? "z",
       purchasePrice: t.price ?? 0,
-      upgradeCost: t.upgrade ?? 0,
       maxLevel,
-      rentByLevel: rent,
+      valueByLevel: values,
       buildCost: t.buildCost ?? 0,
       resupplyPerLevel: resupply,
       tradeAdd: t.tradeAdd,

@@ -56,22 +56,28 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
   expect(after.warrants).toBe(before.warrants - 1);
 });
 
-test("扩军决策:己方城升级按钮可用(相位钩子构造 OwnProperty)", async ({ page }) => {
+test("扩军决策:己方城升级免费(autos 31:到达免费升级,现金不变)", async ({ page }) => {
   await quickStart(page);
   await force(page, `
     e.turnPhase = "AwaitingDecision";
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
-    me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a", maxLevel: 5, totalUpgradeCost: 0 });
+    me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a", maxLevel: 3 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
   `);
   await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
   await expect(page.getByTestId("action-upgrade")).toBeEnabled();
   const before = (await snap(page)).players[0].cash;
   await page.getByTestId("action-upgrade").click();
+  // 升级免费:等级 +1,现金不变
   await expect
-    .poll(async () => (await snap(page)).players[0].cash, { timeout: 15_000 })
-    .toBeLessThan(before);
+    .poll(
+      async () =>
+        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 2) != null,
+      { timeout: 15_000 },
+    )
+    .toBe(true);
+  expect((await snap(page)).players[0].cash).toBe(before);
 });
 
 test("分岔辅路:落辅路起点弹抉择,入辅路后进入辅路格", async ({ page }) => {

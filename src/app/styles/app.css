@@ -9,8 +9,38 @@ html,
 body,
 #app {
   height: 100%;
+  /* M-7 dvh:Android WebView 地址栏/键盘收展会引起 vh 抖动,dvh 跟随动态视口;
+     100dvh 不被支持时回退到上面的 100%。 */
+  height: 100dvh;
   margin: 0;
   /* 棋盘是全屏应用不是文档:任何 fx 元素(浮字/横幅/行军棋子)越界都不得撑出滚动条,
      否则行军期间页面反复变宽变窄、元素横向跳动(TODO #22;旧 style.css 同款规则)。 */
   overflow: hidden;
+}
+
+/* ── P0-9 safe-area:刘海/圆角/手势条 insets(index.html 已开 viewport-fit=cover)──
+   四个变量是唯一取值口,组件用 .safe-pad 或 var() 消费,不各自写 env()。 */
+:root {
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}
+
+/* 贴边悬浮元素的统一安全区留白:四向 padding = inset + 自身原有留白时用复合写法覆盖。 */
+.safe-pad {
+  padding-top: var(--safe-top);
+  padding-right: var(--safe-right);
+  padding-bottom: var(--safe-bottom);
+  padding-left: var(--safe-left);
+}
+
+/* ── M-4 reduced-motion 全局兜层:除棋盘专属动画(board.css 另行处理)外,
+   其余 UI 的 CSS 动画/过渡在系统「减弱动态效果」下全部瞬时完成。 ── */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

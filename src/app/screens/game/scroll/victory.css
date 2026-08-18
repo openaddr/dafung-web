@@ -1,0 +1,29 @@
+/* 胜利屏专属动画(E2 胜利叙事序列)。独立于 scroll.css:
+   避免与其他并行改动的 css 文件冲突;本文件只被 VictoryScreen.tsx 引入。
+   阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 再战按钮由组件延迟
+   1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。 */
+@keyframes victory-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 阶梯淡入(backwards:delay 期间保持 from 态,不可见) */
+.victory-step {
+  animation: victory-fade-up 0.45s ease backwards;
+}
+.victory-step-sub {
+  animation-delay: 0.3s;
+}
+.victory-step-info {
+  animation-delay: 0.6s;
+}
+/* 再战按钮挂载即淡入(组件已用定时器延后 1.8s 才渲染) */
+.victory-step-btn {
+  animation: victory-fade-up 0.4s ease;
+}

@@ -3,7 +3,7 @@
     "id": "chessboard",
     "name": "棋盘天下",
     "file": "chessboard.json",
-    "desc": "网格对齐版,大致方位:外环八区、中原居中,许昌—襄阳辅路穿腹地",
+    "desc": "网格对齐版,大致方位:外环八区、中原居中;31 城主环 42 格,新野驿站/涪陵渡过渡,许昌—襄阳辅路穿腹地",
     "tileCount": 31,
     "targetNetWorth": 8000
   },

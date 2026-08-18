@@ -20,4 +20,18 @@
 - [x] **单机(LocalController)托管未接**(2026-08-16):旧版有 solo autopilot;基类已留 autopilotSupported 接缝,仅 OnlineController 实现 ✅ 已接(2026-08-16):autopilotSupported=true + 本地代打循环(单飞,botAct 按 decisionOwner 决策,fast=瞬间/slow=BOT.stepDelayMs),与 runBots busy 锁协同防双驱动,托管中 interactive 锁;基类补 autoPilotOn getter,HandPanel 单机自动出现托管行
 - [x] bun 工具链能兼容tauri吧? …✅ 已确认(2026-08-16):完全兼容——Tauri 只经 beforeDevCommand/beforeBuildCommand 调 bun run(已切换);APK 构建链(Rust/Cargo/Gradle)与 JS 工具链零交集;将来往 Rust 倾斜不受影响。详见 ADR-0009
 - [x] 每次点击行军开始移动后, 整个页面最右侧就会出现一个滚动条, 随之元素被整体往左侧挤压, 然后行军移动结束后, 页面滚动条又消失不见, 元素又向右移动, 如此反复, 这在视觉上很奇怪, 应当检查一下为什么会出现这种情况, 不能这样视觉反复跳动 ✅ 已修(2026-08-16):根因=React 版 app.css 迁移时丢了旧 style.css 的两处 overflow:hidden(html/body 与 board-wrap)——行军期间浮字/横幅等 fx 元素越界撑出滚动条,页面宽度反复伸缩导致元素横跳。已补回两处规则
-- [ ] **UI/UX 优化施工**(2026-08-16):完整评审已持久化至 docs/ui-improvements.md(P0 反馈断层 5 条 / P1 体验 5 条 / P2 打磨 9 条,每条带证据行号与验收标准)——按 P0→P1→P2 分波施工,进度以该文档勾选为准
+- [x] **UI/UX 优化施工**(2026-08-16):完整评审已持久化至 docs/ui-improvements.md——全部条目完成(S2/S8 于 2026-08-16 收官:编辑器 prompt/alert 已卷轴化 InputScroll/ConfirmDialog,SoloSetup 国号非法红边+内联红字即时校验)
+- [x] 地图边缘连续性 ✅ 已修(2026-08-16,0c87af0):地形画布外扩 560 逻辑单位 + 径向渐隐 mask(76%→100% 渐隐为透明透出页面背景),pan 到边缘无硬切
+- [x] 城池视觉放大 ✅ 已修(2026-08-16,0c87af0):全局统一 TILE_SCALE=1.15 挂 Tile 根 transform,旗/匾/印/价格签等比放大,FIT_VIEW 边距同步放宽 3%
+- [x] 行军音效 ✅ 已修(2026-08-16,8583016):根因=点击行军播 4s 完整鼓滚奏(drum-roll.ogg)。掷骰点击音改 WebAudio 合成(~120ms 扫频噪声,轻快);新增 marchStart 启动轻嗒(70ms,音量 0.09);50ms 去重 + 连发音量递减防吵;横幅等低频场景保留鼓滚
+- [x] 选都点击无响应 ✅ 已修(2026-08-16,8a4edd6):点不可选城 → error 级 HintBar 即时反馈(区分「已被占据」/「此处不可建都」)
+- [x] 国号预设 + 联机重名前缀 ✅ 已修(2026-08-16,aa1701f/0bd6261):首页 SoloSetup 记住国号(localStorage,联机加入自动带入,附说明文案);重名前缀定案 东西南北前后大+**小**(8 个),服务器开局时依次分配未占前缀,快照体现最终国号
+- [x] 玩家上限扩至 8 人 ✅ 已修(2026-08-16,aa1701f):engine/房间 2-8 校验,色板补足 8 色(石青/朱砂/青绿/紫/赭橙/松绿/鎏金/玄茶),UI 人数选项放开,8 人开局有单测
+- [x] 棋子视觉强化 ✅ 已修(2026-08-16,0c87af0):旗子 TOKEN_SCALE=1.25;行军中金边拖影 + 落脚金色虚线呼吸环(挂命令式动画路径,结束自然消退;reduced-motion 停环)
+- [x] 地产属性修正 ✅ 已修(2026-08-16,aa1701f):等级统一 3 级(Lv.1-3,购入即 Lv.1);引擎本无过路费(误导来自 rentByLevel 字段与 UI 租金表,已删/换价值表);升级费已删——他人到达城池自动免费+1 级,自己到达仍走免费扩军决策;破产变卖改按当前等级价值
+- [x] 手牌区重设计 ✅ 已修(2026-08-16,3e5448c):三级按钮阶梯(主 h-11 金 CTA/小操作 h-10/次级对齐 ScrollButton),disabled 同高仅换皮不再跳变,现金/身价/卡 chip 统一 min-h 与对齐,触屏 ≥40px 保住,纯视觉零逻辑改动
+- [x] 全城池(含特殊地点)单击详情 ✅ 已修(2026-08-16,8a4edd6):Playing 期任意格可点开详情;特殊地点(Chance/Fate/Tax/Stock/Wolong/TreasureCity)显示类型说明文案
+- [x] 详情页去 X ✅ 已修(2026-08-16,8a4edd6):删右上 ×,点遮罩空白/Esc 关闭(ScrollShell 新增 hideClose + 通用 Esc)
+- [x] 选都灰化 + 详情内定都 ✅ 已修(2026-08-16,8a4edd6):被占城灰化(现有 isTaken),可选城首击=详情卷轴,卷轴内「定都于此/再想想」确认后才落子
+- [x] 珍宝/英雄详情图片位 ✅ 已修(2026-08-16,5a50d08):详情卷轴顶部统一 3:4 双金边画像位;3 名英雄(周瑜/曹丕/张星彩)三国杀经典立绘入库 public/assets/heroes/(596KB,严格 3:4 同源尺寸);HeroDef.image 单一事实源,快照透传;珍宝用内联古风纹样;onError 显「画像缺失」错误态非静默兜底;来源与授权登记 manifest.json + CREDITS.md(仅学习娱乐不商用)
+

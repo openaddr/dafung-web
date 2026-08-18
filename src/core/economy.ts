@@ -1,4 +1,5 @@
-// 地产交易:购买、升级、破产裁决(本作无传统租金机制,落他人城走珍宝交涉)。
+// 地产交易:购买、升级、破产裁决(本作无过路费/升级费:升级免费,由到达城池触发;
+// 收入全靠卖珍宝与都城补给,落他人城走珍宝交涉)。
 import type {
   Player,
   PropertyDef,
@@ -7,7 +8,7 @@ import type {
 import { canUpgrade } from "./types";
 import { findHolding } from "./player";
 
-/** 购买无主地产。现金不足拒绝。 */
+/** 购买无主地产(购入即为 Lv.1)。现金不足拒绝。 */
 export function buy(buyer: Player, def: PropertyDef): TransactionResult {
   if (buyer.cash < def.purchasePrice) return { status: "InsufficientFunds" };
   buyer.cash -= def.purchasePrice;
@@ -15,29 +16,29 @@ export function buy(buyer: Player, def: PropertyDef): TransactionResult {
     propertyId: def.id,
     group: def.group,
     purchasePrice: def.purchasePrice,
-    totalUpgradeCost: 0,
-    level: 0,
+    level: 1,
     maxLevel: def.maxLevel,
   });
-  return { status: "Ok", newLevel: 0 };
+  return { status: "Ok", newLevel: 1 };
 }
 
-/** 升级自有地产(L+1)。满级/现金不足/未持有拒绝。 */
+/** 升级自有地产(L+1,免费——到达城池即可升级,本作无升级费)。满级/未持有拒绝。 */
 export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
   const h = findHolding(owner, def.id);
   if (!h) return { status: "NotOwned" };
   if (!canUpgrade(h)) return { status: "AlreadyMaxLevel", newLevel: h.level };
-  if (owner.cash < def.upgradeCost)
-    return { status: "InsufficientFunds", newLevel: h.level };
-  owner.cash -= def.upgradeCost;
   h.level += 1;
-  h.totalUpgradeCost += def.upgradeCost;
   return { status: "Ok", newLevel: h.level };
 }
 
-/** 都城补给 = resupplyPerLevel × (level+1);def/level 缺失时为 0。集中一处,供引擎/bot/UI 复用。 */
+/** 城池当前等级的变卖价(各等级价值显式定义于地图 json 的 valueByLevel)。 */
+export function sellValueOf(def: PropertyDef, level: number): number {
+  return def.valueByLevel[level - 1];
+}
+
+/** 都城补给 = resupplyPerLevel × level;def/level 缺失时为 0。集中一处,供引擎/bot/UI 复用。 */
 export function supplyFor(resupplyPerLevel: number | undefined, level: number | undefined): number {
-  return (resupplyPerLevel ?? 0) * ((level ?? 0) + 1);
+  return (resupplyPerLevel ?? 0) * (level ?? 0);
 }
 
 /**

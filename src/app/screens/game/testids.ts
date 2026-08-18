@@ -27,6 +27,8 @@ export const TESTIDS = {
   rollButton: "roll-button",
   /** 珍宝/名士详情卷轴(HandPanel 点卡弹出;UI F5)。 */
   cardDetailScroll: "card-detail-scroll",
+  /** 详情卷轴画像位(#36:3:4 容器,名士画像/珍宝纹样)。 */
+  cardDetailPortrait: "card-detail-portrait",
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 
@@ -45,15 +47,15 @@ export const TESTIDS = {
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
   thinking: "thinking",
+  waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx)
 
   // ── 棋盘区小组件 ──
   muteButton: "mute-button",
   /** 总览复位(还原 pan/zoom;等价旧 BoardView.resetView)。 */
   resetView: "reset-view",
 
-  // ── 选都二次确认弹窗 ──
-  /** 「定都于此?」确认框容器与两枚按钮(需求1:React 化时旧版确认框丢失,此处找回)。 */
-  confirmCapital: "confirm-capital",
+  // ── 选都确认(#35:按钮搬进城池详情卷轴,testid 不变,e2e 选择器零震荡)──
+  /** 详情卷轴选都模式的「定都于此」按钮(旧独立确认框容器 testid 已退役)。 */
   confirmCapitalOk: "confirm-capital-ok",
   confirmCapitalCancel: "confirm-capital-cancel",
 

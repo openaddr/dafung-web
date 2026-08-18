@@ -12,7 +12,7 @@
 import { memo } from "react";
 import type { Board } from "@core/board";
 import type { BoardPos } from "@core/types";
-import { playerColor, rgba } from "@core/theme";
+import { Theme, playerColor, rgba } from "@core/theme";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { marchPos } from "@app/fx/useMarch";
 import type { BoardPlayer } from "./BoardView";
@@ -37,6 +37,8 @@ export interface TokenSlot {
   y: number;
   /** 0=正常,0.15=破产淡出,0=隐藏(未选都)。 */
   opacity: number;
+  /** #30 行军接管中(强调态:金边拖影 + 落脚指示环)。 */
+  marching: boolean;
 }
 
 interface TokenLayerProps {
@@ -50,18 +52,30 @@ interface TokenLayerProps {
   layerRef?: React.Ref<SVGGElement>;
 }
 
+/** #30 棋子放大比例:整体 scale 1.25(旗/字/印玺等比)——旌旗在 zoom-out 总览下
+ *  仍是可辨色块。scale 落在独立 <g transform> 属性上,与 .bv-token 的 CSS
+ *  style.transform(行军命令式写入 translate)互不覆盖。 */
+const TOKEN_SCALE = 1.25;
+
 function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);
   return (
     <g className="bv-token-flag">
       {/* 旗杆 */}
       <line x1={0} y1={0} x2={0} y2={-34} stroke="rgba(40,28,10,0.85)" strokeWidth={2.5} />
-      {/* 三角旌旗(玩家色) */}
+      {/* 三角旌旗(玩家色)。B2:白描边一圈——棋子是"人",要在城旗(燕尾)/王旗(双层大三角)
+          之外第一眼可辨,白边在任何底色上勾出旗形轮廓;原深色描边退为内侧次层。 */}
       <polygon
         points="0,-34 26,-26 0,-16"
         fill={rgba(c)}
-        stroke="rgba(40,28,10,0.6)"
-        strokeWidth={1}
+        stroke="rgba(255,252,240,0.95)"
+        strokeWidth={1.6}
+      />
+      <polygon
+        points="0,-34 26,-26 0,-16"
+        fill="none"
+        stroke="rgba(40,28,10,0.5)"
+        strokeWidth={0.6}
       />
       {/* 国号字 */}
       <text
@@ -82,14 +96,19 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
 }
 
 const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
-  const { player: p, x, y, opacity } = slot;
+  const { player: p, x, y, opacity, marching } = slot;
   return (
     <g
-      className="bv-token"
+      className={marching ? "bv-token bv-token-marching" : "bv-token"}
       data-token-player={p.id}
       style={{ transform: `translate(${x}px, ${y}px)`, opacity }}
     >
-      <TokenFlag p={p} />
+      <g transform={`scale(${TOKEN_SCALE})`}>
+        {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
+            金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
+        <circle className="bv-token-march-ring" r={17} fill="none" stroke={rgba(Theme.goldBright, 0.9)} strokeWidth={2} strokeDasharray="6 5" />
+        <TokenFlag p={p} />
+      </g>
     </g>
   );
 });
@@ -114,22 +133,24 @@ export const TokenLayer = memo(function TokenLayer({
   const slots: TokenSlot[] = [];
   for (const p of players) {
     if (setupUnselected && p.capitalIndex < 0) {
-      slots.push({ player: p, x: 0, y: 0, opacity: 0 });
+      slots.push({ player: p, x: 0, y: 0, opacity: 0, marching: false });
       continue;
     }
     if (skipTokenIds?.has(p.id)) {
       // 行军接管中:不按声明式(引擎终态)定位,改用 useMarch 维护的「当前段坐标」——
       // 保证行军中任何重渲(如 bot 步进 sync)把 transform 写成当前段目标而非终点,
       // 命令式逐段动画不被 React 拽回。接管刚建立(尚无坐标)则暂不渲染(等一帧起点锚定)。
+      // #30:接管中即标 marching → 金边拖影 + 落脚指示环(强调效果挂在动画路径上,
+      // 动画结束 removeMarching 后 React 终态接管,强调态随之自然消退)。
       const mp = marchPos.get(p.id);
       if (!mp) continue;
-      slots.push({ player: p, x: mp.x, y: mp.y, opacity: 1 });
+      slots.push({ player: p, x: mp.x, y: mp.y, opacity: 1, marching: true });
       continue;
     }
     const pos = tokenRenderPos(p, board);
     const mates = bySlot.get(playerSlotKey(p, board)) ?? [p.id];
     const off = TOKEN_SLOT_OFFSETS[Math.max(0, mates.indexOf(p.id)) % TOKEN_SLOT_OFFSETS.length];
-    slots.push({ player: p, x: pos.x + off.x, y: pos.y + off.y, opacity: p.isBankrupt ? 0.15 : 1 });
+    slots.push({ player: p, x: pos.x + off.x, y: pos.y + off.y, opacity: p.isBankrupt ? 0.15 : 1, marching: false });
   }
 
   return (

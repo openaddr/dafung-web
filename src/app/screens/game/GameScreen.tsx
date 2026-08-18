@@ -4,21 +4,23 @@
 import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
-import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { useNetStore } from "@app/store/netStore";
+import { getController, getControllerMap } from "@app/controllers/registry";
 import { formatMoney } from "@core/money";
-import { Theme } from "@core/theme";
+import { playerColor, rgba } from "@core/theme";
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandPanel } from "./HandPanel";
+import { WaitingBar } from "./WaitingBar";
 import { StatusBar } from "./StatusBar";
 import { WarlogPanel } from "./WarlogPanel";
-import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { TESTIDS } from "./testids";
+import { useIsNarrow } from "@app/hooks/use-media-query";
 import { VERSION } from "../../../version";
 
 /** 静音开关:棋盘区右上小按钮(须挂在 AudioProvider 内读 context,故独立组件)。 */
@@ -32,7 +34,7 @@ function MuteButton() {
       title={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
       // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变
-      className="absolute top-2 right-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+      className="absolute top-[calc(var(--safe-top)+8px)] right-[calc(var(--safe-right)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
     >
       {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线组合字符),不再 ♪/♫ 混用
           两种音符表达"有无声"(语义弱);同一符号加删除线直观表"关闭"。 */}
@@ -42,31 +44,41 @@ function MuteButton() {
 }
 
 export function GameScreen() {
-  // 城池详情(Playing 相位点城查看,本地 UI 态;Setup 相位点城是选都,走 controller)
+  // 城池详情(Playing 相位点城查看;Setup 选都期点可选城也走详情,内嵌「定都于此」)
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
-  // 选都二次确认的目标城(需求1):React 化时把旧版「确认筑城/另择他城」框弄丢了,
-  // 此处找回——点城只暂存目标,确认才落子;点其它可选城直接切换目标(弹窗内容跟随)。
-  const [pendingCapital, setPendingCapital] = useState<number | null>(null);
+  // #35 详情卷轴的选都模式:选都期首击=查看详情,详情内确认才 setupPickCapital
+  // (整合旧 pendingCapital「定都于此?」确认框——确认框不再独立存在)。
+  const [detailPickCapital, setDetailPickCapital] = useState(false);
   // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
-  // 默认展开;收起态只留「展开」按钮 + 当前活跃玩家国号 + 我的现金竖排摘要。
+  // P0-7 窄屏(<768px)复用同一状态:侧栏变覆盖式滑入抽屉,只有 开/合 两态(无 w-12 窄条);
+  // 首访默认——桌面展开、窄屏收起(棋盘优先),其后按用户选择记忆。
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
-      return localStorage.getItem("dafung.sidebar") !== "collapsed";
+      const saved = localStorage.getItem("dafung.sidebar");
+      if (saved === "open") return true;
+      if (saved === "collapsed") return false;
+      return !window.matchMedia("(max-width: 767px)").matches;
     } catch {
       return true;
     }
   });
-  const toggleSidebar = () => {
-    setSidebarOpen((open) => {
-      const next = !open;
-      try {
-        localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
-      } catch {
-        /* 隐私模式写失败不阻塞 */
-      }
-      return next;
-    });
+  const setSidebar = (open: boolean) => {
+    setSidebarOpen(open);
+    try {
+      localStorage.setItem("dafung.sidebar", open ? "open" : "collapsed");
+    } catch {
+      /* 隐私模式写失败不阻塞 */
+    }
   };
+  const toggleSidebar = () => setSidebarOpen((open) => {
+    const next = !open;
+    try {
+      localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
+    } catch {
+      /* 隐私模式写失败不阻塞 */
+    }
+    return next;
+  });
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
   // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;总览复位按钮用)
@@ -79,6 +91,13 @@ export function GameScreen() {
   const hintLevel = useGameStore((s) => s.hintLevel);
   const thinking = useGameStore((s) => s.thinking);
   const localPlayer = useLocalPlayer();
+  // 托管标记与联机 pending(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
+  const net = useNetStore();
+  // 托管态单源取值:联机=座位广播(已入座,seats[mySeat] 恒存在);单机=控制器本地标记。
+  // 不做链式回退——两种模式各有唯一事实源,取错源即暴露接线 bug。
+  const autopilotOn = net.roomId !== "" ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
+  // P0-7 窄屏判定(<768px):决定侧栏走覆盖式抽屉还是桌面并排布局
+  const isNarrow = useIsNarrow();
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
@@ -123,32 +142,36 @@ export function GameScreen() {
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
 
+  // 活跃方国号(引擎不变量:Playing 期 activeIndex 恒有效;非 Playing 不会被渲染消费)
+  const activeGuohao = snapshot.phase === "Playing" ? snapshot.players[snapshot.activeIndex].guohao : "";
+
+  // 「轮到我」条件(桌面窄条金框与窄屏浮动条共用口径):本地人类可操作且非托管的行军相位
+  const myTurnToRoll =
+    interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll";
+
   // 选都阶段的引导文案(对照旧 showPickHint:「X」择一空城建都)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
-      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex]?.guohao ?? "?"}」择一空城建都`
+      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」择一空城建都`
       : null;
 
-  // 待确认城的信息(城名/筑城价/区域名):catalog 是静态查询上下文,渲染期直取即可
-  const pendingCapitalInfo = useMemo(() => {
-    if (pendingCapital == null) return null;
-    const ctx = getControllerContext();
-    const tile = ctx?.board.tiles[pendingCapital];
-    const def = tile?.propertyId ? ctx?.catalog.get(tile.propertyId) : undefined;
-    if (!tile || !def) return null;
-    return {
-      name: tile.name,
-      price: formatMoney(def.purchasePrice),
-      region: Theme.groupNames[def.group] ?? "未知",
-    };
-  }, [pendingCapital]);
+  // 关详情卷轴(#35:一并退出选都模式)
+  const closeDetail = () => {
+    setDetailTileIndex(null);
+    setDetailPickCapital(false);
+  };
+  // #35 详情内「定都于此」:确认才落子推进
+  const confirmCapital = (i: number) => {
+    closeDetail();
+    controller?.setupPickCapital(i);
+  };
 
   return (
     <AudioProvider>
       {/* 3D 骰子(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
           生命周期=一局;行军按钮点击后控制器 busy 锁 interactive,骰子播放期间防连点。 */}
       <DiceOverlay />
-      <div className="flex h-full w-full bg-bg text-ink">
+      <div className="relative flex h-full w-full bg-bg text-ink">
       {/* 棋盘区(相对定位承载 hint/thinking/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
@@ -160,10 +183,21 @@ export function GameScreen() {
           players={players}
           onTileClick={(i) => {
             // 相位路由收口于此(Wave3 候选2,原 controller.tileClick 的职责上移):
-            // Playing=查看详情(本地 UI 态);Setup 选都期=弹「定都于此?」确认框
-            // (需求1:点城不再直接落子,确认后才 setupPickCapital)。
-            if (snapshot.phase === "Playing") setDetailTileIndex(i);
-            else if (selectableTiles?.has(i)) setPendingCapital(i);
+            // Playing=任何格查看详情(#33,含特殊地点);Setup 选都期:
+            // 可选城首击=详情卷轴(#35,确认在详情内),灰城点=即时 hint 反馈(#27)。
+            if (snapshot.phase === "Playing") {
+              setDetailTileIndex(i);
+            } else if (selectableTiles) {
+              if (selectableTiles.has(i)) {
+                setDetailTileIndex(i);
+                setDetailPickCapital(true);
+              } else {
+                const taken = snapshot.takenCapitalIndices.includes(i);
+                useGameStore
+                  .getState()
+                  .pushHint(taken ? "该城已被占据,另择他城" : "此处不可建都", "error");
+              }
+            }
           }}
           selectableTiles={selectableTiles}
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}
@@ -182,8 +216,17 @@ export function GameScreen() {
         )}
         {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
         <HintBar hint={hint} level={hintLevel} />
+        {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债,
+            替代旧「运筹中…」单一角标(文案按等待对象细分;thinking testid 保留在此) */}
+        <WaitingBar
+          snapshot={snapshot}
+          interactive={interactive}
+          viewSeat={viewSeat}
+          online={net.roomId !== ""}
+        />
         {(thinking || (snapshot.phase !== "GameOver" && snapshot.players[snapshot.activeIndex]?.isBot)) && (
-          // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位)
+          // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位;
+          // e2e react-solo 依赖此 testid)
           <div
             data-testid={TESTIDS.thinking}
             className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-ink/80 px-3 py-1 font-brush text-panel"
@@ -199,34 +242,32 @@ export function GameScreen() {
             viewSeat={viewSeat}
             interactive={interactive}
             detailTileIndex={detailTileIndex}
-            onDetailClose={() => setDetailTileIndex(null)}
+            onDetailClose={closeDetail}
+            detailPickCapital={detailPickCapital}
+            onConfirmCapital={confirmCapital}
           />
         </div>
-        {/* 选都二次确认(需求1):遮罩不拦棋盘——弹窗开着仍可点其它可选城换目标。
-            相位离开 Setup(确认落子推进)时 pendingCapital 立即清空,弹窗随快照切换消失。 */}
-        {pendingCapitalInfo ? (
-          <ConfirmDialog
-            testid={TESTIDS.confirmCapital}
-            backdropBlocks={false}
-            title="定都于此?"
-            confirmLabel="确认筑城"
-            cancelLabel="另择他城"
-            onConfirm={() => {
-              const i = pendingCapital;
-              setPendingCapital(null);
-              if (i != null) controller?.setupPickCapital(i);
-            }}
-            onCancel={() => setPendingCapital(null)}
-          >
-            <p className="m-0 leading-7">
-              于 <b className="font-brush text-ink">{pendingCapitalInfo.name}</b> 筑城立都
-              <br />
-              筑城之资:<span className="text-money">{pendingCapitalInfo.price}</span>
-              <br />
-              所属区域:{pendingCapitalInfo.region}
-            </p>
-          </ConfirmDialog>
-        ) : null}
+        {/* G-5 常驻回合 chip:左上悬浮钮下方(避开复位钮),国号色圆徽 +「X之回合」;
+            bot 活跃时附「运筹中」微标(与 WaitingBar 文案口径一致),只读不拦交互。 */}
+        {snapshot.phase === "Playing" &&
+          (() => {
+            const active = snapshot.players[snapshot.activeIndex];
+            if (!active) return null;
+            return (
+              <div className="pointer-events-none absolute top-[calc(var(--safe-top)+56px)] left-[calc(var(--safe-left)+8px)] z-10 flex items-center gap-1.5 rounded bg-panel/90 px-2 py-1 shadow">
+                <span
+                  className="flex h-5 w-5 items-center justify-center rounded-full font-brush text-xs text-white"
+                  style={{ backgroundColor: rgba(playerColor(active.colorIndex)) }}
+                >
+                  {active.guohao.charAt(0)}
+                </span>
+                <span className="font-brush text-sm text-ink">{active.guohao}之回合</span>
+                {active.isBot && (
+                  <span className="rounded bg-ink/80 px-1 font-brush text-xs text-panel">运筹中</span>
+                )}
+              </div>
+            );
+          })()}
         {/* 总览复位(对照旧版 reset-view):置于左上,与右上的静音按钮错开 */}
         <button
           type="button"
@@ -234,7 +275,7 @@ export function GameScreen() {
           title="总览复位"
           onClick={() => boardRef.current?.reset()}
           // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变
-          className="absolute top-2 left-2 z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+          className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
         >
           {/* S6 符号表统一:复位统一 ◎(圆心居中,古印感),不再用光学校准符号 ⌖ */}
           ◎
@@ -245,26 +286,106 @@ export function GameScreen() {
         <span className="pointer-events-none absolute right-1 bottom-0.5 font-body text-[10px] text-ink-dim/70">
           {VERSION}
         </span>
+        {/* P0-7 窄屏浮动小条(侧栏抽屉收起时):把手 + 「轮到我」金框 + 行军热钮 + 「托」印。
+            波1 加在桌面折叠窄条上的信息在此平移到棋盘右缘,窄屏收起时行军入口不丢。 */}
+        {isNarrow && !sidebarOpen && (
+          <div
+            data-testid={TESTIDS.sidebarCollapsed}
+            className={
+              "absolute top-1/2 right-0 z-10 flex -translate-y-1/2 flex-col items-center gap-2 rounded-l border border-r-0 border-gold/60 bg-panel/95 px-1 py-2 shadow-md " +
+              (myTurnToRoll ? "bg-gold/10 ring-1 ring-gold/60" : "")
+            }
+          >
+            <button
+              type="button"
+              data-testid={TESTIDS.sidebarToggle}
+              title="展开侧栏"
+              onClick={toggleSidebar}
+              className="flex min-h-10 min-w-10 items-center justify-center rounded font-brush text-ink-dim hover:text-ink"
+            >
+              «
+            </button>
+            {/* G-8:托管中「托」印,收起态仍可见(点开抽屉可收回) */}
+            {autopilotOn && (
+              <span
+                title="托管中,展开侧栏可收回"
+                className="rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                托
+              </span>
+            )}
+            <span
+              title={`当前回合:${activeGuohao}`}
+              className="font-brush text-lg text-ink"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              {activeGuohao}
+            </span>
+            {localPlayer && (
+              <span
+                title={`我的现金 ${formatMoney(localPlayer.cash)}`}
+                className="font-brush text-sm text-money"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {formatMoney(localPlayer.cash)}
+              </span>
+            )}
+            {/* P0-3 行军热钮:与 HandPanel 主按钮同发 rollAndMove,pending 防连点 */}
+            {myTurnToRoll && (
+              <button
+                type="button"
+                title="行军"
+                disabled={net.pending}
+                onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+                className="min-h-10 min-w-10 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40"
+                style={{ writingMode: "vertical-rl" }}
+              >
+                {net.pending ? "行军中…" : "行军"}
+              </button>
+            )}
+          </div>
+        )}
+        {/* P0-7 窄屏遮罩:抽屉展开时压暗棋盘,点击即收(点心即关) */}
+        {isNarrow && sidebarOpen && (
+          <div
+            data-testid="sidebar-backdrop"
+            className="absolute inset-0 z-10 bg-ink/40"
+            onClick={() => setSidebar(false)}
+          />
+        )}
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶)。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
-          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。 */}
+          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。
+          P0-7 窄屏(<768px)覆盖式抽屉:absolute 贴右滑入(translate 200ms),棋盘始终全宽;
+          无 w-12 中间态,收起态的信息挪到棋盘右缘浮动小条(见 board-wrap 内)。 */}
       <aside
-        data-testid={sidebarOpen ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
+        data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
         className={
-          "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
-          (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
+          isNarrow
+            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel shadow-2xl transition-transform duration-200 " +
+              (sidebarOpen ? "translate-x-0" : "translate-x-full")
+            : "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
+              (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
         }
       >
-        {sidebarOpen ? (
+        {sidebarOpen || isNarrow ? (
           <>
             <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
               群雄逐鹿
               <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
             </h1>
             <StatusBar snapshot={snapshot} />
-            <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} interactive={interactive} />
+            {/* G-17 双层卷轴互斥:手牌卡详情卷轴打开时关掉城详情卷轴(同一时刻只留一卷) */}
+            <HandPanel
+              snapshot={snapshot}
+              player={localPlayer}
+              controller={controller}
+              interactive={interactive}
+              onCardDetailOpen={closeDetail}
+            />
             <WarlogPanel snapshot={snapshot} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
             <button
@@ -289,24 +410,56 @@ export function GameScreen() {
             >
               «
             </button>
-            <div className="flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-4">
+            {/* P0-3 折叠窄条「轮到我」:轮到本地人类且非托管时整条金色微底 + 内描边,
+                一眼可辨不错过回合;底部挂竖排「行军」热钮(与主按钮同发 rollAndMove)。 */}
+            <div
+              className={
+                "flex min-h-0 flex-1 flex-col items-center gap-4 overflow-hidden py-4 " +
+                (interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll"
+                  ? "bg-gold/10 ring-1 ring-gold/60 ring-inset"
+                  : "")
+              }
+            >
+              {/* G-8:托管中窄条常驻金色「托」印(竖排小方块),折叠后仍可见 */}
+              {autopilotOn && (
+                <span
+                  title="托管中,展开侧栏可收回"
+                  className="shrink-0 rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  托
+                </span>
+              )}
               <span
-                title={`当前回合:${snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}`}
+                title={`当前回合:${activeGuohao}`}
                 className="font-brush text-xl text-ink"
                 style={{ writingMode: "vertical-rl" }}
               >
-                {snapshot.players[snapshot.activeIndex]?.guohao ?? "?"}之回合
+                {activeGuohao}之回合
               </span>
               {localPlayer && (
                 <span
-                  title={`我的现金 ${localPlayer.cash}`}
+                  title={`我的现金 ${formatMoney(localPlayer.cash)}`}
                   className="font-brush text-sm text-money"
                   style={{ writingMode: "vertical-rl" }}
                 >
-                  {localPlayer.cash >= 10000
-                    ? `${Math.floor(localPlayer.cash / 10000)}锭`
-                    : `${Math.floor(localPlayer.cash / 100)}两`}
+                  {/* G-2:与各面板同口径 formatMoney,不再手工换算丢精度 */}
+                  {formatMoney(localPlayer.cash)}
                 </span>
+              )}
+              {/* P0-3 行军热钮:命令与 HandPanel 主按钮一致(dispatchCommand 唯一入口),
+                  pending(联机已发未回)时禁用防连点 */}
+              {interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll" && (
+                <button
+                  type="button"
+                  title="行军"
+                  disabled={net.pending}
+                  onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
+                  className="min-h-0 min-w-12 flex-1 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40"
+                  style={{ writingMode: "vertical-rl" }}
+                >
+                  {net.pending ? "行军中…" : "行军"}
+                </button>
               )}
             </div>
           </>
