@@ -23,10 +23,10 @@ const TIER_OF = (liang: number) => ({
 });
 const TIERS = new Map<number, ReturnType<typeof TIER_OF>>();
 for (const liang of [18, 22, 24, 27, 34, 38, 40]) TIERS.set(liang, TIER_OF(liang));
-// 乘法城(30 两):tradeAdd 全 0,tradeMult [1.5,2,3,5]
+// 乘法城(30 两):tradeAdd 全 0,tradeMult [2,3,4,5]
 TIERS.set(30, {
   price: y2f(30), buildCost: y2f(15),
-  tradeAdd: [0, 0, 0, 0], tradeMult: [1.5, 2, 3, 5],
+  tradeAdd: [0, 0, 0, 0], tradeMult: [2, 3, 4, 5],
   valueByLevel: [12, 18, 26, 36].map(y2f),
 });
 
@@ -101,6 +101,6 @@ describe("经济数值 v2 守卫", () => {
     });
   });
   it("城池等级倍率(v2):L0 起步 ×1.5", () => {
-    expect(CITY_LEVEL_MULTIPLIER).toEqual([1.5, 2, 3, 5]);
+    expect(CITY_LEVEL_MULTIPLIER).toEqual([2, 3, 4, 5]);
   });
 });

@@ -33,7 +33,7 @@ export function tradePriceOf(guidePrice: number, trade: TradeFormula | undefined
 
 /** 城池等级 → 坐地起价倍率(旧 trade 公式回退用;下标 = 等级,Lv0..3)。
  *  新字段 tradeAdd/tradeMult 由地图 json 直接配置(同样下标 = 等级)。 */
-export const CITY_LEVEL_MULTIPLIER = [1.5, 2, 3, 5]; // L0=×1.5, L1=×2, L2=×3, L3=×5
+export const CITY_LEVEL_MULTIPLIER = [2, 3, 4, 5]; // L0=×2, L1=×3, L2=×4, L3=×5
 
 /** 坐地起价售价(新公式,per-level 加值/乘数优先;无则回退旧 trade 公式)。
  *  公式:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加;cityLevel 0..3)。 */

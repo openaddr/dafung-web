@@ -82,11 +82,11 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-chengdu")!;
-    expect(def.tradeMult).toEqual([1.5, 2, 3, 5]); // 乘法城逐级(Lv0-3),下标 = 等级
+    expect(def.tradeMult).toEqual([2, 3, 4, 5]); // 乘法城逐级(Lv0-3),下标 = 等级
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
-    const price = Math.round(guide * 1.5); // Lv0 tradeMult=1.5(乘法城)
+    const price = guide * 2; // Lv0 tradeMult=2(乘法城)
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(owner.treasures.length).toBe(0);
@@ -114,10 +114,10 @@ describe("珍宝系统", () => {
     finishSetup(e);
     const def = e.catalog.get("prop-chengdu")!;
     const guide = TREASURE_PRICE[TLEVEL];
-    // Lv0 vs Lv3:乘法城 tradeMult=[1.5,2,3,5](等级 0..3)
+    // Lv0 vs Lv3:乘法城 tradeMult=[2,3,4,5](等级 0..3)
     const priceL0 = premiumPriceOf(guide, def, 0);
     const priceL3 = premiumPriceOf(guide, def, 3);
-    expect(priceL0).toBe(Math.round(guide * 1.5));
+    expect(priceL0).toBe(guide * 2);
     expect(priceL3).toBe(guide * 5);
     expect(priceL3).toBeGreaterThan(priceL0);
   });
@@ -203,7 +203,7 @@ describe("珍宝系统", () => {
     finishSetup(e);
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
     const ownerCash0 = owner.cash;
-    const price = Math.round(guide * 1.5); // Lv0 乘法城 tradeMult=1.5
+    const price = guide * 2; // Lv0 乘法城 tradeMult=2
     mover.cash = price - 1;
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });

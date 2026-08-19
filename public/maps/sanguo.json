@@ -361,12 +361,7 @@
         2600,
         3600
       ],
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "resupplyPerLevel": 300
     },
     {
@@ -473,12 +468,7 @@
       "region": "巴蜀",
       "price": 3000,
       "buildCost": 1500,
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "valueByLevel": [
         1200,
         1800,
@@ -516,12 +506,7 @@
         2600,
         3600
       ],
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "resupplyPerLevel": 300
     },
     {
@@ -609,12 +594,7 @@
         2600,
         3600
       ],
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "resupplyPerLevel": 300
     },
     {
@@ -690,12 +670,7 @@
       "region": "中原",
       "price": 3000,
       "buildCost": 1500,
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "valueByLevel": [
         1200,
         1800,
@@ -937,12 +912,7 @@
         2600,
         3600
       ],
-      "tradeMult": [
-        1.5,
-        2,
-        3,
-        5
-      ],
+      "tradeMult": [2, 3, 4, 5],
       "resupplyPerLevel": 300
     },
     {

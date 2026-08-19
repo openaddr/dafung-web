@@ -276,8 +276,8 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 珍宝等级范围 | 1–10 | `treasures.ts:5-12` |
 | 珍宝牌堆总数 | 14 | `treasures.ts:5-12`(展开 count) |
 | 坐地起价公式 | 指导价 × tradeMult[Lv] + tradeAdd[Lv] | `treasures.ts:38` `premiumPriceOf`;地图 `tradeMult`/`tradeAdd`(长度 4) |
-| 坐地起价回退倍率 | Lv0=×1.5,Lv1=×2,Lv2=×3,Lv3=×5 | `treasures.ts` `CITY_LEVEL_MULTIPLIER` |
-| 城池价位档(经济 v2) | 18/22/24/27/34/38/40 两七档加法城 + 30 两固定乘法城(成都/邺城/剑阁/街亭/华容道/合肥,tradeMult=[1.5,2,3,5]) | 地图 json;一致性守卫 `test/map-economy-guard.test.ts` |
+| 坐地起价回退倍率 | Lv0=×2,Lv1=×3,Lv2=×4,Lv3=×5 | `treasures.ts` `CITY_LEVEL_MULTIPLIER` |
+| 城池价位档(经济 v2) | 18/22/24/27/34/38/40 两七档加法城 + 30 两固定乘法城(成都/邺城/剑阁/街亭/华容道/合肥,tradeMult=[2,3,4,5]) | 地图 json;一致性守卫 `test/map-economy-guard.test.ts` |
 | 城池变卖价系数 | 购价×[0.4,0.6,0.85,1.2](两取整) | 地图 `valueByLevel`;守卫测试 |
 | 建城费 | 购价×50%(两取整) | 地图 `buildCost`;守卫测试 |
 | 身价口径 | 仅现金 | `networth.ts:9` `netWorth` |
