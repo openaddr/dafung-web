@@ -37,7 +37,6 @@ export function serializeGame(e: GameEngine) {
     treasureVisitor: e.treasureVisitor
       ? { propertyId: e.treasureVisitor.def.id, ownerIdx: e.treasureVisitor.ownerIdx }
       : null,
-    pendingHaltIsOnPath: e.pendingHaltIsOnPath,
     pendingDebt: e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null,
     // 珍宝交涉交割托管(买家付清价款前珍宝暂存;恢复后可继续清算/交割)
     escrowTreasure: e.escrowTreasure

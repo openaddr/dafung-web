@@ -14,7 +14,6 @@ export type { VictoryScreenProps } from "./VictoryScreen";
 export { TileDetailScroll } from "./TileDetailScroll";
 export type { TileDetailScrollProps } from "./TileDetailScroll";
 export {
-  HaltDecisionScroll,
   BranchDecisionScroll,
   BuyDecisionScroll,
   UpgradeDecisionScroll,

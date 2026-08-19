@@ -209,14 +209,8 @@ export class GameEngine {
   capitalOwnerOf(tileIndex: number): Player | null {
     return this.players.find((p) => p.capitalIndex === tileIndex) ?? null;
   }
-  get pendingHaltIsOnPath(): boolean {
-    return (
-      this.lastMove != null &&
-      this.lastMove.passedCapital &&
-      this.lastMove.landIndex !== this.lastMove.capitalIndex
-    );
-  }
-  /** 当前活跃玩家所在主路 tile 是否为辅路起点(供 UI 决定是否弹辅路抉择)。 */
+  /** 当前活跃玩家所在主路 tile 是否为辅路起点(供 UI 决定是否弹辅路抉择)。
+   *  onBranch={step:-1}(入口待入)不算:已抉择过,不再重复弹。 */
   currentTileIsBranchStart(): boolean {
     return this.activePlayer.onBranch == null && this.board.getBranchStart(this.activePlayer.position);
   }
@@ -440,8 +434,9 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
-  /** 抽签 → 移动(主路或辅路逐格)→ 若路径含都城(非落点)进入驻跸抉择;否则直接落格。
-   *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell。 */
+  /** 抽签 → 移动(主路或辅路逐格)→ 经过自己都城必停(补给+结束回合);否则落格结算。
+   *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell;
+   *  onBranch={step:-1} = 入口待入辅路(上回合选「入辅路」,本回合掷骰起沿辅路格推进)。 */
   rollAndMove(): void {
     if (!this.assertPhase("Roll", "RollAndMove")) return;
     const mover = this.activePlayer;
@@ -468,7 +463,7 @@ export class GameEngine {
       `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
     );
 
-    // 经过自己的都城(起点)→ 颁发委任状(无论后续驻跸或行军)。
+    // 经过自己的都城(起点)→ 颁发委任状(无论后续必停或恰落都城)。
     // 克制"运气好跑得快、一圈把城全占"——买城需要委任状,数量有限。
     if (path.passedCapital) {
       mover.warrants += WARRANTS_PER_PASS;
@@ -479,19 +474,29 @@ export class GameEngine {
         `warrantGrant player=${mover.id} +${WARRANTS_PER_PASS} warrants=${mover.warrants}`,
       );
     }
-    // 经过都城且落点不是都城 → 抉择:驻跸(补给+结束)or 继续行军到落点
-    // (辅路落格不会触发驻跸:辅路格不是都城)
+    // 经过自己的都城且落点不是都城 → 必停:放弃剩余步数停在都城,结算补给,结束回合
+    // (辅路落格不会触发必停:辅路格不是都城)
     if (path.landBranchStep == null && path.passedCapital && path.landIndex !== mover.capitalIndex) {
-      // 辅路汇入主路后路过都城:onBranch 必须清,否则 token 视觉停在旧辅路 cell。
-      mover.onBranch = null;
-      this.turnPhase = "AwaitingCapitalHalt";
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 军至都城「${this.board.at(mover.capitalIndex).name}」:驻跸补给 or 继续行军至「${this.board.at(path.landIndex).name}」?`,
-        `awaitingHalt player=${mover.id} capital=#${mover.capitalIndex} dest=#${path.landIndex}`,
+      // 路径截断到都城:行军动画只走到都城,不展示被放弃的剩余步数。
+      // traversed 必含都城(passedCapital);辅路汇入后路过都城时前缀补上辅路段步数。
+      const capIdxInTraversed = path.traversed.indexOf(mover.capitalIndex);
+      const branchPrefix =
+        mover.onBranch != null && this.board.branch
+          ? this.board.branch.cells.length - mover.onBranch.step
+          : 0;
+      this.lastMove = this.board.computePath(
+        fromPos,
+        branchPrefix + capIdxInTraversed + 1,
+        mover.capitalIndex,
+        mover.onBranch,
       );
-      return; // 等 haltAtCapital / continueMove
+      mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
+      mover.position = mover.capitalIndex;
+      const supply = this.applyResupply(mover, "halt");
+      this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
+      this.turnPhase = "Land";
+      this.endTurn();
+      return;
     }
     // 辅路逐格落点:落辅路第 step 格 → 触发该格效果
     if (path.landBranchStep != null && this.board.branch) {
@@ -519,28 +524,9 @@ export class GameEngine {
     this.resolveLanding();
   }
 
-  /** 驻跸都城(放弃剩余步数),结算补给。 */
-  haltAtCapital(): void {
-    if (!this.assertPhase("AwaitingCapitalHalt", "HaltAtCapital")) return;
-    const mover = this.activePlayer;
-    mover.position = mover.capitalIndex;
-    const supply = this.applyResupply(mover);
-    this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
-    this.turnPhase = "Land";
-    this.endTurn();
-  }
-
-  /** 继续行军到原定落点。 */
-  continueMove(): void {
-    if (!this.assertPhase("AwaitingCapitalHalt", "ContinueMove")) return;
-    const mover = this.activePlayer;
-    mover.position = this.lastMove!.landIndex;
-    this.turnPhase = "Land";
-    this.resolveLanding();
-  }
-
   /** 辅路入口抉择:"Main"=走大路(起点 tile 按普通城落格,可购买等);
-   *  "Branch"=入辅路(置 onBranch={step:0},立即触发第 0 格效果)。
+   *  "Branch"=入辅路——本回合结束(棋子留在主路入口格,置「待入辅路」onBranch={step:-1}),
+   *  下回合掷骰起沿辅路格推进(掷几点走几格,溢出从辅路终点汇入主路,见 computePath)。
    *  复用 AwaitingBranch 阶段 + selectBranch(改语义,不新加 phase)。 */
   selectBranch(kind: RouteKind): void {
     if (!this.assertPhase("AwaitingBranch", "SelectBranch")) return;
@@ -549,14 +535,14 @@ export class GameEngine {
     this.logEvent(
       "branch",
       p.guohao,
-      `${p.guohao} 于「${tile.name}」取${kind === "Branch" ? "辅路" : "大路"}`,
+      `${p.guohao} 于「${tile.name}」取${kind === "Branch" ? "道辅路(下回合掷骰进发)" : "大路"}`,
       `selectBranch player=${p.id} kind=${kind} at=#${p.position} cash=${p.cash}`,
     );
     if (kind === "Branch" && this.board.branch) {
-      // 入辅路:站在第 0 格并触发其效果(resolveBranchCell 自行管理 turnPhase/endTurn)
-      p.onBranch = { step: 0 };
+      // 入辅路 = 本回合结束:置「待入辅路」,不结算任何格;下回合 rollAndMove 沿辅路推进
+      p.onBranch = { step: -1 };
       this.turnPhase = "Land";
-      this.resolveBranchCell(p, this.board.branch.cells[0]);
+      this.endTurn();
       return;
     }
     // 走大路:起点 tile 按普通落格处理(可购买/升级/交涉等)
@@ -750,12 +736,23 @@ export class GameEngine {
     return { supply: supplyFor(def?.resupplyPerLevel, h?.level), level: h?.level ?? 0 };
   }
 
-  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。 */
-  private applyResupply(mover: Player): number {
+  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
+   *  cause="halt"(经过必停)战报写「军至都城 X,驻跸补给(+N)」;"land"(落点恰为都城)维持原补给文案。 */
+  private applyResupply(mover: Player, cause: "land" | "halt" = "land"): number {
     const { supply, level } = this.capitalSupplyOf(mover);
     if (supply > 0) {
       mover.cash += supply;
       this.pushFloater(mover, supply, mover.capitalIndex, "supply");
+    }
+    if (cause === "halt") {
+      this.logEvent(
+        "halt",
+        mover.guohao,
+        `${mover.guohao} 军至都城「${this.board.at(mover.capitalIndex).name}」,驻跸补给(+${formatMoney(supply)})`,
+        `haltSupply player=${mover.id} capital=#${mover.capitalIndex} level=${level} amount=${supply} cash=${mover.cash}`,
+        supply,
+      );
+    } else if (supply > 0) {
       this.logEvent(
         "supply",
         mover.guohao,
@@ -1124,8 +1121,6 @@ export class GameEngine {
   submitCommand(cmd: GameCommand): void {
     switch (cmd.type) {
       case "rollAndMove": return this.rollAndMove();
-      case "haltAtCapital": return this.haltAtCapital();
-      case "continueMove": return this.continueMove();
       case "selectBranch": return this.selectBranch(cmd.kind);
       case "buyProperty": return this.buyProperty();
       case "upgradeProperty": return this.upgradeProperty();

@@ -77,7 +77,7 @@ export interface Player {
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
-  onBranch: { step: number } | null; // 在分岔辅路第几格(null=在主路)
+  onBranch: { step: number } | null; // 在分岔辅路第几格(null=在主路;step=-1=入口待入辅路,棋子仍在主路入口格)
   skipTurns: number; // 待跳过的回合计数(辅路 penalty 格触发)
   properties: PropertyHolding[];
   heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
@@ -125,7 +125,6 @@ export interface LandOutcome {
 /** 回合阶段。 */
 export type TurnPhase =
   | "Roll"
-  | "AwaitingCapitalHalt"
   | "AwaitingBranch"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
@@ -227,8 +226,6 @@ export interface MapBranch {
 /** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */
 export type GameCommand =
   | { type: "rollAndMove" }
-  | { type: "haltAtCapital" }
-  | { type: "continueMove" }
   | { type: "selectBranch"; kind: RouteKind }
   | { type: "buyProperty" }
   | { type: "upgradeProperty" }

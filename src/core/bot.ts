@@ -1,11 +1,7 @@
-// AI 诸侯:回合 EV 决策(抽签/驻跸/辅路/买/升级),Simple/Normal 两档。
-// 选都决策在 GameEngine.aiChooseCapital。
+// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级),Simple/Normal 两档。
+// 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine } from "./game";
 import type { Player } from "./types";
-
-function estimateCapitalSupply(engine: GameEngine, p: Player): number {
-  return engine.capitalSupplyOf(p).supply;
-}
 
 function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {
   const tile = engine.board.at(destIndex);
@@ -38,18 +34,6 @@ export function botAct(engine: GameEngine): void {
     case "Roll":
       engine.rollAndMove();
       break;
-
-    case "AwaitingCapitalHalt": {
-      if (simple) {
-        engine.haltAtCapital();
-      } else {
-        const supply = estimateCapitalSupply(engine, p);
-        const destValue = estimateDestValue(engine, p, engine.presentation.lastMove!.landIndex);
-        if (supply > destValue) engine.haltAtCapital();
-        else engine.continueMove();
-      }
-      break;
-    }
 
     case "AwaitingBranch": {
       // 辅路入口抉择:Simple 随机;Normal 估辅路 EV(treasure≈指导价期望 + event 轻微正 − penalty 风险)vs 主路落点价值

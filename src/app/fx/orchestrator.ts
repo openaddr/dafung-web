@@ -1,8 +1,7 @@
 // 动画/音效编排器(ADR-0006 预留的"共享动画编排器",Wave1 改造为事件驱动):
 //   提取器(what happened)→ PresentationEvent[] → present()(how to play)→ FxSink。
 // 时序对照旧 src/render/state.ts 的 doRoll/afterLand/onTurnAdvanced 链:
-//   rollAndMove:  diceRolled → [若非驻跸] tokenMoved → 浮字
-//   halt/continue:tokenMoved(补走) → 浮字
+//   rollAndMove:  diceRolled → tokenMoved → 浮字
 //   buy(成功):   sealStamped("据") + buy 音 → 浮字
 //   upgrade(成功):upgrade 音 → 浮字
 //   选路/招贤/交涉/清算:语义音效(treasure/bankrupt) → 浮字
@@ -136,17 +135,9 @@ export function extractStepEvents(
     const die = view.lastRoll?.die;
     // C1:推进前活跃玩家是 bot → 掷骰事件带 fast(播放侧走半速节奏)
     if (die) events.push({ kind: "diceRolled", die, fast: prePlayer?.isBot === true });
-    // 驻跸抉择:令牌未动,行军等 halt/continue 命令后再补(对照旧 doRoll 分支)
-    if (engine.turnPhase !== "AwaitingCapitalHalt" && view.lastMove) {
-      events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove });
-    }
-    events.push(...floaterEvents(engine));
-    return events;
-  }
-
-  if (prevPhase === "AwaitingCapitalHalt") {
+    // 行军路径 = 引擎 lastMove(经过都城必停时已被引擎截断到都城,动画自然止步)
     if (view.lastMove) {
-      events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove }); // 补走余下路程
+      events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove });
     }
     events.push(...floaterEvents(engine));
     return events;

@@ -51,24 +51,24 @@
 每个玩家轮到时,经历以下状态([`game.ts:85` `turnPhase`](src/core/game.ts),[`types.ts:125` `TurnPhase`](src/core/types.ts)):
 
 ```
-Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land → AwaitingDecision? → EndTurn → 下一位
-                         (经过都城抉择)        (辅路入口抉择)       (落格结算) (买/升级/交涉抉择)
+Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → EndTurn → 下一位
+                     (辅路入口抉择)    (落格结算) (买/升级/交涉抉择)
 ```
 
 ### 3.1 抽签移动(`Roll` → `rollAndMove`)
-- 掷**单骰**(1-6),前进对应步数([`game.ts:393` `rollAndMove`](src/core/game.ts),`game.ts:396`);签面用汉字「一~六」展示([`constants.ts:3` `SIGN_FACES`](src/core/constants.ts))。
-- 名士·移动加成计入步数(如周瑜 +1)([`game.ts:399`](src/core/game.ts),[`game.ts:1092` `heroMoveBonus`](src/core/game.ts))。
-- **经过自己都城**(非落点):立即 +2 委任状([`game.ts:421-429`](src/core/game.ts),[`constants.ts:18` `WARRANTS_PER_PASS`](src/core/constants.ts))。
+- 掷**单骰**(1-6),前进对应步数([`game.ts` `rollAndMove`](src/core/game.ts));签面用汉字「一~六」展示([`constants.ts:3` `SIGN_FACES`](src/core/constants.ts))。
+- 名士·移动加成计入步数(如周瑜 +1)([`game.ts` `heroMoveBonus`](src/core/game.ts))。
+- **经过自己都城**(非落点):**必停**——立即 +2 委任状(巡幸),棋子停在都城不再走完剩余步数,结算驻跸补给,**结束回合**(不再有「驻跸/继续」抉择)([`game.ts` `rollAndMove` 必停分支](src/core/game.ts))。
 
-### 3.2 驻跸抉择(`AwaitingCapitalHalt`)
-当移动路径**经过自己都城但落点不是都城**时触发([`game.ts:430-443`](src/core/game.ts)):
-- **驻跸**(`haltAtCapital`):放弃剩余步数停在都城,结算补给,**结束回合**([`game.ts:471`](src/core/game.ts))。
-- **继续行军**(`continueMove`):不停,走到原落点正常结算([`game.ts:482`](src/core/game.ts))。
+### 3.2 必停都城(无抉择,引擎直接结算)
+移动路径**经过自己都城但落点不是都城**时触发([`game.ts` `rollAndMove`](src/core/game.ts)):
+- 棋子停在都城(行军动画也截断到都城),结算补给(战报「军至都城 X,驻跸补给(+N)」),**结束回合**。
+- **落点恰是都城**:行为不同——走正常落格(补给 + 招贤纳士三选一),见 §3.4。
 
 ### 3.3 辅路入口抉择(`AwaitingBranch`)
-当落点恰为**辅路起点**时触发([`game.ts:455-465`](src/core/game.ts);判定函数 [`game.ts:216` `currentTileIsBranchStart`](src/core/game.ts)):
-- **走大路**(`selectBranch("Main")`):起点格按普通落格处理([`game.ts:510-512`](src/core/game.ts))。
-- **入辅路**(`selectBranch("Branch")`):从辅路第 0 格开始,**逐格掷骰**沿辅路推进,每格触发效果,到终点汇入主路([`game.ts:503-508`](src/core/game.ts))。
+当落点恰为**辅路起点**时触发([`game.ts` `rollAndMove`](src/core/game.ts);判定函数 [`game.ts` `currentTileIsBranchStart`](src/core/game.ts)):
+- **走大路**(`selectBranch("Main")`):起点格按普通落格处理。
+- **入辅路**(`selectBranch("Branch")`):**本回合结束**——棋子留在主路入口格,置「待入辅路」状态(`onBranch={step:-1}`);**下回合掷骰**起沿辅路格推进:掷几点走几格(落第 die 格并触发该格效果),掷满溢出则从辅路终点汇入主路继续走剩余步数([`board.ts` `computePath`](src/core/board.ts))。
 
 ### 3.4 落格结算(`Land` → `resolveLanding`)
 落点类型决定结算方式([`game.ts:577` `resolveLanding`](src/core/game.ts)):
@@ -100,8 +100,8 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 地图数据驱动,见 `public/maps/*.json`(默认 `sanguo.json`)。
 
 - **31 城主环**(sanguo 地图,共 40 格):三国郡县州构成单环主路,坐标按真实中国地图方位布点([`board.ts`](src/core/board.ts))。其他地图城数不同(如 zhongyuan 8 城)。
-- **都城**:玩家开局所选的城,取代传统"起点"。经过自己都城时颁发委任状;落自己都城时补给 + 招贤。
-- **辅路(分岔捷径)**:一条独立辅路,起点和终点都接主路。默认走主路,只有**刚好落到辅路起点**才弹抉择([§3.3](#33-辅路入口抉择awaitingbranch))。辅路逐格推进,每格触发效果([§8.2](#82-辅路格))。
+- **都城**:玩家开局所选的城,取代传统"起点"。**经过自己都城必停**(巡幸 +2 委任状、驻跸补给、结束回合);落自己都城时补给 + 招贤。
+- **辅路(分岔捷径)**:一条独立辅路,起点和终点都接主路。默认走主路,只有**刚好落到辅路起点**才弹抉择([§3.3](#33-辅路入口抉择awaitingbranch))。选「入辅路」= 本回合结束(棋子留入口格);此后每回合掷骰沿辅路格推进(掷几点走几格),每格触发效果([§8.2](#82-辅路格))。
 - **特殊格**:卧龙岗(招贤)、宝物城(探宝)、锦囊/天命(事件)、税关(缴税)、商市(行情)。
 
 > 要隘捷径(函谷关 / 赤壁 / 华容道 / 剑阁 / 子午谷)是辅路入口的命名与主题包装,机制同上。
@@ -146,7 +146,7 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 | 事件 | 委任状变化 | 代码 |
 |---|---|---|
 | 开局 | 每人 **3** 张 | `constants.ts:17` `STARTING_WARRANTS` |
-| 经过自己都城(巡幸) | **+2** | `constants.ts:18` `WARRANTS_PER_PASS`;`game.ts:422` |
+| 经过自己都城(巡幸,必停) | **+2** | `constants.ts:18` `WARRANTS_PER_PASS`;`game.ts` `rollAndMove` |
 | 进驻(买)一座新城 | **−1** | `constants.ts:19` `BUY_WARRANT_COST`;`game.ts:532` |
 | 扩军(升级) | 不消耗(升级免费) | `constants.ts:19` 注释 |
 
@@ -291,7 +291,6 @@ Roll → (掷骰移动) → AwaitingCapitalHalt? → AwaitingBranch? → Land �
 
 | 抉择点 | Simple(随机) | Normal(EV 启发式) |
 |---|---|---|
-| 驻跸 vs 行军 | 固定驻跸 | 比较补给价值 vs 落点价值,取大者 |
 | 辅路入口 | 50/50 随机 | 比较辅路 EV(探宝−中伏风险)vs 主路落点价值 |
 | 买城 | 50% 概率买(需现金 > 1.5×价格 + 有委任状) | 现金 > 1.5×价格且有委任状即买 |
 | 扩军(免费) | 75% 概率升 | 非满级即升,满级按兵不动 |

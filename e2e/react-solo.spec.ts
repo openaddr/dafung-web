@@ -80,8 +80,9 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
   expect((await snap(page)).players[0].cash).toBe(before);
 });
 
-test("分岔辅路:落辅路起点弹抉择,入辅路后进入辅路格", async ({ page }) => {
+test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),下回合掷骰沿辅路推进", async ({ page }) => {
   await quickStart(page);
+  const turnBefore = (await snap(page)).turnNumber;
   await force(page, `
     e.turnPhase = "AwaitingBranch";
     e.activePlayer.onBranch = null;
@@ -89,13 +90,29 @@ test("分岔辅路:落辅路起点弹抉择,入辅路后进入辅路格", async 
   await expect(page.getByTestId("scroll-branch")).toBeVisible();
   await expect(page.getByTestId("scroll-branch")).toContainText("辅路");
   await page.getByTestId("action-branch").click();
-  // selectBranch("Branch"):onBranch={step:0} + 触发首格
+  // selectBranch("Branch"):置待入状态 onBranch={step:-1},棋子留在入口格,本回合结束
   await expect
     .poll(
       async () => page.evaluate(() => (window as any).__dafung.getEngine().players[0].onBranch),
       { timeout: 10_000 },
     )
-    .toEqual({ step: 0 });
+    .toEqual({ step: -1 });
+  await expect
+    .poll(async () => (await snap(page)).turnNumber, { timeout: 10_000 })
+    .toBeGreaterThan(turnBefore);
+  // 下回合掷骰:掷几点走几格辅路格(第 die 格);die 超长则从辅路终点汇入主路
+  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  await page.getByTestId("roll-button").click();
+  await expect
+    .poll(
+      async () =>
+        page.evaluate(() => {
+          const ob = (window as any).__dafung.getEngine().players[0].onBranch;
+          return ob == null || ob.step >= 0;
+        }),
+      { timeout: 15_000 },
+    )
+    .toBe(true);
 });
 
 test("bot 托管思考态:活跃方为电脑时显示「运筹中…」", async ({ page }) => {
@@ -114,7 +131,7 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   // 身价=现金+地产:直接把现金推过目标身价,掷骰收尾 endTurn 即触发 checkVictory
   await force(page, `e.activePlayer.cash = e.targetNetWorth * 3;`);
   await page.getByTestId("roll-button").click();
-  // 掷骰可能落在辅路起点/驻跸等决策格:把余下决策也推完才 endTurn 触发胜利判定;
+  // 掷骰可能落在辅路起点等决策格:把余下决策也推完才 endTurn 触发胜利判定;
   // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(见 react-solo 全程驱动用例注释),同样绕过
   // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
   // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。

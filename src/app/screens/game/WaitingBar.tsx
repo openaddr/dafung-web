@@ -22,7 +22,6 @@ export interface WaitingBarProps {
 
 /** 决策类相位:轮到该玩家做选择(掷骰 Roll 不在其中——那是「落子」不是「抉择」)。 */
 const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set<TurnPhase>([
-  "AwaitingCapitalHalt",
   "AwaitingBranch",
   "AwaitingDecision",
   "AwaitingHeroPick",

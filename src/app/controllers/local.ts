@@ -188,7 +188,7 @@ export class LocalController extends GameController {
     const moverId = e.activePlayer.id;
     run();
     // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
-    if (e.presentation.lastMove && (prevPhase === "Roll" || prevPhase === "AwaitingCapitalHalt")) {
+    if (e.presentation.lastMove && prevPhase === "Roll") {
       this.fxSink.marchBegin(moverId);
     }
     this.sync();

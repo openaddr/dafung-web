@@ -92,7 +92,7 @@ function highlightSegment(engine: GameEngine, from: number, to: number): void {
 /**
  * 行军:沿 lastMove 的 branchWaypoints(辅路)与 traversed(主路)逐段推进棋子。
  * - 编排时序/弧线分段完全对照旧 animate.ts animateMove;
- * - 驻跸(haltAtCapital 后)engine.lastMove 仍保留,由 halt/continueMove 后的本函数补走;
+ * - 经过都城必停时引擎已把 lastMove 截断到都城,本函数自然止步(不再有 halt 补走段);
  * - 完成后 removeMarching:React 以终态坐标接管(marchPos 同步删除)。
  * lastMove 为 null(非移动命令)时 no-op。
  */
@@ -162,7 +162,7 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
       }
       highlightSegment(e, prevTile, tile);
       prevTile = tile;
-      if (isLast) break; // 驻跸:停在都城
+      if (isLast) break; // 到达玩家终格(经过都城必停时 = 都城)
     }
   }
 

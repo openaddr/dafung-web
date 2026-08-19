@@ -92,8 +92,7 @@ function main(): void {
           "pick-capital <tileIndex>": "当前玩家选都",
           "roll": "行军(rollAndMove)",
           "buy | upgrade | skip": "购地/扩军/跳过(AwaitingDecision)",
-          "halt | continue": "驻跸/继续行军(AwaitingCapitalHalt)",
-          "main | branch": "走大路/入辅路(AwaitingBranch)",
+          "main | branch": "走大路/入辅路(AwaitingBranch;入辅路=本回合结束,下回合掷骰沿辅路推进)",
           "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",
           "confirm": "破产清算结算(AwaitingBankruptcySettle)",
           "cmd <json>": "任意 GameCommand(JSON 字符串)",
@@ -156,18 +155,6 @@ function main(): void {
         engine.submitCommand({ type: "endDecision" });
         saveEngineAt(path, engine, config);
         console.log(JSON.stringify({ ok: true, command: "skip", ...statusOf(engine) }, null, 2));
-        return;
-      }
-      case "halt": {
-        engine.submitCommand({ type: "haltAtCapital" });
-        saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "halt", ...statusOf(engine) }, null, 2));
-        return;
-      }
-      case "continue": {
-        engine.submitCommand({ type: "continueMove" });
-        saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "continue", ...statusOf(engine) }, null, 2));
         return;
       }
       case "main": {

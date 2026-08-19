@@ -76,7 +76,6 @@ export const AUTOPILOT_SLOW_MS = 2000;
 // botAct 能驱动的相位(其它相位是引擎内部过渡,无需外部驱动)
 const INPUT_PHASES = new Set([
   "Roll",
-  "AwaitingCapitalHalt",
   "AwaitingBranch",
   "AwaitingDecision",
   "AwaitingHeroPick",

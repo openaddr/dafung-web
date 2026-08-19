@@ -1,8 +1,9 @@
-// 四个常规决策卷轴(驻跸/岔口/购地/扩军):从旧侧栏 ActionInline 迁入卷轴体系。
+// 三个常规决策卷轴(岔口/购地/扩军):从旧侧栏 ActionInline 迁入卷轴体系。
 // 交互重构原则:所有需要玩家权衡的选择一律走卷轴弹层,侧栏手牌区不再有决策按钮;
 // 卷轴轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
-// 按钮 testid 沿用旧 action-* 命名(action-halt/action-buy/…),文案与语义不变,
+// 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
 // 只是位置从侧栏搬进卷轴,e2e 断言零语义变化。
+// (经过都城必停后「驻跸或行进」卷轴已删:引擎直接结算,无玩家抉择。)
 import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
@@ -26,47 +27,6 @@ function useNumberShortcuts(actions: Array<() => void>) {
   }, []);
 }
 
-// ── 驻跸或行进(AwaitingCapitalHalt)──
-export function HaltDecisionScroll({
-  capitalName,
-  nextName,
-  onCommand,
-}: {
-  capitalName: string;
-  nextName: string;
-  onCommand: (cmd: GameCommand) => void;
-}) {
-  // G-19:1=驻跸 2=行进
-  useNumberShortcuts([
-    () => onCommand({ type: "haltAtCapital" }),
-    () => onCommand({ type: "continueMove" }),
-  ]);
-  return (
-    <ScrollShell title="驻跸或行进" testid={T.haltScroll}>
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
-        大军途经都城「{capitalName}」。驻跸可暂避锋芒,亦可即刻开拔,前往「{nextName}」。
-      </p>
-      <div className="flex flex-wrap justify-center gap-3">
-        <ScrollButton
-          primary
-          shortcut={1}
-          testid={TESTIDS.actionButton("halt")}
-          onClick={() => onCommand({ type: "haltAtCapital" })}
-        >
-          驻跸·{capitalName}
-        </ScrollButton>
-        <ScrollButton
-          shortcut={2}
-          testid={TESTIDS.actionButton("continue")}
-          onClick={() => onCommand({ type: "continueMove" })}
-        >
-          继续→{nextName}
-        </ScrollButton>
-      </div>
-    </ScrollShell>
-  );
-}
-
 // ── 驿道岔口(AwaitingBranch)──
 export function BranchDecisionScroll({
   onCommand,
@@ -81,7 +41,7 @@ export function BranchDecisionScroll({
   return (
     <ScrollShell title="驿道岔口" testid={T.branchScroll}>
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
-        驿道至此分岔:大路平坦快捷,辅路僻静多机。
+        驿道至此分岔:大路平坦快捷,辅路僻静多机。入辅路者本回合就此扎营,来日掷骰进发。
       </p>
       <div className="flex flex-wrap justify-center gap-3">
         <ScrollButton

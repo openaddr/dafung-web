@@ -11,8 +11,7 @@ export const SCROLL_TESTIDS = {
   heroPickOption: (index: number) => `scroll-hero-pick-option-${index}` as const,
   heroPickDecline: "scroll-hero-pick-decline",
 
-  // ── 常规决策卷轴(驻跸/岔口/购地/扩军;按钮沿用上层 action-* testid)──
-  haltScroll: "scroll-halt",
+  // ── 常规决策卷轴(岔口/购地/扩军;按钮沿用上层 action-* testid)──
   branchScroll: "scroll-branch",
   buyScroll: "scroll-buy",
   upgradeScroll: "scroll-upgrade",

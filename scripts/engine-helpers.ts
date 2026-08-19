@@ -145,8 +145,6 @@ export function promptFor(
   switch (tp) {
     case "Roll":
       return `${who} 的回合:行军(roll)`;
-    case "AwaitingCapitalHalt":
-      return `${who} 到达都城:驻跸(halt)或继续行军(continue)`;
     case "AwaitingBranch":
       return `${who} 到达辅路入口:走大路(main)或入辅路(branch)`;
     case "AwaitingDecision":
@@ -205,7 +203,6 @@ export function botOwnsDecision(e: GameEngine): boolean {
       return e.players[e.decisionOwner]?.isBot === true;
     case "AwaitingBankruptcySettle":
     case "Roll":
-    case "AwaitingCapitalHalt":
     case "AwaitingBranch":
     case "AwaitingDecision":
     case "AwaitingHeroPick":

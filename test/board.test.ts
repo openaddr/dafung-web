@@ -89,4 +89,31 @@ describe("棋盘路径(主环 + 分岔辅路)", () => {
     expect(p.landIndex).toBe(end);
     expect(p.traversed).toEqual([]);
   });
+
+  it("入口待入(step=-1):掷 k 走 k 格 → 落第 k 格(0 基 k-1),途经第 1..k 格", () => {
+    const start = board.branch!.startNode;
+    const N = board.branch!.cells.length;
+    for (let k = 1; k <= N; k++) {
+      const p = board.computePath(start, k, -1, { step: -1 });
+      expect(p.landBranchStep).toBe(k - 1);
+      expect(p.landIndex).toBe(start); // 占位:待入/辅路落格主路位置仍是入口
+      expect(p.branchWaypoints).toHaveLength(k); // 途经第 1..k 格
+      expect(p.traversed).toEqual([]);
+    }
+  });
+
+  it("入口待入(step=-1)溢出:k=N+1 恰落 endNode;k>N+1 从 endNode 继续走主路", () => {
+    const start = board.branch!.startNode;
+    const N = board.branch!.cells.length;
+    const end = board.branch!.endNode;
+    const exact = board.computePath(start, N + 1, -1, { step: -1 });
+    expect(exact.landBranchStep).toBeNull();
+    expect(exact.landIndex).toBe(end);
+    expect(exact.branchWaypoints).toHaveLength(N + 1); // 全部辅路格 + endNode
+    expect(exact.traversed).toEqual([]);
+    const over = board.computePath(start, N + 3, -1, { step: -1 });
+    expect(over.landBranchStep).toBeNull();
+    expect(over.landIndex).toBe((end + 2) % board.count);
+    expect(over.traversed).toHaveLength(2);
+  });
 });

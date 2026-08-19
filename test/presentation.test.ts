@@ -56,7 +56,8 @@ describe("单机提取器 extractStepEvents", () => {
     const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
     expect(events[0].kind).toBe("diceRolled");
     if (events[0].kind === "diceRolled") expect(events[0].die).toBe(e.presentation.lastRoll!.die);
-    if (e.turnPhase !== "AwaitingCapitalHalt" && e.presentation.lastMove) {
+    // 经过都城必停在引擎内已截断 lastMove,提取器无条件出 tokenMoved(无驻跸补走段)
+    if (e.presentation.lastMove) {
       expect(events[1].kind).toBe("tokenMoved");
       if (events[1].kind === "tokenMoved") {
         expect(events[1].path.from).toBe(e.presentation.lastMove.from);
@@ -71,17 +72,26 @@ describe("单机提取器 extractStepEvents", () => {
     expect(kinds.indexOf("diceRolled")).toBe(0);
   });
 
-  it("驻跸抉择:rollAndMove 落点为都城时只出骰子事件,行军留给 halt/continue 补走", () => {
-    // 找一个种子:掷骰后进入 AwaitingCapitalHalt(路过都城)较难稳定构造,
-    // 用直接改写引擎态不可行——改为验证分支语义:halt 命令后必有 tokenMoved(若 lastMove 在)。
+  it("必停都城:掷骰路径被引擎截断到都城,行军事件止步都城(不走向原落点)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    // 先 rollAndMove(可能直接走完);若引擎还在 Roll(极小概率卡死防御),再掷
-    if (e.turnPhase === "Roll") e.submitCommand({ type: "rollAndMove" });
-    // 构造 halt 相位太依赖地图概率,此用例退化为:halt 分支在 lastMove 为空时不出行军事件
-    const events = extractStepEvents(e, "AwaitingCapitalHalt", e.activePlayer.id);
-    for (const ev of events) {
-      if (ev.kind === "tokenMoved") expect(e.presentation.lastMove).not.toBeNull();
+    const p = e.activePlayer;
+    p.position = (p.capitalIndex - 2 + e.board.count) % e.board.count; // 距都城 2 步:die>=3 必停
+    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    expect(events[0].kind).toBe("diceRolled");
+    if (e.presentation.lastRoll!.die >= 3) {
+      // 必停:lastMove 终点=都城,行军事件带的路径不再延伸到原落点
+      expect(p.position).toBe(p.capitalIndex);
+      const mv = e.presentation.lastMove!;
+      expect(mv.landIndex).toBe(p.capitalIndex);
+      expect(mv.traversed[mv.traversed.length - 1]).toBe(p.capitalIndex);
+      const march = events.find((ev) => ev.kind === "tokenMoved");
+      expect(march).toBeDefined();
+      // 驻跸补给浮字(supplyRain)在行军之后播
+      const kinds = events.map((ev) => ev.kind);
+      if (kinds.includes("supplyRain")) {
+        expect(kinds.indexOf("tokenMoved")).toBeLessThan(kinds.indexOf("supplyRain"));
+      }
     }
   });
 

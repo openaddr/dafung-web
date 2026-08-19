@@ -18,15 +18,19 @@ import { marchPos } from "@app/fx/useMarch";
 import type { BoardPlayer } from "./BoardView";
 
 /** 玩家所在的「格子槽位键」:与 src/render/board.ts 的 playerSlotKey 逻辑一致
- *  (辅路按 step 分组,主路按 position)。两端必须共用同一规则,否则落格偏移先错后纠、可见抖动。 */
+ *  (辅路按 step 分组,主路按 position)。两端必须共用同一规则,否则落格偏移先错后纠、可见抖动。
+ *  step=-1(入口待入辅路)按主路 position 分组:棋子视觉仍在主路入口 tile,
+ *  与同格主路玩家共享错位槽,不各占中心导致重叠。 */
 export function playerSlotKey(p: Pick<BoardPlayer, "position" | "onBranch">, board: Board): string {
-  return p.onBranch != null && board.branch ? `b${p.onBranch.step}` : String(p.position);
+  return p.onBranch != null && p.onBranch.step >= 0 && board.branch
+    ? `b${p.onBranch.step}`
+    : String(p.position);
 }
 
-/** 玩家当前渲染坐标(辅路上则取辅路格坐标)。 */
+/** 玩家当前渲染坐标(辅路上则取辅路格坐标;入口待入 step=-1 回落主路入口 tile)。 */
 export function tokenRenderPos(p: BoardPlayer, board: Board): BoardPos {
-  if (p.onBranch != null && board.branch) {
-    return board.branch.cells[p.onBranch.step]?.position ?? board.positionOf(p.position);
+  if (p.onBranch != null && p.onBranch.step >= 0 && board.branch) {
+    return board.branch.cells[p.onBranch.step].position;
   }
   return board.positionOf(p.position);
 }

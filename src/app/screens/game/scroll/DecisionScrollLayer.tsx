@@ -11,7 +11,6 @@ import {
   BankruptcyScroll,
   BranchDecisionScroll,
   BuyDecisionScroll,
-  HaltDecisionScroll,
   HeroPickScroll,
   TileDetailScroll,
   TreasureVisitorScroll,
@@ -172,16 +171,6 @@ export function DecisionScrollLayer({
   // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
   if (interactive && snapshot.phase === "Playing") {
     const tp = snapshot.turnPhase;
-    if (tp === "AwaitingCapitalHalt" && snapshot.lastMove) {
-      // 目的地城名经 registry 静态上下文查(board 不可变,联机同路)
-      return (
-        <HaltDecisionScroll
-          capitalName={board.at(snapshot.lastMove.capitalIndex)?.name ?? "都城"}
-          nextName={board.at(snapshot.lastMove.landIndex)?.name ?? "下一城"}
-          onCommand={dispatch}
-        />
-      );
-    }
     if (tp === "AwaitingBranch") {
       return <BranchDecisionScroll onCommand={dispatch} />;
     }
