@@ -241,6 +241,7 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
    - 卖珍宝:按**指导价**变现([`game.ts:1005` `sellTreasureBankruptcy`](src/core/game.ts))。
    - 卖城池:按**当前等级价值**(`valueByLevel[level]`)变现,都城不可卖([`game.ts:1017` `sellPropertyBankruptcy`](src/core/game.ts),[`economy.ts:35` `sellValueOf`](src/core/economy.ts))。
    - 遣散名士:换 **¥200**([`game.ts:1031` `cashHeroBankruptcy`](src/core/game.ts))。
+   - **凑足即止**:现金已达自救线(≥债务)后,引擎**硬拒绝**后续一切变卖命令(warn「已凑足债务,不可再卖」,不靠 UI 禁用自觉;[`game.ts:1067` `assertStillOwing`](src/core/game.ts))。单笔变卖允许超额凑足。
    - 凑够债务 → 清偿继续(托管珍宝交割);凑不够 → 真破产([`game.ts:1043` `confirmBankruptcySettle`](src/core/game.ts))。
 3. **无任何可变卖资产** → 直接破产。
 4. **破产后果**([`economy.ts:48` `settleDebt`](src/core/economy.ts),[`game.ts:997` `finalizeBankruptcy`](src/core/game.ts)):

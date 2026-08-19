@@ -1064,8 +1064,18 @@ export class GameEngine {
     p.capitalIndex = -1;
   }
 
+  /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
+  private assertStillOwing(label: string): boolean {
+    if (this.activePlayer.cash >= this.pendingDebt!.amount) {
+      this.warn(`${label}:已凑足债务,不可再卖`);
+      return false;
+    }
+    return true;
+  }
+
   sellTreasureBankruptcy(treasureId: string): void {
     if (!this.assertPhase("AwaitingBankruptcySettle", "SellTreasureBankruptcy")) return;
+    if (!this.assertStillOwing("SellTreasureBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.treasures.findIndex((t) => t.id === treasureId);
     if (idx < 0) { this.warn(`珍宝 ${treasureId} 不在手中`); return; }
@@ -1078,6 +1088,7 @@ export class GameEngine {
 
   sellPropertyBankruptcy(propId: string): void {
     if (!this.assertPhase("AwaitingBankruptcySettle", "SellPropertyBankruptcy")) return;
+    if (!this.assertStillOwing("SellPropertyBankruptcy")) return;
     const p = this.activePlayer;
     if (propId === this.board.at(p.capitalIndex)?.propertyId) { this.warn("都城不可变卖"); return; }
     const idx = p.properties.findIndex((h) => h.propertyId === propId);
@@ -1092,6 +1103,7 @@ export class GameEngine {
 
   cashHeroBankruptcy(heroId: string): void {
     if (!this.assertPhase("AwaitingBankruptcySettle", "CashHeroBankruptcy")) return;
+    if (!this.assertStillOwing("CashHeroBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.heroes.findIndex((h) => h.id === heroId);
     if (idx < 0) { this.warn(`名士 ${heroId} 不在手中`); return; }
