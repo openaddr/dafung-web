@@ -702,6 +702,21 @@ export class GameEngine {
     }
     const owner = this.findOwner(def.id);
     if (owner == null) {
+      // 无主城(含分歧点城):银两/委任状任一不足时无真实选择,不进决策相位直接路过
+      // (TODO L51:买不起还弹「是否购买」是假选择,浪费一次点击)。
+      if (mover.cash < def.purchasePrice || mover.warrants < 1) {
+        this.lastLandOutcome = { kind: "Noop" };
+        this.logEvent(
+          "buy",
+          mover.guohao,
+          mover.warrants < 1
+            ? `${mover.guohao} 至 ${tile.name},无委任状,不可购`
+            : `${mover.guohao} 至 ${tile.name},银两不足,不可购`,
+          `skipAvailable player=${mover.id} prop=${def.id} price=${def.purchasePrice} cash=${mover.cash} warrants=${mover.warrants}`,
+        );
+        this.endTurn();
+        return;
+      }
       // 无主城(含分歧点城):一律可购买。分歧点选路改到下回合掷骰前(endTurn 触发)。
       this.lastLandOutcome = { kind: "PropertyAvailable", property: def };
       this.turnPhase = "AwaitingDecision";

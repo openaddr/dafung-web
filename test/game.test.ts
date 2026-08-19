@@ -192,6 +192,35 @@ describe("委任状", () => {
     expect(buyer.properties.length).toBe(props0 + 1); // 获得地产
   });
 
+  it("L51 银两/委任状不足落无主城:不进决策相位直接路过(无假选择弹窗)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    // 动态找一座无主城(规避 finishSetup 选都占位的不确定性)
+    const freeIdx = e.board.tiles.findIndex((t) => t.propertyId && e.findOwner(t.propertyId) == null);
+    const freeProp = e.catalog.get(e.board.at(freeIdx).propertyId)!;
+    const turn0 = e.turnNumber;
+    // 场景一:银两不足
+    p.position = freeIdx;
+    p.cash = freeProp.purchasePrice - 1;
+    p.warrants = 3;
+    e.turnPhase = "Land";
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    expect(e.turnPhase).not.toBe("AwaitingDecision");
+    expect(e.turnNumber).toBe(turn0 + 1); // 直接结束回合
+    expect(e.log.some((ev) => ev.detail.includes("skipAvailable") && ev.detail.includes(freeProp.id))).toBe(true);
+    // 场景二:委任状不足(现金足够)
+    const p2 = e.activePlayer;
+    const freeIdx2 = e.board.tiles.findIndex((t) => t.propertyId && e.findOwner(t.propertyId) == null);
+    p2.position = freeIdx2;
+    p2.cash = 10000;
+    p2.warrants = 0;
+    e.turnPhase = "Land";
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    expect(e.turnPhase).not.toBe("AwaitingDecision");
+    expect(e.log.some((ev) => ev.brief.includes("无委任状"))).toBe(true);
+  });
+
   it("0 委任状时买城被拒(NoWarrant),不消耗、不获得", () => {
     const e = makeEngine(1);
     finishSetup(e);
