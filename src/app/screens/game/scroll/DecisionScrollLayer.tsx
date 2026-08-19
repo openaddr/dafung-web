@@ -137,21 +137,23 @@ export function DecisionScrollLayer({
   }
 
   // ── 珍宝使交涉:城主决策视角;本地是访客时给只读等待视角 ──
+  // L42:城主卷轴是决策卷轴,补 interactive 门控(联机 fx.playing / 单机 drive 锁期间
+  // 行军未完不弹);访客只读等待面板视同 WaitingBar 的过程反馈,保持即时。
   if (snapshot.treasureVisitor && snapshot.turnPhase === "AwaitingTreasureOwner") {
     const tv = snapshot.treasureVisitor;
     const owner = players[tv.ownerIdx];
     const visitor = players[snapshot.activeIndex];
     if (owner && visitor) {
-      const isOwnerView = viewSeat === tv.ownerIdx;
+      const showOwner = viewSeat === tv.ownerIdx && interactive;
       const isVisitorView = viewSeat === snapshot.activeIndex;
-      if (isOwnerView || isVisitorView) {
+      if (showOwner || isVisitorView) {
         const propDef = catalog.get(tv.propertyId);
         const ownerLevel =
           owner.properties.find((h) => h.propertyId === tv.propertyId)?.level ?? 0;
         if (propDef) {
           return (
             <TreasureVisitorScroll
-              role={isOwnerView ? "owner" : "visitor"}
+              role={showOwner ? "owner" : "visitor"}
               ownerGuohao={owner.guohao}
               visitorGuohao={visitor.guohao}
               tileName={board.at(visitor.position)?.name ?? ""}

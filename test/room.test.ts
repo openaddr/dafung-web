@@ -43,9 +43,10 @@ const VALID_MAP_IDS = new Set(["sanguo", "zhongyuan"]);
 /** 测试用 mapProvider:所有 id 都返回同一张 sanguo 图(避免读 fs)。 */
 const testMapProvider = (_id: string): LoadedMap => MAP;
 
-/** 建一个已开局的房间:seat0=host(human),其余非 bot 座位都 join(人类),bot 座位 bot。
- *  默认 host 先 setMap("sanguo") 再 startGame(startGame 要求已选图)。 */
-async function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: number; mapId?: string } = {}) {
+/** 建一个已开局的房间(不代选都):seat0=host(human),其余非 bot 座位都 join(人类),bot 座位 bot。
+ *  默认 host 先 setMap("sanguo") 再 startGame(startGame 要求已选图)。
+ *  L41 起 startGame 停在 Setup·PickCapital(真人各自三选一),本助手到「开局」为止。 */
+async function startRoom(opts: { seats?: number; bot?: number[]; seed?: number; mapId?: string } = {}) {
   const seats = opts.seats ?? 3;
   const botIdx = new Set(opts.bot ?? [2]);
   const reg = new RoomRegistry(new InMemoryPersistence());
@@ -59,6 +60,24 @@ async function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: n
   reg.setMap(roomId, opts.mapId ?? "sanguo", hostToken, VALID_MAP_IDS);
   await reg.startGame(roomId, hostToken, undefined, testMapProvider);
   return { reg, roomId, hostToken, guestTokens };
+}
+
+/** 真人逐个 pickCapital(offered[0])直到进 Playing;余下 bot 座位由 pickCapital 内部
+ *  driveBots 自动接棒。 */
+async function pickAllHumanCapitals(reg: RoomRegistry, roomId: string): Promise<void> {
+  const e = reg.get(roomId)!.engine!;
+  for (let i = 0; i < 20 && e.phase === "Setup"; i++) {
+    const cur = e.currentSetupPlayerIndex;
+    if (cur < 0) break;
+    await reg.pickCapital(roomId, cur, e.offeredCapitals[0]);
+  }
+}
+
+/** 开局 + 全员选都完成(= 旧行为「开局即 Playing」的等价终态)。 */
+async function setupStartedRoom(opts: { seats?: number; bot?: number[]; seed?: number; mapId?: string } = {}) {
+  const r = await startRoom(opts);
+  await pickAllHumanCapitals(r.reg, r.roomId);
+  return r;
 }
 
 describe("RoomRegistry · 房间生命周期", () => {
@@ -104,11 +123,30 @@ describe("RoomRegistry · 房间生命周期", () => {
     await expectRoomError(() => reg.joinSeat(room.roomId), 409); // seat1 已占,无空 human 座
   });
 
-  it("startGame:构造引擎 + autoSetup → phase Playing", async () => {
-    const { reg, roomId } = await setupStartedRoom();
-    const room = reg.get(roomId)!;
-    expect(room.engine).not.toBeNull();
-    expect(room.engine!.phase).toBe("Playing");
+  it("startGame:开局停在 Setup·PickCapital(L41:真人三选一,不再 autoSetup)", async () => {
+    const { reg, roomId } = await startRoom();
+    const e = reg.get(roomId)!.engine!;
+    expect(e).not.toBeNull();
+    expect(e.phase).toBe("Setup");
+    expect(e.setupPhase).toBe("PickCapital");
+    expect(e.offeredCapitals).toHaveLength(3);
+    // driveBots 自 draft 首位驱动 bot 座位自动代选,停在第一个真人手上
+    let k = 0;
+    while (k < e.draftOrder.length && e.players[e.draftOrder[k]].isBot) {
+      expect(e.players[e.draftOrder[k]].capitalIndex).toBeGreaterThanOrEqual(0);
+      k++;
+    }
+    expect(k).toBeLessThan(e.draftOrder.length); // 房内至少 host 一个真人
+    expect(e.currentSetupPlayerIndex).toBe(e.draftOrder[k]);
+    expect(e.players[e.currentSetupPlayerIndex].isBot).toBe(false);
+  });
+
+  it("真人逐个 pickCapital:全员选完 → phase Playing", async () => {
+    const { reg, roomId } = await startRoom();
+    const e = reg.get(roomId)!.engine!;
+    await pickAllHumanCapitals(reg, roomId);
+    expect(e.phase).toBe("Playing");
+    expect(e.players.every((p) => p.capitalIndex >= 0)).toBe(true);
   });
 
   it("startGame:未开局态下,非 host 开局 → 403", async () => {
@@ -121,6 +159,101 @@ describe("RoomRegistry · 房间生命周期", () => {
   it("startGame:重复开局 → 409", async () => {
     const { reg, roomId, hostToken } = await setupStartedRoom();
     await expectRoomError(() => reg.startGame(roomId, hostToken), 409);
+  });
+});
+
+describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
+  it("非本轮候选城 → 400 且状态不变", async () => {
+    const { reg, roomId } = await startRoom();
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    // 选一座「可作都城但不在三候选里」的城(快照契约:候选外一律拒)
+    const unoffered = e.board.tiles.find(
+      (t) => t.isCapitalEligible && !e.offeredCapitals.includes(t.index) && !e.takenCapitalIndices.has(t.index),
+    )!;
+    expect(unoffered).toBeTruthy();
+    const before = e.currentDraftIndex;
+    await expectRoomError(() => reg.pickCapital(roomId, cur, unoffered.index), 400);
+    expect(e.currentDraftIndex).toBe(before);
+    expect(e.players[cur].capitalIndex).toBe(-1);
+  });
+
+  it("未轮到该座位 → 403 且状态不变", async () => {
+    const { reg, roomId } = await startRoom({ seats: 3, bot: [2] });
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    // 另一个真人座位(非当前选都位)提交
+    const other = e.players.findIndex((p, i) => i !== cur && !p.isBot);
+    expect(other).toBeGreaterThanOrEqual(0);
+    await expectRoomError(() => reg.pickCapital(roomId, other, e.offeredCapitals[0]), 403);
+    expect(e.players[other].capitalIndex).toBe(-1);
+  });
+
+  it("对局未开始 → 409;房间不存在 → 404;非选都阶段 → 409", async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    await expectRoomError(() => reg.pickCapital(room.roomId, 0, 0), 409); // 未开局
+    await expectRoomError(() => reg.pickCapital("NOPE", 0, 0), 404);
+    const { reg: reg2, roomId } = await startRoom({ seats: 2, bot: [1] });
+    await pickAllHumanCapitals(reg2, roomId);
+    await expectRoomError(() => reg2.pickCapital(roomId, 0, 0), 409); // 已进 Playing
+  });
+
+  it("候选内落子:扣建城费/定都/推进下一位(候选滚换)", async () => {
+    const { reg, roomId } = await startRoom({ seats: 3, bot: [2] });
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    const tileIdx = e.offeredCapitals[0];
+    const buildCost = e.catalog.get(e.board.at(tileIdx).propertyId)!.buildCost;
+    const cashBefore = e.players[cur].cash;
+    let calls = 0;
+    await reg.pickCapital(roomId, cur, tileIdx, () => {
+      calls++;
+    });
+    expect(calls).toBeGreaterThanOrEqual(1); // onUpdate 直播保留
+    expect(e.players[cur].capitalIndex).toBe(tileIdx);
+    expect(e.players[cur].cash).toBe(cashBefore - buildCost);
+    expect(e.currentDraftIndex).toBeGreaterThan(0);
+  });
+
+  it("bot 座位轮到自动选都:真人选完后服务器接棒,无需人工", async () => {
+    const { reg, roomId } = await startRoom({ seats: 3, bot: [1, 2] });
+    const e = reg.get(roomId)!.engine!;
+    // host(唯一真人)选都后,余下 bot 座位由 pickCapital 内部 driveBots 自动跑完
+    const cur = e.currentSetupPlayerIndex;
+    await reg.pickCapital(roomId, cur, e.offeredCapitals[0]);
+    expect(e.phase).toBe("Playing");
+    expect(e.players.every((p) => p.capitalIndex >= 0)).toBe(true);
+  });
+
+  it("托管代选:开局后自助托管当前选都真人 → 服务器 bot 代选推进", async () => {
+    const { reg, roomId } = await startRoom({ seats: 3, bot: [] });
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    const before = e.currentDraftIndex;
+    await reg.setAutoPilot(roomId, cur, true, "fast");
+    expect(e.currentDraftIndex).toBe(before + 1); // 托管链已代选一步
+    expect(e.players[cur].capitalIndex).not.toBe(-1);
+  });
+
+  it("接管代选:host 接管选都中的真人 → 服务器 bot 代选推进", async () => {
+    const { reg, roomId, hostToken } = await startRoom({ seats: 3, bot: [] });
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    const before = e.currentDraftIndex;
+    await reg.takeoverSeat(roomId, hostToken, cur, undefined);
+    expect(e.currentDraftIndex).toBe(before + 1);
+    expect(e.players[cur].capitalIndex).not.toBe(-1);
+    expect(reg.get(roomId)!.takeover.has(cur)).toBe(true);
+  });
+
+  it("全 bot 驱动房自动开局不回归:开局后无人选都,托管即自动跑完 Setup", async () => {
+    const { reg, roomId } = await startRoom({ seats: 2, bot: [1] });
+    const e = reg.get(roomId)!.engine!;
+    expect(e.phase).toBe("Setup"); // 开局停在真人 host
+    await reg.setAutoPilot(roomId, 0, true, "fast"); // host 托管 → 全座位服务器驱动
+    expect(e.phase === "Playing" || e.phase === "GameOver").toBe(true); // 选都自动跑完,不留 Setup
+    expect(e.setupPhase).toBe("Done"); // 完成信号看 setupPhase(破产会转走都城,capitalIndex 不可作判据)
   });
 });
 

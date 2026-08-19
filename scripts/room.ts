@@ -14,7 +14,7 @@ import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { isSingleCjk } from "../src/core/constants";
 import type { LoadedMap } from "../src/core/board-loader";
 import { botAct } from "../src/core/bot";
-import { autoSetup, createEngine, statusOf } from "./engine-helpers";
+import { createEngine, statusOf } from "./engine-helpers";
 import {
   type HostConfig,
   type PersistedSeat,
@@ -174,6 +174,12 @@ function stepDelayMs(r: RoomSession, seat: number): number {
   return r.autoPilot.get(seat) === "slow" ? AUTOPILOT_SLOW_MS : 0;
 }
 
+/** 当前决策点归属座位:Setup·PickCapital=当前选都位,Playing=decisionOwner(珍宝
+ *  交涉=城主)。-1 = 无归属(Setup 收尾瞬态),不可驱动。 */
+function decisionSeatOf(e: GameEngine): number {
+  return e.phase === "Setup" ? e.currentSetupPlayerIndex : e.decisionOwner;
+}
+
 /** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。
  *  必须覆盖所有"无资源变化的进展":位置移动、跳过轮空消耗、回合推进——
  *  曾经漏了这三者,导致"掷骰落空格 + 对手跳过"被误判 no-progress,全 bot/托管局卡死(症状1根因)。 */
@@ -319,8 +325,10 @@ export class RoomRegistry {
     return room;
   }
 
-  /** host 开局:构造引擎(doDraftRoll 自动国号)+ autoSetup + driveBots。
-   *  onUpdate:开局首帧 + 每个 botAct 步后调(逐步直播,保留原 server.ts 行为)。
+  /** host 开局:构造引擎(doDraftRoll 自动国号)后停在 Setup·PickCapital(L41:真人
+   *  各自在自己屏幕三选一,经 WS pickCapital 落子;bot/接管/托管座位由 driveBots 代选,
+   *  全 bot 驱动房自动跑完进 Playing)。首帧 onUpdate 即 Setup 态(含首位选都者三候选)。
+   *  onUpdate:开局首帧 + 每个 bot 步后调(逐步直播,保留原 server.ts 行为)。
    *  mapProvider:按 mapId 返回 LoadedMap(服务器从 public/maps 加载后注入;ADR-0007:
    *  room.ts 不读 fs)。startGame 前必须 setMap,否则 400"请先选择地图"。
    *  异步:driveBots 可能含慢速托管步进。 */
@@ -354,12 +362,36 @@ export class RoomRegistry {
       true,
       map,
     );
-    autoSetup(engine);
     room.engine = engine;
     this.observe(room, { ev: "start", mapId: room.mapId! });
     this.persist(room);
-    onUpdate?.(room); // 开局首帧
-    await this.driveBots(room, onUpdate); // bot 座位先驱动到人类/待输入(逐步广播)
+    onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者三候选)
+    await this.driveBots(room, onUpdate); // bot/接管/托管座位先驱动(全 bot 驱动房自动进 Playing)
+    return room;
+  }
+
+  /** 真人选都落子(L41):校验「轮到该座位 + tileIndex ∈ 三候选」后引擎落子;
+   *  选完由引擎滚换下一位候选,余下 bot/接管/托管座位 driveBots 接力。
+   *  轮次/候选校验与 engine.pickCapital 同源(消息透传),这里补 HTTP 语义状态码。 */
+  async pickCapital(
+    roomId: string,
+    seat: number,
+    tileIndex: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<RoomSession> {
+    const room = this.rooms.get(roomId);
+    if (!room) throw new RoomError(404, "房间不存在");
+    if (!room.engine) throw new RoomError(409, "对局未开始");
+    const e = room.engine;
+    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") throw new RoomError(409, "非选都阶段");
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw new RoomError(400, "seat 非法");
+    if (e.currentSetupPlayerIndex !== seat) throw new RoomError(403, "未轮到该座位选都");
+    if (!e.offeredCapitals.includes(tileIndex)) throw new RoomError(400, "非本轮候选城");
+    const r = e.pickCapital(seat, tileIndex);
+    if (!r.ok) throw new RoomError(400, r.reason ?? "选都失败");
+    this.persist(room);
+    onUpdate?.(room); // 落子结果先推(候选滚换/推进)
+    await this.driveBots(room, onUpdate); // 余下服务器驱动座位接棒(全 bot 驱动房直接跑完进 Playing)
     return room;
   }
 
@@ -496,7 +528,9 @@ export class RoomRegistry {
   private readonly driving = new WeakSet<RoomSession>();
 
   /** 连续驱动服务器控制的决策点,直到轮到人类(在线或冻结)/ 游戏结束 / 无进展。
-   *  关键:冻结的人类座位不被驱动(seatControlled=false)→ 游戏等其重连或房主接管。
+   *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
+   *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
+   *  (seatControlled=false)→ 游戏等其重连或房主接管。
    *  慢速托管座位每步间延迟 2s(异步);每步 persist + onUpdate:客户端能逐步看到动作。
    *  返回 Promise:fast 模式下任务同步完成(零延迟),语义与旧同步版一致。 */
   private async driveBots(r: RoomSession, onUpdate?: (room: RoomSession) => void): Promise<void> {
@@ -508,12 +542,19 @@ export class RoomRegistry {
       let guard = 0;
       let reason: RoomBotStopReason = "guard";
       while (e.phase !== "GameOver" && guard++ < 500) {
-        if (!INPUT_PHASES.has(e.turnPhase)) { reason = "not-input-phase"; break; }
-        const owner = e.decisionOwner;
+        // Setup 期(bot/接管/托管代选 aiSetupStepFor)与 Playing 期(botAct)统一到
+        // 同一步进骨架:决策点归属与可驱动相位不同,observe/persist/直播/进展检查共用。
+        const setup = e.phase === "Setup";
+        const owner = decisionSeatOf(e);
+        const phaseOk = setup
+          ? e.setupPhase === "PickCapital" && owner >= 0
+          : INPUT_PHASES.has(e.turnPhase);
+        if (!phaseOk) { reason = "not-input-phase"; break; }
         if (!seatControlled(r, owner)) { reason = "human-turn"; break; }
         const delay = stepDelayMs(r, owner);
         const before = fingerprint(e);
-        botAct(e);
+        if (setup) e.aiSetupStepFor(owner);
+        else botAct(e);
         this.observe(r, { ev: "bot-step", seat: owner, turnPhase: e.turnPhase, active: e.activeIndex });
         this.persist(r);
         onUpdate?.(r); // 每步直播
@@ -526,10 +567,11 @@ export class RoomRegistry {
       // 步数上限(guard)只防单链失控,不是游戏终界:全 bot/全员托管的长对局会自然超过 500 步。
       // 若未终局且仍轮到服务器驱动的座位 → 休整后自动续链(否则对局会永久卡死——
       // 有人类交互时每次命令都会重开新链,全托管场景没有任何重触发者)。
-      if (reason === "guard" && e.phase !== "GameOver" && seatControlled(r, e.decisionOwner)) {
+      const guardOwner = decisionSeatOf(e);
+      if (reason === "guard" && e.phase !== "GameOver" && guardOwner >= 0 && seatControlled(r, guardOwner)) {
         setTimeout(() => {
           void this.driveBots(r, onUpdate);
-        }, stepDelayMs(r, e.decisionOwner));
+        }, stepDelayMs(r, guardOwner));
       }
     } finally {
       this.driving.delete(r);

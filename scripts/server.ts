@@ -8,10 +8,13 @@
 // 生命周期(ADR-0004 大厅 + ADR-0005 seatToken + ADR-0002 掉线):
 //   POST /room/new {seats,bot?,seed?...}   → Lobby,建房者=Seat0(host),领 token
 //   POST /room/join {roomId}               → 凭码占第一个空 human Seat,领 token
-//   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(doDraftRoll 自动国号)+ autoSetup
+//   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(doDraftRoll 自动国号),
+//                                            停在 Setup·PickCapital(L41:真人各自三选一)
 //   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
 //   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
-//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...},收 lobby/snapshot
+//   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
+//                                            {type:"pickCapital",tileIndex}(L41 选都),
+//                                            收 lobby/snapshot
 // 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
@@ -234,11 +237,11 @@ const HELP = {
     "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}(mapId=null)",
     "POST /room/join": "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
-    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图)",
+    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
     "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
-    "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...},收 lobby/snapshot/dismissed",
+    "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   maps: CATALOG_ENTRIES.map((e) => ({ id: e.id, name: e.name, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth })),
@@ -401,7 +404,7 @@ Bun.serve<WsSeat>({
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string };
+      let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string; tileIndex?: number };
       try {
         msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw).toString());
       } catch {
@@ -411,6 +414,12 @@ Bun.serve<WsSeat>({
       if (msg?.type === "cmd" && msg.cmd) {
         recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
         void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
+      } else if (msg?.type === "pickCapital" && typeof msg.tileIndex === "number") {
+        // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
+        recordEvent(roomId, { ev: "pick-capital", seat, tileIndex: msg.tileIndex });
+        void registry
+          .pickCapital(roomId, seat, msg.tileIndex, () => broadcast(roomId))
+          .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
       } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
         // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
         const speed = msg.speed === "slow" ? "slow" : "fast";

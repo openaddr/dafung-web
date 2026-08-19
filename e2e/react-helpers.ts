@@ -106,3 +106,39 @@ export async function actIfCan(p: Page): Promise<boolean> {
   }
   return false;
 }
+
+// ──────────────────────────── 联机段(react-online* 共享)────────────────────────────
+
+/** 联机开局选都三选一(L41):pages 按座位序传入(页 i = 座位 i),轮流在「轮到选都」
+ *  的端上点候选城 + 确认定都,直到快照离开 Setup(bot 座位由服务器自动代选,只等快照)。
+ *  每次轮到断言:轮到端恰 3 座候选高亮、其余端 0 座(联机不越权弹选都交互)。 */
+export async function onlinePickCapitals(pages: Page[]): Promise<void> {
+  const deadline = Date.now() + 90_000;
+  while (Date.now() < deadline) {
+    const s = await pages[0].evaluate(() => (window as any).__dafung.snapshot());
+    if (s.phase !== "Setup") return; // 全员选完 → Playing
+    const picker: Page | undefined = pages[s.currentSetupPlayerIndex];
+    const before = JSON.stringify(s);
+    if (!picker) {
+      // bot 座位轮到:服务器自动代选,等快照推进即可
+      await pages[0].waitForFunction(
+        (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
+        before,
+        { timeout: 20_000, polling: 200 },
+      );
+      continue;
+    }
+    await expect(picker.locator(".bv-tile.bv-selectable")).toHaveCount(3, { timeout: 15_000 });
+    for (const p of pages) {
+      if (p !== picker) await expect(p.locator(".bv-tile.bv-selectable")).toHaveCount(0);
+    }
+    await picker.locator(".bv-tile.bv-selectable").nth(0).click();
+    await picker.getByTestId("confirm-capital-ok").click();
+    await pages[0].waitForFunction(
+      (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
+      before,
+      { timeout: 20_000, polling: 200 },
+    );
+  }
+  throw new Error("联机选都超时未完成");
+}

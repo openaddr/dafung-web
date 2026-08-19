@@ -289,6 +289,15 @@ export class GameEngine {
     const idx = this.currentSetupPlayerIndex;
     if (idx < 0) return false;
     if (!this.players[idx].isBot) return false;
+    return this.aiSetupStepFor(idx);
+  }
+
+  /** 服务器代选(L41 联机):为指定座位按 bot 同评分选都,不校验 isBot——
+   *  驱动资格(bot 座位 / takeover / 自助托管)由调用方(room.seatControlled)保证,
+   *  单机侧真人选都不经此口(UI 手选,aiSetupStep 的 isBot 守卫保护热座)。 */
+  aiSetupStepFor(idx: number): boolean {
+    if (this.setupPhase !== "PickCapital") return false;
+    if (idx < 0) return false;
     const tileIdx = this.aiChooseCapital();
     if (tileIdx >= 0) {
       const r = this.pickCapital(idx, tileIdx);

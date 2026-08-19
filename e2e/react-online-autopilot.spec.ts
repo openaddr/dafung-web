@@ -80,6 +80,16 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
       }
     }
     await expect(host.getByTestId("autopilot-button")).toHaveText("收回", { timeout: 30_000 });
+    // L41:开局先各自选都(托管中由服务器代选)。收回前必须等 Setup 完成——
+    // 收回 = 自己决策,选都也不例外:若 host 在自己选都前收回,服务器会停在 Setup
+    // 等 host 手选,行军按钮永远不会亮(旧行为 setup 在 startGame 即跑完,无此边界)。
+    await expect
+      .poll(
+        async () =>
+          host.evaluate(() => (window as any).__dafung.snapshot().phase).catch(() => ""),
+        { timeout: 60_000, message: "托管代选都完成,进入 Playing" },
+      )
+      .toBe("Playing");
     // 收回同样带「未生效则补点」兜底(同上:20s 轮询窗 + 补点前复查,防双击翻转)
     await host.getByTestId("autopilot-button").click();
     let off = false;

@@ -38,8 +38,13 @@ export class OnlineController extends GameController {
   seat = -1;
   /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
   private pending = false;
-  /** 快照表现提取器(独立 module,diff 基准与播放队列封装在内)。 */
-  private readonly fx = new SnapshotEffects(() => this._engine);
+  /** 快照表现提取器(独立 module,diff 基准与播放队列封装在内)。
+   *  onIdle:表现队列排空时补一次 sync——L42 期间被 fx.playing 锁住的 interactive
+   *  在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮随即就位(与单机 drive 锁同口径)。 */
+  private readonly fx = new SnapshotEffects(
+    () => this._engine,
+    () => this.sync(),
+  );
   /** 是否已在对局屏(首帧 snapshot 才切屏;之后重连/恢复不重复切)。 */
   private enteredGame = false;
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
@@ -72,7 +77,10 @@ export class OnlineController extends GameController {
   }
   /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。
    *  Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
-   *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。 */
+   *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。
+   *  L42:再加表现锁 fx.playing——快照落地即可(数据即时),但骰子/行军动画播完前
+   *  决策卷轴/行军按钮不呈现(单机 drive 会话锁的联机等价物;WaitingBar/横幅不受影响,
+   *  它们不吃 interactive)。 */
   get interactive(): boolean {
     const e = this._engine;
     return (
@@ -80,7 +88,8 @@ export class OnlineController extends GameController {
       e.phase === "Playing" &&
       !e.players[e.decisionOwner]?.isBot &&
       !this.pending &&
-      !this.autoPilotOn
+      !this.autoPilotOn &&
+      !this.fx.playing
     );
   }
 
@@ -116,6 +125,24 @@ export class OnlineController extends GameController {
       return;
     }
     this.sock.send(JSON.stringify({ type: "autoPilot", on, speed }));
+  }
+
+  /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
+   *  在服务器(room.pickCapital),生效靠广播快照(候选滚换/推进/进 Playing)。
+   *  与 dispatchCommand 同用 pending 防连点;托管中不发(服务器 bot 代选)。 */
+  override setupPickCapital(tileIndex: number): void {
+    const e = this._engine;
+    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
+    if (e.currentSetupPlayerIndex !== this.seat) return;
+    if (this.pending || this.autoPilotOn) return;
+    if (!this.sock?.isOpen) {
+      useGameStore.getState().pushHint("连接未就绪");
+      return;
+    }
+    this.pending = true;
+    useNetStore.getState().setPending(true);
+    this.sock.send(JSON.stringify({ type: "pickCapital", tileIndex }));
+    this.sync(); // pending 期间锁重复提交
   }
 
   // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──

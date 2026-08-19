@@ -22,10 +22,25 @@ export class SnapshotEffects {
   private prevBankrupt = new Set<string>();
   /** 表现链串行化:快照可能连续到达,排队播放避免两次行军互踩。 */
   private fxQueue: Promise<void> = Promise.resolve();
+  /** 在途表现块计数(>0 = 骰子/行军/横幅仍在播)。L42:联机版单机 busy 锁——
+   *  OnlineController.interactive 据此关门,决策卷轴等动画播完才呈现(与单机
+   *  LocalController 的 drive 会话锁同口径)。 */
+  private pendingChunks = 0;
   /** 表现出口(Wave1):引擎经 getter 绑定(换图会整体替换引擎实例,getter 始终取最新)。 */
   private readonly fxSink = createEngineSink(() => this.getEngine());
+  /** 队列排空(忙→闲)回调:OnlineController 用来补一次 sync,放出被锁的 interactive。 */
+  private readonly onIdle: (() => void) | null;
+  private readonly getEngine: () => GameEngine;
 
-  constructor(private readonly getEngine: () => GameEngine) {}
+  constructor(getEngine: () => GameEngine, onIdle?: () => void) {
+    this.getEngine = getEngine;
+    this.onIdle = onIdle ?? null;
+  }
+
+  /** 表现队列是否仍在播放(快照数据已落地,但骰子/行军/横幅未完)。 */
+  get playing(): boolean {
+    return this.pendingChunks > 0;
+  }
 
   /** 每帧 snapshot 后调用:newRoll = 本帧发生了掷骰(阶段迁移判定,见协议桥注释)。 */
   play(newRoll: boolean): void {
@@ -51,15 +66,22 @@ export class SnapshotEffects {
     }
 
     // 2) 位置 diff → tokenMoved 事件(首帧只记位置,不动画;辅路进出不做主路行军)。
+    //    Setup·PickCapital 的落位是「筑城」不是行军:不播 march,改盖「筑」印(单机
+    //    runPickCapital 同款表现,避免选都棋子横穿棋盘的伪行军)。
     //    棋子渲染必须立刻让位(否则 React 先画终点再被拽回):提取期同步经
     //    applyPresentationMove(引擎合法表现通道)注入 diff 推导的轨迹锚定旧位置,
     //    present 播放时再沿轨迹补走;表现完清掉注入,避免污染后续判断。
     let marched = false;
+    const setupPick = engine.phase === "Setup";
     for (const p of engine.players) {
       const prev = this.prevPos.get(p.id);
       this.prevPos.set(p.id, { position: p.position, onStep: p.onBranch?.step ?? null });
       if (!prev || prev.onStep != null || p.onBranch != null) continue;
       if (p.position === prev.position) continue;
+      if (setupPick) {
+        events.push({ kind: "sealStamped", tileIndex: p.position, char: "筑" });
+        continue;
+      }
       const traversed: number[] = [];
       for (let i = 1; i <= tileCount; i++) {
         const t = (prev.position + i) % tileCount;
@@ -94,7 +116,13 @@ export class SnapshotEffects {
     const banner = turnBannerEvent(engine);
     if (banner) events.push(banner);
 
-    this.fxQueue = this.fxQueue.then(() => present(events, this.fxSink));
+    if (events.length === 0) return; // 无表现(首帧/纯等待帧):不占用表现锁
+    this.pendingChunks++;
+    const settle = () => {
+      this.pendingChunks--;
+      if (this.pendingChunks === 0) this.onIdle?.(); // 忙→闲:放出被锁的 interactive
+    };
+    this.fxQueue = this.fxQueue.then(() => present(events, this.fxSink)).then(settle);
     if (marched) {
       // 清掉 diff 推导的 presentation 轨迹:真实引擎态(服务器权威)不被本地表现污染
       this.fxQueue = this.fxQueue.then(() => {
