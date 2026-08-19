@@ -12,10 +12,10 @@ test("侧栏抽屉折叠:收起成窄条(竖排摘要)并可展开还原", async
   await expect(rail).toContainText("之回合");
   await expect(rail).toContainText(/锭|两/);
   await expect(page.getByTestId("hand-panel")).toBeHidden();
-  // 展开:四区还原
+  // 展开:四区还原(L48:战报区已移除,珍宝·名士区接管腾位)
   await page.getByTestId("sidebar-toggle").click();
   await expect(page.getByTestId("hand-panel")).toBeVisible();
-  await expect(page.getByTestId("warlog-panel")).toBeVisible();
+  await expect(page.getByTestId("treasury-panel")).toBeVisible();
   // 注:折叠状态的 localStorage 记忆不做刷新断言——刷新即丢快照回首页(游戏态不持久),
   // 局内记忆的读写已在组件内 try/catch 覆盖,记忆正确性由代码路径保证。
 });

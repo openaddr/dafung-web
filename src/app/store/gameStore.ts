@@ -4,7 +4,6 @@
 // 组件订阅 store 声明式重渲。
 import { create } from "zustand";
 import type { GameEngine } from "@core/game";
-import type { LogEvent } from "@core/types";
 
 /** 引擎快照类型(serializeGame 的返回结构;联机 snapshot 消息同构,可直灌 store)。 */
 export type GameSnapshot = ReturnType<GameEngine["snapshot"]>;
@@ -118,13 +117,4 @@ export function useActivePlayer(): SnapshotPlayer | null {
  *  避免在 React 层重算导致与引擎/联机端三处口径漂移。 */
 export function playerNetWorth(p: SnapshotPlayer): number {
   return p.netWorth;
-}
-
-/** 最近 n 条战报(新在前;全量 log 也在快照里,组件可自行切片)。 */
-export function useRecentLog(count: number): LogEvent[] {
-  return useGameStore((s) => {
-    const log = s.snapshot?.log;
-    if (!log) return [];
-    return log.slice(-count).reverse();
-  });
 }

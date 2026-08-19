@@ -43,6 +43,8 @@ export interface TokenSlot {
   opacity: number;
   /** #30 行军接管中(强调态:金边拖影 + 落脚指示环)。 */
   marching: boolean;
+  /** L47:本地视角自己的棋子(玩家色微光圈,棋盘侧「我是谁」锚点)。 */
+  mine: boolean;
 }
 
 interface TokenLayerProps {
@@ -52,6 +54,8 @@ interface TokenLayerProps {
   setupUnselected: boolean;
   /** 行军动画接管中的玩家 id(跳过声明式定位)。 */
   skipTokenIds?: ReadonlySet<string>;
+  /** L47:本地视角玩家 id(自己棋子加玩家色微光圈)。 */
+  mineId?: string;
   /** 暴露棋子层 <g>(阶段 6 动画挂点 3)。 */
   layerRef?: React.Ref<SVGGElement>;
 }
@@ -101,7 +105,8 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
 }
 
 const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
-  const { player: p, x, y, opacity, marching } = slot;
+  const { player: p, x, y, opacity, marching, mine } = slot;
+  const c = playerColor(p.colorIndex);
   return (
     <g
       className={marching ? "bv-token bv-token-marching" : "bv-token"}
@@ -109,6 +114,17 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
       style={{ transform: `translate(${x}px, ${y}px)`, opacity }}
     >
       <g transform={`scale(${TOKEN_SCALE})`}>
+        {/* L47 自己的棋子:玩家色微光圈(棋盘侧「我是谁」锚点,board.css 呼吸动画;
+            与 #30 行军金环区分——色环=身份,金虚线环=正在动) */}
+        {mine && (
+          <circle
+            className="bv-token-mine-halo"
+            r={15}
+            fill="none"
+            stroke={rgba(c, 0.6)}
+            strokeWidth={2.5}
+          />
+        )}
         {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
             金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
         <circle className="bv-token-march-ring" r={17} fill="none" stroke={rgba(Theme.goldBright, 0.9)} strokeWidth={2} strokeDasharray="6 5" />
@@ -123,6 +139,7 @@ export const TokenLayer = memo(function TokenLayer({
   players,
   setupUnselected,
   skipTokenIds,
+  mineId,
   layerRef,
 }: TokenLayerProps) {
   // 同格错位:按槽位键分组,组内按 TOKEN_SLOT_OFFSETS 错位摆放
@@ -137,8 +154,9 @@ export const TokenLayer = memo(function TokenLayer({
 
   const slots: TokenSlot[] = [];
   for (const p of players) {
+    const mine = p.id === mineId;
     if (setupUnselected && p.capitalIndex < 0) {
-      slots.push({ player: p, x: 0, y: 0, opacity: 0, marching: false });
+      slots.push({ player: p, x: 0, y: 0, opacity: 0, marching: false, mine });
       continue;
     }
     if (skipTokenIds?.has(p.id)) {
@@ -149,13 +167,13 @@ export const TokenLayer = memo(function TokenLayer({
       // 动画结束 removeMarching 后 React 终态接管,强调态随之自然消退)。
       const mp = marchPos.get(p.id);
       if (!mp) continue;
-      slots.push({ player: p, x: mp.x, y: mp.y, opacity: 1, marching: true });
+      slots.push({ player: p, x: mp.x, y: mp.y, opacity: 1, marching: true, mine });
       continue;
     }
     const pos = tokenRenderPos(p, board);
     const mates = bySlot.get(playerSlotKey(p, board)) ?? [p.id];
     const off = TOKEN_SLOT_OFFSETS[Math.max(0, mates.indexOf(p.id)) % TOKEN_SLOT_OFFSETS.length];
-    slots.push({ player: p, x: pos.x + off.x, y: pos.y + off.y, opacity: p.isBankrupt ? 0.15 : 1, marching: false });
+    slots.push({ player: p, x: pos.x + off.x, y: pos.y + off.y, opacity: p.isBankrupt ? 0.15 : 1, marching: false, mine });
   }
 
   return (

@@ -17,6 +17,7 @@ import {
   UpgradeDecisionScroll,
   VictoryScreen,
 } from "./index";
+import { exportWarlog } from "../warlogExport";
 
 export interface DecisionScrollLayerProps {
   snapshot: GameSnapshot;
@@ -62,6 +63,8 @@ export function DecisionScrollLayer({
           winReason="NetWorth"
           // 重开:最朴素可靠的方式是整页重载回设置屏(旧版亦无局内重开)
           onRestart={() => location.reload()}
+          // L48:战报导出入口(对局内不再展示战报,终局落 JSON 文件复盘)
+          onExportWarlog={() => exportWarlog(snapshot)}
         />
       );
     }

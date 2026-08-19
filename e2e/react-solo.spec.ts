@@ -29,8 +29,8 @@ test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", 
   await expect(page.getByTestId("status-guohao")).toHaveText(active.guohao);
   await expect(page.getByTestId("status-meta")).toContainText(fmtMoney(active.cash));
   await expect(page.getByTestId("status-meta")).toContainText(`委任 ${active.warrants}`);
-  // 战报区可滚动渲染 + 诸侯列表就位
-  await expect(page.getByTestId("warlog-panel")).toBeVisible();
+  // 珍宝·名士区(L48 战报腾位)+ 诸侯列表就位
+  await expect(page.getByTestId("treasury-panel")).toBeVisible();
   await expect(page.getByTestId("others-panel")).toBeVisible();
 });
 
@@ -154,6 +154,12 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   const s = await snap(page);
   expect(s.isOver).toBe(true);
   expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
+  // L48:战报不再对局内展示,胜利屏「导出战报」落 JSON 文件(含完整 log)
+  const [download] = await Promise.all([
+    page.waitForEvent("download"),
+    page.getByTestId("warlog-export").click(),
+  ]);
+  expect(download.suggestedFilename()).toMatch(/^dafung-warlog-\d{14}\.json$/);
 });
 
 test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invariants.spec)", async ({ page }) => {

@@ -68,24 +68,6 @@
   }
 }
 
-/* ── 战报印章:盖入动画(scale 1.4→1,像小章落到战报上)──
-   为什么只给"最新一条"挂(WarlogPanel 里 i===0):列表是 flex-col-reverse 渲染最近
-   300 条,若全部挂动画,切 tab/新日志批量挂载时会同时重放几百个 transform 动画;
-   只动画最新一条既保留"盖章"仪式感,又把每帧成本压到单个节点。 */
-@keyframes warlog-stamp-in {
-  from {
-    transform: rotate(-4deg) scale(1.4);
-    opacity: 0;
-  }
-  to {
-    transform: rotate(-4deg) scale(1);
-    opacity: 1;
-  }
-}
-.warlog-seal-anim {
-  animation: warlog-stamp-in 0.3s ease-out;
-}
-
 /* ── 动画工具类(供组件直接挂 class)── */
 .scroll-anim-overlay {
   /* 挂载容器 #scroll-layer 是 pointer-events-none(无弹层时不挡棋盘),

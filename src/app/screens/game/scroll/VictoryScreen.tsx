@@ -21,6 +21,8 @@ export interface VictoryScreenProps {
   turnNumber: number;
   winReason: "LastStanding" | "NetWorth" | string;
   onRestart: () => void;
+  /** L48:导出战报(快照 log 落 JSON 文件,复盘/AI 分析用);不传则不渲染该按钮。 */
+  onExportWarlog?: () => void;
 }
 
 // 烟花配色(S3/S4 收编):主体五色引用 tokens.css 的 var(--color-*),单源 core/theme.ts;
@@ -92,6 +94,7 @@ export function VictoryScreen({
   turnNumber,
   winReason,
   onRestart,
+  onExportWarlog,
 }: VictoryScreenProps) {
   // 烟花粒子队列:定时放波,2 秒后清(与旧版 setTimeout remove 等价)。
   // 相比旧版只放 5 波,这里循环放——庆祝屏停留时间由玩家决定,不烟花会冷场。
@@ -168,9 +171,18 @@ export function VictoryScreen({
       </div>
       <div className="victory-step-btn mt-6">
         {showButton && (
-          <ScrollButton primary testid={T.victoryRestart} onClick={onRestart}>
-            再战一局
-          </ScrollButton>
+          /* L48:战报不再对局内展示,终局在此一键导出(JSON 文件,复盘/AI 分析用);
+             与「再战一局」同挂 showButton 延时,防演出高潮期误触。 */
+          <div className="flex items-center justify-center gap-3">
+            <ScrollButton primary testid={T.victoryRestart} onClick={onRestart}>
+              再战一局
+            </ScrollButton>
+            {onExportWarlog && (
+              <ScrollButton testid={T.warlogExport} onClick={onExportWarlog}>
+                导出战报
+              </ScrollButton>
+            )}
+          </div>
         )}
       </div>
     </div>

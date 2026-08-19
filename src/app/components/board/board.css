@@ -123,11 +123,29 @@
   }
 }
 
+/* ── L47 自己的棋子:玩家色微光圈 ──
+   TokenLayer 内 .bv-token-mine-halo 圆(玩家色实线,stroke 色随玩家注入):
+   缓慢呼吸表「这是你的棋子」,与行军金虚线环(正在动)语义分离;
+   只做透明度脉动不加旋转/缩放——身份是常驻暗示,不抢行军强调的戏。 */
+.bv-token-mine-halo {
+  animation: bv-mine-halo 2.6s ease-in-out infinite;
+}
+@keyframes bv-mine-halo {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
 /* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
    (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动),保留静态视觉。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-flag,
   .bv-token.bv-token-marching .bv-token-march-ring,
+  .bv-token-mine-halo,
   .bv-tile.bv-capital .bv-capital-glow,
   .bv-tile.bv-active .bv-capital-glow,
   .bv-road-branch {

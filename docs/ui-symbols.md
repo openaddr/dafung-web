@@ -15,13 +15,15 @@
 | 已静音 | `♪̶` | ♪ + U+0336 组合删除线。GameScreen ♪/♫ 混用→♪/♪̶(2026-08-16) |
 | 播放/试玩 | `▶` | 编辑器「试玩这局」 |
 | 双向通行(驿道) | `⇄` | 棋盘辅路入口记号(StaticLayers) |
-| 珍宝 | `◆` | 手牌珍宝行(HandPanel),金色 |
+| 珍宝 | `◆` | 珍宝行(TreasuryPanel,L48 起随珍宝·名士区),金色 |
 | 关闭 | `×` | 卷轴标题栏关闭钮(ScrollShell) |
-| 单字印章 | 掷/置/扩/税/济/通/宝/禁/卖/胜/纪/天 | 战报事件章(WarlogPanel,W1 已定,非几何符号体系) |
+| 单字印章 | 掷/置/扩/税/济/通/宝/禁/卖/胜/纪/天 | ~~战报事件章(WarlogPanel)~~ 战报区已移除(L48,2026-08-19),字表随 WarlogPanel 退役;存量的 UI 单字印(「你」印/「托」印/「智」「胜」后缀)不受影响,仍属本档口径 |
 
 ## 本次替换记录(react-rewrite,2026-08-16)
 
 - `src/app/screens/game/GameScreen.tsx`:静音 `♪/♫` → `♪/♪̶`;复位 `⌖` → `◎`
+- L48(2026-08-19):战报区移除,单字印章字表(掷/置/扩/…)随 WarlogPanel 退役;
+  珍宝 `◆` 行从 HandPanel 迁至 TreasuryPanel(符号不变)
 
 ## 遗留清单(他人文件,本批不许碰——**盘点结论:均已符合本表,无需替换**)
 
@@ -34,7 +36,7 @@
 | src/app/screens/game/scroll/TreasureVisitorScroll.tsx:112 | ← | ← | 一致 |
 | src/app/screens/game/scroll/ScrollShell.tsx:105 | × | × | 一致 |
 | src/app/components/board/StaticLayers.tsx:118 | ⇄ | ⇄ | 一致 |
-| src/app/screens/game/HandPanel.tsx:84 | ◆ | ◆ | 一致 |
+| src/app/screens/game/HandPanel.tsx:84 | ◆ | ◆ | 一致(L48 起该行迁至 TreasuryPanel,符号不变) |
 
 > 唯二的历史不一致(♪/♫、⌖)都发生在 GameScreen(本批独占文件)内,已随本批清零;
 > 其余文件盘点后无漂移,后续新增 UI 以本表为准。

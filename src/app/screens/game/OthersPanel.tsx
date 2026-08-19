@@ -1,4 +1,5 @@
 // 侧栏·诸侯紧凑条(对照旧 renderOthers):国号徽记 + 银两 + 城数;活跃/破产/胜者高亮。
+// L48:原寄居 WarlogPanel 标题下,战报区移除后独立成节(标题「诸侯」,钉在珍宝·名士区之后)。
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -6,7 +7,9 @@ import { TESTIDS } from "./testids";
 
 export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
   return (
-    <div data-testid={TESTIDS.othersPanel} className="px-3 py-1">
+    <section data-testid={TESTIDS.othersPanel} className="shrink-0 px-3 pb-2">
+      <h3 className="py-1 font-brush text-base">诸侯</h3>
+      <div>
       {snapshot.players.map((p, seat) => {
         const isActive = snapshot.phase === "Playing" && seat === snapshot.activeIndex;
         const isWinner = snapshot.isOver && snapshot.winner === p.id;
@@ -52,6 +55,7 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
           </div>
         );
       })}
-    </div>
+      </div>
+    </section>
   );
 }

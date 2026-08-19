@@ -5,8 +5,11 @@ export const TESTIDS = {
   // ── 侧栏四区容器 ──
   statusBarPanel: "status-bar-panel",
   handPanel: "hand-panel",
+  /** L47:手牌区玩家身份头(国号大字 + 「你」印)。 */
+  handIdentity: "hand-identity",
   othersPanel: "others-panel",
-  warlogPanel: "warlog-panel",
+  /** L48:珍宝·名士常驻展示区(战报移除后腾位)。 */
+  treasuryPanel: "treasury-panel",
   /** 侧栏抽屉折叠(S5):展开态容器 / 折叠窄条容器 / 切换按钮(两态同名)。 */
   sidebarPanel: "sidebar-panel",
   sidebarCollapsed: "sidebar-collapsed",
@@ -21,8 +24,9 @@ export const TESTIDS = {
   // ── 手牌/动作区 ──
   handCash: "hand-cash",
   handWarrants: "hand-warrants",
-  handTreasure: (id: string) => `hand-treasure-${id}` as const,
-  handHero: (id: string) => `hand-hero-${id}` as const,
+  /** 珍宝/名士卡(L48 迁入 TreasuryPanel,命名随区)。 */
+  treasuryTreasure: (id: string) => `treasury-treasure-${id}` as const,
+  treasuryHero: (id: string) => `treasury-hero-${id}` as const,
   diceFace: "dice-face",
   rollButton: "roll-button",
   /** 珍宝/名士详情卷轴(HandPanel 点卡弹出;UI F5)。 */
@@ -38,11 +42,6 @@ export const TESTIDS = {
 
   // ── 诸侯列表 ──
   otherPlayer: (seat: number) => `other-player-${seat}` as const,
-
-  // ── 战报 ──
-  warlogItem: "warlog-item",
-  warlogTabBrief: "warlog-tab-brief",
-  warlogTabDetail: "warlog-tab-detail",
 
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串

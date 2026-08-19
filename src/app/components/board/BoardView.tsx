@@ -40,7 +40,7 @@ export interface BoardViewProps {
   map: MapData;
   /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */
   players: BoardPlayer[];
-  /** 当前视角座位 id(预留给镜头跟随/权限判定;当前渲染未用)。 */
+  /** 当前视角玩家 id(L47:自己棋子加玩家色微光圈;观战/未入座不传)。 */
   viewSeat?: string;
   /** 点击城池回调(索引)。 */
   onTileClick?: (index: number) => void;
@@ -105,7 +105,6 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   tokenLayerRef,
   className,
 }, ref) {
-  void viewSeat; // 预留:当前渲染不区分视角
   const svgRef = useRef<SVGSVGElement | null>(null);
   // F1:viewBox 由 hook 命令式 setAttribute 更新,不产生 React 重渲;
   // svg 的 viewBox prop 只下发一次初始总览值(FIT_VIEW_BOX 常量),此后 React 不改写。
@@ -201,6 +200,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         players={players}
         setupUnselected={isSetupPhase}
         skipTokenIds={skipTokenIds}
+        /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
+        mineId={viewSeat}
         layerRef={tokenLayerRef}
       />
       {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。

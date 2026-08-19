@@ -84,11 +84,11 @@ export function TreasureVisitorScroll({
             <ScrollButton primary testid={T.treasureSkip} onClick={() => onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })}>
               暂不交易
             </ScrollButton>
-            <ScrollButton testid={T.treasureModeFair} onClick={() => setMode("fair")}>
-              公道买卖 · 按指导价
+            <ScrollButton testid={T.treasureModeFair} onClick={() => setMode("fair")} title="按指导价出售,成交后城池 +1 级">
+              公道买卖
             </ScrollButton>
-            <ScrollButton testid={T.treasureModePremium} onClick={() => setMode("premium")}>
-              坐地起价 · 加价出售
+            <ScrollButton testid={T.treasureModePremium} onClick={() => setMode("premium")} title="按城池等级加价出售,城池不升级">
+              坐地起价
             </ScrollButton>
           </div>
         </>

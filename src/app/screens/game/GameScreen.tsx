@@ -1,5 +1,6 @@
 // Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
-//   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 诸侯·战报。
+//   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名士 / 诸侯
+//   (L48:战报区移除,日志走胜利屏「导出战报」落文件)。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
@@ -13,9 +14,10 @@ import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandPanel } from "./HandPanel";
+import { TreasuryPanel } from "./TreasuryPanel";
+import { OthersPanel } from "./OthersPanel";
 import { WaitingBar } from "./WaitingBar";
 import { StatusBar } from "./StatusBar";
-import { WarlogPanel } from "./WarlogPanel";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
@@ -178,6 +180,8 @@ export function GameScreen() {
           ref={boardRef}
           map={map}
           players={players}
+          /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
+          viewSeat={localPlayer?.id}
           onTileClick={(i) => {
             // 相位路由收口于此(Wave3 候选2,原 controller.tileClick 的职责上移):
             // Playing=任何格查看详情(#33,含特殊地点);Setup 选都期:
@@ -352,7 +356,9 @@ export function GameScreen() {
           />
         )}
       </div>
-      {/* 右侧栏(四区:状态 / 手牌+动作 / 诸侯·战报,标题横幅置顶)。
+      {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名士 / 诸侯,标题横幅置顶)。
+          L48:战报区已移除(日志保留在引擎快照,胜利屏「导出战报」落文件);
+          珍宝·名士区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
           自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。
@@ -375,15 +381,16 @@ export function GameScreen() {
               <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
             </h1>
             <StatusBar snapshot={snapshot} />
-            {/* G-17 双层卷轴互斥:手牌卡详情卷轴打开时关掉城详情卷轴(同一时刻只留一卷) */}
             <HandPanel
               snapshot={snapshot}
               player={localPlayer}
               controller={controller}
               interactive={interactive}
-              onCardDetailOpen={closeDetail}
             />
-            <WarlogPanel snapshot={snapshot} />
+            {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名士常驻展示区;
+                诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。 */}
+            <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} />
+            <OthersPanel snapshot={snapshot} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
             <button
               type="button"
