@@ -33,7 +33,7 @@ function finishSetup(e: GameEngine) {
 }
 
 function hero(id: string, name: string) {
-  return { id, name, title: "", desc: "", skill: { kind: "moveBonus" as const, steps: 1 }, image: "/assets/heroes/hero-zhouyu-sgs.png" };
+  return { id, name, title: "", desc: "", skills: [{ id: `${id}-move+1`, when: "BeforeMarch" as const, effect: "moveBonus", params: { steps: 1 }, scope: "self" as const }], image: "/assets/heroes/hero-zhouyu-sgs.png" };
 }
 
 /** 给玩家塞一座非都城的可变卖城(catalog 里 valueByLevel 齐全的普通城),返回其 Lv.0 变卖价。 */
@@ -91,7 +91,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
-    p.heroes.push({ id: "zhouyu", name: "周瑜", title: "", desc: "", skill: { kind: "moveBonus", steps: 1 }, image: "/assets/heroes/hero-zhouyu-sgs.png" });
+    p.heroes.push(hero("zhouyu", "周瑜"));
     (e as any).payOrLiquidate(p, null, 150); // 欠 150,有名士 → 清算
     e.cashHeroBankruptcy("zhouyu"); // +200,释放
     expect(p.cash).toBe(200);

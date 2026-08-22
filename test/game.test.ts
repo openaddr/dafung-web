@@ -254,10 +254,10 @@ describe("名士(英雄)", () => {
     const holder = e.players[1];
     holder.heroes.push(hero("zhangxingcai"));
     const cash0 = holder.cash;
-    (e as any).fireOnAnyRoll(6);
+    (e as any).dispatchMoment("DieRolled", { subject: 0, die: 6 });
     expect(holder.cash).toBe(cash0 + 20);
     const cash1 = holder.cash;
-    (e as any).fireOnAnyRoll(3);
+    (e as any).dispatchMoment("DieRolled", { subject: 0, die: 3 });
     expect(holder.cash).toBe(cash1); // 非 6 不加
   });
 
@@ -267,10 +267,10 @@ describe("名士(英雄)", () => {
     const holder = e.players[1];
     holder.heroes.push(hero("caopi"));
     const cash0 = holder.cash;
-    (e as any).fireOnOtherLoseCash(e.players[0]);
+    (e as any).dispatchMoment("CashLost", { subject: 0 });
     expect(holder.cash).toBe(cash0 + 50);
     const cash1 = holder.cash;
-    (e as any).fireOnOtherLoseCash(holder); // 自己失财 → 不触发
+    (e as any).dispatchMoment("CashLost", { subject: 1 }); // 自己失财 → 不触发
     expect(holder.cash).toBe(cash1);
   });
 
@@ -284,7 +284,7 @@ describe("名士(英雄)", () => {
     expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
     e.resolveHeroPick(0);
     expect(picker.heroes.length).toBe(1); // resolveHeroPick → endTurn 切了玩家,用 picker 引用
-    expect(picker.heroes[0].skill).toBeDefined();
+    expect(picker.heroes[0].skills).toBeDefined();
   });
 
   it("回合计数:全员各行动一次后 round +1", () => {
