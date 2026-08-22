@@ -14,9 +14,12 @@ import type {
   RouteKind,
   TileDef,
   TransactionResult,
+  TriggerSkill,
   TurnPhase,
   VictoryReason,
 } from "./types";
+import type { GameMoment } from "./timing";
+import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
 import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
@@ -440,6 +443,7 @@ export class GameEngine {
       "群雄起兵,首战由「" + this.activePlayer.guohao + "」先行",
       `gameStart firstPlayer=${this.activePlayer.id}`,
     );
+    this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)
   }
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
@@ -449,10 +453,11 @@ export class GameEngine {
   rollAndMove(): void {
     if (!this.assertPhase("Roll", "RollAndMove")) return;
     const mover = this.activePlayer;
+    this.dispatchMoment("BeforeMarch", { subject: this.activeIndex }); // 时机·BeforeMarch:掷骰前(行军加成挂点,如周瑜 moveBonus)
     const roll = this.dice.roll();
     this.lastRoll = roll;
-    this.fireOnAnyRoll(roll.die); // 名士·onAnyRoll:任意人掷出特定点 → 持有者获益(张星彩)
-    const moveBonus = this.heroMoveBonus(mover); // 名士·moveBonus:移动步数加成(周瑜)
+    this.dispatchMoment("DieRolled", { subject: this.activeIndex, die: roll.die }); // 时机·DieRolled:骰面已定(张星彩 gainIfFace 等)
+    const moveBonus = this.takeMarchBonus(); // 取走 BeforeMarch 时机累计的行军加成
     const steps = roll.die + moveBonus;
     const path = this.board.computePath(
       mover.position,
@@ -501,6 +506,7 @@ export class GameEngine {
       );
       mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
       mover.position = mover.capitalIndex;
+      this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
       const supply = this.applyResupply(mover, "halt");
       this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
       this.turnPhase = "Land";
@@ -510,6 +516,7 @@ export class GameEngine {
     // 辅路逐格落点:落辅路第 step 格 → 触发该格效果
     if (path.landBranchStep != null && this.board.branch) {
       mover.onBranch = { step: path.landBranchStep };
+      this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(落辅路格)、辅路格结算前
       this.turnPhase = "Land";
       const cell = this.board.branch.cells[path.landBranchStep];
       this.resolveBranchCell(mover, cell);
@@ -518,6 +525,7 @@ export class GameEngine {
     // 主路落点(含从辅路汇入:endNode 及之后)
     mover.onBranch = null; // 已在主路(清掉原 onBranch)
     mover.position = path.landIndex;
+    this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
     // 落在辅路起点(且未在辅路)→ 弹入口抉择
     if (this.board.getBranchStart(path.landIndex)) {
       this.turnPhase = "AwaitingBranch";
@@ -664,7 +672,7 @@ export class GameEngine {
       if (r === "liquidating") return;
       const bankrupt = r === "bankrupt";
       this.pushFloater(mover, -200, tile.index, "expense");
-      this.fireOnOtherLoseCash(mover);
+      this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
       this.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
       this.logEvent("tax", mover.guohao, `${mover.guohao} 落 ${tile.name} 缴税 ${formatMoney(200)}${bankrupt ? " → 破产" : ""}`, `tax player=${mover.id} tile=#${tile.index} cash=${mover.cash}`, -200);
       this.endTurn();
@@ -683,7 +691,7 @@ export class GameEngine {
         bankrupt = r === "bankrupt";
       }
       this.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
-      if (!gain) this.fireOnOtherLoseCash(mover);
+      if (!gain) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
       this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
       this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`, `stock player=${mover.id} delta=${delta} cash=${mover.cash}`, delta);
       this.endTurn();
@@ -790,6 +798,7 @@ export class GameEngine {
 
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   private endTurn(): void {
+    this.dispatchMoment("TurnEnd", { subject: this.activeIndex }); // 时机·TurnEnd:回合收尾(胜负判定/结算移除前)
     this.turnPhase = "EndTurn";
     const result = this.checkVictory();
     if (result.winner) {
@@ -826,7 +835,14 @@ export class GameEngine {
       const next = this.draftOrder.find((i) => !this.players[i].isBankrupt);
       if (next !== undefined) this.roundAnchor = next;
     }
-    if (this.activeIndex === this.roundAnchor) this.round += 1;
+    if (this.activeIndex === this.roundAnchor) {
+      // 时机·RoundEnd → 轮次 +1 → 时机·RoundStart:最后一位玩家 endTurn 且回到轮次锚点时,
+      // 先收尾旧轮再开启新轮(均以锚点座位为主体)。
+      this.dispatchMoment("RoundEnd", { subject: this.roundAnchor });
+      this.round += 1;
+      this.dispatchMoment("RoundStart", { subject: this.roundAnchor });
+    }
+    this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
     // 辅路入口抉择由 rollAndMove 落格到 startNode 时触发(本回合内 selectBranch 处理);
     // endTurn 不再重复设置 AwaitingBranch,否则选"大路"停在起点的玩家每回合被反复提示。
     this.turnPhase = "Roll";
@@ -924,7 +940,7 @@ export class GameEngine {
       bankrupt = r === "bankrupt";
     }
     this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
-    if (ev.cashDelta < 0) this.fireOnOtherLoseCash(mover);
+    if (ev.cashDelta < 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: -ev.cashDelta }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
     this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     this.logEvent(
       "system",
@@ -1019,7 +1035,7 @@ export class GameEngine {
     else this.deliverEscrow(); // 付款到账:交货
     this.pushFloater(mover, -price, mover.position, "expense");
     this.pushFloater(owner, price, mover.position, "income");
-    if (price > 0) this.fireOnOtherLoseCash(mover);
+    if (price > 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
     this.lastLandOutcome = { kind: "TreasureTrade", property: def, owner, amount: price, causedBankruptcy: bankrupt };
     const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
     this.logEvent("trade", owner.guohao, `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
@@ -1171,62 +1187,101 @@ export class GameEngine {
     }
   }
 
-  // ──────────────────────────── 名士(英雄)系统 ────────────────────────────
-  // 框架:数据驱动的被动/触发技能。新增 skill kind 时:① types.HeroSkill 加变体;
-  // ② 被动类在对应查询(heroMoveBonus)加分支;触发类在对应 fire 方法加分支。
+  // ──────────────────────────── 时机框架(时机总线) ────────────────────────────
+  // dispatchMoment(moment, ctx):在时机点派发全场技能(武将技能/将来的珍宝/地块/全局规则同轨)。
+  // 确定性:座位序(0..n-1,未破产)× 每人 heroes 序 × skills 数组序,同层派发顺序全确定。
+  // 零新增序列化状态:技能从 HEROES 数据派生;冷却复用 heroLastFired(键=skill.id)。
+  // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/timing-framework.md。
 
-  /** 被动·移动加成:查询型(移动前计入)。周瑜等。 */
-  private heroMoveBonus(player: Player): number {
-    let bonus = 0;
-    for (const h of player.heroes) {
-      if (h.skill.kind === "moveBonus") bonus += h.skill.steps;
-    }
-    return bonus;
+  /** 派发深度计数(瞬态,不序列化):每次进入 dispatchMoment +1。>2 层直接抛错——
+   *  不变量校验而非兜底:效果内同步再派发时机只能有一层嵌套,递归链是框架 bug,必须崩出来。 */
+  private momentDepth = 0;
+
+  /** 行军加成累计(瞬态,不序列化):BeforeMarch·moveBonus 效果写入,rollAndMove 掷骰后
+   *  takeMarchBonus 取走并清零——同一次 rollAndMove 内写读平衡,快照永远看不到残值。 */
+  private marchBonus = 0;
+
+  /** 效果注册表专用通道(仅 effects.ts 调用;UI/bot 不得使用):累计行军加成。 */
+  addMarchBonus(steps: number): void {
+    this.marchBonus += steps;
   }
 
-  /** 冷却判定:未设 cooldown → 恒可用;否则距上次触发 ≥ cooldown 轮才可用。 */
-  private isHeroReady(player: Player, hero: HeroDef): boolean {
-    if (!hero.cooldown) return true;
-    const last = player.heroLastFired[hero.id] ?? -Infinity;
-    return this.round - last >= hero.cooldown;
+  /** 效果注册表专用通道:取走并清零累计行军加成(rollAndMove 消费)。 */
+  takeMarchBonus(): number {
+    const b = this.marchBonus;
+    this.marchBonus = 0;
+    return b;
   }
 
-  /** 触发型技能生效:加银 + 浮动 + 战报 + 记冷却。 */
-  private grantHeroGain(player: Player, hero: HeroDef, gain: number, reason: string): void {
-    player.cash += gain;
-    player.heroLastFired[hero.id] = this.round;
-    this.pushFloater(player, gain, player.position, "income");
-    this.logEvent(
-      "supply",
-      player.guohao,
-      `${player.guohao} 名士「${hero.name}」:${reason} +${formatMoney(gain)}`,
-      `heroGain player=${player.id} hero=${hero.id} reason=${reason} +${gain} cash=${player.cash}`,
-      gain,
-    );
+  /** 效果注册表专用通道:技能得银(+现金 +浮字;skill 战报由派发器统一记录)。 */
+  grantSkillCash(seat: number, amount: number): void {
+    const p = this.players[seat];
+    p.cash += amount;
+    this.pushFloater(p, amount, p.position, "income");
   }
 
-  /** 触发·onAnyRoll:每次任意玩家掷骰后调用,匹配 face 的名士生效(张星彩)。 */
-  private fireOnAnyRoll(die: number): void {
-    for (const p of this.players) {
-      if (p.isBankrupt) continue;
-      for (const h of p.heroes) {
-        if (h.skill.kind === "onAnyRoll" && die === h.skill.face && this.isHeroReady(p, h)) {
-          this.grantHeroGain(p, h, h.skill.gain, `掷出${die}`);
+  /** 时机派发:遍历所有未破产玩家(座位序)× 技能序;scope 过滤 + cooldown 检查后执行效果。
+   *  ctx.subject=时机主体座位;ctx.die/amount=时机细粒度数据(DieRolled 骰面 / CashLost 失财额)。 */
+  dispatchMoment(moment: GameMoment, ctx: { subject: number; die?: number; amount?: number }): void {
+    this.momentDepth += 1;
+    if (this.momentDepth > 2)
+      throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
+    try {
+      for (let ownerSeat = 0; ownerSeat < this.players.length; ownerSeat++) {
+        const owner = this.players[ownerSeat];
+        if (owner.isBankrupt) continue; // 破产玩家技能不触发
+        for (const hero of owner.heroes) {
+          for (const skill of hero.skills ?? []) {
+            if (skill.when !== moment) continue;
+            if (!this.scopePasses(skill.scope, ctx.subject, ownerSeat)) continue;
+            if (!this.skillReady(owner, skill)) continue;
+            const effectFn = EFFECTS[skill.effect];
+            if (effectFn == null)
+              throw new Error(`未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`);
+            const ectx: EffectCtx = {
+              moment,
+              subject: ctx.subject,
+              owner: ownerSeat,
+              die: ctx.die,
+              amount: ctx.amount,
+            };
+            if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
+            owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
+            this.logEvent(
+              "skill",
+              owner.guohao,
+              `${owner.guohao} 名士「${hero.name}」触发时机 ${moment}`,
+              `skillFire owner=${owner.id} hero=${hero.id} skill=${skill.id} moment=${moment} subject=${this.players[ctx.subject].id} die=${ctx.die ?? "-"} amount=${ctx.amount ?? "-"} params=${JSON.stringify(skill.params ?? {})}`,
+            );
+          }
         }
       }
+    } finally {
+      this.momentDepth -= 1;
     }
   }
 
-  /** 触发·onOtherLoseCash:某玩家被动失财后调用,其余持有者生效(曹丕)。 */
-  private fireOnOtherLoseCash(loser: Player): void {
-    for (const p of this.players) {
-      if (p === loser || p.isBankrupt) continue;
-      for (const h of p.heroes) {
-        if (h.skill.kind === "onOtherLoseCash" && this.isHeroReady(p, h)) {
-          this.grantHeroGain(p, h, h.skill.gain, `他人失财`);
-        }
-      }
+  /** scope 过滤(语义定案,详见 TriggerSkill.scope 注释):
+   *  - "self":属主是时机主体(owner === subject)
+   *  - "others":时机主体不是属主(owner !== subject)
+   *  - "any":主体不限
+   *  - "actor":时机主体恰为当前行动玩家(subject === activeIndex,属主不限)——当前所有派发点
+   *    主体即行动者,与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失财)时二者分化。
+   *  缺省 = "self"。 */
+  private scopePasses(scope: TriggerSkill["scope"], subject: number, ownerSeat: number): boolean {
+    switch (scope ?? "self") {
+      case "self": return ownerSeat === subject;
+      case "others": return ownerSeat !== subject;
+      case "actor": return subject === this.activeIndex;
+      case "any": return true;
     }
+  }
+
+  /** 冷却判定:未设 cooldown → 恒可用;否则距上次触发的轮数 ≥ cooldown 才可用。 */
+  private skillReady(player: Player, skill: TriggerSkill): boolean {
+    if (!skill.cooldown) return true;
+    const last = player.heroLastFired[skill.id] ?? -Infinity;
+    return this.round - last >= skill.cooldown;
   }
 
   /** 招贤纳士:从剩余名士池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */

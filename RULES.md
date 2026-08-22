@@ -57,7 +57,7 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ### 3.1 抽签移动(`Roll` → `rollAndMove`)
 - 掷**单骰**(1-6),前进对应步数([`game.ts` `rollAndMove`](src/core/game.ts));签面用汉字「一~六」展示([`constants.ts:3` `SIGN_FACES`](src/core/constants.ts))。
-- 名士·移动加成计入步数(如周瑜 +1)([`game.ts` `heroMoveBonus`](src/core/game.ts))。
+- 名士·移动加成计入步数(如周瑜 +1):时机·`BeforeMarch` 触发 `moveBonus` 效果累计([`game.ts:456`](src/core/game.ts),时机框架见 [`docs/timing-framework.md`](docs/timing-framework.md))。
 - **经过自己都城**(非落点):**必停**——立即 +2 委任状(巡幸),棋子停在都城不再走完剩余步数,结算驻跸补给,**结束回合**(不再有「驻跸/继续」抉择)([`game.ts` `rollAndMove` 必停分支](src/core/game.ts))。
 
 ### 3.2 必停都城(无抉择,引擎直接结算)
@@ -89,9 +89,10 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 玩家做出选择后回合结束。所有玩家操作统一走 `submitCommand`([`game.ts:1068`](src/core/game.ts)),详见各机制章节。
 
 ### 3.6 回合结束与轮次(`EndTurn`)
-- 结算胜负 → 推进到下一位存活玩家([`game.ts:728` `endTurn`](src/core/game.ts),[`game.ts:796` `advanceToNextActive`](src/core/game.ts))。
-- **中伏跳过**:新活跃玩家若有 `skipTurns > 0`,扣 1 并跳过,继续推进([`game.ts:746-758`](src/core/game.ts))。
-- **轮次计数**(`round`):所有人各行动一次 = 1 轮;回到轮次锚点时 +1(锚点玩家破产则改用定序中首个存活者)([`game.ts:759-765`](src/core/game.ts))。轮次供名士技能冷却使用。
+- 回合收尾时机(`TurnEnd`)→ 结算胜负 → 推进到下一位存活玩家([`game.ts:800` `endTurn`](src/core/game.ts),[`game.ts:876` `advanceToNextActive`](src/core/game.ts))。
+- **中伏跳过**:新活跃玩家若有 `skipTurns > 0`,扣 1 并跳过,继续推进([`game.ts:819-831`](src/core/game.ts))。
+- **轮次计数**(`round`):所有人各行动一次 = 1 轮;回到轮次锚点时先派发 `RoundEnd` 时机 → `round + 1` → 再派发 `RoundStart`(锚点玩家破产则改用定序中首个存活者)([`game.ts:832-844`](src/core/game.ts))。轮次供名士技能冷却使用。
+- 回合开始时机(`TurnStart`):新 `activeIndex` 确定后派发(含开局首回合,见 [`game.ts:446`](src/core/game.ts))。
 
 ---
 
@@ -156,19 +157,24 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ### 7.1 获取
 - **起手 0 位**,上限 **3 位**([`constants.ts:22` `HERO_CAPACITY`](src/core/constants.ts))。
-- 获取途径:落到自己都城 / 卧龙岗时触发**招贤纳士**(三选一),从剩余名士池随机抽 3 张选 1([`game.ts:1146` `tryRecruitHero`](src/core/game.ts))。
-- 名士**唯一**:已被招揽的不再出现在候选池(`recruitedHeroIds`)([`game.ts:1148`](src/core/game.ts))。
-- 破产时名士释放回招贤池([`game.ts:998`](src/core/game.ts))。
+- 获取途径:落到自己都城 / 卧龙岗时触发**招贤纳士**(三选一),从剩余名士池随机抽 3 张选 1([`game.ts:1288` `tryRecruitHero`](src/core/game.ts))。
+- 名士**唯一**:已被招揽的不再出现在候选池(`recruitedHeroIds`)([`game.ts:1290`](src/core/game.ts))。
+- 破产时名士释放回招贤池([`game.ts:1090` `finalizeBankruptcy`](src/core/game.ts))。
 
-### 7.2 名士技能表(数据驱动,见 [`heroes.ts`](src/core/heroes.ts))
+### 7.2 名士技能(时机框架,技能即数据)
 
-| 名士 | 技能 | 效果 | 触发时机 |
-|---|---|---|---|
-| 周瑜 | moveBonus | 移动步数 **+1** | 移动前(被动) |
-| 曹丕 | onOtherLoseCash | 其他玩家被动失财时,自己 **+50** | 他人失财后(触发) |
-| 张星彩 | onAnyRoll | 场上任意人掷出 **6**,自己 **+20** | 每次掷骰后(触发) |
+技能 = 纯数据声明「什么时机(`when`,查 [`timing.ts`](src/core/timing.ts) 的 GameMoment)触发什么效果(`effect`,查 [`effects.ts`](src/core/effects.ts) 注册表)+ 参数(`params`)」,挂在 `HeroDef.skills`(一武多技);由派发器 [`game.ts:1225` `dispatchMoment`](src/core/game.ts) 按「座位序 × 技能序」确定性派发。设计说明与扩展指南(加效果一步/加技能两步/加时机三步)见 [`docs/timing-framework.md`](docs/timing-framework.md)。
 
-> 触发型技能可有**冷却**(按轮次计)([`game.ts:1101` `isHeroReady`](src/core/game.ts))。当前三名士均无冷却。
+| 名士 | when | effect(params) | scope | 行为 |
+|---|---|---|---|---|
+| 周瑜 | `BeforeMarch` | `moveBonus {steps:1}` | self | 移动步数 **+1**(每次行军前累计) |
+| 曹丕 | `CashLost` | `gainCash {amount:50}` | others | 其他玩家被动失财时,自己 **+50** |
+| 张星彩 | `DieRolled` | `gainIfFace {face:6, amount:20}` | any | 场上任意人掷出 **6**,自己 **+20**(非 6 静默跳过) |
+
+- **scope**(属主与时机主体的关系,缺省 `self`):`self`=属主是主体;`others`=主体非属主;`any`=不限;`actor`=主体恰为当前行动玩家。
+- **触发留痕**:击发记 `category:"skill"` 战报(detail 含 `skillFire owner/hero/skill/moment/subject`),可审计。
+- 技能可有**冷却**(`cooldown`,单位=轮;键=skill.id,复用 `heroLastFired`)([`game.ts:1281` `skillReady`](src/core/game.ts))。当前三名士均无冷却。
+- 破产玩家的技能不参与派发;效果内禁止同步再派发时机(派发深度 >2 直接抛错,防递归)。
 
 ---
 

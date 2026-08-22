@@ -1,4 +1,5 @@
 // 核心类型定义:纯数据模型,无 DOM 依赖,可单元测试。
+import type { GameMoment } from "./timing";
 
 /** 世界坐标(棋盘逻辑单位,View 层映射为像素)。 */
 export interface BoardPos {
@@ -82,7 +83,7 @@ export interface Player {
   properties: PropertyHolding[];
   heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
-  heroLastFired: Record<string, number>; // 名士技能冷却:heroId → 上次触发的 round(供 cooldown 判定)
+  heroLastFired: Record<string, number>; // 技能冷却:skill.id → 上次触发的 round(供 cooldown 判定)
 }
 
 /** 移动路径。
@@ -169,6 +170,7 @@ export interface LogEvent {
     | "branch"
     | "halt"
     | "setup"
+    | "skill"
     | "victory";
   amount?: number; // 涉及金额(+收入 / -支出)
 }
@@ -247,25 +249,29 @@ export interface TreasureDef {
   effect?: string;    // 预留:被动效果(暂不实现)
 }
 
-// ── 名士(英雄)系统:数据驱动的被动/触发技能。新增技能 = 给 HeroSkill 加一种 kind +
-// 在 game.ts 的对应时机(heroMoveBonus 查询 / fireHeroTriggers 派发)加一个分支。
-export type HeroSkill =
-  // 被动:移动步数 +N(在 rollAndMove 计算步数时计入)
-  | { kind: "moveBonus"; steps: number }
-  // 触发:场上任意人掷出 face → 持有者 +gain(每次掷骰后派发)
-  | { kind: "onAnyRoll"; face: number; gain: number }
-  // 触发:任意其他玩家被动失去银两 → 持有者 +gain(在租金/税/天命/小路损失后派发)
-  | { kind: "onOtherLoseCash"; gain: number };
-// 将来扩展(在此加 kind,再到 game.ts 对应时机接一处):
-//   onTurnStart(回合开始) | onLand(自己落格) | rentImmune(免租) | reroll(重掷)
-//   capitalSupplyBonus(过都城补给倍率) | buyDiscount(买城折扣)…
+// ── 名士(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
+// src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 game.ts dispatchMoment。
+// 扩展指南见 docs/timing-framework.md:加效果一步、加技能两步、加时机三步。
+export interface TriggerSkill {
+  id: string; // 唯一 id(如 "zhouyu-move+1";同时是 heroLastFired 冷却键)
+  when: GameMoment; // 触发时机(查 src/core/timing.ts)
+  effect: string; // EffectId,查 src/core/effects.ts 注册表;未知 id 派发时直接抛错(数据 bug)
+  params?: Record<string, number>; // 效果参数(纯数据,可序列化)
+  cooldown?: number; // 冷却(单位:轮,复用 heroLastFired 机制,键=skill.id)
+  /** 技能属主(owner)与时机主体(subject)/当前行动者的关系;缺省 = "self":
+   *  - "self":属主是时机主体(我的骰/我的失财/我的回合…)
+   *  - "others":时机主体不是属主(别人失财/别人掷骰…)
+   *  - "any":主体不限(任何人,含属主自己)
+   *  - "actor":时机主体恰为当前行动玩家(activeIndex,属主不限)——当前所有派发点主体即行动者,
+   *    与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失财)时二者分化。 */
+  scope?: "self" | "actor" | "others" | "any";
+}
 
 export interface HeroDef {
   id: string;
   name: string; // 周瑜
   title: string; // 火烧赤壁(称号,风味)
   desc: string; // 给玩家看的技能说明
-  skill: HeroSkill;
-  cooldown?: number; // 可选:冷却回合数(每 N 轮可触发一次);undefined = 永久被动/每次都触发
+  skills?: TriggerSkill[]; // 一武多技(时机驱动,按数组序派发)
   image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
 }

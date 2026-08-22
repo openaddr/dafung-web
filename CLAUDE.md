@@ -51,7 +51,9 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | 文件 | 职责 |
 |---|---|
 | `src/core/game.ts` | GameEngine:回合状态机、胜负、日志、珍宝、名士、委任状 |
-| `src/core/types.ts` | 所有核心类型定义(TurnPhase、Player、HeroDef 等) |
+| `src/core/types.ts` | 所有核心类型定义(TurnPhase、Player、TriggerSkill/HeroDef 等) |
+| `src/core/timing.ts` | 时机总线:GameMoment 时机定义 + MOMENTS 集中注册表(时机框架,见 docs/timing-framework.md) |
+| `src/core/effects.ts` | 效果注册表:EFFECTS(EffectId → EffectFn),时机框架的「做什么」半边 |
 | `src/core/board.ts` | 棋盘:主路环、辅路、computePath(含必停都城) |
 | `src/core/economy.ts` | 地产交易:购买(即 Lv.0)、升级(免费)、破产裁决(落他人城走珍宝交涉,公道买卖成交才升级) |
 | `src/core/bot.ts` | AI 决策(Simple/Normal 两档) |
@@ -88,6 +90,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。选「入辅路」= **本回合结束**(棋子留在主路入口格,`onBranch={step:-1}` 表「待入辅路」);**下回合掷骰**沿辅路格推进——掷几点走几格(落第 die 格并触发该格效果:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),掷满溢出从辅路终点汇入主路继续走剩余步数。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(Main|Branch)。
 - **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
+- **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发(挂点全在 game.ts:TurnStart/TurnEnd/RoundStart/RoundEnd/BeforeMarch/AfterMarch/DieRolled/CashLost);加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts),详见 docs/timing-framework.md;效果内禁同步再派发时机(派发深度>2 抛错)
 
 ## 验证命令
 ```bash
