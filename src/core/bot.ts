@@ -60,17 +60,17 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingDecision": {
-      const outcome = engine.lastLandOutcome;
-      if (outcome?.kind === "PropertyAvailable" && outcome.property) {
-        const def = outcome.property;
-        const want = p.warrants >= 1 && p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
+      // ADR-0013:先经 choicesFor 选项集注册表过滤可用项(与引擎自动执行同一口径,防第三套
+      // 判断漂移),再按启发式选择。引擎已保证进入该相位时 ≥2 真实选项,此处过滤是收敛口径。
+      const avail = engine.choicesFor().filter((o) => o.available);
+      const def = engine.lastLandOutcome?.property;
+      if (avail.some((o) => o.id === "buy") && def) {
+        const want = p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
         if (want) engine.buyProperty();
         else engine.endDecision();
-      } else if (outcome?.kind === "OwnProperty" && outcome.property) {
-        // 扩军免费:满级才按兵不动(Simple 保留随机性情)
-        const h = p.properties.find((x) => x.propertyId === outcome.property!.id);
-        const maxed = h == null || h.level >= outcome.property!.maxLevel;
-        const want = !maxed && (simple ? engine.dice.nextFloat() < 0.75 : true);
+      } else if (avail.some((o) => o.id === "upgrade")) {
+        // 扩军免费:未满级即升(Simple 保留随机性情;满级已被引擎自动按兵不动)
+        const want = simple ? engine.dice.nextFloat() < 0.75 : true;
         if (want) engine.upgradeProperty();
         else engine.endDecision();
       } else {

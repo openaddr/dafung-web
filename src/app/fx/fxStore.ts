@@ -12,10 +12,12 @@ export interface FloaterFx {
   /** 棋盘逻辑坐标(SVG 系)。 */
   x: number;
   y: number;
-  /** 正=收入(绿)/负=支出(红),FxLayer 负责格式化。 */
+  /** 正=收入(绿)/负=支出(红),FxLayer 负责格式化;text 存在时改渲染文案小字。 */
   amount: number;
   /** 补给类再撒一把铜钱雨(旧 kind==="supply")。 */
   coins: boolean;
+  /** 文案浮字(ADR-0013 唯一选项自动执行轻提示):非空时替代金额渲染。 */
+  text?: string;
 }
 
 export interface SealFx {
@@ -42,6 +44,7 @@ interface FxState {
   marching: ReadonlySet<string>;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
+  spawnTextFloater(x: number, y: number, text: string): void;
   showBanner(guohao: string, color: string): void;
   stampSeal(x: number, y: number, char: string): void;
   addMarching(id: string): void;
@@ -60,6 +63,12 @@ export const useFxStore = create<FxState>((set) => ({
     const id = nextId++;
     set((s) => ({ floaters: [...s.floaters, { id, x, y, amount, coins }] }));
     // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
+    setTimeout(() => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })), FX.floaterMs);
+  },
+
+  spawnTextFloater(x, y, text) {
+    const id = nextId++;
+    set((s) => ({ floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text }] }));
     setTimeout(() => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })), FX.floaterMs);
   },
 

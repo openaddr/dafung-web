@@ -40,17 +40,17 @@ export function BoardFxLayer() {
 
   return (
     <>
-      {/* 浮动金额 + 铜钱雨:逻辑坐标直接使用,无需换算 */}
+      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013):逻辑坐标直接使用,无需换算 */}
       {floaters.map((f) => (
         <g key={f.id}>
           <text
-            className={`fx-svg-floater ${f.amount >= 0 ? "pos" : "neg"}`}
+            className={`fx-svg-floater ${f.text ? "msg" : f.amount >= 0 ? "pos" : "neg"}`}
             x={f.x}
             y={f.y}
-            fontSize={fontSize}
+            fontSize={f.text ? Math.round(fontSize * 0.8) : fontSize}
             textAnchor="middle"
           >
-            {formatFloater(f.amount)}
+            {f.text ?? formatFloater(f.amount)}
           </text>
           {f.coins &&
             Array.from({ length: 6 }, (_, i) => (

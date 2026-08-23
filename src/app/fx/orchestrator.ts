@@ -43,6 +43,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
       case "supplyRain":
         sink.spawnFloater(ev.x, ev.y, ev.amount, true);
         break;
+      case "textFloat":
+        sink.spawnTextFloater(ev.x, ev.y, ev.text);
+        break;
       case "sealStamped":
         sink.stampSeal(ev.tileIndex, ev.char);
         break;
@@ -104,6 +107,9 @@ function floaterEvents(engine: GameEngine): PresentationEvent[] {
     };
     if (f.kind === "supply") {
       events.push({ kind: "supplyRain", playerId: player.id, amount: f.amount, ...anchor });
+    } else if (f.kind === "msg") {
+      // 文案浮字(ADR-0013 唯一选项自动执行轻提示):无金额,渲染一行小字
+      events.push({ kind: "textFloat", playerId: player.id, text: f.text, ...anchor });
     } else {
       events.push({ kind: "cashDelta", playerId: player.id, amount: f.amount, ...anchor });
     }

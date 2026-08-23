@@ -42,6 +42,15 @@ export type PresentationEvent =
       y: number;
       atTile: number | null;
     }
+  | {
+      kind: "textFloat";
+      playerId: string;
+      /** 文案(无金额,ADR-0013 唯一选项自动执行的轻提示,如「银两不足,未能购城」)。 */
+      text: string;
+      x: number;
+      y: number;
+      atTile: number | null;
+    }
   | { kind: "sealStamped"; tileIndex: number; char: string }
   | { kind: "turnBanner"; guohao: string; colorIndex: number }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
@@ -63,6 +72,8 @@ export interface FxSink {
   marchToken(playerId: string): Promise<void>;
   /** 浮动金额(coins=true 时附带补给铜钱雨)。 */
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
+  /** 文案浮字(无金额的小字提示,风格对齐浮动金额)。 */
+  spawnTextFloater(x: number, y: number, text: string): void;
   /** 回合横幅(含 whoosh 音)。 */
   showBanner(guohao: string, colorIndex: number): void;
   /** 朱砂印章(含 stamp 音);坐标由实现按 tileIndex 换算(需要引擎/棋盘)。 */

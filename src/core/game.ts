@@ -19,6 +19,7 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment } from "./timing";
+import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -66,13 +67,23 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
 }
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
- *  经 engine.presentation.drainFloaters() 消费(破坏性读)。 */
-export interface FloaterEvent {
-  playerIndex: number;
-  amount: number;
-  atTile?: number;
-  kind: "income" | "expense" | "supply";
-}
+ *  经 engine.presentation.drainFloaters() 消费(破坏性读)。
+ *  kind="msg" 为无金额的文案浮字(text 必填,amount 恒 0):ADR-0013 唯一选项自动执行的
+ *  轻提示(「银两不足,未能购城」等),1.3s 自消,不打断节奏。 */
+export type FloaterEvent =
+  | {
+      playerIndex: number;
+      amount: number;
+      atTile?: number;
+      kind: "income" | "expense" | "supply";
+    }
+  | {
+      playerIndex: number;
+      amount: 0;
+      atTile?: number;
+      kind: "msg";
+      text: string;
+    };
 
 export class GameEngine {
   readonly board: Board;
@@ -204,6 +215,11 @@ export class GameEngine {
     return this.turnPhase === "AwaitingTreasureOwner"
       ? this.treasureVisitor?.ownerIdx ?? this.activeIndex
       : this.activeIndex;
+  }
+  /** 当前决策相位的选项集(ADR-0013 choice-set 注册表,snapshot.choices 透出供 UI/调试)。
+   *  纯派生数据:由相位 + 玩家状态实时计算,不新增序列化状态;未注册相位(Roll/Land/…)返回空数组。 */
+  choicesFor(): ChoiceOption[] {
+    return computeChoices(this, this.turnPhase);
   }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
@@ -710,31 +726,20 @@ export class GameEngine {
     }
     const owner = this.findOwner(def.id);
     if (owner == null) {
-      // 无主城(含分歧点城):银两/委任状任一不足时无真实选择,不进决策相位直接路过
-      // (TODO L51:买不起还弹「是否购买」是假选择,浪费一次点击)。
-      if (mover.cash < def.purchasePrice || mover.warrants < 1) {
-        this.lastLandOutcome = { kind: "Noop" };
-        this.logEvent(
-          "buy",
-          mover.guohao,
-          mover.warrants < 1
-            ? `${mover.guohao} 至 ${tile.name},无委任状,不可购`
-            : `${mover.guohao} 至 ${tile.name},银两不足,不可购`,
-          `skipAvailable player=${mover.id} prop=${def.id} price=${def.purchasePrice} cash=${mover.cash} warrants=${mover.warrants}`,
-        );
-        this.endTurn();
-        return;
-      }
-      // 无主城(含分歧点城):一律可购买。分歧点选路改到下回合掷骰前(endTurn 触发)。
+      // 无主城(含分歧点城)。ADR-0013:选项集经注册表计算;买不起/无委任状时仅剩默认
+      // 行为「不取」→ 自动执行(战报+浮字),不进决策相位(原 L51 内联预检迁入注册表)。
       this.lastLandOutcome = { kind: "PropertyAvailable", property: def };
-      this.turnPhase = "AwaitingDecision";
-      this.logEvent("buy", mover.guohao, `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`, `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`);
+      if (this.enterDecisionPhase()) {
+        this.logEvent("buy", mover.guohao, `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`, `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`);
+      }
       return;
     }
     if (owner === mover) {
+      // 己城扩军。ADR-0013:满级时仅剩「按兵不动」假选择 → 自动执行(战报+浮字)。
       this.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
-      this.turnPhase = "AwaitingDecision";
-      this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
+      if (this.enterDecisionPhase()) {
+        this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
+      }
       return;
     }
     // 他人到达城池不升级:仅当城主对该访客的珍宝交涉选择公道买卖且成交时才 +1 级
@@ -756,6 +761,48 @@ export class GameEngine {
       this.logEvent("system", mover.guohao, `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`, `noTreasure owner=${owner.id} visitor=${mover.id}`);
       this.endTurn();
     }
+  }
+
+  /** ADR-0013 决策收口:进入 AwaitingDecision 前先经注册表(choices.ts)计算选项集;
+   *  除默认行为(skip)外无可用选项 → 直接自动执行默认行为(战报 + 浮字 + endTurn),
+   *  不进决策相位,返回 false;否则进入 AwaitingDecision 等待玩家,返回 true。
+   *  调用前须已置 lastLandOutcome(注册表按其分购地/扩军选项)。 */
+  private enterDecisionPhase(): boolean {
+    const options = computeChoices(this, "AwaitingDecision");
+    const hasRealChoice = options.some((o) => o.available && o.id !== "skip");
+    if (hasRealChoice) {
+      this.turnPhase = "AwaitingDecision";
+      return true;
+    }
+    const p = this.activePlayer;
+    const tile = this.board.at(p.position);
+    const def = this.lastLandOutcome?.property;
+    this.lastLandOutcome = { kind: "Noop" };
+    if (def != null && options.some((o) => o.id === "buy")) {
+      // 购地不可行(银两/委任状不足):默认行为=不取(浮字文案口径见 ADR-0013 决议 2)
+      const noWarrant = p.warrants < BUY_WARRANT_COST;
+      this.logEvent(
+        "buy",
+        p.guohao,
+        `${p.guohao} 至 ${tile.name},${noWarrant ? "无委任状" : "银两不足"},不可购`,
+        `skipAvailable player=${p.id} prop=${def.id} price=${def.purchasePrice} cash=${p.cash} warrants=${p.warrants}`,
+      );
+      this.pushFloaterText(p, noWarrant ? "无委任状,不可购" : "银两不足,未能购城", p.position);
+    } else if (def != null) {
+      // 扩军不可行(城已满级):默认行为=按兵不动
+      this.logEvent(
+        "upgrade",
+        p.guohao,
+        `${p.guohao} 至己城 ${tile.name},城已满级,按兵不动`,
+        `skipMaxed player=${p.id} prop=${def.id} cash=${p.cash}`,
+      );
+      this.pushFloaterText(p, "城已满级,按兵不动", p.position);
+    } else {
+      // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
+      this.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
+    }
+    this.endTurn();
+    return false;
   }
 
   /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。
@@ -1345,6 +1392,10 @@ export class GameEngine {
     kind: "income" | "expense" | "supply",
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
+  }
+  /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */
+  private pushFloaterText(p: Player, text: string, atTile: number): void {
+    this.floaters.push({ playerIndex: this.players.indexOf(p), amount: 0, atTile, kind: "msg", text });
   }
   // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
 

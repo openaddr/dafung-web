@@ -54,6 +54,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `src/core/types.ts` | 所有核心类型定义(TurnPhase、Player、TriggerSkill/HeroDef 等) |
 | `src/core/timing.ts` | 时机总线:GameMoment 时机定义 + MOMENTS 集中注册表(时机框架,见 docs/timing-framework.md) |
 | `src/core/effects.ts` | 效果注册表:EFFECTS(EffectId → EffectFn),时机框架的「做什么」半边 |
+| `src/core/choices.ts` | 决策相位选项集注册表(ADR-0013):每相位选项计算器(available+reason);≤1 真实选项引擎自动执行默认行为+浮字,bot/快照共用同一口径 |
 | `src/core/board.ts` | 棋盘:主路环、辅路、computePath(含必停都城) |
 | `src/core/economy.ts` | 地产交易:购买(即 Lv.0)、升级(免费)、破产裁决(落他人城走珍宝交涉,公道买卖成交才升级) |
 | `src/core/bot.ts` | AI 决策(Simple/Normal 两档) |
@@ -87,6 +88,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **珍宝**:牌堆固定数量,等级 1-10 决定指导价(经济 v2:Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两,查表缺项直接抛错);获得途径:① 落无主宝物城(TreasureCity)**拼点**(双骰 2-12)≥ 等级即得,② 落他人城且城主有宝时触发珍宝交涉
 - **珍宝交涉**(他人城):城主抉择——**公道买卖**(访客付指导价得宝,银两给城主,玩家间流转;**成交则城池 +1 级**,满级封顶,买家事后破产退宝不回滚) / **坐地起价**(访客付指导价×城池加价[tradeMult/tradeAdd,下标=等级]得宝,不升级) / 不交易(不升级);访客不可拒;他人到达城池本身**不**升级
 - **城池等级**:Lv.0-3 共 4 级(购入/建都即 Lv.0,maxLevel=3)。**本作无过路费/升级费**:自己到达己城可选免费扩军 +1 级;城池升级只挂在公道买卖成交路径上
+- **决策选项集(ADR-0013)**:各决策相位(购地/扩军/交涉/择路/招贤/破产)的选项集中注册于 `src/core/choices.ts`(带 available/reason);除默认行为外可用选项为 0 → 引擎自动执行默认行为(战报+浮字轻提示),不弹卷轴——弹卷轴 ⇔ ≥2 真实选项;破产清算例外(重大不可逆仍弹);`engine.choicesFor()`/快照 `choices` 字段供 UI/bot/调试消费
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。选「入辅路」= **本回合结束**(棋子留在主路入口格,`onBranch={step:-1}` 表「待入辅路」);**下回合掷骰**沿辅路格推进——掷几点走几格(落第 die 格并触发该格效果:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),掷满溢出从辅路终点汇入主路继续走剩余步数。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(Main|Branch)。
 - **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
@@ -95,7 +97,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 ## 验证命令
 ```bash
 bun run build      # tsc --noEmit && vite build
-bun test           # 单元测试(bun:test,209 项)
+bun test           # 单元测试(bun:test,257 项)
 bun run test:e2e   # e2e(Playwright,需先 bun run build)
 bun run preview    # 本地预览(http://localhost:4173)
 bun run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)

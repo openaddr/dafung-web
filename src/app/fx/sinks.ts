@@ -30,6 +30,9 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
     spawnFloater(x, y, amount, coins) {
       useFxStore.getState().spawnFloater(x, y, amount, coins);
     },
+    spawnTextFloater(x, y, text) {
+      useFxStore.getState().spawnTextFloater(x, y, text);
+    },
     showBanner(guohao, colorIndex) {
       getAudio().play("banner");
       useFxStore.getState().showBanner(guohao, rgba(playerColor(colorIndex)));
@@ -50,6 +53,7 @@ export type FxSinkCall =
   | { op: "marchBegin"; playerId: string }
   | { op: "march"; playerId: string }
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
+  | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
   | { op: "seal"; tileIndex: number; char: string };
 
@@ -72,6 +76,9 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     },
     spawnFloater(x, y, amount, coins) {
       calls.push({ op: "floater", x, y, amount, coins });
+    },
+    spawnTextFloater(x, y, text) {
+      calls.push({ op: "textFloater", x, y, text });
     },
     showBanner(guohao, colorIndex) {
       calls.push({ op: "banner", guohao, colorIndex });
