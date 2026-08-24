@@ -119,10 +119,12 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 - 委任状不足 → 拒绝(`NoWarrant`,UI 禁用购买按钮)([`game.ts:524-527`](src/core/game.ts))。
 - 现金不足 → 拒绝(`InsufficientFunds`)([`economy.ts:13`](src/core/economy.ts))。
 - **购入即为 Lv.0**([`economy.ts:19`](src/core/economy.ts),[`types.ts:56` 注释](src/core/types.ts))。
+- **选项集 ≤1 自动执行**(ADR-0013):银两或委任状不足时选项集([`choices.ts`](src/core/choices.ts))仅剩默认行为「不取」,引擎直接自动执行(战报 + 浮字「银两不足,未能购城」/「无委任状,不可购」),**不弹购地卷轴**——弹卷轴 ⇔ 至少两个真实选项。
 
 ### 5.2 升级 / 扩军(免费)
 **升级不花一分钱**([`economy.ts:26` `upgrade`](src/core/economy.ts)):
 - **自己到达己城**:可选免费扩军 +1 级([`game.ts:545` `upgradeProperty`](src/core/game.ts),[`game.ts:664-668`](src/core/game.ts))。
+- **城已满级 → 自动按兵不动**(ADR-0013):选项集仅剩「按兵不动」假选择,引擎直接结束回合(战报「城已满级,按兵不动」+ 浮字),**不弹扩军卷轴**。
 - **他人到达城池不升级**:仅当城主对该访客的珍宝交涉选择**公道买卖且成交**时,城池才 +1 级(满级封顶;见 §5.3)。坐地起价 / 不交易 / 无交易发生均不升级。
 - **城池等级 Lv.0 – Lv.3**(`maxLevel = 3`,等级 0..maxLevel 共 4 级,由地图配置)([`board-loader.ts:54`](src/core/board-loader.ts),[`types.ts:38`](src/core/types.ts))。购入 / 建都即 Lv.0,满级后不可再升(`AlreadyMaxLevel`)([`economy.ts:29`](src/core/economy.ts),[`types.ts:65` `canUpgrade`](src/core/types.ts))。
 - 扩军**不消耗委任状**([`constants.ts:19` 注释](src/core/constants.ts))。
@@ -294,13 +296,13 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ## 12. AI 诸侯
 
-两档 AI 自动决策([`bot.ts:33` `botAct`](src/core/bot.ts)):
+两档 AI 自动决策([`bot.ts:33` `botAct`](src/core/bot.ts));买城/扩军先经选项集注册表([`choices.ts`](src/core/choices.ts))过滤可用项再按启发式选——与引擎同一口径,无第二套判断(ADR-0013):
 
 | 抉择点 | Simple(随机) | Normal(EV 启发式) |
 |---|---|---|
 | 辅路入口 | 50/50 随机 | 比较辅路 EV(探宝−中伏风险)vs 主路落点价值 |
 | 买城 | 50% 概率买(需现金 > 1.5×价格 + 有委任状) | 现金 > 1.5×价格且有委任状即买 |
-| 扩军(免费) | 75% 概率升 | 非满级即升,满级按兵不动 |
+| 扩军(免费) | 75% 概率升 | 非满级即升(满级已被引擎自动按兵不动,不触达) |
 | 招贤 | 随机选一位 | 随机选一位 |
 | 珍宝交涉(城主) | fair/premium/skip 各 ~1/3 | 等级 ≥6 坐地起价,否则公道买卖;20% 概率跳过 |
 | 破产清算 | 同 Normal | 优先名士→低等级珍宝→城(排除都城),卖到够再确认 |

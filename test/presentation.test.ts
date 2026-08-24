@@ -148,6 +148,30 @@ describe("单机提取器 extractStepEvents", () => {
       }
     }
   });
+
+  it("自动执行默认行为:msg 浮字提取为 textFloat 事件(ADR-0013 轻提示)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    // 银两不足落无主城 → 引擎自动「不取」+ 文案浮字
+    const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
+    const def = e.catalog.get(tile.propertyId)!;
+    p.position = tile.index;
+    p.cash = def.purchasePrice - 1;
+    p.warrants = 3;
+    e.turnPhase = "Land";
+    const prePlayer = e.players[e.activeIndex];
+    const moverId = e.activePlayer.id;
+    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    const events = extractStepEvents(e, "Land", moverId, prePlayer);
+    const tf = events.find((ev) => ev.kind === "textFloat");
+    expect(tf).toBeDefined();
+    if (tf?.kind === "textFloat") {
+      expect(tf.text).toBe("银两不足,未能购城");
+      expect(Number.isFinite(tf.x)).toBe(true);
+      expect(Number.isFinite(tf.y)).toBe(true);
+    }
+  });
 });
 
 describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
@@ -182,6 +206,15 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
       { op: "floater", x: 1, y: 2, amount: 300, coins: true },
       { op: "sound", event: "treasure" },
     ]);
+  });
+
+  it("textFloat → spawnTextFloater(无金额文案小字,ADR-0013)", async () => {
+    const sink = createMemorySink();
+    await present(
+      [{ kind: "textFloat", playerId: "p1", text: "城已满级,按兵不动", x: 5, y: 6, atTile: null }],
+      sink,
+    );
+    expect(sink.calls).toEqual([{ op: "textFloater", x: 5, y: 6, text: "城已满级,按兵不动" }]);
   });
 
   it("空事件数组:no-op", async () => {

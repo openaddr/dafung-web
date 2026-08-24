@@ -50,6 +50,9 @@ export function serializeGame(e: GameEngine) {
     branchStartTile: e.board.branch ? e.board.branch.startNode : null,
     branchEndTile: e.board.branch ? e.board.branch.endNode : null,
     currentTileIsBranchStart: e.currentTileIsBranchStart(),
+    // 决策相位选项集(ADR-0013):纯派生数据(相位 + 玩家状态实时计算,choices.ts 注册表),
+    // UI/调试可见;联机零负担——无需序列化恢复,重 hydrate 后重算即得。
+    choices: e.choicesFor(),
     // PRNG 状态:CLI/联机跨进程续掷(不丢 rng 连续性)
     rngState: e.dice.getRngState(),
     players: e.players.map((p) => ({

@@ -36,6 +36,9 @@
 }
 .fx-svg-floater.pos { fill: var(--color-money); }
 .fx-svg-floater.neg { fill: var(--color-danger); }
+/* 文案浮字(ADR-0013 唯一选项自动执行轻提示):墨色小字,字号由 FxLayer 缩至 0.8×,
+   复用同一上浮动画(reduced-motion 由 app.css 全局兜层瞬时完成) */
+.fx-svg-floater.msg { fill: var(--color-ink-dim); }
 @keyframes fx-svg-float-up {
   0% { transform: translateY(0) scale(0.6); opacity: 0; }
   20% { transform: translateY(-10) scale(1.15); opacity: 1; }
