@@ -7,6 +7,8 @@ import { netWorth } from "./networth";
 
 export function serializeGame(e: GameEngine) {
   return {
+    // 对局 id(ADR-0014):联机各端与恢复进程保持同一 id,对局日志落盘/导出据此命名
+    gameId: e.gameId,
     phase: e.phase,
     setupPhase: e.setupPhase,
     turnPhase: e.turnPhase,

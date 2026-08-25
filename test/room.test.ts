@@ -591,6 +591,37 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
     expect(ev).toMatchObject({ seat: 0, on: true, speed: "fast" });
   }, 30000);
 
+  it("ADR-0014 房间生命周期行进对局日志 + logSink 增量钩子(开局/托管/接管/解散)", async () => {
+    const flushed: Array<{ gameId: string; len: number }> = [];
+    const reg = new RoomRegistry(
+      new InMemoryPersistence(),
+      undefined,
+      (room) => flushed.push({ gameId: room.engine!.gameId, len: room.engine!.log.length }),
+    );
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 11 } });
+    reg.setMap(created.room.roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
+    const engine = reg.get(created.room.roomId)!.engine!;
+    const roomRows = () => engine.log.filter((l) => l.category === "room");
+    // 开局行:座位构成 + 机读 type=start
+    expect(roomRows().some((l) => l.detail.includes('"type":"start"') && l.brief.includes("房间开局"))).toBe(true);
+    // 托管开关行(开 → 关,机读 type=autopilot 供重放调整驱动座位集)
+    await reg.setAutoPilot(created.room.roomId, 0, true, "fast");
+    expect(roomRows().some((l) => l.detail.includes('"type":"autopilot"') && l.detail.includes('"on":true'))).toBe(true);
+    await reg.setAutoPilot(created.room.roomId, 0, false, "fast");
+    expect(roomRows().some((l) => l.detail.includes('"type":"autopilot"') && l.detail.includes('"on":false'))).toBe(true);
+    // 接管行
+    await reg.takeoverSeat(created.room.roomId, created.token, 0, undefined);
+    expect(roomRows().some((l) => l.detail.includes('"type":"takeover"'))).toBe(true);
+    // logSink:persist 与房间行写入后都会被调(对局日志 jsonl 增量追加的驱动源)
+    expect(flushed.length).toBeGreaterThan(3);
+    expect(flushed.every((f) => f.gameId === engine.gameId)).toBe(true);
+    expect(flushed[flushed.length - 1].len).toBe(engine.log.length);
+    // 解散行(房间删除前落日志)
+    reg.dismissRoom(created.room.roomId, created.token);
+    expect(roomRows().some((l) => l.detail.includes('"type":"dismiss"'))).toBe(true);
+  }, 60000);
+
   it("持久化含 autoPilot:重启恢复保留托管", async () => {
     const persistence = new InMemoryPersistence();
     const reg1 = new RoomRegistry(persistence);

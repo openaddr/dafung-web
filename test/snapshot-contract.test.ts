@@ -40,6 +40,18 @@ function stepPlaying(e: GameEngine): boolean {
   return true;
 }
 
+/** 日志可比视图:剔除非确定字段——ts=墙钟时间;局头行的 gameId/startedAt=引擎实例标识
+ *  (ADR-0014 起 LogEvent 携带 ts,header 行内嵌 gameId/startedAt;两台独立构造的引擎
+ *  这些值必然不同,序列化保真断言应剔除后比较)。 */
+function comparableLog(log: GameEngine["log"]) {
+  return log.map(({ ts, ...rest }) => ({
+    ...rest,
+    detail: rest.detail
+      .replace(/"gameId":"[^"]*"/g, '"gameId":""')
+      .replace(/"startedAt":\d+/g, '"startedAt":0'),
+  }));
+}
+
 describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () => {
   it("每步恢复 round-trip 后快照逐字段一致(联机每帧走的就是这条路)", () => {
     const a = makeEngine(7);
@@ -94,6 +106,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     expect(fb.winReason).toBe(fa.winReason);
     expect(JSON.stringify(fb.players)).toBe(JSON.stringify(fa.players));
     expect(fb.turnNumber).toBe(fa.turnNumber);
-    expect(JSON.stringify(fb.log)).toBe(JSON.stringify(fa.log));
+    // 日志:ts/局头实例标识(gameId/startedAt)非确定,剔后逐字段一致
+    expect(JSON.stringify(comparableLog(fb.log))).toBe(JSON.stringify(comparableLog(fa.log)));
   });
 });

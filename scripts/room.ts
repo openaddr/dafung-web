@@ -53,6 +53,10 @@ export type RoomEvent =
 /** 房间事件观察者(注入;测试与 server.ts 各持一份实现)。 */
 export type RoomObserver = (roomId: string, event: RoomEvent) => void;
 
+/** 对局日志增量落盘钩子(ADR-0014,注入):persist 后/房间行写入后调用,
+ *  传输层(server.ts)把 engine.log 新增行追加进 logs/<gameId>.jsonl。room.ts 自身零 fs。 */
+export type RoomLogSink = (room: RoomSession) => void;
+
 /** 单局房间会话:开局前后都用它(Lobby 态 engine=null)。 */
 export interface RoomSession {
   roomId: string;
@@ -206,15 +210,25 @@ export class RoomRegistry {
   private readonly rooms = new Map<string, RoomSession>();
   private readonly persistence: RoomPersistence;
   private readonly observer: RoomObserver | null;
+  private readonly logSink: RoomLogSink | null;
 
-  constructor(persistence: RoomPersistence, observer?: RoomObserver) {
+  constructor(persistence: RoomPersistence, observer?: RoomObserver, logSink?: RoomLogSink) {
     this.persistence = persistence;
     this.observer = observer ?? null;
+    this.logSink = logSink ?? null;
   }
 
   /** 发一条观测事件(无观察者时为空操作)。 */
   private observe(r: RoomSession, event: RoomEvent): void {
     this.observer?.(r.roomId, event);
+  }
+
+  /** 房间生命周期行写进对局日志(ADR-0014 category "room";开局前无引擎则跳过),
+   *  写完立即触发日志落盘钩子(解散等场景不再有后续 persist)。 */
+  private logRoom(r: RoomSession, brief: string, detail: string): void {
+    if (!r.engine) return;
+    r.engine.logRoomEvent(brief, detail);
+    this.logSink?.(r);
   }
 
   /** 房间码冲突检测:查内存 + persistence.exists(后者由适配器实现,默认查 fs)。 */
@@ -224,13 +238,16 @@ export class RoomRegistry {
 
   // ──────────────────────────── 启动恢复 ────────────────────────────
   /** 从 persistence 把所有房间载入内存(启动时调一次)。
-   *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。 */
-  restoreAll(mapProvider?: (mapId: string) => LoadedMap): number {
+   *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。
+   *  onRestored:每恢复一房回调一次(server.ts 据此给对局日志落盘记基线,ADR-0014)。 */
+  restoreAll(mapProvider?: (mapId: string) => LoadedMap, onRestored?: (room: RoomSession) => void): number {
     let count = 0;
     for (const id of this.persistence.listIds()) {
       const rec = this.persistence.load(id);
       if (!rec) continue;
-      this.rooms.set(rec.roomId, this.hydrate(rec, mapProvider));
+      const room = this.hydrate(rec, mapProvider);
+      this.rooms.set(rec.roomId, room);
+      onRestored?.(room);
       count++;
     }
     return count;
@@ -358,12 +375,23 @@ export class RoomRegistry {
         seed: room.hostConfig.seed,
         targetNetWorth: room.hostConfig.target,
         difficulty: room.hostConfig.difficulty,
+        mapId: room.mapId!,
       },
       true,
       map,
     );
     room.engine = engine;
     this.observe(room, { ev: "start", mapId: room.mapId! });
+    // 开局房间行(ADR-0014):座位构成随开局写入对局日志(大厅期的加入以此汇总呈现)
+    this.logRoom(
+      room,
+      `房间开局:${room.seatCount} 座(${room.seats.filter((s) => s.kind === "bot").length} bot),地图 ${room.mapId}`,
+      JSON.stringify({
+        type: "start",
+        mapId: room.mapId,
+        seats: room.seats.map((s, i) => ({ seat: i, kind: s.kind, guohao: s.guohao })),
+      }),
+    );
     this.persist(room);
     onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者三候选)
     await this.driveBots(room, onUpdate); // bot/接管/托管座位先驱动(全 bot 驱动房自动进 Playing)
@@ -414,6 +442,15 @@ export class RoomRegistry {
     if (on) room.autoPilot.set(seat, speed);
     else room.autoPilot.delete(seat);
     this.observe(room, { ev: "autopilot", seat, on, speed });
+    // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集
+    const seatGuohao = room.engine.players[seat].guohao;
+    this.logRoom(
+      room,
+      on
+        ? `${seatGuohao} 开启托管(${speed === "slow" ? "慢速" : "快速"}),交由电脑代打`
+        : `${seatGuohao} 关闭托管,收回操作`,
+      JSON.stringify({ type: "autopilot", seat, on, speed }),
+    );
     this.persist(room);
     onUpdate?.(room); // 先广播托管状态
     await this.driveBots(room, onUpdate); // 若轮到该座位,立即开始代打
@@ -435,6 +472,12 @@ export class RoomRegistry {
     if (room.seats[seat].kind === "bot") throw new RoomError(400, "该座位本就是 bot");
     room.takeover.add(seat);
     this.observe(room, { ev: "takeover", seat });
+    // 接管房间行(ADR-0014):重放据此把该座位并入 bot 驱动集
+    this.logRoom(
+      room,
+      `房主令 bot 接管座位 ${seat}(${room.engine.players[seat].guohao})`,
+      JSON.stringify({ type: "takeover", seat }),
+    );
     await this.driveBots(room, onUpdate); // 若该 seat 正轮到,立即 bot 驱动解冻(逐步 persist+onUpdate)
     this.persist(room);
     onUpdate?.(room); // 终态
@@ -447,6 +490,8 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
     if (hostToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可解散");
+    // 解散房间行(ADR-0014):房间删除前先落盘(logRoom 内触发 logSink)
+    this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
     this.rooms.delete(id);
     this.persistence.remove(id);
@@ -481,6 +526,10 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room) return;
     this.observe(room, { ev: "offline", seat, online: [...stillOnlineSeats] });
+    // 离线房间行(ADR-0014)
+    if (room.engine) {
+      this.logRoom(room, `座位 ${seat}(${room.engine.players[seat].guohao}) 离线`, JSON.stringify({ type: "offline", seat }));
+    }
     this.transferHostIfNeeded(room, stillOnlineSeats);
     this.persist(room);
     onUpdate?.(room); // 先推"该座离线 + 可能的 host 移交"
@@ -502,6 +551,10 @@ export class RoomRegistry {
   attachSeat(roomId: string, seat: number): RoomSession | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
+    // 重连房间行(ADR-0014):重放据此把座位移出接管驱动的 bot 集(托管不因重连失效)
+    if (room.takeover.has(seat) && room.engine) {
+      this.logRoom(room, `座位 ${seat}(${room.engine.players[seat].guohao}) 重连,退出接管`, JSON.stringify({ type: "attach", seat }));
+    }
     room.takeover.delete(seat);
     return room;
   }
@@ -592,6 +645,8 @@ export class RoomRegistry {
       snapshot: r.engine ? r.engine.snapshot() : null,
     };
     this.persistence.save(rec);
+    // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(logs/<gameId>.jsonl)
+    if (r.engine) this.logSink?.(r);
   }
 }
 

@@ -14,6 +14,8 @@ state.json
 state.*.json
 # 引擎服务器房间落盘目录(默认 ./rooms;e2e 用 ./tmp/e2e-rooms)
 rooms/
+# 对局日志目录(ADR-0014,服务器运行时产物;默认 ./logs)
+logs/
 tmp/
 .env
 .scratch/

@@ -20,12 +20,10 @@
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
-import { loadMap, type LoadedMap } from "../src/core/board-loader";
-import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
-import { statusOf } from "./engine-helpers";
+import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import {
   RoomRegistry,
   RoomError,
@@ -33,6 +31,7 @@ import {
   lobbyView,
   seatMeta,
   type RoomEvent,
+  type RoomSession,
 } from "./room";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
@@ -40,43 +39,57 @@ const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域网设备(手机)可访问
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
-const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
 const startedAt = Date.now();
 
-// ──────────────────────────── 内置地图加载(每房间各持自己的 LoadedMap)────────────────────────────
-// 服务器可读 fs(ADR-0007:fs 只在传输层,不在 room.ts)。
-// 读 public/maps/index.json 清单 + 对应 JSON,按 mapId 构建为 LoadedMap 并缓存。
-function loadCatalogEntries(): CatalogFileEntry[] {
-  const catalogPath = join(MAPS_DIR, "index.json");
-  if (!existsSync(catalogPath)) {
-    throw new Error(`地图清单不存在:${catalogPath}`);
-  }
-  const raw = JSON.parse(readFileSync(catalogPath, "utf-8"));
-  return parseCatalog(raw);
-}
-const CATALOG_ENTRIES = loadCatalogEntries();
+// ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
+const CATALOG_ENTRIES = builtinMapCatalog();
 /** 合法 mapId 集合(供 registry.setMap 校验)。 */
 const VALID_MAP_IDS = new Set(CATALOG_ENTRIES.map((e) => e.id));
-/** id → CatalogFileEntry(用于查 file 名)。 */
-const CATALOG_BY_ID = new Map(CATALOG_ENTRIES.map((e) => [e.id, e] as const));
-/** LoadedMap 缓存:同一 mapId 只构建一次(地图只读,可安全跨房间共用构建结果)。 */
-const loadedMapCache = new Map<string, LoadedMap>();
-/** 按 mapId 加载内置图为 LoadedMap(带缓存)。找不到抛错。 */
-function loadMapById(mapId: string): LoadedMap {
-  const cached = loadedMapCache.get(mapId);
-  if (cached) return cached;
-  const entry = CATALOG_BY_ID.get(mapId);
-  if (!entry) throw new Error(`未知地图 id:${mapId}`);
-  const filePath = join(MAPS_DIR, entry.file);
-  const data = JSON.parse(readFileSync(filePath, "utf-8"));
-  const map = loadMap(data);
-  loadedMapCache.set(mapId, map);
-  return map;
-}
 
 // ──────────────────────────── 启动:注入持久化 + 恢复房间 ────────────────────────────
 mkdirSync(ROOMS_DIR, { recursive: true });
 const persistence = new FileRoomPersistence(ROOMS_DIR);
+
+// ──────────────────────────── 对局日志落盘(ADR-0014:logs/<gameId>.jsonl)────────────────────────────
+// 增量追加:RoomRegistry 每次 persist(每手快照)后经 logSink 通知,把 engine.log 新增行
+// 追加写文件。终局行(final)由引擎在胜负判定时写入 engine.log,随最后一次 flush 自然落盘。
+const LOGS_DIR = resolve(process.env.LOGS_DIR ?? "./logs");
+const LOG_TTL_DAYS = parseInt(process.env.LOG_TTL_DAYS ?? "30", 10);
+mkdirSync(LOGS_DIR, { recursive: true });
+
+/** 增量写账本:gameId → 已写行数。恢复房间的基线在 restoreAll 回调里登记
+ *  (文件在重启前已含那些行,恢复后只追加新增)。 */
+const logWritten = new Map<string, number>();
+
+function flushGameLog(room: RoomSession): void {
+  const e = room.engine;
+  if (!e) return;
+  let written = logWritten.get(e.gameId);
+  if (written === undefined) {
+    written = 0;
+    logWritten.set(e.gameId, 0);
+  }
+  if (e.log.length <= written) return;
+  const fresh = e.log.slice(written).map((l) => JSON.stringify(l)).join("\n") + "\n";
+  appendFileSync(join(LOGS_DIR, `${e.gameId}.jsonl`), fresh, "utf-8");
+  logWritten.set(e.gameId, e.log.length);
+}
+
+/** 启动清扫(ADR-0014 30 天保底清理):删 mtime 超过 LOG_TTL_DAYS 天的日志文件。 */
+function cleanOldLogs(): number {
+  const cutoff = Date.now() - LOG_TTL_DAYS * 86400_000;
+  let removed = 0;
+  for (const f of readdirSync(LOGS_DIR)) {
+    if (!f.endsWith(".jsonl")) continue;
+    const p = join(LOGS_DIR, f);
+    if (statSync(p).mtimeMs < cutoff) {
+      unlinkSync(p);
+      removed++;
+    }
+  }
+  return removed;
+}
+const removedOldLogs = cleanOldLogs();
 
 // ──────────────────────────── 可观测性:房间事件流水(JSONL)────────────────────────────
 // 目标:联机卡死类问题可事后归因。每房间两个落点:
@@ -97,9 +110,15 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
   if (tail.length > TAIL_MAX) tail.shift();
   eventTail.set(roomId, tail);
 }
-const registry = new RoomRegistry(persistence, (roomId, ev: RoomEvent) =>
-  recordEvent(roomId, ev as Record<string, unknown>));
-const restored = registry.restoreAll(loadMapById);
+const registry = new RoomRegistry(
+  persistence,
+  (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
+  flushGameLog,
+);
+const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
+  // 恢复房间:对局日志基线 = 恢复快照的 log 长度(重启前这些行已在文件里)
+  if (room.engine) logWritten.set(room.engine.gameId, room.engine.log.length);
+});
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
 // 房间 → 座位 → 当前 WebSocket。Room 模块不持有 WS,只有这里持有。
@@ -245,7 +264,7 @@ const HELP = {
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   maps: CATALOG_ENTRIES.map((e) => ({ id: e.id, name: e.name, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth })),
-  env: { PORT, HOST, ROOMS_DIR, STATIC_DIR, MAPS_DIR },
+  env: { PORT, HOST, ROOMS_DIR, LOGS_DIR, LOG_TTL_DAYS, STATIC_DIR },
 };
 
 async function handle(req: Request): Promise<Response> {
@@ -331,7 +350,7 @@ async function handle(req: Request): Promise<Response> {
 
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
-    const room = await registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadMapById);
+    const room = await registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadBuiltinMapById);
     return sendJson(200, { ok: true, ...statusOf(room.engine!) });
   }
 
@@ -447,4 +466,5 @@ Bun.serve<WsSeat>({
 
 console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
 console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
+console.log(`[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`);
 console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");

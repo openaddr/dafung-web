@@ -3,8 +3,10 @@
 // 内存引擎 + 落盘)共同复用,保证两端同一地图、同一序列化格式、同一 bot 语义。
 // import 用相对路径(Node 不认 vite alias);core/ 零 DOM,Node 直接可跑。
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
+import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { GameEngine } from "../src/core/game";
 import type { SeatConfig, EngineConfig } from "../src/core/game";
 import type { TurnPhase, AiDifficulty } from "../src/core/types";
@@ -13,6 +15,30 @@ import { botAct } from "../src/core/bot";
 
 /** 共享地图(主路 + 辅路 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
 export const MAP: LoadedMap = loadMap(sanguoData);
+
+// ──────────────────────────── 内置地图清单加载(CLI/Server/replay 共享) ────────────────────────────
+const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
+
+/** 地图清单(entries)。损坏/缺失直接抛(零兜底:清单是唯一事实源)。 */
+export function builtinMapCatalog(): CatalogFileEntry[] {
+  const catalogPath = join(MAPS_DIR, "index.json");
+  if (!existsSync(catalogPath)) {
+    throw new Error(`地图清单不存在:${catalogPath}`);
+  }
+  return parseCatalog(JSON.parse(readFileSync(catalogPath, "utf-8")));
+}
+
+const builtinMapCache = new Map<string, LoadedMap>();
+/** 按 mapId 加载内置图为 LoadedMap(带缓存;地图只读可跨房间共用)。找不到抛错。 */
+export function loadBuiltinMapById(mapId: string): LoadedMap {
+  const cached = builtinMapCache.get(mapId);
+  if (cached) return cached;
+  const entry = builtinMapCatalog().find((e) => e.id === mapId);
+  if (!entry) throw new Error(`未知地图 id:${mapId}`);
+  const map = loadMap(JSON.parse(readFileSync(join(MAPS_DIR, entry.file), "utf-8")));
+  builtinMapCache.set(mapId, map);
+  return map;
+}
 
 // ──────────────────────────── 状态文件持久化(CLI 与 Server 共用格式) ────────────────────────────
 // state.json = { snapshot, config }。snapshot 完整可序列化;config 保存构造参数,
@@ -23,6 +49,8 @@ export interface GameConfig {
   startingCash?: number;
   difficulty?: AiDifficulty;
   seed?: number;
+  /** 地图 id(ADR-0014:随引擎写入对局日志局头,重放要素)。 */
+  mapId?: string;
 }
 
 export interface PersistedState {
