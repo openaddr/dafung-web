@@ -43,6 +43,6 @@ export const SCROLL_TESTIDS = {
   victorySub: "victory-sub",
   victoryInfo: "victory-info",
   victoryRestart: "victory-restart",
-  /** L48:胜利屏「导出战报」(快照 log 落 JSON 文件)。 */
-  warlogExport: "warlog-export",
+  /** ADR-0014:胜利屏「导出日志」(该局完整 jsonl 落文件,含局头行)。 */
+  logExport: "log-export",
 } as const;

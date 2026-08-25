@@ -3,6 +3,7 @@
 // - play.spec / human.spec(掷骰推进、买地扣款、人类按钮可用性)→ 掷骰/买地/选路测试
 // - invariants.spec(全程不变量 + 终局)→ 全速战档驱动到胜利的不变量巡检
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
+import { readFileSync } from "node:fs";
 import { test, expect } from "@playwright/test";
 import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital } from "./react-helpers";
 
@@ -154,12 +155,25 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   const s = await snap(page);
   expect(s.isOver).toBe(true);
   expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
-  // L48:战报不再对局内展示,胜利屏「导出战报」落 JSON 文件(含完整 log)
+  // ADR-0014:胜利屏「导出日志」落完整 jsonl(局头 header 行 + 命令/事件流 + 终局 final 行)
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByTestId("warlog-export").click(),
+    page.getByTestId("log-export").click(),
   ]);
-  expect(download.suggestedFilename()).toMatch(/^dafung-warlog-\d{14}\.json$/);
+  expect(download.suggestedFilename()).toMatch(/^dafung-log-[0-9a-z-]+\.jsonl$/);
+  const lines = readFileSync((await download.path())!, "utf-8")
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => JSON.parse(l));
+  expect(lines[0].category).toBe("header"); // 局头是首行(重放要素:gameId/mapId/seed/座位表)
+  const header = JSON.parse(lines[0].detail);
+  expect(header.mapId).toBeTruthy();
+  expect(header.seats.length).toBe(s.players.length);
+  expect(lines.some((l: any) => l.category === "cmd")).toBe(true); // 命令流(掷骰/选都经 submitCommand/pickCapital)
+  expect(lines[lines.length - 1].category).toBe("final"); // 终局行收尾
+  const final = JSON.parse(lines[lines.length - 1].detail);
+  expect(final.winner).toBe(s.winner);
+  expect(final.round).toBe(s.round);
 });
 
 test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invariants.spec)", async ({ page }) => {

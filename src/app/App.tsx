@@ -57,6 +57,8 @@ export function App() {
           startingCash: config.startingCash,
           difficulty: config.difficulty,
           seed: config.seed ?? urlSeed(),
+          // ADR-0014 对局日志局头要素(编辑器试玩不经此口,无地图 id 如实留空)
+          mapId: config.mapId,
         });
         setController(controller, await source.loadMapData(config.mapId));
         const e = controller.engine;

@@ -73,6 +73,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `scripts/server.ts` | 权威引擎服务(联机化完成态:多房间 WebSocket + REST 大厅 + 静态托管 dist/ + 落盘恢复) |
 | `scripts/room.ts` | 房间编排(座位/接管/bot 驱动/host 移交/纯视图),零 WS 依赖 |
 | `scripts/room-persistence.ts` | 房间持久化适配器(FileRoomPersistence,可注入 InMemory 测试) |
+| `scripts/replay-log.ts` | ADR-0014 对局日志重放校验:jsonl → 局头重建引擎 → cmd 流重放 → 终局行逐字段断言(用法见 docs/logging.md) |
 | `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
@@ -92,6 +93,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。选「入辅路」= **本回合结束**(棋子留在主路入口格,`onBranch={step:-1}` 表「待入辅路」);**下回合掷骰**沿辅路格推进——掷几点走几格(落第 die 格并触发该格效果:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),掷满溢出从辅路终点汇入主路继续走剩余步数。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(Main|Branch)。
 - **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
+- **对局日志(ADR-0014)**:一局一个 jsonl = 局头(header:gameId/mapId/seed/座位表)+ 玩法事件流(中文 brief + 机读 detail)+ 命令流(cmd:submitCommand 与人类 pickCapital 全量;bot 路径不记,重放自动重算)+ 终局行(final:重放断言锚点)。双轨落盘:联机 `logs/<gameId>.jsonl`(server 启动清扫 TTL 30 天,env LOG_TTL_DAYS/LOGS_DIR)、单机 IndexedDB(dafung-logs,写入时顺手清过期);`bun scripts/replay-log.ts logs/x.jsonl` 重放校验终态一致。详见 docs/logging.md
 - **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发。**26 时机七类**(生命周期/回合与轮/掷骰与行军/落格与路径/资产与交易/玩家状态/破产与终局结算),挂点全在 game.ts;**设计技能/事件先翻 docs/timing-framework.md §2 分类目录**(每时机:触发点位/subject/ctx 字段/灵感示例)。加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts);效果内禁同步再派发时机(派发深度>2 抛错);CashGained 防连锁——仅经济结算点派发,效果层收益(grantSkillCash)不递归触发
 
 ## 验证命令

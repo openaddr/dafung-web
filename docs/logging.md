@@ -1,0 +1,79 @@
+# 对局日志系统(ADR-0014)
+
+> 一句话:**一局一个 jsonl 文件 = 局头(重放要素)+ 事件流(人类可读)+ 命令流(机读重放)+ 终局行(断言锚点)**,双轨自动落盘、30 天保底清理、`scripts/replay-log.ts` 可从日志精确重建终局。
+
+设计决议见 [`docs/adr/0014-game-log-system.md`](./adr/0014-game-log-system.md)。术语:**对局日志**(不用「战报」)、**局头**、**命令流重放**。
+
+## 1. 行格式
+
+每行一个 JSON 对象(`LogEvent`,定义在 `src/core/types.ts`):
+
+| 字段 | 含义 |
+|---|---|
+| `ts` | 时间(epoch ms,引擎侧 `Date.now()`) |
+| `round` / `turn` | 轮(`engine.round`,所有人各行动一次)/ 回合(`engine.turnNumber`) |
+| `player` | 玩家国号(无主行为为 `null`) |
+| `brief` | 中文自然语言(人类可读层) |
+| `detail` | 机读审计行(英文键值;`cmd`/`room`/`header`/`final` 四类为完整 JSON) |
+| `category` | 分类(见下表) |
+| `amount` | 涉及金额(+收入 / -支出),可选 |
+
+### category 分类表
+
+| 类别 | category | 写入点 |
+|---|---|---|
+| 局头 | `header` | 引擎构造时首行(gameId/mapId/seed/座位表/现金/目标/startedAt) |
+| 玩法事件 | `roll` 掷骰(点数/步数/加成)· `buy` 购地 · `upgrade` 扩军/成交升级 · `trade` 珍宝交涉 + escrow 交割/退回 · `supply` 补给/委任状 · `tax` 税关 · `branch` 辅路抉择/中伏跳过 · `halt` 驻跸必停 · `setup` 开局流程(定序/**三候选生成**/选都/招贤)· `skill` 时机技能击发(26 时机)· `system` 其余玩法杂项(随机事件含事件 id/商市/破产清算/警告)· `victory` 胜负 | `src/core/game.ts` 各结算点 |
+| 终局行 | `final` | 胜负判定 + GameOver 时机后:round/turnNumber/winner/玩家面板(cash/netWorth/position),重放断言锚点 |
+| 命令类 | `cmd` | `submitCommand` 统一入口 + 人类 `pickCapital`(detail = 完整命令 JSON) |
+| 房间类 | `room` | 联机:`scripts/room.ts`(开局/托管/接管/离线/重连/解散);单机托管:`local.ts`(detail 机读 JSON) |
+
+## 2. 命令流重放(复现原理)
+
+引擎给定 **seed + 座位规格** 后完全确定性(骰子/bot 决策/三候选/招贤全部走引擎 rng)。因此:
+
+- **人类命令**全走 `submitCommand` 统一入口 → 每条记一行 `cmd`(detail = 命令 JSON);选都不是 `GameCommand`,人类落子走公共 `pickCapital` → 同样记 `cmd` 行(detail `{type:"pickCapital",seat,tileIndex}`)。
+- **bot 路径不产生 cmd 行**:`botAct` / `aiSetupStepFor` 直调引擎方法,不经 submitCommand——确定性,重放时由 `scripts/replay-log.ts` 的驱动循环(与 `room.ts driveBots` 同骨架)自动重演。单机托管(apLoop)/联机接管/自助托管同样直调 `botAct`,也不产生 cmd 行。
+- **接管/托管座位**:room 行(detail `{type:"takeover"/"autopilot"/"attach",seat}`)记录驱动权变化,重放据此动态调整「bot 驱动座位集」(与 `room.seatControlled` 同源)。
+- **局头座位表记构造时原始规格**(bot 国号可空 = `doDraftRoll` 分配):重放必须复刻同一规格,否则国号洗牌消耗的 rng 次数不同、整局骰流漂移。
+
+## 3. 双轨落盘
+
+| 轨道 | 时机 | 位置 |
+|---|---|---|
+| **联机(服务器)** | `RoomRegistry.persist`(每手快照)后经 `logSink` 钩子增量追加;房间行写入后即时追加;恢复房间的基线 = 恢复快照的 log 长度(重启不重不漏) | `logs/<gameId>.jsonl`(`LOGS_DIR`,默认 `./logs`) |
+| **单机(浏览器)** | `LocalController.sync()` 后按 log 长度 diff 增量写 | IndexedDB `dafung-logs` / store `games`,key = `gameId`,value `{gameId, header, lines, updatedAt}` |
+
+- **gameId**:引擎构造时生成(毫秒时间戳 + 随机后缀,`newGameId()`),随快照序列化/恢复——联机各端、服务器重启后保持同一 id。
+- **终局行**:引擎在胜负判定时写入 `engine.log`,两条轨道随末次同步自然落盘,无单独收口。
+- **导出**:胜利屏「导出日志」(testid `log-export`)→ `dafung-log-<gameId>.jsonl`。数据源优先 IndexedDB 归档,无记录/落后(联机局)按内存 log(局头缺失如实缺,不造)。
+
+## 4. 30 天保底清理(无定时器)
+
+- **服务器**:启动时扫 `logs/` 删 mtime 超过 `LOG_TTL_DAYS`(默认 30)天的 `.jsonl`。
+- **单机**:新局首次归档时顺手删 IndexedDB 中 `updatedAt` > 30 天的局。
+
+## 5. 重放校验用法
+
+```bash
+bun scripts/replay-log.ts logs/<gameId>.jsonl [更多文件...]
+```
+
+流程:解析局头 → `loadBuiltinMapById(mapId)` + `createDice(seed)` + 座位 → `new GameEngine` + `doDraftRoll` → 按行序重放(`cmd` 行逐条 apply;`room` 行调整驱动座位集;每行后驱动 bot 座位)→ 与终局行(`final`)逐字段比对 round/turnNumber/winner/winReason/玩家 cash/netWorth/position/isBankrupt,不一致逐项打印差异并**非零退出**。
+
+限制:局头 `mapId` 必须是内置地图(`public/maps` 清单内);编辑器试玩等无 id 的局、以及导出的老格式日志不可重放(显式报错)。
+
+自证:`bun test test/replay.test.ts`——内存跑一局全 bot(零 cmd 行)+ 一局带 pickCapital 的人类局(命令全走 cmd 流),生成日志 → 重放 → 断言终态逐字段相等;并断言同 seed 两局日志机读层完全一致(除 ts/startedAt/gameId)。
+
+## 6. 关键文件
+
+| 文件 | 职责 |
+|---|---|
+| `src/core/game.ts` | 局头/cmd 行/终局行写入;`logRoomEvent` 公共口;gameId/seed/mapId |
+| `src/core/types.ts` | `LogEvent` 定义 + category 分类表注释 |
+| `src/app/gameLogArchive.ts` | 单机 IndexedDB 归档 + 保底清理 |
+| `src/app/screens/game/gameLogExport.ts` | 胜利屏导出 jsonl |
+| `scripts/room.ts` | 联机房间行 + `logSink` 钩子 |
+| `scripts/server.ts` | `logs/<gameId>.jsonl` 增量追加 + 启动清扫 |
+| `scripts/replay-log.ts` | 重放校验脚本(CLI + 供测试 import) |
+| `test/replay.test.ts` | 重放自证(全 bot 局 + pickCapital 局) |

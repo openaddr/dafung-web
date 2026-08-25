@@ -49,6 +49,8 @@ export interface EngineConfig {
   startingCash?: number; // 默认 10000
   difficulty?: AiDifficulty; // 默认 Normal
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
+  /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
+  mapId?: string;
 }
 
 export type EnginePhase = "Setup" | "Playing" | "GameOver";
@@ -65,6 +67,27 @@ function shuffle<T>(arr: T[], rng: () => number): T[] {
   }
   return a;
 }
+
+/** 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 logs/<gameId>.jsonl 文件名
+ *  与 IndexedDB key。不走引擎 rng(不影响确定性,不随快照漂移)。 */
+function newGameId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+/** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
+const CMD_BRIEF: Record<GameCommand["type"], string> = {
+  rollAndMove: "行军",
+  selectBranch: "择路",
+  buyProperty: "购地",
+  upgradeProperty: "扩军",
+  endDecision: "按兵不动",
+  resolveHeroPick: "招贤",
+  resolveTreasureOwner: "珍宝交涉",
+  sellTreasureBankruptcy: "变卖珍宝",
+  sellPropertyBankruptcy: "变卖城池",
+  cashHeroBankruptcy: "遣散名士",
+  confirmBankruptcySettle: "清算确认",
+};
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
  *  经 engine.presentation.drainFloaters() 消费(破坏性读)。
@@ -93,6 +116,14 @@ export class GameEngine {
   readonly targetNetWorth: number;
   readonly startingCash: number;
   readonly difficulty: AiDifficulty;
+  /** 地图 id(ADR-0014 局头要素;来自 EngineConfig,空串=非清单地图如编辑器试玩)。 */
+  readonly mapId: string;
+  /** 初始骰子种子(构造时的 rng 状态 = 有效种子,无论显式注入还是随机生成);
+   *  写入局头行,重放据此 createDice 精确复现。 */
+  readonly seed: number;
+  /** 对局 id(ADR-0014):构造时生成,随快照序列化/恢复(联机各端一致);
+   *  logs/<gameId>.jsonl 文件名与 IndexedDB key。非 readonly 仅为 restoreFromSnapshot 可写。 */
+  gameId: string;
 
   phase: EnginePhase = "Setup";
   setupPhase: SetupPhase = "Guohao";
@@ -177,6 +208,9 @@ export class GameEngine {
     this.targetNetWorth = config.targetNetWorth ?? DEFAULT_TARGET;
     this.startingCash = config.startingCash ?? DEFAULT_CASH;
     this.difficulty = config.difficulty ?? "Normal";
+    this.mapId = config.mapId ?? "";
+    this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
+    this.gameId = newGameId();
     if (config.seats.length < 2 || config.seats.length > 8)
       throw new Error("支持 2–8 个座位。");
     this.players = config.seats.map((s, i) => ({
@@ -201,6 +235,25 @@ export class GameEngine {
     for (const p of this.players) {
       if (p.guohao) this.usedGuohao.add(p.guohao);
     }
+    // 局头行(ADR-0014):日志首行,记全重放要素。座位表记「构造时的原始规格」
+    // (bot 国号可空=由 doDraftRoll 分配)——重放必须复刻同一规格,否则 doDraftRoll
+    // 的国号洗牌消耗的 rng 次数不同,整局骰流漂移。终局国号见下一行「点将定序」。
+    this.logEvent(
+      "header",
+      null,
+      `对局开启:${this.players.length} 座,起手 ${formatMoney(this.startingCash)},目标身价 ${formatMoney(this.targetNetWorth)}`,
+      JSON.stringify({
+        type: "header",
+        gameId: this.gameId,
+        mapId: this.mapId,
+        seed: this.seed,
+        difficulty: this.difficulty,
+        targetNetWorth: this.targetNetWorth,
+        startingCash: this.startingCash,
+        startedAt: Date.now(),
+        seats: config.seats.map((s, i) => ({ seat: i, guohao: s.guohao ?? "", isBot: s.isBot, colorIndex: i })),
+      }),
+    );
     this.logEvent("system", null, "开局:群雄逐鹿", `目标身价 ${formatMoney(this.targetNetWorth)} 起手 ${formatMoney(this.startingCash)}`);
   }
 
@@ -319,7 +372,7 @@ export class GameEngine {
     if (idx < 0) return false;
     const tileIdx = this.aiChooseCapital();
     if (tileIdx >= 0) {
-      const r = this.pickCapital(idx, tileIdx);
+      const r = this.pickCapitalInternal(idx, tileIdx, false);
       if (!r.ok) {
         // 极端地图(buildCost 全 > 现金):pickCapital 失败,推进 draft 防死循环
         this.warn(`AI 选都失败(${r.reason ?? "未知"}),跳过`);
@@ -355,7 +408,14 @@ export class GameEngine {
     return this.offeredCapitals[0] ?? -1;
   }
 
+  /** 公共选都入口:人类落子(单机 UI / 联机 WS)走这里——记 cmd 行(ADR-0014 命令流,
+   *  重放的机读层;选都不是 GameCommand,detail 用 {type:"pickCapital",seat,tileIndex})。
+   *  bot/接管/托管的代选走 pickCapitalInternal(logCmd=false):确定性,重放自动重算,不记 cmd 行。 */
   pickCapital(playerIndex: number, tileIndex: number): { ok: boolean; reason?: string } {
+    return this.pickCapitalInternal(playerIndex, tileIndex, true);
+  }
+
+  private pickCapitalInternal(playerIndex: number, tileIndex: number, logCmd: boolean): { ok: boolean; reason?: string } {
     if (this.setupPhase !== "PickCapital")
       return { ok: false, reason: "非选都阶段" };
     if (this.draftOrder[this.currentDraftIndex] !== playerIndex)
@@ -371,6 +431,14 @@ export class GameEngine {
     const player = this.players[playerIndex];
     if (player.cash < def.buildCost) return { ok: false, reason: "建城费不足" };
 
+    if (logCmd) {
+      this.logEvent(
+        "cmd",
+        player.guohao,
+        `${player.guohao} 提交命令:选都`,
+        JSON.stringify({ type: "pickCapital", seat: playerIndex, tileIndex }),
+      );
+    }
     player.cash -= def.buildCost;
     player.properties.push({
       propertyId: def.id,
@@ -444,6 +512,15 @@ export class GameEngine {
     }
     this.offeredCapitals = chosen.map((t) => t.index);
     for (const i of this.offeredCapitals) this.offeredCapitalHistory.add(i);
+    // 三候选生成入日志(ADR-0014 补洞:候选集是 rng 产物,重放/复盘都要可见)
+    const pickerIdx = this.currentSetupPlayerIndex;
+    const picker = pickerIdx >= 0 ? this.players[pickerIdx] : null;
+    this.logEvent(
+      "setup",
+      picker?.guohao ?? null,
+      `${picker?.guohao ?? "待定"} 择都三候选:${chosen.map((t) => `「${t.name}」`).join("")}`,
+      `offerCapitals player=${picker?.id ?? "-"} tiles=[${this.offeredCapitals.join(",")}] names=${chosen.map((t) => t.name).join("|")}`,
+    );
   }
 
   private finishSetup(): void {
@@ -889,6 +966,7 @@ export class GameEngine {
         `victory winner=${result.winner.id} reason=${result.reason} netWorth=${netWorth(result.winner)}`,
       );
       this.dispatchMoment("GameOver", { subject: this.players.indexOf(result.winner) }); // 时机·GameOver:胜负判定确定(净资产达标/群雄尽灭两路同挂,主体=胜者)
+      this.logFinalState(); // 终局行(ADR-0014):机读终态面板,重放校验的断言锚点
       return;
     }
     this.advanceToNextActive();
@@ -1130,7 +1208,15 @@ export class GameEngine {
     const e = this.escrowTreasure;
     if (!e) return;
     this.escrowTreasure = null;
-    this.players[e.buyerIdx].treasures.push(e.treasure);
+    const buyer = this.players[e.buyerIdx];
+    const seller = this.players[e.sellerIdx];
+    buyer.treasures.push(e.treasure);
+    this.logEvent(
+      "trade",
+      buyer.guohao,
+      `交割:「${e.treasure.name}」由 ${seller.guohao} 付予 ${buyer.guohao}(价款 ${formatMoney(e.price)} 已结)`,
+      `escrowDeliver buyer=${buyer.id} seller=${seller.id} treasure=${e.treasure.id} price=${e.price}`,
+    );
     this.dispatchMoment("TreasureGained", { subject: e.buyerIdx, treasureId: e.treasure.id }); // 时机·TreasureGained:escrow 交割买家得宝
     this.dispatchMoment("TreasureSold", { subject: e.sellerIdx, treasureId: e.treasure.id, amount: e.price }); // 时机·TreasureSold:交涉成交(卖家视角)
     this.dispatchMoment("TradeSettled", { subject: e.sellerIdx, buyerSeat: e.buyerIdx, sellerSeat: e.sellerIdx, amount: e.price }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
@@ -1143,8 +1229,23 @@ export class GameEngine {
     if (!e) return;
     this.escrowTreasure = null;
     const seller = this.players[e.sellerIdx];
-    if (!seller.isBankrupt) seller.treasures.push(e.treasure);
-    else this.treasureDeck.push(e.treasure); // 卖家也已被清算出局 → 珍宝回牌堆
+    if (!seller.isBankrupt) {
+      seller.treasures.push(e.treasure);
+      this.logEvent(
+        "trade",
+        seller.guohao,
+        `买家破产,托管珍宝「${e.treasure.name}」退回 ${seller.guohao}`,
+        `escrowReturn seller=${seller.id} buyer=${this.players[e.buyerIdx].id} treasure=${e.treasure.id}`,
+      );
+    } else {
+      this.treasureDeck.push(e.treasure); // 卖家也已被清算出局 → 珍宝回牌堆
+      this.logEvent(
+        "trade",
+        null,
+        `买卖双方俱已破产,托管珍宝「${e.treasure.name}」归入牌堆`,
+        `escrowReturnToDeck treasure=${e.treasure.id}`,
+      );
+    }
   }
 
   /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。 */
@@ -1261,6 +1362,11 @@ export class GameEngine {
   // network-client.ts(联机)都调用这一个方法。联机时服务器的消息处理器只需:
   //   socket.on("command", cmd => engine.submitCommand(cmd))
   submitCommand(cmd: GameCommand): void {
+    // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
+    // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
+    // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/logging.md「命令流重放」)。
+    const issuer = this.players[this.decisionOwner];
+    this.logEvent("cmd", issuer.guohao, `${issuer.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`, JSON.stringify(cmd));
     switch (cmd.type) {
       case "rollAndMove": return this.rollAndMove();
       case "selectBranch": return this.selectBranch(cmd.kind);
@@ -1382,7 +1488,7 @@ export class GameEngine {
       "setup",
       mover.guohao,
       `${mover.guohao} 招贤纳士:三选一`,
-      `offerHeroes player=${mover.id} count=${this.offeredHeroes.length}`,
+      `offerHeroes player=${mover.id} count=${this.offeredHeroes.length} heroes=${this.offeredHeroes.map((h) => h.id).join("|")}`,
     );
   }
 
@@ -1406,6 +1512,41 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 战报 / 浮动反馈 ────────────────────────────
+  /** 终局行(ADR-0014):胜利判定与 GameOver 时机之后,记一行机读终态面板
+   *  (round/turnNumber/winner/玩家 cash/netWorth/position)。联机落盘、单机 IndexedDB、
+   *  导出 jsonl 的最后一根引擎行;scripts/replay-log.ts 重放完与之逐字段比对。 */
+  private logFinalState(): void {
+    const winner = this.winner!;
+    this.logEvent(
+      "final",
+      winner.guohao,
+      `终局:${winner.guohao} 称帝(${this.winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}),历 ${this.round} 轮 ${this.turnNumber} 回合`,
+      JSON.stringify({
+        type: "final",
+        round: this.round,
+        turnNumber: this.turnNumber,
+        winner: winner.id,
+        winReason: this.winReason,
+        players: this.players.map((p) => ({
+          id: p.id,
+          guohao: p.guohao,
+          isBot: p.isBot,
+          isBankrupt: p.isBankrupt,
+          cash: p.cash,
+          netWorth: netWorth(p),
+          position: p.position,
+        })),
+      }),
+    );
+  }
+
+  /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/接管/离线/重连/
+   *  解散/开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
+   *  重放脚本据此动态调整「bot 驱动座位集」(takeover/autopilot 与 room.seatControlled 同源)。 */
+  logRoomEvent(brief: string, detail: string): void {
+    this.logEvent("room", null, brief, detail);
+  }
+
   private logEvent(
     category: LogEvent["category"],
     player: string | null,
@@ -1413,7 +1554,7 @@ export class GameEngine {
     detail: string,
     amount?: number,
   ): void {
-    this.log.push({ turn: this.turnNumber, player, brief, detail, category, amount });
+    this.log.push({ ts: Date.now(), round: this.round, turn: this.turnNumber, player, brief, detail, category, amount });
   }
   private assertPhase(expected: TurnPhase, label: string): boolean {
     if (this.turnPhase !== expected) {
@@ -1456,6 +1597,7 @@ export class GameEngine {
   // 用 serialized snapshot 重建引擎状态。前提:构造时 seats/target/startingCash 已匹配快照;
   // 本方法只覆盖可变状态。无法恢复的瞬时字段(floaters/lastTransaction)清空。
   restoreFromSnapshot(s: ReturnType<GameEngine["snapshot"]>): void {
+    this.gameId = s.gameId; // 对局 id 随快照恢复(ADR-0014:联机各端/重启恢复同 id,日志归档同 key)
     this.phase = s.phase;
     this.setupPhase = s.setupPhase;
     this.turnPhase = s.turnPhase;

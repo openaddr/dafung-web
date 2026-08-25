@@ -11,6 +11,7 @@ import { GameEngine, type EngineConfig } from "@core/game";
 import { botAct } from "@core/bot";
 import type { GameCommand } from "@core/types";
 import { setEngine, useGameStore } from "@app/store/gameStore";
+import { archiveEngineLog } from "@app/gameLogArchive";
 import { createEngineSink } from "@app/fx/sinks";
 import {
   extractStepEvents,
@@ -45,6 +46,15 @@ export class LocalController extends GameController {
   override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
     this.apSpeed = speed;
     this.apOn = on;
+    // 托管开关入对局日志(ADR-0014 补洞:room 行,重放据此把人类座位并入/移出 bot 驱动集)
+    const seat = this._engine.players.findIndex((p) => !p.isBot);
+    const guohao = this._engine.players[seat].guohao;
+    this._engine.logRoomEvent(
+      on
+        ? `${guohao} 开启托管(${speed === "slow" ? "慢速" : "快速"}),交由电脑代打`
+        : `${guohao} 关闭托管,收回操作`,
+      JSON.stringify({ type: "autopilot", seat, on, speed }),
+    );
     this.sync();
     if (on) void this.apLoop();
   }
@@ -96,6 +106,13 @@ export class LocalController extends GameController {
 
   get engine(): GameEngine {
     return this._engine;
+  }
+
+  /** 状态桥扩展(ADR-0014 单机落盘):每次引擎变化后把 log 增量归档 IndexedDB
+   *  (dafung-logs/games,key=gameId;换局首写顺手清 30 天前旧局,见 gameLogArchive.ts)。 */
+  protected override sync(): void {
+    super.sync();
+    archiveEngineLog(this._engine);
   }
 
   // 热座:视角跟随「当前该行动的人类」。默认=活跃玩家;珍宝交涉相位决策方是城主

@@ -1,6 +1,6 @@
 // Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
 //   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名士 / 诸侯
-//   (L48:战报区移除,日志走胜利屏「导出战报」落文件)。
+//   (L48:战报区移除,日志走胜利屏「导出日志」落 jsonl 文件,ADR-0014)。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 import { useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
@@ -357,7 +357,7 @@ export function GameScreen() {
         )}
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名士 / 诸侯,标题横幅置顶)。
-          L48:战报区已移除(日志保留在引擎快照,胜利屏「导出战报」落文件);
+          L48:战报区已移除(日志保留在引擎快照,胜利屏「导出日志」落 jsonl 文件);
           珍宝·名士区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
