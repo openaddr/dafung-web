@@ -1,5 +1,6 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
-// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错。
+// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 26 时机各挂点至少一例
+// (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 武将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
@@ -7,7 +8,7 @@ import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import type { HeroDef, TriggerSkill } from "@core/types";
-import type { GameMoment } from "@core/timing";
+import type { GameMoment, MomentCtx } from "@core/timing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 
@@ -85,15 +86,58 @@ function recordMoments(e: GameEngine): string[] {
   return calls;
 }
 
+/** 包一层 dispatchMoment,记录派发的时机 + 完整 ctx(新时机 ctx 字段断言用)。 */
+function recordMomentCtx(e: GameEngine): { moment: GameMoment; ctx: MomentCtx }[] {
+  const entries: { moment: GameMoment; ctx: MomentCtx }[] = [];
+  const orig = e.dispatchMoment.bind(e);
+  (e as { dispatchMoment: (m: GameMoment, ctx: MomentCtx) => void }).dispatchMoment = (m, ctx) => {
+    entries.push({ moment: m, ctx: { ...ctx } });
+    return orig(m, ctx);
+  };
+  return entries;
+}
+
+/** 预读下一次骰面:牺牲骰复制引擎 rng 状态掷一次,不动引擎 rng(联机确定性同款保证)。 */
+function peekDie(e: GameEngine): number {
+  const probe = createDice(0);
+  probe.setRngState(e.dice.getRngState());
+  return probe.roll().die;
+}
+
+/** 把当前活跃玩家挪位后掷骰,恰好落在 targetTile。路径不得途经其都城(必停会截断,场景无效即抛错)。 */
+function landActiveOn(e: GameEngine, targetTile: number): void {
+  const p = e.activePlayer;
+  const die = peekDie(e);
+  const n = e.board.count;
+  const from = ((targetTile - die) % n + n) % n;
+  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n)
+    .some((t) => t === p.capitalIndex && t !== targetTile);
+  if (passesCapital) throw new Error(`测试场景无效:落 #${targetTile} 的路径途经都城 #${p.capitalIndex}(必停截断)`);
+  p.position = from;
+  e.rollAndMove();
+}
+
+/** 任选一座无主普通城(非任何人都城、非辅路起点):构造购城/落城/途经场景。 */
+function freePropertyTile(e: GameEngine) {
+  return e.board.tiles.find(
+    (t) =>
+      t.type === "Property" &&
+      t.propertyId != null &&
+      !e.board.getBranchStart(t.index) &&
+      e.findOwner(t.propertyId) == null &&
+      e.capitalOwnerOf(t.index) == null,
+  )!;
+}
+
 describe("时机框架:派发点位", () => {
-  it("开局首回合进 Playing 时触发 TurnStart", () => {
+  it("开局时机序列:SetupComplete(最后落子者)→ GameStart(roundAnchor)→ TurnStart(首回合)", () => {
     const e = makeEngine(1);
     const calls = recordMoments(e);
     finishSetup(e);
-    expect(calls).toEqual(["TurnStart"]);
+    expect(calls).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
   });
 
-  it("一回合的时机序列:BeforeMarch→DieRolled→AfterMarch→TurnEnd→(回合切换)TurnStart;回锚点时 TurnEnd→RoundEnd→RoundStart→TurnStart", () => {
+  it("一回合的时机序列:BeforeMarch→BeforeRoll→DieRolled→AfterMarch→TurnEnd→(回合切换)TurnStart;回锚点时 TurnEnd→RoundEnd→RoundStart→TurnStart", () => {
     const e = makeEngine(1);
     const calls = recordMoments(e);
     finishSetup(e);
@@ -104,10 +148,11 @@ describe("时机框架:派发点位", () => {
     expect(e.round).toBe(2);
     // seed=1 下第二位玩家落格触发一次被动失银(CashLost 恰在 AfterMarch 之后、TurnEnd 之前),如实钉住
     expect(calls).toEqual([
+      "SetupComplete", "GameStart", // 开局收尾(最后落子者 → 对局开始)
       "TurnStart", // 开局首回合
-      "BeforeMarch", "DieRolled", "AfterMarch", "TurnEnd", // 第一位玩家
+      "BeforeMarch", "BeforeRoll", "DieRolled", "AfterMarch", "TurnEnd", // 第一位玩家
       "TurnStart", // 第二位玩家回合开始
-      "BeforeMarch", "DieRolled", "AfterMarch", "CashLost", "TurnEnd", // 第二位玩家(落税/事件格失银)
+      "BeforeMarch", "BeforeRoll", "DieRolled", "AfterMarch", "CashLost", "TurnEnd", // 第二位玩家(落税/事件格失银)
       "RoundEnd", "RoundStart", "TurnStart", // 轮次交替 + 新轮首位玩家
     ]);
   });
@@ -364,5 +409,378 @@ describe("时机框架:效果注册表(行为等价)", () => {
     e.dispatchMoment("DieRolled", { subject: 0, die: 3 });
     expect(p.cash).toBe(cash1); // 条件不满足:无现金变化
     expect(p.heroLastFired["gif"]).toBeUndefined(); // 也不记冷却
+  });
+});
+
+describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
+  it("SetupComplete→GameStart→TurnStart:主体依次=最后落子者/roundAnchor/roundAnchor,GameStart 可挂技能", () => {
+    const e = makeEngine(1);
+    const entries = recordMomentCtx(e);
+    e.players[0].heroes.push(heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
+    finishSetup(e);
+    const lastPicker = e.draftOrder[e.draftOrder.length - 1];
+    expect(entries.map((x) => x.moment)).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
+    expect(entries[0].ctx.subject).toBe(lastPicker); // SetupComplete:最后一位选都落子者
+    expect(entries[1].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
+    expect(entries[2].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
+    expect(fireCount(e, "gs")).toBe(1); // GameStart 已可挂技能(选都完成前的英雄池注入)
+  });
+
+  it("GameOver(净资产达标):endTurn 胜负判定确定处派发,主体=胜者,为终局最后一个时机", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const entries = recordMomentCtx(e);
+    const winner = e.activeIndex;
+    e.activePlayer.cash = e.targetNetWorth + 1000; // 身价=仅现金;+1000 抗落格支出
+    e.rollAndMove();
+    autoResolve(e);
+    expect(e.isOver).toBe(true);
+    expect(e.winReason).toBe("TargetNetWorth");
+    const go = entries.filter((x) => x.moment === "GameOver");
+    expect(go).toHaveLength(1);
+    expect(go[0].ctx.subject).toBe(winner);
+    expect(entries[entries.length - 1].moment).toBe("GameOver"); // 其后再无时机(无 TurnStart)
+  });
+});
+
+describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExited)", () => {
+  it("BeforeRoll 在 BeforeMarch 之后、DieRolled 之前;掷骰前位置未动、骰面尚未产生", () => {
+    const captured: { when: GameMoment; pos: number; die: number | null }[] = [];
+    EFFECTS["test-capture"] = (engine, ctx) => {
+      captured.push({ when: ctx.moment, pos: engine.players[ctx.subject].position, die: engine.presentation.lastRoll?.die ?? null });
+      return true;
+    };
+    try {
+      const e = makeEngine(1);
+      const captureHero = () =>
+        heroWith([
+          { id: "cap-march", when: "BeforeMarch", effect: "test-capture", scope: "any" },
+          { id: "cap-roll", when: "BeforeRoll", effect: "test-capture", scope: "any" },
+          { id: "cap-die", when: "DieRolled", effect: "test-capture", scope: "any" },
+        ]);
+      e.players[0].heroes.push(captureHero());
+      e.players[1].heroes.push(captureHero());
+      finishSetup(e);
+      const calls = recordMoments(e);
+      e.rollAndMove();
+      autoResolve(e);
+      // 先后顺序:BeforeMarch < BeforeRoll < DieRolled(首掷序列内钉死)
+      expect(calls.indexOf("BeforeMarch")).toBeLessThan(calls.indexOf("BeforeRoll"));
+      expect(calls.indexOf("BeforeRoll")).toBeLessThan(calls.indexOf("DieRolled"));
+      const march = captured.find((c) => c.when === "BeforeMarch")!;
+      const roll = captured.find((c) => c.when === "BeforeRoll")!;
+      const die = captured.find((c) => c.when === "DieRolled")!;
+      expect(march.pos).toBe(roll.pos); // 两者都在掷骰前:位置未动
+      expect(roll.die).toBeNull(); // 首掷:BeforeRoll 时骰面尚未产生
+      expect(die.die).toBe(e.presentation.lastRoll!.die); // DieRolled 时骰面已定
+      expect(die.pos).toBe(march.pos); // DieRolled 在行军计算前:位置仍未动
+    } finally {
+      delete EFFECTS["test-capture"];
+    }
+  });
+
+  it("BranchEntered:selectBranch(\"Branch\") 置待入辅路态后派发(主体=抉择者),随后直接 TurnEnd", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const entries = recordMomentCtx(e);
+    const chooser = e.activePlayer;
+    chooser.position = e.board.branch!.startNode; // 摆在辅路入口(真实场景由落格触发)
+    e.turnPhase = "AwaitingBranch";
+    e.selectBranch("Branch");
+    const be = entries.filter((x) => x.moment === "BranchEntered");
+    expect(be).toHaveLength(1);
+    expect(be[0].ctx.subject).toBe(e.players.indexOf(chooser));
+    expect(be[0].ctx.tileIndex).toBe(e.board.branch!.startNode);
+    expect(chooser.onBranch).toEqual({ step: -1 }); // 已置「待入辅路」
+    // 入辅路=本回合结束:紧随其后的是本回合 TurnEnd(此后才是下一位玩家 TurnStart)
+    expect(entries[entries.findIndex((x) => x.moment === "BranchEntered") + 1].moment).toBe("TurnEnd");
+  });
+
+  it("BranchExited:辅路推进汇入主路时派发一次(tileIndex=主路落点),先于 AfterMarch", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    // 挂 +10 行军加成:辅路 5 格,骰 1-6 + 10 必然汇入主路
+    mover.heroes.push(heroWith([{ id: "mb10", when: "BeforeMarch", effect: "moveBonus", params: { steps: 10 }, scope: "self" }]));
+    mover.onBranch = { step: 0 }; // 在辅路第 0 格
+    mover.position = e.board.branch!.startNode; // 辅路行军时主路位置=入口占位
+    const entries = recordMomentCtx(e);
+    e.rollAndMove();
+    autoResolve(e);
+    const bx = entries.filter((x) => x.moment === "BranchExited");
+    expect(bx).toHaveLength(1); // 恰好一次(汇入主路)
+    expect(bx[0].ctx.subject).toBe(e.players.indexOf(mover));
+    expect(bx[0].ctx.tileIndex).toBe(mover.position); // 主路落点
+    expect(mover.onBranch).toBeNull(); // 已清辅路态
+    // 同回合内先于 AfterMarch
+    const after = entries.findIndex((x) => x.moment === "AfterMarch");
+    expect(entries.findIndex((x) => x.moment === "BranchExited")).toBeLessThan(after);
+  });
+});
+
+describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer)", () => {
+  it("CapitalHalt:必停都城(AfterMarch 后、驻跸补给前),tileIndex=都城,补给尾随 CashGained", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const n = e.board.count;
+    // 都城前 1 格 + 至少 2 步(挂 +1 加成)→ 途经都城必停(落点非都城)
+    mover.heroes.push(heroWith([{ id: "mb1", when: "BeforeMarch", effect: "moveBonus", params: { steps: 1 }, scope: "self" }]));
+    mover.position = (mover.capitalIndex - 1 + n) % n;
+    const { supply } = e.capitalSupplyOf(mover);
+    const entries = recordMomentCtx(e);
+    e.rollAndMove();
+    expect(mover.position).toBe(mover.capitalIndex); // 必停都城
+    const halt = entries.filter((x) => x.moment === "CapitalHalt");
+    expect(halt).toHaveLength(1);
+    expect(halt[0].ctx.subject).toBe(e.players.indexOf(mover));
+    expect(halt[0].ctx.tileIndex).toBe(mover.capitalIndex);
+    // 顺序:AfterMarch → CapitalHalt → CashGained(驻跸补给)
+    const iAfter = entries.findIndex((x) => x.moment === "AfterMarch");
+    const iHalt = entries.findIndex((x) => x.moment === "CapitalHalt");
+    const iGain = entries.findIndex((x) => x.moment === "CashGained");
+    expect(iAfter).toBeLessThan(iHalt);
+    expect(iHalt).toBeLessThan(iGain);
+    expect(entries[iGain].ctx).toMatchObject({ subject: e.players.indexOf(mover), amount: supply });
+  });
+
+  it("LandedOnProperty:落他人城派发(subject=访客,ctx.ownerSeat/propertyId/tileIndex),城主无珍宝也触发", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = 1 - visitorSeat;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    autoResolve(e);
+    const lp = entries.filter((x) => x.moment === "LandedOnProperty");
+    expect(lp).toHaveLength(1);
+    expect(lp[0].ctx).toEqual({ subject: visitorSeat, ownerSeat, propertyId: def.id, tileIndex: tile.index });
+  });
+
+  it("PassedPlayer:途经他人棋子逐个派发(passedSeat=被途经者,tileIndex=途经格);破产者不触发", () => {
+    const seats: SeatConfig[] = [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ];
+    const e = makeEngine(1, seats);
+    finishSetup(e);
+    const moverSeat = e.activeIndex;
+    const tile = freePropertyTile(e);
+    // B(存活)与 C(破产)同站落点格:落点也在 traversed 内 → B 触发一次、C 被滤掉
+    const bSeat = [0, 1, 2].find((s) => s !== moverSeat && !e.players[s].isBankrupt)!;
+    const cSeat = [0, 1, 2].find((s) => s !== moverSeat && s !== bSeat)!;
+    e.players[bSeat].position = tile.index;
+    e.players[cSeat].position = tile.index;
+    e.players[cSeat].isBankrupt = true;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    autoResolve(e);
+    const pp = entries.filter((x) => x.moment === "PassedPlayer");
+    expect(pp).toHaveLength(1);
+    expect(pp[0].ctx).toEqual({ subject: moverSeat, passedSeat: bSeat, tileIndex: tile.index });
+  });
+});
+
+describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecruited/TreasureGained/TreasureSold/TradeSettled)", () => {
+  it("PropertyBought:buyProperty 成功尾派发(subject=买家,ctx.propertyId)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const buyerSeat = e.activeIndex;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 买得起 + 有委任状 → 真实抉择
+    e.buyProperty();
+    const pb = entries.filter((x) => x.moment === "PropertyBought");
+    expect(pb).toHaveLength(1);
+    expect(pb[0].ctx).toEqual({ subject: buyerSeat, propertyId: def.id });
+  });
+
+  it("PropertyUpgraded:扩军成功尾派发(subject=城主,ctx.propertyId)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    mover.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index); // 落己城 → 扩军抉择
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    e.upgradeProperty();
+    const pu = entries.filter((x) => x.moment === "PropertyUpgraded");
+    expect(pu).toHaveLength(1);
+    expect(pu[0].ctx).toEqual({ subject: e.players.indexOf(mover), propertyId: def.id });
+    expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(1);
+  });
+
+  it("HeroRecruited:招贤选定名士后派发(subject=招贤者,ctx.heroId);落都城补给另派 CashGained", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const { supply } = e.capitalSupplyOf(mover);
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, mover.capitalIndex); // 恰落自己都城:补给 + 招贤纳士
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
+    const hid = e.offeredHeroes[0].id;
+    e.resolveHeroPick(0);
+    const hr = entries.filter((x) => x.moment === "HeroRecruited");
+    expect(hr).toHaveLength(1);
+    expect(hr[0].ctx).toEqual({ subject: e.players.indexOf(mover), heroId: hid });
+    expect(mover.heroes.some((h) => h.id === hid)).toBe(true);
+    const cg = entries.filter((x) => x.moment === "CashGained");
+    expect(cg).toHaveLength(1);
+    expect(cg[0].ctx).toMatchObject({ subject: e.players.indexOf(mover), amount: supply }); // 落都城补给
+  });
+
+  it("TreasureGained:宝物城拼点得宝派发(subject=得宝者,ctx.treasureId)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const tile = e.board.tiles.find((t) => t.type === "TreasureCity")!;
+    e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1 }]; // Lv1:双骰 2-12 恒 ≥ 1
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    autoResolve(e);
+    const tg = entries.filter((x) => x.moment === "TreasureGained");
+    expect(tg).toHaveLength(1);
+    expect(tg[0].ctx).toEqual({ subject: e.players.indexOf(mover), treasureId: "probe-t" });
+    expect(mover.treasures.some((t) => t.id === "probe-t")).toBe(true);
+  });
+
+  it("公道买卖成交(买家付清):交割点四时机 + 成交升级,ctx 逐字段(主体/买家/卖家/金额)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = 1 - visitorSeat;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    e.players[ownerSeat].treasures.push({ id: "trade-t", name: "交割测试宝", level: 1 });
+    const price = 100; // guidePriceOf(1) = 100 分
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    expect(e.turnPhase).toBe("AwaitingTreasureOwner"); // 城主有宝 → 交涉
+    e.resolveTreasureOwner({ type: "fair", treasureId: "trade-t" });
+    // 落城 → 公道成交升级 → 交割四连:得宝(买家)→ 售宝(卖家)→ 成交 → 收款(卖家)
+    expect(entries.filter((x) => x.moment === "LandedOnProperty").map((x) => x.ctx)).toEqual([
+      { subject: visitorSeat, ownerSeat, propertyId: def.id, tileIndex: tile.index },
+    ]);
+    expect(entries.filter((x) => x.moment === "PropertyUpgraded").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, propertyId: def.id },
+    ]);
+    expect(entries.filter((x) => x.moment === "TreasureGained").map((x) => x.ctx)).toEqual([
+      { subject: visitorSeat, treasureId: "trade-t" },
+    ]);
+    expect(entries.filter((x) => x.moment === "TreasureSold").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, treasureId: "trade-t", amount: price },
+    ]);
+    expect(entries.filter((x) => x.moment === "TradeSettled").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, buyerSeat: visitorSeat, sellerSeat: ownerSeat, amount: price },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, amount: price }, // 卖家收款
+    ]);
+    expect(e.players[visitorSeat].treasures.some((t) => t.id === "trade-t")).toBe(true); // 宝已交割
+    expect(e.players[ownerSeat].properties.find((h) => h.propertyId === def.id)!.level).toBe(1); // 城已升级
+  });
+
+  it("买家破产退宝:交割三时机(TreasureSold/TradeSettled/交割 TreasureGained)与收款不触发;PlayerBankrupt→GameOver(群雄尽灭)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = 1 - visitorSeat;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    e.players[ownerSeat].treasures.push({ id: "trade-t", name: "退宝测试宝", level: 1 });
+    e.players[visitorSeat].cash = 0; // 买家无现金且无可变卖资产(仅都城)→ 直接破产
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    e.resolveTreasureOwner({ type: "fair", treasureId: "trade-t" });
+    for (const m of ["TreasureSold", "TradeSettled", "CashGained", "TreasureGained"] as const)
+      expect(entries.filter((x) => x.moment === m)).toHaveLength(0); // 未成交:不派发
+    expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx.subject)).toEqual([visitorSeat]);
+    expect(e.players[ownerSeat].treasures.some((t) => t.id === "trade-t")).toBe(true); // 托管退回卖家
+    expect(e.isOver).toBe(true); // 群雄尽灭 → 终局
+    expect(e.winReason).toBe("LastStanding");
+    expect(entries.filter((x) => x.moment === "GameOver").map((x) => x.ctx.subject)).toEqual([ownerSeat]);
+  });
+});
+
+describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/BankruptcySettle)", () => {
+  it("CashGained 防连锁:效果层得银(grantSkillCash)不再触发 CashGained——技能给钱恰触发一次", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.players[0];
+    p.heroes.push(heroWith([gain("cg-chain", "CashGained", 50, { scope: "any" })]));
+    const cash0 = p.cash;
+    e.dispatchMoment("CashGained", { subject: 1, amount: 100 }); // 模拟经济结算点派发一次
+    expect(fireCount(e, "cg-chain")).toBe(1); // 若递归,技能会再次触发(或第 3 层抛错)
+    expect(p.cash).toBe(cash0 + 50); // 恰好得一次
+  });
+
+  it("PlayerBankrupt:finalizeBankruptcy 善后尾派发(subject=破产者);变卖殆尽仍不足 → 出局+终局", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.cash = 0; // 一无所有:确认清算时仍不足 → settleDebt + finalizeBankruptcy(公共清算路径)
+    const entries = recordMomentCtx(e);
+    e.pendingDebt = { amount: 200, creditor: null };
+    e.turnPhase = "AwaitingBankruptcySettle";
+    e.confirmBankruptcySettle();
+    expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([{ subject: e.players.indexOf(mover) }]);
+    expect(mover.isBankrupt).toBe(true);
+    expect(e.isOver).toBe(true); // 2 人局:一人出局即终局(群雄尽灭)
+    expect(entries.filter((x) => x.moment === "GameOver")).toHaveLength(1);
+  });
+
+  it("BankruptcySettle:变卖珍宝/变卖城池成功尾各派发一次(ctx.amount=变卖所得),凑足即止", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const extra = freePropertyTile(e);
+    const extraDef = e.catalog.get(extra.propertyId!)!;
+    mover.cash = 50; // 欠 200 → 差 150,进清算
+    mover.treasures.push({ id: "bk-t", name: "自救宝", level: 1 }); // 变卖得 100,仍差 50
+    mover.properties.push({ propertyId: extraDef.id, group: extraDef.group, purchasePrice: extraDef.purchasePrice, level: 0, maxLevel: extraDef.maxLevel });
+    const entries = recordMomentCtx(e);
+    e.pendingDebt = { amount: 200, creditor: null };
+    e.turnPhase = "AwaitingBankruptcySettle";
+    e.sellTreasureBankruptcy("bk-t");
+    e.sellPropertyBankruptcy(extraDef.id);
+    const settle = entries.filter((x) => x.moment === "BankruptcySettle");
+    const propGain = extraDef.valueByLevel[0];
+    expect(settle.map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(mover), amount: 100 }, // 珍宝按指导价(Lv1=100)
+      { subject: e.players.indexOf(mover), amount: propGain }, // 城按等级价值
+    ]);
+    const sold = entries.filter((x) => x.moment === "TreasureSold").map((x) => x.ctx);
+    expect(sold).toEqual([{ subject: e.players.indexOf(mover), treasureId: "bk-t", amount: 100 }]); // 破产变卖也走 TreasureSold
+    e.confirmBankruptcySettle();
+    expect(mover.isBankrupt).toBe(false); // 凑足自救
+    expect(e.turnPhase as string).toBe("Roll"); // 对局继续(轮到下一位)
+  });
+
+  it("BankruptcySettle:遣散名士成功尾派发(ctx.amount=200)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.cash = 0;
+    mover.heroes.push(heroWith([], "bk-hero")); // 名士换银 200 恰好抵债
+    const entries = recordMomentCtx(e);
+    e.pendingDebt = { amount: 200, creditor: null };
+    e.turnPhase = "AwaitingBankruptcySettle";
+    e.cashHeroBankruptcy("bk-hero");
+    expect(entries.filter((x) => x.moment === "BankruptcySettle").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(mover), amount: 200 },
+    ]);
+    e.confirmBankruptcySettle();
+    expect(mover.isBankrupt).toBe(false); // 200 恰清偿
+    expect(mover.cash).toBe(0);
   });
 });

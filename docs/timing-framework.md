@@ -6,7 +6,7 @@
 
 | 文件 | 职责 |
 |---|---|
-| [`src/core/timing.ts`](../src/core/timing.ts) | 时机定义:`GameMoment` 类型 + `MOMENTS` 集中注册表(单一事实源) |
+| [`src/core/timing.ts`](../src/core/timing.ts) | 时机定义:`GameMoment` 类型(26 个,七类)+ `MomentCtx` + `MOMENTS` 集中注册表(单一事实源) |
 | [`src/core/effects.ts`](../src/core/effects.ts) | 效果注册表:`EFFECTS: Record<EffectId, EffectFn>` + `EffectCtx` |
 | [`src/core/types.ts`](../src/core/types.ts) | `TriggerSkill`(技能即数据)挂在 `HeroDef.skills` 上(一武多技) |
 | [`src/core/heroes.ts`](../src/core/heroes.ts) | 名士数据表:新增名士只改此文件(纯数据) |
@@ -14,28 +14,103 @@
 
 术语对齐(用户定义):**回合(turn)**= 一个人行动一次(`engine.turnNumber`);**轮(round)**= 所有人各行动一次(`engine.round`,由 `roundAnchor` 锚定)。
 
-## 2. 三要素
+## 2. 时机分类目录(26 个)
+
+**这是设计技能/事件/地块/全局规则时的灵感目录**:按七类分组,每条给出触发点位、主体(subject)、ctx 字段与技能灵感示例。所有挂点均在 `game.ts` 唯一派发;同一事件链内的先后顺序见各条「顺序」说明。
+
+> **scope 与 ctx 的分工**:`scope` 只按「属主 vs 时机主体(subject)」过滤(self/others/any/actor);
+> 「与属主相关的更细条件」(如"*你的*城被落"、"*你*被途经")在效果函数内读 `ctx.ownerSeat/passedSeat/buyerSeat…` 与 `ctx.owner` 比对,不匹配返回 false 静默跳过。
+
+### 2.1 生命周期(3)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `GameStart` | `finishSetup` 进入 Playing、首个 `TurnStart` 之前 | roundAnchor(首动者) | — | 开局犒赏 +300 两;隆中对(开局 +1 委任状);先发制人(若你为首动者,首回合行军 +2——置标记);汉室余荫(起手现金最低者补至均值,全局规则位) |
+| `SetupComplete` | 最后一位 `pickCapital` 成功后、`finishSetup` 收尾前 | 该落子者 | — | 观星(最后落子者 +200 两);天命所归(全局规则:按所选都城区域给阵营 buff 标记);择木而栖(你的都城建价 ≤2000 时,开局 +1 委任状) |
+| `GameOver` | `endTurn` 胜负判定确定 `isOver` 处(净资产达标/群雄尽灭两路同挂),终局最后一个时机 | 胜者 | — | 不世之功(终局结算:每座 Lv.3 城 +500 两彩头);盖棺论定(败者视角成就统计);传世之珍(胜者若持有你售出的珍宝,你也得 300 两) |
+
+### 2.2 回合与轮(4)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `TurnStart` | `finishSetup` 开局首回合 + `endTurn` 新 activeIndex 确定后(含中伏跳过推进的最终结果) | 新活跃玩家 | — | 司马懿式回合俸禄 +100 分银;休整(回合开始现金 <2000 时补给 +200);闻鸡起舞(连续 N 回合现金上涨,额外 +1 委任状) |
+| `TurnEnd` | `endTurn()` 入口(胜负判定/结算移除前) | 即将结束回合的玩家 | — | 善后(回合结束时每持 3 城领 100 两);复盘(本回合升级过城则 +50);日行一善(本回合未购城/未升级则 +80) |
+| `RoundStart` | `endTurn` 轮次交替处,`round += 1` 之后、轮首 `TurnStart` 之前 | roundAnchor | — | 秋收(每轮 +50);军心(第 3 轮起每轮 +1 委任状);休养生息(偶数轮 +150,奇数轮 +50) |
+| `RoundEnd` | 最后一位玩家 `TurnEnd` 后、`round + 1` 之前 | roundAnchor | — | 岁末结算(轮末现金最高者 +200);戍边(轮末每座边陲城 +100);苛政(轮末现金 <1000 者 -100,事件/规则位) |
+
+### 2.3 掷骰与行军(6)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `BeforeMarch` | `rollAndMove` 入口、掷骰之前;行军加成经 `addMarchBonus` 累计 | 行军玩家 | — | 周瑜 moveBonus +1;的卢快马(每回合首掷前 +2 步,冷却 3 轮);急行军(现金 >5000 时 +1 步,"重赏之下必有勇夫") |
+| `BeforeRoll` | `rollAndMove` 内 `BeforeMarch` 之后、`dice.roll` 之前 | 掷骰者 | — | 观星(每轮首次掷骰置「重掷」标记:骰面 <3 时引擎自动再掷一次——重掷吃引擎 rng,联机各端一致);天命(置标记:本次骰面至少为 4 的判定加成);卜卦(置标记后,若掷出 6,额外 +1 委任状) |
+| `DieRolled` | 骰面已定、行军步数计算前 | 掷骰者 | `die` | 张星彩(掷 6 得 20);六出祁山(掷 6 时 +1 委任状);连弩(连续两回合掷 6,+300);命数(掷 1 时 +100,"大难不死") |
+| `AfterMarch` | 移动执行完(位置/lastMove 就绪)、落格结算前;必停/辅路/主路三条落点分支各一处,单次行军恰一次 | 行军玩家 | — | 远征(单次行军 ≥5 步 +100,读 lastMove);鞍马劳顿(落点距都城最远时 +150);轻装(本回合无行军加成时 +50) |
+| `BranchEntered` | `selectBranch("Branch")` 置 `onBranch={step:-1}` 后、`endTurn` 前 | 抉择者 | `tileIndex`(入口) | 轻车熟路(入辅路 +100);间道奇谋(入辅路 +1 委任状);明知山有虎(入辅路时预置「探宝 +1 判定」标记) |
+| `BranchExited` | 辅路推进汇入主路处(含汇入后必停都城的截断落点),先于 `AfterMarch` | 行军玩家 | `tileIndex`(主路落点) | 奇兵出子午(出辅路 +150);劫后余生(出辅路若途经中伏格 +200,读状态);金蝉脱壳(出辅路 +1 委任状,冷却 2 轮) |
+
+> `BeforeMarch` vs `BeforeRoll`:前者改**步数**(行军系,`moveBonus` 走 `addMarchBonus` 通道);后者挂**骰子机制**(标记系)——效果只能读状态/置标记,**不能直接改骰面**,重掷必须经引擎 rng 消耗,保证联机各端一致。
+
+### 2.4 落格与路径(3)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `CapitalHalt` | 经过自己都城必停,`applyResupply(cause="halt")` 结算处(`AfterMarch` 后、补给前) | 驻跸者 | `tileIndex`(都城) | 驻跸有仪(必停都城 +1 委任状);帝王巡幸(必停都城时补给额 +50%,结算加成型);凤还巢(必停都城 +200) |
+| `LandedOnProperty` | `resolveProperty` 城池有主且非本人(无论是否触发珍宝交涉);**回合外玩家高频触发点** | 访客 | `ownerSeat`/`propertyId`/`tileIndex` | 瓮中捉鳖(他人落**你的**城——效果内判 `ownerSeat===owner`——你 +1 委任状);守土(他人落你的 Lv≥2 城,你得 100);坚壁清野(他人落你的城,其下次掷骰 -1 步标记);如入无人之境(你落他人城 +100) |
+| `PassedPlayer` | `rollAndMove` path 计算后,遍历 `traversed`(不含起点,含落点)上非破产他人逐个派发 | 行军者 | `passedSeat`/`tileIndex` | 过路礼(你被途经——效果内判 `passedSeat===owner`——收行军者 50);避其锋芒(你途经敌军 +100);烽火(你被途经时 +1 委任状,冷却 2 轮) |
+
+### 2.5 资产与交易(6)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `PropertyBought` | `buyProperty` 成功尾 | 买家 | `propertyId` | 屯田(每购一城 +1 委任状,补偿买证消耗);善贾(购 ≤2000 的城返 200);开疆(你的第 3 座城起每购 +150) |
+| `PropertyUpgraded` | 扩军 `upgradeProperty` 成功 + 公道买卖成交升级,两处(满级不触发) | 城主 | `propertyId` | 坚壁(你的城升级 +100);声势(升到 Lv.3 时 +1 委任状);高墙深垒(拥有 3 座 Lv≥2 城后每升级 +200) |
+| `HeroRecruited` | `resolveHeroPick` 选定名士(`tryRecruitHero` 只出三选一候选) | 招贤者 | `heroId` | 礼贤下士(招贤后 +100);三顾茅庐(每招 2 名名士 +1 委任状);如虎添翼(招贤时若已持 ≥2 名士 +150) |
+| `TreasureGained` | 拼点得宝 `drawTreasureAt` 成功 + escrow 交割买家得宝,两处 | 得宝者 | `treasureId` | 得陇望蜀(拼点得宝再 +100);藏宝阁(每持 3 件珍宝 +300);献宝(得宝时可选售予朝廷 +50% 指导价,事件位) |
+| `TreasureSold` | 交涉成交(escrow 交割,卖家视角;买家破产退宝不触发)+ 破产变卖珍宝 | 卖家 | `treasureId`/`amount` | 散财聚义(售宝 ≥600 时 +100);奇货可居(每次售宝 +1 委任状,冷却 2 轮);断舍离(破产变卖每笔 +50 折价补偿) |
+| `TradeSettled` | escrow 买家付清价款、交割完成(fair/premium 同;退宝不触发) | 城主(=卖家) | `buyerSeat`/`sellerSeat`/`amount` | 互市(你成交一次 +1 委任状);成交之城声势 +1(效果内给 `propertyId` 城再 +1 级的结算型技能);金字招牌(成交价 ≥600 时 +200) |
+
+> 一次公道买卖成交的完整时机链:`LandedOnProperty`(访客落城)→ `PropertyUpgraded`(成交升级)→ 买家付款 `CashLost` → escrow 交割四连 `TreasureGained`(买家)→ `TreasureSold`(卖家)→ `TradeSettled` → `CashGained`(卖家收款)。
+
+### 2.6 玩家状态(2)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `CashGained` | 被动得银的**经济结算点**:`applyResupply` 补给(驻跸/落都城)/ 随机事件得款(锦囊/天命/辅路)/ 交涉收款(卖家) | 得银者 | `amount` | 守财奴(每次被动得银 ≥300 再 +50);细水长流(每次被动得银 +10%,结算加成型);岁贡(他人被动得银时你得其 10%——规则位) |
+| `CashLost` | 被动失银处:税关、商市下跌、锦囊/天命/辅路事件损失、珍宝交涉付款(访客不可拒)。**主动买城不算** | 失财者 | `amount` | 曹丕(他人失银你 +50);劫富济贫(他人失银 ≥400 时你得 100);破财免灾(你失银 ≥500 时 +1 委任状) |
+
+> **CashGained 防连锁(定案)**:`CashGained` 仅在经济结算点派发;**效果层收益(`grantSkillCash`)不触发 CashGained**——技能给钱不会级联触发其它得银技能,防技能链指数放大。要监听"得银",监听结算点即可;技能内部的现金转移不属于经济结算。
+
+### 2.7 破产与终局结算(2)
+
+| 时机 | 触发点位 | subject | ctx | 技能灵感示例 |
+|---|---|---|---|---|
+| `PlayerBankrupt` | `finalizeBankruptcy` 善后尾(名士已释放、资产已转债主、都城已清) | 破产者 | — | 趁火打劫(全场每有玩家破产,你 +20 两);世事无常(他人破产时你得其 1 件珍宝的指导价 50%,规则位);抚恤(你破产时,现金清零但保留 1 名名士——规则位) |
+| `BankruptcySettle` | 破产清算三个变卖命令成功尾:变卖珍宝 / 变卖城池 / 遣散名士(变卖自救进行中,结局未定) | 变卖者 | `amount` | 折价保护(每笔变卖补偿 +50);壮士断腕(单次清算累计变卖 ≥3 笔,自救成功后 +300——置标记);义仆(遣散名士时 +100) |
+
+## 3. 三要素
 
 ### 时机(GameMoment,`timing.ts`)
-```ts
-export type GameMoment =
-  | "RoundStart" | "RoundEnd"   // 一轮开始/结束(subject = roundAnchor)
-  | "TurnStart"  | "TurnEnd"    // 回合开始/结束(subject = 该回合玩家)
-  | "BeforeMarch" | "AfterMarch" // 行军前(掷骰前)/行军后(落格结算前)
-  | "DieRolled"                  // 骰子掷出后(subject = 掷骰者,ctx.die = 骰面)
-  | "CashLost";                  // 玩家被动失去银两(subject = 失财者,ctx.amount = 失财额)
-```
-各时机的**挂点**(唯一派发处,全在 `game.ts`):
+26 个时机全量见上文目录;类型上就是字符串联合 + `MOMENTS` 集中注册表(派发器与文档据此校验完备性)。新增时机三步见 §5。
 
-| 时机 | 挂点 |
-|---|---|
-| `TurnStart` | `finishSetup`(开局首回合进 Playing 时)与 `endTurn`(新 activeIndex 确定后,含中伏跳过推进的最终结果) |
-| `TurnEnd` | `endTurn()` 入口(胜负判定/结算移除前) |
-| `RoundEnd` → `round += 1` → `RoundStart` | `endTurn` 轮次交替处:最后一位玩家 endTurn 且回到 `roundAnchor` 时,先 RoundEnd 再 RoundStart |
-| `BeforeMarch` | `rollAndMove` 入口、掷骰之前(行军加成经 `addMarchBonus` 累计) |
-| `DieRolled` | `roll` 计算出后、行军步数计算前 |
-| `AfterMarch` | `rollAndMove` 移动执行完(位置/lastMove 就绪)、落格结算(驻跸必停/辅路分派/resolveLanding)之前;必停/辅路/主路三条落点分支各一处挂点,单次行军恰好触发一次 |
-| `CashLost` | 被动失银处:税关、商市下跌、锦囊/天命/辅路事件损失、珍宝交涉付款(访客不可拒)。**主动买城不算** |
+### 派发上下文(MomentCtx / EffectCtx)
+```ts
+// timing.ts:dispatchMoment 入参,原样透传给效果
+interface MomentCtx {
+  subject: number;      // 时机主体座位(必填)
+  die?: number;         // 骰面(DieRolled)
+  amount?: number;      // 金额(CashLost/CashGained/TreasureSold/TradeSettled/BankruptcySettle)
+  passedSeat?: number;  // 被途经者座位(PassedPlayer)
+  ownerSeat?: number;   // 城主座位(LandedOnProperty)
+  buyerSeat?: number;   // 买家座位(TradeSettled)
+  sellerSeat?: number;  // 卖家座位(TradeSettled)
+  tileIndex?: number;   // 涉事格(CapitalHalt/LandedOnProperty/PassedPlayer/BranchEntered/BranchExited)
+  propertyId?: string;  // 涉事城(PropertyBought/PropertyUpgraded/LandedOnProperty)
+  treasureId?: string;  // 涉事珍宝(TreasureGained/TreasureSold)
+  heroId?: string;      // 涉事名士(HeroRecruited)
+}
+// effects.ts:EffectCtx = MomentCtx + { moment, owner }
+```
 
 ### 技能(TriggerSkill,`types.ts`)——技能即数据
 ```ts
@@ -53,21 +128,21 @@ export interface TriggerSkill {
 - `"self"`:属主是时机主体(`owner === subject`,我的骰/我的失财/我的回合…)。
 - `"others"`:主体不是属主(`owner !== subject`,别人失财/别人掷骰…)。
 - `"any"`:主体不限(任何人,含属主自己)。
-- `"actor"`:时机主体恰为当前行动玩家(`subject === activeIndex`,属主不限)。当前所有挂点主体即行动者,与 `"any"` 行为等价;未来出现「非行动玩家」主体的时机(如回合外失财)时二者分化。
+- `"actor"`:时机主体恰为当前行动玩家(`subject === activeIndex`,属主不限)。
+- 出现「非行动玩家」主体的时机(如 `LandedOnProperty` 的城主、`PassedPlayer` 的被途经者)时,`actor` 与 `any` 分化;「与属主相关的细分」(如"*你的*城被落")在效果内读 ctx 比对,scope 不背这个职责。
 
 ### 效果(EffectFn,`effects.ts`)
 ```ts
 export type EffectFn = (engine: GameEngine, ctx: EffectCtx, params: Record<string, number>) => boolean;
 ```
-- `ctx = { moment, subject, owner, die?, amount? }`。
 - 返回 `true` = 生效(派发器记战报 + 冷却);返回 `false` = 条件不满足,**静默跳过**(不记战报/冷却,如 `gainIfFace` 骰面不匹配)。
 - 效果只能通过引擎方法改状态(现有效果通道:`addMarchBonus`/`takeMarchBonus`/`grantSkillCash`),浮字经 `grantSkillCash` 自动入队;战报(skill 击发行)由派发器统一记录。
 - **零兜底**:EffectId 查不到 → 派发器抛错;必填 params 缺项(`req`)→ 抛错。都是数据 bug,直接崩。
 
-## 3. 派发器(`GameEngine.dispatchMoment`)
+## 4. 派发器(`GameEngine.dispatchMoment`)
 
 ```
-dispatchMoment(moment, { subject, die?, amount? })
+dispatchMoment(moment, ctx: MomentCtx)
   ├─ 派发深度 +1;> 2 层 → 抛错(不变量校验,防递归)
   ├─ 按座位序遍历所有未破产玩家 × 每人 heroes 序 × skills 数组序:
   │    when 匹配 → scope 过滤 → cooldown 检查 → 查 EFFECTS(未知→抛错)
@@ -77,11 +152,11 @@ dispatchMoment(moment, { subject, die?, amount? })
 
 **确定性**:同层派发顺序 = 座位序 × 技能序,与行动顺序/随机数无关;固定 seed 的对局触发序列完全可复现(`test/timing.test.ts` 稳定性断言)。
 
-**禁递归**:效果内同步再派发时机最多嵌套一层(顶层 + 1);第 3 层直接抛错。这是不变量校验而非兜底——效果链递归是框架 bug,必须崩出来。
+**禁递归**:效果内同步再派发时机最多嵌套一层(顶层 + 1);第 3 层直接抛错。这是不变量校验而非兜底——效果链递归是框架 bug,必须崩出来。另见 §2.6 的 **CashGained 防连锁**(经济结算点单侧派发,效果层不递归)。
 
-**零新增序列化状态**:技能从 `HEROES` 数据派生(快照只存名士 id,恢复时查表回填 `skills`);冷却复用 `heroLastFired`(键从 heroId 改为 skill.id,结构不变)。`snapshot-contract` 契约测试自动覆盖一致性。
+**零新增序列化状态**:全部派发点为派生调用,不落快照字段;技能从 `HEROES` 数据派生(快照只存名士 id,恢复时查表回填 `skills`);冷却复用 `heroLastFired`。`snapshot-contract` 契约测试自动覆盖一致性。
 
-## 4. 扩展指南
+## 5. 扩展指南
 
 ### 加一个效果(一步,`effects.ts`)
 ```ts
@@ -109,17 +184,18 @@ export const EFFECTS: Record<string, EffectFn> = {
 
 ### 加一个时机(三步,`timing.ts` + `game.ts`)
 ```ts
-// 1. timing.ts:GameMoment 加一项 + MOMENTS 注册(集中注册表,两处同文件)
+// 1. timing.ts:GameMoment 加一项(注释写清触发点位/subject/ctx 字段)+ MOMENTS 注册
 export type GameMoment = … | "LandTile";
 export const MOMENTS = […, "LandTile"] as const;
 
 // 2. game.ts:在正确点位挂一个派发(时机语义写进注释:subject 是谁/ctx 带什么):
-this.dispatchMoment("LandTile", { subject: this.activeIndex, amount: def.purchasePrice });
+this.dispatchMoment("LandTile", { subject: this.activeIndex, tileIndex: tile.index });
 
-// 3. 补测试:test/timing.test.ts 断言点位(可观测副作用/时机序列);文档本表加一行。
+// 3. 补测试:test/timing.test.ts 断言点位与 ctx(capture 效果注入/recordMomentCtx 记录派发);
+//    文档 §2 目录表加一行(含灵感示例)。
 ```
 
-## 5. 现有名士(迁移映射,行为不变)
+## 6. 现有名士(迁移映射,行为不变)
 
 | 名士 | 旧(HeroSkill) | 新(skills 声明) |
 |---|---|---|
@@ -129,10 +205,12 @@ this.dispatchMoment("LandTile", { subject: this.activeIndex, amount: def.purchas
 
 战报变化:技能击发行 category 由 `"supply"` 改为 `"skill"`(detail 含 `skillFire owner/hero/skill/moment/subject/die/amount/params`,全链路可审计)。
 
-## 6. 测试(`test/timing.test.ts`)
-- 各时机点位:开局 TurnStart;一回合完整序列(BeforeMarch→DieRolled→AfterMarch→…→TurnEnd→RoundEnd→RoundStart→TurnStart);BeforeMarch 时位置未动/无骰面、AfterMarch 时位置=最终落点(capture 效果注入断言)。
+## 7. 测试(`test/timing.test.ts`,34 用例)
+
+- 派发点位:开局序列(`SetupComplete→GameStart→TurnStart`);一回合完整序列(`BeforeMarch→BeforeRoll→DieRolled→AfterMarch→…→TurnEnd→RoundEnd→RoundStart→TurnStart`);`BeforeMarch/BeforeRoll/DieRolled` 时位置未动、`AfterMarch` 时位置=最终落点(capture 效果注入断言)。
+- 18 个新时机各至少一例:GameOver 两路径(净资产达标/群雄尽灭)、BranchEntered/BranchExited、CapitalHalt(含 AfterMarch→CapitalHalt→CashGained 顺序)、LandedOnProperty/PassedPlayer(ctx 座位字段逐项)、公道买卖成交链(交割四时机 ctx 逐字段)、买家破产退宝(交割时机不派发)、CashGained 防连锁(技能给钱恰触发一次)、PlayerBankrupt、BankruptcySettle 三变卖命令。
 - 确定性:座位序 × 技能序;固定 seed 两局触发序列完全一致。
-- scope 四过滤(self/others/any/actor,缺省=self)。
-- cooldown:冷却内不触发、冷却完再触发(手动轮次推进 + 真实对局 RoundStart 冷却 2 轮)。
-- 破产玩家技能不触发;递归派发第 3 层抛错(一层嵌套允许);未知 EffectId / 必填参数缺失抛错。
-- 行为等价:moveBonus 多技能叠加计入 bonus;gainIfFace 不匹配静默跳过(不记战报/冷却)。3 武将原有断言在 `test/game.test.ts`(断言不变)。
+- scope 四过滤(self/others/any/actor,缺省=self);cooldown;破产玩家技能不触发;递归派发第 3 层抛错;未知 EffectId / 必填参数缺失抛错。
+- 行为等价:moveBonus 多技能叠加计入 bonus;gainIfFace 不匹配静默跳过。3 武将原有断言在 `test/game.test.ts`(断言不变)。
+
+场景构造工具(测试内):`peekDie`(牺牲骰复制 rng 状态预读骰面,不动引擎 rng)、`landActiveOn`(挪位后掷骰恰落目标格,途经都城即抛错防必停截断)、`freePropertyTile`(无主普通城)。

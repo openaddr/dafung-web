@@ -6,16 +6,15 @@
 //  - 返回 true = 生效(派发器记战报/冷却);false = 条件不满足,静默跳过(不记战报/冷却);
 //  - 零兜底:EffectId 查不到(派发器抛错)、必填 params 缺项(req 抛错)都是数据 bug,直接崩。
 import type { GameEngine } from "./game";
-import type { GameMoment } from "./timing";
+import type { GameMoment, MomentCtx } from "./timing";
 
-/** 效果执行上下文:moment=当前时机;subject=时机主体座位;owner=技能属主座位;
- *  die=骰面(DieRolled 等);amount=时机涉及金额(CashLost 的失财额等)。 */
-export interface EffectCtx {
+/** 效果执行上下文:moment=当前时机;owner=技能属主座位;其余字段(MomentCtx)按时机语义携带——
+ *  subject=时机主体座位,die=骰面(DieRolled),amount=金额(CashLost/CashGained/TreasureSold/TradeSettled/
+ *  BankruptcySettle),passedSeat/ownerSeat/buyerSeat/sellerSeat=相关座位,propertyId/treasureId/heroId=
+ *  涉事资产 id,tileIndex=涉事格。各时机的字段清单见 timing.ts GameMoment 注释与 docs 分类目录。 */
+export interface EffectCtx extends MomentCtx {
   moment: GameMoment;
-  subject: number;
   owner: number;
-  die?: number;
-  amount?: number;
 }
 
 /** 效果函数:纯逻辑(禁止 DOM/React),经引擎公共方法改状态。返回是否生效。 */
