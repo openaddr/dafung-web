@@ -92,12 +92,12 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。选「入辅路」= **本回合结束**(棋子留在主路入口格,`onBranch={step:-1}` 表「待入辅路」);**下回合掷骰**沿辅路格推进——掷几点走几格(落第 die 格并触发该格效果:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),掷满溢出从辅路终点汇入主路继续走剩余步数。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(Main|Branch)。
 - **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
-- **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发(挂点全在 game.ts:TurnStart/TurnEnd/RoundStart/RoundEnd/BeforeMarch/AfterMarch/DieRolled/CashLost);加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts),详见 docs/timing-framework.md;效果内禁同步再派发时机(派发深度>2 抛错)
+- **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发。**26 时机七类**(生命周期/回合与轮/掷骰与行军/落格与路径/资产与交易/玩家状态/破产与终局结算),挂点全在 game.ts;**设计技能/事件先翻 docs/timing-framework.md §2 分类目录**(每时机:触发点位/subject/ctx 字段/灵感示例)。加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts);效果内禁同步再派发时机(派发深度>2 抛错);CashGained 防连锁——仅经济结算点派发,效果层收益(grantSkillCash)不递归触发
 
 ## 验证命令
 ```bash
 bun run build      # tsc --noEmit && vite build
-bun test           # 单元测试(bun:test,257 项)
+bun test           # 单元测试(bun:test,275 项)
 bun run test:e2e   # e2e(Playwright,需先 bun run build)
 bun run preview    # 本地预览(http://localhost:4173)
 bun run serve      # 权威引擎 HTTP 服务(http://127.0.0.1:3000,env: PORT/HOST/STATE_FILE)

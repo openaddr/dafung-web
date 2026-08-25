@@ -18,7 +18,7 @@ import type {
   TurnPhase,
   VictoryReason,
 } from "./types";
-import type { GameMoment } from "./timing";
+import type { GameMoment, MomentCtx } from "./timing";
 import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
@@ -390,8 +390,10 @@ export class GameEngine {
       -def.buildCost,
     );
     this.currentDraftIndex++;
-    if (this.currentDraftIndex >= this.players.length) this.finishSetup();
-    else this.rollOfferedCapitals(); // 为下一位选都玩家滚换三候选
+    if (this.currentDraftIndex >= this.players.length) {
+      this.dispatchMoment("SetupComplete", { subject: playerIndex }); // 时机·SetupComplete:最后一位选都落子成功、finishSetup 收尾前
+      this.finishSetup();
+    } else this.rollOfferedCapitals(); // 为下一位选都玩家滚换三候选
     return { ok: true };
   }
 
@@ -459,6 +461,7 @@ export class GameEngine {
       "群雄起兵,首战由「" + this.activePlayer.guohao + "」先行",
       `gameStart firstPlayer=${this.activePlayer.id}`,
     );
+    this.dispatchMoment("GameStart", { subject: this.roundAnchor }); // 时机·GameStart:对局开始(主体=首动者),先于首个 TurnStart
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)
   }
 
@@ -469,7 +472,9 @@ export class GameEngine {
   rollAndMove(): void {
     if (!this.assertPhase("Roll", "RollAndMove")) return;
     const mover = this.activePlayer;
+    const wasOnBranch = mover.onBranch != null; // 行军前是否在辅路(含 step=-1 待入态):BranchExited 派发判定
     this.dispatchMoment("BeforeMarch", { subject: this.activeIndex }); // 时机·BeforeMarch:掷骰前(行军加成挂点,如周瑜 moveBonus)
+    this.dispatchMoment("BeforeRoll", { subject: this.activeIndex }); // 时机·BeforeRoll:掷骰前、BeforeMarch 之后(骰子机制系技能挂点,与 BeforeMarch 的语义区分见 timing.ts)
     const roll = this.dice.roll();
     this.lastRoll = roll;
     this.dispatchMoment("DieRolled", { subject: this.activeIndex, die: roll.die }); // 时机·DieRolled:骰面已定(张星彩 gainIfFace 等)
@@ -492,6 +497,16 @@ export class GameEngine {
       `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus ? `(+${moveBonus})` : ""} → ${destName}`,
       `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
     );
+
+    // 时机·PassedPlayer:途经他人棋子——path 计算后遍历 traversed(不含起点,含落点)上
+    // 非破产他人逐个派发(座位序,确定性;主体=行军者,ctx.passedSeat=被途经者)。
+    for (const tIdx of path.traversed) {
+      for (let seat = 0; seat < this.players.length; seat++) {
+        const other = this.players[seat];
+        if (other === mover || other.isBankrupt || other.position !== tIdx) continue;
+        this.dispatchMoment("PassedPlayer", { subject: this.activeIndex, passedSeat: seat, tileIndex: tIdx });
+      }
+    }
 
     // 经过自己的都城(起点)→ 颁发委任状(无论后续必停或恰落都城)。
     // 克制"运气好跑得快、一圈把城全占"——买城需要委任状,数量有限。
@@ -522,7 +537,9 @@ export class GameEngine {
       );
       mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
       mover.position = mover.capitalIndex;
+      if (wasOnBranch) this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
       this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
+      this.dispatchMoment("CapitalHalt", { subject: this.activeIndex, tileIndex: mover.capitalIndex }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
       const supply = this.applyResupply(mover, "halt");
       this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
       this.turnPhase = "Land";
@@ -541,6 +558,7 @@ export class GameEngine {
     // 主路落点(含从辅路汇入:endNode 及之后)
     mover.onBranch = null; // 已在主路(清掉原 onBranch)
     mover.position = path.landIndex;
+    if (wasOnBranch) this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
     this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
     // 落在辅路起点(且未在辅路)→ 弹入口抉择
     if (this.board.getBranchStart(path.landIndex)) {
@@ -574,6 +592,7 @@ export class GameEngine {
     if (kind === "Branch" && this.board.branch) {
       // 入辅路 = 本回合结束:置「待入辅路」,不结算任何格;下回合 rollAndMove 沿辅路推进
       p.onBranch = { step: -1 };
+      this.dispatchMoment("BranchEntered", { subject: this.activeIndex, tileIndex: p.position }); // 时机·BranchEntered:入辅路(置待入辅路态后)
       this.turnPhase = "Land";
       this.endTurn();
       return;
@@ -609,6 +628,7 @@ export class GameEngine {
         `buy player=${buyer.id} prop=${def.id} price=${def.purchasePrice} warrant-${BUY_WARRANT_COST} warrants=${buyer.warrants} cash=${buyer.cash}`,
         -def.purchasePrice,
       );
+      this.dispatchMoment("PropertyBought", { subject: this.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
     }
     this.endTurn();
   }
@@ -629,6 +649,7 @@ export class GameEngine {
         `${this.activePlayer.guohao} 扩军「${this.tileName(def)}」至 Lv.${r.newLevel}(免费)`,
         `upgrade player=${this.activePlayer.id} prop=${def.id} level=${r.newLevel} cash=${this.activePlayer.cash}`,
       );
+      this.dispatchMoment("PropertyUpgraded", { subject: this.activeIndex, propertyId: def.id }); // 时机·PropertyUpgraded:扩军成功(两挂点之一,另一处在公道买卖成交)
     }
     this.endTurn();
   }
@@ -742,6 +763,12 @@ export class GameEngine {
       }
       return;
     }
+    this.dispatchMoment("LandedOnProperty", {
+      subject: this.players.indexOf(mover),
+      ownerSeat: this.players.indexOf(owner),
+      propertyId: def.id,
+      tileIndex: tile.index,
+    }); // 时机·LandedOnProperty:落他人城(城池有主且非本人,无论后续是否触发珍宝交涉;回合外玩家高频触发点)
     // 他人到达城池不升级:仅当城主对该访客的珍宝交涉选择公道买卖且成交时才 +1 级
     // (见 resolveTreasureOwner 的 fair 分支;坐地起价/不交易均不升级)。
     // 珍宝交涉:城主有珍宝 → 公道买卖/坐地起价;无珍宝 → 无事发生
@@ -822,6 +849,7 @@ export class GameEngine {
     if (supply > 0) {
       mover.cash += supply;
       this.pushFloater(mover, supply, mover.capitalIndex, "supply");
+      this.dispatchMoment("CashGained", { subject: this.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
     }
     if (cause === "halt") {
       this.logEvent(
@@ -860,6 +888,7 @@ export class GameEngine {
         `「天下归一」${result.winner.guohao} 称帝!身价 ${formatMoney(netWorth(result.winner))}`,
         `victory winner=${result.winner.id} reason=${result.reason} netWorth=${netWorth(result.winner)}`,
       );
+      this.dispatchMoment("GameOver", { subject: this.players.indexOf(result.winner) }); // 时机·GameOver:胜负判定确定(净资产达标/群雄尽灭两路同挂,主体=胜者)
       return;
     }
     this.advanceToNextActive();
@@ -959,6 +988,7 @@ export class GameEngine {
       mover.treasures.push(treasure);
       this.pushFloater(mover, guidePrice, atTile, "income");
       this.logEvent("system", mover.guohao, `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`, `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`, guidePrice);
+      this.dispatchMoment("TreasureGained", { subject: this.players.indexOf(mover), treasureId: treasure.id }); // 时机·TreasureGained:拼点得宝(两挂点之一,另一处在 escrow 交割)
     } else {
       // 失败:珍宝放回牌堆底
       this.treasureDeck.push(treasure);
@@ -988,6 +1018,7 @@ export class GameEngine {
     }
     this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
     if (ev.cashDelta < 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: -ev.cashDelta }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
+    if (ev.cashDelta > 0) this.dispatchMoment("CashGained", { subject: this.players.indexOf(mover), amount: ev.cashDelta }); // 时机·CashGained:被动得银(随机事件得款)
     this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     this.logEvent(
       "system",
@@ -1064,6 +1095,7 @@ export class GameEngine {
         `${owner.guohao} 公平交易,城池「${this.tileName(def)}」升 Lv.${holding.level}`,
         `fairUpgrade prop=${def.id} owner=${owner.id} visitor=${mover.id} level=${holding.level}`,
       );
+      this.dispatchMoment("PropertyUpgraded", { subject: tv.ownerIdx, propertyId: def.id }); // 时机·PropertyUpgraded:公道买卖成交升级(两挂点之一,另一处在扩军)
     }
 
     // 先付款后交货:珍宝进交割托管区,买家付清价款(可能经破产清算变卖其他资产自救)后才交割。
@@ -1091,12 +1123,18 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 破产清算(变卖资产自救) ────────────────────────────
-  /** 交割托管:买家付清价款 → 珍宝交货给买家。 */
+  /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
+   *  交易成局(TradeSettled)/卖家收款(CashGained)四个时机都在此派发——无论直接付清还是
+   *  清算变卖自救后付清,走到这里 = 交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。 */
   private deliverEscrow(): void {
     const e = this.escrowTreasure;
     if (!e) return;
     this.escrowTreasure = null;
     this.players[e.buyerIdx].treasures.push(e.treasure);
+    this.dispatchMoment("TreasureGained", { subject: e.buyerIdx, treasureId: e.treasure.id }); // 时机·TreasureGained:escrow 交割买家得宝
+    this.dispatchMoment("TreasureSold", { subject: e.sellerIdx, treasureId: e.treasure.id, amount: e.price }); // 时机·TreasureSold:交涉成交(卖家视角)
+    this.dispatchMoment("TradeSettled", { subject: e.sellerIdx, buyerSeat: e.buyerIdx, sellerSeat: e.sellerIdx, amount: e.price }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
+    if (e.price > 0) this.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
   }
 
   /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。 */
@@ -1140,6 +1178,7 @@ export class GameEngine {
     // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
     // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
     p.capitalIndex = -1;
+    this.dispatchMoment("PlayerBankrupt", { subject: this.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名士已释放、资产已转债主)
   }
 
   /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
@@ -1162,6 +1201,8 @@ export class GameEngine {
     p.cash += gain;
     this.pushFloater(p, gain, p.position, "income");
     this.logEvent("system", p.guohao, `${p.guohao} 变卖「${t.name}」得 ${formatMoney(gain)}`, `bkSellTreasure player=${p.id} treasure=${t.id} +${gain}`, gain);
+    this.dispatchMoment("TreasureSold", { subject: this.activeIndex, treasureId: t.id, amount: gain }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
+    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖珍宝成功(三变卖命令之一)
   }
 
   sellPropertyBankruptcy(propId: string): void {
@@ -1177,6 +1218,7 @@ export class GameEngine {
     p.cash += gain;
     this.pushFloater(p, gain, p.position, "income");
     this.logEvent("system", p.guohao, `${p.guohao} 变卖城池得 ${formatMoney(gain)}`, `bkSellProp player=${p.id} prop=${propId} +${gain}`, gain);
+    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
   }
 
   cashHeroBankruptcy(heroId: string): void {
@@ -1190,6 +1232,7 @@ export class GameEngine {
     p.cash += 200; // 名士换银(2两)
     this.pushFloater(p, 200, p.position, "income");
     this.logEvent("system", p.guohao, `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`, `bkCashHero player=${p.id} hero=${heroId} +200`, 200);
+    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名士成功(三变卖命令之一)
   }
 
   confirmBankruptcySettle(): void {
@@ -1260,7 +1303,9 @@ export class GameEngine {
     return b;
   }
 
-  /** 效果注册表专用通道:技能得银(+现金 +浮字;skill 战报由派发器统一记录)。 */
+  /** 效果注册表专用通道:技能得银(+现金 +浮字;skill 战报由派发器统一记录)。
+   *  防连锁:此处【不】派发 CashGained——CashGained 仅在经济结算点(补给/事件得款/交涉收款)派发,
+   *  效果层收益不递归(技能给钱再触发得银技能会指数放大技能链,框架层禁止;见 docs/timing-framework.md)。 */
   grantSkillCash(seat: number, amount: number): void {
     const p = this.players[seat];
     p.cash += amount;
@@ -1268,8 +1313,9 @@ export class GameEngine {
   }
 
   /** 时机派发:遍历所有未破产玩家(座位序)× 技能序;scope 过滤 + cooldown 检查后执行效果。
-   *  ctx.subject=时机主体座位;ctx.die/amount=时机细粒度数据(DieRolled 骰面 / CashLost 失财额)。 */
-  dispatchMoment(moment: GameMoment, ctx: { subject: number; die?: number; amount?: number }): void {
+   *  ctx(MomentCtx):subject=时机主体座位,其余字段(die/amount/passedSeat/ownerSeat/propertyId/
+   *  treasureId/heroId/buyerSeat/sellerSeat/tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
+  dispatchMoment(moment: GameMoment, ctx: MomentCtx): void {
     this.momentDepth += 1;
     if (this.momentDepth > 2)
       throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
@@ -1285,13 +1331,7 @@ export class GameEngine {
             const effectFn = EFFECTS[skill.effect];
             if (effectFn == null)
               throw new Error(`未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`);
-            const ectx: EffectCtx = {
-              moment,
-              subject: ctx.subject,
-              owner: ownerSeat,
-              die: ctx.die,
-              amount: ctx.amount,
-            };
+            const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
             owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
             this.logEvent(
@@ -1359,6 +1399,7 @@ export class GameEngine {
         `${this.activePlayer.guohao} 招贤纳士,得「${hero.name}」:${hero.desc}`,
         `pickHero player=${this.activePlayer.id} hero=${hero.id}`,
       );
+      this.dispatchMoment("HeroRecruited", { subject: this.activeIndex, heroId: hero.id }); // 时机·HeroRecruited:招贤成功(选定名士;tryRecruitHero 只出三选一候选)
     }
     this.offeredHeroes = [];
     this.endTurn();
