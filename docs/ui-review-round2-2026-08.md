@@ -53,7 +53,7 @@
 
 - [ ] **A1(#48) 宣纸实拍纹理**(P0,CC0):Wikimedia Xuan Paper 1920px→webp ~250KB,全屏 multiply/soft-light 低透明叠加——对现有手绘风增强最大的单项
 - [ ] **A2(#49) game-icons 图标包**(P0,CC BY 3.0):铜钱/卷轴/珍宝 SVG 1-5KB/枚,fill 改墨色统一,填图标空缺
-- [ ] **A3(#50) 武将立绘扩容**(P0,学习用途):patchwiki 图床直连已验证,扩将按现有 fetch-asset 管线追加
+- [x] **A3(#50) 武将立绘扩容**(P0,学习用途):patchwiki 管线已代码化+司马懿入库,操作见 docs/hero-expansion.md
 - [ ] **A4(#51) 霞鹜文楷**(P1,OFL):正文/规则说明可读楷体,webfont 分片自托管 ~1-2MB
 - [ ] **A5(#52) CC0 音效**(P1):Freesound 印章盖下 759526/卷轴纸张(已验证 CC0 过滤搜索法),替换/补充合成音
 - [ ] **A6(#53) 千里江山图局部**(P1,PD):标题屏/胜利屏青绿山水带
