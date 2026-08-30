@@ -300,6 +300,30 @@ export function GameScreen() {
           {/* S6 符号表统一:复位统一 ◎(圆心居中,古印感),不再用光学校准符号 ⌖ */}
           ◎
         </button>
+        {/* #98 缩放 +/− 钮:触屏/触板无滚轮/双指发现性差,给显式入口。竖排挂复位钮同列
+            (制式照抄 ◎ 钮:min-h/w-10 = 40×40 圆角 + bg-panel/90 border-gold/50);
+            top +92 避开 G-5 回合 chip 槽(+56,高度 ~28px),zoomBy 以视口中心为锚,
+            与滚轮/双指同一条 setView 管线(见 usePanZoom)。 */}
+        <div className="absolute top-[calc(var(--safe-top)+92px)] left-[calc(var(--safe-left)+8px)] z-10 flex flex-col gap-2">
+          <button
+            type="button"
+            title="放大棋盘"
+            aria-label="放大棋盘"
+            onClick={() => boardRef.current?.zoomBy(1.25)}
+            className="flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            title="缩小棋盘"
+            aria-label="缩小棋盘"
+            onClick={() => boardRef.current?.zoomBy(0.8)}
+            className="flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+          >
+            −
+          </button>
+        </div>
         {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
         <MuteButton />
         {/* 版本角标(对照旧 main.ts 右下角,构建排查用;R3-A9 随 Noto Serif 移除改挂文楷) */}

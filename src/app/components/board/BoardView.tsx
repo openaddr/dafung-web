@@ -65,6 +65,8 @@ export interface BoardViewHandle {
   reset: () => void;
   /** C4 镜头跟随:缓动把视图中心平移到逻辑坐标 (cx,cy)(不强制改缩放)。 */
   flyTo: (cx: number, cy: number) => void;
+  /** #98 按钮缩放:以当前视口中心为锚按倍率缩放(factor>1 放大,如 1.25/0.8)。 */
+  zoomBy: (factor: number) => void;
 }
 
 const TileLayer = memo(function TileLayerInner({
@@ -112,8 +114,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   const svgRef = useRef<SVGSVGElement | null>(null);
   // F1:viewBox 由 hook 命令式 setAttribute 更新,不产生 React 重渲;
   // svg 的 viewBox prop 只下发一次初始总览值(FIT_VIEW_BOX 常量),此后 React 不改写。
-  const { handlers, grabbing, reset, flyTo } = usePanZoom(svgRef);
-  useImperativeHandle(ref, () => ({ reset, flyTo }), [reset, flyTo]);
+  const { handlers, grabbing, reset, flyTo, zoomBy } = usePanZoom(svgRef);
+  useImperativeHandle(ref, () => ({ reset, flyTo, zoomBy }), [reset, flyTo, zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
   // 地图 → Board/catalog(地图引用不变则不重建;道路避城弧线计算在 RoadsLayer 内做)
