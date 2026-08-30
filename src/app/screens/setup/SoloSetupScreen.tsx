@@ -193,9 +193,10 @@ export function SoloSetupScreen({
           </div>
         </div>
 
-        {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,显示「机」) */}
+        {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}
         <div className="flex flex-col gap-1.5">
-          <div className="grid grid-cols-[32px_1fr_56px] font-deco text-xs text-ink-dim border-b-2 border-ink/30 pb-1">
+          {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
+          <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b-2 border-ink/30 pb-1">
             <span />
             <span>国号</span>
             <span>类型</span>
@@ -212,14 +213,14 @@ export function SoloSetupScreen({
                   {i + 1}
                 </span>
                 {isBot ? (
-                  // bot 行不可编:显示占位「电脑」,国号在对局 Guohao 阶段由引擎分配
-                  // (S-7:title 补语义,触屏 hover 不可见也不误导——「电脑」自明)
+                  // bot 行不可编:国号列显示「待分配」,国号在对局 Guohao 阶段由引擎分配
+                  // (R3-A4(#67):原占位「电脑」与类型列重复,类型列独占该语义;S-7 title 保留)
                   <span
                     data-testid={TID.seatGuohaoInput(i)}
                     title="开局由引擎分配国号"
                     className="font-deco text-ink-dim px-2 py-1 border border-transparent"
                   >
-                    电脑
+                    待分配
                   </span>
                 ) : (
                   <div className="flex flex-col gap-0.5">

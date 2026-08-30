@@ -44,21 +44,26 @@ export function HomeScreen({
   // H-3 tracking 尾部溢出:大字距末字后拖 0.3em 空白致文本视觉偏左,
   // 左内边距补偿同量(pl 用唯一 utility,避免与 px 的 padding-left 冲突)。
   const btnBase =
-    "home-btn-brush rounded-lg border py-5 pr-8 pl-[calc(2rem+0.3em)] font-brush text-2xl tracking-[0.3em] cursor-pointer transition-colors";
+    "home-btn-brush rounded-lg border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] cursor-pointer transition-colors";
   const entries: Array<{
     tid: string;
     label: string;
     onClick: () => void;
+    // R3-B14 尺寸档:玩法入口(单机/联机)大档 py-5 text-2xl≈72px,工具入口(选图/编辑)
+    // 小档 py-4 text-xl≈64px,8px 高差+两排 20px 行距形成「玩法在上、工具在下」的层级;
+    // 尺寸类只出现在这一档字段里,与 btnBase 无同属性冲突。
+    size: string;
     extra: string;
   }> = [
     // H-1:金底变体额外挂 home-btn-gold,笔触下划线取反为墨线(见 home.css)
-    { tid: HOME_TID.solo, label: "单机模式", onClick: onSolo, extra: " home-btn-gold border-gold bg-gold/80 hover:bg-gold text-ink font-bold" },
-    { tid: HOME_TID.online, label: "联机模式", onClick: onOnline, extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
-    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true), extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
+    { tid: HOME_TID.solo, label: "单机模式", onClick: onSolo, size: " py-5 text-2xl", extra: " home-btn-gold border-gold bg-gold/80 hover:bg-gold text-ink font-bold" },
+    { tid: HOME_TID.online, label: "联机模式", onClick: onOnline, size: " py-5 text-2xl", extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
+    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true), size: " py-4 text-xl", extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink" },
     {
       tid: HOME_TID.editMap,
       label: "编辑地图",
       onClick: () => onEdit(selectedMapId),
+      size: " py-4 text-xl",
       extra: " border-ink/40 bg-panel hover:bg-panel-hi text-ink",
     },
   ];
@@ -74,14 +79,15 @@ export function HomeScreen({
       {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中 */}
       <div className="home-title-in-sub font-deco text-ink-dim mt-2 mb-10 tracking-[0.5em] pl-[0.5em]">— 三国大富翁 —</div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 w-[min(560px,92vw)]">
+      {/* R3-B14:gap-y-5 拉开两排 20px,配合尺寸档形成上下分组;横向 560px 栅格与 gap-x-4 不变 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5 w-[min(560px,92vw)]">
         {entries.map((e, i) => (
           // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
           <div key={e.tid} className="home-btn-in" style={{ animationDelay: `${300 + i * 80}ms` }}>
             <button
               data-testid={e.tid}
               onClick={e.onClick}
-              className={btnBase + e.extra}
+              className={btnBase + e.size + e.extra}
             >
               {e.label}
             </button>

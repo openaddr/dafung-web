@@ -18,7 +18,8 @@ export type SoundEvent =
   | "upgrade" // 扩军
   | "treasure" // 得珍宝
   | "bankrupt" // 破产
-  | "victory"; // 胜利
+  | "victory" // 胜利
+  | "scrollOpen"; // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
 
 /** 可拔插音效播放器接口。合成 / 文件 / 静音 各自实现。 */
 export interface AudioPlayer {
@@ -299,9 +300,9 @@ const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   bankrupt: "/assets/audio/gong-long.ogg",
   victory: "/assets/audio/victory-fanfare.ogg",
   upgrade: "/assets/audio/woodblock-hit.ogg",
-  // 卷轴开音效资源已入库:/assets/audio/scroll-unroll.ogg(Freesound 710764,CC0)。
-  // 接入点(待接):SoundEvent 增 "scrollOpen" + ScrollShell 挂载时 getAudio().play("scrollOpen"),
-  // 再在此映射该文件——现无 onOpen 事件钩子,先留资源+登记(A5 工单口径),不挂死代码。
+  // 卷轴展开(Freesound 710764,CC0;manifest audio:scroll-unroll 已登记)。
+  // #65 已接入:ScrollShell 挂载即 play("scrollOpen"),与展开动画同帧。
+  scrollOpen: "/assets/audio/scroll-unroll.ogg",
 };
 
 /**

@@ -36,8 +36,10 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
         </span>
         <div className="min-w-0">
           <div className="font-brush text-lg leading-tight">{p.guohao} 的回合</div>
+          {/* R3-B7(#79):meta 收敛为「身价 · 委任」——现金大数唯一呈现归手牌区(带浮字反馈),
+              此处不再重复现金,避免同一数字三处漂移 */}
           <div data-testid={TESTIDS.statusMeta} className="truncate text-xs text-ink-dim">
-            {formatMoney(p.cash)} · 委任 {p.warrants} · 身价 {formatMoney(p.netWorth)}
+            身价 {formatMoney(p.netWorth)} · 委任 {p.warrants}
           </div>
         </div>
       </div>

@@ -114,7 +114,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // 取不到说明接线有 bug,按零兜底原则让它炸出来。
   const shown = player ?? snapshot.players[net.host];
   // G-9 现金 / #21 委任:跨快照差值浮标(useDeltaFloat 单一实现,chip 右上浮出
-  // +/− 标记,game-hud.css 的 game-cash-float 1.2s 上浮消失;正=gold 负=danger)。
+  // +/− 标记,game-hud.css 的 game-cash-float 1.4s 上浮消失;正=深金 负=danger)。
   const cashFloats = useDeltaFloat(shown.cash);
   const warrantFloats = useDeltaFloat(shown.warrants);
   // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名士区(L48 起接管战报腾位);
@@ -126,8 +126,9 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
     >
       {!player ? (
         /* G-10 未入座空态:观战视角——无手牌可看、无行动可发,动作区(签面/行军/托管)不渲染。
-            #45/S12:空态从两行说明升级为「观」印身份行 + 被跟随者资产(现金/委任/身价 chips
-            与坐姿分支同款,#21 浮标同样生效);珍宝/名士列表就地平铺(只读,详情卷轴仍归
+            #45/S12:空态从两行说明升级为「观」印身份行 + 被跟随者资产(现金/委任 chips
+            与坐姿分支同款,#21 浮标同样生效;身价小字为观战态额外保留——R3-B7(#79)
+            去重只收敛坐姿分支);珍宝/名士列表就地平铺(只读,详情卷轴仍归
             TreasuryPanel 的卡区职责)。入座引导保留一行收尾。 */
         <>
           <h3 className="px-3 pt-2 font-brush text-base">手牌</h3>
@@ -203,7 +204,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 >
                   {formatMoney(player.cash)}
                 </span>
-                {/* G-9:现金增减浮标(chip 右上,1.2s 上浮渐隐;正=gold 负=danger)。
+                {/* G-9:现金增减浮标(chip 右上,1.4s 上浮渐隐;正=深金 负=danger)。
                     #44:浮标渲染与观战分支共用 DeltaFloatSpans,只差数值文案口径 */}
                 <DeltaFloatSpans floats={cashFloats} format={(n) => formatMoney(n)} />
               </span>
@@ -218,8 +219,8 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                     买城 −1(红字);计数非钱,format 取整数 */}
                 <DeltaFloatSpans floats={warrantFloats} format={(n) => String(n)} />
               </span>
-              {/* G-9:身价小字(netWorth 为快照派生字段,含地产/珍宝估值,自己非活跃时也可见) */}
-              <span className="min-h-9 py-1 text-xs text-ink-dim">身价 {formatMoney(player.netWorth)}</span>
+              {/* R3-B7(#79):身价小字已删——坐姿分支只留现金大数 + 委任 chip(有浮字反馈),
+                  手牌区是「我的钱」唯一大数呈现;身价归状态卡 meta,不再三处重复 */}
             </div>
           </div>
         </>

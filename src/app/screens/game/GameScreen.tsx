@@ -302,8 +302,8 @@ export function GameScreen() {
         </button>
         {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
         <MuteButton />
-        {/* 版本角标(对照旧 main.ts 右下角,构建排查用) */}
-        <span className="pointer-events-none absolute right-1 bottom-0.5 font-body text-[10px] text-ink-dim/70">
+        {/* 版本角标(对照旧 main.ts 右下角,构建排查用;R3-A9 随 Noto Serif 移除改挂文楷) */}
+        <span className="pointer-events-none absolute right-1 bottom-0.5 font-wenkai text-[10px] text-ink-dim/70">
           {VERSION}
         </span>
         {/* P0-7 窄屏浮动小条(侧栏抽屉收起时):把手 + 「轮到我」金框 + 行军热钮 + 「托」印。
@@ -380,14 +380,17 @@ export function GameScreen() {
           珍宝·名士区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
-          自适应,压缩宽度下靠现有 overflow-hidden/内滚不破版。
+          自适应,桌面压缩宽度下靠现有 overflow-hidden/内滚不破版。
           P0-7 窄屏(<768px)覆盖式抽屉:absolute 贴右滑入(translate 200ms),棋盘始终全宽;
-          无 w-12 中间态,收起态的信息挪到棋盘右缘浮动小条(见 board-wrap 内)。 */}
+          无 w-12 中间态,收起态的信息挪到棋盘右缘浮动小条(见 board-wrap 内)。
+          R3-A5(#68):抽屉态改 overflow-y-auto——844×390 这类矮视口四区总高可超抽屉,
+          旧 overflow-hidden 会把按 flex 分到 0 高的诸侯区静默裁切,改整抽屉滚动保底;
+          桌面并排仍 overflow-hidden,布局不变。 */}
       <aside
         data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
         className={
           isNarrow
-            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel shadow-2xl transition-transform duration-200 " +
+            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l-2 border-gold/60 bg-panel shadow-2xl transition-transform duration-200 " +
               (sidebarOpen ? "translate-x-0" : "translate-x-full")
             : "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
               (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
@@ -395,9 +398,24 @@ export function GameScreen() {
       >
         {sidebarOpen || isNarrow ? (
           <>
-            <h1 className="border-b border-gold/40 bg-panel-hi px-3 py-2 text-center font-brush text-2xl tracking-widest">
+            {/* R3-B9(#81):横幅分相位——对局中(Playing)压为单行(约 65px→36px,
+                矮视口抽屉不再被常驻横幅占 1/6 高);Setup/GameOver 保留大横幅。 */}
+            <h1
+              className={
+                "border-b border-gold/40 bg-panel-hi px-3 text-center font-brush tracking-widest " +
+                (snapshot.phase === "Playing" ? "py-1.5 text-base" : "py-2 text-2xl")
+              }
+            >
               群雄逐鹿
-              <small className="block text-xs text-ink-dim">· 三国大富翁 ·</small>
+              <small
+                className={
+                  snapshot.phase === "Playing"
+                    ? "inline text-[10px] text-ink-dim"
+                    : "block text-xs text-ink-dim"
+                }
+              >
+                · 三国大富翁 ·
+              </small>
             </h1>
             <StatusBar snapshot={snapshot} />
             <HandPanel
@@ -407,8 +425,10 @@ export function GameScreen() {
               interactive={interactive}
             />
             {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名士常驻展示区;
-                诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。 */}
-            <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} />
+                诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。
+                R3-A5(#68):isNarrow 同源下发抽屉态(IS_NARROW_QUERY 含横屏矮视口分支,
+                勿用 max-md 纯宽度断点另抄)——珍宝·名士区在抽屉里放开 flex 保底。 */}
+            <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} narrow={isNarrow} />
             {/* X13(#32):viewSeat 透传——诸侯列表自己行挂「你」印(口径同 WaitingBar) */}
             <OthersPanel snapshot={snapshot} viewSeat={viewSeat} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}

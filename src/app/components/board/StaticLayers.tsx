@@ -126,7 +126,7 @@ export const TerrainLayer = memo(function TerrainLayer() {
 
 // ── 区域底色晕染 ──
 // 玩家不读区域名也能"感知"地域:每个地理区域(中原/荆楚/…)铺一层极淡的
-// 区域色 radial 晕染(峰值 opacity 8%,边缘渐隐到 0),城池/道路可读性不降。
+// 区域色 radial 晕染(峰值 opacity 15%,边缘渐隐到 0),城池/道路可读性不降。
 // 区域中心不写死布局,而是从 board.tiles 的 region(中文名,两张内置图均随
 // group 一起配置)反查 Theme.groupNames 得到 a–h,再取该区域城池坐标的
 // 几何中心 → 历史图 sanguo / 天下图 chessboard 自适应,自定义地图同样生效。
@@ -146,7 +146,8 @@ interface RegionBlob {
  *  半径 = 城池到中心最大距离 × 系数,再夹在 [240, 640]:
  *  下限保证稀疏区域(如西凉 3 城)仍有成片色感,上限防大扩散糊到邻区。
  *  A3:系数 1.7 → 1.3——8 层全幅渐变在棋盘中央叠糊,收紧后每片晕染基本只罩
- *  本区域城池带,中央让位给江河水墨;峰值 8% → 边缘 0 的渐变口径不变。 */
+ *  本区域城池带,中央让位给江河水墨;#77 峰值 8% → 15%(70% 处 4% → 8%),
+ *  边缘 0 的渐变口径不变,半径系数 1.3 亦不动。 */
 function regionBlobs(tiles: readonly { region: string | null; position: { x: number; y: number } }[]): RegionBlob[] {
   const byGroup = new Map<string, { x: number; y: number }[]>();
   for (const t of tiles) {
@@ -176,8 +177,10 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
       {blobs.map((b) => (
         // gradientUnits=userSpaceOnUse:圆心即区域几何中心,不随 rect 尺寸缩放
         <radialGradient key={b.group} id={`bv-tint-${b.group}`} gradientUnits="userSpaceOnUse" cx={b.cx} cy={b.cy} r={b.r}>
-          <stop offset="0%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.08} />
-          <stop offset="70%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.04} />
+          {/* #77 峰值 8%→15%、70% 处 4%→8%:相邻区域交界能看出色相推移,
+              仍明显弱于道路(0.38)与铭牌(0.92),不与可读性争。 */}
+          <stop offset="0%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.15} />
+          <stop offset="70%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.08} />
           <stop offset="100%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0} />
         </radialGradient>
       ))}
@@ -190,9 +193,14 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
   );
 });
 
-// ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 辅路(虚赭橙 + 格子图标 + 起点⇄) ──
+// ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 箭羽行进向 + 辅路(虚赭橙 + 格子图标 + 起点碑亭) ──
+
+/** 箭羽形状(#73):一枚人字形羽(尖朝 +x 行进向),挂在段中点、旋向行进方向。 */
+const ROAD_ARROW_D = "M -9,-7 L 5,0 L -9,7";
+
 export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) {
   const segments: React.ReactNode[] = [];
+  const feathers: React.ReactNode[] = [];
   const n = board.count;
   for (let i = 0; i < n; i++) {
     const to = (i + 1) % n;
@@ -202,6 +210,29 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     segments.push(
       <path key={`seg-${i}`} className="bv-road-main stroke-road-main" d={poly(pts)} data-segment={`${i}-${to}`} />,
     );
+    // #73 主路箭羽:取途经点列正中两点的中点为锚(U 弯=edgeWaypoints 两点中点,
+    // 直段=a/b 中点),连线方向即该处行进向——总览下箭羽成节奏点列,U 弯方向可读;
+    // 首段(自起点长安出发)画双羽,与起点「起」印一起标识行进起点。
+    const mi = Math.floor((pts.length - 1) / 2);
+    const m0 = pts[mi];
+    const m1 = pts[mi + 1];
+    const mx = (m0.x + m1.x) / 2;
+    const my = (m0.y + m1.y) / 2;
+    const ang = (Math.atan2(m1.y - m0.y, m1.x - m0.x) * 180) / Math.PI;
+    for (const off of i === 0 ? [-8, 8] : [0]) {
+      feathers.push(
+        <path
+          key={`arrow-${i}-${off}`}
+          className="bv-road-arrow"
+          d={ROAD_ARROW_D}
+          fill="none"
+          stroke="rgba(90,70,40,0.5)"
+          strokeWidth={4.5}
+          strokeLinecap="round"
+          transform={`translate(${mx} ${my}) rotate(${ang}) translate(${off} 0)`}
+        />,
+      );
+    }
   }
 
   const branch = board.branch;
@@ -219,12 +250,14 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
           const icon = c.kind === "treasure" ? "宝" : c.kind === "event" ? "囊" : "伏";
           return (
             <g key={`bc-${i}`} data-branch-cell={i} transform={`translate(${c.position.x} ${c.position.y})`}>
-              <circle r={18} fill={rgba(Theme.panel)} stroke={rgba(color)} strokeWidth={2} />
+              {/* #76 整体放大一档(r 18→30、字 18→28、描边 2→3):总览(1280×700)下
+                  「宝/囊/伏」字与碑亭可辨;chessboard 辅路格距 85,直径 60 不互撞。 */}
+              <circle r={30} fill={rgba(Theme.panel)} stroke={rgba(color)} strokeWidth={3} />
               <text
                 textAnchor="middle"
-                y={6}
+                y={9.5}
                 fontFamily="var(--font-brush)"
-                fontSize={18}
+                fontSize={28}
                 fontWeight={700}
                 fill={rgba(color)}
               >
@@ -251,8 +284,10 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
           const my = start.y + uy * 46 + ny * side * 30;
           const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
           return (
+            // #76 整体 scale(1.6) 与辅路格同步放大(等效逐笔描边 2.2→3.5、跨度 ±12→±19,
+            // 选改动小的一路):总览下碑亭剪影可辨,仍落在辅路外侧不压主路。
             <g
-              transform={`translate(${mx} ${my}) rotate(${ang})`}
+              transform={`translate(${mx} ${my}) rotate(${ang}) scale(1.6)`}
               fill="none"
               stroke={rgba(Theme.roadSide)}
               strokeWidth={2.2}
@@ -282,6 +317,8 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
       {/* 区域底色先画,主/辅路压在其上 */}
       <RegionTintLayer board={board} />
       {segments}
+      {/* 箭羽画在全部主路之上(#73),不被后续段的路笔压住 */}
+      {feathers}
       {branchEls}
     </g>
   );

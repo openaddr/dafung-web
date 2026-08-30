@@ -132,6 +132,25 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
       .finally(() => setPreviewLoading(false));
   };
 
+  // R3-A3(#66):带预选打开(首页/单机页/大厅默认路径 mapId 恒非空)时,挂载即对初始
+  // picked 复用 pick() 的加载逻辑——否则预览区整块空白只剩一条死虚线。
+  // alive 卸载守卫照上方清单拉取的写法,防卸载后写状态;null = 房间尚未选图,无预选不加载。
+  useEffect(() => {
+    if (picked === null) return;
+    let alive = true;
+    setPreviewLoading(true);
+    setPreview(null);
+    mapSource
+      .loadMapData(picked)
+      .then((data) => alive && setPreview({ id: picked, data }))
+      .catch((err) => alive && setError((err as Error).message))
+      .finally(() => alive && setPreviewLoading(false));
+    return () => {
+      alive = false;
+    };
+    // 仅挂载时对初始预选拉一次,后续预览一律走 pick(依赖数组刻意留空)
+  }, []);
+
   return (
     <div
       data-testid={TID.mapPanel}
@@ -196,10 +215,13 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
               })}
             </div>
 
-            <div className="mt-3 border-t border-dashed border-ink/25 pt-3">
-              {previewLoading && <p className="font-deco text-xs text-ink-dim py-2">预览加载中…</p>}
-              {preview && !previewLoading && <MiniMap data={preview.data} />}
-            </div>
+            {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽 */}
+            {(previewLoading || preview) && (
+              <div className="mt-3 border-t border-dashed border-ink/25 pt-3">
+                {previewLoading && <p className="font-deco text-xs text-ink-dim py-2">预览加载中…</p>}
+                {preview && !previewLoading && <MiniMap data={preview.data} />}
+              </div>
+            )}
 
             <div className="mt-4 flex justify-end gap-2.5">
               <button

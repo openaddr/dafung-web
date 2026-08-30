@@ -358,13 +358,14 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
   const isCapital = state.capitalColorIndex != null;
   const isIconTile = tile.type in ICON_THEME;
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
-  const bandFill = ownerRgb
-    ? rgba(ownerRgb)
-    : tile.propertyId
-      ? rgba(groupColor(group))
-      : isIconTile
-        ? rgba(Theme[ICON_THEME[tile.type]!.color as "goldBright" | "danger" | "money"])
-        : "rgba(140,110,60,0.5)";
+  // #74 色带恒用区域分组色(groupColors):玩家色板与分组色板高度同源(石青≈荆楚、
+  // 朱砂≈幽燕…),有主城染玩家色会与异地无主城撞色、误读区域归属;归属辨识交由
+  // 铭牌深底/屋顶染瓦/城主旗承担,色带专职「区域色相」导航。
+  const bandFill = tile.propertyId
+    ? rgba(groupColor(group))
+    : isIconTile
+      ? rgba(Theme[ICON_THEME[tile.type]!.color as "goldBright" | "danger" | "money"])
+      : "rgba(140,110,60,0.5)";
 
   const cls = [
     "bv-tile",
@@ -395,6 +396,20 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           滤镜——滤镜在 zoom 时每帧重算,渐变只是普通填充;脉动仍由 board.css 的 opacity
           keyframe 驱动(bv-pulse-glow),视觉节奏不变。 */}
       <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
+      {/* #75 活跃格虚线环:独立于都城金晕——虚线环=「轮到谁」(回合所属),
+          金晕=「哪是都城」,两语义一眼可分。r=80×2.2≈176 逻辑半径 < 310 行距,
+          不碰邻格;虚线沿圆周行进(board.css 用 dashoffset 而非 rotate,
+          旋转会改变 AABB 令点选稳定性检查超时)。 */}
+      {state.isActive ? (
+        <circle
+          className="bv-active-ring"
+          r={80}
+          fill="none"
+          stroke="rgba(212,175,55,0.9)"
+          strokeWidth={3}
+          strokeDasharray="12 9"
+        />
+      ) : null}
 
       {/* 铭牌底(需求2 三档):无主=宣纸底淡墨边(低显著);有主(含都城)=深玩家色整块
           染底 ≥85% 不透明——zoom-out 扫描时"色块=地盘"按色相即读,不依赖细节。 */}
@@ -496,7 +511,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               </g>
             ) : null}
           </g>
-          {/* 分组色带(顶部):有持有者→玩家色;无主→区域色。
+          {/* 分组色带(顶部):恒用区域色(#74,不再随持有者染玩家色)。
               B1 两级设计:总览读不了字,色带是"形状层"信号——加高一档并描深边,
               让远看时色带在宣纸/铭牌底上仍有清晰的色块轮廓可辨。 */}
           <rect
@@ -576,6 +591,17 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               <rect x={-10} y={-10} width={20} height={20} rx={2} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.4} />
               <text x={0} y={5} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={14} fontWeight={700} fill={rgba(Theme.goldBright)}>
                 都
+              </text>
+            </g>
+          ) : null}
+          {/* #73 起点印:起始城(tileIndex 0,长安)铭牌右上盖「起」字朱印——制式与
+              「都」印同族(20×20 圆角方 + 朱底金边 + -6° 手钤),字为「起」;与主路
+              首段双箭羽互为表里,总览下即知行进自哪城始。 */}
+          {tile.index === 0 ? (
+            <g className="bv-start-seal" transform="translate(49 -33) rotate(-6)">
+              <rect x={-10} y={-10} width={20} height={20} rx={2} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.4} />
+              <text x={0} y={5} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={14} fontWeight={700} fill={rgba(Theme.goldBright)}>
+                起
               </text>
             </g>
           ) : null}

@@ -102,13 +102,6 @@
     "fetched_at": "2026-08-07",
     "review_required": false
   },
-  "audio:gong": {
-    "path": "assets/audio/gong-hit.ogg",
-    "license": "CC0",
-    "author": "stephan (pdsounds.org)",
-    "fetched_at": "2026-08-07",
-    "review_required": false
-  },
   "audio:drum": {
     "path": "assets/audio/drum-roll.ogg",
     "license": "CC0",
@@ -127,6 +120,30 @@
     "path": "assets/audio/victory-fanfare.ogg",
     "license": "CC0",
     "author": "Wikimedia Commons",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:woodblock": {
+    "path": "assets/audio/woodblock-hit.ogg",
+    "source": "https://commons.wikimedia.org/wiki/File:Blok_music.ogg",
+    "license": "CC BY-SA 4.0",
+    "author": "Krol111",
+    "fetched_at": "2026-08-07",
+    "review_required": true
+  },
+  "audio:coins-shake": {
+    "path": "assets/audio/coins-shake.ogg",
+    "source": "https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg",
+    "license": "Public domain",
+    "author": "ezwa (pdsounds.org)",
+    "fetched_at": "2026-08-07",
+    "review_required": false
+  },
+  "audio:gong-long": {
+    "path": "assets/audio/gong-long.ogg",
+    "source": "https://commons.wikimedia.org/wiki/File:Gong55.ogg",
+    "license": "CC0",
+    "author": "stephan",
     "fetched_at": "2026-08-07",
     "review_required": false
   },

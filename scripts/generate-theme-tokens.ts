@@ -32,7 +32,6 @@ for (const [group, rgb] of Object.entries(Theme.groupColors)) {
 
 lines.push(
   '  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;',
-  '  --font-body: "Noto Serif SC", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;',
   '  --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;',
   // A4(#51):霞鹜文楷——规则/事件说明正文用(public/fonts/wenkai/ 分片自托管,OFL)。
   // 排在字栈首位,语料外字符回退 KaiTi(同为楷体)。

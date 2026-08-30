@@ -2,6 +2,7 @@
 // 用 Tailwind token 重写;入场"展开"动画用 scroll.css 的 scroll-unroll keyframe。
 import { useEffect, useRef, type ReactNode } from "react";
 import "./scroll.css";
+import { getAudio } from "@app/fx/audio";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** #15(E3)拖拽 clamp:壳体标题栏恒留视口 ≥60px,任意猛拖拖不丢。 */
@@ -74,6 +75,11 @@ export function ScrollButton({
 
 export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md", scrollKey }: ScrollShellProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
+  // #65 卷轴展开音:挂载即播,与 scroll-anim-unroll keyframe 的 0ms 同帧起步;
+  // 播放惯例与 DiceOverlay 的 useEffect 内 getAudio().play 一致,静音由播放器内部处理。
+  useEffect(() => {
+    getAudio().play("scrollOpen");
+  }, []);
   // #34:可关卷轴补 Esc 快捷键(此前只有遮罩点击/×;与 ConfirmDialog 的 Esc 惯例统一)
   useEffect(() => {
     if (!onClose) return;
@@ -147,7 +153,7 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
         {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
             压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。 */}
         <div
-          className="-mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center rounded-t-sm border-b-2 border-[rgba(140,110,60,0.35)] bg-gradient-to-b from-gold/15 to-gold/[0.03] px-7 pb-2.5 pt-3"
+          className="relative -mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center rounded-t-sm border-b-2 border-[rgba(140,110,60,0.35)] bg-gradient-to-b from-gold/15 to-gold/[0.03] px-7 pb-2.5 pt-3"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
@@ -160,14 +166,22 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             {title}
           </h2>
           {onClose && !hideClose && (
+            // #64:标题栏已 relative,× 锚定在标题栏(原先悬空于整个壳体垂直居中,
+            // 44px 热区压在内容上形成幻点击区)。外层 44px 热区不变,视觉升级为
+            // 1px 描边圆钮;hover 用 group 让整个热区点亮,与可点范围一致。
             <button
               type="button"
               data-testid={T.scrollClose}
               aria-label="关闭"
               onClick={(e) => { e.stopPropagation(); onClose(); }}
-              className="absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center rounded-md text-[26px] leading-none text-ink-dim hover:text-ink"
+              className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center"
             >
-              ×
+              <span
+                aria-hidden="true"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 text-[26px] leading-none text-ink-dim transition-colors group-hover:bg-gold/15 group-hover:text-ink"
+              >
+                ×
+              </span>
             </button>
           )}
         </div>

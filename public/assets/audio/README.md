@@ -119,4 +119,4 @@ lq ogg 预览直链直下(浏览器/Tauri2 原生解码),已登记 manifest.json
 | id | 用途(SoundEvent) | Freesound | 授权 | 作者 | 大小 |
 |---|---|---|---|---|---|
 | **audio:stamp-seal** | stamp 印章(替换原 gong-hit 映射) | [#759526](https://freesound.org/s/759526/) "Wax seal" | **CC0** | Cerise_Virtuelle | 13.7KB |
-| **audio:scroll-unroll** | 卷轴开(资源已入库,接入点:`SoundEvent` 增 `scrollOpen` + `ScrollShell` 挂载时 play,见 audio.ts 注) | [#710764](https://freesound.org/s/710764/) "Paper unroll" | **CC0** | leoanderson67 | 47.2KB |
+| **audio:scroll-unroll** | 卷轴开(R3-A2 已接入:`scrollOpen` 事件,ScrollShell 挂载即播) | [#710764](https://freesound.org/s/710764/) "Paper unroll" | **CC0** | leoanderson67 | 47.2KB |
