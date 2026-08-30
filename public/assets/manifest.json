@@ -226,5 +226,13 @@
     "author": "三国杀(十周年)司马懿-经典形象 · wiki 上传者 17981205",
     "fetched_at": "2026-08-30",
     "review_required": true
+  },
+  "texture:xishan-qingyuan": {
+    "path": "assets/textures/xishan-qingyuan.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3A%E6%BA%AA%E5%B1%B1%E6%B8%85%E8%BF%9C%E5%9B%BE.jpg",
+    "license": "Public domain",
+    "author": "夏圭(Xia Gui,南宋);Commons 全卷扫描 24557×1210 中段裁带(弃印区)→ 2880×311 webp q80",
+    "fetched_at": "2026-08-30",
+    "review_required": false
   }
 }

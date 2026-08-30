@@ -12,7 +12,7 @@
 }
 .bv-tile-hilite {
   opacity: 0;
-  transition: opacity 0.15s ease;
+  transition: opacity var(--dur-fast) var(--ease-out);
 }
 .bv-tile:hover .bv-tile-hilite,
 /* M-2 触屏:无 hover,:active 由 touch 按压激活,给出等效按压反馈 */
@@ -28,7 +28,8 @@
   opacity: 0.15;
 }
 .bv-tile.bv-selectable .bv-tile-hilite {
-  animation: bv-select-pulse 1.6s ease-in-out infinite;
+  /* 呼吸挂 --dur-ambient 半频(1.3s):选都仪式拍,与下方活跃环同节奏 */
+  animation: bv-select-pulse calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
 }
 @keyframes bv-select-pulse {
   0%,
@@ -41,12 +42,13 @@
 }
 .bv-capital-glow {
   opacity: 0;
-  transition: opacity 0.3s;
+  transition: opacity var(--dur-med) var(--ease-out);
 }
 /* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点。
-   #75 金晕自此专属都城(哪是都城);「轮到谁」改由下方旋转虚线环承担,两语义分读。 */
+   #75 金晕自此专属都城(哪是都城);「轮到谁」改由下方旋转虚线环承担,两语义分读。
+   特例:3.5s 刻意慢于 --dur-ambient(2.6s)半拍,沉稳感是注释明言的设计意图,保留字面量。 */
 .bv-tile.bv-capital .bv-capital-glow {
-  animation: bv-pulse-glow 3.5s ease-in-out infinite;
+  animation: bv-pulse-glow 3.5s var(--ease-sine) infinite;
 }
 @keyframes bv-pulse-glow {
   0%,
@@ -62,9 +64,10 @@
    实现用 stroke-dashoffset 行进而非 rotate:圆的 fill-box 是方框,rotate 时
    AABB 随角度变化,父级 <g> 的 bbox 每帧都变,Playwright 稳定性检查等不到
    稳定 → 点选活跃格超时(e2e 实测);dashoffset 行进几何完全不动,视觉同自旋。
-   周期 12+9=21(负向=顺时针),1.6s 一个虚线周期。 */
+   周期 12+9=21(负向=顺时针),--dur-ambient 半频(1.3s)一个虚线周期——与候选金圈
+   呼吸同拍,两个「轮到谁」指示共一节奏。linear 保留:匀速行进不能用缓动曲线。 */
 .bv-active-ring {
-  animation: bv-ring-march 1.6s linear infinite;
+  animation: bv-ring-march calc(var(--dur-ambient) / 2) linear infinite;
 }
 @keyframes bv-ring-march {
   to {
@@ -86,7 +89,8 @@
   stroke-linecap: round;
   stroke-dasharray: 14 8;
   opacity: 0.9;
-  animation: bv-side-flow 1.4s linear infinite;
+  /* 虚线流动归 --dur-fx 拍(1.4s→1.3s);linear 保留:连续流动必须匀速 */
+  animation: bv-side-flow var(--dur-fx) linear infinite;
 }
 @keyframes bv-side-flow {
   to {
@@ -98,15 +102,17 @@
    用 CSS transform 定位 + transition 平滑过渡(与旧 board.ts setTokenPosition 同机制:
    SVG transform 属性不吃 CSS transition,必须走 style.transform)。 */
 .bv-token {
-  transition: transform 0.32s linear;
+  /* 声明式定位的短过渡:时长归 --dur-med;linear 保留(位移匀速,见下行军缓动注释) */
+  transition: transform var(--dur-med) linear;
   pointer-events: none;
 }
 .bv-token-flag {
   filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
 }
-/* 旌旗轻微"呼吸"(旗面摇曳感);行军动画(阶段 6)可直接覆盖 transform 过渡 */
+/* 旌旗轻微"呼吸"(旗面摇曳感);行军动画(阶段 6)可直接覆盖 transform 过渡。
+   摇曳周期归 --dur-ambient(2.8s→2.6s 就近),缓动用 easeInOutSine 同款 token */
 .bv-token-flag {
-  animation: bv-flag-sway 2.8s ease-in-out infinite;
+  animation: bv-flag-sway var(--dur-ambient) var(--ease-sine) infinite;
   transform-origin: 0 0;
 }
 @keyframes bv-flag-sway {
@@ -125,11 +131,11 @@
      集中于此处一条注释说明,不散落硬编码);
    - 落脚指示环(TokenLayer 内 .bv-token-march-ring 圆):旋转 + 呼吸,
      圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。
-   S6(#39) 行军缓动:逐段 linear 的接缝顿挫改 easeInOutSine——段内两端缓、中段快,
-   段尾速度趋零,与 segSlackMs 归零(timings.MARCH)配合后段间无缝衔接,终点仍有
+   S6(#39) 行军缓动:逐段 linear 的接缝顿挫改 easeInOutSine(--ease-sine)——段内两端缓、
+   中段快,段尾速度趋零,与 segSlackMs 归零(timings.MARCH)配合后段间无缝衔接,终点仍有
    落定感;非行军的声明式定位(落格/槽位微调)保持 .bv-token 的 linear 短过渡。 */
 .bv-token.bv-token-marching {
-  transition-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+  transition-timing-function: var(--ease-sine);
 }
 .bv-token-march-ring {
   opacity: 0;
@@ -142,6 +148,8 @@
 }
 .bv-token.bv-token-marching .bv-token-march-ring {
   opacity: 1;
+  /* 特例:0.9s 刻意快于 --dur-ambient 系——行军强调要「正在动」的急迫感,
+     落进任何 --dur-* 档都会读成常驻呼吸;linear 保留(连续旋转)。 */
   animation: bv-march-ring 0.9s linear infinite;
 }
 @keyframes bv-march-ring {
@@ -163,7 +171,8 @@
    缓慢呼吸表「这是你的棋子」,与行军金虚线环(正在动)语义分离;
    只做透明度脉动不加旋转/缩放——身份是常驻暗示,不抢行军强调的戏。 */
 .bv-token-mine-halo {
-  animation: bv-mine-halo 2.6s ease-in-out infinite;
+  /* 常驻呼吸正拍:2.6s 与 --dur-ambient 基准同值(此 token 的标定来源之一) */
+  animation: bv-mine-halo var(--dur-ambient) var(--ease-sine) infinite;
 }
 @keyframes bv-mine-halo {
   0%,

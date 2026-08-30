@@ -37,3 +37,4 @@
 - **audio:drum** — CC0 / Iwan Sounds and DIY — 30454B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
 - **audio:guqin** — CC0 / Wikimedia Commons — 31017B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
 - **audio:victory** — CC0 / Wikimedia Commons — 52218B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **texture:xishan-qingyuan** — Public domain / 夏圭(Xia Gui,南宋) — 195018B (2880×311, image/webp;Commons 全卷扫描 24557×1210 中段裁带,纵向弃顶部印区、横向避开水印印 → webp q80) — [source](https://commons.wikimedia.org/wiki/File%3A%E6%BA%AA%E5%B1%B1%E6%B8%85%E8%BF%9C%E5%9B%BE.jpg) — 2026-08-30

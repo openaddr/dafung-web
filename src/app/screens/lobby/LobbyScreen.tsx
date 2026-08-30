@@ -166,7 +166,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
     "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
-  const inputBase = "rounded border border-ink/30 bg-bg px-2 py-1 font-deco text-ink";
+  // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
+  const inputBase = "h-10 rounded border border-ink/30 bg-bg px-2 py-2 font-deco text-ink";
 
   // ── 被解散:提示 + 返回(对照旧 dismissed → 回连接屏)──
   if (dismissed) {
@@ -249,7 +250,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     }),
                   );
                 }}
-                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold self-end"}
+                // R3-B11(#83):h-10 py-0 与输入框/Stepper 等高;等高后 self-end 不再需要(items-center 对齐)
+                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold h-10 py-0"}
               >
                 {busy ? "处理中…" : "建房"}
               </button>
@@ -281,7 +283,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 disabled={busy || !joinCode.trim()}
                 // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
                 title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
-                className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
+                // R3-B11(#83):h-10 py-0,与房间码输入框等高
+                className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep h-10 py-0"}
               >
                 {busy ? "处理中…" : "加入"}
               </button>

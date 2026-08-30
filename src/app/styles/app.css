@@ -89,7 +89,15 @@ body {
    增强手绘风纸质感,不覆盖 SVG 线条(纹理 CC0,public/assets/textures/)。
    pointer-events:none 纯氛围层;z-index 60 压内容低于卷轴(z-30 起的弹层在其下、
    骰子 overlay(z-50)之上会被覆一层纹理——soft-light 对深浅底均只加纸感,可接受;
-   reduced-motion 与静态层无关。 ── */
+   reduced-motion 与静态层无关。
+   R3-B15(#87) 浓度分场景:菜单屏(主页/准备页/大厅,编辑器不在此列沿用基准值)
+   纸感是氛围主角取 0.45;对局屏格内纸纹会与建筑墨线打架,退到 0.36 让格线清晰。
+   挂类点是 App.tsx 按 store.screen 写入的 body[data-screen],五屏显式逐一写入;
+   弹层激活期临时降 0.28 本轮不做(避免 JS↔CSS 联动)。── */
+:root {
+  --texture-opacity-menu: 0.45;
+  --texture-opacity-game: 0.36;
+}
 #app::after {
   content: "";
   position: fixed;
@@ -98,5 +106,9 @@ body {
   pointer-events: none;
   background: url("/assets/textures/xuan-paper.jpg") center / 960px auto repeat;
   mix-blend-mode: soft-light;
-  opacity: 0.45;
+  opacity: var(--texture-opacity-menu);
+}
+/* 对局屏(#87):对局中格线优先,纹理退后。特异性高于基准规则,与书写顺序无关。 */
+body[data-screen="game"] #app::after {
+  opacity: var(--texture-opacity-game);
 }

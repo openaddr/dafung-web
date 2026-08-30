@@ -1,9 +1,9 @@
-// 古风水墨设计系统:宣纸色板、墨/朱砂/赭石/石青/金/青绿、地产分组色、玩家色。
-// 改这里即全局换肤。
+// 古风水墨设计系统:宣纸色板、墨/朱砂/赭石/石青/金/青绿、地产分组色、玩家色、动效时长/缓动。
+// 改这里即全局换肤/换动效节奏。
 //
-// 配色唯一源:本文件 Theme 对象。Tailwind token 由 scripts/generate-theme-tokens.ts
-// 自动生成 src/app/styles/tokens.css(bun run gen:theme),改色只改这里——
-// 旧「与 style.css 双源人工同步」的约定已随 React/Tailwind 迁移作废。
+// 配色与动效唯一源:本文件 Theme / Motion 对象。Tailwind token 由
+// scripts/generate-theme-tokens.ts 自动生成 src/app/styles/tokens.css(bun run gen:theme),
+// 改色改节奏只改这里——旧「与 style.css 双源人工同步」的约定已随 React/Tailwind 迁移作废。
 
 export interface Rgb {
   r: number;
@@ -80,6 +80,41 @@ export const Theme = {
     hex("9a7a1f"), // 鎏金
     hex("4a3a2a"), // 玄茶
   ],
+} as const;
+
+// ── 动效 token(R3-C1 #88):时长 + 缓动唯一源,CSS 一律 var() 消费 ──
+// 与 Theme 同走 gen:theme 管线生成 --dur-* / --ease-*。呼吸/脉冲类统一挂 --dur-ambient,
+// 个体允许整数倍/半频特例(如 calc(var(--dur-ambient) / 2) = 1.3s 半频);
+// 个别与 JS 编排硬同步的时长(fx/timings.ts FX/DICE)保留字面量并在 CSS 注释标注。
+export const Motion = {
+  /** 时长阶梯:短→长依次承担 反馈 → 面板 → 大件 → 演出 → 常驻。 */
+  dur: {
+    /** 按压/hover 即时反馈(80ms,一触即应)。 */
+    instant: "80ms",
+    /** 遮罩、高亮等轻量快过渡(150ms;对齐旧 fast 0.15s 口径)。 */
+    fast: "150ms",
+    /** 面板入退场、屏幕切换(250ms;对齐旧 mid 0.25s 口径)。 */
+    med: "250ms",
+    /** 大件入场单拍(400ms;对齐旧 slow 0.4s 口径)。 */
+    slow: "400ms",
+    /** 胜利阶梯、镜头等揭晓感长拍(600ms)。 */
+    reveal: "600ms",
+    /** 浮字类瞬时演出(1300ms,对齐 fx 层既有 1300ms 口径,fx/timings.ts FX.floaterMs 同步)。 */
+    fx: "1300ms",
+    /** 常驻呼吸基准(2600ms):旌旗摇曳/光晕脉动等 infinite 呼吸统一挂此,个体允许整数倍/半频。 */
+    ambient: "2600ms",
+  },
+  /** 缓动四条:入场/退场/回弹/呼吸各一,替换全仓 8 种并存缓动。 */
+  ease: {
+    /** 入场/放大类默认:起快收慢(cubic-bezier(0.22,1,0.36,1),即旧 easeOutQuint 系手感)。 */
+    out: "cubic-bezier(0.22, 1, 0.36, 1)",
+    /** 退场/离场类:起慢收快(cubic-bezier(0.4,0,1,1)),元素加速离场不拖泥带水。 */
+    in: "cubic-bezier(0.4, 0, 1, 1)",
+    /** 回弹弹入(back 类统一此条):过冲再落定(cubic-bezier(0.34,1.56,0.64,1)),签面/标题弹跳用。 */
+    outBack: "cubic-bezier(0.34, 1.56, 0.64, 1)",
+    /** 呼吸/脉冲与行军/镜头:easeInOutSine(cubic-bezier(0.45,0,0.55,1)),两端缓中段匀。 */
+    sine: "cubic-bezier(0.45, 0, 0.55, 1)",
+  },
 } as const;
 
 export const groupColor = (group: string | null): Rgb =>

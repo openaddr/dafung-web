@@ -5,13 +5,6 @@ export const BOT = {
   stepDelayMs: 750,
 } as const;
 
-/** JS 侧动画时长(ms),与 CSS --dur-* 对应。集中处,别散落硬编码。 */
-export const ANIM = {
-  fast: 150,
-  mid: 250,
-  slow: 400,
-} as const;
-
 /** 令牌行军(旧 animate.ts animateMove 的逐段节奏,语义不变):
  *  每段时长 ∝ 距离(匀速),夹在 [minSegMs, maxSegMs] 之间。 */
 export const MARCH = {
@@ -25,7 +18,10 @@ export const MARCH = {
   segSlackMs: 0,
 } as const;
 
-/** 瞬时特效存活时长(与 fx.css 的 keyframe 时长保持一致;超时自清防 store 积压)。 */
+/** 瞬时特效存活时长(与 fx.css 的 keyframe 时长保持一致;超时自清防 store 积压)。
+ *  CSS 侧时长/缓动已归 tokens.css 的 --dur-* 与 --ease-*(唯一源 core/theme.ts Motion):
+ *  floaterMs=1300 即 --dur-fx;bannerMs/sealMs 与保留字面量的编排类 keyframe 硬同步,
+ *  改任一侧须两处同改。 */
 export const FX = {
   floaterMs: 1300,
   coinMs: 1500,
@@ -49,7 +45,7 @@ export const DICE = {
   botHardCapMs: 900,
   botHoldMs: 400,      // X5:250 → 400(签面弹入 ~300ms + 可读停留)
   fallbackHoldMs: 650, // X5 软渲/无 WebGL 文字签面的停留
-  fadeOutMs: 250,      // X5 overlay 渐隐退场(与 fx.css .dice-overlay-out 同步)
+  fadeOutMs: 250,      // X5 overlay 渐隐退场(与 fx.css .dice-overlay-out 的 --dur-med 同步)
 } as const;
 
 export const delay = (ms: number): Promise<void> =>

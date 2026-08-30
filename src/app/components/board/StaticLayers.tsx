@@ -1,5 +1,5 @@
-// 静态层:宣纸滤镜 defs、远山河川、暗角、驿道(主路+辅路)。
-// 忠实移植自 src/render/board.ts 的 drawMountainsAndRivers / drawRoads / defs 段,
+// 静态层:宣纸滤镜 defs、溪山清远图远景横带、江河、暗角、驿道(主路+辅路)。
+// 江河/驿道忠实移植自 src/render/board.ts 的 drawMountainsAndRivers / drawRoads / defs 段,
 // 地图不变即不变 → 整个组件 React.memo,players 变化不会重渲这里。
 import { memo } from "react";
 import type { Board } from "@core/board";
@@ -7,7 +7,7 @@ import { Theme, rgba } from "@core/theme";
 
 // viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致。
 // #39:城池间距 1.4x 重排(三张地图坐标同步放大)→ 逻辑画布以 (100,30) 为心等比 1.4x:
-// 2300×1380 → 3220×1932,远山河川由 TERRAIN_SCALE 变换跟随。
+// 2300×1380 → 3220×1932,江河由 TERRAIN_SCALE 变换跟随(远景横带按新画布坐标直接铺)。
 const TERRAIN_SCALE = 1.4;
 const VB = { x: -1510, y: -936, w: 3220, h: 1932 } as const;
 
@@ -21,6 +21,11 @@ const VB = { x: -1510, y: -936, w: 3220, h: 1932 } as const;
 // ③暗角/区域晕染 rect 一并扩到 O,不再有 VB 边界的裁切线。
 const EDGE_PAD = 700;
 const O = { x: VB.x - EDGE_PAD, y: VB.y - EDGE_PAD, w: VB.w + EDGE_PAD * 2, h: VB.h + EDGE_PAD * 2 } as const;
+
+// #100 溪山清远图远景横带:真迹中段裁带(2880×311)铺棋盘上/下缘,高≈画布 18%
+// (348 逻辑单位)——横带 3220×348 与图像原生同为 ≈9.25:1,preserveAspectRatio="slice"
+// 下几乎无裁切。
+const SCENE_BAND_H = Math.round(VB.h * 0.18); // = 348
 
 /** 点列 → path d(M/L 折线),与 render/svg-util.polylinePath 同式。 */
 function poly(pts: { x: number; y: number }[]): string {
@@ -72,6 +77,29 @@ export const BoardDefs = memo(function BoardDefs() {
         <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
         <rect x={O.x} y={VB.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
+      {/* #100 远景横带的内容渐隐 mask:横带外缘贴 VB 边界(pan 出界的渐隐由外层
+          bv-edge-mask 统一负责),内缘朝棋盘中心渐隐——外缘 55% 全显、余下 45%
+          线性淡出到 0,避免 0.12 透明度的画面在带底留下一条硬切线。 */}
+      <linearGradient id="bv-scene-fade-t" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" />
+        <stop offset="0.55" stopColor="#fff" />
+        <stop offset="1" stopColor="#fff" stopOpacity={0} />
+      </linearGradient>
+      <linearGradient id="bv-scene-fade-b" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" stopOpacity={0} />
+        <stop offset="0.55" stopColor="#fff" />
+        <stop offset="1" stopColor="#fff" />
+      </linearGradient>
+      <mask id="bv-scene-mask" maskUnits="userSpaceOnUse" x={VB.x} y={VB.y} width={VB.w} height={VB.h}>
+        <rect x={VB.x} y={VB.y} width={VB.w} height={SCENE_BAND_H} fill="url(#bv-scene-fade-t)" />
+        <rect
+          x={VB.x}
+          y={VB.y + VB.h - SCENE_BAND_H}
+          width={VB.w}
+          height={SCENE_BAND_H}
+          fill="url(#bv-scene-fade-b)"
+        />
+      </mask>
       <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
         <stop offset="0%" stopColor="#d4af37" stopOpacity={0.55} />
         <stop offset="55%" stopColor="#d4af37" stopOpacity={0.28} />
@@ -81,41 +109,47 @@ export const BoardDefs = memo(function BoardDefs() {
   );
 });
 
-// ── 背景:宣纸底 + 噪点 + 淡墨远山/江河 + 暗角 ──
+// ── 背景:宣纸底 + 噪点 + 溪山清远图远景横带/江河 + 暗角 ──
 export const TerrainLayer = memo(function TerrainLayer() {
-  // 淡墨远山(太行/燕山意象,压低存在感)
-  const hills: Array<[string, string]> = [
-    ["-1100,-680 -700,-720 -500,-660 -300,-700 -100,-660 100,-690 100,-560 -1100,-560", "rgba(120,100,70,0.5)"],
-    ["300,-700 600,-680 900,-700 1200,-660 1200,-560 300,-560", "rgba(110,95,65,0.4)"],
-    ["-1100,500 -800,470 -500,500 -200,470 100,500 100,620 -1100,620", "rgba(110,95,65,0.35)"],
-  ];
   return (
-    // #24:整组地形(纸底/噪点/远山/江河/暗角)套边缘渐隐 mask——纸面画布从 VB
-    // 扩到 O,mask 让外围 ~560 逻辑单位平滑淡出至页面背景,消除外缘硬切。
+    // #24:整组地形(纸底/噪点/远景横带/江河/暗角)套边缘渐隐 mask——纸面画布从 VB
+    // 扩到 O,mask 让外围平滑淡出至页面背景,消除外缘硬切。
     <g mask="url(#bv-edge-mask)">
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#e8dcc0" />
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.5} />
-      {/* #39 画布 1.4x:远山/江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。 */}
-      <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
-        <g opacity={0.12}>
-          {hills.map(([pts, fill], i) => (
-            <path key={i} d={`M${pts} Z`} fill={fill} />
-          ))}
-        </g>
-      <g
-        fill="none"
-        stroke="rgba(70,110,140,0.28)"
-        strokeWidth={10}
-        strokeLinecap="round"
-        opacity={0.45}
-      >
-        <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" />
-        <path
-          d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-          strokeWidth={8}
-          opacity={0.5}
+      {/* #100 远景:夏圭《溪山清远图》(PD)中段横带铺棋盘上/下缘,高≈画布 18%、
+          opacity 0.12,压在江河层之下。替代旧手写 polygon 山——真迹横带与折线山
+          叠加显乱,远景山意象整体交由真迹承担(取舍见 #100)。下带水平镜像,
+          避免总览时上下两带同构;横带自身内缘渐隐由 bv-scene-mask 负责。 */}
+      <g mask="url(#bv-scene-mask)" opacity={0.12}>
+        <image
+          href="/assets/textures/xishan-qingyuan.webp"
+          x={VB.x}
+          y={VB.y}
+          width={VB.w}
+          height={SCENE_BAND_H}
+          preserveAspectRatio="xMidYMid slice"
+        />
+        <image
+          href="/assets/textures/xishan-qingyuan.webp"
+          x={VB.x}
+          y={VB.y + VB.h - SCENE_BAND_H}
+          width={VB.w}
+          height={SCENE_BAND_H}
+          preserveAspectRatio="xMidYMid slice"
+          transform={`translate(${2 * (VB.x + VB.w / 2)} 0) scale(-1 1)`}
         />
       </g>
+      {/* #39 画布 1.4x:两条贝塞尔江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。 */}
+      <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
+        <g fill="none" stroke="rgba(70,110,140,0.28)" strokeWidth={10} strokeLinecap="round" opacity={0.45}>
+          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" />
+          <path
+            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
+            strokeWidth={8}
+            opacity={0.5}
+          />
+        </g>
       </g>
       {/* 暗角铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的暗角矩形切线就是用户看到的硬边),
           其暗角集中在四角、恰好落在渐隐带内,与 mask 叠加后自然消隐。 */}

@@ -30,10 +30,13 @@
   }
 }
 
-/* 阶梯淡入(backwards:delay 期间保持 from 态,不可见) */
+/* 阶梯淡入(backwards:delay 期间保持 from 态,不可见)。
+   每拍入场时长归 --dur-slow(大件入场单拍);阶梯节奏由下方 animation-delay 承担 */
 .victory-step {
-  animation: victory-fade-up 0.45s ease backwards;
+  animation: victory-fade-up var(--dur-slow) var(--ease-out) backwards;
 }
+/* 特例:0.3/0.6/0.9s 是刻意 300ms 等差的阶梯节拍(标题→称帝→终局→终榜),
+   归任何 --dur-* 档都会破坏节奏,保留字面量。 */
 .victory-step-sub {
   animation-delay: 0.3s;
 }
@@ -45,5 +48,5 @@
 }
 /* 再战按钮挂载即淡入(组件已用定时器延后 1.8s 才渲染) */
 .victory-step-btn {
-  animation: victory-fade-up 0.4s ease;
+  animation: victory-fade-up var(--dur-slow) var(--ease-out);
 }

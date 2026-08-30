@@ -10,9 +10,17 @@
   }
 }
 
-/* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,1.4s 上浮渐隐后由组件移除。
- * R3-B8:上浮终点 -20px(原 -14px 会压进上方身份头);1.4s
- * cubic-bezier(0.22,1,0.36,1) 起快收慢,大部分位移在早段走完。 */
+/* R3-C1(#88):呼吸从 HandPanel 的 Tailwind 任意值迁入本类承载——时长/缓动引
+ * var(--dur-ambient)/var(--ease-sine)(原 2s ease-in-out 归入常驻呼吸基准拍)。 */
+.game-cta-breathe {
+  animation: game-cta-breathe var(--dur-ambient) var(--ease-sine) infinite;
+}
+
+/* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,上浮渐隐后由组件移除。
+ * R3-B8:上浮终点 -20px(原 -14px 会压进上方身份头)。
+ * R3-C1(#88):时长归 --dur-fx(1.4s→1.3s,与 fx 层浮字同拍);贝塞尔
+ * cubic-bezier(0.22,1,0.36,1) 与 --ease-out token 同值,起快收慢,大部分位移早段走完。
+ * 组件侧 useDeltaFloat 1.25s 提前移除:1.3s 档下动画已走到 96%,卸载不可见。 */
 @keyframes game-cash-float {
   0% {
     opacity: 1;
@@ -24,5 +32,5 @@
   }
 }
 .game-cash-float {
-  animation: game-cash-float 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: game-cash-float var(--dur-fx) var(--ease-out) forwards;
 }

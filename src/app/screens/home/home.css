@@ -20,11 +20,12 @@
   }
 }
 .home-title-in {
-  animation: home-title-in 0.3s ease-out both;
+  animation: home-title-in var(--dur-med) var(--ease-out) both;
 }
-/* 副标题比标题晚 120ms,衔接自然(避免三块同时出现又同时断掉) */
+/* 副标题比标题晚 120ms,衔接自然(避免三块同时出现又同时断掉);
+   特例:0.12s 是 stagger 节拍非时长档,保留字面量(组件侧 300+i*80ms 同理)。 */
 .home-title-in-sub {
-  animation: home-title-in 0.3s ease-out 0.12s both;
+  animation: home-title-in var(--dur-med) var(--ease-out) 0.12s both;
 }
 
 @keyframes home-btn-in {
@@ -38,7 +39,7 @@
   }
 }
 .home-btn-in {
-  animation: home-btn-in 0.4s ease-out both;
+  animation: home-btn-in var(--dur-slow) var(--ease-out) both;
 }
 
 /* hover 笔触下划线:2px 金色底边 scaleX 0→1。
@@ -58,7 +59,8 @@
   background: var(--color-gold);
   transform: scaleX(0);
   transform-origin: left center;
-  transition: transform 0.25s ease-out;
+  /* 笔触划入是刻意的绘制动画非即时反馈,归 --dur-med 而非 --dur-instant */
+  transition: transform var(--dur-med) var(--ease-out);
   /* hover 才显示;键盘 focus-visible 同样给(无障碍:不只鼠标路径) */
 }
 .home-btn-brush:hover::after,

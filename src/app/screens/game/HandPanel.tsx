@@ -114,7 +114,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // 取不到说明接线有 bug,按零兜底原则让它炸出来。
   const shown = player ?? snapshot.players[net.host];
   // G-9 现金 / #21 委任:跨快照差值浮标(useDeltaFloat 单一实现,chip 右上浮出
-  // +/− 标记,game-hud.css 的 game-cash-float 1.4s 上浮消失;正=深金 负=danger)。
+  // +/− 标记,game-hud.css 的 game-cash-float 上浮消失(时长 token --dur-fx);正=深金 负=danger)。
   const cashFloats = useDeltaFloat(shown.cash);
   const warrantFloats = useDeltaFloat(shown.warrants);
   // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名士区(L48 起接管战报腾位);
@@ -204,7 +204,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 >
                   {formatMoney(player.cash)}
                 </span>
-                {/* G-9:现金增减浮标(chip 右上,1.4s 上浮渐隐;正=深金 负=danger)。
+                {/* G-9:现金增减浮标(chip 右上,上浮渐隐时长 token --dur-fx;正=深金 负=danger)。
                     #44:浮标渲染与观战分支共用 DeltaFloatSpans,只差数值文案口径 */}
                 <DeltaFloatSpans floats={cashFloats} format={(n) => formatMoney(n)} />
               </span>
@@ -252,13 +252,13 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
                 title={reason ?? "行军"}
                 /* P0-4 行军升格主 CTA:#32 后可用/禁用两态同 h-11 同圆角,仅换皮——
-                   可掷=实心金底+深墨字+呼吸光晕(game-hud.css 的 keyframe,经 Tailwind
-                   任意值 animate-[...] 挂载);禁用=金描边灰底 + text-ink-dim
-                   (替代整按钮 opacity 压暗,原因旁注仍由 F1 提供)。 */
+                   可掷=实心金底+深墨字+呼吸光晕(game-hud.css 的 .game-cta-breathe 类,
+                   R3-C1 后时长/缓动引 --dur-ambient/--ease-sine token);禁用=金描边灰底 +
+                   text-ink-dim(替代整按钮 opacity 压暗,原因旁注仍由 F1 提供)。 */
                 className={
                   "h-11 min-w-24 cursor-pointer rounded border-2 px-5 font-brush text-lg leading-none transition-colors " +
                   (reason === null
-                    ? "border-gold bg-gold/80 text-ink hover:bg-gold animate-[game-cta-breathe_2s_ease-in-out_infinite]"
+                    ? "border-gold bg-gold/80 text-ink hover:bg-gold game-cta-breathe"
                     : "border-gold/50 bg-gold/15 text-ink-dim enabled:hover:bg-gold/40 disabled:cursor-not-allowed"
                   )
                 }

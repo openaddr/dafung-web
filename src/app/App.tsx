@@ -42,6 +42,14 @@ export function App() {
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
 
+  // R3-B15(#87):当前屏显式挂到 body[data-screen],app.css 的宣纸纹理据此分场景取浓度
+  // (菜单屏 0.45 纸感主角 / 对局屏 0.36 纹理退后让格线清晰)。
+  // 五屏逐一写入、无缺省分支;首帧前 body 无该属性,CSS 基准值即菜单屏浓度,
+  // 与 store 初始屏 setup 一致,无闪变。
+  useEffect(() => {
+    document.body.dataset.screen = screen;
+  }, [screen]);
+
   // 正式开局:加载地图 → 构造单机控制器(引擎 setup 自动步进至轮到人类)→ 进 Game 屏。
   // 单机热座:guohao 全在 seats 里,doDraftRoll 定序后 bot 选都步进,轮到人类停。
   const handleStart = useCallback(
