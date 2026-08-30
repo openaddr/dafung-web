@@ -11,6 +11,7 @@
     "typecheck": "bun run --bun tsc --noEmit",
     "test": "bun test",
     "test:e2e": "playwright test",
+    "test:e2e:dev": "playwright test --max-failures=3",
     "serve:e2e": "bun run --bun vite preview --port 4173 --strictPort",
     "serve": "bun scripts/server.ts",
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json",
