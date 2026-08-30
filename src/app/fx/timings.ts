@@ -36,14 +36,18 @@ export const FX = {
 } as const;
 
 /** 3D 骰子掷骰节奏(ThreeDice 实播墙钟判据;时长集中调参)。
- *  C1 bot 掷骰半速:bot 回合节奏优先,翻滚/硬上限/落定停留全面减半。 */
+ *  C1 bot 掷骰半速:bot 回合节奏优先,翻滚/硬上限/落定停留全面减半。
+ *  X5:落定后先弹大字签面确认结果,holdMs 满再渐隐退场(fadeOutMs);任何掷骰
+ *  (含 bot/软渲 fallback)结束后都有 ≥300ms 可读结果。 */
 export const DICE = {
   minRollMs: 500,   // 至少滚 0.5s(人类掷骰的翻滚感)
   hardCapMs: 1500,  // 墙钟硬上限(与 GPU 帧率无关)
-  holdMs: 600,      // 落定后结果停留,再隐藏 overlay
+  holdMs: 600,      // 落定后结果(3D 骰 + 大字签面)停留,再渐隐
   botMinRollMs: 250,
   botHardCapMs: 900,
-  botHoldMs: 250,
+  botHoldMs: 400,      // X5:250 → 400(签面弹入 ~300ms + 可读停留)
+  fallbackHoldMs: 650, // X5 软渲/无 WebGL 文字签面的停留
+  fadeOutMs: 250,      // X5 overlay 渐隐退场(与 fx.css .dice-overlay-out 同步)
 } as const;
 
 export const delay = (ms: number): Promise<void> =>

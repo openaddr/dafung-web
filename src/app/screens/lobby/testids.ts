@@ -12,6 +12,9 @@ export const LID = {
   seatRow: (n: number) => `lobby-seat-${n}` as const,
   // S7:在线点文字化后,e2e 用它断言在线/离线标签(不只靠颜色)
   seatOnline: (n: number) => `lobby-seat-online-${n}` as const,
+  // E7(#19):座位行国号单字方章 + 重名冲突预告行(有预告 = 开局将被前缀改名)
+  seatGuohao: (n: number) => `lobby-seat-${n}-guohao` as const,
+  guohaoPreview: (n: number) => `lobby-seat-${n}-guohao-preview` as const,
   mapName: "lobby-map-name",
   selectMap: "lobby-select-map",
   start: "lobby-start",

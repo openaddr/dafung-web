@@ -1,16 +1,28 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// 多 agent 并行跑 e2e 的隔离协议(全局把控者按 agent 分配互不相同的值):
+//   E2E_STATIC_PORT  静态 preview 端口(默认 4173)
+//   E2E_GAME_PORT    游戏服务器端口(默认 3010)
+//   E2E_ROOMS_DIR    联机房间落盘目录(默认 ./tmp/e2e-rooms)
+//   E2E_WORKERS      本 run 的 worker 数(默认不设,playwright 自决)
+// 不设这些 env = 行为与历史完全一致(共享默认端口与目录)。
+// 隔离的必要性:webServer 虽 reuseExistingServer,但"谁 spawn 谁杀"——B 复用 A 的
+// server,A 跑完即杀,B 后续用例全部 connection refused;固定 ROOMS_DIR 则跨 run 互踩。
+const STATIC_PORT = process.env.E2E_STATIC_PORT ?? "4173";
+const GAME_PORT = process.env.E2E_GAME_PORT ?? "3010";
+const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms";
+
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   timeout: 60_000,
   expect: { timeout: 10_000 },
   use: {
-    baseURL: "http://localhost:4173",
+    baseURL: `http://localhost:${STATIC_PORT}`,
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
@@ -31,24 +43,24 @@ export default defineConfig({
       },
     },
   ],
-  // 两个 webServer:热座用 vite preview(纯静态 4173);联机用引擎服务器(托管 dist + WS,3010)。
-  // 两者都需要先 npm run build 产出 dist/。
+  // 两个 webServer:热座用 vite preview(纯静态);联机用引擎服务器(托管 dist + WS)。
+  // 两者都需要先 build 产出 dist/。端口/目录由顶部 env 决定(默认与历史一致)。
   webServer: [
     {
-      command: "bun run serve:e2e",
-      url: "http://localhost:4173",
+      command: `bun run --bun vite preview --port ${STATIC_PORT} --strictPort`,
+      url: `http://localhost:${STATIC_PORT}`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
     },
     {
-      command: "bun run serve",
-      url: "http://localhost:3010/health",
+      command: "bun scripts/server.ts",
+      url: `http://localhost:${GAME_PORT}/health`,
       reuseExistingServer: !process.env.CI,
       timeout: 120_000,
       env: {
         STATIC_DIR: "./dist",
-        ROOMS_DIR: "./tmp/e2e-rooms",
-        PORT: "3010",
+        ROOMS_DIR,
+        PORT: GAME_PORT,
         HOST: "127.0.0.1",
       },
     },

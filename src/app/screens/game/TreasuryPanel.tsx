@@ -67,28 +67,31 @@ export function TreasuryPanel({ player, onCardDetailOpen }: TreasuryPanelProps) 
   return (
     <section
       data-testid={TESTIDS.treasuryPanel}
-      className="flex min-h-0 flex-1 flex-col border-b border-gold/40 px-3 pb-2"
+      className="flex min-h-24 flex-1 flex-col border-b border-gold/40 px-3 pb-2"
     >
       <h3 className="shrink-0 py-1 font-brush text-base">珍宝 · 名士</h3>
       {!player ? (
         <div className="text-xs leading-5 text-ink-dim/80">观战中 · 无手牌可看</div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
-          {/* 珍宝:名·等级·指导价。行触达 ≥40px(W5 触屏基线),指导价右对齐(可断言数值) */}
+          {/* 珍宝:名·等级·指导价。行触达 ≥40px(W5 触屏基线),指导价右对齐(可断言数值)。
+              S9(#42):行本体是 button(与同区名士卡同语义)——Tab 可达、Enter 开详情,
+              w-full + text-left 抵消 button 默认样式,视觉与原 div 行一致 */}
           {player.treasures.map((t) => (
-            <div
+            <button
+              type="button"
               key={t.id}
               data-testid={TESTIDS.treasuryTreasure(t.id)}
               title={t.desc}
               onClick={() => openDetail({ kind: "treasure", card: t })}
-              className="flex min-h-10 cursor-pointer items-center gap-2 rounded border border-gold/40 bg-panel-hi px-2.5 text-xs leading-none hover:border-gold hover:bg-panel"
+              className="flex min-h-10 w-full cursor-pointer items-center gap-2 rounded border border-gold/40 bg-panel-hi px-2.5 text-left text-xs leading-none hover:border-gold hover:bg-panel"
             >
               {/* S6 符号表:珍宝统一 ◆(金色) */}
               <span className="shrink-0 text-gold">◆</span>
               <span className="truncate">{t.name}</span>
               <span className="shrink-0 text-ink-dim">Lv{t.level}</span>
               <span className="ml-auto shrink-0 text-money">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-            </div>
+            </button>
           ))}
           {player.treasures.length === 0 && <span className="text-xs text-ink-dim">暂无珍宝</span>}
           {/* 名士:画像·名小卡横排 */}

@@ -64,10 +64,11 @@ export function HomeScreen({
   ];
 
   return (
-    <div
-      data-testid={HOME_TID.screen}
-      className="min-h-full flex flex-col items-center justify-center bg-bg p-6"
-    >
+    // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
+    // flexbox「居中+可滚」标准解:内容不溢出时视觉与 justify-center 一致,
+    // 666×360 横屏等小视口下四入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
+    <div data-testid={HOME_TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
+      <div className="m-auto flex w-full flex-col items-center">
       {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进 */}
       <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest">群雄逐鹿</h1>
       {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中 */}
@@ -99,7 +100,7 @@ export function HomeScreen({
         <span className="text-ink-dim text-xs">▾</span>
       </button>
 
-      {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择) */}
+      {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关) */}
       {showMapSelect && (
         <MapSelectPanel
           mapSource={mapSource}
@@ -112,6 +113,7 @@ export function HomeScreen({
           onCancel={() => setShowMapSelect(false)}
         />
       )}
+      </div>
     </div>
   );
 }

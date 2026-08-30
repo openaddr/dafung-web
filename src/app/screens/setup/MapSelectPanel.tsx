@@ -8,6 +8,9 @@ import type { MapData } from "@core/types";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
 import { TID } from "./testids";
+// S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
+// 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
+import "@app/screens/game/scroll/scroll.css";
 
 export interface MapSelectPanelProps {
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
@@ -131,7 +134,8 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
+        // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)
+        className="scroll-anim-unroll w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
       >
         <h3 className="font-brush text-xl tracking-[0.3em] text-ink mb-3">选择地图</h3>
 

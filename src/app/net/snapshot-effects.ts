@@ -88,12 +88,16 @@ export class SnapshotEffects {
         traversed.push(t);
         if (t === p.position) break;
       }
+      // X1:本帧行进止于己方都城(经过必停或恰落,引擎两态都结算驻跸补给)→
+      // 与单机 extractStepEvents 同款:路径补 passedCapital 语义,行军后先盖「驻」章
+      // 再出「驻跸补给」文案浮字。
+      const capitalHalt = p.position === p.capitalIndex;
       const path = {
         from: prev.position,
         traversed,
         landIndex: p.position,
-        passedCapital: false,
-        capitalIndex: -1,
+        passedCapital: capitalHalt,
+        capitalIndex: capitalHalt ? p.position : -1,
         waypoints: [],
         landBranchStep: null,
         branchWaypoints: [],
@@ -101,6 +105,18 @@ export class SnapshotEffects {
       engine.applyPresentationMove(path);
       this.fxSink.marchBegin(p.id);
       events.push({ kind: "tokenMoved", playerId: p.id, path });
+      if (capitalHalt) {
+        const pos = board.positionOf(p.position);
+        events.push({ kind: "sealStamped", tileIndex: p.position, char: "驻" });
+        events.push({
+          kind: "textFloat",
+          playerId: p.id,
+          text: "驻跸补给",
+          x: pos.x,
+          y: pos.y,
+          atTile: p.position,
+        });
+      }
       marched = true;
     }
 

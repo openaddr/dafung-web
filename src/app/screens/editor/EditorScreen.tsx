@@ -5,8 +5,10 @@
 //   (没有长按阈值——城池命中优先于空白 pan/zoom,空白处仍 pan/zoom)。此处用包裹层
 //   捕获阶段拦截 .bv-tile 的 pointerdown,stopPropagation 后自行接管拖拽,
 //   BoardView 内部 pan(zoom)只处理空白处,与旧版「城池拖拽优先」一致。
-//   拖动中以 HTML 幽灵标记跟手(旧版直接挪 SVG g;React 下不可改动 BoardView 内部
-//   节点,幽灵层是等价的视觉反馈),松手换算成 SVG viewBox 坐标写回 MapTile.pos。
+//   E5(#17):补 6px 位移阈值——低于它松手 = 单击选城,不写回 pos/不涨 undo 栈
+//   (旧版点选查看属性即把城心搬到点击点)。拖动中以 HTML 幽灵标记跟手(旧版直接挪
+//   SVG g;React 下不可改动 BoardView 内部节点,幽灵层是等价的视觉反馈),松手换算成
+//   SVG viewBox 坐标写回 MapTile.pos。
 // - undo:快照式,深度 50(旧版 history 上限 50);额外提供 redo(旧版没有,React 迁移
 //   顺手补上,快照栈天然支持)。
 // - 保存前校验:复用 core/board-loader 的 loadMap 严格模式(非 lenient),失败禁用
@@ -39,6 +41,10 @@ export interface EditorScreenProps {
 
 /** 旧编辑器 undo 历史深度上限。 */
 const HISTORY_MAX = 50;
+
+/** E5(#17):拖动位移阈值(px)——按下到此位移内松手视为单击选城,不写回坐标。
+ *  没有它,点城查看属性也会把城心搬到点击点并污染 undo 栈。 */
+const DRAG_THRESHOLD_PX = 6;
 
 /** 格子类型选项(中文标签对照旧棋盘渲染配色语义)。 */
 const TILE_TYPES: ReadonlyArray<{ value: TileType; label: string }> = [
@@ -103,6 +109,9 @@ function InputScroll({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(defaultValue);
+  // X11(#30):空名禁确定(与 confirmSaveAs 的空名守卫同口径,按钮态直接可见)
+  const trimmed = value.trim();
+  const canConfirm = trimmed.length > 0;
   return (
     <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
       {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
@@ -116,13 +125,16 @@ function InputScroll({
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
-            // 回车确认 = prompt 的确定路径
-            if (e.key === "Enter") onOk(value.trim());
+            // X11(#30):IME 组合窗内的回车只做选字上屏,不触发确定(撞中文输入法);
+            // key === "Process" 兜住部分浏览器合成期 keydown 的等价信号
+            if (e.nativeEvent.isComposing || e.key === "Process") return;
+            // 回车确认 = prompt 的确定路径;空值与确定钮同口径禁用
+            if (e.key === "Enter" && canConfirm) onOk(trimmed);
           }}
         />
       </label>
       <div className="flex flex-wrap justify-center gap-3">
-        <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(value.trim())}>
+        <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(trimmed)} disabled={!canConfirm}>
           确定
         </ScrollButton>
         <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
@@ -162,8 +174,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const past = useRef<MapData[]>([]);
   const future = useRef<MapData[]>([]);
   const [historyTick, setHistoryTick] = useState(0); // 触发 canUndo/canRedo 重算
-  // 拖拽状态:index = 被拖城池;ghost = 幽灵标记的客户端坐标
-  const dragRef = useRef<{ index: number; pointerId: number } | null>(null);
+  // 拖拽状态:index = 被拖城池;start = 按下起点(算位移阈值);ghost = 幽灵标记的客户端坐标
+  const dragRef = useRef<{ index: number; pointerId: number; startX: number; startY: number } | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; name: string } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -264,7 +276,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     // 城池命中即选中 + 开拖(旧版无长按阈值,城池优先于平移;此处的「防误触」由
     // 命中区域本身保证:只有点中城池图形才算拖拽,点空白永远是 pan)
     ev.stopPropagation();
-    dragRef.current = { index, pointerId: ev.pointerId };
+    dragRef.current = { index, pointerId: ev.pointerId, startX: ev.clientX, startY: ev.clientY };
     setSelected(index);
     try {
       ev.currentTarget.setPointerCapture(ev.pointerId);
@@ -277,6 +289,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     (ev: React.PointerEvent<HTMLDivElement>) => {
       const d = dragRef.current;
       if (!d || d.pointerId !== ev.pointerId) return;
+      // E5(#17):位移未过阈值不算拖拽——单击微动不弹幽灵标记、更不会搬城
+      if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) <= DRAG_THRESHOLD_PX) return;
       const t = map.tiles[d.index];
       if (t) setGhost({ x: ev.clientX, y: ev.clientY, name: t.name });
     },
@@ -289,12 +303,18 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       if (!d || d.pointerId !== ev.pointerId) return;
       dragRef.current = null;
       setGhost(null);
+      // E5(#17):位移 ≤ 阈值 = 单击选城,坐标/undo 栈原地不动
+      if (Math.hypot(ev.clientX - d.startX, ev.clientY - d.startY) <= DRAG_THRESHOLD_PX) return;
       const svg = wrapRef.current?.querySelector("svg");
       if (!svg) return;
       // 松手:客户端坐标 → viewBox 坐标,四舍五入写回 MapTile.pos(对照旧版 Math.round)
       const p = clientToSvg(svg, ev.clientX, ev.clientY);
+      const nextPos = [Math.round(p.x), Math.round(p.y)];
+      const cur = mapRef.current.tiles[d.index];
+      // E5(#17):落点换算后与原坐标一致(小拖动凑整回原位)不 apply,不产空 undo 步
+      if (cur && cur.pos[0] === nextPos[0] && cur.pos[1] === nextPos[1]) return;
       const next = clone(mapRef.current);
-      next.tiles[d.index] = { ...next.tiles[d.index], pos: [Math.round(p.x), Math.round(p.y)] };
+      next.tiles[d.index] = { ...next.tiles[d.index], pos: nextPos };
       apply(next);
     },
     [apply],
@@ -423,8 +443,9 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     return `城 ${map.tiles.length} · 辅路 ${map.branch ? map.branch.cells.length + " 格" : "无"} · 总价 ${formatMoney(total)} · 单城 ${formatMoney(prices[0] ?? 0)}~${formatMoney(prices[prices.length - 1] ?? 0)}`;
   }, [map]);
 
+  // S13(#46):min-h-10 保证触达 ≥40px(原 py-1.5 实测约 30px);字号/圆角不变
   const btn =
-    "rounded border border-ink/30 px-3 py-1.5 font-deco text-sm text-ink cursor-pointer transition-colors hover:bg-ink/5 disabled:opacity-40 disabled:cursor-not-allowed";
+    "min-h-10 cursor-pointer rounded border border-ink/30 px-3 py-2 font-deco text-sm text-ink transition-colors hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40";
   const primaryBtn = btn.replace("border-ink/30", "border-gold bg-gold/20");
 
   const inputCls = "rounded border border-ink/30 bg-bg px-2 py-1 w-full";
@@ -467,8 +488,9 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       </div>
 
       {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar)。
-          S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行) */}
-      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l-2 border-gold bg-gradient-to-b from-[#f7ecd0] to-[#ecdcb4] p-4">
+          S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行)
+          S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源) */}
+      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l-2 border-gold bg-gradient-to-b from-paper-hi to-paper-lo p-4">
         <div className="flex flex-wrap gap-1.5">
           <button data-testid={TID.exit} className={btn} onClick={onExit}>← 返回</button>
           <button data-testid={TID.undo} className={btn} onClick={undo} disabled={past.current.length === 0}>↶ 撤销</button>

@@ -111,19 +111,48 @@ function consumeDiceFast(): boolean {
   return fast;
 }
 
-// 待隐藏定时器(roll() 里登记;终局提前收场时由 finishDiceOverlay 取消)
+// 待隐藏/渐隐定时器(roll() 里登记;终局提前收场时由 finishDiceOverlay 取消)
 let pendingHideTimer: number | null = null;
+let pendingFadeTimer: number | null = null;
 
 /** D2:骰子演出提前收场(终局切胜利屏时由 VictoryScreen mount 调用)。
- *  这是生命周期规则而非兜底:对局结束 = 骰子表现层使命终结——取消 holdMs 待隐藏
- *  定时器并立即隐藏,防止 z-45 残留压住胜利屏。overlay 类名由本模块创建且唯一。 */
+ *  这是生命周期规则而非兜底:对局结束 = 骰子表现层使命终结——取消 hold/渐隐
+ *  待定时器并立即隐藏,防止 z-45 残留压住胜利屏。overlay 类名由本模块创建且唯一。 */
 export function finishDiceOverlay(): void {
   if (pendingHideTimer !== null) {
     window.clearTimeout(pendingHideTimer);
     pendingHideTimer = null;
   }
+  if (pendingFadeTimer !== null) {
+    window.clearTimeout(pendingFadeTimer);
+    pendingFadeTimer = null;
+  }
   document.querySelectorAll<HTMLElement>(".dice-overlay").forEach((el) => {
+    el.classList.remove("dice-overlay-out");
     el.style.display = "none";
+  });
+}
+
+/** X5 软渲/无 WebGL 的文字签面:全屏 overlay + 96px 大字签面(弹入 → 停留 →
+ *  渐隐退场),替代旧「黑屏干等」;onLand 在签面现身时回调(落骰声,时序对齐
+ *  3D 路径的落定音)。签面样式与 .dice-sign 共用(fx.css)。 */
+export function showFallbackDiceSign(die: number, onLand: () => void): Promise<void> {
+  const overlay = document.createElement("div");
+  overlay.className = "dice-overlay";
+  const sign = document.createElement("div");
+  sign.className = "dice-sign";
+  sign.textContent = SIGN_FACES[die - 1];
+  overlay.appendChild(sign);
+  document.body.appendChild(overlay);
+  onLand();
+  return new Promise<void>((resolve) => {
+    window.setTimeout(() => {
+      overlay.classList.add("dice-overlay-out");
+      window.setTimeout(() => {
+        overlay.remove();
+        resolve();
+      }, DICE.fadeOutMs);
+    }, DICE.fallbackHoldMs);
   });
 }
 
@@ -210,8 +239,7 @@ export class ThreeDice {
     // 上层自动回退文字切换动画。e2e 经 swiftshader 软件渲染跑真实 3D 路径。
     this.available = this.init();
     if (this.available) {
-      this.showFace(1);
-      this.hideOverlay();
+      this.showFace(1); // overlay 创建时已是 display:none,无需再隐藏
       // F3:监听窗口尺寸变化(全屏 overlay 的 renderer/相机随之重配)
       window.addEventListener("resize", this.handleResize);
     } else {
@@ -354,7 +382,7 @@ export class ThreeDice {
   }
 
   /** 掷骰:反向求解初始条件 → 物理自然停在 die 面朝上,resolve。WebGL 不可用时立即 resolve。
-   *  全屏模式:掷骰前显示 overlay,完成后延迟 holdMs 隐藏。
+   *  全屏模式:掷骰前显示 overlay,落定后弹大字签面(X5),holdMs 满再渐隐退场。
    *  C1:每次 roll 先消费模块级速度开关(setDiceFast),bot 半速 = 更短翻滚/硬上限/停留。
    *  M-4:系统「减弱动态效果」(reducedMotion)时跳过物理演出——直接摆到结果面,
    *  overlay 只短暂停留 ~500ms 让玩家看清点数。
@@ -366,9 +394,10 @@ export class ThreeDice {
     if (isReducedMotion()) {
       this.showOverlay();
       this.showFace(face);
+      this.showSign(face); // X5:签面弹入在 reduced-motion 下瞬时完成,静止可读
       return new Promise<void>((resolve) => {
         setTimeout(() => {
-          this.hideOverlay();
+          this.fadeOutOverlay();
           resolve();
         }, 500);
       });
@@ -379,22 +408,57 @@ export class ThreeDice {
     this.showOverlay();
     return new Promise<void>((resolve) => {
       void this.rollAsync(face, minRollMs, hardCapMs, () => {
-        // 显示结果 holdMs 后隐藏(bot 半速 250ms,人类 600ms);
-        // 登记 id:终局提前收场(finishDiceOverlay)时取消,避免定时器后再动 display
-        pendingHideTimer = window.setTimeout(() => this.hideOverlay(), holdMs);
+        // X5:落定即弹 96px 大字签面确认结果(≥300ms 可读),holdMs 满后 0.25s
+        // 渐隐退场(不再 display:none 硬切);登记 id:终局提前收场
+        // (finishDiceOverlay)时取消,避免定时器后再动 display
+        this.showSign(face);
+        pendingHideTimer = window.setTimeout(() => {
+          pendingHideTimer = null;
+          this.fadeOutOverlay();
+        }, holdMs);
         resolve();
       });
     });
   }
 
-  /** 显示全屏骰子层。 */
+  /** 显示全屏骰子层(X5:新一次掷骰接管 overlay——撤销在途渐隐/待隐藏定时器,
+   *  清掉上一轮的落定签面,再亮出)。 */
   private showOverlay(): void {
-    if (this.overlay) this.overlay.style.display = "block";
+    if (!this.overlay) return;
+    if (pendingHideTimer !== null) {
+      window.clearTimeout(pendingHideTimer);
+      pendingHideTimer = null;
+    }
+    if (pendingFadeTimer !== null) {
+      window.clearTimeout(pendingFadeTimer);
+      pendingFadeTimer = null;
+    }
+    this.overlay.classList.remove("dice-overlay-out");
+    this.overlay.querySelector(".dice-sign")?.remove();
+    this.overlay.style.display = "block";
   }
 
-  /** 隐藏全屏骰子层。 */
-  private hideOverlay(): void {
-    if (this.overlay) this.overlay.style.display = "none";
+  /** X5:0.25s 渐隐退场(display:none 硬切的替代;reduced-motion 下由全局
+   *  动画兜底瞬时完成,退场定时器保持同一节奏)。 */
+  private fadeOutOverlay(): void {
+    if (!this.overlay || this.overlay.style.display === "none") return;
+    const el = this.overlay;
+    el.classList.add("dice-overlay-out");
+    pendingFadeTimer = window.setTimeout(() => {
+      pendingFadeTimer = null;
+      el.style.display = "none";
+      el.classList.remove("dice-overlay-out");
+    }, DICE.fadeOutMs);
+  }
+
+  /** X5:落定大字签面(与 3D 骰同款签面字,骨牌底 96px 弹入),驻留至 overlay 退场。 */
+  private showSign(die: number): void {
+    if (!this.overlay) return;
+    this.overlay.querySelector(".dice-sign")?.remove();
+    const sign = document.createElement("div");
+    sign.className = "dice-sign";
+    sign.textContent = SIGN_FACES[die - 1];
+    this.overlay.appendChild(sign);
   }
 
   private rollAsync(die: number, minRollMs: number, hardCapMs: number, done: () => void): void {

@@ -390,7 +390,8 @@ export function GameScreen() {
             {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名士常驻展示区;
                 诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。 */}
             <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} />
-            <OthersPanel snapshot={snapshot} />
+            {/* X13(#32):viewSeat 透传——诸侯列表自己行挂「你」印(口径同 WaitingBar) */}
+            <OthersPanel snapshot={snapshot} viewSeat={viewSeat} />
             {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
             <button
               type="button"

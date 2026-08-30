@@ -3,12 +3,21 @@
 // E1/E2:入场演出有声有叙——banner 鼓点起势 + 大字落定时 stamp 锣声重音 + victory 号角,
 // 与视觉阶梯(0/300/600ms)对齐;再战按钮 1800ms 后才挂载防误触。
 import { useEffect, useState } from "react";
+import type { VictoryReason } from "@core/types";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
 import { finishDiceOverlay } from "@app/fx/ThreeDice";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
+
+/** E4(#16):终榜一行条目(身价降序;破产者带标注)。数据由 DecisionScrollLayer 从快照算好传入。 */
+export interface VictoryStanding {
+  guohao: string;
+  colorIndex: number;
+  netWorthLabel: string;
+  bankrupt: boolean;
+}
 
 export interface VictoryScreenProps {
   /** 胜者国号(单字大展示)。 */
@@ -19,7 +28,10 @@ export interface VictoryScreenProps {
   finalNetWorthLabel: string;
   /** 用时(回合数)。 */
   turnNumber: number;
-  winReason: "LastStanding" | "NetWorth" | string;
+  /** E4(#16):胜因透传引擎 VictoryReason 快照真值(No 长度硬编码"NetWorth"——引擎值为 TargetNetWorth)。 */
+  winReason: VictoryReason;
+  /** E4(#16):终榜(身价降序 + 破产标注),victory-step 第 4 拍。 */
+  standings: VictoryStanding[];
   onRestart: () => void;
   /** ADR-0014:导出对局日志(该局完整 jsonl 落文件,复盘/重放用);不传则不渲染该按钮。 */
   onExportLog?: () => void;
@@ -93,6 +105,7 @@ export function VictoryScreen({
   finalNetWorthLabel,
   turnNumber,
   winReason,
+  standings,
   onRestart,
   onExportLog,
 }: VictoryScreenProps) {
@@ -148,9 +161,11 @@ export function VictoryScreen({
           }}
         />
       ))}
+      {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
       <h1
         data-testid={T.victoryTitle}
-        className="victory-anim-title m-0 font-brush text-[80px] tracking-[20px] text-gold-bright"
+        className="victory-anim-title m-0 font-brush text-gold-bright"
+        style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
       >
         天下归一
       </h1>
@@ -168,6 +183,21 @@ export function VictoryScreen({
       >
         终局身价 {finalNetWorthLabel} · 用时 {turnNumber} 回合 ·{" "}
         {winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}
+      </div>
+      {/* E4(#16):终榜一行(身价降序 + 破产标注),第 4 拍入场 */}
+      <div
+        data-testid={T.victoryStandings}
+        className="victory-step victory-step-standings mt-2 flex max-w-[92vw] flex-wrap items-baseline justify-center gap-x-3 font-deco text-sm"
+        style={{ color: INFO_TEXT }}
+      >
+        <span className="text-ink-dim">终榜</span>
+        {standings.map((s, i) => (
+          <span key={`${s.guohao}-${i}`} className="whitespace-nowrap">
+            <span style={{ color: rgba(playerColor(s.colorIndex)) }}>{s.guohao}</span>{" "}
+            {s.netWorthLabel}
+            {s.bankrupt && <span className="text-danger">(破)</span>}
+          </span>
+        ))}
       </div>
       <div className="victory-step-btn mt-6">
         {showButton && (

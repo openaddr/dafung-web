@@ -15,6 +15,8 @@ import { getMapSource } from "@app/map-sources";
 import { MapSelectPanel } from "./MapSelectPanel";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
+// S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
+import "@app/screens/game/scroll/scroll.css";
 
 /** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
  *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
@@ -114,10 +116,14 @@ export function SoloSetupScreen({
     "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors";
 
   return (
-    <div data-testid={TID.screen} className="min-h-full flex flex-col items-center justify-center bg-bg p-6">
+    // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
+    // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断
+    <div data-testid={TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
+      <div className="m-auto flex w-full flex-col items-center">
       <h1 className="font-brush text-4xl text-ink tracking-widest">单机模式</h1>
 
-      <div className="w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl mt-4">
+      {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
+      <div className="scroll-anim-unroll w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl mt-4">
         {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
         <div className="font-deco text-sm text-ink-dim mb-1 flex items-center gap-2">
           <span>当前地图:</span>
@@ -307,6 +313,7 @@ export function SoloSetupScreen({
           onCancel={() => setShowMapSelect(false)}
         />
       )}
+      </div>
     </div>
   );
 }

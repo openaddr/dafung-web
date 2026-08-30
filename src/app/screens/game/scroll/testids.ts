@@ -42,6 +42,8 @@ export const SCROLL_TESTIDS = {
   victoryTitle: "victory-title",
   victorySub: "victory-sub",
   victoryInfo: "victory-info",
+  /** E4(#16):终榜一行(身价降序 + 破产标注)。 */
+  victoryStandings: "victory-standings",
   victoryRestart: "victory-restart",
   /** ADR-0014:胜利屏「导出日志」(该局完整 jsonl 落文件,含局头行)。 */
   logExport: "log-export",

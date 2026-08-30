@@ -12,6 +12,8 @@ import { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { isSingleCjk } from "../src/core/constants";
+// 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
+import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
 import { botAct } from "../src/core/bot";
 import { createEngine, statusOf } from "./engine-helpers";
@@ -91,29 +93,13 @@ const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
 
 // ──────────────────────────── 国号重名前缀(autos 28)────────────────────────────
-/** 联机重名国号的方位前缀(定案 8 个:东西南北前后大小;座位 ≤8,一名+七前缀恰好够用)。 */
-export const GUOHAO_PREFIXES = ["东", "西", "南", "北", "前", "后", "大", "小"] as const;
-
-/** 重名国号分配:先到先得保留原名,后到者依次取未被占用的前缀国号(宁→东宁/西宁/…)。
- *  null(未预设)与不重复的国号原样返回;顺序即座位顺序。 */
-export function resolveGuohaoClash(desired: ReadonlyArray<string | null>): Array<string | null> {
-  const used = new Set<string>();
-  return desired.map((g) => {
-    if (g == null) return null;
-    if (!used.has(g)) {
-      used.add(g);
-      return g;
-    }
-    const prefix = GUOHAO_PREFIXES.find((px) => !used.has(px + g));
-    if (prefix == null) throw new RoomError(500, "国号前缀耗尽(座位数超出 8)");
-    const final = prefix + g;
-    used.add(final);
-    return final;
-  });
-}
+// 算法本体在 src/core/guohao.ts(客户端大厅预告与开局定稿共用);此处再导出维持原引用面。
+export { resolveGuohaoClash } from "../src/core/guohao";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
-/** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。 */
+/** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
+ *  guohao(E7/#19):预设国号原样透出(null=未预设/bot,开局由引擎分配)——
+ *  大厅据此渲染单字方章;重名预告由客户端用 core/guohao 的同一算法计算。 */
 export function seatMeta(r: RoomSession, onlineSeats: Set<number>) {
   return r.seats.map((s, i) => ({
     seat: i,
@@ -124,6 +110,7 @@ export function seatMeta(r: RoomSession, onlineSeats: Set<number>) {
     controlled: r.engine ? r.engine.players[i].isBot || r.takeover.has(i) : s.kind === "bot",
     // 自助托管中(bot 代打,但身份仍是真人;UI 据此显示「托管」标记)
     autoPilot: r.autoPilot.has(i),
+    guohao: s.guohao,
   }));
 }
 

@@ -65,7 +65,7 @@ export function CardDetailScroll({ detail, onClose }: { detail: CardDetail; onCl
   if (detail.kind === "treasure") {
     const t = detail.card;
     return (
-      <ScrollShell title={`「${t.name}」`} onClose={onClose} testid={TESTIDS.cardDetailScroll}>
+      <ScrollShell title={`「${t.name}」`} scrollKey={`treasure-${t.id}`} onClose={onClose} testid={TESTIDS.cardDetailScroll}>
         <Portrait src={null} alt={t.name} />
         <p className="m-1 mb-3 text-center text-sm text-ink-dim">
           珍宝 · Lv.{t.level} · 指导价 {formatMoney(guidePriceOf(t.level))}
@@ -76,7 +76,7 @@ export function CardDetailScroll({ detail, onClose }: { detail: CardDetail; onCl
   }
   const h = detail.card;
   return (
-    <ScrollShell title={`「${h.name}」`} onClose={onClose} testid={TESTIDS.cardDetailScroll}>
+    <ScrollShell title={`「${h.name}」`} scrollKey={`hero-${h.id}`} onClose={onClose} testid={TESTIDS.cardDetailScroll}>
       <Portrait src={h.image} alt={`${h.name}画像`} />
       <p className="m-1 mb-3 text-center text-sm text-ink-dim">名士 · {h.title}</p>
       <p className="mx-2 mb-2 text-center text-sm text-ink">{h.desc}</p>

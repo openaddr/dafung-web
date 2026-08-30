@@ -33,6 +33,24 @@ test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", 
   // 珍宝·名士区(L48 战报腾位)+ 诸侯列表就位
   await expect(page.getByTestId("treasury-panel")).toBeVisible();
   await expect(page.getByTestId("others-panel")).toBeVisible();
+  // X13(#32):诸侯列表自己行(座位 0)挂「你」印,他人行没有
+  await expect(page.getByTestId("other-player-0").getByTestId("other-player-you")).toBeVisible();
+  await expect(page.getByTestId("other-player-1").getByTestId("other-player-you")).toHaveCount(0);
+});
+
+test("珍宝行键盘语义:行本体是 button,聚焦后 Enter 开详情(#42)", async ({ page }) => {
+  await quickStart(page);
+  // 起手无珍宝:force 发一枚触发珍宝行渲染(快照序列化只带 id/name/level/desc)
+  await force(page, `e.players[0].treasures.push({ id: "seal", name: "传国玉玺", level: 10, desc: "受命于天,既寿永昌" });`);
+  const row = page.getByTestId("treasury-treasure-seal");
+  await expect(row).toBeVisible();
+  // S9:行必须是原生 button(与同区名士卡同语义;div+onClick 已废,Tab 天然可达)
+  await expect(row).toHaveJSProperty("tagName", "BUTTON");
+  // Enter 开详情卷轴
+  await row.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("card-detail-scroll")).toBeVisible();
+  await expect(page.getByTestId("card-detail-scroll")).toContainText("传国玉玺");
 });
 
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
@@ -155,6 +173,10 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   const s = await snap(page);
   expect(s.isOver).toBe(true);
   expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
+  // E4(#16):胜因与终榜随快照——本局走 TargetNetWorth(富甲天下),终榜列出全员
+  expect(s.winReason).toBe("TargetNetWorth");
+  await expect(page.getByTestId("victory-info")).toContainText("富甲天下");
+  await expect(page.getByTestId("victory-standings")).toContainText("终榜");
   // ADR-0014:胜利屏「导出日志」落完整 jsonl(局头 header 行 + 命令/事件流 + 终局 final 行)
   const [download] = await Promise.all([
     page.waitForEvent("download"),

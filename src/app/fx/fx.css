@@ -22,6 +22,45 @@
   to { opacity: 1; }
 }
 
+/* X5 渐隐退场:覆盖入场动画(display:none 硬切的替代;时长与 DICE.fadeOutMs 同步) */
+.dice-overlay.dice-overlay-out {
+  animation: dice-overlay-out 0.25s ease forwards;
+}
+@keyframes dice-overlay-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* X5 落定大字签面(3D 骰落定确认 / 软渲 fallback 文字签面共用):
+   底色、双线框、墨字镜像 ThreeDice.ts createFaceTextures 的骰面材质——
+   这些字面量是「骰面材质」而非色板色(与 3D 贴图逐值一致),故不引 token;
+   黑色阴影属投影,保留字面量。 */
+.dice-sign {
+  position: absolute;
+  left: 50%;
+  top: 64%;
+  min-width: 132px;
+  padding: 4px 22px 14px;
+  transform: translate(-50%, -50%);
+  background: linear-gradient(135deg, #ecdcb0, #c9b27a);
+  border: 4px solid #6e5a2c;
+  border-radius: 10px;
+  outline: 1.5px solid #6e5a2c; /* 内圈细线:骰面双线框的 CSS 对应 */
+  outline-offset: -10px;
+  font-family: var(--font-brush);
+  font-size: 96px;
+  line-height: 1.25;
+  text-align: center;
+  color: #2b2317;
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  animation: dice-sign-in 0.3s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+@keyframes dice-sign-in {
+  from { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
+  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+}
+
 /* ── 棋盘 SVG 内特效(D1:渲染进 #bv-fx 层,坐标/缩放随视图,不再脱锚)── */
 
 /* 浮动金额(SVG <text>,x/y 属性定位,动画只做上浮+透明) */
