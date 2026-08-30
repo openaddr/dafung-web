@@ -137,5 +137,29 @@
     "author": "Sharklord123912",
     "fetched_at": "2026-08-04",
     "review_required": true
+  },
+  "texture:xuan-paper": {
+    "path": "assets/textures/xuan-paper.jpg",
+    "source": "https://commons.wikimedia.org/wiki/File:Xuan_Paper_(9974330385).jpg",
+    "license": "CC0",
+    "author": "Wikimedia Commons",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "icon:two-coins": {
+    "path": "assets/icons/two-coins.svg",
+    "source": "https://game-icons.net/1x1/delapouite/two-coins.html",
+    "license": "CC BY 3.0",
+    "author": "Delapouite (game-icons.net)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "icon:scroll-unfurled": {
+    "path": "assets/icons/scroll-unfurled.svg",
+    "source": "https://game-icons.net/1x1/lorc/scroll-unfurled.html",
+    "license": "CC BY 3.0",
+    "author": "Lorc (game-icons.net)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
   }
 }
