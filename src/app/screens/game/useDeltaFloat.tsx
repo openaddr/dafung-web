@@ -1,6 +1,6 @@
 // 手牌区数值变化浮标(#44/S11 抽取):G-9 原本只盯现金的跨快照 diff 逻辑收进
 // useDeltaFloat hook,现金(G-9)与委任状(#21/X2)复用同一浮标——值跳变时右上
-// 浮出 +/− 标记,1.4s 上浮渐隐(game-hud.css 的 game-cash-float),组件侧 1.25s
+// 浮出 +/− 标记,上浮渐隐时长走 token --dur-fx(game-hud.css 的 game-cash-float),组件侧 1.25s
 // 移除(贝塞尔曲线起快收慢,1.25s 时位移/渐隐已基本走完,提前卸载不可见)。
 // 观战空态同样消费(S12):浮标跟「被展示的玩家」走,与坐姿分支同款反馈。
 import { useEffect, useRef, useState } from "react";

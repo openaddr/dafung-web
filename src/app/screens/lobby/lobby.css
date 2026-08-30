@@ -14,5 +14,5 @@
 }
 
 .lobby-seat-in {
-  animation: lobby-seat-in 0.35s ease-out both;
+  animation: lobby-seat-in var(--dur-med) var(--ease-out) both;
 }

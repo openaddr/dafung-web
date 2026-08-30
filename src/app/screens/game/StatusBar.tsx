@@ -1,5 +1,7 @@
 // 侧栏·回合状态区(对照旧 renderStatusBar):回合号 + 当前活跃玩家大卡。
 // 快照里已有派生 netWorth(serializeGame 算好),这里只读不重算(避免口径漂移)。
+// R3-B10(#82):「第 N 轮」从 text-xs text-ink-dim(全侧栏最弱档)提为
+// font-deco text-sm text-ink——轮次是全局节奏信息,不该是侧栏最弱文本。
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -49,7 +51,9 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
     <section data-testid={TESTIDS.statusBarPanel} className="border-b border-gold/40 px-3 py-2">
       <h3 className="flex items-baseline justify-between font-brush text-base">
         回合
-        <span data-testid={TESTIDS.roundInfo} className="text-xs text-ink-dim">
+        {/* R3-B10(#82):原 text-xs text-ink-dim 是全侧栏最弱档,轮次是全局节奏信息,
+            提为 font-deco text-sm text-ink(与 HandPanel 身份头 meta 同族提级) */}
+        <span data-testid={TESTIDS.roundInfo} className="font-deco text-sm text-ink">
           第 {snapshot.round} 轮
         </span>
       </h3>

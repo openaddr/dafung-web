@@ -6,6 +6,8 @@
 // 抽屉态溢出交给 aside 整抽屉滚动(见 GameScreen);珍宝·名士区弹性仅在桌面并排生效。
 // X13(#32):收 viewSeat,自己行金描边 +「你」印(与 HandPanel 身份头同款章形,
 // 8 相似色里斜眼 1s 定位;单机 viewSeat 跟随活跃座位,联机恒为本座,口径与 WaitingBar 一致)。
+// R3-B10(#82):自己行非活跃补 bg-gold/10、描边 ring-gold/60→ring-gold、「你」印
+// text-[10px]/px-0.5→text-xs/px-1——非活跃态自己行对比太弱,斜眼要 2s+ 才锁定。
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -29,9 +31,16 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
               "flex items-center gap-1.5 rounded px-1 py-0.5 text-xs border-l-[3px]",
               // W3:活跃强调——左侧 3px 金竖条 + bg-gold/25 + 国号加重(三重线索,斜眼可辨;
               // 非活跃也占 3px 透明边,避免状态切换时整行横向跳动)
-              isActive ? "bg-gold/25 border-l-gold" : "border-l-transparent",
-              // X13:自己行金描边(与「轮到我」窄条金框同语言;与活跃金条语义不同可叠加)
-              isYou ? "ring-1 ring-gold/60 ring-inset" : "",
+              // R3-B10(#82):非活跃自己行补 bg-gold/10——与活跃 bg-gold/25 同族分档,
+              // 轮到自己时底色自然加深一档,不新增语义色
+              isActive
+                ? "bg-gold/25 border-l-gold"
+                : isYou
+                  ? "bg-gold/10 border-l-transparent"
+                  : "border-l-transparent",
+              // X13:自己行金描边(与「轮到我」窄条金框同语言;与活跃金条语义不同可叠加)。
+              // R3-B10(#82):ring-gold/60 对比太弱,提到全量 ring-gold
+              isYou ? "ring-1 ring-gold ring-inset" : "",
               p.isBankrupt ? "opacity-40 line-through" : "",
               isWinner ? "text-gold" : "",
             ].join(" ")}
@@ -44,12 +53,14 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
               {p.isBot ? " 智" : ""}
             </span>
             {/* X13:「你」印(HandPanel 身份头同款章形,缩小到行内尺寸;「你」是文字
-                标记,金色描边之外还有非颜色线索)。放名字后、ml-auto 现金前,不挤右列。 */}
+                标记,金色描边之外还有非颜色线索)。放名字后、ml-auto 现金前,不挤右列。
+                R3-B10(#82):text-[10px]+px-0.5 太小难辨,提为 text-xs + px-1,
+                印章横纵比仍约 1.5:1,章形不破。 */}
             {isYou && (
               <span
                 data-testid={TESTIDS.otherPlayerYou}
                 title="这是你"
-                className="inline-flex shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 px-0.5 font-brush text-[10px] leading-none text-gold"
+                className="inline-flex shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 px-1 font-brush text-xs leading-none text-gold"
               >
                 你
               </span>
