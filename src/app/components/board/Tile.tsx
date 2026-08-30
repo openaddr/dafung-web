@@ -1,7 +1,7 @@
 // 单座城池(程序化城门建筑)。移植自 src/render/board.ts 的 buildGate / drawBuilding / updateTiles。
 // 静态结构(建筑/文字)按 tile 数据声明;状态(归属/都城/等级/焦点)由 props 驱动,
 // React.memo 保证仅状态变化的城池重渲。
-import { memo } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import type { TileDef } from "@core/types";
 import { Theme, groupColor, playerColor, rgba } from "@core/theme";
 
@@ -127,14 +127,29 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
         stroke={ROOF_STROKE}
         strokeWidth={1}
       />
-      {tower.roofs.map((pts, i) => (
-        <polygon key={i} className="bv-city-story" points={pts} fill={ROOF_FILL} stroke={ROOF_STROKE} strokeWidth={1} />
-      ))}
+      {/* #96 扩军瞬间:只有新晋最顶层屋檐重挂播 bv-build-grow 生长(board.css,
+          scale 0.6→1 自底边中心)——key 含 level 只挂在这一层 polygon 上,其余层
+          key 不变原地复用,不整楼重播;React key 变化即重放 CSS 动画。 */}
+      {tower.roofs.map((pts, i) => {
+        const isTopStory = i === tower.roofs.length - 1;
+        return (
+          <polygon
+            key={isTopStory ? `top-story-${level}` : i}
+            className={isTopStory ? "bv-city-story bv-build-grow" : "bv-city-story"}
+            points={pts}
+            fill={ROOF_FILL}
+            stroke={ROOF_STROKE}
+            strokeWidth={1}
+          />
+        );
+      })}
     </>
   ) : null;
   const finial =
     tower && level >= STORY_ROOFS.length ? (
-      <g className="bv-city-finial">
+      // #96 满级金顶与顶层屋面同形叠加:只在升到 Lv3 时首次挂载,天然与新顶层
+      // 同拍 bv-build-grow 生长(同形同步缩放,不会露底稿),无需 key。
+      <g className="bv-city-finial bv-build-grow">
         <polygon points={tower.roofs[level - 1]} fill={rgba(Theme.goldBright, 0.96)} stroke="rgba(60,30,15,0.65)" strokeWidth={1.6} />
         <circle cx={0} cy={tower.topApex + 1.8} r={2.4} fill={rgba(Theme.goldBright)} stroke="rgba(60,30,15,0.7)" strokeWidth={0.7} />
       </g>
@@ -151,9 +166,19 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
   ];
   const roofTint = tint ? (
     <g className="bv-roof-tint">
-      {roofShapes.map((pts, i) => (
-        <polygon key={i} points={pts} fill={tint} />
-      ))}
+      {/* #96 染瓦最顶层(加层末片)与墨瓦顶层同 key 同类重挂:生长期间玩家色染层
+          与屋面逐帧对齐,不会悬出全形色影;其余染片 key 不变不动。 */}
+      {roofShapes.map((pts, i) => {
+        const isTopStory = tower != null && i === roofShapes.length - 1;
+        return (
+          <polygon
+            key={isTopStory ? `top-story-${level}` : i}
+            className={isTopStory ? "bv-build-grow" : undefined}
+            points={pts}
+            fill={tint}
+          />
+        );
+      })}
     </g>
   ) : null;
   if (size === "small") {
@@ -285,9 +310,11 @@ function NamePlaque({ name, capital, size }: { name: string; capital: boolean; s
 // 城上出现,不落在宣纸底上。
 const LEVEL_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
 
+// #96 出场钤章:bv-level-seal-pop(board.css)挂载即落章一次(scale 2.2→1 回弹);
+// key={level} 挂在调用处,每次扩军整印重挂、新数字重钤一遍,平时其它 props 变化不重播。
 function LevelSeal({ level }: { level: number }) {
   return (
-    <g className="bv-level-seal" transform="translate(-41 31)">
+    <g className="bv-level-seal bv-level-seal-pop" transform="translate(-41 31)">
       <rect
         x={-8}
         y={-8}
@@ -353,7 +380,26 @@ const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string 
   Stock: { color: "money", icon: "市" },
 };
 
+// ── #96 易主检测:usePrevious 式上一值快照 ──
+// effect 里先读后写,读到的是上一渲染的归属索引;首挂快照为 undefined(与 null=无主
+// 区分),故开局铺盘不闪。归属索引变化即视为易主(A 破产清算回无主 / 转玩家 B),
+// 返回 {tick, colorIndex} 供铭牌带播一次流光;tick 单调递增作 line 的 key,连续易主
+// 逐次重挂重播,同主不变不闪。
+function useOwnerChangeFlash(colorIndex: number | null) {
+  const [flash, setFlash] = useState<{ tick: number; colorIndex: number | null } | null>(null);
+  const prevRef = useRef<number | null | undefined>(undefined);
+  useEffect(() => {
+    const prev = prevRef.current;
+    prevRef.current = colorIndex;
+    if (prev !== undefined && prev !== colorIndex) {
+      setFlash((f) => ({ tick: (f?.tick ?? 0) + 1, colorIndex }));
+    }
+  }, [colorIndex]);
+  return flash;
+}
+
 export const Tile = memo(function Tile({ tile, group, price, state, onClick }: TileProps) {
+  const ownFlash = useOwnerChangeFlash(state.ownerColorIndex);
   const sizeScale = tile.size === "small" ? 0.8 : tile.size === "medium" ? 0.9 : 1;
   const isCapital = state.capitalColorIndex != null;
   const isIconTile = tile.type in ICON_THEME;
@@ -525,6 +571,22 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
             stroke="rgba(40,28,12,0.45)"
             strokeWidth={1}
           />
+          {/* #96 易主流光:归属变更(A 破产清算回无主 / 转玩家 B)时铭牌带闪一道
+              玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调语言)。
+              仿 bv-side-flow 的 dashoffset 行进思路换成横穿色带的单节虚线,一次即止;
+              key=tick 每次易主重挂重播,平时不渲染。 */}
+          {ownFlash ? (
+            <line
+              key={ownFlash.tick}
+              className="bv-own-flash"
+              x1={-46}
+              y1={-39}
+              x2={46}
+              y2={-39}
+              stroke={ownFlash.colorIndex != null ? rgba(playerColor(ownFlash.colorIndex)) : rgba(Theme.gold)}
+              strokeWidth={8}
+            />
+          ) : null}
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
           <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
           {/* 价格字(#40 S7):仅无主城渲染——有主城铭牌已是深玩家色底,购入价纯属
@@ -541,9 +603,10 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               {price}
             </text>
           )}
-          {/* 等级=城楼加层(Building 内,层数即等级)+ 等级印(铭牌左下,壹/贰/叁,Lv0 无印)。
-              双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。 */}
-          {state.level > 0 ? <LevelSeal level={state.level} /> : null}
+          {/* #96 等级=城楼加层(Building 内,层数即等级)+ 等级印(铭牌左下,壹/贰/叁,Lv0 无印)。
+              双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。
+              扩军瞬间双拍:新顶层屋檐生长 + 印章重钤(key={level} 重挂重播)。 */}
+          {state.level > 0 ? <LevelSeal key={state.level} level={state.level} /> : null}
           {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):与等级印同形制描金变体,
               Setup 期与等级印时段互斥;旁观席位同见(仪式感是全座的,可点只在本地)。 */}
           {state.capitalCandidateOrder != null ? <CandidateSeal order={state.capitalCandidateOrder} /> : null}

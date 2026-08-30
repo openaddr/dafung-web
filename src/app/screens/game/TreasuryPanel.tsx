@@ -27,7 +27,11 @@ interface TreasuryPanelProps {
 
 /** 名士小卡:3:4 画像(object-cover,与详情卷轴 Portrait 同比例)+ 名。
  *  画像加载失败显式「像」错误位(与 CardDetailScroll 的「画像缺失」同口径,
- *  用户可感知,非静默兜底)。 */
+ *  用户可感知,非静默兜底)。
+ *  R3-D3(#101):照片容器做旧——金/纸色双线框(border + 外圈 1px 发丝 outline)
+ *  + 老照片滤镜(sepia/saturate/contrast 任意值);img 本体 mix-blend-multiply
+ *  融进宣纸底去贴图感。容器 filter 同时形成层叠上下文,multiply 只与本容器
+ *  纸底(bg-paper-lo)融合,不外溢。仅位图画像(hero .png)做旧,3:4 比例不变。 */
 function HeroCard({
   hero,
   onClick,
@@ -44,7 +48,7 @@ function HeroCard({
       onClick={onClick}
       className="flex w-20 shrink-0 cursor-pointer flex-col items-center gap-0.5 rounded border border-gold/40 bg-panel-hi p-1 hover:border-gold hover:bg-panel"
     >
-      <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-sm border border-gold/30 bg-paper-lo">
+      <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-sm border border-gold/40 bg-paper-lo outline outline-1 outline-offset-2 outline-gold/20 sepia-[.35] saturate-[.85] contrast-[.92]">
         {failed ? (
           <span className="absolute inset-0 flex items-center justify-center font-brush text-lg text-ink-dim">
             像
@@ -54,7 +58,7 @@ function HeroCard({
             src={hero.image}
             alt={`${hero.name}画像`}
             onError={() => setFailed(true)}
-            className="h-full w-full object-cover"
+            className="h-full w-full object-cover mix-blend-multiply"
             draggable={false}
           />
         )}

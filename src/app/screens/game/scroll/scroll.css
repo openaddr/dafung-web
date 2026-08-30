@@ -81,6 +81,35 @@
   /* 卷轴摊开带轻微回弹:back 类统一 --ease-out-back(原 1.3 过冲收成 token 的 1.56) */
   animation: scroll-unroll var(--dur-med) var(--ease-out-back);
 }
+
+/* ── 卷轴收起:向上"卷走"宣纸(#90 R3-C3,unroll 的反向)——只写 to 帧,from 取
+   元素当前自然态;时长/缓动走快档退场口径,fill forwards 把终帧钉住等卸载 ── */
+@keyframes scroll-rollup {
+  to {
+    transform: scaleY(0.08) translateY(-6px);
+    opacity: 0;
+  }
+}
+.scroll-anim-rollback {
+  transform-origin: top center;
+  animation: scroll-rollup var(--dur-fast) var(--ease-in) forwards;
+}
+
+/* ── 收起时遮罩同步淡出。pointer-events 必须写在 CSS 里而不是靠 Tailwind 工具类:
+   本文件是未分层规则,优先级恒压过 utilities 层的 pointer-events-none,
+   同为未分层规则靠源码顺序才能确保收起中遮罩真正放行点击 ── */
+@keyframes scroll-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.scroll-anim-overlay-out {
+  pointer-events: none;
+  animation: scroll-fade-out var(--dur-fast) var(--ease-in) forwards;
+}
 .firework-particle {
   position: absolute;
   width: 4px;

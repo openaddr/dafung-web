@@ -116,7 +116,8 @@ export function VictoryScreen({
   useEffect(() => {
     // D2:终局瞬间切屏可能赶在骰子 holdMs 隐藏定时器之前,先清残留 overlay(z-45 压屏)。
     finishDiceOverlay();
-    // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp),
+    // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
+    // 同帧落印 #95),
     // 700ms 号角(victory)接棒,与下方视觉阶梯 0/300/600ms 同一节奏轨道。
     const audio = getAudio();
     audio.play("banner");
@@ -167,12 +168,22 @@ export function VictoryScreen({
       >
         天下归一
       </h1>
-      <div
-        data-testid={T.victorySub}
-        className="victory-step victory-step-sub mt-2.5 font-brush text-[34px] tracking-[6px] text-white"
-        style={{ color: rgba(playerColor(colorIndex)) }}
-      >
-        「{guohao}」称帝
+      {/* R3-C8(#95):450ms stamp 锣声的画面锚点——称帝行右侧落一枚「称帝」朱砂印,
+          入场 delay 0.45s(victory.css victory-stamp-in)与上方锣声定时同帧现身。
+          印色即 theme danger 语义色(tokens.css --color-danger 单源 core/theme.ts,
+          与 FW_COLORS 烟花里的朱砂同源),故直接用 border-danger/text-danger 工具类,不硬编码 hex。 */}
+      <div className="mt-2.5 flex items-center justify-center gap-3">
+        <div
+          data-testid={T.victorySub}
+          className="victory-step victory-step-sub font-brush text-[34px] tracking-[6px] text-white"
+          style={{ color: rgba(playerColor(colorIndex)) }}
+        >
+          「{guohao}」称帝
+        </div>
+        {/* 印内单字:国号本就 1 字(线上重名时服务器才加方位前缀),取 guohao 首字两口径通吃。 */}
+        <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-brush text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
+          {Array.from(guohao)[0]}
+        </span>
       </div>
       <div
         data-testid={T.victoryInfo}

@@ -3,7 +3,7 @@
 // 联机流程(阶段 8):首页「联机模式」或 ?online=1 → 占位图 + OnlineController
 // → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
 import type { MapData } from "@core/types";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
@@ -18,6 +18,8 @@ import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
 import { HintBar } from "@app/screens/shared/HintBar";
+// R3-C2(#89) 屏幕切换入场转场:keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
+import "./styles/screen-transition.css";
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
 const MAP_PREF_KEY = "dafung.mapId";
@@ -207,10 +209,16 @@ export function App() {
     };
   }, [initialMapId, pushHint]);
 
-  if (screen === "game") return <GameScreen />;
-  if (screen === "lobby") return <LobbyScreen onExit={handleExitLobby} />;
-  if (screen === "editor" && editorMap) {
-    return (
+  // R3-C2(#89) 屏幕切换入场转场:五屏统一收进 keyed 外壳,key=screen 换屏即重挂,
+  // 挂 .screen-in 播入场(淡入 + 8px 上移落定);对局屏追加 .screen-in-game,
+  // 由 CSS 后代选择器命中棋盘 svg 做首帧缓推。退场不做:保留瞬时卸载。
+  let content: ReactNode = null;
+  if (screen === "game") {
+    content = <GameScreen />;
+  } else if (screen === "lobby") {
+    content = <LobbyScreen onExit={handleExitLobby} />;
+  } else if (screen === "editor" && editorMap) {
+    content = (
       <EditorScreen
         initialMap={editorMap}
         onSave={handleEditorSave}
@@ -218,20 +226,18 @@ export function App() {
         onStart={(data) => void handleEditorStart(data)}
       />
     );
-  }
-  // 地图 id 未解析出(localStorage 无记忆且清单未回/失败)时不进依赖地图的屏:
-  // 首页/配置页的地图名与编辑器起编图都以它为入参,无值比给假默认更诚实。
-  if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {
-    return (
+  } else if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {
+    // 地图 id 未解析出(localStorage 无记忆且清单未回/失败)时不进依赖地图的屏:
+    // 首页/配置页的地图名与编辑器起编图都以它为入参,无值比给假默认更诚实。
+    content = (
       <div className="relative h-full">
         <p className="p-8 font-deco text-ink-dim">地图清单加载中…</p>
         <HintBar hint={hint} level={hintLevel} />
       </div>
     );
-  }
-  // 单机配置页:首页「单机模式」进入;起兵走原 handleStart;地图由首页选定后传入
-  if (screen === "solo-setup" && initialMapId) {
-    return (
+  } else if (screen === "solo-setup" && initialMapId) {
+    // 单机配置页:首页「单机模式」进入;起兵走原 handleStart;地图由首页选定后传入
+    content = (
       <div className="relative h-full">
         <SoloSetupScreen
           onStart={handleStart}
@@ -244,10 +250,9 @@ export function App() {
         <HintBar hint={hint} level={hintLevel} />
       </div>
     );
-  }
-  // 首页:四个模式入口(单机 / 联机 / 选图 / 编辑),对局配置在 solo-setup 次级页
-  if (screen === "setup" && initialMapId) {
-    return (
+  } else if (screen === "setup" && initialMapId) {
+    // 首页:四个模式入口(单机 / 联机 / 选图 / 编辑),对局配置在 solo-setup 次级页
+    content = (
       <div className="relative h-full">
         <HomeScreen
           onSolo={() => setScreen("solo-setup")}
@@ -263,5 +268,15 @@ export function App() {
       </div>
     );
   }
-  return null;
+  if (content === null) return null;
+  // 外壳夹在 #app(100dvh)与各屏根(均 h-full)之间,高度链不能断,故补 h-full w-full;
+  // testid 全挂在屏内组件上,多包一层不影响 e2e 选择器。
+  return (
+    <div
+      key={screen}
+      className={`screen-in h-full w-full${screen === "game" ? " screen-in-game" : ""}`}
+    >
+      {content}
+    </div>
+  );
 }

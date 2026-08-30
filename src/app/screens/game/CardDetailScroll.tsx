@@ -14,9 +14,11 @@ export type CardDetail =
   | { kind: "treasure"; card: { id: string; name: string; level: number; desc?: string } }
   | { kind: "hero"; card: { id: string; name: string; title: string; desc: string; image: string } };
 
-/** 画像位外框:双金边圆角 + 宣纸底,风格对齐卷轴体系(色走 tokens:gold/paper/ink)。 */
+/** 画像位外框:双金边圆角 + 宣纸底,风格对齐卷轴体系(色走 tokens:gold/paper/ink)。
+ *  R3-D3(#101):border-double 双金边外再叠 1px 金发丝 outline(offset-2),
+ *  组成纸色双线框(outline 不占布局,3:4 容器尺寸不变)。 */
 const PORTRAIT_FRAME =
-  "relative mx-auto w-36 overflow-hidden rounded-md border-[3px] border-double border-gold bg-paper-lo shadow-sm";
+  "relative mx-auto w-36 overflow-hidden rounded-md border-[3px] border-double border-gold bg-paper-lo shadow-sm outline outline-1 outline-offset-2 outline-gold/20";
 const PORTRAIT_RATIO = "aspect-[3/4]";
 
 /** 珍宝共用古风纹样占位(#36):内联 SVG,四蝠(福)拱珠式对称纹,色走 token。 */
@@ -42,11 +44,15 @@ function TreasurePattern() {
 }
 
 /** #36 详情画像位:名士显 image(object-cover 裁成 3:4);加载失败显式「画像缺失」
- *  错误态(用户可感知,非静默兜底)。珍宝走 TreasurePattern。 */
+ *  错误态(用户可感知,非静默兜底)。珍宝走 TreasurePattern。
+ *  R3-D3(#101):老照片滤镜只挂位图照片态(src 非空且未失败)——珍宝纹样 SVG 与
+ *  失败态字牌不做旧;filter 同时形成层叠上下文,让 img 的 mix-blend-multiply
+ *  只与本框宣纸底(bg-paper-lo)融合。testid/3:4 比例/交互不变。 */
 function Portrait({ src, alt }: { src: string | null; alt: string }) {
   const [failed, setFailed] = useState(false);
+  const photoTone = src !== null && !failed ? " sepia-[.35] saturate-[.85] contrast-[.92]" : "";
   return (
-    <div className={`${PORTRAIT_FRAME} ${PORTRAIT_RATIO}`} data-testid={TESTIDS.cardDetailPortrait}>
+    <div className={`${PORTRAIT_FRAME} ${PORTRAIT_RATIO}${photoTone}`} data-testid={TESTIDS.cardDetailPortrait}>
       {src === null ? (
         <TreasurePattern />
       ) : failed ? (
@@ -55,7 +61,7 @@ function Portrait({ src, alt }: { src: string | null; alt: string }) {
           <span className="text-xs">画像缺失</span>
         </div>
       ) : (
-        <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover" draggable={false} />
+        <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover mix-blend-multiply" draggable={false} />
       )}
     </div>
   );

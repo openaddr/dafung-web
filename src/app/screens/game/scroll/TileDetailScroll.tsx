@@ -68,8 +68,12 @@ export function TileDetailScroll({
             {region} · {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
             {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入 {formatMoney(property.purchasePrice)}
           </p>
-          {/* 等级价值表:抽成共用 ValueTable(购地卷轴复用同一张表,避免两处漂移) */}
-          <ValueTable property={property} />
+          {/* 等级价值表:抽成共用 ValueTable(购地卷轴复用同一张表,避免两处漂移)。
+              #92:持有城高亮持有者当前档;无主城没有「当前」可言(ownerLevel 仅为占位 0),不标 */}
+          <ValueTable
+            property={property}
+            highlight={ownerGuohao ? { level: ownerLevel, label: "当前" } : undefined}
+          />
         </>
       ) : (
         <p className="m-1 mb-2 text-center text-sm leading-7 text-ink-dim font-wenkai">

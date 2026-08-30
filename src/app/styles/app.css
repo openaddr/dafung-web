@@ -52,6 +52,22 @@ body {
   outline-offset: 2px;
 }
 
+/* ── R3-C10(#97) 全局按压反馈:按下即缩一拍,给「按下去有回应」的物理感 ──
+   --dur-instant(#88 落地的时长 token,本条是其首个消费点):按下 80ms 缓出缩到
+   0.98;transition 只挂在 :active 态,松开回弹走常态(无 transition)瞬时弹回,
+   不拖泥带水。
+   豁免面说明(谁不该/不会吃到本条):
+   - 卷轴拖拽热区、棋盘城池(.bv-tile)等按压目标是 div/span,选择器只命中 button;
+   - 自带 Tailwind v4 translate/rotate 工具类的按钮(如卷轴关闭钮的 -translate-y-1/2)
+     编译为独立 translate/rotate 属性,与 transform: scale 叠加生效,不会互踩;
+   - 已有自身按压/transform 动效口径的按钮,写更高特异度的 :active 即可按自家口径
+     覆写。已知重复:home.css 首页按钮 :active scale(0.97) 与本条同义(且特异度
+     更低实际失效),留给批 4 清理,本文件不持有 home.css。── */
+button:not(:disabled):active {
+  transform: scale(0.98);
+  transition: transform var(--dur-instant) var(--ease-out);
+}
+
 /* ── M-4 reduced-motion 全局兜层:除棋盘专属动画(board.css 另行处理)外,
    其余 UI 的 CSS 动画/过渡在系统「减弱动态效果」下全部瞬时完成。 ── */
 @media (prefers-reduced-motion: reduce) {

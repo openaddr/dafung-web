@@ -1,0 +1,33 @@
+/* R3-C2(#89) 屏幕切换入场转场:由 App.tsx 的 keyed 外壳消费(key=screen,换屏即重挂播一次)。
+   退场不做:保留瞬时卸载,避免双屏并存状态机。
+   reduced-motion:app.css 的全局兜层用星号通配把所有动画时长压到 0.01ms,
+   本文件两条规则都是 animation 驱动,天然落入该兜层,无需在此另写兜底块。
+   时长与缓动一律引用 tokens.css 动效 token(唯一源 core/theme.ts Motion)。
+   keyframes 只写 from、不写 to:终态即元素自然状态,动画结束(reduced-motion 下瞬时结束)
+   无样式跳变,也不与 Tailwind 内联样式打架。 */
+
+/* ── 入场外壳:淡入 + 自下方 8px 轻移落定(--dur-med 即「屏幕切换」口径的 250ms)── */
+.screen-in {
+  animation: screen-in var(--dur-med) var(--ease-out);
+}
+@keyframes screen-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* ── 对局屏棋盘缓推:进 game 屏首帧一次性 scale 1.06→1,镜头感落座。
+   选择器经 .screen-in-game 后代命中 BoardView 的 svg(id=board):它是 HTML 布局盒
+   (transform-origin 默认即中心),只动 CSS transform,与 usePanZoom 的 viewBox
+   平移缩放体系互不触碰;一次性 600ms 后回到 none,不残留任何包含块副作用。
+   时长取 --dur-reveal(600ms 揭晓感长拍,即工单口径的 600ms)。── */
+.screen-in-game #board {
+  transform-origin: center;
+  animation: board-push-in var(--dur-reveal) var(--ease-sine);
+}
+@keyframes board-push-in {
+  from {
+    transform: scale(1.06);
+  }
+}

@@ -146,8 +146,8 @@ export class OnlineController extends GameController {
   }
 
   // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──
-  /** 建房并连接。返回房间信息(供大厅屏渲染)。 */
-  async createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number }): Promise<RoomJoinReply> {
+  /** 建房并连接。返回房间信息(供大厅屏渲染)。guohao=host 预设国号(R3-D1 #99,与 joinRoom 同语义)。 */
+  async createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number; guohao?: string }): Promise<RoomJoinReply> {
     const reply = await this.api.createRoom(opts);
     await this.adoptRoom(reply);
     return reply;

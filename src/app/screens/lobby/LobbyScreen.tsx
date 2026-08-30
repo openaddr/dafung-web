@@ -99,10 +99,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     };
   }, []);
 
-  // W2:等待文案轮换。非 host 换着法子说"等房主";host 未满座时换着法子催人入座。
+  // W2:等待文案轮换。非 host 换着法子说"等房主";host 未满座时轮换催座趣味句
+  // (#84:首句固定为发码指引,不走轮换——房码是开局第一步,常驻不让趣味句顶掉)。
   // 依赖 (roomId/isHost/needMore) 变化时重置下标,避免切视角后先闪一句不合适的话。
   const isHost = host === mySeat;
   const needMore = seats.some((s) => !s.taken);
+  const hostInviteLine = "把房间码发给好友，入座即可开局"; // #84:固定首句(发码指引)
   const waitLines = !isHost
     ? ["等待房主开局…", "主公尚在谋划…", "稍安勿躁…"]
     : ["虚位以待,静候群雄…", "坐等群雄入席…", "广发英雄帖…"];
@@ -247,6 +249,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     controller!.createRoom({
                       seats: seatCount,
                       target: target.trim() ? parseInt(target, 10) : undefined,
+                      // R3-D1(#99):建房者预设国号与加入同源(SoloSetup 起兵时写入),不再只有加入路径带
+                      guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
                     }),
                   );
                 }}
@@ -334,17 +338,19 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           data-testid={LID.roomCode}
           onClick={copyRoomCode}
           title="点击复制房间码"
-          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:text-gold"
+          aria-label={`房间码 ${roomId}，点击复制`}
+          // R3-B13(#85):hover 用底色反馈不动字色——金字于浅底对比不足(原 hover:text-gold 会掉到 1.8:1)
+          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
         >
           {roomId}
         </button>
         <div className="mt-1 text-center font-deco text-xs text-ink-dim">
-          {copied ? "已复制" : "点击复制"}
+          {copied ? "已复制" : "点击复制，发给好友凭码入座"}
         </div>
         <div className="mt-1 text-center font-deco text-xs text-ink-dim">
           {isHost
             ? needMore
-              ? waitLines[waitIdx] // host 未满座:轮换催座文案
+              ? `${hostInviteLine};${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句
               : "坐席已满,可开局;点开局后未入座自动 bot 填充。"
             : waitLines[waitIdx] /* 非 host:轮换等待文案 */}
         </div>
@@ -389,12 +395,13 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     </span>
                   )}
                   {/* E7(#19):国号单字方章(与 HandPanel「你」印同款章形;未预设/bot 无章,
-                      不放假国号——开局由引擎分配后自见) */}
+                      不放假国号——开局由引擎分配后自见)。
+                      R3-B13(#85):金字叠金底对比不足,章形保留金边金底、字改 ink(约 11.7:1) */}
                   {s.guohao != null && (
                     <span
                       data-testid={LID.seatGuohao(s.seat)}
                       title={`预设国号「${s.guohao}」`}
-                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 font-brush text-[13px] leading-none text-gold"
+                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 font-brush text-[13px] leading-none text-ink"
                     >
                       {s.guohao}
                     </span>
@@ -405,9 +412,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 {renamed && (
                   <div
                     data-testid={LID.guohaoPreview(s.seat)}
-                    className="mt-0.5 px-2 font-deco text-xs text-gold"
+                    // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调
+                    className="mt-0.5 px-2 font-deco text-xs text-ink-dim"
                   >
-                    开局将改为『{finalGh}』
+                    开局将改为『<span className="text-ink font-bold">{finalGh}</span>』
                   </div>
                 )}
               </div>
