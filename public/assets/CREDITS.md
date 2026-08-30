@@ -30,3 +30,10 @@
 - **font:wenkai** — SIL OFL 1.1 / Lxgw(LXGW WenKai);打包 Chawye Hsu — 2856992B(59 分片 woff2,Regular;分片集按项目文本语料筛选,Light 未取) — [source](https://github.com/chawyehsu/lxgw-wenkai-webfont) — 2026-08-30
 - **font:longcang** — SIL OFL 1.1 / Chen Xiaomin(Long Cang 龙藏) — 1483328B(24 分片 woff2;高频桶 + latin/标点) — [source](https://fonts.google.com/specimen/Long+Cang) — 2026-08-30
 - **hero:simayi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)司马懿-经典形象 · wiki 上传者 17981205 — 210233B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=2199) — 2026-08-30 ⚠️ review_required
+- **audio:woodblock** — CC BY-SA 4.0 / Krol111 — 23057B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Blok_music.ogg) — 2026-08-07 ⚠️ review_required
+- **audio:coins-shake** — Public domain / ezwa (pdsounds.org) — 93992B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg) — 2026-08-07
+- **audio:gong-long** — CC0 / stephan — 33725B (ogg;Commons 原件 149KB 已按 50KB 预算裁剪) — [source](https://commons.wikimedia.org/wiki/File:Gong55.ogg) — 2026-08-07
+- **audio:coin** — Public domain / ezwa (pdsounds.org) — 42577B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **audio:drum** — CC0 / Iwan Sounds and DIY — 30454B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **audio:guqin** — CC0 / Wikimedia Commons — 31017B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07
+- **audio:victory** — CC0 / Wikimedia Commons — 52218B (ogg) — 早期批量入库,来源仅 manifest 授权/作者记录(无单独 URL) — 2026-08-07

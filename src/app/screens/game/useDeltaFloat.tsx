@@ -1,7 +1,7 @@
 // 手牌区数值变化浮标(#44/S11 抽取):G-9 原本只盯现金的跨快照 diff 逻辑收进
 // useDeltaFloat hook,现金(G-9)与委任状(#21/X2)复用同一浮标——值跳变时右上
-// 浮出 +/− 标记,1.2s 上浮渐隐(game-hud.css 的 game-cash-float),组件侧 1.25s
-// 移除(留 50ms 缓冲,动画播完再卸载)。
+// 浮出 +/− 标记,1.4s 上浮渐隐(game-hud.css 的 game-cash-float),组件侧 1.25s
+// 移除(贝塞尔曲线起快收慢,1.25s 时位移/渐隐已基本走完,提前卸载不可见)。
 // 观战空态同样消费(S12):浮标跟「被展示的玩家」走,与坐姿分支同款反馈。
 import { useEffect, useRef, useState } from "react";
 
@@ -39,8 +39,9 @@ export function useDeltaFloat(value: number | null): DeltaFloat[] {
   return floats;
 }
 
-/** 浮标渲染:挂在 relative chip 容器内(chip 右上角);正=gold 负=danger。
- *  format 决定数值文案口径——现金走 formatMoney(锭/两),委任状是计数取整数。 */
+/** 浮标渲染:挂在 relative chip 容器内(chip 右上角);正=深金 负=danger。
+ *  format 决定数值文案口径——现金走 formatMoney(锭/两),委任状是计数取整数。
+ *  R3-B8:金字用深金 #6f5416(#c8a13a/#8a6a1c 对纸底实测 <4.5:1),字号升到 text-sm。 */
 export function DeltaFloatSpans({
   floats,
   format,
@@ -54,8 +55,8 @@ export function DeltaFloatSpans({
         <span
           key={f.id}
           className={
-            "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-xs " +
-            (f.delta > 0 ? "text-gold" : "text-danger")
+            "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
+            (f.delta > 0 ? "text-[#6f5416]" : "text-danger")
           }
         >
           {f.delta > 0 ? "+" : "−"}

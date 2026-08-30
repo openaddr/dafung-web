@@ -20,6 +20,15 @@ body,
 
 /* ── P0-9 safe-area:刘海/圆角/手势条 insets(index.html 已开 viewport-fit=cover)──
    四个变量是唯一取值口,组件用 .safe-pad 或 var() 消费,不各自写 env()。 */
+/* ── A9(#72) 正文默认字体:霞鹜文楷 ──
+   无此规则时未挂字体类的正文实走 Tailwind preflight 系统栈,宣纸风在正文层断裂。
+   --font-wenkai 由 gen:theme 产出(tokens.css):首选 LXGW WenKai(public/fonts/wenkai/
+   59 分片离线子集),回退沿用 token 现有写法 KaiTi/STKaiti → serif 兜底;
+   以 var() 内置回退挂在 body,全站继承,组件级 font-brush/font-deco 等按需覆盖。── */
+body {
+  font-family: var(--font-wenkai, "KaiTi", "STKaiti", serif);
+}
+
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-right: env(safe-area-inset-right, 0px);

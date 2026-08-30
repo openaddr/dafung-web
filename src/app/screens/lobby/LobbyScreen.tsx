@@ -193,7 +193,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <ConnectionBanner />
         <div className="m-auto flex w-full flex-col items-center">
         <h1 className="font-brush text-4xl text-ink tracking-widest mb-1">联机对局</h1>
-        <div className="font-deco text-ink-dim mb-6 tracking-[0.4em]">— 群雄逐鹿 —</div>
+        {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」) */}
+        <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">— 群雄逐鹿 —</div>
         {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
         <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl flex flex-col gap-5">
           {/* 建房:建房者 = Seat0(host) */}
@@ -321,14 +322,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <div className="m-auto flex w-full flex-col items-center">
       {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
       <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
-        <h1 className="font-brush text-2xl text-ink tracking-[0.3em] text-center">大厅</h1>
-        {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本) */}
+        {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
+        <h1 className="font-brush text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">大厅</h1>
+        {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
+            R3-A7(#70):0.4em 字距尾空白以 pl 同量补偿(同 HomeScreen 先例) */}
         <button
           type="button"
           data-testid={LID.roomCode}
           onClick={copyRoomCode}
           title="点击复制房间码"
-          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] text-ink cursor-pointer hover:text-gold"
+          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:text-gold"
         >
           {roomId}
         </button>

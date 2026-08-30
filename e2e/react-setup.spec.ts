@@ -15,11 +15,11 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   await expect(page.getByTestId("setup-difficulty-Normal")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("current-map-name")).toHaveText("棋盘天下", { timeout: 10_000 });
 
-  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号占位「电脑」,S-7 改语义)
+  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号列占位「待分配」,R3-A4 #67 去重)
   await expect(page.getByTestId("setup-seat-0-guohao")).toBeEditable();
   await expect(page.getByTestId("setup-seat-0-guohao")).toHaveValue("魏");
   for (let i = 1; i < 4; i++) {
-    await expect(page.getByTestId(`setup-seat-${i}-guohao`)).toHaveText("电脑");
+    await expect(page.getByTestId(`setup-seat-${i}-guohao`)).toHaveText("待分配");
     await expect(page.getByTestId(`setup-seat-${i}-type`)).toHaveText("电脑");
   }
   await expect(page.getByTestId("setup-seat-0-type")).toHaveText("你");

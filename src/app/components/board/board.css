@@ -43,12 +43,10 @@
   opacity: 0;
   transition: opacity 0.3s;
 }
-/* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点 */
+/* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点。
+   #75 金晕自此专属都城(哪是都城);「轮到谁」改由下方旋转虚线环承担,两语义分读。 */
 .bv-tile.bv-capital .bv-capital-glow {
   animation: bv-pulse-glow 3.5s ease-in-out infinite;
-}
-.bv-tile.bv-active .bv-capital-glow {
-  animation: bv-pulse-glow 1.8s ease-in-out infinite;
 }
 @keyframes bv-pulse-glow {
   0%,
@@ -57,6 +55,20 @@
   }
   50% {
     opacity: 0.85;
+  }
+}
+/* #75 活跃格虚线环(Tile 内 .bv-active-ring 圆):金色虚线沿圆周持续行进 =
+   「轮到谁」,与都城金晕的呼吸脉动在动势上也可区分。
+   实现用 stroke-dashoffset 行进而非 rotate:圆的 fill-box 是方框,rotate 时
+   AABB 随角度变化,父级 <g> 的 bbox 每帧都变,Playwright 稳定性检查等不到
+   稳定 → 点选活跃格超时(e2e 实测);dashoffset 行进几何完全不动,视觉同自旋。
+   周期 12+9=21(负向=顺时针),1.6s 一个虚线周期。 */
+.bv-active-ring {
+  animation: bv-ring-march 1.6s linear infinite;
+}
+@keyframes bv-ring-march {
+  to {
+    stroke-dashoffset: -21;
   }
 }
 
@@ -164,14 +176,14 @@
 }
 
 /* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
-   (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动 / 候选金圈脉冲),保留静态视觉;
-   候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪)。 */
+   (旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 辅路虚线流动 / 候选金圈脉冲),
+   保留静态视觉;候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪)。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-flag,
   .bv-token.bv-token-marching .bv-token-march-ring,
   .bv-token-mine-halo,
   .bv-tile.bv-capital .bv-capital-glow,
-  .bv-tile.bv-active .bv-capital-glow,
+  .bv-active-ring,
   .bv-tile.bv-selectable .bv-tile-hilite,
   .bv-road-branch {
     animation: none;

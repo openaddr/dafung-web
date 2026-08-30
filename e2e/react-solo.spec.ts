@@ -25,10 +25,10 @@ test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", 
   const me = s.players[0];
   // 手牌区现金 = 快照现金(锭/两/分格式,同 core/money.formatMoney)
   await expect(page.getByTestId("hand-cash")).toContainText(fmtMoney(me.cash));
-  // 状态卡:活跃玩家国号 + 现金/委任/身价元信息
+  // 状态卡:活跃玩家国号 + 身价/委任元信息(R3-B7 现金归手牌区大数,meta 不再重复)
   const active = s.players[s.activeIndex];
   await expect(page.getByTestId("status-guohao")).toHaveText(active.guohao);
-  await expect(page.getByTestId("status-meta")).toContainText(fmtMoney(active.cash));
+  await expect(page.getByTestId("status-meta")).toContainText(fmtMoney(active.netWorth));
   await expect(page.getByTestId("status-meta")).toContainText(`委任 ${active.warrants}`);
   // 珍宝·名士区(L48 战报腾位)+ 诸侯列表就位
   await expect(page.getByTestId("treasury-panel")).toBeVisible();

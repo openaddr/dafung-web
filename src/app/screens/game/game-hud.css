@@ -10,7 +10,9 @@
   }
 }
 
-/* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,1.2s 上浮渐隐后由组件移除。 */
+/* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,1.4s 上浮渐隐后由组件移除。
+ * R3-B8:上浮终点 -20px(原 -14px 会压进上方身份头);1.4s
+ * cubic-bezier(0.22,1,0.36,1) 起快收慢,大部分位移在早段走完。 */
 @keyframes game-cash-float {
   0% {
     opacity: 1;
@@ -18,9 +20,9 @@
   }
   100% {
     opacity: 0;
-    transform: translateY(-14px);
+    transform: translateY(-20px);
   }
 }
 .game-cash-float {
-  animation: game-cash-float 1.2s ease-out forwards;
+  animation: game-cash-float 1.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
 }
