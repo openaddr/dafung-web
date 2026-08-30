@@ -16,7 +16,7 @@ import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio } from "./audio";
 import { diceApi } from "./DiceOverlay";
-import { setDiceFast } from "./ThreeDice";
+import { setDiceFast, showFallbackDiceSign } from "./ThreeDice";
 import { useFxStore } from "./fxStore";
 import { animateMove, beginMarch } from "./useMarch";
 import { delay, FX } from "./timings";
@@ -66,7 +66,8 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
 }
 
 // ─────────────────────── 单机提取器 ───────────────────────
-/** 掷骰表现:3D 物理骰优先;WebGL 不可用 → 停顿模拟 + 落骰声(签面文字由 HandPanel 展示)。
+/** 掷骰表现:3D 物理骰优先;WebGL 不可用 → 全屏文字签面(X5:弹入→停留→渐隐,
+ *  替代旧「黑屏干等 650ms」),签面现身时落骰声(时序对齐 3D 路径)。
  *  生产 sink 的 rollDice 落点(sinks.ts),单机/联机共用。 */
 export async function animateDice(die: number): Promise<void> {
   const audio = getAudio();
@@ -76,9 +77,7 @@ export async function animateDice(die: number): Promise<void> {
     audio.play("diceLand");
     return;
   }
-  // fallback:旧版在此切换 7 次 #dice-face 文字;React 版签面在侧栏,直接等一段掷骰时长
-  await delay(650);
-  audio.play("diceLand");
+  await showFallbackDiceSign(die, () => audio.play("diceLand"));
 }
 
 /** 引擎浮字 → cashDelta/supplyRain 事件(消费 presentation.drainFloaters 的破坏性读:
@@ -144,6 +143,21 @@ export function extractStepEvents(
     // 行军路径 = 引擎 lastMove(经过都城必停时已被引擎截断到都城,动画自然止步)
     if (view.lastMove) {
       events.push({ kind: "tokenMoved", playerId: moverId, path: view.lastMove });
+      // X1:经过自己都城(必停或恰落,两者引擎都结算驻跸补给)→ 落定后先盖「驻」章
+      // 再出「驻跸补给」文案——玩家才知道为何半路停;随后 floaterEvents 的补给
+      // 铜钱雨压轴,顺序即 驻章 → 文案 → 铜钱雨。
+      if (view.lastMove.passedCapital) {
+        const pos = engine.board.positionOf(view.lastMove.capitalIndex);
+        events.push({ kind: "sealStamped", tileIndex: view.lastMove.capitalIndex, char: "驻" });
+        events.push({
+          kind: "textFloat",
+          playerId: moverId,
+          text: "驻跸补给",
+          x: pos.x,
+          y: pos.y,
+          atTile: view.lastMove.capitalIndex,
+        });
+      }
     }
     events.push(...floaterEvents(engine));
     return events;

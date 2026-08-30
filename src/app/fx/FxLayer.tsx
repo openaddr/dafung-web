@@ -12,6 +12,9 @@ import "./fx.css";
 const FLOATER_BASE_UNITS = 26;
 /** 浮字等效屏幕像素下限(D4:高倍缩小视图时也不小于 12px)。 */
 const FLOATER_MIN_PX = 12;
+/** X3 同锚点浮字垂直错位步长(逻辑单位,≈1.4 行字高):同格同帧双浮字
+ *  (如成交 −300/+300)按出现序上移错开,不再沿同一轨迹精确叠印。 */
+const FLOATER_STAGGER_UNITS = 36;
 
 /** 当前缩放下 1 逻辑单位 = 多少屏幕像素(读 <svg#board> 客户宽与现行 viewBox)。 */
 function pxPerUnit(): number | null {
@@ -40,33 +43,38 @@ export function BoardFxLayer() {
 
   return (
     <>
-      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013):逻辑坐标直接使用,无需换算 */}
-      {floaters.map((f) => (
-        <g key={f.id}>
-          <text
-            className={`fx-svg-floater ${f.text ? "msg" : f.amount >= 0 ? "pos" : "neg"}`}
-            x={f.x}
-            y={f.y}
-            fontSize={f.text ? Math.round(fontSize * 0.8) : fontSize}
-            textAnchor="middle"
-          >
-            {f.text ?? formatFloater(f.amount)}
-          </text>
-          {f.coins &&
-            Array.from({ length: 6 }, (_, i) => (
-              <g
-                key={i}
-                className="fx-svg-coin"
-                transform={`translate(${f.x} ${f.y})`}
-                style={{ ["--dx" as string]: `${Math.round((Math.random() - 0.5) * 60)}px` }}
-              >
-                {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
-                <circle r={11} />
-                <text y={4} textAnchor="middle">泉</text>
-              </g>
-            ))}
-        </g>
-      ))}
+      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013):逻辑坐标直接使用,无需换算。
+          X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
+      {floaters.map((f, i) => {
+        const overlapIdx = floaters.slice(0, i).filter((g) => g.x === f.x && g.y === f.y).length;
+        const y = f.y - overlapIdx * FLOATER_STAGGER_UNITS;
+        return (
+          <g key={f.id}>
+            <text
+              className={`fx-svg-floater ${f.text ? "msg" : f.amount >= 0 ? "pos" : "neg"}`}
+              x={f.x}
+              y={y}
+              fontSize={f.text ? Math.round(fontSize * 0.8) : fontSize}
+              textAnchor="middle"
+            >
+              {f.text ?? formatFloater(f.amount)}
+            </text>
+            {f.coins &&
+              Array.from({ length: 6 }, (_, c) => (
+                <g
+                  key={c}
+                  className="fx-svg-coin"
+                  transform={`translate(${f.x} ${y})`}
+                  style={{ ["--dx" as string]: `${Math.round((Math.random() - 0.5) * 60)}px` }}
+                >
+                  {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
+                  <circle r={11} />
+                  <text y={4} textAnchor="middle">泉</text>
+                </g>
+              ))}
+          </g>
+        );
+      })}
       {/* 朱砂印章:红底米白字方印,坐标即逻辑坐标 */}
       {seals.map((s) => (
         <g key={s.id} className="fx-svg-seal" transform={`translate(${s.x} ${s.y})`}>

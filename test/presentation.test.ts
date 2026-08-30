@@ -95,6 +95,37 @@ describe("单机提取器 extractStepEvents", () => {
     }
   });
 
+  it("X1 驻跸盖章:经过己方都城 → 行军后先盖「驻」章、再出「驻跸补给」文案,补给铜钱雨压轴", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const p = e.activePlayer;
+    p.position = (p.capitalIndex - 2 + e.board.count) % e.board.count; // 距都城 2 步:die>=3 必停
+    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    const kinds = events.map((ev) => ev.kind);
+    if (e.presentation.lastRoll!.die < 3) {
+      // 未能及都城:不产生驻章(浮字可能来自落格结算,不作断言)
+      expect(kinds).not.toContain("sealStamped");
+      return;
+    }
+    const seal = events.find((ev) => ev.kind === "sealStamped");
+    expect(seal).toBeDefined();
+    if (seal?.kind === "sealStamped") {
+      expect(seal.char).toBe("驻");
+      expect(seal.tileIndex).toBe(p.capitalIndex);
+    }
+    const text = events.find((ev) => ev.kind === "textFloat");
+    expect(text).toBeDefined();
+    if (text?.kind === "textFloat") {
+      expect(text.text).toBe("驻跸补给");
+      expect(text.atTile).toBe(p.capitalIndex);
+    }
+    // 顺序语义:行军 → 驻章 → 文案 → 补给铜钱雨(先盖章再铜钱雨)
+    expect(kinds.indexOf("tokenMoved")).toBeLessThan(kinds.indexOf("sealStamped"));
+    expect(kinds.indexOf("sealStamped")).toBeLessThan(kinds.indexOf("textFloat"));
+    expect(kinds).toContain("supplyRain");
+    expect(kinds.indexOf("textFloat")).toBeLessThan(kinds.indexOf("supplyRain"));
+  });
+
   it("买城成功:印章『据』+ buy 音 + 浮字(coin 音仅在正收入时出现一次)", () => {
     const e = makeEngine(7);
     finishSetup(e);
