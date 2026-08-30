@@ -44,8 +44,11 @@ export interface BoardViewProps {
   viewSeat?: string;
   /** 点击城池回调(索引)。 */
   onTileClick?: (index: number) => void;
-  /** 可交互高亮城池集合(如选都阶段的可选都城)。 */
+  /** 可交互高亮城池集合(如选都阶段轮到本地的候选)。 */
   selectableTiles?: ReadonlySet<number>;
+  /** X4(#23) 选都候选集(引擎 offeredCapitals,滚出顺序):全座位可见——
+   *  静态低透明金圈 + 壹贰叁序号印是全座档;「轮到本地可点脉冲」由 selectableTiles 升档。 */
+  candidateTiles?: readonly number[];
   /** 当前回合玩家所在城池索引(脉动金环)。 */
   activeTileIndex?: number | null;
   /** 选都阶段标记(已选城标灰、未选都玩家隐藏棋子)。 */
@@ -99,6 +102,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   viewSeat,
   onTileClick,
   selectableTiles,
+  candidateTiles,
   activeTileIndex,
   isSetupPhase = false,
   skipTokenIds,
@@ -135,6 +139,13 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     return [...list.filter((t) => t.index !== hoverTile), ...list.filter((t) => t.index === hoverTile)];
   }, [loaded.board.tiles, hoverTile]);
 
+  // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
+  const candidateOrder = useMemo(() => {
+    const m = new Map<number, number>();
+    candidateTiles?.forEach((idx, i) => m.set(idx, i + 1));
+    return m;
+  }, [candidateTiles]);
+
   // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
   // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
   // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
@@ -152,10 +163,11 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         isActive: activeTileIndex === tile.index,
         isTaken: !!(isSetupPhase && capitalP),
         isSelectable: selectableTiles?.has(tile.index) ?? false,
+        capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
       });
     }
     return m;
-  }, [loaded.board.tiles, holdings, players, activeTileIndex, isSetupPhase, selectableTiles]);
+  }, [loaded.board.tiles, holdings, players, activeTileIndex, isSetupPhase, selectableTiles, candidateOrder]);
 
   // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
   const tiles = useMemo(

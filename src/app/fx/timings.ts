@@ -19,8 +19,10 @@ export const MARCH = {
   maxSegMs: 460,
   /** 像素/秒:距离 ÷ speed = 段时长(旧实现 dist / 720,单位 px/s) */
   speed: 720,
-  /** 每段 transition 结束后的额外缓冲(等过渡真正收尾,旧实现 +10ms) */
-  segSlackMs: 10,
+  /** 每段 transition 结束后的额外缓冲。S6(#39):10→0——缓动改 easeInOutSine
+   *  (board.css .bv-token-marching)后段尾速度趋零,10ms 硬等待反成顿挫;
+   *  无缝衔接读作一气呵成,终点落定感由缓动尾段承担。 */
+  segSlackMs: 0,
 } as const;
 
 /** 瞬时特效存活时长(与 fx.css 的 keyframe 时长保持一致;超时自清防 store 积压)。 */
