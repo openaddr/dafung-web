@@ -59,7 +59,7 @@ export function TileDetailScroll({
   pickCapital,
 }: TileDetailScrollProps) {
   return (
-    <ScrollShell title={`「${tileName}」`} onClose={onClose} hideClose testid={T.tileDetailScroll}>
+    <ScrollShell title={`「${tileName}」`} scrollKey={String(tileIndex)} onClose={onClose} hideClose testid={T.tileDetailScroll}>
       <span hidden data-tile-index={tileIndex} />
       {property ? (
         <>

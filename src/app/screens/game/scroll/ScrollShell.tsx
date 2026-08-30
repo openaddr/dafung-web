@@ -4,6 +4,9 @@ import { useEffect, useRef, type ReactNode } from "react";
 import "./scroll.css";
 import { SCROLL_TESTIDS as T } from "./testids";
 
+/** #15(E3)拖拽 clamp:壳体标题栏恒留视口 ≥60px,任意猛拖拖不丢。 */
+const TITLE_GRAB_PX = 60;
+
 export interface ScrollShellProps {
   title: string;
   children: ReactNode;
@@ -16,6 +19,9 @@ export interface ScrollShellProps {
   testid?: string;
   /** 宽度档位:默认决策卷轴宽;详情类可窄一点。 */
   width?: "md" | "lg";
+  /** #14 内容身份键:变化时复位拖拽偏移。身份已由标题承载(如「城名」)的调用方可不传;
+   *  同标题但内容会换的调用方显式传(如格索引)。复位不能依赖 children——它每次渲染都是新引用。 */
+  scrollKey?: string;
 }
 
 /** 通用卷轴按钮(旧 .btn .btn-primary 的 Tailwind 版)。为什么放这:所有决策卷轴共用一套按钮观感。 */
@@ -66,7 +72,7 @@ export function ScrollButton({
   );
 }
 
-export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md" }: ScrollShellProps) {
+export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md", scrollKey }: ScrollShellProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   // #34:可关卷轴补 Esc 快捷键(此前只有遮罩点击/×;与 ConfirmDialog 的 Esc 惯例统一)
   useEffect(() => {
@@ -98,16 +104,32 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     d.y += e.clientY - d.sy;
     d.sx = e.clientX;
     d.sy = e.clientY;
+    // #15(E3):写回前 clamp——壳体顶缘(标题栏)恒留 ≥60px 在视口内,决策卷轴无 onClose
+    // 也拖不丢、松手可拖回。getBoundingClientRect 含当前 transform,先减去已积累偏移
+    // 得未变换基准位,再反解出偏移的合法区间。
+    const r = bodyRef.current.getBoundingClientRect();
+    const baseLeft = r.left - d.x;
+    const baseTop = r.top - d.y;
+    d.x = Math.min(
+      window.innerWidth - TITLE_GRAB_PX - baseLeft,
+      Math.max(-(r.width - TITLE_GRAB_PX) - baseLeft, d.x),
+    );
+    d.y = Math.min(
+      window.innerHeight - TITLE_GRAB_PX - baseTop,
+      Math.max(-baseTop, d.y),
+    );
     bodyRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
   };
   const endDrag = () => { drag.current.active = false; };
 
-  // G-18:卷轴内容/标题变化(如切到另一城的详情)时复位拖拽 transform——
-  // 旧实现换内容沿用上一次偏移,常表现为"卷轴飞出屏幕找不回"。
+  // G-18:内容身份变化(标题或显式 scrollKey)时复位拖拽 transform——旧实现换内容沿用
+  // 上一次偏移,常表现为"卷轴飞出屏幕找不回"。#14(E2):不能依赖 children——每次渲染
+  // 都是新引用,快照/hint 一变就把拖开的卷轴弹回中心;拖拽进行中也跳过,等这把拖完。
   useEffect(() => {
+    if (drag.current.active) return;
     drag.current = { active: false, sx: 0, sy: 0, x: 0, y: 0 };
     if (bodyRef.current) bodyRef.current.style.transform = "";
-  }, [title, children]);
+  }, [title, scrollKey]);
 
   return (
     <div
@@ -118,13 +140,14 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
       <div
         ref={bodyRef}
         data-testid={testid ?? T.scrollShell}
-        className={`scroll-anim-unroll relative rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
+        className={`scroll-anim-unroll relative flex max-h-[86dvh] flex-col rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
           width === "lg" ? "max-w-[560px]" : "max-w-[460px]"
         }`}
       >
-        {/* 标题栏:整条可拖(大目标),含 × 关闭 */}
+        {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
+            压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。 */}
         <div
-          className="-mx-7 -mt-5 mb-3.5 flex cursor-move items-center justify-center rounded-t-sm border-b-2 border-[rgba(140,110,60,0.35)] bg-gradient-to-b from-gold/15 to-gold/[0.03] px-7 pb-2.5 pt-3"
+          className="-mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center rounded-t-sm border-b-2 border-[rgba(140,110,60,0.35)] bg-gradient-to-b from-gold/15 to-gold/[0.03] px-7 pb-2.5 pt-3"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
@@ -148,7 +171,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             </button>
           )}
         </div>
-        {children}
+        {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
+            也不溢出,结算等尾部按钮恒可达。 */}
+        <div className="min-h-0 overflow-y-auto">{children}</div>
       </div>
     </div>
   );
