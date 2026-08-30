@@ -125,7 +125,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 
 ### Issue tracker
 
-本地 markdown:issue/spec 存 `.scratch/<feature>/`(spec.md + issues/NN-slug.md)。见 `docs/agents/issue-tracker.md`。
+GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)。见 `docs/agents/issue-tracker.md`。
 
 ### Triage labels
 
