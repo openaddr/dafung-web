@@ -27,9 +27,10 @@ export interface HeroPickScrollProps {
 /** 画像位外框:与 CardDetailScroll 的 PORTRAIT_FRAME 同款(双金边圆角 + 宣纸底),
  *  尺寸缩到候选卡内 w-16;色走 tokens:gold/paper/ink。 */
 const PORTRAIT_FRAME =
-  "relative w-16 shrink-0 overflow-hidden rounded-md border-[3px] border-double border-gold bg-paper-lo shadow-sm aspect-[3/4]";
+  "relative w-16 shrink-0 overflow-hidden rounded-md border-[3px] border-double border-gold bg-paper-lo shadow-sm aspect-[3/4] outline outline-1 outline-offset-2 outline-gold/20 sepia-[.35] saturate-[.85] contrast-[.92]";
 
-/** 候选画像:object-cover 裁成 3:4;失败态显式「像」字占位(与 CardDetailScroll 同口径)。 */
+/** 候选画像:object-cover 裁成 3:4;失败态显式「像」字占位(与 CardDetailScroll 同口径)。
+ *  R3-D3(#101) 照片做旧:框上 sepia 族滤镜 + img multiply 融宣纸底,与详情画像位一致。 */
 function OfferPortrait({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   return (
@@ -41,7 +42,7 @@ function OfferPortrait({ src, name }: { src: string; name: string }) {
           src={src}
           alt={`${name}画像`}
           onError={() => setFailed(true)}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-cover mix-blend-multiply"
           draggable={false}
         />
       )}

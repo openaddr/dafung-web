@@ -1,12 +1,17 @@
 // 卷轴容器:对照旧 render/ui.ts createScroll 的视觉骨架(宣纸底/双金边/标题栏/× 关闭/标题栏拖拽)。
 // 用 Tailwind token 重写;入场"展开"动画用 scroll.css 的 scroll-unroll keyframe。
-import { useEffect, useRef, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** #15(E3)拖拽 clamp:壳体标题栏恒留视口 ≥60px,任意猛拖拖不丢。 */
 const TITLE_GRAB_PX = 60;
+
+/** #90(R3-C3)卷轴收起幽灵帧开关:DecisionScrollLayer 相位切换时把上一个子节点快照
+ *  再渲染 210ms 作退场帧,用本上下文标记该实例是幽灵——Shell 直接以 rollback 类登场,
+ *  不重放 unroll 展开、不重播 scrollOpen(它不是新开的卷轴,是旧卷轴退场的重放帧)。 */
+export const ScrollGhostContext = createContext(false);
 
 export interface ScrollShellProps {
   title: string;
@@ -46,12 +51,16 @@ export function ScrollButton({
   title?: string;
   shortcut?: number;
 }) {
+  // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
+  // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
+  // 不会再命中死钮吞掉真实点击。
+  const isGhost = useContext(ScrollGhostContext);
   return (
     <button
       type="button"
       data-testid={testid}
       onClick={onClick}
-      disabled={disabled}
+      disabled={disabled || isGhost}
       title={title}
       className={
         (primary
@@ -75,23 +84,52 @@ export function ScrollButton({
 
 export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md", scrollKey }: ScrollShellProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
+  // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂 rollback
+  // 收起类、遮罩淡出并放行点击、aria-hidden),210ms 后(rollback 动画 var(--dur-fast)
+  // =150ms 已走完)再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
+  // 零兜底:只有一个明确的 setTimeout,不设超时兜底分支。
+  const [closing, setClosing] = useState(false);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // 相位切换的幽灵帧(ScrollGhostContext)与本地 closing 同样按收起处理
+  const isGhost = useContext(ScrollGhostContext);
+  const exiting = closing || isGhost;
+
+  const requestClose = useCallback(() => {
+    // 计时器在途 = 已在收起,忽略重复出口(Esc 连按/遮罩二次点击)
+    if (!onClose || closeTimerRef.current !== null) return;
+    setClosing(true);
+    closeTimerRef.current = setTimeout(() => {
+      closeTimerRef.current = null;
+      onClose();
+    }, 210);
+  }, [onClose]);
+
+  // 收起途中组件被外部直接卸载(如整屏切换)时清理计时器
+  useEffect(
+    () => () => {
+      if (closeTimerRef.current !== null) clearTimeout(closeTimerRef.current);
+    },
+    [],
+  );
   // #65 卷轴展开音:挂载即播,与 scroll-anim-unroll keyframe 的 0ms 同帧起步;
   // 播放惯例与 DiceOverlay 的 useEffect 内 getAudio().play 一致,静音由播放器内部处理。
+  // 幽灵帧(退场重放)跳过——旧卷轴收走时不能再喊一声开卷。
   useEffect(() => {
+    if (isGhost) return;
     getAudio().play("scrollOpen");
-  }, []);
+  }, [isGhost]);
   // #34:可关卷轴补 Esc 快捷键(此前只有遮罩点击/×;与 ConfirmDialog 的 Esc 惯例统一)
   useEffect(() => {
     if (!onClose) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
         e.preventDefault();
-        onClose();
+        requestClose();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  }, [onClose, requestClose]);
   // 标题栏手写拖拽(对照旧 createScroll 的 pointer 拖动):卷轴可被拖到不挡棋盘的位置。
   const drag = useRef<{ active: boolean; sx: number; sy: number; x: number; y: number }>({
     active: false, sx: 0, sy: 0, x: 0, y: 0,
@@ -135,20 +173,33 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     if (drag.current.active) return;
     drag.current = { active: false, sx: 0, sy: 0, x: 0, y: 0 };
     if (bodyRef.current) bodyRef.current.style.transform = "";
+    // #90:收起途中同实例换了内容主体(如详情卷轴 A 未收完就点了城 B)则撤销收起——
+    // 否则 rollback 的 fill forwards 会把新内容也钉在 opacity 0 上,卷轴永久隐身。
+    if (closeTimerRef.current !== null) {
+      clearTimeout(closeTimerRef.current);
+      closeTimerRef.current = null;
+      setClosing(false);
+    }
   }, [title, scrollKey]);
 
   return (
     <div
-      className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]"
-      // 点遮罩空白处关闭(仅可关卷轴)
-      onClick={(e) => { if (e.target === e.currentTarget) onClose?.(); }}
+      className={`scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]${
+        exiting ? " scroll-anim-overlay-out" : ""
+      }`}
+      aria-hidden={exiting || undefined}
+      // 幽灵帧整体 inert:退场重放帧里的按钮是旧闭包死钮,浏览器层面禁掉
+      // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
+      inert={isGhost || undefined}
+      // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
+      onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
     >
       <div
         ref={bodyRef}
         data-testid={testid ?? T.scrollShell}
-        className={`scroll-anim-unroll relative flex max-h-[86dvh] flex-col rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
-          width === "lg" ? "max-w-[560px]" : "max-w-[460px]"
-        }`}
+        className={`relative flex max-h-[86dvh] flex-col rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
+          exiting ? "scroll-anim-rollback" : "scroll-anim-unroll"
+        } ${width === "lg" ? "max-w-[560px]" : "max-w-[460px]"}`}
       >
         {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
             压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。 */}
@@ -173,8 +224,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
               type="button"
               data-testid={T.scrollClose}
               aria-label="关闭"
-              onClick={(e) => { e.stopPropagation(); onClose(); }}
-              className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center"
+              onClick={(e) => { e.stopPropagation(); requestClose(); }}
+              disabled={isGhost}
+              className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-default"
             >
               <span
                 aria-hidden="true"

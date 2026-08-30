@@ -34,3 +34,19 @@
 .game-cash-float {
   animation: game-cash-float var(--dur-fx) var(--ease-out) forwards;
 }
+
+/* R3-C10(#97):现金/委任 chip 数值变化 pulse——软化数字硬切,chip 一拍
+ * 0.98→1 回弹(--ease-out-back 过冲再落定,「咚」一下的落定感;时长 --dur-med)。
+ * 重播由组件侧触发:HandPanel 以「最近一次 delta>0」的浮标 id 作 key 重挂载 chip,
+ * 入场动画随之重放(见 HandPanel 的 gainPulseKey);浮标出列后类同步摘除,不空放。 */
+@keyframes game-chip-pulse {
+  from {
+    transform: scale(0.98);
+  }
+  to {
+    transform: scale(1);
+  }
+}
+.game-chip-pulse {
+  animation: game-chip-pulse var(--dur-med) var(--ease-out-back);
+}

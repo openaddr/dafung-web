@@ -1,6 +1,7 @@
 /* 胜利屏专属动画(E2 胜利叙事序列)。独立于 scroll.css:
    避免与其他并行改动的 css 文件冲突;本文件只被 VictoryScreen.tsx 引入。
-   阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 终榜 900ms(E4 第 4 拍)
+   阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 终榜 900ms(E4 第 4 拍);
+   另有称帝朱砂印 450ms 一拍(#95),不入阶梯——与 VictoryScreen 的 stamp 锣声 450ms 定时同帧。
    → 再战按钮由组件延迟 1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。 */
 
 /* ── A6(#53) 千里江山图局部(王希孟,Public Domain;Commons 1e section → webp):
@@ -45,6 +46,35 @@
 }
 .victory-step-standings {
   animation-delay: 0.9s;
+}
+
+/* ── R3-C8(#95) 称帝朱砂印:450ms stamp 锣声的画面锚点。
+   0.45s 与 .victory-step-* 的阶梯字面量同理是刻意节拍(与组件里锣声定时同帧),保留字面量;
+   时长缓动引 tokens(#88 落地同款):--dur-fast 快落 + --ease-out-back 过冲回弹,
+   scale(1.8→1) 借 back 过冲得"砸下"手感,再带一次自上而下 4px 落下位移。── */
+@keyframes victory-stamp-in {
+  0% {
+    opacity: 0;
+    transform: scale(1.8) translateY(-4px);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+/* 终态 opacity 0.9 由组件 opacity-90 承担;backwards:delay 期间保持 0% 态不可见,
+   满足"锣声响起的同一帧印章才现身"。 */
+.victory-stamp-seal {
+  animation: victory-stamp-in var(--dur-fast) var(--ease-out-back) 0.45s backwards;
+}
+
+/* reduced-motion:app.css 的 M-4 全局兜层只压时长到瞬时,压不掉 0.45s delay
+   (backwards 期间印仍不可见);按 board.css M-9 模式直接停用入场,终态即现。 */
+@media (prefers-reduced-motion: reduce) {
+  .victory-stamp-seal {
+    animation: none;
+  }
 }
 /* 再战按钮挂载即淡入(组件已用定时器延后 1.8s 才渲染) */
 .victory-step-btn {

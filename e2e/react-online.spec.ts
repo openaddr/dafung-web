@@ -212,7 +212,9 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   const g1 = await (await browser.newContext()).newPage();
   const g2 = await (await browser.newContext()).newPage();
 
-  // host 建房(3 座;host 侧无国号预设入口 → seat0 不应有章)
+  // host 建房(3 座;R3-D1 #99:建房路径也带预设国号——host 侧 localStorage 预设「蜀」
+  // (与 SoloSetup GUOHAO_PREF_KEY 同源),seat0 应挂「蜀」章;与加入者的「魏」不重名,不影响下方预告断言)
+  await host.addInitScript(() => localStorage.setItem("dafung.guohao", "蜀"));
   await host.goto(`${ONLINE}/?online=1`);
   await host.getByTestId("lobby-seat-count-plus").click(); // X10 stepper:2 → 3 座
   await host.getByTestId("lobby-create").click();
@@ -234,10 +236,11 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   await g2.keyboard.press("Enter");
   await expect(g2.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
 
-  // 座位行单字方章:两加入者各挂「魏」章;host(未预设)无章(不放假国号)
-  await expect(host.getByTestId("lobby-seat-1-guohao")).toHaveText("魏", { timeout: 30_000 });
+  // 座位行单字方章:#99 起 host 建房也带预设 → seat0 挂「蜀」章(断言风格同 guest 行);
+  // 两加入者各挂「魏」章(先到先得:seat1 保原名,seat2 预告东魏,见下)
+  await expect(host.getByTestId("lobby-seat-0-guohao")).toHaveText("蜀", { timeout: 30_000 });
+  await expect(host.getByTestId("lobby-seat-1-guohao")).toHaveText("魏");
   await expect(host.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
-  await expect(host.getByTestId("lobby-seat-0-guohao")).toHaveCount(0);
 
   // 重名预告(先到先得):seat1 保原名无预告;seat2 预告开局改为方位前缀「东魏」;
   // 双方大厅(非仅本人视角)都可见彼此国号与预告

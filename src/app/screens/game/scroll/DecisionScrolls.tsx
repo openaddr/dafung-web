@@ -102,9 +102,10 @@ export function BuyDecisionScroll({
         持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
         <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(diff)}</span>
       </p>
-      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,Lv0 起逐级升) */}
+      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,Lv0 起逐级升)。
+          #92:买入即落 Lv.0(升级由到达免费触发),高亮购入档 */}
       {showValues ? (
-        <ValueTable property={property} />
+        <ValueTable property={property} highlight={{ level: 0, label: "购入档" }} />
       ) : (
         <button
           type="button"
@@ -167,6 +168,8 @@ export function UpgradeDecisionScroll({
       <p className="m-1 mb-3 text-center text-sm text-ink-dim">
         城池价值:{formatMoney(valueNow)} → {maxed ? "(已满级)" : formatMoney(valueNext)}
       </p>
+      {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行) */}
+      <ValueTable property={property} highlight={{ level: level + 1, label: "扩军后" }} />
       <div className="flex flex-wrap items-center justify-center gap-3">
         <ScrollButton
           primary

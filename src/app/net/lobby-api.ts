@@ -45,8 +45,8 @@ export class LobbyApi {
     });
   }
 
-  /** 建房(POST /room/new)。 */
-  createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number }): Promise<RoomJoinReply> {
+  /** 建房(POST /room/new)。guohao=host 预设国号(R3-D1 #99),重名时开局由服务器加方位前缀(同 joinRoom)。 */
+  createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number; guohao?: string }): Promise<RoomJoinReply> {
     return this.http("/room/new", opts).then((r) => this.parseRoomReply(r));
   }
 

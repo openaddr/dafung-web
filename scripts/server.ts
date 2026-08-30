@@ -253,7 +253,7 @@ const HELP = {
   endpoints: {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
-    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?} → {seat:0,seatToken,...lobby}(mapId=null)",
+    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
     "POST /room/join": "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
@@ -324,8 +324,10 @@ async function handle(req: Request): Promise<Response> {
       target: obj.target != null ? intField(obj, "target", 0) : undefined,
       difficulty,
     };
-    const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig });
-    recordEvent(room.roomId, { ev: "room-new", seatCount, bot: [...botIdx] });
+    // 国号可选(R3-D1 #99):带上则作为 host(seat0)预设,开局时与房间内其它座位去重(对照 /room/join)
+    const guohao = obj.guohao == null ? undefined : String(obj.guohao);
+    const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig, guohao });
+    recordEvent(room.roomId, { ev: "room-new", seatCount, bot: [...botIdx], guohao: guohao ?? null });
     // 建房时不设图(房间无地图);Host 须在大厅选图后再开局。startGame 会校验"已选图"。
     return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
   }

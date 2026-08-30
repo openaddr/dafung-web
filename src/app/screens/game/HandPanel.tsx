@@ -7,6 +7,8 @@
 // #44/S11:现金浮标的跨快照 diff 逻辑抽成 useDeltaFloat(本目录同名文件);
 // #21/X2:委任 chip 复用同款浮标(巡幸 +2 金字浮出,买城 −1 红字);
 // #45/S12:观战空态从两行说明升级为「观」印身份行 + 被跟随者(房主)资产列表。
+// R3-C10(#97):现金/委任 chip 数值变化时一拍 0.98→1 pulse(game-hud.css 的
+// game-chip-pulse),软化数字硬切;触发键推导见 gainPulseKey。
 import { useState } from "react";
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
@@ -14,12 +16,25 @@ import { guidePriceOf } from "@core/treasures";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
-import { DeltaFloatSpans, useDeltaFloat } from "./useDeltaFloat";
+import { DeltaFloatSpans, useDeltaFloat, type DeltaFloat } from "./useDeltaFloat";
 import { TESTIDS } from "./testids";
 import "./game-hud.css";
 
 // 签面数字 → 汉字(旧 dice-face 一~六 的展示口径)
 const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
+
+/** #97 chip pulse 触发键:浮标流中「最近一次 delta>0」那条的 id(无则 0)。
+ *  用作 chip 元素的 key:key 变化 → React 重挂载 chip → game-chip-pulse 入场动画
+ *  重播;盒模型不变,布局零位移(优于 animation-name 切换:不必备双份 keyframes)。
+ *  浮标按入列顺序 1.25s 出列,末位正浮标出列时更早的正浮标必已出列,key 只会
+ *  单调走 0→a→b→0 不会回跳空放;归零时 pulse 类同步摘除,静态 chip 不带动画。
+ *  负增量不触发(已有 danger 红浮标承担反馈,pulse 只庆祝「进账」一拍)。 */
+function gainPulseKey(floats: DeltaFloat[]): number {
+  for (let i = floats.length - 1; i >= 0; i--) {
+    if (floats[i].delta > 0) return floats[i].id;
+  }
+  return 0;
+}
 
 /** 行军按钮 disabled 原因(UI F1):从快照 + interactive + pending 集中推导,返回 null = 可用。
  *  为什么集中一处:内嵌买地/扩军已把原因写在文案里,行军没有——这里补齐并统一口径,
@@ -117,6 +132,9 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // +/− 标记,game-hud.css 的 game-cash-float 上浮消失(时长 token --dur-fx);正=深金 负=danger)。
   const cashFloats = useDeltaFloat(shown.cash);
   const warrantFloats = useDeltaFloat(shown.warrants);
+  // #97:chip pulse 触发键(见 gainPulseKey)——现金/委任 chip 同管线同处理。
+  const cashPulseKey = gainPulseKey(cashFloats);
+  const warrantPulseKey = gainPulseKey(warrantFloats);
   // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名士区(L48 起接管战报腾位);
   // 头部/动作/托管行不参与压缩。
   return (
@@ -138,9 +156,14 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 现金/委任跳变反馈;身份行已锚定「看的是谁」,这里不再重复国号。 */}
             <div className="flex flex-wrap items-center gap-2">
               <span className="relative inline-flex min-h-9 items-center">
+                {/* #97:pulse 与坐姿分支同款(见 gainPulseKey),观战视角同样有变化反馈 */}
                 <span
+                  key={cashPulseKey}
                   data-testid={TESTIDS.handCash}
-                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money"
+                  className={
+                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money" +
+                    (cashPulseKey > 0 ? " game-chip-pulse" : "")
+                  }
                 >
                   {formatMoney(shown.cash)}
                 </span>
@@ -148,8 +171,12 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               </span>
               <span className="relative inline-flex min-h-9 items-center">
                 <span
+                  key={warrantPulseKey}
                   data-testid={TESTIDS.handWarrants}
-                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
+                  className={
+                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none" +
+                    (warrantPulseKey > 0 ? " game-chip-pulse" : "")
+                  }
                 >
                   委任 {shown.warrants}
                 </span>
@@ -198,9 +225,15 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 与卡区/按钮同一圆角口径(ScrollButton 的 rounded),行内等高对齐。 */}
             <div className="flex flex-wrap items-center gap-2">
               <span className="relative inline-flex min-h-9 items-center">
+                {/* #97:key=最近一次正增量浮标 id,变化即重挂载 chip 重播 pulse
+                    (盒模型不变);负增量已有红浮标,不 pulse,推导见 gainPulseKey。 */}
                 <span
+                  key={cashPulseKey}
                   data-testid={TESTIDS.handCash}
-                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money"
+                  className={
+                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money" +
+                    (cashPulseKey > 0 ? " game-chip-pulse" : "")
+                  }
                 >
                   {formatMoney(player.cash)}
                 </span>
@@ -210,13 +243,18 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               </span>
               <span className="relative inline-flex min-h-9 items-center">
                 <span
+                  key={warrantPulseKey}
                   data-testid={TESTIDS.handWarrants}
-                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
+                  className={
+                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none" +
+                    (warrantPulseKey > 0 ? " game-chip-pulse" : "")
+                  }
                 >
                   委任 {player.warrants}
                 </span>
                 {/* #21/X2:委任 chip 复用同款浮标——巡幸过都城 +2(金字)浮出,
-                    买城 −1(红字);计数非钱,format 取整数 */}
+                    买城 −1(红字);计数非钱,format 取整数。
+                    #97:pulse 口径与现金 chip 一致(正增量触发,见 gainPulseKey) */}
                 <DeltaFloatSpans floats={warrantFloats} format={(n) => String(n)} />
               </span>
               {/* R3-B7(#79):身价小字已删——坐姿分支只留现金大数 + 委任 chip(有浮字反馈),

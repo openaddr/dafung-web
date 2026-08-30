@@ -184,9 +184,83 @@
   }
 }
 
-/* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
-   (旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 辅路虚线流动 / 候选金圈脉冲),
-   保留静态视觉;候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪)。 */
+/* ── #96 城池升级与易主的可读瞬间(三拍一次性出场动画,播完即静,非 infinite)──
+   1. 等级印 pop(.bv-level-seal-pop):扩军时印章重钤——取 fx.css fx-svg-seal-stamp
+      0-18% 落章段语义(scale 2.2→1 + rotate -12°→-8°),时长 --dur-slow、
+      缓动 --ease-out-back 过冲落定,fill backwards 仅出场播一次。rotate 与 scale 用
+      独立属性(fx-svg-seal 同做法),不覆盖元素上定位用的 transform attribute;
+      transform-box: fill-box 让缩放旋转以印章自身中心为轴。基态 rotate -8°:与
+      「都」「起」印的手钤斜姿同语系,且与 keyframe 终点一致,回落后无跳变。
+      Tile.tsx 以 key={level} 挂印,等级每升一级重挂重钤。
+   2. 建筑顶层生长(.bv-build-grow):最高一级屋檐 polygon(Lv3 连同金顶组、玩家色
+      染瓦末片)scale 0.6→1 + opacity 0→1,--dur-med + --ease-out-back;transform-origin
+      取 fill-box 底边中心,自檐口向上长出。Tile.tsx 以 key 含 level 只重挂最顶层一片,
+      楼身其余层原地复用,不整楼重播。
+   3. 易主流光(.bv-own-flash):归属变更(破产清算回无主 / 转玩家 B)时铭牌带闪一道
+      玩家色流光一次。仿 bv-side-flow 的 dashoffset 行进思路换成横穿色带的单节虚线:
+      线长 92,dasharray 30+138 周期 168,offset 自 30(节整段在起点之前,不可见)扫到
+      -92(节完全越出终点),70% 前保持峰值亮度、收尾淡出;时长取半 --dur-fx 拍
+      (工单约 0.5s 单拍以最近的 token 合法值承担,不落字面量),缓动 --ease-out。
+      基态 opacity 0:reduced-motion 停用动画后不残留实线条。 */
+.bv-level-seal-pop {
+  transform-box: fill-box;
+  transform-origin: center;
+  rotate: -8deg;
+  animation: bv-level-seal-pop var(--dur-slow) var(--ease-out-back) backwards;
+}
+@keyframes bv-level-seal-pop {
+  from {
+    rotate: -12deg;
+    scale: 2.2;
+    opacity: 0;
+  }
+  to {
+    rotate: -8deg;
+    scale: 1;
+    opacity: 1;
+  }
+}
+.bv-build-grow {
+  transform-box: fill-box;
+  transform-origin: center bottom;
+  animation: bv-build-grow var(--dur-med) var(--ease-out-back) backwards;
+}
+@keyframes bv-build-grow {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+  to {
+    scale: 1;
+    opacity: 1;
+  }
+}
+.bv-own-flash {
+  opacity: 0;
+  stroke-linecap: butt;
+  stroke-dasharray: 30 138;
+  animation: bv-own-flash calc(var(--dur-fx) / 2) var(--ease-out) forwards;
+}
+@keyframes bv-own-flash {
+  from {
+    stroke-dashoffset: 30;
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.95;
+  }
+  to {
+    stroke-dashoffset: -92;
+    opacity: 0;
+  }
+}
+
+/* ── M-9 降耗:用户偏好减弱动态时,停用全部装饰动画
+   (常驻 infinite:旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 辅路虚线流动 / 候选金圈脉冲;
+     #96 一次性出场:等级印 pop / 建筑顶层生长 / 易主流光),
+   保留静态视觉;候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪);
+   易主流光停用后由基态 opacity 0 保持隐形,等级印以基态 -8° 钤印斜姿静置,
+   建筑顶层以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-flag,
   .bv-token.bv-token-marching .bv-token-march-ring,
@@ -194,7 +268,10 @@
   .bv-tile.bv-capital .bv-capital-glow,
   .bv-active-ring,
   .bv-tile.bv-selectable .bv-tile-hilite,
-  .bv-road-branch {
+  .bv-road-branch,
+  .bv-level-seal-pop,
+  .bv-build-grow,
+  .bv-own-flash {
     animation: none;
   }
   .bv-tile.bv-selectable .bv-tile-hilite {

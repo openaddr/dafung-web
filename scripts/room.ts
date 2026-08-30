@@ -191,6 +191,7 @@ export interface CreateRoomConfig {
   seatCount: number;
   botIdx: Set<number>;
   hostConfig: HostConfig;
+  guohao?: string; // host 预设国号(R3-D1 #99):写入 seat0,语义与 joinSeat 一致(校验/trim/可空)
 }
 
 export class RoomRegistry {
@@ -279,11 +280,14 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 房间生命周期 ────────────────────────────
-  /** 建房:Seat0=host(human,已领 token);其它座位按 botIdx 标记。返回 {room,seat,token}。 */
+  /** 建房:Seat0=host(human,已领 token);其它座位按 botIdx 标记。返回 {room,seat,token}。
+   *  R3-D1(#99):guohao=host 预设国号,写入 seat0;校验/trim 与 joinSeat 逐字同语义,
+   *  重名前缀不在此时处理——开局 startGame 统一走 resolveGuohaoClash 演算。 */
   createRoom(config: CreateRoomConfig): { room: RoomSession; seat: number; token: string } {
-    const { seatCount, botIdx, hostConfig } = config;
+    const { seatCount, botIdx, hostConfig, guohao } = config;
     if (!(seatCount >= 2 && seatCount <= 8)) throw new RoomError(400, "seats 必须 2-8");
     if (botIdx.has(0)) throw new RoomError(400, "host(Seat 0)必须是真人");
+    if (guohao != null && !isSingleCjk(guohao.trim())) throw new RoomError(400, "国号需为单个汉字");
     const roomId = this.newRoomId();
     const seats: SeatState[] = Array.from({ length: seatCount }, (_, i) => ({
       kind: botIdx.has(i) ? "bot" : "human",
@@ -292,6 +296,7 @@ export class RoomRegistry {
     }));
     const token = this.newToken();
     seats[0].token = token;
+    seats[0].guohao = guohao != null ? guohao.trim() : null;
     const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), autoPilot: new Map(), hostConfig, mapId: null, engine: null };
     this.rooms.set(roomId, room);
     this.persist(room);
