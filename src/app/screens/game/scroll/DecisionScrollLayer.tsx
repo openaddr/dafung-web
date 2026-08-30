@@ -60,7 +60,17 @@ export function DecisionScrollLayer({
           colorIndex={winner.colorIndex}
           finalNetWorthLabel={formatMoney(winner.netWorth)}
           turnNumber={snapshot.round}
-          winReason="NetWorth"
+          // E4(#16):胜因透传快照真值(引擎 VictoryReason),不再写死——群雄尽灭局显示群雄尽灭
+          winReason={snapshot.winReason}
+          // E4(#16):终榜一行(身价降序 + 破产标注),数据同源快照 players
+          standings={[...players]
+            .sort((a, b) => b.netWorth - a.netWorth)
+            .map((p) => ({
+              guohao: p.guohao,
+              colorIndex: p.colorIndex,
+              netWorthLabel: formatMoney(p.netWorth),
+              bankrupt: p.isBankrupt,
+            }))}
           // 重开:最朴素可靠的方式是整页重载回设置屏(旧版亦无局内重开)
           onRestart={() => location.reload()}
           // ADR-0014:对局日志导出入口(终局落完整 jsonl 文件,含局头)
