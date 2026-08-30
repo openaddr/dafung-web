@@ -86,23 +86,32 @@ export function fmtMoney(cash: number): string {
 
 /** 推进一步可用动作(掷骰 → 卷轴内决策按钮);无可用动作返回 false。
  *  交互重构后所有决策按钮都住在卷轴里,testid 沿用 action-*——选择器不变,
- *  只是命中位置从侧栏搬进了弹层;scroll-* 兜底分支覆盖非 action 命名的卷轴按钮。 */
+ *  只是命中位置从侧栏搬进了弹层;scroll-* 兜底分支覆盖非 action 命名的卷轴按钮。
+ *  每次点击自带 10s 上限(与 expect.timeout 同档):按钮被弹层遮罩/幽灵帧挡住的
+ *  系统性破坏下,Playwright 会为 actionability 重试到测试超时(60-240s/次)——
+ *  收敛为 10s 失败即 false,交还调用方的 stall 预算,快速失败并给出局面报告。 */
 export async function actIfCan(p: Page): Promise<boolean> {
   const roll = p.getByTestId("roll-button");
   if (await roll.isEnabled().catch(() => false)) {
-    await roll.click();
-    return true;
+    const ok = await roll
+      .click({ timeout: 10_000 })
+      .then(() => true, () => false);
+    if (ok) return true;
   }
   // 只匹配按钮(决策卷轴容器是 div,无 disabled 属性会误中导致空转)
   const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
   if ((await inline.count()) > 0) {
-    await inline.first().click();
-    return true;
+    return inline
+      .first()
+      .click({ timeout: 10_000 })
+      .then(() => true, () => false);
   }
   const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
   if ((await scrollPrimary.count()) > 0) {
-    await scrollPrimary.first().click();
-    return true;
+    return scrollPrimary
+      .first()
+      .click({ timeout: 10_000 })
+      .then(() => true, () => false);
   }
   return false;
 }

@@ -21,6 +21,10 @@ export default defineConfig({
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   timeout: 60_000,
   expect: { timeout: 10_000 },
+  // 整个 run 的墙钟上限:单测 60s 是故意放长的(吸收骰子/行军动画与 bot 链的负载
+  // 抖动),代价是系统性破坏(如弹层穿透)下每个挂例都烧满预算——实测 21 挂跑出
+  // 16 分钟。15 分钟 = 绿跑(2 workers 约 5-7 分钟)的 2 倍余量,坏跑封顶不再拖垮节奏。
+  globalTimeout: 15 * 60_000,
   use: {
     baseURL: `http://localhost:${STATIC_PORT}`,
     trace: "on-first-retry",

@@ -176,14 +176,20 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
           for (const p of [host, guest]) {
             const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
             if ((await inline.count()) > 0) {
-              await inline.first().click();
-              acted = true;
+              // 点击 10s 上限(与 actIfCan 同口径):系统性破坏下 actionability
+              // 重试会烧满测试超时,失败即按未行动处理,交还循环预算
+              acted = await inline
+                .first()
+                .click({ timeout: 10_000 })
+                .then(() => true, () => false);
               break;
             }
             const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
             if ((await scrollPrimary.count()) > 0) {
-              await scrollPrimary.first().click();
-              acted = true;
+              acted = await scrollPrimary
+                .first()
+                .click({ timeout: 10_000 })
+                .then(() => true, () => false);
               break;
             }
           }
