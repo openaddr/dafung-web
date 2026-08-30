@@ -80,16 +80,20 @@ export function ConfirmDialog({
         <h2 data-testid={T.scrollTitle} className="m-0 mb-2 text-center font-brush text-xl tracking-[3px] text-ink">
           {title}
         </h2>
-        <div className="mb-3.5 font-deco text-[17px] text-ink">{children}</div>
-        <div className="flex flex-wrap justify-center gap-3">
-          {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
-              e2e 无需知道通用/专用两套名字 */}
-          <ScrollButton primary testid={testid ? `${testid}-ok` : T.confirmOk} onClick={onConfirm}>
-            {confirmLabel}
-          </ScrollButton>
-          <ScrollButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>
-            {cancelLabel}
-          </ScrollButton>
+        {/* #91(R3-C4) 与 ScrollShell 同步两层摊开:标题随卡片壳体(scroll-anim-unroll)
+            淡入落位,标题以下的纸身(正文+按钮)以顶缘为轴 scaleY 展开,标题字不压扁。 */}
+        <div className="scroll-anim-unroll-paper">
+          <div className="mb-3.5 font-deco text-[17px] text-ink">{children}</div>
+          <div className="flex flex-wrap justify-center gap-3">
+            {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
+                e2e 无需知道通用/专用两套名字 */}
+            <ScrollButton primary testid={testid ? `${testid}-ok` : T.confirmOk} onClick={onConfirm}>
+              {confirmLabel}
+            </ScrollButton>
+            <ScrollButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>
+              {cancelLabel}
+            </ScrollButton>
+          </div>
         </div>
       </div>
     </div>

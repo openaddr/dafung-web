@@ -1,5 +1,6 @@
 // 卷轴容器:对照旧 render/ui.ts createScroll 的视觉骨架(宣纸底/双金边/标题栏/× 关闭/标题栏拖拽)。
-// 用 Tailwind token 重写;入场"展开"动画用 scroll.css 的 scroll-unroll keyframe。
+// 用 Tailwind token 重写;入场动画用 scroll.css 的两层摊开(#91 R3-C4):
+// 壳体 scroll-unroll(淡入+下落+横向舒展) + 标题栏以下纸身 scroll-paper-unroll(scaleY 展开)。
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
@@ -54,6 +55,11 @@ export function ScrollButton({
   // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
   // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
   // 不会再命中死钮吞掉真实点击。
+  // #93(R3-C6)决策按钮主次权重:primary 升档为金渐变+内高光(纸面凸印感)+加大字号
+  // 与内边距;secondary 降半档只缩字号。并排时主次一眼可辨。disabled 两类口径不变
+  // (disabled:opacity-40);#97 全局按压 button:active scale(0.98) 与本观感无冲突。
+  // shortcut 角标仍靠追加 pr-5 让出右上角(primary 的 pr-5 与 px-5 同值、secondary
+  // 在 px-4 基础上加宽,角标热区/避让均不破坏)。
   const isGhost = useContext(ScrollGhostContext);
   return (
     <button
@@ -64,8 +70,8 @@ export function ScrollButton({
       title={title}
       className={
         (primary
-          ? "relative cursor-pointer rounded border-2 border-gold bg-gold/25 px-4 py-2 font-brush text-base text-ink shadow-sm transition-colors hover:bg-gold/45 disabled:cursor-not-allowed disabled:opacity-40"
-          : "relative cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-2 font-brush text-base text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
+          ? "relative cursor-pointer rounded border-2 border-gold bg-gradient-to-b from-gold/45 to-gold/25 px-5 py-2.5 font-brush text-[17px] text-ink shadow-[inset_0_1px_0_rgba(255,244,214,0.5),0_2px_8px_rgba(60,40,10,0.22)] transition-colors hover:from-gold/60 hover:to-gold/35 disabled:cursor-not-allowed disabled:opacity-40"
+          : "relative cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-2 font-brush text-[15px] text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
         (shortcut != null ? " pr-5" : "")
       }
     >
@@ -237,9 +243,21 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             </button>
           )}
         </div>
-        {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
-            也不溢出,结算等尾部按钮恒可达。 */}
-        <div className="min-h-0 overflow-y-auto">{children}</div>
+        {/* #91(R3-C4) 两层摊开之内层:标题栏保持在壳体直下(随壳体淡入落位),
+            标题栏以下的纸身包进本 wrapper 以顶缘为轴 scaleY 展开——标题先落位、
+            纸身在其下摊开,标题字不再随整壳纵向压扁。
+            flex-1 + min-h-0 保住原限高内滚链(壳体 max-h 86dvh → wrapper 收缩 →
+            内容区 min-h-0 overflow-y-auto),收起 rollback 仍只走壳体、wrapper 不另播。 */}
+        <div className="scroll-anim-unroll-paper relative flex min-h-0 flex-1 flex-col">
+          {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
+              也不溢出,结算等尾部按钮恒可达。 */}
+          <div className="min-h-0 overflow-y-auto">{children}</div>
+          {/* #91 下轴:纸身底缘的深金细条,随纸身 scaleY 展开自然露出,纯装饰。 */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-[rgba(140,110,60,0.5)]"
+          />
+        </div>
       </div>
     </div>
   );

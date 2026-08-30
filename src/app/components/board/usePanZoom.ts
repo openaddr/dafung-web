@@ -57,6 +57,8 @@ export interface PanZoom {
   reset: () => void;
   /** C4 镜头跟随:缓动把 viewBox 中心平移到 (cx,cy),不改变当前缩放。 */
   flyTo: (cx: number, cy: number, opts?: FlyToOptions) => void;
+  /** #98 按钮缩放:以当前视口中心为锚按倍率缩放(factor>1 放大,如 1.25/0.8)。 */
+  zoomBy: (factor: number) => void;
   /** 当前 viewBox(快照值,读取用)。 */
   getView: () => ViewBox;
 }
@@ -210,6 +212,23 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     }
   }, []);
 
+  // #98 按钮缩放:以当前视口中心为锚(锚点算法照抄 wheel——归一化锚点取视口中心
+  // (0.5,0.5),lx/ly 即 viewBox 中心,无需读 rect)。factor 直接乘进 w/h 走同一
+  // setView→clampVb 管线,与 wheel/pinch 一样靠 clampVb 夹在 1×..MAX_ZOOM 界内
+  // (不预夹 factor,不另立状态);先作废进行中的 flyTo,与滚轮/双指接管口径一致。
+  const zoomBy = useCallback(
+    (factor: number) => {
+      cancelFly();
+      const cx = 0.5;
+      const cy = 0.5;
+      const vb = view.current;
+      const lx = vb.x + cx * vb.w;
+      const ly = vb.y + cy * vb.h;
+      setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
+    },
+    [setView, cancelFly],
+  );
+
   const reset = useCallback(() => {
     cancelFly();
     setView({ ...FIT_VIEW });
@@ -227,6 +246,7 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     grabbing,
     reset, // 还原总览(供"总览"按钮;BoardViewHandle 暴露)
     flyTo,
+    zoomBy, // #98 视口中心锚定缩放(供棋盘 +/− 钮;BoardViewHandle 暴露)
     getView,
   };
 }

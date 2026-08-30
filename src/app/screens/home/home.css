@@ -80,7 +80,5 @@
   outline-offset: 2px;
 }
 
-/* 按压态:scale .97,给"按下有回应"的物理感(transition 放常态,松开回弹也平滑) */
-.home-btn-brush:active {
-  transform: scale(0.97);
-}
+/* 按压态已收编全局:R3-C10(#97) 起 app.css 的 button:active scale(0.98) 统一承担
+   按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */
