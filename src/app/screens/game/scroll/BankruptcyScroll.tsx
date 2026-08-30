@@ -1,6 +1,8 @@
 // 破产清算卷轴:对照旧 showBankruptcyScroll。
-// 卖珍宝(指导价)/卖非都城城(购入价)/遣名士(200)→ 每卖一件引擎更新 pendingDebt,
-// 主线接线后 snapshot 刷新会带着新数据重弹本卷轴;"结算"发 confirmBankruptcySettle。
+// 卖珍宝(指导价)/卖非都城城(当前等级变卖价 = valueByLevel[level],与引擎入账同一函数)/
+// 遣名士(200)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
+// 实时缩水;"结算"发 confirmBankruptcySettle。
+// #60:展示价曾误用购入价(40%),与实际入账(valueByLevel)口径分裂 → 展示与入账必须同一函数。
 import type { GameCommand } from "@core/types";
 import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
@@ -11,14 +13,23 @@ import { SCROLL_TESTIDS as T } from "./testids";
 export interface BankruptcyScrollProps {
   /** 待清算玩家国号。 */
   guohao: string;
-  /** 当前现金(算尚欠缺口)。 */
+  /** 当前现金(算尚欠缺口;每笔变卖入账已含,随快照实时刷新)。 */
   cash: number;
-  /** 债务总额(pendingDebt.amount)。 */
+  /** 债务总额(pendingDebt.amount,清算期固定)。 */
   debtAmount: number;
-  /** 可变卖珍宝(快照展示子集;卖价由 level 经 guidePriceOf 推导)。 */
+  /** 可变卖珍宝(快照展示子集;卖价由 level 经 guidePriceOf 推导,与引擎同函数)。 */
   treasures: SnapshotTreasure[];
-  /** 可卖城(id → 展示名 + 购入价)。都城已由调用方剔除(旧版同样跳过 capitalIndex)。 */
-  sellableProperties: { propId: string; name: string; purchasePrice: number }[];
+  /** 可卖城(变卖价 sellPrice 由调用方经 economy.sellValueOf 计算,与引擎入账同源)。
+   *  都城已由调用方剔除(旧版同样跳过 capitalIndex)。 */
+  sellableProperties: {
+    propId: string;
+    name: string;
+    /** 变卖入账(= valueByLevel[level],引擎 sellPropertyBankruptcy 同一函数算出)。 */
+    sellPrice: number;
+    /** 购入价(仅用于折价小字对照,不再作为展示价)。 */
+    purchasePrice: number;
+    level: number;
+  }[];
   /** 可遣散名士(每名 200)。 */
   heroes: { id: string; name: string }[];
   onCommand: (cmd: GameCommand) => void;
@@ -42,7 +53,7 @@ export function BankruptcyScroll({
   return (
     <ScrollShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
       <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
-        现金不足,尚欠 {formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按购入价、名士 200 分)。
+        现金不足,尚欠 {formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名士 200 分)。
       </p>
       <div className="flex max-h-[432px] flex-col gap-2 overflow-hidden">
         <section className="flex min-h-0 flex-col">
@@ -69,7 +80,18 @@ export function BankruptcyScroll({
                 testid={T.bankruptcySellProp(p.propId)}
                 onClick={() => onCommand({ type: "sellPropertyBankruptcy", propId: p.propId })}
               >
-                卖城·{p.name} +{formatMoney(p.purchasePrice)}
+                <span className="inline-flex flex-col items-center gap-0.5">
+                  <span>
+                    卖城·{p.name} +{formatMoney(p.sellPrice)}
+                  </span>
+                  {/* #60:标价与购入价有落差时不静默——小字说明折价原因(Lv 越低折越多,
+                      经济 v2:valueByLevel = 购价×[40/60/85/120]% 按等级),玩家可理解。 */}
+                  {p.sellPrice < p.purchasePrice && (
+                    <span className="font-deco text-[10px] leading-none text-ink-dim">
+                      购入{formatMoney(p.purchasePrice)}·Lv.{p.level} 变卖折价
+                    </span>
+                  )}
+                </span>
               </ScrollButton>
             ))}
             {sellableProperties.length === 0 && <span className="text-xs text-ink-dim">无</span>}
