@@ -7,6 +7,9 @@ export const TESTIDS = {
   handPanel: "hand-panel",
   /** L47:手牌区玩家身份头(国号大字 + 「你」印)。 */
   handIdentity: "hand-identity",
+  /** #45/S12 观战空态:「观」印身份行(国号=被跟随者)与内联资产列表容器。 */
+  handSpectatorIdentity: "hand-spectator-identity",
+  handSpectatorAssets: "hand-spectator-assets",
   othersPanel: "others-panel",
   /** L48:珍宝·名士常驻展示区(战报移除后腾位)。 */
   treasuryPanel: "treasury-panel",
