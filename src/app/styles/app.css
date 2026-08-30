@@ -52,3 +52,19 @@ body,
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ── A1(#48) 宣纸纹理叠加:全屏固定层,soft-light 低透明——
+   增强手绘风纸质感,不覆盖 SVG 线条(纹理 CC0,public/assets/textures/)。
+   pointer-events:none 纯氛围层;z-index 60 压内容低于卷轴(z-30 起的弹层在其下、
+   骰子 overlay(z-50)之上会被覆一层纹理——soft-light 对深浅底均只加纸感,可接受;
+   reduced-motion 与静态层无关。 ── */
+#app::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: url("/assets/textures/xuan-paper.jpg") center / 960px auto repeat;
+  mix-blend-mode: soft-light;
+  opacity: 0.45;
+}
