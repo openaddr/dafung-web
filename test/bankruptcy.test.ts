@@ -3,6 +3,8 @@ import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice } from "@core/dice";
 import type { Player } from "@core/types";
+import { sellValueOf } from "@core/economy";
+import { guidePriceOf } from "@core/treasures";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 
@@ -195,5 +197,84 @@ describe("破产清算", () => {
     expect(e.pendingDebt).toBeNull();
     expect(e.turnPhase).toBe("Roll"); // 3 人在局,游戏未结束
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 名士释放回招贤池
+  });
+});
+
+describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
+  /** 卷轴展示价的 UI 口径(DecisionScrollLayer/BankruptcyScroll 与引擎共用的纯函数):
+   *  珍宝 = guidePriceOf(level),城 = sellValueOf(def, level),名士 = 200。
+   *  本组断言:引擎三变卖命令的实际入账 === 同一批纯函数的输出(展示 ≠ 入账即红)。 */
+  it("三类变卖入账 = UI 展示价(同一纯函数),城按 valueByLevel 而非购入价", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    p.cash = 0;
+    p.treasures.push({ id: "t1", name: "宝", level: 7, count: 1, desc: "" }); // 指导价 = guidePriceOf(7)
+    const city = giveSellableCity(e, p);
+    const def = e.catalog.get(city.propId)!;
+    p.heroes.push(hero("zhouyu", "周瑜"));
+    (e as any).payOrLiquidate(p, null, 999999); // 巨债:确保三笔变卖都还被允许
+
+    // 珍宝:入账 === 展示(guidePriceOf(level))
+    e.sellTreasureBankruptcy("t1");
+    expect(p.cash).toBe(guidePriceOf(7));
+
+    // 城:入账 === 展示(sellValueOf(def, level) = valueByLevel[level]);Lv.0 是折价 ≠ 购入价
+    e.sellPropertyBankruptcy(city.propId);
+    expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0));
+    expect(sellValueOf(def, 0)).toBe(def.valueByLevel[0]);
+    expect(sellValueOf(def, 0)).not.toBe(def.purchasePrice); // Lv.0 变卖折价(经济 v2:40%),展示不再标购入价
+
+    // 名士:入账 === 展示(200)
+    e.cashHeroBankruptcy("zhouyu");
+    expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0) + 200);
+  });
+
+  it("卖一座城恰好清债:按展示价(Lv.0 变卖价)入账后尚欠归零,免破产", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    const city = giveSellableCity(e, p);
+    const price = sellValueOf(e.catalog.get(city.propId)!, 0); // 与卷轴展示同一函数
+    p.cash = 0; // 现金归零:欠恰一座 Lv.0 城的变卖价(仅城可卖 → 仍进清算)
+    (e as any).payOrLiquidate(p, null, price);
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    // 尚欠(卷轴口径)= max(0, debt − cash)
+    expect(Math.max(0, e.pendingDebt!.amount - p.cash)).toBe(price);
+    e.sellPropertyBankruptcy(city.propId); // +price(恰为展示价)→ cash === debt
+    expect(p.cash).toBe(price);
+    expect(Math.max(0, e.pendingDebt!.amount - p.cash)).toBe(0); // 尚欠刷新为 0
+    e.confirmBankruptcySettle();
+    expect(p.cash).toBe(0); // 恰好清偿,无隐藏扣减
+    expect(p.isBankrupt).toBe(false);
+    expect(e.pendingDebt).toBeNull();
+  });
+
+  it("尚欠随每笔变卖实时刷新(快照口径:owe = max(0, pendingDebt.amount − 快照 cash)),debt 本身不变", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    p.cash = 0;
+    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
+    const city = giveSellableCity(e, p);
+    const cityPrice = sellValueOf(e.catalog.get(city.propId)!, 0);
+    const debt = guidePriceOf(5) + cityPrice;
+    (e as any).payOrLiquidate(p, null, debt);
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+
+    const oweOf = () => {
+      const s = e.snapshot();
+      const me = s.players[s.activeIndex];
+      expect(s.pendingDebt?.amount).toBe(debt); // 债务额清算期固定,不随变卖缩水
+      return Math.max(0, s.pendingDebt!.amount - me.cash);
+    };
+    expect(oweOf()).toBe(debt); // 未卖:欠全额
+    e.sellTreasureBankruptcy("t1"); // +600
+    expect(oweOf()).toBe(cityPrice); // 尚欠实时缩水
+    e.sellPropertyBankruptcy(city.propId); // +cityPrice
+    expect(oweOf()).toBe(0); // 凑足即 0(封顶,不为负)
+    e.confirmBankruptcySettle();
+    expect(p.cash).toBe(0); // 全额清偿,无其他扣减
+    expect(p.isBankrupt).toBe(false);
   });
 });

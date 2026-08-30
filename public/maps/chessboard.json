@@ -9,8 +9,8 @@
       "id": "prop-changan",
       "name": "长安",
       "pos": [
-        1052,
-        30
+        -1100,
+        -745
       ],
       "group": "a",
       "region": "中原",
@@ -40,8 +40,8 @@
       "id": "prop-xianyang",
       "name": "咸阳",
       "pos": [
-        814,
-        30
+        -700,
+        -745
       ],
       "type": "TreasureCity"
     },
@@ -49,8 +49,8 @@
       "id": "prop-hangu",
       "name": "函谷关",
       "pos": [
-        576,
-        30
+        -300,
+        -745
       ],
       "type": "TreasureCity"
     },
@@ -58,8 +58,8 @@
       "id": "prop-luoyang",
       "name": "洛阳",
       "pos": [
-        338,
-        30
+        100,
+        -745
       ],
       "group": "a",
       "region": "中原",
@@ -89,8 +89,8 @@
       "id": "prop-hulao",
       "name": "虎牢关",
       "pos": [
-        100,
-        30
+        500,
+        -745
       ],
       "type": "TreasureCity"
     },
@@ -98,8 +98,8 @@
       "id": "prop-xuchang",
       "name": "许昌",
       "pos": [
-        -138,
-        30
+        900,
+        -745
       ],
       "group": "a",
       "region": "中原",
@@ -129,8 +129,8 @@
       "id": "prop-wan",
       "name": "宛城",
       "pos": [
-        -376,
-        30
+        1300,
+        -745
       ],
       "type": "TreasureCity"
     },
@@ -138,8 +138,8 @@
       "id": "tile-wolong",
       "name": "卧龙岗",
       "pos": [
-        -138,
-        422
+        1300,
+        -435
       ],
       "type": "Wolong"
     },
@@ -148,16 +148,16 @@
       "name": "新野驿站",
       "type": "Chance",
       "pos": [
-        814,
-        618
+        900,
+        -435
       ]
     },
     {
       "id": "prop-xiangyang",
       "name": "襄阳",
       "pos": [
-        1528,
-        814
+        500,
+        -435
       ],
       "group": "b",
       "region": "荆楚",
@@ -187,8 +187,8 @@
       "id": "prop-jiangxia",
       "name": "江夏",
       "pos": [
-        1290,
-        814
+        100,
+        -435
       ],
       "group": "b",
       "region": "荆楚",
@@ -218,8 +218,8 @@
       "id": "prop-wuchang",
       "name": "武昌",
       "pos": [
-        1052,
-        814
+        -300,
+        -435
       ],
       "group": "b",
       "region": "荆楚",
@@ -249,8 +249,8 @@
       "id": "prop-chibi",
       "name": "赤壁",
       "pos": [
-        814,
-        814
+        -700,
+        -435
       ],
       "group": "b",
       "region": "荆楚",
@@ -280,8 +280,8 @@
       "id": "prop-changsha",
       "name": "长沙",
       "pos": [
-        576,
-        814
+        -1100,
+        -435
       ],
       "group": "c",
       "region": "岭南",
@@ -311,8 +311,8 @@
       "id": "tile-fate-1",
       "name": "天命",
       "pos": [
-        338,
-        814
+        -1100,
+        -125
       ],
       "type": "Fate"
     },
@@ -320,8 +320,8 @@
       "id": "prop-jiangling",
       "name": "江陵",
       "pos": [
-        100,
-        814
+        -700,
+        -125
       ],
       "group": "b",
       "region": "荆楚",
@@ -351,8 +351,8 @@
       "id": "prop-huarong",
       "name": "华容道",
       "pos": [
-        -138,
-        814
+        -300,
+        -125
       ],
       "group": "c",
       "region": "岭南",
@@ -370,15 +370,20 @@
         2600,
         3600
       ],
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "resupplyPerLevel": 300
     },
     {
       "id": "prop-lingling",
       "name": "零陵",
       "pos": [
-        -376,
-        814
+        100,
+        -125
       ],
       "group": "c",
       "region": "岭南",
@@ -408,8 +413,8 @@
       "id": "prop-jiaozhou",
       "name": "交州",
       "pos": [
-        -614,
-        814
+        500,
+        -125
       ],
       "group": "c",
       "region": "岭南",
@@ -440,16 +445,16 @@
       "name": "涪陵渡",
       "type": "Chance",
       "pos": [
-        -1090,
-        814
+        900,
+        -125
       ]
     },
     {
       "id": "prop-jiangzhou",
       "name": "江州",
       "pos": [
-        -1328,
-        814
+        1300,
+        -125
       ],
       "group": "d",
       "region": "巴蜀",
@@ -479,14 +484,19 @@
       "id": "prop-chengdu",
       "name": "成都",
       "pos": [
-        -1328,
-        618
+        1300,
+        185
       ],
       "group": "d",
       "region": "巴蜀",
       "price": 3000,
       "buildCost": 1500,
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "valueByLevel": [
         1200,
         1800,
@@ -505,8 +515,8 @@
       "id": "prop-jiange",
       "name": "剑阁",
       "pos": [
-        -1328,
-        422
+        900,
+        185
       ],
       "group": "d",
       "region": "巴蜀",
@@ -524,15 +534,20 @@
         2600,
         3600
       ],
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "resupplyPerLevel": 300
     },
     {
       "id": "prop-hanzhong",
       "name": "汉中",
       "pos": [
-        -1328,
-        226
+        500,
+        185
       ],
       "group": "d",
       "region": "巴蜀",
@@ -562,8 +577,8 @@
       "id": "prop-ziwu",
       "name": "子午谷",
       "pos": [
-        -1328,
-        30
+        100,
+        185
       ],
       "group": "d",
       "region": "巴蜀",
@@ -593,8 +608,8 @@
       "id": "prop-jieting",
       "name": "街亭",
       "pos": [
-        -1328,
-        -166
+        -300,
+        185
       ],
       "group": "e",
       "region": "西凉",
@@ -612,15 +627,20 @@
         2600,
         3600
       ],
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "resupplyPerLevel": 300
     },
     {
       "id": "prop-yongzhou",
       "name": "雍州",
       "pos": [
-        -1328,
-        -362
+        -700,
+        185
       ],
       "group": "e",
       "region": "西凉",
@@ -650,8 +670,8 @@
       "id": "prop-liangzhou",
       "name": "凉州",
       "pos": [
-        -1328,
-        -558
+        -1100,
+        185
       ],
       "group": "e",
       "region": "西凉",
@@ -681,14 +701,19 @@
       "id": "prop-ye",
       "name": "邺城",
       "pos": [
-        -1328,
-        -754
+        -1100,
+        495
       ],
       "group": "a",
       "region": "中原",
       "price": 3000,
       "buildCost": 1500,
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "valueByLevel": [
         1200,
         1800,
@@ -707,8 +732,8 @@
       "id": "prop-jinyang",
       "name": "晋阳",
       "pos": [
-        -1090,
-        -754
+        -700,
+        495
       ],
       "group": "f",
       "region": "并州",
@@ -738,8 +763,8 @@
       "id": "prop-youzhou",
       "name": "幽州",
       "pos": [
-        -852,
-        -754
+        -300,
+        495
       ],
       "group": "f",
       "region": "幽燕",
@@ -769,8 +794,8 @@
       "id": "tile-tax-1",
       "name": "税关",
       "pos": [
-        -614,
-        -754
+        100,
+        495
       ],
       "type": "Tax"
     },
@@ -778,8 +803,8 @@
       "id": "prop-liaodong",
       "name": "辽东",
       "pos": [
-        -376,
-        -754
+        500,
+        495
       ],
       "group": "f",
       "region": "幽燕",
@@ -809,8 +834,8 @@
       "id": "tile-chance-1",
       "name": "锦囊",
       "pos": [
-        -138,
-        -754
+        900,
+        495
       ],
       "type": "Chance"
     },
@@ -818,8 +843,8 @@
       "id": "prop-linzi",
       "name": "临淄",
       "pos": [
-        100,
-        -754
+        1300,
+        495
       ],
       "group": "g",
       "region": "青徐",
@@ -849,8 +874,8 @@
       "id": "prop-xuzhou",
       "name": "徐州",
       "pos": [
-        338,
-        -754
+        1300,
+        805
       ],
       "group": "g",
       "region": "青徐",
@@ -880,8 +905,8 @@
       "id": "prop-shouchun",
       "name": "寿春",
       "pos": [
-        576,
-        -754
+        900,
+        805
       ],
       "group": "g",
       "region": "青徐",
@@ -911,8 +936,8 @@
       "id": "prop-hefei",
       "name": "合肥",
       "pos": [
-        814,
-        -754
+        500,
+        805
       ],
       "group": "g",
       "region": "淮南",
@@ -930,15 +955,20 @@
         2600,
         3600
       ],
-      "tradeMult": [2, 3, 4, 5],
+      "tradeMult": [
+        2,
+        3,
+        4,
+        5
+      ],
       "resupplyPerLevel": 300
     },
     {
       "id": "prop-jianye",
       "name": "建业",
       "pos": [
-        1528,
-        -754
+        100,
+        805
       ],
       "group": "h",
       "region": "江东",
@@ -968,8 +998,8 @@
       "id": "tile-stock-1",
       "name": "商市",
       "pos": [
-        1528,
-        -558
+        -300,
+        805
       ],
       "type": "Stock"
     },
@@ -977,8 +1007,8 @@
       "id": "prop-wujun",
       "name": "吴郡",
       "pos": [
-        1528,
-        -362
+        -700,
+        805
       ],
       "group": "h",
       "region": "江东",
@@ -1008,8 +1038,8 @@
       "id": "prop-kuiji",
       "name": "会稽",
       "pos": [
-        1528,
-        -166
+        -1100,
+        805
       ],
       "group": "h",
       "region": "江东",
@@ -1044,36 +1074,36 @@
       {
         "kind": "treasure",
         "pos": [
-          100,
-          226
+          820,
+          -590
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          338,
-          226
+          735,
+          -590
         ]
       },
       {
         "kind": "event",
         "pos": [
-          576,
-          422
+          650,
+          -590
         ]
       },
       {
         "kind": "treasure",
         "pos": [
-          814,
-          422
+          565,
+          -590
         ]
       },
       {
         "kind": "penalty",
         "pos": [
-          1052,
-          618
+          480,
+          -590
         ]
       }
     ]

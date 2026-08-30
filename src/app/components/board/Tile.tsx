@@ -206,13 +206,13 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
   );
 }
 
-// ── #25/#39 城池全局放大比例 ──
+// ── #25/#39/#58 城池全局放大比例 ──
 // 旗/匾/印/价格签等所有元素随 <g> 整体 scale(等比,视觉口径统一;点击热区与
 // hover 重排随 SVG transform 同步放大,无需另调)。
-// 屏幕上的净大小 = TILE_SCALE / 画布放大倍数(1.4x):要净 +40% 就必须 1.4×1.4≈1.96
-// (首版 1.55 的失误正在于此:净效果仅 1.55/1.4≈+11%,肉眼不可辨)。
-// 压盖校验:铭牌外缘 ~104×1.96≈204 < 城池最小间距 238(chessboard 网格步距)。
-const TILE_SCALE = 1.96;
+// 屏幕上的净大小 = TILE_SCALE / 画布放大倍数(1.4x):#58 蛇形重排后网格步距
+// 列 400/行 310,城池再放大:1.96→2.2(净 2.2/1.4≈1.57x)。
+// 压盖校验:铭牌外缘 ~104×2.2≈229 < 行距 310 < 列距 400(chessboard 蛇形网格步距)。
+const TILE_SCALE = 2.2;
 
 // ── 竖排木匾城名 ──
 // 局部常量:深木底 + 暖金边/铆钉,集中在此便于整体调色。
@@ -227,13 +227,14 @@ const PLANK_EDGE = "rgba(212,175,105,0.9)";
  * 任何城名字都只有 ~6-8px——总览不指望读字,靠「色带=区域色相 / 旗形=归属」的形状层辨认
  * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
- * large 17(×1)、medium 18(×0.9=16.2)、small 20(×0.8=16)——小城字号下限抬高补回缩放损失。
+ * large 20(×1)、medium 21(×0.9=18.9)、small 23(×0.8=18.4)——小城字号下限抬高补回缩放损失。
+ * (#58 城池再放大 2.2x 后匾额字另加一档:17/18/20 → 20/21/23,≈+15%。)
  */
 function NamePlaque({ name, capital, size }: { name: string; capital: boolean; size: "large" | "medium" | "small" }) {
   const chars = [...name].slice(0, 3); // 城名 2-3 字
   const w = capital ? 34 : 26;
-  const fs = size === "small" ? 20 : size === "medium" ? 18 : 17;
-  const step = fs + 3; // B5:字距留缝(17→20),三字匾整体高度随之 +6
+  const fs = size === "small" ? 23 : size === "medium" ? 21 : 20;
+  const step = fs + 3; // B5:字距留缝(20→23),三字匾整体高度随之 +6
   const h = chars.length * step + 12;
   const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与色带/王旗/小旌旗重叠
   const y0 = -22;
@@ -519,7 +520,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               y={42}
               textAnchor="middle"
               fontFamily="var(--font-deco)"
-              fontSize={14}
+              fontSize={16}
               fill={rgba(Theme.inkDim)}
             >
               {price}

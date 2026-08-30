@@ -24,3 +24,9 @@
 - **texture:xuan-paper** — CC0 / Wikimedia Commons(宣纸实拍) — 273277B (1920×1280) — [source](https://commons.wikimedia.org/wiki/File:Xuan_Paper_(9974330385).jpg) — 2026-08-30
 - **icon:two-coins** — CC BY 3.0 / Delapouite (game-icons.net) — 1075B (SVG) — [source](https://game-icons.net/1x1/delapouite/two-coins.html) — 2026-08-30
 - **icon:scroll-unfurled** — CC BY 3.0 / Lorc (game-icons.net) — 1967B (SVG) — [source](https://game-icons.net/1x1/lorc/scroll-unfurled.html) — 2026-08-30
+- **texture:qianli-jiangshan** — Public domain / 王希孟(Wang Ximeng,北宋) — 157306B (1920×410, image/webp;Commons 1920px thumb → webp q82) — [source](https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg) — 2026-08-30
+- **audio:stamp-seal** — CC0 / Cerise_Virtuelle (Freesound) — 13713B (ogg) — [source](https://freesound.org/s/759526/) — 2026-08-30
+- **audio:scroll-unroll** — CC0 / leoanderson67 (Freesound) — 47184B (ogg) — [source](https://freesound.org/s/710764/) — 2026-08-30
+- **font:wenkai** — SIL OFL 1.1 / Lxgw(LXGW WenKai);打包 Chawye Hsu — 2856992B(59 分片 woff2,Regular;分片集按项目文本语料筛选,Light 未取) — [source](https://github.com/chawyehsu/lxgw-wenkai-webfont) — 2026-08-30
+- **font:longcang** — SIL OFL 1.1 / Chen Xiaomin(Long Cang 龙藏) — 1483328B(24 分片 woff2;高频桶 + latin/标点) — [source](https://fonts.google.com/specimen/Long+Cang) — 2026-08-30
+- **hero:simayi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)司马懿-经典形象 · wiki 上传者 17981205 — 210233B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=2199) — 2026-08-30 ⚠️ review_required

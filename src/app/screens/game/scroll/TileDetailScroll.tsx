@@ -72,8 +72,9 @@ export function TileDetailScroll({
           <ValueTable property={property} />
         </>
       ) : (
-        <p className="m-1 mb-2 text-center leading-7 text-sm text-ink-dim">
-          {/* board-loader 不变量:Property 格必有 propertyId(即必有 property),走到此分支的必是特殊格 */}
+        <p className="m-1 mb-2 text-center text-sm leading-7 text-ink-dim font-wenkai">
+          {/* A4(#51):规则说明正文用霞鹜文楷(font-wenkai,接入点示意)。
+              board-loader 不变量:Property 格必有 propertyId(即必有 property),走到此分支的必是特殊格 */}
           {SPECIAL_TILE_DESC[tileType as Exclude<TileType, "Property">]}
         </p>
       )}

@@ -5,6 +5,7 @@
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
+import { sellValueOf } from "@core/economy";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import {
@@ -137,10 +138,16 @@ export function DecisionScrollLayer({
           .map((h) => {
             // 城名:按 board.at 的 propertyId 反查格索引(MapTile.id 与 propertyId 非同源,勿混用)
             const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
+            // #60:展示价与引擎入账同一口径——economy.sellValueOf(def, level),即引擎
+            // sellPropertyBankruptcy 的入账函数(不再用购入价,那正是展示 40 实得 16 的根因)。
+            // 零兜底:catalog 缺该城 = 数据 bug,非空断言让其抛。
+            const def = catalog.get(h.propertyId)!;
             return {
               propId: h.propertyId,
               name: tileIndex >= 0 ? board.at(tileIndex).name : h.propertyId,
-              purchasePrice: catalog.get(h.propertyId)?.purchasePrice ?? 0,
+              sellPrice: sellValueOf(def, h.level),
+              purchasePrice: def.purchasePrice,
+              level: h.level,
             };
           })}
         heroes={me.heroes.map((h) => ({ id: h.id, name: h.name }))}
