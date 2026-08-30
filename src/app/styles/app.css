@@ -53,6 +53,29 @@ body,
   }
 }
 
+/* ── S14(#47) 内滚区细滚动条:全项目集中定义一处,所有内滚区(卷轴/面板/列表)统一。
+   系统灰条在宣纸底上突兀 → 6px 金 thumb、track 透明,窄窗目视融入纸色。
+   Firefox 走 scrollbar-width/scrollbar-color(可继承,:root 设一次全生效);
+   Chromium/Safari 走 ::-webkit-scrollbar(通用选择器,天然全局)。── */
+:root {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-gold) transparent;
+}
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--color-gold);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-gold-bright);
+}
+
 /* ── A1(#48) 宣纸纹理叠加:全屏固定层,soft-light 低透明——
    增强手绘风纸质感,不覆盖 SVG 线条(纹理 CC0,public/assets/textures/)。
    pointer-events:none 纯氛围层;z-index 60 压内容低于卷轴(z-30 起的弹层在其下、

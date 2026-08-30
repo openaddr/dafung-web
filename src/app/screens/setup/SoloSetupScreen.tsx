@@ -231,8 +231,9 @@ export function SoloSetupScreen({
                       placeholder="?"
                       onChange={(e) => setGuohao(e.target.value)}
                       // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
+                      // A7(#54):国号输入位用龙藏行书点缀(font-hand)
                       className={
-                        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-deco text-center " +
+                        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
                         (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
                       }
                     />

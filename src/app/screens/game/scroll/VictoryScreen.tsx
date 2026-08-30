@@ -48,9 +48,8 @@ const FW_COLORS = [
   "#fff", // 纯白高光:仅烟花使用,非语义色
 ];
 
-// 遮罩/信息文字色:庆祝屏专属氛围色(暗金墨晕),不进 theme 语义色板,集中常量。
-const OVERLAY_BG =
-  "radial-gradient(circle, rgba(40, 30, 10, 0.75), rgba(20, 15, 5, 0.92))";
+// 信息文字色:庆祝屏专属氛围色(暗金墨晕),不进 theme 语义色板,集中常量。
+// 底色(含 A6 千里江山图山水带的多层背景)统一在 victory.css 的 .victory-anim-overlay。
 const INFO_TEXT = "rgba(255, 240, 200, 0.85)";
 
 /** E3 烟花尺度基准宽:以 1280px 视口为 1.0,大屏放大/小屏缩到 0.7~1.8。 */
@@ -145,7 +144,6 @@ export function VictoryScreen({
     <div
       data-testid={T.victoryScreen}
       className="victory-anim-overlay absolute inset-0 z-40 flex flex-col items-center justify-center"
-      style={{ background: OVERLAY_BG }}
     >
       {particles.map((p) => (
         <span

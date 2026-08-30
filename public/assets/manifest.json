@@ -161,5 +161,45 @@
     "author": "Lorc (game-icons.net)",
     "fetched_at": "2026-08-30",
     "review_required": false
+  },
+  "texture:qianli-jiangshan": {
+    "path": "assets/textures/qianli-jiangshan.webp",
+    "source": "https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg",
+    "license": "Public domain",
+    "author": "王希孟(Wang Ximeng,北宋);1920px thumb → webp q82",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "audio:stamp-seal": {
+    "path": "assets/audio/stamp-seal.ogg",
+    "source": "https://freesound.org/s/759526/",
+    "license": "CC0",
+    "author": "Cerise_Virtuelle (Freesound, lq ogg 预览直链)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "audio:scroll-unroll": {
+    "path": "assets/audio/scroll-unroll.ogg",
+    "source": "https://freesound.org/s/710764/",
+    "license": "CC0",
+    "author": "leoanderson67 (Freesound, lq ogg 预览直链)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "font:wenkai": {
+    "path": "fonts/wenkai/",
+    "source": "https://github.com/chawyehsu/lxgw-wenkai-webfont",
+    "license": "SIL OFL 1.1",
+    "author": "LXGW WenKai by Lxgw;webfont 打包 Chawye Hsu(lxgw-wenkai-webfont@1.7.0,59 分片 Regular)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
+  },
+  "font:longcang": {
+    "path": "fonts/long-cang/",
+    "source": "https://fonts.google.com/specimen/Long+Cang",
+    "license": "SIL OFL 1.1",
+    "author": "Long Cang(龙藏)by Chen Xiaomin(google/fonts,24 分片)",
+    "fetched_at": "2026-08-30",
+    "review_required": false
   }
 }

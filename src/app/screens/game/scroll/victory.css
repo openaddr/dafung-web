@@ -2,6 +2,23 @@
    避免与其他并行改动的 css 文件冲突;本文件只被 VictoryScreen.tsx 引入。
    阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 终榜 900ms(E4 第 4 拍)
    → 再战按钮由组件延迟 1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。 */
+
+/* ── A6(#53) 千里江山图局部(王希孟,Public Domain;Commons 1e section → webp):
+   青绿山水带作胜利屏最底一层背景(100% 宽保持原比例,贴屏底),
+   上压暗色渐变——屏底 0.45 渐升至 0.95:只露出一条低透明山水带,层次增强不抢大字。
+   多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。── */
+.victory-anim-overlay {
+  background:
+    linear-gradient(
+      to top,
+      rgba(20, 15, 5, 0.45) 0%,
+      rgba(20, 15, 5, 0.82) 26%,
+      rgba(20, 15, 5, 0.95) 42%
+    ),
+    url("/assets/textures/qianli-jiangshan.webp") center bottom / 100% auto no-repeat,
+    radial-gradient(circle, rgba(40, 30, 10, 0.75), rgba(20, 15, 5, 0.92));
+}
+
 @keyframes victory-fade-up {
   from {
     opacity: 0;

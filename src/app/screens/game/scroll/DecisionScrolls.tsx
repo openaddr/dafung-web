@@ -40,7 +40,8 @@ export function BranchDecisionScroll({
   ]);
   return (
     <ScrollShell title="驿道岔口" testid={T.branchScroll}>
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
+      {/* A4(#51):事件描述正文用霞鹜文楷(font-wenkai,接入点示意) */}
+      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
         驿道至此分岔:大路平坦快捷,辅路僻静多机。入辅路者本回合就此扎营,来日掷骰进发。
       </p>
       <div className="flex flex-wrap justify-center gap-3">

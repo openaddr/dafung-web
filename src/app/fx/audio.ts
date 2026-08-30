@@ -288,15 +288,20 @@ export class SynthAudioPlayer implements AudioPlayer {
 const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // diceRoll 不再映射文件:旧 drum-roll.ogg 是 4s 完整鼓滚奏,行军点击(=掷骰)是
   // 全游戏最高频触发,太吵(#26)——改走上方合成轻快瞬态。banner 低频保留鼓滚奏。
+  // A5(#52):stamp 换 Freesound 759526 真实印章采样(CC0,lq ogg 直链),
+  // 文件通路 gain 0.6 × master 0.5 = 0.3,与既有音量档对齐;sinks.ts 调用点零改动。
   diceLand: "/assets/audio/woodblock-hit.ogg",
   coin: "/assets/audio/coin-drop.ogg",
-  stamp: "/assets/audio/gong-hit.ogg",
+  stamp: "/assets/audio/stamp-seal.ogg",
   banner: "/assets/audio/drum-roll.ogg",
   buy: "/assets/audio/coins-shake.ogg",
   treasure: "/assets/audio/guqin-note.ogg",
   bankrupt: "/assets/audio/gong-long.ogg",
   victory: "/assets/audio/victory-fanfare.ogg",
   upgrade: "/assets/audio/woodblock-hit.ogg",
+  // 卷轴开音效资源已入库:/assets/audio/scroll-unroll.ogg(Freesound 710764,CC0)。
+  // 接入点(待接):SoundEvent 增 "scrollOpen" + ScrollShell 挂载时 getAudio().play("scrollOpen"),
+  // 再在此映射该文件——现无 onOpen 事件钩子,先留资源+登记(A5 工单口径),不挂死代码。
 };
 
 /**

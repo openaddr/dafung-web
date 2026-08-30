@@ -108,3 +108,15 @@ ffmpeg -i sound-gong.ogg -t 3 -ac 1 -b:a 48k sound-gong.ogg
 新增 `FileAudioPlayer` 实现,预加载 `assets/audio/sound-*.ogg` 到 `Map<SoundEvent, AudioBuffer>`,
 `play(event)` 查表回放;`SynthAudioPlayer` 作为兜底(文件未就绪/加载失败时降级)。
 调用处 `this.audio.play(event)` 永不改。
+
+---
+
+## A5(#52) Freesound CC0 增补(2026-08-30)
+
+以下两条不走 Commons 管线,来自 Freesound CC0 过滤搜索,`cdn.freesound.org/previews/`
+lq ogg 预览直链直下(浏览器/Tauri2 原生解码),已登记 manifest.json + CREDITS.md:
+
+| id | 用途(SoundEvent) | Freesound | 授权 | 作者 | 大小 |
+|---|---|---|---|---|---|
+| **audio:stamp-seal** | stamp 印章(替换原 gong-hit 映射) | [#759526](https://freesound.org/s/759526/) "Wax seal" | **CC0** | Cerise_Virtuelle | 13.7KB |
+| **audio:scroll-unroll** | 卷轴开(资源已入库,接入点:`SoundEvent` 增 `scrollOpen` + `ScrollShell` 挂载时 play,见 audio.ts 注) | [#710764](https://freesound.org/s/710764/) "Paper unroll" | **CC0** | leoanderson67 | 47.2KB |
