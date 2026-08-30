@@ -1,22 +1,29 @@
-// 生成"棋盘天下"内置地图(网格对齐版,public/maps/chessboard.json)。
+// 生成"棋盘天下"内置地图(蛇形全网格版,public/maps/chessboard.json)。
 //
-// 为什么:现有 sanguo 图尊重历史真实地理,但城池坐标自由散布,视觉上道路交叉、
-// 城池错落,难以一眼看懂全局。本脚本把同一套城池(数量/id/名称/类型/价格/分组
-// 全部不动,只改 pos)重新排布到 13 列 × 9 行的规则网格上,形成"外环 + 中央辅路"
-// 的棋盘骨架:
-//   - 主环 = 原主路 40 格 + 2 渡口/驿站过渡格(见 FERRY_TILES),沿矩形外圈 + 中央横排行进,横纵对齐;
-//   - 八方位分段:上=幽燕/青徐,右=江东,下=荆楚→岭南,左=巴蜀→西凉,中原居中;
-//   - 中央辅路(branch):许昌 → 襄阳,穿越东南腹地空网格,保留 sanguo 的辅路玩法
-//     (拼点探宝/锦囊/中伏,与原版 kind 节奏一致)。
+// #58 用户看图直报:旧回字形布局(外环 + 中央横排)中央留白浪费、城池挤且小。
+// 本版废除回字形,把主环 42 格按 S 形蛇形铺满 7 列 × 6 行全网格:
+//   - 偶数行自左向右、奇数行自右向左,行末在边缘列 U 弯(上下相邻格转折);
+//   - 蛇形收尾与会稽(41)→ 长安(0) 的闭环边自然落在西边缘列,长边由
+//     board.sideArc 自动绕弧(edgeWaypoints 阈值 300),不横穿棋盘;
+//   - 行末 U 弯格(宛城→卧龙岗/长沙→天命/江州→成都/凉州→邺城/临淄→徐州)
+//     与闭环边一样是上下邻接,主环拓扑 = tiles 数组顺序,零改动。
 //
-// 为什么中央不是"辅路上的城":loadMap 的 branch cells 只允许 treasure/event/penalty
-// (MapBranchCell 无城市语义),且主环必须是全部 tiles 的闭合环——因此中原城市群
-// 放在主环的中央横排(第 4 行)上,辅路作为环外捷径从许昌斜穿到襄阳,效果等同
-// "骨架 = 外环 + 中央通路"。
+// 为什么 7 列而不是工单字面的 8 列:主环恰 42 格,7×6=42 精确铺满(全网格、
+// 零空洞);8×6=48 会剩 6 个空格集中落在蛇形末行,形成整段连续空白带,直接
+// 违背 #58 验收标准 1(全画布无明显连续空白带)。列距取 400(工单 ≈390、
+// issue ≈400),7 列总跨距 2400,与 8×390 的 2800 同量级,FIT_VIEW 按包围盒
+// 收紧后画布两侧富余画纸不出视口。
 //
-// 网格几何:#39 城池再放大 + 拉大间距 → 逻辑画布 1.4x(StaticLayers VB
-// {-1510,-936,3220,1932});13 列(列距 238)x 9 行(行距 196),网格中心对齐
-// 画布中心 (100, 30),四周留边距,最小间距 196 ≥ MIN_TILE_DIST(80)。
+// 网格几何:逻辑画布 3220×1932 不变(StaticLayers VB {-1510,-936,3220,1932}),
+// 网格中心对齐画布中心 (100, 30):7 列 × 400(x -1100..1300)、6 行 × 310
+// (y -745..805),画布上下各留 191、左右各留 410 画纸(总览视口按城池包围盒
+// 收紧,富余画纸不进视口)。最小间距 310 ≥ MIN_TILE_DIST(80);城池铭牌外缘
+// ~104×2.2≈229 < 行距 310 < 列距 400,无压盖。
+//
+// 辅路(branch):许昌 → 襄阳,start/end 引用的主环格与 cells 的 kind 节奏
+// (treasure×2 → event → treasure → penalty)零改动,只重摆 cells 坐标:
+// 五格沿第 0/1 行之间的行间走廊(y=-590,距上下城池铭牌各 ≥ 155)横向排开,
+// 首尾自然斜接许昌/襄阳,不与主路交叉。
 //
 // 运行:bun scripts/make-chessboard-map.ts(确定性输出,可随时重新生成)。
 
@@ -31,90 +38,93 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
 const src = JSON.parse(readFileSync(resolve(root, "public/maps/sanguo.json"), "utf8")) as MapData;
 
-// ── 网格参数(#39:列距/行距 1.4x,城池散开)──
-const COLS = 13, ROWS = 9;
-const COL_STEP = 238, ROW_STEP = 196;
+// ── 网格参数(#58:7×6 蛇形全网格,间距暴增)──
+const COLS = 7, ROWS = 6;
+const COL_STEP = 400, ROW_STEP = 310;
 // 网格居中于画布中心 (x=-1510+3220/2=100, y=-936+1932/2=30)
-const gx = (c: number) => 100 + (c - 6) * COL_STEP; // 列 0..12 → x -1328..1528
-const gy = (r: number) => 30 + (r - 4) * ROW_STEP; // 行 0..8 → y -754..814
+const gx = (c: number) => 100 + (c - 3) * COL_STEP; // 列 0..6 → x -1100..1300
+const gy = (r: number) => 30 + (r - 2.5) * ROW_STEP; // 行 0..5 → y -745..805
 
-// ── 布局表:id → [col, row] ──
+// ── 蛇形布局表:id → [col, row] ──
 // 主环走向(tiles 数组顺序 = 原 sanguo 顺序,未重排,只换坐标):
-//   中原横排(行4,自右向左)→ 下边(行8,自右向左:荆楚→岭南)→ 左边(列0,自下而上:巴蜀→西凉)
-//   → 上边(行0,自左向右:幽燕→青徐)→ 右边(列12,自上而下:江东)→ 闭合 会稽→长安。
-// 段间衔接边全部横纵对齐(或 1-2 格短斜线);卧龙→襄阳 长弧由"新野驿站"
-// (9,7) 分为两段,底部 交州→江州 空档由"涪陵渡"(1,8) 衔接(见 FERRY_TILES)。
-// 卧龙(5,6) 单独下坠一格:宛城→卧龙→襄阳 的"出中原入荆楚"姿态,也还原
-// 卧龙岗在宛、襄之间的史实方位。
+//   行 0 自左向右(中原:长安→宛城)→ U 弯 ↓
+//   行 1 自右向左(卧龙岗/新野驿站过渡,荆楚:襄阳→长沙)→ U 弯 ↓
+//   行 2 自左向右(凶/荆楚南段/涪陵渡/巴蜀东端)→ U 弯 ↓
+//   行 3 自右向左(巴蜀→西凉)→ U 弯 ↓
+//   行 4 自左向右(邺城/幽燕/税关/锦囊/青徐)→ U 弯 ↓
+//   行 5 自右向左(徐州→会稽),会稽落在西下角,与长安同列,闭环边沿西缘。
 const LAYOUT: Record<string, [number, number]> = {
-  // 中原居中(行 4 自右向左;许昌/宛城/卧龙构成通向南方的出口)
-  "prop-changan": [10, 4], // 长安:中原西端(近西凉/巴蜀一侧,史实方位)
-  "prop-xianyang": [9, 4], // 咸阳
-  "prop-hangu": [8, 4], // 函谷关
-  "prop-luoyang": [7, 4], // 洛阳
-  "prop-hulao": [6, 4], // 虎牢关
-  "prop-xuchang": [5, 4], // 许昌:辅路入口
-  "prop-wan": [4, 4], // 宛城
-  "tile-wolong": [5, 6], // 卧龙岗:下沉一格,衔接荆楚
-  // 下边(行 8 自右向左):荆楚 → 岭南
-  "prop-xiangyang": [12, 8], // 襄阳:东南角,辅路终点
-  "prop-jiangxia": [11, 8],
-  "prop-wuchang": [10, 8],
-  "prop-chibi": [9, 8],
-  "prop-changsha": [8, 8],
-  "tile-fate-1": [7, 8], // 天命
-  "prop-jiangling": [6, 8],
-  "prop-huarong": [5, 8],
-  "prop-lingling": [4, 8],
-  "prop-jiaozhou": [3, 8], // 交州:西南角近巴蜀
-  // 左边(列 0 自下而上):巴蜀 → 西凉
-  "prop-jiangzhou": [0, 8], // 江州:左下角
-  "prop-chengdu": [0, 7],
-  "prop-jiange": [0, 6],
-  "prop-hanzhong": [0, 5],
-  "prop-ziwu": [0, 4],
-  "prop-jieting": [0, 3],
-  "prop-yongzhou": [0, 2],
-  "prop-liangzhou": [0, 1], // 凉州:左上角
-  // 上边(行 0 自左向右):邺城(中原北门)→ 幽燕 → 青徐
-  "prop-ye": [0, 0], // 邺城:左上角,与凉州纵向衔接闭合左上
-  "prop-jinyang": [1, 0],
-  "prop-youzhou": [2, 0],
-  "tile-tax-1": [3, 0], // 税关
-  "prop-liaodong": [4, 0],
-  "tile-chance-1": [5, 0], // 锦囊
-  "prop-linzi": [6, 0],
-  "prop-xuzhou": [7, 0],
-  "prop-shouchun": [8, 0],
-  "prop-hefei": [9, 0],
-  // 右边(列 12 自上而下):江东
-  "prop-jianye": [12, 0], // 建业:右上角,与合肥横向衔接闭合右上
-  "tile-stock-1": [12, 1], // 商市
-  "prop-wujun": [12, 2],
-  "prop-kuiji": [12, 3], // 会稽:闭合边 会稽→长安(短斜线)回到中原
+  // 行 0(自左向右):中原
+  "prop-changan": [0, 0], // 长安:蛇头,与蛇尾会稽同列(闭环边沿西缘)
+  "prop-xianyang": [1, 0], // 咸阳
+  "prop-hangu": [2, 0], // 函谷关
+  "prop-luoyang": [3, 0], // 洛阳
+  "prop-hulao": [4, 0], // 虎牢关
+  "prop-xuchang": [5, 0], // 许昌:辅路入口
+  "prop-wan": [6, 0], // 宛城:行 0 末,东缘 U 弯下行
+  // 行 1(自右向左):卧龙岗/新野驿站 + 荆楚北段
+  "tile-wolong": [6, 1], // 卧龙岗:U 弯后第一格
+  // (tile-ferry-xinye 新野驿站 插在卧龙岗之后,占 (5,1),见 FERRY_TILES)
+  "prop-xiangyang": [4, 1], // 襄阳:辅路终点
+  "prop-jiangxia": [3, 1],
+  "prop-wuchang": [2, 1],
+  "prop-chibi": [1, 1],
+  "prop-changsha": [0, 1], // 行 1 末,西缘 U 弯下行
+  // 行 2(自左向右):荆楚南段 + 巴蜀东端
+  "tile-fate-1": [0, 2], // 天命
+  "prop-jiangling": [1, 2],
+  "prop-huarong": [2, 2],
+  "prop-lingling": [3, 2],
+  "prop-jiaozhou": [4, 2],
+  // (tile-ferry-fuling 涪陵渡 插在交州之后,占 (5,2),见 FERRY_TILES)
+  "prop-jiangzhou": [6, 2], // 江州:行 2 末,东缘 U 弯下行
+  // 行 3(自右向左):巴蜀 → 西凉
+  "prop-chengdu": [6, 3],
+  "prop-jiange": [5, 3],
+  "prop-hanzhong": [4, 3],
+  "prop-ziwu": [3, 3],
+  "prop-jieting": [2, 3],
+  "prop-yongzhou": [1, 3],
+  "prop-liangzhou": [0, 3], // 行 3 末,西缘 U 弯下行
+  // 行 4(自左向右):邺城/幽燕/青徐
+  "prop-ye": [0, 4],
+  "prop-jinyang": [1, 4],
+  "prop-youzhou": [2, 4],
+  "tile-tax-1": [3, 4], // 税关
+  "prop-liaodong": [4, 4],
+  "tile-chance-1": [5, 4], // 锦囊
+  "prop-linzi": [6, 4], // 行 4 末,东缘 U 弯下行
+  // 行 5(自右向左):青徐南段 → 江东
+  "prop-xuzhou": [6, 5],
+  "prop-shouchun": [5, 5],
+  "prop-hefei": [4, 5],
+  "prop-jianye": [3, 5],
+  "tile-stock-1": [2, 5], // 商市
+  "prop-wujun": [1, 5],
+  "prop-kuiji": [0, 5], // 会稽:蛇尾,与蛇头长安同列,闭环边沿西缘向上
 };
 
 // ── A1 过渡格:渡口/驿站中性格(非地产)──
-// 卧龙岗(5,6)→襄阳(12,8) 原为 ~1200px 跨图对角线;补 1 格"新野驿站"
-// (新野在宛、襄之间,史实方位吻合)于 (9,7),两侧边各 ~530-690px。
-// 交州(3,8)→江州(0,8) 原 510px 底部空档;补 1 格"涪陵渡"(涪陵在江州
-// 东侧、荆湘入蜀水路要冲)于 (1,8),贴近江州一侧。
+// 沿用旧版两只过渡格与插入点(卧龙岗后/交州后),坐标换成蛇形对应空位:
+// 新野驿站 (5,1) 补行 1 缺口,涪陵渡 (5,2) 补行 2 缺口。
 // 类型用 Chance(锦囊/际遇语义,主路已有 tile-chance-1 先例):非地产、
 // 无购买/都城语义,落格抽锦囊,最贴近"渡口/驿站"的中性表达。
 const FERRY_TILES: Array<{ after: string; tile: { id: string; name: string; type: "Chance" } & Record<string, unknown>; c: number; r: number }> = [
-  { after: "tile-wolong", tile: { id: "tile-ferry-xinye", name: "新野驿站", type: "Chance" }, c: 9, r: 7 },
-  { after: "prop-jiaozhou", tile: { id: "tile-ferry-fuling", name: "涪陵渡", type: "Chance" }, c: 1, r: 8 },
+  { after: "tile-wolong", tile: { id: "tile-ferry-xinye", name: "新野驿站", type: "Chance" }, c: 5, r: 1 },
+  { after: "prop-jiaozhou", tile: { id: "tile-ferry-fuling", name: "涪陵渡", type: "Chance" }, c: 5, r: 2 },
 ];
 
-// ── 中央辅路:许昌 → 襄阳,穿越东南腹地空网格(阶梯状网格点)──
-// kind 节奏沿用 sanguo 原 branch:treasure×2 → event → treasure → penalty。
-// 网格点 (6,5)(7,5)(8,6)(9,6)(10,7) 均为主环之外的空位,与相邻主城距离 ≥ 140。
-const BRANCH_CELLS: Array<{ kind: "treasure" | "event" | "penalty"; c: number; r: number }> = [
-  { kind: "treasure", c: 6, r: 5 },
-  { kind: "treasure", c: 7, r: 5 },
-  { kind: "event", c: 8, r: 6 },
-  { kind: "treasure", c: 9, r: 6 },
-  { kind: "penalty", c: 10, r: 7 },
+// ── 辅路:许昌 → 襄阳,cells 走行 0/1 之间的行间走廊 ──
+// kind 节奏沿用 sanguo 原 branch:treasure×2 → event → treasure → penalty(零改动)。
+// 走廊 y=-590(行距中点):距上行/下行城池铭牌边缘各 ≥ 155-114≈40(圆点 r18
+// 实际与铭牌无碰),格间距 85 ≥ MIN_TILE_DIST(80);首尾斜接许昌 (900,-745)
+// / 襄阳 (500,-435),整条辅路不与主路交叉。
+const BRANCH_CELLS: Array<{ kind: "treasure" | "event" | "penalty"; x: number; y: number }> = [
+  { kind: "treasure", x: 820, y: -590 },
+  { kind: "treasure", x: 735, y: -590 },
+  { kind: "event", x: 650, y: -590 },
+  { kind: "treasure", x: 565, y: -590 },
+  { kind: "penalty", x: 480, y: -590 },
 ];
 
 // ── 组装:逐 tile 只替换 pos,其余字段(id/name/type/group/价格/租金)原样保留 ──
@@ -137,7 +147,7 @@ const out: MapData = {
     id: "zhongyuan-side",
     start: "prop-xuchang",
     end: "prop-xiangyang",
-    cells: BRANCH_CELLS.map(({ kind, c, r }) => ({ kind, pos: [gx(c), gy(r)] })),
+    cells: BRANCH_CELLS.map(({ kind, x, y }) => ({ kind, pos: [x, y] })),
   },
 };
 
@@ -172,7 +182,7 @@ const entry = {
   id: "chessboard",
   name: "棋盘天下",
   file: "chessboard.json",
-  desc: "网格对齐版,大致方位:外环八区、中原居中;31 城主环 42 格,新野驿站/涪陵渡过渡,许昌—襄阳辅路穿腹地",
+  desc: "蛇形全网格版:7×6 主环 42 格 S 形铺满,行末 U 弯衔接;许昌—襄阳辅路沿北走廊",
   tileCount: propCount,
   targetNetWorth: src.targetNetWorth,
 };
@@ -181,13 +191,14 @@ if (at >= 0) index[at] = entry;
 else index.push(entry);
 writeFileSync(idxPath, JSON.stringify(index, null, 2) + "\n");
 
-// ── 八方位段分配表(报告用)──
+// ── 蛇形段分配表(报告用)──
 const seg = (label: string, ids: string[]) =>
   console.log(`${label}: ${ids.map((id) => tiles.find((t) => t.id === id)!.name).join("→")}`);
-console.log("\n八方位段分配:");
-seg("上(行0 自西向东)", ["prop-ye", "prop-jinyang", "prop-youzhou", "tile-tax-1", "prop-liaodong", "tile-chance-1", "prop-linzi", "prop-xuzhou", "prop-shouchun", "prop-hefei"]);
-seg("右(列12 自北向南)", ["prop-jianye", "tile-stock-1", "prop-wujun", "prop-kuiji"]);
-seg("中(行4 自东向西)", ["prop-changan", "prop-xianyang", "prop-hangu", "prop-luoyang", "prop-hulao", "prop-xuchang", "prop-wan", "tile-wolong", "tile-ferry-xinye"]);
-seg("下(行8 自东向西)", ["prop-xiangyang", "prop-jiangxia", "prop-wuchang", "prop-chibi", "prop-changsha", "tile-fate-1", "prop-jiangling", "prop-huarong", "prop-lingling", "prop-jiaozhou", "tile-ferry-fuling"]);
-seg("左(列0 自南向北)", ["prop-jiangzhou", "prop-chengdu", "prop-jiange", "prop-hanzhong", "prop-ziwu", "prop-jieting", "prop-yongzhou", "prop-liangzhou"]);
+console.log("\n蛇形段分配:");
+seg("行0 西→东", ["prop-changan", "prop-xianyang", "prop-hangu", "prop-luoyang", "prop-hulao", "prop-xuchang", "prop-wan"]);
+seg("行1 东→西", ["tile-wolong", "tile-ferry-xinye", "prop-xiangyang", "prop-jiangxia", "prop-wuchang", "prop-chibi", "prop-changsha"]);
+seg("行2 西→东", ["tile-fate-1", "prop-jiangling", "prop-huarong", "prop-lingling", "prop-jiaozhou", "tile-ferry-fuling", "prop-jiangzhou"]);
+seg("行3 东→西", ["prop-chengdu", "prop-jiange", "prop-hanzhong", "prop-ziwu", "prop-jieting", "prop-yongzhou", "prop-liangzhou"]);
+seg("行4 西→东", ["prop-ye", "prop-jinyang", "prop-youzhou", "tile-tax-1", "prop-liaodong", "tile-chance-1", "prop-linzi"]);
+seg("行5 东→西", ["prop-xuzhou", "prop-shouchun", "prop-hefei", "prop-jianye", "tile-stock-1", "prop-wujun", "prop-kuiji"]);
 console.log("\n已写入 public/maps/chessboard.json 并更新 index.json");

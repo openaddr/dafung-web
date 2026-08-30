@@ -8,9 +8,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** 总览 viewBox(贴紧城池范围 + 边距)。
- *  #39 城池间距 1.4x 重排 → 逻辑画布 3220×1932(StaticLayers VB 同源),
- *  边距保持 ~3%(宽高比 1.667,preserveAspectRatio 不产生新留白)。 */
-export const FIT_VIEW = { x: -1558, y: -965, w: 3317, h: 1990 } as const;
+ *  #58 蛇形全网格重排:7 列 × 400 / 6 行 × 310 → 城池包围盒
+ *  x -1236..1436(城台底座半宽 62×2.2)、y -945..906(王旗顶 -91×2.2 ~ 价格字底 46×2.2),
+ *  即内容 2672×1851 @中心 (100,-20)。边距 ~3% 并保持宽高比 5/3=1.667
+ *  (与 StaticLayers VB 同比例,preserveAspectRatio 不产生新留白)。 */
+export const FIT_VIEW = { x: -1490, y: -974, w: 3180, h: 1908 } as const;
 
 /** 总览 viewBox 属性串(BoardView 作初始 prop 一次性下发,React 之后不再改写)。 */
 export const FIT_VIEW_BOX = `${FIT_VIEW.x} ${FIT_VIEW.y} ${FIT_VIEW.w} ${FIT_VIEW.h}`;
