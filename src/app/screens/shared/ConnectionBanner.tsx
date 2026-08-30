@@ -14,11 +14,14 @@ export function ConnectionBanner() {
       data-testid="connection-banner"
       // 呼吸动画(animate-pulse):比静态红条更显眼,传达"正在重连"而非"已死"
       className={
-        "absolute inset-x-0 top-0 z-20 flex justify-center bg-danger/90 py-1.5 font-deco text-sm text-white " +
+        "absolute inset-x-0 top-0 z-20 flex justify-center bg-danger/90 font-deco text-sm text-white " +
         (gaveUp ? "" : "animate-pulse")
       }
     >
-      {gaveUp ? "已断线,请刷新页面" : "连接中断,重连中…"}
+      {/* S3(#36):贴顶横幅在刘海屏横屏下会被刘海切字,垂直内边距吃进 safe-top */}
+      <span style={{ paddingTop: "calc(var(--safe-top) + 6px)", paddingBottom: "6px" }}>
+        {gaveUp ? "已断线,请刷新页面" : "连接中断,重连中…"}
+      </span>
     </div>
   );
 }

@@ -16,8 +16,9 @@
 | 播放/试玩 | `▶` | 编辑器「试玩这局」 |
 | 双向通行(驿道) | `⇄` | 棋盘辅路入口记号(StaticLayers) |
 | 珍宝 | `◆` | 珍宝行(TreasuryPanel,L48 起随珍宝·名士区),金色 |
-| 关闭 | `×` | 卷轴标题栏关闭钮(ScrollShell) |
+| 关闭 | `×` | 卷轴标题栏关闭钮(ScrollShell,44px 热区)。适用范围(S10/#43,2026-08-30):凡可放弃的卷轴均显示——详情类(TileDetailScroll/CardDetailScroll)与可关的只读面板(如珍宝交涉访客视角)必须保留 ×;只有必须决策的卷轴(购地/扩军/岔口/招贤/破产/交涉城主)不渲染 ×(不传 `onClose`,`hideClose` 仅为此保留) |
 | 单字印章 | 掷/置/扩/税/济/通/宝/禁/卖/胜/纪/天 | ~~战报事件章(WarlogPanel)~~ 战报区已移除(L48,2026-08-19),字表随 WarlogPanel 退役;存量的 UI 单字印(「你」印/「托」印/「智」「胜」后缀)不受影响,仍属本档口径 |
+| 展开/下拉 | `▾` | 行尾「还有下级可选」提示,当前地图行尾在用(HomeScreen)。S5(#38,2026-08-30)补登记 |
 
 ## 本次替换记录(react-rewrite,2026-08-16)
 
@@ -37,6 +38,7 @@
 | src/app/screens/game/scroll/ScrollShell.tsx:105 | × | × | 一致 |
 | src/app/components/board/StaticLayers.tsx:118 | ⇄ | ⇄ | 一致 |
 | src/app/screens/game/HandPanel.tsx:84 | ◆ | ◆ | 一致(L48 起该行迁至 TreasuryPanel,符号不变) |
+| src/app/screens/home/HomeScreen.tsx:99 | ▾ | ▾ | 一致(S5/#38 登记「展开/下拉」后归表,2026-08-30) |
 
 > 唯二的历史不一致(♪/♫、⌖)都发生在 GameScreen(本批独占文件)内,已随本批清零;
 > 其余文件盘点后无漂移,后续新增 UI 以本表为准。

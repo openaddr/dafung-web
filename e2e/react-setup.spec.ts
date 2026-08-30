@@ -9,9 +9,10 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   await openSoloSetup(page);
   const screen = page.getByTestId("solo-setup-screen");
   await expect(screen).toBeVisible();
-  await expect(page.getByTestId("setup-seat-count")).toHaveValue("4");
-  await expect(page.getByTestId("setup-target")).toHaveValue("30000");
-  await expect(page.getByTestId("setup-difficulty")).toHaveValue("Normal");
+  // X10(#29):select → stepper/分段选择器,断言改为数值文本 + 选项 aria-pressed
+  await expect(page.getByTestId("setup-seat-count")).toHaveText("4");
+  await expect(page.getByTestId("setup-target-30000")).toHaveAttribute("aria-pressed", "true");
+  await expect(page.getByTestId("setup-difficulty-Normal")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("current-map-name")).toHaveText("棋盘天下", { timeout: 10_000 });
 
   // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号占位「电脑」,S-7 改语义)
@@ -23,8 +24,10 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   }
   await expect(page.getByTestId("setup-seat-0-type")).toHaveText("你");
 
-  // 诸侯数切换:座位行数跟随
-  await page.getByTestId("setup-seat-count").selectOption("2");
+  // 诸侯数切换:座位行数跟随(X10 stepper:4 −→ 3 −→ 2)
+  await page.getByTestId("setup-seat-count-minus").click();
+  await page.getByTestId("setup-seat-count-minus").click();
+  await expect(page.getByTestId("setup-seat-count")).toHaveText("2");
   await expect(page.getByTestId("setup-seat-1")).toBeVisible();
   await expect(page.getByTestId("setup-seat-2")).toHaveCount(0);
 });
@@ -54,7 +57,7 @@ test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", a
 test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号无重号", async ({ page }) => {
   await page.goto("/?seed=20260815");
   await openSoloSetup(page);
-  await page.getByTestId("setup-seat-count").selectOption("3");
+  await page.getByTestId("setup-seat-count-minus").click(); // X10 stepper:4 → 3
   await page.getByTestId("start-game").click();
   await waitForEngine(page);
 

@@ -4,12 +4,17 @@
 // L48:珍宝/名士卡迁出至 TreasuryPanel(战报移除后腾出的常驻展示区),本区只留身份与行动。
 // 交互重构:原 ActionInline 内嵌决策(买/扩军/驻跸/选路)整体迁入卷轴体系
 // (DecisionScrollLayer 按相位自动弹出),手牌区不再有任何决策按钮。
-import { useEffect, useRef, useState } from "react";
+// #44/S11:现金浮标的跨快照 diff 逻辑抽成 useDeltaFloat(本目录同名文件);
+// #21/X2:委任 chip 复用同款浮标(巡幸 +2 金字浮出,买城 −1 红字);
+// #45/S12:观战空态从两行说明升级为「观」印身份行 + 被跟随者(房主)资产列表。
+import { useState } from "react";
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
-import type { GameSnapshot } from "@app/store/gameStore";
+import { guidePriceOf } from "@core/treasures";
+import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
+import { DeltaFloatSpans, useDeltaFloat } from "./useDeltaFloat";
 import { TESTIDS } from "./testids";
 import "./game-hud.css";
 
@@ -60,6 +65,31 @@ function IdentityHeader({ player }: { player: NonNullable<HandPanelProps["player
   );
 }
 
+/** #45/S12「我是谁在看」观战锚点:与 IdentityHeader 同一行解剖(国号大字 + 被跟随者
+ *  色底纹 + 章形印),但印文是灰墨「观」——你(gold,参与者)与观(墨,旁观者)
+ *  用印色区分身份,不靠新读者猜。国号 = 被跟随者(对局发起者=房主座)。 */
+function SpectatorIdentityHeader({ followed }: { followed: SnapshotPlayer }) {
+  const c = playerColor(followed.colorIndex);
+  return (
+    <div
+      data-testid={TESTIDS.handSpectatorIdentity}
+      title={`观战 · 跟随「${followed.guohao}」的视角`}
+      className="m-2 flex items-center gap-2.5 rounded border-l-[3px] px-2.5 py-1.5"
+      style={{
+        ["--player-color" as string]: rgba(c),
+        borderColor: rgba(c, 0.35),
+        background: `linear-gradient(100deg, ${rgba(c, 0.1)}, ${rgba(c, 0.02)} 72%)`,
+      }}
+    >
+      <span className="font-brush text-2xl leading-none text-ink-dim">{followed.guohao || "?"}</span>
+      <span className="font-deco text-xs text-ink-dim">跟随视角</span>
+      <span className="ml-auto inline-flex rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-ink/50 bg-ink/5 px-1.5 py-0.5 font-brush text-xs leading-none text-ink-dim">
+        观
+      </span>
+    </div>
+  );
+}
+
 interface HandPanelProps {
   snapshot: GameSnapshot;
   /** 本地视角玩家(热座=活跃人类;联机=自己)。null = 未入座,只渲染空态。 */
@@ -73,31 +103,20 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // 回落 controller.autoPilotOn(本地标记)。速度是本地 UI 态(切速时若在托管中立即重发)
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
-  // 托管态单源取值(与 GameScreen 同口径):联机=座位广播,单机=控制器本地标记
-  const autopilotOn = net.roomId !== "" ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
-  // G-9 现金变化就地反馈:跨快照比对 cash 差值,现金 chip 右上浮出 +/− 标记
-  // (game-hud.css 的 game-cash-float 1.2s 上浮消失;正=gold 负=danger)。
-  const prevCashRef = useRef<number | null>(null);
-  const floatIdRef = useRef(0);
-  const [cashFloats, setCashFloats] = useState<{ id: number; delta: number }[]>([]);
-  const cash = player?.cash ?? null;
-  useEffect(() => {
-    if (cash == null) {
-      prevCashRef.current = null;
-      return;
-    }
-    const prev = prevCashRef.current;
-    prevCashRef.current = cash;
-    if (prev == null || prev === cash) return;
-    const delta = cash - prev;
-    if (delta === 0) return;
-    const id = ++floatIdRef.current;
-    setCashFloats((f) => [...f, { id, delta }]);
-    const timer = setTimeout(() => {
-      setCashFloats((f) => f.filter((x) => x.id !== id));
-    }, 1250);
-    return () => clearTimeout(timer);
-  }, [cash]);
+  // 托管态单源取值(与 GameScreen 同口径):联机已入座=座位广播,单机=控制器本地标记。
+  // #45/S12:观战(未入座,mySeat=-1)没有「我的托管」——这不是数据缺失而是正常态
+  // (动作区/托管行在观战态不渲染,该值不被消费),回落 OnlineController 的
+  // seats[mySeat]?. 口径即 false,不再让 seats[-1] 炸掉整个面板。
+  const autopilotOn =
+    net.roomId !== "" && net.mySeat >= 0 ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
+  // 浮标跟「被展示的玩家」走(#45/S12):坐姿=自己;观战空态=被跟随者(对局发起者
+  // =房主座,net.host)。快照是全量广播,按座直取——观战时房间字段必然就位,
+  // 取不到说明接线有 bug,按零兜底原则让它炸出来。
+  const shown = player ?? snapshot.players[net.host];
+  // G-9 现金 / #21 委任:跨快照差值浮标(useDeltaFloat 单一实现,chip 右上浮出
+  // +/− 标记,game-hud.css 的 game-cash-float 1.2s 上浮消失;正=gold 负=danger)。
+  const cashFloats = useDeltaFloat(shown.cash);
+  const warrantFloats = useDeltaFloat(shown.warrants);
   // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名士区(L48 起接管战报腾位);
   // 头部/动作/托管行不参与压缩。
   return (
@@ -106,13 +125,64 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
       className="flex max-h-full min-h-0 shrink-0 flex-col border-b border-gold/40"
     >
       {!player ? (
-        /* G-10 未入座空态:观战视角——无手牌可看、无行动可发,动作区(签面/行军/托管)不渲染 */
+        /* G-10 未入座空态:观战视角——无手牌可看、无行动可发,动作区(签面/行军/托管)不渲染。
+            #45/S12:空态从两行说明升级为「观」印身份行 + 被跟随者资产(现金/委任/身价 chips
+            与坐姿分支同款,#21 浮标同样生效);珍宝/名士列表就地平铺(只读,详情卷轴仍归
+            TreasuryPanel 的卡区职责)。入座引导保留一行收尾。 */
         <>
           <h3 className="px-3 pt-2 font-brush text-base">手牌</h3>
-          <div className="px-3 pb-3 pt-1">
-            <div className="font-brush text-sm text-ink-dim">观战中 · 跟随对局视角</div>
+          <SpectatorIdentityHeader followed={shown} />
+          <div data-testid={TESTIDS.handSpectatorAssets} className="px-3 pb-3">
+            {/* 资产 chips:与坐姿分支同一行解剖(chip 阶梯/浮标),观战也能看到被跟随者的
+                现金/委任跳变反馈;身份行已锚定「看的是谁」,这里不再重复国号。 */}
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="relative inline-flex min-h-9 items-center">
+                <span
+                  data-testid={TESTIDS.handCash}
+                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money"
+                >
+                  {formatMoney(shown.cash)}
+                </span>
+                <DeltaFloatSpans floats={cashFloats} format={(n) => formatMoney(n)} />
+              </span>
+              <span className="relative inline-flex min-h-9 items-center">
+                <span
+                  data-testid={TESTIDS.handWarrants}
+                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
+                >
+                  委任 {shown.warrants}
+                </span>
+                {/* #21:委任状计数不是钱,浮标取整数码(巡幸 +2 / 买城 −1) */}
+                <DeltaFloatSpans floats={warrantFloats} format={(n) => String(n)} />
+              </span>
+              <span className="min-h-9 py-1 text-xs text-ink-dim">身价 {formatMoney(shown.netWorth)}</span>
+            </div>
+            {/* 资产列表:珍宝(◆ 名 · 等级 · 指导价)与名士名条——只读平铺,行 anatomy
+                与 TreasuryPanel 同语言(◆ 金符 / 右对齐 text-money),但非按钮:
+                开详情卷轴是珍宝·名士区的交互职责,观战空态只承担「看得见」。 */}
+            <div className="mt-2 flex flex-col gap-1">
+              {shown.treasures.map((t) => (
+                <div
+                  key={t.id}
+                  title={t.desc}
+                  className="flex min-h-8 items-center gap-2 rounded border border-gold/40 bg-panel-hi px-2.5 text-xs leading-none"
+                >
+                  <span className="shrink-0 text-gold">◆</span>
+                  <span className="truncate">{t.name}</span>
+                  <span className="shrink-0 text-ink-dim">Lv{t.level}</span>
+                  <span className="ml-auto shrink-0 text-money">指导价 {formatMoney(guidePriceOf(t.level))}</span>
+                </div>
+              ))}
+              {shown.treasures.length === 0 && <span className="text-xs text-ink-dim">暂无珍宝</span>}
+              <div className="pt-0.5 text-xs leading-5 text-ink-dim">
+                名士
+                {shown.heroes.length > 0
+                  ? " " + shown.heroes.map((h) => h.name).join("·")
+                  : " 暂无"}
+              </div>
+            </div>
             <div className="mt-1 text-xs leading-5 text-ink-dim/80">
-              你尚未入座,当前跟随对局发起者的视角旁观;回到首页入座后即可执子行军。
+              观战中 · 跟随对局发起者的视角旁观;回到首页入座后即可执子行军。
             </div>
           </div>
         </>
@@ -133,25 +203,20 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 >
                   {formatMoney(player.cash)}
                 </span>
-                {/* G-9:现金增减浮标(chip 右上,1.2s 上浮渐隐;正=gold 负=danger) */}
-                {cashFloats.map((f) => (
-                  <span
-                    key={f.id}
-                    className={
-                      "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-xs " +
-                      (f.delta > 0 ? "text-gold" : "text-danger")
-                    }
-                  >
-                    {f.delta > 0 ? "+" : "−"}
-                    {formatMoney(Math.abs(f.delta))}
-                  </span>
-                ))}
+                {/* G-9:现金增减浮标(chip 右上,1.2s 上浮渐隐;正=gold 负=danger)。
+                    #44:浮标渲染与观战分支共用 DeltaFloatSpans,只差数值文案口径 */}
+                <DeltaFloatSpans floats={cashFloats} format={(n) => formatMoney(n)} />
               </span>
-              <span
-                data-testid={TESTIDS.handWarrants}
-                className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
-              >
-                委任 {player.warrants}
+              <span className="relative inline-flex min-h-9 items-center">
+                <span
+                  data-testid={TESTIDS.handWarrants}
+                  className="inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none"
+                >
+                  委任 {player.warrants}
+                </span>
+                {/* #21/X2:委任 chip 复用同款浮标——巡幸过都城 +2(金字)浮出,
+                    买城 −1(红字);计数非钱,format 取整数 */}
+                <DeltaFloatSpans floats={warrantFloats} format={(n) => String(n)} />
               </span>
               {/* G-9:身价小字(netWorth 为快照派生字段,含地产/珍宝估值,自己非活跃时也可见) */}
               <span className="min-h-9 py-1 text-xs text-ink-dim">身价 {formatMoney(player.netWorth)}</span>

@@ -35,6 +35,14 @@ body,
   padding-left: var(--safe-left);
 }
 
+/* ── S2(#35) 键盘焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
+   :where() 零特异度:组件想要别的焦点样式可无 specificity 代价地覆盖;
+   只有 :focus-visible 命中(键盘 Tab 导航),鼠标/触屏点击不出圈。 */
+:where(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px dashed var(--color-ink);
+  outline-offset: 2px;
+}
+
 /* ── M-4 reduced-motion 全局兜层:除棋盘专属动画(board.css 另行处理)外,
    其余 UI 的 CSS 动画/过渡在系统「减弱动态效果」下全部瞬时完成。 ── */
 @media (prefers-reduced-motion: reduce) {
@@ -43,4 +51,20 @@ body,
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ── A1(#48) 宣纸纹理叠加:全屏固定层,soft-light 低透明——
+   增强手绘风纸质感,不覆盖 SVG 线条(纹理 CC0,public/assets/textures/)。
+   pointer-events:none 纯氛围层;z-index 60 压内容低于卷轴(z-30 起的弹层在其下、
+   骰子 overlay(z-50)之上会被覆一层纹理——soft-light 对深浅底均只加纸感,可接受;
+   reduced-motion 与静态层无关。 ── */
+#app::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  background: url("/assets/textures/xuan-paper.jpg") center / 960px auto repeat;
+  mix-blend-mode: soft-light;
+  opacity: 0.45;
 }

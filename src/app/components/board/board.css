@@ -19,8 +19,25 @@
 .bv-tile:active .bv-tile-hilite {
   opacity: 0.5;
 }
+/* X4(#23) 选都候选金圈两档:
+   .bv-candidate  候选集全座位可见——旁观席位静态低透明金圈(不可点、不脉冲),
+                  远看即知「当前轮到谁在从这三城里挑」;
+   .bv-selectable 轮到本地选——金圈呼吸脉冲(动画驱动 opacity,hover/active 的
+                  0.5 反馈在候选上让位:动画优先级高于声明值),仪式感聚焦。 */
+.bv-tile.bv-candidate .bv-tile-hilite {
+  opacity: 0.15;
+}
 .bv-tile.bv-selectable .bv-tile-hilite {
-  opacity: 0.28;
+  animation: bv-select-pulse 1.6s ease-in-out infinite;
+}
+@keyframes bv-select-pulse {
+  0%,
+  100% {
+    opacity: 0.18;
+  }
+  50% {
+    opacity: 0.62;
+  }
 }
 .bv-capital-glow {
   opacity: 0;
@@ -95,7 +112,13 @@
    - 旗子金边拖影:drop-shadow 金晕(金 = Theme.goldBright 212,175,55 的表现色,
      集中于此处一条注释说明,不散落硬编码);
    - 落脚指示环(TokenLayer 内 .bv-token-march-ring 圆):旋转 + 呼吸,
-     圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。 */
+     圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。
+   S6(#39) 行军缓动:逐段 linear 的接缝顿挫改 easeInOutSine——段内两端缓、中段快,
+   段尾速度趋零,与 segSlackMs 归零(timings.MARCH)配合后段间无缝衔接,终点仍有
+   落定感;非行军的声明式定位(落格/槽位微调)保持 .bv-token 的 linear 短过渡。 */
+.bv-token.bv-token-marching {
+  transition-timing-function: cubic-bezier(0.45, 0, 0.55, 1);
+}
 .bv-token-march-ring {
   opacity: 0;
   /* 旋转以圆自身中心为轴(SVG 元素 CSS transform 默认以视口原点为轴,必须显式指定) */
@@ -141,14 +164,19 @@
 }
 
 /* ── M-9 降耗:用户偏好减弱动态时,停用全部 infinite 装饰动画
-   (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动),保留静态视觉。 */
+   (旗面摇曳 / 都城光晕脉动 / 辅路虚线流动 / 候选金圈脉冲),保留静态视觉;
+   候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪)。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-flag,
   .bv-token.bv-token-marching .bv-token-march-ring,
   .bv-token-mine-halo,
   .bv-tile.bv-capital .bv-capital-glow,
   .bv-tile.bv-active .bv-capital-glow,
+  .bv-tile.bv-selectable .bv-tile-hilite,
   .bv-road-branch {
     animation: none;
+  }
+  .bv-tile.bv-selectable .bv-tile-hilite {
+    opacity: 0.28;
   }
 }

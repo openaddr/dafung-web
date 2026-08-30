@@ -1,7 +1,8 @@
 // 城池详情卷轴(#33/#34/#35):
 //   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 购入价 / 等级收益表;
 //     特殊地点(Chance/驿站/税关等非地产格)显示类型说明,同样可点开查看。
-//   - #34:去右上 ×,关闭 = 点遮罩空白 / Esc(ScrollShell.hideClose)。
+//   - S10(#43):与 CardDetailScroll 统一保留右上 ×(ScrollShell 44px 热区),关闭 = ×/遮罩/Esc;
+//     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
 import { formatMoney } from "@core/money";
 import type { TileType } from "@core/types";
@@ -59,7 +60,7 @@ export function TileDetailScroll({
   pickCapital,
 }: TileDetailScrollProps) {
   return (
-    <ScrollShell title={`「${tileName}」`} scrollKey={String(tileIndex)} onClose={onClose} hideClose testid={T.tileDetailScroll}>
+    <ScrollShell title={`「${tileName}」`} scrollKey={String(tileIndex)} onClose={onClose} testid={T.tileDetailScroll}>
       <span hidden data-tile-index={tileIndex} />
       {property ? (
         <>

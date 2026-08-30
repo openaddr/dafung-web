@@ -7,7 +7,7 @@ import { test, expect, type Browser, type Page } from "@playwright/test";
 // 本文件串行执行,降低双端 + 服务器的并发压力。
 test.describe.configure({ mode: "serial" });
 
-const ONLINE = "http://localhost:3010";
+const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
 /** 双端建房/加入/开局(经济 v2 标准目标 30000),返回 [host, guest]。 */
 async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page]> {

@@ -29,7 +29,7 @@ test.describe("8 人局矮视口", () => {
     await page.goto("/");
     await page.getByTestId("home-solo").click();
     await page.getByTestId("solo-setup-screen").waitFor();
-    await page.getByTestId("setup-seat-count").selectOption("8");
+    for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // X10 stepper:4 → 8
     await page.getByTestId("start-game").click();
     await pickCapital(page);
     await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });

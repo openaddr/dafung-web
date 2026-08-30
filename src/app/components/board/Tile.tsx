@@ -25,8 +25,11 @@ export interface TileVisualState {
   isActive: boolean;
   /** 选都阶段已被选(标灰禁用)。 */
   isTaken: boolean;
-  /** 可交互高亮(如可选都城集合)。 */
+  /** 可交互高亮(轮到本地选都的候选集,呼吸脉冲金圈)。 */
   isSelectable: boolean;
+  /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
+   *  静态低透明金圈(bv-candidate)是旁观档,本地可点脉冲由 isSelectable 升档。 */
+  capitalCandidateOrder: number | null;
 }
 
 interface TileProps {
@@ -308,6 +311,38 @@ function LevelSeal({ level }: { level: number }) {
   );
 }
 
+// ── X4(#23) 选都候选序号印:壹/贰/叁(引擎滚出顺序=第几候选)──
+// 复用 LevelSeal 方章形制(16×16 圆角方 + 笔书大字),描金变体:墨底金框金字——
+// 与「都」印(朱底金字)同读作「印=特殊城」,又以底色相区分。候选期无主无等级,
+// 与 LevelSeal 同锚点(-41 31)而时段互斥(Setup 期 Lv 恒 0),不叠印;总览下是
+// 一粒金边方点,与脉冲金圈构成「三城仪式组」,放大后读序号(「我选叁号城」)。
+function CandidateSeal({ order }: { order: number }) {
+  return (
+    <g className="bv-candidate-seal" transform="translate(-41 31)">
+      <rect
+        x={-8}
+        y={-8}
+        width={16}
+        height={16}
+        rx={2}
+        fill="rgba(35,25,12,0.88)"
+        stroke={rgba(Theme.goldBright)}
+        strokeWidth={1.2}
+      />
+      <text
+        y={4.2}
+        textAnchor="middle"
+        fontFamily="var(--font-brush)"
+        fontSize={12}
+        fontWeight={700}
+        fill={rgba(Theme.goldBright)}
+      >
+        {LEVEL_SEAL_CHARS[order]}
+      </text>
+    </g>
+  );
+}
+
 /** 非城池格(锦囊/天命/税关/商市/卧龙岗)的大字 icon 配色。 */
 const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string }>> = {
   Wolong: { color: "goldBright", icon: "龙" },
@@ -335,6 +370,8 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
     isCapital ? "bv-capital" : "",
     state.isActive ? "bv-active" : "",
     state.isTaken ? "opacity-40 grayscale" : "",
+    // X4(#23) 候选集全座位可见:静态低透明金圈;本地可点(bv-selectable)脉冲升级
+    state.capitalCandidateOrder != null ? "bv-candidate" : "",
     state.isSelectable ? "bv-selectable" : "",
     // 需求2·无主档:整城 0.92 安静感(城池格专属;isTaken 的 40% 灰阶更强,让位不叠加)
     !ownerRgb && !state.isTaken && !isIconTile ? "bv-unowned" : "",
@@ -474,20 +511,26 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           />
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
           <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
-          {/* 价格字:有主城铭牌已是深玩家色底,墨字不可读→白字;无主宣纸底保持墨字 */}
-          <text
-            x={0}
-            y={42}
-            textAnchor="middle"
-            fontFamily="var(--font-deco)"
-            fontSize={14}
-            fill={ownerRgb ? "rgba(255,252,240,0.95)" : rgba(Theme.inkDim)}
-          >
-            {price}
-          </text>
+          {/* 价格字(#40 S7):仅无主城渲染——有主城铭牌已是深玩家色底,购入价纯属
+              噪声(等级/归属才是持续信息),不再输出;无主宣纸底保持墨字不变。 */}
+          {!ownerRgb && (
+            <text
+              x={0}
+              y={42}
+              textAnchor="middle"
+              fontFamily="var(--font-deco)"
+              fontSize={14}
+              fill={rgba(Theme.inkDim)}
+            >
+              {price}
+            </text>
+          )}
           {/* 等级=城楼加层(Building 内,层数即等级)+ 等级印(铭牌左下,壹/贰/叁,Lv0 无印)。
               双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。 */}
           {state.level > 0 ? <LevelSeal level={state.level} /> : null}
+          {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):与等级印同形制描金变体,
+              Setup 期与等级印时段互斥;旁观席位同见(仪式感是全座的,可点只在本地)。 */}
+          {state.capitalCandidateOrder != null ? <CandidateSeal order={state.capitalCandidateOrder} /> : null}
           {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
               需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
               仍可辨的形状级王权信号,不依赖文字/描边细节。

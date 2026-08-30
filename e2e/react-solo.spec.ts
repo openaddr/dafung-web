@@ -134,12 +134,18 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
     .toBe(true);
 });
 
-test("bot 托管思考态:活跃方为电脑时显示「运筹中…」", async ({ page }) => {
+// X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
+// bot 回合同屏仅等待条一处反馈(等待条同时是唯一挂载点,断言双锚定防回退)。
+test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   await quickStart(page);
   await force(page, `
     const botIdx = e.players.findIndex((p) => p.isBot);
     e.activeIndex = botIdx;
+    // WaitingBar 按 interactive 门控(旧角标不读它):debug sync 只灌快照不刷派生量,
+    // 须走控制器 sync 才能把「决策方=bot → interactive=false」落进 store。
+    window.__dafung.controller().sync();
   `);
+  await expect(page.getByTestId("waiting-bar")).toBeVisible();
   await expect(page.getByTestId("thinking")).toContainText("运筹中…");
 });
 
@@ -202,8 +208,9 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   test.setTimeout(240_000);
   await page.goto("/?seed=1234");
   await openSoloSetup(page);
-  await page.getByTestId("setup-target").selectOption("15000"); // 速战(经济 v2)
-  await page.getByTestId("setup-seat-count").selectOption("2"); // 2 人局加速节奏
+  await page.getByTestId("setup-target-15000").click(); // 速战(经济 v2;X10 分段选择器)
+  await page.getByTestId("setup-seat-count-minus").click(); // 4→3
+  await page.getByTestId("setup-seat-count-minus").click(); // 3→2(X10 stepper),加速节奏
   await page.getByTestId("start-game").click();
   await pickCapital(page);
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });

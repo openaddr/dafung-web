@@ -10,7 +10,7 @@ import { createDice } from "@core/dice";
 import { GameEngine, type EngineConfig } from "@core/game";
 import { botAct } from "@core/bot";
 import type { GameCommand } from "@core/types";
-import { setEngine, useGameStore } from "@app/store/gameStore";
+import { setEngine } from "@app/store/gameStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { createEngineSink } from "@app/fx/sinks";
 import {
@@ -240,18 +240,14 @@ export class LocalController extends GameController {
    *  走完全一致的表现链(e2e 时序也因此可预期)。非 bot 回合立即返回。 */
   private async runBots(): Promise<void> {
     const e = this._engine;
-    const store = useGameStore.getState();
 
     // 选都阶段的 bot 步进要先于 Playing 循环:人类选都后余下 bot 仍处 Setup,
     // 若只在 Playing 循环体内驱动(aiSetupStep),Setup 期的 bot 会永远轮空卡死流程。
     while (e.phase === "Setup" && e.aiSetupStep()) {
-      store.setThinking(true);
       this.sync();
       await delay(BOT.stepDelayMs);
-      store.setThinking(false);
       this.sync();
     }
-    store.setThinking(false);
 
     // 步数上限保留(防单链失控),但不再作为唯一退出依据:每步做显式 stall 检测——
     // 推进前后状态指纹不变 ⇒ botAct 空转,立即 warn + 中断(对照联机 room.ts
@@ -262,12 +258,8 @@ export class LocalController extends GameController {
     // bot 时若只看 activeIndex,城主 bot 永远不被调度(死锁另一半,见 viewSeat 注释)。
     // 非珍宝相位 decisionOwner === activeIndex,行为不变。botAct 内部按相位自行分发。
     while (e.phase === "Playing" && e.players[e.decisionOwner].isBot && guard++ < 500) {
-      store.setThinking(true);
       this.sync();
       await delay(BOT.stepDelayMs);
-      // 思考标记与引擎推进在同一同步段内(之间无 await),先关标记再走共享骨架,
-      // 与旧顺序(推进后关)对渲染无行为差:两者都赶在本步首次 sync 渲染前完成。
-      store.setThinking(false);
       const before = botFingerprint(e);
       await this.runAnimatedStep(() => botAct(e));
       maybeShowTurnBanner(e);

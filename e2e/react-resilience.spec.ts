@@ -29,7 +29,7 @@ test("记忆的地图 id 失效:起兵被拦,停留设置屏(降级不崩溃)", 
 });
 
 test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ browser }) => {
-  const ONLINE = "http://localhost:3010";
+  const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
   const host = await (await browser.newContext()).newPage();
   const guest = await (await browser.newContext()).newPage();
 
