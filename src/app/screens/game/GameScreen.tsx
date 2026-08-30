@@ -2,8 +2,9 @@
 //   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名士 / 诸侯
 //   (L48:战报区移除,日志走胜利屏「导出日志」落 jsonl 文件,ADR-0014)。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
+import { loadMap } from "@core/board-loader";
 import { useGameStore, useLocalPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
@@ -22,7 +23,7 @@ import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { TESTIDS } from "./testids";
-import { useIsNarrow } from "@app/hooks/use-media-query";
+import { IS_NARROW_QUERY, useIsNarrow } from "@app/hooks/use-media-query";
 import { VERSION } from "../../../version";
 
 /** 静音开关:棋盘区右上小按钮(须挂在 AudioProvider 内读 context,故独立组件)。 */
@@ -54,12 +55,13 @@ export function GameScreen() {
   // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
   // P0-7 窄屏(<768px)复用同一状态:侧栏变覆盖式滑入抽屉,只有 开/合 两态(无 w-12 窄条);
   // 首访默认——桌面展开、窄屏收起(棋盘优先),其后按用户选择记忆。
+  // X6 #25:窄屏判定与 useIsNarrow 同源(IS_NARROW_QUERY,含横屏手机 ②分支),844×390 首访也收起。
   const [sidebarOpen, setSidebarOpen] = useState(() => {
     try {
       const saved = localStorage.getItem("dafung.sidebar");
       if (saved === "open") return true;
       if (saved === "collapsed") return false;
-      return !window.matchMedia("(max-width: 767px)").matches;
+      return !window.matchMedia(IS_NARROW_QUERY).matches;
     } catch {
       return true;
     }
@@ -91,7 +93,6 @@ export function GameScreen() {
   const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
-  const thinking = useGameStore((s) => s.thinking);
   const localPlayer = useLocalPlayer();
   // 托管标记与联机 pending(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
   const net = useNetStore();
@@ -105,14 +106,37 @@ export function GameScreen() {
   const marching = useFxStore((s) => s.marching);
   // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
-  // 选都阶段的可点城池:引擎三选一候选(snapshot.offeredCapitals,含跨玩家不重复/价格分层保证)。
-  // 只在「轮到本地视角选都」时才高亮/可点——联机他人选都期间不给我的棋盘弹选都交互。
-  const selectableTiles = useMemo(() => {
-    if (!map || !snapshot || snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return undefined;
-    const mySeat = net.roomId !== "" ? net.mySeat : 0; // 单机真人固定首座
-    if (snapshot.currentSetupPlayerIndex !== mySeat) return undefined;
-    return new Set(snapshot.offeredCapitals);
-  }, [map, snapshot, net.roomId, net.mySeat]);
+  // X4(#23) 选都候选:引擎三选一候选(snapshot.offeredCapitals,跨玩家不重复)全座位可见——
+  // 旁观席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
+  const offeredCapitals =
+    snapshot && snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
+      ? snapshot.offeredCapitals
+      : null;
+  // 候选集内容串作键:快照每次 sync 都换新对象,按引用订阅会让 select 集/镜头效果
+  // 随同步反复重建;同一候选集只应生效一次。
+  const pickKey = offeredCapitals ? offeredCapitals.join(",") : null;
+  // 轮到本地视角选都(单机真人固定首座;联机按房间座位)才有可点交互。
+  const myPickKey =
+    pickKey &&
+    snapshot &&
+    snapshot.currentSetupPlayerIndex === (net.roomId !== "" ? net.mySeat : 0)
+      ? pickKey
+      : null;
+  const selectableTiles = useMemo(
+    () => (myPickKey ? new Set(myPickKey.split(",").map(Number)) : undefined),
+    [myPickKey],
+  );
+  // X4(#23) 选都仪式·镜头:轮到本地选都时缓动飞向三候选质心——候选常散布地图三隅,
+  // 先给一眼定位,再由脉冲金圈/序号印接管注意力;同候选集只飞一次,不抢用户手动
+  // pan/zoom 的镜头。board 由地图单源重建,positionOf 坐标即镜头逻辑系。
+  const board = useMemo(() => (map ? loadMap(map).board : null), [map]);
+  useEffect(() => {
+    if (!board || !myPickKey) return;
+    const pts = myPickKey.split(",").map((t) => board.positionOf(Number(t)));
+    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
+    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
+    boardRef.current?.flyTo(cx, cy);
+  }, [board, myPickKey]);
 
   if (!snapshot || !map) {
     // S9 未开局兜底页:此前只是一行灰字,玩家会卡死在空屏。
@@ -171,7 +195,7 @@ export function GameScreen() {
           生命周期=一局;行军按钮点击后控制器 busy 锁 interactive,骰子播放期间防连点。 */}
       <DiceOverlay />
       <div className="relative flex h-full w-full bg-bg text-ink">
-      {/* 棋盘区(相对定位承载 hint/thinking/fx 覆盖层,同旧 board-wrap)。
+      {/* 棋盘区(相对定位承载 hint/WaitingBar/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
         {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
@@ -201,6 +225,8 @@ export function GameScreen() {
             }
           }}
           selectableTiles={selectableTiles}
+          /* X4(#23):候选集全座位透传——旁观席位也见静态金圈与壹贰叁序号印 */
+          candidateTiles={offeredCapitals ?? undefined}
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}
           isSetupPhase={snapshot.phase === "Setup"}
           skipTokenIds={marching}
@@ -208,33 +234,26 @@ export function GameScreen() {
         {/* 阶段 6:浮字/铜钱雨/回合横幅/印章(store 驱动的瞬时表现) */}
         <FxLayer />
         {setupHint && (
+          // S8(#41):从 top-3(+12px,与 HintBar 同位重叠)下移到 WaitingBar 槽
+          // (+48px)——选都期 WaitingBar 恒空(phase≠Playing 直接 null),同槽复用,
+          // 任意 pushHint(+12px)与引导(+48px)上下错开不再叠字。
           <div
             data-testid={TESTIDS.hint}
-            className="pointer-events-none absolute top-3 left-1/2 -translate-x-1/2 rounded bg-panel/90 px-4 py-1 font-brush text-lg shadow"
+            className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded bg-panel/90 px-4 py-1 font-brush text-lg shadow"
           >
             {setupHint}
           </div>
         )}
         {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
         <HintBar hint={hint} level={hintLevel} />
-        {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债,
-            替代旧「运筹中…」单一角标(文案按等待对象细分;thinking testid 保留在此) */}
+        {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债。
+            X7 #26:底部「运筹中…」角标已删(同屏重复),thinking testid 迁入 WaitingBar 文案 span */}
         <WaitingBar
           snapshot={snapshot}
           interactive={interactive}
           viewSeat={viewSeat}
           online={net.roomId !== ""}
         />
-        {(thinking || (snapshot.phase !== "GameOver" && snapshot.players[snapshot.activeIndex]?.isBot)) && (
-          // "运筹中…":bot 行动时(旧 setThinking;本阶段 bot 同步驱动,一闪而过,保留展示位;
-          // e2e react-solo 依赖此 testid)
-          <div
-            data-testid={TESTIDS.thinking}
-            className="pointer-events-none absolute bottom-3 left-1/2 -translate-x-1/2 rounded bg-ink/80 px-3 py-1 font-brush text-panel"
-          >
-            运筹中…
-          </div>
-        )}
         {/* 决策卷轴路由(阶段 6 接线):按相位弹招贤/珍宝/破产/胜利/城池详情。
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。 */}
         <div id="scroll-layer" className="pointer-events-none absolute inset-0">

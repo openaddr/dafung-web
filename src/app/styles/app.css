@@ -35,6 +35,14 @@ body,
   padding-left: var(--safe-left);
 }
 
+/* ── S2(#35) 键盘焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
+   :where() 零特异度:组件想要别的焦点样式可无 specificity 代价地覆盖;
+   只有 :focus-visible 命中(键盘 Tab 导航),鼠标/触屏点击不出圈。 */
+:where(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
+  outline: 2px dashed var(--color-ink);
+  outline-offset: 2px;
+}
+
 /* ── M-4 reduced-motion 全局兜层:除棋盘专属动画(board.css 另行处理)外,
    其余 UI 的 CSS 动画/过渡在系统「减弱动态效果」下全部瞬时完成。 ── */
 @media (prefers-reduced-motion: reduce) {

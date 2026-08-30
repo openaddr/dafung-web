@@ -1,12 +1,12 @@
 // React 迁移 · 阶段 8 验证门:联机双端全流程(大厅建房/加入/选图/开局 → 选都三选一 →
 // 双端对局同步)+ L42 落格决策卷轴时序(行军动画播完才弹)。
-// 走 3010 引擎服务器(托管 dist + WS;playwright.config 第二个 webServer)。
+// 走引擎服务器(托管 dist + WS;playwright.config 第二个 webServer),端口随
+// E2E_GAME_PORT 隔离协议取值(与 config 同源,默认 3010)。
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
-// 服务器可能已在跑(reuseExistingServer):若 3010 被旧进程占用且代码旧,先 kill 再跑。
 import { test, expect, type Page } from "@playwright/test";
 import { waitSettled, onlinePickCapitals } from "./react-helpers";
 
-const ONLINE = "http://localhost:3010";
+const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
 /** 读一端的核心引擎态(经 __dafung 调试钩子;跨端一致性断言用)。 */
 async function coreState(p: Page) {
