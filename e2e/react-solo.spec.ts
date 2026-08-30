@@ -202,8 +202,9 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   test.setTimeout(240_000);
   await page.goto("/?seed=1234");
   await openSoloSetup(page);
-  await page.getByTestId("setup-target").selectOption("15000"); // 速战(经济 v2)
-  await page.getByTestId("setup-seat-count").selectOption("2"); // 2 人局加速节奏
+  await page.getByTestId("setup-target-15000").click(); // 速战(经济 v2;X10 分段选择器)
+  await page.getByTestId("setup-seat-count-minus").click(); // 4→3
+  await page.getByTestId("setup-seat-count-minus").click(); // 3→2(X10 stepper),加速节奏
   await page.getByTestId("start-game").click();
   await pickCapital(page);
   await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });

@@ -16,6 +16,8 @@ import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { GUOHAO_PREF_KEY } from "@app/screens/setup/SoloSetupScreen";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
+// X10(#29):建房诸侯数原生 select → stepper(screens/shared;e2e 点 -/+ 与读数值)
+import { Stepper } from "@app/screens/shared/Stepper";
 import { LID } from "./testids";
 // W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
 import "./lobby.css";
@@ -198,19 +200,17 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           <div className="font-deco text-sm text-ink">
             <div className="font-brush text-base mb-2">建房</div>
             <div className="flex items-center gap-2">
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1">
                 诸侯数
-                <select
-                  data-testid={LID.seatCount}
+                <Stepper
+                  testid={LID.seatCount}
+                  ariaLabel="诸侯数"
                   value={seatCount}
-                  onChange={(e) => setSeatCount(Number(e.target.value))}
-                  className={inputBase}
-                >
-                  {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                    <option key={n} value={n}>{n} 诸侯</option>
-                  ))}
-                </select>
-              </label>
+                  min={2}
+                  max={8}
+                  onChange={setSeatCount}
+                />
+              </div>
               <label className="flex flex-col gap-1">
                 目标身价(空=默认)
                 <input

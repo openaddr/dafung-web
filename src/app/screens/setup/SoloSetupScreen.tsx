@@ -15,6 +15,9 @@ import { getMapSource } from "@app/map-sources";
 import { MapSelectPanel } from "./MapSelectPanel";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
+// X10(#29):原生 select 全退场——小范围数值走 stepper,受限档位走分段选择器(screens/shared)
+import { Stepper } from "@app/screens/shared/Stepper";
+import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
 
@@ -143,46 +146,51 @@ export function SoloSetupScreen({
 
         <h3 className="font-brush text-lg text-ink tracking-[0.3em] mb-3">开局布阵</h3>
 
-        {/* 诸侯数 / 目标身价 / AI 难度:受限选择(单机 = 1 真人 + 其余电脑) */}
-        <div className="grid grid-cols-3 gap-3 font-deco text-sm text-ink mb-4">
-          <label className="flex flex-col gap-1">
-            诸侯数
-            <select
-              data-testid={TID.seatCount}
+        {/* 诸侯数 / 目标身价 / AI 难度:X10(#29)原生 select 全退场——小范围数值走 stepper,
+            受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式) */}
+        <div className="flex flex-col gap-3 font-deco text-sm text-ink mb-4">
+          <div className="flex flex-col gap-1">
+            <span>诸侯数</span>
+            <Stepper
+              testid={TID.seatCount}
+              ariaLabel="诸侯数"
               value={seatCount}
-              onChange={(e) => setSeatCount(Number(e.target.value))}
-              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
-            >
-              {[2, 3, 4, 5, 6, 7, 8].map((n) => (
-                <option key={n} value={n}>{n} 诸侯</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            目标身价
-            <select
-              data-testid={TID.target}
+              min={2}
+              max={8}
+              onChange={setSeatCount}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span>目标身价</span>
+            <SegmentedSelect
+              testid={TID.target}
+              ariaLabel="目标身价"
               value={target}
-              onChange={(e) => setTarget(Number(e.target.value))}
-              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
-            >
-              {TARGET_OPTIONS.map((t) => (
-                <option key={t} value={t}>{TARGET_LABEL[t]} {formatMoney(t)}</option>
-              ))}
-            </select>
-          </label>
-          <label className="flex flex-col gap-1">
-            AI 难度
-            <select
-              data-testid={TID.difficulty}
+              onChange={setTarget}
+              options={TARGET_OPTIONS.map((t) => ({
+                value: t,
+                label: (
+                  <span className="flex flex-col items-center leading-tight">
+                    <span>{TARGET_LABEL[t]}</span>
+                    <span className="text-xs font-normal opacity-80">{formatMoney(t)}</span>
+                  </span>
+                ),
+              }))}
+            />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span>AI 难度</span>
+            <SegmentedSelect
+              testid={TID.difficulty}
+              ariaLabel="AI 难度"
               value={difficulty}
-              onChange={(e) => setDifficulty(e.target.value as "Simple" | "Normal")}
-              className="min-h-[40px] rounded border border-ink/30 bg-bg px-2 py-2"
-            >
-              <option value="Normal">智将(EV)</option>
-              <option value="Simple">庸才(随机)</option>
-            </select>
-          </label>
+              onChange={setDifficulty}
+              options={[
+                { value: "Normal", label: "智将(EV)" },
+                { value: "Simple", label: "庸才(随机)" },
+              ]}
+            />
+          </div>
         </div>
 
         {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,显示「机」) */}

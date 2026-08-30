@@ -214,7 +214,7 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
 
   // host 建房(3 座;host 侧无国号预设入口 → seat0 不应有章)
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-seat-count").selectOption("3");
+  await host.getByTestId("lobby-seat-count-plus").click(); // X10 stepper:2 → 3 座
   await host.getByTestId("lobby-create").click();
   await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
   const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";

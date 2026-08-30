@@ -2,11 +2,13 @@
 // 点击条目展开简化 SVG 预览(主路折线 + 城池圆点),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,
 // 而是直接基于 MapData 的 pos 坐标画简版(延迟加载:点选时才 loadMapData)。
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import type { MapData } from "@core/types";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
+// S4(#37):焦点陷阱——打开聚焦首项、Tab 不出面板、关闭还焦触发钮(与 ConfirmDialog 同标)
+import { useDialogFocus } from "@app/screens/shared/useDialogFocus";
 import { TID } from "./testids";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
@@ -89,6 +91,11 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // S4(#37):焦点陷阱挂卡片容器;focusKey 随清单就绪翻转——首项渲染出来后再补聚焦
+  // (挂载瞬间只有「载入地图清单…」,无可聚焦元素)
+  const panelRef = useRef<HTMLDivElement>(null);
+  useDialogFocus(panelRef, entries === null ? "loading" : entries.length);
+
   // 挂载时拉清单一次(fetch 内置清单 + localStorage 自建图,均可能失败需兜底提示);
   // S-4:清单拉取收敛为 reload,失败态可点「重试」重新拉取
   const [reloadKey, setReloadKey] = useState(0);
@@ -133,6 +140,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
       className="fixed inset-0 z-20 flex items-center justify-center bg-ink/40 backdrop-blur-[1px]"
     >
       <div
+        ref={panelRef}
         onClick={(e) => e.stopPropagation()}
         // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)
         className="scroll-anim-unroll w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
