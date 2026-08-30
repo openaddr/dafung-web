@@ -13,6 +13,8 @@ export interface NetSeatMeta {
   controlled: boolean;
   /** 自助托管中(bot 代打,身份仍是真人)。 */
   autoPilot: boolean;
+  /** 预设国号(E7/#19);null = 未预设/bot,开局由引擎分配。大厅据它画单字方章。 */
+  guohao: string | null;
 }
 
 /** lobby / snapshot 消息共有的房间字段(clientView 两种形态都带,见 room.ts 注释)。 */

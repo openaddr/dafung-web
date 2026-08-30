@@ -6,6 +6,7 @@
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isCustomId } from "@core/map-source";
+import { resolveGuohaoClash } from "@core/guohao";
 import { getMapSource } from "@app/map-sources";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
@@ -18,6 +19,8 @@ import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { LID } from "./testids";
 // W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
 import "./lobby.css";
+// S1(#34):大厅卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
+import "@app/screens/game/scroll/scroll.css";
 
 export interface LobbyScreenProps {
   /** 退出联机回设置屏(接线方负责销毁 controller 与清 store)。 */
@@ -140,6 +143,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // F4:hint 过期已下沉 netStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
 
+  // E7(#19):开局国号演算——与服务器 startGame 用同一 core 纯函数(先到先得,重名排前缀),
+  // 预设 ≠ 演算名的座位行下出 xs 预告,「静默改前缀」变「提前知情」。
+  const finalGuohao = useMemo(() => resolveGuohaoClash(seats.map((s) => s.guohao)), [seats]);
+
   const controller = getController() as OnlineController | null;
 
   const guard = async (fn: () => Promise<unknown>) => {
@@ -174,15 +181,19 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // ── 未入座:建房 / 加入 ──
   if (!roomId) {
     return (
+      // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
+      // 内容不溢出时视觉与 justify-center 一致,溢出(小屏键盘弹起/横屏)时可滚达
       <div
         data-testid={LID.screen}
-        className="relative flex min-h-full flex-col items-center justify-center bg-bg p-6"
+        className="relative flex h-full flex-col overflow-y-auto bg-bg p-6"
       >
         {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
         <ConnectionBanner />
+        <div className="m-auto flex w-full flex-col items-center">
         <h1 className="font-brush text-4xl text-ink tracking-widest mb-1">联机对局</h1>
         <div className="font-deco text-ink-dim mb-6 tracking-[0.4em]">— 群雄逐鹿 —</div>
-        <div className="w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl flex flex-col gap-5">
+        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
+        <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl flex flex-col gap-5">
           {/* 建房:建房者 = Seat0(host) */}
           <div className="font-deco text-sm text-ink">
             <div className="font-brush text-base mb-2">建房</div>
@@ -211,6 +222,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     setTargetErr(null); // 修改即清错,失焦/提交再校验
                   }}
                   onBlur={() => setTargetErr(validateTarget(target))}
+                  // X14(#33):回车与失焦同口径即时校验(小屏回车不必先点别处)
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setTargetErr(validateTarget(target));
+                  }}
                   placeholder="如 30000"
                   className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
                 />
@@ -239,8 +254,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               </button>
             </div>
           </div>
-          {/* 加入:凭码占第一个空 human 座位 */}
-          <div className="font-deco text-sm text-ink border-t border-gold/30 pt-4">
+          {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
+              空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
+          <form
+            className="font-deco text-sm text-ink border-t border-gold/30 pt-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (busy || !joinCode.trim()) return;
+              void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined));
+            }}
+          >
             <div className="font-brush text-base mb-2">加入</div>
             <div className="flex items-center gap-2">
               <input
@@ -252,22 +275,23 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 className={inputBase + " w-44 tracking-[0.3em]"}
               />
               <button
+                type="submit"
                 data-testid={LID.join}
                 disabled={busy || !joinCode.trim()}
                 // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
                 title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
-                onClick={() => void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined))}
                 className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep"}
               >
                 {busy ? "处理中…" : "加入"}
               </button>
             </div>
-          </div>
+          </form>
           {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
           <HintBar hint={hint} level={hintLevel} variant="inline" />
           <button onClick={onExit} className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep self-start text-sm"}>
             返回首页
           </button>
+        </div>
         </div>
       </div>
     );
@@ -287,13 +311,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     );
   };
   return (
+    // E1(#13):同未入座态——根节点滚动容器 + 内层 m-auto(8 座位满员时离开按钮也可滚达)
     <div
       data-testid={LID.screen}
-      className="relative flex min-h-full flex-col items-center justify-center bg-bg p-6"
+      className="relative flex h-full flex-col overflow-y-auto bg-bg p-6"
     >
       {/* F2 断线横幅:卡片上方常驻(重连成功自动消失) */}
       <ConnectionBanner />
-      <div className="w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
+      <div className="m-auto flex w-full flex-col items-center">
+      {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
+      <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
         <h1 className="font-brush text-2xl text-ink tracking-[0.3em] text-center">大厅</h1>
         {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本) */}
         <button
@@ -318,43 +345,68 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
         {/* 座位列表(L8:key=座位号稳定;入场动画只在「空→有人」翻转时加 class,见 seatEntered effect) */}
         <div className="mt-3 flex flex-col gap-1">
-          {seats.map((s) => (
-            <div
-              key={s.seat}
-              data-testid={LID.seatRow(s.seat)}
-              className={
-                (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
-                "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
-                (s.seat === mySeat ? "border-gold bg-gold/10 text-ink" : "border-ink/20 text-ink-dim")
-              }
-            >
-              <span
-                className={
-                  "w-2.5 h-2.5 rounded-full " +
-                  (s.kind === "bot"
-                    ? "bg-ink/40"
-                    : !s.taken
-                      ? "bg-transparent border border-ink/30"
-                      : s.online
-                        ? "bg-success"
-                        : "bg-ink/30")
-                }
-                data-testid={LID.seatOnline(s.seat)}
-              />
-              {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
-              {s.taken && s.kind !== "bot" && (
-                <span
+          {seats.map((s) => {
+            // E7(#19):预设 ≠ 演算名 = 该座位开局将被排到前缀(宁→东宁),行下 xs 预告
+            const finalGh = finalGuohao[s.seat];
+            const renamed = s.guohao != null && finalGh != null && finalGh !== s.guohao;
+            return (
+              <div key={s.seat}>
+                <div
+                  data-testid={LID.seatRow(s.seat)}
                   className={
-                    "text-xs " + (s.online ? "text-success" : "text-ink-dim")
+                    (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
+                    "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
+                    (s.seat === mySeat ? "border-gold bg-gold/10 text-ink" : "border-ink/20 text-ink-dim")
                   }
                 >
-                  {s.online ? "在线" : "离线"}
-                </span>
-              )}
-              <span className="text-ink">诸侯 {s.seat + 1}</span>
-              <span>{seatTag(s, mySeat, host)}</span>
-            </div>
-          ))}
+                  <span
+                    className={
+                      "w-2.5 h-2.5 rounded-full " +
+                      (s.kind === "bot"
+                        ? "bg-ink/40"
+                        : !s.taken
+                          ? "bg-transparent border border-ink/30"
+                          : s.online
+                            ? "bg-success"
+                            : "bg-ink/30")
+                    }
+                    data-testid={LID.seatOnline(s.seat)}
+                  />
+                  {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
+                  {s.taken && s.kind !== "bot" && (
+                    <span
+                      className={
+                        "text-xs " + (s.online ? "text-success" : "text-ink-dim")
+                      }
+                    >
+                      {s.online ? "在线" : "离线"}
+                    </span>
+                  )}
+                  {/* E7(#19):国号单字方章(与 HandPanel「你」印同款章形;未预设/bot 无章,
+                      不放假国号——开局由引擎分配后自见) */}
+                  {s.guohao != null && (
+                    <span
+                      data-testid={LID.seatGuohao(s.seat)}
+                      title={`预设国号「${s.guohao}」`}
+                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 font-brush text-[13px] leading-none text-gold"
+                    >
+                      {s.guohao}
+                    </span>
+                  )}
+                  <span className="text-ink">诸侯 {s.seat + 1}</span>
+                  <span>{seatTag(s, mySeat, host)}</span>
+                </div>
+                {renamed && (
+                  <div
+                    data-testid={LID.guohaoPreview(s.seat)}
+                    className="mt-0.5 px-2 font-deco text-xs text-gold"
+                  >
+                    开局将改为『{finalGh}』
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
 
         {/* 当前地图:host 可换(仅内置图);非 host 只读 */}
@@ -415,6 +467,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         >
           {busy ? "处理中…" : "离开房间"}
         </button>
+      </div>
       </div>
 
       {/* 选图二级屏:复用 setup 的 MapSelectPanel(仅内置图源;S-5:mapSource 已 useMemo 缓存) */}

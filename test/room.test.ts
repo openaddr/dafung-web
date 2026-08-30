@@ -2,7 +2,7 @@
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry, RoomError, lobbyView, clientView } from "../scripts/room";
+import { RoomRegistry, RoomError, lobbyView, clientView, resolveGuohaoClash } from "../scripts/room";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -298,6 +298,28 @@ describe('RoomRegistry · 联机国号预设与重名前缀(autos 28)', () => {
     const guohao = room.engine!.players.map((p) => p.guohao);
     expect(guohao[1]).toBe('燕');
     expect(new Set(guohao).size).toBe(3);
+  });
+
+  it('seatMeta/lobbyView 透出预设国号(E7 #19):大厅预告与开局定稿同源', async () => {
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const created = reg.createRoom({ seatCount: 3, botIdx: new Set(), hostConfig: { seed: 7 } });
+    const roomId = created.room.roomId;
+    // host(Seat0)不预设国号(入口无此字段);两名加入者撞名「魏」
+    reg.joinSeat(roomId, '魏');
+    reg.joinSeat(roomId, '魏');
+    // lobby/seats 元数据带 guohao 原样值(未预设=null,大厅不放假章)
+    const view = lobbyView(reg.get(roomId)!, new Set([0]));
+    expect(view.seats.map((s) => s.guohao)).toEqual([null, '魏', '魏']);
+    expect(clientView(reg.get(roomId)!, new Set([0])).seats.map((s) => s.guohao)).toEqual([null, '魏', '魏']);
+    // 客户端预告 = 同一纯函数(core/guohao)按座位序演算;开局定稿必须与预告一致
+    const preview = resolveGuohaoClash(view.seats.map((s) => s.guohao));
+    expect(preview).toEqual([null, '魏', '东魏']);
+    reg.setMap(roomId, 'sanguo', created.token, VALID_MAP_IDS);
+    const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    const finalGuohao = room.engine!.players.map((p) => p.guohao);
+    preview.forEach((pv, i) => {
+      if (pv != null) expect(finalGuohao[i]).toBe(pv);
+    });
   });
 });
 

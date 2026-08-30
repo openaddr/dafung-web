@@ -206,3 +206,46 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
     await guest.context().close();
   }
 });
+
+test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加入", async ({ browser }) => {
+  const host = await (await browser.newContext()).newPage();
+  const g1 = await (await browser.newContext()).newPage();
+  const g2 = await (await browser.newContext()).newPage();
+
+  // host 建房(3 座;host 侧无国号预设入口 → seat0 不应有章)
+  await host.goto(`${ONLINE}/?online=1`);
+  await host.getByTestId("lobby-seat-count").selectOption("3");
+  await host.getByTestId("lobby-create").click();
+  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+
+  // 两名加入者预设同名「魏」(localStorage 与 SoloSetup GUOHAO_PREF_KEY 同源)
+  for (const p of [g1, g2]) {
+    await p.addInitScript(() => localStorage.setItem("dafung.guohao", "魏"));
+  }
+  // g1 点「加入」;g2 在输入框回车提交(X14 #33:form onSubmit 与点按等价)
+  await g1.goto(`${ONLINE}/?online=1`);
+  await g1.getByTestId("lobby-join-input").fill(roomId);
+  await g1.getByTestId("lobby-join").click();
+  await expect(g1.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
+
+  await g2.goto(`${ONLINE}/?online=1`);
+  await g2.getByTestId("lobby-join-input").fill(roomId);
+  await g2.keyboard.press("Enter");
+  await expect(g2.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
+
+  // 座位行单字方章:两加入者各挂「魏」章;host(未预设)无章(不放假国号)
+  await expect(host.getByTestId("lobby-seat-1-guohao")).toHaveText("魏", { timeout: 30_000 });
+  await expect(host.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
+  await expect(host.getByTestId("lobby-seat-0-guohao")).toHaveCount(0);
+
+  // 重名预告(先到先得):seat1 保原名无预告;seat2 预告开局改为方位前缀「东魏」;
+  // 双方大厅(非仅本人视角)都可见彼此国号与预告
+  await expect(host.getByTestId("lobby-seat-1-guohao-preview")).toHaveCount(0);
+  await expect(host.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
+  await expect(g1.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
+  await expect(g1.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
+  await expect(g2.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
+
+  await Promise.all([host, g1, g2].map((p) => p.context().close()));
+});
