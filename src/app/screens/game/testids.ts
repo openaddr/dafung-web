@@ -42,6 +42,10 @@ export const TESTIDS = {
 
   // ── 诸侯列表 ──
   otherPlayer: (seat: number) => `other-player-${seat}` as const,
+  /** E6(#18):诸侯行列表容器(内滚区,矮视口下 scrollHeight > clientHeight)。 */
+  othersList: "others-list",
+  /** X13(#32):自己行的「你」印(每屏至多一个,挂在 viewSeat 座位行内)。 */
+  otherPlayerYou: "other-player-you",
 
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串

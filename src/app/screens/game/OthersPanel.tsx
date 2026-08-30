@@ -1,18 +1,23 @@
 // 侧栏·诸侯紧凑条(对照旧 renderOthers):国号徽记 + 银两 + 城数;活跃/破产/胜者高亮。
 // L48:原寄居 WarlogPanel 标题下,战报区移除后独立成节(标题「诸侯」,钉在珍宝·名士区之后)。
+// E6(#18):本节可收缩(min-h-0),列表自己内滚——矮视口 8 人局不再把末位诸侯/折叠钮
+// 顶出侧栏裁掉(纵向弹性由珍宝·名士区 flex-1 保底 min-h-24,见 TreasuryPanel)。
+// X13(#32):收 viewSeat,自己行金描边 +「你」印(与 HandPanel 身份头同款章形,
+// 8 相似色里斜眼 1s 定位;单机 viewSeat 跟随活跃座位,联机恒为本座,口径与 WaitingBar 一致)。
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 
-export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
+export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewSeat: number }) {
   return (
-    <section data-testid={TESTIDS.othersPanel} className="shrink-0 px-3 pb-2">
-      <h3 className="py-1 font-brush text-base">诸侯</h3>
-      <div>
+    <section data-testid={TESTIDS.othersPanel} className="flex min-h-0 flex-col px-3 pb-2">
+      <h3 className="shrink-0 py-1 font-brush text-base">诸侯</h3>
+      <div data-testid={TESTIDS.othersList} className="min-h-0 overflow-y-auto">
       {snapshot.players.map((p, seat) => {
         const isActive = snapshot.phase === "Playing" && seat === snapshot.activeIndex;
         const isWinner = snapshot.isOver && snapshot.winner === p.id;
+        const isYou = seat === viewSeat;
         return (
           <div
             key={p.id}
@@ -23,6 +28,8 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
               // W3:活跃强调——左侧 3px 金竖条 + bg-gold/25 + 国号加重(三重线索,斜眼可辨;
               // 非活跃也占 3px 透明边,避免状态切换时整行横向跳动)
               isActive ? "bg-gold/25 border-l-gold" : "border-l-transparent",
+              // X13:自己行金描边(与「轮到我」窄条金框同语言;与活跃金条语义不同可叠加)
+              isYou ? "ring-1 ring-gold/60 ring-inset" : "",
               p.isBankrupt ? "opacity-40 line-through" : "",
               isWinner ? "text-gold" : "",
             ].join(" ")}
@@ -34,6 +41,17 @@ export function OthersPanel({ snapshot }: { snapshot: GameSnapshot }) {
               {p.guohao || p.name}
               {p.isBot ? " 智" : ""}
             </span>
+            {/* X13:「你」印(HandPanel 身份头同款章形,缩小到行内尺寸;「你」是文字
+                标记,金色描边之外还有非颜色线索)。放名字后、ml-auto 现金前,不挤右列。 */}
+            {isYou && (
+              <span
+                data-testid={TESTIDS.otherPlayerYou}
+                title="这是你"
+                className="inline-flex shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 px-0.5 font-brush text-[10px] leading-none text-gold"
+              >
+                你
+              </span>
+            )}
             {/* S7 核对补漏:胜者原先仅靠 text-gold 金色区分(仅颜色传达信息),
                 补「胜」文字标记——与「智」同款单字后缀,颜色之外有明确文字线索 */}
             {isWinner && <span className="shrink-0 font-brush text-gold">胜</span>}
