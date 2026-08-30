@@ -1,6 +1,8 @@
 // 珍宝使交涉卷轴:对照旧 showTreasureOwnerScroll / showTreasurePickerScroll 的两步流。
 // 城主(决策方)先选模式(不交易/公道/坐地),再选要出售的珍宝;
-// 访客(落城的活跃玩家)非决策方,只看到等待交涉的只读视角。
+// 访客(落城的活跃玩家)非决策方,只看到等待交涉的只读视角——可关(X8 #27,关闭即回
+// 棋盘,等待反馈交还 WaitingBar 体系),关了本场合交涉不再重弹;相位离开组件卸载,
+// 状态随之复位,下一场交涉照常弹出。
 // 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级)。
 import { useState } from "react";
 import type { GameCommand } from "@core/types";
@@ -48,6 +50,9 @@ export function TreasureVisitorScroll({
 }: TreasureVisitorScrollProps) {
   // owner 两步:mode=null 在 Step 1(选模式),选定后进 Step 2(选珍宝)。与旧版 openScroll 重弹等价。
   const [mode, setMode] = useState<Mode | null>(null);
+  // X8(#27):访客只读面板可主动关掉(×/遮罩/Esc)——城主犹豫多久访客不再被困模态。
+  // 本地 UI 态(不进引擎/快照):关掉后本场合交涉不再重弹,卸载即复位(见文件头注释)。
+  const [visitorDismissed, setVisitorDismissed] = useState(false);
 
   const title = !mode
     ? `${ownerGuohao}·珍宝抉择`
@@ -60,10 +65,15 @@ export function TreasureVisitorScroll({
     return m === "fair" ? guide : premiumPriceOf(guide, property, cityLevel);
   };
 
-  // ── 访客视角:只读等待(决策权在城主)──
+  // ── 访客视角:只读等待(决策权在城主),可关(X8 #27)──
   if (role === "visitor") {
+    if (visitorDismissed) return null;
     return (
-      <ScrollShell title={`${ownerGuohao}·珍宝抉择`} testid={T.treasureScroll}>
+      <ScrollShell
+        title={`${ownerGuohao}·珍宝抉择`}
+        testid={T.treasureScroll}
+        onClose={() => setVisitorDismissed(true)}
+      >
         <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
           {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝,正在权衡是否出售…
         </p>
