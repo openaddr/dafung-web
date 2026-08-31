@@ -9,6 +9,7 @@ import { createDice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import type { HeroDef, TriggerSkill } from "@core/types";
 import type { GameMoment, MomentCtx } from "@core/timing";
+import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 
@@ -113,7 +114,7 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
   const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n)
     .some((t) => t === p.capitalIndex && t !== targetTile);
   if (passesCapital) throw new Error(`测试场景无效:落 #${targetTile} 的路径途经都城 #${p.capitalIndex}(必停截断)`);
-  p.position = from;
+  testEngine(e).placeActive(from);
   e.rollAndMove();
 }
 
@@ -484,8 +485,8 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
     finishSetup(e);
     const entries = recordMomentCtx(e);
     const chooser = e.activePlayer;
-    chooser.position = e.board.branch!.startNode; // 摆在辅路入口(真实场景由落格触发)
-    e.turnPhase = "AwaitingBranch";
+    testEngine(e).placeActive(e.board.branch!.startNode); // 摆在辅路入口(真实场景由落格触发)
+    testEngine(e).forceTurnPhase("AwaitingBranch");
     e.selectBranch("Branch");
     const be = entries.filter((x) => x.moment === "BranchEntered");
     expect(be).toHaveLength(1);
@@ -503,7 +504,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
     // 挂 +10 行军加成:辅路 5 格,骰 1-6 + 10 必然汇入主路
     mover.heroes.push(heroWith([{ id: "mb10", when: "BeforeMarch", effect: "moveBonus", params: { steps: 10 }, scope: "self" }]));
     mover.onBranch = { step: 0 }; // 在辅路第 0 格
-    mover.position = e.board.branch!.startNode; // 辅路行军时主路位置=入口占位
+    testEngine(e).placeActive(e.board.branch!.startNode); // 辅路行军时主路位置=入口占位
     const entries = recordMomentCtx(e);
     e.rollAndMove();
     autoResolve(e);
@@ -526,7 +527,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     const n = e.board.count;
     // 都城前 1 格 + 至少 2 步(挂 +1 加成)→ 途经都城必停(落点非都城)
     mover.heroes.push(heroWith([{ id: "mb1", when: "BeforeMarch", effect: "moveBonus", params: { steps: 1 }, scope: "self" }]));
-    mover.position = (mover.capitalIndex - 1 + n) % n;
+    testEngine(e).placeActive((mover.capitalIndex - 1 + n) % n);
     const { supply } = e.capitalSupplyOf(mover);
     const entries = recordMomentCtx(e);
     e.rollAndMove();
@@ -573,8 +574,9 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     // B(存活)与 C(破产)同站落点格:落点也在 traversed 内 → B 触发一次、C 被滤掉
     const bSeat = [0, 1, 2].find((s) => s !== moverSeat && !e.players[s].isBankrupt)!;
     const cSeat = [0, 1, 2].find((s) => s !== moverSeat && s !== bSeat)!;
-    e.players[bSeat].position = tile.index;
-    e.players[cSeat].position = tile.index;
+    const t = testEngine(e);
+    t.place(bSeat, tile.index);
+    t.place(cSeat, tile.index);
     e.players[cSeat].isBankrupt = true;
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
@@ -731,7 +733,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.cash = 0; // 一无所有:确认清算时仍不足 → settleDebt + finalizeBankruptcy(公共清算路径)
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
-    e.turnPhase = "AwaitingBankruptcySettle";
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.confirmBankruptcySettle();
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([{ subject: e.players.indexOf(mover) }]);
     expect(mover.isBankrupt).toBe(true);
@@ -750,7 +752,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.properties.push({ propertyId: extraDef.id, group: extraDef.group, purchasePrice: extraDef.purchasePrice, level: 0, maxLevel: extraDef.maxLevel });
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
-    e.turnPhase = "AwaitingBankruptcySettle";
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.sellTreasureBankruptcy("bk-t");
     e.sellPropertyBankruptcy(extraDef.id);
     const settle = entries.filter((x) => x.moment === "BankruptcySettle");
@@ -774,7 +776,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.heroes.push(heroWith([], "bk-hero")); // 名士换银 200 恰好抵债
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
-    e.turnPhase = "AwaitingBankruptcySettle";
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.cashHeroBankruptcy("bk-hero");
     expect(entries.filter((x) => x.moment === "BankruptcySettle").map((x) => x.ctx)).toEqual([
       { subject: e.players.indexOf(mover), amount: 200 },

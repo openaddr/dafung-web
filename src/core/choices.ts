@@ -18,13 +18,13 @@ export interface ChoiceOption {
   reason?: string; // 不可用原因
 }
 
-/** AwaitingDecision(购地/扩军,按 lastLandOutcome 分流)。
+/** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
  *  skip = 默认行为(不取/按兵不动),永远可用。 */
 function decisionChoices(e: GameEngine): ChoiceOption[] {
-  const outcome = e.lastLandOutcome;
+  const pending = e.pendingLand;
   const p = e.activePlayer;
-  if (outcome?.kind === "PropertyAvailable" && outcome.property) {
-    const def = outcome.property;
+  if (pending?.kind === "PropertyAvailable") {
+    const def = e.pendingLandDef();
     const affordable = p.cash >= def.purchasePrice;
     const hasWarrant = p.warrants >= BUY_WARRANT_COST;
     return [
@@ -38,8 +38,9 @@ function decisionChoices(e: GameEngine): ChoiceOption[] {
       { id: "skip", label: "不取", available: true },
     ];
   }
-  if (outcome?.kind === "OwnProperty" && outcome.property) {
-    const holding = findHolding(p, outcome.property.id);
+  if (pending?.kind === "OwnProperty") {
+    const def = e.pendingLandDef();
+    const holding = findHolding(p, def.id);
     return [
       {
         id: "upgrade",
@@ -50,7 +51,7 @@ function decisionChoices(e: GameEngine): ChoiceOption[] {
       { id: "skip", label: "按兵不动", available: true },
     ];
   }
-  // 非决策性 outcome(理论上到不了):仅剩默认行为
+  // 非决策性 pendingLand(理论上到不了):仅剩默认行为
   return [{ id: "skip", label: "按兵不动", available: true }];
 }
 

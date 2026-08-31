@@ -55,12 +55,15 @@ test("珍宝行键盘语义:行本体是 button,聚焦后 Enter 开详情(#42)",
 
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);
-  // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)
+  // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)。
+  // C2 起 buyProperty 消费 pendingLand(决策载荷),布场须两态同步:表现(lastLandOutcome)
+  // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
   await force(page, `
     e.turnPhase = "AwaitingDecision";
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
     e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
+    e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
   `);
   // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
   await expect(page.getByTestId("scroll-buy")).toBeVisible();
@@ -83,6 +86,7 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
     const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
     me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
+    e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
   `);
   await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
   await expect(page.getByTestId("action-upgrade")).toBeEnabled();

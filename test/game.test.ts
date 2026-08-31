@@ -7,6 +7,7 @@ import { loadMap } from "@core/board-loader";
 import { netWorth } from "@core/networth";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
+import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
@@ -182,9 +183,7 @@ describe("委任状", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const buyer = e.activePlayer;
-    const def = e.catalog.get("prop-luoyang")!;
-    e.turnPhase = "AwaitingDecision";
-    e.lastLandOutcome = { kind: "PropertyAvailable", property: def };
+    testEngine(e).armDecision("PropertyAvailable", "prop-luoyang"); // 决策上下文经窄口置 pendingLand
     const w0 = buyer.warrants;
     const props0 = buyer.properties.length;
     e.buyProperty();
@@ -196,11 +195,9 @@ describe("委任状", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const buyer = e.activePlayer;
-    const def = e.catalog.get("prop-luoyang")!;
     buyer.warrants = 0;
     const props0 = buyer.properties.length;
-    e.turnPhase = "AwaitingDecision";
-    e.lastLandOutcome = { kind: "PropertyAvailable", property: def };
+    testEngine(e).armDecision("PropertyAvailable", "prop-luoyang");
     e.buyProperty();
     expect(buyer.warrants).toBe(0); // 未消耗
     expect(buyer.properties.length).toBe(props0); // 未获得
@@ -225,10 +222,10 @@ describe("名士(英雄)", () => {
     const holder = e.players[1];
     holder.heroes.push(hero("zhangxingcai"));
     const cash0 = holder.cash;
-    (e as any).dispatchMoment("DieRolled", { subject: 0, die: 6 });
+    e.dispatchMoment("DieRolled", { subject: 0, die: 6 });
     expect(holder.cash).toBe(cash0 + 20);
     const cash1 = holder.cash;
-    (e as any).dispatchMoment("DieRolled", { subject: 0, die: 3 });
+    e.dispatchMoment("DieRolled", { subject: 0, die: 3 });
     expect(holder.cash).toBe(cash1); // 非 6 不加
   });
 
@@ -238,10 +235,10 @@ describe("名士(英雄)", () => {
     const holder = e.players[1];
     holder.heroes.push(hero("caopi"));
     const cash0 = holder.cash;
-    (e as any).dispatchMoment("CashLost", { subject: 0 });
+    e.dispatchMoment("CashLost", { subject: 0 });
     expect(holder.cash).toBe(cash0 + 50);
     const cash1 = holder.cash;
-    (e as any).dispatchMoment("CashLost", { subject: 1 }); // 自己失财 → 不触发
+    e.dispatchMoment("CashLost", { subject: 1 }); // 自己失财 → 不触发
     expect(holder.cash).toBe(cash1);
   });
 
@@ -250,7 +247,7 @@ describe("名士(英雄)", () => {
     finishSetup(e);
     const picker = e.activePlayer;
     expect(picker.heroes.length).toBe(0);
-    (e as any).tryRecruitHero(picker);
+    testEngine(e).tryRecruitHero(picker); // 窄口触达私有招贤步骤
     expect(e.turnPhase).toBe("AwaitingHeroPick");
     expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
     e.resolveHeroPick(0);
@@ -276,7 +273,7 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     // 放到都城前一格:任意掷骰(die>=1)必经都城;die=1 恰落都城,其余必停
-    p.position = (p.capitalIndex - 1 + e.board.count) % e.board.count;
+    testEngine(e).placeActive((p.capitalIndex - 1 + e.board.count) % e.board.count);
     const cash0 = p.cash;
     const w0 = p.warrants;
     const nextIdx = e.players.findIndex((x) => x !== p);
@@ -307,9 +304,7 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     // 直接落格到都城(绕开掷骰的确定性):resolveLanding 走「恰落都城」分支
-    p.position = p.capitalIndex;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(p.capitalIndex);
     const supply = e.capitalSupplyOf(p).supply;
     expect(p.cash).toBeGreaterThanOrEqual(supply); // 已补给
     expect(e.turnPhase as string).toBe("AwaitingHeroPick"); // 触发招贤(必停分支不触发)
@@ -324,7 +319,7 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     ]);
     finishSetup(e);
     const p = e.activePlayer;
-    p.position = (p.capitalIndex - 1 + e.board.count) % e.board.count;
+    testEngine(e).placeActive((p.capitalIndex - 1 + e.board.count) % e.board.count);
     botAct(e); // Roll → rollAndMove:必停(或恰落都城)在引擎内直接结算
     expect(p.position).toBe(p.capitalIndex);
     // 无 AwaitingCapitalHalt 可停:botAct 持续驱动必然推进(不再依赖 halt/continue 抉择)
@@ -342,9 +337,10 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
   /** 把当前活跃玩家放到辅路起点并设 AwaitingBranch(模拟落格到起点)。 */
   function landOnBranchStart(e: GameEngine) {
     const p = e.activePlayer;
-    p.position = BRANCH_START;
     p.onBranch = null;
-    e.turnPhase = "AwaitingBranch" as any;
+    const t = testEngine(e);
+    t.placeActive(BRANCH_START);
+    t.forceTurnPhase("AwaitingBranch"); // 摆辅路入口抉择相位(真实场景由落格触发)
   }
 
   it("入口抉择 selectBranch(Branch):置待入状态 step=-1,本回合结束且不结算任何格", () => {
@@ -433,10 +429,11 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     // 直接置入辅路第 4 格(penalty)并调用 resolveBranchCell
+    const t = testEngine(e);
     p.onBranch = { step: 4 };
-    p.position = BRANCH_START;
-    e.turnPhase = "Land" as any;
-    (e as any).resolveBranchCell(p, e.board.branch!.cells[4]);
+    t.placeActive(BRANCH_START);
+    t.forceTurnPhase("Land");
+    t.resolveBranchCell(p, e.board.branch!.cells[4]);
     expect(p.skipTurns).toBe(1);
     // 战报含"中伏"
     expect(e.log.some((ev) => ev.category === "branch" && ev.brief.includes("中伏"))).toBe(true);
@@ -457,9 +454,10 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
     ]);
     finishSetup(e);
     const p = e.activePlayer;
-    p.position = BRANCH_START;
+    const t = testEngine(e);
     p.onBranch = null;
-    e.turnPhase = "AwaitingBranch";
+    t.placeActive(BRANCH_START);
+    t.forceTurnPhase("AwaitingBranch");
     botAct(e);
     const tp: string = e.turnPhase;
     const ob = p.onBranch as { step: number } | null; // 经显式联合重置窄化(赋值 null 的窄化不随 botAct 失效)
@@ -480,9 +478,10 @@ describe("decisionOwner(决策归属统一查询)", () => {
   it("常规相位 = activeIndex(Roll/Land/AwaitingDecision)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.turnPhase = "Roll";
+    const t = testEngine(e);
+    t.forceTurnPhase("Roll");
     expect(e.decisionOwner).toBe(e.activeIndex);
-    e.turnPhase = "AwaitingDecision";
+    t.forceTurnPhase("AwaitingDecision");
     expect(e.decisionOwner).toBe(e.activeIndex);
   });
 
@@ -494,7 +493,7 @@ describe("decisionOwner(决策归属统一查询)", () => {
     const ownerIdx = e.players.indexOf(owner);
     const def = e.catalog.get("prop-changan")!;
     e.treasureVisitor = { def, ownerIdx };
-    e.turnPhase = "AwaitingTreasureOwner";
+    testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
     expect(e.decisionOwner).toBe(ownerIdx);
     expect(e.decisionOwner).not.toBe(e.activeIndex);
   });
@@ -503,7 +502,7 @@ describe("decisionOwner(决策归属统一查询)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.treasureVisitor = null;
-    e.turnPhase = "AwaitingTreasureOwner";
+    testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
     expect(e.decisionOwner).toBe(e.activeIndex);
   });
 });
@@ -515,10 +514,8 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const mover = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    mover.position = tile.index;
     mover.warrants = 1;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     e.buyProperty();
     expect(mover.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
@@ -532,10 +529,8 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
-    mover.position = tile.index;
     const cash0 = mover.cash;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     // 城主无珍宝 → 无事发生;等级不变(升级只挂在公道买卖成交上)
     expect(owner.properties.find((x) => x.propertyId === def.id)!.level).toBe(0);
     expect(mover.cash).toBe(cash0);
@@ -555,7 +550,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const armTrade = (treasureId: string) => {
       e.activeIndex = e.players.indexOf(mover);
       e.treasureVisitor = { def, ownerIdx: e.players.indexOf(owner) };
-      e.turnPhase = "AwaitingTreasureOwner";
+      testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
       owner.treasures.push({ id: treasureId, name: "测试珍宝", level: 1, count: 1, desc: "" });
     };
 
@@ -584,9 +579,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
-    me.position = tile.index;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     const cash0 = me.cash;
     e.upgradeProperty();

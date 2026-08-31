@@ -9,6 +9,7 @@ import { loadMap } from "@core/board-loader";
 import { extractStepEvents, present } from "../src/app/fx/orchestrator";
 import { createMemorySink } from "../src/app/fx/sinks";
 import type { PresentationEvent } from "../src/app/fx/presentation";
+import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
@@ -76,7 +77,7 @@ describe("单机提取器 extractStepEvents", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const p = e.activePlayer;
-    p.position = (p.capitalIndex - 2 + e.board.count) % e.board.count; // 距都城 2 步:die>=3 必停
+    testEngine(e).placeActive((p.capitalIndex - 2 + e.board.count) % e.board.count); // 距都城 2 步:die>=3 必停
     const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
     expect(events[0].kind).toBe("diceRolled");
     if (e.presentation.lastRoll!.die >= 3) {
@@ -99,7 +100,7 @@ describe("单机提取器 extractStepEvents", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const p = e.activePlayer;
-    p.position = (p.capitalIndex - 2 + e.board.count) % e.board.count; // 距都城 2 步:die>=3 必停
+    testEngine(e).placeActive((p.capitalIndex - 2 + e.board.count) % e.board.count); // 距都城 2 步:die>=3 必停
     const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
     const kinds = events.map((ev) => ev.kind);
     if (e.presentation.lastRoll!.die < 3) {
@@ -157,7 +158,7 @@ describe("单机提取器 extractStepEvents", () => {
     const p = e.activePlayer;
     p.cash = 0;
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
-    (e as unknown as { payOrLiquidate(p: unknown, a: unknown, n: number): string }).payOrLiquidate(p, null, 500);
+    testEngine(e).payOrLiquidate(p, null, 500); // 窄口触达私有清算入口
     e.sellTreasureBankruptcy("t1");
     // 推进前捕获 prePlayer(供提取器判 isBankrupt)
     const prePlayer = e.players[e.activeIndex];
@@ -187,13 +188,11 @@ describe("单机提取器 extractStepEvents", () => {
     // 银两不足落无主城 → 引擎自动「不取」+ 文案浮字
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    p.position = tile.index;
     p.cash = def.purchasePrice - 1;
     p.warrants = 3;
-    e.turnPhase = "Land";
     const prePlayer = e.players[e.activeIndex];
     const moverId = e.activePlayer.id;
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     const events = extractStepEvents(e, "Land", moverId, prePlayer);
     const tf = events.find((ev) => ev.kind === "textFloat");
     expect(tf).toBeDefined();

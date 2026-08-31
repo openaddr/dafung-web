@@ -13,6 +13,7 @@ import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
+import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
@@ -48,10 +49,9 @@ function finishSetup(e: GameEngine) {
 const opt = (opts: ChoiceOption[], id: string): ChoiceOption | undefined =>
   opts.find((o) => o.id === id);
 
-/** 强制 AwaitingDecision(注册表按 lastLandOutcome 分购地/扩军选项)。 */
+/** 强制 AwaitingDecision(注册表按 pendingLand 分购地/扩军选项;窄口置决策上下文)。 */
 function armDecision(e: GameEngine, kind: "PropertyAvailable" | "OwnProperty", propId: string) {
-  e.turnPhase = "AwaitingDecision";
-  e.lastLandOutcome = { kind, property: e.catalog.get(propId)! };
+  testEngine(e).armDecision(kind, propId);
 }
 
 /** 找一座无主普通城(规避 finishSetup 选都占位的不确定性)。 */
@@ -123,7 +123,7 @@ describe("选项集注册表(choices.ts)", () => {
     finishSetup(e);
     const owner = e.players.find((x) => x !== e.activePlayer)!;
     e.treasureVisitor = { def: e.catalog.get("prop-changan")!, ownerIdx: e.players.indexOf(owner) };
-    e.turnPhase = "AwaitingTreasureOwner";
+    testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
     const opts = e.choicesFor();
     expect(opts.map((o) => o.id)).toEqual(["fair", "premium", "decline"]);
     expect(opts.every((o) => o.available)).toBe(true);
@@ -132,7 +132,7 @@ describe("选项集注册表(choices.ts)", () => {
   it("择路:main/branch 两选", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.turnPhase = "AwaitingBranch";
+    testEngine(e).forceTurnPhase("AwaitingBranch");
     const opts = e.choicesFor();
     expect(opts.map((o) => o.id)).toEqual(["main", "branch"]);
     expect(opts.every((o) => o.available)).toBe(true);
@@ -142,7 +142,7 @@ describe("选项集注册表(choices.ts)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.offeredHeroes = HEROES.slice(0, 3);
-    e.turnPhase = "AwaitingHeroPick";
+    testEngine(e).forceTurnPhase("AwaitingHeroPick");
     const opts = e.choicesFor();
     expect(opts).toHaveLength(3);
     expect(opts[0].id).toBe(`hero:${HEROES[0].id}`);
@@ -158,7 +158,7 @@ describe("选项集注册表(choices.ts)", () => {
     const { def } = freeProperty(e); // 一座非都城地产(都城不可变卖)
     p.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
     e.pendingDebt = { amount: 99999, creditor: null };
-    e.turnPhase = "AwaitingBankruptcySettle";
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     const opts = e.choicesFor();
     expect(opts.map((o) => o.id)).toContain("sell-treasure:t1");
     expect(opts.map((o) => o.id)).toContain(`cash-hero:${HEROES[0].id}`);
@@ -182,9 +182,10 @@ describe("选项集注册表(choices.ts)", () => {
   it("未注册相位(Roll/Land)返回空数组", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.turnPhase = "Roll";
+    const t = testEngine(e);
+    t.forceTurnPhase("Roll");
     expect(e.choicesFor()).toEqual([]);
-    e.turnPhase = "Land";
+    t.forceTurnPhase("Land");
     expect(e.choicesFor()).toEqual([]);
   });
 });
@@ -197,11 +198,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const p = e.activePlayer;
     const { tile, def } = freeProperty(e);
     const turn0 = e.turnNumber;
-    p.position = tile.index;
     p.cash = def.purchasePrice - 1;
     p.warrants = 3;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1); // 直接结束回合
     expect(e.log.some((ev) => ev.detail.includes("skipAvailable") && ev.detail.includes(def.id))).toBe(true);
@@ -214,11 +213,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     finishSetup(e);
     const p = e.activePlayer;
     const { tile, def } = freeProperty(e);
-    p.position = tile.index;
     p.cash = 10000;
     p.warrants = 0;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.log.some((ev) => ev.brief.includes("无委任状") && ev.detail.includes(def.id))).toBe(true);
     const fs = e.presentation.drainFloaters();
@@ -233,10 +230,8 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: def.maxLevel, maxLevel: def.maxLevel });
-    me.position = tile.index;
     const turn0 = e.turnNumber;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1);
     expect(e.log.some((ev) => ev.detail.includes("skipMaxed") && ev.detail.includes(def.id))).toBe(true);
@@ -250,11 +245,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     finishSetup(e);
     const p = e.activePlayer;
     const { tile, def } = freeProperty(e);
-    p.position = tile.index;
     p.cash = def.purchasePrice;
     p.warrants = 1;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     expect(e.presentation.drainFloaters()).toEqual([]); // 无浮字
   });
@@ -267,9 +260,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
-    me.position = tile.index;
-    e.turnPhase = "Land";
-    (e as unknown as { resolveLanding: () => void }).resolveLanding();
+    testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
   });
 });
