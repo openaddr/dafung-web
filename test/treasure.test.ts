@@ -12,6 +12,7 @@ import {
   premiumPriceOf,
   tradePriceOf,
 } from "@core/treasures";
+import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
@@ -54,7 +55,7 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   });
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };
-  e.turnPhase = "AwaitingTreasureOwner";
+  testEngine(e).forceTurnPhase("AwaitingTreasureOwner");
   return { owner, mover: e.activePlayer, def, guide: TREASURE_PRICE[TLEVEL] };
 }
 

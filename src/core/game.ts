@@ -9,6 +9,7 @@ import type {
   LandOutcome,
   LogEvent,
   MovePath,
+  PendingLand,
   Player,
   PropertyDef,
   RouteKind,
@@ -24,7 +25,7 @@ import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
 import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
-import { serializeGame } from "./snapshot";
+import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
 import { CHANCE_EVENTS, FATE_EVENTS } from "./events";
@@ -158,7 +159,7 @@ export class GameEngine {
   winner: Player | null = null;
   winReason: VictoryReason = "None";
 
-  // ─── 表现态(Wave3 候选4 收口)───
+  // ─── 表现态(Wave3 候选4 收口;spec #107 C2 决策载荷分离)───
   // 四个字段(私有)语义曾散在注释里:floaters 读即破坏(渲染消费后清空)、
   // lastMove 表现侧可写(applyPresentationMove)、lastRoll/lastTransaction 每帧重建。
   // 现统一经 presentation 视图对外(见 getter),字段本身不再 public:
@@ -168,8 +169,16 @@ export class GameEngine {
   // 视图是方法的集合(非可序列化数据),不进 snapshot;序列化走 snapshot.ts 经视图读。
   private lastRoll: DiceRoll | null = null;
   private lastMove: MovePath | null = null;
-  lastLandOutcome: LandOutcome | null = null; // 非表现态(bot/快照消费的数据),维持 public
+  // 纯表现态(spec #107 C2 退役:不再兼任决策载荷):供快照扁平字段(lastLandOutcomeKind/
+  // lastLandOutcomeProperty)与战报金额;决策命令/选项集/恢复重建一律改走 pendingLand。
+  lastLandOutcome: LandOutcome | null = null;
   private lastTransaction: TransactionResult | null = null;
+
+  /** 待决策落格载荷(spec #107 C2):决策上下文的唯一出处。resolveLanding 落在无主可购/
+   *  己城可扩格时置值;决策命令(buyProperty/upgradeProperty/endDecision)消费;
+   *  决策完成(endTurn)清除。快照按 pendingLand 自身字段单点序列化/重建,
+   *  restore 后决策上下文不再依赖表现态字段。 */
+  pendingLand: PendingLand | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
@@ -679,13 +688,20 @@ export class GameEngine {
     this.resolveLanding();
   }
 
+  /** 待决策落格的地产定义:价格/等级口径的单一出处(catalog 按 pendingLand.propertyId 现查;
+   *  快照恢复只带 id 句柄,定义不序列化)。查无定义 = 数据 bug,显式抛错(零兜底)。 */
+  pendingLandDef(): PropertyDef {
+    if (this.pendingLand == null)
+      throw new Error("pendingLandDef:当前无待决策落格(仅 AwaitingDecision 相位有决策上下文)");
+    const def = this.catalog.get(this.pendingLand.propertyId);
+    if (def == null)
+      throw new Error(`pendingLand:城 ${this.pendingLand.propertyId} 不在 catalog(数据 bug)`);
+    return def;
+  }
+
   buyProperty(): void {
     if (!this.assertPhase("AwaitingDecision", "BuyProperty")) return;
-    if (this.lastLandOutcome?.property == null) {
-      this.warn("BuyProperty 无待决策地产");
-      return;
-    }
-    const def = this.lastLandOutcome.property;
+    const def = this.pendingLandDef();
     const buyer = this.activePlayer;
     // 进驻(买)新城需要委任状;不足则拒绝(NoWarrant),UI 会禁用购买按钮
     if (buyer.warrants < BUY_WARRANT_COST) {
@@ -712,11 +728,7 @@ export class GameEngine {
 
   upgradeProperty(): void {
     if (!this.assertPhase("AwaitingDecision", "UpgradeProperty")) return;
-    if (this.lastLandOutcome?.property == null) {
-      this.warn("UpgradeProperty 无待决策地产");
-      return;
-    }
-    const def = this.lastLandOutcome.property;
+    const def = this.pendingLandDef();
     const r = upgradeProp(this.activePlayer, def);
     this.lastTransaction = r;
     if (r.status === "Ok") {
@@ -826,6 +838,8 @@ export class GameEngine {
     if (owner == null) {
       // 无主城(含分歧点城)。ADR-0013:选项集经注册表计算;买不起/无委任状时仅剩默认
       // 行为「不取」→ 自动执行(战报+浮字),不进决策相位(原 L51 内联预检迁入注册表)。
+      // 决策上下文置 pendingLand(决策命令消费);lastLandOutcome 仅表现态(UI 卷轴字段)。
+      this.pendingLand = { kind: "PropertyAvailable", propertyId: def.id };
       this.lastLandOutcome = { kind: "PropertyAvailable", property: def };
       if (this.enterDecisionPhase()) {
         this.logEvent("buy", mover.guohao, `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`, `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`);
@@ -834,6 +848,7 @@ export class GameEngine {
     }
     if (owner === mover) {
       // 己城扩军。ADR-0013:满级时仅剩「按兵不动」假选择 → 自动执行(战报+浮字)。
+      this.pendingLand = { kind: "OwnProperty", propertyId: def.id };
       this.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
       if (this.enterDecisionPhase()) {
         this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
@@ -870,7 +885,7 @@ export class GameEngine {
   /** ADR-0013 决策收口:进入 AwaitingDecision 前先经注册表(choices.ts)计算选项集;
    *  除默认行为(skip)外无可用选项 → 直接自动执行默认行为(战报 + 浮字 + endTurn),
    *  不进决策相位,返回 false;否则进入 AwaitingDecision 等待玩家,返回 true。
-   *  调用前须已置 lastLandOutcome(注册表按其分购地/扩军选项)。 */
+   *  调用前须已置 pendingLand(注册表按其分购地/扩军选项)。 */
   private enterDecisionPhase(): boolean {
     const options = computeChoices(this, "AwaitingDecision");
     const hasRealChoice = options.some((o) => o.available && o.id !== "skip");
@@ -880,7 +895,7 @@ export class GameEngine {
     }
     const p = this.activePlayer;
     const tile = this.board.at(p.position);
-    const def = this.lastLandOutcome?.property;
+    const def = this.pendingLand != null ? this.pendingLandDef() : null;
     this.lastLandOutcome = { kind: "Noop" };
     if (def != null && options.some((o) => o.id === "buy")) {
       // 购地不可行(银两/委任状不足):默认行为=不取(浮字文案口径见 ADR-0013 决议 2)
@@ -1005,6 +1020,8 @@ export class GameEngine {
     // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
     // 下次 rollAndMove 会覆盖这两个值,故无需手动清空。
     this.lastLandOutcome = null;
+    // 决策完成(购/扩/跳过)即清除待决策落格载荷
+    this.pendingLand = null;
     this.lastTransaction = null;
   }
 
@@ -1588,6 +1605,12 @@ export class GameEngine {
     this.lastMove = path;
   }
 
+  /** 表现掷骰注入通道(与 applyPresentationMove 对偶):序列化单点清单的恢复回写专用
+   *  (lastRoll 私有、presentation 视图只读,快照恢复是唯一合法外部写口)。 */
+  applyPresentationRoll(roll: DiceRoll | null): void {
+    this.lastRoll = roll;
+  }
+
   // ──────────────────────────── 调试快照(供 window.__dafung / 测试) ────────────────────────────
   snapshot() {
     return serializeGame(this);
@@ -1595,131 +1618,12 @@ export class GameEngine {
 
   // ──────────────────────────── 跨进程重建(CLI 持久化 / 联机快照恢复) ────────────────────────────
   // 用 serialized snapshot 重建引擎状态。前提:构造时 seats/target/startingCash 已匹配快照;
-  // 本方法只覆盖可变状态。无法恢复的瞬时字段(floaters/lastTransaction)清空。
-  restoreFromSnapshot(s: ReturnType<GameEngine["snapshot"]>): void {
-    this.gameId = s.gameId; // 对局 id 随快照恢复(ADR-0014:联机各端/重启恢复同 id,日志归档同 key)
-    this.phase = s.phase;
-    this.setupPhase = s.setupPhase;
-    this.turnPhase = s.turnPhase;
-    this.turnNumber = s.turnNumber;
-    this.round = s.round;
-    this.roundAnchor = s.roundAnchor;
-    this.activeIndex = s.activeIndex;
-    this.isOver = s.isOver;
-    this.winReason = s.winReason;
-    this.draftOrder = [...s.draftOrder];
-    this.draftRolls = [...s.draftRolls];
-    this.currentDraftIndex = s.currentDraftIndex;
-    this.takenCapitalIndices = new Set(s.takenCapitalIndices);
-    this.offeredCapitals = [...s.offeredCapitals];
-    this.offeredCapitalHistory = new Set(s.offeredCapitalHistory);
-    this.usedGuohao = new Set(s.usedGuohao);
-    this.recruitedHeroIds = new Set(s.recruitedHeroIds);
-    this.treasureDeck = s.treasureDeck.map((t) => ({
-      id: t.id,
-      name: t.name,
-      level: t.level,
-      desc: t.desc,
-    }));
-    this.treasureVisitor = s.treasureVisitor
-      ? {
-          // catalog.get 返回 PropertyDef | null;snapshot 写入时保证 propertyId 合法
-          def: this.catalog.get(s.treasureVisitor.propertyId) as PropertyDef,
-          ownerIdx: s.treasureVisitor.ownerIdx,
-        }
-      : null;
-    this.pendingDebt = s.pendingDebt
-      ? {
-          amount: s.pendingDebt.amount,
-          creditor: this.players.find((p) => p.id === s.pendingDebt!.creditor) ?? null,
-        }
-      : null;
-    this.escrowTreasure = s.escrowTreasure
-      ? {
-          treasure: {
-            id: s.escrowTreasure.treasure.id,
-            name: s.escrowTreasure.treasure.name,
-            level: s.escrowTreasure.treasure.level,
-            desc: s.escrowTreasure.treasure.desc,
-          },
-          buyerIdx: s.escrowTreasure.buyerIdx,
-          sellerIdx: s.escrowTreasure.sellerIdx,
-          price: s.escrowTreasure.price,
-        }
-      : null;
-    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存 id/name/title/desc,丢 skill/cooldown)
-    this.offeredHeroes = s.offeredHeroes
-      .map((h) => HEROES.find((H) => H.id === h.id))
-      .filter((h): h is HeroDef => h != null);
-    this.lastRoll = s.lastRoll;
-    this.lastMove = s.lastMove
-      ? {
-          from: s.lastMove.from,
-          traversed: [...s.lastMove.traversed],
-          landIndex: s.lastMove.landIndex,
-          passedCapital: s.lastMove.passedCapital,
-          capitalIndex: s.lastMove.capitalIndex,
-          waypoints: [...s.lastMove.waypoints],
-          landBranchStep: s.lastMove.landBranchStep,
-          branchWaypoints: [...s.lastMove.branchWaypoints],
-        }
-      : null;
-    // lastLandOutcome:完整恢复(kind/property/amount/resupply/causedBankruptcy);
-    // property 按 id 从 catalog 重构引用,无 property 的 outcome(如纯补给 OwnProperty)原样保留
-    this.lastLandOutcome = s.lastLandOutcome
-      ? {
-          kind: s.lastLandOutcome.kind,
-          // ?? undefined 仅类型归一(catalog.get 缺失返回 null;property 字段语义=无定义即缺席)
-          property: (s.lastLandOutcome.propertyId ? this.catalog.get(s.lastLandOutcome.propertyId) : undefined) ?? undefined,
-          amount: s.lastLandOutcome.amount ?? undefined,
-          resupply: s.lastLandOutcome.resupply ?? undefined,
-          causedBankruptcy: s.lastLandOutcome.causedBankruptcy ?? undefined,
-        }
-      : null;
-    this.lastTransaction = null;
-    this.log = s.log ? [...s.log] : [];
+  // 本方法只覆盖可变状态。哪些字段参与序列化、各自怎么读写的单点清单见 snapshot.ts 的
+  // SNAPSHOT_FIELDS(serialize 与 restore 共享成对表);无法恢复的瞬时字段(floaters/
+  // lastTransaction)在此清空,不参与清单。
+  restoreFromSnapshot(s: GameSnapshot): void {
+    restoreGameSnapshot(this, s);
+    this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
-
-    // 玩家状态(覆盖构造时设的初值)
-    s.players.forEach((ps, i) => {
-      const p = this.players[i];
-      p.guohao = ps.guohao;
-      p.isBot = ps.isBot; // 恢复 isBot(联机客户端的占位引擎可能与服务器不一致)
-      p.cash = ps.cash;
-      p.warrants = ps.warrants;
-      p.isBankrupt = ps.isBankrupt;
-      p.position = ps.position;
-      p.capitalIndex = ps.capitalIndex;
-      p.onBranch = ps.onBranch ? { step: ps.onBranch.step } : null;
-      p.skipTurns = ps.skipTurns;
-      // heroes:查 HEROES 表补 skill/cooldown(snapshot 故意只存展示字段)
-      p.heroes = ps.heroes
-        .map((h) => HEROES.find((H) => H.id === h.id))
-        .filter((h): h is HeroDef => h != null);
-      p.heroLastFired = { ...ps.heroLastFired };
-      p.treasures = ps.treasures.map((t) => ({
-        id: t.id,
-        name: t.name,
-        level: t.level,
-        desc: t.desc,
-      }));
-      // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
-      p.properties = ps.properties.map((h) => {
-        const def = this.catalog.get(h.propertyId);
-        return {
-          propertyId: h.propertyId,
-          group: h.group ?? def?.group ?? "z",
-          purchasePrice: def?.purchasePrice ?? def?.buildCost ?? 0,
-          level: h.level,
-          maxLevel: def?.maxLevel ?? 3,
-        };
-      });
-    });
-
-    // winner:从 id 反查玩家
-    this.winner = s.winner ? this.players.find((p) => p.id === s.winner) ?? null : null;
-
-    // PRNG 状态:跨进程续掷(必须最后设,前面 catalog/Set 等不动 dice)
-    if (typeof s.rngState === "number") this.dice.setRngState(s.rngState);
   }
 }

@@ -63,7 +63,7 @@ export function botAct(engine: GameEngine): void {
       // ADR-0013:先经 choicesFor 选项集注册表过滤可用项(与引擎自动执行同一口径,防第三套
       // 判断漂移),再按启发式选择。引擎已保证进入该相位时 ≥2 真实选项,此处过滤是收敛口径。
       const avail = engine.choicesFor().filter((o) => o.available);
-      const def = engine.lastLandOutcome?.property;
+      const def = engine.pendingLand != null ? engine.pendingLandDef() : null; // 决策上下文(spec #107 C2)
       if (avail.some((o) => o.id === "buy") && def) {
         const want = p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
         if (want) engine.buyProperty();

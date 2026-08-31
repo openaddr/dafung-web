@@ -85,24 +85,25 @@ export const Theme = {
 // ── 动效 token(R3-C1 #88):时长 + 缓动唯一源,CSS 一律 var() 消费 ──
 // 与 Theme 同走 gen:theme 管线生成 --dur-* / --ease-*。呼吸/脉冲类统一挂 --dur-ambient,
 // 个体允许整数倍/半频特例(如 calc(var(--dur-ambient) / 2) = 1.3s 半频);
-// 个别与 JS 编排硬同步的时长(fx/timings.ts FX/DICE)保留字面量并在 CSS 注释标注。
+// dur 值为毫秒数:CSS 侧由生成器拼 ms 单位序列化,JS 侧(fx/timings.ts)直接取数,
+// 数值恰等于某 token 的 FX/DICE 字段引用 Motion(单点同步),其余编排窗口保留字面量。
 export const Motion = {
-  /** 时长阶梯:短→长依次承担 反馈 → 面板 → 大件 → 演出 → 常驻。 */
+  /** 时长阶梯(毫秒):短→长依次承担 反馈 → 面板 → 大件 → 演出 → 常驻。 */
   dur: {
     /** 按压/hover 即时反馈(80ms,一触即应)。 */
-    instant: "80ms",
+    instant: 80,
     /** 遮罩、高亮等轻量快过渡(150ms;对齐旧 fast 0.15s 口径)。 */
-    fast: "150ms",
+    fast: 150,
     /** 面板入退场、屏幕切换(250ms;对齐旧 mid 0.25s 口径)。 */
-    med: "250ms",
+    med: 250,
     /** 大件入场单拍(400ms;对齐旧 slow 0.4s 口径)。 */
-    slow: "400ms",
-    /** 胜利阶梯、镜头等揭晓感长拍(600ms)。 */
-    reveal: "600ms",
-    /** 浮字类瞬时演出(1300ms,对齐 fx 层既有 1300ms 口径,fx/timings.ts FX.floaterMs 同步)。 */
-    fx: "1300ms",
+    slow: 400,
+    /** 胜利阶梯、镜头等揭晓感长拍(600ms);骰子落定停留 DICE.holdMs 同源(经 Motion)。 */
+    reveal: 600,
+    /** 浮字类瞬时演出(1300ms)。fx/timings.ts FX.floaterMs 与 --dur-fx 同源(经 Motion)。 */
+    fx: 1300,
     /** 常驻呼吸基准(2600ms):旌旗摇曳/光晕脉动等 infinite 呼吸统一挂此,个体允许整数倍/半频。 */
-    ambient: "2600ms",
+    ambient: 2600,
   },
   /** 缓动四条:入场/退场/回弹/呼吸各一,替换全仓 8 种并存缓动。 */
   ease: {

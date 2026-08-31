@@ -9,6 +9,8 @@ import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
+import { SNAPSHOT_FIELDS, type GameSnapshot } from "@core/snapshot";
+import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 
@@ -52,6 +54,24 @@ function comparableLog(log: GameEngine["log"]) {
   }));
 }
 
+/** 驱动当前玩家落定一座无主可购城,进入 AwaitingDecision(决策上下文在快照里的测试态)。 */
+function armBuyDecision(e: GameEngine): { tilePropertyId: string } {
+  const t = testEngine(e);
+  const tile = e.board.tiles.find(
+    (x) =>
+      x.type === "Property" &&
+      x.propertyId != null &&
+      e.findOwner(x.propertyId) == null &&
+      !e.board.getBranchStart(x.index),
+  )!;
+  const tilePropertyId = tile.propertyId!; // 谓词已保证非空
+  e.activePlayer.cash = 99999; // 买得起 + 起手 3 委任状 → 购地/不取两真选,必进决策相位
+  t.landActiveAt(tile.index);
+  expect(e.turnPhase).toBe("AwaitingDecision");
+  expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: tilePropertyId });
+  return { tilePropertyId };
+}
+
 describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () => {
   it("每步恢复 round-trip 后快照逐字段一致(联机每帧走的就是这条路)", () => {
     const a = makeEngine(7);
@@ -69,6 +89,45 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     }
     expect(a.isOver).toBe(true);
     expect(steps).toBeGreaterThan(20); // 确保真的跑了对局,而非空转即结束
+  });
+
+  it("序列化单点清单:serializeGame 产出键集 = SNAPSHOT_FIELDS 清单键集(双向)", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const produced = Object.keys(e.snapshot()).sort();
+    const manifest = SNAPSHOT_FIELDS.map((f) => f.key).sort();
+    // 产出 → 清单:每个序列化键都登记在册(防「加了字段忘了清单」)
+    // 清单 → 产出:清单中每个键都真实出现在产出里(防「清单记了字段忘了产出」)
+    expect(produced).toEqual(manifest);
+  });
+
+  it("决策上下文 round-trip:pendingLand 单点重建,镜像端可继续购地(旧序列化缺口回归)", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const { tilePropertyId } = armBuyDecision(e);
+    // 联机路径:恢复到同构新引擎,决策上下文由 pendingLand 自身字段单点重建
+    const mirror = makeEngine(1); // 种子无关紧要:恢复会覆盖 rngState
+    mirror.restoreFromSnapshot(e.snapshot());
+    expect(JSON.stringify(mirror.snapshot())).toBe(JSON.stringify(e.snapshot()));
+    expect(mirror.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: tilePropertyId });
+    expect(mirror.turnPhase).toBe("AwaitingDecision");
+    // 恢复后决策命令可续:镜像端直接购地成功(决策不再依赖表现态 lastLandOutcome)
+    mirror.buyProperty();
+    expect(
+      mirror.activePlayer.properties.some((h) => h.propertyId === tilePropertyId),
+    ).toBe(true);
+  });
+
+  it("零兜底:快照 pendingLand 指向 catalog 之外的城 → restore 显式抛错(不静默丢决策)", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    armBuyDecision(e);
+    const broken: GameSnapshot = {
+      ...e.snapshot(),
+      pendingLand: { kind: "PropertyAvailable", propertyId: "prop-not-in-catalog" },
+    };
+    const mirror = makeEngine(1);
+    expect(() => mirror.restoreFromSnapshot(broken)).toThrow("pendingLand");
   });
 
   it("中点恢复后独立续跑到终局,终态与直跑完全一致", () => {

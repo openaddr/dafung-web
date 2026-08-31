@@ -123,6 +123,28 @@ export interface LandOutcome {
   causedBankruptcy?: boolean;
 }
 
+// ── 决策载荷与表现态分离(spec #107 C2)──
+/** 待决策落格的决策种类:无主城可购 / 己城可扩军。 */
+export type PendingLandKind = "PropertyAvailable" | "OwnProperty";
+
+/** 待决策落格载荷:决策上下文(购地/扩军命令与选项集计算的唯一依据),与表现态
+ *  LandOutcome 分离。只含最小可序列化上下文——propertyId 是唯一句柄,价格/等级口径
+ *  由 catalog 按 id 现查,恢复/联机不丢引用(旧 lastLandOutcome 兼任决策载荷时,曾因
+ *  property 引用的序列化缺口在恢复后丢失决策上下文)。 */
+export interface PendingLand {
+  kind: PendingLandKind;
+  propertyId: string;
+}
+
+/** LandOutcome 的快照行(纯表现态;propertyId 句柄,定义由 catalog 按需现查)。 */
+export interface LandOutcomeSnapshot {
+  kind: LandOutcomeKind;
+  propertyId: string | null;
+  amount: number | null;
+  resupply: number | null;
+  causedBankruptcy: boolean | null;
+}
+
 /** 回合阶段。 */
 export type TurnPhase =
   | "Roll"
