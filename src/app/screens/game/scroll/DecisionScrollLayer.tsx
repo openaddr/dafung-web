@@ -23,27 +23,22 @@ import {
 } from "./index";
 import { ScrollGhostContext } from "./ScrollShell";
 import { exportGameLog } from "../gameLogExport";
+import type { TileDetailRequest } from "../useCapitalPick";
 
 export interface DecisionScrollLayerProps {
   snapshot: GameSnapshot;
   viewSeat: number;
   interactive: boolean;
-  /** 城池详情(Playing 相位点城查看,GameScreen 本地态)。null = 不弹。 */
-  detailTileIndex: number | null;
-  onDetailClose: () => void;
-  /** #35 选都模式:详情卷轴内嵌「定都于此/再想想」(Setup PickCapital 期点可选城)。 */
-  detailPickCapital: boolean;
-  onConfirmCapital: (tileIndex: number) => void;
+  /** 城池详情/选都确认流程(spec #107 C5 下沉:状态机在 useCapitalPick,本层只按
+   *  请求渲染,不再收 4 个流程 props)。null = 不弹。 */
+  tileDetail: TileDetailRequest | null;
 }
 
 export function DecisionScrollLayer({
   snapshot,
   viewSeat,
   interactive,
-  detailTileIndex,
-  onDetailClose,
-  detailPickCapital,
-  onConfirmCapital,
+  tileDetail,
 }: DecisionScrollLayerProps) {
   // #90(R3-C3)相位切换幽灵帧:子节点身份(组件类型)变化时,把上一个元素快照原样
   // 再渲染 210ms(rollback 动画 var(--dur-fast)=150ms 走完有余),经 ScrollGhostContext
@@ -104,8 +99,9 @@ export function DecisionScrollLayer({
   }
 
   // ── 城池详情(只读,任何时候可弹;#33 特殊地点同样展示类型说明)──
-  if (detailTileIndex !== null) {
-    const tile = board.at(detailTileIndex);
+  if (tileDetail !== null) {
+    const tileIndex = tileDetail.tileIndex;
+    const tile = board.at(tileIndex);
     const def = tile.propertyId ? catalog.get(tile.propertyId) : null;
     const ownerEntry = def
       ? players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId))
@@ -113,7 +109,7 @@ export function DecisionScrollLayer({
     const owned = ownerEntry?.properties.find((h) => h.propertyId === tile.propertyId);
     return (
       <TileDetailScroll
-        tileIndex={detailTileIndex}
+        tileIndex={tileIndex}
         tileName={tile.name}
         tileType={tile.type}
         region={tile.region ?? ""}
@@ -129,15 +125,15 @@ export function DecisionScrollLayer({
         }
         ownerGuohao={ownerEntry?.guohao ?? null}
         ownerLevel={owned?.level ?? 0}
-        isCapital={ownerEntry?.capitalIndex === detailTileIndex}
+        isCapital={ownerEntry?.capitalIndex === tileIndex}
         onClose={() => {
           // 详情卷轴经 Shell 的 closing 出口就地演收起,记标跳过幽灵帧(防二连播)
           shellClosedRef.current = true;
-          onDetailClose();
+          tileDetail.onClose();
         }}
         pickCapital={
-          detailPickCapital
-            ? { onConfirm: () => onConfirmCapital(detailTileIndex) }
+          tileDetail.pickCapital
+            ? { onConfirm: () => tileDetail.onConfirmCapital(tileIndex) }
             : undefined
         }
       />

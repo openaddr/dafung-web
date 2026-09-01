@@ -3,6 +3,7 @@
 // 房主/选图/托管标记)——它们的生命周期不同(房间先于对局存在),混在一起会让
 // snapshot 浅比较被无关字段污染。协议字段与 scripts/room.ts 的 lobbyView/seatMeta 一一对应。
 import { create } from "zustand";
+import type { GameController } from "@app/controllers/controller";
 
 /** 座位元数据(服务器 seatMeta 原样转发;字段语义见 scripts/room.ts)。 */
 export interface NetSeatMeta {
@@ -115,4 +116,17 @@ export const useNetStore = create<NetStoreState>((set) => ({
 /** 我的座位当前是否托管中(服务器 seats 广播回读,无本地乐观态)。 */
 export function myAutoPilotOn(s: NetStoreState): boolean {
   return s.seats[s.mySeat]?.autoPilot ?? false;
+}
+
+/** 托管态单源取值 hook(spec #107 C5 收口,GameScreen/HandPanel 唯一回读口径):
+ *  联机已入座 = 座位广播(seats[mySeat] 恒存在);联机未入座(观战,mySeat=-1)恒 false
+ *  ——观战无托管,是语义态而非数据缺失(#45/S12:此前 GameScreen 内联式
+ *  seats[mySeat].autoPilot 在观战态即 TypeError);单机 = 控制器本地标记。
+ *  不做链式回退——两种模式各有唯一事实源,取错源即暴露接线 bug。
+ *  controller 走参数而非 hook 内 getController():与两调用方的既有取径一致
+ *  (GameScreen 模块级取、HandPanel props 下发),hook 只负责「选哪个源」。 */
+export function useAutopilotOn(controller: GameController | null): boolean {
+  return useNetStore((s) =>
+    s.roomId !== "" ? (s.mySeat >= 0 ? myAutoPilotOn(s) : false) : (controller?.autoPilotOn ?? false),
+  );
 }
