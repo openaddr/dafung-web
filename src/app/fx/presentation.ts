@@ -10,6 +10,7 @@
 // 提取时刻的玩家状态(辅路位置),事后无法从 atTile 单独还原,故事件自带坐标,
 // atTile 仅保留语义信息供测试断言。
 import type { MovePath } from "@core/types";
+import type { PropertyChangeTrace } from "@core/game";
 import type { SoundEvent } from "./audio";
 
 /** 表现事件:数组顺序 = 播放顺序(present 串行 await)。宁可少而精,按两侧现有
@@ -54,7 +55,15 @@ export type PresentationEvent =
   | { kind: "sealStamped"; tileIndex: number; char: string }
   | { kind: "turnBanner"; guohao: string; colorIndex: number }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
-  | { kind: "sound"; event: SoundEvent };
+  | { kind: "sound"; event: SoundEvent }
+  /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
+   *  (PropertyChangeTrace)原样透传。消费端双路:sink.announceTileChange 经 fxStore
+   *  下发 nonce 驱动 Tile 重播宣告动画;与 sealStamped 等"浮层印"不同,宣告动效
+   *  (印重钤/楼生长/易主流光)锚在 Tile 本体,须由 Tile 订阅重播而非 FxLayer 叠加。 */
+  | ({ kind: "propertyChanged" } & PropertyChangeTrace);
+
+/** propertyChanged 事件的独立类型(FxSink.announceTileChange 的窄签名用)。 */
+export type PropertyChangedEvent = Extract<PresentationEvent, { kind: "propertyChanged" }>;
 
 /**
  * 表现能力收口(真 seam):present() 通过本接口驱动一切外设。四个能力对应
@@ -78,4 +87,7 @@ export interface FxSink {
   showBanner(guohao: string, colorIndex: number): void;
   /** 朱砂印章(含 stamp 音);坐标由实现按 tileIndex 换算(需要引擎/棋盘)。 */
   stampSeal(tileIndex: number, char: string): void;
+  /** 城池宣告(ADR-0015):扩军/易主时驱动 Tile 重播宣告动画。生产实现经 fxStore
+   *  下发 nonce(Tile 订阅,nonce 变化即重挂重播);测试实现录制供断言序列。 */
+  announceTileChange(ev: PropertyChangedEvent): void;
 }

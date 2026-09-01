@@ -4,8 +4,12 @@
 // 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
 // 只是位置从侧栏搬进卷轴,e2e 断言零语义变化。
 // (经过都城必停后「驻跸或行进」卷轴已删:引擎直接结算,无玩家抉择。)
+// spec #107 C1(UI 半边选项集消费缝):三个卷轴的可用性/不可用原因一律从快照
+// choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
+// ——全游戏不可购原因只有引擎一处口径。
 import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/types";
+import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
@@ -29,14 +33,22 @@ function useNumberShortcuts(actions: Array<() => void>) {
 
 // ── 驿道岔口(AwaitingBranch)──
 export function BranchDecisionScroll({
+  choices,
   onCommand,
 }: {
+  /** 当前相位选项集(快照透出):走大路/入辅路的 available/reason 单源引擎注册表。 */
+  choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // G-19:1=大路 2=辅路
+  // 选项集消费缝(spec #107 C1):两选当前恒可用,可用性仍只读注册表产出——未来技能
+  // 改动选项可用性时卷轴随之,UI 不私自判定。选项缺失 = 相位与注册表不符(数据 bug),
+  // 非空断言让其抛(零兜底,与 Layer 对 catalog 的断言同款)。
+  const main = choices.find((o) => o.id === "main")!;
+  const branch = choices.find((o) => o.id === "branch")!;
+  // G-19:1=大路 2=辅路(不可选的选项按键无效,与购地卷轴口径一致)
   useNumberShortcuts([
-    () => onCommand({ type: "selectBranch", kind: "Main" }),
-    () => onCommand({ type: "selectBranch", kind: "Branch" }),
+    () => { if (main.available) onCommand({ type: "selectBranch", kind: "Main" }); },
+    () => { if (branch.available) onCommand({ type: "selectBranch", kind: "Branch" }); },
   ]);
   return (
     <ScrollShell title="驿道岔口" testid={T.branchScroll}>
@@ -48,6 +60,8 @@ export function BranchDecisionScroll({
         <ScrollButton
           primary
           shortcut={1}
+          disabled={!main.available}
+          title={main.available ? undefined : main.reason}
           testid={TESTIDS.actionButton("main")}
           onClick={() => onCommand({ type: "selectBranch", kind: "Main" })}
         >
@@ -55,6 +69,8 @@ export function BranchDecisionScroll({
         </ScrollButton>
         <ScrollButton
           shortcut={2}
+          disabled={!branch.available}
+          title={branch.available ? undefined : branch.reason}
           testid={TESTIDS.actionButton("branch")}
           onClick={() => onCommand({ type: "selectBranch", kind: "Branch" })}
         >
@@ -71,24 +87,27 @@ export function BuyDecisionScroll({
   region,
   property,
   cash,
-  warrants,
+  choices,
   onCommand,
 }: {
   tileName: string;
   region: string;
   property: { purchasePrice: number; maxLevel: number; valueByLevel: number[] };
   cash: number;
-  warrants: number;
+  /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
+  choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // F1 口径(与旧 ActionInline 同源):银两或委任不足 → disabled + 原因(委任优先报)
-  const canBuy = cash >= property.purchasePrice && warrants >= 1;
-  const reason = warrants < 1 ? "委任状不足" : "银两不足";
+  // 选项集单源(spec #107 C1 / ADR-0013):可购与否与原因只读引擎注册表产出
+  // (「无委任状」/「银两不足」,委任优先报),UI 不再重推 cash/warrants 判定——
+  // 旧手抄「委任状不足」与引擎「无委任状」的文案漂移在此绝根。选项缺失 = 相位与
+  // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
+  const buy = choices.find((o) => o.id === "buy")!;
   // G-20:买不起时价值表默认折叠(决策已不可行,全表只是噪音);可点开查看
-  const [showValues, setShowValues] = useState(canBuy);
+  const [showValues, setShowValues] = useState(buy.available);
   // G-19:1=购地(不可购时无效)2=不取
   useNumberShortcuts([
-    () => { if (canBuy) onCommand({ type: "buyProperty" }); },
+    () => { if (buy.available) onCommand({ type: "buyProperty" }); },
     () => onCommand({ type: "endDecision" }),
   ]);
   // G-20:资产行 —— 一眼看清持有/需付/差额(负差红字)
@@ -118,8 +137,8 @@ export function BuyDecisionScroll({
       <div className="flex flex-wrap items-center justify-center gap-3">
         <ScrollButton
           primary
-          disabled={!canBuy}
-          title={canBuy ? undefined : reason}
+          disabled={!buy.available}
+          title={buy.available ? undefined : buy.reason}
           shortcut={1}
           testid={TESTIDS.actionButton("buy")}
           onClick={() => onCommand({ type: "buyProperty" })}
@@ -134,7 +153,7 @@ export function BuyDecisionScroll({
           不取
         </ScrollButton>
       </div>
-      {!canBuy && <p className="mt-2 text-center text-xs text-ink-dim">{reason}</p>}
+      {!buy.available && <p className="mt-2 text-center text-xs text-ink-dim">{buy.reason}</p>}
     </ScrollShell>
   );
 }
@@ -144,20 +163,26 @@ export function UpgradeDecisionScroll({
   tileName,
   level,
   property,
+  choices,
   onCommand,
 }: {
   tileName: string;
   level: number;
   property: { maxLevel: number; valueByLevel: number[] };
+  /** 当前相位选项集(快照透出):upgrade 项的 available/reason 单源引擎注册表。 */
+  choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // 满级 → disabled;升级免费,无银两门槛。价值变化 = 当前级 → 下一级城池价值(下标 = 等级)
-  const maxed = level >= property.maxLevel;
+  // 选项集单源(spec #107 C1 / ADR-0013):可否扩军与原因(「已满级」)只读引擎注册表
+  // 产出,UI 不再重推 level >= maxLevel(升级免费,无银两门槛)。选项缺失 = 相位与
+  // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
+  const upgrade = choices.find((o) => o.id === "upgrade")!;
+  // 价值变化 = 当前级 → 下一级城池价值(下标 = 等级)
   const valueNow = property.valueByLevel[level] ?? 0;
-  const valueNext = !maxed ? property.valueByLevel[level + 1] ?? valueNow : valueNow;
+  const valueNext = upgrade.available ? property.valueByLevel[level + 1] ?? valueNow : valueNow;
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
-    () => { if (!maxed) onCommand({ type: "upgradeProperty" }); },
+    () => { if (upgrade.available) onCommand({ type: "upgradeProperty" }); },
     () => onCommand({ type: "endDecision" }),
   ]);
   return (
@@ -166,15 +191,16 @@ export function UpgradeDecisionScroll({
         「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
       <p className="m-1 mb-3 text-center text-sm text-ink-dim">
-        城池价值:{formatMoney(valueNow)} → {maxed ? "(已满级)" : formatMoney(valueNext)}
+        城池价值:{formatMoney(valueNow)} →{" "}
+        {upgrade.available ? formatMoney(valueNext) : `(${upgrade.reason})`}
       </p>
       {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行) */}
       <ValueTable property={property} highlight={{ level: level + 1, label: "扩军后" }} />
       <div className="flex flex-wrap items-center justify-center gap-3">
         <ScrollButton
           primary
-          disabled={maxed}
-          title={maxed ? "已满级" : undefined}
+          disabled={!upgrade.available}
+          title={upgrade.available ? undefined : upgrade.reason}
           shortcut={1}
           testid={TESTIDS.actionButton("upgrade")}
           onClick={() => onCommand({ type: "upgradeProperty" })}
@@ -189,7 +215,9 @@ export function UpgradeDecisionScroll({
           按兵不动
         </ScrollButton>
       </div>
-      {maxed && <p className="mt-2 text-center text-xs text-ink-dim">已满级</p>}
+      {!upgrade.available && (
+        <p className="mt-2 text-center text-xs text-ink-dim">{upgrade.reason}</p>
+      )}
     </ScrollShell>
   );
 }

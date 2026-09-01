@@ -115,12 +115,13 @@ export class LocalController extends GameController {
     archiveEngineLog(this._engine);
   }
 
-  // 热座:视角跟随「当前该行动的人类」。默认=活跃玩家;珍宝交涉相位决策方是城主
-  // (decisionOwner,可能 ≠ 访客),视角与交互都得跟城主走,否则城主视角永远渲染不出
-  // 可点按钮 → 单机遇到该相位死锁(e2e react-editor 巡检发现)。
+  // 热座:视角跟随「当前该行动的人类」。decisionOwner 是唯一出处(引擎 getter:珍宝交涉
+  // 相位=城主,可能 ≠ 访客;其余相位=activeIndex),视角与交互都得跟决策方走,否则城主
+  // 视角永远渲染不出可点按钮 → 单机遇到该相位死锁(e2e react-editor 巡检发现)。
+  // spec #107 C1 单源化:旧写法「相位条件 ? decisionOwner : activeIndex」与引擎 getter
+  // 逐字同构,是同一公式的第二份手抄——直取单源,删本地复读。
   get viewSeat(): number {
-    const e = this._engine;
-    return e.turnPhase === "AwaitingTreasureOwner" ? e.decisionOwner : e.activeIndex;
+    return this._engine.decisionOwner;
   }
   get interactive(): boolean {
     // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变。

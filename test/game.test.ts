@@ -419,7 +419,10 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
     // 两引擎同走一步(掷同一颗骰),快照仍逐字段一致;待入状态被掷骰消化
     e1.rollAndMove();
     e2.rollAndMove();
-    expect(JSON.stringify(e2.snapshot())).toBe(JSON.stringify(e1.snapshot()));
+    // #62:快照含对局日志,条目带 Date.now() 毫秒戳——两引擎写入跨毫秒即伪差异
+    //(实测失败 diff 仅 ts 相差 1),对比前把 ts 归零,只影响本断言不碰快照契约
+    const stable = (s: unknown) => JSON.stringify(s, (k, v) => (k === "ts" ? 0 : v));
+    expect(stable(e2.snapshot())).toBe(stable(e1.snapshot()));
     const ob = e1.players[idxP].onBranch;
     expect(ob == null || ob.step >= 0).toBe(true);
   });

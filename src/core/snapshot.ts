@@ -109,6 +109,9 @@ export interface GameSnapshot {
   // 决策相位选项集(ADR-0013):纯派生数据(choices.ts 注册表),UI/调试可见;
   // 联机零负担——无需序列化恢复,重 hydrate 后重算即得。
   choices: ChoiceOption[];
+  // 决策归属座位(engine.decisionOwner 透出,纯派生):珍宝交涉=城主,其余=activeIndex。
+  // 等待文案/视角归属直接消费快照,各端不再手抄「ownerIdx ?? activeIndex」推导(spec #107 C1)。
+  decisionOwner: number;
   // PRNG 状态:CLI/联机跨进程续掷(不丢 rng 连续性)
   rngState: number;
   players: SnapshotPlayer[];
@@ -398,6 +401,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     // 决策相位选项集(ADR-0013):纯派生,重 hydrate 后重算即得
     key: "choices",
     read: (e) => e.choicesFor(),
+    write: () => {},
+  },
+  {
+    // 决策归属座位(纯派生,同 choices:重 hydrate 后重算即得)
+    key: "decisionOwner",
+    read: (e) => e.decisionOwner,
     write: () => {},
   },
   {

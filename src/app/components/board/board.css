@@ -184,20 +184,24 @@
   }
 }
 
-/* ── #96 城池升级与易主的可读瞬间(三拍一次性出场动画,播完即静,非 infinite)──
-   1. 等级印 pop(.bv-level-seal-pop):扩军时印章重钤——取 fx.css fx-svg-seal-stamp
-      0-18% 落章段语义(scale 2.2→1 + rotate -12°→-8°),时长 --dur-slow、
-      缓动 --ease-out-back 过冲落定,fill backwards 仅出场播一次。rotate 与 scale 用
-      独立属性(fx-svg-seal 同做法),不覆盖元素上定位用的 transform attribute;
-      transform-box: fill-box 让缩放旋转以印章自身中心为轴。基态 rotate -8°:与
-      「都」「起」印的手钤斜姿同语系,且与 keyframe 终点一致,回落后无跳变。
-      Tile.tsx 以 key={level} 挂印,等级每升一级重挂重钤。
+/* ── #96 城池升级与易主的可读瞬间(ADR-0015 宣告动效:一次性出场动画,播完即静,非 infinite)──
+   触发源 = 表现事件流:引擎结算留痕 → propertyChanged 事件 → present → FxSink.
+   announceTileChange → fxStore.announces 宣告 nonce → Tile 以 nonce 为 React key 重挂
+   重播一次。Tile 自身不做 props diff 自触发(R3 的 key={level}/上一值钩子已删);
+   「何时播」归播放器,CSS 只承担「怎么播」(keyframes 本体在此,落章弧在 fx.css)。
+   1. 等级印 pop(.bv-level-seal-pop):扩军宣告时印章重钤——引用 fx.css 的共享落章弧
+      fx-seal-slam(抬印 -12°/2.2/透明 → 钤定 -8°/1/实,与浮层印 fx-svg-seal 同一段
+      位姿,盖章归一),时长 --dur-slow、缓动 --ease-out-back 过冲落定,fill backwards
+      仅出场播一次。rotate 与 scale 用独立属性(fx-svg-seal 同做法),不覆盖元素上定位
+      用的 transform attribute;transform-box: fill-box 让缩放旋转以印章自身中心为轴。
+      基态 rotate -8°:与「都」「起」印的手钤斜姿同语系,且与 keyframe 终点一致,回落后
+      无跳变。Tile 以宣告 nonce 为 key 挂印,每次扩军重挂重钤。
    2. 建筑顶层生长(.bv-build-grow):最高一级屋檐 polygon(Lv3 连同金顶组、玩家色
       染瓦末片)scale 0.6→1 + opacity 0→1,--dur-med + --ease-out-back;transform-origin
-      取 fill-box 底边中心,自檐口向上长出。Tile.tsx 以 key 含 level 只重挂最顶层一片,
+      取 fill-box 底边中心,自檐口向上长出。Tile 以宣告 nonce 为 key 只重挂最顶层一片,
       楼身其余层原地复用,不整楼重播。
-   3. 易主流光(.bv-own-flash):归属变更(破产清算回无主 / 转玩家 B)时铭牌带闪一道
-      玩家色流光一次。仿 bv-side-flow 的 dashoffset 行进思路换成横穿色带的单节虚线:
+   3. 易主流光(.bv-own-flash):归属变更(破产清算回无主/转玩家 B/变卖给银行)时铭牌带
+      闪一道玩家色流光一次。仿 bv-side-flow 的 dashoffset 行进思路换成横穿色带的单节虚线:
       线长 92,dasharray 30+138 周期 168,offset 自 30(节整段在起点之前,不可见)扫到
       -92(节完全越出终点),70% 前保持峰值亮度、收尾淡出;时长取半 --dur-fx 拍
       (工单约 0.5s 单拍以最近的 token 合法值承担,不落字面量),缓动 --ease-out。
@@ -206,19 +210,9 @@
   transform-box: fill-box;
   transform-origin: center;
   rotate: -8deg;
-  animation: bv-level-seal-pop var(--dur-slow) var(--ease-out-back) backwards;
-}
-@keyframes bv-level-seal-pop {
-  from {
-    rotate: -12deg;
-    scale: 2.2;
-    opacity: 0;
-  }
-  to {
-    rotate: -8deg;
-    scale: 1;
-    opacity: 1;
-  }
+  /* 盖章归一(ADR-0015):keyframes 引用 fx.css 的共享落章弧 fx-seal-slam,
+     本类只参数化时长/缓动,不再各写一份位姿。 */
+  animation: fx-seal-slam var(--dur-slow) var(--ease-out-back) backwards;
 }
 .bv-build-grow {
   transform-box: fill-box;

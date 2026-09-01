@@ -148,15 +148,35 @@
 }
 
 /* 朱砂印章(SVG 版,建都/购城确认时"啪"地盖下):rotate/scale 用独立属性,
-   不覆盖元素上定位用的 transform attribute */
+   不覆盖元素上定位用的 transform attribute。
+   盖章归一(ADR-0015):「落章弧」(抬印 -12°/2.2 倍/透明 → 钤定 -8°/1 倍/实)收敛为
+   共享 keyframes fx-seal-slam(下),本印与 board.css 的等级印重钤(.bv-level-seal-pop)
+   各自引用,时长/缓动由各类名参数化——两处不再各写一份位姿。 */
+@keyframes fx-seal-slam {
+  from {
+    rotate: -12deg;
+    scale: 2.2;
+    opacity: 0;
+  }
+  to {
+    rotate: -8deg;
+    scale: 1;
+    opacity: 1;
+  }
+}
 .fx-svg-seal {
   pointer-events: none;
   transform-box: fill-box;
   transform-origin: center;
   opacity: 0;
-  /* 特例:0.85s 保留字面量——盖章编排( slammed 18% / 停持 65% / 消隐)与
-     fx/timings.ts FX.sealMs=900 清理硬同步,归档会牵连编排层。 */
-  animation: fx-svg-seal-stamp 0.85s var(--ease-out) forwards;
+  /* 特例:0.85s/0.15s 保留字面量——盖章编排(slam 段 0-18% ≈ 0.15s 钤定 / 停持 65% /
+     消隐)与 fx/timings.ts FX.sealMs=900 清理硬同步,归档会牵连编排层。
+     动画列表分工:rotate 走共享落章弧 fx-seal-slam(0.15s 钤定后 both 定格 -8°);
+     opacity/scale 全程由 linger 决定(动画列表后者在同属性上胜出),轨迹与原单时间线
+     逐段等价(缓动按段生效)。 */
+  animation:
+    fx-seal-slam 0.15s var(--ease-out) both,
+    fx-svg-seal-linger 0.85s var(--ease-out) forwards;
 }
 .fx-svg-seal rect {
   fill: var(--color-danger);
@@ -168,11 +188,23 @@
   font-weight: 700;
   fill: var(--color-paper);
 }
-@keyframes fx-svg-seal-stamp {
-  0% { rotate: -12deg; scale: 2.2; opacity: 0; }
-  18% { rotate: -8deg; scale: 1; opacity: 1; }
-  65% { rotate: -8deg; scale: 1; opacity: 1; }
-  100% { rotate: -8deg; scale: 1.15; opacity: 0; }
+@keyframes fx-svg-seal-linger {
+  0% {
+    opacity: 0;
+    scale: 2.2;
+  }
+  18% {
+    opacity: 1;
+    scale: 1;
+  }
+  65% {
+    opacity: 1;
+    scale: 1;
+  }
+  100% {
+    opacity: 0;
+    scale: 1.15;
+  }
 }
 
 /* 驿道流光(行军逐段高亮,由 useMarch 命令式追加到 #bv-flow) */

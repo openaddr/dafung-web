@@ -4,13 +4,14 @@
 // 含 Wave1 新增的破产音效对齐)。为什么独立:它是有状态的纯表现逻辑,不碰协议/store,
 // 独立后 OnlineController 才能瘦成纯「协议桥」。行为零变化。
 import type { GameEngine } from "@core/game";
+import { findHolding } from "@core/player";
 import { createEngineSink } from "@app/fx/sinks";
 import { present, turnBannerEvent } from "@app/fx/orchestrator";
 import type { PresentationEvent } from "@app/fx/presentation";
 
 /** 快照级表现(diff → 事件 → present):
- *  - diceRolled/cashDelta/tokenMoved/sound(bankrupt)/turnBanner 事件统一交给 present
- *    播放(与单机同一条播放路径,形状不再漂移)。
+ *  - diceRolled/cashDelta/tokenMoved/propertyChanged/sound(bankrupt)/turnBanner 事件
+ *    统一交给 present 播放(与单机同一条播放路径,形状不再漂移)。
  *  - 浮字走 diff(floaters 不序列化);行军经 applyPresentationMove 注入 diff 推导的
  *    轨迹(快照虽含 lastMove,但那是"发令端视角",重放以本地 diff 为准,语义更稳)。
  *  - 骰子:本地无掷骰授权(点数在服务器),diceRolled 事件驱动 ThreeDice.roll——
@@ -20,6 +21,8 @@ export class SnapshotEffects {
   private prevPos = new Map<string, { position: number; onStep: number | null }>();
   private prevCash = new Map<string, number>();
   private prevBankrupt = new Set<string>();
+  /** 上一帧快照的城池归属/等级(propertyId → 归属色/等级,ADR-0015 diff 基准)。 */
+  private prevProps = new Map<string, { ownerColorIndex: number | null; level: number }>();
   /** 表现链串行化:快照可能连续到达,排队播放避免两次行军互踩。 */
   private fxQueue: Promise<void> = Promise.resolve();
   /** 在途表现块计数(>0 = 骰子/行军/横幅仍在播)。L42:联机版单机 busy 锁——
@@ -120,7 +123,38 @@ export class SnapshotEffects {
       marched = true;
     }
 
-    // 2.5) 破产 diff → bankrupt 音效事件(对齐单机 playStepEffects 的破产音;Wave1 修复项)。
+    // 2.5) 城池归属/等级 diff → propertyChanged 事件(ADR-0015):与单机提取器同一
+    //      事件形状,经 present → sink 下发 nonce 驱动 Tile 宣告(印重钤/楼生长/易主
+    //      流光)。首帧只记基准不宣告(与位置 diff 同口径);等级与归属独立判维度,
+    //      各驱动各的动画。排在行军后(棋子落定城池再宣告)、破产音前。
+    for (const tile of board.tiles) {
+      const propId = tile.propertyId;
+      if (propId == null) continue;
+      let ownerColorIndex: number | null = null;
+      let level = 0;
+      for (const p of engine.players) {
+        const h = findHolding(p, propId);
+        if (h != null) {
+          ownerColorIndex = p.colorIndex;
+          level = h.level;
+          break;
+        }
+      }
+      const prev = this.prevProps.get(propId);
+      this.prevProps.set(propId, { ownerColorIndex, level });
+      if (prev == null) continue; // 首帧:只建基准
+      if (prev.level === level && prev.ownerColorIndex === ownerColorIndex) continue;
+      events.push({
+        kind: "propertyChanged",
+        tileIndex: tile.index,
+        level,
+        ownerColorIndex,
+        levelChanged: prev.level !== level,
+        ownerChanged: prev.ownerColorIndex !== ownerColorIndex,
+      });
+    }
+
+    // 2.6) 破产 diff → bankrupt 音效事件(对齐单机 playStepEffects 的破产音;Wave1 修复项)。
     for (const p of engine.players) {
       if (p.isBankrupt && !this.prevBankrupt.has(p.id)) {
         events.push({ kind: "sound", event: "bankrupt" });

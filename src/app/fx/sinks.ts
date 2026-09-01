@@ -10,7 +10,7 @@ import { playerColor, rgba } from "@core/theme";
 import { getAudio, type SoundEvent } from "./audio";
 import { useFxStore } from "./fxStore";
 import { animateDice, animateMove, beginMarch } from "./orchestrator";
-import type { FxSink } from "./presentation";
+import type { FxSink, PropertyChangedEvent } from "./presentation";
 
 /** 生产 sink:单机/联机控制器共用(各持一份,引擎 getter 各自绑定)。 */
 export function createEngineSink(getEngine: () => GameEngine): FxSink {
@@ -43,6 +43,12 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
       getAudio().play("stamp");
       useFxStore.getState().stampSeal(pos.x, pos.y - 20, char);
     },
+    announceTileChange(ev: PropertyChangedEvent) {
+      // 城池宣告(ADR-0015):经 store 下发 nonce,Tile 订阅重播(何时播归播放器)
+      useFxStore
+        .getState()
+        .announceTileChange(ev.tileIndex, ev.levelChanged, ev.ownerChanged, ev.ownerColorIndex);
+    },
   };
 }
 
@@ -55,7 +61,15 @@ export type FxSinkCall =
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
   | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
-  | { op: "seal"; tileIndex: number; char: string };
+  | { op: "seal"; tileIndex: number; char: string }
+  | {
+      op: "announceTile";
+      tileIndex: number;
+      level: number;
+      ownerColorIndex: number | null;
+      levelChanged: boolean;
+      ownerChanged: boolean;
+    };
 
 /** 测试 sink:录制所有调用;march/dice 立即 resolve(不测 DOM 细节,只测事件语义与时序)。 */
 export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
@@ -85,6 +99,16 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     },
     stampSeal(tileIndex, char) {
       calls.push({ op: "seal", tileIndex, char });
+    },
+    announceTileChange(ev) {
+      calls.push({
+        op: "announceTile",
+        tileIndex: ev.tileIndex,
+        level: ev.level,
+        ownerColorIndex: ev.ownerColorIndex,
+        levelChanged: ev.levelChanged,
+        ownerChanged: ev.ownerChanged,
+      });
     },
   };
 }

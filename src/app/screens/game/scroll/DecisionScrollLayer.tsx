@@ -216,11 +216,13 @@ export function DecisionScrollLayer({
 
   // ── 常规决策卷轴(交互重构:从侧栏 ActionInline 迁入,轮到即自动弹出)──
   // 判定逻辑原样迁自 HandPanel.ActionInline;数据走 snapshot + registry 静态上下文。
+  // spec #107 C1(选项集消费缝):三个卷轴的可用性/原因经 snapshot.choices 消费引擎
+  // 注册表口径(ADR-0013),本层只透传,不自行判定。
   // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
   if (interactive && snapshot.phase === "Playing") {
     const tp = snapshot.turnPhase;
     if (tp === "AwaitingBranch") {
-      return <BranchDecisionScroll onCommand={dispatch} />;
+      return <BranchDecisionScroll choices={snapshot.choices} onCommand={dispatch} />;
     }
     if (tp === "AwaitingDecision") {
       const p = players[snapshot.activeIndex];
@@ -242,7 +244,7 @@ export function DecisionScrollLayer({
                 valueByLevel: def.valueByLevel,
               }}
               cash={p.cash}
-              warrants={p.warrants}
+              choices={snapshot.choices}
               onCommand={dispatch}
             />
           );
@@ -256,6 +258,7 @@ export function DecisionScrollLayer({
                 maxLevel: def.maxLevel,
                 valueByLevel: def.valueByLevel,
               }}
+              choices={snapshot.choices}
               onCommand={dispatch}
             />
           );
