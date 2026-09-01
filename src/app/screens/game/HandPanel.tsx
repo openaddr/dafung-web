@@ -14,7 +14,7 @@ import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
-import { useNetStore } from "@app/store/netStore";
+import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
 import { DeltaFloatSpans, useDeltaFloat, type DeltaFloat } from "./useDeltaFloat";
 import { TESTIDS } from "./testids";
@@ -118,12 +118,10 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // 回落 controller.autoPilotOn(本地标记)。速度是本地 UI 态(切速时若在托管中立即重发)
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
-  // 托管态单源取值(与 GameScreen 同口径):联机已入座=座位广播,单机=控制器本地标记。
-  // #45/S12:观战(未入座,mySeat=-1)没有「我的托管」——这不是数据缺失而是正常态
-  // (动作区/托管行在观战态不渲染,该值不被消费),回落 OnlineController 的
-  // seats[mySeat]?. 口径即 false,不再让 seats[-1] 炸掉整个面板。
-  const autopilotOn =
-    net.roomId !== "" && net.mySeat >= 0 ? net.seats[net.mySeat].autoPilot : (controller?.autoPilotOn ?? false);
+  // 托管态单源取值收口 useAutopilotOn(与 GameScreen 同一口径,spec #107 C5):
+  // 联机已入座=座位广播,单机=控制器本地标记;观战(mySeat=-1)恒 false——观战无托管
+  // (#45/S12 的 mySeat 守卫随收口进 hook 单点,不再各写一份)。
+  const autopilotOn = useAutopilotOn(controller);
   // 浮标跟「被展示的玩家」走(#45/S12):坐姿=自己;观战空态=被跟随者(对局发起者
   // =房主座,net.host)。快照是全量广播,按座直取——观战时房间字段必然就位,
   // 取不到说明接线有 bug,按零兜底原则让它炸出来。
