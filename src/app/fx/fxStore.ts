@@ -34,6 +34,19 @@ export interface BannerFx {
   color: string;
 }
 
+/** 城池宣告记录(ADR-0015):Tile 订阅本记录重播宣告动画,自身不做 props diff。
+ *  按 tileIndex 各存一条,nonce 单调递增、播完自然过期(不清理定时器,下条覆盖):
+ *  level/owner 两维独立计数,各自作为 Tile 内受影响元素的 React key——nonce 变化
+ *  即重挂重播,不变则原地静置。0 = 该维从未宣告(开局铺盘/快照恢复不播动画)。 */
+export interface TileAnnounce {
+  /** 扩军宣告 nonce:等级印重钤 + 顶层生长(含金顶/染瓦末片)以其为 key。 */
+  level: number;
+  /** 易主宣告 nonce:易主流光以其为 key。 */
+  owner: number;
+  /** 最近一次易主的新归属座位色(null=回无主,流光转金色)。 */
+  ownerColorIndex: number | null;
+}
+
 let nextId = 1;
 
 interface FxState {
@@ -42,6 +55,8 @@ interface FxState {
   banner: BannerFx | null;
   /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位。 */
   marching: ReadonlySet<string>;
+  /** 城池宣告记录(ADR-0015),key = tileIndex。 */
+  announces: ReadonlyMap<number, TileAnnounce>;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string): void;
@@ -49,6 +64,14 @@ interface FxState {
   stampSeal(x: number, y: number, char: string): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
+  /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
+   *  不是 Tile 自身 diff)。levelChanged/ownerChanged 各自推进对应维度的 nonce。 */
+  announceTileChange(
+    tileIndex: number,
+    levelChanged: boolean,
+    ownerChanged: boolean,
+    ownerColorIndex: number | null,
+  ): void;
   /** 清空全部(重开局/切屏时防陈旧特效滞留)。 */
   resetFx(): void;
 }
@@ -58,6 +81,7 @@ export const useFxStore = create<FxState>((set) => ({
   seals: [],
   banner: null,
   marching: new Set<string>(),
+  announces: new Map<number, TileAnnounce>(),
 
   spawnFloater(x, y, amount, coins) {
     const id = nextId++;
@@ -102,7 +126,21 @@ export const useFxStore = create<FxState>((set) => ({
     });
   },
 
+  announceTileChange(tileIndex, levelChanged, ownerChanged, ownerColorIndex) {
+    set((s) => {
+      const prev = s.announces.get(tileIndex) ?? { level: 0, owner: 0, ownerColorIndex: null };
+      const next: TileAnnounce = {
+        level: levelChanged ? prev.level + 1 : prev.level,
+        owner: ownerChanged ? prev.owner + 1 : prev.owner,
+        ownerColorIndex: ownerChanged ? ownerColorIndex : prev.ownerColorIndex,
+      };
+      const announces = new Map(s.announces);
+      announces.set(tileIndex, next);
+      return { announces };
+    });
+  },
+
   resetFx() {
-    set({ floaters: [], seals: [], banner: null, marching: new Set<string>() });
+    set({ floaters: [], seals: [], banner: null, marching: new Set<string>(), announces: new Map() });
   },
 }));

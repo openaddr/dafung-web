@@ -1,9 +1,14 @@
 // 单座城池(程序化城门建筑)。移植自 src/render/board.ts 的 buildGate / drawBuilding / updateTiles。
 // 静态结构(建筑/文字)按 tile 数据声明;状态(归属/都城/等级/焦点)由 props 驱动,
 // React.memo 保证仅状态变化的城池重渲。
-import { memo, useEffect, useRef, useState } from "react";
+// 宣告动效(ADR-0015):扩军(印重钤/楼生长)与易主(流光)的「何时播」归表现事件流——
+// 播放器经 sink 在 fxStore 下发宣告 nonce,本组件订阅重播;组件内不做 props diff 自触发
+// (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
+// 仍在 board.css/fx.css,CSS 只承担「怎么播」。
+import { memo } from "react";
 import type { TileDef } from "@core/types";
 import { Theme, groupColor, playerColor, rgba } from "@core/theme";
+import { useFxStore } from "@app/fx/fxStore";
 
 /** 玩家色加深(f<1):领地铭牌要"深底白字",直接用原玩家色做底则与描边/旗同明度
  *  缺乏层次,统一乘暗系数得到同色相的深底(zoom-out 后"色块=地盘"仍按色相可辨)。 */
@@ -101,7 +106,19 @@ const ROOF_STROKE = "rgba(60,30,15,0.6)";
 const CREN_FILL = "rgba(90,70,40,0.55)"; // 雉堞
 const ARCH_FILL = "rgba(90,65,32,0.5)"; // 门洞
 
-function Building({ size, level, tint }: { size: "large" | "medium" | "small"; level: number; tint?: string | null }) {
+/** growNonce:本城扩军宣告 nonce(fxStore.announces,ADR-0015)。0 = 未宣告(开局
+ *  铺盘/快照恢复)静置;>0 时受影响元素挂生长动画类,nonce 变化即重挂(key)重播。 */
+function Building({
+  size,
+  level,
+  tint,
+  growNonce,
+}: {
+  size: "large" | "medium" | "small";
+  level: number;
+  tint?: string | null;
+  growNonce: number;
+}) {
   const crenXs =
     size === "large"
       ? [-40, -23, -6, 11, 28]
@@ -127,15 +144,15 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
         stroke={ROOF_STROKE}
         strokeWidth={1}
       />
-      {/* #96 扩军瞬间:只有新晋最顶层屋檐重挂播 bv-build-grow 生长(board.css,
-          scale 0.6→1 自底边中心)——key 含 level 只挂在这一层 polygon 上,其余层
-          key 不变原地复用,不整楼重播;React key 变化即重放 CSS 动画。 */}
+      {/* #96/ADR-0015 扩军瞬间:只有新晋最顶层屋檐重播 bv-build-grow 生长(board.css,
+          scale 0.6→1 自底边中心)——key 取宣告 nonce(播放器经 sink 下发,非 props diff),
+          nonce 变化即重挂重播,其余层 key 不变原地复用,不整楼重播;nonce=0 静置不播。 */}
       {tower.roofs.map((pts, i) => {
         const isTopStory = i === tower.roofs.length - 1;
         return (
           <polygon
-            key={isTopStory ? `top-story-${level}` : i}
-            className={isTopStory ? "bv-city-story bv-build-grow" : "bv-city-story"}
+            key={isTopStory ? `top-story-${growNonce}` : i}
+            className={isTopStory ? `bv-city-story${growNonce > 0 ? " bv-build-grow" : ""}` : "bv-city-story"}
             points={pts}
             fill={ROOF_FILL}
             stroke={ROOF_STROKE}
@@ -147,9 +164,10 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
   ) : null;
   const finial =
     tower && level >= STORY_ROOFS.length ? (
-      // #96 满级金顶与顶层屋面同形叠加:只在升到 Lv3 时首次挂载,天然与新顶层
-      // 同拍 bv-build-grow 生长(同形同步缩放,不会露底稿),无需 key。
-      <g className="bv-city-finial bv-build-grow">
+      // #96 满级金顶与顶层屋面同形叠加:升到 Lv3 的宣告 nonce 已 >0(同拍下发),
+      // 挂载即与顶层同拍 bv-build-grow 生长(同形同步缩放,不会露底稿),无需 key;
+      // 快照恢复的满级城 nonce=0,静置全形。
+      <g className={`bv-city-finial${growNonce > 0 ? " bv-build-grow" : ""}`}>
         <polygon points={tower.roofs[level - 1]} fill={rgba(Theme.goldBright, 0.96)} stroke="rgba(60,30,15,0.65)" strokeWidth={1.6} />
         <circle cx={0} cy={tower.topApex + 1.8} r={2.4} fill={rgba(Theme.goldBright)} stroke="rgba(60,30,15,0.7)" strokeWidth={0.7} />
       </g>
@@ -166,14 +184,14 @@ function Building({ size, level, tint }: { size: "large" | "medium" | "small"; l
   ];
   const roofTint = tint ? (
     <g className="bv-roof-tint">
-      {/* #96 染瓦最顶层(加层末片)与墨瓦顶层同 key 同类重挂:生长期间玩家色染层
-          与屋面逐帧对齐,不会悬出全形色影;其余染片 key 不变不动。 */}
+      {/* #96/ADR-0015 染瓦最顶层(加层末片)与墨瓦顶层同 key 同拍:宣告 nonce 变化时
+          一并重挂,生长期间玩家色染层与屋面逐帧对齐,不会悬出全形色影;其余染片不动。 */}
       {roofShapes.map((pts, i) => {
         const isTopStory = tower != null && i === roofShapes.length - 1;
         return (
           <polygon
-            key={isTopStory ? `top-story-${level}` : i}
-            className={isTopStory ? "bv-build-grow" : undefined}
+            key={isTopStory ? `top-story-${growNonce}` : i}
+            className={isTopStory && growNonce > 0 ? "bv-build-grow" : undefined}
             points={pts}
             fill={tint}
           />
@@ -310,11 +328,12 @@ function NamePlaque({ name, capital, size }: { name: string; capital: boolean; s
 // 城上出现,不落在宣纸底上。
 const LEVEL_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
 
-// #96 出场钤章:bv-level-seal-pop(board.css)挂载即落章一次(scale 2.2→1 回弹);
-// key={level} 挂在调用处,每次扩军整印重挂、新数字重钤一遍,平时其它 props 变化不重播。
-function LevelSeal({ level }: { level: number }) {
+// #96/ADR-0015 出场钤章:bv-level-seal-pop(board.css,盖章归一后引用 fx.css 的共享
+// 落章弧 fx-seal-slam)scale 2.2→1 回弹落章。replay=true(本城有过扩军宣告)才挂
+// 动画类;key 由调用方取宣告 nonce,nonce 变化重挂重播;平时(含快照恢复)静置不播。
+function LevelSeal({ level, replay }: { level: number; replay: boolean }) {
   return (
-    <g className="bv-level-seal bv-level-seal-pop" transform="translate(-41 31)">
+    <g className={`bv-level-seal${replay ? " bv-level-seal-pop" : ""}`} transform="translate(-41 31)">
       <rect
         x={-8}
         y={-8}
@@ -380,26 +399,19 @@ const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string 
   Stock: { color: "money", icon: "市" },
 };
 
-// ── #96 易主检测:usePrevious 式上一值快照 ──
-// effect 里先读后写,读到的是上一渲染的归属索引;首挂快照为 undefined(与 null=无主
-// 区分),故开局铺盘不闪。归属索引变化即视为易主(A 破产清算回无主 / 转玩家 B),
-// 返回 {tick, colorIndex} 供铭牌带播一次流光;tick 单调递增作 line 的 key,连续易主
-// 逐次重挂重播,同主不变不闪。
-function useOwnerChangeFlash(colorIndex: number | null) {
-  const [flash, setFlash] = useState<{ tick: number; colorIndex: number | null } | null>(null);
-  const prevRef = useRef<number | null | undefined>(undefined);
-  useEffect(() => {
-    const prev = prevRef.current;
-    prevRef.current = colorIndex;
-    if (prev !== undefined && prev !== colorIndex) {
-      setFlash((f) => ({ tick: (f?.tick ?? 0) + 1, colorIndex }));
-    }
-  }, [colorIndex]);
-  return flash;
-}
+// ── #96 易主检测已收编(ADR-0015)──
+// 旧 useOwnerChangeFlash(props diff 上一值快照)删除:易主宣告由引擎结算留痕 →
+// 表现事件流 → sink → fxStore.announces 下发 nonce,Tile 在组件内订阅本城记录重播,
+// 触发源是播放器/sink 而非组件自 diff(易主在破产清算/变卖等结算点发生,props diff
+// 无法区分「易主」与「终态加载」)。
 
 export const Tile = memo(function Tile({ tile, group, price, state, onClick }: TileProps) {
-  const ownFlash = useOwnerChangeFlash(state.ownerColorIndex);
+  // ADR-0015 城池宣告信号:selector 按本城 tileIndex 取记录,他城宣告不触发本城重渲。
+  // nonce 单调递增、播完自然过期(无清理定时器);0 = 该维从未宣告,静置。
+  const announce = useFxStore((s) => s.announces.get(tile.index));
+  const growNonce = announce?.level ?? 0;
+  // 易主流光仅在有过易主宣告后渲染(开局铺盘不闪);key=nonce 每次易主重挂重播。
+  const ownFlash = announce != null && announce.owner > 0 ? announce : null;
   const sizeScale = tile.size === "small" ? 0.8 : tile.size === "medium" ? 0.9 : 1;
   const isCapital = state.capitalColorIndex != null;
   const isIconTile = tile.type in ICON_THEME;
@@ -548,7 +560,12 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               不踩进底座;无主/领地保持原尺度。 */}
           <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
             {/* 有主城染瓦:玩家色 70% 叠在屋面上(含加层屋面),与铭牌描边/色带同源(沿用 playerColor props,无新通道) */}
-            <Building size={tile.size ?? "medium"} level={state.level} tint={ownerRgb ? rgba(ownerRgb, 0.7) : null} />
+            <Building
+              size={tile.size ?? "medium"}
+              level={state.level}
+              tint={ownerRgb ? rgba(ownerRgb, 0.7) : null}
+              growNonce={growNonce}
+            />
             {/* 军事重镇(large 档):左角楼顶烽火台剪影(小梯形)+ 一缕淡墨烟 */}
             {tile.size === "large" ? (
               <g>
@@ -571,19 +588,19 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
             stroke="rgba(40,28,12,0.45)"
             strokeWidth={1}
           />
-          {/* #96 易主流光:归属变更(A 破产清算回无主 / 转玩家 B)时铭牌带闪一道
-              玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调语言)。
-              仿 bv-side-flow 的 dashoffset 行进思路换成横穿色带的单节虚线,一次即止;
-              key=tick 每次易主重挂重播,平时不渲染。 */}
+          {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
+              时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
+              语言)。宣告 nonce 经事件流下发;key=nonce 每次易主重挂重播,动画播完停在
+              基态 opacity 0,平时(开局铺盘/快照恢复,nonce=0)不渲染。 */}
           {ownFlash ? (
             <line
-              key={ownFlash.tick}
+              key={ownFlash.owner}
               className="bv-own-flash"
               x1={-46}
               y1={-39}
               x2={46}
               y2={-39}
-              stroke={ownFlash.colorIndex != null ? rgba(playerColor(ownFlash.colorIndex)) : rgba(Theme.gold)}
+              stroke={ownFlash.ownerColorIndex != null ? rgba(playerColor(ownFlash.ownerColorIndex)) : rgba(Theme.gold)}
               strokeWidth={8}
             />
           ) : null}
@@ -605,8 +622,9 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           )}
           {/* #96 等级=城楼加层(Building 内,层数即等级)+ 等级印(铭牌左下,壹/贰/叁,Lv0 无印)。
               双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。
-              扩军瞬间双拍:新顶层屋檐生长 + 印章重钤(key={level} 重挂重播)。 */}
-          {state.level > 0 ? <LevelSeal key={state.level} level={state.level} /> : null}
+              扩军瞬间双拍(ADR-0015):宣告 nonce 经事件流下发,新顶层屋檐生长 + 印章重钤
+              均以 nonce 为 key 重挂重播;nonce 不变时等级印随 props 静态更新,不重播。 */}
+          {state.level > 0 ? <LevelSeal key={growNonce} level={state.level} replay={growNonce > 0} /> : null}
           {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):与等级印同形制描金变体,
               Setup 期与等级印时段互斥;旁观席位同见(仪式感是全座的,可点只在本地)。 */}
           {state.capitalCandidateOrder != null ? <CandidateSeal order={state.capitalCandidateOrder} /> : null}

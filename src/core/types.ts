@@ -169,10 +169,14 @@ export interface VictoryResult {
   reason: VictoryReason;
 }
 
-export interface TransactionResult {
-  status: "Ok" | "InsufficientFunds" | "NotOwned" | "AlreadyMaxLevel" | "NoWarrant";
-  newLevel?: number;
-}
+/** 交易结果(判别联合):Ok/AlreadyMaxLevel 恒带 newLevel(等级口径唯一出处),
+ *  其余失败态不带——ADR-0015 城池宣告读 newLevel 时由 status 窄化保证,无需兜底。 */
+export type TransactionResult =
+  | { status: "Ok"; newLevel: number }
+  | { status: "InsufficientFunds" }
+  | { status: "NotOwned" }
+  | { status: "AlreadyMaxLevel"; newLevel: number }
+  | { status: "NoWarrant" };
 
 /** 对局日志事件(ADR-0014,原「战报」):每行 = 中文自然语言 brief + 机读 detail(英文键值),
  *  外加基本信息字段(ts/round/turn/player/category)。双层用途:人类可读层复盘 + 命令流重放。

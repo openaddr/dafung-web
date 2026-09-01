@@ -109,6 +109,22 @@ export type FloaterEvent =
       text: string;
     };
 
+/** 城池变更留痕(ADR-0015 宣告动效):buy/upgrade/公道升级成交与破产资产转移的
+ *  结算点写入,表现提取器经 engine.presentation.drainPropertyChanges() 一次性取走
+ *  (破坏性读,同 drainFloaters 口径)。为什么留痕而不读 lastTransaction:endTurn
+ *  随决策载荷清理将其置 null,提取发生在命令完成之后,读到的恒为 null——留痕在
+ *  结算点写入,与时序无关。levelChanged/ownerChanged 标明变更维度(扩军 → 印章
+ *  重钤 + 楼生长;易主 → 流光),携带的是变更后的完整归属态。 */
+export interface PropertyChangeTrace {
+  tileIndex: number;
+  /** 变更后等级。 */
+  level: number;
+  /** 变更后归属座位色(null=回无主)。 */
+  ownerColorIndex: number | null;
+  levelChanged: boolean;
+  ownerChanged: boolean;
+}
+
 export class GameEngine {
   readonly board: Board;
   readonly catalog: Catalog;
@@ -183,15 +199,21 @@ export class GameEngine {
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
   private floaters: FloaterEvent[] = [];
+  /** 城池变更留痕(ADR-0015,类型注释见 PropertyChangeTrace):结算点写入,
+   *  提取器一次性取走;瞬态不序列化(同 floaters,restore 即清)。 */
+  private propertyChanges: PropertyChangeTrace[] = [];
 
   /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
-   *  drainFloaters 是破坏性读——取走全部浮字并清空,消费方(表现编排器)应一次取尽。 */
+   *  drainFloaters / drainPropertyChanges 是破坏性读——取走全部并清空,消费方
+   *  (表现编排器)应一次取尽。 */
   get presentation(): {
     readonly lastRoll: DiceRoll | null;
     readonly lastMove: MovePath | null;
     readonly lastTransaction: TransactionResult | null;
     /** 破坏性读:返回并清空全部待播浮字。 */
     drainFloaters(): FloaterEvent[];
+    /** 破坏性读:返回并清空全部城池变更留痕(ADR-0015)。 */
+    drainPropertyChanges(): PropertyChangeTrace[];
   } {
     return {
       lastRoll: this.lastRoll,
@@ -201,6 +223,11 @@ export class GameEngine {
         const f = this.floaters;
         this.floaters = [];
         return f;
+      },
+      drainPropertyChanges: () => {
+        const c = this.propertyChanges;
+        this.propertyChanges = [];
+        return c;
       },
     };
   }
@@ -714,6 +741,14 @@ export class GameEngine {
     if (r.status === "Ok") {
       buyer.warrants -= BUY_WARRANT_COST; // 消耗委任状
       this.pushFloater(buyer, -def.purchasePrice, buyer.position, "expense");
+      // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.0)
+      this.propertyChanges.push({
+        tileIndex: buyer.position,
+        level: r.newLevel,
+        ownerColorIndex: buyer.colorIndex,
+        levelChanged: false,
+        ownerChanged: true,
+      });
       this.logEvent(
         "buy",
         buyer.guohao,
@@ -732,6 +767,14 @@ export class GameEngine {
     const r = upgradeProp(this.activePlayer, def);
     this.lastTransaction = r;
     if (r.status === "Ok") {
+      // 城池变更留痕(ADR-0015):扩军 = 等级维度变更(印重钤 + 楼生长),归属不变
+      this.propertyChanges.push({
+        tileIndex: this.activePlayer.position,
+        level: r.newLevel,
+        ownerColorIndex: this.activePlayer.colorIndex,
+        levelChanged: true,
+        ownerChanged: false,
+      });
       this.logEvent(
         "upgrade",
         this.activePlayer.guohao,
@@ -1184,6 +1227,15 @@ export class GameEngine {
     // 挂在交易达成时(城主选定 fair 且珍宝已离手入托管),此后买家破产退宝也不回滚。
     if (action.type === "fair" && holding && canUpgrade(holding)) {
       holding.level += 1;
+      // 城池变更留痕(ADR-0015):公道买卖成交升级(PropertyUpgraded 另一挂点),
+      // 与扩军同维度(等级变更、归属不变)
+      this.propertyChanges.push({
+        tileIndex: this.tileIndexOfProperty(def.id),
+        level: holding.level,
+        ownerColorIndex: owner.colorIndex,
+        levelChanged: true,
+        ownerChanged: false,
+      });
       this.logEvent(
         "upgrade",
         owner.guohao,
@@ -1278,9 +1330,36 @@ export class GameEngine {
       this.logEvent("system", mover.guohao, `${mover.guohao} 现金不足,变卖资产自救(欠 ${formatMoney(amount - mover.cash)})`, `awaitingBankruptcy player=${mover.id} debt=${amount} cash=${mover.cash}`);
       return "liquidating";
     }
-    settleDebt(mover, creditor, amount);
+    this.settleDebtTraced(mover, creditor, amount);
     this.finalizeBankruptcy(mover);
     return "bankrupt";
+  }
+
+  /** 结算债务并留痕资产转移(ADR-0015):破产即转移/销毁的每处地产写一条 ownerChanged
+   *  留痕(债主接管,无债主回无主),表现提取器据此产出易主宣告。等级不因转移改变。
+   *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(与 pushFloater 同一收口思路)。 */
+  private settleDebtTraced(player: Player, creditor: Player | null, amount: number): boolean {
+    const moved = player.properties.map((h) => ({ propertyId: h.propertyId, level: h.level }));
+    const bankrupt = settleDebt(player, creditor, amount);
+    if (bankrupt) {
+      for (const m of moved) {
+        this.propertyChanges.push({
+          tileIndex: this.tileIndexOfProperty(m.propertyId),
+          level: m.level,
+          ownerColorIndex: creditor ? creditor.colorIndex : null,
+          levelChanged: false,
+          ownerChanged: true,
+        });
+      }
+    }
+    return bankrupt;
+  }
+
+  /** propertyId → tile 索引(引擎数据不变量:catalog 地产恰在一格;查无 = 数据 bug,当场抛出)。 */
+  private tileIndexOfProperty(propertyId: string): number {
+    const t = this.board.tiles.find((x) => x.propertyId === propertyId);
+    if (t == null) throw new Error(`propertyChange:城 ${propertyId} 不在棋盘(数据 bug)`);
+    return t.index;
   }
 
   private hasMarketableAssets(p: Player): boolean {
@@ -1334,6 +1413,14 @@ export class GameEngine {
     // 变卖价 = 该等级的城池价值(地图 json valueByLevel 显式定义),非购入价
     const gain = sellValueOf(this.catalog.get(propId)!, h.level);
     p.cash += gain;
+    // 城池变更留痕(ADR-0015):变卖给银行即回无主,等级维度不变
+    this.propertyChanges.push({
+      tileIndex: this.tileIndexOfProperty(propId),
+      level: h.level,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
+    });
     this.pushFloater(p, gain, p.position, "income");
     this.logEvent("system", p.guohao, `${p.guohao} 变卖城池得 ${formatMoney(gain)}`, `bkSellProp player=${p.id} prop=${propId} +${gain}`, gain);
     this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
@@ -1365,7 +1452,7 @@ export class GameEngine {
       this.deliverEscrow(); // 清算自救成功:托管珍宝交货给买家
       this.logEvent("system", p.guohao, `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`, `bkConfirm player=${p.id} paid=${debt.amount}`);
     } else {
-      settleDebt(p, debt.creditor, debt.amount);
+      this.settleDebtTraced(p, debt.creditor, debt.amount);
       this.finalizeBankruptcy(p);
       this.returnEscrowToSeller(); // 破产:未付款的托管珍宝退回卖家
       this.logEvent("system", p.guohao, `${p.guohao} 变卖殆尽仍不足,破产出局`, `bkBankrupt player=${p.id} debt=${debt.amount}`);
@@ -1625,5 +1712,6 @@ export class GameEngine {
     restoreGameSnapshot(this, s);
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
+    this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
   }
 }

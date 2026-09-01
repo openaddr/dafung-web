@@ -2,8 +2,8 @@
 //   提取器(what happened)→ PresentationEvent[] → present()(how to play)→ FxSink。
 // 时序对照旧 src/render/state.ts 的 doRoll/afterLand/onTurnAdvanced 链:
 //   rollAndMove:  diceRolled → tokenMoved → 浮字
-//   buy(成功):   sealStamped("据") + buy 音 → 浮字
-//   upgrade(成功):upgrade 音 → 浮字
+//   buy(成功):   sealStamped("据") + buy 音 → 城池宣告(ADR-0015)→ 浮字
+//   upgrade(成功):upgrade 音 → 城池宣告(ADR-0015)→ 浮字
 //   选路/招贤/交涉/清算:语义音效(treasure/bankrupt) → 浮字
 //   回合推进:    turnBanner(下家国号)
 // 事件数组顺序即播放顺序,present 串行 await——语义与旧 playStepEffects 内联链一致。
@@ -61,6 +61,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
       case "sound":
         sink.playSound(ev.event);
         break;
+      case "propertyChanged":
+        // 城池宣告(ADR-0015):经 sink 下发 nonce 驱动 Tile 重播宣告动画。
+        // 同步下发(无编排时长)——与相邻事件的相对序由 store 写入序保证。
+        sink.announceTileChange(ev);
+        break;
     }
   }
 }
@@ -116,10 +121,24 @@ function floaterEvents(engine: GameEngine): PresentationEvent[] {
   return events;
 }
 
+/** 引擎城池变更留痕 → propertyChanged 事件(消费 presentation.drainPropertyChanges
+ *  的破坏性读:一次取尽。每个分支都要取——破产易主可能发生在任意推进里,漏取会把
+ *  留痕带到下一步错位播出,ADR-0015)。 */
+function propertyChangeEvents(engine: GameEngine): PresentationEvent[] {
+  return engine.presentation.drainPropertyChanges().map((c) => ({
+    kind: "propertyChanged",
+    tileIndex: c.tileIndex,
+    level: c.level,
+    ownerColorIndex: c.ownerColorIndex,
+    levelChanged: c.levelChanged,
+    ownerChanged: c.ownerChanged,
+  }));
+}
+
 /**
  * 单机提取器:把「一次引擎推进」(人类命令与 bot 步骤共用)提取为表现事件。
  * 与旧 playStepEffects 逐分支对齐(prevPhase 决定该步语义),仅产出数据不播任何东西。
- * @param engine    推进后的引擎(经 presentation 视图读 lastRoll/lastMove/lastTransaction/drainFloaters)
+ * @param engine    推进后的引擎(经 presentation 视图读 lastRoll/lastMove/drainFloaters/drainPropertyChanges)
  * @param prevPhase 推进前的 turnPhase(决定该步的语义:Roll/驻跸/选路/决策/…)
  * @param moverId   推进前的活跃玩家(行军棋子;命令后引擎可能已推进回合)
  * @param prePlayer 推进前的活跃玩家对象(破产清算后读 isBankrupt 播破产音)
@@ -159,20 +178,39 @@ export function extractStepEvents(
         });
       }
     }
+    // 落格结算也可能直接破产(无资产可清算):易主留痕照取,顺序在浮字前
+    events.push(...propertyChangeEvents(engine));
     events.push(...floaterEvents(engine));
     return events;
   }
 
   if (prevPhase === "AwaitingDecision") {
-    // 以引擎 lastTransaction 判成败;买/扩军的表现差异由命令类型区分(控制器传入)
-    if (view.lastTransaction?.status === "Ok") {
-      if (cmdType === "upgradeProperty") {
-        events.push({ kind: "sound", event: "upgrade" });
-      } else {
-        // 默认按买城:印章"据" + buy 音(与旧 onDecision("buy") 一致)
-        events.push({ kind: "sealStamped", tileIndex: engine.activePlayer.position, char: "据" });
-        events.push({ kind: "sound", event: "buy" });
-      }
+    // 成败判定以「城池变更留痕」为准(ADR-0015):endTurn 随决策载荷清理把
+    // lastTransaction 置 null(C2 起),命令完成后读到的恒为 null——旧
+    // 「lastTransaction.status === Ok」分支实际已失效(据章/buy/upgrade 音不再播出)。
+    // 引擎改在成交结算点写入 propertyChange 留痕(破坏性读,同 drainFloaters 口径):
+    // 有留痕 = 成交,据此产出音效与宣告;被拒(委任状不足/现金不足/满级)无留痕 = 无表现。
+    const changes = engine.presentation.drainPropertyChanges();
+    const bought = changes.find((c) => c.ownerChanged);
+    if (changes.some((c) => c.levelChanged)) {
+      events.push({ kind: "sound", event: "upgrade" });
+    }
+    if (bought) {
+      // 买城:印章"据" + buy 音(与旧 onDecision("buy") 一致);印章锚成交格——
+      // 留痕自带 tileIndex(endTurn 已推进回合,activePlayer.position 不再是成交格)
+      events.push({ kind: "sealStamped", tileIndex: bought.tileIndex, char: "据" });
+      events.push({ kind: "sound", event: "buy" });
+    }
+    // 城池宣告紧随音效(ADR-0015 排序约定:音效在前、宣告紧随)
+    for (const c of changes) {
+      events.push({
+        kind: "propertyChanged",
+        tileIndex: c.tileIndex,
+        level: c.level,
+        ownerColorIndex: c.ownerColorIndex,
+        levelChanged: c.levelChanged,
+        ownerChanged: c.ownerChanged,
+      });
     }
     events.push(...floaterEvents(engine));
     return events;
@@ -183,18 +221,23 @@ export function extractStepEvents(
     if (cmdType !== "resolveTreasureOwner_skip") {
       events.push({ kind: "sound", event: "treasure" });
     }
+    // 公道买卖成交奖励的城池 +1 级走留痕(ADR-0015):得宝音在前、宣告紧随
+    events.push(...propertyChangeEvents(engine));
     events.push(...floaterEvents(engine));
     return events;
   }
 
   if (prevPhase === "AwaitingBankruptcySettle") {
     events.push(...floaterEvents(engine));
-    // 变卖仍不足 → 破产(prePlayer 在 settleDebt 中被置 isBankrupt)
+    // 破产资产转移(转债主/回无主/变卖给银行)的易主留痕(ADR-0015)
+    events.push(...propertyChangeEvents(engine));
+    // 变卖仍不足 → 破产(prePlayer 在 settleDebt 中被置 isBankrupt);破产音保持步末尾
     if (prePlayer?.isBankrupt) events.push({ kind: "sound", event: "bankrupt" });
     return events;
   }
 
-  // 其余(AwaitingBranch/AwaitingHeroPick/…):浮字即可
+  // 其余(AwaitingBranch/AwaitingHeroPick/…):易主留痕 + 浮字即可
+  events.push(...propertyChangeEvents(engine));
   events.push(...floaterEvents(engine));
   return events;
 }

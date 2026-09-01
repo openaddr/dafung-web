@@ -34,7 +34,7 @@ describe("地产交易", () => {
     buy(p, changan);
     const r = upgrade(p, changan);
     expect(r.status).toBe("Ok");
-    expect(r.newLevel).toBe(1);
+    if (r.status === "Ok") expect(r.newLevel).toBe(1); // 判别联合:Ok 恒带 newLevel
     expect(p.cash).toBe(6000); // 升级免费,现金不变
   });
 

@@ -4,17 +4,19 @@
 //   - 决策类相位(Awaiting* 系)轮到非本地玩家 →「『魏』正在抉择…」;
 //     破产清算相位 →「『魏』正在变卖家产…」(G-21 债权人可见对方变卖抵债)
 // X7 #26:同一等待超过 8 秒追加「(已候 N 秒)」——静态省略号在联机长等待下等于没反馈。
-// X8 #27 交接:文案主体按 decisionOwner 口径取(珍宝交涉=城主,其余=activeIndex,快照侧
-// 派生同 engine.decisionOwner)——访客关闭交涉卷轴后等待条接管「等待城主抉择」的反馈。
+// X8 #27 交接:文案主体按决策归属座位取——快照直排 decisionOwner(engine.decisionOwner
+// 的透出:珍宝交涉=城主,其余=activeIndex;spec #107 C1 单源化,UI 不再手抄推导)——
+// 访客关闭交涉卷轴后等待条接管「等待城主抉择」的反馈。
 // 本组件只读 props 不读 store(GameScreen 接线时传),样式为细条,绝对定位在
 // HintBar(top-3)下方(top-12),互不叠位。
 import { useEffect, useState } from "react";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { TurnPhase } from "@core/types";
+import { PHASE_CHOICES } from "@core/choices";
 import { TESTIDS } from "./testids";
 
 export interface WaitingBarProps {
-  /** 当前对局快照(读 phase/turnPhase/activeIndex/treasureVisitor/players)。 */
+  /** 当前对局快照(读 phase/turnPhase/decisionOwner/players)。 */
   snapshot: GameSnapshot;
   /** 此刻本地玩家能否操作(false = 本地在等别人)。 */
   interactive: boolean;
@@ -24,14 +26,12 @@ export interface WaitingBarProps {
   online: boolean;
 }
 
-/** 决策类相位:轮到该玩家做选择(掷骰 Roll 不在其中——那是「落子」不是「抉择」)。 */
-const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set<TurnPhase>([
-  "AwaitingBranch",
-  "AwaitingDecision",
-  "AwaitingHeroPick",
-  "AwaitingTreasureOwner",
-  "AwaitingBankruptcySettle",
-]);
+/** 决策类相位:轮到该玩家做选择(掷骰 Roll 不在其中——那是「落子」不是「抉择」)。
+ *  单源(spec #107 C1):键集直接取 ADR-0013 选项集注册表——PHASE_CHOICES 注册了
+ *  哪些相位,哪些就是决策相位;不再手抄第三份相位清单防漂移。 */
+const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set(
+  Object.keys(PHASE_CHOICES) as TurnPhase[],
+);
 
 /** 超时安抚阈值(秒):同一句等待文案持续超过该秒数才追加已候计时。 */
 const WAIT_ANNOUNCE_S = 8;
@@ -44,17 +44,13 @@ function waitingText(
   online: boolean,
 ): string | null {
   if (interactive || snapshot.phase !== "Playing") return null;
-  // 决策归属座位(与 engine.decisionOwner 同口径):珍宝交涉=城主(可能 ≠ 访客),
-  // 其余相位 = activeIndex。快照未直排该字段,按同源数据派生。
-  const ownerIndex =
-    snapshot.turnPhase === "AwaitingTreasureOwner"
-      ? snapshot.treasureVisitor?.ownerIdx ?? snapshot.activeIndex
-      : snapshot.activeIndex;
-  const owner = snapshot.players[ownerIndex];
+  // 决策归属座位(单源:engine.decisionOwner 经快照透出——珍宝交涉=城主(可能 ≠ 访客),
+  // 其余相位 = activeIndex;UI 不再复读推导,spec #107 C1)。
+  const owner = snapshot.players[snapshot.decisionOwner];
   if (!owner) return null;
   const name = `「${owner.guohao}」`;
   if (owner.isBot) return "智将运筹中…";
-  if (online && ownerIndex !== viewSeat) {
+  if (online && snapshot.decisionOwner !== viewSeat) {
     // 联机远端人类:掷骰阶段=静候落子;决策相位=正在抉择(破产清算单独措辞)。
     if (snapshot.turnPhase === "AwaitingBankruptcySettle") return `${name}正在变卖家产…`;
     if (DECISION_PHASES.has(snapshot.turnPhase)) return `${name}正在抉择…`;
