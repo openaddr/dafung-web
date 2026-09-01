@@ -16,7 +16,10 @@ export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 1 : 0,
+  // 重试本地与 CI 同为 1:已知负载 flake 家族(联机双端/scrolls 时序/sidebar 8 人局)
+  // 几乎每轮全量都出 1-3 例单跑绿,过去每批门都要多跑一轮收尾。#106 的 10s 点击
+  // 上限后真回归是确定性的(重试照挂,如 pendingLand 回归),重试不再掩盖问题。
+  retries: 1,
   workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 1 : undefined,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   timeout: 60_000,
