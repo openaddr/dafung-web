@@ -5,7 +5,9 @@
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
 // #90(R3-C3):相位切换时保留上一个子节点 210ms 作幽灵退场帧(经 ScrollGhostContext
 // 让其 ScrollShell 以 rollback 类收场),决策卷轴「卷起来收走」不再瞬时消失。
-import { Fragment, useEffect, useRef, useState, type ReactNode } from "react";
+// #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
+// 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
+import { Fragment } from "react";
 import type { GameCommand } from "@core/types";
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
@@ -22,6 +24,7 @@ import {
   VictoryScreen,
 } from "./index";
 import { ScrollGhostContext } from "./ScrollShell";
+import { useGhostChild } from "./useGhostChild";
 import { exportGameLog } from "../gameLogExport";
 import type { TileDetailRequest } from "../useCapitalPick";
 
@@ -40,34 +43,20 @@ export function DecisionScrollLayer({
   interactive,
   tileDetail,
 }: DecisionScrollLayerProps) {
-  // #90(R3-C3)相位切换幽灵帧:子节点身份(组件类型)变化时,把上一个元素快照原样
-  // 再渲染 210ms(rollback 动画 var(--dur-fast)=150ms 走完有余),经 ScrollGhostContext
-  // 让其 ScrollShell 挂 rollback 收起类、不放音、不接事件;一个 state + 一个 setTimeout,
-  // 210ms 后出列(照 useDeltaFloat 的定时移除写法)。
-  const [ghost, setGhost] = useState<{ el: ReactNode; sig: unknown } | null>(null);
-  if ((window as any).__ghostDbg === undefined) (window as any).__ghostDbg = [] as string[];
-  const prevChildRef = useRef<{ sig: unknown; el: ReactNode }>({ sig: null, el: null });
-  // 经 ScrollShell 自己的 closing 出口关掉的卷轴(详情类)已在原地演过收起,
-  // 幽灵帧跳过,避免卸载后又重挂一具重复播放收起动画的替身。
-  const shellClosedRef = useRef(false);
-  useEffect(() => {
-    if (ghost === null) return;
-    const t = setTimeout(() => setGhost(null), 210);
-    return () => clearTimeout(t);
-  }, [ghost]);
-
   const controller = getController();
   const map = getControllerMap();
   const ctx = getControllerContext();
-  if (!map || !ctx) return null;
 
+  // 本帧应显示的弹层:原路由逻辑原样收进 IIFE,供幽灵帧机制对比子节点身份。
+  // registry 未就绪时旧版整层直接 return null;现统一表达为 child = null——
+  // hook 调用须每渲染都执行(顺序稳定),「什么都不弹」与「弹层清空」是同一份输入。
+  const child = (() => {
+  if (!map || !ctx) return null;
   const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
   const players = snapshot.players;
   const board = ctx.board;
   const catalog = ctx.catalog;
 
-  // 本帧应显示的弹层:原路由逻辑原样收进 IIFE,供幽灵帧机制对比子节点身份
-  const child = (() => {
   // ── 终局:胜利屏(全屏覆盖,优先级最高)──
   if (snapshot.phase === "GameOver" && snapshot.winner !== null) {
     const winner = players.find((p) => p.id === snapshot.winner);
@@ -127,8 +116,9 @@ export function DecisionScrollLayer({
         ownerLevel={owned?.level ?? 0}
         isCapital={ownerEntry?.capitalIndex === tileIndex}
         onClose={() => {
-          // 详情卷轴经 Shell 的 closing 出口就地演收起,记标跳过幽灵帧(防二连播)
-          shellClosedRef.current = true;
+          // 详情卷轴经 Shell 的 closing 出口就地演收起:让位,不再补幽灵帧(防二连播)。
+          // 协议在 useGhostChild——标记于下次身份变化时消费一次并自动复位。
+          ghostSlot.yield();
           tileDetail.onClose();
         }}
         pickCapital={
@@ -271,21 +261,17 @@ export function DecisionScrollLayer({
   return null;
   })();
 
-  // ── #90 幽灵帧判定:只在「弹层区清空」(child 由非空转 null)时为上一个卷轴播 210ms
-  //    退场帧。不在 A→B 直接换页时播——快节奏相位回环下幽灵与新卷轴并存,死按钮会
-  //    抢在真按钮前面被 `.first()` 类选择器/e2e 命中,吞掉真实点击(e2e 速战档实测)。
-  //    胜利屏是全屏覆盖而非卷轴,退场帧会让陈旧覆盖层多压 210ms,同样跳过。──
-  const sig = child === null ? null : child.type;
-  const prev = prevChildRef.current;
-  if (prev.sig !== sig) {
-    if (sig === null && prev.el !== null && prev.sig !== VictoryScreen && !shellClosedRef.current) {
-      setGhost({ el: prev.el, sig: prev.sig });
-    }
-    shellClosedRef.current = false;
-  }
-  prevChildRef.current = { sig, el: child };
-  // 新卷轴挂出即让旧幽灵立即让位(testid 相同会撞重复节点)
-  if (ghost !== null && sig !== null) setGhost(null);
+  // ── 幽灵帧协议唯一入口(#107 C6 useGhostChild):只在「弹层区清空」(child 由非空转
+  //    null)时为上一个卷轴播 210ms 退场帧;A→B 直接换页不播——快节奏相位回环下幽灵与
+  //    新卷轴并存,死按钮会抢在真按钮前面被 `.first()` 类选择器/e2e 命中,吞掉真实点击
+  //    (e2e 速战档实测)。skip 的判定条件由本层按子节点类型算:胜利屏是全屏覆盖而非
+  //    卷轴,退场帧会让陈旧覆盖层多压 210ms,不配退场帧;详情卷轴的就地收场走事件侧
+  //    yield()(见上方 onClose)。机制细节(prev 快照/定时/让位出列)全在 hook。──
+  const ghostSlot = useGhostChild(child, {
+    skip: child !== null && child.type === VictoryScreen,
+  });
+
+  if (!map || !ctx) return null;
 
   return (
     <>
@@ -293,8 +279,8 @@ export function DecisionScrollLayer({
       <Fragment key="scroll-current">{child}</Fragment>
       {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ ScrollShell 幽灵态整体 inert,
           保证任何选择器/点击永远先命中真实卷轴 */}
-      {ghost !== null && (
-        <ScrollGhostContext.Provider value={true}>{ghost.el}</ScrollGhostContext.Provider>
+      {ghostSlot.ghost !== null && (
+        <ScrollGhostContext.Provider value={true}>{ghostSlot.ghost}</ScrollGhostContext.Provider>
       )}
     </>
   );
