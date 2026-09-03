@@ -107,7 +107,8 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     closeTimerRef.current = setTimeout(() => {
       closeTimerRef.current = null;
       onClose();
-    }, 210);
+    }, 210); // 收起出口 = rollback 150ms(--dur-fast)+ 60 余量。刻意字面量不进倍率:
+    // 地板 100ms 会砍断 rollback 动画并与幽灵帧同刻竞态(#117 评审实测并行两连挂)。
   }, [onClose]);
 
   // 收起途中组件被外部直接卸载(如整屏切换)时清理计时器
