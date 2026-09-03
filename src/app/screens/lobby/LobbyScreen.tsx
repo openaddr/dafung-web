@@ -10,6 +10,7 @@ import { resolveGuohaoClash } from "@core/guohao";
 import { getMapSource } from "@app/map-sources";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
+import { UI } from "@app/fx/timings";
 import type { OnlineController } from "@app/controllers/online";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 // #28:国号预设 key 与 SoloSetup 同源(起兵时写入,此处读出自动带入)
@@ -313,7 +314,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         setCopied(true);
         // L-7:定时器入 ref,卸载 effect 统一清理(重复点击先清旧,防提前熄灭)
         if (copyTimerRef.current != null) clearTimeout(copyTimerRef.current);
-        copyTimerRef.current = setTimeout(() => setCopied(false), 1000);
+        copyTimerRef.current = setTimeout(() => setCopied(false), UI.copyFeedbackMs);
       },
       () => pushHint("复制失败,请手动抄录", "info"),
     );

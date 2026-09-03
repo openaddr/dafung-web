@@ -103,6 +103,8 @@ export const UI = {
   statusClearMs: sc(1500),
   /** 胜利屏「再战」按钮延后挂载(E2:入场演出高潮期防误触重开)。 */
   victoryButtonMs: sc(1800),
+  /** 大厅国号复制成功反馈的自动熄灭(L-7:ref 计时防重复点击提前熄灭)。 */
+  copyFeedbackMs: sc(1000),
 } as const;
 
 /** 等一帧(requestAnimationFrame 两拍:先让 React commit,再拿稳定 DOM)。 */

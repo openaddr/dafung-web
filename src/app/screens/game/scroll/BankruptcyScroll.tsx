@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import type { GameCommand } from "@core/types";
 import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
+import { Motion } from "@core/theme";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
@@ -59,7 +60,7 @@ export function BankruptcyScroll({
   useEffect(() => {
     if (!settled) return;
     setPulsing(true);
-    const t = window.setTimeout(() => setPulsing(false), 250); // 250ms = --dur-med 同值
+    const t = window.setTimeout(() => setPulsing(false), Motion.dur.med); // 同 --dur-med(Motion 单源,#117 评审收口)
     return () => window.clearTimeout(t);
   }, [settled]);
 

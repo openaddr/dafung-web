@@ -121,6 +121,7 @@ export function VictoryScreen({
     // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
     // 同帧落印 #95),
     // 700ms 号角(victory)接棒,与下方视觉阶梯 0/300/600ms 同一节奏轨道。
+    // 音效轨偏移(450/700)与 victory.css 视觉阶梯成对编排,单收 JS 侧反造双源——#117 审计豁免。
     const audio = getAudio();
     audio.play("banner");
     const stampT = window.setTimeout(() => audio.play("stamp"), 450);

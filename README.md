@@ -56,7 +56,7 @@ bun run test:e2e       # 端到端测试(Playwright,需先 build)
 首次跑 e2e 需下载浏览器(国内网络用镜像,否则 ECONNRESET):
 
 ```bash
-(e2e 已改用系统 Edge:playwright channel=msedge,无需下载 Chromium;换回锁定版见 playwright.config.ts 注释)
+(e2e 浏览器渠道平台条件化:Windows 用系统 Edge channel=msedge;Linux/macOS 回退 playwright 自带 chromium,首次需 `npx playwright install chromium`;详见 playwright.config.ts)
 ```
 
 ### 本地 e2e 跑法

@@ -5,10 +5,13 @@
 import { describe, it, expect } from "bun:test";
 import { Motion } from "../src/core/theme";
 import {
+  AUTOPILOT,
   BOT,
   DICE,
   FX,
+  GHOST,
   MARCH,
+  UI,
   TIME_SCALE_FLOOR_MS,
   makeScaler,
 } from "../src/app/fx/timings";
@@ -74,5 +77,14 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(DICE.botHoldMs).toBe(Motion.dur.slow);
     expect(DICE.fallbackHoldMs).toBe(650);
     expect(DICE.fadeOutMs).toBe(Motion.dur.med);
+  });
+
+  it("GHOST / AUTOPILOT / UI(#117 收编组同样逐位恒等)", () => {
+    expect(GHOST.frameMs).toBe(210);
+    expect(AUTOPILOT.idleMs).toBe(200);
+    expect(UI.hintTtlMs).toBe(1800);
+    expect(UI.statusClearMs).toBe(1500);
+    expect(UI.victoryButtonMs).toBe(1800);
+    expect(UI.copyFeedbackMs).toBe(1000);
   });
 });

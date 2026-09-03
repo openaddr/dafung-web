@@ -3,7 +3,7 @@
 // 走引擎服务器(托管 dist + WS;playwright.config 第二个 webServer),端口随
 // E2E_GAME_PORT 隔离协议取值(与 config 同源,默认 3010)。
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
-import { test, expect, type Browser, type Page } from "./fixtures";
+import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { waitSettled, onlinePickCapitals } from "./react-helpers";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
