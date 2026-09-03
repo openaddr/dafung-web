@@ -39,9 +39,9 @@ export default defineConfig({
       name: "chromium",
       use: {
         ...devices["Desktop Chrome"],
-        // 用系统 Edge(chromium 内核)免下载 playwright 自带浏览器。
-        // 注意:测试版本随本机 Edge 漂移(换机器需装 Edge);CI 场景删掉 channel 即回退下载版。
-        channel: "msedge",
+        // Windows 用系统 Edge(免下载自带浏览器);Linux/macOS 回退 playwright 自带
+        // chromium(~/.cache/ms-playwright 缓存,首次需 npx playwright install chromium)。
+        ...(process.platform === "win32" && { channel: "msedge" }),
         // headless 无 GPU,WebGL 不可用会导致 3D 骰子 fallback。
         // 强制 swiftshader 软件渲染 WebGL,使 e2e 跑真实 3D 路径(与实机一致)。
         launchOptions: {
