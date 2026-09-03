@@ -107,6 +107,11 @@ bun run typecheck:scripts  # 类型检查 scripts/(CLI + server,主 build 不含
 bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json 格式)
 ```
 
+### 本地 e2e 跑法
+
+- `E2E_WORKERS=2 bun run test:e2e`——默认 workers 在本机因 CPU 超载会成片超时,2 为实测稳态。
+- `E2E_TIME_SCALE`(默认 `0.25`):e2e 时间倍率,由 `e2e/fixtures.ts` 在页面加载前写入 localStorage 键(键名单源:`src/app/fx/timings.ts` 的 `E2E_TIME_SCALE_KEY`),加速骰子/横幅/行军等演出编排;设 `E2E_TIME_SCALE=1` 回退全速。仅测试注入,生产/真人局无此键零感知。
+
 ## 联机化进度(终局目标)
 - **第 1 步(已完成)**:`scripts/server.ts` 常驻引擎 + 共享层(`engine-helpers.ts`)。`snapshot()`/`restoreFromSnapshot()` 全状态可序列化。
 - **第 2 步(已完成)**:多房间 WebSocket 服务 + 浏览器联机客户端 ——

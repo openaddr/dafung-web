@@ -1,7 +1,7 @@
 // React 重构 · 设置屏与开局配置(阶段 11)。
 // 意图来源(旧 spec → 此处):solo-mode.spec(座位/国号校验)、play.spec(开局渲染/选都就位)、
 // click.spec(点城选都的点击可靠性——React 版点城即定都,无确认框)。
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { snap, waitForEngine, openSoloSetup, pickCapital } from "./react-helpers";
 
 test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", async ({ page }) => {

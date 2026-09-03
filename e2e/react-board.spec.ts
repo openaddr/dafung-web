@@ -1,7 +1,7 @@
 // React 重构 · 棋盘交互(阶段 11)。
 // 意图来源:旧 board.spec(滚轮缩放/拖拽平移;标题栏拖拽归 react-scrolls 的卷轴范畴,
 // React ScrollShell 无独立 header testid,此处不逐行翻译)。
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { quickStart } from "./react-helpers";
 
 test("滚轮缩放:向上滚放大城池", async ({ page }) => {

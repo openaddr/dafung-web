@@ -2,7 +2,7 @@
 // 意图来源:旧 resilience.spec(localStorage 坏数据不卡死、失效 id 回退)。
 // 联机刷新重入:服务器无 token 重入(online.ts 注释 TODO),刷新 ?room= 会重新走
 // 加入流程(满员则失败)——此处测降级不崩溃(意图同旧 resilience 的"重进"场景)。
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { openSoloSetup } from "./react-helpers";
 
 // 零兜底原则:图库数据损坏 = 启动时解析默认地图即抛,首页被拦在「地图清单加载中…」

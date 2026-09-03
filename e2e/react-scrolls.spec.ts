@@ -1,7 +1,7 @@
 // React 迁移 · 阶段 7 验证门:决策卷轴全量行为测试(招贤/珍宝/破产/胜利/城池详情)。
 // 相位无法靠自然游玩稳定撞出,经 window.__dafung 调试钩子强制(仅测试用,见 registry.ts)。
 // 走 vite preview(4173)的 dist 产物——跑前需 npm run build。
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { quickStart, force } from "./react-helpers";
 
 test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {

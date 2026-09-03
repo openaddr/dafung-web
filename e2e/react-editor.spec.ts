@@ -2,7 +2,7 @@
 // 意图来源:旧 editor.spec(打开/重置/试玩)+ map-selection.spec 的自建图四条
 // (保存进图库 localStorage / 出现在选图菜单 / 可选可玩 / 预览)+ 编辑器 undo/redo
 // (React 新增能力)与拖拽改坐标。
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Page } from "./fixtures";
 import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
 
 async function openEditor(page: Page): Promise<void> {

@@ -59,6 +59,14 @@ bun run test:e2e       # 端到端测试(Playwright,需先 build)
 (e2e 已改用系统 Edge:playwright channel=msedge,无需下载 Chromium;换回锁定版见 playwright.config.ts 注释)
 ```
 
+### 本地 e2e 跑法
+
+```bash
+E2E_WORKERS=2 bun run test:e2e   # 默认 workers 本机因 CPU 超载会成片超时,2 为实测稳态
+```
+
+`E2E_TIME_SCALE`(默认 `0.25`)为 e2e 时间倍率:`e2e/fixtures.ts` 在页面加载前经 localStorage 键(键名单源 `src/app/fx/timings.ts` 的 `E2E_TIME_SCALE_KEY`)注入,加速骰子/横幅/行军等演出编排,缩短测试墙钟;设 `E2E_TIME_SCALE=1` 回退全速。仅测试注入,生产零感知。
+
 确定性测试:`?seed=` 注入骰子种子,让落格/抉择序列可复现(供 e2e 与调试)——
 
 ```bash
