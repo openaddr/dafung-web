@@ -43,12 +43,13 @@ export const MARCH = {
 
 /** 瞬时特效存活时长(与 fx.css 的 keyframe 时长保持一致;超时自清防 store 积压)。
  *  CSS 侧时长/缓动唯一源 core/theme.ts Motion(经 gen:theme 产出 tokens.css):
- *  floaterMs 与 --dur-fx 同源(经 Motion);coinMs/bannerMs/sealMs/roadFlowMs 不等于
- *  任何 token,是编排窗口,保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
+ *  floaterMs/bannerMs 与 --dur-fx/--dur-banner 同源(经 Motion);bannerMs 的
+ *  +100 清理余量保留字面量。coinMs/sealMs/roadFlowMs 不等于任何 token,是编排窗口,
+ *  保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
 export const FX = {
   floaterMs: sc(Motion.dur.fx), // 与 --dur-fx 同源(经 Motion)
   coinMs: sc(1500),
-  bannerMs: sc(1900), // banner-fly 1.8s + 余量
+  bannerMs: sc(Motion.dur.banner + 100), // fx-banner-fly 全长同源(--dur-banner,经 Motion)+ 100 清理余量(#117 同源化,余量保留字面量)
   /** C3 回合横幅占用编排时长:等横幅走到峰值停留段(1.8s 动画的 20%-75% 区间),
    *  取 1.0s——下一演出(骰子)不再与横幅入场重叠,又不把回合节奏拖满全长。 */
   bannerHoldMs: sc(1000),
@@ -76,6 +77,33 @@ export const DICE = {
 
 export const delay = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
+
+/** 幽灵帧协议(#107 批次 6 收编 #117):useGhostChild 的退场帧驻留时长——子节点身份
+ *  变化后上一帧快照再渲染多久。与 ScrollShell closing 出口同一条 210 口径:收起动画
+ *  scroll-anim-rollback 走 --dur-fast = 150ms(Motion.dur.fast,经 gen:theme),210 =
+ *  150 + 60ms 余量,保证动画播完有余再卸载。刻意字面量而不读运行时 CSS——
+ *  getComputedStyle 首帧未就绪且触发强制布局;同源关系以此注释钉死,改 --dur-fast 时
+ *  这里要跟着核一遍。 */
+export const GHOST = {
+  frameMs: sc(210),
+} as const;
+
+/** 托管代打空转(#117 收编):local.ts apLoop 在无人类决策点时(真 bot 轮次由 runBots
+ *  驱动/Setup 待手选)的轮询间隔——空转让步,不与 bot 节奏(BOT.stepDelayMs)混用。 */
+export const AUTOPILOT = {
+  idleMs: sc(200),
+} as const;
+
+/** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
+ *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参。 */
+export const UI = {
+  /** F4 三屏统一提示 TTL(gameStore.pushHint / netStore.pushHint 单一口径)。 */
+  hintTtlMs: sc(1800),
+  /** 编辑器状态条反馈自动清除(EditorScreen 保存/另存/重置/导入四处 setStatus)。 */
+  statusClearMs: sc(1500),
+  /** 胜利屏「再战」按钮延后挂载(E2:入场演出高潮期防误触重开)。 */
+  victoryButtonMs: sc(1800),
+} as const;
 
 /** 等一帧(requestAnimationFrame 两拍:先让 React commit,再拿稳定 DOM)。 */
 export const nextFrame = (): Promise<void> =>

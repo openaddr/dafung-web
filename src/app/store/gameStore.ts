@@ -4,6 +4,8 @@
 // 组件订阅 store 声明式重渲。
 import { create } from "zustand";
 import type { GameEngine } from "@core/game";
+// #117 收编:提示 TTL 统一收口 fx/timings.ts(与 netStore 同一常量,不再双处 1800)。
+import { UI } from "@app/fx/timings";
 
 /** 引擎快照类型(serializeGame 的返回结构;联机 snapshot 消息同构,可直灌 store)。 */
 export type GameSnapshot = ReturnType<GameEngine["snapshot"]>;
@@ -24,7 +26,7 @@ export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
 //    non-reactive 字段好:不占用 store 类型,控制器/调试钩子可直接导入读写)。
 let currentEngine: GameEngine | null = null;
 
-// F4:hint 过期定时器(见 pushHint 注释;1.8s 为三屏统一后的单一口径常量)。
+// F4:hint 过期定时器(见 pushHint 注释;TTL 为三屏统一后的单一口径,常量收编 fx/timings.ts UI.hintTtlMs)。
 let gameHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 /** 取当前引擎实例(无对局时 null)。控制器与调试钩子用它做命令入口。 */
@@ -93,7 +95,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   // App/solo-setup 没挂定时器导致提示永不过期(评审 F4 的口径漂移点)。
   pushHint: (hint, level = "error") => {
     if (gameHintTimer != null) clearTimeout(gameHintTimer);
-    gameHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), 1800);
+    gameHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), UI.hintTtlMs);
     set({ hint, hintLevel: level });
   },
   setThinking: (thinking) => set({ thinking }),

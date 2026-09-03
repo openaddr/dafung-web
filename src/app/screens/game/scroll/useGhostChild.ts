@@ -8,13 +8,8 @@
 // 跨层通道仍是唯一的 ScrollGhostContext(ScrollShell 侧 disabled/inert/rollback 防御不动);
 // 本文件不 import 任何 css/音频,保持可在 bun test 直接测纯规则。
 import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
-
-/** 幽灵帧驻留时长,与 ScrollShell closing 出口同一条 210 口径:收起动画
- *  scroll-anim-rollback 走 var(--dur-fast) = 150ms(core/theme Motion.dur.fast,
- *  经 gen:theme 序列化进 tokens.css),210 = 150 + 60ms 余量,保证动画播完有余再卸载。
- *  刻意用字面量而不读运行时 CSS——getComputedStyle 首帧未就绪且触发强制布局;
- *  同源关系以此注释钉死,改 --dur-fast 时这里要跟着核一遍。 */
-const GHOST_FRAME_MS = 210;
+// #117 收编:驻留时长进 fx/timings.ts(唯一收口点),口径注释(GHOST.frameMs)随迁。
+import { GHOST } from "@app/fx/timings";
 
 /** 子节点身份 sig:只有 ReactElement 带组件类型,字符串/数字等载荷不视作可退场帧。 */
 function sigOf(child: ReactNode): unknown {
@@ -55,7 +50,7 @@ export interface GhostChildSlot {
 }
 
 /** 幽灵帧 hook:追踪 child 的组件身份,身份变化时按 shouldGhost 决定是否把上一帧
- *  元素快照原样再渲染 210ms(GHOST_FRAME_MS)。机制照 #90 原版,一处不落地搬:
+ *  元素快照原样再渲染 210ms(GHOST.frameMs,fx/timings.ts 收编)。机制照 #90 原版,一处不落地搬:
  *  render 期比对 + state/ref 突变是 React 认可的「props 变化调整 state」模式,
  *  提前到 commit 前保证幽灵与新卷轴不共存一帧(e2e 口径),故不改为 effect 写法。 */
 export function useGhostChild(child: ReactNode, opts: UseGhostChildOpts = {}): GhostChildSlot {
@@ -70,7 +65,7 @@ export function useGhostChild(child: ReactNode, opts: UseGhostChildOpts = {}): G
   // 定时出列(照 useDeltaFloat 的定时移除写法):ghost 身份变化即重设 210ms 定时
   useEffect(() => {
     if (ghost === null) return;
-    const t = setTimeout(() => setGhost(null), GHOST_FRAME_MS);
+    const t = setTimeout(() => setGhost(null), GHOST.frameMs);
     return () => clearTimeout(t);
   }, [ghost]);
 

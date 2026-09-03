@@ -32,6 +32,7 @@
   --dur-slow: 400ms;
   --dur-reveal: 600ms;
   --dur-fx: 1300ms;
+  --dur-banner: 1800ms;
   --dur-ambient: 2600ms;
   /* ── 动效·缓动(--ease-*):入场/退场/回弹/呼吸各一,替换全仓并存的 8 种缓动字面量 ── */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);

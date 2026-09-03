@@ -7,6 +7,8 @@ import type { VictoryReason } from "@core/types";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
 import { finishDiceOverlay } from "@app/fx/ThreeDice";
+// #117 收编:再战按钮延后挂载时长走 fx/timings.ts(UI.victoryButtonMs)。
+import { UI } from "@app/fx/timings";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
@@ -123,7 +125,7 @@ export function VictoryScreen({
     audio.play("banner");
     const stampT = window.setTimeout(() => audio.play("stamp"), 450);
     const fanfareT = window.setTimeout(() => audio.play("victory"), 700);
-    const buttonT = window.setTimeout(() => setShowButton(true), 1800);
+    const buttonT = window.setTimeout(() => setShowButton(true), UI.victoryButtonMs);
     let wave = 0;
     // E3:波间隔 700→1000ms(原节奏在大屏上密度过高,观感吵)。
     const spawner = window.setInterval(() => {

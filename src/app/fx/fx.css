@@ -3,7 +3,8 @@
    颜色一律引用 tokens.css 的 var(--color-*)(唯一源 core/theme.ts),
    不再写死同值——改色只需改 theme.ts 后 bun run gen:theme。
    时长/缓动同理引用 var(--dur-*)/var(--ease-*)(唯一源 core/theme.ts Motion);
-   与 JS 编排硬同步的个别时长(banner/seal/骰签)保留字面量并逐处注释。
+   与 JS 编排硬同步的个别时长(seal/骰签)保留字面量并逐处注释(banner 已归 --dur-banner,
+   JS 侧 FX.bannerMs 经 fx/timings.ts 同源换算)。
    例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
 
 /* ── 3D 骰子全屏覆盖层(ThreeDice append 到 body,样式必须在此定义)──
@@ -135,10 +136,11 @@
   pointer-events: none;
   z-index: 25;
   white-space: nowrap;
-  /* 特例:1.8s 保留字面量——与 fx/timings.ts FX.bannerMs(1900)/bannerHoldMs(1000)
-     的 JS 编排窗口硬同步(峰值停留段取 20%-75% 区间),归档会牵连编排层,改须两处同改。
-     缓动取 --ease-out:主读感是 0-20% 的入场展开,退场段由透明度遮蔽。 */
-  animation: fx-banner-fly 1.8s var(--ease-out) forwards;
+  /* 时长归 --dur-banner(1800ms,唯一源 core/theme.ts Motion,#117 同源化):
+     JS 编排窗 FX.bannerMs = 本值 + 100ms 清理余量,在 fx/timings.ts 单点换算,
+     改横幅节奏只改 Motion.dur.banner 一处。缓动取 --ease-out:主读感是 0-20% 的
+     入场展开,退场段由透明度遮蔽。 */
+  animation: fx-banner-fly var(--dur-banner) var(--ease-out) forwards;
 }
 @keyframes fx-banner-fly {
   0% { transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); opacity: 0; }
