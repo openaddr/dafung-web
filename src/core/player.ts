@@ -31,6 +31,7 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     heroes: [],
     treasures: [],
     heroLastFired: {},
+    reputation: 0,
   };
 }
 

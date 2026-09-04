@@ -147,13 +147,14 @@ describe("时机框架:派发点位", () => {
     e.rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1 下第二位玩家落格触发一次被动失银(CashLost 恰在 AfterMarch 之后、TurnEnd 之前),如实钉住
+    // seed=1 下第二位玩家落天命格:#121 后天命格改为 +20 声望(不再抽随机坏事),
+    // 故 AfterMarch 之后无 CashLost,直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete", "GameStart", // 开局收尾(最后落子者 → 对局开始)
       "TurnStart", // 开局首回合
       "BeforeMarch", "BeforeRoll", "DieRolled", "AfterMarch", "TurnEnd", // 第一位玩家
       "TurnStart", // 第二位玩家回合开始
-      "BeforeMarch", "BeforeRoll", "DieRolled", "AfterMarch", "CashLost", "TurnEnd", // 第二位玩家(落税/事件格失银)
+      "BeforeMarch", "BeforeRoll", "DieRolled", "AfterMarch", "TurnEnd", // 第二位玩家(落天命格,+20 声望无时机)
       "RoundEnd", "RoundStart", "TurnStart", // 轮次交替 + 新轮首位玩家
     ]);
   });

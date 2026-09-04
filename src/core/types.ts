@@ -84,6 +84,7 @@ export interface Player {
   heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
   heroLastFired: Record<string, number>; // 技能冷却:skill.id → 上次触发的 round(供 cooldown 判定)
+  reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 CONTEXT.md;#121)
 }
 
 /** 移动路径。

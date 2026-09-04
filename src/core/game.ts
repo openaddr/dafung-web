@@ -28,7 +28,7 @@ import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeP
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
-import { CHANCE_EVENTS, FATE_EVENTS } from "./events";
+import { CHANCE_EVENTS } from "./events";
 import { formatMoney } from "./money";
 import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
@@ -266,6 +266,7 @@ export class GameEngine {
       heroes: [],
       treasures: [],
       heroLastFired: {},
+      reputation: 0,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -830,11 +831,16 @@ export class GameEngine {
 
   private resolveSpecial(mover: Player, tile: TileDef): void {
     // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
-    if (tile.type === "Chance" || tile.type === "Fate") {
-      const pool = tile.type === "Chance" ? CHANCE_EVENTS : FATE_EVENTS;
-      this.applyRandomEvent(mover, tile.name, tile.index, pool, tile.type!.toLowerCase());
+    // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
+    if (tile.type === "Fate") {
+      this.addReputation(this.players.indexOf(mover), 20);
+      this.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
+      this.lastLandOutcome = { kind: "Noop" };
+      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`, `fate player=${mover.id} reputation=${mover.reputation}`, 0);
+      this.endTurn();
       return;
     }
+    // 锦囊(Chance)格已退役(#121):按普通格落空结算(不再抽 CHANCE_EVENTS)。
     // 税关(Tax):固定缴税 ¥200
     if (tile.type === "Tax") {
       const r = this.payOrLiquidate(mover, null, 200);
@@ -1679,6 +1685,12 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
+  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。 */
+  addReputation(seat: number, delta: number): void {
+    const p = this.players[seat];
+    p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+  }
+
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */
   private pushFloaterText(p: Player, text: string, atTile: number): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount: 0, atTile, kind: "msg", text });
