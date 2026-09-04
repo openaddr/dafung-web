@@ -1,4 +1,4 @@
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { quickStart, pickCapital, waitSettled } from "./react-helpers";
 
 test("侧栏抽屉折叠:收起成窄条(竖排摘要)并可展开还原", async ({ page }) => {

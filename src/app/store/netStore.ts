@@ -4,6 +4,8 @@
 // snapshot 浅比较被无关字段污染。协议字段与 scripts/room.ts 的 lobbyView/seatMeta 一一对应。
 import { create } from "zustand";
 import type { GameController } from "@app/controllers/controller";
+// #117 收编:提示 TTL 统一收口 fx/timings.ts(与 gameStore 同一常量 UI.hintTtlMs)。
+import { UI } from "@app/fx/timings";
 
 /** 座位元数据(服务器 seatMeta 原样转发;字段语义见 scripts/room.ts)。 */
 export interface NetSeatMeta {
@@ -73,10 +75,10 @@ const EMPTY: Pick<NetStoreState, "host" | "started" | "mapId" | "seats" | "mySea
   pending: false,
 };
 
-// F4:hint 过期定时器归 store 持有(单一 1.8s 口径)。原三处渲染点各自 setTimeout
-//(game 1.5s / lobby 1.8s / App+solo-setup 永不过期——评审 F4 的三套口径问题);
-// 下沉后重复 push 先清旧定时器,无论哪个屏触发、是否切屏,过期时长都一致。
-const HINT_TTL_MS = 1800;
+// F4:hint 过期定时器归 store 持有(TTL 单一口径 = fx/timings.ts UI.hintTtlMs,#117 收编)。
+// 原三处渲染点各自 setTimeout(game 1.5s / lobby 1.8s / App+solo-setup 永不过期——
+// 评审 F4 的三套口径问题);下沉后重复 push 先清旧定时器,无论哪个屏触发、是否切屏,
+// 过期时长都一致。
 let netHintTimer: ReturnType<typeof setTimeout> | null = null;
 
 export const useNetStore = create<NetStoreState>((set) => ({
@@ -101,7 +103,7 @@ export const useNetStore = create<NetStoreState>((set) => ({
   setDismissed: () => set({ dismissed: true, connected: false }),
   pushHint: (hint, level = "error") => {
     if (netHintTimer != null) clearTimeout(netHintTimer); // 重复 push 先清旧定时器
-    netHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), HINT_TTL_MS);
+    netHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), UI.hintTtlMs);
     set({ hint, hintLevel: level });
   },
   reset: () => {

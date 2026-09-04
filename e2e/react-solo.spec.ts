@@ -4,7 +4,7 @@
 // - invariants.spec(全程不变量 + 终局)→ 全速战档驱动到胜利的不变量巡检
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital } from "./react-helpers";
 
 test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {

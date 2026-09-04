@@ -18,7 +18,7 @@ import {
   maybeShowTurnBanner,
   present,
 } from "@app/fx/orchestrator";
-import { BOT, delay } from "@app/fx/timings";
+import { AUTOPILOT, BOT, delay } from "@app/fx/timings";
 import { GameController } from "./controller";
 import { createDriveArbiter } from "./drive";
 
@@ -71,7 +71,7 @@ export class LocalController extends GameController {
       const e = this._engine;
       while (this.apOn && !e.isOver) {
         if (e.phase !== "Playing" || e.players[e.decisionOwner].isBot) {
-          await delay(200); // 无人类决策点(真 bot 轮次由 runBots 驱动/Setup 待手选)
+          await delay(AUTOPILOT.idleMs); // #117 收编:无人类决策点(真 bot 轮次由 runBots 驱动/Setup 待手选)
           continue;
         }
         const s = await this.drive.requestDrive("autopilot");

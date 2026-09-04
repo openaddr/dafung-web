@@ -22,6 +22,8 @@ import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
+// #117 收编:状态条自动清除 TTL 走 fx/timings.ts(UI.statusClearMs),不再字面量散落。
+import { UI } from "@app/fx/timings";
 import { BoardView } from "@app/components/board/BoardView";
 // S2:卷轴式弹窗——只 import 不改 scroll/ 目录(并行 agent 可能动它)
 import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
@@ -371,7 +373,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     if (!validation.ok) return; // 无效图不允许保存(对照旧版保存前无校验——此处更严格,见差异清单)
     onSave(clone(map));
     setStatus("已保存");
-    window.setTimeout(() => setStatus(null), 1500);
+    window.setTimeout(() => setStatus(null), UI.statusClearMs);
   };
 
   const doSaveAs = () => {
@@ -387,7 +389,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     const store = getMapSource();
     store.saveCustomMap(name, clone(map));
     setStatus(`已存入图库「${name}」`);
-    window.setTimeout(() => setStatus(null), 1500);
+    window.setTimeout(() => setStatus(null), UI.statusClearMs);
   };
 
   const doTryPlay = () => {
@@ -409,7 +411,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     setMap(clone(initialMap));
     setHistoryTick((t) => t + 1);
     setStatus("已重置");
-    window.setTimeout(() => setStatus(null), 1500);
+    window.setTimeout(() => setStatus(null), UI.statusClearMs);
   };
 
   // 导出 JSON(对照旧 editor.ts exportBtn):当前 MapData 下载为文件。
@@ -435,7 +437,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         apply(data);
         setSelected(0);
         setStatus("已导入");
-        window.setTimeout(() => setStatus(null), 1500);
+        window.setTimeout(() => setStatus(null), UI.statusClearMs);
       } catch (err) {
         // S2:导入失败改卷轴提示(原生 alert 出戏且阻塞)
         setImportError((err as Error).message);

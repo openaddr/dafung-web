@@ -1,7 +1,7 @@
 // React 重构 · 联机托管 + 房间 REST 契约(阶段 11)。
 // 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)与
 // online.spec 的 REST 占座契约(FCFS + 满员 409)。
-import { test, expect, type Browser, type Page } from "@playwright/test";
+import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 
 // 联机对局依赖真实 WS 广播时序,与其他高负载 spec 并行时易抖:
 // 本文件串行执行,降低双端 + 服务器的并发压力。

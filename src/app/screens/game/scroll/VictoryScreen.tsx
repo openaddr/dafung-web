@@ -7,6 +7,8 @@ import type { VictoryReason } from "@core/types";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
 import { finishDiceOverlay } from "@app/fx/ThreeDice";
+// #117 收编:再战按钮延后挂载时长走 fx/timings.ts(UI.victoryButtonMs)。
+import { UI } from "@app/fx/timings";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
@@ -119,11 +121,12 @@ export function VictoryScreen({
     // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
     // 同帧落印 #95),
     // 700ms 号角(victory)接棒,与下方视觉阶梯 0/300/600ms 同一节奏轨道。
+    // 音效轨偏移(450/700)与 victory.css 视觉阶梯成对编排,单收 JS 侧反造双源——#117 审计豁免。
     const audio = getAudio();
     audio.play("banner");
     const stampT = window.setTimeout(() => audio.play("stamp"), 450);
     const fanfareT = window.setTimeout(() => audio.play("victory"), 700);
-    const buttonT = window.setTimeout(() => setShowButton(true), 1800);
+    const buttonT = window.setTimeout(() => setShowButton(true), UI.victoryButtonMs);
     let wave = 0;
     // E3:波间隔 700→1000ms(原节奏在大屏上密度过高,观感吵)。
     const spawner = window.setInterval(() => {

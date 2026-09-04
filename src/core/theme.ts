@@ -102,6 +102,9 @@ export const Motion = {
     reveal: 600,
     /** 浮字类瞬时演出(1300ms)。fx/timings.ts FX.floaterMs 与 --dur-fx 同源(经 Motion)。 */
     fx: 1300,
+    /** 回合旌旗横幅飞行(1800ms):fx.css fx-banner-fly 消费 var(--dur-banner);
+     *  JS 编排窗 FX.bannerMs = 本值 + 100ms 清理余量(fx/timings.ts 单点换算,#117 收编)。 */
+    banner: 1800,
     /** 常驻呼吸基准(2600ms):旌旗摇曳/光晕脉动等 infinite 呼吸统一挂此,个体允许整数倍/半频。 */
     ambient: 2600,
   },

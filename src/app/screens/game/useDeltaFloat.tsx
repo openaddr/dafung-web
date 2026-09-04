@@ -4,6 +4,7 @@
 // 移除(贝塞尔曲线起快收慢,1.25s 时位移/渐隐已基本走完,提前卸载不可见)。
 // 观战空态同样消费(S12):浮标跟「被展示的玩家」走,与坐姿分支同款反馈。
 import { useEffect, useRef, useState } from "react";
+import { Motion } from "@core/theme";
 
 /** 一条浮标:跨快照差值 + 自增 id(列表 key 与定时移除用)。 */
 export interface DeltaFloat {
@@ -33,7 +34,7 @@ export function useDeltaFloat(value: number | null): DeltaFloat[] {
     setFloats((f) => [...f, { id, delta }]);
     const timer = setTimeout(() => {
       setFloats((f) => f.filter((x) => x.id !== id));
-    }, 1250);
+    }, Motion.dur.fx - 50); // 比 --dur-fx(1300ms)浮字动画提前 50ms 清理防闪尾(#117 评审收口)
     return () => clearTimeout(timer);
   }, [value]);
   return floats;

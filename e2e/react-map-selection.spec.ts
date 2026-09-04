@@ -1,7 +1,7 @@
 // React 重构 · 地图选择(阶段 11)。
 // 意图来源:旧 map-selection.spec(清单/预览/确认/记忆 localStorage/换图起兵;
 // 自建图部分归 react-editor.spec,此处覆盖内置图与选中记忆)。
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./fixtures";
 import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
 
 test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览", async ({ page }) => {
