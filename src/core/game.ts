@@ -54,6 +54,7 @@ export interface SeatConfig {
   name: string;
   isBot: boolean;
   guohao?: string; // 人类可预设;留空则在 Guohao 阶段填
+  reputation?: number; // 初始声望口子(#120:预留,MVP 不接 UI,缺省 0)
 }
 
 export interface EngineConfig {
@@ -290,7 +291,7 @@ export class GameEngine {
       heroes: [],
       treasures: [],
       heroLastFired: {},
-      reputation: 0,
+      reputation: s.reputation ?? 0,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -713,7 +714,8 @@ export class GameEngine {
     // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
     // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
     // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
-    // 城池结算不再继续(抉择机遇是落格的主事件,与即时机遇「先机遇后购地」不同)。
+    // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
+    // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断。
     const enc = this.maybeApplyEncounter(mover, path.landIndex);
     if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt") return;
     this.resolveLanding();
@@ -1728,8 +1730,14 @@ export class GameEngine {
    *  #124)/liquidating/bankrupt(中断落格结算)。一切随机经 this.dice:触发 roll → 档位
    *  roll → 同档加权抽取,顺序固定保重放。 */
   private maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
+    // 天命格是固定声望泉(resolveSpecial +20),不参与机遇 roll(#120 决策 2,评审修正)
+    if (this.board.at(atTile).type === "Fate") return "none";
     if (this.encounter.triggerRate <= 0) return "none";
-    if (this.dice.nextFloat() * 100 >= this.encounter.triggerRate) return "none";
+    if (this.dice.nextFloat() * 100 >= this.encounter.triggerRate) {
+      // 规格故事 16:每次 roll 与结果都进对局日志(未中也留机读痕)
+      this.logEvent("system", mover.guohao, `${mover.guohao} 机遇未降临`, `encounterMiss player=${mover.id} rate=${this.encounter.triggerRate} reputation=${mover.reputation}`);
+      return "none";
+    }
     const tier = pickTier(this.dice.nextFloat(), tierShares(mover.reputation, this.encounter.shares));
     const def = pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), this.dice.nextFloat());
     if (def.choices) return this.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
@@ -1740,7 +1748,8 @@ export class GameEngine {
    *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+浮字;结盟互市单选项即「自动发生」;
    *  以宝换贤珍宝不足时只剩「婉言相拒」同理),返回 deciding(回合已在收尾中);
    *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
-   *  两种场合机遇都占用本落格:调用方(rollAndMove)不再做城池结算。 */
+   *  两种场合机遇都先于城池结算:自动执行已在内部续跑落格结算(返回 deciding),
+   *  ≥2 选项由 resolveEncounterChoice 解完后续跑(同在 settleEncounterChoice 内)。 */
   private enterEncounterPhase(mover: Player, atTile: number, def: EncounterDef): "deciding" | "liquidating" | "bankrupt" {
     this.pendingEncounter = def;
     this.lastLandOutcome = { kind: "Noop" };
@@ -1759,13 +1768,8 @@ export class GameEngine {
     // ≤1 可用选项:自动执行唯一可用项(目录约定必有无门槛选项,availableIdx[0] 恒存在;
     // 空目录=数据 bug,按无事发生收尾并留痕,不卡流程)
     const idx = availableIdx[0];
-    const choice = idx !== undefined ? def.choices![idx] : undefined;
-    if (!choice) {
-      this.warn(`机遇「${def.id}」无可执行选项(choices 与注册表不一致)`);
-      this.pendingEncounter = null;
-      this.endTurn();
-      return "deciding";
-    }
+    if (idx === undefined) throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
+    const choice = def.choices![idx];
     this.pushFloaterText(mover, choice.text, atTile);
     const r = this.settleEncounterChoice(mover, atTile, def, choice, idx ?? 0);
     return r === "settled" ? "deciding" : r; // settled=回合已收尾;机遇仍占用本落格
@@ -1791,7 +1795,8 @@ export class GameEngine {
 
   /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
    *  (银两支出走支付/清算,与购地同规则)→ 清载荷 → endTurn。对局日志记机遇 id + 所选选项;
-   *  liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;bankrupt 已在效果内 endTurn。 */
+   *  liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;bankrupt 已在效果内 endTurn;
+   *  settled → 继续本落格的城池结算(#120 决策 2,评审修正:原先漏掉购地/过路)。 */
   private settleEncounterChoice(
     mover: Player,
     atTile: number,
@@ -1821,12 +1826,16 @@ export class GameEngine {
     const r = option.effect
       ? this.applyEncounterEffect(mover, atTile, def, option.effect, option.text)
       : "settled";
-    if (r === "settled") this.endTurn();
+    if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn
+    // 机遇解完 → 继续本落格的城池结算(#120 决策 2,评审修正:原先直接 endTurn 漏掉购地/过路)
+    this.turnPhase = "Land";
+    this.resolveLanding();
     return r;
   }
 
-  /** 即时机遇结算(#123):效果落账 + 浮字 + 对局日志。银两支出走支付/清算(破产与购地同规则);
-   *  玩家间转移上限=付款方现有现金,不触发对方清算(MVP 口径,见 #120)。
+  /** 即时机遇结算(#123):效果落账 + 浮字 + 对局日志。机遇自身银两支出走支付/清算(破产与购地同规则)。
+   *  玩家间转移(敌营哗变/假道征粮等)为即时动账:上限=付款方现有现金,不触发对方清算
+   *  (对方清算会与移动者回合交织——实现取舍,非 #120 豁免,已在 #120 留评说明)。
    *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
   private settleEncounter(mover: Player, atTile: number, def: EncounterDef): "settled" | "liquidating" | "bankrupt" {
     if (!def.effect) return "settled";
@@ -2005,9 +2014,8 @@ export class GameEngine {
       if (def) {
         this.pendingEncounter = def;
       } else {
-        this.warn(`快照恢复:抉择机遇上下文缺失(id=${encId ?? "-"}),机遇作废,退回掷骰`);
-        this.pendingEncounter = null;
-        this.turnPhase = "Roll";
+        // 零兜底:目录版本不符/外来快照属数据损坏,应崩出来而非静默作废玩家机遇
+        throw new Error(`快照恢复:抉择机遇上下文缺失(id=${encId ?? "-"})`);
       }
     }
   }

@@ -28,6 +28,10 @@ interface EngineTestInternals {
     atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt";
+  maybeApplyEncounter(
+    mover: Player,
+    atTile: number,
+  ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt";
   enterEncounterPhase(
     mover: Player,
     atTile: number,
@@ -104,6 +108,11 @@ export class TestEngine {
   /** 对局日志扁平文本(机遇顺序断言用;#123)。 */
   logText(): string {
     return this.engine.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
+  }
+
+  /** 触达机遇触发+抽取全流程(验格型排除/触发率;#123 评审修正)。 */
+  maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
+    return this.internals.maybeApplyEncounter(mover, atTile);
   }
 
   /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。 */

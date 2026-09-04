@@ -131,13 +131,15 @@ export function botAct(engine: GameEngine): void {
       // 目录序在前者。Simple/Normal 同策略:一次性小事件不值得两档启发式。选项集先经
       // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
       const enc = engine.pendingEncounter;
+      if (!enc || !enc.choices) throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
+      const choices = enc.choices; // 收窄进闭包(TS 不跨闭包保持窄化)
       const coef = repCoefficient(engine.decisionOwner);
       let bestIdx = -1;
       let bestScore = -Infinity;
       engine.choicesFor().forEach((o, i) => {
         if (!o.available) return;
-        const c = enc?.choices?.[i];
-        if (!c) return;
+        const c = choices[i];
+        if (!c) throw new Error(`机遇「${enc.id}」选项 ${i} 越界:选项注册表与目录不一致`); // 零兜底
         const score = encounterCashImpact(c.effect) + c.repDelta * coef;
         if (score > bestScore) {
           bestScore = score;

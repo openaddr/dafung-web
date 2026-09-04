@@ -99,6 +99,13 @@ function landOnFreeTile(e: GameEngine): void {
   throw lastError ?? new Error("无可用无主城场景");
 }
 
+/** 中性床位(#121 退役的锦囊格):机遇解完续跑落格结算时,落此格按普通格空结算。 */
+function benignTile(e: GameEngine): number {
+  const t = e.board.tiles.find((x) => x.type === "Chance");
+  if (!t) throw new Error("无中性床位(地图缺退役锦囊格)");
+  return t.index;
+}
+
 /** 剥离快照易变字段(gameId 随机/log ts 墙钟)后的确定性比较。 */
 function scrubSnapshot(text: string): string {
   const o = JSON.parse(text);
@@ -123,6 +130,11 @@ describe("机遇配置:归一与回退(#120 归一口径)", () => {
     expect(r.good).toBeCloseTo(1, 6);
     expect(r.neutral).toBeCloseTo(1, 6);
     expect(r.bad).toBeCloseTo(98, 6);
+  });
+
+  it("0 是合法档位(中性 100% 口径),不再触发回退", () => {
+    const r = resolveEncounterConfig({ baseRates: { good: 0, neutral: 100, bad: 0 } });
+    expect(r.shares).toEqual({ good: 0, neutral: 100, bad: 0 });
   });
 
   it("触发率夹紧 0~100;非法三档回退默认 30/45/25", () => {
@@ -312,10 +324,10 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(s.decisionOwner).toBe(s.activeIndex); // 决策归属 = 行动者
   });
 
-  it("抉择机遇占用落格:抽中后城池结算不再继续(先机遇,无购地)", () => {
+  it("抉择机遇先行:抽中后进机遇相位,城池结算等解完再继续", () => {
     const e = makeEngine(seedDrawing("携民渡江"), NEUTRAL_HEAVY);
     finishSetup(e);
-    landOnFreeTile(e); // 落点是无主城,但抉择机遇吃掉整次落格
+    landOnFreeTile(e); // 落点是无主城:先机遇相位,解完才进购地决策
     expect(e.turnPhase).toBe("AwaitingEncounter");
     const text = testEngine(e).logText();
     expect(text.includes("机遇「携民渡江」")).toBe(true);
@@ -333,6 +345,9 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(mover.cash).toBe(cash0 - 150);
     expect(mover.reputation).toBe(10);
     expect(e.pendingEncounter).toBeNull();
+    // 机遇解完 → 继续本落格的城池结算(#120 决策 2):购地决策弹出,endDecision 后回合收尾
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    e.endDecision();
     expect(e.turnPhase).toBe("Roll");
     expect(e.turnNumber).toBe(turn0 + 1);
     const text = testEngine(e).logText();
@@ -358,6 +373,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1"), treasure("t2"));
     const cash0 = mover.cash;
+    testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑落空结算
     testEngine(e).enterEncounter(byId("以宝换贤"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     expect(e.choicesFor().every((o) => o.available)).toBe(true);
@@ -376,6 +392,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1")); // 1 件 < 2
     const turn0 = e.turnNumber;
+    testEngine(e).placeActive(benignTile(e));
     testEngine(e).enterEncounter(byId("以宝换贤"));
     expect(e.turnPhase).toBe("Roll"); // ≤1 可用选项:自动执行,不弹相位(ADR-0013)
     expect(e.turnNumber).toBe(turn0 + 1);
@@ -417,6 +434,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     const cash0 = mover.cash;
     const oppCash0 = opp.cash;
     const turn0 = e.turnNumber;
+    testEngine(e).placeActive(benignTile(e));
     const r = testEngine(e).enterEncounter(byId("结盟互市"));
     expect(r).toBe("deciding"); // 机遇占用本落格
     expect(e.turnPhase).toBe("Roll"); // 自动收尾,从未进 AwaitingEncounter
@@ -430,14 +448,15 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(fs.some((f) => f.kind === "msg" && f.text.includes("结盟互市"))).toBe(true);
   });
 
-  it("抽中结盟互市(真实抽取路径)→ 单选项自动执行收尾,落格不进购地决策", () => {
+  it("抽中结盟互市(真实抽取路径)→ 单选项自动执行,机遇解完继续购地决策", () => {
     const e = makeEngine(seedDrawing("结盟互市"), NEUTRAL_HEAVY);
     finishSetup(e);
     landOnFreeTile(e);
-    expect(e.turnPhase).toBe("Roll");
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 自动执行完 → 继续本落格的购地决策
     const text = testEngine(e).logText();
     expect(text.includes("机遇「结盟互市」")).toBe(true);
-    expect(text.includes("可购(")).toBe(false); // 抉择机遇占用落格,无城池事件
+    expect(text.includes("各得 100 两")).toBe(true);
+    expect(text.includes("可购(")).toBe(true);
   });
 
   it("快照 round-trip:AwaitingEncounter 恢复后机遇回链目录、choices 重算一致、可继续抉择", () => {
@@ -455,10 +474,11 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(e2.snapshot().choices).toEqual(s.choices);
     e2.resolveEncounterChoice(0);
     expect(e2.players[0].treasures.length + e2.players[1].treasures.length).toBe(0);
-    expect(e2.turnPhase).toBe("Roll");
+    // 解完续跑:首位玩家落在己方都城 → 招贤纳士相位(都城落格固有机制)
+    expect(e2.turnPhase).toBe("AwaitingHeroPick");
   });
 
-  it("快照恢复降级:AwaitingEncounter 但 choices 无机遇标识 → 机遇作废退回 Roll(不卡相位)", () => {
+  it("快照恢复:AwaitingEncounter 但 choices 无机遇标识 → 数据损坏直接抛错(零兜底)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const s = e.snapshot();
@@ -466,9 +486,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e2);
     e2.pendingEncounter = byId("携民渡江");
     testEngine(e2).forceTurnPhase("AwaitingEncounter");
-    e2.restoreFromSnapshot({ ...s, turnPhase: "AwaitingEncounter", choices: [] });
-    expect(e2.turnPhase).toBe("Roll");
-    expect(e2.pendingEncounter).toBeNull();
+    expect(() => e2.restoreFromSnapshot({ ...s, turnPhase: "AwaitingEncounter", choices: [] })).toThrow(/抉择机遇上下文缺失/);
   });
 
   it("即时机遇回归:settleEncounter 叙事仍用 def.text(效果结算提取不漂移)", () => {
@@ -519,6 +537,7 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
   it("纯银两贪心:+100 银选项胜过无事发生,结算后离开相位", () => {
     const e = makeEngine(7, undefined, botSeats);
     finishSetup(e);
+    testEngine(e).placeActive(benignTile(e));
     const mover = e.activePlayer;
     const cash0 = mover.cash;
     armChoices(e, [
@@ -533,6 +552,7 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
   it("声望入账:repDelta × repCoefficient 折银比较——系数够高则舍银取义,否则取银", () => {
     const e = makeEngine(7, undefined, botSeats);
     finishSetup(e);
+    testEngine(e).placeActive(benignTile(e));
     const mover = e.activePlayer;
     const cash0 = mover.cash;
     armChoices(e, [
@@ -554,6 +574,7 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
   it("目录事件口径:携民渡江(−150/+10)系数 ≤9 恒折不过 150 → bot 拒;以宝换贤不可用项被跳过", () => {
     const e = makeEngine(7, undefined, botSeats);
     finishSetup(e);
+    testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑按普通格空结算
     const mover = e.activePlayer;
     const cash0 = mover.cash;
     e.pendingEncounter = byId("携民渡江");
@@ -566,6 +587,7 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
     // 以宝换贤:0 珍宝直入相位(注册表拦下换贤项)→ bot 只能落婉言相拒
     const e2 = makeEngine(7, undefined, botSeats);
     finishSetup(e2);
+    testEngine(e2).placeActive(benignTile(e2));
     const mover2 = e2.activePlayer;
     e2.pendingEncounter = byId("以宝换贤");
     testEngine(e2).forceTurnPhase("AwaitingEncounter");
