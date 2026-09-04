@@ -85,7 +85,7 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {/* G-15:身价小字(netWorth 含地产/珍宝估值,胜负口径;对照现金才有全局财势感)。
                 R3-A6(#69):「身价 」补空格与 HandPanel/StatusBar 同口径;数字 tabular 对齐 */}
             <span className="shrink-0 text-[10px] font-medium tabular-nums text-ink-dim">
-              身价 {formatMoney(p.netWorth)}
+              身价 {formatMoney(p.netWorth)} · 声望 {p.reputation}
             </span>
             <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>
           </div>

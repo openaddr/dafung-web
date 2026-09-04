@@ -16,6 +16,10 @@ export const SCROLL_TESTIDS = {
   buyScroll: "scroll-buy",
   upgradeScroll: "scroll-upgrade",
 
+  // ── 抉择机遇(#124):容器 + 选项(下标 = def.choices 序,与 snapshot.choices 一致)──
+  encounterScroll: "scroll-encounter",
+  encounterOption: (index: number) => `scroll-encounter-option-${index}` as const,
+
   treasureScroll: "scroll-treasure",
   treasureModeFair: "scroll-treasure-mode-fair",
   treasureModePremium: "scroll-treasure-mode-premium",

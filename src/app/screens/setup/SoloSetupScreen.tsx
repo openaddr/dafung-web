@@ -5,14 +5,24 @@
 // - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
 // - 目标身价:速战 15000 / 标准 30000 / 鏖战 60000;起始银两固定 10000(经济 v2)
-import { useState } from "react";
+// - 机遇(#125):触发概率 % + 三档基准四值,默认档位读 public/config/jiyu.json
+//   (fetch 失败回退内置默认同值),单局覆盖经 SetupConfig.encounter 透传引擎
+import { useEffect, useState } from "react";
 import type { SeatConfig } from "@core/game";
+import type { EncounterConfig } from "@core/encounters";
 import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { MapSelectPanel } from "./MapSelectPanel";
+import {
+  BUILTIN_ENCOUNTER_DEFAULTS,
+  fetchEncounterDefaults,
+  toEncounterConfig,
+  updateEncounterForm,
+  type EncounterFormValues,
+} from "./encounterConfig";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
 // X10(#29):原生 select 全退场——小范围数值走 stepper,受限档位走分段选择器(screens/shared)
@@ -33,6 +43,8 @@ export interface SetupConfig {
   mapId: string;
   /** 骰子种子(可选,注入 EngineConfig)。 */
   seed?: number;
+  /** 机遇配置(#125):设置屏四值原值透传(不归一,和≠100 合法),开局注入 EngineConfig.encounter。 */
+  encounter: EncounterConfig;
 }
 
 export interface SoloSetupScreenProps {
@@ -84,6 +96,19 @@ export function SoloSetupScreen({
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
 
+  // 机遇(#125):默认档位 = public/config/jiyu.json(挂载后 fetch;首帧先显内置默认同值,
+  // fetch 成功以文件值为准,失败维持内置默认——回退语义见 encounterConfig.ts)。
+  const [encounter, setEncounter] = useState<EncounterFormValues>(BUILTIN_ENCOUNTER_DEFAULTS);
+  useEffect(() => {
+    let alive = true;
+    fetchEncounterDefaults().then((v) => {
+      if (alive) setEncounter(v);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
+
   const start = async () => {
     // 校验规则与旧实现一致:真人国号必须单个汉字;bot 国号留给引擎分配。
     // S8:内联校验已即时提示,此处 hint 仅作兜底(正常路径不触发)
@@ -105,6 +130,8 @@ export function SoloSetupScreen({
         startingCash: STARTING_CASH,
         difficulty,
         mapId: currentMap,
+        // 机遇四值原值透传(设置屏不归一;引擎 resolveEncounterConfig 负责夹紧/归一/回退)
+        encounter: toEncounterConfig(encounter),
       });
       // 起兵成功:记住本次国号,下次进入默认带入
       localStorage.setItem(GUOHAO_PREF_KEY, g);
@@ -191,6 +218,49 @@ export function SoloSetupScreen({
               ]}
             />
           </div>
+
+          {/* 机遇(#125):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json(说明写此处文案,
+              JSON 无注释);数值只做边界校验(触发 0~100 / 三档 ≥0),归一在引擎,和≠100 合法 */}
+          <details
+            data-testid={TID.encounterToggle}
+            className="rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
+          >
+            <summary className="cursor-pointer select-none px-2 py-1.5 font-deco text-sm text-ink">
+              机遇(落格触发事件)
+            </summary>
+            <div className="flex flex-col gap-2 px-2 pb-2">
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["触发概率 %", TID.encounterTrigger, "triggerRate", 0, 100],
+                    ["好运基准", TID.encounterGood, "good", 0, Infinity],
+                    ["中性基准", TID.encounterNeutral, "neutral", 0, Infinity],
+                    ["霉运基准", TID.encounterBad, "bad", 0, Infinity],
+                  ] as const
+                ).map(([label, testid, key, min, max]) => (
+                  <label key={testid} className="flex flex-col gap-0.5 font-deco text-xs text-ink-dim">
+                    <span>{label}</span>
+                    <input
+                      data-testid={testid}
+                      type="number"
+                      min={min}
+                      max={Number.isFinite(max) ? max : undefined}
+                      step="any"
+                      value={encounter[key]}
+                      onChange={(e) =>
+                        setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
+                      }
+                      className="min-h-[36px] rounded border border-ink/30 bg-bg px-2 font-deco text-sm text-ink"
+                    />
+                  </label>
+                ))}
+              </div>
+              <p className="font-deco text-xs text-ink-dim">
+                默认档位读自 config/jiyu.json(触发 40%,三档 30/45/25)。触发概率为每次落格触发机遇的百分比;
+                三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。
+              </p>
+            </div>
+          </details>
         </div>
 
         {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}

@@ -16,6 +16,7 @@ export type { TileDetailScrollProps } from "./TileDetailScroll";
 export {
   BranchDecisionScroll,
   BuyDecisionScroll,
+  EncounterChoiceScroll,
   UpgradeDecisionScroll,
 } from "./DecisionScrolls";
 export { SCROLL_TESTIDS } from "./testids";

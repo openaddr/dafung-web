@@ -10,6 +10,7 @@
 // 直调即可,无需经此口;timing.test.ts 的 dispatchMoment 间谍为类型化测试替身,保留原位。
 import type { GameEngine } from "./game";
 import type { BranchCell } from "./board";
+import type { EncounterDef } from "./encounters";
 import type { PendingLandKind, Player, TurnPhase } from "./types";
 
 /** 引擎私有步骤的测试触达面(签名与 game.ts 私有方法同步;签名漂移在此编译期炸出)。 */
@@ -22,6 +23,21 @@ interface EngineTestInternals {
     creditor: Player | null,
     amount: number,
   ): "ok" | "liquidating" | "bankrupt";
+  settleEncounter(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "settled" | "liquidating" | "bankrupt";
+  maybeApplyEncounter(
+    mover: Player,
+    atTile: number,
+  ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt";
+  enterEncounterPhase(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "deciding" | "settled" | "liquidating" | "bankrupt";
+
 }
 
 export class TestEngine {
@@ -87,6 +103,33 @@ export class TestEngine {
   /** 触达私有招贤纳士(三选一候选生成)。 */
   tryRecruitHero(mover: Player): void {
     this.internals.tryRecruitHero(mover);
+  }
+
+  /** 对局日志扁平文本(机遇顺序断言用;#123)。 */
+  logText(): string {
+    return this.engine.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
+  }
+
+  /** 触达机遇触发+抽取全流程(验格型排除/触发率;#123 评审修正)。 */
+  maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
+    return this.internals.maybeApplyEncounter(mover, atTile);
+  }
+
+  /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。 */
+  applyEncounter(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "settled" | "liquidating" | "bankrupt" {
+    return this.internals.settleEncounter(mover, atTile, def);
+  }
+
+  /** 触达抉择机遇入相(指定具体事件,绕过触发/抽取随机;#124):等价引擎抽中 choices 型
+   *  机遇后的进入逻辑——可用选项 ≤1 自动执行(回合收尾),≥2 进 AwaitingEncounter。
+   *  mover=当前活跃玩家,atTile=其所在格。 */
+  enterEncounter(def: EncounterDef): "deciding" | "settled" | "liquidating" | "bankrupt" {
+    const mover = this.engine.activePlayer;
+    return this.internals.enterEncounterPhase(mover, mover.position, def);
   }
 
   /** 触达私有付款或触发清算(破产清算路径的引擎入口)。 */

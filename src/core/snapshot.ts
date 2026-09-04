@@ -61,6 +61,7 @@ export interface SnapshotPlayer {
   /** 名士冷却:skill.id → 上次触发的 round。 */
   heroLastFired: Record<string, number>;
   treasures: TreasureRow[];
+  reputation: number; // 声望 -100~+100(#121)
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -440,6 +441,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         // 名士冷却记录(跨进程恢复 cooldown 判定)
         heroLastFired: { ...p.heroLastFired },
         treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
+        reputation: p.reputation,
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -459,6 +461,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           .map((h) => HEROES.find((H) => H.id === h.id))
           .filter((h): h is HeroDef => h != null);
         p.heroLastFired = { ...ps.heroLastFired };
+        p.reputation = ps.reputation;
         p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

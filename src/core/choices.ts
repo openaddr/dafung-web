@@ -8,7 +8,9 @@ import type { GameEngine } from "./game";
 import type { TurnPhase } from "./types";
 import { canUpgrade } from "./types";
 import { findHolding } from "./player";
-import { BUY_WARRANT_COST } from "./constants";
+import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
+import { HEROES } from "./heroes";
+import type { EncounterChoiceOption } from "./encounters";
 
 /** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
 export interface ChoiceOption {
@@ -16,6 +18,10 @@ export interface ChoiceOption {
   label: string; // 玩家可读
   available: boolean;
   reason?: string; // 不可用原因
+  /** 抉择机遇选项专属(#124):机遇 id/文段随选项经 snapshot.choices 派生透出——机遇上下文
+   *  过网的唯一通道(UI 卷轴渲染文段、restoreFromSnapshot 按 id 回链目录);其余相位不携带。 */
+  encounterId?: string;
+  encounterText?: string;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -81,6 +87,44 @@ function heroPickChoices(e: GameEngine): ChoiceOption[] {
   }));
 }
 
+/** 以宝换贤的换贤代价(目录约定:2 件珍宝换 1 武将,见 ENCOUNTERS 以宝换贤文段)。 */
+export const ENCOUNTER_HERO_TREASURE_COST = 2;
+
+/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥2 且麾下未满、贤士池
+ *  未尽——任一不满足则换贤必落空(effect 的 fallbackCash=0,白损两件珍宝),选项必须
+ *  拦下并报原因。其余选项恒可用:目录约定每条抉择机遇都自带一个无门槛的「不作」型
+ *  选项,保证 ≤1 可用时自动执行永不死锁。 */
+function encounterOptionGate(
+  e: GameEngine,
+  c: EncounterChoiceOption,
+): { available: boolean; reason?: string } {
+  if (c.effect?.kind === "grantHero") {
+    const p = e.activePlayer;
+    if (p.treasures.length < ENCOUNTER_HERO_TREASURE_COST) return { available: false, reason: "珍宝不足" };
+    if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
+    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return { available: false, reason: "贤士已尽" };
+  }
+  return { available: true };
+}
+
+/** AwaitingEncounter(抉择机遇,#124):目录选项逐一映射,顺序与 def.choices 一致
+ *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText 随选项出快照。 */
+function encounterChoices(e: GameEngine): ChoiceOption[] {
+  const def = e.pendingEncounter;
+  if (!def?.choices) return [];
+  return def.choices.map((c, i) => {
+    const gate = encounterOptionGate(e, c);
+    return {
+      id: `choice:${i}`,
+      label: c.text,
+      available: gate.available,
+      reason: gate.reason,
+      encounterId: def.id,
+      encounterText: def.text,
+    };
+  });
+}
+
 /** AwaitingBankruptcySettle(各资产变卖 + 认赔)。ADR-0013 明确例外:重大不可逆事件,
  *  即使唯一选项(无可卖资产只能认赔)也不自动执行——见 EXCLUDED_FROM_AUTO。 */
 function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
@@ -121,6 +165,7 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingTreasureOwner: treasureOwnerChoices,
   AwaitingBranch: branchChoices,
   AwaitingHeroPick: heroPickChoices,
+  AwaitingEncounter: encounterChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
 };
 

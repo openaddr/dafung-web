@@ -1,7 +1,45 @@
-// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级),Simple/Normal 两档。
+// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇),Simple/Normal 两档。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine } from "./game";
 import type { Player } from "./types";
+import type { EncounterEffect } from "./encounters";
+
+/** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
+ *  不消耗引擎骰(重放安全)。 */
+function seatHash(seat: number): number {
+  let h = (seat + 0x9e3779b9) >>> 0;
+  h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+  h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+  return (h ^ (h >>> 16)) >>> 0;
+}
+
+/** 声望折银系数(#124):5 + (seatHash % 5) ∈ [5,9]——不同 bot 性格不同:重声望者愿为
+ *  声望多掏银(携民渡江式的仁主),轻声望者见利即取。repDelta × 系数折成银两后与选项的
+ *  立即银两影响同尺比较。exported 供单测。 */
+export function repCoefficient(seat: number): number {
+  return 5 + (seatHash(seat) % 5);
+}
+
+/** 抉择选项的立即银两影响(#124 bot 贪心口径):cash 直取;玩家间转移(siphon/trade/levy)
+ *  按面值;grantHero/grantCity 只计 fallbackCash(得将得城的长期价值不入立即净值);
+ *  grantTreasure 无现金流量计 0;无 effect(纯声望/无事)= 0。exported 供单测。 */
+export function encounterCashImpact(effect: EncounterEffect | undefined): number {
+  if (!effect) return 0;
+  switch (effect.kind) {
+    case "cash":
+      return effect.delta;
+    case "siphon":
+    case "trade":
+      return effect.amount;
+    case "levy":
+      return -effect.amount;
+    case "grantHero":
+    case "grantCity":
+      return effect.fallbackCash;
+    case "grantTreasure":
+      return 0;
+  }
+}
 
 function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {
   const tile = engine.board.at(destIndex);
@@ -84,6 +122,31 @@ export function botAct(engine: GameEngine): void {
       const count = engine.offeredHeroes.length;
       if (count > 0) engine.resolveHeroPick(Math.floor(engine.dice.nextFloat() * count));
       else engine.resolveHeroPick(0);
+      break;
+    }
+
+    case "AwaitingEncounter": {
+      // 抉择机遇(#124):立即净值贪心——score = 选项 effect 银两影响 + repDelta × 声望折银
+      // 系数(repCoefficient(decisionOwner),不同 bot 性格不同)。确定性:不掷骰,同分取
+      // 目录序在前者。Simple/Normal 同策略:一次性小事件不值得两档启发式。选项集先经
+      // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
+      const enc = engine.pendingEncounter;
+      if (!enc || !enc.choices) throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
+      const choices = enc.choices; // 收窄进闭包(TS 不跨闭包保持窄化)
+      const coef = repCoefficient(engine.decisionOwner);
+      let bestIdx = -1;
+      let bestScore = -Infinity;
+      engine.choicesFor().forEach((o, i) => {
+        if (!o.available) return;
+        const c = choices[i];
+        if (!c) throw new Error(`机遇「${enc.id}」选项 ${i} 越界:选项注册表与目录不一致`); // 零兜底
+        const score = encounterCashImpact(c.effect) + c.repDelta * coef;
+        if (score > bestScore) {
+          bestScore = score;
+          bestIdx = i;
+        }
+      });
+      if (bestIdx >= 0) engine.resolveEncounterChoice(bestIdx);
       break;
     }
 

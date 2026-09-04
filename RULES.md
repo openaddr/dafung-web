@@ -78,14 +78,16 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 | 自己都城 | 补给 + 招贤纳士([`game.ts:580-585`](src/core/game.ts)) |
 | 卧龙岗(Wolong) | 招贤纳士(不可进驻)([`game.ts:589-593`](src/core/game.ts)) |
 | 宝物城(TreasureCity) | 拼点探宝([§8.1](#81-宝物城拼点探宝)) |
-| 锦囊(Chance)/天命(Fate) | 随机事件 ±100~250([§9](#9-随机事件)) |
+| 天命(Fate) | **+20 声望**(声望泉,[§9](#9-声望与机遇)) |
+| 锦囊(Chance) | 已退役:按普通格处理(#119 机遇系统落地) |
+| 任意落格(机遇) | 先于本表结算:按声望比例触发 好运/中性/霉运 机遇([§9](#9-声望与机遇)) |
 | 税关(Tax) | 缴税 ¥200([`game.ts:615-624`](src/core/game.ts)) |
 | 商市(Stock) | 行情波动 ±100~200([`game.ts:627-644`](src/core/game.ts)) |
 | 无主普通城 | 可购买(`AwaitingDecision`)([`game.ts:657-662`](src/core/game.ts)) |
 | 自己的普通城 | 可免费扩军(`AwaitingDecision`)([`game.ts:664-668`](src/core/game.ts)) |
 | 他人普通城 | 珍宝交涉或无事;**公道买卖成交才升级**([§5.3](#53-落他人城珍宝交涉公道买卖成交升级)) |
 
-### 3.5 抉择(`AwaitingDecision` / `AwaitingTreasureOwner` / `AwaitingHeroPick` / `AwaitingBankruptcySettle`)
+### 3.5 抉择(`AwaitingDecision` / `AwaitingEncounter` / `AwaitingTreasureOwner` / `AwaitingHeroPick` / `AwaitingBankruptcySettle`)
 玩家做出选择后回合结束。所有玩家操作统一走 `submitCommand`([`game.ts:1068`](src/core/game.ts)),详见各机制章节。
 
 ### 3.6 回合结束与轮次(`EndTurn`)
@@ -230,13 +232,17 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ---
 
-## 9. 随机事件
+## 9. 声望与机遇
 
-落到锦囊(Chance)/天命(Fate)格,或辅路 event 格时,从对应池随机抽一条事件,结算 `cashDelta`([`game.ts:844` `applyRandomEvent`](src/core/game.ts))。
+**声望(Reputation)**:每位玩家 -100~+100(开局 0),决定机遇三档的真实比例;只被机遇抉择与天命格(+20)改变,全员可见。
 
-- **锦囊(Chance)**——偏正面([`events.ts:10` `CHANCE_EVENTS`](src/core/events.ts)):空城退敌 +250 / 草船借箭 +200 / 义士来投 +150 / 风调雨顺 +100。
-- **天命(Fate)**——偏负面([`events.ts:17` `FATE_EVENTS`](src/core/events.ts)):败走麦城 −250 / 火烧连营 −200 / 痛失街亭 −150 / 中伏溃散 −100。
-- 支出可能触发破产清算([§10](#10-破产清算))。
+**机遇(Encounter)**:行军落格后、城池结算前触发([`game.ts` `maybeApplyEncounter`](src/core/game.ts)):
+
+- **触发**:按触发率 roll(默认 40%,配置 `public/config/jiyu.json` / 起兵屏「机遇」区单局覆盖);触发未中亦留日志;天命格不参与 roll。
+- **档位**:好运/中性/霉运。三档基准值按占比归一(和不必为 100),再按声望调制——好运 +0.25s、霉运 −0.20s 百分点(夹紧 [5,95]),中性吃剩余。
+- **目录**:15 条中文 id 事件(好运 8/中性 4/霉运 3),带内容标签(银两/武将/珍宝/城池/声望/玩家)与抽取权重;玩家侧 4 条(随机对手,转移上限=付款方现金)。
+- **抉择机遇**(携民渡江/散财消灾/以宝换贤/结盟互市):走抉择卷轴(`AwaitingEncounter` + `resolveEncounterChoice`),选项带声望增减;解完继续本落格的城池结算;可用选项 ≤1 自动执行(ADR-0013)。
+- **bot**:同规则同概率;抉择按立即净值贪心 + 每 Seat 声望折银系数。
 
 ---
 

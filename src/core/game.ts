@@ -20,7 +20,7 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, type ChoiceOption } from "./choices";
+import { computeChoices, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -28,7 +28,19 @@ import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeP
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
-import { CHANCE_EVENTS, FATE_EVENTS } from "./events";
+import { CHANCE_EVENTS } from "./events";
+import {
+  ENCOUNTERS,
+  resolveEncounterConfig,
+  pickTier,
+  pickWeighted,
+  tierShares,
+  type EncounterChoiceOption,
+  type EncounterConfig,
+  type EncounterDef,
+  type EncounterEffect,
+  type EncounterRuntimeConfig,
+} from "./encounters";
 import { formatMoney } from "./money";
 import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
@@ -42,6 +54,7 @@ export interface SeatConfig {
   name: string;
   isBot: boolean;
   guohao?: string; // 人类可预设;留空则在 Guohao 阶段填
+  reputation?: number; // 初始声望口子(#120:预留,MVP 不接 UI,缺省 0)
 }
 
 export interface EngineConfig {
@@ -52,6 +65,8 @@ export interface EngineConfig {
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
+  /** 机遇系统(#123):缺省=关闭(产品默认 40% 在配置文件/设置屏,经此传入) */
+  encounter?: EncounterConfig;
 }
 
 export type EnginePhase = "Setup" | "Playing" | "GameOver";
@@ -83,6 +98,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   upgradeProperty: "扩军",
   endDecision: "按兵不动",
   resolveHeroPick: "招贤",
+  resolveEncounterChoice: "机遇抉择",
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
@@ -153,6 +169,7 @@ export class GameEngine {
   recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
+  private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
   // 珍宝交涉交割托管:成交后买家付清价款前,珍宝暂存于此(序列化友好纯数据;买家不可变卖托管物抵债)。
@@ -195,6 +212,13 @@ export class GameEngine {
    *  决策完成(endTurn)清除。快照按 pendingLand 自身字段单点序列化/重建,
    *  restore 后决策上下文不再依赖表现态字段。 */
   pendingLand: PendingLand | null = null;
+
+  /** 待抉择机遇载荷(#124):抽中 choices 型机遇时置值(目录定义引用,不可变),
+   *  AwaitingEncounter 相位的决策上下文唯一出处;选项集计算(choices.ts)与
+   *  resolveEncounterChoice 消费,resolve/endTurn 清除。快照不单列序列化:机遇 id/文段
+   *  随派生 choices(选项携带 encounterId/encounterText)过网,restoreFromSnapshot 按
+   *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
+  pendingEncounter: EncounterDef | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
@@ -245,6 +269,7 @@ export class GameEngine {
     this.startingCash = config.startingCash ?? DEFAULT_CASH;
     this.difficulty = config.difficulty ?? "Normal";
     this.mapId = config.mapId ?? "";
+    this.encounter = resolveEncounterConfig(config.encounter);
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
     this.gameId = newGameId();
     if (config.seats.length < 2 || config.seats.length > 8)
@@ -266,6 +291,7 @@ export class GameEngine {
       heroes: [],
       treasures: [],
       heroLastFired: {},
+      reputation: s.reputation ?? 0,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -685,6 +711,13 @@ export class GameEngine {
       return; // 等 selectBranch
     }
     this.turnPhase = "Land";
+    // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
+    // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
+    // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
+    // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
+    // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断。
+    const enc = this.maybeApplyEncounter(mover, path.landIndex);
+    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt") return;
     this.resolveLanding();
   }
 
@@ -830,11 +863,16 @@ export class GameEngine {
 
   private resolveSpecial(mover: Player, tile: TileDef): void {
     // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
-    if (tile.type === "Chance" || tile.type === "Fate") {
-      const pool = tile.type === "Chance" ? CHANCE_EVENTS : FATE_EVENTS;
-      this.applyRandomEvent(mover, tile.name, tile.index, pool, tile.type!.toLowerCase());
+    // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
+    if (tile.type === "Fate") {
+      this.addReputation(this.players.indexOf(mover), 20);
+      this.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
+      this.lastLandOutcome = { kind: "Noop" };
+      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`, `fate player=${mover.id} reputation=${mover.reputation}`, 0);
+      this.endTurn();
       return;
     }
+    // 锦囊(Chance)格已退役(#121):按普通格落空结算(不再抽 CHANCE_EVENTS)。
     // 税关(Tax):固定缴税 ¥200
     if (tile.type === "Tax") {
       const r = this.payOrLiquidate(mover, null, 200);
@@ -1063,8 +1101,10 @@ export class GameEngine {
     // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
     // 下次 rollAndMove 会覆盖这两个值,故无需手动清空。
     this.lastLandOutcome = null;
-    // 决策完成(购/扩/跳过)即清除待决策落格载荷
+    // 决策完成(购/扩/跳过)即清除待决策落格载荷;抉择机遇同理(#124,正常流已在
+    // settleEncounterChoice 清除,此处是回合收口的兜底扫除)
     this.pendingLand = null;
+    this.pendingEncounter = null;
     this.lastTransaction = null;
   }
 
@@ -1478,6 +1518,7 @@ export class GameEngine {
       case "upgradeProperty": return this.upgradeProperty();
       case "endDecision": return this.endDecision();
       case "resolveHeroPick": return this.resolveHeroPick(cmd.index);
+      case "resolveEncounterChoice": return this.resolveEncounterChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
       case "sellTreasureBankruptcy": return this.sellTreasureBankruptcy(cmd.treasureId);
@@ -1679,6 +1720,256 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
+  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。 */
+  addReputation(seat: number, delta: number): void {
+    const p = this.players[seat];
+    p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+  }
+
+  /** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
+   *  #124)/liquidating/bankrupt(中断落格结算)。一切随机经 this.dice:触发 roll → 档位
+   *  roll → 同档加权抽取,顺序固定保重放。 */
+  private maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
+    // 天命格是固定声望泉(resolveSpecial +20),不参与机遇 roll(#120 决策 2,评审修正)
+    if (this.board.at(atTile).type === "Fate") return "none";
+    if (this.encounter.triggerRate <= 0) return "none";
+    if (this.dice.nextFloat() * 100 >= this.encounter.triggerRate) {
+      // 规格故事 16:每次 roll 与结果都进对局日志(未中也留机读痕)
+      this.logEvent("system", mover.guohao, `${mover.guohao} 机遇未降临`, `encounterMiss player=${mover.id} rate=${this.encounter.triggerRate} reputation=${mover.reputation}`);
+      return "none";
+    }
+    const tier = pickTier(this.dice.nextFloat(), tierShares(mover.reputation, this.encounter.shares));
+    const def = pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), this.dice.nextFloat());
+    if (def.choices) return this.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
+    return this.settleEncounter(mover, atTile, def);
+  }
+
+  /** 抉择机遇入相(#124):抽中 choices 型机遇后调用。选项集经注册表(choices.ts)计算,
+   *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+浮字;结盟互市单选项即「自动发生」;
+   *  以宝换贤珍宝不足时只剩「婉言相拒」同理),返回 deciding(回合已在收尾中);
+   *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
+   *  两种场合机遇都先于城池结算:自动执行已在内部续跑落格结算(返回 deciding),
+   *  ≥2 选项由 resolveEncounterChoice 解完后续跑(同在 settleEncounterChoice 内)。 */
+  private enterEncounterPhase(mover: Player, atTile: number, def: EncounterDef): "deciding" | "liquidating" | "bankrupt" {
+    this.pendingEncounter = def;
+    this.lastLandOutcome = { kind: "Noop" };
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」:${def.text}`,
+      `encounterAwait player=${mover.id} id=${def.id} tier=${def.tier}`,
+    );
+    const options = computeChoices(this, "AwaitingEncounter");
+    const availableIdx = options.map((o, i) => (o.available ? i : -1)).filter((i) => i >= 0);
+    if (availableIdx.length > 1) {
+      this.turnPhase = "AwaitingEncounter";
+      return "deciding";
+    }
+    // ≤1 可用选项:自动执行唯一可用项(目录约定必有无门槛选项,availableIdx[0] 恒存在;
+    // 空目录=数据 bug,按无事发生收尾并留痕,不卡流程)
+    const idx = availableIdx[0];
+    if (idx === undefined) throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
+    const choice = def.choices![idx];
+    this.pushFloaterText(mover, choice.text, atTile);
+    const r = this.settleEncounterChoice(mover, atTile, def, choice, idx ?? 0);
+    return r === "settled" ? "deciding" : r; // settled=回合已收尾;机遇仍占用本落格
+  }
+
+  /** 玩家从抉择机遇选项中择一(公开,供 UI/bot/联机)。index=def.choices 下标(与
+   *  snapshot.choices 顺序一致)。不可用选项引擎硬拒绝(可用性唯一口径在注册表,零兜底)。 */
+  resolveEncounterChoice(index: number): void {
+    if (!this.assertPhase("AwaitingEncounter", "ResolveEncounterChoice")) return;
+    const def = this.pendingEncounter;
+    const option = def?.choices?.[index];
+    if (!def || !option) {
+      this.warn(`ResolveEncounterChoice:机遇上下文缺失或选项越界(index=${index})`);
+      return;
+    }
+    const opt = computeChoices(this, "AwaitingEncounter")[index];
+    if (!opt?.available) {
+      this.warn(`ResolveEncounterChoice:选项不可用(index=${index}${opt?.reason ? `,${opt.reason}` : ""})`);
+      return;
+    }
+    this.settleEncounterChoice(this.activePlayer, this.activePlayer.position, def, option, index);
+  }
+
+  /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
+   *  (银两支出走支付/清算,与购地同规则)→ 清载荷 → endTurn。对局日志记机遇 id + 所选选项;
+   *  liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;bankrupt 已在效果内 endTurn;
+   *  settled → 继续本落格的城池结算(#120 决策 2,评审修正:原先漏掉购地/过路)。 */
+  private settleEncounterChoice(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+    option: EncounterChoiceOption,
+    index: number,
+  ): "settled" | "liquidating" | "bankrupt" {
+    const seat = this.players.indexOf(mover);
+    // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
+    // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
+    let costDetail = "";
+    if (option.effect?.kind === "grantHero") {
+      const cost = mover.treasures.splice(0, ENCOUNTER_HERO_TREASURE_COST);
+      costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
+    }
+    if (option.repDelta !== 0) {
+      this.addReputation(seat, option.repDelta);
+      this.pushFloaterText(mover, `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`, atTile);
+    }
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」抉择:${option.text}`,
+      `encounterChoice player=${mover.id} id=${def.id} index=${index} repDelta=${option.repDelta} reputation=${mover.reputation} effect=${option.effect?.kind ?? "none"}${costDetail}`,
+    );
+    this.pendingEncounter = null;
+    const r = option.effect
+      ? this.applyEncounterEffect(mover, atTile, def, option.effect, option.text)
+      : "settled";
+    if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn
+    // 机遇解完 → 继续本落格的城池结算(#120 决策 2,评审修正:原先直接 endTurn 漏掉购地/过路)
+    this.turnPhase = "Land";
+    this.resolveLanding();
+    return r;
+  }
+
+  /** 即时机遇结算(#123):效果落账 + 浮字 + 对局日志。机遇自身银两支出走支付/清算(破产与购地同规则)。
+   *  玩家间转移(敌营哗变/假道征粮等)为即时动账:上限=付款方现有现金,不触发对方清算
+   *  (对方清算会与移动者回合交织——实现取舍,非 #120 豁免,已在 #120 留评说明)。
+   *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
+  private settleEncounter(mover: Player, atTile: number, def: EncounterDef): "settled" | "liquidating" | "bankrupt" {
+    if (!def.effect) return "settled";
+    return this.applyEncounterEffect(mover, atTile, def, def.effect, def.text);
+  }
+
+  /** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报/浮字叙事段:即时机遇=def.text,
+   *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。 */
+  private applyEncounterEffect(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+    effect: EncounterEffect,
+    narr: string,
+  ): "settled" | "liquidating" | "bankrupt" {
+    const seat = this.players.indexOf(mover);
+    const apply = (): "settled" | "liquidating" | "bankrupt" => {
+      switch (effect.kind) {
+        case "cash": {
+          if (effect.delta >= 0) {
+            mover.cash += effect.delta;
+            this.pushFloater(mover, effect.delta, atTile, "income");
+            this.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} +${effect.delta}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+            return "settled";
+          }
+          const r = this.payOrLiquidate(mover, null, -effect.delta);
+          if (r === "liquidating") return "liquidating";
+          const bankrupt = r === "bankrupt";
+          this.pushFloater(mover, effect.delta, atTile, "expense");
+          this.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} ${effect.delta}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+          if (bankrupt) this.endTurn();
+          return bankrupt ? "bankrupt" : "settled";
+        }
+        case "grantTreasure": {
+          if (this.treasureDeck.length === 0) {
+            mover.cash += 100; // 牌堆空 → 转 100 两(探宝的"搜刮一空"口径)
+            this.pushFloater(mover, 100, atTile, "income");
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:珍宝已被搜刮一空,转得 100 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=100 cash=${mover.cash}`, 100);
+            return "settled";
+          }
+          const drawIdx = Math.floor(this.dice.nextFloat() * this.treasureDeck.length);
+          const treasure = this.treasureDeck.splice(drawIdx, 1)[0];
+          mover.treasures.push(treasure);
+          this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得「${treasure.name}」`, atTile);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${treasure.name}」(Lv.${treasure.level})`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} treasure=${treasure.id}`);
+          this.dispatchMoment("TreasureGained", { subject: seat, treasureId: treasure.id });
+          return "settled";
+        }
+        case "grantHero": {
+          const candidates = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
+          if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
+            mover.cash += effect.fallbackCash;
+            this.pushFloater(mover, effect.fallbackCash, atTile, "income");
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/贤士已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            return "settled";
+          }
+          const hero = candidates[Math.floor(this.dice.nextFloat() * candidates.length)];
+          mover.heroes.push(hero);
+          this.recruitedHeroIds.add(hero.id);
+          this.pushFloaterText(mover, `机遇「${def.id}」:${hero.name} 来投`, atTile);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`);
+          this.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
+          return "settled";
+        }
+        case "grantCity": {
+          // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
+          const unownedCities = this.board.tiles
+            .filter((t) => t.type === "Property" && t.propertyId && this.findOwner(t.propertyId) == null)
+            .map((t) => ({ tileName: t.name, def: this.catalog.get(t.propertyId) }))
+            .filter((c): c is { tileName: string; def: PropertyDef } => c.def != null);
+          if (unownedCities.length === 0) {
+            mover.cash += effect.fallbackCash;
+            this.pushFloater(mover, effect.fallbackCash, atTile, "income");
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},已无可归之城,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            return "settled";
+          }
+          const picked = unownedCities[Math.floor(this.dice.nextFloat() * unownedCities.length)];
+          const defCity = picked.def;
+          mover.properties.push({
+            propertyId: defCity.id,
+            group: defCity.group,
+            purchasePrice: defCity.buildCost,
+            level: 0,
+            maxLevel: defCity.maxLevel,
+          });
+          this.pushFloaterText(mover, `机遇「${def.id}」:${picked.tileName} 归你所有`, atTile);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${picked.tileName}」`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`);
+          return "settled";
+        }
+        case "siphon": {
+          const target = this.randomOpponentOf(mover);
+          if (!target) return "settled";
+          const take = Math.min(effect.amount, target.cash);
+          target.cash -= take;
+          mover.cash += take;
+          this.pushFloater(mover, take, atTile, "income");
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},自 ${target.guohao} 得 ${take} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target.id} take=${take} cash=${mover.cash}`, take);
+          return "settled";
+        }
+        case "levy": {
+          const r = this.payOrLiquidate(mover, null, effect.amount);
+          if (r === "liquidating") return "liquidating";
+          const bankrupt = r === "bankrupt";
+          const target = this.randomOpponentOf(mover);
+          const paid = bankrupt ? 0 : effect.amount;
+          if (target && paid > 0) target.cash += paid;
+          this.pushFloater(mover, -paid, atTile, "expense");
+          this.dispatchMoment("CashLost", { subject: seat, amount: paid });
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`, -paid);
+          if (bankrupt) this.endTurn();
+          return bankrupt ? "bankrupt" : "settled";
+        }
+        case "trade": {
+          const target = this.randomOpponentOf(mover);
+          mover.cash += effect.amount;
+          if (target) target.cash += effect.amount;
+          this.pushFloater(mover, effect.amount, atTile, "income");
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},你与 ${target?.guohao ?? "诸侯"} 各得 ${effect.amount} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target?.id ?? "-"} gain=${effect.amount}`, effect.amount);
+          return "settled";
+        }
+      }
+    };
+    return apply();
+  }
+
+  /** 随机存活对手(#123):无可用对手(全部破产/单人)返回 null,调用方静默跳过转移。 */
+  private randomOpponentOf(mover: Player): Player | null {
+    const others = this.players.filter((p) => p !== mover && !p.isBankrupt);
+    if (others.length === 0) return null;
+    return others[Math.floor(this.dice.nextFloat() * others.length)];
+  }
+
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */
   private pushFloaterText(p: Player, text: string, atTile: number): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount: 0, atTile, kind: "msg", text });
@@ -1713,5 +2004,19 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
+    // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
+    // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
+    // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告
+    // 并退回 Roll(该玩家重掷、机遇作废),不卡死相位。
+    if (this.turnPhase === "AwaitingEncounter") {
+      const encId = s.choices.find((o) => o.encounterId != null)?.encounterId;
+      const def = encId != null ? ENCOUNTERS.find((c) => c.id === encId) : undefined;
+      if (def) {
+        this.pendingEncounter = def;
+      } else {
+        // 零兜底:目录版本不符/外来快照属数据损坏,应崩出来而非静默作废玩家机遇
+        throw new Error(`快照恢复:抉择机遇上下文缺失(id=${encId ?? "-"})`);
+      }
+    }
   }
 }
