@@ -119,8 +119,11 @@ export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeC
   const raw = Number(cfg?.triggerRate ?? 0);
   const triggerRate = Number.isFinite(raw) ? clamp(raw, 0, 100) : 0;
   const b = cfg?.baseRates;
+  // 0 是合法档位(如"中性 100%"=好运 0);仅在负数/非有限/总和为 0 时回退默认
   const base =
-    b && [b.good, b.neutral, b.bad].every((v) => Number.isFinite(v) && v > 0)
+    b &&
+    [b.good, b.neutral, b.bad].every((v) => Number.isFinite(v) && v >= 0) &&
+    b.good + b.neutral + b.bad > 0
       ? b
       : { good: 30, neutral: 45, bad: 25 };
   return { triggerRate, shares: normalizeEncounterBaseRates(base) };
