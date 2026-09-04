@@ -96,6 +96,13 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **对局日志(ADR-0014)**:一局一个 jsonl = 局头(header:gameId/mapId/seed/座位表)+ 玩法事件流(中文 brief + 机读 detail)+ 命令流(cmd:submitCommand 与人类 pickCapital 全量;bot 路径不记,重放自动重算)+ 终局行(final:重放断言锚点)。双轨落盘:联机 `logs/<gameId>.jsonl`(server 启动清扫 TTL 30 天,env LOG_TTL_DAYS/LOGS_DIR)、单机 IndexedDB(dafung-logs,写入时顺手清过期);`bun scripts/replay-log.ts logs/x.jsonl` 重放校验终态一致。详见 docs/logging.md
 - **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发。**26 时机七类**(生命周期/回合与轮/掷骰与行军/落格与路径/资产与交易/玩家状态/破产与终局结算),挂点全在 game.ts;**设计技能/事件先翻 docs/timing-framework.md §2 分类目录**(每时机:触发点位/subject/ctx 字段/灵感示例)。加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts);效果内禁同步再派发时机(派发深度>2 抛错);CashGained 防连锁——仅经济结算点派发,效果层收益(grantSkillCash)不递归触发
 
+## 机遇系统配置(#125)
+
+- **默认文件**:`public/config/jiyu.json`(静态资源,运行时 fetch;JSON 无注释,口径说明在此与设置屏文案)。引擎本身缺省 `triggerRate=0`(机遇关闭),产品默认由本文件提供
+- **字段**:`triggerRate` = 落格触发概率 %(默认 40);`baseRates.good / neutral / bad` = 好运/中性/霉运三档基准(默认 30/45/25)
+- **归一规则**:三档按占比归一,**和不必为 100**(如 10/10/10 → 各 1/3);任一档 ≤0 或非数 → 引擎整体回退默认 30/45/25;触发率夹紧 0~100。归一/回退单源在引擎 `resolveEncounterConfig`(`src/core/encounters.ts`),设置屏只透传原值
+- **单局覆盖**:单机「起兵」屏「机遇」折叠区可对本局改这四个值(默认值即读自 jiyu.json,fetch 失败回退与文件同值的内置默认),经 `SetupConfig.encounter` → `EngineConfig.encounter` 传入引擎,只影响当局
+
 ## 验证命令
 ```bash
 bun run build      # tsc --noEmit && vite build
