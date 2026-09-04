@@ -28,6 +28,11 @@ interface EngineTestInternals {
     atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt";
+  enterEncounterPhase(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "deciding" | "settled" | "liquidating" | "bankrupt";
 
 }
 
@@ -102,13 +107,20 @@ export class TestEngine {
   }
 
   /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。 */
-  /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。 */
   applyEncounter(
     mover: Player,
     atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt" {
     return this.internals.settleEncounter(mover, atTile, def);
+  }
+
+  /** 触达抉择机遇入相(指定具体事件,绕过触发/抽取随机;#124):等价引擎抽中 choices 型
+   *  机遇后的进入逻辑——可用选项 ≤1 自动执行(回合收尾),≥2 进 AwaitingEncounter。
+   *  mover=当前活跃玩家,atTile=其所在格。 */
+  enterEncounter(def: EncounterDef): "deciding" | "settled" | "liquidating" | "bankrupt" {
+    const mover = this.engine.activePlayer;
+    return this.internals.enterEncounterPhase(mover, mover.position, def);
   }
 
   /** 触达私有付款或触发清算(破产清算路径的引擎入口)。 */

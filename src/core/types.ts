@@ -146,12 +146,13 @@ export interface LandOutcomeSnapshot {
   causedBankruptcy: boolean | null;
 }
 
-/** 回合阶段。 */
+/** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。 */
 export type TurnPhase =
   | "Roll"
   | "AwaitingBranch"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
+  | "AwaitingEncounter"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "Land"
@@ -277,6 +278,7 @@ export type GameCommand =
   | { type: "upgradeProperty" }
   | { type: "endDecision" }
   | { type: "resolveHeroPick"; index: number }
+  | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
   | { type: "resolveTreasureOwner"; action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" } }
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }

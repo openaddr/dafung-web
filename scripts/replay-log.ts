@@ -59,6 +59,7 @@ const INPUT_PHASES = new Set([
   "AwaitingBranch",
   "AwaitingDecision",
   "AwaitingHeroPick",
+  "AwaitingEncounter", // 抉择机遇(#124):与 room.ts 同源补齐
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
 ]);

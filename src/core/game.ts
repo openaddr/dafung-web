@@ -20,7 +20,7 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, type ChoiceOption } from "./choices";
+import { computeChoices, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -35,6 +35,7 @@ import {
   pickTier,
   pickWeighted,
   tierShares,
+  type EncounterChoiceOption,
   type EncounterConfig,
   type EncounterDef,
   type EncounterEffect,
@@ -96,6 +97,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   upgradeProperty: "扩军",
   endDecision: "按兵不动",
   resolveHeroPick: "招贤",
+  resolveEncounterChoice: "机遇抉择",
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
@@ -209,6 +211,13 @@ export class GameEngine {
    *  决策完成(endTurn)清除。快照按 pendingLand 自身字段单点序列化/重建,
    *  restore 后决策上下文不再依赖表现态字段。 */
   pendingLand: PendingLand | null = null;
+
+  /** 待抉择机遇载荷(#124):抽中 choices 型机遇时置值(目录定义引用,不可变),
+   *  AwaitingEncounter 相位的决策上下文唯一出处;选项集计算(choices.ts)与
+   *  resolveEncounterChoice 消费,resolve/endTurn 清除。快照不单列序列化:机遇 id/文段
+   *  随派生 choices(选项携带 encounterId/encounterText)过网,restoreFromSnapshot 按
+   *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
+  pendingEncounter: EncounterDef | null = null;
 
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。 */
@@ -703,8 +712,10 @@ export class GameEngine {
     this.turnPhase = "Land";
     // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
     // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
+    // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
+    // 城池结算不再继续(抉择机遇是落格的主事件,与即时机遇「先机遇后购地」不同)。
     const enc = this.maybeApplyEncounter(mover, path.landIndex);
-    if (enc === "liquidating" || enc === "bankrupt") return;
+    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt") return;
     this.resolveLanding();
   }
 
@@ -1088,8 +1099,10 @@ export class GameEngine {
     // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
     // 下次 rollAndMove 会覆盖这两个值,故无需手动清空。
     this.lastLandOutcome = null;
-    // 决策完成(购/扩/跳过)即清除待决策落格载荷
+    // 决策完成(购/扩/跳过)即清除待决策落格载荷;抉择机遇同理(#124,正常流已在
+    // settleEncounterChoice 清除,此处是回合收口的兜底扫除)
     this.pendingLand = null;
+    this.pendingEncounter = null;
     this.lastTransaction = null;
   }
 
@@ -1503,6 +1516,7 @@ export class GameEngine {
       case "upgradeProperty": return this.upgradeProperty();
       case "endDecision": return this.endDecision();
       case "resolveHeroPick": return this.resolveHeroPick(cmd.index);
+      case "resolveEncounterChoice": return this.resolveEncounterChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
       case "sellTreasureBankruptcy": return this.sellTreasureBankruptcy(cmd.treasureId);
@@ -1710,29 +1724,133 @@ export class GameEngine {
     p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
   }
 
-  /** 机遇触发与结算(#123)。返回 none/settled(继续落格结算)/liquidating/bankrupt(中断落格结算)。
-   *  一切随机经 this.dice:触发 roll → 档位 roll → 同档加权抽取,顺序固定保重放。 */
-  private maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "liquidating" | "bankrupt" {
+  /** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
+   *  #124)/liquidating/bankrupt(中断落格结算)。一切随机经 this.dice:触发 roll → 档位
+   *  roll → 同档加权抽取,顺序固定保重放。 */
+  private maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
     if (this.encounter.triggerRate <= 0) return "none";
     if (this.dice.nextFloat() * 100 >= this.encounter.triggerRate) return "none";
     const tier = pickTier(this.dice.nextFloat(), tierShares(mover.reputation, this.encounter.shares));
     const def = pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), this.dice.nextFloat());
+    if (def.choices) return this.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
     return this.settleEncounter(mover, atTile, def);
   }
 
-  /** 即时机遇结算:效果落账 + 浮字 + 对局日志。银两支出走支付/清算(破产与购地同规则);
-   *  玩家间转移上限=付款方现有现金,不触发对方清算(MVP 口径,见 #120)。 */
-  private settleEncounter(mover: Player, atTile: number, def: EncounterDef): "settled" | "liquidating" | "bankrupt" {
-    if (!def.effect) return "settled"; // 抉择机遇(#124):无即时效果,结算发生在选项 resolve 阶段
+  /** 抉择机遇入相(#124):抽中 choices 型机遇后调用。选项集经注册表(choices.ts)计算,
+   *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+浮字;结盟互市单选项即「自动发生」;
+   *  以宝换贤珍宝不足时只剩「婉言相拒」同理),返回 deciding(回合已在收尾中);
+   *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
+   *  两种场合机遇都占用本落格:调用方(rollAndMove)不再做城池结算。 */
+  private enterEncounterPhase(mover: Player, atTile: number, def: EncounterDef): "deciding" | "liquidating" | "bankrupt" {
+    this.pendingEncounter = def;
+    this.lastLandOutcome = { kind: "Noop" };
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」:${def.text}`,
+      `encounterAwait player=${mover.id} id=${def.id} tier=${def.tier}`,
+    );
+    const options = computeChoices(this, "AwaitingEncounter");
+    const availableIdx = options.map((o, i) => (o.available ? i : -1)).filter((i) => i >= 0);
+    if (availableIdx.length > 1) {
+      this.turnPhase = "AwaitingEncounter";
+      return "deciding";
+    }
+    // ≤1 可用选项:自动执行唯一可用项(目录约定必有无门槛选项,availableIdx[0] 恒存在;
+    // 空目录=数据 bug,按无事发生收尾并留痕,不卡流程)
+    const idx = availableIdx[0];
+    const choice = idx !== undefined ? def.choices![idx] : undefined;
+    if (!choice) {
+      this.warn(`机遇「${def.id}」无可执行选项(choices 与注册表不一致)`);
+      this.pendingEncounter = null;
+      this.endTurn();
+      return "deciding";
+    }
+    this.pushFloaterText(mover, choice.text, atTile);
+    const r = this.settleEncounterChoice(mover, atTile, def, choice, idx ?? 0);
+    return r === "settled" ? "deciding" : r; // settled=回合已收尾;机遇仍占用本落格
+  }
+
+  /** 玩家从抉择机遇选项中择一(公开,供 UI/bot/联机)。index=def.choices 下标(与
+   *  snapshot.choices 顺序一致)。不可用选项引擎硬拒绝(可用性唯一口径在注册表,零兜底)。 */
+  resolveEncounterChoice(index: number): void {
+    if (!this.assertPhase("AwaitingEncounter", "ResolveEncounterChoice")) return;
+    const def = this.pendingEncounter;
+    const option = def?.choices?.[index];
+    if (!def || !option) {
+      this.warn(`ResolveEncounterChoice:机遇上下文缺失或选项越界(index=${index})`);
+      return;
+    }
+    const opt = computeChoices(this, "AwaitingEncounter")[index];
+    if (!opt?.available) {
+      this.warn(`ResolveEncounterChoice:选项不可用(index=${index}${opt?.reason ? `,${opt.reason}` : ""})`);
+      return;
+    }
+    this.settleEncounterChoice(this.activePlayer, this.activePlayer.position, def, option, index);
+  }
+
+  /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
+   *  (银两支出走支付/清算,与购地同规则)→ 清载荷 → endTurn。对局日志记机遇 id + 所选选项;
+   *  liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;bankrupt 已在效果内 endTurn。 */
+  private settleEncounterChoice(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+    option: EncounterChoiceOption,
+    index: number,
+  ): "settled" | "liquidating" | "bankrupt" {
     const seat = this.players.indexOf(mover);
-    const apply = (effect: EncounterEffect): "settled" | "liquidating" | "bankrupt" => {
+    // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
+    // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
+    let costDetail = "";
+    if (option.effect?.kind === "grantHero") {
+      const cost = mover.treasures.splice(0, ENCOUNTER_HERO_TREASURE_COST);
+      costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
+    }
+    if (option.repDelta !== 0) {
+      this.addReputation(seat, option.repDelta);
+      this.pushFloaterText(mover, `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`, atTile);
+    }
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」抉择:${option.text}`,
+      `encounterChoice player=${mover.id} id=${def.id} index=${index} repDelta=${option.repDelta} reputation=${mover.reputation} effect=${option.effect?.kind ?? "none"}${costDetail}`,
+    );
+    this.pendingEncounter = null;
+    const r = option.effect
+      ? this.applyEncounterEffect(mover, atTile, def, option.effect, option.text)
+      : "settled";
+    if (r === "settled") this.endTurn();
+    return r;
+  }
+
+  /** 即时机遇结算(#123):效果落账 + 浮字 + 对局日志。银两支出走支付/清算(破产与购地同规则);
+   *  玩家间转移上限=付款方现有现金,不触发对方清算(MVP 口径,见 #120)。
+   *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
+  private settleEncounter(mover: Player, atTile: number, def: EncounterDef): "settled" | "liquidating" | "bankrupt" {
+    if (!def.effect) return "settled";
+    return this.applyEncounterEffect(mover, atTile, def, def.effect, def.text);
+  }
+
+  /** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报/浮字叙事段:即时机遇=def.text,
+   *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。 */
+  private applyEncounterEffect(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+    effect: EncounterEffect,
+    narr: string,
+  ): "settled" | "liquidating" | "bankrupt" {
+    const seat = this.players.indexOf(mover);
+    const apply = (): "settled" | "liquidating" | "bankrupt" => {
       switch (effect.kind) {
         case "cash": {
           if (effect.delta >= 0) {
             mover.cash += effect.delta;
             this.pushFloater(mover, effect.delta, atTile, "income");
             this.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text} +${effect.delta}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} +${effect.delta}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
             return "settled";
           }
           const r = this.payOrLiquidate(mover, null, -effect.delta);
@@ -1740,7 +1858,7 @@ export class GameEngine {
           const bankrupt = r === "bankrupt";
           this.pushFloater(mover, effect.delta, atTile, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text} ${effect.delta}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} ${effect.delta}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
           if (bankrupt) this.endTurn();
           return bankrupt ? "bankrupt" : "settled";
         }
@@ -1754,8 +1872,8 @@ export class GameEngine {
           const drawIdx = Math.floor(this.dice.nextFloat() * this.treasureDeck.length);
           const treasure = this.treasureDeck.splice(drawIdx, 1)[0];
           mover.treasures.push(treasure);
-          this.pushFloaterText(mover, `机遇「${def.id}」:${def.text},得「${treasure.name}」`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},得「${treasure.name}」(Lv.${treasure.level})`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} treasure=${treasure.id}`);
+          this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得「${treasure.name}」`, atTile);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${treasure.name}」(Lv.${treasure.level})`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} treasure=${treasure.id}`);
           this.dispatchMoment("TreasureGained", { subject: seat, treasureId: treasure.id });
           return "settled";
         }
@@ -1764,14 +1882,14 @@ export class GameEngine {
           if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},麾下已满/贤士已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/贤士已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
             return "settled";
           }
           const hero = candidates[Math.floor(this.dice.nextFloat() * candidates.length)];
           mover.heroes.push(hero);
           this.recruitedHeroIds.add(hero.id);
           this.pushFloaterText(mover, `机遇「${def.id}」:${hero.name} 来投`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},得「${hero.name}」:${hero.desc}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`);
           this.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
           return "settled";
         }
@@ -1784,7 +1902,7 @@ export class GameEngine {
           if (unownedCities.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},已无可归之城,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},已无可归之城,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
             return "settled";
           }
           const picked = unownedCities[Math.floor(this.dice.nextFloat() * unownedCities.length)];
@@ -1797,7 +1915,7 @@ export class GameEngine {
             maxLevel: defCity.maxLevel,
           });
           this.pushFloaterText(mover, `机遇「${def.id}」:${picked.tileName} 归你所有`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},得「${picked.tileName}」`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${picked.tileName}」`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`);
           return "settled";
         }
         case "siphon": {
@@ -1807,7 +1925,7 @@ export class GameEngine {
           target.cash -= take;
           mover.cash += take;
           this.pushFloater(mover, take, atTile, "income");
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},自 ${target.guohao} 得 ${take} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target.id} take=${take} cash=${mover.cash}`, take);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},自 ${target.guohao} 得 ${take} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target.id} take=${take} cash=${mover.cash}`, take);
           return "settled";
         }
         case "levy": {
@@ -1819,7 +1937,7 @@ export class GameEngine {
           if (target && paid > 0) target.cash += paid;
           this.pushFloater(mover, -paid, atTile, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: paid });
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text} −${paid}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`, -paid);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`, -paid);
           if (bankrupt) this.endTurn();
           return bankrupt ? "bankrupt" : "settled";
         }
@@ -1828,12 +1946,12 @@ export class GameEngine {
           mover.cash += effect.amount;
           if (target) target.cash += effect.amount;
           this.pushFloater(mover, effect.amount, atTile, "income");
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${def.text},你与 ${target?.guohao ?? "诸侯"} 各得 ${effect.amount} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target?.id ?? "-"} gain=${effect.amount}`, effect.amount);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},你与 ${target?.guohao ?? "诸侯"} 各得 ${effect.amount} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target?.id ?? "-"} gain=${effect.amount}`, effect.amount);
           return "settled";
         }
       }
     };
-    return apply(def.effect);
+    return apply();
   }
 
   /** 随机存活对手(#123):无可用对手(全部破产/单人)返回 null,调用方静默跳过转移。 */
@@ -1877,5 +1995,20 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
+    // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
+    // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
+    // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告
+    // 并退回 Roll(该玩家重掷、机遇作废),不卡死相位。
+    if (this.turnPhase === "AwaitingEncounter") {
+      const encId = s.choices.find((o) => o.encounterId != null)?.encounterId;
+      const def = encId != null ? ENCOUNTERS.find((c) => c.id === encId) : undefined;
+      if (def) {
+        this.pendingEncounter = def;
+      } else {
+        this.warn(`快照恢复:抉择机遇上下文缺失(id=${encId ?? "-"}),机遇作废,退回掷骰`);
+        this.pendingEncounter = null;
+        this.turnPhase = "Roll";
+      }
+    }
   }
 }

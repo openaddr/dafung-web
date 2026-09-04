@@ -81,6 +81,56 @@ export function BranchDecisionScroll({
   );
 }
 
+// ── 抉择机遇(AwaitingEncounter,#124):机遇文段 + 目录选项按钮 ──
+// 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
+// label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
+// 选项下标 = snapshot.choices 数组下标 = def.choices 下标(resolveEncounterChoice 按此结算)。
+export function EncounterChoiceScroll({
+  encounterId,
+  encounterText,
+  choices,
+  onCommand,
+}: {
+  encounterId: string;
+  encounterText: string;
+  /** 当前相位选项集(快照透出):顺序即机遇目录选项序,含不可用项(禁用 + reason)。 */
+  choices: ChoiceOption[];
+  onCommand: (cmd: GameCommand) => void;
+}) {
+  // G-19 同口径:数字键 1..n 直选(不可选的选项按键无效)
+  useNumberShortcuts(
+    choices.map((o, i) => () => {
+      if (o.available) onCommand({ type: "resolveEncounterChoice", index: i });
+    }),
+  );
+  return (
+    <ScrollShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
+      {/* 机遇文段:事件描述正文用霞鹜文楷(与岔口卷轴同款) */}
+      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
+      <div className="flex flex-col gap-2.5">
+        {choices.map((o, i) => (
+          <ScrollButton
+            key={o.id}
+            primary={i === 0}
+            shortcut={i + 1}
+            disabled={!o.available}
+            title={o.available ? undefined : o.reason}
+            testid={T.encounterOption(i)}
+            onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
+          >
+            {o.label}
+          </ScrollButton>
+        ))}
+      </div>
+      {choices.some((o) => !o.available) && (
+        <p className="mt-2 text-center text-xs text-ink-dim">
+          {choices.find((o) => !o.available)?.reason}
+        </p>
+      )}
+    </ScrollShell>
+  );
+}
+
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({
   tileName,

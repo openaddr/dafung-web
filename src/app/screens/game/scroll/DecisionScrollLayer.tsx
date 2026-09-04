@@ -17,6 +17,7 @@ import {
   BankruptcyScroll,
   BranchDecisionScroll,
   BuyDecisionScroll,
+  EncounterChoiceScroll,
   HeroPickScroll,
   TileDetailScroll,
   TreasureVisitorScroll,
@@ -250,6 +251,23 @@ export function DecisionScrollLayer({
           );
         }
       }
+    }
+  }
+
+  // ── 抉择机遇(#124):机遇文段 + 目录选项;上下文单源快照 choices(选项携带
+  // encounterId/encounterText,choices.ts 注册表产出)——选项缺失/无标识 = 相位与注册表
+  // 不符(数据 bug),不弹(与旧版整层 return null 同口径)。
+  if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingEncounter") {
+    const head = snapshot.choices.find((o) => o.encounterId != null);
+    if (head) {
+      return (
+        <EncounterChoiceScroll
+          encounterId={head.encounterId!}
+          encounterText={head.encounterText!}
+          choices={snapshot.choices}
+          onCommand={dispatch}
+        />
+      );
     }
   }
 

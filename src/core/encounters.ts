@@ -71,9 +71,12 @@ export const ENCOUNTERS: EncounterDef[] = [
     ],
   },
   {
+    // 单选项抉择(#124):选项集 ≤1 引擎自动执行(ADR-0013),正合「使团代应、自动发生」的设计。
     id: "结盟互市", tier: "中性", tags: ["银两", "玩家"], weight: 0.8,
-    text: "邻镇诸侯遣使提议互市,愿各出银 100 两共设集市,两国皆沾其利。",
-    effect: { kind: "trade", amount: 100 },
+    text: "邻镇诸侯遣使叩门:愿共设集市、通商互市。你与随机对手各得 100 两,银子皆由国库出——使团已替你在盟书上落了印。",
+    choices: [
+      { text: "结盟互市(你与随机对手各 +100 两,国库出)", repDelta: 0, effect: { kind: "trade", amount: 100 } },
+    ],
   },
   // ── 霉运 ──
   { id: "粮道被劫", tier: "霉运", tags: ["银两"], weight: 1, text: "粮道遭山贼劫掠,损失折银 250 两", effect: { kind: "cash", delta: -250 } },
