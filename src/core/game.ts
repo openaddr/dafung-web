@@ -718,9 +718,10 @@ export class GameEngine {
     // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
     // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
     // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
-    // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断。
+    // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
+    // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
     const enc = this.maybeApplyEncounter(mover, path.landIndex);
-    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt") return;
+    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted") return;
     this.resolveLanding();
   }
 
@@ -1805,9 +1806,12 @@ export class GameEngine {
   }
 
   /** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
-   *  #124)/liquidating/bankrupt(中断落格结算)。一切随机经 this.dice:触发 roll → 档位
-   *  roll → 同档加权抽取,顺序固定保重放。 */
-  private maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" {
+   *  #124)/liquidating/bankrupt/exhausted(#132:体力归 0 触发耗竭,相位或自动惩罚占用本落格,
+   *  均中断落格结算)。一切随机经 this.dice:触发 roll → 档位 roll → 同档加权抽取,顺序固定保重放。 */
+  private maybeApplyEncounter(
+    mover: Player,
+    atTile: number,
+  ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
     // 天命格是固定声望泉(resolveSpecial +20),不参与机遇 roll(#120 决策 2,评审修正)
     if (this.board.at(atTile).type === "Fate") return "none";
     if (this.encounter.triggerRate <= 0) return "none";
@@ -1828,7 +1832,11 @@ export class GameEngine {
    *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
    *  两种场合机遇都先于城池结算:自动执行已在内部续跑落格结算(返回 deciding),
    *  ≥2 选项由 resolveEncounterChoice 解完后续跑(同在 settleEncounterChoice 内)。 */
-  private enterEncounterPhase(mover: Player, atTile: number, def: EncounterDef): "deciding" | "liquidating" | "bankrupt" {
+  private enterEncounterPhase(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
     this.pendingEncounter = def;
     this.lastLandOutcome = { kind: "Noop" };
     this.logEvent(
@@ -1872,8 +1880,9 @@ export class GameEngine {
   }
 
   /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
-   *  (银两支出走支付/清算,与购地同规则)→ 清载荷 → endTurn。对局日志记机遇 id + 所选选项;
-   *  liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;bankrupt 已在效果内 endTurn;
+   *  (银两支出走支付/清算,与购地同规则)→ 选项级 staminaDelta 落账(#132)→ 清载荷 → endTurn。
+   *  对局日志记机遇 id + 所选选项;liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;
+   *  bankrupt 已在效果内 endTurn;exhausted=耗竭接管本落格(#132),三者均不续跑城池结算;
    *  settled → 继续本落格的城池结算(#120 决策 2,评审修正:原先漏掉购地/过路)。 */
   private settleEncounterChoice(
     mover: Player,
@@ -1881,7 +1890,7 @@ export class GameEngine {
     def: EncounterDef,
     option: EncounterChoiceOption,
     index: number,
-  ): "settled" | "liquidating" | "bankrupt" {
+  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
     const seat = this.players.indexOf(mover);
     // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
     // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
@@ -1904,7 +1913,10 @@ export class GameEngine {
     const r = option.effect
       ? this.applyEncounterEffect(mover, atTile, def, option.effect, option.text)
       : "settled";
-    if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn
+    if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn(优先级高于体力,#132)
+    // 选项级体力(#132):repDelta/effect 落账后 staminaDelta 落账;exhausted=耗竭接管本落格
+    const s = this.applyEncounterStamina(mover, atTile, def, option.staminaDelta ?? 0, option.text);
+    if (s === "exhausted") return "exhausted";
     // 机遇解完 → 继续本落格的城池结算(#120 决策 2,评审修正:原先直接 endTurn 漏掉购地/过路)
     this.turnPhase = "Land";
     this.resolveLanding();
@@ -1915,25 +1927,33 @@ export class GameEngine {
    *  玩家间转移(敌营哗变/假道征粮等)为即时动账:上限=付款方现有现金,不触发对方清算
    *  (对方清算会与移动者回合交织——实现取舍,非 #120 豁免,已在 #120 留评说明)。
    *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
-  private settleEncounter(mover: Player, atTile: number, def: EncounterDef): "settled" | "liquidating" | "bankrupt" {
+  private settleEncounter(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
     if (!def.effect) return "settled";
     return this.applyEncounterEffect(mover, atTile, def, def.effect, def.text);
   }
 
   /** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报/浮字叙事段:即时机遇=def.text,
-   *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。 */
+   *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。
+   *  尾部接线体力(#132):效果落账后 effect.staminaDelta 经 applyEncounterStamina 结算,
+   *  耗竭返回 exhausted(liquidating/bankrupt 优先,不再结算体力)。 */
   private applyEncounterEffect(
     mover: Player,
     atTile: number,
     def: EncounterDef,
     effect: EncounterEffect,
     narr: string,
-  ): "settled" | "liquidating" | "bankrupt" {
+  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
     const seat = this.players.indexOf(mover);
     const apply = (): "settled" | "liquidating" | "bankrupt" => {
       switch (effect.kind) {
         case "cash": {
-          if (effect.delta >= 0) {
+          // 纯体力事件(#132):delta 0 不产生 "+0" 浮字/战报/时机,体力全权交给 staminaDelta
+          if (effect.delta === 0) return "settled";
+          if (effect.delta > 0) {
             mover.cash += effect.delta;
             this.pushFloater(mover, effect.delta, atTile, "income");
             this.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
@@ -2038,7 +2058,43 @@ export class GameEngine {
         }
       }
     };
-    return apply();
+    const r = apply();
+    if (r !== "settled") return r; // liquidating/bankrupt 优先(#132):清算/破产中断,不再结算体力
+    return this.applyEncounterStamina(mover, atTile, def, effect.staminaDelta ?? 0, narr);
+  }
+
+  /** 机遇体力接线(#132):staminaDelta 经 addStamina 落账(clamp 0~100;非 0 留「体力 ±n」
+   *  浮字,对局日志 detail 补 stamina=落账值)→ 归 0 触发 exhaustIfDepleted。
+   *  返回 "exhausted"=耗竭接管本落格:phase 进 AwaitingExhaustion、auto 已 endTurn 收尾回合——
+   *  两种场合调用方都不得续跑城池结算(人倒下了不买地),与 liquidating/bankrupt 同占落格。 */
+  private applyEncounterStamina(
+    mover: Player,
+    atTile: number,
+    def: EncounterDef,
+    delta: number,
+    narr: string,
+  ): "settled" | "exhausted" {
+    if (delta === 0) return "settled";
+    const seat = this.players.indexOf(mover);
+    const stamina = this.addStamina(seat, delta);
+    const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
+    this.pushFloaterText(mover, `体力 ${signed}`, atTile);
+    this.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」:${narr},体力 ${signed}`,
+      `encounterStamina player=${mover.id} id=${def.id} tier=${def.tier} delta=${delta} stamina=${stamina}`,
+    );
+    if (stamina !== 0) return "settled";
+    const ex = this.exhaustIfDepleted(seat);
+    if (ex === "none") return "settled"; // 不可达(体力已为 0),防御性放行
+    if (ex === "auto" && this.turnPhase !== "Roll" && !this.isOver) {
+      // 自动惩罚收口(#132):唯一可用选项路径(settleExhaustionChoice)内部已 endTurn
+      // (turnPhase=Roll);「无可处置城池」纯跳回合路径不收尾回合——由机遇结算侧补
+      // endTurn,人倒下了回合即止,不留悬空相位。
+      this.endTurn();
+    }
+    return "exhausted"; // phase/auto 一律占用本落格:调用方不得续跑城池结算
   }
 
   /** 随机存活对手(#123):无可用对手(全部破产/单人)返回 null,调用方静默跳过转移。 */

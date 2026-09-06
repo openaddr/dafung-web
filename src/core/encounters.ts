@@ -3,24 +3,29 @@
 // this.dice(种子化,保命令流重放,ADR-0014)。id 用中文且必须自带因果(名字与效果互证)。
 
 export type EncounterTier = "好运" | "中性" | "霉运";
-export type EncounterTag = "银两" | "武将" | "珍宝" | "城池" | "声望" | "玩家";
+export type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力";
 
 /** 即时效果。银两负值走引擎支付/清算(破产与购地同规则);
- *  siphon/levy 是玩家间银两转移:上限=付款方现有现金,不触发对方清算。 */
+ *  siphon/levy 是玩家间银两转移:上限=付款方现有现金,不触发对方清算。
+ *  staminaDelta(#132):效果附带的体力增减——正值回血/负值耗体力,0/缺省=不变;
+ *  经引擎 addStamina 落账,归 0 触发耗竭(#130)。 */
 export type EncounterEffect =
-  | { kind: "cash"; delta: number }
-  | { kind: "grantTreasure" }
-  | { kind: "grantHero"; fallbackCash: number }
-  | { kind: "grantCity"; fallbackCash: number }
-  | { kind: "siphon"; amount: number }
-  | { kind: "levy"; amount: number }
-  | { kind: "trade"; amount: number }; // 你与随机对手各 +amount(国库出,正和)
+  | { kind: "cash"; delta: number; staminaDelta?: number }
+  | { kind: "grantTreasure"; staminaDelta?: number }
+  | { kind: "grantHero"; fallbackCash: number; staminaDelta?: number }
+  | { kind: "grantCity"; fallbackCash: number; staminaDelta?: number }
+  | { kind: "siphon"; amount: number; staminaDelta?: number }
+  | { kind: "levy"; amount: number; staminaDelta?: number }
+  | { kind: "trade"; amount: number; staminaDelta?: number }; // 你与随机对手各 +amount(国库出,正和)
 
-/** 抉择选项(#124):repDelta 结算后立即落账并夹紧;effect 缺省=无事发生。 */
+/** 抉择选项(#124):repDelta 结算后立即落账并夹紧;effect 缺省=无事发生。
+ *  staminaDelta(#132):选项级体力增减,在 effect/repDelta 落账后结算——正值回血/
+ *  负值耗体力,0/缺省=不变;归 0 触发耗竭(#130)。 */
 export interface EncounterChoiceOption {
   text: string;
   repDelta: number;
   effect?: EncounterEffect;
+  staminaDelta?: number;
 }
 
 export interface EncounterDef {
@@ -33,14 +38,16 @@ export interface EncounterDef {
   choices?: EncounterChoiceOption[];
 }
 
-/** 目录 v1(15 条):好运 8/中性 4/霉运 3,玩家侧 4 条≈27%(七三开)。
- *  抉择 4 条(#124)带 choices;即时 11 条带 effect。 */
+/** 目录 v2(#132 体力接线):18 条,好运 9/中性 6/霉运 3;玩家侧 4 条(七三开不变)。
+ *  抉择 6 条(#124/#132)带 choices;即时 12 条带 effect。霉运三条调重后附体力损耗,
+ *  新增 神医行诊(纯回血)/温泉疗养/夜行军(回血/耗体力抉择)。 */
 export const ENCOUNTERS: EncounterDef[] = [
   // ── 好运 ──
   { id: "屯粮居奇", tier: "好运", tags: ["银两"], weight: 1, text: "荒年粮价飞涨,囤粮转卖大赚一笔", effect: { kind: "cash", delta: 250 } },
   { id: "草船借箭", tier: "好运", tags: ["银两"], weight: 1, text: "借得箭矢十万,转售诸侯", effect: { kind: "cash", delta: 200 } },
   { id: "风调雨顺", tier: "好运", tags: ["银两"], weight: 1, text: "五谷丰登,市税多入", effect: { kind: "cash", delta: 100 } },
-  { id: "义士来投", tier: "好运", tags: ["武将"], weight: 0.8, text: "贤士慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
+  { id: "神医行诊", tier: "好运", tags: ["体力"], weight: 0.8, text: "神医路过举家调理", effect: { kind: "cash", delta: 0, staminaDelta: 25 } },
+  { id: "义士来投", tier: "好运", tags: ["名将"], weight: 0.8, text: "名将慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
   { id: "窖藏现世", tier: "好运", tags: ["珍宝"], weight: 0.8, text: "掘地三尺,挖出前朝窖藏", effect: { kind: "grantTreasure" } },
   { id: "传檄而定", tier: "好运", tags: ["城池"], weight: 0.2, text: "檄文所至,一座无主城望风归降", effect: { kind: "grantCity", fallbackCash: 300 } },
   { id: "敌营哗变", tier: "好运", tags: ["银两", "玩家"], weight: 0.8, text: "敌营哗变,士卒携粮来投", effect: { kind: "siphon", amount: 150 } },
@@ -63,10 +70,10 @@ export const ENCOUNTERS: EncounterDef[] = [
     ],
   },
   {
-    id: "以宝换贤", tier: "中性", tags: ["珍宝", "武将"], weight: 0.8,
-    text: "名士遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,贤士即刻来投。",
+    id: "以宝换贤", tier: "中性", tags: ["珍宝", "名将"], weight: 0.8,
+    text: "名将遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,名将即刻来投。",
     choices: [
-      { text: "以两件珍宝换 1 武将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+      { text: "以两件珍宝换 1 名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
       { text: "婉言相拒(无事发生)", repDelta: 0 },
     ],
   },
@@ -78,10 +85,28 @@ export const ENCOUNTERS: EncounterDef[] = [
       { text: "结盟互市(你与随机对手各 +100 两,国库出)", repDelta: 0, effect: { kind: "trade", amount: 100 } },
     ],
   },
+  {
+    // 体力抉择(#132):入浴回血(选项级 staminaDelta +30)/ 不去无事。
+    id: "温泉疗养", tier: "中性", tags: ["银两", "体力"], weight: 0.8,
+    text: "行军途中遇温泉,水汽氤氲。付 150 两全军入浴休整,人困马乏尽去(体力 +30);亦可赶路要紧,不入。",
+    choices: [
+      { text: "付 150 两入浴(+30 体力)", repDelta: 0, effect: { kind: "cash", delta: -150 }, staminaDelta: 30 },
+      { text: "不去(无事发生)", repDelta: 0 },
+    ],
+  },
+  {
+    // 体力抉择(#132):连夜赶路得银耗体力(选项级 staminaDelta −20)/ 安营无事。
+    id: "夜行军", tier: "中性", tags: ["银两", "体力"], weight: 0.8,
+    text: "斥候探得邻镇粮价飞涨。连夜赶路可抢先售粮(+150 两),将士疲于奔命(体力 −20);或安营扎寨,从长计议。",
+    choices: [
+      { text: "连夜赶路(+150 两,体力 −20)", repDelta: 0, effect: { kind: "cash", delta: 150 }, staminaDelta: -20 },
+      { text: "安营扎寨(无事发生)", repDelta: 0 },
+    ],
+  },
   // ── 霉运 ──
-  { id: "粮道被劫", tier: "霉运", tags: ["银两"], weight: 1, text: "粮道遭山贼劫掠,损失折银 250 两", effect: { kind: "cash", delta: -250 } },
-  { id: "漕船倾覆", tier: "霉运", tags: ["银两"], weight: 1, text: "漕船江心倾覆,白银落水", effect: { kind: "cash", delta: -200 } },
-  { id: "假道征粮", tier: "霉运", tags: ["银两", "玩家"], weight: 0.8, text: "邻镇诸侯假道征粮,你被迫输银 150 两", effect: { kind: "levy", amount: 150 } },
+  { id: "粮道被劫", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "粮道遭山贼劫掠,损失折银 250 两", effect: { kind: "cash", delta: -250, staminaDelta: -25 } },
+  { id: "漕船倾覆", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "漕船江心倾覆,白银落水", effect: { kind: "cash", delta: -100, staminaDelta: -20 } },
+  { id: "假道征粮", tier: "霉运", tags: ["银两", "玩家", "体力"], weight: 0.8, text: "邻镇诸侯假道征粮,你被迫输银 50 两", effect: { kind: "levy", amount: 50, staminaDelta: -15 } },
 ];
 
 export interface EncounterBaseRates {
