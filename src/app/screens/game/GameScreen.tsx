@@ -70,7 +70,7 @@ export function GameScreen() {
             type="button"
             data-testid={TESTIDS.notStartedBack}
             onClick={() => back("setup")}
-            className="mt-6 rounded-lg border border-gold bg-gold/80 px-8 py-3 font-brush text-xl tracking-[0.3em] text-ink hover:bg-gold cursor-pointer"
+            className="ink-btn mt-6 rounded-[5px] px-8 py-3 font-brush text-xl tracking-[0.3em] cursor-pointer"
           >
             回到首页
           </button>

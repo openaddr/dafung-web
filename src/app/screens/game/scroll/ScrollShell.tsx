@@ -235,7 +235,8 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             aria-hidden="true"
             className="flex h-[22px] w-[22px] flex-none rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[14px] leading-none text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]"
           >
-            {title.slice(0, 1)}
+            {/* 题印取题名首个汉字:详情卷轴题名带「」引号,直取首字会把括号钤进印里 */}
+            {title.match(/\p{Script=Han}/u)?.[0] ?? title.slice(0, 1)}
           </span>
           <h2
             data-testid={T.scrollTitle}

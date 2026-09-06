@@ -143,21 +143,28 @@ HUD 是案头笺纸——手札、签筒、印匣,一切数字皆墨书;
 - **朱印(danger)**:印章、破产、危险、不可逆确认。朱=权与险。
 - **金(gold/goldBright)**:轮次光环、选中态、金印(都/起/胜)。金=势,不再当按钮底。
 - **笺钮(panel 底 + inkHair 边)**:次级动作/工具。
-- 圆角收敛:面板 8px(lg)、控件 5px(md)、印/章 2px(sm)——器物更挺括。
+- 圆角收敛:面板 8px、主控件 5px、小控件/输入 3px、印/章 2px——器物更挺括。
 - 投影统一墨褐:`0 2px 8px rgba(43,35,23,.18)`(面板)/`0 10px 30px rgba(43,35,23,.35)`(弹层)。
 
 ### 4.3 字体与素材策略
 - 字体四套沿用离线子集(public/fonts/),消费口径:
   - `font-brush`(马善政):屏标题、城名、横幅、卷轴题、骰签。
-  - `font-deco`(站酷小薇):笺头标签、按钮次级、表头、小注。
-  - `font-wenkai`(霞鹜文楷):正文默认(body 已挂),数字挂 `tabular-nums`。
+  - `font-wenkai`(霞鹜文楷):正文默认(body 已挂)、**新 UI 文案的安全位**、
+    笺头标签、数字挂 `tabular-nums`。
+  - `font-deco`(站酷小薇):**存量**小注/表头维持;新文案不可裸排(见下)。
   - `font-hand`(龙藏):国号输入等手书点缀。
-- **符号字形修复(审计 V4)**:箭头类符号(← ↶ ↷ ◎ ♪ ×)一律不在 brush/deco 字族内
-  裸排——新建 `Sym` 组件用内联 SVG 渲染(ui-symbols.md 的符号表升级为 SVG 版),
-  任何字体栈下都不再出 tofu。
-- **名士头像兜底(审计 V5)**:头像 `onError` 换「单字印」占位(姓氏单字朱文印),
-  破图永不露脸。
-- 素材零新增下载: textures/ 三件(宣纸/千里江山/溪山清远)已入库登记,本次只改用法。
+- ⚠ **字体安全规约(实测教训)**:ZCOOL XiaoWei 离线镜像存在「空芯字形」——
+  回(U+56DE)/圃/圄/圊 四个囗部字在 woff2 里是实心方块(全量扫描报告
+  tmp/font-scan-report.json;马善政/文楷/龙藏无缺)。已把四码位从 fonts.css 对应
+  分片的 unicode-range 剔除令其回退楷体(fonts.css 头注有记,重生成镜像前勿整表覆盖)。
+  **在镜像修复前,新增 UI 文案一律 font-wenkai 或 font-brush。**
+- **符号字形修复(审计 V4)**:箭头类符号(← ↶ ↷ ◎ ♪ × ▶)一律不在 brush/deco 字族内
+  裸排——`Sym` 组件(src/app/screens/shared/Sym.tsx)用内联 SVG 渲染
+  (ui-symbols.md 符号表的 SVG 化),任何字体栈下不再出 tofu。
+- **名士头像兜底(审计 V5)**:空路径/加载失败 → 「姓氏单字朱印 + 画像未至」占位
+  (空 src 不触发 onError,必须显式判空——三处画像位同口径)。
+- 素材:xuan-paper.jpg(实为展厅照片)退役删除;千里江山(首页横带+胜利屏)、
+  溪山清远(棋盘远景带)两件 PD 古画承担全部「画」的职能,宣纸肌理由程序化噪点承担。
 
 ### 4.4 材质(app.css)
 - **纸纹**:xuan-paper.jpg 平铺尺寸 960→**460px**(细密化,读作纤维不是照片),
@@ -217,17 +224,22 @@ HUD 是案头笺纸——手札、签筒、印匣,一切数字皆墨书;
   (a) 常驻呼吸 (b) 状态样式。新增动效前先问「事件从哪来」。
 - reduced-motion:全局兜层已有,新增 infinite 动画必须登记进对应兜底列表。
 
-## 7. 前后对比(施工中补充)
+## 7. 前后对比(改造前 = master 基线,改造后 = 本分支;截图经 __dafung 钩子构造同等局面)
 
 | 屏 | 前 | 后 |
 |---|---|---|
-| 首页 | ![before](../../../tmp/ui-shots/audit-before/b01-home.png) | 待补 |
-| 单机配置 | ![before](../../../tmp/ui-shots/audit-before/b02-setup.png) | 待补 |
-| 联机大厅 | ![before](../../../tmp/ui-shots/audit-before/b03-lobby.png) | 待补 |
-| 对局全景 | ![before](../../../tmp/ui-shots/audit-before/b04-game-overview.png) | 待补 |
-| 城池拉近 | ![before](../../../tmp/ui-shots/audit-before/b05-game-zoom.png) | 待补 |
-| 城池详情 | ![before](../../../tmp/ui-shots/audit-before/b06-tile-detail.png) | 待补 |
-| 招贤卷轴 | ![before](../../../tmp/ui-shots/audit-before/b08-hero-scroll.png) | 待补 |
-| 破产卷轴 | ![before](../../../tmp/ui-shots/audit-before/b10-bankruptcy.png) | 待补 |
-| 胜利屏 | ![before](../../../tmp/ui-shots/audit-before/b11-victory.png) | 待补 |
-| 编辑器 | ![before](../../../tmp/ui-shots/audit-before/b12-editor.png) | 待补 |
+| 首页 | ![before](../../tmp/ui-shots/audit-before/b01-home.png) | ![after](../../tmp/ui-shots/audit-after/b01-home.png) |
+| 单机配置 | ![before](../../tmp/ui-shots/audit-before/b02-setup.png) | ![after](../../tmp/ui-shots/audit-after/b02-setup.png) |
+| 联机大厅 | ![before](../../tmp/ui-shots/audit-before/b03-lobby.png) | ![after](../../tmp/ui-shots/audit-after/b03-lobby.png) |
+| 对局全景 | ![before](../../tmp/ui-shots/audit-before/b04-game-overview.png) | ![after](../../tmp/ui-shots/audit-after/b04-game-overview.png) |
+| 城池拉近 | ![before](../../tmp/ui-shots/audit-before/b05-game-zoom.png) | ![after](../../tmp/ui-shots/audit-after/b05-game-zoom.png) |
+| 城池详情 | ![before](../../tmp/ui-shots/audit-before/b06-tile-detail.png) | ![after](../../tmp/ui-shots/audit-after/b06-tile-detail.png) |
+| 招贤卷轴 | ![before](../../tmp/ui-shots/audit-before/b08-hero-scroll.png) | ![after](../../tmp/ui-shots/audit-after/b08-hero-scroll.png) |
+| 机遇卷轴 | ![before](../../tmp/ui-shots/audit-before/b09-encounter-scroll.png) | ![after](../../tmp/ui-shots/audit-after/b09-encounter-scroll.png) |
+| 破产卷轴 | ![before](../../tmp/ui-shots/audit-before/b10-bankruptcy.png) | ![after](../../tmp/ui-shots/audit-after/b10-bankruptcy.png) |
+| 胜利屏 | ![before](../../tmp/ui-shots/audit-before/b11-victory.png) | ![after](../../tmp/ui-shots/audit-after/b11-victory.png) |
+| 编辑器 | ![before](../../tmp/ui-shots/audit-before/b12-editor.png) | ![after](../../tmp/ui-shots/audit-after/b12-editor.png) |
+| 骰子签面 | ![before](../../tmp/ui-shots/audit-before/b14-dice-sign.png) | ![after](../../tmp/ui-shots/audit-after/b14-dice-sign.png) |
+
+> tmp/ 不入库:对比图以本表为索引,提交前可由 `tmp/audit-shots.mjs` 分别对
+> master(worktree)与本分支重拍再生成(SHOT_BASE/SHOT_OUT 环境变量)。
