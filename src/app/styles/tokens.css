@@ -1,21 +1,24 @@
 /* ⚠️ 自动生成,勿手改 — 来源 src/core/theme.ts(Theme + Motion),运行 `bun run gen:theme` 再生成 */
 @theme {
-  --color-bg: #e8dcc0;
-  --color-bg-deep: #d9c9a3;
-  --color-panel: #f2e8cf;
-  --color-panel-hi: #e0d3ac;
-  --color-paper-hi: #f7ecd0;
-  --color-paper-lo: #ecdcb4;
+  --color-bg: #eae0c6;
+  --color-bg-deep: #dccfa9;
+  --color-panel: #f4ecd8;
+  --color-panel-hi: #e6d9b4;
+  --color-paper-hi: #faf3df;
+  --color-paper-lo: #eee0bc;
   --color-ink: #2b2317;
-  --color-ink-dim: #6b5d40;
+  --color-ink-dim: #6f6146;
+  --color-lacquer: #332a1e;
+  --color-lacquer-gold: #d9b95c;
   --color-gold: #c8a13a;
   --color-gold-bright: #d4af37;
+  --color-gold-deep: #8a6a1c;
   --color-money: #4a7a4a;
   --color-danger: #b23a2e;
   --color-success: #059669;
   --color-seal-qing: #3f6a6b;
-  --color-road-main: #8a6a3f;
-  --color-road-side: #c47a2a;
+  --color-road-main: #7a5c38;
+  --color-road-side: #b5713a;
   --color-inkwash: #9c8a5e;
   --color-group-a: #8a5a3a;
   --color-group-b: #3a6a8a;

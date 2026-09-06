@@ -155,14 +155,6 @@
     "fetched_at": "2026-08-04",
     "review_required": true
   },
-  "texture:xuan-paper": {
-    "path": "assets/textures/xuan-paper.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Xuan_Paper_(9974330385).jpg",
-    "license": "CC0",
-    "author": "Wikimedia Commons",
-    "fetched_at": "2026-08-30",
-    "review_required": false
-  },
   "icon:two-coins": {
     "path": "assets/icons/two-coins.svg",
     "source": "https://game-icons.net/1x1/delapouite/two-coins.html",
