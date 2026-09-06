@@ -55,10 +55,12 @@ function Portrait({ src, alt }: { src: string | null; alt: string }) {
     <div className={`${PORTRAIT_FRAME} ${PORTRAIT_RATIO}${photoTone}`} data-testid={TESTIDS.cardDetailPortrait}>
       {src === null ? (
         <TreasurePattern />
-      ) : failed ? (
+      ) : failed || src === "" ? (
         <div className="flex h-full w-full flex-col items-center justify-center gap-1 text-ink-dim">
-          <span className="font-brush text-lg">像</span>
-          <span className="text-xs">画像缺失</span>
+          <span className="flex h-9 w-9 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-lg leading-none text-[#f6ead6]">
+            {alt.slice(0, 1)}
+          </span>
+          <span className="text-xs">画像未至</span>
         </div>
       ) : (
         <img src={src} alt={alt} onError={() => setFailed(true)} className="h-full w-full object-cover mix-blend-multiply" draggable={false} />

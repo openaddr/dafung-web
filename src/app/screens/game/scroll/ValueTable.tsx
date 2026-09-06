@@ -21,7 +21,7 @@ export function ValueTable({
   highlight?: { level: number; label: string };
 }) {
   return (
-    <div className="mx-auto mb-3 max-w-[360px] overflow-hidden rounded border border-gold/40 text-sm">
+    <div className="mx-auto mb-3 max-w-[360px] overflow-hidden rounded-[3px] border border-[rgba(43,35,23,0.25)] text-sm">
       <div className="flex bg-panel-hi/60 font-brush text-ink">
         <span className="flex-1 px-2 py-1">等级</span>
         <span className="flex-1 px-2 py-1 text-right">城池价值</span>
@@ -32,14 +32,14 @@ export function ValueTable({
           <div
             key={i}
             className={
-              "flex border-t border-gold/25 text-ink-dim" +
-              (hit ? " bg-[rgba(200,161,58,0.12)] border-l-2 border-l-gold text-ink" : "")
+              "flex border-t border-[rgba(43,35,23,0.16)] text-ink-dim" +
+              (hit ? " bg-[rgba(200,161,58,0.14)] border-l-2 border-l-gold text-ink" : "")
             }
           >
             <span className="flex-1 px-2 py-1">Lv.{i}</span>
-            <span className="flex-1 px-2 py-1 text-right text-ink">{formatMoney(value)}</span>
+            <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">{formatMoney(value)}</span>
             {hit && (
-              <span className="self-center pr-2 whitespace-nowrap font-deco text-[10px] text-gold">
+              <span className="self-center pr-2 whitespace-nowrap font-deco text-[10px] text-gold-deep">
                 {highlight.label}
               </span>
             )}

@@ -4,6 +4,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
+import { Sym } from "@app/screens/shared/Sym";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** #15(E3)拖拽 clamp:壳体标题栏恒留视口 ≥60px,任意猛拖拖不丢。 */
@@ -70,8 +71,8 @@ export function ScrollButton({
       title={title}
       className={
         (primary
-          ? "relative cursor-pointer rounded border-2 border-gold bg-gradient-to-b from-gold/45 to-gold/25 px-5 py-2.5 font-brush text-[17px] text-ink shadow-[inset_0_1px_0_rgba(255,244,214,0.5),0_2px_8px_rgba(60,40,10,0.22)] transition-colors hover:from-gold/60 hover:to-gold/35 disabled:cursor-not-allowed disabled:opacity-40"
-          : "relative cursor-pointer rounded border border-gold/60 bg-panel-hi px-4 py-2 font-brush text-[15px] text-ink transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
+          ? "ink-btn relative cursor-pointer rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
+          : "note-btn relative cursor-pointer rounded-[5px] px-4 py-2 font-brush text-[15px] transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
         (shortcut != null ? " pr-5" : "")
       }
     >
@@ -191,7 +192,7 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
 
   return (
     <div
-      className={`scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]${
+      className={`scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]${
         exiting ? " scroll-anim-overlay-out" : ""
       }`}
       aria-hidden={exiting || undefined}
@@ -204,19 +205,38 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
       <div
         ref={bodyRef}
         data-testid={testid ?? T.scrollShell}
-        className={`relative flex max-h-[86dvh] flex-col rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)] ${
+        className={`relative flex max-h-[86dvh] flex-col rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[var(--ink-shadow-lg)] ${
           exiting ? "scroll-anim-rollback" : "scroll-anim-unroll"
         } ${width === "lg" ? "max-w-[560px]" : "max-w-[460px]"}`}
       >
+        {/* 挂轴双杆(视觉重做 v2 签名件):上下漆木卷杆横出炉身两侧,端头露木色轴头——
+            「这是卷轴」的器物语言一眼可读。纯装饰层,不参与拖拽/命中。 */}
+        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+        </div>
+        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -bottom-2.5 z-10 flex h-[17px] items-center">
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
+          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
+        </div>
         {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
-            压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。 */}
+            压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。
+            题签制式(视觉重做 v2):题首单字钤朱砂方印 + 笔书题名,金饰退为一条发丝线。 */}
         <div
-          className="relative -mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center rounded-t-sm border-b-2 border-[rgba(140,110,60,0.35)] bg-gradient-to-b from-gold/15 to-gold/[0.03] px-7 pb-2.5 pt-3"
+          className="relative -mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center gap-2.5 border-b border-[rgba(140,110,60,0.4)] px-7 pb-2.5 pt-3"
           onPointerDown={onPointerDown}
           onPointerMove={onPointerMove}
           onPointerUp={endDrag}
           onPointerCancel={endDrag}
         >
+          <span
+            aria-hidden="true"
+            className="flex h-[22px] w-[22px] flex-none rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[14px] leading-none text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]"
+          >
+            {title.slice(0, 1)}
+          </span>
           <h2
             data-testid={T.scrollTitle}
             className="m-0 font-brush text-[26px] tracking-[4px] text-ink"
@@ -237,9 +257,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             >
               <span
                 aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-gold/40 text-[26px] leading-none text-ink-dim transition-colors group-hover:bg-gold/15 group-hover:text-ink"
+                className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(43,35,23,0.35)] text-ink-dim transition-colors group-hover:bg-[rgba(43,35,23,0.08)] group-hover:text-ink"
               >
-                ×
+                <Sym name="close" size={13} />
               </span>
             </button>
           )}
@@ -253,11 +273,6 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
           {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
               也不溢出,结算等尾部按钮恒可达。 */}
           <div className="min-h-0 overflow-y-auto">{children}</div>
-          {/* #91 下轴:纸身底缘的深金细条,随纸身 scaleY 展开自然露出,纯装饰。 */}
-          <div
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-x-0 bottom-0 h-1 bg-[rgba(140,110,60,0.5)]"
-          />
         </div>
       </div>
     </div>

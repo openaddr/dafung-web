@@ -49,9 +49,12 @@ function HeroCard({
       className="flex w-20 shrink-0 cursor-pointer flex-col items-center gap-0.5 rounded border border-gold/40 bg-panel-hi p-1 hover:border-gold hover:bg-panel"
     >
       <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-sm border border-gold/40 bg-paper-lo outline outline-1 outline-offset-2 outline-gold/20 sepia-[.35] saturate-[.85] contrast-[.92]">
-        {failed ? (
-          <span className="absolute inset-0 flex items-center justify-center font-brush text-lg text-ink-dim">
-            像
+        {failed || !hero.image ? (
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+            <span className="flex h-8 w-8 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-base leading-none text-[#f6ead6]">
+              {hero.name.slice(0, 1)}
+            </span>
+            <span className="text-[10px] text-ink-dim">画像未至</span>
           </span>
         ) : (
           <img
