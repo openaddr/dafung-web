@@ -108,7 +108,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const hostInviteLine = "把房间码发给好友，入座即可开局"; // #84:固定首句(发码指引)
   const waitLines = !isHost
     ? ["等待房主开局…", "主公尚在谋划…", "稍安勿躁…"]
-    : ["虚位以待,静候群雄…", "坐等群雄入席…", "广发英雄帖…"];
+    : ["虚位以待，静候群雄…", "坐等群雄入席…", "广发英雄帖…"]; // A4:标点全角统一
   useEffect(() => {
     setWaitIdx(0);
     const t = setInterval(() => setWaitIdx((i) => (i + 1) % waitLines.length), 3000);
@@ -169,6 +169,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
     "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+  // A5:「返回首页」含「回」——XiaoWei 离线镜像缺字形已剔出 fonts.css(回退楷体),deco 下即混排;
+  // 返回类按钮字族落 wenkai(混排红线)。btnBase 单源替换,免抄两份基类。
+  const backBase = btnBase.replace("font-deco", "font-wenkai");
   // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
   const inputBase = "h-10 rounded border border-ink/30 bg-bg px-2 py-2 font-deco text-ink";
 
@@ -177,7 +180,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     return (
       <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6">
         <h1 className="font-brush text-3xl text-ink tracking-widest">房主已解散房间</h1>
-        <button data-testid={LID.back} onClick={onExit} className={btnBase + " ink-btn font-bold"}>
+        <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn font-bold"}>
           返回首页
         </button>
       </div>
@@ -201,9 +204,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">— 群雄逐鹿 —</div>
         {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
         <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5 flex flex-col gap-5">
-          {/* 建房:建房者 = Seat0(host) */}
+          {/* 建房:建房者 = Seat0(host)。A4:分段头入 note-head 制式(印「建」+ wenkai 标签 + 发丝线) */}
           <div className="font-deco text-sm text-ink">
-            <div className="font-brush text-base mb-2">建房</div>
+            <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+              <i>建</i>
+              <span>建房</span>
+            </h3>
             <div className="flex items-center gap-2">
               <div className="flex flex-col gap-1">
                 诸侯数
@@ -265,14 +271,18 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
               空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
           <form
-            className="font-deco text-sm text-ink border-t border-gold/30 pt-4"
+            className="font-deco text-sm text-ink border-t border-[rgba(43,35,23,0.22)] pt-4"
             onSubmit={(e) => {
               e.preventDefault();
               if (busy || !joinCode.trim()) return;
               void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined));
             }}
           >
-            <div className="font-brush text-base mb-2">加入</div>
+            {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
+            <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+              <i>入</i>
+              <span>加入</span>
+            </h3>
             <div className="flex items-center gap-2">
               <input
                 data-testid={LID.joinInput}
@@ -297,7 +307,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           </form>
           {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
           <HintBar hint={hint} level={hintLevel} variant="inline" />
-          <button onClick={onExit} className={btnBase + " note-btn self-start text-sm"}>
+          <button onClick={onExit} className={backBase + " note-btn self-start text-sm"}>
             返回首页
           </button>
         </div>
@@ -316,7 +326,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         if (copyTimerRef.current != null) clearTimeout(copyTimerRef.current);
         copyTimerRef.current = setTimeout(() => setCopied(false), UI.copyFeedbackMs);
       },
-      () => pushHint("复制失败,请手动抄录", "info"),
+      () => pushHint("复制失败，请手动抄录", "info"), // A4:标点全角统一
     );
   };
   return (
@@ -351,8 +361,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         <div className="mt-1 text-center font-deco text-xs text-ink-dim">
           {isHost
             ? needMore
-              ? `${hostInviteLine};${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句
-              : "坐席已满,可开局;点开局后未入座自动 bot 填充。"
+              ? `${hostInviteLine}；${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句(A4:全角分号)
+              : "坐席已满，可开局；点开局后未入座自动 bot 填充。" // A4:标点全角统一
             : waitLines[waitIdx] /* 非 host:轮换等待文案 */}
         </div>
 
@@ -408,7 +418,21 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     </span>
                   )}
                   <span className="text-ink">诸侯 {s.seat + 1}</span>
-                  <span>{seatTag(s, mySeat, host)}</span>
+                  {/* A4:空座位浅印——「空」字位改一枚浅墨小方章「虚」(虚位以待,归墨不归金);
+                      空座位仅 host 离席理论态才带「房主」后缀,保留不吞信息;testid 零变化 */}
+                  {!s.taken ? (
+                    <>
+                      <span
+                        title="虚位以待"
+                        className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-[rgba(43,35,23,0.25)] font-brush text-[11px] leading-none text-ink-dim/70"
+                      >
+                        虚
+                      </span>
+                      {s.seat === host && <span>房主</span>}
+                    </>
+                  ) : (
+                    <span>{seatTag(s, mySeat, host)}</span>
+                  )}
                 </div>
                 {renamed && (
                   <div

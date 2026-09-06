@@ -81,7 +81,8 @@
   stroke-width: 16;
   stroke-linecap: round;
   stroke-linejoin: round;
-  opacity: 0.38;
+  /* W2-包D(审计 A1):0.38→0.5——纸面上更足的墨褐路面,不再发灰;stroke 色不动 */
+  opacity: 0.5;
 }
 .bv-road-branch {
   fill: none;

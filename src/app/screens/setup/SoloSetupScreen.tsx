@@ -28,6 +28,8 @@ import { useMapName } from "./useMapName";
 // X10(#29):原生 select 全退场——小范围数值走 stepper,受限档位走分段选择器(screens/shared)
 import { Stepper } from "@app/screens/shared/Stepper";
 import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
+// W2-包A:details 折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3)
+import { Sym } from "@app/screens/shared/Sym";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
 
@@ -155,23 +157,27 @@ export function SoloSetupScreen({
       {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
       <div className="scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] p-5 mt-4">
         {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-        <div className="font-deco text-sm text-ink-dim mb-1 flex items-center gap-2">
+        <div className="font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
           <span>当前地图:</span>
           <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
           <button
             type="button"
             onClick={() => setShowMapSelect(true)}
-            className="note-btn rounded-[3px] px-2.5 min-h-[32px] font-deco text-xs cursor-pointer transition-colors"
+            className="note-btn rounded-[3px] px-2.5 min-h-[32px] font-wenkai text-xs cursor-pointer transition-colors"
           >
             更换
           </button>
         </div>
         {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-        <p className="font-deco text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
+        <p className="font-wenkai text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
           立国号、定诸侯,起兵逐鹿天下。
         </p>
 
-        <h3 className="font-brush text-lg text-ink tracking-[0.3em] mb-3">开局布阵</h3>
+        {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
+        <h3 className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
+          <i>阵</i>
+          <span>开局布阵</span>
+        </h3>
 
         {/* 诸侯数 / 目标身价 / AI 难度:X10(#29)原生 select 全退场——小范围数值走 stepper,
             受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式) */}
@@ -223,9 +229,17 @@ export function SoloSetupScreen({
               JSON 无注释);数值只做边界校验(触发 0~100 / 三档 ≥0),归一在引擎,和≠100 合法 */}
           <details
             data-testid={TID.encounterToggle}
-            className="rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
+            className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
           >
-            <summary className="cursor-pointer select-none px-2 py-1.5 font-deco text-sm text-ink">
+            {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
+                group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
+                字族落 wenkai(XiaoWei 空芯字形风险,新文案禁用) */}
+            <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-ink [&::-webkit-details-marker]:hidden">
+              <Sym
+                name="expand"
+                size={12}
+                className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
+              />
               机遇(落格触发事件)
             </summary>
             <div className="flex flex-col gap-2 px-2 pb-2">
@@ -238,7 +252,7 @@ export function SoloSetupScreen({
                     ["霉运基准", TID.encounterBad, "bad", 0, Infinity],
                   ] as const
                 ).map(([label, testid, key, min, max]) => (
-                  <label key={testid} className="flex flex-col gap-0.5 font-deco text-xs text-ink-dim">
+                  <label key={testid} className="flex flex-col gap-0.5 font-wenkai text-xs text-ink-dim">
                     <span>{label}</span>
                     <input
                       data-testid={testid}
@@ -250,12 +264,12 @@ export function SoloSetupScreen({
                       onChange={(e) =>
                         setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
                       }
-                      className="min-h-[36px] rounded border border-ink/30 bg-bg px-2 font-deco text-sm text-ink"
+                      className="min-h-[36px] rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
                     />
                   </label>
                 ))}
               </div>
-              <p className="font-deco text-xs text-ink-dim">
+              <p className="font-wenkai text-xs text-ink-dim">
                 默认档位读自 config/jiyu.json(触发 40%,三档 30/45/25)。触发概率为每次落格触发机遇的百分比;
                 三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。
               </p>
@@ -266,7 +280,7 @@ export function SoloSetupScreen({
         {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}
         <div className="flex flex-col gap-1.5">
           {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
-          <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b-2 border-ink/30 pb-1">
+          <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b border-[rgba(43,35,23,0.25)] pb-1">
             <span />
             <span>国号</span>
             <span>类型</span>
@@ -331,15 +345,16 @@ export function SoloSetupScreen({
 
         {/* 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字) */}
         <div className="font-deco text-xs text-ink-dim mt-3 mb-1">字盘快选国号:</div>
-        <div data-testid={TID.guohaoPool} className="flex flex-wrap gap-1.5">
+        <div data-testid={TID.guohaoPool} className="flex flex-wrap gap-1">
           {GUOHAO_POOL.slice(0, 26).map((ch) => (
             <button
               key={ch}
               data-testid={TID.guohaoChar(ch)}
               onClick={() => setGuohao(ch)}
               className={
-                // W5:触屏点击目标 28px→36px(w-9 h-9),字号微调到 text-base 仍保字盘密度
-                "w-9 h-9 rounded border font-deco text-base cursor-pointer transition-colors " +
+                // W2-包A:字盘钮 36px→32px(w-8 h-8)压卡片纵向高度,「起兵」CTA 更易入首屏
+                // (审计裁决:首屏可达优先;触屏 32px 仍可用)
+                "w-8 h-8 rounded border font-deco text-base cursor-pointer transition-colors " +
                 (guohao === ch
                   ? // 选中=钤印:朱砂实底(国号印的预览,与对局内方印同语言)
                     "border-danger bg-danger text-[#f6ead6]"

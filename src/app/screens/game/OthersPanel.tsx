@@ -51,7 +51,13 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             <span className="flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-(--player-color) font-brush text-[11px] leading-none text-[#f6ead6]">
               {p.guohao || "?"}
             </span>
-            <span className={"truncate" + (isActive ? " font-bold" : "")}>
+            {/* W2-包D(审计 A1):右缘硬裁收口——名字与小字组(min-w-0+truncate+title 全文)
+                作为柔性列吸收收窄,右缘只出省略号不出切半字形;现金/「你」/胜/N城 短列
+                shrink-0 恒完整(「你」行多一枚印也只多挤小字组,不丢列)。 */}
+            <span
+              title={`${p.guohao || p.name}${p.isBot ? " 智" : ""}`}
+              className={"min-w-0 truncate" + (isActive ? " font-bold" : "")}
+            >
               {p.guohao || p.name}
               {p.isBot ? " 智" : ""}
             </span>
@@ -86,8 +92,12 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {/* R3-A6(#69):现金与身价之间竖分隔(沿用行 gap 节奏),两组数字分组更醒目 */}
             <span className="h-3 w-px shrink-0 bg-ink/15" />
             {/* G-15:身价小字(netWorth 含地产/珍宝估值,胜负口径;对照现金才有全局财势感)。
-                R3-A6(#69):「身价 」补空格与 HandPanel/StatusBar 同口径;数字 tabular 对齐 */}
-            <span className="shrink-0 text-[10px] font-medium tabular-nums text-ink-dim">
+                R3-A6(#69):「身价 」补空格与 HandPanel/StatusBar 同口径;数字 tabular 对齐。
+                W2-包D:min-w-0+truncate 柔性收窄,title 全文兜底,不再右缘切半。 */}
+            <span
+              title={`身价 ${formatMoney(p.netWorth)} · 声望 ${p.reputation} · 体力 ${p.stamina}`}
+              className="min-w-0 truncate text-[10px] font-medium tabular-nums text-ink-dim"
+            >
               身价 {formatMoney(p.netWorth)} · 声望 {p.reputation} · 体力 {p.stamina}
             </span>
             <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>

@@ -40,7 +40,9 @@ export class LobbyApi {
       body: JSON.stringify(body),
     }).then(async (r) => {
       const j = (await r.json().catch(() => null)) as Record<string, unknown> | null;
-      if (!r.ok || !j?.ok) throw new Error((j?.error as string) ?? `HTTP ${r.status}`);
+      // A4:兜底文案中文化;保留「HTTP ${status}」子串——REST 契约用例(e2e 满员 409)与
+      // 既有日志口径仍可按状态码检索;服务器自带 error message 原样透传,不包壳。
+      if (!r.ok || !j?.ok) throw new Error((j?.error as string) ?? `服务器连接失败(HTTP ${r.status})`);
       return j;
     });
   }

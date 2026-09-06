@@ -8,6 +8,7 @@ import { getMapSource } from "@app/map-sources";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
+import { Sym } from "@app/screens/shared/Sym";
 import { HOME_TID } from "./testids";
 import "./home.css";
 
@@ -44,8 +45,9 @@ export function HomeScreen({
   // H-3 tracking 尾部溢出:大字距末字后拖 0.3em 空白致文本视觉偏左,
   // 左内边距补偿同量(pl 用唯一 utility,避免与 px 的 padding-left 冲突)。
   // 视觉重做 v2:主入口(单机)走墨钮 ink-btn 种,其余笺纸 note-btn——墨=落子无悔。
+  // W2 包E(审计 A3):圆角归主控件档 5px(墨钮/笺钮同档,rounded-lg 8px 超档)。
   const btnBase =
-    "home-btn-brush rounded-lg border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] cursor-pointer transition-colors";
+    "home-btn-brush rounded-[5px] border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] cursor-pointer transition-colors";
   const entries: Array<{
     tid: string;
     label: string;
@@ -119,15 +121,17 @@ export function HomeScreen({
         ))}
       </div>
 
-      {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink) */}
+      {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink)。
+          W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
+          (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */}
       <button
         type="button"
         onClick={() => setShowMapSelect(true)}
-        className="font-deco text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer rounded px-2 py-1 hover:bg-panel-hi transition-colors"
+        className="note-btn rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
       >
         <span className="text-ink-dim">当前地图:</span>
         <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
-        <span className="text-ink-dim text-xs">▾</span>
+        <Sym name="expand" size={11} className="text-ink-dim" />
       </button>
 
       {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关) */}
