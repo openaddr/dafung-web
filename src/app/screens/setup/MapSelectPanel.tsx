@@ -61,7 +61,7 @@ function MiniMap({ data }: { data: MapData }) {
     <svg
       data-testid={TID.mapPreview}
       viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className="w-full max-h-[40vh] rounded-md bg-bg border border-ink/20"
+      className="w-full max-h-[40vh] rounded-[3px] bg-bg border border-ink/20"
       role="img"
       aria-label="地图预览"
     >
@@ -72,7 +72,7 @@ function MiniMap({ data }: { data: MapData }) {
         return (
           <g key={i}>
             <circle cx={q.x} cy={q.y} r={7} fill="var(--color-panel)" stroke="var(--color-ink-dim)" strokeWidth={2} />
-            <text x={q.x} y={q.y + 4} textAnchor="middle" fontSize={11} fill="var(--color-ink)" fontFamily="var(--font-deco)">
+            <text x={q.x} y={q.y + 4} textAnchor="middle" fontSize={11} fill="var(--color-ink)" fontFamily="var(--font-wenkai)">
               {p.name.slice(0, 1)}
             </text>
           </g>
@@ -161,25 +161,32 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
       <div
         ref={panelRef}
         onClick={(e) => e.stopPropagation()}
-        // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)
-        className="scroll-anim-unroll w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-lg border border-gold/60 bg-panel p-5 shadow-2xl"
+        // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)。
+        // W2-包A:换皮入控件种——note-card 笺纸材质(墨褐发丝边),弹层投影走
+        // --ink-shadow-lg(DESIGN §4.2 弹层档;note-card 默认 sm 是非分层样式会压过
+        // 分层 utilities,故加 ! 钉住 lg)。宽度/定位/内滚不动。
+        className="scroll-anim-unroll note-card w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
       >
-        <h3 className="font-brush text-xl tracking-[0.3em] text-ink mb-3">选择地图</h3>
+        {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
+        <h3 className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
+          <i>图</i>
+          <span>选择地图</span>
+        </h3>
 
-        {!entries && !error && <p className="font-deco text-ink-dim py-6">载入地图清单…</p>}
+        {!entries && !error && <p className="font-wenkai text-ink-dim py-6">载入地图清单…</p>}
         {error && (
           <div className="flex items-center gap-3 py-2">
             <p className="text-danger text-sm">加载失败:{error}</p>
             {/* S-4:失败态提供重试(重新 listMaps) */}
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="rounded border border-ink/30 bg-panel-hi px-4 min-h-[40px] font-deco text-ink cursor-pointer hover:bg-bg-deep"
+              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-ink cursor-pointer"
             >
               重试
             </button>
           </div>
         )}
-        {entries && entries.length === 0 && <p className="font-deco text-ink-dim py-6">暂无可用地图。</p>}
+        {entries && entries.length === 0 && <p className="font-wenkai text-ink-dim py-6">暂无可用地图。</p>}
 
         {entries && entries.length > 0 && (
           <>
@@ -193,15 +200,16 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                     onClick={() => pick(e)}
                     // S-9:选中态语义化(切换语义用 aria-pressed 而非 aria-selected)
                     aria-pressed={selected}
+                    // W2-包A:小控件圆角收敛 3px(DESIGN §4.2);选中=势(金)语义保留
                     className={
-                      "text-left rounded-lg border px-3 py-2.5 transition-colors cursor-pointer " +
+                      "text-left rounded-[3px] border px-3 py-2.5 transition-colors cursor-pointer " +
                       (selected
                         ? "border-gold bg-gold/15"
                         : "border-ink/25 bg-bg/60 hover:border-gold/60")
                     }
                   >
                     <div className="flex justify-between items-baseline gap-2">
-                      <span className="font-deco text-[15px] font-bold text-ink">
+                      <span className="font-wenkai text-[15px] font-bold text-ink">
                         {e.name}
                         {e.custom ? <span className="ml-2 text-xs text-ink-dim">自建</span> : null}
                       </span>
@@ -218,7 +226,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
             {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽 */}
             {(previewLoading || preview) && (
               <div className="mt-3 border-t border-dashed border-ink/25 pt-3">
-                {previewLoading && <p className="font-deco text-xs text-ink-dim py-2">预览加载中…</p>}
+                {previewLoading && <p className="font-wenkai text-xs text-ink-dim py-2">预览加载中…</p>}
                 {preview && !previewLoading && <MiniMap data={preview.data} />}
               </div>
             )}
@@ -227,7 +235,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="rounded border border-ink/30 bg-panel-hi px-4 py-2 font-deco text-ink cursor-pointer hover:bg-bg-deep"
+                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-ink cursor-pointer"
               >
                 取消
               </button>
@@ -239,7 +247,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                className="ink-btn rounded-[5px] px-4 py-2 font-deco cursor-pointer disabled:opacity-40"
+                className="ink-btn rounded-[5px] px-4 py-2 font-wenkai cursor-pointer disabled:opacity-40"
               >
                 确认选择
               </button>
