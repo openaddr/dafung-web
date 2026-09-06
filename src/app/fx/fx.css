@@ -17,7 +17,8 @@
   inset: 0;
   z-index: 45;
   pointer-events: none;
-  background: radial-gradient(ellipse at center, rgba(40, 30, 15, 0.35), rgba(20, 15, 5, 0.6));
+  /* 视觉重做 v2:压暗口径与卷轴遮罩同族(墨褐 30,23,12),四角更深——与全局案头晕影同语 */
+  background: radial-gradient(ellipse at center, rgba(30, 23, 12, 0.38), rgba(18, 13, 6, 0.62));
   animation: dice-overlay-in var(--dur-med) var(--ease-out);
 }
 @keyframes dice-overlay-in {
@@ -104,7 +105,7 @@
   fill: var(--color-gold-bright);
   stroke: rgba(40, 28, 10, 0.7);
   stroke-width: 1.5;
-  filter: drop-shadow(0 0 4 var(--color-gold-bright));
+  filter: drop-shadow(0 0 4px var(--color-gold-bright));
 }
 .fx-svg-coin text {
   font-family: var(--font-brush);

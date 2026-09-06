@@ -674,7 +674,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
         width={104}
         height={88}
         rx={10}
-        fill={ownerRgb ? rgba(shade(ownerRgb, 0.58), 0.92) : "rgba(247,236,208,0.92)"}
+        fill={ownerRgb ? rgba(shade(ownerRgb, 0.58), 0.92) : "rgba(250,243,223,0.92)"}
         fillOpacity={ownerRgb ? 0.92 : 1}
         stroke={
           state.isActive
