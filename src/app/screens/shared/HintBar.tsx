@@ -3,6 +3,7 @@
 // 不同屏的样式、存活时长都不一样(1.5s/1.8s/永不过期)——评审 F4 的「三套口径」。
 // 过期逻辑已下沉到 store(1.8s 单一定时器),本组件只管「长什么样」:
 // error = 红底白字 chip(醒目,失败类提示);info = 原灰面板样式(轻提示)。
+// W2 包E(审计 A5):hint 是运行时动态文案,字族迁 wenkai(新文案不落小薇)。
 import { TESTIDS } from "@app/screens/game/testids";
 
 export interface HintBarProps {
@@ -20,7 +21,7 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
     return (
       <div
         data-testid={TESTIDS.hint}
-        className={"text-center font-deco text-xs " + (level === "error" ? "text-danger" : "text-ink-dim")}
+        className={"text-center font-wenkai text-xs " + (level === "error" ? "text-danger" : "text-ink-dim")}
       >
         {hint}
       </div>
@@ -33,7 +34,7 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
       data-testid={TESTIDS.hint}
       className={
         "pointer-events-none absolute top-[calc(var(--safe-top)+12px)] left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
-        (level === "error" ? "bg-danger/95 text-white font-deco" : "bg-panel/95 text-ink font-deco")
+        (level === "error" ? "bg-danger/95 text-white font-wenkai" : "bg-panel/95 text-ink font-wenkai")
       }
     >
       {hint}
