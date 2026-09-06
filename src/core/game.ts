@@ -1523,6 +1523,7 @@ export class GameEngine {
       case "endDecision": return this.endDecision();
       case "resolveHeroPick": return this.resolveHeroPick(cmd.index);
       case "resolveEncounterChoice": return this.resolveEncounterChoice(cmd.index);
+      case "resolveExhaustionChoice": return this.resolveExhaustionChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
       case "sellTreasureBankruptcy": return this.sellTreasureBankruptcy(cmd.treasureId);
