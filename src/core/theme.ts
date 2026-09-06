@@ -40,7 +40,8 @@ export const Theme = {
   goldDeep: hex("8a6a1c"), // 熟金(纸底金字可读档,对比 ≥4.5:1)
   money: hex("4a7a4a"), // 青绿(收入)
   danger: hex("b23a2e"), // 朱砂(印章/扣减/税/破产)
-  success: hex("059669"), // 在线/成功(原 emerald-600,收编进单源)
+  // 在线/成功(审计 A4:「在线」小字于笺面 3.2:1 不达 AA → 加深一档至 ≈4.8:1)
+  success: hex("0b7a52"),
   sealQing: hex("3f6a6b"), // 黛青(次级印章,中性事件)
 
   // 驿道
