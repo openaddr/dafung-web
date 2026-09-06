@@ -178,7 +178,7 @@ export function promptFor(
     case "AwaitingDecision":
       return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
     case "AwaitingHeroPick":
-      return `${who} 招贤纳士:选名士(cmd {"type":"resolveHeroPick","index":0..2})`;
+      return `${who} 招贤纳士:选名将(cmd {"type":"resolveHeroPick","index":0..2})`;
     case "AwaitingTreasureOwner":
       return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":
@@ -258,7 +258,7 @@ export function autoResolveBots(e: GameEngine): { reason: BotStopReason; steps: 
   return { reason: botOwnsDecision(e) ? "idle" : "human", steps };
 }
 
-/** 廉价状态指纹:相位 + active + 选都进度 + 各玩家现金/珍宝/城/名士计数。任何真实进展都会改变它。 */
+/** 廉价状态指纹:相位 + active + 选都进度 + 各玩家现金/珍宝/城/名将计数。任何真实进展都会改变它。 */
 function fingerprint(e: GameEngine): string {
   return [
     e.phase,

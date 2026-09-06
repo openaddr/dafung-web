@@ -12,7 +12,7 @@ test("侧栏抽屉折叠:收起成窄条(竖排摘要)并可展开还原", async
   await expect(rail).toContainText("之回合");
   await expect(rail).toContainText(/锭|两/);
   await expect(page.getByTestId("hand-panel")).toBeHidden();
-  // 展开:四区还原(L48:战报区已移除,珍宝·名士区接管腾位)
+  // 展开:四区还原(L48:战报区已移除,珍宝·名将区接管腾位)
   await page.getByTestId("sidebar-toggle").click();
   await expect(page.getByTestId("hand-panel")).toBeVisible();
   await expect(page.getByTestId("treasury-panel")).toBeVisible();
@@ -48,7 +48,7 @@ test.describe("8 人局矮视口", () => {
       await expect(row).toBeInViewport({ ratio: 0.9 });
     }
     await expect(page.getByTestId("sidebar-toggle")).toBeInViewport();
-    // TreasuryPanel min-h-24 保底:珍宝·名士区不被诸侯列表挤没
+    // TreasuryPanel min-h-24 保底:珍宝·名将区不被诸侯列表挤没
     const treasury = await page.getByTestId("treasury-panel").boundingBox();
     expect(treasury?.height ?? 0).toBeGreaterThanOrEqual(96);
 

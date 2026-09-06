@@ -138,7 +138,7 @@ describe("选项集注册表(choices.ts)", () => {
     expect(opts.every((o) => o.available)).toBe(true);
   });
 
-  it("招贤:每位候选名士一选项(三选一)", () => {
+  it("招贤:每位候选名将一选项(三选一)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.offeredHeroes = HEROES.slice(0, 3);

@@ -12,7 +12,7 @@ test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
   await scroll.getByRole("button").nth(1).click();
   await expect(scroll).toBeHidden();
-  // 选中的名士入手(战报或手牌区可见名字);快照候选清空
+  // 选中的名将入手(战报或手牌区可见名字);快照候选清空
   // e2e 编译上下文看不到 src/app 的全局声明,evaluate 内以 any 访问调试钩子
   const snap = await page.evaluate(() => (window as any).__dafung.snapshot());
   expect(snap.offeredHeroes).toHaveLength(0);

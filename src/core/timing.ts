@@ -57,7 +57,7 @@ export type GameMoment =
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
-  /** 招贤后:resolveHeroPick 选定名士(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
+  /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
   | "HeroRecruited"
   /** 得宝后:拼点得宝 drawTreasureAt 成功 + escrow 交割买家得宝,两处。ctx.treasureId。subject = 得宝者。 */
   | "TreasureGained"
@@ -75,9 +75,9 @@ export type GameMoment =
   /** 玩家被动失去银两(细粒度):税/交涉付款/随机事件损失等非自愿支出(主动买城不算)。subject = 失财者。 */
   | "CashLost"
   // ── 破产与终局结算 ──
-  /** 玩家破产出局:finalizeBankruptcy 尾(名士已释放、资产已转债主)。subject = 破产者。 */
+  /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
   | "PlayerBankrupt"
-  /** 破产每笔变卖后:变卖珍宝/变卖城池/遣散名士三个命令成功尾(变卖自救进行中,结局未定)。
+  /** 破产每笔变卖后:变卖珍宝/变卖城池/遣散名将三个命令成功尾(变卖自救进行中,结局未定)。
    *  ctx.amount = 变卖所得。subject = 变卖者。 */
   | "BankruptcySettle";
 
@@ -103,7 +103,7 @@ export interface MomentCtx {
   propertyId?: string;
   /** 涉事珍宝 id(TreasureGained/TreasureSold)。 */
   treasureId?: string;
-  /** 涉事名士 id(HeroRecruited)。 */
+  /** 涉事名将 id(HeroRecruited)。 */
   heroId?: string;
 }
 

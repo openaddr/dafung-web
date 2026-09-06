@@ -30,7 +30,7 @@ test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", 
   await expect(page.getByTestId("status-guohao")).toHaveText(active.guohao);
   await expect(page.getByTestId("status-meta")).toContainText(fmtMoney(active.netWorth));
   await expect(page.getByTestId("status-meta")).toContainText(`委任 ${active.warrants}`);
-  // 珍宝·名士区(L48 战报腾位)+ 诸侯列表就位
+  // 珍宝·名将区(L48 战报腾位)+ 诸侯列表就位
   await expect(page.getByTestId("treasury-panel")).toBeVisible();
   await expect(page.getByTestId("others-panel")).toBeVisible();
   // X13(#32):诸侯列表自己行(座位 0)挂「你」印,他人行没有
@@ -44,7 +44,7 @@ test("珍宝行键盘语义:行本体是 button,聚焦后 Enter 开详情(#42)",
   await force(page, `e.players[0].treasures.push({ id: "seal", name: "传国玉玺", level: 10, desc: "受命于天,既寿永昌" });`);
   const row = page.getByTestId("treasury-treasure-seal");
   await expect(row).toBeVisible();
-  // S9:行必须是原生 button(与同区名士卡同语义;div+onClick 已废,Tab 天然可达)
+  // S9:行必须是原生 button(与同区名将卡同语义;div+onClick 已废,Tab 天然可达)
   await expect(row).toHaveJSProperty("tagName", "BUTTON");
   // Enter 开详情卷轴
   await row.focus();

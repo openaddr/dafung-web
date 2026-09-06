@@ -17,7 +17,7 @@ export const FIT_VIEW = { x: -1490, y: -974, w: 3180, h: 1908 } as const;
 /** 总览 viewBox 属性串(BoardView 作初始 prop 一次性下发,React 之后不再改写)。 */
 export const FIT_VIEW_BOX = `${FIT_VIEW.x} ${FIT_VIEW.y} ${FIT_VIEW.w} ${FIT_VIEW.h}`;
 
-const MAX_ZOOM = 4;
+const MAX_ZOOM = 8;
 // #38:允许超出总览边界约 = 边缘渐隐带(EDGE_PAD=700)的一半——pan 到极限时
 // 视口恰好落在地形渐隐带中段,能看到"纸面平滑淡出到页面背景"的效果(旧值 140
 // 根本平移不到渐隐区,是 #38"看不到效果"的根因之一)。

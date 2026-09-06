@@ -1,7 +1,7 @@
-// 侧栏·珍宝·名士区(L48:战报区移除后腾出的常驻展示区,桌面并排下是侧栏唯一弹性纵向空间;
+// 侧栏·珍宝·名将区(L48:战报区移除后腾出的常驻展示区,桌面并排下是侧栏唯一弹性纵向空间;
 // 抽屉态由 R3-A5(#68) 放开弹性、随 aside 整抽屉滚动)。
 // 珍宝:名·等级·指导价(guidePriceOf 按等级推导,快照不带价字段)一行一宝;
-// 名士:画像(HeroDef.image 本地资源)·名 小卡横排。点击均弹 CardDetailScroll 详情。
+// 名将:画像(HeroDef.image 本地资源)·名 小卡横排。点击均弹 CardDetailScroll 详情。
 // 卡详情卷轴原住 HandPanel,随卡迁来;双层卷轴互斥机制不变(onCardDetailOpen
 // 通知 GameScreen 关掉城详情卷轴)。字号遵循 W3 三档:区标题 brush text-base /
 // 条目 text-xs / 指导价数值 text-xs text-money;条目触达 ≥40px。
@@ -25,7 +25,7 @@ interface TreasuryPanelProps {
   narrow: boolean;
 }
 
-/** 名士小卡:3:4 画像(object-cover,与详情卷轴 Portrait 同比例)+ 名。
+/** 名将小卡:3:4 画像(object-cover,与详情卷轴 Portrait 同比例)+ 名。
  *  画像加载失败显式「像」错误位(与 CardDetailScroll 的「画像缺失」同口径,
  *  用户可感知,非静默兜底)。
  *  R3-D3(#101):照片容器做旧——金/纸色双线框(border + 外圈 1px 发丝 outline)
@@ -69,7 +69,7 @@ function HeroCard({
 }
 
 export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPanelProps) {
-  // UI F5(随卡迁来):当前查看详情的卡(珍宝/名士);null = 无卷轴
+  // UI F5(随卡迁来):当前查看详情的卡(珍宝/名将);null = 无卷轴
   const [cardDetail, setCardDetail] = useState<CardDetail | null>(null);
   const openDetail = (d: CardDetail) => {
     setCardDetail(d);
@@ -85,13 +85,13 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
         (narrow ? "flex-none" : "min-h-24 flex-1")
       }
     >
-      <h3 className="shrink-0 py-1 font-brush text-base">珍宝 · 名士</h3>
+      <h3 className="shrink-0 py-1 font-brush text-base">珍宝 · 名将</h3>
       {!player ? (
         <div className="text-xs leading-5 text-ink-dim/80">观战中 · 无手牌可看</div>
       ) : (
         <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {/* 珍宝:名·等级·指导价。行触达 ≥40px(W5 触屏基线),指导价右对齐(可断言数值)。
-              S9(#42):行本体是 button(与同区名士卡同语义)——Tab 可达、Enter 开详情,
+              S9(#42):行本体是 button(与同区名将卡同语义)——Tab 可达、Enter 开详情,
               w-full + text-left 抵消 button 默认样式,视觉与原 div 行一致 */}
           {player.treasures.map((t) => {
             // R3-B6(#78):等级三档视觉——Lv1 现样(border-gold/40);Lv2 描边升一档
@@ -122,9 +122,9 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
               </button>
             );
           })}
-          {/* R3-B6(#78):空态合并——珍宝名士全空时,原两行散灰字收拢为居中一组:
+          {/* R3-B6(#78):空态合并——珍宝名将全空时,原两行散灰字收拢为居中一组:
               36px「藏」浅章(与 HandPanel 观战「观」印同语言:方章微旋、灰墨淡化)+
-              一行说明。单侧为空仍各留一行(否则「尚未收藏珍宝名士」在已有名士时说谎)。 */}
+              一行说明。单侧为空仍各留一行(否则「尚未收藏珍宝名将」在已有名将时说谎)。 */}
           {player.treasures.length === 0 &&
             (player.heroes.length === 0 ? (
               <div className="flex flex-1 flex-col items-center justify-center gap-1.5 py-3">
@@ -134,12 +134,12 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
                 >
                   藏
                 </span>
-                <span className="text-xs text-ink-dim/70">尚未收藏珍宝名士</span>
+                <span className="text-xs text-ink-dim/70">尚未收藏珍宝名将</span>
               </div>
             ) : (
               <span className="text-xs text-ink-dim">暂无珍宝</span>
             ))}
-          {/* 名士:画像·名小卡横排 */}
+          {/* 名将:画像·名小卡横排 */}
           {player.heroes.length > 0 && (
             <div className="flex flex-wrap gap-1.5 pt-1">
               {player.heroes.map((h) => (
@@ -148,11 +148,11 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
             </div>
           )}
           {player.heroes.length === 0 && player.treasures.length > 0 && (
-            <span className="text-xs text-ink-dim">暂无名士</span>
+            <span className="text-xs text-ink-dim">暂无名将</span>
           )}
         </div>
       )}
-      {/* UI F5:珍宝/名士详情卷轴(点卡弹出;只读,唯一交互是关闭) */}
+      {/* UI F5:珍宝/名将详情卷轴(点卡弹出;只读,唯一交互是关闭) */}
       {cardDetail && <CardDetailScroll detail={cardDetail} onClose={() => setCardDetail(null)} />}
     </section>
   );
