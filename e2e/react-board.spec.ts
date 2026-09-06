@@ -8,7 +8,7 @@ test("滚轮缩放:向上滚放大城池", async ({ page }) => {
   await quickStart(page);
   const tile = page.locator("[data-tile='3']");
   const before = await tile.boundingBox();
-  const svg = page.locator("#board-wrap svg");
+  const svg = page.locator("#board");
   const box = (await svg.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.wheel(0, -400); // 向上滚 = 放大
@@ -21,15 +21,16 @@ test("滚轮缩放:向上滚放大城池", async ({ page }) => {
 
 test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
   await quickStart(page);
-  const svg = page.locator("#board-wrap svg");
+  const svg = page.locator("#board");
   const vb0 = await svg.getAttribute("viewBox");
-  // 找一个非城池的空白点作平移起点(避免点中城池)
+  // 找一个非城池的空白点作平移起点(避免点中城池/角落控制钮——pan/zoom 监听在
+  // svg 上,从按钮起拖的事件到不了 svg,viewBox 不会动)
   const bg = await page.evaluate(() => {
-    const b = document.querySelector("#board-wrap svg")!.getBoundingClientRect();
+    const b = document.querySelector("#board")!.getBoundingClientRect();
     for (let y = 8; y < b.height; y += 24) {
       for (let x = 8; x < b.width; x += 24) {
         const el = document.elementFromPoint(b.left + x, b.top + y);
-        if (!el || !el.closest(".bv-tile")) return { x: b.left + x, y: b.top + y };
+        if (!el || !el.closest(".bv-tile, button")) return { x: b.left + x, y: b.top + y };
       }
     }
     return { x: b.left + 10, y: b.top + 10 };
