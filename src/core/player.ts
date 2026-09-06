@@ -1,6 +1,6 @@
 // 玩家构造与查询 helper。
 import type { Player, PropertyHolding } from "./types";
-import { STARTING_WARRANTS } from "./constants";
+import { STARTING_STAMINA, STARTING_WARRANTS } from "./constants";
 
 export interface CreatePlayerOpts {
   id: string;
@@ -32,6 +32,7 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     treasures: [],
     heroLastFired: {},
     reputation: 0,
+    stamina: STARTING_STAMINA,
   };
 }
 

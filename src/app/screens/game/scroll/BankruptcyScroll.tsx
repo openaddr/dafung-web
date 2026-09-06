@@ -1,6 +1,6 @@
 // 破产清算卷轴:对照旧 showBankruptcyScroll。
 // 卖珍宝(指导价)/卖非都城城(当前等级变卖价 = valueByLevel[level],与引擎入账同一函数)/
-// 遣名士(200)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
+// 遣名将(200)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
 // 实时缩水;"结算"发 confirmBankruptcySettle。
 // #60:展示价曾误用购入价(40%),与实际入账(valueByLevel)口径分裂 → 展示与入账必须同一函数。
 // #94:「结算」分两态——仍欠(owe>0)时点结算=引擎 settleDebt+finalizeBankruptcy 破产出局,
@@ -34,7 +34,7 @@ export interface BankruptcyScrollProps {
     purchasePrice: number;
     level: number;
   }[];
-  /** 可遣散名士(每名 200)。 */
+  /** 可遣散名将(每名 200)。 */
   heroes: { id: string; name: string }[];
   onCommand: (cmd: GameCommand) => void;
 }
@@ -66,7 +66,7 @@ export function BankruptcyScroll({
 
   /* ── W4a:资产分组滚动 ──
      为什么要分:破产时资产可能 20+ 件,旧平铺 flex-wrap 会把卷轴撑得比视口还高,
-     「结算」按钮被顶出屏幕外,玩家根本点不到;分「珍宝/城池/名士」三组、各组
+     「结算」按钮被顶出屏幕外,玩家根本点不到;分「珍宝/城池/名将」三组、各组
      max-h-56 内滚,并把「结算」钉在卷轴底部(不随内容滚),任何资产量下都可达。 */
   const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
   return (
@@ -74,7 +74,7 @@ export function BankruptcyScroll({
       <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
         {settled
           ? "现金已凑足债务!点「结算」清偿,转危为安。"
-          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名士 200 分)。`}
+          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将 200 分)。`}
       </p>
       {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
           pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
@@ -131,7 +131,7 @@ export function BankruptcyScroll({
           </div>
         </section>
         <section className="flex min-h-0 flex-col">
-          <h4 className="mb-1 font-brush text-sm text-ink-dim">名士</h4>
+          <h4 className="mb-1 font-brush text-sm text-ink-dim">名将</h4>
           <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
             {heroes.map((h) => (
               <ScrollButton

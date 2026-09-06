@@ -18,8 +18,12 @@ export const STARTING_WARRANTS = 3; // 开局每人 3 张(都城颁发)
 export const WARRANTS_PER_PASS = 2; // 经过自己都城(起点)+2 张(Monopoly 式过起点)
 export const BUY_WARRANT_COST = 1; // 进驻一座城消耗的委任状数(扩军不耗)
 
-// 名士(英雄):每人最多持有的数量
+// 名将(英雄):每人最多持有的数量
 export const HERO_CAPACITY = 3;
+
+/** 体力上限与开局值(#130):机遇/技能增减的 clamp 边界。 */
+export const STAMINA_MAX = 100;
+export const STARTING_STAMINA = STAMINA_MAX;
 
 /** 单个 CJK 汉字判定(国号校验共用;core 层,不依赖 DOM)。 */
 export function isSingleCjk(s: string): boolean {

@@ -171,17 +171,22 @@ describe("档位调制与抽取(纯函数)", () => {
     expect(pickWeighted([heavy, light], 0.95)).toBe(light);
   });
 
-  it("目录 v1 = 15 条,档位 8/4/3,标签词表合法", () => {
-    expect(ENCOUNTERS.length).toBe(15);
-    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(8);
-    expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(4);
+  it("目录 v2 = 18 条,档位 9/6/3,标签词表合法(含 体力,#132)", () => {
+    expect(ENCOUNTERS.length).toBe(18);
+    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(9);
+    expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(6);
     expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(3);
+    const TAGS: EncounterDef["tags"] = ["银两", "武将", "珍宝", "城池", "声望", "玩家", "体力"];
     for (const c of ENCOUNTERS) {
       expect(c.id.length).toBeGreaterThan(0);
       expect(c.weight).toBeGreaterThan(0);
       expect(c.text.length).toBeGreaterThan(0);
       expect(c.effect == null || c.choices == null).toBe(true); // 二选一
+      expect(c.tags.length).toBeGreaterThan(0);
+      for (const t of c.tags) expect(TAGS).toContain(t);
     }
+    expect(new Set(ENCOUNTERS.map((c) => c.id)).size).toBe(18); // id 唯一
+    expect(ENCOUNTERS.filter((c) => c.tags.includes("体力")).length).toBe(6); // 体力 tag 计数(#132)
   });
 });
 
@@ -206,7 +211,7 @@ describe("机遇引擎行为", () => {
     expect(buyIdx).toBeGreaterThan(encIdx); // 机遇在前,城池事件在后
   });
 
-  it("结算路径:发珍宝(牌堆扣一件)/ 得武将满 3 → 转银两", () => {
+  it("结算路径:发珍宝(牌堆扣一件)/ 得名将满 3 → 转银两", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const te = testEngine(e);
@@ -367,7 +372,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(mover.reputation).toBe(100);
   });
 
-  it("以宝换贤:2 珍宝换 1 武将(珍宝扣光、武将入帐、rep/银两不动)", () => {
+  it("以宝换贤:2 珍宝换 1 名将(珍宝扣光、名将入帐、rep/银两不动)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -380,7 +385,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     e.resolveEncounterChoice(0);
     expect(mover.treasures.length).toBe(0);
     expect(mover.heroes.length).toBe(1);
-    expect(e.recruitedHeroIds.has(mover.heroes[0].id)).toBe(true); // 贤士入招贤池台账
+    expect(e.recruitedHeroIds.has(mover.heroes[0].id)).toBe(true); // 名将入招贤池台账
     expect(mover.cash).toBe(cash0);
     expect(mover.reputation).toBe(0);
     expect(e.turnPhase).toBe("Roll");
@@ -595,5 +600,170 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
     expect(mover2.treasures.length).toBe(0);
     expect(e2.turnPhase).toBe("Roll");
     expect(testEngine(e2).logText().includes("婉言相拒")).toBe(true);
+  });
+});
+
+// ═════════════════════ 机遇体力接线(#132)═════════════════════
+describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
+  const byId = (id: string): EncounterDef => ENCOUNTERS.find((c) => c.id === id)!;
+
+  /** 给 seat 一座指定等级的非都城房产(stamina.test 同款):保证耗竭可用选项 ≥2。 */
+  function giveProperty(e: GameEngine, seat: number, level: number): string {
+    const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
+    const tile = MAP.board.tiles.find(
+      (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+    )!;
+    const d = MAP.catalog.get(tile.propertyId)!;
+    e.players[seat].properties.push({
+      propertyId: d.id,
+      group: d.group,
+      purchasePrice: d.buildCost,
+      level,
+      maxLevel: d.maxLevel,
+    });
+    return d.id;
+  }
+
+  /** 霉运重仓配置:三档 1/1/98 经声望夹紧 [5,95] → 好运 5/中性 0/霉运 95。 */
+  const BAD_HEAVY = { triggerRate: 100, good: 1, neutral: 1, bad: 98 };
+
+  /** 探针:复刻引擎抽取消耗序(行军骰 → 触发 → 档位 → 同档加权),按当前 rng 状态
+   *  算出下一次落格会抽中的机遇,不消费引擎骰(#124 抉择测试同款技巧)。 */
+  function probeNextEncounter(e: GameEngine): EncounterDef {
+    const probe = createDice(0);
+    probe.setRngState(e.dice.getRngState());
+    probe.roll(); // 行军骰
+    probe.nextFloat(); // 触发 roll(恒过)
+    const shares = tierShares(e.activePlayer.reputation, resolveEncounterConfig(BAD_HEAVY).shares);
+    const tier = pickTier(probe.nextFloat(), shares);
+    return pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), probe.nextFloat());
+  }
+
+  /** 找一个「落格必抽中指定机遇」的种子(确定性扫描,setup 后的骰流决定抽取)。 */
+  function seedDrawing(id: string): number {
+    for (let seed = 1; seed < 500; seed++) {
+      const e = makeEngine(seed, BAD_HEAVY);
+      finishSetup(e);
+      if (probeNextEncounter(e).id === id) return seed;
+    }
+    throw new Error(`无种子抽中 ${id}`);
+  }
+
+  it("目录调重生效:粮道被劫 −250 两/体力 −25;漕船倾覆 −100 两/体力 −20;假道征粮 levy 50/体力 −15", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const te = testEngine(e);
+    const mover = e.activePlayer;
+    mover.stamina = 70; // 三连扣 25+20+15=60,不归 0(耗竭路径另有专测)
+    const cash0 = mover.cash;
+    te.applyEncounter(mover, mover.position, byId("粮道被劫"));
+    expect(mover.cash).toBe(cash0 - 250);
+    expect(mover.stamina).toBe(45);
+
+    te.applyEncounter(mover, mover.position, byId("漕船倾覆"));
+    expect(mover.cash).toBe(cash0 - 350);
+    expect(mover.stamina).toBe(25);
+
+    te.applyEncounter(mover, mover.position, byId("假道征粮"));
+    expect(mover.cash).toBe(cash0 - 400);
+    expect(mover.stamina).toBe(10);
+  });
+
+  it("霉运机遇扣体力:浮字「体力 −25」+ 对局日志 detail 补 stamina=落账值", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 60;
+    const r = testEngine(e).applyEncounter(mover, mover.position, byId("粮道被劫"));
+    expect(r).toBe("settled");
+    expect(mover.stamina).toBe(35);
+    const fs = e.presentation.drainFloaters();
+    expect(fs.some((f) => f.kind === "msg" && f.text === "体力 −25")).toBe(true);
+    const text = testEngine(e).logText();
+    expect(text.includes("机遇「粮道被劫」:粮道遭山贼劫掠,损失折银 250 两,体力 −25")).toBe(true);
+    expect(text.includes("encounterStamina")).toBe(true);
+    expect(text.includes("stamina=35")).toBe(true);
+  });
+
+  it("体力不足归 0 → 耗竭相位接管本落格:rollAndMove 门线跳过购地,房产降级可 resolve", () => {
+    const e = makeEngine(seedDrawing("粮道被劫"), BAD_HEAVY);
+    finishSetup(e);
+    const seat = e.activeIndex;
+    const mover = e.activePlayer;
+    giveProperty(e, seat, 2);
+    giveProperty(e, seat, 1); // 两座有级房产:耗竭可用选项 ≥2 → 进相位而非自动执行
+    mover.stamina = 20;
+    landOnFreeTile(e); // 真实抽取路径:抽中粮道被劫 → 体力 20−25 → 0
+    expect(e.turnPhase).toBe("AwaitingExhaustion"); // 门线:耗竭占用落格,不进购地决策
+    expect(e.pendingLand).toBeNull(); // 购地决策未弹出
+    expect(mover.stamina).toBe(0);
+    expect(testEngine(e).logText().includes("可购(")).toBe(false); // 城池结算确实被跳过
+    const opts = e.choicesFor();
+    expect(opts.length).toBe(2);
+    expect(opts.every((o) => o.exhaustionKind === "downgrade")).toBe(true);
+    const victim = opts[0].holdingPropertyId!;
+    e.resolveExhaustionChoice(0);
+    expect(mover.properties.find((h) => h.propertyId === victim)!.level).toBe(1); // 2 → 1
+    expect(mover.skipTurns).toBe(1);
+    expect(mover.stamina).toBe(100); // 耗竭善后重置
+    expect(e.turnPhase).toBe("Roll");
+  });
+
+  it("回血抉择:温泉疗养付 150 两入浴 → 银两 −150、体力 +30(选项级 staminaDelta)", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 60;
+    const cash0 = mover.cash;
+    testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑落空结算
+    testEngine(e).enterEncounter(byId("温泉疗养"));
+    expect(e.turnPhase).toBe("AwaitingEncounter");
+    expect(e.snapshot().choices.map((o) => o.label)).toEqual([
+      "付 150 两入浴(+30 体力)",
+      "不去(无事发生)",
+    ]);
+    e.resolveEncounterChoice(0);
+    expect(mover.cash).toBe(cash0 - 150);
+    expect(mover.stamina).toBe(90);
+    expect(e.presentation.drainFloaters().some((f) => f.kind === "msg" && f.text === "体力 +30")).toBe(true);
+    expect(testEngine(e).logText().includes("stamina=90")).toBe(true);
+    expect(e.turnPhase).toBe("Roll"); // 中性床位:机遇解完落空结算收尾
+  });
+
+  it("纯体力事件:神医行诊 +25 体力、银两不动,日志/浮字不出现「+0」", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 50;
+    const cash0 = mover.cash;
+    testEngine(e).applyEncounter(mover, mover.position, byId("神医行诊"));
+    expect(mover.stamina).toBe(75);
+    expect(mover.cash).toBe(cash0);
+    const fs = e.presentation.drainFloaters();
+    expect(fs.some((f) => f.kind === "msg" && f.text === "体力 +25")).toBe(true);
+    expect(fs.some((f) => f.kind !== "msg" && f.amount === 0)).toBe(false); // 无 0 金额浮字
+    const text = testEngine(e).logText();
+    expect(text.includes("机遇「神医行诊」:神医路过举家调理,体力 +25")).toBe(true);
+    expect(text.includes("+0")).toBe(false); // cash 0 特判生效:全日志无 "+0"
+    expect(text.includes("stamina=75")).toBe(true);
+  });
+
+  it("抉择扣体力归 0:夜行军连夜赶路 → +150 两,耗竭自动结算收尾回合、不续跑落格", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 20; // 仅 0 级都城在册:耗竭无可用选项 → 自动执行(无可处置)
+    const cash0 = mover.cash;
+    const turn0 = e.turnNumber;
+    testEngine(e).placeActive(benignTile(e));
+    testEngine(e).enterEncounter(byId("夜行军"));
+    expect(e.turnPhase).toBe("AwaitingEncounter");
+    e.resolveEncounterChoice(0); // 连夜赶路(+150 两,体力 −20)
+    expect(mover.cash).toBe(cash0 + 150);
+    expect(e.turnPhase).toBe("Roll"); // 耗竭 auto 内已 endTurn 收尾
+    expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:耗竭占用落格,未续跑落格结算
+    expect(mover.skipTurns).toBe(1);
+    expect(mover.stamina).toBe(100);
+    expect(e.pendingEncounter).toBeNull();
   });
 });

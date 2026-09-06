@@ -117,6 +117,19 @@ export function botAct(engine: GameEngine): void {
       break;
     }
 
+    case "AwaitingExhaustion": {
+      // 体力耗竭惩罚(#130):bot 随机弃一座(确定性走引擎 dice,保重放)。
+      const available = engine
+        .choicesFor()
+        .map((o, i) => ({ o, i }))
+        .filter(({ o }) => o.available);
+      if (available.length > 0) {
+        const pick = available[Math.floor(engine.dice.nextFloat() * available.length)];
+        engine.resolveExhaustionChoice(pick.i);
+      }
+      break;
+    }
+
     case "AwaitingHeroPick": {
       // bot 招贤纳士:随机选一位
       const count = engine.offeredHeroes.length;
@@ -173,7 +186,7 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingBankruptcySettle": {
-      // bot 清算:卖资产到够(优先名士→低珍宝→城,排除都城),再 confirm
+      // bot 清算:卖资产到够(优先名将→低珍宝→城,排除都城),再 confirm
       const p = engine.activePlayer;
       const debt = engine.pendingDebt!;
       const cap = engine.board.at(p.capitalIndex)?.propertyId;

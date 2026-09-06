@@ -32,7 +32,7 @@ export interface TreasureRow {
   desc?: string;
 }
 
-/** 快照名士行(只存展示字段;skill/cooldown 由 HEROES 表按 id 回查)。 */
+/** 快照名将行(只存展示字段;skill/cooldown 由 HEROES 表按 id 回查)。 */
 export interface HeroRow {
   id: string;
   name: string;
@@ -58,10 +58,11 @@ export interface SnapshotPlayer {
   skipTurns: number;
   properties: { propertyId: string; level: number; group: string }[];
   heroes: HeroRow[];
-  /** 名士冷却:skill.id → 上次触发的 round。 */
+  /** 名将冷却:skill.id → 上次触发的 round。 */
   heroLastFired: Record<string, number>;
   treasures: TreasureRow[];
   reputation: number; // 声望 -100~+100(#121)
+  stamina: number; // 体力 0~100(#130)
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -94,7 +95,7 @@ export interface GameSnapshot {
   offeredCapitalHistory: number[];
   // 已选国号(联机 Setup 阶段同步,防止重复国号)
   usedGuohao: string[];
-  // 已招名士 id(联机端据此排除已招候选,保持招贤池一致)
+  // 已招名将 id(联机端据此排除已招候选,保持招贤池一致)
   recruitedHeroIds: string[];
   // 剩余珍宝牌堆(联机端需复现同一抽牌序列;抽牌结果由 server nextFloat 决定,牌堆内容对齐是必要的)
   treasureDeck: TreasureRow[];
@@ -305,7 +306,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // 已招名士 id(联机端据此排除已招候选,保持招贤池一致)
+    // 已招名将 id(联机端据此排除已招候选,保持招贤池一致)
     key: "recruitedHeroIds",
     read: (e) => [...e.recruitedHeroIds],
     write: (e, s) => {
@@ -438,10 +439,11 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         skipTurns: p.skipTurns,
         properties: p.properties.map((h) => ({ propertyId: h.propertyId, level: h.level, group: h.group })),
         heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc, image: h.image })),
-        // 名士冷却记录(跨进程恢复 cooldown 判定)
+        // 名将冷却记录(跨进程恢复 cooldown 判定)
         heroLastFired: { ...p.heroLastFired },
         treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
         reputation: p.reputation,
+        stamina: p.stamina,
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -462,6 +464,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           .filter((h): h is HeroDef => h != null);
         p.heroLastFired = { ...ps.heroLastFired };
         p.reputation = ps.reputation;
+        p.stamina = ps.stamina;
         p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

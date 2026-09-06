@@ -44,4 +44,12 @@ export const EFFECTS: Record<string, EffectFn> = {
     engine.grantSkillCash(ctx.owner, req(params, "amount"));
     return true;
   },
+  /** 体力回复(#133 华佗):属主 +amount(clamp 0~100 由 addStamina 保证;只加不减,不触发耗竭)。
+   *  params: { amount }。落账恒走 ctx.owner(技能持有者)——RoundStart 的 subject=轮次锚点,
+   *  与持有者无关。文本浮字无公共通道(pushFloaterText 为引擎私有,game.ts 本票禁改),
+   *  反馈由派发器统一的 skill 战报行承担。 */
+  regenStamina: (engine, ctx, params) => {
+    engine.addStamina(ctx.owner, req(params, "amount"));
+    return true;
+  },
 };

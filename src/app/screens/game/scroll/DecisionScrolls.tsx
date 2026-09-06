@@ -131,6 +131,46 @@ export function EncounterChoiceScroll({
   );
 }
 
+// ── 体力耗竭(AwaitingExhaustion,#130)──
+// label=选项原文(「城名」降 1 级 / 失去城池),available 恒 true(失去选项排除都城由引擎口径保证)。
+// 选项下标 = snapshot.choices 数组下标(resolveExhaustionChoice 按此结算)。
+export function ExhaustionChoiceScroll({
+  choices,
+  onCommand,
+}: {
+  choices: ChoiceOption[];
+  onCommand: (cmd: GameCommand) => void;
+}) {
+  // G-19 同口径:数字键 1..n 直选
+  useNumberShortcuts(
+    choices.map((o, i) => () => {
+      if (o.available) onCommand({ type: "resolveExhaustionChoice", index: i });
+    }),
+  );
+  return (
+    <ScrollShell title="体力耗竭" testid={T.exhaustionScroll}>
+      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
+        体力耗竭,倒地不起!择一座城池弃之苟活:降 1 级,或失去整座。歇罢这阵,体力自会回满。
+      </p>
+      <div className="flex flex-col gap-2.5">
+        {choices.map((o, i) => (
+          <ScrollButton
+            key={o.id}
+            primary={i === 0}
+            shortcut={i + 1}
+            disabled={!o.available}
+            title={o.available ? undefined : o.reason}
+            testid={T.exhaustionOption(i)}
+            onClick={() => onCommand({ type: "resolveExhaustionChoice", index: i })}
+          >
+            {o.label}
+          </ScrollButton>
+        ))}
+      </div>
+    </ScrollShell>
+  );
+}
+
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({
   tileName,

@@ -86,6 +86,7 @@ const INPUT_PHASES = new Set([
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
+"AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
 ]);
