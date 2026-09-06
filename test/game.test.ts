@@ -204,7 +204,7 @@ describe("委任状", () => {
   });
 });
 
-describe("名士(英雄)", () => {
+describe("名将(英雄)", () => {
   const hero = (id: string) => HEROES.find((h) => h.id === id)!;
 
   it("周瑜·moveBonus:移动步数 +1", () => {
@@ -242,7 +242,7 @@ describe("名士(英雄)", () => {
     expect(holder.cash).toBe(cash1);
   });
 
-  it("招贤纳士:三选一 → 选一位获得名士", () => {
+  it("招贤纳士:三选一 → 选一位获得名将", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const picker = e.activePlayer;

@@ -1,5 +1,11 @@
 import { defineConfig, devices } from "@playwright/test";
 
+// ⚠️ runner 必须跑在 Node 上,不要迁 Bun(2026-09 实测 bun 1.4.0):①裸跑
+// `bun run --bun playwright test` 会静默 exit 0 且 0 条用例执行(pw 的
+// module.register TS/ESM loader 在 bun 下自杀,需 PW_DISABLE_TS_ESM=1 才能启动);
+// ②能跑后全量 4.5m(node 1.9m),联机重型用例单跑 45s(node 12s)且并行必超时。
+// runner 是纯开发工具,与产品运行时性能无关,node 只为此保留。
+
 // 多 agent 并行跑 e2e 的隔离协议(全局把控者按 agent 分配互不相同的值):
 //   E2E_STATIC_PORT  静态 preview 端口(默认 4173)
 //   E2E_GAME_PORT    游戏服务器端口(默认 3010)

@@ -71,7 +71,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 50;
-    // 选都后只有都城(不可卖)+ 无珍宝/名士
+    // 选都后只有都城(不可卖)+ 无珍宝/名将
     const r = testEngine(e).payOrLiquidate(p, null, 200);
     expect(r).toBe("bankrupt");
     expect(p.isBankrupt).toBe(true);
@@ -89,13 +89,13 @@ describe("破产清算", () => {
     expect(p.isBankrupt).toBe(true);
   });
 
-  it("名士换银 200 + 释放回招贤池", () => {
+  it("名将换银 200 + 释放回招贤池", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
     p.heroes.push(hero("zhouyu", "周瑜"));
-    testEngine(e).payOrLiquidate(p, null, 150); // 欠 150,有名士 → 清算
+    testEngine(e).payOrLiquidate(p, null, 150); // 欠 150,有名将 → 清算
     e.cashHeroBankruptcy("zhouyu"); // +200,释放
     expect(p.cash).toBe(200);
     expect(p.heroes.length).toBe(0);
@@ -130,7 +130,7 @@ describe("破产清算", () => {
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
     e.cashHeroBankruptcy("zhouyu"); // +200 → cash 200 ≥ 150,自救达标
     expect(p.cash).toBe(200);
-    // 达标后珍宝/城/名士三类守卫一致:一律拒绝,资产原封不动
+    // 达标后珍宝/城/名将三类守卫一致:一律拒绝,资产原封不动
     e.sellTreasureBankruptcy("t1");
     e.sellPropertyBankruptcy(city.propId);
     e.cashHeroBankruptcy("zhugeliang");
@@ -181,7 +181,7 @@ describe("破产清算", () => {
     expect(p.treasures.length).toBe(0); // 卖掉的珍宝不在手中
   });
 
-  it("破产出局走完后状态干净(pendingDebt 清空、名士回招贤池)", () => {
+  it("破产出局走完后状态干净(pendingDebt 清空、名将回招贤池)", () => {
     const e = makeEngine(1, [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
@@ -191,19 +191,19 @@ describe("破产清算", () => {
     const p = e.activePlayer;
     p.cash = 0;
     p.heroes.push(hero("zhouyu", "周瑜"));
-    testEngine(e).payOrLiquidate(p, null, 500); // 欠 500,仅有名士(+200)可卖
+    testEngine(e).payOrLiquidate(p, null, 500); // 欠 500,仅有名将(+200)可卖
     e.cashHeroBankruptcy("zhouyu"); // +200,仍差 300
     e.confirmBankruptcySettle(); // 凑不够 → 破产出局
     expect(p.isBankrupt).toBe(true);
     expect(e.pendingDebt).toBeNull();
     expect(e.turnPhase).toBe("Roll"); // 3 人在局,游戏未结束
-    expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 名士释放回招贤池
+    expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 名将释放回招贤池
   });
 });
 
 describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
   /** 卷轴展示价的 UI 口径(DecisionScrollLayer/BankruptcyScroll 与引擎共用的纯函数):
-   *  珍宝 = guidePriceOf(level),城 = sellValueOf(def, level),名士 = 200。
+   *  珍宝 = guidePriceOf(level),城 = sellValueOf(def, level),名将 = 200。
    *  本组断言:引擎三变卖命令的实际入账 === 同一批纯函数的输出(展示 ≠ 入账即红)。 */
   it("三类变卖入账 = UI 展示价(同一纯函数),城按 valueByLevel 而非购入价", () => {
     const e = makeEngine(1);
@@ -226,7 +226,7 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
     expect(sellValueOf(def, 0)).toBe(def.valueByLevel[0]);
     expect(sellValueOf(def, 0)).not.toBe(def.purchasePrice); // Lv.0 变卖折价(经济 v2:40%),展示不再标购入价
 
-    // 名士:入账 === 展示(200)
+    // 名将:入账 === 展示(200)
     e.cashHeroBankruptcy("zhouyu");
     expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0) + 200);
   });

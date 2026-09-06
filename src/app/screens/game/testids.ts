@@ -11,7 +11,7 @@ export const TESTIDS = {
   handSpectatorIdentity: "hand-spectator-identity",
   handSpectatorAssets: "hand-spectator-assets",
   othersPanel: "others-panel",
-  /** L48:珍宝·名士常驻展示区(战报移除后腾位)。 */
+  /** L48:珍宝·名将常驻展示区(战报移除后腾位)。 */
   treasuryPanel: "treasury-panel",
   /** 侧栏抽屉折叠(S5):展开态容器 / 折叠窄条容器 / 切换按钮(两态同名)。 */
   sidebarPanel: "sidebar-panel",
@@ -27,14 +27,14 @@ export const TESTIDS = {
   // ── 手牌/动作区 ──
   handCash: "hand-cash",
   handWarrants: "hand-warrants",
-  /** 珍宝/名士卡(L48 迁入 TreasuryPanel,命名随区)。 */
+  /** 珍宝/名将卡(L48 迁入 TreasuryPanel,命名随区)。 */
   treasuryTreasure: (id: string) => `treasury-treasure-${id}` as const,
   treasuryHero: (id: string) => `treasury-hero-${id}` as const,
   diceFace: "dice-face",
   rollButton: "roll-button",
-  /** 珍宝/名士详情卷轴(HandPanel 点卡弹出;UI F5)。 */
+  /** 珍宝/名将详情卷轴(HandPanel 点卡弹出;UI F5)。 */
   cardDetailScroll: "card-detail-scroll",
-  /** 详情卷轴画像位(#36:3:4 容器,名士画像/珍宝纹样)。 */
+  /** 详情卷轴画像位(#36:3:4 容器,名将画像/珍宝纹样)。 */
   cardDetailPortrait: "card-detail-portrait",
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …

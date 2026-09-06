@@ -1,5 +1,5 @@
 // Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
-//   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名士 / 诸侯
+//   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名将 / 诸侯
 //   (L48:战报区移除,日志走胜利屏「导出日志」落 jsonl 文件,ADR-0014)。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // spec #107 批次 5(C5 减负):选都/详情流程状态机下沉 useCapitalPick(单文件持有);
@@ -305,9 +305,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           />
         )}
       </div>
-      {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名士 / 诸侯,标题横幅置顶)。
+      {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名将 / 诸侯,标题横幅置顶)。
           L48:战报区已移除(日志保留在引擎快照,胜利屏「导出日志」落 jsonl 文件);
-          珍宝·名士区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
+          珍宝·名将区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
           S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
           收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
           自适应,桌面压缩宽度下靠现有 overflow-hidden/内滚不破版。
@@ -354,10 +354,10 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               controller={controller}
               interactive={interactive}
             />
-            {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名士常驻展示区;
+            {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名将常驻展示区;
                 诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。
                 R3-A5(#68):isNarrow 同源下发抽屉态(IS_NARROW_QUERY 含横屏矮视口分支,
-                勿用 max-md 纯宽度断点另抄)——珍宝·名士区在抽屉里放开 flex 保底。 */}
+                勿用 max-md 纯宽度断点另抄)——珍宝·名将区在抽屉里放开 flex 保底。 */}
             <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} narrow={isNarrow} />
             {/* X13(#32):viewSeat 透传——诸侯列表自己行挂「你」印(口径同 WaitingBar) */}
             <OthersPanel snapshot={snapshot} viewSeat={viewSeat} />

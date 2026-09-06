@@ -1,7 +1,7 @@
 // 侧栏·手牌区(对照旧 renderHand + action-zone 的手牌部分):
 // 头部:L47 玩家身份头(国号大字 + 玩家色底纹 + 「你」印)+ 现金 / 委任;
 // 动作区:签面 + 行军按钮(行军是主行动不是抉择,留守手牌区——交互重构已确认决策)。
-// L48:珍宝/名士卡迁出至 TreasuryPanel(战报移除后腾出的常驻展示区),本区只留身份与行动。
+// L48:珍宝/名将卡迁出至 TreasuryPanel(战报移除后腾出的常驻展示区),本区只留身份与行动。
 // 交互重构:原 ActionInline 内嵌决策(买/扩军/驻跸/选路)整体迁入卷轴体系
 // (DecisionScrollLayer 按相位自动弹出),手牌区不再有任何决策按钮。
 // #44/S11:现金浮标的跨快照 diff 逻辑抽成 useDeltaFloat(本目录同名文件);
@@ -133,7 +133,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   // #97:chip pulse 触发键(见 gainPulseKey)——现金/委任 chip 同管线同处理。
   const cashPulseKey = gainPulseKey(cashFloats);
   const warrantPulseKey = gainPulseKey(warrantFloats);
-  // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名士区(L48 起接管战报腾位);
+  // G-11:手牌区按内容定高(shrink-0),纵向弹性让给珍宝·名将区(L48 起接管战报腾位);
   // 头部/动作/托管行不参与压缩。
   return (
     <section
@@ -144,7 +144,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
         /* G-10 未入座空态:观战视角——无手牌可看、无行动可发,动作区(签面/行军/托管)不渲染。
             #45/S12:空态从两行说明升级为「观」印身份行 + 被跟随者资产(现金/委任 chips
             与坐姿分支同款,#21 浮标同样生效;身价小字为观战态额外保留——R3-B7(#79)
-            去重只收敛坐姿分支);珍宝/名士列表就地平铺(只读,详情卷轴仍归
+            去重只收敛坐姿分支);珍宝/名将列表就地平铺(只读,详情卷轴仍归
             TreasuryPanel 的卡区职责)。入座引导保留一行收尾。 */
         <>
           <h3 className="px-3 pt-2 font-brush text-base">手牌</h3>
@@ -183,9 +183,9 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               </span>
               <span className="min-h-9 py-1 text-xs text-ink-dim">身价 {formatMoney(shown.netWorth)}</span>
             </div>
-            {/* 资产列表:珍宝(◆ 名 · 等级 · 指导价)与名士名条——只读平铺,行 anatomy
+            {/* 资产列表:珍宝(◆ 名 · 等级 · 指导价)与名将名条——只读平铺,行 anatomy
                 与 TreasuryPanel 同语言(◆ 金符 / 右对齐 text-money),但非按钮:
-                开详情卷轴是珍宝·名士区的交互职责,观战空态只承担「看得见」。 */}
+                开详情卷轴是珍宝·名将区的交互职责,观战空态只承担「看得见」。 */}
             <div className="mt-2 flex flex-col gap-1">
               {shown.treasures.map((t) => (
                 <div
@@ -201,7 +201,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               ))}
               {shown.treasures.length === 0 && <span className="text-xs text-ink-dim">暂无珍宝</span>}
               <div className="pt-0.5 text-xs leading-5 text-ink-dim">
-                名士
+                名将
                 {shown.heroes.length > 0
                   ? " " + shown.heroes.map((h) => h.name).join("·")
                   : " 暂无"}

@@ -1,7 +1,7 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
 // 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 26 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
-// 现有 3 武将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
+// 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
@@ -48,7 +48,7 @@ function autoResolve(e: GameEngine) {
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
     if (e.turnPhase === "AwaitingBranch") e.selectBranch("Main");
     else if (e.turnPhase === "AwaitingDecision") e.endDecision();
-    else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1); // 选跳过位之外的第 2 项,避免招入名士干扰断言
+    else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1); // 选跳过位之外的第 2 项,避免招入名将干扰断言
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
     else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
     else break;
@@ -63,9 +63,9 @@ function playFullRound(e: GameEngine) {
   }
 }
 
-/** 测试用名士:按需构造技能(与 HEROES 同形状,不入招贤池)。 */
+/** 测试用名将:按需构造技能(与 HEROES 同形状,不入招贤池)。 */
 function heroWith(skills: TriggerSkill[], id = "test-hero"): HeroDef {
-  return { id, name: "测试名士", title: "", desc: "", skills, image: "/assets/heroes/hero-zhouyu-sgs.png" };
+  return { id, name: "测试名将", title: "", desc: "", skills, image: "/assets/heroes/hero-zhouyu-sgs.png" };
 }
 
 /** 得银技能速写(可覆盖 scope/cooldown)。 */
@@ -621,7 +621,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(1);
   });
 
-  it("HeroRecruited:招贤选定名士后派发(subject=招贤者,ctx.heroId);落都城补给另派 CashGained", () => {
+  it("HeroRecruited:招贤选定名将后派发(subject=招贤者,ctx.heroId);落都城补给另派 CashGained", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -769,12 +769,12 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     expect(e.turnPhase as string).toBe("Roll"); // 对局继续(轮到下一位)
   });
 
-  it("BankruptcySettle:遣散名士成功尾派发(ctx.amount=200)", () => {
+  it("BankruptcySettle:遣散名将成功尾派发(ctx.amount=200)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
     mover.cash = 0;
-    mover.heroes.push(heroWith([], "bk-hero")); // 名士换银 200 恰好抵债
+    mover.heroes.push(heroWith([], "bk-hero")); // 名将换银 200 恰好抵债
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");

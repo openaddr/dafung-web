@@ -105,6 +105,17 @@ export const BoardDefs = memo(function BoardDefs() {
         <stop offset="55%" stopColor="#d4af37" stopOpacity={0.28} />
         <stop offset="100%" stopColor="#d4af37" stopOpacity={0} />
       </radialGradient>
+      {/* 城池建筑共享渐变(AB 混合·B 精绘):青瓦屋面与夯土城台。每城内联 defs 会产生
+          重复 id 冲突,统一挂这里,Tile 以 url(#…) 引用;gradientUnits 默认
+          objectBoundingBox = 各自屋面/墙身的包围盒,多档建筑共用同一份定义。 */}
+      <linearGradient id="bv-roof-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#5f6b7a" />
+        <stop offset="1" stopColor="#434c59" />
+      </linearGradient>
+      <linearGradient id="bv-wall-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#e3d3ad" />
+        <stop offset="1" stopColor="#c6b184" />
+      </linearGradient>
     </defs>
   );
 });
