@@ -89,7 +89,8 @@ export function ConfirmDialog({
         {/* #91(R3-C4) 与 ScrollShell 同步两层摊开:标题随卡片壳体(scroll-anim-unroll)
             淡入落位,标题以下的纸身(正文+按钮)以顶缘为轴 scaleY 展开,标题字不压扁。 */}
         <div className="scroll-anim-unroll-paper">
-          <div className="mb-3.5 font-deco text-[17px] text-ink">{children}</div>
+          {/* W2 包E(审计 A5):正文是动态 children(地图名/城名等),字族迁 wenkai 不落小薇 */}
+          <div className="mb-3.5 font-wenkai text-[17px] text-ink">{children}</div>
           <div className="flex flex-wrap justify-center gap-3">
             {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
                 e2e 无需知道通用/专用两套名字 */}

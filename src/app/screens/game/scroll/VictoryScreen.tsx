@@ -144,10 +144,12 @@ export function VictoryScreen({
     };
   }, []);
 
+  // W2-包D(审计 A2):absolute→fixed——终局必须盖过侧栏(absolute 只盖棋盘区,
+  // 侧栏仍露出半截与「天下归一」分庭);fixed 脱离布局流压满视口,testid/逻辑零变化。
   return (
     <div
       data-testid={T.victoryScreen}
-      className="victory-anim-overlay absolute inset-0 z-40 flex flex-col items-center justify-center"
+      className="victory-anim-overlay fixed inset-0 z-40 flex flex-col items-center justify-center"
     >
       {particles.map((p) => (
         <span

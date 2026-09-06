@@ -40,10 +40,18 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
         </span>
         <div className="min-w-0">
           <div className="font-brush text-lg leading-tight">{p.guohao} 的回合</div>
-          {/* R3-B7(#79):meta 收敛为「身价 · 委任」——现金大数唯一呈现归手牌区(带浮字反馈),
-              此处不再重复现金,避免同一数字三处漂移 */}
-          <div data-testid={TESTIDS.statusMeta} className="truncate text-xs text-ink-dim tabular-nums">
-            身价 {formatMoney(p.netWorth)} · 委任 {p.warrants} · 声望 {p.reputation} · 体力 {p.stamina}
+          {/* R3-B7(#79):meta 收敛为「身价 · 委任 · 声望 · 体力」——现金大数唯一呈现归手牌区
+              (带浮字反馈),此处不再重复现金,避免同一数字三处漂移。
+              W2-包D(审计 A2):truncate 恒截断退役——288px 侧栏下第四字段(体力)永远被裁,
+              改 flex-wrap 按字段整单元换行(值不拦腰断),字距微收;testid 契约不变。 */}
+          <div
+            data-testid={TESTIDS.statusMeta}
+            className="flex flex-wrap gap-x-1.5 gap-y-0.5 text-xs leading-4 tracking-[-0.01em] text-ink-dim tabular-nums"
+          >
+            <span className="whitespace-nowrap">身价 {formatMoney(p.netWorth)}</span>
+            <span className="whitespace-nowrap">委任 {p.warrants}</span>
+            <span className="whitespace-nowrap">声望 {p.reputation}</span>
+            <span className="whitespace-nowrap">体力 {p.stamina}</span>
           </div>
         </div>
       </div>

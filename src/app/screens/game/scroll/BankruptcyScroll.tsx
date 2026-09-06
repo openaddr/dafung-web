@@ -1,10 +1,10 @@
 // 破产清算卷轴:对照旧 showBankruptcyScroll。
 // 卖珍宝(指导价)/卖非都城城(当前等级变卖价 = valueByLevel[level],与引擎入账同一函数)/
-// 遣名将(200)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
+// 遣名将(每名 2 两)→ 每卖一件引擎加现金,pendingDebt 固定不变,快照刷新后「尚欠 = 债务 − 现金」
 // 实时缩水;"结算"发 confirmBankruptcySettle。
 // #60:展示价曾误用购入价(40%),与实际入账(valueByLevel)口径分裂 → 展示与入账必须同一函数。
 // #94:「结算」分两态——仍欠(owe>0)时点结算=引擎 settleDebt+finalizeBankruptcy 破产出局,
-// 降为警示次级并明说后果;凑足(owe===0)升为主行动金钮,加一次性脉冲反馈达成。
+// 降为警示次级并明说后果;凑足(owe===0)升为主行动墨钮(视觉重做 v2:金不作按钮底),加一次性脉冲反馈达成。
 import { useEffect, useState } from "react";
 import type { GameCommand } from "@core/types";
 import { guidePriceOf } from "@core/treasures";
@@ -74,11 +74,16 @@ export function BankruptcyScroll({
       <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
         {settled
           ? "现金已凑足债务!点「结算」清偿,转危为安。"
-          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将 200 分)。`}
+          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 2 两)。`}
       </p>
+      {/* W2-包D(审计 A2):进度条数值伴随——「尚欠」随 owe 实时缩水,右对齐小字
+          与进度条同宽(m-圆),与变卖钮上的「+」金额互为对照。 */}
+      <div className="mx-1 mb-1 text-right text-xs text-ink-dim tabular-nums">
+        尚欠 {formatMoney(owe)}
+      </div>
       {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
           pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
-          每卖一笔随快照实时涨,凑足时正好满格呼应金钮。 */}
+          每卖一笔随快照实时涨,凑足时正好满格呼应墨钮。 */}
       <div className="mx-1 mb-3 h-1.5 overflow-hidden rounded-full border border-gold/30 bg-paper-lo">
         <div
           className="h-full rounded-full bg-money"
@@ -158,7 +163,7 @@ export function BankruptcyScroll({
       {/* 结算钉底:在滚动容器之外,滚动资产列表时它纹丝不动 */}
       <div className="mt-3 flex justify-center border-t border-[rgba(140,110,60,0.35)] pt-3">
         {/* #94 两态:owe>0=警示次级(此时结算=引擎 finalizeBankruptcy 毁局,须红字说破);
-            owe===0=主行动金钮,外层 span 承载一拍脉冲(ScrollButton 不吃自定义类,又不能改 ScrollShell)。 */}
+            owe===0=主行动墨钮,外层 span 承载一拍脉冲(ScrollButton 不吃自定义类,又不能改 ScrollShell)。 */}
         {settled ? (
           <span
             className={

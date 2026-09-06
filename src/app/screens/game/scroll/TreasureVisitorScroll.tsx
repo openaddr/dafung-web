@@ -9,6 +9,7 @@ import type { GameCommand } from "@core/types";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
+import { Sym } from "@app/screens/shared/Sym";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
@@ -114,12 +115,15 @@ export function TreasureVisitorScroll({
                   onCommand({ type: "resolveTreasureOwner", action: { type: mode, treasureId: t.id } })
                 }
               >
-                {t.name} → {formatMoney(priceOf(t, mode))}
+                {/* W2-包D(审计 A5):箭头改汉字「至」——brush 字族无 → 字形,裸排即回落/豆腐 */}
+                {t.name} 至 {formatMoney(priceOf(t, mode))}
               </ScrollButton>
             ))}
-            {/* 返回 Step 1(本地状态回退,不发命令) */}
+            {/* 返回 Step 1(本地状态回退,不发命令)。
+                W2-包D:「←」不在 brush 字族,裸排出豆腐——Sym SVG 渲染(ui-symbols 登记符) */}
             <ScrollButton testid={T.treasureBack} onClick={() => setMode(null)}>
-              ← 返回
+              <Sym name="back" size={13} />
+              返回
             </ScrollButton>
           </div>
         </>

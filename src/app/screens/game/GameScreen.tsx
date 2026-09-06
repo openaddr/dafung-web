@@ -222,7 +222,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           />
         </div>
         {/* G-5 常驻回合 chip:左上悬浮钮下方(避开复位钮),国号色圆徽 +「X之回合」;
-            bot 活跃时附「运筹中」微标(与 WaitingBar 文案口径一致),只读不拦交互。 */}
+            只读不拦交互。W2-包D(审计 A1):bot「运筹中」微标已删——WaitingBar 文案
+            已承担同一反馈,双份重复;thinking testid 契约在 WaitingBar,不受影响。 */}
         {snapshot.phase === "Playing" &&
           (() => {
             const active = snapshot.players[snapshot.activeIndex];
@@ -236,9 +237,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
                   {active.guohao.charAt(0)}
                 </span>
                 <span className="font-brush text-sm text-ink">{active.guohao}之回合</span>
-                {active.isBot && (
-                  <span className="rounded-[2px] bg-lacquer px-1 font-brush text-xs text-lacquer-gold">运筹中</span>
-                )}
               </div>
             );
           })()}
@@ -322,9 +320,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
         className={
           isNarrow
-            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[var(--ink-shadow-lg)] transition-transform duration-200 " +
+            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[var(--ink-shadow-lg)] transition-transform duration-[var(--dur-med)] " +
               (sidebarOpen ? "translate-x-0" : "translate-x-full")
-            : "flex shrink-0 flex-col overflow-hidden border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)] transition-[width] duration-300 " +
+            : "flex shrink-0 flex-col overflow-hidden border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)] transition-[width] duration-[var(--dur-med)] " +
               (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
         }
       >

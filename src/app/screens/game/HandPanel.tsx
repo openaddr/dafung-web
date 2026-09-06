@@ -38,18 +38,24 @@ function gainPulseKey(floats: DeltaFloat[]): number {
 
 /** 行军按钮 disabled 原因(UI F1):从快照 + interactive + pending 集中推导,返回 null = 可用。
  *  为什么集中一处:内嵌买地/扩军已把原因写在文案里,行军没有——这里补齐并统一口径,
- *  悬停 title 与旁注灰字共用同一返回值,避免两套说法漂移。 */
+ *  悬停 title 与旁注灰字共用同一返回值,避免两套说法漂移。
+ *  W2-包D(审计 A1):player 透传补「己方演出窗」口径——interactive=false 且非托管时,
+ *  若活跃玩家就是本地玩家(掷骰/行军演出进行中,控制器 busy 锁),说「未轮到你」与
+ *  回合 chip「X之回合」直接打架,改报「行军中…」(与 pending 同一句话,状态自洽)。 */
 function reasonForDisabled(
   s: GameSnapshot,
   interactive: boolean,
   pending: boolean,
   autopilotOn: boolean,
+  player: HandPanelProps["player"],
 ): string | null {
   if (pending) return "行军中…";
   if (!interactive) {
     if (s.phase !== "Playing") return "非对局中";
-    // G-8:托管中与等待区分——托管可主动「收回」取回操作,提示语引导而非冷冰冰「未轮到你」
-    return autopilotOn ? "托管中,点「收回」取回操作" : "未轮到你";
+    if (autopilotOn) return "托管中,点「收回」取回操作";
+    // 己方演出窗:轮到我了但演出未完(引擎 busy 锁),不是「没轮到」
+    if (player && s.players[s.activeIndex]?.id === player.id) return "行军中…";
+    return "未轮到你";
   }
   if (s.turnPhase !== "Roll") return "轮次未到,先完成当前抉择";
   return null;
@@ -278,7 +284,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
         {/* Wave3(候选2):roll() 一行转发已从基类删除,行军=标准命令直发(dispatchCommand 唯一入口) */}
         {(() => {
           // UI F1/F3:disabled 原因集中推导;pending(联机命令已发未回)显示「行军中…」
-          const reason = reasonForDisabled(snapshot, interactive, net.pending, autopilotOn);
+          const reason = reasonForDisabled(snapshot, interactive, net.pending, autopilotOn, player);
           return (
             <>
               <button
