@@ -125,13 +125,13 @@ function InputScroll({
     <div ref={trapRef}>
       <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
         {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
-        <label className="mb-4 flex flex-col gap-2 font-deco text-base text-ink">
+        <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-ink">
           {label}
           <input
             // 自动聚焦:prompt 的默认行为是直接可输入,卷轴版保持等价手感
             autoFocus
             data-testid="editor-name-input"
-            className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-deco text-base text-ink"
+            className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-wenkai text-base text-ink"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -172,7 +172,7 @@ class BoardBoundary extends React.Component<
   }
   render() {
     if (this.state.error) {
-      return <div className="p-10 font-deco text-danger">地图校验失败:{this.state.error}</div>;
+      return <div className="p-10 font-wenkai text-danger">地图校验失败:{this.state.error}</div>;
     }
     return this.props.children;
   }
@@ -457,10 +457,12 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   // S13(#46):min-h-10 保证触达 ≥40px(原 py-1.5 实测约 30px);字号/圆角不变
   // 视觉重做 v2:工具钮=笺钮、试玩=墨钮(控件种见 app.css);箭头符号一律 Sym SVG
   // (←/↶/↷ 不在离线字体子集,裸排是豆腐块)
+  // W2 审计:font-deco → font-wenkai(「回」已剔出小薇镜像,残留即混排;小薇空芯
+  // 字形风险下本文件文案一律文楷,见 DESIGN.md §4.3)
   const btn =
-    "note-btn inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-[3px] px-3 py-2 font-deco text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "note-btn inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-[3px] px-3 py-2 font-wenkai text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
   const primaryBtn =
-    "ink-btn inline-flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded-[5px] px-3 py-2 font-deco text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+    "ink-btn inline-flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded-[5px] px-3 py-2 font-wenkai text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
   const inputCls = "rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-bg px-2 py-1 w-full";
   // 原生 select 的主题皮肤(选项列表本身是浏览器绘制,接受)
@@ -495,7 +497,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         {ghost && (
           <div
             data-testid={TID.dragGhost}
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[rgba(43,35,23,0.4)] bg-panel/95 px-2 py-0.5 font-deco text-sm text-ink shadow-sm"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[rgba(43,35,23,0.4)] bg-panel/95 px-2 py-0.5 font-wenkai text-sm text-ink shadow-sm"
             style={{ left: ghost.x, top: ghost.y }}
           >
             {ghost.name}
@@ -542,81 +544,81 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           </div>
         )}
         {/* S3:成功态文字用 --color-money token(原硬编码 text-green-800) */}
-        {status && <div className="mb-3 text-xs text-money">{status}</div>}
+        {status && <div className="mb-3 text-xs font-medium text-money">{status}</div>}
 
-        {/* 属性面板(对照旧版 renderPanel) */}
+        {/* 属性面板(对照旧版 renderPanel)。W2 审计:selected 初始/重置恒 0,切换只在
+            有效城池索引间发生,「未选中城池」空态不可达 → 不留死分支(零兜底原则);
+            tileForm 容器 testid 契约保留(e2e 选择器零漂移)。 */}
         <div data-testid={TID.tileForm}>
-          {!tile ? (
-            <div className="text-sm text-ink-dim">(未选中城池)</div>
-          ) : (
-            <div className="flex flex-col gap-1.5 text-sm text-ink" onFocus={onFieldFocus} onBlur={onFieldBlur}>
-              <h4 className="mb-1 font-deco text-base">
-                #{selected} {tile.name}
-              </h4>
+          <div className="flex flex-col gap-1.5 text-sm text-ink" onFocus={onFieldFocus} onBlur={onFieldBlur}>
+            <h4 className="mb-1 font-wenkai text-base">
+              #{selected} {tile.name}
+            </h4>
 
-              <label className="flex items-center gap-2">
-                <span className="w-24 shrink-0">类型</span>
-                <select
-                  data-testid={TID.field("type")}
-                  className={selectCls}
-                  value={tile.type ?? "Property"}
-                  onChange={(e) => setTileField("type", e.target.value as TileType)}
-                >
-                  {TILE_TYPES.map((t) => (
-                    <option key={t.value} value={t.value}>{t.label}</option>
-                  ))}
-                </select>
+            <label className="flex items-center gap-2">
+              <span className="w-24 shrink-0">类型</span>
+              <select
+                data-testid={TID.field("type")}
+                className={selectCls}
+                value={tile.type ?? "Property"}
+                onChange={(e) => setTileField("type", e.target.value as TileType)}
+              >
+                {TILE_TYPES.map((t) => (
+                  <option key={t.value} value={t.value}>{t.label}</option>
+                ))}
+              </select>
+            </label>
+
+            {FIELDS.map((f) => (
+              <label key={String(f.key)} className="flex items-center gap-2">
+                <span className="w-24 shrink-0">{f.label}</span>
+                <input
+                  data-testid={TID.field(String(f.key))}
+                  className={inputCls}
+                  type={f.kind === "number" ? "number" : "text"}
+                  value={f.kind === "number" ? String(tile[f.key] ?? 0) : String(tile[f.key] ?? "")}
+                  onChange={(e) =>
+                    setTileField(f.key, f.kind === "number" ? Number(e.target.value) || 0 : e.target.value)
+                  }
+                />
               </label>
+            ))}
 
-              {FIELDS.map((f) => (
-                <label key={String(f.key)} className="flex items-center gap-2">
-                  <span className="w-24 shrink-0">{f.label}</span>
-                  <input
-                    data-testid={TID.field(String(f.key))}
-                    className={inputCls}
-                    type={f.kind === "number" ? "number" : "text"}
-                    value={f.kind === "number" ? String(tile[f.key] ?? 0) : String(tile[f.key] ?? "")}
-                    onChange={(e) =>
-                      setTileField(f.key, f.kind === "number" ? Number(e.target.value) || 0 : e.target.value)
-                    }
-                  />
-                </label>
-              ))}
-
-              {/* 等级价值表:逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1) */}
-              <div className="mt-1 border-t border-ink/20 pt-2">
-                <div className="mb-1 text-xs text-ink-dim">城池价值表(Lv0~Lv{maxLevel})</div>
-                <div className="grid grid-cols-3 gap-1">
-                  {Array.from({ length: maxLevel + 1 }, (_, lvl) => (
-                    <label key={lvl} className="flex flex-col gap-0.5">
-                      <span className="text-[10px] text-ink-dim">Lv{lvl}</span>
-                      <input
-                        data-testid={TID.rentLevel(lvl)}
-                        className="rounded border border-ink/30 bg-bg px-1 py-0.5 text-xs"
-                        type="number"
-                        value={String(tile.valueByLevel?.[lvl] ?? 0)}
-                        onChange={(e) => {
-                          const values = [...(tile.valueByLevel ?? Array.from({ length: maxLevel + 1 }, () => 0))];
-                          values[lvl] = Number(e.target.value) || 0;
-                          setTileField("valueByLevel", values);
-                        }}
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mt-2 text-xs text-ink-dim">
-                坐标:[{tile.pos[0]}, {tile.pos[1]}](拖拽城池改)
+            {/* 等级价值表:逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1)。
+                W2 审计:cols-4 一行收齐 Lv0~Lv3(原 cols-3 的 Lv3 孤行);窄侧栏挤压由
+                输入框 min-w-0 兜住(grid 轨道 minmax(0,1fr) 可缩,px-1 保数字可读) */}
+            <div className="mt-1 border-t border-ink/20 pt-2">
+              <div className="mb-1 text-xs text-ink-dim">城池价值表(Lv0~Lv{maxLevel})</div>
+              <div className="grid grid-cols-4 gap-1">
+                {Array.from({ length: maxLevel + 1 }, (_, lvl) => (
+                  <label key={lvl} className="flex flex-col gap-0.5">
+                    <span className="text-[10px] text-ink-dim">Lv{lvl}</span>
+                    <input
+                      data-testid={TID.rentLevel(lvl)}
+                      className="min-w-0 rounded border border-ink/30 bg-bg px-1 py-0.5 text-xs"
+                      type="number"
+                      value={String(tile.valueByLevel?.[lvl] ?? 0)}
+                      onChange={(e) => {
+                        const values = [...(tile.valueByLevel ?? Array.from({ length: maxLevel + 1 }, () => 0))];
+                        values[lvl] = Number(e.target.value) || 0;
+                        setTileField("valueByLevel", values);
+                      }}
+                    />
+                  </label>
+                ))}
               </div>
             </div>
-          )}
+
+            <div className="mt-2 text-xs text-ink-dim">
+              坐标:[{tile.pos[0]}, {tile.pos[1]}](拖拽城池改)
+            </div>
+          </div>
         </div>
 
         {/* 辅路摘要(只读,对照旧版:辅路由地图作者在 JSON 手配) */}
         {map.branch && (
           <div className="mt-3 border-t border-ink/20 pt-2 text-xs text-ink-dim">
-            <h4 className="mb-1 font-deco text-sm text-ink">辅路(只读)</h4>
+            <h4 className="mb-1 font-wenkai text-sm text-ink">辅路(只读)</h4>
             <p>
               {map.tiles.find((t) => t.id === map.branch!.start)?.name ?? map.branch.start}
               {" → "}
@@ -645,7 +647,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       {saveAsOpen && (
         <InputScroll
           title="另存新图"
-          label="请输入地图名:"
+          label="请输入地图名"
           defaultValue={`自建地图 ${getMapSource().listCustomMaps().length + 1}`}
           onOk={confirmSaveAs}
           onCancel={() => setSaveAsOpen(false)}
