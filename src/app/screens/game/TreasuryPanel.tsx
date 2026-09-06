@@ -84,11 +84,14 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
       // R3-A5(#68):桌面并排保持原样(min-h-24 保底 + flex-1 承接弹性纵向空间);
       // 抽屉态 flex-none 放开保底,内容自然高度展开,溢出由 aside 整抽屉滚动接管。
       className={
-        "flex flex-col border-b border-gold/40 px-3 pb-2 " +
+        "flex flex-col border-b border-[rgba(43,35,23,0.18)] px-3 pb-2 " +
         (narrow ? "flex-none" : "min-h-24 flex-1")
       }
     >
-      <h3 className="shrink-0 py-1 font-brush text-base">珍宝 · 名将</h3>
+      <h3 className="note-head shrink-0 py-1 text-xs tracking-[0.25em] text-ink-dim">
+        <i>珍</i>
+        <span>珍宝 · 名将</span>
+      </h3>
       {!player ? (
         <div className="text-xs leading-5 text-ink-dim/80">观战中 · 无手牌可看</div>
       ) : (

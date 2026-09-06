@@ -90,7 +90,7 @@ export function BankruptcyScroll({
       </div>
       <div className="flex max-h-[432px] flex-col gap-2 overflow-hidden">
         <section className="flex min-h-0 flex-col">
-          <h4 className="note-head mb-1.5 font-deco text-xs tracking-[0.25em] text-ink-dim">
+          <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
             <i>宝</i>
             <span>珍宝</span>
           </h4>
@@ -108,7 +108,7 @@ export function BankruptcyScroll({
           </div>
         </section>
         <section className="flex min-h-0 flex-col">
-          <h4 className="note-head mb-1.5 font-deco text-xs tracking-[0.25em] text-ink-dim">
+          <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
             <i>城</i>
             <span>城池</span>
           </h4>
@@ -137,7 +137,7 @@ export function BankruptcyScroll({
           </div>
         </section>
         <section className="flex min-h-0 flex-col">
-          <h4 className="note-head mb-1.5 font-deco text-xs tracking-[0.25em] text-ink-dim">
+          <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
             <i>贤</i>
             <span>名将</span>
           </h4>

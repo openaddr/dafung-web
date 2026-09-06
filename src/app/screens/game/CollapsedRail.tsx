@@ -29,19 +29,20 @@ export interface CollapsedRailProps {
 // 两形态只差布局槽位类(容器/按钮尺寸/字号),文案与语义逐字一致。
 const PANEL = {
   toggle:
-    "flex h-12 w-12 shrink-0 items-center justify-center border-b border-gold/40 bg-panel-hi font-brush text-ink-dim hover:text-ink",
-  seal: "shrink-0 rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold",
+    "flex h-12 w-12 shrink-0 items-center justify-center border-b border-[rgba(43,35,23,0.2)] bg-panel-hi font-brush text-ink-dim hover:text-ink",
+  // 「托」印:朱砂实钤(身份/状态印族,与「你」「观」同语言)
+  seal: "shrink-0 rounded-[2px] bg-danger px-1 py-1 font-brush text-sm leading-none text-[#f6ead6]",
   guohao: "font-brush text-xl text-ink",
+  // 行军热钮 = 墨钮(与 HandPanel 主按钮同种)
   roll:
-    "min-h-0 min-w-12 flex-1 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40",
+    "ink-btn min-h-0 min-w-12 flex-1 rounded-[3px] px-1 font-brush disabled:opacity-40",
 };
 const FLOAT = {
   toggle:
-    "flex min-h-10 min-w-10 items-center justify-center rounded font-brush text-ink-dim hover:text-ink",
-  seal: "rounded border border-gold bg-gold/20 px-1 py-1 font-brush text-sm text-gold",
+    "flex min-h-10 min-w-10 items-center justify-center rounded-[3px] font-brush text-ink-dim hover:text-ink",
+  seal: "rounded-[2px] bg-danger px-1 py-1 font-brush text-sm leading-none text-[#f6ead6]",
   guohao: "font-brush text-lg text-ink",
-  roll:
-    "min-h-10 min-w-10 rounded border border-gold bg-gold/80 px-1 font-brush text-ink hover:bg-gold disabled:opacity-40",
+  roll: "ink-btn min-h-10 min-w-10 rounded-[3px] px-1 font-brush disabled:opacity-40",
 };
 
 export function CollapsedRail({
@@ -134,7 +135,7 @@ export function CollapsedRail({
     <div
       data-testid={TESTIDS.sidebarCollapsed}
       className={
-        "absolute top-1/2 right-0 z-10 flex -translate-y-1/2 flex-col items-center gap-2 rounded-l border border-r-0 border-gold/60 bg-panel/95 px-1 py-2 shadow-md " +
+        "absolute top-1/2 right-0 z-10 flex -translate-y-1/2 flex-col items-center gap-2 rounded-l border border-r-0 border-[rgba(43,35,23,0.3)] bg-panel/95 px-1 py-2 shadow-md " +
         (myTurnToRoll ? "bg-gold/10 ring-1 ring-gold/60" : "")
       }
     >

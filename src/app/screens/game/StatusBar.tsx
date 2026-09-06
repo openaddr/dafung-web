@@ -17,7 +17,7 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
   } else if (snapshot.phase === "GameOver") {
     const w = snapshot.players.find((p) => p.id === snapshot.winner);
     body = (
-      <div data-testid={TESTIDS.statusCard} className="px-2 py-1 font-brush text-xl text-gold">
+      <div data-testid={TESTIDS.statusCard} className="px-2 py-1 font-brush text-xl text-gold-deep">
         {w ? `「${w.guohao}」称帝` : "终局"}
       </div>
     );
@@ -28,11 +28,13 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
         data-testid={TESTIDS.statusCard}
         // 玩家色沿用旧的 CSS 变量注入模式(--player-color),子元素用任意值类取色
         style={{ ["--player-color" as string]: rgba(playerColor(p.colorIndex)) }}
-        className="active-card-breath mt-1 flex items-center gap-2 rounded border-l-4 bg-panel-hi px-2 py-1.5"
+        className="active-card-breath mt-1 flex items-center gap-2 rounded-[3px] border-l-4 bg-panel-hi px-2 py-1.5"
       >
+        {/* 国号徽记:方印制式(视觉重做 v2)——微旋朱印姿态,印面即玩家色 */}
         <span
           data-testid={TESTIDS.statusGuohao}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-(--player-color) font-brush text-xl text-white"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[3px] bg-(--player-color) font-brush text-xl text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]"
+          style={{ rotate: "-3deg" }}
         >
           {p.guohao || "?"}
         </span>
@@ -40,7 +42,7 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
           <div className="font-brush text-lg leading-tight">{p.guohao} 的回合</div>
           {/* R3-B7(#79):meta 收敛为「身价 · 委任」——现金大数唯一呈现归手牌区(带浮字反馈),
               此处不再重复现金,避免同一数字三处漂移 */}
-          <div data-testid={TESTIDS.statusMeta} className="truncate text-xs text-ink-dim">
+          <div data-testid={TESTIDS.statusMeta} className="truncate text-xs text-ink-dim tabular-nums">
             身价 {formatMoney(p.netWorth)} · 委任 {p.warrants} · 声望 {p.reputation} · 体力 {p.stamina}
           </div>
         </div>
@@ -48,12 +50,12 @@ export function StatusBar({ snapshot }: { snapshot: GameSnapshot }) {
     );
   }
   return (
-    <section data-testid={TESTIDS.statusBarPanel} className="border-b border-gold/40 px-3 py-2">
-      <h3 className="flex items-baseline justify-between font-brush text-base">
-        回合
-        {/* R3-B10(#82):原 text-xs text-ink-dim 是全侧栏最弱档,轮次是全局节奏信息,
-            提为 font-deco text-sm text-ink(与 HandPanel 身份头 meta 同族提级) */}
-        <span data-testid={TESTIDS.roundInfo} className="font-deco text-sm text-ink">
+    <section data-testid={TESTIDS.statusBarPanel} className="border-b border-[rgba(43,35,23,0.18)] px-3 py-2">
+      {/* 笺头制式(视觉重做 v2):「回」字朱印 + 标签 + 发丝线 + 轮值(轮次是节奏信息) */}
+      <h3 className="note-head text-xs tracking-[0.25em] text-ink-dim">
+        <i>回</i>
+        <span>回合</span>
+        <span data-testid={TESTIDS.roundInfo} className="whitespace-nowrap font-deco text-xs tracking-normal text-ink tabular-nums">
           第 {snapshot.round} 轮
         </span>
       </h3>

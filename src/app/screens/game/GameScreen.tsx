@@ -26,6 +26,7 @@ import { CollapsedRail } from "./CollapsedRail";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
+import { Sym } from "@app/screens/shared/Sym";
 import { TESTIDS } from "./testids";
 import { IS_NARROW_QUERY, useIsNarrow } from "@app/hooks/use-media-query";
 import { VERSION } from "../../../version";
@@ -40,12 +41,13 @@ function MuteButton() {
       data-testid={TESTIDS.muteButton}
       title={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
-      // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变
-      className="absolute top-[calc(var(--safe-top)+8px)] right-[calc(var(--safe-right)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+      // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变;
+      // 视觉重做 v2:控制钮统一「笺钮方章」制式(发丝墨边 + Sym SVG 符号,
+      // ♪ 字符在离线字体下是豆腐块风险,一并根除)
+      className="absolute top-[calc(var(--safe-top)+8px)] right-[calc(var(--safe-right)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 text-ink-dim transition-colors hover:text-ink"
     >
-      {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线组合字符),不再 ♪/♫ 混用
-          两种音符表达"有无声"(语义弱);同一符号加删除线直观表"关闭"。 */}
-      {audio.muted ? "♪\u0336" : "♪"}
+      {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线),Sym SVG 渲染 */}
+      <Sym name={audio.muted ? "muted" : "sound"} size={15} />
     </button>
   );
 }
@@ -193,7 +195,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           // 任意 pushHint(+12px)与引导(+48px)上下错开不再叠字。
           <div
             data-testid={TESTIDS.hint}
-            className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded bg-panel/90 px-4 py-1 font-brush text-lg shadow"
+            className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/95 px-4 py-1 font-brush text-lg shadow-sm"
           >
             {setupHint}
           </div>
@@ -226,16 +228,16 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             const active = snapshot.players[snapshot.activeIndex];
             if (!active) return null;
             return (
-              <div className="pointer-events-none absolute top-[calc(var(--safe-top)+56px)] left-[calc(var(--safe-left)+8px)] z-10 flex items-center gap-1.5 rounded bg-panel/90 px-2 py-1 shadow">
+              <div className="pointer-events-none absolute top-[calc(var(--safe-top)+56px)] left-[calc(var(--safe-left)+8px)] z-10 flex items-center gap-1.5 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/90 px-2 py-1 shadow-sm">
                 <span
-                  className="flex h-5 w-5 items-center justify-center rounded-full font-brush text-xs text-white"
+                  className="flex h-5 w-5 rotate-[-4deg] items-center justify-center rounded-[2px] font-brush text-xs text-[#f6ead6]"
                   style={{ backgroundColor: rgba(playerColor(active.colorIndex)) }}
                 >
                   {active.guohao.charAt(0)}
                 </span>
                 <span className="font-brush text-sm text-ink">{active.guohao}之回合</span>
                 {active.isBot && (
-                  <span className="rounded bg-ink/80 px-1 font-brush text-xs text-panel">运筹中</span>
+                  <span className="rounded-[2px] bg-lacquer px-1 font-brush text-xs text-lacquer-gold">运筹中</span>
                 )}
               </div>
             );
@@ -246,14 +248,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           data-testid={TESTIDS.resetView}
           title="总览复位"
           onClick={() => boardRef.current?.reset()}
-          // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变
-          className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+          // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变;笺钮方章制式
+          className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 text-ink-dim transition-colors hover:text-ink"
         >
-          {/* S6 符号表统一:复位统一 ◎(圆心居中,古印感),不再用光学校准符号 ⌖ */}
-          ◎
+          {/* S6 符号表统一:复位统一 ◎(Sym SVG 渲染,圆心居中古印感) */}
+          <Sym name="reset" size={15} />
         </button>
         {/* #98 缩放 +/− 钮:触屏/触板无滚轮/双指发现性差,给显式入口。竖排挂复位钮同列
-            (制式照抄 ◎ 钮:min-h/w-10 = 40×40 圆角 + bg-panel/90 border-gold/50);
+            (制式照抄 ◎ 钮:min-h/w-10 = 40×40 圆角 + bg-panel/90 发丝墨边);
             top +92 避开 G-5 回合 chip 槽(+56,高度 ~28px),zoomBy 以视口中心为锚,
             与滚轮/双指同一条 setView 管线(见 usePanZoom)。 */}
         <div className="absolute top-[calc(var(--safe-top)+92px)] left-[calc(var(--safe-left)+8px)] z-10 flex flex-col gap-2">
@@ -262,7 +264,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             title="放大棋盘"
             aria-label="放大棋盘"
             onClick={() => boardRef.current?.zoomBy(1.25)}
-            className="flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+            className="flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim transition-colors hover:text-ink"
           >
             +
           </button>
@@ -271,7 +273,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             title="缩小棋盘"
             aria-label="缩小棋盘"
             onClick={() => boardRef.current?.zoomBy(0.8)}
-            className="flex min-h-10 min-w-10 items-center justify-center rounded border border-gold/50 bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim hover:text-ink"
+            className="flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim transition-colors hover:text-ink"
           >
             −
           </button>
@@ -320,28 +322,41 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
         className={
           isNarrow
-            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l-2 border-gold/60 bg-panel shadow-2xl transition-transform duration-200 " +
+            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[var(--ink-shadow-lg)] transition-transform duration-200 " +
               (sidebarOpen ? "translate-x-0" : "translate-x-full")
-            : "flex shrink-0 flex-col overflow-hidden border-l-2 border-gold/60 bg-panel transition-[width] duration-300 " +
+            : "flex shrink-0 flex-col overflow-hidden border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)] transition-[width] duration-300 " +
               (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
         }
       >
         {sidebarOpen || isNarrow ? (
           <>
             {/* R3-B9(#81):横幅分相位——对局中(Playing)压为单行(约 65px→36px,
-                矮视口抽屉不再被常驻横幅占 1/6 高);Setup/GameOver 保留大横幅。 */}
+                矮视口抽屉不再被常驻横幅占 1/6 高);Setup/GameOver 保留大横幅。
+                视觉重做 v2:品牌行加「鹿」字朱印落款(全局印章语言的门面位),
+                金饰线退役改发丝墨线。 */}
             <h1
               className={
-                "border-b border-gold/40 bg-panel-hi px-3 text-center font-brush tracking-widest " +
-                (snapshot.phase === "Playing" ? "py-1.5 text-base" : "py-2 text-2xl")
+                "flex items-center justify-center gap-2 border-b border-[rgba(43,35,23,0.2)] bg-panel-hi px-3 text-center font-brush tracking-widest " +
+                (snapshot.phase === "Playing" ? "py-1.5 text-base" : "flex-col gap-1 py-2 text-2xl")
               }
             >
-              群雄逐鹿
+              <span className="flex items-center justify-center gap-2">
+                <span
+                  aria-hidden="true"
+                  className={
+                    "flex rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush leading-none text-[#f6ead6] " +
+                    (snapshot.phase === "Playing" ? "h-5 w-5 text-[13px]" : "h-7 w-7 text-lg")
+                  }
+                >
+                  鹿
+                </span>
+                <span>群雄逐鹿</span>
+              </span>
               <small
                 className={
                   snapshot.phase === "Playing"
-                    ? "inline text-[10px] text-ink-dim"
-                    : "block text-xs text-ink-dim"
+                    ? "text-[10px] text-ink-dim"
+                    : "text-xs text-ink-dim"
                 }
               >
                 · 三国大富翁 ·
@@ -367,7 +382,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               data-testid={TESTIDS.sidebarToggle}
               title="收起侧栏(全屏看棋)"
               onClick={toggleSidebar}
-              className="flex min-h-10 items-center justify-center border-t border-gold/40 bg-panel-hi font-brush text-ink-dim hover:text-ink"
+              className="flex min-h-10 items-center justify-center border-t border-[rgba(43,35,23,0.2)] bg-panel-hi font-brush text-lg text-ink-dim hover:text-ink"
             >
               »
             </button>

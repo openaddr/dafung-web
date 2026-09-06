@@ -195,13 +195,17 @@ body[data-screen="game"] #app::after {
   box-shadow: var(--ink-shadow-sm);
 }
 
-/* 笺头:单字朱印 + 小薇体标签 + 尾随发丝线。
+/* 笺头:单字朱印 + 标签 + 尾随发丝线。
    结构:<header class="note-head"><i>印</i><span>标签</span></header>,
-   印章方块由组件内 <i> 提供字,这里给制式(朱砂底/纸字/方角/微旋转)。 */
+   印章方块由组件内 <i> 提供字,这里给制式(朱砂底/纸字/方角/微旋转)。
+   字体刻意落文楷而不是小薇:ZCOOL XiaoWei 的离线镜像存在「空芯字形」
+   (声明的码位在 woff2 里是实心方块,实测 回/薇 坏)——新增文案不可裸排小薇,
+   见 DESIGN.md §4.3;<i> 印文是马善政(实测覆盖正常)。 */
 .note-head {
   display: flex;
   align-items: center;
   gap: 8px;
+  font-family: var(--font-wenkai);
 }
 .note-head::after {
   content: "";
