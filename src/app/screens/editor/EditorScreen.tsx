@@ -30,6 +30,7 @@ import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
 import { ScrollShell, ScrollButton } from "@app/screens/game/scroll/ScrollShell";
 // S4(#37):InputScroll 焦点陷阱(screens/shared;Tab 不出卷轴、关闭还焦触发钮)
 import { useDialogFocus } from "@app/screens/shared/useDialogFocus";
+import { Sym } from "@app/screens/shared/Sym";
 import { TID } from "./testids";
 
 export interface EditorScreenProps {
@@ -454,11 +455,16 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   }, [map]);
 
   // S13(#46):min-h-10 保证触达 ≥40px(原 py-1.5 实测约 30px);字号/圆角不变
+  // 视觉重做 v2:工具钮=笺钮、试玩=墨钮(控件种见 app.css);箭头符号一律 Sym SVG
+  // (←/↶/↷ 不在离线字体子集,裸排是豆腐块)
   const btn =
-    "min-h-10 cursor-pointer rounded border border-ink/30 px-3 py-2 font-deco text-sm text-ink transition-colors hover:bg-ink/5 disabled:cursor-not-allowed disabled:opacity-40";
-  const primaryBtn = btn.replace("border-ink/30", "border-gold bg-gold/20");
+    "note-btn inline-flex min-h-10 cursor-pointer items-center gap-1 rounded-[3px] px-3 py-2 font-deco text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
+  const primaryBtn =
+    "ink-btn inline-flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded-[5px] px-3 py-2 font-deco text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
-  const inputCls = "rounded border border-ink/30 bg-bg px-2 py-1 w-full";
+  const inputCls = "rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-bg px-2 py-1 w-full";
+  // 原生 select 的主题皮肤(选项列表本身是浏览器绘制,接受)
+  const selectCls = "note-select px-2 py-1 w-full text-sm";
 
   return (
     // S2:relative 作为卷轴弹层(absolute inset-0)的定位锚
@@ -489,7 +495,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         {ghost && (
           <div
             data-testid={TID.dragGhost}
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded border border-gold bg-panel/90 px-2 py-0.5 font-deco text-sm text-ink shadow"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[rgba(43,35,23,0.4)] bg-panel/95 px-2 py-0.5 font-deco text-sm text-ink shadow-sm"
             style={{ left: ghost.x, top: ghost.y }}
           >
             {ghost.name}
@@ -500,11 +506,11 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar)。
           S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行)
           S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源) */}
-      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l-2 border-gold bg-gradient-to-b from-paper-hi to-paper-lo p-4">
+      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)]">
         <div className="flex flex-wrap gap-1.5">
-          <button data-testid={TID.exit} className={btn} onClick={onExit}>← 返回</button>
-          <button data-testid={TID.undo} className={btn} onClick={undo} disabled={past.current.length === 0}>↶ 撤销</button>
-          <button data-testid={TID.redo} className={btn} onClick={redo} disabled={future.current.length === 0}>↷ 重做</button>
+          <button data-testid={TID.exit} className={btn} onClick={onExit}><Sym name="back" size={13} />返回</button>
+          <button data-testid={TID.undo} className={btn} onClick={undo} disabled={past.current.length === 0}><Sym name="undo" size={13} />撤销</button>
+          <button data-testid={TID.redo} className={btn} onClick={redo} disabled={future.current.length === 0}><Sym name="redo" size={13} />重做</button>
           <button data-testid={TID.save} className={btn} onClick={doSave} disabled={!validation.ok}>保存</button>
           <button data-testid={TID.saveAs} className={btn} onClick={doSaveAs} disabled={!validation.ok}>另存新图</button>
           <button data-testid={TID.export} className={btn} onClick={doExport}>导出</button>
@@ -552,7 +558,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                 <span className="w-24 shrink-0">类型</span>
                 <select
                   data-testid={TID.field("type")}
-                  className={inputCls}
+                  className={selectCls}
                   value={tile.type ?? "Property"}
                   onChange={(e) => setTileField("type", e.target.value as TileType)}
                 >
@@ -630,7 +636,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             onClick={doTryPlay}
             disabled={!validation.ok}
           >
-            {validation.ok ? "▶ 试玩这局" : "地图无效,无法试玩"}
+            {validation.ok ? <><Sym name="play" size={12} />试玩这局</> : "地图无效,无法试玩"}
           </button>
         )}
       </aside>

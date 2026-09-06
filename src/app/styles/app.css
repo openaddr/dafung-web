@@ -175,6 +175,23 @@ body[data-screen="game"] #app::after {
   background: var(--color-panel-hi);
 }
 
+/* 笺选:原生 <select> 的皮肤(编辑器「类型」/托管速度等残留下拉)——
+   appearance:none 去系统外观,自绘下拉箭头(Sym expand 同款折角);弹出的选项列表
+   是浏览器绘制,无法主题化,接受。 */
+.note-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%236f6146' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 6px center / 12px auto,
+    var(--color-panel);
+  color: var(--color-ink);
+  border: 1px solid rgba(43, 35, 23, 0.28);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.1);
+  padding-right: 22px;
+}
+
 /* 朱钮:朱砂底白字,不可逆/危险确认(认破产/解散)。 */
 .cinnabar-btn {
   background: linear-gradient(180deg, #c1483a, var(--color-danger));

@@ -153,7 +153,7 @@ export function SoloSetupScreen({
       <h1 className="font-brush text-4xl text-ink tracking-widest">单机模式</h1>
 
       {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-      <div className="scroll-anim-unroll w-[min(560px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl mt-4">
+      <div className="scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] p-5 mt-4">
         {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
         <div className="font-deco text-sm text-ink-dim mb-1 flex items-center gap-2">
           <span>当前地图:</span>
@@ -161,13 +161,13 @@ export function SoloSetupScreen({
           <button
             type="button"
             onClick={() => setShowMapSelect(true)}
-            className="rounded border border-gold/60 bg-panel-hi px-2.5 min-h-[32px] font-deco text-xs text-ink cursor-pointer transition-colors hover:bg-panel"
+            className="note-btn rounded-[3px] px-2.5 min-h-[32px] font-deco text-xs cursor-pointer transition-colors"
           >
             更换
           </button>
         </div>
         {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-        <p className="font-deco text-xs text-ink-dim mb-4 border-b border-dashed border-ink/25 pb-3">
+        <p className="font-deco text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
           立国号、定诸侯,起兵逐鹿天下。
         </p>
 
@@ -277,7 +277,7 @@ export function SoloSetupScreen({
             return (
               <div key={i} data-testid={TID.seatRow(i)} className="grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1">
                 <span
-                  className="w-[26px] h-[26px] rounded-full flex items-center justify-center font-deco text-base text-white"
+                  className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-brush text-base text-[#f6ead6]"
                   style={{ background: color }}
                 >
                   {i + 1}
@@ -341,7 +341,8 @@ export function SoloSetupScreen({
                 // W5:触屏点击目标 28px→36px(w-9 h-9),字号微调到 text-base 仍保字盘密度
                 "w-9 h-9 rounded border font-deco text-base cursor-pointer transition-colors " +
                 (guohao === ch
-                  ? "border-gold bg-gold/25 text-ink"
+                  ? // 选中=钤印:朱砂实底(国号印的预览,与对局内方印同语言)
+                    "border-danger bg-danger text-[#f6ead6]"
                   : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
               }
             >
@@ -355,7 +356,7 @@ export function SoloSetupScreen({
           <button
             data-testid="solo-setup-back"
             onClick={onBack}
-            className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep"}
+            className={btnBase + " note-btn"}
           >
             返回
           </button>
@@ -367,7 +368,8 @@ export function SoloSetupScreen({
             title={guohaoInvalid ? "国号需为单个汉字" : undefined}
             className={
               btnBase +
-              " border-gold bg-gold/80 hover:bg-gold font-bold py-2.5 disabled:opacity-40 disabled:cursor-not-allowed"
+              // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按
+              " ink-btn font-bold py-2.5 px-8 disabled:opacity-40 disabled:cursor-not-allowed"
             }
           >
             {busy ? "调兵遣将中…" : "起兵"}

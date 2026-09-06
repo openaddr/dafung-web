@@ -177,7 +177,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     return (
       <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6">
         <h1 className="font-brush text-3xl text-ink tracking-widest">房主已解散房间</h1>
-        <button data-testid={LID.back} onClick={onExit} className={btnBase + " border-gold bg-gold/80"}>
+        <button data-testid={LID.back} onClick={onExit} className={btnBase + " ink-btn font-bold"}>
           返回首页
         </button>
       </div>
@@ -200,7 +200,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」) */}
         <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">— 群雄逐鹿 —</div>
         {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-        <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl flex flex-col gap-5">
+        <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5 flex flex-col gap-5">
           {/* 建房:建房者 = Seat0(host) */}
           <div className="font-deco text-sm text-ink">
             <div className="font-brush text-base mb-2">建房</div>
@@ -256,7 +256,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   );
                 }}
                 // R3-B11(#83):h-10 py-0 与输入框/Stepper 等高;等高后 self-end 不再需要(items-center 对齐)
-                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold h-10 py-0"}
+                className={btnBase + " ink-btn font-bold h-10 py-0"}
               >
                 {busy ? "处理中…" : "建房"}
               </button>
@@ -289,7 +289,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
                 title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
                 // R3-B11(#83):h-10 py-0,与房间码输入框等高
-                className={btnBase + " border-ink/40 bg-panel-hi hover:bg-bg-deep h-10 py-0"}
+                className={btnBase + " note-btn h-10 py-0"}
               >
                 {busy ? "处理中…" : "加入"}
               </button>
@@ -297,7 +297,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           </form>
           {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
           <HintBar hint={hint} level={hintLevel} variant="inline" />
-          <button onClick={onExit} className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep self-start text-sm"}>
+          <button onClick={onExit} className={btnBase + " note-btn self-start text-sm"}>
             返回首页
           </button>
         </div>
@@ -329,7 +329,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <ConnectionBanner />
       <div className="m-auto flex w-full flex-col items-center">
       {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-      <div className="scroll-anim-unroll w-[min(420px,92vw)] rounded-lg border border-gold/60 bg-panel p-5 shadow-xl">
+      <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5">
         {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
         <h1 className="font-brush text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">大厅</h1>
         {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
@@ -341,7 +341,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           title="点击复制房间码"
           aria-label={`房间码 ${roomId}，点击复制`}
           // R3-B13(#85):hover 用底色反馈不动字色——金字于浅底对比不足(原 hover:text-gold 会掉到 1.8:1)
-          className="mt-2 block w-full text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
+          className="mt-2 block w-full rounded-[3px] border-y-2 border-[rgba(43,35,23,0.4)] py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
         >
           {roomId}
         </button>
@@ -402,7 +402,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     <span
                       data-testid={LID.seatGuohao(s.seat)}
                       title={`预设国号「${s.guohao}」`}
-                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 font-brush text-[13px] leading-none text-ink"
+                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[13px] leading-none text-[#f6ead6]"
                     >
                       {s.guohao}
                     </span>
@@ -441,7 +441,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 disabled={busy}
                 title={busy ? "处理中…" : undefined}
                 onClick={() => setShowMapSelect(true)}
-                className={btnBase + " border-ink/30 bg-panel-hi hover:bg-bg-deep text-sm"}
+                className={btnBase + " note-btn text-sm"}
               >
                 {busy ? "处理中…" : "选择地图"}
               </button>
@@ -451,7 +451,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
                 title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
                 onClick={() => void guard(() => controller!.startGame())}
-                className={btnBase + " border-gold bg-gold/80 hover:bg-gold font-bold"}
+                className={btnBase + " ink-btn font-bold"}
               >
                 {busy ? "处理中…" : "开局"}
               </button>
@@ -478,7 +478,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           onClick={() => {
             if (!busy) onExit();
           }}
-          className={btnBase + " border-ink/40 bg-panel hover:bg-bg-deep mt-3 mx-auto block text-sm"}
+          className={btnBase + " note-btn mt-3 mx-auto block text-sm"}
         >
           {busy ? "处理中…" : "离开房间"}
         </button>

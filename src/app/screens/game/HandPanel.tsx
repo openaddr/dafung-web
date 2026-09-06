@@ -333,7 +333,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               setAutopilotSpeed(speed);
               if (autopilotOn) controller.setAutoPilot(true, speed); // 托管中切速立即生效(旧行为)
             }}
-            className="h-10 cursor-pointer rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-bg px-2 font-deco text-xs leading-none text-ink-dim"
+            className="note-select h-10 cursor-pointer px-2 font-deco text-xs leading-none text-ink-dim"
             aria-label="托管速度"
           >
             <option value="fast">快</option>
