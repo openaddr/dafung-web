@@ -112,7 +112,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
-  cashHeroBankruptcy: "遣散名将",
+  cashHeroBankruptcy: "遣散名士",
   confirmBankruptcySettle: "清算确认",
 };
 

@@ -3,7 +3,7 @@
 // this.dice(种子化,保命令流重放,ADR-0014)。id 用中文且必须自带因果(名字与效果互证)。
 
 export type EncounterTier = "好运" | "中性" | "霉运";
-export type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力";
+export type EncounterTag = "银两" | "武将" | "珍宝" | "城池" | "声望" | "玩家" | "体力";
 
 /** 即时效果。银两负值走引擎支付/清算(破产与购地同规则);
  *  siphon/levy 是玩家间银两转移:上限=付款方现有现金,不触发对方清算。
@@ -47,7 +47,7 @@ export const ENCOUNTERS: EncounterDef[] = [
   { id: "草船借箭", tier: "好运", tags: ["银两"], weight: 1, text: "借得箭矢十万,转售诸侯", effect: { kind: "cash", delta: 200 } },
   { id: "风调雨顺", tier: "好运", tags: ["银两"], weight: 1, text: "五谷丰登,市税多入", effect: { kind: "cash", delta: 100 } },
   { id: "神医行诊", tier: "好运", tags: ["体力"], weight: 0.8, text: "神医路过举家调理", effect: { kind: "cash", delta: 0, staminaDelta: 25 } },
-  { id: "义士来投", tier: "好运", tags: ["名将"], weight: 0.8, text: "名将慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
+  { id: "义士来投", tier: "好运", tags: ["武将"], weight: 0.8, text: "贤士慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
   { id: "窖藏现世", tier: "好运", tags: ["珍宝"], weight: 0.8, text: "掘地三尺,挖出前朝窖藏", effect: { kind: "grantTreasure" } },
   { id: "传檄而定", tier: "好运", tags: ["城池"], weight: 0.2, text: "檄文所至,一座无主城望风归降", effect: { kind: "grantCity", fallbackCash: 300 } },
   { id: "敌营哗变", tier: "好运", tags: ["银两", "玩家"], weight: 0.8, text: "敌营哗变,士卒携粮来投", effect: { kind: "siphon", amount: 150 } },
@@ -70,10 +70,10 @@ export const ENCOUNTERS: EncounterDef[] = [
     ],
   },
   {
-    id: "以宝换贤", tier: "中性", tags: ["珍宝", "名将"], weight: 0.8,
-    text: "名将遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,名将即刻来投。",
+    id: "以宝换贤", tier: "中性", tags: ["珍宝", "武将"], weight: 0.8,
+    text: "贤士遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,贤士即刻来投。",
     choices: [
-      { text: "以两件珍宝换 1 名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+      { text: "以两件珍宝换 1 名士", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
       { text: "婉言相拒(无事发生)", repDelta: 0 },
     ],
   },

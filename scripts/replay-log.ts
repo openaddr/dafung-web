@@ -60,6 +60,7 @@ const INPUT_PHASES = new Set([
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):与 room.ts 同源补齐
+"AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
 ]);

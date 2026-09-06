@@ -176,7 +176,7 @@ describe("档位调制与抽取(纯函数)", () => {
     expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(9);
     expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(6);
     expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(3);
-    const TAGS: EncounterDef["tags"] = ["银两", "名将", "珍宝", "城池", "声望", "玩家", "体力"];
+    const TAGS: EncounterDef["tags"] = ["银两", "武将", "珍宝", "城池", "声望", "玩家", "体力"];
     for (const c of ENCOUNTERS) {
       expect(c.id.length).toBeGreaterThan(0);
       expect(c.weight).toBeGreaterThan(0);
@@ -228,7 +228,7 @@ describe("机遇引擎行为", () => {
       { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
     );
     const cashBefore = full.cash;
-    te.applyEncounter(full, full.position, { id: "义士来投", tier: "好运", tags: ["名将"], weight: 1, text: "t", effect: { kind: "grantHero", fallbackCash: 200 } });
+    te.applyEncounter(full, full.position, { id: "义士来投", tier: "好运", tags: ["武将"], weight: 1, text: "t", effect: { kind: "grantHero", fallbackCash: 200 } });
     expect(full.heroes.length).toBe(3); // 不超容量
     expect(full.cash).toBe(cashBefore + 200); // 转银两补偿
   });
