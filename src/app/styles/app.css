@@ -101,18 +101,30 @@ button:not(:disabled):active {
   background: var(--color-gold-bright);
 }
 
-/* ── A1(#48) 宣纸纹理叠加:全屏固定层,soft-light 低透明——
-   增强手绘风纸质感,不覆盖 SVG 线条(纹理 CC0,public/assets/textures/)。
-   pointer-events:none 纯氛围层;z-index 60 压内容低于卷轴(z-30 起的弹层在其下、
-   骰子 overlay(z-50)之上会被覆一层纹理——soft-light 对深浅底均只加纸感,可接受;
-   reduced-motion 与静态层无关。
-   R3-B15(#87) 浓度分场景:菜单屏(主页/准备页/大厅,编辑器不在此列沿用基准值)
-   纸感是氛围主角取 0.45;对局屏格内纸纹会与建筑墨线打架,退到 0.36 让格线清晰。
-   挂类点是 App.tsx 按 store.screen 写入的 body[data-screen],五屏显式逐一写入;
-   弹层激活期临时降 0.28 本轮不做(避免 JS↔CSS 联动)。── */
+/* ── 纸纹(视觉重做 v2 重做):程序化宣纸肌理,两层 feTurbulence 噪点叠加。
+   曾用 Wikimedia 宣纸实拍(xuan-paper.jpg,已随本次移除出 assets/):那是带
+   挂轴/展签内容的展厅照片,平铺出来读作「失焦展厅」而非纸面。改用代码内
+   data-URI SVG 噪点:细齿层(baseFrequency 0.9)给纤维颗粒,云斑层
+   (0.012/0.016)给手工纸的厚薄不均;multiply 只压亮部,墨色恒为暖褐。
+   菜单屏 0.12 / 对局屏 0.08(格线优先)。零资产授权负担,视觉属代码。── */
 :root {
-  --texture-opacity-menu: 0.45;
-  --texture-opacity-game: 0.36;
+  --texture-opacity-menu: 0.12;
+  --texture-opacity-game: 0.08;
+  --ink-shadow-sm: 0 2px 8px rgba(43, 35, 23, 0.18);
+  --ink-shadow-lg: 0 10px 30px rgba(43, 35, 23, 0.35);
+}
+#app::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 59;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 120% 105% at 50% 46%,
+    transparent 58%,
+    rgba(43, 35, 23, 0.07) 76%,
+    rgba(43, 35, 23, 0.17) 100%
+  );
 }
 #app::after {
   content: "";
@@ -120,11 +132,118 @@ button:not(:disabled):active {
   inset: 0;
   z-index: 60;
   pointer-events: none;
-  background: url("/assets/textures/xuan-paper.jpg") center / 960px auto repeat;
-  mix-blend-mode: soft-light;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.2 0 0 0 0 0.12 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.016' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.2 0 0 0 0 0.12 0 0 0 0.4 0'/%3E%3C/filter%3E%3Crect width='700' height='700' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size: 240px 240px, 700px 700px;
+  mix-blend-mode: multiply;
   opacity: var(--texture-opacity-menu);
 }
 /* 对局屏(#87):对局中格线优先,纹理退后。特异性高于基准规则,与书写顺序无关。 */
 body[data-screen="game"] #app::after {
   opacity: var(--texture-opacity-game);
+}
+
+/* ── 控件种(视觉重做 v2):全项目按钮/面板的「器物」基种。
+   语义:墨=主行动(落子无悔)·朱=权与险·金=势(轮次/选中,不再作按钮底)·笺=次级。
+   组件在类名上叠加 Tailwind 排版工具类,本文件只持有材质。── */
+
+/* 墨钮:浓墨漆底 + 漆金文字,一切推进对局的主行动(行军/买/扩/结算/开局)。 */
+.ink-btn {
+  background: linear-gradient(180deg, #463a29, var(--color-lacquer));
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(43, 35, 23, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(217, 185, 92, 0.28),
+    var(--ink-shadow-sm);
+}
+.ink-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #52452f, #3d3223);
+}
+.ink-btn:disabled {
+  filter: saturate(0.4) brightness(0.82);
+}
+
+/* 笺钮:笺纸底 + 发丝墨边,次级动作/工具。 */
+.note-btn {
+  background: var(--color-panel);
+  color: var(--color-ink);
+  border: 1px solid rgba(43, 35, 23, 0.28);
+  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.1);
+}
+.note-btn:hover:not(:disabled) {
+  background: var(--color-panel-hi);
+}
+
+/* 笺选:原生 <select> 的皮肤(编辑器「类型」/托管速度等残留下拉)——
+   appearance:none 去系统外观,自绘下拉箭头(Sym expand 同款折角);弹出的选项列表
+   是浏览器绘制,无法主题化,接受。 */
+.note-select {
+  appearance: none;
+  -webkit-appearance: none;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%236f6146' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    no-repeat right 6px center / 12px auto,
+    var(--color-panel);
+  color: var(--color-ink);
+  border: 1px solid rgba(43, 35, 23, 0.28);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.1);
+  padding-right: 22px;
+}
+
+/* 朱钮:朱砂底白字,不可逆/危险确认(认破产/解散)。 */
+.cinnabar-btn {
+  background: linear-gradient(180deg, #c1483a, var(--color-danger));
+  color: #f8ead8;
+  border: 1px solid rgba(80, 22, 14, 0.85);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 220, 190, 0.25),
+    var(--ink-shadow-sm);
+}
+.cinnabar-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg, #cd5243, #a03428);
+}
+
+/* 笺纸面板:面板底 + 发丝墨边 + 墨褐投影——「有边有衬里的纸」,不是浮圆角矩形。 */
+.note-card {
+  background: var(--color-panel);
+  border: 1px solid rgba(43, 35, 23, 0.24);
+  box-shadow: var(--ink-shadow-sm);
+}
+
+/* 笺头:单字朱印 + 标签 + 尾随发丝线。
+   结构:<header class="note-head"><i>印</i><span>标签</span></header>,
+   印章方块由组件内 <i> 提供字,这里给制式(朱砂底/纸字/方角/微旋转)。
+   字体刻意落文楷而不是小薇:ZCOOL XiaoWei 的离线镜像存在「空芯字形」
+   (声明的码位在 woff2 里是实心方块,实测 回/薇 坏)——新增文案不可裸排小薇,
+   见 DESIGN.md §4.3;<i> 印文是马善政(实测覆盖正常)。 */
+.note-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--font-wenkai);
+}
+.note-head::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: rgba(43, 35, 23, 0.22);
+}
+.note-head > i {
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  flex: none;
+  font-family: var(--font-brush);
+  font-size: 14px;
+  line-height: 1;
+  color: #f6ead6;
+  background: var(--color-danger);
+  border-radius: 2px;
+  rotate: -4deg;
+  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.3);
 }

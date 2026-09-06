@@ -56,15 +56,15 @@ function reasonForDisabled(
 }
 
 /** L47「我是谁」锚点:国号大字 brush + 玩家色底纹(左染渐变 + 左缘 3px 色条,与
- *  OthersPanel 活跃竖条同语言)+ 金框「你」小印(与托管「托」印同款章形)。
- *  单机/联机同口径:player 即 viewSeat 玩家(HandPanel props 由 GameScreen 传入)。 */
+ *  OthersPanel 活跃竖条同语言)+ 朱砂「你」印(视觉重做 v2:私印实钤,不再金描边淡底——
+ *  身份印是全局印章语言的一员,与托管「托」印同族)。 */
 function IdentityHeader({ player }: { player: NonNullable<HandPanelProps["player"]> }) {
   const c = playerColor(player.colorIndex);
   return (
     <div
       data-testid={TESTIDS.handIdentity}
       title={`你执「${player.guohao}」`}
-      className="m-2 flex items-center gap-2.5 rounded border-l-[3px] px-2.5 py-1.5"
+      className="m-2 flex items-center gap-2.5 rounded-[3px] border-l-[3px] px-2.5 py-1.5"
       style={{
         ["--player-color" as string]: rgba(c),
         borderColor: rgba(c, 0.55),
@@ -73,7 +73,7 @@ function IdentityHeader({ player }: { player: NonNullable<HandPanelProps["player
     >
       <span className="font-brush text-2xl leading-none text-ink">{player.guohao || "?"}</span>
       <span className="font-deco text-xs text-ink-dim">本方视角</span>
-      <span className="ml-auto inline-flex rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 px-1.5 py-0.5 font-brush text-xs leading-none text-gold">
+      <span className="ml-auto inline-flex rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger px-1.5 py-0.5 font-brush text-xs leading-none text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]">
         你
       </span>
     </div>
@@ -138,7 +138,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
   return (
     <section
       data-testid={TESTIDS.handPanel}
-      className="flex max-h-full min-h-0 shrink-0 flex-col border-b border-gold/40"
+      className="flex max-h-full min-h-0 shrink-0 flex-col border-b border-[rgba(43,35,23,0.18)]"
     >
       {!player ? (
         /* G-10 未入座空态:观战视角——无手牌可看、无行动可发,动作区(签面/行军/托管)不渲染。
@@ -159,7 +159,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                   key={cashPulseKey}
                   data-testid={TESTIDS.handCash}
                   className={
-                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money" +
+                    "inline-flex min-h-9 items-center rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-2.5 font-brush text-lg leading-none text-money tabular-nums" +
                     (cashPulseKey > 0 ? " game-chip-pulse" : "")
                   }
                 >
@@ -172,7 +172,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                   key={warrantPulseKey}
                   data-testid={TESTIDS.handWarrants}
                   className={
-                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none" +
+                    "inline-flex min-h-9 items-center rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-2.5 text-xs leading-none tabular-nums" +
                     (warrantPulseKey > 0 ? " game-chip-pulse" : "")
                   }
                 >
@@ -191,7 +191,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                 <div
                   key={t.id}
                   title={t.desc}
-                  className="flex min-h-8 items-center gap-2 rounded border border-gold/40 bg-panel-hi px-2.5 text-xs leading-none"
+                  className="flex min-h-8 items-center gap-2 rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-2.5 text-xs leading-none"
                 >
                   <span className="shrink-0 text-gold">◆</span>
                   <span className="truncate">{t.name}</span>
@@ -229,7 +229,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                   key={cashPulseKey}
                   data-testid={TESTIDS.handCash}
                   className={
-                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 font-brush text-lg leading-none text-money" +
+                    "inline-flex min-h-9 items-center rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-2.5 font-brush text-lg leading-none text-money tabular-nums" +
                     (cashPulseKey > 0 ? " game-chip-pulse" : "")
                   }
                 >
@@ -244,7 +244,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                   key={warrantPulseKey}
                   data-testid={TESTIDS.handWarrants}
                   className={
-                    "inline-flex min-h-9 items-center rounded bg-panel-hi px-2.5 text-xs leading-none" +
+                    "inline-flex min-h-9 items-center rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-2.5 text-xs leading-none tabular-nums" +
                     (warrantPulseKey > 0 ? " game-chip-pulse" : "")
                   }
                 >
@@ -271,7 +271,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
             主 CTA 与卷轴决策按钮(ScrollButton)同圆角(rounded)/brush 字体,口径统一。 */}
         <span
           data-testid={TESTIDS.diceFace}
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded border border-gold/60 bg-panel-hi font-brush text-lg leading-none"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel font-brush text-lg leading-none"
         >
           {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] ?? "签" : "签"}
         </span>
@@ -292,10 +292,11 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
                    R3-C1 后时长/缓动引 --dur-ambient/--ease-sine token);禁用=金描边灰底 +
                    text-ink-dim(替代整按钮 opacity 压暗,原因旁注仍由 F1 提供)。 */
                 className={
-                  "h-11 min-w-24 cursor-pointer rounded border-2 px-5 font-brush text-lg leading-none transition-colors " +
+                  "h-11 min-w-24 cursor-pointer rounded-[5px] border px-5 font-brush text-lg leading-none transition-colors " +
                   (reason === null
-                    ? "border-gold bg-gold/80 text-ink hover:bg-gold game-cta-breathe"
-                    : "border-gold/50 bg-gold/15 text-ink-dim enabled:hover:bg-gold/40 disabled:cursor-not-allowed"
+                    ? // 行军=墨钮(视觉重做 v2):浓墨漆底漆金字,可掷时金晕呼吸
+                      "ink-btn game-cta-breathe"
+                    : "border-[rgba(43,35,23,0.3)] bg-panel-hi/60 text-ink-dim enabled:hover:bg-panel-hi disabled:cursor-not-allowed"
                   )
                 }
               >
@@ -320,7 +321,7 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
             type="button"
             data-testid={TESTIDS.autopilotButton}
             onClick={() => controller.setAutoPilot(!autopilotOn, autopilotSpeed)}
-            className="h-10 cursor-pointer rounded border border-ink/40 bg-panel-hi px-3 font-deco text-xs leading-none hover:bg-panel"
+            className="note-btn h-10 cursor-pointer rounded-[3px] px-3 font-deco text-xs leading-none"
           >
             {autopilotOn ? "收回" : "托管"}
           </button>
@@ -332,13 +333,13 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
               setAutopilotSpeed(speed);
               if (autopilotOn) controller.setAutoPilot(true, speed); // 托管中切速立即生效(旧行为)
             }}
-            className="h-10 cursor-pointer rounded border border-ink/30 bg-bg px-2 font-deco text-xs leading-none text-ink-dim"
+            className="note-select h-10 cursor-pointer px-2 font-deco text-xs leading-none text-ink-dim"
             aria-label="托管速度"
           >
             <option value="fast">快</option>
             <option value="slow">慢</option>
           </select>
-          {autopilotOn && <span className="text-gold">托管中</span>}
+          {autopilotOn && <span className="text-gold-deep">托管中</span>}
         </div>
       )}
     </section>

@@ -29,14 +29,20 @@ export interface HeroPickScrollProps {
 const PORTRAIT_FRAME =
   "relative w-16 shrink-0 overflow-hidden rounded-md border-[3px] border-double border-gold bg-paper-lo shadow-sm aspect-[3/4] outline outline-1 outline-offset-2 outline-gold/20 sepia-[.35] saturate-[.85] contrast-[.92]";
 
-/** 候选画像:object-cover 裁成 3:4;失败态显式「像」字占位(与 CardDetailScroll 同口径)。
+/** 候选画像:object-cover 裁成 3:4;空路径/加载失败都显「姓氏朱印」占位(空 src
+ *  浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍翻车教训)。
  *  R3-D3(#101) 照片做旧:框上 sepia 族滤镜 + img multiply 融宣纸底,与详情画像位一致。 */
 function OfferPortrait({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   return (
     <div className={PORTRAIT_FRAME}>
-      {failed ? (
-        <span className="flex h-full w-full items-center justify-center font-brush text-lg text-ink-dim">像</span>
+      {failed || !src ? (
+        <span className="flex h-full w-full flex-col items-center justify-center gap-1">
+          <span className="flex h-8 w-8 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-base leading-none text-[#f6ead6]">
+            {name.slice(0, 1)}
+          </span>
+          <span className="text-[10px] text-ink-dim">画像未至</span>
+        </span>
       ) : (
         <img
           src={src}
@@ -82,7 +88,7 @@ function HeroPickOptions({ offered, onCommand }: HeroPickScrollProps) {
             data-testid={T.heroPickOption(i)}
             title={`${h.name}·${h.title} — ${h.desc}`}
             onClick={() => onCommand({ type: "resolveHeroPick", index: i })}
-            className="relative flex items-center gap-3 rounded-md border-2 border-gold/60 bg-panel-hi p-2.5 text-left cursor-pointer transition-colors hover:border-gold hover:bg-gold/15"
+            className="relative flex items-center gap-3 rounded-[5px] border border-[rgba(43,35,23,0.3)] bg-panel-hi p-2.5 text-left cursor-pointer transition-colors hover:border-gold hover:bg-gold/10"
           >
             <OfferPortrait src={h.image} name={h.name} />
             <span className="min-w-0 flex-1">

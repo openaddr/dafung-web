@@ -239,7 +239,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                className="rounded border border-gold bg-gold/80 px-4 py-2 font-deco text-ink cursor-pointer hover:bg-gold disabled:opacity-40"
+                className="ink-btn rounded-[5px] px-4 py-2 font-deco cursor-pointer disabled:opacity-40"
               >
                 确认选择
               </button>

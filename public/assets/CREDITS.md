@@ -21,7 +21,6 @@
 - **hero:zhouyu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 周瑜·经典形象 — 206705B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=11615) — 2026-08-16
 - **hero:caopi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 曹丕·经典形象 SoniaTang — 166346B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9064) — 2026-08-16
 - **hero:zhangxingcai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 张星彩·经典形象 — 233186B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9705) — 2026-08-16
-- **texture:xuan-paper** — CC0 / Wikimedia Commons(宣纸实拍) — 273277B (1920×1280) — [source](https://commons.wikimedia.org/wiki/File:Xuan_Paper_(9974330385).jpg) — 2026-08-30
 - **icon:two-coins** — CC BY 3.0 / Delapouite (game-icons.net) — 1075B (SVG) — [source](https://game-icons.net/1x1/delapouite/two-coins.html) — 2026-08-30
 - **icon:scroll-unfurled** — CC BY 3.0 / Lorc (game-icons.net) — 1967B (SVG) — [source](https://game-icons.net/1x1/lorc/scroll-unfurled.html) — 2026-08-30
 - **texture:qianli-jiangshan** — Public domain / 王希孟(Wang Ximeng,北宋) — 157306B (1920×410, image/webp;Commons 1920px thumb → webp q82) — [source](https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg) — 2026-08-30

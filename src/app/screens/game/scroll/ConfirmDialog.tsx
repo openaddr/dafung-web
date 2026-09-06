@@ -66,17 +66,23 @@ export function ConfirmDialog({
     <div
       ref={rootRef}
       className={
-        "scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(40,30,15,0.35)]" +
+        "scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]" +
         (backdropBlocks ? "" : " pointer-events-none")
       }
     >
       <div
         data-testid={testid ?? T.confirmDialog}
         className={
-          "scroll-anim-unroll max-w-[400px] rounded-md border-[3px] border-double border-gold bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[0_10px_40px_rgba(60,40,10,0.4)]" +
+          "scroll-anim-unroll relative max-w-[400px] rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[var(--ink-shadow-lg)]" +
           (backdropBlocks ? "" : " pointer-events-auto")
         }
       >
+        {/* 挂轴单杆(视觉重做 v2):小确认卡也带顶杆,与决策卷轴同一器物语言 */}
+        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
+          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+        </div>
         <h2 data-testid={T.scrollTitle} className="m-0 mb-2 text-center font-brush text-xl tracking-[3px] text-ink">
           {title}
         </h2>

@@ -23,25 +23,29 @@ export const hex = (h: string): Rgb => {
 export const rgba = (c: Rgb, a = 1): string => `rgba(${c.r},${c.g},${c.b},${a})`;
 
 export const Theme = {
-  // 古风核心配色
-  bg: hex("e8dcc0"), // 宣纸
-  bgDeep: hex("d9c9a3"), // 宣纸深(远山/阴影)
-  panel: hex("f2e8cf"), // 浅宣纸面板
-  panelHi: hex("e0d3ac"),
-  paperHi: hex("f7ecd0"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 纸面)
-  paperLo: hex("ecdcb4"), // 卷轴体渐变暗端
-  ink: hex("2b2317"), // 墨黑(正文)
-  inkDim: hex("6b5d40"),
-  gold: hex("c8a13a"), // 金(主操作/王权)
-  goldBright: hex("d4af37"), // 都城光晕
+  // 古风核心配色(视觉重做 v2「一纸墨戏,方寸庙堂」:纸提亮半档降黄褐,
+  // 新增 lacquer/goldDeep/lacquerGold 三个「墨钮/金字」材质位,详见 docs/design/DESIGN.md §4)
+  bg: hex("eae0c6"), // 宣纸(案头桌面)
+  bgDeep: hex("dccfa9"), // 宣纸深(远山/阴影)
+  panel: hex("f4ecd8"), // 浅宣纸面板(笺纸面)
+  panelHi: hex("e6d9b4"), // 笺纸衬里/hover
+  paperHi: hex("faf3df"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 纸面)
+  paperLo: hex("eee0bc"), // 卷轴体渐变暗端
+  ink: hex("2b2317"), // 焦墨(正文/标题)
+  inkDim: hex("6f6146"), // 重墨(次级文字)
+  lacquer: hex("332a1e"), // 浓墨漆木(主按钮底/卷轴杆)——墨=落子无悔,主行动色
+  lacquerGold: hex("d9b95c"), // 漆底金字(墨钮文字/杆箍线)
+  gold: hex("c8a13a"), // 鎏金(轮次/能量/金印,不再作按钮底)
+  goldBright: hex("d4af37"), // 亮金(都城光晕/行军拖影)
+  goldDeep: hex("8a6a1c"), // 熟金(纸底金字可读档,对比 ≥4.5:1)
   money: hex("4a7a4a"), // 青绿(收入)
-  danger: hex("b23a2e"), // 朱砂(扣减/税/破产)
+  danger: hex("b23a2e"), // 朱砂(印章/扣减/税/破产)
   success: hex("059669"), // 在线/成功(原 emerald-600,收编进单源)
-  sealQing: hex("3f6a6b"), // 黛青(战报印章次色,中性事件)
+  sealQing: hex("3f6a6b"), // 黛青(次级印章,中性事件)
 
   // 驿道
-  roadMain: hex("8a6a3f"), // 主路褐
-  roadSide: hex("c47a2a"), // 支路赭橙
+  roadMain: hex("7a5c38"), // 主路褐(加深一档增墨感)
+  roadSide: hex("b5713a"), // 支路赭石
 
   // 墨色深浅(远山/书法)
   inkwash: hex("9c8a5e"),

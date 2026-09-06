@@ -49,9 +49,12 @@ function HeroCard({
       className="flex w-20 shrink-0 cursor-pointer flex-col items-center gap-0.5 rounded border border-gold/40 bg-panel-hi p-1 hover:border-gold hover:bg-panel"
     >
       <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-sm border border-gold/40 bg-paper-lo outline outline-1 outline-offset-2 outline-gold/20 sepia-[.35] saturate-[.85] contrast-[.92]">
-        {failed ? (
-          <span className="absolute inset-0 flex items-center justify-center font-brush text-lg text-ink-dim">
-            像
+        {failed || !hero.image ? (
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1">
+            <span className="flex h-8 w-8 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-base leading-none text-[#f6ead6]">
+              {hero.name.slice(0, 1)}
+            </span>
+            <span className="text-[10px] text-ink-dim">画像未至</span>
           </span>
         ) : (
           <img
@@ -81,11 +84,14 @@ export function TreasuryPanel({ player, onCardDetailOpen, narrow }: TreasuryPane
       // R3-A5(#68):桌面并排保持原样(min-h-24 保底 + flex-1 承接弹性纵向空间);
       // 抽屉态 flex-none 放开保底,内容自然高度展开,溢出由 aside 整抽屉滚动接管。
       className={
-        "flex flex-col border-b border-gold/40 px-3 pb-2 " +
+        "flex flex-col border-b border-[rgba(43,35,23,0.18)] px-3 pb-2 " +
         (narrow ? "flex-none" : "min-h-24 flex-1")
       }
     >
-      <h3 className="shrink-0 py-1 font-brush text-base">珍宝 · 名将</h3>
+      <h3 className="note-head shrink-0 py-1 text-xs tracking-[0.25em] text-ink-dim">
+        <i>珍</i>
+        <span>珍宝 · 名将</span>
+      </h3>
       {!player ? (
         <div className="text-xs leading-5 text-ink-dim/80">观战中 · 无手牌可看</div>
       ) : (

@@ -219,7 +219,7 @@ export function BuyDecisionScroll({
         <button
           type="button"
           onClick={() => setShowValues(true)}
-          className="mx-auto mb-1 block font-deco text-xs text-gold underline cursor-pointer hover:text-ink"
+          className="mx-auto mb-1 block font-deco text-xs text-gold-deep underline cursor-pointer hover:text-ink"
         >
           查看等级价值
         </button>

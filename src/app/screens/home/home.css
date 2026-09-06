@@ -80,5 +80,33 @@
   outline-offset: 2px;
 }
 
+/* ── 视觉重做 v2 签名件:千里江山装裱横带 ──
+   .home-scroll-band:裱边 = 上下深墨细线 + 1px 金线夹纸边(裱工的「矩」),
+   底衬一层纸色让画心 multiply 后不发闷。
+   .home-band-in:入场——画心自横向微舒展 + 淡入(与标题先行、按钮 stagger 的
+   节奏衔接:标题 0ms → 横带 120ms → 按钮 300ms 起)。 */
+.home-scroll-band {
+  border-top: 2px solid rgba(43, 35, 23, 0.55);
+  border-bottom: 2px solid rgba(43, 35, 23, 0.55);
+  box-shadow:
+    inset 0 3px 0 rgba(200, 161, 58, 0.35),
+    inset 0 -3px 0 rgba(200, 161, 58, 0.35),
+    var(--ink-shadow-sm);
+  background: var(--color-paper-lo);
+}
+.home-band-in {
+  animation: home-band-in var(--dur-slow) var(--ease-out) 0.12s both;
+}
+@keyframes home-band-in {
+  from {
+    opacity: 0;
+    transform: scaleX(0.985);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
 /* 按压态已收编全局:R3-C10(#97) 起 app.css 的 button:active scale(0.98) 统一承担
    按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */

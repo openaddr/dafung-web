@@ -16,7 +16,10 @@ import { TESTIDS } from "./testids";
 export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewSeat: number }) {
   return (
     <section data-testid={TESTIDS.othersPanel} className="flex min-h-0 shrink-0 flex-col px-3 pb-2">
-      <h3 className="shrink-0 py-1 font-brush text-base">诸侯</h3>
+      <h3 className="note-head shrink-0 py-1 text-xs tracking-[0.25em] text-ink-dim">
+        <i>侯</i>
+        <span>诸侯</span>
+      </h3>
       <div data-testid={TESTIDS.othersList} className="max-h-40 min-h-0 overflow-y-auto">
       {snapshot.players.map((p, seat) => {
         const isActive = snapshot.phase === "Playing" && seat === snapshot.activeIndex;
@@ -42,10 +45,10 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
               // R3-B10(#82):ring-gold/60 对比太弱,提到全量 ring-gold
               isYou ? "ring-1 ring-gold ring-inset" : "",
               p.isBankrupt ? "opacity-40 line-through" : "",
-              isWinner ? "text-gold" : "",
+              isWinner ? "text-gold-deep" : "",
             ].join(" ")}
           >
-            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-(--player-color) font-brush text-white">
+            <span className="flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-(--player-color) font-brush text-[11px] leading-none text-[#f6ead6]">
               {p.guohao || "?"}
             </span>
             <span className={"truncate" + (isActive ? " font-bold" : "")}>
@@ -60,14 +63,14 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
               <span
                 data-testid={TESTIDS.otherPlayerYou}
                 title="这是你"
-                className="inline-flex shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] border-[1.5px] border-gold bg-gold/15 px-1 font-brush text-xs leading-none text-gold"
+                className="inline-flex shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger px-1 font-brush text-xs leading-none text-[#f6ead6]"
               >
                 你
               </span>
             )}
             {/* S7 核对补漏:胜者原先仅靠 text-gold 金色区分(仅颜色传达信息),
                 补「胜」文字标记——与「智」同款单字后缀,颜色之外有明确文字线索 */}
-            {isWinner && <span className="shrink-0 font-brush text-gold">胜</span>}
+            {isWinner && <span className="shrink-0 font-brush text-gold-deep">胜</span>}
             {/* G-15:现金低于 1000两(危险线)加 ⚠ 并转 danger 色——现金是唯一活钱,
                 见底意味着下一步任何支出都可能触发变卖/破产;破产行已划线弱化,不再重复示警。
                 R3-A6(#69):font-medium + tabular-nums,数字加粗且等宽,与身价列竖向对齐易扫读 */}

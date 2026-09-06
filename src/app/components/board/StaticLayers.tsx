@@ -45,8 +45,8 @@ export const BoardDefs = memo(function BoardDefs() {
         />
       </filter>
       <radialGradient id="bv-vignette" cx="50%" cy="50%" r="62%">
-        <stop offset="60%" stopColor="#e8dcc0" stopOpacity={0} />
-        <stop offset="100%" stopColor="#6b4f28" stopOpacity={0.28} />
+        <stop offset="60%" stopColor="#eae0c6" stopOpacity={0} />
+        <stop offset="100%" stopColor="#5c4522" stopOpacity={0.3} />
       </radialGradient>
       {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
           blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
@@ -126,7 +126,8 @@ export const TerrainLayer = memo(function TerrainLayer() {
     // #24:整组地形(纸底/噪点/远景横带/江河/暗角)套边缘渐隐 mask——纸面画布从 VB
     // 扩到 O,mask 让外围平滑淡出至页面背景,消除外缘硬切。
     <g mask="url(#bv-edge-mask)">
-      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#e8dcc0" />
+      {/* 纸底与 vignette 内圈色随设计系统 v2 提亮(旧 #e8dcc0 → #eae0c6,DESIGN.md §4.1) */}
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#eae0c6" />
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.5} />
       {/* #100 远景:夏圭《溪山清远图》(PD)中段横带铺棋盘上/下缘,高≈画布 18%、
           opacity 0.12,压在江河层之下。替代旧手写 polygon 山——真迹横带与折线山
@@ -151,15 +152,15 @@ export const TerrainLayer = memo(function TerrainLayer() {
           transform={`translate(${2 * (VB.x + VB.w / 2)} 0) scale(-1 1)`}
         />
       </g>
-      {/* #39 画布 1.4x:两条贝塞尔江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。 */}
+      {/* #39 画布 1.4x:两条贝塞尔江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。
+          视觉重做 v2:水面加一笔浓芯(双线笔触)——淡宽线是氤氲水汽,浓细线是水流本身,
+          两笔同弧线叠出「岸线晕、水线清」的水墨层次。 */}
       <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
-        <g fill="none" stroke="rgba(70,110,140,0.28)" strokeWidth={10} strokeLinecap="round" opacity={0.45}>
-          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" />
-          <path
-            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-            strokeWidth={8}
-            opacity={0.5}
-          />
+        <g fill="none" strokeLinecap="round" opacity={0.45}>
+          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" stroke="rgba(70,110,140,0.28)" strokeWidth={10} />
+          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" stroke="rgba(52,92,122,0.4)" strokeWidth={2.6} />
+          <path d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220" stroke="rgba(70,110,140,0.28)" strokeWidth={8} />
+          <path d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220" stroke="rgba(52,92,122,0.4)" strokeWidth={2.2} />
         </g>
       </g>
       {/* 暗角铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的暗角矩形切线就是用户看到的硬边),
