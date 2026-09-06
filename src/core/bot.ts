@@ -173,7 +173,7 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingBankruptcySettle": {
-      // bot 清算:卖资产到够(优先名士→低珍宝→城,排除都城),再 confirm
+      // bot 清算:卖资产到够(优先名将→低珍宝→城,排除都城),再 confirm
       const p = engine.activePlayer;
       const debt = engine.pendingDebt!;
       const cap = engine.board.at(p.capitalIndex)?.propertyId;

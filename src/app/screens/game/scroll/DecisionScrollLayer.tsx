@@ -17,7 +17,7 @@ import {
   BankruptcyScroll,
   BranchDecisionScroll,
   BuyDecisionScroll,
-  EncounterChoiceScroll,
+  EncounterChoiceScroll, ExhaustionChoiceScroll,
   HeroPickScroll,
   TileDetailScroll,
   TreasureVisitorScroll,
@@ -257,6 +257,12 @@ export function DecisionScrollLayer({
   // ── 抉择机遇(#124):机遇文段 + 目录选项;上下文单源快照 choices(选项携带
   // encounterId/encounterText,choices.ts 注册表产出)——选项缺失/无标识 = 相位与注册表
   // 不符(数据 bug),不弹(与旧版整层 return null 同口径)。
+  // 体力耗竭(#130):选项=降级/失去,卷轴同构机遇(无 encounterId 标识,以相位路由)
+  if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingExhaustion") {
+    if (snapshot.choices.length > 0) {
+      return <ExhaustionChoiceScroll choices={snapshot.choices} onCommand={dispatch} />;
+    }
+  }
   if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingEncounter") {
     const head = snapshot.choices.find((o) => o.encounterId != null);
     if (head) {

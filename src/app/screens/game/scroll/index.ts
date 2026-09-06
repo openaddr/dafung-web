@@ -17,6 +17,7 @@ export {
   BranchDecisionScroll,
   BuyDecisionScroll,
   EncounterChoiceScroll,
+  ExhaustionChoiceScroll,
   UpgradeDecisionScroll,
 } from "./DecisionScrolls";
 export { SCROLL_TESTIDS } from "./testids";

@@ -81,10 +81,11 @@ export interface Player {
   onBranch: { step: number } | null; // 在分岔辅路第几格(null=在主路;step=-1=入口待入辅路,棋子仍在主路入口格)
   skipTurns: number; // 待跳过的回合计数(辅路 penalty 格触发)
   properties: PropertyHolding[];
-  heroes: HeroDef[]; // 已招揽的名士(上限 HERO_CAPACITY)
+  heroes: HeroDef[]; // 已招揽的名将(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
   heroLastFired: Record<string, number>; // 技能冷却:skill.id → 上次触发的 round(供 cooldown 判定)
   reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 CONTEXT.md;#121)
+  stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 CONTEXT.md;#130)
 }
 
 /** 移动路径。
@@ -152,7 +153,7 @@ export type TurnPhase =
   | "AwaitingBranch"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
-  | "AwaitingEncounter"
+  | "AwaitingEncounter" | "AwaitingExhaustion"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "Land"
@@ -279,6 +280,7 @@ export type GameCommand =
   | { type: "endDecision" }
   | { type: "resolveHeroPick"; index: number }
   | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
+  | { type: "resolveExhaustionChoice"; index: number }
   | { type: "resolveTreasureOwner"; action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" } }
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }
@@ -295,7 +297,7 @@ export interface TreasureDef {
   effect?: string;    // 预留:被动效果(暂不实现)
 }
 
-// ── 名士(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
+// ── 名将(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
 // src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 game.ts dispatchMoment。
 // 扩展指南见 docs/timing-framework.md:加效果一步、加技能两步、加时机三步。
 export interface TriggerSkill {

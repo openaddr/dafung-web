@@ -13,7 +13,7 @@ import { TESTIDS } from "../testids";
 
 /** 非地产格的类型说明(口径对齐 core/game.ts 的落格处理)。 */
 const SPECIAL_TILE_DESC: Record<Exclude<TileType, "Property">, string> = {
-  Wolong: "卧龙岗:途经可招贤纳士(名士三选一)",
+  Wolong: "卧龙岗:途经可招贤纳士(名将三选一)",
   Chance: "锦囊:落格触发随机吉事,得失约 100~250 两",
   Fate: "天命:落格触发随机凶事,得失约 100~250 两",
   Tax: "税关:落格缴税 200 两",

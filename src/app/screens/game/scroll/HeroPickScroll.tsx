@@ -8,7 +8,7 @@ import type { GameCommand } from "@core/types";
 import { ScrollShell } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
-/** 候选名士的最小展示形状(snapshot.offeredHeroes 就是这个形状,含 image)。 */
+/** 候选名将的最小展示形状(snapshot.offeredHeroes 就是这个形状,含 image)。 */
 export interface HeroOfferInfo {
   id: string;
   name: string;
@@ -19,7 +19,7 @@ export interface HeroOfferInfo {
 }
 
 export interface HeroPickScrollProps {
-  /** 候选名士(通常 3 个)。 */
+  /** 候选名将(通常 3 个)。 */
   offered: HeroOfferInfo[];
   onCommand: (cmd: GameCommand) => void;
 }

@@ -1,9 +1,9 @@
 // 侧栏·诸侯紧凑条(对照旧 renderOthers):国号徽记 + 银两 + 城数;活跃/破产/胜者高亮。
-// L48:原寄居 WarlogPanel 标题下,战报区移除后独立成节(标题「诸侯」,钉在珍宝·名士区之后)。
+// L48:原寄居 WarlogPanel 标题下,战报区移除后独立成节(标题「诸侯」,钉在珍宝·名将区之后)。
 // E6(#18):列表自己内滚——矮视口 8 人局不再把末位诸侯/折叠钮顶出侧栏裁掉。
 // R3-A5(#68):本节 shrink-0 不再参与纵向压缩(旧 min-h-0 可收缩,844×390 抽屉里被
 // flex 分配成 0 高、遭 aside overflow-hidden 静默裁切),天然高度由列表 max-h-40 封顶,
-// 抽屉态溢出交给 aside 整抽屉滚动(见 GameScreen);珍宝·名士区弹性仅在桌面并排生效。
+// 抽屉态溢出交给 aside 整抽屉滚动(见 GameScreen);珍宝·名将区弹性仅在桌面并排生效。
 // X13(#32):收 viewSeat,自己行金描边 +「你」印(与 HandPanel 身份头同款章形,
 // 8 相似色里斜眼 1s 定位;单机 viewSeat 跟随活跃座位,联机恒为本座,口径与 WaitingBar 一致)。
 // R3-B10(#82):自己行非活跃补 bg-gold/10、描边 ring-gold/60→ring-gold、「你」印
@@ -85,7 +85,7 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {/* G-15:身价小字(netWorth 含地产/珍宝估值,胜负口径;对照现金才有全局财势感)。
                 R3-A6(#69):「身价 」补空格与 HandPanel/StatusBar 同口径;数字 tabular 对齐 */}
             <span className="shrink-0 text-[10px] font-medium tabular-nums text-ink-dim">
-              身价 {formatMoney(p.netWorth)} · 声望 {p.reputation}
+              身价 {formatMoney(p.netWorth)} · 声望 {p.reputation} · 体力 {p.stamina}
             </span>
             <span className="shrink-0 text-ink-dim">{p.properties.length}城</span>
           </div>

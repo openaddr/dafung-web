@@ -22,6 +22,9 @@ export interface ChoiceOption {
    *  过网的唯一通道(UI 卷轴渲染文段、restoreFromSnapshot 按 id 回链目录);其余相位不携带。 */
   encounterId?: string;
   encounterText?: string;
+  /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
+  holdingPropertyId?: string;
+  exhaustionKind?: "downgrade" | "lose";
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -87,10 +90,10 @@ function heroPickChoices(e: GameEngine): ChoiceOption[] {
   }));
 }
 
-/** 以宝换贤的换贤代价(目录约定:2 件珍宝换 1 武将,见 ENCOUNTERS 以宝换贤文段)。 */
+/** 以宝换贤的换贤代价(目录约定:2 件珍宝换 1 名将,见 ENCOUNTERS 以宝换贤文段)。 */
 export const ENCOUNTER_HERO_TREASURE_COST = 2;
 
-/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥2 且麾下未满、贤士池
+/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥2 且麾下未满、名将池
  *  未尽——任一不满足则换贤必落空(effect 的 fallbackCash=0,白损两件珍宝),选项必须
  *  拦下并报原因。其余选项恒可用:目录约定每条抉择机遇都自带一个无门槛的「不作」型
  *  选项,保证 ≤1 可用时自动执行永不死锁。 */
@@ -102,7 +105,7 @@ function encounterOptionGate(
     const p = e.activePlayer;
     if (p.treasures.length < ENCOUNTER_HERO_TREASURE_COST) return { available: false, reason: "珍宝不足" };
     if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
-    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return { available: false, reason: "贤士已尽" };
+    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return { available: false, reason: "名将已尽" };
   }
   return { available: true };
 }
@@ -123,6 +126,34 @@ function encounterChoices(e: GameEngine): ChoiceOption[] {
       encounterText: def.text,
     };
   });
+}
+
+/** AwaitingExhaustion(体力耗竭,#130):选项=每座房产「降 1 级」;全部 0 级 →
+ *  每座非都城「失去整座」(都城可降不可失)。结算在引擎 settleExhaustionChoice。 */
+function exhaustionChoices(e: GameEngine): ChoiceOption[] {
+  const seat = e.pendingExhaustionSeat;
+  if (seat == null) return [];
+  const p = e.players[seat];
+  const capitalPropId = p.capitalIndex >= 0 ? (e.board.at(p.capitalIndex)?.propertyId ?? null) : null;
+  const tileName = (propertyId: string) => e.board.tiles.find((t) => t.propertyId === propertyId)?.name ?? propertyId;
+  if (p.properties.some((h) => h.level > 0)) {
+    return p.properties.filter((h) => h.level > 0).map((h, i) => ({
+      id: `exhaust:${i}`,
+      label: `「${tileName(h.propertyId)}」降 1 级`,
+      available: true,
+      holdingPropertyId: h.propertyId,
+      exhaustionKind: "downgrade" as const,
+    }));
+  }
+  return p.properties
+    .filter((h) => h.propertyId !== capitalPropId)
+    .map((h, i) => ({
+      id: `exhaust:${i}`,
+      label: `「${tileName(h.propertyId)}」失去城池`,
+      available: true,
+      holdingPropertyId: h.propertyId,
+      exhaustionKind: "lose" as const,
+    }));
 }
 
 /** AwaitingBankruptcySettle(各资产变卖 + 认赔)。ADR-0013 明确例外:重大不可逆事件,
@@ -166,6 +197,7 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingBranch: branchChoices,
   AwaitingHeroPick: heroPickChoices,
   AwaitingEncounter: encounterChoices,
+  AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
 };
 

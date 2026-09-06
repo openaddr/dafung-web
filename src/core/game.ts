@@ -99,10 +99,11 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   endDecision: "按兵不动",
   resolveHeroPick: "招贤",
   resolveEncounterChoice: "机遇抉择",
+  resolveExhaustionChoice: "体力抉择",
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
-  cashHeroBankruptcy: "遣散名士",
+  cashHeroBankruptcy: "遣散名将",
   confirmBankruptcySettle: "清算确认",
 };
 
@@ -162,11 +163,12 @@ export class GameEngine {
   setupPhase: SetupPhase = "Guohao";
   turnPhase: TurnPhase = "Roll";
   turnNumber = 0;
-  round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名士技能冷却等使用)
+  round = 1; // 回合计数:所有人各行动一次 = 1 轮(供名将技能冷却等使用)
   // public:供 snapshot/联机序列化(轮次锚点需跨进程恢复,否则恢复后 round 计数会漂移)。
   roundAnchor = 0; // 固定的轮次锚点(draftOrder[0]),不随破产漂移
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
-  recruitedHeroIds = new Set<string>(); // 已被招揽的名士(唯一)
+  recruitedHeroIds = new Set<string>(); // 已被招揽的名将(唯一)
+  pendingExhaustionSeat: number | null = null; // 耗竭决策座位(#130;恢复时按 activeIndex 重派生)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
@@ -292,6 +294,7 @@ export class GameEngine {
       treasures: [],
       heroLastFired: {},
       reputation: s.reputation ?? 0,
+      stamina: 100,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -1408,14 +1411,14 @@ export class GameEngine {
     return p.properties.some((h) => h.propertyId !== capProp);
   }
 
-  /** 破产善后:名士释放回招贤池(treasures 已由 settleDebt 转债主)。 */
+  /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主)。 */
   private finalizeBankruptcy(p: Player): void {
     for (const h of p.heroes) this.recruitedHeroIds.delete(h.id);
     p.heroes = [];
     // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
     // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
     p.capitalIndex = -1;
-    this.dispatchMoment("PlayerBankrupt", { subject: this.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名士已释放、资产已转债主)
+    this.dispatchMoment("PlayerBankrupt", { subject: this.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
   }
 
   /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
@@ -1471,13 +1474,13 @@ export class GameEngine {
     if (!this.assertStillOwing("CashHeroBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.heroes.findIndex((h) => h.id === heroId);
-    if (idx < 0) { this.warn(`名士 ${heroId} 不在手中`); return; }
+    if (idx < 0) { this.warn(`名将 ${heroId} 不在手中`); return; }
     const h = p.heroes.splice(idx, 1)[0];
     this.recruitedHeroIds.delete(heroId);
-    p.cash += 200; // 名士换银(2两)
+    p.cash += 200; // 名将换银(2两)
     this.pushFloater(p, 200, p.position, "income");
     this.logEvent("system", p.guohao, `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`, `bkCashHero player=${p.id} hero=${heroId} +200`, 200);
-    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名士成功(三变卖命令之一)
+    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名将成功(三变卖命令之一)
   }
 
   confirmBankruptcySettle(): void {
@@ -1529,7 +1532,7 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 时机框架(时机总线) ────────────────────────────
-  // dispatchMoment(moment, ctx):在时机点派发全场技能(武将技能/将来的珍宝/地块/全局规则同轨)。
+  // dispatchMoment(moment, ctx):在时机点派发全场技能(名将技能/将来的珍宝/地块/全局规则同轨)。
   // 确定性:座位序(0..n-1,未破产)× 每人 heroes 序 × skills 数组序,同层派发顺序全确定。
   // 零新增序列化状态:技能从 HEROES 数据派生;冷却复用 heroLastFired(键=skill.id)。
   // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/timing-framework.md。
@@ -1588,7 +1591,7 @@ export class GameEngine {
             this.logEvent(
               "skill",
               owner.guohao,
-              `${owner.guohao} 名士「${hero.name}」触发时机 ${moment}`,
+              `${owner.guohao} 名将「${hero.name}」触发时机 ${moment}`,
               `skillFire owner=${owner.id} hero=${hero.id} skill=${skill.id} moment=${moment} subject=${this.players[ctx.subject].id} die=${ctx.die ?? "-"} amount=${ctx.amount ?? "-"} params=${JSON.stringify(skill.params ?? {})}`,
             );
           }
@@ -1622,7 +1625,7 @@ export class GameEngine {
     return this.round - last >= skill.cooldown;
   }
 
-  /** 招贤纳士:从剩余名士池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */
+  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */
   private tryRecruitHero(mover: Player): void {
     if (mover.heroes.length >= HERO_CAPACITY) { this.endTurn(); return; }
     const available = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
@@ -1650,7 +1653,7 @@ export class GameEngine {
         `${this.activePlayer.guohao} 招贤纳士,得「${hero.name}」:${hero.desc}`,
         `pickHero player=${this.activePlayer.id} hero=${hero.id}`,
       );
-      this.dispatchMoment("HeroRecruited", { subject: this.activeIndex, heroId: hero.id }); // 时机·HeroRecruited:招贤成功(选定名士;tryRecruitHero 只出三选一候选)
+      this.dispatchMoment("HeroRecruited", { subject: this.activeIndex, heroId: hero.id }); // 时机·HeroRecruited:招贤成功(选定名将;tryRecruitHero 只出三选一候选)
     }
     this.offeredHeroes = [];
     this.endTurn();
@@ -1724,6 +1727,81 @@ export class GameEngine {
   addReputation(seat: number, delta: number): void {
     const p = this.players[seat];
     p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+  }
+
+  /** 体力增减(#130):clamp 0~100,返回落账后的体力值。 */
+  addStamina(seat: number, delta: number): number {
+    const p = this.players[seat];
+    p.stamina = Math.max(0, Math.min(100, p.stamina + delta));
+    return p.stamina;
+  }
+
+  /** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。多房产 → AwaitingExhaustion
+   *  相位自选;可用选项 ≤1 → 自动执行;无可处置(无房产/仅 0 级都城) → 纯跳回合。
+   *  结算统一:skipTurns+1(跳过下一回合)、体力重置 100、endTurn。 */
+  exhaustIfDepleted(seat: number): "none" | "auto" | "phase" {
+    const p = this.players[seat];
+    if (p.stamina > 0) return "none";
+    this.pendingExhaustionSeat = seat;
+    const options = computeChoices(this, "AwaitingExhaustion");
+    const availableCount = options.filter((o) => o.available).length;
+    if (availableCount > 1) {
+      this.turnPhase = "AwaitingExhaustion";
+      this.logEvent("system", p.guohao, `${p.guohao} 体力耗竭!须弃一座城池苟活`, `exhaustion player=${p.id} options=${availableCount}`);
+      return "phase";
+    }
+    if (availableCount === 1) {
+      const idx = options.findIndex((o) => o.available);
+      this.settleExhaustionChoice(seat, idx);
+      return "auto";
+    }
+    this.applyExhaustionAftermath(p, "无可处置城池");
+    return "auto";
+  }
+
+  /** 玩家从耗竭选项中择一(公开,供 UI/bot/联机)。不可用选项硬拒绝(零兜底同机遇)。 */
+  resolveExhaustionChoice(index: number): void {
+    if (!this.assertPhase("AwaitingExhaustion", "ResolveExhaustionChoice")) return;
+    const options = computeChoices(this, "AwaitingExhaustion");
+    const opt = options[index];
+    if (this.pendingExhaustionSeat == null || !opt) {
+      this.warn(`ResolveExhaustionChoice:耗竭上下文缺失或选项越界(index=${index})`);
+      return;
+    }
+    if (!opt.available) {
+      this.warn(`ResolveExhaustionChoice:选项不可用(index=${index}${opt.reason ? `,${opt.reason}` : ""})`);
+      return;
+    }
+    this.settleExhaustionChoice(this.pendingExhaustionSeat, index);
+  }
+
+  /** 耗竭选项结算(#130):降 1 级 / 失去整座(城回无主)→ skipTurns+1 + 体力重置 → endTurn。 */
+  private settleExhaustionChoice(seat: number, index: number): void {
+    const p = this.players[seat];
+    const options = computeChoices(this, "AwaitingExhaustion");
+    const opt = options[index];
+    if (!opt?.holdingPropertyId || !opt.exhaustionKind) {
+      throw new Error(`耗竭选项结算:选项载荷缺失(index=${index},数据 bug)`); // 零兜底
+    }
+    const note = opt.label;
+    if (opt.exhaustionKind === "downgrade") {
+      const holding = findHolding(p, opt.holdingPropertyId);
+      if (!holding) throw new Error(`耗竭降级:房产 ${opt.holdingPropertyId} 不在持有列表`);
+      holding.level -= 1; // 可用性已保证 level>0
+    } else {
+      p.properties = p.properties.filter((h) => h.propertyId !== opt.holdingPropertyId); // 城回无主
+    }
+    this.applyExhaustionAftermath(p, note);
+    this.endTurn();
+  }
+
+  /** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。 */
+  private applyExhaustionAftermath(p: Player, note: string): void {
+    p.skipTurns += 1;
+    p.stamina = 100;
+    this.pendingExhaustionSeat = null;
+    this.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
+    this.logEvent("system", p.guohao, `${p.guohao} 体力耗竭:${note},跳过下一回合,体力回 100`, `exhaustionSettle player=${p.id} skipTurns=${p.skipTurns} stamina=100`);
   }
 
   /** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
@@ -1891,7 +1969,7 @@ export class GameEngine {
           if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/贤士已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
             return "settled";
           }
           const hero = candidates[Math.floor(this.dice.nextFloat() * candidates.length)];
@@ -2008,6 +2086,10 @@ export class GameEngine {
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告
     // 并退回 Roll(该玩家重掷、机遇作废),不卡死相位。
+    if (this.turnPhase === "AwaitingExhaustion") {
+      // 耗竭座位 = 行动者本人(#130):耗竭恒发生在本人回合内,恢复按 activeIndex 重派生
+      this.pendingExhaustionSeat = this.activeIndex;
+    }
     if (this.turnPhase === "AwaitingEncounter") {
       const encId = s.choices.find((o) => o.encounterId != null)?.encounterId;
       const def = encId != null ? ENCOUNTERS.find((c) => c.id === encId) : undefined;
