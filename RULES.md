@@ -164,6 +164,7 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 - 获取途径:落到自己都城 / 卧龙岗时触发**招贤纳士**(三选一),从剩余名士池随机抽 3 张选 1([`game.ts:1288` `tryRecruitHero`](src/core/game.ts))。
 - 名士**唯一**:已被招揽的不再出现在候选池(`recruitedHeroIds`)([`game.ts:1290`](src/core/game.ts))。
 - 破产时名士释放回招贤池([`game.ts:1090` `finalizeBankruptcy`](src/core/game.ts))。
+- **被动技能**(时机框架):如华佗「每 3 轮恢复 15 体力」(RoundStart + cooldown 3,效果作用于持有者,[`effects.ts` `regenStamina`](src/core/effects.ts))。
 
 ### 7.2 名士技能(时机框架,技能即数据)
 
@@ -240,9 +241,14 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 - **触发**:按触发率 roll(默认 40%,配置 `public/config/jiyu.json` / 起兵屏「机遇」区单局覆盖);触发未中亦留日志;天命格不参与 roll。
 - **档位**:好运/中性/霉运。三档基准值按占比归一(和不必为 100),再按声望调制——好运 +0.25s、霉运 −0.20s 百分点(夹紧 [5,95]),中性吃剩余。
-- **目录**:15 条中文 id 事件(好运 8/中性 4/霉运 3),带内容标签(银两/武将/珍宝/城池/声望/玩家)与抽取权重;玩家侧 4 条(随机对手,转移上限=付款方现金)。
+- **目录**:18 条中文 id 事件(好运 9/中性 6/霉运 3),带内容标签(银两/武将/珍宝/城池/声望/玩家/体力)与抽取权重;玩家侧 4 条(随机对手,转移上限=付款方现金)。
+- **体力**:部分机遇携带体力增减(霉运 −15~−25、温泉疗养 +30、夜行军 −20);体力归 0 触发**耗竭惩罚**([§9.1](#91-耗竭惩罚))。
 - **抉择机遇**(携民渡江/散财消灾/以宝换贤/结盟互市):走抉择卷轴(`AwaitingEncounter` + `resolveEncounterChoice`),选项带声望增减;解完继续本落格的城池结算;可用选项 ≤1 自动执行(ADR-0013)。
 - **bot**:同规则同概率;抉择按立即净值贪心 + 每 Seat 声望折银系数。
+
+### 9.1 耗竭惩罚
+
+体力归 0 立即结算([`game.ts` `exhaustIfDepleted`](src/core/game.ts)):失败者**自选**一座房产降 1 级(全部 0 级则改为失去一座非都城城池;都城可降级至 0 级、不可失去;无房产则纯跳回合),随后 `skipTurns + 1`(跳过下一回合)、体力重置 100。抉择相位 `AwaitingExhaustion` + `resolveExhaustionChoice`(选项集四件套;人类点卷轴、bot 随机、可用选项 ≤1 自动执行)。
 
 ---
 
@@ -280,6 +286,8 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 | 过路费/租金 | **无**(落他人城走珍宝交涉) | `game.ts:649` `resolveProperty` |
 | 起手委任状 | 3 | `constants.ts:17` `STARTING_WARRANTS` |
 | 经过都城 +委任状 | 2 | `constants.ts:18` `WARRANTS_PER_PASS` |
+| 体力上限 / 开局 | 100 / 100 | `constants.ts` `STAMINA_MAX` / `STARTING_STAMINA` |
+| 机遇体力增减 | −25 / −20 / −15 / +25 / +30 / −20 | `encounters.ts` 目录 `staminaDelta`(随目录调参) |
 | 买城耗委任状 | 1 | `constants.ts:19` `BUY_WARRANT_COST` |
 | 名士上限 | 3 | `constants.ts:22` `HERO_CAPACITY` |
 | 遣散名士换银 | ¥200 | `game.ts:1038` |

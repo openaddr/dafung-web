@@ -42,7 +42,16 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { formatMoney } from "./money";
-import { SIGN_FACES, isSingleCjk, STARTING_WARRANTS, WARRANTS_PER_PASS, BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
+import {
+  SIGN_FACES,
+  isSingleCjk,
+  STARTING_WARRANTS,
+  WARRANTS_PER_PASS,
+  BUY_WARRANT_COST,
+  HERO_CAPACITY,
+  STAMINA_MAX,
+  STARTING_STAMINA,
+} from "./constants";
 import { HEROES } from "./heroes";
 import { createTreasureDeck, guidePriceOf, premiumPriceOf } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
@@ -294,7 +303,7 @@ export class GameEngine {
       treasures: [],
       heroLastFired: {},
       reputation: s.reputation ?? 0,
-      stamina: 100,
+      stamina: STARTING_STAMINA,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -1734,7 +1743,7 @@ export class GameEngine {
   /** 体力增减(#130):clamp 0~100,返回落账后的体力值。 */
   addStamina(seat: number, delta: number): number {
     const p = this.players[seat];
-    p.stamina = Math.max(0, Math.min(100, p.stamina + delta));
+    p.stamina = Math.max(0, Math.min(STAMINA_MAX, p.stamina + delta));
     return p.stamina;
   }
 
@@ -1800,7 +1809,7 @@ export class GameEngine {
   /** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。 */
   private applyExhaustionAftermath(p: Player, note: string): void {
     p.skipTurns += 1;
-    p.stamina = 100;
+    p.stamina = STARTING_STAMINA;
     this.pendingExhaustionSeat = null;
     this.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
     this.logEvent("system", p.guohao, `${p.guohao} 体力耗竭:${note},跳过下一回合,体力回 100`, `exhaustionSettle player=${p.id} skipTurns=${p.skipTurns} stamina=100`);
@@ -2088,7 +2097,7 @@ export class GameEngine {
     );
     if (stamina !== 0) return "settled";
     const ex = this.exhaustIfDepleted(seat);
-    if (ex === "none") return "settled"; // 不可达(体力已为 0),防御性放行
+    if (ex === "none") throw new Error("机遇体力结算后 stamina>0:耗竭判定状态不一致"); // 零兜底:状态不一致炸出来
     if (ex === "auto" && this.turnPhase !== "Roll" && !this.isOver) {
       // 自动惩罚收口(#132):唯一可用选项路径(settleExhaustionChoice)内部已 endTurn
       // (turnPhase=Roll);「无可处置城池」纯跳回合路径不收尾回合——由机遇结算侧补
