@@ -139,6 +139,33 @@ export function normalizeEncounterBaseRates(base: EncounterBaseRates): Encounter
   };
 }
 
+/** 产品默认档(#135):与 public/config/jiyu.json 同值。配置文件缺失/损坏时,
+ *  服务器(#135 联机接线)与单机设置屏(encounterConfig.BUILTIN_ENCOUNTER_DEFAULTS)
+ *  共用此回退,三处(文件/两端代码)任一调整须同步。 */
+export const ENCOUNTER_PRODUCT_DEFAULTS: EncounterConfig = {
+  triggerRate: 40,
+  baseRates: { good: 30, neutral: 45, bad: 25 },
+};
+
+/** jiyu.json → EncounterConfig(#135):triggerRate 与三档基准齐全且均为有限数才接受,
+ *  否则 null(调用方回退 ENCOUNTER_PRODUCT_DEFAULTS)。数值边界(0~100/≥0)不在此夹紧
+ *  ——resolveEncounterConfig 已有同语义回退,此处只做结构门槛。 */
+export function parseEncounterFile(data: unknown): EncounterConfig | null {
+  if (typeof data !== "object" || data === null) return null;
+  const o = data as Record<string, unknown>;
+  const b =
+    typeof o.baseRates === "object" && o.baseRates !== null
+      ? (o.baseRates as Record<string, unknown>)
+      : null;
+  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const triggerRate = num(o.triggerRate);
+  const good = b ? num(b.good) : null;
+  const neutral = b ? num(b.neutral) : null;
+  const bad = b ? num(b.bad) : null;
+  if (triggerRate === null || good === null || neutral === null || bad === null) return null;
+  return { triggerRate, baseRates: { good, neutral, bad } };
+}
+
 /** 配置解析:非法值回退默认;三档按占比归一为百分比。 */
 export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeConfig {
   const raw = Number(cfg?.triggerRate ?? 0);

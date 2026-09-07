@@ -325,6 +325,9 @@ export class GameEngine {
         targetNetWorth: this.targetNetWorth,
         startingCash: this.startingCash,
         startedAt: Date.now(),
+        // 机遇原始配置(#135):触发判定消耗骰流,重放必须复刻同一配置(缺省=null=机遇关,
+        // 与历史日志兼容);重放端 replay-log 原样传回构造 config。
+        encounter: config.encounter ?? null,
         seats: config.seats.map((s, i) => ({ seat: i, guohao: s.guohao ?? "", isBot: s.isBot, colorIndex: i })),
       }),
     );

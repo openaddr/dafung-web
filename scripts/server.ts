@@ -20,9 +20,10 @@
 // 设计见 docs/multiplayer.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
-import { appendFileSync, existsSync, mkdirSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
+import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import {
   RoomRegistry,
@@ -40,6 +41,28 @@ const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域�
 const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
 const startedAt = Date.now();
+
+// ──────────────────────────── 机遇配置(#135:单机联机同规则)────────────────────────────
+// 服务器启动时读一次 jiyu.json 作为联机房间引擎的机遇配置(单机设置屏 fetch 同一文件);
+// 缺文件/坏结构回退产品默认(core ENCOUNTER_PRODUCT_DEFAULTS,与单机内置回退同值)。
+// 路径可 env 覆盖:联机 e2e 用它注入归零配置(playwright.config.ts → e2e/jiyu-off.json),
+// 先隔离后开启,机遇节奏不进联机用例(#118 教训:节奏类变更必须可隔离)。
+const JIYU_CONFIG = resolve(process.env.JIYU_CONFIG ?? "./public/config/jiyu.json");
+function loadEncounterConfig() {
+  try {
+    const parsed = parseEncounterFile(JSON.parse(readFileSync(JIYU_CONFIG, "utf-8")));
+    if (parsed) return parsed;
+    console.warn(`[server] 机遇配置结构不符,回退产品默认:${JIYU_CONFIG}`);
+  } catch (err) {
+    console.warn(`[server] 机遇配置读取失败(${(err as Error).message}),回退产品默认:${JIYU_CONFIG}`);
+  }
+  return ENCOUNTER_PRODUCT_DEFAULTS;
+}
+const ENCOUNTER = loadEncounterConfig();
+
+// 决策停摆看门狗(#118):等待某人类座位决策超过该毫秒 → bot 自动接管(重连/刷新夺回)。
+// 0 = 关闭。默认 120s:正常思考远够用,真停摆(页面卡死/断连)不再永久拖死全局。
+const DECISION_TIMEOUT_MS = Math.max(0, parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0);
 
 // ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
 const CATALOG_ENTRIES = builtinMapCatalog();
@@ -114,6 +137,7 @@ const registry = new RoomRegistry(
   persistence,
   (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
   flushGameLog,
+  { encounter: ENCOUNTER, decisionTimeoutMs: DECISION_TIMEOUT_MS },
 );
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
   // 恢复房间:对局日志基线 = 恢复快照的 log 长度(重启前这些行已在文件里)
@@ -264,7 +288,7 @@ const HELP = {
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   maps: CATALOG_ENTRIES.map((e) => ({ id: e.id, name: e.name, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth })),
-  env: { PORT, HOST, ROOMS_DIR, LOGS_DIR, LOG_TTL_DAYS, STATIC_DIR },
+  env: { PORT, HOST, ROOMS_DIR, LOGS_DIR, LOG_TTL_DAYS, STATIC_DIR, JIYU_CONFIG, DECISION_TIMEOUT_MS },
 };
 
 async function handle(req: Request): Promise<Response> {
@@ -469,4 +493,5 @@ Bun.serve<WsSeat>({
 console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
 console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
 console.log(`[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`);
+console.log(`[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"}`);
 console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");

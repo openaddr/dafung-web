@@ -21,6 +21,8 @@ export interface HeaderInfo {
   difficulty: EngineConfig["difficulty"];
   targetNetWorth: number;
   startingCash: number;
+  /** 机遇原始配置(#135):触发判定消耗骰流,重放必须复刻同一配置;null/缺省(历史日志)=机遇关。 */
+  encounter: import("../src/core/encounters").EncounterConfig | null;
   startedAt: number;
   seats: { seat: number; guohao: string; isBot: boolean; colorIndex: number }[];
 }
@@ -103,6 +105,8 @@ export function replayGameLog(lines: LogEvent[]): GameEngine {
     startingCash: header.startingCash,
     difficulty: header.difficulty,
     mapId: header.mapId,
+    // 机遇配置(#135):与原局构造一致,否则触发判定消耗的骰流不同,整局漂移
+    ...(header.encounter ? { encounter: header.encounter } : {}),
   } satisfies EngineConfig);
   engine.doDraftRoll(); // 原局构造后必经(单机 App.tsx / 联机 createEngine(doDraft=true))
 

@@ -706,3 +706,102 @@ describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
     expect(restored.mapId).toBe("sanguo");
   });
 });
+
+describe("RoomRegistry · 联机机遇接线(#135)", () => {
+  /** 读引擎运行时机遇配置(engine.encounter 为 private,测试侧经类型断言读取)。 */
+  function encounterOf(reg: RoomRegistry, roomId: string): { triggerRate: number; shares: { good: number; neutral: number; bad: number } } {
+    return (reg.get(roomId)!.engine as unknown as { encounter: { triggerRate: number; shares: { good: number; neutral: number; bad: number } } }).encounter;
+  }
+
+  it("注入 encounter → startGame 透传引擎(触发率/归一档位)", async () => {
+    const persistence = new InMemoryPersistence();
+    const reg = new RoomRegistry(persistence, undefined, undefined, {
+      encounter: { triggerRate: 100, baseRates: { good: 0, neutral: 100, bad: 0 } },
+    });
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 42 } });
+    reg.setMap(created.room.roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
+    // 引擎侧已归一(baseRates → shares);中性 100% 原样
+    expect(encounterOf(reg, created.room.roomId)).toEqual({
+      triggerRate: 100,
+      shares: { good: 0, neutral: 100, bad: 0 },
+    });
+  });
+
+  it("未注入(缺省)→ 机遇关(引擎缺省 triggerRate 0,历史行为)", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [1] });
+    expect(encounterOf(reg, roomId).triggerRate).toBe(0);
+  });
+
+  it("机遇配置随房间持久化:重启 restoreAll 后引擎复刻同一配置", async () => {
+    const persistence = new InMemoryPersistence();
+    const reg1 = new RoomRegistry(persistence, undefined, undefined, {
+      encounter: { triggerRate: 40, baseRates: { good: 30, neutral: 45, bad: 25 } },
+    });
+    const created = reg1.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 9 } });
+    reg1.setMap(created.room.roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
+    const reg2 = new RoomRegistry(persistence);
+    reg2.restoreAll(testMapProvider);
+    expect(encounterOf(reg2, created.room.roomId)).toEqual({
+      triggerRate: 40,
+      shares: { good: 30, neutral: 45, bad: 25 },
+    });
+  });
+});
+
+describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
+  /** 收集型观察者(同「观测事件」describe)。 */
+  function observedWith(opts?: { decisionTimeoutMs?: number }) {
+    const events: Record<string, unknown>[] = [];
+    const reg = new RoomRegistry(new InMemoryPersistence(), (_roomId, event) => events.push(event as Record<string, unknown>), undefined, opts);
+    return { reg, events };
+  }
+  const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  it("人类座位停摆超时 → bot 自动接管(auto 事件+对局继续),重连 attachSeat 夺回", async () => {
+    const { reg, events } = observedWith({ decisionTimeoutMs: 25 });
+    const created = reg.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: { seed: 42 } });
+    const roomId = created.room.roomId;
+    reg.joinSeat(roomId); // seat1 人类(guest)
+    reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(roomId, created.token, undefined, testMapProvider); // 停在 seat0(Roll)
+    const e = reg.get(roomId)!.engine!;
+    expect(e.phase).toBe("Setup"); // 选都阶段即停 seat0(human)
+    // 25ms 超时 → seat0 被自动接管;连锁推进到 seat1(人类)又停 → 再超时接管 → 对局持续走
+    await sleep(300);
+    const takeovers = events.filter((ev) => ev.ev === "takeover");
+    expect(takeovers.length).toBeGreaterThanOrEqual(1);
+    expect(takeovers.every((ev) => ev.auto === true)).toBe(true); // 全部为看门狗代接管,非房主手动
+    // 对局确有进展(接管后 driveBots 续推:选都走完进 Playing,不再永久挂)
+    expect(["Playing", "GameOver"]).toContain(e.phase);
+    // 重连夺回(attachSeat 既有语义,ADR-0002):被看门狗接管的座位,重连即收回
+    // (首位选都者按骰序不定,故取实际被接管者断言,不写死座位号)
+    const stalledSeat = takeovers[0].seat as number;
+    reg.attachSeat(roomId, stalledSeat);
+    expect(reg.get(roomId)!.takeover.has(stalledSeat)).toBe(false);
+  });
+
+  it("decisionTimeoutMs=0(缺省)→ 永不自动接管(人类座位正常等待,历史行为)", async () => {
+    const { reg, events } = observedWith();
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 42 } });
+    const roomId = created.room.roomId;
+    reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    await sleep(120);
+    expect(events.some((ev) => ev.ev === "takeover")).toBe(false);
+    expect(reg.get(roomId)!.takeover.size).toBe(0);
+  });
+
+  it("解散房间撤看门狗:超时窗口内 dismiss → 无迟到接管、无未处理拒绝", async () => {
+    const { reg, events } = observedWith({ decisionTimeoutMs: 400 });
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 42 } });
+    const roomId = created.room.roomId;
+    reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(roomId, created.token, undefined, testMapProvider); // 武装(400ms 窗口)
+    reg.dismissRoom(roomId, created.token); // 窗口内解散 → clearStall
+    await sleep(500);
+    expect(reg.get(roomId)).toBeUndefined();
+    expect(events.some((ev) => ev.ev === "takeover")).toBe(false);
+  });
+});

@@ -75,6 +75,9 @@ export default defineConfig({
         ROOMS_DIR,
         PORT: GAME_PORT,
         HOST: "127.0.0.1",
+        // 联机机遇归零隔离(#135):服务器默认读 public/config/jiyu.json(触发率 40)，
+        // e2e 换归零文件保持用例节奏与机遇开启前一致——机遇开启必须可隔离(#118 教训)。
+        JIYU_CONFIG: "./e2e/jiyu-off.json",
       },
     },
   ],
