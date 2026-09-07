@@ -4,7 +4,7 @@
 // - 三档基准(好运/中性/霉运)为任意正数,按占比归一,**和不必为 100**;
 // - 任一档 ≤0 或非数 → 引擎整体回退默认 30/45/25。
 // 设置屏只做输入边界校验与透传,不归一(归一单源在引擎)。
-import type { EncounterConfig } from "@core/encounters";
+import { ENCOUNTER_PRODUCT_DEFAULTS, type EncounterConfig } from "@core/encounters";
 
 /** 设置屏表单四值:触发概率 % + 三档基准。 */
 export interface EncounterFormValues {
@@ -19,12 +19,13 @@ export const ENCOUNTER_CONFIG_URL = "/config/jiyu.json";
 
 /** 内置默认(与 public/config/jiyu.json 同值):fetch 失败时的回退。
  *  #125 明确要求此回退——属机遇域的显式例外(引擎 resolveEncounterConfig 本就带回退语义),
- *  非仓库「零兜底原则」的一般化破例。 */
+ *  非仓库「零兜底原则」的一般化破例。值单源自 core 的 ENCOUNTER_PRODUCT_DEFAULTS(#135:
+ *  联机服务器同一常量回退,三处漂移只改 core 一处)。 */
 export const BUILTIN_ENCOUNTER_DEFAULTS: EncounterFormValues = {
-  triggerRate: 40,
-  good: 30,
-  neutral: 45,
-  bad: 25,
+  triggerRate: ENCOUNTER_PRODUCT_DEFAULTS.triggerRate ?? 0,
+  good: ENCOUNTER_PRODUCT_DEFAULTS.baseRates?.good ?? 0,
+  neutral: ENCOUNTER_PRODUCT_DEFAULTS.baseRates?.neutral ?? 0,
+  bad: ENCOUNTER_PRODUCT_DEFAULTS.baseRates?.bad ?? 0,
 };
 
 const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));

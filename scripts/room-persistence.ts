@@ -7,6 +7,7 @@ import { join, resolve } from "node:path";
 import type { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty } from "../src/core/types";
+import type { EncounterConfig } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createEngine, MAP } from "./engine-helpers";
 
@@ -37,6 +38,8 @@ export interface RoomRecord {
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
+  /** 本局机遇配置(#135);null/缺省(旧记录)=机遇关。恢复引擎时传回构造 config。 */
+  encounter?: EncounterConfig | null;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 
@@ -123,7 +126,16 @@ export function engineFromRecord(
 ): GameEngine | null {
   if (!rec.snapshot) return null;
   const map = rec.mapId && mapProvider ? mapProvider(rec.mapId) : MAP;
-  const engine = createEngine({ seats: dummySeats(rec.seatCount), ...rec.hostConfig }, false, map);
+  const engine = createEngine(
+    {
+      seats: dummySeats(rec.seatCount),
+      ...rec.hostConfig,
+      // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
+      ...(rec.encounter ? { encounter: rec.encounter } : {}),
+    },
+    false,
+    map,
+  );
   engine.restoreFromSnapshot(rec.snapshot);
   return engine;
 }
@@ -141,6 +153,7 @@ export function recordToSessionData(
   autoPilot: Map<number, "fast" | "slow">;
   hostConfig: HostConfig;
   mapId: string | null;
+  encounter: EncounterConfig | null;
   engine: GameEngine | null;
 } {
   return {
@@ -152,6 +165,7 @@ export function recordToSessionData(
     autoPilot: new Map((rec.autoPilot ?? []).map((a) => [a.seat, a.speed] as const)),
     hostConfig: rec.hostConfig,
     mapId: rec.mapId ?? null,
+    encounter: rec.encounter ?? null,
     engine: engineFromRecord(rec, mapProvider),
   };
 }

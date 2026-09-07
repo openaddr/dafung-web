@@ -9,6 +9,7 @@ import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { GameEngine } from "../src/core/game";
 import type { SeatConfig, EngineConfig } from "../src/core/game";
+import type { EncounterConfig } from "../src/core/encounters";
 import type { TurnPhase, AiDifficulty } from "../src/core/types";
 import { createDice } from "../src/core/dice";
 import { botAct } from "../src/core/bot";
@@ -51,6 +52,8 @@ export interface GameConfig {
   seed?: number;
   /** 地图 id(ADR-0014:随引擎写入对局日志局头,重放要素)。 */
   mapId?: string;
+  /** 机遇配置(#135):缺省 = 机遇关;经局头行/持久化 config 复刻,重放要素。 */
+  encounter?: EncounterConfig;
 }
 
 export interface PersistedState {

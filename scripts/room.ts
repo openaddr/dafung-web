@@ -12,6 +12,7 @@ import { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { isSingleCjk } from "../src/core/constants";
+import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -46,7 +47,7 @@ export type RoomBotStopReason =
 export type RoomEvent =
   | { ev: "start"; mapId: string }
   | { ev: "map"; mapId: string }
-  | { ev: "takeover"; seat: number }
+  | { ev: "takeover"; seat: number; auto?: true } // auto=true(#118):决策停摆看门狗代接管,非房主手动
   | { ev: "autopilot"; seat: number; on: boolean; speed: AutoPilotSpeed }
   | { ev: "offline"; seat: number; online: number[] }
   | { ev: "bot-step"; seat: number; turnPhase: string; active: number }
@@ -72,6 +73,9 @@ export interface RoomSession {
   hostConfig: HostConfig;
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
   mapId: string | null;
+  /** 本局机遇配置(#135):开局时由 registry 注入项定(服务器读 jiyu.json);
+   *  null=机遇关。随房间持久化——服务器重启重建引擎时复刻,否则联机局机遇静默丢失。 */
+  encounter: EncounterConfig | null;
   engine: GameEngine | null; // null = Lobby
 }
 
@@ -196,16 +200,38 @@ export interface CreateRoomConfig {
   guohao?: string; // host 预设国号(R3-D1 #99):写入 seat0,语义与 joinSeat 一致(校验/trim/可空)
 }
 
+/** Registry 注入项(server.ts 构造时传;ADR-0007:fs 读取归传输层,room.ts 只消费结果)。
+ *  encounter(#135):联机机遇配置——服务器读 public/config/jiyu.json 后注入,
+ *  startGame 透传进引擎 EngineConfig.encounter。缺省 = 机遇关(引擎缺省语义,历史行为)。
+ *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未接管人类座位的决策点超过该毫秒,
+ *  bot 自动接管该座位(重连/刷新夺回,同 ADR-0002 接管语义)。0 = 关闭(缺省关,测试友好);
+ *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。 */
+export interface RoomRegistryOptions {
+  encounter?: EncounterConfig;
+  decisionTimeoutMs?: number;
+}
+
 export class RoomRegistry {
   private readonly rooms = new Map<string, RoomSession>();
   private readonly persistence: RoomPersistence;
   private readonly observer: RoomObserver | null;
   private readonly logSink: RoomLogSink | null;
+  private readonly encounter?: EncounterConfig;
+  private readonly decisionTimeoutMs: number;
+  /** #118 看门狗:roomId → 待超时座位 + timer。driveBots 每次进出重评估(见各自注释)。 */
+  private readonly stall = new Map<string, { seat: number; timer: ReturnType<typeof setTimeout> }>();
 
-  constructor(persistence: RoomPersistence, observer?: RoomObserver, logSink?: RoomLogSink) {
+  constructor(
+    persistence: RoomPersistence,
+    observer?: RoomObserver,
+    logSink?: RoomLogSink,
+    options?: RoomRegistryOptions,
+  ) {
     this.persistence = persistence;
     this.observer = observer ?? null;
     this.logSink = logSink ?? null;
+    this.encounter = options?.encounter;
+    this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
   }
 
   /** 发一条观测事件(无观察者时为空操作)。 */
@@ -255,6 +281,7 @@ export class RoomRegistry {
       autoPilot: data.autoPilot,
       hostConfig: data.hostConfig,
       mapId: data.mapId,
+      encounter: data.encounter,
       engine: data.engine,
     };
   }
@@ -299,7 +326,7 @@ export class RoomRegistry {
     const token = this.newToken();
     seats[0].token = token;
     seats[0].guohao = guohao != null ? guohao.trim() : null;
-    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), autoPilot: new Map(), hostConfig, mapId: null, engine: null };
+    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), autoPilot: new Map(), hostConfig, mapId: null, encounter: null, engine: null };
     this.rooms.set(roomId, room);
     this.persist(room);
     return { room, seat: 0, token };
@@ -370,10 +397,14 @@ export class RoomRegistry {
         targetNetWorth: room.hostConfig.target,
         difficulty: room.hostConfig.difficulty,
         mapId: room.mapId!,
+        // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
+        // 引擎侧归一/回退单源 resolveEncounterConfig;undefined = 机遇关(缺省注入)。
+        encounter: this.encounter,
       },
       true,
       map,
     );
+    room.encounter = this.encounter ?? null;
     room.engine = engine;
     this.observe(room, { ev: "start", mapId: room.mapId! });
     // 开局房间行(ADR-0014):座位构成随开局写入对局日志(大厅期的加入以此汇总呈现)
@@ -487,6 +518,7 @@ export class RoomRegistry {
     // 解散房间行(ADR-0014):房间删除前先落盘(logRoom 内触发 logSink)
     this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
+    this.clearStall(id); // #118:撤看门狗计时器(stallFire 自身有房间存在重校验,此为即时清理)
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -583,6 +615,7 @@ export class RoomRegistry {
   private async driveBots(r: RoomSession, onUpdate?: (room: RoomSession) => void): Promise<void> {
     const e = r.engine;
     if (!e) return;
+    this.clearStall(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
     if (this.driving.has(r)) return; // 已有链在跑:它会把新进展接走
     this.driving.add(r);
     try {
@@ -620,9 +653,60 @@ export class RoomRegistry {
           void this.driveBots(r, onUpdate);
         }, stepDelayMs(r, guardOwner));
       }
+      // #118 看门狗出口评估:链停在未接管的真人座位(human-turn)= 该端拖节奏,武装超时。
+      // 其余停因(not-input-phase/game-over/guard 续链)服务器仍在掌控,不武装。
+      if (reason === "human-turn" && guardOwner >= 0 && this.decisionTimeoutMs > 0) {
+        this.armStall(r, guardOwner, onUpdate);
+      }
     } finally {
       this.driving.delete(r);
     }
+  }
+
+  // ──────────────────────────── 决策停摆看门狗(#118)────────────────────────────
+  /** 撤看门狗(链重开/房间解散时);无挂起计时器时空操作。 */
+  private clearStall(roomId: string): void {
+    const w = this.stall.get(roomId);
+    if (w) {
+      clearTimeout(w.timer);
+      this.stall.delete(roomId);
+    }
+  }
+
+  /** 武装:decisionTimeoutMs 后若仍停在同一未接管人类座位 → bot 接管(ADR-0002 语义)。
+   *  同房间旧计时器先撤(决策点换了,重算)。unref:不因挂起计时器拖延进程退出。 */
+  private armStall(r: RoomSession, seat: number, onUpdate?: (room: RoomSession) => void): void {
+    this.clearStall(r.roomId);
+    const timer = setTimeout(() => {
+      void this.stallFire(r, seat, onUpdate);
+    }, this.decisionTimeoutMs);
+    timer.unref?.();
+    this.stall.set(r.roomId, { seat, timer });
+  }
+
+  /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍非服务器驱动)后
+   *  bot 接管并续推连锁。接管走既有 takeover 集合:重连 attachSeat 自动夺回,
+   *  对局日志记 takeover 行(重放把它并入 bot 驱动集,终态逐字段一致)。 */
+  private async stallFire(
+    r: RoomSession,
+    seat: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<void> {
+    this.stall.delete(r.roomId);
+    const e = r.engine;
+    if (this.rooms.get(r.roomId) !== r || !e || e.isOver) return;
+    const owner = decisionSeatOf(e);
+    if (owner !== seat || seatControlled(r, seat)) return;
+    r.takeover.add(seat);
+    this.observe(r, { ev: "takeover", seat, auto: true });
+    this.logRoom(
+      r,
+      `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(this.decisionTimeoutMs / 1000)} 秒,bot 自动接管(重连/刷新夺回)`,
+      JSON.stringify({ type: "takeover", seat, auto: true }),
+    );
+    this.persist(r);
+    onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
+    await this.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────
@@ -636,6 +720,7 @@ export class RoomRegistry {
       autoPilot: [...r.autoPilot].map(([seat, speed]) => ({ seat, speed })),
       hostConfig: r.hostConfig,
       mapId: r.mapId,
+      encounter: r.encounter, // #135:机遇配置随房间落盘,重启重建引擎复刻(否则联机局机遇静默丢)
       snapshot: r.engine ? r.engine.snapshot() : null,
     };
     this.persistence.save(rec);
