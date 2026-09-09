@@ -200,6 +200,7 @@ describe("锦囊快照往返(恢复/联机一致性)", () => {
 
 // ──────────────────────────── 使用回路(T2)────────────────────────────
 import { botAct } from "@core/bot";
+import { JINNANG_LIVE_EFFECTS } from "@core/choices";
 
 /** 把引擎摆到「当前玩家持 cards、停在锦囊相位」的测试态(相位为公开字段,直设同
  *  testEngine 落格后门口径)。 */
@@ -220,15 +221,10 @@ describe("锦囊使用回路(T2)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("未启用种类灰置:reason「此计暂未启用」,不算可用选项", () => {
-    const e = makeEngine(42);
-    finishSetup(e);
-    armJinnang(e, ["连环计"]);
-    const options = e.choicesFor();
-    expect(options.find((o) => o.id === "连环计")?.available).toBe(false);
-    expect(options.find((o) => o.id === "连环计")?.reason).toBe("此计暂未启用");
-    // 可用选项只剩 pass → 相位不可能由 enterJinnangPhase 进入(静默跳过的判据)
-    expect(options.filter((o) => o.available).map((o) => o.id)).toEqual(["pass"]);
+  it("目录效果全部已接入结算(目录 ⊆ LIVE,穷尽守卫的运行时镜像)", () => {
+    // 未来新增 effect.kind 而未接结算案时:灰置路径仍在(此计暂未启用),本守卫先红
+    const kinds = JINNANG_CARDS.map((c) => c.effect.kind);
+    for (const k of kinds) expect(JINNANG_LIVE_EFFECTS.has(k)).toBe(true);
   });
 
   it("用免战金牌:盾立、手牌-1 入弃牌堆、标签占名额、无他牌则收卷进 Roll", () => {
@@ -498,5 +494,90 @@ describe("锦囊目标段(T3)", () => {
     const e2 = makeEngine(1);
     e2.restoreFromSnapshot(e.snapshot());
     expect(e2.pendingJinnang).toEqual(e.pendingJinnang);
+  });
+});
+
+// ──────────────────────────── 连环计与窥探(T4)────────────────────────────
+describe("连环计·二虎竞食(T4)", () => {
+  it("两步选人:two-a 定首挑 → two-b 排除首挑 → 执行;骰点与银两走规则", () => {
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const userSeat = e.players.indexOf(e.activePlayer);
+    const others = [0, 1, 2].filter((i) => i !== userSeat);
+    armJinnang(e, ["连环计"]);
+    e.resolveJinnang("连环计");
+    expect(e.pendingJinnang).toMatchObject({ cardId: "连环计", stage: "two-a" });
+    e.resolveJinnang("连环计", [others[0]]);
+    expect(e.pendingJinnang).toMatchObject({ stage: "two-b", picked: [others[0]] });
+    // 第二段排除首挑
+    const second = e.choicesFor().filter((o) => o.targetSeat != null && o.available).map((o) => o.targetSeat);
+    expect(second).not.toContain(others[0]);
+    e.resolveJinnang("连环计", [second[0]!]);
+    expect(e.pendingJinnang).toBeNull();
+    expect(e.activePlayer.jinnangHand).toEqual([]); // 已消耗
+    // 结算:读战报的骰点,断言三态之一的钱流不变量
+    const duel = e.log.filter((l) => l.detail.includes("jinnangDuel"));
+    expect(duel.length).toBeGreaterThanOrEqual(1); // 结果行(胜负两条或平局一条)
+    const winnerLine = duel.find((l) => l.detail.includes("winner="));
+    const loserLine = duel.find((l) => l.detail.includes("loser="));
+    if (winnerLine && loserLine) {
+      const gain = Number(/gain=(\d+)/.exec(winnerLine.detail)?.[1]);
+      const pay = Number(/pay=(\d+)/.exec(loserLine.detail)?.[1]);
+      expect(gain).toBe(300);
+      expect(pay).toBeLessThanOrEqual(400);
+    } else {
+      expect(duel.some((l) => l.detail.includes("tie"))).toBe(true); // 平局作废
+    }
+  });
+
+  it("两人局连环计灰置「对手不足」(可用目标 <2)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["连环计"]);
+    const opt = e.choicesFor().find((o) => o.id === "连环计");
+    expect(opt?.available).toBe(false);
+  });
+});
+
+describe("军情密探·窥探(T4)", () => {
+  it("窥探入账;viewer 下回合开始到期清零", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["军情密探"]);
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [1]);
+    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
+    const p = e.activePlayer;
+    e.rollAndMove();
+    let seenOther = false;
+    let guard = 0;
+    while (!e.isOver && guard++ < 50) {
+      if (e.activePlayer !== p) seenOther = true;
+      else if (seenOther) break;
+      if (e.turnPhase === "Roll") e.rollAndMove();
+      else if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+      else botAct(e);
+    }
+    expect(seenOther).toBe(true);
+    expect(e.jinnangPeeks).toEqual([]); // 轮回 viewer:到期
+  });
+
+  it("快照往返:peeks 保真", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["军情密探"]);
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [1]);
+    const e2 = makeEngine(1);
+    e2.restoreFromSnapshot(e.snapshot());
+    expect(e2.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
   });
 });

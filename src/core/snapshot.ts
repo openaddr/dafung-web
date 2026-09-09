@@ -150,6 +150,8 @@ export interface GameSnapshot {
   jinnangUsedTags: string[];
   /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
   pendingJinnang: import("./types").PendingJinnang | null;
+  /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
+  jinnangPeeks: import("./types").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
   jinnangDeckCount: number;
   jinnangDiscard: string[];
@@ -346,6 +348,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => [...e.jinnangUsedTags],
     write: (e, s) => {
       e.jinnangUsedTags = [...s.jinnangUsedTags];
+    },
+  },
+  {
+    // 窥探清单(#122/T4):viewer 下回合开始到期
+    key: "jinnangPeeks",
+    read: (e) => e.jinnangPeeks.map((pk) => ({ ...pk })),
+    write: (e, s) => {
+      e.jinnangPeeks = s.jinnangPeeks.map((pk) => ({ ...pk }));
     },
   },
   {

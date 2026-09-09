@@ -21,6 +21,8 @@ export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set(
   "stealTreasure",
   "demolish",
   "skipTurn",
+  "duel", // T4:连环计二虎竞食
+  "peek", // T4:军情密探
 ]);
 
 /** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
@@ -251,11 +253,23 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const def = jinnangCardOf(cardId);
     const quotaBlocked = def.tags.some((t) => used.has(t));
     const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
+    // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4)
+    const needTwo = def.targetDomain === "two-others";
+    const validTargets = needTwo
+      ? e.players.filter((_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok).length
+      : 0;
+    const targetsShort = needTwo && validTargets < 2;
     return {
       id: cardId,
       label: def.id,
-      available: !quotaBlocked && implemented,
-      reason: !implemented ? "此计暂未启用" : quotaBlocked ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕` : undefined,
+      available: !quotaBlocked && implemented && !targetsShort,
+      reason: !implemented
+        ? "此计暂未启用"
+        : targetsShort
+          ? "对手不足"
+          : quotaBlocked
+            ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
+            : undefined,
       cardText: def.text,
       cardTags: def.tags,
     };

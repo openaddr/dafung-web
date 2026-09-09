@@ -871,3 +871,28 @@ describe("锦囊暗牌投影(ADR-0016 · redactSnapshotForSeat)", () => {
     void hostToken;
   });
 });
+
+describe("窥探投影(ADR-0016 · #122/T4)", () => {
+  it("viewer 视角:窥探目标手牌内容放行,第三者仍裁空;到期后裁回", async () => {
+    const { reg, roomId } = await (async () => {
+      const r = await setupStartedRoom({ seats: 3, bot: [2] });
+      r.reg.get(r.roomId)!.engine!.drawJinnang(0, 2);
+      return r;
+    })();
+    const e = reg.get(roomId)!.engine!;
+    e.resolveJinnang(null);
+    e.activePlayer.jinnangHand = ["军情密探"];
+    e.activePlayer.jinnangHandCount = 1;
+    e.turnPhase = "AwaitingJinnang";
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [1]);
+    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
+    const snap = e.snapshot();
+    const view0 = redactSnapshotForSeat(snap, 0);
+    const view2 = redactSnapshotForSeat(snap, 2);
+    expect(view0.players[1].jinnangHand).toEqual(snap.players[1].jinnangHand); // viewer 见内容
+    expect(view0.players[2].jinnangHand).toEqual([]); // 非目标仍裁
+    expect(view2.players[0].jinnangHand).toEqual(snap.players[0].jinnangHand); // 自己恒全量
+    expect(view2.players[1].jinnangHand).toEqual([]); // 第三者不见窥探内容
+  });
+});

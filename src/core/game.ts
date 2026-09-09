@@ -47,7 +47,7 @@ import {
   buildJinnangDeck,
   jinnangCardOf,
 } from "./jinnang";
-import type { PendingJinnang } from "./types";
+import type { JinnangPeek, PendingJinnang } from "./types";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -196,6 +196,8 @@ export class GameEngine {
   jinnangUsedTags: string[] = [];
   /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态;null=卡牌段。随快照走。 */
   pendingJinnang: PendingJinnang | null = null;
+  /** 进行中的窥探(#122/T4):viewer 至其下回合开始可见 target 手牌内容(投影放行)。 */
+  jinnangPeeks: JinnangPeek[] = [];
   /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
   jinnangDeckCount = 0;
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
@@ -1155,6 +1157,7 @@ export class GameEngine {
     // 标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
     this.activePlayer.jinnangShield = false;
     this.jinnangUsedTags = [];
+    this.jinnangPeeks = this.jinnangPeeks.filter((pk) => pk.viewer !== this.activeIndex); // 窥探至 viewer 下回合开始到期
     this.enterJinnangPhase();
     // 不重置 lastRoll / lastMove:doRoll 的骰子翻滚与行军动画在 rollAndMove 之后执行,
     // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。
@@ -2018,9 +2021,53 @@ export class GameEngine {
         this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【缓兵之计】:${victim.guohao} 下回合被拖住`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} skip=1`);
         break;
       }
-      default:
-        // 选项集 availability(JINNANG_LIVE_EFFECTS)已把未启用种类挡在门外,到此=数据 bug
-        throw new Error(`锦囊效果未接入结算:${def.effect.kind}(#122 分票范围)`);
+      case "duel": {
+        // 连环计·二虎竞食(#122/T4):指定两人各掷 1d6;赢家国库 +300,输家向使用者付
+        // 400(上限=现金,不清算);平局双方无事、此计作废。
+        const [aSeat, bSeat] = targets;
+        const a = this.players[aSeat];
+        const b = this.players[bSeat];
+        const rollA = this.dice.rollDie();
+        const rollB = this.dice.rollDie();
+        const effect = def.effect;
+        if (effect.kind !== "duel") throw new Error(`连环计载荷缺失:${effect.kind}`);
+        const { winnerBankGain, loserPaysUser } = effect;
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${rollA} 点,${b.guohao} 掷 ${rollB} 点`, `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${rollA} b=${bSeat}:${rollB}`);
+        if (rollA === rollB) {
+          this.pushFloaterText(user, `二虎相持(各 ${rollA} 点),此计作废`, user.position);
+          this.logEvent("system", null, `二虎相持(各 ${rollA} 点),连环计作废`, `jinnangDuel tie roll=${rollA}`);
+          break;
+        }
+        const winnerSeat = rollA > rollB ? aSeat : bSeat;
+        const loserSeat = rollA > rollB ? bSeat : aSeat;
+        const winner = this.players[winnerSeat];
+        const loser = this.players[loserSeat];
+        winner.cash += winnerBankGain; // 国库出
+        this.pushFloater(winner, winnerBankGain, winner.position, "income");
+        this.logEvent("system", winner.guohao, `二虎相争:胜者 ${winner.guohao} 得 ${formatMoney(winnerBankGain)}(掷 ${Math.max(rollA, rollB)} 点)`, `jinnangDuel winner=${winner.id} gain=${winnerBankGain}`, winnerBankGain);
+        const pay = Math.min(loserPaysUser, loser.cash);
+        if (pay > 0) {
+          loser.cash -= pay;
+          user.cash += pay;
+          this.pushFloater(loser, -pay, loser.position, "expense");
+          this.dispatchMoment("CashLost", { subject: loserSeat, amount: pay });
+          this.dispatchMoment("CashGained", { subject: userSeat, amount: pay });
+        }
+        this.logEvent("system", loser.guohao, `二虎相争:败者 ${loser.guohao} 向 ${user.guohao} 赔 ${formatMoney(pay)}(掷 ${Math.min(rollA, rollB)} 点)`, `jinnangDuel loser=${loser.id} pay=${pay} cash=${loser.cash}`, -pay);
+        break;
+      }
+      case "peek": {
+        const target = targets[0];
+        this.jinnangPeeks.push({ viewer: userSeat, target });
+        this.pushFloaterText(user, `细作已入 ${this.players[target].guohao} 营中(至你下回合)`, user.position);
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【军情密探】:窥探 ${this.players[target].guohao} 的锦囊(至下回合)`, `jinnangUse player=${user.id} card=${def.id} peek viewer=${userSeat} target=${target}`);
+        break;
+      }
+      default: {
+        // 穷尽守卫:新 effect.kind 必须先实现结算案,目录才可投放(编译期逼出)
+        const exhausted: never = def.effect;
+        throw new Error(`锦囊效果未接入结算:${JSON.stringify(exhausted)}(#122)`);
+      }
     }
   }
 

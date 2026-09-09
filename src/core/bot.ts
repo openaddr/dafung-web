@@ -1,8 +1,10 @@
-// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇),Simple/Normal 两档。
+// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine } from "./game";
 import type { Player } from "./types";
 import type { EncounterEffect } from "./encounters";
+import { jinnangCardOf } from "./jinnang";
+import { netWorth } from "./networth";
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
  *  不消耗引擎骰(重放安全)。 */
@@ -65,8 +67,144 @@ function estimateBranchMainEv(engine: GameEngine, p: Player): number {
   return estimateDestValue(engine, p, dest);
 }
 
+// ────────────────────────── 锦囊策略(#148,T6,docs/jinnang.md §8)──────────────────────────
+
+/** botAct 选项(#148):conservative=看门狗接管口径——锦囊永不主动用,一律「今不用」
+ *  保守推进(目标段先作罢再收卷),全程不掷骰(重放安全);缺省 false=托管按策略表。 */
+export interface BotActOptions {
+  conservative?: boolean;
+}
+
+/** 锦囊意图(#148):策略表对单张牌的「用/不用 + 偏好目标序」。exported 供单测
+ *  (连环计/军情密探结算未接入,端到端到不了,纯决策直测)。 */
+export interface JinnangIntent {
+  use: boolean;
+  /** one/two-others 域的偏好目标座位(优先序:排位在前者优先;连环计两段依次取 [0]、[1])。
+   *  仅是策略偏好——真正可发性仍以目标段 choicesFor 的 available 为准(ADR-0013 同口径)。 */
+  targets?: number[];
+}
+
+/** 全体玩家现金中位数:奇数家取中位;偶数家取中间两位均值。确定性,不掷骰。exported 供单测。 */
+export function medianCash(players: Player[]): number {
+  const xs = players.map((p) => p.cash).sort((a, b) => a - b);
+  const mid = xs.length >> 1;
+  return xs.length % 2 === 1 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+}
+
+/** 锦囊策略表(#148):横征暴敛=可用即用;连环计=现金最高的两人相咬、次富者现金 ≥400
+ *  才值得(可用目标 <2 → 不用);窃玉=珍宝最多者;火烧=城最多者;缓兵=仅对当前身价
+ *  领先者(netWorth=现金,单口径;自己是领先者则无的放矢);密探=自己手牌 ≥2 才用;
+ *  免战=现金低于全体玩家现金中位数(原表「房租均值」——本引擎无房租概念,#148 改中位数
+ *  口径);求贤=可用即用。并列一律取座位序小者(输入保持座位序 + 稳定排序,禁
+ *  Math.random,重放安全)。
+ *  目标候选的可达性预筛(非己/存活/未庇护/有珍宝/有城)是 choices.ts jinnangTargetOk 的
+ *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。 */
+export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent {
+  const me = engine.activePlayer;
+  const mySeat = engine.players.indexOf(me);
+  const others = engine.players
+    .map((t, seat) => ({ t, seat }))
+    .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt && !t.jinnangShield);
+  const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
+    [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
+  switch (jinnangCardOf(cardId).effect.kind) {
+    case "levyAll": // 横征暴敛:可用即用
+    case "grantHero": // 求贤令:可用即用
+      return { use: true };
+    case "rentImmunity": // 免战金牌:现金低于全体现金中位数才用
+      return { use: me.cash < medianCash(engine.players) };
+    case "skipTurn": {
+      // 缓兵之计:仅当目标当前身价领先;自己领先则无人值得拖
+      const leader = [...engine.players]
+        .map((t, seat) => ({ t, seat }))
+        .sort((a, b) => netWorth(b.t) - netWorth(a.t))[0];
+      return leader.seat === mySeat ? { use: false } : { use: true, targets: [leader.seat] };
+    }
+    case "stealTreasure": {
+      // 窃玉偷香:珍宝最多者(无珍宝者不入选)
+      const ranked = byKeyDesc(({ t }) => t.treasures.length).filter(({ t }) => t.treasures.length > 0);
+      return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
+    }
+    case "demolish": {
+      // 火烧连营:城最多者(无城者不入选)
+      const ranked = byKeyDesc(({ t }) => t.properties.length).filter(({ t }) => t.properties.length > 0);
+      return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
+    }
+    case "peek":
+      // 军情密探:自己手牌 ≥2 才用(bot 拿信息无用,基本留给玩家——§8);目标取现金最高者
+      return {
+        use: me.jinnangHand.length >= 2,
+        targets: byKeyDesc(({ t }) => t.cash).map(({ seat }) => seat),
+      };
+    case "duel": {
+      // 连环计:现金最高的两人相咬;次富者现金 <400 或可用目标 <2 → 不用
+      const ranked = byKeyDesc(({ t }) => t.cash);
+      return {
+        use: ranked.length >= 2 && ranked[1].t.cash >= 400,
+        targets: ranked.slice(0, 2).map(({ seat }) => seat),
+      };
+    }
+  }
+}
+
+/** 目标段提交(#148):按意图偏好序对着引擎目标段选项集(唯一可用口径)逐段提交;
+ *  偏好目标全不可发 → 作罢(牌不消耗,退回卡牌段)返回 false,由调用方换下一张。 */
+function commitJinnangTargets(engine: GameEngine, cardId: string): boolean {
+  const prefs = jinnangIntent(engine, cardId).targets ?? [];
+  while (engine.pendingJinnang) {
+    const stage = engine.pendingJinnang.stage;
+    const wanted = stage === "two-b" ? prefs.slice(1, 2) : prefs; // 连环计第二段必须次挑
+    let seat: number | null = null;
+    for (const w of wanted) {
+      const opt = engine.choicesFor().find((o) => o.available && o.targetSeat === w);
+      if (opt?.targetSeat != null) {
+        seat = opt.targetSeat;
+        break;
+      }
+    }
+    if (seat == null) {
+      engine.resolveJinnang(cardId, undefined, true); // 作罢
+      return false;
+    }
+    engine.resolveJinnang(cardId, [seat]);
+  }
+  return true;
+}
+
+/** 锦囊相位决策(#148,托管口径):可用牌(经 choicesFor 同口径,ADR-0013)逐张过策略表,
+ *  手牌序取第一张「值得用」的;指向域提交后引擎入目标段,按偏好序对着选项集选人,偏好
+ *  全不可发作罢换下一张。用一张后引擎可能停留卷轴(异类标签),循环续推直到收卷;tried
+ *  挡作罢-重选死循环,guard 兜底。Simple 难度掺骰 50% 弃权(确定性:同 seed 同掷)。 */
+function driveJinnang(engine: GameEngine, simple: boolean): void {
+  const tried = new Set<string>();
+  if (engine.pendingJinnang) {
+    // 中途接管:上一调用停在目标段,先续推完这一张
+    const cardId = engine.pendingJinnang.cardId;
+    tried.add(cardId);
+    commitJinnangTargets(engine, cardId);
+  }
+  let guard = 0;
+  while (engine.turnPhase === "AwaitingJinnang" && guard++ < 12) {
+    const chosen = engine
+      .choicesFor()
+      .filter((o) => o.available && o.cardTags != null)
+      .find((o) => !tried.has(o.id) && jinnangIntent(engine, o.id).use);
+    if (!chosen) {
+      engine.resolveJinnang(null);
+      break;
+    }
+    if (simple && engine.dice.nextFloat() < 0.5) {
+      engine.resolveJinnang(null); // Simple 50% 弃权
+      break;
+    }
+    tried.add(chosen.id);
+    engine.resolveJinnang(chosen.id); // one/two-others → 入目标段;self/all-others → 直接执行
+    if (engine.pendingJinnang) commitJinnangTargets(engine, chosen.id);
+  }
+}
+
 /** 驱动当前 bot 回合的一步决策;UI 在 bot 回合轮询调用直到进入下一玩家或 GameOver。 */
-export function botAct(engine: GameEngine): void {
+export function botAct(engine: GameEngine, opts?: BotActOptions): void {
   const p = engine.activePlayer;
   const simple = engine.difficulty === "Simple";
 
@@ -120,9 +258,14 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingJinnang": {
-      // 锦囊卷轴(#122/T2):T2 阶段 bot 恒「今不用」——托管/看门狗两上下文都保守推进,
-      // 不替玩家花牌(策略表在 T6;经 choicesFor 同口径读选项,引擎方法直调不经 submitCommand)。
-      engine.resolveJinnang(null);
+      // 锦囊卷轴(#122/T2 → #148/T6 策略):conservative(看门狗接管)一律「今不用」保守
+      // 推进——目标段先作罢再收卷,不掷骰;托管按策略表(§8)经 driveJinnang 推进。
+      if (opts?.conservative) {
+        if (engine.pendingJinnang) engine.resolveJinnang(null); // 目标段:作罢(牌退回)
+        if (engine.turnPhase === "AwaitingJinnang") engine.resolveJinnang(null); // 卡牌段:今不用
+        break;
+      }
+      driveJinnang(engine, simple);
       break;
     }
 

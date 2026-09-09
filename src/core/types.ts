@@ -158,6 +158,13 @@ export interface LandOutcomeSnapshot {
   causedBankruptcy: boolean | null;
 }
 
+/** 军情密探窥探(#122/T4):viewer 可见 target 的锦囊手牌内容,至 viewer 下回合开始
+ *  (endTurn 轮到 viewer 时清除)。窥探事件本身公开,清单随快照。 */
+export interface JinnangPeek {
+  viewer: number;
+  target: number;
+}
+
 /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态(同相位内重算选项集);
  *  stage:one=单选立即执行;two-a/two-b=连环计两步(第二步排除第一步)。
  *  picked 为已定座位;随快照走(目标段中途断线可恢复)。 */

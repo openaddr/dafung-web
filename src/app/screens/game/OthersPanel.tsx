@@ -83,7 +83,7 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {p.jinnangHandCount > 0 && (
               <span
                 data-testid={TESTIDS.jinnangCount(seat)}
-                title={`锦囊 ×${p.jinnangHandCount}(内容暗置)`}
+                title={`锦囊 ×${p.jinnangHandCount}${p.jinnangHand.length > 0 ? `(窥探:${p.jinnangHand.join("、")})` : "(内容暗置)"}`}
                 className="shrink-0 rotate-[-4deg] rounded-[2px] border border-[rgba(43,35,23,0.3)] bg-panel-hi px-1 font-brush text-[10px] leading-4 text-ink-dim"
               >
                 囊{p.jinnangHandCount}
