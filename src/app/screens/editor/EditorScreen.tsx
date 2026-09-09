@@ -54,7 +54,7 @@ const DRAG_THRESHOLD_PX = 6;
 /** 格子类型选项(中文标签对照旧棋盘渲染配色语义)。 */
 const TILE_TYPES: ReadonlyArray<{ value: TileType; label: string }> = [
   { value: "Property", label: "城池(地产)" },
-  { value: "Chance", label: "锦囊(机会)" },
+  { value: "Chance", label: "锦囊格" },
   { value: "Fate", label: "天命" },
   { value: "Tax", label: "赋税" },
   { value: "Stock", label: "市易(股票)" },

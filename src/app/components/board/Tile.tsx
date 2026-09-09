@@ -589,7 +589,7 @@ function CandidateSeal({ order }: { order: number }) {
 /** 非城池格(锦囊/天命/税关/商市/卧龙岗)的大字 icon 配色。 */
 const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string }>> = {
   Wolong: { color: "goldBright", icon: "龙" },
-  Chance: { color: "goldBright", icon: "吉" },
+  Chance: { color: "goldBright", icon: "囊" },
   Fate: { color: "danger", icon: "凶" },
   Tax: { color: "danger", icon: "税" },
   Stock: { color: "money", icon: "市" },
@@ -705,7 +705,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
             ))
           ) : null}
           {tile.type === "Chance" ? (
-            // 锦囊:大字下方一具横卷轴(轴身 + 两端轴杆),陪衬"吉"字
+            // 锦囊:大字下方一具横卷轴(轴身 + 两端轴杆),陪衬"囊"字
             <g>
               <rect x={-13} y={32} width={26} height={7} rx={2} fill="rgba(240,224,180,0.9)" stroke="rgba(120,86,45,0.8)" strokeWidth={0.8} />
               <rect x={-17} y={30.5} width={4} height={10} rx={1.5} fill="rgba(150,110,60,0.9)" />
