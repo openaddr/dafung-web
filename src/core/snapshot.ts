@@ -63,6 +63,11 @@ export interface SnapshotPlayer {
   treasures: TreasureRow[];
   reputation: number; // 声望 -100~+100(#121)
   stamina: number; // 体力 0~100(#130)
+  /** 锦囊手牌(#122):暗置牌 id。god-view 快照含全员,可见性由传输层投影裁剪(ADR-0016):
+   *  联机经 clientView 后,非本人座位此字段恒为空数组,数量走 jinnangHandCount。 */
+  jinnangHand: string[];
+  /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
+  jinnangHandCount: number;
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -134,6 +139,12 @@ export interface GameSnapshot {
   pendingLand: PendingLand | null;
   // 纯派生(log 长度)
   logCount: number;
+  // 锦囊牌库/弃牌堆(#122):god-view 含牌序,联机投影只给数量(牌序决定未来抽牌,
+  // 不可泄——ADR-0016 count-only 档);弃牌堆内容公开(打出的牌本就明置)。
+  jinnangDeck: string[];
+  /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
+  jinnangDeckCount: number;
+  jinnangDiscard: string[];
   // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
   log: LogEvent[];
 }
@@ -314,6 +325,29 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
+    // 锦囊牌库(#122):牌序随快照走(恢复后抽牌可续)
+    key: "jinnangDeck",
+    read: (e) => [...e.jinnangDeck],
+    write: (e, s) => {
+      e.jinnangDeck = [...s.jinnangDeck];
+    },
+  },
+  {
+    // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传
+    key: "jinnangDeckCount",
+    read: (e) => e.jinnangDeckCount,
+    write: (e, s) => {
+      e.jinnangDeckCount = s.jinnangDeckCount;
+    },
+  },
+  {
+    key: "jinnangDiscard",
+    read: (e) => [...e.jinnangDiscard],
+    write: (e, s) => {
+      e.jinnangDiscard = [...s.jinnangDiscard];
+    },
+  },
+  {
     // 剩余珍宝牌堆(联机端需复现同一抽牌序列)
     key: "treasureDeck",
     read: (e) => e.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
@@ -444,6 +478,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
         reputation: p.reputation,
         stamina: p.stamina,
+        jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
+        jinnangHandCount: p.jinnangHandCount,
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -465,6 +501,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.heroLastFired = { ...ps.heroLastFired };
         p.reputation = ps.reputation;
         p.stamina = ps.stamina;
+        p.jinnangHand = [...ps.jinnangHand];
+        p.jinnangHandCount = ps.jinnangHandCount;
         p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

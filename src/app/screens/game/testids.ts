@@ -30,6 +30,10 @@ export const TESTIDS = {
   /** 珍宝/名将卡(L48 迁入 TreasuryPanel,命名随区)。 */
   treasuryTreasure: (id: string) => `treasury-treasure-${id}` as const,
   treasuryHero: (id: string) => `treasury-hero-${id}` as const,
+  /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)/ 诸侯行计数(数量公开,内容暗置)。 */
+  jinnangHand: "jinnang-hand",
+  jinnangCard: (cardId: string) => `jinnang-card-${cardId}` as const,
+  jinnangCount: (seat: number) => `jinnang-count-${seat}` as const,
   diceFace: "dice-face",
   rollButton: "roll-button",
   /** 珍宝/名将详情卷轴(HandPanel 点卡弹出;UI F5)。 */

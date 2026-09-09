@@ -41,6 +41,11 @@ import {
   type EncounterEffect,
   type EncounterRuntimeConfig,
 } from "./encounters";
+import {
+  JINNANG_HAND_LIMIT,
+  JINNANG_STARTING_HAND,
+  buildJinnangDeck,
+} from "./jinnang";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -180,6 +185,12 @@ export class GameEngine {
   pendingExhaustionSeat: number | null = null; // 耗竭决策座位(#130;恢复时按 activeIndex 重派生)
   offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
+  /** 锦囊牌库/弃牌堆(#122):开局 finishSetup 洗序;抽牌从堆顶(pop)出。
+   *  公开字段(重放/快照/CLI 可读),可见性由传输层投影裁剪(ADR-0016)。 */
+  jinnangDeck: string[] = [];
+  jinnangDiscard: string[] = [];
+  /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
+  jinnangDeckCount = 0;
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
@@ -304,6 +315,8 @@ export class GameEngine {
       heroLastFired: {},
       reputation: s.reputation ?? 0,
       stamina: STARTING_STAMINA,
+      jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
+      jinnangHandCount: 0,
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -615,6 +628,11 @@ export class GameEngine {
       "群雄起兵,首战由「" + this.activePlayer.guohao + "」先行",
       `gameStart firstPlayer=${this.activePlayer.id}`,
     );
+    // 锦囊发牌(#122):牌库洗序后座位序各发起手张数——先于 GameStart 时机,
+    // 骰流消耗固定(洗牌 + n 人各一张),重放可复现。
+    this.jinnangDeck = buildJinnangDeck(this.dice);
+    this.jinnangDeckCount = this.jinnangDeck.length;
+    this.players.forEach((_, seat) => this.drawJinnang(seat, JINNANG_STARTING_HAND));
     this.dispatchMoment("GameStart", { subject: this.roundAnchor }); // 时机·GameStart:对局开始(主体=首动者),先于首个 TurnStart
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)
   }
@@ -1741,6 +1759,39 @@ export class GameEngine {
   addReputation(seat: number, delta: number): void {
     const p = this.players[seat];
     p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+  }
+
+  /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。
+   *  上限满→该张作废入弃牌堆(浮字「锦囊已满」);牌库空→浮字「锦囊已空」(每次调用至多提示一次)。
+   *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
+  drawJinnang(seat: number, count = 1): void {
+    const p = this.players[seat];
+    if (!p || p.isBankrupt) return;
+    let emptyNotified = false;
+    for (let k = 0; k < count; k++) {
+      if (this.jinnangDeck.length === 0) {
+        if (!emptyNotified) {
+          this.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已空" });
+          emptyNotified = true;
+        }
+        continue;
+      }
+      const id = this.jinnangDeck.pop()!;
+      this.jinnangDeckCount = this.jinnangDeck.length;
+      if (p.jinnangHand.length >= JINNANG_HAND_LIMIT) {
+        this.jinnangDiscard.push(id);
+        this.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已满" });
+        continue;
+      }
+      p.jinnangHand.push(id);
+      p.jinnangHandCount = p.jinnangHand.length;
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 抽了一张锦囊(手牌 ${p.jinnangHand.length})`,
+        `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
+      );
+    }
   }
 
   /** 体力增减(#130):clamp 0~100,返回落账后的体力值。 */
