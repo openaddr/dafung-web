@@ -1,7 +1,12 @@
 // 卷轴容器:对照旧 render/ui.ts createScroll 的视觉骨架(宣纸底/双金边/标题栏/× 关闭/标题栏拖拽)。
 // 用 Tailwind token 重写;入场动画用 scroll.css 的两层摊开(#91 R3-C4):
 // 壳体 scroll-unroll(淡入+下落+横向舒展) + 标题栏以下纸身 scroll-paper-unroll(scaleY 展开)。
+// 行为基座(R3 评审):Radix FocusScope 原语(@radix-ui/react-focus-scope,shadcn
+// Dialog 焦点层的同源底件)——活卷轴获得焦点陷阱/关闭还焦 + role=dialog/aria-modal;
+// 收起中与幽灵退场帧不走 FocusScope(纯视觉重放,自带 aria-hidden/inert)。刻意不用
+// Dialog.Content:它强制 Portal 会破坏 #scroll-layer 定位栈与幽灵帧协议。
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import * as FocusScopePrimitive from "@radix-ui/react-focus-scope";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
@@ -142,6 +147,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
   const drag = useRef<{ active: boolean; sx: number; sy: number; x: number; y: number }>({
     active: false, sx: 0, sy: 0, x: 0, y: 0,
   });
+  // 拖拽偏移的渲染态镜像:收起时渲染树从 Radix 分支切到退场帧分支(DOM 重建),
+  // 新节点经 style 从本 ref 取回偏移,避免回卷动画开场瞬间跳回屏幕中心。
+  const transformRef = useRef("");
 
   const onPointerDown = (e: React.PointerEvent) => {
     // 点在按钮(× 关闭)上不触发拖动,与旧行为一致
@@ -171,6 +179,7 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
       Math.max(-baseTop, d.y),
     );
     bodyRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
+    transformRef.current = `translate(${d.x}px, ${d.y}px)`;
   };
   const endDrag = () => { drag.current.active = false; };
 
@@ -180,6 +189,7 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
   useEffect(() => {
     if (drag.current.active) return;
     drag.current = { active: false, sx: 0, sy: 0, x: 0, y: 0 };
+    transformRef.current = "";
     if (bodyRef.current) bodyRef.current.style.transform = "";
     // #90:收起途中同实例换了内容主体(如详情卷轴 A 未收完就点了城 B)则撤销收起——
     // 否则 rollback 的 fill forwards 会把新内容也钉在 opacity 0 上,卷轴永久隐身。
@@ -190,92 +200,123 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     }
   }, [title, scrollKey]);
 
+  // 壳体本体(挂轴双杆 + 题签标题栏 + 纸身):活卷轴与退场帧两条渲染路径共用同一份 JSX。
+  // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已
+  // aria-hidden+inert,壳上的 role 对辅助技术不可见,无需按路径分支。
+  const shellBody = (
+    <div
+      ref={bodyRef}
+      role="dialog"
+      aria-modal="true"
+      aria-label={title}
+      data-testid={testid ?? T.scrollShell}
+      style={{ transform: transformRef.current }}
+      className={`relative flex max-h-[86dvh] flex-col rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[var(--ink-shadow-lg)] ${
+        exiting ? "scroll-anim-rollback" : "scroll-anim-unroll"
+      } ${width === "lg" ? "max-w-[560px]" : "max-w-[460px]"}`}
+    >
+      {/* 挂轴双杆(视觉重做 v2 签名件):上下漆木卷杆横出炉身两侧,端头露木色轴头——
+          「这是卷轴」的器物语言一眼可读。纯装饰层,不参与拖拽/命中。 */}
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
+        <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+        <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
+        <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
+      </div>
+      <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -bottom-2.5 z-10 flex h-[17px] items-center">
+        <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
+        <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
+        <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
+      </div>
+      {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
+          压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。
+          题签制式(视觉重做 v2):题首单字钤朱砂方印 + 笔书题名,金饰退为一条发丝线。 */}
+      <div
+        className="relative -mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center gap-2.5 border-b border-[rgba(140,110,60,0.4)] px-7 pb-2.5 pt-3"
+        onPointerDown={onPointerDown}
+        onPointerMove={onPointerMove}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
+      >
+        <span
+          aria-hidden="true"
+          className="flex h-[22px] w-[22px] flex-none rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[14px] leading-none text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]"
+        >
+          {/* 题印取题名首个汉字:详情卷轴题名带「」引号,直取首字会把括号钤进印里 */}
+          {title.match(/\p{Script=Han}/u)?.[0] ?? title.slice(0, 1)}
+        </span>
+        <h2
+          data-testid={T.scrollTitle}
+          className="m-0 font-brush text-[26px] tracking-[4px] text-ink"
+        >
+          {title}
+        </h2>
+        {onClose && !hideClose && (
+          // #64:标题栏已 relative,× 锚定在标题栏(原先悬空于整个壳体垂直居中,
+          // 44px 热区压在内容上形成幻点击区)。外层 44px 热区不变,视觉升级为
+          // 1px 描边圆钮;hover 用 group 让整个热区点亮,与可点范围一致。
+          <button
+            type="button"
+            data-testid={T.scrollClose}
+            aria-label="关闭"
+            onClick={(e) => { e.stopPropagation(); requestClose(); }}
+            disabled={isGhost}
+            className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-default"
+          >
+            <span
+              aria-hidden="true"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(43,35,23,0.35)] text-ink-dim transition-colors group-hover:bg-[rgba(43,35,23,0.08)] group-hover:text-ink"
+            >
+              <Sym name="close" size={13} />
+            </span>
+          </button>
+        )}
+      </div>
+      {/* #91(R3-C4) 两层摊开之内层:标题栏保持在壳体直下(随壳体淡入落位),
+          标题栏以下的纸身包进本 wrapper 以顶缘为轴 scaleY 展开——标题先落位、
+          纸身在其下摊开,标题字不再随整壳纵向压扁。
+          flex-1 + min-h-0 保住原限高内滚链(壳体 max-h 86dvh → wrapper 收缩 →
+          内容区 min-h-0 overflow-y-auto),收起 rollback 仍只走壳体、wrapper 不另播。 */}
+      <div className="scroll-anim-unroll-paper relative flex min-h-0 flex-1 flex-col">
+        {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
+            也不溢出,结算等尾部按钮恒可达。 */}
+        <div className="min-h-0 overflow-y-auto">{children}</div>
+      </div>
+    </div>
+  );
+
+  // 收起中/幽灵帧:纯视觉退场帧——Radix 树已卸载(焦点陷阱只属于活卷轴),本帧自带
+  // aria-hidden/inert 语义,沿用旧遮罩点击出口(仅可关卷轴;收起中重复出口由
+  // requestClose 的计时器在途守卫挡掉)。
+  if (exiting) {
+    return (
+      <div
+        className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)] scroll-anim-overlay-out"
+        aria-hidden={exiting || undefined}
+        // 幽灵帧整体 inert:退场重放帧里的按钮是旧闭包死钮,浏览器层面禁掉
+        // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
+        inert={isGhost || undefined}
+        // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
+        onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
+      >
+        {shellBody}
+      </div>
+    );
+  }
+
+  // 活卷轴:FocusScope(radix-ui 原语,shadcn Dialog 焦点层的同源底件)提供焦点陷阱
+  // 与关闭还焦;role/aria-modal 由壳体自带。刻意不用 Dialog.Content——它内部强制
+  // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。onMountAutoFocus 不夺焦
+  // (× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter 误关)。Esc/点外关闭沿用本文件
+  // 原有出口(窗级 Esc 监听 + 遮罩点击),与 ui/dialog.tsx 行为口径一致。
   return (
     <div
-      className={`scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]${
-        exiting ? " scroll-anim-overlay-out" : ""
-      }`}
-      aria-hidden={exiting || undefined}
-      // 幽灵帧整体 inert:退场重放帧里的按钮是旧闭包死钮,浏览器层面禁掉
-      // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
-      inert={isGhost || undefined}
+      className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]"
       // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
       onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
     >
-      <div
-        ref={bodyRef}
-        data-testid={testid ?? T.scrollShell}
-        className={`relative flex max-h-[86dvh] flex-col rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo px-7 py-5 shadow-[var(--ink-shadow-lg)] ${
-          exiting ? "scroll-anim-rollback" : "scroll-anim-unroll"
-        } ${width === "lg" ? "max-w-[560px]" : "max-w-[460px]"}`}
-      >
-        {/* 挂轴双杆(视觉重做 v2 签名件):上下漆木卷杆横出炉身两侧,端头露木色轴头——
-            「这是卷轴」的器物语言一眼可读。纯装饰层,不参与拖拽/命中。 */}
-        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
-          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
-        </div>
-        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -bottom-2.5 z-10 flex h-[17px] items-center">
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
-          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
-        </div>
-        {/* 标题栏:整条可拖(大目标),含 × 关闭。#31(X12):shrink-0 保高度不被长内容
-            压缩,touch-none 断触屏手势——真机拖标题不带动页面/棋盘滚动。
-            题签制式(视觉重做 v2):题首单字钤朱砂方印 + 笔书题名,金饰退为一条发丝线。 */}
-        <div
-          className="relative -mx-7 -mt-5 mb-3.5 flex shrink-0 cursor-move touch-none items-center justify-center gap-2.5 border-b border-[rgba(140,110,60,0.4)] px-7 pb-2.5 pt-3"
-          onPointerDown={onPointerDown}
-          onPointerMove={onPointerMove}
-          onPointerUp={endDrag}
-          onPointerCancel={endDrag}
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-[22px] w-[22px] flex-none rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[14px] leading-none text-[#f6ead6] shadow-[0_1px_2px_rgba(43,35,23,0.35)]"
-          >
-            {/* 题印取题名首个汉字:详情卷轴题名带「」引号,直取首字会把括号钤进印里 */}
-            {title.match(/\p{Script=Han}/u)?.[0] ?? title.slice(0, 1)}
-          </span>
-          <h2
-            data-testid={T.scrollTitle}
-            className="m-0 font-brush text-[26px] tracking-[4px] text-ink"
-          >
-            {title}
-          </h2>
-          {onClose && !hideClose && (
-            // #64:标题栏已 relative,× 锚定在标题栏(原先悬空于整个壳体垂直居中,
-            // 44px 热区压在内容上形成幻点击区)。外层 44px 热区不变,视觉升级为
-            // 1px 描边圆钮;hover 用 group 让整个热区点亮,与可点范围一致。
-            <button
-              type="button"
-              data-testid={T.scrollClose}
-              aria-label="关闭"
-              onClick={(e) => { e.stopPropagation(); requestClose(); }}
-              disabled={isGhost}
-              className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-default"
-            >
-              <span
-                aria-hidden="true"
-                className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(43,35,23,0.35)] text-ink-dim transition-colors group-hover:bg-[rgba(43,35,23,0.08)] group-hover:text-ink"
-              >
-                <Sym name="close" size={13} />
-              </span>
-            </button>
-          )}
-        </div>
-        {/* #91(R3-C4) 两层摊开之内层:标题栏保持在壳体直下(随壳体淡入落位),
-            标题栏以下的纸身包进本 wrapper 以顶缘为轴 scaleY 展开——标题先落位、
-            纸身在其下摊开,标题字不再随整壳纵向压扁。
-            flex-1 + min-h-0 保住原限高内滚链(壳体 max-h 86dvh → wrapper 收缩 →
-            内容区 min-h-0 overflow-y-auto),收起 rollback 仍只走壳体、wrapper 不另播。 */}
-        <div className="scroll-anim-unroll-paper relative flex min-h-0 flex-1 flex-col">
-          {/* #31(X12):壳体限高 86dvh + 内容区 min-h-0 内滚——破产/招贤等长内容横屏
-              也不溢出,结算等尾部按钮恒可达。 */}
-          <div className="min-h-0 overflow-y-auto">{children}</div>
-        </div>
-      </div>
+      <FocusScopePrimitive.Root trapped asChild onMountAutoFocus={(e) => e.preventDefault()}>
+        {shellBody}
+      </FocusScopePrimitive.Root>
     </div>
   );
 }

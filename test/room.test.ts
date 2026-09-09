@@ -896,3 +896,37 @@ describe("窥探投影(ADR-0016 · #122/T4)", () => {
     expect(view2.players[1].jinnangHand).toEqual([]); // 第三者不见窥探内容
   });
 });
+
+describe("锦囊×房间上下文(#148):接管保守 vs 托管策略", () => {
+  it("房主接管座位 bot 恒今不用;自助托管座位按策略用牌", async () => {
+    const persistence = new InMemoryPersistence();
+    // 2 人类座位:seat0(host)/seat1;无原生 bot
+    const reg = new RoomRegistry(persistence);
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set(), hostConfig: { seed: 42 } });
+    const roomId = created.room.roomId;
+    reg.joinSeat(roomId);
+    reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(roomId, created.token, undefined, testMapProvider);
+    // 全员选都 → Playing;给 seat0 一张已启用锦囊(免战金牌)
+    const e = reg.get(roomId)!.engine!;
+    let g = 0;
+    while (e.phase === "Setup" && g++ < 20) await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
+    e.players[0].jinnangHand = ["免战金牌"];
+    e.players[0].jinnangHandCount = 1;
+    // 房主接管 seat0(等效看门狗路径)→ driveBots 保守:锦囊不消耗
+    await reg.takeoverSeat(roomId, created.token, 0);
+    expect(e.players[0].jinnangHand).toEqual(["免战金牌"]);
+    // 改自助托管 + 现金压到全场中位以下 → 免战策略满足 → bot 用牌
+    e.players[0].cash = 100;
+    e.players[1].cash = 5000;
+    e.jinnangUsedTags = [];
+    e.players[0].jinnangHand = ["免战金牌"];
+    e.players[0].jinnangHandCount = 1;
+    await reg.setAutoPilot(roomId, 0, true, "fast");
+    await reg.setAutoPilot(roomId, 1, true, "fast"); // 对座也托管:对局才会循环回 seat0 回合
+    for (let i = 0; i < 300 && e.players[0].jinnangHand.length > 0 && !e.isOver; i++) {
+      await new Promise((r) => setTimeout(r, 20)); // driveBots 自驱,轮询等策略用牌
+    }
+    expect(e.players[0].jinnangHand.length).toBeLessThan(1); // 托管策略把牌用了
+  });
+});

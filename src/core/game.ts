@@ -20,7 +20,7 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
+import { computeChoices, hasUsableJinnang, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -1843,8 +1843,7 @@ export class GameEngine {
   /** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:
    *  ≤1 可用=静默跳过不弹卷轴)。无可用牌时维持 Roll,不打扰。 */
   private enterJinnangPhase(): void {
-    const options = computeChoices(this, "AwaitingJinnang");
-    if (options.some((o) => o.available && o.id !== "pass")) {
+    if (hasUsableJinnang(this)) {
       this.turnPhase = "AwaitingJinnang";
     }
   }
@@ -1940,12 +1939,7 @@ export class GameEngine {
 
   /** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
   private settleJinnangExit(): void {
-    const rest = computeChoices(this, "AwaitingJinnang");
-    if (rest.some((o) => o.available && o.id !== "pass" && o.cardTags != null)) {
-      this.turnPhase = "AwaitingJinnang";
-    } else {
-      this.turnPhase = "Roll";
-    }
+    this.turnPhase = hasUsableJinnang(this) ? "AwaitingJinnang" : "Roll";
   }
 
   /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
@@ -1953,7 +1947,7 @@ export class GameEngine {
   private executeJinnang(user: Player, userSeat: number, def: ReturnType<typeof jinnangCardOf>, targets: number[]): void {
     this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
     switch (def.effect.kind) {
-      case "rentImmunity":
+      case "jinnangShield":
         user.jinnangShield = true;
         this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`, `jinnangUse player=${user.id} card=${def.id} shield=1`);
         break;
@@ -2009,7 +2003,7 @@ export class GameEngine {
           const idx = Math.floor(this.dice.nextFloat() * victim.properties.length);
           const h = victim.properties.splice(idx, 1)[0];
           this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
-          const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)?.name ?? h.propertyId;
+          const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
           this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 城防尽毁,失「${lostName}」`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} lost=${h.propertyId}`);
         }
         break;
@@ -2029,9 +2023,7 @@ export class GameEngine {
         const b = this.players[bSeat];
         const rollA = this.dice.rollDie();
         const rollB = this.dice.rollDie();
-        const effect = def.effect;
-        if (effect.kind !== "duel") throw new Error(`连环计载荷缺失:${effect.kind}`);
-        const { winnerBankGain, loserPaysUser } = effect;
+        const { winnerBankGain, loserPaysUser } = def.effect; // case 已收窄为 duel 变体
         this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${rollA} 点,${b.guohao} 掷 ${rollB} 点`, `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${rollA} b=${bSeat}:${rollB}`);
         if (rollA === rollB) {
           this.pushFloaterText(user, `二虎相持(各 ${rollA} 点),此计作废`, user.position);

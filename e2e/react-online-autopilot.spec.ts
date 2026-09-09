@@ -2,6 +2,7 @@
 // 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)与
 // online.spec 的 REST 占座契约(FCFS + 满员 409)。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
+import { dismissJinnangIfUp } from "./react-helpers";
 
 // 联机对局依赖真实 WS 广播时序,与其他高负载 spec 并行时易抖:
 // 本文件串行执行,降低双端 + 服务器的并发压力。
@@ -28,11 +29,10 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   for (const p of [host, guest]) {
     await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
     // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军
-    const jp = p.getByTestId("scroll-jinnang-pass");
     await p
       .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
       .catch(() => null);
-    if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+    await dismissJinnangIfUp(p);
   }
   return [host, guest];
 }
@@ -116,8 +116,7 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
       .poll(
         async () => {
           // 锦囊卷轴压住行军钮(#122/T2):轮询体内先「今不用」放行
-          const jp = host.getByTestId("scroll-jinnang-pass");
-          if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+          await dismissJinnangIfUp(host);
           return host.getByTestId("roll-button").isEnabled().catch(() => false);
         },
         { timeout: 240_000, message: "收回后轮到 host 时行军可用" },

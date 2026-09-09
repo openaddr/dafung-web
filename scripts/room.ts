@@ -153,7 +153,7 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
  *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
 export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
   // 军情密探(#122/T4):本座位进行中的窥探目标,内容对 viewer 放行
-  const peeked = new Set((s.jinnangPeeks ?? []).filter((pk) => pk.viewer === seat).map((pk) => pk.target));
+  const peeked = new Set(s.jinnangPeeks.filter((pk) => pk.viewer === seat).map((pk) => pk.target));
   const players = s.players.map((p, i) => {
     // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
     if (i === seat || peeked.has(i)) return p;

@@ -34,13 +34,17 @@ export async function pickCapital(page: Page, nth = 0): Promise<void> {
   // 选都完进 Playing 时起手有牌即停锦囊相位(#122/T2):共享出口统一「今不用」放行。
   // 卷轴与行军钮谁先出现等谁——isVisible 瞬时探测会跑赢卷轴异步挂载(竞速漏放),
   // 无脑 click(5s) 又在卷轴不弹时白烧超时,两种都炸过全量。
-  const pass = page.getByTestId("scroll-jinnang-pass");
   await page
     .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
     .catch(() => null);
-  if (await pass.isVisible().catch(() => false)) {
-    await pass.click({ timeout: 5_000 }).catch(() => {});
-  }
+  await dismissJinnangIfUp(page);
+}
+
+/** 锦囊卷轴在场则「今不用」放行(#122/T2);无卷轴零等待。
+ *  各用例/驱动循环的放行点统一走此助手,勿再复制可见性探测块。 */
+export async function dismissJinnangIfUp(page: Page): Promise<void> {
+  const jp = page.getByTestId("scroll-jinnang-pass");
+  if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
 }
 
 /** 等行军可用(先放行锦囊卷轴,#122/T2):「今不用」保留手牌,其后每回合开始卷轴会
@@ -49,8 +53,7 @@ export async function expectRollEnabled(page: Page, timeout = 30_000): Promise<v
   await expect
     .poll(
       async () => {
-        const jp = page.getByTestId("scroll-jinnang-pass");
-        if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+        await dismissJinnangIfUp(page);
         return page.getByTestId("roll-button").isEnabled().catch(() => false);
       },
       { timeout, message: "行军可用(锦囊卷轴已放行)" },

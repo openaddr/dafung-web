@@ -15,7 +15,7 @@ import { jinnangCardOf, type JinnangEffect } from "./jinnang";
 
 /** 已接入结算的锦囊效果种类(T2:自身域两张;T3/T4 逐票点亮,灰置原因「此计暂未启用」)。 */
 export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set([
-  "rentImmunity",
+  "jinnangShield",
   "grantHero",
   "levyAll", // T3:指向他人四牌
   "stealTreasure",
@@ -275,6 +275,11 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     };
   });
   return [...cards, { id: "pass", label: "今不用", available: true }];
+}
+
+/** 锦囊卡牌段「仍有可用牌」单源判定(#122):相位进入与用牌收尾共用,防两处漂移。 */
+export function hasUsableJinnang(e: GameEngine): boolean {
+  return computeChoices(e, "AwaitingJinnang").some((o) => o.available && o.cardTags != null);
 }
 
 /** 决策相位 → 选项计算器。未注册的相位(Roll/Land/EndTurn/GameOver)无决策。 */
