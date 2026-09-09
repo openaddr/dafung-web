@@ -340,3 +340,55 @@ describe("锦囊使用回路(T2)", () => {
     expect(e2.players.find((x) => x.id === p.id)?.jinnangShield).toBe(true);
   });
 });
+
+// ──────────────────────────── 渠道(T5)────────────────────────────
+import { testEngine } from "@core/testing";
+import { ENCOUNTERS } from "@core/encounters";
+import { CHANCE_EVENTS } from "@core/events";
+
+describe("锦囊渠道(T5)", () => {
+  it("落锦囊格必抽一张(index 22 与 31 两格)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const handBefore = e.players[0].jinnangHand.length;
+    testEngine(e).landActiveAt(22); // 子午谷改建的锦囊格
+    expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
+    expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
+  });
+
+  it("声望献计:+30/+60/+90 各首次向上穿越献一封,回落再升不重复", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; });
+    const handOf = () => e.players[0].jinnangHand.length;
+    const h0 = handOf();
+    e.addReputation(0, 30);
+    expect(handOf()).toBe(h0 + 1);
+    e.addReputation(0, 29); // 59 未过 60
+    expect(handOf()).toBe(h0 + 1);
+    e.addReputation(0, 1); // 60
+    expect(handOf()).toBe(h0 + 2);
+    e.addReputation(0, 30); // 90
+    expect(handOf()).toBe(h0 + 3);
+    e.addReputation(0, -90); // 归 0
+    e.addReputation(0, 30); // 再过 30:已领 → 不重发
+    expect(handOf()).toBe(h0 + 3);
+    expect(e.players[0].repMilestones.sort()).toEqual([30, 60, 90]);
+  });
+
+  it("机遇目录:圯上授书(好运/grantCard/锦囊标签)存在且权重合法", () => {
+    const entry = ENCOUNTERS.find((c) => c.id === "圯上授书");
+    expect(entry).toBeDefined();
+    expect(entry!.tier).toBe("好运");
+    expect(entry!.tags).toContain("锦囊");
+    expect(entry!.effect?.kind).toBe("grantCard");
+    expect(entry!.weight).toBeGreaterThan(0);
+  });
+
+  it("辅路事件池:军师来投带 jinnangDraw 标记且零现金", () => {
+    const ev = CHANCE_EVENTS.find((e) => e.id === "strategist");
+    expect(ev).toBeDefined();
+    expect(ev!.jinnangDraw).toBe(true);
+    expect(ev!.cashDelta).toBe(0);
+  });
+});

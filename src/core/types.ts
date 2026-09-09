@@ -91,6 +91,8 @@ export interface Player {
    *  (设计变更:原「免租金」——本作引擎不收租,按「免战=不可被指定」等义落地,
    *  docs/jinnang.md §4 已同步。) */
   jinnangShield: boolean;
+  /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */
+  repMilestones: number[];
   /** 锦囊手牌数(公开信息,引擎状态):与 jinnangHand.length 同步维护于唯一改动点
    *  (抽牌/打牌)。为什么独立成字段:联机客户端经「restore→重新 snapshot」hydrate,
    *  投影层注入的视图字段会在重生成时丢失——数量是全员可见的游戏状态,必须由引擎持有。 */

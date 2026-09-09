@@ -5,6 +5,7 @@ export interface RandomEvent {
   id: string;
   text: string; // 战报简报
   cashDelta: number; // +收入 / -支出
+  jinnangDraw?: true; // #147:该事件额外抽一张锦囊(军师来投)
 }
 
 export const CHANCE_EVENTS: RandomEvent[] = [
@@ -12,6 +13,7 @@ export const CHANCE_EVENTS: RandomEvent[] = [
   { id: "arrows", text: "草船借箭", cashDelta: 200 },
   { id: "ally", text: "义士来投", cashDelta: 150 },
   { id: "harvest", text: "风调雨顺", cashDelta: 100 },
+  { id: "strategist", text: "军师来投,献计一封", cashDelta: 0, jinnangDraw: true }, // #147:辅路→锦囊佐料渠道
 ];
 
 export const FATE_EVENTS: RandomEvent[] = [

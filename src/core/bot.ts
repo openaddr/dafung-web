@@ -33,6 +33,8 @@ export function encounterCashImpact(effect: EncounterEffect | undefined): number
       return effect.amount;
     case "levy":
       return -effect.amount;
+    case "grantCard":
+      return 0; // #147:得的是锦囊,无现金流量
     case "grantHero":
     case "grantCity":
       return effect.fallbackCash;

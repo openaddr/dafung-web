@@ -181,12 +181,12 @@ describe("档位调制与抽取(纯函数)", () => {
     expect(pickWeighted([heavy, light], 0.95)).toBe(light);
   });
 
-  it("目录 v2 = 18 条,档位 9/6/3,标签词表合法(含 体力,#132)", () => {
-    expect(ENCOUNTERS.length).toBe(18);
-    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(9);
+  it("目录 v2 = 19 条(#147 +圯上授书),档位 10/6/3,标签词表合法(含 体力/锦囊)", () => {
+    expect(ENCOUNTERS.length).toBe(19);
+    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(10);
     expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(6);
     expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(3);
-    const TAGS: EncounterDef["tags"] = ["银两", "武将", "珍宝", "城池", "声望", "玩家", "体力"];
+    const TAGS: EncounterDef["tags"] = ["银两", "武将", "珍宝", "城池", "声望", "玩家", "体力", "锦囊"];
     for (const c of ENCOUNTERS) {
       expect(c.id.length).toBeGreaterThan(0);
       expect(c.weight).toBeGreaterThan(0);
@@ -195,7 +195,7 @@ describe("档位调制与抽取(纯函数)", () => {
       expect(c.tags.length).toBeGreaterThan(0);
       for (const t of c.tags) expect(TAGS).toContain(t);
     }
-    expect(new Set(ENCOUNTERS.map((c) => c.id)).size).toBe(18); // id 唯一
+    expect(new Set(ENCOUNTERS.map((c) => c.id)).size).toBe(19); // id 唯一
     expect(ENCOUNTERS.filter((c) => c.tags.includes("体力")).length).toBe(6); // 体力 tag 计数(#132)
   });
 });

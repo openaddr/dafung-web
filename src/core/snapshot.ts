@@ -70,6 +70,8 @@ export interface SnapshotPlayer {
   jinnangHandCount: number;
   /** 免战金牌在身(#122/T2):至该玩家下回合开始,其不可被他人锦囊指定。 */
   jinnangShield: boolean;
+  /** 已领取的声望献计里程碑(#147)。 */
+  repMilestones: number[];
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -493,6 +495,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
         jinnangShield: p.jinnangShield,
+        repMilestones: [...p.repMilestones],
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -517,6 +520,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
         p.jinnangShield = ps.jinnangShield;
+        p.repMilestones = [...ps.repMilestones];
         p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

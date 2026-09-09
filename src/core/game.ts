@@ -322,6 +322,7 @@ export class GameEngine {
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
       jinnangHandCount: 0,
       jinnangShield: false,
+      repMilestones: [],
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -912,7 +913,17 @@ export class GameEngine {
       this.endTurn();
       return;
     }
-    // 锦囊(Chance)格已退役(#121):按普通格落空结算(不再抽 CHANCE_EVENTS)。
+    // 锦囊格(#147,旧机会格语义复活):落格必抽一张锦囊(T1 的 drawJinnang;
+    // 上限/牌库空的作废语义同起手)。与机遇格区分:必得 vs 概率。
+    if (tile.type === "Chance") {
+      this.lastLandOutcome = { kind: "Noop" };
+      this.turnPhase = "Land";
+      this.pushFloaterText(mover, `${tile.name}:抽一张锦囊`, tile.index);
+      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}:抽一张锦囊`, `jinnangTile player=${mover.id} tile=#${tile.index}`);
+      this.drawJinnang(this.players.indexOf(mover), 1);
+      this.endTurn();
+      return;
+    }
     // 税关(Tax):固定缴税 ¥200
     if (tile.type === "Tax") {
       const r = this.payOrLiquidate(mover, null, 200);
@@ -1225,7 +1236,7 @@ export class GameEngine {
     mover: Player,
     sourceName: string,
     atTile: number,
-    pool: ReadonlyArray<{ id: string; text: string; cashDelta: number }>,
+    pool: ReadonlyArray<{ id: string; text: string; cashDelta: number; jinnangDraw?: true }>,
     logTag: string,
   ): void {
     this.lastLandOutcome = { kind: "Noop" };
@@ -1242,6 +1253,11 @@ export class GameEngine {
     this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
     if (ev.cashDelta < 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: -ev.cashDelta }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
     if (ev.cashDelta > 0) this.dispatchMoment("CashGained", { subject: this.players.indexOf(mover), amount: ev.cashDelta }); // 时机·CashGained:被动得银(随机事件得款)
+    if (ev.jinnangDraw) {
+      // 军师来投(#147):事件额外献锦囊一张
+      this.pushFloaterText(mover, "军师来投,献计一封", atTile);
+      this.drawJinnang(this.players.indexOf(mover), 1);
+    }
     this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     this.logEvent(
       "system",
@@ -1767,10 +1783,21 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。 */
+  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。
+   *  声望献计(#147):首次向上穿越 +30/+60/+90 各献锦囊一张(只在本入口挂钩,
+   *  不看来源——把机遇抉择玩好就有实物兑现)。 */
   addReputation(seat: number, delta: number): void {
     const p = this.players[seat];
+    const before = p.reputation;
     p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+    for (const m of [30, 60, 90]) {
+      if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
+        p.repMilestones.push(m);
+        this.pushFloaterText(p, `民心所向(声望 ${m}),贤士献计`, p.position);
+        this.logEvent("system", p.guohao, `${p.guohao} 声望达 ${m},贤士献计一封`, `repMilestone player=${p.id} milestone=${m}`);
+        this.drawJinnang(seat, 1);
+      }
+    }
   }
 
   /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。
@@ -2146,6 +2173,13 @@ export class GameEngine {
           this.pushFloaterText(mover, `机遇「${def.id}」:${hero.name} 来投`, atTile);
           this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`);
           this.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
+          return "settled";
+        }
+        case "grantCard": {
+          // 圯上授书(#147):机遇→锦囊流通;满手/牌库空由 drawJinnang 自行落空提示
+          this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得锦囊一封`, atTile);
+          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`);
+          this.drawJinnang(seat, 1);
           return "settled";
         }
         case "grantCity": {
