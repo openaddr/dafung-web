@@ -5,7 +5,7 @@
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
-import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital } from "./react-helpers";
+import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital, expectRollEnabled } from "./react-helpers";
 
 test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
   await quickStart(page);
@@ -124,7 +124,7 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
     .poll(async () => (await snap(page)).turnNumber, { timeout: 10_000 })
     .toBeGreaterThan(turnBefore);
   // 下回合掷骰:掷几点走几格辅路格(第 die 格);die 超长则从辅路终点汇入主路
-  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  await expectRollEnabled(page); // 「今不用」保留手牌 → 每回合开始卷轴再弹,先放行(#122)
   await page.getByTestId("roll-button").click();
   await expect
     .poll(

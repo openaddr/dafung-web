@@ -28,7 +28,11 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   for (const p of [host, guest]) {
     await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
     // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军
-    await p.getByTestId("scroll-jinnang-pass").click({ timeout: 5_000 }).catch(() => {});
+    const jp = p.getByTestId("scroll-jinnang-pass");
+    await p
+      .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+      .catch(() => null);
+    if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
   }
   return [host, guest];
 }
@@ -110,7 +114,12 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     // 对局仍在进行(guest 不托管则轮到 guest 时等待;host 的行军钮最终可用)
     await expect
       .poll(
-        async () => host.getByTestId("roll-button").isEnabled().catch(() => false),
+        async () => {
+          // 锦囊卷轴压住行军钮(#122/T2):轮询体内先「今不用」放行
+          const jp = host.getByTestId("scroll-jinnang-pass");
+          if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+          return host.getByTestId("roll-button").isEnabled().catch(() => false);
+        },
         { timeout: 240_000, message: "收回后轮到 host 时行军可用" },
       )
       .toBe(true);

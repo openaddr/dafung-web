@@ -51,7 +51,11 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   await onlinePickCapitals([host, guest]);
   // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动
   for (const p of [host, guest]) {
-    await p.getByTestId("scroll-jinnang-pass").click({ timeout: 5_000 }).catch(() => {});
+    const jp = p.getByTestId("scroll-jinnang-pass");
+    await p
+      .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+      .catch(() => null);
+    if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
   }
   return [host, guest];
 }
@@ -152,6 +156,11 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         }
       }
       if (!roller) {
+        // 锦囊卷轴会压住行军钮(#122/T2):先「今不用」放行再短候
+        for (const p of [host, guest]) {
+          const jp = p.getByTestId("scroll-jinnang-pass");
+          if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+        }
         await host.waitForTimeout(500); // 广播/动画未就位,短候重试(不计次)
         continue;
       }

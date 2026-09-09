@@ -34,15 +34,12 @@ test.describe("锦囊 T1:发牌与可见性", () => {
     await quickStart(page);
     const probe = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
-      // 快照(联机投影的输入)里 god view 确实有内容——但日志行没有:
+      // ADR-0016 口径(T2 起精确化):抽牌行不得落牌名(重放可推导);用牌/结算公开,牌名入战报是正确行为
+      const names = ["连环计", "军情密探", "缓兵之计", "横征暴敛", "窃玉偷香", "火烧连营", "免战金牌", "求贤令"];
       return {
-        logHasCardNames: e.log.some((l: { detail: string }) =>
-          ["连环计", "军情密探", "缓兵之计", "横征暴敛", "窃玉偷香", "火烧连营", "免战金牌", "求贤令"].some((c) =>
-            l.detail.includes(c),
-          ),
-        ),
+        drawRowLeaks: e.log.some((l: { detail: string }) => l.detail.includes("jinnangDraw") && names.some((c) => l.detail.includes(c))),
       };
     });
-    expect(probe.logHasCardNames).toBe(false);
+    expect(probe.drawRowLeaks).toBe(false);
   });
 });

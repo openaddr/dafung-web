@@ -31,13 +31,33 @@ export async function quickStart(page: Page, seed?: number): Promise<void> {
 export async function pickCapital(page: Page, nth = 0): Promise<void> {
   await page.locator(".bv-tile.bv-selectable").nth(nth).click();
   await page.getByTestId("confirm-capital-ok").click();
-  // 选都完进 Playing 时起手有牌即停锦囊相位(#122/T2):共享出口统一「今不用」放行,
-  // 各既有用例零改造;锦囊专项用例自行驱动卷轴,不经此函数。
+  // 选都完进 Playing 时起手有牌即停锦囊相位(#122/T2):共享出口统一「今不用」放行。
+  // 卷轴与行军钮谁先出现等谁——isVisible 瞬时探测会跑赢卷轴异步挂载(竞速漏放),
+  // 无脑 click(5s) 又在卷轴不弹时白烧超时,两种都炸过全量。
   const pass = page.getByTestId("scroll-jinnang-pass");
-  await pass.click({ timeout: 5_000 }).catch(() => {
-    /* 无可用牌时相位未入,卷轴不弹——静默 */
-  });
+  await page
+    .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+    .catch(() => null);
+  if (await pass.isVisible().catch(() => false)) {
+    await pass.click({ timeout: 5_000 }).catch(() => {});
+  }
 }
+
+/** 等行军可用(先放行锦囊卷轴,#122/T2):「今不用」保留手牌,其后每回合开始卷轴会
+ *  再弹——多回合用例的「等下回合」断言一律走本助手,不裸等 roll-button enabled。 */
+export async function expectRollEnabled(page: Page, timeout = 30_000): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const jp = page.getByTestId("scroll-jinnang-pass");
+        if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+        return page.getByTestId("roll-button").isEnabled().catch(() => false);
+      },
+      { timeout, message: "行军可用(锦囊卷轴已放行)" },
+    )
+    .toBe(true);
+}
+
 
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。
  *  机遇归零(#126):存量 spec 的钉死断言不耐受随机机遇,起兵前把触发率与三档全部
