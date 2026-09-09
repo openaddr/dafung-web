@@ -31,6 +31,56 @@ function useNumberShortcuts(actions: Array<() => void>) {
   }, []);
 }
 
+// ── 锦囊卷轴(AwaitingJinnang,#122/T2)──
+// 选项=手牌逐张(available/reason 单源引擎注册表)+「今不用」;牌面文案/标签随
+// choices 载荷过网(UI 不回查目录——持有人内容本就在自己快照里,但口径与机遇卷轴
+// 一致:卷轴只消费 choices)。灰置牌照列(暗置博弈:看见自己有什么、为何不能用)。
+export function JinnangScroll({
+  choices,
+  onCommand,
+}: {
+  choices: ChoiceOption[];
+  onCommand: (cmd: GameCommand) => void;
+}) {
+  return (
+    <ScrollShell title="锦囊" testid={T.jinnangScroll}>
+      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
+        计上心头。此刻可用一计,或留待来日——掷骰之前,且慢行军。
+      </p>
+      <div className="flex max-h-[46vh] flex-col items-stretch gap-2 overflow-y-auto px-1">
+        {choices
+          .filter((o) => o.id !== "pass")
+          .map((o, i) => (
+            <ScrollButton
+              key={o.id}
+              testid={T.jinnangOption(o.id)}
+              disabled={!o.available}
+              title={o.reason ?? o.cardText}
+              shortcut={i + 1}
+              onClick={() => onCommand({ type: "useJinnang", cardId: o.id })}
+            >
+              <span className="inline-flex items-center gap-2">
+                <span className="inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]">
+                  {o.cardTags?.[0] ?? "计"}
+                </span>
+                <span className="font-wenkai">{o.label}</span>
+                {o.cardTags && o.cardTags.length > 1 && (
+                  <span className="text-[10px] text-ink-dim">{o.cardTags.join("")}</span>
+                )}
+              </span>
+            </ScrollButton>
+          ))}
+        <ScrollButton
+          testid={T.jinnangPass}
+          onClick={() => onCommand({ type: "useJinnang", cardId: null })}
+        >
+          今不用
+        </ScrollButton>
+      </div>
+    </ScrollShell>
+  );
+}
+
 // ── 驿道岔口(AwaitingBranch)──
 export function BranchDecisionScroll({
   choices,

@@ -49,6 +49,10 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   }
   // L41 开局选都三选一:两客户端各自从 3 候选中选一(助手内断言候选高亮/不越权)
   await onlinePickCapitals([host, guest]);
+  // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动
+  for (const p of [host, guest]) {
+    await p.getByTestId("scroll-jinnang-pass").click({ timeout: 5_000 }).catch(() => {});
+  }
   return [host, guest];
 }
 
@@ -86,6 +90,14 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
       const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
       if ((await inline.count()) > 0) {
         await inline.first().click();
+        acted = true;
+        actions++;
+        break;
+      }
+      // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
+      const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+      if (await jinnangPass.isVisible().catch(() => false)) {
+        await jinnangPass.click();
         acted = true;
         actions++;
         break;
@@ -180,6 +192,14 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
               // 重试会烧满测试超时,失败即按未行动处理,交还循环预算
               acted = await inline
                 .first()
+                .click({ timeout: 10_000 })
+                .then(() => true, () => false);
+              break;
+            }
+            // 锦囊卷轴优先「今不用」(#122/T2),同上
+            const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+            if (await jinnangPass.isVisible().catch(() => false)) {
+              acted = await jinnangPass
                 .click({ timeout: 10_000 })
                 .then(() => true, () => false);
               break;

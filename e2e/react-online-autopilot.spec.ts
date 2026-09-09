@@ -27,6 +27,8 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
     await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
+    // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军
+    await p.getByTestId("scroll-jinnang-pass").click({ timeout: 5_000 }).catch(() => {});
   }
   return [host, guest];
 }

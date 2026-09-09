@@ -87,6 +87,10 @@ export interface Player {
   reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 CONTEXT.md;#121)
   stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 CONTEXT.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
+  /** 免战金牌在身(#122):他人的锦囊无法指定你为目标,至你的下回合开始失效。
+   *  (设计变更:原「免租金」——本作引擎不收租,按「免战=不可被指定」等义落地,
+   *  docs/jinnang.md §4 已同步。) */
+  jinnangShield: boolean;
   /** 锦囊手牌数(公开信息,引擎状态):与 jinnangHand.length 同步维护于唯一改动点
    *  (抽牌/打牌)。为什么独立成字段:联机客户端经「restore→重新 snapshot」hydrate,
    *  投影层注入的视图字段会在重生成时丢失——数量是全员可见的游戏状态,必须由引擎持有。 */
@@ -158,7 +162,9 @@ export type TurnPhase =
   | "AwaitingBranch"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
-  | "AwaitingEncounter" | "AwaitingExhaustion"
+  | "AwaitingEncounter"
+  | "AwaitingJinnang" // 锦囊卷轴(#122/T2):回合开始掷骰前,主动用牌或今不用
+  | "AwaitingExhaustion"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "Land"
@@ -290,7 +296,8 @@ export type GameCommand =
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }
   | { type: "cashHeroBankruptcy"; heroId: string }
-  | { type: "confirmBankruptcySettle" };
+  | { type: "confirmBankruptcySettle" }
+  | { type: "useJinnang"; cardId: string | null; targets?: number[] }; // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段)
 
 // ── 珍宝系统 ──
 export interface TreasureDef {

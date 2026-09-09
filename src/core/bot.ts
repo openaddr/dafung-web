@@ -117,6 +117,13 @@ export function botAct(engine: GameEngine): void {
       break;
     }
 
+    case "AwaitingJinnang": {
+      // 锦囊卷轴(#122/T2):T2 阶段 bot 恒「今不用」——托管/看门狗两上下文都保守推进,
+      // 不替玩家花牌(策略表在 T6;经 choicesFor 同口径读选项,引擎方法直调不经 submitCommand)。
+      engine.resolveJinnang(null);
+      break;
+    }
+
     case "AwaitingExhaustion": {
       // 体力耗竭惩罚(#130):bot 随机弃一座(确定性走引擎 dice,保重放)。
       const available = engine

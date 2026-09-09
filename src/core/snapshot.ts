@@ -68,6 +68,8 @@ export interface SnapshotPlayer {
   jinnangHand: string[];
   /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
   jinnangHandCount: number;
+  /** 免战金牌在身(#122/T2):至该玩家下回合开始,其不可被他人锦囊指定。 */
+  jinnangShield: boolean;
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -142,6 +144,8 @@ export interface GameSnapshot {
   // 锦囊牌库/弃牌堆(#122):god-view 含牌序,联机投影只给数量(牌序决定未来抽牌,
   // 不可泄——ADR-0016 count-only 档);弃牌堆内容公开(打出的牌本就明置)。
   jinnangDeck: string[];
+  /** 本回合已占用的锦囊标签(#122/T2):每回合开始清空。 */
+  jinnangUsedTags: string[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
   jinnangDeckCount: number;
   jinnangDiscard: string[];
@@ -333,6 +337,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
+    // 本回合已用锦囊标签(#122/T2):回合开始清空
+    key: "jinnangUsedTags",
+    read: (e) => [...e.jinnangUsedTags],
+    write: (e, s) => {
+      e.jinnangUsedTags = [...s.jinnangUsedTags];
+    },
+  },
+  {
     // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传
     key: "jinnangDeckCount",
     read: (e) => e.jinnangDeckCount,
@@ -480,6 +492,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
+        jinnangShield: p.jinnangShield,
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -503,6 +516,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
+        p.jinnangShield = ps.jinnangShield;
         p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

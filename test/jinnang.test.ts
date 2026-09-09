@@ -197,3 +197,146 @@ describe("锦囊快照往返(恢复/联机一致性)", () => {
   });
 
 });
+
+// ──────────────────────────── 使用回路(T2)────────────────────────────
+import { botAct } from "@core/bot";
+
+/** 把引擎摆到「当前玩家持 cards、停在锦囊相位」的测试态(相位为公开字段,直设同
+ *  testEngine 落格后门口径)。 */
+function armJinnang(e: GameEngine, cards: string[]) {
+  const p = e.activePlayer;
+  p.jinnangHand = [...cards];
+  p.jinnangHandCount = cards.length;
+  e.turnPhase = "AwaitingJinnang";
+  return p;
+}
+
+describe("锦囊使用回路(T2)", () => {
+  it("回合开始有可用牌 → 相位入 AwaitingJinnang;今不用 → Roll", () => {
+    const e = makeEngine(2); // seed 2:首座起手即免战金牌(已启用种类)
+    finishSetup(e);
+    expect(e.turnPhase).toBe("AwaitingJinnang");
+    e.resolveJinnang(null);
+    expect(e.turnPhase).toBe("Roll");
+  });
+
+  it("未启用种类灰置:reason「此计暂未启用」,不算可用选项", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    armJinnang(e, ["连环计"]);
+    const options = e.choicesFor();
+    expect(options.find((o) => o.id === "连环计")?.available).toBe(false);
+    expect(options.find((o) => o.id === "连环计")?.reason).toBe("此计暂未启用");
+    // 可用选项只剩 pass → 相位不可能由 enterJinnangPhase 进入(静默跳过的判据)
+    expect(options.filter((o) => o.available).map((o) => o.id)).toEqual(["pass"]);
+  });
+
+  it("用免战金牌:盾立、手牌-1 入弃牌堆、标签占名额、无他牌则收卷进 Roll", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const p = armJinnang(e, ["免战金牌"]);
+    e.resolveJinnang("免战金牌");
+    expect(p.jinnangShield).toBe(true);
+    expect(p.jinnangHand).toEqual([]);
+    expect(p.jinnangHandCount).toBe(0);
+    expect(e.jinnangDiscard).toContain("免战金牌");
+    expect(e.jinnangUsedTags).toContain("守");
+    expect(e.turnPhase).toBe("Roll");
+    expect(JSON.stringify(e.log)).toContain("免战金牌"); // 用牌是公开事件
+  });
+
+  it("盾至自己下回合开始过期:回合流转一圈后清零", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const p = armJinnang(e, ["免战金牌"]);
+    e.resolveJinnang("免战金牌");
+    e.rollAndMove();
+    // 推进到 p 的下回合开始(经过 ≥1 名其他玩家):盾在「p 下回合开始」到期
+    let seenOther = false;
+    let guard = 0;
+    while (!e.isOver && guard++ < 50) {
+      if (e.activePlayer !== p) seenOther = true;
+      else if (seenOther) break; // 转回 p:新回合开始
+      if (e.turnPhase === "Roll") e.rollAndMove();
+      else if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+      else botAct(e); // 其余相位 bot 同口径代解
+    }
+    expect(seenOther).toBe(true);
+    // 转回 p 的回合:盾已过期、名额清零
+    expect(p.jinnangShield).toBe(false);
+    expect(e.jinnangUsedTags).toEqual([]);
+  });
+
+  it("用求贤令:名将入帐(未满编时);名将已尽折现", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const p = armJinnang(e, ["求贤令"]);
+    const cashBefore = p.cash;
+    e.resolveJinnang("求贤令");
+    const gotHero = p.heroes.length === 1;
+    if (gotHero) {
+      expect(p.cash).toBe(cashBefore);
+      expect(e.recruitedHeroIds.size).toBe(1);
+    } else {
+      expect(p.cash).toBe(cashBefore + 300);
+    }
+    expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
+  });
+
+  it("每回合每类标签一张:同回合用守后再持守牌则灰置,重算收卷", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    armJinnang(e, ["免战金牌", "免战金牌"]);
+    e.resolveJinnang("免战金牌"); // 第一张守
+    expect(e.turnPhase).toBe("Roll"); // 第二张同标签 → 灰置 → 重算无可用 → 收卷
+    // 硬闯第二张:相位已走,引擎相位守卫拒绝
+    const discardBefore = e.jinnangDiscard.length;
+    e.resolveJinnang("免战金牌");
+    expect(e.jinnangDiscard.length).toBe(discardBefore); // 未消耗
+  });
+
+  it("异类标签同回合可用:用守(免战)后援(求贤)仍可再出", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    armJinnang(e, ["免战金牌", "求贤令"]);
+    e.resolveJinnang("免战金牌");
+    expect(e.turnPhase).toBe("AwaitingJinnang"); // 求贤(援)名额未占 → 停留卷轴
+    expect(e.choicesFor().find((o) => o.id === "求贤令")?.available).toBe(true);
+    e.resolveJinnang("求贤令");
+    expect(e.turnPhase).toBe("Roll");
+    expect(e.jinnangUsedTags.sort()).toEqual(["守", "援"].sort());
+  });
+
+  it("bot 在锦囊相位恒今不用(不掷骰,手牌原样)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const hand = ["免战金牌"];
+    armJinnang(e, hand);
+    const deckBefore = e.jinnangDeckCount;
+    botAct(e);
+    expect(e.turnPhase).toBe("Roll");
+    expect(e.activePlayer.jinnangHand).toEqual(hand); // 牌仍在手(bot 没花)
+    expect(e.jinnangDeckCount).toBe(deckBefore);
+  });
+
+  it("submitCommand 走 useJinnang 等价直调;非法目标被拒", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.submitCommand({ type: "useJinnang", cardId: null });
+    expect(e.turnPhase).toBe("Roll");
+    // 非相位用牌:静默拒绝(命令流已记 cmd 行)
+    e.submitCommand({ type: "useJinnang", cardId: "免战金牌" });
+    expect(e.players[1].jinnangShield).toBe(false);
+  });
+
+  it("快照往返:usedTags 与 shield 保真", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    const p = armJinnang(e, ["免战金牌"]);
+    e.resolveJinnang("免战金牌");
+    const e2 = makeEngine(1);
+    e2.restoreFromSnapshot(e.snapshot());
+    expect(e2.jinnangUsedTags).toEqual(e.jinnangUsedTags);
+    expect(e2.players.find((x) => x.id === p.id)?.jinnangShield).toBe(true);
+  });
+});

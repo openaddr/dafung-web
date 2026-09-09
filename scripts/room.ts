@@ -91,6 +91,7 @@ const INPUT_PHASES = new Set([
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
+  "AwaitingJinnang", // 锦囊(#122/T2):bot 恒「今不用」保守推进(策略表在 T6)
 "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
@@ -286,7 +287,16 @@ export class RoomRegistry {
     for (const id of this.persistence.listIds()) {
       const rec = this.persistence.load(id);
       if (!rec) continue;
-      const room = this.hydrate(rec, mapProvider);
+      // 旧版本快照(字段集已过时)不可恢复 → 跳过该房间,与持久化层「损坏文件跳过」同口径:
+      // 启动 resilience 归这里,不靠快照 write 兜底(零兜底红线)
+      let room: RoomSession;
+      try {
+        room = this.hydrate(rec, mapProvider);
+      } catch (err) {
+        console.warn(`[room] 跳过不可恢复的房间 ${id}:`, err instanceof Error ? err.message : err);
+        this.persistence.remove(id);
+        continue;
+      }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
       count++;

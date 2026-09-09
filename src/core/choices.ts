@@ -11,6 +11,13 @@ import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
 import type { EncounterChoiceOption } from "./encounters";
+import { jinnangCardOf, type JinnangEffect } from "./jinnang";
+
+/** 已接入结算的锦囊效果种类(T2:自身域两张;T3/T4 逐票点亮,灰置原因「此计暂未启用」)。 */
+export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set([
+  "rentImmunity",
+  "grantHero",
+]);
 
 /** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
 export interface ChoiceOption {
@@ -25,6 +32,10 @@ export interface ChoiceOption {
   /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
   holdingPropertyId?: string;
   exhaustionKind?: "downgrade" | "lose";
+  /** 锦囊卷轴专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
+   *  id 即 cardId(pass=今不用)。 */
+  cardText?: string;
+  cardTags?: string[];
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -190,6 +201,27 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
+/** AwaitingJinnang(锦囊,#122/T2):手牌逐张一选项(available=标签名额未占且效果已启用)
+ *  +「今不用」(永远可用,默认行为)。effect 尚未接入结算的种类灰置——分票落地,候选渐次点亮。 */
+function jinnangChoices(e: GameEngine): ChoiceOption[] {
+  const p = e.activePlayer;
+  const used = new Set(e.jinnangUsedTags);
+  const cards = p.jinnangHand.map((cardId): ChoiceOption => {
+    const def = jinnangCardOf(cardId);
+    const quotaBlocked = def.tags.some((t) => used.has(t));
+    const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
+    return {
+      id: cardId,
+      label: def.id,
+      available: !quotaBlocked && implemented,
+      reason: !implemented ? "此计暂未启用" : quotaBlocked ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕` : undefined,
+      cardText: def.text,
+      cardTags: def.tags,
+    };
+  });
+  return [...cards, { id: "pass", label: "今不用", available: true }];
+}
+
 /** 决策相位 → 选项计算器。未注册的相位(Roll/Land/EndTurn/GameOver)无决策。 */
 export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceOption[]>> = {
   AwaitingDecision: decisionChoices,
@@ -197,6 +229,7 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingBranch: branchChoices,
   AwaitingHeroPick: heroPickChoices,
   AwaitingEncounter: encounterChoices,
+  AwaitingJinnang: jinnangChoices,
   AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
 };

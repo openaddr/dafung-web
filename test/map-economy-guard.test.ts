@@ -52,14 +52,15 @@ const MULT_CITY = new Set(["prop-chengdu", "prop-ye", "prop-jiange", "prop-jieti
 const FERTILE = ["中原", "江东"];
 const MEDIUM = ["荆楚", "巴蜀", "青徐", "淮南", "并州"];
 
-function checkMap(name: string, data: unknown, tierOf: Record<string, number>) {
+function checkMap(name: string, data: unknown, tierOf: Record<string, number>, convertedTiles = 0) {
   const m = loadMap(data);
   it(`${name}:全局数值(目标 30000 / 起手 10000)`, () => {
     expect(m.targetNetWorth).toBe(30000);
     expect(m.startingCash).toBe(10000);
   });
   it(`${name}:逐城数值必须落在价位档标准值上`, () => {
-    expect(m.properties.length).toBe(Object.keys(tierOf).length); // 无城遗漏/多城
+    // convertedTiles:有意的「城转特殊格」登记(#147 锦囊格改造:sanguo 子午谷),守卫只护「不意外漂移」
+    expect(m.properties.length).toBe(Object.keys(tierOf).length - convertedTiles); // 无城遗漏/多城
     for (const p of m.properties) {
       const liang = tierOf[p.id];
       expect(liang, `${p.id} 缺价位分配`).toBeDefined();
@@ -87,7 +88,7 @@ function checkResupply(name: string, data: any) {
 }
 
 describe("经济数值 v2 守卫", () => {
-  checkMap("sanguo", sanguoData, SANGUO_TIER);
+  checkMap("sanguo", sanguoData, SANGUO_TIER, 1); // #147:子午谷转锦囊格
   checkMap("chessboard", chessboardData, SANGUO_TIER); // 从 sanguo 派生,同表
   checkMap("zhongyuan", zhongyuanData, ZY_TIER);
   checkResupply("sanguo", sanguoData);

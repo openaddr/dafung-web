@@ -8,6 +8,13 @@ import { netWorth } from "@core/networth";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
 import { testEngine } from "@core/testing";
+/** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
+ *  pass 不掷骰,骰流与断言不受扰。 */
+function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(e: T): T {
+  while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+  return e;
+}
+
 
 const MAP = loadMap(sanguoData);
 
@@ -37,7 +44,9 @@ function finishSetup(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
+  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122):本文件不测锦囊
 }
+
 
 describe("开局三段式", () => {
   it("doDraftRoll 产出无平局的定序", () => {
@@ -109,7 +118,7 @@ describe("回合与胜负", () => {
   it("掷骰移动后离开 Roll 阶段", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     expect(e.presentation.lastRoll).not.toBeNull();
     expect(e.presentation.lastMove).not.toBeNull(); // 掷骰后已移动(落 TreasureCity 会同步探宝 endTurn 回 Roll,属正常)
   });
@@ -119,7 +128,7 @@ describe("回合与胜负", () => {
     // 故 endTurn 绝不能清空 lastRoll/lastMove(曾因此死锁,见 e2e human.spec:69)。
     const e = makeEngine(1);
     finishSetup(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
     expect(e.presentation.lastRoll).not.toBeNull();
     expect(e.presentation.lastMove).not.toBeNull();
@@ -130,7 +139,7 @@ describe("回合与胜负", () => {
     const e = makeEngine(1, undefined, 100);
     finishSetup(e);
     expect(netWorth(e.activePlayer)).toBeGreaterThan(100);
-    e.rollAndMove(); // 落格
+    passJinnang(e).rollAndMove(); // 落格
     autoResolve(e); // 完成默认抉择 → endTurn → 胜负检测
     expect(e.isOver).toBe(true);
     expect(e.winner).not.toBeNull();
@@ -141,7 +150,7 @@ describe("回合与胜负", () => {
     const e = makeEngine(2, undefined, 100000); // 高目标,不会达标
     finishSetup(e);
     const first = e.activePlayer.id;
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
     // 落格 endTurn 后应切换玩家(除非破产,这里不会)
     if (!e.isOver) {
@@ -211,7 +220,7 @@ describe("名将(英雄)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     e.activePlayer.heroes.push(hero("zhouyu"));
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     const rollLog = e.log.filter((ev) => ev.category === "roll").pop()!;
     expect(rollLog.detail).toContain("bonus=1");
   });
@@ -260,7 +269,7 @@ describe("名将(英雄)", () => {
     finishSetup(e);
     expect(e.round).toBe(1);
     for (let i = 0; i < e.players.length; i++) {
-      e.rollAndMove();
+      passJinnang(e).rollAndMove();
       autoResolve(e);
     }
     expect(e.round).toBe(2);
@@ -277,7 +286,7 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     const cash0 = p.cash;
     const w0 = p.warrants;
     const nextIdx = e.players.findIndex((x) => x !== p);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     const die = e.presentation.lastRoll!.die;
     expect(p.position).toBe(p.capitalIndex); // 停在都城(必停或恰落,都不前进)
     expect(p.onBranch).toBeNull();
@@ -383,7 +392,7 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
     e.selectBranch("Branch");
     // 拨回该玩家(selectBranch 已 endTurn),模拟其下回合
     e.activeIndex = e.players.indexOf(p);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     const die = e.presentation.lastRoll!.die;
     const N = e.board.branch!.cells.length;
     if (die <= N) {

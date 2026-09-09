@@ -22,6 +22,11 @@ export const SCROLL_TESTIDS = {
   exhaustionScroll: "scroll-exhaustion",
   exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
+  // ── 锦囊卷轴(#122/T2):容器 + 选项(下标=牌 id)+ 今不用;目标段(作罢)在 T3/T4 ──
+  jinnangScroll: "scroll-jinnang",
+  jinnangOption: (cardId: string) => `scroll-jinnang-option-${cardId}` as const,
+  jinnangPass: "scroll-jinnang-pass",
+
   treasureScroll: "scroll-treasure",
   treasureModeFair: "scroll-treasure-mode-fair",
   treasureModePremium: "scroll-treasure-mode-premium",
