@@ -2,7 +2,8 @@
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
-import { RoomRegistry, RoomError, lobbyView, clientView, resolveGuohaoClash } from "../scripts/room";
+import { RoomRegistry, RoomError, lobbyView, clientView, resolveGuohaoClash, redactSnapshotForSeat } from "../scripts/room";
+import { JINNANG_CARDS } from "../src/core/jinnang";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -803,5 +804,70 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     await sleep(500);
     expect(reg.get(roomId)).toBeUndefined();
     expect(events.some((ev) => ev.ev === "takeover")).toBe(false);
+  });
+});
+
+describe("锦囊暗牌投影(ADR-0016 · redactSnapshotForSeat)", () => {
+  /** 开一局已发手牌的房:发牌在选都完成时(finishSetup),故须走到 Playing。 */
+  async function roomWithHands() {
+    const r = await setupStartedRoom({ seats: 3, bot: [2] });
+    const e = r.reg.get(r.roomId)!.engine!;
+    // 保证 seat0/seat1 都有牌可断言(起手 1 张 + 各补 2 张)
+    e.drawJinnang(0, 2);
+    e.drawJinnang(1, 2);
+    return r;
+  }
+
+  it("本人手牌原样;他人 → 内容清空 + jinnangHandCount 数量", async () => {
+    const { reg, roomId } = await roomWithHands();
+    const snap = reg.get(roomId)!.engine!.snapshot();
+    const view0 = redactSnapshotForSeat(snap, 0);
+    expect(view0.players[0].jinnangHand).toEqual(snap.players[0].jinnangHand);
+    expect(view0.players[1].jinnangHand).toEqual([]);
+    expect(view0.players[1].jinnangHandCount).toBe(snap.players[1].jinnangHand.length);
+    expect(view0.players[2].jinnangHandCount).toBe(snap.players[2].jinnangHand.length);
+    expect(view0.players.every((p, i) => (i === 0 ? true : p.jinnangHand.length === 0))).toBe(true);
+  });
+
+  it("牌库牌序只给数量;弃牌堆(明置)原样", async () => {
+    const { reg, roomId } = await roomWithHands();
+    const snap = reg.get(roomId)!.engine!.snapshot();
+    const view = redactSnapshotForSeat(snap, 1);
+    expect(view.jinnangDeck).toEqual([]);
+    expect(view.jinnangDeckCount).toBe(snap.jinnangDeck.length);
+    expect(view.jinnangDiscard).toEqual(snap.jinnangDiscard);
+  });
+
+  it("抽牌日志行照发(公开信息,ADR-0016 决策3:源头无内容则日志不裁);纯函数不改输入", async () => {
+    const { reg, roomId } = await roomWithHands();
+    const e = reg.get(roomId)!.engine!;
+    e.drawJinnang(0, 1); // 再抽 → 产生 jinnangDraw 日志行
+    const snap = e.snapshot();
+    const drawRows = snap.log.filter((l) => l.detail.includes("jinnangDraw"));
+    expect(drawRows.length).toBeGreaterThan(0);
+    // 行内只有手牌数,无牌名(引擎源头保证,另测);投影原样携带
+    expect(drawRows.every((l) => !JINNANG_CARDS.some((c) => l.brief.includes(c.id)))).toBe(true);
+    const before = JSON.stringify(snap);
+    const view = redactSnapshotForSeat(snap, 0);
+    expect(view.log.length).toBe(snap.log.length);
+    expect(JSON.stringify(snap)).toBe(before); // 未改输入
+  });
+
+  it("clientView 带座位 → 投影视图;缺省 → god-view;lobby 态不受影响", async () => {
+    const { reg, roomId, hostToken } = await roomWithHands();
+    const room = reg.get(roomId)!;
+    const online = new Set([0]);
+    const view0 = clientView(room, online, 0) as Record<string, unknown>;
+    const god = clientView(room, online) as Record<string, unknown>;
+    const p1view = (view0.players as { jinnangHand: string[]; jinnangHandCount?: number }[])[1];
+    const p1god = (god.players as { jinnangHand: string[] }[])[1];
+    expect(p1view.jinnangHand).toEqual([]);
+    expect(p1view.jinnangHandCount).toBe(p1god.jinnangHand.length);
+    expect((view0.jinnangDeck as string[]).length).toBe(0);
+    expect((god.jinnangDeck as string[]).length).toBeGreaterThan(0);
+    // lobby 态:未开局房间照旧
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
+    expect(clientView(created.room, new Set([0]), 0).type).toBe("lobby");
+    void hostToken;
   });
 });

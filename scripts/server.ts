@@ -173,15 +173,41 @@ function onlineSeatsOf(roomId: string): Set<number> {
   return set;
 }
 
-/** 广播:读 Room 当前状态 + 算 onlineSeats + clientView + 遍历 WS 发。 */
+/** 广播(ADR-0016):读 Room 当前状态 + 算 onlineSeats + 按座位逐个投影后发——
+ *  锦囊暗牌起,各座位收到的快照不再同一份(自己的手牌全量,他人的只见数量)。
+ *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——快速托管局
+ *  是单同步 tick 里数百步 bot 连锁,逐步直发=数百份全量快照灌爆 WS 背压(Bun 超
+ *  maxBackpressure 静默丢消息,页面永久停在旧态,2026-09-09 实测定位);合并后每
+ *  座位每 tick 至多一份终态。人类节奏的流程(每次命令一个 tick)行为不变;慢速托管
+ *  的步间 await 天然分 tick,逐步直播保留。 */
+const dirtySeats = new Map<string, Set<number>>();
+const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function broadcast(roomId: string): void {
   const room = registry.get(roomId);
   if (!room) return;
-  const online = onlineSeatsOf(roomId);
-  const msg = JSON.stringify(clientView(room, online));
-  for (const ws of socketsOf(roomId).values()) {
-    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+  let seats = dirtySeats.get(roomId);
+  if (!seats) {
+    seats = new Set();
+    dirtySeats.set(roomId, seats);
   }
+  for (const seat of socketsOf(roomId).keys()) seats.add(seat);
+  if (flushTimers.has(roomId)) return; // 本 tick 已排 flush,脏标记会被同一批带走
+  flushTimers.set(
+    roomId,
+    setTimeout(() => {
+      flushTimers.delete(roomId);
+      const pending = dirtySeats.get(roomId);
+      dirtySeats.delete(roomId);
+      const r = registry.get(roomId);
+      if (!pending || !r) return;
+      const online = onlineSeatsOf(roomId);
+      for (const seat of pending) {
+        const ws = socketsOf(roomId).get(seat);
+        if (!ws || ws.readyState !== WebSocket.OPEN) continue;
+        ws.send(JSON.stringify(clientView(r, online, seat)));
+      }
+    }, 0),
+  );
 }
 
 // ──────────────────────────── HTTP 工具 ────────────────────────────
@@ -445,7 +471,7 @@ Bun.serve<WsSeat>({
       }
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
-      ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId))));
+      ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId), seat))); // 本座位投影(ADR-0016)
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;

@@ -9,6 +9,7 @@
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/game";
+import type { GameSnapshot } from "../src/core/snapshot";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { isSingleCjk } from "../src/core/constants";
@@ -142,22 +143,46 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
   };
 }
 
+/** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
+ *  public 原样 / count-only 只给数量 / private 只发本人:
+ *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);
+ *  - 锦囊牌库牌序 → count-only(牌序决定未来抽牌,泄了等于开了天眼;只留剩余数);
+ *  - 含锦囊内容的对局日志行 → 不外发(引擎侧已源头不落内容,此处按机读键过滤抽牌行,防御性双保险);
+ *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
+ *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
+export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
+  const players = s.players.map((p, i) => {
+    // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
+    if (i === seat) return p;
+    return { ...p, jinnangHand: [] };
+  });
+  return {
+    ...s,
+    players,
+    jinnangDeck: [], // 牌序只裁不给;剩余数走引擎态 jinnangDeckCount
+    // 日志不裁(ADR-0016 决策3):引擎源头只写「抽了一张锦囊」无内容,抽牌行本身
+    // 是公开信息(手牌数),随快照照发
+  };
+}
+
 /** clientView:snapshot 态把 engine.snapshot() 展开;Lobby 态退化为 lobbyView。
  *  snapshot 分支携带与 lobby 相同的房间字段(roomId/seatCount/host/started/mapId/seats)
- *  + 引擎快照展开(快照无同名键,不冲突)。 */
-export function clientView(r: RoomSession, onlineSeats: Set<number>) {
-  return r.engine
-    ? {
-        type: "snapshot" as const,
-        roomId: r.roomId,
-        seatCount: r.seatCount,
-        host: r.hostSeat,
-        started: true,
-        mapId: r.mapId,
-        seats: seatMeta(r, onlineSeats),
-        ...r.engine.snapshot(),
-      }
-    : lobbyView(r, onlineSeats);
+ *  + 引擎快照展开(快照无同名键,不冲突)。
+ *  seat(ADR-0016):接收方座位——传入即返回该座位的投影(锦囊暗牌/牌序/抽牌日志已裁);
+ *  缺省 = god-view 全量(重放/调试/单测语义,生产 ws 路径一律传 seat)。 */
+export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: number) {
+  if (!r.engine) return lobbyView(r, onlineSeats);
+  const base = {
+    type: "snapshot" as const,
+    roomId: r.roomId,
+    seatCount: r.seatCount,
+    host: r.hostSeat,
+    started: true,
+    mapId: r.mapId,
+    seats: seatMeta(r, onlineSeats),
+  };
+  const snap = r.engine.snapshot();
+  return { ...base, ...(seat == null ? snap : redactSnapshotForSeat(snap, seat)) };
 }
 
 // ──────────────────────────── bot/接管/托管驱动(ADR-0002 接管;spec: autopilot)────────────────────────────

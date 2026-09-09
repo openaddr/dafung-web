@@ -73,6 +73,8 @@ function armBuyDecision(e: GameEngine): { tilePropertyId: string } {
 }
 
 describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () => {
+  // 超时放宽到 30s:每步「新引擎+restore+双份全量快照 stringify」成本随步数平方增长,
+  // 锦囊发牌(#122)使骰流偏移、本 seed 对局步数变长——契约语义不变,只给足墙钟。
   it("每步恢复 round-trip 后快照逐字段一致(联机每帧走的就是这条路)", () => {
     const a = makeEngine(7);
     finishSetup(a);
@@ -89,7 +91,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     }
     expect(a.isOver).toBe(true);
     expect(steps).toBeGreaterThan(20); // 确保真的跑了对局,而非空转即结束
-  });
+  }, 30_000);
 
   it("序列化单点清单:serializeGame 产出键集 = SNAPSHOT_FIELDS 清单键集(双向)", () => {
     const e = makeEngine(7);

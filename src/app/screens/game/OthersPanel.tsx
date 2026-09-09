@@ -77,6 +77,18 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {/* S7 核对补漏:胜者原先仅靠 text-gold 金色区分(仅颜色传达信息),
                 补「胜」文字标记——与「智」同款单字后缀,颜色之外有明确文字线索 */}
             {isWinner && <span className="shrink-0 font-brush text-gold-deep">胜</span>}
+            {/* 锦囊计数(#122):数量公开、内容暗置(ADR-0016)——「他囤了两张在憋什么」
+                本身是博弈信息。联机经投影他人的手牌内容根本不到本端,计数走引擎态
+                jinnangHandCount;无牌不渲染,免一行噪音。 */}
+            {p.jinnangHandCount > 0 && (
+              <span
+                data-testid={TESTIDS.jinnangCount(seat)}
+                title={`锦囊 ×${p.jinnangHandCount}(内容暗置)`}
+                className="shrink-0 rotate-[-4deg] rounded-[2px] border border-[rgba(43,35,23,0.3)] bg-panel-hi px-1 font-brush text-[10px] leading-4 text-ink-dim"
+              >
+                囊{p.jinnangHandCount}
+              </span>
+            )}
             {/* G-15:现金低于 1000两(危险线)加 ⚠ 并转 danger 色——现金是唯一活钱,
                 见底意味着下一步任何支出都可能触发变卖/破产;破产行已划线弱化,不再重复示警。
                 R3-A6(#69):font-medium + tabular-nums,数字加粗且等宽,与身价列竖向对齐易扫读 */}
