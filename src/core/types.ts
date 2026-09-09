@@ -158,6 +158,15 @@ export interface LandOutcomeSnapshot {
   causedBankruptcy: boolean | null;
 }
 
+/** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态(同相位内重算选项集);
+ *  stage:one=单选立即执行;two-a/two-b=连环计两步(第二步排除第一步)。
+ *  picked 为已定座位;随快照走(目标段中途断线可恢复)。 */
+export interface PendingJinnang {
+  cardId: string;
+  stage: "one" | "two-a" | "two-b";
+  picked: number[];
+}
+
 /** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。 */
 export type TurnPhase =
   | "Roll"
@@ -299,7 +308,7 @@ export type GameCommand =
   | { type: "sellPropertyBankruptcy"; propId: string }
   | { type: "cashHeroBankruptcy"; heroId: string }
   | { type: "confirmBankruptcySettle" }
-  | { type: "useJinnang"; cardId: string | null; targets?: number[] }; // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段)
+  | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean }; // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
 
 // ── 珍宝系统 ──
 export interface TreasureDef {

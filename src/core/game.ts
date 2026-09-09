@@ -47,6 +47,7 @@ import {
   buildJinnangDeck,
   jinnangCardOf,
 } from "./jinnang";
+import type { PendingJinnang } from "./types";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -193,6 +194,8 @@ export class GameEngine {
   jinnangDiscard: string[] = [];
   /** 本回合已占用的锦囊标签(#122/T2):回合开始清空;每类限一张的名额账本。 */
   jinnangUsedTags: string[] = [];
+  /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态;null=卡牌段。随快照走。 */
+  pendingJinnang: PendingJinnang | null = null;
   /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
   jinnangDeckCount = 0;
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
@@ -1161,6 +1164,7 @@ export class GameEngine {
     // settleEncounterChoice 清除,此处是回合收口的兜底扫除)
     this.pendingLand = null;
     this.pendingEncounter = null;
+    this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
     this.lastTransaction = null;
   }
 
@@ -1587,7 +1591,7 @@ export class GameEngine {
       case "sellPropertyBankruptcy": return this.sellPropertyBankruptcy(cmd.propId);
       case "cashHeroBankruptcy": return this.cashHeroBankruptcy(cmd.heroId);
       case "confirmBankruptcySettle": return this.confirmBankruptcySettle();
-      case "useJinnang": return this.resolveJinnang(cmd.cardId ?? null);
+      case "useJinnang": return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
     }
   }
 
@@ -1845,9 +1849,50 @@ export class GameEngine {
   /** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/可用(标签名额)
    *  后结算效果,再重算选项集——同回合仍有可用牌(异类标签)则继续停留卷轴,否则进 Roll。
    *  用牌是公开事件(浮字+战报),暗的只有持有(ADR-0016)。 */
-  resolveJinnang(cardId: string | null): void {
+  resolveJinnang(cardId: string | null, targets?: number[], cancel?: boolean): void {
     if (!this.assertPhase("AwaitingJinnang", "resolveJinnang")) return;
     const p = this.activePlayer;
+    const userSeat = this.players.indexOf(p);
+
+    // ── 目标段:提交目标 / 作罢 ──
+    const pending = this.pendingJinnang;
+    if (pending) {
+      const def = jinnangCardOf(pending.cardId);
+      if (cancel || cardId == null) {
+        this.logEvent("system", p.guohao, `${p.guohao} 作罢【${def.id}】`, `jinnangCancel player=${p.id} card=${def.id}`);
+        this.pendingJinnang = null;
+        this.settleJinnangExit(); // 牌未消耗,回卡牌段或收卷
+        return;
+      }
+      if (cardId !== pending.cardId || !targets || targets.length !== 1) {
+        this.warn(`目标段命令与载荷不符:${cardId}`);
+        return;
+      }
+      const [target] = targets;
+      if (!computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
+        this.warn(`目标不可用:座位 ${target}`);
+        return;
+      }
+      if (pending.stage === "one") {
+        this.pendingJinnang = null;
+        this.consumeJinnangCard(p, cardId, def);
+        this.executeJinnang(p, userSeat, def, [target]);
+        this.settleJinnangExit();
+        return;
+      }
+      // 连环计两步(T4):two-a 存首挑进 two-b;two-b 合并执行
+      if (pending.stage === "two-a") {
+        this.pendingJinnang = { cardId: pending.cardId, stage: "two-b", picked: [target] };
+        return; // 留在相位,选项集重算为第二段候选
+      }
+      this.pendingJinnang = null;
+      this.consumeJinnangCard(p, cardId, def);
+      this.executeJinnang(p, userSeat, def, [...pending.picked, target]);
+      this.settleJinnangExit();
+      return;
+    }
+
+    // ── 卡牌段 ──
     if (cardId == null) {
       this.logEvent("system", p.guohao, `${p.guohao} 锦囊今不用`, `jinnangPass player=${p.id}`);
       this.turnPhase = "Roll";
@@ -1863,27 +1908,120 @@ export class GameEngine {
       this.warn(`${p.guohao} 锦囊【${def.id}】不可用:${option?.reason ?? "未知原因"}`);
       return;
     }
+    // 指向域 → 入目标段(牌暂不消耗;作罢可全退)
+    const domain = def.targetDomain;
+    if (domain === "one" || domain === "two-others" || domain === "all-others") {
+      if (domain !== "all-others") {
+        this.pendingJinnang = { cardId, stage: domain === "one" ? "one" : "two-a", picked: [] };
+        return; // 留在相位,选项集重算为候选名单
+      }
+      // 全体域(横征暴敛):无目标段,直接执行(免战庇护者被跳过)
+      this.consumeJinnangCard(p, cardId, def);
+      this.executeJinnang(p, userSeat, def, []);
+      this.settleJinnangExit();
+      return;
+    }
+    // 自身域:立即执行
+    this.consumeJinnangCard(p, cardId, def);
+    this.executeJinnang(p, userSeat, def, []);
+    this.settleJinnangExit();
+  }
+
+  /** 手牌段扣账(#122/T3):出牌=离手入弃堆+占标签名额(执行时点;作罢不占)。 */
+  private consumeJinnangCard(p: Player, cardId: string, def: ReturnType<typeof jinnangCardOf>): void {
     p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
     p.jinnangHandCount = p.jinnangHand.length;
     this.jinnangDiscard.push(cardId);
     this.jinnangUsedTags.push(...def.tags);
-    this.pushFloaterText(p, `${p.guohao} 使用锦囊【${def.id}】`, p.position);
+  }
+
+  /** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
+  private settleJinnangExit(): void {
+    const rest = computeChoices(this, "AwaitingJinnang");
+    if (rest.some((o) => o.available && o.id !== "pass" && o.cardTags != null)) {
+      this.turnPhase = "AwaitingJinnang";
+    } else {
+      this.turnPhase = "Roll";
+    }
+  }
+
+  /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
+   *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。 */
+  private executeJinnang(user: Player, userSeat: number, def: ReturnType<typeof jinnangCardOf>, targets: number[]): void {
+    this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
     switch (def.effect.kind) {
       case "rentImmunity":
-        p.jinnangShield = true;
-        this.logEvent("system", p.guohao, `${p.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`, `jinnangUse player=${p.id} card=${def.id} shield=1`);
+        user.jinnangShield = true;
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`, `jinnangUse player=${user.id} card=${def.id} shield=1`);
         break;
       case "grantHero":
-        this.logEvent("system", p.guohao, `${p.guohao} 使用锦囊【求贤令】`, `jinnangUse player=${p.id} card=${def.id}`);
-        this.grantHeroToPlayer(p, def.effect.fallbackCash, "锦囊【求贤令】张榜", `jinnang=${def.id}`);
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【求贤令】`, `jinnangUse player=${user.id} card=${def.id}`);
+        this.grantHeroToPlayer(user, def.effect.fallbackCash, "锦囊【求贤令】张榜", `jinnang=${def.id}`);
         break;
+      case "levyAll": {
+        // 横征暴敛:全体其他玩家各付 amount(上限=现金,不清算);免战庇护者跳过
+        const amount = def.effect.amount;
+        let gained = 0;
+        let payers = 0;
+        let shielded = 0;
+        for (const t of this.players) {
+          const seat = this.players.indexOf(t);
+          if (seat === userSeat || t.isBankrupt) continue;
+          if (t.jinnangShield) { shielded++; continue; }
+          const pay = Math.min(amount, t.cash);
+          t.cash -= pay;
+          gained += pay;
+          payers++;
+          this.pushFloater(t, -pay, t.position, "expense");
+          this.dispatchMoment("CashLost", { subject: seat, amount: pay });
+          this.logEvent("system", t.guohao, `${t.guohao} 被【横征暴敛】征去 ${formatMoney(pay)}`, `jinnangLevy payer=${t.id} amount=${pay} cash=${t.cash}`, -pay);
+        }
+        user.cash += gained;
+        if (gained > 0) {
+          this.pushFloater(user, gained, user.position, "income");
+          this.dispatchMoment("CashGained", { subject: userSeat, amount: gained });
+        }
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【横征暴敛】:${payers} 家缴纳 ${formatMoney(gained)}${shielded ? `,${shielded} 家免战庇护` : ""}`, `jinnangUse player=${user.id} card=${def.id} gained=${gained} payers=${payers} shielded=${shielded}`, gained);
+        break;
+      }
+      case "stealTreasure": {
+        const victim = this.players[targets[0]];
+        const idx = Math.floor(this.dice.nextFloat() * victim.treasures.length);
+        const treasure = victim.treasures.splice(idx, 1)[0];
+        user.treasures.push(treasure);
+        this.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【窃玉偷香】:窃得 ${victim.guohao} 的「${treasure.name}」(Lv.${treasure.level})`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} treasure=${treasure.id}`);
+        break;
+      }
+      case "demolish": {
+        const victim = this.players[targets[0]];
+        const upgradable = victim.properties.filter((h) => h.level > 0);
+        const tileIndexOf = (pid: string) => this.board.tiles.findIndex((t) => t.propertyId === pid);
+        if (upgradable.length > 0) {
+          const h = upgradable[Math.floor(this.dice.nextFloat() * upgradable.length)];
+          h.level -= 1;
+          this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: h.level, ownerColorIndex: victim.colorIndex, levelChanged: true, ownerChanged: false }); // 宣告留痕(ADR-0015)
+          this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 的城防降为 ${h.level} 级`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} prop=${h.propertyId} level=${h.level}`);
+        } else {
+          const idx = Math.floor(this.dice.nextFloat() * victim.properties.length);
+          const h = victim.properties.splice(idx, 1)[0];
+          this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
+          const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)?.name ?? h.propertyId;
+          this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 城防尽毁,失「${lostName}」`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} lost=${h.propertyId}`);
+        }
+        break;
+      }
+      case "skipTurn": {
+        const victim = this.players[targets[0]];
+        victim.skipTurns += 1;
+        this.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
+        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【缓兵之计】:${victim.guohao} 下回合被拖住`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} skip=1`);
+        break;
+      }
       default:
         // 选项集 availability(JINNANG_LIVE_EFFECTS)已把未启用种类挡在门外,到此=数据 bug
         throw new Error(`锦囊效果未接入结算:${def.effect.kind}(#122 分票范围)`);
     }
-    // 重算:同回合仍有可用牌(异类标签名额)→ 停留卷轴;否则进 Roll
-    const rest = computeChoices(this, "AwaitingJinnang");
-    if (!rest.some((o) => o.available && o.id !== "pass")) this.turnPhase = "Roll";
   }
 
   /** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):满编/名将已尽折现,否则骰选一名。

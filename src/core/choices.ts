@@ -17,6 +17,10 @@ import { jinnangCardOf, type JinnangEffect } from "./jinnang";
 export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set([
   "rentImmunity",
   "grantHero",
+  "levyAll", // T3:指向他人四牌
+  "stealTreasure",
+  "demolish",
+  "skipTurn",
 ]);
 
 /** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
@@ -36,6 +40,8 @@ export interface ChoiceOption {
    *  id 即 cardId(pass=今不用)。 */
   cardText?: string;
   cardTags?: string[];
+  /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
+  targetSeat?: number;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -201,10 +207,45 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
-/** AwaitingJinnang(锦囊,#122/T2):手牌逐张一选项(available=标签名额未占且效果已启用)
- *  +「今不用」(永远可用,默认行为)。effect 尚未接入结算的种类灰置——分票落地,候选渐次点亮。 */
+/** 目标有效性(#122/T3):非己、存活、未被免战庇护;卡面附加条件由 effectKind 分派。 */
+export function jinnangTargetOk(e: GameEngine, user: number, target: number, effectKind: JinnangEffect["kind"]): { ok: boolean; reason?: string } {
+  const t = e.players[target];
+  if (target === user) return { ok: false, reason: "不能指定自己" };
+  if (t.isBankrupt) return { ok: false, reason: "已出局" };
+  if (t.jinnangShield) return { ok: false, reason: "免战庇护" };
+  switch (effectKind) {
+    case "stealTreasure":
+      if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
+      break;
+    case "demolish":
+      if (t.properties.length === 0) return { ok: false, reason: "无城池" };
+      break;
+  }
+  return { ok: true };
+}
+
+/** AwaitingJinnang(锦囊,#122/T2):卡牌段=手牌逐张 +「今不用」;目标段(T3)=
+ *  pendingJinnang 在场时改列候选座位 +「作罢」。effect 尚未接入结算的种类灰置。 */
 function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
+  const pending = e.pendingJinnang;
+  if (pending) {
+    const def = jinnangCardOf(pending.cardId);
+    const exclude = pending.stage === "two-b" ? pending.picked : [];
+    const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
+      const excluded = exclude.includes(seat);
+      const verdict = jinnangTargetOk(e, e.players.indexOf(p), seat, def.effect.kind);
+      const ok = !excluded && verdict.ok;
+      return {
+        id: `t${seat}`,
+        label: t.guohao || t.name,
+        available: ok,
+        reason: excluded ? "已指定" : ok ? undefined : verdict.reason,
+        targetSeat: seat,
+      };
+    });
+    return [...targets, { id: "cancel", label: "作罢", available: true }];
+  }
   const used = new Set(e.jinnangUsedTags);
   const cards = p.jinnangHand.map((cardId): ChoiceOption => {
     const def = jinnangCardOf(cardId);

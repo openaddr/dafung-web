@@ -26,6 +26,7 @@ export const SCROLL_TESTIDS = {
   jinnangScroll: "scroll-jinnang",
   jinnangOption: (cardId: string) => `scroll-jinnang-option-${cardId}` as const,
   jinnangPass: "scroll-jinnang-pass",
+  jinnangCancel: "scroll-jinnang-cancel",
 
   treasureScroll: "scroll-treasure",
   treasureModeFair: "scroll-treasure-mode-fair",

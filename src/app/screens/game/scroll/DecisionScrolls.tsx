@@ -37,19 +37,24 @@ function useNumberShortcuts(actions: Array<() => void>) {
 // 一致:卷轴只消费 choices)。灰置牌照列(暗置博弈:看见自己有什么、为何不能用)。
 export function JinnangScroll({
   choices,
+  pendingCardId,
   onCommand,
 }: {
   choices: ChoiceOption[];
+  /** 目标段时=被选中的牌(作罢/提交目标都以其名义发命令);卡牌段=null。 */
+  pendingCardId: string | null;
   onCommand: (cmd: GameCommand) => void;
 }) {
+  // 目标段(#122/T3):候选座位 + 作罢(牌保留);卡牌段:手牌 + 今不用
+  const targeting = choices.some((o) => o.targetSeat != null);
   return (
     <ScrollShell title="锦囊" testid={T.jinnangScroll}>
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
-        计上心头。此刻可用一计,或留待来日——掷骰之前,且慢行军。
+        {targeting ? "此计指向何人?" : "计上心头。此刻可用一计,或留待来日——掷骰之前,且慢行军。"}
       </p>
       <div className="flex max-h-[46vh] flex-col items-stretch gap-2 overflow-y-auto px-1">
         {choices
-          .filter((o) => o.id !== "pass")
+          .filter((o) => o.id !== "pass" && o.id !== "cancel")
           .map((o, i) => (
             <ScrollButton
               key={o.id}
@@ -57,12 +62,20 @@ export function JinnangScroll({
               disabled={!o.available}
               title={o.reason ?? o.cardText}
               shortcut={i + 1}
-              onClick={() => onCommand({ type: "useJinnang", cardId: o.id })}
+              onClick={() =>
+                onCommand(
+                  o.targetSeat != null
+                    ? { type: "useJinnang", cardId: pendingCardId, targets: [o.targetSeat] }
+                    : { type: "useJinnang", cardId: o.id },
+                )
+              }
             >
               <span className="inline-flex items-center gap-2">
-                <span className="inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]">
-                  {o.cardTags?.[0] ?? "计"}
-                </span>
+                {o.targetSeat == null && (
+                  <span className="inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]">
+                    {o.cardTags?.[0] ?? "计"}
+                  </span>
+                )}
                 <span className="font-wenkai">{o.label}</span>
                 {o.cardTags && o.cardTags.length > 1 && (
                   <span className="text-[10px] text-ink-dim">{o.cardTags.join("")}</span>
@@ -70,12 +83,21 @@ export function JinnangScroll({
               </span>
             </ScrollButton>
           ))}
-        <ScrollButton
-          testid={T.jinnangPass}
-          onClick={() => onCommand({ type: "useJinnang", cardId: null })}
-        >
-          今不用
-        </ScrollButton>
+        {targeting ? (
+          <ScrollButton
+            testid={T.jinnangCancel}
+            onClick={() => onCommand({ type: "useJinnang", cardId: pendingCardId, cancel: true })}
+          >
+            作罢
+          </ScrollButton>
+        ) : (
+          <ScrollButton
+            testid={T.jinnangPass}
+            onClick={() => onCommand({ type: "useJinnang", cardId: null })}
+          >
+            今不用
+          </ScrollButton>
+        )}
       </div>
     </ScrollShell>
   );

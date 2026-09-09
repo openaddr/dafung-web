@@ -148,6 +148,8 @@ export interface GameSnapshot {
   jinnangDeck: string[];
   /** 本回合已占用的锦囊标签(#122/T2):每回合开始清空。 */
   jinnangUsedTags: string[];
+  /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
+  pendingJinnang: import("./types").PendingJinnang | null;
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
   jinnangDeckCount: number;
   jinnangDiscard: string[];
@@ -344,6 +346,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => [...e.jinnangUsedTags],
     write: (e, s) => {
       e.jinnangUsedTags = [...s.jinnangUsedTags];
+    },
+  },
+  {
+    // 锦囊目标段(#122/T3):选人子状态随快照走(目标段中途恢复不丢)
+    key: "pendingJinnang",
+    read: (e) => (e.pendingJinnang ? { ...e.pendingJinnang, picked: [...e.pendingJinnang.picked] } : null),
+    write: (e, s) => {
+      e.pendingJinnang = s.pendingJinnang ? { ...s.pendingJinnang, picked: [...s.pendingJinnang.picked] } : null;
     },
   },
   {

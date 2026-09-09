@@ -279,8 +279,14 @@ export function DecisionScrollLayer({
 
   // ── 锦囊(#122/T2):回合开始掷骰前,用牌或今不用(选项含灰置手牌)──
   if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingJinnang") {
-    if (snapshot.choices.some((o) => o.id === "pass")) {
-      return <JinnangScroll choices={snapshot.choices} onCommand={dispatch} />;
+    if (snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel")) {
+      return (
+        <JinnangScroll
+          choices={snapshot.choices}
+          pendingCardId={snapshot.pendingJinnang?.cardId ?? null}
+          onCommand={dispatch}
+        />
+      );
     }
   }
 

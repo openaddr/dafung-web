@@ -392,3 +392,111 @@ describe("锦囊渠道(T5)", () => {
     expect(ev!.cashDelta).toBe(0);
   });
 });
+
+// ──────────────────────────── 目标段与指向他人(T3)────────────────────────────
+describe("锦囊目标段(T3)", () => {
+  it("缓兵之计入目标段:候选含国号+作罢;免战庇护灰置;选定后 skipTurns+1", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null); // 清开局相位
+    armJinnang(e, ["缓兵之计"]);
+    e.resolveJinnang("缓兵之计"); // 选牌 → 入目标段
+    expect(e.turnPhase).toBe("AwaitingJinnang");
+    expect(e.pendingJinnang).toMatchObject({ cardId: "缓兵之计", stage: "one" });
+    const targets = e.choicesFor().filter((o) => o.targetSeat != null);
+    expect(targets.length).toBe(2); // 2 人局:另一个 + 自己(自己灰置)
+    expect(targets.find((o) => o.targetSeat === 0)?.available).toBe(false);
+    expect(targets.find((o) => o.targetSeat === 0)?.reason).toBe("不能指定自己");
+    expect(targets.find((o) => o.targetSeat === 1)?.available).toBe(true);
+    // 免战庇护:给对方立盾 → 灰置
+    e.players[1].jinnangShield = true;
+    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.reason).toBe("免战庇护");
+    e.players[1].jinnangShield = false;
+    // 作罢:牌保留,回卡牌段(牌仍可用 → 停留相位)
+    e.resolveJinnang("缓兵之计", undefined, true);
+    expect(e.pendingJinnang).toBeNull();
+    expect(e.activePlayer.jinnangHand).toContain("缓兵之计");
+    expect(e.turnPhase).toBe("AwaitingJinnang");
+    // 再选牌进目标段并选定:skipTurns+1
+    e.resolveJinnang("缓兵之计");
+    e.resolveJinnang("缓兵之计", [1]);
+    expect(e.players[1].skipTurns).toBe(1);
+    expect(e.turnPhase).toBe("Roll");
+    expect(e.activePlayer.jinnangHand).toEqual([]);
+  });
+
+  it("窃玉偷香:无珍宝灰置;有珍宝 → 随机夺一张(骰驱)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const victim = e.players[1];
+    armJinnang(e, ["窃玉偷香"]);
+    e.resolveJinnang("窃玉偷香");
+    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(false);
+    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.reason).toBe("无珍宝");
+    victim.treasures.push({ id: "t1", name: "和氏璧", level: 3 }, { id: "t2", name: "随侯珠", level: 2 });
+    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
+    e.resolveJinnang("窃玉偷香", [1]);
+    expect(e.activePlayer.treasures.length).toBe(1);
+    expect(victim.treasures.length).toBe(1);
+  });
+
+  it("火烧连营:有可升级城 → 降 1 级;全 0 级 → 失一座(回无主)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const victim = e.players[1];
+    const cap = victim.properties[0];
+    cap.level = 2;
+    victim.properties.forEach((h) => { if (h !== cap) h.level = 2; });
+    armJinnang(e, ["火烧连营"]);
+    e.resolveJinnang("火烧连营");
+    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
+    e.resolveJinnang("火烧连营", [1]);
+    expect(victim.properties.length).toBe(1);
+    expect(victim.properties[0].level).toBe(1); // 2→1 降级(单城可升级)
+    // 全 0 级:再烧 → 失城(清攻名额:跨回合才可再出同标签,此处单测直接开账重置)
+    victim.properties[0].level = 0;
+    e.jinnangUsedTags = [];
+    armJinnang(e, ["火烧连营"]);
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [1]);
+    expect(victim.properties.length).toBe(0);
+    expect(e.findOwner(cap.propertyId)).toBeNull(); // 回无主
+  });
+
+  it("横征暴敛:全体域无目标段直接执行;上限=现金;免战者跳过", () => {
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["横征暴敛"]);
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const others = [0, 1, 2].filter((i) => i !== userSeat);
+    const payer = e.players[others[0]];
+    const shielded = e.players[others[1]];
+    payer.cash = 80; // 不足 200 → 倾囊 80
+    shielded.jinnangShield = true; // 庇护 → 跳过
+    const before = user.cash;
+    e.resolveJinnang("横征暴敛"); // 无目标段:一次提交即执行
+    expect(e.pendingJinnang).toBeNull();
+    expect(payer.cash).toBe(0);
+    expect(shielded.jinnangShield).toBe(true);
+    expect(user.cash).toBe(before + 80);
+  });
+
+  it("目标段载荷随快照往返(two-a 场景在 T4 连环计覆盖)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["缓兵之计"]);
+    e.resolveJinnang("缓兵之计");
+    const e2 = makeEngine(1);
+    e2.restoreFromSnapshot(e.snapshot());
+    expect(e2.pendingJinnang).toEqual(e.pendingJinnang);
+  });
+});
