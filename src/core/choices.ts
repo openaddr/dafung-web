@@ -11,6 +11,19 @@ import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
 import type { EncounterChoiceOption } from "./encounters";
+import { jinnangCardOf, type JinnangEffect } from "./jinnang";
+
+/** 已接入结算的锦囊效果种类(T2:自身域两张;T3/T4 逐票点亮,灰置原因「此计暂未启用」)。 */
+export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set([
+  "jinnangShield",
+  "grantHero",
+  "levyAll", // T3:指向他人四牌
+  "stealTreasure",
+  "demolish",
+  "skipTurn",
+  "duel", // T4:连环计二虎竞食
+  "peek", // T4:军情密探
+]);
 
 /** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
 export interface ChoiceOption {
@@ -25,6 +38,12 @@ export interface ChoiceOption {
   /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
   holdingPropertyId?: string;
   exhaustionKind?: "downgrade" | "lose";
+  /** 锦囊卷轴专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
+   *  id 即 cardId(pass=今不用)。 */
+  cardText?: string;
+  cardTags?: string[];
+  /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
+  targetSeat?: number;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -190,6 +209,79 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
+/** 目标有效性(#122/T3):非己、存活、未被免战庇护;卡面附加条件由 effectKind 分派。 */
+export function jinnangTargetOk(e: GameEngine, user: number, target: number, effectKind: JinnangEffect["kind"]): { ok: boolean; reason?: string } {
+  const t = e.players[target];
+  if (target === user) return { ok: false, reason: "不能指定自己" };
+  if (t.isBankrupt) return { ok: false, reason: "已出局" };
+  if (t.jinnangShield) return { ok: false, reason: "免战庇护" };
+  switch (effectKind) {
+    case "stealTreasure":
+      if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
+      break;
+    case "demolish":
+      if (t.properties.length === 0) return { ok: false, reason: "无城池" };
+      break;
+  }
+  return { ok: true };
+}
+
+/** AwaitingJinnang(锦囊,#122/T2):卡牌段=手牌逐张 +「今不用」;目标段(T3)=
+ *  pendingJinnang 在场时改列候选座位 +「作罢」。effect 尚未接入结算的种类灰置。 */
+function jinnangChoices(e: GameEngine): ChoiceOption[] {
+  const p = e.activePlayer;
+  const pending = e.pendingJinnang;
+  if (pending) {
+    const def = jinnangCardOf(pending.cardId);
+    const exclude = pending.stage === "two-b" ? pending.picked : [];
+    const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
+      const excluded = exclude.includes(seat);
+      const verdict = jinnangTargetOk(e, e.players.indexOf(p), seat, def.effect.kind);
+      const ok = !excluded && verdict.ok;
+      return {
+        id: `t${seat}`,
+        label: t.guohao || t.name,
+        available: ok,
+        reason: excluded ? "已指定" : ok ? undefined : verdict.reason,
+        targetSeat: seat,
+      };
+    });
+    return [...targets, { id: "cancel", label: "作罢", available: true }];
+  }
+  const used = new Set(e.jinnangUsedTags);
+  const cards = p.jinnangHand.map((cardId): ChoiceOption => {
+    const def = jinnangCardOf(cardId);
+    const quotaBlocked = def.tags.some((t) => used.has(t));
+    const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
+    // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4)
+    const needTwo = def.targetDomain === "two-others";
+    const validTargets = needTwo
+      ? e.players.filter((_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok).length
+      : 0;
+    const targetsShort = needTwo && validTargets < 2;
+    return {
+      id: cardId,
+      label: def.id,
+      available: !quotaBlocked && implemented && !targetsShort,
+      reason: !implemented
+        ? "此计暂未启用"
+        : targetsShort
+          ? "对手不足"
+          : quotaBlocked
+            ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
+            : undefined,
+      cardText: def.text,
+      cardTags: def.tags,
+    };
+  });
+  return [...cards, { id: "pass", label: "今不用", available: true }];
+}
+
+/** 锦囊卡牌段「仍有可用牌」单源判定(#122):相位进入与用牌收尾共用,防两处漂移。 */
+export function hasUsableJinnang(e: GameEngine): boolean {
+  return computeChoices(e, "AwaitingJinnang").some((o) => o.available && o.cardTags != null);
+}
+
 /** 决策相位 → 选项计算器。未注册的相位(Roll/Land/EndTurn/GameOver)无决策。 */
 export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceOption[]>> = {
   AwaitingDecision: decisionChoices,
@@ -197,6 +289,7 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingBranch: branchChoices,
   AwaitingHeroPick: heroPickChoices,
   AwaitingEncounter: encounterChoices,
+  AwaitingJinnang: jinnangChoices,
   AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
 };

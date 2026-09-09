@@ -14,6 +14,9 @@ import type { GameSnapshot } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 
 export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewSeat: number }) {
+  // 军情密探(#122/T4):本座位进行中的窥探目标——只有这些对手行的手牌内容到端
+  // (投影放行,ADR-0016);单机 god-view 快照内容虽在,门控同样按窥探清单,bot 手牌不漏
+  const peeking = new Set((snapshot.jinnangPeeks ?? []).filter((pk) => pk.viewer === viewSeat).map((pk) => pk.target));
   return (
     <section data-testid={TESTIDS.othersPanel} className="flex min-h-0 shrink-0 flex-col px-3 pb-2">
       <h3 className="note-head shrink-0 py-1 text-xs tracking-[0.25em] text-ink-dim">
@@ -83,7 +86,7 @@ export function OthersPanel({ snapshot, viewSeat }: { snapshot: GameSnapshot; vi
             {p.jinnangHandCount > 0 && (
               <span
                 data-testid={TESTIDS.jinnangCount(seat)}
-                title={`锦囊 ×${p.jinnangHandCount}(内容暗置)`}
+                title={peeking.has(seat) && p.jinnangHand.length > 0 ? `锦囊 ×${p.jinnangHandCount}(窥探:${p.jinnangHand.join("、")})` : `锦囊 ×${p.jinnangHandCount}(内容暗置)`}
                 className="shrink-0 rotate-[-4deg] rounded-[2px] border border-[rgba(43,35,23,0.3)] bg-panel-hi px-1 font-brush text-[10px] leading-4 text-ink-dim"
               >
                 囊{p.jinnangHandCount}

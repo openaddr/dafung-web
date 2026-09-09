@@ -3,7 +3,7 @@
 // this.dice(种子化,保命令流重放,ADR-0014)。id 用中文且必须自带因果(名字与效果互证)。
 
 export type EncounterTier = "好运" | "中性" | "霉运";
-export type EncounterTag = "银两" | "武将" | "珍宝" | "城池" | "声望" | "玩家" | "体力";
+export type EncounterTag = "银两" | "武将" | "珍宝" | "城池" | "声望" | "玩家" | "体力" | "锦囊";
 
 /** 即时效果。银两负值走引擎支付/清算(破产与购地同规则);
  *  siphon/levy 是玩家间银两转移:上限=付款方现有现金,不触发对方清算。
@@ -13,6 +13,7 @@ export type EncounterEffect =
   | { kind: "cash"; delta: number; staminaDelta?: number }
   | { kind: "grantTreasure"; staminaDelta?: number }
   | { kind: "grantHero"; fallbackCash: number; staminaDelta?: number }
+  | { kind: "grantCard"; staminaDelta?: number } // #147:获得一张锦囊(圯上授书)
   | { kind: "grantCity"; fallbackCash: number; staminaDelta?: number }
   | { kind: "siphon"; amount: number; staminaDelta?: number }
   | { kind: "levy"; amount: number; staminaDelta?: number }
@@ -48,6 +49,7 @@ export const ENCOUNTERS: EncounterDef[] = [
   { id: "风调雨顺", tier: "好运", tags: ["银两"], weight: 1, text: "五谷丰登,市税多入", effect: { kind: "cash", delta: 100 } },
   { id: "神医行诊", tier: "好运", tags: ["体力"], weight: 0.8, text: "神医路过举家调理", effect: { kind: "cash", delta: 0, staminaDelta: 25 } },
   { id: "义士来投", tier: "好运", tags: ["武将"], weight: 0.8, text: "贤士慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
+  { id: "圯上授书", tier: "好运", tags: ["锦囊"], weight: 0.8, text: "圯上老人授你锦囊妙计一封", effect: { kind: "grantCard" } }, // #147:机遇→锦囊流通
   { id: "窖藏现世", tier: "好运", tags: ["珍宝"], weight: 0.8, text: "掘地三尺,挖出前朝窖藏", effect: { kind: "grantTreasure" } },
   { id: "传檄而定", tier: "好运", tags: ["城池"], weight: 0.2, text: "檄文所至,一座无主城望风归降", effect: { kind: "grantCity", fallbackCash: 300 } },
   { id: "敌营哗变", tier: "好运", tags: ["银两", "玩家"], weight: 0.8, text: "敌营哗变,士卒携粮来投", effect: { kind: "siphon", amount: 150 } },

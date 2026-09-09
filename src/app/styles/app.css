@@ -5,6 +5,29 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
+/* shadcn/ui 变量桥:shadcn 组件消费其自有的语义变量(--background 等);
+   这里把它们定义为 gen:theme 产出的 --color-* token 的别名——单源仍是 core/theme.ts,
+   本块只是别名映射,不引入第二个颜色事实源。 */
+:root {
+  --background: var(--color-bg);
+  --foreground: var(--color-ink);
+  --card: var(--color-panel);
+  --card-foreground: var(--color-ink);
+  --primary: var(--color-gold);
+  --primary-foreground: var(--color-ink);
+  --secondary: var(--color-panel-hi);
+  --secondary-foreground: var(--color-ink);
+  --muted: var(--color-panel-hi);
+  --muted-foreground: var(--color-ink-dim);
+  --accent: var(--color-panel-hi);
+  --accent-foreground: var(--color-ink);
+  --destructive: var(--color-danger);
+  --border: rgba(43, 35, 23, 0.28);
+  --input: rgba(43, 35, 23, 0.28);
+  --ring: var(--color-gold);
+  --radius: 0.1875rem; /* 3px,与卷轴/纸面圆角一致 */
+}
+
 html,
 body,
 #app {

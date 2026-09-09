@@ -91,6 +91,7 @@ const INPUT_PHASES = new Set([
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
+  "AwaitingJinnang", // 锦囊(#122/T2):bot 恒「今不用」保守推进(策略表在 T6)
 "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
@@ -151,9 +152,11 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
  *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
  *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
 export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
+  // 军情密探(#122/T4):本座位进行中的窥探目标,内容对 viewer 放行
+  const peeked = new Set(s.jinnangPeeks.filter((pk) => pk.viewer === seat).map((pk) => pk.target));
   const players = s.players.map((p, i) => {
     // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
-    if (i === seat) return p;
+    if (i === seat || peeked.has(i)) return p;
     return { ...p, jinnangHand: [] };
   });
   return {
@@ -286,7 +289,16 @@ export class RoomRegistry {
     for (const id of this.persistence.listIds()) {
       const rec = this.persistence.load(id);
       if (!rec) continue;
-      const room = this.hydrate(rec, mapProvider);
+      // 旧版本快照(字段集已过时)不可恢复 → 跳过该房间,与持久化层「损坏文件跳过」同口径:
+      // 启动 resilience 归这里,不靠快照 write 兜底(零兜底红线)
+      let room: RoomSession;
+      try {
+        room = this.hydrate(rec, mapProvider);
+      } catch (err) {
+        console.warn(`[room] 跳过不可恢复的房间 ${id}:`, err instanceof Error ? err.message : err);
+        this.persistence.remove(id);
+        continue;
+      }
       this.rooms.set(rec.roomId, room);
       onRestored?.(room);
       count++;
@@ -659,7 +671,7 @@ export class RoomRegistry {
         const delay = stepDelayMs(r, owner);
         const before = fingerprint(e);
         if (setup) e.aiSetupStepFor(owner);
-        else botAct(e);
+        else botAct(e, { conservative: r.takeover.has(owner) && !r.autoPilot.has(owner) }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略
         this.observe(r, { ev: "bot-step", seat: owner, turnPhase: e.turnPhase, active: e.activeIndex });
         this.persist(r);
         onUpdate?.(r); // 每步直播

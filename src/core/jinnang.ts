@@ -13,7 +13,7 @@ export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others";
 
 /** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地)。 */
 export type JinnangEffect =
-  | { kind: "rentImmunity" } // 免战金牌:下一次应付租金全免,持续到下回合开始
+  | { kind: "jinnangShield" } // 免战金牌:他人的锦囊无法指定你,至你下回合开始
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,贤士尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
@@ -66,8 +66,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
   },
   {
     id: "免战金牌", copies: 2, tags: ["守"], targetDomain: "self",
-    text: "持此牌者,下一次应付的租金尽数豁免(至你下回合开始)。",
-    effect: { kind: "rentImmunity" },
+    text: "免战旗张:他人的锦囊无法指定你为目标(至你下回合开始)。",
+    effect: { kind: "jinnangShield" },
   },
   {
     id: "求贤令", copies: 2, tags: ["援"], targetDomain: "self",

@@ -49,6 +49,10 @@ function dumbHumanCommand(e: GameEngine): boolean {
     case "AwaitingBranch":
       e.submitCommand({ type: "selectBranch", kind: "Main" });
       return true;
+    case "AwaitingJinnang":
+      // 锦囊(#122/T2):笨人类恒「今不用」,cmd 行(useJinnang)照记照重放
+      e.submitCommand({ type: "useJinnang", cardId: null });
+      return true;
     case "AwaitingDecision":
       e.submitCommand({ type: "endDecision" });
       return true;

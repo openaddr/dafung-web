@@ -541,35 +541,13 @@
       "resupplyPerLevel": 300
     },
     {
-      "id": "prop-ziwu",
-      "name": "子午谷",
+      "id": "tile-chance-2",
+      "name": "锦囊",
       "pos": [
         -598,
         122
       ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 2400,
-      "buildCost": 1200,
-      "tradeAdd": [
-        200,
-        700,
-        1800,
-        4000
-      ],
-      "valueByLevel": [
-        1000,
-        1400,
-        2000,
-        2900
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
-      "resupplyPerLevel": 300
+      "type": "Chance"
     },
     {
       "id": "prop-jieting",

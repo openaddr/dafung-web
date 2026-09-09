@@ -62,6 +62,7 @@ const INPUT_PHASES = new Set([
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):与 room.ts 同源补齐
+  "AwaitingJinnang", // 锦囊(#122/T2):botAct 走策略表(T6),骰驱确定性,重放一致
 "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",

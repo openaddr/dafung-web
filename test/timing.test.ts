@@ -12,6 +12,13 @@ import type { GameMoment, MomentCtx } from "@core/timing";
 import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
+/** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
+ *  pass 不掷骰,骰流与断言不受扰。 */
+function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(e: T): T {
+  while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+  return e;
+}
+
 
 const MAP = loadMap(sanguoData);
 
@@ -40,6 +47,9 @@ function finishSetup(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
+  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122)
+  if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
+
 }
 
 /** 驱动当前玩家完成回合(默认抉择),直到进入下一玩家 Roll 或 GameOver。 */
@@ -58,7 +68,7 @@ function autoResolve(e: GameEngine) {
 /** 打满一整轮(每位玩家各行动一次)。 */
 function playFullRound(e: GameEngine) {
   for (let i = 0; i < e.players.length && !e.isOver; i++) {
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
   }
 }
@@ -115,7 +125,7 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
     .some((t) => t === p.capitalIndex && t !== targetTile);
   if (passesCapital) throw new Error(`测试场景无效:落 #${targetTile} 的路径途经都城 #${p.capitalIndex}(必停截断)`);
   testEngine(e).placeActive(from);
-  e.rollAndMove();
+  passJinnang(e).rollAndMove();
 }
 
 /** 任选一座无主普通城(非任何人都城、非辅路起点):构造购城/落城/途经场景。 */
@@ -142,9 +152,9 @@ describe("时机框架:派发点位", () => {
     const e = makeEngine(1);
     const calls = recordMoments(e);
     finishSetup(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e); // 第一位玩家完整回合
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
     // seed=1 下第二位玩家落天命格:#121 后天命格改为 +20 声望(不再抽随机坏事),
@@ -215,7 +225,7 @@ describe("时机框架:派发点位", () => {
       finishSetup(e);
       const mover = e.activePlayer;
       const from = mover.position;
-      e.rollAndMove();
+      passJinnang(e).rollAndMove();
       autoResolve(e);
       const before = captured.find((c) => c.when === "BeforeMarch")!;
       const after = captured.find((c) => c.when === "AfterMarch")!;
@@ -246,7 +256,7 @@ describe("时机框架:确定性与 scope", () => {
       );
       finishSetup(e);
       for (let t = 0; t < 6 && !e.isOver; t++) {
-        e.rollAndMove();
+        passJinnang(e).rollAndMove();
         autoResolve(e);
       }
       return e.log
@@ -391,7 +401,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
     e.players[0].heroes.push(withBonus());
     e.players[1].heroes.push(withBonus());
     finishSetup(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
     const rollLog = e.log.filter((l) => l.category === "roll").pop()!;
     expect(rollLog.detail).toContain("bonus=3"); // 1 + 2 叠加
@@ -434,7 +444,7 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
     const entries = recordMomentCtx(e);
     const winner = e.activeIndex;
     e.activePlayer.cash = e.targetNetWorth + 1000; // 身价=仅现金;+1000 抗落格支出
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
     expect(e.isOver).toBe(true);
     expect(e.winReason).toBe("TargetNetWorth");
@@ -464,7 +474,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
       e.players[1].heroes.push(captureHero());
       finishSetup(e);
       const calls = recordMoments(e);
-      e.rollAndMove();
+      passJinnang(e).rollAndMove();
       autoResolve(e);
       // 先后顺序:BeforeMarch < BeforeRoll < DieRolled(首掷序列内钉死)
       expect(calls.indexOf("BeforeMarch")).toBeLessThan(calls.indexOf("BeforeRoll"));
@@ -507,7 +517,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
     mover.onBranch = { step: 0 }; // 在辅路第 0 格
     testEngine(e).placeActive(e.board.branch!.startNode); // 辅路行军时主路位置=入口占位
     const entries = recordMomentCtx(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     autoResolve(e);
     const bx = entries.filter((x) => x.moment === "BranchExited");
     expect(bx).toHaveLength(1); // 恰好一次(汇入主路)
@@ -531,7 +541,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     testEngine(e).placeActive((mover.capitalIndex - 1 + n) % n);
     const { supply } = e.capitalSupplyOf(mover);
     const entries = recordMomentCtx(e);
-    e.rollAndMove();
+    passJinnang(e).rollAndMove();
     expect(mover.position).toBe(mover.capitalIndex); // 必停都城
     const halt = entries.filter((x) => x.moment === "CapitalHalt");
     expect(halt).toHaveLength(1);

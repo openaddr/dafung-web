@@ -167,4 +167,7 @@ function finishSetupLite(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
+  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122)
+  if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
+
 }

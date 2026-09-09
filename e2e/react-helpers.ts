@@ -31,7 +31,36 @@ export async function quickStart(page: Page, seed?: number): Promise<void> {
 export async function pickCapital(page: Page, nth = 0): Promise<void> {
   await page.locator(".bv-tile.bv-selectable").nth(nth).click();
   await page.getByTestId("confirm-capital-ok").click();
+  // 选都完进 Playing 时起手有牌即停锦囊相位(#122/T2):共享出口统一「今不用」放行。
+  // 卷轴与行军钮谁先出现等谁——isVisible 瞬时探测会跑赢卷轴异步挂载(竞速漏放),
+  // 无脑 click(5s) 又在卷轴不弹时白烧超时,两种都炸过全量。
+  await page
+    .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+    .catch(() => null);
+  await dismissJinnangIfUp(page);
 }
+
+/** 锦囊卷轴在场则「今不用」放行(#122/T2);无卷轴零等待。
+ *  各用例/驱动循环的放行点统一走此助手,勿再复制可见性探测块。 */
+export async function dismissJinnangIfUp(page: Page): Promise<void> {
+  const jp = page.getByTestId("scroll-jinnang-pass");
+  if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
+}
+
+/** 等行军可用(先放行锦囊卷轴,#122/T2):「今不用」保留手牌,其后每回合开始卷轴会
+ *  再弹——多回合用例的「等下回合」断言一律走本助手,不裸等 roll-button enabled。 */
+export async function expectRollEnabled(page: Page, timeout = 30_000): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        await dismissJinnangIfUp(page);
+        return page.getByTestId("roll-button").isEnabled().catch(() => false);
+      },
+      { timeout, message: "行军可用(锦囊卷轴已放行)" },
+    )
+    .toBe(true);
+}
+
 
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。
  *  机遇归零(#126):存量 spec 的钉死断言不耐受随机机遇,起兵前把触发率与三档全部
@@ -108,6 +137,14 @@ export function fmtMoney(cash: number): string {
  *  系统性破坏下,Playwright 会为 actionability 重试到测试超时(60-240s/次)——
  *  收敛为 10s 失败即 false,交还调用方的 stall 预算,快速失败并给出局面报告。 */
 export async function actIfCan(p: Page): Promise<boolean> {
+  // 锦囊卷轴(#122/T2):回合开始掷骰前可能弹出——默认「今不用」放行,绝不替测试用牌。
+  // 必须先于 roll-button(相位未过前行军恒禁用)与通配 scroll 分支(会误点第一张牌)。
+  const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+  if (await jinnangPass.isVisible().catch(() => false)) {
+    return jinnangPass
+      .click({ timeout: 10_000 })
+      .then(() => true, () => false);
+  }
   const roll = p.getByTestId("roll-button");
   if (await roll.isEnabled().catch(() => false)) {
     const ok = await roll

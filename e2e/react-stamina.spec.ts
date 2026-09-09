@@ -2,7 +2,7 @@
 // (addStamina/exhaustIfDepleted)置耗竭态,验证 UI 链路:耗竭卷轴弹出 → 自选降级 →
 // 体力回 100 + 跳回合标记 + 侧栏体力渲染。机遇→体力的规则正确性在引擎单测覆盖。
 import { test, expect } from "./fixtures";
-import { openSoloSetup, pickCapital, waitSettled } from "./react-helpers";
+import { openSoloSetup, pickCapital, waitSettled, expectRollEnabled } from "./react-helpers";
 
 test.describe("体力系统冒烟", () => {
   test("体力耗竭:卷轴弹出、自选降级、体力回 100、跳回合、侧栏渲染", async ({ page }) => {
@@ -10,7 +10,7 @@ test.describe("体力系统冒烟", () => {
     await openSoloSetup(page);
     await page.getByTestId("start-game").click();
     await pickCapital(page);
-    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+    await expectRollEnabled(page); // 锦囊相位放行(#122):pickCapital 已放一次,此处防后续回合竞速
     await waitSettled(page);
 
     // 前置(引擎直写):都城压到 1 级 + 添一座 2 级房产(耗竭选项 = 2,走卷轴不自动),
