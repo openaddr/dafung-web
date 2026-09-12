@@ -32,7 +32,16 @@ test.describe("8 人局矮视口", () => {
     for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // X10 stepper:4 → 8
     await page.getByTestId("start-game").click();
     await pickCapital(page);
-    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+    // 8 人局:人类首回合前最多 7 个 bot 回合(发牌 + 每回合起手的锦囊相位 + 行军结算),
+    // 30s 固定窗必爆(#191)。改「轮到我」显式条件:锦囊卷轴(点今不用)或 roll-button 可点,预算 90s。
+    const mine = await page.waitForSelector(
+      '[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])',
+      { timeout: 90_000 },
+    );
+    if ((await mine.getAttribute("data-testid")) === "scroll-jinnang-pass") {
+      await page.getByTestId("scroll-jinnang-pass").click(); // 人类起手锦囊相位:今不用放行
+    }
+    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 10_000 });
     await waitSettled(page);
 
     const list = page.getByTestId("others-list");
