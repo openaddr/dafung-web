@@ -28,8 +28,6 @@ import { BoardView } from "@app/components/board/BoardView";
 // S2:卷轴式弹窗——只 import 不改 scroll/ 目录(并行 agent 可能动它)
 import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
 import { ScrollShell, ScrollButton } from "@app/screens/game/scroll/ScrollShell";
-// S4(#37):InputScroll 焦点陷阱(screens/shared;Tab 不出卷轴、关闭还焦触发钮)
-import { useDialogFocus } from "@app/screens/shared/useDialogFocus";
 import { Sym } from "@app/screens/shared/Sym";
 import { TID } from "./testids";
 
@@ -114,45 +112,43 @@ function InputScroll({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(defaultValue);
-  // S4(#37):焦点陷阱——输入框 autoFocus 已在容器内,hook 不抢焦;Tab 圈定卷轴内,
-  // 关闭(卸载)还焦触发钮。trapRef 外壳不参与布局,仅作 Tab 循环边界。
-  const trapRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(trapRef);
+  // #174:焦点陷阱不再自配——InputScroll 主体就是 ScrollShell,壳内 DialogFocusScope
+  // (FocusScope 惯用法)已提供 Tab 圈定与关闭还焦;输入框 autoFocus 保持直接可输入
+  // 手感(挂载不夺焦口径,焦点已在壳内)。原 useDialogFocus 外壳 trapRef 是与壳内
+  // 陷阱并存的双实现,收编删除。
   // X11(#30):空名禁确定(与 confirmSaveAs 的空名守卫同口径,按钮态直接可见)
   const trimmed = value.trim();
   const canConfirm = trimmed.length > 0;
   return (
-    <div ref={trapRef}>
-      <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
-        {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
-        <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-ink">
-          {label}
-          <input
-            // 自动聚焦:prompt 的默认行为是直接可输入,卷轴版保持等价手感
-            autoFocus
-            data-testid="editor-name-input"
-            className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-wenkai text-base text-ink"
-            value={value}
-            onChange={(e) => setValue(e.target.value)}
-            onKeyDown={(e) => {
-              // X11(#30):IME 组合窗内的回车只做选字上屏,不触发确定(撞中文输入法);
-              // key === "Process" 兜住部分浏览器合成期 keydown 的等价信号
-              if (e.nativeEvent.isComposing || e.key === "Process") return;
-              // 回车确认 = prompt 的确定路径;空值与确定钮同口径禁用
-              if (e.key === "Enter" && canConfirm) onOk(trimmed);
-            }}
-          />
-        </label>
-        <div className="flex flex-wrap justify-center gap-3">
-          <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(trimmed)} disabled={!canConfirm}>
-            确定
-          </ScrollButton>
-          <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
-            取消
-          </ScrollButton>
-        </div>
-      </ScrollShell>
-    </div>
+    <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
+      {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
+      <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-ink">
+        {label}
+        <input
+          // 自动聚焦:prompt 的默认行为是直接可输入,卷轴版保持等价手感
+          autoFocus
+          data-testid="editor-name-input"
+          className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-wenkai text-base text-ink"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            // X11(#30):IME 组合窗内的回车只做选字上屏,不触发确定(撞中文输入法);
+            // key === "Process" 兜住部分浏览器合成期 keydown 的等价信号
+            if (e.nativeEvent.isComposing || e.key === "Process") return;
+            // 回车确认 = prompt 的确定路径;空值与确定钮同口径禁用
+            if (e.key === "Enter" && canConfirm) onOk(trimmed);
+          }}
+        />
+      </label>
+      <div className="flex flex-wrap justify-center gap-3">
+        <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(trimmed)} disabled={!canConfirm}>
+          确定
+        </ScrollButton>
+        <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
+          取消
+        </ScrollButton>
+      </div>
+    </ScrollShell>
   );
 }
 
