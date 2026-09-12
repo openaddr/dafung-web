@@ -43,7 +43,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 ### 6. UI 组件优先 shadcn 按需取用(2026-09 定)
 - **每次新增/重构交互类 UI 组件(弹层、下拉、确认框、表单控件、popover 等),优先 `bunx shadcn add <component>` 取 shadcn 版为底**(无头行为层:焦点陷阱/ARIA/键盘导航,零成本白拿;原语库 2026-09-12 定 **Base UI**——shadcn 新项目默认,Radix 转维护,见地图 #152/#158),再套本项目水墨皮;不要手搓交互语义。基建已就位:`components.json` + `@app/utils/cn` + `src/app/components/ui/dialog.tsx`(已改皮,后续 CLI 更新时 diff 保留皮差异)
 - shadcn 的 CSS 变量(`--background` 等)在 `app.css` 桥接层引用 gen:theme 产出的 `--color-*` token——**单源仍是 `core/theme.ts`**,不得在组件里硬编码 shadcn 默认色,也不得把 shadcn 变量当第二个事实源
-- 两条豁免:①纯视觉/器物件(棋盘 SVG、卷轴装饰、画像卡)不在此列;②器物级自定义皮肤(如游戏卷轴 `ScrollShell`)可直接用无头原语自行组皮,但行为口径(焦点陷阱/Esc/点外关闭)必须与 ui/ 底件一致;Base UI 无独立 FocusScope(#158),ScrollShell 的内联焦点陷阱保留 `@radix-ui/react-focus-scope` 单点
+- 两条豁免:①纯视觉/器物件(棋盘 SVG、卷轴装饰、画像卡)不在此列;②器物级自定义皮肤(如游戏卷轴 `ScrollShell`)可直接用无头原语自行组皮,但行为口径(焦点陷阱/Esc/点外关闭)必须与 ui/ 底件一致;Base UI 无独立 FocusScope(#158),ScrollShell 的内联焦点陷阱保留 `@radix-ui/react-focus-scope` 单点;**卷轴/弹层挂载不夺焦**(FocusScope onMountAutoFocus 恒 preventDefault——首焦点若落在 × 关闭钮会促成 Enter 误关),新弹层沿用此口径
 
 ## 技术栈
 - 构建:Vite (TypeScript strict)
