@@ -903,6 +903,34 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           ) : null}
         </>
       )}
+      {/* X4+:选都可点指示——描边金环叠于卡面之上。原仅垫底金盘(hilite r=62),
+          被卡片遮挡只露边缘光晕,脉冲谷底 0.18 近乎不可见(用户实测「看不出来
+          哪些能选」)。selectable=呼吸描边(与底盘同拍);候选(他席旁观)=静态细环。 */}
+      {state.isSelectable ? (
+        <rect
+          className="bv-pick-ring"
+          x={-52}
+          y={-44}
+          width={104}
+          height={88}
+          rx={10}
+          fill="none"
+          stroke={rgba(Theme.goldBright)}
+          strokeWidth={3.5}
+        />
+      ) : state.capitalCandidateOrder != null ? (
+        <rect
+          className="bv-pick-ring-static"
+          x={-51}
+          y={-43}
+          width={102}
+          height={86}
+          rx={9}
+          fill="none"
+          stroke={rgba(Theme.gold)}
+          strokeWidth={2}
+        />
+      ) : null}
     </g>
   );
 });

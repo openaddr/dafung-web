@@ -41,34 +41,26 @@ export function HomeScreen({
   const mapName = useMapName(mapSource, selectedMapId);
 
   // S1 仪式感三件套:入场 stagger(标题 0.3s 先行,按钮 300ms 起 80ms/个,包裹层播动画)/
-  // 笔触下划线 hover / 按压 scale .97,均在 home.css;testid 与布局(grid 结构)不变。
+  // 笔触下划线 hover / 按压 scale .97,均在 home.css;testid 不变。
   // H-3 tracking 尾部溢出:大字距末字后拖 0.3em 空白致文本视觉偏左,
   // 左内边距补偿同量(pl 用唯一 utility,避免与 px 的 padding-left 冲突)。
   // 视觉重做 v2:主入口(单机)走墨钮 ink-btn 种,其余笺纸 note-btn——墨=落子无悔。
-  // W2 包E(审计 A3):圆角归主控件档 5px(墨钮/笺钮同档,rounded-lg 8px 超档)。
+  // W2 包E(审计 A3):圆角归主控件档 5px。
+  // 层级修订(用户反馈「四钮样式大小不一致」):原 2×2 等宽栅格里「同行异材质+上下两档」
+  // 读作不一致而非层级。改为诚实层级——主入口(单机)通栏墨钮,三个次级入口同行同档同材质:
+  // 层级由「通栏占位 + 墨/笺材质」表达,不再由同行内的样式差表达。
   const btnBase =
     "home-btn-brush rounded-[5px] border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] cursor-pointer transition-colors";
-  const entries: Array<{
-    tid: string;
-    label: string;
-    onClick: () => void;
-    // R3-B14 尺寸档:玩法入口(单机/联机)大档 py-5 text-2xl≈72px,工具入口(选图/编辑)
-    // 小档 py-4 text-xl≈64px,8px 高差+两排 20px 行距形成「玩法在上、工具在下」的层级;
-    // 尺寸类只出现在这一档字段里,与 btnBase 无同属性冲突。
-    size: string;
-    extra: string;
-  }> = [
-    // H-1:金底变体的笔触下划线取反为墨线(见 home.css);视觉重做 v2:主行动改墨钮
-    { tid: HOME_TID.solo, label: "单机模式", onClick: onSolo, size: " py-5 text-2xl", extra: " home-btn-gold ink-btn font-bold" },
-    { tid: HOME_TID.online, label: "联机模式", onClick: onOnline, size: " py-5 text-2xl", extra: " note-btn" },
-    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true), size: " py-4 text-xl", extra: " note-btn" },
-    {
-      tid: HOME_TID.editMap,
-      label: "编辑地图",
-      onClick: () => onEdit(selectedMapId),
-      size: " py-4 text-xl",
-      extra: " note-btn",
-    },
+  const primary = {
+    tid: HOME_TID.solo,
+    label: "单机模式",
+    onClick: onSolo,
+    cls: `${btnBase} w-full py-5 text-2xl home-btn-gold ink-btn font-bold`,
+  };
+  const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
+    { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
+    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) },
+    { tid: HOME_TID.editMap, label: "编辑地图", onClick: () => onEdit(selectedMapId) },
   ];
 
   return (
@@ -105,20 +97,27 @@ export function HomeScreen({
         </div>
       </div>
 
-      {/* R3-B14:gap-y-5 拉开两排 20px,配合尺寸档形成上下分组;横向 560px 栅格与 gap-x-4 不变 */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5 w-[min(560px,92vw)]">
-        {entries.map((e, i) => (
-          // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
-          <div key={e.tid} className="home-btn-in" style={{ animationDelay: `${300 + i * 80}ms` }}>
-            <button
-              data-testid={e.tid}
-              onClick={e.onClick}
-              className={btnBase + e.size + e.extra}
-            >
-              {e.label}
-            </button>
-          </div>
-        ))}
+      {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个 */}
+      <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
+        <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
+          <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
+            {primary.label}
+          </button>
+        </div>
+        <div className="grid grid-cols-3 gap-x-3">
+          {secondary.map((e, i) => (
+            // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
+            <div key={e.tid} className="home-btn-in" style={{ animationDelay: `${380 + i * 80}ms` }}>
+              <button
+                data-testid={e.tid}
+                onClick={e.onClick}
+                className={`${btnBase} w-full py-4 text-xl note-btn`}
+              >
+                {e.label}
+              </button>
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink)。
