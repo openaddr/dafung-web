@@ -1,7 +1,7 @@
 # dafung-web — 群雄逐鹿(三国大富翁)
 
 ## 项目概况
-TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**单机模式**(1 真人对阵电脑)与**联机模式**(每人一台设备,WebSocket 同步)。早期为本地热座(单设备多真人轮流),已移除。
+TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**单机模式**(1 真人对阵电脑)与**联机模式**(每人一台设备,WebSocket 同步)。早期为本地热座(单设备多真人轮流),已移除。锦囊牌系统(#122)已实装:全游戏唯一隐藏信息(暗置手牌、回合开始主动使用),设计视角见 `docs/explanation/锦囊设计.md`。
 
 **项目性质(影响所有设计决策)**:个人项目,朋友圈子自用。**不考虑任何向前/向后兼容性**——不需要担心用户升级、旧版本数据迁移、API 兼容。只要当前版本能跑就行,需要重构就直接改。分析问题时不要把"兼容性""迁移"当作理由,除非用户明确要求。
 
@@ -44,6 +44,23 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **每次新增/重构交互类 UI 组件(弹层、下拉、确认框、表单控件、popover 等),优先 `bunx shadcn add <component>` 取 shadcn 版为底**(无头行为层:焦点陷阱/ARIA/键盘导航,零成本白拿;原语库 2026-09-12 定 **Base UI**——shadcn 新项目默认,Radix 转维护,见地图 #152/#158),再套本项目水墨皮;不要手搓交互语义。基建已就位:`components.json` + `@app/utils/cn` + `src/app/components/ui/dialog.tsx`(已改皮,后续 CLI 更新时 diff 保留皮差异)
 - shadcn 的 CSS 变量(`--background` 等)在 `app.css` 桥接层引用 gen:theme 产出的 `--color-*` token——**单源仍是 `core/theme.ts`**,不得在组件里硬编码 shadcn 默认色,也不得把 shadcn 变量当第二个事实源
 - 两条豁免:①纯视觉/器物件(棋盘 SVG、卷轴装饰、画像卡)不在此列;②器物级自定义皮肤(如游戏卷轴 `ScrollShell`)可直接用无头原语自行组皮,但行为口径(焦点陷阱/Esc/点外关闭)必须与 ui/ 底件一致;Base UI 无独立 FocusScope(#158),ScrollShell 的内联焦点陷阱保留 `@radix-ui/react-focus-scope` 单点;**卷轴/弹层挂载不夺焦**(FocusScope onMountAutoFocus 恒 preventDefault——首焦点若落在 × 关闭钮会促成 Enter 误关),新弹层沿用此口径
+
+## 完成定义(Definition of Done)
+
+改动**玩家可见机制**(新增/修改相位、数值、牌、事件、地图字段、操作流程)时,除代码与测试外,**同一 PR 内**必须:
+
+- [ ] 回填 `docs/reference/rules/` 对应规则页(数值带符号名锚点,禁写行号)
+- [ ] 新术语登记 `CONTEXT.md`
+- [ ] README 文档地图与受影响文档链接有效(全仓库无死链)
+
+## 文档风格规约(2026-09-12 定,随 Diátaxis 重构生效)
+
+1. **受众**:文档玩家优先,贡献者次之;agent 无专属章节——agent 读玩家文档,理解力缺口用代码注释补
+2. **how-to 动宾式标题**(「部署服务器」而非「服务器部署」);tutorials 收敛为单篇「新手第一局」
+3. **数值表只做索引 + 代码锚点**,不复制数值造第二事实源;活文档禁写行号(写符号名,行号必漂移)
+4. **README 主 CTA(openaddr.cn 即开即玩)置顶**,开发内容全部下沉 how-to/
+5. **全中文**;入口文件英文命名(README/AGENTS/LICENSE/CONTEXT),深层文档中文文件名,ADR 英文命名不变
+6. **发版走 git tag + GitHub Releases**(notes 用玩家视角短句,重大版本链叙事说明),不建 CHANGELOG.md
 
 ## 技术栈
 - 构建:Vite (TypeScript strict)
