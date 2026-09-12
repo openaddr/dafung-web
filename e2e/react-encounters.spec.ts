@@ -9,7 +9,6 @@ test.describe("机遇系统冒烟", () => {
   test("声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
     await page.goto("/");
     await openSoloSetup(page);
-    console.log("DEBUG after openSoloSetup, url:", page.url());
     await page.getByTestId("setup-encounter-toggle").click();
     await page.getByTestId("setup-encounter-trigger").fill("100");
     await page.getByTestId("setup-encounter-good").fill("0");
@@ -17,7 +16,15 @@ test.describe("机遇系统冒烟", () => {
     await page.getByTestId("setup-encounter-bad").fill("0");
     await page.getByTestId("start-game").click();
     await pickCapital(page);
-    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+    // 负载下 30s 窗可爆(#217①,与 #191 同族):改「轮到我」显式条件,预算 90s。
+    const mine = await page.waitForSelector(
+      '[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])',
+      { timeout: 90_000 },
+    );
+    if ((await mine.getAttribute("data-testid")) === "scroll-jinnang-pass") {
+      await page.getByTestId("scroll-jinnang-pass").click();
+    }
+    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 10_000 });
     await waitSettled(page);
 
     // 引擎配置 fail-fast:机遇参数没进引擎时,后续断言全是废话
@@ -29,9 +36,10 @@ test.describe("机遇系统冒烟", () => {
 
     const scroll = page.getByTestId("scroll-encounter");
     // 每步经 actIfCan 驱动(掷骰/购地卷轴统一处理);遇机遇卷轴则点第一选项收卷。
-    // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次:12 步不现概率 ≈ 万分之三。
+    // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。bot 回合的空步也烧预算
+    // (#217① 实测 24 步曾全部走完仍未撞上),60 步把人类落格采样加厚到 ~10 次。
     let resolved = false;
-    for (let step = 0; step < 24 && !resolved; step++) {
+    for (let step = 0; step < 60 && !resolved; step++) {
       if (await scroll.isVisible().catch(() => false)) {
         await page.locator('[data-testid^="scroll-encounter-option-"]').first().click();
         await expect(scroll).toBeHidden({ timeout: 20_000 });
