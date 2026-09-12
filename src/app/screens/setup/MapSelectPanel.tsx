@@ -2,13 +2,14 @@
 // 点击条目展开简化 SVG 预览(主路折线 + 城池圆点),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,
 // 而是直接基于 MapData 的 pos 坐标画简版(延迟加载:点选时才 loadMapData)。
-import { useEffect, useRef, useState } from "react";
+// #173:弹层壳(遮罩/居中/焦点陷阱/Esc/点外关/还焦手柄)收口到 ui/dialog
+// (Base UI 底件),面板本体(内容/testid/水墨皮)原样保留。
+import { useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import type { MapData } from "@core/types";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
-// S4(#37):焦点陷阱——打开聚焦首项、Tab 不出面板、关闭还焦触发钮(与 ConfirmDialog 同标)
-import { useDialogFocus } from "@app/screens/shared/useDialogFocus";
+import { Dialog, DialogContent } from "@app/components/ui/dialog";
 import { TID } from "./testids";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
@@ -91,11 +92,6 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // S4(#37):焦点陷阱挂卡片容器;focusKey 随清单就绪翻转——首项渲染出来后再补聚焦
-  // (挂载瞬间只有「载入地图清单…」,无可聚焦元素)
-  const panelRef = useRef<HTMLDivElement>(null);
-  useDialogFocus(panelRef, entries === null ? "loading" : entries.length);
-
   // 挂载时拉清单一次(fetch 内置清单 + localStorage 自建图,均可能失败需兜底提示);
   // S-4:清单拉取收敛为 reload,失败态可点「重试」重新拉取
   const [reloadKey, setReloadKey] = useState(0);
@@ -111,15 +107,6 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
       alive = false;
     };
   }, [mapSource, reloadKey]);
-
-  // S-4:Esc 关闭弹层(与「取消」等价)
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onCancel();
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
 
   const pick = (entry: MapEntry) => {
     setPicked(entry.id);
@@ -152,20 +139,26 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
   }, []);
 
   return (
-    <div
-      data-testid={TID.mapPanel}
-      // S-4:遮罩点击关闭(弹体 stopPropagation 防误关)
-      onClick={onCancel}
-      className="fixed inset-0 z-20 flex items-center justify-center bg-ink/40 backdrop-blur-[1px]"
+    // #173:壳归 ui/dialog——role=dialog、打开聚焦首个可交互件(清单未载入时为面板
+    // 本体)、Tab 圈定、Esc 关、点遮罩关、关闭还焦打开前手柄,均由 Base UI 底件接管;
+    // 受控 open 恒真,关闭即 onCancel → 宿主屏卸载本面板(三屏同口径)。
+    <Dialog
+      open
+      onOpenChange={(nextOpen) => {
+        if (!nextOpen) onCancel();
+      }}
     >
-      <div
-        ref={panelRef}
-        onClick={(e) => e.stopPropagation()}
+      <DialogContent
+        data-testid={TID.mapPanel}
+        // 无独立 DialogTitle(笺头是自绘 h3),可访名走 aria-label
+        aria-label="选择地图"
         // S1(#34):面板入场 scroll-anim-unroll(0.35s;max-h 内滚不变)。
         // W2-包A:换皮入控件种——note-card 笺纸材质(墨褐发丝边),弹层投影走
         // --ink-shadow-lg(DESIGN §4.2 弹层档;note-card 默认 sm 是非分层样式会压过
-        // 分层 utilities,故加 ! 钉住 lg)。宽度/定位/内滚不动。
-        className="scroll-anim-unroll note-card w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
+        // 分层 utilities,故加 ! 钉住 lg)。宽度/内滚不动;定位改由底件接管。
+        // block 抵消底件 Popup 的 flex 档,保持原块级布局(内滚滚动语义不变);
+        // note-card(非分层)自压底件的纸底/发丝边 utilities,水墨皮不变。
+        className="scroll-anim-unroll note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
       >
         {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
         <h3 className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
@@ -254,7 +247,7 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
             </div>
           </>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }
