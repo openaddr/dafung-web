@@ -6,7 +6,8 @@
 // 收起中与幽灵退场帧不走 FocusScope(纯视觉重放,自带 aria-hidden/inert)。刻意不用
 // Dialog.Content:它强制 Portal 会破坏 #scroll-layer 定位栈与幽灵帧协议。
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-import * as FocusScopePrimitive from "@radix-ui/react-focus-scope";
+// #174:焦点陷阱收编为共享的 FocusScope 惯用法封装(原此处内联 @radix-ui/react-focus-scope)
+import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
@@ -303,20 +304,19 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     );
   }
 
-  // 活卷轴:FocusScope(radix-ui 原语,shadcn Dialog 焦点层的同源底件)提供焦点陷阱
+  // 活卷轴:DialogFocusScope(radix FocusScope 惯用法封装,#174 收编)提供焦点陷阱
   // 与关闭还焦;role/aria-modal 由壳体自带。刻意不用 Dialog.Content——它内部强制
-  // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。onMountAutoFocus 不夺焦
-  // (× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter 误关)。Esc/点外关闭沿用本文件
-  // 原有出口(窗级 Esc 监听 + 遮罩点击),与 ui/dialog.tsx 行为口径一致。
+  // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。挂载不夺焦(封装内置
+  // onMountAutoFocus preventDefault:× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter
+  // 误关)。Esc/点外关闭沿用本文件原有出口(窗级 Esc 监听 + 遮罩点击),与
+  // ui/dialog.tsx 行为口径一致。
   return (
     <div
       className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]"
       // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
       onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
     >
-      <FocusScopePrimitive.Root trapped asChild onMountAutoFocus={(e) => e.preventDefault()}>
-        {shellBody}
-      </FocusScopePrimitive.Root>
+      <DialogFocusScope asChild>{shellBody}</DialogFocusScope>
     </div>
   );
 }

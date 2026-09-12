@@ -40,10 +40,10 @@
     "vite": "^6.0.0"
   },
   "dependencies": {
+    "@base-ui/react": "^1.8.0",
     "@radix-ui/react-focus-scope": "^1.1.16",
     "cannon-es": "^0.20.0",
     "clsx": "^2.1.1",
-    "radix-ui": "^1.6.7",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "sharp": "^0.35.4",

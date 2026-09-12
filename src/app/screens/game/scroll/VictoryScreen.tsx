@@ -9,6 +9,10 @@ import { getAudio } from "@app/fx/audio";
 import { finishDiceOverlay } from "@app/fx/ThreeDice";
 // #117 收编:再战按钮延后挂载时长走 fx/timings.ts(UI.victoryButtonMs)。
 import { UI } from "@app/fx/timings";
+// #174:全屏模态语义——胜利屏是全屏覆盖而非弹窗(#155 结论,不套 ui/dialog 的
+// Portal+遮罩点关),焦点口径走共享的 FocusScope 惯用法封装:Tab 圈定 + 卸载还焦,
+// 挂载不夺焦(与 ScrollShell 同款)。
+import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import { ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
@@ -146,89 +150,97 @@ export function VictoryScreen({
 
   // W2-包D(审计 A2):absolute→fixed——终局必须盖过侧栏(absolute 只盖棋盘区,
   // 侧栏仍露出半截与「天下归一」分庭);fixed 脱离布局流压满视口,testid/逻辑零变化。
+  // #174:壳上 role=dialog/aria-modal 全屏模态语义(可达名称 aria-label=「终局」,
+  // 与 ScrollShell 的题名口径同款);FocusScope 挂壳提供 Tab 陷阱与再战(卸载)还焦,
+  // 挂载不夺焦不打断终局演出;asChild 直并壳体,DOM 节点/testid 零变化。
   return (
-    <div
-      data-testid={T.victoryScreen}
-      className="victory-anim-overlay fixed inset-0 z-40 flex flex-col items-center justify-center"
-    >
-      {particles.map((p) => (
-        <span
-          key={p.key}
-          className="firework-particle"
-          style={{
-            left: `${p.cxPct}%`,
-            top: `${p.cyPct}%`,
-            background: p.color,
-            ["--dx" as string]: `${p.dx}px`,
-            ["--dy" as string]: `${p.dy}px`,
-            ["--fw-dur" as string]: `${p.dur}s`,
-          }}
-        />
-      ))}
-      {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
-      <h1
-        data-testid={T.victoryTitle}
-        className="victory-anim-title m-0 font-brush text-gold-bright"
-        style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
-      >
-        天下归一
-      </h1>
-      {/* R3-C8(#95):450ms stamp 锣声的画面锚点——称帝行右侧落一枚「称帝」朱砂印,
-          入场 delay 0.45s(victory.css victory-stamp-in)与上方锣声定时同帧现身。
-          印色即 theme danger 语义色(tokens.css --color-danger 单源 core/theme.ts,
-          与 FW_COLORS 烟花里的朱砂同源),故直接用 border-danger/text-danger 工具类,不硬编码 hex。 */}
-      <div className="mt-2.5 flex items-center justify-center gap-3">
-        <div
-          data-testid={T.victorySub}
-          className="victory-step victory-step-sub font-brush text-[34px] tracking-[6px] text-white"
-          style={{ color: rgba(playerColor(colorIndex)) }}
-        >
-          「{guohao}」称帝
-        </div>
-        {/* 印内单字:国号本就 1 字(线上重名时服务器才加方位前缀),取 guohao 首字两口径通吃。 */}
-        <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-brush text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
-          {Array.from(guohao)[0]}
-        </span>
-      </div>
+    <DialogFocusScope asChild>
       <div
-        data-testid={T.victoryInfo}
-        className="victory-step victory-step-info mt-4 text-base"
-        style={{ color: INFO_TEXT }}
+        data-testid={T.victoryScreen}
+        role="dialog"
+        aria-modal="true"
+        aria-label="终局"
+        className="victory-anim-overlay fixed inset-0 z-40 flex flex-col items-center justify-center"
       >
-        终局身价 {finalNetWorthLabel} · 用时 {turnNumber} 回合 ·{" "}
-        {winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}
-      </div>
-      {/* E4(#16):终榜一行(身价降序 + 破产标注),第 4 拍入场 */}
-      <div
-        data-testid={T.victoryStandings}
-        className="victory-step victory-step-standings mt-2 flex max-w-[92vw] flex-wrap items-baseline justify-center gap-x-3 font-deco text-sm"
-        style={{ color: INFO_TEXT }}
-      >
-        <span className="text-ink-dim">终榜</span>
-        {standings.map((s, i) => (
-          <span key={`${s.guohao}-${i}`} className="whitespace-nowrap">
-            <span style={{ color: rgba(playerColor(s.colorIndex)) }}>{s.guohao}</span>{" "}
-            {s.netWorthLabel}
-            {s.bankrupt && <span className="text-danger">(破)</span>}
-          </span>
+        {particles.map((p) => (
+          <span
+            key={p.key}
+            className="firework-particle"
+            style={{
+              left: `${p.cxPct}%`,
+              top: `${p.cyPct}%`,
+              background: p.color,
+              ["--dx" as string]: `${p.dx}px`,
+              ["--dy" as string]: `${p.dy}px`,
+              ["--fw-dur" as string]: `${p.dur}s`,
+            }}
+          />
         ))}
-      </div>
-      <div className="victory-step-btn mt-6">
-        {showButton && (
-          /* ADR-0014:对局日志终局在此一键导出(完整 jsonl,复盘/重放用);
-             与「再战一局」同挂 showButton 延时,防演出高潮期误触。 */
-          <div className="flex items-center justify-center gap-3">
-            <ScrollButton primary testid={T.victoryRestart} onClick={onRestart}>
-              再战一局
-            </ScrollButton>
-            {onExportLog && (
-              <ScrollButton testid={T.logExport} onClick={onExportLog}>
-                导出日志
-              </ScrollButton>
-            )}
+        {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
+        <h1
+          data-testid={T.victoryTitle}
+          className="victory-anim-title m-0 font-brush text-gold-bright"
+          style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
+        >
+          天下归一
+        </h1>
+        {/* R3-C8(#95):450ms stamp 锣声的画面锚点——称帝行右侧落一枚「称帝」朱砂印,
+            入场 delay 0.45s(victory.css victory-stamp-in)与上方锣声定时同帧现身。
+            印色即 theme danger 语义色(tokens.css --color-danger 单源 core/theme.ts,
+            与 FW_COLORS 烟花里的朱砂同源),故直接用 border-danger/text-danger 工具类,不硬编码 hex。 */}
+        <div className="mt-2.5 flex items-center justify-center gap-3">
+          <div
+            data-testid={T.victorySub}
+            className="victory-step victory-step-sub font-brush text-[34px] tracking-[6px] text-white"
+            style={{ color: rgba(playerColor(colorIndex)) }}
+          >
+            「{guohao}」称帝
           </div>
-        )}
+          {/* 印内单字:国号本就 1 字(线上重名时服务器才加方位前缀),取 guohao 首字两口径通吃。 */}
+          <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-brush text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
+            {Array.from(guohao)[0]}
+          </span>
+        </div>
+        <div
+          data-testid={T.victoryInfo}
+          className="victory-step victory-step-info mt-4 text-base"
+          style={{ color: INFO_TEXT }}
+        >
+          终局身价 {finalNetWorthLabel} · 用时 {turnNumber} 回合 ·{" "}
+          {winReason === "LastStanding" ? "群雄尽灭" : "富甲天下"}
+        </div>
+        {/* E4(#16):终榜一行(身价降序 + 破产标注),第 4 拍入场 */}
+        <div
+          data-testid={T.victoryStandings}
+          className="victory-step victory-step-standings mt-2 flex max-w-[92vw] flex-wrap items-baseline justify-center gap-x-3 font-deco text-sm"
+          style={{ color: INFO_TEXT }}
+        >
+          <span className="text-ink-dim">终榜</span>
+          {standings.map((s, i) => (
+            <span key={`${s.guohao}-${i}`} className="whitespace-nowrap">
+              <span style={{ color: rgba(playerColor(s.colorIndex)) }}>{s.guohao}</span>{" "}
+              {s.netWorthLabel}
+              {s.bankrupt && <span className="text-danger">(破)</span>}
+            </span>
+          ))}
+        </div>
+        <div className="victory-step-btn mt-6">
+          {showButton && (
+            /* ADR-0014:对局日志终局在此一键导出(完整 jsonl,复盘/重放用);
+               与「再战一局」同挂 showButton 延时,防演出高潮期误触。 */
+            <div className="flex items-center justify-center gap-3">
+              <ScrollButton primary testid={T.victoryRestart} onClick={onRestart}>
+                再战一局
+              </ScrollButton>
+              {onExportLog && (
+                <ScrollButton testid={T.logExport} onClick={onExportLog}>
+                  导出日志
+                </ScrollButton>
+              )}
+            </div>
+          )}
+        </div>
       </div>
-    </div>
+    </DialogFocusScope>
   );
 }
