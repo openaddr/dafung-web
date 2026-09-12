@@ -144,7 +144,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 ## 联机化进度(终局目标)
 - **第 1 步(已完成)**:`scripts/server.ts` 常驻引擎 + 共享层(`engine-helpers.ts`)。`snapshot()`/`restoreFromSnapshot()` 全状态可序列化。
 - **第 2 步(已完成)**:多房间 WebSocket 服务 + 浏览器联机客户端 ——
-  - 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(房间编排)+ `scripts/room-persistence.ts`(落盘适配器)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、`rooms/<id>.json` 每手落盘 + 启动恢复、同进程静态托管 `dist/`。env:`PORT`(3000)/`HOST`(127.0.0.1,局域网需 0.0.0.0)/`ROOMS_DIR`/`STATIC_DIR`。
+  - 服务器:`scripts/server.ts`(瘦传输层)+ `scripts/room.ts`(房间编排)+ `scripts/room-persistence.ts`(落盘适配器)。REST 大厅 `/room/new|join|start|takeover|dismiss`、WS `/ws?room=&seat=&token=`、seatToken 鉴权、掉线冻结 + 房主解散/bot 接管 + 房主掉线身份移交、`rooms/<id>.json` 每手落盘 + 启动恢复、同进程静态托管 `dist/`。env:`PORT`(3000)/`HOST`(0.0.0.0,默认监听所有网卡)/`ROOMS_DIR`/`STATIC_DIR`/`JIYU_CONFIG`/`DECISION_TIMEOUT_MS`(120000,0=关)/`LOGS_DIR`/`LOG_TTL_DAYS`(30)。
   - 客户端:`src/app/controllers/online.ts`(OnlineController:WS 发 GameCommand、收 snapshot 用 `restoreFromSnapshot` 重 hydrate 只读引擎后灌 store)+ setup 屏联机入口 / `?online=1` 直链;`serverUrl = location.origin`(服务器自托管网页,同源免填)。
   - 已验:多客户端 e2e(`e2e/react-online.spec.ts` 双端同步全流程,断线重连在 `react-resilience.spec.ts`)。
 - **第 3 步(待做)**:CLI 改 fetch server(弃本地 state.json)。部署真机验收(部署 runbook 见 `docs/explanation/联机架构.md`,VPS + Caddy + systemd)。
