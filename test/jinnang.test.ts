@@ -581,3 +581,31 @@ describe("军情密探·窥探(T4)", () => {
     expect(e2.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
   });
 });
+
+// ─────────────────────────── 破产清手(#198)───────────────────────────
+describe("破产清手(#198):手牌入弃牌堆,15 张守恒", () => {
+  it("破产 → 手牌清入弃牌堆;牌库+弃牌+在世者手牌守恒", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    p.cash = 0; // 无现金、无珍宝/名将/非都城城 → 无可变卖资产,欠款即直接破产
+    // 从牌库顶挪一张进他手牌(守恒口径:牌只在这三处)
+    const card = e.jinnangDeck.pop()!;
+    e.jinnangDeckCount = e.jinnangDeck.length;
+    p.jinnangHand.push(card);
+    p.jinnangHandCount = 1;
+    const total = () => ({
+      deck: e.jinnangDeck.length,
+      discard: e.jinnangDiscard.length,
+      hands: e.players.filter((x) => !x.isBankrupt).reduce((s, x) => s + x.jinnangHand.length, 0),
+    });
+    const before = total();
+    testEngine(e).payOrLiquidate(p, null, 200); // 欠 200,现金 0 → 直接破产
+    expect(p.isBankrupt).toBe(true);
+    expect(p.jinnangHand).toEqual([]);
+    expect(p.jinnangHandCount).toBe(0);
+    expect(e.jinnangDiscard).toContain(card);
+    const after = total();
+    expect(after.deck + after.discard + after.hands).toBe(before.deck + before.discard + before.hands);
+  });
+});

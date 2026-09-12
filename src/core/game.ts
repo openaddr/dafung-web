@@ -1476,10 +1476,16 @@ export class GameEngine {
     return p.properties.some((h) => h.propertyId !== capProp);
   }
 
-  /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主)。 */
+  /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主);锦囊手牌清入弃牌堆
+   *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。 */
   private finalizeBankruptcy(p: Player): void {
     for (const h of p.heroes) this.recruitedHeroIds.delete(h.id);
     p.heroes = [];
+    if (p.jinnangHand.length > 0) {
+      this.jinnangDiscard.push(...p.jinnangHand);
+      p.jinnangHand = [];
+      p.jinnangHandCount = 0;
+    }
     // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
     // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
     p.capitalIndex = -1;
