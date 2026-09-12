@@ -138,13 +138,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
   // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
-  // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 + flyTo 镜头 +
+  // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序,GameScreen 只把返回值接进 BoardView /
   // DecisionScrollLayer / TreasuryPanel。
   const { offeredCapitals, selectableTiles, onTileClick, closeDetail, tileDetail } = useCapitalPick({
     snapshot,
-    map,
-    boardRef,
   });
 
   // 快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):

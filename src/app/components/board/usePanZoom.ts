@@ -38,11 +38,6 @@ function clampVb(v: ViewBox): ViewBox {
   return { x, y, w, h };
 }
 
-export interface FlyToOptions {
-  /** 缓动时长(默认 ~500ms)。 */
-  durationMs?: number;
-}
-
 export interface PanZoom {
   /** 绑到 <svg> 上的指针事件(拖拽平移;城池/按钮不触发)。 */
   handlers: {
@@ -55,20 +50,11 @@ export interface PanZoom {
   grabbing: boolean;
   /** 还原总览。 */
   reset: () => void;
-  /** C4 镜头跟随:缓动把 viewBox 中心平移到 (cx,cy),不改变当前缩放。 */
-  flyTo: (cx: number, cy: number, opts?: FlyToOptions) => void;
   /** #98 按钮缩放:以当前视口中心为锚按倍率缩放(factor>1 放大,如 1.25/0.8)。 */
   zoomBy: (factor: number) => void;
   /** 当前 viewBox(快照值,读取用)。 */
   getView: () => ViewBox;
 }
-
-/** 跨层镜头访问点:fx 层(useMarch)不在 React 树内拿不到 BoardViewHandle ref,
- *  由本 hook 挂载时注册/卸载时注销;fx 侧经 boardCamera.flyTo 请求镜头跟随。 */
-export const boardCamera: {
-  flyTo: ((cx: number, cy: number, opts?: FlyToOptions) => void) | null;
-  getView: (() => ViewBox) | null;
-} = { flyTo: null, getView: null };
 
 export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZoom {
   // 真源:ref 里的当前 viewBox(命令式更新,不触发 React 渲染)。
@@ -90,45 +76,6 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
   // 多指追踪(P0-5):单指=平移;双指=按两指距离比缩放、以中点为锚(与 wheel 同源算法)。
   const pointers = useRef(new Map<number, { x: number; y: number }>());
   const [grabbing, setGrabbing] = useState(false);
-  // flyTo 动画令牌:新 flyTo / 用户手动交互(pointerdown、滚轮)时作废进行中的缓动。
-  const flyToken = useRef(0);
-
-  const cancelFly = useCallback(() => {
-    flyToken.current++;
-  }, []);
-
-  // 挂载即注册跨层镜头访问点(卸载注销)。
-  const flyTo = useCallback(
-    (cx: number, cy: number, opts?: FlyToOptions) => {
-      const durationMs = opts?.durationMs ?? 500;
-      const from = { ...view.current };
-      const to = { ...from, x: cx - from.w / 2, y: cy - from.h / 2 };
-      const token = ++flyToken.current;
-      const t0 = performance.now();
-      const tick = (now: number) => {
-        if (flyToken.current !== token) return; // 已被新指令/用户交互作废
-        const raw = Math.min(1, (now - t0) / durationMs);
-        const ease = raw < 0.5 ? 4 * raw * raw * raw : 1 - Math.pow(-2 * raw + 2, 3) / 2; // easeInOutCubic
-        setView({
-          ...from,
-          x: from.x + (to.x - from.x) * ease,
-          y: from.y + (to.y - from.y) * ease,
-        });
-        if (raw < 1) requestAnimationFrame(tick);
-      };
-      requestAnimationFrame(tick);
-    },
-    [setView],
-  );
-
-  useEffect(() => {
-    boardCamera.flyTo = flyTo;
-    boardCamera.getView = () => ({ ...view.current });
-    return () => {
-      boardCamera.flyTo = null;
-      boardCamera.getView = null;
-    };
-  }, [flyTo]);
 
   // 滚轮缩放(以光标为锚点)。React 合成 wheel 事件是 passive 监听,preventDefault 无效,
   // 必须原生 addEventListener({ passive: false }) —— 与旧实现行为一致。
@@ -137,7 +84,6 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     if (!el) return;
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
-      cancelFly();
       const rect = el.getBoundingClientRect();
       const cx = (ev.clientX - rect.left) / rect.width;
       const cy = (ev.clientY - rect.top) / rect.height;
@@ -149,7 +95,7 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [svgRef, setView, cancelFly]);
+  }, [svgRef, setView]);
 
   // 双指几何快照:上一次两指距离与中点(pinch 每帧与上一帧比,增量式缩放)。
   const pinchDist = useRef(0);
@@ -157,7 +103,6 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
   const onPointerDown = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
     // 城池/按钮交给各自点击,不触发平移
     if ((ev.target as Element).closest(".bv-tile, button")) return;
-    cancelFly();
     pointers.current.set(ev.pointerId, { x: ev.clientX, y: ev.clientY });
     if (pointers.current.size === 2) {
       // 第二指落下:进入 pinch,记录初始两指距离
@@ -166,7 +111,7 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     }
     setGrabbing(true);
     ev.currentTarget.setPointerCapture(ev.pointerId);
-  }, [cancelFly]);
+  }, []);
 
   const onPointerMove = useCallback(
     (ev: React.PointerEvent<SVGSVGElement>) => {
@@ -215,10 +160,9 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
   // #98 按钮缩放:以当前视口中心为锚(锚点算法照抄 wheel——归一化锚点取视口中心
   // (0.5,0.5),lx/ly 即 viewBox 中心,无需读 rect)。factor 直接乘进 w/h 走同一
   // setView→clampVb 管线,与 wheel/pinch 一样靠 clampVb 夹在 1×..MAX_ZOOM 界内
-  // (不预夹 factor,不另立状态);先作废进行中的 flyTo,与滚轮/双指接管口径一致。
+  // (不预夹 factor,不另立状态)。
   const zoomBy = useCallback(
     (factor: number) => {
-      cancelFly();
       const cx = 0.5;
       const cy = 0.5;
       const vb = view.current;
@@ -226,13 +170,12 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
       const ly = vb.y + cy * vb.h;
       setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
     },
-    [setView, cancelFly],
+    [setView],
   );
 
   const reset = useCallback(() => {
-    cancelFly();
     setView({ ...FIT_VIEW });
-  }, [setView, cancelFly]);
+  }, [setView]);
 
   const getView = useCallback(() => ({ ...view.current }), []);
 
@@ -245,7 +188,6 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
     },
     grabbing,
     reset, // 还原总览(供"总览"按钮;BoardViewHandle 暴露)
-    flyTo,
     zoomBy, // #98 视口中心锚定缩放(供棋盘 +/− 钮;BoardViewHandle 暴露)
     getView,
   };
