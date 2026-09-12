@@ -31,14 +31,31 @@
   /* 呼吸挂 --dur-ambient 半频(1.3s):选都仪式拍,与下方活跃环同节奏 */
   animation: bv-select-pulse calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
 }
+/* X4+:描边金环叠卡面( Tile 尾部 .bv-pick-ring),与底盘同一呼吸——双通道强调 */
+.bv-tile.bv-selectable .bv-pick-ring {
+  animation: bv-select-pulse calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
+}
+.bv-tile .bv-pick-ring-static {
+  opacity: 0.5;
+}
 @keyframes bv-select-pulse {
   0%,
   100% {
-    opacity: 0.18;
+    opacity: 0.4;
   }
   50% {
-    opacity: 0.62;
+    opacity: 0.95;
   }
+}
+
+/* X4+:选都聚焦场——本地可选时,非候选城一律压暗(:has 免 TS 改动;选中即移除类自动还原)。
+   道路/装饰不暗:路网仍是视觉骨架,压暗只收敛「城」的注意力。 */
+#board:has(.bv-selectable) .bv-tile:not(.bv-candidate):not(.bv-selectable) {
+  opacity: 0.45;
+  transition: opacity var(--dur-med) var(--ease-out);
+}
+.bv-tile {
+  transition: opacity var(--dur-med) var(--ease-out);
 }
 .bv-capital-glow {
   opacity: 0;
@@ -270,6 +287,9 @@
     animation: none;
   }
   .bv-tile.bv-selectable .bv-tile-hilite {
-    opacity: 0.28;
+    opacity: 0.5;
+  }
+  .bv-tile.bv-selectable .bv-pick-ring {
+    opacity: 0.9;
   }
 }
