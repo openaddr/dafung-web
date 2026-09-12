@@ -2,7 +2,7 @@
 // 相位无法靠自然游玩稳定撞出,经 window.__dafung 调试钩子强制(仅测试用,见 registry.ts)。
 // 走 vite preview(4173)的 dist 产物——跑前需 npm run build。
 import { test, expect } from "./fixtures";
-import { quickStart, force } from "./react-helpers";
+import { quickStart, force, actIfCan } from "./react-helpers";
 
 test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);
@@ -77,6 +77,11 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
     const e = (window as any).__dafung.getEngine();
     return e.board.tiles.findIndex((t: { propertyId?: string }) => t.propertyId);
   });
-  await page.locator(`[data-tile="${propTile}"]`).click();
-  await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
+  // 重试点击(#217:无 seed 对局下,人类起手锦囊卷轴开着或 bot 回合 fx 在途时点击会被吞,~40% 竞速挂)。
+  // 先清人类卷轴,再 toPass 重试「点击→卷轴可见」整块,直到逮住交互空闲窗。
+  await actIfCan(page);
+  await expect(async () => {
+    await page.locator(`[data-tile="${propTile}"]`).click();
+    await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
+  }).toPass({ timeout: 30_000 });
 });
