@@ -43,11 +43,11 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 ### 6. UI 组件必须收口 shadcn/Base UI(2026-09 定「优先」;同日验收升级「必须」,地图 #152/#157)
 - **每次新增/重构交互类 UI 组件(弹层、下拉、确认框、表单控件、popover 等),必须 `bunx shadcn add <component>` 取 shadcn 版为底**(无头行为层:焦点陷阱/ARIA/键盘导航,零成本白拿;原语库 2026-09-12 定 **Base UI**——shadcn 新项目默认,Radix 转维护,见地图 #152/#158),再套本项目水墨皮;不要手搓交互语义。基建已就位:`components.json` + `@app/utils/cn` + `src/app/components/ui/dialog.tsx`(已改皮,后续 CLI 更新时 diff 保留皮差异)
 - shadcn 的 CSS 变量(`--background` 等)在 `app.css` 桥接层引用 gen:theme 产出的 `--color-*` token——**单源仍是 `core/theme.ts`**,不得在组件里硬编码 shadcn 默认色,也不得把 shadcn 变量当第二个事实源
-- 两条豁免:①纯视觉/器物件(棋盘 SVG、卷轴装饰、画像卡)不在此列;②器物级自定义皮肤(如游戏卷轴 `ScrollShell`)可直接用无头原语自行组皮,但行为口径(焦点陷阱/Esc/点外关闭)必须与 ui/ 底件一致;Base UI 无独立 FocusScope(#158),ScrollShell 的内联焦点陷阱保留 `@radix-ui/react-focus-scope` 单点;**卷轴/弹层挂载不夺焦**(FocusScope onMountAutoFocus 恒 preventDefault——首焦点若落在 × 关闭钮会促成 Enter 误关),新弹层沿用此口径;
+- 两条豁免:①纯视觉/器物件(棋盘 SVG、卷轴装饰、画像卡)不在此列;②器物级自定义皮肤(如游戏卷轴 `ScrollShell`)可直接用无头原语自行组皮,但行为口径(焦点陷阱/Esc/点外关闭)必须与 ui/ 底件一致;Base UI 无独立 FocusScope(#158),焦点陷阱由 shared/DialogFocusScope 自研原语承担(全仓唯一特许的自写交互语义集中点, radix 依赖已清零);**卷轴/弹层挂载不夺焦**(FocusScope onMountAutoFocus 恒 preventDefault——首焦点若落在 × 关闭钮会促成 Enter 误关),新弹层沿用此口径;
   ③手写交互语义(自写焦点陷阱、自绘遮罩开关、裸 role)在附表之外的交互组件上一律打回。
 
 - **附表(2026-09-12 定稿,来源 #155 全景盘点;新组件对号入座,不逐案重议)**:
-  - 已收口(走 ui/ 底件或 FocusScope 惯用法):ConfirmDialog、MapSelectPanel、VictoryScreen、ScrollShell(内联 FocusScope,radix focus-scope 单点)、ui/dialog 底件
+  - 已收口(走 ui/ 底件或 FocusScope 惯用法):ConfirmDialog、MapSelectPanel、VictoryScreen、ScrollShell(内联焦点陷阱,shared/DialogFocusScope 自研原语)、ui/dialog 底件
   - 保留现实现(语义达标,动到时才评估收口):SegmentedSelect、Stepper、决策/详情卷轴族、HandPanel、TreasuryPanel、HomeScreen、LobbyScreen、GameScreen、CollapsedRail、WaitingBar
   - 器物豁免(永久):棋盘 Tile/BoardView、TokenLayer/StaticLayers、FxLayer、DiceOverlay、AudioProvider、纯展示件(OthersPanel);遗留评估:#214(3D 棋盘 a11y)
 

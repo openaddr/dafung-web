@@ -1,12 +1,12 @@
 // 卷轴容器:对照旧 render/ui.ts createScroll 的视觉骨架(宣纸底/双金边/标题栏/× 关闭/标题栏拖拽)。
 // 用 Tailwind token 重写;入场动画用 scroll.css 的两层摊开(#91 R3-C4):
 // 壳体 scroll-unroll(淡入+下落+横向舒展) + 标题栏以下纸身 scroll-paper-unroll(scaleY 展开)。
-// 行为基座(R3 评审):Radix FocusScope 原语(@radix-ui/react-focus-scope,shadcn
-// Dialog 焦点层的同源底件)——活卷轴获得焦点陷阱/关闭还焦 + role=dialog/aria-modal;
+// 行为基座(R3 评审):shared/DialogFocusScope 自研焦点陷阱(2026-09-12 起,radix
+// focus-scope 已移除)——活卷轴获得焦点陷阱/关闭还焦 + role=dialog/aria-modal;
 // 收起中与幽灵退场帧不走 FocusScope(纯视觉重放,自带 aria-hidden/inert)。刻意不用
 // Dialog.Content:它强制 Portal 会破坏 #scroll-layer 定位栈与幽灵帧协议。
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
-// #174:焦点陷阱收编为共享的 FocusScope 惯用法封装(原此处内联 @radix-ui/react-focus-scope)
+// #174:焦点陷阱收编为 shared/DialogFocusScope(2026-09-12 起为自研实现,无第三方依赖)
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import "./scroll.css";
 import { getAudio } from "@app/fx/audio";
@@ -304,7 +304,7 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     );
   }
 
-  // 活卷轴:DialogFocusScope(radix FocusScope 惯用法封装,#174 收编)提供焦点陷阱
+  // 活卷轴:DialogFocusScope(自研焦点陷阱,#174 收编/#175 移除 radix)提供焦点陷阱
   // 与关闭还焦;role/aria-modal 由壳体自带。刻意不用 Dialog.Content——它内部强制
   // Portal 到 body,会破坏 #scroll-layer 定位栈与幽灵帧协议。挂载不夺焦(封装内置
   // onMountAutoFocus preventDefault:× 关闭钮在 DOM 首位,默认首焦会落在它上,Enter
