@@ -1,5 +1,5 @@
 // 选都/详情流程状态机(spec #107 C5 下沉:原散在 GameScreen 的两个 useState、
-// onTileClick 相位路由、closeDetail/confirmCapital 两态时序、选都 flyTo 镜头
+// onTileClick 相位路由、closeDetail/confirmCapital 两态时序
 // 整体收进本文件,单一文件持有;GameScreen 只取返回值接线)。
 // 流程口径:
 //   Playing 点格 = 城池详情卷轴(#33,含特殊地点);
@@ -8,10 +8,7 @@
 //   Setup 选都期点灰城 = 即时 hint 反馈(#27)。
 // tile 点击入口留在 GameScreen(棋盘 BoardView 在它手里),故走「hook 持有状态机 +
 // DecisionScrollLayer 收单个窄 props」方案,而非整流程搬进卷轴层。
-import { useEffect, useMemo, useState, type RefObject } from "react";
-import type { BoardViewHandle } from "@app/components/board/BoardView";
-import { loadMap } from "@core/board-loader";
-import type { MapData } from "@core/types";
+import { useMemo, useState } from "react";
 import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
@@ -44,10 +41,8 @@ export interface CapitalPickFlow {
 
 export function useCapitalPick(args: {
   snapshot: GameSnapshot;
-  map: MapData;
-  boardRef: RefObject<BoardViewHandle | null>;
 }): CapitalPickFlow {
-  const { snapshot, map, boardRef } = args;
+  const { snapshot } = args;
   const roomId = useNetStore((s) => s.roomId);
   const mySeat = useNetStore((s) => s.mySeat);
   // 城池详情(Playing 相位点城查看;Setup 选都期点可选城也走详情,内嵌「定都于此」)
@@ -71,18 +66,6 @@ export function useCapitalPick(args: {
     () => (myPickKey ? new Set(myPickKey.split(",").map(Number)) : undefined),
     [myPickKey],
   );
-
-  // X4(#23) 选都仪式·镜头:轮到本地选都时缓动飞向三候选质心——候选常散布地图三隅,
-  // 先给一眼定位,再由脉冲金圈/序号印接管注意力;同候选集只飞一次,不抢用户手动
-  // pan/zoom 的镜头。board 由地图单源重建,positionOf 坐标即镜头逻辑系。
-  const board = useMemo(() => loadMap(map).board, [map]);
-  useEffect(() => {
-    if (!myPickKey) return;
-    const pts = myPickKey.split(",").map((t) => board.positionOf(Number(t)));
-    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-    boardRef.current?.flyTo(cx, cy);
-  }, [board, myPickKey, boardRef]);
 
   // 关详情卷轴
   const closeDetail = () => setDetailTileIndex(null);
