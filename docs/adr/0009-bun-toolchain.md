@@ -30,5 +30,5 @@ Bun 重解析 `^1.55.0` 时把 Playwright 拉到 1.61,引入系统性 e2e 失败
 ## 后果
 
 - 依赖树:`tsx`/`vitest`/`ws`/`@types/ws` 移除;新增 `@types/bun`/`@types/pngjs`
-- 部署:服务器宿主机需 bun ≥1.3(docs/multiplayer.md runbook 已同步)
+- 部署:服务器宿主机需 bun ≥1.3(docs/explanation/联机架构.md runbook 已同步)
 - 回退路径:全链在一个 commit,出问题整体 revert 即可

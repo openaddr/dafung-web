@@ -17,7 +17,7 @@
 //                                            收 lobby/snapshot
 // 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
-// 设计见 docs/multiplayer.md + docs/adr/0001..0007。
+// 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
 import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";

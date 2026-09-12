@@ -67,7 +67,7 @@ function estimateBranchMainEv(engine: GameEngine, p: Player): number {
   return estimateDestValue(engine, p, dest);
 }
 
-// ────────────────────────── 锦囊策略(#148,T6,docs/jinnang.md §8)──────────────────────────
+// ────────────────────────── 锦囊策略(#148,T6,docs/explanation/锦囊设计.md §8)──────────────────────────
 
 /** botAct 选项(#148):conservative=看门狗接管口径——锦囊永不主动用,一律「今不用」
  *  保守推进(目标段先作罢再收卷),全程不掷骰(重放安全);缺省 false=托管按策略表。 */

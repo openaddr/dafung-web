@@ -57,7 +57,7 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ### 3.1 抽签移动(`Roll` → `rollAndMove`)
 - 掷**单骰**(1-6),前进对应步数([`game.ts` `rollAndMove`](src/core/game.ts));签面用汉字「一~六」展示([`constants.ts:3` `SIGN_FACES`](src/core/constants.ts))。
-- 名士·移动加成计入步数(如周瑜 +1):时机·`BeforeMarch` 触发 `moveBonus` 效果累计([`game.ts:456`](src/core/game.ts),时机框架见 [`docs/timing-framework.md`](docs/timing-framework.md))。
+- 名士·移动加成计入步数(如周瑜 +1):时机·`BeforeMarch` 触发 `moveBonus` 效果累计([`game.ts:456`](src/core/game.ts),时机框架见 [`docs/explanation/时机框架.md`](docs/explanation/时机框架.md))。
 - **经过自己都城**(非落点):**必停**——立即 +2 委任状(巡幸),棋子停在都城不再走完剩余步数,结算驻跸补给,**结束回合**(不再有「驻跸/继续」抉择)([`game.ts` `rollAndMove` 必停分支](src/core/game.ts))。
 
 ### 3.2 必停都城(无抉择,引擎直接结算)
@@ -168,7 +168,7 @@ Roll → (掷骰移动) → AwaitingBranch? → Land → AwaitingDecision? → E
 
 ### 7.2 名士技能(时机框架,技能即数据)
 
-技能 = 纯数据声明「什么时机(`when`,查 [`timing.ts`](src/core/timing.ts) 的 GameMoment)触发什么效果(`effect`,查 [`effects.ts`](src/core/effects.ts) 注册表)+ 参数(`params`)」,挂在 `HeroDef.skills`(一武多技);由派发器 [`game.ts:1225` `dispatchMoment`](src/core/game.ts) 按「座位序 × 技能序」确定性派发。设计说明与扩展指南(加效果一步/加技能两步/加时机三步)见 [`docs/timing-framework.md`](docs/timing-framework.md)。
+技能 = 纯数据声明「什么时机(`when`,查 [`timing.ts`](src/core/timing.ts) 的 GameMoment)触发什么效果(`effect`,查 [`effects.ts`](src/core/effects.ts) 注册表)+ 参数(`params`)」,挂在 `HeroDef.skills`(一武多技);由派发器 [`game.ts:1225` `dispatchMoment`](src/core/game.ts) 按「座位序 × 技能序」确定性派发。设计说明与扩展指南(加效果一步/加技能两步/加时机三步)见 [`docs/explanation/时机框架.md`](docs/explanation/时机框架.md)。
 
 | 名士 | when | effect(params) | scope | 行为 |
 |---|---|---|---|---|

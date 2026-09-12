@@ -2,7 +2,7 @@
 // 为什么不直接排字符:← ↶ ↷ ◎ ♪ 这类字形不在离线中文字体子集(马善政/小薇/文楷)里,
 // 裸排会回落系统字体甚至出豆腐块(大厅「返回■首页」、编辑器「■撤销」实拍翻车);
 // SVG 路径任何字体栈下都稳定,颜色走 currentColor 跟随文字。
-// 新增用途先在 docs/ui-symbols.md 登记,再在此加 path。
+// 新增用途先在 docs/reference/界面符号.md 登记,再在此加 path。
 import type { ReactNode } from "react";
 
 export type SymName = "back" | "undo" | "redo" | "reset" | "sound" | "muted" | "play" | "close" | "expand";

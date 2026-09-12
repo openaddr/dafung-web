@@ -1,5 +1,5 @@
 // 效果注册表:时机框架的「效果」半边。技能(TriggerSkill.effect)通过 EffectId 查到这里,
-// 由派发器(game.ts dispatchMoment)调用。设计见 docs/timing-framework.md。
+// 由派发器(game.ts dispatchMoment)调用。设计见 docs/explanation/时机框架.md。
 //
 // 约定:
 //  - 效果只能通过引擎公共方法改状态 + pushFloater 留浮字;战报(skill 击发行)由派发器统一记录;

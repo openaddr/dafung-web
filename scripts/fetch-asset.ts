@@ -6,7 +6,7 @@
 //   bun scripts/fetch-asset.ts --id hero:zhouyu   --query "Zhou Yu Three Kingdoms portrait" --category heroes
 //   bun scripts/fetch-asset.ts --id treasure:seal --query "Imperial Seal of China jade"      --category treasures --width 256
 //
-//   # 三国杀 wiki 模式(武将立绘扩容,默认 --category heroes;完整流程见 docs/hero-expansion.md):
+//   # 三国杀 wiki 模式(武将立绘扩容,默认 --category heroes;完整流程见 docs/how-to/扩将指南.md):
 //   bun scripts/fetch-asset.ts --id hero:simayi:sgs --wiki "https://wiki.biligame.com/sgs/index.php?curid=2199"
 //   bun scripts/fetch-asset.ts --id hero:simayi:sgs --wiki "https://wiki.biligame.com/sgs/文件:司马懿-经典形象.png"
 //   bun scripts/fetch-asset.ts --id hero:simayi:sgs --wiki "https://patchwiki.biligame.com/images/sgs/0/0a/<hash>.png"
@@ -206,7 +206,7 @@ function removeStaleFiles(catDir: string, slug: string): void {
 }
 
 // ---------------------------------------------------------------------------
-// 三国杀 wiki(patchwiki)立绘管线 —— 操作手册见 docs/hero-expansion.md
+// 三国杀 wiki(patchwiki)立绘管线 —— 操作手册见 docs/how-to/扩将指南.md
 // ---------------------------------------------------------------------------
 
 const SGS_API = "https://wiki.biligame.com/sgs/api.php";

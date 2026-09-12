@@ -1576,7 +1576,7 @@ export class GameEngine {
   submitCommand(cmd: GameCommand): void {
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
-    // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/logging.md「命令流重放」)。
+    // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
     const issuer = this.players[this.decisionOwner];
     this.logEvent("cmd", issuer.guohao, `${issuer.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`, JSON.stringify(cmd));
     switch (cmd.type) {
@@ -1602,7 +1602,7 @@ export class GameEngine {
   // dispatchMoment(moment, ctx):在时机点派发全场技能(名将技能/将来的珍宝/地块/全局规则同轨)。
   // 确定性:座位序(0..n-1,未破产)× 每人 heroes 序 × skills 数组序,同层派发顺序全确定。
   // 零新增序列化状态:技能从 HEROES 数据派生;冷却复用 heroLastFired(键=skill.id)。
-  // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/timing-framework.md。
+  // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/explanation/时机框架.md。
 
   /** 派发深度计数(瞬态,不序列化):每次进入 dispatchMoment +1。>2 层直接抛错——
    *  不变量校验而非兜底:效果内同步再派发时机只能有一层嵌套,递归链是框架 bug,必须崩出来。 */
@@ -1626,7 +1626,7 @@ export class GameEngine {
 
   /** 效果注册表专用通道:技能得银(+现金 +浮字;skill 战报由派发器统一记录)。
    *  防连锁:此处【不】派发 CashGained——CashGained 仅在经济结算点(补给/事件得款/交涉收款)派发,
-   *  效果层收益不递归(技能给钱再触发得银技能会指数放大技能链,框架层禁止;见 docs/timing-framework.md)。 */
+   *  效果层收益不递归(技能给钱再触发得银技能会指数放大技能链,框架层禁止;见 docs/explanation/时机框架.md)。 */
   grantSkillCash(seat: number, amount: number): void {
     const p = this.players[seat];
     p.cash += amount;
