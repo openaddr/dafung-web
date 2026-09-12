@@ -100,7 +100,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 
 ## 游戏机制速查
 
-> 完整规则与数值表见 [`RULES.md`](./RULES.md)(以 `src/core/` 代码为权威)。本段为 AI 快速参考的速查卡。
+> 完整规则与数值总表见 [`docs/reference/rules/`](./docs/reference/rules/README.md)(以 `src/core/` 代码为权威)。本段为 AI 快速参考的速查卡。
 
 - **签筒**:单骰 1-6(不使用双骰,移动距离短便于追踪)
 - **选都三选一**:开局轮到某玩家时引擎滚出 3 候选城(`offeredCapitals`,随 rngState 序列化→联机/恢复一致),只能从中选;候选按建价低/中/高三档各一 + 最远点采样分散地理;跨玩家候选不重复(小地图不足时退化复用)
