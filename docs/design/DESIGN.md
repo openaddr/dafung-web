@@ -228,18 +228,18 @@ HUD 是案头笺纸——手札、签筒、印匣,一切数字皆墨书;
 
 | 屏 | 前 | 后 |
 |---|---|---|
-| 首页 | ![before](../../tmp/ui-shots/audit-before/b01-home.png) | ![after](../../tmp/ui-shots/audit-after/b01-home.png) |
-| 单机配置 | ![before](../../tmp/ui-shots/audit-before/b02-setup.png) | ![after](../../tmp/ui-shots/audit-after/b02-setup.png) |
-| 联机大厅 | ![before](../../tmp/ui-shots/audit-before/b03-lobby.png) | ![after](../../tmp/ui-shots/audit-after/b03-lobby.png) |
-| 对局全景 | ![before](../../tmp/ui-shots/audit-before/b04-game-overview.png) | ![after](../../tmp/ui-shots/audit-after/b04-game-overview.png) |
-| 城池拉近 | ![before](../../tmp/ui-shots/audit-before/b05-game-zoom.png) | ![after](../../tmp/ui-shots/audit-after/b05-game-zoom.png) |
-| 城池详情 | ![before](../../tmp/ui-shots/audit-before/b06-tile-detail.png) | ![after](../../tmp/ui-shots/audit-after/b06-tile-detail.png) |
-| 招贤卷轴 | ![before](../../tmp/ui-shots/audit-before/b08-hero-scroll.png) | ![after](../../tmp/ui-shots/audit-after/b08-hero-scroll.png) |
-| 机遇卷轴 | ![before](../../tmp/ui-shots/audit-before/b09-encounter-scroll.png) | ![after](../../tmp/ui-shots/audit-after/b09-encounter-scroll.png) |
-| 破产卷轴 | ![before](../../tmp/ui-shots/audit-before/b10-bankruptcy.png) | ![after](../../tmp/ui-shots/audit-after/b10-bankruptcy.png) |
-| 胜利屏 | ![before](../../tmp/ui-shots/audit-before/b11-victory.png) | ![after](../../tmp/ui-shots/audit-after/b11-victory.png) |
-| 编辑器 | ![before](../../tmp/ui-shots/audit-before/b12-editor.png) | ![after](../../tmp/ui-shots/audit-after/b12-editor.png) |
-| 骰子签面 | ![before](../../tmp/ui-shots/audit-before/b14-dice-sign.png) | ![after](../../tmp/ui-shots/audit-after/b14-dice-sign.png) |
+| 首页 | 截图未入库 |
+| 单机配置 | 截图未入库 |
+| 联机大厅 | 截图未入库 |
+| 对局全景 | 截图未入库 |
+| 城池拉近 | 截图未入库 |
+| 城池详情 | 截图未入库 |
+| 招贤卷轴 | 截图未入库 |
+| 机遇卷轴 | 截图未入库 |
+| 破产卷轴 | 截图未入库 |
+| 胜利屏 | 截图未入库 |
+| 编辑器 | 截图未入库 |
+| 骰子签面 | 截图未入库 |
 
 > tmp/ 不入库:对比图以本表为索引,提交前可由 `tmp/audit-shots.mjs` 分别对
 > master(worktree)与本分支重拍再生成(SHOT_BASE/SHOT_OUT 环境变量)。
