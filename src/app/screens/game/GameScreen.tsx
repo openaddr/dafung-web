@@ -40,6 +40,9 @@ function MuteButton() {
       type="button"
       data-testid={TESTIDS.muteButton}
       title={audio.muted ? "开音" : "静音"}
+      // #175:icon-only 钮可达名——Sym 是 aria-hidden SVG,仅有 title(弱可及名),
+      // 补 aria-label 对齐缩放钮口径
+      aria-label={audio.muted ? "开音" : "静音"}
       onClick={audio.toggleMuted}
       // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变;
       // 视觉重做 v2:控制钮统一「笺钮方章」制式(发丝墨边 + Sym SVG 符号,
@@ -245,6 +248,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           type="button"
           data-testid={TESTIDS.resetView}
           title="总览复位"
+          aria-label="总览复位"
           onClick={() => boardRef.current?.reset()}
           // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变;笺钮方章制式
           className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 text-ink-dim transition-colors hover:text-ink"
@@ -379,6 +383,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               type="button"
               data-testid={TESTIDS.sidebarToggle}
               title="收起侧栏(全屏看棋)"
+              // #175:可见内容是「»」符号,可达名补为动作语义(同 CollapsedRail 展开钮)
+              aria-label="收起侧栏"
               onClick={toggleSidebar}
               className="flex min-h-10 items-center justify-center border-t border-[rgba(43,35,23,0.2)] bg-panel-hi font-brush text-lg text-ink-dim hover:text-ink"
             >

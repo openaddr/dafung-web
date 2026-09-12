@@ -343,13 +343,16 @@ export function SoloSetupScreen({
           })}
         </div>
 
-        {/* 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字) */}
+        {/* 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
+            #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
+            承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号 */}
         <div className="font-deco text-xs text-ink-dim mt-3 mb-1">字盘快选国号:</div>
-        <div data-testid={TID.guohaoPool} className="flex flex-wrap gap-1">
+        <div data-testid={TID.guohaoPool} role="group" aria-label="字盘快选国号" className="flex flex-wrap gap-1">
           {GUOHAO_POOL.slice(0, 26).map((ch) => (
             <button
               key={ch}
               data-testid={TID.guohaoChar(ch)}
+              aria-pressed={guohao === ch}
               onClick={() => setGuohao(ch)}
               className={
                 // W2-包A:字盘钮 36px→32px(w-8 h-8)压卡片纵向高度,「起兵」CTA 更易入首屏

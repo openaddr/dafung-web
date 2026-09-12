@@ -106,6 +106,8 @@ export function CollapsedRail({
       type="button"
       data-testid={TESTIDS.sidebarToggle}
       title="展开侧栏"
+      // #175:可见内容是「«」符号,可达名补为动作语义(同 GameScreen 收起钮)
+      aria-label="展开侧栏"
       onClick={onToggle}
       className={s.toggle}
     >
