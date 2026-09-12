@@ -89,7 +89,7 @@ export interface Player {
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
   /** 免战金牌在身(#122):他人的锦囊无法指定你为目标,至你的下回合开始失效。
    *  (设计变更:原「免租金」——本作引擎不收租,按「免战=不可被指定」等义落地,
-   *  docs/jinnang.md §4 已同步。) */
+   *  docs/explanation/锦囊设计.md §4 已同步。) */
   jinnangShield: boolean;
   /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */
   repMilestones: number[];
@@ -213,14 +213,14 @@ export type TransactionResult =
 /** 对局日志事件(ADR-0014,原「战报」):每行 = 中文自然语言 brief + 机读 detail(英文键值),
  *  外加基本信息字段(ts/round/turn/player/category)。双层用途:人类可读层复盘 + 命令流重放。
  *
- *  category 分类表(显式化,新增类别须同步 docs/logging.md):
+ *  category 分类表(显式化,新增类别须同步 docs/reference/对局日志.md):
  *  - 局头:header(构造时首行,重放要素:gameId/mapId/seed/座位表/现金/目标)
  *  - 玩法事件:roll 掷骰 | buy 购地 | upgrade 扩军/成交升级 | trade 珍宝交涉+escrow 交割退回 |
  *    supply 补给/委任状 | tax 税关 | branch 辅路抉择/中伏跳过 | halt 驻跸必停 |
  *    setup 开局流程(定序/三候选/选都/招贤)| skill 时机技能击发 | system 其余玩法杂项
  *    (随机事件/商市/破产清算过程/警告)| victory 胜负 | final 终局行(机读终态面板,重放断言锚点)
  *  - 命令类:cmd(submitCommand 提交的玩家命令,detail=命令 JSON;bot 直调引擎方法不产生,
- *    确定性重放自动重算——见 docs/logging.md「命令流」)
+ *    确定性重放自动重算——见 docs/reference/对局日志.md「命令流」)
  *  - 房间类:room(房间生命周期:开局/托管/接管/离线/重连/解散;联机由 room.ts 写、
  *    单机托管由 LocalController 写,detail=机读 JSON,重放据此调整 bot 驱动座位集) */
 export interface LogEvent {
@@ -329,7 +329,7 @@ export interface TreasureDef {
 
 // ── 名将(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
 // src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 game.ts dispatchMoment。
-// 扩展指南见 docs/timing-framework.md:加效果一步、加技能两步、加时机三步。
+// 扩展指南见 docs/explanation/时机框架.md:加效果一步、加技能两步、加时机三步。
 export interface TriggerSkill {
   id: string; // 唯一 id(如 "zhouyu-move+1";同时是 heroLastFired 冷却键)
   when: GameMoment; // 触发时机(查 src/core/timing.ts)

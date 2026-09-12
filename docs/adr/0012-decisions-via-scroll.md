@@ -16,4 +16,4 @@ React 版早期把购地/扩军/驻跸/择路的决策按钮内嵌在侧栏手�
 侧栏手牌区此后只承载:行军主按钮、签面、现金/委任、珍宝/名士卡、托管行——纯信息+主行动,零决策按钮。
 
 ## 关联
-ADR-0010(表现事件流——决策后的表现反馈链);docs/ui-symbols.md(卷轴按钮符号);docs/ui-improvements.md(UI 评审体系。
+ADR-0010(表现事件流——决策后的表现反馈链);docs/reference/界面符号.md(卷轴按钮符号);docs/ui-improvements.md(UI 评审体系。

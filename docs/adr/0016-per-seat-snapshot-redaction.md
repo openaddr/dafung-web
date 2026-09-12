@@ -5,7 +5,7 @@
 
 ## 背景
 
-锦囊系统(docs/jinnang.md,#122)引入了全游戏**第一个隐藏信息**:暗置手牌。现状是联机对每个座位广播**同一份全量快照**(`clientView` 直接展开 `engine.snapshot()`,scripts/room.ts;`broadcast` 对房间内所有 WS 发同一 JSON,scripts/server.ts)——连珍宝牌堆剩余都全网可见。手牌若进快照,泄漏面有四处:players[].hand、对局日志行(log 全量随快照过网)、派生 choices 载荷(卷轴文段)、以及未来的私有通知(抽牌/窥探)。
+锦囊系统(docs/explanation/锦囊设计.md,#122)引入了全游戏**第一个隐藏信息**:暗置手牌。现状是联机对每个座位广播**同一份全量快照**(`clientView` 直接展开 `engine.snapshot()`,scripts/room.ts;`broadcast` 对房间内所有 WS 发同一 JSON,scripts/server.ts)——连珍宝牌堆剩余都全网可见。手牌若进快照,泄漏面有四处:players[].hand、对局日志行(log 全量随快照过网)、派生 choices 载荷(卷轴文段)、以及未来的私有通知(抽牌/窥探)。
 
 ## 决策
 
