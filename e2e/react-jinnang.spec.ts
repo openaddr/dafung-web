@@ -9,16 +9,19 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 test.describe("锦囊 T1:发牌与可见性", () => {
   test("起手各 1 张:侧栏见自己牌面;牌库余 11;诸侯行见计数章", async ({ page }) => {
     await quickStart(page); // 单机 4 人(1 真人 + 3 bot)
-    // 引擎缝 fail-fast:发牌没进引擎,后面全是废话
+    // 引擎缝 fail-fast:发牌没进引擎,后面全是废话。
+    // 断言用守恒口径(#190):quickStart 返回后 bot 可能已合法用牌(如横征暴敛可用即用),
+    // 手牌分布会被游戏本身改写——但「恰 4 张离库」+「离库者必在手或弃牌」不随竞改写。
     const eng = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       return {
         hands: e.players.map((p: { jinnangHand: string[] }) => p.jinnangHand.length),
         deck: e.jinnangDeck.length,
+        discard: e.jinnangDiscard.length as number,
       };
     });
-    expect(eng.hands).toEqual([1, 1, 1, 1]);
-    expect(eng.deck).toBe(11); // 15 − 4 起手
+    expect(eng.deck).toBe(11); // 15 − 4 起手(用牌只进弃牌堆不回库,牌库数即发牌证据)
+    expect(eng.hands.reduce((a: number, b: number) => a + b, 0) + eng.discard).toBe(4); // 离库 4 张无一消失
 
     // 己方牌面:容器 + 恰好 1 张,testid 带牌名(目录中文 id)
     const hand = page.getByTestId(TESTIDS.jinnangHand);
