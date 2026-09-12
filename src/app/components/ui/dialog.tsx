@@ -30,11 +30,17 @@ function DialogOverlay({
 function DialogContent({
   className,
   children,
+  overlayProps,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Popup>) {
+}: React.ComponentProps<typeof DialogPrimitive.Popup> & {
+  /** 透传给内部遮罩(DialogOverlay)。非模态弹层(modal="trap-focus")需要遮罩
+   *  pointer-events 放行底层交互——必须走内联 style:scroll.css 等未分层规则里的
+   *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
+  overlayProps?: React.ComponentProps<typeof DialogPrimitive.Backdrop>;
+}) {
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay />
+      <DialogOverlay {...overlayProps} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
