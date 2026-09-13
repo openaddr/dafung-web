@@ -39,9 +39,10 @@ export interface EncounterDef {
   choices?: EncounterChoiceOption[];
 }
 
-/** 目录 v2(#132 体力接线):18 条,好运 9/中性 6/霉运 3;玩家侧 4 条(七三开不变)。
- *  抉择 6 条(#124/#132)带 choices;即时 12 条带 effect。霉运三条调重后附体力损耗,
- *  新增 神医行诊(纯回血)/温泉疗养/夜行军(回血/耗体力抉择)。 */
+/** 目录 v3(#188 档 2 决策化扩容):30 条,好运 11/中性 8/霉运 11;玩家侧 7 条。
+ *  抉择 15 条占一半(好运 1/中性 8/霉运 6,#124/#132/#188),即时 15 条带 effect。
+ *  扩容主力在霉运:即时条附体力损耗;抉择条一律「两害相权」——每个选项都有实质代价
+ *  (银两 vs 体力 / 声望 vs 银两 / 对己 vs 对他),红线:不需要决策的事件不配当抉择机遇。 */
 export const ENCOUNTERS: EncounterDef[] = [
   // ── 好运 ──
   { id: "屯粮居奇", tier: "好运", tags: ["银两"], weight: 1, text: "荒年粮价飞涨,囤粮转卖大赚一笔", effect: { kind: "cash", delta: 250 } },
@@ -54,6 +55,15 @@ export const ENCOUNTERS: EncounterDef[] = [
   { id: "传檄而定", tier: "好运", tags: ["城池"], weight: 0.2, text: "檄文所至,一座无主城望风归降", effect: { kind: "grantCity", fallbackCash: 300 } },
   { id: "敌营哗变", tier: "好运", tags: ["银两", "玩家"], weight: 0.8, text: "敌营哗变,士卒携粮来投", effect: { kind: "siphon", amount: 150 } },
   { id: "纳款输诚", tier: "好运", tags: ["银两", "玩家"], weight: 0.6, text: "邻镇诸侯为避战端,向你输银", effect: { kind: "siphon", amount: 200 } },
+  {
+    // 好运抉择(#188 档 2):得利附声望代价——岁赐落袋 vs 僭越之名(声望调档/献计里程碑的长线成本)。
+    id: "奉迎天子", tier: "好运", tags: ["银两", "声望"], weight: 0.8,
+    text: "汉室车驾东归,恰过你的地界。奉迎天子,可领内库岁赐三百两、坐收号令之便;然僭越之讥随之,士林侧目。",
+    choices: [
+      { text: "奉迎天子(得岁赐 300 两,声望 −10)", repDelta: -10, effect: { kind: "cash", delta: 300 } },
+      { text: "礼送出境(无事发生)", repDelta: 0 },
+    ],
+  },
   // ── 中性(抉择)──
   {
     id: "携民渡江", tier: "中性", tags: ["银两", "声望"], weight: 1,
@@ -105,10 +115,84 @@ export const ENCOUNTERS: EncounterDef[] = [
       { text: "安营扎寨(无事发生)", repDelta: 0 },
     ],
   },
-  // ── 霉运 ──
+  {
+    // 声望/体力抉择(#188 档 2):胆气换名 vs 劳神伤体。
+    id: "单刀赴会", tier: "中性", tags: ["声望", "体力"], weight: 0.8,
+    text: "邻镇守将遣使下书,邀你单刀赴会、饮酒论英雄。只身赴会,胆气冠绝全军,威名远播;然席间暗流汹涌,惊险周旋颇耗心神。",
+    choices: [
+      { text: "单刀赴会(声望 +12,体力 −15)", repDelta: 12, staminaDelta: -15 },
+      { text: "称病不往(无事发生)", repDelta: 0 },
+    ],
+  },
+  {
+    // 对他抉择(#188 档 2):仁名 vs 赎银——bot 按声望系数在此分道(120 vs ±8×系数)。
+    id: "义释俘虏", tier: "中性", tags: ["玩家", "声望"], weight: 0.8,
+    text: "前哨擒得邻镇丁壮数十,囚于辕门。放其归乡,仁名远播;押为质、勒令赎金,白银入库,人心却散了。",
+    choices: [
+      { text: "义释归乡(声望 +8)", repDelta: 8 },
+      { text: "押质勒赎(得赎银 120 两,声望 −8)", repDelta: -8, effect: { kind: "siphon", amount: 120 } },
+    ],
+  },
+  // ── 霉运(抉择 = 两害相权:每个选项都有实质代价,#188 档 2)──
   { id: "粮道被劫", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "粮道遭山贼劫掠,损失折银 250 两", effect: { kind: "cash", delta: -250, staminaDelta: -25 } },
   { id: "漕船倾覆", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "漕船江心倾覆,白银落水", effect: { kind: "cash", delta: -100, staminaDelta: -20 } },
   { id: "假道征粮", tier: "霉运", tags: ["银两", "玩家", "体力"], weight: 0.8, text: "邻镇诸侯假道征粮,你被迫输银 50 两", effect: { kind: "levy", amount: 50, staminaDelta: -15 } },
+  {
+    // 银两 vs 体力(#188 档 2):花钱消灾 vs 全军疲敝。
+    id: "疫病入营", tier: "霉运", tags: ["银两", "体力"], weight: 0.8,
+    text: "军中疫气蔓延,病倒者日增。延医购药需费 200 两,疫可立止;若硬撑操练,疫情蚀体,全军疲敝。",
+    choices: [
+      { text: "重金延医(费银 200 两)", repDelta: 0, effect: { kind: "cash", delta: -200 } },
+      { text: "硬撑操练(全军体力 −25)", repDelta: 0, staminaDelta: -25 },
+    ],
+  },
+  {
+    // 短期得利 vs 声望/银两(#188 档 2):扰民恶名换现粮,或按市价破财。
+    id: "强征军粮", tier: "霉运", tags: ["银两", "声望"], weight: 0.8,
+    text: "秋粮歉收,军仓告急。向四乡强征,即刻得粮折银 150 两,却落扰民恶名;按市价购粮,则需费银 200 两。",
+    choices: [
+      { text: "强征民粮(得 150 两,声望 −18)", repDelta: -18, effect: { kind: "cash", delta: 150 } },
+      { text: "市价购粮(费银 200 两)", repDelta: 0, effect: { kind: "cash", delta: -200 } },
+    ],
+  },
+  {
+    // 对己 vs 对他(#188 档 2):自己拼体力拒贼,或嫁祸邻镇收贼资、担纵贼之名。
+    id: "祸水东引", tier: "霉运", tags: ["玩家", "声望", "体力"], weight: 0.6,
+    text: "马贼游骑直扑你的边境。出兵拒之,一场厮杀在所难免;若遣细作诱其转掠邻镇,贼获尽入你手,纵贼之名却也传开。",
+    choices: [
+      { text: "出兵拒之(体力 −20)", repDelta: 0, staminaDelta: -20 },
+      { text: "祸水东引(得贼资 150 两,声望 −12)", repDelta: -12, effect: { kind: "siphon", amount: 150 } },
+    ],
+  },
+  {
+    // 声望 vs 银两(#188 档 2):清野困敌失民心,或任劫折粮。
+    id: "坚壁清野", tier: "霉运", tags: ["声望", "银两"], weight: 0.8,
+    text: "敌军大举压境,四乡禾稼尽在敌锋之下。焚田清野,敌无所获,乡里怨声载道;任其劫掠,粮储折银 200 两。",
+    choices: [
+      { text: "焚田清野(声望 −15)", repDelta: -15 },
+      { text: "任其劫掠(损失折银 200 两)", repDelta: 0, effect: { kind: "cash", delta: -200 } },
+    ],
+  },
+  {
+    // 银两 vs 银两+体力(#188 档 2):抢险多花银,或堤溃后蚀粮又耗人夫。
+    id: "河堤告急", tier: "霉运", tags: ["银两", "体力"], weight: 0.6,
+    text: "秋汛暴涨,河堤渗漏如筛。征夫连夜抢修需费 120 两;若听天由命,堤溃淹田,抢收粮食又耗人夫体力。",
+    choices: [
+      { text: "征夫抢修(费银 120 两)", repDelta: 0, effect: { kind: "cash", delta: -120 } },
+      { text: "听天由命(失 80 两,体力 −15)", repDelta: 0, effect: { kind: "cash", delta: -80 }, staminaDelta: -15 },
+    ],
+  },
+  {
+    // 银两 vs 声望(#188 档 2):输币资敌保全盟约,或背盟恶名传遍诸侯。
+    id: "盟镇勒币", tier: "霉运", tags: ["银两", "玩家", "声望"], weight: 0.6,
+    text: "结义的盟镇忽然翻脸,遣使坐索岁币 120 两,言辞倨傲。破财免灾,盟约犹存;撕破脸皮,背盟之名传遍诸侯。",
+    choices: [
+      { text: "隐忍输币(输银 120 两)", repDelta: 0, effect: { kind: "levy", amount: 120 } },
+      { text: "撕毁盟约(声望 −12)", repDelta: -12 },
+    ],
+  },
+  { id: "驿马倒毙", tier: "霉运", tags: ["体力"], weight: 0.8, text: "千里转进,驿马接连倒毙,全军徒步拖行,人困马乏", effect: { kind: "cash", delta: 0, staminaDelta: -20 } },
+  { id: "火烛惊营", tier: "霉运", tags: ["银两", "体力"], weight: 0.8, text: "夜半营中走水,火借风势,粮草帐幕焚毁过半", effect: { kind: "cash", delta: -150, staminaDelta: -15 } },
 ];
 
 export interface EncounterBaseRates {

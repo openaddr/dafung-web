@@ -181,11 +181,11 @@ describe("档位调制与抽取(纯函数)", () => {
     expect(pickWeighted([heavy, light], 0.95)).toBe(light);
   });
 
-  it("目录 v2 = 19 条(#147 +圯上授书),档位 10/6/3,标签词表合法(含 体力/锦囊)", () => {
-    expect(ENCOUNTERS.length).toBe(19);
-    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(10);
-    expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(6);
-    expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(3);
+  it("目录 v3 = 30 条(#188 档 2 决策化扩容),档位 11/8/11,抉择 15 条占半,标签词表合法", () => {
+    expect(ENCOUNTERS.length).toBe(30);
+    expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(11);
+    expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(8);
+    expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(11);
     const TAGS: EncounterDef["tags"] = ["银两", "武将", "珍宝", "城池", "声望", "玩家", "体力", "锦囊"];
     for (const c of ENCOUNTERS) {
       expect(c.id.length).toBeGreaterThan(0);
@@ -194,9 +194,21 @@ describe("档位调制与抽取(纯函数)", () => {
       expect(c.effect == null || c.choices == null).toBe(true); // 二选一
       expect(c.tags.length).toBeGreaterThan(0);
       for (const t of c.tags) expect(TAGS).toContain(t);
+      if (c.choices) {
+        expect(c.choices.length).toBeGreaterThanOrEqual(1);
+        for (const o of c.choices) {
+          expect(o.text.length).toBeGreaterThan(0);
+          expect(Number.isFinite(o.repDelta)).toBe(true);
+          expect(Math.abs(o.repDelta)).toBeLessThanOrEqual(30); // 声望增减 ±30 档
+          expect(Math.abs(o.staminaDelta ?? 0)).toBeLessThanOrEqual(30); // 体力 ±30 内
+        }
+      }
     }
-    expect(new Set(ENCOUNTERS.map((c) => c.id)).size).toBe(19); // id 唯一
-    expect(ENCOUNTERS.filter((c) => c.tags.includes("体力")).length).toBe(6); // 体力 tag 计数(#132)
+    expect(new Set(ENCOUNTERS.map((c) => c.id)).size).toBe(30); // id 唯一
+    expect(ENCOUNTERS.filter((c) => c.choices).length).toBe(15); // 抉择型占半(#188 档 2)
+    expect(ENCOUNTERS.filter((c) => c.tags.includes("体力")).length).toBe(12); // 体力 tag 计数(#132/#188)
+    expect(ENCOUNTERS.filter((c) => c.tags.includes("玩家")).length).toBe(7); // 玩家侧转移(#188 扩 3 条)
+    expect(ENCOUNTERS.filter((c) => c.tier === "霉运" && c.choices).length).toBe(6); // 霉运「两害相权」
   });
 });
 
@@ -515,6 +527,93 @@ describe("抉择机遇(#124):入相与快照", () => {
   });
 });
 
+// ═════════════════════ 档 2 新抉择:结算断言(#188 决策化扩容)═════════════════════
+describe("#188 档 2 新抉择:选项效果结算", () => {
+  const byId = (id: string): EncounterDef => ENCOUNTERS.find((c) => c.id === id)!;
+
+  /** 中性床位入相(解完续跑落空结算收尾,turnPhase 回 Roll)。 */
+  function arm(e: GameEngine, id: string): void {
+    testEngine(e).placeActive(benignTile(e));
+    testEngine(e).enterEncounter(byId(id));
+    expect(e.turnPhase).toBe("AwaitingEncounter");
+  }
+
+  it("奉迎天子:得岁赐 +300、声望 −10 落账;礼送出境无事", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const cash0 = mover.cash;
+    arm(e, "奉迎天子");
+    e.resolveEncounterChoice(0);
+    expect(mover.cash).toBe(cash0 + 300);
+    expect(mover.reputation).toBe(-10);
+    expect(e.turnPhase).toBe("Roll");
+    expect(testEngine(e).logText().includes("机遇「奉迎天子」抉择:奉迎天子(得岁赐 300 两,声望 −10)")).toBe(true);
+  });
+
+  it("义释俘虏:义释 rep +8、分文不动;押质勒赎 siphon(上限=对方现金)、rep −8", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const cash0 = mover.cash;
+    arm(e, "义释俘虏");
+    e.resolveEncounterChoice(0); // 义释归乡
+    expect(mover.reputation).toBe(8);
+    expect(mover.cash).toBe(cash0);
+    expect(e.turnPhase).toBe("Roll");
+
+    const e2 = makeEngine(7);
+    finishSetup(e2);
+    const mover2 = e2.activePlayer;
+    const opp2 = e2.players.find((p) => p !== mover2)!;
+    const cash02 = mover2.cash;
+    const oppCash0 = opp2.cash; // 起手现金 > 120:勒赎足额
+    arm(e2, "义释俘虏");
+    e2.resolveEncounterChoice(1); // 押质勒赎
+    expect(mover2.cash).toBe(cash02 + 120);
+    expect(opp2.cash).toBe(oppCash0 - 120);
+    expect(mover2.reputation).toBe(-8);
+  });
+
+  it("两害相权:疫病入营(−200 / 体力 −25)、河堤告急(−80+体力 −15 组合)、盟镇勒币(levy 资敌)", () => {
+    // 疫病入营:硬撑操练——无 effect、纯选项级 staminaDelta −25
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 80;
+    const cash0 = mover.cash;
+    arm(e, "疫病入营");
+    e.resolveEncounterChoice(1);
+    expect(mover.stamina).toBe(55);
+    expect(mover.cash).toBe(cash0);
+    expect(e.turnPhase).toBe("Roll");
+
+    // 河堤告急:听天由命——effect(cash −80)与选项级 staminaDelta(−15)组合落账
+    const e2 = makeEngine(7);
+    finishSetup(e2);
+    const mover2 = e2.activePlayer;
+    mover2.stamina = 80;
+    const cash02 = mover2.cash;
+    arm(e2, "河堤告急");
+    e2.resolveEncounterChoice(1);
+    expect(mover2.cash).toBe(cash02 - 80);
+    expect(mover2.stamina).toBe(65);
+
+    // 盟镇勒币:隐忍输币——levy 120 付给随机对手(二人局唯一对手)
+    const e3 = makeEngine(7);
+    finishSetup(e3);
+    const mover3 = e3.activePlayer;
+    const opp3 = e3.players.find((p) => p !== mover3)!;
+    const cash03 = mover3.cash;
+    const oppCash0 = opp3.cash;
+    arm(e3, "盟镇勒币");
+    e3.resolveEncounterChoice(0);
+    expect(mover3.cash).toBe(cash03 - 120);
+    expect(opp3.cash).toBe(oppCash0 + 120);
+    expect(mover3.reputation).toBe(0);
+  });
+});
+
 // ═════════════════════ bot 抉择策略(#124)═════════════════════
 describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
   const botSeats: SeatConfig[] = [
@@ -610,6 +709,40 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
     expect(mover2.treasures.length).toBe(0);
     expect(e2.turnPhase).toBe("Roll");
     expect(testEngine(e2).logText().includes("婉言相拒")).toBe(true);
+  });
+
+  it("目录新事件(#188 档 2):义释俘虏按声望系数分道(轻声望勒赎/重声望义释);坚壁清野恒取焚田", () => {
+    // 义释俘虏:义释得分 8×coef,勒赎得分 120−8×coef——coef>7.5 义释,否则勒赎
+    const e = makeEngine(7, undefined, botSeats);
+    finishSetup(e);
+    testEngine(e).placeActive(benignTile(e));
+    const mover = e.activePlayer;
+    const opp = e.players.find((p) => p !== mover)!;
+    const oppCash0 = opp.cash; // 起手现金 > 120:勒赎足额
+    e.pendingEncounter = byId("义释俘虏");
+    testEngine(e).forceTurnPhase("AwaitingEncounter");
+    const coef = repCoefficient(e.activeIndex);
+    botAct(e);
+    expect(e.turnPhase).toBe("Roll");
+    if (coef > 7.5) {
+      expect(mover.reputation).toBe(8); // 重声望性格:仁名折银超过赎金
+      expect(opp.cash).toBe(oppCash0);
+    } else {
+      expect(mover.reputation).toBe(-8); // 轻声望性格:取赎银
+      expect(opp.cash).toBe(oppCash0 - 120);
+    }
+
+    // 坚壁清野:焚田 −15×coef ∈ [−75,−135] 恒优于任劫 −200 → bot 恒取焚田清野
+    const e2 = makeEngine(7, undefined, botSeats);
+    finishSetup(e2);
+    testEngine(e2).placeActive(benignTile(e2));
+    const mover2 = e2.activePlayer;
+    e2.pendingEncounter = byId("坚壁清野");
+    testEngine(e2).forceTurnPhase("AwaitingEncounter");
+    botAct(e2);
+    expect(mover2.reputation).toBe(-15);
+    expect(testEngine(e2).logText().includes("抉择:焚田清野(声望 −15)")).toBe(true);
+    expect(e2.turnPhase).toBe("Roll");
   });
 });
 
