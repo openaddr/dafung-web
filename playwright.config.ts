@@ -32,8 +32,10 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   // 整个 run 的墙钟上限:单测 60s 是故意放长的(吸收骰子/行军动画与 bot 链的负载
   // 抖动),代价是系统性破坏(如弹层穿透)下每个挂例都烧满预算——实测 21 挂跑出
-  // 16 分钟。15 分钟 = 绿跑(2 workers 约 5-7 分钟)的 2 倍余量,坏跑封顶不再拖垮节奏。
-  globalTimeout: 15 * 60_000,
+  // 16 分钟。本地默认 15 分钟 = 绿跑(2 workers 约 5-7 分钟)的 2 倍余量,坏跑封顶
+  // 不再拖垮节奏。CI 单核 workers=1 全量要 ~25-35 分钟,由 ci.yml 传
+  // E2E_GLOBAL_TIMEOUT=30 放宽(env 单位:分钟)。
+  globalTimeout: (process.env.E2E_GLOBAL_TIMEOUT ? Number(process.env.E2E_GLOBAL_TIMEOUT) : 15) * 60_000,
   use: {
     baseURL: `http://localhost:${STATIC_PORT}`,
     trace: "on-first-retry",

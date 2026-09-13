@@ -1,7 +1,7 @@
 // 教程防漂移守卫:docs/tutorials/新手第一局.md 的每句「你会看到什么/点什么」
 // 与真实 UI 对齐——文案/交互改动会在这里先炸,文档不许悄悄过期(#169 走查的机器层)。
 import { test, expect } from "./fixtures";
-import { actIfCan, openSoloSetup, pickCapital, waitSettled, snap } from "./react-helpers";
+import { actIfCan, waitSettled, snap } from "./react-helpers";
 
 test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 UI 断言", async ({ page }) => {
   await page.goto("/");
