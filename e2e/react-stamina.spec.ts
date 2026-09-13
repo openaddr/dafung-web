@@ -15,8 +15,7 @@ test.describe("体力系统冒烟", () => {
     await waitSettled(page);
 
     // 前置(引擎直写):都城压到 1 级 + 添一座 2 级房产(耗竭选项 = 2,走卷轴不自动),
-    // 体力压到 0。都城持仓缺失时补建(⚠ 既有引擎异常,偶发于开局选都后:钱已扣、持仓
-    // 未落——master 同现,与 #188 无关,待单独立票;此处只为布场自洽)。
+    // 体力压到 0。都城持仓直读断言(#226 已修:都城持仓恒在,无自愈兜底)。
     const seatInfo = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       const seat = e.activeIndex;
@@ -34,12 +33,9 @@ test.describe("体力系统冒烟", () => {
         maxLevel: def?.maxLevel ?? 3,
       });
       const capPropId = e.board.tiles[p.capitalIndex].propertyId;
-      let capital = p.properties.find((h: any) => h.propertyId === capPropId);
-      if (!capital) {
-        capital = { propertyId: capPropId, group: "a", purchasePrice: 1000, level: 0, maxLevel: 3 };
-        p.properties.unshift(capital); // 耗竭选项序 = properties 序,都城恒在前
-      }
-      capital.level = 1;
+      const capital = p.properties.find((h: any) => h.propertyId === capPropId);
+      if (!capital) throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
+      capital.level = 1; // 耗竭选项序 = properties 序,都城恒在前
       const skipBefore = p.skipTurns; // #188:对局自走可能已带辅路中伏等既有跳过,断言改相对值
       e.addStamina(seat, -100); // → 0
       return { seat, capitalPropId: capPropId, extraPropId: tile.propertyId, skipBefore };

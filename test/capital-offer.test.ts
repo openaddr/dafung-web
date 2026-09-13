@@ -168,3 +168,27 @@ describe("选都三选一:快照与极端地图", () => {
     expect(e.phase).toBe("Playing");
   });
 });
+
+describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => {
+  it("2-8 座位全座位选都后:每座位 capitalIndex 指向的城都在 properties 中且 Lv.0、现金=起手−建城费", () => {
+    for (let n = 2; n <= 8; n++) {
+      for (const seed of [3, 42]) {
+        const e = makeEngine(seed, Array.from({ length: n }, (_, i) => ({ name: `B${i}`, isBot: true })));
+        e.doDraftRoll();
+        let guard = 0;
+        while (e.phase === "Setup" && guard++ < 100) e.aiSetupStep();
+        expect(e.phase).toBe("Playing"); // 全员选都完成,无人轮空(轮空=另一类 bug,当场炸)
+        expect(new Set(e.players.map((p) => p.capitalIndex)).size).toBe(n); // 都城互不重复
+        for (const p of e.players) {
+          const tile = e.board.at(p.capitalIndex);
+          const holding = p.properties.find((x) => x.propertyId === tile.propertyId);
+          const def = e.catalog.get(tile.propertyId)!;
+          expect(holding, `${p.id}(${p.guohao}) seed=${seed} n=${n}:都城持仓缺失(#226)`).toBeDefined();
+          expect(holding!.level).toBe(0); // 建都即 Lv.0
+          expect(holding!.purchasePrice).toBe(def.buildCost);
+          expect(p.cash).toBe(e.startingCash - def.buildCost); // 钱账一致:恰好扣一次建城费
+        }
+      }
+    }
+  });
+});
