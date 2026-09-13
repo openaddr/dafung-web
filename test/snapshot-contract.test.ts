@@ -154,7 +154,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     const b2 = makeEngine(13);
     b2.restoreFromSnapshot(b1.snapshot());
     guard = 0;
-    while (!b2.isOver && guard++ < 500) {
+    while (!b2.isOver && guard++ < 5000) { // 同路径 A:经济 v2 + #188 档 3 技能骰流,终局步数远超旧 500 上限
       stepPlaying(b2);
     }
     expect(b2.isOver).toBe(true);

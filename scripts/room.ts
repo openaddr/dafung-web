@@ -683,7 +683,7 @@ export class RoomRegistry {
         const delay = stepDelayMs(r, owner);
         const before = fingerprint(e);
         if (setup) e.aiSetupStepFor(owner);
-        else botAct(e, { conservative: r.takeover.has(owner) && !r.autoPilot.has(owner) }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略
+        else botAct(e, { conservative: r.takeover.has(owner) && !r.autoPilot.has(owner), skills: e.players[owner].isBot ? "strategy" : "hold" }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略;#188 档 3:主动技唯真 bot 出,代驾(接管/托管)永不出
         this.observe(r, { ev: "bot-step", seat: owner, turnPhase: e.turnPhase, active: e.activeIndex });
         this.persist(r);
         onUpdate?.(r); // 每步直播

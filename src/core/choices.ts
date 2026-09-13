@@ -5,7 +5,7 @@
 // 扩展口:未来技能(免委任状购城/低价买城)经时机框架在选项计算前修改玩家状态,
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
 import type { GameEngine } from "./game";
-import type { TurnPhase } from "./types";
+import type { TurnPhase, ActiveSkillDef } from "./types";
 import { canUpgrade } from "./types";
 import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
@@ -44,6 +44,11 @@ export interface ChoiceOption {
   cardTags?: string[];
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
+  /** 名士主动技选项专属(#188 档 3):id=`skill:${skillId}`;军师幕文案随选项派生透出
+   *  (同 encounterId 通道口径);skillHero=属主名士名(卷轴组合显示)。 */
+  skillId?: string;
+  skillText?: string;
+  skillHero?: string;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -209,6 +214,18 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   ];
 }
 
+/** demolish 目标守卫(#226 口径,火烧连营与周瑜火攻共用):城防有 Lv>0 可降、或有非都城
+ *  可失,二者居一才可指定——「仅剩 0 级都城」的目标无城可毁,失城分支又不许动都城
+ *  (与耗竭/破产同口径),放行只会烧空。 */
+export function demolishTargetOk(e: GameEngine, target: number): { ok: boolean; reason?: string } {
+  const t = e.players[target];
+  const capPropId = t.capitalIndex >= 0 ? (e.board.at(t.capitalIndex)?.propertyId ?? null) : null;
+  const canDowngrade = t.properties.some((h) => h.level > 0);
+  const canLose = t.properties.some((h) => h.propertyId !== capPropId);
+  if (!canDowngrade && !canLose) return { ok: false, reason: "无可毁之城" };
+  return { ok: true };
+}
+
 /** 目标有效性(#122/T3):非己、存活、未被免战庇护;卡面附加条件由 effectKind 分派。 */
 export function jinnangTargetOk(e: GameEngine, user: number, target: number, effectKind: JinnangEffect["kind"]): { ok: boolean; reason?: string } {
   const t = e.players[target];
@@ -220,21 +237,31 @@ export function jinnangTargetOk(e: GameEngine, user: number, target: number, eff
       if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
       break;
     case "demolish": {
-      // 都城可降不可失(#226):城防有 Lv>0 可降、或有非都城可失,二者居一才可指定——
-      // 「仅剩 0 级都城」的目标无城可毁,失城分支又不许动都城(与耗竭/破产同口径),
-      // 放行只会烧空。口径与 exhaustionChoices「每座非都城失去整座」一致。
-      const capPropId = t.capitalIndex >= 0 ? (e.board.at(t.capitalIndex)?.propertyId ?? null) : null;
-      const canDowngrade = t.properties.some((h) => h.level > 0);
-      const canLose = t.properties.some((h) => h.propertyId !== capPropId);
-      if (!canDowngrade && !canLose) return { ok: false, reason: "无可毁之城" };
+      // 都城可降不可失(#226):守卫语义单源 demolishTargetOk
+      const verdict = demolishTargetOk(e, target);
+      if (!verdict.ok) return verdict;
       break;
     }
   }
   return { ok: true };
 }
 
-/** AwaitingJinnang(锦囊,#122/T2):卡牌段=手牌逐张 +「今不用」;目标段(T3)=
- *  pendingJinnang 在场时改列候选座位 +「作罢」。effect 尚未接入结算的种类灰置。 */
+/** 主动技目标有效性(#188 档 3):目标域按技能定义分派;附加守卫走共享口径。
+ *  注:免战金牌只挡锦囊(牌面原文),主动技不受庇护——故此处不查 jinnangShield。 */
+export function heroSkillTargetOk(e: GameEngine, user: number, target: number, skill: ActiveSkillDef): { ok: boolean; reason?: string } {
+  const t = e.players[target];
+  if (t.isBankrupt) return { ok: false, reason: "已出局" };
+  if (target === user && skill.target !== "any") return { ok: false, reason: "不能指定自己" };
+  if (skill.targetGuard === "demolish") {
+    const verdict = demolishTargetOk(e, target);
+    if (!verdict.ok) return verdict;
+  }
+  return { ok: true };
+}
+
+/** AwaitingJinnang(军师幕,#122/T2 + #188 档 3):统一决策窗——锦囊卡牌段 + 就绪主动技 +
+ *  「今不用」。目标段二态:pendingJinnang(锦囊选人)或 pendingSkill(技能选人)在场时
+ *  改列候选座位 +「作罢」。锦囊 effect 尚未接入结算的种类灰置。 */
 function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
   const pending = e.pendingJinnang;
@@ -250,6 +277,23 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
         label: t.guohao || t.name,
         available: ok,
         reason: excluded ? "已指定" : ok ? undefined : verdict.reason,
+        targetSeat: seat,
+      };
+    });
+    return [...targets, { id: "cancel", label: "作罢", available: true }];
+  }
+  const pendingSkill = e.pendingSkill;
+  if (pendingSkill) {
+    // 技能目标段(#188 档 3):候选按技能目标域逐一校验(守卫单源 heroSkillTargetOk)
+    const skill = activeSkillOf(p, pendingSkill.skillId);
+    const userSeat = e.players.indexOf(p);
+    const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
+      const verdict = skill ? heroSkillTargetOk(e, userSeat, seat, skill) : { ok: false, reason: "技不在身" };
+      return {
+        id: `t${seat}`,
+        label: t.guohao || t.name,
+        available: verdict.ok,
+        reason: verdict.ok ? undefined : verdict.reason,
         targetSeat: seat,
       };
     });
@@ -281,12 +325,67 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
       cardTags: def.tags,
     };
   });
-  return [...cards, { id: "pass", label: "今不用", available: true }];
+  return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];
 }
 
-/** 锦囊卡牌段「仍有可用牌」单源判定(#122):相位进入与用牌收尾共用,防两处漂移。 */
+/** 按 id 查玩家麾下主动技(#188 档 3);查无返回 null(命令与麾下不符时由调用方处置)。 */
+export function activeSkillOf(p: { heroes: { active?: ActiveSkillDef }[] }, skillId: string): ActiveSkillDef | null {
+  for (const h of p.heroes) {
+    if (h.active?.id === skillId) return h.active;
+  }
+  return null;
+}
+
+/** 冷却剩余轮数(#188 档 3):>0 = 仍在冷却(heroLastFired 键 = active.id,与被动技同机制)。 */
+export function skillCooldownLeft(e: GameEngine, p: { heroLastFired: Record<string, number> }, skill: ActiveSkillDef): number {
+  const last = p.heroLastFired[skill.id];
+  if (last == null) return 0;
+  return Math.max(0, skill.cooldown - (e.round - last));
+}
+
+/** 军师幕主动技选项段(#188 档 3):冷却就绪 + 可执行才 available;不可用带 reason
+ *  (冷却优先报,其次费用/目标门槛)。与锦囊选项同窗并列,UI 以 skillId 区分「技」章。 */
+function activeSkillChoices(e: GameEngine): ChoiceOption[] {
+  const p = e.activePlayer;
+  const userSeat = e.players.indexOf(p);
+  const out: ChoiceOption[] = [];
+  for (const hero of p.heroes) {
+    const skill = hero.active;
+    if (!skill) continue;
+    const cdLeft = skillCooldownLeft(e, p, skill);
+    let available = cdLeft === 0;
+    let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
+    if (available) {
+      // 冷却就绪后再验执行门槛:费用 → 目标候选存在
+      const cost = skill.params?.cost ?? 0;
+      if (cost > 0 && p.cash < cost) {
+        available = false;
+        reason = "银两不足";
+      } else if (skill.target !== "none") {
+        const anyTarget = e.players.some((_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok);
+        if (!anyTarget) {
+          available = false;
+          reason = "无可指定目标";
+        }
+      }
+    }
+    out.push({
+      id: `skill:${skill.id}`,
+      label: `${hero.name}·${skill.name}`,
+      available,
+      reason,
+      skillId: skill.id,
+      skillText: skill.desc,
+      skillHero: hero.name,
+    });
+  }
+  return out;
+}
+
+/** 军师幕「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
+ *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
-  return computeChoices(e, "AwaitingJinnang").some((o) => o.available && o.cardTags != null);
+  return computeChoices(e, "AwaitingJinnang").some((o) => o.available && (o.cardTags != null || o.skillId != null));
 }
 
 /** 决策相位 → 选项计算器。未注册的相位(Roll/Land/EndTurn/GameOver)无决策。 */

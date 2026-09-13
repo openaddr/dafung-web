@@ -277,13 +277,15 @@ export function DecisionScrollLayer({
     }
   }
 
-  // ── 锦囊(#122/T2):回合开始掷骰前,用牌或今不用(选项含灰置手牌)──
+  // ── 军师幕(#122/T2 锦囊 + #188 档 3 主动技,统一决策窗):回合开始掷骰前,
+  // 出一计/一技或今不用(选项含灰置项)──
   if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingJinnang") {
     if (snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel")) {
       return (
         <JinnangScroll
           choices={snapshot.choices}
           pendingCardId={snapshot.pendingJinnang?.cardId ?? null}
+          pendingSkillId={snapshot.pendingSkill?.skillId ?? null}
           onCommand={dispatch}
         />
       );

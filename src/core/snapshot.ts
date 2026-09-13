@@ -150,6 +150,10 @@ export interface GameSnapshot {
   jinnangUsedTags: string[];
   /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
   pendingJinnang: import("./types").PendingJinnang | null;
+  /** 技能目标段载荷(#188 档 3):军师幕选技后的选人子状态;null=无。 */
+  pendingSkill: import("./types").PendingHeroSkill | null;
+  /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
+  heroDiceBonus: number;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
   jinnangPeeks: import("./types").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
@@ -364,6 +368,22 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => (e.pendingJinnang ? { ...e.pendingJinnang, picked: [...e.pendingJinnang.picked] } : null),
     write: (e, s) => {
       e.pendingJinnang = s.pendingJinnang ? { ...s.pendingJinnang, picked: [...s.pendingJinnang.picked] } : null;
+    },
+  },
+  {
+    // 技能目标段(#188 档 3):同 pendingJinnang 口径,中途恢复不丢
+    key: "pendingSkill",
+    read: (e) => (e.pendingSkill ? { ...e.pendingSkill } : null),
+    write: (e, s) => {
+      e.pendingSkill = s.pendingSkill ? { ...s.pendingSkill } : null;
+    },
+  },
+  {
+    // 擂鼓步数加成(#188 档 3):发动与掷骰之间可被广播/落盘,恢复须保真
+    key: "heroDiceBonus",
+    read: (e) => e.heroDiceBonus,
+    write: (e, s) => {
+      e.heroDiceBonus = s.heroDiceBonus;
     },
   },
   {
