@@ -1,5 +1,5 @@
 import { test, expect } from "./fixtures";
-import { quickStart, pickCapital, waitSettled } from "./react-helpers";
+import { quickStart, pickCapital, waitSettled, waitMyPause } from "./react-helpers";
 
 test("侧栏抽屉折叠:收起成窄条(竖排摘要)并可展开还原", async ({ page }) => {
   await quickStart(page);
@@ -33,15 +33,10 @@ test.describe("8 人局矮视口", () => {
     await page.getByTestId("start-game").click();
     await pickCapital(page);
     // 8 人局:人类首回合前最多 7 个 bot 回合(发牌 + 每回合起手的锦囊相位 + 行军结算),
-    // 30s 固定窗必爆(#191)。改「轮到我」显式条件:锦囊卷轴(点今不用)或 roll-button 可点,预算 90s。
-    const mine = await page.waitForSelector(
-      '[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])',
-      { timeout: 90_000 },
-    );
-    if ((await mine.getAttribute("data-testid")) === "scroll-jinnang-pass") {
-      await page.getByTestId("scroll-jinnang-pass").click(); // 人类起手锦囊相位:今不用放行
-    }
-    await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 10_000 });
+    // 30s 固定窗必爆(#191)。#188:等轮到人类且停稳在其等待态(旧「roll-button 可点」
+    // 出口随行军按钮移除退役;停稳保证 settled 后 viewSeat=0,X13 的「你」印断言不受
+    // 自动行军推进影响),预算 90s。
+    await waitMyPause(page, 0, 90_000);
     await waitSettled(page);
 
     const list = page.getByTestId("others-list");

@@ -18,7 +18,7 @@ import {
   maybeShowTurnBanner,
   present,
 } from "@app/fx/orchestrator";
-import { AUTOPILOT, BOT, delay } from "@app/fx/timings";
+import { AUTOPILOT, AUTO_MARCH, BOT, delay } from "@app/fx/timings";
 import { GameController } from "./controller";
 import { createDriveArbiter } from "./drive";
 
@@ -57,6 +57,51 @@ export class LocalController extends GameController {
     );
     this.sync();
     if (on) void this.apLoop();
+  }
+
+  // ─── 行军自动化(#188 第 1 步):人类回合 Roll 相位定时自动起摇 ───
+  /** 自动起摇定时器:sync 撤/布(每次引擎变化后重评估),到点经 autoRoll 起签+起摇。
+   *  Roll 相位从此只存在 ~1s(自动起摇把它推进),行军按钮随自动化从 UI 移除。 */
+  private rollTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 重评估自动起摇定时器(#188):满足「对局中 + Roll 相位 + 轮到人类 + 未托管」即布
+   *  rollAtMs 定时器,任一条件不满足即撤。bot 座位由 runBots 驱动、托管中由 apLoop 代打,
+   *  都不到这里;破产座位不会进入 Roll 等待态(引擎 advanceToNextActive 跳过),无须判。
+   *  表现链推进中(drive 会话占用)不布:链尾 sync 会再评估,防链中状态误触发。 */
+  private rearmAutoRoll(): void {
+    if (this.rollTimer) {
+      clearTimeout(this.rollTimer);
+      this.rollTimer = null;
+    }
+    const e = this._engine;
+    if (e.phase !== "Playing" || e.isOver || e.turnPhase !== "Roll" || this.apOn) return;
+    if (e.players[e.decisionOwner].isBot || this.drive.isDriving()) return;
+    this.rollTimer = setTimeout(() => {
+      this.rollTimer = null;
+      void this.autoRoll();
+    }, AUTO_MARCH.rollAtMs);
+  }
+
+  /** 自动起摇(#188 第 1 步):钤「签」印起签(~0.8s)→ rollAndMove 走与手点完全相同的
+   *  推进链(引擎零改动,只是触发方式变了;起签须在驱动会话内播,故 runStep 骨架在此
+   *  内联:sync → 表现编排 → bot 接棒 → 横幅 → 释放)。定时器到点后状态可能已被调试
+   *  钩子/force 直改,入会话后重查一次再出手(与 apLoop「拿到会话重查」同口径——await
+   *  引入的重入窗口,非「理论上到不了」防御);不满足则原样退出,链尾 sync 重评估。 */
+  private async autoRoll(): Promise<void> {
+    const s = await this.drive.requestDrive("human");
+    try {
+      const e = this._engine;
+      if (e.phase !== "Playing" || e.isOver || e.turnPhase !== "Roll" || this.apOn || e.players[e.decisionOwner].isBot) return;
+      this.sync(); // 会话已占:interactive 锁定,且 rearm 因 drive 占用不会重复布定时器
+      this.fxSink.stampSeal(e.activePlayer.position, "签");
+      await delay(AUTO_MARCH.qiqianMs);
+      await this.runAnimatedStep(() => e.submitCommand({ type: "rollAndMove" }), "rollAndMove");
+      await this.runBots();
+      maybeShowTurnBanner(e);
+    } finally {
+      s.release();
+      this.sync();
+    }
   }
 
   /** 托管代打循环:轮到本地人类座位时以 botAct 推进一步(引擎 player-agnostic,
@@ -109,10 +154,20 @@ export class LocalController extends GameController {
   }
 
   /** 状态桥扩展(ADR-0014 单机落盘):每次引擎变化后把 log 增量归档 IndexedDB
-   *  (dafung-logs/games,key=gameId;换局首写顺手清 30 天前旧局,见 gameLogArchive.ts)。 */
+   *  (dafung-logs/games,key=gameId;换局首写顺手清 30 天前旧局,见 gameLogArchive.ts)。
+   *  #188:每次引擎变化后同时重评估自动起摇定时器(Roll 相位的唯一驻留出口)。 */
   protected override sync(): void {
     super.sync();
     archiveEngineLog(this._engine);
+    this.rearmAutoRoll();
+  }
+
+  override destroy(): void {
+    // 换局/卸载时撤自动起摇定时器(定时器泄漏 = bug;新控制器自带新定时器)
+    if (this.rollTimer) {
+      clearTimeout(this.rollTimer);
+      this.rollTimer = null;
+    }
   }
 
   // 热座:视角跟随「当前该行动的人类」。decisionOwner 是唯一出处(引擎 getter:珍宝交涉
@@ -163,6 +218,9 @@ export class LocalController extends GameController {
         }
       }
       maybeShowTurnBanner(this._engine);
+      // #188:开局即轮到人类时上面不走 runBots 链(无链尾 sync),此处补一次——
+      // 首回合 Roll 等待态的自动起摇定时器在此布下。
+      this.sync();
     })();
   }
 
@@ -261,6 +319,10 @@ export class LocalController extends GameController {
     while (e.phase === "Playing" && e.players[e.decisionOwner].isBot && guard++ < 500) {
       this.sync();
       await delay(BOT.stepDelayMs);
+      // delay 是异步窗:期间状态可能被调试钩子(e2e force)直改——decisionOwner 换人后
+      // 再 botAct 就是越权代打人类决策点。出手前重查一次(与 apLoop「拿到会话重查」同口径),
+      // 条件不再满足即交还控制权,链尾 sync 会按新状态重评估(含自动起摇定时器)。
+      if (!(e.phase === "Playing" && e.players[e.decisionOwner].isBot)) break;
       const before = botFingerprint(e);
       await this.runAnimatedStep(() => botAct(e));
       maybeShowTurnBanner(e);

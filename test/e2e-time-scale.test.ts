@@ -6,6 +6,7 @@ import { describe, it, expect } from "bun:test";
 import { Motion } from "../src/core/theme";
 import {
   AUTOPILOT,
+  AUTO_MARCH,
   BOT,
   DICE,
   FX,
@@ -86,5 +87,10 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(UI.statusClearMs).toBe(1500);
     expect(UI.victoryButtonMs).toBe(1800);
     expect(UI.copyFeedbackMs).toBe(1000);
+  });
+
+  it("AUTO_MARCH(#188 行军自动化:1s 起摇 + 0.8s 起签)", () => {
+    expect(AUTO_MARCH.rollAtMs).toBe(1000);
+    expect(AUTO_MARCH.qiqianMs).toBe(800);
   });
 });

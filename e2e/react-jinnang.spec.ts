@@ -3,15 +3,27 @@
 // 单机快照是 god view(引擎在本机),「他人只见计数」的投影逻辑由 room 层单测
 // redactSnapshotForSeat 直测;本 spec 断言 UI 面不泄:他人牌面永不出现在 DOM。
 import { test, expect } from "./fixtures";
-import { quickStart } from "./react-helpers";
+import { openSoloSetup, quickStart, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("锦囊 T1:发牌与可见性", () => {
   test("起手各 1 张:侧栏见自己牌面;牌库余 11;诸侯行见计数章", async ({ page }) => {
-    await quickStart(page); // 单机 4 人(1 真人 + 3 bot)
+    // seed 49 = 真人首动(jinnang-use 同款离线核算):首回合即人类,开局锦囊卷轴停下时
+    // 恰「发牌后、任何掷骰前」,牌库 11 / 各手 1 不随对局自走漂移。
+    await page.goto("/?seed=49");
+    // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
+    await page.getByTestId("home-select-map").click();
+    await page.getByTestId("map-item-sanguo").click();
+    await page.getByTestId("map-confirm").click();
+    await openSoloSetup(page);
+    await page.getByTestId("start-game").click();
+    // 不走 pickCapital(其收尾会「今不用」放行):自行点城+确认,保留开局卷轴。
+    // #188:行军自动化后「发牌后、首次掷骰前」的停靠点=开局锦囊卷轴(AwaitingJinnang
+    // 等输入,快照静止)。
+    await page.locator(".bv-tile.bv-selectable").first().click();
+    await page.getByTestId("confirm-capital-ok").click();
+    await waitMyPause(page, 0);
     // 引擎缝 fail-fast:发牌没进引擎,后面全是废话。
-    // 断言用守恒口径(#190):quickStart 返回后 bot 可能已合法用牌(如横征暴敛可用即用),
-    // 手牌分布会被游戏本身改写——但「恰 4 张离库」+「离库者必在手或弃牌」不随竞改写。
     const eng = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       return {

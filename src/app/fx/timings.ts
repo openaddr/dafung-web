@@ -94,6 +94,15 @@ export const AUTOPILOT = {
   idleMs: sc(200),
 } as const;
 
+/** 行军自动化(#188 第 1 步):人类回合 Roll 相位的自动起摇节奏。
+ *  进入 Roll 后等 rollAtMs(约 1s,起签的静默酝酿拍)→ 钤「签」印起签 →
+ *  再等 qiqianMs(约 0.8s,起签印章的驻留)→ 自动 rollAndMove(与手点同一条命令路径)。
+ *  服务器侧(room.ts)的同类定时用固定 1s:scripts 不吃 localStorage 倍率,见 room.ts 注释。 */
+export const AUTO_MARCH = {
+  rollAtMs: sc(1000),
+  qiqianMs: sc(800),
+} as const;
+
 /** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
  *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参。 */
 export const UI = {

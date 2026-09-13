@@ -165,7 +165,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   return (
     <AudioProvider>
       {/* 3D 骰子(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
-          生命周期=一局;行军按钮点击后控制器 busy 锁 interactive,骰子播放期间防连点。 */}
+          生命周期=一局;#188 第 1 步:掷骰由控制器定时自动发起(起签后起摇),演出期间
+          控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />
       <div className="relative flex h-full w-full bg-bg text-ink">
       {/* 棋盘区(相对定位承载 hint/WaitingBar/fx 覆盖层,同旧 board-wrap)。
@@ -363,12 +364,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               </small>
             </h1>
             <StatusBar snapshot={snapshot} />
-            <HandPanel
-              snapshot={snapshot}
-              player={localPlayer}
-              controller={controller}
-              interactive={interactive}
-            />
+            <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} />
             {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名将常驻展示区;
                 诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。
                 R3-A5(#68):isNarrow 同源下发抽屉态(IS_NARROW_QUERY 含横屏矮视口分支,

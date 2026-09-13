@@ -6,7 +6,9 @@ import { quickStart, force, actIfCan } from "./react-helpers";
 
 test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);
-  await force(page, `e.phase = "Playing"; e.tryRecruitHero(e.activePlayer);`);
+  // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
+  // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
+  await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
   const scroll = page.getByTestId("scroll-hero-pick");
   await expect(scroll).toBeVisible();
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
@@ -20,9 +22,10 @@ test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
 
 test("珍宝交涉卷轴:城主两步流(模式→选珍宝→返回)", async ({ page }) => {
   await quickStart(page);
-  // 给城主(本地玩家)塞一件珍宝 + 一座被访的城,构造交涉现场
+  // 给城主(本地玩家)塞一件珍宝 + 一座被访的城,构造交涉现场(#188:先钉人类座位,理由同上)
   await force(page, `
     e.phase = "Playing";
+    e.activeIndex = 0;
     const me = e.activePlayer;
     me.treasures.push({ id: "jade_seal", name: "传国玉玺", level: 3, desc: "天命所归" });
     const tile = e.board.tiles.find((t) => t.propertyId);
@@ -42,6 +45,7 @@ test("破产清算卷轴:债务/变卖/确认入口齐全", async ({ page }) => 
   await quickStart(page);
   await force(page, `
     e.phase = "Playing";
+    e.activeIndex = 0;
     const me = e.activePlayer;
     me.treasures.push({ id: "jade_seal", name: "传国玉玺", level: 3, desc: "x" });
     me.heroes.push({ id: "zhouyu", name: "周瑜", title: "火烧赤壁", desc: "x" });

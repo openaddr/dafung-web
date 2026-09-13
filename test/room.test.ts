@@ -473,6 +473,31 @@ describe("clientView · snapshot 消息房间字段(架构待办③:协议自描
   });
 });
 
+describe("RoomRegistry · 行军自动化(#188)", () => {
+  it("人类座位 Roll 相位 ~1s 后服务器代发 rollAndMove(观测流水 + cmd 行)", async () => {
+    const events: Record<string, unknown>[] = [];
+    const reg = new RoomRegistry(new InMemoryPersistence(), (_roomId, event) =>
+      events.push(event as Record<string, unknown>));
+    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 42 } });
+    reg.setMap(created.room.roomId, "sanguo", created.token, VALID_MAP_IDS);
+    await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
+    await pickAllHumanCapitals(reg, created.room.roomId);
+    const e = reg.get(created.room.roomId)!.engine!;
+    // 本房间的 rollAndMove cmd 行只可能来自自动起摇(选都行是 pickCapital 的;
+    // botAct 直调不经 submitCommand)。开局锦囊相位保持人工(#188 红线):测试侧以
+    // 玩家身份「今不用」放行,落 Roll 后计时器武装,≤1s 自动起摇。
+    const rolled = () => e.log.some((l) => l.category === "cmd" && l.detail.includes('"rollAndMove"'));
+    for (let i = 0; i < 400 && !rolled(); i++) {
+      if (e.phase === "Playing" && e.turnPhase === "AwaitingJinnang" && !e.players[e.decisionOwner].isBot) {
+        await reg.applyCommand(created.room.roomId, { type: "useJinnang", cardId: null });
+      }
+      await new Promise((r) => setTimeout(r, 25));
+    }
+    expect(rolled()).toBe(true);
+    expect(events.some((x) => x.ev === "auto-roll")).toBe(true);
+  }, 15000);
+});
+
 describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => {
   /** 收集型观察者:记录 (roomId, event) 对。 */
   function observed() {

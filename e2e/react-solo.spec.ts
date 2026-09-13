@@ -5,12 +5,16 @@
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
-import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital, expectRollEnabled } from "./react-helpers";
+import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital, waitMyRollDone, waitMyPause, dismissJinnangIfUp } from "./react-helpers";
 
-test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
-  await quickStart(page);
+test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
+  await page.goto("/");
+  await openSoloSetup(page);
+  await page.getByTestId("start-game").click();
+  await pickCapital(page);
   const logsBefore = (await snap(page)).log.length;
-  await page.getByTestId("roll-button").click();
+  // 自动起摇:锦囊放行后 ~1s(e2e 加速后 ~250ms)引擎自动 rollAndMove,无须点任何按钮
+  await waitMyRollDone(page, 0);
   await expect(page.getByTestId("dice-face")).toHaveText(/[一二三四五六]/, { timeout: 15_000 });
   await expect
     .poll(async () => (await snap(page)).log.length, { timeout: 20_000 })
@@ -21,19 +25,33 @@ test("掷骰行军:签面显示点数、战报追加、回合推进不卡死", a
 
 test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", async ({ page }) => {
   await quickStart(page);
-  const s = await snap(page);
-  const me = s.players[0];
-  // 手牌区现金 = 快照现金(锭/两/分格式,同 core/money.formatMoney)
-  await expect(page.getByTestId("hand-cash")).toContainText(fmtMoney(me.cash));
-  // 状态卡:活跃玩家国号 + 身价/委任元信息(R3-B7 现金归手牌区大数,meta 不再重复)
-  const active = s.players[s.activeIndex];
-  await expect(page.getByTestId("status-guohao")).toHaveText(active.guohao);
-  await expect(page.getByTestId("status-meta")).toContainText(fmtMoney(active.netWorth));
-  await expect(page.getByTestId("status-meta")).toContainText(`委任 ${active.warrants}`);
-  // 珍宝·名将区(L48 战报腾位)+ 诸侯列表就位
+  // #188:对局自走后引擎态持续变化,「读一次快照 vs UI 文本」的固定期望会撞上推进——
+  // 改为轮询比对:同一时刻 UI 与快照一致即算同步(断言意图不变,只是采样方式改了)。
+  await expect
+    .poll(
+      async () => {
+        const s = await snap(page);
+        const me = s.players[0];
+        const active = s.players[s.activeIndex];
+        const cash = await page.getByTestId("hand-cash").textContent();
+        const guohao = await page.getByTestId("status-guohao").textContent();
+        const meta = await page.getByTestId("status-meta").textContent();
+        return (
+          cash?.includes(fmtMoney(me.cash)) === true &&
+          guohao === active.guohao &&
+          meta?.includes(fmtMoney(active.netWorth)) === true &&
+          meta?.includes(`委任 ${active.warrants}`) === true
+        );
+      },
+      { timeout: 15_000, message: "手牌现金/状态卡与引擎快照同步" },
+    )
+    .toBe(true);
+  // 珍宝·名将区(L48 战报腾位)+ 诸侯列表就位(结构性,不随推进变化)
   await expect(page.getByTestId("treasury-panel")).toBeVisible();
   await expect(page.getByTestId("others-panel")).toBeVisible();
-  // X13(#32):诸侯列表自己行(座位 0)挂「你」印,他人行没有
+  // X13(#32):「你」印挂在本方座位行——需轮到人类(viewSeat 跟随决策方),
+  // 等停稳在人类等待态再断言(他人行没有)
+  await waitMyPause(page, 0);
   await expect(page.getByTestId("other-player-0").getByTestId("other-player-you")).toBeVisible();
   await expect(page.getByTestId("other-player-1").getByTestId("other-player-you")).toHaveCount(0);
 });
@@ -46,10 +64,16 @@ test("珍宝行键盘语义:行本体是 button,聚焦后 Enter 开详情(#42)",
   await expect(row).toBeVisible();
   // S9:行必须是原生 button(与同区名将卡同语义;div+onClick 已废,Tab 天然可达)
   await expect(row).toHaveJSProperty("tagName", "BUTTON");
-  // Enter 开详情卷轴
-  await row.focus();
-  await page.keyboard.press("Enter");
-  await expect(page.getByTestId("card-detail-scroll")).toBeVisible();
+  // Enter 开详情卷轴。#188:对局自走后自然对局可能弹出决策卷轴(焦点陷阱会截走 Enter),
+  // 改 toPass 重试:清掉自然卷轴 → 聚焦 → Enter → 卷轴可见,直到逮住交互空闲窗
+  //(与「城池详情卷轴」用例的 toPass 口径一致)。
+  await expect(async () => {
+    await dismissJinnangIfUp(page);
+    await actIfCan(page);
+    await row.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("card-detail-scroll")).toBeVisible();
+  }).toPass({ timeout: 30_000 });
   await expect(page.getByTestId("card-detail-scroll")).toContainText("传国玉玺");
 });
 
@@ -58,8 +82,11 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
   // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)。
   // C2 起 buyProperty 消费 pendingLand(决策载荷),布场须两态同步:表现(lastLandOutcome)
   // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
+  // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
+  // interactive=false,卷轴恒不弹。
   await force(page, `
     e.turnPhase = "AwaitingDecision";
+    e.activeIndex = 0;
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
     e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
@@ -80,8 +107,10 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
 
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
+  // #188:先钉活跃座位到人类(0),理由同「购地决策」用例
   await force(page, `
     e.turnPhase = "AwaitingDecision";
+    e.activeIndex = 0;
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
     me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
@@ -106,8 +135,10 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),下回合掷骰沿辅路推进", async ({ page }) => {
   await quickStart(page);
   const turnBefore = (await snap(page)).turnNumber;
+  // #188:先钉活跃座位到人类(0),理由同「购地决策」用例;下轮 onBranch 推进断言按座位 0 读
   await force(page, `
     e.turnPhase = "AwaitingBranch";
+    e.activeIndex = 0;
     e.activePlayer.onBranch = null;
   `);
   await expect(page.getByTestId("scroll-branch")).toBeVisible();
@@ -124,16 +155,16 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
     .poll(async () => (await snap(page)).turnNumber, { timeout: 10_000 })
     .toBeGreaterThan(turnBefore);
   // 下回合掷骰:掷几点走几格辅路格(第 die 格);die 超长则从辅路终点汇入主路
-  await expectRollEnabled(page); // 「今不用」保留手牌 → 每回合开始卷轴再弹,先放行(#122)
-  await page.getByTestId("roll-button").click();
+  // #188:掷骰自动触发,无须点行军——轮询体内放行每回合开始的锦囊卷轴(#122),
+  // 自动起摇后 onBranch 自会推进(轮到 bot 先行时耐心等人类回合到来)。
   await expect
     .poll(
-      async () =>
-        page.evaluate(() => {
-          const ob = (window as any).__dafung.getEngine().players[0].onBranch;
-          return ob == null || ob.step >= 0;
-        }),
-      { timeout: 15_000 },
+      async () => {
+        await dismissJinnangIfUp(page);
+        const ob = await page.evaluate(() => (window as any).__dafung.getEngine().players[0].onBranch);
+        return ob == null || ob.step >= 0;
+      },
+      { timeout: 20_000 },
     )
     .toBe(true);
 });
@@ -157,9 +188,12 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   // 锁种子:不锁时随机骰路偶发决策链超长(辅路/交涉连环)超出等待窗——TODO 记账的抖动家族,
   // 锁定后本用例确定性通过;骰路覆盖广度由「全程驱动」用例承担。
   await quickStart(page, 7);
-  // 身价=现金+地产:直接把现金推过目标身价,掷骰收尾 endTurn 即触发 checkVictory
-  await force(page, `e.activePlayer.cash = e.targetNetWorth * 3;`);
-  await page.getByTestId("roll-button").click();
+  // 身价=现金+地产:直接把现金推过目标身价,任一次 endTurn 收尾即触发 checkVictory。
+  // #188:quickStart 不再保证「正轮到人类」(行军自动化后局面自走),改锁人类座位本尊——
+  // checkVictory 先看主动玩家、再看全场达标者中身价最高者,开局数回合内 bot 身价远低,
+  // 人类 3× 目标恒为最高达标者,胜者确定性不变。
+  await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
+  // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
   // 掷骰可能落在辅路起点等决策格:把余下决策也推完才 endTurn 触发胜利判定;
   // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(见 react-solo 全程驱动用例注释),同样绕过
   // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
@@ -217,19 +251,23 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   await page.getByTestId("setup-seat-count-minus").click(); // 3→2(X10 stepper),加速节奏
   await page.getByTestId("start-game").click();
   await pickCapital(page);
-  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  // #188:等人类的当前一手自动走完(替代旧「等 roll-button 可用」——按钮已随自动化移除)
+  await waitMyRollDone(page, 0, 90_000);
 
   let actions = 0;
+  let steps = 0;
   let stall = 0;
   let over = false;
   while (actions < 1200 && stall < 60 && !over) {
+    steps++;
     const s = await snap(page);
     if (s.isOver) {
       over = true;
       break;
     }
-    // 加速逼近终局:每 100 手给全员发银两(不破坏不变量,身价达标即触发胜利)
-    if (actions % 15 === 0) {
+    // 加速逼近终局:每 15 圈循环给全员发银两(不破坏不变量,身价达标即触发胜利)。
+    // #188:行军自动化后 actions 只在决策点增长,加速改按循环圈数计,不依赖决策密度。
+    if (steps % 15 === 0) {
       await force(page, `for (const p of e.players) p.cash += 6000;`);
     }
     // 不变量:现金/身价非负、位置合法、破产无残留(与旧 invariants.spec 同口径)
@@ -259,6 +297,9 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
       // 不够 bot 想完,假失败。改为等"快照变化":bot 推进期间快照持续变化会立刻返回,
       // 真正静止 2s 才算一次 stall——stall 语义从"等了 N 次"变成"局面真没动"。
       await waitForSnapChanged(page, JSON.stringify(s2), 2_000).catch(() => {});
+      // #188:行军自动化后掷骰不再是可点动作,bot 链/自动起摇期间 actIfCan 恒 false——
+      // 局面真的在动(快照已变)就不算停滞,不烧 stall 预算(#217① 同族);静止才累计。
+      if (JSON.stringify(await snap(page)) !== JSON.stringify(s2)) stall = 0;
     }
   }
   if (!over) {

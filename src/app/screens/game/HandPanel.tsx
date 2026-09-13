@@ -1,6 +1,7 @@
 // 侧栏·手牌区(对照旧 renderHand + action-zone 的手牌部分):
 // 头部:L47 玩家身份头(国号大字 + 玩家色底纹 + 「你」印)+ 现金 / 委任;
-// 动作区:签面 + 行军按钮(行军是主行动不是抉择,留守手牌区——交互重构已确认决策)。
+// 动作区:签面(#188 第 1 步:行军按钮已随掷骰自动化移除——进入人类回合自动起签起摇,
+// 本区只留签面展示掷骰结果)。
 // L48:珍宝/名将卡迁出至 TreasuryPanel(战报移除后腾出的常驻展示区),本区只留身份与行动。
 // 交互重构:原 ActionInline 内嵌决策(买/扩军/驻跸/选路)整体迁入卷轴体系
 // (DecisionScrollLayer 按相位自动弹出),手牌区不再有任何决策按钮。
@@ -35,31 +36,6 @@ function gainPulseKey(floats: DeltaFloat[]): number {
     if (floats[i].delta > 0) return floats[i].id;
   }
   return 0;
-}
-
-/** 行军按钮 disabled 原因(UI F1):从快照 + interactive + pending 集中推导,返回 null = 可用。
- *  为什么集中一处:内嵌买地/扩军已把原因写在文案里,行军没有——这里补齐并统一口径,
- *  悬停 title 与旁注灰字共用同一返回值,避免两套说法漂移。
- *  W2-包D(审计 A1):player 透传补「己方演出窗」口径——interactive=false 且非托管时,
- *  若活跃玩家就是本地玩家(掷骰/行军演出进行中,控制器 busy 锁),说「未轮到你」与
- *  回合 chip「X之回合」直接打架,改报「行军中…」(与 pending 同一句话,状态自洽)。 */
-function reasonForDisabled(
-  s: GameSnapshot,
-  interactive: boolean,
-  pending: boolean,
-  autopilotOn: boolean,
-  player: HandPanelProps["player"],
-): string | null {
-  if (pending) return "行军中…";
-  if (!interactive) {
-    if (s.phase !== "Playing") return "非对局中";
-    if (autopilotOn) return "托管中,点「收回」取回操作";
-    // 己方演出窗:轮到我了但演出未完(引擎 busy 锁),不是「没轮到」
-    if (player && s.players[s.activeIndex]?.id === player.id) return "行军中…";
-    return "未轮到你";
-  }
-  if (s.turnPhase !== "Roll") return "轮次未到,先完成当前抉择";
-  return null;
 }
 
 /** L47「我是谁」锚点:国号大字 brush + 玩家色底纹(左染渐变 + 左缘 3px 色条,与
@@ -117,10 +93,9 @@ interface HandPanelProps {
   /** 本地视角玩家(热座=活跃人类;联机=自己)。null = 未入座,只渲染空态。 */
   player: GameSnapshot["players"][number] | null;
   controller: GameController | null;
-  interactive: boolean;
 }
 
-export function HandPanel({ snapshot, player, controller, interactive }: HandPanelProps) {
+export function HandPanel({ snapshot, player, controller }: HandPanelProps) {
   // 托管:联机从 netStore 的 seats 广播回读(本端已入座);单机未入座(mySeat=-1)
   // 回落 controller.autoPilotOn(本地标记)。速度是本地 UI 态(切速时若在托管中立即重发)
   const net = useNetStore();
@@ -298,53 +273,18 @@ export function HandPanel({ snapshot, player, controller, interactive }: HandPan
           </div>
         </>
       )}
-      {/* 动作区:签面 + 行军(所有按钮 disabled 绑定 interactive,单一来源 store)。
-          W3:行军(primary)独占一行——primary text-base 与 xs 混排会让基线错位、
-          视觉重心漂移,分行后主次一眼可分。
-          G-10:未入座(观战)不渲染——无签可掷无军可行。 */}
+      {/* 动作区:签面(#188 第 1 步:行军按钮随掷骰自动化移除——轮到人类即自动起签
+          起摇,签面只承担结果展示)。
+          G-10:未入座(观战)不渲染——无签可看。 */}
       {player && (
       <div className="mt-2 flex shrink-0 flex-wrap items-center gap-2 px-3 pb-1">
-        {/* #32 按钮体系·一级(主行动):签面方 h-11 w-11 + 行军 h-11,同一行等高;
-            主 CTA 与卷轴决策按钮(ScrollButton)同圆角(rounded)/brush 字体,口径统一。 */}
+        {/* #32 按钮体系:签面方 h-11 w-11,与托管行小钮同一圆角(rounded)口径。 */}
         <span
           data-testid={TESTIDS.diceFace}
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel font-brush text-lg leading-none"
         >
           {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] ?? "签" : "签"}
         </span>
-        {/* Wave3(候选2):roll() 一行转发已从基类删除,行军=标准命令直发(dispatchCommand 唯一入口) */}
-        {(() => {
-          // UI F1/F3:disabled 原因集中推导;pending(联机命令已发未回)显示「行军中…」
-          const reason = reasonForDisabled(snapshot, interactive, net.pending, autopilotOn, player);
-          return (
-            <>
-              <button
-                type="button"
-                data-testid={TESTIDS.rollButton}
-                disabled={reason !== null}
-                onClick={() => controller?.dispatchCommand({ type: "rollAndMove" })}
-                title={reason ?? "行军"}
-                /* P0-4 行军升格主 CTA:#32 后可用/禁用两态同 h-11 同圆角,仅换皮——
-                   可掷=实心金底+深墨字+呼吸光晕(game-hud.css 的 .game-cta-breathe 类,
-                   R3-C1 后时长/缓动引 --dur-ambient/--ease-sine token);禁用=金描边灰底 +
-                   text-ink-dim(替代整按钮 opacity 压暗,原因旁注仍由 F1 提供)。 */
-                className={
-                  "h-11 min-w-24 cursor-pointer rounded-[5px] border px-5 font-brush text-lg leading-none transition-colors " +
-                  (reason === null
-                    ? // 行军=墨钮(视觉重做 v2):浓墨漆底漆金字,可掷时金晕呼吸
-                      "ink-btn game-cta-breathe"
-                    : "border-[rgba(43,35,23,0.3)] bg-panel-hi/60 text-ink-dim enabled:hover:bg-panel-hi disabled:cursor-not-allowed"
-                  )
-                }
-              >
-                {net.pending ? "行军中…" : "行军"}
-              </button>
-              {reason && !net.pending && (
-                <span className="text-xs text-ink-dim">{reason}</span>
-              )}
-            </>
-          );
-        })()}
       </div>
       )}
       {/* 托管行(联机=服务器 bot 代打;单机=本地 bot 代打,均由 autopilotSupported 控制
