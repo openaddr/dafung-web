@@ -1,6 +1,6 @@
 {
   "name": "dafung-web",
-  "version": "0.9.0",
+  "version": "0.10.0",
   "private": true,
   "description": "群雄逐鹿 — 三国古风水墨大富翁(React + Bun,浏览器可自动化测试)",
   "type": "module",
@@ -10,7 +10,8 @@
     "preview": "bun run --bun vite preview --port 4173",
     "typecheck": "bun run --bun tsc --noEmit",
     "test": "bun test",
-    "test:e2e": "playwright test",
+    "playwright": "echo 'playwright runner 必须跑在 Node 上:请用 npx playwright 或 bun run test:e2e(bun 下 pw 静默 exit 0 且 0 用例,详见 playwright.config.ts 头注释)' && exit 1",
+    "test:e2e": "bun run --bun vite build && playwright test",
     "test:e2e:dev": "playwright test --max-failures=3",
     "serve:e2e": "bun run --bun vite preview --port 4173 --strictPort",
     "serve": "bun scripts/server.ts",
