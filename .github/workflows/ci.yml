@@ -1,0 +1,54 @@
+# CI(2026-09-13 定):公开仓库 Actions 免费,只跑 ubuntu。
+# 两个 job 并行、互不依赖:
+#   check  — 类型检查(src + scripts)+ 单测 + 产物构建,分钟级,每次 push/PR 必跑;
+#   e2e    — Playwright 全量(48 例)。runner 只有 2 核,config 的 CI 分支已定
+#            workers=1 + retries=1,故 E2E_GLOBAL_TIMEOUT 放宽到 30(见 playwright.config.ts)。
+# e2e job 不吃 check 的构建产物:test:e2e 脚本自带 vite build(防陈旧 dist),自给自足。
+# 覆盖率刻意不进 CI——低频体检走 .agents/skills/coverage-audit,进 CI 只会教人刷数字。
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: 类型检查 + 单测 + 构建
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bun run build # tsc --noEmit(含 *.config.ts)+ vite build
+      - run: bun run typecheck:scripts
+      - run: bun test
+
+  e2e:
+    name: e2e(Playwright 全量)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      E2E_GLOBAL_TIMEOUT: "30"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - run: bunx playwright install --with-deps chromium
+      # 脚本内先 vite build 再起双 webServer(静态 preview + 引擎服务器),见 playwright.config.ts
+      - run: bun run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-failures
+          path: test-results/
+          retention-days: 7

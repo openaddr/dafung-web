@@ -174,3 +174,7 @@ GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)�
 ### Domain docs
 
 单上下文:`CONTEXT.md`(根)+ `docs/adr/`。见 `docs/agents/domain.md`。
+
+### Coverage audit
+
+覆盖率体检(刻意低频,守基线不刷数字):`bun test --coverage`,重点只看 `src/core/`;触发时机与判读口径见 `.agents/skills/coverage-audit/SKILL.md`,台账在 `docs/reference/覆盖率台账.md`。不进 CI、不设阈值。
