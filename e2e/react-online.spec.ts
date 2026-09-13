@@ -17,6 +17,7 @@ async function coreState(p: Page) {
       phase: s.phase,
       round: s.round,
       activeIndex: s.activeIndex,
+      decisionOwner: s.decisionOwner,
       turnPhase: s.turnPhase,
       players: s.players.map((x: any) => ({
         id: x.id,
@@ -49,10 +50,11 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   }
   // L41 开局选都三选一:两客户端各自从 3 候选中选一(助手内断言候选高亮/不越权)
   await onlinePickCapitals([host, guest]);
-  // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动
+  // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动。
+  // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
   for (const p of [host, guest]) {
     await p
-      .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+      .waitForSelector('[data-testid="scroll-jinnang-pass"]', { timeout: 5_000 })
       .catch(() => null);
     await dismissJinnangIfUp(p);
   }
@@ -74,22 +76,16 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
   // 两真人各有一都(offered 三选一逐个落定)
   expect(s0.players.every((p: any) => p.capitalIndex >= 0)).toBe(true);
 
-  // ── 双端各推进若干步(掷骰/决策/卷轴混合),模拟真实你来我往 ──
+  // ── 双端各推进若干步(决策/卷轴混合),模拟真实你来我往 ──
+  // #188:掷骰由服务器定时代发(roll-button 已移除),本循环只清决策点。
   // TODO #13:原 stall<40×250ms(=10s 盲预算)在全量并行负载下不够——WS 广播/渲染排队
   // 可让按钮可用性迟到超过 10s,导致 actions<2 假失败。改为时间预算(90s,约 5 倍余量):
-  // 只要总时长没用完就继续轮询两端,状态(按钮可用)到了立刻行动,不做无谓盲等。
+  // 只要总时长没用完就继续轮询两端,状态(决策卷轴)到了立刻行动,不做无谓盲等。
   let actions = 0;
   const deadline = Date.now() + 90_000;
   while (actions < 6 && Date.now() < deadline) {
     let acted = false;
     for (const p of [host, guest]) {
-      const roll = p.getByTestId("roll-button");
-      if (await roll.isEnabled().catch(() => false)) {
-        await roll.click();
-        acted = true;
-        actions++;
-        break;
-      }
       const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
       if ((await inline.count()) > 0) {
         await inline.first().click();
@@ -113,7 +109,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
         break;
       }
     }
-    if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/托管广播推进
+    if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/自动掷骰广播推进
   }
   expect(actions).toBeGreaterThanOrEqual(2); // 至少双方各动过一手(断言不降级)
 
@@ -142,25 +138,33 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
   test.setTimeout(240_000);
   const [host, guest] = await twoClientsSetup(browser);
   try {
-    // 轮到谁谁掷;抓「落无主城」的一掷,断言决策卷轴不早于骰子+行军动画。
-    // 只在真正掷骰时计次(动画/广播延迟下的空轮询不算),总时长兜 150s。
+    // 轮到谁谁自动掷(#188:服务器定时代发,roll-button 已移除);抓「落无主城」的一掷,
+    // 断言决策卷轴不早于骰子+行军动画。只在真正等到起摇窗(Roll 等待态)时计次
+    //(决策清理期间的空轮询不算),总时长兜 150s。
     let attempts = 0;
     const deadline = Date.now() + 150_000;
     while (attempts < 12 && Date.now() < deadline) {
       let roller: Page | null = null;
-      for (const p of [host, guest]) {
-        if (await p.getByTestId("roll-button").isEnabled().catch(() => false)) {
+      for (const [p, seat] of [[host, 0], [guest, 1]] as const) {
+        const s = (await coreState(p)) as { phase: string; turnPhase: string; decisionOwner: number };
+        if (s.phase === "Playing" && s.turnPhase === "Roll" && s.decisionOwner === seat) {
           roller = p;
           break;
         }
       }
       if (!roller) {
-        // 锦囊卷轴会压住行军钮(#122/T2):先「今不用」放行再短候
-        for (const p of [host, guest]) await dismissJinnangIfUp(p);
-        await host.waitForTimeout(500); // 广播/动画未就位,短候重试(不计次)
+        // 锦囊卷轴/落格决策会停住对局:清一轮决策(「今不用」优先 + action-* 任点其一)
+        // 让对局继续走到下一个起摇窗,再短候重试(不计次)。
+        for (const p of [host, guest]) {
+          await dismissJinnangIfUp(p);
+          const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
+          if ((await inline.count()) > 0) {
+            await inline.first().click({ timeout: 5_000 }).catch(() => {});
+          }
+        }
+        await host.waitForTimeout(400); // 等自动起摇/广播到达
         continue;
       }
-      await roller.getByTestId("roll-button").click();
       attempts++;
       const landed = await roller
         .waitForFunction(
@@ -176,19 +180,11 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
           () => false,
         );
       if (!landed) {
-        // 本次掷骰未落无主城(驻跸/己城/招贤/交涉…):把两端可用决策推完再掷。
+        // 本次掷骰未落无主城(驻跸/己城/招贤/交涉…):把两端可用决策推完再等下一掷。
         // L42 后决策按钮要等骰子/行军动画播完才挂载——固定轮数在负载下会在卷轴
-        // 挂载前空转殆尽,改为时间预算(10s),轮到掷骰即交还外层。
+        // 挂载前空转殆尽,改为时间预算(10s),轮到起摇窗即交还外层。
         const advDeadline = Date.now() + 10_000;
         while (Date.now() < advDeadline) {
-          let canRoll = false;
-          for (const p of [host, guest]) {
-            if (await p.getByTestId("roll-button").isEnabled().catch(() => false)) {
-              canRoll = true;
-              break;
-            }
-          }
-          if (canRoll) break; // 轮到掷骰,交还外层
           let acted = false;
           for (const p of [host, guest]) {
             const inline = p.locator('button[data-testid^="action-"]:not([disabled])');

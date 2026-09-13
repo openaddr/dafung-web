@@ -47,6 +47,8 @@ export class OnlineController extends GameController {
   );
   /** 是否已在对局屏(首帧 snapshot 才切屏;之后重连/恢复不重复切)。 */
   private enteredGame = false;
+  /** 上一帧是否处于「我的 Roll 等待态」(#188 起签表现的转入沿检测基准)。 */
+  private prevMyRollWait = false;
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
 
@@ -249,6 +251,17 @@ export class OnlineController extends GameController {
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
       this.fx.play(this.enteredGame && prevPhase === "Roll" && this._engine.turnPhase !== "Roll");
+      // 起签转入沿(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
+      // 起摇)→ 钤「签」印。托管中座位由服务器 bot 代打(Roll 不经等待态),观战无座,
+      // 都不播——与单机 autoRoll 的起签口径一致。
+      const myRollWait =
+        this._engine.phase === "Playing" &&
+        this._engine.turnPhase === "Roll" &&
+        this._engine.decisionOwner === this.seat &&
+        !this._engine.players[this.seat]?.isBot &&
+        !this.autoPilotOn;
+      if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
+      this.prevMyRollWait = myRollWait;
       this.sync();
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {

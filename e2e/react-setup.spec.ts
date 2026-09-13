@@ -2,7 +2,7 @@
 // 意图来源(旧 spec → 此处):solo-mode.spec(座位/国号校验)、play.spec(开局渲染/选都就位)、
 // click.spec(点城选都的点击可靠性——React 版点城即定都,无确认框)。
 import { test, expect } from "./fixtures";
-import { snap, waitForEngine, openSoloSetup, pickCapital } from "./react-helpers";
+import { snap, waitForEngine, openSoloSetup, pickCapital, waitMyRollDone } from "./react-helpers";
 
 test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", async ({ page }) => {
   await page.goto("/");
@@ -65,8 +65,8 @@ test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号�
   await expect(page.getByTestId("hint")).toContainText("三选一");
   await pickCapital(page);
 
-  // 等轮到人类(bot 选都 + 首回合自动推进)
-  await expect(page.getByTestId("roll-button")).toBeEnabled({ timeout: 30_000 });
+  // 等开局放行 + 人类首手自动走完(#188 行军自动化;替代旧「等 roll-button 可用」)
+  await waitMyRollDone(page, 0, 30_000);
   const s = await snap(page);
   expect(s.phase).toBe("Playing");
   expect(s.players).toHaveLength(3);

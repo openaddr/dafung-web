@@ -28,9 +28,10 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
     await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
-    // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军
+    // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军。
+    // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
     await p
-      .waitForSelector('[data-testid="scroll-jinnang-pass"], [data-testid="roll-button"]:not([disabled])', { timeout: 10_000 })
+      .waitForSelector('[data-testid="scroll-jinnang-pass"]', { timeout: 5_000 })
       .catch(() => null);
     await dismissJinnangIfUp(p);
   }
@@ -111,15 +112,22 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
       await host.getByTestId("autopilot-button").click();
     }
     await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 30_000 });
-    // 对局仍在进行(guest 不托管则轮到 guest 时等待;host 的行军钮最终可用)
+    // 对局仍在进行:收回后 host 的回合不再被代打,轮到 host 时行军照常自动发生——
+    // #188:无 roll-button 可等,改以「host 棋盘位置前进」为证(行军只发生在自己的
+    // 回合:锦囊放行 → 服务器 1s 定时起摇 → 棋子前进)。轮询体内先「今不用」放行。
+    const posAtRecall = (await host.evaluate(
+      () => (window as any).__dafung.snapshot().players[0].position,
+    )) as number;
     await expect
       .poll(
         async () => {
-          // 锦囊卷轴压住行军钮(#122/T2):轮询体内先「今不用」放行
           await dismissJinnangIfUp(host);
-          return host.getByTestId("roll-button").isEnabled().catch(() => false);
+          const pos = (await host.evaluate(
+            () => (window as any).__dafung.snapshot().players[0].position,
+          )) as number;
+          return pos !== posAtRecall;
         },
-        { timeout: 240_000, message: "收回后轮到 host 时行军可用" },
+        { timeout: 240_000, message: "收回后轮到 host 时自动行军发生(位置前进)" },
       )
       .toBe(true);
   } finally {

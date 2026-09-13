@@ -2,7 +2,7 @@
 // seed 49=真人首动且起手免战金牌、seed 59=求贤令(真实引擎流程离线核算:含 doDraftRoll 骰流)。
 // 不走 pickCapital 共享助手(其收尾会自动「今不用」),本 spec 自行点城+确认以保留卷轴。
 import { test, expect } from "./fixtures";
-import { openSoloSetup, waitSettled } from "./react-helpers";
+import { openSoloSetup, waitSettled, waitMyRollDone } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
@@ -28,7 +28,8 @@ test.describe("锦囊使用回路(T2)", () => {
     await expect(page.getByTestId("scroll-jinnang-pass")).toBeVisible();
     await page.getByTestId("scroll-jinnang-option-免战金牌").click();
     await expect(scroll).toBeHidden();
-    // 引擎缝:盾立、牌入弃牌堆、标签占名额
+    // 引擎缝:盾立、牌入弃牌堆、标签占名额。#188:用牌收卷后引擎自动起摇,phase==="Roll"
+    // 只存在 ~1s 窗口(加速后 ~250ms)不可再断言,改以「已掷骰」作收卷后续行的证据。
     await waitSettled(page);
     const probe = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
@@ -37,28 +38,33 @@ test.describe("锦囊使用回路(T2)", () => {
         hand: e.players[0].jinnangHand,
         used: e.jinnangUsedTags,
         discard: e.jinnangDiscard,
-        phase: e.turnPhase,
+        rolled: (window as any).__dafung.snapshot().lastRoll != null,
       };
     });
-    expect(probe).toMatchObject({ shield: true, hand: [], used: ["守"], phase: "Roll" });
+    expect(probe).toMatchObject({ shield: true, hand: [], used: ["守"], rolled: true });
     expect(probe.discard).toContain("免战金牌");
     // 侧栏己方手牌区清空(牌已用出)
     await expect(page.getByTestId(TESTIDS.jinnangHand)).toHaveCount(0);
   });
 
-  test("seed2 今不用:手牌保留,直接行军", async ({ page }) => {
+  test("seed2 今不用:手牌保留,自动行军照常起摇(#188)", async ({ page }) => {
     await startWithScroll(page, 49);
     await page.getByTestId("scroll-jinnang-pass").click();
     await expect(page.getByTestId("scroll-jinnang")).toBeHidden();
+    // #188 行军自动化:「今不用」放行后引擎自动起摇,等这一手走完再验账
+    await waitMyRollDone(page, 0);
     await waitSettled(page);
     const probe = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
-      return { hand: e.players[0].jinnangHand, used: e.jinnangUsedTags, phase: e.turnPhase };
+      return {
+        hand: e.players[0].jinnangHand,
+        used: e.jinnangUsedTags,
+        rolled: (window as any).__dafung.snapshot().lastRoll != null,
+      };
     });
-    expect(probe.hand).toEqual(["免战金牌"]);
+    expect(probe.hand).toEqual(["免战金牌"]); // 今不用:牌还在手里
     expect(probe.used).toEqual([]);
-    expect(probe.phase).toBe("Roll");
-    await expect(page.getByTestId("roll-button")).toBeEnabled();
+    expect(probe.rolled).toBe(true); // 放行后自动起摇确实发生了(#188)
   });
 
   test("seed4 求贤令:用牌招贤/折现,事件公开入战报", async ({ page }) => {

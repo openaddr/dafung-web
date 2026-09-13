@@ -51,6 +51,7 @@ export type RoomEvent =
   | { ev: "takeover"; seat: number; auto?: true } // auto=true(#118):决策停摆看门狗代接管,非房主手动
   | { ev: "autopilot"; seat: number; on: boolean; speed: AutoPilotSpeed }
   | { ev: "offline"; seat: number; online: number[] }
+  | { ev: "auto-roll"; seat: number } // #188:人类座位 Roll 相位超时未摇,服务器代发起摇
   | { ev: "bot-step"; seat: number; turnPhase: string; active: number }
   | { ev: "bot-stop"; reason: RoomBotStopReason; phase: string; turnPhase: string; active: number };
 
@@ -83,6 +84,12 @@ export interface RoomSession {
 export type AutoPilotSpeed = "fast" | "slow";
 /** 慢速托管:每步决策间隔(ms)——玩家看得清 bot 在做什么。 */
 export const AUTOPILOT_SLOW_MS = 2000;
+
+/** 人类回合 Roll 相位自动起摇延迟(#188 第 1 步):Roll 无决策内容,服务器定时
+ *  代发 rollAndMove(与单机控制器同语义;客户端起签表现为纯本地演出,不受此值影响)。
+ *  字面量而不用 timings.ts:scripts 不吃浏览器 localStorage 倍率,与 src/app/fx/timings.ts
+ *  AUTO_MARCH.rollAtMs 的未加速原值(1000)同源,改任一侧须两处同改。 */
+export const AUTO_ROLL_DELAY_MS = 1000;
 
 // botAct 能驱动的相位(其它相位是引擎内部过渡,无需外部驱动)
 const INPUT_PHASES = new Set([
@@ -248,6 +255,9 @@ export class RoomRegistry {
   private readonly decisionTimeoutMs: number;
   /** #118 看门狗:roomId → 待超时座位 + timer。driveBots 每次进出重评估(见各自注释)。 */
   private readonly stall = new Map<string, { seat: number; timer: ReturnType<typeof setTimeout> }>();
+  /** #188 自动起摇:roomId → 待起摇座位 + timer。driveBots 每次进出重评估,与看门狗
+   *  互补——Roll 相位(无决策内容)归自动起摇,其余决策相位归看门狗。 */
+  private readonly autoRolls = new Map<string, { seat: number; timer: ReturnType<typeof setTimeout> }>();
 
   constructor(
     persistence: RoomPersistence,
@@ -556,6 +566,7 @@ export class RoomRegistry {
     this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
     this.clearStall(id); // #118:撤看门狗计时器(stallFire 自身有房间存在重校验,此为即时清理)
+    this.clearAutoRoll(id); // #188:撤自动起摇计时器(同上)
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -653,6 +664,7 @@ export class RoomRegistry {
     const e = r.engine;
     if (!e) return;
     this.clearStall(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
+    this.clearAutoRoll(r.roomId); // #188:同撤自动起摇(链尾按停点重武装)
     if (this.driving.has(r)) return; // 已有链在跑:它会把新进展接走
     this.driving.add(r);
     try {
@@ -690,10 +702,13 @@ export class RoomRegistry {
           void this.driveBots(r, onUpdate);
         }, stepDelayMs(r, guardOwner));
       }
-      // #118 看门狗出口评估:链停在未接管的真人座位(human-turn)= 该端拖节奏,武装超时。
-      // 其余停因(not-input-phase/game-over/guard 续链)服务器仍在掌控,不武装。
-      if (reason === "human-turn" && guardOwner >= 0 && this.decisionTimeoutMs > 0) {
-        this.armStall(r, guardOwner, onUpdate);
+      // #118/#188 出口评估:链停在未接管的真人座位——
+      // Roll 相位(无决策内容)武装自动起摇(1s 后代发 rollAndMove);
+      // 其余决策相位(等待真人抉择)= 该端拖节奏,武装 #118 看门狗超时接管。
+      // not-input-phase/game-over/guard 续链:服务器仍在掌控,不武装。
+      if (reason === "human-turn" && guardOwner >= 0) {
+        if (e.phase === "Playing" && e.turnPhase === "Roll") this.armAutoRoll(r, guardOwner, onUpdate);
+        else if (this.decisionTimeoutMs > 0) this.armStall(r, guardOwner, onUpdate);
       }
     } finally {
       this.driving.delete(r);
@@ -744,6 +759,45 @@ export class RoomRegistry {
     this.persist(r);
     onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
     await this.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
+  }
+
+  // ──────────────────────────── 行军自动化(#188 第 1 步)────────────────────────────
+  /** 撤自动起摇(链重开/房间解散时);无挂起计时器时空操作。 */
+  private clearAutoRoll(roomId: string): void {
+    const w = this.autoRolls.get(roomId);
+    if (w) {
+      clearTimeout(w.timer);
+      this.autoRolls.delete(roomId);
+    }
+  }
+
+  /** 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未接管人类座位的 Roll 相位 → 服务器代发
+   *  rollAndMove(走 applyCommand 公共命令路径:submitCommand 记 cmd 行 + persist + 广播,
+   *  与玩家手点同源)。离线冻结的座位同样代发——Roll 无决策内容,不因离线卡住行军;
+   *  真正的抉择仍归本人(超时才由 #118 看门狗接管)。同房间旧计时器先撤(决策点换了,
+   *  重算)。unref:不因挂起计时器拖延进程退出。 */
+  private armAutoRoll(r: RoomSession, seat: number, onUpdate?: (room: RoomSession) => void): void {
+    this.clearAutoRoll(r.roomId);
+    const timer = setTimeout(() => {
+      void this.autoRollFire(r, seat, onUpdate);
+    }, AUTO_ROLL_DELAY_MS);
+    timer.unref?.();
+    this.autoRolls.set(r.roomId, { seat, timer });
+  }
+
+  /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍非服务器驱动——
+   *  被接管/托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
+  private async autoRollFire(
+    r: RoomSession,
+    seat: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<void> {
+    this.autoRolls.delete(r.roomId);
+    const e = r.engine;
+    if (this.rooms.get(r.roomId) !== r || !e || e.isOver || e.phase !== "Playing") return;
+    if (e.turnPhase !== "Roll" || decisionSeatOf(e) !== seat || seatControlled(r, seat)) return;
+    this.observe(r, { ev: "auto-roll", seat });
+    await this.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────

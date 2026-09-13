@@ -45,6 +45,14 @@ export class SnapshotEffects {
     return this.pendingChunks > 0;
   }
 
+  /** 起签印(#188 第 1 步):本端人类座位进入 Roll 等待态时,在行军者脚下钤「签」印——
+   *  服务器 ~1s 后自动起摇,骰子/行军经下一帧快照正常播出(单机 autoRoll 同款表现,
+   *  复用 sealStamped 印章通道,不新增事件类型)。纯表现,无同步语义。 */
+  qiqian(seat: number): void {
+    const engine = this.getEngine();
+    this.fxSink.stampSeal(engine.players[seat].position, "签");
+  }
+
   /** 每帧 snapshot 后调用:newRoll = 本帧发生了掷骰(阶段迁移判定,见协议桥注释)。 */
   play(newRoll: boolean): void {
     const engine = this.getEngine();
