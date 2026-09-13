@@ -451,14 +451,49 @@ describe("锦囊目标段(T3)", () => {
     e.resolveJinnang("火烧连营", [1]);
     expect(victim.properties.length).toBe(1);
     expect(victim.properties[0].level).toBe(1); // 2→1 降级(单城可升级)
-    // 全 0 级:再烧 → 失城(清攻名额:跨回合才可再出同标签,此处单测直接开账重置)
+    // 全 0 级:再烧 → 失城(清攻名额:跨回合才可再出同标签,此处单测直接开账重置)。
+    // 失城池排除都城(#226「都城可降不可失」):给目标添一座 0 级非都城,烧失的必须是非都城。
     victim.properties[0].level = 0;
+    const freeId = e.board.tiles.find((t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null)!.propertyId!;
+    victim.properties.push({ propertyId: freeId, group: "a", purchasePrice: 1000, level: 0, maxLevel: 3 });
     e.jinnangUsedTags = [];
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [1]);
-    expect(victim.properties.length).toBe(0);
-    expect(e.findOwner(cap.propertyId)).toBeNull(); // 回无主
+    expect(victim.properties).toHaveLength(1); // 都城持仓恒在
+    expect(victim.properties[0].propertyId).toBe(cap.propertyId);
+    expect(e.findOwner(freeId)).toBeNull(); // 非都城失城,回无主
+    expect(e.findOwner(cap.propertyId)).toBe(victim); // 都城不可失
+  });
+
+  it("火烧连营不可毁都城(#226):目标仅剩 0 级都城 → 门槛拦截,钱已扣、都城持仓恒在", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const user = e.activePlayer; // seed 42 定序首动者
+    const victimSeat = e.players.indexOf(user) === 0 ? 1 : 0;
+    const victim = e.players[victimSeat];
+    const capPropId = e.board.at(victim.capitalIndex).propertyId!;
+    const capTile = victim.capitalIndex;
+    // 开局面貌(#226 e2e 布场时序):目标仅有都城一座,且 Lv.0
+    expect(victim.properties).toHaveLength(1);
+    expect(victim.properties[0].propertyId).toBe(capPropId);
+    expect(victim.properties[0].level).toBe(0);
+    armJinnang(e, ["火烧连营"]);
+    e.resolveJinnang("火烧连营");
+    // 目标门槛(选项集单口,ADR-0013):都城可降不可失——仅剩 0 级都城 = 无可毁之城
+    const opt = e.choicesFor().find((o) => o.targetSeat === victimSeat);
+    expect(opt?.available).toBe(false);
+    expect(opt?.reason).toBe("无可毁之城");
+    // 引擎硬拒不可用目标 → 都城持仓原样(建城费已扣、持仓在,capitalIndex ↔ properties 一致)
+    e.resolveJinnang("火烧连营", [victimSeat]);
+    expect(victim.properties).toHaveLength(1);
+    expect(victim.properties[0].propertyId).toBe(capPropId);
+    expect(victim.properties[0].level).toBe(0);
+    expect(e.findOwner(capPropId)).toBe(victim);
+    expect(victim.capitalIndex).toBe(capTile); // 指向不变
+    // 牌未消耗:目标段被拒,牌留手(作罢才退回卡牌段)
+    expect(user.jinnangHand).toContain("火烧连营");
   });
 
   it("横征暴敛:全体域无目标段直接执行;上限=现金;免战者跳过", () => {

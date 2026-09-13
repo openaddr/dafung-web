@@ -2006,8 +2006,18 @@ export class GameEngine {
           this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: h.level, ownerColorIndex: victim.colorIndex, levelChanged: true, ownerChanged: false }); // 宣告留痕(ADR-0015)
           this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 的城防降为 ${h.level} 级`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} prop=${h.propertyId} level=${h.level}`);
         } else {
-          const idx = Math.floor(this.dice.nextFloat() * victim.properties.length);
-          const h = victim.properties.splice(idx, 1)[0];
+          // 失城分支:都城不可失(#226 根因修复)——与耗竭「都城可降不可失」、破产
+          // 「都城不可变卖」同口径。此处曾对全部持仓随机移除,开局把目标的都城持仓
+          // 也烧掉:建城费已扣、capitalIndex 仍在,properties 却没了都城——双写不一致
+          // (e2e 布场断言偶发扑空,bot 首回合火烧连营即触发)。失城只从非都城中取;
+          // 「仅剩 0 级都城」的目标已被 jinnangTargetOk 门槛拦下,空池 = 门槛被绕过,
+          // 当场抛出(零兜底:让状态机 bug 在出生地暴露)。
+          const capPropId = this.board.at(victim.capitalIndex)?.propertyId;
+          const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
+          if (losable.length === 0)
+            throw new Error("火烧连营:目标无可失之城(目标门槛应已拦截,状态机 bug)");
+          const h = losable[Math.floor(this.dice.nextFloat() * losable.length)];
+          victim.properties.splice(victim.properties.indexOf(h), 1);
           this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
           const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
           this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 城防尽毁,失「${lostName}」`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} lost=${h.propertyId}`);

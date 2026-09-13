@@ -219,9 +219,16 @@ export function jinnangTargetOk(e: GameEngine, user: number, target: number, eff
     case "stealTreasure":
       if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
       break;
-    case "demolish":
-      if (t.properties.length === 0) return { ok: false, reason: "无城池" };
+    case "demolish": {
+      // 都城可降不可失(#226):城防有 Lv>0 可降、或有非都城可失,二者居一才可指定——
+      // 「仅剩 0 级都城」的目标无城可毁,失城分支又不许动都城(与耗竭/破产同口径),
+      // 放行只会烧空。口径与 exhaustionChoices「每座非都城失去整座」一致。
+      const capPropId = t.capitalIndex >= 0 ? (e.board.at(t.capitalIndex)?.propertyId ?? null) : null;
+      const canDowngrade = t.properties.some((h) => h.level > 0);
+      const canLose = t.properties.some((h) => h.propertyId !== capPropId);
+      if (!canDowngrade && !canLose) return { ok: false, reason: "无可毁之城" };
       break;
+    }
   }
   return { ok: true };
 }
