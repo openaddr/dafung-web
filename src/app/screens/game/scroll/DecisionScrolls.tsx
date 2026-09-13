@@ -31,27 +31,35 @@ function useNumberShortcuts(actions: Array<() => void>) {
   }, []);
 }
 
-// ── 锦囊卷轴(AwaitingJinnang,#122/T2)──
-// 选项=手牌逐张(available/reason 单源引擎注册表)+「今不用」;牌面文案/标签随
-// choices 载荷过网(UI 不回查目录——持有人内容本就在自己快照里,但口径与机遇卷轴
-// 一致:卷轴只消费 choices)。灰置牌照列(暗置博弈:看见自己有什么、为何不能用)。
+// ── 军师幕卷轴(AwaitingJinnang,#122/T2 锦囊 + #188 档 3 名士主动技,统一决策窗)──
+// 选项=可用锦囊 + 就绪主动技 +「今不用」(available/reason 单源引擎注册表);目标段=
+// 候选座位 + 作罢。牌面文案/标签、技能文案随 choices 载荷过网(UI 不回查目录——持有人
+// 内容本就在自己快照里,但口径与机遇卷轴一致:卷轴只消费 choices)。灰置项照列
+// (暗置博弈:看见自己有什么、为何不能用)。testid 族(scroll-jinnang*)沿用锦囊旧名,
+// 窗口语义已扩为军师幕——改名不破坏既有 e2e。
 export function JinnangScroll({
   choices,
   pendingCardId,
+  pendingSkillId,
   onCommand,
 }: {
-  choices: ChoiceOption[];
-  /** 目标段时=被选中的牌(作罢/提交目标都以其名义发命令);卡牌段=null。 */
+  /** 锦囊目标段时=被选中的牌(作罢/提交目标都以其名义发命令);卡牌段=null。 */
   pendingCardId: string | null;
+  /** 技能目标段时=被选中的技(#188 档 3);卡牌段=null。与 pendingCardId 互斥。 */
+  pendingSkillId: string | null;
+  choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // 目标段(#122/T3):候选座位 + 作罢(牌保留);卡牌段:手牌 + 今不用
+  // 目标段:候选座位 + 作罢(牌保留/技不记冷却);卡牌段:锦囊 + 主动技 + 今不用
   const targeting = choices.some((o) => o.targetSeat != null);
+  const subtitle = targeting
+    ? pendingSkillId != null
+      ? "此技指向何人?"
+      : "此计指向何人?"
+    : "军师在侧,计谋在囊。可出一计一技,或留待来日——掷骰之前,且慢行军。";
   return (
-    <ScrollShell title="锦囊" testid={T.jinnangScroll}>
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
-        {targeting ? "此计指向何人?" : "计上心头。此刻可用一计,或留待来日——掷骰之前,且慢行军。"}
-      </p>
+    <ScrollShell title="军师幕" testid={T.jinnangScroll}>
+      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{subtitle}</p>
       <div className="flex max-h-[46vh] flex-col items-stretch gap-2 overflow-y-auto px-1">
         {choices
           .filter((o) => o.id !== "pass" && o.id !== "cancel")
@@ -60,24 +68,35 @@ export function JinnangScroll({
               key={o.id}
               testid={T.jinnangOption(o.id)}
               disabled={!o.available}
-              title={o.reason ?? o.cardText}
+              title={o.reason ?? o.cardText ?? o.skillText}
               shortcut={i + 1}
               onClick={() =>
                 onCommand(
                   o.targetSeat != null
-                    ? { type: "useJinnang", cardId: pendingCardId, targets: [o.targetSeat] }
-                    : { type: "useJinnang", cardId: o.id },
+                    ? pendingSkillId != null
+                      ? { type: "useHeroSkill", skillId: pendingSkillId, targets: [o.targetSeat] }
+                      : { type: "useJinnang", cardId: pendingCardId, targets: [o.targetSeat] }
+                    : o.skillId != null
+                      ? { type: "useHeroSkill", skillId: o.skillId }
+                      : { type: "useJinnang", cardId: o.id },
                 )
               }
             >
               <span className="inline-flex items-center gap-2">
                 {o.targetSeat == null && (
-                  <span className="inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]">
-                    {o.cardTags?.[0] ?? "计"}
+                  <span
+                    className={
+                      o.skillId != null
+                        ? // 技方章(#188 档 3):主动技与锦囊的视觉区分——金底「技」对朱底标签章
+                          "inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-gold-deep font-brush text-[11px] leading-none text-[#f6ead6]"
+                        : "inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]"
+                    }
+                  >
+                    {o.skillId != null ? "技" : o.cardTags?.[0] ?? "计"}
                   </span>
                 )}
                 <span className="font-wenkai">{o.label}</span>
-                {o.cardTags && o.cardTags.length > 1 && (
+                {o.skillId == null && o.cardTags && o.cardTags.length > 1 && (
                   <span className="text-[10px] text-ink-dim">{o.cardTags.join("")}</span>
                 )}
               </span>
@@ -86,7 +105,11 @@ export function JinnangScroll({
         {targeting ? (
           <ScrollButton
             testid={T.jinnangCancel}
-            onClick={() => onCommand({ type: "useJinnang", cardId: pendingCardId, cancel: true })}
+            onClick={() =>
+              pendingSkillId != null
+                ? onCommand({ type: "useHeroSkill", skillId: pendingSkillId, cancel: true })
+                : onCommand({ type: "useJinnang", cardId: pendingCardId, cancel: true })
+            }
           >
             作罢
           </ScrollButton>

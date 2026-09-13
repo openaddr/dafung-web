@@ -20,7 +20,7 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, hasUsableJinnang, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
+import { computeChoices, hasUsableJinnang, activeSkillOf, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
@@ -47,7 +47,7 @@ import {
   buildJinnangDeck,
   jinnangCardOf,
 } from "./jinnang";
-import type { JinnangPeek, PendingJinnang } from "./types";
+import type { JinnangPeek, PendingJinnang, PendingHeroSkill, ActiveSkillDef } from "./types";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -122,6 +122,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   cashHeroBankruptcy: "遣散名士",
   confirmBankruptcySettle: "清算确认",
   useJinnang: "用锦囊",
+  useHeroSkill: "出技",
 };
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
@@ -196,6 +197,13 @@ export class GameEngine {
   jinnangUsedTags: string[] = [];
   /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态;null=卡牌段。随快照走。 */
   pendingJinnang: PendingJinnang | null = null;
+  /** 技能目标段载荷(#188 档 3):军师幕内选技后的选人子状态;null=无。与 pendingJinnang
+   *  互斥(同一时刻至多一个子状态)。随快照走(目标段中途断线可恢复)。 */
+  pendingSkill: PendingHeroSkill | null = null;
+  /** 擂鼓步数加成(#188 档 3):军师幕发动 warDrum 技写入,本回合 rollAndMove 掷骰后
+   *  取走清零。可序列化——发动与掷骰之间可被快照广播/落盘,与瞬态 marchBonus(同一次
+   *  rollAndMove 内写读平衡)不同,必须跨进程保真。 */
+  heroDiceBonus = 0;
   /** 进行中的窥探(#122/T4):viewer 至其下回合开始可见 target 手牌内容(投影放行)。 */
   jinnangPeeks: JinnangPeek[] = [];
   /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
@@ -663,7 +671,9 @@ export class GameEngine {
     this.lastRoll = roll;
     this.dispatchMoment("DieRolled", { subject: this.activeIndex, die: roll.die }); // 时机·DieRolled:骰面已定(张星彩 gainIfFace 等)
     const moveBonus = this.takeMarchBonus(); // 取走 BeforeMarch 时机累计的行军加成
-    const steps = roll.die + moveBonus;
+    const drumBonus = this.heroDiceBonus; // 取走擂鼓加成(#188 档 3):发动与掷骰同回合
+    this.heroDiceBonus = 0;
+    const steps = roll.die + moveBonus + drumBonus;
     const path = this.board.computePath(
       mover.position,
       steps,
@@ -678,8 +688,8 @@ export class GameEngine {
     this.logEvent(
       "roll",
       mover.guohao,
-      `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus ? `(+${moveBonus})` : ""} → ${destName}`,
-      `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
+      `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus + drumBonus ? `(+${moveBonus + drumBonus})` : ""} → ${destName}`,
+      `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus + drumBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
     );
 
     // 时机·PassedPlayer:途经他人棋子——path 计算后遍历 traversed(不含起点,含落点)上
@@ -1601,6 +1611,7 @@ export class GameEngine {
       case "cashHeroBankruptcy": return this.cashHeroBankruptcy(cmd.heroId);
       case "confirmBankruptcySettle": return this.confirmBankruptcySettle();
       case "useJinnang": return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
+      case "useHeroSkill": return this.resolveHeroSkill(cmd.skillId, cmd.targets, cmd.cancel);
     }
   }
 
@@ -1856,11 +1867,23 @@ export class GameEngine {
 
   /** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/可用(标签名额)
    *  后结算效果,再重算选项集——同回合仍有可用牌(异类标签)则继续停留卷轴,否则进 Roll。
-   *  用牌是公开事件(浮字+战报),暗的只有持有(ADR-0016)。 */
+   *  用牌是公开事件(浮字+战报),暗的只有持有(ADR-0016)。
+   *  #188 档 3:军师幕内与技能目标段(pendingSkill)共存——cardId=null 时若停在技能目标段,
+   *  代为作罢该技(驱动方兜子状态安全),其余锦囊命令属跨子状态误用,警告拒绝。 */
   resolveJinnang(cardId: string | null, targets?: number[], cancel?: boolean): void {
     if (!this.assertPhase("AwaitingJinnang", "resolveJinnang")) return;
     const p = this.activePlayer;
     const userSeat = this.players.indexOf(p);
+
+    // ── 技能目标段在场:锦囊命令只放行「收卷」语义(#188 档 3)──
+    if (this.pendingSkill) {
+      if (cardId == null || cancel) {
+        this.cancelPendingSkill();
+        return;
+      }
+      this.warn(`技能目标段内收到锦囊命令:${cardId}`);
+      return;
+    }
 
     // ── 目标段:提交目标 / 作罢 ──
     const pending = this.pendingJinnang;
@@ -1943,6 +1966,154 @@ export class GameEngine {
     this.jinnangUsedTags.push(...def.tags);
   }
 
+  // ──────────────────────────── 名士主动技(#188 档 3)────────────────────────────
+  // 军师幕(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
+  // 命令入口。校验(冷却/持有/目标)单源选项集(choices.ts),UI/bot 永不裁决(ADR-0013);
+  // 结算复用既有路径(火攻=demolishOnVictim),不新造 effect kind;结算内不派发时机
+  // (防技能链级联,与 grantSkillCash 不派发 CashGained 同口径)。
+
+  /** 发动主动技:skillId 须为决策者麾下主动技且选项集可用(冷却/费用/目标门槛);
+   *  无目标域发动即结算,other/any 域入目标段(pendingSkill,选项集重算为候选名单);
+   *  cancel=作罢(回卡牌段或收卷,不记冷却)。 */
+  resolveHeroSkill(skillId: string, targets?: number[], cancel?: boolean): void {
+    if (!this.assertPhase("AwaitingJinnang", "resolveHeroSkill")) return;
+    if (this.pendingJinnang) {
+      this.warn(`锦囊目标段内收到技能命令:${skillId}`);
+      return;
+    }
+    const p = this.activePlayer;
+    const userSeat = this.players.indexOf(p);
+
+    // ── 目标段:提交目标 / 作罢 ──
+    const pending = this.pendingSkill;
+    if (pending) {
+      const skill = activeSkillOf(p, pending.skillId);
+      if (!skill) throw new Error(`技能目标段载荷失效:${pending.skillId}(麾下无此技,状态机 bug)`); // 零兜底
+      if (cancel) {
+        this.cancelPendingSkill();
+        return;
+      }
+      if (skillId !== pending.skillId || !targets || targets.length !== 1) {
+        this.warn(`技能目标段命令与载荷不符:${skillId}`);
+        return;
+      }
+      const [target] = targets;
+      if (!computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
+        this.warn(`目标不可用:座位 ${target}`);
+        return;
+      }
+      this.pendingSkill = null;
+      this.fireHeroSkill(userSeat, skill, targets);
+      this.settleJinnangExit();
+      return;
+    }
+
+    // ── 卡牌段:发动 ──
+    const skill = activeSkillOf(p, skillId);
+    if (!skill) {
+      this.warn(`${p.guohao} 无此主动技:${skillId}`);
+      return;
+    }
+    const option = computeChoices(this, "AwaitingJinnang").find((o) => o.id === `skill:${skillId}`);
+    if (!option?.available) {
+      this.warn(`${p.guohao} 主动技【${skill.name}】不可用:${option?.reason ?? "未知原因"}`);
+      return;
+    }
+    if (skill.target !== "none") {
+      this.pendingSkill = { skillId };
+      return; // 留在相位,选项集重算为候选名单
+    }
+    this.fireHeroSkill(userSeat, skill, []);
+    this.settleJinnangExit();
+  }
+
+  /** 作罢技能目标段(#188 档 3):清载荷回卡牌段或收卷,技未发动不记冷却。 */
+  private cancelPendingSkill(): void {
+    const p = this.activePlayer;
+    const skill = this.pendingSkill ? activeSkillOf(p, this.pendingSkill.skillId) : null;
+    this.pendingSkill = null;
+    if (skill) {
+      this.logEvent("system", p.guohao, `${p.guohao} 作罢【${skill.name}】`, `heroSkillCancel player=${p.id} skill=${skill.id}`);
+    }
+    this.settleJinnangExit();
+  }
+
+  /** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(浮字+战报,
+   *  与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
+  private fireHeroSkill(userSeat: number, skill: ActiveSkillDef, targets: number[]): void {
+    const user = this.players[userSeat];
+    user.heroLastFired[skill.id] = this.round;
+    this.pushFloaterText(user, `${user.guohao} 施展【${skill.name}】`, user.position);
+    this.logEvent(
+      "skill",
+      user.guohao,
+      `${user.guohao} 施展主动技【${skill.name}】`,
+      `heroSkill owner=${user.id} skill=${skill.id} kind=${skill.kind} target=${targets.length > 0 ? this.players[targets[0]].id : "-"}`,
+    );
+    switch (skill.kind) {
+      case "demolish":
+        // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)
+        this.demolishOnVictim(user, this.players[targets[0]], `主动技【${skill.name}】`, `heroSkill owner=${user.id} skill=${skill.id}`);
+        break;
+      case "relief": {
+        const cost = skill.params?.cost;
+        const stamina = skill.params?.stamina;
+        if (cost === undefined || stamina === undefined)
+          throw new Error(`赈济参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
+        user.cash -= cost; // 可用性已保证 cash ≥ cost
+        this.pushFloater(user, -cost, user.position, "expense");
+        const seat = targets[0];
+        const target = this.players[seat];
+        const after = this.addStamina(seat, stamina);
+        this.pushFloaterText(target, `${target.guohao} 体力 +${stamina}`, target.position);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 【${skill.name}】:付 ${formatMoney(cost)},${target.guohao} 体力 +${stamina}(现 ${after})`,
+          `heroRelief owner=${user.id} skill=${skill.id} target=${target.id} cost=${cost} stamina=${stamina} staminaNow=${after}`,
+          -cost,
+        );
+        break;
+      }
+      case "patronage": {
+        const cash = skill.params?.cash;
+        if (cash === undefined)
+          throw new Error(`征辟参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
+        user.warrants += 1;
+        const target = this.players[targets[0]];
+        this.grantSkillCash(targets[0], cash); // 国库补偿:+现金 +浮字(不派发 CashGained,防连锁)
+        this.pushFloaterText(user, `${user.guohao} 征辟就任,委任状 +1`, user.position);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 【${skill.name}】:委任状 +1,${target.guohao} 获 ${formatMoney(cash)} 补偿`,
+          `heroPatronage owner=${user.id} skill=${skill.id} target=${target.id} cash=${cash} warrants=${user.warrants}`,
+          cash,
+        );
+        break;
+      }
+      case "warDrum": {
+        const bonus = skill.params?.bonus;
+        if (bonus === undefined)
+          throw new Error(`擂鼓参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
+        this.heroDiceBonus = bonus;
+        this.pushFloaterText(user, `擂鼓进军,本回合掷骰步数 +${bonus}`, user.position);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 【${skill.name}】:本回合掷骰步数 +${bonus}`,
+          `heroWarDrum owner=${user.id} skill=${skill.id} bonus=${bonus}`,
+        );
+        break;
+      }
+      default: {
+        // 穷尽守卫:ActiveSkillDef.kind 新增种类必须先实现结算案(编译期逼出)
+        const exhausted: never = skill.kind;
+        throw new Error(`主动技结算未接入:${String(exhausted)}(#188 档 3)`);
+      }
+    }
+  }
+
   /** 用牌收尾(#122/T3):重算卡牌段,同回合仍有可用牌(异类标签)→ 停留卷轴;否则进 Roll。 */
   private settleJinnangExit(): void {
     this.turnPhase = hasUsableJinnang(this) ? "AwaitingJinnang" : "Roll";
@@ -1998,30 +2169,7 @@ export class GameEngine {
       }
       case "demolish": {
         const victim = this.players[targets[0]];
-        const upgradable = victim.properties.filter((h) => h.level > 0);
-        const tileIndexOf = (pid: string) => this.board.tiles.findIndex((t) => t.propertyId === pid);
-        if (upgradable.length > 0) {
-          const h = upgradable[Math.floor(this.dice.nextFloat() * upgradable.length)];
-          h.level -= 1;
-          this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: h.level, ownerColorIndex: victim.colorIndex, levelChanged: true, ownerChanged: false }); // 宣告留痕(ADR-0015)
-          this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 的城防降为 ${h.level} 级`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} prop=${h.propertyId} level=${h.level}`);
-        } else {
-          // 失城分支:都城不可失(#226 根因修复)——与耗竭「都城可降不可失」、破产
-          // 「都城不可变卖」同口径。此处曾对全部持仓随机移除,开局把目标的都城持仓
-          // 也烧掉:建城费已扣、capitalIndex 仍在,properties 却没了都城——双写不一致
-          // (e2e 布场断言偶发扑空,bot 首回合火烧连营即触发)。失城只从非都城中取;
-          // 「仅剩 0 级都城」的目标已被 jinnangTargetOk 门槛拦下,空池 = 门槛被绕过,
-          // 当场抛出(零兜底:让状态机 bug 在出生地暴露)。
-          const capPropId = this.board.at(victim.capitalIndex)?.propertyId;
-          const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
-          if (losable.length === 0)
-            throw new Error("火烧连营:目标无可失之城(目标门槛应已拦截,状态机 bug)");
-          const h = losable[Math.floor(this.dice.nextFloat() * losable.length)];
-          victim.properties.splice(victim.properties.indexOf(h), 1);
-          this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
-          const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
-          this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【火烧连营】:${victim.guohao} 城防尽毁,失「${lostName}」`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} lost=${h.propertyId}`);
-        }
+        this.demolishOnVictim(user, victim, `使用锦囊【${def.id}】`, `jinnangUse player=${user.id} card=${def.id}`);
         break;
       }
       case "skipTurn": {
@@ -2076,6 +2224,34 @@ export class GameEngine {
         const exhausted: never = def.effect;
         throw new Error(`锦囊效果未接入结算:${JSON.stringify(exhausted)}(#122)`);
       }
+    }
+  }
+
+  /** demolish 结算单点(#122 火烧连营 与 #188 档 3 周瑜火攻共用):随机降目标一座
+   *  Lv>0 城 1 级(都城可降);城防全 0 级则失一座非都城(都城不可失,#226 根因修复:
+   *  失城只从非都城中取,与耗竭「都城可降不可失」、破产「都城不可变卖」同口径)。
+   *  「仅剩 0 级都城」的目标已被选项集门槛(demolishTargetOk)拦下,空池 = 门槛被绕过,
+   *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
+   *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」/「主动技【火攻】」);
+   *  auditPrefix=机读 detail 前缀(各自保留原键名)。 */
+  private demolishOnVictim(user: Player, victim: Player, sourceLabel: string, auditPrefix: string): void {
+    const upgradable = victim.properties.filter((h) => h.level > 0);
+    const tileIndexOf = (pid: string) => this.board.tiles.findIndex((t) => t.propertyId === pid);
+    if (upgradable.length > 0) {
+      const h = upgradable[Math.floor(this.dice.nextFloat() * upgradable.length)];
+      h.level -= 1;
+      this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: h.level, ownerColorIndex: victim.colorIndex, levelChanged: true, ownerChanged: false }); // 宣告留痕(ADR-0015)
+      this.logEvent("system", user.guohao, `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`, `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`);
+    } else {
+      const capPropId = this.board.at(victim.capitalIndex)?.propertyId;
+      const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
+      if (losable.length === 0)
+        throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
+      const h = losable[Math.floor(this.dice.nextFloat() * losable.length)];
+      victim.properties.splice(victim.properties.indexOf(h), 1);
+      this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
+      const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
+      this.logEvent("system", user.guohao, `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`, `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`);
     }
   }
 

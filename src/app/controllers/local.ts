@@ -126,7 +126,9 @@ export class LocalController extends GameController {
           if (!this.apOn || e.isOver || e.phase !== "Playing" || e.players[e.decisionOwner].isBot) continue;
           this.sync();
           if (this.apSpeed === "slow") await delay(BOT.stepDelayMs);
-          await this.runAnimatedStep(() => botAct(e));
+          // #188 档 3:托管代驾永不出主动技(skills:"hold"——长线战略资源不替主人花),
+          // 锦囊仍按策略表(#148 口径:自助托管=按策略)
+          await this.runAnimatedStep(() => botAct(e, { skills: "hold" }));
           maybeShowTurnBanner(e);
           await this.runBots(); // 代打后若轮到真 bot,沿用既有接棒
         } finally {

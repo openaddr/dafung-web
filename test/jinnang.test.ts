@@ -299,6 +299,12 @@ describe("锦囊使用回路(T2)", () => {
     expect(e.turnPhase).toBe("AwaitingJinnang"); // 求贤(援)名额未占 → 停留卷轴
     expect(e.choicesFor().find((o) => o.id === "求贤令")?.available).toBe(true);
     e.resolveJinnang("求贤令");
+    // #188 档 3:新招名士的主动技即就绪 → 军师幕重算后停留(合并窗语义);今不用收卷
+    expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
+    if (e.turnPhase === "AwaitingJinnang") {
+      expect(e.choicesFor().some((o) => o.available && o.skillId != null)).toBe(true);
+      e.resolveJinnang(null);
+    }
     expect(e.turnPhase).toBe("Roll");
     expect(e.jinnangUsedTags.sort()).toEqual(["守", "援"].sort());
   });
