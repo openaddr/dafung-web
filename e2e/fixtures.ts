@@ -7,7 +7,7 @@ import { test as base, expect, type Browser, type Page } from "@playwright/test"
 // 键名单源:与 timings.ts 共用同一常量,避免字符串双源漂移。
 // (timings.ts 自身 import @core/theme——playwright 的 tsconfig paths 解析可处理,
 // 若运行时报模块解析失败,回退为字面量 "dafung-e2e-time-scale" 并在此注明。)
-import { E2E_TIME_SCALE_KEY } from "../src/app/fx/timings";
+import { E2E_DEBUG_BRIDGE_KEY, E2E_TIME_SCALE_KEY } from "../src/app/fx/timings";
 
 export { expect };
 export type { Browser, Page };
@@ -16,12 +16,17 @@ export type { Browser, Page };
 // timings 侧对非法值按 1(全速)解释。
 const timeScale = process.env.E2E_TIME_SCALE ?? "0.25";
 
-/** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速。 */
+/** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速;并开调试桥门禁
+ *  (registry.installDebugHooks 双门禁:生产构建不注册 window.__dafung,dev 或
+ *  桥键非空才注册——quickStart/force/截图脚手架全依赖它)。 */
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(
-      ({ key, value }) => localStorage.setItem(key, value),
-      { key: E2E_TIME_SCALE_KEY, value: timeScale },
+      ({ key, value, bridge }) => {
+        localStorage.setItem(key, value);
+        localStorage.setItem(bridge, "1");
+      },
+      { key: E2E_TIME_SCALE_KEY, value: timeScale, bridge: E2E_DEBUG_BRIDGE_KEY },
     );
     await use(page);
   },
@@ -29,5 +34,14 @@ export const test = base.extend({
 
 /** 联机/韧性 spec 免注入(#116 评审实证):对局节奏由服务端驱动,客户端编排加速
  *  只会造出快照洪流——实测 0.25 倍率下服务端 2.5s 冲 109 轮,guest 代打页被卡死
- *  不落子,服务端无决策超时永久等待(市面无此保护)。联机用例提速归零收益,维持全速。 */
-export const testUnscaled = base;
+ *  不落子,服务端无决策超时永久等待(市面无此保护)。联机用例提速归零收益,维持全速;
+ *  但调试桥门禁键仍要注入(coreState/force 读 window.__dafung,生产构建下无键不注册)。 */
+export const testUnscaled = base.extend({
+  page: async ({ page }, use) => {
+    await page.addInitScript(
+      ({ bridge }) => localStorage.setItem(bridge, "1"),
+      { bridge: E2E_DEBUG_BRIDGE_KEY },
+    );
+    await use(page);
+  },
+});

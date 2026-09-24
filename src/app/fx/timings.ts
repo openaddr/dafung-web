@@ -8,6 +8,11 @@ import { Motion } from "@core/theme";
 /** e2e 时间倍率(#114):共享 fixture 在页面加载前写入 localStorage;生产/真人局
  *  无此键,S===1 时 sc 直通(不落地板——80ms 级短拍必须保持原值)。 */
 export const E2E_TIME_SCALE_KEY = "dafung-e2e-time-scale";
+/** e2e 调试桥门禁键(双门禁之一,同 ZCode VITE_ZCODE_E2E_STORE_BRIDGE 口径):
+ *  `__dafung` 引擎钩子只在 `import.meta.env.DEV` 或本键非空时注册——生产构建
+ *  默认不暴露引擎改写面(单机模式控制台可作弊/误触),e2e 与截图脚手架经
+ *  addInitScript 预置本键即开,测试/生产分野不靠约定靠门禁。 */
+export const E2E_DEBUG_BRIDGE_KEY = "dafung-e2e-debug-bridge";
 /** 地板:headless+软渲下 expect 轮询的可观察下限,保瞬态演出(骰子签面/横幅)可被断言。 */
 export const TIME_SCALE_FLOOR_MS = 100;
 

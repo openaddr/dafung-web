@@ -160,7 +160,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 ## 联机测试基础设施
 - **多客户端 e2e**:`e2e/react-online.spec.ts` / `react-online-autopilot.spec.ts` / `react-resilience.spec.ts`,共享工具 `e2e/react-helpers.ts`(quickStart / pickCapital / snap / waitForSnapChanged / waitForEngine)。
 - **模式**:N 个独立 browser context(= N 台设备)同房,走真实 UI(非 REST 旁路);固定等待全部改状态轮询(waitForSnapChanged/expect.poll),慢速托管窗 240s。
-- **调试钩子**:registry.ts 的 `installDebugHooks` 暴露 `window.__dafung`(getEngine/setEngine/snapshot/sync/controller),卡死时可手动重灌快照排查。
+- **调试钩子**:registry.ts 的 `installDebugHooks` 暴露 `window.__dafung`(getEngine/setEngine/snapshot/sync/controller),卡死时可手动重灌快照排查。**双门禁**(2026-09-25,学自 ZCode e2eStoreBridge):仅 dev 构建,或注入 localStorage 桥键(`timings.ts E2E_DEBUG_BRIDGE_KEY`,e2e fixtures/`scripts/shot.mjs` 自动预置)才注册——生产构建零引擎改写面,手动排查生产问题时先在控制台 `localStorage.setItem("dafung-e2e-debug-bridge","1")` 后刷新。
 - 跑:`bun run test:e2e`(10 个 react-*.spec,37 用例)。
 
 ## Agent skills

@@ -50,7 +50,10 @@ export async function openShotSession({
   const ctx = await browser.newContext({ viewport, deviceScaleFactor });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 300)));
-  await page.addInitScript(() => localStorage.setItem("E2E_TIME_SCALE", "0.25")); // 演出加速,同 e2e
+  await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.25")); // 演出加速,同 e2e
+  // 调试桥门禁键(单源 src/app/fx/timings.ts E2E_DEBUG_BRIDGE_KEY;.mjs 无法 import TS,字面量随其注记同步):
+  // preview 服务的是生产构建,无此键 window.__dafung 不注册,force/force 依赖的钩子全哑。
+  await page.addInitScript(() => localStorage.setItem("dafung-e2e-debug-bridge", "1"));
   if (zeroEncounter) {
     await page.route("**/config/jiyu.json", (route) =>
       route.fulfill({
