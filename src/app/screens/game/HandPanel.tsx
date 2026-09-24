@@ -3,6 +3,7 @@
 // 动作区:签面(#188 第 1 步:行军按钮已随掷骰自动化移除——进入人类回合自动起签起摇,
 // 本区只留签面展示掷骰结果)。
 // L48:珍宝/名将卡迁出至 TreasuryPanel(战报移除后腾出的常驻展示区),本区只留身份与行动。
+// #238/T3:锦囊手牌迁出至屏幕下缘常驻手牌架(HandRack),本区不再有锦囊纸签。
 // 交互重构:原 ActionInline 内嵌决策(买/扩军/驻跸/选路)整体迁入卷轴体系
 // (DecisionScrollLayer 按相位自动弹出),手牌区不再有任何决策按钮。
 // #44/S11:现金浮标的跨快照 diff 逻辑抽成 useDeltaFloat(本目录同名文件);
@@ -14,7 +15,6 @@ import { useState } from "react";
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
-import { jinnangCardOf } from "@core/jinnang";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
@@ -240,36 +240,6 @@ export function HandPanel({ snapshot, player, controller }: HandPanelProps) {
               {/* R3-B7(#79):身价小字已删——坐姿分支只留现金大数 + 委任 chip(有浮字反馈),
                   手牌区是「我的钱」唯一大数呈现;身价归状态卡 meta,不再三处重复 */}
             </div>
-            {/* 锦囊手牌(#122/T1):暗置牌,只有本人牌面(联机快照经投影,他人的内容根本
-                不到本端,ADR-0016)。T1 仅展示——使用回路(锦囊卷轴)在 T2 落地。
-                牌面:首字标签方章(印章语言)+ 牌名 wenkai + 牌面文案走 title;目录只读
-                展示不判可用性(ADR-0013:可用性归引擎选项集)。 */}
-            {player.jinnangHand.length > 0 && (
-              <div data-testid={TESTIDS.jinnangHand} className="mt-2">
-                <div className="text-xs leading-4 text-ink-dim">锦囊 {player.jinnangHand.length}</div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {player.jinnangHand.map((id) => {
-                    const def = jinnangCardOf(id);
-                    return (
-                      <span
-                        key={id}
-                        data-testid={TESTIDS.jinnangCard(id)}
-                        title={def.text}
-                        className="inline-flex min-h-8 items-center gap-1.5 rounded-[3px] border border-[rgba(43,35,23,0.22)] bg-panel px-1.5 text-xs leading-none"
-                      >
-                        <span className="inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]">
-                          {def.tags[0]}
-                        </span>
-                        <span className="font-wenkai">{def.id}</span>
-                        {def.tags.length > 1 && (
-                          <span className="shrink-0 text-[10px] text-ink-dim">{def.tags.join("")}</span>
-                        )}
-                      </span>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
           </div>
         </>
       )}

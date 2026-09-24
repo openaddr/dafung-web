@@ -1,0 +1,121 @@
+/* 底部常驻手牌架(#238 一期 T3)——从 tmp/prototype-jinnang-ui.html 其四 .rack/.jia-zhang
+   忠实移植(2026-09-24 用户已验收的视觉基线):漆木架 / 架首竖排章 / 空态斜放牌背。
+   选择器收口在 .hand-rack 作用域下防全局串扰(同 jinnang-card.css 口径);色一律
+   var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-* 与 --ease-*
+   token(tokens.css 单源,reduced-motion 由 app.css M-4 全局兜层承担)。
+   【注意:注释内禁写「星号紧跟斜杠」的字符组合(如 --dur-星-斜杠--ease)——
+   那等于提前闭合注释,把后续真规则吞进垃圾选择器整块丢弃(本文件首版实证翻车)。】
+
+   裸色豁免登记(原型定稿色,tokens.css 暂无对应 token;与 jinnang-card.css 的
+   牌背漆木端色同族——漆面明暗,无 token):
+   - #463a28 / #241d13:漆木架渐变两端(架上明、架下暗);
+   - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式,app.css
+     控件种同先例);
+   - rgba(0,0,0,·):漆木上的中性黑影(架口内阴影),非墨影语义。
+
+   尺寸:容器 font-size 即 em 基(基准 8px,与 .jinnang-card 的 standard 档同值),
+   架体 chrome(章/衬垫/间隙)全 em 表达;牌面经 `.hand-rack .jinnang-card
+   { font-size: inherit }` 吃容器 em 基(只读 card/ 目录,不改组件,特异性压过
+   档类默认 8px)。短横屏降档(#238 已决事项「剩余实现层微调」):media query 里把
+   容器 em 基降到 6.4px → 牌面 96×128、架高同步收紧,一处变量全架缩放。 */
+
+.hand-rack {
+  position: relative;
+  font-size: 8px; /* em 基:架体 chrome 与牌面共用,短横屏降档只改这一处 */
+  flex: none; /* 手牌架定高不吃纵向弹性,棋盘区(flex-1)自然让位 */
+  display: flex;
+  gap: 3em;
+  align-items: flex-end;
+  justify-content: center;
+  padding: 1.6em calc(2.5em + 5em) calc(1.75em + var(--safe-bottom)) calc(2.5em + 5em);
+  background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+  box-shadow:
+    inset 0 2px 0 rgba(217, 185, 92, 0.4), /* 漆金上缘高光(原型定稿) */
+    inset 0 14px 24px rgba(0, 0, 0, 0.35); /* 架口黑影 */
+  z-index: 5; /* 压过 board-wrap 内浮层溢出(hint/WaitingBar 均在架上方区域) */
+}
+
+/* ── 架首章:竖排「锦囊手牌」漆金描边(原型 .jia-zhang 制式;字族落 font-brush
+   ——新文案禁 font-deco,BRIEF §2,印文用笔书同 jinnang-card.css .seal 口径)── */
+.hand-rack-zhang {
+  position: absolute;
+  left: 2em;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 0.75em;
+  font-family: var(--font-brush);
+  font-size: 1.625em; /* 原型 13px @8px 基 */
+  line-height: 1;
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.5); /* 漆金描边 */
+  padding: 1.25em 0.625em;
+  border-radius: 2px;
+  opacity: 0.9;
+  text-align: center;
+  user-select: none;
+  pointer-events: none;
+}
+
+/* ── 手牌行:横排全展(规则上限 3 张,无重叠;
+   未来 >3 张的压缩算法(OpenDuelyst 均分公式)此处留位,当前不实现 ── */
+.hand-rack-hand {
+  display: flex;
+  gap: 3em;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+/* 牌面吃容器 em 基(standard 档默认 8px 被覆盖,降档时随容器走) */
+.hand-rack .jinnang-card {
+  font-size: inherit;
+}
+
+/* 可点:点/长按出详情(交互语义在弹层壳,牌面本体仍是纯展示) */
+.hand-rack-hand .jinnang-card {
+  cursor: pointer;
+  /* 长按出详情:掐掉触屏长按的系统选中/呼出菜单,别和详情弹层打架 */
+  user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+/* ── 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;原型 .slash)── */
+.hand-rack-back {
+  transform: rotate(-9deg);
+  /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
+}
+
+/* ── 短横屏降档(Android 短横屏 844×390 一类):em 基 8→6.4px(牌面 96×128),
+   架体 chrome 全 em 随之收紧 ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .hand-rack {
+    font-size: 6.4px;
+  }
+}
+
+/* ── 详情弹层入场(一次性演出,无 infinite):底部滑入 + 淡入,
+   桌面面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */
+@keyframes rack-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5em);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.jinnang-detail-sheet {
+  animation: rack-sheet-in var(--dur-med) var(--ease-out);
+}
+
+/* 详情壳抓手上条(窄屏抽屉形态;桌面面板不挂,由组件按形态渲染) */
+.jinnang-detail-grab {
+  width: 44px;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(43, 35, 23, 0.3);
+  margin: 0 auto 14px;
+}
