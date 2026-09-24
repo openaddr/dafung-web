@@ -3,6 +3,10 @@
 // 红线:拿到即用、无需思考的牌不配当锦囊——每张牌必须在「用不用/对谁用/
 // 这回合用哪张」上至少一问有真实权衡(设计拷问会定,2026-09-09)。
 // id 用中文且自带因果(名字与效果互证),与机遇目录同口径。
+// 牌面用语规范(2026-09-24 归一,与 docs/reference/rules/06-锦囊.md 同一口径):
+//   目标句「指定一名/两名其他诸侯」「其余所有诸侯」;回指用「其」;时窗一律
+//   「至你的下回合开始」;数额用阿拉伯数字(300 两);城池(非城防)、现金(非家资)、
+//   名将(非名将);text 首段四字计名前缀仅入详情浮层,牌面笺脚渲染时剥离。
 
 /** 锦囊标签(CONTEXT.md):功能类别,每回合每类限用一张;一张牌可有多枚,
  *  使用即同时占用其全部标签的本回合名额。 */
@@ -14,7 +18,7 @@ export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others";
 /** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地)。 */
 export type JinnangEffect =
   | { kind: "jinnangShield" } // 免战金牌:他人的锦囊无法指定你,至你下回合开始
-  | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,贤士尽折现
+  | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
   | { kind: "demolish" } // 火烧连营:随机降目标一座城 1 级,全 0 级则失去一座
@@ -36,42 +40,42 @@ export interface JinnangCardDef {
 export const JINNANG_CARDS: JinnangCardDef[] = [
   {
     id: "连环计", copies: 2, tags: ["谋"], targetDomain: "two-others",
-    text: "二虎竞食:指定两名诸侯相争,各掷骰定胜负——胜者得三百两,败者赔你四百两;僵持则此计作废。",
+    text: "二虎竞食:指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。",
     effect: { kind: "duel", winnerBankGain: 300, loserPaysUser: 400 },
   },
   {
     id: "军情密探", copies: 2, tags: ["谋"], targetDomain: "one",
-    text: "细作出探:窥得一名诸侯的锦囊,直到你的下回合开始。",
+    text: "细作出探:指定一名其他诸侯,窥其锦囊至你的下回合开始。",
     effect: { kind: "peek" },
   },
   {
     id: "缓兵之计", copies: 1, tags: ["谋", "攻"], targetDomain: "one",
-    text: "拖刀之计:拖住一名诸侯,使其下一回合无法行动。",
+    text: "拖刀之计:指定一名其他诸侯,其下回合被跳过。",
     effect: { kind: "skipTurn" },
   },
   {
     id: "横征暴敛", copies: 2, tags: ["攻"], targetDomain: "all-others",
-    text: "强征贡赋:在场每位诸侯向你缴纳二百两;家资不足者倾囊而出。",
+    text: "强征贡赋:其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。",
     effect: { kind: "levyAll", amount: 200 },
   },
   {
     id: "窃玉偷香", copies: 2, tags: ["攻"], targetDomain: "one",
-    text: "巧取豪夺:窃取一名诸侯的一件珍宝归你。",
+    text: "巧取豪夺:指定一名其他诸侯,随机夺其一件珍宝。",
     effect: { kind: "stealTreasure" },
   },
   {
     id: "火烧连营", copies: 2, tags: ["攻"], targetDomain: "one",
-    text: "火烧营寨:一名诸侯的一处城防降一级;城防尽毁则失其一座城。",
+    text: "火烧营寨:指定一名其他诸侯,随机降其一座城池 1 级;其城池全为 0 级则随机失去一座。",
     effect: { kind: "demolish" },
   },
   {
     id: "免战金牌", copies: 2, tags: ["守"], targetDomain: "self",
-    text: "免战旗张:他人的锦囊无法指定你为目标(至你下回合开始)。",
+    text: "免战旗张:至你的下回合开始,其他诸侯的锦囊无法指定你为目标。",
     effect: { kind: "jinnangShield" },
   },
   {
     id: "求贤令", copies: 2, tags: ["援"], targetDomain: "self",
-    text: "张榜求贤:招揽一名武将来投;帐下已满则折现三百两。",
+    text: "张榜求贤:招揽一名名将来投;帐下已满或名将已尽则折现 300 两。",
     effect: { kind: "grantHero", fallbackCash: 300 },
   },
 ];
