@@ -183,6 +183,14 @@
   box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.38);
   z-index: 6;
 }
+/* 选中=详情态(spec US4「放大至全文可读」):笺脚放开 4 行(与 lg 详情档同),
+   纹样窗同步让位(min-height 6em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
+.jinnang-card.sel .jiao {
+  -webkit-line-clamp: 4;
+}
+.jinnang-card.sel .yang {
+  min-height: 3.5em;
+}
 .jinnang-card.off {
   filter: grayscale(0.9) brightness(0.92);
   transform: translateY(0.9em);

@@ -216,6 +216,7 @@ export function JinnangScroll({
                 }}
                 onPointerDown={(e) => {
                   clearPress();
+                  if (!e.isPrimary) return; // 多指第二指不起长按(与 HandRack.RackCard 同口径)
                   if (selectedId !== o.id) return; // 长按只服务「取消选中」
                   press.current = {
                     timer: setTimeout(() => {

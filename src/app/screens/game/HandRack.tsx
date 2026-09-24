@@ -55,10 +55,11 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
         // 贴底:冲突组(top/translate-y 等)由 cn(twMerge)按后者覆盖。
         className={
           isNarrow
-            ? // 窄屏:贴底全宽抽屉(上圆角 + 抓手上条,原型 .xiang-sheet 制式)
-              "jinnang-detail-sheet inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-full max-h-[70dvh] overflow-y-auto rounded-b-none rounded-t-[14px] px-5 pt-3 pb-[calc(var(--safe-bottom)+16px)]"
-            : // 桌面:底部居中面板(下缘让出安全区)
-              "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-0 w-max max-w-[92vw]"
+            ? // 窄屏:贴底全宽抽屉(上圆角 + 抓手上条,原型 .xiang-sheet 制式;
+                // max-h 86dvh + 内滚 = 方案「看不全」三层保证之②)
+              "jinnang-detail-sheet inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-full max-h-[86dvh] overflow-y-auto rounded-b-none rounded-t-[14px] px-5 pt-3 pb-[calc(var(--safe-bottom)+16px)]"
+            : // 桌面:底部居中面板(同口径 86dvh 内滚;下缘让出安全区)
+              "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-0 w-max max-w-[92vw] max-h-[86dvh] overflow-y-auto"
         }
       >
         {/* 可达名:牌名即标题(sr-only,视觉由 JinnangCardDetail 的 dt-ming 承担) */}
@@ -92,6 +93,9 @@ function RackCard({ cardId, index, onOpen }: { cardId: string; index: number; on
       timer.current = null;
     }
   };
+  // 卸载清 timer(评审 Standards 轴:按压中牌离手——被消耗/架收起——不该再回调;
+  // DecisionScrolls 的同款手势有此清理,此处补齐)。
+  useEffect(() => cancelTimer, []);
   const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
     if (!e.isPrimary) return; // 多指第二指不起长按
     fired.current = false;
@@ -163,11 +167,14 @@ export function HandRack({ player }: HandRackProps) {
         /* 手牌行:testid 沿用 jinnang-hand,只在有牌时存在(与原侧栏容器同语义,
             空手牌清空的 e2e 断言零漂移);上限 3 张全展,无重叠算法(压缩留位未实现)。 */
         <div data-testid={TESTIDS.jinnangHand} className="hand-rack-hand">
-          {hand.map((id, i) => (
-            /* key 带序号:同名两张(牌库各 2 副本)同手时 id 独身会撞 key;
-                testid 契约仍是 jinnang-card-${id}(原值,重复牌的定位歧义属既有口径)。 */
-            <RackCard key={`${id}-${i}`} cardId={id} index={i} onOpen={setDetailId} />
-          ))}
+          {hand.map((id, i) => {
+            /* key = id + 同名序数:前位异名牌被消耗时后位 key 不变(不重播发牌音/
+                入场动画;index 键会全体移位重挂载,评审 Standards 轴发现)。同名两张
+                只剩其一时会换一次键、重播一拍——快照无实例 id,引擎数据下这已最稳。
+                testid 契约仍是 jinnang-card-${id}(重复牌的定位歧义属既有口径)。 */
+            const nth = hand.slice(0, i).filter((x) => x === id).length;
+            return <RackCard key={`${id}-${nth}`} cardId={id} index={i} onOpen={setDetailId} />;
+          })}
         </div>
       ) : (
         /* 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案) */
