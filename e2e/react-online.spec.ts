@@ -101,7 +101,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
         actions++;
         break;
       }
-      const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
+      const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
       if ((await scrollPrimary.count()) > 0) {
         await scrollPrimary.first().click();
         acted = true;
@@ -205,7 +205,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
                 .then(() => true, () => false);
               break;
             }
-            const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
+            const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
             if ((await scrollPrimary.count()) > 0) {
               acted = await scrollPrimary
                 .first()

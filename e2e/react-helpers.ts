@@ -180,7 +180,7 @@ export async function actIfCan(p: Page): Promise<boolean> {
       .click({ timeout: 10_000 })
       .then(() => true, () => false);
   }
-  const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
+  const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
   if ((await scrollPrimary.count()) > 0) {
     return scrollPrimary
       .first()
