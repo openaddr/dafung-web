@@ -159,3 +159,162 @@
   pointer-events: auto;
   animation: scroll-fade-in var(--dur-reveal) var(--ease-out);
 }
+
+/* ───────────────────────────────────────────────────────────────────────────
+   军师幕牌面化(#237 一期 T2):横排牌面舞台 / 令笺(技)变体差量 / 今不用竖笺钮。
+   牌面本体样式单源在 jinnang-card.css(.jinnang-card 族,交互态 sel/off/reason 同源);
+   本段只承担军师幕的布局壳与令笺差量。色一律 var(--color-*) 或墨影 rgba(43,35,23,·);
+   动效时长/缓动走 --dur- 与 --ease- 两族 token;金框豁免色 rgba(246,236,217,·)(印文纸色,
+   jinnang-card.css 同款登记)。
+   ─────────────────────────────────────────────────────────────────────────── */
+
+/* 舞台:横排牌面 + 今不用竖钮,flex-end 底对齐(原型 .mokuai 口径),放不下自动换行。
+   选中放大 1.6× 是 transform 不占布局——头顶余量用 padding 预留,否则放大牌会被壳内
+   滚区(overflow-y-auto)裁掉:无选中 24px;有选中扩到 108px(= 放大上抬 0.6×160px
+   96px + translateY -1.2em 9.6px,留 2px 余量),选中瞬间舞台「腾位」与牌面上浮同拍
+   过渡(--dur-med),无生硬跳变。左右 padding 40px ≥ 放大横向外溢(0.6×120px/2 =
+   36px),放大牌不裁、金描边完整。 */
+.jn-stage {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px 40px 4px;
+  transition: padding var(--dur-med) var(--ease-out);
+}
+.jn-stage.jn-has-sel {
+  padding-top: 108px;
+}
+
+/* 牌钮:裸钮承载牌面(交互语义=普通按钮点击,归 JinnangScroll;牌面器物不自带交互)。
+   禁用(灰置牌不可选中)无 disabled 半透明——下沉置灰由 .off 承担,别叠 opacity。 */
+.jn-card-btn {
+  display: block;
+  flex: 0 0 auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.jn-card-btn:disabled {
+  cursor: default;
+}
+/* 键盘焦点圈:金色虚线落钮上(焦点恒在钮,牌面级的 .jinnang-card:focus-visible 在此
+   结构下不可达;.sel 的金实线描边与其不冲突——实线=选中、虚线=键盘焦点) */
+.jn-card-btn:focus-visible {
+  outline: 2px dashed var(--color-gold-deep);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+/* 今不用竖笺钮(原型 .jin-buyong 形制:细长竖笺 + 竖排三字 + 小字「跳过」)。
+   原型字族是 --xiao,新文案禁 font-deco(小薇空芯字形,BRIEF §2)→ 竖字落 font-brush
+   (章面印文同先例)、小字落 font-wenkai(新文案安全位);字级较原型上调保移动端可读。 */
+.jin-buyong {
+  flex: 0 0 auto;
+  align-self: center;
+  margin-left: 24px; /* 与牌行的间距拉开一档:选中放大牌横向外溢 36px,不压到这个动作钮 */
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.9em;
+  width: 4.2em;
+  height: 13em;
+  font-size: 8px;
+  padding: 0;
+  border: 0.18em solid rgba(43, 35, 23, 0.5);
+  border-radius: 0.6em;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
+  color: var(--color-ink-dim);
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.jin-buyong > span {
+  font-family: var(--font-brush);
+  font-size: 1.9em;
+  line-height: 1;
+}
+.jin-buyong .sub {
+  font-family: var(--font-wenkai);
+  font-size: 1.1em;
+  letter-spacing: 0.1em;
+}
+.jin-buyong:hover {
+  border-color: rgba(43, 35, 23, 0.8);
+  color: var(--color-ink);
+}
+.jin-buyong:focus-visible {
+  outline: 2px dashed var(--color-gold-deep);
+  outline-offset: 3px;
+}
+
+/* ── 令笺(技)变体差量:基座复用 .jinnang-card(纸面/尺寸/交互态全同),只换头饰
+   与中段。金=技通道:界格线、技章、徽记描边/字全落 gold-deep(原型 .lingjian 口径)── */
+.jn-lingjian .jie {
+  background: var(--color-gold-deep);
+}
+/* 右上金底「技」章:与朱砂标签章同位同形(#229 技/牌区分) */
+.jn-lingjian .ji {
+  position: absolute;
+  top: 0.9em;
+  right: 0.9em;
+  z-index: 2;
+  width: 2.6em;
+  height: 2.6em;
+  display: grid;
+  place-items: center;
+  border-radius: 0.28em;
+  transform: rotate(2.5deg);
+  background: var(--color-gold-deep);
+  color: var(--color-paper-hi);
+  font-family: var(--font-brush);
+  font-size: 1.5em;
+  box-shadow: inset 0 0 0 0.14em rgba(246, 236, 217, 0.5);
+}
+/* 中段圆形徽记:技名首字(原型 .ji-emblem 形制:径向纸面 + 金细环;径 8em——较原型
+   9.5em 收一档,给下方属主+摘要两行让位,比例同步收紧保形制) */
+.jn-lingjian .hui {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 8em;
+  height: 8em;
+  margin: 0.7em 0;
+  display: grid;
+  place-items: center;
+  border: 0.16em solid color-mix(in srgb, var(--color-gold-deep) 50%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, var(--color-paper-hi), var(--color-panel-hi));
+}
+.jn-lingjian .hui span {
+  font-family: var(--font-brush);
+  font-size: 3.6em;
+  line-height: 1;
+  color: var(--color-gold-deep);
+}
+/* 摘要区:属主行 + 技能文案摘要(复用牌面 .jiao 两行截断——细则归详情/规则页,
+   牌面只留做决定需要的部分)。摘要居中(原型 .cd 口径)。 */
+.jn-lingjian .zhai {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+}
+.jn-lingjian .zhai .zhai-hero {
+  font-size: 1.05em;
+  letter-spacing: 0.14em;
+  color: var(--color-ink-dim);
+}
+.jn-lingjian .zhai .jiao {
+  font-size: 1.05em;
+  line-height: 1.5;
+  text-align: center;
+}
+/* 灰置(冷却/费用/无目标):属主行随 .off .jiao 同口径藏,让位原因印条 */
+.jn-lingjian.off .zhai {
+  visibility: hidden;
+}

@@ -13,6 +13,8 @@ import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
+import { JinnangCardFace } from "@app/components/card/JinnangCardFace";
+import { JinnangLingjian } from "./JinnangLingjian";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -32,11 +34,15 @@ function useNumberShortcuts(actions: Array<() => void>) {
 }
 
 // ── 军师幕卷轴(AwaitingJinnang,#122/T2 锦囊 + #188 档 3 名将主动技,统一决策窗)──
-// 选项=可用锦囊 + 就绪主动技 +「今不用」(available/reason 单源引擎注册表);目标段=
-// 候选座位 + 作罢。牌面文案/标签、技能文案随 choices 载荷过网(UI 不回查目录——持有人
-// 内容本就在自己快照里,但口径与机遇卷轴一致:卷轴只消费 choices)。灰置项照列
-// (暗置博弈:看见自己有什么、为何不能用)。testid 族(scroll-jinnang*)沿用锦囊旧名,
-// 窗口语义已扩为军师幕——改名不破坏既有 e2e。
+// #237 牌面化:选项从行按钮改横排牌面——锦囊=JinnangCardFace、就绪主动技=令笺变体
+// (JinnangLingjian)、「今不用」竖笺钮殿后。交互口径(2026-09-24 拍板,方案 §7.5):
+// 点牌=选中(不即发命令),选中即放大 1.6× 详情档(.sel 金描边,样式单源 jinnang-card.css);
+// 点它牌切换、再点/右键/长按(500ms 无位移)取消;「落印」墨钮确认后才发命令——
+// 选择与确认彻底分离,落印禁用态=未选中。牌面内容(牌名/标签/纹样)由组件回查目录
+// 渲染(本端快照本就含目录,与判定无关);可用性/原因只读 choices(单源,ADR-0013),
+// 技能文案随 choices 载荷过网(UI 不回查名将目录)。灰置项照列(暗置博弈:看见自己
+// 有什么、为何不能用):下沉置灰 + 原因印条,不可选中。testid 族(scroll-jinnang*)
+// 沿用旧名原义,e2e 零漂移;仅新增 jinnangConfirm(落印)。
 export function JinnangScroll({
   choices,
   pendingCardId,
@@ -50,59 +56,105 @@ export function JinnangScroll({
   choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
-  // 目标段:候选座位 + 作罢(牌保留/技不记冷却);卡牌段:锦囊 + 主动技 + 今不用
+  // 目标段:候选座位 + 作罢(牌保留/技不记冷却);卡牌段:锦囊牌面 + 令笺 + 今不用
   const targeting = choices.some((o) => o.targetSeat != null);
+  // 目标段座位选项(targetSeat 由 filter 保证非空,收口一处;引擎目标段选项恒带座位)
+  const seatOptions = targeting
+    ? (choices.filter((o) => o.targetSeat != null) as Array<ChoiceOption & { targetSeat: number }>)
+    : [];
+  // 卡牌段选项(锦囊 + 主动技;pass/cancel 是动作钮不算牌)
+  const options = targeting ? [] : choices.filter((o) => o.id !== "pass" && o.id !== "cancel");
+  // 可用项序(G-19 计数与落印之外的一切判定只认可用项;灰置照列但跳过计数)
+  const avail = options.filter((o) => o.available);
   const subtitle = targeting
     ? pendingSkillId != null
       ? "此技指向何人?"
       : "此计指向何人?"
     : "军师在侧,计谋在囊。可出一计一技,或留待来日——掷骰之前,且慢行军。";
+
+  // 选中态(#237):点牌只选中,落印才发命令;进目标段/作罢返回即清空重选
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  useEffect(() => setSelectedId(null), [targeting]);
+  const selected = selectedId != null ? options.find((o) => o.id === selectedId && o.available) : undefined;
+
+  // 落印确认:选中项发命令(技=useHeroSkill;牌=useJinnang 发卡 id——one/two-others
+  // 的牌由此进引擎目标段,目标段交互与 testid 不变)
+  const confirmSelected = () => {
+    if (selected == null) return;
+    onCommand(
+      selected.skillId != null
+        ? { type: "useHeroSkill", skillId: selected.skillId }
+        : { type: "useJinnang", cardId: selected.id },
+    );
+  };
+  // 目标段命令(座位段交互口径不变,座位钮与数字键共用)
+  const seatCmd = (targetSeat: number): GameCommand =>
+    pendingSkillId != null
+      ? { type: "useHeroSkill", skillId: pendingSkillId, targets: [targetSeat] }
+      : { type: "useJinnang", cardId: pendingCardId, targets: [targetSeat] };
+
+  // G-19(#237 新口径):卡牌段——数字 1..n = 选中第 n 个「可用」选项(灰置项跳过计数;
+  // 只选中不发送,确认一律过落印钮),Enter = 落印;目标段沿用旧口径:数字直发座位命令
+  // (与座位钮角标同序)。Enter preventDefault 压掉焦点钮的原生激活——有选中时回车只有
+  // 一个语义(落印);无选中时放行原生点击,焦点在「今不用」上回车仍可跳过(键盘可达)。
+  // 快捷键读 ref 不进依赖:choices 每快照新引用,监听器只挂一次。
+  const kb = useRef({ targeting, seatOptions, avail, selected, seatCmd, confirmSelected, onCommand });
+  kb.current = { targeting, seatOptions, avail, selected, seatCmd, confirmSelected, onCommand };
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const k = kb.current;
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1) {
+        if (k.targeting) {
+          const hit = k.seatOptions.filter((o) => o.available)[n - 1];
+          if (hit != null) k.onCommand(k.seatCmd(hit.targetSeat));
+        } else {
+          const hit = k.avail[n - 1];
+          if (hit != null) setSelectedId(hit.id);
+        }
+      } else if (e.key === "Enter" && k.selected != null) {
+        e.preventDefault();
+        k.confirmSelected();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  // 长按取消(#237 拍板口径):按住已选中的牌 500ms 无位移即取消选中;位移 >8px 视为
+  // 滚动/拖拽不触发;触发后抑制紧随而来的 click(触屏长按抬起会补发)。500ms 是交互
+  // 阈值非演出时长,刻意字面量不进倍率(ScrollShell 210ms 收起出口同先例)。
+  const press = useRef<{ timer: ReturnType<typeof setTimeout> | null; x: number; y: number; fired: boolean }>({
+    timer: null,
+    x: 0,
+    y: 0,
+    fired: false,
+  });
+  const clearPress = () => {
+    if (press.current.timer !== null) {
+      clearTimeout(press.current.timer);
+      press.current.timer = null;
+    }
+  };
+  useEffect(() => clearPress, []);
+
   return (
-    <ScrollShell title="军师幕" testid={T.jinnangScroll}>
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{subtitle}</p>
-      <div className="flex max-h-[46vh] flex-col items-stretch gap-2 overflow-y-auto px-1">
-        {choices
-          .filter((o) => o.id !== "pass" && o.id !== "cancel")
-          .map((o, i) => (
+    <ScrollShell title="军师幕" testid={T.jinnangScroll} width="lg">
+      <p className="m-1 mb-1 text-center text-sm text-ink-dim font-wenkai">{subtitle}</p>
+      {targeting ? (
+        <div className="flex flex-col gap-2 px-1 pb-1 pt-2">
+          {seatOptions.map((o, i) => (
             <ScrollButton
               key={o.id}
               testid={T.jinnangOption(o.id)}
               disabled={!o.available}
-              title={o.reason ?? o.cardText ?? o.skillText}
+              title={o.available ? undefined : o.reason}
               shortcut={i + 1}
-              onClick={() =>
-                onCommand(
-                  o.targetSeat != null
-                    ? pendingSkillId != null
-                      ? { type: "useHeroSkill", skillId: pendingSkillId, targets: [o.targetSeat] }
-                      : { type: "useJinnang", cardId: pendingCardId, targets: [o.targetSeat] }
-                    : o.skillId != null
-                      ? { type: "useHeroSkill", skillId: o.skillId }
-                      : { type: "useJinnang", cardId: o.id },
-                )
-              }
+              onClick={() => onCommand(seatCmd(o.targetSeat))}
             >
-              <span className="inline-flex items-center gap-2">
-                {o.targetSeat == null && (
-                  <span
-                    className={
-                      o.skillId != null
-                        ? // 技方章(#188 档 3):主动技与锦囊的视觉区分——金底「技」对朱底标签章
-                          "inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-gold-deep font-brush text-[11px] leading-none text-[#f6ead6]"
-                        : "inline-flex h-5 w-5 shrink-0 rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[11px] leading-none text-[#f6ead6]"
-                    }
-                  >
-                    {o.skillId != null ? "技" : o.cardTags?.[0] ?? "计"}
-                  </span>
-                )}
-                <span className="font-wenkai">{o.label}</span>
-                {o.skillId == null && o.cardTags && o.cardTags.length > 1 && (
-                  <span className="text-[10px] text-ink-dim">{o.cardTags.join("")}</span>
-                )}
-              </span>
+              <span className="font-wenkai">{o.label}</span>
             </ScrollButton>
           ))}
-        {targeting ? (
           <ScrollButton
             testid={T.jinnangCancel}
             onClick={() =>
@@ -113,15 +165,89 @@ export function JinnangScroll({
           >
             作罢
           </ScrollButton>
-        ) : (
-          <ScrollButton
-            testid={T.jinnangPass}
-            onClick={() => onCommand({ type: "useJinnang", cardId: null })}
-          >
-            今不用
-          </ScrollButton>
-        )}
-      </div>
+        </div>
+      ) : (
+        <>
+          <div className={`jn-stage${selected != null ? " jn-has-sel" : ""}`}>
+            {options.map((o, i) => (
+              <button
+                key={`${o.id}:${i}`} // 手牌可持同名两张(每牌库 2 份),key 带 index 防撞;段内顺序稳定
+                type="button"
+                data-testid={T.jinnangOption(o.id)}
+                disabled={!o.available}
+                aria-pressed={o.available ? selectedId === o.id : undefined}
+                className="jn-card-btn"
+                onPointerDown={(e) => {
+                  clearPress();
+                  if (selectedId !== o.id) return; // 长按只服务「取消选中」
+                  press.current = {
+                    timer: setTimeout(() => {
+                      press.current.timer = null;
+                      press.current.fired = true;
+                      setSelectedId(null);
+                    }, 500),
+                    x: e.clientX,
+                    y: e.clientY,
+                    fired: false,
+                  };
+                }}
+                onPointerMove={(e) => {
+                  const p = press.current;
+                  if (p.timer !== null && (Math.abs(e.clientX - p.x) > 8 || Math.abs(e.clientY - p.y) > 8)) clearPress();
+                }}
+                onPointerUp={clearPress}
+                onPointerCancel={clearPress}
+                onPointerLeave={clearPress}
+                onContextMenu={(e) => {
+                  e.preventDefault(); // 右键=取消选中,不弹浏览器菜单
+                  if (selectedId === o.id) setSelectedId(null);
+                }}
+                onClick={() => {
+                  if (press.current.fired) {
+                    press.current.fired = false; // 长按已取消选中,吞掉补发 click
+                    return;
+                  }
+                  setSelectedId(selectedId === o.id ? null : o.id);
+                }}
+              >
+                {o.skillId != null ? (
+                  <JinnangLingjian
+                    hero={o.skillHero!}
+                    name={o.label.slice(o.skillHero!.length + 1)}
+                    text={o.skillText!}
+                    className={!o.available ? "off" : selectedId === o.id ? "sel" : ""}
+                  >
+                    {!o.available && <span className="reason">{o.reason}</span>}
+                  </JinnangLingjian>
+                ) : (
+                  <JinnangCardFace
+                    cardId={o.id}
+                    className={!o.available ? "off" : selectedId === o.id ? "sel" : ""}
+                  >
+                    {!o.available && <span className="reason">{o.reason}</span>}
+                  </JinnangCardFace>
+                )}
+              </button>
+            ))}
+            <button
+              type="button"
+              data-testid={T.jinnangPass}
+              className="jin-buyong"
+              onClick={() => onCommand({ type: "useJinnang", cardId: null })}
+            >
+              <span>今</span>
+              <span>不</span>
+              <span>用</span>
+              <span className="sub">跳过</span>
+            </button>
+          </div>
+          <div className="mt-2 flex justify-center">
+            <ScrollButton primary testid={T.jinnangConfirm} disabled={selected == null} onClick={confirmSelected}>
+              落印
+            </ScrollButton>
+          </div>
+        </>
+      )}
     </ScrollShell>
   );
 }
