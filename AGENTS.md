@@ -102,6 +102,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `scripts/room.ts` | 房间编排(座位/接管/bot 驱动/host 移交/纯视图),零 WS 依赖 |
 | `scripts/room-persistence.ts` | 房间持久化适配器(FileRoomPersistence,可注入 InMemory 测试) |
 | `scripts/replay-log.ts` | ADR-0014 对局日志重放校验:jsonl → 局头重建引擎 → cmd 流重放 → 终局行逐字段断言(用法见 docs/reference/对局日志.md) |
+| `scripts/shot.mjs` | 截图自证脚手架(单源):起服/PID 杀/swiftshader/enterGame/force 样板全包,场景脚本只写局面;派单限额配套(勿手写 tmp 起服样板) |
 | `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
@@ -181,6 +182,8 @@ GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)�
 覆盖率体检(刻意低频,守基线不刷数字):`bun test --coverage`,重点只看 `src/core/`;触发时机与判读口径见 `.agents/skills/coverage-audit/SKILL.md`,台账在 `docs/reference/覆盖率台账.md`。不进 CI、不设阈值。
 
 ### 子代理派单纪律(2026-09-25 定,锦囊一期耗时回顾的落地)
+
+> 派单前复制 [docs/agents/派单模板.md](./docs/agents/派单模板.md) 填写;截图自证一律走 `scripts/shot.mjs`(勿再手写起服脚手架);回顾方法与数据源见 [docs/agents/耗时回顾.md](./docs/agents/耗时回顾.md)。
 
 1. **文件所有权互斥清单先行**:派单时逐文件写明「只许写/禁碰」;共享文件(testids、helpers、共享 css)预指派唯一属主或由主线预改,同树并行一律 flock 锁构建(`flock tmp/build.lock`)、专属端口与目录。
 2. **验证限额写进派单**:`typecheck`/`build` 各一次收口;e2e 只跑本工单 spec(`test:e2e:one`);截图证据 ≤4 张关键态(动画中间帧/对比度实测随该一轮做完,不反复起停 vite)。
