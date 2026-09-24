@@ -5,6 +5,9 @@ import { test, expect } from "./fixtures";
 import { quickStart } from "./react-helpers";
 
 test("滚轮缩放:向上滚放大城池", async ({ page }) => {
+  // master 对照实验(#240 收口)曾在全量负载下翻车:缩放动画轮询 5s 在高压下不够,
+  // 标 slow 对齐外层超时(与 encounters/online 同口径,2026-09-25 flake 还债)。
+  test.slow();
   await quickStart(page);
   const tile = page.locator("[data-tile='3']");
   const before = await tile.boundingBox();
@@ -20,6 +23,7 @@ test("滚轮缩放:向上滚放大城池", async ({ page }) => {
 });
 
 test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
+  test.slow(); // 同上:负载下的操作时序余量
   await quickStart(page);
   const svg = page.locator("#board");
   const vb0 = await svg.getAttribute("viewBox");

@@ -51,8 +51,11 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
     { timeout: 90_000 },
   ).toBeGreaterThan(before.turnNumber);
   // bot 接手:「智将运筹中…」等待条(与 bot 决策归属联合轮询——卷轴等人类作答时
-  // interactive=true 条不渲染,单等文案会撞上人类决策窗的静默期)
+  // interactive=true 条不渲染,单等文案会撞上人类决策窗的静默期)。
+  // 轮询体内必须 actIfCan 代答:回合推进后新回合的军师幕/购地卷轴会再弹,决策权
+  // 钉在人类身上时 owner?.isBot 恒 false——单等会 90s 空转超时(#240 收口实测复现)。
   await expect.poll(async () => {
+    await actIfCan(page);
     const s = await snap(page);
     const owner = s.players[s.decisionOwner];
     if (!owner?.isBot) return false;

@@ -144,6 +144,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 
 ### 本地 e2e 跑法
 
+- **分层验证(2026-09-25 定,耗时回顾后立规)**:日常开发/工单收口只跑**本工单相关 spec**——`bun run test:e2e:one e2e/<相关>.spec.ts`(等价 build+定向 playwright,本屏族约 40s;flake 取证用 `npx playwright test <spec> --repeat-each=3` 定向三连,不跑全量);**全量 `E2E_WORKERS=2 bun run test:e2e` 每分支只跑一次,PR 前收口**。
 - `E2E_WORKERS=2 bun run test:e2e`——默认 workers 在本机因 CPU 超载会成片超时,2 为实测稳态。
 - `E2E_TIME_SCALE`(默认 `0.25`):e2e 时间倍率,由 `e2e/fixtures.ts` 在页面加载前写入 localStorage 键(键名单源:`src/app/fx/timings.ts` 的 `E2E_TIME_SCALE_KEY`),加速骰子/横幅/行军等演出编排;设 `E2E_TIME_SCALE=1` 回退全速。仅测试注入,生产/真人局无此键零感知。
 
@@ -178,3 +179,10 @@ GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)�
 ### Coverage audit
 
 覆盖率体检(刻意低频,守基线不刷数字):`bun test --coverage`,重点只看 `src/core/`;触发时机与判读口径见 `.agents/skills/coverage-audit/SKILL.md`,台账在 `docs/reference/覆盖率台账.md`。不进 CI、不设阈值。
+
+### 子代理派单纪律(2026-09-25 定,锦囊一期耗时回顾的落地)
+
+1. **文件所有权互斥清单先行**:派单时逐文件写明「只许写/禁碰」;共享文件(testids、helpers、共享 css)预指派唯一属主或由主线预改,同树并行一律 flock 锁构建(`flock tmp/build.lock`)、专属端口与目录。
+2. **验证限额写进派单**:`typecheck`/`build` 各一次收口;e2e 只跑本工单 spec(`test:e2e:one`);截图证据 ≤4 张关键态(动画中间帧/对比度实测随该一轮做完,不反复起停 vite)。
+3. **诊断权归主线**:代理遇「疑似非本票引入的失败」,做一次对照实验(stash/repeat-each)定性后即停、上报;不做多轮取证——主线有跨票上下文,一次定性全局复用。
+4. **主线质检职责不变**:每道缝验门槛+亲审截图+抽查代码;评审(Standards/Spec 双轴)在收口前跑,发现必修项由主线修,不回派。
