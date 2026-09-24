@@ -8,7 +8,6 @@ import {
   jinnangAliasSplit,
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
-  JINNANG_FACE_SIZE_EM,
 } from "@app/components/card/jinnang-face-data";
 
 describe("jinnangAliasSplit(笺脚别称剥离)", () => {
@@ -45,10 +44,10 @@ describe("jinnangAliasSplit(笺脚别称剥离)", () => {
 describe("JINNANG_FAMILY(四族映射:一标签一族)", () => {
   it("谋/攻/守/援 四标签齐全,pattern 与 token 一一对应", () => {
     expect(new Set(Object.keys(JINNANG_FAMILY))).toEqual(new Set(["谋", "攻", "守", "援"]));
-    expect(JINNANG_FAMILY["谋"]).toEqual({ token: "--color-seal-qing", pattern: "cloud", label: "谋" });
-    expect(JINNANG_FAMILY["攻"]).toEqual({ token: "--color-danger", pattern: "fire", label: "攻" });
-    expect(JINNANG_FAMILY["守"]).toEqual({ token: "--color-road-side", pattern: "shield", label: "守" });
-    expect(JINNANG_FAMILY["援"]).toEqual({ token: "--color-money", pattern: "branch", label: "援" });
+    expect(JINNANG_FAMILY["谋"]).toEqual({ token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" });
+    expect(JINNANG_FAMILY["攻"]).toEqual({ token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" });
+    expect(JINNANG_FAMILY["守"]).toEqual({ token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" });
+    expect(JINNANG_FAMILY["援"]).toEqual({ token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" });
   });
 
   it("族 token 全部存在于 tokens.css(与配色单源核对,防漂移)", () => {
@@ -82,15 +81,26 @@ describe("JINNANG_TARGET_LABEL(目标域中文)", () => {
   });
 });
 
-describe("JINNANG_FACE_SIZE_EM(尺寸表:em 基准)", () => {
-  it("standard=8px 基(→120×160)/ large=16px 基(→240×320),CSS 档类同值", () => {
-    expect(JINNANG_FACE_SIZE_EM).toEqual({ standard: 8, large: 16 });
-    // 与 jinnang-card.css 的两档 font-size 互为镜像,这里钉住数据侧
-    const css = readFileSync(
-      new URL("../src/app/components/card/jinnang-card.css", import.meta.url),
-      "utf8",
-    );
-    expect(css.includes("font-size: 8px")).toBe(true);
-    expect(css.includes("font-size: 16px")).toBe(true);
+describe("牌面 ↔ CSS 镜像钉(格式鲁棒:规则体匹配,不看排版)", () => {
+  const css = () =>
+    readFileSync(new URL("../src/app/components/card/jinnang-card.css", import.meta.url), "utf8");
+
+  it("尺寸档:jinnang-card 基准 8px(→120×160)/ .lg 16px(→240×320)——数值唯一事实源在 CSS", () => {
+    // 首个 .jinnang-card 基座规则块内 font-size:8px;.lg 档规则块内 16px(容任意空白)
+    const base = css().match(/\.jinnang-card\s*\{[^}]*\}/s);
+    expect(base, ".jinnang-card 基座规则块缺失").not.toBeNull();
+    expect(base![0]).toMatch(/font-size:\s*8px/);
+    const lg = css().match(/\.jinnang-card\.lg\s*\{[^}]*\}/s);
+    expect(lg, ".jinnang-card.lg 档规则块缺失").not.toBeNull();
+    expect(lg![0]).toMatch(/font-size:\s*16px/);
+  });
+
+  it("FAM 族色镜像:JINNANG_FAMILY.faceClass ↔ CSS .f-* 的 --fam token 一一对应", () => {
+    // 组件不再自备第二份映射(face-data 单源),这里把「数据类名 → CSS token」钉死
+    for (const fam of Object.values(JINNANG_FAMILY)) {
+      const rule = css().match(new RegExp(`\\.${fam.faceClass}\\s*\\{[^}]*\\}`, "s"));
+      expect(rule, `.${fam.faceClass} 规则块缺失`).not.toBeNull();
+      expect(rule![0]).toMatch(new RegExp(`--fam:\\s*var\\(${fam.token}\\)`));
+    }
   });
 });

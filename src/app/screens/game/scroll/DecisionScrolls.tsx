@@ -15,6 +15,7 @@ import { getAudio } from "@app/fx/audio";
 import { ScrollShell, ScrollButton, ScrollGhostContext } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
 import { JinnangCardFace } from "@app/components/card/JinnangCardFace";
+import { useLongPress } from "@app/hooks/use-long-press";
 import { JinnangLingjian } from "./JinnangLingjian";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
@@ -144,22 +145,9 @@ export function JinnangScroll({
     return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  // 长按取消(#237 拍板口径):按住已选中的牌 500ms 无位移即取消选中;位移 >8px 视为
-  // 滚动/拖拽不触发;触发后抑制紧随而来的 click(触屏长按抬起会补发)。500ms 是交互
-  // 阈值非演出时长,刻意字面量不进倍率(ScrollShell 210ms 收起出口同先例)。
-  const press = useRef<{ timer: ReturnType<typeof setTimeout> | null; x: number; y: number; fired: boolean }>({
-    timer: null,
-    x: 0,
-    y: 0,
-    fired: false,
-  });
-  const clearPress = () => {
-    if (press.current.timer !== null) {
-      clearTimeout(press.current.timer);
-      press.current.timer = null;
-    }
-  };
-  useEffect(() => clearPress, []);
+  // 长按取消(#237 拍板口径):按住已选中的牌 500ms 无位移即取消选中(use-long-press
+  // 单源:主指起按、欧氏 10px 容差、fired 吃补发 click、卸载清 timer)。
+  const press = useLongPress();
 
   return (
     <ScrollShell title="军师幕" testid={T.jinnangScroll} width="lg">
@@ -215,34 +203,21 @@ export function JinnangScroll({
                   ["--i" as string]: i,
                 }}
                 onPointerDown={(e) => {
-                  clearPress();
-                  if (!e.isPrimary) return; // 多指第二指不起长按(与 HandRack.RackCard 同口径)
+                  press.cancel();
                   if (selectedId !== o.id) return; // 长按只服务「取消选中」
-                  press.current = {
-                    timer: setTimeout(() => {
-                      press.current.timer = null;
-                      press.current.fired = true;
-                      setSelectedId(null);
-                    }, 500),
-                    x: e.clientX,
-                    y: e.clientY,
-                    fired: false,
-                  };
+                  press.start(e, () => setSelectedId(null));
                 }}
-                onPointerMove={(e) => {
-                  const p = press.current;
-                  if (p.timer !== null && (Math.abs(e.clientX - p.x) > 8 || Math.abs(e.clientY - p.y) > 8)) clearPress();
-                }}
-                onPointerUp={clearPress}
-                onPointerCancel={clearPress}
-                onPointerLeave={clearPress}
+                onPointerMove={(e) => press.move(e)}
+                onPointerUp={press.cancel}
+                onPointerCancel={press.cancel}
+                onPointerLeave={press.cancel}
                 onContextMenu={(e) => {
                   e.preventDefault(); // 右键=取消选中,不弹浏览器菜单
                   if (selectedId === o.id) setSelectedId(null);
                 }}
                 onClick={() => {
-                  if (press.current.fired) {
-                    press.current.fired = false; // 长按已取消选中,吞掉补发 click
+                  if (press.fired.current) {
+                    press.fired.current = false; // 长按已取消选中,吞掉补发 click
                     return;
                   }
                   if (selectedId === o.id) setSelectedId(null);

@@ -14,13 +14,14 @@
 // 惯用法——首焦点不得落在弹层,Enter 误触风险归零)。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   JinnangCardBack,
   JinnangCardDetail,
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { useLongPress } from "@app/hooks/use-long-press";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
 import { jinnangCardOf } from "@core/jinnang";
@@ -28,10 +29,7 @@ import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
-/** 长按判定窗(已决事项 5:长按与点击同效)。 */
-const LONG_PRESS_MS = 500;
-/** 长按位移容差:按下后超出即视作拖动/滚屏,取消长按(标准 pointer 手势口径)。 */
-const LONG_PRESS_SLOP_PX = 10;
+/** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
 /** 详情弹层壳:内容 = JinnangCardDetail 五段面板,壳(定位/遮罩/出口)归本件。
  *  modal=true(默认):焦点陷阱+锁滚+Esc/点遮罩关闭全由底件承担。 */
@@ -72,13 +70,11 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
 }
 
 /** 单张手牌:真 <button> 包住牌面(键盘可达:Enter/Space 即详情,焦点圈免费;
- *  不用裸 role——红线:交互语义不自写)。点击与长按(pointer 500ms)同效开详情,
- *  长按触发后置 fired 抑制随后的合成 click,同一动作绝不弹两次。
+ *  不用裸 role——红线:交互语义不自写)。点击与长按(useLongPress 单源,500ms)
+ *  同效开详情,长按触发后置 fired 抑制随后的合成 click,同一动作绝不弹两次。
  *  index:发牌入场级联的错峰序(--i,hand-rack.css rack-card-in 消费)。 */
 function RackCard({ cardId, index, onOpen }: { cardId: string; index: number; onOpen: (id: string) => void }) {
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const start = useRef({ x: 0, y: 0 });
-  const fired = useRef(false);
+  const press = useLongPress();
 
   // 发牌音(#239 T4):新牌挂载 = 入手,牌落漆木架一声轻叩(jinnangDraw,文件通路
   // woodblock-hit)。挂载即播惯例同 ScrollShell 的 scrollOpen;音画与 rack-card-in
@@ -87,50 +83,23 @@ function RackCard({ cardId, index, onOpen }: { cardId: string; index: number; on
     getAudio().play("jinnangDraw");
   }, []);
 
-  const cancelTimer = () => {
-    if (timer.current !== null) {
-      clearTimeout(timer.current);
-      timer.current = null;
-    }
-  };
-  // 卸载清 timer(评审 Standards 轴:按压中牌离手——被消耗/架收起——不该再回调;
-  // DecisionScrolls 的同款手势有此清理,此处补齐)。
-  useEffect(() => cancelTimer, []);
-  const onPointerDown = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (!e.isPrimary) return; // 多指第二指不起长按
-    fired.current = false;
-    start.current = { x: e.clientX, y: e.clientY };
-    timer.current = setTimeout(() => {
-      timer.current = null;
-      fired.current = true; // 抑制抬指后的合成 click
-      onOpen(cardId);
-    }, LONG_PRESS_MS);
-  };
-  const onPointerMove = (e: React.PointerEvent<HTMLButtonElement>) => {
-    if (timer.current === null) return;
-    if (Math.hypot(e.clientX - start.current.x, e.clientY - start.current.y) > LONG_PRESS_SLOP_PX) {
-      cancelTimer(); // 拖动/滚屏,不是长按
-    }
-  };
-  const onClick = () => {
-    if (fired.current) {
-      fired.current = false; // 长按刚开过详情,这次的 click 吃掉
-      return;
-    }
-    onOpen(cardId);
-  };
-
   return (
     <button
       type="button"
       data-testid={TESTIDS.jinnangCard(cardId)}
       aria-label={cardId}
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={cancelTimer}
-      onPointerCancel={cancelTimer}
+      onPointerDown={(e) => press.start(e, () => onOpen(cardId))}
+      onPointerMove={(e) => press.move(e)}
+      onPointerUp={press.cancel}
+      onPointerCancel={press.cancel}
       onContextMenu={(e) => e.preventDefault()} // 长按不出系统菜单,右键无动作
-      onClick={onClick}
+      onClick={() => {
+        if (press.fired.current) {
+          press.fired.current = false; // 长按刚开过详情,这次的 click 吃掉
+          return;
+        }
+        onOpen(cardId);
+      }}
       style={{ ["--i" as string]: index }}
       className="block cursor-pointer border-0 bg-transparent p-0 outline-offset-2"
     >

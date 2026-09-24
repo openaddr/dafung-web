@@ -12,7 +12,6 @@
 // frameTone 是二期珍宝变体预留的品级框色通道(方案 §4「同形框,异色=品级」),
 // 一期消费方不传(默认 none=基线墨框)。
 import type { HTMLAttributes, ReactNode } from "react";
-import type { JinnangTag } from "@core/jinnang";
 import { jinnangCardOf } from "@core/jinnang";
 import {
   jinnangAliasSplit,
@@ -23,13 +22,8 @@ import {
 } from "./jinnang-face-data";
 import "./jinnang-card.css";
 
-/** 标签 → 族色类(jinnang-card.css 的四族色类,类名沿原型)。 */
-const FAM_CLASS: Record<JinnangTag, string> = {
-  "谋": "f-mou",
-  "攻": "f-gong",
-  "守": "f-shou",
-  "援": "f-yuan",
-};
+/** 标签 → 族色类已收口进 jinnang-face-data.ts 的 JINNANG_FAMILY.faceClass
+ *  (组件不再自备第二份映射——评审 Standards 轴的三重镜像收敛)。 */
 
 /** 四族纹样线稿:path 自 tmp/prototype-jinnang-ui.html 原样移植(viewBox 0 0 100 70),
  *  stroke 色/线宽在 jinnang-card.css 按 .f-* 族类与尺寸档给。 */
@@ -85,7 +79,7 @@ export function JinnangCardFace({
   const fam = JINNANG_FAMILY[def.tags[0]];
   const classes = [
     "jinnang-card",
-    FAM_CLASS[def.tags[0]],
+    fam.faceClass,
     frameTone !== "none" ? `tone-${frameTone}` : "",
     size === "large" ? "lg" : "",
     className ?? "",

@@ -8,10 +8,10 @@ import type { JinnangTag, JinnangTargetDomain } from "@core/jinnang";
 export type JinnangPattern = "cloud" | "fire" | "shield" | "branch";
 
 /** 牌面尺寸档:em 基准 font-size(standard 8px→120×160 / large 16px→240×320)。
- *  承接点在 jinnang-card.css 的档类(.jinnang-card / .jinnang-card.lg);消费方还
- *  可以再传 style.fontSize 在两档之间微调降档(Android 短横屏 ~96×128 = 6.4px 基)。 */
+ *  数值唯一事实源是 jinnang-card.css 的档类(.jinnang-card / .jinnang-card.lg,
+ *  单测读 CSS 钉镜像);消费方还可以再传 style.fontSize 在两档之间微调降档
+ *  (Android 短横屏 ~96×128 = 6.4px 基)。 */
 export type JinnangFaceSize = "standard" | "large";
-export const JINNANG_FACE_SIZE_EM: Record<JinnangFaceSize, number> = { standard: 8, large: 16 };
 
 /**
  * 剥离 text 的计法别称前缀:按第一个全角冒号「:」切分——冒号前是四字计名别称
@@ -25,13 +25,17 @@ export function jinnangAliasSplit(text: string): { alias: string | null; body: s
   return { alias: text.slice(0, i), body: text.slice(i + 1) };
 }
 
-/** 四族映射:族色 token(与原型色值逐一相等,已在 tokens.css 核对)、纹样、章字。
+/** 四族映射:族色 token(与原型色值逐一相等,已在 tokens.css 核对)、纹样、章字、
+ *  CSS 族色类(jinnang-card.css 的 .f-* ——组件不再自备第二份映射,单测钉 CSS 镜像)。
  *  牌面族色 = tags[0](谋=云纹·黛青 / 攻=火纹·朱砂 / 守=盾纹·赭石 / 援=枝纹·青绿)。 */
-export const JINNANG_FAMILY: Record<JinnangTag, { token: string; pattern: JinnangPattern; label: string }> = {
-  "谋": { token: "--color-seal-qing", pattern: "cloud", label: "谋" }, // 黛青
-  "攻": { token: "--color-danger", pattern: "fire", label: "攻" }, // 朱砂
-  "守": { token: "--color-road-side", pattern: "shield", label: "守" }, // 赭石
-  "援": { token: "--color-money", pattern: "branch", label: "援" }, // 青绿
+export const JINNANG_FAMILY: Record<
+  JinnangTag,
+  { token: string; pattern: JinnangPattern; label: string; faceClass: string }
+> = {
+  "谋": { token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" }, // 黛青
+  "攻": { token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" }, // 朱砂
+  "守": { token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" }, // 赭石
+  "援": { token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" }, // 青绿
 };
 
 /** 目标域中文(牌面用语规范口径,与 core/jinnang.ts 文件头注释同一版)。 */
