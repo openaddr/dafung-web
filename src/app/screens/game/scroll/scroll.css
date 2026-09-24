@@ -108,6 +108,11 @@
        本层若保留 60ms 延迟窗,内容会「先空白再弹现」。delay 一并归零,与兜层口径对齐。 */
     animation-delay: 0ms;
   }
+  /* 入场级联同口径(#239 T4):backwards 首帧是透明,延迟不归零会逐张弹现。 */
+  .jn-card-btn,
+  .jin-buyong {
+    animation-delay: 0ms;
+  }
 }
 
 /* ── 卷轴收起:向上"卷走"宣纸(#90 R3-C3,unroll 的反向)——只写 to 帧,from 取
@@ -170,21 +175,24 @@
 
 /* 舞台:横排牌面 + 今不用竖钮,flex-end 底对齐(原型 .mokuai 口径),放不下自动换行。
    选中放大 1.6× 是 transform 不占布局——头顶余量用 padding 预留,否则放大牌会被壳内
-   滚区(overflow-y-auto)裁掉:无选中 24px;有选中扩到 108px(= 放大上抬 0.6×160px
-   96px + translateY -1.2em 9.6px,留 2px 余量),选中瞬间舞台「腾位」与牌面上浮同拍
-   过渡(--dur-med),无生硬跳变。左右 padding 40px ≥ 放大横向外溢(0.6×120px/2 =
-   36px),放大牌不裁、金描边完整。 */
+   滚区(overflow-y-auto)裁掉:无选中 3em(24px);有选中扩到 calc(20em*0.6 + 1.2em + 2px)
+   (= 放大上抬 0.6×卡高 96px + translateY -1.2em 9.6px + 2px 余量 @8px 基,107.6px),
+   选中瞬间舞台「腾位」与牌面上浮同拍过渡(--dur-med),无生硬跳变。左右 padding 5em
+   ≥ 放大横向外溢(0.3×120px=36px),放大牌不裁、金描边完整。
+   em 基(#239 T4):舞台自带 font-size:8px(= 牌面 standard 档),留白全 em 表达——
+   短横屏降档只改这一个变量,余量公式随之自动缩放(见文件尾 media query)。 */
 .jn-stage {
+  font-size: 8px;
   display: flex;
   flex-wrap: wrap;
   align-items: flex-end;
   justify-content: center;
   gap: 8px;
-  padding: 24px 40px 4px;
+  padding: 3em 5em 0.5em;
   transition: padding var(--dur-med) var(--ease-out);
 }
 .jn-stage.jn-has-sel {
-  padding-top: 108px;
+  padding-top: calc(20em * 0.6 + 1.2em + 2px);
 }
 
 /* 牌钮:裸钮承载牌面(交互语义=普通按钮点击,归 JinnangScroll;牌面器物不自带交互)。
@@ -197,9 +205,41 @@
   background: none;
   font: inherit;
   cursor: pointer;
+  /* 微旋(#239 T4,P2-E TablePile 质感 ±1.5° 收敛):角由消费方按 cardId+下标
+     派生注入 --tilt(确定性,重渲染恒稳),选中放大时归零(放大态要正,细节档读字)。
+     直线化过渡走快档,与牌面自身的 sel 上浮(--dur-med)分层不抢戏。 */
+  transform: rotate(var(--tilt, 0deg));
+  transition: transform var(--dur-fast) var(--ease-out);
+  /* 入场级联(#239 T4):上滑淡入,错峰 60ms 拍(--dur-instant 的 0.75 倍,
+     scroll-anim-unroll-paper 同拍);backwards 把延迟窗钉在首帧。CSS animation
+     只在挂载播一次,重渲染(key 稳定)不重播;动画不改命中,不阻塞交互。 */
+  animation: jn-card-in var(--dur-med) var(--ease-out)
+    calc(var(--i, 0) * var(--dur-instant) * 0.75) backwards;
 }
 .jn-card-btn:disabled {
   cursor: default;
+}
+/* 幽灵退场帧(#90)整树重挂会重播入场级联——退场帧只演收起,牌面按终态直出
+   (JinnangScroll 经 ScrollGhostContext 挂 .jn-ghost)。 */
+.jn-stage.jn-ghost .jn-card-btn,
+.jn-stage.jn-ghost .jin-buyong {
+  animation: none;
+}
+/* 入场 keyframe(#239 T4):只写 from 帧,to 取元素自然态(含各自的 rotate(--tilt)),
+   动画结束无跳变;--tilt 逐元素解析,牌面与今不用钮共用同一条。 */
+@keyframes jn-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(14px) rotate(var(--tilt, 0deg));
+  }
+}
+/* 按压反馈(#239 T4,0.97 + --dur-instant):必须覆写 app.css #97 全局按压
+   (scale(0.98) 且特异度更低会整体压掉 rotate,按下瞬间微旋角闪跳)——
+   缩放与微旋合成,松开回弹走常态 transition 瞬时归位。与选中态不打架:
+   选中只改 --tilt 的值,不换 transform 结构,按压合成式照常成立。 */
+.jn-card-btn:not(:disabled):active {
+  transform: rotate(var(--tilt, 0deg)) scale(0.97);
+  transition: transform var(--dur-instant) var(--ease-out);
 }
 /* 键盘焦点圈:金色虚线落钮上(焦点恒在钮,牌面级的 .jinnang-card:focus-visible 在此
    结构下不可达;.sel 的金实线描边与其不冲突——实线=选中、虚线=键盘焦点) */
@@ -211,11 +251,17 @@
 
 /* 今不用竖笺钮(原型 .jin-buyong 形制:细长竖笺 + 竖排三字 + 小字「跳过」)。
    原型字族是 --xiao,新文案禁 font-deco(小薇空芯字形,BRIEF §2)→ 竖字落 font-brush
-   (章面印文同先例)、小字落 font-wenkai(新文案安全位);字级较原型上调保移动端可读。 */
+   (章面印文同先例)、小字落 font-wenkai(新文案安全位);字级较原型上调保移动端可读。
+   微旋(#239 T4):单件定值 -1.2deg(--tilt 同名变量,与牌面共用 jn-card-in/按压式)。 */
 .jin-buyong {
+  --tilt: -1.2deg;
   flex: 0 0 auto;
   align-self: center;
-  margin-left: 24px; /* 与牌行的间距拉开一档:选中放大牌横向外溢 36px,不压到这个动作钮 */
+  /* 与牌行的间距(#239 T4 走查修正 24→44px):选中放大牌横向外溢 0.3×120px=36px,
+     原 24px+8px gap=32px 罩不住,放大牌金描边会压到本钮命中区;44px+8px=52px 留 16px
+     余量,短横屏降档(96px 牌面外溢 28.8px)更宽裕。 */
+  margin-left: 44px;
+  position: relative; /* 命中区伪元素(::before)的定位锚 */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -230,9 +276,24 @@
   background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
   color: var(--color-ink-dim);
   cursor: pointer;
+  transform: rotate(var(--tilt));
   transition:
     border-color var(--dur-fast) var(--ease-out),
-    color var(--dur-fast) var(--ease-out);
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+  /* 命中区补足(#239 T4 走查):视觉宽 4.2em=33.6px(8px 基)< 36px 档,短横屏降档
+     (6.4px 基)仅 26.9px——透明热区左右各外扩 5px(降档后 26.9+10=36.9px 仍达标),
+     纯热区不改观感;伪元素属按钮本体,点击/焦点照常入钮。 */
+}
+.jin-buyong::before {
+  content: "";
+  position: absolute;
+  inset: 0 -5px;
+}
+.jin-buyong:not(:disabled):active {
+  /* 按压(#239 T4):同 .jn-card-btn 口径,缩放与微旋合成,覆写 app.css 全局 0.98 */
+  transform: rotate(var(--tilt)) scale(0.97);
+  transition: transform var(--dur-instant) var(--ease-out);
 }
 .jin-buyong > span {
   font-family: var(--font-brush);
@@ -317,4 +378,50 @@
 /* 灰置(冷却/费用/无目标):属主行随 .off .jiao 同口径藏,让位原因印条 */
 .jn-lingjian.off .zhai {
   visibility: hidden;
+}
+
+/* ── 短横屏降档(#239 T4,T2 遗留微调;Android 短横屏 844×390 一类):
+   ① em 基 8→6.4px(牌面 120×160 → 96×128),口径对齐 hand-rack.css 的同款 media query;
+   ② 选中放大降档 1.6×→1.4×、上抬收紧:壳内滚区(86dvh 减壳 chrome)在 390px 高下
+      装不下「1.6× 放大余量 + 全牌 + 落印钮」——实测(844×390)选中态内容高 324px >
+      滚区 237px,必有内滚,滚动即裁放大牌顶、且落印钮被推出折叠线。降档后
+      「副题藏 + 腾位余量缩小 + 落印行收紧」全牌与落印钮零内滚同屏(内容 ≈230px ≤ 237px):
+      - 副题(卡牌段助兴文案)藏:.jn-sub-card(jin 生效于卡牌段;目标段问句保留);
+      - 落印行贴台:.jn-confirm-row 的 mt-2 归零、墨钮上下 padding 收半(--dur 不涉);
+      - 放大 1.4×:0.4×128+1.2em ≈ 59px 上抬,腾位 calc(20em*0.4 + 1.2em + 4px) 罩住。 ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .jn-stage {
+    font-size: 6.4px;
+  }
+  .jn-stage .jinnang-card,
+  .jn-stage .jin-buyong {
+    font-size: 6.4px;
+  }
+  .jn-stage.jn-has-sel {
+    padding-top: calc(20em * 0.4 + 1.2em + 4px);
+  }
+  .jn-stage .jinnang-card.sel {
+    transform: translateY(-1.2em) scale(1.4);
+  }
+  .jn-sub-card {
+    display: none;
+  }
+  .jn-confirm-row {
+    margin-top: 0;
+  }
+  .jn-confirm-row .ink-btn {
+    padding-top: 5px;
+    padding-bottom: 5px;
+  }
+}
+
+/* ── 短横屏遮罩升格(#239 T4 收尾,主线):板区被手牌架压到 ~240px,absolute 遮罩
+   随板区裁切——军师幕壳 ~330px 垂直居中后标题栏出屏(HEAD 既有病,牌架落地后更显)。
+   决策遮罩在此断点升格 fixed 盖全屏:决策瞬间模态优先级高于牌架,且卷轴里的牌面
+   就是架上的牌,信息无损失;桌面/竖屏维持 absolute 随板区居中。scroll.css 无层级,
+   规则天然压过 Tailwind utilities 的 absolute(BRIEF §5 层叠记档同款)。 ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .scroll-anim-overlay {
+    position: fixed;
+  }
 }

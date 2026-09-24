@@ -7,11 +7,12 @@
 // spec #107 C1(UI 半边选项集消费缝):三个卷轴的可用性/不可用原因一律从快照
 // choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
 // ——全游戏不可购原因只有引擎一处口径。
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/types";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
-import { ScrollShell, ScrollButton } from "./ScrollShell";
+import { getAudio } from "@app/fx/audio";
+import { ScrollShell, ScrollButton, ScrollGhostContext } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
 import { JinnangCardFace } from "@app/components/card/JinnangCardFace";
 import { JinnangLingjian } from "./JinnangLingjian";
@@ -31,6 +32,16 @@ function useNumberShortcuts(actions: Array<() => void>) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+}
+
+/** 牌面微旋角(#239 T4,方案 §4 P2-E TablePile 质感 ±1.5° 收敛):按 cardId+下标
+ *  派生的确定性值——同一张牌任意重渲染/重开卷轴恒为同角,不许每帧抖动;选中放大时
+ *  消费方以 --tilt:0deg 归零(放大态要正,细节档读字)。消费方:scroll.css 的
+ *  .jn-card-btn / .jin-buyong(transform: rotate(var(--tilt)))。 */
+function jnTilt(key: string): string {
+  let h = 0;
+  for (let i = 0; i < key.length; i++) h = (h * 31 + key.charCodeAt(i)) | 0;
+  return `${(((Math.abs(h) % 31) - 15) / 10).toFixed(1)}deg`;
 }
 
 // ── 军师幕卷轴(AwaitingJinnang,#122/T2 锦囊 + #188 档 3 名将主动技,统一决策窗)──
@@ -76,11 +87,23 @@ export function JinnangScroll({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   useEffect(() => setSelectedId(null), [targeting]);
   const selected = selectedId != null ? options.find((o) => o.id === selectedId && o.available) : undefined;
+  // 幽灵退场帧(#90):本组件整树会在退场帧重挂一遍,入场级联必须抑制(scroll.css
+  // .jn-ghost 关 animation),否则收卷 210ms 里牌面又逐张飘进来。
+  const isGhost = useContext(ScrollGhostContext);
+
+  // 选中入口(#239 T4):点牌与数字键共用——选中瞬间落一枚极轻嗒(合成,见 audio.ts);
+  // 取消选中是撤销不是动作,不出声。
+  const selectCard = (id: string) => {
+    setSelectedId(id);
+    getAudio().play("jinnangSelect");
+  };
 
   // 落印确认:选中项发命令(技=useHeroSkill;牌=useJinnang 发卡 id——one/two-others
-  // 的牌由此进引擎目标段,目标段交互与 testid 不变)
+  // 的牌由此进引擎目标段,目标段交互与 testid 不变)。落印即盖章(#239 T4 音效):
+  // 复用既有 stamp 事件(stamp-seal.ogg/木石 thump),与棋盘「据/驻」印同一质感语言。
   const confirmSelected = () => {
     if (selected == null) return;
+    getAudio().play("stamp");
     onCommand(
       selected.skillId != null
         ? { type: "useHeroSkill", skillId: selected.skillId }
@@ -98,8 +121,8 @@ export function JinnangScroll({
   // (与座位钮角标同序)。Enter preventDefault 压掉焦点钮的原生激活——有选中时回车只有
   // 一个语义(落印);无选中时放行原生点击,焦点在「今不用」上回车仍可跳过(键盘可达)。
   // 快捷键读 ref 不进依赖:choices 每快照新引用,监听器只挂一次。
-  const kb = useRef({ targeting, seatOptions, avail, selected, seatCmd, confirmSelected, onCommand });
-  kb.current = { targeting, seatOptions, avail, selected, seatCmd, confirmSelected, onCommand };
+  const kb = useRef({ targeting, seatOptions, avail, selected, seatCmd, confirmSelected, selectCard, onCommand });
+  kb.current = { targeting, seatOptions, avail, selected, seatCmd, confirmSelected, selectCard, onCommand };
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = kb.current;
@@ -110,7 +133,7 @@ export function JinnangScroll({
           if (hit != null) k.onCommand(k.seatCmd(hit.targetSeat));
         } else {
           const hit = k.avail[n - 1];
-          if (hit != null) setSelectedId(hit.id);
+          if (hit != null) k.selectCard(hit.id);
         }
       } else if (e.key === "Enter" && k.selected != null) {
         e.preventDefault();
@@ -140,7 +163,13 @@ export function JinnangScroll({
 
   return (
     <ScrollShell title="军师幕" testid={T.jinnangScroll} width="lg">
-      <p className="m-1 mb-1 text-center text-sm text-ink-dim font-wenkai">{subtitle}</p>
+      {/* 副题:目标段=问句(信息),卡牌段=助兴文案(唐)。jn-sub-card 供短横屏降档
+          隐藏(scroll.css media query)——390px 高的壳内滚区装不下它+全牌+落印钮。 */}
+      <p
+        className={`jn-sub${targeting ? "" : " jn-sub-card"} m-1 mb-1 text-center text-sm text-ink-dim font-wenkai`}
+      >
+        {subtitle}
+      </p>
       {targeting ? (
         <div className="flex flex-col gap-2 px-1 pb-1 pt-2">
           {seatOptions.map((o, i) => (
@@ -168,7 +197,9 @@ export function JinnangScroll({
         </div>
       ) : (
         <>
-          <div className={`jn-stage${selected != null ? " jn-has-sel" : ""}`}>
+          <div
+            className={`jn-stage${selected != null ? " jn-has-sel" : ""}${isGhost ? " jn-ghost" : ""}`}
+          >
             {options.map((o, i) => (
               <button
                 key={`${o.id}:${i}`} // 手牌可持同名两张(每牌库 2 份),key 带 index 防撞;段内顺序稳定
@@ -177,6 +208,12 @@ export function JinnangScroll({
                 disabled={!o.available}
                 aria-pressed={o.available ? selectedId === o.id : undefined}
                 className="jn-card-btn"
+                /* 微旋角(#239 T4):cardId+下标派生的确定性值(jnTilt),选中归零
+                    (放大态要正);--i 供入场级联错峰(scroll.css jn-card-in)。 */
+                style={{
+                  ["--tilt" as string]: selectedId === o.id ? "0deg" : jnTilt(`${o.id}:${i}`),
+                  ["--i" as string]: i,
+                }}
                 onPointerDown={(e) => {
                   clearPress();
                   if (selectedId !== o.id) return; // 长按只服务「取消选中」
@@ -207,7 +244,8 @@ export function JinnangScroll({
                     press.current.fired = false; // 长按已取消选中,吞掉补发 click
                     return;
                   }
-                  setSelectedId(selectedId === o.id ? null : o.id);
+                  if (selectedId === o.id) setSelectedId(null);
+                  else selectCard(o.id);
                 }}
               >
                 {o.skillId != null ? (
@@ -233,6 +271,7 @@ export function JinnangScroll({
               type="button"
               data-testid={T.jinnangPass}
               className="jin-buyong"
+              style={{ ["--i" as string]: options.length }} // 级联殿后:牌面走完一轮才轮到它
               onClick={() => onCommand({ type: "useJinnang", cardId: null })}
             >
               <span>今</span>
@@ -241,7 +280,8 @@ export function JinnangScroll({
               <span className="sub">跳过</span>
             </button>
           </div>
-          <div className="mt-2 flex justify-center">
+          {/* jn-confirm-row:短横屏降档钩子(scroll.css media query 收紧间距/墨钮 padding) */}
+          <div className="jn-confirm-row mt-2 flex justify-center">
             <ScrollButton primary testid={T.jinnangConfirm} disabled={selected == null} onClick={confirmSelected}>
               落印
             </ScrollButton>

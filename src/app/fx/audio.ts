@@ -19,7 +19,9 @@ export type SoundEvent =
   | "treasure" // 得珍宝
   | "bankrupt" // 破产
   | "victory" // 胜利
-  | "scrollOpen"; // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
+  | "scrollOpen" // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
+  | "jinnangDraw" // 锦囊发牌/入手(手牌架新牌挂载即播,#239 T4)
+  | "jinnangSelect"; // 军师幕点选牌面(选中瞬间的极轻嗒,#239 T4)
 
 /** 可拔插音效播放器接口。合成 / 文件 / 静音 各自实现。 */
 export interface AudioPlayer {
@@ -108,6 +110,8 @@ export class SynthAudioPlayer implements AudioPlayer {
       case "treasure": this.treasure(ctx); break;
       case "bankrupt": this.bankrupt(ctx); break;
       case "victory": this.victory(ctx); break;
+      case "jinnangDraw": this.jinnangDraw(ctx); break;
+      case "jinnangSelect": this.jinnangSelect(ctx); break;
     }
   }
 
@@ -282,6 +286,21 @@ export class SynthAudioPlayer implements AudioPlayer {
     const notes = [523, 659, 784, 1047];
     notes.forEach((f, i) => setTimeout(() => this.tone(ctx, f, 0.3, "triangle", 0.25), i * 130));
   }
+
+  // 锦囊入手(#239 T4:牌落漆木架的木叩;合成回退,文件通路见 AUDIO_FILES——
+  // woodblock 与 diceLand/upgrade 同一采样,thump 音高略低示「落架」而非「落骰」)
+  private jinnangDraw(ctx: AudioContext): void {
+    this.thump(ctx, 260, 0.12);
+    this.noiseBurst(ctx, 0.05, "lowpass", 900, 1, 0.12);
+  }
+
+  // 军师幕点选(#239 T4:marchStart 同族轻嗒工艺(高通瞬态+高频起振点),更短更轻——
+  // 选中是决策卷轴内的高频交互,音量压到行军嗒的一半档,不轰鸣;无贴切采样资产,
+  // 走合成不映射文件。触发点 JinnangScroll.selectCard(点牌与数字键共用))
+  private jinnangSelect(ctx: AudioContext): void {
+    this.noiseBurst(ctx, 0.045, "highpass", 3800, 0.7, 0.055);
+    this.tone(ctx, 2700, 0.03, "sine", 0.02);
+  }
 }
 
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
@@ -303,6 +322,10 @@ const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // 卷轴展开(Freesound 710764,CC0;manifest audio:scroll-unroll 已登记)。
   // #65 已接入:ScrollShell 挂载即 play("scrollOpen"),与展开动画同帧。
   scrollOpen: "/assets/audio/scroll-unroll.ogg",
+  // 锦囊入手(#239 T4):木叩采样与 diceLand/upgrade 同源——发牌落架与落骰同一「叩」
+  // 的质感语言。jinnangSelect 刻意不映射:现成采样里无贴切的「极轻选中嗒」,
+  // 走上方合成(marchStart 同族),不硬凑重采样。
+  jinnangDraw: "/assets/audio/woodblock-hit.ogg",
 };
 
 /**

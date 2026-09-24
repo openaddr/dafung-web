@@ -3,7 +3,7 @@
 // 永不空),视觉证据归截图 tmp/ui-shots/t3/(tmp/shot-t3-rack.mjs 构造空手牌)。
 // 断言口径:牌面文案断牌名(def.id/def.text),不断样式(样式归原型基线)。
 import { test, expect } from "./fixtures";
-import { quickStart, snap } from "./react-helpers";
+import { actIfCan, quickStart, snap } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -58,9 +58,17 @@ test.describe("锦囊 T3:底部手牌架", () => {
 
   test("他人回合:架常驻可见(不收拢)", async ({ page }) => {
     await quickStart(page);
-    // 不操作,等 bot 接管行动(决策方换人)
+    // 等决策方换人。人类自动行军可能落上决策格(购地/扩军/机遇…)把 decisionOwner
+    // 钉在 0——轮询体内先用 actIfCan 清人类决策点(react-helpers 通用的「今不用/跳过/
+    // 首选项」放行),纯等会 30s 超时假阳(#239 T4 收口实测:无 seed 时约半数种子命中)。
     await expect
-      .poll(async () => (await snap(page)).decisionOwner, { timeout: 30_000 })
+      .poll(
+        async () => {
+          await actIfCan(page);
+          return (await snap(page)).decisionOwner;
+        },
+        { timeout: 30_000 },
+      )
       .not.toBe(0);
     await expect(page.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangHand)).toBeVisible();

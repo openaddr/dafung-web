@@ -14,7 +14,7 @@
 // 惯用法——首焦点不得落在弹层,Enter 误触风险归零)。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   JinnangCardBack,
   JinnangCardDetail,
@@ -22,6 +22,7 @@ import {
 } from "@app/components/card/JinnangCardFace";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { useIsNarrow } from "@app/hooks/use-media-query";
+import { getAudio } from "@app/fx/audio";
 import { jinnangCardOf } from "@core/jinnang";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
@@ -71,11 +72,19 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
 
 /** 单张手牌:真 <button> 包住牌面(键盘可达:Enter/Space 即详情,焦点圈免费;
  *  不用裸 role——红线:交互语义不自写)。点击与长按(pointer 500ms)同效开详情,
- *  长按触发后置 fired 抑制随后的合成 click,同一动作绝不弹两次。 */
-function RackCard({ cardId, onOpen }: { cardId: string; onOpen: (id: string) => void }) {
+ *  长按触发后置 fired 抑制随后的合成 click,同一动作绝不弹两次。
+ *  index:发牌入场级联的错峰序(--i,hand-rack.css rack-card-in 消费)。 */
+function RackCard({ cardId, index, onOpen }: { cardId: string; index: number; onOpen: (id: string) => void }) {
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const start = useRef({ x: 0, y: 0 });
   const fired = useRef(false);
+
+  // 发牌音(#239 T4):新牌挂载 = 入手,牌落漆木架一声轻叩(jinnangDraw,文件通路
+  // woodblock-hit)。挂载即播惯例同 ScrollShell 的 scrollOpen;音画与 rack-card-in
+  // 入场动画同帧起步。dev StrictMode 双挂载会双响,生产单响——同先例接受。
+  useEffect(() => {
+    getAudio().play("jinnangDraw");
+  }, []);
 
   const cancelTimer = () => {
     if (timer.current !== null) {
@@ -118,6 +127,7 @@ function RackCard({ cardId, onOpen }: { cardId: string; onOpen: (id: string) => 
       onPointerCancel={cancelTimer}
       onContextMenu={(e) => e.preventDefault()} // 长按不出系统菜单,右键无动作
       onClick={onClick}
+      style={{ ["--i" as string]: index }}
       className="block cursor-pointer border-0 bg-transparent p-0 outline-offset-2"
     >
       <JinnangCardFace cardId={cardId} />
@@ -156,7 +166,7 @@ export function HandRack({ player }: HandRackProps) {
           {hand.map((id, i) => (
             /* key 带序号:同名两张(牌库各 2 副本)同手时 id 独身会撞 key;
                 testid 契约仍是 jinnang-card-${id}(原值,重复牌的定位歧义属既有口径)。 */
-            <RackCard key={`${id}-${i}`} cardId={id} onOpen={setDetailId} />
+            <RackCard key={`${id}-${i}`} cardId={id} index={i} onOpen={setDetailId} />
           ))}
         </div>
       ) : (
