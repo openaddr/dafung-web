@@ -316,7 +316,7 @@ export type GameCommand =
   | { type: "cashHeroBankruptcy"; heroId: string }
   | { type: "confirmBankruptcySettle" }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
-  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean }; // 名士主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean }; // 名将主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
 
 // ── 珍宝系统 ──
 export interface TreasureDef {
@@ -353,18 +353,18 @@ export interface HeroDef {
   desc: string; // 给玩家看的技能说明
   skills?: TriggerSkill[]; // 一武多技(时机驱动,按数组序派发)
   /** 主动技(#188 档 3):军师幕(与锦囊合并窗,AwaitingJinnang 相位)内手动发动,
-   *  独立冷却(复用 heroLastFired,键=active.id);每名士至多一个,缺省=无主动技。 */
+   *  独立冷却(复用 heroLastFired,键=active.id);每名将至多一个,缺省=无主动技。 */
   active?: ActiveSkillDef;
   image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
 }
 
-/** 名士主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)并存。
+/** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)并存。
  *  结算复用既有路径(火攻=demolish 语义、征辟=转移+委任状),不新造 effect kind;
  *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
   id: string; // 唯一(同时是 heroLastFired 冷却键)
-  name: string; // 火攻(卷轴选项 label 组合为「名士·技名」)
+  name: string; // 火攻(卷轴选项 label 组合为「名将·技名」)
   cooldown: number; // 冷却(轮):发动后过 cooldown 轮才可再发动
   desc: string; // 卷轴文案(效果自证,与结算互证)
   /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己)。 */

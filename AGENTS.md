@@ -78,7 +78,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 ## 关键文件
 | 文件 | 职责 |
 |---|---|
-| `src/core/game.ts` | GameEngine:回合状态机、胜负、日志、珍宝、名士、委任状 |
+| `src/core/game.ts` | GameEngine:回合状态机、胜负、日志、珍宝、名将、委任状 |
 | `src/core/types.ts` | 所有核心类型定义(TurnPhase、Player、TriggerSkill/HeroDef 等) |
 | `src/core/timing.ts` | 时机总线:GameMoment 时机定义 + MOMENTS 集中注册表(时机框架,见 docs/explanation/时机框架.md) |
 | `src/core/effects.ts` | 效果注册表:EFFECTS(EffectId → EffectFn),时机框架的「做什么」半边 |
@@ -86,7 +86,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `src/core/board.ts` | 棋盘:主路环、辅路、computePath(含必停都城) |
 | `src/core/economy.ts` | 地产交易:购买(即 Lv.0)、升级(免费)、破产裁决(落他人城走珍宝交涉,公道买卖成交才升级) |
 | `src/core/bot.ts` | AI 决策(Simple/Normal 两档) |
-| `src/core/heroes.ts` | 名士数据表(数据驱动,新增名士只改此文件) |
+| `src/core/heroes.ts` | 名将数据表(数据驱动,新增名将只改此文件) |
 | `src/core/treasures.ts` | 珍宝数据表 + 牌堆(数据驱动,新增珍宝只改此文件) |
 | `src/core/constants.ts` | 全局共享常量(委任状/都城补偿/签面等) |
 | `src/core/theme.ts` | 配色 Theme 对象(单源)。Tailwind token 由 `bun run gen:theme` 从此生成 `src/app/styles/tokens.css`,不再人工同步 |
@@ -112,14 +112,14 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 - **选都三选一**:开局轮到某玩家时引擎滚出 3 候选城(`offeredCapitals`,随 rngState 序列化→联机/恢复一致),只能从中选;候选按建价低/中/高三档各一 + 最远点采样分散地理;跨玩家候选不重复(小地图不足时退化复用)
 - **货币**:白银制,1锭=100两=10000分(内部 cash 为"分")。**身价=仅现金**(珍宝/城池账面均不计;购地直接降身价,逼玩家管现金流)。经济 v2:**目标身价 30000 分(300 两)/起手 10000 分(100 两)**(引擎与三张内置地图统一);城池 18~40 两七档加法城 + 30 两乘法城 6 座(成都/邺城/剑阁/街亭/华容道/合肥);都城补给/级按区域档 边陲 200/中庸 300/沃野 400(乘法城 300)
 - **委任状**:起手3,+2/圈(过都城),买城耗1,扩军不耗
-- **名士**:起手0,过都城/卧龙岗招贤纳士(三选一),上限3,被动技能
+- **名将**:起手0,过都城/卧龙岗招贤纳士(三选一),上限3,被动技能
 - **都城**:经过**必停**——路过自己都城(含落点非都城)即停,巡幸 +2 委任状 + 驻跸补给,结束回合(无「驻跸/继续」抉择,`AwaitingCapitalHalt` 相位已删);落点恰是都城同补给另触发招贤纳士
 - **珍宝**:牌堆固定数量,等级 1-10 决定指导价(经济 v2:Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两,查表缺项直接抛错);获得途径:① 落无主宝物城(TreasureCity)**拼点**(双骰 2-12)≥ 等级即得,② 落他人城且城主有宝时触发珍宝交涉
 - **珍宝交涉**(他人城):城主抉择——**公道买卖**(访客付指导价得宝,银两给城主,玩家间流转;**成交则城池 +1 级**,满级封顶,买家事后破产退宝不回滚) / **坐地起价**(访客付指导价×城池加价[tradeMult/tradeAdd,下标=等级]得宝,不升级) / 不交易(不升级);访客不可拒;他人到达城池本身**不**升级
 - **城池等级**:Lv.0-3 共 4 级(购入/建都即 Lv.0,maxLevel=3)。**本作无过路费/升级费**:自己到达己城可选免费扩军 +1 级;城池升级只挂在公道买卖成交路径上
 - **决策选项集(ADR-0013)**:各决策相位(购地/扩军/交涉/择路/招贤/破产)的选项集中注册于 `src/core/choices.ts`(带 available/reason);除默认行为外可用选项为 0 → 引擎自动执行默认行为(战报+浮字轻提示),不弹卷轴——弹卷轴 ⇔ ≥2 真实选项;破产清算例外(重大不可逆仍弹);`engine.choicesFor()`/快照 `choices` 字段供 UI/bot/调试消费
 - **分岔辅路**:主路仍是单环;另有一条辅路(起点/终点都接主路)。默认走主路,只有**刚好落到辅路起点**才弹抉择「入辅路/走大路」。选「入辅路」= **本回合结束**(棋子留在主路入口格,`onBranch={step:-1}` 表「待入辅路」);**下回合掷骰**沿辅路格推进——掷几点走几格(落第 die 格并触发该格效果:treasure 拼点探宝 / event 锦囊事件 / penalty 中伏跳一回合),掷满溢出从辅路终点汇入主路继续走剩余步数。辅路入口抉择复用 `AwaitingBranch` 阶段与 `selectBranch`(Main|Branch)。
-- **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名士换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名士释放回招贤池)
+- **破产清算**:现金不足付款且有可变卖资产 → 变卖自救(珍宝按指导价、城按当前等级价值 valueByLevel、名将换 200 分);**凑足即止**——现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`,不靠 UI 禁用自觉);凑够债务免破产继续,凑不够才破产(资产转债主、名将释放回招贤池)
 - **回合**:所有人各行动一次=1轮(engine.round,为冷却技能预留)
 - **对局日志(ADR-0014)**:一局一个 jsonl = 局头(header:gameId/mapId/seed/座位表)+ 玩法事件流(中文 brief + 机读 detail)+ 命令流(cmd:submitCommand 与人类 pickCapital 全量;bot 路径不记,重放自动重算)+ 终局行(final:重放断言锚点)。双轨落盘:联机 `logs/<gameId>.jsonl`(server 启动清扫 TTL 30 天,env LOG_TTL_DAYS/LOGS_DIR)、单机 IndexedDB(dafung-logs,写入时顺手清过期);`bun scripts/replay-log.ts logs/x.jsonl` 重放校验终态一致。详见 docs/reference/对局日志.md
 - **时机框架**:技能=数据声明(when 时机+effect 效果+params 参数)挂 `HeroDef.skills`,派发器 `engine.dispatchMoment` 按「座位序×技能序」确定性派发。**26 时机七类**(生命周期/回合与轮/掷骰与行军/落格与路径/资产与交易/玩家状态/破产与终局结算),挂点全在 game.ts;**设计技能/事件先翻 docs/explanation/时机框架.md §2 分类目录**(每时机:触发点位/subject/ctx 字段/灵感示例)。加效果一步(effects.ts)/加技能两步(heroes.ts)/加时机三步(timing.ts+game.ts);效果内禁同步再派发时机(派发深度>2 抛错);CashGained 防连锁——仅经济结算点派发,效果层收益(grantSkillCash)不递归触发

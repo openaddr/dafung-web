@@ -119,7 +119,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   resolveTreasureOwner: "珍宝交涉",
   sellTreasureBankruptcy: "变卖珍宝",
   sellPropertyBankruptcy: "变卖城池",
-  cashHeroBankruptcy: "遣散名士",
+  cashHeroBankruptcy: "遣散名将",
   confirmBankruptcySettle: "清算确认",
   useJinnang: "用锦囊",
   useHeroSkill: "出技",
@@ -1817,8 +1817,8 @@ export class GameEngine {
     for (const m of [30, 60, 90]) {
       if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
         p.repMilestones.push(m);
-        this.pushFloaterText(p, `民心所向(声望 ${m}),贤士献计`, p.position);
-        this.logEvent("system", p.guohao, `${p.guohao} 声望达 ${m},贤士献计一封`, `repMilestone player=${p.id} milestone=${m}`);
+        this.pushFloaterText(p, `民心所向(声望 ${m}),名将献计`, p.position);
+        this.logEvent("system", p.guohao, `${p.guohao} 声望达 ${m},名将献计一封`, `repMilestone player=${p.id} milestone=${m}`);
         this.drawJinnang(seat, 1);
       }
     }
@@ -1966,7 +1966,7 @@ export class GameEngine {
     this.jinnangUsedTags.push(...def.tags);
   }
 
-  // ──────────────────────────── 名士主动技(#188 档 3)────────────────────────────
+  // ──────────────────────────── 名将主动技(#188 档 3)────────────────────────────
   // 军师幕(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
   // 命令入口。校验(冷却/持有/目标)单源选项集(choices.ts),UI/bot 永不裁决(ADR-0013);
   // 结算复用既有路径(火攻=demolishOnVictim),不新造 effect kind;结算内不派发时机

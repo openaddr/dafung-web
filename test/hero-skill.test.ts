@@ -1,4 +1,4 @@
-// 名士主动技 + 军师幕合并窗单测(#188 档 3):冷却闸门、目标校验(复用 #226 守卫)、
+// 名将主动技 + 军师幕合并窗单测(#188 档 3):冷却闸门、目标校验(复用 #226 守卫)、
 // 四技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面)。
 import { describe, it, expect } from "bun:test";

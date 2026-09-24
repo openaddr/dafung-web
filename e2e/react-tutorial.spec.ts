@@ -39,7 +39,7 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
   await expect.poll(
     async () => {
       await actIfCan(page);
-      // 招贤卷轴(actIfCan 只认 action-*,招贤选项是独立 testid 族):教程「点一位名士收下」
+      // 招贤卷轴(actIfCan 只认 action-*,招贤选项是独立 testid 族):教程「点一位名将收下」
       const hero = page.locator('[data-testid^="scroll-hero-option-"]').first();
       if (await hero.isVisible().catch(() => false)) await hero.click({ timeout: 5_000 }).catch(() => {});
       // 珍宝交涉·城主视角(教程「暂不交易(无事发生)」):bot 落我城且我有珍宝时弹出

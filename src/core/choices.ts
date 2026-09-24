@@ -44,8 +44,8 @@ export interface ChoiceOption {
   cardTags?: string[];
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
-  /** 名士主动技选项专属(#188 档 3):id=`skill:${skillId}`;军师幕文案随选项派生透出
-   *  (同 encounterId 通道口径);skillHero=属主名士名(卷轴组合显示)。 */
+  /** 名将主动技选项专属(#188 档 3):id=`skill:${skillId}`;军师幕文案随选项派生透出
+   *  (同 encounterId 通道口径);skillHero=属主名将名(卷轴组合显示)。 */
   skillId?: string;
   skillText?: string;
   skillHero?: string;

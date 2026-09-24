@@ -31,7 +31,7 @@ function useNumberShortcuts(actions: Array<() => void>) {
   }, []);
 }
 
-// ── 军师幕卷轴(AwaitingJinnang,#122/T2 锦囊 + #188 档 3 名士主动技,统一决策窗)──
+// ── 军师幕卷轴(AwaitingJinnang,#122/T2 锦囊 + #188 档 3 名将主动技,统一决策窗)──
 // 选项=可用锦囊 + 就绪主动技 +「今不用」(available/reason 单源引擎注册表);目标段=
 // 候选座位 + 作罢。牌面文案/标签、技能文案随 choices 载荷过网(UI 不回查目录——持有人
 // 内容本就在自己快照里,但口径与机遇卷轴一致:卷轴只消费 choices)。灰置项照列

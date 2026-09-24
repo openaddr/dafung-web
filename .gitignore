@@ -20,3 +20,10 @@ tmp/
 .env
 .scratch/
 .zcode/
+# UI 参考图库:网图与第三方素材仅本地参考,不入库(口径见 docs/design/ui-reference/README.md;
+# 可入库的仅 README/research-*.md/manifest.jsonl/current-ui/)
+docs/design/ui-reference/sanguosha/
+docs/design/ui-reference/cardgame/
+docs/design/ui-reference/monopoly/
+docs/design/ui-reference/uidesign/
+docs/design/ui-reference/opensource-assets/
