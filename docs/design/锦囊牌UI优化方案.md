@@ -1,6 +1,6 @@
 # 锦囊牌 UI 优化方案(牌感升级)
 
-> 状态:**已拍板**(2026-09-23 拷问会,§7 各题决议已回填正文)。一期已拆票:[#233](https://github.com/openaddr/dafung-web/issues/233)(ready-for-agent);二期随 #188 档 1 另立 spec。
+> 状态:**已拍板**(2026-09-23 拷问会,§7 各题决议已回填正文)。一期已拆票:[#233](https://github.com/openaddr/dafung-web/issues/233)(ready-for-agent);二期随 #188 档 1 另立 spec。**一期已实施**(2026-09-24,分支 feat/jinnang-ui-phase1:T1 牌面组件 #236 / T2 军师幕牌面化 #237 / T3 底部手牌架 #238 / T4 动效打磨 #239 / T5 DoD 收口 #240)。
 > 上位文档:[DESIGN.md](./DESIGN.md)(纸墨印视觉规范)/ [BRIEF.md](./BRIEF.md)(实施红线)。
 > 参考资产库:[ui-reference/](./ui-reference/)(现状截图 + 开源素材 + 网图 + 两份代码调研)。
 
