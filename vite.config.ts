@@ -3,7 +3,16 @@ import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 
+// 构建戳(用户拍板 2026-09-26:版本角标直接用年月日时分,如 v2026.09.26.0102)。
+// 取构建发生的本地时刻——页面角标一眼可辨「这是哪次构建」,serve 常驻时端旧 dist 立现。
+const pad = (n: number) => String(n).padStart(2, "0");
+const now = new Date();
+const BUILD_STAMP = `v${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}.${pad(now.getHours())}${pad(now.getMinutes())}`;
+
 export default defineConfig({
+  define: {
+    __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {
