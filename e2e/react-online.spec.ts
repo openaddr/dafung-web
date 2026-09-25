@@ -4,6 +4,7 @@
 // E2E_GAME_PORT 隔离协议取值(与 config 同源,默认 3010)。
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
+import type { Locator } from "@playwright/test";
 import { waitSettled, onlinePickCapitals, dismissJinnangIfUp } from "./react-helpers";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
@@ -81,32 +82,37 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
   // TODO #13:原 stall<40×250ms(=10s 盲预算)在全量并行负载下不够——WS 广播/渲染排队
   // 可让按钮可用性迟到超过 10s,导致 actions<2 假失败。改为时间预算(90s,约 5 倍余量):
   // 只要总时长没用完就继续轮询两端,状态(决策卷轴)到了立刻行动,不做无谓盲等。
+  // 每次点击一律短时限+失败吞掉(#240 收口定性):负载下卷轴随广播反复重挂,裸 click
+  // 的 actionability 重试会「resolved→detached」循环到吃光测试超时;点空了下一拍重试
+  // 即可(决策钮幂等:卷轴已关的点击自然落空)。
+  test.slow(); // 内部预算 90s > 测试级 60s 默认——与 encounters 同款,外层对齐 3×
   let actions = 0;
   const deadline = Date.now() + 90_000;
   while (actions < 6 && Date.now() < deadline) {
     let acted = false;
+    const tryClick = async (loc: Locator) => {
+      const ok = await loc
+        .first()
+        .click({ timeout: 5_000 })
+        .then(() => true, () => false);
+      return ok;
+    };
     for (const p of [host, guest]) {
       const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
       if ((await inline.count()) > 0) {
-        await inline.first().click();
-        acted = true;
-        actions++;
-        break;
+        acted = await tryClick(inline);
+        if (acted) { actions++; break; }
       }
       // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
       const jinnangPass = p.getByTestId("scroll-jinnang-pass");
       if (await jinnangPass.isVisible().catch(() => false)) {
-        await jinnangPass.click();
-        acted = true;
-        actions++;
-        break;
+        acted = await tryClick(jinnangPass);
+        if (acted) { actions++; break; }
       }
-      const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
+      const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
       if ((await scrollPrimary.count()) > 0) {
-        await scrollPrimary.first().click();
-        acted = true;
-        actions++;
-        break;
+        acted = await tryClick(scrollPrimary);
+        if (acted) { actions++; break; }
       }
     }
     if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/自动掷骰广播推进
@@ -205,7 +211,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
                 .then(() => true, () => false);
               break;
             }
-            const scrollPrimary = p.locator('[data-testid^="scroll-"] button:not([disabled])');
+            const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
             if ((await scrollPrimary.count()) > 0) {
               acted = await scrollPrimary
                 .first()

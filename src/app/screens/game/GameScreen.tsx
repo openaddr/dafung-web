@@ -17,6 +17,7 @@ import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandPanel } from "./HandPanel";
+import { HandRack } from "./HandRack";
 import { TreasuryPanel } from "./TreasuryPanel";
 import { OthersPanel } from "./OthersPanel";
 import { WaitingBar } from "./WaitingBar";
@@ -169,6 +170,10 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />
       <div className="relative flex h-full w-full bg-bg text-ink">
+      {/* #238/T3 棋盘列:board-wrap + 底部手牌架同列(列结构,侧栏 aside 不动)。
+          棋盘初始取景 = FIT_VIEW 固定 viewBox + preserveAspectRatio meet——容器变矮
+          整盘等比缩小,无需 pan/zoom 补偿。 */}
+      <div className="flex min-w-0 flex-1 flex-col">
       {/* 棋盘区(相对定位承载 hint/WaitingBar/fx 覆盖层,同旧 board-wrap)。
           id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
       <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
@@ -307,6 +312,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             onClick={() => setSidebar(false)}
           />
         )}
+      </div>
+      {/* #238/T3 底部常驻手牌架(观战 localPlayer=null 时内部自返回 null) */}
+      <HandRack player={localPlayer} />
       </div>
       {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名将 / 诸侯,标题横幅置顶)。
           L48:战报区已移除(日志保留在引擎快照,胜利屏「导出日志」落 jsonl 文件);

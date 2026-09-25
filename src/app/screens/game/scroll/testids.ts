@@ -22,11 +22,14 @@ export const SCROLL_TESTIDS = {
   exhaustionScroll: "scroll-exhaustion",
   exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
-  // ── 锦囊卷轴(#122/T2):容器 + 选项(下标=牌 id)+ 今不用;目标段(作罢)在 T3/T4 ──
+  // ── 锦囊卷轴(#122/T2,#237 牌面化):容器 + 选项(牌/技/座位同族)+ 今不用 +
+  // 落印确认钮(#237 新增,原名原义零漂移,只增不改)──
   jinnangScroll: "scroll-jinnang",
   jinnangOption: (cardId: string) => `scroll-jinnang-option-${cardId}` as const,
   jinnangPass: "scroll-jinnang-pass",
   jinnangCancel: "scroll-jinnang-cancel",
+  /** #237 T2:军师幕「落印」确认钮(选中后确认发命令;未选中=禁用)。 */
+  jinnangConfirm: "scroll-jinnang-confirm",
 
   treasureScroll: "scroll-treasure",
   treasureModeFair: "scroll-treasure-mode-fair",

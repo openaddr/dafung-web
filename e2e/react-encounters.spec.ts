@@ -7,6 +7,10 @@ import { actIfCan, openSoloSetup, pickCapital, waitSettled, waitMyRollDone } fro
 
 test.describe("机遇系统冒烟", () => {
   test("声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
+    // 内部预算 90s/120s(waitMyRollDone/抉择循环)本就超过测试级 60s 默认——
+    // 全量并行负载下阶段耗时一涨就被外层掐死(#217① 同族,#240 收口实测复现),
+    // 标 slow 对齐外层超时至 120s,让内部预算真正生效。
+    test.slow();
     await page.goto("/");
     await openSoloSetup(page);
     await page.getByTestId("setup-encounter-toggle").click();

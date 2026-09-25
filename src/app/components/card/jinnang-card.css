@@ -1,0 +1,324 @@
+/* 锦囊牌面器物件样式(#236 一期 T1)——从 tmp/prototype-jinnang-ui.html 第一 <style> 块
+   忠实移植(2026-09-24 用户已验收的视觉基线):类名、形制、色值不做自由发挥。
+   选择器统一收口在 .jinnang-card / .jinnang-detail 作用域下(原型是裸类名,入库改为
+   组件前缀防全局串扰);色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动
+   走 --dur-* 与 --ease-* token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
+
+   裸色豁免登记(原型定稿色,tokens.css 暂无对应 token,照原型保留——本文件唯二豁免):
+   - #9a6a3c(铜框)/ #8d9298(银框):frameTone 品级通道二期启用,先留定稿色;
+   - #f6ecd9(印文纸色,含其 rgba(246,236,217,·) 形式):章面/印条/印文字色。
+   同类登记:牌背漆木渐变两端 #3d3324/#262017(漆面明暗,无 token);漆金
+   rgba(217,185,92,·)= --color-lacquer-gold、漆底 rgba(51,42,30,·)= --color-lacquer、
+   发丝衬里 rgba(250,243,223,·)= --color-paper-hi 的 rgba 形式(app.css 控件种同先例);
+   牌背印面落影 rgba(0,0,0,·) 是漆木上的中性黑影,非墨影语义。
+
+   尺寸档(em 制):.jinnang-card 基准 font-size:8px→120×160,.lg 16px→240×320
+   ——与 jinnang-face-data.ts 的 JINNANG_FACE_SIZE_EM 互为镜像(测试钉住);
+   消费方可再经 style.fontSize 在两档之间微调降档。 */
+
+/* ── 基座:3:4 竖笺,纸渐变 + 发丝衬里(em 制,内部尺寸全随根 font-size 缩放)。
+   isolation:每张牌自成一个层叠上下文——标签章的 z-index 不得越过「叠在本牌之上的
+   邻牌」(手牌架压缩布局会叠牌;无 isolate 时章会浮到邻牌上面穿模,2026-09-25 走查)── */
+.jinnang-card {
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  font-size: 8px;
+  flex: 0 0 auto;
+  background: linear-gradient(168deg, var(--color-panel) 0%, var(--color-paper-hi) 58%, var(--color-panel-hi) 100%);
+  border: 0.2em solid rgba(43, 35, 23, 0.65);
+  border-radius: 0.9em;
+  box-shadow:
+    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
+    inset 0 0 0 0.15em rgba(250, 243, 223, 0.7);
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+  /* 交互态(sel 上浮放大 / off 下沉置灰)的状态过渡;上浮用 --ease-out,
+     1.6× 放大不宜回弹过冲(--ease-out-back 会甩框) */
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out),
+    filter var(--dur-med) var(--ease-out);
+}
+.jinnang-card.lg {
+  font-size: 16px;
+}
+
+/* ── 笺头:族色界格线 + 牌名(font-brush;长牌名 ≥4 字降档 1.72em)── */
+.jinnang-card .tou {
+  display: flex;
+  align-items: stretch;
+  gap: 0.7em;
+  min-height: 3.4em;
+  margin-right: 3.8em; /* 让位右上标签章 */
+}
+.jinnang-card .jie {
+  width: 0.32em;
+  background: var(--fam, var(--color-danger));
+  opacity: 0.85;
+  border-radius: 0.16em;
+}
+.jinnang-card .ming {
+  font-family: var(--font-brush);
+  font-size: 2em;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  align-self: center;
+  white-space: nowrap;
+}
+.jinnang-card .ming.long {
+  font-size: 1.72em;
+  letter-spacing: 0.04em;
+}
+
+/* ── 标签章:右上竖排(多标签逐枚下挂),朱砂方章 2.5deg 微旋(章恒朱砂,
+   DESIGN §4.2 朱=权险;族色只入界格线与纹样窗)。印文用 font-brush:
+   小薇离线镜像有空芯字形,新文案禁用 font-deco(BRIEF §2,note-head 同先例)。── */
+.jinnang-card .zhang {
+  position: absolute;
+  top: 0.9em;
+  right: 0.9em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  z-index: 2;
+}
+.jinnang-card .seal,
+.jinnang-detail .seal {
+  width: 2.3em;
+  height: 2.3em;
+  background: var(--color-danger);
+  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  border-radius: 0.28em;
+  font-family: var(--font-brush);
+  font-size: 1.5em;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow:
+    0 0.15em 0.3em rgba(43, 35, 23, 0.35),
+    inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+}
+
+/* ── 纹样窗:程序化 SVG 线稿(path 自原型逐条移植),族色描边 + 55% 族色细框 ── */
+.jinnang-card .yang {
+  flex: 1;
+  margin: 0.9em 0;
+  border: 0.16em solid color-mix(in srgb, var(--fam, var(--color-danger)) 55%, transparent);
+  border-radius: 0.5em;
+  background: var(--color-paper-hi);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  min-height: 6em;
+}
+.jinnang-card .yang svg {
+  width: 82%;
+  height: 82%;
+  opacity: 0.8;
+  stroke: var(--fam, var(--color-danger)); /* 族 token 色(经 .f-* 类注入的 --fam) */
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+}
+.jinnang-card.lg .yang svg {
+  stroke-width: 1.6; /* 详情档线稿收细(原型同值) */
+}
+
+/* ── 笺脚:效果正文(别称已剥离,jinnangAliasSplit),2 行截断;large 详情档 4 行 ── */
+.jinnang-card .jiao {
+  font-size: 1.12em;
+  line-height: 1.62;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.jinnang-card.lg .jiao {
+  -webkit-line-clamp: 4;
+}
+
+/* ── 四族色类(--fam 供给界格线/纹样窗描边):与 jinnang-face-data.ts
+   JINNANG_FAMILY 的 token 一一对应(测试核对),类名沿原型 ── */
+.jinnang-card.f-mou {
+  --fam: var(--color-seal-qing); /* 谋·黛青 */
+}
+.jinnang-card.f-gong {
+  --fam: var(--color-danger); /* 攻·朱砂 */
+}
+.jinnang-card.f-shou {
+  --fam: var(--color-road-side); /* 守·赭石 */
+}
+.jinnang-card.f-yuan {
+  --fam: var(--color-money); /* 援·青绿 */
+}
+
+/* ── 品级框色 frameTone(二期珍宝变体预留通道):同形框,异色=品级,
+   一期消费方不传(none=基线墨框,即基座默认阴影)── */
+.jinnang-card.tone-tong {
+  box-shadow:
+    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
+    inset 0 0 0 0.3em #9a6a3c; /* 铜框:原型定稿色,暂无 token(豁免登记见文件头) */
+}
+.jinnang-card.tone-yin {
+  box-shadow:
+    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
+    inset 0 0 0 0.3em #8d9298; /* 银框:原型定稿色,暂无 token(豁免登记见文件头) */
+}
+.jinnang-card.tone-gold {
+  box-shadow:
+    0 0.35em 0.9em rgba(43, 35, 23, 0.3),
+    inset 0 0 0 0.3em var(--color-gold),
+    0 0 0 0.18em var(--color-gold-deep);
+}
+
+/* ── 交互态:sel=选中即放大(放大态即详情态,1.6× 金描边);
+   off=不可用下沉置灰,原因印条由消费方以 .reason 子元素提供(出现时笺脚让位)── */
+.jinnang-card.sel {
+  transform: translateY(-1.2em) scale(1.6);
+  transform-origin: center bottom;
+  outline: 0.3em solid var(--color-gold);
+  outline-offset: 0.12em;
+  box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.38);
+  z-index: 6;
+}
+/* 选中=详情态(spec US4「放大至全文可读」):笺脚放开 4 行(与 lg 详情档同),
+   纹样窗同步让位(min-height 6em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
+.jinnang-card.sel .jiao {
+  -webkit-line-clamp: 4;
+}
+.jinnang-card.sel .yang {
+  min-height: 3.5em;
+}
+.jinnang-card.off {
+  filter: grayscale(0.9) brightness(0.92);
+  transform: translateY(0.9em);
+}
+.jinnang-card.off .jiao {
+  visibility: hidden;
+}
+/* 原因印条:墨底印文纸色字,对比度达标(白纸色字 rgba(43,35,23,.82) 底,原型即如此);
+   文案是消费方给的新文案,落文楷(font-wenkai 安全位,同禁 font-deco 红线) */
+.jinnang-card .reason {
+  position: absolute;
+  left: -0.2em;
+  right: -0.2em;
+  bottom: 0.9em;
+  background: rgba(43, 35, 23, 0.82);
+  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  font-family: var(--font-wenkai);
+  font-size: 1.25em;
+  text-align: center;
+  padding: 0.45em 0;
+  letter-spacing: 0.08em;
+}
+/* 键盘焦点:金色虚线(压过 app.css 的 :where() 零特异度全局圈) */
+.jinnang-card:focus-visible {
+  outline: 0.3em dashed var(--color-gold-deep);
+  outline-offset: 0.2em;
+}
+
+/* ── 牌背(暗置语义):漆木底 + 「锦囊」朱印 + 回纹双环 ── */
+.jinnang-card.back {
+  background: linear-gradient(160deg, #3d3324, var(--color-lacquer) 55%, #262017);
+  align-items: center;
+  justify-content: center;
+}
+.jinnang-card.back::before {
+  content: "";
+  position: absolute;
+  inset: 1em;
+  border: 0.14em solid rgba(217, 185, 92, 0.55); /* 漆金外环 */
+  border-radius: 0.5em;
+  box-shadow:
+    inset 0 0 0 0.22em rgba(51, 42, 30, 0.9),
+    inset 0 0 0 0.34em rgba(217, 185, 92, 0.28);
+}
+.jinnang-card.back::after {
+  content: "";
+  position: absolute;
+  inset: 2em;
+  border: 0.1em solid rgba(217, 185, 92, 0.25);
+  border-radius: 0.4em;
+}
+.jinnang-card .yin-s {
+  position: relative;
+  width: 6em;
+  height: 6em;
+  background: var(--color-danger);
+  border-radius: 0.4em;
+  transform: rotate(-3deg);
+  display: grid;
+  place-items: center;
+  box-shadow:
+    0 0.3em 0.7em rgba(0, 0, 0, 0.45),
+    inset 0 0 0 0.18em rgba(246, 236, 217, 0.5);
+}
+.jinnang-card .yin-s span {
+  font-family: var(--font-brush);
+  font-size: 2em;
+  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  line-height: 1.12;
+  display: block;
+  text-align: center;
+}
+
+/* ── 详情内容面板(JinnangCardDetail):五段 = 牌名 / 章行 / 全文 / 虚线分隔 / 脚注。
+   非弹层——弹层壳(抽屉/浮层)归消费方,本件只是可嵌入的内容面板;
+   纸面用 paper-hi/lo 渐变,消费方可覆盖宽度。 ── */
+.jinnang-detail {
+  width: 340px;
+  max-width: 100%;
+  box-sizing: border-box;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid rgba(43, 35, 23, 0.35);
+  border-radius: 6px;
+  padding: 22px 24px;
+  box-shadow: 0 3px 10px rgba(43, 35, 23, 0.2);
+  color: var(--color-ink);
+  font-family: var(--font-wenkai);
+}
+.jinnang-detail .dt-ming {
+  font-family: var(--font-brush);
+  font-size: 26px;
+  margin-bottom: 6px;
+}
+.jinnang-detail .dt-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+/* 详情档章:静态横排(跟随原型详情浮层的降档尺寸) */
+.jinnang-detail .seal {
+  position: static;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  font-size: 13px;
+}
+.jinnang-detail .dt-meta {
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.jinnang-detail .dt-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.85;
+  font-variant-numeric: tabular-nums;
+}
+/* 第④段虚线分隔 + 第⑤段脚注(虚线边即分隔,一段两用) */
+.jinnang-detail .dt-foot {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(43, 35, 23, 0.3);
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  line-height: 1.8;
+  font-variant-numeric: tabular-nums;
+}

@@ -45,9 +45,15 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照、手动触发重同步。
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
+import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 
-/** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。 */
+/** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
+ *  双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY):仅 dev 构建,或 e2e/截图脚手架经
+ *  addInitScript 预置桥键时才注册——生产构建零引擎改写面(单机控制台可改引擎),
+ *  测试/生产的可观察面不靠约定靠门禁(2026-09-25 学自 ZCode e2eStoreBridge)。 */
 export function installDebugHooks(): void {
+  const gated = import.meta.env.DEV || localStorage.getItem(E2E_DEBUG_BRIDGE_KEY) != null;
+  if (!gated) return;
   const w = window as typeof window & { __dafung?: unknown };
   w.__dafung = {
     getEngine,

@@ -106,6 +106,7 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
 | `scripts/room.ts` | 房间编排(座位/接管/bot 驱动/host 移交/纯视图),零 WS 依赖 |
 | `scripts/room-persistence.ts` | 房间持久化适配器(FileRoomPersistence,可注入 InMemory 测试) |
 | `scripts/replay-log.ts` | ADR-0014 对局日志重放校验:jsonl → 局头重建引擎 → cmd 流重放 → 终局行逐字段断言(用法见 docs/reference/对局日志.md) |
+| `scripts/shot.mjs` | 截图自证脚手架(单源):起服/PID 杀/swiftshader/enterGame/force 样板全包,场景脚本只写局面;派单限额配套(勿手写 tmp 起服样板) |
 | `scripts/engine-helpers.ts` | CLI/Server 共享层(地图加载/序列化/状态摘要/bot 自动驱动) |
 
 ## 游戏机制速查
@@ -148,6 +149,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 
 ### 本地 e2e 跑法
 
+- **分层验证(2026-09-25 定,耗时回顾后立规)**:日常开发/工单收口只跑**本工单相关 spec**——`bun run test:e2e:one e2e/<相关>.spec.ts`(等价 build+定向 playwright,本屏族约 40s;flake 取证用 `npx playwright test <spec> --repeat-each=3` 定向三连,不跑全量);**全量 `E2E_WORKERS=2 bun run test:e2e` 每分支只跑一次,PR 前收口**。
 - `E2E_WORKERS=2 bun run test:e2e`——默认 workers 在本机因 CPU 超载会成片超时,2 为实测稳态。
 - `E2E_TIME_SCALE`(默认 `0.25`):e2e 时间倍率,由 `e2e/fixtures.ts` 在页面加载前写入 localStorage 键(键名单源:`src/app/fx/timings.ts` 的 `E2E_TIME_SCALE_KEY`),加速骰子/横幅/行军等演出编排;设 `E2E_TIME_SCALE=1` 回退全速。仅测试注入,生产/真人局无此键零感知。
 
@@ -162,7 +164,7 @@ bun scripts/cli.ts <command>    # 纯 CLI 测试(与 server 共用 state.json �
 ## 联机测试基础设施
 - **多客户端 e2e**:`e2e/react-online.spec.ts` / `react-online-autopilot.spec.ts` / `react-resilience.spec.ts`,共享工具 `e2e/react-helpers.ts`(quickStart / pickCapital / snap / waitForSnapChanged / waitForEngine)。
 - **模式**:N 个独立 browser context(= N 台设备)同房,走真实 UI(非 REST 旁路);固定等待全部改状态轮询(waitForSnapChanged/expect.poll),慢速托管窗 240s。
-- **调试钩子**:registry.ts 的 `installDebugHooks` 暴露 `window.__dafung`(getEngine/setEngine/snapshot/sync/controller),卡死时可手动重灌快照排查。
+- **调试钩子**:registry.ts 的 `installDebugHooks` 暴露 `window.__dafung`(getEngine/setEngine/snapshot/sync/controller),卡死时可手动重灌快照排查。**双门禁**(2026-09-25,学自 ZCode e2eStoreBridge):仅 dev 构建,或注入 localStorage 桥键(`timings.ts E2E_DEBUG_BRIDGE_KEY`,e2e fixtures/`scripts/shot.mjs` 自动预置)才注册——生产构建零引擎改写面,手动排查生产问题时先在控制台 `localStorage.setItem("dafung-e2e-debug-bridge","1")` 后刷新。
 - 跑:`bun run test:e2e`(10 个 react-*.spec,37 用例)。
 
 ## Agent skills
@@ -182,3 +184,16 @@ GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)�
 ### Coverage audit
 
 覆盖率体检(刻意低频,守基线不刷数字):`bun test --coverage`,重点只看 `src/core/`;触发时机与判读口径见 `.agents/skills/coverage-audit/SKILL.md`,台账在 `docs/reference/覆盖率台账.md`。不进 CI、不设阈值。
+
+### Time review
+
+耗时回顾(用户说"耗时回顾/复盘/时间都去哪了"时触发):从 ZCode 本机记录还原真实耗时、排行找大户、对照基线账评估对策;方法与数据源见 `.agents/skills/time-review/SKILL.md` 与 `docs/agents/耗时回顾.md`,台账(基线账表)在后者末尾。只分析不落地,改动须用户拍板。
+
+### 子代理派单纪律(2026-09-25 定,锦囊一期耗时回顾的落地)
+
+> 派单前复制 [docs/agents/派单模板.md](./docs/agents/派单模板.md) 填写;截图自证一律走 `scripts/shot.mjs`(勿再手写起服脚手架);回顾方法与数据源见 [docs/agents/耗时回顾.md](./docs/agents/耗时回顾.md)。
+
+1. **文件所有权互斥清单先行**:派单时逐文件写明「只许写/禁碰」;共享文件(testids、helpers、共享 css)预指派唯一属主或由主线预改,同树并行一律 flock 锁构建(`flock tmp/build.lock`)、专属端口与目录。
+2. **验证限额写进派单**:`typecheck`/`build` 各一次收口;e2e 只跑本工单 spec(`test:e2e:one`);截图证据 ≤4 张关键态(动画中间帧/对比度实测随该一轮做完,不反复起停 vite)。
+3. **诊断权归主线**:代理遇「疑似非本票引入的失败」,做一次对照实验(stash/repeat-each)定性后即停、上报;不做多轮取证——主线有跨票上下文,一次定性全局复用。
+4. **主线质检职责不变**:每道缝验门槛+亲审截图+抽查代码;评审(Standards/Spec 双轴)在收口前跑,发现必修项由主线修,不回派。
