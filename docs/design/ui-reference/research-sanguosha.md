@@ -6,10 +6,10 @@
 
 ## 1. 项目概览
 
-| 项目 | 仓库 | 技术栈 | 活跃度 | UI 形态 |
-|---|---|---|---|---|
-| 无名杀 noname | `libnoname/noname`(GitHub) | 纯 JS + DOM(CSS transform 排牌,无框架),pnpm workspace 构建 | 极活跃(最近 commit 2026-09-23,#4465) | HTML5 DOM:玩家元素 + 手牌 DOM 挂在自己节点下,绝对定位环绕桌面 |
-| 新月杀 FreeKill | `Qsgs-Fans/FreeKill`(GitHub 镜像;上游 gitee `NaisuYa/FreeKill`) | C++/Qt Quick(QML)+ Lua 逻辑;UI 在 `LunarLtk/` 皮肤包 | 活跃(2026-09-08 发 v0.5.25) | QML 声明式场景图:Photo(他人面板)/Dashboard(自己仪表盘)/TablePile(牌桌中央) |
+| 项目            | 仓库                                                            | 技术栈                                                     | 活跃度                               | UI 形态                                                                    |
+| --------------- | --------------------------------------------------------------- | ---------------------------------------------------------- | ------------------------------------ | -------------------------------------------------------------------------- |
+| 无名杀 noname   | `libnoname/noname`(GitHub)                                      | 纯 JS + DOM(CSS transform 排牌,无框架),pnpm workspace 构建 | 极活跃(最近 commit 2026-09-23,#4465) | HTML5 DOM:玩家元素 + 手牌 DOM 挂在自己节点下,绝对定位环绕桌面              |
+| 新月杀 FreeKill | `Qsgs-Fans/FreeKill`(GitHub 镜像;上游 gitee `NaisuYa/FreeKill`) | C++/Qt Quick(QML)+ Lua 逻辑;UI 在 `LunarLtk/` 皮肤包       | 活跃(2026-09-08 发 v0.5.25)          | QML 声明式场景图:Photo(他人面板)/Dashboard(自己仪表盘)/TablePile(牌桌中央) |
 
 两者共同点:手牌区都是**横条重叠排列**(非扇形),间距随张数压缩;选牌=整张上浮;非法牌置灰/下沉。
 
@@ -26,13 +26,13 @@
 offset1 = Math.min(112, (ui.handcards1Container.offsetWidth - 128) / (hs1.length - 1));
 if (hs1.length > 1 && offset1 < 32) {
   offset1 = 32;
-  ui.handcards1Container.classList.add("scrollh");   // 横向滚动兜底
+  ui.handcards1Container.classList.add("scrollh"); // 横向滚动兜底
 }
 for (var i = 0; i < hs1.length; i++) {
   var x1 = i * offset1;
   // ...悬停展开偏移
   hs1[i].style.transform = hs1[i].classList.contains("selected")
-    ? baseTransform1 + " translateY(-20px)"          // 选中整张上浮 20px
+    ? baseTransform1 + " translateY(-20px)" // 选中整张上浮 20px
     : baseTransform1;
 }
 ```

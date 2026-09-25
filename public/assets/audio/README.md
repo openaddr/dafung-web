@@ -32,20 +32,20 @@ npx tsx scripts/fetch-audio.ts --with-attribution
 下表每一行的**直链/授权/作者/大小**均来自 Commons `imageinfo` 实测(2026 核实),
 下载脚本据此硬编码,运行时仍会再次校验授权与 mime。
 
-| id | 用途(SoundEvent) | Commons 文件 | 授权 | 作者 | 大小 | 时长 | 满足50KB |
-|---|---|---|---|---|---|---|---|
-| **audio:coin** | coin 铜钱 | [Coin dropped on wooden floor.ogg](https://commons.wikimedia.org/wiki/File:Coin_dropped_on_wooden_floor.ogg) | Public domain | ezwa(pdsounds.org) | 42KB | 2.3s | ✅ |
-| **audio:coins-shake** | coin 摇钱 | [Shaking coins in palm.ogg](https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg) | Public domain | ezwa(pdsounds.org) | 94KB | 3.6s | ⚠️裁剪 |
-| **audio:gong** | stamp 印章/盖宝 | [Gong or bell vibrant (short).ogg](https://commons.wikimedia.org/wiki/File:Gong_or_bell_vibrant_(short).ogg) | **CC0** | stephan(pdsounds.org) | 57KB | 5.6s | ⚠️裁剪 |
-| **audio:march** | banner 行军/横幅 | [Drum Roll Intro.ogg](https://commons.wikimedia.org/wiki/File:Drum_Roll_Intro.ogg) | **CC0** | Iwan Sounds and DIY | 74KB | 4.0s | ⚠️裁剪 |
-| **audio:victory** | victory 胜利庆典 | [Fanfares of the President of Azerbaijan.ogg](https://commons.wikimedia.org/wiki/File:Fanfares_of_the_President_of_Azerbaijan.ogg) | Public domain | Central Band, Armed Forces of Azerbaijan | 153KB | 14.3s | ⚠️裁剪 |
+| id                    | 用途(SoundEvent) | Commons 文件                                                                                                                       | 授权          | 作者                                     | 大小  | 时长  | 满足50KB |
+| --------------------- | ---------------- | ---------------------------------------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------- | ----- | ----- | -------- |
+| **audio:coin**        | coin 铜钱        | [Coin dropped on wooden floor.ogg](https://commons.wikimedia.org/wiki/File:Coin_dropped_on_wooden_floor.ogg)                       | Public domain | ezwa(pdsounds.org)                       | 42KB  | 2.3s  | ✅       |
+| **audio:coins-shake** | coin 摇钱        | [Shaking coins in palm.ogg](https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg)                                     | Public domain | ezwa(pdsounds.org)                       | 94KB  | 3.6s  | ⚠️裁剪   |
+| **audio:gong**        | stamp 印章/盖宝  | [Gong or bell vibrant (short).ogg](<https://commons.wikimedia.org/wiki/File:Gong_or_bell_vibrant_(short).ogg>)                     | **CC0**       | stephan(pdsounds.org)                    | 57KB  | 5.6s  | ⚠️裁剪   |
+| **audio:march**       | banner 行军/横幅 | [Drum Roll Intro.ogg](https://commons.wikimedia.org/wiki/File:Drum_Roll_Intro.ogg)                                                 | **CC0**       | Iwan Sounds and DIY                      | 74KB  | 4.0s  | ⚠️裁剪   |
+| **audio:victory**     | victory 胜利庆典 | [Fanfares of the President of Azerbaijan.ogg](https://commons.wikimedia.org/wiki/File:Fanfares_of_the_President_of_Azerbaijan.ogg) | Public domain | Central Band, Armed Forces of Azerbaijan | 153KB | 14.3s | ⚠️裁剪   |
 
 次选(需 `--with-attribution`,CC-BY(-SA) **需署名**):
 
-| id | 用途 | Commons 文件 | 授权 | 作者 | 大小 |
-|---|---|---|---|---|---|
-| **audio:woodblock** | stamp 木击 | [Blok music.ogg](https://commons.wikimedia.org/wiki/File:Blok_music.ogg) | CC BY-SA 4.0 | Krol111 | 23KB ✅ |
-| **audio:gong-long** | victory 得宝长尾 | [Gong55.ogg](https://commons.wikimedia.org/wiki/File:Gong55.ogg) | **CC0** | stephan | 149KB |
+| id                  | 用途             | Commons 文件                                                             | 授权         | 作者    | 大小    |
+| ------------------- | ---------------- | ------------------------------------------------------------------------ | ------------ | ------- | ------- |
+| **audio:woodblock** | stamp 木击       | [Blok music.ogg](https://commons.wikimedia.org/wiki/File:Blok_music.ogg) | CC BY-SA 4.0 | Krol111 | 23KB ✅ |
+| **audio:gong-long** | victory 得宝长尾 | [Gong55.ogg](https://commons.wikimedia.org/wiki/File:Gong55.ogg)         | **CC0**      | stephan | 149KB   |
 
 ### 直链(Commons upload.wikimedia.org,脚本运行时取最新)
 
@@ -63,15 +63,15 @@ https://upload.wikimedia.org/wikipedia/commons/2/2c/Gong55.ogg
 
 ## 任务覆盖情况(按优先级)
 
-| 任务要求音效 | 优先级 | Commons 可用 | 说明 |
-|---|---|---|---|
-| 骰子/签筒掷骰 | 🔴最高 | ❌ 无真正音效 | Commons 仅爵士乐《Toss the Dice》与语言发音;签筒/竹筒无。**见下 Freesound 手动补充** |
-| 铜钱/金币 | 🟠高 | ✅ `audio:coin` / `audio:coins-shake` | PD,落币 + 摇钱 |
-| 印章盖章 | 🟡中 | ✅ `audio:gong`(锣替代)/ `audio:woodblock` | 无直接盖章声,用金属锣/木块替代 |
-| 胜利庆典 | 🟢低 | ✅ `audio:victory` | PD 铜管号角 |
-| 古风提示音(古琴/笛单音) | 中 | ⚠️ 仅整曲 | 古琴录音为 CC-BY-SA 整曲(4-5MB),无单音。建议继续用 `audio.ts` 合成单音 |
-| 古代行军/马蹄 | 中 | ✅ `audio:march` | CC0 鼓滚奏;马蹄无,用鼓点替代 |
-| 卷轴展开 | 低 | ❌ 无 | Commons 无纸张/卷轴音效 |
+| 任务要求音效            | 优先级 | Commons 可用                               | 说明                                                                                 |
+| ----------------------- | ------ | ------------------------------------------ | ------------------------------------------------------------------------------------ |
+| 骰子/签筒掷骰           | 🔴最高 | ❌ 无真正音效                              | Commons 仅爵士乐《Toss the Dice》与语言发音;签筒/竹筒无。**见下 Freesound 手动补充** |
+| 铜钱/金币               | 🟠高   | ✅ `audio:coin` / `audio:coins-shake`      | PD,落币 + 摇钱                                                                       |
+| 印章盖章                | 🟡中   | ✅ `audio:gong`(锣替代)/ `audio:woodblock` | 无直接盖章声,用金属锣/木块替代                                                       |
+| 胜利庆典                | 🟢低   | ✅ `audio:victory`                         | PD 铜管号角                                                                          |
+| 古风提示音(古琴/笛单音) | 中     | ⚠️ 仅整曲                                  | 古琴录音为 CC-BY-SA 整曲(4-5MB),无单音。建议继续用 `audio.ts` 合成单音               |
+| 古代行军/马蹄           | 中     | ✅ `audio:march`                           | CC0 鼓滚奏;马蹄无,用鼓点替代                                                         |
+| 卷轴展开                | 低     | ❌ 无                                      | Commons 无纸张/卷轴音效                                                              |
 
 ### Freesound 手动补充(骰子/签筒/卷轴 —— Commons 缺失品类)
 
@@ -116,7 +116,7 @@ ffmpeg -i sound-gong.ogg -t 3 -ac 1 -b:a 48k sound-gong.ogg
 以下两条不走 Commons 管线,来自 Freesound CC0 过滤搜索,`cdn.freesound.org/previews/`
 lq ogg 预览直链直下(浏览器/Tauri2 原生解码),已登记 manifest.json + CREDITS.md:
 
-| id | 用途(SoundEvent) | Freesound | 授权 | 作者 | 大小 |
-|---|---|---|---|---|---|
-| **audio:stamp-seal** | stamp 印章(替换原 gong-hit 映射) | [#759526](https://freesound.org/s/759526/) "Wax seal" | **CC0** | Cerise_Virtuelle | 13.7KB |
-| **audio:scroll-unroll** | 卷轴开(R3-A2 已接入:`scrollOpen` 事件,ScrollShell 挂载即播) | [#710764](https://freesound.org/s/710764/) "Paper unroll" | **CC0** | leoanderson67 | 47.2KB |
+| id                      | 用途(SoundEvent)                                            | Freesound                                                 | 授权    | 作者             | 大小   |
+| ----------------------- | ----------------------------------------------------------- | --------------------------------------------------------- | ------- | ---------------- | ------ |
+| **audio:stamp-seal**    | stamp 印章(替换原 gong-hit 映射)                            | [#759526](https://freesound.org/s/759526/) "Wax seal"     | **CC0** | Cerise_Virtuelle | 13.7KB |
+| **audio:scroll-unroll** | 卷轴开(R3-A2 已接入:`scrollOpen` 事件,ScrollShell 挂载即播) | [#710764](https://freesound.org/s/710764/) "Paper unroll" | **CC0** | leoanderson67    | 47.2KB |

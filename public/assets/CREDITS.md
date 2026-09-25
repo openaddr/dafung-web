@@ -12,10 +12,11 @@
 ## 条目
 
 <!-- fetch-asset.ts 从此处向下追加 -->
+
 - **hero:zhouyu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 周瑜·经典形象 — 206705B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=11615) — 2026-08-16
 - **hero:caopi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 曹丕·经典形象 SoniaTang — 166346B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9064) — 2026-08-16
 - **hero:zhangxingcai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 张星彩·经典形象 — 233186B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9705) — 2026-08-16
-- **texture:qianli-jiangshan** — Public domain / 王希孟(Wang Ximeng,北宋) — 157306B (1920×410, image/webp;Commons 1920px thumb → webp q82) — [source](https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg) — 2026-08-30
+- **texture:qianli-jiangshan** — Public domain / 王希孟(Wang Ximeng,北宋) — 157306B (1920×410, image/webp;Commons 1920px thumb → webp q82) — [source](<https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg>) — 2026-08-30
 - **audio:stamp-seal** — CC0 / Cerise_Virtuelle (Freesound) — 13713B (ogg) — [source](https://freesound.org/s/759526/) — 2026-08-30
 - **audio:scroll-unroll** — CC0 / leoanderson67 (Freesound) — 47184B (ogg) — [source](https://freesound.org/s/710764/) — 2026-08-30
 - **font:wenkai** — SIL OFL 1.1 / Lxgw(LXGW WenKai);打包 Chawye Hsu — 2856992B(59 分片 woff2,Regular;分片集按项目文本语料筛选,Light 未取) — [source](https://github.com/chawyehsu/lxgw-wenkai-webfont) — 2026-08-30
