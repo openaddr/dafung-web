@@ -7,6 +7,9 @@
    裸色豁免登记(原型定稿色,tokens.css 无对应 token;与 hand-rack.css 豁免同族):
    - #463a28 / #241d13:漆木仪表条渐变两端(架上映、架下暗,即 hand-rack 原渐变);
    - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式);
+   - rgba(200,161,58,·)/rgba(212,175,55,·):金圈系(--color-gold 的 rgba 形式,
+     活跃光效/目标段候选呼吸,原型定稿值);
+   - rgba(138,106,28,·):金圈外投墨金影(原型定稿,金影语义非墨影);
    - rgba(0,0,0,·):漆木上的中性黑影,非墨影语义;
    - #f6ead6 / #f6ecd9:印面纸色字(全仓印章语言既有惯例字面量)。
 
@@ -511,11 +514,160 @@
   padding-bottom: 1.75em;
 }
 
+/* ── 动作条(#256 军师窗态):斗地主式两段动作条,居中浮于仪表条上缘(原型
+   .actionbar 移植,bottom 184px=仪表条 172px+12px 气口)——锚条不锚牌,空手牌时
+   按钮仍在;选中放大牌占中时整条右让(.right-shift,原型 240px;实装仪表条左段 344px 使架中心右偏,实测 400px 起不压牌面)。
+   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai(原型小薇禁新用)。 ── */
+.game-layout .actionbar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(184px + var(--safe-bottom));
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.game-layout .actionbar.right-shift {
+  margin-left: 400px;
+}
+/* 目标段「选择目标」标签(信息件,非按钮):纸底金边,与顶部 chip 同族 */
+.game-layout .actionbar .actionbar-lab {
+  font-family: var(--font-wenkai);
+  font-size: 14px;
+  letter-spacing: 0.2em;
+  text-indent: 0.1em;
+  color: var(--color-ink);
+  background: rgba(244, 236, 216, 0.92);
+  border: 1.5px solid var(--color-gold);
+  border-radius: 4px;
+  padding: 7px 18px;
+  box-shadow: 0 2px 8px rgba(138, 106, 28, 0.35);
+}
+.game-layout .actionbar .actionbar-btn {
+  font-family: var(--font-brush);
+  font-size: 15px;
+  letter-spacing: 0.25em;
+  text-indent: 0.25em;
+  padding: 9px 24px;
+  border-radius: 4px;
+  border: 0;
+  cursor: pointer;
+}
+/* 墨钮(DESIGN §4.2 推进对局的主行动):漆底金字;启用态金内环=原型 .armed */
+.game-layout .actionbar .actionbar-btn.mo {
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 185, 92, 0.6),
+    0 2px 5px rgba(43, 35, 23, 0.4);
+}
+.game-layout .actionbar .actionbar-btn.mo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.game-layout .actionbar .actionbar-btn.mo:not(:disabled) {
+  box-shadow:
+    inset 0 0 0 1.5px var(--color-gold),
+    0 2px 6px rgba(43, 35, 23, 0.45);
+}
+.game-layout .actionbar .actionbar-btn.mo:not(:disabled):hover {
+  box-shadow:
+    inset 0 0 0 2px var(--color-gold-bright),
+    0 3px 8px rgba(43, 35, 23, 0.5);
+}
+/* 次级漆钮(不出/作罢):原型 .qian 同族 */
+.game-layout .actionbar .actionbar-btn.qian {
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 185, 92, 0.5),
+    0 2px 5px rgba(43, 35, 23, 0.4);
+}
+.game-layout .actionbar .actionbar-btn.qian:hover {
+  box-shadow:
+    inset 0 0 0 1.5px var(--color-gold),
+    0 2px 6px rgba(43, 35, 23, 0.45);
+}
+.game-layout .actionbar .actionbar-btn:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 3px;
+}
+
+/* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
+   呼吸,禁文字章),点击层 .seat-target 真按钮覆盖卡面(键盘可达,不自写交互语义);
+   非候选(免战庇护/无效目标)席位卡不动,原因在点击层 title 浮签。 ── */
+.game-layout .seat.candidate {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 2.5px rgba(212, 175, 55, 0.8),
+    0 2px 8px rgba(138, 106, 28, 0.45);
+  animation: seat-selglow 2.4s ease-in-out infinite;
+}
+@keyframes seat-selglow {
+  0%,
+  100% {
+    box-shadow:
+      0 0 0 2px rgba(212, 175, 55, 0.55),
+      0 2px 8px rgba(138, 106, 28, 0.35);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3.5px rgba(212, 175, 55, 0.95),
+      0 2px 10px rgba(138, 106, 28, 0.5);
+  }
+}
+.game-layout .seat.candidate:hover {
+  box-shadow:
+    0 0 0 3px rgba(212, 175, 55, 0.95),
+    0 3px 10px rgba(138, 106, 28, 0.5);
+}
+.game-layout .seat-target {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
+  padding: 0;
+}
+.game-layout .seat-target:disabled {
+  cursor: default;
+}
+/* 焦点圈内收(.seat overflow:hidden 会裁掉外扩圈) */
+.game-layout .seat-target:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: -4px;
+}
+
+/* ── 棋盘 token 候选呼吸(#256):席位是身份,棋盘是地理,双锚点(原型 .tok.target
+   虚线金环 pulse 移植;SVG 环缩放须 transform-box: fill-box)。 ── */
+.game-layout .bv-token-target-ring {
+  animation: bv-token-target-pulse 1.8s ease-in-out infinite;
+  transform-box: fill-box;
+  transform-origin: center;
+}
+@keyframes bv-token-target-pulse {
+  0%,
+  100% {
+    transform: scale(0.9);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scale(1.12);
+    opacity: 1;
+  }
+}
+
 /* ── reduced-motion:呼吸/光效类动画退场(app.css M-4 全局兜层之外的本文件显式口径,
-     同原型 @media 尾行;活动条一并静止在半程刻度)── */
+     同原型 @media 尾行;活动条一并静止在半程刻度)。#256:候选呼吸/棋盘呼吸退场为
+     直接状态变化(静态金圈/金环仍在)。 ── */
 @media (prefers-reduced-motion: reduce) {
   .game-layout .seat.active::after,
-  .game-layout .timerbar {
+  .game-layout .timerbar,
+  .game-layout .seat.candidate,
+  .game-layout .bv-token-target-ring {
     animation: none;
   }
   .game-layout .timerbar {

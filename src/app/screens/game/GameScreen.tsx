@@ -2,16 +2,22 @@
 // 右侧栏(aside)退役:StatusBar→顶部条、HandPanel→仪表条+手牌架、
 // TreasuryPanel→仪表条计数徽章(#255 接展开)、OthersPanel→席位卡、
 // CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为全局兜底,
-// 席位卡倒计时条承担「谁在行动」指名。手牌架(HandRack)一期全展形态暂留原样,
-// 军师幕弹窗暂留(后续票接手);usePanZoom/TokenLayer/FxLayer 不动。
+// 席位卡倒计时条承担「谁在行动」指名。
+// 军师窗态(#256):军师幕弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
+// 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
+// 门控,与退役前弹窗同门)接线三方:HandRack(窗态牌面/手势)、ActionBar(两段
+// 动作条)、SeatRail+TokenLayer(目标段候选呼吸)。引擎相位/choices/命令语义
+// 零改动,只换呈现层;零可用自动过口径不变(引擎侧已自动)。
+// usePanZoom/TokenLayer 其余/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
-import type { MapData } from "@core/types";
+import type { GameCommand, MapData } from "@core/types";
+import { getAudio } from "@app/fx/audio";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
@@ -20,6 +26,7 @@ import { HandRack } from "./HandRack";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { DashboardBar } from "./DashboardBar";
+import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { useCapitalPick } from "./useCapitalPick";
@@ -93,6 +100,93 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
 
+  // ── 军师窗态(#256):AwaitingJinnang 的呈现层状态机(选牌在本件,命令直发引擎)──
+  // 门与退役前的军师幕卷轴完全同款:interactive 门控=本地决策(controller 单源),
+  // choices 含 pass/cancel = 注册表确已产出军师窗选项(相位/选项集不符时不进窗态)。
+  const junshiUp =
+    interactive &&
+    snapshot.phase === "Playing" &&
+    snapshot.turnPhase === "AwaitingJinnang" &&
+    snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel");
+  // 目标段二态载荷(pendingJinnang=锦囊选人 / pendingSkill=技选人,引擎字段单源)。
+  const junshiPendingCard = junshiUp ? snapshot.pendingJinnang : null;
+  const junshiPendingSkill = junshiUp ? snapshot.pendingSkill : null;
+  const junshiTargeting = junshiPendingCard != null || junshiPendingSkill != null;
+  // 卡牌段选中(选中可逆:点它牌换选/再点同牌/右键/长按取消在 HandRack);进目标段
+  // 与退窗态即清空重选(与一期弹窗口径一致)。
+  const [junshiSelectedId, setJunshiSelectedId] = useState<string | null>(null);
+  useEffect(() => setJunshiSelectedId(null), [junshiTargeting, junshiUp]);
+  const junshiOptions =
+    junshiUp && !junshiTargeting
+      ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
+      : [];
+  const junshiSelected =
+    junshiSelectedId != null
+      ? junshiOptions.find((o) => o.id === junshiSelectedId && o.available)
+      : undefined;
+  // 目标段候选(available 过滤后供席位呼吸/棋盘呼吸与数字键同序)。
+  const junshiSeatOptions =
+    junshiTargeting
+      ? (snapshot.choices.filter((o) => o.targetSeat != null) as Array<
+          (typeof snapshot.choices)[number] & { targetSeat: number }
+        >)
+      : [];
+
+  // 与 DecisionScrollLayer.dispatch 同款可选拍点(registry 未就绪时不发;GameScreenLive
+  // 只在 controller/map 就位后挂载,正常流到不了 null)。
+  const dispatchCommand = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
+
+  // 卡牌段确认(动作钮「出牌」与 Enter 共用):选中项发命令;落印音效随一期迁移。
+  const junshiConfirm = () => {
+    if (junshiSelected == null) return;
+    getAudio().play("stamp");
+    dispatchCommand(
+      junshiSelected.skillId != null
+        ? { type: "useHeroSkill", skillId: junshiSelected.skillId }
+        : { type: "useJinnang", cardId: junshiSelected.id },
+    );
+  };
+  // 卡牌段「不出」= 今不用(牌不消耗);目标段「作罢」= 收回此计牌(不消耗、不记冷却)。
+  const junshiPass = () => {
+    if (junshiTargeting) {
+      dispatchCommand(
+        junshiPendingSkill != null
+          ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, cancel: true }
+          : { type: "useJinnang", cardId: junshiPendingCard!.cardId, cancel: true },
+      );
+    } else {
+      dispatchCommand({ type: "useJinnang", cardId: null });
+    }
+  };
+  // 目标段:点席位即出(免二次确认;席位点击层与数字键共用)。
+  const junshiSeatCmd = (targetSeat: number): GameCommand =>
+    junshiPendingSkill != null
+      ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, targets: [targetSeat] }
+      : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [targetSeat] };
+
+  // 目标段数字键 1..n 直发可用席位命令(一期 G-19 旧口径;卡牌段数字键在 HandRack)。
+  const seatKb = useRef({ up: false, seats: [] as number[], junshiSeatCmd, dispatchCommand });
+  seatKb.current = {
+    up: junshiTargeting,
+    seats: junshiSeatOptions.filter((o) => o.available).map((o) => o.targetSeat),
+    junshiSeatCmd,
+    dispatchCommand,
+  };
+  useEffect(() => {
+    if (!junshiTargeting) return;
+    const onKey = (e: KeyboardEvent) => {
+      const k = seatKb.current;
+      if (!k.up) return;
+      const n = Number(e.key);
+      if (Number.isInteger(n) && n >= 1) {
+        const hit = k.seats[n - 1];
+        if (hit != null) k.dispatchCommand(k.junshiSeatCmd(hit));
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [junshiTargeting]);
+
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
@@ -123,6 +217,16 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           selectableTiles={selectableTiles}
           /* X4(#23):候选集全座位透传——旁观席位也见静态金圈与壹贰叁序号印 */
           candidateTiles={offeredCapitals ?? undefined}
+          /* #256 目标段:可用候选席位的棋子金虚线环呼吸(与席位卡金圈同步) */
+          targetedPlayerIds={
+            junshiTargeting
+              ? new Set(
+                  junshiSeatOptions
+                    .filter((o) => o.available)
+                    .map((o) => players[o.targetSeat].id),
+                )
+              : undefined
+          }
           activeTileIndex={snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null}
           isSetupPhase={snapshot.phase === "Setup"}
           skipTokenIds={marching}
@@ -175,15 +279,58 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         onZoomOut={() => boardRef.current?.zoomBy(0.8)}
       />
       {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
-          排除的是稳定自局座位(selfSeat),非热座 viewSeat——后者随决策方轮转。 */}
-      <SeatRail snapshot={snapshot} viewSeat={selfSeat} />
+          排除的是稳定自局座位(selfSeat),非热座 viewSeat——后者随决策方轮转。
+          #256 目标段:候选席位卡金圈呼吸+点席位即出(targets 由快照 choices 派生)。 */}
+      <SeatRail
+        snapshot={snapshot}
+        viewSeat={selfSeat}
+        targets={
+          junshiTargeting
+            ? {
+                bySeat: new Map(
+                  junshiSeatOptions.map((o) => [
+                    o.targetSeat,
+                    { available: o.available, reason: o.reason },
+                  ]),
+                ),
+                onPick: (seat: number) => dispatchCommand(junshiSeatCmd(seat)),
+              }
+            : undefined
+        }
+      />
       {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
           右段手牌架槽给 HandRack 让位(弹性宽) */}
       <DashboardBar snapshot={snapshot} player={selfPlayer} controller={controller} autopilotOn={autopilotOn}>
         {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
-            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。 */}
-        <HandRack player={selfPlayer} />
+            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:军师窗态载荷随快照
+            派生(窗态下架即出牌面,常态点牌仍开详情)。 */}
+        <HandRack
+          player={selfPlayer}
+          junshi={
+            junshiUp
+              ? {
+                  options: junshiOptions,
+                  pendingCardId: junshiPendingCard?.cardId ?? null,
+                  pendingSkillId: junshiPendingSkill?.skillId ?? null,
+                  selectedId: junshiSelectedId,
+                  onSelect: setJunshiSelectedId,
+                  onConfirm: junshiConfirm,
+                }
+              : undefined
+          }
+        />
       </DashboardBar>
+      {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=选择目标/作罢;
+          选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。 */}
+      {junshiUp && (
+        <ActionBar
+          segment={junshiTargeting ? "target" : "card"}
+          playEnabled={junshiSelected != null}
+          onPlay={junshiConfirm}
+          onPass={junshiPass}
+          rightShift={!junshiTargeting && junshiSelected != null}
+        />
+      )}
       </div>
     </AudioProvider>
   );

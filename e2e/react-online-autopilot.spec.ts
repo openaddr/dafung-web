@@ -31,7 +31,7 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
     // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军。
     // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
     await p
-      .waitForSelector('[data-testid="scroll-jinnang-pass"]', { timeout: 5_000 })
+      .waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 })
       .catch(() => null);
     await dismissJinnangIfUp(p);
   }

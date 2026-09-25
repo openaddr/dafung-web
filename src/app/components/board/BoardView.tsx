@@ -55,6 +55,8 @@ export interface BoardViewProps {
   isSetupPhase?: boolean;
   /** 行军动画接管中的棋子(阶段 6):从声明式定位中剔除。 */
   skipTokenIds?: ReadonlySet<string>;
+  /** #256 目标段:候选呼吸的棋子 id 集(available 候选席位;透传 TokenLayer)。 */
+  targetedPlayerIds?: ReadonlySet<string>;
   /** 暴露棋子层 <g>(阶段 6 动画挂点)。 */
   tokenLayerRef?: React.Ref<SVGGElement>;
   className?: string;
@@ -106,6 +108,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   activeTileIndex,
   isSetupPhase = false,
   skipTokenIds,
+  targetedPlayerIds,
   tokenLayerRef,
   className,
 }, ref) {
@@ -214,6 +217,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         skipTokenIds={skipTokenIds}
         /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
         mineId={viewSeat}
+        /* #256 目标段:候选棋子金虚线环呼吸(与席位卡金圈同步) */
+        targetedIds={targetedPlayerIds}
         layerRef={tokenLayerRef}
       />
       {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。
