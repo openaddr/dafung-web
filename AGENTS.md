@@ -181,6 +181,10 @@ GitHub Issues(`openaddr/dafung-web`;gh 未认证时走 token+REST 等效通路)�
 
 覆盖率体检(刻意低频,守基线不刷数字):`bun test --coverage`,重点只看 `src/core/`;触发时机与判读口径见 `.agents/skills/coverage-audit/SKILL.md`,台账在 `docs/reference/覆盖率台账.md`。不进 CI、不设阈值。
 
+### Time review
+
+耗时回顾(用户说"耗时回顾/复盘/时间都去哪了"时触发):从 ZCode 本机记录还原真实耗时、排行找大户、对照基线账评估对策;方法与数据源见 `.agents/skills/time-review/SKILL.md` 与 `docs/agents/耗时回顾.md`,台账(基线账表)在后者末尾。只分析不落地,改动须用户拍板。
+
 ### 子代理派单纪律(2026-09-25 定,锦囊一期耗时回顾的落地)
 
 > 派单前复制 [docs/agents/派单模板.md](./docs/agents/派单模板.md) 填写;截图自证一律走 `scripts/shot.mjs`(勿再手写起服脚手架);回顾方法与数据源见 [docs/agents/耗时回顾.md](./docs/agents/耗时回顾.md)。
