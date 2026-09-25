@@ -7,7 +7,7 @@ import { openSoloSetup, quickStart, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("锦囊 T1:发牌与可见性", () => {
-  test("起手各 1 张:侧栏见自己牌面;牌库余 11;诸侯行见计数章", async ({ page }) => {
+  test("起手各 1 张:架中见自己牌面;牌库余 11;席位卡见计数章", async ({ page }) => {
     // seed 49 = 真人首动(jinnang-use 同款离线核算):首回合即人类,开局锦囊卷轴停下时
     // 恰「发牌后、任何掷骰前」,牌库 11 / 各手 1 不随对局自走漂移。
     await page.goto("/?seed=49");
@@ -40,8 +40,9 @@ test.describe("锦囊 T1:发牌与可见性", () => {
     await expect(hand).toBeVisible();
     await expect(hand.locator("[data-testid^='jinnang-card-']")).toHaveCount(1);
 
-    // bot 计数章可见(囊1),且整页不存在第二份锦囊牌面(他人内容不渲染)
-    await expect(page.getByTestId(TESTIDS.jinnangCount(1))).toBeVisible();
+    // bot 计数章可见(囊1;#253 迁移:jinnang-count 随诸侯行退役,席位卡手牌徽章 aria 即计数),
+    // 且整页不存在第二份锦囊牌面(他人内容不渲染)
+    await expect(page.getByTestId(TESTIDS.seatAttr(1, "hand"))).toHaveAttribute("aria-label", "锦囊手牌 1");
     expect(await page.locator("[data-testid^='jinnang-card-']").count()).toBe(1);
   });
 
