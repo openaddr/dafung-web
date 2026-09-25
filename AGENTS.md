@@ -51,6 +51,10 @@ TypeScript + Vite + React 的三国主题大富翁桌游。两种对局形态:**
   - 保留现实现(语义达标,动到时才评估收口):SegmentedSelect、Stepper、决策/详情卷轴族、HandPanel、TreasuryPanel、HomeScreen、LobbyScreen、GameScreen、CollapsedRail、WaitingBar
   - 器物豁免(永久):棋盘 Tile/BoardView、TokenLayer/StaticLayers、FxLayer、DiceOverlay、AudioProvider、纯展示件(OthersPanel);遗留评估:#214(3D 棋盘 a11y)
 
+### 7. 视觉/交互设计先读设计规范(2026-09-25 定)
+- **任何 UI 设计/改版/原型工作开工前,先读 `docs/design/DESIGN.md`**(视觉语言、token 单源、§4.6 状态表达原则)与 `docs/design/BRIEF.md`(红线与门槛),再动手;
+- §4.6 状态表达原则:**能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不增加文字标牌**——设计评审按此打回冗余文字。
+
 ## 完成定义(Definition of Done)
 
 改动**玩家可见机制**(新增/修改相位、数值、牌、事件、地图字段、操作流程)时,除代码与测试外,**同一 PR 内**必须:
