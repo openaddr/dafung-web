@@ -20,11 +20,23 @@ import type {
   VictoryReason,
 } from "./types";
 import type { GameMoment, MomentCtx } from "./timing";
-import { computeChoices, hasUsableJinnang, activeSkillOf, ENCOUNTER_HERO_TREASURE_COST, type ChoiceOption } from "./choices";
+import {
+  computeChoices,
+  hasUsableJinnang,
+  activeSkillOf,
+  ENCOUNTER_HERO_TREASURE_COST,
+  type ChoiceOption,
+} from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
-import { buy as buyProp, sellValueOf, settleDebt, supplyFor, upgrade as upgradeProp } from "./economy";
+import {
+  buy as buyProp,
+  sellValueOf,
+  settleDebt,
+  supplyFor,
+  upgrade as upgradeProp,
+} from "./economy";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
@@ -41,11 +53,7 @@ import {
   type EncounterEffect,
   type EncounterRuntimeConfig,
 } from "./encounters";
-import {
-  JINNANG_STARTING_HAND,
-  buildJinnangDeck,
-  jinnangCardOf,
-} from "./jinnang";
+import { JINNANG_STARTING_HAND, buildJinnangDeck, jinnangCardOf } from "./jinnang";
 import type { JinnangPeek, PendingJinnang, PendingHeroSkill, ActiveSkillDef } from "./types";
 import { formatMoney } from "./money";
 import {
@@ -211,7 +219,12 @@ export class GameEngine {
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
   // 珍宝交涉交割托管:成交后买家付清价款前,珍宝暂存于此(序列化友好纯数据;买家不可变卖托管物抵债)。
-  escrowTreasure: { treasure: TreasureDef; buyerIdx: number; sellerIdx: number; price: number } | null = null;
+  escrowTreasure: {
+    treasure: TreasureDef;
+    buyerIdx: number;
+    sellerIdx: number;
+    price: number;
+  } | null = null;
 
   activeIndex = 0; // public:供 snapshot/联机序列化(内部由 advanceToNextActive 维护,外部只读)
   draftOrder: number[] = []; // public:同上
@@ -294,12 +307,7 @@ export class GameEngine {
     };
   }
 
-  constructor(
-    board: Board,
-    cat: Catalog,
-    dice: Dice,
-    config: EngineConfig,
-  ) {
+  constructor(board: Board, cat: Catalog, dice: Dice, config: EngineConfig) {
     this.board = board;
     this.catalog = cat;
     this.dice = dice;
@@ -310,8 +318,7 @@ export class GameEngine {
     this.encounter = resolveEncounterConfig(config.encounter);
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
     this.gameId = newGameId();
-    if (config.seats.length < 2 || config.seats.length > 8)
-      throw new Error("支持 2–8 个座位。");
+    if (config.seats.length < 2 || config.seats.length > 8) throw new Error("支持 2–8 个座位。");
     this.players = config.seats.map((s, i) => ({
       id: `p${i}`,
       name: s.name,
@@ -359,10 +366,20 @@ export class GameEngine {
         // 机遇原始配置(#135):触发判定消耗骰流,重放必须复刻同一配置(缺省=null=机遇关,
         // 与历史日志兼容);重放端 replay-log 原样传回构造 config。
         encounter: config.encounter ?? null,
-        seats: config.seats.map((s, i) => ({ seat: i, guohao: s.guohao ?? "", isBot: s.isBot, colorIndex: i })),
+        seats: config.seats.map((s, i) => ({
+          seat: i,
+          guohao: s.guohao ?? "",
+          isBot: s.isBot,
+          colorIndex: i,
+        })),
       }),
     );
-    this.logEvent("system", null, "开局:群雄逐鹿", `目标身价 ${formatMoney(this.targetNetWorth)} 起手 ${formatMoney(this.startingCash)}`);
+    this.logEvent(
+      "system",
+      null,
+      "开局:群雄逐鹿",
+      `目标身价 ${formatMoney(this.targetNetWorth)} 起手 ${formatMoney(this.startingCash)}`,
+    );
   }
 
   // ──────────────────────────── 基础查询 ────────────────────────────
@@ -374,7 +391,7 @@ export class GameEngine {
    *  收口此查询,避免各驱动方(network-client / room / engine-helpers / state)各自手抄推导。 */
   get decisionOwner(): number {
     return this.turnPhase === "AwaitingTreasureOwner"
-      ? this.treasureVisitor?.ownerIdx ?? this.activeIndex
+      ? (this.treasureVisitor?.ownerIdx ?? this.activeIndex)
       : this.activeIndex;
   }
   /** 当前决策相位的选项集(ADR-0013 choice-set 注册表,snapshot.choices 透出供 UI/调试)。
@@ -392,7 +409,9 @@ export class GameEngine {
   /** 当前活跃玩家所在主路 tile 是否为辅路起点(供 UI 决定是否弹辅路抉择)。
    *  onBranch={step:-1}(入口待入)不算:已抉择过,不再重复弹。 */
   currentTileIsBranchStart(): boolean {
-    return this.activePlayer.onBranch == null && this.board.getBranchStart(this.activePlayer.position);
+    return (
+      this.activePlayer.onBranch == null && this.board.getBranchStart(this.activePlayer.position)
+    );
   }
   alivePlayers(): Player[] {
     return this.players.filter((p) => !p.isBankrupt);
@@ -424,7 +443,10 @@ export class GameEngine {
   doDraftRoll(): void {
     if (this.setupPhase !== "Guohao") return;
     // 给 guohao 为空者分配(bot 或漏填的人类)
-    const pool = shuffle(GUOHAO_POOL.filter((c) => !this.usedGuohao.has(c)), this.dice.nextFloat);
+    const pool = shuffle(
+      GUOHAO_POOL.filter((c) => !this.usedGuohao.has(c)),
+      this.dice.nextFloat,
+    );
     let pi = 0;
     for (const p of this.players) {
       if (!p.guohao) {
@@ -439,16 +461,14 @@ export class GameEngine {
     // 摇骰定序,平局重摇。d6 只有 6 面:n<=6 重摇至无平局(有上限);
     // n>6(DEV 可达 30)不可能全异 → 接受并列、按玩家序破平,确保终止、不死循环。
     const n = this.players.length;
-    const rolls = new Array(n).fill(0);
+    const rolls = Array.from({ length: n }, () => 0);
     const canBeAllDistinct = n <= 6;
     for (let attempt = 0; attempt < 50; attempt++) {
       for (let i = 0; i < n; i++) rolls[i] = this.dice.rollDie();
       if (!canBeAllDistinct || new Set(rolls).size === n) break;
     }
     this.draftRolls = rolls;
-    this.draftOrder = this.players
-      .map((_, i) => i)
-      .sort((a, b) => rolls[b] - rolls[a] || a - b);
+    this.draftOrder = this.players.map((_, i) => i).sort((a, b) => rolls[b] - rolls[a] || a - b);
     this.logEvent(
       "setup",
       null,
@@ -503,9 +523,7 @@ export class GameEngine {
       if (!def) return -Infinity;
       let value = (def.resupplyPerLevel * 8.0) / def.buildCost; // 都城价值=补给性价比(本作不收租,看 resupplyPerLevel)
       value +=
-        this.difficulty === "Simple"
-          ? this.dice.nextFloat() * 2.0
-          : this.dice.nextFloat() * 0.3;
+        this.difficulty === "Simple" ? this.dice.nextFloat() * 2.0 : this.dice.nextFloat() * 0.3;
       return value;
     };
     return [...candidates].sort((a, b) => score(b) - score(a))[0].index;
@@ -523,17 +541,18 @@ export class GameEngine {
     return this.pickCapitalInternal(playerIndex, tileIndex, true);
   }
 
-  private pickCapitalInternal(playerIndex: number, tileIndex: number, logCmd: boolean): { ok: boolean; reason?: string } {
-    if (this.setupPhase !== "PickCapital")
-      return { ok: false, reason: "非选都阶段" };
+  private pickCapitalInternal(
+    playerIndex: number,
+    tileIndex: number,
+    logCmd: boolean,
+  ): { ok: boolean; reason?: string } {
+    if (this.setupPhase !== "PickCapital") return { ok: false, reason: "非选都阶段" };
     if (this.draftOrder[this.currentDraftIndex] !== playerIndex)
       return { ok: false, reason: "未轮到该玩家" };
     const tile = this.board.at(tileIndex);
     if (!tile.isCapitalEligible) return { ok: false, reason: "该城不可作都城" };
-    if (this.takenCapitalIndices.has(tileIndex))
-      return { ok: false, reason: "该城已被选" };
-    if (!this.offeredCapitals.includes(tileIndex))
-      return { ok: false, reason: "非本轮候选城" };
+    if (this.takenCapitalIndices.has(tileIndex)) return { ok: false, reason: "该城已被选" };
+    if (!this.offeredCapitals.includes(tileIndex)) return { ok: false, reason: "非本轮候选城" };
     const def = this.catalog.get(tile.propertyId);
     if (!def) return { ok: false, reason: "无地产定义" };
     const player = this.players[playerIndex];
@@ -596,7 +615,9 @@ export class GameEngine {
       .map((t) => ({ tile: t, cost: this.catalog.get(t.propertyId)!.buildCost }))
       .sort((a, b) => a.cost - b.cost);
     const tiers: { tile: TileDef; cost: number }[][] = [[], [], []];
-    priced.forEach((x, i) => tiers[Math.min(2, Math.floor((i * 3) / Math.max(1, priced.length)))].push(x));
+    priced.forEach((x, i) =>
+      tiers[Math.min(2, Math.floor((i * 3) / Math.max(1, priced.length)))].push(x),
+    );
     const dist2 = (a: TileDef, b: TileDef): number => {
       const dx = a.position.x - b.position.x;
       const dy = a.position.y - b.position.y;
@@ -673,17 +694,13 @@ export class GameEngine {
     const drumBonus = this.heroDiceBonus; // 取走擂鼓加成(#188 档 3):发动与掷骰同回合
     this.heroDiceBonus = 0;
     const steps = roll.die + moveBonus + drumBonus;
-    const path = this.board.computePath(
-      mover.position,
-      steps,
-      mover.capitalIndex,
-      mover.onBranch,
-    );
+    const path = this.board.computePath(mover.position, steps, mover.capitalIndex, mover.onBranch);
     const fromPos = mover.position;
     this.lastMove = path;
-    const destName = path.landBranchStep != null && this.board.branch
-      ? `辅路第${path.landBranchStep + 1}格`
-      : this.board.at(path.landIndex).name;
+    const destName =
+      path.landBranchStep != null && this.board.branch
+        ? `辅路第${path.landBranchStep + 1}格`
+        : this.board.at(path.landIndex).name;
     this.logEvent(
       "roll",
       mover.guohao,
@@ -697,7 +714,11 @@ export class GameEngine {
       for (let seat = 0; seat < this.players.length; seat++) {
         const other = this.players[seat];
         if (other === mover || other.isBankrupt || other.position !== tIdx) continue;
-        this.dispatchMoment("PassedPlayer", { subject: this.activeIndex, passedSeat: seat, tileIndex: tIdx });
+        this.dispatchMoment("PassedPlayer", {
+          subject: this.activeIndex,
+          passedSeat: seat,
+          tileIndex: tIdx,
+        });
       }
     }
 
@@ -714,7 +735,11 @@ export class GameEngine {
     }
     // 经过自己的都城且落点不是都城 → 必停:放弃剩余步数停在都城,结算补给,结束回合
     // (辅路落格不会触发必停:辅路格不是都城)
-    if (path.landBranchStep == null && path.passedCapital && path.landIndex !== mover.capitalIndex) {
+    if (
+      path.landBranchStep == null &&
+      path.passedCapital &&
+      path.landIndex !== mover.capitalIndex
+    ) {
       // 路径截断到都城:行军动画只走到都城,不展示被放弃的剩余步数。
       // traversed 必含都城(passedCapital);辅路汇入后路过都城时前缀补上辅路段步数。
       const capIdxInTraversed = path.traversed.indexOf(mover.capitalIndex);
@@ -730,9 +755,16 @@ export class GameEngine {
       );
       mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
       mover.position = mover.capitalIndex;
-      if (wasOnBranch) this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
+      if (wasOnBranch)
+        this.dispatchMoment("BranchExited", {
+          subject: this.activeIndex,
+          tileIndex: mover.position,
+        }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
       this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
-      this.dispatchMoment("CapitalHalt", { subject: this.activeIndex, tileIndex: mover.capitalIndex }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
+      this.dispatchMoment("CapitalHalt", {
+        subject: this.activeIndex,
+        tileIndex: mover.capitalIndex,
+      }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
       const supply = this.applyResupply(mover, "halt");
       this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
       this.turnPhase = "Land";
@@ -751,7 +783,8 @@ export class GameEngine {
     // 主路落点(含从辅路汇入:endNode 及之后)
     mover.onBranch = null; // 已在主路(清掉原 onBranch)
     mover.position = path.landIndex;
-    if (wasOnBranch) this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
+    if (wasOnBranch)
+      this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
     this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
     // 落在辅路起点(且未在辅路)→ 弹入口抉择
     if (this.board.getBranchStart(path.landIndex)) {
@@ -772,7 +805,8 @@ export class GameEngine {
     // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
     // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
     const enc = this.maybeApplyEncounter(mover, path.landIndex);
-    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted") return;
+    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
+      return;
     this.resolveLanding();
   }
 
@@ -876,7 +910,12 @@ export class GameEngine {
 
   endDecision(): void {
     if (!this.assertPhase("AwaitingDecision", "EndDecision")) return;
-    this.logEvent("system", this.activePlayer.guohao, `${this.activePlayer.guohao} 按兵不动`, `skip player=${this.activePlayer.id}`);
+    this.logEvent(
+      "system",
+      this.activePlayer.guohao,
+      `${this.activePlayer.guohao} 按兵不动`,
+      `skip player=${this.activePlayer.id}`,
+    );
     this.endTurn();
   }
 
@@ -923,7 +962,13 @@ export class GameEngine {
       this.addReputation(this.players.indexOf(mover), 20);
       this.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
       this.lastLandOutcome = { kind: "Noop" };
-      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`, `fate player=${mover.id} reputation=${mover.reputation}`, 0);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`,
+        `fate player=${mover.id} reputation=${mover.reputation}`,
+        0,
+      );
       this.endTurn();
       return;
     }
@@ -933,7 +978,12 @@ export class GameEngine {
       this.lastLandOutcome = { kind: "Noop" };
       this.turnPhase = "Land";
       this.pushFloaterText(mover, `${tile.name}:抽一张锦囊`, tile.index);
-      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}:抽一张锦囊`, `jinnangTile player=${mover.id} tile=#${tile.index}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
+        `jinnangTile player=${mover.id} tile=#${tile.index}`,
+      );
       this.drawJinnang(this.players.indexOf(mover), 1);
       this.endTurn();
       return;
@@ -946,7 +996,13 @@ export class GameEngine {
       this.pushFloater(mover, -200, tile.index, "expense");
       this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
       this.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
-      this.logEvent("tax", mover.guohao, `${mover.guohao} 落 ${tile.name} 缴税 ${formatMoney(200)}${bankrupt ? " → 破产" : ""}`, `tax player=${mover.id} tile=#${tile.index} cash=${mover.cash}`, -200);
+      this.logEvent(
+        "tax",
+        mover.guohao,
+        `${mover.guohao} 落 ${tile.name} 缴税 ${formatMoney(200)}${bankrupt ? " → 破产" : ""}`,
+        `tax player=${mover.id} tile=#${tile.index} cash=${mover.cash}`,
+        -200,
+      );
       this.endTurn();
       return;
     }
@@ -963,9 +1019,16 @@ export class GameEngine {
         bankrupt = r === "bankrupt";
       }
       this.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
-      if (!gain) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
+      if (!gain)
+        this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
       this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
-      this.logEvent("system", mover.guohao, `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`, `stock player=${mover.id} delta=${delta} cash=${mover.cash}`, delta);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`,
+        `stock player=${mover.id} delta=${delta} cash=${mover.cash}`,
+        delta,
+      );
       this.endTurn();
       return;
     }
@@ -988,7 +1051,12 @@ export class GameEngine {
       this.pendingLand = { kind: "PropertyAvailable", propertyId: def.id };
       this.lastLandOutcome = { kind: "PropertyAvailable", property: def };
       if (this.enterDecisionPhase()) {
-        this.logEvent("buy", mover.guohao, `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`, `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`);
+        this.logEvent(
+          "buy",
+          mover.guohao,
+          `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`,
+          `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`,
+        );
       }
       return;
     }
@@ -997,7 +1065,12 @@ export class GameEngine {
       this.pendingLand = { kind: "OwnProperty", propertyId: def.id };
       this.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
       if (this.enterDecisionPhase()) {
-        this.logEvent("upgrade", mover.guohao, `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`, `own player=${mover.id} prop=${def.id}`);
+        this.logEvent(
+          "upgrade",
+          mover.guohao,
+          `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`,
+          `own player=${mover.id} prop=${def.id}`,
+        );
       }
       return;
     }
@@ -1023,7 +1096,12 @@ export class GameEngine {
     } else {
       // 城主无珍宝:无事发生
       this.lastLandOutcome = { kind: "Noop" };
-      this.logEvent("system", mover.guohao, `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`, `noTreasure owner=${owner.id} visitor=${mover.id}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`,
+        `noTreasure owner=${owner.id} visitor=${mover.id}`,
+      );
       this.endTurn();
     }
   }
@@ -1194,8 +1272,7 @@ export class GameEngine {
     const reached = alive
       .filter((p) => netWorth(p) >= this.targetNetWorth)
       .sort((a, b) => netWorth(b) - netWorth(a));
-    if (reached.length > 0)
-      return { winner: reached[0], reason: "TargetNetWorth" };
+    if (reached.length > 0) return { winner: reached[0], reason: "TargetNetWorth" };
     return { winner: null, reason: "None" };
   }
 
@@ -1221,7 +1298,12 @@ export class GameEngine {
     this.lastLandOutcome = { kind: "Noop" };
     this.turnPhase = "Land";
     if (this.treasureDeck.length === 0) {
-      this.logEvent("system", mover.guohao, `${mover.guohao} 至「${sourceName}」,珍宝已被搜刮一空`, `treasureEmpty player=${mover.id}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 至「${sourceName}」,珍宝已被搜刮一空`,
+        `treasureEmpty player=${mover.id}`,
+      );
       this.endTurn();
       return;
     }
@@ -1237,12 +1319,26 @@ export class GameEngine {
       // 成功:获得珍宝
       mover.treasures.push(treasure);
       this.pushFloater(mover, guidePrice, atTile, "income");
-      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`, `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`, guidePrice);
-      this.dispatchMoment("TreasureGained", { subject: this.players.indexOf(mover), treasureId: treasure.id }); // 时机·TreasureGained:拼点得宝(两挂点之一,另一处在 escrow 交割)
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`,
+        `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
+        guidePrice,
+      );
+      this.dispatchMoment("TreasureGained", {
+        subject: this.players.indexOf(mover),
+        treasureId: treasure.id,
+      }); // 时机·TreasureGained:拼点得宝(两挂点之一,另一处在 escrow 交割)
     } else {
       // 失败:珍宝放回牌堆底
       this.treasureDeck.push(treasure);
-      this.logEvent("system", mover.guohao, `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} < ${treasure.level},失之交臂`, `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} < ${treasure.level},失之交臂`,
+        `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
+      );
     }
     this.endTurn();
   }
@@ -1267,8 +1363,16 @@ export class GameEngine {
       bankrupt = r === "bankrupt";
     }
     this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
-    if (ev.cashDelta < 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: -ev.cashDelta }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
-    if (ev.cashDelta > 0) this.dispatchMoment("CashGained", { subject: this.players.indexOf(mover), amount: ev.cashDelta }); // 时机·CashGained:被动得银(随机事件得款)
+    if (ev.cashDelta < 0)
+      this.dispatchMoment("CashLost", {
+        subject: this.players.indexOf(mover),
+        amount: -ev.cashDelta,
+      }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
+    if (ev.cashDelta > 0)
+      this.dispatchMoment("CashGained", {
+        subject: this.players.indexOf(mover),
+        amount: ev.cashDelta,
+      }); // 时机·CashGained:被动得银(随机事件得款)
     if (ev.jinnangDraw) {
       // 军师来投(#147):事件额外献锦囊一张
       this.pushFloaterText(mover, "军师来投,献计一封", atTile);
@@ -1313,7 +1417,12 @@ export class GameEngine {
    *  公道买卖且成交 → 城池 +1 级(他人到达城池本身不升级,升级只挂在公道买卖上)。
    *  两种交易都是 visitor → owner 玩家间付银(无银行注入);成交后珍宝先进交割托管区(escrowTreasure),
    *  买家付清价款才交货——托管中的珍宝不可被买家变卖抵债(防"得宝后变卖抵债"白嫖套利),买家破产则退回卖家。 */
-  resolveTreasureOwner(action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" }): void {
+  resolveTreasureOwner(
+    action:
+      | { type: "fair"; treasureId: string }
+      | { type: "premium"; treasureId: string }
+      | { type: "skip" },
+  ): void {
     if (!this.assertPhase("AwaitingTreasureOwner", "ResolveTreasureOwner")) return;
     const tv = this.treasureVisitor!;
     const owner = this.players[tv.ownerIdx];
@@ -1321,22 +1430,28 @@ export class GameEngine {
     const def = tv.def;
 
     if (action.type === "skip") {
-      this.logEvent("system", owner.guohao, `${owner.guohao} 不交易`, `treasureSkip owner=${owner.id}`);
+      this.logEvent(
+        "system",
+        owner.guohao,
+        `${owner.guohao} 不交易`,
+        `treasureSkip owner=${owner.id}`,
+      );
       this.treasureVisitor = null;
       this.endTurn();
       return;
     }
 
     const tIdx = owner.treasures.findIndex((t) => t.id === action.treasureId);
-    if (tIdx < 0) { this.warn(`珍宝 ${action.treasureId} 不在手中`); return; }
+    if (tIdx < 0) {
+      this.warn(`珍宝 ${action.treasureId} 不在手中`);
+      return;
+    }
     const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
     const holding = findHolding(owner, def.id);
     const cityLevel = holding?.level ?? 0;
 
     // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
-    const price = action.type === "fair"
-      ? guidePrice
-      : premiumPriceOf(guidePrice, def, cityLevel);
+    const price = action.type === "fair" ? guidePrice : premiumPriceOf(guidePrice, def, cityLevel);
 
     const treasure = owner.treasures.splice(tIdx, 1)[0];
 
@@ -1378,10 +1493,23 @@ export class GameEngine {
     else this.deliverEscrow(); // 付款到账:交货
     this.pushFloater(mover, -price, mover.position, "expense");
     this.pushFloater(owner, price, mover.position, "income");
-    if (price > 0) this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
-    this.lastLandOutcome = { kind: "TreasureTrade", property: def, owner, amount: price, causedBankruptcy: bankrupt };
+    if (price > 0)
+      this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
+    this.lastLandOutcome = {
+      kind: "TreasureTrade",
+      property: def,
+      owner,
+      amount: price,
+      causedBankruptcy: bankrupt,
+    };
     const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
-    this.logEvent("trade", owner.guohao, `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`, `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`, -price);
+    this.logEvent(
+      "trade",
+      owner.guohao,
+      `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`,
+      `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
+      -price,
+    );
     this.treasureVisitor = null;
     this.endTurn();
   }
@@ -1404,8 +1532,17 @@ export class GameEngine {
       `escrowDeliver buyer=${buyer.id} seller=${seller.id} treasure=${e.treasure.id} price=${e.price}`,
     );
     this.dispatchMoment("TreasureGained", { subject: e.buyerIdx, treasureId: e.treasure.id }); // 时机·TreasureGained:escrow 交割买家得宝
-    this.dispatchMoment("TreasureSold", { subject: e.sellerIdx, treasureId: e.treasure.id, amount: e.price }); // 时机·TreasureSold:交涉成交(卖家视角)
-    this.dispatchMoment("TradeSettled", { subject: e.sellerIdx, buyerSeat: e.buyerIdx, sellerSeat: e.sellerIdx, amount: e.price }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
+    this.dispatchMoment("TreasureSold", {
+      subject: e.sellerIdx,
+      treasureId: e.treasure.id,
+      amount: e.price,
+    }); // 时机·TreasureSold:交涉成交(卖家视角)
+    this.dispatchMoment("TradeSettled", {
+      subject: e.sellerIdx,
+      buyerSeat: e.buyerIdx,
+      sellerSeat: e.sellerIdx,
+      amount: e.price,
+    }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
     if (e.price > 0) this.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
   }
 
@@ -1435,7 +1572,11 @@ export class GameEngine {
   }
 
   /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。 */
-  private payOrLiquidate(mover: Player, creditor: Player | null, amount: number): "ok" | "liquidating" | "bankrupt" {
+  private payOrLiquidate(
+    mover: Player,
+    creditor: Player | null,
+    amount: number,
+  ): "ok" | "liquidating" | "bankrupt" {
     if (mover.cash >= amount) {
       mover.cash -= amount;
       if (creditor) creditor.cash += amount;
@@ -1444,7 +1585,12 @@ export class GameEngine {
     if (this.hasMarketableAssets(mover)) {
       this.pendingDebt = { amount, creditor };
       this.turnPhase = "AwaitingBankruptcySettle";
-      this.logEvent("system", mover.guohao, `${mover.guohao} 现金不足,变卖资产自救(欠 ${formatMoney(amount - mover.cash)})`, `awaitingBankruptcy player=${mover.id} debt=${amount} cash=${mover.cash}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 现金不足,变卖资产自救(欠 ${formatMoney(amount - mover.cash)})`,
+        `awaitingBankruptcy player=${mover.id} debt=${amount} cash=${mover.cash}`,
+      );
       return "liquidating";
     }
     this.settleDebtTraced(mover, creditor, amount);
@@ -1515,13 +1661,26 @@ export class GameEngine {
     if (!this.assertStillOwing("SellTreasureBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.treasures.findIndex((t) => t.id === treasureId);
-    if (idx < 0) { this.warn(`珍宝 ${treasureId} 不在手中`); return; }
+    if (idx < 0) {
+      this.warn(`珍宝 ${treasureId} 不在手中`);
+      return;
+    }
     const t = p.treasures.splice(idx, 1)[0];
     const gain = guidePriceOf(t.level);
     p.cash += gain;
     this.pushFloater(p, gain, p.position, "income");
-    this.logEvent("system", p.guohao, `${p.guohao} 变卖「${t.name}」得 ${formatMoney(gain)}`, `bkSellTreasure player=${p.id} treasure=${t.id} +${gain}`, gain);
-    this.dispatchMoment("TreasureSold", { subject: this.activeIndex, treasureId: t.id, amount: gain }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
+    this.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} 变卖「${t.name}」得 ${formatMoney(gain)}`,
+      `bkSellTreasure player=${p.id} treasure=${t.id} +${gain}`,
+      gain,
+    );
+    this.dispatchMoment("TreasureSold", {
+      subject: this.activeIndex,
+      treasureId: t.id,
+      amount: gain,
+    }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
     this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖珍宝成功(三变卖命令之一)
   }
 
@@ -1529,9 +1688,15 @@ export class GameEngine {
     if (!this.assertPhase("AwaitingBankruptcySettle", "SellPropertyBankruptcy")) return;
     if (!this.assertStillOwing("SellPropertyBankruptcy")) return;
     const p = this.activePlayer;
-    if (propId === this.board.at(p.capitalIndex)?.propertyId) { this.warn("都城不可变卖"); return; }
+    if (propId === this.board.at(p.capitalIndex)?.propertyId) {
+      this.warn("都城不可变卖");
+      return;
+    }
     const idx = p.properties.findIndex((h) => h.propertyId === propId);
-    if (idx < 0) { this.warn(`城 ${propId} 不在手中`); return; }
+    if (idx < 0) {
+      this.warn(`城 ${propId} 不在手中`);
+      return;
+    }
     const h = p.properties.splice(idx, 1)[0];
     // 变卖价 = 该等级的城池价值(地图 json valueByLevel 显式定义),非购入价
     const gain = sellValueOf(this.catalog.get(propId)!, h.level);
@@ -1545,7 +1710,13 @@ export class GameEngine {
       ownerChanged: true,
     });
     this.pushFloater(p, gain, p.position, "income");
-    this.logEvent("system", p.guohao, `${p.guohao} 变卖城池得 ${formatMoney(gain)}`, `bkSellProp player=${p.id} prop=${propId} +${gain}`, gain);
+    this.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} 变卖城池得 ${formatMoney(gain)}`,
+      `bkSellProp player=${p.id} prop=${propId} +${gain}`,
+      gain,
+    );
     this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
   }
 
@@ -1554,12 +1725,21 @@ export class GameEngine {
     if (!this.assertStillOwing("CashHeroBankruptcy")) return;
     const p = this.activePlayer;
     const idx = p.heroes.findIndex((h) => h.id === heroId);
-    if (idx < 0) { this.warn(`名将 ${heroId} 不在手中`); return; }
+    if (idx < 0) {
+      this.warn(`名将 ${heroId} 不在手中`);
+      return;
+    }
     const h = p.heroes.splice(idx, 1)[0];
     this.recruitedHeroIds.delete(heroId);
     p.cash += 200; // 名将换银(2两)
     this.pushFloater(p, 200, p.position, "income");
-    this.logEvent("system", p.guohao, `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`, `bkCashHero player=${p.id} hero=${heroId} +200`, 200);
+    this.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`,
+      `bkCashHero player=${p.id} hero=${heroId} +200`,
+      200,
+    );
     this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名将成功(三变卖命令之一)
   }
 
@@ -1573,12 +1753,22 @@ export class GameEngine {
       p.cash -= debt.amount;
       if (debt.creditor) debt.creditor.cash += debt.amount;
       this.deliverEscrow(); // 清算自救成功:托管珍宝交货给买家
-      this.logEvent("system", p.guohao, `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`, `bkConfirm player=${p.id} paid=${debt.amount}`);
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`,
+        `bkConfirm player=${p.id} paid=${debt.amount}`,
+      );
     } else {
       this.settleDebtTraced(p, debt.creditor, debt.amount);
       this.finalizeBankruptcy(p);
       this.returnEscrowToSeller(); // 破产:未付款的托管珍宝退回卖家
-      this.logEvent("system", p.guohao, `${p.guohao} 变卖殆尽仍不足,破产出局`, `bkBankrupt player=${p.id} debt=${debt.amount}`);
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 变卖殆尽仍不足,破产出局`,
+        `bkBankrupt player=${p.id} debt=${debt.amount}`,
+      );
     }
     this.turnPhase = "Land";
     this.endTurn();
@@ -1593,24 +1783,43 @@ export class GameEngine {
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
     // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
     const issuer = this.players[this.decisionOwner];
-    this.logEvent("cmd", issuer.guohao, `${issuer.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`, JSON.stringify(cmd));
+    this.logEvent(
+      "cmd",
+      issuer.guohao,
+      `${issuer.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`,
+      JSON.stringify(cmd),
+    );
     switch (cmd.type) {
-      case "rollAndMove": return this.rollAndMove();
-      case "selectBranch": return this.selectBranch(cmd.kind);
-      case "buyProperty": return this.buyProperty();
-      case "upgradeProperty": return this.upgradeProperty();
-      case "endDecision": return this.endDecision();
-      case "resolveHeroPick": return this.resolveHeroPick(cmd.index);
-      case "resolveEncounterChoice": return this.resolveEncounterChoice(cmd.index);
-      case "resolveExhaustionChoice": return this.resolveExhaustionChoice(cmd.index);
+      case "rollAndMove":
+        return this.rollAndMove();
+      case "selectBranch":
+        return this.selectBranch(cmd.kind);
+      case "buyProperty":
+        return this.buyProperty();
+      case "upgradeProperty":
+        return this.upgradeProperty();
+      case "endDecision":
+        return this.endDecision();
+      case "resolveHeroPick":
+        return this.resolveHeroPick(cmd.index);
+      case "resolveEncounterChoice":
+        return this.resolveEncounterChoice(cmd.index);
+      case "resolveExhaustionChoice":
+        return this.resolveExhaustionChoice(cmd.index);
       case "resolveTreasureOwner":
         return this.resolveTreasureOwner(cmd.action);
-      case "sellTreasureBankruptcy": return this.sellTreasureBankruptcy(cmd.treasureId);
-      case "sellPropertyBankruptcy": return this.sellPropertyBankruptcy(cmd.propId);
-      case "cashHeroBankruptcy": return this.cashHeroBankruptcy(cmd.heroId);
-      case "confirmBankruptcySettle": return this.confirmBankruptcySettle();
-      case "useJinnang": return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
-      case "useHeroSkill": return this.resolveHeroSkill(cmd.skillId, cmd.targets, cmd.cancel);
+      case "sellTreasureBankruptcy":
+        return this.sellTreasureBankruptcy(cmd.treasureId);
+      case "sellPropertyBankruptcy":
+        return this.sellPropertyBankruptcy(cmd.propId);
+      case "cashHeroBankruptcy":
+        return this.cashHeroBankruptcy(cmd.heroId);
+      case "confirmBankruptcySettle":
+        return this.confirmBankruptcySettle();
+      case "useJinnang":
+        return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
+      case "useHeroSkill":
+        return this.resolveHeroSkill(cmd.skillId, cmd.targets, cmd.cancel);
     }
   }
 
@@ -1667,7 +1876,9 @@ export class GameEngine {
             if (!this.skillReady(owner, skill)) continue;
             const effectFn = EFFECTS[skill.effect];
             if (effectFn == null)
-              throw new Error(`未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`);
+              throw new Error(
+                `未知效果 EffectId "${skill.effect}"(技能 ${skill.id}):注册表查不到=数据 bug`,
+              );
             const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
             owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
@@ -1694,10 +1905,14 @@ export class GameEngine {
    *  缺省 = "self"。 */
   private scopePasses(scope: TriggerSkill["scope"], subject: number, ownerSeat: number): boolean {
     switch (scope ?? "self") {
-      case "self": return ownerSeat === subject;
-      case "others": return ownerSeat !== subject;
-      case "actor": return subject === this.activeIndex;
-      case "any": return true;
+      case "self":
+        return ownerSeat === subject;
+      case "others":
+        return ownerSeat !== subject;
+      case "actor":
+        return subject === this.activeIndex;
+      case "any":
+        return true;
     }
   }
 
@@ -1710,9 +1925,15 @@ export class GameEngine {
 
   /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */
   private tryRecruitHero(mover: Player): void {
-    if (mover.heroes.length >= HERO_CAPACITY) { this.endTurn(); return; }
+    if (mover.heroes.length >= HERO_CAPACITY) {
+      this.endTurn();
+      return;
+    }
     const available = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
-    if (available.length === 0) { this.endTurn(); return; }
+    if (available.length === 0) {
+      this.endTurn();
+      return;
+    }
     this.offeredHeroes = shuffle(available, this.dice.nextFloat).slice(0, 3);
     this.turnPhase = "AwaitingHeroPick";
     this.logEvent(
@@ -1785,7 +2006,16 @@ export class GameEngine {
     detail: string,
     amount?: number,
   ): void {
-    this.log.push({ ts: Date.now(), round: this.round, turn: this.turnNumber, player, brief, detail, category, amount });
+    this.log.push({
+      ts: Date.now(),
+      round: this.round,
+      turn: this.turnNumber,
+      player,
+      brief,
+      detail,
+      category,
+      amount,
+    });
   }
   private assertPhase(expected: TurnPhase, label: string): boolean {
     if (this.turnPhase !== expected) {
@@ -1817,7 +2047,12 @@ export class GameEngine {
       if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
         p.repMilestones.push(m);
         this.pushFloaterText(p, `民心所向(声望 ${m}),名将献计`, p.position);
-        this.logEvent("system", p.guohao, `${p.guohao} 声望达 ${m},名将献计一封`, `repMilestone player=${p.id} milestone=${m}`);
+        this.logEvent(
+          "system",
+          p.guohao,
+          `${p.guohao} 声望达 ${m},名将献计一封`,
+          `repMilestone player=${p.id} milestone=${m}`,
+        );
         this.drawJinnang(seat, 1);
       }
     }
@@ -1884,7 +2119,12 @@ export class GameEngine {
     if (pending) {
       const def = jinnangCardOf(pending.cardId);
       if (cancel || cardId == null) {
-        this.logEvent("system", p.guohao, `${p.guohao} 作罢【${def.id}】`, `jinnangCancel player=${p.id} card=${def.id}`);
+        this.logEvent(
+          "system",
+          p.guohao,
+          `${p.guohao} 作罢【${def.id}】`,
+          `jinnangCancel player=${p.id} card=${def.id}`,
+        );
         this.pendingJinnang = null;
         this.settleJinnangExit(); // 牌未消耗,回卡牌段或收卷
         return;
@@ -1894,7 +2134,9 @@ export class GameEngine {
         return;
       }
       const [target] = targets;
-      if (!computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
+      if (
+        !computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
+      ) {
         this.warn(`目标不可用:座位 ${target}`);
         return;
       }
@@ -1953,7 +2195,11 @@ export class GameEngine {
   }
 
   /** 手牌段扣账(#122/T3):出牌=离手入弃堆+占标签名额(执行时点;作罢不占)。 */
-  private consumeJinnangCard(p: Player, cardId: string, def: ReturnType<typeof jinnangCardOf>): void {
+  private consumeJinnangCard(
+    p: Player,
+    cardId: string,
+    def: ReturnType<typeof jinnangCardOf>,
+  ): void {
     p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
     p.jinnangHandCount = p.jinnangHand.length;
     this.jinnangDiscard.push(cardId);
@@ -1992,7 +2238,9 @@ export class GameEngine {
         return;
       }
       const [target] = targets;
-      if (!computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
+      if (
+        !computeChoices(this, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
+      ) {
         this.warn(`目标不可用:座位 ${target}`);
         return;
       }
@@ -2027,7 +2275,12 @@ export class GameEngine {
     const skill = this.pendingSkill ? activeSkillOf(p, this.pendingSkill.skillId) : null;
     this.pendingSkill = null;
     if (skill) {
-      this.logEvent("system", p.guohao, `${p.guohao} 作罢【${skill.name}】`, `heroSkillCancel player=${p.id} skill=${skill.id}`);
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 作罢【${skill.name}】`,
+        `heroSkillCancel player=${p.id} skill=${skill.id}`,
+      );
     }
     this.settleJinnangExit();
   }
@@ -2047,7 +2300,12 @@ export class GameEngine {
     switch (skill.kind) {
       case "demolish":
         // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)
-        this.demolishOnVictim(user, this.players[targets[0]], `主动技【${skill.name}】`, `heroSkill owner=${user.id} skill=${skill.id}`);
+        this.demolishOnVictim(
+          user,
+          this.players[targets[0]],
+          `主动技【${skill.name}】`,
+          `heroSkill owner=${user.id} skill=${skill.id}`,
+        );
         break;
       case "relief": {
         const cost = skill.params?.cost;
@@ -2115,16 +2373,36 @@ export class GameEngine {
 
   /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
    *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。 */
-  private executeJinnang(user: Player, userSeat: number, def: ReturnType<typeof jinnangCardOf>, targets: number[]): void {
+  private executeJinnang(
+    user: Player,
+    userSeat: number,
+    def: ReturnType<typeof jinnangCardOf>,
+    targets: number[],
+  ): void {
     this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
     switch (def.effect.kind) {
       case "jinnangShield":
         user.jinnangShield = true;
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`, `jinnangUse player=${user.id} card=${def.id} shield=1`);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`,
+          `jinnangUse player=${user.id} card=${def.id} shield=1`,
+        );
         break;
       case "grantHero":
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【求贤令】`, `jinnangUse player=${user.id} card=${def.id}`);
-        this.grantHeroToPlayer(user, def.effect.fallbackCash, "锦囊【求贤令】张榜", `jinnang=${def.id}`);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【求贤令】`,
+          `jinnangUse player=${user.id} card=${def.id}`,
+        );
+        this.grantHeroToPlayer(
+          user,
+          def.effect.fallbackCash,
+          "锦囊【求贤令】张榜",
+          `jinnang=${def.id}`,
+        );
         break;
       case "levyAll": {
         // 横征暴敛:全体其他玩家各付 amount(上限=现金,不清算);免战庇护者跳过
@@ -2135,21 +2413,36 @@ export class GameEngine {
         for (const t of this.players) {
           const seat = this.players.indexOf(t);
           if (seat === userSeat || t.isBankrupt) continue;
-          if (t.jinnangShield) { shielded++; continue; }
+          if (t.jinnangShield) {
+            shielded++;
+            continue;
+          }
           const pay = Math.min(amount, t.cash);
           t.cash -= pay;
           gained += pay;
           payers++;
           this.pushFloater(t, -pay, t.position, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: pay });
-          this.logEvent("system", t.guohao, `${t.guohao} 被【横征暴敛】征去 ${formatMoney(pay)}`, `jinnangLevy payer=${t.id} amount=${pay} cash=${t.cash}`, -pay);
+          this.logEvent(
+            "system",
+            t.guohao,
+            `${t.guohao} 被【横征暴敛】征去 ${formatMoney(pay)}`,
+            `jinnangLevy payer=${t.id} amount=${pay} cash=${t.cash}`,
+            -pay,
+          );
         }
         user.cash += gained;
         if (gained > 0) {
           this.pushFloater(user, gained, user.position, "income");
           this.dispatchMoment("CashGained", { subject: userSeat, amount: gained });
         }
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【横征暴敛】:${payers} 家缴纳 ${formatMoney(gained)}${shielded ? `,${shielded} 家免战庇护` : ""}`, `jinnangUse player=${user.id} card=${def.id} gained=${gained} payers=${payers} shielded=${shielded}`, gained);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【横征暴敛】:${payers} 家缴纳 ${formatMoney(gained)}${shielded ? `,${shielded} 家免战庇护` : ""}`,
+          `jinnangUse player=${user.id} card=${def.id} gained=${gained} payers=${payers} shielded=${shielded}`,
+          gained,
+        );
         break;
       }
       case "stealTreasure": {
@@ -2158,19 +2451,34 @@ export class GameEngine {
         const treasure = victim.treasures.splice(idx, 1)[0];
         user.treasures.push(treasure);
         this.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【窃玉偷香】:窃得 ${victim.guohao} 的「${treasure.name}」(Lv.${treasure.level})`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} treasure=${treasure.id}`);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【窃玉偷香】:窃得 ${victim.guohao} 的「${treasure.name}」(Lv.${treasure.level})`,
+          `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} treasure=${treasure.id}`,
+        );
         break;
       }
       case "demolish": {
         const victim = this.players[targets[0]];
-        this.demolishOnVictim(user, victim, `使用锦囊【${def.id}】`, `jinnangUse player=${user.id} card=${def.id}`);
+        this.demolishOnVictim(
+          user,
+          victim,
+          `使用锦囊【${def.id}】`,
+          `jinnangUse player=${user.id} card=${def.id}`,
+        );
         break;
       }
       case "skipTurn": {
         const victim = this.players[targets[0]];
         victim.skipTurns += 1;
         this.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【缓兵之计】:${victim.guohao} 下回合被拖住`, `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} skip=1`);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【缓兵之计】:${victim.guohao} 下回合被拖住`,
+          `jinnangUse player=${user.id} card=${def.id} victim=${victim.id} skip=1`,
+        );
         break;
       }
       case "duel": {
@@ -2182,10 +2490,20 @@ export class GameEngine {
         const rollA = this.dice.rollDie();
         const rollB = this.dice.rollDie();
         const { winnerBankGain, loserPaysUser } = def.effect; // case 已收窄为 duel 变体
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${rollA} 点,${b.guohao} 掷 ${rollB} 点`, `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${rollA} b=${bSeat}:${rollB}`);
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${rollA} 点,${b.guohao} 掷 ${rollB} 点`,
+          `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${rollA} b=${bSeat}:${rollB}`,
+        );
         if (rollA === rollB) {
           this.pushFloaterText(user, `二虎相持(各 ${rollA} 点),此计作废`, user.position);
-          this.logEvent("system", null, `二虎相持(各 ${rollA} 点),连环计作废`, `jinnangDuel tie roll=${rollA}`);
+          this.logEvent(
+            "system",
+            null,
+            `二虎相持(各 ${rollA} 点),连环计作废`,
+            `jinnangDuel tie roll=${rollA}`,
+          );
           break;
         }
         const winnerSeat = rollA > rollB ? aSeat : bSeat;
@@ -2194,7 +2512,13 @@ export class GameEngine {
         const loser = this.players[loserSeat];
         winner.cash += winnerBankGain; // 国库出
         this.pushFloater(winner, winnerBankGain, winner.position, "income");
-        this.logEvent("system", winner.guohao, `二虎相争:胜者 ${winner.guohao} 得 ${formatMoney(winnerBankGain)}(掷 ${Math.max(rollA, rollB)} 点)`, `jinnangDuel winner=${winner.id} gain=${winnerBankGain}`, winnerBankGain);
+        this.logEvent(
+          "system",
+          winner.guohao,
+          `二虎相争:胜者 ${winner.guohao} 得 ${formatMoney(winnerBankGain)}(掷 ${Math.max(rollA, rollB)} 点)`,
+          `jinnangDuel winner=${winner.id} gain=${winnerBankGain}`,
+          winnerBankGain,
+        );
         const pay = Math.min(loserPaysUser, loser.cash);
         if (pay > 0) {
           loser.cash -= pay;
@@ -2203,14 +2527,29 @@ export class GameEngine {
           this.dispatchMoment("CashLost", { subject: loserSeat, amount: pay });
           this.dispatchMoment("CashGained", { subject: userSeat, amount: pay });
         }
-        this.logEvent("system", loser.guohao, `二虎相争:败者 ${loser.guohao} 向 ${user.guohao} 赔 ${formatMoney(pay)}(掷 ${Math.min(rollA, rollB)} 点)`, `jinnangDuel loser=${loser.id} pay=${pay} cash=${loser.cash}`, -pay);
+        this.logEvent(
+          "system",
+          loser.guohao,
+          `二虎相争:败者 ${loser.guohao} 向 ${user.guohao} 赔 ${formatMoney(pay)}(掷 ${Math.min(rollA, rollB)} 点)`,
+          `jinnangDuel loser=${loser.id} pay=${pay} cash=${loser.cash}`,
+          -pay,
+        );
         break;
       }
       case "peek": {
         const target = targets[0];
         this.jinnangPeeks.push({ viewer: userSeat, target });
-        this.pushFloaterText(user, `细作已入 ${this.players[target].guohao} 营中(至你下回合)`, user.position);
-        this.logEvent("system", user.guohao, `${user.guohao} 使用锦囊【军情密探】:窥探 ${this.players[target].guohao} 的锦囊(至下回合)`, `jinnangUse player=${user.id} card=${def.id} peek viewer=${userSeat} target=${target}`);
+        this.pushFloaterText(
+          user,
+          `细作已入 ${this.players[target].guohao} 营中(至你下回合)`,
+          user.position,
+        );
+        this.logEvent(
+          "system",
+          user.guohao,
+          `${user.guohao} 使用锦囊【军情密探】:窥探 ${this.players[target].guohao} 的锦囊(至下回合)`,
+          `jinnangUse player=${user.id} card=${def.id} peek viewer=${userSeat} target=${target}`,
+        );
         break;
       }
       default: {
@@ -2228,14 +2567,30 @@ export class GameEngine {
    *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
    *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」/「主动技【火攻】」);
    *  auditPrefix=机读 detail 前缀(各自保留原键名)。 */
-  private demolishOnVictim(user: Player, victim: Player, sourceLabel: string, auditPrefix: string): void {
+  private demolishOnVictim(
+    user: Player,
+    victim: Player,
+    sourceLabel: string,
+    auditPrefix: string,
+  ): void {
     const upgradable = victim.properties.filter((h) => h.level > 0);
     const tileIndexOf = (pid: string) => this.board.tiles.findIndex((t) => t.propertyId === pid);
     if (upgradable.length > 0) {
       const h = upgradable[Math.floor(this.dice.nextFloat() * upgradable.length)];
       h.level -= 1;
-      this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: h.level, ownerColorIndex: victim.colorIndex, levelChanged: true, ownerChanged: false }); // 宣告留痕(ADR-0015)
-      this.logEvent("system", user.guohao, `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`, `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`);
+      this.propertyChanges.push({
+        tileIndex: tileIndexOf(h.propertyId),
+        level: h.level,
+        ownerColorIndex: victim.colorIndex,
+        levelChanged: true,
+        ownerChanged: false,
+      }); // 宣告留痕(ADR-0015)
+      this.logEvent(
+        "system",
+        user.guohao,
+        `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`,
+        `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`,
+      );
     } else {
       const capPropId = this.board.at(victim.capitalIndex)?.propertyId;
       const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
@@ -2243,28 +2598,55 @@ export class GameEngine {
         throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
       const h = losable[Math.floor(this.dice.nextFloat() * losable.length)];
       victim.properties.splice(victim.properties.indexOf(h), 1);
-      this.propertyChanges.push({ tileIndex: tileIndexOf(h.propertyId), level: 0, ownerColorIndex: null, levelChanged: false, ownerChanged: true }); // 失城=回无主(ADR-0015)
+      this.propertyChanges.push({
+        tileIndex: tileIndexOf(h.propertyId),
+        level: 0,
+        ownerColorIndex: null,
+        levelChanged: false,
+        ownerChanged: true,
+      }); // 失城=回无主(ADR-0015)
       const lostName = this.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
-      this.logEvent("system", user.guohao, `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`, `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`);
+      this.logEvent(
+        "system",
+        user.guohao,
+        `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
+        `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
+      );
     }
   }
 
   /** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):满编/名将已尽折现,否则骰选一名。
    *  prefix=战报前缀(机遇「id」/锦囊【名】两路同文风)。 */
-  private grantHeroToPlayer(p: Player, fallbackCash: number, prefix: string, auditTag: string): void {
+  private grantHeroToPlayer(
+    p: Player,
+    fallbackCash: number,
+    prefix: string,
+    auditTag: string,
+  ): void {
     const seat = this.players.indexOf(p);
     const candidates = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
     if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
       p.cash += fallbackCash;
       this.pushFloater(p, fallbackCash, p.position, "income");
-      this.logEvent("system", p.guohao, `${p.guohao} ${prefix},麾下已满/名将已尽,转得 ${fallbackCash} 两`, `heroGrant ${auditTag} player=${p.id} fallback=${fallbackCash} cash=${p.cash}`, fallbackCash);
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} ${prefix},麾下已满/名将已尽,转得 ${fallbackCash} 两`,
+        `heroGrant ${auditTag} player=${p.id} fallback=${fallbackCash} cash=${p.cash}`,
+        fallbackCash,
+      );
       return;
     }
     const hero = candidates[Math.floor(this.dice.nextFloat() * candidates.length)];
     p.heroes.push(hero);
     this.recruitedHeroIds.add(hero.id);
     this.pushFloaterText(p, `${prefix},${hero.name} 来投`, p.position);
-    this.logEvent("system", p.guohao, `${p.guohao} ${prefix},得「${hero.name}」:${hero.desc}`, `heroGrant ${auditTag} player=${p.id} hero=${hero.id}`);
+    this.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} ${prefix},得「${hero.name}」:${hero.desc}`,
+      `heroGrant ${auditTag} player=${p.id} hero=${hero.id}`,
+    );
     this.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
   }
 
@@ -2286,7 +2668,12 @@ export class GameEngine {
     const availableCount = options.filter((o) => o.available).length;
     if (availableCount > 1) {
       this.turnPhase = "AwaitingExhaustion";
-      this.logEvent("system", p.guohao, `${p.guohao} 体力耗竭!须弃一座城池苟活`, `exhaustion player=${p.id} options=${availableCount}`);
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 体力耗竭!须弃一座城池苟活`,
+        `exhaustion player=${p.id} options=${availableCount}`,
+      );
       return "phase";
     }
     if (availableCount === 1) {
@@ -2308,7 +2695,9 @@ export class GameEngine {
       return;
     }
     if (!opt.available) {
-      this.warn(`ResolveExhaustionChoice:选项不可用(index=${index}${opt.reason ? `,${opt.reason}` : ""})`);
+      this.warn(
+        `ResolveExhaustionChoice:选项不可用(index=${index}${opt.reason ? `,${opt.reason}` : ""})`,
+      );
       return;
     }
     this.settleExhaustionChoice(this.pendingExhaustionSeat, index);
@@ -2340,7 +2729,12 @@ export class GameEngine {
     p.stamina = STARTING_STAMINA;
     this.pendingExhaustionSeat = null;
     this.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
-    this.logEvent("system", p.guohao, `${p.guohao} 体力耗竭:${note},跳过下一回合,体力回 100`, `exhaustionSettle player=${p.id} skipTurns=${p.skipTurns} stamina=100`);
+    this.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} 体力耗竭:${note},跳过下一回合,体力回 100`,
+      `exhaustionSettle player=${p.id} skipTurns=${p.skipTurns} stamina=100`,
+    );
   }
 
   /** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
@@ -2355,11 +2749,22 @@ export class GameEngine {
     if (this.encounter.triggerRate <= 0) return "none";
     if (this.dice.nextFloat() * 100 >= this.encounter.triggerRate) {
       // 规格故事 16:每次 roll 与结果都进对局日志(未中也留机读痕)
-      this.logEvent("system", mover.guohao, `${mover.guohao} 机遇未降临`, `encounterMiss player=${mover.id} rate=${this.encounter.triggerRate} reputation=${mover.reputation}`);
+      this.logEvent(
+        "system",
+        mover.guohao,
+        `${mover.guohao} 机遇未降临`,
+        `encounterMiss player=${mover.id} rate=${this.encounter.triggerRate} reputation=${mover.reputation}`,
+      );
       return "none";
     }
-    const tier = pickTier(this.dice.nextFloat(), tierShares(mover.reputation, this.encounter.shares));
-    const def = pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), this.dice.nextFloat());
+    const tier = pickTier(
+      this.dice.nextFloat(),
+      tierShares(mover.reputation, this.encounter.shares),
+    );
+    const def = pickWeighted(
+      ENCOUNTERS.filter((c) => c.tier === tier),
+      this.dice.nextFloat(),
+    );
     if (def.choices) return this.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
     return this.settleEncounter(mover, atTile, def);
   }
@@ -2392,7 +2797,8 @@ export class GameEngine {
     // ≤1 可用选项:自动执行唯一可用项(目录约定必有无门槛选项,availableIdx[0] 恒存在;
     // 空目录=数据 bug,按无事发生收尾并留痕,不卡流程)
     const idx = availableIdx[0];
-    if (idx === undefined) throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
+    if (idx === undefined)
+      throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
     const choice = def.choices![idx];
     this.pushFloaterText(mover, choice.text, atTile);
     const r = this.settleEncounterChoice(mover, atTile, def, choice, idx ?? 0);
@@ -2411,7 +2817,9 @@ export class GameEngine {
     }
     const opt = computeChoices(this, "AwaitingEncounter")[index];
     if (!opt?.available) {
-      this.warn(`ResolveEncounterChoice:选项不可用(index=${index}${opt?.reason ? `,${opt.reason}` : ""})`);
+      this.warn(
+        `ResolveEncounterChoice:选项不可用(index=${index}${opt?.reason ? `,${opt.reason}` : ""})`,
+      );
       return;
     }
     this.settleEncounterChoice(this.activePlayer, this.activePlayer.position, def, option, index);
@@ -2439,7 +2847,11 @@ export class GameEngine {
     }
     if (option.repDelta !== 0) {
       this.addReputation(seat, option.repDelta);
-      this.pushFloaterText(mover, `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`, atTile);
+      this.pushFloaterText(
+        mover,
+        `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`,
+        atTile,
+      );
     }
     this.logEvent(
       "system",
@@ -2495,7 +2907,13 @@ export class GameEngine {
             mover.cash += effect.delta;
             this.pushFloater(mover, effect.delta, atTile, "income");
             this.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} +${effect.delta}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+            this.logEvent(
+              "system",
+              mover.guohao,
+              `${mover.guohao} 机遇「${def.id}」:${narr} +${effect.delta}`,
+              `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`,
+              effect.delta,
+            );
             return "settled";
           }
           const r = this.payOrLiquidate(mover, null, -effect.delta);
@@ -2503,7 +2921,13 @@ export class GameEngine {
           const bankrupt = r === "bankrupt";
           this.pushFloater(mover, effect.delta, atTile, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} ${effect.delta}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`, effect.delta);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr} ${effect.delta}${bankrupt ? " → 破产" : ""}`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`,
+            effect.delta,
+          );
           if (bankrupt) this.endTurn();
           return bankrupt ? "bankrupt" : "settled";
         }
@@ -2511,14 +2935,25 @@ export class GameEngine {
           if (this.treasureDeck.length === 0) {
             mover.cash += 100; // 牌堆空 → 转 100 两(探宝的"搜刮一空"口径)
             this.pushFloater(mover, 100, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:珍宝已被搜刮一空,转得 100 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=100 cash=${mover.cash}`, 100);
+            this.logEvent(
+              "system",
+              mover.guohao,
+              `${mover.guohao} 机遇「${def.id}」:珍宝已被搜刮一空,转得 100 两`,
+              `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=100 cash=${mover.cash}`,
+              100,
+            );
             return "settled";
           }
           const drawIdx = Math.floor(this.dice.nextFloat() * this.treasureDeck.length);
           const treasure = this.treasureDeck.splice(drawIdx, 1)[0];
           mover.treasures.push(treasure);
           this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得「${treasure.name}」`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${treasure.name}」(Lv.${treasure.level})`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} treasure=${treasure.id}`);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},得「${treasure.name}」(Lv.${treasure.level})`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} treasure=${treasure.id}`,
+          );
           this.dispatchMoment("TreasureGained", { subject: seat, treasureId: treasure.id });
           return "settled";
         }
@@ -2527,34 +2962,58 @@ export class GameEngine {
           if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            this.logEvent(
+              "system",
+              mover.guohao,
+              `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽,转得 ${effect.fallbackCash} 两`,
+              `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`,
+              effect.fallbackCash,
+            );
             return "settled";
           }
           const hero = candidates[Math.floor(this.dice.nextFloat() * candidates.length)];
           mover.heroes.push(hero);
           this.recruitedHeroIds.add(hero.id);
           this.pushFloaterText(mover, `机遇「${def.id}」:${hero.name} 来投`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`,
+          );
           this.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
           return "settled";
         }
         case "grantCard": {
           // 圯上授书(#147):机遇→锦囊流通;手牌无上限(#250)恒入手,牌库空由 drawJinnang 自行落空提示
           this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得锦囊一封`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`,
+          );
           this.drawJinnang(seat, 1);
           return "settled";
         }
         case "grantCity": {
           // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
           const unownedCities = this.board.tiles
-            .filter((t) => t.type === "Property" && t.propertyId && this.findOwner(t.propertyId) == null)
+            .filter(
+              (t) => t.type === "Property" && t.propertyId && this.findOwner(t.propertyId) == null,
+            )
             .map((t) => ({ tileName: t.name, def: this.catalog.get(t.propertyId) }))
             .filter((c): c is { tileName: string; def: PropertyDef } => c.def != null);
           if (unownedCities.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
-            this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},已无可归之城,转得 ${effect.fallbackCash} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`, effect.fallbackCash);
+            this.logEvent(
+              "system",
+              mover.guohao,
+              `${mover.guohao} 机遇「${def.id}」:${narr},已无可归之城,转得 ${effect.fallbackCash} 两`,
+              `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`,
+              effect.fallbackCash,
+            );
             return "settled";
           }
           const picked = unownedCities[Math.floor(this.dice.nextFloat() * unownedCities.length)];
@@ -2567,7 +3026,12 @@ export class GameEngine {
             maxLevel: defCity.maxLevel,
           });
           this.pushFloaterText(mover, `机遇「${def.id}」:${picked.tileName} 归你所有`, atTile);
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得「${picked.tileName}」`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},得「${picked.tileName}」`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`,
+          );
           return "settled";
         }
         case "siphon": {
@@ -2577,7 +3041,13 @@ export class GameEngine {
           target.cash -= take;
           mover.cash += take;
           this.pushFloater(mover, take, atTile, "income");
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},自 ${target.guohao} 得 ${take} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target.id} take=${take} cash=${mover.cash}`, take);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},自 ${target.guohao} 得 ${take} 两`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target.id} take=${take} cash=${mover.cash}`,
+            take,
+          );
           return "settled";
         }
         case "levy": {
@@ -2589,7 +3059,13 @@ export class GameEngine {
           if (target && paid > 0) target.cash += paid;
           this.pushFloater(mover, -paid, atTile, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: paid });
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${bankrupt ? " → 破产" : ""}`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`, -paid);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${bankrupt ? " → 破产" : ""}`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`,
+            -paid,
+          );
           if (bankrupt) this.endTurn();
           return bankrupt ? "bankrupt" : "settled";
         }
@@ -2598,7 +3074,13 @@ export class GameEngine {
           mover.cash += effect.amount;
           if (target) target.cash += effect.amount;
           this.pushFloater(mover, effect.amount, atTile, "income");
-          this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},你与 ${target?.guohao ?? "诸侯"} 各得 ${effect.amount} 两`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target?.id ?? "-"} gain=${effect.amount}`, effect.amount);
+          this.logEvent(
+            "system",
+            mover.guohao,
+            `${mover.guohao} 机遇「${def.id}」:${narr},你与 ${target?.guohao ?? "诸侯"} 各得 ${effect.amount} 两`,
+            `encounter player=${mover.id} id=${def.id} tier=${def.tier} target=${target?.id ?? "-"} gain=${effect.amount}`,
+            effect.amount,
+          );
           return "settled";
         }
       }
@@ -2651,7 +3133,13 @@ export class GameEngine {
 
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */
   private pushFloaterText(p: Player, text: string, atTile: number): void {
-    this.floaters.push({ playerIndex: this.players.indexOf(p), amount: 0, atTile, kind: "msg", text });
+    this.floaters.push({
+      playerIndex: this.players.indexOf(p),
+      amount: 0,
+      atTile,
+      kind: "msg",
+      text,
+    });
   }
   // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
 

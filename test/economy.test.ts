@@ -8,7 +8,14 @@ const catalog = loadMap(sanguoData).catalog;
 const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),等级价值 [1600,2400,3400,4800]
 
 function mk(cash = 10000) {
-  return createPlayer({ id: "p", name: "A", guohao: "魏", colorIndex: 0, isBot: false, startingCash: cash });
+  return createPlayer({
+    id: "p",
+    name: "A",
+    guohao: "魏",
+    colorIndex: 0,
+    isBot: false,
+    startingCash: cash,
+  });
 }
 
 describe("地产交易", () => {

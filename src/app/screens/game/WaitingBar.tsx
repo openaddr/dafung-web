@@ -29,9 +29,7 @@ export interface WaitingBarProps {
 /** 决策类相位:轮到该玩家做选择(掷骰 Roll 不在其中——那是「落子」不是「抉择」)。
  *  单源(spec #107 C1):键集直接取 ADR-0013 选项集注册表——PHASE_CHOICES 注册了
  *  哪些相位,哪些就是决策相位;不再手抄第三份相位清单防漂移。 */
-const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set(
-  Object.keys(PHASE_CHOICES) as TurnPhase[],
-);
+const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set(Object.keys(PHASE_CHOICES) as TurnPhase[]);
 
 /** 超时安抚阈值(秒):同一句等待文案持续超过该秒数才追加已候计时。 */
 const WAIT_ANNOUNCE_S = 8;

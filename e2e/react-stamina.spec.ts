@@ -20,7 +20,9 @@ test.describe("体力系统冒烟", () => {
       const e = (window as any).__dafung.getEngine();
       const seat = e.activeIndex;
       const p = e.players[seat];
-      const taken = new Set(e.players.flatMap((pl: any) => pl.properties.map((h: any) => h.propertyId)));
+      const taken = new Set(
+        e.players.flatMap((pl: any) => pl.properties.map((h: any) => h.propertyId)),
+      );
       const tile = e.board.tiles.find(
         (t: any) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
       );
@@ -73,18 +75,21 @@ test.describe("体力系统冒烟", () => {
     // 立即读引擎(#188 迁移):耗竭结算在命令内同步落账,而 auto-roll 重武装有 1s 窗——
     // 若先 waitSettled,对局可能自走一整轮,随机机遇可二次抽干体力触发第二次耗竭
     // (skipTurns +2、体力再次重置,断言全盘失真)。
-    const after = await page.evaluate((info: { seat: number; capitalPropId: string; extraPropId: string }) => {
-      const e = (window as any).__dafung.getEngine();
-      const p = e.players[info.seat];
-      const levelOf = (id: string) => p.properties.find((h: any) => h.propertyId === id)?.level;
-      return {
-        stamina: p.stamina,
-        skipTurns: p.skipTurns,
-        capitalLevel: levelOf(info.capitalPropId),
-        extraLevel: levelOf(info.extraPropId),
-        owned: p.properties.length,
-      };
-    }, seatInfo);
+    const after = await page.evaluate(
+      (info: { seat: number; capitalPropId: string; extraPropId: string }) => {
+        const e = (window as any).__dafung.getEngine();
+        const p = e.players[info.seat];
+        const levelOf = (id: string) => p.properties.find((h: any) => h.propertyId === id)?.level;
+        return {
+          stamina: p.stamina,
+          skipTurns: p.skipTurns,
+          capitalLevel: levelOf(info.capitalPropId),
+          extraLevel: levelOf(info.extraPropId),
+          owned: p.properties.length,
+        };
+      },
+      seatInfo,
+    );
     await waitSettled(page); // UI 渲染断言前等表现链走完
     expect(after.stamina).toBe(100); // 重置
     expect(after.skipTurns).toBe(seatInfo.skipBefore + 1); // 跳过下一回合(+1,相对既有值)

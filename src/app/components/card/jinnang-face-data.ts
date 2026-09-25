@@ -32,10 +32,10 @@ export const JINNANG_FAMILY: Record<
   JinnangTag,
   { token: string; pattern: JinnangPattern; label: string; faceClass: string }
 > = {
-  "谋": { token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" }, // 黛青
-  "攻": { token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" }, // 朱砂
-  "守": { token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" }, // 赭石
-  "援": { token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" }, // 青绿
+  谋: { token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" }, // 黛青
+  攻: { token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" }, // 朱砂
+  守: { token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" }, // 赭石
+  援: { token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" }, // 青绿
 };
 
 /** 目标域中文(牌面用语规范口径,与 core/jinnang.ts 文件头注释同一版)。 */

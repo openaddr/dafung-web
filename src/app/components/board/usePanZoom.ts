@@ -91,7 +91,12 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
       const factor = Math.exp(ev.deltaY * 0.0015);
       const lx = vb.x + cx * vb.w;
       const ly = vb.y + cy * vb.h;
-      setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
+      setView({
+        w: vb.w * factor,
+        h: vb.h * factor,
+        x: lx - cx * vb.w * factor,
+        y: ly - cy * vb.h * factor,
+      });
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
@@ -132,7 +137,12 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
           const vb = view.current;
           const lx = vb.x + cx * vb.w;
           const ly = vb.y + cy * vb.h;
-          setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
+          setView({
+            w: vb.w * factor,
+            h: vb.h * factor,
+            x: lx - cx * vb.w * factor,
+            y: ly - cy * vb.h * factor,
+          });
         }
         pinchDist.current = dist;
         return;
@@ -168,7 +178,12 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
       const vb = view.current;
       const lx = vb.x + cx * vb.w;
       const ly = vb.y + cy * vb.h;
-      setView({ w: vb.w * factor, h: vb.h * factor, x: lx - cx * vb.w * factor, y: ly - cy * vb.h * factor });
+      setView({
+        w: vb.w * factor,
+        h: vb.h * factor,
+        x: lx - cx * vb.w * factor,
+        y: ly - cy * vb.h * factor,
+      });
     },
     [setView],
   );
@@ -194,4 +209,5 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
 }
 
 /** 拖拽中的 cursor 提示(绑到 <svg className>):用法见 BoardView。 */
-export const panCursorClass = (panning: boolean): string => (panning ? "cursor-grabbing" : "cursor-grab");
+export const panCursorClass = (panning: boolean): string =>
+  panning ? "cursor-grabbing" : "cursor-grab";

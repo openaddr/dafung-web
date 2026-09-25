@@ -200,7 +200,6 @@ describe("锦囊快照往返(恢复/联机一致性)", () => {
     expect(e2.jinnangDeck).toEqual(e.jinnangDeck);
     expect(e2.jinnangDiscard).toEqual(e.jinnangDiscard);
   });
-
 });
 
 // ──────────────────────────── 使用回路(T2)────────────────────────────
@@ -366,7 +365,10 @@ describe("锦囊渠道(T5)", () => {
   it("声望献计:+30/+60/+90 各首次向上穿越献一封,回落再升不重复", () => {
     const e = makeEngine(42);
     finishSetup(e);
-    e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; });
+    e.players.forEach((p) => {
+      p.jinnangHand = [];
+      p.jinnangHandCount = 0;
+    });
     const handOf = () => e.players[0].jinnangHand.length;
     const h0 = handOf();
     e.addReputation(0, 30);
@@ -441,7 +443,10 @@ describe("锦囊目标段(T3)", () => {
     e.resolveJinnang("窃玉偷香");
     expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(false);
     expect(e.choicesFor().find((o) => o.targetSeat === 1)?.reason).toBe("无珍宝");
-    victim.treasures.push({ id: "t1", name: "和氏璧", level: 3 }, { id: "t2", name: "随侯珠", level: 2 });
+    victim.treasures.push(
+      { id: "t1", name: "和氏璧", level: 3 },
+      { id: "t2", name: "随侯珠", level: 2 },
+    );
     expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
     e.resolveJinnang("窃玉偷香", [1]);
     expect(e.activePlayer.treasures.length).toBe(1);
@@ -455,7 +460,9 @@ describe("锦囊目标段(T3)", () => {
     const victim = e.players[1];
     const cap = victim.properties[0];
     cap.level = 2;
-    victim.properties.forEach((h) => { if (h !== cap) h.level = 2; });
+    victim.properties.forEach((h) => {
+      if (h !== cap) h.level = 2;
+    });
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
     expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
@@ -465,8 +472,16 @@ describe("锦囊目标段(T3)", () => {
     // 全 0 级:再烧 → 失城(清攻名额:跨回合才可再出同标签,此处单测直接开账重置)。
     // 失城池排除都城(#226「都城可降不可失」):给目标添一座 0 级非都城,烧失的必须是非都城。
     victim.properties[0].level = 0;
-    const freeId = e.board.tiles.find((t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null)!.propertyId!;
-    victim.properties.push({ propertyId: freeId, group: "a", purchasePrice: 1000, level: 0, maxLevel: 3 });
+    const freeId = e.board.tiles.find(
+      (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    victim.properties.push({
+      propertyId: freeId,
+      group: "a",
+      purchasePrice: 1000,
+      level: 0,
+      maxLevel: 3,
+    });
     e.jinnangUsedTags = [];
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
@@ -561,7 +576,10 @@ describe("连环计·二虎竞食(T4)", () => {
     e.resolveJinnang("连环计", [others[0]]);
     expect(e.pendingJinnang).toMatchObject({ stage: "two-b", picked: [others[0]] });
     // 第二段排除首挑
-    const second = e.choicesFor().filter((o) => o.targetSeat != null && o.available).map((o) => o.targetSeat);
+    const second = e
+      .choicesFor()
+      .filter((o) => o.targetSeat != null && o.available)
+      .map((o) => o.targetSeat);
     expect(second).not.toContain(others[0]);
     e.resolveJinnang("连环计", [second[0]!]);
     expect(e.pendingJinnang).toBeNull();
@@ -652,6 +670,8 @@ describe("破产清手(#198):手牌入弃牌堆,15 张守恒", () => {
     expect(p.jinnangHandCount).toBe(0);
     expect(e.jinnangDiscard).toContain(card);
     const after = total();
-    expect(after.deck + after.discard + after.hands).toBe(before.deck + before.discard + before.hands);
+    expect(after.deck + after.discard + after.hands).toBe(
+      before.deck + before.discard + before.hands,
+    );
   });
 });

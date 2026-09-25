@@ -20,7 +20,15 @@
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
-import { appendFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, unlinkSync } from "node:fs";
+import {
+  appendFileSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
@@ -54,7 +62,9 @@ function loadEncounterConfig() {
     if (parsed) return parsed;
     console.warn(`[server] 机遇配置结构不符,回退产品默认:${JIYU_CONFIG}`);
   } catch (err) {
-    console.warn(`[server] 机遇配置读取失败(${(err as Error).message}),回退产品默认:${JIYU_CONFIG}`);
+    console.warn(
+      `[server] 机遇配置读取失败(${(err as Error).message}),回退产品默认:${JIYU_CONFIG}`,
+    );
   }
   return ENCOUNTER_PRODUCT_DEFAULTS;
 }
@@ -62,7 +72,10 @@ const ENCOUNTER = loadEncounterConfig();
 
 // 决策停摆看门狗(#118):等待某人类座位决策超过该毫秒 → bot 自动接管(重连/刷新夺回)。
 // 0 = 关闭。默认 120s:正常思考远够用,真停摆(页面卡死/断连)不再永久拖死全局。
-const DECISION_TIMEOUT_MS = Math.max(0, parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0);
+const DECISION_TIMEOUT_MS = Math.max(
+  0,
+  parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0,
+);
 
 // ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
 const CATALOG_ENTRIES = builtinMapCatalog();
@@ -93,7 +106,11 @@ function flushGameLog(room: RoomSession): void {
     logWritten.set(e.gameId, 0);
   }
   if (e.log.length <= written) return;
-  const fresh = e.log.slice(written).map((l) => JSON.stringify(l)).join("\n") + "\n";
+  const fresh =
+    e.log
+      .slice(written)
+      .map((l) => JSON.stringify(l))
+      .join("\n") + "\n";
   appendFileSync(join(LOGS_DIR, `${e.gameId}.jsonl`), fresh, "utf-8");
   logWritten.set(e.gameId, e.log.length);
 }
@@ -212,7 +229,10 @@ function broadcast(roomId: string): void {
 
 // ──────────────────────────── HTTP 工具 ────────────────────────────
 class HttpError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
   }
 }
@@ -303,18 +323,36 @@ const HELP = {
   endpoints: {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
-    "POST /room/new": "建房 body:{seats,bot?,seed?,target?,difficulty?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
-    "POST /room/join": "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
+    "POST /room/new":
+      "建房 body:{seats,bot?,seed?,target?,difficulty?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
+    "POST /room/join":
+      "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
-    "POST /room/start": "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
+    "POST /room/start":
+      "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
     "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
-    "WS  /ws?room=&seat=&token=": "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/dismissed",
+    "WS  /ws?room=&seat=&token=":
+      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
-  maps: CATALOG_ENTRIES.map((e) => ({ id: e.id, name: e.name, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth })),
-  env: { PORT, HOST, ROOMS_DIR, LOGS_DIR, LOG_TTL_DAYS, STATIC_DIR, JIYU_CONFIG, DECISION_TIMEOUT_MS },
+  maps: CATALOG_ENTRIES.map((e) => ({
+    id: e.id,
+    name: e.name,
+    tileCount: e.tileCount,
+    targetNetWorth: e.targetNetWorth,
+  })),
+  env: {
+    PORT,
+    HOST,
+    ROOMS_DIR,
+    LOGS_DIR,
+    LOG_TTL_DAYS,
+    STATIC_DIR,
+    JIYU_CONFIG,
+    DECISION_TIMEOUT_MS,
+  },
 };
 
 async function handle(req: Request): Promise<Response> {
@@ -325,7 +363,11 @@ async function handle(req: Request): Promise<Response> {
   if (method === "OPTIONS") return sendJson(204, {});
   if (method === "GET") {
     if (path === "/health") {
-      return sendJson(200, { ok: true, uptime: Math.floor((Date.now() - startedAt) / 1000), rooms: registry.size() });
+      return sendJson(200, {
+        ok: true,
+        uptime: Math.floor((Date.now() - startedAt) / 1000),
+        rooms: registry.size(),
+      });
     }
     if (path === "/help") return sendJson(200, HELP);
     // 调试端点:实时房间状态 + 最近事件尾巴(排障用;手机端无法开 devtools 时的现场)
@@ -377,9 +419,19 @@ async function handle(req: Request): Promise<Response> {
     // 国号可选(R3-D1 #99):带上则作为 host(seat0)预设,开局时与房间内其它座位去重(对照 /room/join)
     const guohao = obj.guohao == null ? undefined : String(obj.guohao);
     const { room, seat, token } = registry.createRoom({ seatCount, botIdx, hostConfig, guohao });
-    recordEvent(room.roomId, { ev: "room-new", seatCount, bot: [...botIdx], guohao: guohao ?? null });
+    recordEvent(room.roomId, {
+      ev: "room-new",
+      seatCount,
+      bot: [...botIdx],
+      guohao: guohao ?? null,
+    });
     // 建房时不设图(房间无地图);Host 须在大厅选图后再开局。startGame 会校验"已选图"。
-    return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+    return sendJson(200, {
+      ok: true,
+      seat,
+      seatToken: token,
+      ...lobbyView(room, onlineSeatsOf(room.roomId)),
+    });
   }
 
   if (path === "/room/join") {
@@ -389,7 +441,12 @@ async function handle(req: Request): Promise<Response> {
     const { room, seat, token } = registry.joinSeat(roomId, guohao);
     recordEvent(roomId, { ev: "room-join", seat, guohao: guohao ?? null });
     broadcast(room.roomId); // 通知其它人:有人加入
-    return sendJson(200, { ok: true, seat, seatToken: token, ...lobbyView(room, onlineSeatsOf(room.roomId)) });
+    return sendJson(200, {
+      ok: true,
+      seat,
+      seatToken: token,
+      ...lobbyView(room, onlineSeatsOf(room.roomId)),
+    });
   }
 
   if (path === "/room/map") {
@@ -402,14 +459,21 @@ async function handle(req: Request): Promise<Response> {
 
   if (path === "/room/start") {
     const roomId = String(obj.roomId ?? "");
-    const room = await registry.startGame(roomId, String(obj.seatToken ?? ""), () => broadcast(roomId), loadBuiltinMapById);
+    const room = await registry.startGame(
+      roomId,
+      String(obj.seatToken ?? ""),
+      () => broadcast(roomId),
+      loadBuiltinMapById,
+    );
     return sendJson(200, { ok: true, ...statusOf(room.engine!) });
   }
 
   if (path === "/room/takeover") {
     const roomId = String(obj.roomId ?? "");
     const seat = intField(obj, "seat", -1);
-    const room = await registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () => broadcast(roomId));
+    const room = await registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () =>
+      broadcast(roomId),
+    );
     return sendJson(200, { ok: true, takeover: seat, ...statusOf(room.engine!) });
   }
 
@@ -475,7 +539,13 @@ Bun.serve<WsSeat>({
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      let msg: { type?: string; cmd?: GameCommand; on?: boolean; speed?: string; tileIndex?: number };
+      let msg: {
+        type?: string;
+        cmd?: GameCommand;
+        on?: boolean;
+        speed?: string;
+        tileIndex?: number;
+      };
       try {
         msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw).toString());
       } catch {
@@ -490,17 +560,26 @@ Bun.serve<WsSeat>({
         recordEvent(roomId, { ev: "pick-capital", seat, tileIndex: msg.tileIndex });
         void registry
           .pickCapital(roomId, seat, msg.tileIndex, () => broadcast(roomId))
-          .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
+          .catch((err) =>
+            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
+          );
       } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
         // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
         const speed = msg.speed === "slow" ? "slow" : "fast";
         recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
         void registry
           .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
-          .catch((err) => ws.send(JSON.stringify({ type: "error", error: (err as Error).message })));
+          .catch((err) =>
+            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
+          );
       } else {
         const r = registry.get(roomId);
-        ws.send(JSON.stringify({ type: "error", error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始" }));
+        ws.send(
+          JSON.stringify({
+            type: "error",
+            error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始",
+          }),
+        );
       }
     },
     close(ws) {
@@ -518,6 +597,12 @@ Bun.serve<WsSeat>({
 
 console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
 console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
-console.log(`[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`);
-console.log(`[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"}`);
-console.log("[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws");
+console.log(
+  `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
+);
+console.log(
+  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"}`,
+);
+console.log(
+  "[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws",
+);

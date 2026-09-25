@@ -117,7 +117,12 @@ export interface JinnangCardBackProps extends HTMLAttributes<HTMLDivElement> {
 
 /** 牌背(暗置语义):漆木底 + 「锦囊」朱印 + 回纹双环。空手牌斜放占位、暗牌
  *  展示等场景复用;斜放由消费方经 style.transform 自定。 */
-export function JinnangCardBack({ size = "standard", className, children, ...rest }: JinnangCardBackProps) {
+export function JinnangCardBack({
+  size = "standard",
+  className,
+  children,
+  ...rest
+}: JinnangCardBackProps) {
   return (
     <div
       className={["jinnang-card", "back", size === "large" ? "lg" : "", className ?? ""]
@@ -157,9 +162,7 @@ export function JinnangCardDetail({ cardId, className }: JinnangCardDetailProps)
         </span>
       </div>
       <p className="dt-text">{def.text}</p>
-      <div className="dt-foot">
-        每回合每类限用一张 ·{def.tags.map((t) => `「${t}」`).join("")}
-      </div>
+      <div className="dt-foot">每回合每类限用一张 ·{def.tags.map((t) => `「${t}」`).join("")}</div>
     </div>
   );
 }

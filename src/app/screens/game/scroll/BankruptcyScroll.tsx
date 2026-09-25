@@ -171,7 +171,11 @@ export function BankruptcyScroll({
               (pulsing ? "scale-110" : "scale-100")
             }
           >
-            <ScrollButton primary testid={T.bankruptcyConfirm} onClick={() => onCommand({ type: "confirmBankruptcySettle" })}>
+            <ScrollButton
+              primary
+              testid={T.bankruptcyConfirm}
+              onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
+            >
               结算 · 凑足!免破产
             </ScrollButton>
           </span>

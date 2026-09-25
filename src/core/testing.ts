@@ -37,7 +37,6 @@ interface EngineTestInternals {
     atTile: number,
     def: EncounterDef,
   ): "deciding" | "settled" | "liquidating" | "bankrupt";
-
 }
 
 export class TestEngine {
@@ -111,7 +110,10 @@ export class TestEngine {
   }
 
   /** 触达机遇触发+抽取全流程(验格型排除/触发率;#123 评审修正)。 */
-  maybeApplyEncounter(mover: Player, atTile: number): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt" {
+  maybeApplyEncounter(
+    mover: Player,
+    atTile: number,
+  ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt" {
     return this.internals.maybeApplyEncounter(mover, atTile);
   }
 

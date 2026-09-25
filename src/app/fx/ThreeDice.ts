@@ -20,13 +20,20 @@ function quatForDie(die: number): THREE.Quaternion {
   const X = new THREE.Vector3(1, 0, 0);
   const Z = new THREE.Vector3(0, 0, 1);
   switch (die) {
-    case 1: return new THREE.Quaternion();                                   // +Y 已朝上
-    case 2: return new THREE.Quaternion().setFromAxisAngle(X, Math.PI);       // -Y → +Y
-    case 3: return new THREE.Quaternion().setFromAxisAngle(Z, Math.PI / 2);  // +X → +Y
-    case 4: return new THREE.Quaternion().setFromAxisAngle(Z, -Math.PI / 2); // -X → +Y
-    case 5: return new THREE.Quaternion().setFromAxisAngle(X, -Math.PI / 2); // +Z → +Y
-    case 6: return new THREE.Quaternion().setFromAxisAngle(X, Math.PI / 2);  // -Z → +Y
-    default: return new THREE.Quaternion();
+    case 1:
+      return new THREE.Quaternion(); // +Y 已朝上
+    case 2:
+      return new THREE.Quaternion().setFromAxisAngle(X, Math.PI); // -Y → +Y
+    case 3:
+      return new THREE.Quaternion().setFromAxisAngle(Z, Math.PI / 2); // +X → +Y
+    case 4:
+      return new THREE.Quaternion().setFromAxisAngle(Z, -Math.PI / 2); // -X → +Y
+    case 5:
+      return new THREE.Quaternion().setFromAxisAngle(X, -Math.PI / 2); // +Z → +Y
+    case 6:
+      return new THREE.Quaternion().setFromAxisAngle(X, Math.PI / 2); // -Z → +Y
+    default:
+      return new THREE.Quaternion();
   }
 }
 
@@ -67,10 +74,10 @@ function createFaceTextures(): THREE.CanvasTexture[] {
   });
 }
 
-const DIE_SIZE = 1.6;          // 立方体边长(物理单位)——更大,全屏视觉
-const FIELD_W = 14;           // 骰盘物理宽(全屏大幅翻滚)
-const FIELD_D = 10;           // 骰盘物理深
-const SNAP_Y = DIE_SIZE / 2;  // 静息/吸附时骰中心 y(贴地)
+const DIE_SIZE = 1.6; // 立方体边长(物理单位)——更大,全屏视觉
+const FIELD_W = 14; // 骰盘物理宽(全屏大幅翻滚)
+const FIELD_D = 10; // 骰盘物理深
+const SNAP_Y = DIE_SIZE / 2; // 静息/吸附时骰中心 y(贴地)
 
 /** die → 该面在骰子局部坐标下的单位法线(六面体常量)。 */
 const FACE_NORMALS: Record<number, THREE.Vector3> = {
@@ -163,7 +170,10 @@ function upFaceOf(q: { x: number; y: number; z: number; w: number }): number {
   let bestDot = -2;
   for (const die of [1, 2, 3, 4, 5, 6]) {
     const dot = FACE_NORMALS[die].clone().applyQuaternion(quat).y;
-    if (dot > bestDot) { bestDot = dot; best = die; }
+    if (dot > bestDot) {
+      bestDot = dot;
+      best = die;
+    }
   }
   return best;
 }
@@ -207,7 +217,9 @@ export class ThreeDice {
   private overlay: HTMLElement | null = null; // 全屏覆盖层
   private rng: () => number;
   private readonly onHit?: (intensity: number) => void;
-  private collideListener: ((e: { contact: { getImpactVelocityAlongNormal(): number } }) => void) | null = null;
+  private collideListener:
+    | ((e: { contact: { getImpactVelocityAlongNormal(): number } }) => void)
+    | null = null;
 
   private renderer: THREE.WebGLRenderer | null = null;
   private scene: THREE.Scene | null = null;
@@ -303,9 +315,12 @@ export class ThreeDice {
     const aspect = W / H;
     const viewSize = ThreeDice.VIEW_SIZE;
     const camera = new THREE.OrthographicCamera(
-      -viewSize * aspect, viewSize * aspect,
-      viewSize, -viewSize,
-      0.1, 100,
+      -viewSize * aspect,
+      viewSize * aspect,
+      viewSize,
+      -viewSize,
+      0.1,
+      100,
     );
     camera.position.set(0.8, 7, 1.6);
     camera.lookAt(0, 0, 0);
@@ -314,9 +329,7 @@ export class ThreeDice {
     // 骰 mesh(6 面 Lambert 材质 + 汉字纹理,Lambert 受光照影响显立体)
     const textures = createFaceTextures();
     this.textures = textures;
-    const mats = MAT_TO_DIE.map(
-      (die) => new THREE.MeshLambertMaterial({ map: textures[die - 1] }),
-    );
+    const mats = MAT_TO_DIE.map((die) => new THREE.MeshLambertMaterial({ map: textures[die - 1] }));
     const geo = new THREE.BoxGeometry(DIE_SIZE, DIE_SIZE, DIE_SIZE);
     const mesh = new THREE.Mesh(geo, mats);
     scene.add(mesh);
@@ -346,9 +359,9 @@ export class ThreeDice {
       world.addBody(b);
     };
     addBox(0, wallH, -halfD, halfW + wallT, wallH, wallT); // 前 -Z
-    addBox(0, wallH, halfD, halfW + wallT, wallH, wallT);  // 后 +Z
+    addBox(0, wallH, halfD, halfW + wallT, wallH, wallT); // 后 +Z
     addBox(-halfW, wallH, 0, wallT, wallH, halfD + wallT); // 左 -X
-    addBox(halfW, wallH, 0, wallT, wallH, halfD + wallT);  // 右 +X
+    addBox(halfW, wallH, 0, wallT, wallH, halfD + wallT); // 右 +X
 
     // 骰 body(动态)
     const half = DIE_SIZE / 2;
@@ -388,7 +401,7 @@ export class ThreeDice {
    *  overlay 只短暂停留 ~500ms 让玩家看清点数。
    *  die 省略 → 用注入 rng 本地随机(单机);传值 = 权威点数(联机服务器下发)。 */
   roll(die?: number): Promise<void> {
-    const face = die ?? (Math.floor(this.rng() * 6) + 1);
+    const face = die ?? Math.floor(this.rng() * 6) + 1;
     if (!this.available) return Promise.resolve();
     const fast = consumeDiceFast(); // 每次掷骰恰好消费一次(reduced 路径直接丢弃)
     if (isReducedMotion()) {
@@ -462,7 +475,14 @@ export class ThreeDice {
   }
 
   private rollAsync(die: number, minRollMs: number, hardCapMs: number, done: () => void): void {
-    if (!this.diceBody || !this.diceMesh || !this.world || !this.renderer || !this.scene || !this.camera) {
+    if (
+      !this.diceBody ||
+      !this.diceMesh ||
+      !this.world ||
+      !this.renderer ||
+      !this.scene ||
+      !this.camera
+    ) {
       done();
       return;
     }
@@ -513,7 +533,8 @@ export class ThreeDice {
 
       const elapsed = performance.now() - t0;
       const speed = body.velocity.length() + body.angularVelocity.length();
-      if (speed < 0.8) stillFrames++; else stillFrames = 0;
+      if (speed < 0.8) stillFrames++;
+      else stillFrames = 0;
 
       // 滚够 minRollMs 后静止持续 3 帧 → 收尾;或墙钟硬上限(与 GPU 帧率无关)
       if ((elapsed > minRollMs && stillFrames > 3) || elapsed > hardCapMs) {
@@ -531,26 +552,18 @@ export class ThreeDice {
   private randomLaunch(): LaunchState {
     const rng = this.rng;
     return {
-      position: new CANNON.Vec3(
-        -4 + (rng() - 0.5) * 1.5,
-        4 + rng() * 2,
-        -2 + (rng() - 0.5) * 1.5,
-      ),
+      position: new CANNON.Vec3(-4 + (rng() - 0.5) * 1.5, 4 + rng() * 2, -2 + (rng() - 0.5) * 1.5),
       quaternion: new CANNON.Quaternion().setFromEuler(
         rng() * Math.PI * 2,
         rng() * Math.PI * 2,
         rng() * Math.PI * 2,
       ),
       velocity: new CANNON.Vec3(
-        8 + rng() * 4,         // 主要向右抛掷
-        1 + rng() * 2,         // 向上腾起
+        8 + rng() * 4, // 主要向右抛掷
+        1 + rng() * 2, // 向上腾起
         (rng() - 0.5) * 3,
       ),
-      angularVelocity: new CANNON.Vec3(
-        18 + rng() * 14,
-        18 + rng() * 14,
-        18 + rng() * 14,
-      ),
+      angularVelocity: new CANNON.Vec3(18 + rng() * 14, 18 + rng() * 14, 18 + rng() * 14),
     };
   }
 
@@ -599,7 +612,8 @@ export class ThreeDice {
       world.step(1 / 60);
       simMs += dtMs;
       const speed = body.velocity.length() + body.angularVelocity.length();
-      if (speed < 0.8) stillSteps++; else stillSteps = 0;
+      if (speed < 0.8) stillSteps++;
+      else stillSteps = 0;
       if (simMs > 500 && stillSteps > 3) return body.quaternion.clone();
     }
     return null;
@@ -618,13 +632,19 @@ export class ThreeDice {
       return;
     }
     const mesh = this.diceMesh;
-    if (!mesh) { done(); return; }
+    if (!mesh) {
+      done();
+      return;
+    }
     const target = alignFaceUp(mesh.quaternion, die);
     const angle = mesh.quaternion.angleTo(target);
     if (angle > THREE.MathUtils.degToRad(5)) {
-      console.warn(`[ThreeDice] settle correction ${THREE.MathUtils.radToDeg(angle).toFixed(1)}deg exceeds 5deg for die=${die} — solver replay mismatch?`);
+      console.warn(
+        `[ThreeDice] settle correction ${THREE.MathUtils.radToDeg(angle).toFixed(1)}deg exceeds 5deg for die=${die} — solver replay mismatch?`,
+      );
     }
-    if (angle < 0.005) { // 已精确归正(<0.3°),不动画
+    if (angle < 0.005) {
+      // 已精确归正(<0.3°),不动画
       done();
       return;
     }
@@ -668,7 +688,12 @@ export class ThreeDice {
       mesh.quaternion.slerpQuaternions(startQ, target, eased);
       mesh.position.lerpVectors(startPos, endPos, eased);
       body.position.set(mesh.position.x, mesh.position.y, mesh.position.z);
-      body.quaternion.set(mesh.quaternion.x, mesh.quaternion.y, mesh.quaternion.z, mesh.quaternion.w);
+      body.quaternion.set(
+        mesh.quaternion.x,
+        mesh.quaternion.y,
+        mesh.quaternion.z,
+        mesh.quaternion.w,
+      );
       this.renderer!.render(this.scene!, this.camera!);
       if (t < 1) {
         this.rafId = requestAnimationFrame(tick);
@@ -681,7 +706,15 @@ export class ThreeDice {
 
   /** 静息姿态:die 面朝上,中心贴地,不动画。用于初始化展示。 */
   showFace(die: number): void {
-    if (!this.available || !this.diceMesh || !this.renderer || !this.scene || !this.camera || !this.diceBody) return;
+    if (
+      !this.available ||
+      !this.diceMesh ||
+      !this.renderer ||
+      !this.scene ||
+      !this.camera ||
+      !this.diceBody
+    )
+      return;
     cancelAnimationFrame(this.rafId);
     this.rolling = false;
     const mesh = this.diceMesh;
@@ -713,7 +746,10 @@ export class ThreeDice {
     let bestDot = -2;
     for (const f of faces) {
       const world = f.n.clone().applyQuaternion(q);
-      if (world.y > bestDot) { bestDot = world.y; best = f.die; }
+      if (world.y > bestDot) {
+        bestDot = world.y;
+        best = f.die;
+      }
     }
     return best;
   }
@@ -726,14 +762,19 @@ export class ThreeDice {
     // F3:解绑 resize 监听(与构造期的 addEventListener 成对)
     window.removeEventListener("resize", this.handleResize);
     if (this.diceBody && this.collideListener) {
-      this.diceBody.removeEventListener("collide", this.collideListener as unknown as (...args: unknown[]) => void);
+      this.diceBody.removeEventListener(
+        "collide",
+        this.collideListener as unknown as (...args: unknown[]) => void,
+      );
       this.collideListener = null;
     }
     for (const t of this.textures) t.dispose();
     this.textures = [];
     if (this.diceMesh) {
       this.diceMesh.geometry.dispose();
-      const ms = Array.isArray(this.diceMesh.material) ? this.diceMesh.material : [this.diceMesh.material];
+      const ms = Array.isArray(this.diceMesh.material)
+        ? this.diceMesh.material
+        : [this.diceMesh.material];
       for (const m of ms) (m as THREE.MeshLambertMaterial).dispose();
       this.diceMesh = null;
     }

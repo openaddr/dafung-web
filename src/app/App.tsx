@@ -74,7 +74,9 @@ export function App() {
         setController(controller, await source.loadMapData(config.mapId));
         const e = controller.engine;
         e.doDraftRoll();
-        while (e.aiSetupStep()) { /* bot 选都步进(轮到人类即停) */ }
+        while (e.aiSetupStep()) {
+          /* bot 选都步进(轮到人类即停) */
+        }
         // setup 推进不走 dispatchCommand,需显式同步(等价 __dafung.sync)
         useGameStore.getState().syncFromEngine(e);
         setScreen("game");
@@ -152,7 +154,7 @@ export function App() {
     (data: MapData) => {
       // MapData 无名字段,用首格名兜底命名(图库列表展示用,允许重名)
       getMapSource().saveCustomMap(data.tiles[0]?.name ?? "未命名地图", data);
-        pushHint("已存入自建图库", "info");
+      pushHint("已存入自建图库", "info");
     },
     [pushHint],
   );
@@ -175,7 +177,9 @@ export function App() {
         setController(controller, data);
         const e = controller.engine;
         e.doDraftRoll();
-        while (e.aiSetupStep()) { /* bot 选都步进 */ }
+        while (e.aiSetupStep()) {
+          /* bot 选都步进 */
+        }
         useGameStore.getState().syncFromEngine(e);
         setScreen("game");
         controller.onEnterGame();
@@ -186,14 +190,11 @@ export function App() {
     [pushHint, setScreen],
   );
 
-  const handleMapChange = useCallback(
-    (mapId: string) => {
-      localStorage.setItem(MAP_PREF_KEY, mapId);
-      // state 与 localStorage 同步(后续渲染读 state;两处永远一致)
-      setInitialMapId(mapId);
-    },
-    [],
-  );
+  const handleMapChange = useCallback((mapId: string) => {
+    localStorage.setItem(MAP_PREF_KEY, mapId);
+    // state 与 localStorage 同步(后续渲染读 state;两处永远一致)
+    setInitialMapId(mapId);
+  }, []);
 
   // 零兜底原则:默认地图唯一事实源 = 清单首项(getDefaultMapId,清单空即抛)。
   // 无 localStorage 记忆时异步解析;失败显式报错,不静默回退任何硬编码 id。

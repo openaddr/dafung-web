@@ -26,7 +26,11 @@ export default defineConfig({
   // 几乎每轮全量都出 1-3 例单跑绿,过去每批门都要多跑一轮收尾。#106 的 10s 点击
   // 上限后真回归是确定性的(重试照挂,如 pendingLand 回归),重试不再掩盖问题。
   retries: 1,
-  workers: process.env.E2E_WORKERS ? Number(process.env.E2E_WORKERS) : process.env.CI ? 1 : undefined,
+  workers: process.env.E2E_WORKERS
+    ? Number(process.env.E2E_WORKERS)
+    : process.env.CI
+      ? 1
+      : undefined,
   reporter: process.env.CI ? [["github"], ["list"]] : "list",
   timeout: 60_000,
   expect: { timeout: 10_000 },
@@ -35,7 +39,8 @@ export default defineConfig({
   // 16 分钟。本地默认 15 分钟 = 绿跑(2 workers 约 5-7 分钟)的 2 倍余量,坏跑封顶
   // 不再拖垮节奏。CI 单核 workers=1 全量要 ~25-35 分钟,由 ci.yml 传
   // E2E_GLOBAL_TIMEOUT=30 放宽(env 单位:分钟)。
-  globalTimeout: (process.env.E2E_GLOBAL_TIMEOUT ? Number(process.env.E2E_GLOBAL_TIMEOUT) : 15) * 60_000,
+  globalTimeout:
+    (process.env.E2E_GLOBAL_TIMEOUT ? Number(process.env.E2E_GLOBAL_TIMEOUT) : 15) * 60_000,
   use: {
     baseURL: `http://localhost:${STATIC_PORT}`,
     trace: "on-first-retry",

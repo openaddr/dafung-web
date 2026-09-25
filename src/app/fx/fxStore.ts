@@ -87,13 +87,19 @@ export const useFxStore = create<FxState>((set) => ({
     const id = nextId++;
     set((s) => ({ floaters: [...s.floaters, { id, x, y, amount, coins }] }));
     // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
-    setTimeout(() => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })), FX.floaterMs);
+    setTimeout(
+      () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
+      FX.floaterMs,
+    );
   },
 
   spawnTextFloater(x, y, text) {
     const id = nextId++;
     set((s) => ({ floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text }] }));
-    setTimeout(() => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })), FX.floaterMs);
+    setTimeout(
+      () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
+      FX.floaterMs,
+    );
   },
 
   showBanner(guohao, color) {
@@ -141,6 +147,12 @@ export const useFxStore = create<FxState>((set) => ({
   },
 
   resetFx() {
-    set({ floaters: [], seals: [], banner: null, marching: new Set<string>(), announces: new Map() });
+    set({
+      floaters: [],
+      seals: [],
+      banner: null,
+      marching: new Set<string>(),
+      announces: new Map(),
+    });
   },
 }));

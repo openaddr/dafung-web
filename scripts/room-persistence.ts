@@ -2,7 +2,14 @@
 // 让 Room 模块本身零 fs 依赖。默认实现 FileRoomPersistence 落 rooms/*.json,
 // 与原 server.ts 行为逐字节一致(同一目录、同一文件名、同一 JSON 形状)。
 // 测试可注入 InMemory 实现。
-import { mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync, existsSync } from "node:fs";
+import {
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+  existsSync,
+} from "node:fs";
 import { join, resolve } from "node:path";
 import type { GameEngine } from "../src/core/game";
 import type { SeatConfig } from "../src/core/game";

@@ -44,10 +44,30 @@ describe("jinnangAliasSplit(笺脚别称剥离)", () => {
 describe("JINNANG_FAMILY(四族映射:一标签一族)", () => {
   it("谋/攻/守/援 四标签齐全,pattern 与 token 一一对应", () => {
     expect(new Set(Object.keys(JINNANG_FAMILY))).toEqual(new Set(["谋", "攻", "守", "援"]));
-    expect(JINNANG_FAMILY["谋"]).toEqual({ token: "--color-seal-qing", pattern: "cloud", label: "谋", faceClass: "f-mou" });
-    expect(JINNANG_FAMILY["攻"]).toEqual({ token: "--color-danger", pattern: "fire", label: "攻", faceClass: "f-gong" });
-    expect(JINNANG_FAMILY["守"]).toEqual({ token: "--color-road-side", pattern: "shield", label: "守", faceClass: "f-shou" });
-    expect(JINNANG_FAMILY["援"]).toEqual({ token: "--color-money", pattern: "branch", label: "援", faceClass: "f-yuan" });
+    expect(JINNANG_FAMILY["谋"]).toEqual({
+      token: "--color-seal-qing",
+      pattern: "cloud",
+      label: "谋",
+      faceClass: "f-mou",
+    });
+    expect(JINNANG_FAMILY["攻"]).toEqual({
+      token: "--color-danger",
+      pattern: "fire",
+      label: "攻",
+      faceClass: "f-gong",
+    });
+    expect(JINNANG_FAMILY["守"]).toEqual({
+      token: "--color-road-side",
+      pattern: "shield",
+      label: "守",
+      faceClass: "f-shou",
+    });
+    expect(JINNANG_FAMILY["援"]).toEqual({
+      token: "--color-money",
+      pattern: "branch",
+      label: "援",
+      faceClass: "f-yuan",
+    });
   });
 
   it("族 token 全部存在于 tokens.css(与配色单源核对,防漂移)", () => {

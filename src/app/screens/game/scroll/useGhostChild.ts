@@ -57,7 +57,9 @@ export function useGhostChild(child: ReactNode, opts: UseGhostChildOpts = {}): G
   const [ghost, setGhost] = useState<ReactNode | null>(null);
   // 上一帧快照:身份 sig + 元素 el + 该帧的 skip 标记(skip 随帧走,退出时才被问询)
   const prevRef = useRef<{ sig: unknown; el: ReactNode; skip: boolean }>({
-    sig: null, el: null, skip: false,
+    sig: null,
+    el: null,
+    skip: false,
   });
   // yield() 的事件侧标记:事件与渲染异步,挂 ref 等下次身份变化消费
   const yieldRef = useRef(false);
@@ -86,6 +88,8 @@ export function useGhostChild(child: ReactNode, opts: UseGhostChildOpts = {}): G
 
   return {
     ghost,
-    yield: () => { yieldRef.current = true; },
+    yield: () => {
+      yieldRef.current = true;
+    },
   };
 }

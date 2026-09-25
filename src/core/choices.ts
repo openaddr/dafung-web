@@ -127,9 +127,11 @@ function encounterOptionGate(
 ): { available: boolean; reason?: string } {
   if (c.effect?.kind === "grantHero") {
     const p = e.activePlayer;
-    if (p.treasures.length < ENCOUNTER_HERO_TREASURE_COST) return { available: false, reason: "珍宝不足" };
+    if (p.treasures.length < ENCOUNTER_HERO_TREASURE_COST)
+      return { available: false, reason: "珍宝不足" };
     if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
-    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id))) return { available: false, reason: "名将已尽" };
+    if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id)))
+      return { available: false, reason: "名将已尽" };
   }
   return { available: true };
 }
@@ -158,16 +160,20 @@ function exhaustionChoices(e: GameEngine): ChoiceOption[] {
   const seat = e.pendingExhaustionSeat;
   if (seat == null) return [];
   const p = e.players[seat];
-  const capitalPropId = p.capitalIndex >= 0 ? (e.board.at(p.capitalIndex)?.propertyId ?? null) : null;
-  const tileName = (propertyId: string) => e.board.tiles.find((t) => t.propertyId === propertyId)?.name ?? propertyId;
+  const capitalPropId =
+    p.capitalIndex >= 0 ? (e.board.at(p.capitalIndex)?.propertyId ?? null) : null;
+  const tileName = (propertyId: string) =>
+    e.board.tiles.find((t) => t.propertyId === propertyId)?.name ?? propertyId;
   if (p.properties.some((h) => h.level > 0)) {
-    return p.properties.filter((h) => h.level > 0).map((h, i) => ({
-      id: `exhaust:${i}`,
-      label: `「${tileName(h.propertyId)}」降 1 级`,
-      available: true,
-      holdingPropertyId: h.propertyId,
-      exhaustionKind: "downgrade" as const,
-    }));
+    return p.properties
+      .filter((h) => h.level > 0)
+      .map((h, i) => ({
+        id: `exhaust:${i}`,
+        label: `「${tileName(h.propertyId)}」降 1 级`,
+        available: true,
+        holdingPropertyId: h.propertyId,
+        exhaustionKind: "downgrade" as const,
+      }));
   }
   return p.properties
     .filter((h) => h.propertyId !== capitalPropId)
@@ -227,7 +233,12 @@ export function demolishTargetOk(e: GameEngine, target: number): { ok: boolean; 
 }
 
 /** 目标有效性(#122/T3):非己、存活、未被免战庇护;卡面附加条件由 effectKind 分派。 */
-export function jinnangTargetOk(e: GameEngine, user: number, target: number, effectKind: JinnangEffect["kind"]): { ok: boolean; reason?: string } {
+export function jinnangTargetOk(
+  e: GameEngine,
+  user: number,
+  target: number,
+  effectKind: JinnangEffect["kind"],
+): { ok: boolean; reason?: string } {
   const t = e.players[target];
   if (target === user) return { ok: false, reason: "不能指定自己" };
   if (t.isBankrupt) return { ok: false, reason: "已出局" };
@@ -248,7 +259,12 @@ export function jinnangTargetOk(e: GameEngine, user: number, target: number, eff
 
 /** 主动技目标有效性(#188 档 3):目标域按技能定义分派;附加守卫走共享口径。
  *  注:免战金牌只挡锦囊(牌面原文),主动技不受庇护——故此处不查 jinnangShield。 */
-export function heroSkillTargetOk(e: GameEngine, user: number, target: number, skill: ActiveSkillDef): { ok: boolean; reason?: string } {
+export function heroSkillTargetOk(
+  e: GameEngine,
+  user: number,
+  target: number,
+  skill: ActiveSkillDef,
+): { ok: boolean; reason?: string } {
   const t = e.players[target];
   if (t.isBankrupt) return { ok: false, reason: "已出局" };
   if (target === user && skill.target !== "any") return { ok: false, reason: "不能指定自己" };
@@ -288,7 +304,9 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const skill = activeSkillOf(p, pendingSkill.skillId);
     const userSeat = e.players.indexOf(p);
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
-      const verdict = skill ? heroSkillTargetOk(e, userSeat, seat, skill) : { ok: false, reason: "技不在身" };
+      const verdict = skill
+        ? heroSkillTargetOk(e, userSeat, seat, skill)
+        : { ok: false, reason: "技不在身" };
       return {
         id: `t${seat}`,
         label: t.guohao || t.name,
@@ -307,7 +325,8 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4)
     const needTwo = def.targetDomain === "two-others";
     const validTargets = needTwo
-      ? e.players.filter((_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok).length
+      ? e.players.filter((_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok)
+          .length
       : 0;
     const targetsShort = needTwo && validTargets < 2;
     return {
@@ -329,7 +348,10 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
 }
 
 /** 按 id 查玩家麾下主动技(#188 档 3);查无返回 null(命令与麾下不符时由调用方处置)。 */
-export function activeSkillOf(p: { heroes: { active?: ActiveSkillDef }[] }, skillId: string): ActiveSkillDef | null {
+export function activeSkillOf(
+  p: { heroes: { active?: ActiveSkillDef }[] },
+  skillId: string,
+): ActiveSkillDef | null {
   for (const h of p.heroes) {
     if (h.active?.id === skillId) return h.active;
   }
@@ -337,7 +359,11 @@ export function activeSkillOf(p: { heroes: { active?: ActiveSkillDef }[] }, skil
 }
 
 /** 冷却剩余轮数(#188 档 3):>0 = 仍在冷却(heroLastFired 键 = active.id,与被动技同机制)。 */
-export function skillCooldownLeft(e: GameEngine, p: { heroLastFired: Record<string, number> }, skill: ActiveSkillDef): number {
+export function skillCooldownLeft(
+  e: GameEngine,
+  p: { heroLastFired: Record<string, number> },
+  skill: ActiveSkillDef,
+): number {
   const last = p.heroLastFired[skill.id];
   if (last == null) return 0;
   return Math.max(0, skill.cooldown - (e.round - last));
@@ -362,7 +388,9 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
         available = false;
         reason = "银两不足";
       } else if (skill.target !== "none") {
-        const anyTarget = e.players.some((_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok);
+        const anyTarget = e.players.some(
+          (_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok,
+        );
         if (!anyTarget) {
           available = false;
           reason = "无可指定目标";
@@ -385,7 +413,9 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
 /** 军师幕「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
  *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
-  return computeChoices(e, "AwaitingJinnang").some((o) => o.available && (o.cardTags != null || o.skillId != null));
+  return computeChoices(e, "AwaitingJinnang").some(
+    (o) => o.available && (o.cardTags != null || o.skillId != null),
+  );
 }
 
 /** 决策相位 → 选项计算器。未注册的相位(Roll/Land/EndTurn/GameOver)无决策。 */

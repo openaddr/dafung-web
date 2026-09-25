@@ -199,7 +199,10 @@ describe("锦囊 bot 策略(#148)", () => {
     const e = prepared(42, SEATS3);
     const user = e.players[0];
     e.players[1].treasures.push({ id: "t1", name: "和氏璧", level: 3 });
-    e.players[2].treasures.push({ id: "t2", name: "随侯珠", level: 2 }, { id: "t3", name: "良玉", level: 1 });
+    e.players[2].treasures.push(
+      { id: "t2", name: "随侯珠", level: 2 },
+      { id: "t3", name: "良玉", level: 1 },
+    );
     expect(jinnangIntent(e, "窃玉偷香").targets).toEqual([2, 1]); // 2 件 > 1 件
     e.players[1].treasures.push({ id: "t4", name: "夜光璧", level: 2 }); // 2=2 并列 → 座位序小在前
     expect(jinnangIntent(e, "窃玉偷香").targets).toEqual([1, 2]);
@@ -214,7 +217,9 @@ describe("锦囊 bot 策略(#148)", () => {
   it("火烧连营:目标=城数最多者;唯一可升级城被降 1 级", () => {
     const e = prepared(42, SEATS3);
     const user = e.players[0];
-    const free = e.board.tiles.find((t) => t.propertyId != null && e.findOwner(t.propertyId) == null)!.propertyId!;
+    const free = e.board.tiles.find(
+      (t) => t.propertyId != null && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
     const cap2 = e.players[2].properties[0];
     e.players[2].properties.push({ ...cap2, propertyId: free, level: 1 }); // 2 座城 > 他人 1 座
     expect(jinnangIntent(e, "火烧连营").targets).toEqual([2, 1]);
@@ -260,7 +265,9 @@ describe("锦囊 bot 策略(#148)", () => {
     const used = ["连环计", "军情密探"].filter((c) => !user.jinnangHand.includes(c));
     expect(used.length).toBe(1);
     expect(e.jinnangDiscard).toContain(used[0]);
-    expect(e.jinnangPeeks.length + (e.log.some((l) => l.detail.includes("duel")) ? 1 : 0)).toBeGreaterThanOrEqual(1);
+    expect(
+      e.jinnangPeeks.length + (e.log.some((l) => l.detail.includes("duel")) ? 1 : 0),
+    ).toBeGreaterThanOrEqual(1);
     expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
   });
 
@@ -332,16 +339,38 @@ describe("锦囊 bot 策略(#148)", () => {
       return { calls: d.calls(), deckDelta: x.jinnangDeckCount - deckBefore, phase: x.turnPhase };
     };
     // 横征暴敛(可用即用,执行无骰)
-    expect(scenario((x) => armJinnang(x, ["横征暴敛"]), (x) => { x.players[1].cash = 300; }))
-      .toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
+    expect(
+      scenario(
+        (x) => armJinnang(x, ["横征暴敛"]),
+        (x) => {
+          x.players[1].cash = 300;
+        },
+      ),
+    ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
     // 免战金牌(低于中位数)
-    expect(scenario((x) => armJinnang(x, ["免战金牌"]), (x) => { x.players[0].cash = 100; x.players[1].cash = 500; }))
-      .toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
+    expect(
+      scenario(
+        (x) => armJinnang(x, ["免战金牌"]),
+        (x) => {
+          x.players[0].cash = 100;
+          x.players[1].cash = 500;
+        },
+      ),
+    ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
     // 缓兵之计(对手领先,目标段两步推进)
-    expect(scenario((x) => armJinnang(x, ["缓兵之计"]), (x) => { x.players[1].cash += 500; }))
-      .toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
+    expect(
+      scenario(
+        (x) => armJinnang(x, ["缓兵之计"]),
+        (x) => {
+          x.players[1].cash += 500;
+        },
+      ),
+    ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
     // 灰置牌(连环计)今不用
-    expect(scenario((x) => armJinnang(x, ["连环计"])))
-      .toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
+    expect(scenario((x) => armJinnang(x, ["连环计"]))).toEqual({
+      calls: 0,
+      deckDelta: 0,
+      phase: "Roll",
+    });
   });
 });

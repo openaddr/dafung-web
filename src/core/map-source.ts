@@ -53,15 +53,23 @@ export function parseCatalog(data: unknown): CatalogFileEntry[] {
     if (typeof name !== "string" || !name) throw new Error(`清单第 ${i + 1} 项缺 name`);
     if (typeof file !== "string" || !file) throw new Error(`清单第 ${i + 1} 项缺 file`);
     if (typeof desc !== "string") throw new Error(`清单第 ${i + 1} 项 desc 非字符串`);
-    if (typeof tileCount !== "number" || tileCount <= 0) throw new Error(`清单第 ${i + 1} 项 tileCount 非法`);
-    if (typeof targetNetWorth !== "number" || targetNetWorth <= 0) throw new Error(`清单第 ${i + 1} 项 targetNetWorth 非法`);
+    if (typeof tileCount !== "number" || tileCount <= 0)
+      throw new Error(`清单第 ${i + 1} 项 tileCount 非法`);
+    if (typeof targetNetWorth !== "number" || targetNetWorth <= 0)
+      throw new Error(`清单第 ${i + 1} 项 targetNetWorth 非法`);
     return { id, name, file, desc, tileCount, targetNetWorth };
   });
 }
 
 /** CatalogFileEntry → MapEntry(去 file,加 custom 标记)。 */
 export function entryFromFile(e: CatalogFileEntry): MapEntry {
-  return { id: e.id, name: e.name, desc: e.desc, tileCount: e.tileCount, targetNetWorth: e.targetNetWorth };
+  return {
+    id: e.id,
+    name: e.name,
+    desc: e.desc,
+    tileCount: e.tileCount,
+    targetNetWorth: e.targetNetWorth,
+  };
 }
 
 /** 自建图 id 前缀约定。 */

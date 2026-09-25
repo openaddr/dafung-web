@@ -46,7 +46,7 @@ function stepPlaying(e: GameEngine): boolean {
  *  (ADR-0014 起 LogEvent 携带 ts,header 行内嵌 gameId/startedAt;两台独立构造的引擎
  *  这些值必然不同,序列化保真断言应剔除后比较)。 */
 function comparableLog(log: GameEngine["log"]) {
-  return log.map(({ ts, ...rest }) => ({
+  return log.map(({ ts: _ts, ...rest }) => ({
     ...rest,
     detail: rest.detail
       .replace(/"gameId":"[^"]*"/g, '"gameId":""')
@@ -80,7 +80,8 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     finishSetup(a);
     let steps = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 5000) { // 经济 v2 目标 30000:终局步数远超旧 500 上限
+    while (!a.isOver && guard++ < 5000) {
+      // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) {
         steps++;
         // 联机路径:全新引擎 + restoreFromSnapshot(与 online.ts hydrate 同款)
@@ -115,9 +116,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     expect(mirror.turnPhase).toBe("AwaitingDecision");
     // 恢复后决策命令可续:镜像端直接购地成功(决策不再依赖表现态 lastLandOutcome)
     mirror.buyProperty();
-    expect(
-      mirror.activePlayer.properties.some((h) => h.propertyId === tilePropertyId),
-    ).toBe(true);
+    expect(mirror.activePlayer.properties.some((h) => h.propertyId === tilePropertyId)).toBe(true);
   });
 
   it("零兜底:快照 pendingLand 指向 catalog 之外的城 → restore 显式抛错(不静默丢决策)", () => {
@@ -138,7 +137,8 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     finishSetup(a);
     let n = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 5000) { // 经济 v2 目标 30000:终局步数远超旧 500 上限
+    while (!a.isOver && guard++ < 5000) {
+      // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) n++;
     }
     expect(a.isOver).toBe(true);
@@ -154,7 +154,8 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     const b2 = makeEngine(13);
     b2.restoreFromSnapshot(b1.snapshot());
     guard = 0;
-    while (!b2.isOver && guard++ < 5000) { // 同路径 A:经济 v2 + #188 档 3 技能骰流,终局步数远超旧 500 上限
+    while (!b2.isOver && guard++ < 5000) {
+      // 同路径 A:经济 v2 + #188 档 3 技能骰流,终局步数远超旧 500 上限
       stepPlaying(b2);
     }
     expect(b2.isOver).toBe(true);

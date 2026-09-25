@@ -5,7 +5,12 @@
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import type { Locator } from "@playwright/test";
-import { waitSettled, onlinePickCapitals, dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
+import {
+  waitSettled,
+  onlinePickCapitals,
+  dismissJinnangIfUp,
+  newBridgeContext,
+} from "./react-helpers";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
@@ -54,9 +59,7 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动。
   // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
   for (const p of [host, guest]) {
-    await p
-      .waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 })
-      .catch(() => null);
+    await p.waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 }).catch(() => null);
     await dismissJinnangIfUp(p);
   }
   return [host, guest];
@@ -94,25 +97,39 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
       const ok = await loc
         .first()
         .click({ timeout: 5_000 })
-        .then(() => true, () => false);
+        .then(
+          () => true,
+          () => false,
+        );
       return ok;
     };
     for (const p of [host, guest]) {
       const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
       if ((await inline.count()) > 0) {
         acted = await tryClick(inline);
-        if (acted) { actions++; break; }
+        if (acted) {
+          actions++;
+          break;
+        }
       }
       // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
       const jinnangPass = p.getByTestId("actionbar-pass");
       if (await jinnangPass.isVisible().catch(() => false)) {
         acted = await tryClick(jinnangPass);
-        if (acted) { actions++; break; }
+        if (acted) {
+          actions++;
+          break;
+        }
       }
-      const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
+      const scrollPrimary = p.locator(
+        '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
+      );
       if ((await scrollPrimary.count()) > 0) {
         acted = await tryClick(scrollPrimary);
-        if (acted) { actions++; break; }
+        if (acted) {
+          actions++;
+          break;
+        }
       }
     }
     if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/自动掷骰广播推进
@@ -151,8 +168,15 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
     const deadline = Date.now() + 150_000;
     while (attempts < 12 && Date.now() < deadline) {
       let roller: Page | null = null;
-      for (const [p, seat] of [[host, 0], [guest, 1]] as const) {
-        const s = (await coreState(p)) as { phase: string; turnPhase: string; decisionOwner: number };
+      for (const [p, seat] of [
+        [host, 0],
+        [guest, 1],
+      ] as const) {
+        const s = (await coreState(p)) as {
+          phase: string;
+          turnPhase: string;
+          decisionOwner: number;
+        };
         if (s.phase === "Playing" && s.turnPhase === "Roll" && s.decisionOwner === seat) {
           roller = p;
           break;
@@ -165,7 +189,10 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
           await dismissJinnangIfUp(p);
           const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
           if ((await inline.count()) > 0) {
-            await inline.first().click({ timeout: 5_000 }).catch(() => {});
+            await inline
+              .first()
+              .click({ timeout: 5_000 })
+              .catch(() => {});
           }
         }
         await host.waitForTimeout(400); // 等自动起摇/广播到达
@@ -176,7 +203,9 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         .waitForFunction(
           () => {
             const s = (window as any).__dafung.snapshot();
-            return s.turnPhase === "AwaitingDecision" && s.lastLandOutcomeKind === "PropertyAvailable";
+            return (
+              s.turnPhase === "AwaitingDecision" && s.lastLandOutcomeKind === "PropertyAvailable"
+            );
           },
           undefined,
           { timeout: 20_000, polling: 100 },
@@ -200,23 +229,32 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
               acted = await inline
                 .first()
                 .click({ timeout: 10_000 })
-                .then(() => true, () => false);
+                .then(
+                  () => true,
+                  () => false,
+                );
               break;
             }
             // 锦囊卷轴优先「今不用」(#122/T2),同上
             const jinnangPass = p.getByTestId("actionbar-pass");
             if (await jinnangPass.isVisible().catch(() => false)) {
-              acted = await jinnangPass
-                .click({ timeout: 10_000 })
-                .then(() => true, () => false);
+              acted = await jinnangPass.click({ timeout: 10_000 }).then(
+                () => true,
+                () => false,
+              );
               break;
             }
-            const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
+            const scrollPrimary = p.locator(
+              '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
+            );
             if ((await scrollPrimary.count()) > 0) {
               acted = await scrollPrimary
                 .first()
                 .click({ timeout: 10_000 })
-                .then(() => true, () => false);
+                .then(
+                  () => true,
+                  () => false,
+                );
               break;
             }
           }

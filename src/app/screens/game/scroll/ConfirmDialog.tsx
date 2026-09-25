@@ -124,7 +124,10 @@ export function ConfirmDialog({
         }
       >
         {/* 挂轴单杆(视觉重做 v2):小确认卡也带顶杆,与决策卷轴同一器物语言 */}
-        <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center"
+        >
           <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
           <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
           <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
@@ -137,11 +140,17 @@ export function ConfirmDialog({
         <div className="scroll-anim-unroll-paper">
           {/* W2 包E(审计 A5):正文是动态 children(地图名/城名等),字族迁 wenkai 不落小薇。
               底件 DialogTitle/DialogDescription 白拿 aria-labelledby/aria-describedby 口径。 */}
-          <DialogDescription className="mb-3.5 font-wenkai text-[17px] text-ink">{children}</DialogDescription>
+          <DialogDescription className="mb-3.5 font-wenkai text-[17px] text-ink">
+            {children}
+          </DialogDescription>
           <div className="flex flex-wrap justify-center gap-3">
             {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
                 e2e 无需知道通用/专用两套名字 */}
-            <ScrollButton primary testid={testid ? `${testid}-ok` : T.confirmOk} onClick={onConfirm}>
+            <ScrollButton
+              primary
+              testid={testid ? `${testid}-ok` : T.confirmOk}
+              onClick={onConfirm}
+            >
               {confirmLabel}
             </ScrollButton>
             <ScrollButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>

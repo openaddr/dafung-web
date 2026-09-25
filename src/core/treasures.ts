@@ -13,8 +13,16 @@ export const TREASURES: TreasureDef[] = [
 
 /** 等级 → 指导价(分):Lv1-4 线性,Lv5+ 加速增长(1/2/3/4/6/8/12/16/22/30 两)。 */
 export const TREASURE_PRICE: Record<number, number> = {
-  1: 100, 2: 200, 3: 300, 4: 400, 5: 600,
-  6: 800, 7: 1200, 8: 1600, 9: 2200, 10: 3000,
+  1: 100,
+  2: 200,
+  3: 300,
+  4: 400,
+  5: 600,
+  6: 800,
+  7: 1200,
+  8: 1600,
+  9: 2200,
+  10: 3000,
 };
 
 /** 珍宝指导价(分):查表;缺等级 = 数据 bug,直接抛错(零兜底)。集中一处,供引擎/UI 复用。 */
@@ -25,7 +33,11 @@ export function guidePriceOf(level: number): number {
 }
 
 /** 贸易售价(旧公式,向后兼容):markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
-export function tradePriceOf(guidePrice: number, trade: TradeFormula | undefined, levelMult: number): number {
+export function tradePriceOf(
+  guidePrice: number,
+  trade: TradeFormula | undefined,
+  levelMult: number,
+): number {
   if (trade?.type === "markup") return guidePrice + trade.param * levelMult;
   if (trade?.type === "multiply") return guidePrice * trade.param * levelMult;
   return guidePrice * 1.5 * levelMult;

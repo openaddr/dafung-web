@@ -8,249 +8,105 @@
     {
       "id": "prop-luoyang",
       "name": "洛阳",
-      "pos": [
-        -40,
-        -236
-      ],
+      "pos": [-40, -236],
       "group": "a",
       "region": "中原",
       "price": 4000,
       "buildCost": 2000,
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
-      "tradeAdd": [
-        300,
-        1200,
-        3000,
-        7000
-      ],
-      "valueByLevel": [
-        1600,
-        2400,
-        3400,
-        4800
-      ],
+      "tradeMult": [2, 4, 6, 10],
+      "tradeAdd": [300, 1200, 3000, 7000],
+      "valueByLevel": [1600, 2400, 3400, 4800],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-hulaoguan",
       "name": "虎牢关",
-      "pos": [
-        184,
-        -166
-      ],
+      "pos": [184, -166],
       "group": "b",
       "region": "中原",
       "price": 3400,
       "buildCost": 1700,
-      "valueByLevel": [
-        1400,
-        2000,
-        2900,
-        4100
-      ],
-      "tradeAdd": [
-        300,
-        1000,
-        2500,
-        5500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-kaifeng",
       "name": "开封",
-      "pos": [
-        240,
-        44
-      ],
+      "pos": [240, 44],
       "group": "b",
       "region": "中原",
       "price": 3800,
       "buildCost": 1900,
-      "valueByLevel": [
-        1500,
-        2300,
-        3200,
-        4600
-      ],
-      "tradeAdd": [
-        300,
-        1100,
-        2800,
-        6500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1500, 2300, 3200, 4600],
+      "tradeAdd": [300, 1100, 2800, 6500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-xuchang2",
       "name": "颍川",
-      "pos": [
-        156,
-        226
-      ],
+      "pos": [156, 226],
       "group": "c",
       "region": "中原",
       "price": 3400,
       "buildCost": 1700,
-      "valueByLevel": [
-        1400,
-        2000,
-        2900,
-        4100
-      ],
-      "tradeAdd": [
-        300,
-        1000,
-        2500,
-        5500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-wancheng",
       "name": "宛城",
-      "pos": [
-        -40,
-        268
-      ],
+      "pos": [-40, 268],
       "group": "c",
       "region": "中原",
       "price": 3400,
       "buildCost": 1700,
-      "valueByLevel": [
-        1400,
-        2000,
-        2900,
-        4100
-      ],
-      "tradeAdd": [
-        300,
-        1000,
-        2500,
-        5500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-xinye",
       "name": "新野",
-      "pos": [
-        -236,
-        226
-      ],
+      "pos": [-236, 226],
       "group": "d",
       "region": "中原",
       "price": 3400,
       "buildCost": 1700,
-      "valueByLevel": [
-        1400,
-        2000,
-        2900,
-        4100
-      ],
-      "tradeAdd": [
-        300,
-        1000,
-        2500,
-        5500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-henei",
       "name": "河内",
-      "pos": [
-        -320,
-        44
-      ],
+      "pos": [-320, 44],
       "group": "d",
       "region": "中原",
       "price": 3400,
       "buildCost": 1700,
-      "valueByLevel": [
-        1400,
-        2000,
-        2900,
-        4100
-      ],
-      "tradeAdd": [
-        300,
-        1000,
-        2500,
-        5500
-      ],
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     },
     {
       "id": "prop-mengjin",
       "name": "孟津",
-      "pos": [
-        -264,
-        -166
-      ],
+      "pos": [-264, -166],
       "group": "a",
       "region": "中原",
       "price": 3800,
       "buildCost": 1900,
-      "tradeMult": [
-        2,
-        4,
-        6,
-        10
-      ],
-      "tradeAdd": [
-        300,
-        1100,
-        2800,
-        6500
-      ],
-      "valueByLevel": [
-        1500,
-        2300,
-        3200,
-        4600
-      ],
+      "tradeMult": [2, 4, 6, 10],
+      "tradeAdd": [300, 1100, 2800, 6500],
+      "valueByLevel": [1500, 2300, 3200, 4600],
       "resupplyPerLevel": 400
     }
   ]

@@ -111,7 +111,12 @@ export interface GameSnapshot {
   treasureVisitor: { propertyId: string; ownerIdx: number } | null;
   pendingDebt: { amount: number; creditor: string | null } | null;
   // 珍宝交涉交割托管(买家付清价款前珍宝暂存;恢复后可继续清算/交割)
-  escrowTreasure: { treasure: TreasureRow; buyerIdx: number; sellerIdx: number; price: number } | null;
+  escrowTreasure: {
+    treasure: TreasureRow;
+    buyerIdx: number;
+    sellerIdx: number;
+    price: number;
+  } | null;
   // 纯派生(board 常量)
   branchStartTile: number | null;
   branchEndTile: number | null;
@@ -262,7 +267,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => (e.winner ? e.winner.id : null),
     write: (e, s) => {
       const wid = s.winner;
-      e.winner = wid ? e.players.find((p) => p.id === wid) ?? null : null;
+      e.winner = wid ? (e.players.find((p) => p.id === wid) ?? null) : null;
     },
   },
   {
@@ -365,9 +370,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
   {
     // 锦囊目标段(#122/T3):选人子状态随快照走(目标段中途恢复不丢)
     key: "pendingJinnang",
-    read: (e) => (e.pendingJinnang ? { ...e.pendingJinnang, picked: [...e.pendingJinnang.picked] } : null),
+    read: (e) =>
+      e.pendingJinnang ? { ...e.pendingJinnang, picked: [...e.pendingJinnang.picked] } : null,
     write: (e, s) => {
-      e.pendingJinnang = s.pendingJinnang ? { ...s.pendingJinnang, picked: [...s.pendingJinnang.picked] } : null;
+      e.pendingJinnang = s.pendingJinnang
+        ? { ...s.pendingJinnang, picked: [...s.pendingJinnang.picked] }
+        : null;
     },
   },
   {
@@ -404,15 +412,23 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
   {
     // 剩余珍宝牌堆(联机端需复现同一抽牌序列)
     key: "treasureDeck",
-    read: (e) => e.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
+    read: (e) =>
+      e.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
     write: (e, s) => {
-      e.treasureDeck = s.treasureDeck.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
+      e.treasureDeck = s.treasureDeck.map((t) => ({
+        id: t.id,
+        name: t.name,
+        level: t.level,
+        desc: t.desc,
+      }));
     },
   },
   {
     key: "treasureVisitor",
     read: (e) =>
-      e.treasureVisitor ? { propertyId: e.treasureVisitor.def.id, ownerIdx: e.treasureVisitor.ownerIdx } : null,
+      e.treasureVisitor
+        ? { propertyId: e.treasureVisitor.def.id, ownerIdx: e.treasureVisitor.ownerIdx }
+        : null,
     write: (e, s) => {
       const tv = s.treasureVisitor;
       if (tv == null) {
@@ -421,13 +437,19 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
       }
       // 定义按 id 从 catalog 现查;查无 = 快照与地图不符,显式抛错(零兜底,不静默丢交涉上下文)
       const def = e.catalog.get(tv.propertyId);
-      if (def == null) throw new Error(`快照 treasureVisitor.propertyId=${tv.propertyId} 不在 catalog,交涉上下文无法重建`);
+      if (def == null)
+        throw new Error(
+          `快照 treasureVisitor.propertyId=${tv.propertyId} 不在 catalog,交涉上下文无法重建`,
+        );
       e.treasureVisitor = { def, ownerIdx: tv.ownerIdx };
     },
   },
   {
     key: "pendingDebt",
-    read: (e) => (e.pendingDebt ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null } : null),
+    read: (e) =>
+      e.pendingDebt
+        ? { amount: e.pendingDebt.amount, creditor: e.pendingDebt.creditor?.id ?? null }
+        : null,
     write: (e, s) => {
       const debt = s.pendingDebt;
       e.pendingDebt = debt
@@ -525,11 +547,26 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         capitalIndex: p.capitalIndex,
         onBranch: p.onBranch,
         skipTurns: p.skipTurns,
-        properties: p.properties.map((h) => ({ propertyId: h.propertyId, level: h.level, group: h.group })),
-        heroes: p.heroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc, image: h.image })),
+        properties: p.properties.map((h) => ({
+          propertyId: h.propertyId,
+          level: h.level,
+          group: h.group,
+        })),
+        heroes: p.heroes.map((h) => ({
+          id: h.id,
+          name: h.name,
+          title: h.title,
+          desc: h.desc,
+          image: h.image,
+        })),
         // 名将冷却记录(跨进程恢复 cooldown 判定)
         heroLastFired: { ...p.heroLastFired },
-        treasures: p.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc })),
+        treasures: p.treasures.map((t) => ({
+          id: t.id,
+          name: t.name,
+          level: t.level,
+          desc: t.desc,
+        })),
         reputation: p.reputation,
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
@@ -561,7 +598,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.jinnangHandCount = ps.jinnangHandCount;
         p.jinnangShield = ps.jinnangShield;
         p.repMilestones = [...ps.repMilestones];
-        p.treasures = ps.treasures.map((t) => ({ id: t.id, name: t.name, level: t.level, desc: t.desc }));
+        p.treasures = ps.treasures.map((t) => ({
+          id: t.id,
+          name: t.name,
+          level: t.level,
+          desc: t.desc,
+        }));
         // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {
           const def = e.catalog.get(h.propertyId);
@@ -579,7 +621,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
   {
     // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢 skill/cooldown)
     key: "offeredHeroes",
-    read: (e) => e.offeredHeroes.map((h) => ({ id: h.id, name: h.name, title: h.title, desc: h.desc, image: h.image })),
+    read: (e) =>
+      e.offeredHeroes.map((h) => ({
+        id: h.id,
+        name: h.name,
+        title: h.title,
+        desc: h.desc,
+        image: h.image,
+      })),
     write: (e, s) => {
       e.offeredHeroes = s.offeredHeroes
         .map((h) => HEROES.find((H) => H.id === h.id))
@@ -664,11 +713,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     // lastLandOutcome 不再兼职决策载荷。快照声称有待决策落格但目录查无定义 → 显式抛错
     //(序列化缺口教训:静默丢引用 = 恢复后决策悄悄失效)。
     key: "pendingLand",
-    read: (e) => (e.pendingLand ? { kind: e.pendingLand.kind, propertyId: e.pendingLand.propertyId } : null),
+    read: (e) =>
+      e.pendingLand ? { kind: e.pendingLand.kind, propertyId: e.pendingLand.propertyId } : null,
     write: (e, s) => {
       const pl = s.pendingLand;
       if (pl != null && e.catalog.get(pl.propertyId) == null)
-        throw new Error(`快照 pendingLand.propertyId=${pl.propertyId} 不在 catalog,决策上下文无法重建`);
+        throw new Error(
+          `快照 pendingLand.propertyId=${pl.propertyId} 不在 catalog,决策上下文无法重建`,
+        );
       e.pendingLand = pl ? { kind: pl.kind, propertyId: pl.propertyId } : null;
     },
   },

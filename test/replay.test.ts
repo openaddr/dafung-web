@@ -109,7 +109,9 @@ describe("ADR-0014 重放自证:生成日志 → 重放 → 终态逐字段一�
     expect(e.isOver).toBe(true);
     const lines: LogEvent[] = [...e.log];
     // 命令流有货:选都 + 玩法命令都是 cmd 行
-    expect(lines.some((l) => l.category === "cmd" && l.detail.includes('"pickCapital"'))).toBe(true);
+    expect(lines.some((l) => l.category === "cmd" && l.detail.includes('"pickCapital"'))).toBe(
+      true,
+    );
     expect(lines.filter((l) => l.category === "cmd").length).toBeGreaterThan(5);
 
     const replayed = replayGameLog(lines);
@@ -130,7 +132,7 @@ describe("ADR-0014 重放自证:生成日志 → 重放 → 终态逐字段一�
     driveSetup(b);
     drivePlaying(b);
     const strip = (ls: LogEvent[]) =>
-      ls.map(({ ts, ...rest }) => ({
+      ls.map(({ ts: _ts, ...rest }) => ({
         ...rest,
         detail: rest.detail
           .replace(/"gameId":"[^"]*"/g, '"gameId":""')

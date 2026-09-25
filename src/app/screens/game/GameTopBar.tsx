@@ -88,13 +88,32 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           弃牌 <b data-testid={TESTIDS.topbarDiscard}>{snapshot.jinnangDiscard.length}</b>
         </span>
         {/* 总览复位 / 缩放(既有能力平移;#98 缩放显式入口保留) */}
-        <button type="button" data-testid={TESTIDS.resetView} title="总览复位" aria-label="总览复位" onClick={onResetView} className="sqbtn">
+        <button
+          type="button"
+          data-testid={TESTIDS.resetView}
+          title="总览复位"
+          aria-label="总览复位"
+          onClick={onResetView}
+          className="sqbtn"
+        >
           <Sym name="reset" size={15} />
         </button>
-        <button type="button" title="放大棋盘" aria-label="放大棋盘" onClick={onZoomIn} className="sqbtn">
+        <button
+          type="button"
+          title="放大棋盘"
+          aria-label="放大棋盘"
+          onClick={onZoomIn}
+          className="sqbtn"
+        >
           +
         </button>
-        <button type="button" title="缩小棋盘" aria-label="缩小棋盘" onClick={onZoomOut} className="sqbtn">
+        <button
+          type="button"
+          title="缩小棋盘"
+          aria-label="缩小棋盘"
+          onClick={onZoomOut}
+          className="sqbtn"
+        >
           −
         </button>
         <MuteSqButton />

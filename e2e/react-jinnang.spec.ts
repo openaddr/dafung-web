@@ -42,7 +42,10 @@ test.describe("锦囊 T1:发牌与可见性", () => {
 
     // bot 计数章可见(囊1;#253 迁移:jinnang-count 随诸侯行退役,席位卡手牌徽章 aria 即计数),
     // 且整页不存在第二份锦囊牌面(他人内容不渲染)
-    await expect(page.getByTestId(TESTIDS.seatAttr(1, "hand"))).toHaveAttribute("aria-label", "锦囊手牌 1");
+    await expect(page.getByTestId(TESTIDS.seatAttr(1, "hand"))).toHaveAttribute(
+      "aria-label",
+      "锦囊手牌 1",
+    );
     expect(await page.locator("[data-testid^='jinnang-card-']").count()).toBe(1);
   });
 
@@ -51,9 +54,21 @@ test.describe("锦囊 T1:发牌与可见性", () => {
     const probe = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       // ADR-0016 口径(T2 起精确化):抽牌行不得落牌名(重放可推导);用牌/结算公开,牌名入战报是正确行为
-      const names = ["连环计", "军情密探", "缓兵之计", "横征暴敛", "窃玉偷香", "火烧连营", "免战金牌", "求贤令"];
+      const names = [
+        "连环计",
+        "军情密探",
+        "缓兵之计",
+        "横征暴敛",
+        "窃玉偷香",
+        "火烧连营",
+        "免战金牌",
+        "求贤令",
+      ];
       return {
-        drawRowLeaks: e.log.some((l: { detail: string }) => l.detail.includes("jinnangDraw") && names.some((c) => l.detail.includes(c))),
+        drawRowLeaks: e.log.some(
+          (l: { detail: string }) =>
+            l.detail.includes("jinnangDraw") && names.some((c) => l.detail.includes(c)),
+        ),
       };
     });
     expect(probe.drawRowLeaks).toBe(false);

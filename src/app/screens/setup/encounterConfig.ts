@@ -61,8 +61,7 @@ export function parseEncounterDefaults(data: unknown): EncounterFormValues | nul
     typeof o.baseRates === "object" && o.baseRates !== null
       ? (o.baseRates as Record<string, unknown>)
       : null;
-  const n = (v: unknown): number | null =>
-    typeof v === "number" && Number.isFinite(v) ? v : null;
+  const n = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const triggerRate = n(o.triggerRate);
   const good = b ? n(b.good) : null;
   const neutral = b ? n(b.neutral) : null;

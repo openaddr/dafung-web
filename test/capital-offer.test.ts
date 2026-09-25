@@ -95,7 +95,10 @@ describe("选都三选一:pickCapital 校验与 bot", () => {
     e.doDraftRoll();
     const idx = e.currentSetupPlayerIndex;
     const outsider = e.board.tiles.find(
-      (t) => t.isCapitalEligible && !e.takenCapitalIndices.has(t.index) && !e.offeredCapitals.includes(t.index),
+      (t) =>
+        t.isCapitalEligible &&
+        !e.takenCapitalIndices.has(t.index) &&
+        !e.offeredCapitals.includes(t.index),
     )!;
     expect(e.pickCapital(idx, outsider.index)).toEqual({ ok: false, reason: "非本轮候选城" });
     const nonCity = e.board.tiles.find((t) => !t.isCapitalEligible)!;
@@ -135,7 +138,10 @@ describe("选都三选一:快照与极端地图", () => {
   });
 
   it("8 人局(sanguo 31 城)候选不耗尽,全员有都城", () => {
-    const e = makeEngine(11, Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })));
+    const e = makeEngine(
+      11,
+      Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })),
+    );
     e.doDraftRoll();
     let guard = 0;
     while (e.phase === "Setup" && guard++ < 100) e.aiSetupStep();
@@ -145,7 +151,11 @@ describe("选都三选一:快照与极端地图", () => {
   });
 
   it("zhongyuan 8 城小地图退化:8 人仍可全部完成选都", () => {
-    const e = makeEngine(3, Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })), ZHONGYUAN);
+    const e = makeEngine(
+      3,
+      Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })),
+      ZHONGYUAN,
+    );
     e.doDraftRoll();
     expect(e.offeredCapitals).toHaveLength(3);
     let guard = 0;
@@ -173,7 +183,10 @@ describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => 
   it("2-8 座位全座位选都后:每座位 capitalIndex 指向的城都在 properties 中且 Lv.0、现金=起手−建城费", () => {
     for (let n = 2; n <= 8; n++) {
       for (const seed of [3, 42]) {
-        const e = makeEngine(seed, Array.from({ length: n }, (_, i) => ({ name: `B${i}`, isBot: true })));
+        const e = makeEngine(
+          seed,
+          Array.from({ length: n }, (_, i) => ({ name: `B${i}`, isBot: true })),
+        );
         e.doDraftRoll();
         let guard = 0;
         while (e.phase === "Setup" && guard++ < 100) e.aiSetupStep();
@@ -183,7 +196,10 @@ describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => 
           const tile = e.board.at(p.capitalIndex);
           const holding = p.properties.find((x) => x.propertyId === tile.propertyId);
           const def = e.catalog.get(tile.propertyId)!;
-          expect(holding, `${p.id}(${p.guohao}) seed=${seed} n=${n}:都城持仓缺失(#226)`).toBeDefined();
+          expect(
+            holding,
+            `${p.id}(${p.guohao}) seed=${seed} n=${n}:都城持仓缺失(#226)`,
+          ).toBeDefined();
           expect(holding!.level).toBe(0); // 建都即 Lv.0
           expect(holding!.purchasePrice).toBe(def.buildCost);
           expect(p.cash).toBe(e.startingCash - def.buildCost); // 钱账一致:恰好扣一次建城费

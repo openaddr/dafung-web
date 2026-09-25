@@ -21,7 +21,9 @@ export function setController(controller: GameController | null, map: MapData | 
   current = controller;
   currentMap = map;
   // 静态上下文取自当前引擎(board/catalog 是构造入参、对局期不可变,存引用无复制开销)。
-  currentContext = controller ? { board: controller.engine.board, catalog: controller.engine.catalog } : null;
+  currentContext = controller
+    ? { board: controller.engine.board, catalog: controller.engine.catalog }
+    : null;
 }
 
 /** 取当前控制器(null = 尚未开局)。屏幕组件用它做交互入口。 */

@@ -99,19 +99,45 @@ export class SynthAudioPlayer implements AudioPlayer {
       return;
     }
     switch (event) {
-      case "diceRoll": this.diceRoll(ctx, intensity); break;
-      case "diceHit": this.diceHit(ctx, intensity); break;
-      case "diceLand": this.diceLand(ctx); break;
-      case "coin": this.coin(ctx); break;
-      case "stamp": this.stamp(ctx); break;
-      case "banner": this.banner(ctx); break;
-      case "buy": this.buy(ctx); break;
-      case "upgrade": this.upgrade(ctx); break;
-      case "treasure": this.treasure(ctx); break;
-      case "bankrupt": this.bankrupt(ctx); break;
-      case "victory": this.victory(ctx); break;
-      case "jinnangDraw": this.jinnangDraw(ctx); break;
-      case "jinnangSelect": this.jinnangSelect(ctx); break;
+      case "diceRoll":
+        this.diceRoll(ctx, intensity);
+        break;
+      case "diceHit":
+        this.diceHit(ctx, intensity);
+        break;
+      case "diceLand":
+        this.diceLand(ctx);
+        break;
+      case "coin":
+        this.coin(ctx);
+        break;
+      case "stamp":
+        this.stamp(ctx);
+        break;
+      case "banner":
+        this.banner(ctx);
+        break;
+      case "buy":
+        this.buy(ctx);
+        break;
+      case "upgrade":
+        this.upgrade(ctx);
+        break;
+      case "treasure":
+        this.treasure(ctx);
+        break;
+      case "bankrupt":
+        this.bankrupt(ctx);
+        break;
+      case "victory":
+        this.victory(ctx);
+        break;
+      case "jinnangDraw":
+        this.jinnangDraw(ctx);
+        break;
+      case "jinnangSelect":
+        this.jinnangSelect(ctx);
+        break;
     }
   }
 
@@ -150,7 +176,13 @@ export class SynthAudioPlayer implements AudioPlayer {
     return buf;
   }
 
-  private tone(ctx: AudioContext, freq: number, dur: number, type: OscillatorType, vol: number): void {
+  private tone(
+    ctx: AudioContext,
+    freq: number,
+    dur: number,
+    type: OscillatorType,
+    vol: number,
+  ): void {
     if (!this.master) return;
     const osc = ctx.createOscillator();
     osc.type = type;
@@ -385,7 +417,12 @@ export class HybridAudioPlayer extends SynthAudioPlayer {
 // 播放器带 AudioContext 与解码缓存,全局一份最干净;由 AudioProvider 创建,
 // 控制器(非 React 世界)经 getAudio() 取同一实例——若 AudioProvider 尚未挂载
 // (理论不会:Game 屏必挂),返回 no-op 播放器兜底而非 null,调用处免判空。
-const NOOP: AudioPlayer = { play: () => {}, setMuted: () => {}, dispose: () => {}, unlock: () => {} };
+const NOOP: AudioPlayer = {
+  play: () => {},
+  setMuted: () => {},
+  dispose: () => {},
+  unlock: () => {},
+};
 
 let instance: AudioPlayer | null = null;
 

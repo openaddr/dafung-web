@@ -69,7 +69,9 @@ export function BoardFxLayer() {
                 >
                   {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
                   <circle r={11} />
-                  <text y={4} textAnchor="middle">泉</text>
+                  <text y={4} textAnchor="middle">
+                    泉
+                  </text>
                 </g>
               ))}
           </g>
@@ -79,7 +81,9 @@ export function BoardFxLayer() {
       {seals.map((s) => (
         <g key={s.id} className="fx-svg-seal" transform={`translate(${s.x} ${s.y})`}>
           <rect x={-29} y={-29} width={58} height={58} rx={9} />
-          <text y={11} textAnchor="middle" fontSize={32}>{s.char}</text>
+          <text y={11} textAnchor="middle" fontSize={32}>
+            {s.char}
+          </text>
         </g>
       ))}
     </>

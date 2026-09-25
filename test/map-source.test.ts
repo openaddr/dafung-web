@@ -55,7 +55,16 @@ describe("loadMapById(统一加载入口)", () => {
     const customData = JSON.parse(JSON.stringify(zhongyuanData)) as MapData;
     customData.targetNetWorth = 3000; // 改个值区分
     const src = makeMemorySource(
-      [{ id: "custom-1", name: "我的图", desc: "", tileCount: 8, targetNetWorth: 3000, custom: true }],
+      [
+        {
+          id: "custom-1",
+          name: "我的图",
+          desc: "",
+          tileCount: 8,
+          targetNetWorth: 3000,
+          custom: true,
+        },
+      ],
       { "custom-1": customData },
     );
     const m = await loadMapById(src, "custom-1");
@@ -80,8 +89,22 @@ describe("loadMapById(统一加载入口)", () => {
 describe("parseCatalog(清单解析)", () => {
   it("合法清单解析成功", () => {
     const catalog: CatalogFileEntry[] = [
-      { id: "sanguo", name: "群雄逐鹿", file: "sanguo.json", desc: "...", tileCount: 30, targetNetWorth: 8000 },
-      { id: "zhongyuan", name: "中原争霸", file: "zhongyuan.json", desc: "...", tileCount: 8, targetNetWorth: 5000 },
+      {
+        id: "sanguo",
+        name: "群雄逐鹿",
+        file: "sanguo.json",
+        desc: "...",
+        tileCount: 30,
+        targetNetWorth: 8000,
+      },
+      {
+        id: "zhongyuan",
+        name: "中原争霸",
+        file: "zhongyuan.json",
+        desc: "...",
+        tileCount: 8,
+        targetNetWorth: 5000,
+      },
     ];
     expect(parseCatalog(catalog)).toHaveLength(2);
   });
@@ -95,22 +118,30 @@ describe("parseCatalog(清单解析)", () => {
   });
 
   it("缺 id 报错", () => {
-    expect(() => parseCatalog([{ name: "x", file: "x.json", desc: "", tileCount: 1, targetNetWorth: 1 }])).toThrow(/缺 id/);
+    expect(() =>
+      parseCatalog([{ name: "x", file: "x.json", desc: "", tileCount: 1, targetNetWorth: 1 }]),
+    ).toThrow(/缺 id/);
   });
 
   it("缺 file 报错", () => {
-    expect(() => parseCatalog([{ id: "x", name: "x", desc: "", tileCount: 1, targetNetWorth: 1 }])).toThrow(/缺 file/);
+    expect(() =>
+      parseCatalog([{ id: "x", name: "x", desc: "", tileCount: 1, targetNetWorth: 1 }]),
+    ).toThrow(/缺 file/);
   });
 
   it("tileCount 非法报错", () => {
     expect(() =>
-      parseCatalog([{ id: "x", name: "x", file: "x.json", desc: "", tileCount: 0, targetNetWorth: 1 }]),
+      parseCatalog([
+        { id: "x", name: "x", file: "x.json", desc: "", tileCount: 0, targetNetWorth: 1 },
+      ]),
     ).toThrow(/tileCount 非法/);
   });
 
   it("targetNetWorth 非法报错", () => {
     expect(() =>
-      parseCatalog([{ id: "x", name: "x", file: "x.json", desc: "", tileCount: 1, targetNetWorth: -1 }]),
+      parseCatalog([
+        { id: "x", name: "x", file: "x.json", desc: "", tileCount: 1, targetNetWorth: -1 },
+      ]),
     ).toThrow(/targetNetWorth 非法/);
   });
 });

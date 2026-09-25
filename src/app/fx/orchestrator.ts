@@ -101,7 +101,7 @@ function floaterEvents(engine: GameEngine): PresentationEvent[] {
     const atPos = f.atTile != null ? board.positionOf(f.atTile) : null;
     const onBranchPos =
       player.onBranch != null && board.branch
-        ? board.branch.cells[player.onBranch.step]?.position ?? null
+        ? (board.branch.cells[player.onBranch.step]?.position ?? null)
         : null;
     const tokenPos = board.positionOf(player.position);
     const anchor = {

@@ -30,9 +30,7 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
     await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
     // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军。
     // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
-    await p
-      .waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 })
-      .catch(() => null);
+    await p.waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 }).catch(() => null);
     await dismissJinnangIfUp(p);
   }
   return [host, guest];
@@ -51,9 +49,7 @@ test("双端快速托管:零输入到终局,两端胜者一致", async ({ browse
     for (const c of clients) {
       await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 120_000 });
     }
-    const subs = await Promise.all(
-      clients.map((c) => c.getByTestId("victory-sub").textContent()),
-    );
+    const subs = await Promise.all(clients.map((c) => c.getByTestId("victory-sub").textContent()));
     expect(subs[0]).toBeTruthy();
     expect(subs[1]).toBe(subs[0]);
   } finally {
@@ -82,7 +78,13 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
           .catch(() => false);
         if (!on) await c.waitForTimeout(1_000);
       }
-      if (!on && (await c.getByTestId("autopilot-button").textContent().catch(() => "")) !== "收回") {
+      if (
+        !on &&
+        (await c
+          .getByTestId("autopilot-button")
+          .textContent()
+          .catch(() => "")) !== "收回"
+      ) {
         await c.getByTestId("autopilot-button").click();
       }
     }
@@ -92,8 +94,7 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     // 等 host 手选,行军按钮永远不会亮(旧行为 setup 在 startGame 即跑完,无此边界)。
     await expect
       .poll(
-        async () =>
-          host.evaluate(() => (window as any).__dafung.snapshot().phase).catch(() => ""),
+        async () => host.evaluate(() => (window as any).__dafung.snapshot().phase).catch(() => ""),
         { timeout: 60_000, message: "托管代选都完成,进入 Playing" },
       )
       .toBe("Playing");
@@ -108,7 +109,13 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
         .catch(() => false);
       if (!off) await host.waitForTimeout(1_000);
     }
-    if (!off && (await host.getByTestId("autopilot-button").textContent().catch(() => "")) !== "托管") {
+    if (
+      !off &&
+      (await host
+        .getByTestId("autopilot-button")
+        .textContent()
+        .catch(() => "")) !== "托管"
+    ) {
       await host.getByTestId("autopilot-button").click();
     }
     await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 30_000 });

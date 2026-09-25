@@ -63,7 +63,7 @@ const INPUT_PHASES = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):与 room.ts 同源补齐
   "AwaitingJinnang", // 锦囊(#122/T2):botAct 走策略表(T6),骰驱确定性,重放一致
-"AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
+  "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
 ]);
@@ -101,7 +101,11 @@ export function replayGameLog(lines: LogEvent[]): GameEngine {
   const engine = new GameEngine(map.board, map.catalog, createDice(header.seed), {
     // 座位按局头原始规格(国号可空 = doDraftRoll 分配)复刻:必须与原局构造参数一致,
     // 否则国号洗牌消耗的 rng 次数不同,整局骰流漂移(见 game.ts 局头注释)。
-    seats: header.seats.map((s) => ({ name: `座 ${s.seat + 1}`, isBot: s.isBot, guohao: s.guohao || undefined })),
+    seats: header.seats.map((s) => ({
+      name: `座 ${s.seat + 1}`,
+      isBot: s.isBot,
+      guohao: s.guohao || undefined,
+    })),
     targetNetWorth: header.targetNetWorth,
     startingCash: header.startingCash,
     difficulty: header.difficulty,
@@ -141,9 +145,12 @@ export function assertFinalState(lines: LogEvent[], engine: GameEngine): FinalIn
   const problems: string[] = [];
   if (!engine.isOver) problems.push("重放未到终局(命令流缺失或日志截断)");
   if (engine.round !== fin.round) problems.push(`round: 日志=${fin.round} 重放=${engine.round}`);
-  if (engine.turnNumber !== fin.turnNumber) problems.push(`turnNumber: 日志=${fin.turnNumber} 重放=${engine.turnNumber}`);
-  if ((engine.winner?.id ?? null) !== fin.winner) problems.push(`winner: 日志=${fin.winner} 重放=${engine.winner?.id ?? null}`);
-  if (engine.winReason !== fin.winReason) problems.push(`winReason: 日志=${fin.winReason} 重放=${engine.winReason}`);
+  if (engine.turnNumber !== fin.turnNumber)
+    problems.push(`turnNumber: 日志=${fin.turnNumber} 重放=${engine.turnNumber}`);
+  if ((engine.winner?.id ?? null) !== fin.winner)
+    problems.push(`winner: 日志=${fin.winner} 重放=${engine.winner?.id ?? null}`);
+  if (engine.winReason !== fin.winReason)
+    problems.push(`winReason: 日志=${fin.winReason} 重放=${engine.winReason}`);
   if (engine.players.length !== fin.players.length) {
     problems.push(`players 数量: 日志=${fin.players.length} 重放=${engine.players.length}`);
   } else {
@@ -151,12 +158,16 @@ export function assertFinalState(lines: LogEvent[], engine: GameEngine): FinalIn
       const want = fin.players[i];
       if (p.id !== want.id) problems.push(`players[${i}].id: 日志=${want.id} 重放=${p.id}`);
       if (p.cash !== want.cash) problems.push(`${p.id}.cash: 日志=${want.cash} 重放=${p.cash}`);
-      if (netWorth(p) !== want.netWorth) problems.push(`${p.id}.netWorth: 日志=${want.netWorth} 重放=${netWorth(p)}`);
-      if (p.position !== want.position) problems.push(`${p.id}.position: 日志=${want.position} 重放=${p.position}`);
-      if (p.isBankrupt !== want.isBankrupt) problems.push(`${p.id}.isBankrupt: 日志=${want.isBankrupt} 重放=${p.isBankrupt}`);
+      if (netWorth(p) !== want.netWorth)
+        problems.push(`${p.id}.netWorth: 日志=${want.netWorth} 重放=${netWorth(p)}`);
+      if (p.position !== want.position)
+        problems.push(`${p.id}.position: 日志=${want.position} 重放=${p.position}`);
+      if (p.isBankrupt !== want.isBankrupt)
+        problems.push(`${p.id}.isBankrupt: 日志=${want.isBankrupt} 重放=${p.isBankrupt}`);
     });
   }
-  if (problems.length > 0) throw new Error("重放校验失败(日志终局行 vs 重放终态):\n  " + problems.join("\n  "));
+  if (problems.length > 0)
+    throw new Error("重放校验失败(日志终局行 vs 重放终态):\n  " + problems.join("\n  "));
   return fin;
 }
 

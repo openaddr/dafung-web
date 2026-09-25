@@ -29,7 +29,9 @@ describe("动效 token 唯一源(core/theme.ts Motion 与 tokens.css 同步)", (
 
   it("反向:tokens.css 的 --dur-* / --ease-* 没有 Motion 清单之外的键", () => {
     // 只认行首声明(生成器不会把 token 写进行中),段首横幅注释里的「--dur-*」字样不误伤
-    const declared = [...css.matchAll(/^\s*--(dur|ease)-([a-z0-9-]+):/gm)].map((m) => `${m[1]}-${m[2]}`);
+    const declared = [...css.matchAll(/^\s*--(dur|ease)-([a-z0-9-]+):/gm)].map(
+      (m) => `${m[1]}-${m[2]}`,
+    );
     const expected = [
       ...Object.keys(Motion.dur).map((k) => `dur-${kebab(k)}`),
       ...Object.keys(Motion.ease).map((k) => `ease-${kebab(k)}`),

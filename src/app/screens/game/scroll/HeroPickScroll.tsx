@@ -99,7 +99,10 @@ function HeroPickOptions({ offered, onCommand }: HeroPickScrollProps) {
               <span className="mt-1 line-clamp-2 text-sm leading-snug text-ink-dim">{h.desc}</span>
             </span>
             {/* G-19:快捷键角标(1/2/3),仅展示,监听在本文件 useNumberShortcuts */}
-            <span aria-hidden="true" className="absolute top-1 right-1.5 font-deco text-[10px] leading-none text-ink-dim">
+            <span
+              aria-hidden="true"
+              className="absolute top-1 right-1.5 font-deco text-[10px] leading-none text-ink-dim"
+            >
               {i + 1}
             </span>
           </button>

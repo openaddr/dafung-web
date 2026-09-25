@@ -70,18 +70,17 @@ export const FX = {
  *  botHoldMs=--dur-slow)经 Motion 取数;minRollMs/hardCapMs/botHardCapMs/
  *  fallbackHoldMs 是编排判据,保留字面量。 */
 export const DICE = {
-  minRollMs: sc(500),   // 至少滚 0.5s(人类掷骰的翻滚感)
-  hardCapMs: sc(1500),  // 墙钟硬上限(与 GPU 帧率无关)
-  holdMs: sc(Motion.dur.reveal),      // 落定后结果(3D 骰 + 大字签面)停留,再渐隐;与 --dur-reveal 同源(经 Motion)
-  botMinRollMs: sc(Motion.dur.med),   // 与 --dur-med 同源(经 Motion)
+  minRollMs: sc(500), // 至少滚 0.5s(人类掷骰的翻滚感)
+  hardCapMs: sc(1500), // 墙钟硬上限(与 GPU 帧率无关)
+  holdMs: sc(Motion.dur.reveal), // 落定后结果(3D 骰 + 大字签面)停留,再渐隐;与 --dur-reveal 同源(经 Motion)
+  botMinRollMs: sc(Motion.dur.med), // 与 --dur-med 同源(经 Motion)
   botHardCapMs: sc(900),
-  botHoldMs: sc(Motion.dur.slow),     // X5:250 → 400(签面弹入 ~300ms + 可读停留);与 --dur-slow 同源(经 Motion)
+  botHoldMs: sc(Motion.dur.slow), // X5:250 → 400(签面弹入 ~300ms + 可读停留);与 --dur-slow 同源(经 Motion)
   fallbackHoldMs: sc(650), // X5 软渲/无 WebGL 文字签面的停留
-  fadeOutMs: sc(Motion.dur.med),      // X5 overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
+  fadeOutMs: sc(Motion.dur.med), // X5 overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
 } as const;
 
-export const delay = (ms: number): Promise<void> =>
-  new Promise((r) => setTimeout(r, ms));
+export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 /** 幽灵帧协议(#107 批次 6 收编 #117):useGhostChild 的退场帧驻留时长——子节点身份
  *  变化后上一帧快照再渲染多久。与 ScrollShell closing 出口同一条 210 口径:收起动画

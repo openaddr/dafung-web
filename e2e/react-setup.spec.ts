@@ -49,9 +49,7 @@ test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", a
   // 评审二轮 S-2:国号非法时起兵按钮直接禁用(可点不动 → 不可点),hint 兜底退役
   await expect(page.getByTestId("start-game")).toBeDisabled();
   await expect(page.getByTestId("solo-setup-screen")).toBeVisible();
-  await expect(
-    page.evaluate(() => !!(window as any).__dafung?.getEngine?.()),
-  ).resolves.toBe(false);
+  await expect(page.evaluate(() => !!(window as any).__dafung?.getEngine?.())).resolves.toBe(false);
 });
 
 test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号无重号", async ({ page }) => {

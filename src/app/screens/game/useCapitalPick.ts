@@ -37,9 +37,7 @@ export interface CapitalPickFlow {
   tileDetail: TileDetailRequest | null;
 }
 
-export function useCapitalPick(args: {
-  snapshot: GameSnapshot;
-}): CapitalPickFlow {
+export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlow {
   const { snapshot } = args;
   const roomId = useNetStore((s) => s.roomId);
   const mySeat = useNetStore((s) => s.mySeat);
@@ -57,9 +55,7 @@ export function useCapitalPick(args: {
   const pickKey = offeredCapitals ? offeredCapitals.join(",") : null;
   // 轮到本地视角选都(单机真人固定首座;联机按房间座位)才有可点交互。
   const myPickKey =
-    pickKey && snapshot.currentSetupPlayerIndex === (roomId !== "" ? mySeat : 0)
-      ? pickKey
-      : null;
+    pickKey && snapshot.currentSetupPlayerIndex === (roomId !== "" ? mySeat : 0) ? pickKey : null;
   const selectableTiles = useMemo(
     () => (myPickKey ? new Set(myPickKey.split(",").map(Number)) : undefined),
     [myPickKey],

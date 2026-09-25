@@ -131,7 +131,14 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
         )}
         {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
             金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
-        <circle className="bv-token-march-ring" r={17} fill="none" stroke={rgba(Theme.goldBright, 0.9)} strokeWidth={2} strokeDasharray="6 5" />
+        <circle
+          className="bv-token-march-ring"
+          r={17}
+          fill="none"
+          stroke={rgba(Theme.goldBright, 0.9)}
+          strokeWidth={2}
+          strokeDasharray="6 5"
+        />
         {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位卡金圈同步呼吸
             ——席位是身份,棋盘是地理,双锚点)。非候选(免战庇护/无效目标)不挂。 */}
         {targeted && (
@@ -191,7 +198,15 @@ export const TokenLayer = memo(function TokenLayer({
     const pos = tokenRenderPos(p, board);
     const mates = bySlot.get(playerSlotKey(p, board)) ?? [p.id];
     const off = TOKEN_SLOT_OFFSETS[Math.max(0, mates.indexOf(p.id)) % TOKEN_SLOT_OFFSETS.length];
-    slots.push({ player: p, x: pos.x + off.x, y: pos.y + off.y, opacity: p.isBankrupt ? 0.15 : 1, marching: false, mine, targeted });
+    slots.push({
+      player: p,
+      x: pos.x + off.x,
+      y: pos.y + off.y,
+      opacity: p.isBankrupt ? 0.15 : 1,
+      marching: false,
+      mine,
+      targeted,
+    });
   }
 
   return (

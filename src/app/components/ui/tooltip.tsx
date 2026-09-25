@@ -10,25 +10,16 @@ import type { ComponentProps } from "react";
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip";
 import { cn } from "@app/utils/cn";
 
-function TooltipProvider({
-  delay = 0,
-  ...props
-}: TooltipPrimitive.Provider.Props) {
-  return (
-    <TooltipPrimitive.Provider
-      data-slot="tooltip-provider"
-      delay={delay}
-      {...props}
-    />
-  )
+function TooltipProvider({ delay = 0, ...props }: TooltipPrimitive.Provider.Props) {
+  return <TooltipPrimitive.Provider data-slot="tooltip-provider" delay={delay} {...props} />;
 }
 
 function Tooltip({ ...props }: TooltipPrimitive.Root.Props) {
-  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+  return <TooltipPrimitive.Root data-slot="tooltip" {...props} />;
 }
 
 function TooltipTrigger({ ...props }: TooltipPrimitive.Trigger.Props) {
-  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
 }
 
 function TooltipContent({
@@ -40,10 +31,7 @@ function TooltipContent({
   children,
   ...props
 }: TooltipPrimitive.Popup.Props &
-  Pick<
-    TooltipPrimitive.Positioner.Props,
-    "align" | "alignOffset" | "side" | "sideOffset"
-  >) {
+  Pick<TooltipPrimitive.Positioner.Props, "align" | "alignOffset" | "side" | "sideOffset">) {
   return (
     <TooltipPrimitive.Portal>
       <TooltipPrimitive.Positioner
@@ -65,7 +53,7 @@ function TooltipContent({
         </TooltipPrimitive.Popup>
       </TooltipPrimitive.Positioner>
     </TooltipPrimitive.Portal>
-  )
+  );
 }
 
 /** 浮签名词行(墨底上的金字标题;新文案走 font-brush,字体安全规约 §4.3)。 */
@@ -73,10 +61,13 @@ function TooltipTitle({ className, ...props }: ComponentProps<"span">) {
   return (
     <span
       data-slot="tooltip-title"
-      className={cn("block font-brush text-[13px] leading-tight tracking-wide text-lacquer-gold", className)}
+      className={cn(
+        "block font-brush text-[13px] leading-tight tracking-wide text-lacquer-gold",
+        className,
+      )}
       {...props}
     />
   );
 }
 
-export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipTitle }
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider, TooltipTitle };

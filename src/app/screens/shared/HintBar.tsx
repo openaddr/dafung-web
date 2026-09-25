@@ -21,7 +21,9 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
     return (
       <div
         data-testid={TESTIDS.hint}
-        className={"text-center font-wenkai text-xs " + (level === "error" ? "text-danger" : "text-ink-dim")}
+        className={
+          "text-center font-wenkai text-xs " + (level === "error" ? "text-danger" : "text-ink-dim")
+        }
       >
         {hint}
       </div>
@@ -34,7 +36,9 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
       data-testid={TESTIDS.hint}
       className={
         "pointer-events-none absolute top-[calc(var(--safe-top)+12px)] left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
-        (level === "error" ? "bg-danger/95 text-white font-wenkai" : "bg-panel/95 text-ink font-wenkai")
+        (level === "error"
+          ? "bg-danger/95 text-white font-wenkai"
+          : "bg-panel/95 text-ink font-wenkai")
       }
     >
       {hint}

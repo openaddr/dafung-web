@@ -8,14 +8,7 @@ export interface BoardPos {
 }
 
 /** 格子类型。v2.0 棋盘 Property/TreasureCity/Wolong/Tax/Stock/Chance/Fate 均有落格处理。 */
-export type TileType =
-  | "Property"
-  | "Tax"
-  | "Chance"
-  | "Fate"
-  | "Stock"
-  | "Wolong"
-  | "TreasureCity"; // 宝物城:不可购买;落格触发珍宝判定
+export type TileType = "Property" | "Tax" | "Chance" | "Fate" | "Stock" | "Wolong" | "TreasureCity"; // 宝物城:不可购买;落格触发珍宝判定
 
 /** 单个格子定义。IsCapitalEligible=可作都城;Region=区域分组(美术配色)。 */
 export interface TileDef {
@@ -191,10 +184,7 @@ export type TurnPhase =
 
 export type AiDifficulty = "Simple" | "Normal";
 
-export type VictoryReason =
-  | "None"
-  | "TargetNetWorth"
-  | "LastStanding";
+export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding";
 
 export interface VictoryResult {
   winner: Player | null;
@@ -310,7 +300,13 @@ export type GameCommand =
   | { type: "resolveHeroPick"; index: number }
   | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
   | { type: "resolveExhaustionChoice"; index: number }
-  | { type: "resolveTreasureOwner"; action: { type: "fair"; treasureId: string } | { type: "premium"; treasureId: string } | { type: "skip" } }
+  | {
+      type: "resolveTreasureOwner";
+      action:
+        | { type: "fair"; treasureId: string }
+        | { type: "premium"; treasureId: string }
+        | { type: "skip" };
+    }
   | { type: "sellTreasureBankruptcy"; treasureId: string }
   | { type: "sellPropertyBankruptcy"; propId: string }
   | { type: "cashHeroBankruptcy"; heroId: string }
@@ -320,12 +316,12 @@ export type GameCommand =
 
 // ── 珍宝系统 ──
 export interface TreasureDef {
-  id: string;          // 唯一(牌堆展开后含序号)
+  id: string; // 唯一(牌堆展开后含序号)
   name: string;
-  level: number;      // 1-10
-  count?: number;     // 牌堆中数量(仅 TREASURES 表用)
-  desc?: string;      // 风味描述
-  effect?: string;    // 预留:被动效果(暂不实现)
+  level: number; // 1-10
+  count?: number; // 牌堆中数量(仅 TREASURES 表用)
+  desc?: string; // 风味描述
+  effect?: string; // 预留:被动效果(暂不实现)
 }
 
 // ── 名将(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查

@@ -22,8 +22,12 @@
   animation: dice-overlay-in var(--dur-med) var(--ease-out);
 }
 @keyframes dice-overlay-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 /* X5 渐隐退场:覆盖入场动画(display:none 硬切的替代;--dur-med=250ms 与 DICE.fadeOutMs 同步,
@@ -32,8 +36,12 @@
   animation: dice-overlay-out var(--dur-med) var(--ease-in) forwards;
 }
 @keyframes dice-overlay-out {
-  from { opacity: 1; }
-  to { opacity: 0; }
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
 }
 
 /* X5 落定大字签面(3D 骰落定确认 / 软渲 fallback 文字签面共用):
@@ -64,8 +72,14 @@
   animation: dice-sign-in 0.3s var(--ease-out-back) both;
 }
 @keyframes dice-sign-in {
-  from { transform: translate(-50%, -50%) scale(0.4); opacity: 0; }
-  to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+  from {
+    transform: translate(-50%, -50%) scale(0.4);
+    opacity: 0;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
 }
 
 /* ── 棋盘 SVG 内特效(D1:渲染进 #bv-fx 层,坐标/缩放随视图,不再脱锚)── */
@@ -81,15 +95,30 @@
   /* --dur-fx(1300ms)的标定来源:浮字口径以本规则为准,fx/timings.ts FX.floaterMs 同步 */
   animation: fx-svg-float-up var(--dur-fx) var(--ease-out) forwards;
 }
-.fx-svg-floater.pos { fill: var(--color-money); }
-.fx-svg-floater.neg { fill: var(--color-danger); }
+.fx-svg-floater.pos {
+  fill: var(--color-money);
+}
+.fx-svg-floater.neg {
+  fill: var(--color-danger);
+}
 /* 文案浮字(ADR-0013 唯一选项自动执行轻提示):墨色小字,字号由 FxLayer 缩至 0.8×,
    复用同一上浮动画(reduced-motion 由 app.css 全局兜层瞬时完成) */
-.fx-svg-floater.msg { fill: var(--color-ink-dim); }
+.fx-svg-floater.msg {
+  fill: var(--color-ink-dim);
+}
 @keyframes fx-svg-float-up {
-  0% { transform: translateY(0) scale(0.6); opacity: 0; }
-  20% { transform: translateY(-10) scale(1.15); opacity: 1; }
-  100% { transform: translateY(-60) scale(1); opacity: 0; }
+  0% {
+    transform: translateY(0) scale(0.6);
+    opacity: 0;
+  }
+  20% {
+    transform: translateY(-10) scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-60) scale(1);
+    opacity: 0;
+  }
 }
 
 /* 铜钱雨:「泉」字金币(金色圆底 + 墨字),逻辑单位平移下落。
@@ -114,9 +143,19 @@
   fill: var(--color-ink);
 }
 @keyframes fx-svg-coin-rain {
-  0% { translate: 0 0; rotate: 0deg; opacity: 0; }
-  15% { opacity: 1; }
-  100% { translate: var(--dx, 0px) 90px; rotate: 540deg; opacity: 0; }
+  0% {
+    translate: 0 0;
+    rotate: 0deg;
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    translate: var(--dx, 0px) 90px;
+    rotate: 540deg;
+    opacity: 0;
+  }
 }
 
 /* 回合旌旗横幅 */
@@ -144,10 +183,22 @@
   animation: fx-banner-fly var(--dur-banner) var(--ease-out) forwards;
 }
 @keyframes fx-banner-fly {
-  0% { transform: translate(-50%, -50%) scale(0.3) rotate(-8deg); opacity: 0; }
-  20% { transform: translate(-50%, -50%) scale(1.05) rotate(0deg); opacity: 0.82; }
-  75% { transform: translate(-50%, -50%) scale(1) rotate(0deg); opacity: 0.82; }
-  100% { transform: translate(-50%, -50%) scale(1.4) rotate(0deg); opacity: 0; }
+  0% {
+    transform: translate(-50%, -50%) scale(0.3) rotate(-8deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(0deg);
+    opacity: 0.82;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 0.82;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.4) rotate(0deg);
+    opacity: 0;
+  }
 }
 
 /* 朱砂印章(SVG 版,建都/购城确认时"啪"地盖下):rotate/scale 用独立属性,
@@ -225,6 +276,10 @@
   animation: fx-flow-fade var(--dur-slow) var(--ease-in) forwards;
 }
 @keyframes fx-flow-fade {
-  0% { opacity: 0.95; }
-  100% { opacity: 0; }
+  0% {
+    opacity: 0.95;
+  }
+  100% {
+    opacity: 0;
+  }
 }

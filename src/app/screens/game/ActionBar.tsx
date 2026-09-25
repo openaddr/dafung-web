@@ -41,7 +41,12 @@ export function ActionBar({ segment, playEnabled, onPlay, onPass, rightShift }: 
           >
             出牌
           </button>
-          <button type="button" data-testid={TESTIDS.actionbarPass} className="actionbar-btn qian" onClick={onPass}>
+          <button
+            type="button"
+            data-testid={TESTIDS.actionbarPass}
+            className="actionbar-btn qian"
+            onClick={onPass}
+          >
             不出
           </button>
         </>
@@ -50,7 +55,12 @@ export function ActionBar({ segment, playEnabled, onPlay, onPass, rightShift }: 
           <span data-testid={TESTIDS.actionbarTarget} className="actionbar-lab">
             选择目标
           </span>
-          <button type="button" data-testid={TESTIDS.actionbarCancel} className="actionbar-btn qian" onClick={onPass}>
+          <button
+            type="button"
+            data-testid={TESTIDS.actionbarCancel}
+            className="actionbar-btn qian"
+            onClick={onPass}
+          >
             作罢
           </button>
         </>

@@ -5,15 +5,28 @@
 // 新增用途先在 docs/reference/界面符号.md 登记,再在此加 path。
 import type { ReactNode } from "react";
 
-export type SymName = "back" | "undo" | "redo" | "reset" | "sound" | "muted" | "play" | "close" | "expand";
+export type SymName =
+  | "back"
+  | "undo"
+  | "redo"
+  | "reset"
+  | "sound"
+  | "muted"
+  | "play"
+  | "close"
+  | "expand";
 
 const PATHS: Record<SymName, ReactNode> = {
   // 返回 ←
   back: <path d="M11 4 L5 8 L11 12 M5 8 H15" fill="none" />,
   // 撤销 ↶(逆时针回弯箭头)
-  undo: <path d="M5 7 V12 H10 M5.4 11.6 C6.5 7.8 9.2 5.6 12.6 5.6 C15 5.6 17 7 17.6 9" fill="none" />,
+  undo: (
+    <path d="M5 7 V12 H10 M5.4 11.6 C6.5 7.8 9.2 5.6 12.6 5.6 C15 5.6 17 7 17.6 9" fill="none" />
+  ),
   // 重做 ↷(顺时针回弯箭头,与 undo 镜像)
-  redo: <path d="M17 7 V12 H12 M16.6 11.6 C15.5 7.8 12.8 5.6 9.4 5.6 C7 5.6 5 7 4.4 9" fill="none" />,
+  redo: (
+    <path d="M17 7 V12 H12 M16.6 11.6 C15.5 7.8 12.8 5.6 9.4 5.6 C7 5.6 5 7 4.4 9" fill="none" />
+  ),
   // 复位 ◎(外环 + 内环)
   reset: (
     <>
@@ -46,7 +59,12 @@ const PATHS: Record<SymName, ReactNode> = {
   expand: <path d="M4 6 L10 11.5 L16 6" fill="none" />,
 };
 
-export function Sym({ name, size = 14, className, strokeWidth = 1.6 }: {
+export function Sym({
+  name,
+  size = 14,
+  className,
+  strokeWidth = 1.6,
+}: {
   name: SymName;
   /** 渲染边长(px);viewBox 22×14~16 视符号而定,等比缩放。 */
   size?: number;

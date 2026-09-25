@@ -5,7 +5,15 @@
 // focus-scope 已移除)——活卷轴获得焦点陷阱/关闭还焦 + role=dialog/aria-modal;
 // 收起中与幽灵退场帧不走 FocusScope(纯视觉重放,自带 aria-hidden/inert)。刻意不用
 // Dialog.Content:它强制 Portal 会破坏 #scroll-layer 定位栈与幽灵帧协议。
-import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 // #174:焦点陷阱收编为 shared/DialogFocusScope(2026-09-12 起为自研实现,无第三方依赖)
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import "./scroll.css";
@@ -95,7 +103,15 @@ export function ScrollButton({
   );
 }
 
-export function ScrollShell({ title, children, onClose, hideClose = false, testid, width = "md", scrollKey }: ScrollShellProps) {
+export function ScrollShell({
+  title,
+  children,
+  onClose,
+  hideClose = false,
+  testid,
+  width = "md",
+  scrollKey,
+}: ScrollShellProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂 rollback
   // 收起类、遮罩淡出并放行点击、aria-hidden),210ms 后(rollback 动画 var(--dur-fast)
@@ -146,7 +162,11 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
   }, [onClose, requestClose]);
   // 标题栏手写拖拽(对照旧 createScroll 的 pointer 拖动):卷轴可被拖到不挡棋盘的位置。
   const drag = useRef<{ active: boolean; sx: number; sy: number; x: number; y: number }>({
-    active: false, sx: 0, sy: 0, x: 0, y: 0,
+    active: false,
+    sx: 0,
+    sy: 0,
+    x: 0,
+    y: 0,
   });
   // 拖拽偏移的渲染态镜像:收起时渲染树从 Radix 分支切到退场帧分支(DOM 重建),
   // 新节点经 style 从本 ref 取回偏移,避免回卷动画开场瞬间跳回屏幕中心。
@@ -156,7 +176,11 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     // 点在按钮(× 关闭)上不触发拖动,与旧行为一致
     if ((e.target as HTMLElement).closest("button")) return;
     drag.current = { ...drag.current, active: true, sx: e.clientX, sy: e.clientY };
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    try {
+      (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
   };
   const onPointerMove = (e: React.PointerEvent) => {
     const d = drag.current;
@@ -175,14 +199,13 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
       window.innerWidth - TITLE_GRAB_PX - baseLeft,
       Math.max(-(r.width - TITLE_GRAB_PX) - baseLeft, d.x),
     );
-    d.y = Math.min(
-      window.innerHeight - TITLE_GRAB_PX - baseTop,
-      Math.max(-baseTop, d.y),
-    );
+    d.y = Math.min(window.innerHeight - TITLE_GRAB_PX - baseTop, Math.max(-baseTop, d.y));
     bodyRef.current.style.transform = `translate(${d.x}px, ${d.y}px)`;
     transformRef.current = `translate(${d.x}px, ${d.y}px)`;
   };
-  const endDrag = () => { drag.current.active = false; };
+  const endDrag = () => {
+    drag.current.active = false;
+  };
 
   // G-18:内容身份变化(标题或显式 scrollKey)时复位拖拽 transform——旧实现换内容沿用
   // 上一次偏移,常表现为"卷轴飞出屏幕找不回"。#14(E2):不能依赖 children——每次渲染
@@ -218,12 +241,18 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     >
       {/* 挂轴双杆(视觉重做 v2 签名件):上下漆木卷杆横出炉身两侧,端头露木色轴头——
           「这是卷轴」的器物语言一眼可读。纯装饰层,不参与拖拽/命中。 */}
-      <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center"
+      >
         <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
         <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
         <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
       </div>
-      <div aria-hidden="true" className="pointer-events-none absolute -inset-x-4 -bottom-2.5 z-10 flex h-[17px] items-center">
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -inset-x-4 -bottom-2.5 z-10 flex h-[17px] items-center"
+      >
         <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
         <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
         <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_2px_4px_rgba(43,35,23,0.5)]" />
@@ -259,7 +288,10 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
             type="button"
             data-testid={T.scrollClose}
             aria-label="关闭"
-            onClick={(e) => { e.stopPropagation(); requestClose(); }}
+            onClick={(e) => {
+              e.stopPropagation();
+              requestClose();
+            }}
             disabled={isGhost}
             className="group absolute top-1/2 right-2.5 flex h-11 w-11 -translate-y-1/2 cursor-pointer items-center justify-center disabled:cursor-default"
           >
@@ -297,7 +329,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
         // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
         inert={isGhost || undefined}
         // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
-        onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
+        onClick={(e) => {
+          if (e.target === e.currentTarget) requestClose();
+        }}
       >
         {shellBody}
       </div>
@@ -314,7 +348,9 @@ export function ScrollShell({ title, children, onClose, hideClose = false, testi
     <div
       className="scroll-anim-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]"
       // 点遮罩空白处关闭(仅可关卷轴);收起中放行点击,重复出口由 requestClose 挡掉
-      onClick={(e) => { if (e.target === e.currentTarget) requestClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) requestClose();
+      }}
     >
       <DialogFocusScope asChild>{shellBody}</DialogFocusScope>
     </div>

@@ -14,7 +14,10 @@ async function openEditor(page: Page): Promise<void> {
 
 /** 读取表单里当前选中城的坐标文本(如「坐标:[120, 80]」)。 */
 function posText(page: Page) {
-  return page.getByTestId("editor-tile-form").getByText(/^坐标:\[/).textContent();
+  return page
+    .getByTestId("editor-tile-form")
+    .getByText(/^坐标:\[/)
+    .textContent();
 }
 
 /** S2:另存新图改走卷轴输入卷轴(原 window.prompt 的 dialog 处理同步替换,断言不变)。 */

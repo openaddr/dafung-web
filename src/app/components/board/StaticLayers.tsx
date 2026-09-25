@@ -20,7 +20,12 @@ const VB = { x: -1510, y: -936, w: 3220, h: 1932 } as const;
 // ②OVER(usePanZoom)放宽到带宽的一半,pan 到极限时正处渐变中段;
 // ③暗角/区域晕染 rect 一并扩到 O,不再有 VB 边界的裁切线。
 const EDGE_PAD = 700;
-const O = { x: VB.x - EDGE_PAD, y: VB.y - EDGE_PAD, w: VB.w + EDGE_PAD * 2, h: VB.h + EDGE_PAD * 2 } as const;
+const O = {
+  x: VB.x - EDGE_PAD,
+  y: VB.y - EDGE_PAD,
+  w: VB.w + EDGE_PAD * 2,
+  h: VB.h + EDGE_PAD * 2,
+} as const;
 
 // #100 溪山清远图远景横带:真迹中段裁带(2880×311)铺棋盘上/下缘,高≈画布 18%
 // (348 逻辑单位)——横带 3220×348 与图像原生同为 ≈9.25:1,preserveAspectRatio="slice"
@@ -37,7 +42,13 @@ export const BoardDefs = memo(function BoardDefs() {
   return (
     <defs>
       <filter id="bv-paper" x="-5%" y="-5%" width="110%" height="110%">
-        <feTurbulence type="fractalNoise" baseFrequency="0.012 0.018" numOctaves={2} seed={7} result="n" />
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.012 0.018"
+          numOctaves={2}
+          seed={7}
+          result="n"
+        />
         <feColorMatrix
           in="n"
           type="matrix"
@@ -90,7 +101,14 @@ export const BoardDefs = memo(function BoardDefs() {
         <stop offset="0.55" stopColor="#fff" />
         <stop offset="1" stopColor="#fff" />
       </linearGradient>
-      <mask id="bv-scene-mask" maskUnits="userSpaceOnUse" x={VB.x} y={VB.y} width={VB.w} height={VB.h}>
+      <mask
+        id="bv-scene-mask"
+        maskUnits="userSpaceOnUse"
+        x={VB.x}
+        y={VB.y}
+        width={VB.w}
+        height={VB.h}
+      >
         <rect x={VB.x} y={VB.y} width={VB.w} height={SCENE_BAND_H} fill="url(#bv-scene-fade-t)" />
         <rect
           x={VB.x}
@@ -157,10 +175,26 @@ export const TerrainLayer = memo(function TerrainLayer() {
           两笔同弧线叠出「岸线晕、水线清」的水墨层次。 */}
       <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
         <g fill="none" strokeLinecap="round" opacity={0.45}>
-          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" stroke="rgba(70,110,140,0.28)" strokeWidth={10} />
-          <path d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260" stroke="rgba(52,92,122,0.4)" strokeWidth={2.6} />
-          <path d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220" stroke="rgba(70,110,140,0.28)" strokeWidth={8} />
-          <path d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220" stroke="rgba(52,92,122,0.4)" strokeWidth={2.2} />
+          <path
+            d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
+            stroke="rgba(70,110,140,0.28)"
+            strokeWidth={10}
+          />
+          <path
+            d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
+            stroke="rgba(52,92,122,0.4)"
+            strokeWidth={2.6}
+          />
+          <path
+            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
+            stroke="rgba(70,110,140,0.28)"
+            strokeWidth={8}
+          />
+          <path
+            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
+            stroke="rgba(52,92,122,0.4)"
+            strokeWidth={2.2}
+          />
         </g>
       </g>
       {/* 暗角铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的暗角矩形切线就是用户看到的硬边),
@@ -194,7 +228,9 @@ interface RegionBlob {
  *  A3:系数 1.7 → 1.3——8 层全幅渐变在棋盘中央叠糊,收紧后每片晕染基本只罩
  *  本区域城池带,中央让位给江河水墨;#77 峰值 8% → 15%(70% 处 4% → 8%),
  *  边缘 0 的渐变口径不变,半径系数 1.3 亦不动。 */
-function regionBlobs(tiles: readonly { region: string | null; position: { x: number; y: number } }[]): RegionBlob[] {
+function regionBlobs(
+  tiles: readonly { region: string | null; position: { x: number; y: number } }[],
+): RegionBlob[] {
   const byGroup = new Map<string, { x: number; y: number }[]>();
   for (const t of tiles) {
     const g = t.region ? REGION_TO_GROUP.get(t.region) : undefined;
@@ -222,18 +258,44 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
     <g id="bv-region-tint">
       {blobs.map((b) => (
         // gradientUnits=userSpaceOnUse:圆心即区域几何中心,不随 rect 尺寸缩放
-        <radialGradient key={b.group} id={`bv-tint-${b.group}`} gradientUnits="userSpaceOnUse" cx={b.cx} cy={b.cy} r={b.r}>
+        <radialGradient
+          key={b.group}
+          id={`bv-tint-${b.group}`}
+          gradientUnits="userSpaceOnUse"
+          cx={b.cx}
+          cy={b.cy}
+          r={b.r}
+        >
           {/* #77 峰值 8%→15%、70% 处 4%→8%:相邻区域交界能看出色相推移,
               仍明显弱于道路(0.38)与铭牌(0.92),不与可读性争。 */}
-          <stop offset="0%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.15} />
-          <stop offset="70%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0.08} />
-          <stop offset="100%" style={{ stopColor: `var(--color-group-${b.group})` }} stopOpacity={0} />
+          <stop
+            offset="0%"
+            style={{ stopColor: `var(--color-group-${b.group})` }}
+            stopOpacity={0.15}
+          />
+          <stop
+            offset="70%"
+            style={{ stopColor: `var(--color-group-${b.group})` }}
+            stopOpacity={0.08}
+          />
+          <stop
+            offset="100%"
+            style={{ stopColor: `var(--color-group-${b.group})` }}
+            stopOpacity={0}
+          />
         </radialGradient>
       ))}
       {blobs.map((b) => (
         // 整幅延展画布 rect 填充渐变:渐变自带半径控制范围,rect 只是"画布"
         // (#38:铺到 O 而非 VB,避免 rect 在 VB 边界留下晕染断层线)
-        <rect key={`r-${b.group}`} x={O.x} y={O.y} width={O.w} height={O.h} fill={`url(#bv-tint-${b.group})`} />
+        <rect
+          key={`r-${b.group}`}
+          x={O.x}
+          y={O.y}
+          width={O.w}
+          height={O.h}
+          fill={`url(#bv-tint-${b.group})`}
+        />
       ))}
     </g>
   );
@@ -254,7 +316,12 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     const b = board.positionOf(to);
     const pts = [a, ...board.edgeWaypoints(i, to), b];
     segments.push(
-      <path key={`seg-${i}`} className="bv-road-main stroke-road-main" d={poly(pts)} data-segment={`${i}-${to}`} />,
+      <path
+        key={`seg-${i}`}
+        className="bv-road-main stroke-road-main"
+        d={poly(pts)}
+        data-segment={`${i}-${to}`}
+      />,
     );
     // #73 主路箭羽:取途经点列正中两点的中点为锚(U 弯=edgeWaypoints 两点中点,
     // 直段=a/b 中点),连线方向即该处行进向——总览下箭羽成节奏点列,U 弯方向可读;
@@ -292,10 +359,18 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
         <path className="bv-road-branch stroke-road-side" d={poly(pts)} data-branch={branch.id} />
         {branch.cells.map((c, i) => {
           const color =
-            c.kind === "treasure" ? Theme.goldBright : c.kind === "event" ? Theme.gold : Theme.danger;
+            c.kind === "treasure"
+              ? Theme.goldBright
+              : c.kind === "event"
+                ? Theme.gold
+                : Theme.danger;
           const icon = c.kind === "treasure" ? "宝" : c.kind === "event" ? "囊" : "伏";
           return (
-            <g key={`bc-${i}`} data-branch-cell={i} transform={`translate(${c.position.x} ${c.position.y})`}>
+            <g
+              key={`bc-${i}`}
+              data-branch-cell={i}
+              transform={`translate(${c.position.x} ${c.position.y})`}
+            >
               {/* #76 整体放大一档(r 18→30、字 18→28、描边 2→3):总览(1280×700)下
                   「宝/囊/伏」字与碑亭可辨;chessboard 辅路格距 85,直径 60 不互撞。 */}
               <circle r={30} fill={rgba(Theme.panel)} stroke={rgba(color)} strokeWidth={3} />
@@ -350,7 +425,14 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
               <line x1={7} y1={-2} x2={7} y2={9} />
               <path d="M -11,10 L 11,10" />
               {/* 柱间一竖碑(点出"碑"亭) */}
-              <rect x={-1.5} y={0} width={3} height={8} fill={rgba(Theme.roadSide, 0.85)} stroke="none" />
+              <rect
+                x={-1.5}
+                y={0}
+                width={3}
+                height={8}
+                fill={rgba(Theme.roadSide, 0.85)}
+                stroke="none"
+              />
             </g>
           );
         })()}

@@ -1,0 +1,16 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "entry": [
+    "index.html",
+    "scripts/cli.ts",
+    "scripts/replay-log.ts",
+    "scripts/fetch-asset.ts",
+    "scripts/make-chessboard-map.ts",
+    "scripts/shot.mjs",
+    "test/**/*.test.ts",
+    "e2e/**/*.spec.ts",
+    "e2e/fixtures.ts",
+    "e2e/react-helpers.ts"
+  ],
+  "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**"]
+}

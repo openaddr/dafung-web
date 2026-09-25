@@ -61,7 +61,20 @@ export interface NetStoreState extends NetRoomFields {
   reset: () => void;
 }
 
-const EMPTY: Pick<NetStoreState, "host" | "started" | "mapId" | "seats" | "mySeat" | "connected" | "connection" | "dismissed" | "hint" | "hintLevel" | "pending"> = {
+const EMPTY: Pick<
+  NetStoreState,
+  | "host"
+  | "started"
+  | "mapId"
+  | "seats"
+  | "mySeat"
+  | "connected"
+  | "connection"
+  | "dismissed"
+  | "hint"
+  | "hintLevel"
+  | "pending"
+> = {
   host: -1,
   started: false,
   mapId: null,
@@ -129,6 +142,10 @@ export function myAutoPilotOn(s: NetStoreState): boolean {
  *  (GameScreen 模块级取、HandPanel props 下发),hook 只负责「选哪个源」。 */
 export function useAutopilotOn(controller: GameController | null): boolean {
   return useNetStore((s) =>
-    s.roomId !== "" ? (s.mySeat >= 0 ? myAutoPilotOn(s) : false) : (controller?.autoPilotOn ?? false),
+    s.roomId !== ""
+      ? s.mySeat >= 0
+        ? myAutoPilotOn(s)
+        : false
+      : (controller?.autoPilotOn ?? false),
   );
 }

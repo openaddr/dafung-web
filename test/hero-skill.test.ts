@@ -64,8 +64,7 @@ function armSkill(e: GameEngine, heroId: string) {
 const skillOpt = (e: GameEngine, skillId: string) =>
   e.choicesFor().find((o) => o.id === `skill:${skillId}`);
 
-const seatOpt = (e: GameEngine, seat: number) =>
-  e.choicesFor().find((o) => o.id === `t${seat}`);
+const seatOpt = (e: GameEngine, seat: number) => e.choicesFor().find((o) => o.id === `t${seat}`);
 
 describe("军师幕:主动技选项集(#188 档 3)", () => {
   it("无目标技就绪 → 窗口选项就绪(id=skill:*,技文案随选项);发动后冷却中灰置,过冷却轮复活", () => {
@@ -129,10 +128,16 @@ describe("军师幕:主动技选项集(#188 档 3)", () => {
     e.players[blocked].properties = [];
     e.players[blocked].jinnangShield = true;
     const capV = e.board.at(e.players[valid].capitalIndex)?.propertyId;
-    e.players[valid].properties = [{
-      propertyId: e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capV)!.propertyId!,
-      group: "a", purchasePrice: 1000, level: 2, maxLevel: 3,
-    }];
+    e.players[valid].properties = [
+      {
+        propertyId: e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capV)!
+          .propertyId!,
+        group: "a",
+        purchasePrice: 1000,
+        level: 2,
+        maxLevel: 3,
+      },
+    ];
     e.resolveHeroSkill("zhouyu-huogong");
     expect(e.pendingSkill?.skillId).toBe("zhouyu-huogong");
     expect(seatOpt(e, me)?.available).toBe(false);
@@ -157,7 +162,9 @@ describe("主动技结算(#188 档 3)", () => {
     expect(e.activePlayer.warrants).toBe(warrantsBefore + 1);
     expect(e.players[1].cash).toBe(e.players[1].cash); // 已在断言前落账,占位防误读
     expect(e.turnPhase).toBe("Roll"); // 技进冷却,收卷
-    expect(e.log.some((l) => l.brief.includes("征辟") && l.detail.includes("target=p1"))).toBe(true);
+    expect(e.log.some((l) => l.brief.includes("征辟") && l.detail.includes("target=p1"))).toBe(
+      true,
+    );
 
     e.turnPhase = "AwaitingJinnang";
     const hua = armSkill(e, "huatuo");
@@ -174,8 +181,16 @@ describe("主动技结算(#188 档 3)", () => {
     armSkill(e, "zhouyu");
     const foe = e.players[1];
     const capPropId = e.board.at(foe.capitalIndex)?.propertyId;
-    const plain = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capPropId)!.propertyId!;
-    foe.properties.push({ propertyId: plain, group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 });
+    const plain = e.board.tiles.find(
+      (t) => t.type === "Property" && t.propertyId !== capPropId,
+    )!.propertyId!;
+    foe.properties.push({
+      propertyId: plain,
+      group: "a",
+      purchasePrice: 1000,
+      level: 1,
+      maxLevel: 3,
+    });
     const propCount = foe.properties.length;
     e.resolveHeroSkill("zhouyu-huogong"); // 入目标段
     e.resolveHeroSkill("zhouyu-huogong", [1]); // 提交目标
@@ -209,13 +224,21 @@ describe("主动技结算(#188 档 3)", () => {
     const startPos = mirror.activePlayer.position;
     mirror.rollAndMove();
     const die = mirror.presentation.lastRoll!.die;
-    const path = mirror.board.computePath(startPos, die + 2, mirror.activePlayer.capitalIndex, null);
-    const expected = path.passedCapital && path.landIndex !== mirror.activePlayer.capitalIndex
-      ? mirror.activePlayer.capitalIndex
-      : path.landIndex;
+    const path = mirror.board.computePath(
+      startPos,
+      die + 2,
+      mirror.activePlayer.capitalIndex,
+      null,
+    );
+    const expected =
+      path.passedCapital && path.landIndex !== mirror.activePlayer.capitalIndex
+        ? mirror.activePlayer.capitalIndex
+        : path.landIndex;
     expect(mirror.activePlayer.position).toBe(expected);
     expect(mirror.heroDiceBonus).toBe(0);
-    expect(mirror.log.some((l) => l.detail.includes(`steps=${die + 2}`) && l.detail.includes("bonus=2"))).toBe(true);
+    expect(
+      mirror.log.some((l) => l.detail.includes(`steps=${die + 2}`) && l.detail.includes("bonus=2")),
+    ).toBe(true);
     void p;
   });
 
@@ -272,15 +295,26 @@ describe("军师幕 bot 决策(#188 档 3)", () => {
     // 布场:rich 两座 Lv>0 城,poor 一座 → 偏好序 [rich, poor](城最多者先)
     const capOf = (seat: number) => e.board.at(e.players[seat].capitalIndex)?.propertyId;
     const plains = e.board.tiles
-      .filter((t) => t.type === "Property" && t.propertyId !== capOf(rich) && t.propertyId !== capOf(poor))
+      .filter(
+        (t) =>
+          t.type === "Property" && t.propertyId !== capOf(rich) && t.propertyId !== capOf(poor),
+      )
       .map((t) => t.propertyId!);
     e.players[rich].properties.push(
       { propertyId: plains[0], group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 },
       { propertyId: plains[1], group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 },
     );
-    e.players[poor].properties.push({ propertyId: plains[2], group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 });
+    e.players[poor].properties.push({
+      propertyId: plains[2],
+      group: "a",
+      purchasePrice: 1000,
+      level: 1,
+      maxLevel: 3,
+    });
     botAct(e);
-    const richHit = e.players[rich].properties.some((h) => (h.propertyId === plains[0] || h.propertyId === plains[1]) && h.level === 0);
+    const richHit = e.players[rich].properties.some(
+      (h) => (h.propertyId === plains[0] || h.propertyId === plains[1]) && h.level === 0,
+    );
     expect(richHit).toBe(true); // 城最多者挨烧(demolish 随机降其一座)
     expect(e.players[poor].properties.find((h) => h.propertyId === plains[2])?.level).toBe(1); // 未被波及
     // 中途接管停在技能目标段:conservative 作罢不卡死(回卡牌段或收卷)

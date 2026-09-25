@@ -79,7 +79,11 @@ const FIELDS: ReadonlyArray<FieldDef> = [
 /** 客户端坐标 → SVG viewBox 坐标(考虑 preserveAspectRatio="xMidYMid meet" 的留边)。
  *  BoardView 未暴露当前 viewBox(pan/zoom 在其内部 hook),但 viewBox 作为 prop 会
  *  同步到 <svg viewBox> 属性,拖拽时直接读属性即可拿到实时值。 */
-function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
+function clientToSvg(
+  svg: SVGSVGElement,
+  clientX: number,
+  clientY: number,
+): { x: number; y: number } {
   const vb = (svg.getAttribute("viewBox") ?? "0 0 1 1").split(/\s+/).map(Number);
   const [vx, vy, vw, vh] = [vb[0] || 0, vb[1] || 0, vb[2] || 1, vb[3] || 1];
   const rect = svg.getBoundingClientRect();
@@ -141,7 +145,12 @@ function InputScroll({
         />
       </label>
       <div className="flex flex-wrap justify-center gap-3">
-        <ScrollButton primary testid="editor-input-ok" onClick={() => onOk(trimmed)} disabled={!canConfirm}>
+        <ScrollButton
+          primary
+          testid="editor-input-ok"
+          onClick={() => onOk(trimmed)}
+          disabled={!canConfirm}
+        >
           确定
         </ScrollButton>
         <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
@@ -182,7 +191,12 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const future = useRef<MapData[]>([]);
   const [historyTick, setHistoryTick] = useState(0); // 触发 canUndo/canRedo 重算
   // 拖拽状态:index = 被拖城池;start = 按下起点(算位移阈值);ghost = 幽灵标记的客户端坐标
-  const dragRef = useRef<{ index: number; pointerId: number; startX: number; startY: number } | null>(null);
+  const dragRef = useRef<{
+    index: number;
+    pointerId: number;
+    startX: number;
+    startY: number;
+  } | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; name: string } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
   const importInputRef = useRef<HTMLInputElement | null>(null);
@@ -352,7 +366,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
     (ev: React.FocusEvent<HTMLDivElement>) => {
       const snap = focusSnapshot.current;
       if (!snap) return;
-      const stillInForm = ev.relatedTarget instanceof Node && ev.currentTarget.contains(ev.relatedTarget);
+      const stillInForm =
+        ev.relatedTarget instanceof Node && ev.currentTarget.contains(ev.relatedTarget);
       if (stillInForm) return; // 字段间切换:会话延续,快照保留
       focusSnapshot.current = null;
       if (JSON.stringify(snap) !== JSON.stringify(mapRef.current)) pushHistory(snap);
@@ -506,14 +521,52 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源) */}
       <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)]">
         <div className="flex flex-wrap gap-1.5">
-          <button data-testid={TID.exit} className={btn} onClick={onExit}><Sym name="back" size={13} />返回</button>
-          <button data-testid={TID.undo} className={btn} onClick={undo} disabled={past.current.length === 0}><Sym name="undo" size={13} />撤销</button>
-          <button data-testid={TID.redo} className={btn} onClick={redo} disabled={future.current.length === 0}><Sym name="redo" size={13} />重做</button>
-          <button data-testid={TID.save} className={btn} onClick={doSave} disabled={!validation.ok}>保存</button>
-          <button data-testid={TID.saveAs} className={btn} onClick={doSaveAs} disabled={!validation.ok}>另存新图</button>
-          <button data-testid={TID.export} className={btn} onClick={doExport}>导出</button>
-          <button data-testid={TID.import} className={btn} onClick={() => importInputRef.current?.click()}>导入</button>
-          <button data-testid={TID.reset} className={btn} onClick={doReset}>重置</button>
+          <button data-testid={TID.exit} className={btn} onClick={onExit}>
+            <Sym name="back" size={13} />
+            返回
+          </button>
+          <button
+            data-testid={TID.undo}
+            className={btn}
+            onClick={undo}
+            disabled={past.current.length === 0}
+          >
+            <Sym name="undo" size={13} />
+            撤销
+          </button>
+          <button
+            data-testid={TID.redo}
+            className={btn}
+            onClick={redo}
+            disabled={future.current.length === 0}
+          >
+            <Sym name="redo" size={13} />
+            重做
+          </button>
+          <button data-testid={TID.save} className={btn} onClick={doSave} disabled={!validation.ok}>
+            保存
+          </button>
+          <button
+            data-testid={TID.saveAs}
+            className={btn}
+            onClick={doSaveAs}
+            disabled={!validation.ok}
+          >
+            另存新图
+          </button>
+          <button data-testid={TID.export} className={btn} onClick={doExport}>
+            导出
+          </button>
+          <button
+            data-testid={TID.import}
+            className={btn}
+            onClick={() => importInputRef.current?.click()}
+          >
+            导入
+          </button>
+          <button data-testid={TID.reset} className={btn} onClick={doReset}>
+            重置
+          </button>
         </div>
         {/* 导入文件选择(隐藏 input,按钮代点;对照旧版临时 input.click()) */}
         <input
@@ -525,17 +578,25 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         />
 
         <h3 className="font-brush mb-1 mt-3 text-xl text-ink">编辑地图</h3>
-        <p className="mb-3 text-xs text-ink-dim">拖拽城池改位置(松手后自动连线);点击城池编辑属性。</p>
+        <p className="mb-3 text-xs text-ink-dim">
+          拖拽城池改位置(松手后自动连线);点击城池编辑属性。
+        </p>
 
         {/* 校验状态:严格 loadMap 失败 → 禁保存/试玩并显示原因(对照旧版试玩按钮禁用逻辑)。
             S3:危险色收编为 token(border-danger/bg-danger/10/text-danger) */}
         {!validation.ok && (
-          <div data-testid={TID.validationError} className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
+          <div
+            data-testid={TID.validationError}
+            className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger"
+          >
             {validation.error}
           </div>
         )}
         {overlapping.length > 0 && validation.ok && (
-          <div data-testid={TID.overlapWarning} className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger">
+          <div
+            data-testid={TID.overlapWarning}
+            className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger"
+          >
             第 {overlapping.map((i) => i + 1).join("、")} 城距离过近(红圈标出),保存前请拉开。
           </div>
         )}
@@ -546,7 +607,11 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             有效城池索引间发生,「未选中城池」空态不可达 → 不留死分支(零兜底原则);
             tileForm 容器 testid 契约保留(e2e 选择器零漂移)。 */}
         <div data-testid={TID.tileForm}>
-          <div className="flex flex-col gap-1.5 text-sm text-ink" onFocus={onFieldFocus} onBlur={onFieldBlur}>
+          <div
+            className="flex flex-col gap-1.5 text-sm text-ink"
+            onFocus={onFieldFocus}
+            onBlur={onFieldBlur}
+          >
             <h4 className="mb-1 font-wenkai text-base">
               #{selected} {tile.name}
             </h4>
@@ -560,7 +625,9 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                 onChange={(e) => setTileField("type", e.target.value as TileType)}
               >
                 {TILE_TYPES.map((t) => (
-                  <option key={t.value} value={t.value}>{t.label}</option>
+                  <option key={t.value} value={t.value}>
+                    {t.label}
+                  </option>
                 ))}
               </select>
             </label>
@@ -574,7 +641,10 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                   type={f.kind === "number" ? "number" : "text"}
                   value={f.kind === "number" ? String(tile[f.key] ?? 0) : String(tile[f.key] ?? "")}
                   onChange={(e) =>
-                    setTileField(f.key, f.kind === "number" ? Number(e.target.value) || 0 : e.target.value)
+                    setTileField(
+                      f.key,
+                      f.kind === "number" ? Number(e.target.value) || 0 : e.target.value,
+                    )
                   }
                 />
               </label>
@@ -595,7 +665,9 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                       type="number"
                       value={String(tile.valueByLevel?.[lvl] ?? 0)}
                       onChange={(e) => {
-                        const values = [...(tile.valueByLevel ?? Array.from({ length: maxLevel + 1 }, () => 0))];
+                        const values = [
+                          ...(tile.valueByLevel ?? Array.from({ length: maxLevel + 1 }, () => 0)),
+                        ];
                         values[lvl] = Number(e.target.value) || 0;
                         setTileField("valueByLevel", values);
                       }}
@@ -634,7 +706,14 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             onClick={doTryPlay}
             disabled={!validation.ok}
           >
-            {validation.ok ? <><Sym name="play" size={12} />试玩这局</> : "地图无效,无法试玩"}
+            {validation.ok ? (
+              <>
+                <Sym name="play" size={12} />
+                试玩这局
+              </>
+            ) : (
+              "地图无效,无法试玩"
+            )}
           </button>
         )}
       </aside>

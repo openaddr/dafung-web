@@ -17,7 +17,12 @@ import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
-function makeEngine(seed = 1, seats?: SeatConfig[], target = 30000, difficulty: "Simple" | "Normal" = "Normal") {
+function makeEngine(
+  seed = 1,
+  seats?: SeatConfig[],
+  target = 30000,
+  difficulty: "Simple" | "Normal" = "Normal",
+) {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
@@ -56,7 +61,9 @@ function armDecision(e: GameEngine, kind: "PropertyAvailable" | "OwnProperty", p
 
 /** 找一座无主普通城(规避 finishSetup 选都占位的不确定性)。 */
 function freeProperty(e: GameEngine) {
-  const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null)!;
+  const tile = e.board.tiles.find(
+    (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+  )!;
   return { tile, def: e.catalog.get(tile.propertyId)! };
 }
 
@@ -107,7 +114,13 @@ describe("选项集注册表(choices.ts)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     const { def } = freeProperty(e);
-    p.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    p.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     armDecision(e, "OwnProperty", def.id);
     expect(opt(e.choicesFor(), "upgrade")!.available).toBe(true);
     // 满级
@@ -156,14 +169,24 @@ describe("选项集注册表(choices.ts)", () => {
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
     p.heroes.push(HEROES[0]);
     const { def } = freeProperty(e); // 一座非都城地产(都城不可变卖)
-    p.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    p.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     e.pendingDebt = { amount: 99999, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     const opts = e.choicesFor();
     expect(opts.map((o) => o.id)).toContain("sell-treasure:t1");
     expect(opts.map((o) => o.id)).toContain(`cash-hero:${HEROES[0].id}`);
     expect(opts.some((o) => o.id === `sell-property:${def.id}`)).toBe(true); // 非都城地产可变卖
-    expect(opts.some((o) => o.id === `sell-property:${e.catalog.get(e.board.at(p.capitalIndex).propertyId)!.id}`)).toBe(false); // 都城不可变卖
+    expect(
+      opts.some(
+        (o) => o.id === `sell-property:${e.catalog.get(e.board.at(p.capitalIndex).propertyId)!.id}`,
+      ),
+    ).toBe(false); // 都城不可变卖
     const settle = opt(opts, "settle")!;
     expect(settle.available).toBe(true);
     // ADR-0013 决议 3:重大不可逆事件,唯一选项也不自动执行
@@ -203,7 +226,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1); // 直接结束回合
-    expect(e.log.some((ev) => ev.detail.includes("skipAvailable") && ev.detail.includes(def.id))).toBe(true);
+    expect(
+      e.log.some((ev) => ev.detail.includes("skipAvailable") && ev.detail.includes(def.id)),
+    ).toBe(true);
     const fs = e.presentation.drainFloaters();
     expect(fs.some((f) => f.kind === "msg" && f.text === "银两不足,未能购城")).toBe(true);
   });
@@ -217,7 +242,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     p.warrants = 0;
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).not.toBe("AwaitingDecision");
-    expect(e.log.some((ev) => ev.brief.includes("无委任状") && ev.detail.includes(def.id))).toBe(true);
+    expect(e.log.some((ev) => ev.brief.includes("无委任状") && ev.detail.includes(def.id))).toBe(
+      true,
+    );
     const fs = e.presentation.drainFloaters();
     expect(fs.some((f) => f.kind === "msg" && f.text === "无委任状,不可购")).toBe(true);
   });
@@ -227,14 +254,25 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     finishSetup(e);
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) =>
+        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
-    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: def.maxLevel, maxLevel: def.maxLevel });
+    me.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: def.maxLevel,
+      maxLevel: def.maxLevel,
+    });
     const turn0 = e.turnNumber;
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1);
-    expect(e.log.some((ev) => ev.detail.includes("skipMaxed") && ev.detail.includes(def.id))).toBe(true);
+    expect(e.log.some((ev) => ev.detail.includes("skipMaxed") && ev.detail.includes(def.id))).toBe(
+      true,
+    );
     expect(e.log.some((ev) => ev.brief.includes("城已满级,按兵不动"))).toBe(true);
     const fs = e.presentation.drainFloaters();
     expect(fs.some((f) => f.kind === "msg" && f.text === "城已满级,按兵不动")).toBe(true);
@@ -257,9 +295,18 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     finishSetup(e);
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) =>
+        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
-    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    me.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
   });
@@ -293,9 +340,18 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     finishSetup(e);
     const p = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(p.capitalIndex).propertyId)!;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) =>
+        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
-    p.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    p.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     armDecision(e, "OwnProperty", def.id);
     botAct(e);
     expect(e.turnPhase).not.toBe("AwaitingDecision");

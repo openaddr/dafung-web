@@ -45,7 +45,11 @@ interface DriveSessionImpl extends DriveSession {
 export function createDriveArbiter(): DriveArbiter {
   let active: DriveSessionImpl | null = null;
   // FIFO 等待队列:resolve 唤醒等待者;promise 供同 kind 去重时复用。
-  const queue: { kind: DriveKind; resolve: (s: DriveSession) => void; promise: Promise<DriveSession> }[] = [];
+  const queue: {
+    kind: DriveKind;
+    resolve: (s: DriveSession) => void;
+    promise: Promise<DriveSession>;
+  }[] = [];
   const pending = new Map<DriveKind, Promise<DriveSession>>();
 
   const pump = (): void => {
