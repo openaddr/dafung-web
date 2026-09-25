@@ -133,7 +133,7 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
 test("试玩这局:编辑器直接以编辑中数据开局", async ({ page }) => {
   await openEditor(page);
   await page.getByTestId("editor-try-play").click();
-  await expect(page.getByTestId("hand-panel")).toBeVisible({ timeout: 20_000 });
+  await expect(page.getByTestId("top-bar")).toBeVisible({ timeout: 20_000 });
   // 试玩固定 1 真人 + 3 电脑
   const s = await snap(page);
   expect(s.players).toHaveLength(4);

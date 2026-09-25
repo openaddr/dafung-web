@@ -23,59 +23,43 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
   expect(s.isOver).toBe(false);
 });
 
-test("状态栏四区数据一致:手牌现金/状态卡与引擎快照同步", async ({ page }) => {
+test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步(#253 迁移)", async ({ page }) => {
   await quickStart(page);
   // #188:对局自走后引擎态持续变化,「读一次快照 vs UI 文本」的固定期望会撞上推进——
   // 改为轮询比对:同一时刻 UI 与快照一致即算同步(断言意图不变,只是采样方式改了)。
+  // #253 迁移:hand-cash→dash-cash、status-guohao→topbar-active、状态卡 meta 的
+  // 活跃方委任→活跃席位卡徽章 aria(身价列随右栏退役不再呈现,断言随之收敛)。
   await expect
     .poll(
       async () => {
         const s = await snap(page);
         const me = s.players[0];
         const active = s.players[s.activeIndex];
-        const cash = await page.getByTestId("hand-cash").textContent();
-        const guohao = await page.getByTestId("status-guohao").textContent();
-        const meta = await page.getByTestId("status-meta").textContent();
+        const cash = await page.getByTestId("dash-cash").textContent();
+        const activeChip = await page.getByTestId("topbar-active").textContent();
+        const activeWarrant = await page
+          .getByTestId(`seat-attr-warrant-${s.activeIndex}`)
+          .getAttribute("aria-label")
+          .catch(() => null); // 自身回合无席位卡,该拍跳过
         return (
           cash?.includes(fmtMoney(me.cash)) === true &&
-          guohao === active.guohao &&
-          meta?.includes(fmtMoney(active.netWorth)) === true &&
-          meta?.includes(`委任 ${active.warrants}`) === true
+          activeChip === `${active.guohao}之回合` &&
+          (activeWarrant === null || activeWarrant === `委任状 ${active.warrants}`)
         );
       },
-      { timeout: 15_000, message: "手牌现金/状态卡与引擎快照同步" },
+      { timeout: 15_000, message: "仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步" },
     )
     .toBe(true);
-  // 珍宝·名将区(L48 战报腾位)+ 诸侯列表就位(结构性,不随推进变化)
-  await expect(page.getByTestId("treasury-panel")).toBeVisible();
-  await expect(page.getByTestId("others-panel")).toBeVisible();
-  // X13(#32):「你」印挂在本方座位行——需轮到人类(viewSeat 跟随决策方),
-  // 等停稳在人类等待态再断言(他人行没有)
+  // 席位卡列与仪表条就位(结构性,不随推进变化;#253:treasury/others 容器退役)
+  await expect(page.getByTestId("dashboard-bar")).toBeVisible();
+  await expect(page.getByTestId("seat-rail")).toBeVisible();
+  // 「你」印挂在仪表条身份头(需轮到人类停稳再断言,viewSeat 跟随决策方)
   await waitMyPause(page, 0);
-  await expect(page.getByTestId("other-player-0").getByTestId("other-player-you")).toBeVisible();
-  await expect(page.getByTestId("other-player-1").getByTestId("other-player-you")).toHaveCount(0);
+  await expect(page.getByTestId("dashboard-bar").getByTestId("dash-you")).toBeVisible();
 });
 
-test("珍宝行键盘语义:行本体是 button,聚焦后 Enter 开详情(#42)", async ({ page }) => {
-  await quickStart(page);
-  // 起手无珍宝:force 发一枚触发珍宝行渲染(快照序列化只带 id/name/level/desc)
-  await force(page, `e.players[0].treasures.push({ id: "seal", name: "传国玉玺", level: 10, desc: "受命于天,既寿永昌" });`);
-  const row = page.getByTestId("treasury-treasure-seal");
-  await expect(row).toBeVisible();
-  // S9:行必须是原生 button(与同区名将卡同语义;div+onClick 已废,Tab 天然可达)
-  await expect(row).toHaveJSProperty("tagName", "BUTTON");
-  // Enter 开详情卷轴。#188:对局自走后自然对局可能弹出决策卷轴(焦点陷阱会截走 Enter),
-  // 改 toPass 重试:清掉自然卷轴 → 聚焦 → Enter → 卷轴可见,直到逮住交互空闲窗
-  //(与「城池详情卷轴」用例的 toPass 口径一致)。
-  await expect(async () => {
-    await dismissJinnangIfUp(page);
-    await actIfCan(page);
-    await row.focus();
-    await page.keyboard.press("Enter");
-    await expect(page.getByTestId("card-detail-scroll")).toBeVisible();
-  }).toPass({ timeout: 30_000 });
-  await expect(page.getByTestId("card-detail-scroll")).toContainText("传国玉玺");
-});
+// 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章,
+// 点徽章展开明细+键盘通路是 #255 的活,届时按 expandPile 形态重立用例)。
 
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);

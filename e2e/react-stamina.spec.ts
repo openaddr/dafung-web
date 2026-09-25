@@ -92,7 +92,8 @@ test.describe("体力系统冒烟", () => {
     expect(after.extraLevel).toBe(2); // 未被选中不受影响
     expect(after.owned).toBe(2); // 降级不失城
 
-    // 侧栏渲染体力(状态卡/诸侯列表)
-    await expect(page.getByText(/体力/).first()).toBeVisible();
+    // 体力上仪表(#253 迁移:侧栏退役,体力血条驻留底部仪表条,数值刻在条内)
+    await expect(page.getByTestId("dash-stamina")).toBeVisible();
+    await expect(page.getByTestId("dash-stamina")).toHaveText("100");
   });
 });

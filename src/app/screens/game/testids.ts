@@ -1,8 +1,52 @@
 // data-testid 常量集中导出:e2e / 测试统一从这里 import,避免散落字符串拼写漂移。
 // 命名约定:kebab-case;区域容器 `xxx-panel`,条目 `xxx-item`(可带索引后缀)。
 // 棋盘侧的 data 属性由 BoardView/Tile 自带(data-tile=N),此处不重复定义。
+//
+// ── 退役 testid 迁移清单(#253 布局骨架:右栏 aside 退役,三区重排)──
+// 下列挂点随组件退役,常量暂留(退役组件文件在盘,收口票 #255 统一删除);
+// 迁移去向(零语义漂移):
+//   statusBarPanel/statusCard/statusGuohao/statusMeta/roundInfo
+//       → top-bar 的 topbar-round / topbar-active / topbar-target(回合/活跃方/目标身价)
+//   handPanel/handIdentity/handSpectatorIdentity → dashboard-bar 身份头(坐姿/观战同件)
+//   handCash → dash-cash(全屏唯一现金大数);handWarrants → dash-attr-warrant//   treasuryPanel/treasuryTreasure/treasuryHero → dash-treasures / dash-heroes 计数徽章
+//       (点开展开明细是 #255 的活;card-detail-scroll 卷轴保留)
+//   othersPanel/othersList/otherPlayer(seat) → seat-rail 的 seat-${seat} 席位竖卡
+//   otherPlayerYou → dash-you(自身不出席位卡,「你」印归仪表条身份头)
+//   sidebarPanel/sidebarCollapsed/sidebarToggle → 无对应件(右栏退役,无折叠态)
+// 另:dice-face(签面)原在手牌区方章,语义迁至仪表条「签」徽章,testid 不变。
 export const TESTIDS = {
-  // ── 侧栏四区容器 ──
+  // ── 三区布局(#253):顶部条 / 席位竖卡列 / 底部仪表条 ──
+  topBar: "top-bar",
+  topbarRound: "topbar-round",
+  /** 活跃方名 chip(「X之回合」;终局=「「X」称帝」)。 */
+  topbarActive: "topbar-active",
+  topbarTarget: "topbar-target",
+  topbarDeck: "topbar-deck",
+  topbarDiscard: "topbar-discard",
+  /** 席位竖卡列容器(含右列/左列/顶行三槽位)。 */
+  seatRail: "seat-rail",
+  /** 席位竖卡(seat = 绝对座位号);观战与自身不出卡。 */
+  seat: (seat: number) => `seat-${seat}` as const,
+  seatCash: (seat: number) => `seat-cash-${seat}` as const,
+  /** 体力血条(条内数字即刻度;low 类转红)。 */
+  seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
+  /** 属性徽章(attr ∈ warrant|city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
+  seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
+  dashboardBar: "dashboard-bar",
+  /** 全屏唯一现金大数。 */
+  dashCash: "dash-cash",
+  /** 仪表条属性徽章(attr ∈ warrant|city|rep;值裸排,名词在 aria-label)。 */
+  dashAttr: (attr: string) => `dash-attr-${attr}` as const,
+  dashStamina: "dash-stamina",
+  /** 珍宝/名将计数徽章(点击展开明细是 #255 的活,本票只做徽章+计数)。 */
+  dashTreasures: "dash-treasures",
+  dashHeroes: "dash-heroes",
+  /** 仪表条身份头的「你」印(观战为灰「观」印,不挂本 testid)。 */
+  dashYou: "dash-you",
+  /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
+  attrTip: "attr-tip",
+
+  // ── 侧栏四区容器(已退役,#253 迁移清单见文件头;常量暂留供在盘退役组件编译)──
   statusBarPanel: "status-bar-panel",
   handPanel: "hand-panel",
   /** L47:手牌区玩家身份头(国号大字 + 「你」印)。 */

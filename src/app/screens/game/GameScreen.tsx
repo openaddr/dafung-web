@@ -1,60 +1,32 @@
-// Game 屏(阶段 5a):棋盘区 + 右侧栏四区,布局对照旧 createLayout 的结构比例。
-//   棋盘占主体,侧栏固定宽(旧 .sidebar 同角色):回合状态 / 手牌+动作 / 珍宝·名将 / 诸侯
-//   (L48:战报区移除,日志走胜利屏「导出日志」落 jsonl 文件,ADR-0014)。
+// Game 屏(#253 三区骨架):棋盘全幅垫底 + 顶部对局条 + 席位竖卡列 + 底部仪表条。
+// 右侧栏(aside)退役:StatusBar→顶部条、HandPanel→仪表条+手牌架、
+// TreasuryPanel→仪表条计数徽章(#255 接展开)、OthersPanel→席位卡、
+// CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为全局兜底,
+// 席位卡倒计时条承担「谁在行动」指名。手牌架(HandRack)一期全展形态暂留原样,
+// 军师幕弹窗暂留(后续票接手);usePanZoom/TokenLayer/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
-// spec #107 批次 5(C5 减负):选都/详情流程状态机下沉 useCapitalPick(单文件持有);
-// 折叠窄条/窄屏浮动条收口 CollapsedRail(单组件双形态);托管取值收口 useAutopilotOn
-// (netStore,补观战守卫)。本屏只做接线与布局。
-import { useRef, useState } from "react";
+// 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
+import { useRef } from "react";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
 import type { MapData } from "@core/types";
-import { playerColor, rgba } from "@core/theme";
-import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
+import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
-import { HandPanel } from "./HandPanel";
 import { HandRack } from "./HandRack";
-import { TreasuryPanel } from "./TreasuryPanel";
-import { OthersPanel } from "./OthersPanel";
+import { GameTopBar } from "./GameTopBar";
+import { SeatRail } from "./SeatRail";
+import { DashboardBar } from "./DashboardBar";
 import { WaitingBar } from "./WaitingBar";
-import { StatusBar } from "./StatusBar";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
-import { CollapsedRail } from "./CollapsedRail";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
-import { Sym } from "@app/screens/shared/Sym";
 import { TESTIDS } from "./testids";
-import { IS_NARROW_QUERY, useIsNarrow } from "@app/hooks/use-media-query";
 import { VERSION } from "../../../version";
-
-/** 静音开关:棋盘区右上小按钮(须挂在 AudioProvider 内读 context,故独立组件)。 */
-function MuteButton() {
-  const audio = useAudio();
-  if (!audio) return null;
-  return (
-    <button
-      type="button"
-      data-testid={TESTIDS.muteButton}
-      title={audio.muted ? "开音" : "静音"}
-      // #175:icon-only 钮可达名——Sym 是 aria-hidden SVG,仅有 title(弱可及名),
-      // 补 aria-label 对齐缩放钮口径
-      aria-label={audio.muted ? "开音" : "静音"}
-      onClick={audio.toggleMuted}
-      // W5:点击目标 ≥40px——py-2 + min-h/w-10 扩触达区,视觉字号不变;
-      // 视觉重做 v2:控制钮统一「笺钮方章」制式(发丝墨边 + Sym SVG 符号,
-      // ♪ 字符在离线字体下是豆腐块风险,一并根除)
-      className="absolute top-[calc(var(--safe-top)+8px)] right-[calc(var(--safe-right)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 text-ink-dim transition-colors hover:text-ink"
-    >
-      {/* S6 符号表统一:有声 ♪ / 静音 ♪̶(音符+删除线),Sym SVG 渲染 */}
-      <Sym name={audio.muted ? "muted" : "sound"} size={15} />
-    </button>
-  );
-}
 
 export function GameScreen() {
   const snapshot = useGameStore((s) => s.snapshot);
@@ -85,77 +57,41 @@ export function GameScreen() {
   return <GameScreenLive snapshot={snapshot} map={map} />;
 }
 
-/** 已开局主体:棋盘区 + 右侧栏四区(hooks 全在此;snapshot/map 由 GameScreen 门卫)。 */
+/** 已开局主体:棋盘全幅 + 三区(顶部条/席位卡列/仪表条);hooks 全在此,
+ *  snapshot/map 由 GameScreen 门卫。 */
 function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapData }) {
-  // S5 遗留补全:侧栏抽屉折叠——收起成窄条(棋盘全屏看戏),状态记忆到 localStorage。
-  // P0-7 窄屏(<768px)复用同一状态:侧栏变覆盖式滑入抽屉,只有 开/合 两态(无 w-12 窄条);
-  // 首访默认——桌面展开、窄屏收起(棋盘优先),其后按用户选择记忆。
-  // X6 #25:窄屏判定与 useIsNarrow 同源(IS_NARROW_QUERY,含横屏手机 ②分支),844×390 首访也收起。
-  const [sidebarOpen, setSidebarOpen] = useState(() => {
-    try {
-      const saved = localStorage.getItem("dafung.sidebar");
-      if (saved === "open") return true;
-      if (saved === "collapsed") return false;
-      return !window.matchMedia(IS_NARROW_QUERY).matches;
-    } catch {
-      return true;
-    }
-  });
-  const setSidebar = (open: boolean) => {
-    setSidebarOpen(open);
-    try {
-      localStorage.setItem("dafung.sidebar", open ? "open" : "collapsed");
-    } catch {
-      /* 隐私模式写失败不阻塞 */
-    }
-  };
-  const toggleSidebar = () => setSidebarOpen((open) => {
-    const next = !open;
-    try {
-      localStorage.setItem("dafung.sidebar", next ? "open" : "collapsed");
-    } catch {
-      /* 隐私模式写失败不阻塞 */
-    }
-    return next;
-  });
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
-  // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;总览复位按钮用)
+  // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;顶部条复位钮用)
   const boardRef = useRef<BoardViewHandle>(null);
   const interactive = useGameStore((s) => s.interactive);
   const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
   const localPlayer = useLocalPlayer();
-  // 联机 pending / online(G-8 托管可见性 / P0-3 窄条热钮防连点):与 HandPanel 同一回读口径
   const net = useNetStore();
+  // 自局座位(稳定身份,勿用 viewSeat):单机热座下 viewSeat 跟随决策方轮转(bot 回合
+  // 时指到 bot 席),席位卡「自身不出卡」/仪表条身份/手牌架都需要的是固定的「人」。
+  // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座
+  // (viewSeat,观战=-1 → players[-1]=undefined,按观战口径走)。
+  const selfSeat = net.roomId !== "" ? viewSeat : 0;
+  const selfPlayer = snapshot.players[selfSeat] ?? null;
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
-  // 标记,观战(mySeat=-1)恒 false——观战无托管。C5 前此处内联取值无 mySeat 守卫,
-  // 联机观战态进对局屏即 seats[-1] TypeError(评审 #3,随收口一并修掉)。
+  // 标记,观战(mySeat=-1)恒 false——观战无托管。
   const autopilotOn = useAutopilotOn(controller);
-  // P0-7 窄屏判定(<768px):决定侧栏走覆盖式抽屉还是桌面并排布局
-  const isNarrow = useIsNarrow();
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
-  // F4:hint 过期已下沉 gameStore.pushHint(1.8s 统一口径),本屏不再挂定时器。
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
-  // onTileClick 相位路由 + 详情/定都确认时序,GameScreen 只把返回值接进 BoardView /
-  // DecisionScrollLayer / TreasuryPanel。
-  const { offeredCapitals, selectableTiles, onTileClick, closeDetail, tileDetail } = useCapitalPick({
+  // onTileClick 相位路由 + 详情/定都确认时序。(closeDetail 暂无消费者:卡详情卷轴
+  // 随 TreasuryPanel 退役,#255 展开明细回归时一并接回 G-17 互斥。)
+  const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
     snapshot,
   });
 
   // 快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
-
-  // 活跃方国号(引擎不变量:Playing 期 activeIndex 恒有效;非 Playing 不会被渲染消费)
-  const activeGuohao = snapshot.phase === "Playing" ? snapshot.players[snapshot.activeIndex].guohao : "";
-
-  // 「轮到我」条件(桌面窄条金框与窄屏浮动条共用口径):本地人类可操作且非托管的行军相位
-  const myTurnToRoll =
-    interactive && !autopilotOn && snapshot.phase === "Playing" && snapshot.turnPhase === "Roll";
 
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
   const setupHint =
@@ -169,14 +105,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           生命周期=一局;#188 第 1 步:掷骰由控制器定时自动发起(起签后起摇),演出期间
           控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />
-      <div className="relative flex h-full w-full bg-bg text-ink">
-      {/* #238/T3 棋盘列:board-wrap + 底部手牌架同列(列结构,侧栏 aside 不动)。
+      <div className="game-layout relative h-full w-full overflow-hidden bg-bg text-ink">
+      {/* 棋盘区全幅垫底(id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点)。
           棋盘初始取景 = FIT_VIEW 固定 viewBox + preserveAspectRatio meet——容器变矮
           整盘等比缩小,无需 pan/zoom 补偿。 */}
-      <div className="flex min-w-0 flex-1 flex-col">
-      {/* 棋盘区(相对定位承载 hint/WaitingBar/fx 覆盖层,同旧 board-wrap)。
-          id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点。 */}
-      <div id="board-wrap" className="relative min-w-0 flex-1 overflow-hidden">
+      <div id="board-wrap" className="board-area">
         {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
         <ConnectionBanner />
         <BoardView
@@ -197,9 +130,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 阶段 6:浮字/铜钱雨/回合横幅/印章(store 驱动的瞬时表现) */}
         <FxLayer />
         {setupHint && (
-          // S8(#41):从 top-3(+12px,与 HintBar 同位重叠)下移到 WaitingBar 槽
-          // (+48px)——选都期 WaitingBar 恒空(phase≠Playing 直接 null),同槽复用,
-          // 任意 pushHint(+12px)与引导(+48px)上下错开不再叠字。
+          // S8(#41):WaitingBar 槽复用——选都期 WaitingBar 恒空(phase≠Playing 直接
+          // null),同槽上下错开不再叠字。
           <div
             data-testid={TESTIDS.hint}
             className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/95 px-4 py-1 font-brush text-lg shadow-sm"
@@ -210,7 +142,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
         <HintBar hint={hint} level={hintLevel} />
         {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债。
-            X7 #26:底部「运筹中…」角标已删(同屏重复),thinking testid 迁入 WaitingBar 文案 span */}
+            #253:席位卡倒计时条承担「谁在行动」指名,本条保留为全局兜底。 */}
         <WaitingBar
           snapshot={snapshot}
           interactive={interactive}
@@ -228,186 +160,30 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             tileDetail={tileDetail}
           />
         </div>
-        {/* G-5 常驻回合 chip:左上悬浮钮下方(避开复位钮),国号色圆徽 +「X之回合」;
-            只读不拦交互。W2-包D(审计 A1):bot「运筹中」微标已删——WaitingBar 文案
-            已承担同一反馈,双份重复;thinking testid 契约在 WaitingBar,不受影响。 */}
-        {snapshot.phase === "Playing" &&
-          (() => {
-            const active = snapshot.players[snapshot.activeIndex];
-            if (!active) return null;
-            return (
-              <div className="pointer-events-none absolute top-[calc(var(--safe-top)+56px)] left-[calc(var(--safe-left)+8px)] z-10 flex items-center gap-1.5 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/90 px-2 py-1 shadow-sm">
-                <span
-                  className="flex h-5 w-5 rotate-[-4deg] items-center justify-center rounded-[2px] font-brush text-xs text-[#f6ead6]"
-                  style={{ backgroundColor: rgba(playerColor(active.colorIndex)) }}
-                >
-                  {active.guohao.charAt(0)}
-                </span>
-                <span className="font-brush text-sm text-ink">{active.guohao}之回合</span>
-              </div>
-            );
-          })()}
-        {/* 总览复位(对照旧版 reset-view):置于左上,与右上的静音按钮错开 */}
-        <button
-          type="button"
-          data-testid={TESTIDS.resetView}
-          title="总览复位"
-          aria-label="总览复位"
-          onClick={() => boardRef.current?.reset()}
-          // W5:同静音按钮——min-h/w-10 触达区,符号视觉大小不变;笺钮方章制式
-          className="absolute top-[calc(var(--safe-top)+8px)] left-[calc(var(--safe-left)+8px)] z-10 flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 text-ink-dim transition-colors hover:text-ink"
-        >
-          {/* S6 符号表统一:复位统一 ◎(Sym SVG 渲染,圆心居中古印感) */}
-          <Sym name="reset" size={15} />
-        </button>
-        {/* #98 缩放 +/− 钮:触屏/触板无滚轮/双指发现性差,给显式入口。竖排挂复位钮同列
-            (制式照抄 ◎ 钮:min-h/w-10 = 40×40 圆角 + bg-panel/90 发丝墨边);
-            top +92 避开 G-5 回合 chip 槽(+56,高度 ~28px),zoomBy 以视口中心为锚,
-            与滚轮/双指同一条 setView 管线(见 usePanZoom)。 */}
-        <div className="absolute top-[calc(var(--safe-top)+92px)] left-[calc(var(--safe-left)+8px)] z-10 flex flex-col gap-2">
-          <button
-            type="button"
-            title="放大棋盘"
-            aria-label="放大棋盘"
-            onClick={() => boardRef.current?.zoomBy(1.25)}
-            className="flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim transition-colors hover:text-ink"
-          >
-            +
-          </button>
-          <button
-            type="button"
-            title="缩小棋盘"
-            aria-label="缩小棋盘"
-            onClick={() => boardRef.current?.zoomBy(0.8)}
-            className="flex min-h-10 min-w-10 items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.3)] bg-panel/90 px-2 py-2 font-brush text-sm text-ink-dim transition-colors hover:text-ink"
-          >
-            −
-          </button>
-        </div>
-        {/* 静音开关(对照旧 board-wrap 顶栏;须在 AudioProvider 内层,故抽小组件) */}
-        <MuteButton />
-        {/* 版本角标(对照旧 main.ts 右下角,构建排查用;R3-A9 随 Noto Serif 移除改挂文楷) */}
+        {/* 版本角标(构建排查用;右下角,席位卡列与仪表条之间的空档) */}
         <span className="pointer-events-none absolute right-1 bottom-0.5 font-wenkai text-[10px] text-ink-dim/70">
           {VERSION}
         </span>
-        {/* P0-7 窄屏浮动小条(侧栏抽屉收起时):CollapsedRail float 形态(与桌面折叠窄条
-            同一组件,把手 + 「轮到我」金框 + 行军热钮 + 「托」印只此一份实现)。 */}
-        {isNarrow && !sidebarOpen && (
-          <CollapsedRail
-            variant="float"
-            myTurnToRoll={myTurnToRoll}
-            autopilotOn={autopilotOn}
-            activeGuohao={activeGuohao}
-            cash={localPlayer?.cash ?? null}
-            pending={net.pending}
-            onToggle={toggleSidebar}
-            onRoll={() => controller?.dispatchCommand({ type: "rollAndMove" })}
-          />
-        )}
-        {/* P0-7 窄屏遮罩:抽屉展开时压暗棋盘,点击即收(点心即关) */}
-        {isNarrow && sidebarOpen && (
-          <div
-            data-testid="sidebar-backdrop"
-            className="absolute inset-0 z-10 bg-ink/40"
-            onClick={() => setSidebar(false)}
-          />
-        )}
       </div>
-      {/* #238/T3 底部常驻手牌架(观战 localPlayer=null 时内部自返回 null) */}
-      <HandRack player={localPlayer} />
-      </div>
-      {/* 右侧栏(四区:状态 / 手牌+动作 / 珍宝·名将 / 诸侯,标题横幅置顶)。
-          L48:战报区已移除(日志保留在引擎快照,胜利屏「导出日志」落 jsonl 文件);
-          珍宝·名将区接管原战报的弹性纵向空间,诸侯条独立成节钉底。
-          S5 窄屏棋盘优先 + 抽屉折叠:宽屏 288px(w-72),md 以下 min(288px,45vw) 可压;
-          收起时折叠为窄条(棋盘拿满),折叠/展开状态记忆 localStorage。四区 flex-col
-          自适应,桌面压缩宽度下靠现有 overflow-hidden/内滚不破版。
-          P0-7 窄屏(<768px)覆盖式抽屉:absolute 贴右滑入(translate 200ms),棋盘始终全宽;
-          无 w-12 中间态,收起态的信息挪到棋盘右缘浮动小条(见 board-wrap 内)。
-          R3-A5(#68):抽屉态改 overflow-y-auto——844×390 这类矮视口四区总高可超抽屉,
-          旧 overflow-hidden 会把按 flex 分到 0 高的诸侯区静默裁切,改整抽屉滚动保底;
-          桌面并排仍 overflow-hidden,布局不变。 */}
-      <aside
-        data-testid={sidebarOpen || isNarrow ? TESTIDS.sidebarPanel : TESTIDS.sidebarCollapsed}
-        className={
-          isNarrow
-            ? "absolute inset-y-0 right-0 z-20 flex w-[min(320px,85vw)] shrink-0 flex-col overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[var(--ink-shadow-lg)] transition-transform duration-[var(--dur-med)] " +
-              (sidebarOpen ? "translate-x-0" : "translate-x-full")
-            : "flex shrink-0 flex-col overflow-hidden border-l border-[rgba(43,35,23,0.35)] bg-panel shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)] transition-[width] duration-[var(--dur-med)] " +
-              (sidebarOpen ? "w-[min(288px,45vw)] md:w-72" : "w-12")
-        }
-      >
-        {sidebarOpen || isNarrow ? (
-          <>
-            {/* R3-B9(#81):横幅分相位——对局中(Playing)压为单行(约 65px→36px,
-                矮视口抽屉不再被常驻横幅占 1/6 高);Setup/GameOver 保留大横幅。
-                视觉重做 v2:品牌行加「鹿」字朱印落款(全局印章语言的门面位),
-                金饰线退役改发丝墨线。 */}
-            <h1
-              className={
-                "flex items-center justify-center gap-2 border-b border-[rgba(43,35,23,0.2)] bg-panel-hi px-3 text-center font-brush tracking-widest " +
-                (snapshot.phase === "Playing" ? "py-1.5 text-base" : "flex-col gap-1 py-2 text-2xl")
-              }
-            >
-              <span className="flex items-center justify-center gap-2">
-                <span
-                  aria-hidden="true"
-                  className={
-                    "flex rotate-[-4deg] items-center justify-center rounded-[2px] bg-danger font-brush leading-none text-[#f6ead6] " +
-                    (snapshot.phase === "Playing" ? "h-5 w-5 text-[13px]" : "h-7 w-7 text-lg")
-                  }
-                >
-                  鹿
-                </span>
-                <span>群雄逐鹿</span>
-              </span>
-              <small
-                className={
-                  snapshot.phase === "Playing"
-                    ? "text-[10px] text-ink-dim"
-                    : "text-xs text-ink-dim"
-                }
-              >
-                · 三国大富翁 ·
-              </small>
-            </h1>
-            <StatusBar snapshot={snapshot} />
-            <HandPanel snapshot={snapshot} player={localPlayer} controller={controller} />
-            {/* L48 空间重排:战报区移除,腾出的弹性纵向空间给珍宝·名将常驻展示区;
-                诸侯紧凑条独立成节钉在其后(自己资产优先占屏,他人信息紧凑收尾)。
-                R3-A5(#68):isNarrow 同源下发抽屉态(IS_NARROW_QUERY 含横屏矮视口分支,
-                勿用 max-md 纯宽度断点另抄)——珍宝·名将区在抽屉里放开 flex 保底。 */}
-            <TreasuryPanel player={localPlayer} onCardDetailOpen={closeDetail} narrow={isNarrow} />
-            {/* X13(#32):viewSeat 透传——诸侯列表自己行挂「你」印(口径同 WaitingBar) */}
-            <OthersPanel snapshot={snapshot} viewSeat={viewSeat} />
-            {/* 收起按钮钉底(不与四区抢纵向空间),W5 触达 ≥40px */}
-            <button
-              type="button"
-              data-testid={TESTIDS.sidebarToggle}
-              title="收起侧栏(全屏看棋)"
-              // #175:可见内容是「»」符号,可达名补为动作语义(同 CollapsedRail 展开钮)
-              aria-label="收起侧栏"
-              onClick={toggleSidebar}
-              className="flex min-h-10 items-center justify-center border-t border-[rgba(43,35,23,0.2)] bg-panel-hi font-brush text-lg text-ink-dim hover:text-ink"
-            >
-              »
-            </button>
-          </>
-        ) : (
-          /* 折叠窄条:CollapsedRail panel 形态(展开按钮置顶 + 活跃玩家国号竖排 +
-              我的现金 + 行军热钮,信息不归零),与窄屏浮动条同一实现。 */
-          <CollapsedRail
-            variant="panel"
-            myTurnToRoll={myTurnToRoll}
-            autopilotOn={autopilotOn}
-            activeGuohao={activeGuohao}
-            cash={localPlayer?.cash ?? null}
-            pending={net.pending}
-            onToggle={toggleSidebar}
-            onRoll={() => controller?.dispatchCommand({ type: "rollAndMove" })}
-          />
-        )}
-      </aside>
+      {/* 顶部对局条:回合 chip(第 N 轮 + 目标身价)+ 活跃方名 | 牌库/弃牌 + 复位/缩放/静音 */}
+      <GameTopBar
+        snapshot={snapshot}
+        /* chip 印章=自局视角;观战未入座跟随房主座(快照按座直取,取不到即接线 bug) */
+        self={selfPlayer ?? players[net.host]}
+        onResetView={() => boardRef.current?.reset()}
+        onZoomIn={() => boardRef.current?.zoomBy(1.25)}
+        onZoomOut={() => boardRef.current?.zoomBy(0.8)}
+      />
+      {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
+          排除的是稳定自局座位(selfSeat),非热座 viewSeat——后者随决策方轮转。 */}
+      <SeatRail snapshot={snapshot} viewSeat={selfSeat} />
+      {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
+          右段手牌架槽给 HandRack 让位(弹性宽) */}
+      <DashboardBar snapshot={snapshot} player={selfPlayer} controller={controller} autopilotOn={autopilotOn}>
+        {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
+            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。 */}
+        <HandRack player={selfPlayer} />
+      </DashboardBar>
       </div>
     </AudioProvider>
   );

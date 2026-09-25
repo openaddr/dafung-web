@@ -1,7 +1,19 @@
 // React 重构 · e2e 共享工具(阶段 11):全部选择器走 data-testid,
 // 相位推进用 window.__dafung 调试钩子强制(见 src/app/controllers/registry.ts)。
 // 走 vite preview(4173)的 dist 产物——跑前需 npm run build;联机走 3010。
-import { expect, type Page } from "@playwright/test";
+import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
+// 键名单源:与 registry.ts 双门禁共用同一常量(playwright 侧对 src 路径的解析同 fixtures.ts)。
+import { E2E_DEBUG_BRIDGE_KEY } from "../src/app/fx/timings";
+
+/** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
+ *  无键不注册 window.__dafung,而 fixtures 的注入只覆盖 fixture page——raw context
+ *  页面(coreState/onlinePickCapitals 的两端)会拿到 undefined。master 上已断的接线,
+ *  随 #253 e2e 迁移修通;只建 context,页面由调用方 newPage()。 */
+export async function newBridgeContext(browser: Browser): Promise<BrowserContext> {
+  const ctx = await browser.newContext();
+  await ctx.addInitScript((key) => localStorage.setItem(key, "1"), E2E_DEBUG_BRIDGE_KEY);
+  return ctx;
+}
 
 /** 强制引擎进入指定状态并同步 UI(测试专用通道;fn 内以 e 引用引擎)。
  *  #188:收口走控制器 sync(而非 __dafung.sync)——直改引擎后必须连派生量(interactive
