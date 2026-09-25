@@ -20,6 +20,11 @@
    档类默认 8px)。短横屏降档(#238 已决事项「剩余实现层微调」):media query 里把
    容器 em 基降到 6.4px → 牌面 96×128、架高同步收紧,一处变量全架缩放。 */
 
+/* 令笺(技)变体混排架中(#256):差量样式(金界格线/技章/徽记/摘要区)单源在
+   scroll.css 的 .jn-lingjian 作用域,显式 @import 拉进依赖(此前由 ScrollShell
+   携带;#255 收口若拆卷轴族,此依赖随迁,不许「恰好被别处加载」的暗耦合)。 */
+@import "./scroll/scroll.css";
+
 .hand-rack {
   position: relative;
   font-size: 8px; /* em 基:架体 chrome 与牌面共用,短横屏降档只改这一处 */
@@ -170,6 +175,55 @@
 }
 /* reduced-motion:挥出过渡由 app.css M-4 全局兜层压成瞬时(0.01ms)——「直接上浮」
    口径,本文件无需另写(发牌入场的 delay 归零特例见上,那是 M-4 管不到的唯一缝)。 ── */
+
+/* ── 军师窗态(#256:军师幕弹窗退役,架即出牌面;原型 .playable 口径)──
+   .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
+   - 可出=.usable 微上浮(钮层),hover 升满幅;
+   - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
+     钮层只管层叠 z-index 与消隐自身 transform,避免与 .many hover 挥出叠加);
+   - 不可用=.off 下沉置灰(disabled,原因印条 .reason 由牌面 children 承担,文案
+     单源 choices);
+   - 目标段=.played 已出计牌金描边上浮+「已出牌 · 待择目标」印条,其余 .off 灰置;
+   - 选中放大牌占中不遮动作钮:右让归动作条(layout.css .actionbar.right-shift)。
+   本块排在 #254 的 .many hover 挥出块之后(同特异性链上以更多类压过)。 ── */
+.hand-rack.junshi .hand-rack-hand > button {
+  position: relative;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.hand-rack.junshi .hand-rack-hand > button.usable {
+  transform: translateY(-0.6em);
+}
+.hand-rack.junshi .hand-rack-hand > button.usable:hover {
+  transform: translateY(-1em);
+  z-index: 9;
+}
+.hand-rack.junshi .hand-rack-hand > button.sel,
+.hand-rack.junshi .hand-rack-hand > button.off,
+.hand-rack.junshi .hand-rack-hand > button.played {
+  transform: none;
+}
+.hand-rack.junshi .hand-rack-hand > button.sel:hover,
+.hand-rack.junshi .hand-rack-hand > button.off:hover,
+.hand-rack.junshi .hand-rack-hand > button.played:hover {
+  transform: none;
+}
+.hand-rack.junshi .hand-rack-hand > button.sel,
+.hand-rack.junshi .hand-rack-hand > button.played {
+  z-index: 8;
+}
+.hand-rack.junshi .hand-rack-hand > button.off,
+.hand-rack.junshi .hand-rack-hand > button.played {
+  cursor: default;
+}
+/* 已出计牌(目标段):本体常色(进行时不是废牌),金描边上浮,不放大(原型目标态
+   口径);「已出牌 · 待择目标」印条由牌面 children .reason 承担(组件侧)。 */
+.hand-rack.junshi .hand-rack-hand > button.played .jinnang-card {
+  transform: translateY(-0.8em);
+  outline: 0.25em solid var(--color-gold);
+  outline-offset: 0.12em;
+}
+/* 窗态键盘焦点圈:架体钮层金虚线(既有 .hand-rack-hand > button:focus-visible
+   规则已覆盖,窗态不改口径)。 */
 
 /* ── 详情弹层入场(一次性演出,无 infinite):底部滑入 + 淡入,
    桌面面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */

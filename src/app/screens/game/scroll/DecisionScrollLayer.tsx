@@ -17,7 +17,7 @@ import {
   BankruptcyScroll,
   BranchDecisionScroll,
   BuyDecisionScroll,
-  EncounterChoiceScroll, ExhaustionChoiceScroll, JinnangScroll,
+  EncounterChoiceScroll, ExhaustionChoiceScroll,
   HeroPickScroll,
   TileDetailScroll,
   TreasureVisitorScroll,
@@ -277,20 +277,9 @@ export function DecisionScrollLayer({
     }
   }
 
-  // ── 军师幕(#122/T2 锦囊 + #188 档 3 主动技,统一决策窗):回合开始掷骰前,
-  // 出一计/一技或今不用(选项含灰置项)──
-  if (interactive && snapshot.phase === "Playing" && snapshot.turnPhase === "AwaitingJinnang") {
-    if (snapshot.choices.some((o) => o.id === "pass" || o.id === "cancel")) {
-      return (
-        <JinnangScroll
-          choices={snapshot.choices}
-          pendingCardId={snapshot.pendingJinnang?.cardId ?? null}
-          pendingSkillId={snapshot.pendingSkill?.skillId ?? null}
-          onCommand={dispatch}
-        />
-      );
-    }
-  }
+  // ── 军师幕路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架
+  // (军师窗态/动作条/目标段接线归 GameScreen;引擎相位与 choices 零改动)。
+  // JinnangScroll 组件本体暂留 scroll/(死代码,#255 收口票删除)──
 
   // ── 招贤纳士:三选一(无"不取",引擎相位守卫如此)──
   if (snapshot.turnPhase === "AwaitingHeroPick" && snapshot.offeredHeroes.length > 0 && interactive) {

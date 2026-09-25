@@ -4,8 +4,10 @@
 // 纵列规则(拍板口径):1-3 对手右一列;4-6 右列 3 + 左列其余(槽位对称成对填充,
 // 4 席票面未定义,按列容 3 就几何);7+ 余席顶行缩微(原型其五:右 3 + 左 3 + 顶中)。
 // 活跃方=金圈光效+倒计时条+「运筹中」微标(DESIGN.md §4.6 例外保留项,仅此一处)。
-// 暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探窥探目标在
-// 浮签里追加窥见牌名(原 OthersPanel title 语义平移)。
+// 目标段(#256):军师窗指向性牌确认后,候选席位卡金圈呼吸(.candidate/.seat-target,
+// 原型 .selglow 移植,无文字章)+ 点席位即出(免二次确认);棋盘 token 同步呼吸归
+// TokenLayer 挂点。暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探
+// 窥探目标在浮签里追加窥见牌名(原 OthersPanel title 语义平移)。
 import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
@@ -22,6 +24,14 @@ interface Seated {
   seat: number;
 }
 
+/** 目标段(#256)单席点击槽:available=候选(金圈呼吸,可点即出);
+ *  不可用席位照列不动,reason 进浮签(title,DESIGN §4.6 禁文字章)。 */
+export interface SeatTargetSlot {
+  available: boolean;
+  reason?: string;
+  onPick: () => void;
+}
+
 /** 单张席位竖卡。mini = 顶行缩微形态(原型其五:缩为四格——现金+血条 | 城/手牌)。 */
 function SeatCard({
   p,
@@ -29,6 +39,7 @@ function SeatCard({
   active,
   winner,
   peekedHand,
+  target,
   mini = false,
 }: {
   p: SnapshotPlayer;
@@ -36,6 +47,7 @@ function SeatCard({
   active: boolean;
   winner: boolean;
   peekedHand: string[];
+  target?: SeatTargetSlot;
   mini?: boolean;
 }) {
   const handTip =
@@ -67,7 +79,12 @@ function SeatCard({
   return (
     <div
       data-testid={TESTIDS.seat(seat)}
-      className={"seat" + (active ? " active" : "") + (p.isBankrupt ? " bankrupt" : "")}
+      className={
+        "seat" +
+        (active ? " active" : "") +
+        (p.isBankrupt ? " bankrupt" : "") +
+        (target?.available ? " candidate" : "")
+      }
     >
       {active && <span className="think">运筹中</span>}
       <div className="vhead">
@@ -136,13 +153,39 @@ function SeatCard({
         </div>
       )}
       {active && <span className="timerbar" aria-hidden="true" />}
+      {/* 目标段点击层(#256):真按钮覆盖卡面(键盘可达,不自写交互语义);点席位即出,
+          免二次确认。席位卡本体仍是展示件,候选态=金圈呼吸(.candidate,layout.css)。 */}
+      {target && (
+        <button
+          type="button"
+          data-testid={TESTIDS.seatTarget(seat)}
+          className="seat-target"
+          disabled={!target.available}
+          aria-label={
+            target.available ? `指定 ${p.guohao || p.name} 为目标` : `不可指定:${target.reason ?? ""}`
+          }
+          title={target.available ? undefined : target.reason}
+          onClick={target.onPick}
+        />
+      )}
     </div>
   );
 }
 
 /** 席位竖卡列:槽位切分 + 渲染。整个列随快照声明式重渲,无本地状态。
- *  槽位切分(文件头规则):列容 3;4-6 右列 3 + 左列其余;7+ 右 3 + 左 3 + 顶行缩微。 */
-export function SeatRail({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewSeat: number }) {
+ *  槽位切分(文件头规则):列容 3;4-6 右列 3 + 左列其余;7+ 右 3 + 左 3 + 顶行缩微。
+ *  targets(#256 目标段):军师窗指向性牌的候选席位(键=座位号),在场时候选席
+ *  金圈呼吸、点席位即出;GameScreen 从快照 choices 派生,本件只呈现。 */
+export interface SeatRailProps {
+  snapshot: GameSnapshot;
+  viewSeat: number;
+  targets?: {
+    bySeat: Map<number, { available: boolean; reason?: string }>;
+    onPick: (seat: number) => void;
+  };
+}
+
+export function SeatRail({ snapshot, viewSeat, targets }: SeatRailProps) {
   // 军情密探(#122/T4):本座位窥探中的对手——只有这些席位的手牌内容在浮签放行
   const peeking = new Set(
     (snapshot.jinnangPeeks ?? []).filter((pk) => pk.viewer === viewSeat).map((pk) => pk.target),
@@ -154,6 +197,12 @@ export function SeatRail({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewS
   const left = opponents.slice(3, 6);
   const top = opponents.slice(6);
 
+  const targetSlot = (seat: number): SeatTargetSlot | undefined => {
+    const t = targets?.bySeat.get(seat);
+    if (!t || !targets) return undefined;
+    return { available: t.available, reason: t.reason, onPick: () => targets.onPick(seat) };
+  };
+
   const renderCard = ({ p, seat }: Seated) => (
     <SeatCard
       key={p.id}
@@ -162,6 +211,7 @@ export function SeatRail({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewS
       active={snapshot.phase === "Playing" && seat === snapshot.activeIndex}
       winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
       peekedHand={peeking.has(seat) ? p.jinnangHand : []}
+      target={targetSlot(seat)}
     />
   );
 
@@ -178,6 +228,7 @@ export function SeatRail({ snapshot, viewSeat }: { snapshot: GameSnapshot; viewS
             active={snapshot.phase === "Playing" && seat === snapshot.activeIndex}
             winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
             peekedHand={peeking.has(seat) ? p.jinnangHand : []}
+            target={targetSlot(seat)}
             mini
           />
         ))}</div>

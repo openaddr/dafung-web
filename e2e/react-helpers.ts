@@ -51,10 +51,11 @@ export async function pickCapital(page: Page, nth = 0): Promise<void> {
   await dismissJinnangIfUp(page);
 }
 
-/** 锦囊卷轴在场则「今不用」放行(#122/T2);无卷轴零等待。
+/** 军师窗态在场则「不出」放行(#122/T2;#256 军师幕弹窗退役,放行点迁动作条
+ *  actionbar-pass,原 scroll-jinnang-pass 语义平移);无窗态零等待。
  *  各用例/驱动循环的放行点统一走此助手,勿再复制可见性探测块。 */
 export async function dismissJinnangIfUp(page: Page): Promise<void> {
-  const jp = page.getByTestId("scroll-jinnang-pass");
+  const jp = page.getByTestId("actionbar-pass");
   if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
 }
 
@@ -176,9 +177,10 @@ export function fmtMoney(cash: number): string {
  *  行军自动化后对局自走,调用方的步进循环依赖本助手清决策点;无决策点返回 false 时
  *  局面仍在自动推进,循环侧按「快照变化即不算停滞」计预算(勿空转烧步数)。 */
 export async function actIfCan(p: Page): Promise<boolean> {
-  // 锦囊卷轴(#122/T2):回合开始自动起摇前可能弹出——默认「今不用」放行,绝不替测试用牌。
-  // 必须先于通配 scroll 分支(会误点第一张牌)。
-  const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+  // 军师窗态(#256,原 scroll-jinnang-pass 放行点迁动作条):回合开始自动起摇前可能
+  // 停在窗态——默认「不出」放行,绝不替测试用牌。必须先于通配 scroll 分支
+  // (会误点第一张牌)。
+  const jinnangPass = p.getByTestId("actionbar-pass");
   if (await jinnangPass.isVisible().catch(() => false)) {
     return jinnangPass
       .click({ timeout: 10_000 })

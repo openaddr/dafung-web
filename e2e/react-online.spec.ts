@@ -55,7 +55,7 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
   for (const p of [host, guest]) {
     await p
-      .waitForSelector('[data-testid="scroll-jinnang-pass"]', { timeout: 5_000 })
+      .waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 })
       .catch(() => null);
     await dismissJinnangIfUp(p);
   }
@@ -104,7 +104,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
         if (acted) { actions++; break; }
       }
       // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
-      const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+      const jinnangPass = p.getByTestId("actionbar-pass");
       if (await jinnangPass.isVisible().catch(() => false)) {
         acted = await tryClick(jinnangPass);
         if (acted) { actions++; break; }
@@ -204,7 +204,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
               break;
             }
             // 锦囊卷轴优先「今不用」(#122/T2),同上
-            const jinnangPass = p.getByTestId("scroll-jinnang-pass");
+            const jinnangPass = p.getByTestId("actionbar-pass");
             if (await jinnangPass.isVisible().catch(() => false)) {
               acted = await jinnangPass
                 .click({ timeout: 10_000 })

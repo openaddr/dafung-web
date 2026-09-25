@@ -25,11 +25,13 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
   await expect(detail.getByText("定都于此")).toBeVisible();
   await expect(detail.getByText("再想想")).toBeVisible();
   await page.getByTestId("confirm-capital-ok").click();
-  // 「军师幕」:卷轴文案(起手是否弹牌随牌库洗序,条件断言)+「今不用」放行
-  const jm = page.getByTestId("scroll-jinnang");
-  if (await jm.isVisible().catch(() => false)) {
-    await expect(jm.getByText(/军师在侧,计谋在囊/)).toBeVisible();
-    await page.getByTestId("scroll-jinnang-pass").click();
+  // 「军师窗态」(#256 军师幕弹窗退役,教程断言改架中口径):起手是否停窗随牌库
+  // 洗序,条件断言——窗态在场 = 架中可用牌 + 动作条,「不出」放行(原「今不用」
+  // 语义平移,牌不消耗;窗态无弹窗文案可断)
+  const ab = page.getByTestId("actionbar");
+  if (await ab.isVisible().catch(() => false)) {
+    await expect(page.getByTestId("jinnang-rack")).toBeVisible();
+    await page.getByTestId("actionbar-pass").click();
   }
   // 「行军自动化」:无行军按钮 + 不点任何东西对局自己推进(turnNumber 前进)
   await expect(page.locator('[data-testid="roll-button"]')).toHaveCount(0);

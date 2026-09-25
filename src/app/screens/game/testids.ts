@@ -46,6 +46,20 @@ export const TESTIDS = {
   /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
   attrTip: "attr-tip",
 
+  // ── 动作条(#256 军师窗态:军师幕弹窗退役,浮于仪表条上缘,两段制)──
+  /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */
+  actionbar: "actionbar",
+  /** 卡牌段「出牌」确认钮(选中放大牌后可用;未选中=禁用)。 */
+  actionbarPlay: "actionbar-play",
+  /** 卡牌段「不出」(今不用;牌不消耗)。e2e 放行点(原 scroll-jinnang-pass 语义平移)。 */
+  actionbarPass: "actionbar-pass",
+  /** 目标段「选择目标」标签(信息件,非按钮)。 */
+  actionbarTarget: "actionbar-target",
+  /** 目标段「作罢」(收回此计牌:不消耗、不记冷却)。 */
+  actionbarCancel: "actionbar-cancel",
+  /** 目标段席位点击层(真按钮覆盖席位卡;点席位即出,免二次确认)。 */
+  seatTarget: (seat: number) => `seat-target-${seat}` as const,
+
   // ── 侧栏四区容器(已退役,#253 迁移清单见文件头;常量暂留供在盘退役组件编译)──
   statusBarPanel: "status-bar-panel",
   handPanel: "hand-panel",
