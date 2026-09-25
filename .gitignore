@@ -1,29 +1,42 @@
+# ===== 依赖与构建产物(可再生)=====
 node_modules/
 dist/
+
+# ===== 测试与截图自证产物(可再生;e2e 输出 test-results/,截图脚手架 scripts/shot.mjs 工作区在 tmp/)=====
 test-results/
-*.log
-.DS_Store
-.playwright-mcp/
-# screenshots/ 不入库(本地调试截图)
+tmp/
 screenshots/
+*.log
+
+# ===== 引擎/服务器运行时状态 =====
+# CLI 每命令一进程的引擎持久化
+state.json
+state.*.json
+# 房间落盘(默认 ./rooms;e2e 用 ./tmp/e2e-rooms)
+rooms/
+# 对局日志(ADR-0014,服务器运行时产物;默认 ./logs)
+logs/
+
+# ===== 本机环境与密钥 =====
+.env
+
+# ===== 工具 / 编辑器 / agent 会话本地产物 =====
+.DS_Store
 .claude/
 .idea/
 .reasonix/
-# CLI 运行时状态(每命令一进程的引擎持久化文件)
-state.json
-state.*.json
-# 引擎服务器房间落盘目录(默认 ./rooms;e2e 用 ./tmp/e2e-rooms)
-rooms/
-# 对局日志目录(ADR-0014,服务器运行时产物;默认 ./logs)
-logs/
-tmp/
-.env
-.scratch/
 .zcode/
-# UI 参考图库:网图与第三方素材仅本地参考,不入库(口径见 docs/design/ui-reference/README.md;
-# 可入库的仅 README/research-*.md/manifest.jsonl/current-ui/)
-docs/design/ui-reference/sanguosha/
-docs/design/ui-reference/cardgame/
-docs/design/ui-reference/monopoly/
-docs/design/ui-reference/uidesign/
-docs/design/ui-reference/opensource-assets/
+.playwright-mcp/
+# video-agent-kit 插件产物(plugin_root 指向本机插件缓存路径)
+.video_agent/
+# agent/skill 工作底稿(spec 草案、一次性迁移报告等;工单完结可清)
+.scratch/
+.migration/
+
+# ===== UI 参考图库:白名单反选(口径单源见 docs/design/ui-reference/README.md) =====
+# 仅 README / research-*.md / manifest.jsonl / current-ui/ 入库;网图与第三方素材仅本地参考
+docs/design/ui-reference/*
+!docs/design/ui-reference/README.md
+!docs/design/ui-reference/research-*.md
+!docs/design/ui-reference/manifest.jsonl
+!docs/design/ui-reference/current-ui/

@@ -12,17 +12,9 @@
 ## 条目
 
 <!-- fetch-asset.ts 从此处向下追加 -->
-- **treasure:seal** — Public domain / Original: Li Si (李斯) Vector: Lệ Xuân — 77453B (256×256) — [source](https://commons.wikimedia.org/wiki/File%3AInscription_on_Imperial_Seal_of_China_%22%E5%8F%97%E5%91%BD%E6%96%BC%E5%A4%A9_%E6%97%A2%E5%A3%BD%E6%B0%B8%E6%98%8C%22.svg) — 2026-08-04
-- **treasure:lychee** — CC BY-SA 4.0 / Ivar Leidus — 18218B (220×147, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3ALychee_fruits_and_seed.jpg) — 2026-08-04 ⚠️ review_required
-- **treasure:qingnang** — CC BY 4.0 / Gan Bozong (Tang period, 618-907) — 35872B (220×330, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3AChinese_woodcut%2C_Famous_medical_figures%3B_Portrait_of_Hua_Tuo_Wellcome_L0039320.jpg) — 2026-08-04 ⚠️ review_required
-- **hero:caopi** — Public domain / White whirlwind — 5164B (220×118, image/svg+xml) — [source](https://commons.wikimedia.org/wiki/File%3ACao_Pi_(Chinese_characters).svg) — 2026-08-04
-- **treasure:hat** — Public domain / unknown — 18355B (220×177, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3A(working_in_the_rice_paddy)_-_DPLA_-_bce27c50ddd1b3ca0870d27471aff6b0.jpg) — 2026-08-04
-- **tile:Wolong** — CC BY-SA 4.0 / Sharklord123912 — 30329B (220×273, image/jpeg) — [source](https://commons.wikimedia.org/wiki/File%3ADragon_and_butterfly_sugar_painting_artworks_in_Jinan%2C_China.jpg) — 2026-08-04 ⚠️ review_required
 - **hero:zhouyu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 周瑜·经典形象 — 206705B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=11615) — 2026-08-16
 - **hero:caopi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 曹丕·经典形象 SoniaTang — 166346B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9064) — 2026-08-16
 - **hero:zhangxingcai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 十周年 张星彩·经典形象 — 233186B (574×761) — [source](https://wiki.biligame.com/sgs/index.php?curid=9705) — 2026-08-16
-- **icon:two-coins** — CC BY 3.0 / Delapouite (game-icons.net) — 1075B (SVG) — [source](https://game-icons.net/1x1/delapouite/two-coins.html) — 2026-08-30
-- **icon:scroll-unfurled** — CC BY 3.0 / Lorc (game-icons.net) — 1967B (SVG) — [source](https://game-icons.net/1x1/lorc/scroll-unfurled.html) — 2026-08-30
 - **texture:qianli-jiangshan** — Public domain / 王希孟(Wang Ximeng,北宋) — 157306B (1920×410, image/webp;Commons 1920px thumb → webp q82) — [source](https://commons.wikimedia.org/wiki/File:1e_Wang_Ximeng._A_Thousand_Li_of_Rivers_and_Mountains._(51,3x1191,5cm)1113._(section)_Palace_museum,_Beijing.jpg) — 2026-08-30
 - **audio:stamp-seal** — CC0 / Cerise_Virtuelle (Freesound) — 13713B (ogg) — [source](https://freesound.org/s/759526/) — 2026-08-30
 - **audio:scroll-unroll** — CC0 / leoanderson67 (Freesound) — 47184B (ogg) — [source](https://freesound.org/s/710764/) — 2026-08-30
