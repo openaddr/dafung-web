@@ -37,7 +37,10 @@ export function WarReportDrawer({ snapshot }: { snapshot: GameSnapshot }) {
   const [open, setOpen] = useState(false);
   // 打开时才算条目(倒序 = 最新在上);log 只增,重渲染重算是小列表,不值得缓存。
   const entries = open
-    ? snapshot.log.filter((e) => WAR_CATEGORIES.has(e.category)).slice().reverse()
+    ? snapshot.log
+        .filter((e) => WAR_CATEGORIES.has(e.category))
+        .slice()
+        .reverse()
     : [];
 
   return (

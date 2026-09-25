@@ -39,14 +39,18 @@ export async function openShotSession({
   let up = false;
   for (let i = 0; i < 60 && !up; i++) {
     await new Promise((r) => setTimeout(r, 500));
-    up = await fetch(url).then((r) => r.ok).catch(() => false);
+    up = await fetch(url)
+      .then((r) => r.ok)
+      .catch(() => false);
   }
   if (!up) {
     killVite();
     throw new Error(`vite ${port} 30s 未就绪(先 flock tmp/build.lock bun run build?)`);
   }
 
-  const browser = await chromium.launch({ args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"] });
+  const browser = await chromium.launch({
+    args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
+  });
   const ctx = await browser.newContext({ viewport, deviceScaleFactor });
   const page = await ctx.newPage();
   page.on("pageerror", (e) => console.log("[pageerror]", String(e).slice(0, 300)));
@@ -88,7 +92,9 @@ export async function openShotSession({
     },
     /** 引擎直写改局(同步灌回 UI):fn 体内 `e` = GameEngine。 */
     async force(fn) {
-      await page.evaluate(`(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`);
+      await page.evaluate(
+        `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
+      );
     },
     async close() {
       await browser.close();

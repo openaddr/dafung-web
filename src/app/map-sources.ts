@@ -128,7 +128,12 @@ export class LocalStorageMapSource implements MapSource {
     while (records.some((r) => r.id === id)) {
       id = CUSTOM_ID_PREFIX + Date.now() + "-" + Math.floor(Math.random() * 1e6).toString(36);
     }
-    records.push({ id, name, data: JSON.parse(JSON.stringify(data)) as MapData, createdAt: Date.now() });
+    records.push({
+      id,
+      name,
+      data: JSON.parse(JSON.stringify(data)) as MapData,
+      createdAt: Date.now(),
+    });
     this.writeAll(records);
     return id;
   }
@@ -195,6 +200,7 @@ export class CompositeMapSource implements MapSource {
 let _composite: CompositeMapSource | null = null;
 
 export function getMapSource(): CompositeMapSource {
-  if (!_composite) _composite = new CompositeMapSource(new FetchMapSource(), new LocalStorageMapSource());
+  if (!_composite)
+    _composite = new CompositeMapSource(new FetchMapSource(), new LocalStorageMapSource());
   return _composite;
 }

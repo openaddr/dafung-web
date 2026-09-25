@@ -99,7 +99,7 @@ const INPUT_PHASES = new Set([
   "AwaitingHeroPick",
   "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
   "AwaitingJinnang", // 锦囊(#122/T2):bot 恒「今不用」保守推进(策略表在 T6)
-"AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
+  "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
 ]);
@@ -198,7 +198,10 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
 // ──────────────────────────── bot/接管/托管驱动(ADR-0002 接管;spec: autopilot)────────────────────────────
 /** 该座位当前是否由服务器驱动(原始 bot、被房主接管、或自助托管中)。 */
 function seatControlled(r: RoomSession, seat: number): boolean {
-  return r.engine != null && (r.engine.players[seat]?.isBot || r.takeover.has(seat) || r.autoPilot.has(seat));
+  return (
+    r.engine != null &&
+    (r.engine.players[seat]?.isBot || r.takeover.has(seat) || r.autoPilot.has(seat))
+  );
 }
 
 /** 该座位当前步进延迟:托管慢速 2s,其余(bot 座位/takeover/托管快速)为 0。 */
@@ -223,7 +226,12 @@ function fingerprint(e: GameEngine): string {
     e.turnNumber,
     e.activeIndex,
     e.currentDraftIndex,
-    e.players.map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`).join(","),
+    e.players
+      .map(
+        (p) =>
+          `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`,
+      )
+      .join(","),
   ].join("|");
 }
 
@@ -254,10 +262,16 @@ export class RoomRegistry {
   private readonly encounter?: EncounterConfig;
   private readonly decisionTimeoutMs: number;
   /** #118 看门狗:roomId → 待超时座位 + timer。driveBots 每次进出重评估(见各自注释)。 */
-  private readonly stall = new Map<string, { seat: number; timer: ReturnType<typeof setTimeout> }>();
+  private readonly stall = new Map<
+    string,
+    { seat: number; timer: ReturnType<typeof setTimeout> }
+  >();
   /** #188 自动起摇:roomId → 待起摇座位 + timer。driveBots 每次进出重评估,与看门狗
    *  互补——Roll 相位(无决策内容)归自动起摇,其余决策相位归看门狗。 */
-  private readonly autoRolls = new Map<string, { seat: number; timer: ReturnType<typeof setTimeout> }>();
+  private readonly autoRolls = new Map<
+    string,
+    { seat: number; timer: ReturnType<typeof setTimeout> }
+  >();
 
   constructor(
     persistence: RoomPersistence,
@@ -294,7 +308,10 @@ export class RoomRegistry {
   /** 从 persistence 把所有房间载入内存(启动时调一次)。
    *  mapProvider:按 mapId 恢复对应地图的引擎(服务器注入;room.ts 不读 fs)。
    *  onRestored:每恢复一房回调一次(server.ts 据此给对局日志落盘记基线,ADR-0014)。 */
-  restoreAll(mapProvider?: (mapId: string) => LoadedMap, onRestored?: (room: RoomSession) => void): number {
+  restoreAll(
+    mapProvider?: (mapId: string) => LoadedMap,
+    onRestored?: (room: RoomSession) => void,
+  ): number {
     let count = 0;
     for (const id of this.persistence.listIds()) {
       const rec = this.persistence.load(id);
@@ -373,7 +390,18 @@ export class RoomRegistry {
     const token = this.newToken();
     seats[0].token = token;
     seats[0].guohao = guohao != null ? guohao.trim() : null;
-    const room: RoomSession = { roomId, seatCount, seats, hostSeat: 0, takeover: new Set(), autoPilot: new Map(), hostConfig, mapId: null, encounter: null, engine: null };
+    const room: RoomSession = {
+      roomId,
+      seatCount,
+      seats,
+      hostSeat: 0,
+      takeover: new Set(),
+      autoPilot: new Map(),
+      hostConfig,
+      mapId: null,
+      encounter: null,
+      engine: null,
+    };
     this.rooms.set(roomId, room);
     this.persist(room);
     return { room, seat: 0, token };
@@ -398,11 +426,17 @@ export class RoomRegistry {
   /** host 选图:校验 caller 是 host、对局未开始、mapId 在清单内。
    *  validMapIds:服务器从清单读出的合法 id 集合(注入,room.ts 不读 fs;ADR-0007)。
    *  开局后调用 → 409(地图已锁定)。 */
-  setMap(roomId: string, mapId: string, callerSeatToken: string, validMapIds: Set<string>): RoomSession {
+  setMap(
+    roomId: string,
+    mapId: string,
+    callerSeatToken: string,
+    validMapIds: Set<string>,
+  ): RoomSession {
     const room = this.rooms.get(roomId);
     if (!room) throw new RoomError(404, "房间不存在");
     if (room.engine) throw new RoomError(409, "对局已开始,不可改图");
-    if (callerSeatToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可选图");
+    if (callerSeatToken !== room.seats[room.hostSeat].token)
+      throw new RoomError(403, "仅 host 可选图");
     if (typeof mapId !== "string" || !validMapIds.has(mapId)) throw new RoomError(400, "未知地图");
     room.mapId = mapId;
     this.observe(room, { ev: "map", mapId });
@@ -483,8 +517,10 @@ export class RoomRegistry {
     if (!room) throw new RoomError(404, "房间不存在");
     if (!room.engine) throw new RoomError(409, "对局未开始");
     const e = room.engine;
-    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") throw new RoomError(409, "非选都阶段");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw new RoomError(400, "seat 非法");
+    if (e.phase !== "Setup" || e.setupPhase !== "PickCapital")
+      throw new RoomError(409, "非选都阶段");
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
+      throw new RoomError(400, "seat 非法");
     if (e.currentSetupPlayerIndex !== seat) throw new RoomError(403, "未轮到该座位选都");
     if (!e.offeredCapitals.includes(tileIndex)) throw new RoomError(400, "非本轮候选城");
     const r = e.pickCapital(seat, tileIndex);
@@ -508,7 +544,8 @@ export class RoomRegistry {
   ): Promise<RoomSession> {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(409, "对局未开始,不可托管");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw new RoomError(400, "seat 非法");
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
+      throw new RoomError(400, "seat 非法");
     if (room.seats[seat].kind === "bot") throw new RoomError(400, "bot 座位无需托管");
     if (speed !== "fast" && speed !== "slow") throw new RoomError(400, "speed 只能是 fast | slow");
     if (on) room.autoPilot.set(seat, speed);
@@ -540,7 +577,8 @@ export class RoomRegistry {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) throw new RoomError(404, "对局不存在");
     if (hostToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可接管");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length) throw new RoomError(400, "seat 非法");
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
+      throw new RoomError(400, "seat 非法");
     if (room.seats[seat].kind === "bot") throw new RoomError(400, "该座位本就是 bot");
     room.takeover.add(seat);
     this.observe(room, { ev: "takeover", seat });
@@ -577,7 +615,11 @@ export class RoomRegistry {
    *  onUpdate:每次可见状态变化后调(初始命令结果后 + 每个 botAct 步后),传输层在回调里 broadcast。
    *  这保留了原 server.ts 的逐步直播 UX(network-client 的渐进 snapshot 反馈)。
    *  异步:连锁可能含慢速托管步进(在途时本调用被重入守卫跳过,由既有链接管)。 */
-  async applyCommand(roomId: string, cmd: GameCommand, onUpdate?: (room: RoomSession) => void): Promise<void> {
+  async applyCommand(
+    roomId: string,
+    cmd: GameCommand,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<void> {
     const room = this.rooms.get(roomId);
     if (!room || !room.engine) return;
     room.engine.submitCommand(cmd);
@@ -602,7 +644,11 @@ export class RoomRegistry {
     this.observe(room, { ev: "offline", seat, online: [...stillOnlineSeats] });
     // 离线房间行(ADR-0014)
     if (room.engine) {
-      this.logRoom(room, `座位 ${seat}(${room.engine.players[seat].guohao}) 离线`, JSON.stringify({ type: "offline", seat }));
+      this.logRoom(
+        room,
+        `座位 ${seat}(${room.engine.players[seat].guohao}) 离线`,
+        JSON.stringify({ type: "offline", seat }),
+      );
     }
     this.transferHostIfNeeded(room, stillOnlineSeats);
     this.persist(room);
@@ -627,7 +673,11 @@ export class RoomRegistry {
     if (!room) return undefined;
     // 重连房间行(ADR-0014):重放据此把座位移出接管驱动的 bot 集(托管不因重连失效)
     if (room.takeover.has(seat) && room.engine) {
-      this.logRoom(room, `座位 ${seat}(${room.engine.players[seat].guohao}) 重连,退出接管`, JSON.stringify({ type: "attach", seat }));
+      this.logRoom(
+        room,
+        `座位 ${seat}(${room.engine.players[seat].guohao}) 重连,退出接管`,
+        JSON.stringify({ type: "attach", seat }),
+      );
     }
     room.takeover.delete(seat);
     return room;
@@ -678,36 +728,72 @@ export class RoomRegistry {
         const phaseOk = setup
           ? e.setupPhase === "PickCapital" && owner >= 0
           : INPUT_PHASES.has(e.turnPhase);
-        if (!phaseOk) { reason = "not-input-phase"; break; }
-        if (!seatControlled(r, owner)) { reason = "human-turn"; break; }
+        if (!phaseOk) {
+          reason = "not-input-phase";
+          break;
+        }
+        if (!seatControlled(r, owner)) {
+          reason = "human-turn";
+          break;
+        }
         const delay = stepDelayMs(r, owner);
         const before = fingerprint(e);
         if (setup) e.aiSetupStepFor(owner);
-        else botAct(e, { conservative: r.takeover.has(owner) && !r.autoPilot.has(owner), skills: e.players[owner].isBot ? "strategy" : "hold" }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略;#188 档 3:主动技唯真 bot 出,代驾(接管/托管)永不出
-        this.observe(r, { ev: "bot-step", seat: owner, turnPhase: e.turnPhase, active: e.activeIndex });
+        else
+          botAct(e, {
+            conservative: r.takeover.has(owner) && !r.autoPilot.has(owner),
+            skills: e.players[owner].isBot ? "strategy" : "hold",
+          }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略;#188 档 3:主动技唯真 bot 出,代驾(接管/托管)永不出
+        this.observe(r, {
+          ev: "bot-step",
+          seat: owner,
+          turnPhase: e.turnPhase,
+          active: e.activeIndex,
+        });
         this.persist(r);
         onUpdate?.(r); // 每步直播
-        if (e.isOver) { reason = "game-over"; break; }
-        if (fingerprint(e) === before) { reason = "no-progress"; break; }
+        if (e.isOver) {
+          reason = "game-over";
+          break;
+        }
+        if (fingerprint(e) === before) {
+          reason = "no-progress";
+          break;
+        }
         if (delay > 0) await new Promise((res) => setTimeout(res, delay));
       }
       if (e.phase === "GameOver") reason = "game-over";
-      this.observe(r, { ev: "bot-stop", reason, phase: e.phase, turnPhase: e.turnPhase, active: e.activeIndex });
+      this.observe(r, {
+        ev: "bot-stop",
+        reason,
+        phase: e.phase,
+        turnPhase: e.turnPhase,
+        active: e.activeIndex,
+      });
       // 步数上限(guard)只防单链失控,不是游戏终界:全 bot/全员托管的长对局会自然超过 500 步。
       // 若未终局且仍轮到服务器驱动的座位 → 休整后自动续链(否则对局会永久卡死——
       // 有人类交互时每次命令都会重开新链,全托管场景没有任何重触发者)。
       const guardOwner = decisionSeatOf(e);
-      if (reason === "guard" && e.phase !== "GameOver" && guardOwner >= 0 && seatControlled(r, guardOwner)) {
-        setTimeout(() => {
-          void this.driveBots(r, onUpdate);
-        }, stepDelayMs(r, guardOwner));
+      if (
+        reason === "guard" &&
+        e.phase !== "GameOver" &&
+        guardOwner >= 0 &&
+        seatControlled(r, guardOwner)
+      ) {
+        setTimeout(
+          () => {
+            void this.driveBots(r, onUpdate);
+          },
+          stepDelayMs(r, guardOwner),
+        );
       }
       // #118/#188 出口评估:链停在未接管的真人座位——
       // Roll 相位(无决策内容)武装自动起摇(1s 后代发 rollAndMove);
       // 其余决策相位(等待真人抉择)= 该端拖节奏,武装 #118 看门狗超时接管。
       // not-input-phase/game-over/guard 续链:服务器仍在掌控,不武装。
       if (reason === "human-turn" && guardOwner >= 0) {
-        if (e.phase === "Playing" && e.turnPhase === "Roll") this.armAutoRoll(r, guardOwner, onUpdate);
+        if (e.phase === "Playing" && e.turnPhase === "Roll")
+          this.armAutoRoll(r, guardOwner, onUpdate);
         else if (this.decisionTimeoutMs > 0) this.armStall(r, guardOwner, onUpdate);
       }
     } finally {
@@ -805,7 +891,11 @@ export class RoomRegistry {
     const rec: RoomRecord = {
       roomId: r.roomId,
       seatCount: r.seatCount,
-      seats: r.seats.map((s): PersistedSeat => ({ kind: s.kind, token: s.token, guohao: s.guohao })),
+      seats: r.seats.map((s): PersistedSeat => ({
+        kind: s.kind,
+        token: s.token,
+        guohao: s.guohao,
+      })),
       hostSeat: r.hostSeat,
       takeover: [...r.takeover],
       autoPilot: [...r.autoPilot].map(([seat, speed]) => ({ seat, speed })),
@@ -822,7 +912,10 @@ export class RoomRegistry {
 
 // ──────────────────────────── 错误类型(供传输层映射 HTTP 状态码)────────────────────────────
 export class RoomError extends Error {
-  constructor(public status: number, message: string) {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
     super(message);
     this.name = "RoomError";
   }

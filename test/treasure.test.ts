@@ -33,7 +33,10 @@ function finishSetup(e: GameEngine) {
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
     if (idx < 0) break;
-    if (e.players[idx].isBot) { e.aiSetupStep(); continue; }
+    if (e.players[idx].isBot) {
+      e.aiSetupStep();
+      continue;
+    }
     const taken = new Set(e.snapshot().takenCapitalIndices);
     const tile = e.board.tiles.find((t) => !taken.has(t.index) && t.isCapitalEligible)!;
     e.pickCapital(idx, tile.index);
@@ -50,8 +53,11 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   const ownerIdx = e.players.indexOf(owner);
   const def = e.catalog.get(defId)!;
   owner.properties.push({
-    propertyId: defId, group: def.group, purchasePrice: def.purchasePrice,
-    level: 0, maxLevel: def.maxLevel,
+    propertyId: defId,
+    group: def.group,
+    purchasePrice: def.purchasePrice,
+    level: 0,
+    maxLevel: def.maxLevel,
   });
   owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
   e.treasureVisitor = { def, ownerIdx };

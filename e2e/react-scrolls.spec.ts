@@ -23,7 +23,9 @@ test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
 test("珍宝交涉卷轴:城主两步流(模式→选珍宝→返回)", async ({ page }) => {
   await quickStart(page);
   // 给城主(本地玩家)塞一件珍宝 + 一座被访的城,构造交涉现场(#188:先钉人类座位,理由同上)
-  await force(page, `
+  await force(
+    page,
+    `
     e.phase = "Playing";
     e.activeIndex = 0;
     const me = e.activePlayer;
@@ -32,7 +34,8 @@ test("珍宝交涉卷轴:城主两步流(模式→选珍宝→返回)", async ({
     me.properties.push({ propertyId: tile.propertyId, level: 1, group: tile.group ?? "a" });
     e.treasureVisitor = { def: e.catalog.get(tile.propertyId), ownerIdx: e.players.indexOf(me) };
     e.turnPhase = "AwaitingTreasureOwner";
-  `);
+  `,
+  );
   const scroll = page.getByTestId("scroll-treasure");
   await expect(scroll).toBeVisible();
   await page.getByTestId("scroll-treasure-mode-premium").click();
@@ -43,7 +46,9 @@ test("珍宝交涉卷轴:城主两步流(模式→选珍宝→返回)", async ({
 
 test("破产清算卷轴:债务/变卖/确认入口齐全", async ({ page }) => {
   await quickStart(page);
-  await force(page, `
+  await force(
+    page,
+    `
     e.phase = "Playing";
     e.activeIndex = 0;
     const me = e.activePlayer;
@@ -53,7 +58,8 @@ test("破产清算卷轴:债务/变卖/确认入口齐全", async ({ page }) => 
     me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a" });
     e.pendingDebt = { amount: 99999, creditor: null };
     e.turnPhase = "AwaitingBankruptcySettle";
-  `);
+  `,
+  );
   const scroll = page.getByTestId("scroll-bankruptcy");
   await expect(scroll).toBeVisible();
   await expect(page.getByTestId("scroll-bankruptcy-debt")).toBeVisible();
@@ -64,11 +70,14 @@ test("破产清算卷轴:债务/变卖/确认入口齐全", async ({ page }) => 
 
 test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
   await quickStart(page);
-  await force(page, `
+  await force(
+    page,
+    `
     e.isOver = true;
     e.winner = e.players[0];
     e.phase = "GameOver";
-  `);
+  `,
+  );
   await expect(page.getByTestId("victory-screen")).toBeVisible();
   await page.getByTestId("victory-restart").click();
   await expect(page.getByTestId("home-screen")).toBeVisible();

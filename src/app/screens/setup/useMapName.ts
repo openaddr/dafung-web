@@ -9,12 +9,10 @@ export function useMapName(mapSource: MapSource, mapId: string): string {
   useEffect(() => {
     let alive = true;
     setName(mapId); // 切换期间先显示 id(待数据),清单到达后刷新为真实名
-    mapSource
-      .listMaps()
-      .then((entries) => {
-        const found = entries.find((e) => e.id === mapId);
-        if (alive && found) setName(found.name);
-      });
+    mapSource.listMaps().then((entries) => {
+      const found = entries.find((e) => e.id === mapId);
+      if (alive && found) setName(found.name);
+    });
     return () => {
       alive = false;
     };

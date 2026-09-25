@@ -350,12 +350,25 @@
   line-height: 1;
   font-variant-numeric: tabular-nums;
 }
-.game-layout .ib.c-warrant { color: var(--color-attr-warrant); }
-.game-layout .ib.c-city    { color: var(--color-attr-city); }
-.game-layout .ib.c-rep     { color: var(--color-attr-rep); }
-.game-layout .ib.c-gem     { color: var(--color-attr-gem); }
-.game-layout .ib.c-hero    { color: var(--color-attr-hero); }
-.game-layout .ib.c-hand    { color: var(--color-ink); gap: 2px; }
+.game-layout .ib.c-warrant {
+  color: var(--color-attr-warrant);
+}
+.game-layout .ib.c-city {
+  color: var(--color-attr-city);
+}
+.game-layout .ib.c-rep {
+  color: var(--color-attr-rep);
+}
+.game-layout .ib.c-gem {
+  color: var(--color-attr-gem);
+}
+.game-layout .ib.c-hero {
+  color: var(--color-attr-hero);
+}
+.game-layout .ib.c-hand {
+  color: var(--color-ink);
+  gap: 2px;
+}
 .game-layout .ib svg {
   width: 14px;
   height: 14px;
@@ -553,11 +566,21 @@
   color: rgba(217, 185, 92, 0.7);
   letter-spacing: 0.1em;
 }
-.game-layout .badge.b-warrant { color: var(--color-attr-warrant-bright); }
-.game-layout .badge.b-city    { color: var(--color-attr-city-bright); }
-.game-layout .badge.b-rep     { color: var(--color-attr-rep-bright); }
-.game-layout .badge.b-gem     { color: var(--color-attr-gem-bright); }
-.game-layout .badge.b-hero    { color: var(--color-attr-hero-bright); }
+.game-layout .badge.b-warrant {
+  color: var(--color-attr-warrant-bright);
+}
+.game-layout .badge.b-city {
+  color: var(--color-attr-city-bright);
+}
+.game-layout .badge.b-rep {
+  color: var(--color-attr-rep-bright);
+}
+.game-layout .badge.b-gem {
+  color: var(--color-attr-gem-bright);
+}
+.game-layout .badge.b-hero {
+  color: var(--color-attr-hero-bright);
+}
 .game-layout .badge .hpbar {
   width: 80px;
   height: 9px;

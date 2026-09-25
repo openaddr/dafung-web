@@ -49,7 +49,8 @@ export function sideArc(a: BoardPos, b: BoardPos, others: BoardPos[]): BoardPos[
   ];
   const minClear = (wps: BoardPos[]): number => {
     let m = Infinity;
-    for (const wp of wps) for (const op of pts) m = Math.min(m, Math.hypot(wp.x - op.x, wp.y - op.y));
+    for (const wp of wps)
+      for (const op of pts) m = Math.min(m, Math.hypot(wp.x - op.x, wp.y - op.y));
     return m;
   };
   let best = make(90, +1);
@@ -57,9 +58,13 @@ export function sideArc(a: BoardPos, b: BoardPos, others: BoardPos[]): BoardPos[
   for (const off of [90, 125, 160]) {
     const pos = make(off, +1);
     const neg = make(off, -1);
-    const cp = minClear(pos), cn = minClear(neg);
+    const cp = minClear(pos),
+      cn = minClear(neg);
     const [cand, clear] = cp >= cn ? [pos, cp] : [neg, cn];
-    if (clear > bestClear) { bestClear = clear; best = cand; }
+    if (clear > bestClear) {
+      bestClear = clear;
+      best = cand;
+    }
     if (clear >= 75) return cand;
   }
   return best;
@@ -89,11 +94,7 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
   };
 
   /** 主路行军(不含辅路):逐格 +1,长边带蜿蜒途经点。 */
-  const computePathMain = (
-    fromIndex: number,
-    steps: number,
-    capitalIndex: number,
-  ): MovePath => {
+  const computePathMain = (fromIndex: number, steps: number, capitalIndex: number): MovePath => {
     const traversed: number[] = [];
     const waypoints: BoardPos[] = [];
     let current = fromIndex;
@@ -107,8 +108,14 @@ export function createBoard(tiles: TileDef[], branch?: BoardBranch | null): Boar
     const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
     const passedCapital = capitalIndex >= 0 && traversed.includes(capitalIndex);
     return {
-      from: fromIndex, traversed, landIndex, passedCapital, capitalIndex,
-      waypoints, landBranchStep: null, branchWaypoints: [],
+      from: fromIndex,
+      traversed,
+      landIndex,
+      passedCapital,
+      capitalIndex,
+      waypoints,
+      landBranchStep: null,
+      branchWaypoints: [],
     };
   };
 

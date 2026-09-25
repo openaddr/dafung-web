@@ -37,7 +37,9 @@ export function ValueTable({
             }
           >
             <span className="flex-1 px-2 py-1">Lv.{i}</span>
-            <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">{formatMoney(value)}</span>
+            <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">
+              {formatMoney(value)}
+            </span>
             {hit && (
               <span className="self-center pr-2 whitespace-nowrap font-deco text-[10px] text-gold-deep">
                 {highlight.label}

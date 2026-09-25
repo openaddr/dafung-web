@@ -38,10 +38,9 @@ export const test = base.extend({
  *  但调试桥门禁键仍要注入(coreState/force 读 window.__dafung,生产构建下无键不注册)。 */
 export const testUnscaled = base.extend({
   page: async ({ page }, use) => {
-    await page.addInitScript(
-      ({ bridge }) => localStorage.setItem(bridge, "1"),
-      { bridge: E2E_DEBUG_BRIDGE_KEY },
-    );
+    await page.addInitScript(({ bridge }) => localStorage.setItem(bridge, "1"), {
+      bridge: E2E_DEBUG_BRIDGE_KEY,
+    });
     await use(page);
   },
 });

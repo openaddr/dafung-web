@@ -42,19 +42,28 @@ export class LobbyApi {
       const j = (await r.json().catch(() => null)) as Record<string, unknown> | null;
       // A4:兜底文案中文化;保留「HTTP ${status}」子串——REST 契约用例(e2e 满员 409)与
       // 既有日志口径仍可按状态码检索;服务器自带 error message 原样透传,不包壳。
-      if (!r.ok || !j?.ok) throw new Error((j?.error as string) ?? `服务器连接失败(HTTP ${r.status})`);
+      if (!r.ok || !j?.ok)
+        throw new Error((j?.error as string) ?? `服务器连接失败(HTTP ${r.status})`);
       return j;
     });
   }
 
   /** 建房(POST /room/new)。guohao=host 预设国号(R3-D1 #99),重名时开局由服务器加方位前缀(同 joinRoom)。 */
-  createRoom(opts: { seats: number; bot?: number[]; seed?: number; target?: number; guohao?: string }): Promise<RoomJoinReply> {
+  createRoom(opts: {
+    seats: number;
+    bot?: number[];
+    seed?: number;
+    target?: number;
+    guohao?: string;
+  }): Promise<RoomJoinReply> {
     return this.http("/room/new", opts).then((r) => this.parseRoomReply(r));
   }
 
   /** 按房间码加入(POST /room/join;房间码统一大写)。guohao=预设国号,重名时开局由服务器加方位前缀。 */
   joinRoom(roomId: string, guohao?: string): Promise<RoomJoinReply> {
-    return this.http("/room/join", { roomId: roomId.toUpperCase(), guohao }).then((r) => this.parseRoomReply(r));
+    return this.http("/room/join", { roomId: roomId.toUpperCase(), guohao }).then((r) =>
+      this.parseRoomReply(r),
+    );
   }
 
   /** host 选图(POST /room/map;本地换图由 lobby 广播单路径驱动,无乐观更新)。 */

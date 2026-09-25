@@ -21,11 +21,12 @@ import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
-function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(e: T): T {
+function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(
+  e: T,
+): T {
   while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
 }
-
 
 const MAP = loadMap(sanguoData);
 
@@ -44,7 +45,11 @@ function makeEngine(
       ? {
           encounter: {
             triggerRate: encounter.triggerRate,
-            baseRates: { good: encounter.good ?? 34, neutral: encounter.neutral ?? 33, bad: encounter.bad ?? 33 },
+            baseRates: {
+              good: encounter.good ?? 34,
+              neutral: encounter.neutral ?? 33,
+              bad: encounter.bad ?? 33,
+            },
           },
         }
       : {}),
@@ -65,9 +70,11 @@ function finishSetup(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
-  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122)
+  e.players.forEach((p) => {
+    p.jinnangHand = [];
+    p.jinnangHandCount = 0;
+  }); // 锦囊相位 inert(#122)
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
-
 }
 
 function peekDie(e: GameEngine): number {
@@ -81,21 +88,32 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
   const p = e.activePlayer;
   const die = peekDie(e);
   const n = e.board.count;
-  const from = ((targetTile - die) % n + n) % n;
-  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n)
-    .some((t) => t === p.capitalIndex && t !== targetTile);
+  const from = (((targetTile - die) % n) + n) % n;
+  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n).some(
+    (t) => t === p.capitalIndex && t !== targetTile,
+  );
   if (passesCapital) throw new Error(`场景无效:途经都城`);
   testEngine(e).placeActive(from);
   passJinnang(e).rollAndMove();
 }
 
-const def = (id: string, effect: EncounterDef["effect"]): EncounterDef =>
-  ({ id, tier: "好运", tags: ["银两"], weight: 1, text: id, effect });
+const def = (id: string, effect: EncounterDef["effect"]): EncounterDef => ({
+  id,
+  tier: "好运",
+  tags: ["银两"],
+  weight: 1,
+  text: id,
+  effect,
+});
 
 /** 找一座无主普通城并掷骰恰落其上(逐候选尝试,跳过途经都城的无效场景)。 */
 function landOnFreeTile(e: GameEngine): void {
   const candidates = e.board.tiles.filter(
-    (t) => t.type === "Property" && t.propertyId != null && !e.board.getBranchStart(t.index) && e.findOwner(t.propertyId) == null,
+    (t) =>
+      t.type === "Property" &&
+      t.propertyId != null &&
+      !e.board.getBranchStart(t.index) &&
+      e.findOwner(t.propertyId) == null,
   );
   let lastError: unknown = null;
   for (const t of candidates) {
@@ -126,7 +144,10 @@ function scrubSnapshot(text: string): string {
 
 describe("机遇配置:归一与回退(#120 归一口径)", () => {
   it("三档和=100 → 原值直通", () => {
-    const r = resolveEncounterConfig({ triggerRate: 40, baseRates: { good: 30, neutral: 45, bad: 25 } });
+    const r = resolveEncounterConfig({
+      triggerRate: 40,
+      baseRates: { good: 30, neutral: 45, bad: 25 },
+    });
     expect(r.triggerRate).toBe(40);
     expect(r.shares).toEqual({ good: 30, neutral: 45, bad: 25 });
   });
@@ -174,7 +195,7 @@ describe("档位调制与抽取(纯函数)", () => {
   it("pickTier 按累计占比;pickWeighted 按权重", () => {
     expect(pickTier(0.29, { good: 30, neutral: 45, bad: 25 })).toBe("好运");
     expect(pickTier(0.31, { good: 30, neutral: 45, bad: 25 })).toBe("中性");
-    expect(pickTier(0.80, { good: 30, neutral: 45, bad: 25 })).toBe("霉运");
+    expect(pickTier(0.8, { good: 30, neutral: 45, bad: 25 })).toBe("霉运");
     const heavy = { id: "重", weight: 9 };
     const light = { id: "轻", weight: 1 };
     expect(pickWeighted([heavy, light], 0.5)).toBe(heavy);
@@ -186,7 +207,16 @@ describe("档位调制与抽取(纯函数)", () => {
     expect(ENCOUNTERS.filter((c) => c.tier === "好运").length).toBe(11);
     expect(ENCOUNTERS.filter((c) => c.tier === "中性").length).toBe(8);
     expect(ENCOUNTERS.filter((c) => c.tier === "霉运").length).toBe(11);
-    const TAGS: EncounterDef["tags"] = ["银两", "名将", "珍宝", "城池", "声望", "玩家", "体力", "锦囊"];
+    const TAGS: EncounterDef["tags"] = [
+      "银两",
+      "名将",
+      "珍宝",
+      "城池",
+      "声望",
+      "玩家",
+      "体力",
+      "锦囊",
+    ];
     for (const c of ENCOUNTERS) {
       expect(c.id.length).toBeGreaterThan(0);
       expect(c.weight).toBeGreaterThan(0);
@@ -239,7 +269,14 @@ describe("机遇引擎行为", () => {
     const te = testEngine(e);
     const mover = e.activePlayer;
     const deckBefore = e.treasureDeck.length;
-    te.applyEncounter(mover, mover.position, { id: "窖藏现世", tier: "好运", tags: ["珍宝"], weight: 1, text: "t", effect: { kind: "grantTreasure" } });
+    te.applyEncounter(mover, mover.position, {
+      id: "窖藏现世",
+      tier: "好运",
+      tags: ["珍宝"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "grantTreasure" },
+    });
     expect(mover.treasures.length).toBe(1);
     expect(e.treasureDeck.length).toBe(deckBefore - 1);
 
@@ -250,7 +287,14 @@ describe("机遇引擎行为", () => {
       { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
     );
     const cashBefore = full.cash;
-    te.applyEncounter(full, full.position, { id: "义士来投", tier: "好运", tags: ["名将"], weight: 1, text: "t", effect: { kind: "grantHero", fallbackCash: 200 } });
+    te.applyEncounter(full, full.position, {
+      id: "义士来投",
+      tier: "好运",
+      tags: ["名将"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "grantHero", fallbackCash: 200 },
+    });
     expect(full.heroes.length).toBe(3); // 不超容量
     expect(full.cash).toBe(cashBefore + 200); // 转银两补偿
   });
@@ -262,7 +306,14 @@ describe("机遇引擎行为", () => {
     const mover = e.activePlayer;
     const opponent = e.players.find((p) => p !== mover)!;
     opponent.cash = 50;
-    te.applyEncounter(mover, mover.position, { id: "纳款输诚", tier: "好运", tags: ["银两", "玩家"], weight: 1, text: "t", effect: { kind: "siphon", amount: 200 } });
+    te.applyEncounter(mover, mover.position, {
+      id: "纳款输诚",
+      tier: "好运",
+      tags: ["银两", "玩家"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "siphon", amount: 200 },
+    });
     expect(opponent.cash).toBe(0); // 上限=对方现金,不打垮对方
     expect(mover.cash).toBeGreaterThanOrEqual(50);
 
@@ -270,7 +321,14 @@ describe("机遇引擎行为", () => {
     loser.cash = 10;
     loser.properties = []; // 无产可清算
     const oppCash = e.players.find((p) => p !== loser)!.cash;
-    const r = te.applyEncounter(loser, loser.position, { id: "假道征粮", tier: "霉运", tags: ["银两", "玩家"], weight: 1, text: "t", effect: { kind: "levy", amount: 150 } });
+    const r = te.applyEncounter(loser, loser.position, {
+      id: "假道征粮",
+      tier: "霉运",
+      tags: ["银两", "玩家"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "levy", amount: 150 },
+    });
     expect(r).toBe("bankrupt");
     expect(loser.isBankrupt).toBe(true);
     expect(e.players.find((p) => p !== loser)!.cash).toBe(oppCash); // 破产则对手分文未得
@@ -291,8 +349,8 @@ describe("机遇引擎行为", () => {
             // 抉择机遇(#124):选第一个可用项(结盟互市等单选项不会到这——引擎已自动执行)
             const avail = e.choicesFor().findIndex((o) => o.available);
             e.resolveEncounterChoice(Math.max(0, avail));
-          }
-          else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
+          } else if (e.turnPhase === "AwaitingTreasureOwner")
+            e.resolveTreasureOwner({ type: "skip" });
           else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
           else break;
         }
@@ -321,9 +379,15 @@ describe("抉择机遇(#124):入相与快照", () => {
     probe.setRngState(e.dice.getRngState());
     probe.roll(); // 行军骰
     probe.nextFloat(); // 触发 roll(恒过)
-    const shares = tierShares(e.activePlayer.reputation, resolveEncounterConfig(NEUTRAL_HEAVY).shares);
+    const shares = tierShares(
+      e.activePlayer.reputation,
+      resolveEncounterConfig(NEUTRAL_HEAVY).shares,
+    );
     const tier = pickTier(probe.nextFloat(), shares);
-    return pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), probe.nextFloat());
+    return pickWeighted(
+      ENCOUNTERS.filter((c) => c.tier === tier),
+      probe.nextFloat(),
+    );
   }
 
   /** 找一个「落格必抽中指定机遇」的种子(确定性扫描,setup 后的骰流决定抽取)。 */
@@ -513,7 +577,9 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e2);
     e2.pendingEncounter = byId("携民渡江");
     testEngine(e2).forceTurnPhase("AwaitingEncounter");
-    expect(() => e2.restoreFromSnapshot({ ...s, turnPhase: "AwaitingEncounter", choices: [] })).toThrow(/抉择机遇上下文缺失/);
+    expect(() =>
+      e2.restoreFromSnapshot({ ...s, turnPhase: "AwaitingEncounter", choices: [] }),
+    ).toThrow(/抉择机遇上下文缺失/);
   });
 
   it("即时机遇回归:settleEncounter 叙事仍用 def.text(效果结算提取不漂移)", () => {
@@ -521,7 +587,11 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     const cash0 = mover.cash;
-    testEngine(e).applyEncounter(mover, mover.position, def("屯粮居奇", { kind: "cash", delta: 250 }));
+    testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      def("屯粮居奇", { kind: "cash", delta: 250 }),
+    );
     expect(mover.cash).toBe(cash0 + 250);
     expect(testEngine(e).logText().includes("机遇「屯粮居奇」:屯粮居奇 +250")).toBe(true);
   });
@@ -548,7 +618,9 @@ describe("#188 档 2 新抉择:选项效果结算", () => {
     expect(mover.cash).toBe(cash0 + 300);
     expect(mover.reputation).toBe(-10);
     expect(e.turnPhase).toBe("Roll");
-    expect(testEngine(e).logText().includes("机遇「奉迎天子」抉择:奉迎天子(得岁赐 300 两,声望 −10)")).toBe(true);
+    expect(
+      testEngine(e).logText().includes("机遇「奉迎天子」抉择:奉迎天子(得岁赐 300 两,声望 −10)"),
+    ).toBe(true);
   });
 
   it("义释俘虏:义释 rep +8、分文不动;押质勒赎 siphon(上限=对方现金)、rep −8", () => {
@@ -624,7 +696,14 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
 
   /** 武装一个自定义抉择机遇进 AwaitingEncounter(绕过抽取,直接验证 bot 打分)。 */
   function armChoices(e: GameEngine, choices: EncounterChoiceOption[]): void {
-    e.pendingEncounter = { id: "测试机遇", tier: "中性", tags: ["银两"], weight: 1, text: "t", choices };
+    e.pendingEncounter = {
+      id: "测试机遇",
+      tier: "中性",
+      tags: ["银两"],
+      weight: 1,
+      text: "t",
+      choices,
+    };
     testEngine(e).forceTurnPhase("AwaitingEncounter");
   }
 
@@ -634,7 +713,9 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
       expect(repCoefficient(seat)).toBeGreaterThanOrEqual(5);
       expect(repCoefficient(seat)).toBeLessThanOrEqual(9);
     }
-    expect(new Set(Array.from({ length: 16 }, (_, i) => repCoefficient(i))).size).toBeGreaterThan(1);
+    expect(new Set(Array.from({ length: 16 }, (_, i) => repCoefficient(i))).size).toBeGreaterThan(
+      1,
+    );
   });
 
   it("encounterCashImpact:cash/转移按面值、levy 取负、grant 系只计 fallback、无 effect=0", () => {
@@ -779,7 +860,10 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     probe.nextFloat(); // 触发 roll(恒过)
     const shares = tierShares(e.activePlayer.reputation, resolveEncounterConfig(BAD_HEAVY).shares);
     const tier = pickTier(probe.nextFloat(), shares);
-    return pickWeighted(ENCOUNTERS.filter((c) => c.tier === tier), probe.nextFloat());
+    return pickWeighted(
+      ENCOUNTERS.filter((c) => c.tier === tier),
+      probe.nextFloat(),
+    );
   }
 
   /** 找一个「落格必抽中指定机遇」的种子(确定性扫描,setup 后的骰流决定抽取)。 */
@@ -868,7 +952,9 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     e.resolveEncounterChoice(0);
     expect(mover.cash).toBe(cash0 - 150);
     expect(mover.stamina).toBe(90);
-    expect(e.presentation.drainFloaters().some((f) => f.kind === "msg" && f.text === "体力 +30")).toBe(true);
+    expect(
+      e.presentation.drainFloaters().some((f) => f.kind === "msg" && f.text === "体力 +30"),
+    ).toBe(true);
     expect(testEngine(e).logText().includes("stamina=90")).toBe(true);
     expect(e.turnPhase).toBe("Roll"); // 中性床位:机遇解完落空结算收尾
   });

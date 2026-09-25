@@ -41,9 +41,11 @@ function finishSetup(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
-  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122)
+  e.players.forEach((p) => {
+    p.jinnangHand = [];
+    p.jinnangHandCount = 0;
+  }); // 锦囊相位 inert(#122)
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
-
 }
 
 /** 单机提取器的调用形态:推进前捕获 prevPhase/mover,run() 推进后提取。 */
@@ -67,7 +69,9 @@ function extractUpgradeStep(): { tileIndex: number; events: PresentationEvent[] 
   p.properties.push({ propertyId: propId, group: "g", purchasePrice: 100, level: 1, maxLevel: 3 });
   testEngine(e).landActiveAt(tile.index); // 己城可扩 → AwaitingDecision(OwnProperty)
   if (e.turnPhase !== "AwaitingDecision") return { tileIndex: tile.index, events: [] };
-  const events = stepEvents(e, { type: "upgradeProperty" }, () => e.submitCommand({ type: "upgradeProperty" }));
+  const events = stepEvents(e, { type: "upgradeProperty" }, () =>
+    e.submitCommand({ type: "upgradeProperty" }),
+  );
   return { tileIndex: tile.index, events };
 }
 
@@ -75,7 +79,9 @@ describe("单机提取器 extractStepEvents", () => {
   it("rollAndMove:掷骰事件带头(die=引擎 lastRoll),行军紧随(路径=引擎 lastMove)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    const events = stepEvents(e, { type: "rollAndMove" }, () =>
+      e.submitCommand({ type: "rollAndMove" }),
+    );
     expect(events[0].kind).toBe("diceRolled");
     if (events[0].kind === "diceRolled") expect(events[0].die).toBe(e.presentation.lastRoll!.die);
     // 经过都城必停在引擎内已截断 lastMove,提取器无条件出 tokenMoved(无驻跸补走段)
@@ -99,7 +105,9 @@ describe("单机提取器 extractStepEvents", () => {
     finishSetup(e);
     const p = e.activePlayer;
     testEngine(e).placeActive((p.capitalIndex - 2 + e.board.count) % e.board.count); // 距都城 2 步:die>=3 必停
-    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    const events = stepEvents(e, { type: "rollAndMove" }, () =>
+      e.submitCommand({ type: "rollAndMove" }),
+    );
     expect(events[0].kind).toBe("diceRolled");
     if (e.presentation.lastRoll!.die >= 3) {
       // 必停:lastMove 终点=都城,行军事件带的路径不再延伸到原落点
@@ -122,7 +130,9 @@ describe("单机提取器 extractStepEvents", () => {
     finishSetup(e);
     const p = e.activePlayer;
     testEngine(e).placeActive((p.capitalIndex - 2 + e.board.count) % e.board.count); // 距都城 2 步:die>=3 必停
-    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    const events = stepEvents(e, { type: "rollAndMove" }, () =>
+      e.submitCommand({ type: "rollAndMove" }),
+    );
     const kinds = events.map((ev) => ev.kind);
     if (e.presentation.lastRoll!.die < 3) {
       // 未能及都城:不产生驻章(浮字可能来自落格结算,不作断言)
@@ -156,7 +166,9 @@ describe("单机提取器 extractStepEvents", () => {
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     testEngine(e).landActiveAt(tile.index); // 无主可购格 → AwaitingDecision(PropertyAvailable)
     if (e.turnPhase !== "AwaitingDecision") return; // 地图数据不符(理论不可达)才空转
-    const events = stepEvents(e, { type: "buyProperty" }, () => e.submitCommand({ type: "buyProperty" }));
+    const events = stepEvents(e, { type: "buyProperty" }, () =>
+      e.submitCommand({ type: "buyProperty" }),
+    );
     const kinds = events.map((ev) => ev.kind);
     // 成交三件套:据章 / buy 音 / 城池宣告(留痕驱动,取代已被 endTurn 清空的 lastTransaction)
     expect(kinds).toContain("sealStamped");
@@ -182,7 +194,9 @@ describe("单机提取器 extractStepEvents", () => {
     expect(pcIdx).toBeGreaterThan(kinds.indexOf("sound"));
     const firstFloater = kinds.findIndex((k) => k === "cashDelta" || k === "supplyRain");
     if (firstFloater >= 0) expect(pcIdx).toBeLessThan(firstFloater);
-    const soundKinds = events.filter((ev) => ev.kind === "sound").map((s) => (s.kind === "sound" ? s.event : ""));
+    const soundKinds = events
+      .filter((ev) => ev.kind === "sound")
+      .map((s) => (s.kind === "sound" ? s.event : ""));
     expect(soundKinds).toContain("buy");
     expect(soundKinds.filter((s) => s === "coin").length).toBeLessThanOrEqual(1);
   });
@@ -196,7 +210,9 @@ describe("单机提取器 extractStepEvents", () => {
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     testEngine(e).landActiveAt(tile.index);
     if (e.turnPhase !== "AwaitingDecision") return; // 引擎未给决策(理论不可达)才空转
-    const events = stepEvents(e, { type: "buyProperty" }, () => e.submitCommand({ type: "buyProperty" }));
+    const events = stepEvents(e, { type: "buyProperty" }, () =>
+      e.submitCommand({ type: "buyProperty" }),
+    );
     const kinds = events.map((ev) => ev.kind);
     expect(kinds).not.toContain("sealStamped");
     expect(kinds).not.toContain("propertyChanged");
@@ -248,7 +264,9 @@ describe("单机提取器 extractStepEvents", () => {
   it("浮字事件携带提取期解析的逻辑坐标(atTile 语义保留)", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    const events = stepEvents(e, { type: "rollAndMove" }, () => e.submitCommand({ type: "rollAndMove" }));
+    const events = stepEvents(e, { type: "rollAndMove" }, () =>
+      e.submitCommand({ type: "rollAndMove" }),
+    );
     for (const ev of events) {
       if (ev.kind === "cashDelta" || ev.kind === "supplyRain") {
         expect(Number.isFinite(ev.x)).toBe(true);
@@ -287,7 +305,20 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     await present(
       [
         { kind: "diceRolled", die: 5 },
-        { kind: "tokenMoved", playerId: "p1", path: { from: 0, traversed: [1], landIndex: 1, passedCapital: false, capitalIndex: -1, waypoints: [], landBranchStep: null, branchWaypoints: [] } },
+        {
+          kind: "tokenMoved",
+          playerId: "p1",
+          path: {
+            from: 0,
+            traversed: [1],
+            landIndex: 1,
+            passedCapital: false,
+            capitalIndex: -1,
+            waypoints: [],
+            landBranchStep: null,
+            branchWaypoints: [],
+          },
+        },
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
         { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
       ],
@@ -329,13 +360,27 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     await present(
       [
         { kind: "sound", event: "upgrade" },
-        { kind: "propertyChanged", tileIndex: 9, level: 2, ownerColorIndex: 1, levelChanged: true, ownerChanged: false },
+        {
+          kind: "propertyChanged",
+          tileIndex: 9,
+          level: 2,
+          ownerColorIndex: 1,
+          levelChanged: true,
+          ownerChanged: false,
+        },
       ],
       sink,
     );
     expect(sink.calls).toEqual([
       { op: "sound", event: "upgrade" },
-      { op: "announceTile", tileIndex: 9, level: 2, ownerColorIndex: 1, levelChanged: true, ownerChanged: false },
+      {
+        op: "announceTile",
+        tileIndex: 9,
+        level: 2,
+        ownerColorIndex: 1,
+        levelChanged: true,
+        ownerChanged: false,
+      },
     ]);
   });
 
@@ -368,13 +413,29 @@ describe("fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)", () =>
     useFxStore.getState().resetFx();
     expect(useFxStore.getState().announces.get(5)).toBeUndefined();
     useFxStore.getState().announceTileChange(5, true, false, 0);
-    expect(useFxStore.getState().announces.get(5)).toEqual({ level: 1, owner: 0, ownerColorIndex: null });
+    expect(useFxStore.getState().announces.get(5)).toEqual({
+      level: 1,
+      owner: 0,
+      ownerColorIndex: null,
+    });
     useFxStore.getState().announceTileChange(5, false, true, 2); // 易主给玩家 2
-    expect(useFxStore.getState().announces.get(5)).toEqual({ level: 1, owner: 1, ownerColorIndex: 2 });
+    expect(useFxStore.getState().announces.get(5)).toEqual({
+      level: 1,
+      owner: 1,
+      ownerColorIndex: 2,
+    });
     useFxStore.getState().announceTileChange(5, false, true, null); // 回无主
-    expect(useFxStore.getState().announces.get(5)).toEqual({ level: 1, owner: 2, ownerColorIndex: null });
+    expect(useFxStore.getState().announces.get(5)).toEqual({
+      level: 1,
+      owner: 2,
+      ownerColorIndex: null,
+    });
     useFxStore.getState().announceTileChange(6, true, false, 1); // 他城宣告不串扰
-    expect(useFxStore.getState().announces.get(5)).toEqual({ level: 1, owner: 2, ownerColorIndex: null });
+    expect(useFxStore.getState().announces.get(5)).toEqual({
+      level: 1,
+      owner: 2,
+      ownerColorIndex: null,
+    });
     useFxStore.getState().resetFx();
     expect(useFxStore.getState().announces.get(5)).toBeUndefined();
   });

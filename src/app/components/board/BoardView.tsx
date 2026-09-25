@@ -4,7 +4,15 @@
 //   棋子 → TokenLayer(CSS transform + transition 平滑过渡)
 //   pan/zoom → usePanZoom(命令式 setAttribute viewBox,不触发 React 重渲)
 // 旧 src/render/board.ts 保留作视觉对照,勿删。
-import { forwardRef, memo, useCallback, useImperativeHandle, useMemo, useRef, useState } from "react";
+import {
+  forwardRef,
+  memo,
+  useCallback,
+  useImperativeHandle,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { flushSync } from "react-dom";
 import type { MapData } from "@core/types";
 import { loadMap } from "@core/board-loader";
@@ -98,20 +106,23 @@ const TileLayer = memo(function TileLayerInner({
   );
 });
 
-export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function BoardView({
-  map,
-  players,
-  viewSeat,
-  onTileClick,
-  selectableTiles,
-  candidateTiles,
-  activeTileIndex,
-  isSetupPhase = false,
-  skipTokenIds,
-  targetedPlayerIds,
-  tokenLayerRef,
-  className,
-}, ref) {
+export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function BoardView(
+  {
+    map,
+    players,
+    viewSeat,
+    onTileClick,
+    selectableTiles,
+    candidateTiles,
+    activeTileIndex,
+    isSetupPhase = false,
+    skipTokenIds,
+    targetedPlayerIds,
+    tokenLayerRef,
+    className,
+  },
+  ref,
+) {
   const svgRef = useRef<SVGSVGElement | null>(null);
   // F1:viewBox 由 hook 命令式 setAttribute 更新,不产生 React 重渲;
   // svg 的 viewBox prop 只下发一次初始总览值(FIT_VIEW_BOX 常量),此后 React 不改写。
@@ -127,19 +138,26 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     const m = new Map<string, { colorIndex: number; guohao: string; level: number }>();
     for (const p of players) {
       for (const h of p.properties) {
-        if (!m.has(h.propertyId)) m.set(h.propertyId, { colorIndex: p.colorIndex, guohao: p.guohao, level: h.level });
+        if (!m.has(h.propertyId))
+          m.set(h.propertyId, { colorIndex: p.colorIndex, guohao: p.guohao, level: h.level });
       }
     }
     return m;
   }, [players]);
 
-  const handleTileClick = useMemo(() => (onTileClick ? (i: number) => onTileClick(i) : undefined), [onTileClick]);
+  const handleTileClick = useMemo(
+    () => (onTileClick ? (i: number) => onTileClick(i) : undefined),
+    [onTileClick],
+  );
 
   // 悬停的城排到最后(=最上层),其余保持索引序,避免 hover 时整层乱序跳动
   const orderedTiles = useMemo(() => {
     const list = loaded.board.tiles;
     if (hoverTile == null) return list;
-    return [...list.filter((t) => t.index !== hoverTile), ...list.filter((t) => t.index === hoverTile)];
+    return [
+      ...list.filter((t) => t.index !== hoverTile),
+      ...list.filter((t) => t.index === hoverTile),
+    ];
   }, [loaded.board.tiles, hoverTile]);
 
   // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
@@ -170,7 +188,15 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
       });
     }
     return m;
-  }, [loaded.board.tiles, holdings, players, activeTileIndex, isSetupPhase, selectableTiles, candidateOrder]);
+  }, [
+    loaded.board.tiles,
+    holdings,
+    players,
+    activeTileIndex,
+    isSetupPhase,
+    selectableTiles,
+    candidateOrder,
+  ]);
 
   // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
   const tiles = useMemo(

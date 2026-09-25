@@ -10,7 +10,15 @@ export const HEROES: HeroDef[] = [
     name: "周瑜",
     title: "雅量高致",
     desc: "你的移动步数始终 +1",
-    skills: [{ id: "zhouyu-move+1", when: "BeforeMarch", effect: "moveBonus", params: { steps: 1 }, scope: "self" }],
+    skills: [
+      {
+        id: "zhouyu-move+1",
+        when: "BeforeMarch",
+        effect: "moveBonus",
+        params: { steps: 1 },
+        scope: "self",
+      },
+    ],
     // 主动技(#188 档 3):火烧连营同款 demolish 结算(复用 #226 守卫:都城可降不可失)
     active: {
       id: "zhouyu-huogong",
@@ -28,7 +36,15 @@ export const HEROES: HeroDef[] = [
     name: "曹丕",
     title: "承继大统",
     desc: "其他玩家被动失去银两时,你 +50 分银",
-    skills: [{ id: "caopi-gain-on-other-lose", when: "CashLost", effect: "gainCash", params: { amount: 50 }, scope: "others" }],
+    skills: [
+      {
+        id: "caopi-gain-on-other-lose",
+        when: "CashLost",
+        effect: "gainCash",
+        params: { amount: 50 },
+        scope: "others",
+      },
+    ],
     // 主动技:买官鬻爵——朝廷发你委任状,国库补偿目标(等价交换,银两出自国库非自家)
     active: {
       id: "caopi-zhengpi",
@@ -46,7 +62,15 @@ export const HEROES: HeroDef[] = [
     name: "张星彩",
     title: "银翎飞骑",
     desc: "场上任意人掷出 6,你 +20 分银",
-    skills: [{ id: "zhangxingcai-gain-on-six", when: "DieRolled", effect: "gainIfFace", params: { face: 6, amount: 20 }, scope: "any" }],
+    skills: [
+      {
+        id: "zhangxingcai-gain-on-six",
+        when: "DieRolled",
+        effect: "gainIfFace",
+        params: { face: 6, amount: 20 },
+        scope: "any",
+      },
+    ],
     // 主动技:擂鼓进军——本回合掷骰步数 +2(与周瑜被动同为步数加成,骰面不变)
     active: {
       id: "zhangxingcai-leigu",
@@ -66,7 +90,16 @@ export const HEROES: HeroDef[] = [
     desc: "每 3 轮为麾下恢复 15 体力(不与世界为敌,只与病痛为敌)",
     // scope="any":RoundStart 的 subject 是轮次锚点,缺省 self 会让非锚点持有者永不触发——
     // 每次轮首派发都参评,效果内部落账给持有者(ctx.owner);cooldown 3(轮)即「每 3 轮一跳」。
-    skills: [{ id: "huatuo-regen-stamina", when: "RoundStart", effect: "regenStamina", params: { amount: 15 }, cooldown: 3, scope: "any" }],
+    skills: [
+      {
+        id: "huatuo-regen-stamina",
+        when: "RoundStart",
+        effect: "regenStamina",
+        params: { amount: 15 },
+        cooldown: 3,
+        scope: "any",
+      },
+    ],
     // 主动技:开仓赈济——付 100 两为任一存活诸侯(含自己)回 30 体力
     active: {
       id: "huatuo-zhenji",

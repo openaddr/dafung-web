@@ -48,7 +48,13 @@ export function AttrIcon({ kind, size = 14 }: { kind: AttrIconKind; size?: numbe
       {kind === "hero" && (
         /* 令旗:旗杆 + 燕尾旗面 */
         <>
-          <path d="M4 1.8v12.4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+          <path
+            d="M4 1.8v12.4"
+            stroke="currentColor"
+            strokeWidth="1.6"
+            strokeLinecap="round"
+            fill="none"
+          />
           <path d="M4.8 2.6h8.4l-2.6 3.2 2.6 3.2H4.8z" fill="currentColor" />
         </>
       )}

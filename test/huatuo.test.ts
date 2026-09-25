@@ -12,11 +12,12 @@ import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
-function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(e: T): T {
+function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(
+  e: T,
+): T {
   while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
 }
-
 
 const MAP = loadMap(sanguoData);
 

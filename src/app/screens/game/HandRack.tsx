@@ -108,7 +108,7 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
         className={
           isNarrow
             ? // 窄屏:贴底全宽抽屉(上圆角 + 抓手上条,原型 .xiang-sheet 制式;
-                // max-h 86dvh + 内滚 = 方案「看不全」三层保证之②)
+              // max-h 86dvh + 内滚 = 方案「看不全」三层保证之②)
               "jinnang-detail-sheet inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-full max-h-[86dvh] overflow-y-auto rounded-b-none rounded-t-[14px] px-5 pt-3 pb-[calc(var(--safe-bottom)+16px)]"
             : // 桌面:底部居中面板(同口径 86dvh 内滚;下缘让出安全区)
               "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-0 w-max max-w-[92vw] max-h-[86dvh] overflow-y-auto"
@@ -315,7 +315,8 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
   const mounted = player != null;
 
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位卡)。
-  const targeting = junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
+  const targeting =
+    junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
 
   // 窗态选中(音效在此收口:选中是动作,取消是撤销不出声——一期口径)。
   const select = (id: string | null) => {
@@ -341,7 +342,8 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
       if (!k.junshi || k.targeting) return;
       if (e.key === "Enter") {
         const j = k.junshi;
-        const hasSel = j.selectedId != null && j.options.some((o) => o.id === j.selectedId && o.available);
+        const hasSel =
+          j.selectedId != null && j.options.some((o) => o.id === j.selectedId && o.available);
         if (hasSel) {
           // 压掉焦点钮的原生激活:有选中时回车只有一个语义(出牌);
           // 无选中时放行原生点击,焦点在牌上回车仍可选中(键盘可达)。
@@ -459,7 +461,15 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
     }
     // 常态:手牌全展/叠加,点牌开详情。
     return hand.map((id, i) => {
-      return <RackCard key={`${id}-${nthSame(hand, i, id)}`} cardId={id} index={i} junshi={null} onOpen={setDetailId} />;
+      return (
+        <RackCard
+          key={`${id}-${nthSame(hand, i, id)}`}
+          cardId={id}
+          index={i}
+          junshi={null}
+          onOpen={setDetailId}
+        />
+      );
     });
   })();
 
@@ -496,7 +506,11 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
       {pile === "heroes" && player.heroes.length > 0 && (
         <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="名将明细">
           {player.heroes.map((h) => (
-            <span key={h.id} className="pile-slip pile-hero" title={`${h.title} · 破产清算时换 200 分`}>
+            <span
+              key={h.id}
+              className="pile-slip pile-hero"
+              title={`${h.title} · 破产清算时换 200 分`}
+            >
               <b>{h.name}</b>
             </span>
           ))}

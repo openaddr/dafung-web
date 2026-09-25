@@ -5,9 +5,23 @@
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
-import { quickStart, force, snap, actIfCan, fmtMoney, waitForSnapChanged, openSoloSetup, pickCapital, waitMyRollDone, waitMyPause, dismissJinnangIfUp } from "./react-helpers";
+import {
+  quickStart,
+  force,
+  snap,
+  actIfCan,
+  fmtMoney,
+  waitForSnapChanged,
+  openSoloSetup,
+  pickCapital,
+  waitMyRollDone,
+  waitMyPause,
+  dismissJinnangIfUp,
+} from "./react-helpers";
 
-test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({ page }) => {
+test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
+  page,
+}) => {
   await page.goto("/");
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
@@ -23,7 +37,9 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
   expect(s.isOver).toBe(false);
 });
 
-test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步(#253 迁移)", async ({ page }) => {
+test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步(#253 迁移)", async ({
+  page,
+}) => {
   await quickStart(page);
   // #188:对局自走后引擎态持续变化,「读一次快照 vs UI 文本」的固定期望会撞上推进——
   // 改为轮询比对:同一时刻 UI 与快照一致即算同步(断言意图不变,只是采样方式改了)。
@@ -68,14 +84,17 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
   // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
   // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
   // interactive=false,卷轴恒不弹。
-  await force(page, `
+  await force(
+    page,
+    `
     e.turnPhase = "AwaitingDecision";
     e.activeIndex = 0;
     const me = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
     e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
     e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
-  `);
+  `,
+  );
   // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
   await expect(page.getByTestId("scroll-buy")).toBeVisible();
   await expect(page.getByTestId("action-buy")).toBeEnabled();
@@ -92,7 +111,9 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   // #188:先钉活跃座位到人类(0),理由同「购地决策」用例
-  await force(page, `
+  await force(
+    page,
+    `
     e.turnPhase = "AwaitingDecision";
     e.activeIndex = 0;
     const me = e.activePlayer;
@@ -100,7 +121,8 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
     me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
     e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
-  `);
+  `,
+  );
   await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
   await expect(page.getByTestId("action-upgrade")).toBeEnabled();
   const before = (await snap(page)).players[0].cash;
@@ -109,7 +131,8 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
   await expect
     .poll(
       async () =>
-        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 1) != null,
+        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 1) !=
+        null,
       { timeout: 15_000 },
     )
     .toBe(true);
@@ -120,11 +143,14 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
   await quickStart(page);
   const turnBefore = (await snap(page)).turnNumber;
   // #188:先钉活跃座位到人类(0),理由同「购地决策」用例;下轮 onBranch 推进断言按座位 0 读
-  await force(page, `
+  await force(
+    page,
+    `
     e.turnPhase = "AwaitingBranch";
     e.activeIndex = 0;
     e.activePlayer.onBranch = null;
-  `);
+  `,
+  );
   await expect(page.getByTestId("scroll-branch")).toBeVisible();
   await expect(page.getByTestId("scroll-branch")).toContainText("辅路");
   await page.getByTestId("action-branch").click();
@@ -145,7 +171,9 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
     .poll(
       async () => {
         await dismissJinnangIfUp(page);
-        const ob = await page.evaluate(() => (window as any).__dafung.getEngine().players[0].onBranch);
+        const ob = await page.evaluate(
+          () => (window as any).__dafung.getEngine().players[0].onBranch,
+        );
         return ob == null || ob.step >= 0;
       },
       { timeout: 20_000 },
@@ -157,13 +185,16 @@ test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),�
 // bot 回合同屏仅等待条一处反馈(等待条同时是唯一挂载点,断言双锚定防回退)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   await quickStart(page);
-  await force(page, `
+  await force(
+    page,
+    `
     const botIdx = e.players.findIndex((p) => p.isBot);
     e.activeIndex = botIdx;
     // WaitingBar 按 interactive 门控(旧角标不读它):debug sync 只灌快照不刷派生量,
     // 须走控制器 sync 才能把「决策方=bot → interactive=false」落进 store。
     window.__dafung.controller().sync();
-  `);
+  `,
+  );
   await expect(page.getByTestId("waiting-bar")).toBeVisible();
   await expect(page.getByTestId("thinking")).toContainText("运筹中…");
 });
@@ -185,7 +216,10 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
     const s = await snap(page);
     if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
-      await force(page, `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`);
+      await force(
+        page,
+        `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
+      );
       continue;
     }
     const before = JSON.stringify(s);
@@ -256,8 +290,10 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
     }
     // 不变量:现金/身价非负、位置合法、破产无残留(与旧 invariants.spec 同口径)
     for (const p of s.players) {
-      if (!p.isBankrupt && p.cash < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
-      if (p.position < 0 || p.position > 50) throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
+      if (!p.isBankrupt && p.cash < 0)
+        throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
+      if (p.position < 0 || p.position > 50)
+        throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
       if (p.netWorth < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} nw=${p.netWorth}<0`);
       if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
         throw new Error(`破产残留:${p.guohao}`);
@@ -273,7 +309,10 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
       // owner 身份「不交易」绕过,让全程驱动能继续跑到终局。
       const s2 = await snap(page);
       if (s2.turnPhase === "AwaitingTreasureOwner" && s2.treasureVisitor) {
-        await force(page, `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`);
+        await force(
+          page,
+          `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
+        );
         stall = 0;
         continue;
       }
@@ -288,7 +327,18 @@ test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invar
   }
   if (!over) {
     const dbg = await snap(page);
-    console.log("DRIVE_STALL", JSON.stringify({ actions, stall, round: dbg.round, turnPhase: dbg.turnPhase, active: dbg.activeIndex, isBot: dbg.players[dbg.activeIndex].isBot, over: dbg.isOver }));
+    console.log(
+      "DRIVE_STALL",
+      JSON.stringify({
+        actions,
+        stall,
+        round: dbg.round,
+        turnPhase: dbg.turnPhase,
+        active: dbg.activeIndex,
+        isBot: dbg.players[dbg.activeIndex].isBot,
+        over: dbg.isOver,
+      }),
+    );
   }
   expect(over).toBe(true);
   const s = await snap(page);

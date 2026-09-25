@@ -65,7 +65,12 @@ class FakeTimer {
 function makeSocket(url = "ws://x/ws?room=R&seat=0&token=T") {
   FakeWebSocket.instances = [];
   const timer = new FakeTimer();
-  const sock = new ReconnectingSocket({ url, socketFactory: (u) => new FakeWebSocket(u), timer, random: () => 0.5 });
+  const sock = new ReconnectingSocket({
+    url,
+    socketFactory: (u) => new FakeWebSocket(u),
+    timer,
+    random: () => 0.5,
+  });
   return { sock, timer };
 }
 

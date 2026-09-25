@@ -1,6 +1,11 @@
 // #50 patchwiki 管线的纯函数单测(不发网络请求;网络路径由端到端真跑覆盖)。
 import { describe, it, expect } from "bun:test";
-import { classifyWikiUrl, originalFromPatchwikiThumb, pngSize, fileBaseName } from "../scripts/fetch-asset";
+import {
+  classifyWikiUrl,
+  originalFromPatchwikiThumb,
+  pngSize,
+  fileBaseName,
+} from "../scripts/fetch-asset";
 
 describe("classifyWikiUrl(输入 URL 分类)", () => {
   it("curid File 页 → filepage + pageid", () => {
@@ -17,12 +22,14 @@ describe("classifyWikiUrl(输入 URL 分类)", () => {
   });
 
   it("路径式 File 页(下划线编码)→ filepage + 标题", () => {
-    const url = "https://wiki.biligame.com/sgs/%E6%96%87%E4%BB%B6:%E5%91%A8%E7%91%9C-%E7%BB%8F%E5%85%B8%E5%BD%A2%E8%B1%A1.png";
+    const url =
+      "https://wiki.biligame.com/sgs/%E6%96%87%E4%BB%B6:%E5%91%A8%E7%91%9C-%E7%BB%8F%E5%85%B8%E5%BD%A2%E8%B1%A1.png";
     expect(classifyWikiUrl(url)).toEqual({ kind: "filepage", title: "文件:周瑜-经典形象.png" });
   });
 
   it("patchwiki 原图直链 → image(原样)", () => {
-    const url = "https://patchwiki.biligame.com/images/sgs/0/0a/dlzu3clu0o9icnzbhg3o97jeg5l9u1a.png";
+    const url =
+      "https://patchwiki.biligame.com/images/sgs/0/0a/dlzu3clu0o9icnzbhg3o97jeg5l9u1a.png";
     expect(classifyWikiUrl(url)).toEqual({ kind: "image", url });
   });
 
@@ -36,15 +43,21 @@ describe("classifyWikiUrl(输入 URL 分类)", () => {
   });
 
   it("patchwiki 站点资源(非 /images/)抛错", () => {
-    expect(() => classifyWikiUrl("https://patchwiki.biligame.com/resources/assets/images/logo/logo_sgs.png")).toThrow(/\/images\//);
+    expect(() =>
+      classifyWikiUrl("https://patchwiki.biligame.com/resources/assets/images/logo/logo_sgs.png"),
+    ).toThrow(/\/images\//);
   });
 
   it("裸 index.php(无 curid/title/页面标题)抛错", () => {
-    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/index.php")).toThrow(/既无 curid 也无页面标题/);
+    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/index.php")).toThrow(
+      /既无 curid 也无页面标题/,
+    );
   });
 
   it("wiki 站根路径抛错", () => {
-    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/")).toThrow(/既无 curid 也无页面标题/);
+    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/")).toThrow(
+      /既无 curid 也无页面标题/,
+    );
   });
 
   it("其他站点抛错", () => {
@@ -56,7 +69,9 @@ describe("classifyWikiUrl(输入 URL 分类)", () => {
   });
 
   it("curid 非正整数抛错", () => {
-    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/index.php?curid=12abc")).toThrow(/curid/);
+    expect(() => classifyWikiUrl("https://wiki.biligame.com/sgs/index.php?curid=12abc")).toThrow(
+      /curid/,
+    );
   });
 });
 
@@ -70,7 +85,8 @@ describe("originalFromPatchwikiThumb(缩略图 → 原图)", () => {
   });
 
   it("非缩略图直链原样返回", () => {
-    const url = "https://patchwiki.biligame.com/images/sgs/0/05/1jumtaie3e4htkd6x711g9ak88js3py.png";
+    const url =
+      "https://patchwiki.biligame.com/images/sgs/0/05/1jumtaie3e4htkd6x711g9ak88js3py.png";
     expect(originalFromPatchwikiThumb(url)).toBe(url);
   });
 });

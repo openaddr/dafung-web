@@ -52,7 +52,9 @@ test.describe("锦囊使用回路(T2,军师窗态)", () => {
     // 先轮询等起摇落账再等稳定:waitSettled 的 300ms 静止窗会整个落进「起摇酝酿拍」
     // (rollAtMs 250ms + 起签 200ms),两次读数都停在掷前、假稳定返回(实测翻车)。
     await expect
-      .poll(async () => page.evaluate(() => (window as any).__dafung.snapshot().lastRoll != null), { timeout: 15_000 })
+      .poll(async () => page.evaluate(() => (window as any).__dafung.snapshot().lastRoll != null), {
+        timeout: 15_000,
+      })
       .toBe(true);
     await waitSettled(page);
     const probe = await page.evaluate(() => {
@@ -123,11 +125,17 @@ test.describe("锦囊使用回路(T2,军师窗态)", () => {
     // 点席位即出(免二次确认);出计后引擎收窗自动行军(#188)——用牌公开入战报
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
     await expect
-      .poll(async () => page.evaluate(() => JSON.stringify((window as any).__dafung.getEngine().log)))
+      .poll(async () =>
+        page.evaluate(() => JSON.stringify((window as any).__dafung.getEngine().log)),
+      )
       .toContain("card=军情密探");
     const probe = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
-      return { pending: e.pendingJinnang, discard: e.jinnangDiscard, hand: e.players[0].jinnangHand };
+      return {
+        pending: e.pendingJinnang,
+        discard: e.jinnangDiscard,
+        hand: e.players[0].jinnangHand,
+      };
     });
     expect(probe.pending).toBe(null);
     expect(probe.discard).toContain("军情密探");
@@ -165,14 +173,17 @@ test.describe("锦囊使用回路(T2,军师窗态)", () => {
     await startJunshi(page, 49);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
     // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 令笺可用可发。
-    await force(page, `
+    await force(
+      page,
+      `
       e.players[0].jinnangHand = ["缓兵之计", "免战金牌"];
       e.jinnangUsedTags = ["谋", "攻"];
       e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", desc: "", image: "", skills: [],
         active: { id: "zhangxingcai-leigu", name: "擂鼓", cooldown: 4,
           desc: "擂鼓进军:本回合你的下一次掷骰步数 +2(签面不变)。",
           target: "none", kind: "warDrum", params: { bonus: 2 } } }];
-    `);
+    `,
+    );
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)
     const huan = page.getByTestId(TESTIDS.jinnangCard("缓兵之计"));
     await expect(huan).toBeVisible();
@@ -194,7 +205,11 @@ test.describe("锦囊使用回路(T2,军师窗态)", () => {
     // 军师窗态(settleJinnangExit 口径),令笺转灰置并亮引擎原因——冷却展示只读 choices。
     await expect
       .poll(async () =>
-        page.evaluate(() => (window as any).__dafung.getEngine().players[0].heroLastFired["zhangxingcai-leigu"] ?? null),
+        page.evaluate(
+          () =>
+            (window as any).__dafung.getEngine().players[0].heroLastFired["zhangxingcai-leigu"] ??
+            null,
+        ),
       )
       .not.toBe(null);
     const probe = await page.evaluate(() => {

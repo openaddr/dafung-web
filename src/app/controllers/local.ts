@@ -13,11 +13,7 @@ import type { GameCommand } from "@core/types";
 import { setEngine } from "@app/store/gameStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { createEngineSink } from "@app/fx/sinks";
-import {
-  extractStepEvents,
-  maybeShowTurnBanner,
-  present,
-} from "@app/fx/orchestrator";
+import { extractStepEvents, maybeShowTurnBanner, present } from "@app/fx/orchestrator";
 import { AUTOPILOT, AUTO_MARCH, BOT, delay } from "@app/fx/timings";
 import { GameController } from "./controller";
 import { createDriveArbiter } from "./drive";
@@ -91,7 +87,14 @@ export class LocalController extends GameController {
     const s = await this.drive.requestDrive("human");
     try {
       const e = this._engine;
-      if (e.phase !== "Playing" || e.isOver || e.turnPhase !== "Roll" || this.apOn || e.players[e.decisionOwner].isBot) return;
+      if (
+        e.phase !== "Playing" ||
+        e.isOver ||
+        e.turnPhase !== "Roll" ||
+        this.apOn ||
+        e.players[e.decisionOwner].isBot
+      )
+        return;
       this.sync(); // 会话已占:interactive 锁定,且 rearm 因 drive 占用不会重复布定时器
       this.fxSink.stampSeal(e.activePlayer.position, "签");
       await delay(AUTO_MARCH.qiqianMs);
@@ -123,7 +126,8 @@ export class LocalController extends GameController {
         try {
           // 排队等待期间状态可能已被前一条链推进:拿到会话后重查再出手(旧版每轮
           // 循环头重查 busy/phase 的等价物,防对已失效的决策点代打)。
-          if (!this.apOn || e.isOver || e.phase !== "Playing" || e.players[e.decisionOwner].isBot) continue;
+          if (!this.apOn || e.isOver || e.phase !== "Playing" || e.players[e.decisionOwner].isBot)
+            continue;
           this.sync();
           if (this.apSpeed === "slow") await delay(BOT.stepDelayMs);
           // #188 档 3:托管代驾永不出主动技(skills:"hold"——长线战略资源不替主人花),
@@ -210,7 +214,10 @@ export class LocalController extends GameController {
     void (async () => {
       // 首条语句前无 await:条件判定与会话占用均在 onEnterGame 同步段内完成,
       // 与旧版 busy=true 的同步置位时序一致。
-      if (this._engine.phase === "Setup" || (this._engine.phase === "Playing" && this._engine.players[this._engine.decisionOwner].isBot)) {
+      if (
+        this._engine.phase === "Setup" ||
+        (this._engine.phase === "Playing" && this._engine.players[this._engine.decisionOwner].isBot)
+      ) {
         const s = await this.drive.requestDrive("enter");
         try {
           await this.runBots();
@@ -361,7 +368,10 @@ function botFingerprint(e: GameEngine): string {
     e.turnNumber,
     e.activeIndex,
     e.players
-      .map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`)
+      .map(
+        (p) =>
+          `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`,
+      )
       .join(","),
   ].join("|");
 }

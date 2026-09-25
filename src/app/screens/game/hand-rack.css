@@ -36,8 +36,8 @@
   padding: 1.6em calc(2.5em + 5em) calc(1.75em + var(--safe-bottom)) calc(2.5em + 5em);
   background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
   box-shadow:
-    inset 0 2px 0 rgba(217, 185, 92, 0.4), /* 漆金上缘高光(原型定稿) */
-    inset 0 14px 24px rgba(0, 0, 0, 0.35); /* 架口黑影 */
+    inset 0 2px 0 rgba(217, 185, 92, 0.4),
+    /* 漆金上缘高光(原型定稿) */ inset 0 14px 24px rgba(0, 0, 0, 0.35); /* 架口黑影 */
   z-index: 5; /* 压过 board-wrap 内浮层溢出(hint/WaitingBar 均在架上方区域) */
 }
 

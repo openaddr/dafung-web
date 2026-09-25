@@ -5,10 +5,10 @@
 
 ## 1. 项目概览
 
-| 项目 | 仓库 | 技术栈 | 手牌形态 | 备注 |
-|---|---|---|---|---|
-| OpenDuelyst | `open-duelyst/duelyst`(官方开源) | CoffeeScript/JS + Cocos2d-js 棋盘渲染 + Backbone.Marionette DOM 覆盖层(底栏/玩家档案) | 底部横条,固定 6 槽均分,重叠为零 | 手牌上限 6、起手 5、换牌 1/回合 |
-| Hearthstone.js | `tristiank1/hearthstone.js` | 纯 JS + DOM/CSS(无框架) | 扇形手牌 | 炉石克隆,调研中/待补 |
+| 项目           | 仓库                             | 技术栈                                                                                | 手牌形态                        | 备注                            |
+| -------------- | -------------------------------- | ------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------- |
+| OpenDuelyst    | `open-duelyst/duelyst`(官方开源) | CoffeeScript/JS + Cocos2d-js 棋盘渲染 + Backbone.Marionette DOM 覆盖层(底栏/玩家档案) | 底部横条,固定 6 槽均分,重叠为零 | 手牌上限 6、起手 5、换牌 1/回合 |
+| Hearthstone.js | `tristiank1/hearthstone.js`      | 纯 JS + DOM/CSS(无框架)                                                               | 扇形手牌                        | 炉石克隆,调研中/待补            |
 
 ## 2. OpenDuelyst:底部手牌条拆解
 
@@ -20,11 +20,12 @@
 // app/view/layers/game/BottomDeckLayer.js _updateCardsLayoutForActiveGame()
 const cardsStartPosition = UtilsEngine.getCardsInHandStartPosition();
 const cardsEndPosition = UtilsEngine.getCardsInHandEndPosition();
-const dx = (cardsEndPosition.x - cardsStartPosition.x) / (numCards - 0.25);  // 6 槽均分
+const dx = (cardsEndPosition.x - cardsStartPosition.x) / (numCards - 0.25); // 6 槽均分
 for (let i = 0; i < numCards; i++) {
   const cardPosition = cc.p(
-    cardsStartPosition.x + CONFIG.HAND_CARD_SIZE * 0.125 + dx * i,  // 0.125 = 半张重叠余量
-    cardsStartPosition.y);
+    cardsStartPosition.x + CONFIG.HAND_CARD_SIZE * 0.125 + dx * i, // 0.125 = 半张重叠余量
+    cardsStartPosition.y,
+  );
   cardNode.setPosition(cardPosition);
 }
 ```
@@ -39,10 +40,15 @@ for (let i = 0; i < numCards; i++) {
 // 手牌区以"棋盘底边"为基准下移,水平居中后整体左移给右侧按钮让位
 const cardsExpandX = Math.min(100.0, (winWidth - CONFIG.REF_WINDOW_SIZE.width) * 0.125); // 宽窗外扩
 UtilsEngine._cardsInHandStartPosition = cc.p(
-  winCenter.x - (CONFIG.HAND_CARD_SIZE * (CONFIG.MAX_HAND_SIZE - 1)) * 0.5
-      + CONFIG.HAND_OFFSET_X - cardsExpandX,                 // HAND_OFFSET_X = -0.3*卡宽
-  winCenter.y - screenBoardSize.height * 0.5                 // 棋盘底边
-      - CONFIG.HAND_CARD_SIZE * 0.4 + CONFIG.HAND_OFFSET_Y - cardsExpandY,
+  winCenter.x -
+    CONFIG.HAND_CARD_SIZE * (CONFIG.MAX_HAND_SIZE - 1) * 0.5 +
+    CONFIG.HAND_OFFSET_X -
+    cardsExpandX, // HAND_OFFSET_X = -0.3*卡宽
+  winCenter.y -
+    screenBoardSize.height * 0.5 - // 棋盘底边
+    CONFIG.HAND_CARD_SIZE * 0.4 +
+    CONFIG.HAND_OFFSET_Y -
+    cardsExpandY,
 );
 ```
 
@@ -95,15 +101,18 @@ if (this.getIsGameActive() && this._player.getMouseDragging()
 ### 3.1 对照五个改造项,可信图库的结论
 
 **P0-A 牌面**(竖笺/标签章/纹样窗/笺脚):
+
 - 官方收集页([sanguosha-ui-03](./sanguosha/sanguosha-ui-03.jpg)):卡牌以**实物桌面扇状铺陈**,牌面=竖幅人物画 + 底部名条牌位,桌布木纹承载"牌在桌上"的实体感——与 P1-C 手牌架的笺牍隐喻同源,牌名条(banner 底 + 字)在 1/5 高度,不在顶部;
 - UI 件料表([sanguosha-ui-05](./sanguosha/sanguosha-ui-05.jpg)):**框-章-钮是成体系的**:回纹边框、卷轴横幅、朱砂方章、鎏金兽首框,且同形不同色=不同品级(铜/银/金框)。→ P0-A 的标签章之外,**框色可作为将来的品级/珍宝变体通道**(方案 §7.4 珍宝复用的实现抓手);
 - 抽将页([sanguosha-ui-07](./sanguosha/sanguosha-ui-07.jpg)):**三张牌背立于案上**,暗漆底 + 中央金印,背景墙一枚大圆火纹章——牌背「漆木底+朱印」决议的直接品类先例;火纹大章亦印证「一纹样一语义」的做法。
 
 **P0-B 军师幕牌面化**:
+
 - noname-live-03/09:选项时刻的牌面全展开、桌面其余区域退暗——牌面化后军师幕的注意力模型:卷轴壳退为背景,三张牌是唯一主角;
 - OpenDuelyst §2.4:点选与拖拽共用同一 action、右键一键取消——军师幕交互手感的参照(我们已有 Esc/点外不误关,补「右键/长按=取消选中」可对齐)。
 
 **P1-C 手牌架**(底部常驻):
+
 - OpenDuelyst §2.1/2.2:固定槽位 + `(end-start)/(n-0.25)` 均分、右重左轻给结束回合钮让位、手条锚在棋盘底边之下 0.4 卡高——与拍板的"常驻不收拢、全展"完全同型,尺寸/让位参数可直接借用;
 - OpenDuelyst §2.3:三态正交(可玩判定→灰度+费用变红;选中→上浮 20px;hover→底框高亮+glow)——手牌架交互态(金线/下沉/呼吸)的完整先例,连"非法原因"的对应物(费用变红)都有;
 - 结束回合按钮的 `.finished` 态(无事可做时提示可结束)——对应我们行军自动化后"本回合已无事可做"的潜在需求,记入备选。
@@ -114,30 +123,29 @@ if (this.getIsGameActive() && this._player.getMouseDragging()
 
 ### 3.2 一图一得(全量走查,2026-09-24;★=高价值)
 
-| 图 | 一句话所得 |
-|---|---|
-| ★ sanguosha-ui-01 | 官方大厅:模式入口=竖长人物卡(noname 菜单同构);暗底水墨+朱砂点睛 |
-| ★ sanguosha-ui-02 | 对局面板:手牌/装备/延时锦囊**三行分区**,区域名竖排章挂栏首;手牌=金底纹牌背 |
-| ★ sanguosha-ui-03 | 卡牌收集:实物桌面扇状铺陈,牌=竖幅人物+底部名条(名条在牌下 1/5,不在顶部) |
-| sanguosha-ui-04 | 桌游主界面:开始游戏大钮+头像框;构图参考 |
-| ★ sanguosha-ui-05 | UI 料表①:回纹边框/卷轴横幅/朱砂钮/方章/鎏金兽首框——纸墨印同族件料 |
-| ★ sanguosha-ui-06 | UI 料表②:圆窗棂/元宝钱袋/宝箱/红绸横幅——白银货币与珍宝图标的形制参考 |
-| ★ sanguosha-ui-07 | 抽将:三张牌背立于案,漆底+中央金印,背景火纹大章——牌背决议先例 |
-| ★ sanguosha-ui-08 | UI 料表③:金/红/黑/银四色卡框+①②③⑤编号顶章+铜/银/金材质——**框色=品级**体系 |
-| sanguosha-ui-09 | 星宿全屏:紫青底+星图连线+竖排字,留白氛围成立——机遇卷轴叙事参照 |
-| ★ sanguosha-ui-10 | 胜利结算:印章大字「胜利」+金环+底部手牌陈列——VictoryScreen 直接参照 |
-| sanguosha-ui-11 | 商城长图;末屏武将特写=左图右文详情版式——详情浮层布局参考 |
-| sanguosha-ui-12/13/15/17/18/19 | 运营向弹窗(月卡/福利/七日/红包/邀请/累储)——UI 无参考价值,仅美术气质 |
-| sanguosha-ui-14 | 身份场房间:座位格+空位「+」槽——lobby/WaitingBar 参考 |
-| sanguosha-ui-16 | 纯人物插画(无 UI)——美术气质参考 |
-| sanguosha-ui-20 | 庆典页:预约奖励圆章+已领取印——「领取/已领取」印章语言 |
-| ★ sanguosha-ui-21 | 长条全流程:对局桌面/选将/胜利「霸主」金印/商城格/卷轴页——一图全局走查 |
-| sanguosha-ui-22 | 抽卡提示弹窗——低 |
-| noname-live 10 张 | 响应窗四件套/目标蓝框/详情五段式/指向线等(详 research-sanguosha.md §6) |
+| 图                             | 一句话所得                                                                 |
+| ------------------------------ | -------------------------------------------------------------------------- |
+| ★ sanguosha-ui-01              | 官方大厅:模式入口=竖长人物卡(noname 菜单同构);暗底水墨+朱砂点睛            |
+| ★ sanguosha-ui-02              | 对局面板:手牌/装备/延时锦囊**三行分区**,区域名竖排章挂栏首;手牌=金底纹牌背 |
+| ★ sanguosha-ui-03              | 卡牌收集:实物桌面扇状铺陈,牌=竖幅人物+底部名条(名条在牌下 1/5,不在顶部)    |
+| sanguosha-ui-04                | 桌游主界面:开始游戏大钮+头像框;构图参考                                    |
+| ★ sanguosha-ui-05              | UI 料表①:回纹边框/卷轴横幅/朱砂钮/方章/鎏金兽首框——纸墨印同族件料          |
+| ★ sanguosha-ui-06              | UI 料表②:圆窗棂/元宝钱袋/宝箱/红绸横幅——白银货币与珍宝图标的形制参考       |
+| ★ sanguosha-ui-07              | 抽将:三张牌背立于案,漆底+中央金印,背景火纹大章——牌背决议先例               |
+| ★ sanguosha-ui-08              | UI 料表③:金/红/黑/银四色卡框+①②③⑤编号顶章+铜/银/金材质——**框色=品级**体系  |
+| sanguosha-ui-09                | 星宿全屏:紫青底+星图连线+竖排字,留白氛围成立——机遇卷轴叙事参照             |
+| ★ sanguosha-ui-10              | 胜利结算:印章大字「胜利」+金环+底部手牌陈列——VictoryScreen 直接参照        |
+| sanguosha-ui-11                | 商城长图;末屏武将特写=左图右文详情版式——详情浮层布局参考                   |
+| sanguosha-ui-12/13/15/17/18/19 | 运营向弹窗(月卡/福利/七日/红包/邀请/累储)——UI 无参考价值,仅美术气质        |
+| sanguosha-ui-14                | 身份场房间:座位格+空位「+」槽——lobby/WaitingBar 参考                       |
+| sanguosha-ui-16                | 纯人物插画(无 UI)——美术气质参考                                            |
+| sanguosha-ui-20                | 庆典页:预约奖励圆章+已领取印——「领取/已领取」印章语言                      |
+| ★ sanguosha-ui-21              | 长条全流程:对局桌面/选将/胜利「霸主」金印/商城格/卷轴页——一图全局走查      |
+| sanguosha-ui-22                | 抽卡提示弹窗——低                                                           |
+| noname-live 10 张              | 响应窗四件套/目标蓝框/详情五段式/指向线等(详 research-sanguosha.md §6)     |
 
 **开源素材 11 件**(opensource-assets/,器物件,直接对照):noname 牌框两张(羊皮纸空白框=牌面底纹)、**牌背两张 + FreeKill 牌背一张(均=暗底+云纹+中央金印,漆木牌背决议的同类实现)**、hp-magatama 翡翠勾玉(体力珠)、player-frame-gold 头像框、bg 两张;FreeKill gamebg 水墨山水(气质最接近本项目)。
 
 ### 3.3 对既有决议的影响
 
 **无推翻项**。七项决议与 spec #233 的依据本就来自这批可信资产;本轮走查的增量在实现层:①框色=品级通道(珍宝变体);②手牌架让位/锚点参数借 OpenDuelyst;③军师幕补右键取消。
-

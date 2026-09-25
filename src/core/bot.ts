@@ -127,12 +127,16 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
     }
     case "stealTreasure": {
       // 窃玉偷香:珍宝最多者(无珍宝者不入选)
-      const ranked = byKeyDesc(({ t }) => t.treasures.length).filter(({ t }) => t.treasures.length > 0);
+      const ranked = byKeyDesc(({ t }) => t.treasures.length).filter(
+        ({ t }) => t.treasures.length > 0,
+      );
       return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
     }
     case "demolish": {
       // 火烧连营:城最多者(无城者不入选)
-      const ranked = byKeyDesc(({ t }) => t.properties.length).filter(({ t }) => t.properties.length > 0);
+      const ranked = byKeyDesc(({ t }) => t.properties.length).filter(
+        ({ t }) => t.properties.length > 0,
+      );
       return { use: ranked.length > 0, targets: ranked.map(({ seat }) => seat) };
     }
     case "peek":
@@ -321,7 +325,8 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
       const avail = engine.choicesFor().filter((o) => o.available);
       const def = engine.pendingLand != null ? engine.pendingLandDef() : null; // 决策上下文(spec #107 C2)
       if (avail.some((o) => o.id === "buy") && def) {
-        const want = p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
+        const want =
+          p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
         if (want) engine.buyProperty();
         else engine.endDecision();
       } else if (avail.some((o) => o.id === "upgrade")) {
@@ -340,7 +345,8 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
       // 一律保守推进——技能目标段/锦囊目标段先作罢再收卷,不掷骰,永不代花资源;托管按
       // 策略表(§8)经 driveJinnang 推进,其中主动技遵 skills 政策(代驾 "hold" 永不出技)。
       if (opts?.conservative) {
-        if (engine.pendingSkill) engine.resolveHeroSkill(engine.pendingSkill.skillId, undefined, true); // 技能目标段:作罢(不记冷却)
+        if (engine.pendingSkill)
+          engine.resolveHeroSkill(engine.pendingSkill.skillId, undefined, true); // 技能目标段:作罢(不记冷却)
         if (engine.pendingJinnang) engine.resolveJinnang(null); // 锦囊目标段:作罢(牌退回)
         if (engine.turnPhase === "AwaitingJinnang") engine.resolveJinnang(null); // 卡牌段:今不用
         break;
@@ -376,7 +382,8 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
       // 目录序在前者。Simple/Normal 同策略:一次性小事件不值得两档启发式。选项集先经
       // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
       const enc = engine.pendingEncounter;
-      if (!enc || !enc.choices) throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
+      if (!enc || !enc.choices)
+        throw new Error("AwaitingEncounter 相位 pendingEncounter/choices 缺失:状态机不一致"); // 零兜底
       const choices = enc.choices; // 收窄进闭包(TS 不跨闭包保持窄化)
       const coef = repCoefficient(engine.decisionOwner);
       let bestIdx = -1;
@@ -401,7 +408,10 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
       //  Simple:随机 fair/premium/skip。
       const owner = engine.players[engine.treasureVisitor?.ownerIdx ?? 0];
       const treasures = owner.treasures;
-      if (treasures.length === 0) { engine.resolveTreasureOwner({ type: "skip" }); break; }
+      if (treasures.length === 0) {
+        engine.resolveTreasureOwner({ type: "skip" });
+        break;
+      }
       const pick = treasures[Math.floor(engine.dice.nextFloat() * treasures.length)];
       if (simple) {
         const r = engine.dice.nextFloat();
@@ -411,7 +421,10 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
         break;
       }
       // Normal
-      if (engine.dice.nextFloat() < 0.2) { engine.resolveTreasureOwner({ type: "skip" }); break; }
+      if (engine.dice.nextFloat() < 0.2) {
+        engine.resolveTreasureOwner({ type: "skip" });
+        break;
+      }
       const mode = pick.level >= 6 ? "premium" : "fair";
       engine.resolveTreasureOwner({ type: mode, treasureId: pick.id });
       break;
@@ -423,13 +436,20 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
       const debt = engine.pendingDebt!;
       const cap = engine.board.at(p.capitalIndex)?.propertyId;
       while (p.cash < debt.amount) {
-        if (p.heroes.length) { engine.cashHeroBankruptcy(p.heroes[0].id); continue; }
+        if (p.heroes.length) {
+          engine.cashHeroBankruptcy(p.heroes[0].id);
+          continue;
+        }
         if (p.treasures.length) {
           const low = [...p.treasures].sort((a, b) => a.level - b.level)[0];
-          engine.sellTreasureBankruptcy(low.id); continue;
+          engine.sellTreasureBankruptcy(low.id);
+          continue;
         }
         const sellable = p.properties.find((h) => h.propertyId !== cap);
-        if (sellable) { engine.sellPropertyBankruptcy(sellable.propertyId); continue; }
+        if (sellable) {
+          engine.sellPropertyBankruptcy(sellable.propertyId);
+          continue;
+        }
         break;
       }
       engine.confirmBankruptcySettle();

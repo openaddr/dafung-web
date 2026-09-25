@@ -20,7 +20,9 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
  *  /viewSeat)一起重灌,决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点
  *  不再保证 interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴。 */
 export async function force(page: Page, fn: string): Promise<void> {
-  await page.evaluate(`(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`);
+  await page.evaluate(
+    `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
+  );
 }
 
 /** 读引擎快照(god view;结构与 store 的 GameSnapshot 同构)。 */
@@ -92,7 +94,9 @@ export async function waitMyPause(page: Page, seat: number, timeout = 30_000): P
         const s = await snap(page);
         // 只认 Awaiting* 决策停靠态(#188 迁移):EndTurn 是引擎自推进的瞬态,
         // 停在那里做引擎直写会与推进竞速(stamina spec 的残余抖动根因)。
-        return s.phase === "Playing" && s.decisionOwner === seat && s.turnPhase.startsWith("Awaiting");
+        return (
+          s.phase === "Playing" && s.decisionOwner === seat && s.turnPhase.startsWith("Awaiting")
+        );
       },
       { timeout, message: `轮到座位 ${seat} 且停在其非 Roll 等待态` },
     )
@@ -117,7 +121,12 @@ export async function openSoloSetup(page: Page): Promise<void> {
   await page.getByTestId("home-solo").click();
   await page.getByTestId("solo-setup-screen").waitFor();
   await page.getByTestId("setup-encounter-toggle").click();
-  for (const f of ["setup-encounter-trigger", "setup-encounter-good", "setup-encounter-neutral", "setup-encounter-bad"]) {
+  for (const f of [
+    "setup-encounter-trigger",
+    "setup-encounter-good",
+    "setup-encounter-neutral",
+    "setup-encounter-bad",
+  ]) {
     await page.getByTestId(f).fill("0");
   }
 }
@@ -140,7 +149,11 @@ export async function waitSettled(page: Page, timeout = 30_000): Promise<void> {
  *  全量并行负载下,掷骰/bot 推进/UI 刷新的到达时间抖动可达秒级,固定 sleep(200/300)
  *  在单跑够用、全量必抖。此处直接等"局面真的动了"再读数,超时 8s(约 5 倍余量)。
  *  调用方对超时可 .catch(() => {}):动作确实不改变局面时(如纯 UI 翻页)容忍不变。 */
-export async function waitForSnapChanged(page: Page, before: string, timeout = 8_000): Promise<void> {
+export async function waitForSnapChanged(
+  page: Page,
+  before: string,
+  timeout = 8_000,
+): Promise<void> {
   await page.waitForFunction(
     (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
     before,
@@ -150,7 +163,9 @@ export async function waitForSnapChanged(page: Page, before: string, timeout = 8
 
 /** 等待 window.__dafung 挂载(地图异步 fetch 期间快照可能尚未就绪)。 */
 export async function waitForEngine(page: Page): Promise<void> {
-  await page.waitForFunction(() => !!(window as any).__dafung?.snapshot?.(), undefined, { timeout: 15_000 });
+  await page.waitForFunction(() => !!(window as any).__dafung?.snapshot?.(), undefined, {
+    timeout: 15_000,
+  });
 }
 
 /** 货币格式化(与 core/money.formatMoney 同口径:百进制 锭/两/分)。 */
@@ -182,9 +197,10 @@ export async function actIfCan(p: Page): Promise<boolean> {
   // (会误点第一张牌)。
   const jinnangPass = p.getByTestId("actionbar-pass");
   if (await jinnangPass.isVisible().catch(() => false)) {
-    return jinnangPass
-      .click({ timeout: 10_000 })
-      .then(() => true, () => false);
+    return jinnangPass.click({ timeout: 10_000 }).then(
+      () => true,
+      () => false,
+    );
   }
   // 只匹配按钮(决策卷轴容器是 div,无 disabled 属性会误中导致空转)
   const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
@@ -192,14 +208,22 @@ export async function actIfCan(p: Page): Promise<boolean> {
     return inline
       .first()
       .click({ timeout: 10_000 })
-      .then(() => true, () => false);
+      .then(
+        () => true,
+        () => false,
+      );
   }
-  const scrollPrimary = p.locator('[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])');
+  const scrollPrimary = p.locator(
+    '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
+  );
   if ((await scrollPrimary.count()) > 0) {
     return scrollPrimary
       .first()
       .click({ timeout: 10_000 })
-      .then(() => true, () => false);
+      .then(
+        () => true,
+        () => false,
+      );
   }
   return false;
 }

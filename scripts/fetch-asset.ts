@@ -15,7 +15,14 @@
 // wiki 模式:File 页(curid 或「文件:」标题)走 imageinfo API 取原图直链 + 上传者 + 尺寸口径;
 //   patchwiki 缩略图直链自动还原为原图;下载后按 PNG 签名读 IHDR 尺寸,与 API 口径不符即抛错;
 //   授权口径固定为「学习/朋友娱乐,不商用」,review_required=true(APK 公开发布前人工复核)。
-import { existsSync, mkdirSync, readFileSync, readdirSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  readdirSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { dirname, join, resolve, extname } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -118,7 +125,11 @@ async function imageInfo(title: string, width: number): Promise<ImgInfo> {
   const page: any = Object.values(pages)[0];
   const ii = page?.imageinfo?.[0];
   if (!ii) throw new Error(`无 imageinfo:${title}`);
-  const strip = (s: string | undefined) => (s ?? "").replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+  const strip = (s: string | undefined) =>
+    (s ?? "")
+      .replace(/<[^>]+>/g, "")
+      .replace(/\s+/g, " ")
+      .trim();
   const em = ii.extmetadata ?? {};
   const thumburl = (ii.thumburl ?? ii.url) as string;
   const mime: string = ii.mime ?? "";
@@ -147,8 +158,18 @@ async function searchFiles(query: string, limit: number): Promise<string[]> {
 }
 
 /** 遍历候选:只接受真正的栅格/矢量图(排除 PDF / DjVu 书扫等);优先 SVG,否则首个可用图。无 → null。 */
-const GOOD_MIME = new Set(["image/jpeg", "image/png", "image/gif", "image/webp", "image/tiff", "image/svg+xml"]);
-async function pickCandidate(titles: string[], width: number): Promise<{ info: ImgInfo; title: string } | null> {
+const GOOD_MIME = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/gif",
+  "image/webp",
+  "image/tiff",
+  "image/svg+xml",
+]);
+async function pickCandidate(
+  titles: string[],
+  width: number,
+): Promise<{ info: ImgInfo; title: string } | null> {
   let firstImage: { info: ImgInfo; title: string } | null = null;
   for (const t of titles) {
     try {
@@ -226,7 +247,8 @@ export function classifyWikiUrl(raw: string): WikiUrlRef {
     throw new Error(`不是合法 URL:${raw}`);
   }
   if (u.host === "patchwiki.biligame.com") {
-    if (!u.pathname.startsWith("/images/")) throw new Error(`patchwiki 链接不在 /images/ 下(疑似站点资源):${raw}`);
+    if (!u.pathname.startsWith("/images/"))
+      throw new Error(`patchwiki 链接不在 /images/ 下(疑似站点资源):${raw}`);
     return { kind: "image", url: originalFromPatchwikiThumb(raw) };
   }
   if (u.host === "wiki.biligame.com") {
@@ -264,7 +286,8 @@ export function originalFromPatchwikiThumb(url: string): string {
 /** PNG IHDR 尺寸;签名不符直接抛错(本管线口径:立绘只收 PNG)。 */
 export function pngSize(buf: Buffer): { width: number; height: number } {
   const SIG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
-  if (buf.length < 24 || !buf.subarray(0, 8).equals(SIG)) throw new Error("不是 PNG 文件(签名不符)");
+  if (buf.length < 24 || !buf.subarray(0, 8).equals(SIG))
+    throw new Error("不是 PNG 文件(签名不符)");
   return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) };
 }
 
@@ -284,17 +307,31 @@ interface SgsImageInfo {
 
 /** File 页 → imageinfo API:原图直链 + 尺寸口径 + 上传者。页面缺失/非 File 页直接抛错。 */
 async function resolveSgsFilePage(ref: { pageid?: number; title?: string }): Promise<SgsImageInfo> {
-  const params: Record<string, string> = { action: "query", format: "json", prop: "imageinfo", iiprop: "url|size|user" };
+  const params: Record<string, string> = {
+    action: "query",
+    format: "json",
+    prop: "imageinfo",
+    iiprop: "url|size|user",
+  };
   if (ref.pageid !== undefined) params.pageids = String(ref.pageid);
   else params.titles = ref.title!;
   const j = await getJson(`${SGS_API}?${new URLSearchParams(params)}`);
   const pages = j?.query?.pages ?? {};
   const page: any = Object.values(pages)[0];
   if (!page || page.missing !== undefined || page.ns !== 6)
-    throw new Error(`wiki 上找不到该 File 页(注意:要传「文件:XXX」页的 curid/标题,不是武将主页面):${JSON.stringify(ref)}`);
+    throw new Error(
+      `wiki 上找不到该 File 页(注意:要传「文件:XXX」页的 curid/标题,不是武将主页面):${JSON.stringify(ref)}`,
+    );
   const ii = page.imageinfo?.[0];
   if (!ii) throw new Error(`File 页无 imageinfo:${page.title}`);
-  return { pageid: page.pageid, fileTitle: page.title, url: ii.url, width: ii.width, height: ii.height, user: ii.user ?? "unknown" };
+  return {
+    pageid: page.pageid,
+    fileTitle: page.title,
+    url: ii.url,
+    width: ii.width,
+    height: ii.height,
+    user: ii.user ?? "unknown",
+  };
 }
 
 async function mainWiki(args: Args): Promise<void> {
@@ -320,7 +357,8 @@ async function mainWiki(args: Args): Promise<void> {
     author = `三国杀(十周年)${fileBaseName(info.fileTitle)} · wiki 上传者 ${info.user}`;
     source = `https://wiki.biligame.com/sgs/index.php?curid=${info.pageid}`;
   }
-  if (!originalUrl.toLowerCase().endsWith(".png")) throw new Error(`本管线只收 PNG 原图:${originalUrl}`);
+  if (!originalUrl.toLowerCase().endsWith(".png"))
+    throw new Error(`本管线只收 PNG 原图:${originalUrl}`);
 
   const filename = `${slug}.png`;
   const relPath = `assets/${args.category}/${filename}`;
@@ -329,7 +367,9 @@ async function mainWiki(args: Args): Promise<void> {
   const buf = await download(originalUrl, dest);
   const dims = pngSize(buf);
   if (apiWidth && (dims.width !== apiWidth || dims.height !== apiHeight))
-    throw new Error(`下载实物尺寸 ${dims.width}×${dims.height} 与 wiki 口径 ${apiWidth}×${apiHeight} 不符(疑似取错图):${originalUrl}`);
+    throw new Error(
+      `下载实物尺寸 ${dims.width}×${dims.height} 与 wiki 口径 ${apiWidth}×${apiHeight} 不符(疑似取错图):${originalUrl}`,
+    );
 
   const today = new Date().toISOString().slice(0, 10);
   upsertManifest(args.id, {
@@ -343,7 +383,9 @@ async function mainWiki(args: Args): Promise<void> {
   appendCredit(
     `- **${args.id}** — ${SGS_CREDITS_LICENSE} / ${author} — ${buf.length}B (${dims.width}×${dims.height}, image/png) — [source](${source}) — ${today} ⚠️ review_required`,
   );
-  console.log(`✓ ${args.id} → ${relPath} (${buf.length}B, ${dims.width}×${dims.height}, image/png ⚠️ review_required)\n  ${source}`);
+  console.log(
+    `✓ ${args.id} → ${relPath} (${buf.length}B, ${dims.width}×${dims.height}, image/png ⚠️ review_required)\n  ${source}`,
+  );
 }
 
 async function main(): Promise<void> {

@@ -46,15 +46,18 @@ describe("地图校验(非法应抛可读错误)", () => {
   const base = () => JSON.parse(JSON.stringify(sanguoData));
 
   it("版本不符", () => {
-    const d = base(); d.version = 99;
+    const d = base();
+    d.version = 99;
     expect(() => loadMap(d)).toThrow(/版本/);
   });
   it("tiles 为空", () => {
-    const d = base(); d.tiles = [];
+    const d = base();
+    d.tiles = [];
     expect(() => loadMap(d)).toThrow(/tiles 为空/);
   });
   it("坐标完全重叠", () => {
-    const d = base(); d.tiles[1].pos = [...d.tiles[0].pos];
+    const d = base();
+    d.tiles[1].pos = [...d.tiles[0].pos];
     expect(() => loadMap(d)).toThrow(/重叠/);
   });
   it("lenient 跳过间距校验(编辑器实时预览用)", () => {
@@ -64,23 +67,28 @@ describe("地图校验(非法应抛可读错误)", () => {
     expect(() => loadMap(d, { lenient: true })).not.toThrow();
   });
   it("价格为负", () => {
-    const d = base(); d.tiles[0].price = -1;
+    const d = base();
+    d.tiles[0].price = -1;
     expect(() => loadMap(d)).toThrow(/为负/);
   });
   it("辅路 start 引用无效", () => {
-    const d = base(); d.branch.start = "no-such-tile";
+    const d = base();
+    d.branch.start = "no-such-tile";
     expect(() => loadMap(d)).toThrow(/start 引用无效/);
   });
   it("辅路 start === end", () => {
-    const d = base(); d.branch.end = d.branch.start;
+    const d = base();
+    d.branch.end = d.branch.start;
     expect(() => loadMap(d)).toThrow(/相同/);
   });
   it("辅路 cells 为空", () => {
-    const d = base(); d.branch.cells = [];
+    const d = base();
+    d.branch.cells = [];
     expect(() => loadMap(d)).toThrow(/cells 为空/);
   });
   it("辅路格 kind 非法", () => {
-    const d = base(); d.branch.cells[0].kind = "wow";
+    const d = base();
+    d.branch.cells[0].kind = "wow";
     expect(() => loadMap(d)).toThrow(/kind 非法/);
   });
 });

@@ -40,8 +40,5 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
   };
 }
 
-export const findHolding = (
-  player: Player,
-  propertyId: string,
-): PropertyHolding | null =>
+export const findHolding = (player: Player, propertyId: string): PropertyHolding | null =>
   player.properties.find((p) => p.propertyId === propertyId) ?? null;

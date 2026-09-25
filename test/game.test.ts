@@ -10,11 +10,12 @@ import { botAct } from "@core/bot";
 import { testEngine } from "@core/testing";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
-function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(e: T): T {
+function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(
+  e: T,
+): T {
   while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
 }
-
 
 const MAP = loadMap(sanguoData);
 
@@ -44,10 +45,12 @@ function finishSetup(e: GameEngine) {
       e.pickCapital(idx, capIdx);
     }
   }
-  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122):本文件不测锦囊
+  e.players.forEach((p) => {
+    p.jinnangHand = [];
+    p.jinnangHandCount = 0;
+  }); // 锦囊相位 inert(#122):本文件不测锦囊
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
 }
-
 
 describe("开局三段式", () => {
   it("doDraftRoll 产出无平局的定序", () => {
@@ -297,7 +300,9 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
       // 必停路径:回合直接结束(无任何等待相位),战报「军至都城…驻跸补给」
       expect(e.turnPhase).toBe("Roll");
       expect(e.activeIndex).toBe(nextIdx);
-      expect(e.log.some((ev) => ev.category === "halt" && ev.brief.includes("军至都城"))).toBe(true);
+      expect(e.log.some((ev) => ev.category === "halt" && ev.brief.includes("军至都城"))).toBe(
+        true,
+      );
       expect(e.log.some((ev) => ev.detail.includes("awaitingHalt"))).toBe(false);
       // lastMove 截断到都城:行军动画止步都城,不展示被放弃的剩余步数
       const mv = e.presentation.lastMove!;
@@ -318,7 +323,9 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     const supply = e.capitalSupplyOf(p).supply;
     expect(p.cash).toBeGreaterThanOrEqual(supply); // 已补给
     expect(e.turnPhase as string).toBe("AwaitingHeroPick"); // 触发招贤(必停分支不触发)
-    expect(e.log.some((ev) => ev.category === "supply" && ev.brief.includes("都城补给"))).toBe(true);
+    expect(e.log.some((ev) => ev.category === "supply" && ev.brief.includes("都城补给"))).toBe(
+      true,
+    );
     expect(e.log.some((ev) => ev.category === "halt")).toBe(false);
   });
 
@@ -399,11 +406,14 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
     if (die <= N) {
       expect(p.onBranch).toEqual({ step: die - 1 }); // 掷几点走几格:第 die 格
       expect(p.position).toBe(BRANCH_START); // 主路位置仍是入口占位
-      expect(e.log.some((ev) => ev.category === "roll" && ev.detail.includes(`branchStep=${die - 1}`))).toBe(true);
+      expect(
+        e.log.some((ev) => ev.category === "roll" && ev.detail.includes(`branchStep=${die - 1}`)),
+      ).toBe(true);
       // 落格触发该格效果(treasure=探宝 / event=锦囊 / penalty=中伏跳回合)
       const kind = e.board.branch!.cells[die - 1].kind;
       if (kind === "treasure") expect(e.log.some((ev) => ev.brief.includes("辅路探宝"))).toBe(true);
-      else if (kind === "event") expect(e.log.some((ev) => ev.brief.includes("辅路锦囊"))).toBe(true);
+      else if (kind === "event")
+        expect(e.log.some((ev) => ev.brief.includes("辅路锦囊"))).toBe(true);
       else expect(p.skipTurns).toBe(1);
     } else {
       // die > N:溢出汇入主路(掷满辅路格后从终点继续走剩余步数)
@@ -486,7 +496,6 @@ describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
   });
 });
 
-
 describe("decisionOwner(决策归属统一查询)", () => {
   it("常规相位 = activeIndex(Roll/Land/AwaitingDecision)", () => {
     const e = makeEngine(1);
@@ -525,7 +534,9 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
     mover.warrants = 1;
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
@@ -538,10 +549,18 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
-    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    owner.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     const cash0 = mover.cash;
     testEngine(e).landActiveAt(tile.index);
     // 城主无珍宝 → 无事发生;等级不变(升级只挂在公道买卖成交上)
@@ -554,10 +573,18 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
-    owner.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    owner.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     const holding = () => owner.properties.find((x) => x.propertyId === def.id)!;
     /** 手工置 AwaitingTreasureOwner(endTurn 会推进 activeIndex,每步拨回访客)。 */
     const armTrade = (treasureId: string) => {
@@ -589,9 +616,18 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     finishSetup(e);
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
-    const tile = e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null)!;
+    const tile = e.board.tiles.find(
+      (t) =>
+        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+    )!;
     const def = e.catalog.get(tile.propertyId)!;
-    me.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+    me.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     const cash0 = me.cash;

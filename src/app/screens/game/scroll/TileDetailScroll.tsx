@@ -60,13 +60,19 @@ export function TileDetailScroll({
   pickCapital,
 }: TileDetailScrollProps) {
   return (
-    <ScrollShell title={`「${tileName}」`} scrollKey={String(tileIndex)} onClose={onClose} testid={T.tileDetailScroll}>
+    <ScrollShell
+      title={`「${tileName}」`}
+      scrollKey={String(tileIndex)}
+      onClose={onClose}
+      testid={T.tileDetailScroll}
+    >
       <span hidden data-tile-index={tileIndex} />
       {property ? (
         <>
           <p className="m-1 mb-3 text-center text-sm text-ink-dim">
             {region} · {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
-            {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入 {formatMoney(property.purchasePrice)}
+            {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入{" "}
+            {formatMoney(property.purchasePrice)}
           </p>
           {/* 等级价值表:抽成共用 ValueTable(购地卷轴复用同一张表,避免两处漂移)。
               #92:持有城高亮持有者当前档;无主城没有「当前」可言(ownerLevel 仅为占位 0),不标 */}

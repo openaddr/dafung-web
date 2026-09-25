@@ -76,7 +76,8 @@ export function TreasureVisitorScroll({
         onClose={() => setVisitorDismissed(true)}
       >
         <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
-          {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝,正在权衡是否出售…
+          {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
+          件珍宝,正在权衡是否出售…
         </p>
       </ScrollShell>
     );
@@ -92,13 +93,25 @@ export function TreasureVisitorScroll({
           <div className="flex flex-wrap justify-center gap-3">
             {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
                 skip 分支,core/game.ts:893),城主不必在公道/坐地里二选一。 */}
-            <ScrollButton primary testid={T.treasureSkip} onClick={() => onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })}>
+            <ScrollButton
+              primary
+              testid={T.treasureSkip}
+              onClick={() => onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })}
+            >
               暂不交易
             </ScrollButton>
-            <ScrollButton testid={T.treasureModeFair} onClick={() => setMode("fair")} title="按指导价出售,成交后城池 +1 级">
+            <ScrollButton
+              testid={T.treasureModeFair}
+              onClick={() => setMode("fair")}
+              title="按指导价出售,成交后城池 +1 级"
+            >
               公道买卖
             </ScrollButton>
-            <ScrollButton testid={T.treasureModePremium} onClick={() => setMode("premium")} title="按城池等级加价出售,城池不升级">
+            <ScrollButton
+              testid={T.treasureModePremium}
+              onClick={() => setMode("premium")}
+              title="按城池等级加价出售,城池不升级"
+            >
               坐地起价
             </ScrollButton>
           </div>
@@ -112,7 +125,10 @@ export function TreasureVisitorScroll({
                 key={t.id}
                 testid={T.treasureItem(t.id)}
                 onClick={() =>
-                  onCommand({ type: "resolveTreasureOwner", action: { type: mode, treasureId: t.id } })
+                  onCommand({
+                    type: "resolveTreasureOwner",
+                    action: { type: mode, treasureId: t.id },
+                  })
                 }
               >
                 {/* W2-包D(审计 A5):箭头改汉字「至」——brush 字族无 → 字形,裸排即回落/豆腐 */}

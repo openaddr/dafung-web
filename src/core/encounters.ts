@@ -45,36 +45,123 @@ export interface EncounterDef {
  *  (银两 vs 体力 / 声望 vs 银两 / 对己 vs 对他),红线:不需要决策的事件不配当抉择机遇。 */
 export const ENCOUNTERS: EncounterDef[] = [
   // ── 好运 ──
-  { id: "屯粮居奇", tier: "好运", tags: ["银两"], weight: 1, text: "荒年粮价飞涨,囤粮转卖大赚一笔", effect: { kind: "cash", delta: 250 } },
-  { id: "草船借箭", tier: "好运", tags: ["银两"], weight: 1, text: "借得箭矢十万,转售诸侯", effect: { kind: "cash", delta: 200 } },
-  { id: "风调雨顺", tier: "好运", tags: ["银两"], weight: 1, text: "五谷丰登,市税多入", effect: { kind: "cash", delta: 100 } },
-  { id: "神医行诊", tier: "好运", tags: ["体力"], weight: 0.8, text: "神医路过举家调理", effect: { kind: "cash", delta: 0, staminaDelta: 25 } },
-  { id: "义士来投", tier: "好运", tags: ["名将"], weight: 0.8, text: "名将慕名来投", effect: { kind: "grantHero", fallbackCash: 200 } },
-  { id: "圯上授书", tier: "好运", tags: ["锦囊"], weight: 0.8, text: "圯上老人授你锦囊妙计一封", effect: { kind: "grantCard" } }, // #147:机遇→锦囊流通
-  { id: "窖藏现世", tier: "好运", tags: ["珍宝"], weight: 0.8, text: "掘地三尺,挖出前朝窖藏", effect: { kind: "grantTreasure" } },
-  { id: "传檄而定", tier: "好运", tags: ["城池"], weight: 0.2, text: "檄文所至,一座无主城望风归降", effect: { kind: "grantCity", fallbackCash: 300 } },
-  { id: "敌营哗变", tier: "好运", tags: ["银两", "玩家"], weight: 0.8, text: "敌营哗变,士卒携粮来投", effect: { kind: "siphon", amount: 150 } },
-  { id: "纳款输诚", tier: "好运", tags: ["银两", "玩家"], weight: 0.6, text: "邻镇诸侯为避战端,向你输银", effect: { kind: "siphon", amount: 200 } },
+  {
+    id: "屯粮居奇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "荒年粮价飞涨,囤粮转卖大赚一笔",
+    effect: { kind: "cash", delta: 250 },
+  },
+  {
+    id: "草船借箭",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "借得箭矢十万,转售诸侯",
+    effect: { kind: "cash", delta: 200 },
+  },
+  {
+    id: "风调雨顺",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "五谷丰登,市税多入",
+    effect: { kind: "cash", delta: 100 },
+  },
+  {
+    id: "神医行诊",
+    tier: "好运",
+    tags: ["体力"],
+    weight: 0.8,
+    text: "神医路过举家调理",
+    effect: { kind: "cash", delta: 0, staminaDelta: 25 },
+  },
+  {
+    id: "义士来投",
+    tier: "好运",
+    tags: ["名将"],
+    weight: 0.8,
+    text: "名将慕名来投",
+    effect: { kind: "grantHero", fallbackCash: 200 },
+  },
+  {
+    id: "圯上授书",
+    tier: "好运",
+    tags: ["锦囊"],
+    weight: 0.8,
+    text: "圯上老人授你锦囊妙计一封",
+    effect: { kind: "grantCard" },
+  }, // #147:机遇→锦囊流通
+  {
+    id: "窖藏现世",
+    tier: "好运",
+    tags: ["珍宝"],
+    weight: 0.8,
+    text: "掘地三尺,挖出前朝窖藏",
+    effect: { kind: "grantTreasure" },
+  },
+  {
+    id: "传檄而定",
+    tier: "好运",
+    tags: ["城池"],
+    weight: 0.2,
+    text: "檄文所至,一座无主城望风归降",
+    effect: { kind: "grantCity", fallbackCash: 300 },
+  },
+  {
+    id: "敌营哗变",
+    tier: "好运",
+    tags: ["银两", "玩家"],
+    weight: 0.8,
+    text: "敌营哗变,士卒携粮来投",
+    effect: { kind: "siphon", amount: 150 },
+  },
+  {
+    id: "纳款输诚",
+    tier: "好运",
+    tags: ["银两", "玩家"],
+    weight: 0.6,
+    text: "邻镇诸侯为避战端,向你输银",
+    effect: { kind: "siphon", amount: 200 },
+  },
   {
     // 好运抉择(#188 档 2):得利附声望代价——岁赐落袋 vs 僭越之名(声望调档/献计里程碑的长线成本)。
-    id: "奉迎天子", tier: "好运", tags: ["银两", "声望"], weight: 0.8,
+    id: "奉迎天子",
+    tier: "好运",
+    tags: ["银两", "声望"],
+    weight: 0.8,
     text: "汉室车驾东归,恰过你的地界。奉迎天子,可领内库岁赐三百两、坐收号令之便;然僭越之讥随之,士林侧目。",
     choices: [
-      { text: "奉迎天子(得岁赐 300 两,声望 −10)", repDelta: -10, effect: { kind: "cash", delta: 300 } },
+      {
+        text: "奉迎天子(得岁赐 300 两,声望 −10)",
+        repDelta: -10,
+        effect: { kind: "cash", delta: 300 },
+      },
       { text: "礼送出境(无事发生)", repDelta: 0 },
     ],
   },
   // ── 中性(抉择)──
   {
-    id: "携民渡江", tier: "中性", tags: ["银两", "声望"], weight: 1,
+    id: "携民渡江",
+    tier: "中性",
+    tags: ["银两", "声望"],
+    weight: 1,
     text: "流民数百拦江哭告,愿随你渡江避祸。安置他们需费银 150 两,但民心所向,声望大增;亦可径自过江,不相闻问。",
     choices: [
-      { text: "携民渡江(费银 150 两,声望 +10)", repDelta: 10, effect: { kind: "cash", delta: -150 } },
+      {
+        text: "携民渡江(费银 150 两,声望 +10)",
+        repDelta: 10,
+        effect: { kind: "cash", delta: -150 },
+      },
       { text: "径自过江(无事发生)", repDelta: 0 },
     ],
   },
   {
-    id: "散财消灾", tier: "中性", tags: ["银两", "声望"], weight: 1,
+    id: "散财消灾",
+    tier: "中性",
+    tags: ["银两", "声望"],
+    weight: 1,
     text: "境内灾荒,饿殍遍野。开仓赈济需 200 两,可换百姓交口称颂;若充耳不闻,亦无人怪罪。",
     choices: [
       { text: "开仓赈济(费银 200 两,声望 +8)", repDelta: 8, effect: { kind: "cash", delta: -200 } },
@@ -82,7 +169,10 @@ export const ENCOUNTERS: EncounterDef[] = [
     ],
   },
   {
-    id: "以宝换贤", tier: "中性", tags: ["珍宝", "名将"], weight: 0.8,
+    id: "以宝换贤",
+    tier: "中性",
+    tags: ["珍宝", "名将"],
+    weight: 0.8,
     text: "名将遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,名将即刻来投。",
     choices: [
       { text: "以两件珍宝换 1 名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
@@ -91,33 +181,59 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
   {
     // 单选项抉择(#124):选项集 ≤1 引擎自动执行(ADR-0013),正合「使团代应、自动发生」的设计。
-    id: "结盟互市", tier: "中性", tags: ["银两", "玩家"], weight: 0.8,
+    id: "结盟互市",
+    tier: "中性",
+    tags: ["银两", "玩家"],
+    weight: 0.8,
     text: "邻镇诸侯遣使叩门:愿共设集市、通商互市。你与随机对手各得 100 两,银子皆由国库出——使团已替你在盟书上落了印。",
     choices: [
-      { text: "结盟互市(你与随机对手各 +100 两,国库出)", repDelta: 0, effect: { kind: "trade", amount: 100 } },
+      {
+        text: "结盟互市(你与随机对手各 +100 两,国库出)",
+        repDelta: 0,
+        effect: { kind: "trade", amount: 100 },
+      },
     ],
   },
   {
     // 体力抉择(#132):入浴回血(选项级 staminaDelta +30)/ 不去无事。
-    id: "温泉疗养", tier: "中性", tags: ["银两", "体力"], weight: 0.8,
+    id: "温泉疗养",
+    tier: "中性",
+    tags: ["银两", "体力"],
+    weight: 0.8,
     text: "行军途中遇温泉,水汽氤氲。付 150 两全军入浴休整,人困马乏尽去(体力 +30);亦可赶路要紧,不入。",
     choices: [
-      { text: "付 150 两入浴(+30 体力)", repDelta: 0, effect: { kind: "cash", delta: -150 }, staminaDelta: 30 },
+      {
+        text: "付 150 两入浴(+30 体力)",
+        repDelta: 0,
+        effect: { kind: "cash", delta: -150 },
+        staminaDelta: 30,
+      },
       { text: "不去(无事发生)", repDelta: 0 },
     ],
   },
   {
     // 体力抉择(#132):连夜赶路得银耗体力(选项级 staminaDelta −20)/ 安营无事。
-    id: "夜行军", tier: "中性", tags: ["银两", "体力"], weight: 0.8,
+    id: "夜行军",
+    tier: "中性",
+    tags: ["银两", "体力"],
+    weight: 0.8,
     text: "斥候探得邻镇粮价飞涨。连夜赶路可抢先售粮(+150 两),将士疲于奔命(体力 −20);或安营扎寨,从长计议。",
     choices: [
-      { text: "连夜赶路(+150 两,体力 −20)", repDelta: 0, effect: { kind: "cash", delta: 150 }, staminaDelta: -20 },
+      {
+        text: "连夜赶路(+150 两,体力 −20)",
+        repDelta: 0,
+        effect: { kind: "cash", delta: 150 },
+        staminaDelta: -20,
+      },
       { text: "安营扎寨(无事发生)", repDelta: 0 },
     ],
   },
   {
     // 声望/体力抉择(#188 档 2):胆气换名 vs 劳神伤体。
-    id: "单刀赴会", tier: "中性", tags: ["声望", "体力"], weight: 0.8,
+    id: "单刀赴会",
+    tier: "中性",
+    tags: ["声望", "体力"],
+    weight: 0.8,
     text: "邻镇守将遣使下书,邀你单刀赴会、饮酒论英雄。只身赴会,胆气冠绝全军,威名远播;然席间暗流汹涌,惊险周旋颇耗心神。",
     choices: [
       { text: "单刀赴会(声望 +12,体力 −15)", repDelta: 12, staminaDelta: -15 },
@@ -126,20 +242,51 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
   {
     // 对他抉择(#188 档 2):仁名 vs 赎银——bot 按声望系数在此分道(120 vs ±8×系数)。
-    id: "义释俘虏", tier: "中性", tags: ["玩家", "声望"], weight: 0.8,
+    id: "义释俘虏",
+    tier: "中性",
+    tags: ["玩家", "声望"],
+    weight: 0.8,
     text: "前哨擒得邻镇丁壮数十,囚于辕门。放其归乡,仁名远播;押为质、勒令赎金,白银入库,人心却散了。",
     choices: [
       { text: "义释归乡(声望 +8)", repDelta: 8 },
-      { text: "押质勒赎(得赎银 120 两,声望 −8)", repDelta: -8, effect: { kind: "siphon", amount: 120 } },
+      {
+        text: "押质勒赎(得赎银 120 两,声望 −8)",
+        repDelta: -8,
+        effect: { kind: "siphon", amount: 120 },
+      },
     ],
   },
   // ── 霉运(抉择 = 两害相权:每个选项都有实质代价,#188 档 2)──
-  { id: "粮道被劫", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "粮道遭山贼劫掠,损失折银 250 两", effect: { kind: "cash", delta: -250, staminaDelta: -25 } },
-  { id: "漕船倾覆", tier: "霉运", tags: ["银两", "体力"], weight: 1, text: "漕船江心倾覆,白银落水", effect: { kind: "cash", delta: -100, staminaDelta: -20 } },
-  { id: "假道征粮", tier: "霉运", tags: ["银两", "玩家", "体力"], weight: 0.8, text: "邻镇诸侯假道征粮,你被迫输银 50 两", effect: { kind: "levy", amount: 50, staminaDelta: -15 } },
+  {
+    id: "粮道被劫",
+    tier: "霉运",
+    tags: ["银两", "体力"],
+    weight: 1,
+    text: "粮道遭山贼劫掠,损失折银 250 两",
+    effect: { kind: "cash", delta: -250, staminaDelta: -25 },
+  },
+  {
+    id: "漕船倾覆",
+    tier: "霉运",
+    tags: ["银两", "体力"],
+    weight: 1,
+    text: "漕船江心倾覆,白银落水",
+    effect: { kind: "cash", delta: -100, staminaDelta: -20 },
+  },
+  {
+    id: "假道征粮",
+    tier: "霉运",
+    tags: ["银两", "玩家", "体力"],
+    weight: 0.8,
+    text: "邻镇诸侯假道征粮,你被迫输银 50 两",
+    effect: { kind: "levy", amount: 50, staminaDelta: -15 },
+  },
   {
     // 银两 vs 体力(#188 档 2):花钱消灾 vs 全军疲敝。
-    id: "疫病入营", tier: "霉运", tags: ["银两", "体力"], weight: 0.8,
+    id: "疫病入营",
+    tier: "霉运",
+    tags: ["银两", "体力"],
+    weight: 0.8,
     text: "军中疫气蔓延,病倒者日增。延医购药需费 200 两,疫可立止;若硬撑操练,疫情蚀体,全军疲敝。",
     choices: [
       { text: "重金延医(费银 200 两)", repDelta: 0, effect: { kind: "cash", delta: -200 } },
@@ -148,7 +295,10 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
   {
     // 短期得利 vs 声望/银两(#188 档 2):扰民恶名换现粮,或按市价破财。
-    id: "强征军粮", tier: "霉运", tags: ["银两", "声望"], weight: 0.8,
+    id: "强征军粮",
+    tier: "霉运",
+    tags: ["银两", "声望"],
+    weight: 0.8,
     text: "秋粮歉收,军仓告急。向四乡强征,即刻得粮折银 150 两,却落扰民恶名;按市价购粮,则需费银 200 两。",
     choices: [
       { text: "强征民粮(得 150 两,声望 −18)", repDelta: -18, effect: { kind: "cash", delta: 150 } },
@@ -157,16 +307,26 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
   {
     // 对己 vs 对他(#188 档 2):自己拼体力拒贼,或嫁祸邻镇收贼资、担纵贼之名。
-    id: "祸水东引", tier: "霉运", tags: ["玩家", "声望", "体力"], weight: 0.6,
+    id: "祸水东引",
+    tier: "霉运",
+    tags: ["玩家", "声望", "体力"],
+    weight: 0.6,
     text: "马贼游骑直扑你的边境。出兵拒之,一场厮杀在所难免;若遣细作诱其转掠邻镇,贼获尽入你手,纵贼之名却也传开。",
     choices: [
       { text: "出兵拒之(体力 −20)", repDelta: 0, staminaDelta: -20 },
-      { text: "祸水东引(得贼资 150 两,声望 −12)", repDelta: -12, effect: { kind: "siphon", amount: 150 } },
+      {
+        text: "祸水东引(得贼资 150 两,声望 −12)",
+        repDelta: -12,
+        effect: { kind: "siphon", amount: 150 },
+      },
     ],
   },
   {
     // 声望 vs 银两(#188 档 2):清野困敌失民心,或任劫折粮。
-    id: "坚壁清野", tier: "霉运", tags: ["声望", "银两"], weight: 0.8,
+    id: "坚壁清野",
+    tier: "霉运",
+    tags: ["声望", "银两"],
+    weight: 0.8,
     text: "敌军大举压境,四乡禾稼尽在敌锋之下。焚田清野,敌无所获,乡里怨声载道;任其劫掠,粮储折银 200 两。",
     choices: [
       { text: "焚田清野(声望 −15)", repDelta: -15 },
@@ -175,24 +335,49 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
   {
     // 银两 vs 银两+体力(#188 档 2):抢险多花银,或堤溃后蚀粮又耗人夫。
-    id: "河堤告急", tier: "霉运", tags: ["银两", "体力"], weight: 0.6,
+    id: "河堤告急",
+    tier: "霉运",
+    tags: ["银两", "体力"],
+    weight: 0.6,
     text: "秋汛暴涨,河堤渗漏如筛。征夫连夜抢修需费 120 两;若听天由命,堤溃淹田,抢收粮食又耗人夫体力。",
     choices: [
       { text: "征夫抢修(费银 120 两)", repDelta: 0, effect: { kind: "cash", delta: -120 } },
-      { text: "听天由命(失 80 两,体力 −15)", repDelta: 0, effect: { kind: "cash", delta: -80 }, staminaDelta: -15 },
+      {
+        text: "听天由命(失 80 两,体力 −15)",
+        repDelta: 0,
+        effect: { kind: "cash", delta: -80 },
+        staminaDelta: -15,
+      },
     ],
   },
   {
     // 银两 vs 声望(#188 档 2):输币资敌保全盟约,或背盟恶名传遍诸侯。
-    id: "盟镇勒币", tier: "霉运", tags: ["银两", "玩家", "声望"], weight: 0.6,
+    id: "盟镇勒币",
+    tier: "霉运",
+    tags: ["银两", "玩家", "声望"],
+    weight: 0.6,
     text: "结义的盟镇忽然翻脸,遣使坐索岁币 120 两,言辞倨傲。破财免灾,盟约犹存;撕破脸皮,背盟之名传遍诸侯。",
     choices: [
       { text: "隐忍输币(输银 120 两)", repDelta: 0, effect: { kind: "levy", amount: 120 } },
       { text: "撕毁盟约(声望 −12)", repDelta: -12 },
     ],
   },
-  { id: "驿马倒毙", tier: "霉运", tags: ["体力"], weight: 0.8, text: "千里转进,驿马接连倒毙,全军徒步拖行,人困马乏", effect: { kind: "cash", delta: 0, staminaDelta: -20 } },
-  { id: "火烛惊营", tier: "霉运", tags: ["银两", "体力"], weight: 0.8, text: "夜半营中走水,火借风势,粮草帐幕焚毁过半", effect: { kind: "cash", delta: -150, staminaDelta: -15 } },
+  {
+    id: "驿马倒毙",
+    tier: "霉运",
+    tags: ["体力"],
+    weight: 0.8,
+    text: "千里转进,驿马接连倒毙,全军徒步拖行,人困马乏",
+    effect: { kind: "cash", delta: 0, staminaDelta: -20 },
+  },
+  {
+    id: "火烛惊营",
+    tier: "霉运",
+    tags: ["银两", "体力"],
+    weight: 0.8,
+    text: "夜半营中走水,火借风势,粮草帐幕焚毁过半",
+    effect: { kind: "cash", delta: -150, staminaDelta: -15 },
+  },
 ];
 
 export interface EncounterBaseRates {
@@ -243,7 +428,8 @@ export function parseEncounterFile(data: unknown): EncounterConfig | null {
     typeof o.baseRates === "object" && o.baseRates !== null
       ? (o.baseRates as Record<string, unknown>)
       : null;
-  const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const num = (v: unknown): number | null =>
+    typeof v === "number" && Number.isFinite(v) ? v : null;
   const triggerRate = num(o.triggerRate);
   const good = b ? num(b.good) : null;
   const neutral = b ? num(b.neutral) : null;

@@ -54,7 +54,10 @@ function SeatCard({
 }) {
   const handTip: TipText =
     peekedHand.length > 0
-      ? { name: ATTR_TIPS.hand.name, detail: `${ATTR_TIPS.hand.detail};窥见:${peekedHand.join("、")}` }
+      ? {
+          name: ATTR_TIPS.hand.name,
+          detail: `${ATTR_TIPS.hand.detail};窥见:${peekedHand.join("、")}`,
+        }
       : { name: ATTR_TIPS.hand.name, detail: `${ATTR_TIPS.hand.detail}(以牌背示意,数量为准)` };
   const badges = (
     <>
@@ -161,7 +164,9 @@ function SeatCard({
           className="seat-target"
           disabled={!target.available}
           aria-label={
-            target.available ? `指定 ${p.guohao || p.name} 为目标` : `不可指定:${target.reason ?? ""}`
+            target.available
+              ? `指定 ${p.guohao || p.name} 为目标`
+              : `不可指定:${target.reason ?? ""}`
           }
           title={target.available ? undefined : target.reason}
           onClick={target.onPick}

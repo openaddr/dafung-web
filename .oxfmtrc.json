@@ -1,0 +1,4 @@
+{
+  // public/ 是静态资源与生成物(fonts.css 来自字体分片工具,与官方 style.css 对齐),不归 formatter 管
+  "ignorePatterns": ["public/**"]
+}

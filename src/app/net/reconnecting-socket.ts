@@ -64,7 +64,8 @@ export class ReconnectingSocket {
   constructor(opts: ReconnectingSocketOptions) {
     this.url = opts.url;
     // 默认工厂直连浏览器 WebSocket(原生事件签名与 Like 兼容,构造端断言收窄)
-    this.socketFactory = opts.socketFactory ?? ((u) => new WebSocket(u) as unknown as WebSocketLike);
+    this.socketFactory =
+      opts.socketFactory ?? ((u) => new WebSocket(u) as unknown as WebSocketLike);
     // F2 顺带修复:不能用 `{ setTimeout, clearTimeout }` 方法简写——那只是取了
     // window.setTimeout 的引用,以本对象为 this 调用时浏览器抛 "Illegal invocation"
     // (Bun/单测的全局 setTimeout 不校验 this,所以只有浏览器里重连静默失效——

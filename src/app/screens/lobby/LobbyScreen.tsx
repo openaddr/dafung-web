@@ -46,7 +46,9 @@ function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {
     s.seat === host ? "房主" : "",
     s.taken && !s.online && s.kind === "human" ? "离线" : "",
     s.autoPilot ? "托管" : "",
-  ].filter(Boolean).join("·");
+  ]
+    .filter(Boolean)
+    .join("·");
   return suffix ? `${who}·${suffix}` : who;
 }
 
@@ -141,7 +143,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // L-8:座位「空→有人」翻转检测(key 稳定后,入场动画只在此刻加 class;
   // 上/下线、托管等状态翻转不再整行 remount 重放动画)。首帧视为入场,保留挂载点亮。
   useEffect(() => {
-    const newly = seats.filter((s) => s.taken && !prevTakenRef.current.get(s.seat)).map((s) => s.seat);
+    const newly = seats
+      .filter((s) => s.taken && !prevTakenRef.current.get(s.seat))
+      .map((s) => s.seat);
     for (const s of seats) prevTakenRef.current.set(s.seat, s.taken);
     if (newly.length) setSeatEntered((prev) => new Set([...prev, ...newly]));
   }, [seats]);
@@ -178,7 +182,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // ── 被解散:提示 + 返回(对照旧 dismissed → 回连接屏)──
   if (dismissed) {
     return (
-      <div data-testid={LID.screen} className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6">
+      <div
+        data-testid={LID.screen}
+        className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
+      >
         <h1 className="font-brush text-3xl text-ink tracking-widest">房主已解散房间</h1>
         <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn font-bold"}>
           返回首页
@@ -199,118 +206,125 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
         <ConnectionBanner />
         <div className="m-auto flex w-full flex-col items-center">
-        <h1 className="font-brush text-4xl text-ink tracking-widest mb-1">联机对局</h1>
-        {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」) */}
-        <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">— 群雄逐鹿 —</div>
-        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-        <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5 flex flex-col gap-5">
-          {/* 建房:建房者 = Seat0(host)。A4:分段头入 note-head 制式(印「建」+ wenkai 标签 + 发丝线) */}
-          <div className="font-deco text-sm text-ink">
-            <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
-              <i>建</i>
-              <span>建房</span>
-            </h3>
-            <div className="flex items-center gap-2">
-              <div className="flex flex-col gap-1">
-                诸侯数
-                <Stepper
-                  testid={LID.seatCount}
-                  ariaLabel="诸侯数"
-                  value={seatCount}
-                  min={2}
-                  max={8}
-                  onChange={setSeatCount}
-                />
-              </div>
-              <label className="flex flex-col gap-1">
-                目标身价(空=默认)
-                <input
-                  data-testid={LID.target}
-                  value={target}
-                  inputMode="numeric"
-                  onChange={(e) => {
-                    setTarget(e.target.value);
-                    setTargetErr(null); // 修改即清错,失焦/提交再校验
-                  }}
-                  onBlur={() => setTargetErr(validateTarget(target))}
-                  // X14(#33):回车与失焦同口径即时校验(小屏回车不必先点别处)
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") setTargetErr(validateTarget(target));
-                  }}
-                  placeholder="如 30000"
-                  className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
-                />
-                {/* L-2:非法/越界的显式原因行(不静默) */}
-                {targetErr && <span className="text-xs text-danger">{targetErr}</span>}
-              </label>
-              <button
-                data-testid={LID.create}
-                disabled={busy || targetErr != null}
-                title={busy ? "处理中…" : undefined}
-                onClick={() => {
-                  // L-2 零兜底:提交前再校验一次,非法则阻止并显示原因(不静默吞掉)
-                  const err = validateTarget(target);
-                  setTargetErr(err);
-                  if (err) return;
-                  void guard(() =>
-                    controller!.createRoom({
-                      seats: seatCount,
-                      target: target.trim() ? parseInt(target, 10) : undefined,
-                      // R3-D1(#99):建房者预设国号与加入同源(SoloSetup 起兵时写入),不再只有加入路径带
-                      guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
-                    }),
-                  );
-                }}
-                // R3-B11(#83):h-10 py-0 与输入框/Stepper 等高;等高后 self-end 不再需要(items-center 对齐)
-                className={btnBase + " ink-btn font-bold h-10 py-0"}
-              >
-                {busy ? "处理中…" : "建房"}
-              </button>
-            </div>
+          <h1 className="font-brush text-4xl text-ink tracking-widest mb-1">联机对局</h1>
+          {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」) */}
+          <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">
+            — 群雄逐鹿 —
           </div>
-          {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
-              空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
-          <form
-            className="font-deco text-sm text-ink border-t border-[rgba(43,35,23,0.22)] pt-4"
-            onSubmit={(e) => {
-              e.preventDefault();
-              if (busy || !joinCode.trim()) return;
-              void guard(() => controller!.joinRoom(joinCode.trim(), localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined));
-            }}
-          >
-            {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
-            <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
-              <i>入</i>
-              <span>加入</span>
-            </h3>
-            <div className="flex items-center gap-2">
-              <input
-                data-testid={LID.joinInput}
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                placeholder="房间码"
-                maxLength={8}
-                className={inputBase + " w-44 tracking-[0.3em]"}
-              />
-              <button
-                type="submit"
-                data-testid={LID.join}
-                disabled={busy || !joinCode.trim()}
-                // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
-                title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
-                // R3-B11(#83):h-10 py-0,与房间码输入框等高
-                className={btnBase + " note-btn h-10 py-0"}
-              >
-                {busy ? "处理中…" : "加入"}
-              </button>
+          {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
+          <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5 flex flex-col gap-5">
+            {/* 建房:建房者 = Seat0(host)。A4:分段头入 note-head 制式(印「建」+ wenkai 标签 + 发丝线) */}
+            <div className="font-deco text-sm text-ink">
+              <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+                <i>建</i>
+                <span>建房</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-1">
+                  诸侯数
+                  <Stepper
+                    testid={LID.seatCount}
+                    ariaLabel="诸侯数"
+                    value={seatCount}
+                    min={2}
+                    max={8}
+                    onChange={setSeatCount}
+                  />
+                </div>
+                <label className="flex flex-col gap-1">
+                  目标身价(空=默认)
+                  <input
+                    data-testid={LID.target}
+                    value={target}
+                    inputMode="numeric"
+                    onChange={(e) => {
+                      setTarget(e.target.value);
+                      setTargetErr(null); // 修改即清错,失焦/提交再校验
+                    }}
+                    onBlur={() => setTargetErr(validateTarget(target))}
+                    // X14(#33):回车与失焦同口径即时校验(小屏回车不必先点别处)
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") setTargetErr(validateTarget(target));
+                    }}
+                    placeholder="如 30000"
+                    className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
+                  />
+                  {/* L-2:非法/越界的显式原因行(不静默) */}
+                  {targetErr && <span className="text-xs text-danger">{targetErr}</span>}
+                </label>
+                <button
+                  data-testid={LID.create}
+                  disabled={busy || targetErr != null}
+                  title={busy ? "处理中…" : undefined}
+                  onClick={() => {
+                    // L-2 零兜底:提交前再校验一次,非法则阻止并显示原因(不静默吞掉)
+                    const err = validateTarget(target);
+                    setTargetErr(err);
+                    if (err) return;
+                    void guard(() =>
+                      controller!.createRoom({
+                        seats: seatCount,
+                        target: target.trim() ? parseInt(target, 10) : undefined,
+                        // R3-D1(#99):建房者预设国号与加入同源(SoloSetup 起兵时写入),不再只有加入路径带
+                        guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
+                      }),
+                    );
+                  }}
+                  // R3-B11(#83):h-10 py-0 与输入框/Stepper 等高;等高后 self-end 不再需要(items-center 对齐)
+                  className={btnBase + " ink-btn font-bold h-10 py-0"}
+                >
+                  {busy ? "处理中…" : "建房"}
+                </button>
+              </div>
             </div>
-          </form>
-          {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
-          <HintBar hint={hint} level={hintLevel} variant="inline" />
-          <button onClick={onExit} className={backBase + " note-btn self-start text-sm"}>
-            返回首页
-          </button>
-        </div>
+            {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
+              空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
+            <form
+              className="font-deco text-sm text-ink border-t border-[rgba(43,35,23,0.22)] pt-4"
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (busy || !joinCode.trim()) return;
+                void guard(() =>
+                  controller!.joinRoom(
+                    joinCode.trim(),
+                    localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
+                  ),
+                );
+              }}
+            >
+              {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
+              <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+                <i>入</i>
+                <span>加入</span>
+              </h3>
+              <div className="flex items-center gap-2">
+                <input
+                  data-testid={LID.joinInput}
+                  value={joinCode}
+                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                  placeholder="房间码"
+                  maxLength={8}
+                  className={inputBase + " w-44 tracking-[0.3em]"}
+                />
+                <button
+                  type="submit"
+                  data-testid={LID.join}
+                  disabled={busy || !joinCode.trim()}
+                  // F1:busy 灰要说明「处理中」;未填码的灰不言自明,不额外打扰
+                  title={busy ? "处理中…" : joinCode.trim() ? undefined : "请输入房间码"}
+                  // R3-B11(#83):h-10 py-0,与房间码输入框等高
+                  className={btnBase + " note-btn h-10 py-0"}
+                >
+                  {busy ? "处理中…" : "加入"}
+                </button>
+              </div>
+            </form>
+            {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
+            <HintBar hint={hint} level={hintLevel} variant="inline" />
+            <button onClick={onExit} className={backBase + " note-btn self-start text-sm"}>
+              返回首页
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -338,175 +352,179 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       {/* F2 断线横幅:卡片上方常驻(重连成功自动消失) */}
       <ConnectionBanner />
       <div className="m-auto flex w-full flex-col items-center">
-      {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-      <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5">
-        {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
-        <h1 className="font-brush text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">大厅</h1>
-        {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
+        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
+        <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5">
+          {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
+          <h1 className="font-brush text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">
+            大厅
+          </h1>
+          {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
             R3-A7(#70):0.4em 字距尾空白以 pl 同量补偿(同 HomeScreen 先例) */}
-        <button
-          type="button"
-          data-testid={LID.roomCode}
-          onClick={copyRoomCode}
-          title="点击复制房间码"
-          aria-label={`房间码 ${roomId}，点击复制`}
-          // R3-B13(#85):hover 用底色反馈不动字色——金字于浅底对比不足(原 hover:text-gold 会掉到 1.8:1)
-          className="mt-2 block w-full rounded-[3px] border-y-2 border-[rgba(43,35,23,0.4)] py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
-        >
-          {roomId}
-        </button>
-        <div className="mt-1 text-center font-deco text-xs text-ink-dim">
-          {copied ? "已复制" : "点击复制，发给好友凭码入座"}
-        </div>
-        <div className="mt-1 text-center font-deco text-xs text-ink-dim">
-          {isHost
-            ? needMore
-              ? `${hostInviteLine}；${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句(A4:全角分号)
-              : "坐席已满，可开局；点开局后未入座自动 bot 填充。" // A4:标点全角统一
-            : waitLines[waitIdx] /* 非 host:轮换等待文案 */}
-        </div>
+          <button
+            type="button"
+            data-testid={LID.roomCode}
+            onClick={copyRoomCode}
+            title="点击复制房间码"
+            aria-label={`房间码 ${roomId}，点击复制`}
+            // R3-B13(#85):hover 用底色反馈不动字色——金字于浅底对比不足(原 hover:text-gold 会掉到 1.8:1)
+            className="mt-2 block w-full rounded-[3px] border-y-2 border-[rgba(43,35,23,0.4)] py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
+          >
+            {roomId}
+          </button>
+          <div className="mt-1 text-center font-deco text-xs text-ink-dim">
+            {copied ? "已复制" : "点击复制，发给好友凭码入座"}
+          </div>
+          <div className="mt-1 text-center font-deco text-xs text-ink-dim">
+            {
+              isHost
+                ? needMore
+                  ? `${hostInviteLine}；${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句(A4:全角分号)
+                  : "坐席已满，可开局；点开局后未入座自动 bot 填充。" // A4:标点全角统一
+                : waitLines[waitIdx] /* 非 host:轮换等待文案 */
+            }
+          </div>
 
-        {/* 座位列表(L8:key=座位号稳定;入场动画只在「空→有人」翻转时加 class,见 seatEntered effect) */}
-        <div className="mt-3 flex flex-col gap-1">
-          {seats.map((s) => {
-            // E7(#19):预设 ≠ 演算名 = 该座位开局将被排到前缀(宁→东宁),行下 xs 预告
-            const finalGh = finalGuohao[s.seat];
-            const renamed = s.guohao != null && finalGh != null && finalGh !== s.guohao;
-            return (
-              <div key={s.seat}>
-                <div
-                  data-testid={LID.seatRow(s.seat)}
-                  className={
-                    (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
-                    "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
-                    (s.seat === mySeat ? "border-gold bg-gold/10 text-ink" : "border-ink/20 text-ink-dim")
-                  }
-                >
-                  <span
+          {/* 座位列表(L8:key=座位号稳定;入场动画只在「空→有人」翻转时加 class,见 seatEntered effect) */}
+          <div className="mt-3 flex flex-col gap-1">
+            {seats.map((s) => {
+              // E7(#19):预设 ≠ 演算名 = 该座位开局将被排到前缀(宁→东宁),行下 xs 预告
+              const finalGh = finalGuohao[s.seat];
+              const renamed = s.guohao != null && finalGh != null && finalGh !== s.guohao;
+              return (
+                <div key={s.seat}>
+                  <div
+                    data-testid={LID.seatRow(s.seat)}
                     className={
-                      "w-2.5 h-2.5 rounded-full " +
-                      (s.kind === "bot"
-                        ? "bg-ink/40"
-                        : !s.taken
-                          ? "bg-transparent border border-ink/30"
-                          : s.online
-                            ? "bg-success"
-                            : "bg-ink/30")
+                      (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
+                      "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
+                      (s.seat === mySeat
+                        ? "border-gold bg-gold/10 text-ink"
+                        : "border-ink/20 text-ink-dim")
                     }
-                    data-testid={LID.seatOnline(s.seat)}
-                  />
-                  {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
-                  {s.taken && s.kind !== "bot" && (
+                  >
                     <span
                       className={
-                        "text-xs " + (s.online ? "text-success" : "text-ink-dim")
+                        "w-2.5 h-2.5 rounded-full " +
+                        (s.kind === "bot"
+                          ? "bg-ink/40"
+                          : !s.taken
+                            ? "bg-transparent border border-ink/30"
+                            : s.online
+                              ? "bg-success"
+                              : "bg-ink/30")
                       }
-                    >
-                      {s.online ? "在线" : "离线"}
-                    </span>
-                  )}
-                  {/* E7(#19):国号单字方章(与 HandPanel「你」印同款章形;未预设/bot 无章,
+                      data-testid={LID.seatOnline(s.seat)}
+                    />
+                    {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
+                    {s.taken && s.kind !== "bot" && (
+                      <span className={"text-xs " + (s.online ? "text-success" : "text-ink-dim")}>
+                        {s.online ? "在线" : "离线"}
+                      </span>
+                    )}
+                    {/* E7(#19):国号单字方章(与 HandPanel「你」印同款章形;未预设/bot 无章,
                       不放假国号——开局由引擎分配后自见)。
                       R3-B13(#85):金字叠金底对比不足,章形保留金边金底、字改 ink(约 11.7:1) */}
-                  {s.guohao != null && (
-                    <span
-                      data-testid={LID.seatGuohao(s.seat)}
-                      title={`预设国号「${s.guohao}」`}
-                      className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[13px] leading-none text-[#f6ead6]"
-                    >
-                      {s.guohao}
-                    </span>
-                  )}
-                  <span className="text-ink">诸侯 {s.seat + 1}</span>
-                  {/* A4:空座位浅印——「空」字位改一枚浅墨小方章「虚」(虚位以待,归墨不归金);
-                      空座位仅 host 离席理论态才带「房主」后缀,保留不吞信息;testid 零变化 */}
-                  {!s.taken ? (
-                    <>
+                    {s.guohao != null && (
                       <span
-                        title="虚位以待"
-                        className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-[rgba(43,35,23,0.25)] font-brush text-[11px] leading-none text-ink-dim/70"
+                        data-testid={LID.seatGuohao(s.seat)}
+                        title={`预设国号「${s.guohao}」`}
+                        className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] bg-danger font-brush text-[13px] leading-none text-[#f6ead6]"
                       >
-                        虚
+                        {s.guohao}
                       </span>
-                      {s.seat === host && <span>房主</span>}
-                    </>
-                  ) : (
-                    <span>{seatTag(s, mySeat, host)}</span>
+                    )}
+                    <span className="text-ink">诸侯 {s.seat + 1}</span>
+                    {/* A4:空座位浅印——「空」字位改一枚浅墨小方章「虚」(虚位以待,归墨不归金);
+                      空座位仅 host 离席理论态才带「房主」后缀,保留不吞信息;testid 零变化 */}
+                    {!s.taken ? (
+                      <>
+                        <span
+                          title="虚位以待"
+                          className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-[rgba(43,35,23,0.25)] font-brush text-[11px] leading-none text-ink-dim/70"
+                        >
+                          虚
+                        </span>
+                        {s.seat === host && <span>房主</span>}
+                      </>
+                    ) : (
+                      <span>{seatTag(s, mySeat, host)}</span>
+                    )}
+                  </div>
+                  {renamed && (
+                    <div
+                      data-testid={LID.guohaoPreview(s.seat)}
+                      // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调
+                      className="mt-0.5 px-2 font-deco text-xs text-ink-dim"
+                    >
+                      开局将改为『<span className="text-ink font-bold">{finalGh}</span>』
+                    </div>
                   )}
                 </div>
-                {renamed && (
-                  <div
-                    data-testid={LID.guohaoPreview(s.seat)}
-                    // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调
-                    className="mt-0.5 px-2 font-deco text-xs text-ink-dim"
-                  >
-                    开局将改为『<span className="text-ink font-bold">{finalGh}</span>』
-                  </div>
-                )}
+              );
+            })}
+          </div>
+
+          {/* 当前地图:host 可换(仅内置图);非 host 只读 */}
+          <div className="mt-3 text-center font-deco text-sm text-ink-dim">
+            当前地图:
+            <span data-testid={LID.mapName} className="text-ink ml-1">
+              {mapName ?? "未选择"}
+            </span>
+          </div>
+
+          {/* host 控件:选图 + 开局(需先选图;开局后由首帧 snapshot 切屏) */}
+          {isHost && (
+            <div className="mt-3 flex flex-col items-center gap-1">
+              <div className="flex items-center justify-center gap-3">
+                <button
+                  data-testid={LID.selectMap}
+                  disabled={busy}
+                  title={busy ? "处理中…" : undefined}
+                  onClick={() => setShowMapSelect(true)}
+                  className={btnBase + " note-btn text-sm"}
+                >
+                  {busy ? "处理中…" : "选择地图"}
+                </button>
+                <button
+                  data-testid={LID.start}
+                  disabled={busy || !mapId}
+                  // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
+                  title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
+                  onClick={() => void guard(() => controller!.startGame())}
+                  className={btnBase + " ink-btn font-bold"}
+                >
+                  {busy ? "处理中…" : "开局"}
+                </button>
               </div>
-            );
-          })}
-        </div>
-
-        {/* 当前地图:host 可换(仅内置图);非 host 只读 */}
-        <div className="mt-3 text-center font-deco text-sm text-ink-dim">
-          当前地图:
-          <span data-testid={LID.mapName} className="text-ink ml-1">
-            {mapName ?? "未选择"}
-          </span>
-        </div>
-
-        {/* host 控件:选图 + 开局(需先选图;开局后由首帧 snapshot 切屏) */}
-        {isHost && (
-          <div className="mt-3 flex flex-col items-center gap-1">
-            <div className="flex items-center justify-center gap-3">
-              <button
-                data-testid={LID.selectMap}
-                disabled={busy}
-                title={busy ? "处理中…" : undefined}
-                onClick={() => setShowMapSelect(true)}
-                className={btnBase + " note-btn text-sm"}
-              >
-                {busy ? "处理中…" : "选择地图"}
-              </button>
-              <button
-                data-testid={LID.start}
-                disabled={busy || !mapId}
-                // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
-                title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
-                onClick={() => void guard(() => controller!.startGame())}
-                className={btnBase + " ink-btn font-bold"}
-              >
-                {busy ? "处理中…" : "开局"}
-              </button>
+              {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
+              {!mapId && !busy && (
+                <div className="font-deco text-xs text-ink-dim">需先选择地图</div>
+              )}
             </div>
-            {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
-            {!mapId && !busy && <div className="font-deco text-xs text-ink-dim">需先选择地图</div>}
-          </div>
-        )}
-        {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
-        {hint && (
-          <div className="mt-2">
-            <HintBar hint={hint} level={hintLevel} variant="inline" />
-          </div>
-        )}
+          )}
+          {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
+          {hint && (
+            <div className="mt-2">
+              <HintBar hint={hint} level={hintLevel} variant="inline" />
+            </div>
+          )}
 
-        {/* P0-2:常驻「离开房间」入口(此前唯一退出=房主解散,玩家被困)。
+          {/* P0-2:常驻「离开房间」入口(此前唯一退出=房主解散,玩家被困)。
             服务端无 /room/leave 路由(scripts/server.ts 只有 new/join/map/start/takeover/dismiss),
             故走本地退出:onExit = App.handleExitLobby(setController(null) → destroy 关 WS 清重连定时器
             + netStore.reset + 回设置屏)。座位 token 服务器侧掉线冻结机制已有,重进可重新加入。 */}
-        <button
-          data-testid="lobby-leave"
-          disabled={busy}
-          title={busy ? "处理中…" : undefined}
-          onClick={() => {
-            if (!busy) onExit();
-          }}
-          className={btnBase + " note-btn mt-3 mx-auto block text-sm"}
-        >
-          {busy ? "处理中…" : "离开房间"}
-        </button>
-      </div>
+          <button
+            data-testid="lobby-leave"
+            disabled={busy}
+            title={busy ? "处理中…" : undefined}
+            onClick={() => {
+              if (!busy) onExit();
+            }}
+            className={btnBase + " note-btn mt-3 mx-auto block text-sm"}
+          >
+            {busy ? "处理中…" : "离开房间"}
+          </button>
+        </div>
       </div>
 
       {/* 选图二级屏:复用 setup 的 MapSelectPanel(仅内置图源;S-5:mapSource 已 useMemo 缓存) */}

@@ -70,7 +70,15 @@ export interface DashboardBarProps {
   onTogglePile?: (pile: RackPile) => void;
 }
 
-export function DashboardBar({ snapshot, player, controller, autopilotOn, children, pileOpen, onTogglePile }: DashboardBarProps) {
+export function DashboardBar({
+  snapshot,
+  player,
+  controller,
+  autopilotOn,
+  children,
+  pileOpen,
+  onTogglePile,
+}: DashboardBarProps) {
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
   // expandPile(#255):空摞(0 张)不可展开——徽章仍显计数,点击零动作;坐姿才有摞可展
@@ -155,7 +163,10 @@ export function DashboardBar({ snapshot, player, controller, autopilotOn, childr
             className="badge b-warrant relative"
           >
             <AttrIcon kind="warrant" />
-            <span key={warrantPulseKey} className={warrantPulseKey > 0 ? "game-chip-pulse" : undefined}>
+            <span
+              key={warrantPulseKey}
+              className={warrantPulseKey > 0 ? "game-chip-pulse" : undefined}
+            >
               {shown.warrants}
             </span>
             <DeltaFloats

@@ -38,31 +38,44 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
   await waitSettled(page);
   const before = await snap(page);
   // 落格卷轴(购地/扩军等)会等人类作答——教程口径「读文案、挑一条」,走查代答直到回合推进
-  await expect.poll(
-    async () => {
-      await actIfCan(page);
-      // 招贤卷轴(actIfCan 只认 action-*,招贤选项是独立 testid 族):教程「点一位名将收下」
-      const hero = page.locator('[data-testid^="scroll-hero-option-"]').first();
-      if (await hero.isVisible().catch(() => false)) await hero.click({ timeout: 5_000 }).catch(() => {});
-      // 珍宝交涉·城主视角(教程「暂不交易(无事发生)」):bot 落我城且我有珍宝时弹出
-      const tSkip = page.getByTestId("scroll-treasure-skip");
-      if (await tSkip.isVisible().catch(() => false)) await tSkip.click({ timeout: 5_000 }).catch(() => {});
-      await waitSettled(page);
-      return (await snap(page)).turnNumber;
-    },
-    { timeout: 90_000 },
-  ).toBeGreaterThan(before.turnNumber);
+  await expect
+    .poll(
+      async () => {
+        await actIfCan(page);
+        // 招贤卷轴(actIfCan 只认 action-*,招贤选项是独立 testid 族):教程「点一位名将收下」
+        const hero = page.locator('[data-testid^="scroll-hero-option-"]').first();
+        if (await hero.isVisible().catch(() => false))
+          await hero.click({ timeout: 5_000 }).catch(() => {});
+        // 珍宝交涉·城主视角(教程「暂不交易(无事发生)」):bot 落我城且我有珍宝时弹出
+        const tSkip = page.getByTestId("scroll-treasure-skip");
+        if (await tSkip.isVisible().catch(() => false))
+          await tSkip.click({ timeout: 5_000 }).catch(() => {});
+        await waitSettled(page);
+        return (await snap(page)).turnNumber;
+      },
+      { timeout: 90_000 },
+    )
+    .toBeGreaterThan(before.turnNumber);
   // bot 接手:「智将运筹中…」等待条(与 bot 决策归属联合轮询——卷轴等人类作答时
   // interactive=true 条不渲染,单等文案会撞上人类决策窗的静默期)。
   // 轮询体内必须 actIfCan 代答:回合推进后新回合的军师幕/购地卷轴会再弹,决策权
   // 钉在人类身上时 owner?.isBot 恒 false——单等会 90s 空转超时(#240 收口实测复现)。
-  await expect.poll(async () => {
-    await actIfCan(page);
-    const s = await snap(page);
-    const owner = s.players[s.decisionOwner];
-    if (!owner?.isBot) return false;
-    return page.getByText("智将运筹中…").first().isVisible().catch(() => false);
-  }, { timeout: 90_000 }).toBe(true);
+  await expect
+    .poll(
+      async () => {
+        await actIfCan(page);
+        const s = await snap(page);
+        const owner = s.players[s.decisionOwner];
+        if (!owner?.isBot) return false;
+        return page
+          .getByText("智将运筹中…")
+          .first()
+          .isVisible()
+          .catch(() => false);
+      },
+      { timeout: 90_000 },
+    )
+    .toBe(true);
   // 「托管」入口在手牌区
   await expect(page.getByTestId("autopilot-button")).toBeVisible();
   await waitSettled(page);

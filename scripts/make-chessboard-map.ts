@@ -39,8 +39,10 @@ const root = resolve(here, "..");
 const src = JSON.parse(readFileSync(resolve(root, "public/maps/sanguo.json"), "utf8")) as MapData;
 
 // ── 网格参数(#58:7×6 蛇形全网格,间距暴增)──
-const COLS = 7, ROWS = 6;
-const COL_STEP = 400, ROW_STEP = 310;
+const COLS = 7,
+  ROWS = 6;
+const COL_STEP = 400,
+  ROW_STEP = 310;
 // 网格居中于画布中心 (x=-1510+3220/2=100, y=-936+1932/2=30)
 const gx = (c: number) => 100 + (c - 3) * COL_STEP; // 列 0..6 → x -1100..1300
 const gy = (r: number) => 30 + (r - 2.5) * ROW_STEP; // 行 0..5 → y -745..805
@@ -109,9 +111,24 @@ const LAYOUT: Record<string, [number, number]> = {
 // 新野驿站 (5,1) 补行 1 缺口,涪陵渡 (5,2) 补行 2 缺口。
 // 类型用 Chance(锦囊/际遇语义,主路已有 tile-chance-1 先例):非地产、
 // 无购买/都城语义,落格抽锦囊,最贴近"渡口/驿站"的中性表达。
-const FERRY_TILES: Array<{ after: string; tile: { id: string; name: string; type: "Chance" } & Record<string, unknown>; c: number; r: number }> = [
-  { after: "tile-wolong", tile: { id: "tile-ferry-xinye", name: "新野驿站", type: "Chance" }, c: 5, r: 1 },
-  { after: "prop-jiaozhou", tile: { id: "tile-ferry-fuling", name: "涪陵渡", type: "Chance" }, c: 5, r: 2 },
+const FERRY_TILES: Array<{
+  after: string;
+  tile: { id: string; name: string; type: "Chance" } & Record<string, unknown>;
+  c: number;
+  r: number;
+}> = [
+  {
+    after: "tile-wolong",
+    tile: { id: "tile-ferry-xinye", name: "新野驿站", type: "Chance" },
+    c: 5,
+    r: 1,
+  },
+  {
+    after: "prop-jiaozhou",
+    tile: { id: "tile-ferry-fuling", name: "涪陵渡", type: "Chance" },
+    c: 5,
+    r: 2,
+  },
 ];
 
 // ── 辅路:许昌 → 襄阳,cells 走行 0/1 之间的行间走廊 ──
@@ -170,7 +187,9 @@ for (let i = 0; i < allPts.length; i++)
 // ── loadMap 严格校验(与运行时同一代码路径)──
 const loaded = loadMap(JSON.parse(JSON.stringify(out)));
 const propCount = loaded.properties.length;
-console.log(`loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城 / 辅路 ${out.branch!.cells.length} 格`);
+console.log(
+  `loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城 / 辅路 ${out.branch!.cells.length} 格`,
+);
 
 // ── 写 chessboard.json ──
 writeFileSync(resolve(root, "public/maps/chessboard.json"), JSON.stringify(out, null, 2) + "\n");
@@ -195,10 +214,58 @@ writeFileSync(idxPath, JSON.stringify(index, null, 2) + "\n");
 const seg = (label: string, ids: string[]) =>
   console.log(`${label}: ${ids.map((id) => tiles.find((t) => t.id === id)!.name).join("→")}`);
 console.log("\n蛇形段分配:");
-seg("行0 西→东", ["prop-changan", "prop-xianyang", "prop-hangu", "prop-luoyang", "prop-hulao", "prop-xuchang", "prop-wan"]);
-seg("行1 东→西", ["tile-wolong", "tile-ferry-xinye", "prop-xiangyang", "prop-jiangxia", "prop-wuchang", "prop-chibi", "prop-changsha"]);
-seg("行2 西→东", ["tile-fate-1", "prop-jiangling", "prop-huarong", "prop-lingling", "prop-jiaozhou", "tile-ferry-fuling", "prop-jiangzhou"]);
-seg("行3 东→西", ["prop-chengdu", "prop-jiange", "prop-hanzhong", "prop-ziwu", "prop-jieting", "prop-yongzhou", "prop-liangzhou"]);
-seg("行4 西→东", ["prop-ye", "prop-jinyang", "prop-youzhou", "tile-tax-1", "prop-liaodong", "tile-chance-1", "prop-linzi"]);
-seg("行5 东→西", ["prop-xuzhou", "prop-shouchun", "prop-hefei", "prop-jianye", "tile-stock-1", "prop-wujun", "prop-kuiji"]);
+seg("行0 西→东", [
+  "prop-changan",
+  "prop-xianyang",
+  "prop-hangu",
+  "prop-luoyang",
+  "prop-hulao",
+  "prop-xuchang",
+  "prop-wan",
+]);
+seg("行1 东→西", [
+  "tile-wolong",
+  "tile-ferry-xinye",
+  "prop-xiangyang",
+  "prop-jiangxia",
+  "prop-wuchang",
+  "prop-chibi",
+  "prop-changsha",
+]);
+seg("行2 西→东", [
+  "tile-fate-1",
+  "prop-jiangling",
+  "prop-huarong",
+  "prop-lingling",
+  "prop-jiaozhou",
+  "tile-ferry-fuling",
+  "prop-jiangzhou",
+]);
+seg("行3 东→西", [
+  "prop-chengdu",
+  "prop-jiange",
+  "prop-hanzhong",
+  "prop-ziwu",
+  "prop-jieting",
+  "prop-yongzhou",
+  "prop-liangzhou",
+]);
+seg("行4 西→东", [
+  "prop-ye",
+  "prop-jinyang",
+  "prop-youzhou",
+  "tile-tax-1",
+  "prop-liaodong",
+  "tile-chance-1",
+  "prop-linzi",
+]);
+seg("行5 东→西", [
+  "prop-xuzhou",
+  "prop-shouchun",
+  "prop-hefei",
+  "prop-jianye",
+  "tile-stock-1",
+  "prop-wujun",
+  "prop-kuiji",
+]);
 console.log("\n已写入 public/maps/chessboard.json 并更新 index.json");

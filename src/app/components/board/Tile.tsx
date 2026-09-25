@@ -132,7 +132,15 @@ function Lantern({ x }: { x: number }) {
   return (
     <g>
       <line x1={x} y1={-14} x2={x} y2={-10} stroke="rgba(50,35,15,0.7)" strokeWidth={1} />
-      <ellipse cx={x} cy={-6.5} rx={3.2} ry={4} fill="rgba(178,44,34,0.92)" stroke="rgba(120,20,15,0.7)" strokeWidth={0.8} />
+      <ellipse
+        cx={x}
+        cy={-6.5}
+        rx={3.2}
+        ry={4}
+        fill="rgba(178,44,34,0.92)"
+        stroke="rgba(120,20,15,0.7)"
+        strokeWidth={0.8}
+      />
       <line x1={x} y1={-2.5} x2={x} y2={1.5} stroke="rgba(200,60,40,0.8)" strokeWidth={0.8} />
     </g>
   );
@@ -189,19 +197,43 @@ const STYLE_DESERT: BuildingStyle = { body: "#e6d2a8", column: "#8a5a3a" }; // �
 /** 南方水乡系分组(荆楚 b/岭南 c/巴蜀 d/江东 h)→ 粉墙黛瓦;西凉 e → 土堡;其余官式。 */
 function buildingStyle(group: string): BuildingStyle {
   if (group === "e") return STYLE_DESERT;
-  return group === "b" || group === "c" || group === "d" || group === "h" ? STYLE_SOUTH : STYLE_NORTH;
+  return group === "b" || group === "c" || group === "d" || group === "h"
+    ? STYLE_SOUTH
+    : STYLE_NORTH;
 }
 const DESERT_ROOF = "#8a7a5e"; // 土堡平顶檐口(暖土灰,不入青瓦渐变)
 
 /** 朱柱直棂窗开间:墙身 + 四柱 + 中央直棂窗(窗棂三笔)。
  *  x/y/w/h 为墙身矩形,winH 为窗高;柱贴墙两缘与窗两侧,大小两档楼身共用。 */
-function PillaredBay({ x, y, w, h, winH, style }: { x: number; y: number; w: number; h: number; winH: number; style: BuildingStyle }) {
+function PillaredBay({
+  x,
+  y,
+  w,
+  h,
+  winH,
+  style,
+}: {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  winH: number;
+  style: BuildingStyle;
+}) {
   const winW = Math.min(13, w * 0.3);
   const cx = x + w / 2;
   const colW = 2.6;
   return (
     <>
-      <rect x={x} y={y} width={w} height={h} fill={style.body} stroke={BODY_STROKE} strokeWidth={1.2} />
+      <rect
+        x={x}
+        y={y}
+        width={w}
+        height={h}
+        fill={style.body}
+        stroke={BODY_STROKE}
+        strokeWidth={1.2}
+      />
       <g fill={style.column}>
         <rect x={x + 1} y={y + 1} width={colW} height={h - 2} />
         <rect x={cx - winW / 2 - colW - 1.2} y={y + 1} width={colW} height={h - 2} />
@@ -268,7 +300,9 @@ function Building({
         return (
           <path
             key={isTopStory ? `top-story-${growNonce}` : i}
-            className={isTopStory ? `bv-city-story${growNonce > 0 ? " bv-build-grow" : ""}` : "bv-city-story"}
+            className={
+              isTopStory ? `bv-city-story${growNonce > 0 ? " bv-build-grow" : ""}` : "bv-city-story"
+            }
             d={d}
             fill={isDesert ? DESERT_ROOF : ROOF_FILL}
             stroke={ROOF_STROKE}
@@ -291,7 +325,14 @@ function Building({
           stroke="rgba(60,30,15,0.65)"
           strokeWidth={1.2}
         />
-        <circle cx={0} cy={tower.topApex + 2} r={2.2} fill={rgba(Theme.goldBright)} stroke="rgba(60,30,15,0.7)" strokeWidth={0.7} />
+        <circle
+          cx={0}
+          cy={tower.topApex + 2}
+          r={2.2}
+          fill={rgba(Theme.goldBright)}
+          stroke="rgba(60,30,15,0.7)"
+          strokeWidth={0.7}
+        />
       </g>
     ) : null;
   // 各档屋面轮廓(供染瓦叠加用):染层直接复用底稿 d 串,保证形状逐点对齐;
@@ -309,11 +350,30 @@ function Building({
     structure = (
       <>
         <ellipse cx={0} cy={13} rx={30} ry={4} fill={GROUND_SHADOW} />
-        <rect x={-18} y={-1} width={36} height={13} fill={style.body} stroke={BODY_STROKE} strokeWidth={1.3} />
+        <rect
+          x={-18}
+          y={-1}
+          width={36}
+          height={13}
+          fill={style.body}
+          stroke={BODY_STROKE}
+          strokeWidth={1.3}
+        />
         <rect x={-5} y={3} width={10} height={9} fill={GATE_FILL} />
         <rect x={8} y={3} width={6} height={6} fill={LATTICE_FILL} />
-        <path d={roof} fill={isDesert ? DESERT_ROOF : ROOF_FILL} stroke={ROOF_STROKE} strokeWidth={1.1} strokeLinejoin="round" />
-        <path d={roofSheen(25, -8.5)} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.7} />
+        <path
+          d={roof}
+          fill={isDesert ? DESERT_ROOF : ROOF_FILL}
+          stroke={ROOF_STROKE}
+          strokeWidth={1.1}
+          strokeLinejoin="round"
+        />
+        <path
+          d={roofSheen(25, -8.5)}
+          fill="none"
+          stroke="rgba(255,255,255,0.12)"
+          strokeWidth={0.7}
+        />
       </>
     );
   } else if (size === "medium") {
@@ -325,7 +385,12 @@ function Building({
     structure = (
       <>
         <ellipse cx={0} cy={13} rx={40} ry={4.5} fill={GROUND_SHADOW} />
-        <polygon points="-36,12 36,12 31.5,-2 -31.5,-2" fill={PLATFORM_FILL} stroke={PLATFORM_STROKE} strokeWidth={1.3} />
+        <polygon
+          points="-36,12 36,12 31.5,-2 -31.5,-2"
+          fill={PLATFORM_FILL}
+          stroke={PLATFORM_STROKE}
+          strokeWidth={1.3}
+        />
         <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
           <line x1={-32} y1={3} x2={32} y2={3} />
           <line x1={-34} y1={8} x2={34} y2={8} />
@@ -339,10 +404,26 @@ function Building({
           <rect x={14.5} y={-5} width={6} height={3.5} />
           <rect x={23} y={-5} width={6} height={3.5} />
         </g>
-        <path d="M -6.5,12 L -6.5,2 Q -6.5,-2.5 0,-2.5 Q 6.5,-2.5 6.5,2 L 6.5,12 Z" fill={GATE_FILL} stroke="rgba(212,175,105,0.5)" strokeWidth={1} />
+        <path
+          d="M -6.5,12 L -6.5,2 Q -6.5,-2.5 0,-2.5 Q 6.5,-2.5 6.5,2 L 6.5,12 Z"
+          fill={GATE_FILL}
+          stroke="rgba(212,175,105,0.5)"
+          strokeWidth={1}
+        />
         <PillaredBay x={-15} y={-17} w={30} h={15} winH={7} style={style} />
-        <path d={roof} fill={isDesert ? DESERT_ROOF : ROOF_FILL} stroke={ROOF_STROKE} strokeWidth={1.1} strokeLinejoin="round" />
-        <path d={roofSheen(27, -16.5)} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.7} />
+        <path
+          d={roof}
+          fill={isDesert ? DESERT_ROOF : ROOF_FILL}
+          stroke={ROOF_STROKE}
+          strokeWidth={1.1}
+          strokeLinejoin="round"
+        />
+        <path
+          d={roofSheen(27, -16.5)}
+          fill="none"
+          stroke="rgba(255,255,255,0.12)"
+          strokeWidth={0.7}
+        />
       </>
     );
   } else if (isDesert) {
@@ -353,7 +434,12 @@ function Building({
     structure = (
       <>
         <ellipse cx={0} cy={14.5} rx={52} ry={5.5} fill={GROUND_SHADOW} />
-        <polygon points="-49,14 49,14 44,-4 -44,-4" fill={PLATFORM_FILL} stroke={PLATFORM_STROKE} strokeWidth={1.4} />
+        <polygon
+          points="-49,14 49,14 44,-4 -44,-4"
+          fill={PLATFORM_FILL}
+          stroke={PLATFORM_STROKE}
+          strokeWidth={1.4}
+        />
         <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
           <line x1={-45} y1={2} x2={45} y2={2} />
           <line x1={-47} y1={8} x2={47} y2={8} />
@@ -361,13 +447,34 @@ function Building({
           <line x1={26} y1={-4} x2={26} y2={2} />
           <line x1={-38} y1={8} x2={-38} y2={14} />
         </g>
-        <path d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z" fill={GATE_FILL} stroke="rgba(212,175,105,0.5)" strokeWidth={1.1} />
-        <rect x={-30} y={-17.5} width={60} height={14} fill={style.body} stroke={BODY_STROKE} strokeWidth={1.2} />
+        <path
+          d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z"
+          fill={GATE_FILL}
+          stroke="rgba(212,175,105,0.5)"
+          strokeWidth={1.1}
+        />
+        <rect
+          x={-30}
+          y={-17.5}
+          width={60}
+          height={14}
+          fill={style.body}
+          stroke={BODY_STROKE}
+          strokeWidth={1.2}
+        />
         {/* 高窗两笔 + 堡身夯土横缝 */}
         <rect x={-16} y={-12} width={8} height={6} fill={LATTICE_FILL} />
         <rect x={8} y={-12} width={8} height={6} fill={LATTICE_FILL} />
         <line x1={-30} y1={-8} x2={30} y2={-8} stroke="rgba(90,70,40,0.15)" strokeWidth={0.7} />
-        <rect x={-33} y={-20.5} width={66} height={3} fill={DESERT_ROOF} stroke={ROOF_STROKE} strokeWidth={0.8} />
+        <rect
+          x={-33}
+          y={-20.5}
+          width={66}
+          height={3}
+          fill={DESERT_ROOF}
+          stroke={ROOF_STROKE}
+          strokeWidth={0.8}
+        />
         <g fill={DESERT_ROOF} stroke={ROOF_STROKE} strokeWidth={0.5}>
           {[-28, -17, -6, 5, 16, 27].map((x) => (
             <rect key={x} x={x} y={-24} width={6} height={3.5} />
@@ -391,7 +498,12 @@ function Building({
     structure = (
       <>
         <ellipse cx={0} cy={14.5} rx={52} ry={5.5} fill={GROUND_SHADOW} />
-        <polygon points="-49,14 49,14 44,-4 -44,-4" fill={PLATFORM_FILL} stroke={PLATFORM_STROKE} strokeWidth={1.4} />
+        <polygon
+          points="-49,14 49,14 44,-4 -44,-4"
+          fill={PLATFORM_FILL}
+          stroke={PLATFORM_STROKE}
+          strokeWidth={1.4}
+        />
         <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
           <line x1={-45} y1={2} x2={45} y2={2} />
           <line x1={-47} y1={8} x2={47} y2={8} />
@@ -399,7 +511,12 @@ function Building({
           <line x1={26} y1={-4} x2={26} y2={2} />
           <line x1={-38} y1={8} x2={-38} y2={14} />
         </g>
-        <path d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z" fill={GATE_FILL} stroke="rgba(212,175,105,0.5)" strokeWidth={1.1} />
+        <path
+          d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z"
+          fill={GATE_FILL}
+          stroke="rgba(212,175,105,0.5)"
+          strokeWidth={1.1}
+        />
         <g fill={RAIL_FILL} stroke="rgba(90,70,40,0.4)" strokeWidth={0.5}>
           <rect x={-34} y={-7.5} width={68} height={1.8} />
           {[-32, -20, -8, 6, 18, 30].map((x) => (
@@ -407,10 +524,27 @@ function Building({
           ))}
         </g>
         <PillaredBay x={-20} y={-22} w={40} h={15} winH={8} style={style} />
-        <path d={lower} fill={ROOF_FILL} stroke={ROOF_STROKE} strokeWidth={1.2} strokeLinejoin="round" />
-        <path d={roofSheen(40, -21)} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={0.8} />
+        <path
+          d={lower}
+          fill={ROOF_FILL}
+          stroke={ROOF_STROKE}
+          strokeWidth={1.2}
+          strokeLinejoin="round"
+        />
+        <path
+          d={roofSheen(40, -21)}
+          fill="none"
+          stroke="rgba(255,255,255,0.12)"
+          strokeWidth={0.8}
+        />
         <PillaredBay x={-13} y={-29} w={26} h={9} winH={4} style={style} />
-        <path d={upper} fill={ROOF_FILL} stroke={ROOF_STROKE} strokeWidth={1.1} strokeLinejoin="round" />
+        <path
+          d={upper}
+          fill={ROOF_FILL}
+          stroke={ROOF_STROKE}
+          strokeWidth={1.1}
+          strokeLinejoin="round"
+        />
       </>
     );
   }
@@ -437,7 +571,14 @@ function Building({
       {/* 檐口阴影/正脊吻兽/灯笼:恒画在染瓦之上(染瓦实色会盖掉其下的细节,
           之下则「有主城无阴影」不一致)。 */}
       {eaveShadows.map((d, i) => (
-        <path key={i} d={d} fill="none" stroke="rgba(35,40,48,0.5)" strokeWidth={1} strokeLinecap="round" />
+        <path
+          key={i}
+          d={d}
+          fill="none"
+          stroke="rgba(35,40,48,0.5)"
+          strokeWidth={1}
+          strokeLinecap="round"
+        />
       ))}
       {decor}
       {finial}
@@ -469,7 +610,15 @@ const PLANK_EDGE = "rgba(212,175,105,0.9)";
  * large 20(×1)、medium 21(×0.9=18.9)、small 23(×0.8=18.4)——小城字号下限抬高补回缩放损失。
  * (#58 城池再放大 2.2x 后匾额字另加一档:17/18/20 → 20/21/23,≈+15%。)
  */
-function NamePlaque({ name, capital, size }: { name: string; capital: boolean; size: "large" | "medium" | "small" }) {
+function NamePlaque({
+  name,
+  capital,
+  size,
+}: {
+  name: string;
+  capital: boolean;
+  size: "large" | "medium" | "small";
+}) {
   const chars = [...name].slice(0, 3); // 城名 2-3 字
   const w = capital ? 34 : 26;
   const fs = size === "small" ? 23 : size === "medium" ? 21 : 20;
@@ -529,7 +678,10 @@ const LEVEL_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
 // 动画类;key 由调用方取宣告 nonce,nonce 变化重挂重播;平时(含快照恢复)静置不播。
 function LevelSeal({ level, replay }: { level: number; replay: boolean }) {
   return (
-    <g className={`bv-level-seal${replay ? " bv-level-seal-pop" : ""}`} transform="translate(-41 31)">
+    <g
+      className={`bv-level-seal${replay ? " bv-level-seal-pop" : ""}`}
+      transform="translate(-41 31)"
+    >
       <rect
         x={-8}
         y={-8}
@@ -689,25 +841,80 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
 
       {isIconTile ? (
         <>
-          <rect className="bv-tile-band" x={-46} y={-44} width={92} height={10} rx={2} fill={bandFill} stroke="rgba(40,28,12,0.45)" strokeWidth={1} />
+          <rect
+            className="bv-tile-band"
+            x={-46}
+            y={-44}
+            width={92}
+            height={10}
+            rx={2}
+            fill={bandFill}
+            stroke="rgba(40,28,12,0.45)"
+            strokeWidth={1}
+          />
           {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。
               珍宝格的宝/囊/伏图标在 StaticLayers 辅路格上,此处不重复画。 */}
-          {tile.type === "Stock" ? (
-            // 商市:大字两侧挂一对红灯笼(圆 + 穗),暖色点缀商业氛围
-            [-34, 34].map((lx) => (
-              <g key={lx}>
-                <line x1={lx} y1={-36} x2={lx} y2={-4} stroke="rgba(50,35,15,0.7)" strokeWidth={1} />
-                <ellipse cx={lx} cy={4} rx={6} ry={8} fill="rgba(178,44,34,0.92)" stroke="rgba(120,20,15,0.7)" strokeWidth={1} />
-                <line x1={lx} y1={12} x2={lx} y2={18} stroke="rgba(200,60,40,0.8)" strokeWidth={1} />
-                <line x1={lx - 2} y1={12} x2={lx - 3} y2={17} stroke="rgba(200,60,40,0.6)" strokeWidth={0.8} />
-                <line x1={lx + 2} y1={12} x2={lx + 3} y2={17} stroke="rgba(200,60,40,0.6)" strokeWidth={0.8} />
-              </g>
-            ))
-          ) : null}
+          {tile.type === "Stock"
+            ? // 商市:大字两侧挂一对红灯笼(圆 + 穗),暖色点缀商业氛围
+              [-34, 34].map((lx) => (
+                <g key={lx}>
+                  <line
+                    x1={lx}
+                    y1={-36}
+                    x2={lx}
+                    y2={-4}
+                    stroke="rgba(50,35,15,0.7)"
+                    strokeWidth={1}
+                  />
+                  <ellipse
+                    cx={lx}
+                    cy={4}
+                    rx={6}
+                    ry={8}
+                    fill="rgba(178,44,34,0.92)"
+                    stroke="rgba(120,20,15,0.7)"
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={lx}
+                    y1={12}
+                    x2={lx}
+                    y2={18}
+                    stroke="rgba(200,60,40,0.8)"
+                    strokeWidth={1}
+                  />
+                  <line
+                    x1={lx - 2}
+                    y1={12}
+                    x2={lx - 3}
+                    y2={17}
+                    stroke="rgba(200,60,40,0.6)"
+                    strokeWidth={0.8}
+                  />
+                  <line
+                    x1={lx + 2}
+                    y1={12}
+                    x2={lx + 3}
+                    y2={17}
+                    stroke="rgba(200,60,40,0.6)"
+                    strokeWidth={0.8}
+                  />
+                </g>
+              ))
+            : null}
           {tile.type === "Chance" ? (
             // 锦囊:大字下方一具横卷轴(轴身 + 两端轴杆),陪衬"囊"字
             <g>
-              <rect x={-13} y={32} width={26} height={7} rx={2} fill="rgba(240,224,180,0.9)" stroke="rgba(120,86,45,0.8)" strokeWidth={0.8} />
+              <rect
+                x={-13}
+                y={32}
+                width={26}
+                height={7}
+                rx={2}
+                fill="rgba(240,224,180,0.9)"
+                stroke="rgba(120,86,45,0.8)"
+                strokeWidth={0.8}
+              />
               <rect x={-17} y={30.5} width={4} height={10} rx={1.5} fill="rgba(150,110,60,0.9)" />
               <rect x={13} y={30.5} width={4} height={10} rx={1.5} fill="rgba(150,110,60,0.9)" />
             </g>
@@ -748,7 +955,16 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               不用 linearGradient:defs 在 StaticLayers(独占勿动),每城内联 defs 会产生重复 id 冲突。 */}
           {isCapital ? (
             <g className="bv-capital-pedestal">
-              <rect x={-62} y={9} width={124} height={12} rx={2} fill="rgba(178,140,50,0.6)" stroke="rgba(50,35,15,0.8)" strokeWidth={1.5} />
+              <rect
+                x={-62}
+                y={9}
+                width={124}
+                height={12}
+                rx={2}
+                fill="rgba(178,140,50,0.6)"
+                stroke="rgba(50,35,15,0.8)"
+                strokeWidth={1.5}
+              />
               <rect x={-62} y={9} width={124} height={5.5} rx={2} fill="rgba(212,175,55,0.9)" />
             </g>
           ) : null}
@@ -791,7 +1007,11 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               y1={-39}
               x2={46}
               y2={-39}
-              stroke={ownFlash.ownerColorIndex != null ? rgba(playerColor(ownFlash.ownerColorIndex)) : rgba(Theme.gold)}
+              stroke={
+                ownFlash.ownerColorIndex != null
+                  ? rgba(playerColor(ownFlash.ownerColorIndex))
+                  : rgba(Theme.gold)
+              }
               strokeWidth={8}
             />
           ) : null}
@@ -815,10 +1035,14 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。
               扩军瞬间双拍(ADR-0015):宣告 nonce 经事件流下发,新顶层屋檐生长 + 印章重钤
               均以 nonce 为 key 重挂重播;nonce 不变时等级印随 props 静态更新,不重播。 */}
-          {state.level > 0 ? <LevelSeal key={growNonce} level={state.level} replay={growNonce > 0} /> : null}
+          {state.level > 0 ? (
+            <LevelSeal key={growNonce} level={state.level} replay={growNonce > 0} />
+          ) : null}
           {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):与等级印同形制描金变体,
               Setup 期与等级印时段互斥;旁观席位同见(仪式感是全座的,可点只在本地)。 */}
-          {state.capitalCandidateOrder != null ? <CandidateSeal order={state.capitalCandidateOrder} /> : null}
+          {state.capitalCandidateOrder != null ? (
+            <CandidateSeal order={state.capitalCandidateOrder} />
+          ) : null}
           {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
               需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
               仍可辨的形状级王权信号,不依赖文字/描边细节。
@@ -860,8 +1084,25 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               可辨的朱红方点;与领地区分"这是都城"的第二冗余信号(王旗之外印也认得)。 */}
           {isCapital ? (
             <g className="bv-capital-seal" transform="translate(49 -33) rotate(-6)">
-              <rect x={-10} y={-10} width={20} height={20} rx={2} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.4} />
-              <text x={0} y={5} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={14} fontWeight={700} fill={rgba(Theme.goldBright)}>
+              <rect
+                x={-10}
+                y={-10}
+                width={20}
+                height={20}
+                rx={2}
+                fill={rgba(Theme.danger)}
+                stroke={rgba(Theme.goldBright)}
+                strokeWidth={1.4}
+              />
+              <text
+                x={0}
+                y={5}
+                textAnchor="middle"
+                fontFamily="var(--font-brush)"
+                fontSize={14}
+                fontWeight={700}
+                fill={rgba(Theme.goldBright)}
+              >
                 都
               </text>
             </g>
@@ -871,8 +1112,25 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               首段双箭羽互为表里,总览下即知行进自哪城始。 */}
           {tile.index === 0 ? (
             <g className="bv-start-seal" transform="translate(49 -33) rotate(-6)">
-              <rect x={-10} y={-10} width={20} height={20} rx={2} fill={rgba(Theme.danger)} stroke={rgba(Theme.goldBright)} strokeWidth={1.4} />
-              <text x={0} y={5} textAnchor="middle" fontFamily="var(--font-brush)" fontSize={14} fontWeight={700} fill={rgba(Theme.goldBright)}>
+              <rect
+                x={-10}
+                y={-10}
+                width={20}
+                height={20}
+                rx={2}
+                fill={rgba(Theme.danger)}
+                stroke={rgba(Theme.goldBright)}
+                strokeWidth={1.4}
+              />
+              <text
+                x={0}
+                y={5}
+                textAnchor="middle"
+                fontFamily="var(--font-brush)"
+                fontSize={14}
+                fontWeight={700}
+                fill={rgba(Theme.goldBright)}
+              >
                 起
               </text>
             </g>
@@ -882,7 +1140,14 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               深描边压住轮廓,保证浅色玩家色旗面在宣纸上也可辨。 */}
           {!isCapital && ownerRgb ? (
             <g className="bv-tile-owner-flag">
-              <line x1={40} y1={-28} x2={40} y2={-50} stroke="rgba(50,35,15,0.8)" strokeWidth={1.5} />
+              <line
+                x1={40}
+                y1={-28}
+                x2={40}
+                y2={-50}
+                stroke="rgba(50,35,15,0.8)"
+                strokeWidth={1.5}
+              />
               <polygon
                 points="40,-50 62,-50 55,-45 62,-40 40,-40"
                 fill={rgba(ownerRgb)}

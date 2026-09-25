@@ -34,7 +34,8 @@ export const SCROLL_TESTIDS = {
 
   bankruptcyScroll: "scroll-bankruptcy",
   bankruptcyDebt: "scroll-bankruptcy-debt",
-  bankruptcySellTreasure: (treasureId: string) => `scroll-bankruptcy-sell-treasure-${treasureId}` as const,
+  bankruptcySellTreasure: (treasureId: string) =>
+    `scroll-bankruptcy-sell-treasure-${treasureId}` as const,
   bankruptcySellProp: (propId: string) => `scroll-bankruptcy-sell-prop-${propId}` as const,
   bankruptcySellHero: (heroId: string) => `scroll-bankruptcy-sell-hero-${heroId}` as const,
   bankruptcyConfirm: "scroll-bankruptcy-confirm",

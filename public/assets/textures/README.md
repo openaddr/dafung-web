@@ -7,10 +7,10 @@
 
 ## 文件清单
 
-| 文件 | 用途 | 授权 | 引用处 |
-|---|---|---|---|
+| 文件                    | 用途                                          | 授权          | 引用处                                                             |
+| ----------------------- | --------------------------------------------- | ------------- | ------------------------------------------------------------------ |
 | `qianli-jiangshan.webp` | 王希孟《千里江山图》横带(胜利屏背景/首页横带) | Public domain | `src/app/screens/game/scroll/victory.css`、`src/app/screens/home/` |
-| `xishan-qingyuan.webp` | 夏圭《溪山清远图》中段横带(棋盘上/下缘远景) | Public domain | `src/app/components/board/StaticLayers.tsx` |
+| `xishan-qingyuan.webp`  | 夏圭《溪山清远图》中段横带(棋盘上/下缘远景)   | Public domain | `src/app/components/board/StaticLayers.tsx`                        |
 
 > 历史:`xuan-paper.jpg`(Wikimedia 宣纸实拍,CC0)曾作全局纸纹平铺,2026-09 视觉重做
 > 时移除——那是带挂轴/展签内容的展厅照片,平铺读作「失焦展厅」;纸纹改为 app.css 内

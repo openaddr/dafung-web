@@ -28,8 +28,13 @@ test.describe("机遇系统冒烟", () => {
     await waitSettled(page);
 
     // 引擎配置 fail-fast:机遇参数没进引擎时,后续断言全是废话
-    const engCfg = await page.evaluate(() => JSON.stringify((window as any).__dafung.getEngine().encounter));
-    expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({ triggerRate: 100, shares: { good: 0, neutral: 100, bad: 0 } });
+    const engCfg = await page.evaluate(() =>
+      JSON.stringify((window as any).__dafung.getEngine().encounter),
+    );
+    expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({
+      triggerRate: 100,
+      shares: { good: 0, neutral: 100, bad: 0 },
+    });
 
     // 声望渲染:仪表条声望徽章(#253 迁移:状态卡/诸侯列表退役,aria 即名词+值),初值 0
     await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", "声望 0");
@@ -52,6 +57,9 @@ test.describe("机遇系统冒烟", () => {
       await page.waitForTimeout(300);
     }
     expect(resolved).toBe(true);
-    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", /声望 \d+/);
+    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute(
+      "aria-label",
+      /声望 \d+/,
+    );
   });
 });

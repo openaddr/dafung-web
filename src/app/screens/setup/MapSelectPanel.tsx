@@ -53,10 +53,12 @@ function MiniMap({ data }: { data: MapData }) {
     x: (p.x - minX) * scale + offX,
     y: (p.y - minY) * scale + offY,
   });
-  const path = pts.map((p, i) => {
-    const q = map(p);
-    return `${i === 0 ? "M" : "L"}${q.x.toFixed(1)},${q.y.toFixed(1)}`;
-  }).join(" ");
+  const path = pts
+    .map((p, i) => {
+      const q = map(p);
+      return `${i === 0 ? "M" : "L"}${q.x.toFixed(1)},${q.y.toFixed(1)}`;
+    })
+    .join(" ");
 
   return (
     <svg
@@ -67,13 +69,34 @@ function MiniMap({ data }: { data: MapData }) {
       aria-label="地图预览"
     >
       {/* 主路:水墨棕折线 */}
-      <path d={path} fill="none" stroke="var(--color-road-main)" strokeWidth={4} strokeLinejoin="round" opacity={0.85} />
+      <path
+        d={path}
+        fill="none"
+        stroke="var(--color-road-main)"
+        strokeWidth={4}
+        strokeLinejoin="round"
+        opacity={0.85}
+      />
       {pts.map((p, i) => {
         const q = map(p);
         return (
           <g key={i}>
-            <circle cx={q.x} cy={q.y} r={7} fill="var(--color-panel)" stroke="var(--color-ink-dim)" strokeWidth={2} />
-            <text x={q.x} y={q.y + 4} textAnchor="middle" fontSize={11} fill="var(--color-ink)" fontFamily="var(--font-wenkai)">
+            <circle
+              cx={q.x}
+              cy={q.y}
+              r={7}
+              fill="var(--color-panel)"
+              stroke="var(--color-ink-dim)"
+              strokeWidth={2}
+            />
+            <text
+              x={q.x}
+              y={q.y + 4}
+              textAnchor="middle"
+              fontSize={11}
+              fill="var(--color-ink)"
+              fontFamily="var(--font-wenkai)"
+            >
               {p.name.slice(0, 1)}
             </text>
           </g>
@@ -83,7 +106,12 @@ function MiniMap({ data }: { data: MapData }) {
   );
 }
 
-export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onConfirm, onCancel }: MapSelectPanelProps) {
+export function MapSelectPanel({
+  mapSource = getMapSource(),
+  currentMapId,
+  onConfirm,
+  onCancel,
+}: MapSelectPanelProps) {
   const [entries, setEntries] = useState<MapEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // 临时选中态:确认后才回传(与旧二级屏行为一致,取消不改变外层选择)
@@ -179,7 +207,9 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
             </button>
           </div>
         )}
-        {entries && entries.length === 0 && <p className="font-wenkai text-ink-dim py-6">暂无可用地图。</p>}
+        {entries && entries.length === 0 && (
+          <p className="font-wenkai text-ink-dim py-6">暂无可用地图。</p>
+        )}
 
         {entries && entries.length > 0 && (
           <>
@@ -219,7 +249,9 @@ export function MapSelectPanel({ mapSource = getMapSource(), currentMapId, onCon
             {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽 */}
             {(previewLoading || preview) && (
               <div className="mt-3 border-t border-dashed border-ink/25 pt-3">
-                {previewLoading && <p className="font-wenkai text-xs text-ink-dim py-2">预览加载中…</p>}
+                {previewLoading && (
+                  <p className="font-wenkai text-xs text-ink-dim py-2">预览加载中…</p>
+                )}
                 {preview && !previewLoading && <MiniMap data={preview.data} />}
               </div>
             )}

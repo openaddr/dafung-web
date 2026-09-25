@@ -99,8 +99,8 @@
 }
 .scroll-anim-unroll-paper {
   transform-origin: top;
-  animation: scroll-paper-unroll var(--dur-med) var(--ease-out)
-    calc(var(--dur-instant) * 0.75) backwards;
+  animation: scroll-paper-unroll var(--dur-med) var(--ease-out) calc(var(--dur-instant) * 0.75)
+    backwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .scroll-anim-unroll-paper {

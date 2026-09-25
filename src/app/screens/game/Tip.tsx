@@ -59,7 +59,15 @@ export interface TipProps {
   ariaExpanded?: boolean;
 }
 
-export function Tip({ tip, children, className, testId, ariaLabel, onClick, ariaExpanded }: TipProps) {
+export function Tip({
+  tip,
+  children,
+  className,
+  testId,
+  ariaLabel,
+  onClick,
+  ariaExpanded,
+}: TipProps) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"bottom" | "left">("bottom");
   const press = useTapOrLongPress({
@@ -112,7 +120,9 @@ export function Tip({ tip, children, className, testId, ariaLabel, onClick, aria
       </TooltipTrigger>
       <TooltipContent side={side} sideOffset={8} data-testid={TESTIDS.attrTip}>
         <TooltipTitle>{tip.name}</TooltipTitle>
-        {tip.detail !== "" && <span className="block text-[rgba(246,236,217,0.85)]">{tip.detail}</span>}
+        {tip.detail !== "" && (
+          <span className="block text-[rgba(246,236,217,0.85)]">{tip.detail}</span>
+        )}
       </TooltipContent>
     </Tooltip>
   );

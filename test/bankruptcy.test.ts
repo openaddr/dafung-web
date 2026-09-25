@@ -28,26 +28,54 @@ function finishSetup(e: GameEngine) {
   while (e.phase === "Setup" && guard++ < 50) {
     const idx = e.currentSetupPlayerIndex;
     if (idx < 0) break;
-    if (e.players[idx].isBot) { e.aiSetupStep(); continue; }
+    if (e.players[idx].isBot) {
+      e.aiSetupStep();
+      continue;
+    }
     const capIdx = e.firstAvailableCapitalIndex();
     if (capIdx < 0) break;
     e.pickCapital(idx, capIdx);
   }
-  e.players.forEach((p) => { p.jinnangHand = []; p.jinnangHandCount = 0; }); // 锦囊相位 inert(#122)
+  e.players.forEach((p) => {
+    p.jinnangHand = [];
+    p.jinnangHandCount = 0;
+  }); // 锦囊相位 inert(#122)
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null); // 发牌时已入相位的话放行
-
 }
 
 function hero(id: string, name: string) {
-  return { id, name, title: "", desc: "", skills: [{ id: `${id}-move+1`, when: "BeforeMarch" as const, effect: "moveBonus", params: { steps: 1 }, scope: "self" as const }], image: "/assets/heroes/hero-zhouyu-sgs.png" };
+  return {
+    id,
+    name,
+    title: "",
+    desc: "",
+    skills: [
+      {
+        id: `${id}-move+1`,
+        when: "BeforeMarch" as const,
+        effect: "moveBonus",
+        params: { steps: 1 },
+        scope: "self" as const,
+      },
+    ],
+    image: "/assets/heroes/hero-zhouyu-sgs.png",
+  };
 }
 
 /** 给玩家塞一座非都城的可变卖城(catalog 里 valueByLevel 齐全的普通城),返回其 Lv.0 变卖价。 */
 function giveSellableCity(e: GameEngine, p: Player): { propId: string; lv0Value: number } {
   const capProp = e.board.at(p.capitalIndex)?.propertyId!;
-  const tile = e.board.tiles.find((t) => !!t.propertyId && t.propertyId !== capProp && e.catalog.get(t.propertyId) != null)!;
+  const tile = e.board.tiles.find(
+    (t) => !!t.propertyId && t.propertyId !== capProp && e.catalog.get(t.propertyId) != null,
+  )!;
   const def = e.catalog.get(tile.propertyId!)!;
-  p.properties.push({ propertyId: def.id, group: def.group, purchasePrice: def.purchasePrice, level: 0, maxLevel: def.maxLevel });
+  p.properties.push({
+    propertyId: def.id,
+    group: def.group,
+    purchasePrice: def.purchasePrice,
+    level: 0,
+    maxLevel: def.maxLevel,
+  });
   return { propId: def.id, lv0Value: def.valueByLevel[0] };
 }
 

@@ -64,7 +64,12 @@ export interface PersistedState {
 /** 全新引擎:构造 +(可选)国号摇骰定序。不落盘。
  *  map 可选:传入则用该地图(联机每房间各持自己的 LoadedMap);省略则用默认 sanguo(CLI / 单机)。 */
 export function createEngine(config: GameConfig, doDraft = true, map: LoadedMap = MAP): GameEngine {
-  const engine = new GameEngine(map.board, map.catalog, createDice(config.seed), config satisfies EngineConfig);
+  const engine = new GameEngine(
+    map.board,
+    map.catalog,
+    createDice(config.seed),
+    config satisfies EngineConfig,
+  );
   if (doDraft) engine.doDraftRoll();
   return engine;
 }
@@ -113,7 +118,7 @@ export function statusOf(e: GameEngine) {
     activeIndex: s.activeIndex,
     active: activePlayer?.guohao ?? null,
     isOver: s.isOver,
-    winner: s.winner ? s.players.find((p) => p.id === s.winner)?.guohao ?? null : null,
+    winner: s.winner ? (s.players.find((p) => p.id === s.winner)?.guohao ?? null) : null,
     winReason: s.winReason,
     turnNumber: s.turnNumber,
     round: s.round,
@@ -198,7 +203,8 @@ export function boardOf(e: GameEngine) {
   const tiles = e.board.tiles.map((t) => {
     const def = e.catalog.get(t.propertyId);
     const owner = t.propertyId ? e.findOwner(t.propertyId) : null;
-    const holding = owner && def ? owner.properties.find((h) => h.propertyId === def.id) : undefined;
+    const holding =
+      owner && def ? owner.properties.find((h) => h.propertyId === def.id) : undefined;
     return {
       index: t.index,
       id: t.propertyId,
@@ -269,6 +275,8 @@ function fingerprint(e: GameEngine): string {
     e.turnPhase,
     e.activeIndex,
     e.currentDraftIndex,
-    e.players.map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`).join(","),
+    e.players
+      .map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`)
+      .join(","),
   ].join("|");
 }

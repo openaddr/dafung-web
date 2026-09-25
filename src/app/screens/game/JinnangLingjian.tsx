@@ -27,11 +27,21 @@ export interface JinnangLingjianProps extends HTMLAttributes<HTMLDivElement> {
   text: string;
 }
 
-export function JinnangLingjian({ hero, name, text, className, children, ...rest }: JinnangLingjianProps) {
+export function JinnangLingjian({
+  hero,
+  name,
+  text,
+  className,
+  children,
+  ...rest
+}: JinnangLingjianProps) {
   return (
     // 基座类复用 jinnang-card.css 的 .jinnang-card(纸面/尺寸/交互态/原因印条全同),
     // 差量样式(金界格线/技章/徽记/摘要区)收口在 hand-rack.css 的 .jn-lingjian 作用域。
-    <div className={["jinnang-card", "jn-lingjian", className ?? ""].filter(Boolean).join(" ")} {...rest}>
+    <div
+      className={["jinnang-card", "jn-lingjian", className ?? ""].filter(Boolean).join(" ")}
+      {...rest}
+    >
       <div className="tou">
         <span className="jie" />
         <span className={name.length > 3 ? "ming long" : "ming"}>{name}</span>

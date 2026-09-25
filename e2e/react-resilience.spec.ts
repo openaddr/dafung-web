@@ -23,9 +23,7 @@ test("记忆的地图 id 失效:起兵被拦,停留设置屏(降级不崩溃)", 
   // ⚠ 产品缺陷(已报告):loadMapById 抛错后 pushHint 的「起兵失败」只渲染在 Game 屏,
   // 配置页看不到失败原因(静默失败)。此处只断言降级不崩溃:停留配置页、未开局。
   await expect(page.getByTestId("solo-setup-screen")).toBeVisible({ timeout: 5_000 });
-  await expect(
-    page.evaluate(() => !!(window as any).__dafung?.getEngine?.()),
-  ).resolves.toBe(false);
+  await expect(page.evaluate(() => !!(window as any).__dafung?.getEngine?.())).resolves.toBe(false);
 });
 
 test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ browser }) => {

@@ -55,7 +55,10 @@ function slotOffsetFor(engine: GameEngine, player: Player): { x: number; y: numb
     arr.push(p.id);
     byTile.set(key, arr);
   }
-  const slot = Math.max(0, (byTile.get(playerSlotKey(player, board)) ?? [player.id]).indexOf(player.id));
+  const slot = Math.max(
+    0,
+    (byTile.get(playerSlotKey(player, board)) ?? [player.id]).indexOf(player.id),
+  );
   return TOKEN_SLOT_OFFSETS[slot % TOKEN_SLOT_OFFSETS.length];
 }
 

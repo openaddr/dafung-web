@@ -2,7 +2,18 @@
 // 三区可见(顶部条/席位竖卡列/底部仪表条)+ 席位卡字段 + 浮签(hover/长按/贴缘翻面)+
 // 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)+ 战报抽屉/expandPile(#255 收口)。
 import { test, expect } from "./fixtures";
-import { quickStart, snap, fmtMoney, waitMyPause, openSoloSetup, pickCapital, waitSettled, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
+import {
+  quickStart,
+  snap,
+  fmtMoney,
+  waitMyPause,
+  openSoloSetup,
+  pickCapital,
+  waitSettled,
+  dismissJinnangIfUp,
+  actIfCan,
+  force,
+} from "./react-helpers";
 
 test.describe("三区骨架", () => {
   test("三区可见,右栏退役零残留", async ({ page }) => {
@@ -11,7 +22,14 @@ test.describe("三区骨架", () => {
     await expect(page.getByTestId("seat-rail")).toBeVisible();
     await expect(page.getByTestId("dashboard-bar")).toBeVisible();
     // 退役容器零残留(#253 迁移清单:statusBar/hand/treasury/others/sidebar 系)
-    for (const t of ["status-bar-panel", "hand-panel", "treasury-panel", "others-panel", "sidebar-panel", "sidebar-collapsed"]) {
+    for (const t of [
+      "status-bar-panel",
+      "hand-panel",
+      "treasury-panel",
+      "others-panel",
+      "sidebar-panel",
+      "sidebar-collapsed",
+    ]) {
       await expect(page.locator(`[data-testid="${t}"]`)).toHaveCount(0);
     }
   });
@@ -30,7 +48,8 @@ test.describe("三区骨架", () => {
           target === `目标 ${fmtMoney(s.targetNetWorth)}` &&
           deck === String(s.jinnangDeckCount) &&
           discard === String(s.jinnangDiscard.length) &&
-          (await page.getByTestId("topbar-active").textContent()) === `${s.players[s.activeIndex].guohao}之回合`
+          (await page.getByTestId("topbar-active").textContent()) ===
+            `${s.players[s.activeIndex].guohao}之回合`
         );
       })
       .toBe(true);
@@ -50,7 +69,9 @@ test.describe("三区骨架", () => {
           const p = s.players[seat];
           const cash = await page.getByTestId(`seat-cash-${seat}`).textContent();
           const stam = await page.getByTestId(`seat-stamina-${seat}`).textContent();
-          const warrant = await page.getByTestId(`seat-attr-warrant-${seat}`).getAttribute("aria-label");
+          const warrant = await page
+            .getByTestId(`seat-attr-warrant-${seat}`)
+            .getAttribute("aria-label");
           ok.push(
             cash === fmtMoney(p.cash) &&
               stam === String(p.stamina) &&
@@ -107,27 +128,32 @@ test.describe("三区骨架", () => {
     expect(tb.x).toBeGreaterThanOrEqual(0);
   });
 
-  test("活跃光效:活跃方席位卡挂 active 光效与「运筹中」微标(操作不限时,倒计时条已撤)", async ({ page }) => {
+  test("活跃光效:活跃方席位卡挂 active 光效与「运筹中」微标(操作不限时,倒计时条已撤)", async ({
+    page,
+  }) => {
     await quickStart(page);
     await expect
-      .poll(async () => {
-        // #255 既有 flake 定性收口(无 seed 快停人类落购地格):人类停在决策点时
-        // activeIndex 恒为自身,轮询体永不满足——轮询体内放行决策点,让活跃方轮到 bot
-        //(口径对齐本文件浮签用例的 clear())。
-        await dismissJinnangIfUp(page);
-        await actIfCan(page).catch(() => false);
-        const s = await snap(page);
-        if (s.phase !== "Playing") return false;
-        const active = s.players[s.activeIndex];
-        if (!active.isBot) return false; // 等 bot 回合:光效/微标只在他人卡上,自身回合 viewSeat 无卡
-        const card = page.getByTestId(`seat-${s.activeIndex}`);
-        const cls = (await card.getAttribute("class")) ?? "";
-        return (
-          cls.includes("active") &&
-          (await card.getByText("运筹中").count()) === 1 &&
-          (await card.locator(".timerbar").count()) === 0
-        );
-      }, { message: "活跃 bot 席位卡挂金圈光效 + 运筹中微标(无倒计时条,2026-09-25 拍板)" })
+      .poll(
+        async () => {
+          // #255 既有 flake 定性收口(无 seed 快停人类落购地格):人类停在决策点时
+          // activeIndex 恒为自身,轮询体永不满足——轮询体内放行决策点,让活跃方轮到 bot
+          //(口径对齐本文件浮签用例的 clear())。
+          await dismissJinnangIfUp(page);
+          await actIfCan(page).catch(() => false);
+          const s = await snap(page);
+          if (s.phase !== "Playing") return false;
+          const active = s.players[s.activeIndex];
+          if (!active.isBot) return false; // 等 bot 回合:光效/微标只在他人卡上,自身回合 viewSeat 无卡
+          const card = page.getByTestId(`seat-${s.activeIndex}`);
+          const cls = (await card.getAttribute("class")) ?? "";
+          return (
+            cls.includes("active") &&
+            (await card.getByText("运筹中").count()) === 1 &&
+            (await card.locator(".timerbar").count()) === 0
+          );
+        },
+        { message: "活跃 bot 席位卡挂金圈光效 + 运筹中微标(无倒计时条,2026-09-25 拍板)" },
+      )
       .toBe(true);
   });
 
@@ -207,7 +233,9 @@ test.describe("三区骨架", () => {
 test.describe("8 人局降档", () => {
   test.use({ viewport: { width: 1280, height: 900 } });
 
-  test("7 对手 = 右列 3 + 左列 3 + 顶行缩微 1(顶行卡只留现金+血条|城/手牌四格)", async ({ page }) => {
+  test("7 对手 = 右列 3 + 左列 3 + 顶行缩微 1(顶行卡只留现金+血条|城/手牌四格)", async ({
+    page,
+  }) => {
     test.setTimeout(120_000);
     await page.goto("/");
     await openSoloSetup(page);
@@ -221,9 +249,13 @@ test.describe("8 人局降档", () => {
     // 席位卡总数 = 对手数(自身不出卡);切分 = 右 3 + 左 3 + 顶行其余
     const seatCount = s.players.length;
     await expect(page.locator('[data-testid="seat-rail"] .seat')).toHaveCount(seatCount - 1);
-    await expect(page.locator('[data-testid="seat-rail"] .seatcol:not(.left) .seat')).toHaveCount(3);
+    await expect(page.locator('[data-testid="seat-rail"] .seatcol:not(.left) .seat')).toHaveCount(
+      3,
+    );
     await expect(page.locator('[data-testid="seat-rail"] .seatcol.left .seat')).toHaveCount(3);
-    await expect(page.locator('[data-testid="seat-rail"] .seatrow-top .seat')).toHaveCount(seatCount - 7);
+    await expect(page.locator('[data-testid="seat-rail"] .seatrow-top .seat')).toHaveCount(
+      seatCount - 7,
+    );
     // 顶行缩微卡只有 城/手牌 两枚徽章(四格形态),常态卡六枚
     const topCard = page.locator('[data-testid="seat-rail"] .seatrow-top .seat').first();
     await expect(topCard.locator(".ib")).toHaveCount(2);

@@ -82,10 +82,7 @@ function spawnBurst(keyPrefix: number): { burst: Particle[]; lingerMs: number } 
   const cxPct = 15 + Math.random() * 70;
   const cyPct = 12 + Math.random() * 48;
   const count = 16 + Math.floor(Math.random() * 10);
-  const scale = Math.min(
-    FW_SCALE_MAX,
-    Math.max(FW_SCALE_MIN, window.innerWidth / FW_BASE_VW),
-  );
+  const scale = Math.min(FW_SCALE_MAX, Math.max(FW_SCALE_MIN, window.innerWidth / FW_BASE_VW));
   const out: Particle[] = [];
   for (let i = 0; i < count; i++) {
     const angle = (Math.PI * 2 * i) / count + Math.random() * 0.3;

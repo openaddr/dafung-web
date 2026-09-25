@@ -18,7 +18,11 @@ export interface EffectCtx extends MomentCtx {
 }
 
 /** 效果函数:纯逻辑(禁止 DOM/React),经引擎公共方法改状态。返回是否生效。 */
-export type EffectFn = (engine: GameEngine, ctx: EffectCtx, params: Record<string, number>) => boolean;
+export type EffectFn = (
+  engine: GameEngine,
+  ctx: EffectCtx,
+  params: Record<string, number>,
+) => boolean;
 
 /** 必填参数读取:缺项=数据 bug,直接抛错(零兜底)。 */
 function req(params: Record<string, number>, key: string): number {

@@ -11,8 +11,12 @@ function makeMemoryStorage(): StorageLike {
   const store = new Map<string, string>();
   return {
     getItem: (k) => (store.has(k) ? store.get(k)! : null),
-    setItem: (k, v) => { store.set(k, v); },
-    removeItem: (k) => { store.delete(k); },
+    setItem: (k, v) => {
+      store.set(k, v);
+    },
+    removeItem: (k) => {
+      store.delete(k);
+    },
   };
 }
 

@@ -3,12 +3,7 @@
 // cells 的坐标由 JSON 手配。校验失败抛可读错误。
 import { createBoard } from "./board";
 import type { Board, BoardBranch, BranchCell } from "./board";
-import type {
-  BoardPos,
-  MapData,
-  PropertyDef,
-  TileDef,
-} from "./types";
+import type { BoardPos, MapData, PropertyDef, TileDef } from "./types";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
 
@@ -67,9 +62,14 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const type = (t.type ?? "Property") as TileDef["type"];
     // 城池规模(Lv0 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
     const value = t.valueByLevel;
-    const size: TileDef["size"] = type === "Property" && value
-      ? value[0] >= 20 ? "large" : value[0] >= 10 ? "medium" : "small"
-      : undefined;
+    const size: TileDef["size"] =
+      type === "Property" && value
+        ? value[0] >= 20
+          ? "large"
+          : value[0] >= 10
+            ? "medium"
+            : "small"
+        : undefined;
     return {
       index: i,
       type,
@@ -127,7 +127,7 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   }, new Map());
   const catalog: MapCatalog = {
     get(id) {
-      return id ? byId.get(id) ?? null : null;
+      return id ? (byId.get(id) ?? null) : null;
     },
     groupMembers(group) {
       return byGroup.get(group) ?? [];

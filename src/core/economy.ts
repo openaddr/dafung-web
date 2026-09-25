@@ -1,10 +1,6 @@
 // 地产交易:购买、升级、破产裁决(本作无过路费/升级费:自己到达己城可选免费扩军,
 // 他人落城走珍宝交涉——公道买卖成交才升级;收入全靠卖珍宝与都城补给)。
-import type {
-  Player,
-  PropertyDef,
-  TransactionResult,
-} from "./types";
+import type { Player, PropertyDef, TransactionResult } from "./types";
 import { canUpgrade } from "./types";
 import { findHolding } from "./player";
 
@@ -45,11 +41,7 @@ export function supplyFor(resupplyPerLevel: number | undefined, level: number | 
  * 破产裁决:玩家无法清偿债务时淘汰,资产(含都城地产)转移给债主(无债主归银行/销毁)。
  * 返回是否触发破产。都城补给为正收入,不走此路径。
  */
-export function settleDebt(
-  player: Player,
-  creditor: Player | null,
-  amount: number,
-): boolean {
+export function settleDebt(player: Player, creditor: Player | null, amount: number): boolean {
   if (player.cash >= amount) {
     player.cash -= amount;
     if (creditor) creditor.cash += amount;

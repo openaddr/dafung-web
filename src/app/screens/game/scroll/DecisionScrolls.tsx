@@ -47,8 +47,12 @@ export function BranchDecisionScroll({
   const branch = choices.find((o) => o.id === "branch")!;
   // G-19:1=大路 2=辅路(不可选的选项按键无效,与购地卷轴口径一致)
   useNumberShortcuts([
-    () => { if (main.available) onCommand({ type: "selectBranch", kind: "Main" }); },
-    () => { if (branch.available) onCommand({ type: "selectBranch", kind: "Branch" }); },
+    () => {
+      if (main.available) onCommand({ type: "selectBranch", kind: "Main" });
+    },
+    () => {
+      if (branch.available) onCommand({ type: "selectBranch", kind: "Branch" });
+    },
   ]);
   return (
     <ScrollShell title="驿道岔口" testid={T.branchScroll}>
@@ -197,7 +201,9 @@ export function BuyDecisionScroll({
   const [showValues, setShowValues] = useState(buy.available);
   // G-19:1=购地(不可购时无效)2=不取
   useNumberShortcuts([
-    () => { if (buy.available) onCommand({ type: "buyProperty" }); },
+    () => {
+      if (buy.available) onCommand({ type: "buyProperty" });
+    },
     () => onCommand({ type: "endDecision" }),
   ]);
   // G-20:资产行 —— 一眼看清持有/需付/差额(负差红字)
@@ -205,7 +211,8 @@ export function BuyDecisionScroll({
   return (
     <ScrollShell title="购地抉择" testid={T.buyScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
-        「{tileName}」{region ? ` · ${region}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)} · 耗 1 委任状
+        「{tileName}」{region ? ` · ${region}` : ""} · 无主 · 购入{" "}
+        {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
       <p className="m-1 mb-2.5 text-center text-sm text-ink">
         持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
@@ -269,10 +276,12 @@ export function UpgradeDecisionScroll({
   const upgrade = choices.find((o) => o.id === "upgrade")!;
   // 价值变化 = 当前级 → 下一级城池价值(下标 = 等级)
   const valueNow = property.valueByLevel[level] ?? 0;
-  const valueNext = upgrade.available ? property.valueByLevel[level + 1] ?? valueNow : valueNow;
+  const valueNext = upgrade.available ? (property.valueByLevel[level + 1] ?? valueNow) : valueNow;
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
-    () => { if (upgrade.available) onCommand({ type: "upgradeProperty" }); },
+    () => {
+      if (upgrade.available) onCommand({ type: "upgradeProperty" });
+    },
     () => onCommand({ type: "endDecision" }),
   ]);
   return (

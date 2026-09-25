@@ -69,83 +69,91 @@ export function HomeScreen({
     // 666×360 横屏等小视口下四入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
     <div data-testid={HOME_TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
       <div className="m-auto flex w-full flex-col items-center">
-      {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进 */}
-      <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest">群雄逐鹿</h1>
-      {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中 */}
-      <div className="home-title-in-sub font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">— 三国大富翁 —</div>
+        {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进 */}
+        <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest">群雄逐鹿</h1>
+        {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中 */}
+        <div className="home-title-in-sub font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
+          — 三国大富翁 —
+        </div>
 
-      {/* 视觉重做 v2 签名件:千里江山装裱横带——《千里江山图》(PD,textures 已入库)
+        {/* 视觉重做 v2 签名件:千里江山装裱横带——《千里江山图》(PD,textures 已入库)
           青绿山水作装裱横幅铺在标题与入口之间,multiply 融纸;右端钤「逐鹿」朱印落款,
           上下深色细线 = 裱边。填补首页中央真空,本屏记忆点。 */}
-      <div className="home-band-in relative mb-10 w-[min(880px,92vw)]">
-        <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
-          <img
-            src="/assets/textures/qianli-jiangshan.webp"
-            alt=""
-            aria-hidden="true"
-            className="block h-[clamp(96px,15vw,168px)] w-full select-none object-cover mix-blend-multiply"
-            draggable={false}
-          />
-          {/* 落款朱印:右端钤「逐鹿」竖读小印 */}
-          <span
-            aria-hidden="true"
-            className="absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] bg-danger px-1.5 py-1.5 font-brush text-[15px] leading-[1.15] text-[#f6ead6] shadow-[0_1px_3px_rgba(43,35,23,0.4)]"
-            style={{ writingMode: "vertical-rl" }}
-          >
-            逐鹿
-          </span>
+        <div className="home-band-in relative mb-10 w-[min(880px,92vw)]">
+          <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
+            <img
+              src="/assets/textures/qianli-jiangshan.webp"
+              alt=""
+              aria-hidden="true"
+              className="block h-[clamp(96px,15vw,168px)] w-full select-none object-cover mix-blend-multiply"
+              draggable={false}
+            />
+            {/* 落款朱印:右端钤「逐鹿」竖读小印 */}
+            <span
+              aria-hidden="true"
+              className="absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] bg-danger px-1.5 py-1.5 font-brush text-[15px] leading-[1.15] text-[#f6ead6] shadow-[0_1px_3px_rgba(43,35,23,0.4)]"
+              style={{ writingMode: "vertical-rl" }}
+            >
+              逐鹿
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个 */}
-      <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
-        <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
-          <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
-            {primary.label}
-          </button>
-        </div>
-        <div className="grid grid-cols-3 gap-x-3">
-          {secondary.map((e, i) => (
-            // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
-            <div key={e.tid} className="home-btn-in" style={{ animationDelay: `${380 + i * 80}ms` }}>
-              <button
-                data-testid={e.tid}
-                onClick={e.onClick}
-                className={`${btnBase} w-full py-4 text-xl note-btn`}
+        {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个 */}
+        <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
+          <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
+            <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
+              {primary.label}
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-x-3">
+            {secondary.map((e, i) => (
+              // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
+              <div
+                key={e.tid}
+                className="home-btn-in"
+                style={{ animationDelay: `${380 + i * 80}ms` }}
               >
-                {e.label}
-              </button>
-            </div>
-          ))}
+                <button
+                  data-testid={e.tid}
+                  onClick={e.onClick}
+                  className={`${btnBase} w-full py-4 text-xl note-btn`}
+                >
+                  {e.label}
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-      </div>
 
-      {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink)。
+        {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink)。
           W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
           (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */}
-      <button
-        type="button"
-        onClick={() => setShowMapSelect(true)}
-        className="note-btn rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
-      >
-        <span className="text-ink-dim">当前地图:</span>
-        <span data-testid={TID.currentMapName} className="text-ink">{mapName}</span>
-        <Sym name="expand" size={11} className="text-ink-dim" />
-      </button>
+        <button
+          type="button"
+          onClick={() => setShowMapSelect(true)}
+          className="note-btn rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
+        >
+          <span className="text-ink-dim">当前地图:</span>
+          <span data-testid={TID.currentMapName} className="text-ink">
+            {mapName}
+          </span>
+          <Sym name="expand" size={11} className="text-ink-dim" />
+        </button>
 
-      {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关) */}
-      {showMapSelect && (
-        <MapSelectPanel
-          mapSource={mapSource}
-          currentMapId={selectedMapId}
-          onConfirm={(mapId) => {
-            setSelectedMapId(mapId);
-            setShowMapSelect(false);
-            onMapChange?.(mapId);
-          }}
-          onCancel={() => setShowMapSelect(false)}
-        />
-      )}
+        {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关) */}
+        {showMapSelect && (
+          <MapSelectPanel
+            mapSource={mapSource}
+            currentMapId={selectedMapId}
+            onConfirm={(mapId) => {
+              setSelectedMapId(mapId);
+              setShowMapSelect(false);
+              onMapChange?.(mapId);
+            }}
+            onCancel={() => setShowMapSelect(false)}
+          />
+        )}
       </div>
     </div>
   );

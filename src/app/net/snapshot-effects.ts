@@ -71,7 +71,14 @@ export class SnapshotEffects {
       const prev = this.prevCash.get(p.id);
       if (prev != null && p.cash !== prev) {
         const pos = board.positionOf(p.position);
-        events.push({ kind: "cashDelta", playerId: p.id, amount: p.cash - prev, x: pos.x, y: pos.y, atTile: p.position });
+        events.push({
+          kind: "cashDelta",
+          playerId: p.id,
+          amount: p.cash - prev,
+          x: pos.x,
+          y: pos.y,
+          atTile: p.position,
+        });
       }
       this.prevCash.set(p.id, p.cash);
     }

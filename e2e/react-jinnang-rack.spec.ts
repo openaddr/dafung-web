@@ -54,12 +54,15 @@ const NINE_CARDS = [
 async function rackStandstill(page: Page, cards: string[]): Promise<void> {
   await quickStart(page);
   await waitMyPause(page, 0);
-  await force(page, `
+  await force(
+    page,
+    `
     e.players[0].jinnangHand = ${JSON.stringify(cards)};
     e.lastLandOutcome = null;
     e.pendingLand = null;
     e.turnPhase = "AwaitingDecision";
-  `);
+  `,
+  );
   // 发牌入场级联(末张 delay 数百 ms + 本体 250ms)结束再取几何,避开动画 transform 污染
   await page.waitForTimeout(1200);
 }
