@@ -107,7 +107,7 @@ test.describe("三区骨架", () => {
     expect(tb.x).toBeGreaterThanOrEqual(0);
   });
 
-  test("活跃光效:活跃方席位卡挂 active 光效与「运筹中」微标,倒计时条在场", async ({ page }) => {
+  test("活跃光效:活跃方席位卡挂 active 光效与「运筹中」微标(操作不限时,倒计时条已撤)", async ({ page }) => {
     await quickStart(page);
     await expect
       .poll(async () => {
@@ -122,8 +122,12 @@ test.describe("三区骨架", () => {
         if (!active.isBot) return false; // 等 bot 回合:光效/微标只在他人卡上,自身回合 viewSeat 无卡
         const card = page.getByTestId(`seat-${s.activeIndex}`);
         const cls = (await card.getAttribute("class")) ?? "";
-        return cls.includes("active") && (await card.getByText("运筹中").count()) === 1 && (await card.locator(".timerbar").count()) === 1;
-      }, { message: "活跃 bot 席位卡挂金圈光效 + 运筹中微标 + 倒计时条" })
+        return (
+          cls.includes("active") &&
+          (await card.getByText("运筹中").count()) === 1 &&
+          (await card.locator(".timerbar").count()) === 0
+        );
+      }, { message: "活跃 bot 席位卡挂金圈光效 + 运筹中微标(无倒计时条,2026-09-25 拍板)" })
       .toBe(true);
   });
 

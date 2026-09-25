@@ -7,8 +7,8 @@
    裸色豁免登记(原型定稿色,tokens.css 无对应 token;与 hand-rack.css 豁免同族):
    - #463a28 / #241d13:漆木仪表条渐变两端(架上映、架下暗,即 hand-rack 原渐变);
    - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式);
-   - rgba(200,161,58,·)/rgba(212,175,55,·):金圈系(--color-gold 的 rgba 形式,
-     活跃光效/目标段候选呼吸,原型定稿值);
+   - rgba(200,161,58,·)/rgba(212,175,55,·):金圈系(--color-gold 的 rgba 形式;
+     活跃光效/目标段候选呼吸为原型定稿值,胜者金环光晕为同族推导);
    - rgba(138,106,28,·):金圈外投墨金影(原型定稿,金影语义非墨影);
    - rgba(0,0,0,·):漆木上的中性黑影,非墨影语义;
    - #f6ead6 / #f6ecd9:印面纸色字(全仓印章语言既有惯例字面量)。
@@ -16,8 +16,6 @@
    与原型的实装级偏差(功能/规则要求,非视觉自由发挥):
    - 顶部条角钮 36→40px(W5 触达 ≥40px 仓库红线);
    - 新文案字体走 font-wenkai/font-brush(DESIGN.md §4.3 字体安全规约,原型的小薇禁新用);
-   - .timerbar 原型为静态 scaleX(.42) 演示条,实装为不定长活动条(客户端无倒计时
-     数据源,假倒计时不说真话;#254 接目标段时再议真倒计时);
    - .candidate 金圈呼吸态属 #254 目标段,本票不移植;
    - 手牌牌背组至多示意 3 张(#250 手牌无上限,数量以裸排数字为准)。
 
@@ -162,6 +160,15 @@
   font-family: var(--font-brush);
   font-size: 15px;
 }
+/* 顶栏事件 chip 文字(活跃方之回合/终局称帝):比 .t 收一档 14px;称帝金字=熟金
+   (评审去重:撤 GameTopBar 内联字号/颜色) */
+.game-layout .chip .t-active,
+.game-layout .chip .t-win {
+  font-size: 14px;
+}
+.game-layout .chip .t-win {
+  color: var(--color-gold-deep);
+}
 .game-layout .chip .d {
   font-size: 11px;
   color: var(--color-ink-dim);
@@ -278,10 +285,6 @@
   color: #4a3f2c;
   letter-spacing: 0.02em;
   overflow: hidden;
-}
-.game-layout .seat .nm .win-mark {
-  font-family: var(--font-brush);
-  color: var(--color-gold-deep);
 }
 .game-layout .seat .cash {
   font-family: var(--font-brush);
@@ -407,25 +410,13 @@
     opacity: 1;
   }
 }
-/* 倒计时条(原型静态演示条;实装为不定长活动条——见文件头偏差登记) */
-.game-layout .timerbar {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 5px;
-  background: linear-gradient(90deg, var(--color-gold-bright), var(--color-danger));
-  transform-origin: left;
-  animation: timerbar-breathe var(--dur-ambient) var(--ease-sine) infinite;
-}
-@keyframes timerbar-breathe {
-  0%,
-  100% {
-    transform: scaleX(0.15);
-  }
-  50% {
-    transform: scaleX(0.85);
-  }
+/* 终局胜者:金色双环(DESIGN §4.6——撤掉文字状态仍可辨则不加文字:胜者身份由
+   金环+终局横幅承载,国号印/名保留,无「胜」字章;终局时活跃光效已停,两态不并立)。 */
+.game-layout .seat.won {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 2px var(--color-gold),
+    0 0 12px rgba(200, 161, 58, 0.45);
 }
 
 /* ── 底部仪表条:自局徽章区 | 手牌架(弹性)── */
@@ -749,16 +740,12 @@
 }
 
 /* ── reduced-motion:呼吸/光效类动画退场(app.css M-4 全局兜层之外的本文件显式口径,
-     同原型 @media 尾行;活动条一并静止在半程刻度)。#256:候选呼吸/棋盘呼吸退场为
-     直接状态变化(静态金圈/金环仍在)。 ── */
+     同原型 @media 尾行)。#256:候选呼吸/棋盘呼吸退场为直接状态变化(静态金圈/金环
+     仍在);活跃光效退场后金圈边框仍在,状态可辨。 ── */
 @media (prefers-reduced-motion: reduce) {
   .game-layout .seat.active::after,
-  .game-layout .timerbar,
   .game-layout .seat.candidate,
   .game-layout .bv-token-target-ring {
     animation: none;
-  }
-  .game-layout .timerbar {
-    transform: scaleX(0.42);
   }
 }

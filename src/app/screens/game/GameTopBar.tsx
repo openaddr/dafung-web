@@ -62,21 +62,18 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           目标 {formatMoney(snapshot.targetNetWorth)}
         </span>
       </span>
-      {/* 活跃方 chip:对局中=「X之回合」;终局=「「X」称帝」(原状态卡两分支收编) */}
+      {/* 活跃方 chip:对局中=「X之回合」;终局=「「X」称帝」(原状态卡两分支收编;
+          14px 档与称帝金字收口 layout.css 的 .t-active/.t-win,评审去重撤内联字号) */}
       {active && (
         <span className="chip">
-          <span className="t" data-testid={TESTIDS.topbarActive} style={{ fontSize: 14 }}>
+          <span className="t t-active" data-testid={TESTIDS.topbarActive}>
             {active.guohao}之回合
           </span>
         </span>
       )}
       {winner && (
         <span className="chip">
-          <span
-            className="t"
-            data-testid={TESTIDS.topbarActive}
-            style={{ fontSize: 14, color: "var(--color-gold-deep)" }}
-          >
+          <span className="t t-win" data-testid={TESTIDS.topbarActive}>
             「{winner.guohao}」称帝
           </span>
         </span>

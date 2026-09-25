@@ -34,6 +34,27 @@ function gainPulseKey(floats: DeltaFloat[]): number {
   return 0;
 }
 
+/** 现金/委任浮标 span(评审去重:两处同形收拢):漆底直出亮档配色(正=lacquerGold /
+ *  负=attr-hero-bright),动画复用 game-hud.css game-cash-float;数值格式化由调用方给
+ *  (现金走 formatMoney 带单位,委任裸数)。 */
+function DeltaFloats({ floats, fmt }: { floats: DeltaFloat[]; fmt: (delta: number) => string }) {
+  return (
+    <>
+      {floats.map((f) => (
+        <span
+          key={f.id}
+          className={
+            "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
+            (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
+          }
+        >
+          {fmt(f.delta)}
+        </span>
+      ))}
+    </>
+  );
+}
+
 export interface DashboardBarProps {
   snapshot: GameSnapshot;
   /** 本地视角玩家(null = 观战/未入座)。 */
@@ -122,19 +143,10 @@ export function DashboardBar({ snapshot, player, controller, autopilotOn, childr
             <span key={cashPulseKey} className={cashPulseKey > 0 ? "game-chip-pulse" : undefined}>
               {formatMoney(shown.cash)}
             </span>
-            {/* 现金/委任浮标(漆底直出亮档配色;动画复用 game-hud.css game-cash-float) */}
-            {cashFloats.map((f) => (
-              <span
-                key={f.id}
-                className={
-                  "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
-                  (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
-                }
-              >
-                {f.delta > 0 ? "+" : "−"}
-                {formatMoney(Math.abs(f.delta))}
-              </span>
-            ))}
+            <DeltaFloats
+              floats={cashFloats}
+              fmt={(d) => (d > 0 ? "+" : "−") + formatMoney(Math.abs(d))}
+            />
           </Tip>
           <Tip
             tip={ATTR_TIPS.warrant}
@@ -146,18 +158,10 @@ export function DashboardBar({ snapshot, player, controller, autopilotOn, childr
             <span key={warrantPulseKey} className={warrantPulseKey > 0 ? "game-chip-pulse" : undefined}>
               {shown.warrants}
             </span>
-            {warrantFloats.map((f) => (
-              <span
-                key={f.id}
-                className={
-                  "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
-                  (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
-                }
-              >
-                {f.delta > 0 ? "+" : "−"}
-                {Math.abs(f.delta)}
-              </span>
-            ))}
+            <DeltaFloats
+              floats={warrantFloats}
+              fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
+            />
           </Tip>
           <Tip
             tip={ATTR_TIPS.city}
