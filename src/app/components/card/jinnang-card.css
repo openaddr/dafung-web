@@ -16,9 +16,12 @@
    ——与 jinnang-face-data.ts 的 JINNANG_FACE_SIZE_EM 互为镜像(测试钉住);
    消费方可再经 style.fontSize 在两档之间微调降档。 */
 
-/* ── 基座:3:4 竖笺,纸渐变 + 发丝衬里(em 制,内部尺寸全随根 font-size 缩放)── */
+/* ── 基座:3:4 竖笺,纸渐变 + 发丝衬里(em 制,内部尺寸全随根 font-size 缩放)。
+   isolation:每张牌自成一个层叠上下文——标签章的 z-index 不得越过「叠在本牌之上的
+   邻牌」(手牌架压缩布局会叠牌;无 isolate 时章会浮到邻牌上面穿模,2026-09-25 走查)── */
 .jinnang-card {
   position: relative;
+  isolation: isolate;
   width: 15em;
   height: 20em;
   font-size: 8px;
