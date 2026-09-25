@@ -296,7 +296,7 @@ export class SynthAudioPlayer implements AudioPlayer {
 
   // 军师幕点选(#239 T4:marchStart 同族轻嗒工艺(高通瞬态+高频起振点),更短更轻——
   // 选中是决策卷轴内的高频交互,音量压到行军嗒的一半档,不轰鸣;无贴切采样资产,
-  // 走合成不映射文件。触发点 JinnangScroll.selectCard(点牌与数字键共用))
+  // 走合成不映射文件。触发点 HandRack 选牌(点牌与数字键共用,#256 军师窗态起))
   private jinnangSelect(ctx: AudioContext): void {
     this.noiseBurst(ctx, 0.045, "highpass", 3800, 0.7, 0.055);
     this.tone(ctx, 2700, 0.03, "sine", 0.02);

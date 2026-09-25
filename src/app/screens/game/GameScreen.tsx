@@ -1,13 +1,15 @@
 // Game 屏(#253 三区骨架):棋盘全幅垫底 + 顶部对局条 + 席位竖卡列 + 底部仪表条。
-// 右侧栏(aside)退役:StatusBar→顶部条、HandPanel→仪表条+手牌架、
-// TreasuryPanel→仪表条计数徽章(#255 接展开)、OthersPanel→席位卡、
-// CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为全局兜底,
-// 席位卡倒计时条承担「谁在行动」指名。
+// 右侧栏(aside)已退役并核销(#253 迁移、#255 删件):StatusBar→顶部条、
+// HandPanel→仪表条+手牌架、TreasuryPanel→仪表条计数徽章(expandPile 点开明细)、
+// OthersPanel→席位卡、CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为
+// 全局兜底,席位卡倒计时条承担「谁在行动」指名。
 // 军师窗态(#256):军师幕弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
 // 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
 // 门控,与退役前弹窗同门)接线三方:HandRack(窗态牌面/手势)、ActionBar(两段
 // 动作条)、SeatRail+TokenLayer(目标段候选呼吸)。引擎相位/choices/命令语义
 // 零改动,只换呈现层;零可用自动过口径不变(引擎侧已自动)。
+// #255 收口:战报抽屉(右缘把手,WarReportDrawer)+ expandPile(珍宝/名将徽章
+// 点开明细落手牌架行)在本件持有两份 UI 态并接线。
 // usePanZoom/TokenLayer 其余/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
@@ -22,12 +24,13 @@ import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
-import { HandRack } from "./HandRack";
+import { HandRack, type RackPile } from "./HandRack";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { DashboardBar } from "./DashboardBar";
 import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
+import { WarReportDrawer } from "./WarReportDrawer";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
@@ -89,9 +92,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
+  // expandPile(#255):仪表条珍宝/名将徽章展开的摞(明细落 HandRack 手牌行左旁;
+  // 一次一摞,点另一摞切换,再点收起)。空摞拦截在 DashboardBar 侧。
+  const [pileOpen, setPileOpen] = useState<RackPile | null>(null);
+  const togglePile = (pile: RackPile) => setPileOpen((cur) => (cur === pile ? null : pile));
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
-  // onTileClick 相位路由 + 详情/定都确认时序。(closeDetail 暂无消费者:卡详情卷轴
-  // 随 TreasuryPanel 退役,#255 展开明细回归时一并接回 G-17 互斥。)
+  // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
     snapshot,
   });
@@ -299,13 +305,22 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         }
       />
       {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
+          珍宝/名将徽章即 expandPile 开关(#255,空摞拦在 DashboardBar);
           右段手牌架槽给 HandRack 让位(弹性宽) */}
-      <DashboardBar snapshot={snapshot} player={selfPlayer} controller={controller} autopilotOn={autopilotOn}>
+      <DashboardBar
+        snapshot={snapshot}
+        player={selfPlayer}
+        controller={controller}
+        autopilotOn={autopilotOn}
+        pileOpen={pileOpen}
+        onTogglePile={togglePile}
+      >
         {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
             热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:军师窗态载荷随快照
             派生(窗态下架即出牌面,常态点牌仍开详情)。 */}
         <HandRack
           player={selfPlayer}
+          pile={pileOpen}
           junshi={
             junshiUp
               ? {
@@ -331,6 +346,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           rightShift={!junshiTargeting && junshiSelected != null}
         />
       )}
+      {/* 战报抽屉(#255):右缘竖把手 + 抽屉渲染对局日志;常收零占位(收起时只有把手)。 */}
+      <WarReportDrawer snapshot={snapshot} />
       </div>
     </AudioProvider>
   );

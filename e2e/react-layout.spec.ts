@@ -1,8 +1,8 @@
 // 布局冒烟(#253 三区骨架;前身为 react-sidebar.spec.ts——侧栏退役后改写):
 // 三区可见(顶部条/席位竖卡列/底部仪表条)+ 席位卡字段 + 浮签(hover/长按/贴缘翻面)+
-// 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)。叠加手牌用例留给 #254 再加。
+// 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)+ 战报抽屉/expandPile(#255 收口)。
 import { test, expect } from "./fixtures";
-import { quickStart, snap, fmtMoney, waitMyPause, openSoloSetup, pickCapital, waitSettled, dismissJinnangIfUp, actIfCan } from "./react-helpers";
+import { quickStart, snap, fmtMoney, waitMyPause, openSoloSetup, pickCapital, waitSettled, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
 
 test.describe("三区骨架", () => {
   test("三区可见,右栏退役零残留", async ({ page }) => {
@@ -111,6 +111,11 @@ test.describe("三区骨架", () => {
     await quickStart(page);
     await expect
       .poll(async () => {
+        // #255 既有 flake 定性收口(无 seed 快停人类落购地格):人类停在决策点时
+        // activeIndex 恒为自身,轮询体永不满足——轮询体内放行决策点,让活跃方轮到 bot
+        //(口径对齐本文件浮签用例的 clear())。
+        await dismissJinnangIfUp(page);
+        await actIfCan(page).catch(() => false);
         const s = await snap(page);
         if (s.phase !== "Playing") return false;
         const active = s.players[s.activeIndex];
@@ -138,6 +143,60 @@ test.describe("三区骨架", () => {
     // 珍宝/名将计数徽章(#255 接展开,本票只做计数)
     await expect(page.getByTestId("dash-treasures")).toBeVisible();
     await expect(page.getByTestId("dash-heroes")).toHaveText(/\/3$/);
+  });
+
+  // ── #255 收口:战报抽屉 + expandPile ──
+  test("战报抽屉:把手常驻,点开渲染对局日志,Esc 关闭后零占位", async ({ page }) => {
+    await quickStart(page);
+    // 收起零占位:只有把手,无抽屉
+    await expect(page.getByTestId("log-tab")).toBeVisible();
+    await expect(page.getByTestId("log-drawer")).toHaveCount(0);
+    // 对局自走会随时弹决策卷轴/窗态抢交互——每步先清决策点再点把手(浮签用例同口径)
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      await page.getByTestId("log-tab").click({ timeout: 3_000 });
+      await expect(page.getByTestId("log-drawer")).toBeVisible();
+    }).toPass({ timeout: 30_000 });
+    // 抽屉渲染对局日志(开局必有玩法事件;条目带「轮N」小签)
+    await expect(page.getByTestId("log-drawer")).toContainText(/轮\d+/);
+    // Esc 关闭(Base UI 底件行为),收起后零占位
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("log-drawer")).toHaveCount(0);
+  });
+
+  test("expandPile:点珍宝徽章明细展入牌架行,再点收起;空摞不可展开", async ({ page }) => {
+    test.setTimeout(120_000); // 对局自走 + 三个 toPass 轮询,60s 默认档偏紧
+    await quickStart(page);
+    // 空摞(珍宝 0 张):点击零动作,不展开
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
+      await expect(page.getByTestId("pile-row")).toHaveCount(0);
+    }).toPass({ timeout: 30_000 });
+    // 塞两件珍宝(force 通道:引擎直写 + 重灌快照),徽章展开 → 明细行落牌架
+    await force(page, "e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);");
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
+      await expect(page.getByTestId("pile-row")).toBeVisible();
+    }).toPass({ timeout: 30_000 });
+    // 对局自走中珍宝可能继续进账(宝物城拼点),签数对齐实时快照而非钉死
+    await expect(async () => {
+      const s = await snap(page);
+      await expect(page.getByTestId("pile-row").locator(".pile-slip")).toHaveCount(
+        s.players[0].treasures.length,
+      );
+    }).toPass({ timeout: 15_000 });
+    // 再点收起飞回
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
+      await expect(page.getByTestId("pile-row")).toHaveCount(0);
+    }).toPass({ timeout: 30_000 });
   });
 });
 

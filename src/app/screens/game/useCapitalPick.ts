@@ -1,5 +1,5 @@
 // 选都/详情流程状态机(spec #107 C5 下沉:原散在 GameScreen 的两个 useState、
-// onTileClick 相位路由、closeDetail/confirmCapital 两态时序
+// onTileClick 相位路由、详情/定都确认两态时序
 // 整体收进本文件,单一文件持有;GameScreen 只取返回值接线)。
 // 流程口径:
 //   Playing 点格 = 城池详情卷轴(#33,含特殊地点);
@@ -33,8 +33,6 @@ export interface CapitalPickFlow {
   selectableTiles: Set<number> | undefined;
   /** 棋盘点格相位路由(见文件头)。BoardView onTileClick。 */
   onTileClick: (tileIndex: number) => void;
-  /** 关详情卷轴(珍宝卡详情打开时的双层卷轴互斥,G-17)。 */
-  closeDetail: () => void;
   /** DecisionScrollLayer 的详情流程请求;null = 不弹。 */
   tileDetail: TileDetailRequest | null;
 }
@@ -94,7 +92,6 @@ export function useCapitalPick(args: {
     offeredCapitals,
     selectableTiles,
     onTileClick,
-    closeDetail,
     tileDetail:
       detailTileIndex === null
         ? null

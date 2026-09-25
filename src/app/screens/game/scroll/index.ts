@@ -19,7 +19,6 @@ export {
   EncounterChoiceScroll,
   ExhaustionChoiceScroll,
   UpgradeDecisionScroll,
-  JinnangScroll,
 } from "./DecisionScrolls";
 export { SCROLL_TESTIDS } from "./testids";
 export { ValueTable } from "./ValueTable";

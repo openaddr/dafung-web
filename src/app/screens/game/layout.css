@@ -24,9 +24,97 @@
    【注意:注释内禁写「星号紧跟斜杠」的字符组合——等于提前闭合注释
    (hand-rack.css 首版实证翻车)。】 */
 
-/* WaitingBar 的 waiting-dots 样式宿主迁移:panels.css 原由 StatusBar 导入(侧栏退役
-   后退出模块图),WaitingBar 本体不动,导入职责归本文件。 */
-@import "./panels.css";
+/* ── G-3/16/21 等待状态条(WaitingBar.tsx)的 waiting-dots:原宿主 panels.css 随侧栏
+   退役组件(#255)删除,仍在消费的省略号呼吸迁入本文件;活跃卡呼吸(active-card-breath)
+   唯一消费方 StatusBar 同批退役,不迁。 ── */
+.waiting-dots::after {
+  content: "···";
+  margin-left: 2px;
+  animation: waiting-dots-breathe 1.2s ease-in-out infinite;
+}
+@keyframes waiting-dots-breathe {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ── 战报把手(#255):仪表条上缘右角竖签(原型 .log-tab 忠实移植;字族落 font-brush
+   ——新文案禁 font-deco,DESIGN §4.3)。常收零占位:收起时屏幕上只有这一条。 ── */
+.game-layout .log-tab {
+  position: absolute;
+  right: 0;
+  bottom: calc(184px + var(--safe-bottom));
+  z-index: 5;
+  writing-mode: vertical-rl;
+  font-family: var(--font-brush);
+  font-size: 13px;
+  letter-spacing: 0.25em;
+  color: var(--color-lacquer-gold);
+  background: linear-gradient(180deg, #463a28, var(--color-lacquer));
+  border: 1px solid rgba(217, 185, 92, 0.45);
+  border-right: 0;
+  border-radius: 4px 0 0 4px;
+  padding: 12px 5px;
+  cursor: pointer;
+  opacity: 0.92;
+}
+.game-layout .log-tab:hover {
+  opacity: 1;
+}
+.game-layout .log-tab:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: -3px;
+}
+
+/* ── 战报抽屉条目(#255,ui/sheet 壳内):纸底墨字从简;轮次小签 + 中文简报,
+   倒序(最新在上)。Sheet 经 Portal 渲染在 document.body,.game-layout 作用域罩
+   不到——选择器裸排,war-* 前缀防串扰。裸色豁免:墨影发丝线 rgba(43,35,23,·)。 ── */
+.war-list {
+  margin: 0;
+  padding: 0.5rem 1rem 1rem;
+  list-style: none;
+  overflow-y: auto;
+}
+.war-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 7px 2px;
+  border-bottom: 1px solid rgba(43, 35, 23, 0.12);
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.war-item:last-child {
+  border-bottom: 0;
+}
+.war-round {
+  flex: 0 0 auto;
+  min-width: 2.6em;
+  padding-top: 1px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.war-brief {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+/* ── 仪表条计数徽章展开态(#255 expandPile):§4.6 状态即 UI——徽章提亮 + 漆金内环
+   表「此摞已展入牌架行」,不加文字标牌。 ── */
+.game-layout .badge.b-gem.open,
+.game-layout .badge.b-hero.open {
+  background: rgba(217, 185, 92, 0.14);
+  border-radius: 3px;
+  outline: 1px solid rgba(217, 185, 92, 0.55);
+  outline-offset: 2px;
+}
 
 /* ── 棋盘区:全幅垫底(下缘让位仪表条)── */
 .game-layout .board-area {
