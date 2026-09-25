@@ -1,4 +1,4 @@
-// 锦囊系统单测(#122/T1):目录数据校验 + 引擎缝(发牌/上限/抽空/快照往返/日志不泄牌)。
+// 锦囊系统单测(#122/T1):目录数据校验 + 引擎缝(发牌/无上限抽干/抽空/快照往返/日志不泄牌)。
 // 缝约定:只测引擎公共面(构造/公共方法/snapshot/log),不碰私有中间态。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
@@ -9,7 +9,6 @@ import { loadMap } from "@core/board-loader";
 import {
   JINNANG_CARDS,
   JINNANG_DECK_LIST,
-  JINNANG_HAND_LIMIT,
   JINNANG_STARTING_HAND,
   buildJinnangDeck,
   jinnangCardOf,
@@ -124,21 +123,27 @@ describe("锦囊发牌(引擎缝)", () => {
     expect(e1.jinnangDeck).toEqual(e2.jinnangDeck);
   });
 
-  it("手牌上限 3:满手抽牌作废入弃牌堆(浮字+日志),手中牌不变", () => {
+  it("手牌无上限(#250):循环抽到牌库空,单人可持整副 15 张,不作废不报错", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const p = e.players[0];
-    e.drawJinnang(0, JINNANG_HAND_LIMIT); // 1 → 3(满)
-    expect(p.jinnangHand.length).toBe(JINNANG_HAND_LIMIT);
-    const discardBefore = e.jinnangDiscard.length;
-    e.drawJinnang(0, 1); // 满手 → 作废
-    expect(p.jinnangHand.length).toBe(JINNANG_HAND_LIMIT);
-    expect(e.jinnangDiscard.length).toBe(discardBefore + 1);
+    // 守恒口径(牌只在这三处):把对手起手那张收回牌库,凑回整副 15 张
+    const other = e.players[1];
+    e.jinnangDeck.unshift(...other.jinnangHand.splice(0));
+    other.jinnangHandCount = 0;
+    e.jinnangDeckCount = e.jinnangDeck.length;
+    expect(e.jinnangDeck.length).toBe(14); // 整副 15 张:p 手上 1 张 + 牌库 14 张
+    e.drawJinnang(0, 99); // 超发远超牌库:抽到空即止,张张入手
+    expect(p.jinnangHand.length).toBe(15); // 理论上限=整副牌库
+    expect(p.jinnangHandCount).toBe(15);
+    expect(e.jinnangDeck).toEqual([]);
+    expect(e.jinnangDeckCount).toBe(0);
+    expect(e.jinnangDiscard).toEqual([]); // 无作废:满手作废已废除
     const msgs = e.presentation
       .drainFloaters()
       .filter((f) => f.kind === "msg")
       .map((f) => (f as { text: string }).text);
-    expect(msgs.some((t) => t.includes("锦囊已满"))).toBe(true);
+    expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true); // 抽空后落空提示(既有语义不变)
   });
 
   it("牌库抽空:落空浮字「锦囊已空」,不报错不回流", () => {

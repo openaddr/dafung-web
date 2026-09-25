@@ -80,8 +80,6 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
   },
 ];
 
-/** 手牌上限(CONTEXT.md 锦囊手牌):满手抽牌作废。 */
-export const JINNANG_HAND_LIMIT = 3;
 /** 起手发牌张数:进 Playing 前座位序各发。 */
 export const JINNANG_STARTING_HAND = 1;
 

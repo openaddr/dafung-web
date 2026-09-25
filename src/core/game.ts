@@ -42,7 +42,6 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import {
-  JINNANG_HAND_LIMIT,
   JINNANG_STARTING_HAND,
   buildJinnangDeck,
   jinnangCardOf,
@@ -929,7 +928,7 @@ export class GameEngine {
       return;
     }
     // 锦囊格(#147,旧机会格语义复活):落格必抽一张锦囊(T1 的 drawJinnang;
-    // 上限/牌库空的作废语义同起手)。与机遇格区分:必得 vs 概率。
+    // 牌库空落空语义同起手)。与机遇格区分:必得 vs 概率。
     if (tile.type === "Chance") {
       this.lastLandOutcome = { kind: "Noop" };
       this.turnPhase = "Land";
@@ -1824,8 +1823,8 @@ export class GameEngine {
     }
   }
 
-  /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。
-   *  上限满→该张作废入弃牌堆(浮字「锦囊已满」);牌库空→浮字「锦囊已空」(每次调用至多提示一次)。
+  /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
+   *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。
    *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
   drawJinnang(seat: number, count = 1): void {
     const p = this.players[seat];
@@ -1841,11 +1840,6 @@ export class GameEngine {
       }
       const id = this.jinnangDeck.pop()!;
       this.jinnangDeckCount = this.jinnangDeck.length;
-      if (p.jinnangHand.length >= JINNANG_HAND_LIMIT) {
-        this.jinnangDiscard.push(id);
-        this.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已满" });
-        continue;
-      }
       p.jinnangHand.push(id);
       p.jinnangHandCount = p.jinnangHand.length;
       this.logEvent(
@@ -2545,7 +2539,7 @@ export class GameEngine {
           return "settled";
         }
         case "grantCard": {
-          // 圯上授书(#147):机遇→锦囊流通;满手/牌库空由 drawJinnang 自行落空提示
+          // 圯上授书(#147):机遇→锦囊流通;手牌无上限(#250)恒入手,牌库空由 drawJinnang 自行落空提示
           this.pushFloaterText(mover, `机遇「${def.id}」:${narr},得锦囊一封`, atTile);
           this.logEvent("system", mover.guohao, `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`, `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`);
           this.drawJinnang(seat, 1);
