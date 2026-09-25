@@ -59,8 +59,7 @@
   pointer-events: none;
 }
 
-/* ── 手牌行:横排全展(规则上限 3 张,无重叠;
-   未来 >3 张的压缩算法(OpenDuelyst 均分公式)此处留位,当前不实现 ── */
+/* ── 手牌行:≤3 张全展(gap 3em,一期形态);≥4 张挂 .many 叠加压缩(#254,见下)── */
 .hand-rack-hand {
   display: flex;
   gap: 3em;
@@ -133,6 +132,44 @@
   outline: 2px dashed var(--color-gold);
   outline-offset: 3px;
 }
+
+/* ── 叠加压缩(#254,手牌无上限 #250):≥4 张挂 .many,负 margin 叠牌——每张露
+   --jn-step 窥条、末张全宽。三个 inline 变量由 HandRack.tsx 测量计算(拍板公式
+   spacing = min(卡宽,(可用宽−卡宽)/(n−1)),可用宽=架 content box,卡宽=15×em 基),
+   本文件只消费;margin 里的卡宽差用 15em 表达(与变量同 em 基,降档自动随动),
+   视觉基线 tmp/prototype-layout.html .rack-cards.many(--peek/--cw 的自适应版)。 ── */
+.hand-rack-hand.many {
+  gap: 0;
+}
+.hand-rack-hand.many > button + button {
+  margin-left: calc(var(--jn-step) - 15em);
+}
+
+/* ── hover 挥出(常时态;军师窗态金边上浮归 #256):悬停牌上浮全显
+   (translateY(-1.6em) scale(1.12)+深投影,原型 .many :hover 基线),邻牌让位移植
+   noname getSpreadOffset(GPL,noname/apps/core/noname/ui/index.js L187:右邻让满幅
+   cw−step、左邻让 2 成)。左邻用 :has(「身后有悬停牌」)表达;z-index 落 button
+   (position:relative)——牌面 isolation:isolate(#241 防章穿模)不回退,层叠在
+   button 一级解决。本块须排在上面 :active 之后(同特异度,压住按压反馈保全显)。 ── */
+.hand-rack-hand.many > button {
+  position: relative;
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.hand-rack-hand.many > button:hover {
+  transform: translateY(-1.6em) scale(1.12);
+  z-index: 9;
+}
+.hand-rack-hand.many > button:hover .jinnang-card {
+  box-shadow: 0 1em 1.6em rgba(43, 35, 23, 0.4); /* 原型 hover 深投影(裸色豁免:墨影族) */
+}
+.hand-rack-hand.many:has(> button:hover) > button:not(:hover):has(~ button:hover) {
+  transform: translateX(calc(var(--jn-spread-left) * -1));
+}
+.hand-rack-hand.many > button:hover ~ button {
+  transform: translateX(var(--jn-spread-right));
+}
+/* reduced-motion:挥出过渡由 app.css M-4 全局兜层压成瞬时(0.01ms)——「直接上浮」
+   口径,本文件无需另写(发牌入场的 delay 归零特例见上,那是 M-4 管不到的唯一缝)。 ── */
 
 /* ── 详情弹层入场(一次性演出,无 infinite):底部滑入 + 淡入,
    桌面面板与窄屏抽屉共用(壳定位差异在组件 className,动势同一条 keyframes)── */
