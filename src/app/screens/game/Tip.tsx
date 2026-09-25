@@ -45,9 +45,14 @@ export interface TipProps {
   testId?: string;
   /** 触发元可达名(默认 = 名词;徽章在此带上数值,如「委任状 2」)。 */
   ariaLabel?: string;
+  /** 点击动作(#255 expandPile:珍宝/名将徽章点开展开/收起明细);缺省 = 纯浮签触发元
+   *  (点击无动作,光标保持 help;有动作时转 pointer)。长按开签后的合成 click 照旧吞掉。 */
+  onClick?: () => void;
+  /** 展开态(aria-expanded;视觉提亮由调用方经 className 叠 .open,§4.6 状态即 UI)。 */
+  ariaExpanded?: boolean;
 }
 
-export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
+export function Tip({ tip, children, className, testId, ariaLabel, onClick, ariaExpanded }: TipProps) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"bottom" | "left">("bottom");
   const press = useLongPress();
@@ -74,8 +79,11 @@ export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
         type="button"
         aria-label={ariaLabel ?? title}
         data-testid={testId}
+        aria-expanded={ariaExpanded}
         className={
-          "cursor-help border-0 bg-transparent p-0 text-left [font:inherit] outline-offset-2 " + (className ?? "")
+          (onClick ? "cursor-pointer " : "cursor-help ") +
+          "border-0 bg-transparent p-0 text-left [font:inherit] outline-offset-2 " +
+          (className ?? "")
         }
         onPointerEnter={(e: ReactPointerEvent<HTMLElement>) => {
           if (e.pointerType === "mouse") openToward(e.currentTarget);
@@ -95,7 +103,11 @@ export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
         }}
         onContextMenu={(e) => e.preventDefault()} // 长按不出系统菜单(HandRack 同口径)
         onClick={() => {
-          if (press.fired.current) press.fired.current = false; // 长按刚开过签,吃掉合成 click
+          if (press.fired.current) {
+            press.fired.current = false; // 长按刚开过签,吃掉合成 click
+            return;
+          }
+          onClick?.();
         }}
       >
         {children}

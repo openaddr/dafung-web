@@ -22,14 +22,8 @@ export const SCROLL_TESTIDS = {
   exhaustionScroll: "scroll-exhaustion",
   exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
-  // ── 锦囊卷轴(#122/T2,#237 牌面化):容器 + 选项(牌/技/座位同族)+ 今不用 +
-  // 落印确认钮(#237 新增,原名原义零漂移,只增不改)──
-  jinnangScroll: "scroll-jinnang",
-  jinnangOption: (cardId: string) => `scroll-jinnang-option-${cardId}` as const,
-  jinnangPass: "scroll-jinnang-pass",
-  jinnangCancel: "scroll-jinnang-cancel",
-  /** #237 T2:军师幕「落印」确认钮(选中后确认发命令;未选中=禁用)。 */
-  jinnangConfirm: "scroll-jinnang-confirm",
+  // (scroll-jinnang* 族已随军师幕弹窗退役删除,#256/#255:放行点迁 actionbar-pass,
+  //  选项/确认 testid 族由 HandRack 的 jinnang-card-* 与动作条 actionbar-* 承担。)
 
   treasureScroll: "scroll-treasure",
   treasureModeFair: "scroll-treasure-mode-fair",

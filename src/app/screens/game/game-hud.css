@@ -1,20 +1,6 @@
-/* 游戏主屏 HUD 专属动画(ui-review P0-4):行军主 CTA 可掷时的轻微呼吸光晕。
- * 单独成文件避免与其他并行改动的样式文件冲突;仅 HandPanel 消费。 */
-@keyframes game-cta-breathe {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgb(212 175 55 / 0.45);
-  }
-  50% {
-    box-shadow: 0 0 0 5px rgb(212 175 55 / 0);
-  }
-}
-
-/* R3-C1(#88):呼吸从 HandPanel 的 Tailwind 任意值迁入本类承载——时长/缓动引
- * var(--dur-ambient)/var(--ease-sine)(原 2s ease-in-out 归入常驻呼吸基准拍)。 */
-.game-cta-breathe {
-  animation: game-cta-breathe var(--dur-ambient) var(--ease-sine) infinite;
-}
+/* 游戏主屏 HUD 专属动画:现金/委任浮标与 chip pulse。
+ * 单独成文件避免与其他并行改动的样式文件冲突;#255 起唯一消费方为 DashboardBar
+ * (原 HandPanel 的 game-cta-breathe 呼吸随其退役删除)。 */
 
 /* G-9 现金变化浮标:现金 chip 右上的 +/− 标记,上浮渐隐后由组件移除。
  * R3-B8:上浮终点 -20px(原 -14px 会压进上方身份头)。
@@ -37,7 +23,7 @@
 
 /* R3-C10(#97):现金/委任 chip 数值变化 pulse——软化数字硬切,chip 一拍
  * 0.98→1 回弹(--ease-out-back 过冲再落定,「咚」一下的落定感;时长 --dur-med)。
- * 重播由组件侧触发:HandPanel 以「最近一次 delta>0」的浮标 id 作 key 重挂载 chip,
+ * 重播由组件侧触发:DashboardBar 以「最近一次 delta>0」的浮标 id 作 key 重挂载 chip,
  * 入场动画随之重放(见 HandPanel 的 gainPulseKey);浮标出列后类同步摘除,不空放。 */
 @keyframes game-chip-pulse {
   from {

@@ -20,10 +20,14 @@
 //   数字键 1..n 选中(灰置跳过计数)、Enter 确认(G-19 口径与一期手感一致)。
 //   令笺(技)变体混排架中(一期形制,#188 档 3,JunshiSkillCard)。
 //   目标段(pendingJinnang/pendingSkill 在场):整架退出交互——已出计牌金描边上浮
-//   印「已出牌 · 待择目标」(原型目标态口径),其余牌灰置印「目标段不可换牌」;
+//   印「已出牌 · 待择目标」,其余牌灰置印「目标段不可换牌」;
 //   选目标在席位卡(SeatRail targets),本架不再接手势。
 // 叠加压缩(#254)窗态下照常工作(状态 transform 与挥出同落 button 层,顺序收口在
 // hand-rack.css 的窗态块)。
+//
+// expandPile(#255):仪表条珍宝/名将徽章点开的明细行——纸签横排落在手牌行左旁
+// (同架底对齐,逐张带标签:珍宝=名+等级、名将=名),不顶掉手牌;窗态期间照常可用。
+// 数据即 pile 指向的玩家摞(本件已有 player),开/收/切换由 GameScreen 持有。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
@@ -33,15 +37,20 @@ import {
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
-import { JinnangLingjian } from "./scroll/JinnangLingjian";
+import { JinnangLingjian } from "./JinnangLingjian";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
+import { formatMoney } from "@core/money";
+import { guidePriceOf } from "@core/treasures";
 import { jinnangCardOf } from "@core/jinnang";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
+
+/** expandPile(#255)可展开的摞(与仪表条徽章一一对应)。 */
+export type RackPile = "treasures" | "heroes";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
@@ -280,6 +289,8 @@ export interface HandRackProps {
   player: SnapshotPlayer | null;
   /** 军师窗态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
+  /** expandPile(#255):展开的摞(明细行落架中,手牌行左旁);null/缺省 = 全收。 */
+  pile?: RackPile | null;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
@@ -300,8 +311,8 @@ interface StackVars {
 }
 
 /** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背);
- *  军师窗态(#256)下架即出牌面(见文件头)。 */
-export function HandRack({ player, junshi }: HandRackProps) {
+ *  军师窗态(#256)下架即出牌面、expandPile(#255)明细行落架中(见文件头)。 */
+export function HandRack({ player, junshi, pile }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
@@ -474,6 +485,31 @@ export function HandRack({ player, junshi }: HandRackProps) {
         <span>手</span>
         <span>牌</span>
       </span>
+      {/* expandPile 明细行(#255):纸签横排落手牌行左旁(同架底对齐,不顶掉手牌);
+          珍宝=名+等级(浮签带指导价),名将=名(浮签带「破产清算时换 200 分」口径)。 */}
+      {pile === "treasures" && player.treasures.length > 0 && (
+        <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="珍宝明细">
+          {player.treasures.map((t) => (
+            <span
+              key={t.id}
+              className="pile-slip pile-gem"
+              title={`${t.desc ? t.desc + "\n" : ""}指导价 ${formatMoney(guidePriceOf(t.level))}`}
+            >
+              <b>{t.name}</b>
+              <i>Lv{t.level}</i>
+            </span>
+          ))}
+        </div>
+      )}
+      {pile === "heroes" && player.heroes.length > 0 && (
+        <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="名将明细">
+          {player.heroes.map((h) => (
+            <span key={h.id} className="pile-slip pile-hero" title={`${h.title} · 破产清算时换 200 分`}>
+              <b>{h.name}</b>
+            </span>
+          ))}
+        </div>
+      )}
       {renderCount > 0 ? (
         /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
             ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。 */

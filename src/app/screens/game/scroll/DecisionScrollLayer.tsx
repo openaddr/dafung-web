@@ -279,7 +279,8 @@ export function DecisionScrollLayer({
 
   // ── 军师幕路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架
   // (军师窗态/动作条/目标段接线归 GameScreen;引擎相位与 choices 零改动)。
-  // JinnangScroll 组件本体暂留 scroll/(死代码,#255 收口票删除)──
+  // JinnangScroll 组件体已随 #255 收口删除(令笺迁 screens/game/JinnangLingjian.tsx
+  // 归 HandRack 窗态消费)──
 
   // ── 招贤纳士:三选一(无"不取",引擎相位守卫如此)──
   if (snapshot.turnPhase === "AwaitingHeroPick" && snapshot.offeredHeroes.length > 0 && interactive) {

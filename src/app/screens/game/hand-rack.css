@@ -20,10 +20,10 @@
    档类默认 8px)。短横屏降档(#238 已决事项「剩余实现层微调」):media query 里把
    容器 em 基降到 6.4px → 牌面 96×128、架高同步收紧,一处变量全架缩放。 */
 
-/* 令笺(技)变体混排架中(#256):差量样式(金界格线/技章/徽记/摘要区)单源在
-   scroll.css 的 .jn-lingjian 作用域,显式 @import 拉进依赖(此前由 ScrollShell
-   携带;#255 收口若拆卷轴族,此依赖随迁,不许「恰好被别处加载」的暗耦合)。 */
-@import "./scroll/scroll.css";
+/* 令笺(技)变体混排架中(#256):差量样式(.jn-lingjian 作用域,金界格线/技章/徽记/
+   摘要区)收口在本文件尾段——组件 JinnangLingjian.tsx 与 HandRack 同住 screens/game/,
+   消费即加载,无「恰好被别处加载」的暗耦合(#255 收口:原 @import scroll.css 拉入,
+   军师幕残件删除后随迁于此)。 */
 
 .hand-rack {
   position: relative;
@@ -248,4 +248,121 @@
   border-radius: 3px;
   background: rgba(43, 35, 23, 0.3);
   margin: 0 auto 14px;
+}
+
+/* ── expandPile 明细行(#255):仪表条徽章点开的摞,纸签横排落手牌行左旁(同架
+   flex 底对齐,不顶掉手牌);空摞徽章不可展开,本行只在有货时渲染。字级用 px
+   (签面小字,不吃架体 em 基——7.6px 基下 em 表达不出可读小字)。裸色豁免:纸签
+   边影走墨影 rgba(43,35,23,·),摞色吃属性 token(--color-attr-gem/hero)。 ── */
+.hand-rack-pile {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  margin-right: 1.5em;
+  padding-bottom: 6px;
+  overflow: hidden; /* 摞大 + 满手牌时签行收窄让位,不溢出架缘 */
+}
+.pile-slip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  max-width: 9.5em;
+  padding: 3px 8px 4px;
+  border: 1px solid rgba(43, 35, 23, 0.35);
+  border-left-width: 3px;
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
+  box-shadow: 0 1px 3px rgba(43, 35, 23, 0.25);
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.pile-slip b {
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pile-slip i {
+  font-style: normal;
+  font-size: 10.5px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.pile-slip.pile-gem {
+  border-left-color: var(--color-attr-gem);
+}
+.pile-slip.pile-hero {
+  border-left-color: var(--color-attr-hero);
+}
+
+/* ── 令笺(技)变体差量(#256 随迁,#255 收口落位):基座复用 .jinnang-card
+   (纸面/尺寸/交互态全同),只换头饰与中段。金=技通道:界格线、技章、徽记描边/字
+   全落 gold-deep(原型 .lingjian 口径)── */
+.jn-lingjian .jie {
+  background: var(--color-gold-deep);
+}
+/* 右上金底「技」章:与朱砂标签章同位同形(#229 技/牌区分) */
+.jn-lingjian .ji {
+  position: absolute;
+  top: 0.9em;
+  right: 0.9em;
+  z-index: 2;
+  width: 2.6em;
+  height: 2.6em;
+  display: grid;
+  place-items: center;
+  border-radius: 0.28em;
+  transform: rotate(2.5deg);
+  background: var(--color-gold-deep);
+  color: var(--color-paper-hi);
+  font-family: var(--font-brush);
+  font-size: 1.5em;
+  box-shadow: inset 0 0 0 0.14em rgba(246, 236, 217, 0.5);
+}
+/* 中段圆形徽记:技名首字(原型 .ji-emblem 形制:径向纸面 + 金细环;径 8em——较原型
+   9.5em 收一档,给下方属主+摘要两行让位,比例同步收紧保形制) */
+.jn-lingjian .hui {
+  flex: 0 0 auto;
+  align-self: center;
+  width: 8em;
+  height: 8em;
+  margin: 0.7em 0;
+  display: grid;
+  place-items: center;
+  border: 0.16em solid color-mix(in srgb, var(--color-gold-deep) 50%, transparent);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 42%, var(--color-paper-hi), var(--color-panel-hi));
+}
+.jn-lingjian .hui span {
+  font-family: var(--font-brush);
+  font-size: 3.6em;
+  line-height: 1;
+  color: var(--color-gold-deep);
+}
+/* 摘要区:属主行 + 技能文案摘要(复用牌面 .jiao 两行截断——细则归详情/规则页,
+   牌面只留做决定需要的部分)。摘要居中(原型 .cd 口径)。 */
+.jn-lingjian .zhai {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.4em;
+}
+.jn-lingjian .zhai .zhai-hero {
+  font-size: 1.05em;
+  letter-spacing: 0.14em;
+  color: var(--color-ink-dim);
+}
+.jn-lingjian .zhai .jiao {
+  font-size: 1.05em;
+  line-height: 1.5;
+  text-align: center;
+}
+/* 灰置(冷却/费用/无目标):属主行随 .off .jiao 同口径藏,让位原因印条 */
+.jn-lingjian.off .zhai {
+  visibility: hidden;
 }
