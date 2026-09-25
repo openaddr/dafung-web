@@ -20,7 +20,7 @@ export interface ActionBarProps {
   onPlay: () => void;
   /** 卡牌段=不出(useJinnang cardId:null);目标段=作罢(cancel:true)。 */
   onPass: () => void;
-  /** 选中放大牌占中 → 整条右让(原型 margin-left:240px);目标段不右让。 */
+  /** 选中放大牌占中 → 整条右让(实测 400px,见 layout.css 注);目标段不右让。 */
   rightShift: boolean;
 }
 

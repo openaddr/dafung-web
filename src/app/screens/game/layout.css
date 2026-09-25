@@ -516,7 +516,7 @@
 
 /* ── 动作条(#256 军师窗态):斗地主式两段动作条,居中浮于仪表条上缘(原型
    .actionbar 移植,bottom 184px=仪表条 172px+12px 气口)——锚条不锚牌,空手牌时
-   按钮仍在;选中放大牌占中时整条右让(.right-shift,原型 margin-left:240px 口径)。
+   按钮仍在;选中放大牌占中时整条右让(.right-shift,原型 240px;实装仪表条左段 344px 使架中心右偏,实测 400px 起不压牌面)。
    按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai(原型小薇禁新用)。 ── */
 .game-layout .actionbar {
   position: absolute;
@@ -529,7 +529,7 @@
   gap: 14px;
 }
 .game-layout .actionbar.right-shift {
-  margin-left: 240px;
+  margin-left: 400px;
 }
 /* 目标段「选择目标」标签(信息件,非按钮):纸底金边,与顶部 chip 同族 */
 .game-layout .actionbar .actionbar-lab {
