@@ -5,7 +5,7 @@
 // ⚠ 跑前需先 npm run build(dist 必须最新——两个 webServer 都消费 dist 产物)。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import type { Locator } from "@playwright/test";
-import { waitSettled, onlinePickCapitals, dismissJinnangIfUp } from "./react-helpers";
+import { waitSettled, onlinePickCapitals, dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
@@ -33,8 +33,8 @@ async function coreState(p: Page) {
 
 /** 双端建房/加入/选图/开局(经济 v2 标准目标 30000)+ 各自三选一选都,返回 [host, guest]。 */
 async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
-  const host = await (await browser.newContext()).newPage();
-  const guest = await (await browser.newContext()).newPage();
+  const host = await (await newBridgeContext(browser)).newPage();
+  const guest = await (await newBridgeContext(browser)).newPage();
   await host.goto(`${ONLINE}/?online=1`);
   await host.getByTestId("lobby-target").fill("30000");
   await host.getByTestId("lobby-create").click();
@@ -47,7 +47,7 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   await host.getByTestId("map-confirm").click();
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("hand-panel")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
   }
   // L41 开局选都三选一:两客户端各自从 3 候选中选一(助手内断言候选高亮/不越权)
   await onlinePickCapitals([host, guest]);

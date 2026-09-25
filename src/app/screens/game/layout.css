@@ -1,0 +1,524 @@
+/* 对局屏三区布局(#253 布局骨架)——从原型 tmp/prototype-layout.html v3.2(已验收
+   视觉基线)忠实移植:顶部条 / 右缘席位竖卡列 / 底部仪表条+手牌架;右栏 aside 退役。
+   所有规则作用域在 .game-layout 下防全局串扰(同 hand-rack.css 收口先例);
+   色一律 var(--color-*) 或墨影 rgba(43,35,23,·)(裸色豁免登记见各段注释);
+   尺寸/字号/间距/动画曲线以原型为准,勿自由发挥。
+
+   裸色豁免登记(原型定稿色,tokens.css 无对应 token;与 hand-rack.css 豁免同族):
+   - #463a28 / #241d13:漆木仪表条渐变两端(架上映、架下暗,即 hand-rack 原渐变);
+   - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式);
+   - rgba(0,0,0,·):漆木上的中性黑影,非墨影语义;
+   - #f6ead6 / #f6ecd9:印面纸色字(全仓印章语言既有惯例字面量)。
+
+   与原型的实装级偏差(功能/规则要求,非视觉自由发挥):
+   - 顶部条角钮 36→40px(W5 触达 ≥40px 仓库红线);
+   - 新文案字体走 font-wenkai/font-brush(DESIGN.md §4.3 字体安全规约,原型的小薇禁新用);
+   - .timerbar 原型为静态 scaleX(.42) 演示条,实装为不定长活动条(客户端无倒计时
+     数据源,假倒计时不说真话;#254 接目标段时再议真倒计时);
+   - .candidate 金圈呼吸态属 #254 目标段,本票不移植;
+   - 手牌牌背组至多示意 3 张(#250 手牌无上限,数量以裸排数字为准)。
+
+   【注意:注释内禁写「星号紧跟斜杠」的字符组合——等于提前闭合注释
+   (hand-rack.css 首版实证翻车)。】 */
+
+/* WaitingBar 的 waiting-dots 样式宿主迁移:panels.css 原由 StatusBar 导入(侧栏退役
+   后退出模块图),WaitingBar 本体不动,导入职责归本文件。 */
+@import "./panels.css";
+
+/* ── 棋盘区:全幅垫底(下缘让位仪表条)── */
+.game-layout .board-area {
+  position: absolute;
+  inset: 0 0 calc(172px + var(--safe-bottom)) 0;
+  overflow: hidden;
+}
+
+/* ── 顶部条:回合 chip + 活跃方 | 牌库/弃牌 + 角钮 ── */
+.game-layout .topbar {
+  position: absolute;
+  top: calc(var(--safe-top) + 10px);
+  left: calc(var(--safe-left) + 12px);
+  right: calc(var(--safe-right) + 12px);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  z-index: 5;
+  pointer-events: none; /* chips 不挡棋盘拖拽,钮/chip 自身放行 */
+}
+.game-layout .chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 3px;
+  border: 1px solid rgba(43, 35, 23, 0.25);
+  background: rgba(244, 236, 216, 0.92);
+  padding: 6px 10px;
+  box-shadow: 0 1px 3px rgba(43, 35, 23, 0.2);
+  pointer-events: auto;
+}
+.game-layout .chip .seal-s {
+  width: 22px;
+  height: 22px;
+  transform: rotate(-4deg);
+  display: grid;
+  place-items: center;
+  border-radius: 2px;
+  font-family: var(--font-brush);
+  font-size: 13px;
+  line-height: 1;
+  color: #f6ead6;
+}
+.game-layout .chip .t {
+  font-family: var(--font-brush);
+  font-size: 15px;
+}
+.game-layout .chip .d {
+  font-size: 11px;
+  color: var(--color-ink-dim);
+}
+.game-layout .topbar .sp {
+  flex: 1;
+}
+.game-layout .misc {
+  display: flex;
+  gap: 8px;
+  pointer-events: auto;
+}
+.game-layout .misc .chip {
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  font-family: var(--font-wenkai);
+}
+.game-layout .misc .chip b {
+  color: var(--color-ink);
+  font-weight: 400;
+}
+/* 角钮(复位/缩放/静音):原型 .sqbtn 制式,36→40px 按 W5 触达线 */
+.game-layout .sqbtn {
+  width: 40px;
+  height: 40px;
+  border-radius: 3px;
+  border: 1px solid rgba(43, 35, 23, 0.3);
+  background: rgba(244, 236, 216, 0.92);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 15px;
+  color: var(--color-ink-dim);
+  cursor: pointer;
+}
+.game-layout .sqbtn:hover {
+  color: var(--color-ink);
+}
+
+/* ── 席位竖卡列:右缘纵列(3 张封顶);4-6 席左右两列;7+ 余席顶行缩微 ──
+   列层全幅铺底(自身透明不吃事件),席位卡/浮签触发元自持 pointer-events。 */
+.game-layout .seat-rail {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.game-layout .seat-rail .seat {
+  pointer-events: auto;
+}
+.game-layout .seatcol {
+  position: absolute;
+  top: calc(var(--safe-top) + 104px);
+  right: calc(var(--safe-right) + 12px);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.game-layout .seatcol.left {
+  left: calc(var(--safe-left) + 12px);
+  right: auto;
+}
+.game-layout .seatrow-top {
+  position: absolute;
+  top: calc(var(--safe-top) + 60px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 4;
+  display: flex;
+  gap: 10px;
+}
+/* 顶行缩微卡(原型其五 mini8:宽 96,四格形态由组件侧只渲染 城/手牌 徽章行) */
+.game-layout .seatrow-top .seat {
+  width: 96px;
+}
+.game-layout .seat {
+  position: relative;
+  width: 104px;
+  border: 1.5px solid rgba(43, 35, 23, 0.4);
+  border-radius: 6px;
+  background: linear-gradient(180deg, var(--color-panel), var(--color-panel-hi));
+  box-shadow: 0 2px 6px rgba(43, 35, 23, 0.22);
+  overflow: hidden;
+  padding: 8px 8px 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.game-layout .seat .vhead {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.game-layout .guo-yin {
+  transform: rotate(-4deg);
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  font-family: var(--font-brush);
+  line-height: 1;
+  color: #f6ead6;
+  box-shadow: inset 0 0 0 1.5px rgba(246, 236, 217, 0.4);
+  flex: 0 0 auto;
+}
+.game-layout .seat .guo-yin {
+  width: 30px;
+  height: 30px;
+  font-size: 18px;
+}
+.game-layout .seat .nm {
+  font-size: 11px;
+  line-height: 1.2;
+  color: #4a3f2c;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+}
+.game-layout .seat .nm .win-mark {
+  font-family: var(--font-brush);
+  color: var(--color-gold-deep);
+}
+.game-layout .seat .cash {
+  font-family: var(--font-brush);
+  font-size: 18px;
+  line-height: 1.15;
+  color: var(--color-attr-cash);
+  font-variant-numeric: tabular-nums;
+}
+.game-layout .seat.bankrupt {
+  opacity: 0.4;
+}
+.game-layout .seat.bankrupt .nm,
+.game-layout .seat.bankrupt .cash {
+  text-decoration: line-through;
+}
+/* 体力血条:条内刻度数字,纸白字+深色投影保证任意填充色可读;低于三成转红 */
+.game-layout .hpbar {
+  height: 11px;
+  border: 1px solid rgba(43, 35, 23, 0.45);
+  border-radius: 5px;
+  background: rgba(43, 35, 23, 0.16);
+  position: relative;
+  overflow: hidden;
+  display: block;
+}
+.game-layout .hpbar i {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: linear-gradient(90deg, #5f955f, var(--color-money));
+  border-radius: 4px;
+}
+.game-layout .hpbar.low i {
+  background: linear-gradient(90deg, #c05a4a, var(--color-danger));
+}
+.game-layout .hpbar em {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-style: normal;
+  font-size: 9.5px;
+  line-height: 1;
+  color: #fdf8ec;
+  font-variant-numeric: tabular-nums;
+  text-shadow:
+    0 0 2px rgba(43, 35, 23, 0.95),
+    0 1px 1px rgba(43, 35, 23, 0.9);
+}
+/* 属性徽章:程序化 SVG 图标(属性色)+ 裸值;两列网格,只显值不显文字类目 */
+.game-layout .vgrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 3px 8px;
+  margin-top: 2px;
+}
+.game-layout .ib {
+  display: inline-flex;
+  align-items: center;
+  gap: 3.5px;
+  font-size: 12px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.game-layout .ib.c-warrant { color: var(--color-attr-warrant); }
+.game-layout .ib.c-city    { color: var(--color-attr-city); }
+.game-layout .ib.c-rep     { color: var(--color-attr-rep); }
+.game-layout .ib.c-gem     { color: var(--color-attr-gem); }
+.game-layout .ib.c-hero    { color: var(--color-attr-hero); }
+.game-layout .ib.c-hand    { color: var(--color-ink); gap: 2px; }
+.game-layout .ib svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.game-layout .mini-backs {
+  display: inline-flex;
+  gap: 1.5px;
+  align-items: center;
+}
+.game-layout .mini-back {
+  width: 8px;
+  height: 12px;
+  border-radius: 1.5px;
+  background: linear-gradient(160deg, #3d3324, var(--color-lacquer) 60%, #262017);
+  box-shadow: inset 0 0 0 0.8px rgba(217, 185, 92, 0.5);
+}
+/* 活跃方:金圈光效 + 「运筹中」微标(§4.6 例外保留项,全布局仅此一处文字标牌) */
+.game-layout .seat .think {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  font-family: var(--font-wenkai);
+  font-size: 10px;
+  padding: 2.5px 6px;
+  border-radius: 0 4px 0 4px;
+  letter-spacing: 0.1em;
+}
+.game-layout .seat.active {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 2px rgba(200, 161, 58, 0.5),
+    0 2px 8px rgba(138, 106, 28, 0.4);
+}
+.game-layout .seat.active::after {
+  content: "";
+  position: absolute;
+  inset: -5px;
+  border: 2px solid rgba(200, 161, 58, 0.6);
+  border-radius: 9px;
+  animation: seat-glow var(--dur-ambient) var(--ease-sine) infinite;
+  pointer-events: none;
+}
+@keyframes seat-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+/* 倒计时条(原型静态演示条;实装为不定长活动条——见文件头偏差登记) */
+.game-layout .timerbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 5px;
+  background: linear-gradient(90deg, var(--color-gold-bright), var(--color-danger));
+  transform-origin: left;
+  animation: timerbar-breathe var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes timerbar-breathe {
+  0%,
+  100% {
+    transform: scaleX(0.15);
+  }
+  50% {
+    transform: scaleX(0.85);
+  }
+}
+
+/* ── 底部仪表条:自局徽章区 | 手牌架(弹性)── */
+.game-layout .dash {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: calc(172px + var(--safe-bottom));
+  z-index: 6;
+  display: flex;
+  align-items: stretch;
+  background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+  box-shadow:
+    inset 0 2px 0 rgba(217, 185, 92, 0.4),
+    inset 0 14px 24px rgba(0, 0, 0, 0.35);
+}
+.game-layout .me {
+  width: 344px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 16px calc(14px + var(--safe-bottom)) 18px;
+  border-right: 1px solid rgba(217, 185, 92, 0.22);
+}
+.game-layout .me .head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.game-layout .me .guo-yin {
+  width: 40px;
+  height: 40px;
+  font-size: 24px;
+  border-radius: 5px;
+  box-shadow:
+    inset 0 0 0 1.5px rgba(246, 236, 217, 0.4),
+    0 2px 5px rgba(0, 0, 0, 0.4);
+}
+.game-layout .me .nm {
+  font-family: var(--font-brush);
+  font-size: 19px;
+  color: var(--color-lacquer-gold);
+  white-space: nowrap;
+}
+.game-layout .me .you,
+.game-layout .me .guan {
+  width: 22px;
+  height: 22px;
+  flex: 0 0 auto;
+  transform: rotate(-4deg);
+  display: grid;
+  place-items: center;
+  border-radius: 3px;
+  font-family: var(--font-brush);
+  font-size: 12px;
+}
+.game-layout .me .you {
+  background: var(--color-danger);
+  color: #f6ead6;
+}
+.game-layout .me .guan {
+  border: 1px solid rgba(246, 236, 217, 0.35);
+  color: rgba(246, 236, 217, 0.6);
+}
+.game-layout .me .head .sp {
+  flex: 1;
+}
+/* 托管热钮 + 速度(HandPanel 托管行平移;漆底描边钮) */
+.game-layout .tuoguan {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.5);
+  border-radius: 3px;
+  padding: 5px 9px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  background: none;
+}
+.game-layout .tuoguan:hover {
+  background: rgba(217, 185, 92, 0.15);
+}
+.game-layout .dash-speed {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  color: var(--color-lacquer-gold);
+  background: none;
+  border: 1px solid rgba(217, 185, 92, 0.3);
+  border-radius: 3px;
+  padding: 5px 2px;
+  cursor: pointer;
+}
+.game-layout .dash-speed option {
+  color: var(--color-ink);
+  background: var(--color-panel);
+}
+.game-layout .tuoguan-on {
+  font-family: var(--font-wenkai);
+  font-size: 11px;
+  color: var(--color-gold-bright);
+  white-space: nowrap;
+}
+.game-layout .me .rows {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+/* 仪表条徽章:SVG 图标(属性色亮化变体,漆底上提亮)+ 裸值 */
+.game-layout .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 13px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.game-layout .badge svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+.game-layout .badge.b-cash {
+  font-family: var(--font-brush);
+  font-size: 19px;
+  color: var(--color-attr-cash-bright);
+}
+.game-layout .badge.b-cash .cash-lab {
+  font-family: var(--font-wenkai);
+  font-size: 11px;
+  color: rgba(217, 185, 92, 0.7);
+  letter-spacing: 0.1em;
+}
+.game-layout .badge.b-warrant { color: var(--color-attr-warrant-bright); }
+.game-layout .badge.b-city    { color: var(--color-attr-city-bright); }
+.game-layout .badge.b-rep     { color: var(--color-attr-rep-bright); }
+.game-layout .badge.b-gem     { color: var(--color-attr-gem-bright); }
+.game-layout .badge.b-hero    { color: var(--color-attr-hero-bright); }
+.game-layout .badge .hpbar {
+  width: 80px;
+  height: 9px;
+  border-color: rgba(217, 185, 92, 0.45);
+  background: rgba(0, 0, 0, 0.3);
+}
+.game-layout .badge.b-sign {
+  font-family: var(--font-brush);
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.4);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 14px;
+}
+/* 浮标动画复用 game-hud.css 的 game-cash-float;漆底配色由 DashboardBar 直出
+   (正=lacquerGold / 负=attr-hero-bright),不走纸面档色。 */
+
+/* 手牌架槽:HandRack 原样入槽(全展形态不动),漆木底/投影由 .dash 承担 */
+.game-layout .dash-rack {
+  flex: 1;
+  position: relative;
+  display: flex;
+  min-width: 0;
+}
+.game-layout .dash-rack .hand-rack {
+  flex: 1 1 auto;
+  min-width: 0;
+  background: none;
+  box-shadow: none;
+  z-index: auto;
+  /* em 基降为原型 7.6px:牌面 152×203 内收,172px 条内上下各留一口气 */
+  font-size: 7.6px;
+  padding-bottom: 1.75em;
+}
+
+/* ── reduced-motion:呼吸/光效类动画退场(app.css M-4 全局兜层之外的本文件显式口径,
+     同原型 @media 尾行;活动条一并静止在半程刻度)── */
+@media (prefers-reduced-motion: reduce) {
+  .game-layout .seat.active::after,
+  .game-layout .timerbar {
+    animation: none;
+  }
+  .game-layout .timerbar {
+    transform: scaleX(0.42);
+  }
+}

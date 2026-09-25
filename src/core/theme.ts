@@ -74,6 +74,24 @@ export const Theme = {
     h: "江东",
   } as Record<string, string>,
 
+  // ── 属性色变体(#253 布局骨架,取色以原型 tmp/prototype-layout.html v3 为准)──
+  // 一属性一色;每属性两档:无后缀 = 纸面深变体(宣纸/笺面上 ≥4.5:1),Bright = 漆木
+  // 深底(仪表条)亮变体。徽章/数值一律吃 --color-attr-* token,组件零硬编码色值。
+  // 生成器(gen:theme)只认顶层 Rgb,故平铺为 attr* 键;其中三处与既有 token 同值
+  // (委任=goldDeep / 城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
+  attrCash: hex("3d6538"), // 现金 = 青绿加深(重要数字最高优先,brush 加大)
+  attrCashBright: hex("8fbf77"), // 现金·漆底亮档
+  attrWarrant: hex("8a6a1c"), // 委任 = 熟金(同 goldDeep)
+  attrWarrantBright: hex("e0c06a"), // 委任·漆底亮档
+  attrCity: hex("3f6a6b"), // 城池 = 黛青(同 sealQing)
+  attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)
+  attrRep: hex("7a3a6a"), // 声望 = 紫
+  attrRepBright: hex("c583b4"), // 声望·漆底亮档
+  attrGem: hex("8f5215"), // 珍宝 = 橙金
+  attrGemBright: hex("e09a52"), // 珍宝·漆底亮档
+  attrHero: hex("b23a2e"), // 名将 = 朱砂(同 danger)
+  attrHeroBright: hex("e07a6a"), // 名将·漆底亮档
+
   // 玩家色(8 色,用于旌旗/边框/王旗;上限 8 人,一席一色)
   playerColors: [
     hex("2a6a8a"), // 石青
