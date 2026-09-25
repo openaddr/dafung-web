@@ -37,7 +37,7 @@ export const Theme = {
   lacquerGold: hex("d9b95c"), // 漆底金字(墨钮文字/杆箍线)
   gold: hex("c8a13a"), // 鎏金(轮次/能量/金印,不再作按钮底)
   goldBright: hex("d4af37"), // 亮金(都城光晕/行军拖影)
-  goldDeep: hex("8a6a1c"), // 熟金(纸底金字可读档,对比 ≥4.5:1)
+  goldDeep: hex("755917"), // 熟金(纸底金字可读档,对纸底两端 ≥4.5:1;与 attrWarrant 同批拍板加深,2026-09-25)
   money: hex("4a7a4a"), // 青绿(收入)
   danger: hex("b23a2e"), // 朱砂(印章/扣减/税/破产)
   // 在线/成功(审计 A4:「在线」小字于笺面 3.2:1 不达 AA → 加深一档至 ≈4.8:1)
@@ -81,7 +81,7 @@ export const Theme = {
   // (委任=goldDeep / 城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
   attrCash: hex("3d6538"), // 现金 = 青绿加深(重要数字最高优先,brush 加大)
   attrCashBright: hex("8fbf77"), // 现金·漆底亮档
-  attrWarrant: hex("755917"), // 委任 = 熟金加深(对席位卡纸底两端 ≥4.5:1;8a6a1c 仅 4.29 不达)
+  attrWarrant: hex("755917"), // 委任 = 熟金加深(对席位卡纸底两端 ≥4.5:1;与 goldDeep 同值互证,同批拍板)
   attrWarrantBright: hex("e0c06a"), // 委任·漆底亮档
   attrCity: hex("3f6a6b"), // 城池 = 黛青(同 sealQing)
   attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)

@@ -2,7 +2,7 @@
 // 右侧栏(aside)已退役并核销(#253 迁移、#255 删件):StatusBar→顶部条、
 // HandPanel→仪表条+手牌架、TreasuryPanel→仪表条计数徽章(expandPile 点开明细)、
 // OthersPanel→席位卡、CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为
-// 全局兜底,席位卡倒计时条承担「谁在行动」指名。
+// 全局兜底,席位卡活跃光效承担「谁在行动」指名(操作不限时,无倒计时条)。
 // 军师窗态(#256):军师幕弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
 // 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
 // 门控,与退役前弹窗同门)接线三方:HandRack(窗态牌面/手势)、ActionBar(两段
@@ -35,6 +35,7 @@ import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
+import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 import { VERSION } from "../../../version";
 
@@ -170,28 +171,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, targets: [targetSeat] }
       : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [targetSeat] };
 
-  // 目标段数字键 1..n 直发可用席位命令(一期 G-19 旧口径;卡牌段数字键在 HandRack)。
-  const seatKb = useRef({ up: false, seats: [] as number[], junshiSeatCmd, dispatchCommand });
-  seatKb.current = {
-    up: junshiTargeting,
-    seats: junshiSeatOptions.filter((o) => o.available).map((o) => o.targetSeat),
-    junshiSeatCmd,
-    dispatchCommand,
-  };
-  useEffect(() => {
-    if (!junshiTargeting) return;
-    const onKey = (e: KeyboardEvent) => {
-      const k = seatKb.current;
-      if (!k.up) return;
-      const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1) {
-        const hit = k.seats[n - 1];
-        if (hit != null) k.dispatchCommand(k.junshiSeatCmd(hit));
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [junshiTargeting]);
+  // 目标段数字键 1..n 直发可用席位命令(useDigitKeyPick 单源,一期 G-19 旧口径;
+  // 卡牌段数字键在 HandRack)。
+  useDigitKeyPick(
+    junshiTargeting,
+    junshiSeatOptions.filter((o) => o.available).map((o) => o.targetSeat),
+    (targetSeat) => dispatchCommand(junshiSeatCmd(targetSeat)),
+  );
 
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
   const setupHint =
@@ -252,7 +238,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
         <HintBar hint={hint} level={hintLevel} />
         {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债。
-            #253:席位卡倒计时条承担「谁在行动」指名,本条保留为全局兜底。 */}
+            #253:席位卡活跃光效+「运筹中」微标承担「谁在行动」指名,本条保留为全局兜底。 */}
         <WaitingBar
           snapshot={snapshot}
           interactive={interactive}

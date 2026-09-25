@@ -39,6 +39,8 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { JinnangLingjian } from "./JinnangLingjian";
 import { useLongPress } from "@app/hooks/use-long-press";
+import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
+import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
 import { formatMoney } from "@core/money";
@@ -69,7 +71,9 @@ export interface JunshiWindow {
   onConfirm: () => void;
 }
 
-/** 窗态下单张手牌的呈现/交互槽(null=常态牌:点/长按开详情)。 */
+/** 窗态下单张手牌的呈现/交互槽(null=常态牌:点/长按开详情)。
+ *  onSelect/onDeselect 仅卡牌段有语义;目标段整架退出交互(牌钮恒 disabled,事件
+ *  不到达,2026-09-25 评审核实后删去调用侧的 no-op 占位),字段可缺省。 */
 interface RackCardJunshi {
   available: boolean;
   selected: boolean;
@@ -77,8 +81,8 @@ interface RackCardJunshi {
   played?: boolean;
   /** 原因印条(灰置时展示;文案单源 choices;目标段用原型口径「目标段不可换牌」)。 */
   reason?: string;
-  onSelect: () => void;
-  onDeselect: () => void;
+  onSelect?: () => void;
+  onDeselect?: () => void;
 }
 
 /** 详情弹层壳:内容 = JinnangCardDetail 五段面板,壳(定位/遮罩/出口)归本件。
@@ -132,12 +136,21 @@ function junshiFaceClass(s: RackCardJunshi): string {
   return s.selected ? "sel" : "";
 }
 
+/** 同名第几张(0 起):React key 去重用(同名牌各有独立 key,进/出窗态不重挂;
+ *  评审去重前三处各写一份 slice/filter,归此一处)。id 由调用方给(常态/目标段=手牌
+ *  项本身,卡牌段=选项 id,数重复时以手牌前缀为准)。 */
+function nthSame(hand: string[], i: number, id: string): number {
+  return hand.slice(0, i).filter((x) => x === id).length;
+}
+
 /** 单张手牌:真 <button> 包住牌面(键盘可达;不用裸 role——红线:交互语义不自写)。
  *  常态:点击与长按(useLongPress 单源,500ms)同效开详情,长按触发后置 fired
  *  抑制随后的合成 click,同一动作绝不弹两次。
  *  窗态(junshi 槽在场):点牌=选中(音效 jinnangSelect),再点同牌/右键/长按取消;
- *  灰置牌 disabled(浏览器禁用契约,不可选中)。两态共用同一组件与 key:进/出窗态
- *  不重挂、不重播发牌音/入场级联。index:发牌入场级联的错峰序(--i)。 */
+ *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 JunshiSkillCard/Tip 同形
+ *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌 disabled(浏览器禁用契约,
+ *  不可选中)。两态共用同一组件与 key:进/出窗态不重挂、不重播发牌音/入场级联。
+ *  index:发牌入场级联的错峰序(--i)。 */
 function RackCard({
   cardId,
   index,
@@ -150,6 +163,19 @@ function RackCard({
   onOpen: (id: string) => void;
 }) {
   const press = useLongPress();
+  // 窗态复合手势(hooks 规则:配置随分支,调用不随分支);常态分支用原语直连。
+  const junshiTap = useTapOrLongPress(
+    junshi
+      ? {
+          onTap: () => {
+            if (junshi.selected) junshi.onDeselect?.();
+            else junshi.onSelect?.();
+          },
+          onLongPress: junshi.selected ? () => junshi.onDeselect?.() : null,
+          onContextMenu: junshi.selected ? () => junshi.onDeselect?.() : undefined,
+        }
+      : {},
+  );
 
   // 发牌音(#239 T4):新牌挂载 = 入手,牌落漆木架一声轻叩(jinnangDraw,文件通路
   // woodblock-hit)。挂载即播惯例同 ScrollShell 的 scrollOpen;音画与 rack-card-in
@@ -164,32 +190,13 @@ function RackCard({
     return (
       <button
         type="button"
+        {...junshiTap.props}
         data-testid={TESTIDS.jinnangCard(cardId)}
         aria-label={cardId}
         aria-pressed={s.available && !s.played ? s.selected : undefined}
         disabled={!s.available || s.played}
         className={junshiBtnClass(s)}
         style={{ ["--i" as string]: index }}
-        onPointerDown={(e) => {
-          press.cancel();
-          if (s.selected) press.start(e, s.onDeselect); // 长按只服务「取消选中」
-        }}
-        onPointerMove={(e) => press.move(e)}
-        onPointerUp={press.cancel}
-        onPointerCancel={press.cancel}
-        onPointerLeave={press.cancel}
-        onContextMenu={(e) => {
-          e.preventDefault(); // 右键=取消选中,不弹浏览器菜单
-          if (s.selected) s.onDeselect();
-        }}
-        onClick={() => {
-          if (press.fired.current) {
-            press.fired.current = false; // 长按已取消选中,吞掉补发 click
-            return;
-          }
-          if (s.selected) s.onDeselect();
-          else s.onSelect();
-        }}
       >
         <JinnangCardFace cardId={cardId} className={junshiFaceClass(s)}>
           {!s.available && s.reason && <span className="reason">{s.reason}</span>}
@@ -223,9 +230,10 @@ function RackCard({
   );
 }
 
-/** 窗态令笺钮(#188 档 3 技变体混排架中):手势与 RackCard 窗态分支同款;无发牌音
- *  (技不是新入手的牌)。文案随 choices 载荷(skillHero/label/skillText),UI 不回查
- *  名将目录(一期口径)。testid 沿 jinnang-card-* 族(option.id = skill:<id>)。 */
+/** 窗态令笺钮(#188 档 3 技变体混排架中):手势与 RackCard 窗态分支同款(useTapOrLongPress
+ *  单源,长按/右键只服务「取消选中」);无发牌音(技不是新入手的牌)。文案随 choices
+ *  载荷(skillHero/label/skillText),UI 不回查名将目录(一期口径)。testid 沿
+ *  jinnang-card-* 族(option.id = skill:<id>)。 */
 function JunshiSkillCard({
   option,
   index,
@@ -239,38 +247,26 @@ function JunshiSkillCard({
   onSelect: () => void;
   onDeselect: () => void;
 }) {
-  const press = useLongPress();
+  const tap = useTapOrLongPress({
+    onTap: () => {
+      if (selected) onDeselect();
+      else onSelect();
+    },
+    onLongPress: selected ? onDeselect : null,
+    onContextMenu: selected ? onDeselect : undefined,
+  });
   const hero = option.skillHero ?? "";
   const name = option.label.slice(hero.length + 1); // 剥「属主·」前缀(一期口径)
   return (
     <button
       type="button"
+      {...tap.props}
       data-testid={TESTIDS.jinnangCard(option.id)}
       aria-label={option.label}
       aria-pressed={option.available ? selected : undefined}
       disabled={!option.available}
       className={selected ? "sel" : option.available ? "usable" : "off"}
       style={{ ["--i" as string]: index }}
-      onPointerDown={(e) => {
-        press.cancel();
-        if (selected) press.start(e, onDeselect);
-      }}
-      onPointerMove={(e) => press.move(e)}
-      onPointerUp={press.cancel}
-      onPointerCancel={press.cancel}
-      onPointerLeave={press.cancel}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        if (selected) onDeselect();
-      }}
-      onClick={() => {
-        if (press.fired.current) {
-          press.fired.current = false;
-          return;
-        }
-        if (selected) onDeselect();
-        else onSelect();
-      }}
     >
       <JinnangLingjian
         hero={hero}
@@ -327,23 +323,23 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
     junshi?.onSelect(id);
   };
 
-  // 数字键 1..n 选中第 n 个可用选项(灰置跳过计数)+ Enter 确认(G-19;仅卡牌段。
-  // 目标段数字键直发座位命令,归 GameScreen 接线)。快捷键读 ref 不进依赖:options
-  // 每快照新引用,监听器只挂一次;窗态退场(mountedOn 变 false)解绑。
-  const kb = useRef({ junshi, targeting, select });
-  kb.current = { junshi, targeting, select };
+  // 数字键 1..n 选中第 n 个可用选项(useDigitKeyPick 单源,G-19;灰置跳过计数)+ Enter
+  // 确认(本件自挂,仅卡牌段;目标段数字键直发座位命令,归 GameScreen 接线)。快捷键读
+  // ref 不进依赖:options 每快照新引用,监听器只挂一次;窗态退场(kbOn 变 false)解绑。
   const kbOn = junshi != null && !targeting;
+  useDigitKeyPick(
+    kbOn,
+    junshi != null && !targeting ? junshi.options.filter((o) => o.available) : [],
+    (hit) => select(hit.id),
+  );
+  const enterKb = useRef({ junshi, targeting });
+  enterKb.current = { junshi, targeting };
   useEffect(() => {
     if (!kbOn) return;
     const onKey = (e: KeyboardEvent) => {
-      const k = kb.current;
+      const k = enterKb.current;
       if (!k.junshi || k.targeting) return;
-      const n = Number(e.key);
-      if (Number.isInteger(n) && n >= 1) {
-        const avail = k.junshi.options.filter((o) => o.available);
-        const hit = avail[n - 1];
-        if (hit != null) k.select(hit.id);
-      } else if (e.key === "Enter") {
+      if (e.key === "Enter") {
         const j = k.junshi;
         const hasSel = j.selectedId != null && j.options.some((o) => o.id === j.selectedId && o.available);
         if (hasSel) {
@@ -409,13 +405,13 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
   // 窗态不重挂已存在的牌)。
   const handItems = (() => {
     if (junshi != null && targeting) {
-      // 目标段:整架退出交互——pendingCardId 即已出计牌(金描边上浮),其余灰置。
+      // 目标段:整架退出交互——pendingCardId 即已出计牌(金描边上浮),其余灰置;
+      // 牌钮恒 disabled,不传 onSelect/onDeselect(交互语义已随窗态退场)。
       return hand.map((id, i) => {
-        const nth = hand.slice(0, i).filter((x) => x === id).length;
         const played = junshi.pendingCardId === id;
         return (
           <RackCard
-            key={`${id}-${nth}`}
+            key={`${id}-${nthSame(hand, i, id)}`}
             cardId={id}
             index={i}
             junshi={{
@@ -423,8 +419,6 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
               selected: false,
               played,
               reason: played ? "已出牌 · 待择目标" : "目标段不可换牌",
-              onSelect: () => {},
-              onDeselect: () => {},
             }}
             onOpen={setDetailId}
           />
@@ -446,10 +440,9 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
             />
           );
         }
-        const nth = hand.slice(0, i).filter((x) => x === o.id).length;
         return (
           <RackCard
-            key={`${o.id}-${nth}`}
+            key={`${o.id}-${nthSame(hand, i, o.id)}`}
             cardId={o.id}
             index={i}
             junshi={{
@@ -466,8 +459,7 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
     }
     // 常态:手牌全展/叠加,点牌开详情。
     return hand.map((id, i) => {
-      const nth = hand.slice(0, i).filter((x) => x === id).length;
-      return <RackCard key={`${id}-${nth}`} cardId={id} index={i} junshi={null} onOpen={setDetailId} />;
+      return <RackCard key={`${id}-${nthSame(hand, i, id)}`} cardId={id} index={i} junshi={null} onOpen={setDetailId} />;
     });
   })();
 
