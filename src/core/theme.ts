@@ -81,7 +81,7 @@ export const Theme = {
   // (委任=goldDeep / 城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
   attrCash: hex("3d6538"), // 现金 = 青绿加深(重要数字最高优先,brush 加大)
   attrCashBright: hex("8fbf77"), // 现金·漆底亮档
-  attrWarrant: hex("8a6a1c"), // 委任 = 熟金(同 goldDeep)
+  attrWarrant: hex("755917"), // 委任 = 熟金加深(对席位卡纸底两端 ≥4.5:1;8a6a1c 仅 4.29 不达)
   attrWarrantBright: hex("e0c06a"), // 委任·漆底亮档
   attrCity: hex("3f6a6b"), // 城池 = 黛青(同 sealQing)
   attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)

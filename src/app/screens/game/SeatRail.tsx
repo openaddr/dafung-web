@@ -188,7 +188,7 @@ export interface SeatRailProps {
 export function SeatRail({ snapshot, viewSeat, targets }: SeatRailProps) {
   // 军情密探(#122/T4):本座位窥探中的对手——只有这些席位的手牌内容在浮签放行
   const peeking = new Set(
-    (snapshot.jinnangPeeks ?? []).filter((pk) => pk.viewer === viewSeat).map((pk) => pk.target),
+    snapshot.jinnangPeeks.filter((pk) => pk.viewer === viewSeat).map((pk) => pk.target),
   );
   const opponents: Seated[] = snapshot.players
     .map((p, seat) => ({ p, seat }))
