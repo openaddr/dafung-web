@@ -4,6 +4,7 @@
 // 既有 spec 的机遇隔离在 openSoloSetup 内统一归零,本 spec 自行覆写非零参数。
 import { test, expect } from "./fixtures";
 import { actIfCan, openSoloSetup, pickCapital, waitSettled, waitMyRollDone } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("机遇系统冒烟", () => {
   test("声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
@@ -30,8 +31,8 @@ test.describe("机遇系统冒烟", () => {
     const engCfg = await page.evaluate(() => JSON.stringify((window as any).__dafung.getEngine().encounter));
     expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({ triggerRate: 100, shares: { good: 0, neutral: 100, bad: 0 } });
 
-    // 声望渲染:状态卡/诸侯列表至少一处出现「声望」字样,初值 0
-    await expect(page.getByText(/声望/).first()).toBeVisible();
+    // 声望渲染:仪表条声望徽章(#253 迁移:状态卡/诸侯列表退役,aria 即名词+值),初值 0
+    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", "声望 0");
 
     const scroll = page.getByTestId("scroll-encounter");
     // 每拍经 actIfCan 清决策点(购地卷轴统一处理),遇机遇卷轴则点第一选项收卷。
@@ -51,6 +52,6 @@ test.describe("机遇系统冒烟", () => {
       await page.waitForTimeout(300);
     }
     expect(resolved).toBe(true);
-    await expect(page.getByText(/声望/).first()).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", /声望 \d+/);
   });
 });
