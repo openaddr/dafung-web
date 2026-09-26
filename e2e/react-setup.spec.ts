@@ -13,7 +13,8 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   await expect(page.getByTestId("setup-seat-count")).toHaveText("4");
   await expect(page.getByTestId("setup-target-30000")).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("setup-difficulty-Normal")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("current-map-name")).toHaveText("棋盘天下", { timeout: 10_000 });
+  // #249:默认图换「环游图」(index.json 首项),断言跟默认名单源
+  await expect(page.getByTestId("current-map-name")).toHaveText("环游图", { timeout: 10_000 });
 
   // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号列占位「待分配」,R3-A4 #67 去重)
   await expect(page.getByTestId("setup-seat-0-guohao")).toBeEditable();
