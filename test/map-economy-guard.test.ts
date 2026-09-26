@@ -1,4 +1,4 @@
-// 经济数值 v2 一致性守卫:三张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
+// 经济数值 v2 一致性守卫:四张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
 // buildCost/resupplyPerLevel 必须严格落在其价位档的标准值上(乘法城另表),
 // 珍宝指导价表/等级倍率/引擎默认值一并锁定——防手改地图数值漂移。
 import { describe, it, expect } from "bun:test";
@@ -7,6 +7,7 @@ import { TREASURE_PRICE, CITY_LEVEL_MULTIPLIER } from "@core/treasures";
 import sanguoData from "../public/maps/sanguo.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import chessboardData from "../public/maps/chessboard.json";
+import huanyouData from "../public/maps/huanyou.json";
 
 /** 价位档标准表(单位分;乘法城 30 两档单列)。与 .scratch/rescale-maps.cjs 同源,手改任一侧都应在此炸出。 */
 const y2f = (liang: number) => liang * 100;
@@ -133,9 +134,11 @@ function checkResupply(name: string, data: any) {
 describe("经济数值 v2 守卫", () => {
   checkMap("sanguo", sanguoData, SANGUO_TIER, 1); // #147:子午谷转锦囊格
   checkMap("chessboard", chessboardData, SANGUO_TIER); // 从 sanguo 派生,同表
+  checkMap("huanyou", huanyouData, SANGUO_TIER); // #249:从 chessboard 派生(同 42 格,仅环序/坐标重排),同表
   checkMap("zhongyuan", zhongyuanData, ZY_TIER);
   checkResupply("sanguo", sanguoData);
   checkResupply("chessboard", chessboardData);
+  checkResupply("huanyou", huanyouData);
   checkResupply("zhongyuan", zhongyuanData);
 
   it("珍宝指导价表(v2):Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两", () => {
