@@ -24,6 +24,19 @@ export default defineConfig({
     host: true,
     port: 5173,
     strictPort: false,
+    // 联机 API 反代到引擎服务器(bun run dev 编排起 scripts/server.ts,dev 专用 :3001,
+    // 刻意错开 serve 的 3000,二者可并存)。前端联机地址取 location.origin(App.tsx),
+    // 代理后 dev 端口同源可玩联机,零配置。只代理引擎命名空间(/room /ws /health /help);
+    // /assets /fonts /maps /config 由 vite 从 public/ 直出,不得进代理。env 可覆盖:DEV_ENGINE_URL。
+    proxy: (() => {
+      const engine = process.env.DEV_ENGINE_URL ?? "http://127.0.0.1:3001";
+      return {
+        "/room": { target: engine, changeOrigin: true },
+        "/ws": { target: engine, ws: true, changeOrigin: true },
+        "/health": { target: engine, changeOrigin: true },
+        "/help": { target: engine, changeOrigin: true },
+      };
+    })(),
   },
   preview: {
     host: true,

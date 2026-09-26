@@ -5,7 +5,8 @@
   "description": "群雄逐鹿 — 三国古风水墨大富翁(React + Bun,浏览器可自动化测试)",
   "type": "module",
   "scripts": {
-    "dev": "bun run --bun vite",
+    "dev": "bun scripts/dev.ts",
+    "dev:ui": "bun run --bun vite",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
