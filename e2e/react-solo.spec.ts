@@ -41,26 +41,40 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
   page,
 }) => {
   await quickStart(page);
-  // #188:对局自走后引擎态持续变化,「读一次快照 vs UI 文本」的固定期望会撞上推进——
-  // 改为轮询比对:同一时刻 UI 与快照一致即算同步(断言意图不变,只是采样方式改了)。
+  // 三比对只在活跃方=人类的停靠态可满足:单机热座 viewSeat 跟随决策方,bot 回合
+  // dash-cash 显示的是 bot 的现金、topbar 是 bot 之回合(开局全员同现金时 bot 采样
+  // 碰巧全真——正是本用例史上「快机器过、CI 必挂」假象的另一半)。#188 行军自动化后
+  // 人类窗口隔一整圈 bot 链才重现,先 waitMyPause(30s 预算)等停靠再比对,断言意图
+  // 不变:同一时刻 UI 与快照同步。
   // #253 迁移:hand-cash→dash-cash、status-guohao→topbar-active、状态卡 meta 的
   // 活跃方委任→活跃席位卡徽章 aria(身价列随右栏退役不再呈现,断言随之收敛)。
+  await waitMyPause(page, 0);
+  // 谓词采样必须单次 evaluate 原子完成,禁用裸 locator 读:①多往返在自走对局里跨状态
+  // 采样;②warrant-活跃席在人类停靠态按设计不存在(自身回合无席位卡),locator 读缺失
+  // 元素会挂等到测试超时而非立刻抛——.catch 接不到,轮询必烧穿(CI #269 两挂的真根因:
+  // 开局全员同现金时 bot 回合采样可碰巧全真、快机器抢先过关;现金一分化只剩人类窗口
+  // 可真,而窗口内恰挂死)。#253 迁移:hand-cash→dash-cash、status-guohao→topbar-active、
+  // 状态卡 meta 活跃方委任→活跃席位卡徽章 aria(身价列随右栏退役不再呈现,断言随之收敛)。
   await expect
     .poll(
       async () => {
-        const s = await snap(page);
-        const me = s.players[0];
-        const active = s.players[s.activeIndex];
-        const cash = await page.getByTestId("dash-cash").textContent();
-        const activeChip = await page.getByTestId("topbar-active").textContent();
-        const activeWarrant = await page
-          .getByTestId(`seat-attr-warrant-${s.activeIndex}`)
-          .getAttribute("aria-label")
-          .catch(() => null); // 自身回合无席位卡,该拍跳过
+        const r = await page.evaluate(() => {
+          const s = (window as any).__dafung.snapshot();
+          const q = (id: string) => document.querySelector(`[data-testid="${id}"]`);
+          const active = s.players[s.activeIndex];
+          return {
+            meCash: s.players[0].cash,
+            activeGuohao: active.guohao,
+            activeWarrants: active.warrants,
+            cash: q("dash-cash")?.textContent ?? "",
+            chip: q("topbar-active")?.textContent ?? "",
+            warrant: q(`seat-attr-warrant-${s.activeIndex}`)?.getAttribute("aria-label") ?? null,
+          };
+        });
         return (
-          cash?.includes(fmtMoney(me.cash)) === true &&
-          activeChip === `${active.guohao}之回合` &&
-          (activeWarrant === null || activeWarrant === `委任状 ${active.warrants}`)
+          r.cash.includes(fmtMoney(r.meCash)) &&
+          r.chip === `${r.activeGuohao}之回合` &&
+          (r.warrant === null || r.warrant === `委任状 ${r.activeWarrants}`)
         );
       },
       { timeout: 15_000, message: "仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步" },
@@ -69,8 +83,7 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
   // 席位卡列与仪表条就位(结构性,不随推进变化;#253:treasury/others 容器退役)
   await expect(page.getByTestId("dashboard-bar")).toBeVisible();
   await expect(page.getByTestId("seat-rail")).toBeVisible();
-  // 「你」印挂在仪表条身份头(需轮到人类停稳再断言,viewSeat 跟随决策方)
-  await waitMyPause(page, 0);
+  // 「你」印挂在仪表条身份头(前置 waitMyPause 已停稳在人类回合,viewSeat=0)
   await expect(page.getByTestId("dashboard-bar").getByTestId("dash-you")).toBeVisible();
 });
 
