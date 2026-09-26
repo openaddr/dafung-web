@@ -1,5 +1,13 @@
 [
   {
+    "id": "huanyou",
+    "name": "环游图",
+    "file": "huanyou.json",
+    "desc": "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合;许昌—襄阳辅路穿中部走廊",
+    "tileCount": 31,
+    "targetNetWorth": 30000
+  },
+  {
     "id": "chessboard",
     "name": "棋盘天下",
     "file": "chessboard.json",
