@@ -36,7 +36,7 @@
 - `src/app/screens/game/scroll/ScrollShell.tsx` —— 挂轴双杆、题名朱印、墨钮/笺钮按钮种。
 - `src/app/screens/game/HandPanel.tsx` + `StatusBar.tsx` —— 笺头制式、方印国号、墨钮 CTA、朱印「你」。
 - `src/app/screens/home/HomeScreen.tsx` —— 签名件(千里江山装裱横带 + 落款印)。
-- `docs/design/DESIGN.md` §7 —— 前后对比图(tmp/ui-shots/audit-before|after)。
+- `docs/design/DESIGN.md` §7 —— 前后对比图(历史件散失,现库图见 `ui-reference/current-ui/` 与 `prototype-layout/`)。
 
 ## 4. 各屏验收标准(Wave-2 逐屏)
 
@@ -60,7 +60,7 @@
 - **验证**:typecheck(`bun run typecheck`)/单测(`bun test`)随时;e2e 单 spec 跑法:
   `E2E_STATIC_PORT=4<包号>1 E2E_GAME_PORT=3<包号>1 E2E_ROOMS_DIR=./tmp/e2e-rooms-<包号> E2E_WORKERS=1 npx playwright test e2e/<相关>.spec.ts`
   (runner 是 Node,勿 `--bun`;先 `bun run build`)。收口全量由主线跑。
-- **截图**:参考 tmp/quick-shot.mjs(playwright + swiftshader;测试钩子 `window.__dafung` 可构造局面,用法见 tmp/audit-shots.mjs);图存 `tmp/ui-shots/w2-<包>/`。
+- **截图**:走 `scripts/shot.mjs`(起服样板单源;测试钩子 `window.__dafung` 可构造局面);图存 `tmp/ui-shots/<主题>/`(tmp 不入库,定稿图转存 `ui-reference/`)。
 - **台账**:开工把本文件你的包状态改「进行」;四项门槛齐 + 评审放行后改「绿」并注 commit。
 - **层叠陷阱记档(包A 实证)**:app.css 控件种是非分层规则,天然压过 @layer utilities——`note-card` 后再写 `shadow-*` 工具类会被静默吃掉,覆盖投影需 Tailwind v4 尾缀 `!`(如 `shadow-[var(--ink-shadow-lg)]!`)或由 app.css 增设变体。
 - 汇报格式:改动文件清单 / 验证结果(逐项)/ 截图路径 / 未决问题。
