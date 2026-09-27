@@ -43,6 +43,8 @@ export const Theme = {
   // 在线/成功(审计 A4:「在线」小字于笺面 3.2:1 不达 AA → 加深一档至 ≈4.8:1)
   success: hex("0b7a52"),
   sealQing: hex("3f6a6b"), // 黛青(次级印章,中性事件)
+  jishi: hex("2b4a6f"), // 靛青(即时族,#281 反应锦囊标签章/族色:与朱砂标签章、金底技章
+  // 区分的第三种章色;宣纸/笺纸面上 ≈7.7:1 达 AA,生成 token --color-jishi)
 
   // 驿道
   roadMain: hex("7a5c38"), // 主路褐(加深一档增墨感)

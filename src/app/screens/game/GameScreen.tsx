@@ -19,12 +19,15 @@ import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/game
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
 import type { GameCommand, MapData } from "@core/types";
+import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
+import { REACTION } from "@app/fx/timings";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandRack, type RackPile } from "./HandRack";
+import { ReactionBanner, reactionQueriedMe } from "./ReactionBanner";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { DashboardBar } from "./DashboardBar";
@@ -226,6 +229,80 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     (targetSeat) => dispatchCommand(junshiSeatCmd(targetSeat)),
   );
 
+  // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
+  // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
+  // 命令=respondReaction(seat 显式携带)。与军师窗态互斥(AwaitingReaction 相位)。
+  const reactionUp =
+    snapshot.phase === "Playing" &&
+    snapshot.turnPhase === "AwaitingReaction" &&
+    snapshot.reaction != null &&
+    reactionQueriedMe(snapshot.reaction, selfSeat);
+  // 降噪口(客户端本地态,ADR-0017 §4):「本回合不再询问」只活到当前行动者回合结束
+  //(行动者变更即解除)——静默期间收到询问自动立即代发「不用」,不弹横幅。
+  const [reactMutedSeat, setReactMutedSeat] = useState<number | null>(null);
+  useEffect(() => setReactMutedSeat(null), [snapshot.activeIndex]);
+  const reactMuted = reactMutedSeat === snapshot.activeIndex;
+  // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)
+  useEffect(() => {
+    if (reactionUp && reactMuted)
+      dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatchCommand 闭包随渲染更新,依赖窗态与静默两个语义键
+  }, [reactionUp, reactMuted]);
+  // 卡牌段选中与 AOE 选份(G-19 一期手感:点牌选中,再点同牌取消;进/出窗态清空重选)
+  const [reactCardId, setReactCardId] = useState<string | null>(null);
+  const [reactShare, setReactShare] = useState<number | null>(null);
+  useEffect(() => {
+    setReactCardId(null);
+    setReactShare(null);
+  }, [reactionUp]);
+  const reaction = snapshot.reaction;
+  // AOE 全体域必选份(横征暴敛等):识破只免其中一份,须指定被保护座位(含自己);
+  // 其余域 shareSeat 不参与语义,免选(单目标/半路杀出)。
+  const reactShareSeats =
+    reactionUp && reaction?.kind === "jinnang" && reactCardId != null
+      ? jinnangCardOf(reaction.cardId).targetDomain === "all-others"
+        ? reaction.targetSeats
+        : []
+      : [];
+  // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)
+  const reactPlayable =
+    reactionUp && reaction != null
+      ? (selfPlayer?.jinnangHand ?? []).filter(
+          (id) =>
+            jinnangCardOf(id).effect.kind === (reaction.kind === "jinnang" ? "counter" : "ambush"),
+        )
+      : [];
+  const reactRespond = (use: boolean, cardId?: string, shareSeat?: number) => {
+    if (use) getAudio().play("stamp"); // 落印音随一期口径
+    dispatchCommand({ type: "respondReaction", seat: selfSeat, use, cardId, shareSeat });
+  };
+  const reactBanner =
+    reactionUp && reaction != null && !reactMuted ? (
+      <ReactionBanner
+        key={`${reaction.kind}-${reaction.userSeat}-${reaction.cardId}`}
+        text={
+          reaction.kind === "jinnang"
+            ? `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
+            : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
+        }
+        durationMs={reaction.kind === "jinnang" ? REACTION.jinnangMs : REACTION.marchMs}
+        shareSeats={reactShareSeats}
+        shareSeat={reactShare}
+        onPickShare={setReactShare}
+        seatLabel={(seat) => snapshot.players[seat].guohao}
+        confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
+        onConfirm={() => {
+          if (reactCardId == null) return;
+          reactRespond(true, reactCardId, reactShareSeats.length > 0 ? reactShare! : undefined);
+        }}
+        onDecline={() => reactRespond(false)}
+        onMute={() => {
+          setReactMutedSeat(snapshot.activeIndex); // 先记静默(本回合内后续询问不弹)
+          reactRespond(false); // 当前窗立即以「不用」应答
+        }}
+      />
+    ) : null;
+
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
   const setupHint =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
@@ -365,6 +442,20 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
                     selectedId: junshiSelectedId,
                     onSelect: setJunshiSelectedId,
                     onConfirm: junshiConfirm,
+                  }
+                : undefined
+            }
+            reaction={
+              reactBanner != null
+                ? {
+                    banner: reactBanner,
+                    reactiveIds: reactPlayable,
+                    selectedId: reactCardId,
+                    onSelect: (id) => {
+                      getAudio().play("jinnangSelect"); // 选中音(选中可逆,取消不出声)
+                      setReactShare(null); // 换选即清份(份随牌走)
+                      setReactCardId((cur) => (cur === id ? null : id));
+                    },
                   }
                 : undefined
             }

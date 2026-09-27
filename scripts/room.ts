@@ -12,7 +12,8 @@ import { GameEngine } from "../src/core/game";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
-import { isSingleCjk } from "../src/core/constants";
+import { isSingleCjk, REACTION_WINDOW_MS } from "../src/core/constants";
+import type { ReactionView } from "../src/core/types";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
@@ -52,6 +53,7 @@ export type RoomEvent =
   | { ev: "autopilot"; seat: number; on: boolean; speed: AutoPilotSpeed }
   | { ev: "offline"; seat: number; online: number[] }
   | { ev: "auto-roll"; seat: number } // #188:人类座位 Roll 相位超时未摇,服务器代发起摇
+  | { ev: "reaction-decline"; seat: number } // #281:被询问座位反应窗超时,服务器代发「不用」
   | { ev: "bot-step"; seat: number; turnPhase: string; active: number }
   | { ev: "bot-stop"; reason: RoomBotStopReason; phase: string; turnPhase: string; active: number };
 
@@ -102,6 +104,9 @@ const INPUT_PHASES = new Set([
   "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
+  "AwaitingReaction", // 反应窗(#281):bot 座位引擎开窗即席代答;人类座位等 respondReaction
+  // (driveBots 循环头特判收敛「待应答人类座位」,不走 botAct——决策方
+  // 天然多属主,decisionOwner 不适用)
 ]);
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
@@ -151,11 +156,22 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
   };
 }
 
+/** 反应窗公开载荷的 per-seat 投影(#281,ADR-0016):公告字段(cardId/userSeat/
+ *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——每人只看到「我是否
+ *  被询问」(在列→[自己座位],不在列→[]),他人询问集一律裁掉,否则泄漏谁持识破诡计。
+ *  march 窗无私有档,原样返回。纯函数。 */
+function redactReactionView(v: ReactionView, seat: number): ReactionView {
+  if (v.kind !== "jinnang") return v;
+  return { ...v, queriedBySeat: v.queriedBySeat.includes(seat) ? [seat] : [] };
+}
+
 /** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
  *  public 原样 / count-only 只给数量 / private 只发本人:
  *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);
  *  - 锦囊牌库牌序 → count-only(牌序决定未来抽牌,泄了等于开了天眼;只留剩余数);
  *  - 含锦囊内容的对局日志行 → 不外发(引擎侧已源头不落内容,此处按机读键过滤抽牌行,防御性双保险);
+ *  - 反应窗询问集(#281)→ per-seat private(挂起态 pendingReaction.view 与公开派生
+ *    载荷 reaction 两处同裁;应答记录不裁——引擎侧本就逐条公开记入战报);
  *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
  *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
 export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
@@ -170,6 +186,14 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
     ...s,
     players,
     jinnangDeck: [], // 牌序只裁不给;剩余数走引擎态 jinnangDeckCount
+    // 反应窗询问集(#281):挂起态(god-view)与公开载荷两处都按座位投影——
+    // 客户端 restoreFromSnapshot 靠裁剪后的挂起态重建 AwaitingReaction,公开载荷
+    // 随之派生,UI 只会看到「我是否被询问」。
+    pendingReaction:
+      s.pendingReaction != null
+        ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
+        : s.pendingReaction,
+    reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
     // 日志不裁(ADR-0016 决策3):引擎源头只写「抽了一张锦囊」无内容,抽牌行本身
     // 是公开信息(手牌数),随快照照发
   };
@@ -213,6 +237,19 @@ function stepDelayMs(r: RoomSession, seat: number): number {
  *  交涉=城主)。-1 = 无归属(Setup 收尾瞬态),不可驱动。 */
 function decisionSeatOf(e: GameEngine): number {
   return e.phase === "Setup" ? e.currentSetupPlayerIndex : e.decisionOwner;
+}
+
+/** 反应窗被询问座位集(#281):与引擎 reactionQueriedOf 同一公式的传输层镜像——
+ *  jinnang 窗=持识破者全集,march 窗=[城主]。多座位可同时被询问(AOE),故不适用
+ *  单一 decisionOwner 语义。 */
+function reactionQueriedSeats(view: ReactionView): number[] {
+  return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
+}
+
+/** 反应窗时长(权威侧,#281):按窗种类查 core 配置表;scripts 不吃浏览器
+ *  E2E_TIME_SCALE(联机 spec 走 testUnscaled,3s 真窗可接受,ADR-0017)。 */
+function reactionWindowMs(view: ReactionView): number {
+  return REACTION_WINDOW_MS[view.kind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"];
 }
 
 /** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。
@@ -272,6 +309,9 @@ export class RoomRegistry {
     string,
     { seat: number; timer: ReturnType<typeof setTimeout> }
   >();
+  /** #281 反应窗:roomId → (待应答座位 → timer)。可能多座位同时被询问(AOE),故按
+   *  座位各配一表;driveBots 每次进出重评估(ADR-0017:超时兜底在权威侧,代发普通命令)。 */
+  private readonly reactionWaits = new Map<string, Map<number, ReturnType<typeof setTimeout>>>();
 
   constructor(
     persistence: RoomPersistence,
@@ -605,6 +645,7 @@ export class RoomRegistry {
     const id = room.roomId;
     this.clearStall(id); // #118:撤看门狗计时器(stallFire 自身有房间存在重校验,此为即时清理)
     this.clearAutoRoll(id); // #188:撤自动起摇计时器(同上)
+    this.clearReactionWaits(id); // #281:撤反应窗超时计时器(同上)
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -715,12 +756,43 @@ export class RoomRegistry {
     if (!e) return;
     this.clearStall(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
     this.clearAutoRoll(r.roomId); // #188:同撤自动起摇(链尾按停点重武装)
+    this.clearReactionWaits(r.roomId); // #281:同撤反应窗超时(链尾按停点重武装)
     if (this.driving.has(r)) return; // 已有链在跑:它会把新进展接走
     this.driving.add(r);
     try {
       let guard = 0;
       let reason: RoomBotStopReason = "guard";
       while (e.phase !== "GameOver" && guard++ < 500) {
+        // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
+        // 托管/接管(代驾)立即代发「不用」(#148/#229 口径,超时兜底也是同款普通命令);
+        // 在线/离线真人在链尾按座位武装超时定时器(归零代发 respondReaction{use:false})。
+        // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
+        if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+          const pr = e.pendingReaction;
+          const queried = pr ? reactionQueriedSeats(pr.view) : [];
+          for (const seat of queried) {
+            if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
+            if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
+            await this.applyCommand(
+              r.roomId,
+              { type: "respondReaction", seat, use: false },
+              onUpdate,
+            );
+          }
+          // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
+          const now = e.pendingReaction;
+          const stillWaiting =
+            e.turnPhase === "AwaitingReaction" && now != null
+              ? reactionQueriedSeats(now.view).filter(
+                  (s) => !now.answers.some((a) => a.seat === s) && !seatControlled(r, s),
+                )
+              : [];
+          if (stillWaiting.length > 0) {
+            reason = "human-turn"; // 等待真人应答:出口为待应答座位武装 per-seat 定时器
+            break;
+          }
+          continue; // 窗已收/无待应答:回循环头按新相位续推
+        }
         // Setup 期(bot/接管/托管代选 aiSetupStepFor)与 Playing 期(botAct)统一到
         // 同一步进骨架:决策点归属与可驱动相位不同,observe/persist/直播/进展检查共用。
         const setup = e.phase === "Setup";
@@ -787,12 +859,20 @@ export class RoomRegistry {
           stepDelayMs(r, guardOwner),
         );
       }
-      // #118/#188 出口评估:链停在未接管的真人座位——
+      // #118/#188/#281 出口评估:链停在未接管的真人座位——
+      // 反应窗(#281):为每个待应答人类座位武装 per-seat 超时定时器(托管/接管座位
+      // 已在循环头立即代发,不在待应答集);
       // Roll 相位(无决策内容)武装自动起摇(1s 后代发 rollAndMove);
       // 其余决策相位(等待真人抉择)= 该端拖节奏,武装 #118 看门狗超时接管。
       // not-input-phase/game-over/guard 续链:服务器仍在掌控,不武装。
       if (reason === "human-turn" && guardOwner >= 0) {
-        if (e.phase === "Playing" && e.turnPhase === "Roll")
+        if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+          const pr = e.pendingReaction;
+          if (pr != null)
+            for (const seat of reactionQueriedSeats(pr.view))
+              if (!pr.answers.some((a) => a.seat === seat) && !seatControlled(r, seat))
+                this.armReactionWait(r, seat, onUpdate);
+        } else if (e.phase === "Playing" && e.turnPhase === "Roll")
           this.armAutoRoll(r, guardOwner, onUpdate);
         else if (this.decisionTimeoutMs > 0) this.armStall(r, guardOwner, onUpdate);
       }
@@ -884,6 +964,61 @@ export class RoomRegistry {
     if (e.turnPhase !== "Roll" || decisionSeatOf(e) !== seat || seatControlled(r, seat)) return;
     this.observe(r, { ev: "auto-roll", seat });
     await this.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
+  }
+
+  // ──────────────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────────────
+  /** 撤反应窗计时器(链重开/房间解散时);无挂起计时器时空操作。可能多座位同时被
+   *  询问(AOE),按房间持一张座位表整体撤。 */
+  private clearReactionWaits(roomId: string): void {
+    const waits = this.reactionWaits.get(roomId);
+    if (!waits) return;
+    for (const timer of waits.values()) clearTimeout(timer);
+    this.reactionWaits.delete(roomId);
+  }
+
+  /** 武装:REACTION_WINDOW_MS 后若该座位仍是本窗待应答的非服务器驱动人类座位 → 服务器
+   *  代发 respondReaction{use:false}(走 applyCommand 公共命令路径,与玩家手点同源;
+   *  ADR-0017:超时兜底=权威侧代发普通命令,重放天然复现)。离线冻结座位同样武装——
+   *  断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。链重开重武装即重算(同
+   *  armAutoRoll 先例)。unref:不因挂起计时器拖延进程退出。 */
+  private armReactionWait(
+    r: RoomSession,
+    seat: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): void {
+    const waits = this.reactionWaits.get(r.roomId) ?? new Map();
+    const old = waits.get(seat);
+    if (old) clearTimeout(old);
+    const e = r.engine;
+    if (e?.pendingReaction == null) return;
+    const timer = setTimeout(
+      () => void this.reactionWaitFire(r, seat, onUpdate),
+      reactionWindowMs(e.pendingReaction.view),
+    );
+    timer.unref?.();
+    waits.set(seat, timer);
+    this.reactionWaits.set(r.roomId, waits);
+  }
+
+  /** 到点触发:重校验(房间还在/对局未终/仍在 AwaitingReaction/该座位仍被询问且未应答/
+   *  仍非服务器驱动)后代发「不用」。任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
+  private async reactionWaitFire(
+    r: RoomSession,
+    seat: number,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<void> {
+    const waits = this.reactionWaits.get(r.roomId);
+    waits?.delete(seat);
+    if (waits != null && waits.size === 0) this.reactionWaits.delete(r.roomId);
+    const e = r.engine;
+    if (this.rooms.get(r.roomId) !== r || !e || e.isOver || e.phase !== "Playing") return;
+    if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
+    const pr = e.pendingReaction;
+    if (!reactionQueriedSeats(pr.view).includes(seat)) return;
+    if (pr.answers.some((a) => a.seat === seat)) return;
+    if (seatControlled(r, seat)) return; // 代驾接手:循环头已立即代发,不重复
+    this.observe(r, { ev: "reaction-decline", seat });
+    await this.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────

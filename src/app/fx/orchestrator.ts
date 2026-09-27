@@ -11,7 +11,7 @@
 // 在提取期(提取器内)解析成逻辑坐标存进事件。
 import type { GameEngine } from "@core/game";
 import type { Player } from "@core/types";
-import type { TurnPhase } from "@core/types";
+import type { TurnPhase, MovePath } from "@core/types";
 import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio } from "./audio";
@@ -60,6 +60,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         break;
       case "sound":
         sink.playSound(ev.event);
+        break;
+      case "jinnangPlayed":
+        // 出牌指示线(#281 P2-E):同步下发(无编排时长),三段动画 CSS 自走;
+        // 每目标一段,数量恒小(锦囊目标域至多全体)。
+        for (const l of ev.lines) sink.spawnJinnangLine(l.x1, l.y1, l.x2, l.y2);
         break;
       case "propertyChanged":
         // 城池宣告(ADR-0015):经 sink 下发 nonce 驱动 Tile 重播宣告动画。
@@ -135,6 +140,59 @@ function propertyChangeEvents(engine: GameEngine): PresentationEvent[] {
   }));
 }
 
+/** 引擎出牌留痕 → jinnangPlayed 事件(#281/P2-E,消费 presentation.drainJinnangPlays
+ *  的破坏性读:一次取尽,同 drainPropertyChanges 口径——军师幕出牌/反应窗识破/拦停
+ *  都在结算点留痕,漏取会错位到下一步播出)。每条留痕按「使用者 → 各目标」展开为
+ *  线段端点(棋盘逻辑坐标,提取期解析);使用者自身份额与空目标集不出线(无指向
+ *  不画:#281「无目标域牌不出线」)。 */
+function jinnangPlayEvents(engine: GameEngine): PresentationEvent[] {
+  const board = engine.board;
+  return engine.presentation.drainJinnangPlays().flatMap((t) => {
+    const from = board.positionOf(engine.players[t.userSeat].position);
+    const lines = t.targetSeats
+      .filter((seat) => seat !== t.userSeat)
+      .map((seat) => {
+        const to = board.positionOf(engine.players[seat].position);
+        return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+      });
+    if (lines.length === 0) return [];
+    return [
+      { kind: "jinnangPlayed", playerId: engine.players[t.userSeat].id, cardId: t.cardId, lines },
+    ];
+  });
+}
+
+/** 反应窗续结算的余段行军路径(#281 拦停/续走,单机专用):拦检窗挂起时视觉棋子停在
+ *  挂起点(途经城前一格),续结算(拦停/放行)后引擎 lastMove 自原起点重算——直接
+ *  播会把棋子拽回起点重走全程。本函数把 lastMove 截短为「挂起点 → 落点」余段,由
+ *  控制器经 applyPresentationMove 注入(表现侧写 lastMove 的唯一合法入口)后走既有
+ *  beginMarch/animateMove 通道平滑补走(联机端无此需要:快照 diff 天然只播位置增量)。
+ *  fromPos 不在路径上且非起点 = 状态 bug,抛错;无余段(挂起点即落点)返回 null。 */
+export function remainingMarchPath(
+  path: MovePath,
+  fromPos: number,
+  landIndex: number,
+): MovePath | null {
+  const i = path.traversed.indexOf(fromPos); // -1 = 棋子仍在起点(traversed 不含起点)
+  if (i < 0 && path.from !== fromPos)
+    throw new Error(`remainingMarchPath:挂起点 #${fromPos} 不在重算路径上(状态机 bug)`);
+  if (i >= 0 && i >= path.traversed.length - 1) return null; // 挂起点即落点:无余段
+  const rest = path.traversed.slice(i + 1);
+  const stop = rest.indexOf(landIndex); // 链式窗(下一城再挂起)时截到本次落点为止
+  const traversed = stop >= 0 ? rest.slice(0, stop + 1) : rest;
+  if (traversed.length === 0) return null;
+  return {
+    from: fromPos,
+    traversed,
+    landIndex,
+    passedCapital: false,
+    capitalIndex: -1,
+    waypoints: [],
+    landBranchStep: null,
+    branchWaypoints: [],
+  };
+}
+
 /**
  * 单机提取器:把「一次引擎推进」(人类命令与 bot 步骤共用)提取为表现事件。
  * 与旧 playStepEffects 逐分支对齐(prevPhase 决定该步语义),仅产出数据不播任何东西。
@@ -180,6 +238,7 @@ export function extractStepEvents(
     }
     // 落格结算也可能直接破产(无资产可清算):易主留痕照取,顺序在浮字前
     events.push(...propertyChangeEvents(engine));
+    events.push(...jinnangPlayEvents(engine));
     events.push(...floaterEvents(engine));
     return events;
   }
@@ -212,6 +271,8 @@ export function extractStepEvents(
         ownerChanged: c.ownerChanged,
       });
     }
+    // 军师幕出牌(#281):指示线在宣告浮字前(线指方向、字报其名)
+    events.push(...jinnangPlayEvents(engine));
     events.push(...floaterEvents(engine));
     return events;
   }
@@ -223,11 +284,14 @@ export function extractStepEvents(
     }
     // 公道买卖成交奖励的城池 +1 级走留痕(ADR-0015):得宝音在前、宣告紧随
     events.push(...propertyChangeEvents(engine));
+    events.push(...jinnangPlayEvents(engine));
     events.push(...floaterEvents(engine));
     return events;
   }
 
   if (prevPhase === "AwaitingBankruptcySettle") {
+    events.push(...propertyChangeEvents(engine));
+    events.push(...jinnangPlayEvents(engine));
     events.push(...floaterEvents(engine));
     // 破产资产转移(转债主/回无主/变卖给银行)的易主留痕(ADR-0015)
     events.push(...propertyChangeEvents(engine));
@@ -236,8 +300,17 @@ export function extractStepEvents(
     return events;
   }
 
-  // 其余(AwaitingBranch/AwaitingHeroPick/…):易主留痕 + 浮字即可
+  // 其余(AwaitingBranch/AwaitingHeroPick/AwaitingJinnang/AwaitingReaction/…):
+  // 易主留痕 + 出牌指示线 + 浮字。反应窗续结算(#281)落此分支:拦停落格/放行续走的
+  // 余段行军由控制器截短注入 lastMove(local.ts),在此播为 tokenMoved——锚定在
+  // present 之前已完成,顺序与 Roll 步的 行军→浮字 同构;陈旧 lastMove 已被控制器
+  // 清掉(applyPresentationMove(null)),不会误播。
+  const reactionPath = prevPhase === "AwaitingReaction" ? view.lastMove : null;
+  if (reactionPath != null && reactionPath.traversed.length > 0) {
+    events.push({ kind: "tokenMoved", playerId: moverId, path: reactionPath });
+  }
   events.push(...propertyChangeEvents(engine));
+  events.push(...jinnangPlayEvents(engine));
   events.push(...floaterEvents(engine));
   return events;
 }

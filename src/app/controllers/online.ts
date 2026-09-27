@@ -35,6 +35,8 @@ export class OnlineController extends GameController {
   private seatToken: string | null = null;
   /** 当前占位引擎对应的地图 id(换图守卫:同图不重建)。 */
   private mapId: string | null;
+  /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
+  private map: LoadedMap;
   seat = -1;
   /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
   private pending = false;
@@ -57,6 +59,7 @@ export class OnlineController extends GameController {
     // LobbyApi 自取 server-base 单源(#279):地址在调用时读取,大厅改址即时生效
     this.api = new LobbyApi();
     this.mapId = mapId ?? null;
+    this.map = map;
     // 占位引擎:board/catalog 来自真实地图,仅为渲染就位;首帧 snapshot 覆盖全部可变状态。
     this._engine = this.makePlaceholderEngine(map);
     setEngine(this._engine);
@@ -83,9 +86,17 @@ export class OnlineController extends GameController {
    *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。
    *  L42:再加表现锁 fx.playing——快照落地即可(数据即时),但骰子/行军动画播完前
    *  决策卷轴/行军按钮不呈现(单机 drive 会话锁的联机等价物;WaitingBar/横幅不受影响,
-   *  它们不吃 interactive)。 */
+   *  它们不吃 interactive)。
+   *  反应窗(#281,ADR-0017 多属主)例外:被询问座位可应答——决策方仍是出牌者,
+   *  decisionOwner 不适用;不加 fx.playing 锁(倒计时不等演出,超时兜底在权威侧)。 */
   get interactive(): boolean {
     const e = this._engine;
+    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+      const pr = e.pendingReaction;
+      if (pr == null) return false;
+      const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
+      return !this.pending && this.seat >= 0 && queried.includes(this.seat);
+    }
     return (
       e.decisionOwner === this.seat &&
       e.phase === "Playing" &&
@@ -96,13 +107,13 @@ export class OnlineController extends GameController {
     );
   }
 
-  /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意)。 */
-  private makePlaceholderEngine(map: LoadedMap): GameEngine {
+  /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。 */
+  private makePlaceholderEngine(map: LoadedMap, seatCount = 2): GameEngine {
     return new GameEngine(map.board, map.catalog, createDice(), {
-      seats: [
-        { name: "诸侯 1", isBot: false },
-        { name: "诸侯 2", isBot: true },
-      ],
+      seats: Array.from({ length: seatCount }, (_, i) => ({
+        name: `诸侯 ${i + 1}`,
+        isBot: i > 0,
+      })),
     });
   }
 
@@ -256,6 +267,13 @@ export class OnlineController extends GameController {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
         this.mapId = msg.mapId;
       }
+      if (snap.players.length !== this._engine.players.length) {
+        // 座位数不一致 → 按快照座位数重建占位引擎(3+ 座联机局:restoreFromSnapshot
+        // 按 e.players[i] 原地覆盖,占位引擎恒 2 座会越界写 undefined;占位座位本就
+        // 是渲染壳,首帧快照整体覆盖,重建无信息丢失)。
+        this._engine = this.makePlaceholderEngine(this.map, snap.players.length);
+        setEngine(this._engine);
+      }
       this._engine.restoreFromSnapshot(snap as GameSnapshot);
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
@@ -305,6 +323,7 @@ export class OnlineController extends GameController {
       return;
     }
     this.mapId = mapId;
+    this.map = map;
     this._engine = this.makePlaceholderEngine(map);
     setEngine(this._engine);
     // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData

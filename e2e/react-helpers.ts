@@ -228,6 +228,37 @@ export async function actIfCan(p: Page): Promise<boolean> {
   return false;
 }
 
+/** 清当前座位的决策点直到轮到别人(#281 反应窗 spec 用):决策一律跳过(不买地不升级,
+ *  保「bot 火烧目标恒定」类种植前提);骰由自动起摇,本助手只清卷轴/动作条。
+ *  点击一律短时限+吞错(负载下卷轴随广播反复重挂,resolved→detached 循环口径同联机段)。 */
+export async function skipUntilNextSeat(p: Page, seat: number, timeout = 30_000): Promise<void> {
+  await expect
+    .poll(
+      async () => {
+        const skip = p.getByTestId("action-skip");
+        if (await skip.isVisible().catch(() => false)) {
+          await skip.click({ timeout: 2_000 }).catch(() => {});
+        } else {
+          const jp = p.getByTestId("actionbar-pass");
+          if (await jp.isVisible().catch(() => false)) {
+            await jp.click({ timeout: 2_000 }).catch(() => {});
+          } else {
+            const any = p.locator('button[data-testid^="action-"]:not([disabled])');
+            if ((await any.count()) > 0)
+              await any
+                .first()
+                .click({ timeout: 2_000 })
+                .catch(() => {});
+          }
+        }
+        const s = await snap(p);
+        return s.phase === "GameOver" || s.decisionOwner !== seat;
+      },
+      { timeout },
+    )
+    .toBe(true);
+}
+
 // ──────────────────────────── 联机段(react-online* 共享)────────────────────────────
 
 /** 联机开局选都三选一(L41):pages 按座位序传入(页 i = 座位 i),轮流在「轮到选都」

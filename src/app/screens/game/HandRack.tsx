@@ -30,12 +30,21 @@
 // 数据即 pile 指向的玩家摞(本件已有 player),开/收/切换由 GameScreen 持有。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
-import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import {
   JinnangCardBack,
   JinnangCardDetail,
   JinnangCardFace,
+  TreasureCardFace,
 } from "@app/components/card/JinnangCardFace";
+import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { JinnangLingjian } from "./JinnangLingjian";
 import { useLongPress } from "@app/hooks/use-long-press";
@@ -143,6 +152,14 @@ function nthSame(hand: string[], i: number, id: string): number {
   return hand.slice(0, i).filter((x) => x === id).length;
 }
 
+/** 窗态牌面微旋(#234 P2-E TablePile 质感,±1.5°):军师幕/反应窗内的牌面按
+ *  「牌 id+#序」确定性取角(重渲不翻滚),经 --tilt 注入牌面(jinnang-card.css
+ *  的 rotate:var(--tilt),与交互态 transform 正交;reduced-motion 由 CSS 兜层归零)。
+ *  常态架不微旋——质感只归「出手瞬间」的窗态。 */
+function tiltVars(key: string): CSSProperties {
+  return { ["--tilt" as string]: `${rackTilt(key)}deg` };
+}
+
 /** 单张手牌:真 <button> 包住牌面(键盘可达;不用裸 role——红线:交互语义不自写)。
  *  常态:点击与长按(useLongPress 单源,500ms)同效开详情,长按触发后置 fired
  *  抑制随后的合成 click,同一动作绝不弹两次。
@@ -150,16 +167,20 @@ function nthSame(hand: string[], i: number, id: string): number {
  *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 JunshiSkillCard/Tip 同形
  *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌 disabled(浏览器禁用契约,
  *  不可选中)。两态共用同一组件与 key:进/出窗态不重挂、不重播发牌音/入场级联。
+ *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),呼吸金边
+ *  归 .reactive 类(reaction-banner.css);非反应牌仍走常态详情。
  *  index:发牌入场级联的错峰序(--i)。 */
 function RackCard({
   cardId,
   index,
   junshi,
+  reaction,
   onOpen,
 }: {
   cardId: string;
   index: number;
   junshi: RackCardJunshi | null;
+  reaction?: { selected: boolean; onSelect: () => void } | null;
   onOpen: (id: string) => void;
 }) {
   const press = useLongPress();
@@ -198,9 +219,31 @@ function RackCard({
         className={junshiBtnClass(s)}
         style={{ ["--i" as string]: index }}
       >
-        <JinnangCardFace cardId={cardId} className={junshiFaceClass(s)}>
+        <JinnangCardFace
+          cardId={cardId}
+          className={junshiFaceClass(s)}
+          style={tiltVars(`${cardId}#${index}`)}
+        >
           {!s.available && s.reason && <span className="reason">{s.reason}</span>}
         </JinnangCardFace>
+      </button>
+    );
+  }
+
+  if (reaction) {
+    // 反应窗槽(#281):点牌=选中/再点取消(音效随 GameScreen 侧 onSelect);
+    // 呼吸金边/选中实金在 .reactive/.sel(reaction-banner.css)。
+    return (
+      <button
+        type="button"
+        data-testid={TESTIDS.jinnangCard(cardId)}
+        aria-label={cardId}
+        aria-pressed={reaction.selected}
+        onClick={reaction.onSelect}
+        className={"reactive" + (reaction.selected ? " sel" : "")}
+        style={{ ["--i" as string]: index }}
+      >
+        <JinnangCardFace cardId={cardId} style={tiltVars(`${cardId}#${index}`)} />
       </button>
     );
   }
@@ -233,8 +276,7 @@ function RackCard({
 /** 窗态令笺钮(#188 档 3 技变体混排架中):手势与 RackCard 窗态分支同款(useTapOrLongPress
  *  单源,长按/右键只服务「取消选中」);无发牌音(技不是新入手的牌)。文案随 choices
  *  载荷(skillHero/label/skillText),UI 不回查名将目录(一期口径)。testid 沿
- *  jinnang-card-* 族(option.id = skill:<id>)。 */
-function JunshiSkillCard({
+ *  jinnang-card-* 族(option.id = skill:<id>)。 */ function JunshiSkillCard({
   option,
   index,
   selected,
@@ -273,6 +315,7 @@ function JunshiSkillCard({
         name={name}
         text={option.skillText ?? ""}
         className={option.available ? (selected ? "sel" : "") : "off"}
+        style={tiltVars(`${option.id}#${index}`)}
       >
         {!option.available && option.reason && <span className="reason">{option.reason}</span>}
       </JinnangLingjian>
@@ -280,11 +323,25 @@ function JunshiSkillCard({
   );
 }
 
+/** 反应窗态载荷(#281,P1-D 牌架即反应窗;GameScreen 派生,缺省=常态架)。
+ *  banner=已组装的结算事件横幅(ReactionBanner 件,本件只负责定位在架上缘——
+ *  「横幅从手牌架上缘长出」);reactiveIds=此刻可打的反应锦囊(呼吸金边,点牌=选中,
+ *  确认在横幅落印钮);selectedId/onSelect=选中可逆(再点同牌取消)。与军师窗态
+ *  (AwaitingJinnang)互斥,不并存。 */
+export interface RackReaction {
+  banner: ReactNode;
+  reactiveIds: string[];
+  selectedId: string | null;
+  onSelect: (id: string) => void;
+}
+
 export interface HandRackProps {
   /** 本地视角玩家(null = 观战/未入座,整个架不渲染)。 */
   player: SnapshotPlayer | null;
   /** 军师窗态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
+  /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
+  reaction?: RackReaction;
   /** expandPile(#255):展开的摞(明细行落架中,手牌行左旁);null/缺省 = 全收。 */
   pile?: RackPile | null;
 }
@@ -307,8 +364,9 @@ interface StackVars {
 }
 
 /** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背);
- *  军师窗态(#256)下架即出牌面、expandPile(#255)明细行落架中(见文件头)。 */
-export function HandRack({ player, junshi, pile }: HandRackProps) {
+ *  军师窗态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边,
+ *  expandPile(#255)明细行落架中(见文件头)。 */
+export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
@@ -459,14 +517,24 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
         );
       });
     }
-    // 常态:手牌全展/叠加,点牌开详情。
+    // 常态:手牌全展/叠加,点牌开详情;反应窗槽(#281)在场时,可打的反应锦囊改点选
+    //(呼吸金边,确认在横幅落印钮),其余牌仍开详情。
     return hand.map((id, i) => {
+      const reactive = reaction != null && reaction.reactiveIds.includes(id);
       return (
         <RackCard
           key={`${id}-${nthSame(hand, i, id)}`}
           cardId={id}
           index={i}
           junshi={null}
+          reaction={
+            reactive
+              ? {
+                  selected: reaction!.selectedId === id,
+                  onSelect: () => reaction!.onSelect(id),
+                }
+              : null
+          }
           onOpen={setDetailId}
         />
       );
@@ -480,6 +548,9 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
       aria-label="锦囊手牌"
       className={"hand-rack" + (junshi != null ? " junshi" : "")}
     >
+      {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
+          (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。 */}
+      {reaction?.banner}
       {/* 架首章:竖排漆金描边(纯装饰,架的可达名由 aria-label 承担) */}
       <span aria-hidden="true" className="hand-rack-zhang">
         <span>锦</span>
@@ -487,19 +558,21 @@ export function HandRack({ player, junshi, pile }: HandRackProps) {
         <span>手</span>
         <span>牌</span>
       </span>
-      {/* expandPile 明细行(#255):纸签横排落手牌行左旁(同架底对齐,不顶掉手牌);
-          珍宝=名+等级(浮签带指导价),名将=名(浮签带「破产清算时换 200 分」口径)。 */}
+      {/* expandPile 明细行(#255,#234 二期珍宝变体):纸签/牌面横排落手牌行左旁(同架
+          底对齐,不顶掉手牌)。珍宝=#281 起改用牌面形制(TreasureCardFace:宝章+品级
+          大字+品级框色;指导价留 title 浮签),名将仍纸签(名,浮签「破产清算时换
+          200 分」口径)。 */}
       {pile === "treasures" && player.treasures.length > 0 && (
         <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="珍宝明细">
           {player.treasures.map((t) => (
-            <span
+            <TreasureCardFace
               key={t.id}
-              className="pile-slip pile-gem"
+              name={t.name}
+              level={t.level}
+              desc={t.desc}
+              className="pile-gem-card"
               title={`${t.desc ? t.desc + "\n" : ""}指导价 ${formatMoney(guidePriceOf(t.level))}`}
-            >
-              <b>{t.name}</b>
-              <i>Lv{t.level}</i>
-            </span>
+            />
           ))}
         </div>
       )}

@@ -13,8 +13,13 @@ import type { GameCommand } from "@core/types";
 import { setEngine } from "@app/store/gameStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { createEngineSink } from "@app/fx/sinks";
-import { extractStepEvents, maybeShowTurnBanner, present } from "@app/fx/orchestrator";
-import { AUTOPILOT, AUTO_MARCH, BOT, delay } from "@app/fx/timings";
+import {
+  extractStepEvents,
+  maybeShowTurnBanner,
+  present,
+  remainingMarchPath,
+} from "@app/fx/orchestrator";
+import { AUTOPILOT, AUTO_MARCH, BOT, REACTION, delay } from "@app/fx/timings";
 import { GameController } from "./controller";
 import { createDriveArbiter } from "./drive";
 
@@ -76,6 +81,76 @@ export class LocalController extends GameController {
       this.rollTimer = null;
       void this.autoRoll();
     }, AUTO_MARCH.rollAtMs);
+  }
+
+  // ─── 反应窗权威计时(#281,ADR-0017):被询问座位归零代发「不用」──
+  /** 反应窗定时器:sync 撤/布(每次引擎变化后重评估),到点经 declineReaction 代发
+   *  respondReaction{use:false}(与手点同一条命令路径,重放天然复现,#225 同口径)。
+   *  应答即走:玩家提前点确认/不用时,引擎离窗后的 sync 在此撤表。 */
+  private reactionTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** 本地人类座位(单机热座恒一个真人座位;破产后仍是人类座位,只是不再被询问)。 */
+  private humanSeat(e: GameEngine): number {
+    return e.players.findIndex((p) => !p.isBot);
+  }
+
+  /** 本地人类是否被当前反应窗询问(#281):jinnang 窗按公告的询问集,march 窗按城主。 */
+  private reactionQueriedMe(e: GameEngine): boolean {
+    const pr = e.pendingReaction;
+    if (pr == null) return false;
+    const seat = this.humanSeat(e);
+    const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
+    return seat >= 0 && queried.includes(seat);
+  }
+
+  /** 重评估反应窗定时器(#281):「对局中 + AwaitingReaction + 本地人类被询问」才驻留;
+   *  托管中不布表——代驾永不主动出反应牌,立即代发「不用」(#148/#229 口径)。表现链
+   *  推进中(drive 会话占用)不布:链尾 sync 会再评估,防链中状态误触发。 */
+  private rearmReaction(): void {
+    if (this.reactionTimer) {
+      clearTimeout(this.reactionTimer);
+      this.reactionTimer = null;
+    }
+    const e = this._engine;
+    if (e.phase !== "Playing" || e.isOver || e.turnPhase !== "AwaitingReaction") return;
+    if (!this.reactionQueriedMe(e)) return;
+    if (this.drive.isDriving()) return;
+    if (this.apOn) {
+      void this.declineReaction();
+      return;
+    }
+    const pr = e.pendingReaction;
+    if (pr == null) throw new Error("rearmReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)"); // 零兜底
+    this.reactionTimer = setTimeout(
+      () => {
+        this.reactionTimer = null;
+        void this.declineReaction();
+      },
+      pr.view.kind === "jinnang" ? REACTION.jinnangMs : REACTION.marchMs,
+    );
+  }
+
+  /** 反应窗超时/托管代发「不用」(#281,ADR-0017 权威侧兜底):与玩家手点完全相同的
+   *  推进链(引擎零改动)。到点后状态可能已被调试钩子/提前应答直改,入会话后重查一次
+   *  再出手(与 autoRoll「入会话重查」同口径——await 引入的重入窗口,非防御分支)。 */
+  private async declineReaction(): Promise<void> {
+    const s = await this.drive.requestDrive("reaction");
+    try {
+      const e = this._engine;
+      if (e.phase !== "Playing" || e.isOver || e.turnPhase !== "AwaitingReaction") return;
+      if (!this.reactionQueriedMe(e)) return;
+      this.sync(); // 会话已占:interactive 锁定,且 rearm 因 drive 占用不会重复布定时器
+      const seat = this.humanSeat(e);
+      await this.runAnimatedStep(
+        () => e.submitCommand({ type: "respondReaction", seat, use: false }),
+        "respondReaction",
+      );
+      await this.runBots();
+      maybeShowTurnBanner(e);
+    } finally {
+      s.release();
+      this.sync();
+    }
   }
 
   /** 自动起摇(#188 第 1 步):钤「签」印起签(~0.8s)→ rollAndMove 走与手点完全相同的
@@ -161,18 +236,24 @@ export class LocalController extends GameController {
 
   /** 状态桥扩展(ADR-0014 单机落盘):每次引擎变化后把 log 增量归档 IndexedDB
    *  (dafung-logs/games,key=gameId;换局首写顺手清 30 天前旧局,见 gameLogArchive.ts)。
-   *  #188:每次引擎变化后同时重评估自动起摇定时器(Roll 相位的唯一驻留出口)。 */
+   *  #188:每次引擎变化后同时重评估自动起摇定时器(Roll 相位的唯一驻留出口)。
+   *  #281:反应窗定时器同通道(应答即走=提前应答的 sync 在 rearmReaction 撤表)。 */
   protected override sync(): void {
     super.sync();
     archiveEngineLog(this._engine);
     this.rearmAutoRoll();
+    this.rearmReaction();
   }
 
   override destroy(): void {
-    // 换局/卸载时撤自动起摇定时器(定时器泄漏 = bug;新控制器自带新定时器)
+    // 换局/卸载时撤定时器(定时器泄漏 = bug;新控制器自带新定时器)
     if (this.rollTimer) {
       clearTimeout(this.rollTimer);
       this.rollTimer = null;
+    }
+    if (this.reactionTimer) {
+      clearTimeout(this.reactionTimer);
+      this.reactionTimer = null;
     }
   }
 
@@ -185,11 +266,16 @@ export class LocalController extends GameController {
     return this._engine.decisionOwner;
   }
   get interactive(): boolean {
+    const e = this._engine;
+    // 反应窗(#281,ADR-0017 多属主):被询问的本地面玩家可应答——决策方仍是出牌者
+    //(decisionOwner 不适用),被询问即操作资格;排除托管(代驾立即代发,UI 不接手势)。
+    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+      return !this.apOn && this.reactionQueriedMe(e);
+    }
     // 同理用 decisionOwner 判「轮到人类」:非珍宝相位它就是 activeIndex,语义不变。
     // Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
     // 差异锁 = 驱动仲裁态(Wave 2-A:旧 busy 改读仲裁器查询,时序等价——会话占用是同步置位)
     // 与托管(托管中本地不响应,代打循环全权驱动;对照旧 interactive 的 !apOn)。
-    const e = this._engine;
     return (
       e.phase === "Playing" &&
       !e.players[e.decisionOwner]?.isBot &&
@@ -271,7 +357,25 @@ export class LocalController extends GameController {
     const prevPhase = e.turnPhase;
     const prePlayer = e.players[e.activeIndex];
     const moverId = e.activePlayer.id;
+    // 反应窗种类(#281):行军窗(半路杀出)的续结算有「挂起点 → 落点」余段位移需
+    // 平滑补走;jinnang 窗无位移,其残存 lastMove(上一次掷骰)须清掉防误播。
+    const marchReaction =
+      prevPhase === "AwaitingReaction" && e.pendingReaction?.view.kind === "march";
+    const prePos = prePlayer?.position; // run() 前快照:prePlayer 是活引用,position 随结算变
     run();
+    // 反应窗续结算的余段行军(#281 拦停/续走):窗挂起时视觉棋子停在挂起点,续结算后
+    // 引擎 lastMove 自原起点重算——截短为余段再锚定(applyPresentationMove 注入,
+    // remainingMarchPath),复用既有行军通道平滑补走,不拽回起点重走;非行军窗/无余段
+    // 一律清掉 lastMove,提取器(AwaitingReaction 分支)据此不播行军。
+    if (prevPhase === "AwaitingReaction") {
+      const path = e.presentation.lastMove;
+      const short =
+        marchReaction && path != null && prePlayer != null
+          ? remainingMarchPath(path, prePos ?? path.from, prePlayer.position)
+          : null;
+      e.applyPresentationMove(short);
+      if (short != null) this.fxSink.marchBegin(moverId);
+    }
     // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
     if (e.presentation.lastMove && prevPhase === "Roll") {
       this.fxSink.marchBegin(moverId);
@@ -326,6 +430,9 @@ export class LocalController extends GameController {
     // bot 时若只看 activeIndex,城主 bot 永远不被调度(死锁另一半,见 viewSeat 注释)。
     // 非珍宝相位 decisionOwner === activeIndex,行为不变。botAct 内部按相位自行分发。
     while (e.phase === "Playing" && e.players[e.decisionOwner].isBot && guard++ < 500) {
+      // 反应窗挂起(#281):被询问者是本地人类,退出驱动链交反应窗定时器(超时代发)/
+      // UI(提前应答)接手——决策方仍是出牌者(bot),不退链会空转触发停滞告警。
+      if (e.turnPhase === "AwaitingReaction") break;
       this.sync();
       await delay(BOT.stepDelayMs);
       // delay 是异步窗:期间状态可能被调试钩子(e2e force)直改——decisionOwner 换人后

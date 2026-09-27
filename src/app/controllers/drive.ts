@@ -16,8 +16,9 @@
 // 以保持旧代码 `this.busy = true` 同步置位的时序语义——dispatchCommand 的
 // interactive 检查与锁占用之间没有任何可插入的异步间隙。
 
-/** 驱动来源:human=人类命令步(含选都),autopilot=托管代打,enter=进入对局的接棒。 */
-export type DriveKind = "human" | "autopilot" | "enter";
+/** 驱动来源:human=人类命令步(含选都),autopilot=托管代打,enter=进入对局的接棒,
+ *  reaction=反应窗超时/托管代发(#281:权威侧定时兜底走驱动链,与手点同路)。 */
+export type DriveKind = "human" | "autopilot" | "enter" | "reaction";
 
 /** 一次驱动会话的释放句柄:持有期间独占引擎推进权。release 幂等,且只对
  *  「当前活跃会话」生效——过期句柄(已被释放后再度调用)不会误杀新会话。 */

@@ -26,6 +26,10 @@
   height: 20em;
   font-size: 8px;
   flex: 0 0 auto;
+  /* 军师幕/反应窗牌面微旋(#234 P2-E TablePile 质感,±1.5°):rotate 独立属性,
+     与交互态的 transform(sel 上浮放大 / off 下沉)正交叠加;--tilt 由消费方注入
+     (jinnang-face-data.ts rackTilt,确定性伪随机),常态牌不传=0deg。 */
+  rotate: var(--tilt, 0deg);
   background: linear-gradient(
     168deg,
     var(--color-panel) 0%,
@@ -147,7 +151,7 @@
   -webkit-line-clamp: 4;
 }
 
-/* ── 四族色类(--fam 供给界格线/纹样窗描边):与 jinnang-face-data.ts
+/* ── 五族色类(--fam 供给界格线/纹样窗描边):与 jinnang-face-data.ts
    JINNANG_FAMILY 的 token 一一对应(测试核对),类名沿原型 ── */
 .jinnang-card.f-mou {
   --fam: var(--color-seal-qing); /* 谋·黛青 */
@@ -161,24 +165,67 @@
 .jinnang-card.f-yuan {
   --fam: var(--color-money); /* 援·青绿 */
 }
+.jinnang-card.f-shi {
+  --fam: var(--color-jishi); /* 即时·靛青(#281 反应锦囊正式族,#234 同窗定稿) */
+}
 
-/* ── 品级框色 frameTone(二期珍宝变体预留通道):同形框,异色=品级,
-   一期消费方不传(none=基线墨框,即基座默认阴影)── */
+/* ── 品级框色 frameTone(#234 珍宝牌面变体通道,#281 启用):同形框,异色=品级,
+   内环色与品级大字共用 --tone(jinnang-face-data.ts treasureFrameTone 定档)。
+   锦囊消费方不传(none=基线墨框,即基座默认阴影)── */
 .jinnang-card.tone-tong {
+  --tone: #9a6a3c; /* 铜框:原型定稿色,暂无 token(豁免登记见文件头) */
   box-shadow:
     0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.3em #9a6a3c; /* 铜框:原型定稿色,暂无 token(豁免登记见文件头) */
+    inset 0 0 0 0.3em #9a6a3c;
 }
 .jinnang-card.tone-yin {
+  --tone: #8d9298; /* 银框:原型定稿色,暂无 token(豁免登记见文件头) */
   box-shadow:
     0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.3em #8d9298; /* 银框:原型定稿色,暂无 token(豁免登记见文件头) */
+    inset 0 0 0 0.3em #8d9298;
 }
 .jinnang-card.tone-gold {
+  --tone: var(--color-gold);
   box-shadow:
     0 0.35em 0.9em rgba(43, 35, 23, 0.3),
     inset 0 0 0 0.3em var(--color-gold),
     0 0 0 0.18em var(--color-gold-deep);
+}
+
+/* ── 珍宝牌面变体(#234 spec,#281 落地):形制同锦囊(.jinnang-card 基座),界格线/纹样窗/
+   品级大字全落 --tone(框色=品级通道,一处色双处用);宝章恒朱砂(DESIGN §4.5)。
+   纹样窗位改「品级大字」:汉字数字 + 「品」角标(数值即信息,DESIGN §4.6 例外)。 */
+.jinnang-card.gem {
+  --fam: var(--tone, var(--color-ink));
+}
+.jinnang-card .yang.gem-yang {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+}
+.jinnang-card .gem-lv {
+  font-family: var(--font-brush);
+  font-size: 5em;
+  line-height: 1;
+  color: var(--tone, var(--color-ink));
+}
+.jinnang-card .gem-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+}
+
+/* ── reduced-motion 兜层(微旋退场,#234 P2-E):app.css 全局兜层只压 animation/
+   transition,压不住静态 rotate 属性——微旋在此显式归零。 */
+@media (prefers-reduced-motion: reduce) {
+  .jinnang-card {
+    rotate: 0deg;
+  }
 }
 
 /* ── 交互态:sel=选中即放大(放大态即详情态,1.6× 金描边);

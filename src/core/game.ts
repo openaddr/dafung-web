@@ -54,7 +54,17 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { JINNANG_STARTING_HAND, buildJinnangDeck, jinnangCardOf } from "./jinnang";
-import type { JinnangPeek, PendingJinnang, PendingHeroSkill, ActiveSkillDef } from "./types";
+import type {
+  JinnangPeek,
+  PendingJinnang,
+  PendingHeroSkill,
+  ActiveSkillDef,
+  PendingReaction,
+  ReactionAnswer,
+  ReactionPayload,
+  ReactionView,
+} from "./types";
+import { botReactionDecision } from "./bot"; // bot 即席应答策略(ADR-0017 §3;bot 对 game 仅 type 依赖,无运行时环)
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -130,6 +140,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   confirmBankruptcySettle: "清算确认",
   useJinnang: "用锦囊",
   useHeroSkill: "出技",
+  respondReaction: "反应窗应答",
 };
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
@@ -165,6 +176,17 @@ export interface PropertyChangeTrace {
   ownerColorIndex: number | null;
   levelChanged: boolean;
   ownerChanged: boolean;
+}
+
+/** 出牌指示线留痕(#281/P2-E,ADR-0010 表现事件流的 core 侧发射点):锦囊/反应牌生效点
+ *  写入「使用者 token → 目标 token」墨线素材,表现提取器经 engine.presentation
+ *  .drainJinnangPlays() 一次性取走(破坏性读,同 drainPropertyChanges 口径)。
+ *  瞬态不序列化(同 floaters/propertyChanges):联机端表现由快照 diff 提取,core 只负责
+ *  结算点留痕;事件类型注册与双提取器扩展归 UI/传输下一道缝。 */
+export interface JinnangPlayTrace {
+  userSeat: number;
+  targetSeats: number[];
+  cardId: string;
 }
 
 export class GameEngine {
@@ -215,6 +237,11 @@ export class GameEngine {
   jinnangPeeks: JinnangPeek[] = [];
   /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
   jinnangDeckCount = 0;
+  /** 反应窗挂起态(#281,ADR-0017):null=无窗。挂起点存公告/应答/续结算载荷 →
+   *  AwaitingReaction 相位 → 应答齐(或 bot 即席代答齐)→ 续结算。全部随快照走
+   *  (SNAPSHOT_FIELDS 单点清单);人类被询问时窗跨命令存续,bot 全被询问时在开窗
+   *  同一调用内即席应答并续结算(ADR-0017「bot 持牌即时代答不等满」),相位不外显。 */
+  pendingReaction: PendingReaction | null = null;
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
@@ -277,6 +304,9 @@ export class GameEngine {
   /** 城池变更留痕(ADR-0015,类型注释见 PropertyChangeTrace):结算点写入,
    *  提取器一次性取走;瞬态不序列化(同 floaters,restore 即清)。 */
   private propertyChanges: PropertyChangeTrace[] = [];
+  /** 出牌指示线留痕(#281,类型注释见 JinnangPlayTrace):生效点写入,提取器一次性取走;
+   *  瞬态不序列化(同 floaters,restore 即清)。 */
+  private jinnangPlays: JinnangPlayTrace[] = [];
 
   /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
    *  drainFloaters / drainPropertyChanges 是破坏性读——取走全部并清空,消费方
@@ -289,6 +319,8 @@ export class GameEngine {
     drainFloaters(): FloaterEvent[];
     /** 破坏性读:返回并清空全部城池变更留痕(ADR-0015)。 */
     drainPropertyChanges(): PropertyChangeTrace[];
+    /** 破坏性读:返回并清空全部出牌指示线留痕(#281/P2-E)。 */
+    drainJinnangPlays(): JinnangPlayTrace[];
   } {
     return {
       lastRoll: this.lastRoll,
@@ -303,6 +335,11 @@ export class GameEngine {
         const c = this.propertyChanges;
         this.propertyChanges = [];
         return c;
+      },
+      drainJinnangPlays: () => {
+        const t = this.jinnangPlays;
+        this.jinnangPlays = [];
+        return t;
       },
     };
   }
@@ -340,7 +377,6 @@ export class GameEngine {
       stamina: STARTING_STAMINA,
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
       jinnangHandCount: 0,
-      jinnangShield: false,
       repMilestones: [],
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
@@ -680,7 +716,9 @@ export class GameEngine {
   // ──────────────────────────── 回合状态机 ────────────────────────────
   /** 抽签 → 移动(主路或辅路逐格)→ 经过自己都城必停(补给+结束回合);否则落格结算。
    *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell;
-   *  onBranch={step:-1} = 入口待入辅路(上回合选「入辅路」,本回合掷骰起沿辅路格推进)。 */
+   *  onBranch={step:-1} = 入口待入辅路(上回合选「入辅路」,本回合掷骰起沿辅路格推进)。
+   *  主路途经遍历(#281):每格途经棋子派发;他人城主城池可被半路杀出拦检,窗挂起时
+   *  本调用返回,respondReaction 应答后续走/落格。 */
   rollAndMove(): void {
     if (!this.assertPhase("Roll", "RollAndMove")) return;
     const mover = this.activePlayer;
@@ -708,70 +746,7 @@ export class GameEngine {
       `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus + drumBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
     );
 
-    // 时机·PassedPlayer:途经他人棋子——path 计算后遍历 traversed(不含起点,含落点)上
-    // 非破产他人逐个派发(座位序,确定性;主体=行军者,ctx.passedSeat=被途经者)。
-    for (const tIdx of path.traversed) {
-      for (let seat = 0; seat < this.players.length; seat++) {
-        const other = this.players[seat];
-        if (other === mover || other.isBankrupt || other.position !== tIdx) continue;
-        this.dispatchMoment("PassedPlayer", {
-          subject: this.activeIndex,
-          passedSeat: seat,
-          tileIndex: tIdx,
-        });
-      }
-    }
-
-    // 经过自己的都城(起点)→ 颁发委任状(无论后续必停或恰落都城)。
-    // 克制"运气好跑得快、一圈把城全占"——买城需要委任状,数量有限。
-    if (path.passedCapital) {
-      mover.warrants += WARRANTS_PER_PASS;
-      this.logEvent(
-        "supply",
-        mover.guohao,
-        `${mover.guohao} 巡幸都城,获 ${WARRANTS_PER_PASS} 委任状`,
-        `warrantGrant player=${mover.id} +${WARRANTS_PER_PASS} warrants=${mover.warrants}`,
-      );
-    }
-    // 经过自己的都城且落点不是都城 → 必停:放弃剩余步数停在都城,结算补给,结束回合
-    // (辅路落格不会触发必停:辅路格不是都城)
-    if (
-      path.landBranchStep == null &&
-      path.passedCapital &&
-      path.landIndex !== mover.capitalIndex
-    ) {
-      // 路径截断到都城:行军动画只走到都城,不展示被放弃的剩余步数。
-      // traversed 必含都城(passedCapital);辅路汇入后路过都城时前缀补上辅路段步数。
-      const capIdxInTraversed = path.traversed.indexOf(mover.capitalIndex);
-      const branchPrefix =
-        mover.onBranch != null && this.board.branch
-          ? this.board.branch.cells.length - mover.onBranch.step
-          : 0;
-      this.lastMove = this.board.computePath(
-        fromPos,
-        branchPrefix + capIdxInTraversed + 1,
-        mover.capitalIndex,
-        mover.onBranch,
-      );
-      mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
-      mover.position = mover.capitalIndex;
-      if (wasOnBranch)
-        this.dispatchMoment("BranchExited", {
-          subject: this.activeIndex,
-          tileIndex: mover.position,
-        }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
-      this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
-      this.dispatchMoment("CapitalHalt", {
-        subject: this.activeIndex,
-        tileIndex: mover.capitalIndex,
-      }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
-      const supply = this.applyResupply(mover, "halt");
-      this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
-      this.turnPhase = "Land";
-      this.endTurn();
-      return;
-    }
-    // 辅路逐格落点:落辅路第 step 格 → 触发该格效果
+    // 辅路逐格落点先于主路遍历分流:辅路格非城池,无反应窗挂点、无途经城池
     if (path.landBranchStep != null && this.board.branch) {
       mover.onBranch = { step: path.landBranchStep };
       this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(落辅路格)、辅路格结算前
@@ -780,20 +755,149 @@ export class GameEngine {
       this.resolveBranchCell(mover, cell);
       return;
     }
-    // 主路落点(含从辅路汇入:endNode 及之后)
+    // 主路行军(含辅路汇入):逐格途经遍历,#281 反应窗可中途拦停
+    const walked = this.marchTraverse(
+      mover,
+      path.traversed,
+      path.traversed.length,
+      path.landIndex,
+      wasOnBranch,
+      fromPos,
+      steps,
+    );
+    if (walked !== "landed") return; // suspended=拦检窗挂起(respondReaction 续走);halted=必停已结算
+    this.settleMarchLanding(mover, path.landIndex, wasOnBranch);
+  }
+
+  /** 主路途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
+   *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——颁发委任状,
+   *  落点不在都城则必停截断(放弃剩余步数,补给+结束回合);③ 他人城主城池(城主存活)
+   *  ——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
+   *  respondReaction 续走),拦停成功即止、后续城不再问。
+   *  返回:"suspended"=拦检窗挂起、"halted"=必停都城已结算(调用方直接返回)、
+   *  "landed"=走完无停,由调用方 settleMarchLanding 落格。 */
+  private marchTraverse(
+    mover: Player,
+    remaining: number[],
+    totalLen: number,
+    landIndex: number,
+    wasOnBranch: boolean,
+    fromPos: number,
+    steps: number,
+  ): "landed" | "halted" | "suspended" {
+    const moverSeat = this.players.indexOf(mover);
+    while (remaining.length > 0) {
+      const tIdx = remaining[0];
+      // ① 途经他人棋子(座位序,确定性;主体=行军者,ctx.passedSeat=被途经者)
+      for (let seat = 0; seat < this.players.length; seat++) {
+        const other = this.players[seat];
+        if (other === mover || other.isBankrupt || other.position !== tIdx) continue;
+        this.dispatchMoment("PassedPlayer", {
+          subject: moverSeat,
+          passedSeat: seat,
+          tileIndex: tIdx,
+        });
+      }
+      // ② 己都城:巡幸委任状;若落点不在都城 → 必停截断(lastMove 只走到都城)
+      if (tIdx === mover.capitalIndex) {
+        mover.warrants += WARRANTS_PER_PASS;
+        this.logEvent(
+          "supply",
+          mover.guohao,
+          `${mover.guohao} 巡幸都城,获 ${WARRANTS_PER_PASS} 委任状`,
+          `warrantGrant player=${mover.id} +${WARRANTS_PER_PASS} warrants=${mover.warrants}`,
+        );
+        if (landIndex !== mover.capitalIndex) {
+          const walkedCount = totalLen - remaining.length;
+          const branchPrefix =
+            mover.onBranch != null && this.board.branch
+              ? this.board.branch.cells.length - mover.onBranch.step
+              : 0;
+          this.lastMove = this.board.computePath(
+            fromPos,
+            branchPrefix + walkedCount + 1,
+            mover.capitalIndex,
+            mover.onBranch,
+          );
+          mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
+          mover.position = mover.capitalIndex;
+          if (wasOnBranch)
+            this.dispatchMoment("BranchExited", {
+              subject: moverSeat,
+              tileIndex: mover.position,
+            }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
+          this.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
+          this.dispatchMoment("CapitalHalt", {
+            subject: moverSeat,
+            tileIndex: mover.capitalIndex,
+          }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
+          const supply = this.applyResupply(mover, "halt");
+          this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
+          this.turnPhase = "Land";
+          this.endTurn();
+          return "halted"; // 必停已完整结算:调用方不得再走落格收尾
+        }
+      }
+      // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
+      const tile = this.board.at(tIdx);
+      if (tile.type === "Property" && tile.propertyId != null) {
+        const owner = this.findOwner(tile.propertyId);
+        if (owner != null && owner !== mover && !owner.isBankrupt) {
+          const ownerSeat = this.players.indexOf(owner);
+          this.dispatchMoment("MarchPassedCity", {
+            subject: moverSeat,
+            ownerSeat,
+            tileIndex: tIdx,
+          }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
+          const ambushId = owner.jinnangHand.find(
+            (id) => jinnangCardOf(id).effect.kind === "ambush",
+          );
+          if (ambushId != null) {
+            const walkedCount = totalLen - remaining.length;
+            const branchPrefix =
+              mover.onBranch != null && this.board.branch
+                ? this.board.branch.cells.length - mover.onBranch.step
+                : 0;
+            this.openReactionWindow(
+              { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat },
+              {
+                kind: "march",
+                moverSeat,
+                tileIndex: tIdx,
+                stepsToTile: branchPrefix + walkedCount + 1,
+                totalTiles: totalLen,
+                resumeTiles: remaining.slice(1),
+                landIndex,
+                fromPos,
+                steps,
+                wasOnBranch,
+              },
+            );
+            return "suspended"; // 窗挂起:人类被询问时等 respondReaction;bot 全代答时续走已在窗结算内完成
+          }
+        }
+      }
+      remaining = remaining.slice(1);
+    }
+    return "landed";
+  }
+
+  /** 主路落格收尾(走完遍历无拦停):清辅路态、落位、BranchExited/AfterMarch、
+   *  辅路入口抉择或落格结算(机遇/城池)。 */
+  private settleMarchLanding(mover: Player, landIndex: number, wasOnBranch: boolean): void {
     mover.onBranch = null; // 已在主路(清掉原 onBranch)
-    mover.position = path.landIndex;
+    mover.position = landIndex;
     if (wasOnBranch)
-      this.dispatchMoment("BranchExited", { subject: this.activeIndex, tileIndex: mover.position }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
-    this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
+      this.dispatchMoment("BranchExited", { subject: this.players.indexOf(mover), tileIndex: landIndex }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
+    this.dispatchMoment("AfterMarch", { subject: this.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
     // 落在辅路起点(且未在辅路)→ 弹入口抉择
-    if (this.board.getBranchStart(path.landIndex)) {
+    if (this.board.getBranchStart(landIndex)) {
       this.turnPhase = "AwaitingBranch";
       this.logEvent(
         "branch",
         mover.guohao,
-        `${mover.guohao} 至辅路要隘「${this.board.at(path.landIndex).name}」:走大路 or 入辅路`,
-        `awaitingBranch player=${mover.id} tile=#${path.landIndex}`,
+        `${mover.guohao} 至辅路要隘「${this.board.at(landIndex).name}」:走大路 or 入辅路`,
+        `awaitingBranch player=${mover.id} tile=#${landIndex}`,
       );
       return; // 等 selectBranch
     }
@@ -804,10 +908,376 @@ export class GameEngine {
     // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
     // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
     // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
-    const enc = this.maybeApplyEncounter(mover, path.landIndex);
+    const enc = this.maybeApplyEncounter(mover, landIndex);
     if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
       return;
     this.resolveLanding();
+  }
+
+  // ──────────────────────────── 反应窗(#281,ADR-0017)────────────────────────────
+  // 结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。挂起点存 pendingReaction
+  // (公告+应答+续结算载荷,全序列化)→ AwaitingReaction → 应答齐 → 续结算。被询问的
+  // isBot 座位在开窗同一调用内即席代答(botReactionDecision,纯策略不掷骰,重放确定性);
+  // 人类座位(含托管/看门狗代驾)等 respondReaction 命令——权威侧超时代发的也是这条普通
+  // 命令,重放天然复现。每次结算只问一轮:每被询问座位至多应答一次。
+
+  /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时
+   *  相位不外显),否则进 AwaitingReaction 等人类应答。 */
+  private openReactionWindow(view: ReactionView, payload: ReactionPayload): void {
+    const pr: PendingReaction = { view, answers: [], payload };
+    this.pendingReaction = pr; // 先入引擎态:bot 即席决策与快照投影都读引擎公开字段
+    const user = this.players[view.userSeat];
+    const queriedTxt = this.reactionQueriedOf(view)
+      .map((s) => this.players[s].id)
+      .join("+");
+    const brief =
+      view.kind === "jinnang"
+        ? `${user.guohao} 使用锦囊【${view.cardId}】,反应窗开启`
+        : `${user.guohao} 行军途经 ${this.players[view.ownerSeat].guohao} 的城池,可【${view.cardId}】拦检`;
+    this.logEvent(
+      "system",
+      user.guohao,
+      brief,
+      `reactionWindow kind=${view.kind} card=${view.cardId} user=${user.id} queried=${queriedTxt}`,
+    );
+    this.autoAnswerBots(pr);
+    if (this.reactionAllAnswered(pr)) {
+      this.pendingReaction = null; // bot 全代答:同调用内续结算,相位不外显
+      this.resolveReactionWindow(pr);
+      return;
+    }
+    this.turnPhase = "AwaitingReaction";
+  }
+
+  /** 反应窗被询问座位集(view 单源:jinnang=queriedBySeat 持识破者全集;march=[城主])。 */
+  private reactionQueriedOf(view: ReactionView): number[] {
+    return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
+  }
+
+  private reactionAllAnswered(pr: PendingReaction): boolean {
+    return pr.answers.length >= this.reactionQueriedOf(pr.view).length;
+  }
+
+  /** bot 即席代答(ADR-0017 §3「bot 持牌即时代答不等满」):被询问的 isBot 座位按策略
+   *  即席应答。人类座位(含托管/看门狗代驾)不代答——代驾永不主动出反应牌,超时一律
+   *  不用,兜底命令由权威侧传输层代发(#148/#229 口径)。 */
+  private autoAnswerBots(pr: PendingReaction): void {
+    for (const seat of this.reactionQueriedOf(pr.view)) {
+      if (!this.players[seat].isBot) continue;
+      if (pr.answers.some((a) => a.seat === seat)) continue;
+      const d = botReactionDecision(this, seat);
+      this.appendReactionAnswer(pr, {
+        seat,
+        use: d.use,
+        cardId: d.cardId,
+        shareSeat: d.shareSeat,
+      });
+    }
+  }
+
+  /** 应答入账(校验后的唯一写口):占座 + 战报。 */
+  private appendReactionAnswer(pr: PendingReaction, a: ReactionAnswer): void {
+    pr.answers.push(a);
+    const p = this.players[a.seat];
+    this.logEvent(
+      "system",
+      p.guohao,
+      a.use ? `${p.guohao} 反应:打出【${a.cardId}】` : `${p.guohao} 反应:不用`,
+      `reactionRespond seat=${p.id} use=${a.use ? 1 : 0} card=${a.cardId ?? "-"} share=${a.shareSeat ?? "-"}`,
+    );
+  }
+
+  /** 反应窗应答(#281 公共入口,UI/bot 驱动器/联机/超时代发同走):校验「仅被询问座位、
+   *  仅一次、持牌与份合法」后入账;应答齐即续结算。非法命令警告拒绝,不占应答名额。 */
+  respondReaction(seat: number, use: boolean, cardId?: string, shareSeat?: number): void {
+    if (!this.assertPhase("AwaitingReaction", "respondReaction")) return;
+    const pr = this.pendingReaction;
+    if (pr == null)
+      throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
+    const queried = this.reactionQueriedOf(pr.view);
+    if (!queried.includes(seat)) {
+      this.warn(`respondReaction:座位 ${seat} 非本窗被询问者`);
+      return;
+    }
+    if (pr.answers.some((a) => a.seat === seat)) {
+      this.warn(`respondReaction:座位 ${seat} 已应答过本窗`);
+      return;
+    }
+    if (use) {
+      if (cardId == null || !this.players[seat].jinnangHand.includes(cardId)) {
+        this.warn(`respondReaction:座位 ${seat} 手中无牌 ${cardId ?? "-"}`);
+        return;
+      }
+      const expect = pr.view.kind === "jinnang" ? "counter" : "ambush";
+      if (jinnangCardOf(cardId).effect.kind !== expect) {
+        this.warn(`respondReaction:【${cardId}】非本窗可打的反应牌`);
+        return;
+      }
+      if (pr.view.kind === "jinnang") {
+        // 份校验:AOE 必带且须在受影响名单内;连环计可省略(任意一张识破即全计作废),
+        // 带了须合法;self/one 份额唯一,shareSeat 不参与语义。
+        const domain = jinnangCardOf(pr.view.cardId).targetDomain;
+        if (
+          domain === "all-others" &&
+          (shareSeat == null || !pr.view.targetSeats.includes(shareSeat))
+        ) {
+          this.warn(`respondReaction:识破【${pr.view.cardId}】须指定被保护份`);
+          return;
+        }
+        if (
+          domain === "two-others" &&
+          shareSeat != null &&
+          !pr.view.targetSeats.includes(shareSeat)
+        ) {
+          this.warn(`respondReaction:shareSeat ${shareSeat} 非【${pr.view.cardId}】的目标`);
+          return;
+        }
+      }
+    }
+    this.appendReactionAnswer(pr, { seat, use, cardId, shareSeat });
+    if (this.reactionAllAnswered(pr)) {
+      this.pendingReaction = null; // 先离场再续结算:续体可开新窗(march 续走的下一城)
+      this.resolveReactionWindow(pr);
+    }
+  }
+
+  /** 反应窗续结算(pr 已离场 pendingReaction):按窗种类分派。深呼吸约束(#281):
+   *  识破结算直接续执行原锦囊,不再开新反应窗(识破不可被识破);拦检结算(拼点/止步
+   *  落格)不再询问——续走途经的「下一座城」是新挂点,不属窗内结算。 */
+  private resolveReactionWindow(pr: PendingReaction): void {
+    if (pr.view.kind === "jinnang") this.settleCounterWindow(pr);
+    else this.settleAmbushWindow(pr);
+  }
+
+  /** 识破窗结算:座位序逐张生效(AOE 各拆各份;同份/连环计多张识破按座位序第一张生效,
+   *  其余原样退回手牌不消耗);无有效识破则照常执行被公告锦囊。 */
+  private settleCounterWindow(pr: PendingReaction): void {
+    if (pr.view.kind !== "jinnang" || pr.payload.kind !== "jinnang")
+      throw new Error("识破窗结算:载荷与公告不符(状态机 bug)"); // 零兜底
+    const payload = pr.payload;
+    const user = this.players[payload.userSeat];
+    const def = jinnangCardOf(payload.cardId);
+    const plays = pr.answers.filter((a) => a.use).sort((a, b) => a.seat - b.seat); // 座位序确定性
+    if (plays.length === 0) {
+      this.executeJinnang(user, payload.userSeat, def, payload.targets);
+      this.settleJinnangExit();
+      return;
+    }
+    switch (def.targetDomain) {
+      case "two-others": {
+        // 连环计:任意一张识破即全计作废(缺角,与平局作废同逻辑);座位序第一张生效,
+        // 其余识破原样退回手牌不消耗
+        const first = plays[0];
+        this.consumeReactionCard(first.seat, first.cardId!);
+        const responder = this.players[first.seat];
+        this.pushFloaterText(responder, `识破!【${def.id}】作废`, responder.position);
+        this.logEvent(
+          "system",
+          responder.guohao,
+          `${responder.guohao} 识破【${def.id}】,此计作废`,
+          `reactionCounter card=${def.id} by=${responder.id} voided=all`,
+        );
+        this.jinnangPlays.push({
+          userSeat: first.seat,
+          targetSeats: [payload.userSeat],
+          cardId: first.cardId!,
+        });
+        this.returnSupersededCounters(plays.slice(1), def.id);
+        this.settleJinnangExit();
+        return;
+      }
+      case "all-others": {
+        // AOE 按份拆:每份(每个被指定者)只免其中一份;多持牌者各拆各份,同份多张按
+        // 座位序第一张生效,其余退回(每份计只问一轮,不重复询问)
+        const negated = new Set<number>();
+        const consumed = new Set<ReactionAnswer>();
+        for (const play of plays) {
+          const share = play.shareSeat;
+          if (share == null)
+            throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
+          if (negated.has(share)) continue; // 该份已被座位序更小的识破保下:此张退回
+          this.consumeReactionCard(play.seat, play.cardId!);
+          negated.add(share);
+          consumed.add(play);
+          const responder = this.players[play.seat];
+          const shielded = this.players[share];
+          this.pushFloaterText(
+            shielded,
+            `${responder.guohao} 识破,${shielded.guohao} 免于【${def.id}】`,
+            shielded.position,
+          );
+          this.logEvent(
+            "system",
+            responder.guohao,
+            `${responder.guohao} 识破【${def.id}】,${shielded.guohao} 那一份失效`,
+            `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
+          );
+          this.jinnangPlays.push({
+            userSeat: play.seat,
+            targetSeats: [share],
+            cardId: play.cardId!,
+          });
+        }
+        this.returnSupersededCounters(
+          plays.filter((p) => !consumed.has(p)),
+          def.id,
+        );
+        this.executeJinnang(user, payload.userSeat, def, payload.targets, negated);
+        this.settleJinnangExit();
+        return;
+      }
+      case "one":
+      case "self": {
+        // 单份计(self 的份=使用者自身):座位序第一张识破生效,此计对那份失效=整计落空;
+        // 其余退回
+        const first = plays[0];
+        this.consumeReactionCard(first.seat, first.cardId!);
+        const share = def.targetDomain === "self" ? payload.userSeat : payload.targets[0];
+        const responder = this.players[first.seat];
+        this.pushFloaterText(responder, `识破!【${def.id}】落空`, responder.position);
+        this.logEvent(
+          "system",
+          responder.guohao,
+          `${responder.guohao} 识破【${def.id}】,此计落空`,
+          `reactionCounter card=${def.id} by=${responder.id} share=${this.players[share].id}`,
+        );
+        this.jinnangPlays.push({
+          userSeat: first.seat,
+          targetSeats: [share],
+          cardId: first.cardId!,
+        });
+        this.returnSupersededCounters(plays.slice(1), def.id);
+        this.settleJinnangExit();
+        return;
+      }
+      case "reaction":
+        // 反应牌不可被识破(#281 红线):反应牌永不经 announce 通道,挂不起识破窗
+        throw new Error(`识破窗挂起了反应牌【${def.id}】(状态机 bug)`);
+    }
+  }
+
+  /** 同窗被顶替的识破原样退回不消耗(#281):牌从未离手,只留战报痕。 */
+  private returnSupersededCounters(plays: ReactionAnswer[], cardId: string): void {
+    for (const play of plays) {
+      const p = this.players[play.seat];
+      this.logEvent(
+        "system",
+        p.guohao,
+        `${p.guohao} 的【${cardId}】无用武之地,原样收回`,
+        `reactionCounterReturn seat=${p.id} card=${cardId}`,
+      );
+    }
+  }
+
+  /** 反应牌扣账(#281):离手入弃堆。不入 jinnangUsedTags 名额——名额账本是活跃玩家的
+   *  军师幕额度(回合开始清零),反应牌多在他人回合打出,混入会污染账本。 */
+  private consumeReactionCard(seat: number, cardId: string): void {
+    const p = this.players[seat];
+    p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);
+    p.jinnangHandCount = p.jinnangHand.length;
+    this.jinnangDiscard.push(cardId);
+  }
+
+  /** 拦检窗结算:城主用牌 → 与行人拼点(公共结算,与连环计共用);胜=行人止步拦检城、
+   *  照常落格结算(可能被交涉);平/负=牌白耗,行人续走。拦检结算内不再询问;续走
+   *  途经的下一城是新挂点,不属窗内结算(深呼吸约束,#281)。 */
+  private settleAmbushWindow(pr: PendingReaction): void {
+    if (pr.view.kind !== "march" || pr.payload.kind !== "march")
+      throw new Error("拦检窗结算:载荷与公告不符(状态机 bug)"); // 零兜底
+    const payload = pr.payload;
+    const play = pr.answers.find((a) => a.use);
+    if (!play) {
+      this.resumeMarch(payload); // 不用/超时代发:续走
+      return;
+    }
+    this.consumeReactionCard(play.seat, play.cardId!);
+    const duel = this.resolveDuel(play.seat, payload.moverSeat);
+    const owner = this.players[play.seat];
+    const mover = this.players[payload.moverSeat];
+    this.logEvent(
+      "system",
+      owner.guohao,
+      `${owner.guohao} 【半路杀出】拦检:${owner.guohao} 掷 ${duel.aRoll} 点,${mover.guohao} 掷 ${duel.bRoll} 点`,
+      `reactionAmbush owner=${owner.id} mover=${mover.id} a=${duel.aRoll} b=${duel.bRoll}`,
+    );
+    if (duel.winnerSeat === play.seat) {
+      // 拦停成功:行人止步拦检城
+      this.pushFloaterText(mover, `被 ${owner.guohao} 拦停于途中`, payload.tileIndex);
+      this.logEvent(
+        "system",
+        owner.guohao,
+        `${owner.guohao} 拦检成功,${mover.guohao} 止步于此城`,
+        `reactionAmbushStop owner=${owner.id} mover=${mover.id} tile=#${payload.tileIndex}`,
+      );
+      this.jinnangPlays.push({
+        userSeat: play.seat,
+        targetSeats: [payload.moverSeat],
+        cardId: play.cardId!,
+      });
+      this.settleAmbushStop(payload);
+      return;
+    }
+    // 平/负:拦检失败,牌白耗(已扣),行人照常续走
+    this.pushFloaterText(owner, `拦检失败(掷 ${duel.aRoll} 对 ${duel.bRoll})`, payload.tileIndex);
+    this.logEvent(
+      "system",
+      owner.guohao,
+      `${owner.guohao} 拦检失败(平局/落败),【半路杀出】白耗`,
+      `reactionAmbushFail owner=${owner.id} mover=${mover.id} winner=${duel.winnerSeat == null ? "tie" : this.players[duel.winnerSeat].id}`,
+    );
+    this.resumeMarch(payload);
+  }
+
+  /** 拦停落格:行人止步拦检城、照常落格结算(机遇/城池;可能被交涉)。lastMove 截断到
+   *  拦检城(行军动画只走此);不弹辅路入口抉择(非自愿止步,不经岔路抉择)。 */
+  private settleAmbushStop(payload: Extract<ReactionPayload, { kind: "march" }>): void {
+    const mover = this.players[payload.moverSeat];
+    this.lastMove = this.board.computePath(
+      payload.fromPos,
+      payload.stepsToTile,
+      mover.capitalIndex,
+      mover.onBranch,
+    );
+    mover.onBranch = null;
+    mover.position = payload.tileIndex;
+    if (payload.wasOnBranch)
+      this.dispatchMoment("BranchExited", {
+        subject: payload.moverSeat,
+        tileIndex: payload.tileIndex,
+      }); // 时机·BranchExited:辅路行军被拦停汇入主路(止步点)
+    this.dispatchMoment("AfterMarch", { subject: payload.moverSeat }); // 时机·AfterMarch:移动完成(拦停止步)、落格结算前
+    this.turnPhase = "Land";
+    const enc = this.maybeApplyEncounter(mover, payload.tileIndex);
+    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
+      return;
+    this.resolveLanding();
+  }
+
+  /** 拦检未拦住:行人自拦检城之后续走余下途经格(逐格,可再遇新挂点),走完照常落格。 */
+  private resumeMarch(payload: Extract<ReactionPayload, { kind: "march" }>): void {
+    const mover = this.players[payload.moverSeat];
+    const walked = this.marchTraverse(
+      mover,
+      payload.resumeTiles,
+      payload.totalTiles,
+      payload.landIndex,
+      payload.wasOnBranch,
+      payload.fromPos,
+      payload.steps,
+    );
+    if (walked !== "landed") return; // suspended=下一城又开窗(新挂点续链);halted=续走中必停已结算
+    this.settleMarchLanding(mover, payload.landIndex, payload.wasOnBranch);
+  }
+
+  /** 拼点公共结算(#281 自连环计提出):双方各掷 1d6,点数高者胜,平局 winnerSeat=null。
+   *  连环计(二虎竞食)与半路杀出拦检共用;掷点战报与银两/拦停等后效由调用方落账。 */
+  private resolveDuel(
+    aSeat: number,
+    bSeat: number,
+  ): { aRoll: number; bRoll: number; winnerSeat: number | null } {
+    const aRoll = this.dice.rollDie();
+    const bRoll = this.dice.rollDie();
+    return { aRoll, bRoll, winnerSeat: aRoll === bRoll ? null : aRoll > bRoll ? aSeat : bSeat };
   }
 
   /** 辅路入口抉择:"Main"=走大路(起点 tile 按普通城落格,可购买等);
@@ -1240,9 +1710,8 @@ export class GameEngine {
     // endTurn 不再重复设置 AwaitingBranch,否则选"大路"停在起点的玩家每回合被反复提示。
     this.turnPhase = "Roll";
     this.turnNumber += 1;
-    // 锦囊回合开账(#122/T2):新活跃玩家的免战盾到期(「至你的下回合开始」),
-    // 标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
-    this.activePlayer.jinnangShield = false;
+    // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
+    // (#281:免战盾随免战金牌退役,到期清理一并删除。)
     this.jinnangUsedTags = [];
     this.jinnangPeeks = this.jinnangPeeks.filter((pk) => pk.viewer !== this.activeIndex); // 窥探至 viewer 下回合开始到期
     this.enterJinnangPhase();
@@ -1255,6 +1724,7 @@ export class GameEngine {
     this.pendingLand = null;
     this.pendingEncounter = null;
     this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
+    this.pendingReaction = null; // 反应窗同理(#281):回合收口不留悬窗
     this.lastTransaction = null;
   }
 
@@ -1782,6 +2252,18 @@ export class GameEngine {
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
     // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
+    // 反应窗应答(#281)例外:归属=被询问座位(cmd.seat,非 decisionOwner——反应窗天然
+    // 多属主),seat 随命令过网,与 pickCapital 的 seat 随 detail 过网同款。
+    if (cmd.type === "respondReaction") {
+      const responder = this.players[cmd.seat];
+      this.logEvent(
+        "cmd",
+        responder.guohao,
+        `${responder.guohao} 提交命令:${CMD_BRIEF[cmd.type]}`,
+        JSON.stringify(cmd),
+      );
+      return this.respondReaction(cmd.seat, cmd.use, cmd.cardId, cmd.shareSeat);
+    }
     const issuer = this.players[this.decisionOwner];
     this.logEvent(
       "cmd",
@@ -2142,9 +2624,7 @@ export class GameEngine {
       }
       if (pending.stage === "one") {
         this.pendingJinnang = null;
-        this.consumeJinnangCard(p, cardId, def);
-        this.executeJinnang(p, userSeat, def, [target]);
-        this.settleJinnangExit();
+        this.settleJinnangPlay(p, userSeat, def, [target]);
         return;
       }
       // 连环计两步(T4):two-a 存首挑进 two-b;two-b 合并执行
@@ -2153,9 +2633,7 @@ export class GameEngine {
         return; // 留在相位,选项集重算为第二段候选
       }
       this.pendingJinnang = null;
-      this.consumeJinnangCard(p, cardId, def);
-      this.executeJinnang(p, userSeat, def, [...pending.picked, target]);
-      this.settleJinnangExit();
+      this.settleJinnangPlay(p, userSeat, def, [...pending.picked, target]);
       return;
     }
 
@@ -2182,16 +2660,12 @@ export class GameEngine {
         this.pendingJinnang = { cardId, stage: domain === "one" ? "one" : "two-a", picked: [] };
         return; // 留在相位,选项集重算为候选名单
       }
-      // 全体域(横征暴敛):无目标段,直接执行(免战庇护者被跳过)
-      this.consumeJinnangCard(p, cardId, def);
-      this.executeJinnang(p, userSeat, def, []);
-      this.settleJinnangExit();
+      // 全体域(横征暴敛):无目标段,直接宣布执行
+      this.settleJinnangPlay(p, userSeat, def, []);
       return;
     }
-    // 自身域:立即执行
-    this.consumeJinnangCard(p, cardId, def);
-    this.executeJinnang(p, userSeat, def, []);
-    this.settleJinnangExit();
+    // 自身域:立即宣布执行
+    this.settleJinnangPlay(p, userSeat, def, []);
   }
 
   /** 手牌段扣账(#122/T3):出牌=离手入弃堆+占标签名额(执行时点;作罢不占)。 */
@@ -2204,6 +2678,64 @@ export class GameEngine {
     p.jinnangHandCount = p.jinnangHand.length;
     this.jinnangDiscard.push(cardId);
     this.jinnangUsedTags.push(...def.tags);
+  }
+
+  /** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(浮字+出牌指示线留痕)→
+   *  JinnangAnnounced 时机 → 持识破诡计者(使用者除外)询问窗;无有效识破则照常执行。
+   *  主动技不经此口(fireHeroSkill 直结算,#229 口径:主动技不可被识破);反应牌自身永经
+   *  军师幕「唯反应」灰置,不经 announce 通道(识破不可被识破的另一半保证)。 */
+  private settleJinnangPlay(
+    user: Player,
+    userSeat: number,
+    def: ReturnType<typeof jinnangCardOf>,
+    targets: number[],
+  ): void {
+    this.consumeJinnangCard(user, def.id, def); // 出牌即扣账:被识破也不回手(识破只护份)
+    // 份清单(view.targetSeats):self=使用者自身一份;全体域=受影响全员;指向域=被指定者
+    const shareSeats =
+      def.targetDomain === "self"
+        ? [userSeat]
+        : def.targetDomain === "all-others"
+          ? this.alivePlayers()
+              .map((p) => this.players.indexOf(p))
+              .filter((seat) => seat !== userSeat)
+          : [...targets];
+    this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
+    this.jinnangPlays.push({ userSeat, targetSeats: shareSeats, cardId: def.id });
+    this.dispatchMoment("JinnangAnnounced", {
+      subject: userSeat,
+      cardId: def.id,
+      targetSeats: shareSeats,
+    }); // 时机·JinnangAnnounced:锦囊宣布、结算前(识破诡计反应窗挂点)
+    const queried = this.alivePlayers()
+      .map((p) => this.players.indexOf(p))
+      .filter(
+        (seat) =>
+          seat !== userSeat &&
+          this.players[seat].jinnangHand.some(
+            (id) => jinnangCardOf(id).effect.kind === "counter",
+          ),
+      );
+    if (queried.length === 0) {
+      // 无人可识破:不开窗,直接结算
+      this.executeJinnang(user, userSeat, def, targets);
+      this.settleJinnangExit();
+      return;
+    }
+    const view: ReactionView = {
+      kind: "jinnang",
+      cardId: def.id,
+      userSeat,
+      targetSeats: shareSeats,
+      queriedBySeat: queried,
+    };
+    const payload: ReactionPayload = {
+      kind: "jinnang",
+      userSeat,
+      cardId: def.id,
+      targets: [...targets],
+    };
+    this.openReactionWindow(view, payload); // bot 全代答时窗在开窗调用内即席结算
   }
 
   // ──────────────────────────── 名将主动技(#188 档 3)────────────────────────────
@@ -2372,24 +2904,17 @@ export class GameEngine {
   }
 
   /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
-   *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。 */
+   *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。
+   *  exempt(#281):识破按份豁免的座位集(横征暴敛 AOE 用;其余计忽略)。
+   *  出牌公开事件(浮字/指示线留痕)已在宣布点(settleJinnangPlay)落账。 */
   private executeJinnang(
     user: Player,
     userSeat: number,
     def: ReturnType<typeof jinnangCardOf>,
     targets: number[],
+    exempt?: ReadonlySet<number>,
   ): void {
-    this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
     switch (def.effect.kind) {
-      case "jinnangShield":
-        user.jinnangShield = true;
-        this.logEvent(
-          "system",
-          user.guohao,
-          `${user.guohao} 使用锦囊【免战金牌】:至下回合开始,他人的锦囊无法指定你`,
-          `jinnangUse player=${user.id} card=${def.id} shield=1`,
-        );
-        break;
       case "grantHero":
         this.logEvent(
           "system",
@@ -2405,16 +2930,16 @@ export class GameEngine {
         );
         break;
       case "levyAll": {
-        // 横征暴敛:全体其他玩家各付 amount(上限=现金,不清算);免战庇护者跳过
+        // 横征暴敛:全体其他玩家各付 amount(上限=现金,不清算);被识破豁免的份跳过(#281)
         const amount = def.effect.amount;
         let gained = 0;
         let payers = 0;
-        let shielded = 0;
+        let spared = 0;
         for (const t of this.players) {
           const seat = this.players.indexOf(t);
           if (seat === userSeat || t.isBankrupt) continue;
-          if (t.jinnangShield) {
-            shielded++;
+          if (exempt?.has(seat)) {
+            spared++;
             continue;
           }
           const pay = Math.min(amount, t.cash);
@@ -2439,8 +2964,8 @@ export class GameEngine {
         this.logEvent(
           "system",
           user.guohao,
-          `${user.guohao} 使用锦囊【横征暴敛】:${payers} 家缴纳 ${formatMoney(gained)}${shielded ? `,${shielded} 家免战庇护` : ""}`,
-          `jinnangUse player=${user.id} card=${def.id} gained=${gained} payers=${payers} shielded=${shielded}`,
+          `${user.guohao} 使用锦囊【横征暴敛】:${payers} 家缴纳 ${formatMoney(gained)}${spared ? `,${spared} 份被识破免征` : ""}`,
+          `jinnangUse player=${user.id} card=${def.id} gained=${gained} payers=${payers} spared=${spared}`,
           gained,
         );
         break;
@@ -2483,31 +3008,29 @@ export class GameEngine {
       }
       case "duel": {
         // 连环计·二虎竞食(#122/T4):指定两人各掷 1d6;赢家国库 +300,输家向使用者付
-        // 400(上限=现金,不清算);平局双方无事、此计作废。
+        // 400(上限=现金,不清算);平局双方无事、此计作废。拼点公共结算(#281 与拦检共用)。
         const [aSeat, bSeat] = targets;
         const a = this.players[aSeat];
         const b = this.players[bSeat];
-        const rollA = this.dice.rollDie();
-        const rollB = this.dice.rollDie();
+        const { aRoll, bRoll, winnerSeat } = this.resolveDuel(aSeat, bSeat);
         const { winnerBankGain, loserPaysUser } = def.effect; // case 已收窄为 duel 变体
         this.logEvent(
           "system",
           user.guohao,
-          `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${rollA} 点,${b.guohao} 掷 ${rollB} 点`,
-          `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${rollA} b=${bSeat}:${rollB}`,
+          `${user.guohao} 使用锦囊【连环计】:${a.guohao} 掷 ${aRoll} 点,${b.guohao} 掷 ${bRoll} 点`,
+          `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${aRoll} b=${bSeat}:${bRoll}`,
         );
-        if (rollA === rollB) {
-          this.pushFloaterText(user, `二虎相持(各 ${rollA} 点),此计作废`, user.position);
+        if (winnerSeat == null) {
+          this.pushFloaterText(user, `二虎相持(各 ${aRoll} 点),此计作废`, user.position);
           this.logEvent(
             "system",
             null,
-            `二虎相持(各 ${rollA} 点),连环计作废`,
-            `jinnangDuel tie roll=${rollA}`,
+            `二虎相持(各 ${aRoll} 点),连环计作废`,
+            `jinnangDuel tie roll=${aRoll}`,
           );
           break;
         }
-        const winnerSeat = rollA > rollB ? aSeat : bSeat;
-        const loserSeat = rollA > rollB ? bSeat : aSeat;
+        const loserSeat = winnerSeat === aSeat ? bSeat : aSeat;
         const winner = this.players[winnerSeat];
         const loser = this.players[loserSeat];
         winner.cash += winnerBankGain; // 国库出
@@ -2515,7 +3038,7 @@ export class GameEngine {
         this.logEvent(
           "system",
           winner.guohao,
-          `二虎相争:胜者 ${winner.guohao} 得 ${formatMoney(winnerBankGain)}(掷 ${Math.max(rollA, rollB)} 点)`,
+          `二虎相争:胜者 ${winner.guohao} 得 ${formatMoney(winnerBankGain)}(掷 ${Math.max(aRoll, bRoll)} 点)`,
           `jinnangDuel winner=${winner.id} gain=${winnerBankGain}`,
           winnerBankGain,
         );
@@ -2530,7 +3053,7 @@ export class GameEngine {
         this.logEvent(
           "system",
           loser.guohao,
-          `二虎相争:败者 ${loser.guohao} 向 ${user.guohao} 赔 ${formatMoney(pay)}(掷 ${Math.min(rollA, rollB)} 点)`,
+          `二虎相争:败者 ${loser.guohao} 向 ${user.guohao} 赔 ${formatMoney(pay)}(掷 ${Math.min(aRoll, bRoll)} 点)`,
           `jinnangDuel loser=${loser.id} pay=${pay} cash=${loser.cash}`,
           -pay,
         );
@@ -2552,6 +3075,11 @@ export class GameEngine {
         );
         break;
       }
+      case "counter":
+      case "ambush":
+        // 反应牌不经常规锦囊结算(#281):只在反应窗打出(settleJinnangPlay 的唯反应
+        // 灰置 + respondReaction 持牌校验双重保证),走到这里 = 状态机 bug
+        throw new Error(`反应牌【${def.id}】不应进入常规锦囊结算(#281 状态机 bug)`);
       default: {
         // 穷尽守卫:新 effect.kind 必须先实现结算案,目录才可投放(编译期逼出)
         const exhausted: never = def.effect;
@@ -3171,6 +3699,7 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
+    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(#281 出牌指示线留痕同口径)
     // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告

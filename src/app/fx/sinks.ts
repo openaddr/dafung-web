@@ -43,6 +43,9 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
       getAudio().play("stamp");
       useFxStore.getState().stampSeal(pos.x, pos.y - 20, char);
     },
+    spawnJinnangLine(x1, y1, x2, y2) {
+      useFxStore.getState().spawnJinnangLine(x1, y1, x2, y2);
+    },
     announceTileChange(ev: PropertyChangedEvent) {
       // 城池宣告(ADR-0015):经 store 下发 nonce,Tile 订阅重播(何时播归播放器)
       useFxStore
@@ -62,6 +65,7 @@ export type FxSinkCall =
   | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
   | { op: "seal"; tileIndex: number; char: string }
+  | { op: "jinnangLine"; x1: number; y1: number; x2: number; y2: number }
   | {
       op: "announceTile";
       tileIndex: number;
@@ -99,6 +103,9 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     },
     stampSeal(tileIndex, char) {
       calls.push({ op: "seal", tileIndex, char });
+    },
+    spawnJinnangLine(x1, y1, x2, y2) {
+      calls.push({ op: "jinnangLine", x1, y1, x2, y2 });
     },
     announceTileChange(ev) {
       calls.push({

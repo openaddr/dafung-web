@@ -112,7 +112,7 @@ describe("军师幕:主动技选项集(#188 档 3)", () => {
     expect(seatOpt(e, 1)?.available).toBe(true);
   });
 
-  it("火攻目标守卫复用 #226 口径:仅剩 0 级都城灰置「无可毁之城」;免战金牌不庇护主动技", () => {
+  it("火攻目标守卫复用 #226 口径:仅剩 0 级都城灰置「无可毁之城」", () => {
     const e = prepared(42, [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: true, guohao: "蜀" },
@@ -122,11 +122,10 @@ describe("军师幕:主动技选项集(#188 档 3)", () => {
     const p = armSkill(e, "zhouyu");
     const me = e.players.indexOf(e.activePlayer);
     const others = [0, 1, 2].filter((x) => x !== me);
-    // 布场:对手甲仅剩 0 级都城 + 免战盾(守卫拦截;主动技不受庇护,只挡锦囊);
-    // 对手乙持一座 Lv>0 非都城(整扇门得有可指定者,选项集才进目标段)
+    // 布场:对手甲仅剩 0 级都城(守卫拦截);对手乙持一座 Lv>0 非都城
+    //(整扇门得有可指定者,选项集才进目标段)
     const [blocked, valid] = others;
     e.players[blocked].properties = [];
-    e.players[blocked].jinnangShield = true;
     const capV = e.board.at(e.players[valid].capitalIndex)?.propertyId;
     e.players[valid].properties = [
       {
@@ -144,9 +143,6 @@ describe("军师幕:主动技选项集(#188 档 3)", () => {
     expect(seatOpt(e, me)?.reason).toBe("不能指定自己");
     expect(seatOpt(e, blocked)?.available).toBe(false);
     expect(seatOpt(e, blocked)?.reason).toBe("无可毁之城");
-    expect(seatOpt(e, valid)?.available).toBe(true);
-    // 有效目标挂盾:盾不拦技(免战金牌只挡锦囊,牌面原文口径)
-    e.players[valid].jinnangShield = true;
     expect(seatOpt(e, valid)?.available).toBe(true);
     void p;
   });

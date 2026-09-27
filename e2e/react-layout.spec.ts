@@ -214,9 +214,10 @@ test.describe("三区骨架", () => {
       await expect(page.getByTestId("pile-row")).toBeVisible();
     }).toPass({ timeout: 30_000 });
     // 对局自走中珍宝可能继续进账(宝物城拼点),签数对齐实时快照而非钉死
+    // (#281 珍宝明细行改牌面形制:张数选择器随 .pile-slip→.pile-gem-card 换形)
     await expect(async () => {
       const s = await snap(page);
-      await expect(page.getByTestId("pile-row").locator(".pile-slip")).toHaveCount(
+      await expect(page.getByTestId("pile-row").locator(".pile-gem-card")).toHaveCount(
         s.players[0].treasures.length,
       );
     }).toPass({ timeout: 15_000 });

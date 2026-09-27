@@ -54,6 +54,17 @@ export type PresentationEvent =
     }
   | { kind: "sealStamped"; tileIndex: number; char: string }
   | { kind: "turnBanner"; guohao: string; colorIndex: number }
+  /** 出牌指示线(#281 P2-E,ADR-0010 表现事件流的 UI 侧新事件类型):锦囊/反应牌
+   *  生效点由引擎留痕(JinnangPlayTrace)提取,每条留痕按「使用者 → 各目标」展开为
+   *  若干段墨线端点(棋盘逻辑坐标,提取期按当时牌局状态解析)。播放为同步下发、
+   *  CSS 三段(生长 200ms→停 200ms→淡出 300ms)自走,不占编排时长。 */
+  | {
+      kind: "jinnangPlayed";
+      /** 使用者玩家 id(事件语义信息;线段端点已解析,渲染不再回查)。 */
+      playerId: string;
+      cardId: string;
+      lines: { x1: number; y1: number; x2: number; y2: number }[];
+    }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
   | { kind: "sound"; event: SoundEvent }
   /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
@@ -87,6 +98,9 @@ export interface FxSink {
   showBanner(guohao: string, colorIndex: number): void;
   /** 朱砂印章(含 stamp 音);坐标由实现按 tileIndex 换算(需要引擎/棋盘)。 */
   stampSeal(tileIndex: number, char: string): void;
+  /** 出牌指示线(#281 P2-E):一段「使用者→目标」墨线端点(棋盘逻辑坐标),
+   *  同步下发、CSS 三段自走(生产实现经 fxStore,渲染归 BoardFxLayer 的 #bv-fx 层)。 */
+  spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
   /** 城池宣告(ADR-0015):扩军/易主时驱动 Tile 重播宣告动画。生产实现经 fxStore
    *  下发 nonce(Tile 订阅,nonce 变化即重挂重播);测试实现录制供断言序列。 */
   announceTileChange(ev: PropertyChangedEvent): void;

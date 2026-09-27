@@ -76,6 +76,22 @@ export const TESTIDS = {
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 
+  // ── 反应窗(#281,#234 P1-D 牌架即反应窗)──
+  /** 结算事件横幅(从手牌架上缘长出;仅被询问座位渲染)。 */
+  reactionBanner: "reaction-banner",
+  /** 左段事件文案(「X 使用【火烧连营】」/「X 行军将过你的城池」)。 */
+  reactionText: "reaction-text",
+  /** 右段朱砂倒计时弧(SVG,随剩余时间收敛)。 */
+  reactionTimer: "reaction-timer",
+  /** 落印确认墨钮(选中反应牌且 AOE 份已定时可用)。 */
+  reactionConfirm: "reaction-confirm",
+  /** 「不用」立即应答钮。 */
+  reactionDecline: "reaction-decline",
+  /** 降噪口「本回合不再询问」(点下即对当前窗应答不用,同回合后续询问静默代发)。 */
+  reactionMute: "reaction-mute",
+  /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
+  reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
+
   // ── 托管(联机;spec: autopilot)──
   autopilotButton: "autopilot-button",
   autopilotSpeed: "autopilot-speed",

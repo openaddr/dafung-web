@@ -57,12 +57,18 @@ function prepared(seed?: number, seats?: SeatConfig[], difficulty?: "Simple" | "
   return e;
 }
 
-/** 把引擎摆到「当前玩家持 cards、停在锦囊相位」的测试态(同 test/jinnang.test.ts 口径)。 */
+/** 把引擎摆到「当前玩家持 cards、停在锦囊相位」的测试态(同 test/jinnang.test.ts 口径,
+ *  含 #281 反应窗隔离:清走他座反应牌,反应窗回路在 reaction-window.test 专项布置)。 */
 function armJinnang(e: GameEngine, cards: string[]) {
   const p = e.activePlayer;
   p.jinnangHand = [...cards];
   p.jinnangHandCount = cards.length;
   e.turnPhase = "AwaitingJinnang";
+  for (const other of e.players) {
+    if (other === p) continue;
+    other.jinnangHand = other.jinnangHand.filter((id) => id !== "识破诡计" && id !== "半路杀出");
+    other.jinnangHandCount = other.jinnangHand.length;
+  }
   return p;
 }
 
@@ -130,36 +136,7 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("免战金牌:现金低于全体中位数才用(偶数家=两中值均值)", () => {
-    // 偶数家中位数 (100+500)/2=300
-    const e = prepared();
-    e.players[0].cash = 100;
-    e.players[1].cash = 500;
-    const user = armJinnang(e, ["免战金牌"]);
-    botAct(e);
-    expect(user.jinnangShield).toBe(true); // 100 < 300 → 用
-    expect(user.jinnangHand).toEqual([]);
-    expect(e.turnPhase).toBe("Roll");
-
-    const e2 = prepared();
-    e2.players[0].cash = 500;
-    e2.players[1].cash = 100;
-    const user2 = armJinnang(e2, ["免战金牌"]);
-    botAct(e2);
-    expect(user2.jinnangShield).toBe(false); // 500 ≥ 300 → 今不用
-    expect(user2.jinnangHand).toEqual(["免战金牌"]);
-    expect(e2.turnPhase).toBe("Roll");
-  });
-
-  it("免战金牌:奇数家取中位;medianCash 两分支直测", () => {
-    const e = prepared(42, SEATS3);
-    e.players[0].cash = 100;
-    e.players[1].cash = 500;
-    e.players[2].cash = 600;
-    const user = armJinnang(e, ["免战金牌"]);
-    botAct(e);
-    expect(user.jinnangShield).toBe(true); // 中位 500,100 < 500
-
+  it("medianCash 两分支直测(原免战策略工具,牌已退役、工具口径延续)", () => {
     expect(medianCash(cashPlayers([1, 2, 3]))).toBe(2);
     expect(medianCash(cashPlayers([1, 2, 3, 4]))).toBe(2.5);
   });
@@ -184,15 +161,15 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e2.turnPhase).toBe("Roll");
   });
 
-  it("缓兵之计:领先者被免战庇护 → 目标段作罢,牌退回手,今不用收卷", () => {
-    const e = prepared();
-    e.players[1].cash = e.players[0].cash + 500;
-    e.players[1].jinnangShield = true;
-    const user = armJinnang(e, ["缓兵之计"]);
-    botAct(e);
-    expect(e.players[1].skipTurns).toBe(0);
-    expect(user.jinnangHand).toEqual(["缓兵之计"]); // 作罢不消耗
-    expect(e.turnPhase).toBe("Roll");
+  it("缓兵之计:自己是领先者则今不用(目标段不可达,牌退回手)", () => {
+    // 自己领先 → 无的放矢,今不用
+    const e2 = prepared();
+    e2.players[0].cash = e2.players[1].cash + 500;
+    const user2 = armJinnang(e2, ["缓兵之计"]);
+    botAct(e2);
+    expect(e2.players[1].skipTurns).toBe(0);
+    expect(user2.jinnangHand).toEqual(["缓兵之计"]);
+    expect(e2.turnPhase).toBe("Roll");
   });
 
   it("窃玉偷香:目标=珍宝最多者(并列取座位序小);执行夺一张", () => {
@@ -239,7 +216,8 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(jinnangIntent(e, "连环计")).toEqual({ use: false, targets: [1, 2] }); // 次富 350 < 400
     e.players[2].cash = 450;
     expect(jinnangIntent(e, "连环计")).toEqual({ use: true, targets: [1, 2] }); // 现金最高两人相咬
-    e.players[1].jinnangShield = true; // 庇护 → 可用目标 <2
+    // 可用目标 <2:对手甲破产出局 → 不用,偏好只剩对手乙(#281:免战庇护已随牌退役)
+    e.players[1].isBankrupt = true;
     expect(jinnangIntent(e, "连环计").use).toBe(false);
     expect(jinnangIntent(e, "连环计").targets).toEqual([2]);
   });
@@ -347,16 +325,6 @@ describe("锦囊 bot 策略(#148)", () => {
         },
       ),
     ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
-    // 免战金牌(低于中位数)
-    expect(
-      scenario(
-        (x) => armJinnang(x, ["免战金牌"]),
-        (x) => {
-          x.players[0].cash = 100;
-          x.players[1].cash = 500;
-        },
-      ),
-    ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
     // 缓兵之计(对手领先,目标段两步推进)
     expect(
       scenario(
@@ -366,6 +334,12 @@ describe("锦囊 bot 策略(#148)", () => {
         },
       ),
     ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
+    // 唯反应牌(#281):不参评军师幕,恒今不用
+    expect(scenario((x) => armJinnang(x, ["识破诡计"]))).toEqual({
+      calls: 0,
+      deckDelta: 0,
+      phase: "Roll",
+    });
     // 灰置牌(连环计)今不用
     expect(scenario((x) => armJinnang(x, ["连环计"]))).toEqual({
       calls: 0,

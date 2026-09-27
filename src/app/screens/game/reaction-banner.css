@@ -1,0 +1,187 @@
+/* 反应窗(#281,#234 P1-D「牌架即反应窗」)样式收口:结算事件横幅(从手牌架上缘
+   长出)+ 架上反应牌呼吸金边。色一律 var(--color-*) 或墨影 rgba(43,35,23,·);
+   动效时长/缓动走 --dur-* 与 --ease-* token(tokens.css 单源)。文案笔书(新文案禁
+   font-deco,BRIEF §2);按钮种同 ActionBar 口径(墨钮=漆底金字金内环,次级=同底漆钮),
+   但本件独立类名(.reaction-btn)——actionbar-btn 作用域锁在 .game-layout .actionbar 下,
+   不跨件复用选择器。
+
+   裸色豁免登记:无——呼吸金边走 --color-gold / --color-gold-bright 的 color-mix,
+   印条纸色用既有 --color-paper-hi。 */
+
+/* ── 横幅:定位在架体(.hand-rack 为定位上下文)上缘,从架沿长出(scaleY 入场);
+   纸底墨框 + 朱砂倒计时弧,同族于 WaitingBar/选都提示的浮层语言 ── */
+.reaction-banner {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  z-index: 9; /* 架体 z-5 之上;棋盘浮层(hint/WaitingBar)之下不冲突(不同槽位) */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(92vw, 720px);
+  padding: 7px 12px;
+  border: 1.5px solid rgba(43, 35, 23, 0.55);
+  border-radius: 5px;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
+  box-shadow: 0 4px 14px rgba(43, 35, 23, 0.35);
+  transform: translateX(-50%);
+  transform-origin: bottom center;
+  animation: reaction-banner-in var(--dur-med) var(--ease-out);
+}
+@keyframes reaction-banner-in {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(0.5em) scaleY(0.7);
+  }
+}
+
+/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(笔书) */
+.reaction-text {
+  font-family: var(--font-brush);
+  font-size: 17px;
+  line-height: 1.3;
+  letter-spacing: 0.06em;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+
+/* AOE 选份候选笺行(全体域:点笺=定被保护份;含自己)。§4.6:选中=金边+金圈,
+   不加文字标牌;笺上只留座位国号一字。 */
+.reaction-shares {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.reaction-seat-chip {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 16px;
+  color: var(--color-ink);
+  background: var(--color-panel);
+  border: 1.5px solid rgba(43, 35, 23, 0.4);
+  border-radius: 50%;
+  cursor: pointer;
+  transition:
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.reaction-seat-chip.picked {
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 2px var(--color-gold),
+    0 0 6px rgba(200, 161, 58, 0.55);
+}
+
+/* 落印(墨钮,DESIGN §4.2 主行动)与不用(次级漆钮):同 ActionBar 按钮种参数 */
+.reaction-btn {
+  font-family: var(--font-brush);
+  font-size: 14px;
+  letter-spacing: 0.22em;
+  text-indent: 0.22em;
+  padding: 6px 16px;
+  border-radius: 4px;
+  border: 0;
+  cursor: pointer;
+}
+.reaction-btn.mo {
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow: inset 0 0 0 1px rgba(217, 185, 92, 0.6);
+}
+.reaction-btn.mo:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.reaction-btn.mo:not(:disabled) {
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
+}
+.reaction-btn.mo:not(:disabled):hover {
+  box-shadow: inset 0 0 0 2px var(--color-gold-bright);
+}
+.reaction-btn.qian {
+  background: var(--color-lacquer);
+  color: var(--color-panel-hi);
+  opacity: 0.92;
+}
+.reaction-btn.qian:hover {
+  opacity: 1;
+}
+
+/* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用) */
+.reaction-mute {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-dim);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-decoration: underline rgba(111, 97, 70, 0.4);
+  text-underline-offset: 3px;
+}
+.reaction-mute:hover {
+  color: var(--color-ink);
+}
+
+/* 朱砂倒计时弧(右段):底环墨影弱轨,前弧朱砂随剩余时间收敛(rAF 驱动 dashoffset) */
+.reaction-timer {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  transform: rotate(-90deg); /* 起点正上,顺时针收敛 */
+}
+.reaction-timer .track {
+  fill: none;
+  stroke: rgba(43, 35, 23, 0.15);
+  stroke-width: 3.5;
+}
+.reaction-timer .arc {
+  fill: none;
+  stroke: var(--color-danger);
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
+/* ── 架上反应牌呼吸金边(P1-D:牌只有一份、就在架上亮):可打的反应锦囊金描边
+   呼吸(--dur-ambient 半频拍),选中(.sel)转实金上浮。作用域锁手牌行钮层。 ── */
+.hand-rack-hand > button.reactive {
+  cursor: pointer;
+}
+.hand-rack-hand > button.reactive .jinnang-card {
+  outline: 0.22em solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+  outline-offset: 0.12em;
+  animation: reaction-edge-breathe var(--dur-ambient) var(--ease-sine) infinite;
+}
+.hand-rack-hand > button.reactive.sel {
+  z-index: 8;
+}
+.hand-rack-hand > button.reactive.sel .jinnang-card {
+  animation: none;
+  outline-color: var(--color-gold-bright);
+  outline-offset: 0.2em;
+  transform: translateY(-0.6em);
+}
+@keyframes reaction-edge-breathe {
+  0%,
+  100% {
+    outline-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+  }
+  50% {
+    outline-color: var(--color-gold-bright);
+  }
+}
+
+/* reduced-motion:呼吸/入场退场为直接状态变化(静态金边),同 layout.css 显式口径
+   (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。 */
+@media (prefers-reduced-motion: reduce) {
+  .reaction-banner {
+    animation: none;
+  }
+  .hand-rack-hand > button.reactive .jinnang-card {
+    animation: none;
+    outline-color: var(--color-gold);
+  }
+}
