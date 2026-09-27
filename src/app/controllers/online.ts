@@ -52,9 +52,10 @@ export class OnlineController extends GameController {
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
 
-  constructor(map: LoadedMap, serverUrl: string, mapId?: string | null) {
+  constructor(map: LoadedMap, mapId?: string | null) {
     super();
-    this.api = new LobbyApi(serverUrl);
+    // LobbyApi 自取 server-base 单源(#279):地址在调用时读取,大厅改址即时生效
+    this.api = new LobbyApi();
     this.mapId = mapId ?? null;
     // 占位引擎:board/catalog 来自真实地图,仅为渲染就位;首帧 snapshot 覆盖全部可变状态。
     this._engine = this.makePlaceholderEngine(map);

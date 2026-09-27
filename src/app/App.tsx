@@ -98,7 +98,8 @@ export function App() {
         const mapId = await getDefaultMapId();
         const map = await loadMapById(source, mapId);
         // registry 的 MapData 用同图原始数据:BoardView 在换图前先有东西可画
-        const controller = new OnlineController(map, location.origin, mapId);
+        // 服务器地址由 LobbyApi 在调用时取 server-base 单源(#279):默认同源,大厅可改(APK 真机联机)
+        const controller = new OnlineController(map, mapId);
         setController(controller, await source.loadMapData(mapId));
         setScreen("lobby");
         if (roomParam) {

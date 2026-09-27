@@ -3,6 +3,7 @@
 // 知识,与引擎/store/表现无关,原先混在控制器里无法单测;独立后 OnlineController 只剩
 // 「协议桥」职责(收消息→灌 store)。逻辑逐行照搬拆分前实现,零行为变化。
 import type { NetRoomFields } from "@app/store/netStore";
+import { getServerBase } from "@app/net/server-base";
 
 /** REST 入座回包(对照 scripts/server.ts:/room/new、/room/join 端点返回:
  *  {ok, seat, seatToken, ...lobbyView};lobbyView 房间字段与 WS 广播同构)。 */
@@ -21,20 +22,15 @@ export interface RoomCreds {
 }
 
 export class LobbyApi {
-  /** 去尾斜杠的 server 基址(http(s)://host)。 */
-  private readonly base: string;
-
-  constructor(serverUrl: string) {
-    this.base = serverUrl.replace(/\/$/, "");
-  }
-
+  // 服务器基址每次调用时取 server-base 单源(#279):大厅改地址即时生效,无需重建控制器;
+  // 旧构造器注入基址的做法会焊死在入厅时刻,改址后建房/加入仍打旧源(实测踩坑)。
   /** WS 升级 URL(http→ws,query 带 room/seat/token;ADR-0002:token 夺回座位)。 */
   wsUrl(creds: RoomCreds, seat: number): string {
-    return `${this.base.replace(/^http/, "ws")}/ws?room=${creds.roomId}&seat=${seat}&token=${creds.seatToken}`;
+    return `${getServerBase().replace(/^http/, "ws")}/ws?room=${creds.roomId}&seat=${seat}&token=${creds.seatToken}`;
   }
 
   private http(path: string, body: unknown): Promise<Record<string, unknown>> {
-    return fetch(`${this.base}${path}`, {
+    return fetch(`${getServerBase()}${path}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(body),
