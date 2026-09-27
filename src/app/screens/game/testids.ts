@@ -84,6 +84,9 @@ export const TESTIDS = {
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
   thinking: "thinking",
   waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx)
+  /** 竖屏手机「请横屏」提示层(#276 纠偏:移动端只做横屏形态;显隐全在 layout.css
+   *  媒询,常驻 DOM——桌面窄窗口 pointer:fine 不触发)。 */
+  rotateHint: "rotate-hint",
 
   // ── 棋盘区小组件 ──
   muteButton: "mute-button",
