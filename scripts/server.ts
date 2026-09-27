@@ -595,7 +595,10 @@ Bun.serve<WsSeat>({
   },
 } satisfies import("bun").ServeOptions<WsSeat> | undefined);
 
-console.log(`[server] 群雄逐鹿引擎服务已启动 → http://${HOST}:${PORT}`);
+// 0.0.0.0 是监听地址(所有网卡),不是可访问 URL——打印时换成本机可点的形式
+console.log(
+  `[server] 群雄逐鹿引擎服务已启动 → http://${HOST === "0.0.0.0" ? "localhost" : HOST}:${PORT}`,
+);
 console.log(`[server] 房间目录:${ROOMS_DIR}(已恢复 ${restored} 局)  静态:${STATIC_DIR}`);
 console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
