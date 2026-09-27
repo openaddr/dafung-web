@@ -43,6 +43,8 @@ export const TESTIDS = {
   // ── 战报抽屉(#255):仪表条上缘右角竖把手 + 右缘抽屉(对局日志渲染)──
   logTab: "log-tab",
   logDrawer: "log-drawer",
+  /** 「加载更早」:窗口化渲染(#战报性能)按窗放开更早历史的按钮。 */
+  logEarlier: "log-earlier",
 
   // ── expandPile(#255):徽章展开的明细行(落手牌架内、手牌行左旁)──
   pileRow: "pile-row",
