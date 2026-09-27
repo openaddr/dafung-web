@@ -58,8 +58,7 @@ function dumbHumanCommand(e: GameEngine): boolean {
       // bot 被询问座位已在开窗时即席代答,此处只剩人类座位
       const pr = e.pendingReaction;
       if (!pr) return false; // 引擎保证相位↔载荷成对;缺载 = 状态机 bug,交由上层红出来
-      const queried =
-        pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
+      const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
       const humanSeat = queried.find((s) => !e.players[s].isBot);
       if (humanSeat == null) return false;
       e.submitCommand({ type: "respondReaction", seat: humanSeat, use: false });

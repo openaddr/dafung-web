@@ -888,7 +888,10 @@ export class GameEngine {
     mover.onBranch = null; // 已在主路(清掉原 onBranch)
     mover.position = landIndex;
     if (wasOnBranch)
-      this.dispatchMoment("BranchExited", { subject: this.players.indexOf(mover), tileIndex: landIndex }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
+      this.dispatchMoment("BranchExited", {
+        subject: this.players.indexOf(mover),
+        tileIndex: landIndex,
+      }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
     this.dispatchMoment("AfterMarch", { subject: this.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
     // 落在辅路起点(且未在辅路)→ 弹入口抉择
     if (this.board.getBranchStart(landIndex)) {
@@ -2712,9 +2715,7 @@ export class GameEngine {
       .filter(
         (seat) =>
           seat !== userSeat &&
-          this.players[seat].jinnangHand.some(
-            (id) => jinnangCardOf(id).effect.kind === "counter",
-          ),
+          this.players[seat].jinnangHand.some((id) => jinnangCardOf(id).effect.kind === "counter"),
       );
     if (queried.length === 0) {
       // 无人可识破:不开窗,直接结算

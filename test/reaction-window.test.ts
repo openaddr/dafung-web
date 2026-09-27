@@ -122,10 +122,7 @@ describe("反应窗配置表(#281/constants)", () => {
   it("键=挂点时机,默认 3000ms;权威侧读取,E2E 缩放由消费方处理", () => {
     expect(REACTION_WINDOW_MS.JinnangAnnounced).toBe(3000);
     expect(REACTION_WINDOW_MS.MarchPassedCity).toBe(3000);
-    expect(Object.keys(REACTION_WINDOW_MS).sort()).toEqual([
-      "JinnangAnnounced",
-      "MarchPassedCity",
-    ]);
+    expect(Object.keys(REACTION_WINDOW_MS).sort()).toEqual(["JinnangAnnounced", "MarchPassedCity"]);
   });
 });
 
@@ -297,7 +294,10 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
 
 describe("半路杀出(MarchPassedCity 反应窗)", () => {
   it("城主持半路杀出:途经即开拦检窗;拦检胜=行人止步拦检城、照常落格结算(可被交涉)", () => {
-    const { e, mover, moverSeat, ownerSeat } = marchUp({ ownerCards: ["半路杀出"], ownerTreasure: true });
+    const { e, mover, moverSeat, ownerSeat } = marchUp({
+      ownerCards: ["半路杀出"],
+      ownerTreasure: true,
+    });
     e.rollAndMove();
     expect(e.turnPhase).toBe("AwaitingReaction");
     expect(e.pendingReaction?.view).toEqual({
@@ -496,7 +496,13 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     const e = makeEngine(42, seats);
     finishSetup(e);
     e.pendingReaction = {
-      view: { kind: "jinnang", cardId: view.cardId, userSeat: view.userSeat, targetSeats: view.targetSeats, queriedBySeat: [] },
+      view: {
+        kind: "jinnang",
+        cardId: view.cardId,
+        userSeat: view.userSeat,
+        targetSeats: view.targetSeats,
+        queriedBySeat: [],
+      },
       answers: [],
       payload: { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] },
     };

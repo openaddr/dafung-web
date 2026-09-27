@@ -222,14 +222,11 @@ export function botReactionDecision(
 ): ReactionDecision {
   if (opts?.conservative || opts?.skills === "hold") return { use: false };
   const pr = engine.pendingReaction;
-  if (pr == null)
-    throw new Error(`botReactionDecision:座位 ${seat} 无挂起反应窗(驱动器 bug)`); // 零兜底
+  if (pr == null) throw new Error(`botReactionDecision:座位 ${seat} 无挂起反应窗(驱动器 bug)`); // 零兜底
   const me = engine.players[seat];
   if (pr.view.kind === "march") {
     const mover = engine.players[pr.view.userSeat];
-    const richest = engine.players.every(
-      (p) => p === mover || p.isBankrupt || mover.cash > p.cash,
-    );
+    const richest = engine.players.every((p) => p === mover || p.isBankrupt || mover.cash > p.cash);
     const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
     if (richest && cardId != null) return { use: true, cardId };
     return { use: false };

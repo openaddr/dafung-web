@@ -223,9 +223,7 @@ function armJinnang(e: GameEngine, cards: string[]) {
   e.turnPhase = "AwaitingJinnang";
   for (const other of e.players) {
     if (other === p) continue;
-    other.jinnangHand = other.jinnangHand.filter(
-      (id) => id !== "识破诡计" && id !== "半路杀出",
-    );
+    other.jinnangHand = other.jinnangHand.filter((id) => id !== "识破诡计" && id !== "半路杀出");
     other.jinnangHandCount = other.jinnangHand.length;
   }
   return p;
