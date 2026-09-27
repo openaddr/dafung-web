@@ -90,14 +90,6 @@ export interface JinnangIntent {
   targets?: number[];
 }
 
-/** 全体玩家现金中位数:奇数家取中位;偶数家取中间两位均值。确定性,不掷骰。exported 供单测。
- *  (#281:唯一消费方「免战金牌开盾策略」已随牌退役,本函数仅供测试口径延续。) */
-export function medianCash(players: Player[]): number {
-  const xs = players.map((p) => p.cash).sort((a, b) => a - b);
-  const mid = xs.length >> 1;
-  return xs.length % 2 === 1 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
-}
-
 /** 锦囊策略表(#148):横征暴敛=可用即用;连环计=现金最高的两人相咬、次富者现金 ≥400
  *  才值得(可用目标 <2 → 不用);窃玉=珍宝最多者;火烧=城最多者;缓兵=仅对当前身价
  *  领先者(netWorth=现金,单口径;自己是领先者则无的放矢);密探=自己手牌 ≥2 才用;

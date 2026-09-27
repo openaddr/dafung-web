@@ -290,7 +290,6 @@ export function extractStepEvents(
   }
 
   if (prevPhase === "AwaitingBankruptcySettle") {
-    events.push(...propertyChangeEvents(engine));
     events.push(...jinnangPlayEvents(engine));
     events.push(...floaterEvents(engine));
     // 破产资产转移(转债主/回无主/变卖给银行)的易主留痕(ADR-0015)

@@ -6,10 +6,9 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
 import { createDice, type Dice } from "@core/dice";
-import type { Player } from "@core/types";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
-import { botAct, jinnangIntent, medianCash } from "@core/bot";
+import { botAct, jinnangIntent } from "@core/bot";
 
 const MAP = loadMap(sanguoData);
 
@@ -93,8 +92,6 @@ function stubDice(e: GameEngine, float = 0.99) {
   return { calls: () => calls };
 }
 
-const cashPlayers = (xs: number[]) => xs.map((cash) => ({ cash })) as unknown as Player[];
-
 describe("锦囊 bot 策略(#148)", () => {
   it("横征暴敛:可用即用,无目标段直接执行,收卷进 Roll", () => {
     const e = prepared();
@@ -134,11 +131,6 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.jinnangUsedTags.slice().sort()).toEqual(["攻", "援"].sort());
     expect(e.players[1].cash).toBe(100);
     expect(e.turnPhase).toBe("Roll");
-  });
-
-  it("medianCash 两分支直测(原免战策略工具,牌已退役、工具口径延续)", () => {
-    expect(medianCash(cashPlayers([1, 2, 3]))).toBe(2);
-    expect(medianCash(cashPlayers([1, 2, 3, 4]))).toBe(2.5);
   });
 
   it("缓兵之计:仅对当前身价领先者;自己是领先者则今不用", () => {

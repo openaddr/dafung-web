@@ -328,6 +328,18 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     expect(e.jinnangDiscard).toContain("半路杀出"); // 平局牌白耗
   });
 
+  it("拦检落败:城主骰输,牌白耗,行人照常续走落原点", () => {
+    const { e, mover, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
+    e.rollAndMove();
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    scriptDice(e, { rollDies: [2, 6] }); // 城主 2 < 行人 6
+    e.respondReaction(ownerSeat, true, "半路杀出");
+    expect(e.pendingReaction).toBeNull();
+    expect(mover.position).toBe(11); // 落原点(赤壁)
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
+    expect(e.jinnangDiscard).toContain("半路杀出"); // 落败牌白耗
+  });
+
   it("城主不用:行人照常续走;无牌城主不开窗直接走完", () => {
     const a = marchUp({ ownerCards: ["半路杀出"] });
     a.e.rollAndMove();

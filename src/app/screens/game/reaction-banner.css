@@ -5,8 +5,10 @@
    但本件独立类名(.reaction-btn)——actionbar-btn 作用域锁在 .game-layout .actionbar 下,
    不跨件复用选择器。
 
-   裸色豁免登记:无——呼吸金边走 --color-gold / --color-gold-bright 的 color-mix,
-   印条纸色用既有 --color-paper-hi。 */
+   裸色豁免登记:rgba(43,35,23,·)=墨影族;rgba(200,161,58,·)/rgba(217,185,92,·)=
+   --color-gold / --color-gold-bright 通道、rgba(111,97,70,·)=墨褐通道——皆既有 token
+   的 rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色;呼吸金边另走
+   --color-gold / --color-gold-bright 的 color-mix,印条纸色用既有 --color-paper-hi。 */
 
 /* ── 横幅:定位在架体(.hand-rack 为定位上下文)上缘,从架沿长出(scaleY 入场);
    纸底墨框 + 朱砂倒计时弧,同族于 WaitingBar/选都提示的浮层语言 ── */

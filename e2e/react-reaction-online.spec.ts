@@ -1,6 +1,6 @@
 // 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速,3s 真窗可接受):
 // 标准双端 UI 流程(react-online 同款)建 3 座房 [host 页=seat0 / guest 页=seat1 /
-// seat2 不入座→开局自动 bot 填充],种子 191 经路由拦截注入建房请求(联机 UI 无种子入口;
+// seat2 不入座→开局自动 bot 填充],种子 430 经路由拦截注入建房请求(联机 UI 无种子入口;
 // 种子是确定性前提)。种子离线核算(同配置引擎演算):draftOrder=[2,1,0] bot 先动且起手
 // 横征暴敛,guest 起手识破诡计,host 起手缓兵之计——选都一结束 bot 即出横征暴敛
 // (全体域,targetSeats=[0,1]),guest 被询问:
@@ -23,7 +23,7 @@ function roomsDir(): string {
   return resolve(process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms");
 }
 
-/** 标准 UI 建房/加入/选图/开局(种子 191 经路由拦截注入 /room/new 请求体);
+/** 标准 UI 建房/加入/选图/开局(种子 430 经路由拦截注入 /room/new 请求体);
  *  3 座:seat2 不入座,开局由服务器 bot 填充。返回 [host, guest]。 */
 async function twoClientsWithSeed(
   browser: Browser,
@@ -33,7 +33,7 @@ async function twoClientsWithSeed(
   await host.goto(`${ONLINE}/?online=1`);
   // 种子注入:建房请求体补 seed(不改 UI 契约;房间确定性来自这一拦截)。
   // 国号预设同步钉死:建房 guohao 取 localStorage 偏好(点击时读),空缺会改变引擎国号池
-  // 洗牌的骰流消耗——演算(seed 191)按 host=魏 / guest=无预设 复刻,此处对齐。
+  // 洗牌的骰流消耗——演算(seed 430)按 host=魏 / guest=无预设 复刻,此处对齐。
   await host.evaluate(() => localStorage.setItem("dafung.guohao", "魏"));
   await host.route("**/room/new", async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");

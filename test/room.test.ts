@@ -568,8 +568,8 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     expect(events.find((e) => e.event.ev === "takeover")?.event.seat).toBe(0);
     expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
     // 经济 v2(目标 30000)全 bot 对局超过单链 500 步:经 setTimeout 续链,轮询等终局。
-    // 反应窗(#281):接管/托管座位被询问时代发「不用」——权威侧超时兜底=代发普通命令
-    //(ADR-0017;传输层 INPUT_PHASES/看门狗接线归下一道缝,此处测试代行同款口径)
+    // 反应窗(#281):接管/托管座位被询问时,room.ts driveBots 依 ADR-0017 代发「不用」
+    //(权威侧超时兜底=代发普通命令;本用例的轮询代发与其口径一致)
     for (let i = 0; i < 1200 && events.at(-1)?.event.reason !== "game-over"; i++) {
       const e = reg.get(room.roomId)?.engine;
       const pr = e?.phase === "Playing" ? e.pendingReaction : null;
