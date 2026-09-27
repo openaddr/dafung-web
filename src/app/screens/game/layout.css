@@ -103,6 +103,24 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
+/* 「加载更早」:窗口化渲染按窗放开更早历史;列表底部的安静墨字钮,不要抢戏 */
+.war-earlier {
+  margin: 0 1rem 0.75rem;
+  padding: 6px 14px;
+  align-self: center;
+  border: 1px solid rgba(43, 35, 23, 0.25);
+  border-radius: 3px;
+  background: none;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: var(--color-ink-dim);
+  cursor: pointer;
+}
+.war-earlier:hover {
+  color: var(--color-ink);
+  border-color: rgba(43, 35, 23, 0.45);
+}
 
 /* ── 仪表条计数徽章展开态(#255 expandPile):§4.6 状态即 UI——徽章提亮 + 漆金内环
    表「此摞已展入牌架行」,不加文字标牌。 ── */
