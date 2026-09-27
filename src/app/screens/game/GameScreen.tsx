@@ -68,6 +68,54 @@ export function GameScreen() {
   return <GameScreenLive snapshot={snapshot} map={map} />;
 }
 
+/** 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,竖屏不做游戏布局)。
+ *  常驻 DOM,显隐全交 layout.css 媒询(orientation: portrait + max-width: 700px +
+ *  pointer: coarse 才全屏接管挡住对局;桌面窄窗口 pointer: fine 不触发)。 */
+function RotateHintOverlay() {
+  return (
+    <div className="rotate-hint" data-testid={TESTIDS.rotateHint}>
+      {/* 旋转示意:竖放手机 + 顺时针弧箭头(纯内联 SVG,零资源;符号不进字体栈,
+          Sym 同款口径) */}
+      <svg viewBox="0 0 48 48" aria-hidden="true" focusable="false">
+        <rect
+          x="15"
+          y="9"
+          width="18"
+          height="30"
+          rx="3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+        />
+        <line
+          x1="21"
+          y1="34.5"
+          x2="27"
+          y2="34.5"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 5 24 A 19 19 0 0 1 43 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+        <path
+          d="M 43 24 l -4.5 -4 M 43 24 l 4.5 -4"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+      </svg>
+      <span>请横屏游玩</span>
+    </div>
+  );
+}
+
 /** 已开局主体:棋盘全幅 + 三区(顶部条/席位卡列/仪表条);hooks 全在此,
  *  snapshot/map 由 GameScreen 门卫。 */
 function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapData }) {
@@ -335,6 +383,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         )}
         {/* 战报抽屉(#255):右缘竖把手 + 抽屉渲染对局日志;常收零占位(收起时只有把手)。 */}
         <WarReportDrawer snapshot={snapshot} />
+        {/* 竖屏手机「请横屏」提示层(#276 纠偏):常驻 DOM,显隐在 layout.css 媒询。 */}
+        <RotateHintOverlay />
       </div>
     </AudioProvider>
   );

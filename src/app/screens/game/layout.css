@@ -790,3 +790,170 @@
     animation: none;
   }
 }
+
+/* ══ #276 窄屏 / 短横屏响应式收口(纠偏定案:移动端只做横屏形态)══
+   纯 CSS 断点重排;断点外(桌面 ≥1280×720)零变化。两块集中放文件尾:
+   A 短横屏沿 hand-rack.css 既有断点先例(orientation: landscape + max-height: 500px);
+   B 竖屏不做布局,只出「请横屏」提示层(portrait + max-width: 700px + pointer: coarse)。 */
+
+/* ── A 短横屏(Android 短横屏 844×390 一类)──
+   顶部条压缩(chip 全保留不藏,角钮 40px 触达不动);仪表条 172→132px 紧凑档,
+   棋盘区下缘/战报把手/动作条 bottom 同拍跟随;席位卡右列保留、卡片紧凑,
+   列高由 top/bottom 夹出、放不下的卡向左换列(横屏宽度富余)。
+   手牌架降档是 hand-rack.css 既有断点的事,本文件只把 dash-rack 槽内的 em 基
+   7.6px 放开到同一断点档 6.4px——槽内定基特异性更高,不放开则降档永不生效。 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .game-layout .topbar {
+    gap: 6px;
+  }
+  .game-layout .chip {
+    gap: 5px;
+    padding: 4px 7px;
+  }
+  .game-layout .chip .seal-s {
+    width: 18px;
+    height: 18px;
+    font-size: 11px;
+  }
+  .game-layout .chip .t {
+    font-size: 13px;
+  }
+  .game-layout .chip .t-active,
+  .game-layout .chip .t-win {
+    font-size: 12px;
+  }
+  .game-layout .chip .d {
+    font-size: 10px;
+  }
+  .game-layout .misc {
+    gap: 5px;
+  }
+
+  .game-layout .board-area {
+    inset: 0 0 calc(132px + var(--safe-bottom)) 0;
+  }
+  .game-layout .dash {
+    height: calc(132px + var(--safe-bottom));
+  }
+  /* 把手/动作条锚仪表条上缘:132px + 12px 气口(同桌面 184px 口径) */
+  .game-layout .log-tab,
+  .game-layout .actionbar {
+    bottom: calc(144px + var(--safe-bottom));
+  }
+  .game-layout .me {
+    width: 296px;
+    gap: 5px;
+    padding: 8px 12px calc(8px + var(--safe-bottom)) 14px;
+  }
+  .game-layout .me .guo-yin {
+    width: 32px;
+    height: 32px;
+    font-size: 19px;
+  }
+  .game-layout .me .nm {
+    font-size: 16px;
+  }
+  .game-layout .me .rows {
+    gap: 6px 8px;
+  }
+  .game-layout .badge.b-cash {
+    font-size: 16px;
+  }
+  .game-layout .badge.b-sign {
+    padding: 2px 6px;
+    font-size: 12px;
+  }
+  .game-layout .badge .hpbar {
+    width: 64px;
+  }
+  .game-layout .dash-rack .hand-rack {
+    font-size: 6.4px;
+  }
+
+  .game-layout .seatcol {
+    top: calc(var(--safe-top) + 56px);
+    bottom: calc(140px + var(--safe-bottom));
+    flex-wrap: wrap-reverse; /* 溢出列展开在主列左侧,首列仍贴右缘 */
+    gap: 6px;
+  }
+  .game-layout .seat {
+    width: 88px;
+    padding: 4px 6px 5px;
+    gap: 3px;
+  }
+  .game-layout .seat .guo-yin {
+    width: 20px;
+    height: 20px;
+    font-size: 12px;
+  }
+  .game-layout .seat .nm {
+    font-size: 10px;
+  }
+  .game-layout .seat .cash {
+    font-size: 13px;
+  }
+  .game-layout .seat .hpbar {
+    height: 7px;
+  }
+  .game-layout .seat .hpbar em {
+    font-size: 6.5px;
+  }
+  .game-layout .seat .vgrid {
+    margin-top: 0;
+    gap: 2px 6px;
+  }
+  .game-layout .seat .ib {
+    font-size: 10px;
+  }
+  .game-layout .seat .ib svg {
+    width: 10px;
+    height: 10px;
+  }
+  .game-layout .seat .mini-back {
+    width: 6px;
+    height: 9px;
+  }
+}
+
+/* ── B 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,
+   竖屏不做游戏布局)── 常驻 DOM(RotateHintOverlay,GameScreen 挂),显隐全在
+   CSS:竖屏 + 窄幅 + 粗指针(真手机)才全屏接管挡住对局;桌面窄窗口
+   (pointer: fine)不触发。裸色豁免:漆木渐变/漆金字同 .dash/.log-tab 既有族。 */
+.game-layout .rotate-hint {
+  display: none;
+}
+@media (orientation: portrait) and (max-width: 700px) and (pointer: coarse) {
+  .game-layout .rotate-hint {
+    display: flex;
+    position: absolute;
+    inset: 0;
+    z-index: 60; /* 压过动作条 z-7 与战报抽屉 z-50:竖屏下对局整体不可交互 */
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+    color: var(--color-lacquer-gold);
+    font-family: var(--font-brush);
+    font-size: 21px;
+    letter-spacing: 0.25em;
+    text-indent: 0.25em;
+    pointer-events: auto;
+  }
+  /* 竖放手机 + 顺时针弧箭头,往复转 90° 示意转向(慢循环;reduced-motion 由
+     app.css M-4 全局兜层压停,静态图形仍可读) */
+  .game-layout .rotate-hint svg {
+    width: 56px;
+    height: 56px;
+    animation: rotate-hint-turn 2.6s ease-in-out infinite;
+  }
+}
+@keyframes rotate-hint-turn {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  50% {
+    transform: rotate(90deg);
+  }
+}
