@@ -13,7 +13,7 @@
 3. 一切动画时长经 `src/app/fx/timings.ts` 的 scaler / CSS `--dur-*`/`--ease-*` token 表达;秒级常量只活在 timings.ts 注释钉死的那几处。
 4. 每屏合入门槛 = **typecheck 零错 + bun test 全绿 + 该屏 e2e 绿 + 评审放行**,四项齐。
 5. 工作树中未提交改动只许避开;`tokens.css`/`app.css`/`theme.ts` 等全局样式**只归主线改**——分包需要动全局 → 停手回报,不自己动手。
-6. 无障碍底线:键盘可达、焦点可见、prefers-reduced-motion 尊重、对比度达标(小字 4.5:1)、移动端可用。
+6. 无障碍底线:键盘可达、焦点可见、prefers-reduced-motion 尊重、对比度达标(小字 4.5:1)、移动端可用(**仅横屏**,ADR-0018)。
 
 ## 1. 方向宣言(一句话版,全文见 DESIGN.md)
 
