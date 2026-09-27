@@ -250,10 +250,10 @@
   margin: 0 auto 14px;
 }
 
-/* ── expandPile 明细行(#255):仪表条徽章点开的摞,纸签横排落手牌行左旁(同架
+/* ── expandPile 明细行(#255):仪表条徽章点开的摞,横排落手牌行左旁(同架
    flex 底对齐,不顶掉手牌);空摞徽章不可展开,本行只在有货时渲染。字级用 px
    (签面小字,不吃架体 em 基——7.6px 基下 em 表达不出可读小字)。裸色豁免:纸签
-   边影走墨影 rgba(43,35,23,·),摞色吃属性 token(--color-attr-gem/hero)。 ── */
+   边影走墨影 rgba(43,35,23,·),摞色吃属性 token(--color-attr-hero)。 ── */
 .hand-rack-pile {
   flex: 0 1 auto;
   min-width: 0;
@@ -293,11 +293,16 @@
   color: var(--color-ink-dim);
   font-variant-numeric: tabular-nums;
 }
-.pile-slip.pile-gem {
-  border-left-color: var(--color-attr-gem);
-}
 .pile-slip.pile-hero {
   border-left-color: var(--color-attr-hero);
+}
+
+/* ── 珍宝牌面明细(#234 珍宝牌面变体,#281 落地):珍宝从纸签改牌面形制
+   (TreasureCardFace,基座 .jinnang-card;宝章+品级大字+品级框色)。档位随明细行
+   收窄:4.8px em 基(≈72×96),不与手牌大牌面争格;该档下品级大字与宝章仍可辨,
+   细节(风味文/指导价)留 title 浮签。 ── */
+.pile-gem-card {
+  font-size: 4.8px;
 }
 
 /* ── 令笺(技)变体差量(#256 随迁,#255 收口落位):基座复用 .jinnang-card

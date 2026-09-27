@@ -6,6 +6,7 @@ import type { EncounterEffect } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
+import { guidePriceOf } from "./treasures";
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
  *  不消耗引擎骰(重放安全)。 */
@@ -89,35 +90,26 @@ export interface JinnangIntent {
   targets?: number[];
 }
 
-/** 全体玩家现金中位数:奇数家取中位;偶数家取中间两位均值。确定性,不掷骰。exported 供单测。 */
-export function medianCash(players: Player[]): number {
-  const xs = players.map((p) => p.cash).sort((a, b) => a - b);
-  const mid = xs.length >> 1;
-  return xs.length % 2 === 1 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
-}
-
 /** 锦囊策略表(#148):横征暴敛=可用即用;连环计=现金最高的两人相咬、次富者现金 ≥400
  *  才值得(可用目标 <2 → 不用);窃玉=珍宝最多者;火烧=城最多者;缓兵=仅对当前身价
  *  领先者(netWorth=现金,单口径;自己是领先者则无的放矢);密探=自己手牌 ≥2 才用;
- *  免战=现金低于全体玩家现金中位数(原表「房租均值」——本引擎无房租概念,#148 改中位数
- *  口径);求贤=可用即用。并列一律取座位序小者(输入保持座位序 + 稳定排序,禁
+ *  求贤=可用即用。并列一律取座位序小者(输入保持座位序 + 稳定排序,禁
  *  Math.random,重放安全)。
- *  目标候选的可达性预筛(非己/存活/未庇护/有珍宝/有城)是 choices.ts jinnangTargetOk 的
- *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。 */
+ *  目标候选的可达性预筛(非己/存活/有珍宝/有城)是 choices.ts jinnangTargetOk 的
+ *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。
+ *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应牌不经军师幕。) */
 export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent {
   const me = engine.activePlayer;
   const mySeat = engine.players.indexOf(me);
   const others = engine.players
     .map((t, seat) => ({ t, seat }))
-    .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt && !t.jinnangShield);
+    .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt);
   const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
     [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
   switch (jinnangCardOf(cardId).effect.kind) {
     case "levyAll": // 横征暴敛:可用即用
     case "grantHero": // 求贤令:可用即用
       return { use: true };
-    case "jinnangShield": // 免战金牌:现金低于全体现金中位数才用
-      return { use: me.cash < medianCash(engine.players) };
     case "skipTurn": {
       // 缓兵之计:仅当目标当前身价领先;自己领先则无人值得拖
       const leader = [...engine.players]
@@ -153,7 +145,99 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
         targets: ranked.slice(0, 2).map(({ seat }) => seat),
       };
     }
+    case "counter":
+    case "ambush":
+      // 反应牌不经军师幕(#281「唯反应」):策略表永不评估,走到这里=调用方数据 bug
+      throw new Error(`反应牌【${cardId}】不经军师幕(jinnangIntent 不应评估反应牌)`);
   }
+}
+
+/** 反应窗决策出口(#281):use=true 携牌 id;识破 AOE 另携被保护份座位(自保=自己)。 */
+export interface ReactionDecision {
+  use: boolean;
+  cardId?: string;
+  shareSeat?: number;
+}
+
+/** 识破估损常数(#281 bot 口径):只影响 bot 出牌倾向,不影响引擎语义。
+ *  counterCardValue=一张防御牌留到手的价值底价(估损不抵底价就不拆);
+ *  skipTurn=被跳一回合的机会成本粗估;duel=被卷入连环计拼点的期望损失
+ *  (等概率胜 300/负 400 → 差额一半)。 */
+const EST_COUNTER_CARD_VALUE = 100;
+const EST_SKIP_TURN_LOSS = 200;
+const EST_DUEL_LOSS = 50;
+
+/** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营=最高降级
+ *  城池价值差(城防全 0 级则按最便宜非都城整城价值,都城不可失 #226 同口径);
+ *  横征暴敛=200(上限现金);缓兵之计=跳回合常数;连环计=被卷入拼点期望损失;
+ *  窃玉=最便宜珍宝指导价;军情密探=0(bot 拿情报无用);求贤令=0(不损他人)。 */
+function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): number {
+  const def = jinnangCardOf(cardId);
+  const me = engine.players[seat];
+  switch (def.effect.kind) {
+    case "demolish": {
+      const capPropId = engine.board.at(me.capitalIndex)?.propertyId;
+      let loss = 0;
+      for (const h of me.properties) {
+        const cd = engine.catalog.get(h.propertyId);
+        if (!cd) continue;
+        if (h.level > 0) {
+          loss = Math.max(loss, cd.valueByLevel[h.level] - cd.valueByLevel[h.level - 1]);
+        } else if (h.propertyId !== capPropId) {
+          loss = Math.max(loss, cd.valueByLevel[0]); // 全 0 级 → 失一座非都城
+        }
+      }
+      return loss;
+    }
+    case "levyAll":
+      return Math.min(def.effect.amount, me.cash);
+    case "skipTurn":
+      return EST_SKIP_TURN_LOSS;
+    case "duel":
+      return EST_DUEL_LOSS;
+    case "stealTreasure":
+      return me.treasures.length > 0
+        ? Math.min(...me.treasures.map((t) => guidePriceOf(t.level)))
+        : 0;
+    case "peek":
+    case "grantHero":
+      return 0;
+    case "counter":
+    case "ambush":
+      // 反应牌不落他人头上(counter 只在非反应锦囊的公告窗评估)
+      throw new Error(`反应牌【${cardId}】不应进入识破估损(counterLossEstimate 数据 bug)`);
+  }
+}
+
+/** 反应窗决策(#281):纯函数,不掷骰不改状态,确定性(引擎即席代答与重放同一路径)。
+ *  - 识破诡计:bot 只自保——仅当公告的锦囊落在自己那份上才考虑,净值贪心(估损 >
+ *    牌值底价才拆);替他人拆招是人玩家专属政局玩法,bot 不做。
+ *  - 半路杀出:确定性启发——行人现金全场第一(严格大于其余存活者)才拦,否则不拦。
+ *  - conservative(看门狗/接管)与 skills:"hold"(自助托管/代驾)永不使用反应牌
+ *    (超时一律不用,#148/#229「代驾不花牌」口径)。 */
+export function botReactionDecision(
+  engine: GameEngine,
+  seat: number,
+  opts?: BotActOptions,
+): ReactionDecision {
+  if (opts?.conservative || opts?.skills === "hold") return { use: false };
+  const pr = engine.pendingReaction;
+  if (pr == null) throw new Error(`botReactionDecision:座位 ${seat} 无挂起反应窗(驱动器 bug)`); // 零兜底
+  const me = engine.players[seat];
+  if (pr.view.kind === "march") {
+    const mover = engine.players[pr.view.userSeat];
+    const richest = engine.players.every((p) => p === mover || p.isBankrupt || mover.cash > p.cash);
+    const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
+    if (richest && cardId != null) return { use: true, cardId };
+    return { use: false };
+  }
+  // 识破诡计:只拆指定自己的那份
+  if (!pr.view.targetSeats.includes(seat)) return { use: false };
+  if (counterLossEstimate(engine, seat, pr.view.cardId) <= EST_COUNTER_CARD_VALUE)
+    return { use: false };
+  const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "counter");
+  if (cardId == null) return { use: false };
+  return { use: true, cardId, shareSeat: seat };
 }
 
 /** 主动技意图(#188 档 3):策略表对单个技能的「用/不用 + 偏好目标序」。净值贪心、

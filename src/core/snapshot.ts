@@ -68,8 +68,6 @@ export interface SnapshotPlayer {
   jinnangHand: string[];
   /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
   jinnangHandCount: number;
-  /** 免战金牌在身(#122/T2):至该玩家下回合开始,其不可被他人锦囊指定。 */
-  jinnangShield: boolean;
   /** 已领取的声望献计里程碑(#147)。 */
   repMilestones: number[];
 }
@@ -159,6 +157,14 @@ export interface GameSnapshot {
   pendingSkill: import("./types").PendingHeroSkill | null;
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
+  /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
+   *  重放=普通 respondReaction 命令流);可见性由传输层投影(ADR-0016),公开载荷另经
+   *  派生字段 reaction 透出。 */
+  pendingReaction: import("./types").PendingReaction | null;
+  /** 反应窗公开载荷(#281,纯派生=pendingReaction.view):可见性两档登记见 ReactionView
+   *  类型注释——公告字段 public,jinnang 窗 queriedBySeat 为 per-seat private(redact
+   *  每座位只留「自己是否被询问」,改造归传输层下一道缝)。 */
+  reaction: import("./types").ReactionView | null;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
   jinnangPeeks: import("./types").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
@@ -166,6 +172,50 @@ export interface GameSnapshot {
   jinnangDiscard: string[];
   // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
   log: LogEvent[];
+}
+
+/** 反应窗挂起态深拷贝(序列化/恢复共用;纯数据,无引用共享)。 */
+function clonePendingReaction(
+  pr: import("./types").PendingReaction | null,
+): import("./types").PendingReaction | null {
+  if (!pr) return null;
+  const view: import("./types").ReactionView =
+    pr.view.kind === "jinnang"
+      ? {
+          kind: "jinnang",
+          cardId: pr.view.cardId,
+          userSeat: pr.view.userSeat,
+          targetSeats: [...pr.view.targetSeats],
+          queriedBySeat: [...pr.view.queriedBySeat],
+        }
+      : {
+          kind: "march",
+          cardId: pr.view.cardId,
+          userSeat: pr.view.userSeat,
+          ownerSeat: pr.view.ownerSeat,
+        };
+  const answers: import("./types").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
+  const payload: import("./types").ReactionPayload =
+    pr.payload.kind === "jinnang"
+      ? {
+          kind: "jinnang",
+          userSeat: pr.payload.userSeat,
+          cardId: pr.payload.cardId,
+          targets: [...pr.payload.targets],
+        }
+      : {
+          kind: "march",
+          moverSeat: pr.payload.moverSeat,
+          tileIndex: pr.payload.tileIndex,
+          stepsToTile: pr.payload.stepsToTile,
+          totalTiles: pr.payload.totalTiles,
+          resumeTiles: [...pr.payload.resumeTiles],
+          landIndex: pr.payload.landIndex,
+          fromPos: pr.payload.fromPos,
+          steps: pr.payload.steps,
+          wasOnBranch: pr.payload.wasOnBranch,
+        };
+  return { view, answers, payload };
 }
 
 /** 单点清单条目:read(引擎 → 快照值)与 write(快照 → 引擎)成对同置。
@@ -395,6 +445,20 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
+    // 反应窗挂起态(#281):公告/应答/续结算载荷全量随快照走(ADR-0017 重放=普通命令流)
+    key: "pendingReaction",
+    read: (e) => clonePendingReaction(e.pendingReaction),
+    write: (e, s) => {
+      e.pendingReaction = clonePendingReaction(s.pendingReaction);
+    },
+  },
+  {
+    // 反应窗公开载荷(#281):纯派生 = pendingReaction.view,重 hydrate 后随挂起态就位
+    key: "reaction",
+    read: (e) => (e.pendingReaction ? clonePendingReaction(e.pendingReaction)!.view : null),
+    write: () => {},
+  },
+  {
     // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传
     key: "jinnangDeckCount",
     read: (e) => e.jinnangDeckCount,
@@ -571,7 +635,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
-        jinnangShield: p.jinnangShield,
         repMilestones: [...p.repMilestones],
       })),
     write: (e, s) => {
@@ -596,7 +659,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
-        p.jinnangShield = ps.jinnangShield;
         p.repMilestones = [...ps.repMilestones];
         p.treasures = ps.treasures.map((t) => ({
           id: t.id,

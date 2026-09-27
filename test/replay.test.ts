@@ -53,6 +53,17 @@ function dumbHumanCommand(e: GameEngine): boolean {
       // 锦囊(#122/T2):笨人类恒「今不用」,cmd 行(useJinnang)照记照重放
       e.submitCommand({ type: "useJinnang", cardId: null });
       return true;
+    case "AwaitingReaction": {
+      // 反应窗(#281):笨人类恒「不用」,cmd 行(respondReaction,seat 随命令过网)照记照重放;
+      // bot 被询问座位已在开窗时即席代答,此处只剩人类座位
+      const pr = e.pendingReaction;
+      if (!pr) return false; // 引擎保证相位↔载荷成对;缺载 = 状态机 bug,交由上层红出来
+      const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
+      const humanSeat = queried.find((s) => !e.players[s].isBot);
+      if (humanSeat == null) return false;
+      e.submitCommand({ type: "respondReaction", seat: humanSeat, use: false });
+      return true;
+    }
     case "AwaitingDecision":
       e.submitCommand({ type: "endDecision" });
       return true;
@@ -75,6 +86,12 @@ function drivePlaying(e: GameEngine): void {
   let guard = 0;
   while (!e.isOver && guard++ < 20_000) {
     if (e.phase !== "Playing") break;
+    if (e.turnPhase === "AwaitingReaction") {
+      // 反应窗(#281):归属=被询问座位(非 decisionOwner);bot 已在开窗时即席代答,
+      // 这里只剩人类座位,恒答「不用」
+      if (!dumbHumanCommand(e)) break;
+      continue;
+    }
     if (e.players[e.decisionOwner].isBot) botAct(e);
     else if (!dumbHumanCommand(e)) break;
   }

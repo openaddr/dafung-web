@@ -567,8 +567,22 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     await reg.takeoverSeat(room.roomId, token, 0, undefined);
     expect(events.find((e) => e.event.ev === "takeover")?.event.seat).toBe(0);
     expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
-    // 经济 v2(目标 30000)全 bot 对局超过单链 500 步:经 setTimeout 续链,轮询等终局
-    for (let i = 0; i < 900 && events.at(-1)?.event.reason !== "game-over"; i++) {
+    // 经济 v2(目标 30000)全 bot 对局超过单链 500 步:经 setTimeout 续链,轮询等终局。
+    // 反应窗(#281):接管/托管座位被询问时,room.ts driveBots 依 ADR-0017 代发「不用」
+    //(权威侧超时兜底=代发普通命令;本用例的轮询代发与其口径一致)
+    for (let i = 0; i < 1200 && events.at(-1)?.event.reason !== "game-over"; i++) {
+      const e = reg.get(room.roomId)?.engine;
+      const pr = e?.phase === "Playing" ? e.pendingReaction : null;
+      if (e && pr) {
+        const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
+        const seat = queried.find(
+          (s2) => !e.players[s2].isBot && !pr.answers.some((a) => a.seat === s2),
+        );
+        if (seat != null) {
+          await reg.applyCommand(room.roomId, { type: "respondReaction", seat, use: false });
+          continue;
+        }
+      }
       await new Promise((r) => setTimeout(r, 10));
     }
     expect(events.at(-1)?.event.ev).toBe("bot-stop");
@@ -1038,21 +1052,19 @@ describe("锦囊×房间上下文(#148):接管保守 vs 托管策略", () => {
     reg.joinSeat(roomId);
     reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
     await reg.startGame(roomId, created.token, undefined, testMapProvider);
-    // 全员选都 → Playing;给 seat0 一张已启用锦囊(免战金牌)
+    // 全员选都 → Playing;给 seat0 一张已启用锦囊(横征暴敛,可用即用策略)
     const e = reg.get(roomId)!.engine!;
     let g = 0;
     while (e.phase === "Setup" && g++ < 20)
       await reg.pickCapital(roomId, e.currentSetupPlayerIndex, e.offeredCapitals[0]);
-    e.players[0].jinnangHand = ["免战金牌"];
+    e.players[0].jinnangHand = ["横征暴敛"];
     e.players[0].jinnangHandCount = 1;
     // 房主接管 seat0(等效看门狗路径)→ driveBots 保守:锦囊不消耗
     await reg.takeoverSeat(roomId, created.token, 0);
-    expect(e.players[0].jinnangHand).toEqual(["免战金牌"]);
-    // 改自助托管 + 现金压到全场中位以下 → 免战策略满足 → bot 用牌
-    e.players[0].cash = 100;
-    e.players[1].cash = 5000;
+    expect(e.players[0].jinnangHand).toEqual(["横征暴敛"]);
+    // 改自助托管 → 横征策略=可用即用 → bot 用牌
     e.jinnangUsedTags = [];
-    e.players[0].jinnangHand = ["免战金牌"];
+    e.players[0].jinnangHand = ["横征暴敛"];
     e.players[0].jinnangHandCount = 1;
     await reg.setAutoPilot(roomId, 0, true, "fast");
     await reg.setAutoPilot(roomId, 1, true, "fast"); // 对座也托管:对局才会循环回 seat0 回合

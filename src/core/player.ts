@@ -35,7 +35,6 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     stamina: STARTING_STAMINA,
     jinnangHand: [], // 锦囊手牌(#122):开局后经抽牌填充
     jinnangHandCount: 0,
-    jinnangShield: false,
     repMilestones: [],
   };
 }

@@ -283,3 +283,40 @@
     opacity: 0;
   }
 }
+
+/* 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线(FreeKill
+   IndicatorLine 同参数):生长 200ms → 停 200ms → 淡出 300ms,三段编进单条
+   keyframes 的百分比刻度(全长 0.7s 与 fx/timings.ts FX.jinnangLineMs 清理硬同步,
+   改任一侧须两处同改)。pathLength=1 归一化,生长段 dashoffset 1→0「笔锋引出」;
+   墨色取正文焦墨 token,reduced-motion 由 app.css 全局兜层压成 0.01ms(线瞬息
+   全隐,不做静态常驻——指示线本就是一次性演出)。 */
+.fx-svg-jline {
+  stroke: var(--color-ink);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  opacity: 0;
+  pointer-events: none;
+  animation: fx-jline-grow-hold-fade 0.7s var(--ease-out) forwards;
+}
+@keyframes fx-jline-grow-hold-fade {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0.9;
+  }
+  /* 200ms 生长完(200/700) */
+  28.5% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+  /* 200ms 停持(400/700) */
+  57% {
+    stroke-dashoffset: 0;
+    opacity: 0.9;
+  }
+  /* 300ms 淡出 */
+  100% {
+    stroke-dashoffset: 0;
+    opacity: 0;
+  }
+}

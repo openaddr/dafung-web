@@ -7,9 +7,9 @@ import { openSoloSetup, quickStart, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("锦囊 T1:发牌与可见性", () => {
-  test("起手各 1 张:架中见自己牌面;牌库余 11;席位卡见计数章", async ({ page }) => {
+  test("起手各 1 张:架中见自己牌面;牌库余 14;席位卡见计数章", async ({ page }) => {
     // seed 49 = 真人首动(jinnang-use 同款离线核算):首回合即人类,开局锦囊卷轴停下时
-    // 恰「发牌后、任何掷骰前」,牌库 11 / 各手 1 不随对局自走漂移。
+    // 恰「发牌后、任何掷骰前」,牌库 14 / 各手 1 不随对局自走漂移。
     await page.goto("/?seed=49");
     // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
     await page.getByTestId("home-select-map").click();
@@ -32,7 +32,7 @@ test.describe("锦囊 T1:发牌与可见性", () => {
         discard: e.jinnangDiscard.length as number,
       };
     });
-    expect(eng.deck).toBe(11); // 15 − 4 起手(用牌只进弃牌堆不回库,牌库数即发牌证据)
+    expect(eng.deck).toBe(14); // 18 − 4 起手(#281 牌库 9 种 18 张)(用牌只进弃牌堆不回库,牌库数即发牌证据)
     expect(eng.hands.reduce((a: number, b: number) => a + b, 0) + eng.discard).toBe(4); // 离库 4 张无一消失
 
     // 己方牌面:容器 + 恰好 1 张,testid 带牌名(目录中文 id)
@@ -61,7 +61,8 @@ test.describe("锦囊 T1:发牌与可见性", () => {
         "横征暴敛",
         "窃玉偷香",
         "火烧连营",
-        "免战金牌",
+        "识破诡计",
+        "半路杀出",
         "求贤令",
       ];
       return {

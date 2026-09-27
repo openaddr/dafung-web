@@ -49,6 +49,9 @@ export async function openShotSession({
   }
 
   const browser = await chromium.launch({
+    // Windows 走系统 Edge 通道(免下载自带浏览器),与 playwright.config 同口径;
+    // 其他平台回退 playwright 自带 chromium。
+    ...(process.platform === "win32" && { channel: "msedge" }),
     args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
   });
   const ctx = await browser.newContext({ viewport, deviceScaleFactor });

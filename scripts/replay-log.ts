@@ -66,6 +66,8 @@ const INPUT_PHASES = new Set([
   "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
+  "AwaitingReaction", // 反应窗(#281):bot 座位引擎开窗即席代答(重放无需驱动);
+  // 人类应答走 cmd 行天然重放——driveBots 特判停等,不走 botAct
 ]);
 
 /** 驱动服务器控制的座位直到轮到人类/终局(与 room.ts driveBots 同骨架:决策点归属 +
@@ -81,6 +83,10 @@ function driveBots(e: GameEngine, takeover: Set<number>, autopilot: Set<number>)
       if (seat < 0 || !controlled(seat)) break;
       e.aiSetupStepFor(seat); // 服务器代选(bot/接管/托管同一口,确定性)
     } else if (e.phase === "Playing") {
+      // 反应窗(#281):bot 座位引擎开窗即席代答,重放无需驱动;人类应答=普通 respondReaction
+      // cmd 行,天然复现。停在窗上即break等下一条 cmd 行(decisionOwner 在窗内仍是
+      // 出牌者,botAct 无从驱动,不可落进通用分支空转)。
+      if (e.turnPhase === "AwaitingReaction") break;
       if (!INPUT_PHASES.has(e.turnPhase)) break;
       const seat = e.decisionOwner;
       if (!controlled(seat)) break;

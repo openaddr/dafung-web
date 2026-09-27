@@ -176,8 +176,8 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1 下第二位玩家落天命格:#121 后天命格改为 +20 声望(不再抽随机坏事),
-    // 故 AfterMarch 之后无 CashLost,直接 TurnEnd,如实钉住
+    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落格由随机事件付出银(CashLost);
+    // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
       "GameStart", // 开局收尾(最后落子者 → 对局开始)
@@ -186,6 +186,7 @@ describe("时机框架:派发点位", () => {
       "BeforeRoll",
       "DieRolled",
       "AfterMarch",
+      "CashLost", // 首回合随机事件失银(骰流随 18 张牌库漂移后的确定性序列)
       "TurnEnd", // 第一位玩家
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",

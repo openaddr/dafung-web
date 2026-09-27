@@ -440,3 +440,119 @@ describe("fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)", () =>
     expect(useFxStore.getState().announces.get(5)).toBeUndefined();
   });
 });
+
+// ─────────────── 出牌指示线(#281/P2-E)+ 拦停余段行军 ───────────────
+import { remainingMarchPath } from "../src/app/fx/orchestrator";
+import type { MovePath } from "@core/types";
+
+/** 军师幕出牌步骤(横征暴敛=A面全体域,无目标段):提取事件含 jinnangPlayed。 */
+function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {
+  const e = makeEngine(seed);
+  finishSetup(e);
+  e.drawJinnang(0, 0); // 活跃玩家摸一张(目录首张=连环计,会被下面覆盖)
+  e.activePlayer.jinnangHand = ["横征暴敛"];
+  e.activePlayer.jinnangHandCount = 1;
+  e.turnPhase = "AwaitingJinnang";
+  for (const other of e.players) {
+    if (other === e.activePlayer) continue;
+    other.jinnangHand = []; // 清他座反应牌:不开窗,直接结算(#281 口径)
+    other.jinnangHandCount = 0;
+  }
+  const events = stepEvents(e, { type: "useJinnang" }, () =>
+    e.submitCommand({ type: "useJinnang", cardId: "横征暴敛" }),
+  );
+  return { e, events };
+}
+
+describe("出牌指示线提取(#281/P2-E,消费 drainJinnangPlays)", () => {
+  it("全体域出牌:每名其他存活者一段线,端点=使用者/目标棋盘坐标;指示线先于浮字", () => {
+    const { e, events } = extractLevyStep();
+    const plays = events.filter((ev) => ev.kind === "jinnangPlayed");
+    expect(plays.length).toBe(1);
+    const play = plays[0];
+    if (play.kind !== "jinnangPlayed") return; // 判别联合收窄
+    const others = e.players.filter((p) => p !== e.players[0]);
+    expect(play.lines.length).toBe(others.length);
+    const from = e.board.positionOf(e.players[0].position);
+    expect(play.lines[0]).toEqual({
+      x1: from.x,
+      y1: from.y,
+      x2: e.board.positionOf(others[0].position).x,
+      y2: e.board.positionOf(others[0].position).y,
+    });
+    const lineIdx = events.indexOf(play);
+    const floatIdx = events.findIndex((ev) => ev.kind === "cashDelta" || ev.kind === "textFloat");
+    expect(lineIdx).toBeLessThan(floatIdx); // 线指方向、字报其名(军师幕分支排序约定)
+  });
+
+  it("无指向牌不出线:自身域(求贤令)不留痕线,事件数组无 jinnangPlayed", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.activePlayer.jinnangHand = ["求贤令"];
+    e.activePlayer.jinnangHandCount = 1;
+    e.turnPhase = "AwaitingJinnang";
+    for (const other of e.players) {
+      if (other === e.activePlayer) continue;
+      other.jinnangHand = [];
+      other.jinnangHandCount = 0;
+    }
+    const events = stepEvents(e, { type: "useJinnang" }, () =>
+      e.submitCommand({ type: "useJinnang", cardId: "求贤令" }),
+    );
+    expect(events.some((ev) => ev.kind === "jinnangPlayed")).toBe(false);
+  });
+
+  it("present 播放:jinnangPlayed 每段线一次 spawnJinnangLine(memorySink 逐段录制)", async () => {
+    const { events } = extractLevyStep();
+    const play = events.find((ev) => ev.kind === "jinnangPlayed");
+    if (play == null || play.kind !== "jinnangPlayed") throw new Error("前置场景未产出指示线事件");
+    const sink = createMemorySink();
+    await present(events, sink);
+    const lines = sink.calls.filter((c) => c.op === "jinnangLine");
+    expect(lines.length).toBe(play.lines.length);
+  });
+});
+
+describe("remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)", () => {
+  const fullPath: MovePath = {
+    from: 3,
+    traversed: [4, 5, 6, 7],
+    landIndex: 7,
+    passedCapital: false,
+    capitalIndex: -1,
+    waypoints: [],
+    landBranchStep: null,
+    branchWaypoints: [],
+  };
+
+  it("拦停(挂起点=途格 #5):余段只含挂起点之后到落点(#7)", () => {
+    const short = remainingMarchPath(fullPath, 5, 7);
+    expect(short).toEqual({
+      from: 5,
+      traversed: [6, 7],
+      landIndex: 7,
+      passedCapital: false,
+      capitalIndex: -1,
+      waypoints: [],
+      landBranchStep: null,
+      branchWaypoints: [],
+    });
+  });
+
+  it("挂起点=起点(from 格,traversed 不含起点):余段=全途格", () => {
+    const short = remainingMarchPath(fullPath, 3, 7);
+    expect(short?.traversed).toEqual([4, 5, 6, 7]);
+    expect(short?.from).toBe(3);
+  });
+
+  it("链式窗(本次落点=途格 #6):截到本次落点为止", () => {
+    const short = remainingMarchPath(fullPath, 4, 6);
+    expect(short?.traversed).toEqual([5, 6]);
+    expect(short?.landIndex).toBe(6);
+  });
+
+  it("无余段(挂起点即落点)返回 null;挂起点不在路径上=状态 bug 抛错", () => {
+    expect(remainingMarchPath(fullPath, 7, 7)).toBeNull();
+    expect(() => remainingMarchPath(fullPath, 99, 7)).toThrow();
+  });
+});

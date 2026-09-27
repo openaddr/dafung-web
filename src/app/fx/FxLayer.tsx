@@ -35,10 +35,11 @@ function floaterFontSize(): number {
   return Math.max(FLOATER_BASE_UNITS, FLOATER_MIN_PX / s);
 }
 
-/** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂印章。 */
+/** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂印章 + 出牌指示线。 */
 export function BoardFxLayer() {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
+  const jinnangLines = useFxStore((s) => s.jinnangLines);
   const fontSize = floaterFontSize();
 
   return (
@@ -85,6 +86,21 @@ export function BoardFxLayer() {
             {s.char}
           </text>
         </g>
+      ))}
+      {/* 出牌指示线(#281 P2-E):「使用者→目标」水墨墨线,坐标即逻辑坐标。
+          data-fx-jinnang-line 供 e2e 单次 evaluate 采样(fx 层内部 data 属性不进
+          TESTIDS 单源,同层 data-fx-layer 先例);pathLength=1 归一化供生长动画。 */}
+      {jinnangLines.map((l) => (
+        <line
+          key={l.id}
+          className="fx-svg-jline"
+          data-fx-jinnang-line=""
+          x1={l.x1}
+          y1={l.y1}
+          x2={l.x2}
+          y2={l.y2}
+          pathLength={1}
+        />
       ))}
     </>
   );

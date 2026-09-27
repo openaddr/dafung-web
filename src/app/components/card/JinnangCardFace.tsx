@@ -17,8 +17,11 @@ import {
   jinnangAliasSplit,
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
-  type JinnangFaceSize,
+  treasureFrameTone,
+  treasureLevelCn,
+  type FrameTone,
   type JinnangPattern,
+  type JinnangFaceSize,
 } from "./jinnang-face-data";
 import "./jinnang-card.css";
 
@@ -56,12 +59,19 @@ const PATTERN_PATHS: Record<JinnangPattern, ReactNode> = {
       <path d="M28 50 q-8 2-12 8" />
     </>
   ),
+  // 电纹(#281 即时族):主形闪电 + 两道疾风短线——反应窗一闪即发
+  bolt: (
+    <>
+      <path d="M54 4 L28 38 L44 38 L34 66 L74 26 L54 26 Z" />
+      <path d="M12 22 h14 M74 50 h14" />
+    </>
+  ),
 };
 
 export interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   cardId: string;
   size?: JinnangFaceSize;
-  frameTone?: "none" | "tong" | "yin" | "gold";
+  frameTone?: FrameTone;
 }
 
 /** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 纹样窗 / 笺脚(别称已剥离,
@@ -106,6 +116,47 @@ export function JinnangCardFace({
         </svg>
       </div>
       <div className="jiao">{jinnangAliasSplit(def.text).body}</div>
+      {children}
+    </div>
+  );
+}
+
+/** 珍宝牌面(#234 珍宝牌面变体,#281 落地):复用锦囊牌面形制(.jinnang-card 同基座),
+ *  frameTone 品级框色启用——界格线/品级大字与内环框共落 --tone(框色=品级通道)。
+ *  宝章恒朱砂(DESIGN §4.5「章恒朱砂」);纹样窗位改品级大字(汉字数字+「品」角标,
+ *  数值即信息,DESIGN §4.6 例外条款)。数据单源 core/treasures.ts(TreasureDef),
+ *  本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带指导价浮签。 */
+export interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+  name: string;
+  /** 品级 1..10(core/treasures.ts TreasureDef.level);越界由 treasureLevelCn 抛错。 */
+  level: number;
+  desc?: string;
+}
+export function TreasureCardFace({
+  name,
+  level,
+  desc,
+  className,
+  children,
+  ...rest
+}: TreasureCardFaceProps) {
+  const classes = ["jinnang-card", "gem", `tone-${treasureFrameTone(level)}`, className ?? ""]
+    .filter(Boolean)
+    .join(" ");
+  return (
+    <div className={classes} {...rest}>
+      <div className="tou">
+        <span className="jie" />
+        <span className={name.length > 3 ? "ming long" : "ming"}>{name}</span>
+      </div>
+      <div className="zhang">
+        <span className="seal">宝</span>
+      </div>
+      <div className="yang gem-yang">
+        <span className="gem-lv">{treasureLevelCn(level)}</span>
+        <span className="gem-pin">品</span>
+      </div>
+      <div className="jiao">{desc}</div>
       {children}
     </div>
   );

@@ -80,10 +80,6 @@ export interface Player {
   reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 CONTEXT.md;#121)
   stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 CONTEXT.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
-  /** 免战金牌在身(#122):他人的锦囊无法指定你为目标,至你的下回合开始失效。
-   *  (设计变更:原「免租金」——本作引擎不收租,按「免战=不可被指定」等义落地,
-   *  docs/explanation/锦囊设计.md §4 已同步。) */
-  jinnangShield: boolean;
   /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */
   repMilestones: number[];
   /** 锦囊手牌数(公开信息,引擎状态):与 jinnangHand.length 同步维护于唯一改动点
@@ -167,7 +163,9 @@ export interface PendingJinnang {
   picked: number[];
 }
 
-/** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。 */
+/** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。
+ *  AwaitingReaction(#281,ADR-0017)= 反应窗:结算中段停相位(先例 AwaitingTreasureOwner),
+ *  等被询问座位的 respondReaction 应答;全部应答后引擎续结算。 */
 export type TurnPhase =
   | "Roll"
   | "AwaitingBranch"
@@ -178,6 +176,7 @@ export type TurnPhase =
   | "AwaitingExhaustion"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
+  | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
   | "Land"
   | "EndTurn"
   | "GameOver";
@@ -312,7 +311,13 @@ export type GameCommand =
   | { type: "cashHeroBankruptcy"; heroId: string }
   | { type: "confirmBankruptcySettle" }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
-  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean }; // 名将主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
+  // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
+  // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
+  // use=true 时 cardId=打出的反应牌;shareSeat 仅识破 AOE 必带=被保护份的座位(替他人
+  // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略)。
+  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
 
 // ── 珍宝系统 ──
 export interface TreasureDef {
@@ -379,4 +384,91 @@ export interface ActiveSkillDef {
  *  随快照走(目标段中途断线可恢复)。与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。 */
 export interface PendingHeroSkill {
   skillId: string;
+}
+
+// ── 反应窗(#281,ADR-0017)────────────────────────────
+/** 锦囊宣布反应窗的公开载荷:挂起点公告(哪个结算点、牌、使用者、目标)+ 被询问集。
+ *  可见性登记(ADR-0016 投影白名单;redact 改造归传输层下一道缝,字段形状已按两档可投影设计):
+ *  - public:cardId/userSeat/targetSeats —— 出牌本就公开事件,全员可见;
+ *  - per-seat private:queriedBySeat —— god-view 为被询问座位全集;联机 redact 时每座位
+ *    只投影「自己是否被询问」(在列→[自己座位],不在列→[]),他人询问态不外泄。 */
+export interface JinnangReactionView {
+  kind: "jinnang";
+  /** 被公告的锦囊 id(识破的对象)。 */
+  cardId: string;
+  /** 锦囊使用者座位。 */
+  userSeat: number;
+  /** 目标座位集:self=[使用者]、one/two-others=被指定座位、all-others=受影响全员
+   *  (=可被拆的份清单,UI 据此渲染「保护哪份」)。 */
+  targetSeats: number[];
+  /** [per-seat private] 被询问座位集(持识破诡计者,使用者除外;god-view 全集,投影见类型头注释)。 */
+  queriedBySeat: number[];
+}
+
+/** 行军拦检反应窗的公开载荷:march 窗无私有档——被询问者=城主,城主归属可由棋盘推导,
+ *  全字段 public。 */
+export interface MarchReactionView {
+  kind: "march";
+  /** 本窗唯一可打的反应牌,恒「半路杀出」。 */
+  cardId: string;
+  /** 行军者(行人)座位。 */
+  userSeat: number;
+  /** 城主座位(=被询问者/拦检者)。 */
+  ownerSeat: number;
+}
+
+/** 反应窗公告载荷(快照 reaction 字段的类型;两窗判别联合)。 */
+export type ReactionView = JinnangReactionView | MarchReactionView;
+
+/** 反应窗应答记录(#281):use=false 也占座(每被询问座位至多应答一次);
+ *  use=true 携打出牌 id,识破 AOE 另携被保护份座位。 */
+export interface ReactionAnswer {
+  seat: number;
+  use: boolean;
+  cardId?: string;
+  shareSeat?: number;
+}
+
+/** 反应窗续结算载荷:挂起点被挂起时,应答齐后按此续跑(全部序列化友好纯数据)。 */
+export type ReactionPayload =
+  | {
+      /** 锦囊宣布被挂起:出牌已扣账,应答齐后无有效识破则照常执行。 */
+      kind: "jinnang";
+      userSeat: number;
+      cardId: string;
+      /** executeJinnang 的目标参数(one/two-others=被指定座位;self/all-others=[])。 */
+      targets: number[];
+    }
+  | {
+      /** 行军途经城池被挂起:拦停成功则止步该城照常落格,否则续走余下途经格。 */
+      kind: "march";
+      moverSeat: number;
+      /** 拦检城 tile(当前窗)。 */
+      tileIndex: number;
+      /** 行军起点至拦检城的总步数(拦停时 lastMove 截断重算用)。 */
+      stepsToTile: number;
+      /** 原途经格总数(续走截断重算的 walkedCount 基准)。 */
+      totalTiles: number;
+      /** 当前格之后的待遍历主路格(含原落点;拦停成功即弃)。 */
+      resumeTiles: number[];
+      /** 原落点(拦检失败/不用时照常落此)。 */
+      landIndex: number;
+      /** 行军起点(拦停/续走重算 lastMove 用)。 */
+      fromPos: number;
+      /** 原掷骰总步数(同上)。 */
+      steps: number;
+      /** 行军前是否在辅路(含待入态;BranchExited 派发判定)。 */
+      wasOnBranch: boolean;
+    };
+
+/** 反应窗挂起态(#281):公告 + 应答记录 + 续结算载荷。全部随快照序列化(SNAPSHOT_FIELDS
+ *  单点清单);重放=普通 respondReaction 命令流(超时兜底=权威侧代发同款命令,ADR-0017)。
+ *  结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。 */
+export interface PendingReaction {
+  /** 挂起点公告(快照 reaction 派生字段直接透出此结构)。 */
+  view: ReactionView;
+  /** 应答记录(use 与不用都占座;isBot 座位在开窗时即席代答,ADR-0017「bot 持牌即时代答」)。 */
+  answers: ReactionAnswer[];
+  /** 续结算载荷。 */
+  payload: ReactionPayload;
 }

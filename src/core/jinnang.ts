@@ -9,15 +9,19 @@
 //   名将(非武将);text 首段四字计名前缀仅入详情浮层,牌面笺脚渲染时剥离。
 
 /** 锦囊标签(CONTEXT.md):功能类别,每回合每类限用一张;一张牌可有多枚,
- *  使用即同时占用其全部标签的本回合名额。 */
-export type JinnangTag = "谋" | "攻" | "守" | "援";
+ *  使用即同时占用其全部标签的本回合名额。「即时」(#281)标记反应锦囊:不经军师幕,
+ *  在反应窗打出——名额账本(jinnangUsedTags)只记活跃玩家的军师幕额度,反应牌不入账。 */
+export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
 
-/** 目标域:由牌面固定(CONTEXT.md 锦囊条)。two-others 仅连环计(二虎竞食)。 */
-export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others";
+/** 目标域:由牌面固定(CONTEXT.md 锦囊条)。two-others 仅连环计(二虎竞食);
+ *  reaction(#281)= 纯反应牌:无手动目标段,不经军师幕目标校验,只在反应窗打出。 */
+export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others" | "reaction";
 
-/** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地)。 */
+/** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地;
+ *  #281 反应牌(counter/ambush)在反应窗结算,不经 executeJinnang 常规通道)。 */
 export type JinnangEffect =
-  | { kind: "jinnangShield" } // 免战金牌:他人的锦囊无法指定你,至你下回合开始
+  | { kind: "counter" } // 识破诡计(反应):被公告锦囊的那一份对目标失效;识破不可被识破
+  | { kind: "ambush" } // 半路杀出(反应):他人行军途经己城,城主打出与之拼点拦停
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
   | { kind: "stealTreasure" } // 窃玉偷香:随机夺目标一张珍宝
@@ -36,7 +40,8 @@ export interface JinnangCardDef {
   effect: JinnangEffect;
 }
 
-/** 目录 v1(8 种):设计拷问会定稿,变更须过「无博弈不锦囊」红线评审。 */
+/** 目录 v1(#281 起 9 种):设计拷问会定稿,变更须过「无博弈不锦囊」红线评审。
+ *  反应牌两张(识破诡计/半路杀出,「即时」标记)不走军师幕,只在反应窗打出。 */
 export const JINNANG_CARDS: JinnangCardDef[] = [
   {
     id: "连环计",
@@ -87,12 +92,20 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     effect: { kind: "demolish" },
   },
   {
-    id: "免战金牌",
+    id: "识破诡计",
     copies: 2,
-    tags: ["守"],
-    targetDomain: "self",
-    text: "免战旗张:至你的下回合开始,其他诸侯的锦囊无法指定你为目标。",
-    effect: { kind: "jinnangShield" },
+    tags: ["即时"],
+    targetDomain: "reaction",
+    text: "他人锦囊指定任意目标时,可在反应窗打出:此计对那一份失效。识破不可被识破。",
+    effect: { kind: "counter" },
+  },
+  {
+    id: "半路杀出",
+    copies: 3,
+    tags: ["即时"],
+    targetDomain: "reaction",
+    text: "他人行军途经你的城时,可在反应窗打出:与之拼点,胜则其止步于此城,平局此计作废。",
+    effect: { kind: "ambush" },
   },
   {
     id: "求贤令",
@@ -104,10 +117,16 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
   },
 ];
 
+/** 纯反应牌判定(#281 单源):reaction 域 = 只在反应窗打出,不经军师幕/announce 通道。
+ *  choices(军师幕灰置「唯反应」)、bot(反应决策)与引擎挂点共用此判定。 */
+export function isReactionCard(def: JinnangCardDef): boolean {
+  return def.targetDomain === "reaction";
+}
+
 /** 起手发牌张数:进 Playing 前座位序各发。 */
 export const JINNANG_STARTING_HAND = 1;
 
-/** 牌库构成:目录 copies 展平(15 张)。 */
+/** 牌库构成:目录 copies 展平(#281 起 9 种 18 张:原 8 种 15 张 + 半路杀出×3)。 */
 export const JINNANG_DECK_LIST: string[] = JINNANG_CARDS.flatMap((c) =>
   Array.from({ length: c.copies }, () => c.id),
 );

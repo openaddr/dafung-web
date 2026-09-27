@@ -5,7 +5,7 @@
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
 // ② game.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
-/** 时机类型(26 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
+/** 时机类型(28 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
 export type GameMoment =
   // ── 生命周期 ──
@@ -79,7 +79,15 @@ export type GameMoment =
   | "PlayerBankrupt"
   /** 破产每笔变卖后:变卖珍宝/变卖城池/遣散名将三个命令成功尾(变卖自救进行中,结局未定)。
    *  ctx.amount = 变卖所得。subject = 变卖者。 */
-  | "BankruptcySettle";
+  | "BankruptcySettle"
+  // ── 反应窗挂点(#281,ADR-0017)──
+  /** 锦囊宣布:任何锦囊选定目标、结算前(识破诡计的反应窗挂点)。ctx.cardId = 牌 id,
+   *  ctx.targetSeats = 目标座位集(全体域=受影响全员;自身域=[使用者])。subject = 使用者。 */
+  | "JinnangAnnounced"
+  /** 途经他人城池:rollAndMove 途经遍历中每到城主存活的他人城池格(半路杀出的拦检窗挂点,
+   *  拦停成功即止、后续城不再问;行人本就停留的落点格不问)。ctx.ownerSeat = 城主,
+   *  ctx.tileIndex = 涉事格。subject = 行人。 */
+  | "MarchPassedCity";
 
 /** 时机派发上下文(dispatchMoment 入参 → EffectCtx):subject 必填,其余字段按各时机语义携带。 */
 export interface MomentCtx {
@@ -97,7 +105,7 @@ export interface MomentCtx {
   buyerSeat?: number;
   /** 交易卖家座位(TradeSettled)。 */
   sellerSeat?: number;
-  /** 涉事 tile 索引(CapitalHalt/LandedOnProperty/PassedPlayer/BranchExited)。 */
+  /** 涉事 tile 索引(CapitalHalt/LandedOnProperty/PassedPlayer/BranchExited/MarchPassedCity)。 */
   tileIndex?: number;
   /** 涉事城 id(PropertyBought/PropertyUpgraded/LandedOnProperty)。 */
   propertyId?: string;
@@ -105,6 +113,10 @@ export interface MomentCtx {
   treasureId?: string;
   /** 涉事名将 id(HeroRecruited)。 */
   heroId?: string;
+  /** 锦囊牌 id(JinnangAnnounced)。 */
+  cardId?: string;
+  /** 目标座位集(JinnangAnnounced:全体域=受影响全员,自身域=[使用者];其余时机不带)。 */
+  targetSeats?: number[];
 }
 
 /** 时机集中注册表(单一事实源)。新增时机必须在此登记——派发器与文档据此校验完备性。 */
@@ -142,4 +154,7 @@ export const MOMENTS: readonly GameMoment[] = [
   // 破产与终局结算
   "PlayerBankrupt",
   "BankruptcySettle",
+  // 反应窗挂点(#281)
+  "JinnangAnnounced",
+  "MarchPassedCity",
 ] as const;

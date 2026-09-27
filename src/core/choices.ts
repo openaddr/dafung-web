@@ -11,11 +11,13 @@ import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
 import type { EncounterChoiceOption } from "./encounters";
-import { jinnangCardOf, type JinnangEffect } from "./jinnang";
+import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
 
-/** 已接入结算的锦囊效果种类(T2:自身域两张;T3/T4 逐票点亮,灰置原因「此计暂未启用」)。 */
+/** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
+ *  同属已接入)。新增 effect.kind 而未接结算案时:灰置路径仍在(此计暂未启用)。 */
 export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set([
-  "jinnangShield",
+  "counter",
+  "ambush",
   "grantHero",
   "levyAll", // T3:指向他人四牌
   "stealTreasure",
@@ -232,7 +234,8 @@ export function demolishTargetOk(e: GameEngine, target: number): { ok: boolean; 
   return { ok: true };
 }
 
-/** 目标有效性(#122/T3):非己、存活、未被免战庇护;卡面附加条件由 effectKind 分派。 */
+/** 目标有效性(#122/T3):非己、存活(#281:免战庇护已随免战金牌退役,目标排除逻辑删除);
+ *  卡面附加条件由 effectKind 分派。反应域牌不经目标段,永不走此校验。 */
 export function jinnangTargetOk(
   e: GameEngine,
   user: number,
@@ -242,7 +245,6 @@ export function jinnangTargetOk(
   const t = e.players[target];
   if (target === user) return { ok: false, reason: "不能指定自己" };
   if (t.isBankrupt) return { ok: false, reason: "已出局" };
-  if (t.jinnangShield) return { ok: false, reason: "免战庇护" };
   switch (effectKind) {
     case "stealTreasure":
       if (t.treasures.length === 0) return { ok: false, reason: "无珍宝" };
@@ -258,7 +260,8 @@ export function jinnangTargetOk(
 }
 
 /** 主动技目标有效性(#188 档 3):目标域按技能定义分派;附加守卫走共享口径。
- *  注:免战金牌只挡锦囊(牌面原文),主动技不受庇护——故此处不查 jinnangShield。 */
+ *  注:主动技不受反应窗/锦囊任何庇护(#229/#281 口径:技能不走 announce 通道,不可被识破),
+ *  故此处无锦囊类守卫。 */
 export function heroSkillTargetOk(
   e: GameEngine,
   user: number,
@@ -322,6 +325,9 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const def = jinnangCardOf(cardId);
     const quotaBlocked = def.tags.some((t) => used.has(t));
     const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
+    // 纯反应牌(#281):不经军师幕,恒灰置「唯反应」——持唯反应牌不进军师幕
+    // (hasUsableJinnang 由此不计纯反应牌);只在反应窗(snapshot.reaction)打出。
+    const reactionOnly = isReactionCard(def);
     // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4)
     const needTwo = def.targetDomain === "two-others";
     const validTargets = needTwo
@@ -332,14 +338,16 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     return {
       id: cardId,
       label: def.id,
-      available: !quotaBlocked && implemented && !targetsShort,
-      reason: !implemented
-        ? "此计暂未启用"
-        : targetsShort
-          ? "对手不足"
-          : quotaBlocked
-            ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
-            : undefined,
+      available: !reactionOnly && !quotaBlocked && implemented && !targetsShort,
+      reason: reactionOnly
+        ? "唯反应(反应窗打出)"
+        : !implemented
+          ? "此计暂未启用"
+          : targetsShort
+            ? "对手不足"
+            : quotaBlocked
+              ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
+              : undefined,
       cardText: def.text,
       cardTags: def.tags,
     };
@@ -411,7 +419,8 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
 }
 
 /** 军师幕「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
- *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。 */
+ *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。纯反应牌(#281)经
+ *  「唯反应」灰置 available=false,天然不计入:持唯反应牌不进军师幕。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
   return computeChoices(e, "AwaitingJinnang").some(
     (o) => o.available && (o.cardTags != null || o.skillId != null),

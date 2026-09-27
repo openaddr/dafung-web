@@ -23,10 +23,12 @@ test.describe("竖屏手机 390×844(coarse pointer)", () => {
     await expect(hint).toBeVisible();
     await expect(hint).toContainText("请横屏游玩");
     const hb = (await hint.boundingBox())!;
-    expect(hb.x).toBeLessThanOrEqual(0);
-    expect(hb.y).toBeLessThanOrEqual(0);
-    expect(hb.width).toBeGreaterThanOrEqual(390);
-    expect(hb.height).toBeGreaterThanOrEqual(844);
+    // 全屏接管按 1px 容差判:移动仿真视口有亚像素抖动(Windows 本机实测 0.01~0.07px,
+    // master 基线同挂、CI Linux 无)——语义是「无缝隙露对局」,不是数学意义的零。
+    expect(hb.x).toBeLessThanOrEqual(1);
+    expect(hb.y).toBeLessThanOrEqual(1);
+    expect(hb.width).toBeGreaterThanOrEqual(389);
+    expect(hb.height).toBeGreaterThanOrEqual(843);
   });
 });
 

@@ -34,6 +34,16 @@ export interface BannerFx {
   color: string;
 }
 
+/** 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线的两个端点
+ *  (棋盘逻辑坐标,提取期已按当时牌局状态解析)。 */
+export interface JinnangLineFx {
+  id: number;
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
 /** 城池宣告记录(ADR-0015):Tile 订阅本记录重播宣告动画,自身不做 props diff。
  *  按 tileIndex 各存一条,nonce 单调递增、播完自然过期(不清理定时器,下条覆盖):
  *  level/owner 两维独立计数,各自作为 Tile 内受影响元素的 React key——nonce 变化
@@ -53,6 +63,8 @@ interface FxState {
   floaters: FloaterFx[];
   seals: SealFx[];
   banner: BannerFx | null;
+  /** 出牌指示线(#281 P2-E)。 */
+  jinnangLines: JinnangLineFx[];
   /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位。 */
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
@@ -62,6 +74,7 @@ interface FxState {
   spawnTextFloater(x: number, y: number, text: string): void;
   showBanner(guohao: string, color: string): void;
   stampSeal(x: number, y: number, char: string): void;
+  spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -80,6 +93,7 @@ export const useFxStore = create<FxState>((set) => ({
   floaters: [],
   seals: [],
   banner: null,
+  jinnangLines: [],
   marching: new Set<string>(),
   announces: new Map<number, TileAnnounce>(),
 
@@ -112,6 +126,16 @@ export const useFxStore = create<FxState>((set) => ({
     const id = nextId++;
     set((s) => ({ seals: [...s.seals, { id, x, y, char }] }));
     setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
+  },
+
+  spawnJinnangLine(x1, y1, x2, y2) {
+    const id = nextId++;
+    set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
+    // 超时自清:与 fx.css 的三段 keyframe 全长(FX.jinnangLineMs=700ms)硬同步
+    setTimeout(
+      () => set((s) => ({ jinnangLines: s.jinnangLines.filter((l) => l.id !== id) })),
+      FX.jinnangLineMs,
+    );
   },
 
   addMarching(id) {
@@ -151,6 +175,7 @@ export const useFxStore = create<FxState>((set) => ({
       floaters: [],
       seals: [],
       banner: null,
+      jinnangLines: [],
       marching: new Set<string>(),
       announces: new Map(),
     });

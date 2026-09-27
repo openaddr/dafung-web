@@ -140,7 +140,7 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
           strokeDasharray="6 5"
         />
         {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位卡金圈同步呼吸
-            ——席位是身份,棋盘是地理,双锚点)。非候选(免战庇护/无效目标)不挂。 */}
+            ——席位是身份,棋盘是地理,双锚点)。非候选(无效目标)不挂。 */}
         {targeted && (
           <circle
             className="bv-token-target-ring"
