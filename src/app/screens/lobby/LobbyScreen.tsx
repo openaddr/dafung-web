@@ -2,12 +2,15 @@
 // - 未入座:建房(诸侯数/目标身价)或凭房间码加入;
 // - 已入座:房间码 / 座位列表(在线·离线·bot·托管)/ 当前地图(host 可换)/ 房主开局;
 // - 被解散:提示 + 返回首页。
-// 服务器地址固定 location.origin(网页与引擎服务器同源部署,scripts/server.ts 托管 dist);
+// 服务器地址单源 src/app/net/server-base.ts(#279):默认同源 location.origin(网页与引擎
+// 同源部署,scripts/server.ts 托管 dist),localStorage 可覆写——APK 打包 origin 无引擎,
+// 真机联机在大厅改指 LAN 主机/部署服务器;网页用户不碰零影响。
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
 import { useEffect, useMemo, useRef, useState } from "react";
 import { isCustomId } from "@core/map-source";
 import { resolveGuohaoClash } from "@core/guohao";
 import { getMapSource } from "@app/map-sources";
+import { getServerBase, setServerBase } from "@app/net/server-base";
 import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { UI } from "@app/fx/timings";
@@ -321,6 +324,28 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             </form>
             {/* F4:统一 hint 组件(inline 行样式,过期口径与 game/App 一致) */}
             <HintBar hint={hint} level={hintLevel} variant="inline" />
+            {/* 联机服务器地址(#279):未入座才可改(入座中改址=换服务器,须退出重进);
+                失焦即存(归一化回显),清空保存=恢复默认同源。 */}
+            <div className="flex items-center gap-2 text-sm">
+              <label htmlFor={LID.serverBase} className="shrink-0 text-ink-dim">
+                服务器
+              </label>
+              <input
+                data-testid={LID.serverBase}
+                defaultValue={getServerBase()}
+                onBlur={(e) => {
+                  setServerBase(e.target.value);
+                  e.target.value = getServerBase();
+                  pushHint(
+                    getServerBase() === location.origin
+                      ? "服务器:默认同源"
+                      : `服务器:${getServerBase()}`,
+                    "info",
+                  );
+                }}
+                className={inputBase + " w-44"}
+              />
+            </div>
             <button onClick={onExit} className={backBase + " note-btn self-start text-sm"}>
               返回首页
             </button>
