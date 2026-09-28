@@ -22,8 +22,8 @@ import type { Browser, Page } from "@playwright/test";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 const SEED = 430;
-/** 加长窗(playwright.config E2E_REACTION_MS 同值;客户端横幅=权威侧定时器同长)。 */
-const REACTION_MS = 8000;
+/** 加长窗(playwright.config E2E_REACTION_MS 注入 server,spec 侧同源取值——单源,不双持)。 */
+const REACTION_MS = Number(process.env.E2E_REACTION_MS ?? 8000);
 
 /** 房间落盘目录(与 playwright.config 的 E2E_ROOMS_DIR 同源):断线用例的服务端观测口。 */
 function roomsDir(): string {
@@ -59,7 +59,7 @@ async function twoClientsWithSeed(
   await host.getByTestId("map-confirm").click();
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
   }
   // L41 选都三选一:两页各坐一席,seat2(bot)服务器代选(助手自带)
   await onlinePickCapitals([host, guest]);
@@ -98,6 +98,22 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
       await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText("使用【横征暴敛】");
       await banner.getByTestId(TESTIDS.reactionSeat(0)).click();
       await banner.getByTestId(TESTIDS.reactionConfirm).click();
+      // 联机出牌线(#284 §1):结算留痕 lastJinnangPlay 批经快照 diff 在本端出线。
+      // 线是 700ms 瞬态(testUnscaled 不缩放),条件性在场元素禁 locator 读——单次
+      // evaluate 内 rAF 轮询原子采样(jinnang-play-line 同款口径,#272)。
+      const sawLine = await guest.evaluate(
+        () =>
+          new Promise<boolean>((resolve) => {
+            const t0 = Date.now();
+            const tick = () => {
+              if (document.querySelector("[data-fx-jinnang-line]")) return resolve(true);
+              if (Date.now() - t0 > 15_000) return resolve(false);
+              requestAnimationFrame(tick);
+            };
+            tick();
+          }),
+      );
+      expect(sawLine).toBe(true);
       await expect
         .poll(
           async () =>
@@ -196,8 +212,8 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
       // 窗内两拍检查 host 端(观察端)对局 UI:顶条/仪表条在、快照可读(页面活着),
       // 且横幅(被询问端的窗态呈现)不出现在观察端——联机不暂停全场(ADR-0017)。
       for (let round = 0; round < 2; round++) {
-        await expect(host.getByTestId("top-bar")).toBeVisible();
-        await expect(host.getByTestId("dashboard-bar")).toBeVisible();
+        await expect(host.getByTestId(TESTIDS.topBar)).toBeVisible();
+        await expect(host.getByTestId(TESTIDS.dashboardBar)).toBeVisible();
         expect(await host.evaluate(() => (window as any).__dafung.snapshot().phase)).toBe(
           "Playing",
         );

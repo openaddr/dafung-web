@@ -273,11 +273,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         : []
       : [];
   // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)。
-  // selfPlayer 判空是观战类型收窄(观战恒不被询问,reactionUp 已排除),非静默兜底;
-  // 被询问者必在座,reactionUp 语义保证此处手牌可用。
+  // reactionUp 已排除观战(selfSeat<0);在座却无 selfPlayer=引擎/快照 bug,`!` 让它
+  // 当场崩出(零兜底,#284 评审)——不写 `!= null` 静默收窄成空手牌。
   const reactPlayable =
-    reactionUp && reaction != null && selfPlayer != null
-      ? selfPlayer.jinnangHand.filter(
+    reactionUp && reaction != null
+      ? selfPlayer!.jinnangHand.filter(
           (id) =>
             jinnangCardOf(id).effect.kind === (reaction.kind === "jinnang" ? "counter" : "ambush"),
         )

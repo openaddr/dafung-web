@@ -197,15 +197,15 @@ export interface JinnangPlayTrace {
 }
 
 /** 最近出牌留痕(#284,可序列化联机信号源):锦囊/反应牌生效点由 traceJinnangPlay
- *  与瞬态 jinnangPlays 同点写入,seq 单调递增防「同参数牌」diff 去重失效。出牌是
- *  公开事件,redact 不裁(公开信息);入 SNAPSHOT_FIELDS,客户端 SnapshotEffects
- *  diff seq 变化即产既有 jinnangPlayed 表现事件(禁立第二 WS 事件通道,ADR-0010)。 */
+ *  与瞬态 jinnangPlays 同点写入。**批形状**:seq 是批号(一批=两次封批之间的全部
+ *  留痕,同批多条——如 AOE 多人识破循环——聚在同一 plays 里),单调递增防「同参数
+ *  牌」diff 去重失效;若只存末条,同批多条留痕在联机只剩一条(2026-09-28 双轴评审
+ *  实锤)。出牌是公开事件,redact 不裁(公开信息);入 SNAPSHOT_FIELDS,客户端
+ *  SnapshotEffects diff seq 变化即对 plays 逐条产既有 jinnangPlayed 表现事件(禁立
+ *  第二 WS 事件通道,ADR-0010)。 */
 export interface LastJinnangPlay {
-  userSeat: number;
-  targetSeats: number[];
-  cardId: string;
-  /** 留痕流水号(与 PendingReaction.seq 共用同一单调计数器,语义=「第 N 条留痕/窗」)。 */
   seq: number;
+  plays: JinnangPlayTrace[];
 }
 
 export class GameEngine {
@@ -265,9 +265,17 @@ export class GameEngine {
    *  lastJinnangPlay.seq,均取 nextJinnangSeq()。cmd 流派生状态,重放重算天然复现;
    *  快照恢复后在 restoreFromSnapshot 里按「快照内已见的最大 seq」推回(单调不回退)。 */
   private jinnangSeq = 0;
-  /** 最近出牌留痕(#284,联机信号源):写入见 traceJinnangPlay;随快照序列化
-   *  (SNAPSHOT_FIELDS 单点清单)。null=本局尚无出牌。 */
+  /** 最近出牌留痕(#284,联机信号源,批形状见 LastJinnangPlay):写入见 traceJinnangPlay;
+   *  随快照序列化(SNAPSHOT_FIELDS 单点清单)。null=本局尚无出牌。 */
   lastJinnangPlay: LastJinnangPlay | null = null;
+  /** 当前留痕批(瞬态不序列化,别名指向 lastJinnangPlay):**批界=快照封批**——
+   *  权威侧每次产快照广播前调 sealJinnangPlayBatch() 关批,下一条留痕重新取号成批。
+   *  bot 链不经 submitCommand,批界不能挂命令口(否则 bot 连续出牌丢线,#284 评审)。 */
+  private jinnangPlayBatch: LastJinnangPlay | null = null;
+  /** 封批(权威侧产快照前调,server.ts broadcast flush):下一条留痕重新取号。 */
+  sealJinnangPlayBatch(): void {
+    this.jinnangPlayBatch = null;
+  }
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   private readonly reactionWindowMsOverride: number;
@@ -963,10 +971,12 @@ export class GameEngine {
   /** 出牌留痕双通道写入(#281/#284):瞬态 jinnangPlays 供单机表现提取器破坏性读
    *  (本地编排,presentation.drainJinnangPlays);可序列化 lastJinnangPlay 供联机
    *  快照 diff(客户端 SnapshotEffects 提取,传输层无独立事件通道)。两通道同点写入,
-   *  消费口径注释互指。 */
+   *  消费口径注释互指。同批多条留痕(如 AOE 多人识破循环)聚进同一 plays(批界=封批)。 */
   private traceJinnangPlay(userSeat: number, targetSeats: number[], cardId: string): void {
     this.jinnangPlays.push({ userSeat, targetSeats, cardId });
-    this.lastJinnangPlay = { userSeat, targetSeats, cardId, seq: this.nextJinnangSeq() };
+    if (this.jinnangPlayBatch == null)
+      this.lastJinnangPlay = this.jinnangPlayBatch = { seq: this.nextJinnangSeq(), plays: [] };
+    this.jinnangPlayBatch.plays.push({ userSeat, targetSeats, cardId });
   }
 
   /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时
@@ -1006,7 +1016,9 @@ export class GameEngine {
     this.turnPhase = "AwaitingReaction";
   }
 
-  /** 反应窗被询问座位集(view 单源:jinnang=queriedBySeat 持识破者全集;march=[城主])。 */
+  /** 反应窗被询问座位集(view 单源:jinnang=queriedBySeat 持识破者全集;march=[城主])。
+   *  同式镜像:scripts/room.ts reactionQueriedSeats(传输层)、src/app/controllers/
+   *  reaction.ts(app 层单源,react-local/online/Banner 消费)——三层注释互指。 */
   private reactionQueriedOf(view: ReactionView): number[] {
     return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
   }

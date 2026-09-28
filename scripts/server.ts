@@ -229,6 +229,7 @@ function broadcast(roomId: string): void {
       dirtySeats.delete(roomId);
       const r = registry.get(roomId);
       if (!pending || !r) return;
+      r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=快照封批(#284):本帧带走整批,下一条留痕新批号
       const online = onlineSeatsOf(roomId);
       for (const seat of pending) {
         const ws = socketsOf(roomId).get(seat);

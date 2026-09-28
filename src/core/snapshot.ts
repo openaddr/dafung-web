@@ -466,16 +466,16 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     write: () => {},
   },
   {
-    // 最近出牌留痕(#284):联机信号源,客户端 diff seq 产出牌线。出牌是公开事件,
-    // redact 不裁;write 深拷贝恢复(targetSeats 数组不共享引用)。
+    // 最近出牌留痕(#284,批形状 LastJinnangPlay):联机信号源,客户端 diff seq 对 plays
+    // 逐条产出牌线。出牌是公开事件,redact 不裁;read/write 深拷贝(plays 数组不共享引用)。
     key: "lastJinnangPlay",
     read: (e) =>
       e.lastJinnangPlay
-        ? { ...e.lastJinnangPlay, targetSeats: [...e.lastJinnangPlay.targetSeats] }
+        ? { seq: e.lastJinnangPlay.seq, plays: e.lastJinnangPlay.plays.map((p) => ({ ...p })) }
         : null,
     write: (e, s) => {
       e.lastJinnangPlay = s.lastJinnangPlay
-        ? { ...s.lastJinnangPlay, targetSeats: [...s.lastJinnangPlay.targetSeats] }
+        ? { seq: s.lastJinnangPlay.seq, plays: s.lastJinnangPlay.plays.map((p) => ({ ...p })) }
         : null;
     },
   },

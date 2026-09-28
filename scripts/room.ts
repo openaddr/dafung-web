@@ -12,7 +12,7 @@ import { GameEngine } from "../src/core/game";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
-import { isSingleCjk, REACTION_WINDOW_MS } from "../src/core/constants";
+import { isSingleCjk } from "../src/core/constants";
 import type { ReactionView } from "../src/core/types";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
@@ -241,19 +241,9 @@ function decisionSeatOf(e: GameEngine): number {
 
 /** 反应窗被询问座位集(#281):与引擎 reactionQueriedOf 同一公式的传输层镜像——
  *  jinnang 窗=持识破者全集,march 窗=[城主]。多座位可同时被询问(AOE),故不适用
- *  单一 decisionOwner 语义。 */
+ *  单一 decisionOwner 语义。app 层单源在 src/app/controllers/reaction.ts,三层注释互指。 */
 function reactionQueriedSeats(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
-}
-
-/** 反应窗时长(权威侧,#281):按窗种类查 core 配置表;scripts 不吃浏览器
- *  E2E_TIME_SCALE(联机 spec 走 testUnscaled,3s 真窗可接受,ADR-0017)。
- *  #284:overrideMs>0 时整体覆盖(服务器 env E2E_REACTION_MS 通道,联机 e2e 加长窗
- *  脱 3s 赛跑;两端同长自动成立——windowMs 已随快照 view 下发)。缺省 0=走常量表,
- *  是配置不是兜底。 */
-function reactionWindowMs(view: ReactionView, overrideMs: number): number {
-  if (overrideMs > 0) return overrideMs;
-  return REACTION_WINDOW_MS[view.kind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"];
 }
 
 /** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。
@@ -1021,7 +1011,7 @@ export class RoomRegistry {
     }
     const timer = setTimeout(
       () => void this.reactionWaitFire(r, seat, seq, onUpdate),
-      reactionWindowMs(e.pendingReaction.view, this.reactionWindowMsOverride),
+      e.pendingReaction.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
     );
     timer.unref?.();
     const w = waits ?? new Map();
