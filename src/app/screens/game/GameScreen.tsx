@@ -317,11 +317,21 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       />
     ) : null;
 
-  // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)
-  const setupHint =
-    snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
-      ? `「${snapshot.players[snapshot.currentSetupPlayerIndex].guohao}」三选一:于候选城中择一定都`
-      : null;
+  // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)。
+  // 按「谁的 turn」分化(dogfood 2026-09-28:bot 定都 40s+ 期间画面只有淡金圈,
+  // 玩家不知在等谁、也不知金圈是何物;轮到自己时也要明示「点哪」):
+  // bot 定都中=「「X」正在定都(第 N/M 位)…」;轮到本地=「轮到你定都:点选一座候选城」。
+  // 顺序号取 draft 座位序中尚未定都者,直观呈现还差几人。
+  const setupHint = (() => {
+    if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
+    const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
+    const pending = snapshot.players.filter((p) => p.capitalIndex == null).length;
+    const myTurn =
+      snapshot.currentSetupPlayerIndex ===
+      (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
+    if (myTurn) return `轮到你定都:点选一座候选城(余 ${pending} 人未定)`;
+    return `「${cur.guohao}」正在定都(尚余 ${pending} 人)…`;
+  })();
 
   return (
     <AudioProvider>

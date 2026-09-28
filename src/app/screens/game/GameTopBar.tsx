@@ -62,15 +62,9 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           目标 {formatMoney(snapshot.targetNetWorth)}
         </span>
       </span>
-      {/* 活跃方 chip:对局中=「X之回合」;终局=「「X」称帝」(原状态卡两分支收编;
-          14px 档与称帝金字收口 layout.css 的 .t-active/.t-win,评审去重撤内联字号) */}
-      {active && (
-        <span className="chip">
-          <span className="t t-active" data-testid={TESTIDS.topbarActive}>
-            {active.guohao}之回合
-          </span>
-        </span>
-      )}
+      {/* 活跃方 chip:对局中=「X之回合」;终局=「「X」称帝」;Setup 期不显示
+          (选都未毕谈不上谁的回合,「魏之回合+牌库 0」误导——dogfood 2026-09-28);
+          14px 档与称帝金字收口 layout.css 的 .t-active/.t-win,评审去重撤内联字号 */}
       {winner && (
         <span className="chip">
           <span className="t t-win" data-testid={TESTIDS.topbarActive}>
@@ -78,46 +72,56 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           </span>
         </span>
       )}
+      {active && (
+        <span className="chip">
+          <span className="t t-active" data-testid={TESTIDS.topbarActive}>
+            {active.guohao}之回合
+          </span>
+        </span>
+      )}
       <span className="sp" />
-      <div className="misc">
-        {/* 锦囊牌库/弃牌计数(#122 公开信息:deckCount 引擎态,弃牌堆内容本就明置) */}
-        <span className="chip">
-          牌库 <b data-testid={TESTIDS.topbarDeck}>{snapshot.jinnangDeckCount}</b>
-        </span>
-        <span className="chip">
-          弃牌 <b data-testid={TESTIDS.topbarDiscard}>{snapshot.jinnangDiscard.length}</b>
-        </span>
-        {/* 总览复位 / 缩放(既有能力平移;#98 缩放显式入口保留) */}
-        <button
-          type="button"
-          data-testid={TESTIDS.resetView}
-          title="总览复位"
-          aria-label="总览复位"
-          onClick={onResetView}
-          className="sqbtn"
-        >
-          <Sym name="reset" size={15} />
-        </button>
-        <button
-          type="button"
-          title="放大棋盘"
-          aria-label="放大棋盘"
-          onClick={onZoomIn}
-          className="sqbtn"
-        >
-          +
-        </button>
-        <button
-          type="button"
-          title="缩小棋盘"
-          aria-label="缩小棋盘"
-          onClick={onZoomOut}
-          className="sqbtn"
-        >
-          −
-        </button>
-        <MuteSqButton />
-      </div>
+      {/* 牌库/弃牌计数(#122 公开信息)仅对局中显示:Setup 期牌库恒 0,
+          「牌库 0」误导玩家以为牌堆空了(dogfood 2026-09-28) */}
+      {playing && (
+        <div className="misc">
+          <span className="chip">
+            牌库 <b data-testid={TESTIDS.topbarDeck}>{snapshot.jinnangDeckCount}</b>
+          </span>
+          <span className="chip">
+            弃牌 <b data-testid={TESTIDS.topbarDiscard}>{snapshot.jinnangDiscard.length}</b>
+          </span>
+          {/* 总览复位 / 缩放(既有能力平移;#98 缩放显式入口保留) */}
+          <button
+            type="button"
+            data-testid={TESTIDS.resetView}
+            title="总览复位"
+            aria-label="总览复位"
+            onClick={onResetView}
+            className="sqbtn"
+          >
+            <Sym name="reset" size={15} />
+          </button>
+          <button
+            type="button"
+            title="放大棋盘"
+            aria-label="放大棋盘"
+            onClick={onZoomIn}
+            className="sqbtn"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            title="缩小棋盘"
+            aria-label="缩小棋盘"
+            onClick={onZoomOut}
+            className="sqbtn"
+          >
+            −
+          </button>
+          <MuteSqButton />
+        </div>
+      )}
     </div>
   );
 }
