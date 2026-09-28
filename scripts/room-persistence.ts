@@ -126,10 +126,13 @@ function dummySeats(n: number): SeatConfig[] {
 
 /** 从 RoomRecord 重建引擎(若有 snapshot)。null = Lobby 态(未开局)。
  *  mapProvider:按 mapId 返回 LoadedMap(恢复时用对应地图重建引擎,而非全局 sanguo)。
- *  未提供 mapProvider 或 mapId 为空 → 退回默认 MAP(向后兼容旧记录 / 单机 CLI)。 */
+ *  未提供 mapProvider 或 mapId 为空 → 退回默认 MAP(向后兼容旧记录 / 单机 CLI)。
+ *  reactionWindowMs(#284):registry 的 env 覆盖值随恢复透传(>0 才生效),重启后
+ *  新开的反应窗与重启前同长(已挂起窗的 windowMs 在快照内保真,不经此)。 */
 export function engineFromRecord(
   rec: RoomRecord,
   mapProvider?: (mapId: string) => LoadedMap,
+  reactionWindowMs?: number,
 ): GameEngine | null {
   if (!rec.snapshot) return null;
   const map = rec.mapId && mapProvider ? mapProvider(rec.mapId) : MAP;
@@ -139,6 +142,8 @@ export function engineFromRecord(
       ...rec.hostConfig,
       // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
       ...(rec.encounter ? { encounter: rec.encounter } : {}),
+      // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)
+      ...(reactionWindowMs != null && reactionWindowMs > 0 ? { reactionWindowMs } : {}),
     },
     false,
     map,
@@ -151,6 +156,7 @@ export function engineFromRecord(
 export function recordToSessionData(
   rec: RoomRecord,
   mapProvider?: (mapId: string) => LoadedMap,
+  reactionWindowMs?: number,
 ): {
   roomId: string;
   seatCount: number;
@@ -173,6 +179,6 @@ export function recordToSessionData(
     hostConfig: rec.hostConfig,
     mapId: rec.mapId ?? null,
     encounter: rec.encounter ?? null,
-    engine: engineFromRecord(rec, mapProvider),
+    engine: engineFromRecord(rec, mapProvider, reactionWindowMs),
   };
 }

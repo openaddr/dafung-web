@@ -23,6 +23,8 @@ export class SnapshotEffects {
   private prevBankrupt = new Set<string>();
   /** 上一帧快照的城池归属/等级(propertyId → 归属色/等级,ADR-0015 diff 基准)。 */
   private prevProps = new Map<string, { ownerColorIndex: number | null; level: number }>();
+  /** 上一帧快照的最近出牌留痕流水号(#284 diff 基准;null=尚未见过任何帧)。 */
+  private prevJinnangPlaySeq: number | null = null;
   /** 表现链串行化:快照可能连续到达,排队播放避免两次行军互踩。 */
   private fxQueue: Promise<void> = Promise.resolve();
   /** 在途表现块计数(>0 = 骰子/行军/横幅仍在播)。L42:联机版单机 busy 锁——
@@ -169,7 +171,39 @@ export class SnapshotEffects {
       });
     }
 
-    // 2.6) 破产 diff → bankrupt 音效事件(对齐单机 playStepEffects 的破产音;Wave1 修复项)。
+    // 2.6) 出牌留痕 diff → jinnangPlayed 事件(#284):lastJinnangPlay.seq 变化即新批
+    //      (seq 单调递增,同参数牌不去重失效)。批形状:同命令多条留痕(AOE 多人识破)
+    //      逐条出线。与单机提取器 jinnangPlayEvents 同一展开口径:使用者 → 各目标(空
+    //      目标/自指不出线),线端点按当前棋盘逻辑坐标解析。出牌是公开事件(god-view
+    //      字段,redact 不裁),各端各画各的线。首帧/重连首帧只记基准不补播(与其他
+    //      diff 表现同口径)——首帧按「是否见过任何帧」判定,不按 lastJinnangPlay 是否
+    //      为 null:留痕只在出牌帧出现,若以它判首帧,第一条留痕会被误当基准吞掉
+    //      (2026-09-28 截图自证实测)。
+    const lastPlay = engine.lastJinnangPlay;
+    if (this.prevJinnangPlaySeq == null) {
+      this.prevJinnangPlaySeq = lastPlay?.seq ?? 0;
+    } else if (lastPlay != null && lastPlay.seq !== this.prevJinnangPlaySeq) {
+      for (const play of lastPlay.plays) {
+        const from = board.positionOf(engine.players[play.userSeat].position);
+        const lines = play.targetSeats
+          .filter((seat) => seat !== play.userSeat)
+          .map((seat) => {
+            const to = board.positionOf(engine.players[seat].position);
+            return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
+          });
+        if (lines.length > 0) {
+          events.push({
+            kind: "jinnangPlayed",
+            playerId: engine.players[play.userSeat].id,
+            cardId: play.cardId,
+            lines,
+          });
+        }
+      }
+      this.prevJinnangPlaySeq = lastPlay.seq;
+    }
+
+    // 2.7) 破产 diff → bankrupt 音效事件(对齐单机 playStepEffects 的破产音;Wave1 修复项)。
     for (const p of engine.players) {
       if (p.isBankrupt && !this.prevBankrupt.has(p.id)) {
         events.push({ kind: "sound", event: "bankrupt" });

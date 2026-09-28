@@ -85,6 +85,9 @@ export default defineConfig({
         // 联机机遇归零隔离(#135):服务器默认读 public/config/jiyu.json(触发率 40)，
         // e2e 换归零文件保持用例节奏与机遇开启前一致——机遇开启必须可隔离(#118 教训)。
         JIYU_CONFIG: "./e2e/jiyu-off.json",
+        // 反应窗加长通道(#284):8s 给足双端负载余量又别让超时例太拖(默认 3s 与
+        // 广播时序赛跑是 flake 家族)。客户端横幅读快照 view.windowMs,两端同长自动成立。
+        E2E_REACTION_MS: "8000",
       },
     },
   ],

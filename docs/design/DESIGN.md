@@ -196,8 +196,8 @@ HUD 是案头笺纸——手札、签筒、印匣,一切数字皆墨书;
 - **品级框色 frameTone(已启用,#281 珍宝牌面变体)**:同形框异色=品级(铜/银/金内环),珍宝明细行走 `TreasureCardFace` 牌面形制——宝章+品级大字(汉字数字+「品」角标),界格线/大字与内环共落 `--tone`。
 - **交互态(gold=选中,§4.2 不变)**:选中=上浮+金描边+放大 1.6×(放大态即详情态,笺脚放开 4 行);不可用=灰度下沉+原因印条(墨底纸色字);长按/点选手势收口 `use-long-press.ts` 单源。军师幕/反应窗窗态牌面 ±1.5° 确定性微旋(TablePile 质感;`prefers-reduced-motion` 退场,#281 P2-E)。
 - **手牌架**:漆木横条常驻屏幕下缘(.hand-rack),架首竖排漆金章;详情=ui/dialog 底件水墨皮(桌面底部面板/窄屏贴底抽屉,86dvh 内滚)。
-- **反应窗(牌架即反应窗,P1-D 已实施 #281)**:结算事件横幅从手牌架上缘长出(事件文案+朱砂倒计时弧),架上可打的反应锦囊呼吸金边,点牌→墨钮落印;窗口语义见 [ADR-0017](../adr/0017-non-blocking-reaction-windows.md)。
-- **出牌指示线(P2-E 已实施 #281)**:出牌确认后,使用者 token → 目标 token 水墨墨线(FreeKill IndicatorLine 同参数:生长 200ms→停 200ms→淡出 300ms;墨色取正文焦墨 token),走 ADR-0010 表现事件管线(引擎留痕 `JinnangPlayTrace` → `jinnangPlayed` 事件 → BoardFxLayer);无指向的牌不出线,不出声。
+- **反应窗(牌架即反应窗,P1-D 已实施 #281)**:结算事件横幅从手牌架上缘长出(事件文案+朱砂倒计时弧),架上可打的反应锦囊呼吸金边,点牌→墨钮落印;窗口语义见 [ADR-0017](../adr/0017-non-blocking-reaction-windows.md)。倒计时时长单源=快照 `view.windowMs`(#284,单机联机同读;联机权威侧 env 可覆盖,两端同长)。
+- **出牌指示线(P2-E 已实施 #281;联机通路 #284)**:出牌确认后,使用者 token → 目标 token 水墨墨线(FreeKill IndicatorLine 同参数:生长 200ms→停 200ms→淡出 300ms;墨色取正文焦墨 token),走 ADR-0010 表现事件管线(引擎留痕 `JinnangPlayTrace` → `jinnangPlayed` 事件 → BoardFxLayer);无指向的牌不出线,不出声。联机端同款线由快照 `lastJinnangPlay.seq` diff 提取(同一事件形状,无独立事件帧)。
 
 ### 4.6 状态表达原则(2026-09-25 定,用户拍板)
 

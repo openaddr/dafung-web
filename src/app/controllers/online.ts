@@ -14,6 +14,7 @@ import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
+import { reactionQueriesSeat } from "./reaction";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
@@ -94,8 +95,8 @@ export class OnlineController extends GameController {
     if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
       const pr = e.pendingReaction;
       if (pr == null) return false;
-      const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
-      return !this.pending && this.seat >= 0 && queried.includes(this.seat);
+      // 被询问集公式单源 controllers/reaction.ts(#284);观战(seat=-1)恒不在集内。
+      return !this.pending && this.seat >= 0 && reactionQueriesSeat(pr.view, this.seat);
     }
     return (
       e.decisionOwner === this.seat &&

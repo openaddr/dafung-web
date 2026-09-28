@@ -403,6 +403,10 @@ export interface JinnangReactionView {
   targetSeats: number[];
   /** [per-seat private] 被询问座位集(持识破诡计者,使用者除外;god-view 全集,投影见类型头注释)。 */
   queriedBySeat: number[];
+  /** 开窗时长(毫秒,#284):引擎开窗时查 `constants.ts` `REACTION_WINDOW_MS` 写入,
+   *  随 view 走——客户端横幅/倒计时投影读此字段,不再各自引常量表(单源收口;
+   *  联机权威侧可经服务器 env 覆盖,两端同长自动成立)。 */
+  windowMs: number;
 }
 
 /** 行军拦检反应窗的公开载荷:march 窗无私有档——被询问者=城主,城主归属可由棋盘推导,
@@ -415,10 +419,19 @@ export interface MarchReactionView {
   userSeat: number;
   /** 城主座位(=被询问者/拦检者)。 */
   ownerSeat: number;
+  /** 开窗时长(毫秒,#284):同 JinnangReactionView.windowMs。 */
+  windowMs: number;
 }
 
 /** 反应窗公告载荷(快照 reaction 字段的类型;两窗判别联合)。 */
 export type ReactionView = JinnangReactionView | MarchReactionView;
+
+/** 分布式 Omit(联合类型逐成员剔除;工具类型)。 */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
+/** 反应窗公告载荷的开窗前形状(#284):windowMs 不由各挂点构造时散抄常量表,
+ *  引擎开新窗(openReactionWindow)时按窗种类查 REACTION_WINDOW_MS 统一写入。 */
+export type ReactionViewSeed = DistributiveOmit<ReactionView, "windowMs">;
 
 /** 反应窗应答记录(#281):use=false 也占座(每被询问座位至多应答一次);
  *  use=true 携打出牌 id,识破 AOE 另携被保护份座位。 */
@@ -465,6 +478,12 @@ export type ReactionPayload =
  *  单点清单);重放=普通 respondReaction 命令流(超时兜底=权威侧代发同款命令,ADR-0017)。
  *  结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。 */
 export interface PendingReaction {
+  /** 窗实例号(#284):引擎每次开新窗 +1 的单调序号,跨整局递增,随快照序列化。
+   *  消费方:传输层(联机 room.ts armReactionWait)按 seq 判据武装超时定时器——同一
+   *  窗只武装一次、到期时刻一次算死,链重开不重置他人倒计时(FreeKill request.lua
+   *  「timestamp+timeout 随包下发、同窗不重置」同语义);客户端横幅/倒计时以 seq 变化
+   *  重起弧。重放按命令流重算天然复现(cmd 流派生状态)。 */
+  seq: number;
   /** 挂起点公告(快照 reaction 派生字段直接透出此结构)。 */
   view: ReactionView;
   /** 应答记录(use 与不用都占座;isBot 座位在开窗时即席代答,ADR-0017「bot 持牌即时代答」)。 */

@@ -4,7 +4,6 @@
 // 本文件数值恰等于某 --dur-* 的字段直接引用 Motion(app→core 单向依赖,theme.ts 零依赖无环),
 // 改 Motion 一处 CSS/JS 同步;不等的字段是编排窗口(非 token 节拍),保留字面量单独调参。
 import { Motion } from "@core/theme";
-import { REACTION_WINDOW_MS } from "@core/constants";
 
 /** e2e 时间倍率(#114):共享 fixture 在页面加载前写入 localStorage;生产/真人局
  *  无此键,S===1 时 sc 直通(不落地板——80ms 级短拍必须保持原值)。 */
@@ -112,14 +111,12 @@ export const AUTO_MARCH = {
   qiqianMs: sc(800),
 } as const;
 
-/** 反应窗时长(#281,ADR-0017):权威侧兜底定时器(单机=LocalController)与 UI 倒计时弧
- *  同源取数——同一 core 配置表经同一 sc 缩放,同一起点(窗开=快照落地)同一时长,
- *  到点 UI 收回视为不用。联机侧权威计时在 room.ts,不吃本缩放(scripts 不读 localStorage)。
- *  core/constants 注记的「读取后自乘」缩放通道即此处(E2E_TIME_SCALE,#225 同款)。 */
-export const REACTION = {
-  jinnangMs: sc(REACTION_WINDOW_MS.JinnangAnnounced),
-  marchMs: sc(REACTION_WINDOW_MS.MarchPassedCity),
-} as const;
+/** 反应窗时长缩放包装(#281 引入,#284 单源收口):开窗时长的权威值是
+ *  `ReactionView.windowMs`(引擎开窗时查 core/constants REACTION_WINDOW_MS 写入,
+ *  随快照 view 走;联机权威侧可经服务器 env E2E_REACTION_MS 覆盖,两端同长自动成立)。
+ *  UI 倒计时弧/横幅与单机权威侧定时器(LocalController)一律「取 windowMs → 过本函数」
+ *  消费,不再各自引常量表(双源消灭);E2E_TIME_SCALE 缩放通道(#225)收口在此。 */
+export const scaleReactionMs = (windowMs: number): number => sc(windowMs);
 
 /** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
  *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参。 */

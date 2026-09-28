@@ -8,7 +8,7 @@
 // 加一个引擎字段只在表里加一条(read/write 同点),不再横跨两个镜像函数五处文件。
 // 契约测试(snapshot-contract.test.ts)断言「serializeGame 产出的键集 = 清单键集」双向一致,
 // 杜绝「序列化了没恢复 / 清单记了没产出」的双向漂移。
-import type { GameEngine, EnginePhase, SetupPhase } from "./game";
+import type { GameEngine, EnginePhase, SetupPhase, LastJinnangPlay } from "./game";
 import type { ChoiceOption } from "./choices";
 import type {
   DiceRoll,
@@ -163,8 +163,13 @@ export interface GameSnapshot {
   pendingReaction: import("./types").PendingReaction | null;
   /** 反应窗公开载荷(#281,纯派生=pendingReaction.view):可见性两档登记见 ReactionView
    *  类型注释——公告字段 public,jinnang 窗 queriedBySeat 为 per-seat private(redact
-   *  每座位只留「自己是否被询问」,改造归传输层下一道缝)。 */
+   *  每座位只留「自己是否被询问」,改造归传输层下一道缝)。与 pendingReaction 双份同载:
+   *  本字段是纯派生只读投影,消费方=UI(GameScreen 反应窗态);挂起态 pendingReaction
+   *  消费方=恢复重建(restoreFromSnapshot)与传输层超时判据(room.ts 读 seq/answers)。 */
   reaction: import("./types").ReactionView | null;
+  /** 最近出牌留痕(#284,联机信号源):客户端快照 diff seq 变化产 jinnangPlayed 表现
+   *  事件。公开信息——出牌是公开事件,redact 不裁。 */
+  lastJinnangPlay: LastJinnangPlay | null;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
   jinnangPeeks: import("./types").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
@@ -187,12 +192,14 @@ function clonePendingReaction(
           userSeat: pr.view.userSeat,
           targetSeats: [...pr.view.targetSeats],
           queriedBySeat: [...pr.view.queriedBySeat],
+          windowMs: pr.view.windowMs,
         }
       : {
           kind: "march",
           cardId: pr.view.cardId,
           userSeat: pr.view.userSeat,
           ownerSeat: pr.view.ownerSeat,
+          windowMs: pr.view.windowMs,
         };
   const answers: import("./types").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
   const payload: import("./types").ReactionPayload =
@@ -215,7 +222,7 @@ function clonePendingReaction(
           steps: pr.payload.steps,
           wasOnBranch: pr.payload.wasOnBranch,
         };
-  return { view, answers, payload };
+  return { seq: pr.seq, view, answers, payload };
 }
 
 /** 单点清单条目:read(引擎 → 快照值)与 write(快照 → 引擎)成对同置。
@@ -457,6 +464,20 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     key: "reaction",
     read: (e) => (e.pendingReaction ? clonePendingReaction(e.pendingReaction)!.view : null),
     write: () => {},
+  },
+  {
+    // 最近出牌留痕(#284,批形状 LastJinnangPlay):联机信号源,客户端 diff seq 对 plays
+    // 逐条产出牌线。出牌是公开事件,redact 不裁;read/write 深拷贝(plays 数组不共享引用)。
+    key: "lastJinnangPlay",
+    read: (e) =>
+      e.lastJinnangPlay
+        ? { seq: e.lastJinnangPlay.seq, plays: e.lastJinnangPlay.plays.map((p) => ({ ...p })) }
+        : null,
+    write: (e, s) => {
+      e.lastJinnangPlay = s.lastJinnangPlay
+        ? { seq: s.lastJinnangPlay.seq, plays: s.lastJinnangPlay.plays.map((p) => ({ ...p })) }
+        : null;
+    },
   },
   {
     // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传

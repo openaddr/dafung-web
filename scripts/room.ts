@@ -12,7 +12,7 @@ import { GameEngine } from "../src/core/game";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
-import { isSingleCjk, REACTION_WINDOW_MS } from "../src/core/constants";
+import { isSingleCjk } from "../src/core/constants";
 import type { ReactionView } from "../src/core/types";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
@@ -241,15 +241,9 @@ function decisionSeatOf(e: GameEngine): number {
 
 /** 反应窗被询问座位集(#281):与引擎 reactionQueriedOf 同一公式的传输层镜像——
  *  jinnang 窗=持识破者全集,march 窗=[城主]。多座位可同时被询问(AOE),故不适用
- *  单一 decisionOwner 语义。 */
+ *  单一 decisionOwner 语义。app 层单源在 src/app/controllers/reaction.ts,三层注释互指。 */
 function reactionQueriedSeats(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
-}
-
-/** 反应窗时长(权威侧,#281):按窗种类查 core 配置表;scripts 不吃浏览器
- *  E2E_TIME_SCALE(联机 spec 走 testUnscaled,3s 真窗可接受,ADR-0017)。 */
-function reactionWindowMs(view: ReactionView): number {
-  return REACTION_WINDOW_MS[view.kind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"];
 }
 
 /** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。
@@ -281,14 +275,17 @@ export interface CreateRoomConfig {
 }
 
 /** Registry 注入项(server.ts 构造时传;ADR-0007:fs 读取归传输层,room.ts 只消费结果)。
- *  encounter(#135):联机机遇配置——服务器读 public/config/jiyu.json 后注入,
+ *  encounter(#135):联机机遇配置——服务器读 jiyu.json 后注入,
  *  startGame 透传进引擎 EngineConfig.encounter。缺省 = 机遇关(引擎缺省语义,历史行为)。
  *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未接管人类座位的决策点超过该毫秒,
  *  bot 自动接管该座位(重连/刷新夺回,同 ADR-0002 接管语义)。0 = 关闭(缺省关,测试友好);
- *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。 */
+ *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
+ *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
+ *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。 */
 export interface RoomRegistryOptions {
   encounter?: EncounterConfig;
   decisionTimeoutMs?: number;
+  reactionWindowMs?: number;
 }
 
 export class RoomRegistry {
@@ -298,6 +295,8 @@ export class RoomRegistry {
   private readonly logSink: RoomLogSink | null;
   private readonly encounter?: EncounterConfig;
   private readonly decisionTimeoutMs: number;
+  /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
+  private readonly reactionWindowMsOverride: number;
   /** #118 看门狗:roomId → 待超时座位 + timer。driveBots 每次进出重评估(见各自注释)。 */
   private readonly stall = new Map<
     string,
@@ -309,9 +308,13 @@ export class RoomRegistry {
     string,
     { seat: number; timer: ReturnType<typeof setTimeout> }
   >();
-  /** #281 反应窗:roomId → (待应答座位 → timer)。可能多座位同时被询问(AOE),故按
-   *  座位各配一表;driveBots 每次进出重评估(ADR-0017:超时兜底在权威侧,代发普通命令)。 */
-  private readonly reactionWaits = new Map<string, Map<number, ReturnType<typeof setTimeout>>>();
+  /** #281 反应窗:roomId → (待应答座位 → timer + 窗实例号 seq)。可能多座位同时被
+   *  询问(AOE),故按座位各配一表;#284 起 seq 判据管重武装(见 armReactionWait)——
+   *  链重开不再整体撤表,deadline 一次算死。 */
+  private readonly reactionWaits = new Map<
+    string,
+    Map<number, { timer: ReturnType<typeof setTimeout>; seq: number }>
+  >();
 
   constructor(
     persistence: RoomPersistence,
@@ -324,6 +327,7 @@ export class RoomRegistry {
     this.logSink = logSink ?? null;
     this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
+    this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
   }
 
   /** 发一条观测事件(无观察者时为空操作)。 */
@@ -375,7 +379,7 @@ export class RoomRegistry {
 
   /** 内部:RoomRecord → RoomSession(零 WS 句柄;engine 重建走 persistence 层)。 */
   private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
-    const data = recordToSessionData(rec, mapProvider);
+    const data = recordToSessionData(rec, mapProvider, this.reactionWindowMsOverride);
     return {
       roomId: data.roomId,
       seatCount: data.seatCount,
@@ -521,6 +525,10 @@ export class RoomRegistry {
         // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
         // 引擎侧归一/回退单源 resolveEncounterConfig;undefined = 机遇关(缺省注入)。
         encounter: this.encounter,
+        // 反应窗时长接线(#284):registry env 覆盖注入引擎,开窗写入 view.windowMs
+        // 随快照下发——客户端横幅投影与权威侧定时器同读一份,两端同长自动成立。
+        reactionWindowMs:
+          this.reactionWindowMsOverride > 0 ? this.reactionWindowMsOverride : undefined,
       },
       true,
       map,
@@ -756,7 +764,9 @@ export class RoomRegistry {
     if (!e) return;
     this.clearStall(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
     this.clearAutoRoll(r.roomId); // #188:同撤自动起摇(链尾按停点重武装)
-    this.clearReactionWaits(r.roomId); // #281:同撤反应窗超时(链尾按停点重武装)
+    // #284:反应窗计时器不再随链撤——链重开会重置他人倒计时(本票修的 bug)。改由
+    // armReactionWait 按 PendingReaction.seq 判据管重武装:同窗跳过(deadline 一次
+    // 算死),换窗才撤旧起新;已收窗的残表项由 reactionWaitFire 重校验静默退场。
     if (this.driving.has(r)) return; // 已有链在跑:它会把新进展接走
     this.driving.add(r);
     try {
@@ -967,49 +977,62 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────────────
-  /** 撤反应窗计时器(链重开/房间解散时);无挂起计时器时空操作。可能多座位同时被
-   *  询问(AOE),按房间持一张座位表整体撤。 */
+  /** 撤反应窗计时器(房间解散时);无挂起计时器时空操作。可能多座位同时被
+   *  询问(AOE),按房间持一张座位表整体撤。#284:链重开不再走这里(同窗不重置,
+   *  见 armReactionWait),唯一调用点是解散清理。 */
   private clearReactionWaits(roomId: string): void {
     const waits = this.reactionWaits.get(roomId);
     if (!waits) return;
-    for (const timer of waits.values()) clearTimeout(timer);
+    for (const w of waits.values()) clearTimeout(w.timer);
     this.reactionWaits.delete(roomId);
   }
 
-  /** 武装:REACTION_WINDOW_MS 后若该座位仍是本窗待应答的非服务器驱动人类座位 → 服务器
-   *  代发 respondReaction{use:false}(走 applyCommand 公共命令路径,与玩家手点同源;
-   *  ADR-0017:超时兜底=权威侧代发普通命令,重放天然复现)。离线冻结座位同样武装——
-   *  断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。链重开重武装即重算(同
-   *  armAutoRoll 先例)。unref:不因挂起计时器拖延进程退出。 */
+  /** 武装(#284 seq 判据):REACTION_WINDOW_MS(或 env 覆盖值)后若该座位仍是本窗
+   *  待应答的非服务器驱动人类座位 → 服务器代发 respondReaction{use:false}(走
+   *  applyCommand 公共命令路径,与玩家手点同源;ADR-0017:超时兜底=权威侧代发普通
+   *  命令,重放天然复现)。同窗(PendingReaction.seq 未变)且已武装 → 跳过不重武装:
+   *  deadline 开窗一次算死,链重开/他人命令不重置他人倒计时(FreeKill request.lua
+   *  「timestamp+timeout 随包下发、同窗不重置」同语义);seq 变了才撤旧起新。
+   *  离线冻结座位同样武装——断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。
+   *  unref:不因挂起计时器拖延进程退出。 */
   private armReactionWait(
     r: RoomSession,
     seat: number,
     onUpdate?: (room: RoomSession) => void,
   ): void {
-    const waits = this.reactionWaits.get(r.roomId) ?? new Map();
-    const old = waits.get(seat);
-    if (old) clearTimeout(old);
     const e = r.engine;
     if (e?.pendingReaction == null) return;
+    const seq = e.pendingReaction.seq;
+    const waits = this.reactionWaits.get(r.roomId);
+    const old = waits?.get(seat);
+    if (old) {
+      if (old.seq === seq) return; // 同窗已武装:到期时刻一次算死,不重置(#284)
+      clearTimeout(old.timer); // 换窗(行军续走下一城等):撤旧起新
+    }
     const timer = setTimeout(
-      () => void this.reactionWaitFire(r, seat, onUpdate),
-      reactionWindowMs(e.pendingReaction.view),
+      () => void this.reactionWaitFire(r, seat, seq, onUpdate),
+      e.pendingReaction.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
     );
     timer.unref?.();
-    waits.set(seat, timer);
-    this.reactionWaits.set(r.roomId, waits);
+    const w = waits ?? new Map();
+    w.set(seat, { timer, seq });
+    this.reactionWaits.set(r.roomId, w);
   }
 
-  /** 到点触发:重校验(房间还在/对局未终/仍在 AwaitingReaction/该座位仍被询问且未应答/
+  /** 到点触发:先核对本火仍属当前武装表项(seq 不同=已被新窗重武装,本火过期)，
+   *  再重校验(房间还在/对局未终/仍在 AwaitingReaction/该座位仍被询问且未应答/
    *  仍非服务器驱动)后代发「不用」。任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
   private async reactionWaitFire(
     r: RoomSession,
     seat: number,
+    armedSeq: number,
     onUpdate?: (room: RoomSession) => void,
   ): Promise<void> {
     const waits = this.reactionWaits.get(r.roomId);
-    waits?.delete(seat);
-    if (waits != null && waits.size === 0) this.reactionWaits.delete(r.roomId);
+    const cur = waits?.get(seat);
+    if (cur == null || cur.seq !== armedSeq) return; // 表项已换窗:本火过期,不动新表(#284)
+    waits!.delete(seat);
+    if (waits!.size === 0) this.reactionWaits.delete(r.roomId);
     const e = r.engine;
     if (this.rooms.get(r.roomId) !== r || !e || e.isOver || e.phase !== "Playing") return;
     if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;

@@ -3,9 +3,10 @@
 // AOE 全体域(横征暴敛等)追加选份候选笺行:点笺=定被保护份(含自己),再落印确认;
 // 单目标/半路杀出免选。交互语义自持(真按钮,不自写 role);样式在 reaction-banner.css。
 //
-// 倒计时弧与权威侧定时器同源:时长由 GameScreen 传入(fx/timings.ts REACTION,与
-// LocalController 同一常量同一缩放),起点=本件挂载(窗开=快照落地),到点自动收回
-// 视为「不用」——代发命令归权威侧(LocalController/联机 room 循环),本件只呈现。
+// 倒计时弧与权威侧定时器同源(#284 单源收口):时长=GameScreen 传入的 view.windowMs
+//  (引擎查 core/constants 表写入、随快照走)经 fx/timings.ts scaleReactionMs 缩放,
+// 起点=本件挂载(窗开=快照落地),到点自动收回视为「不用」——代发命令归权威侧
+//(LocalController 定时器/联机 room 循环),本件只呈现。
 import { useEffect, useRef, useState } from "react";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
@@ -13,7 +14,7 @@ import "./reaction-banner.css";
 export interface ReactionBannerProps {
   /** 左段事件文案(单机/联机同构,GameScreen 组装:「X 使用【火烧连营】」等)。 */
   text: string;
-  /** 倒计时总时长(ms):与权威侧定时器同源同长(timings.ts REACTION)。 */
+  /** 倒计时总时长(ms):与权威侧定时器同源同长(view.windowMs 经 scaleReactionMs,#284)。 */
   durationMs: number;
   /** AOE 选份候选座位集(空=免选)。 */
   shareSeats: number[];
@@ -47,7 +48,7 @@ export function ReactionBanner({
   onMute,
 }: ReactionBannerProps) {
   // 剩余时间比例(rAF 收敛):起点=挂载(窗开);到点本件收回——「不用」的代发归权威侧
-  //(LocalController 定时器/联机 room 循环),两端同一 REACTION 常量,同源同长。
+  //(LocalController 定时器/联机 room 循环),时长同源见文件头注释(#284 windowMs 单源)。
   const start = useRef<number>(0);
   const [frac, setFrac] = useState(1);
   useEffect(() => {
@@ -128,14 +129,4 @@ export function ReactionBanner({
       </svg>
     </div>
   );
-}
-
-/** 反应窗被询问判定(UI 消费快照 reaction 的统一口径):jinnang 窗按公告询问集
- *  (联机已按座位投影,march 窗按城主)。控制器侧各有同公式镜像(分层不互引,
- *  bot.ts/local.ts 指纹先例),改引擎 reactionQueriedOf 时三处同改。 */
-export function reactionQueriedMe(
-  view: { kind: "jinnang"; queriedBySeat: number[] } | { kind: "march"; ownerSeat: number },
-  seat: number,
-): boolean {
-  return view.kind === "jinnang" ? view.queriedBySeat.includes(seat) : view.ownerSeat === seat;
 }
