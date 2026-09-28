@@ -286,14 +286,18 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
         </radialGradient>
       ))}
       {blobs.map((b) => (
-        // 整幅延展画布 rect 填充渐变:渐变自带半径控制范围,rect 只是"画布"
-        // (#38:铺到 O 而非 VB,避免 rect 在 VB 边界留下晕染断层线)
+        // 渐变 rect 只铺本 blob 的圆域 bbox(外接正方形),不再铺满整幅延展画布:
+        // 8 组各铺一张 O 大小的半透明 rect 时,渐变止点(r 外全透明)之外的像素虽是
+        // 全透明,但 8 张 4620×3332 的层叠让「有色区/无色区」的包络边缘在浅纸面上
+        // 读作一块错位的「重影」(dogfood 2026-09-28 ISSUE-009:编辑器画布重影实锤,
+        // 遮挡实验逐层定位到本层;游戏屏同码但因视角/缩放不显)。圆域 bbox 裁剪后,
+        // rect 边缘恰在渐变 fully-transparent 半径上,视觉无差异;区域感不丢。
         <rect
           key={`r-${b.group}`}
-          x={O.x}
-          y={O.y}
-          width={O.w}
-          height={O.h}
+          x={b.cx - b.r}
+          y={b.cy - b.r}
+          width={b.r * 2}
+          height={b.r * 2}
           fill={`url(#bv-tint-${b.group})`}
         />
       ))}

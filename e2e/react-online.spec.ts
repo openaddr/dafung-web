@@ -316,10 +316,16 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   // 重名预告(先到先得):seat1 保原名无预告;seat2 预告开局改为方位前缀「东魏」;
   // 双方大厅(非仅本人视角)都可见彼此国号与预告
   await expect(host.getByTestId("lobby-seat-1-guohao-preview")).toHaveCount(0);
-  await expect(host.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
+  await expect(host.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
+    "此席国号重名,开局将改为『东魏』",
+  );
   await expect(g1.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
-  await expect(g1.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
-  await expect(g2.getByTestId("lobby-seat-2-guohao-preview")).toHaveText("开局将改为『东魏』");
+  await expect(g1.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
+    "此席国号重名,开局将改为『东魏』",
+  );
+  await expect(g2.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
+    "此席国号重名,开局将改为『东魏』",
+  );
 
   await Promise.all([host, g1, g2].map((p) => p.context().close()));
 });

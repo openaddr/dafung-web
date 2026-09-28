@@ -111,3 +111,25 @@
 
 /* 按压态已收编全局:R3-C10(#97) 起 app.css 的 button:active scale(0.98) 统一承担
    按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */
+
+/* ── 短横屏档(dogfood ISSUE-002):932×430 等 Android 横屏首屏四入口+地图行
+   一次可见,免滚动。只压纵向呼吸(横带高/间距/按钮 padding),字级与材质不动
+   ——观感不变,空间让位。桌面大屏(>480px 高)完全不进此档。 ── */
+@media (max-height: 480px) {
+  .home-band-h {
+    height: 72px;
+  }
+  .home-gap-tight {
+    margin-bottom: 1rem;
+  }
+  .home-pad-tight {
+    padding: 0.75rem 0;
+  }
+  .home-sub-tight {
+    margin-top: 0.25rem;
+    margin-bottom: 1rem;
+  }
+  .home-maprow-tight {
+    margin-top: 0.875rem;
+  }
+}

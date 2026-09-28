@@ -24,7 +24,7 @@ import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
 // #117 收编:状态条自动清除 TTL 走 fx/timings.ts(UI.statusClearMs),不再字面量散落。
 import { UI } from "@app/fx/timings";
-import { BoardView } from "@app/components/board/BoardView";
+import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 // S2:卷轴式弹窗——只 import 不改 scroll/ 目录(并行 agent 可能动它)
 import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
 import { ScrollShell, ScrollButton } from "@app/screens/game/scroll/ScrollShell";
@@ -199,6 +199,18 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   } | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; name: string } | null>(null);
   const wrapRef = useRef<HTMLDivElement | null>(null);
+  const boardRef = useRef<BoardViewHandle | null>(null);
+  // 起编视图放大一档(dogfood ISSUE-009):总览档把 3180 宽压进 ~552px 画布,城格白签+
+  // 区域晕染+纸纹在 1/6 缩放里融成一片「重影版块」错觉;放大 1.5x 起编,城格清晰可拖。
+  // 只在挂载时做一次(用户此后自由 pan/zoom,不干预)。
+  const didInitialZoom = useRef(false);
+  useEffect(() => {
+    if (didInitialZoom.current) return;
+    didInitialZoom.current = true;
+    // 等首帧布局稳定再放大(reset 由 BoardView 挂载时自行做,这里在其后放大)
+    const t = window.setTimeout(() => boardRef.current?.zoomBy(1.5), 50);
+    return () => window.clearTimeout(t);
+  }, []);
   const importInputRef = useRef<HTMLInputElement | null>(null);
   const [status, setStatus] = useState<string | null>(null);
   // S2:弹窗态(prompt/confirm/alert 全部换成组件内卷轴,原生弹窗不再使用)
@@ -482,8 +494,10 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   return (
     // S2:relative 作为卷轴弹层(absolute inset-0)的定位锚
     <div data-testid={TID.screen} className="relative flex h-full overflow-hidden">
-      {/* 棋盘区:外层包裹 div 负责城池拖拽(BoardView 本体不动,空白 pan/zoom 照常) */}
-      <div className="relative min-w-0 flex-1">
+      {/* 棋盘区:外层包裹 div 负责城池拖拽(BoardView 本体不动,空白 pan/zoom 照常)。
+          底色给纸色(dogfood ISSUE-009 收尾):画布渐隐区之外透出的不再是深色页面纹理,
+          而是「案台」纸色——编辑视野落在画布边缘时不再出现深浅版块错觉。 */}
+      <div className="relative min-w-0 flex-1 bg-[#eae0c6]">
         <div
           ref={wrapRef}
           className="h-full w-full"
@@ -496,6 +510,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
               边界兜底:编辑中途的暂时非法图(如两城重叠)不让整屏崩,只换提示文案 */}
           <BoardBoundary mapKey={mapKey}>
             <BoardView
+              ref={boardRef}
               map={map}
               players={[]}
               onTileClick={setSelected}
