@@ -16,8 +16,8 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
   await expect(page.getByText("字盘快选国号")).toBeVisible();
   // 「起兵」按钮 → 选都(「调兵遣将中…」为瞬态,静态 grep 已核,此处验证点击后进选都)
   await page.getByTestId("start-game").click();
-  // 「三选一选都」:横幅文案 + 三候选金圈 + 详情卷轴两钮
-  await expect(page.getByText(/三选一:于候选城中择一定都/)).toBeVisible({ timeout: 30_000 });
+  // 「选都」:横幅文案(#297 起按 turn 分化,轮到玩家=「轮到你定都…」)+ 三候选金圈 + 详情卷轴两钮
+  await expect(page.getByText(/轮到你定都:点选一座候选城/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".bv-tile.bv-selectable")).toHaveCount(3);
   await page.locator(".bv-tile.bv-selectable").first().click();
   const detail = page.getByTestId("scroll-tile-detail");

@@ -5,10 +5,12 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/game";
 import type { EngineConfig, SeatConfig } from "@core/game";
-import { createDice } from "@core/dice";
+import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
+import { HEROES } from "@core/heroes";
 import type { HeroDef, TriggerSkill } from "@core/types";
 import type { GameMoment, MomentCtx } from "@core/timing";
+import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
@@ -936,5 +938,160 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     e.confirmBankruptcySettle();
     expect(mover.isBankrupt).toBe(false); // 200 恰清偿
     expect(mover.cash).toBe(0);
+  });
+});
+
+// ──────────────────── 派发缺口补齐(#299):五类银两变动全走 CashLost/CashGained ────────────────────
+describe("时机框架:派发缺口补齐(#299)", () => {
+  /** 定值骰替身:rollDie 依序返回预定值(拼点定胜负用),nextFloat 恒 0。 */
+  function stubRollDie(e: GameEngine, rolls: number[]): void {
+    let i = 0;
+    const dice: Dice = {
+      roll: () => {
+        throw new Error("测试路径不应 roll");
+      },
+      rollDie: () => rolls[i++ % rolls.length],
+      nextFloat: () => 0,
+      getRngState: () => 0,
+      setRngState: () => {},
+    };
+    (e as unknown as { dice: Dice }).dice = dice;
+  }
+
+  /** 合成即时机遇(无 choices → 引擎直接结算,同 test/encounters.test.ts 口径)。 */
+  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
+    id: "测试机遇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "t",
+    effect,
+  });
+
+  /** 摆军师幕测试态:当前玩家持牌停在锦囊相位(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
+  function armJinnang(e: GameEngine, cards: string[]) {
+    const p = e.activePlayer;
+    p.jinnangHand = [...cards];
+    p.jinnangHandCount = cards.length;
+    e.turnPhase = "AwaitingJinnang";
+    return p;
+  }
+
+  it("机遇 siphon:被吸方派 CashLost、吸取方派 CashGained;曹丕被动(CashLost→+50)随之生效", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.heroes.push(HEROES.find((h) => h.id === "caopi")!); // 曹丕挂 CashLost scope=others
+    const moverSeat = e.players.indexOf(mover);
+    const oppSeat = moverSeat === 0 ? 1 : 0;
+    e.players[oppSeat].cash = 500;
+    const moverCash0 = mover.cash;
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "siphon", amount: 150 }));
+    expect(e.players[oppSeat].cash).toBe(350); // 上限=对方现金,语义不变
+    expect(mover.cash).toBe(moverCash0 + 150 + 50); // 吸得 150 + 曹丕 +50
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: oppSeat, amount: 150 },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: moverSeat, amount: 150 },
+    ]);
+  });
+
+  it("机遇 trade:双方各派 CashGained(国库出,正和)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const moverSeat = e.players.indexOf(mover);
+    const oppSeat = moverSeat === 0 ? 1 : 0;
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "trade", amount: 100 }));
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: moverSeat, amount: 100 },
+      { subject: oppSeat, amount: 100 },
+    ]);
+  });
+
+  it("机遇 levy:得款的随机对手派 CashGained(付款方 CashLost 既有派发不动)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const moverSeat = e.players.indexOf(mover);
+    const oppSeat = moverSeat === 0 ? 1 : 0;
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "levy", amount: 120 }));
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: moverSeat, amount: 120 },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: oppSeat, amount: 120 },
+    ]);
+  });
+
+  it("连环计:胜者国库款派 CashGained(+300,缺口补齐);败者赔款双派照旧,曹丕(用牌者)被动 +50", () => {
+    const e = makeEngine(1, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    const user = e.activePlayer;
+    user.heroes.push(HEROES.find((h) => h.id === "caopi")!);
+    const userSeat = e.players.indexOf(user);
+    const others = [0, 1, 2].filter((s) => s !== userSeat);
+    e.players[others[1]].cash = 1000; // 败者赔得起全额 400
+    stubRollDie(e, [5, 1]); // 首挑 a=5、次挑 b=1 → 首挑胜
+    armJinnang(e, ["连环计"]);
+    const userCash0 = user.cash;
+    const winnerCash0 = e.players[others[0]].cash;
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("连环计");
+    e.resolveJinnang("连环计", [others[0]]);
+    e.resolveJinnang("连环计", [others[1]]);
+    expect(e.players[others[0]].cash).toBe(winnerCash0 + 300); // 胜者国库款
+    expect(user.cash).toBe(userCash0 + 400 + 50); // 赔款 400 + 曹丕被动 50
+    expect(e.players[others[1]].cash).toBe(600); // 1000 − 400
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: others[0], amount: 300 }, // 胜者国库款(#299 新派)
+      { subject: userSeat, amount: 400 }, // 败者赔款(既有派发)
+    ]);
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: others[1], amount: 400 },
+    ]);
+  });
+
+  it("grantHero fallbackCash 双路派 CashGained:机遇义士来投折现 200、锦囊求贤令折现 300", () => {
+    // 机遇路径(义士来投):满编 → 折现
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.heroes.push(
+      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
+      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
+      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+    );
+    const seat = e.players.indexOf(mover);
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantHero", fallbackCash: 200 }));
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, amount: 200 },
+    ]);
+
+    // 锦囊路径(求贤令):满编 → 折现
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const user = e2.activePlayer;
+    user.heroes.push(
+      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
+      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
+      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+    );
+    const seat2 = e2.players.indexOf(user);
+    const entries2 = recordMomentCtx(e2);
+    armJinnang(e2, ["求贤令"]);
+    e2.resolveJinnang("求贤令");
+    expect(entries2.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat2, amount: 300 },
+    ]);
   });
 });

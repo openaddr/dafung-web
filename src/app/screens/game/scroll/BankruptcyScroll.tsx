@@ -74,7 +74,7 @@ export function BankruptcyScroll({
       <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
         {settled
           ? "现金已凑足债务!点「结算」清偿,转危为安。"
-          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 2 两)。`}
+          : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 200 两)。`}
       </p>
       {/* W2-包D(审计 A2):进度条数值伴随——「尚欠」随 owe 实时缩水,右对齐小字
           与进度条同宽(m-圆),与变卖钮上的「+」金额互为对照。 */}

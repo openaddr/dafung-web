@@ -9,7 +9,7 @@ import zhongyuanData from "../public/maps/zhongyuan.json";
 import chessboardData from "../public/maps/chessboard.json";
 import huanyouData from "../public/maps/huanyou.json";
 
-/** 价位档标准表(单位分;乘法城 30 两档单列)。与 .scratch/rescale-maps.cjs 同源,手改任一侧都应在此炸出。 */
+/** 价位档标准表(单位两,#299 重标定;乘法城 3000 两档单列,档号=购价百两)。与 .scratch/rescale-maps.cjs 同源,手改任一侧都应在此炸出。 */
 const y2f = (liang: number) => liang * 100;
 const ADD: Record<number, number[]> = {
   18: [1, 5, 13, 30],
@@ -29,7 +29,7 @@ const TIER_OF = (liang: number) => ({
 });
 const TIERS = new Map<number, ReturnType<typeof TIER_OF>>();
 for (const liang of [18, 22, 24, 27, 34, 38, 40]) TIERS.set(liang, TIER_OF(liang));
-// 乘法城(30 两):tradeAdd 全 0,tradeMult [2,3,4,5]
+// 乘法城(3000 两档):tradeAdd 全 0,tradeMult [2,3,4,5]
 TIERS.set(30, {
   price: y2f(30),
   buildCost: y2f(15),
@@ -38,7 +38,7 @@ TIERS.set(30, {
   valueByLevel: [12, 18, 26, 36].map(y2f),
 });
 
-/** sanguo 逐城价位(两);zhongyuan/chessboard 各自映射到同一张表。 */
+/** sanguo 逐城价位档(档号=购价百两);zhongyuan/chessboard 各自映射到同一张表。 */
 const SANGUO_TIER: Record<string, number> = {
   "prop-changan": 40,
   "prop-luoyang": 40,
