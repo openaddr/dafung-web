@@ -19,7 +19,8 @@ import {
   present,
   remainingMarchPath,
 } from "@app/fx/orchestrator";
-import { AUTOPILOT, AUTO_MARCH, BOT, REACTION, delay } from "@app/fx/timings";
+import { AUTOPILOT, AUTO_MARCH, BOT, delay, scaleReactionMs } from "@app/fx/timings";
+import { reactionQueriesSeat } from "./reaction";
 import { GameController } from "./controller";
 import { createDriveArbiter } from "./drive";
 
@@ -94,13 +95,12 @@ export class LocalController extends GameController {
     return e.players.findIndex((p) => !p.isBot);
   }
 
-  /** 本地人类是否被当前反应窗询问(#281):jinnang 窗按公告的询问集,march 窗按城主。 */
+  /** 本地人类是否被当前反应窗询问(#281):公式单源 controllers/reaction.ts(#284)。 */
   private reactionQueriedMe(e: GameEngine): boolean {
     const pr = e.pendingReaction;
     if (pr == null) return false;
     const seat = this.humanSeat(e);
-    const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
-    return seat >= 0 && queried.includes(seat);
+    return seat >= 0 && reactionQueriesSeat(pr.view, seat);
   }
 
   /** 重评估反应窗定时器(#281):「对局中 + AwaitingReaction + 本地人类被询问」才驻留;
@@ -121,13 +121,12 @@ export class LocalController extends GameController {
     }
     const pr = e.pendingReaction;
     if (pr == null) throw new Error("rearmReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)"); // 零兜底
-    this.reactionTimer = setTimeout(
-      () => {
-        this.reactionTimer = null;
-        void this.declineReaction();
-      },
-      pr.view.kind === "jinnang" ? REACTION.jinnangMs : REACTION.marchMs,
-    );
+    // 时长单源(#284):读 view.windowMs(引擎查表写入)再过缩放包装,不再按窗种
+    // 分叉引常量表——单机 windowMs=引擎常量 3000,行为不变。
+    this.reactionTimer = setTimeout(() => {
+      this.reactionTimer = null;
+      void this.declineReaction();
+    }, scaleReactionMs(pr.view.windowMs));
   }
 
   /** 反应窗超时/托管代发「不用」(#281,ADR-0017 权威侧兜底):与玩家手点完全相同的

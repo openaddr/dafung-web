@@ -54,6 +54,8 @@ export interface GameConfig {
   mapId?: string;
   /** 机遇配置(#135):缺省 = 机遇关;经局头行/持久化 config 复刻,重放要素。 */
   encounter?: EncounterConfig;
+  /** 反应窗时长覆盖(#284):env E2E_REACTION_MS → registry → 引擎;缺省查 core 常量表。 */
+  reactionWindowMs?: number;
 }
 
 export interface PersistedState {

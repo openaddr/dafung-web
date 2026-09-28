@@ -1,42 +1,24 @@
 // 反应窗单机回路(#281,#234 P1-D 牌架即反应窗):识破自保、不用/超时、半路杀出
 // 拦检(拦胜/平局/放行)、军师幕「唯反应」灰置、降噪口。权威侧兜底=LocalController
 // 定时代发「不用」(与手点同一条命令路径);本 spec 反应窗走 E2E_TIME_SCALE 缩放后
-// 的窗长(0.5 倍 → 1500ms,fixtures 先注入 0.25,此 spec 的 init 脚本后挂覆盖同键)。
+// 的窗长(0.5 倍 → 1500ms,fixtures 先注入 0.25,此 spec 的 init 脚本后挂覆盖同键;
+// #284 起窗长单源=view.windowMs,scaleReactionMs 缩放,数值行为不变)。
 // 种子离线核算(seed 7):人类先手、起手火烧连营(军师窗停点=稳定种植点);种植后
 // 人类改持目标牌,bot 手牌/位置/骰队列按用例直写。
 // 条件性缺失元素一律单次 page.evaluate+querySelector 原子采样(仓库既有口径,防 locator 挂起)。
 import { test, expect } from "./fixtures";
-import { force, waitMyRollDone, openSoloSetup, skipUntilNextSeat } from "./react-helpers";
+import {
+  force,
+  waitMyRollDone,
+  openSoloSetup,
+  skipUntilNextSeat,
+  engineState,
+  useHalfScale,
+  startSolo,
+  plantDemolishableCity,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-
-/** 读引擎态(god view 断言用)。 */
-function engineState(page: Page, pick: string): Promise<any> {
-  return page.evaluate(`(() => {
-    const e = window.__dafung.getEngine();
-    return ${pick};
-  })()`);
-}
-
-/** 本 spec 反应窗倍率 0.5(窗长 1500ms):后挂 init 脚本覆盖 fixtures 注入的同键。 */
-async function useHalfScale(page: Page): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
-}
-
-/** 开局(seed 7 离线核算:人类先手,起手火烧连营=可用牌):选图/起兵/定都后停稳在
- *  人类开局军师窗——引擎直写种植的稳定停靠点。 */
-async function startSolo(page: Page): Promise<void> {
-  await useHalfScale(page);
-  await page.goto("/?seed=7");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-sanguo").click();
-  await page.getByTestId("map-confirm").click();
-  await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
-  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-}
 
 /** 放行人类一手直到轮到 bot(骰由自动起摇;决策一律跳过——不买地保「城最多并列取
  *  最小座位」,bot 火烧连营目标恒人类)。 */
@@ -87,31 +69,6 @@ async function plantAmbush(page: Page, diceRolls: number): Promise<void> {
       });
     }
     ${diceQueueForce(diceRolls)}
-  `,
-  );
-}
-
-/** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」——bot 火烧
- *  连营的 城最多者∩可拆 目标恒人类;免都城开局(都城不可被拆,demolishOnVictim 排除)。 */
-async function plantDemolishableCity(page: Page): Promise<void> {
-  await force(
-    page,
-    `
-    {
-      const capitals = new Set(e.players.map((p) => p.capitalIndex));
-      let idx = -1;
-      for (let k = 1; k < e.board.count - 1; k++) {
-        const c = (e.players[0].capitalIndex + k) % e.board.count;
-        const t = e.board.at(c);
-        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
-      }
-      if (idx < 0) throw new Error("种植失败:无可挪城池格");
-      const pid = e.board.at(idx).propertyId;
-      e.players[0].properties.push({
-        propertyId: pid, group: e.board.at(idx).group ?? "a",
-        purchasePrice: 1000, level: 0, maxLevel: 3,
-      });
-    }
   `,
   );
 }

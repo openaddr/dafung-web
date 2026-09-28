@@ -77,6 +77,14 @@ const DECISION_TIMEOUT_MS = Math.max(
   parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0,
 );
 
+// 反应窗时长覆盖(#284):env E2E_REACTION_MS 注入加长窗(联机 e2e 脱 3s 赛跑;
+// 两端同长自动成立——时长随快照 view.windowMs 下发)。0 = 不覆盖,走 core
+// REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化);缺省走常量表是配置不是兜底。
+const REACTION_WINDOW_MS_OVERRIDE = Math.max(
+  0,
+  parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
+);
+
 // ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
 const CATALOG_ENTRIES = builtinMapCatalog();
 /** 合法 mapId 集合(供 registry.setMap 校验)。 */
@@ -154,7 +162,11 @@ const registry = new RoomRegistry(
   persistence,
   (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
   flushGameLog,
-  { encounter: ENCOUNTER, decisionTimeoutMs: DECISION_TIMEOUT_MS },
+  {
+    encounter: ENCOUNTER,
+    decisionTimeoutMs: DECISION_TIMEOUT_MS,
+    reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
+  },
 );
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
   // 恢复房间:对局日志基线 = 恢复快照的 log 长度(重启前这些行已在文件里)
@@ -352,6 +364,7 @@ const HELP = {
     STATIC_DIR,
     JIYU_CONFIG,
     DECISION_TIMEOUT_MS,
+    E2E_REACTION_MS: REACTION_WINDOW_MS_OVERRIDE,
   },
 };
 
@@ -604,7 +617,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"}`,
+  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws",

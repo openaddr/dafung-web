@@ -63,6 +63,7 @@ import type {
   ReactionAnswer,
   ReactionPayload,
   ReactionView,
+  ReactionViewSeed,
 } from "./types";
 import { botReactionDecision } from "./bot"; // bot 即席应答策略(ADR-0017 §3;bot 对 game 仅 type 依赖,无运行时环)
 import { formatMoney } from "./money";
@@ -75,6 +76,7 @@ import {
   HERO_CAPACITY,
   STAMINA_MAX,
   STARTING_STAMINA,
+  REACTION_WINDOW_MS,
 } from "./constants";
 import { HEROES } from "./heroes";
 import { createTreasureDeck, guidePriceOf, premiumPriceOf } from "./treasures";
@@ -100,6 +102,10 @@ export interface EngineConfig {
   mapId?: string;
   /** 机遇系统(#123):缺省=关闭(产品默认 40% 在配置文件/设置屏,经此传入) */
   encounter?: EncounterConfig;
+  /** 反应窗时长覆盖(#284):联机权威侧 env E2E_REACTION_MS 经 registry 传入;缺省=查
+   *  REACTION_WINDOW_MS 常量表。开窗时写入 view.windowMs 随快照下发,客户端横幅投影与
+   *  权威侧定时器同读一份(两端同长自动成立)。 */
+  reactionWindowMs?: number;
 }
 
 export type EnginePhase = "Setup" | "Playing" | "GameOver";
@@ -181,12 +187,25 @@ export interface PropertyChangeTrace {
 /** 出牌指示线留痕(#281/P2-E,ADR-0010 表现事件流的 core 侧发射点):锦囊/反应牌生效点
  *  写入「使用者 token → 目标 token」墨线素材,表现提取器经 engine.presentation
  *  .drainJinnangPlays() 一次性取走(破坏性读,同 drainPropertyChanges 口径)。
- *  瞬态不序列化(同 floaters/propertyChanges):联机端表现由快照 diff 提取,core 只负责
- *  结算点留痕;事件类型注册与双提取器扩展归 UI/传输下一道缝。 */
+ *  瞬态不序列化(同 floaters/propertyChanges)——单机本地编排通道;联机信号源是
+ *  可序列化的 `lastJinnangPlay`(最近一条留痕,客户端快照 diff 提取),两者由
+ *  traceJinnangPlay 同点写入、注释互指。 */
 export interface JinnangPlayTrace {
   userSeat: number;
   targetSeats: number[];
   cardId: string;
+}
+
+/** 最近出牌留痕(#284,可序列化联机信号源):锦囊/反应牌生效点由 traceJinnangPlay
+ *  与瞬态 jinnangPlays 同点写入,seq 单调递增防「同参数牌」diff 去重失效。出牌是
+ *  公开事件,redact 不裁(公开信息);入 SNAPSHOT_FIELDS,客户端 SnapshotEffects
+ *  diff seq 变化即产既有 jinnangPlayed 表现事件(禁立第二 WS 事件通道,ADR-0010)。 */
+export interface LastJinnangPlay {
+  userSeat: number;
+  targetSeats: number[];
+  cardId: string;
+  /** 留痕流水号(与 PendingReaction.seq 共用同一单调计数器,语义=「第 N 条留痕/窗」)。 */
+  seq: number;
 }
 
 export class GameEngine {
@@ -242,6 +261,16 @@ export class GameEngine {
    *  (SNAPSHOT_FIELDS 单点清单);人类被询问时窗跨命令存续,bot 全被询问时在开窗
    *  同一调用内即席应答并续结算(ADR-0017「bot 持牌即时代答不等满」),相位不外显。 */
   pendingReaction: PendingReaction | null = null;
+  /** 窗/留痕共用的单调流水号(#284):开反应窗写 PendingReaction.seq、出牌留痕写
+   *  lastJinnangPlay.seq,均取 nextJinnangSeq()。cmd 流派生状态,重放重算天然复现;
+   *  快照恢复后在 restoreFromSnapshot 里按「快照内已见的最大 seq」推回(单调不回退)。 */
+  private jinnangSeq = 0;
+  /** 最近出牌留痕(#284,联机信号源):写入见 traceJinnangPlay;随快照序列化
+   *  (SNAPSHOT_FIELDS 单点清单)。null=本局尚无出牌。 */
+  lastJinnangPlay: LastJinnangPlay | null = null;
+  /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
+   *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
+  private readonly reactionWindowMsOverride: number;
   private encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
@@ -352,6 +381,7 @@ export class GameEngine {
     this.startingCash = config.startingCash ?? DEFAULT_CASH;
     this.difficulty = config.difficulty ?? "Normal";
     this.mapId = config.mapId ?? "";
+    this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = resolveEncounterConfig(config.encounter);
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
     this.gameId = newGameId();
@@ -924,10 +954,34 @@ export class GameEngine {
   // 人类座位(含托管/看门狗代驾)等 respondReaction 命令——权威侧超时代发的也是这条普通
   // 命令,重放天然复现。每次结算只问一轮:每被询问座位至多应答一次。
 
+  /** 单调流水号取号(#284):反应窗与出牌留痕共用同一计数器(独立亦可在语义上等效,
+   *  共用省一份状态;消费方只做「变了没有」的 diff/判据,不依赖两通道号段关系)。 */
+  private nextJinnangSeq(): number {
+    return ++this.jinnangSeq;
+  }
+
+  /** 出牌留痕双通道写入(#281/#284):瞬态 jinnangPlays 供单机表现提取器破坏性读
+   *  (本地编排,presentation.drainJinnangPlays);可序列化 lastJinnangPlay 供联机
+   *  快照 diff(客户端 SnapshotEffects 提取,传输层无独立事件通道)。两通道同点写入,
+   *  消费口径注释互指。 */
+  private traceJinnangPlay(userSeat: number, targetSeats: number[], cardId: string): void {
+    this.jinnangPlays.push({ userSeat, targetSeats, cardId });
+    this.lastJinnangPlay = { userSeat, targetSeats, cardId, seq: this.nextJinnangSeq() };
+  }
+
   /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时
    *  相位不外显),否则进 AwaitingReaction 等人类应答。 */
-  private openReactionWindow(view: ReactionView, payload: ReactionPayload): void {
-    const pr: PendingReaction = { view, answers: [], payload };
+  private openReactionWindow(viewSeed: ReactionViewSeed, payload: ReactionPayload): void {
+    // windowMs 随 view 走(#284 单源):开窗时长在此一处写入——EngineConfig 覆盖值
+    // (联机 env E2E_REACTION_MS)优先,缺省按窗种类查 core 配置表。客户端横幅/倒计时
+    // 投影与联机权威侧定时器同读快照值(两端同长自动成立),构造点不散抄常量表。
+    const windowMs =
+      this.reactionWindowMsOverride > 0
+        ? this.reactionWindowMsOverride
+        : REACTION_WINDOW_MS[viewSeed.kind === "jinnang" ? "JinnangAnnounced" : "MarchPassedCity"];
+    const view: ReactionView =
+      viewSeed.kind === "jinnang" ? { ...viewSeed, windowMs } : { ...viewSeed, windowMs };
+    const pr: PendingReaction = { seq: this.nextJinnangSeq(), view, answers: [], payload };
     this.pendingReaction = pr; // 先入引擎态:bot 即席决策与快照投影都读引擎公开字段
     const user = this.players[view.userSeat];
     const queriedTxt = this.reactionQueriedOf(view)
@@ -1080,11 +1134,7 @@ export class GameEngine {
           `${responder.guohao} 识破【${def.id}】,此计作废`,
           `reactionCounter card=${def.id} by=${responder.id} voided=all`,
         );
-        this.jinnangPlays.push({
-          userSeat: first.seat,
-          targetSeats: [payload.userSeat],
-          cardId: first.cardId!,
-        });
+        this.traceJinnangPlay(first.seat, [payload.userSeat], first.cardId!);
         this.returnSupersededCounters(plays.slice(1), def.id);
         this.settleJinnangExit();
         return;
@@ -1115,11 +1165,7 @@ export class GameEngine {
             `${responder.guohao} 识破【${def.id}】,${shielded.guohao} 那一份失效`,
             `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
           );
-          this.jinnangPlays.push({
-            userSeat: play.seat,
-            targetSeats: [share],
-            cardId: play.cardId!,
-          });
+          this.traceJinnangPlay(play.seat, [share], play.cardId!);
         }
         this.returnSupersededCounters(
           plays.filter((p) => !consumed.has(p)),
@@ -1144,11 +1190,7 @@ export class GameEngine {
           `${responder.guohao} 识破【${def.id}】,此计落空`,
           `reactionCounter card=${def.id} by=${responder.id} share=${this.players[share].id}`,
         );
-        this.jinnangPlays.push({
-          userSeat: first.seat,
-          targetSeats: [share],
-          cardId: first.cardId!,
-        });
+        this.traceJinnangPlay(first.seat, [share], first.cardId!);
         this.returnSupersededCounters(plays.slice(1), def.id);
         this.settleJinnangExit();
         return;
@@ -1212,11 +1254,7 @@ export class GameEngine {
         `${owner.guohao} 拦检成功,${mover.guohao} 止步于此城`,
         `reactionAmbushStop owner=${owner.id} mover=${mover.id} tile=#${payload.tileIndex}`,
       );
-      this.jinnangPlays.push({
-        userSeat: play.seat,
-        targetSeats: [payload.moverSeat],
-        cardId: play.cardId!,
-      });
+      this.traceJinnangPlay(play.seat, [payload.moverSeat], play.cardId!);
       this.settleAmbushStop(payload);
       return;
     }
@@ -2704,7 +2742,7 @@ export class GameEngine {
               .filter((seat) => seat !== userSeat)
           : [...targets];
     this.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
-    this.jinnangPlays.push({ userSeat, targetSeats: shareSeats, cardId: def.id });
+    this.traceJinnangPlay(userSeat, shareSeats, def.id);
     this.dispatchMoment("JinnangAnnounced", {
       subject: userSeat,
       cardId: def.id,
@@ -2723,7 +2761,7 @@ export class GameEngine {
       this.settleJinnangExit();
       return;
     }
-    const view: ReactionView = {
+    const view: ReactionViewSeed = {
       kind: "jinnang",
       cardId: def.id,
       userSeat,
@@ -3700,7 +3738,15 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
-    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(#281 出牌指示线留痕同口径)
+    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(单机本地编排通道;联机信号源=lastJinnangPlay,随快照恢复)
+    // seq 计数器恢复推回(#284):计数器本身不序列化,按快照内已见的最大 seq 推回,
+    // 保证单调不回退——恢复后开新窗/出新牌的号必然大于恢复前任何已广播的号,
+    // 传输层同窗判据与客户端 diff 去重不因恢复串号。快照无窗无留痕时保持当前值。
+    this.jinnangSeq = Math.max(
+      this.jinnangSeq,
+      s.pendingReaction?.seq ?? 0,
+      s.lastJinnangPlay?.seq ?? 0,
+    );
     // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告

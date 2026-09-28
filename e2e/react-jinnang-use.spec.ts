@@ -9,7 +9,7 @@
 // (开局军师窗=稳定停靠点)。不走 pickCapital 共享助手(其收尾会自动「不出」),本 spec
 // 自行点城+确认以保留窗态。灰置/令笺局面走 force 引擎直写(#237 无天然种子同时凑齐)。
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
-// 点选从容);fixtures 先注入 0.25,后挂脚本覆盖同键。
+// 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 import { test, expect } from "./fixtures";
 import {
   force,
@@ -17,20 +17,15 @@ import {
   waitMyRollDone,
   openSoloSetup,
   skipUntilNextSeat,
+  engineState,
+  useHalfScale,
+  plantDemolishableCity,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
-/** 读引擎态(god view 断言用)。 */
-function engineState(page: Page, pick: string): Promise<any> {
-  return page.evaluate(`(() => {
-    const e = window.__dafung.getEngine();
-    return ${pick};
-  })()`);
-}
-
 async function startJunshi(page: Page, seed: number): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
+  await useHalfScale(page);
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
   await page.getByTestId("home-select-map").click();
@@ -42,31 +37,6 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await page.getByTestId("confirm-capital-ok").click();
   // 军师窗态:动作条(卡牌段)就位 = 停稳在开局窗态
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-}
-
-/** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆),
- *  bot 火烧连营的 城最多者∩可拆 目标恒人类。 */
-async function plantDemolishableCity(page: Page): Promise<void> {
-  await force(
-    page,
-    `
-    {
-      const capitals = new Set(e.players.map((p) => p.capitalIndex));
-      let idx = -1;
-      for (let k = 1; k < e.board.count - 1; k++) {
-        const c = (e.players[0].capitalIndex + k) % e.board.count;
-        const t = e.board.at(c);
-        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
-      }
-      if (idx < 0) throw new Error("种植失败:无可挪城池格");
-      const pid = e.board.at(idx).propertyId;
-      e.players[0].properties.push({
-        propertyId: pid, group: e.board.at(idx).group ?? "a",
-        purchasePrice: 1000, level: 0, maxLevel: 3,
-      });
-    }
-  `,
-  );
 }
 
 test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", () => {

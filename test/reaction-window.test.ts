@@ -148,7 +148,9 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
       userSeat,
       targetSeats: [victimSeat],
       queriedBySeat: [victimSeat],
+      windowMs: REACTION_WINDOW_MS.JinnangAnnounced, // #284:开窗时长随 view 走
     });
+    expect(e.pendingReaction!.seq).toBeGreaterThan(0); // #284:窗实例号单调分配
     expect(victim.properties[0].level).toBe(2); // 挂起中未结算
     e.respondReaction(victimSeat, true, "识破诡计", victimSeat);
     // 结算:识破生效,这份失效
@@ -305,6 +307,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
       cardId: "半路杀出",
       userSeat: moverSeat,
       ownerSeat,
+      windowMs: REACTION_WINDOW_MS.MarchPassedCity, // #284:开窗时长随 view 走
     });
     expect(mover.position).toBe(9); // 挂起中未落位
     scriptDice(e, { rollDies: [5, 3] }); // 拼点:城主 5 > 行人 3
@@ -485,6 +488,32 @@ describe("出牌指示线留痕(#281/P2-E)", () => {
     ]);
     expect(e.presentation.drainJinnangPlays()).toEqual([]); // 一次取尽
   });
+
+  it("lastJinnangPlay 联机信号源(#284):seq 单调递增、与窗实例号同计数器、随快照往返", () => {
+    const e = prepared();
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const victimSeat = userSeat === 0 ? 1 : 0;
+    armUser(e, userSeat, ["横征暴敛"]);
+    setHand(e, victimSeat, ["识破诡计"]);
+    e.resolveJinnang("横征暴敛"); // 宣布留痕 + 开窗(各取一号)
+    const announceSeq = e.lastJinnangPlay!.seq;
+    const windowSeq = e.pendingReaction!.seq;
+    expect(announceSeq).toBeGreaterThan(0);
+    expect(windowSeq).toBe(announceSeq + 1); // 同一计数器顺序取号
+    e.respondReaction(victimSeat, true, "识破诡计", victimSeat); // 识破留痕(再取一号)
+    expect(e.lastJinnangPlay).toEqual({
+      userSeat: victimSeat,
+      targetSeats: [victimSeat],
+      cardId: "识破诡计",
+      seq: announceSeq + 2,
+    });
+    // 快照往返:留痕保真(深拷贝),恢复端 seq 计数器推回到快照见过的最大号
+    const snap = e.snapshot();
+    const e2 = makeEngine(1);
+    e2.restoreFromSnapshot(snap);
+    expect(e2.lastJinnangPlay).toEqual(e.lastJinnangPlay);
+  });
 });
 
 describe("botReactionDecision 纯决策口径(#281)", () => {
@@ -496,12 +525,14 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     const e = makeEngine(42, seats);
     finishSetup(e);
     e.pendingReaction = {
+      seq: 1, // #284:测试摆位给一个占位实例号(真实分配在 openReactionWindow)
       view: {
         kind: "jinnang",
         cardId: view.cardId,
         userSeat: view.userSeat,
         targetSeats: view.targetSeats,
         queriedBySeat: [],
+        windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
       },
       answers: [],
       payload: { kind: "jinnang", userSeat: view.userSeat, cardId: view.cardId, targets: [] },
@@ -538,7 +569,14 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     const e = makeEngine(42, SEATS3);
     finishSetup(e);
     e.pendingReaction = {
-      view: { kind: "march", cardId: "半路杀出", userSeat: 2, ownerSeat: 1 },
+      seq: 1, // #284:测试摆位给一个占位实例号(真实分配在 openReactionWindow)
+      view: {
+        kind: "march",
+        cardId: "半路杀出",
+        userSeat: 2,
+        ownerSeat: 1,
+        windowMs: REACTION_WINDOW_MS.MarchPassedCity,
+      },
       answers: [],
       payload: {
         kind: "march",

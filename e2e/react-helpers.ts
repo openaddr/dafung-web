@@ -4,6 +4,7 @@
 import { expect, type Browser, type BrowserContext, type Page } from "@playwright/test";
 // 键名单源:与 registry.ts 双门禁共用同一常量(playwright 侧对 src 路径的解析同 fixtures.ts)。
 import { E2E_DEBUG_BRIDGE_KEY } from "../src/app/fx/timings";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
  *  无键不注册 window.__dafung,而 fixtures 的注入只覆盖 fixture page——raw context
@@ -257,6 +258,63 @@ export async function skipUntilNextSeat(p: Page, seat: number, timeout = 30_000)
       { timeout },
     )
     .toBe(true);
+}
+
+// ──────────────────────────── 反应窗/指示线 spec 共享件(#284 去重单源)────────────────────────────
+// 原本在 react-reaction.spec.ts / react-jinnang-use.spec.ts / jinnang-play-line.spec.ts
+// 三处各持一份的种植/开局助手,收口于此(逐字同实现,语义零漂移)。
+
+/** 读引擎态(god view 断言用)。 */
+export function engineState(page: Page, pick: string): Promise<any> {
+  return page.evaluate(`(() => {
+    const e = window.__dafung.getEngine();
+    return ${pick};
+  })()`);
+}
+
+/** 本 spec 反应窗倍率 0.5(窗长 1500ms):后挂 init 脚本覆盖 fixtures 注入的同键。 */
+export async function useHalfScale(page: Page): Promise<void> {
+  await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
+}
+
+/** 开局(seed 7 离线核算:人类先手,起手火烧连营=可用牌):选图/起兵/定都后停稳在
+ *  人类开局军师窗——引擎直写种植的稳定停靠点(内部自带 0.5 倍率)。 */
+export async function startSolo(page: Page): Promise<void> {
+  await useHalfScale(page);
+  await page.goto("/?seed=7");
+  await page.getByTestId("home-select-map").click();
+  await page.getByTestId("map-item-sanguo").click();
+  await page.getByTestId("map-confirm").click();
+  await openSoloSetup(page);
+  await page.getByTestId("start-game").click();
+  await page.locator(".bv-tile.bv-selectable").first().click();
+  await page.getByTestId("confirm-capital-ok").click();
+  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+}
+
+/** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
+ *  demolishOnVictim 排除)——bot 火烧连营的 城最多者∩可拆 目标恒人类。 */
+export async function plantDemolishableCity(page: Page): Promise<void> {
+  await force(
+    page,
+    `
+    {
+      const capitals = new Set(e.players.map((p) => p.capitalIndex));
+      let idx = -1;
+      for (let k = 1; k < e.board.count - 1; k++) {
+        const c = (e.players[0].capitalIndex + k) % e.board.count;
+        const t = e.board.at(c);
+        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
+      }
+      if (idx < 0) throw new Error("种植失败:无可挪城池格");
+      const pid = e.board.at(idx).propertyId;
+      e.players[0].properties.push({
+        propertyId: pid, group: e.board.at(idx).group ?? "a",
+        purchasePrice: 1000, level: 0, maxLevel: 3,
+      });
+    }
+  `,
+  );
 }
 
 // ──────────────────────────── 联机段(react-online* 共享)────────────────────────────

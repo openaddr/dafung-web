@@ -3,31 +3,12 @@
 // 生长 → 200ms 停持 → 300ms 淡出,store 清理窗随 E2E_TIME_SCALE 缩放)。
 // 指示线是条件性在场的瞬态元素:禁 locator 读(缺元素会挂到超时),全程单次
 // page.evaluate 内 rAF 轮询原子采样(仓库既有口径,#272)。反应窗出牌(识破/拦停)
-// 的留痕形状已由 test/reaction-window.test.ts 在引擎层钉死,此处不重复联机回路。
+// 的留痕形状已由 test/reaction-window.test.ts 在引擎层钉死;联机端同款线经快照
+// lastJinnangPlay.seq diff 提取(#284),由 react-reaction-online.spec.ts 覆盖。
 import { test, expect } from "./fixtures";
-import { force, openSoloSetup } from "./react-helpers";
+import { force, startSolo } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-
-/** 本 spec 反应窗/演出倍率 0.5(同 react-reaction 口径):后挂 init 脚本覆盖
- *  fixtures 注入的同键,清理窗 350ms,rAF 轮询足够命中。 */
-async function useHalfScale(page: Page): Promise<void> {
-  await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
-}
-
-/** 开局(seed 7:人类先手,开局军师窗停点=稳定种植点),停稳在军师窗。 */
-async function startSolo(page: Page): Promise<void> {
-  await useHalfScale(page);
-  await page.goto("/?seed=7");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-sanguo").click();
-  await page.getByTestId("map-confirm").click();
-  await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
-  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-}
 
 /** 给 bot 1 挪一座 1 级非都城:火烧连营的目标守卫(demolishTargetOk)要求「有 Lv>0
  *  可降或有非都城城」,开局各座只有都城不达标——不种则目标段无候选席位。 */

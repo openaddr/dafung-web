@@ -21,13 +21,14 @@ import { getController, getControllerMap } from "@app/controllers/registry";
 import type { GameCommand, MapData } from "@core/types";
 import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
-import { REACTION } from "@app/fx/timings";
+import { scaleReactionMs } from "@app/fx/timings";
+import { reactionQueriesSeat } from "@app/controllers/reaction";
 import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandRack, type RackPile } from "./HandRack";
-import { ReactionBanner, reactionQueriedMe } from "./ReactionBanner";
+import { ReactionBanner } from "./ReactionBanner";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { DashboardBar } from "./DashboardBar";
@@ -134,10 +135,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const net = useNetStore();
   // 自局座位(稳定身份,勿用 viewSeat):单机热座下 viewSeat 跟随决策方轮转(bot 回合
   // 时指到 bot 席),席位卡「自身不出卡」/仪表条身份/手牌架都需要的是固定的「人」。
-  // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座
-  // (viewSeat,观战=-1 → players[-1]=undefined,按观战口径走)。
+  // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
   const selfSeat = net.roomId !== "" ? viewSeat : 0;
-  const selfPlayer = snapshot.players[selfSeat] ?? null;
+  // 自局玩家(#284 零兜底审视):selfSeat 只在联机观战时为 -1(未入座,显式业务态)——
+  // 返回 null 走观战口径(席位卡/手牌架/仪表条均有观战分支);selfSeat ≥ 0 时缺位 =
+  // 快照与座位表不一致(接线 bug),undefined 直通下游崩出来,不做 `?? null` 静默兜底。
+  const selfPlayer = selfSeat < 0 ? null : snapshot.players[selfSeat];
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
   // 标记,观战(mySeat=-1)恒 false——观战无托管。
   const autopilotOn = useAutopilotOn(controller);
@@ -232,22 +235,27 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
   // 命令=respondReaction(seat 显式携带)。与军师窗态互斥(AwaitingReaction 相位)。
+  // 被询问判定公式单源 controllers/reaction.ts(#284);观战(-1)恒不被询问。
   const reactionUp =
     snapshot.phase === "Playing" &&
     snapshot.turnPhase === "AwaitingReaction" &&
     snapshot.reaction != null &&
-    reactionQueriedMe(snapshot.reaction, selfSeat);
+    reactionQueriesSeat(snapshot.reaction, selfSeat);
+  // 窗实例号(#284):seq 变化即新窗(同 kind/userSeat/cardId 的连续窗不靠 key 区分了),
+  // 横幅重挂=倒计时弧重起、静默代发重评估,与权威侧窗级 deadline 同享同一判据。
+  const reactionSeq = snapshot.pendingReaction?.seq ?? null;
   // 降噪口(客户端本地态,ADR-0017 §4):「本回合不再询问」只活到当前行动者回合结束
   //(行动者变更即解除)——静默期间收到询问自动立即代发「不用」,不弹横幅。
   const [reactMutedSeat, setReactMutedSeat] = useState<number | null>(null);
   useEffect(() => setReactMutedSeat(null), [snapshot.activeIndex]);
   const reactMuted = reactMutedSeat === snapshot.activeIndex;
-  // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)
+  // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)。
+  // 依赖含窗实例号:静默期间连续两窗(march 续走下一城,seq 递增)时第二窗也要代发。
   useEffect(() => {
     if (reactionUp && reactMuted)
       dispatchCommand({ type: "respondReaction", seat: selfSeat, use: false });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatchCommand 闭包随渲染更新,依赖窗态与静默两个语义键
-  }, [reactionUp, reactMuted]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- dispatchCommand 闭包随渲染更新,依赖窗态/静默/窗实例号三个语义键
+  }, [reactionUp, reactMuted, reactionSeq]);
   // 卡牌段选中与 AOE 选份(G-19 一期手感:点牌选中,再点同牌取消;进/出窗态清空重选)
   const [reactCardId, setReactCardId] = useState<string | null>(null);
   const [reactShare, setReactShare] = useState<number | null>(null);
@@ -264,10 +272,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         ? reaction.targetSeats
         : []
       : [];
-  // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)
+  // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)。
+  // selfPlayer 判空是观战类型收窄(观战恒不被询问,reactionUp 已排除),非静默兜底;
+  // 被询问者必在座,reactionUp 语义保证此处手牌可用。
   const reactPlayable =
-    reactionUp && reaction != null
-      ? (selfPlayer?.jinnangHand ?? []).filter(
+    reactionUp && reaction != null && selfPlayer != null
+      ? selfPlayer.jinnangHand.filter(
           (id) =>
             jinnangCardOf(id).effect.kind === (reaction.kind === "jinnang" ? "counter" : "ambush"),
         )
@@ -279,13 +289,17 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
       <ReactionBanner
-        key={`${reaction.kind}-${reaction.userSeat}-${reaction.cardId}`}
+        // key 挂窗实例号(#284):seq 变化即重挂重起弧(倒计时投影与权威侧窗级 deadline
+        // 同享同一判据;同参数牌的连续窗不靠 kind/userSeat/cardId 区分)。
+        key={`reaction-${reactionSeq}`}
         text={
           reaction.kind === "jinnang"
             ? `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
             : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
         }
-        durationMs={reaction.kind === "jinnang" ? REACTION.jinnangMs : REACTION.marchMs}
+        // 时长单源(#284):读快照 windowMs 过缩放包装,不再按窗种引常量表——
+        // 单机=引擎常量 3000(缩放后行为不变);联机=权威侧配置,两端同长。
+        durationMs={scaleReactionMs(reaction.windowMs)}
         shareSeats={reactShareSeats}
         shareSeat={reactShare}
         onPickShare={setReactShare}
