@@ -91,10 +91,11 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
     return e.board.tiles.findIndex((t: { propertyId?: string }) => t.propertyId);
   });
   // 重试点击(#217:无 seed 对局下,人类起手锦囊卷轴开着或 bot 回合 fx 在途时点击会被吞,~40% 竞速挂)。
-  // 先清人类卷轴,再 toPass 重试「点击→卷轴可见」整块,直到逮住交互空闲窗。
+  // 先清人类卷轴,再 toPass 重试「点击→卷轴可见」整块,直到逮住交互空闲窗
+  // (轮询收紧 #294:单次尝试秒级,30s→15s 仍有十余次重试余量)。
   await actIfCan(page);
   await expect(async () => {
     await page.locator(`[data-tile="${propTile}"]`).click();
     await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
-  }).toPass({ timeout: 30_000 });
+  }).toPass({ timeout: 15_000 });
 });

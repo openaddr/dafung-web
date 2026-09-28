@@ -89,6 +89,9 @@ test.describe("三区骨架", () => {
   });
 
   test("浮签:hover 显名词释义,离签即隐;长按 400ms 同效;贴右缘席位向左翻面", async ({ page }) => {
+    // 两大户之一(#294 决议):三个 toPass 各自与「对局自走弹卷轴抢悬停」竞速,负载下
+    // 60s 默认档偏紧是超时 flake 家族——标 slow 防超时,非删例。
+    test.slow();
     await quickStart(page);
     const badge = page.getByTestId("seat-attr-warrant-1");
     const tip = page.getByTestId("attr-tip");
@@ -181,13 +184,14 @@ test.describe("三区骨架", () => {
     // 收起零占位:只有把手,无抽屉
     await expect(page.getByTestId("log-tab")).toBeVisible();
     await expect(page.getByTestId("log-drawer")).toHaveCount(0);
-    // 对局自走会随时弹决策卷轴/窗态抢交互——每步先清决策点再点把手(浮签用例同口径)
+    // 对局自走会随时弹决策卷轴/窗态抢交互——每步先清决策点再点把手(浮签用例同口径);
+    // 接线例轮询收紧(#294):单次尝试秒级,30s 收紧到 15s 仍有 5 倍余量
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
       await page.getByTestId("log-tab").click({ timeout: 3_000 });
       await expect(page.getByTestId("log-drawer")).toBeVisible();
-    }).toPass({ timeout: 30_000 });
+    }).toPass({ timeout: 15_000 });
     // 抽屉渲染对局日志(开局必有玩法事件;条目带「轮N」小签)
     await expect(page.getByTestId("log-drawer")).toContainText(/轮\d+/);
     // Esc 关闭(Base UI 底件行为),收起后零占位
@@ -198,13 +202,13 @@ test.describe("三区骨架", () => {
   test("expandPile:点珍宝徽章明细展入牌架行,再点收起;空摞不可展开", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 三个 toPass 轮询,60s 默认档偏紧
     await quickStart(page);
-    // 空摞(珍宝 0 张):点击零动作,不展开
+    // 空摞(珍宝 0 张):点击零动作,不展开(接线例轮询收紧:30s→15s,尝试秒级)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
       await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
       await expect(page.getByTestId("pile-row")).toHaveCount(0);
-    }).toPass({ timeout: 30_000 });
+    }).toPass({ timeout: 15_000 });
     // 塞两件珍宝(force 通道:引擎直写 + 重灌快照),徽章展开 → 明细行落牌架
     await force(page, "e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);");
     await expect(async () => {
@@ -212,7 +216,7 @@ test.describe("三区骨架", () => {
       await actIfCan(page).catch(() => false);
       await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
       await expect(page.getByTestId("pile-row")).toBeVisible();
-    }).toPass({ timeout: 30_000 });
+    }).toPass({ timeout: 15_000 });
     // 对局自走中珍宝可能继续进账(宝物城拼点),签数对齐实时快照而非钉死
     // (#281 珍宝明细行改牌面形制:张数选择器随 .pile-slip→.pile-gem-card 换形)
     await expect(async () => {
@@ -220,14 +224,14 @@ test.describe("三区骨架", () => {
       await expect(page.getByTestId("pile-row").locator(".pile-gem-card")).toHaveCount(
         s.players[0].treasures.length,
       );
-    }).toPass({ timeout: 15_000 });
+    }).toPass({ timeout: 10_000 });
     // 再点收起飞回
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
       await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
       await expect(page.getByTestId("pile-row")).toHaveCount(0);
-    }).toPass({ timeout: 30_000 });
+    }).toPass({ timeout: 15_000 });
   });
 });
 
@@ -237,7 +241,9 @@ test.describe("8 人局降档", () => {
   test("7 对手 = 右列 3 + 左列 3 + 顶行缩微 1(顶行卡只留现金+血条|城/手牌四格)", async ({
     page,
   }) => {
-    test.setTimeout(120_000);
+    // 两大户之二(#294 决议):人类首回合前最多 7 个 bot 回合,负载下 60s/120s 固定档
+    // 都撞过超时——标 slow(60s×3)防超时 flake,非删例。
+    test.slow();
     await page.goto("/");
     await openSoloSetup(page);
     for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // X10 stepper:4 → 8

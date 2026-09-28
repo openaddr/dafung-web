@@ -15,10 +15,11 @@ const synthLine = `({
   brief: "合成战报" + i + "号事件", detail: "act=synth i=" + i, category: "roll",
 })`;
 
-/** 开局后人类决策卷轴可能在场(弹层会挡住把手):清决策点与点把手交替重试,
+/** 开局后人类决策卷轴可能在场(弹层会挡住把手):toPass 轮询体内「清决策点 + 点把手
+ *  + 验抽屉可见」整块重试(原 6 轮 for + 400ms 固定采样换状态轮询,负载下自愈),
  *  抽屉可见即收。对局随后继续自走,断言一律不依赖「最新一条是谁」。 */
 async function openDrawerRobustly(page: Page): Promise<void> {
-  for (let i = 0; i < 6; i++) {
+  await expect(async () => {
     if (
       await page
         .getByTestId(TESTIDS.logDrawer)
@@ -26,18 +27,19 @@ async function openDrawerRobustly(page: Page): Promise<void> {
         .catch(() => false)
     )
       return;
-    const cleared = await actIfCan(page);
+    await actIfCan(page);
     await page
       .getByTestId(TESTIDS.logTab)
       .click({ timeout: 2_000 })
       .catch(() => {});
-    if (!cleared) await page.waitForTimeout(400);
-  }
-  await page.getByTestId(TESTIDS.logDrawer).waitFor({ timeout: 5_000 });
+    await expect(page.getByTestId(TESTIDS.logDrawer)).toBeVisible({ timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 }
 
 test("战报抽屉窗口化:长日志只渲一窗,截断态追加不涨行数,加载更早按窗放开", async ({ page }) => {
-  test.setTimeout(120_000);
+  // 内部预算 quickStart + 开抽屉 toPass(20s)+ 放开循环轮询(4×5s),90s 外层对齐
+  // 同族重例(encounters/scrolls);原 120s 是硬等待时代的残值,轮询化后收紧。
+  test.setTimeout(90_000);
   await quickStart(page, 49);
   // 膨胀 350 条玩法事件(roll 全入白名单),叠加开局存量后总战报条数 > 2 窗。
   await force(page, `e.log.push(...Array.from({ length: 350 }, (_, i) => ${synthLine}));`);
@@ -62,8 +64,15 @@ test("战报抽屉窗口化:长日志只渲一窗,截断态追加不涨行数,�
   for (let i = 0; i < 4; i++) {
     const btn = page.getByTestId(TESTIDS.logEarlier);
     if (!(await btn.isVisible().catch(() => false))) break;
+    const before = await page.locator(".war-item").count();
     await btn.click();
-    await page.waitForTimeout(100);
+    // 原固定 100ms 采样换状态轮询:每放开一次行数必须真的涨一窗,到位才进下轮(5s 余量)
+    await expect
+      .poll(async () => await page.locator(".war-item").count(), {
+        timeout: 5_000,
+        message: `「加载更早」第 ${i + 1} 次放开一窗后行数上涨`,
+      })
+      .toBeGreaterThan(before);
   }
   await expect(page.getByTestId(TESTIDS.logEarlier)).toHaveCount(0);
   expect(await page.locator(".war-item").count()).toBeGreaterThan(WAR_WINDOW * 2);

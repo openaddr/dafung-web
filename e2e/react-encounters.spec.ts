@@ -40,23 +40,29 @@ test.describe("机遇系统冒烟", () => {
     await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", "声望 0");
 
     const scroll = page.getByTestId("scroll-encounter");
-    // 每拍经 actIfCan 清决策点(购地卷轴统一处理),遇机遇卷轴则点第一选项收卷。
-    // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。#188 行军自动化 + #217①:
-    // bot 回合/自动起摇期间 actIfCan 恒 false,按步计数会空转烧预算——改时间预算
-    // (120s,人类落格采样 ~10 次以上),机遇卷轴出现即收。
-    let resolved = false;
-    const deadline = Date.now() + 120_000;
-    while (!resolved && Date.now() < deadline) {
-      if (await scroll.isVisible().catch(() => false)) {
-        await page.locator('[data-testid^="scroll-encounter-option-"]').first().click();
-        await expect(scroll).toBeHidden({ timeout: 20_000 });
-        resolved = true;
-        break;
-      }
-      await actIfCan(page);
-      await page.waitForTimeout(300);
-    }
-    expect(resolved).toBe(true);
+    // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。#188 行军自动化后 bot 回合/
+    // 自动起摇期间 actIfCan 恒 false,按步计数会空转烧预算——原「while + 300ms 固定
+    // 采样」换 expect.poll 状态轮询:每拍机遇卷轴不在场就经 actIfCan 清决策点推进,
+    // 出现即收(120s 时间预算不变,人类落格采样 ~10 次以上)。
+    await expect
+      .poll(
+        async () => {
+          if (!(await scroll.isVisible().catch(() => false))) await actIfCan(page);
+          return scroll.isVisible().catch(() => false);
+        },
+        { timeout: 120_000, message: "机遇抉择卷轴弹出(≥2 真实选项,不自动执行)" },
+      )
+      .toBe(true);
+    // 点第一选项收卷:负载下点击可能被重挂弹层吞,「点 + 验隐」整块 toPass 重试
+    //(原 toBeHidden(20s) 语义平移)。
+    await expect(async () => {
+      await page
+        .locator('[data-testid^="scroll-encounter-option-"]')
+        .first()
+        .click({ timeout: 2_000 })
+        .catch(() => {});
+      await expect(scroll).toBeHidden({ timeout: 2_000 });
+    }).toPass({ timeout: 20_000 });
     await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute(
       "aria-label",
       /声望 \d+/,
