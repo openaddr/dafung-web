@@ -2,6 +2,8 @@
 // 他人回合架常驻可见(常驻不收拢,P1-C 拍板)。空态斜牌背不做 DOM 断言(起手必 1 张,
 // 永不空),视觉证据归截图 tmp/ui-shots/t3/(tmp/shot-t3-rack.mjs 构造空手牌)。
 // 断言口径:牌面文案断牌名(def.id/def.text),不断样式(样式归原型基线)。
+// #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
+// 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
 import { test, expect } from "./fixtures";
 import { actIfCan, force, quickStart, snap, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -35,6 +37,42 @@ async function rackGeometry(page: Page): Promise<{ cards: Box[]; row: Box; rack:
   });
 }
 
+/** 几何落定轮询(#305 替代固定硬等待):单次 evaluate 内反复采样同一份盒模型,两拍
+ *  (150ms)全同即视为动画/过渡落定并返回该样本;行缺失先等出现,deadline 内仍未落定
+ *  即抛错(零兜底:落不下来是 bug,让它炸)。错峰 60ms 拍的入场级联任意时刻都有牌在动
+ *  (duration > 错峰),级联间的静止窗小于采样间隔——两拍全同只可能出现在全体落定后。 */
+async function settledRackGeometry(
+  page: Page,
+  timeoutMs = 8_000,
+): Promise<{ cards: Box[]; row: Box; rack: Box }> {
+  const sample = (await page.evaluate(`(async () => {
+    const rect = (el) => {
+      const r = el.getBoundingClientRect();
+      return { x: r.x, y: r.y, width: r.width, height: r.height };
+    };
+    const read = () => {
+      const row = document.querySelector('[data-testid="jinnang-hand"]');
+      if (!row) return null;
+      const rack = row.closest(".hand-rack");
+      if (!rack) return null;
+      return JSON.stringify({
+        cards: [...row.querySelectorAll(":scope > button")].map(rect),
+        row: rect(row), rack: rect(rack),
+      });
+    };
+    let prev = read();
+    const deadline = performance.now() + ${timeoutMs};
+    for (;;) {
+      await new Promise((r) => setTimeout(r, prev === null ? 100 : 150));
+      const cur = read();
+      if (cur !== null && cur === prev) return cur;
+      prev = cur;
+      if (performance.now() > deadline) throw new Error("手牌几何未落定:行缺失或持续变化超时");
+    }
+  })()`)) as string;
+  return JSON.parse(sample);
+}
+
 /** 9 张 = 8 种 + 识破诡计重复 1 张(#281 牌库 9 种 18 张;直写引擎不经摸牌,无需凑牌库)。 */
 const NINE_CARDS = [
   "连环计",
@@ -63,8 +101,9 @@ async function rackStandstill(page: Page, cards: string[]): Promise<void> {
     e.turnPhase = "AwaitingDecision";
   `,
   );
-  // 发牌入场级联(末张 delay 数百 ms + 本体 250ms)结束再取几何,避开动画 transform 污染
-  await page.waitForTimeout(1200);
+  // 发牌入场级联(错峰 60ms 拍 + 本体动画)以几何落定为准(#305 替代固定 1200ms):
+  // 两拍全同 = 级联播完,后续几何断言不再吃动画 transform 污染
+  await settledRackGeometry(page);
 }
 
 /** 读本端起手牌名(单机座位 0;quickStart 后手牌恒 ≥1:起手 1 张且无人替你用牌)。 */
@@ -192,8 +231,8 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
       .locator(`[data-testid="${TESTIDS.jinnangHand}"] > button`)
       .nth(4)
       .hover({ position: { x: 10, y: 60 } });
-    await page.waitForTimeout(300); // 挥出过渡(--dur-fast)落定
-    const after = (await rackGeometry(page)).cards;
+    // 挥出过渡(--dur-fast)以几何落定为准(#305 替代固定 300ms):两拍全同即悬停稳态
+    const after = (await settledRackGeometry(page)).cards;
     // 悬停牌:上浮 + 放大(1.12 倍级)
     expect(after[4].y).toBeLessThan(before[4].y - 5);
     expect(after[4].width).toBeGreaterThan(before[4].width * 1.05);
@@ -202,10 +241,9 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
     // 邻牌让位(noname getSpreadOffset 语义):左邻左移、右邻右移
     expect(after[3].x).toBeLessThan(before[3].x);
     expect(after[5].x).toBeGreaterThan(before[5].x);
-    // 移出回落:几何回到常态(±1px 量测余量)
+    // 移出回落:几何回到常态(±1px 量测余量);同口径等回落过渡落定(#305 替代固定 300ms)
     await page.mouse.move(0, 0);
-    await page.waitForTimeout(300);
-    const rest = (await rackGeometry(page)).cards;
+    const rest = (await settledRackGeometry(page)).cards;
     rest.forEach((c, i) => {
       expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(1);
       expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(1);

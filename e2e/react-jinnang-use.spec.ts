@@ -1,10 +1,14 @@
-// 锦囊使用回路(#122/T2;#256 军师窗态迁移;#281 免战金牌退役改写):军师幕弹窗退役,
-// 出牌面上架手牌架——点牌=选中放大(放大态即详情态),动作条「出牌」=确认、「不出」=
-// 今不用,目标段=席位即靶(金圈呼吸+棋盘 token 呼吸,点席位即出免二次确认)。
+// 锦囊使用回路(#122/T2;#256 军师窗态迁移;#281 免战金牌退役改写;#305 整备):
+// 军师幕弹窗退役,出牌面上架手牌架——点牌=选中放大(放大态即详情态),动作条「出牌」=
+// 确认、「不出」=今不用,目标段=席位即靶(金圈呼吸+棋盘 token 呼吸,点席位即出免二次确认)。
 // #281:免战金牌随档 1 退役(预防开盾删除),原「出牌经军师幕」用例改写为「识破诡计
 // 经反应窗打出」——架中反应牌呼吸金边,点牌选中,横幅落印确认。
+// #305 整备两件事:①出牌指示线用例自 jinnang-play-line.spec.ts 并入(出牌→墨线同一
+// 交互链,原文件删除);②引擎断言下沉——结算/留痕/记账归引擎层单测
+// (test/jinnang.test.ts、test/reaction-window.test.ts、test/hero-skill.test.ts),
+// 本 spec 只留交互接线,断言全走可见 UI 态(选中/禁用/印条/窗收/牌离架)。
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
-// 多标签牌(缓兵之计)双章、令笺(主动技)牌面、作罢路径牌不消耗。
+// 多标签牌(缓兵之计)双章、令笺(主动技)牌面、作罢路径、出牌墨线端点对准。
 // 种子 7 离线核算(真实引擎流程离线核算:含 doDraftRoll 骰流):人类先手、起手火烧连营
 // (开局军师窗=稳定停靠点)。不走 pickCapital 共享助手(其收尾会自动「不出」),本 spec
 // 自行点城+确认以保留窗态。灰置/令笺局面走 force 引擎直写(#237 无天然种子同时凑齐)。
@@ -13,11 +17,9 @@
 import { test, expect } from "./fixtures";
 import {
   force,
-  waitSettled,
   waitMyRollDone,
   openSoloSetup,
   skipUntilNextSeat,
-  engineState,
   useHalfScale,
   plantDemolishableCity,
 } from "./react-helpers";
@@ -39,8 +41,34 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
+/** 给 bot 1 挪一座 1 级非都城(原 jinnang-play-line.spec.ts 随迁,#305):火烧连营的
+ *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
+ *  不达标——不种则目标段无候选席位。 */
+async function plantBotCity(page: Page): Promise<void> {
+  await force(
+    page,
+    `
+    {
+      const capitals = new Set(e.players.map((p) => p.capitalIndex));
+      let idx = -1;
+      for (let k = 1; k < e.board.count - 1; k++) {
+        const c = (e.players[0].capitalIndex + k) % e.board.count;
+        const t = e.board.at(c);
+        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
+      }
+      if (idx < 0) throw new Error("种植失败:无可挪城池格");
+      const pid = e.board.at(idx).propertyId;
+      e.players[1].properties.push({
+        propertyId: pid, group: e.board.at(idx).group ?? "a",
+        purchasePrice: 1000, level: 1, maxLevel: 3,
+      });
+    }
+  `,
+  );
+}
+
 test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", () => {
-  test("seed7 识破诡计:架上金边→点选/再点取消→落印→计对这份失效", async ({ page }) => {
+  test("seed7 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
     await startJunshi(page, 7);
     // 种植:人类改持识破诡计 + 一座可失之城;bot 全持火烧连营(首个行动 bot 回合开始即出)
     await plantDemolishableCity(page);
@@ -68,47 +96,26 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await card.click();
     await expect(card).not.toHaveClass(/sel/);
     await expect(confirm).toBeDisabled();
-    // 重新选中 → 落印确认(墨钮):计对这份失效,双牌皆耗
+    // 重新选中 → 落印确认(墨钮):窗收、牌离架(#305 引擎断言下沉:双牌皆耗与留痕
+    // 归 test/reaction-window.test.ts「识破自保生效」钉死)
     await card.click();
     await confirm.click();
-    await expect
-      .poll(
-        async () =>
-          engineState(
-            page,
-            `{
-        bothGone: e.jinnangDiscard.includes("识破诡计") && e.jinnangDiscard.includes("火烧连营"),
-        countered: e.log.some((l) => l.detail.includes("reactionCounter")),
-      }`,
-          ),
-        { timeout: 15_000 },
-      )
-      .toEqual({ bothGone: true, countered: true });
-    await waitSettled(page);
+    await expect(banner).toBeHidden();
+    await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveCount(0);
   });
 
-  test("seed7 不出直发:手牌保留,自动行军照常起摇(#188)", async ({ page }) => {
+  test("seed7 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
     await startJunshi(page, 7);
     // 直写钉牌(UI 选都路径的发牌与离线演算路径可能差一位骰流,钉牌免漂移)
     await force(page, `e.players[0].jinnangHand = ["火烧连营"];`);
+    // 「不出」:窗收(卡牌段离场),架常驻、牌仍在(不消耗;手牌记账归引擎层,
+    // 放行后自动起摇由 #188 通行链路全程走通——waitMyRollDone 家族全依赖它)
     await page.getByTestId(TESTIDS.actionbarPass).click();
-    // #188 行军自动化:「不出」放行后引擎自动起摇,等这一手走完再验账
-    await waitMyRollDone(page, 0);
-    await waitSettled(page);
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      return {
-        hand: e.players[0].jinnangHand,
-        used: e.jinnangUsedTags,
-        rolled: (window as any).__dafung.snapshot().lastRoll != null,
-      };
-    });
-    expect(probe.hand).toContain("火烧连营"); // 不出:牌还在手里(后续摸牌不在此断言面)
-    expect(probe.used).toEqual([]);
-    expect(probe.rolled).toBe(true); // 放行后自动起摇确实发生了(#188)
+    await expect(page.getByTestId(TESTIDS.actionbarPass)).toBeHidden();
+    await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeVisible();
   });
 
-  test("求贤令:点牌→出牌→招贤/折现,事件公开入战报", async ({ page }) => {
+  test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
     await startJunshi(page, 7);
     await force(page, `e.players[0].jinnangHand = ["求贤令"];`);
     const opt = page.getByTestId(TESTIDS.jinnangCard("求贤令"));
@@ -117,14 +124,8 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     const play = page.getByTestId(TESTIDS.actionbarPlay);
     await expect(play).toBeEnabled(); // 点牌只选中,出牌点亮
     await play.click();
-    await waitSettled(page);
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      const p0 = e.players[0];
-      return { heroes: p0.heroes.length, cash: p0.cash, log: JSON.stringify(e.log) };
-    });
-    expect(probe.heroes === 1 || probe.log.includes("转得 300 两")).toBe(true);
-    expect(probe.log).toContain("求贤令"); // 用牌公开
+    // 出牌 → 牌离架(消耗的 UI 表达;招贤/折现结算与战报公开留痕归 test/jinnang.test.ts)
+    await expect(opt).toHaveCount(0);
   });
 
   test("军情密探:出牌进目标段,候选席位金圈呼吸,点席位即出(免二次确认)", async ({ page }) => {
@@ -146,27 +147,14 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeVisible();
     await expect(page.getByTestId("seat-1")).toHaveClass(/candidate/);
     await expect(page.locator(".bv-token-target-ring")).not.toHaveCount(0);
-    // 点席位即出(免二次确认);出计后引擎收窗自动行军(#188)——用牌公开入战报
+    // 点席位即出(免二次确认):目标段收、牌离架(#305:窥探结算与回收记账归
+    // test/jinnang.test.ts「军情密探·窥探」)
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
-    await expect
-      .poll(async () =>
-        page.evaluate(() => JSON.stringify((window as any).__dafung.getEngine().log)),
-      )
-      .toContain("card=军情密探");
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      return {
-        pending: e.pendingJinnang,
-        discard: e.jinnangDiscard,
-        hand: e.players[0].jinnangHand,
-      };
-    });
-    expect(probe.pending).toBe(null);
-    expect(probe.discard).toContain("军情密探");
-    expect(probe.hand).not.toContain("军情密探");
+    await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeHidden();
+    await expect(opt).toHaveCount(0);
   });
 
-  test("军情密探作罢:收回此计牌——不消耗、不记冷却、回卡牌段", async ({ page }) => {
+  test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
     await startJunshi(page, 7);
     await force(
       page,
@@ -179,27 +167,15 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await opt.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeVisible();
-    // 作罢:目标段收回,回到卡牌段窗态
+    // 作罢:目标段收回,回到卡牌段窗态(#305:不消耗/不记冷却的记账归引擎层单测)
     await page.getByTestId(TESTIDS.actionbarCancel).click();
     const play = page.getByTestId(TESTIDS.actionbarPlay);
     await expect(play).toBeVisible();
     await expect(play).toBeDisabled(); // 选中已清空(进/出目标段即清空重选)
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      return {
-        pending: e.pendingJinnang,
-        hand: e.players[0].jinnangHand,
-        discard: e.jinnangDiscard,
-        used: e.jinnangUsedTags,
-      };
-    });
-    expect(probe.pending).toBe(null);
-    expect(probe.hand).toEqual(["军情密探"]); // 牌没消耗
-    expect(probe.discard).not.toContain("军情密探");
-    expect(probe.used).toEqual([]);
+    await expect(opt).toBeVisible(); // 牌回卡牌段(作罢语义的 UI 面)
   });
 
-  test("灰置牌印条/多标签双章/令笺:双标签占额灰置、令笺选中→出牌发技", async ({ page }) => {
+  test("灰置牌印条/多标签双章/令笺:双标签占额灰置、令笺选中→出牌发技转灰置", async ({ page }) => {
     await startJunshi(page, 7);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
     // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 令笺可用可发;
@@ -232,24 +208,89 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await ji.click();
     await expect(ji.locator(".jn-lingjian")).toHaveClass(/sel/);
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 发技后走引擎缝断言:冷却记账落、手牌不动(技不是牌);求贤令仍可用 → 相位留在
-    // 军师窗态(settleJinnangExit 口径),令笺转灰置并亮引擎原因——冷却展示只读 choices。
-    await expect
-      .poll(async () =>
-        page.evaluate(
-          () =>
-            (window as any).__dafung.getEngine().players[0].heroLastFired["zhangxingcai-leigu"] ??
-            null,
-        ),
-      )
-      .not.toBe(null);
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      return { hand: e.players[0].jinnangHand, phase: e.turnPhase };
-    });
-    expect(probe.hand).toEqual(["缓兵之计", "求贤令"]);
-    expect(probe.phase).toBe("AwaitingJinnang");
+    // 发技 → 令笺转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,UI 只读
+    // choices 展示;求贤令仍可用 → 相位留在军师窗态,settleJinnangExit 口径)
     await expect(ji.locator(".jn-lingjian")).toHaveClass(/off/);
     await expect(ji.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
+  });
+});
+
+// ───────────────────────── 出牌指示线(#281 P2-E;#305 自 jinnang-play-line 并入)─────────────────────────
+// 军师幕出牌后(#256 后出牌面=手牌架),棋盘出现「使用者 token → 目标 token」水墨墨线
+// (fx-svg-jline,BoardFxLayer 渲染进 #bv-fx;三段 CSS 动画 200ms 生长 → 200ms 停持 →
+// 300ms 淡出,store 清理窗随 E2E_TIME_SCALE 缩放)。指示线是条件性在场的瞬态元素:禁
+// locator 读(缺元素会挂到超时),全程单次 page.evaluate 内 rAF 轮询原子采样(仓库既有
+// 口径,#272)。反应窗出牌(识破/拦停)的留痕形状由 test/reaction-window.test.ts 在引擎层
+// 钉死;联机端同款线经快照 lastJinnangPlay.seq diff 提取(#284),归 react-reaction-online。
+test.describe("出牌指示线(#281 P2-E)", () => {
+  test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
+    await startJunshi(page, 7);
+    // 种植:人类持火烧连营 + bot 1 有一座可拆城;清他座反应牌(不开反应窗,线在宣告点即出)
+    await plantBotCity(page);
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["火烧连营"];
+      e.players[0].jinnangHandCount = 1;
+      for (let i = 1; i < e.players.length; i++) {
+        e.players[i].jinnangHand = e.players[i].jinnangHand.filter(
+          (id) => id !== "识破诡计" && id !== "半路杀出");
+        e.players[i].jinnangHandCount = e.players[i].jinnangHand.length;
+      }
+    `,
+    );
+    await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeEnabled();
+    // 点牌选中 → 出牌进目标段 → 席位点层点候选目标(点席位即出,免二次确认)
+    await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();
+    await page.getByTestId(TESTIDS.actionbarPlay).click();
+    const targetBtn = page.locator('[data-testid^="seat-target-"]').first();
+    await expect(targetBtn).toBeVisible({ timeout: 15_000 });
+    const targetTestid = await targetBtn.getAttribute("data-testid");
+    const targetSeat = Number(targetTestid?.replace("seat-target-", ""));
+    expect(Number.isInteger(targetSeat)).toBe(true);
+
+    // 单次 evaluate 原子采样:rAF 轮询等指示线现身,现身即在同一样本里取端点并
+    // 从引擎现算期望坐标(火烧连营不动人,出牌前后棋盘坐标一致)。15s 封顶防死等。
+    const samplePromise = page.evaluate(`(async () => {
+      const deadline = performance.now() + 15000;
+      let el = null;
+      while (performance.now() < deadline) {
+        el = document.querySelector("[data-fx-jinnang-line]");
+        if (el) break;
+        await new Promise((r) => requestAnimationFrame(r));
+      }
+      const e = window.__dafung.getEngine();
+      if (!el) return { found: false };
+      const b = e.board;
+      return {
+        found: true,
+        x1: Number(el.getAttribute("x1")),
+        y1: Number(el.getAttribute("y1")),
+        x2: Number(el.getAttribute("x2")),
+        y2: Number(el.getAttribute("y2")),
+        from: b.positionOf(e.players[0].position),
+        to: b.positionOf(e.players[${targetSeat}].position),
+      };
+    })()`);
+    await targetBtn.click();
+    const sample = (await samplePromise) as {
+      found: boolean;
+      x1?: number;
+      y1?: number;
+      x2?: number;
+      y2?: number;
+      from?: { x: number; y: number };
+      to?: { x: number; y: number };
+    };
+    expect(sample.found).toBe(true);
+    // 端点对准:起点=使用者格,终点=被指定者格
+    expect(sample.x1).toBe(sample.from!.x);
+    expect(sample.y1).toBe(sample.from!.y);
+    expect(sample.x2).toBe(sample.to!.x);
+    expect(sample.y2).toBe(sample.to!.y);
+    // 收尾:对局继续推进(bot 回合接棒),不留悬窗——等人类下一决策点出现即可
+    await expect
+      .poll(async () => page.evaluate(`window.__dafung.getEngine().turnPhase`), { timeout: 30_000 })
+      .not.toBe("AwaitingJinnang");
   });
 });
