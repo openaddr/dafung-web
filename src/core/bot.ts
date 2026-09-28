@@ -6,7 +6,7 @@ import type { EncounterEffect } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
-import { guidePriceOf } from "./treasures";
+import { guidePriceOf, TREASURE_MEAN_PRICE } from "./treasures";
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
  *  不消耗引擎骰(重放安全)。 */
@@ -90,8 +90,8 @@ export interface JinnangIntent {
   targets?: number[];
 }
 
-/** 锦囊策略表(#148):横征暴敛=可用即用;连环计=现金最高的两人相咬、次富者现金 ≥400
- *  才值得(可用目标 <2 → 不用);窃玉=珍宝最多者;火烧=城最多者;缓兵=仅对当前身价
+/** 锦囊策略表(#148):横征暴敛=可用即用;连环计=现金最高的两人相咬、次富者现金 ≥
+ *  败者赔款(对表 loserPaysUser)才值得(可用目标 <2 → 不用);窃玉=珍宝最多者;火烧=城最多者;缓兵=仅对当前身价
  *  领先者(netWorth=现金,单口径;自己是领先者则无的放矢);密探=自己手牌 ≥2 才用;
  *  求贤=可用即用。并列一律取座位序小者(输入保持座位序 + 稳定排序,禁
  *  Math.random,重放安全)。
@@ -99,6 +99,7 @@ export interface JinnangIntent {
  *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。
  *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应牌不经军师幕。) */
 export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent {
+  const def = jinnangCardOf(cardId);
   const me = engine.activePlayer;
   const mySeat = engine.players.indexOf(me);
   const others = engine.players
@@ -106,7 +107,7 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
     .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt);
   const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
     [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
-  switch (jinnangCardOf(cardId).effect.kind) {
+  switch (def.effect.kind) {
     case "levyAll": // 横征暴敛:可用即用
     case "grantHero": // 求贤令:可用即用
       return { use: true };
@@ -138,10 +139,12 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
         targets: byKeyDesc(({ t }) => t.cash).map(({ seat }) => seat),
       };
     case "duel": {
-      // 连环计:现金最高的两人相咬;次富者现金 <400 或可用目标 <2 → 不用
+      // 连环计:现金最高的两人相咬;次富者现金低于败者赔款(门槛对表 jinnang.ts
+      // loserPaysUser,#299 不再写死 400)或可用目标 <2 → 不用
+      const { loserPaysUser } = def.effect; // case 已收窄为 duel 变体
       const ranked = byKeyDesc(({ t }) => t.cash);
       return {
-        use: ranked.length >= 2 && ranked[1].t.cash >= 400,
+        use: ranked.length >= 2 && ranked[1].t.cash >= loserPaysUser,
         targets: ranked.slice(0, 2).map(({ seat }) => seat),
       };
     }
@@ -159,13 +162,15 @@ export interface ReactionDecision {
   shareSeat?: number;
 }
 
-/** 识破估损常数(#281 bot 口径):只影响 bot 出牌倾向,不影响引擎语义。
- *  counterCardValue=一张防御牌留到手的价值底价(估损不抵底价就不拆);
- *  skipTurn=被跳一回合的机会成本粗估;duel=被卷入连环计拼点的期望损失
- *  (等概率胜 300/负 400 → 差额一半)。 */
+/** 识破估损常数与推导(#281 bot 口径,#299 对表去写死):只影响 bot 出牌倾向,不影响引擎语义。
+ *  counterCardValue=一张防御牌留到手的价值底价(估损不抵底价就不拆;无真实数值表可读,
+ *  取轻度失银事件 ±100~200 两行情区间的下沿作保守底价);
+ *  skipTurn=被跳一回合的机会成本粗估(无真实数值表可读,按都城补给单跳 200~400 两档的
+ *  下沿取 200——白扔一次补给级收入);
+ *  duel=被卷入连环计拼点的期望损失,对表推导见 counterLossEstimate 的 duel 分支
+ *  (等概率胜:国库 +winnerBankGain / 负:向使用者赔 loserPaysUser)。 */
 const EST_COUNTER_CARD_VALUE = 100;
 const EST_SKIP_TURN_LOSS = 200;
-const EST_DUEL_LOSS = 50;
 
 /** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营=最高降级
  *  城池价值差(城防全 0 级则按最便宜非都城整城价值,都城不可失 #226 同口径);
@@ -193,8 +198,13 @@ function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): 
       return Math.min(def.effect.amount, me.cash);
     case "skipTurn":
       return EST_SKIP_TURN_LOSS;
-    case "duel":
-      return EST_DUEL_LOSS;
+    case "duel": {
+      // 期望损失对表推导(#299):等概率胜(国库 +winnerBankGain)/负(赔 loserPaysUser)
+      // → 期望净收益 (winnerBankGain − loserPaysUser)/2,损失取其相反数;
+      // 连环计 300/400 下 = 50(旧写死常数的来历),改表自动跟随
+      const { winnerBankGain, loserPaysUser } = def.effect;
+      return (loserPaysUser - winnerBankGain) / 2;
+    }
     case "stealTreasure":
       return me.treasures.length > 0
         ? Math.min(...me.treasures.map((t) => guidePriceOf(t.level)))
@@ -392,7 +402,8 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
         // 平均掷骰 3.5:辅路每格约 1/3.5 概率被踩中(简化估)
         const hitProb = 1 / 3.5;
         for (const c of cells) {
-          if (c.kind === "treasure") branchEv += hitProb * 300; // 探宝期望(拼点成功率×指导价,粗估;经济 v2:珍宝 1-30 两)
+          if (c.kind === "treasure")
+            branchEv += hitProb * TREASURE_MEAN_PRICE; // 探宝期望(踩中率 × 珍宝指导价全表均值,treasures.ts 推导,#299 对表不写死)
           else if (c.kind === "event") branchEv += hitProb * 100; // 锦囊轻微正期望
           else branchEv -= hitProb * 500; // 中伏:跳一回合的机会成本
         }

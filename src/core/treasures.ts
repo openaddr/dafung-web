@@ -11,7 +11,7 @@ export const TREASURES: TreasureDef[] = [
   { id: "qingnang", name: "青囊书残卷", level: 5, count: 5, desc: "华佗遗书,残缺不全" },
 ];
 
-/** 等级 → 指导价(分):Lv1-4 线性,Lv5+ 加速增长(1/2/3/4/6/8/12/16/22/30 两)。 */
+/** 等级 → 指导价(两):Lv1-4 线性,Lv5+ 加速增长(100/200/300/400/600/800/1200/1600/2200/3000 两)。 */
 export const TREASURE_PRICE: Record<number, number> = {
   1: 100,
   2: 200,
@@ -25,12 +25,20 @@ export const TREASURE_PRICE: Record<number, number> = {
   10: 3000,
 };
 
-/** 珍宝指导价(分):查表;缺等级 = 数据 bug,直接抛错(零兜底)。集中一处,供引擎/UI 复用。 */
+/** 珍宝指导价(两):查表;缺等级 = 数据 bug,直接抛错(零兜底)。集中一处,供引擎/UI 复用。 */
 export function guidePriceOf(level: number): number {
   const price = TREASURE_PRICE[level];
   if (price == null) throw new Error(`珍宝等级 ${level} 无指导价(TREASURE_PRICE 缺项,数据 bug)`);
   return price;
 }
+
+/** 指导价全表均值(两,#299 bot 估值对表):辅路探宝 EV 的落宝期望价——踩中辅路
+ *  treasure 格抽到几级珍宝不可知,按全表算术平均计;由 TREASURE_PRICE 推导不写死,
+ *  改价目表自动跟随(现表 = 10400/10 = 1040 两)。 */
+export const TREASURE_MEAN_PRICE = (() => {
+  const prices = Object.values(TREASURE_PRICE);
+  return prices.reduce((sum, v) => sum + v, 0) / prices.length;
+})();
 
 /** 贸易售价(旧公式,向后兼容):markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
 export function tradePriceOf(

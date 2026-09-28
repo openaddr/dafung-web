@@ -35,7 +35,7 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
     title: "承继大统",
-    desc: "其他玩家被动失去银两时,你 +50 分银",
+    desc: "其他玩家被动失去银两时,你 +50 两",
     skills: [
       {
         id: "caopi-gain-on-other-lose",
@@ -61,7 +61,7 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-zhangxingcai-sgs.png",
     name: "张星彩",
     title: "银翎飞骑",
-    desc: "场上任意人掷出 6,你 +20 分银",
+    desc: "场上任意人掷出 6,你 +20 两",
     skills: [
       {
         id: "zhangxingcai-gain-on-six",

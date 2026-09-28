@@ -9,6 +9,7 @@ import { createDice, type Dice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 import { botAct, jinnangIntent } from "@core/bot";
+import { jinnangCardOf } from "@core/jinnang";
 
 const MAP = loadMap(sanguoData);
 
@@ -200,13 +201,16 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("连环计:次富者现金 <400 或可用目标 <2 → 不用;达标则两挑现金最高两人", () => {
+  it("连环计:次富者现金低于败者赔款或可用目标 <2 → 不用;达标则两挑现金最高两人", () => {
     const e = prepared(42, SEATS3);
     e.players[0].cash = 1000;
     e.players[1].cash = 900;
-    e.players[2].cash = 350;
-    expect(jinnangIntent(e, "连环计")).toEqual({ use: false, targets: [1, 2] }); // 次富 350 < 400
-    e.players[2].cash = 450;
+    const duelEffect = jinnangCardOf("连环计").effect;
+    if (duelEffect.kind !== "duel") throw new Error("连环计数据 bug"); // 收窄取赔款线
+    const pays = duelEffect.loserPaysUser; // 门槛对表(#299)
+    e.players[2].cash = pays - 50;
+    expect(jinnangIntent(e, "连环计")).toEqual({ use: false, targets: [1, 2] }); // 次富低于赔款线
+    e.players[2].cash = pays + 50;
     expect(jinnangIntent(e, "连环计")).toEqual({ use: true, targets: [1, 2] }); // 现金最高两人相咬
     // 可用目标 <2:对手甲破产出局 → 不用,偏好只剩对手乙(#281:免战庇护已随牌退役)
     e.players[1].isBankrupt = true;

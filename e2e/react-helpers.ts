@@ -169,18 +169,10 @@ export async function waitForEngine(page: Page): Promise<void> {
   });
 }
 
-/** 货币格式化(与 core/money.formatMoney 同口径:百进制 锭/两/分)。 */
+/** 货币格式化(与 core/money.formatMoney 同口径:唯一单位「两」,千分位;≤0 → 「0 两」)。 */
 export function fmtMoney(cash: number): string {
-  if (cash <= 0) return "0分";
-  const ding = Math.floor(cash / 10000);
-  const rem = cash % 10000;
-  const liang = Math.floor(rem / 100);
-  const fen = rem % 100;
-  const parts: string[] = [];
-  if (ding) parts.push(`${ding}锭`);
-  if (liang) parts.push(`${liang}两`);
-  if (fen) parts.push(`${fen}分`);
-  return parts.join("") || "0分";
+  if (cash <= 0) return "0 两";
+  return `${String(cash).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} 两`;
 }
 
 /** 推进一步可用动作(卷轴内决策按钮);无可用动作返回 false。

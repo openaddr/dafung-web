@@ -34,7 +34,7 @@ export interface PropertyDef {
   valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
-  /** 坐地起价加价值(per-level,分银;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeAdd?: number[];
   /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
   tradeMult?: number[];
@@ -267,7 +267,7 @@ export interface MapTile {
   buildCost?: number;
   /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
   valueByLevel?: number[];
-  /** 坐地起价加价值(per-level,分银):与 PropertyDef 同义。 */
+  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。 */
   tradeAdd?: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
   tradeMult?: number[];

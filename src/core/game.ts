@@ -1511,7 +1511,7 @@ export class GameEngine {
       this.endTurn();
       return;
     }
-    // 税关(Tax):固定缴税 ¥200
+    // 税关(Tax):固定缴税 200 两
     if (tile.type === "Tax") {
       const r = this.payOrLiquidate(mover, null, 200);
       if (r === "liquidating") return;
@@ -2254,7 +2254,7 @@ export class GameEngine {
     }
     const h = p.heroes.splice(idx, 1)[0];
     this.recruitedHeroIds.delete(heroId);
-    p.cash += 200; // 名将换银(2两)
+    p.cash += 200; // 名将换银(200 两)
     this.pushFloater(p, 200, p.position, "income");
     this.logEvent(
       "system",
@@ -3086,6 +3086,10 @@ export class GameEngine {
         const loser = this.players[loserSeat];
         winner.cash += winnerBankGain; // 国库出
         this.pushFloater(winner, winnerBankGain, winner.position, "income");
+        this.dispatchMoment("CashGained", {
+          subject: winnerSeat,
+          amount: winnerBankGain,
+        }); // 时机·CashGained:被动得银(连环计胜者国库款,#299 派发缺口补齐)
         this.logEvent(
           "system",
           winner.guohao,
@@ -3207,6 +3211,7 @@ export class GameEngine {
     if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
       p.cash += fallbackCash;
       this.pushFloater(p, fallbackCash, p.position, "income");
+      this.dispatchMoment("CashGained", { subject: seat, amount: fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
       this.logEvent(
         "system",
         p.guohao,
@@ -3541,6 +3546,7 @@ export class GameEngine {
           if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
+            this.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
             this.logEvent(
               "system",
               mover.guohao,
@@ -3586,6 +3592,7 @@ export class GameEngine {
           if (unownedCities.length === 0) {
             mover.cash += effect.fallbackCash;
             this.pushFloater(mover, effect.fallbackCash, atTile, "income");
+            this.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(无城可赐折现,#299 派发缺口补齐)
             this.logEvent(
               "system",
               mover.guohao,
@@ -3620,6 +3627,13 @@ export class GameEngine {
           target.cash -= take;
           mover.cash += take;
           this.pushFloater(mover, take, atTile, "income");
+          if (take > 0) {
+            this.dispatchMoment("CashLost", {
+              subject: this.players.indexOf(target),
+              amount: take,
+            }); // 时机·CashLost:被动失银(被吸取方,#299 派发缺口补齐)
+            this.dispatchMoment("CashGained", { subject: seat, amount: take }); // 时机·CashGained:被动得银(吸取方,#299 派发缺口补齐)
+          }
           this.logEvent(
             "system",
             mover.guohao,
@@ -3635,7 +3649,13 @@ export class GameEngine {
           const bankrupt = r === "bankrupt";
           const target = this.randomOpponentOf(mover);
           const paid = bankrupt ? 0 : effect.amount;
-          if (target && paid > 0) target.cash += paid;
+          if (target && paid > 0) {
+            target.cash += paid;
+            this.dispatchMoment("CashGained", {
+              subject: this.players.indexOf(target),
+              amount: paid,
+            }); // 时机·CashGained:被动得银(得款对手,#299 派发缺口补齐)
+          }
           this.pushFloater(mover, -paid, atTile, "expense");
           this.dispatchMoment("CashLost", { subject: seat, amount: paid });
           this.logEvent(
@@ -3651,8 +3671,15 @@ export class GameEngine {
         case "trade": {
           const target = this.randomOpponentOf(mover);
           mover.cash += effect.amount;
-          if (target) target.cash += effect.amount;
           this.pushFloater(mover, effect.amount, atTile, "income");
+          this.dispatchMoment("CashGained", { subject: seat, amount: effect.amount }); // 时机·CashGained:被动得银(互市己方,#299 派发缺口补齐)
+          if (target) {
+            target.cash += effect.amount;
+            this.dispatchMoment("CashGained", {
+              subject: this.players.indexOf(target),
+              amount: effect.amount,
+            }); // 时机·CashGained:被动得银(互市对手,#299 派发缺口补齐)
+          }
           this.logEvent(
             "system",
             mover.guohao,

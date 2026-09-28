@@ -257,7 +257,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     onKeyDown={(e) => {
                       if (e.key === "Enter") setTargetErr(validateTarget(target));
                     }}
-                    placeholder="如 30000"
+                    placeholder="如 30000(两)"
                     className={inputBase + " w-28" + (targetErr ? " border-danger" : "")}
                   />
                   {/* L-2:非法/越界的显式原因行(不静默) */}
