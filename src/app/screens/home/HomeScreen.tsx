@@ -55,7 +55,7 @@ export function HomeScreen({
     tid: HOME_TID.solo,
     label: "单机模式",
     onClick: onSolo,
-    cls: `${btnBase} w-full py-5 text-2xl home-btn-gold ink-btn font-bold`,
+    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl home-btn-gold ink-btn font-bold`,
   };
   const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
@@ -71,21 +71,22 @@ export function HomeScreen({
       <div className="m-auto flex w-full flex-col items-center">
         {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进 */}
         <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest">群雄逐鹿</h1>
-        {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中 */}
-        <div className="home-title-in-sub font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
+        {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
+        <div className="home-title-in-sub home-sub-tight font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
           — 三国大富翁 —
         </div>
 
         {/* 视觉重做 v2 签名件:千里江山装裱横带——《千里江山图》(PD,textures 已入库)
           青绿山水作装裱横幅铺在标题与入口之间,multiply 融纸;右端钤「逐鹿」朱印落款,
-          上下深色细线 = 裱边。填补首页中央真空,本屏记忆点。 */}
-        <div className="home-band-in relative mb-10 w-[min(880px,92vw)]">
+          上下深色细线 = 裱边。填补首页中央真空,本屏记忆点。
+          home-band-h=短横屏档压画心高(dogfood ISSUE-002:430px 高首屏免滚动)。 */}
+        <div className="home-band-in home-gap-tight relative mb-10 w-[min(880px,92vw)]">
           <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
             <img
               src="/assets/textures/qianli-jiangshan.webp"
               alt=""
               aria-hidden="true"
-              className="block h-[clamp(96px,15vw,168px)] w-full select-none object-cover mix-blend-multiply"
+              className="home-band-h block h-[clamp(96px,15vw,168px)] w-full select-none object-cover mix-blend-multiply"
               draggable={false}
             />
             {/* 落款朱印:右端钤「逐鹿」竖读小印 */}
@@ -99,7 +100,8 @@ export function HomeScreen({
           </div>
         </div>
 
-        {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个 */}
+        {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个。
+            home-pad-tight=短横屏档收按钮纵向 padding(430px 高首屏四入口免滚动)。 */}
         <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
           <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
             <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
@@ -117,7 +119,7 @@ export function HomeScreen({
                 <button
                   data-testid={e.tid}
                   onClick={e.onClick}
-                  className={`${btnBase} w-full py-4 text-xl note-btn`}
+                  className={`${btnBase} home-pad-tight w-full py-4 text-xl note-btn`}
                 >
                   {e.label}
                 </button>
@@ -132,7 +134,7 @@ export function HomeScreen({
         <button
           type="button"
           onClick={() => setShowMapSelect(true)}
-          className="note-btn rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
+          className="note-btn home-maprow-tight rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
         >
           <span className="text-ink-dim">当前地图:</span>
           <span data-testid={TID.currentMapName} className="text-ink">

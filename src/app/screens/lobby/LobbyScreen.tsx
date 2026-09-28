@@ -490,10 +490,13 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   {renamed && (
                     <div
                       data-testid={LID.guohaoPreview(s.seat)}
-                      // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调
+                      // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调。
+                      // dogfood ISSUE-011:原文「开局将改为『东』」无主语,与「虚/离线」混排
+                      // 读不懂谁的国号要变——补「其国号」主语,一句话说清因果
                       className="mt-0.5 px-2 font-deco text-xs text-ink-dim"
                     >
-                      开局将改为『<span className="text-ink font-bold">{finalGh}</span>』
+                      此席国号重名,开局将改为『
+                      <span className="text-ink font-bold">{finalGh}</span>』
                     </div>
                   )}
                 </div>
@@ -527,7 +530,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   disabled={busy || !mapId}
                   // F1:disabled 必须解释原因——未选图还是请求进行中,hover 可知
                   title={busy ? "处理中…" : mapId ? undefined : "需先选择地图"}
-                  onClick={() => void guard(() => controller!.startGame())}
+                  onClick={() => {
+                    // dogfood ISSUE-010:选图面板开着时点开局静默无响应(面板遮挡+未确认),
+                    // 玩家以为开局坏了。面板开着 → 先收面板并提示确认地图,不发命令。
+                    if (showMapSelect) {
+                      setShowMapSelect(false);
+                      useNetStore.getState().pushHint("请先在地图面板点「确认选择」", "info");
+                      return;
+                    }
+                    void guard(() => controller!.startGame());
+                  }}
                   className={btnBase + " ink-btn font-bold"}
                 >
                   {busy ? "处理中…" : "开局"}
