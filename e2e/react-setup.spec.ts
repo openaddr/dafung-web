@@ -60,8 +60,9 @@ test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号�
   await page.getByTestId("start-game").click();
   await waitForEngine(page);
 
-  // 选都引导 hint(三选一)+ 二次确认框(需求1:点城先弹「定都于此?」再确认筑城)
-  await expect(page.getByTestId("hint")).toContainText("三选一");
+  // 选都引导 hint(dogfood 2026-09-28 起文案按 turn 分化:轮到玩家=「轮到你定都…」)
+  // + 二次确认框(需求1:点城先弹「定都于此?」再确认筑城)
+  await expect(page.getByTestId("hint")).toContainText("定都");
   await pickCapital(page);
 
   // 等开局放行 + 人类首手自动走完(#188 行军自动化;替代旧「等 roll-button 可用」)

@@ -33,6 +33,9 @@ export interface LobbyScreenProps {
   onExit: () => void;
 }
 
+/** 最近一次入座成功的房间码(dogfood ISSUE-012 修复):加入框预填,刷新丢局后免凭记忆重输。 */
+export const LAST_ROOM_KEY = "dafung.lastRoomCode";
+
 /** 仅内置图的地图源(联机只支持内置图;对照旧 lobby.ts 的 builtinMapSource)。 */
 function builtinMapSource() {
   const src = getMapSource();
@@ -83,7 +86,12 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const [target, setTarget] = useState("");
   // L-2:失焦校验后的错误文案(null = 合法或未校验);输入即清,提交前再全量校验
   const [targetErr, setTargetErr] = useState<string | null>(null);
-  const [joinCode, setJoinCode] = useState("");
+  const [joinCode, setJoinCode] = useState(
+    () =>
+      // dogfood 2026-09-28(ISSUE-012):刷新丢局后玩家要凭记忆重输房间码——
+      // 上次加入/建房的码预填进加入框(localStorage 记忆,成功入座时写入)。
+      localStorage.getItem(LAST_ROOM_KEY) ?? "",
+  );
   const [busy, setBusy] = useState(false); // 请求进行中:按钮防连点
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [mapName, setMapName] = useState<string | null>(null);
@@ -264,14 +272,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                     const err = validateTarget(target);
                     setTargetErr(err);
                     if (err) return;
-                    void guard(() =>
-                      controller!.createRoom({
+                    void guard(async () => {
+                      const reply = await controller!.createRoom({
                         seats: seatCount,
                         target: target.trim() ? parseInt(target, 10) : undefined,
                         // R3-D1(#99):建房者预设国号与加入同源(SoloSetup 起兵时写入),不再只有加入路径带
                         guohao: localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
-                      }),
-                    );
+                      });
+                      // 建房同记码(dogfood ISSUE-012):host 刷新后也能凭预填码重进自己房间
+                      localStorage.setItem(LAST_ROOM_KEY, reply.roomId);
+                    });
                   }}
                   // R3-B11(#83):h-10 py-0 与输入框/Stepper 等高;等高后 self-end 不再需要(items-center 对齐)
                   className={btnBase + " ink-btn font-bold h-10 py-0"}
@@ -287,12 +297,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               onSubmit={(e) => {
                 e.preventDefault();
                 if (busy || !joinCode.trim()) return;
-                void guard(() =>
-                  controller!.joinRoom(
+                void guard(async () => {
+                  await controller!.joinRoom(
                     joinCode.trim(),
                     localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
-                  ),
-                );
+                  );
+                  // 入座成功即记码(dogfood ISSUE-012):刷新后加入框预填,免凭记忆重输
+                  localStorage.setItem(LAST_ROOM_KEY, joinCode.trim().toUpperCase());
+                });
               }}
             >
               {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
