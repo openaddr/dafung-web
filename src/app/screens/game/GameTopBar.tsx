@@ -50,7 +50,7 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
 
   return (
     <div className="topbar" data-testid={TESTIDS.topBar}>
-      {/* 回合 chip:本方印 + 第 N 轮 + 目标身价(经济 v2:目标=300 两) */}
+      {/* 回合 chip:本方印 + 第 N 轮 + 目标身价(标准档 30,000 两) */}
       <span className="chip">
         <span className="seal-s" style={{ background: rgba(playerColor(self.colorIndex)) }}>
           {self.guohao.charAt(0)}

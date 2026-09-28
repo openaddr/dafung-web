@@ -9,8 +9,10 @@ import zhongyuanData from "../public/maps/zhongyuan.json";
 import chessboardData from "../public/maps/chessboard.json";
 import huanyouData from "../public/maps/huanyou.json";
 
-/** 价位档标准表(单位两,#299 重标定;乘法城 3000 两档单列,档号=购价百两)。与 .scratch/rescale-maps.cjs 同源,手改任一侧都应在此炸出。 */
-const y2f = (liang: number) => liang * 100;
+/** 价位档标准表(#299 重标定后唯一单位=两;档号是「购价百两」速记——18 档即 1,800 两,
+ *  乘 100 只是档号到两值的速记乘法,不是货币换算,分/锭已废)。与 .scratch/rescale-maps.cjs
+ *  同源,手改任一侧都应在此炸出。 */
+const tierLiang = (tier: number) => tier * 100;
 const ADD: Record<number, number[]> = {
   18: [1, 5, 13, 30],
   22: [2, 7, 16, 37],
@@ -20,22 +22,22 @@ const ADD: Record<number, number[]> = {
   38: [3, 11, 28, 65],
   40: [3, 12, 30, 70],
 };
-const TIER_OF = (liang: number) => ({
-  price: y2f(liang),
-  buildCost: y2f(Math.round(liang * 0.5)),
-  tradeAdd: ADD[liang].map(y2f),
+const TIER_OF = (tier: number) => ({
+  price: tierLiang(tier),
+  buildCost: tierLiang(Math.round(tier * 0.5)),
+  tradeAdd: ADD[tier].map(tierLiang),
   tradeMult: [2, 4, 6, 10],
-  valueByLevel: [0.4, 0.6, 0.85, 1.2].map((k) => y2f(Math.round(liang * k))),
+  valueByLevel: [0.4, 0.6, 0.85, 1.2].map((k) => tierLiang(Math.round(tier * k))),
 });
 const TIERS = new Map<number, ReturnType<typeof TIER_OF>>();
-for (const liang of [18, 22, 24, 27, 34, 38, 40]) TIERS.set(liang, TIER_OF(liang));
-// 乘法城(3000 两档):tradeAdd 全 0,tradeMult [2,3,4,5]
+for (const tier of [18, 22, 24, 27, 34, 38, 40]) TIERS.set(tier, TIER_OF(tier));
+// 乘法城(3,000 两档):tradeAdd 全 0,tradeMult [2,3,4,5]
 TIERS.set(30, {
-  price: y2f(30),
-  buildCost: y2f(15),
+  price: tierLiang(30),
+  buildCost: tierLiang(15),
   tradeAdd: [0, 0, 0, 0],
   tradeMult: [2, 3, 4, 5],
-  valueByLevel: [12, 18, 26, 36].map(y2f),
+  valueByLevel: [12, 18, 26, 36].map(tierLiang),
 });
 
 /** sanguo 逐城价位档(档号=购价百两);zhongyuan/chessboard 各自映射到同一张表。 */
@@ -103,14 +105,14 @@ function checkMap(name: string, data: unknown, tierOf: Record<string, number>, c
     // convertedTiles:有意的「城转特殊格」登记(#147 锦囊格改造:sanguo 子午谷),守卫只护「不意外漂移」
     expect(m.properties.length).toBe(Object.keys(tierOf).length - convertedTiles); // 无城遗漏/多城
     for (const p of m.properties) {
-      const liang = tierOf[p.id];
-      expect(liang, `${p.id} 缺价位分配`).toBeDefined();
-      const tier = TIERS.get(liang)!;
-      expect(p.purchasePrice, `${p.id} price`).toBe(tier.price);
-      expect(p.buildCost, `${p.id} buildCost`).toBe(tier.buildCost);
-      expect(p.tradeAdd, `${p.id} tradeAdd`).toEqual(tier.tradeAdd);
-      expect(p.tradeMult, `${p.id} tradeMult`).toEqual(tier.tradeMult);
-      expect(p.valueByLevel, `${p.id} valueByLevel`).toEqual(tier.valueByLevel);
+      const tier = tierOf[p.id];
+      expect(tier, `${p.id} 缺价位分配`).toBeDefined();
+      const standard = TIERS.get(tier)!;
+      expect(p.purchasePrice, `${p.id} price`).toBe(standard.price);
+      expect(p.buildCost, `${p.id} buildCost`).toBe(standard.buildCost);
+      expect(p.tradeAdd, `${p.id} tradeAdd`).toEqual(standard.tradeAdd);
+      expect(p.tradeMult, `${p.id} tradeMult`).toEqual(standard.tradeMult);
+      expect(p.valueByLevel, `${p.id} valueByLevel`).toEqual(standard.valueByLevel);
     }
   });
 }
