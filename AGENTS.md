@@ -15,6 +15,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 | 交互组件收口附表(shadcn/Base UI)            | [docs/design/组件收口.md](./docs/design/组件收口.md)                                                                                                                                   |
 | 命令清单与测试跑法(单一事实源)              | [docs/how-to/开发与测试.md](./docs/how-to/开发与测试.md)                                                                                                                               |
 | 联机架构 / 部署 / 对局日志                  | [docs/explanation/联机架构.md](./docs/explanation/联机架构.md) · [docs/how-to/部署服务器.md](./docs/how-to/部署服务器.md) · [docs/reference/对局日志.md](./docs/reference/对局日志.md) |
+| 联机框架评估结论与参考仓借东西清单(动工前查) | [docs/reference/参考仓索引.md](./docs/reference/参考仓索引.md)                                                                                                                         |
 | 派单纪律与模板                              | [docs/agents/派单模板.md](./docs/agents/派单模板.md)                                                                                                                                   |
 | 机遇系统配置(`public/config/jiyu.json`)     | rules 第 07 页[声望与机遇](./docs/reference/rules/07-声望与机遇.md)                                                                                                                    |
 
@@ -36,6 +37,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 5. **序列化友好**:需同步的状态无函数、无循环引用、无 DOM 引用;`engine.snapshot()` 即联机广播数据包。
 6. **交互类 UI 组件必须收口 shadcn/Base UI**(弹层/下拉/确认框/表单控件等:`bunx shadcn add <component>` 取无头行为层,套水墨皮,不手搓交互语义);shadcn 变量经 `app.css` 桥接 gen:theme 产出的 `--color-*` token,**配色单源仍是 `core/theme.ts`**。附表与豁免见 [docs/design/组件收口.md](./docs/design/组件收口.md)。
 7. **视觉/交互设计开工前先读 [DESIGN.md](./docs/design/DESIGN.md)**;§4.6 状态表达原则:能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不加文字标牌。
+8. **模块治理(常设,目的=可读性/维护性/扩展性)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;拆分走机制域轴+自由函数+薄委托,**搬运与改名分离**,验收=测试全绿+同种子快照哈希不变+方法清单 diff 零;引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制。细则见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
 
 ## 完成定义(DoD)
 
