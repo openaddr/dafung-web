@@ -24,13 +24,7 @@ import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
-import {
-  buy as buyProp,
-  sellValueOf,
-  settleDebt,
-  supplyFor,
-  upgrade as upgradeProp,
-} from "./economy";
+import { buy as buyProp, supplyFor, upgrade as upgradeProp } from "./economy";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
@@ -75,6 +69,18 @@ import {
   resolveExhaustionChoice,
   settleEncounter,
 } from "./encounter-flow";
+// 破产清算+交割托管域(#321,ADR-0019):escrow 交割/退回、付款或清算、债务留痕结算、
+// 破产善后与凑足即止硬守卫、三变卖与清算确认在 bankruptcy.ts,壳内同名方法薄委托转发;
+// 与 economy.ts 分层(清算流程≠经济交易原语)。
+import {
+  cashHeroBankruptcy,
+  confirmBankruptcySettle,
+  deliverEscrow,
+  payOrLiquidate,
+  returnEscrowToSeller,
+  sellPropertyBankruptcy,
+  sellTreasureBankruptcy,
+} from "./bankruptcy";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -1691,265 +1697,64 @@ export class GameEngine {
     this.endTurn();
   }
 
-  // ──────────────────────────── 破产清算(变卖资产自救) ────────────────────────────
-  /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
-   *  交易成局(TradeSettled)/卖家收款(CashGained)四个时机都在此派发——无论直接付清还是
-   *  清算变卖自救后付清,走到这里 = 交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。 */
-  private deliverEscrow(): void {
-    const e = this.escrowTreasure;
-    if (!e) return;
-    this.escrowTreasure = null;
-    const buyer = this.players[e.buyerIdx];
-    const seller = this.players[e.sellerIdx];
-    buyer.treasures.push(e.treasure);
-    this.logEvent(
-      "trade",
-      buyer.guohao,
-      `交割:「${e.treasure.name}」由 ${seller.guohao} 付予 ${buyer.guohao}(价款 ${formatMoney(e.price)} 已结)`,
-      `escrowDeliver buyer=${buyer.id} seller=${seller.id} treasure=${e.treasure.id} price=${e.price}`,
-    );
-    this.dispatchMoment("TreasureGained", { subject: e.buyerIdx, treasureId: e.treasure.id }); // 时机·TreasureGained:escrow 交割买家得宝
-    this.dispatchMoment("TreasureSold", {
-      subject: e.sellerIdx,
-      treasureId: e.treasure.id,
-      amount: e.price,
-    }); // 时机·TreasureSold:交涉成交(卖家视角)
-    this.dispatchMoment("TradeSettled", {
-      subject: e.sellerIdx,
-      buyerSeat: e.buyerIdx,
-      sellerSeat: e.sellerIdx,
-      amount: e.price,
-    }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
-    if (e.price > 0) this.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
+  // ──────────────── 破产清算(变卖资产自救)+ 交割托管(#321,ADR-0019)────────────────
+  // 域逻辑在 bankruptcy.ts(#321):escrow 交割/退回(deliverEscrow/returnEscrowToSeller)、
+  // 付款或清算(payOrLiquidate)、债务结算留痕(settleDebtTraced)、可变卖资产判定
+  // (hasMarketableAssets)、破产善后(finalizeBankruptcy)、凑足即止硬守卫
+  // (assertStillOwing)、三变卖(sellTreasure/sellProperty/cashHero)与清算确认
+  // (confirmBankruptcySettle)均为自由函数,首参接引擎实例;与 economy.ts 分层(清算
+  // 流程≠经济交易原语)。壳内仅留同名方法薄委托:公共五入口(UI/bot/联机 + testing.ts
+  // 白盒窄面 + encounter-flow 经 g.payOrLiquidate 消费)+ escrow 交割/退回两步(去私有化:
+  // resolveTreasureOwner 壳内消费、confirmBankruptcySettle 域内直调)。
+
+  /** 交割托管:买家付清价款 → 珍宝交货给买家。薄委托 → bankruptcy.deliverEscrow
+   *  (#321 去私有化 ADR-0019 条款 3:escrow 挂起后的交割/退还两步,壳与域双向消费)。 */
+  deliverEscrow(): void {
+    deliverEscrow(this);
   }
 
-  /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。 */
-  private returnEscrowToSeller(): void {
-    const e = this.escrowTreasure;
-    if (!e) return;
-    this.escrowTreasure = null;
-    const seller = this.players[e.sellerIdx];
-    if (!seller.isBankrupt) {
-      seller.treasures.push(e.treasure);
-      this.logEvent(
-        "trade",
-        seller.guohao,
-        `买家破产,托管珍宝「${e.treasure.name}」退回 ${seller.guohao}`,
-        `escrowReturn seller=${seller.id} buyer=${this.players[e.buyerIdx].id} treasure=${e.treasure.id}`,
-      );
-    } else {
-      this.treasureDeck.push(e.treasure); // 卖家也已被清算出局 → 珍宝回牌堆
-      this.logEvent(
-        "trade",
-        null,
-        `买卖双方俱已破产,托管珍宝「${e.treasure.name}」归入牌堆`,
-        `escrowReturnToDeck treasure=${e.treasure.id}`,
-      );
-    }
+  /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。薄委托 → bankruptcy.returnEscrowToSeller。 */
+  returnEscrowToSeller(): void {
+    returnEscrowToSeller(this);
   }
 
   /** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。
-   *  #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 效果结算(现金支出/征粮)直调。 */
+   *  薄委托 → bankruptcy.payOrLiquidate(#320/#321 去私有化 ADR-0019 条款 3:机遇域
+   *  encounter-flow.ts 效果结算直调;testing.ts 白盒窄面亦经此公共面触达)。 */
   payOrLiquidate(
     mover: Player,
     creditor: Player | null,
     amount: number,
   ): "ok" | "liquidating" | "bankrupt" {
-    if (mover.cash >= amount) {
-      mover.cash -= amount;
-      if (creditor) creditor.cash += amount;
-      return "ok";
-    }
-    if (this.hasMarketableAssets(mover)) {
-      this.pendingDebt = { amount, creditor };
-      this.turnPhase = "AwaitingBankruptcySettle";
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 现金不足,变卖资产自救(欠 ${formatMoney(amount - mover.cash)})`,
-        `awaitingBankruptcy player=${mover.id} debt=${amount} cash=${mover.cash}`,
-      );
-      return "liquidating";
-    }
-    this.settleDebtTraced(mover, creditor, amount);
-    this.finalizeBankruptcy(mover);
-    return "bankrupt";
+    return payOrLiquidate(this, mover, creditor, amount);
   }
 
-  /** 结算债务并留痕资产转移(ADR-0015):破产即转移/销毁的每处地产写一条 ownerChanged
-   *  留痕(债主接管,无债主回无主),表现提取器据此产出易主宣告。等级不因转移改变。
-   *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(与 pushFloater 同一收口思路)。 */
-  private settleDebtTraced(player: Player, creditor: Player | null, amount: number): boolean {
-    const moved = player.properties.map((h) => ({ propertyId: h.propertyId, level: h.level }));
-    const bankrupt = settleDebt(player, creditor, amount);
-    if (bankrupt) {
-      for (const m of moved) {
-        this.propertyChanges.push({
-          tileIndex: this.tileIndexOfProperty(m.propertyId),
-          level: m.level,
-          ownerColorIndex: creditor ? creditor.colorIndex : null,
-          levelChanged: false,
-          ownerChanged: true,
-        });
-      }
-    }
-    return bankrupt;
-  }
-
-  /** propertyId → tile 索引(引擎数据不变量:catalog 地产恰在一格;查无 = 数据 bug,当场抛出)。 */
-  private tileIndexOfProperty(propertyId: string): number {
+  /** propertyId → tile 索引(引擎数据不变量:catalog 地产恰在一格;查无 = 数据 bug,当场抛出)。
+   *  #321 去私有化(ADR-0019 条款 3):破产清算域 bankruptcy.ts 留痕路径经 g.tileIndexOfProperty 直调。 */
+  tileIndexOfProperty(propertyId: string): number {
     const t = this.board.tiles.find((x) => x.propertyId === propertyId);
     if (t == null) throw new Error(`propertyChange:城 ${propertyId} 不在棋盘(数据 bug)`);
     return t.index;
   }
 
-  private hasMarketableAssets(p: Player): boolean {
-    if (p.treasures.length > 0 || p.heroes.length > 0) return true;
-    const capProp = this.board.at(p.capitalIndex)?.propertyId;
-    return p.properties.some((h) => h.propertyId !== capProp);
-  }
-
-  /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主);锦囊手牌清入弃牌堆
-   *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。 */
-  private finalizeBankruptcy(p: Player): void {
-    for (const h of p.heroes) this.recruitedHeroIds.delete(h.id);
-    p.heroes = [];
-    if (p.jinnangHand.length > 0) {
-      this.jinnangDiscard.push(...p.jinnangHand);
-      p.jinnangHand = [];
-      p.jinnangHandCount = 0;
-    }
-    // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
-    // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
-    p.capitalIndex = -1;
-    this.dispatchMoment("PlayerBankrupt", { subject: this.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
-  }
-
-  /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
-  private assertStillOwing(label: string): boolean {
-    if (this.activePlayer.cash >= this.pendingDebt!.amount) {
-      this.warn(`${label}:已凑足债务,不可再卖`);
-      return false;
-    }
-    return true;
-  }
-
+  /** 变卖珍宝抵债(命令):薄委托 → bankruptcy.sellTreasureBankruptcy。 */
   sellTreasureBankruptcy(treasureId: string): void {
-    if (!this.assertPhase("AwaitingBankruptcySettle", "SellTreasureBankruptcy")) return;
-    if (!this.assertStillOwing("SellTreasureBankruptcy")) return;
-    const p = this.activePlayer;
-    const idx = p.treasures.findIndex((t) => t.id === treasureId);
-    if (idx < 0) {
-      this.warn(`珍宝 ${treasureId} 不在手中`);
-      return;
-    }
-    const t = p.treasures.splice(idx, 1)[0];
-    const gain = guidePriceOf(t.level);
-    p.cash += gain;
-    this.pushFloater(p, gain, p.position, "income");
-    this.logEvent(
-      "system",
-      p.guohao,
-      `${p.guohao} 变卖「${t.name}」得 ${formatMoney(gain)}`,
-      `bkSellTreasure player=${p.id} treasure=${t.id} +${gain}`,
-      gain,
-    );
-    this.dispatchMoment("TreasureSold", {
-      subject: this.activeIndex,
-      treasureId: t.id,
-      amount: gain,
-    }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
-    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖珍宝成功(三变卖命令之一)
+    sellTreasureBankruptcy(this, treasureId);
   }
 
+  /** 变卖城池抵债(命令):薄委托 → bankruptcy.sellPropertyBankruptcy。 */
   sellPropertyBankruptcy(propId: string): void {
-    if (!this.assertPhase("AwaitingBankruptcySettle", "SellPropertyBankruptcy")) return;
-    if (!this.assertStillOwing("SellPropertyBankruptcy")) return;
-    const p = this.activePlayer;
-    if (propId === this.board.at(p.capitalIndex)?.propertyId) {
-      this.warn("都城不可变卖");
-      return;
-    }
-    const idx = p.properties.findIndex((h) => h.propertyId === propId);
-    if (idx < 0) {
-      this.warn(`城 ${propId} 不在手中`);
-      return;
-    }
-    const h = p.properties.splice(idx, 1)[0];
-    // 变卖价 = 该等级的城池价值(地图 json valueByLevel 显式定义),非购入价
-    const gain = sellValueOf(this.catalog.get(propId)!, h.level);
-    p.cash += gain;
-    // 城池变更留痕(ADR-0015):变卖给银行即回无主,等级维度不变
-    this.propertyChanges.push({
-      tileIndex: this.tileIndexOfProperty(propId),
-      level: h.level,
-      ownerColorIndex: null,
-      levelChanged: false,
-      ownerChanged: true,
-    });
-    this.pushFloater(p, gain, p.position, "income");
-    this.logEvent(
-      "system",
-      p.guohao,
-      `${p.guohao} 变卖城池得 ${formatMoney(gain)}`,
-      `bkSellProp player=${p.id} prop=${propId} +${gain}`,
-      gain,
-    );
-    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
+    sellPropertyBankruptcy(this, propId);
   }
 
+  /** 遣散名将换银(命令):薄委托 → bankruptcy.cashHeroBankruptcy。 */
   cashHeroBankruptcy(heroId: string): void {
-    if (!this.assertPhase("AwaitingBankruptcySettle", "CashHeroBankruptcy")) return;
-    if (!this.assertStillOwing("CashHeroBankruptcy")) return;
-    const p = this.activePlayer;
-    const idx = p.heroes.findIndex((h) => h.id === heroId);
-    if (idx < 0) {
-      this.warn(`名将 ${heroId} 不在手中`);
-      return;
-    }
-    const h = p.heroes.splice(idx, 1)[0];
-    this.recruitedHeroIds.delete(heroId);
-    p.cash += 200; // 名将换银(200 两)
-    this.pushFloater(p, 200, p.position, "income");
-    this.logEvent(
-      "system",
-      p.guohao,
-      `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`,
-      `bkCashHero player=${p.id} hero=${heroId} +200`,
-      200,
-    );
-    this.dispatchMoment("BankruptcySettle", { subject: this.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名将成功(三变卖命令之一)
+    cashHeroBankruptcy(this, heroId);
   }
 
+  /** 清算确认(命令):凑足清偿/变卖殆尽破产,薄委托 → bankruptcy.confirmBankruptcySettle。 */
   confirmBankruptcySettle(): void {
-    if (!this.assertPhase("AwaitingBankruptcySettle", "ConfirmBankruptcySettle")) return;
-    const p = this.activePlayer;
-    const debt = this.pendingDebt!;
-    this.pendingDebt = null;
-    if (this.treasureVisitor) this.treasureVisitor = null;
-    if (p.cash >= debt.amount) {
-      p.cash -= debt.amount;
-      if (debt.creditor) debt.creditor.cash += debt.amount;
-      this.deliverEscrow(); // 清算自救成功:托管珍宝交货给买家
-      this.logEvent(
-        "system",
-        p.guohao,
-        `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`,
-        `bkConfirm player=${p.id} paid=${debt.amount}`,
-      );
-    } else {
-      this.settleDebtTraced(p, debt.creditor, debt.amount);
-      this.finalizeBankruptcy(p);
-      this.returnEscrowToSeller(); // 破产:未付款的托管珍宝退回卖家
-      this.logEvent(
-        "system",
-        p.guohao,
-        `${p.guohao} 变卖殆尽仍不足,破产出局`,
-        `bkBankrupt player=${p.id} debt=${debt.amount}`,
-      );
-    }
-    this.turnPhase = "Land";
-    this.endTurn();
+    confirmBankruptcySettle(this);
   }
 
   // ──────────────────────────── 命令接口(联机预留) ────────────────────────────
