@@ -250,7 +250,9 @@ test.describe("8 人局降档", () => {
     await page.getByTestId("start-game").click();
     await pickCapital(page);
     // 8 人局人类首回合前最多 7 个 bot 回合,预算放宽(#191/#188 同口径)
-    await waitMyPause(page, 0, 90_000);
+    // 150s:#310 验收跑实证(WORKERS=2 并发下 94s 超时挂,静机 2/2 免重试 23.5s 过)
+    // ——8 人局节奏余量在负载下不足,放宽节奏窗;谓词不变。
+    await waitMyPause(page, 0, 150_000);
     await waitSettled(page);
     const s = await snap(page);
     // 席位卡总数 = 对手数(自身不出卡);切分 = 右 3 + 左 3 + 顶行其余
