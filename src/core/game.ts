@@ -28,7 +28,6 @@ import { buy as buyProp, supplyFor, upgrade as upgradeProp } from "./economy";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
-import { CHANCE_EVENTS } from "./events";
 import {
   ENCOUNTERS,
   resolveEncounterConfig,
@@ -81,6 +80,14 @@ import {
   sellPropertyBankruptcy,
   sellTreasureBankruptcy,
 } from "./bankruptcy";
+// 珍宝+随机事件+城主交涉域(#322,ADR-0019):宝物城/辅路格结算、抽宝拼点、随机事件、
+// 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
+// treasures.ts 分层(流程≠数据)。
+import {
+  resolveBranchCell,
+  resolveTreasureCity,
+  resolveTreasureOwner,
+} from "./treasure-flow";
 import { formatMoney } from "./money";
 import {
   SIGN_FACES,
@@ -93,9 +100,8 @@ import {
   STARTING_STAMINA,
 } from "./constants";
 import { HEROES } from "./heroes";
-import { createTreasureDeck, guidePriceOf, premiumPriceOf } from "./treasures";
+import { createTreasureDeck } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
-import { canUpgrade } from "./types";
 
 type Catalog = MapCatalog;
 
@@ -1101,7 +1107,8 @@ export class GameEngine {
     this.endTurn();
   }
 
-  private tileName(def: PropertyDef): string {
+  // #322 去私有化(ADR-0019 条款 3):treasure-flow 交涉 fair 分支留痕经 g.tileName 直调。
+  tileName(def: PropertyDef): string {
     const t = this.board.tiles.find((x) => x.propertyId === def.id);
     return t ? t.name : def.id;
   }
@@ -1471,230 +1478,33 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
-  /** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
+  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):宝物城落格与辅路格结算
+  // (resolveTreasureCity/resolveBranchCell)、抽宝拼点(drawTreasureAt)、随机事件结算
+  // (applyRandomEvent)与城主交涉(resolveTreasureOwner)均为自由函数,首参接引擎实例;
+  // 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步经 bankruptcy.ts 的壳上薄委托
+  // g.deliverEscrow/g.returnEscrowToSeller 往返消费。壳内仅留同名方法薄委托:公共入口
+  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 宝物城/辅路两步(壳内
+  // resolveLanding/marchTraverse 消费 + testing.ts 白盒窄面);drawTreasureAt/applyRandomEvent
+  // 域内自洽,不留壳。
+
+  /** 宝物城落格:薄委托 → treasure-flow.resolveTreasureCity。 */
   private resolveTreasureCity(mover: Player, tile: TileDef): void {
-    this.drawTreasureAt(mover, tile.name, tile.index);
-  }
-  /** 抽珍宝并拼点判定(复用于宝物城落格 + 辅路 treasure 格)。
-   *  sourceName=来源名(城名/「辅路探宝」),atTile=浮动金额锚点 tile 索引。 */
-  private drawTreasureAt(mover: Player, sourceName: string, atTile: number): void {
-    this.lastLandOutcome = { kind: "Noop" };
-    this.turnPhase = "Land";
-    if (this.treasureDeck.length === 0) {
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 至「${sourceName}」,珍宝已被搜刮一空`,
-        `treasureEmpty player=${mover.id}`,
-      );
-      this.endTurn();
-      return;
-    }
-    // 随机抽 1 件
-    const drawIdx = Math.floor(this.dice.nextFloat() * this.treasureDeck.length);
-    const treasure = this.treasureDeck.splice(drawIdx, 1)[0];
-    const guidePrice = guidePriceOf(treasure.level);
-    // 拼点:掷双骰(2–12),roll ≥ 等级 即得宝
-    const d1 = 1 + Math.floor(this.dice.nextFloat() * 6);
-    const d2 = 1 + Math.floor(this.dice.nextFloat() * 6);
-    const roll = d1 + d2;
-    if (roll >= treasure.level) {
-      // 成功:获得珍宝
-      mover.treasures.push(treasure);
-      this.pushFloater(mover, guidePrice, atTile, "income");
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`,
-        `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
-        guidePrice,
-      );
-      this.dispatchMoment("TreasureGained", {
-        subject: this.players.indexOf(mover),
-        treasureId: treasure.id,
-      }); // 时机·TreasureGained:拼点得宝(两挂点之一,另一处在 escrow 交割)
-    } else {
-      // 失败:珍宝放回牌堆底
-      this.treasureDeck.push(treasure);
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} < ${treasure.level},失之交臂`,
-        `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
-      );
-    }
-    this.endTurn();
+    resolveTreasureCity(this, mover, tile);
   }
 
-  /** 随机事件(锦囊/天命 + 辅路 event 格):抽一条事件,结算 cashDelta(经 payOrLiquidate)。 */
-  private applyRandomEvent(
-    mover: Player,
-    sourceName: string,
-    atTile: number,
-    pool: ReadonlyArray<{ id: string; text: string; cashDelta: number; jinnangDraw?: true }>,
-    logTag: string,
-  ): void {
-    this.lastLandOutcome = { kind: "Noop" };
-    this.turnPhase = "Land";
-    const ev = pool[Math.floor(this.dice.nextFloat() * pool.length)];
-    let bankrupt = false;
-    if (ev.cashDelta >= 0) {
-      mover.cash += ev.cashDelta;
-    } else {
-      const r = this.payOrLiquidate(mover, null, -ev.cashDelta);
-      if (r === "liquidating") return; // 进入清算,confirm 后 endTurn
-      bankrupt = r === "bankrupt";
-    }
-    this.pushFloater(mover, ev.cashDelta, atTile, ev.cashDelta >= 0 ? "income" : "expense");
-    if (ev.cashDelta < 0)
-      this.dispatchMoment("CashLost", {
-        subject: this.players.indexOf(mover),
-        amount: -ev.cashDelta,
-      }); // 时机·CashLost:被动失银(锦囊/天命/辅路事件)
-    if (ev.cashDelta > 0)
-      this.dispatchMoment("CashGained", {
-        subject: this.players.indexOf(mover),
-        amount: ev.cashDelta,
-      }); // 时机·CashGained:被动得银(随机事件得款)
-    if (ev.jinnangDraw) {
-      // 军师来投(#147):事件额外献锦囊一张
-      this.pushFloaterText(mover, "军师来投,献计一封", atTile);
-      this.drawJinnang(this.players.indexOf(mover), 1);
-    }
-    this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
-    this.logEvent(
-      "system",
-      mover.guohao,
-      `${mover.guohao} 落 ${sourceName}:${ev.text} ${ev.cashDelta >= 0 ? "+" : "−"}${formatMoney(Math.abs(ev.cashDelta))}${bankrupt ? " → 破产" : ""}`,
-      `${logTag} player=${mover.id} event=${ev.id} delta=${ev.cashDelta} cash=${mover.cash}`,
-      ev.cashDelta,
-    );
-    this.endTurn();
-  }
-
-  /** 辅路格落格:treasure=拼点探宝(复用 drawTreasureAt);event=锦囊(复用 applyRandomEvent);
-   *  penalty=中伏,skipTurns=1(下回合跳过)。 */
+  /** 辅路格落格:薄委托 → treasure-flow.resolveBranchCell(marchTraverse 消费 + testing.ts 白盒窄面)。 */
   private resolveBranchCell(mover: Player, cell: BranchCell): void {
-    if (cell.kind === "treasure") {
-      this.drawTreasureAt(mover, "辅路探宝", mover.position);
-      return;
-    }
-    if (cell.kind === "event") {
-      this.applyRandomEvent(mover, "辅路锦囊", mover.position, CHANCE_EVENTS, "branchChance");
-      return;
-    }
-    // penalty:中伏,下回合跳过
-    this.lastLandOutcome = { kind: "Noop" };
-    this.turnPhase = "Land";
-    mover.skipTurns = 1;
-    this.logEvent(
-      "branch",
-      mover.guohao,
-      `${mover.guohao} 在辅路中伏,下回合跳过`,
-      `branchPenalty player=${mover.id} skipTurns=1`,
-    );
-    this.endTurn();
+    resolveBranchCell(this, mover, cell);
   }
 
-  /** 城主抉择:公道买卖(指导价,玩家间付银)/ 坐地起价(加价出售,玩家间付银)/ 跳过。
-   *  公道买卖且成交 → 城池 +1 级(他人到达城池本身不升级,升级只挂在公道买卖上)。
-   *  两种交易都是 visitor → owner 玩家间付银(无银行注入);成交后珍宝先进交割托管区(escrowTreasure),
-   *  买家付清价款才交货——托管中的珍宝不可被买家变卖抵债(防"得宝后变卖抵债"白嫖套利),买家破产则退回卖家。 */
+  /** 城主抉择:公道买卖/坐地起价/跳过(escrow 托管语义见 treasure-flow.resolveTreasureOwner)。薄委托。 */
   resolveTreasureOwner(
     action:
       | { type: "fair"; treasureId: string }
       | { type: "premium"; treasureId: string }
       | { type: "skip" },
   ): void {
-    if (!this.assertPhase("AwaitingTreasureOwner", "ResolveTreasureOwner")) return;
-    const tv = this.treasureVisitor!;
-    const owner = this.players[tv.ownerIdx];
-    const mover = this.activePlayer;
-    const def = tv.def;
-
-    if (action.type === "skip") {
-      this.logEvent(
-        "system",
-        owner.guohao,
-        `${owner.guohao} 不交易`,
-        `treasureSkip owner=${owner.id}`,
-      );
-      this.treasureVisitor = null;
-      this.endTurn();
-      return;
-    }
-
-    const tIdx = owner.treasures.findIndex((t) => t.id === action.treasureId);
-    if (tIdx < 0) {
-      this.warn(`珍宝 ${action.treasureId} 不在手中`);
-      return;
-    }
-    const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
-    const holding = findHolding(owner, def.id);
-    const cityLevel = holding?.level ?? 0;
-
-    // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
-    const price = action.type === "fair" ? guidePrice : premiumPriceOf(guidePrice, def, cityLevel);
-
-    const treasure = owner.treasures.splice(tIdx, 1)[0];
-
-    // 公道买卖且交易达成 → 城池 +1 级(满级封顶)。升级是对城主选择公道的奖励:
-    // 挂在交易达成时(城主选定 fair 且珍宝已离手入托管),此后买家破产退宝也不回滚。
-    if (action.type === "fair" && holding && canUpgrade(holding)) {
-      holding.level += 1;
-      // 城池变更留痕(ADR-0015):公道买卖成交升级(PropertyUpgraded 另一挂点),
-      // 与扩军同维度(等级变更、归属不变)
-      this.propertyChanges.push({
-        tileIndex: this.tileIndexOfProperty(def.id),
-        level: holding.level,
-        ownerColorIndex: owner.colorIndex,
-        levelChanged: true,
-        ownerChanged: false,
-      });
-      this.logEvent(
-        "upgrade",
-        owner.guohao,
-        `${owner.guohao} 公平交易,城池「${this.tileName(def)}」升 Lv.${holding.level}`,
-        `fairUpgrade prop=${def.id} owner=${owner.id} visitor=${mover.id} level=${holding.level}`,
-      );
-      this.dispatchMoment("PropertyUpgraded", { subject: tv.ownerIdx, propertyId: def.id }); // 时机·PropertyUpgraded:公道买卖成交升级(两挂点之一,另一处在扩军)
-    }
-
-    // 先付款后交货:珍宝进交割托管区,买家付清价款(可能经破产清算变卖其他资产自救)后才交割。
-    // 托管中的珍宝不在买家 treasures 里 → 不可被 sellTreasureBankruptcy 变卖抵债(封堵套利);
-    // 买家最终破产时,托管珍宝退回卖家。
-    this.escrowTreasure = {
-      treasure,
-      buyerIdx: this.players.indexOf(mover),
-      sellerIdx: tv.ownerIdx,
-      price,
-    };
-    const r = this.payOrLiquidate(mover, owner, price);
-    if (r === "liquidating") return; // 清算自救:escrow 挂起,confirmBankruptcySettle 里交割/退还
-    const bankrupt = r === "bankrupt";
-    if (bankrupt) this.returnEscrowToSeller(); // 买家破产:珍宝退回卖家
-    else this.deliverEscrow(); // 付款到账:交货
-    this.pushFloater(mover, -price, mover.position, "expense");
-    this.pushFloater(owner, price, mover.position, "income");
-    if (price > 0)
-      this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
-    this.lastLandOutcome = {
-      kind: "TreasureTrade",
-      property: def,
-      owner,
-      amount: price,
-      causedBankruptcy: bankrupt,
-    };
-    const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
-    this.logEvent(
-      "trade",
-      owner.guohao,
-      `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`,
-      `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
-      -price,
-    );
-    this.treasureVisitor = null;
-    this.endTurn();
+    resolveTreasureOwner(this, action);
   }
 
   // ──────────────── 破产清算(变卖资产自救)+ 交割托管(#321,ADR-0019)────────────────
