@@ -1,6 +1,47 @@
 // 棋盘逻辑:有序、首尾相接的不规则主环 + 至多一条分岔辅路。
 // 计算移动路径与下一节点;不含渲染/游戏流程。
-import type { BoardPos, MovePath, TileDef, BranchCellKind } from "./types";
+// 棋盘类型随域走(#326 types.ts 解散,ADR-0019):坐标/格子/移动路径类型由本文件拥有。
+
+/** 世界坐标(棋盘逻辑单位,View 层映射为像素)。 */
+export interface BoardPos {
+  x: number;
+  y: number;
+}
+
+/** 格子类型。v2.0 棋盘 Property/TreasureCity/Wolong/Tax/Stock/Chance/Fate 均有落格处理。 */
+export type TileType = "Property" | "Tax" | "Chance" | "Fate" | "Stock" | "Wolong" | "TreasureCity"; // 宝物城:不可购买;落格触发珍宝判定
+
+/** 单个格子定义。IsCapitalEligible=可作都城;Region=区域分组(美术配色)。 */
+export interface TileDef {
+  index: number;
+  type: TileType;
+  name: string;
+  position: BoardPos;
+  propertyId: string | null;
+  isCapitalEligible: boolean;
+  region: string | null;
+  waypoints?: BoardPos[]; // 可选:主路该 tile 入边手配途经点(预留,默认自动避城)
+  size?: "large" | "medium" | "small";
+}
+
+/** 辅路格种类:treasure=拼点探宝,event=锦囊随机事件,penalty=中伏跳一回合。 */
+export type BranchCellKind = "treasure" | "event" | "penalty";
+
+/** 移动路径。
+ *  Traversed=主路真实 tile 索引(辅路逐格时不填,改用 branchWaypoints);
+ *  Waypoints=主路动画途经位置(避城弧线);
+ *  LandBranchStep!=null 表示落辅路该 step 格(landIndex 为主路起点占位);
+ *  BranchWaypoints=辅路逐格行进的坐标序列(主路时为空)。 */
+export interface MovePath {
+  from: number;
+  traversed: number[];
+  landIndex: number;
+  passedCapital: boolean;
+  capitalIndex: number;
+  waypoints: BoardPos[];
+  landBranchStep: number | null; // null=落主路 landIndex;number=落辅路第 step 格
+  branchWaypoints: BoardPos[]; // 辅路行军坐标序列(主路时为 [])
+}
 
 /** 辅路运行时格(含坐标,由 board-loader 从 JSON 解析)。 */
 export interface BranchCell {

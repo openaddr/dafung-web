@@ -8,7 +8,7 @@
 // #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
 // 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
 import { Fragment } from "react";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
 import type { GameSnapshot } from "@app/store/gameStore";

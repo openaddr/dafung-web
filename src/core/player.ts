@@ -1,5 +1,5 @@
 // 玩家构造与查询 helper。
-import type { Player, PropertyHolding } from "./types";
+import type { Player, PropertyHolding } from "./model";
 import { STARTING_STAMINA, STARTING_WARRANTS } from "./constants";
 
 export interface CreatePlayerOpts {

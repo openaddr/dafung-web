@@ -6,7 +6,7 @@ import { GameEngine, type SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { loadMap } from "@core/board-loader";
-import type { LogEvent } from "@core/types";
+import type { LogEvent} from "@core/model";
 import { replayGameLog, assertFinalState } from "../scripts/replay-log";
 import sanguoData from "../public/maps/sanguo.json";
 

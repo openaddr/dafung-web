@@ -5,13 +5,13 @@
 // (流程≠数据)。escrow 托管两步(deliverEscrow/returnEscrowToSeller)在 bankruptcy.ts
 // (#321),本域经 g. 壳上薄委托往返消费,不在本模块重复实现。
 import type { GameEngine } from "./authority";
-import type { BranchCell } from "./board";
+import type { BranchCell, TileDef } from "./board";
 import { CHANCE_EVENTS } from "./events";
 import { guidePriceOf, premiumPriceOf } from "./treasures";
 import { findHolding } from "./player";
 import { formatMoney } from "./money";
-import { canUpgrade } from "./types";
-import type { Player, TileDef } from "./types";
+import { canUpgrade } from "./economy";
+import type { Player } from "./model";
 
 /** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
 export function resolveTreasureCity(g: GameEngine, mover: Player, tile: TileDef): void {

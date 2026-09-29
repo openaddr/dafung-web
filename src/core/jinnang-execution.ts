@@ -9,9 +9,38 @@ import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
 import { jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES } from "./heroes";
-import { openReactionWindow, resolveDuel, traceJinnangPlay } from "./reaction-window";
-import type { ActiveSkillDef, Player, ReactionPayload, ReactionViewSeed } from "./types";
+import { HEROES, type ActiveSkillDef } from "./heroes";
+import {
+  openReactionWindow,
+  resolveDuel,
+  traceJinnangPlay,
+  type ReactionPayload,
+  type ReactionViewSeed,
+} from "./reaction-window";
+import type { Player } from "./model";
+
+// ── 锦囊/军师幕引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
+/** 军情密探窥探(#122/T4):viewer 可见 target 的锦囊手牌内容,至 viewer 下回合开始
+ *  (endTurn 轮到 viewer 时清除)。窥探事件本身公开,清单随快照。 */
+export interface JinnangPeek {
+  viewer: number;
+  target: number;
+}
+
+/** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态(同相位内重算选项集);
+ *  stage:one=单选立即执行;two-a/two-b=连环计两步(第二步排除第一步)。
+ *  picked 为已定座位;随快照走(目标段中途断线可恢复)。 */
+export interface PendingJinnang {
+  cardId: string;
+  stage: "one" | "two-a" | "two-b";
+  picked: number[];
+}
+
+/** 技能目标段载荷(#188 档 3):选技后进入选人子状态(AwaitingJinnang 相位内重算选项集);
+ *  随快照走(目标段中途断线可恢复)。与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。 */
+export interface PendingHeroSkill {
+  skillId: string;
+}
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
  *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。

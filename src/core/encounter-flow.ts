@@ -22,7 +22,8 @@ import { findHolding } from "./player";
 import { HEROES } from "./heroes";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnang } from "./jinnang-execution";
-import type { Player, PropertyDef } from "./types";
+import type { Player } from "./model";
+import type { PropertyDef } from "./economy";
 
 /** 耗竭入口(#130):体力归 0 的 Seat 调用(机遇结算后)。多房产 → AwaitingExhaustion
  *  相位自选;可用选项 ≤1 → 自动执行;无可处置(无房产/仅 0 级都城) → 纯跳回合。

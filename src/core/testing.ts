@@ -8,10 +8,11 @@
 // 方法全部显式签名,不放 any;对私有成员的窄化集中在本类构造器一处(全仓库测试面
 // 因此不再出现散落的 as any 直写引擎内部)。dispatchMoment 是引擎 public 方法,测试
 // 直调即可,无需经此口;timing.test.ts 的 dispatchMoment 间谍为类型化测试替身,保留原位。
-import type { GameEngine } from "./authority";
+import type { GameEngine, TurnPhase } from "./authority";
 import type { BranchCell } from "./board";
 import type { EncounterDef } from "./encounters";
-import type { PendingLandKind, Player, TurnPhase } from "./types";
+import type { PendingLandKind } from "./movement-flow";
+import type { Player } from "./model";
 
 /** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法同步;签名漂移在此编译期炸出)。 */
 interface EngineTestInternals {

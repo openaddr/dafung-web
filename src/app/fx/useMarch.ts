@@ -9,7 +9,7 @@
 // 动画本体仍命令式:直接改 data-token-player 节点的 style.transform + transitionDuration
 // (CSS transition 见 board.css .bv-token),每段时长 ∝ 距离(匀速节奏,常量在 timings.MARCH)。
 import type { GameEngine } from "@core/authority";
-import type { Player } from "@core/types";
+import type { Player} from "@core/model";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { playerSlotKey } from "@app/components/board/TokenLayer";
 import { useFxStore } from "./fxStore";

@@ -14,10 +14,10 @@ import { enterJinnangPhase } from "./jinnang-execution"; // 跨模块直调自�
 import { createTreasureDeck } from "./treasures";
 import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
-import type { TileDef } from "./types";
+import type { TileDef } from "./board";
 
 /** Fisher-Yates 洗牌(rng 注入,确定性):开局点将的国号分配与招贤三选一
- *  (tryRecruitHero,暂留壳内)共用——随本域迁出,壳侧反向 import。 */
+ *  (recruitment.tryRecruitHero,#326 迁出壳后域侧反向 import)共用。 */
 export function shuffle<T>(arr: T[], rng: () => number): T[] {
   const a = [...arr];
   for (let i = a.length - 1; i > 0; i--) {

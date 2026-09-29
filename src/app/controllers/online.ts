@@ -6,7 +6,7 @@
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
@@ -314,7 +314,7 @@ export class OnlineController extends GameController {
    *  BoardView/详情卷轴读的都是 registry 的 MapData,所以两处都要换。 */
   private async rebuildForMap(mapId: string): Promise<void> {
     let map: LoadedMap;
-    let data: import("@core/types").MapData;
+    let data: import("@core/board-loader").MapData;
     try {
       const source = new FetchMapSource();
       data = await source.loadMapData(mapId);

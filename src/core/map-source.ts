@@ -1,8 +1,7 @@
 // 地图源:统一加载入口。core 层只定义接口与编排(loadMapById),
 // 实际 fetch / localStorage 实现在 core 之外(架构红线 1:core 零 DOM/浏览器 API)。
 // 自建地图的 id 约定:`custom-` 前缀(见 render 层 LocalStorageMapSource)。
-import { loadMap, type LoadedMap } from "./board-loader";
-import type { MapData } from "./types";
+import { loadMap, type LoadedMap, type MapData } from "./board-loader";
 
 /** 清单条目:描述一张可选地图的展示信息。内置图含 file;自建图由源自行推导。 */
 export interface MapEntry {
