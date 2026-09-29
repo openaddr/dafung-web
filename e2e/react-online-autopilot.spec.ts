@@ -71,14 +71,21 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     await guest.getByTestId("autopilot-speed").selectOption("slow");
     await guest.getByTestId("autopilot-button").click();
     let guestOn = false;
-    for (let attempt = 0; attempt < 20 && !guestOn; attempt++) {
-      guestOn = await guest
-        .getByTestId("autopilot-button")
-        .textContent()
-        .then((t) => t === "收回")
-        .catch(() => false);
-      if (!guestOn) await guest.waitForTimeout(500);
-    }
+    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
+    await expect
+      .poll(
+        async () => {
+          guestOn = await guest
+            .getByTestId("autopilot-button")
+            .textContent()
+            .then((t) => t === "收回")
+            .catch(() => false);
+          return guestOn;
+        },
+        { timeout: 10_000, intervals: [500] },
+      )
+      .toBe(true)
+      .catch(() => {});
     if (
       !guestOn &&
       (await guest
@@ -93,14 +100,21 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     // 爬行兜底:即便生效迟到十余秒,对局也只前进数步)
     await host.getByTestId("autopilot-button").click();
     let on = false;
-    for (let attempt = 0; attempt < 20 && !on; attempt++) {
-      on = await host
-        .getByTestId("autopilot-button")
-        .textContent()
-        .then((t) => t === "收回")
-        .catch(() => false);
-      if (!on) await host.waitForTimeout(500);
-    }
+    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
+    await expect
+      .poll(
+        async () => {
+          on = await host
+            .getByTestId("autopilot-button")
+            .textContent()
+            .then((t) => t === "收回")
+            .catch(() => false);
+          return on;
+        },
+        { timeout: 10_000, intervals: [500] },
+      )
+      .toBe(true)
+      .catch(() => {});
     if (
       !on &&
       (await host
@@ -113,14 +127,21 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     // 收回(同样带「未生效则补点」结构)→ 按钮复位「托管」
     await host.getByTestId("autopilot-button").click();
     let off = false;
-    for (let attempt = 0; attempt < 20 && !off; attempt++) {
-      off = await host
-        .getByTestId("autopilot-button")
-        .textContent()
-        .then((t) => t === "托管")
-        .catch(() => false);
-      if (!off) await host.waitForTimeout(500);
-    }
+    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
+    await expect
+      .poll(
+        async () => {
+          off = await host
+            .getByTestId("autopilot-button")
+            .textContent()
+            .then((t) => t === "托管")
+            .catch(() => false);
+          return off;
+        },
+        { timeout: 10_000, intervals: [500] },
+      )
+      .toBe(true)
+      .catch(() => {});
     if (
       !off &&
       (await host

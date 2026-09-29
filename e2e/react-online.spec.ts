@@ -137,7 +137,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
   expect(actions).toBeGreaterThanOrEqual(2); // 至少双方各动过一手(断言不降级)
 
   // ── 同步断言:双端核心引擎态一致(assertSync 思想,改比快照核心字段)──
-  // TODO #13:原固定 waitForTimeout(400) 后一次性 toEqual 在负载下撞上广播尚未沉降。
+  // TODO #13:原固定 400ms 停等后一次性 toEqual 在负载下撞上广播尚未沉降。
   // 改为轮询收敛:持续比对两端核心态直到相等(30s 余量),收敛后再各自确认非瞬态
   //(两端 waitSettled 后终判),杜绝"中途恰好相等"的假阳性。
   await expect
@@ -195,7 +195,17 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
               .catch(() => {});
           }
         }
-        await host.waitForTimeout(400); // 等自动起摇/广播到达
+        // 等自动起摇/广播到达:轮询任一端进入起摇窗(2s),不盲等固定时长
+        await host
+          .waitForFunction(
+            () => {
+              const s = (window as any).__dafung.snapshot();
+              return s.phase === "Playing" && s.turnPhase === "Roll";
+            },
+            undefined,
+            { timeout: 2_000, polling: 200 },
+          )
+          .catch(() => {});
         continue;
       }
       attempts++;

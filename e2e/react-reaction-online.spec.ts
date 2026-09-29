@@ -14,7 +14,7 @@
 // #291 处置:拆份/自保瘦身(按份结算引擎语义下沉 test/reaction-window.test,e2e 只守投影
 // 裁剪 queriedBySeat、点笺接线、出牌线 rAF 原子采样、最小结算 poll);超时/双端时序/降噪口/
 // 断线座位四例保留;六例超时统一 120s。应答流程与引擎结算断言收口 react-helpers 反应窗
-// 三段式(等窗开→应答→结算 poll),本 spec 无硬等待(waitForTimeout 归零)。
+// 三段式(等窗开→应答→结算 poll),本 spec 无固定硬等待。
 // 窗长走服务器 env E2E_REACTION_MS=8000(playwright.config webServer 注入,#284):
 // 权威侧定时器与客户端横幅(view.windowMs 随快照)同长,本 spec 从此与 3s 广播赛跑脱钩。
 import { testUnscaled as test, expect } from "./fixtures";
