@@ -5,12 +5,12 @@
 // (sellTreasure/sellProperty/cashHero)与清算确认(confirmBankruptcySettle)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;与 economy.ts 分层(清算流程≠
 // 经济交易原语 settleDebt/sellValueOf,原语零状态)。GameEngine 侧保留同名方法薄委托
-// (game.ts):公共入口 payOrLiquidate/sellTreasureBankruptcy/sellPropertyBankruptcy/
+// (authority.ts):公共入口 payOrLiquidate/sellTreasureBankruptcy/sellPropertyBankruptcy/
 // cashHeroBankruptcy/confirmBankruptcySettle(UI/bot/联机经 submitCommand 分发 + testing.ts
 // 白盒窄面 + encounter-flow 经 g.payOrLiquidate 消费),escrow 交割/退回两步(去私有化:
 // resolveTreasureOwner 壳内消费、confirmBankruptcySettle 域内直调);共享留痕辅助
 // tileIndexOfProperty 留壳(#321 去私有化,域内经 g.tileIndexOfProperty 直调)。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import { settleDebt, sellValueOf } from "./economy";
 import { guidePriceOf } from "./treasures";
 import { formatMoney } from "./money";

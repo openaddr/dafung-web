@@ -3,7 +3,7 @@
 // 表现播放队列,把 diff 提取为统一事件数组交给 orchestrator.present(Wave1 语义原样保留,
 // 含 Wave1 新增的破产音效对齐)。为什么独立:它是有状态的纯表现逻辑,不碰协议/store,
 // 独立后 OnlineController 才能瘦成纯「协议桥」。行为零变化。
-import type { GameEngine } from "@core/game";
+import type { GameEngine } from "@core/authority";
 import { findHolding } from "@core/player";
 import { createEngineSink } from "@app/fx/sinks";
 import { present, turnBannerEvent } from "@app/fx/orchestrator";

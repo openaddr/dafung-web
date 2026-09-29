@@ -2,8 +2,8 @@
 // 四技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { hasUsableJinnang } from "@core/choices";

@@ -2,9 +2,9 @@
 // (AwaitingJinnang)抽牌/用牌决策、出牌宣布与反应窗挂点、锦囊效果执行、名将主动技
 // 结算,以及 demolish/招贤两个共享结算单点。域逻辑=自由函数,首参接 GameEngine 直接
 // 读写引擎状态;与数据表 jinnang.ts/heroes.ts 分层(执行≠数据)。GameEngine 侧保留同名
-// 公共方法薄委托(game.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
+// 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
 import { jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";

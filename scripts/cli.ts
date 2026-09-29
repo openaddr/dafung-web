@@ -3,8 +3,8 @@
 // 流程:load state.json → 重建引擎(restore) → 执行命令 → save state.json → stdout 输出 JSON。
 // 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用。
 import { resolve } from "node:path";
-import type { GameEngine } from "../src/core/game";
-import type { SeatConfig } from "../src/core/game";
+import type { GameEngine } from "../src/core/authority";
+import type { SeatConfig } from "../src/core/authority";
 import type { GameCommand } from "../src/core/types";
 import {
   createEngine,

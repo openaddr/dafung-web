@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import type { Player } from "@core/types";
 import { sellValueOf } from "@core/economy";

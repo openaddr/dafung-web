@@ -5,7 +5,7 @@
 // clientView/lobbyView 自 2026-08-14(架构待办③)起:snapshot 消息补齐 seatCount/started/mapId,
 // 与 lobby 消息的房间字段对齐——客户端从任一消息都能直接得到完整房间态,无需手抄推断。
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
-import type { GameEngine } from "../src/core/game";
+import type { GameEngine } from "../src/core/authority";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { ReactionView } from "../src/core/types";
 import type { RoomSession } from "./room";

@@ -2,8 +2,8 @@
 // 拦检平局与拦停/bot 即席代答口径/越权拒绝/快照往返/出牌指示线留痕。
 // 缝约定同 test/jinnang.test.ts:只测引擎公共面(构造/公共方法/snapshot/log/presentation)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import type { TurnPhase } from "@core/types";
 import { HEROES } from "@core/heroes";

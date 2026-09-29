@@ -1,5 +1,9 @@
-// 游戏引擎:回合状态机 + 胜负判定 + 战报日志;开局三段式(国号→点将定序→选都)
-// 在 setup-flow.ts(#324,ADR-0019 委托式拆分),壳内同名公共方法薄委托。
+// 引擎权威壳(#325 定形,原 game.ts):ADR-0019 委托式拆分收口后,壳 = 状态字段区 +
+// 构造器 + 公共薄委托 + submitCommand + 快照通道 + presentation getter;引擎自留职责
+// 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
+// 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
+// jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow,
+// 见下各 import 区段注释),壳内同名公共方法薄委托。
 import type { Board } from "./board";
 import type { BranchCell } from "./board";
 import type { Dice } from "./dice";
@@ -155,12 +159,6 @@ export type SetupPhase = "Guohao" | "PickCapital" | "Done";
 
 const DEFAULT_TARGET = 30000;
 const DEFAULT_CASH = 10000;
-
-/** 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 logs/<gameId>.jsonl 文件名
- *  与 IndexedDB key。不走引擎 rng(不影响确定性,不随快照漂移)。 */
-function newGameId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
 
 /** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
 const CMD_BRIEF: Record<GameCommand["type"], string> = {
@@ -437,7 +435,10 @@ export class GameEngine {
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = resolveEncounterConfig(config.encounter);
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
-    this.gameId = newGameId();
+    // 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 logs/<gameId>.jsonl 文件名
+    // 与 IndexedDB key;不走引擎 rng(不影响确定性,不随快照漂移)。内联于构造器
+    // (#325 壳纪律:自由函数定义只许来自 import,壳内不落地函数声明)。
+    this.gameId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     if (config.seats.length < 2 || config.seats.length > 8) throw new Error("支持 2–8 个座位。");
     this.players = config.seats.map((s, i) => ({
       id: `p${i}`,

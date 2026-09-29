@@ -7,7 +7,7 @@
 // apLoop 不再 delay(80) 轮询锁,onEnterGame 幂等改查 isDriving()。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
-import { GameEngine, type EngineConfig } from "@core/game";
+import { GameEngine, type EngineConfig } from "@core/authority";
 import { botAct } from "@core/bot";
 import type { GameCommand } from "@core/types";
 import { setEngine } from "@app/store/gameStore";

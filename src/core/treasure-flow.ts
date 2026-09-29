@@ -4,7 +4,7 @@
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;与数据表 treasures.ts 分层
 // (流程≠数据)。escrow 托管两步(deliverEscrow/returnEscrowToSeller)在 bankruptcy.ts
 // (#321),本域经 g. 壳上薄委托往返消费,不在本模块重复实现。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import type { BranchCell } from "./board";
 import { CHANCE_EVENTS } from "./events";
 import { guidePriceOf, premiumPriceOf } from "./treasures";

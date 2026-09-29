@@ -5,7 +5,7 @@
 //   本类只剩:协议消息分发、快照 hydrate、表现提取器调用、registry/store 灌数、换图重建。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
-import { GameEngine } from "@core/game";
+import { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/types";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";

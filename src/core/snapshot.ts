@@ -1,5 +1,5 @@
 // 引擎全状态序列化(调试 window.__dafung / 联机广播数据包 / CLI 持久化)。God view,读 engine public 字段。
-// 从 game.ts 提取,集中序列化逻辑,便于联机时复用 + 单独演进。
+// 从 authority.ts 提取,集中序列化逻辑,便于联机时复用 + 单独演进。
 // 联机化(CLAUDE.md 规则 5):本文件输出 = 服务器可广播给各端的完整可观测状态;
 // 瞬时反馈(floaters / dice 动画状态)不在此列 —— 各端独立 spawn,避免高频小包。
 //
@@ -8,7 +8,7 @@
 // 加一个引擎字段只在表里加一条(read/write 同点),不再横跨两个镜像函数五处文件。
 // 契约测试(snapshot-contract.test.ts)断言「serializeGame 产出的键集 = 清单键集」双向一致,
 // 杜绝「序列化了没恢复 / 清单记了没产出」的双向漂移。
-import type { GameEngine, EnginePhase, SetupPhase, LastJinnangPlay } from "./game";
+import type { GameEngine, EnginePhase, SetupPhase, LastJinnangPlay } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type {
   DiceRoll,

@@ -8,7 +8,7 @@
 //      把 transform 设为「当前段目标」,与命令式写入值一致,棋子不会被拽回起点/终点。
 // 动画本体仍命令式:直接改 data-token-player 节点的 style.transform + transitionDuration
 // (CSS transition 见 board.css .bv-token),每段时长 ∝ 距离(匀速节奏,常量在 timings.MARCH)。
-import type { GameEngine } from "@core/game";
+import type { GameEngine } from "@core/authority";
 import type { Player } from "@core/types";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { playerSlotKey } from "@app/components/board/TokenLayer";
