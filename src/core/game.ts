@@ -1,4 +1,5 @@
-// 游戏引擎:开局三段式(国号→点将定序→选都)+ 回合状态机 + 胜负判定 + 战报日志。
+// 游戏引擎:回合状态机 + 胜负判定 + 战报日志;开局三段式(国号→点将定序→选都)
+// 在 setup-flow.ts(#324,ADR-0019 委托式拆分),壳内同名公共方法薄委托。
 import type { Board } from "./board";
 import type { BranchCell } from "./board";
 import type { Dice } from "./dice";
@@ -26,7 +27,6 @@ import { netWorth } from "./networth";
 import { findHolding } from "./player";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
-import { GUOHAO_POOL } from "./theme";
 import {
   ENCOUNTERS,
   resolveEncounterConfig,
@@ -34,7 +34,7 @@ import {
   type EncounterDef,
   type EncounterRuntimeConfig,
 } from "./encounters";
-import { JINNANG_STARTING_HAND, buildJinnangDeck, jinnangCardOf } from "./jinnang";
+import { jinnangCardOf } from "./jinnang";
 import type {
   JinnangPeek,
   PendingJinnang,
@@ -102,16 +102,27 @@ import {
   settleMarchLanding,
   upgradeProperty,
 } from "./movement-flow";
+// 开局三段式域(#324,ADR-0019):国号设定/点将定序/AI 与服务器代选都/选都三选一/
+// 三候选滚换/入局收尾在 setup-flow.ts,壳内同名公共方法薄委托转发;setup 期骰流顺序
+// 敏感(offeredCapitals 随 rngState 序列化,联机/恢复必须一致),域内逐字保留。
+// shuffle 洗牌辅助随本域迁出,壳内招贤(tryRecruitHero,后续票迁)反向 import 消费。
+import {
+  aiSetupStep,
+  aiSetupStepFor,
+  doDraftRoll,
+  firstAvailableCapitalIndex,
+  pickCapital,
+  setGuohao,
+  shuffle,
+} from "./setup-flow";
 import { formatMoney } from "./money";
 import {
-  isSingleCjk,
   STARTING_WARRANTS,
   HERO_CAPACITY,
   STAMINA_MAX,
   STARTING_STAMINA,
 } from "./constants";
 import { HEROES } from "./heroes";
-import { createTreasureDeck } from "./treasures";
 import type { DiceRoll, TreasureDef } from "./types";
 
 type Catalog = MapCatalog;
@@ -144,15 +155,6 @@ export type SetupPhase = "Guohao" | "PickCapital" | "Done";
 
 const DEFAULT_TARGET = 30000;
 const DEFAULT_CASH = 10000;
-
-function shuffle<T>(arr: T[], rng: () => number): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 /** 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 logs/<gameId>.jsonl 文件名
  *  与 IndexedDB key。不走引擎 rng(不影响确定性,不随快照漂移)。 */
@@ -535,263 +537,54 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 开局:Setup ────────────────────────────
+  // 开局三段式域(#324,ADR-0019 委托式拆分):国号设定(setGuohao)、点将定序
+  // (doDraftRoll)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都三选一
+  // (pickCapital)、三候选滚换(rollOfferedCapitals)与入局收尾(finishSetup)均为
+  // 自由函数,在 setup-flow.ts,首参接引擎实例;aiChooseCapital/pickCapitalInternal/
+  // skipCurrentDraftPick 域内自洽不留壳。setup 期骰流顺序敏感(offeredCapitals 候选
+  // 随 rngState 序列化,联机/恢复必须一致),域内逐字保留消耗顺序;首回合锦囊发牌经
+  // 壳上 g.drawJinnang,军师幕入场由域直调 jinnang-execution.enterJinnangPhase 自由
+  // 函数(#319/#320 跨模块直调先例)。壳内仅留本 getter(选都进度派生查询)与同名
+  // 公共方法薄委托(外部 importer 无感)。
+
   get currentSetupPlayerIndex(): number {
     return this.draftOrder[this.currentDraftIndex] ?? -1;
   }
 
-  /** 设置某座位的国号(单汉字);非法/冲突清空拒绝。 */
+  /** 设置某座位的国号(单汉字);非法/冲突清空拒绝:薄委托 → setup-flow.setGuohao。 */
   setGuohao(seatIndex: number, char: string): boolean {
-    if (this.setupPhase !== "Guohao") return false;
-    if (seatIndex < 0 || seatIndex >= this.players.length) return false;
-    const trimmed = char.trim();
-    // 单个 CJK 字
-    const isCjk = isSingleCjk(trimmed);
-    if (!isCjk) return false;
-    // 冲突检查(其他座位已用)
-    for (let i = 0; i < this.players.length; i++) {
-      if (i !== seatIndex && this.players[i].guohao === trimmed) return false;
-    }
-    this.players[seatIndex].guohao = trimmed;
-    this.usedGuohao.add(trimmed);
-    return true;
+    return setGuohao(this, seatIndex, char);
   }
 
-  /** 推进:为国号空的 bot 座位从字池随机分配(避开已用),然后进入点将定序。 */
+  /** 推进:为国号空的 bot 座位从字池随机分配(避开已用),然后进入点将定序。
+   *  薄委托 → setup-flow.doDraftRoll。 */
   doDraftRoll(): void {
-    if (this.setupPhase !== "Guohao") return;
-    // 给 guohao 为空者分配(bot 或漏填的人类)
-    const pool = shuffle(
-      GUOHAO_POOL.filter((c) => !this.usedGuohao.has(c)),
-      this.dice.nextFloat,
-    );
-    let pi = 0;
-    for (const p of this.players) {
-      if (!p.guohao) {
-        while (pi < pool.length && this.usedGuohao.has(pool[pi])) pi++;
-        if (pi < pool.length) {
-          p.guohao = pool[pi];
-          this.usedGuohao.add(pool[pi]);
-          pi++;
-        }
-      }
-    }
-    // 摇骰定序,平局重摇。d6 只有 6 面:n<=6 重摇至无平局(有上限);
-    // n>6(DEV 可达 30)不可能全异 → 接受并列、按玩家序破平,确保终止、不死循环。
-    const n = this.players.length;
-    const rolls = Array.from({ length: n }, () => 0);
-    const canBeAllDistinct = n <= 6;
-    for (let attempt = 0; attempt < 50; attempt++) {
-      for (let i = 0; i < n; i++) rolls[i] = this.dice.rollDie();
-      if (!canBeAllDistinct || new Set(rolls).size === n) break;
-    }
-    this.draftRolls = rolls;
-    this.draftOrder = this.players.map((_, i) => i).sort((a, b) => rolls[b] - rolls[a] || a - b);
-    this.logEvent(
-      "setup",
-      null,
-      "点将定序:" +
-        this.draftOrder
-          .map((i) => `${this.players[i].guohao || this.players[i].name}(${rolls[i]})`)
-          .join("→"),
-      `draftRolls=${JSON.stringify(rolls)} order=${JSON.stringify(this.draftOrder)}`,
-    );
-    this.setupPhase = "PickCapital";
-    this.currentDraftIndex = 0;
-    this.rollOfferedCapitals(); // 为首位选都玩家生成三候选
+    doDraftRoll(this);
   }
 
-  /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动)。 */
+  /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动):
+   *  薄委托 → setup-flow.aiSetupStep。 */
   aiSetupStep(): boolean {
-    if (this.setupPhase !== "PickCapital") return false;
-    const idx = this.currentSetupPlayerIndex;
-    if (idx < 0) return false;
-    if (!this.players[idx].isBot) return false;
-    return this.aiSetupStepFor(idx);
+    return aiSetupStep(this);
   }
 
-  /** 服务器代选(L41 联机):为指定座位按 bot 同评分选都,不校验 isBot——
-   *  驱动资格(bot 座位 / takeover / 自助托管)由调用方(room.seatControlled)保证,
-   *  单机侧真人选都不经此口(UI 手选,aiSetupStep 的 isBot 守卫保护热座)。 */
+  /** 服务器代选(L41 联机,bot 同评分、不校验 isBot,驱动资格由调用方保证):
+   *  薄委托 → setup-flow.aiSetupStepFor。 */
   aiSetupStepFor(idx: number): boolean {
-    if (this.setupPhase !== "PickCapital") return false;
-    if (idx < 0) return false;
-    const tileIdx = this.aiChooseCapital();
-    if (tileIdx >= 0) {
-      const r = this.pickCapitalInternal(idx, tileIdx, false);
-      if (!r.ok) {
-        // 极端地图(buildCost 全 > 现金):pickCapital 失败,推进 draft 防死循环
-        this.warn(`AI 选都失败(${r.reason ?? "未知"}),跳过`);
-        this.skipCurrentDraftPick();
-      }
-    } else {
-      // 无候选可选(剩余城耗尽):推进 draft 防死循环
-      this.warn("AI 无可选都城,跳过");
-      this.skipCurrentDraftPick();
-    }
-    return true;
+    return aiSetupStepFor(this, idx);
   }
 
-  /** AI 选都评分:性价比 + 随机扰动,在三候选中取最高分。 */
-  private aiChooseCapital(): number {
-    const candidates = this.offeredCapitals.map((i) => this.board.at(i));
-    if (candidates.length === 0) return -1;
-    const score = (t: TileDef): number => {
-      const def = this.catalog.get(t.propertyId);
-      if (!def) return -Infinity;
-      let value = (def.resupplyPerLevel * 8.0) / def.buildCost; // 都城价值=补给性价比(本作不收租,看 resupplyPerLevel)
-      value +=
-        this.difficulty === "Simple" ? this.dice.nextFloat() * 2.0 : this.dice.nextFloat() * 0.3;
-      return value;
-    };
-    return [...candidates].sort((a, b) => score(b) - score(a))[0].index;
-  }
-
-  /** 选都辅助:当前三候选首城(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用。 */
+  /** 选都辅助:当前三候选首城(无则 -1)。集中"可选都城"判定,供人类选都 UI/测试/e2e 复用:
+   *  薄委托 → setup-flow.firstAvailableCapitalIndex。 */
   firstAvailableCapitalIndex(): number {
-    return this.offeredCapitals[0] ?? -1;
+    return firstAvailableCapitalIndex(this);
   }
 
   /** 公共选都入口:人类落子(单机 UI / 联机 WS)走这里——记 cmd 行(ADR-0014 命令流,
-   *  重放的机读层;选都不是 GameCommand,detail 用 {type:"pickCapital",seat,tileIndex})。
-   *  bot/接管/托管的代选走 pickCapitalInternal(logCmd=false):确定性,重放自动重算,不记 cmd 行。 */
+   *  重放的机读层);bot/接管/托管的代选域内走 pickCapitalInternal(logCmd=false)。
+   *  薄委托 → setup-flow.pickCapital。 */
   pickCapital(playerIndex: number, tileIndex: number): { ok: boolean; reason?: string } {
-    return this.pickCapitalInternal(playerIndex, tileIndex, true);
-  }
-
-  private pickCapitalInternal(
-    playerIndex: number,
-    tileIndex: number,
-    logCmd: boolean,
-  ): { ok: boolean; reason?: string } {
-    if (this.setupPhase !== "PickCapital") return { ok: false, reason: "非选都阶段" };
-    if (this.draftOrder[this.currentDraftIndex] !== playerIndex)
-      return { ok: false, reason: "未轮到该玩家" };
-    const tile = this.board.at(tileIndex);
-    if (!tile.isCapitalEligible) return { ok: false, reason: "该城不可作都城" };
-    if (this.takenCapitalIndices.has(tileIndex)) return { ok: false, reason: "该城已被选" };
-    if (!this.offeredCapitals.includes(tileIndex)) return { ok: false, reason: "非本轮候选城" };
-    const def = this.catalog.get(tile.propertyId);
-    if (!def) return { ok: false, reason: "无地产定义" };
-    const player = this.players[playerIndex];
-    if (player.cash < def.buildCost) return { ok: false, reason: "建城费不足" };
-
-    if (logCmd) {
-      this.logEvent(
-        "cmd",
-        player.guohao,
-        `${player.guohao} 提交命令:选都`,
-        JSON.stringify({ type: "pickCapital", seat: playerIndex, tileIndex }),
-      );
-    }
-    player.cash -= def.buildCost;
-    player.properties.push({
-      propertyId: def.id,
-      group: def.group,
-      purchasePrice: def.buildCost,
-      level: 0,
-      maxLevel: def.maxLevel,
-    });
-    player.capitalIndex = tileIndex;
-    player.position = tileIndex;
-    this.takenCapitalIndices.add(tileIndex);
-    this.logEvent(
-      "setup",
-      player.guohao,
-      `${player.guohao} 以 ${formatMoney(def.buildCost)} 建「${tile.name}」为都城`,
-      `pickCapital player=${player.id} tile=${tileIndex}(${tile.name}) buildCost=${def.buildCost} cashLeft=${player.cash}`,
-      -def.buildCost,
-    );
-    this.currentDraftIndex++;
-    if (this.currentDraftIndex >= this.players.length) {
-      this.dispatchMoment("SetupComplete", { subject: playerIndex }); // 时机·SetupComplete:最后一位选都落子成功、finishSetup 收尾前
-      this.finishSetup();
-    } else this.rollOfferedCapitals(); // 为下一位选都玩家滚换三候选
-    return { ok: true };
-  }
-
-  /** 选都轮空推进(极端地图 pickCapital 失败 / 无候选时跳过):进下一 draft 位或收尾。 */
-  private skipCurrentDraftPick(): void {
-    this.currentDraftIndex++;
-    if (this.currentDraftIndex >= this.players.length) this.finishSetup();
-    else this.rollOfferedCapitals();
-  }
-
-  /** 三选一候选生成:剩余可选城(未选都、未进过任何候选集)按建价分低/中/高三档,
-   *  每档各取一城(廉价/中档/高价拉开经济路线);档内地理分布用最远点采样——
-   *  首城档内随机,后两城取「与已选候选的最小欧氏距离」最大者前 3 名中随机(避免确定性感)。
-   *  退化:候选不足 3 时档位合并跨档补;剩余(排除历史候选)不足 3 时放行复用未中选的历史候选
-   *  (小地图如 zhongyuan 8 城仍可完成全员选都);剩余为 0 时候选为空(沿用 pickCapital 失败推进路径)。
-   *  全程用引擎骰子(rngState 随快照序列化),联机各端/恢复天然一致。 */
-  private rollOfferedCapitals(): void {
-    const eligible = this.board.tiles.filter(
-      (t) => t.isCapitalEligible && !this.takenCapitalIndices.has(t.index),
-    );
-    const fresh = eligible.filter((t) => !this.offeredCapitalHistory.has(t.index));
-    const pool = fresh.length >= 3 ? fresh : eligible;
-    const priced = pool
-      .map((t) => ({ tile: t, cost: this.catalog.get(t.propertyId)!.buildCost }))
-      .sort((a, b) => a.cost - b.cost);
-    const tiers: { tile: TileDef; cost: number }[][] = [[], [], []];
-    priced.forEach((x, i) =>
-      tiers[Math.min(2, Math.floor((i * 3) / Math.max(1, priced.length)))].push(x),
-    );
-    const dist2 = (a: TileDef, b: TileDef): number => {
-      const dx = a.position.x - b.position.x;
-      const dy = a.position.y - b.position.y;
-      return dx * dx + dy * dy;
-    };
-    const chosen: TileDef[] = [];
-    for (let k = 0; k < 3; k++) {
-      // 本档取过/空档时跨档补齐:从全部未入候选的剩余城中继续选
-      const rest = tiers[k].filter((x) => !chosen.includes(x.tile));
-      const src = rest.length > 0 ? rest : priced.filter((x) => !chosen.includes(x.tile));
-      if (src.length === 0) break;
-      if (chosen.length === 0) {
-        chosen.push(src[Math.floor(this.dice.nextFloat() * src.length)].tile);
-      } else {
-        const ranked = src
-          .map((x) => ({ x, d: Math.min(...chosen.map((c) => dist2(c, x.tile))) }))
-          .sort((a, b) => b.d - a.d);
-        const top = ranked.slice(0, Math.min(3, ranked.length));
-        chosen.push(top[Math.floor(this.dice.nextFloat() * top.length)].x.tile);
-      }
-    }
-    this.offeredCapitals = chosen.map((t) => t.index);
-    for (const i of this.offeredCapitals) this.offeredCapitalHistory.add(i);
-    // 三候选生成入日志(ADR-0014 补洞:候选集是 rng 产物,重放/复盘都要可见)
-    const pickerIdx = this.currentSetupPlayerIndex;
-    const picker = pickerIdx >= 0 ? this.players[pickerIdx] : null;
-    this.logEvent(
-      "setup",
-      picker?.guohao ?? null,
-      `${picker?.guohao ?? "待定"} 择都三候选:${chosen.map((t) => `「${t.name}」`).join("")}`,
-      `offerCapitals player=${picker?.id ?? "-"} tiles=[${this.offeredCapitals.join(",")}] names=${chosen.map((t) => t.name).join("|")}`,
-    );
-  }
-
-  private finishSetup(): void {
-    this.setupPhase = "Done";
-    this.phase = "Playing";
-    this.turnPhase = "Roll";
-    this.activeIndex = this.draftOrder[0] ?? 0;
-    this.roundAnchor = this.activeIndex; // 固定轮次锚点,不随破产漂移
-    this.turnNumber = 1;
-    this.treasureDeck = createTreasureDeck(); // 初始化珍宝牌堆
-    this.round = 1;
-    this.logEvent(
-      "setup",
-      null,
-      "群雄起兵,首战由「" + this.activePlayer.guohao + "」先行",
-      `gameStart firstPlayer=${this.activePlayer.id}`,
-    );
-    // 锦囊发牌(#122):牌库洗序后座位序各发起手张数——先于 GameStart 时机,
-    // 骰流消耗固定(洗牌 + n 人各一张),重放可复现。
-    this.jinnangDeck = buildJinnangDeck(this.dice);
-    this.jinnangDeckCount = this.jinnangDeck.length;
-    this.players.forEach((_, seat) => this.drawJinnang(seat, JINNANG_STARTING_HAND));
-    this.enterJinnangPhase(); // 首回合掷骰前即可用锦囊(#122/T2)
-    this.dispatchMoment("GameStart", { subject: this.roundAnchor }); // 时机·GameStart:对局开始(主体=首动者),先于首个 TurnStart
-    this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)
+    return pickCapital(this, playerIndex, tileIndex);
   }
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
@@ -1387,7 +1180,8 @@ export class GameEngine {
   // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/军师幕用牌与出技
   // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/demolish 与招贤共享单点均为自由函数,
   // 首参接引擎实例。壳内仅留同名公共方法薄委托(外部 importer 无感)与 enterJinnangPhase
-  // 私有薄委托(回合壳 finishSetup/endTurn 调用);reaction-window 续结算经壳上
+  // 私有薄委托(回合壳 endTurn 调用;开局入局 finishSetup 随 #324 迁 setup-flow.ts 后
+  // 改直调自由函数);reaction-window 续结算经壳上
   // executeJinnang/settleJinnangExit 公共方法回调,维持 reaction ⇄ 执行跨模块往返。
 
   /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang。 */
