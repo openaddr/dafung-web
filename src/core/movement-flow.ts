@@ -5,13 +5,13 @@
 // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
 // 域内自洽不留壳)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
-// 方法薄委托(外部 importer 无感),src/core/game.ts「回合状态机」区段。
+// 方法薄委托(外部 importer 无感),src/core/authority.ts「回合状态机」区段。
 // 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、宝物城
 // g.resolveTreasureCity、辅路格 g.resolveBranchCell、escrow 清算 g.payOrLiquidate、
 // 锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗直调
 // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
 // 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import { buy, upgrade, supplyFor } from "./economy";
 import { findHolding } from "./player";

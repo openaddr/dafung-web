@@ -330,7 +330,7 @@ export interface TreasureDef {
 }
 
 // ── 名将(英雄)系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
-// src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 game.ts dispatchMoment。
+// src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 authority.ts dispatchMoment。
 // 扩展指南见 docs/explanation/时机框架.md:加效果一步、加技能两步、加时机三步。
 export interface TriggerSkill {
   id: string; // 唯一 id(如 "zhouyu-move+1";同时是 heroLastFired 冷却键)

@@ -92,7 +92,7 @@ export function TreasureVisitorScroll({
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
-                skip 分支,core/game.ts:893),城主不必在公道/坐地里二选一。 */}
+                skip 分支,core/authority.ts),城主不必在公道/坐地里二选一。 */}
             <ScrollButton
               primary
               testid={T.treasureSkip}

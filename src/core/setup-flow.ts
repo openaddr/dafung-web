@@ -2,12 +2,12 @@
 // (doDraftRoll)、AI/服务器代选都步进(aiSetupStep/aiSetupStepFor)、选都三选一
 // (pickCapital)、三候选滚换(rollOfferedCapitals)与入局收尾(finishSetup)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
-// 方法薄委托(game.ts「开局:Setup」区段),aiChooseCapital/pickCapitalInternal/
+// 方法薄委托(authority.ts「开局:Setup」区段),aiChooseCapital/pickCapitalInternal/
 // skipCurrentDraftPick 域内自洽不留壳。
 // 联机一致性纪律(开发陷阱清单,逐字保留零重排):setup 期骰流顺序敏感——
 // offeredCapitals 候选随 rngState 序列化,国号占用冲突处理与 AI 选都的骰流消耗
 // 顺序不得改动,e2e 种子演算与联机恢复都依赖它。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import { GUOHAO_POOL } from "./theme";
 import { JINNANG_STARTING_HAND, buildJinnangDeck } from "./jinnang";
 import { enterJinnangPhase } from "./jinnang-execution"; // 跨模块直调自由函数(#319 预案,同 #320 抽牌直调)

@@ -1,8 +1,8 @@
 // 反应窗域(#281,ADR-0017):锦囊识破窗 + 行军拦检窗的开窗/应答/结算。
 // ADR-0019 委托式拆分:域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;
 // GameEngine 侧保留公共方法 respondReaction 与域外挂点(openReactionWindow/
-// traceJinnangPlay/resolveDuel)的同名薄委托,src/core/game.ts 反应窗区段。
-import type { GameEngine } from "./game";
+// traceJinnangPlay/resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
+import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
 import { jinnangCardOf } from "./jinnang";
 import { REACTION_WINDOW_MS } from "./constants";

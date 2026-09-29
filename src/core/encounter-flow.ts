@@ -2,12 +2,12 @@
 // 触发与加权抽取、抉择机遇入相(AwaitingEncounter)与选项结算、即时效果结算(八种效果
 // 落账)、机遇体力接线与体力耗竭(AwaitingExhaustion)善后。域逻辑=自由函数,首参接
 // GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
-// GameEngine 侧保留同名方法薄委托(game.ts):公共入口 maybeApplyEncounter/
+// GameEngine 侧保留同名方法薄委托(authority.ts):公共入口 maybeApplyEncounter/
 // resolveEncounterChoice/resolveExhaustionChoice/exhaustIfDepleted,入相与即时结算
 // enterEncounterPhase/settleEncounter(#320 去私有化:域内经 g.xxx 往返消费,兼作
 // testing.ts 白盒窄面 EngineTestInternals 的触达点);reaction-window 续结算经壳上
 // g.maybeApplyEncounter 委托回调(#318 预案),锦囊抽牌按 #319 预案跨模块直调自由函数。
-import type { GameEngine } from "./game";
+import type { GameEngine } from "./authority";
 import { computeChoices, ENCOUNTER_HERO_TREASURE_COST } from "./choices";
 import {
   ENCOUNTERS,

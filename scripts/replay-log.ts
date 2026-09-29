@@ -5,14 +5,14 @@
 // 用法:bun scripts/replay-log.ts logs/<gameId>.jsonl [更多文件...]
 // 前提:局头 mapId 必须是内置地图(public/maps 清单内);编辑器试玩等无 id 的局不可重放(显式报错)。
 import { readFileSync } from "node:fs";
-import { GameEngine, type EngineConfig } from "../src/core/game";
+import { GameEngine, type EngineConfig } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 import { botAct } from "../src/core/bot";
 import { netWorth } from "../src/core/networth";
 import type { GameCommand, LogEvent } from "../src/core/types";
 import { loadBuiltinMapById } from "./engine-helpers";
 
-// ── 局头/终局行的机读形状(detail JSON;与 game.ts 写入端对应) ────────────────────────────
+// ── 局头/终局行的机读形状(detail JSON;与 authority.ts 写入端对应) ────────────────────────────
 export interface HeaderInfo {
   type: "header";
   gameId: string;
@@ -52,7 +52,7 @@ type RoomEv =
   | { type: "takeover" | "attach"; seat: number }
   | { type: "autopilot"; seat: number; on: boolean; speed: string };
 
-/** cmd 行的命令形状:GameCommand ∪ 选都(pickCapital 不是 GameCommand,见 game.ts)。 */
+/** cmd 行的命令形状:GameCommand ∪ 选都(pickCapital 不是 GameCommand,见 authority.ts)。 */
 type ReplayCmd = GameCommand | { type: "pickCapital"; seat: number; tileIndex: number };
 
 // botAct 能驱动的相位(与 room.ts INPUT_PHASES 同源;引擎内部过渡相位无需驱动)
@@ -106,7 +106,7 @@ export function replayGameLog(lines: LogEvent[]): GameEngine {
   const map = loadBuiltinMapById(header.mapId);
   const engine = new GameEngine(map.board, map.catalog, createDice(header.seed), {
     // 座位按局头原始规格(国号可空 = doDraftRoll 分配)复刻:必须与原局构造参数一致,
-    // 否则国号洗牌消耗的 rng 次数不同,整局骰流漂移(见 game.ts 局头注释)。
+    // 否则国号洗牌消耗的 rng 次数不同,整局骰流漂移(见 authority.ts 局头注释)。
     seats: header.seats.map((s) => ({
       name: `座 ${s.seat + 1}`,
       isBot: s.isBot,

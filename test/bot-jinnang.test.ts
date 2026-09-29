@@ -3,8 +3,8 @@
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面
 // + bot 纯决策出口 jinnangIntent——连环计/军情密探结算未接入,端到端到不了)。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";

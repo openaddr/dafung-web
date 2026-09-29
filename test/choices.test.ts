@@ -5,8 +5,8 @@
 // - bot 先经 choicesFor 过滤后启发式(口径收敛,行为不回归);
 // - 快照 choices 派生字段 round-trip 一致。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";

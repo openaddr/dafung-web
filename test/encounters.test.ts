@@ -2,8 +2,8 @@
 // 结算四路径与回退/确定性)。随机钉法:触发率配置 0/100 两端 + landActiveOn 恰落目标格
 // (timing.test 同款技巧),结算路径经 testEngine.applyEncounter 指定具体事件绕过抽取。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
 import { testEngine } from "@core/testing";

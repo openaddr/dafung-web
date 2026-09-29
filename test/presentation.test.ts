@@ -2,8 +2,8 @@
 // 只测事件语义与时序,不测 DOM/音频细节——生产 sink 已由 e2e(react-solo/online)覆盖。
 // ADR-0015 扩充:城池宣告(propertyChanged → announceTileChange)同管道可断言。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";

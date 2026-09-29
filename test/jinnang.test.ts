@@ -1,8 +1,8 @@
 // 锦囊系统单测(#122/T1):目录数据校验 + 引擎缝(发牌/无上限抽干/抽空/快照往返/日志不泄牌)。
 // 缝约定:只测引擎公共面(构造/公共方法/snapshot/log),不碰私有中间态。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";

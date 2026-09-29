@@ -43,7 +43,7 @@ extractStepEvents 原以 `lastTransaction.status === Ok` 判买/扩军成败—�
 
 ### 3. 事件与能力扩展
 
-- `PresentationEvent` 增 `propertyChanged { tileIndex; level; ownerColorIndex|null; levelChanged; ownerChanged }`,字段 = 引擎结算留痕 `PropertyChangeTrace`(core/game.ts,与 FloaterEvent 同居引擎层)原样透传;
+- `PresentationEvent` 增 `propertyChanged { tileIndex; level; ownerColorIndex|null; levelChanged; ownerChanged }`,字段 = 引擎结算留痕 `PropertyChangeTrace`(core/authority.ts,与 FloaterEvent 同居引擎层)原样透传;
 - `FxSink` 增第五能力 `announceTileChange(ev)`:生产 adapter 经 fxStore 下发**按城宣告记录**(level/owner 两维独立单调 nonce + 最新归属色),Tile 订阅 `announces.get(tileIndex)`,nonce 变化即以之为 React key 重挂对应元素、重播动画类;memorySink 只录制(op: announceTile)供断言。nonce 播完自然过期,不做清理定时器。
 
 ### 4. 成败信号改走结算留痕(修复死分支)

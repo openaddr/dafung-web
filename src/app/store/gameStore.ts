@@ -3,7 +3,7 @@
 // React 层改为:控制器每次引擎变化后调 syncFromEngine() 把 snapshot 灌进 store,
 // 组件订阅 store 声明式重渲。
 import { create } from "zustand";
-import type { GameEngine } from "@core/game";
+import type { GameEngine } from "@core/authority";
 // #117 收编:提示 TTL 统一收口 fx/timings.ts(与 netStore 同一常量,不再双处 1800)。
 import { UI } from "@app/fx/timings";
 

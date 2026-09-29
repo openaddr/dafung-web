@@ -3,7 +3,7 @@
 // timing.test.ts 的 RoundStart 冷却先例)/ clamp 溢出作废 / 回血只加不减、不触发耗竭。
 // 机遇缺省关闭(EngineConfig.encounter 缺省 triggerRate=0),真实轮次驱动无随机扣体力干扰。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
+import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { EFFECTS } from "@core/effects";
