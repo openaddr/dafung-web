@@ -36,12 +36,11 @@ import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helper
 import {
   RoomRegistry,
   RoomError,
-  clientView,
-  lobbyView,
-  seatMeta,
   type RoomEvent,
   type RoomSession,
 } from "./room";
+// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
+import { clientView, lobbyView, seatMeta } from "./seat-projection";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
