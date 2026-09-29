@@ -24,7 +24,6 @@ import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
-import { buy as buyProp, supplyFor, upgrade as upgradeProp } from "./economy";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import { GUOHAO_POOL } from "./theme";
@@ -41,12 +40,12 @@ import type {
   PendingJinnang,
   PendingHeroSkill,
   PendingReaction,
-  ReactionPayload,
-  ReactionViewSeed,
 } from "./types";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
-import { openReactionWindow, respondReaction } from "./reaction-window";
+// (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
+// marchTraverse 进了 movement-flow.ts,改直调已导出的自由函数,壳内只留 respondReaction。)
+import { respondReaction } from "./reaction-window";
 // 锦囊+主动技+效果执行域(#319,ADR-0019):军师幕决策/出牌/效果结算在 jinnang-execution.ts,
 // 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调。
 import {
@@ -88,13 +87,25 @@ import {
   resolveTreasureCity,
   resolveTreasureOwner,
 } from "./treasure-flow";
+// 移动结算域(#323,ADR-0019):行军三件/辅路抉择/地产决策/落格结算/都城补给在
+// movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
+// marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
+import {
+  buyProperty,
+  capitalSupplyOf,
+  endDecision,
+  marchTraverse,
+  pendingLandDef,
+  resolveLanding,
+  rollAndMove,
+  selectBranch,
+  settleMarchLanding,
+  upgradeProperty,
+} from "./movement-flow";
 import { formatMoney } from "./money";
 import {
-  SIGN_FACES,
   isSingleCjk,
   STARTING_WARRANTS,
-  WARRANTS_PER_PASS,
-  BUY_WARRANT_COST,
   HERO_CAPACITY,
   STAMINA_MAX,
   STARTING_STAMINA,
@@ -329,21 +340,28 @@ export class GameEngine {
   winReason: VictoryReason = "None";
 
   // ─── 表现态(Wave3 候选4 收口;spec #107 C2 决策载荷分离)───
-  // 四个字段(私有)语义曾散在注释里:floaters 读即破坏(渲染消费后清空)、
+  // 四个字段语义曾散在注释里:floaters 读即破坏(渲染消费后清空)、
   // lastMove 表现侧可写(applyPresentationMove)、lastRoll/lastTransaction 每帧重建。
-  // 现统一经 presentation 视图对外(见 getter),字段本身不再 public:
+  // 对外统一经 presentation 视图(见 getter):
   //  - 读:engine.presentation.lastRoll / lastMove / lastTransaction(只读);
   //  - 浮字消费:engine.presentation.drainFloaters()(破坏性读,调用即清空);
   //  - 表现写 lastMove 的唯一通道仍是 applyPresentationMove(保留原位)。
   // 视图是方法的集合(非可序列化数据),不进 snapshot;序列化走 snapshot.ts 经视图读。
-  private lastRoll: DiceRoll | null = null;
+  // #107 C2「字段本身不再 public」经 ADR-0019 条款 3 取代(2026-09-29,owner 授权):
+  // lastMove 随 #318、lastRoll/lastTransaction 随 #323 相应域抽出后,域模块经 g. 直写;
+  // 外部消费面不变(仍只走 presentation 视图),字段可见性仅对域模块放开。
+  // #323 去私有化(ADR-0019 条款 3 内部状态透明):movement-flow 域 rollAndMove/buyProperty
+  // /upgradeProperty 直写;外部消费仍只走 presentation 视图。
+  lastRoll: DiceRoll | null = null;
   // #107 C2「字段本身不再 public」经 ADR-0019 条款 3 取代(2026-09-29,owner 授权):
   // 域模块(reaction-window.ts 等)经 g.lastMove 直写;外部消费仍只走 presentation 视图。
   lastMove: MovePath | null = null;
   // 纯表现态(spec #107 C2 退役:不再兼任决策载荷):供快照扁平字段(lastLandOutcomeKind/
   // lastLandOutcomeProperty)与战报金额;决策命令/选项集/恢复重建一律改走 pendingLand。
   lastLandOutcome: LandOutcome | null = null;
-  private lastTransaction: TransactionResult | null = null;
+  // #323 去私有化(ADR-0019 条款 3 内部状态透明):movement-flow 域 buyProperty
+  // /upgradeProperty 直写交易结果;外部消费仍只走 presentation 视图。
+  lastTransaction: TransactionResult | null = null;
 
   /** 待决策落格载荷(spec #107 C2):决策上下文的唯一出处。resolveLanding 落在无主可购/
    *  己城可扩格时置值;决策命令(buyProperty/upgradeProperty/endDecision)消费;
@@ -777,68 +795,26 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
-  /** 抽签 → 移动(主路或辅路逐格)→ 经过自己都城必停(补给+结束回合);否则落格结算。
-   *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell;
-   *  onBranch={step:-1} = 入口待入辅路(上回合选「入辅路」,本回合掷骰起沿辅路格推进)。
-   *  主路途经遍历(#281):每格途经棋子派发;他人城主城池可被半路杀出拦检,窗挂起时
-   *  本调用返回,respondReaction 应答后续走/落格。 */
-  rollAndMove(): void {
-    if (!this.assertPhase("Roll", "RollAndMove")) return;
-    const mover = this.activePlayer;
-    const wasOnBranch = mover.onBranch != null; // 行军前是否在辅路(含 step=-1 待入态):BranchExited 派发判定
-    this.dispatchMoment("BeforeMarch", { subject: this.activeIndex }); // 时机·BeforeMarch:掷骰前(行军加成挂点,如周瑜 moveBonus)
-    this.dispatchMoment("BeforeRoll", { subject: this.activeIndex }); // 时机·BeforeRoll:掷骰前、BeforeMarch 之后(骰子机制系技能挂点,与 BeforeMarch 的语义区分见 timing.ts)
-    const roll = this.dice.roll();
-    this.lastRoll = roll;
-    this.dispatchMoment("DieRolled", { subject: this.activeIndex, die: roll.die }); // 时机·DieRolled:骰面已定(张星彩 gainIfFace 等)
-    const moveBonus = this.takeMarchBonus(); // 取走 BeforeMarch 时机累计的行军加成
-    const drumBonus = this.heroDiceBonus; // 取走擂鼓加成(#188 档 3):发动与掷骰同回合
-    this.heroDiceBonus = 0;
-    const steps = roll.die + moveBonus + drumBonus;
-    const path = this.board.computePath(mover.position, steps, mover.capitalIndex, mover.onBranch);
-    const fromPos = mover.position;
-    this.lastMove = path;
-    const destName =
-      path.landBranchStep != null && this.board.branch
-        ? `辅路第${path.landBranchStep + 1}格`
-        : this.board.at(path.landIndex).name;
-    this.logEvent(
-      "roll",
-      mover.guohao,
-      `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus + drumBonus ? `(+${moveBonus + drumBonus})` : ""} → ${destName}`,
-      `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus + drumBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
-    );
+  // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
+  // settleMarchLanding,含伏兵挂点/驻跸必停/辅路入口)、辅路抉择(selectBranch)、
+  // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
+  // endDecision)、落格结算(resolveLanding;resolveSpecial/resolveProperty/
+  // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
+  // 域内自洽不留壳)均为自由函数,在 movement-flow.ts,首参接引擎实例。
+  // 壳内仅留同名公共方法薄委托(外部 importer 无感):命令口经 submitCommand 分发、
+  // bot 直调、testing.ts 白盒窄面触达 resolveLanding。跨域往返与既有票一致走壳上
+  // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调;机遇/
+  // 宝物城/辅路格/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
+  // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
+  // 迁出而删,见反应窗区段)。
 
-    // 辅路逐格落点先于主路遍历分流:辅路格非城池,无反应窗挂点、无途经城池
-    if (path.landBranchStep != null && this.board.branch) {
-      mover.onBranch = { step: path.landBranchStep };
-      this.dispatchMoment("AfterMarch", { subject: this.activeIndex }); // 时机·AfterMarch:移动完成(落辅路格)、辅路格结算前
-      this.turnPhase = "Land";
-      const cell = this.board.branch.cells[path.landBranchStep];
-      this.resolveBranchCell(mover, cell);
-      return;
-    }
-    // 主路行军(含辅路汇入):逐格途经遍历,#281 反应窗可中途拦停
-    const walked = this.marchTraverse(
-      mover,
-      path.traversed,
-      path.traversed.length,
-      path.landIndex,
-      wasOnBranch,
-      fromPos,
-      steps,
-    );
-    if (walked !== "landed") return; // suspended=拦检窗挂起(respondReaction 续走);halted=必停已结算
-    this.settleMarchLanding(mover, path.landIndex, wasOnBranch);
+  /** 抽签 → 移动(主路或辅路逐格)→ 落格结算:薄委托 → movement-flow.rollAndMove。 */
+  rollAndMove(): void {
+    rollAndMove(this);
   }
 
-  /** 主路途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
-   *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——颁发委任状,
-   *  落点不在都城则必停截断(放弃剩余步数,补给+结束回合);③ 他人城主城池(城主存活)
-   *  ——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
-   *  respondReaction 续走),拦停成功即止、后续城不再问。
-   *  返回:"suspended"=拦检窗挂起、"halted"=必停都城已结算(调用方直接返回)、
-   *  "landed"=走完无停,由调用方 settleMarchLanding 落格。 */
+  /** 主路途经遍历(#281,途经棋子/驻跸必停/伏兵拦检):薄委托 → movement-flow.marchTraverse
+   *  (reaction-window 拦检续走经此回调)。 */
   marchTraverse(
     mover: Player,
     remaining: number[],
@@ -848,263 +824,51 @@ export class GameEngine {
     fromPos: number,
     steps: number,
   ): "landed" | "halted" | "suspended" {
-    const moverSeat = this.players.indexOf(mover);
-    while (remaining.length > 0) {
-      const tIdx = remaining[0];
-      // ① 途经他人棋子(座位序,确定性;主体=行军者,ctx.passedSeat=被途经者)
-      for (let seat = 0; seat < this.players.length; seat++) {
-        const other = this.players[seat];
-        if (other === mover || other.isBankrupt || other.position !== tIdx) continue;
-        this.dispatchMoment("PassedPlayer", {
-          subject: moverSeat,
-          passedSeat: seat,
-          tileIndex: tIdx,
-        });
-      }
-      // ② 己都城:巡幸委任状;若落点不在都城 → 必停截断(lastMove 只走到都城)
-      if (tIdx === mover.capitalIndex) {
-        mover.warrants += WARRANTS_PER_PASS;
-        this.logEvent(
-          "supply",
-          mover.guohao,
-          `${mover.guohao} 巡幸都城,获 ${WARRANTS_PER_PASS} 委任状`,
-          `warrantGrant player=${mover.id} +${WARRANTS_PER_PASS} warrants=${mover.warrants}`,
-        );
-        if (landIndex !== mover.capitalIndex) {
-          const walkedCount = totalLen - remaining.length;
-          const branchPrefix =
-            mover.onBranch != null && this.board.branch
-              ? this.board.branch.cells.length - mover.onBranch.step
-              : 0;
-          this.lastMove = this.board.computePath(
-            fromPos,
-            branchPrefix + walkedCount + 1,
-            mover.capitalIndex,
-            mover.onBranch,
-          );
-          mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
-          mover.position = mover.capitalIndex;
-          if (wasOnBranch)
-            this.dispatchMoment("BranchExited", {
-              subject: moverSeat,
-              tileIndex: mover.position,
-            }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
-          this.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
-          this.dispatchMoment("CapitalHalt", {
-            subject: moverSeat,
-            tileIndex: mover.capitalIndex,
-          }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
-          const supply = this.applyResupply(mover, "halt");
-          this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
-          this.turnPhase = "Land";
-          this.endTurn();
-          return "halted"; // 必停已完整结算:调用方不得再走落格收尾
-        }
-      }
-      // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
-      const tile = this.board.at(tIdx);
-      if (tile.type === "Property" && tile.propertyId != null) {
-        const owner = this.findOwner(tile.propertyId);
-        if (owner != null && owner !== mover && !owner.isBankrupt) {
-          const ownerSeat = this.players.indexOf(owner);
-          this.dispatchMoment("MarchPassedCity", {
-            subject: moverSeat,
-            ownerSeat,
-            tileIndex: tIdx,
-          }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
-          const ambushId = owner.jinnangHand.find(
-            (id) => jinnangCardOf(id).effect.kind === "ambush",
-          );
-          if (ambushId != null) {
-            const walkedCount = totalLen - remaining.length;
-            const branchPrefix =
-              mover.onBranch != null && this.board.branch
-                ? this.board.branch.cells.length - mover.onBranch.step
-                : 0;
-            this.openReactionWindow(
-              { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat },
-              {
-                kind: "march",
-                moverSeat,
-                tileIndex: tIdx,
-                stepsToTile: branchPrefix + walkedCount + 1,
-                totalTiles: totalLen,
-                resumeTiles: remaining.slice(1),
-                landIndex,
-                fromPos,
-                steps,
-                wasOnBranch,
-              },
-            );
-            return "suspended"; // 窗挂起:人类被询问时等 respondReaction;bot 全代答时续走已在窗结算内完成
-          }
-        }
-      }
-      remaining = remaining.slice(1);
-    }
-    return "landed";
+    return marchTraverse(this, mover, remaining, totalLen, landIndex, wasOnBranch, fromPos, steps);
   }
 
-  /** 主路落格收尾(走完遍历无拦停):清辅路态、落位、BranchExited/AfterMarch、
-   *  辅路入口抉择或落格结算(机遇/城池)。 */
+  /** 主路落格收尾(辅路入口抉择/机遇/落格结算):薄委托 → movement-flow.settleMarchLanding
+   *  (reaction-window 拦检续走经此回调)。 */
   settleMarchLanding(mover: Player, landIndex: number, wasOnBranch: boolean): void {
-    mover.onBranch = null; // 已在主路(清掉原 onBranch)
-    mover.position = landIndex;
-    if (wasOnBranch)
-      this.dispatchMoment("BranchExited", {
-        subject: this.players.indexOf(mover),
-        tileIndex: landIndex,
-      }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
-    this.dispatchMoment("AfterMarch", { subject: this.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
-    // 落在辅路起点(且未在辅路)→ 弹入口抉择
-    if (this.board.getBranchStart(landIndex)) {
-      this.turnPhase = "AwaitingBranch";
-      this.logEvent(
-        "branch",
-        mover.guohao,
-        `${mover.guohao} 至辅路要隘「${this.board.at(landIndex).name}」:走大路 or 入辅路`,
-        `awaitingBranch player=${mover.id} tile=#${landIndex}`,
-      );
-      return; // 等 selectBranch
-    }
-    this.turnPhase = "Land";
-    // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
-    // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
-    // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
-    // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
-    // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
-    // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
-    const enc = this.maybeApplyEncounter(mover, landIndex);
-    if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
-      return;
-    this.resolveLanding();
+    settleMarchLanding(this, mover, landIndex, wasOnBranch);
   }
 
   // ──────────────────────────── 反应窗(#281,ADR-0017)────────────────────────────
   // 域逻辑在 reaction-window.ts(ADR-0019 委托式拆分,#318):开窗/应答/识破窗结算/
   // 拦检窗结算/拦停止步/续走/拼点均为自由函数,首参接引擎实例。壳内仅留:
   //  - 公共方法 respondReaction 薄委托(外部 importer 无感);
-  //  - 域外挂点 openReactionWindow 私有薄委托(移动结算 marchTraverse 调用;
-  //    锦囊执行 settleJinnangPlay 已随 #319 迁出,改跨模块直调——traceJinnangPlay/
-  //    resolveDuel 两委托随其调用点迁出而删,余下此一个待 #323 抽出后随删)。
-
-  /** 开反应窗(挂点共用):薄委托 → reaction-window.openReactionWindow。 */
-  private openReactionWindow(viewSeed: ReactionViewSeed, payload: ReactionPayload): void {
-    openReactionWindow(this, viewSeed, payload);
-  }
+  //  - 域外挂点 openReactionWindow 私有薄委托已随 #323 移动结算域迁出而删:唯一调用点
+  //    marchTraverse 进了 movement-flow.ts,与锦囊执行(#319)同款改直调已导出的自由函数。
 
   /** 反应窗应答(#281 公共入口,UI/bot 驱动器/联机/超时代发同走):薄委托。 */
   respondReaction(seat: number, use: boolean, cardId?: string, shareSeat?: number): void {
     respondReaction(this, seat, use, cardId, shareSeat);
   }
 
-  /** 辅路入口抉择:"Main"=走大路(起点 tile 按普通城落格,可购买等);
-   *  "Branch"=入辅路——本回合结束(棋子留在主路入口格,置「待入辅路」onBranch={step:-1}),
-   *  下回合掷骰起沿辅路格推进(掷几点走几格,溢出从辅路终点汇入主路,见 computePath)。
-   *  复用 AwaitingBranch 阶段 + selectBranch(改语义,不新加 phase)。 */
+  /** 辅路入口抉择(走大路/入辅路):薄委托 → movement-flow.selectBranch。 */
   selectBranch(kind: RouteKind): void {
-    if (!this.assertPhase("AwaitingBranch", "SelectBranch")) return;
-    const p = this.activePlayer;
-    const tile = this.board.at(p.position);
-    this.logEvent(
-      "branch",
-      p.guohao,
-      `${p.guohao} 于「${tile.name}」取${kind === "Branch" ? "道辅路(下回合掷骰进发)" : "大路"}`,
-      `selectBranch player=${p.id} kind=${kind} at=#${p.position} cash=${p.cash}`,
-    );
-    if (kind === "Branch" && this.board.branch) {
-      // 入辅路 = 本回合结束:置「待入辅路」,不结算任何格;下回合 rollAndMove 沿辅路推进
-      p.onBranch = { step: -1 };
-      this.dispatchMoment("BranchEntered", { subject: this.activeIndex, tileIndex: p.position }); // 时机·BranchEntered:入辅路(置待入辅路态后)
-      this.turnPhase = "Land";
-      this.endTurn();
-      return;
-    }
-    // 走大路:起点 tile 按普通落格处理(可购买/升级/交涉等)
-    this.turnPhase = "Land";
-    this.resolveLanding();
+    selectBranch(this, kind);
   }
 
-  /** 待决策落格的地产定义:价格/等级口径的单一出处(catalog 按 pendingLand.propertyId 现查;
-   *  快照恢复只带 id 句柄,定义不序列化)。查无定义 = 数据 bug,显式抛错(零兜底)。 */
+  /** 待决策落格的地产定义(价格/等级口径单一出处):薄委托 → movement-flow.pendingLandDef
+   *  (choices.ts/bot 经壳消费)。 */
   pendingLandDef(): PropertyDef {
-    if (this.pendingLand == null)
-      throw new Error("pendingLandDef:当前无待决策落格(仅 AwaitingDecision 相位有决策上下文)");
-    const def = this.catalog.get(this.pendingLand.propertyId);
-    if (def == null)
-      throw new Error(`pendingLand:城 ${this.pendingLand.propertyId} 不在 catalog(数据 bug)`);
-    return def;
+    return pendingLandDef(this);
   }
 
+  /** 购地(决策命令):薄委托 → movement-flow.buyProperty。 */
   buyProperty(): void {
-    if (!this.assertPhase("AwaitingDecision", "BuyProperty")) return;
-    const def = this.pendingLandDef();
-    const buyer = this.activePlayer;
-    // 进驻(买)新城需要委任状;不足则拒绝(NoWarrant),UI 会禁用购买按钮
-    if (buyer.warrants < BUY_WARRANT_COST) {
-      this.lastTransaction = { status: "NoWarrant" };
-      this.endTurn();
-      return;
-    }
-    const r = buyProp(buyer, def);
-    this.lastTransaction = r;
-    if (r.status === "Ok") {
-      buyer.warrants -= BUY_WARRANT_COST; // 消耗委任状
-      this.pushFloater(buyer, -def.purchasePrice, buyer.position, "expense");
-      // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.0)
-      this.propertyChanges.push({
-        tileIndex: buyer.position,
-        level: r.newLevel,
-        ownerColorIndex: buyer.colorIndex,
-        levelChanged: false,
-        ownerChanged: true,
-      });
-      this.logEvent(
-        "buy",
-        buyer.guohao,
-        `${buyer.guohao} 购「${this.tileName(def)}」(${BUY_WARRANT_COST}委任 + ${formatMoney(def.purchasePrice)})`,
-        `buy player=${buyer.id} prop=${def.id} price=${def.purchasePrice} warrant-${BUY_WARRANT_COST} warrants=${buyer.warrants} cash=${buyer.cash}`,
-        -def.purchasePrice,
-      );
-      this.dispatchMoment("PropertyBought", { subject: this.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
-    }
-    this.endTurn();
+    buyProperty(this);
   }
 
+  /** 扩军(决策命令):薄委托 → movement-flow.upgradeProperty。 */
   upgradeProperty(): void {
-    if (!this.assertPhase("AwaitingDecision", "UpgradeProperty")) return;
-    const def = this.pendingLandDef();
-    const r = upgradeProp(this.activePlayer, def);
-    this.lastTransaction = r;
-    if (r.status === "Ok") {
-      // 城池变更留痕(ADR-0015):扩军 = 等级维度变更(印重钤 + 楼生长),归属不变
-      this.propertyChanges.push({
-        tileIndex: this.activePlayer.position,
-        level: r.newLevel,
-        ownerColorIndex: this.activePlayer.colorIndex,
-        levelChanged: true,
-        ownerChanged: false,
-      });
-      this.logEvent(
-        "upgrade",
-        this.activePlayer.guohao,
-        `${this.activePlayer.guohao} 扩军「${this.tileName(def)}」至 Lv.${r.newLevel}(免费)`,
-        `upgrade player=${this.activePlayer.id} prop=${def.id} level=${r.newLevel} cash=${this.activePlayer.cash}`,
-      );
-      this.dispatchMoment("PropertyUpgraded", { subject: this.activeIndex, propertyId: def.id }); // 时机·PropertyUpgraded:扩军成功(两挂点之一,另一处在公道买卖成交)
-    }
-    this.endTurn();
+    upgradeProperty(this);
   }
 
+  /** 按兵不动(决策命令):薄委托 → movement-flow.endDecision。 */
   endDecision(): void {
-    if (!this.assertPhase("AwaitingDecision", "EndDecision")) return;
-    this.logEvent(
-      "system",
-      this.activePlayer.guohao,
-      `${this.activePlayer.guohao} 按兵不动`,
-      `skip player=${this.activePlayer.id}`,
-    );
-    this.endTurn();
+    endDecision(this);
   }
 
   // #322 去私有化(ADR-0019 条款 3):treasure-flow 交涉 fair 分支留痕经 g.tileName 直调。
@@ -1114,266 +878,17 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 落格处理 ────────────────────────────
+
+  /** 落格结算(己都城/卧龙岗/宝物城/特殊格/城池分流):薄委托 → movement-flow.resolveLanding
+   *  (testing.ts 白盒窄面、reaction-window 拦停止步与 encounter-flow 机遇解毕续结算经此)。 */
   resolveLanding(): void {
-    const mover = this.activePlayer;
-    // 落点恰为自己都城:补给 + 招贤纳士
-    if (mover.capitalIndex === mover.position) {
-      const supply = this.applyResupply(mover);
-      this.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
-      this.turnPhase = "Land";
-      this.tryRecruitHero(mover); // 招贤纳士:三选一(或无货→直接 endTurn)
-      return;
-    }
-    const tile = this.board.at(mover.position);
-    // 卧龙岗:招贤纳士(不可进驻)
-    if (tile.type === "Wolong") {
-      this.lastLandOutcome = { kind: "Noop" };
-      this.turnPhase = "Land";
-      this.tryRecruitHero(mover);
-      return;
-    }
-    // 宝物城:掷双骰判定获取珍宝
-    if (tile.type === "TreasureCity") {
-      this.resolveTreasureCity(mover, tile);
-      return;
-    }
-    if (tile.type !== "Property") {
-      this.resolveSpecial(mover, tile);
-      return;
-    }
-    this.resolveProperty(mover, tile);
+    resolveLanding(this);
   }
 
-  private resolveSpecial(mover: Player, tile: TileDef): void {
-    // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
-    // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
-    if (tile.type === "Fate") {
-      this.addReputation(this.players.indexOf(mover), 20);
-      this.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
-      this.lastLandOutcome = { kind: "Noop" };
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`,
-        `fate player=${mover.id} reputation=${mover.reputation}`,
-        0,
-      );
-      this.endTurn();
-      return;
-    }
-    // 锦囊格(#147,旧机会格语义复活):落格必抽一张锦囊(T1 的 drawJinnang;
-    // 牌库空落空语义同起手)。与机遇格区分:必得 vs 概率。
-    if (tile.type === "Chance") {
-      this.lastLandOutcome = { kind: "Noop" };
-      this.turnPhase = "Land";
-      this.pushFloaterText(mover, `${tile.name}:抽一张锦囊`, tile.index);
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
-        `jinnangTile player=${mover.id} tile=#${tile.index}`,
-      );
-      this.drawJinnang(this.players.indexOf(mover), 1);
-      this.endTurn();
-      return;
-    }
-    // 税关(Tax):固定缴税 200 两
-    if (tile.type === "Tax") {
-      const r = this.payOrLiquidate(mover, null, 200);
-      if (r === "liquidating") return;
-      const bankrupt = r === "bankrupt";
-      this.pushFloater(mover, -200, tile.index, "expense");
-      this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
-      this.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
-      this.logEvent(
-        "tax",
-        mover.guohao,
-        `${mover.guohao} 落 ${tile.name} 缴税 ${formatMoney(200)}${bankrupt ? " → 破产" : ""}`,
-        `tax player=${mover.id} tile=#${tile.index} cash=${mover.cash}`,
-        -200,
-      );
-      this.endTurn();
-      return;
-    }
-    // 商市(Stock):随机行情波动 ±100~200(简化版;完整买/卖/持股系统留后续)
-    if (tile.type === "Stock") {
-      const gain = this.dice.nextFloat() < 0.5;
-      const amt = 100 + Math.floor(this.dice.nextFloat() * 100);
-      const delta = gain ? amt : -amt;
-      let bankrupt = false;
-      if (delta >= 0) mover.cash += delta;
-      else {
-        const r = this.payOrLiquidate(mover, null, amt);
-        if (r === "liquidating") return;
-        bankrupt = r === "bankrupt";
-      }
-      this.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
-      if (!gain)
-        this.dispatchMoment("CashLost", { subject: this.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
-      this.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`,
-        `stock player=${mover.id} delta=${delta} cash=${mover.cash}`,
-        delta,
-      );
-      this.endTurn();
-      return;
-    }
-    this.lastLandOutcome = { kind: "Noop" };
-    this.endTurn();
-  }
-
-  private resolveProperty(mover: Player, tile: TileDef): void {
-    const def = this.catalog.get(tile.propertyId);
-    if (!def) {
-      this.lastLandOutcome = { kind: "Noop" };
-      this.endTurn();
-      return;
-    }
-    const owner = this.findOwner(def.id);
-    if (owner == null) {
-      // 无主城(含分歧点城)。ADR-0013:选项集经注册表计算;买不起/无委任状时仅剩默认
-      // 行为「不取」→ 自动执行(战报+浮字),不进决策相位(原 L51 内联预检迁入注册表)。
-      // 决策上下文置 pendingLand(决策命令消费);lastLandOutcome 仅表现态(UI 卷轴字段)。
-      this.pendingLand = { kind: "PropertyAvailable", propertyId: def.id };
-      this.lastLandOutcome = { kind: "PropertyAvailable", property: def };
-      if (this.enterDecisionPhase()) {
-        this.logEvent(
-          "buy",
-          mover.guohao,
-          `${mover.guohao} 至 ${tile.name},可购(${formatMoney(def.purchasePrice)})`,
-          `available player=${mover.id} prop=${def.id} price=${def.purchasePrice}`,
-        );
-      }
-      return;
-    }
-    if (owner === mover) {
-      // 己城扩军。ADR-0013:满级时仅剩「按兵不动」假选择 → 自动执行(战报+浮字)。
-      this.pendingLand = { kind: "OwnProperty", propertyId: def.id };
-      this.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
-      if (this.enterDecisionPhase()) {
-        this.logEvent(
-          "upgrade",
-          mover.guohao,
-          `${mover.guohao} 至己城 ${tile.name},可扩军(免费)`,
-          `own player=${mover.id} prop=${def.id}`,
-        );
-      }
-      return;
-    }
-    this.dispatchMoment("LandedOnProperty", {
-      subject: this.players.indexOf(mover),
-      ownerSeat: this.players.indexOf(owner),
-      propertyId: def.id,
-      tileIndex: tile.index,
-    }); // 时机·LandedOnProperty:落他人城(城池有主且非本人,无论后续是否触发珍宝交涉;回合外玩家高频触发点)
-    // 他人到达城池不升级:仅当城主对该访客的珍宝交涉选择公道买卖且成交时才 +1 级
-    // (见 resolveTreasureOwner 的 fair 分支;坐地起价/不交易均不升级)。
-    // 珍宝交涉:城主有珍宝 → 公道买卖/坐地起价;无珍宝 → 无事发生
-    if (owner.treasures.length > 0) {
-      this.treasureVisitor = { def, ownerIdx: this.players.indexOf(owner) };
-      this.turnPhase = "AwaitingTreasureOwner";
-      this.lastLandOutcome = { kind: "TreasureTrade", property: def, owner };
-      this.logEvent(
-        "trade",
-        owner.guohao,
-        `${mover.guohao} 落「${tile.name}」,${owner.guohao} 可公道买卖/坐地起价(${owner.treasures.length}件珍宝)`,
-        `treasureAwait owner=${owner.id} visitor=${mover.id} treasures=${owner.treasures.length}`,
-      );
-    } else {
-      // 城主无珍宝:无事发生
-      this.lastLandOutcome = { kind: "Noop" };
-      this.logEvent(
-        "system",
-        mover.guohao,
-        `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`,
-        `noTreasure owner=${owner.id} visitor=${mover.id}`,
-      );
-      this.endTurn();
-    }
-  }
-
-  /** ADR-0013 决策收口:进入 AwaitingDecision 前先经注册表(choices.ts)计算选项集;
-   *  除默认行为(skip)外无可用选项 → 直接自动执行默认行为(战报 + 浮字 + endTurn),
-   *  不进决策相位,返回 false;否则进入 AwaitingDecision 等待玩家,返回 true。
-   *  调用前须已置 pendingLand(注册表按其分购地/扩军选项)。 */
-  private enterDecisionPhase(): boolean {
-    const options = computeChoices(this, "AwaitingDecision");
-    const hasRealChoice = options.some((o) => o.available && o.id !== "skip");
-    if (hasRealChoice) {
-      this.turnPhase = "AwaitingDecision";
-      return true;
-    }
-    const p = this.activePlayer;
-    const tile = this.board.at(p.position);
-    const def = this.pendingLand != null ? this.pendingLandDef() : null;
-    this.lastLandOutcome = { kind: "Noop" };
-    if (def != null && options.some((o) => o.id === "buy")) {
-      // 购地不可行(银两/委任状不足):默认行为=不取(浮字文案口径见 ADR-0013 决议 2)
-      const noWarrant = p.warrants < BUY_WARRANT_COST;
-      this.logEvent(
-        "buy",
-        p.guohao,
-        `${p.guohao} 至 ${tile.name},${noWarrant ? "无委任状" : "银两不足"},不可购`,
-        `skipAvailable player=${p.id} prop=${def.id} price=${def.purchasePrice} cash=${p.cash} warrants=${p.warrants}`,
-      );
-      this.pushFloaterText(p, noWarrant ? "无委任状,不可购" : "银两不足,未能购城", p.position);
-    } else if (def != null) {
-      // 扩军不可行(城已满级):默认行为=按兵不动
-      this.logEvent(
-        "upgrade",
-        p.guohao,
-        `${p.guohao} 至己城 ${tile.name},城已满级,按兵不动`,
-        `skipMaxed player=${p.id} prop=${def.id} cash=${p.cash}`,
-      );
-      this.pushFloaterText(p, "城已满级,按兵不动", p.position);
-    } else {
-      // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
-      this.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
-    }
-    this.endTurn();
-    return false;
-  }
-
-  /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。
-   *  返回 { supply, level }:supply=补给金额,level=都城当前等级。
-   *  一并返回 level 是为让 applyResupply 写日志时免再做一次 board.at+findHolding(原重复查找)。 */
+  /** 都城补给量查询(tile→def→holding→supplyFor 查找链,测试断言消费):
+   *  薄委托 → movement-flow.capitalSupplyOf。 */
   capitalSupplyOf(player: Player): { supply: number; level: number } {
-    const tile = this.board.at(player.capitalIndex);
-    const def = this.catalog.get(tile.propertyId);
-    const h = findHolding(player, def?.id ?? "");
-    return { supply: supplyFor(def?.resupplyPerLevel, h?.level), level: h?.level ?? 0 };
-  }
-
-  /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
-   *  cause="halt"(经过必停)战报写「军至都城 X,驻跸补给(+N)」;"land"(落点恰为都城)维持原补给文案。 */
-  private applyResupply(mover: Player, cause: "land" | "halt" = "land"): number {
-    const { supply, level } = this.capitalSupplyOf(mover);
-    if (supply > 0) {
-      mover.cash += supply;
-      this.pushFloater(mover, supply, mover.capitalIndex, "supply");
-      this.dispatchMoment("CashGained", { subject: this.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
-    }
-    if (cause === "halt") {
-      this.logEvent(
-        "halt",
-        mover.guohao,
-        `${mover.guohao} 军至都城「${this.board.at(mover.capitalIndex).name}」,驻跸补给(+${formatMoney(supply)})`,
-        `haltSupply player=${mover.id} capital=#${mover.capitalIndex} level=${level} amount=${supply} cash=${mover.cash}`,
-        supply,
-      );
-    } else if (supply > 0) {
-      this.logEvent(
-        "supply",
-        mover.guohao,
-        `${mover.guohao} 都城补给 +${formatMoney(supply)}(Lv.${level})`,
-        `supply player=${mover.id} capital=#${mover.capitalIndex} level=${level} amount=${supply} cash=${mover.cash}`,
-        supply,
-      );
-    }
-    return supply;
+    return capitalSupplyOf(this, player);
   }
 
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
@@ -1487,13 +1002,15 @@ export class GameEngine {
   // resolveLanding/marchTraverse 消费 + testing.ts 白盒窄面);drawTreasureAt/applyRandomEvent
   // 域内自洽,不留壳。
 
-  /** 宝物城落格:薄委托 → treasure-flow.resolveTreasureCity。 */
-  private resolveTreasureCity(mover: Player, tile: TileDef): void {
+  /** 宝物城落格:薄委托 → treasure-flow.resolveTreasureCity(#323 去私有化 ADR-0019 条款 3:
+   *  落格结算 movement-flow.resolveLanding 经 g. 直调)。 */
+  resolveTreasureCity(mover: Player, tile: TileDef): void {
     resolveTreasureCity(this, mover, tile);
   }
 
-  /** 辅路格落格:薄委托 → treasure-flow.resolveBranchCell(marchTraverse 消费 + testing.ts 白盒窄面)。 */
-  private resolveBranchCell(mover: Player, cell: BranchCell): void {
+  /** 辅路格落格:薄委托 → treasure-flow.resolveBranchCell(#323 去私有化:行军途经
+   *  marchTraverse 调用点迁 movement-flow 后经 g. 直调;testing.ts 白盒窄面照旧)。 */
+  resolveBranchCell(mover: Player, cell: BranchCell): void {
     resolveBranchCell(this, mover, cell);
   }
 
@@ -1728,8 +1245,10 @@ export class GameEngine {
     return this.round - last >= skill.cooldown;
   }
 
-  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。 */
-  private tryRecruitHero(mover: Player): void {
+  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。
+   *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
+   *  testing.ts 白盒窄面照旧。招贤域本体仍留壳内(后续票迁出)。 */
+  tryRecruitHero(mover: Player): void {
     if (mover.heroes.length >= HERO_CAPACITY) {
       this.endTurn();
       return;
