@@ -8,19 +8,20 @@
 // 加一个引擎字段只在表里加一条(read/write 同点),不再横跨两个镜像函数五处文件。
 // 契约测试(snapshot-contract.test.ts)断言「serializeGame 产出的键集 = 清单键集」双向一致,
 // 杜绝「序列化了没恢复 / 清单记了没产出」的双向漂移。
-import type { GameEngine, EnginePhase, SetupPhase, LastJinnangPlay } from "./authority";
-import type { ChoiceOption } from "./choices";
 import type {
-  DiceRoll,
-  HeroDef,
-  LandOutcomeKind,
-  LandOutcomeSnapshot,
-  LogEvent,
-  MovePath,
-  PendingLand,
+  GameEngine,
+  EnginePhase,
+  SetupPhase,
+  LastJinnangPlay,
   TurnPhase,
   VictoryReason,
-} from "./types";
+} from "./authority";
+import type { ChoiceOption } from "./choices";
+import type { DiceRoll } from "./dice";
+import type { HeroDef } from "./heroes";
+import type { LogEvent } from "./model";
+import type { MovePath } from "./board";
+import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
 import { HEROES } from "./heroes";
 import { netWorth } from "./networth";
 
@@ -152,26 +153,26 @@ export interface GameSnapshot {
   /** 本回合已占用的锦囊标签(#122/T2):每回合开始清空。 */
   jinnangUsedTags: string[];
   /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
-  pendingJinnang: import("./types").PendingJinnang | null;
+  pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):军师幕选技后的选人子状态;null=无。 */
-  pendingSkill: import("./types").PendingHeroSkill | null;
+  pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
    *  重放=普通 respondReaction 命令流);可见性由传输层投影(ADR-0016),公开载荷另经
    *  派生字段 reaction 透出。 */
-  pendingReaction: import("./types").PendingReaction | null;
+  pendingReaction: import("./reaction-window").PendingReaction | null;
   /** 反应窗公开载荷(#281,纯派生=pendingReaction.view):可见性两档登记见 ReactionView
    *  类型注释——公告字段 public,jinnang 窗 queriedBySeat 为 per-seat private(redact
    *  每座位只留「自己是否被询问」,改造归传输层下一道缝)。与 pendingReaction 双份同载:
    *  本字段是纯派生只读投影,消费方=UI(GameScreen 反应窗态);挂起态 pendingReaction
    *  消费方=恢复重建(restoreFromSnapshot)与传输层超时判据(room.ts 读 seq/answers)。 */
-  reaction: import("./types").ReactionView | null;
+  reaction: import("./reaction-window").ReactionView | null;
   /** 最近出牌留痕(#284,联机信号源):客户端快照 diff seq 变化产 jinnangPlayed 表现
    *  事件。公开信息——出牌是公开事件,redact 不裁。 */
   lastJinnangPlay: LastJinnangPlay | null;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
-  jinnangPeeks: import("./types").JinnangPeek[];
+  jinnangPeeks: import("./jinnang-execution").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
   jinnangDeckCount: number;
   jinnangDiscard: string[];
@@ -181,10 +182,10 @@ export interface GameSnapshot {
 
 /** 反应窗挂起态深拷贝(序列化/恢复共用;纯数据,无引用共享)。 */
 function clonePendingReaction(
-  pr: import("./types").PendingReaction | null,
-): import("./types").PendingReaction | null {
+  pr: import("./reaction-window").PendingReaction | null,
+): import("./reaction-window").PendingReaction | null {
   if (!pr) return null;
-  const view: import("./types").ReactionView =
+  const view: import("./reaction-window").ReactionView =
     pr.view.kind === "jinnang"
       ? {
           kind: "jinnang",
@@ -201,8 +202,8 @@ function clonePendingReaction(
           ownerSeat: pr.view.ownerSeat,
           windowMs: pr.view.windowMs,
         };
-  const answers: import("./types").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
-  const payload: import("./types").ReactionPayload =
+  const answers: import("./reaction-window").ReactionAnswer[] = pr.answers.map((a) => ({ ...a }));
+  const payload: import("./reaction-window").ReactionPayload =
     pr.payload.kind === "jinnang"
       ? {
           kind: "jinnang",

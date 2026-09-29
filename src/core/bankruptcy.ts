@@ -14,7 +14,7 @@ import type { GameEngine } from "./authority";
 import { settleDebt, sellValueOf } from "./economy";
 import { guidePriceOf } from "./treasures";
 import { formatMoney } from "./money";
-import type { Player } from "./types";
+import type { Player } from "./model";
 
 /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
  *  交易成局(TradeSettled)/卖家收款(CashGained)四个时机都在此派发——无论直接付清还是

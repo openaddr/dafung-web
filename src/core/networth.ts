@@ -1,5 +1,5 @@
 // 身价计算:仅现金(单一口径,被胜利判定/排行榜/破产裁决复用)。
-import type { Player } from "./types";
+import type { Player } from "./model";
 
 /**
  * 身价 = 仅现金(珍宝、城池账面均不计入)。

@@ -8,7 +8,7 @@
 import { describe, it, expect, afterAll } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
-import type { AiDifficulty } from "@core/types";
+import type { AiDifficulty} from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { netWorth } from "@core/networth";

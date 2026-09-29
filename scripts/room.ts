@@ -9,7 +9,7 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
-import type { AiDifficulty, GameCommand } from "../src/core/types";
+import type { AiDifficulty, GameCommand} from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源

@@ -443,7 +443,7 @@ describe("fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)", () =>
 
 // ─────────────── 出牌指示线(#281/P2-E)+ 拦停余段行军 ───────────────
 import { remainingMarchPath } from "../src/app/fx/orchestrator";
-import type { MovePath } from "@core/types";
+import type { MovePath} from "@core/board";
 
 /** 军师幕出牌步骤(横征暴敛=A面全体域,无目标段):提取事件含 jinnangPlayed。 */
 function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {

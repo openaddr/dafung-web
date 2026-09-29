@@ -2,28 +2,14 @@
 // 构造器 + 公共薄委托 + submitCommand + 快照通道 + presentation getter;引擎自留职责
 // 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
-// jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow,
-// 见下各 import 区段注释),壳内同名公共方法薄委托。
-import type { Board } from "./board";
-import type { BranchCell } from "./board";
-import type { Dice } from "./dice";
-import type {
-  AiDifficulty,
-  HeroDef,
-  GameCommand,
-  LandOutcome,
-  LogEvent,
-  MovePath,
-  PendingLand,
-  Player,
-  PropertyDef,
-  RouteKind,
-  TileDef,
-  TransactionResult,
-  TriggerSkill,
-  TurnPhase,
-  VictoryReason,
-} from "./types";
+// jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
+import type { Board, BranchCell, MovePath, TileDef } from "./board";
+import type { Dice, DiceRoll } from "./dice";
+import type { Player, LogEvent } from "./model";
+import type { PropertyDef, TransactionResult } from "./economy";
+import type { HeroDef, TriggerSkill } from "./heroes";
+import type { TreasureDef } from "./treasures";
+import type { LandOutcome, PendingLand, RouteKind } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
@@ -39,19 +25,14 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
-import type {
-  JinnangPeek,
-  PendingJinnang,
-  PendingHeroSkill,
-  PendingReaction,
-} from "./types";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
 // marchTraverse 进了 movement-flow.ts,改直调已导出的自由函数,壳内只留 respondReaction。)
-import { respondReaction } from "./reaction-window";
+import { respondReaction, type PendingReaction } from "./reaction-window";
 // 锦囊+主动技+效果执行域(#319,ADR-0019):军师幕决策/出牌/效果结算在 jinnang-execution.ts,
-// 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调。
+// 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调;
+// 载荷类型(JinnangPeek/PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
 import {
   drawJinnang,
   enterJinnangPhase,
@@ -59,6 +40,7 @@ import {
   resolveHeroSkill,
   resolveJinnang,
   settleJinnangExit,
+  type JinnangPeek, type PendingJinnang, type PendingHeroSkill,
 } from "./jinnang-execution";
 // 机遇主流程+体力耗竭域(#320,ADR-0019):机遇触发抽取/抉择机遇入相与选项结算/效果
 // 结算/体力接线与耗竭善后在 encounter-flow.ts,壳内同名方法薄委托;与数据表 encounters.ts
@@ -109,7 +91,7 @@ import {
 // 开局三段式域(#324,ADR-0019):国号设定/点将定序/AI 与服务器代选都/选都三选一/
 // 三候选滚换/入局收尾在 setup-flow.ts,壳内同名公共方法薄委托转发;setup 期骰流顺序
 // 敏感(offeredCapitals 随 rngState 序列化,联机/恢复必须一致),域内逐字保留。
-// shuffle 洗牌辅助随本域迁出,壳内招贤(tryRecruitHero,后续票迁)反向 import 消费。
+// (#326:shuffle 洗牌辅助的消费方招贤随之迁 recruitment.ts,域侧反向 import,壳不再经手。)
 import {
   aiSetupStep,
   aiSetupStepFor,
@@ -117,17 +99,11 @@ import {
   firstAvailableCapitalIndex,
   pickCapital,
   setGuohao,
-  shuffle,
 } from "./setup-flow";
+// 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
+import { tryRecruitHero, resolveHeroPick } from "./recruitment";
 import { formatMoney } from "./money";
-import {
-  STARTING_WARRANTS,
-  HERO_CAPACITY,
-  STAMINA_MAX,
-  STARTING_STAMINA,
-} from "./constants";
-import { HEROES } from "./heroes";
-import type { DiceRoll, TreasureDef } from "./types";
+import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
 type Catalog = MapCatalog;
 
@@ -156,6 +132,58 @@ export interface EngineConfig {
 
 export type EnginePhase = "Setup" | "Playing" | "GameOver";
 export type SetupPhase = "Guohao" | "PickCapital" | "Done";
+
+// ── 回合状态机与命令协议类型(#326 types.ts 解散:壳 = 回合状态机之家,本文件拥有并导出)──
+/** 回合阶段。AwaitingEncounter(#124)= 抽中抉择机遇,等待玩家选选项(resolveEncounterChoice)。
+ *  AwaitingReaction(#281,ADR-0017)= 反应窗:结算中段停相位(先例 AwaitingTreasureOwner),等被询问座位的 respondReaction 应答;全部应答后引擎续结算。 */
+export type TurnPhase =
+  | "Roll"
+  | "AwaitingBranch"
+  | "AwaitingDecision"
+  | "AwaitingHeroPick"
+  | "AwaitingEncounter"
+  | "AwaitingJinnang" // 锦囊卷轴(#122/T2):回合开始掷骰前,主动用牌或今不用
+  | "AwaitingExhaustion"
+  | "AwaitingTreasureOwner"
+  | "AwaitingBankruptcySettle"
+  | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
+  | "Land"
+  | "EndTurn"
+  | "GameOver";
+
+export type AiDifficulty = "Simple" | "Normal";
+
+export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding";
+
+/** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */
+export type GameCommand =
+  | { type: "rollAndMove" }
+  | { type: "selectBranch"; kind: RouteKind }
+  | { type: "buyProperty" }
+  | { type: "upgradeProperty" }
+  | { type: "endDecision" }
+  | { type: "resolveHeroPick"; index: number }
+  | { type: "resolveEncounterChoice"; index: number } // 抉择机遇选项(#124;index=def.choices 下标)
+  | { type: "resolveExhaustionChoice"; index: number }
+  | {
+      type: "resolveTreasureOwner";
+      action:
+        | { type: "fair"; treasureId: string }
+        | { type: "premium"; treasureId: string }
+        | { type: "skip" };
+    }
+  | { type: "sellTreasureBankruptcy"; treasureId: string }
+  | { type: "sellPropertyBankruptcy"; propId: string }
+  | { type: "cashHeroBankruptcy"; heroId: string }
+  | { type: "confirmBankruptcySettle" }
+  | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
+  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
+  // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
+  // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
+  // use=true 时 cardId=打出的反应牌;shareSeat 仅识破 AOE 必带=被保护份的座位(替他人
+  // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略)。
+  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
 
 const DEFAULT_TARGET = 30000;
 const DEFAULT_CASH = 10000;
@@ -1039,46 +1067,17 @@ export class GameEngine {
     return this.round - last >= skill.cooldown;
   }
 
+  // ──────────────────────────── 招贤纳士(#326,ADR-0019)────────────────────────────
   /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。
    *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
-   *  testing.ts 白盒窄面照旧。招贤域本体仍留壳内(后续票迁出)。 */
+   *  testing.ts 白盒窄面照旧。#326 域本体迁 recruitment.ts,薄委托 → recruitment.tryRecruitHero。 */
   tryRecruitHero(mover: Player): void {
-    if (mover.heroes.length >= HERO_CAPACITY) {
-      this.endTurn();
-      return;
-    }
-    const available = HEROES.filter((h) => !this.recruitedHeroIds.has(h.id));
-    if (available.length === 0) {
-      this.endTurn();
-      return;
-    }
-    this.offeredHeroes = shuffle(available, this.dice.nextFloat).slice(0, 3);
-    this.turnPhase = "AwaitingHeroPick";
-    this.logEvent(
-      "setup",
-      mover.guohao,
-      `${mover.guohao} 招贤纳士:三选一`,
-      `offerHeroes player=${mover.id} count=${this.offeredHeroes.length} heroes=${this.offeredHeroes.map((h) => h.id).join("|")}`,
-    );
+    tryRecruitHero(this, mover);
   }
 
-  /** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用)。 */
+  /** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用);薄委托 → recruitment.resolveHeroPick。 */
   resolveHeroPick(index: number): void {
-    if (!this.assertPhase("AwaitingHeroPick", "ResolveHeroPick")) return;
-    const hero = this.offeredHeroes[index];
-    if (hero) {
-      this.activePlayer.heroes.push(hero);
-      this.recruitedHeroIds.add(hero.id);
-      this.logEvent(
-        "setup",
-        this.activePlayer.guohao,
-        `${this.activePlayer.guohao} 招贤纳士,得「${hero.name}」:${hero.desc}`,
-        `pickHero player=${this.activePlayer.id} hero=${hero.id}`,
-      );
-      this.dispatchMoment("HeroRecruited", { subject: this.activeIndex, heroId: hero.id }); // 时机·HeroRecruited:招贤成功(选定名将;tryRecruitHero 只出三选一候选)
-    }
-    this.offeredHeroes = [];
-    this.endTurn();
+    resolveHeroPick(this, index);
   }
 
   // ──────────────────────────── 战报 / 浮动反馈 ────────────────────────────

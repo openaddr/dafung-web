@@ -4,7 +4,7 @@
 // 联机(后续阶段)注册 OnlineController —— 屏幕组件对两种模式无感。
 import type { Board } from "@core/board";
 import type { MapCatalog } from "@core/board-loader";
-import type { MapData } from "@core/types";
+import type { MapData} from "@core/board-loader";
 import type { GameController } from "./controller";
 
 let current: GameController | null = null;

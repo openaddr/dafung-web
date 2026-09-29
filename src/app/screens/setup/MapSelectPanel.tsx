@@ -6,7 +6,7 @@
 // (Base UI 底件),面板本体(内容/testid/水墨皮)原样保留。
 import { useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
-import type { MapData } from "@core/types";
+import type { MapData} from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
 import { Dialog, DialogContent } from "@app/components/ui/dialog";

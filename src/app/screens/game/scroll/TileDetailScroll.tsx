@@ -5,7 +5,7 @@
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
 import { formatMoney } from "@core/money";
-import type { TileType } from "@core/types";
+import type { TileType} from "@core/board";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";

@@ -4,7 +4,7 @@
 // + 名/title + desc 两行 line-clamp;快捷键 1/2/3 直选(G-19 口径,角标仅展示键位);
 // 卡片 title 带全文,desc 截断不丢信息。
 import { useEffect, useRef, useState } from "react";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { ScrollShell } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 

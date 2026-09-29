@@ -9,7 +9,7 @@
 // 设计取舍:坐标(x/y,棋盘逻辑系)在提取期解析进事件——浮字锚定优先级依赖
 // 提取时刻的玩家状态(辅路位置),事后无法从 atTile 单独还原,故事件自带坐标,
 // atTile 仅保留语义信息供测试断言。
-import type { MovePath } from "@core/types";
+import type { MovePath} from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
 import type { SoundEvent } from "./audio";
 

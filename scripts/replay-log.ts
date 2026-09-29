@@ -9,7 +9,8 @@ import { GameEngine, type EngineConfig } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 import { botAct } from "../src/core/bot";
 import { netWorth } from "../src/core/networth";
-import type { GameCommand, LogEvent } from "../src/core/types";
+import type { GameCommand} from "../src/core/authority";
+import type { LogEvent} from "../src/core/model";
 import { loadBuiltinMapById } from "./engine-helpers";
 
 // ── 局头/终局行的机读形状(detail JSON;与 authority.ts 写入端对应) ────────────────────────────

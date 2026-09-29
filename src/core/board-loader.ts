@@ -1,11 +1,57 @@
 // 地图加载器:把 MapData(JSON)校验并构建为运行时对象(Board + catalog + 属性)。
 // 主路 = tiles 数组顺序闭合环;分岔辅路 branch 的 start/end 用 tile id 引用,
 // cells 的坐标由 JSON 手配。校验失败抛可读错误。
+// 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
+// (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
 import { createBoard } from "./board";
-import type { Board, BoardBranch, BranchCell } from "./board";
-import type { BoardPos, MapData, PropertyDef, TileDef } from "./types";
+import type { Board, BoardBranch, BoardPos, BranchCellKind, BranchCell, TileDef, TileType } from "./board";
+import type { PropertyDef, TradeFormula } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
+
+// ── 地图 JSON schema(自定义地图 / 编辑器 / 导入导出)──
+export interface MapData {
+  version: number;
+  targetNetWorth: number;
+  startingCash: number;
+  maxLevel: number;
+  resupplyPerLevel: number;
+  tiles: MapTile[];
+  branch?: MapBranch | null; // 分岔辅路(可空;旧版 shortcuts 字段已废弃)
+}
+
+export interface MapTile {
+  id: string;
+  name: string;
+  pos: number[]; // [x, y]
+  type?: TileType; // 默认 Property;Chance/Fate 等非地产格用
+  group?: string;
+  region?: string;
+  price?: number;
+  buildCost?: number;
+  /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
+  valueByLevel?: number[];
+  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。 */
+  tradeAdd?: number[];
+  /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
+  tradeMult?: number[];
+  /** 都城补给/级(分):内置地图逐城显式声明;缺省回退地图顶层 resupplyPerLevel(自定义地图用)。 */
+  resupplyPerLevel?: number;
+  trade?: TradeFormula;
+}
+
+/** 分岔辅路格(JSON 形式):kind + 手配坐标。 */
+export interface MapBranchCell {
+  kind: BranchCellKind;
+  pos: number[]; // [x, y] 辅路格坐标(地图作者手配)
+}
+/** 分岔辅路(JSON 形式):start/end 为主路 tile id;cells 为辅路格子(逐格掷骰沿此推进)。 */
+export interface MapBranch {
+  id: string;
+  start: string; // tile id(主路起点)
+  end: string; // tile id(主路终点)
+  cells: MapBranchCell[];
+}
 
 const SUPPORTED_VERSION = 1;
 

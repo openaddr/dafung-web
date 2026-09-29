@@ -8,7 +8,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import { HEROES } from "@core/heroes";
-import type { HeroDef, TriggerSkill } from "@core/types";
+import type { HeroDef, TriggerSkill} from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";

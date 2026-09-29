@@ -5,7 +5,7 @@
 // 状态随之复位,下一场交涉照常弹出。
 // 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级)。
 import { useState } from "react";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";

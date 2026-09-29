@@ -19,7 +19,52 @@ import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow } from "./reaction-window";
 import { formatMoney } from "./money";
 import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
-import type { Player, PropertyDef, RouteKind, TileDef } from "./types";
+import type { Player } from "./model";
+import type { PropertyDef } from "./economy";
+import type { TileDef } from "./board";
+
+// ── 择路/落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
+/** 路线抉择:大路(主环)/ 辅路(辅路逐格行进)。 */
+export type RouteKind = "Main" | "Branch";
+
+/** 落格结果。 */
+export type LandOutcomeKind =
+  | "Noop"
+  | "PropertyAvailable"
+  | "OwnProperty"
+  | "TreasureTrade"
+  | "TaxPaid";
+
+export interface LandOutcome {
+  kind: LandOutcomeKind;
+  property?: PropertyDef;
+  owner?: Player;
+  amount?: number; // 珍宝成交价/税额
+  resupply?: number; // 都城补给
+  causedBankruptcy?: boolean;
+}
+
+// ── 决策载荷与表现态分离(spec #107 C2)──
+/** 待决策落格的决策种类:无主城可购 / 己城可扩军。 */
+export type PendingLandKind = "PropertyAvailable" | "OwnProperty";
+
+/** 待决策落格载荷:决策上下文(购地/扩军命令与选项集计算的唯一依据),与表现态
+ *  LandOutcome 分离。只含最小可序列化上下文——propertyId 是唯一句柄,价格/等级口径
+ *  由 catalog 按 id 现查,恢复/联机不丢引用(旧 lastLandOutcome 兼任决策载荷时,曾因
+ *  property 引用的序列化缺口在恢复后丢失决策上下文)。 */
+export interface PendingLand {
+  kind: PendingLandKind;
+  propertyId: string;
+}
+
+/** LandOutcome 的快照行(纯表现态;propertyId 句柄,定义由 catalog 按需现查)。 */
+export interface LandOutcomeSnapshot {
+  kind: LandOutcomeKind;
+  propertyId: string | null;
+  amount: number | null;
+  resupply: number | null;
+  causedBankruptcy: boolean | null;
+}
 
 /** 抽签 → 移动(主路或辅路逐格)→ 经过自己都城必停(补给+结束回合);否则落格结算。
  *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell;

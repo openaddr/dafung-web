@@ -30,7 +30,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty, GameCommand } from "../src/core/types";
+import type { AiDifficulty, GameCommand} from "../src/core/authority";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import {

@@ -4,9 +4,9 @@
 // UI/bot/联机只消费结果(snapshot.choices 透出),禁止在 UI 层私自增删选项。
 // 扩展口:未来技能(免委任状购城/低价买城)经时机框架在选项计算前修改玩家状态,
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
-import type { GameEngine } from "./authority";
-import type { TurnPhase, ActiveSkillDef } from "./types";
-import { canUpgrade } from "./types";
+import type { GameEngine, TurnPhase } from "./authority";
+import { canUpgrade } from "./economy";
+import type { ActiveSkillDef } from "./heroes";
 import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
