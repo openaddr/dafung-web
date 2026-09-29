@@ -53,9 +53,9 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 关键文件
 
-- **core/**(全部纯逻辑):`game.ts` 引擎状态机/胜负/日志 · `types.ts` 核心类型 · `timing.ts`+`effects.ts` 时机总线与效果注册表 · `choices.ts` 决策选项集(ADR-0013) · `board.ts` 棋盘路径 · `economy.ts` 地产交易/破产 · `bot.ts` AI · `heroes.ts`/`treasures.ts` 数据表(加名将/珍宝只改这两个) · `constants.ts` 共享常量 · `theme.ts` 配色单源(改后跑 `bun run gen:theme`)
+- **core/**(全部纯逻辑):`authority.ts` 引擎壳(状态/薄委托/命令路由/快照通道,purity 门禁看守) · 机制域模块:`reaction-window` 反应窗 · `jinnang-execution` 锦囊执行 · `encounter-flow` 机遇+耗竭 · `movement-flow` 行军落格地产 · `bankruptcy` 破产清算 · `treasure-flow` 珍宝交涉 · `setup-flow` 开局三段式 · `recruitment` 招贤 · `model.ts` 共享领域模型 · `timing.ts`+`effects.ts` 时机总线与效果注册表 · `choices.ts` 决策选项集(ADR-0013) · `board.ts`/`board-loader.ts` 棋盘路径与地图契约 · `economy.ts` 经济原语 · `bot.ts` AI · `heroes.ts`/`treasures.ts`/`encounters.ts` 数据表(加名将/珍宝/机遇只改这些) · `snapshot.ts` 快照序列化 · `constants.ts` 共享常量 · `theme.ts` 配色单源(改后跑 `bun run gen:theme`);划分纪律见架构红线 8(ADR-0019)
 - **app/**:`main.tsx` 入口 · `store/` zustand(game 全局态/net 联机) · `controllers/` 基类+单机+联机+registry(含 `installDebugHooks`) · `components/board/` SVG 棋盘 · `screens/` home/setup/lobby/game/editor(各屏 testids.ts 是 e2e 选择器单源) · `fx/` 骰子/行军/浮字/音效编排
-- **scripts/**:`cli.ts` 纯 CLI 对局 · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-persistence.ts` 落盘适配 · `replay-log.ts` 对局日志重放校验 · `engine-helpers.ts` CLI/Server 共享层 · `shot.mjs` 截图自证单源(起服样板勿手写) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(带 baseline 指纹)
+- **scripts/**:`cli.ts` 纯 CLI 对局 · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-persistence.ts` 落盘适配 · `replay-log.ts` 对局日志重放校验 · `engine-helpers.ts` CLI/Server 共享层 · `shot.mjs` 截图自证单源(起服样板勿手写) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言)
 
 ## 开发陷阱速查(游戏逻辑;数值一律查 [rules 第 10 页](./docs/reference/rules/10-关键数值总表.md))
 
@@ -66,7 +66,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - 破产自救**凑足即止**:现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`),不靠 UI 禁用自觉。
 - 弹卷轴 ⇔ 选项集 ≥2 真实选项;≤1 引擎自动执行默认行为+浮字(ADR-0013,`engine.choicesFor()`/快照 `choices` 供消费);破产清算例外仍弹。
 - 机遇档位归一/回退单源在 `core/encounters.ts`;引擎缺省 `triggerRate=0`,产品默认来自 jiyu.json。
-- 时机框架:技能=数据声明挂 `HeroDef.skills`,`dispatchMoment` 按座位序×技能序确定性派发;加效果一步(`effects.ts`)/加技能两步(`heroes.ts`)/加时机三步(`timing.ts`+`game.ts`);效果内禁同步再派发时机(深度>2 抛错);CashGained 仅经济结算点派发,防连锁。
+- 时机框架:技能=数据声明挂 `HeroDef.skills`,`dispatchMoment` 按座位序×技能序确定性派发;加效果一步(`effects.ts`)/加技能两步(`heroes.ts`)/加时机三步(`timing.ts`+`authority.ts`);效果内禁同步再派发时机(深度>2 抛错);CashGained 仅经济结算点派发,防连锁。
 - 对局日志(ADR-0014):记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**(重放自动重算);`bun scripts/replay-log.ts logs/x.jsonl` 校验终态。
 
 ## 验证纪律
