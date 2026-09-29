@@ -1,6 +1,17 @@
 // 珍宝系统:数据驱动的珍宝定义 + 牌堆管理。
 // 新增珍宝 = 往 TREASURES 加一条 TreasureDef。牌堆自动初始化。
-import type { TreasureDef, TradeFormula } from "./types";
+// 珍宝类型随域走(#326 types.ts 解散,ADR-0019):珍宝定义由本文件拥有。
+import type { TradeFormula } from "./economy";
+
+/** 珍宝定义(牌堆实例与玩家持有共用)。 */
+export interface TreasureDef {
+  id: string; // 唯一(牌堆展开后含序号)
+  name: string;
+  level: number; // 1-10
+  count?: number; // 牌堆中数量(仅 TREASURES 表用)
+  desc?: string; // 风味描述
+  effect?: string; // 预留:被动效果(暂不实现)
+}
 
 export const TREASURES: TreasureDef[] = [
   { id: "edict", name: "带血的诏书", level: 9, count: 1, desc: "衣带诏,董承受命" },

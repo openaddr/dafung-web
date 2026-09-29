@@ -8,7 +8,7 @@
 // - 机遇(#125):触发概率 % + 三档基准四值,默认档位读 public/config/jiyu.json
 //   (fetch 失败回退内置默认同值),单局覆盖经 SetupConfig.encounter 透传引擎
 import { useEffect, useState } from "react";
-import type { SeatConfig } from "@core/game";
+import type { SeatConfig } from "@core/authority";
 import type { EncounterConfig } from "@core/encounters";
 import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";

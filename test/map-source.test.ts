@@ -9,7 +9,7 @@ import {
   type MapEntry,
   type CatalogFileEntry,
 } from "@core/map-source";
-import type { MapData } from "@core/types";
+import type { MapData} from "@core/board-loader";
 import sanguoData from "../public/maps/sanguo.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 

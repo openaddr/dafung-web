@@ -18,7 +18,8 @@ import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
-import type { GameCommand, MapData } from "@core/types";
+import type { GameCommand} from "@core/authority";
+import type { MapData} from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";

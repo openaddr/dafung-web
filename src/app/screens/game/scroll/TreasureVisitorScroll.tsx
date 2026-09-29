@@ -5,7 +5,7 @@
 // 状态随之复位,下一场交涉照常弹出。
 // 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级)。
 import { useState } from "react";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
@@ -92,7 +92,7 @@ export function TreasureVisitorScroll({
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
-                skip 分支,core/game.ts:893),城主不必在公道/坐地里二选一。 */}
+                skip 分支,core/authority.ts),城主不必在公道/坐地里二选一。 */}
             <ScrollButton
               primary
               testid={T.treasureSkip}

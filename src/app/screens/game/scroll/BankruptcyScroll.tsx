@@ -6,7 +6,7 @@
 // #94:「结算」分两态——仍欠(owe>0)时点结算=引擎 settleDebt+finalizeBankruptcy 破产出局,
 // 降为警示次级并明说后果;凑足(owe===0)升为主行动墨钮(视觉重做 v2:金不作按钮底),加一次性脉冲反馈达成。
 import { useEffect, useState } from "react";
-import type { GameCommand } from "@core/types";
+import type { GameCommand} from "@core/authority";
 import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import { Motion } from "@core/theme";

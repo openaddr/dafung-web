@@ -1,7 +1,7 @@
 // AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
-import type { GameEngine } from "./game";
-import type { Player } from "./types";
+import type { GameEngine } from "./authority";
+import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";

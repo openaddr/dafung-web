@@ -7,9 +7,9 @@
 // 对象注入宿主操作面,投影视图在下方再导出维持原引用面(测试/传输层 import 不动)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import { randomBytes, randomInt } from "node:crypto";
-import { GameEngine } from "../src/core/game";
-import type { SeatConfig } from "../src/core/game";
-import type { AiDifficulty, GameCommand } from "../src/core/types";
+import { GameEngine } from "../src/core/authority";
+import type { SeatConfig } from "../src/core/authority";
+import type { AiDifficulty, GameCommand} from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源

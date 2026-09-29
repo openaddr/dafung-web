@@ -5,7 +5,7 @@
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
-import type { MapData } from "@core/types";
+import type { MapData} from "@core/board-loader";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";

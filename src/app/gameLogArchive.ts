@@ -3,8 +3,8 @@
 // value: {gameId, header, lines, updatedAt})。终局行由引擎写入 engine.log,随末次
 // sync 自然入库,无需单独收口。新局首写时顺手清理 updatedAt > 30 天的旧局(无定时器)。
 // 联机不走本文件(服务器 logs/<gameId>.jsonl 是唯一事实源)——OnlineController 不调用。
-import type { GameEngine } from "@core/game";
-import type { LogEvent } from "@core/types";
+import type { GameEngine } from "@core/authority";
+import type { LogEvent} from "@core/model";
 
 const DB_NAME = "dafung-logs";
 const DB_VERSION = 1;

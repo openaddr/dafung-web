@@ -2,11 +2,11 @@
 // log 生成日志 → replayGameLog 重建重放 → assertFinalState 逐字段比对终态。
 // 全 bot 局零 cmd 行(整局由 botAct 确定性重演);人类局的选都/玩法命令全走 cmd 流。
 import { describe, it, expect } from "bun:test";
-import { GameEngine, type SeatConfig } from "@core/game";
+import { GameEngine, type SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { loadMap } from "@core/board-loader";
-import type { LogEvent } from "@core/types";
+import type { LogEvent} from "@core/model";
 import { replayGameLog, assertFinalState } from "../scripts/replay-log";
 import sanguoData from "../public/maps/sanguo.json";
 

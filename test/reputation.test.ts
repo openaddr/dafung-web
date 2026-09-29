@@ -1,7 +1,7 @@
 // 声望贯通单测(#121):初值恒 0 / ±100 夹紧 / 天命格落格 +20 / 锦囊格退役按普通格。
 // 落格经 testEngine.landActiveAt 直摆直结算,与随机流无关,种子不影响断言。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
+import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";

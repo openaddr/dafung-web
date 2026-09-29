@@ -9,9 +9,10 @@
 // 事件数组顺序即播放顺序,present 串行 await——语义与旧 playStepEffects 内联链一致。
 // 浮字坐标锚定:engine floaters 的 atTile / 辅路格 / 玩家位置(优先级同旧 spawnFloaters),
 // 在提取期(提取器内)解析成逻辑坐标存进事件。
-import type { GameEngine } from "@core/game";
-import type { Player } from "@core/types";
-import type { TurnPhase, MovePath } from "@core/types";
+import type { GameEngine } from "@core/authority";
+import type { Player} from "@core/model";
+import type { TurnPhase} from "@core/authority";
+import type { MovePath} from "@core/board";
 import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio } from "./audio";

@@ -11,9 +11,9 @@ import {
   existsSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import type { GameEngine } from "../src/core/game";
-import type { SeatConfig } from "../src/core/game";
-import type { AiDifficulty } from "../src/core/types";
+import type { GameEngine } from "../src/core/authority";
+import type { SeatConfig } from "../src/core/authority";
+import type { AiDifficulty} from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createEngine, MAP } from "./engine-helpers";

@@ -5,7 +5,7 @@
 //      getter 保证 sink 永远指向当前引擎(棋子行军/印章坐标都读引擎态)。
 //   ② createMemorySink —— 测试 adapter:只录制调用序列,供单测断言
 //      present() 的播放顺序与内容,不碰 DOM/音频/store。
-import type { GameEngine } from "@core/game";
+import type { GameEngine } from "@core/authority";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio, type SoundEvent } from "./audio";
 import { useFxStore } from "./fxStore";

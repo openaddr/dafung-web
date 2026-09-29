@@ -2,8 +2,9 @@
 // 连续驱动服务器控制的决策点:bot 座位走 botAct,接管/托管座位代驾,冻结真人座位不驱动。
 // registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与看门狗组;本模块零 WS/fs。
 import { botAct } from "../src/core/bot";
-import type { GameEngine } from "../src/core/game";
-import type { GameCommand, ReactionView } from "../src/core/types";
+import type { GameEngine } from "../src/core/authority";
+import type { GameCommand} from "../src/core/authority";
+import type { ReactionView} from "../src/core/reaction-window";
 import type { RoomBotStopReason, RoomEvent, RoomSession } from "./room";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";

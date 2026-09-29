@@ -1,8 +1,8 @@
 // 选都三选一(capital offer)单测:候选生成算法 / pickCapital 校验 / bot 限定候选 /
 // 快照恢复 / 8 人局不耗尽 / zhongyuan 小地图退化。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";

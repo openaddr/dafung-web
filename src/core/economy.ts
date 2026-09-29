@@ -1,8 +1,45 @@
 // 地产交易:购买、升级、破产裁决(本作无过路费/升级费:自己到达己城可选免费扩军,
 // 他人落城走珍宝交涉——公道买卖成交才升级;收入全靠卖珍宝与都城补给)。
-import type { Player, PropertyDef, TransactionResult } from "./types";
-import { canUpgrade } from "./types";
+// 地产类型随域走(#326 types.ts 解散,ADR-0019):地产定义/交易结果/坐地起价公式由本文件拥有。
+import type { Player, PropertyHolding } from "./model";
 import { findHolding } from "./player";
+
+/** 地产定义。BuildCost=选都建城费;ResupplyPerLevel=都城补给系数。
+ *  本作无过路费/升级费:自己到达己城可选免费扩军;他人落城不升级,
+ *  仅当城主对该访客的珍宝交涉选择公道买卖且成交时 +1 级(满级封顶)。 */
+export interface PropertyDef {
+  id: string;
+  group: string; // 'a'..'h'
+  purchasePrice: number;
+  maxLevel: number; // 最高等级(默认 3;持有等级 0..maxLevel,共 4 级)
+  valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
+  buildCost: number;
+  resupplyPerLevel: number; // 普通城为 0
+  /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  tradeAdd?: number[];
+  /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
+  tradeMult?: number[];
+  /** 旧贸易公式(向后兼容):premiumPriceOf 无 tradeAdd/tradeMult 时回退到此 × CITY_LEVEL_MULTIPLIER。 */
+  trade?: TradeFormula;
+}
+
+/** 旧贸易公式(向后兼容;新字段 tradeAdd/tradeMult):multiply=翻倍(指导价×param×等级倍率);markup=加价(指导价+param×等级倍率)。
+ *  新字段 tradeAdd/tradeMult(per-level)优先;此字段仅作回退。 */
+export interface TradeFormula {
+  type: "multiply" | "markup";
+  param: number;
+}
+
+/** 交易结果(判别联合):Ok/AlreadyMaxLevel 恒带 newLevel(等级口径唯一出处),
+ *  其余失败态不带——ADR-0015 城池宣告读 newLevel 时由 status 窄化保证,无需兜底。 */
+export type TransactionResult =
+  | { status: "Ok"; newLevel: number }
+  | { status: "InsufficientFunds" }
+  | { status: "NotOwned" }
+  | { status: "AlreadyMaxLevel"; newLevel: number }
+  | { status: "NoWarrant" };
+
+export const canUpgrade = (h: PropertyHolding): boolean => h.level < h.maxLevel;
 
 /** 购买无主地产(购入即为 Lv.0)。现金不足拒绝。 */
 export function buy(buyer: Player, def: PropertyDef): TransactionResult {

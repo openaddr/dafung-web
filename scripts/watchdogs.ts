@@ -6,7 +6,7 @@
 // 实例,三组各自配置「武装窗口(tag+delayMs)」与「到点动作」;行为(超时时长/触发
 // 动作/清理时机)与拆分前逐一对齐,由 room.test.ts 与同种子对拍兜底。
 // registry 经 WatchdogHost 注入房间侧操作;本模块零 WS/HTTP/fs 依赖。
-import type { GameCommand } from "../src/core/types";
+import type { GameCommand} from "../src/core/authority";
 import type { RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
 import { seatControlled } from "./seat-projection";

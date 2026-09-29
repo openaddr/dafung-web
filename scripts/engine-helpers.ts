@@ -7,10 +7,10 @@ import { join, resolve } from "node:path";
 import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
-import { GameEngine } from "../src/core/game";
-import type { SeatConfig, EngineConfig } from "../src/core/game";
+import { GameEngine } from "../src/core/authority";
+import type { SeatConfig, EngineConfig } from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
-import type { TurnPhase, AiDifficulty } from "../src/core/types";
+import type { TurnPhase, AiDifficulty} from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 import { botAct } from "../src/core/bot";
 

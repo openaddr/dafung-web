@@ -5,8 +5,8 @@
 // 断言任意步、以及终局,两者的完整快照逐字段一致。
 // 序列化丢字段 / RNG 状态不同步 / 恢复后行为分叉,都会在此第一时间炸出。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { SNAPSHOT_FIELDS, type GameSnapshot } from "@core/snapshot";

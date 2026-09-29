@@ -3,7 +3,7 @@
 //
 // 术语对齐:回合(turn)= 一个人行动一次(engine.turnNumber);轮(round)= 所有人各行动一次
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
-// ② game.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
+// ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
 /** 时机类型(28 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */

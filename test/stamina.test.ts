@@ -2,7 +2,7 @@
 // 惩罚结算(降级、失去变无主、skipTurns、重置 100)/都城规则(可降级、地板 0、不可失去)。
 // 落格与随机无关:耗竭入口 exhaustIfDepleted 直调,种子只影响无关路径。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
+import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";

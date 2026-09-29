@@ -6,9 +6,9 @@
 // 决策方恒为 bot(AwaitingReaction 反应窗 bot 即席代答,相位不外显)。
 // 步数 guard 打满仍未终局 → isOver 断言当场失败(零兜底:僵局就是要炸出来的 bug)。
 import { describe, it, expect, afterAll } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
-import type { AiDifficulty } from "@core/types";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
+import type { AiDifficulty} from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { netWorth } from "@core/networth";

@@ -2,8 +2,8 @@
 // 只测事件语义与时序,不测 DOM/音频细节——生产 sink 已由 e2e(react-solo/online)覆盖。
 // ADR-0015 扩充:城池宣告(propertyChanged → announceTileChange)同管道可断言。
 import { describe, it, expect } from "bun:test";
-import { GameEngine } from "@core/game";
-import type { EngineConfig, SeatConfig } from "@core/game";
+import { GameEngine } from "@core/authority";
+import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
@@ -443,7 +443,7 @@ describe("fxStore 城池宣告记录(ADR-0015:nonce 单调,两维独立)", () =>
 
 // ─────────────── 出牌指示线(#281/P2-E)+ 拦停余段行军 ───────────────
 import { remainingMarchPath } from "../src/app/fx/orchestrator";
-import type { MovePath } from "@core/types";
+import type { MovePath} from "@core/board";
 
 /** 军师幕出牌步骤(横征暴敛=A面全体域,无目标段):提取事件含 jinnangPlayed。 */
 function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {

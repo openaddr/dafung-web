@@ -5,13 +5,13 @@
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
 import { formatMoney } from "@core/money";
-import type { TileType } from "@core/types";
+import type { TileType} from "@core/board";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
-/** 非地产格的类型说明(口径对齐 core/game.ts 的落格处理)。 */
+/** 非地产格的类型说明(口径对齐 core/authority.ts 的落格处理)。 */
 const SPECIAL_TILE_DESC: Record<Exclude<TileType, "Property">, string> = {
   Wolong: "卧龙岗:途经可招贤纳士(名将三选一)",
   Chance: "锦囊:落格触发随机吉事,得失约 100~250 两",
