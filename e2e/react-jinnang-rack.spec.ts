@@ -1,7 +1,9 @@
 // 底部常驻手牌架(#238 一期 T3):起手牌在架内、点牌详情弹层(开/关)、长按同效、
 // 他人回合架常驻可见(常驻不收拢,P1-C 拍板)。空态斜牌背不做 DOM 断言(起手必 1 张,
 // 永不空),视觉证据归截图 tmp/ui-shots/t3/(tmp/shot-t3-rack.mjs 构造空手牌)。
-// 断言口径:牌面文案断牌名(def.id/def.text),不断样式(样式归原型基线)。
+// 断言口径:牌面文案断牌名(def.id/def.text),不断样式(样式归原型基线);
+// 例外:文末 reduced-motion 用例(#239 T4 验收门)钉计算样式——动效退场是行为
+// 契约不是视觉基线,delay/时长/不透明度只能从 getComputedStyle 取证。
 // #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
 // 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
 import { test, expect } from "./fixtures";
@@ -256,5 +258,48 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
       expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(1);
       expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(1);
     });
+  });
+});
+
+// ── 发牌入场级联 reduced-motion(#239 T4):系统「减弱动态效果」下入场动画必须
+// 退场——app.css M-4 全局兜层把 animation-duration 压到 0.01ms,但压不住 delay;
+// backwards 填充下不归零的 delay 会「先空白再逐张弹现」,hand-rack.css 的 reduce
+// 块显式把 delay 归零(那是 M-4 管不到的唯一缝)。本用例钉住两层都生效。
+test.describe("发牌入场级联 reduced-motion(#239 T4)", () => {
+  test("reduce 下入场动画不播放:delay 归零+时长压缩,牌挂载即不透明", async ({ page }) => {
+    // emulateMedia 挂在 goto 前:首屏样式计算即按 reduce 生效,无时序缝
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await quickStart(page);
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["连环计", "军情密探", "缓兵之计"];
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
+    const hand = page.getByTestId(TESTIDS.jinnangHand);
+    await expect(hand).toBeVisible();
+    const first = hand.getByTestId(TESTIDS.jinnangCard("连环计"));
+    await expect(first).toHaveCount(1);
+    // 挂载后即读计算样式:入场动画仍在(animationName 钉住特性在),但 delay=0s
+    // (hand-rack.css reduce 块)、duration=0.01ms(app.css M-4 兜层)——动画在
+    // 挂载帧内播完,opacity 恒 1(reduce 下不存在「首帧空白」)。
+    const cs = await first.evaluate((el) => {
+      const s = getComputedStyle(el);
+      return {
+        name: s.animationName,
+        delay: s.animationDelay,
+        dur: s.animationDuration,
+        opacity: s.opacity,
+      };
+    });
+    expect(cs.name).toBe("rack-card-in");
+    expect(cs.delay).toBe("0s");
+    // Chromium 把 0.01ms 序列化成「1e-05s」——按秒解析断言「被压到 <1ms」,
+    // 不钉字面量(序列化形式随内核版本漂,物理量不变)
+    expect(parseFloat(cs.dur)).toBeLessThanOrEqual(0.001);
+    expect(cs.opacity).toBe("1");
   });
 });
