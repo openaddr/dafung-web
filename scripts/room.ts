@@ -1,24 +1,20 @@
-// 房间游戏编排(ADR-0007):房间生命周期 + 座位 + bot 驱动 + host 移交 + 纯视图。
+// 房间游戏编排(ADR-0007):房间会话模型 + 生命周期 + 座位 + host 移交 + 落盘。
 // 标准 ports & adapters 的核心:深模块,**零 WS/HTTP/fs 依赖**(不 import ws / node:http / node:fs)。
 // 传输层持 WS 句柄、知道 online 状态;视图/transferHost 都接 `onlineSeats: Set<number>` 作入参。
 // 持久化做成注入的 RoomPersistence 适配器。
-//
-// clientView/lobbyView 自 2026-08-14(架构待办③)起:snapshot 消息补齐 seatCount/started/mapId,
-// 与 lobby 消息的房间字段对齐——客户端从任一消息都能直接得到完整房间态,无需手抄推断。
-// (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
+// 三块已拆出(模块治理 10/11 #327):客户端投影 seat-projection.ts(纯搬)、bot 驱动
+// bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
+// 对象注入宿主操作面,投影视图在下方再导出维持原引用面(测试/传输层 import 不动)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/game";
-import type { GameSnapshot } from "../src/core/snapshot";
 import type { SeatConfig } from "../src/core/game";
 import type { AiDifficulty, GameCommand } from "../src/core/types";
 import { isSingleCjk } from "../src/core/constants";
-import type { ReactionView } from "../src/core/types";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
-import { botAct } from "../src/core/bot";
 import { createEngine, statusOf } from "./engine-helpers";
 import {
   type HostConfig,
@@ -27,6 +23,8 @@ import {
   type RoomRecord,
   recordToSessionData,
 } from "./room-persistence";
+import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
+import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
 // ──────────────────────────── 数据形状 ────────────────────────────
 /** 座位状态:无 WebSocket 句柄(WS 归传输层;ADR-0007 关键不变量 1)。 */
@@ -84,187 +82,17 @@ export interface RoomSession {
 }
 
 export type AutoPilotSpeed = "fast" | "slow";
-/** 慢速托管:每步决策间隔(ms)——玩家看得清 bot 在做什么。 */
-export const AUTOPILOT_SLOW_MS = 2000;
-
-/** 人类回合 Roll 相位自动起摇延迟(#188 第 1 步):Roll 无决策内容,服务器定时
- *  代发 rollAndMove(与单机控制器同语义;客户端起签表现为纯本地演出,不受此值影响)。
- *  字面量而不用 timings.ts:scripts 不吃浏览器 localStorage 倍率,与 src/app/fx/timings.ts
- *  AUTO_MARCH.rollAtMs 的未加速原值(1000)同源,改任一侧须两处同改。 */
-export const AUTO_ROLL_DELAY_MS = 1000;
-
-// botAct 能驱动的相位(其它相位是引擎内部过渡,无需外部驱动)
-const INPUT_PHASES = new Set([
-  "Roll",
-  "AwaitingBranch",
-  "AwaitingDecision",
-  "AwaitingHeroPick",
-  "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
-  "AwaitingJinnang", // 锦囊(#122/T2):bot 恒「今不用」保守推进(策略表在 T6)
-  "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
-  "AwaitingTreasureOwner",
-  "AwaitingBankruptcySettle",
-  "AwaitingReaction", // 反应窗(#281):bot 座位引擎开窗即席代答;人类座位等 respondReaction
-  // (driveBots 循环头特判收敛「待应答人类座位」,不走 botAct——决策方
-  // 天然多属主,decisionOwner 不适用)
-]);
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
 
-// ──────────────────────────── 国号重名前缀(autos 28)────────────────────────────
+// ──────────────────────────── 再导出(维持原引用面)────────────────────────────
 // 算法本体在 src/core/guohao.ts(客户端大厅预告与开局定稿共用);此处再导出维持原引用面。
 export { resolveGuohaoClash } from "../src/core/guohao";
-
-// ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
-/** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
- *  guohao(E7/#19):预设国号原样透出(null=未预设/bot,开局由引擎分配)——
- *  大厅据此渲染单字方章;重名预告由客户端用 core/guohao 的同一算法计算。 */
-export function seatMeta(r: RoomSession, onlineSeats: Set<number>) {
-  return r.seats.map((s, i) => ({
-    seat: i,
-    kind: s.kind,
-    taken: s.token != null,
-    online: onlineSeats.has(i),
-    // 该座位当前是否由服务器驱动:开局前 bot 座位;开局后 bot 座位或被房主接管的座位
-    controlled: r.engine ? r.engine.players[i].isBot || r.takeover.has(i) : s.kind === "bot",
-    // 自助托管中(bot 代打,但身份仍是真人;UI 据此显示「托管」标记)
-    autoPilot: r.autoPilot.has(i),
-    guohao: s.guohao,
-  }));
-}
-
-export interface LobbyView {
-  type: "lobby";
-  roomId: string;
-  seatCount: number;
-  host: number;
-  started: boolean;
-  mapId: string | null;
-  seats: ReturnType<typeof seatMeta>;
-}
-
-export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
-  return {
-    type: "lobby" as const,
-    roomId: r.roomId,
-    seatCount: r.seatCount,
-    host: r.hostSeat,
-    started: r.engine != null,
-    mapId: r.mapId,
-    seats: seatMeta(r, onlineSeats),
-  };
-}
-
-/** 反应窗公开载荷的 per-seat 投影(#281,ADR-0016):公告字段(cardId/userSeat/
- *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——每人只看到「我是否
- *  被询问」(在列→[自己座位],不在列→[]),他人询问集一律裁掉,否则泄漏谁持识破诡计。
- *  march 窗无私有档,原样返回。纯函数。 */
-function redactReactionView(v: ReactionView, seat: number): ReactionView {
-  if (v.kind !== "jinnang") return v;
-  return { ...v, queriedBySeat: v.queriedBySeat.includes(seat) ? [seat] : [] };
-}
-
-/** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
- *  public 原样 / count-only 只给数量 / private 只发本人:
- *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);
- *  - 锦囊牌库牌序 → count-only(牌序决定未来抽牌,泄了等于开了天眼;只留剩余数);
- *  - 含锦囊内容的对局日志行 → 不外发(引擎侧已源头不落内容,此处按机读键过滤抽牌行,防御性双保险);
- *  - 反应窗询问集(#281)→ per-seat private(挂起态 pendingReaction.view 与公开派生
- *    载荷 reaction 两处同裁;应答记录不裁——引擎侧本就逐条公开记入战报);
- *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
- *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
-export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
-  // 军情密探(#122/T4):本座位进行中的窥探目标,内容对 viewer 放行
-  const peeked = new Set(s.jinnangPeeks.filter((pk) => pk.viewer === seat).map((pk) => pk.target));
-  const players = s.players.map((p, i) => {
-    // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
-    if (i === seat || peeked.has(i)) return p;
-    return { ...p, jinnangHand: [] };
-  });
-  return {
-    ...s,
-    players,
-    jinnangDeck: [], // 牌序只裁不给;剩余数走引擎态 jinnangDeckCount
-    // 反应窗询问集(#281):挂起态(god-view)与公开载荷两处都按座位投影——
-    // 客户端 restoreFromSnapshot 靠裁剪后的挂起态重建 AwaitingReaction,公开载荷
-    // 随之派生,UI 只会看到「我是否被询问」。
-    pendingReaction:
-      s.pendingReaction != null
-        ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
-        : s.pendingReaction,
-    reaction: s.reaction != null ? redactReactionView(s.reaction, seat) : s.reaction,
-    // 日志不裁(ADR-0016 决策3):引擎源头只写「抽了一张锦囊」无内容,抽牌行本身
-    // 是公开信息(手牌数),随快照照发
-  };
-}
-
-/** clientView:snapshot 态把 engine.snapshot() 展开;Lobby 态退化为 lobbyView。
- *  snapshot 分支携带与 lobby 相同的房间字段(roomId/seatCount/host/started/mapId/seats)
- *  + 引擎快照展开(快照无同名键,不冲突)。
- *  seat(ADR-0016):接收方座位——传入即返回该座位的投影(锦囊暗牌/牌序/抽牌日志已裁);
- *  缺省 = god-view 全量(重放/调试/单测语义,生产 ws 路径一律传 seat)。 */
-export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: number) {
-  if (!r.engine) return lobbyView(r, onlineSeats);
-  const base = {
-    type: "snapshot" as const,
-    roomId: r.roomId,
-    seatCount: r.seatCount,
-    host: r.hostSeat,
-    started: true,
-    mapId: r.mapId,
-    seats: seatMeta(r, onlineSeats),
-  };
-  const snap = r.engine.snapshot();
-  return { ...base, ...(seat == null ? snap : redactSnapshotForSeat(snap, seat)) };
-}
-
-// ──────────────────────────── bot/接管/托管驱动(ADR-0002 接管;spec: autopilot)────────────────────────────
-/** 该座位当前是否由服务器驱动(原始 bot、被房主接管、或自助托管中)。 */
-function seatControlled(r: RoomSession, seat: number): boolean {
-  return (
-    r.engine != null &&
-    (r.engine.players[seat]?.isBot || r.takeover.has(seat) || r.autoPilot.has(seat))
-  );
-}
-
-/** 该座位当前步进延迟:托管慢速 2s,其余(bot 座位/takeover/托管快速)为 0。 */
-function stepDelayMs(r: RoomSession, seat: number): number {
-  return r.autoPilot.get(seat) === "slow" ? AUTOPILOT_SLOW_MS : 0;
-}
-
-/** 当前决策点归属座位:Setup·PickCapital=当前选都位,Playing=decisionOwner(珍宝
- *  交涉=城主)。-1 = 无归属(Setup 收尾瞬态),不可驱动。 */
-function decisionSeatOf(e: GameEngine): number {
-  return e.phase === "Setup" ? e.currentSetupPlayerIndex : e.decisionOwner;
-}
-
-/** 反应窗被询问座位集(#281):与引擎 reactionQueriedOf 同一公式的传输层镜像——
- *  jinnang 窗=持识破者全集,march 窗=[城主]。多座位可同时被询问(AOE),故不适用
- *  单一 decisionOwner 语义。app 层单源在 src/app/controllers/reaction.ts,三层注释互指。 */
-function reactionQueriedSeats(view: ReactionView): number[] {
-  return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
-}
-
-/** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。
- *  必须覆盖所有"无资源变化的进展":位置移动、跳过轮空消耗、回合推进——
- *  曾经漏了这三者,导致"掷骰落空格 + 对手跳过"被误判 no-progress,全 bot/托管局卡死(症状1根因)。 */
-function fingerprint(e: GameEngine): string {
-  return [
-    e.phase,
-    e.setupPhase,
-    e.turnPhase,
-    e.turnNumber,
-    e.activeIndex,
-    e.currentDraftIndex,
-    e.players
-      .map(
-        (p) =>
-          `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`,
-      )
-      .join(","),
-  ].join("|");
-}
+// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327);测试(test/room.test.ts)仍从
+// 本模块取,再导出免改引用面。传输层 server.ts 已直引 ./seat-projection。
+export { clientView, lobbyView, redactSnapshotForSeat } from "./seat-projection";
+export type { LobbyView } from "./seat-projection";
 
 // ──────────────────────────── RoomRegistry:深模块 ────────────────────────────
 export interface CreateRoomConfig {
@@ -297,24 +125,12 @@ export class RoomRegistry {
   private readonly decisionTimeoutMs: number;
   /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
   private readonly reactionWindowMsOverride: number;
-  /** #118 看门狗:roomId → 待超时座位 + timer。driveBots 每次进出重评估(见各自注释)。 */
-  private readonly stall = new Map<
-    string,
-    { seat: number; timer: ReturnType<typeof setTimeout> }
-  >();
-  /** #188 自动起摇:roomId → 待起摇座位 + timer。driveBots 每次进出重评估,与看门狗
-   *  互补——Roll 相位(无决策内容)归自动起摇,其余决策相位归看门狗。 */
-  private readonly autoRolls = new Map<
-    string,
-    { seat: number; timer: ReturnType<typeof setTimeout> }
-  >();
-  /** #281 反应窗:roomId → (待应答座位 → timer + 窗实例号 seq)。可能多座位同时被
-   *  询问(AOE),故按座位各配一表;#284 起 seq 判据管重武装(见 armReactionWait)——
-   *  链重开不再整体撤表,deadline 一次算死。 */
-  private readonly reactionWaits = new Map<
-    string,
-    Map<number, { timer: ReturnType<typeof setTimeout>; seq: number }>
-  >();
+  /** 三组看门狗(#118 停摆/#188 自动起摇/#281 反应窗):通用工厂实例,见 ./watchdogs。
+   *  driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
+  private readonly watchdogs: Watchdogs;
+  /** 驱动/看门狗共用的宿主操作面:闭包桥接 registry 私有方法(observe/persist/
+   *  applyCommand/…),拆分后 bot-driver/watchdogs 不反向 import 本模块。 */
+  private readonly ops: DriveBotsHost;
 
   constructor(
     persistence: RoomPersistence,
@@ -328,6 +144,27 @@ export class RoomRegistry {
     this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
+    this.watchdogs = createWatchdogs(this.watchdogHost());
+    this.ops = {
+      observe: (r, ev) => this.observe(r, ev),
+      persist: (r) => this.persist(r),
+      applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
+      decisionTimeoutMs: this.decisionTimeoutMs,
+      watchdogs: this.watchdogs,
+    };
+  }
+
+  /** WatchdogHost 视角(构造期一次性;driveBots 闭包指向本.driveBots 接线方法)。 */
+  private watchdogHost(): WatchdogHost {
+    return {
+      isCurrentRoom: (r) => this.rooms.get(r.roomId) === r,
+      observe: (r, ev) => this.observe(r, ev),
+      logRoom: (r, brief, detail) => this.logRoom(r, brief, detail),
+      persist: (r) => this.persist(r),
+      applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
+      driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
+      decisionTimeoutMs: this.decisionTimeoutMs,
+    };
   }
 
   /** 发一条观测事件(无观察者时为空操作)。 */
@@ -651,9 +488,10 @@ export class RoomRegistry {
     // 解散房间行(ADR-0014):房间删除前先落盘(logRoom 内触发 logSink)
     this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
-    this.clearStall(id); // #118:撤看门狗计时器(stallFire 自身有房间存在重校验,此为即时清理)
-    this.clearAutoRoll(id); // #188:撤自动起摇计时器(同上)
-    this.clearReactionWaits(id); // #281:撤反应窗超时计时器(同上)
+    // #118/#188/#281:撤三组看门狗计时器(到点动作自身有房间存在重校验,此为即时清理)
+    this.watchdogs.stall.clear(id);
+    this.watchdogs.autoRoll.clear(id);
+    this.watchdogs.reactionWait.clear(id);
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -748,300 +586,12 @@ export class RoomRegistry {
     }
   }
 
-  // ──────────────────────────── bot 驱动(逐步 onUpdate;慢速托管异步步进)────────────────────────────
-  /** 进行中的驱动链(重入守卫:慢速托管 await 期间,新命令/新触发不再开第二条链,
-   *  由挂起中的循环继续接管——它每步重查状态,天然覆盖后续进展)。 */
-  private readonly driving = new WeakSet<RoomSession>();
-
-  /** 连续驱动服务器控制的决策点,直到轮到人类(在线或冻结)/ 游戏结束 / 无进展。
-   *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
-   *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
-   *  (seatControlled=false)→ 游戏等其重连或房主接管。
-   *  慢速托管座位每步间延迟 2s(异步);每步 persist + onUpdate:客户端能逐步看到动作。
-   *  返回 Promise:fast 模式下任务同步完成(零延迟),语义与旧同步版一致。 */
-  private async driveBots(r: RoomSession, onUpdate?: (room: RoomSession) => void): Promise<void> {
-    const e = r.engine;
-    if (!e) return;
-    this.clearStall(r.roomId); // 新链开跑即撤看门狗:服务器在驱动,无停摆可言(出口重评估)
-    this.clearAutoRoll(r.roomId); // #188:同撤自动起摇(链尾按停点重武装)
-    // #284:反应窗计时器不再随链撤——链重开会重置他人倒计时(本票修的 bug)。改由
-    // armReactionWait 按 PendingReaction.seq 判据管重武装:同窗跳过(deadline 一次
-    // 算死),换窗才撤旧起新;已收窗的残表项由 reactionWaitFire 重校验静默退场。
-    if (this.driving.has(r)) return; // 已有链在跑:它会把新进展接走
-    this.driving.add(r);
-    try {
-      let guard = 0;
-      let reason: RoomBotStopReason = "guard";
-      while (e.phase !== "GameOver" && guard++ < 500) {
-        // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
-        // 托管/接管(代驾)立即代发「不用」(#148/#229 口径,超时兜底也是同款普通命令);
-        // 在线/离线真人在链尾按座位武装超时定时器(归零代发 respondReaction{use:false})。
-        // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
-        if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-          const pr = e.pendingReaction;
-          const queried = pr ? reactionQueriedSeats(pr.view) : [];
-          for (const seat of queried) {
-            if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
-            if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
-            await this.applyCommand(
-              r.roomId,
-              { type: "respondReaction", seat, use: false },
-              onUpdate,
-            );
-          }
-          // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
-          const now = e.pendingReaction;
-          const stillWaiting =
-            e.turnPhase === "AwaitingReaction" && now != null
-              ? reactionQueriedSeats(now.view).filter(
-                  (s) => !now.answers.some((a) => a.seat === s) && !seatControlled(r, s),
-                )
-              : [];
-          if (stillWaiting.length > 0) {
-            reason = "human-turn"; // 等待真人应答:出口为待应答座位武装 per-seat 定时器
-            break;
-          }
-          continue; // 窗已收/无待应答:回循环头按新相位续推
-        }
-        // Setup 期(bot/接管/托管代选 aiSetupStepFor)与 Playing 期(botAct)统一到
-        // 同一步进骨架:决策点归属与可驱动相位不同,observe/persist/直播/进展检查共用。
-        const setup = e.phase === "Setup";
-        const owner = decisionSeatOf(e);
-        const phaseOk = setup
-          ? e.setupPhase === "PickCapital" && owner >= 0
-          : INPUT_PHASES.has(e.turnPhase);
-        if (!phaseOk) {
-          reason = "not-input-phase";
-          break;
-        }
-        if (!seatControlled(r, owner)) {
-          reason = "human-turn";
-          break;
-        }
-        const delay = stepDelayMs(r, owner);
-        const before = fingerprint(e);
-        if (setup) e.aiSetupStepFor(owner);
-        else
-          botAct(e, {
-            conservative: r.takeover.has(owner) && !r.autoPilot.has(owner),
-            skills: e.players[owner].isBot ? "strategy" : "hold",
-          }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略;#188 档 3:主动技唯真 bot 出,代驾(接管/托管)永不出
-        this.observe(r, {
-          ev: "bot-step",
-          seat: owner,
-          turnPhase: e.turnPhase,
-          active: e.activeIndex,
-        });
-        this.persist(r);
-        onUpdate?.(r); // 每步直播
-        if (e.isOver) {
-          reason = "game-over";
-          break;
-        }
-        if (fingerprint(e) === before) {
-          reason = "no-progress";
-          break;
-        }
-        if (delay > 0) await new Promise((res) => setTimeout(res, delay));
-      }
-      if (e.phase === "GameOver") reason = "game-over";
-      this.observe(r, {
-        ev: "bot-stop",
-        reason,
-        phase: e.phase,
-        turnPhase: e.turnPhase,
-        active: e.activeIndex,
-      });
-      // 步数上限(guard)只防单链失控,不是游戏终界:全 bot/全员托管的长对局会自然超过 500 步。
-      // 若未终局且仍轮到服务器驱动的座位 → 休整后自动续链(否则对局会永久卡死——
-      // 有人类交互时每次命令都会重开新链,全托管场景没有任何重触发者)。
-      const guardOwner = decisionSeatOf(e);
-      if (
-        reason === "guard" &&
-        e.phase !== "GameOver" &&
-        guardOwner >= 0 &&
-        seatControlled(r, guardOwner)
-      ) {
-        setTimeout(
-          () => {
-            void this.driveBots(r, onUpdate);
-          },
-          stepDelayMs(r, guardOwner),
-        );
-      }
-      // #118/#188/#281 出口评估:链停在未接管的真人座位——
-      // 反应窗(#281):为每个待应答人类座位武装 per-seat 超时定时器(托管/接管座位
-      // 已在循环头立即代发,不在待应答集);
-      // Roll 相位(无决策内容)武装自动起摇(1s 后代发 rollAndMove);
-      // 其余决策相位(等待真人抉择)= 该端拖节奏,武装 #118 看门狗超时接管。
-      // not-input-phase/game-over/guard 续链:服务器仍在掌控,不武装。
-      if (reason === "human-turn" && guardOwner >= 0) {
-        if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-          const pr = e.pendingReaction;
-          if (pr != null)
-            for (const seat of reactionQueriedSeats(pr.view))
-              if (!pr.answers.some((a) => a.seat === seat) && !seatControlled(r, seat))
-                this.armReactionWait(r, seat, onUpdate);
-        } else if (e.phase === "Playing" && e.turnPhase === "Roll")
-          this.armAutoRoll(r, guardOwner, onUpdate);
-        else if (this.decisionTimeoutMs > 0) this.armStall(r, guardOwner, onUpdate);
-      }
-    } finally {
-      this.driving.delete(r);
-    }
-  }
-
-  // ──────────────────────────── 决策停摆看门狗(#118)────────────────────────────
-  /** 撤看门狗(链重开/房间解散时);无挂起计时器时空操作。 */
-  private clearStall(roomId: string): void {
-    const w = this.stall.get(roomId);
-    if (w) {
-      clearTimeout(w.timer);
-      this.stall.delete(roomId);
-    }
-  }
-
-  /** 武装:decisionTimeoutMs 后若仍停在同一未接管人类座位 → bot 接管(ADR-0002 语义)。
-   *  同房间旧计时器先撤(决策点换了,重算)。unref:不因挂起计时器拖延进程退出。 */
-  private armStall(r: RoomSession, seat: number, onUpdate?: (room: RoomSession) => void): void {
-    this.clearStall(r.roomId);
-    const timer = setTimeout(() => {
-      void this.stallFire(r, seat, onUpdate);
-    }, this.decisionTimeoutMs);
-    timer.unref?.();
-    this.stall.set(r.roomId, { seat, timer });
-  }
-
-  /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍非服务器驱动)后
-   *  bot 接管并续推连锁。接管走既有 takeover 集合:重连 attachSeat 自动夺回,
-   *  对局日志记 takeover 行(重放把它并入 bot 驱动集,终态逐字段一致)。 */
-  private async stallFire(
-    r: RoomSession,
-    seat: number,
-    onUpdate?: (room: RoomSession) => void,
-  ): Promise<void> {
-    this.stall.delete(r.roomId);
-    const e = r.engine;
-    if (this.rooms.get(r.roomId) !== r || !e || e.isOver) return;
-    const owner = decisionSeatOf(e);
-    if (owner !== seat || seatControlled(r, seat)) return;
-    r.takeover.add(seat);
-    this.observe(r, { ev: "takeover", seat, auto: true });
-    this.logRoom(
-      r,
-      `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(this.decisionTimeoutMs / 1000)} 秒,bot 自动接管(重连/刷新夺回)`,
-      JSON.stringify({ type: "takeover", seat, auto: true }),
-    );
-    this.persist(r);
-    onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
-    await this.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
-  }
-
-  // ──────────────────────────── 行军自动化(#188 第 1 步)────────────────────────────
-  /** 撤自动起摇(链重开/房间解散时);无挂起计时器时空操作。 */
-  private clearAutoRoll(roomId: string): void {
-    const w = this.autoRolls.get(roomId);
-    if (w) {
-      clearTimeout(w.timer);
-      this.autoRolls.delete(roomId);
-    }
-  }
-
-  /** 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未接管人类座位的 Roll 相位 → 服务器代发
-   *  rollAndMove(走 applyCommand 公共命令路径:submitCommand 记 cmd 行 + persist + 广播,
-   *  与玩家手点同源)。离线冻结的座位同样代发——Roll 无决策内容,不因离线卡住行军;
-   *  真正的抉择仍归本人(超时才由 #118 看门狗接管)。同房间旧计时器先撤(决策点换了,
-   *  重算)。unref:不因挂起计时器拖延进程退出。 */
-  private armAutoRoll(r: RoomSession, seat: number, onUpdate?: (room: RoomSession) => void): void {
-    this.clearAutoRoll(r.roomId);
-    const timer = setTimeout(() => {
-      void this.autoRollFire(r, seat, onUpdate);
-    }, AUTO_ROLL_DELAY_MS);
-    timer.unref?.();
-    this.autoRolls.set(r.roomId, { seat, timer });
-  }
-
-  /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍非服务器驱动——
-   *  被接管/托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
-  private async autoRollFire(
-    r: RoomSession,
-    seat: number,
-    onUpdate?: (room: RoomSession) => void,
-  ): Promise<void> {
-    this.autoRolls.delete(r.roomId);
-    const e = r.engine;
-    if (this.rooms.get(r.roomId) !== r || !e || e.isOver || e.phase !== "Playing") return;
-    if (e.turnPhase !== "Roll" || decisionSeatOf(e) !== seat || seatControlled(r, seat)) return;
-    this.observe(r, { ev: "auto-roll", seat });
-    await this.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
-  }
-
-  // ──────────────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────────────
-  /** 撤反应窗计时器(房间解散时);无挂起计时器时空操作。可能多座位同时被
-   *  询问(AOE),按房间持一张座位表整体撤。#284:链重开不再走这里(同窗不重置,
-   *  见 armReactionWait),唯一调用点是解散清理。 */
-  private clearReactionWaits(roomId: string): void {
-    const waits = this.reactionWaits.get(roomId);
-    if (!waits) return;
-    for (const w of waits.values()) clearTimeout(w.timer);
-    this.reactionWaits.delete(roomId);
-  }
-
-  /** 武装(#284 seq 判据):REACTION_WINDOW_MS(或 env 覆盖值)后若该座位仍是本窗
-   *  待应答的非服务器驱动人类座位 → 服务器代发 respondReaction{use:false}(走
-   *  applyCommand 公共命令路径,与玩家手点同源;ADR-0017:超时兜底=权威侧代发普通
-   *  命令,重放天然复现)。同窗(PendingReaction.seq 未变)且已武装 → 跳过不重武装:
-   *  deadline 开窗一次算死,链重开/他人命令不重置他人倒计时(FreeKill request.lua
-   *  「timestamp+timeout 随包下发、同窗不重置」同语义);seq 变了才撤旧起新。
-   *  离线冻结座位同样武装——断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。
-   *  unref:不因挂起计时器拖延进程退出。 */
-  private armReactionWait(
-    r: RoomSession,
-    seat: number,
-    onUpdate?: (room: RoomSession) => void,
-  ): void {
-    const e = r.engine;
-    if (e?.pendingReaction == null) return;
-    const seq = e.pendingReaction.seq;
-    const waits = this.reactionWaits.get(r.roomId);
-    const old = waits?.get(seat);
-    if (old) {
-      if (old.seq === seq) return; // 同窗已武装:到期时刻一次算死,不重置(#284)
-      clearTimeout(old.timer); // 换窗(行军续走下一城等):撤旧起新
-    }
-    const timer = setTimeout(
-      () => void this.reactionWaitFire(r, seat, seq, onUpdate),
-      e.pendingReaction.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
-    );
-    timer.unref?.();
-    const w = waits ?? new Map();
-    w.set(seat, { timer, seq });
-    this.reactionWaits.set(r.roomId, w);
-  }
-
-  /** 到点触发:先核对本火仍属当前武装表项(seq 不同=已被新窗重武装,本火过期)，
-   *  再重校验(房间还在/对局未终/仍在 AwaitingReaction/该座位仍被询问且未应答/
-   *  仍非服务器驱动)后代发「不用」。任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
-  private async reactionWaitFire(
-    r: RoomSession,
-    seat: number,
-    armedSeq: number,
-    onUpdate?: (room: RoomSession) => void,
-  ): Promise<void> {
-    const waits = this.reactionWaits.get(r.roomId);
-    const cur = waits?.get(seat);
-    if (cur == null || cur.seq !== armedSeq) return; // 表项已换窗:本火过期,不动新表(#284)
-    waits!.delete(seat);
-    if (waits!.size === 0) this.reactionWaits.delete(r.roomId);
-    const e = r.engine;
-    if (this.rooms.get(r.roomId) !== r || !e || e.isOver || e.phase !== "Playing") return;
-    if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
-    const pr = e.pendingReaction;
-    if (!reactionQueriedSeats(pr.view).includes(seat)) return;
-    if (pr.answers.some((a) => a.seat === seat)) return;
-    if (seatControlled(r, seat)) return; // 代驾接手:循环头已立即代发,不重复
-    this.observe(r, { ev: "reaction-decline", seat });
-    await this.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
+  // ──────────────────── bot 驱动 + 看门狗(拆 bot-driver.ts / watchdogs.ts)────────────────────
+  /** 驱动实现已拆 bot-driver.ts(模块治理 10/11 #327,纯搬):本方法只做宿主接线,
+   *  registry 内各生命周期入口照旧 this.driveBots 调用;看门狗的 arm/clear 由驱动实现
+   *  经 ops.watchdogs 调度,房间解散清理由 dismissRoom 直调。 */
+  private driveBots(r: RoomSession, onUpdate?: (room: RoomSession) => void): Promise<void> {
+    return driveBotsSession(this.ops, r, onUpdate);
   }
 
   // ──────────────────────────── 持久化投影 ────────────────────────────
