@@ -63,9 +63,12 @@ test.describe("机遇系统冒烟", () => {
         .catch(() => {});
       await expect(scroll).toBeHidden({ timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
+    // 声望渲染:结算后声望可为负——tierShares 档位下限夹紧 [5,95](encounters.ts),
+    // 三档即便归零,好运/霉运仍各保底 5%:奉迎天子首选项 −10、霉运首选项 −18/−15
+    // 都可能被抽中并经「点第一选项收卷」落账。负号是合法终态,断言只锁「徽章渲染整数」。
     await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute(
       "aria-label",
-      /声望 \d+/,
+      /声望 -?\d+/,
     );
   });
 });

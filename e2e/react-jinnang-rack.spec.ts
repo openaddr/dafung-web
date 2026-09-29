@@ -91,7 +91,10 @@ const NINE_CARDS = [
  *  UI 无遮罩),牌架无限期稳定可 hover。测试全程不发命令,引擎不会被推进。 */
 async function rackStandstill(page: Page, cards: string[]): Promise<void> {
   await quickStart(page);
-  await waitMyPause(page, 0);
+  // 90s:quickStart 收尾可能停在 bot 回合(waitMyRollDone 见 decisionOwner 换人即收),
+  // 等一整轮 bot 走回人类停靠点——W2 全量负载下实测一轮可超 30s(2026-09-28 全量 flake,
+  // #308 同族「标 slow 防超时,非删」口径)。
+  await waitMyPause(page, 0, 90_000);
   await force(
     page,
     `
@@ -178,6 +181,9 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   const CARD_W = 114;
 
   test("9 张(8 种+重复)叠加:每张露等宽窥条且牌名可辨,末张全宽,行不出架", async ({ page }) => {
+    // 停车坪等一轮 bot + 发牌级联落定,内部预算 90s > 60s 默认档——W2 负载下标 slow
+    // 防超时 flake(#294 同款「标 slow 防超时,非删」,2026-09-28 全量实证)。
+    test.slow();
     await rackStandstill(page, NINE_CARDS);
     const { cards, row, rack } = await rackGeometry(page);
     expect(cards).toHaveLength(9);
@@ -211,6 +217,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   });
 
   test("3 张全展不叠:相邻牌间留正间隙(一期形态)", async ({ page }) => {
+    test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
     await rackStandstill(page, ["连环计", "军情密探", "缓兵之计"]);
     const { cards } = await rackGeometry(page);
     expect(cards).toHaveLength(3);
@@ -224,6 +231,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   });
 
   test("hover 挥出全显:悬停牌上浮放大、邻牌两侧让位,移出回落", async ({ page }) => {
+    test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
     await rackStandstill(page, NINE_CARDS);
     const before = (await rackGeometry(page)).cards;
     // 悬停第 5 张(有左右邻):牌钮中心被右侧牌盖住,落点取左缘窥条内(10px 处)

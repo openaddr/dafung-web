@@ -82,59 +82,58 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
 
   // ── 双端各推进若干步(决策/卷轴混合),模拟真实你来我往 ──
   // #188:掷骰由服务器定时代发(roll-button 已移除),本循环只清决策点。
-  // TODO #13:原 stall<40×250ms(=10s 盲预算)在全量并行负载下不够——WS 广播/渲染排队
-  // 可让按钮可用性迟到超过 10s,导致 actions<2 假失败。改为时间预算(90s,约 5 倍余量):
-  // 只要总时长没用完就继续轮询两端,状态(决策卷轴)到了立刻行动,不做无谓盲等。
+  // TODO #13→#308:原「90s deadline 循环 + 250ms 盲等节奏」换 expect.poll 期望轮询
+  // (encounters/war-report 同款口径):每拍扫两端可点控件行动一手,凑满断言契约
+  // (≥2 手)即收;90s 时间预算与 250ms 采样原样保留在 timeout/intervals 里,广播/
+  // 按钮可用性迟到在拍间自愈,不做无谓盲等。
   // 每次点击一律短时限+失败吞掉(#240 收口定性):负载下卷轴随广播反复重挂,裸 click
   // 的 actionability 重试会「resolved→detached」循环到吃光测试超时;点空了下一拍重试
   // 即可(决策钮幂等:卷轴已关的点击自然落空)。
   test.slow(); // 内部预算 90s > 测试级 60s 默认——与 encounters 同款,外层对齐 3×
   let actions = 0;
-  const deadline = Date.now() + 90_000;
-  while (actions < 6 && Date.now() < deadline) {
-    let acted = false;
-    const tryClick = async (loc: Locator) => {
-      const ok = await loc
-        .first()
-        .click({ timeout: 5_000 })
-        .then(
-          () => true,
-          () => false,
-        );
-      return ok;
-    };
-    for (const p of [host, guest]) {
-      const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
-      if ((await inline.count()) > 0) {
-        acted = await tryClick(inline);
-        if (acted) {
-          actions++;
-          break;
-        }
-      }
-      // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
-      const jinnangPass = p.getByTestId("actionbar-pass");
-      if (await jinnangPass.isVisible().catch(() => false)) {
-        acted = await tryClick(jinnangPass);
-        if (acted) {
-          actions++;
-          break;
-        }
-      }
-      const scrollPrimary = p.locator(
-        '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
+  const tryClick = async (loc: Locator) =>
+    loc
+      .first()
+      .click({ timeout: 5_000 })
+      .then(
+        () => true,
+        () => false,
       );
-      if ((await scrollPrimary.count()) > 0) {
-        acted = await tryClick(scrollPrimary);
-        if (acted) {
-          actions++;
-          break;
+  await expect
+    .poll(
+      async () => {
+        for (const p of [host, guest]) {
+          const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
+          if ((await inline.count()) > 0 && (await tryClick(inline))) {
+            actions++;
+            break;
+          }
+          // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
+          const jinnangPass = p.getByTestId("actionbar-pass");
+          if (
+            (await jinnangPass.isVisible().catch(() => false)) &&
+            (await tryClick(jinnangPass))
+          ) {
+            actions++;
+            break;
+          }
+          const scrollPrimary = p.locator(
+            '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
+          );
+          if ((await scrollPrimary.count()) > 0 && (await tryClick(scrollPrimary))) {
+            actions++;
+            break;
+          }
         }
-      }
-    }
-    if (!acted) await host.waitForTimeout(250); // 短间隔重试,等对端/自动掷骰广播推进
-  }
-  expect(actions).toBeGreaterThanOrEqual(2); // 至少双方各动过一手(断言不降级)
+        return actions;
+      },
+      {
+        timeout: 90_000,
+        intervals: [250], // 原 250ms 重试节奏 → 轮询拍间隔
+        message: "双端各推进若干手(决策/卷轴混合,至少双方各动一手)",
+      },
+    )
+    .toBeGreaterThanOrEqual(2); // 至少双方各动过一手(断言不降级)
 
   // ── 同步断言:双端核心引擎态一致(assertSync 思想,改比快照核心字段)──
   // TODO #13:原固定 400ms 停等后一次性 toEqual 在负载下撞上广播尚未沉降。
@@ -226,50 +225,42 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         );
       if (!landed) {
         // 本次掷骰未落无主城(驻跸/己城/招贤/交涉…):把两端可用决策推完再等下一掷。
-        // L42 后决策按钮要等骰子/行军动画播完才挂载——固定轮数在负载下会在卷轴
-        // 挂载前空转殆尽,改为时间预算(10s),轮到起摇窗即交还外层。
-        const advDeadline = Date.now() + 10_000;
-        while (Date.now() < advDeadline) {
-          let acted = false;
-          for (const p of [host, guest]) {
-            const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
-            if ((await inline.count()) > 0) {
-              // 点击 10s 上限(与 actIfCan 同口径):系统性破坏下 actionability
-              // 重试会烧满测试超时,失败即按未行动处理,交还循环预算
-              acted = await inline
-                .first()
-                .click({ timeout: 10_000 })
-                .then(
-                  () => true,
-                  () => false,
+        // L42 后决策按钮要等骰子/行军动画播完才挂载——原「10s 时间预算 + 250ms 盲等」
+        // 换 expect.poll 期望轮询(#308 同款):每拍清一轮决策,任一端进下一掷起摇窗
+        // 即收。10s 预算耗尽仍未到也只是照旧交还外层重扫(外层 !roller 分支同款清法
+        // 接力;autopilot 同款 tolerated 超时),catch 吞的是时间预算耗尽、不是错误。
+        await expect
+          .poll(
+            async () => {
+              for (const p of [host, guest]) {
+                const inline = p.locator('button[data-testid^="action-"]:not([disabled])');
+                if ((await inline.count()) > 0) {
+                  // 点击 10s 上限(与 actIfCan 同口径):系统性破坏下 actionability
+                  // 重试会烧满测试超时,失败即按未行动处理,交还轮询预算
+                  await inline.first().click({ timeout: 10_000 }).catch(() => {});
+                  break;
+                }
+                // 锦囊卷轴优先「今不用」(#122/T2),同上
+                const jinnangPass = p.getByTestId("actionbar-pass");
+                if (await jinnangPass.isVisible().catch(() => false)) {
+                  await jinnangPass.click({ timeout: 10_000 }).catch(() => {});
+                  break;
+                }
+                const scrollPrimary = p.locator(
+                  '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
                 );
-              break;
-            }
-            // 锦囊卷轴优先「今不用」(#122/T2),同上
-            const jinnangPass = p.getByTestId("actionbar-pass");
-            if (await jinnangPass.isVisible().catch(() => false)) {
-              acted = await jinnangPass.click({ timeout: 10_000 }).then(
-                () => true,
-                () => false,
-              );
-              break;
-            }
-            const scrollPrimary = p.locator(
-              '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
-            );
-            if ((await scrollPrimary.count()) > 0) {
-              acted = await scrollPrimary
-                .first()
-                .click({ timeout: 10_000 })
-                .then(
-                  () => true,
-                  () => false,
-                );
-              break;
-            }
-          }
-          if (!acted) await host.waitForTimeout(250); // 等动画播完/广播到达
-        }
+                if ((await scrollPrimary.count()) > 0) {
+                  await scrollPrimary.first().click({ timeout: 10_000 }).catch(() => {});
+                  break;
+                }
+              }
+              const s = (await coreState(host)) as { phase: string; turnPhase: string };
+              return s.phase === "Playing" && s.turnPhase === "Roll";
+            },
+            { timeout: 10_000, intervals: [250], message: "清决策后任一端进入下一掷起摇窗" },
+          )
+          .toBe(true)
+          .catch(() => {}); // 10s 预算用尽未到起摇窗:交还外层重扫(既有语义,非吞错)
         continue;
       }
       // 关键断言①:快照已到 AwaitingDecision·PropertyAvailable,但购地卷轴尚未挂载
