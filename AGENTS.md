@@ -74,7 +74,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - **测试宁缺毋滥**:宁愿不要测试用例,也不要垃圾用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
 - **开工前**:`bun run check:freshness`(基线过期禁止开工,防在旧基线上修已消失的问题)。
 - **改完码**:`bun run lint`(oxlint,0 warning 基线)+ `bun run fmt`(oxfmt)先过;日常 `bun run build`(tsc+vite)+ `bun test`;改 `scripts/` 加跑 `bun run typecheck:scripts`。
-- **分层**:工单收口只跑本工单 spec(`bun run test:e2e:one`);全量 `E2E_WORKERS=2 bun run test:e2e` 每分支一次,PR 前收口。命令细节见[开发与测试](./docs/how-to/开发与测试.md)。
+- **分层**:工单收口只跑本工单 spec(`bun run test:e2e:one`);全量 `E2E_WORKERS=4 bun run test:e2e` 每分支一次,PR 前收口(≤4 分钟门禁)。命令细节见[开发与测试](./docs/how-to/开发与测试.md)。
 - e2e 时间倍率 `E2E_TIME_SCALE`(默认 0.25)由 fixtures 注入,仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
 
 ## Agent 工作流

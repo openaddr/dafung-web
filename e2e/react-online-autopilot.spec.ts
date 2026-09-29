@@ -1,6 +1,7 @@
-// React 重构 · 联机托管 + 房间 REST 契约(阶段 11)。
-// 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)与
-// online.spec 的 REST 占座契约(FCFS + 满员 409)。
+// React 重构 · 联机托管 UI 守卫(阶段 11)。
+// 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)。
+// #306:REST 占座契约例已下沉 test/room.test.ts(room.ts 零 WS,bun test 直打)——
+// lobbyView 即 /room/new·join 响应体,UI 层不再重复守传输契约;本文件只守托管行为 UI。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 
@@ -28,16 +29,17 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {
     await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
-    // 锦囊相位放行(#122/T2):起手有牌即停卷轴,先「今不用」再谈托管/行军。
-    // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
-    await p.waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 }).catch(() => null);
+    // L41 后开局停在 Setup·PickCapital,卷轴(锦囊相位)要到选都完才可能出现——
+    // 此处无 5s 短候可等(#306:白烧 10s/次),只做即时探测;真正的放行在各自用例的
+    // 推进环里(托管代发 / 轮询体 dismissJinnangIfUp)。
     await dismissJinnangIfUp(p);
   }
   return [host, guest];
 }
 
 test("双端快速托管:零输入到终局,两端胜者一致", async ({ browser }) => {
-  test.setTimeout(180_000);
+  // #306 预算收紧:快速托管全 bot 秒级推进,实测整局 ~15s 内,上限从 180/120s 对折再对折。
+  test.setTimeout(90_000);
   const clients = await twoClients(browser);
   try {
     // 两端都开托管(默认快速)
@@ -45,9 +47,9 @@ test("双端快速托管:零输入到终局,两端胜者一致", async ({ browse
       await expect(c.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
       await c.getByTestId("autopilot-button").click();
     }
-    // 零输入等终局(快速托管全 bot 秒级推进;给足余量)
+    // 零输入等终局
     for (const c of clients) {
-      await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 120_000 });
+      await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 60_000 });
     }
     const subs = await Promise.all(clients.map((c) => c.getByTestId("victory-sub").textContent()));
     expect(subs[0]).toBeTruthy();
@@ -58,47 +60,57 @@ test("双端快速托管:零输入到终局,两端胜者一致", async ({ browse
 });
 
 test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ browser }) => {
-  // TODO #13:慢速托管全 bot 推进一轮到 host 决策点,全量并行负载下可达数分钟,
-  // 原 180s 测试超时 + 120s 行军轮询余量不足(实测偶发超时假失败),各翻倍。
-  test.setTimeout(360_000);
+  // #306 预算收紧(52.8→30s):弃慢速全双端(2s/步是旧例最大耗时),也弃「双端快速托管
+  // 等 Playing 再收回」——快速局服务器秒级跑完整局,收回永远输给终局(实测 GameOver)。
+  // 定式:guest 开慢速托管(2s/步爬行,对局绝无跑飞之虞),host 开快速托管后**立即**收回
+  // (仍在 Setup,窗口毫秒级);收回后 host=真人决策门,对局必停在 human-turn。
+  test.setTimeout(120_000);
   const [host, guest] = await twoClients(browser);
   try {
-    // 双端开慢速托管(慢速局不会秒完),host 收回后 guest 继续托管推进到 host 的决策点
-    for (const c of [host, guest]) {
-      await c.getByTestId("autopilot-speed").selectOption("slow");
-      // TODO #13:高负载下生效广播可迟到超过原 5s 窗口,过早补点会双击翻转(托管刚开又关),
-      // 后续整局停摆。轮询窗放宽到 20s,且补点前即时复查,把翻转窗口压到一次读取内。
-      await c.getByTestId("autopilot-button").click();
-      let on = false;
-      for (let attempt = 0; attempt < 20 && !on; attempt++) {
-        on = await c
-          .getByTestId("autopilot-button")
-          .textContent()
-          .then((t) => t === "收回")
-          .catch(() => false);
-        if (!on) await c.waitForTimeout(1_000);
-      }
-      if (
-        !on &&
-        (await c
-          .getByTestId("autopilot-button")
-          .textContent()
-          .catch(() => "")) !== "收回"
-      ) {
-        await c.getByTestId("autopilot-button").click();
-      }
+    // guest 开慢速托管(对局发动机,慢速保收回窗口与后继行军观察的从容)
+    await guest.getByTestId("autopilot-speed").selectOption("slow");
+    await guest.getByTestId("autopilot-button").click();
+    let guestOn = false;
+    for (let attempt = 0; attempt < 20 && !guestOn; attempt++) {
+      guestOn = await guest
+        .getByTestId("autopilot-button")
+        .textContent()
+        .then((t) => t === "收回")
+        .catch(() => false);
+      if (!guestOn) await guest.waitForTimeout(500);
     }
-    await expect(host.getByTestId("autopilot-button")).toHaveText("收回", { timeout: 30_000 });
-    // L41:开局先各自选都(托管中由服务器代选)。收回前必须等 Setup 完成——
-    // 收回 = 自己决策,选都也不例外:若 host 在自己选都前收回,服务器会停在 Setup
-    // 等 host 手选,行军按钮永远不会亮(旧行为 setup 在 startGame 即跑完,无此边界)。
-    await expect
-      .poll(
-        async () => host.evaluate(() => (window as any).__dafung.snapshot().phase).catch(() => ""),
-        { timeout: 60_000, message: "托管代选都完成,进入 Playing" },
-      )
-      .toBe("Playing");
-    // 收回同样带「未生效则补点」兜底(同上:20s 轮询窗 + 补点前复查,防双击翻转)
+    if (
+      !guestOn &&
+      (await guest
+        .getByTestId("autopilot-button")
+        .textContent()
+        .catch(() => "")) !== "收回"
+    ) {
+      await guest.getByTestId("autopilot-button").click();
+    }
+    // host 开快速托管 → 随即收回(TODO #13:生效广播可迟到,过早补点会双击翻转——
+    // 轮询窗 10s 逐拍复查 + 补点前即时复查,把翻转窗口压到一次读取内。慢速 guest
+    // 爬行兜底:即便生效迟到十余秒,对局也只前进数步)
+    await host.getByTestId("autopilot-button").click();
+    let on = false;
+    for (let attempt = 0; attempt < 20 && !on; attempt++) {
+      on = await host
+        .getByTestId("autopilot-button")
+        .textContent()
+        .then((t) => t === "收回")
+        .catch(() => false);
+      if (!on) await host.waitForTimeout(500);
+    }
+    if (
+      !on &&
+      (await host
+        .getByTestId("autopilot-button")
+        .textContent()
+        .catch(() => "")) !== "收回"
+    ) {
+      await host.getByTestId("autopilot-button").click();
+    }
+    // 收回(同样带「未生效则补点」结构)→ 按钮复位「托管」
     await host.getByTestId("autopilot-button").click();
     let off = false;
     for (let attempt = 0; attempt < 20 && !off; attempt++) {
@@ -107,7 +119,7 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
         .textContent()
         .then((t) => t === "托管")
         .catch(() => false);
-      if (!off) await host.waitForTimeout(1_000);
+      if (!off) await host.waitForTimeout(500);
     }
     if (
       !off &&
@@ -118,7 +130,26 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     ) {
       await host.getByTestId("autopilot-button").click();
     }
-    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 30_000 });
+    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 15_000 });
+    // L41:收回 = 自己决策,选都也不例外——host 在自己选都前收回,服务器停在 Setup 等
+    // host 手选(guest 仍托管,由服务器代选)。轮询体内代 host 点候选城 + 确认。
+    // (若收回前 host 的托管恰好已代选完,phase 直达 Playing,循环体一次不进,同样成立。)
+    await expect
+      .poll(
+        async () => {
+          const s = (await host
+            .evaluate(() => (window as any).__dafung.snapshot())
+            .catch(() => null)) as { phase: string; currentSetupPlayerIndex: number } | null;
+          if (s == null) return "";
+          if (s.phase === "Setup" && s.currentSetupPlayerIndex === 0) {
+            await host.locator(".bv-tile.bv-selectable").nth(0).click({ timeout: 10_000 });
+            await host.getByTestId("confirm-capital-ok").click({ timeout: 10_000 });
+          }
+          return s.phase;
+        },
+        { timeout: 60_000, message: "host 手选都 + guest 托管代选 → 进 Playing" },
+      )
+      .toBe("Playing");
     // 对局仍在进行:收回后 host 的回合不再被代打,轮到 host 时行军照常自动发生——
     // #188:无 roll-button 可等,改以「host 棋盘位置前进」为证(行军只发生在自己的
     // 回合:锦囊放行 → 服务器 1s 定时起摇 → 棋子前进)。轮询体内先「今不用」放行。
@@ -134,34 +165,11 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
           )) as number;
           return pos !== posAtRecall;
         },
-        { timeout: 240_000, message: "收回后轮到 host 时自动行军发生(位置前进)" },
+        { timeout: 90_000, message: "收回后轮到 host 时自动行军发生(位置前进)" },
       )
       .toBe(true);
   } finally {
     await host.context().close();
     await guest.context().close();
   }
-});
-
-test("REST 房间契约:建房占座 → 加入次座 → 满员 409", async ({ request }) => {
-  const created = await request.post(`${ONLINE}/room/new`, {
-    data: { seats: 3, bot: "2", seed: 7 },
-  });
-  expect(created.ok()).toBeTruthy();
-  const c = await created.json();
-  expect(c.roomId).toMatch(/^[A-Z]{4}$/);
-  expect(c.seat).toBe(0);
-  expect(c.seatToken).toBeTruthy();
-  expect(c.seats).toHaveLength(3);
-  expect(c.seats[0].taken).toBe(true); // host 已占
-  expect(c.seats[2].kind).toBe("bot");
-
-  const joined = await request.post(`${ONLINE}/room/join`, { data: { roomId: c.roomId } });
-  const j = await joined.json();
-  expect(j.seat).toBe(1);
-  expect(j.seatToken).toBeTruthy();
-
-  // 满员再加入 → 409
-  const full = await request.post(`${ONLINE}/room/join`, { data: { roomId: c.roomId } });
-  expect(full.status()).toBe(409);
 });

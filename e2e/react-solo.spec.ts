@@ -1,7 +1,9 @@
 // React 重构 · 单机核心流 + 布局断言(阶段 11)。
 // 意图来源(旧 spec → 此处):
 // - play.spec / human.spec(掷骰推进、买地扣款、人类按钮可用性)→ 掷骰/买地/选路测试
-// - invariants.spec(全程不变量 + 终局)→ 全速战档驱动到胜利的不变量巡检
+// - invariants.spec(全程不变量 + 终局)→ 引擎态部分下沉 test/invariant-soak.test.ts
+//   (GameEngine 直驱多 seed soak,#293 Q1/#304 去浏览器化);UI 显示层由「加速到胜利」
+//   例驱动途中顺带巡检承接
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
@@ -212,9 +214,10 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
   await expect(page.getByTestId("thinking")).toContainText("运筹中…");
 });
 
-test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async ({ page }) => {
+test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)", async ({ page }) => {
   // 锁种子:不锁时随机骰路偶发决策链超长(辅路/交涉连环)超出等待窗——TODO 记账的抖动家族,
-  // 锁定后本用例确定性通过;骰路覆盖广度由「全程驱动」用例承担。
+  // 锁定后本用例确定性通过;骰路覆盖广度由 test/invariant-soak.test.ts 的多 seed 引擎
+  // soak 承担(#293 Q1:全程驱动去浏览器化,本例只承接 UI 显示层巡检)。
   await quickStart(page, 7);
   // 身价=现金+地产:直接把现金推过目标身价,任一次 endTurn 收尾即触发 checkVictory。
   // #188:quickStart 不再保证「正轮到人类」(行军自动化后局面自走),改锁人类座位本尊——
@@ -223,11 +226,25 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
   // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
   // 掷骰可能落在辅路起点等决策格:把余下决策也推完才 endTurn 触发胜利判定;
-  // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(见 react-solo 全程驱动用例注释),同样绕过
+  // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
+  // LocalController.viewSeat 恒跟 activeIndex 访客,UI 只渲染访客只读视角,owner 为 bot
+  // 时也无驱动方代打),同样以调试钩子按 owner 身份「不交易」绕过。
   // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
   // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
+  // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中
+  // 顺手盯 UI 数据源——快照喂给仪表条/席位卡的玩家态不越界(现金/身价非负、位置合法、
+  // 破产无残留);引擎态全量口径(含都城位/锦囊残留)在 test/invariant-soak.test.ts。
+  const tileCount = await page.evaluate(() => (window as any).__dafung.getEngine().board.count);
   for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
     const s = await snap(page);
+    for (const p of s.players) {
+      if (p.cash < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
+      if (p.netWorth < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} nw=${p.netWorth}<0`);
+      if (p.position < 0 || p.position >= tileCount)
+        throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
+      if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
+        throw new Error(`破产残留:${p.guohao}`);
+    }
     if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
       await force(
         page,
@@ -271,90 +288,4 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏", async 
   const final = JSON.parse(lines[lines.length - 1].detail);
   expect(final.winner).toBe(s.winner);
   expect(final.round).toBe(s.round);
-});
-
-test("速战档全程驱动:不变量巡检 + 终局有胜者(意图同旧 invariants.spec)", async ({ page }) => {
-  test.setTimeout(240_000);
-  await page.goto("/?seed=1234");
-  await openSoloSetup(page);
-  await page.getByTestId("setup-target-15000").click(); // 速战(经济 v2;X10 分段选择器)
-  await page.getByTestId("setup-seat-count-minus").click(); // 4→3
-  await page.getByTestId("setup-seat-count-minus").click(); // 3→2(X10 stepper),加速节奏
-  await page.getByTestId("start-game").click();
-  await pickCapital(page);
-  // #188:等人类的当前一手自动走完(替代旧「等 roll-button 可用」——按钮已随自动化移除)
-  await waitMyRollDone(page, 0, 90_000);
-
-  let actions = 0;
-  let steps = 0;
-  let stall = 0;
-  let over = false;
-  while (actions < 1200 && stall < 60 && !over) {
-    steps++;
-    const s = await snap(page);
-    if (s.isOver) {
-      over = true;
-      break;
-    }
-    // 加速逼近终局:每 15 圈循环给全员发银两(不破坏不变量,身价达标即触发胜利)。
-    // #188:行军自动化后 actions 只在决策点增长,加速改按循环圈数计,不依赖决策密度。
-    if (steps % 15 === 0) {
-      await force(page, `for (const p of e.players) p.cash += 6000;`);
-    }
-    // 不变量:现金/身价非负、位置合法、破产无残留(与旧 invariants.spec 同口径)
-    for (const p of s.players) {
-      if (!p.isBankrupt && p.cash < 0)
-        throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
-      if (p.position < 0 || p.position > 50)
-        throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
-      if (p.netWorth < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} nw=${p.netWorth}<0`);
-      if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
-        throw new Error(`破产残留:${p.guohao}`);
-    }
-    if (await actIfCan(page)) {
-      actions++;
-      stall = 0;
-    } else {
-      stall++;
-      // ⚠ 产品缺陷(已报告):珍宝交涉(AwaitingTreasureOwner)在单机热座死锁——
-      // 决策方是城主(ownerIdx),而 LocalController.viewSeat 恒跟 activeIndex(访客),
-      // UI 只渲染访客只读视角;owner 为 bot 时也无驱动方代打。此处用调试钩子以
-      // owner 身份「不交易」绕过,让全程驱动能继续跑到终局。
-      const s2 = await snap(page);
-      if (s2.turnPhase === "AwaitingTreasureOwner" && s2.treasureVisitor) {
-        await force(
-          page,
-          `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
-        );
-        stall = 0;
-        continue;
-      }
-      // TODO #13:原固定 300ms 盲等下 bot 链每步都计入 stall,负载下 60 次×300ms(18s)
-      // 不够 bot 想完,假失败。改为等"快照变化":bot 推进期间快照持续变化会立刻返回,
-      // 真正静止 2s 才算一次 stall——stall 语义从"等了 N 次"变成"局面真没动"。
-      await waitForSnapChanged(page, JSON.stringify(s2), 2_000).catch(() => {});
-      // #188:行军自动化后掷骰不再是可点动作,bot 链/自动起摇期间 actIfCan 恒 false——
-      // 局面真的在动(快照已变)就不算停滞,不烧 stall 预算(#217① 同族);静止才累计。
-      if (JSON.stringify(await snap(page)) !== JSON.stringify(s2)) stall = 0;
-    }
-  }
-  if (!over) {
-    const dbg = await snap(page);
-    console.log(
-      "DRIVE_STALL",
-      JSON.stringify({
-        actions,
-        stall,
-        round: dbg.round,
-        turnPhase: dbg.turnPhase,
-        active: dbg.activeIndex,
-        isBot: dbg.players[dbg.activeIndex].isBot,
-        over: dbg.isOver,
-      }),
-    );
-  }
-  expect(over).toBe(true);
-  const s = await snap(page);
-  expect(s.winner).toBeTruthy();
-  expect(s.round).toBeGreaterThan(0);
 });

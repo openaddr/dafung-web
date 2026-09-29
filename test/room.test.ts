@@ -151,6 +151,33 @@ describe("RoomRegistry · 房间生命周期", () => {
     await expectRoomError(() => reg.joinSeat(room.roomId), 409); // seat1 已占,无空 human 座
   });
 
+  it("REST 占座契约(e2e 下沉 #306):建房 lobby 形状 → join 次座 → 满员 409", async () => {
+    // 原 e2e 走 HTTP 断言 /room/new·join 响应体;两响应 = { ok, seat, seatToken,
+    // ...lobbyView } —— lobbyView 即响应体本体,零 WS 等价平移,逐字段对照不弱化。
+    const reg = new RoomRegistry(new InMemoryPersistence());
+    const { room, seat, token } = reg.createRoom({
+      seatCount: 3,
+      botIdx: new Set([2]),
+      hostConfig: { seed: 7 },
+    });
+    expect(seat).toBe(0);
+    expect(token).toBeTruthy();
+    expect(room.roomId).toMatch(/^[A-Z]{4}$/);
+    const lobby = lobbyView(room, new Set([0]));
+    expect(lobby.seats).toHaveLength(3);
+    expect(lobby.seats[0].taken).toBe(true); // host 已占
+    expect(lobby.seats[2].kind).toBe("bot");
+
+    // /room/join:凭码占第一个空 human 座,响应体同形
+    const joined = reg.joinSeat(room.roomId);
+    expect(joined.seat).toBe(1);
+    expect(joined.token).toBeTruthy();
+    expect(lobbyView(joined.room, new Set([0, 1])).seats[1].taken).toBe(true);
+
+    // 满员再加入 → 409
+    await expectRoomError(() => reg.joinSeat(room.roomId), 409);
+  });
+
   it("startGame:开局停在 Setup·PickCapital(L41:真人三选一,不再 autoSetup)", async () => {
     const { reg, roomId } = await startRoom();
     const e = reg.get(roomId)!.engine!;

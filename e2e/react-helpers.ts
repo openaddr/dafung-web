@@ -253,7 +253,7 @@ export async function skipUntilNextSeat(p: Page, seat: number, timeout = 30_000)
 }
 
 // ──────────────────────────── 反应窗/指示线 spec 共享件(#284 去重单源)────────────────────────────
-// 原本在 react-reaction.spec.ts / react-jinnang-use.spec.ts / jinnang-play-line.spec.ts
+// 原本在 react-reaction.spec.ts / react-jinnang-use.spec.ts(墨线例 #305 已并入后者)
 // 三处各持一份的种植/开局助手,收口于此(逐字同实现,语义零漂移)。
 
 /** 读引擎态(god view 断言用)。 */
@@ -343,4 +343,97 @@ export async function onlinePickCapitals(pages: Page[]): Promise<void> {
     );
   }
   throw new Error("联机选都超时未完成");
+}
+
+// ──────────────────────────── 反应窗应答流程(#291 决议 · #302 施工)────────────────────────────
+// 「等窗开 → 选牌 → 点笺 → 确认/不用/静音 → 结算 poll」的共享单源:单机 react-reaction
+// 与 react-reaction-online 的同语义场景(自保/超时/降噪口等)共用,引擎结算语义
+// (窗收/应答留痕/现金缴支)只改这里一处。三段式:基线 → 应答 → 结算 poll,
+// 用例按需组合;应答与结算之间可插瞬态采样(如出牌线 rAF 原子采样)。
+
+/** 结算 poll 的对照基线:窗升起前后各座位现金(paid/unpaid 的参照系)。 */
+export interface ReactionBaseline {
+  cash: number[];
+}
+
+/** 结算期望(pollReactionSettled):窗必收是公理,其余按需勾选,只断言勾选项。 */
+export interface ReactionSettle {
+  /** 现金必降的座位(照缴的份)。 */
+  paid?: number[];
+  /** 现金不许降的座位(拆掉的份/免缴)。 */
+  unpaid?: number[];
+  /** 权威侧 use=0 应答留痕(不用/静音/超时代发同一条普通命令)。 */
+  declined?: boolean;
+  /** 识破拆招留痕(reactionCounter)。 */
+  countered?: boolean;
+}
+
+/** 应答方式:counter=选牌(+选份笺)落印;decline=点「不用」;mute=点「本回合不再
+ *  询问」;timeout=不应答,等横幅到点自动收回(windowMs=窗长,断言窗给 12s 负载余量
+ *  ——横幅收回必发生在加长窗拍,旧短窗反而不满足)。 */
+export type ReactionAnswer =
+  | { mode: "counter"; card: string; seat?: number }
+  | { mode: "decline" }
+  | { mode: "mute" }
+  | { mode: "timeout"; windowMs: number };
+
+/** 等反应窗升起并记现金基线。基线先于窗升起读取(与结算事件间隔最小)。 */
+export async function awaitReactionWindow(page: Page, timeout = 60_000): Promise<ReactionBaseline> {
+  const s = await snap(page);
+  const cash: number[] = s.players.map((p: any) => p.cash);
+  await expect(page.getByTestId(TESTIDS.reactionBanner)).toBeVisible({ timeout });
+  return { cash };
+}
+
+/** 应答交互(不动结算):counter 模式顺手守「点笺接线」——带 seat 时候选笺随选牌展开
+ *  (事件文案报的是进攻方牌,各场景各异,由调用方断言);落印钮未选中时禁用,
+ *  click 自带等可用。 */
+export async function answerReactionWindow(page: Page, answer: ReactionAnswer): Promise<void> {
+  const banner = page.getByTestId(TESTIDS.reactionBanner);
+  if (answer.mode === "timeout") {
+    await expect(banner).not.toBeVisible({ timeout: answer.windowMs + 12_000 });
+    return;
+  }
+  if (answer.mode === "counter") {
+    await page.getByTestId(TESTIDS.jinnangCard(answer.card)).click();
+    if (answer.seat != null) {
+      await expect(banner.getByTestId(TESTIDS.reactionSeat(answer.seat))).toBeVisible();
+      await banner.getByTestId(TESTIDS.reactionSeat(answer.seat)).click();
+    }
+    await banner.getByTestId(TESTIDS.reactionConfirm).click();
+    return;
+  }
+  await banner
+    .getByTestId(answer.mode === "decline" ? TESTIDS.reactionDecline : TESTIDS.reactionMute)
+    .click();
+}
+
+/** 结算 poll(引擎语义住此):窗收(turnPhase 离开 AwaitingReaction)+ 按勾选断言
+ *  现金缴支与应答/识破留痕。观测键集与期望键集同源生成,toEqual 零漂移。 */
+export async function pollReactionSettled(
+  page: Page,
+  before: ReactionBaseline,
+  settle: ReactionSettle,
+  timeout = 30_000,
+): Promise<void> {
+  const watched = [...new Set([...(settle.paid ?? []), ...(settle.unpaid ?? [])])];
+  const expected: Record<string, boolean> = { up: false };
+  if (settle.declined != null) expected.declined = settle.declined;
+  if (settle.countered != null) expected.countered = settle.countered;
+  for (const seat of watched) expected[`paid${seat}`] = (settle.paid ?? []).includes(seat);
+  await expect
+    .poll(
+      async () => {
+        const s = await snap(page);
+        const log = JSON.stringify(s.log);
+        const o: Record<string, boolean> = { up: s.turnPhase === "AwaitingReaction" };
+        if (settle.declined != null)
+          o.declined = log.includes("reactionRespond") && log.includes("use=0");
+        if (settle.countered != null) o.countered = log.includes("reactionCounter");
+        for (const seat of watched) o[`paid${seat}`] = s.players[seat].cash < before.cash[seat];
+        return o;
+      },
+      { timeout, message: `反应窗结算未达预期:${JSON.stringify(settle)}` },
+    )
+    .toEqual(expected);
 }

@@ -14,10 +14,11 @@ test("服务器地址:默认同源;覆写后跨源建房成功;持久化;清空�
   await expect(input).toHaveValue(staticOrigin); // 默认 = 页面同源
 
   // 覆写到引擎源,失焦即存;建房(REST 建房 + WS 入座广播)打到引擎源 = 跨源链路全通
+  // (轮询收紧 #294:REST+WS 建房通常秒级,30s→15s)
   await input.fill(ONLINE);
   await input.blur();
   await page.getByTestId("lobby-create").click();
-  await expect(page.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  await expect(page.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 15_000 });
 
   // 持久化:reload(?online=1 直进大厅)后覆写仍在
   await page.reload();

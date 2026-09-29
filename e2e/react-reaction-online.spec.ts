@@ -1,4 +1,4 @@
-// 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速):
+// 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速;#291 决议/#302 整治):
 // 标准双端 UI 流程(react-online 同款)建 3 座房 [host 页=seat0 / guest 页=seat1 /
 // seat2 不入座→开局自动 bot 填充],种子 430 经路由拦截注入建房请求(联机 UI 无种子入口;
 // 种子是确定性前提)。种子离线核算(同配置引擎演算):draftOrder=[2,1,0] bot 先动且起手
@@ -11,10 +11,21 @@
 //   · 断线 → 超时即「不用」,不冻结对局(房间落盘记录作服务端观测口);
 //   · 降噪口(#284)→ 点「本回合不再询问」立即代发不用,横幅收回,对局继续;
 //   · 双端时序(#284,降级断言)→ 被询问窗内,观察端对局 UI 全程可用不被阻塞;应答后对局即续。
+// #291 处置:拆份/自保瘦身(按份结算引擎语义下沉 test/reaction-window.test,e2e 只守投影
+// 裁剪 queriedBySeat、点笺接线、出牌线 rAF 原子采样、最小结算 poll);超时/双端时序/降噪口/
+// 断线座位四例保留;六例超时统一 120s。应答流程与引擎结算断言收口 react-helpers 反应窗
+// 三段式(等窗开→应答→结算 poll),本 spec 无硬等待(waitForTimeout 归零)。
 // 窗长走服务器 env E2E_REACTION_MS=8000(playwright.config webServer 注入,#284):
 // 权威侧定时器与客户端横幅(view.windowMs 随快照)同长,本 spec 从此与 3s 广播赛跑脱钩。
 import { testUnscaled as test, expect } from "./fixtures";
-import { newBridgeContext, onlinePickCapitals, skipUntilNextSeat } from "./react-helpers";
+import {
+  newBridgeContext,
+  onlinePickCapitals,
+  skipUntilNextSeat,
+  awaitReactionWindow,
+  answerReactionWindow,
+  pollReactionSettled,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -66,41 +77,31 @@ async function twoClientsWithSeed(
   return { host, guest, roomId };
 }
 
-/** 等横征暴敛窗在 guest 端升起,并记录两席现金基线。 */
-async function awaitGuestQueried(guest: Page): Promise<{ guest: number; host: number }> {
-  const cashBefore = await guest.evaluate(() => {
-    const s = (window as any).__dafung.snapshot();
-    return { guest: s.players[1].cash, host: s.players[0].cash };
-  });
-  const banner = guest.getByTestId(TESTIDS.reactionBanner);
-  await expect(banner).toBeVisible({ timeout: 60_000 });
-  return cashBefore;
-}
+test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
+  // 六例超时统一 120s(#291):describe 级生效——建房/选都/Before Hooks/重试全程同预算,
+  // 不靠用例体内逐例声明。
+  test.setTimeout(120_000);
 
-test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   test("横征暴敛反应窗:guest 替第三席(host 座)拆一份——host 不缴,guest 照缴", async ({
     browser,
   }) => {
-    test.setTimeout(240_000);
     const { host, guest } = await twoClientsWithSeed(browser);
     try {
-      const cashBefore = await awaitGuestQueried(guest);
-      // bot(seat2)出横征暴敛 → guest 被询问:横幅 + 候选笺(含 host 座与自己)
-      const banner = guest.getByTestId(TESTIDS.reactionBanner);
+      const before = await awaitReactionWindow(guest);
       // 投影口径(ADR-0016):guest 只看到自己被询问,他人询问集裁掉
       const queried = await guest.evaluate(
         () => (window as any).__dafung.snapshot().reaction?.queriedBySeat,
       );
       expect(queried).toEqual([1]);
-      // 点牌选中(全体域展开选份候选笺)→ 点 host 座笺 → 落印
-      await guest.getByTestId(TESTIDS.jinnangCard("识破诡计")).click();
-      await expect(banner.getByTestId(TESTIDS.reactionSeat(0))).toBeVisible();
-      await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText("使用【横征暴敛】");
-      await banner.getByTestId(TESTIDS.reactionSeat(0)).click();
-      await banner.getByTestId(TESTIDS.reactionConfirm).click();
+      // 事件文案报进攻方牌(点笺接线的一半:窗开即报牌)
+      await expect(
+        guest.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),
+      ).toContainText("使用【横征暴敛】");
+      // 选牌 → 点 host 座笺 → 落印(点笺接线住 helper)
+      await answerReactionWindow(guest, { mode: "counter", card: "识破诡计", seat: 0 });
       // 联机出牌线(#284 §1):结算留痕 lastJinnangPlay 批经快照 diff 在本端出线。
       // 线是 700ms 瞬态(testUnscaled 不缩放),条件性在场元素禁 locator 读——单次
-      // evaluate 内 rAF 轮询原子采样(jinnang-play-line 同款口径,#272)。
+      // evaluate 内 rAF 轮询原子采样(react-jinnang-use 墨线例同款口径,#272)。
       const sawLine = await guest.evaluate(
         () =>
           new Promise<boolean>((resolve) => {
@@ -114,24 +115,9 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
           }),
       );
       expect(sawLine).toBe(true);
-      await expect
-        .poll(
-          async () =>
-            guest.evaluate((before) => {
-              const s = (window as any).__dafung.snapshot();
-              return {
-                up: s.turnPhase === "AwaitingReaction",
-                guestPaid: s.players[1].cash < before.guest,
-                hostPaid: s.players[0].cash < before.host,
-                countered: JSON.stringify(s.log).includes("reactionCounter"),
-              };
-            }, cashBefore),
-          { timeout: 30_000 },
-        )
-        .toEqual({ up: false, guestPaid: true, hostPaid: false, countered: true });
-      // 对局继续:两页各自清决策点,局面持续推进
-      await skipUntilNextSeat(host, 0, 60_000);
-      await skipUntilNextSeat(guest, 1, 60_000);
+      // 最小结算 poll(按份引擎语义已下沉 reaction-window.test):窗收 + guest 照缴
+      // + host 份拆掉不缴 + 识破留痕
+      await pollReactionSettled(guest, before, { paid: [1], unpaid: [0], countered: true });
     } finally {
       await host.context().close();
       await guest.context().close();
@@ -139,30 +125,12 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   });
 
   test("自保:guest 点自己笺——guest 不缴,host 照缴", async ({ browser }) => {
-    test.setTimeout(240_000);
     const { host, guest } = await twoClientsWithSeed(browser);
     try {
-      const cashBefore = await awaitGuestQueried(guest);
-      const banner = guest.getByTestId(TESTIDS.reactionBanner);
-      await guest.getByTestId(TESTIDS.jinnangCard("识破诡计")).click();
-      await banner.getByTestId(TESTIDS.reactionSeat(1)).click();
-      await banner.getByTestId(TESTIDS.reactionConfirm).click();
-      await expect
-        .poll(
-          async () =>
-            guest.evaluate((before) => {
-              const s = (window as any).__dafung.snapshot();
-              return {
-                up: s.turnPhase === "AwaitingReaction",
-                guestPaid: s.players[1].cash < before.guest,
-                hostPaid: s.players[0].cash < before.host,
-              };
-            }, cashBefore),
-          { timeout: 30_000 },
-        )
-        .toEqual({ up: false, guestPaid: false, hostPaid: true });
-      await skipUntilNextSeat(host, 0, 60_000);
-      await skipUntilNextSeat(guest, 1, 60_000);
+      const before = await awaitReactionWindow(guest);
+      // 点自己笺=保自己份(不与拆份合并,保独立失败定位)
+      await answerReactionWindow(guest, { mode: "counter", card: "识破诡计", seat: 1 });
+      await pollReactionSettled(guest, before, { paid: [0], unpaid: [1] });
     } finally {
       await host.context().close();
       await guest.context().close();
@@ -170,29 +138,14 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   });
 
   test("超时代发:guest 不应答,服务端加长窗到期代发「不用」,对局继续", async ({ browser }) => {
-    test.setTimeout(240_000);
     const { host, guest } = await twoClientsWithSeed(browser);
     try {
-      const cashBefore = await awaitGuestQueried(guest);
-      const banner = guest.getByTestId(TESTIDS.reactionBanner);
+      const before = await awaitReactionWindow(guest);
       // 不应答:横幅到点自动收回(客户端 8s 投影=view.windowMs),权威侧代发「不用」
-      // ——两份全缴。断言窗略大于窗长:横幅收回必发生在加长窗拍,3s 旧窗反而不满足。
-      await expect(banner).not.toBeVisible({ timeout: REACTION_MS + 12_000 });
-      await expect
-        .poll(
-          async () =>
-            guest.evaluate((before) => {
-              const s = (window as any).__dafung.snapshot();
-              const log = JSON.stringify(s.log);
-              return {
-                guestPaid: s.players[1].cash < before.guest,
-                hostPaid: s.players[0].cash < before.host,
-                declined: log.includes("reactionRespond") && log.includes("use=0"),
-              };
-            }, cashBefore),
-          { timeout: 30_000 },
-        )
-        .toEqual({ guestPaid: true, hostPaid: true, declined: true });
+      // ——两份全缴。断言窗略大于窗长(住 helper timeout 模式):横幅收回必发生在
+      // 加长窗拍,3s 旧窗反而不满足。
+      await answerReactionWindow(guest, { mode: "timeout", windowMs: REACTION_MS });
+      await pollReactionSettled(guest, before, { paid: [0, 1], declined: true });
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
     } finally {
@@ -204,38 +157,31 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   test("双端时序(降级断言):被询问窗内观察端 UI 全程可用不被阻塞;应答后对局即续", async ({
     browser,
   }) => {
-    test.setTimeout(240_000);
     const { host, guest } = await twoClientsWithSeed(browser);
     try {
-      const cashBefore = await awaitGuestQueried(guest);
-      const banner = guest.getByTestId(TESTIDS.reactionBanner);
-      // 窗内两拍检查 host 端(观察端)对局 UI:顶条/仪表条在、快照可读(页面活着),
-      // 且横幅(被询问端的窗态呈现)不出现在观察端——联机不暂停全场(ADR-0017)。
-      for (let round = 0; round < 2; round++) {
-        await expect(host.getByTestId(TESTIDS.topBar)).toBeVisible();
-        await expect(host.getByTestId(TESTIDS.dashboardBar)).toBeVisible();
-        expect(await host.evaluate(() => (window as any).__dafung.snapshot().phase)).toBe(
-          "Playing",
-        );
-        expect(await host.getByTestId(TESTIDS.reactionBanner).count()).toBe(0);
-        if (round === 0) await guest.waitForTimeout(2_000); // 窗内悬停一拍再验一次
-      }
-      // guest 应答(点「不用」)→ 窗立收,两份全缴,对局在两端同时继续
-      await banner.getByTestId(TESTIDS.reactionDecline).click();
+      const before = await awaitReactionWindow(guest);
+      // 窗内两拍检查 host 端(观察端)对局 UI(#291:2s 硬等待换 poll):顶条/仪表条在、
+      // 快照可读(页面活着),且横幅(被询问端的窗态呈现)不出现在观察端——联机不暂停
+      // 全场(ADR-0017)。每个轮询拍都复验一遍观察端,直到拍距跨过 1.5s(≥两拍);
+      // 负载下轮询自动加密,不再死等固定 2s。
+      const t0 = Date.now();
       await expect
         .poll(
-          async () =>
-            guest.evaluate((before) => {
-              const s = (window as any).__dafung.snapshot();
-              return {
-                up: s.turnPhase === "AwaitingReaction",
-                guestPaid: s.players[1].cash < before.guest,
-                hostPaid: s.players[0].cash < before.host,
-              };
-            }, cashBefore),
-          { timeout: 30_000 },
+          async () => {
+            await expect(host.getByTestId(TESTIDS.topBar)).toBeVisible();
+            await expect(host.getByTestId(TESTIDS.dashboardBar)).toBeVisible();
+            expect(await host.evaluate(() => (window as any).__dafung.snapshot().phase)).toBe(
+              "Playing",
+            );
+            expect(await host.getByTestId(TESTIDS.reactionBanner).count()).toBe(0);
+            return Date.now() - t0;
+          },
+          { timeout: 8_000, intervals: [1_000] },
         )
-        .toEqual({ up: false, guestPaid: true, hostPaid: true });
+        .toBeGreaterThan(1_500);
+      // guest 应答(点「不用」)→ 窗立收,两份全缴,对局在两端同时继续
+      await answerReactionWindow(guest, { mode: "decline" });
+      await pollReactionSettled(guest, before, { paid: [0, 1] });
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
     } finally {
@@ -247,32 +193,16 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   test("联机降噪口(单窗):点「本回合不再询问」立即代发不用+横幅收回+对局继续", async ({
     browser,
   }) => {
-    test.setTimeout(240_000);
     const { host, guest } = await twoClientsWithSeed(browser);
     try {
-      const cashBefore = await awaitGuestQueried(guest);
+      const before = await awaitReactionWindow(guest);
       const banner = guest.getByTestId(TESTIDS.reactionBanner);
       // 点降噪口 = 当前窗立即「不用」+本回合静默:横幅应即刻收回——断言窗小于窗长,
-      // 若走的是超时代发(8s)这条断言必挂,「立即」由此钉死。
-      await banner.getByTestId(TESTIDS.reactionMute).click();
+      // 若走的是超时代发(8s)这条断言必挂,「立即」由此钉死(#291:本例灵魂)。
+      await answerReactionWindow(guest, { mode: "mute" });
       await expect(banner).not.toBeVisible({ timeout: REACTION_MS - 3_000 });
       // 权威侧真态:use=0 应答入账,两份全缴(降噪代发与手点同一条普通命令),窗收续推
-      await expect
-        .poll(
-          async () =>
-            guest.evaluate((before) => {
-              const s = (window as any).__dafung.snapshot();
-              const log = JSON.stringify(s.log);
-              return {
-                up: s.turnPhase === "AwaitingReaction",
-                guestPaid: s.players[1].cash < before.guest,
-                hostPaid: s.players[0].cash < before.host,
-                declined: log.includes("reactionRespond") && log.includes("use=0"),
-              };
-            }, cashBefore),
-          { timeout: 30_000 },
-        )
-        .toEqual({ up: false, guestPaid: true, hostPaid: true, declined: true });
+      await pollReactionSettled(guest, before, { paid: [0, 1], declined: true });
       // 对局继续:两端各自清决策点,局面持续推进
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
@@ -283,9 +213,8 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
   });
 
   test("断线座位:窗开即断,服务端超时即「不用」,对局不冻结继续推进", async ({ browser }) => {
-    test.setTimeout(240_000);
     const { host, guest, roomId } = await twoClientsWithSeed(browser);
-    const cashBefore = await awaitGuestQueried(guest);
+    const before = await awaitReactionWindow(guest);
     // 窗内断线:WS 关闭 → 座位离线。断线端读不到快照,改读房间落盘记录(同机目录)
     // 观测服务端真态:超时代发照走(两份全缴)+ 对局持续推进(过窗后进下一回合)。
     await guest.context().close();
@@ -300,8 +229,8 @@ test.describe("反应窗联机(#281 双端,#284 加长窗)", () => {
             declined: snap.log.some(
               (l: any) => l.detail.includes("reactionRespond") && l.detail.includes("use=0"),
             ),
-            guestPaid: snap.players[1].cash < cashBefore.guest,
-            hostPaid: snap.players[0].cash < cashBefore.host,
+            guestPaid: snap.players[1].cash < before.cash[1],
+            hostPaid: snap.players[0].cash < before.cash[0],
             advanced: snap.turnNumber >= 2,
           };
         },
