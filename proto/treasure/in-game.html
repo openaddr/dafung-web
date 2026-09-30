@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>珍宝装裱+名将笺 · 游戏内档位静态稿 · #351 第二轮</title>
+<!-- 离线字体镜像(Ma Shan Zheng / LXGW WenKai / ZCOOL XiaoWei / Long Cang):
+     双击直开(file://)时 @font-face 的 /fonts 绝对路径不可达,静默回退系统楷体,
+     形制评审不受影响;经仓库根起静态服务(python3 -m http.server / bunx serve)
+     时笔刷/文楷全量生效。链接失败无害,勿删。 -->
+<link rel="stylesheet" href="../../public/fonts/fonts.css" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   珍宝装裱(方向三「名家鉴藏」)+ 名将笺 · 游戏内档位静态稿(#351 第二轮)
+   —— 纯 HTML+CSS,零构建零 JS。与同目录 index.html(方向对照稿)并排:
+   本页只做「拍板方向落进游戏内真实档位与排布」的预览,不覆盖 index.html。
+
+   档位口径(单源 src/app):
+   - 明细行档(.pile-gem-card):em 基 4.8px → 15×20em = 72×96(游戏内珍宝明细行现值);
+   - 手牌槽位档(dash-rack 槽 .hand-rack em 基):7.6px → 114×152(本页对照手牌用此档);
+   - 评审阅读档:em 基 10px(节二/节三细节查看用,非游戏档)。
+   排布口径(hand-rack.css 镜像):明细行横排落手牌行左旁,gap 8px、底对齐、
+   padding-bottom 6px;架体漆木底 #463a28→#332a1e→#241d13 + 漆金上缘高光。
+
+   色板:与 src/app/styles/tokens.css 同值(单源 core/theme.ts,gen:theme 产出),
+   本页为静态稿不引构建链,以同名 CSS 变量镜像;施工时一律回归 var(--color-*)。
+   豁免色登记(沿 jinnang-card.css 文件头口径):
+   - #9a6a3c 铜 / #8d9298 银:frameTone 定稿色,暂无 token;
+   - #f6ecd9 印文纸色:章面/印文字色,暂无 token;
+   - #463a28 / #241d13 漆木架渐变两端:架面明暗,无 token(现行 .hand-rack 同款豁免)。
+
+   纹样:远山/书卷/绫边斜纹全为内联程序化 SVG 线稿或渐变,零图片资产(DESIGN §4.5)。
+   交互:全静态;悬停放大(mini 卡 ×2.2)为评审辅助的 CSS-only 效果,施工时交互
+   语义归消费方(器物件豁免口径不变)。reduced-motion 下放大过渡退场(即时切换)。
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── tokens 镜像(同值于 tokens.css,施工时回归单源)── */
+  --color-bg: #eae0c6;
+  --color-bg-deep: #dccfa9;
+  --color-panel: #f4ecd8;
+  --color-panel-hi: #e6d9b4;
+  --color-paper-hi: #faf3df;
+  --color-paper-lo: #eee0bc;
+  --color-ink: #2b2317;
+  --color-ink-dim: #6f6146;
+  --color-inkwash: #9c8a5e;
+  --color-lacquer: #332a1e;
+  --color-lacquer-gold: #d9b95c;
+  --color-gold: #c8a13a;
+  --color-gold-bright: #d4af37;
+  --color-gold-deep: #755917;
+  --color-danger: #b23a2e;
+  --color-money: #4a7a4a;
+  --color-seal-qing: #3f6a6b;
+  --color-road-main: #7a5c38;
+  --color-attr-hero: #b23a2e;
+  /* ── 豁免色(登记见文件头)── */
+  --gem-tong: #9a6a3c;
+  --gem-yin: #8d9298;
+  --seal-paper: #f6ecd9;
+  --rack-hi: #463a28;
+  --rack-lo: #241d13;
+  /* ── 字体栈(同 tokens.css;file:// 直开回退系统楷体)── */
+  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+  --font-wenkai: "LXGW WenKai", "KaiTi", "STKaiti", serif;
+  /* ── 墨影(rgba(43,35,23,·) 语义,同 jinnang-card.css)── */
+  --ink65: rgba(43, 35, 23, 0.65);
+  --ink40: rgba(43, 35, 23, 0.4);
+  --ink35: rgba(43, 35, 23, 0.35);
+  --ink22: rgba(43, 35, 23, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 40px 24px 80px;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(43, 35, 23, 0.14) 100%),
+    var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-wenkai);
+  line-height: 1.7;
+}
+
+.page { max-width: 1180px; margin: 0 auto; }
+
+/* ── 页首 ── */
+.masthead { text-align: center; margin-bottom: 10px; }
+.masthead h1 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+}
+.masthead .sub {
+  color: var(--color-ink-dim);
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+}
+.meta {
+  max-width: 880px;
+  margin: 18px auto 0;
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 14px 22px;
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.meta b { color: var(--color-ink); font-weight: 400; }
+
+/* ── 节面板(笺纸:有边有衬里)── */
+.sec {
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 26px 32px 30px;
+  margin: 28px 0;
+}
+.sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.sec-seal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 4px;
+  font-family: var(--font-brush);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 2px 4px var(--ink35), inset 0 0 0 2px rgba(246, 236, 217, 0.55);
+}
+.sec-head h2 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 27px;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.sec-head .tag {
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+  border: 1px solid var(--ink35);
+  border-radius: 3px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.claim { margin: 6px 0 2px; font-size: 14.5px; }
+.claim b { font-weight: 400; color: var(--color-danger); }
+.lore { margin: 2px 0 0; font-size: 12.5px; color: var(--color-ink-dim); }
+.lore code {
+  font-family: var(--font-wenkai);
+  background: var(--color-panel-hi);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+/* 一行设计说明(牌外注,不占牌面) */
+.note {
+  margin: 18px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ink35);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.note b { color: var(--color-ink); font-weight: 400; }
+
+/* ── 牌列(评审档)── */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 26px;
+  margin-top: 20px;
+}
+.figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.figure figcaption {
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.04em;
+}
+
+/* ═══ 牌基座:竖笺 3:4,镜像 .jinnang-card(默认 em 基 10px 评审档) ═══ */
+.card {
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  font-size: 10px;
+  flex: 0 0 auto;
+  background: linear-gradient(
+    168deg,
+    var(--color-panel) 0%,
+    var(--color-paper-hi) 58%,
+    var(--color-panel-hi) 100%
+  );
+  border: 0.2em solid var(--ink65);
+  border-radius: 0.9em;
+  box-shadow:
+    0 0.35em 0.8em var(--ink22),
+    inset 0 0 0 0.15em rgba(250, 243, 223, 0.7);
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 笺头:界格线 + 牌名(名将笺用;装裱牌题签顶替笺头,见 .mount 段) */
+.card .tou { display: flex; align-items: stretch; gap: 0.7em; min-height: 3.4em; margin-right: 3.8em; }
+.card .jie { width: 0.32em; background: var(--tone, var(--color-ink)); opacity: 0.85; border-radius: 0.16em; }
+.card .ming {
+  font-family: var(--font-brush);
+  font-size: 2em;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  align-self: center;
+  white-space: nowrap;
+}
+.card .ming.long { font-size: 1.72em; letter-spacing: 0.04em; }
+
+/* 标签章:右上竖排,朱砂恒定(DESIGN §4.5 章恒朱砂) */
+.card .zhang { position: absolute; top: 0.9em; right: 0.9em; display: flex; flex-direction: column; gap: 0.5em; z-index: 2; }
+.card .seal {
+  width: 2.3em;
+  height: 2.3em;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 0.28em;
+  font-family: var(--font-brush);
+  font-size: 1.5em;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 0.15em 0.3em rgba(43, 35, 23, 0.35), inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+}
+
+/* 中堂窗:默认居中排(名将笺身价大字/珍宝品级大字共用槽位) */
+.card .yang {
+  flex: 1;
+  margin: 0.9em 0;
+  border: 0.16em solid color-mix(in srgb, var(--tone, var(--color-ink)) 55%, transparent);
+  border-radius: 0.5em;
+  background: var(--color-paper-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  overflow: hidden;
+  min-height: 6em;
+}
+.card .gem-lv { font-family: var(--font-brush); font-size: 5em; line-height: 1; color: var(--tone, var(--color-ink)); }
+.card .gem-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+}
+
+/* 笺脚:风味文两行截断 */
+.card .jiao {
+  font-size: 1.12em;
+  line-height: 1.62;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 仅色档位类(--tone 供界格线/大字/距条取色,不带平色内环;沿 index.html 口径) */
+.card.t-tong { --tone: var(--gem-tong); }
+.card.t-yin  { --tone: var(--gem-yin); }
+.card.t-gold { --tone: var(--color-gold); }
+.card.t-qing { --tone: var(--color-seal-qing); } /* 锦囊对照卡(谋·黛青) */
+
+/* 锦囊纹样窗线稿(对照手牌「连环计」云纹用;游戏 PATTERN_PATHS.cloud 原样移植) */
+.card .yang svg {
+  width: 82%;
+  height: 82%;
+  opacity: 0.8;
+  stroke: var(--tone, var(--color-ink));
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* ═══ 装裱变体(方向三「名家鉴藏」,CSS 语言自 index.html 原样移植) ═══ */
+
+.card.mount { padding: 0; overflow: hidden; }
+/* 绫边:程序化斜纹(两组 repeating-gradient 交织出织物肌理),色温随品级微调 */
+.card.mount .ling {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.7em;
+  background:
+    repeating-linear-gradient(45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    repeating-linear-gradient(-45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+}
+/* 包角:四角深色织角(装裱意识,DESIGN §3 弃案 A 吸收入正文的一笔) */
+.card.mount .bj {
+  position: absolute;
+  width: 2.6em;
+  height: 2.6em;
+  z-index: 1;
+  opacity: 0.5;
+}
+.card.mount .bj.a { top: 0; left: 0; border-radius: 0.7em 0 0 0; background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.b { top: 0; right: 0; border-radius: 0 0.7em 0 0; background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.c { bottom: 0; left: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.d { bottom: 0; right: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%); }
+/* 画心:距条(界线)随品级,内里纸亮端 */
+.card.mount .huaxin {
+  position: absolute;
+  inset: 1.5em;
+  border-radius: 0.3em;
+  background: var(--color-paper-hi);
+  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-ink)) 42%, rgba(43, 35, 23, 0.38));
+  box-shadow: 0 0.2em 0.5em rgba(43, 35, 23, 0.14);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9em;
+  z-index: 1;
+}
+/* 品级大字居画心中堂(无图回退通道) */
+.card.mount .huaxin .zhong { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5em; }
+.card.mount .huaxin .gem-lv { font-size: 4.4em; }
+.card.mount .huaxin .gem-pin { font-size: 1.2em; }
+/* 画心·配图通道:消费方传入的画心节点(位图 img 或自定 SVG),容器裁剪 */
+.card.mount .huaxin .art {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.2em;
+}
+.card.mount .huaxin .art svg,
+.card.mount .huaxin .art img {
+  width: 88%;
+  max-height: 96%;
+  object-fit: contain;
+}
+.card.mount .huaxin .art svg { stroke: var(--color-ink-dim); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+/* 远山线稿:inkwash 淡墨,画心下缘(程序化 SVG,零图片) */
+.card.mount .huaxin .shan { height: 2.8em; opacity: 0.55; margin-top: 0.4em; }
+.card.mount .huaxin .shan svg { width: 100%; height: 100%; stroke: var(--color-inkwash); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+/* 跋文:风味文,画心内底部小字(明细行档为墨色肌理,细节归浮签) */
+.card.mount .ba { font-size: 1.02em; line-height: 1.5; color: var(--color-ink-dim); margin-top: 0.5em; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* 题签:左上竖排纸签,牌名唯一承载体(顶替笺头,不与牌名双通道) */
+.card.mount .qian {
+  position: absolute;
+  top: 0.6em;
+  left: 0.6em;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid var(--ink40);
+  border-radius: 0.2em;
+  box-shadow: 0 0.2em 0.4em var(--ink22);
+  padding: 0.7em 0.32em;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  max-height: 12.5em;
+}
+.card.mount .qian .ling-zi { font-size: 1em; color: var(--color-danger); font-family: var(--font-wenkai); }
+.card.mount .qian .qian-ming { font-family: var(--font-brush); font-size: 1.7em; letter-spacing: 0.1em; line-height: 1.1; }
+/* 鉴藏印:「宝」章移位右下压距条(章恒朱砂,化入鉴藏体系) */
+.card.mount .jian-yin { position: absolute; right: 0.75em; bottom: 1.05em; z-index: 3; }
+.card.mount .jian-yin .seal { transform: rotate(3deg); }
+
+/* ═══ 名将笺(与珍宝同形制竖笺,朱砂通道) ═══ */
+.card.hero { --tone: var(--color-attr-hero); }
+.card.hero .hero-lv {
+  font-family: var(--font-brush);
+  font-size: 4.4em;
+  line-height: 1;
+  color: var(--color-attr-hero);
+}
+.card.hero .hero-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+}
+
+/* ═══ 游戏内档位:明细行 4.8px 基(72×96)/ 手牌槽位 7.6px 基(114×152) ═══ */
+.card.mini { font-size: 4.8px; }
+.card.racksize { font-size: 7.6px; }
+
+/* ── 漆木架模拟(hand-rack.css .hand-rack 镜像,px 直译 7.6px 基值)── */
+.rack {
+  position: relative;
+  margin-top: 22px;
+  height: 260px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--rack-hi), var(--color-lacquer) 60%, var(--rack-lo));
+  box-shadow:
+    inset 0 2px 0 rgba(217, 185, 92, 0.4),
+    inset 0 14px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 30px;
+  padding: 26px 40px 20px 84px;
+  overflow: visible; /* 悬停放大出格评审;游戏容器为 overflow 收窄让位,此为评审辅助差异 */
+}
+/* 架首章:竖排「锦囊手牌」漆金描边(游戏 .hand-rack-zhang 制式) */
+.jia-zhang {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-brush);
+  font-size: 12.5px;
+  line-height: 1;
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.5);
+  padding: 10px 5px;
+  border-radius: 2px;
+  opacity: 0.9;
+  text-align: center;
+  user-select: none;
+}
+/* 明细行:游戏 .hand-rack-pile 镜像(横排、底对齐、gap 8px、padding-bottom 6px) */
+.pile-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+/* 手牌行:游戏 .hand-rack-hand(gap 3em@7.6px≈23px) */
+.hand-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 23px;
+}
+/* 行注:架空侧小组签(牌外注,非游戏 UI) */
+.rack-legend {
+  margin: 10px 4px 0;
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.03em;
+}
+.rack-legend b { color: var(--color-ink); font-weight: 400; }
+
+/* 悬停放大(评审辅助,CSS-only):明细档 72×96 太小,悬停 ×2.2 就地放大看细节;
+   reduced-motion 下去过渡(即时切换,状态变化本身保留) */
+.zoom {
+  transition: transform 0.35s var(--ease-out, ease-out);
+  transform-origin: center bottom;
+}
+.zoom:hover {
+  transform: scale(2.2) translateY(-4px);
+  z-index: 30;
+}
+@media (prefers-reduced-motion: reduce) {
+  .zoom { transition: none; }
+}
+
+/* ── 页脚:约束自查 ── */
+.checklist { margin: 18px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--color-ink-dim); }
+.checklist li { padding: 3px 0; }
+.checklist li::before { content: "✓ "; color: var(--color-money); }
+.checklist .warn::before { content: "△ "; color: var(--color-gold-deep); }
+footer { text-align: center; margin-top: 34px; font-size: 12px; color: var(--color-ink-dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ 页首 ═══ -->
+  <header class="masthead">
+    <h1>珍宝装裱 + 名将笺 · 游戏内档位静态稿</h1>
+    <div class="sub">#351 第二轮 · 方向三「名家鉴藏」装裱语言 + 名将笺 · 模拟游戏内明细行实际档与牌架排布 · 2026-09-30</div>
+  </header>
+
+  <div class="meta">
+    <b>评审方式</b>:双击本文件即可打开(纯 HTML+CSS,零构建零 JS);<b>明细行小卡可悬停放大 ×2.2</b>(CSS-only 评审辅助,游戏内无此交互)。<br />
+    <b>档位口径</b>:明细行档 em 基 4.8px → <code>72×96</code>(游戏内珍宝明细行 <code>.pile-gem-card</code> 现值);手牌槽位档 7.6px → <code>114×152</code>(dash-rack 槽 em 基);评审阅读档 10px(节二/节三细节查看用)。<br />
+    <b>字体</b>:引用仓库离线镜像(../../public/fonts/fonts.css)。双击直开时笔刷字回退系统楷体,形制评审不受影响。<br />
+    <b>色板</b>:与 <code>tokens.css</code>(单源 <code>core/theme.ts</code> 经 gen:theme)同值;铜 #9a6a3c / 银 #8d9298 为现行 CSS 豁免色。<br />
+    <b>文案</b>:零新增——珍宝取 <code>core/treasures.ts</code> 实数据,名将与称号取 <code>core/heroes.ts</code> 实数据,对照手牌「连环计」取 <code>core/jinnang.ts</code> 实数据。<br />
+    <b>约束</b>:竖笺 3:4 · 章恒朱砂 · 纹样程序化 SVG 零图片 · 交互语义归消费方。
+  </div>
+
+  <!-- ═══ 节一:牌架明细行 · 游戏内实景档 ═══ -->
+  <section class="sec" id="rack">
+    <div class="sec-head">
+      <span class="sec-seal">架</span>
+      <h2>牌架明细行 · 游戏内实景档</h2>
+      <span class="tag">72×96(4.8px 基)· 同排落架</span>
+    </div>
+    <p class="claim"><b>主张</b>:装裱语言与名将笺落进游戏内的真实样子——漆木架明细行里,珍宝装裱牌(壹/叁/拾 三档)与名将笺(周瑜/华佗/张星彩)<b>同排并排</b>,同为 3:4 竖笺、同为「大字+角标」中堂;右侧一张手牌槽位档(114×152)锦囊作对照,即「明细行落手牌行左旁」的现场。</p>
+    <p class="lore"><b>排布镜像</b>:<code>hand-rack.css</code> 的 .hand-rack-pile(gap 8px、底对齐、padding-bottom 6px)+ .hand-rack-hand(gap 3em);架体漆木底与漆金上缘高光同值。</p>
+
+    <div class="rack">
+      <span class="jia-zhang" aria-hidden="true"><span>锦</span><span>囊</span><span>手</span><span>牌</span></span>
+      <div class="pile-row">
+        <!-- 珍宝装裱牌 · 壹品铜 -->
+        <div class="card mount t-tong mini zoom" title="草帽 · 壹品铜 · 指导价 100 两">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">编草为生,布衣起家</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <!-- 珍宝装裱牌 · 叁品铜 -->
+        <div class="card mount t-tong mini zoom" title="小斛 · 叁品铜 · 指导价 300 两">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">曹操小斛杀粮官</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <!-- 珍宝装裱牌 · 拾品金(距条随品级转金) -->
+        <div class="card mount t-gold mini zoom" title="传国玉玺 · 拾品金 · 指导价 3000 两">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">受命于天,既寿永昌</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">传国玉玺</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <!-- 名将笺 · 周瑜 -->
+        <div class="card hero mini zoom" title="周瑜 · 雅量高致 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming">周瑜</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">雅量高致</div>
+        </div>
+        <!-- 名将笺 · 华佗 -->
+        <div class="card hero mini zoom" title="华佗 · 神医 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming">华佗</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">神医</div>
+        </div>
+        <!-- 名将笺 · 张星彩 -->
+        <div class="card hero mini zoom" title="张星彩 · 银翎飞骑 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming long">张星彩</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">银翎飞骑</div>
+        </div>
+      </div>
+      <div class="hand-row">
+        <!-- 对照:手牌槽位档(7.6px 基 114×152)锦囊「连环计」(谋·云纹,实数据) -->
+        <div class="card t-qing racksize" title="连环计 · 谋 · 指定两名其他诸侯拼点(现行手牌形制对照)">
+          <div class="tou"><span class="jie"></span><span class="ming">连环计</span></div>
+          <div class="zhang"><span class="seal">谋</span></div>
+          <div class="yang"><svg viewBox="0 0 100 70" aria-hidden="true">
+            <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
+            <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
+            <path d="M22 58 q14 6 28 0 q14-6 28 0" />
+          </svg></div>
+          <div class="jiao">指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。</div>
+        </div>
+      </div>
+    </div>
+    <p class="rack-legend"><b>明细行(左起)</b>:草帽·壹品铜 / 小斛·叁品铜 / 传国玉玺·拾品金(装裱牌)|| 周瑜 / 华佗 / 张星彩(名将笺)|| <b>右侧对照</b>:连环计(现行手牌槽位档)。悬停任意小卡放大看细节。</p>
+
+    <p class="note"><b>一行设计说明</b>:装裱牌的<b>题签</b>顶替笺头承牌名(竖排笔刷,签首「珍」小字引),<b>「宝」章移位右下成鉴藏印</b>(章恒朱砂不破,语义入收藏体系);品级通道收进<b>品级大字 + 画心距条色</b>(同 --tone 一色两用,拾品距条转金即金牌面);名将笺朱砂界格线(attr-hero 本就是朱砂)、<b>「将」章 + 身价大字「贰佰」+「身价」竖排角标</b>,身份锚点与价值锚点共用一个视觉槽位,架上一眼两读。明细档下大字(约 21px)与题签(约 8px)仍清晰,跋文/笺脚是墨色肌理,细节归 title 浮签(沿现行明细行口径)。</p>
+  </section>
+
+  <!-- ═══ 节二:画心双通道 ═══ -->
+  <section class="sec" id="art">
+    <div class="sec-head">
+      <span class="sec-seal">画</span>
+      <h2>画心双通道 · 无图回退 / 有图即插</h2>
+      <span class="tag">同款牌一版无图、一版有图</span>
+    </div>
+    <p class="claim"><b>主张</b>:装裱形制的画心开一条 <code>art</code> 配图通道——<b>传了</b>就渲染传入的节点(位图 <code>&lt;img&gt;</code> 或自定 SVG 均可,容器裁剪);<b>不传</b>回退「品级大字 + 远山线稿」。<b>无图珍宝立即可用,有图即插即用</b>;配图是 UI 层概念,<code>core/treasures.ts</code> 数据结构不动(将来按 treasure id 建一张 UI 层映射表即可)。</p>
+
+    <p class="lore" style="margin-top: 14px"><b>游戏内明细档(4.8px 基,72×96,悬停放大)</b>——示例配图为「书卷」程序化线稿(青囊书残卷 · 伍品银,距条转银):</p>
+    <div class="row">
+      <figure class="figure">
+        <div class="card mount t-yin mini zoom" title="青囊书残卷 · 伍品银 · 无图回退(品级大字+远山)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">伍</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">华佗遗书,残缺不全</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>无图 · 回退(大字+远山)</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card mount t-yin mini zoom" title="青囊书残卷 · 伍品银 · 有图(书卷线稿占位)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+              <path d="M22 14 q-7 21 0 42" />
+              <circle cx="22" cy="13" r="2.6" />
+              <circle cx="22" cy="57" r="2.6" />
+              <path d="M24 18 Q52 13 84 17 V53 Q52 57 24 52 Z" />
+              <path d="M34 28 h40 M34 35 h40 M34 42 h28" />
+              <path d="M72 22 q7 13 0 26" />
+            </svg></div>
+            <div class="ba">华佗遗书,残缺不全</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>有图 · 配图即插(书卷线稿占位)</figcaption>
+      </figure>
+    </div>
+
+    <p class="lore" style="margin-top: 20px"><b>评审阅读档(10px 基,细节查看用)</b>——同一对牌放大看语言细节:</p>
+    <div class="row">
+      <figure class="figure">
+        <div class="card mount t-yin" title="青囊书残卷 · 伍品银 · 无图回退(评审档)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">伍</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">华佗遗书,残缺不全</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>无图 · 回退(评审档)</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card mount t-yin" title="青囊书残卷 · 伍品银 · 有图(评审档)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+              <path d="M22 14 q-7 21 0 42" />
+              <circle cx="22" cy="13" r="2.6" />
+              <circle cx="22" cy="57" r="2.6" />
+              <path d="M24 18 Q52 13 84 17 V53 Q52 57 24 52 Z" />
+              <path d="M34 28 h40 M34 35 h40 M34 42 h28" />
+              <path d="M72 22 q7 13 0 26" />
+            </svg></div>
+            <div class="ba">华佗遗书,残缺不全</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>有图 · 配图即插(评审档)</figcaption>
+      </figure>
+    </div>
+
+    <p class="note"><b>用法示例(给未来配图者)</b>:组件加一个 <code>art?: ReactNode</code> 入参——<code>&lt;TreasureCardFace name="青囊书残卷" level={5} desc="华佗遗书,残缺不全" art={&lt;QinnangScrollSvg /&gt;} /&gt;</code>;将来按 treasure id 配图,在 UI 层建一张 <code>id → ReactNode</code> 映射表(如 <code>TREASURE_ART: Record&lt;string, ReactNode&gt;</code>),<code>core/treasures.ts</code> 零改动。本页书卷线稿仅为占位示意,正式配图可换位图 <code>&lt;img&gt;</code>(画心容器裁剪,object-fit: contain)。</p>
+  </section>
+
+  <!-- ═══ 节三:名将笺 · 评审阅读档 ═══ -->
+  <section class="sec" id="hero">
+    <div class="sec-head">
+      <span class="sec-seal">将</span>
+      <h2>名将笺 · 评审阅读档</h2>
+      <span class="tag">10px 基 · 细节查看用</span>
+    </div>
+    <p class="claim">节一的落架形态太小,此节放大看形制:朱砂界格线(attr-hero 本就是朱砂)+ <b>「将」章</b> + <b>身价大字「贰佰」</b>(与珍宝品级大字同槽位、同形制)+ <b>「身价」竖排角标</b>(对位珍宝「品」角标)+ 笺脚称号。</p>
+
+    <div class="row">
+      <figure class="figure">
+        <div class="card hero" title="周瑜 · 雅量高致 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming">周瑜</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">雅量高致</div>
+        </div>
+        <figcaption>周瑜 · 雅量高致</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card hero" title="张星彩 · 银翎飞骑 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming long">张星彩</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">银翎飞骑</div>
+        </div>
+        <figcaption>张星彩 · 银翎飞骑</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card hero" title="华佗 · 神医 · 破产清算时换 200 分">
+          <div class="tou"><span class="jie"></span><span class="ming">华佗</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">神医</div>
+        </div>
+        <figcaption>华佗 · 神医</figcaption>
+      </figure>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:身价大字用大写「贰佰」取清算锚点的庄重感(<b>数据仍 200,渲染层转写</b>;拍板可改「二百」或「200」),浮签口径「破产清算时换 200 分」由身价大字承接,不再双通道;「将」章朱砂 = attr-hero 通道色,与宝章朱砂同族不撞车;技能明细不入牌面——明细行是陈列位不是详情位,点击详情归消费方(同珍宝 title 浮签口径)。此前拍板「名将不复用画像卡」指<b>对局内画像卡</b>,本节不动画像卡。</p>
+  </section>
+
+  <!-- ═══ 约束自查 ═══ -->
+  <section class="sec" id="check">
+    <div class="sec-head">
+      <span class="sec-seal">核</span>
+      <h2>约束自查</h2>
+      <span class="tag">#351 不随本 PR 关闭</span>
+    </div>
+    <p class="claim">拍板方向:方向三「名家鉴藏」装裱语言 + 名将笺(游戏内档位静态预览;施工终态待拍板人看稿后定)。</p>
+    <ul class="checklist">
+      <li>竖笺 3:4:全件 15×20em;明细行档 4.8px 基 = 72×96,手牌槽位档 7.6px 基 = 114×152,评审档 10px</li>
+      <li>章恒朱砂:鉴藏印(宝)/ 将章全 danger;金只入距条与边饰,不染印面</li>
+      <li>程序化 SVG 零图片:远山 / 书卷占位 / 绫边斜纹 / 云纹全为内联线稿或渐变</li>
+      <li>色板:全 token 同值;铜 #9a6a3c / 银 #8d9298 沿现行豁免登记</li>
+      <li>品级通道:品级大字 + 画心距条(--tone 一色两用);名将通道:朱砂界格线 + 将章 + 身价大字</li>
+      <li>画心双通道:art 传节点即渲染(位图/自定 SVG,容器裁剪),不传回退大字+远山;core/treasures.ts 不动</li>
+      <li>「贰佰」为渲染层转写,数据 200 不改;牌面文案全部取自 core 实数据,零新增</li>
+      <li>交互全静态:悬停放大为 CSS-only 评审辅助,游戏内无此交互;施工时交互语义归消费方</li>
+      <li class="warn">副印「府库珍藏」未入本轮(拍板清单无此项;明细档减配口径沿 index.html 原型注,拍板要加再补)</li>
+      <li class="warn">悬停放大的 z-index 出格、明细行 overflow 行为与游戏容器有差:评审辅助,不构成施工规格</li>
+    </ul>
+  </section>
+
+  <footer>proto/treasure/in-game.html · #351 第二轮 · 游戏内档位静态稿,不进构建 · 与 index.html(方向对照稿)并排 · dafung-web</footer>
+</div>
+</body>
+</html>
