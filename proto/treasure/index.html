@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>珍宝牌面深化方向对照稿 · #351 prototype</title>
+<!-- 离线字体镜像(Ma Shan Zheng / LXGW WenKai / ZCOOL XiaoWei / Long Cang):
+     双击直开(file://)时 @font-face 的 /fonts 绝对路径不可达,静默回退系统楷体,
+     形制评审不受影响;经仓库根起静态服务(python3 -m http.server / bunx serve)
+     时笔刷/文楷全量生效。链接失败无害,勿删。 -->
+<link rel="stylesheet" href="../../public/fonts/fonts.css" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   珍宝牌面深化方向对照稿(#351 prototype)——纯 HTML+CSS,零构建零 JS。
+
+   色板:与 src/app/styles/tokens.css 同值(单源 core/theme.ts,gen:theme 产出),
+   本页为静态对照稿不引构建链,故以同名 CSS 变量镜像;施工时一律回归 var(--color-*)。
+   豁免色登记(沿 jinnang-card.css 文件头口径):
+   - #9a6a3c 铜 / #8d9298 银:frameTone 定稿色,暂无 token(方向二含 token 化提案);
+   - #f6ecd9 印文纸色:章面/印文字色,暂无 token;
+   - #3d3324 / #262017 牌背漆木渐变两端:漆面明暗,无 token(现行 .back 同款豁免)。
+
+   形制:竖笺 3:4(15×20em),em 基 10px(评审阅读档;牌架明细行实际档在名将节另演示)。
+   纹样:云纹/回纹/远山全为内联程序化 SVG 线稿,零图片资产(DESIGN §4.5 口径)。
+   交互:仅方向一的 hover 翻面为演示;施工时交互语义归消费方(器物件豁免不变)。
+   ═══════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* ── tokens 镜像(同值于 tokens.css,施工时回归单源)── */
+  --color-bg: #eae0c6;
+  --color-bg-deep: #dccfa9;
+  --color-panel: #f4ecd8;
+  --color-panel-hi: #e6d9b4;
+  --color-paper-hi: #faf3df;
+  --color-paper-lo: #eee0bc;
+  --color-ink: #2b2317;
+  --color-ink-dim: #6f6146;
+  --color-inkwash: #9c8a5e;
+  --color-lacquer: #332a1e;
+  --color-lacquer-gold: #d9b95c;
+  --color-gold: #c8a13a;
+  --color-gold-bright: #d4af37;
+  --color-gold-deep: #755917;
+  --color-danger: #b23a2e;
+  --color-money: #4a7a4a;
+  --color-seal-qing: #3f6a6b;
+  --color-road-main: #7a5c38;
+  --color-road-side: #b5713a;
+  --color-attr-hero: #b23a2e;
+  /* ── 豁免色(登记见文件头)── */
+  --gem-tong: #9a6a3c;
+  --gem-yin: #8d9298;
+  --seal-paper: #f6ecd9;
+  --lacquer-hi: #3d3324;
+  --lacquer-lo: #262017;
+  /* ── 字体栈(同 tokens.css;file:// 直开回退系统楷体)── */
+  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+  --font-wenkai: "LXGW WenKai", "KaiTi", "STKaiti", serif;
+  /* ── 墨影(rgba(43,35,23,·) 语义,同 jinnang-card.css)── */
+  --ink65: rgba(43, 35, 23, 0.65);
+  --ink40: rgba(43, 35, 23, 0.4);
+  --ink35: rgba(43, 35, 23, 0.35);
+  --ink22: rgba(43, 35, 23, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 40px 24px 80px;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(43, 35, 23, 0.14) 100%),
+    var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-wenkai);
+  line-height: 1.7;
+}
+
+.page { max-width: 1180px; margin: 0 auto; }
+
+/* ── 页首 ── */
+.masthead { text-align: center; margin-bottom: 10px; }
+.masthead h1 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 40px;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+}
+.masthead .sub {
+  color: var(--color-ink-dim);
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+}
+.meta {
+  max-width: 880px;
+  margin: 18px auto 0;
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 14px 22px;
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.meta b { color: var(--color-ink); font-weight: 400; }
+.toc {
+  text-align: center;
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.toc a {
+  color: var(--color-ink);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--ink35);
+  margin: 0 10px;
+}
+.toc a:hover { color: var(--color-danger); }
+
+/* ── 节面板(笺纸:有边有衬里)── */
+.sec {
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 26px 32px 30px;
+  margin: 28px 0;
+}
+.sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.sec-seal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 4px;
+  font-family: var(--font-brush);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 2px 4px var(--ink35), inset 0 0 0 2px rgba(246, 236, 217, 0.55);
+}
+.sec-head h2 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 27px;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.sec-head .tag {
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+  border: 1px solid var(--ink35);
+  border-radius: 3px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.claim { margin: 6px 0 2px; font-size: 14.5px; }
+.claim b { font-weight: 400; color: var(--color-danger); }
+.lore { margin: 2px 0 0; font-size: 12.5px; color: var(--color-ink-dim); }
+.lore code {
+  font-family: var(--font-wenkai);
+  background: var(--color-panel-hi);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+/* 一行设计说明(牌外注,不占牌面) */
+.note {
+  margin: 18px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ink35);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.note b { color: var(--color-ink); font-weight: 400; }
+
+/* ── 牌列 ── */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 26px;
+  margin-top: 20px;
+}
+.figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.figure figcaption {
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.04em;
+}
+
+/* ═══ 牌基座:竖笺 3:4,镜像 .jinnang-card(em 基 10px 评审档) ═══ */
+.card {
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  font-size: 10px;
+  flex: 0 0 auto;
+  background: linear-gradient(
+    168deg,
+    var(--color-panel) 0%,
+    var(--color-paper-hi) 58%,
+    var(--color-panel-hi) 100%
+  );
+  border: 0.2em solid var(--ink65);
+  border-radius: 0.9em;
+  box-shadow:
+    0 0.35em 0.8em var(--ink22),
+    inset 0 0 0 0.15em rgba(250, 243, 223, 0.7);
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 笺头:界格线 + 牌名 */
+.card .tou { display: flex; align-items: stretch; gap: 0.7em; min-height: 3.4em; margin-right: 3.8em; }
+.card .jie { width: 0.32em; background: var(--tone, var(--color-ink)); opacity: 0.85; border-radius: 0.16em; }
+.card .ming {
+  font-family: var(--font-brush);
+  font-size: 2em;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  align-self: center;
+  white-space: nowrap;
+}
+.card .ming.long { font-size: 1.72em; letter-spacing: 0.04em; }
+
+/* 标签章:右上竖排,朱砂恒定(DESIGN §4.5) */
+.card .zhang { position: absolute; top: 0.9em; right: 0.9em; display: flex; flex-direction: column; gap: 0.5em; z-index: 2; }
+.card .seal {
+  width: 2.3em;
+  height: 2.3em;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 0.28em;
+  font-family: var(--font-brush);
+  font-size: 1.5em;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 0.15em 0.3em rgba(43, 35, 23, 0.35), inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+}
+
+/* 品级窗:品级大字(汉字数字)+「品」角标(数值即信息,DESIGN §4.6 例外) */
+.card .yang {
+  flex: 1;
+  margin: 0.9em 0;
+  border: 0.16em solid color-mix(in srgb, var(--tone, var(--color-ink)) 55%, transparent);
+  border-radius: 0.5em;
+  background: var(--color-paper-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+  overflow: hidden;
+  min-height: 6em;
+}
+.card .gem-lv { font-family: var(--font-brush); font-size: 5em; line-height: 1; color: var(--tone, var(--color-ink)); }
+.card .gem-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+}
+
+/* 笺脚:风味文两行截断 */
+.card .jiao {
+  font-size: 1.12em;
+  line-height: 1.62;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 品级框色 tone(现状:平色内环,#281 落地形态)——仅 §0 基线与方向一翻面「前态」使用 */
+.card.tone-tong { --tone: var(--gem-tong); box-shadow: 0 0.35em 0.8em var(--ink22), inset 0 0 0 0.3em var(--gem-tong); }
+.card.tone-yin  { --tone: var(--gem-yin);  box-shadow: 0 0.35em 0.8em var(--ink22), inset 0 0 0 0.3em var(--gem-yin); }
+.card.tone-gold {
+  --tone: var(--color-gold);
+  box-shadow:
+    0 0.35em 0.9em rgba(43, 35, 23, 0.3),
+    inset 0 0 0 0.3em var(--color-gold),
+    0 0 0 0.18em var(--color-gold-deep);
+}
+/* 仅色档位类(不带现状平色内环阴影):材质/装裱等重定义环层的方向用,
+   --tone 只供界格线/品级大字/角饰/距条取色 */
+.card.t-tong { --tone: var(--gem-tong); }
+.card.t-yin  { --tone: var(--gem-yin); }
+.card.t-gold { --tone: var(--color-gold); }
+
+/* ═══ 方向一:府库陈设——珍宝牌背 + 翻面演示 ═══ */
+
+/* 案:漆木横条,牌立于案上 */
+.an {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 30px;
+  padding: 26px 30px 0;
+  margin-top: 22px;
+}
+.an::after {
+  /* 案面 */
+  content: "";
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  bottom: -10px;
+  height: 14px;
+  border-radius: 5px;
+  background: linear-gradient(180deg, var(--color-road-main), var(--color-lacquer));
+  box-shadow: 0 4px 8px var(--ink35);
+}
+
+/* 翻面壳:纯 CSS 演示(施工时交互归消费方) */
+.flip { width: 15em; height: 20em; font-size: 10px; perspective: 1100px; position: relative; z-index: 1; }
+.flip .inner {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transition: transform 0.55s var(--ease-out, ease-out);
+}
+.flip:hover .inner, .flip:focus-within .inner { transform: rotateY(180deg); }
+.flip .face { position: absolute; inset: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.flip .face.front { transform: rotateY(180deg); }
+@media (prefers-reduced-motion: reduce) {
+  .flip .inner { transition: none; }
+}
+
+/* 珍宝牌背:漆木底 + 金云纹 + 朱印「寶」(金归边饰,朱恒归印) */
+.card.gem-back {
+  background: linear-gradient(160deg, var(--lacquer-hi), var(--color-lacquer) 55%, var(--lacquer-lo));
+  align-items: center;
+  justify-content: center;
+}
+.card.gem-back .ring-a {
+  position: absolute;
+  inset: 1em;
+  border-radius: 0.5em;
+  border: 0.14em solid rgba(217, 185, 92, 0.55);
+  box-shadow: inset 0 0 0 0.22em rgba(51, 42, 30, 0.9), inset 0 0 0 0.34em rgba(217, 185, 92, 0.28);
+  pointer-events: none;
+}
+.card.gem-back .ring-b { position: absolute; inset: 2em; border: 0.1em solid rgba(217, 185, 92, 0.25); border-radius: 0.4em; pointer-events: none; }
+/* 云纹场:现役 PATTERN_PATHS.cloud 线稿原样移植(零新增图案资产) */
+.card.gem-back .yun {
+  position: absolute;
+  inset: 2.6em;
+  display: grid;
+  place-items: center;
+  opacity: 0.5;
+}
+.card.gem-back .yun svg { width: 88%; stroke: var(--color-lacquer-gold); stroke-width: 1.6; fill: none; stroke-linecap: round; }
+/* 朱印「寶」:章恒朱砂(金只在环与云,不染印面) */
+.card.gem-back .yin-b {
+  position: relative;
+  z-index: 1;
+  width: 4.6em;
+  height: 4.6em;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 0.4em;
+  transform: rotate(-3deg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 2.2em;
+  box-shadow: 0 0.3em 0.7em rgba(0, 0, 0, 0.45), inset 0 0 0 0.18em rgba(246, 236, 217, 0.5);
+}
+/* 起翘角:右下金线起翘=「可翻面」的器物暗示(DESIGN §4.6:不落文字标牌) */
+.card.gem-back .curl {
+  position: absolute;
+  right: -0.2em;
+  bottom: -0.2em;
+  width: 4.2em;
+  height: 4.2em;
+  border-radius: 0 0 0.8em 0;
+  background: linear-gradient(
+    315deg,
+    var(--lacquer-lo) 0 44%,
+    rgba(217, 185, 92, 0.95) 49%,
+    rgba(250, 243, 223, 0.4) 56%,
+    transparent 62%
+  );
+  filter: drop-shadow(-0.2em -0.2em 0.5em rgba(0, 0, 0, 0.35));
+}
+/* 陈设微旋(TablePile 质感,±1.5° 确定性,施工沿 rackTilt) */
+.tilt-l { rotate: -1.3deg; }
+.tilt-r { rotate: 1.1deg; }
+
+/* ═══ 方向二:材质品阶——环/角饰/高光分层 ═══ */
+
+/* 材质环:绝对定位内环层(替代平色 box-shadow 内环;品级大字与界格线仍走 --tone) */
+.card.mat { padding-top: 1.15em; }
+.card.mat .huan {
+  position: absolute;
+  inset: 0.62em;
+  border-radius: 0.6em;
+  pointer-events: none;
+  z-index: 1;
+}
+/* 高光扫:对角柔光,金档给足、铜档几乎不可见 */
+.card.mat .sheen {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.75em;
+  pointer-events: none;
+  background: linear-gradient(115deg, transparent 40%, rgba(255, 244, 214, var(--sheen, 0)) 50%, transparent 60%);
+}
+/* 角饰:四角 L 括线,密度/粗细随品级(--lv 1..10) */
+.card.mat .gu {
+  position: absolute;
+  width: calc(1.1em + var(--lv) * 0.09em);
+  height: calc(1.1em + var(--lv) * 0.09em);
+  border: 0 solid var(--tone);
+  pointer-events: none;
+  z-index: 1;
+  opacity: calc(0.3 + var(--lv) * 0.07);
+}
+.card.mat .gu.tl { top: 1.15em; left: 1.15em; border-top-width: 0.16em; border-left-width: 0.16em; border-top-left-radius: 0.35em; }
+.card.mat .gu.tr { top: 1.15em; right: 1.15em; border-top-width: 0.16em; border-right-width: 0.16em; border-top-right-radius: 0.35em; }
+.card.mat .gu.bl { bottom: 1.15em; left: 1.15em; border-bottom-width: 0.16em; border-left-width: 0.16em; border-bottom-left-radius: 0.35em; }
+.card.mat .gu.br { bottom: 1.15em; right: 1.15em; border-bottom-width: 0.16em; border-right-width: 0.16em; border-bottom-right-radius: 0.35em; }
+
+/* 铜(1-3):哑光单环→双环,几乎无高光 */
+.card.mat.m-tong { --tone: var(--gem-tong); --sheen: 0.05; }
+.card.mat.m-tong .huan {
+  border: 0.14em solid color-mix(in srgb, var(--gem-tong) 78%, transparent);
+  box-shadow: inset 0 0 0 0.02em rgba(250, 243, 223, 0.4);
+}
+.card.mat.m-tong.duo .huan {
+  border-width: 0.18em;
+  box-shadow:
+    inset 0 0 0 0.16em rgba(250, 243, 223, 0.5),
+    inset 0 0 0 0.3em color-mix(in srgb, var(--gem-tong) 60%, transparent);
+}
+/* 银(4-6):冷调双环 + 云纹角饰密度抬升 */
+.card.mat.m-yin { --tone: var(--gem-yin); --sheen: 0.12; }
+.card.mat.m-yin .huan {
+  border: 0.18em solid color-mix(in srgb, var(--gem-yin) 88%, transparent);
+  box-shadow:
+    inset 0 0 0 0.16em rgba(250, 243, 223, 0.65),
+    inset 0 0 0 0.32em color-mix(in srgb, var(--gem-yin) 55%, transparent);
+}
+/* 金(7-10):暖金双环 + 角括线满饰 + 高光扫 + 大字鎏金渐变 */
+.card.mat.m-gold { --tone: var(--color-gold); --sheen: 0.22; }
+.card.mat.m-gold .huan {
+  border: 0.18em solid var(--color-gold);
+  box-shadow:
+    inset 0 0 0 0.18em rgba(250, 243, 223, 0.8),
+    inset 0 0 0 0.34em color-mix(in srgb, var(--color-gold-deep) 70%, transparent),
+    0 0 0.9em color-mix(in srgb, var(--color-gold-bright) 35%, transparent);
+}
+.card.mat.m-gold .gem-lv {
+  background: linear-gradient(180deg, var(--color-gold-bright) 12%, var(--color-gold) 55%, var(--color-gold-deep) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* 十级阶差标尺:10 枚缩微笺示意环线/角饰随品级递增(铜 1-3 / 银 4-6 / 金 7-10) */
+.ruler {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-top: 24px;
+  padding: 16px 18px 30px;
+  background: var(--color-paper-lo);
+  border: 1px dashed var(--ink35);
+  border-radius: 6px;
+}
+.ruler .rl { position: relative; width: 3.4em; height: 4.6em; font-size: 10px; background: var(--color-paper-hi); border: 1px solid var(--ink40); border-radius: 4px; }
+.ruler .rl i {
+  position: absolute;
+  width: calc(0.28em + var(--lv) * 0.07em);
+  height: calc(0.28em + var(--lv) * 0.07em);
+  border: 0 solid var(--rc);
+  opacity: calc(0.3 + var(--lv) * 0.07);
+}
+.ruler .rl i.a { top: 2px; left: 2px; border-top-width: 1.5px; border-left-width: 1.5px; }
+.ruler .rl i.b { top: 2px; right: 2px; border-top-width: 1.5px; border-right-width: 1.5px; }
+.ruler .rl i.c { bottom: 2px; left: 2px; border-bottom-width: 1.5px; border-left-width: 1.5px; }
+.ruler .rl i.d { bottom: 2px; right: 2px; border-bottom-width: 1.5px; border-right-width: 1.5px; }
+.ruler .rl b {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -17px;
+  text-align: center;
+  font-weight: 400;
+  font-size: 11px;
+  color: var(--color-ink-dim);
+  font-family: var(--font-wenkai);
+}
+/* 标尺的档线:铜=单框,银=单框+内衬线,金=单框+内衬线+外晕 */
+.ruler .rl.t1 { --rc: #9a6a3c; }
+.ruler .rl.t2 { --rc: #8d9298; box-shadow: inset 0 0 0 2px rgba(250, 243, 223, 0.75), inset 0 0 0 3.5px rgba(141, 146, 152, 0.55); }
+.ruler .rl.t3 { --rc: #c8a13a; box-shadow: inset 0 0 0 2px rgba(250, 243, 223, 0.85), inset 0 0 0 3.5px rgba(117, 89, 23, 0.6), 0 0 6px rgba(212, 175, 55, 0.4); }
+
+/* ═══ 方向三:名家鉴藏——装裱绫边/题签/鉴藏印/跋文 ═══ */
+
+.card.mount { padding: 0; overflow: hidden; }
+/* 绫边:程序化斜纹(两组 repeating-gradient 交织出织物肌理),色温随品级微调 */
+.card.mount .ling {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.7em;
+  background:
+    repeating-linear-gradient(45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    repeating-linear-gradient(-45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+}
+/* 包角:四角深色织角(装裱意识,DESIGN §3 弃案 A 吸收入正文的一笔) */
+.card.mount .bj {
+  position: absolute;
+  width: 2.6em;
+  height: 2.6em;
+  z-index: 1;
+  opacity: 0.5;
+}
+.card.mount .bj.a { top: 0; left: 0; border-radius: 0.7em 0 0 0; background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.b { top: 0; right: 0; border-radius: 0 0.7em 0 0; background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.c { bottom: 0; left: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.d { bottom: 0; right: 0; border-radius: 0 0 0.7em 0; background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%); }
+/* 画心:距条(界线)随品级,内里纸亮端 */
+.card.mount .huaxin {
+  position: absolute;
+  inset: 1.5em;
+  border-radius: 0.3em;
+  background: var(--color-paper-hi);
+  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-ink)) 42%, rgba(43, 35, 23, 0.38));
+  box-shadow: 0 0.2em 0.5em rgba(43, 35, 23, 0.14);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9em;
+  z-index: 1;
+}
+/* 品级大字居画心中堂 */
+.card.mount .huaxin .zhong { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.5em; }
+.card.mount .huaxin .gem-lv { font-size: 4.4em; }
+.card.mount .huaxin .gem-pin { font-size: 1.2em; }
+/* 远山线稿:inkwash 淡墨,画心下缘(程序化 SVG,零图片) */
+.card.mount .huaxin .shan { height: 2.8em; opacity: 0.55; margin-top: 0.4em; }
+.card.mount .huaxin .shan svg { width: 100%; height: 100%; stroke: var(--color-inkwash); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+/* 跋文:风味文,画心内底部小字 */
+.card.mount .ba { font-size: 1.02em; line-height: 1.5; color: var(--color-ink-dim); margin-top: 0.5em; display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; }
+/* 题签:左上竖排纸签,牌名唯一承载体(顶替笺头,不与牌名双通道) */
+.card.mount .qian {
+  position: absolute;
+  top: 0.6em;
+  left: 0.6em;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid var(--ink40);
+  border-radius: 0.2em;
+  box-shadow: 0 0.2em 0.4em var(--ink22);
+  padding: 0.7em 0.32em;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  max-height: 12.5em;
+}
+.card.mount .qian .ling-zi { font-size: 1em; color: var(--color-danger); font-family: var(--font-wenkai); }
+.card.mount .qian .qian-ming { font-family: var(--font-brush); font-size: 1.7em; letter-spacing: 0.1em; line-height: 1.1; }
+/* 鉴藏印:「宝」章移位右下压距条(章恒朱砂,化入鉴藏体系) */
+.card.mount .jian-yin { position: absolute; right: 0.75em; bottom: 1.05em; z-index: 3; }
+.card.mount .jian-yin .seal { transform: rotate(3deg); }
+/* 副印:府库珍藏椭圆小印(淡朱,可按小尺寸减配) */
+.card.mount .fu-yin {
+  position: absolute;
+  right: 0.9em;
+  bottom: 4.4em;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  font-family: var(--font-wenkai);
+  font-size: 0.82em;
+  letter-spacing: 0.14em;
+  color: color-mix(in srgb, var(--color-danger) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 55%, transparent);
+  border-radius: 1em;
+  padding: 0.5em 0.18em;
+  opacity: 0.75;
+}
+
+/* ═══ 名将节:名将笺(与珍宝同形制,朱砂通道) ═══ */
+.card.hero { --tone: var(--color-attr-hero); }
+.card.hero .hero-lv {
+  font-family: var(--font-brush);
+  font-size: 4.4em;
+  line-height: 1;
+  color: var(--color-attr-hero);
+}
+.card.hero .hero-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+  writing-mode: vertical-rl;
+  letter-spacing: 0.12em;
+}
+/* 落架实际档(~72×96,同珍宝明细行 4.8px em 基) */
+.card.mini { font-size: 4.8px; }
+
+/* ── 页脚:拍板菜单与约束自查 ── */
+.decide { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.decide .opt {
+  border: 1px solid var(--ink40);
+  border-radius: 5px;
+  background: var(--color-paper-hi);
+  padding: 8px 16px;
+  font-size: 13.5px;
+}
+.decide .opt b { font-weight: 400; color: var(--color-danger); font-family: var(--font-brush); font-size: 16px; margin-right: 6px; }
+.checklist { margin: 18px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--color-ink-dim); }
+.checklist li { padding: 3px 0; }
+.checklist li::before { content: "✓ "; color: var(--color-money); }
+.checklist .warn::before { content: "△ "; color: var(--color-gold-deep); }
+footer { text-align: center; margin-top: 34px; font-size: 12px; color: var(--color-ink-dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ 页首 ═══ -->
+  <header class="masthead">
+    <h1>珍宝牌面深化方向对照稿</h1>
+    <div class="sub">票 #351 · prototype(静态稿,不接游戏)· 2026-09-30 · 拍板人选方向后另立施工票</div>
+  </header>
+
+  <div class="meta">
+    <b>评审方式</b>:双击本文件即可打开(纯 HTML+CSS,零构建零 JS);方向一的牌背支持<b>悬停翻面</b>演示。<br />
+    <b>字体</b>:引用仓库离线镜像(../../public/fonts/fonts.css)。双击直开时笔刷字回退系统楷体,不影响形制评审;经仓库根起静态服务(<code>python3 -m http.server</code>)后笔刷/文楷全量生效。<br />
+    <b>色板</b>:与 <code>tokens.css</code>(单源 <code>core/theme.ts</code> 经 gen:theme)同值;铜 #9a6a3c / 银 #8d9298 为现行 CSS 豁免色(方向二附 token 化提案)。<br />
+    <b>文案</b>:零新增——牌名/风味文取 <code>core/treasures.ts</code> 实数据,名将与称号取 <code>core/heroes.ts</code> 实数据。<br />
+    <b>约束</b>:竖笺 3:4 · 章恒朱砂 · 纹样程序化 SVG 零图片 · 交互语义归消费方(本页 hover 仅为演示)。
+  </div>
+
+  <nav class="toc">
+    <a href="#base">现状基线</a>
+    <a href="#d1">方向一 · 府库陈设</a>
+    <a href="#d2">方向二 · 材质品阶</a>
+    <a href="#d3">方向三 · 名家鉴藏</a>
+    <a href="#hero">名将节(可选)</a>
+    <a href="#decide">拍板与约束</a>
+  </nav>
+
+  <!-- ═══ 现状基线 ═══ -->
+  <section class="sec" id="base">
+    <div class="sec-head">
+      <span class="sec-seal">前</span>
+      <h2>现状基线(对照锚点)</h2>
+      <span class="tag">#281 落地形态</span>
+    </div>
+    <p class="claim">现行 <code>TreasureCardFace</code>:宝章朱砂 + 品级大字 + 铜银金<b>平色内环</b>。以下三方向均以此为「前」。</p>
+    <div class="row">
+      <figure class="figure">
+        <div class="card tone-tong">
+          <div class="tou"><span class="jie"></span><span class="ming">草帽</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+          <div class="jiao">编草为生,布衣起家</div>
+        </div>
+        <figcaption>壹品 · 铜(指导价 100)</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card tone-tong">
+          <div class="tou"><span class="jie"></span><span class="ming">小斛</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+          <div class="jiao">曹操小斛杀粮官</div>
+        </div>
+        <figcaption>叁品 · 铜(指导价 300)</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card tone-gold">
+          <div class="tou"><span class="jie"></span><span class="ming long">传国玉玺</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+          <div class="jiao">受命于天,既寿永昌</div>
+        </div>
+        <figcaption>拾品 · 金(指导价 3000)</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <!-- ═══ 方向一:府库陈设 ═══ -->
+  <section class="sec" id="d1">
+    <div class="sec-head">
+      <span class="sec-seal">壹</span>
+      <h2>方向一 · 府库陈设</h2>
+      <span class="tag">牌背与陈设(§6 唯一未做项)</span>
+    </div>
+    <p class="claim"><b>主张</b>:珍宝的收藏感从收纳态开始——立于案的暗底牌背(漆木底 + 金云纹 + 朱印「寶」),悬停翻面见正面;翻面暗示用「右下角金线起翘」这件器物语言承担,不落文字标牌(DESIGN §4.6)。</p>
+    <p class="lore"><b>料表</b>:sanguosha-ui-07(三牌背立于案;网图不入库,以 manifest 登记为据)/ 开源素材官方牌背(暗底 + 云纹 + 中央金印)/ 现行牌背语言 <code>jinnang-card.css</code> 末段(漆木底 + 回纹双环)。</p>
+
+    <div class="an">
+      <figure class="figure">
+        <div class="flip tilt-l">
+          <div class="inner">
+            <div class="face back">
+              <div class="card gem-back">
+                <span class="ring-a"></span><span class="ring-b"></span>
+                <span class="yun"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
+                  <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
+                  <path d="M22 58 q14 6 28 0 q14-6 28 0" />
+                </svg></span>
+                <span class="yin-b">寶</span>
+                <span class="curl"></span>
+              </div>
+            </div>
+            <div class="face front">
+              <div class="card tone-tong">
+                <div class="tou"><span class="jie"></span><span class="ming">草帽</span></div>
+                <div class="zhang"><span class="seal">宝</span></div>
+                <div class="yang"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+                <div class="jiao">编草为生,布衣起家</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>壹品 · 悬停翻面</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="flip">
+          <div class="inner">
+            <div class="face back">
+              <div class="card gem-back">
+                <span class="ring-a"></span><span class="ring-b"></span>
+                <span class="yun"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
+                  <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
+                  <path d="M22 58 q14 6 28 0 q14-6 28 0" />
+                </svg></span>
+                <span class="yin-b">寶</span>
+                <span class="curl"></span>
+              </div>
+            </div>
+            <div class="face front">
+              <div class="card tone-tong">
+                <div class="tou"><span class="jie"></span><span class="ming">小斛</span></div>
+                <div class="zhang"><span class="seal">宝</span></div>
+                <div class="yang"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+                <div class="jiao">曹操小斛杀粮官</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>叁品 · 悬停翻面</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="flip tilt-r">
+          <div class="inner">
+            <div class="face back">
+              <div class="card gem-back">
+                <span class="ring-a"></span><span class="ring-b"></span>
+                <span class="yun"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
+                  <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
+                  <path d="M22 58 q14 6 28 0 q14-6 28 0" />
+                </svg></span>
+                <span class="yin-b">寶</span>
+                <span class="curl"></span>
+              </div>
+            </div>
+            <div class="face front">
+              <div class="card tone-gold">
+                <div class="tou"><span class="jie"></span><span class="ming long">传国玉玺</span></div>
+                <div class="zhang"><span class="seal">宝</span></div>
+                <div class="yang"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+                <div class="jiao">受命于天,既寿永昌</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        <figcaption>拾品 · 悬停翻面</figcaption>
+      </figure>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:牌背与「锦囊」背同语而异饰——<b>金归边饰(双环+云纹),朱恒归印</b>(章恒朱砂红线不破,官方「中央金印」参考转译为金饰环抱朱印);云纹原样移植现役 <code>PATTERN_PATHS.cloud</code> 线稿,零新增图案资产;右下起翘角即 hover 翻面的可发现性方案,施工时翻面动画入 reduced-motion 兜层口径,交互语义(长按/hover/选中)归消费方。</p>
+  </section>
+
+  <!-- ═══ 方向二:材质品阶 ═══ -->
+  <section class="sec" id="d2">
+    <div class="sec-head">
+      <span class="sec-seal">贰</span>
+      <h2>方向二 · 材质品阶</h2>
+      <span class="tag">金银铜平色内环 → 材质分层</span>
+    </div>
+    <p class="claim"><b>主张</b>:铜银金从「一条平色内环」升级为可读的材质阶层——<b>渐变高光定质感、内环双线定精度、角饰密度定阶差</b>;壹品素铜与拾品满饰金,余光一瞥即分高低。</p>
+    <p class="lore"><b>料表</b>:sanguosha-ui-08(铜/银/金材质分层 + 「同形框,异色=品级」的成体系做法;网图不入库)/ noname-live-10(装备常驻栏的品级辨识诉求)/ 现状平色内环 <code>jinnang-card.css .tone-*</code>。</p>
+
+    <div class="row">
+      <figure class="figure">
+        <div class="card mat m-tong" style="--lv:1">
+          <span class="huan"></span><span class="sheen"></span>
+          <span class="gu tl"></span><span class="gu tr"></span><span class="gu bl"></span><span class="gu br"></span>
+          <div class="tou"><span class="jie"></span><span class="ming">草帽</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+          <div class="jiao">编草为生,布衣起家</div>
+        </div>
+        <figcaption>壹品 · 素铜(单环,角饰几不可见)</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card mat m-tong duo" style="--lv:3">
+          <span class="huan"></span><span class="sheen"></span>
+          <span class="gu tl"></span><span class="gu tr"></span><span class="gu bl"></span><span class="gu br"></span>
+          <div class="tou"><span class="jie"></span><span class="ming">小斛</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+          <div class="jiao">曹操小斛杀粮官</div>
+        </div>
+        <figcaption>叁品 · 双环铜(角饰初显)</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card mat m-gold" style="--lv:10">
+          <span class="huan"></span><span class="sheen"></span>
+          <span class="gu tl"></span><span class="gu tr"></span><span class="gu bl"></span><span class="gu br"></span>
+          <div class="tou"><span class="jie"></span><span class="ming long">传国玉玺</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+          <div class="jiao">受命于天,既寿永昌</div>
+        </div>
+        <figcaption>拾品 · 满饰金(双环+角括线+高光扫+大字鎏金)</figcaption>
+      </figure>
+    </div>
+
+    <!-- 十级阶差标尺:银档(4-6)不另立样牌,以标尺示意 -->
+    <div class="ruler" aria-label="十级阶差标尺">
+      <span class="rl t1" style="--lv:1"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>壹</b></span>
+      <span class="rl t1" style="--lv:2"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>贰</b></span>
+      <span class="rl t1" style="--lv:3"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>叁</b></span>
+      <span class="rl t2" style="--lv:4"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>肆</b></span>
+      <span class="rl t2" style="--lv:5"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>伍</b></span>
+      <span class="rl t2" style="--lv:6"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>陆</b></span>
+      <span class="rl t3" style="--lv:7"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>柒</b></span>
+      <span class="rl t3" style="--lv:8"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>捌</b></span>
+      <span class="rl t3" style="--lv:9"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>玖</b></span>
+      <span class="rl t3" style="--lv:10"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>拾</b></span>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:编码规则=铜(1-3)单环→双环+角饰初显,银(4-6)冷调双环+角饰渐密,金(7-10)暖金双环+四角括线满饰+对角高光扫+品级大字鎏金渐变(纸底可读档 <code>gold-deep</code> 收底);角饰粗细/透明度随 <code>--lv</code> 线性递增,牌面形制与笺头/宝章/笺脚一律不动。<b>框色 token 化提案</b>:<code>--color-gem-tong: #9a6a3c</code> / <code>--color-gem-yin: #8d9298</code> 进 <code>theme.ts</code> 单源(gen:theme 产出),清 <code>jinnang-card.css</code> 文件头的 CSS 豁免账;官方「编号顶章」做法不取——与品级大字双通道说同一件事,违 §4.6。</p>
+  </section>
+
+  <!-- ═══ 方向三:名家鉴藏 ═══ -->
+  <section class="sec" id="d3">
+    <div class="sec-head">
+      <span class="sec-seal">叁</span>
+      <h2>方向三 · 名家鉴藏</h2>
+      <span class="tag">装裱藏品叙事(§6 之外自由探索)</span>
+    </div>
+    <p class="claim"><b>主张</b>:珍宝不是「游戏卡」,是「被装裱的藏品」——绫边装裱 + 题签 + 鉴藏印 + 跋文,一张牌自带收藏叙事;「宝」章化入鉴藏印体系,朱砂语言不变。</p>
+    <p class="lore"><b>料表</b>:DESIGN.md §3 方向 B 吸收自弃案 A 的「装裱意识」(四角包角、金线双勾入正文)/ 中国书画装裱形制通例(题签 / 距条 / 鉴藏印 / 边跋)。</p>
+
+    <div class="row">
+      <figure class="figure">
+        <div class="card mount t-tong">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">编草为生,布衣起家</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+          <span class="fu-yin">府库珍藏</span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>壹品 · 装裱笺(题签+鉴藏印+跋文)</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card mount t-tong">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">曹操小斛杀粮官</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+          <span class="fu-yin">府库珍藏</span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>叁品 · 装裱笺</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card mount t-gold">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">受命于天,既寿永昌</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">传国玉玺</span></span>
+          <span class="fu-yin">府库珍藏</span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>拾品 · 装裱笺(距条随品级转金)</figcaption>
+      </figure>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:题签顶替笺头承牌名(竖排 brush,签首「珍」小字引),「宝」章移位右下压距条成<b>鉴藏印</b>(章恒朱砂不破,位置换了、语义入收藏体系);品级通道收进<b>品级大字 + 画心距条色</b>两处(同 --tone 一色两用,沿现行「一处色双处用」口径);远山线稿与绫边斜纹全程序化(inkwash token + 两组 repeating-gradient),零图片;副印「府库珍藏」为氛围件,小尺寸(牌架明细档)可按拍板减配为单印。件面最密,适合「府库/鉴赏」类慢速展示场景,若嫌噪音可只取「题签+鉴藏印」两件。</p>
+  </section>
+
+  <!-- ═══ 名将节(可选) ═══ -->
+  <section class="sec" id="hero">
+    <div class="sec-head">
+      <span class="sec-seal">将</span>
+      <h2>名将节 · 名将笺</h2>
+      <span class="tag">可选 —— 拍板人决定是否纳入施工</span>
+    </div>
+    <p class="claim"><b>主张</b>:牌架陈列位的名将从「一行纸签」升为与珍宝同语言的<b>「名将笺」</b>——朱砂界格线 + 「将」章 + 身价大字,与珍宝品级大字同槽位、同形制;此前拍板「名将不复用画像卡」指<b>对局内卡片</b>(名将已有画像卡),牌架明细行是另一场景,本节不动对局内画像卡。</p>
+    <p class="lore"><b>料表</b>:现状 <code>hand-rack.css .pile-slip.pile-hero</code>(名 + 浮签「破产清算时换 200 分」)/ DESIGN §4.2(名将属性色 attr-hero 本就是朱砂)/ 珍宝品级大字槽位语言 <code>.gem-lv / .gem-pin</code>。</p>
+
+    <div class="row">
+      <figure class="figure">
+        <div class="card hero">
+          <div class="tou"><span class="jie"></span><span class="ming">周瑜</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">雅量高致</div>
+        </div>
+        <figcaption>周瑜 · 名将笺(评审档)</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card hero">
+          <div class="tou"><span class="jie"></span><span class="ming long">张星彩</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">银翎飞骑</div>
+        </div>
+        <figcaption>张星彩 · 名将笺</figcaption>
+      </figure>
+
+      <figure class="figure">
+        <div class="card hero">
+          <div class="tou"><span class="jie"></span><span class="ming">华佗</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">神医</div>
+        </div>
+        <figcaption>华佗 · 名将笺</figcaption>
+      </figure>
+    </div>
+
+    <div class="row" style="margin-top: 10px">
+      <figure class="figure">
+        <div class="card hero mini">
+          <div class="tou"><span class="jie"></span><span class="ming">周瑜</span></div>
+          <div class="zhang"><span class="seal">将</span></div>
+          <div class="yang"><span class="hero-lv">贰佰</span><span class="hero-pin">身价</span></div>
+          <div class="jiao">雅量高致</div>
+        </div>
+        <figcaption>牌架明细行实际档(~72×96,4.8px 基,同珍宝明细行)</figcaption>
+      </figure>
+      <div style="align-self: center; max-width: 430px; font-size: 13px; color: var(--color-ink-dim)">
+        落架形态:珍宝牌面(左)与名将笺(右)同排于手牌架明细行,同为 3:4 竖笺、同为「大字+角标」中堂——身份锚点(身价)与价值锚点(品级)共用一个视觉槽位,架上一眼两读。浮签口径(title「破产清算时换 200 分」)由身价大字承接,不再双通道。
+      </div>
+      <figure class="figure">
+        <div class="card tone-tong mini">
+          <div class="tou"><span class="jie"></span><span class="ming">小斛</span></div>
+          <div class="zhang"><span class="seal">宝</span></div>
+          <div class="yang"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+          <div class="jiao">曹操小斛杀粮官</div>
+        </div>
+        <figcaption>对照:珍宝明细行现状档</figcaption>
+      </figure>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:身价大字用大写「贰佰」取清算锚点的庄重感(数据仍 200,渲染层转写;拍板可改「二百」或「200」),「身价」竖排角标对位珍宝「品」角标;笺脚放称号(雅量高致,与现浮签 title 同源,数据零新增);「将」章朱砂=attr-hero 通道色,与宝章朱砂同族不撞车(形制差:将章可按拍板换金章,沿 #229 令笺「技」金章先例,则需给 attr-hero 之外再开金通道,本稿从简用朱)。技能明细不入牌面——明细行是陈列位不是详情位,点击详情归消费方(同珍宝 title 浮签口径)。</p>
+  </section>
+
+  <!-- ═══ 拍板与约束 ═══ -->
+  <section class="sec" id="decide">
+    <div class="sec-head">
+      <span class="sec-seal">决</span>
+      <h2>拍板菜单与约束自查</h2>
+      <span class="tag">#351 不随本 PR 关闭</span>
+    </div>
+    <p class="claim">拍板人择一或组合,拍板后另立施工票(prototype 票的 resolution = 选方向,由协调者主持):</p>
+    <div class="decide">
+      <span class="opt"><b>壹</b>府库陈设 —— 牌背 + 翻面 + 陈设仪式</span>
+      <span class="opt"><b>贰</b>材质品阶 —— 金银铜材质分层 + 框色 token 化</span>
+      <span class="opt"><b>叁</b>名家鉴藏 —— 装裱/题签/鉴藏印藏品叙事</span>
+      <span class="opt"><b>将</b>名将笺 —— 牌架陈列位笺化(可选)</span>
+      <span class="opt"><b>合</b>组合 —— 如 贰+叁(品阶为骨、鉴藏为皮)、壹为保底</span>
+    </div>
+    <p class="claim" style="margin-top: 14px">保底方案(方案 §6 存档):若三向皆不取,回退「牌背 + 框色 token 化」最小增量——其中框色 token 化已含在方向二内,牌背见方向一。</p>
+    <ul class="checklist">
+      <li>竖笺 3:4:全件 15×20em,与 .jinnang-card 同基座</li>
+      <li>章恒朱砂:宝章/将章/牌背朱印全 danger;金只入边饰与高光,不染印面</li>
+      <li>程序化 SVG 零图片:云纹/远山/绫边斜纹全为内联线稿或渐变</li>
+      <li>色板:全 token 同值;铜/银豁免色沿用现行登记,方向二附 token 化提案</li>
+      <li>§4.6 状态表达:翻面暗示用起翘角、品阶用材质,未新增文字标牌;页内说明均在牌外</li>
+      <li>交互语义:本页 hover 翻面仅为演示,施工时归消费方(器物件豁免口径不变);翻面动画施工时入 reduced-motion 兜层</li>
+      <li class="warn">文案纪律:牌面文案全部取自 core/treasures.ts / core/heroes.ts 实数据,零新增;「贰佰」为渲染层转写,数据不改</li>
+      <li class="warn">料表网图(sanguosha-ui-07/08)不入库,评审以 manifest 登记与本页转译为准</li>
+    </ul>
+  </section>
+
+  <footer>proto/treasure/index.html · #351 prototype · 静态对照稿,不进构建 · dafung-web</footer>
+</div>
+</body>
+</html>
