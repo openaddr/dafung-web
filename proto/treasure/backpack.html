@@ -1,0 +1,1782 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>府库背包模式 · 静态稿 · #351 第三轮</title>
+<!-- 离线字体镜像(Ma Shan Zheng / LXGW WenKai / ZCOOL XiaoWei / Long Cang):
+     双击直开(file://)时 @font-face 的 /fonts 绝对路径不可达,静默回退系统楷体,
+     形制评审不受影响;经仓库根起静态服务(python3 -m http.server / bunx serve)
+     时笔刷/文楷全量生效。链接失败无害,勿删。 -->
+<link rel="stylesheet" href="../../public/fonts/fonts.css" />
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   府库背包模式 · 静态稿(#351 第三轮)—— 纯 HTML+CSS,零构建零 JS。
+   设计转向(2026-10-01 拍板人追加决议):珍宝撤出牌架,改「背包」模式。
+   与同目录 index.html(方向对照稿)/ in-game.html(游戏内档位稿)并排,不覆盖。
+
+   页面即 HUD 语境:节一 页底漆木牌架(右端背包入口)+ 中上部城池交涉语境;
+   节二 背包详情层「府库」弹层;节三 交易弹层;节四 约束自查与拍板菜单。
+
+   档位口径(单源 src/app):
+   - 陈列档:em 基 7.6px → 15×20em = 114×152(与手牌槽位 dash-rack 槽同档,零新档位);
+   - 紧凑档:em 基 4.8px → 72×96(原明细行档,收作小屏/多件降档预案,遮挡审查用);
+   - 评审阅读档:em 基 10px(细节查看用,非游戏档)。
+
+   色板:与 src/app/styles/tokens.css 同值(单源 core/theme.ts,gen:theme 产出),
+   本页为静态稿不引构建链,以同名 CSS 变量镜像;施工时一律回归 var(--color-*)。
+   豁免色登记(沿 jinnang-card.css / hand-rack.css 文件头口径):
+   - #9a6a3c 铜 / #8d9298 银:frameTone 定稿色,暂无 token;
+   - #f6ecd9 印文纸色:章面/印文字色,暂无 token;
+   - #463a28 / #241d13 漆木架渐变两端:架面明暗,无 token(现行 .hand-rack 同款豁免)。
+
+   纹样:锦囊袋/远山/书卷/玉玺线稿全为内联程序化 SVG,零图片资产(DESIGN §4.5);
+   画像一律「姓氏朱印 + 画像未至」占位(HeroPickScroll.OfferPortrait 现行占位语言)。
+   交互:全静态;悬停放大(mini ×2.2)/选中金描边为评审辅助 CSS-only 效果,
+   施工时交互语义归消费方(器物件豁免口径不变)。
+   遮挡修正(本轮硬门槛):装裱牌跋文右侧预留 2.6em 鉴藏印位
+   (.ba padding-right),修正上轮「鉴藏印压跋文尾字」风险,详见节二审查表。
+   ═══════════════════════════════════════════════════ */
+
+:root {
+  /* ── tokens 镜像(同值于 tokens.css,施工时回归单源)── */
+  --color-bg: #eae0c6;
+  --color-bg-deep: #dccfa9;
+  --color-panel: #f4ecd8;
+  --color-panel-hi: #e6d9b4;
+  --color-paper-hi: #faf3df;
+  --color-paper-lo: #eee0bc;
+  --color-ink: #2b2317;
+  --color-ink-dim: #6f6146;
+  --color-inkwash: #9c8a5e;
+  --color-lacquer: #332a1e;
+  --color-lacquer-gold: #d9b95c;
+  --color-gold: #c8a13a;
+  --color-gold-bright: #d4af37;
+  --color-gold-deep: #755917;
+  --color-danger: #b23a2e;
+  --color-money: #4a7a4a;
+  --color-seal-qing: #3f6a6b;
+  --color-road-main: #7a5c38;
+  --color-attr-hero: #b23a2e;
+  /* ── 豁免色(登记见文件头)── */
+  --gem-tong: #9a6a3c;
+  --gem-yin: #8d9298;
+  --seal-paper: #f6ecd9;
+  --rack-hi: #463a28;
+  --rack-lo: #241d13;
+  /* ── 字体栈(同 tokens.css;file:// 直开回退系统楷体)── */
+  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
+  --font-wenkai: "LXGW WenKai", "KaiTi", "STKaiti", serif;
+  /* ── 墨影(rgba(43,35,23,·) 语义,同 jinnang-card.css)── */
+  --ink65: rgba(43, 35, 23, 0.65);
+  --ink40: rgba(43, 35, 23, 0.4);
+  --ink35: rgba(43, 35, 23, 0.35);
+  --ink22: rgba(43, 35, 23, 0.22);
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 40px 24px 80px;
+  background:
+    radial-gradient(ellipse at center, transparent 55%, rgba(43, 35, 23, 0.14) 100%),
+    var(--color-bg);
+  color: var(--color-ink);
+  font-family: var(--font-wenkai);
+  line-height: 1.7;
+}
+
+.page { max-width: 1180px; margin: 0 auto; }
+
+/* ── 页首 ── */
+.masthead { text-align: center; margin-bottom: 10px; }
+.masthead h1 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 38px;
+  letter-spacing: 0.08em;
+  margin: 0 0 4px;
+}
+.masthead .sub {
+  color: var(--color-ink-dim);
+  font-size: 13.5px;
+  letter-spacing: 0.06em;
+}
+.meta {
+  max-width: 920px;
+  margin: 18px auto 0;
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 14px 22px;
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.meta b { color: var(--color-ink); font-weight: 400; }
+.toc {
+  text-align: center;
+  margin: 14px 0 6px;
+  font-size: 13px;
+}
+.toc a {
+  color: var(--color-ink);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--ink35);
+  margin: 0 10px;
+}
+.toc a:hover { color: var(--color-danger); }
+
+/* ── 节面板(笺纸:有边有衬里)── */
+.sec {
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px var(--ink22);
+  padding: 26px 32px 30px;
+  margin: 28px 0;
+}
+.sec-head { display: flex; align-items: center; gap: 14px; margin-bottom: 4px; }
+.sec-seal {
+  flex: none;
+  width: 34px;
+  height: 34px;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 4px;
+  font-family: var(--font-brush);
+  font-size: 20px;
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 2px 4px var(--ink35), inset 0 0 0 2px rgba(246, 236, 217, 0.55);
+}
+.sec-head h2 {
+  font-family: var(--font-brush);
+  font-weight: 400;
+  font-size: 27px;
+  letter-spacing: 0.05em;
+  margin: 0;
+}
+.sec-head .tag {
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+  border: 1px solid var(--ink35);
+  border-radius: 3px;
+  padding: 1px 8px;
+  white-space: nowrap;
+}
+.claim { margin: 6px 0 2px; font-size: 14.5px; }
+.claim b { font-weight: 400; color: var(--color-danger); }
+.lore { margin: 2px 0 0; font-size: 12.5px; color: var(--color-ink-dim); }
+.lore code {
+  font-family: var(--font-wenkai);
+  background: var(--color-panel-hi);
+  border-radius: 3px;
+  padding: 0 4px;
+}
+/* 一行设计说明(牌外注,不占牌面) */
+.note {
+  margin: 18px 0 0;
+  padding-top: 12px;
+  border-top: 1px dashed var(--ink35);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+}
+.note b { color: var(--color-ink); font-weight: 400; }
+
+/* ── 牌列(评审档)── */
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 26px;
+  margin-top: 20px;
+}
+.figure { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.figure figcaption {
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.04em;
+}
+
+/* ═══ 牌基座:竖笺 3:4,镜像 .jinnang-card(默认 em 基 10px 评审档) ═══ */
+.card {
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  font-size: 10px;
+  flex: 0 0 auto;
+  background: linear-gradient(
+    168deg,
+    var(--color-panel) 0%,
+    var(--color-paper-hi) 58%,
+    var(--color-panel-hi) 100%
+  );
+  border: 0.2em solid var(--ink65);
+  border-radius: 0.9em;
+  box-shadow:
+    0 0.35em 0.8em var(--ink22),
+    inset 0 0 0 0.15em rgba(250, 243, 223, 0.7);
+  padding: 1em;
+  display: flex;
+  flex-direction: column;
+}
+
+/* 印章基座:朱砂恒定(DESIGN §4.5 章恒朱砂;牌面/笺面/标题侧通用) */
+.seal {
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 0.28em;
+  font-family: var(--font-brush);
+  display: grid;
+  place-items: center;
+  transform: rotate(2.5deg);
+  box-shadow: 0 0.15em 0.3em rgba(43, 35, 23, 0.35), inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+}
+/* 牌面标签章:右上竖排(锦囊手牌用) */
+.card .zhang { position: absolute; top: 0.9em; right: 0.9em; display: flex; flex-direction: column; gap: 0.5em; z-index: 2; }
+.card .seal {
+  width: 2.3em;
+  height: 2.3em;
+  font-size: 1.5em;
+}
+
+/* 笺头:界格线 + 牌名(锦囊手牌用;装裱牌题签顶替笺头) */
+.card .tou { display: flex; align-items: stretch; gap: 0.7em; min-height: 3.4em; margin-right: 3.8em; }
+.card .jie { width: 0.32em; background: var(--tone, var(--color-ink)); opacity: 0.85; border-radius: 0.16em; }
+.card .ming {
+  font-family: var(--font-brush);
+  font-size: 2em;
+  line-height: 1.15;
+  letter-spacing: 0.06em;
+  align-self: center;
+  white-space: nowrap;
+}
+.card .ming.long { font-size: 1.72em; letter-spacing: 0.04em; }
+
+/* 中堂窗:纹样线稿(锦囊手牌用) */
+.card .yang {
+  flex: 1;
+  margin: 0.9em 0;
+  border: 0.16em solid color-mix(in srgb, var(--tone, var(--color-ink)) 55%, transparent);
+  border-radius: 0.5em;
+  background: var(--color-paper-hi);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  min-height: 6em;
+}
+.card .yang svg {
+  width: 82%;
+  height: 82%;
+  opacity: 0.8;
+  stroke: var(--tone, var(--color-ink));
+  stroke-width: 2.2;
+  fill: none;
+  stroke-linecap: round;
+}
+
+/* 笺脚:牌面文两行截断(锦囊手牌用) */
+.card .jiao {
+  font-size: 1.12em;
+  line-height: 1.62;
+  color: var(--color-ink);
+  font-variant-numeric: tabular-nums;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 中堂:品级大字 + 「品」角标 */
+.card .gem-lv { font-family: var(--font-brush); font-size: 5em; line-height: 1; color: var(--tone, var(--color-ink)); }
+.card .gem-pin {
+  font-family: var(--font-wenkai);
+  font-size: 1.3em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  border: 0.14em solid var(--color-ink-dim);
+  border-radius: 0.35em;
+  padding: 0.25em 0.3em;
+}
+
+/* 仅色档位类(--tone 供距条/大字取色;沿 index.html 口径) */
+.card.t-tong { --tone: var(--gem-tong); }
+.card.t-yin  { --tone: var(--gem-yin); }
+.card.t-gold { --tone: var(--color-gold); }
+.card.t-qing { --tone: var(--color-seal-qing); } /* 锦囊手牌对照卡(谋·黛青) */
+
+/* ═══ 装裱变体(方向三「名家鉴藏」,语言自 index/in-game.html 移植) ═══ */
+
+.card.mount { padding: 0; overflow: hidden; }
+/* 绫边:程序化斜纹(两组 repeating-gradient 交织出织物肌理) */
+.card.mount .ling {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.7em;
+  background:
+    repeating-linear-gradient(45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    repeating-linear-gradient(-45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+}
+/* 包角:四角深色织角(被画心 inset 1.5em 裁于绫边区,不入画心——审查表第 3 项) */
+.card.mount .bj {
+  position: absolute;
+  width: 2.6em;
+  height: 2.6em;
+  z-index: 1;
+  opacity: 0.5;
+}
+.card.mount .bj.a { top: 0; left: 0; border-radius: 0.7em 0 0 0; background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.b { top: 0; right: 0; border-radius: 0 0.7em 0 0; background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.c { bottom: 0; left: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%); }
+.card.mount .bj.d { bottom: 0; right: 0; border-radius: 0 0 0.7em 0; background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%); }
+/* 画心:距条(界线)随品级,内里纸亮端 */
+.card.mount .huaxin {
+  position: absolute;
+  inset: 1.5em;
+  border-radius: 0.3em;
+  background: var(--color-paper-hi);
+  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-ink)) 42%, rgba(43, 35, 23, 0.38));
+  box-shadow: 0 0.2em 0.5em rgba(43, 35, 23, 0.14);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9em;
+  z-index: 1;
+}
+/* 品级大字居画心中堂(无图回退通道)。
+   【本轮遮挡修正二】中堂 gap 0.5em→0.3em、中堂加左衬距(给左上题签让位:
+   陈列档 0.5em / 紧凑档 1.1em)+ 紧凑档大字 4.4em→4.1em:上轮形态下题签右缘
+   与品级大字左缘盒净距仅 0.7-1.6px(相切贴线),修正后实测紧凑档 4.6-5.4px、
+   陈列档 6.2-7.5px(实测见节二审查表第 1 项)。 */
+.card.mount .huaxin .zhong { flex: 1; display: flex; align-items: center; justify-content: center; gap: 0.3em; padding-left: 0.5em; }
+.card.mount .huaxin .gem-lv { font-size: 4.4em; }
+.card.mini .huaxin .zhong { padding-left: 1.1em; }
+.card.mini .huaxin .gem-lv { font-size: 4.1em; }
+.card.mount .huaxin .gem-pin { font-size: 1.2em; }
+/* 画心·配图通道:传入节点即渲染(位图/自定 SVG,容器裁剪),不传回退大字+远山 */
+.card.mount .huaxin .art {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.2em;
+}
+.card.mount .huaxin .art svg,
+.card.mount .huaxin .art img {
+  width: 88%;
+  max-height: 96%;
+  object-fit: contain;
+}
+.card.mount .huaxin .art svg { stroke: var(--color-ink-dim); stroke-width: 1.6; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+/* 远山线稿:inkwash 淡墨,画心下缘(程序化 SVG,零图片) */
+.card.mount .huaxin .shan { height: 2.8em; opacity: 0.55; margin-top: 0.4em; }
+.card.mount .huaxin .shan svg { width: 100%; height: 100%; stroke: var(--color-inkwash); stroke-width: 1.4; fill: none; stroke-linecap: round; }
+/* 跋文:风味文,画心内底部小字。
+   【本轮遮挡修正一】右侧 padding 2.6em 预留鉴藏印位——上轮形态印章左缘与跋文尾字
+   净距≈0(紧凑档实证压字),修正后实测净距 5.1px(紧凑)/ 9.8px(陈列),尾字完整
+   (审查表第 2 项)。 */
+.card.mount .ba {
+  font-size: 1.02em;
+  line-height: 1.5;
+  color: var(--color-ink-dim);
+  margin-top: 0.5em;
+  padding-right: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+/* 题签:左上竖排纸签,牌名唯一承载体(顶替笺头,不与牌名双通道) */
+.card.mount .qian {
+  position: absolute;
+  top: 0.6em;
+  left: 0.6em;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid var(--ink40);
+  border-radius: 0.2em;
+  box-shadow: 0 0.2em 0.4em var(--ink22);
+  padding: 0.7em 0.32em;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  max-height: 12.5em;
+}
+.card.mount .qian .ling-zi { font-size: 1em; color: var(--color-danger); font-family: var(--font-wenkai); }
+.card.mount .qian .qian-ming { font-family: var(--font-brush); font-size: 1.7em; letter-spacing: 0.1em; line-height: 1.1; }
+.card.mount .qian .qian-ming.long { font-size: 1.45em; }
+/* 鉴藏印:「宝」章右下压距条(章恒朱砂,化入鉴藏体系;压画不压字,见审查表) */
+.card.mount .jian-yin { position: absolute; right: 0.75em; bottom: 1.05em; z-index: 3; }
+.card.mount .jian-yin .seal { transform: rotate(3deg); }
+
+/* 档位:陈列档 7.6px 基(114×152)/ 紧凑档 4.8px 基(72×96)/ 评审档默认 10px */
+.card.cellsize { font-size: 7.6px; }
+.card.racksize { font-size: 7.6px; }
+.card.mini { font-size: 4.8px; }
+
+/* ═══ 漆木牌架(hand-rack.css .hand-rack 镜像,px 直译)═══ */
+.rack {
+  position: relative;
+  margin: 22px -32px 0;
+  height: 240px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--rack-hi), var(--color-lacquer) 60%, var(--rack-lo));
+  box-shadow:
+    inset 0 2px 0 rgba(217, 185, 92, 0.4),
+    inset 0 14px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 30px;
+  padding: 26px 130px 20px 84px;
+  overflow: visible;
+}
+/* 架首章:竖排「锦囊手牌」漆金描边(游戏 .hand-rack-zhang 制式) */
+.jia-zhang {
+  position: absolute;
+  left: 20px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-family: var(--font-brush);
+  font-size: 12.5px;
+  line-height: 1;
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.5);
+  padding: 10px 5px;
+  border-radius: 2px;
+  opacity: 0.9;
+  text-align: center;
+  user-select: none;
+}
+/* 名将纸签行(珍宝排撤除后,明细行=纯名将;现行 .pile-slip 制式) */
+.pile-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  padding-bottom: 6px;
+}
+.pile-slip {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 3px 10px 4px;
+  border: 1px solid rgba(43, 35, 23, 0.35);
+  border-left-width: 3px;
+  border-left-color: var(--color-attr-hero);
+  border-radius: 3px;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
+  box-shadow: 0 1px 3px rgba(43, 35, 23, 0.25);
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.pile-slip b { font-weight: 400; }
+/* 手牌行(gap 3em@7.6px≈23px) */
+.hand-row { display: flex; align-items: flex-end; gap: 23px; }
+/* 行注 */
+.rack-legend {
+  margin: 10px 4px 0;
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.03em;
+}
+.rack-legend b { color: var(--color-ink); font-weight: 400; }
+
+/* ═══ 背包入口(牌架右端常驻小件)═══
+   漆金牌 + 锦囊袋线稿 + 数量角标:替换原珍宝明细行,常驻不占排。
+   角标朱砂=计数警示语言(与章同族);金归框与袋线,不染印面。 */
+.pack-entry {
+  position: absolute;
+  right: 26px;
+  bottom: 22px;
+  width: 86px;
+  padding: 10px 8px 8px;
+  border-radius: 8px;
+  background: linear-gradient(170deg, var(--rack-hi), var(--color-lacquer) 70%, var(--rack-lo));
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 185, 92, 0.55),
+    inset 0 0 0 3px rgba(36, 29, 19, 0.8),
+    0 3px 8px rgba(0, 0, 0, 0.45);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+.pack-entry .nang { width: 44px; height: 46px; }
+.pack-entry .nang svg { width: 100%; height: 100%; stroke: var(--color-lacquer-gold); stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.pack-entry .pming {
+  font-family: var(--font-brush);
+  font-size: 15px;
+  letter-spacing: 0.3em;
+  margin-right: -0.3em;
+  color: var(--color-lacquer-gold);
+  line-height: 1;
+  user-select: none;
+}
+/* 数量角标:右上悬垂朱砂圆印(计数,悬停 title 即明细) */
+.pack-badge {
+  position: absolute;
+  top: -9px;
+  right: -9px;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 5px;
+  border-radius: 12px;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  font-family: var(--font-wenkai);
+  font-size: 13.5px;
+  line-height: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.45), inset 0 0 0 1.5px rgba(246, 236, 217, 0.55);
+  transform: rotate(4deg);
+}
+
+/* ═══ 旧版对照:珍宝明细行占牌架(退役示意,灰化 + 退役章)═══ */
+.retired {
+  position: relative;
+  margin: 18px -32px 0;
+  height: 172px;
+  border-radius: 10px;
+  background: linear-gradient(180deg, var(--rack-hi), var(--color-lacquer) 60%, var(--rack-lo));
+  box-shadow: inset 0 2px 0 rgba(217, 185, 92, 0.25), inset 0 14px 24px rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 30px 16px;
+}
+.retired .gem { filter: grayscale(1); opacity: 0.55; }
+.retired .tuiyi {
+  position: absolute;
+  right: 34px;
+  top: 50%;
+  transform: translateY(-50%) rotate(-8deg);
+  font-family: var(--font-brush);
+  font-size: 30px;
+  letter-spacing: 0.18em;
+  color: var(--color-danger);
+  border: 3px solid var(--color-danger);
+  border-radius: 6px;
+  padding: 2px 12px;
+  opacity: 0.85;
+  background: rgba(250, 243, 223, 0.12);
+  user-select: none;
+}
+
+/* ═══ 节二/节三:弹层暗幕(模拟全屏弹层的页面语境)═══ */
+.scrim {
+  margin: 20px -32px 0;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at center, rgba(58, 48, 32, 0.55) 0%, rgba(24, 19, 12, 0.72) 100%);
+  box-shadow: inset 0 0 0 1px rgba(217, 185, 92, 0.18);
+  padding: 26px 22px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+}
+/* 弹层态签(牌外注,标示当前模拟的弹层状态) */
+.state-tag {
+  align-self: flex-start;
+  margin-left: 8px;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: rgba(250, 243, 223, 0.78);
+  border: 1px solid rgba(217, 185, 92, 0.4);
+  border-radius: 3px;
+  padding: 1px 10px;
+}
+
+/* ═══ 府库弹层面板(宣纸底 + 双金边,ScrollShell 视觉骨架)═══ */
+.fuku {
+  width: 100%;
+  max-width: 940px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 3px var(--color-panel),
+    inset 0 0 0 4px rgba(200, 161, 58, 0.55),
+    0 18px 50px rgba(0, 0, 0, 0.55);
+  padding: 18px 24px 22px;
+}
+.fuku-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--ink35);
+}
+.fuku-title {
+  font-family: var(--font-brush);
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+}
+.fuku-title .seal {
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  font-size: 13px;
+  vertical-align: 3px;
+  margin-left: 6px;
+}
+.fuku-sub { font-size: 12px; color: var(--color-ink-dim); }
+.fuku-tabs { display: flex; gap: 6px; margin-left: auto; }
+.fuku-tabs .tab {
+  font-size: 13.5px;
+  color: var(--color-ink-dim);
+  border: 1px solid var(--ink35);
+  border-bottom-width: 2px;
+  border-bottom-color: transparent;
+  border-radius: 4px;
+  padding: 2px 12px;
+  font-variant-numeric: tabular-nums;
+}
+.fuku-tabs .tab.on {
+  color: var(--color-ink);
+  border-bottom-color: var(--color-danger);
+  background: var(--color-paper-hi);
+}
+.fuku-tabs .tab i { font-style: normal; font-size: 11px; color: var(--color-danger); margin-left: 3px; }
+.fuku-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--ink35);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  color: var(--color-ink-dim);
+  user-select: none;
+}
+
+/* 收藏册分区 */
+.zone-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 2px 10px;
+  font-size: 13px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.06em;
+}
+.zone-label .zdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--color-danger);
+  transform: rotate(45deg);
+  opacity: 0.85;
+}
+.zone-label.old .zdot { background: var(--color-inkwash); }
+.zone-label em { font-style: normal; color: var(--color-gold-deep); }
+
+/* 陈列网格:大空间收藏册(格距远大于旧明细行的 8px 挤排) */
+.fuku-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 128px);
+  justify-content: center;
+  gap: 18px 16px;
+  padding: 6px 0 2px;
+}
+.fuku-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+/* 价签(馆藏名牌):挂格底牌外,不占牌面(审查表第 5 项) */
+.price-tag {
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-money);
+  background: var(--color-paper-hi);
+  border: 1px solid rgba(43, 35, 23, 0.28);
+  border-radius: 3px;
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+/* 曾持有:整格灰化(提案,拍板项) */
+.fuku-cell.was .card { filter: grayscale(1); opacity: 0.55; }
+.fuku-cell.was .price-tag { color: var(--color-ink-dim); text-decoration: line-through; }
+
+/* ═══ 名将笺(府库名将页签新形制)═══
+   画像小窗(3:4)+ 名将名大字 + 称号笺脚 + 技能印数角标;
+   身价 200 是清算常数,不上笺面,收进 title 浮签(现行文案)。 */
+.card.hero-jian { align-items: center; text-align: center; gap: 0; padding: 0.9em 0.8em; }
+.card.hero-jian .xiang {
+  position: relative;
+  width: 8em;
+  aspect-ratio: 3 / 4;
+  border: 0.28em double var(--color-gold);
+  outline: 1px solid rgba(200, 161, 58, 0.25);
+  outline-offset: 1px;
+  border-radius: 0.4em;
+  background: var(--color-paper-lo);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  overflow: visible;
+}
+/* 画像占位:姓氏朱印 + 「画像未至」(HeroPickScroll.OfferPortrait 现行占位语言,零图片) */
+.card.hero-jian .xiang .xiang-seal {
+  width: 2.6em;
+  height: 2.6em;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 0.22em;
+  transform: rotate(-4deg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 1.6em;
+  line-height: 1;
+  box-shadow: inset 0 0 0 0.12em rgba(246, 236, 217, 0.5);
+}
+.card.hero-jian .xiang .xiang-hint { font-size: 0.9em; color: var(--color-ink-dim); letter-spacing: 0.08em; }
+/* 将钤印:压画像窗右上角(印压画角,鉴藏同语义;压占位空区非文字,审查表第 8 项) */
+.card.hero-jian .xiang .j-seal {
+  position: absolute;
+  top: -0.7em;
+  right: -0.7em;
+  width: 2em;
+  height: 2em;
+  font-size: 1.25em;
+  transform: rotate(6deg);
+}
+.card.hero-jian .h-ming {
+  font-family: var(--font-brush);
+  font-size: 2.2em;
+  line-height: 1.15;
+  letter-spacing: 0.1em;
+  margin-top: 0.45em;
+  white-space: nowrap;
+}
+.card.hero-jian .h-title {
+  font-size: 1.15em;
+  line-height: 1.4;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.14em;
+  margin-top: 0.2em;
+  white-space: nowrap;
+}
+/* 技能印数角标:形符纯 CSS(圆=被动,菱=主动),不依赖字族(审查表第 7 项) */
+.card.hero-jian .h-badges {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 1em;
+  margin-top: 0.55em;
+  padding-top: 0.5em;
+  border-top: 1px dashed var(--ink35);
+  font-size: 1.05em;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  width: 100%;
+}
+.card.hero-jian .h-badges .bd { display: inline-flex; align-items: center; gap: 0.4em; white-space: nowrap; }
+.card.hero-jian .h-badges .dot {
+  width: 0.72em;
+  height: 0.72em;
+  border-radius: 50%;
+  background: var(--color-attr-hero);
+}
+.card.hero-jian .h-badges .dia {
+  width: 0.72em;
+  height: 0.72em;
+  background: var(--color-gold-deep);
+  transform: rotate(45deg);
+}
+.card.hero-jian .h-badges i { font-style: normal; font-variant-numeric: tabular-nums; }
+
+/* ═══ 点笺接通:画像卡(现行画像卡形态,双金边画像框 + 技能实文案)═══ */
+.link-row {
+  width: 100%;
+  max-width: 940px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  flex-wrap: wrap;
+}
+.link-arrow { flex: none; width: 74px; height: 26px; }
+.link-arrow path { stroke: var(--color-lacquer-gold); stroke-width: 2.4; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+.link-word {
+  flex: none;
+  font-family: var(--font-brush);
+  font-size: 15px;
+  color: var(--color-lacquer-gold);
+  border: 1px solid rgba(217, 185, 92, 0.5);
+  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+}
+.hcard {
+  display: flex;
+  gap: 20px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 8px;
+  box-shadow:
+    inset 0 0 0 3px var(--color-panel),
+    inset 0 0 0 4px rgba(200, 161, 58, 0.55),
+    0 14px 40px rgba(0, 0, 0, 0.5);
+  padding: 20px 22px;
+  max-width: 620px;
+}
+.hcard-portrait {
+  flex: none;
+  width: 158px;
+  aspect-ratio: 3 / 4;
+  border: 4px double var(--color-gold);
+  outline: 1px solid rgba(200, 161, 58, 0.25);
+  outline-offset: 2px;
+  border-radius: 8px;
+  background: var(--color-paper-lo);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.hcard-portrait .xiang-seal {
+  width: 44px;
+  height: 44px;
+  background: var(--color-danger);
+  color: var(--seal-paper);
+  border-radius: 4px;
+  transform: rotate(-4deg);
+  display: grid;
+  place-items: center;
+  font-family: var(--font-brush);
+  font-size: 27px;
+  line-height: 1;
+  box-shadow: inset 0 0 0 2px rgba(246, 236, 217, 0.5);
+}
+.hcard-portrait .xiang-hint { font-size: 12px; color: var(--color-ink-dim); letter-spacing: 0.08em; }
+.hcard-info { min-width: 0; display: flex; flex-direction: column; }
+.hcard-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-brush);
+  font-size: 30px;
+  line-height: 1.1;
+  letter-spacing: 0.08em;
+}
+.hcard-name .seal {
+  width: 24px;
+  height: 24px;
+  font-size: 15px;
+  transform: rotate(2.5deg);
+}
+.hcard-htitle { font-size: 14px; color: var(--color-ink-dim); letter-spacing: 0.2em; margin: 2px 0 10px; }
+.hcard-line { display: flex; align-items: baseline; gap: 8px; margin-top: 9px; font-size: 13.5px; line-height: 1.6; }
+.hcard-line .bd {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--color-paper-hi);
+  background: var(--color-attr-hero);
+  border-radius: 3px;
+  padding: 1.5px 7px;
+  white-space: nowrap;
+}
+.hcard-line .bd .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--seal-paper); }
+.hcard-line .bd.gold { background: var(--color-gold-deep); }
+.hcard-line .bd.gold .dia { width: 6px; height: 6px; background: var(--seal-paper); transform: rotate(45deg); }
+.hcard-line .bd i { font-style: normal; }
+.hcard-desc { font-size: 13px; color: var(--color-ink); line-height: 1.65; }
+.hcard-line + .hcard-desc { margin: 3px 0 0 2px; }
+
+/* ═══ 交易弹层(节三)═══ */
+.trade-ctx {
+  width: 100%;
+  max-width: 940px;
+  text-align: center;
+  font-size: 13px;
+  color: rgba(250, 243, 223, 0.85);
+  letter-spacing: 0.04em;
+}
+.trade-ctx b { color: var(--color-lacquer-gold); font-weight: 400; }
+.trade-mode {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+  background: var(--color-paper-lo);
+  border: 1px dashed var(--ink35);
+  border-radius: 4px;
+  padding: 2px 12px;
+}
+.trade-mode b { font-weight: 400; color: var(--color-danger); }
+/* 选中态:金描边 + 上浮(可点选语言;金描边沿现行 .played 选中介质) */
+.fuku-cell.sel .card {
+  outline: 0.32em solid var(--color-gold);
+  outline-offset: 0.18em;
+  transform: translateY(-6px);
+  box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.45);
+}
+.fuku-cell.sel .price-tag {
+  background: var(--color-gold-deep);
+  border-color: transparent;
+  color: var(--color-paper-hi);
+}
+.trade-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed var(--ink35);
+}
+.btn {
+  font-family: var(--font-wenkai);
+  font-size: 14px;
+  letter-spacing: 0.12em;
+  color: var(--color-ink);
+  background: var(--color-paper-hi);
+  border: 1px solid var(--ink40);
+  border-radius: 5px;
+  padding: 6px 22px;
+  user-select: none;
+}
+.btn-ok {
+  background: var(--color-ink);
+  color: var(--color-paper-hi);
+  border-color: transparent;
+  font-size: 15px;
+  padding: 7px 30px;
+}
+.trade-sum { font-size: 13px; color: var(--color-ink-dim); }
+.trade-sum b { font-weight: 400; color: var(--color-money); font-variant-numeric: tabular-nums; }
+
+/* 破产变卖条(一句话带过的缩样) */
+.bkr {
+  width: 100%;
+  max-width: 940px;
+  background: var(--color-panel);
+  border: 1px solid var(--ink40);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+  padding: 12px 18px 14px;
+}
+.bkr-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.bkr-title { font-family: var(--font-brush); font-size: 19px; letter-spacing: 0.08em; }
+.bkr-owe { font-size: 12.5px; color: var(--color-ink-dim); font-variant-numeric: tabular-nums; }
+.bkr-owe b { font-weight: 400; color: var(--color-danger); }
+.bkr-owe i { font-style: normal; color: var(--color-money); }
+.prog {
+  flex: 1;
+  min-width: 140px;
+  height: 9px;
+  background: var(--color-panel-hi);
+  border: 1px solid var(--ink35);
+  border-radius: 5px;
+  overflow: hidden;
+}
+.prog i { display: block; height: 100%; width: 70%; background: var(--color-money); }
+.bkr .fuku-grid { grid-template-columns: repeat(auto-fill, 96px); gap: 12px 12px; margin-top: 10px; }
+.bkr .card.cellsize { font-size: 6.4px; }
+.bkr .price-tag { font-size: 11px; padding: 0 6px; }
+.bkr-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-top: 10px; }
+.bkr-hint { font-size: 12px; color: var(--color-ink-dim); }
+
+/* ═══ 遮挡审查表(硬门槛)═══ */
+.audit {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 16px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  background: var(--color-paper-hi);
+  border: 1px solid var(--ink40);
+}
+.audit th, .audit td {
+  border: 1px solid var(--ink35);
+  padding: 7px 12px;
+  text-align: left;
+  vertical-align: top;
+}
+.audit th {
+  background: var(--color-panel-hi);
+  font-family: var(--font-wenkai);
+  font-weight: 400;
+  color: var(--color-ink);
+  white-space: nowrap;
+}
+.audit td:first-child { white-space: nowrap; }
+.audit .ok { color: var(--color-money); white-space: nowrap; }
+.audit .fix { color: var(--color-danger); white-space: nowrap; }
+.audit .fix + td, .audit td .fixdetail { color: var(--color-ink-dim); }
+
+/* ── 悬停放大(评审辅助,CSS-only;reduced-motion 即时切换)── */
+.zoom { transition: transform 0.35s var(--ease-out, ease-out); transform-origin: center bottom; }
+.zoom:hover { transform: scale(2.2) translateY(-4px); z-index: 30; }
+@media (prefers-reduced-motion: reduce) {
+  .zoom { transition: none; }
+}
+
+/* ── 页脚:拍板菜单与约束自查 ── */
+.decide { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 16px; }
+.decide .opt {
+  border: 1px solid var(--ink40);
+  border-radius: 5px;
+  background: var(--color-paper-hi);
+  padding: 8px 16px;
+  font-size: 13.5px;
+}
+.decide .opt b { font-weight: 400; color: var(--color-danger); font-family: var(--font-brush); font-size: 16px; margin-right: 6px; }
+.checklist { margin: 18px 0 0; padding: 0; list-style: none; font-size: 13px; color: var(--color-ink-dim); }
+.checklist li { padding: 3px 0; }
+.checklist li::before { content: "✓ "; color: var(--color-money); }
+.checklist .warn::before { content: "△ "; color: var(--color-gold-deep); }
+footer { text-align: center; margin-top: 34px; font-size: 12px; color: var(--color-ink-dim); }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- ═══ 页首 ═══ -->
+  <header class="masthead">
+    <h1>府库背包模式 · 静态稿</h1>
+    <div class="sub">票 #351 第三轮 · 珍宝撤出牌架改「背包」模式(2026-10-01 追加决议)· 与 index.html / in-game.html 并排 · 2026-09-30</div>
+  </header>
+
+  <div class="meta">
+    <b>评审方式</b>:双击本文件即可打开(纯 HTML+CSS,零构建零 JS);紧凑档小卡可<b>悬停放大 ×2.2</b>(CSS-only 评审辅助)。<br />
+    <b>布点口径</b>:背包入口=牌架右端常驻小件(不占排);详情层「府库」=点入口开的全屏弹层(平时随时看);交易弹层=城主交涉/破产变卖时弹出的同款陈列。<br />
+    <b>档位口径</b>:陈列档 em 基 7.6px → <code>114×152</code>(与手牌槽位同档,零新档位);紧凑档 4.8px → <code>72×96</code>(原明细行档,小屏/多件降档预案);评审阅读档 10px。<br />
+    <b>字体</b>:引用仓库离线镜像(../../public/fonts/fonts.css)。双击直开时笔刷字回退系统楷体,形制评审不受影响。<br />
+    <b>色板</b>:与 <code>tokens.css</code>(单源 <code>core/theme.ts</code> 经 gen:theme)同值;铜 #9a6a3c / 银 #8d9298 为现行 CSS 豁免色。<br />
+    <b>文案</b>:零新增——珍宝取 <code>core/treasures.ts</code>(含指导价表 TREASURE_PRICE),名将/称号/技能取 <code>core/heroes.ts</code>,交涉文案取 <code>TreasureVisitorScroll</code> / <code>BankruptcyScroll</code> 实文案;画像占位取 <code>HeroPickScroll</code> 现行「姓氏朱印 + 画像未至」语言。<br />
+    <b>约束</b>:竖笺 3:4 · 章恒朱砂 · 纹样程序化 SVG 零图片 · 交互语义归消费方。
+  </div>
+
+  <nav class="toc">
+    <a href="#rack">节一 · 牌架与背包入口</a>
+    <a href="#fuku">节二 · 背包详情层「府库」</a>
+    <a href="#trade">节三 · 交易弹层</a>
+    <a href="#decide">节四 · 约束自查与拍板</a>
+  </nav>
+
+  <!-- ═══ 节一:牌架与背包入口 ═══ -->
+  <section class="sec" id="rack">
+    <div class="sec-head">
+      <span class="sec-seal">架</span>
+      <h2>节一 · 牌架与背包入口</h2>
+      <span class="tag">珍宝排撤除 · 入口右端常驻</span>
+    </div>
+    <p class="claim"><b>主张</b>:牌架=手牌语义位,珍宝塞入是历史惯性错误——明细行的珍宝排整排撤除,收缩为架右端一枚<b>「背包」漆金小件</b>(锦囊袋线稿 + 数量角标),常驻不占排;明细行退役后只余名将纸签,架面归简。</p>
+    <p class="lore"><b>架体镜像</b>:<code>hand-rack.css</code> 的 .hand-rack(漆木底 + 漆金上缘高光)/ 名将纸签为现行 <code>.pile-slip.pile-hero</code> 制式 / 手牌槽位档 7.6px 基。</p>
+
+    <!-- 新版:HUD 牌架 · 背包入口 -->
+    <div class="rack">
+      <span class="jia-zhang" aria-hidden="true"><span>锦</span><span>囊</span><span>手</span><span>牌</span></span>
+      <!-- 明细行:名将纸签(现行制式;珍宝排已撤) -->
+      <div class="pile-row">
+        <span class="pile-slip" title="雅量高致 · 破产清算时换 200 分"><b>周瑜</b></span>
+        <span class="pile-slip" title="神医 · 破产清算时换 200 分"><b>华佗</b></span>
+        <span class="pile-slip" title="银翎飞骑 · 破产清算时换 200 分"><b>张星彩</b></span>
+      </div>
+      <!-- 手牌行:锦囊(实数据) -->
+      <div class="hand-row">
+        <div class="card t-qing racksize" title="连环计 · 谋 · 指定两名其他诸侯拼点">
+          <div class="tou"><span class="jie"></span><span class="ming">连环计</span></div>
+          <div class="zhang"><span class="seal">谋</span></div>
+          <div class="yang"><svg viewBox="0 0 100 70" aria-hidden="true">
+            <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
+            <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
+            <path d="M22 58 q14 6 28 0 q14-6 28 0" />
+          </svg></div>
+          <div class="jiao">二虎竞食:指定两名其他诸侯拼点,胜者得 300 两,败者向你赔 400 两;平局则此计作废。</div>
+        </div>
+        <div class="card t-qing racksize" title="横征暴敛 · 攻 · 其余所有诸侯各缴 200 两">
+          <div class="tou"><span class="jie"></span><span class="ming long">横征暴敛</span></div>
+          <div class="zhang"><span class="seal">攻</span></div>
+          <div class="yang"><svg viewBox="0 0 100 70" aria-hidden="true">
+            <path d="M20 50 q30-34 60 0" />
+            <path d="M28 40 q22-22 44 0" />
+            <path d="M14 58 h72 M22 50 h56" />
+          </svg></div>
+          <div class="jiao">强征贡赋:其余所有诸侯各向你缴纳 200 两;现金不足者倾囊而付。</div>
+        </div>
+      </div>
+      <!-- 背包入口:右端常驻(角标 5 = 蜀当前持有珍宝数,与节二府库一致) -->
+      <div class="pack-entry" title="背包 · 5 件珍宝(点开府库)">
+        <span class="pack-badge">5</span>
+        <span class="nang" aria-hidden="true"><svg viewBox="0 0 48 52">
+          <!-- 锦囊袋:束口带 + 袋身 + 绳结(程序化线稿,零图片) -->
+          <path d="M15 12 h18" />
+          <path d="M15 12 c-2 0-3.2-1.2-3.2-2.8 0-1.6 1.2-2.8 3.2-2.8 h18 c2 0 3.2 1.2 3.2 2.8 0 1.6-1.2 2.8-3.2 2.8" />
+          <path d="M17 12 c-6.5 4.5-10.5 12-10.5 20 0 9.5 8.5 14 17.5 14 s17.5-4.5 17.5-14 c0-8-4-15.5-10.5-20" />
+          <circle cx="24" cy="19" r="2.6" />
+          <path d="M24 21.6 v5 M24 24.5 l-4.5 3.5 M24 24.5 l4.5 3.5" />
+          <path d="M17 34 q7 5 14 0" />
+        </svg></span>
+        <span class="pming">背包</span>
+      </div>
+    </div>
+    <p class="rack-legend"><b>新版牌架(左起)</b>:名将纸签(周瑜/华佗/张星彩,现行制式)|| 连环计 / 横征暴敛(锦囊手牌)|| <b>右端</b>:背包入口(角标 5)。珍宝不在架上——点入口见节二「府库」。</p>
+
+    <!-- 旧版对照:珍宝明细行占牌架(退役) -->
+    <div class="retired" aria-label="旧版对照:珍宝明细行占牌架(退役)">
+      <div class="card mount t-tong mini gem" title="草帽 · 壹品铜 · 指导价 100 两(旧明细行形态)">
+        <span class="ling"></span>
+        <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+        <div class="huaxin">
+          <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+          <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+            <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+            <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+            <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+          </svg></span>
+          <div class="ba">编草为生,布衣起家</div>
+        </div>
+        <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+        <span class="jian-yin"><span class="seal">宝</span></span>
+      </div>
+      <div class="card mount t-tong mini gem" title="小斛 · 叁品铜 · 指导价 300 两(旧明细行形态)">
+        <span class="ling"></span>
+        <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+        <div class="huaxin">
+          <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+          <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+            <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+            <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+            <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+          </svg></span>
+          <div class="ba">曹操小斛杀粮官</div>
+        </div>
+        <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+        <span class="jian-yin"><span class="seal">宝</span></span>
+      </div>
+      <div class="card mount t-gold mini gem" title="传国玉玺 · 拾品金 · 指导价 3000 两(旧明细行形态)">
+        <span class="ling"></span>
+        <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+        <div class="huaxin">
+          <div class="zhong"><span class="gem-lv">拾</span><span class="gem-pin">品</span></div>
+          <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+            <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+            <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+            <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+          </svg></span>
+          <div class="ba">受命于天,既寿永昌</div>
+        </div>
+        <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">传国玉玺</span></span>
+        <span class="jian-yin"><span class="seal">宝</span></span>
+      </div>
+      <span class="tuiyi">退役</span>
+    </div>
+    <p class="rack-legend"><b>旧版对照</b>:珍宝明细行(装裱牌 72×96)横排挤占牌架,与手牌争格——<b>退役</b>;其陈列职责整体移交节二「府库」。</p>
+
+    <p class="note"><b>一行设计说明</b>:入口造型取「锦囊袋」(束口带 + 袋身 + 绳结,程序化线稿,与锦囊手牌架同一器物语系),漆金牌底 + 漆金描边沿架首章制式;<b>数量角标朱砂</b>=计数警示语言(章恒朱砂族,金只归框与袋线不染印面);角标数字即持有数,明细归 title 浮签(「背包 · 5 件珍宝」),点开即节二。明细行撤珍宝排后只剩名将纸签,「手牌架=手牌语义位」的正名落地——珍宝的「平时随时看」归府库弹层承担。</p>
+  </section>
+
+  <!-- ═══ 节二:背包详情层「府库」 ═══ -->
+  <section class="sec" id="fuku">
+    <div class="sec-head">
+      <span class="sec-seal">库</span>
+      <h2>节二 · 背包详情层「府库」</h2>
+      <span class="tag">点背包入口展开 · 大半屏弹层(核心)</span>
+    </div>
+    <p class="claim"><b>主张</b>:点入口开「府库」弹层——装裱牌面(方向三语言)<b>大空间网格陈列</b>,每件挂<b>指导价</b>名牌;网格表达「收藏册」(格距与留白对比旧明细行的 8px 挤排),分「已持有 / 曾持有(灰化,提案)」两区;名将另立页签,<b>名将笺新形制</b>(画像小窗 + 名大字 + 称号笺脚 + 技能印数角标,身价 200 撤下笺面),<b>点笺接通现行画像卡</b>。</p>
+    <p class="lore"><b>命名提案</b>:层名「府库」、入口名「背包」均为新命名,拍板后登记 <code>CONTEXT.md</code> / <code>core</code> 侧无改动(纯 UI 层概念)。</p>
+
+    <!-- 弹层暗幕:以下三态同用一块暗幕语境(模拟全屏弹层压在游戏画面上) -->
+    <div class="scrim">
+
+      <!-- 态一:珍宝页签 -->
+      <span class="state-tag">态一 · 珍宝页签(默认落此页)</span>
+      <div class="fuku">
+        <div class="fuku-head">
+          <div>
+            <div class="fuku-title">府库<span class="seal">宝</span></div>
+            <div class="fuku-sub">蜀 · 珍宝与名将的收藏册</div>
+          </div>
+          <div class="fuku-tabs">
+            <span class="tab on">珍宝 <i>5</i></span>
+            <span class="tab">名将 <i>3</i></span>
+          </div>
+          <span class="fuku-close" title="关闭(归消费方)">×</span>
+        </div>
+
+        <div class="zone-label"><span class="zdot"></span>已持有 · 5 件<small>(名牌=指导价,取 TREASURE_PRICE 表)</small></div>
+        <div class="fuku-grid">
+          <div class="fuku-cell">
+            <div class="card mount t-tong cellsize" title="草帽 · 壹品铜 · 编草为生,布衣起家">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">编草为生,布衣起家</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 100 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-tong cellsize" title="小斛 · 叁品铜 · 曹操小斛杀粮官">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">曹操小斛杀粮官</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 300 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-yin cellsize" title="青囊书残卷 · 伍品银 · 华佗遗书,残缺不全(配图通道演示:书卷线稿占位)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M22 14 q-7 21 0 42" />
+                  <circle cx="22" cy="13" r="2.6" />
+                  <circle cx="22" cy="57" r="2.6" />
+                  <path d="M24 18 Q52 13 84 17 V53 Q52 57 24 52 Z" />
+                  <path d="M34 28 h40 M34 35 h40 M34 42 h28" />
+                  <path d="M72 22 q7 13 0 26" />
+                </svg></div>
+                <div class="ba">华佗遗书,残缺不全</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 600 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-gold cellsize" title="带血的诏书 · 玖品金 · 衣带诏,董承受命(配图通道演示:诏书线稿占位)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M30 8 h40 v46 l-8 8 h-40 v-46 z" />
+                  <path d="M62 54 v8 l8 -8" />
+                  <path d="M38 22 h24 M38 30 h24 M38 38 h16" />
+                  <circle cx="50" cy="48" r="4.5" />
+                </svg></div>
+                <div class="ba">衣带诏,董承受命</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">带血的诏书</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 2200 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-gold cellsize" title="传国玉玺 · 拾品金 · 受命于天,既寿永昌(配图通道演示:玉玺线稿占位)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <rect x="27" y="12" width="46" height="46" rx="3" />
+                  <rect x="31.5" y="16.5" width="37" height="37" />
+                  <path d="M50 16.5 v37 M31.5 35 h37" />
+                  <path d="M37.5 24.5 h8 M54.5 24.5 h8 M37.5 45.5 h8 M54.5 45.5 h8" />
+                </svg></div>
+                <div class="ba">受命于天,既寿永昌</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">传国玉玺</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 3000 两</span>
+          </div>
+        </div>
+
+        <div class="zone-label old"><span class="zdot"></span>曾持有 · 1 件<em>(灰化提案,拍板项:此区要不要)</em></div>
+        <div class="fuku-grid">
+          <div class="fuku-cell was">
+            <div class="card mount t-gold cellsize" title="新鲜的荔枝 · 玖品金 · 一骑红尘妃子笑(已售出)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">玖</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">一骑红尘妃子笑</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">新鲜的荔枝</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 2200 两</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 态二:名将页签 -->
+      <span class="state-tag">态二 · 名将页签(同层页签,布点=页签非分区)</span>
+      <div class="fuku">
+        <div class="fuku-head">
+          <div>
+            <div class="fuku-title">府库<span class="seal">宝</span></div>
+            <div class="fuku-sub">蜀 · 珍宝与名将的收藏册</div>
+          </div>
+          <div class="fuku-tabs">
+            <span class="tab">珍宝 <i>5</i></span>
+            <span class="tab on">名将 <i>3</i></span>
+          </div>
+          <span class="fuku-close" title="关闭(归消费方)">×</span>
+        </div>
+
+        <div class="zone-label"><span class="zdot"></span>麾下名将 · 3 席<small>(笺面无身价——200 是清算常数,收进悬停浮签;悬停各笺可见现行文案)</small></div>
+        <div class="fuku-grid">
+          <div class="fuku-cell">
+            <div class="card hero-jian cellsize" title="雅量高致 · 破产清算时换 200 分">
+              <span class="xiang">
+                <span class="xiang-seal">周</span>
+                <span class="xiang-hint">画像未至</span>
+                <span class="seal j-seal">将</span>
+              </span>
+              <span class="h-ming">周瑜</span>
+              <span class="h-title">雅量高致</span>
+              <span class="h-badges">
+                <span class="bd" title="被动技 ×1"><i class="dot"></i>被动 <i>×1</i></span>
+                <span class="bd" title="有主动技:火攻"><i class="dia"></i>主动</span>
+              </span>
+            </div>
+            <span class="price-tag">点笺看画像卡</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card hero-jian cellsize" title="神医 · 破产清算时换 200 分">
+              <span class="xiang">
+                <span class="xiang-seal">华</span>
+                <span class="xiang-hint">画像未至</span>
+                <span class="seal j-seal">将</span>
+              </span>
+              <span class="h-ming">华佗</span>
+              <span class="h-title">神医</span>
+              <span class="h-badges">
+                <span class="bd" title="被动技 ×1"><i class="dot"></i>被动 <i>×1</i></span>
+                <span class="bd" title="有主动技:赈济"><i class="dia"></i>主动</span>
+              </span>
+            </div>
+            <span class="price-tag">点笺看画像卡</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card hero-jian cellsize" title="银翎飞骑 · 破产清算时换 200 分">
+              <span class="xiang">
+                <span class="xiang-seal">张</span>
+                <span class="xiang-hint">画像未至</span>
+                <span class="seal j-seal">将</span>
+              </span>
+              <span class="h-ming long">张星彩</span>
+              <span class="h-title">银翎飞骑</span>
+              <span class="h-badges">
+                <span class="bd" title="被动技 ×1"><i class="dot"></i>被动 <i>×1</i></span>
+                <span class="bd" title="有主动技:擂鼓"><i class="dia"></i>主动</span>
+              </span>
+            </div>
+            <span class="price-tag">点笺看画像卡</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 态三:点笺接通画像卡 -->
+      <span class="state-tag">态三 · 点名将笺 → 画像卡(接通示意:复用现行画像卡,笺面零新增信息通道)</span>
+      <div class="link-row">
+        <div class="card hero-jian cellsize" title="雅量高致 · 破产清算时换 200 分(点击态)">
+          <span class="xiang">
+            <span class="xiang-seal">周</span>
+            <span class="xiang-hint">画像未至</span>
+            <span class="seal j-seal">将</span>
+          </span>
+          <span class="h-ming">周瑜</span>
+          <span class="h-title">雅量高致</span>
+          <span class="h-badges">
+            <span class="bd"><i class="dot"></i>被动 <i>×1</i></span>
+            <span class="bd"><i class="dia"></i>主动</span>
+          </span>
+        </div>
+        <svg class="link-arrow" viewBox="0 0 74 26" aria-hidden="true"><path d="M4 13 h56" /><path d="M54 6 l10 7 -10 7" /></svg>
+        <span class="link-word">点</span>
+        <div class="hcard">
+          <div class="hcard-portrait">
+            <span class="xiang-seal">周</span>
+            <span class="xiang-hint">画像未至</span>
+          </div>
+          <div class="hcard-info">
+            <div class="hcard-name">周瑜<span class="seal">将</span></div>
+            <div class="hcard-htitle">雅量高致</div>
+            <div class="hcard-line"><span class="bd"><i class="dot"></i>被动</span><span class="hcard-desc">你的移动步数始终 +1</span></div>
+            <div class="hcard-line"><span class="bd gold"><i class="dia"></i>火攻 · 冷却 5 轮</span></div>
+            <div class="hcard-desc">火烧一座敌城:指定一名诸侯,其一处城防降 1 级;城防尽毁则失一座城(都城不失)。</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 紧凑档对照(72×96,遮挡修正实证) -->
+    <p class="lore" style="margin-top: 20px"><b>紧凑档对照(4.8px 基,72×96)</b>——小屏/多件降档预案(原明细行档复用);下图即含本轮两项遮挡修正(跋文右留 2.6em 鉴藏印位;中堂收距+紧凑档大字 4.1em)的形态,悬停放大核对:</p>
+    <div class="row">
+      <figure class="figure">
+        <div class="card mount t-yin mini zoom" title="青囊书残卷 · 伍品银 · 紧凑档(跋文右留印位修正后)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">伍</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">华佗遗书,残缺不全</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>紧凑档 · 修正后(鉴藏印不压跋文尾字)</figcaption>
+      </figure>
+      <figure class="figure">
+        <div class="card mount t-tong mini zoom" title="小斛 · 叁品铜 · 紧凑档(修正后)">
+          <span class="ling"></span>
+          <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+          <div class="huaxin">
+            <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+            <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+              <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+              <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+              <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+            </svg></span>
+            <div class="ba">曹操小斛杀粮官</div>
+          </div>
+          <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+          <span class="jian-yin"><span class="seal">宝</span></span>
+        </div>
+        <figcaption>紧凑档 · 修正后(题签不压品级大字)</figcaption>
+      </figure>
+      <div style="align-self: center; max-width: 400px; font-size: 13px; color: var(--color-ink-dim)">
+        紧凑档默认不发:府库陈列档(114×152)在 1280×720 下五件一排放得下;仅当持有件数多到换行三排以上、或窄屏,才降此档。审查表按两档逐项核对。
+      </div>
+    </div>
+
+    <!-- 遮挡审查清单(硬门槛) -->
+    <table class="audit" aria-label="遮挡审查清单">
+      <tr>
+        <th>装饰元素</th>
+        <th>紧凑档 72×96(4.8px 基)</th>
+        <th>陈列档 114×152(7.6px 基)</th>
+        <th>判定</th>
+      </tr>
+      <tr>
+        <td>题签(牌名唯一承载)</td>
+        <td>字高约 8.2px 为全牌下限,可辨;上轮形态与品级大字盒净距仅 0.7-1.6px(相切贴线,不压字但无余量)</td>
+        <td>字高约 12.9px,清晰;上轮形态净距 2.3-4.8px</td>
+        <td class="fix">修正</td>
+      </tr>
+      <tr>
+        <td>修正后形态(题签)</td>
+        <td colspan="2" class="fixdetail">中堂 gap 0.5em 收 0.3em + 中堂左衬距(陈列档 0.5em / 紧凑档 1.1em,给左上题签让位)+ 紧凑档品级大字 4.4em 收 4.1em;修正后实测净距:紧凑档 4.6-5.4px、陈列档 6.2-7.5px,大字仍在可读档(紧凑约 19.7px)。下方两枚紧凑档即修正后实证</td>
+        <td class="ok">已修</td>
+      </tr>
+      <tr>
+        <td>鉴藏印(右下「宝」章)</td>
+        <td>章体约 11px,压距条与远山右端(印压画=鉴藏语义,非文字);上轮形态下印章左缘与跋文尾字净距约 0,压字</td>
+        <td>同左,净距不足(约 1px)</td>
+        <td class="fix">修正</td>
+      </tr>
+      <tr>
+        <td>修正后形态(鉴藏印)</td>
+        <td colspan="2" class="fixdetail">跋文右侧预留 2.6em 印位(<code>.ba padding-right</code>),文字区与印章脱开:修正后实测净距 5.1px(紧凑)/ 9.8px(陈列),尾字完整;上方两枚紧凑档即修正后实证,悬停放大可见</td>
+        <td class="ok">已修</td>
+      </tr>
+      <tr>
+        <td>包角(四角织角)</td>
+        <td>2.6em 角饰被画心(inset 1.5em,纸底不透明)裁于绫边区,不入画心、不触任何文字</td>
+        <td>同左</td>
+        <td class="ok">通过</td>
+      </tr>
+      <tr>
+        <td>跋文(风味文)</td>
+        <td>字高约 4.9px,按「墨色肌理」放弃可读,细节归 title 浮签(沿现行明细行口径)</td>
+        <td>字高约 7.8px,可辨一行(右留印位后不与印争字)</td>
+        <td class="ok">通过(肌理档)</td>
+      </tr>
+      <tr>
+        <td>价签 / 名牌(新增)</td>
+        <td colspan="2">挂网格格底、牌面之外,不占牌面(馆藏名牌语义);成交态仅换底色不挪位</td>
+        <td class="ok">通过</td>
+      </tr>
+      <tr>
+        <td>名将笺 · 画像窗</td>
+        <td>窗约 38×51px,姓氏朱印(约 12px)可辨,「画像未至」小字归浮签</td>
+        <td>窗约 61×81px,朱印与提示字均可辨</td>
+        <td class="ok">通过</td>
+      </tr>
+      <tr>
+        <td>名将笺 · 技能印数角标</td>
+        <td>形符纯 CSS(圆=被动 / 菱=主动,约 7px)不依赖字族;文字该档退浮签</td>
+        <td>形符约 7.6px + 文字约 8px,一行可辨</td>
+        <td class="ok">通过</td>
+      </tr>
+      <tr>
+        <td>将钤印(画像窗右上角)</td>
+        <td colspan="2">压画像占位空区(印压画角,鉴藏同语义),不触姓氏朱印与任何文字</td>
+        <td class="ok">通过</td>
+      </tr>
+    </table>
+
+    <p class="note"><b>一行设计说明</b>:「收藏册」感来自三处——<b>大格距陈列</b>(128px 格 + 18px 行距,对比旧明细行 8px 挤排)、<b>馆藏名牌</b>(每件格底挂指导价,价格是藏品语境信息,牌面本体不加价)、<b>分区叙事</b>(已持有/曾持有;曾持有灰化+名牌划线,是「拍板项」非定案)。画心双通道沿用第二轮口径:<code>art</code> 传节点即渲染,不传回退品级大字+远山;本页青囊书残卷/带血的诏书/传国玉玺三件配程序化线稿占位示意「有图态」。名将区选<b>页签</b>而非分区:珍宝与名将是两类藏品(计数/交互都不同),页签让每页保持收藏册的满格陈列;名将笺新形制里身价 200 是清算常数不上笺面,悬停浮签即现行文案「破产清算时换 200 分」;点笺直接开现行画像卡(招贤/详情同款画像框),笺面四个槽位(画像/名/称号/技能印数)只是索引,细则全在卡上——笺薄卡厚,各司其职。</p>
+  </section>
+
+  <!-- ═══ 节三:交易弹层 ═══ -->
+  <section class="sec" id="trade">
+    <div class="sec-head">
+      <span class="sec-seal">交</span>
+      <h2>节三 · 交易弹层</h2>
+      <span class="tag">交涉选卖 · 背包陈列复用</span>
+    </div>
+    <p class="claim"><b>主张</b>:「有人落你的城 → 城主交涉 → 选公道买卖后」,从卷轴裸列表改为<b>府库同款背包陈列</b>:上半来客与报价语境,下半即背包(可点选,选中=金描边),底部「成交」件。<b>选牌(可反悔)与成交(提交)分两段</b>,防现行「点牌名即成交」的误触;引擎命令带 <code>treasureId</code> 已支持,协议零改。</p>
+    <p class="lore"><b>语境实文案</b>:<code>TreasureVisitorScroll</code>——「魏 落『长安』。蜀 有 5 件珍宝。」/ 公道买卖按指导价出售,成交后城池 +1 级 / 坐地起价按城池等级加价,城池不升级。</p>
+
+    <div class="scrim">
+      <span class="state-tag">城主视角 · 公道买卖·选珍宝(交涉弹层)</span>
+      <div class="trade-ctx">
+        魏 落「长安」。蜀 有 5 件珍宝。
+        <div class="trade-mode">已选 <b>公道买卖</b> · 按指导价出售,成交后城池 +1 级(坐地起价则按城池等级加价、不升级)</div>
+      </div>
+      <div class="fuku">
+        <div class="fuku-head">
+          <div>
+            <div class="fuku-title">公道买卖 · 选珍宝</div>
+            <div class="fuku-sub">卖出的珍宝离手入魏,选哪件?</div>
+          </div>
+          <span class="fuku-close" style="visibility: hidden" aria-hidden="true">×</span>
+        </div>
+        <div class="fuku-grid">
+          <div class="fuku-cell">
+            <div class="card mount t-tong cellsize" title="草帽 · 壹品铜 · 指导价 100 两(点选)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">编草为生,布衣起家</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 100 两</span>
+          </div>
+          <div class="fuku-cell sel">
+            <div class="card mount t-tong cellsize" title="小斛 · 叁品铜 · 已选中(金描边),成交至 300 两">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">叁</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">曹操小斛杀粮官</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">小斛</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">成交 · 至 300 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-yin cellsize" title="青囊书残卷 · 伍品银 · 指导价 600 两(点选)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M22 14 q-7 21 0 42" />
+                  <circle cx="22" cy="13" r="2.6" />
+                  <circle cx="22" cy="57" r="2.6" />
+                  <path d="M24 18 Q52 13 84 17 V53 Q52 57 24 52 Z" />
+                  <path d="M34 28 h40 M34 35 h40 M34 42 h28" />
+                  <path d="M72 22 q7 13 0 26" />
+                </svg></div>
+                <div class="ba">华佗遗书,残缺不全</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">青囊书残卷</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 600 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-gold cellsize" title="带血的诏书 · 玖品金 · 指导价 2200 两(点选)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M30 8 h40 v46 l-8 8 h-40 v-46 z" />
+                  <path d="M62 54 v8 l8 -8" />
+                  <path d="M38 22 h24 M38 30 h24 M38 38 h16" />
+                  <circle cx="50" cy="48" r="4.5" />
+                </svg></div>
+                <div class="ba">衣带诏,董承受命</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">带血的诏书</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 2200 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-gold cellsize" title="传国玉玺 · 拾品金 · 指导价 3000 两(点选)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <rect x="27" y="12" width="46" height="46" rx="3" />
+                  <rect x="31.5" y="16.5" width="37" height="37" />
+                  <path d="M50 16.5 v37 M31.5 35 h37" />
+                  <path d="M37.5 24.5 h8 M54.5 24.5 h8 M37.5 45.5 h8 M54.5 45.5 h8" />
+                </svg></div>
+                <div class="ba">受命于天,既寿永昌</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">传国玉玺</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">指导价 3000 两</span>
+          </div>
+        </div>
+        <div class="trade-foot">
+          <span class="btn">返回</span>
+          <span class="trade-sum">卖出 <b>小斛</b> · 入账 <b>300 两</b> · 长安 +1 级</span>
+          <span class="btn btn-ok">成交</span>
+        </div>
+      </div>
+
+      <!-- 破产变卖接入:同款缩样 -->
+      <span class="state-tag">破产变卖 · 同款接入(缩样)</span>
+      <div class="bkr">
+        <div class="bkr-head">
+          <span class="bkr-title">蜀 · 变卖自救</span>
+          <span class="bkr-owe">已凑 <i>1400</i> / 债务 2000 · 尚欠 <b>600</b></span>
+          <span class="prog"><i></i></span>
+        </div>
+        <div class="fuku-grid">
+          <div class="fuku-cell sel">
+            <div class="card mount t-gold cellsize" title="带血的诏书 · 玖品金 · 破产变卖按指导价 2200 两入账(已选中)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="art"><svg viewBox="0 0 100 70" aria-hidden="true">
+                  <path d="M30 8 h40 v46 l-8 8 h-40 v-46 z" />
+                  <path d="M62 54 v8 l8 -8" />
+                  <path d="M38 22 h24 M38 30 h24 M38 38 h16" />
+                  <circle cx="50" cy="48" r="4.5" />
+                </svg></div>
+                <div class="ba">衣带诏,董承受命</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming long">带血的诏书</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">至 2200 两</span>
+          </div>
+          <div class="fuku-cell">
+            <div class="card mount t-tong cellsize" title="草帽 · 壹品铜 · 指导价 100 两(点选)">
+              <span class="ling"></span>
+              <span class="bj a"></span><span class="bj b"></span><span class="bj c"></span><span class="bj d"></span>
+              <div class="huaxin">
+                <div class="zhong"><span class="gem-lv">壹</span><span class="gem-pin">品</span></div>
+                <span class="shan"><svg viewBox="0 0 100 26" aria-hidden="true">
+                  <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+                  <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+                  <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+                </svg></span>
+                <div class="ba">编草为生,布衣起家</div>
+              </div>
+              <span class="qian"><span class="ling-zi">珍</span><span class="qian-ming">草帽</span></span>
+              <span class="jian-yin"><span class="seal">宝</span></span>
+            </div>
+            <span class="price-tag">至 100 两</span>
+          </div>
+        </div>
+        <div class="bkr-foot">
+          <span class="bkr-hint">珍宝按指导价入账;城按当前等级变卖价、名将每名 200 两,同卷轴分列(此缩样只示珍宝组)。</span>
+          <span class="btn">结算</span>
+        </div>
+      </div>
+    </div>
+
+    <p class="note"><b>一行设计说明</b>:交涉弹层=府库组件换头复用(标题/语境条换、陈列与价签同款),不是第二套 UI;「暂不交易」逃生口与访客只读视角维持现行卷轴行为,本稿不展。二段式(选牌金描边 → 成交钮)是相对现行「点牌名即成交」的交互增改提案,若拍板嫌多一步,可退回「点牌即成交、金描边仅作悬停态」。破产变卖接入同款:换标题「蜀·变卖自救」+ 已凑金额进度条(凑足即止由引擎 <code>assertStillOwing</code> 硬拒绝,不靠 UI 自觉),城池/名将两组仍在原卷轴分列。</p>
+  </section>
+
+  <!-- ═══ 节四:约束自查与拍板菜单 ═══ -->
+  <section class="sec" id="decide">
+    <div class="sec-head">
+      <span class="sec-seal">决</span>
+      <h2>节四 · 约束自查与拍板菜单</h2>
+      <span class="tag">#351 不随本 PR 关闭</span>
+    </div>
+    <p class="claim">拍板人按节次组合拍板 + 确认布点,拍板通过后另立施工票(流程铁律:静态稿审查通过前不动游戏组件):</p>
+    <div class="decide">
+      <span class="opt"><b>壹</b>背包入口 —— 牌架右端锦囊袋漆金牌 + 数量角标;珍宝排退役(节一)</span>
+      <span class="opt"><b>贰</b>府库详情层 —— 装裱陈列 + 指导价名牌 + 收藏册网格;「曾持有」灰化区 要/不要(节二)</span>
+      <span class="opt"><b>叁</b>名将页签 + 名将笺 —— 画像窗/名大字/称号笺脚/技能印数;身价撤下笺面(节二)</span>
+      <span class="opt"><b>肆</b>点笺接通画像卡 —— 复用现行画像卡,零新增信息通道(节二)</span>
+      <span class="opt"><b>伍</b>交易弹层 —— 背包陈列复用 + 选牌/成交二段式;破产变卖同款(节三)</span>
+      <span class="opt"><b>陆</b>布点确认 —— 入口=架右端 · 详情层=全屏弹层 · 名将=页签 · 交易=交涉时弹出(四节)</span>
+    </div>
+    <ul class="checklist">
+      <li>竖笺 3:4:装裱牌全档 15×20em;陈列档 7.6px 基=114×152(手牌槽位同档),紧凑档 4.8px 基=72×96,评审档 10px</li>
+      <li>章恒朱砂:鉴藏印/将钤印/数量角标/退役章全 danger;金只归边饰、距条与漆金线,不染印面</li>
+      <li>零图片:锦囊袋/远山/书卷/诏书/玉玺线稿全程序化内联 SVG;画像一律「姓氏朱印 + 画像未至」占位(实拍占位语言,HeroDef.image 3:4 资产到位即插)</li>
+      <li>身价 200 不上笺面:清算常数收进悬停浮签,浮签文案即现行「破产清算时换 200 分」</li>
+      <li>遮挡审查(硬门槛):节二审查表逐项核对两档;2 项修正(鉴藏印压跋文尾字=上轮风险实证;题签与大字净距 0.7-1.6px 贴线=本轮几何实测发现)均已给修正形态并实测复验(净距 5.1px+/3px+),余项通过</li>
+      <li>文案纪律:珍宝/指导价/名将/技能/交涉全取 core 与现行卷轴实数据,零新增;「成交 · 至 N 两」沿用现行按钮「名 至 价」句式</li>
+      <li>交互全静态:悬停放大/选中金描边/页签切换为 CSS-only 演示,施工时交互语义归消费方(器物件豁免不变);reduced-motion 下放大过渡退场</li>
+      <li>零 JS/零构建:双击直开;色板 tokens 同值镜像,施工回归 var(--color-*) 单源</li>
+      <li class="warn">「府库」「背包」为新命名提案,拍板后登记 CONTEXT.md;README 文档地图不受影响(proto/ 不进构建)</li>
+      <li class="warn">选牌/成交二段式为交互增改提案(现行=点牌名即成交),引擎命令 resolveTreasureOwner 带 treasureId 零改;拍板可退回一段式</li>
+      <li class="warn">破产缩样数字(债务 2000/已凑 1400)为示意;变卖价展示与入账同函数(valueByLevel/guidePriceOf)口径沿现行 #60 纪律</li>
+    </ul>
+  </section>
+
+  <footer>proto/treasure/backpack.html · #351 第三轮 · 府库背包模式静态稿,不进构建 · 与 index.html / in-game.html 并排 · dafung-web</footer>
+</div>
+</body>
+</html>
