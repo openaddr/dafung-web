@@ -559,9 +559,9 @@ export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
         <span>牌</span>
       </span>
       {/* expandPile 明细行(#255,#234 二期珍宝变体):纸签/牌面横排落手牌行左旁(同架
-          底对齐,不顶掉手牌)。珍宝=#281 起改用牌面形制(TreasureCardFace:宝章+品级
-          大字+品级框色;指导价留 title 浮签),名将仍纸签(名,浮签「破产清算时换
-          200 分」口径)。 */}
+          底对齐,不顶掉手牌)。珍宝=#359 起用装裱形制(TreasureCardFace:题签+品级
+          角标+画心距条框色;指导价留 title 浮签),名将仍纸签(名,浮签「破产清算时
+          换 200 分」口径)。 */}
       {pile === "treasures" && player.treasures.length > 0 && (
         <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="珍宝明细">
           {player.treasures.map((t) => (
