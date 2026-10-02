@@ -2,20 +2,19 @@
 node_modules/
 dist/
 
-# ===== 测试与截图自证产物(可再生;e2e 输出 test-results/,截图脚手架 scripts/shot.mjs 工作区在 tmp/)=====
-test-results/
+# ===== 测试与截图自证产物(可再生;e2e 输出 tmp/test-results/(playwright.config outputDir),截图脚手架 shot.mjs 工作区也在 tmp/)=====
 tmp/
-screenshots/
 *.log
+# dogfood QA 证据截图只留本地不入库,报告 docs/dogfood/report.md 照常入库
+docs/dogfood/screenshots/
 
 # ===== 引擎/服务器运行时状态 =====
 # CLI 每命令一进程的引擎持久化
 state.json
 state.*.json
-# 房间落盘(默认 ./rooms;e2e 用 ./tmp/e2e-rooms)
-rooms/
-# 对局日志(ADR-0014,服务器运行时产物;默认 ./logs)
-logs/
+# 房间落盘 + 对局日志(ADR-0014),归拢在 data/:默认 ./data/rooms、./data/logs;
+# e2e 用 ./tmp/e2e-rooms,dev 用 ./tmp/dev-rooms(与生产互不踩)
+data/
 
 # ===== 本机环境与密钥 =====
 .env

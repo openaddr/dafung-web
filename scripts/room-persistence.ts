@@ -65,7 +65,7 @@ export class FileRoomPersistence implements RoomPersistence {
   private readonly dir: string;
 
   constructor(dirOrPath?: string) {
-    this.dir = resolve(dirOrPath ?? process.env.ROOMS_DIR ?? "./rooms");
+    this.dir = resolve(dirOrPath ?? process.env.ROOMS_DIR ?? "./data/rooms");
     mkdirSync(this.dir, { recursive: true });
   }
 
