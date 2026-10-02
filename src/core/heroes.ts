@@ -9,6 +9,7 @@ import type { GameMoment } from "./timing";
 // 扩展指南见 docs/explanation/时机框架.md:加效果一步、加技能两步、加时机三步。
 export interface TriggerSkill {
   id: string; // 唯一 id(如 "zhouyu-move+1";同时是 heroLastFired 冷却键)
+  name: string; // 技名(如 "疾行";UI 技名 chips 与规则页用,#358;纯展示,不参与判定)
   when: GameMoment; // 触发时机(查 src/core/timing.ts)
   effect: string; // EffectId,查 src/core/effects.ts 注册表;未知 id 派发时直接抛错(数据 bug)
   params?: Record<string, number>; // 效果参数(纯数据,可序列化)
@@ -65,6 +66,7 @@ export const HEROES: HeroDef[] = [
     skills: [
       {
         id: "zhouyu-move+1",
+        name: "疾行",
         when: "BeforeMarch",
         effect: "moveBonus",
         params: { steps: 1 },
@@ -91,6 +93,7 @@ export const HEROES: HeroDef[] = [
     skills: [
       {
         id: "caopi-gain-on-other-lose",
+        name: "渔利", // 提案名(#358 施工资未拍板,报告供审)
         when: "CashLost",
         effect: "gainCash",
         params: { amount: 50 },
@@ -117,6 +120,7 @@ export const HEROES: HeroDef[] = [
     skills: [
       {
         id: "zhangxingcai-gain-on-six",
+        name: "掷金",
         when: "DieRolled",
         effect: "gainIfFace",
         params: { face: 6, amount: 20 },
@@ -145,6 +149,7 @@ export const HEROES: HeroDef[] = [
     skills: [
       {
         id: "huatuo-regen-stamina",
+        name: "青囊",
         when: "RoundStart",
         effect: "regenStamina",
         params: { amount: 15 },

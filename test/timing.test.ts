@@ -96,7 +96,7 @@ const gain = (
   when: GameMoment,
   amount: number,
   extra: Partial<TriggerSkill> = {},
-): TriggerSkill => ({ id, when, effect: "gainCash", params: { amount }, ...extra });
+): TriggerSkill => ({ id, name: "测试技", when, effect: "gainCash", params: { amount }, ...extra });
 
 /** 某技能的击发次数(按战报 skill 行统计,抗其他现金变化干扰)。 */
 const fireCount = (e: GameEngine, skillId: string) =>
@@ -258,8 +258,8 @@ describe("时机框架:派发点位", () => {
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-before", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-after", when: "AfterMarch", effect: "test-capture", scope: "any" },
+          { id: "cap-before", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
+          { id: "cap-after", name: "测试技", when: "AfterMarch", effect: "test-capture", scope: "any" },
         ]);
       // 两位玩家都挂(首动者由 seed 决定,capture 技能只在本人行军时留痕)
       e.players[0].heroes.push(captureHero());
@@ -400,7 +400,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "rec", when: "CashLost", effect: "test-recursive", scope: "any" }]),
+        heroWith([{ id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" }]),
       );
       expect(() => e.dispatchMoment("CashLost", { subject: 1 })).toThrow(/嵌套超过 2 层/);
     } finally {
@@ -417,7 +417,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "nest", when: "CashLost", effect: "test-nested-once", scope: "any" }]),
+        heroWith([{ id: "nest", name: "测试技", when: "CashLost", effect: "test-nested-once", scope: "any" }]),
       );
       e.dispatchMoment("CashLost", { subject: 1 }); // 不抛
       expect(fireCount(e, "nest")).toBe(1);
@@ -429,7 +429,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
   it("未知 EffectId 抛错(注册表查不到=数据 bug,零兜底)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(heroWith([{ id: "bad", when: "CashLost", effect: "no-such-effect" }]));
+    e.players[0].heroes.push(heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]));
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/未知效果/);
   });
 
@@ -437,7 +437,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.players[0].heroes.push(
-      heroWith([{ id: "no-params", when: "CashLost", effect: "gainCash", params: {} }]),
+      heroWith([{ id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} }]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/参数缺失/);
   });
@@ -450,6 +450,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
       heroWith([
         {
           id: "mb-a",
+          name: "测试技",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 1 },
@@ -457,6 +458,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
         },
         {
           id: "mb-b",
+          name: "测试技",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 2 },
@@ -481,6 +483,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
       heroWith([
         {
           id: "gif",
+          name: "测试技",
           when: "DieRolled",
           effect: "gainIfFace",
           params: { face: 6, amount: 20 },
@@ -546,9 +549,9 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-march", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-roll", when: "BeforeRoll", effect: "test-capture", scope: "any" },
-          { id: "cap-die", when: "DieRolled", effect: "test-capture", scope: "any" },
+          { id: "cap-march", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
+          { id: "cap-roll", name: "测试技", when: "BeforeRoll", effect: "test-capture", scope: "any" },
+          { id: "cap-die", name: "测试技", when: "DieRolled", effect: "test-capture", scope: "any" },
         ]);
       e.players[0].heroes.push(captureHero());
       e.players[1].heroes.push(captureHero());
@@ -599,6 +602,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
       heroWith([
         {
           id: "mb10",
+          name: "测试技",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 10 },
@@ -633,6 +637,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
       heroWith([
         {
           id: "mb1",
+          name: "测试技",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 1 },
