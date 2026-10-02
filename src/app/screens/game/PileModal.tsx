@@ -39,21 +39,37 @@ const KIND_META = {
   },
 } as const;
 
-/** 弹层壳(fuku 漆金内环形制,r5 节二/节三同款):题名(朱印小章)+副题 + 右上 X,
- *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。 */
-function PileShell({
-  kind,
-  guohao,
-  onClose,
-  children,
-}: {
-  kind: PileModalKind;
-  /** 视角方国号(副题行;与 r5「蜀 · 珍宝收藏册」同位)。 */
-  guohao: string;
+/** 弹层壳参数:题名/朱印小章/副题/容器 testid 显式传入——藏品弹层(KIND_META 给
+ *  默认值)与交易选宝弹层(TreasurePickModal,标题随交涉口径/变卖自救语境)共用
+ *  同一壳,不复制第二套壳皮。 */
+export interface PileShellProps {
+  title: string;
+  /** 题名右落的朱印小章单字(宝/将/交/变)。 */
+  seal: string;
+  /** 副题行(国号语境/口径一句)。 */
+  sub: string;
+  /** 容器 data-testid(各弹层单源 testids)。 */
+  testid: string;
+  /** 可达名(缺省=题名;藏品弹层传「题名 · 国号」保持既有口径)。 */
+  ariaLabel?: string;
+  /** 附加类(treasure-pick 选宝态样式挂点);基壳类恒带。 */
+  className?: string;
   onClose: () => void;
   children: ReactNode;
-}) {
-  const meta = KIND_META[kind];
+}
+
+/** 弹层壳(fuku 漆金内环形制,r5 节二/节三同款):题名(朱印小章)+副题 + 右上 X,
+ *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。 */
+export function PileShell({
+  title,
+  seal,
+  sub,
+  testid,
+  ariaLabel = title,
+  className,
+  onClose,
+  children,
+}: PileShellProps) {
   return (
     <Dialog
       open
@@ -62,25 +78,23 @@ function PileShell({
       }}
     >
       <DialogContent
-        data-testid={meta.testid}
-        aria-label={`${meta.title} · ${guohao}`}
+        data-testid={testid}
+        aria-label={ariaLabel}
         /* 挂载不夺焦(JinnangDetailSheet 同款):只读浮层,焦点留在触发入口上,
             Esc/点遮罩/X 三路关闭全由底件与壳承担 */
         initialFocus={false}
-        className="pile-modal"
+        className={className ? `pile-modal ${className}` : "pile-modal"}
       >
         <div className="pile-head">
           <div>
             {/* 可达名:题名即 DialogTitle(视觉/读屏同一节点,不另写 sr-only) */}
             <DialogTitle className="pile-title">
-              {meta.title}
+              {title}
               <span className="pile-seal" aria-hidden="true">
-                {meta.seal}
+                {seal}
               </span>
             </DialogTitle>
-            <div className="pile-sub">
-              {guohao} · {meta.sub}
-            </div>
+            <div className="pile-sub">{sub}</div>
           </div>
           <button
             type="button"
@@ -157,7 +171,14 @@ export function PileModal({
   onClose: () => void;
 }) {
   return (
-    <PileShell kind={kind} guohao={player.guohao} onClose={onClose}>
+    <PileShell
+      title={KIND_META[kind].title}
+      seal={KIND_META[kind].seal}
+      sub={`${player.guohao} · ${KIND_META[kind].sub}`}
+      testid={KIND_META[kind].testid}
+      ariaLabel={`${KIND_META[kind].title} · ${player.guohao}`}
+      onClose={onClose}
+    >
       {kind === "treasures" ? <TreasureGrid player={player} /> : <HeroGrid player={player} />}
     </PileShell>
   );

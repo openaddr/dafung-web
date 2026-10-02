@@ -5,12 +5,16 @@
 // #60:展示价曾误用购入价(40%),与实际入账(valueByLevel)口径分裂 → 展示与入账必须同一函数。
 // #94:「结算」分两态——仍欠(owe>0)时点结算=引擎 settleDebt+finalizeBankruptcy 破产出局,
 // 降为警示次级并明说后果;凑足(owe===0)升为主行动墨钮(视觉重做 v2:金不作按钮底),加一次性脉冲反馈达成。
+// #362:变卖珍宝接入选宝弹层(装裱卡点选+二段式变卖,TreasurePickModal 同交涉款),
+// 标题「变卖自救」语义保留;弹层带已凑/债务进度(凑足即止由引擎 assertStillOwing 硬拒绝,
+// 不靠 UI 自觉);卖城/遣将/确认仍在卷轴原位。
 import { useEffect, useState } from "react";
 import type { GameCommand} from "@core/authority";
 import { guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import { Motion } from "@core/theme";
 import type { SnapshotTreasure } from "@app/store/gameStore";
+import { TreasurePickModal } from "../TreasurePickModal";
 import { ScrollShell, ScrollButton } from "./ScrollShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
@@ -50,6 +54,8 @@ export function BankruptcyScroll({
 }: BankruptcyScrollProps) {
   const owe = Math.max(0, debtAmount - cash);
   const settled = owe === 0;
+  // #362 变卖珍宝选宝弹层开合(本地 UI 态;售出即收层,清单随快照刷新重开点下一件)
+  const [pickOpen, setPickOpen] = useState(false);
   /* ── #94 凑足达成的一拍脉冲 ──
      为什么不用 animation 类:项目惯例 keyframes 都住在领域 css(board/fx/scroll/victory),
      没有通用脉冲帧可引用,也不为此改 scroll.css → 用 transition transform 一拍替代:
@@ -70,16 +76,20 @@ export function BankruptcyScroll({
      max-h-56 内滚,并把「结算」钉在卷轴底部(不随内容滚),任何资产量下都可达。 */
   const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
   return (
-    <ScrollShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
+    <>
+      <ScrollShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
       <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
         {settled
           ? "现金已凑足债务!点「结算」清偿,转危为安。"
           : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 200 两)。`}
       </p>
-      {/* W2-包D(审计 A2):进度条数值伴随——「尚欠」随 owe 实时缩水,右对齐小字
-          与进度条同宽(m-圆),与变卖钮上的「+」金额互为对照。 */}
-      <div className="mx-1 mb-1 text-right text-xs text-ink-dim tabular-nums">
-        尚欠 {formatMoney(owe)}
+      {/* W2-包D(审计 A2)+ #362:进度条数值伴随——「已凑/债务/尚欠」三数同窗
+          (backpack .bkr-owe 句式),与变卖钮上的「+」金额互为对照。 */}
+      <div
+        data-testid={T.bankruptcyProgress}
+        className="mx-1 mb-1 text-right text-xs text-ink-dim tabular-nums"
+      >
+        已凑 {formatMoney(cash)} / 债务 {formatMoney(debtAmount)} · 尚欠 {formatMoney(owe)}
       </div>
       {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
           pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
@@ -100,16 +110,18 @@ export function BankruptcyScroll({
             <span>珍宝</span>
           </h4>
           <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
-            {treasures.map((t) => (
+            {/* #362:裸卖钮退役,点入口开选宝弹层(装裱卡点选+二段式变卖,同交涉款) */}
+            {treasures.length > 0 ? (
               <ScrollButton
-                key={t.id}
-                testid={T.bankruptcySellTreasure(t.id)}
-                onClick={() => onCommand({ type: "sellTreasureBankruptcy", treasureId: t.id })}
+                testid={T.bankruptcySellTreasureOpen}
+                onClick={() => setPickOpen(true)}
+                title="装裱卡点选,二段式变卖"
               >
-                卖·{t.name} +{formatMoney(guidePriceOf(t.level))}
+                变卖珍宝 · {treasures.length} 件
               </ScrollButton>
-            ))}
-            {treasures.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+            ) : (
+              <span className="text-xs text-ink-dim">无</span>
+            )}
           </div>
         </section>
         <section className="flex min-h-0 flex-col">
@@ -192,6 +204,42 @@ export function BankruptcyScroll({
           </button>
         )}
       </div>
-    </ScrollShell>
+      </ScrollShell>
+      {/* #362 变卖珍宝选宝弹层:同交涉款选择模式;进度区=已凑/债务(cap 100%,
+          与卷轴进度条同一算式),凑足后再卖由引擎 assertStillOwing 硬拒绝。 */}
+      {pickOpen && treasures.length > 0 && (
+        <TreasurePickModal
+          title="变卖自救 · 变卖珍宝"
+          seal="变"
+          sub={`${guohao} · 变卖入账与引擎同一函数(珍宝按指导价)`}
+          context={
+            <div className="treasure-pick-progress" data-testid={T.bankruptcyPickProgress}>
+              <div className="treasure-pick-owe">
+                已凑 <i>{formatMoney(cash)}</i> / 债务 {formatMoney(debtAmount)} · 尚欠{" "}
+                <b>{formatMoney(owe)}</b>
+              </div>
+              <div className="treasure-pick-bar" aria-hidden="true">
+                <i style={{ width: `${((debtAmount - owe) / debtAmount) * 100}%` }} />
+              </div>
+            </div>
+          }
+          treasures={treasures}
+          tagOf={(t) => `至 ${formatMoney(guidePriceOf(t.level))}`}
+          summaryOf={(t) => `变卖 ${t.name} · 入账 ${formatMoney(guidePriceOf(t.level))}`}
+          hint="点选要变卖的珍宝"
+          confirmLabel="变卖"
+          testids={{
+            container: T.bankruptcyTreasurePick,
+            item: T.bankruptcySellTreasure,
+            confirm: T.bankruptcySellTreasureConfirm,
+          }}
+          onConfirm={(treasureId) => {
+            onCommand({ type: "sellTreasureBankruptcy", treasureId });
+            setPickOpen(false); // 售出即收层:清单随快照刷新,重开点下一件
+          }}
+          onClose={() => setPickOpen(false)}
+        />
+      )}
+    </>
   );
 }

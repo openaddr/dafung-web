@@ -1,0 +1,138 @@
+/* 交易选宝弹层(#362,spec #357 T5)——视觉基准 proto/treasure/backpack.html 节三
+   交易弹段:交涉选宝与破产变卖共用同一选择模式(PileShell 壳 + 装裱卡网格),
+   点选=金描边+上浮,价签随选中转成交色,底部二段式成交钮。
+   样式经 Portal 渲染在 body,.game-layout 罩不到——.treasure-pick 作用域 +
+   treasure-pick- 前缀防串扰(pile-modal.css 同先例)。
+   色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-*/--ease-*
+   token(卡面 transform/box-shadow 过渡由 jinnang-card.css 基座 token 化承担),
+   reduced-motion 由 app.css M-4 全局兜层压瞬时,本文件无需另写兜层。 */
+
+/* ── 语境区:交涉报价口径句 / 破产已凑进度(backpack .trade-mode/.bkr-owe+.prog 移植)── */
+.treasure-pick .treasure-pick-context {
+  margin: 14px 2px 0;
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+  text-align: center;
+  letter-spacing: 0.04em;
+}
+.treasure-pick .treasure-pick-context b {
+  font-weight: 400;
+  color: var(--color-danger);
+}
+.treasure-pick .treasure-pick-progress {
+  margin: 14px 2px 0;
+  font-family: var(--font-wenkai);
+  font-size: 12.5px;
+  color: var(--color-ink-dim);
+}
+.treasure-pick .treasure-pick-owe {
+  display: flex;
+  justify-content: center;
+  gap: 4px;
+  font-variant-numeric: tabular-nums;
+}
+.treasure-pick .treasure-pick-owe i {
+  font-style: normal;
+  color: var(--color-money);
+}
+.treasure-pick .treasure-pick-owe b {
+  font-weight: 400;
+  color: var(--color-danger);
+}
+.treasure-pick .treasure-pick-bar {
+  height: 6px;
+  margin-top: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
+  background: var(--color-paper-lo);
+}
+.treasure-pick .treasure-pick-bar i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-money);
+  transition: width var(--dur-med) var(--ease-out);
+}
+
+/* ── 可点选卡格:点选=金描边+上浮(backpack .fuku-cell.sel 原值;hover 微抬示意
+   可点,选中恒压过 hover)── */
+.treasure-pick .treasure-pick-cell {
+  padding: 0;
+  margin: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  cursor: pointer;
+}
+.treasure-pick .treasure-pick-cell:hover .pile-cell-card {
+  transform: translateY(-3px);
+}
+.treasure-pick .treasure-pick-sel .pile-cell-card {
+  outline: 0.32em solid var(--color-gold);
+  outline-offset: 0.18em;
+  transform: translateY(-6px);
+  box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.45);
+}
+/* 价签:选中转成交色(backpack .fuku-cell.sel .price-tag:金底纸色字) */
+.treasure-pick .treasure-pick-sel .pile-price {
+  background: var(--color-gold-deep);
+  border-color: transparent;
+  color: var(--color-paper-hi);
+}
+
+/* ── 底部条:返回 + 结算预览 + 二段式成交(backpack .trade-foot 制式)── */
+.treasure-pick .treasure-pick-foot {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px dashed rgba(43, 35, 23, 0.35);
+}
+.treasure-pick .treasure-pick-sum {
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.treasure-pick .treasure-pick-btn {
+  font-family: var(--font-brush);
+  font-size: 15px;
+  letter-spacing: 0.12em;
+  color: var(--color-ink);
+  background: var(--color-paper-hi);
+  border: 1px solid rgba(43, 35, 23, 0.4);
+  border-radius: 5px;
+  padding: 6px 22px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.treasure-pick .treasure-pick-btn:hover:not(:disabled) {
+  background: var(--color-panel);
+}
+/* 成交主行动:墨底纸色字(ScrollButton primary 同观感,弹层自持不走 ScrollGhost) */
+.treasure-pick .treasure-pick-ok {
+  font-size: 16px;
+  padding: 7px 30px;
+  background: var(--color-ink);
+  color: var(--color-paper-hi);
+  border-color: transparent;
+}
+.treasure-pick .treasure-pick-ok:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+/* 二段武装态:金环「再点一次才提交」的确认语言(金描边沿选中同族),点亮一拍微缩放 */
+.treasure-pick .treasure-pick-armed {
+  outline: 2px solid var(--color-gold);
+  outline-offset: 2px;
+  animation: treasure-pick-armed-in var(--dur-med) var(--ease-out);
+}
+@keyframes treasure-pick-armed-in {
+  from {
+    transform: scale(0.96);
+  }
+}
