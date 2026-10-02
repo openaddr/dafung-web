@@ -7,6 +7,8 @@
 // 卡详情卷轴(CardDetailScroll)已删除,其旧 testid 常量(statusBar*/hand*/treasury*/
 // others*/sidebar*/roundInfo/jinnangCount/cardDetail*)一并退役;挂点去向见各现行
 // 常量注释(零语义漂移)。另:dice-face(签面)语义已迁仪表条「签」徽章,testid 不变。
+// #361 退役核销:pile-row(expandPile 明细行)随明细排退役删除,接替者是牌架双入口
+// (rack-treasures/rack-heroes)+ 两独立弹层(treasure-modal/hero-modal)。
 export const TESTIDS = {
   // ── 三区布局(#253):顶部条 / 席位竖卡列 / 底部仪表条 ──
   topBar: "top-bar",
@@ -31,8 +33,7 @@ export const TESTIDS = {
   /** 仪表条属性徽章(attr ∈ warrant|city|rep;值裸排,名词在 aria-label)。 */
   dashAttr: (attr: string) => `dash-attr-${attr}` as const,
   dashStamina: "dash-stamina",
-  /** 珍宝/名将计数徽章(#255 expandPile:点击明细展入手牌架行,再点收起;
-   *  空摞(0 张)不可展开)。展开态挂 aria-expanded。 */
+  /** 珍宝/名将计数徽章(纯展示计数,#361 起不可点——明细看牌架双入口)。 */
   dashTreasures: "dash-treasures",
   dashHeroes: "dash-heroes",
   /** 仪表条身份头的「你」印(观战为灰「观」印,不挂本 testid)。 */
@@ -46,8 +47,14 @@ export const TESTIDS = {
   /** 「加载更早」:窗口化渲染(#战报性能)按窗放开更早历史的按钮。 */
   logEarlier: "log-earlier",
 
-  // ── expandPile(#255):徽章展开的明细行(落手牌架内、手牌行左旁)──
-  pileRow: "pile-row",
+  // ── 牌架双入口与藏品弹层(#361,expandPile 明细行退役核销)──
+  /** 架右端并排入口小件:点「珍宝」开珍宝弹层、点「名将」开名将弹层(标题随入口)。 */
+  rackTreasures: "rack-treasures",
+  rackHeroes: "rack-heroes",
+  /** 两独立弹层容器(无互切页签;右上 X 关闭,关闭钮 testid 共用)。 */
+  treasureModal: "treasure-modal",
+  heroModal: "hero-modal",
+  modalClose: "modal-close",
 
   // ── 动作条(#256 军师窗态:军师幕弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */

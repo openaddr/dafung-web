@@ -89,8 +89,8 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
   await expect(page.getByTestId("dashboard-bar").getByTestId("dash-you")).toBeVisible();
 });
 
-// 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章,
-// 点徽章展开明细+键盘通路是 #255 的活,届时按 expandPile 形态重立用例)。
+// 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章;
+// 明细入口几经迁移,#361 起为牌架双入口+藏品弹层,仪表条徽章纯展示、无键盘通路)。
 
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);

@@ -3,9 +3,10 @@
 // 贴右缘(浮签 240px 放不下)自动翻到图标左侧垂直居中,其余在图标下方居中。
 // 交互语义全部收口 shadcn Tooltip 底件(ui/tooltip.tsx,Base UI:定位/碰撞/无障碍
 // 关联白拿,不自写浮层定位);本件只补两件事:
-//   ① 长按通路——useTapOrLongPress 复合手势单源(400ms,位移超容差自动取消,触发后
-//      吞掉随后的合成 click;onPointerLeave 收签为浮签自有语义,覆写时不带长按取消);
+//   ① 长按通路——useTapOrLongPress 复合手势单源(400ms,位移超容差自动取消);
 //   ② 翻面判定——开签瞬间量触发元 getBoundingClientRect,右缘放不下即 side="left"。
+// (#361:onClick/ariaExpanded 随 expandPile 退役移除——浮签触发元回归纯展示,
+// 点击无动作。)
 // tip 文案:结构化 { name, detail }(2026-09-25 评审去重:撤「名词|一句话」打包串的
 // 渲染时 indexOf 解析),与规则页口径对齐(docs/reference/rules/)。
 import { useState } from "react";
@@ -52,26 +53,12 @@ export interface TipProps {
   testId?: string;
   /** 触发元可达名(默认 = 名词;徽章在此带上数值,如「委任状 2」)。 */
   ariaLabel?: string;
-  /** 点击动作(#255 expandPile:珍宝/名将徽章点开展开/收起明细);缺省 = 纯浮签触发元
-   *  (点击无动作,光标保持 help;有动作时转 pointer)。长按开签后的合成 click 照旧吞掉。 */
-  onClick?: () => void;
-  /** 展开态(aria-expanded;视觉提亮由调用方经 className 叠 .open,§4.6 状态即 UI)。 */
-  ariaExpanded?: boolean;
 }
 
-export function Tip({
-  tip,
-  children,
-  className,
-  testId,
-  ariaLabel,
-  onClick,
-  ariaExpanded,
-}: TipProps) {
+export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"bottom" | "left">("bottom");
   const press = useTapOrLongPress({
-    onTap: onClick,
     onLongPress: (el) => openToward(el),
     ms: LONG_PRESS_MS,
   });
@@ -94,10 +81,8 @@ export function Tip({
         type="button"
         aria-label={ariaLabel ?? tip.name}
         data-testid={testId}
-        aria-expanded={ariaExpanded}
         className={
-          (onClick ? "cursor-pointer " : "cursor-help ") +
-          "border-0 bg-transparent p-0 text-left [font:inherit] outline-offset-2 " +
+          "cursor-help border-0 bg-transparent p-0 text-left [font:inherit] outline-offset-2 " +
           (className ?? "")
         }
         onPointerEnter={(e: ReactPointerEvent<HTMLElement>) => {

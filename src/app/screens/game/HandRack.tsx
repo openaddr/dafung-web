@@ -25,9 +25,10 @@
 // 叠加压缩(#254)窗态下照常工作(状态 transform 与挥出同落 button 层,顺序收口在
 // hand-rack.css 的窗态块)。
 //
-// expandPile(#255):仪表条珍宝/名将徽章点开的明细行——纸签横排落在手牌行左旁
-// (同架底对齐,逐张带标签:珍宝=名+等级、名将=名),不顶掉手牌;窗态期间照常可用。
-// 数据即 pile 指向的玩家摞(本件已有 player),开/收/切换由 GameScreen 持有。
+// 牌架双入口(#361,expandPile 明细排退役):架右端并排「珍宝 N」「名将 N/3」入口
+// 小件(漆金牌底+漆金描边+朱砂数量角标,形制照 proto/treasure/r5.html 节一)——
+// 点谁开谁的层:珍宝入口开珍宝弹层(装裱卡网格)、名将入口开名将弹层(HeroCardFace
+// 详情档网格),弹层壳与陈列在 PileModal.tsx;仪表条徽章随之转纯展示计数。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
 import {
@@ -42,7 +43,6 @@ import {
   JinnangCardBack,
   JinnangCardDetail,
   JinnangCardFace,
-  TreasureCardFace,
 } from "@app/components/card/JinnangCardFace";
 import { HeroCardFace, heroIdByActiveSkillId } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
@@ -52,16 +52,13 @@ import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
-import { formatMoney } from "@core/money";
-import { guidePriceOf } from "@core/treasures";
+import { HERO_CAPACITY } from "@core/constants";
 import { jinnangCardOf } from "@core/jinnang";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
+import { PileModal, type PileModalKind } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
-
-/** expandPile(#255)可展开的摞(与仪表条徽章一一对应)。 */
-export type RackPile = "treasures" | "heroes";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
@@ -344,8 +341,6 @@ export interface HandRackProps {
   junshi?: JunshiWindow;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
-  /** expandPile(#255):展开的摞(明细行落架中,手牌行左旁);null/缺省 = 全收。 */
-  pile?: RackPile | null;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
@@ -365,11 +360,69 @@ interface StackVars {
   spreadRight: number;
 }
 
-/** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背);
- *  军师窗态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边,
- *  expandPile(#255)明细行落架中(见文件头)。 */
-export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
+/** 入口图腾(#361):宝石=珍宝 / 令旗=名将,AttrIcon 图形笔画化(r5 节一线稿原样
+ *  移植,程序化 SVG 零图片资产);漆金描边由 CSS(.rack-entry .tu svg)承担。 */
+const ENTRY_GEM_ICON = (
+  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M8 1.8 13 6.2 8 14.2 3 6.2z" />
+    <path d="M3 6.2h10" />
+    <path d="M8 1.8 6 6.2l2 8 2-8z" />
+  </svg>
+);
+const ENTRY_HERO_ICON = (
+  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+    <path d="M4 1.8v12.4" />
+    <path d="M4.8 2.6h8.4l-2.6 3.2 2.6 3.2H4.8z" />
+    <path d="M6.4 5.8h4.2" />
+  </svg>
+);
+
+/** 牌架入口小件(#361,形制照 proto/treasure/r5.html 节一):漆金牌底+漆金描边+
+ *  朱砂数量角标的漆木小件,右上悬垂计数,图腾线稿+毛笔品名。真 <button>(键盘可达;
+ *  交互语义不自写,aria-haspopup 指向弹层)。count 即展示串(珍宝=N、名将=N/3),
+ *  空陈列照常可开(空网格是业务空态)。 */
+function RackEntry({
+  testid,
+  label,
+  count,
+  icon,
+  onOpen,
+}: {
+  testid: string;
+  label: string;
+  count: string;
+  icon: ReactNode;
+  onOpen: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      data-testid={testid}
+      aria-label={`${label} ${count}`}
+      aria-haspopup="dialog"
+      onClick={onOpen}
+      className="rack-entry"
+    >
+      <span className="rack-entry-badge" aria-hidden="true">
+        <i>{count}</i>
+      </span>
+      <span className="tu" aria-hidden="true">
+        {icon}
+      </span>
+      <span className="pming" aria-hidden="true">
+        {label}
+      </span>
+    </button>
+  );
+}
+
+/** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背)+
+ *  右端双入口(#361);军师窗态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+
+ *  反应牌呼吸金边。 */
+export function HandRack({ player, junshi, reaction }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
+  // 藏品弹层开合态(#361):null=全收;一次一层,点入口开、Esc/点外/X 关。
+  const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
   const mounted = player != null;
@@ -561,37 +614,24 @@ export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
         <span>手</span>
         <span>牌</span>
       </span>
-      {/* expandPile 明细行(#255,#234 二期珍宝变体):纸签/牌面横排落手牌行左旁(同架
-          底对齐,不顶掉手牌)。珍宝=#359 起用装裱形制(TreasureCardFace:题签+品级
-          角标+画心距条框色;指导价留 title 浮签),名将仍纸签(名,浮签「破产清算时
-          换 200 分」口径)。 */}
-      {pile === "treasures" && player.treasures.length > 0 && (
-        <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="珍宝明细">
-          {player.treasures.map((t) => (
-            <TreasureCardFace
-              key={t.id}
-              name={t.name}
-              level={t.level}
-              desc={t.desc}
-              className="pile-gem-card"
-              title={`${t.desc ? t.desc + "\n" : ""}指导价 ${formatMoney(guidePriceOf(t.level))}`}
-            />
-          ))}
-        </div>
-      )}
-      {pile === "heroes" && player.heroes.length > 0 && (
-        <div className="hand-rack-pile" data-testid={TESTIDS.pileRow} aria-label="名将明细">
-          {player.heroes.map((h) => (
-            <span
-              key={h.id}
-              className="pile-slip pile-hero"
-              title={`${h.title} · 破产清算时换 200 分`}
-            >
-              <b>{h.name}</b>
-            </span>
-          ))}
-        </div>
-      )}
+      {/* 牌架双入口(#361):架右端并排「珍宝 N」「名将 N/3」,点谁开谁的层(弹层壳
+          与陈列归 PileModal,标题随入口)。计数即展示串,数据单源快照。 */}
+      <div className="hand-rack-entries">
+        <RackEntry
+          testid={TESTIDS.rackTreasures}
+          label="珍宝"
+          count={String(player.treasures.length)}
+          icon={ENTRY_GEM_ICON}
+          onOpen={() => setPileModal("treasures")}
+        />
+        <RackEntry
+          testid={TESTIDS.rackHeroes}
+          label="名将"
+          count={`${player.heroes.length}/${HERO_CAPACITY}`}
+          icon={ENTRY_HERO_ICON}
+          onOpen={() => setPileModal("heroes")}
+        />
+      </div>
       {renderCount > 0 ? (
         /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
             ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。 */
@@ -609,6 +649,10 @@ export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
       )}
       {detailId !== null && (
         <JinnangDetailSheet cardId={detailId} onClose={() => setDetailId(null)} />
+      )}
+      {/* 藏品弹层(#361):入口点开的「珍宝」/「名将」独立弹层,壳与陈列归 PileModal */}
+      {pileModal !== null && (
+        <PileModal kind={pileModal} player={player} onClose={() => setPileModal(null)} />
       )}
     </section>
   );
