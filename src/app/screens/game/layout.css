@@ -631,6 +631,7 @@
   z-index: auto;
   /* em 基降为原型 7.6px:牌面 152×203 内收,172px 条内上下各留一口气 */
   font-size: 7.6px;
+  --hface-base: 7.6px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
   padding-bottom: 1.75em;
 }
 
@@ -868,6 +869,7 @@
   }
   .game-layout .dash-rack .hand-rack {
     font-size: 6.4px;
+    --hface-base: 6.4px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
   }
 
   .game-layout .seatcol {
