@@ -31,11 +31,20 @@ export const SCROLL_TESTIDS = {
   treasureSkip: "scroll-treasure-skip",
   treasureItem: (treasureId: string) => `scroll-treasure-item-${treasureId}` as const,
   treasureBack: "scroll-treasure-back",
+  // ── 交涉选宝弹层(#362):模式选定后的点选弹层 + 二段式成交钮 ──
+  treasurePick: "scroll-treasure-pick",
+  treasureConfirm: "scroll-treasure-confirm",
 
   bankruptcyScroll: "scroll-bankruptcy",
   bankruptcyDebt: "scroll-bankruptcy-debt",
+  bankruptcyProgress: "scroll-bankruptcy-progress",
+  // ── 破产变卖选宝(#362):卷轴内入口钮 + 点选弹层(已凑/债务进度)+ 二段式变卖钮 ──
+  bankruptcySellTreasureOpen: "scroll-bankruptcy-sell-treasure-open",
   bankruptcySellTreasure: (treasureId: string) =>
     `scroll-bankruptcy-sell-treasure-${treasureId}` as const,
+  bankruptcySellTreasureConfirm: "scroll-bankruptcy-sell-treasure-confirm",
+  bankruptcyTreasurePick: "scroll-bankruptcy-treasure-pick",
+  bankruptcyPickProgress: "scroll-bankruptcy-pick-progress",
   bankruptcySellProp: (propId: string) => `scroll-bankruptcy-sell-prop-${propId}` as const,
   bankruptcySellHero: (heroId: string) => `scroll-bankruptcy-sell-hero-${heroId}` as const,
   bankruptcyConfirm: "scroll-bankruptcy-confirm",
