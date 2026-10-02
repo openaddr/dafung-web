@@ -322,3 +322,20 @@ describe("军师幕 bot 决策(#188 档 3)", () => {
     expect(e2.turnPhase).toBe("Roll");
   });
 });
+
+describe("名将数据表完整性(#358:被动技必有名)", () => {
+  it("HEROES 全部被动技 name 非空、主动技 name 非空,技能 id 全局唯一(后续加将必填)", () => {
+    const skillIds: string[] = [];
+    for (const h of HEROES) {
+      for (const s of h.skills ?? []) {
+        expect(s.name.length).toBeGreaterThan(0);
+        skillIds.push(s.id);
+      }
+      if (h.active) {
+        expect(h.active.name.length).toBeGreaterThan(0);
+        skillIds.push(h.active.id); // 主动技同用 heroLastFired,键不得撞被动技
+      }
+    }
+    expect(new Set(skillIds).size).toBe(skillIds.length);
+  });
+});

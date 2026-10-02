@@ -52,6 +52,7 @@ function hero(id: string, name: string) {
     skills: [
       {
         id: `${id}-move+1`,
+        name: "测试技",
         when: "BeforeMarch" as const,
         effect: "moveBonus",
         params: { steps: 1 },
