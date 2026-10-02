@@ -1,0 +1,164 @@
+/* 藏品弹层(#361)——牌架双入口点开的「珍宝」/「名将」两独立弹层,视觉基准
+   proto/treasure/r5.html 节二/节三(fuku 漆金内环壳 + 题名 + 右上 X + 陈列网格)
+   CSS 原样移植、按 pile-* 前缀收口:弹层经 Portal 渲染在 document.body,
+   .game-layout 作用域罩不到(战报抽屉 war-* 同先例),前缀防全局串扰。
+   色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-* 与
+   --ease-* token,入场动画属一次性演出,reduced-motion 由 app.css M-4 全局兜层压
+   瞬时,本文件无需另写兜层。
+
+   裸色豁免登记(原型定稿色,tokens.css 无对应 token):
+   - #f6ecd9(印面纸色字,含其 rgba(246,236,217,·) 形式):朱印小章字色/角标内衬,
+     全仓印章语言既有惯例字面量(jinnang-card.css 同登记);
+   - rgba(200,161,58,·):漆金内环(--color-gold 的 rgba 形式,layout.css 豁免同族);
+   - rgba(0,0,0,·):弹层落影,中性黑影非墨影语义。
+
+   覆盖关系:DialogContent 底件的皮是 tailwind utilities(layered),本文件未分层
+   (unlayered)——同属性冲突时本文件恒胜,壳皮(底/框/圆角/内衬环/内边距)在
+   .pile-modal 一处改齐,不经 twMerge 逐类对抗。 */
+
+/* ── 弹层壳:深绢面板 + 漆金外框 + 内衬漆金环(r5 .fuku 制式;宽 940px 封顶,
+   窄视口 94vw 让位;高 88dvh 内滚 = 「看不全」既有三层保证口径)── */
+.pile-modal {
+  width: min(940px, 94vw);
+  max-width: 94vw;
+  max-height: 88dvh;
+  overflow-y: auto;
+  padding: 18px 24px 22px;
+  border: 1px solid var(--color-gold-deep);
+  border-radius: 8px;
+  background: var(--color-panel);
+  box-shadow:
+    inset 0 0 0 3px var(--color-panel),
+    inset 0 0 0 4px rgba(200, 161, 58, 0.55),
+    0 18px 50px rgba(0, 0, 0, 0.55);
+  animation: pile-modal-in var(--dur-med) var(--ease-out);
+}
+@keyframes pile-modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(1.5em);
+  }
+}
+
+/* ── 弹层头:题名(brush 大字+朱印小章)· 副题 + 右上 X;下缘发丝线分隔 ── */
+.pile-modal .pile-head {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(43, 35, 23, 0.35);
+}
+/* 题名即 DialogTitle(可达名单源,PileModal 组件侧);字族 font-brush(新文案禁
+   font-deco,BRIEF §2),朱印小章随题名右落 */
+.pile-modal .pile-title {
+  margin: 0;
+  font-family: var(--font-brush);
+  font-size: 27px;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: var(--color-ink);
+}
+.pile-modal .pile-seal {
+  display: inline-grid;
+  place-items: center;
+  width: 21px;
+  height: 21px;
+  margin-left: 6px;
+  vertical-align: 3px;
+  font-size: 13px;
+  background: var(--color-danger);
+  color: #f6ecd9; /* 印面纸色字(豁免登记见文件头) */
+  border-radius: 3px;
+  transform: rotate(2.5deg);
+}
+.pile-modal .pile-sub {
+  margin-top: 5px;
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  color: var(--color-ink-dim);
+}
+/* 右上 X:圆框关闭钮(关闭语义由 aria-label 承担,字形 × 即通用关闭符) */
+.pile-modal .pile-close {
+  flex: none;
+  margin-left: auto;
+  width: 26px;
+  height: 26px;
+  border: 1px solid rgba(43, 35, 23, 0.35);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: none;
+  font-size: 15px;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  cursor: pointer;
+}
+.pile-modal .pile-close:hover {
+  color: var(--color-ink);
+  border-color: rgba(43, 35, 23, 0.55);
+}
+
+/* ── 区签:朱砂菱点 + 计数 + 括注小字(r5 .zone-label 制式)── */
+.pile-modal .pile-zone {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 16px 2px 10px;
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  color: var(--color-ink-dim);
+  letter-spacing: 0.06em;
+}
+.pile-modal .pile-zdot {
+  width: 9px;
+  height: 9px;
+  border-radius: 2px;
+  background: var(--color-danger);
+  transform: rotate(45deg);
+  opacity: 0.85;
+}
+.pile-modal .pile-zone small {
+  font-size: 11.5px;
+}
+
+/* ── 珍宝陈列网格:装裱卡大格(r5 .fuku-grid/.fuku-cell/.price-tag 移植);
+   卡面吃陈列档 7.6px em 基(=114×152,与 r5 .cellsize 同值,题签/角标直接可读)── */
+.pile-modal .pile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 128px);
+  justify-content: center;
+  gap: 18px 16px;
+  padding: 6px 0 2px;
+}
+.pile-modal .pile-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+.pile-modal .pile-cell-card {
+  font-size: 7.6px;
+}
+.pile-modal .pile-price {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-money);
+  background: var(--color-paper-hi);
+  border: 1px solid rgba(43, 35, 23, 0.28);
+  border-radius: 3px;
+  padding: 1px 8px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* ── 名将陈列网格:HeroCardFace 详情档(13px 基=195×260)横排居中,容换行
+   (麾下上限 3 席,一行必容;HERO_CAPACITY 若上调自动换行)── */
+.pile-modal .pile-hero-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 20px 34px;
+  padding: 12px 0 2px;
+}

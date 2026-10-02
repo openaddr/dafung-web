@@ -122,16 +122,6 @@
   border-color: rgba(43, 35, 23, 0.45);
 }
 
-/* ── 仪表条计数徽章展开态(#255 expandPile):§4.6 状态即 UI——徽章提亮 + 漆金内环
-   表「此摞已展入牌架行」,不加文字标牌。 ── */
-.game-layout .badge.b-gem.open,
-.game-layout .badge.b-hero.open {
-  background: rgba(217, 185, 92, 0.14);
-  border-radius: 3px;
-  outline: 1px solid rgba(217, 185, 92, 0.55);
-  outline-offset: 2px;
-}
-
 /* ── 棋盘区:全幅垫底(下缘让位仪表条)── */
 .game-layout .board-area {
   position: absolute;

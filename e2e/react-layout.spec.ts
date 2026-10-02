@@ -1,6 +1,7 @@
 // 布局冒烟(#253 三区骨架;前身为 react-sidebar.spec.ts——侧栏退役后改写):
 // 三区可见(顶部条/席位竖卡列/底部仪表条)+ 席位卡字段 + 浮签(hover/长按/贴缘翻面)+
-// 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)+ 战报抽屉/expandPile(#255 收口)。
+// 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)+ 战报抽屉(#255)+ 牌架双入口与
+// 藏品弹层(#361,expandPile 明细排退役)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -173,12 +174,12 @@ test.describe("三区骨架", () => {
     await expect(page.getByTestId("dice-face")).toHaveText(/[签一二三四五六]/);
     await expect(page.getByTestId("autopilot-button")).toBeVisible();
     await expect(page.getByTestId("autopilot-speed")).toBeVisible();
-    // 珍宝/名将计数徽章(#255 接展开,本票只做计数)
+    // 珍宝/名将计数徽章(纯展示计数,#361 起不可点)
     await expect(page.getByTestId("dash-treasures")).toBeVisible();
     await expect(page.getByTestId("dash-heroes")).toHaveText(/\/3$/);
   });
 
-  // ── #255 收口:战报抽屉 + expandPile ──
+  // ── #255/#361 收口:战报抽屉 + 牌架双入口与藏品弹层 ──
   test("战报抽屉:把手常驻,点开渲染对局日志,Esc 关闭后零占位", async ({ page }) => {
     await quickStart(page);
     // 收起零占位:只有把手,无抽屉
@@ -199,39 +200,128 @@ test.describe("三区骨架", () => {
     await expect(page.getByTestId("log-drawer")).toHaveCount(0);
   });
 
-  test("expandPile:点珍宝徽章明细展入牌架行,再点收起;空摞不可展开", async ({ page }) => {
-    test.setTimeout(120_000); // 对局自走 + 三个 toPass 轮询,60s 默认档偏紧
+  test("牌架双入口与藏品弹层(#361):计数随快照,点谁开谁的层;明细排零残留,徽章纯展示", async ({
+    page,
+  }) => {
+    test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
-    // 空摞(珍宝 0 张):点击零动作,不展开(接线例轮询收紧:30s→15s,尝试秒级)
+    // 退役核销:expandPile 明细行零残留(#361 接替者=牌架双入口)
+    await expect(page.getByTestId("pile-row")).toHaveCount(0);
+    // 仪表条珍宝徽章纯展示:点击不开任何弹层(#361 起不可点;浮签照常 hover 可开)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
       await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
-      await expect(page.getByTestId("pile-row")).toHaveCount(0);
-    }).toPass({ timeout: 15_000 });
-    // 塞两件珍宝(force 通道:引擎直写 + 重灌快照),徽章展开 → 明细行落牌架
-    await force(page, "e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);");
-    await expect(async () => {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
-      await expect(page.getByTestId("pile-row")).toBeVisible();
-    }).toPass({ timeout: 15_000 });
-    // 对局自走中珍宝可能继续进账(宝物城拼点),签数对齐实时快照而非钉死
-    // (#281 珍宝明细行改牌面形制:张数选择器随 .pile-slip→.pile-gem-card 换形)
-    await expect(async () => {
-      const s = await snap(page);
-      await expect(page.getByTestId("pile-row").locator(".pile-gem-card")).toHaveCount(
-        s.players[0].treasures.length,
+      const up = await page.evaluate(
+        () => document.querySelector('[data-testid="treasure-modal"]') != null,
       );
-    }).toPass({ timeout: 10_000 });
-    // 再点收起飞回
+      if (up) throw new Error("仪表条徽章不该能开弹层(#361 纯展示计数)");
+    }).toPass({ timeout: 15_000 });
+    // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
+    //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径,
+    // 种出来的是带技能的完整数据,后续行军被动技照常工作)
+    await force(page, `
+      e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);
+      const s = e.snapshot();
+      s.players[0].heroes.push(
+        { id: "zhouyu", name: "周瑜", title: "雅量高致", desc: "", image: "" },
+        { id: "huatuo", name: "华佗", title: "神医", desc: "", image: "" },
+      );
+      s.recruitedHeroIds.push("zhouyu", "huatuo");
+      e.restoreFromSnapshot(s);
+    `);
+    // 双入口计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
+    await expect
+      .poll(
+        async () => {
+          await dismissJinnangIfUp(page);
+          await actIfCan(page).catch(() => false);
+          const s = await snap(page);
+          const dom = await page.evaluate(() => ({
+            gem: document.querySelector('[data-testid="rack-treasures"] .rack-entry-badge i')
+              ?.textContent,
+            hero: document.querySelector('[data-testid="rack-heroes"] .rack-entry-badge i')
+              ?.textContent,
+          }));
+          return (
+            dom.gem === String(s.players[0].treasures.length) &&
+            dom.hero === `${s.players[0].heroes.length}/3`
+          );
+        },
+        { message: "双入口朱砂角标计数与快照一致" },
+      )
+      .toBe(true);
+    // 点「珍宝」入口 → 珍宝弹层:标题随入口,装裱卡全件+指导价+品级角标
+    //(单次 evaluate 原子采样:DOM 与快照同一拍读,不吃自走竞速)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
-      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
-      await expect(page.getByTestId("pile-row")).toHaveCount(0);
+      await page.getByTestId("rack-treasures").click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
+    const gemModal = await page.evaluate(() => {
+      const s = (window as any).__dafung.snapshot();
+      const m = document.querySelector('[data-testid="treasure-modal"]');
+      return {
+        treasures: s.players[0].treasures.length,
+        up: m != null,
+        title: m?.querySelector(".pile-title")?.textContent ?? "",
+        cards: m?.querySelectorAll(".mount").length ?? 0,
+        prices: m?.querySelectorAll(".pile-price").length ?? 0,
+        badges: m?.querySelectorAll(".lv-badge").length ?? 0,
+        hadGone: m?.textContent?.includes("曾持有") ?? false,
+      };
+    });
+    expect(gemModal.up).toBe(true);
+    expect(gemModal.title).toContain("珍宝");
+    expect(gemModal.cards).toBe(gemModal.treasures);
+    expect(gemModal.prices).toBe(gemModal.treasures);
+    expect(gemModal.badges).toBe(gemModal.treasures);
+    expect(gemModal.hadGone).toBe(false); // 无「曾持有」区(DESIGN §4.6:UI 只显示当前状态)
+    // 右上 X 关闭,卸载零残留
+    await page.getByTestId("modal-close").click();
+    await expect(page.getByTestId("treasure-modal")).toHaveCount(0);
+    // 点「名将」入口 → 名将弹层:HeroCardFace 详情档网格(麾下全部,原子采样同口径)
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      await page.getByTestId("rack-heroes").click({ timeout: 3_000 });
+    }).toPass({ timeout: 15_000 });
+    const heroModal = await page.evaluate(() => {
+      const s = (window as any).__dafung.snapshot();
+      const m = document.querySelector('[data-testid="hero-modal"]');
+      return {
+        heroes: s.players[0].heroes.length,
+        up: m != null,
+        title: m?.querySelector(".pile-title")?.textContent ?? "",
+        cards: m?.querySelectorAll(".hface").length ?? 0,
+        names: [...(m?.querySelectorAll(".m-name") ?? [])].map((el) => el.textContent),
+      };
+    });
+    expect(heroModal.up).toBe(true);
+    expect(heroModal.title).toContain("名将");
+    expect(heroModal.cards).toBe(heroModal.heroes);
+    expect(heroModal.names).toContain("周瑜");
+    // 几何抽查(#361 验收门,1280×720):入口小件收在架体内、弹层不越视口(无横向溢出)
+    const geo = await page.evaluate(() => {
+      const vw = document.documentElement.clientWidth;
+      const rect = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
+      const rack = rect(".hand-rack");
+      const entries = rect(".hand-rack-entries");
+      const modal = rect('[data-testid="hero-modal"]');
+      return {
+        entriesInRack:
+          rack != null &&
+          entries != null &&
+          entries.x >= rack.x - 1 &&
+          entries.x + entries.width <= rack.x + rack.width + 1,
+        modalFitsViewport: modal != null && modal.x >= -1 && modal.x + modal.width <= vw + 1,
+      };
+    });
+    expect(geo.entriesInRack).toBe(true);
+    expect(geo.modalFitsViewport).toBe(true);
+    // Esc 关闭(Base UI 底件行为),卸载零残留
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("hero-modal")).toHaveCount(0);
   });
 });
 

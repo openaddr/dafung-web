@@ -22,13 +22,18 @@ test.describe("竖屏手机 390×844(coarse pointer)", () => {
     const hint = page.getByTestId("rotate-hint");
     await expect(hint).toBeVisible();
     await expect(hint).toContainText("请横屏游玩");
-    const hb = (await hint.boundingBox())!;
     // 全屏接管按 1px 容差判:移动仿真视口有亚像素抖动(Windows 本机实测 0.01~0.07px,
     // master 基线同挂、CI Linux 无)——语义是「无缝隙露对局」,不是数学意义的零。
-    expect(hb.x).toBeLessThanOrEqual(1);
-    expect(hb.y).toBeLessThanOrEqual(1);
-    expect(hb.width).toBeGreaterThanOrEqual(389);
-    expect(hb.height).toBeGreaterThanOrEqual(843);
+    // 几何断言收进 toPass:换屏瞬间 .screen-in 外壳播「8px 上移落定」入场(提示层在壳内,
+    // 动画进行中量盒会吃进瞬时 transform——#361 前后量测拍点漂移实证 0.01~1.07px 全带),
+    // 落定后重试即稳;容差本身不放宽。
+    await expect(async () => {
+      const hb = (await hint.boundingBox())!;
+      expect(hb.x).toBeLessThanOrEqual(1);
+      expect(hb.y).toBeLessThanOrEqual(1);
+      expect(hb.width).toBeGreaterThanOrEqual(389);
+      expect(hb.height).toBeGreaterThanOrEqual(843);
+    }).toPass({ timeout: 15_000 });
   });
 });
 
