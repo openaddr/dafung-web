@@ -17,7 +17,7 @@ game-specific checklist and evidence conventions.
 ## 准备
 
 1. `bun run build && bun run preview`(http://localhost:4173,吃 dist/)。联机走查另起 `bun run serve`(:3000)。
-2. 浏览器操作用会话内建能力(browser-use:control-browser / web-gui-tester);截图存 `dogfood-output/screenshots/`,报告写 `dogfood-output/report.md`。
+2. 浏览器操作用会话内建能力(browser-use:control-browser / web-gui-tester);截图存 `docs/dogfood/screenshots/`(只留本地不入库),报告写 `docs/dogfood/report.md`(入库存档)。
 3. 横屏是第一视口:设 932×430(与 Android 目标一致)再走查;窄竖屏只做一次冒烟。
 
 ## 走查清单(按序,发现问题就地取证)

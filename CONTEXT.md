@@ -89,7 +89,7 @@ _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
 _Avoid_: fallback choice(不是兜底,是产品决策)
 
 **对局日志(Game Log)**:
-一局一个 jsonl 文件(联机=服务器 logs/,单机=IndexedDB),局头(地图/seed/座位)+中文事件流+机读 params+玩家命令流双层,支持命令流重放复现。30 天保底清理。见 ADR-0014。对局屏里的**战报抽屉**(#255)是它的玩家面:右缘把手展开,只读玩法事件(中文简报),机读/审计行(header/cmd/room/final)不入战报。
+一局一个 jsonl 文件(联机=服务器 data/logs/,单机=IndexedDB),局头(地图/seed/座位)+中文事件流+机读 params+玩家命令流双层,支持命令流重放复现。30 天保底清理。见 ADR-0014。对局屏里的**战报抽屉**(#255)是它的玩家面:右缘把手展开,只读玩法事件(中文简报),机读/审计行(header/cmd/room/final)不入战报。
 _Avoid_: 战报(裸用——现专指对局屏抽屉这件 UI,别再拿它指 jsonl 文件)、history
 
 **命令流重放(Command Replay)**:

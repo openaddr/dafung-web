@@ -45,7 +45,7 @@ import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域网设备(手机)可访问
-const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./rooms");
+const ROOMS_DIR = resolve(process.env.ROOMS_DIR ?? "./data/rooms");
 const STATIC_DIR = resolve(process.env.STATIC_DIR ?? "./dist");
 const startedAt = Date.now();
 
@@ -96,7 +96,7 @@ const persistence = new FileRoomPersistence(ROOMS_DIR);
 // ──────────────────────────── 对局日志落盘(ADR-0014:logs/<gameId>.jsonl)────────────────────────────
 // 增量追加:RoomRegistry 每次 persist(每手快照)后经 logSink 通知,把 engine.log 新增行
 // 追加写文件。终局行(final)由引擎在胜负判定时写入 engine.log,随最后一次 flush 自然落盘。
-const LOGS_DIR = resolve(process.env.LOGS_DIR ?? "./logs");
+const LOGS_DIR = resolve(process.env.LOGS_DIR ?? "./data/logs");
 const LOG_TTL_DAYS = parseInt(process.env.LOG_TTL_DAYS ?? "30", 10);
 mkdirSync(LOGS_DIR, { recursive: true });
 

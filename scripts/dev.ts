@@ -5,7 +5,7 @@
 // 前端取 location.origin(App.tsx)同源直连,联机零配置。
 //
 // 端口约定:dev 引擎默认 3001——刻意错开 serve 惯用的 3000,旧 serve 还挂着也照常起,
-// 不打架;房间落盘默认 ./tmp/dev-rooms,与生产 ./rooms、e2e ./tmp/e2e-rooms 互不踩。
+// 不打架;房间落盘默认 ./tmp/dev-rooms,与生产 ./data/rooms、e2e ./tmp/e2e-rooms 互不踩。
 // 浏览器只见 5173 一个地址,引擎端口对页面不可见。
 // env:PORT / ROOMS_DIR 照常透传引擎(设了就以你为准);DEV_ENGINE_URL 覆写代理目标。
 import { spawn, type ChildProcess } from "node:child_process";

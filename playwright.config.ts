@@ -20,6 +20,8 @@ const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms";
 
 export default defineConfig({
   testDir: "./e2e",
+  // e2e 产物(trace/失败截图/视频)进 tmp/:与 shot.mjs 工作区同区,gitignore 单点覆盖
+  outputDir: "tmp/test-results",
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   // 重试本地与 CI 同为 1:已知负载 flake 家族(联机双端/scrolls 时序/sidebar 8 人局)
