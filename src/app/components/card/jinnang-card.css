@@ -169,55 +169,195 @@
   --fam: var(--color-jishi); /* 即时·靛青(#281 反应锦囊正式族,#234 同窗定稿) */
 }
 
-/* ── 品级框色 frameTone(#234 珍宝牌面变体通道,#281 启用):同形框,异色=品级,
-   内环色与品级大字共用 --tone(jinnang-face-data.ts treasureFrameTone 定档)。
-   锦囊消费方不传(none=基线墨框,即基座默认阴影)── */
+/* ── 品级框色 frameTone(#234 珍宝牌面变体通道,#281 启用,#359 装裱化):
+   同形装裱,异色=品级。--tone 供画心距条(color-mix)与品级角标底取色
+   (jinnang-face-data.ts treasureFrameTone 定档)。锦囊消费方不传(none=基线墨框)。
+   旧内环框随品级大字一并退役(#359):装裱形制的框色走距条,不再烧环。 ── */
 .jinnang-card.tone-tong {
   --tone: #9a6a3c; /* 铜框:原型定稿色,暂无 token(豁免登记见文件头) */
-  box-shadow:
-    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.3em #9a6a3c;
 }
 .jinnang-card.tone-yin {
   --tone: #8d9298; /* 银框:原型定稿色,暂无 token(豁免登记见文件头) */
-  box-shadow:
-    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.3em #8d9298;
 }
 .jinnang-card.tone-gold {
   --tone: var(--color-gold);
-  box-shadow:
-    0 0.35em 0.9em rgba(43, 35, 23, 0.3),
-    inset 0 0 0 0.3em var(--color-gold),
-    0 0 0 0.18em var(--color-gold-deep);
 }
 
-/* ── 珍宝牌面变体(#234 spec,#281 落地):形制同锦囊(.jinnang-card 基座),界格线/纹样窗/
-   品级大字全落 --tone(框色=品级通道,一处色双处用);宝章恒朱砂(DESIGN §4.5)。
-   纹样窗位改「品级大字」:汉字数字 + 「品」角标(数值即信息,DESIGN §4.6 例外)。 */
-.jinnang-card.gem {
-  --fam: var(--tone, var(--color-ink));
+/* ── 珍宝装裱形制(#359,视觉基准 proto/treasure/r5.html 节二 = 第三轮
+   backpack.html 语言源,CSS 原样移植、按组件前缀收口):「名家鉴藏」六件套——
+   绫边(程序化斜纹)/ 四角包角 / 画心 / 题签 / 鉴藏印 / 跋文。品级大字退役:
+   品级 = 画心距条 + 右上品级角标双通道(数字即信息由角标承担,DESIGN §4.6
+   例外条款随大字退场)。基座照旧 3:4 竖笺;padding 归零(装裱自绘满幅),
+   盒影回基线落影(tone 内环框已退役,见上)。 ── */
+.jinnang-card.mount {
+  padding: 0;
+  overflow: hidden;
+  box-shadow: 0 0.35em 0.8em rgba(43, 35, 23, 0.22);
 }
-.jinnang-card .yang.gem-yang {
+
+/* 绫边:裱布底 + 双向程序化斜纹(零图片,DESIGN §4.5) */
+.jinnang-card.mount .ling {
+  position: absolute;
+  inset: 0;
+  border-radius: 0.7em;
+  background:
+    repeating-linear-gradient(45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    repeating-linear-gradient(-45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+}
+
+/* 四角包角:深色织角(被画心 inset 1.5em 裁于绫边区,不入画心——第三轮审查第 3 项) */
+.jinnang-card.mount .bj {
+  position: absolute;
+  width: 2.6em;
+  height: 2.6em;
+  z-index: 1;
+  opacity: 0.5;
+}
+.jinnang-card.mount .bj.a { top: 0; left: 0; border-radius: 0.7em 0 0 0; background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%); }
+.jinnang-card.mount .bj.b { top: 0; right: 0; border-radius: 0 0.7em 0 0; background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%); }
+.jinnang-card.mount .bj.c { bottom: 0; left: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%); }
+.jinnang-card.mount .bj.d { bottom: 0; right: 0; border-radius: 0 0 0.7em 0; background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%); }
+
+/* 画心:距条(界线)随品级(--tone color-mix),内里纸亮端 */
+.jinnang-card.mount .huaxin {
+  position: absolute;
+  inset: 1.5em;
+  border-radius: 0.3em;
+  background: var(--color-paper-hi);
+  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-ink)) 42%, rgba(43, 35, 23, 0.38));
+  box-shadow: 0 0.2em 0.5em rgba(43, 35, 23, 0.14);
+  display: flex;
+  flex-direction: column;
+  padding: 0.9em;
+  z-index: 1;
+}
+/* 画心·配图通道(art,#359):传入节点即渲染(位图/自定 SVG,容器裁剪) */
+.jinnang-card.mount .huaxin .art {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border-radius: 0.2em;
+}
+.jinnang-card.mount .huaxin .art svg,
+.jinnang-card.mount .huaxin .art img {
+  width: 88%;
+  max-height: 96%;
+  object-fit: contain;
+}
+.jinnang-card.mount .huaxin .art svg {
+  stroke: var(--color-ink-dim);
+  stroke-width: 1.6;
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* 画心·无图回退:远山肌理沉底(品级大字退役后,无图牌不再与有图牌争视觉重量) */
+.jinnang-card.mount .huaxin .shan {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0.6;
+  margin-top: 0.4em;
+}
+.jinnang-card.mount .huaxin .shan svg {
+  width: 100%;
+  height: 3.2em;
+  stroke: var(--color-inkwash);
+  stroke-width: 1.4;
+  fill: none;
+  stroke-linecap: round;
+}
+/* 跋文:风味文,画心内底部小字;右侧 2.6em 预留鉴藏印位
+   (第三轮遮挡修正:印左缘与跋文尾字净距紧凑档 5.1px / 陈列档 9.8px) */
+.jinnang-card.mount .ba {
+  font-size: 1.02em;
+  line-height: 1.5;
+  color: var(--color-ink-dim);
+  margin-top: 0.5em;
+  padding-right: 2.6em;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 题签:左上竖排纸签,牌名唯一承载体 */
+.jinnang-card.mount .qian {
+  position: absolute;
+  top: 0.6em;
+  left: 0.6em;
+  z-index: 2;
+  writing-mode: vertical-rl;
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid rgba(43, 35, 23, 0.4);
+  border-radius: 0.2em;
+  box-shadow: 0 0.2em 0.4em rgba(43, 35, 23, 0.22);
+  padding: 0.7em 0.32em;
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 0.6em;
+  gap: 0.25em;
+  max-height: 12.5em;
 }
-.jinnang-card .gem-lv {
-  font-family: var(--font-brush);
-  font-size: 5em;
-  line-height: 1;
-  color: var(--tone, var(--color-ink));
-}
-.jinnang-card .gem-pin {
+.jinnang-card.mount .qian .ling-zi {
+  font-size: 1em;
+  color: var(--color-danger);
   font-family: var(--font-wenkai);
-  font-size: 1.3em;
+}
+.jinnang-card.mount .qian .qian-ming {
+  font-family: var(--font-brush);
+  font-size: 1.7em;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+}
+.jinnang-card.mount .qian .qian-ming.long {
+  font-size: 1.45em;
+}
+
+/* 鉴藏印:右下朱砂宝章(章恒朱砂,DESIGN §4.5;印压画心右下角=鉴藏语义) */
+.jinnang-card.mount .jian-yin {
+  position: absolute;
+  right: 0.75em;
+  bottom: 1.05em;
+  z-index: 3;
+}
+.jinnang-card.mount .jian-yin .seal {
+  transform: rotate(3deg);
+}
+
+/* ── 品级角标(#359 新形制,第四轮决议③):牌右上角菱形小底 + 品级数字,
+   底色随品级(铜/银/金,与距条 --tone 同源);与框色通道并存=色弱冗余;
+   数字白+墨晕,铜/银/金三底均可读。 ── */
+.jinnang-card.mount .lv-badge {
+  position: absolute;
+  top: 0.62em;
+  right: 0.62em;
+  z-index: 3;
+  width: 2.3em;
+  height: 2.3em;
+  transform: rotate(45deg);
+  background: var(--tone, var(--color-ink-dim));
+  border: 0.13em solid rgba(43, 35, 23, 0.55);
+  box-shadow:
+    0 0.12em 0.3em rgba(43, 35, 23, 0.35),
+    inset 0 0 0 0.1em rgba(250, 243, 223, 0.4);
+  display: grid;
+  place-items: center;
+}
+.jinnang-card.mount .lv-badge i {
+  transform: rotate(-45deg);
+  font-style: normal;
+  font-family: var(--font-wenkai);
+  font-size: 1.08em;
   line-height: 1;
-  color: var(--color-ink-dim);
-  border: 0.14em solid var(--color-ink-dim);
-  border-radius: 0.35em;
-  padding: 0.25em 0.3em;
+  letter-spacing: -0.04em;
+  color: var(--color-paper-hi);
+  text-shadow: 0 0 0.2em rgba(43, 35, 23, 0.85);
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── reduced-motion 兜层(微旋退场,#234 P2-E):app.css 全局兜层只压 animation/

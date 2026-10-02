@@ -18,7 +18,6 @@ import {
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
-  treasureLevelCn,
   type FrameTone,
   type JinnangPattern,
   type JinnangFaceSize,
@@ -121,42 +120,79 @@ export function JinnangCardFace({
   );
 }
 
-/** 珍宝牌面(#234 珍宝牌面变体,#281 落地):复用锦囊牌面形制(.jinnang-card 同基座),
- *  frameTone 品级框色启用——界格线/品级大字与内环框共落 --tone(框色=品级通道)。
- *  宝章恒朱砂(DESIGN §4.5「章恒朱砂」);纹样窗位改品级大字(汉字数字+「品」角标,
- *  数值即信息,DESIGN §4.6 例外条款)。数据单源 core/treasures.ts(TreasureDef),
- *  本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带指导价浮签。 */
+/** 珍宝牌面(#234 变体,#281 落地,#359 装裱升级):「名家鉴藏」装裱形制
+ *  (视觉基准 proto/treasure/r5.html 节二,语言源第三轮 backpack.html)——
+ *  绫边(程序化斜纹)/四角包角/画心(距条随品级)/题签(竖排承牌名)/
+ *  鉴藏印(朱砂,右下)/跋文 六件套;品级大字退役,品级=画心距条+右上品级角标
+ *  (菱形小底+数字,底色随品级)双通道。画心双通道:art 传入 ReactNode 即渲染
+ *  (容器裁剪),缺省=远山肌理回退(程序化 SVG)。宝章恒朱砂(DESIGN §4.5
+ *  「章恒朱砂」);数据单源 core/treasures.ts(TreasureDef),本组件不复制目录;
+ *  消费方(手牌架珍宝明细行)经 title 自带指导价浮签。 */
 export interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   name: string;
-  /** 品级 1..10(core/treasures.ts TreasureDef.level);越界由 treasureLevelCn 抛错。 */
+  /** 品级 1..10(core/treasures.ts TreasureDef.level);越界=数据 bug 显式抛错(零兜底)。 */
   level: number;
   desc?: string;
+  /** 画心配图通道(#359):传入节点即渲染,容器裁剪;缺省=远山肌理回退。 */
+  art?: ReactNode;
 }
+
+/** 画心缺省回退·远山线稿:path 自 proto/treasure/backpack.html 原样移植
+ *  (viewBox 0 0 100 26,stroke 色/线宽在 jinnang-card.css 按 .shan 给)。 */
+const SHAN_PATHS = (
+  <>
+    <path d="M4 22 Q18 8 32 18 Q40 12 50 18" />
+    <path d="M52 20 Q64 10 76 18 Q84 14 96 20" />
+    <path d="M8 24 q20 3 42 0 q22 -3 42 0" />
+  </>
+);
+
 export function TreasureCardFace({
   name,
   level,
   desc,
+  art,
   className,
   children,
   ...rest
 }: TreasureCardFaceProps) {
-  const classes = ["jinnang-card", "gem", `tone-${treasureFrameTone(level)}`, className ?? ""]
+  if (level < 1 || level > 10) {
+    throw new Error(`珍宝等级 ${level} 超出 1..10(treasures 数据 bug)`);
+  }
+  const classes = ["jinnang-card", "mount", `tone-${treasureFrameTone(level)}`, className ?? ""]
     .filter(Boolean)
     .join(" ");
   return (
     <div className={classes} {...rest}>
-      <div className="tou">
-        <span className="jie" />
-        <span className={name.length > 3 ? "ming long" : "ming"}>{name}</span>
+      <span className="ling" aria-hidden="true" />
+      {/* 包角四枚(被画心 inset 1.5em 裁于绫边区,不入画心) */}
+      <span className="bj a" aria-hidden="true" />
+      <span className="bj b" aria-hidden="true" />
+      <span className="bj c" aria-hidden="true" />
+      <span className="bj d" aria-hidden="true" />
+      <div className="huaxin">
+        {art == null ? (
+          <span className="shan" aria-hidden="true">
+            <svg viewBox="0 0 100 26" aria-hidden="true">
+              {SHAN_PATHS}
+            </svg>
+          </span>
+        ) : (
+          <div className="art">{art}</div>
+        )}
+        <div className="ba">{desc}</div>
       </div>
-      <div className="zhang">
+      <span className="lv-badge">
+        <i>{level}</i>
+      </span>
+      {/* 题签:牌名唯一承载体(珍=鉴藏类小字,朱砂) */}
+      <span className="qian">
+        <span className="ling-zi">珍</span>
+        <span className={name.length > 3 ? "qian-ming long" : "qian-ming"}>{name}</span>
+      </span>
+      <span className="jian-yin">
         <span className="seal">宝</span>
-      </div>
-      <div className="yang gem-yang">
-        <span className="gem-lv">{treasureLevelCn(level)}</span>
-        <span className="gem-pin">品</span>
-      </div>
-      <div className="jiao">{desc}</div>
+      </span>
       {children}
     </div>
   );

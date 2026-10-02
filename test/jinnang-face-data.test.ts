@@ -10,7 +10,6 @@ import {
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
-  treasureLevelCn,
   rackTilt,
 } from "@app/components/card/jinnang-face-data";
 
@@ -156,29 +155,20 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
     }
   });
 
-  it("TONE CSS 镜像:.tone-tong/yin/gold 都在 jinnang-card.css,内环框+--tone 双通道", () => {
+  it("TONE CSS 镜像:.tone-tong/yin/gold 都在 jinnang-card.css,--tone 单通道(距条/角标取色)", () => {
+    // #359 装裱化:旧内环框随品级大字退役,--tone 只供画心距条(color-mix)与角标底
     const css = () =>
       readFileSync(new URL("../src/app/components/card/jinnang-card.css", import.meta.url), "utf8");
     for (const tone of ["tong", "yin", "gold"]) {
       const rule = css().match(new RegExp(`\\.jinnang-card\\.tone-${tone}\\s*\\{[^}]*\\}`, "s"));
       expect(rule, `.tone-${tone} 规则块缺失`).not.toBeNull();
-      expect(rule![0]).toMatch(/inset 0 0 0 0\.3em/); // 同形框异色=品级:内环描述符固定
-      expect(rule![0]).toMatch(/--tone:/); // 框色与品级大字共用 --tone
+      expect(rule![0]).toMatch(/--tone:/);
+      expect(rule![0]).not.toMatch(/box-shadow/); // 内环框退役:#359 装裱框色走距条
     }
-  });
-});
-
-describe("treasureLevelCn(珍宝等级汉字,牌面品级大字)", () => {
-  it("1..10 逐级映射汉字", () => {
-    expect(treasureLevelCn(1)).toBe("一");
-    expect(treasureLevelCn(5)).toBe("五");
-    expect(treasureLevelCn(9)).toBe("九");
-    expect(treasureLevelCn(10)).toBe("十");
-  });
-
-  it("越界=数据 bug 显式抛错(零兜底)", () => {
-    expect(() => treasureLevelCn(0)).toThrow();
-    expect(() => treasureLevelCn(11)).toThrow();
+    // 装裱形制在册:六件套 + 品级角标的挂点齐备(品级大字退役后的镜像钉)
+    for (const piece of ["ling", "bj", "huaxin", "qian", "jian-yin", "ba", "lv-badge"]) {
+      expect(css().includes(`.jinnang-card.mount .${piece}`)).toBe(true);
+    }
   });
 });
 

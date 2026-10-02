@@ -49,24 +49,17 @@ export const JINNANG_TARGET_LABEL: Record<JinnangTargetDomain, string> = {
   reaction: "反应窗打出",
 };
 
-/** 品级框色通道(frameTone,#234 珍宝牌面变体):同形框,异色=品级(铜/银/金内环,
- *  CSS 消费在 jinnang-card.css 的 .tone-*)。锦囊消费方不传(none=基线墨框)。 */
+/** 品级框色通道(frameTone,#234 珍宝牌面变体):同形装裱,异色=品级——
+ *  --tone 供画心距条与品级角标底取色(CSS 消费在 jinnang-card.css 的 .tone-*)。
+ *  锦囊消费方不传(none=基线墨框)。 */
 export type FrameTone = "none" | "tong" | "yin" | "gold";
 
 /** 珍宝品级 → 框色档(#281 落地):level 1–3 铜 / 4–6 银 / 7–10 金。珍宝 level 1..10
- *  由 core/treasures.ts 数据保证(越界等数据 bug 由 guidePriceOf 同款纪律抛错)。 */
+ *  由 core/treasures.ts 数据保证(组件对越界显式抛错,零兜底)。 */
 export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
   if (level <= 3) return "tong";
   if (level <= 6) return "yin";
   return "gold";
-}
-
-/** 珍宝等级汉字(牌面品级大字用):level 1..10 → 一..十;越界=数据 bug 显式抛错(零兜底)。 */
-const LEVEL_CN = ["一", "二", "三", "四", "五", "六", "七", "八", "九", "十"] as const;
-export function treasureLevelCn(level: number): string {
-  const cn = LEVEL_CN[level - 1];
-  if (cn == null) throw new Error(`珍宝等级 ${level} 超出 1..10(treasures 数据 bug)`);
-  return cn;
 }
 
 /** 军师幕/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌
