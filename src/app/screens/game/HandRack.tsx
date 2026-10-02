@@ -18,7 +18,7 @@
 //   单源 choices,不另写);点牌=选中放大 1.6×(放大态即详情态,.sel 金描边,样式
 //   单源 jinnang-card.css,笺脚放开 4 行);点它牌换选、再点同牌/右键/长按取消;
 //   数字键 1..n 选中(灰置跳过计数)、Enter 确认(G-19 口径与一期手感一致)。
-//   令笺(技)变体混排架中(一期形制,#188 档 3,JunshiSkillCard)。
+//   名将技卡(#188 档 3):HeroCardFace 紧凑档混排架中(#360,与招贤/府库同卡面)。
 //   目标段(pendingJinnang/pendingSkill 在场):整架退出交互——已出计牌金描边上浮
 //   印「已出牌 · 待择目标」,其余牌灰置印「目标段不可换牌」;
 //   选目标在席位卡(SeatRail targets),本架不再接手势。
@@ -44,9 +44,9 @@ import {
   JinnangCardFace,
   TreasureCardFace,
 } from "@app/components/card/JinnangCardFace";
+import { HeroCardFace, heroIdByActiveSkillId } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
-import { JinnangLingjian } from "./JinnangLingjian";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
@@ -67,7 +67,7 @@ export type RackPile = "treasures" | "heroes";
 
 /** 军师窗态载荷(#256;GameScreen 派生,null=常态架)。 */
 export interface JunshiWindow {
-  /** 卡牌段选项(锦囊+令笺,choices 原序,含灰置;目标段传空数组)。 */
+  /** 卡牌段选项(锦囊+技卡,choices 原序,含灰置;目标段传空数组)。 */
   options: ChoiceOption[];
   /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId;卡牌段恒 null。 */
   pendingCardId: string | null;
@@ -273,17 +273,22 @@ function RackCard({
   );
 }
 
-/** 窗态令笺钮(#188 档 3 技变体混排架中):手势与 RackCard 窗态分支同款(useTapOrLongPress
- *  单源,长按/右键只服务「取消选中」);无发牌音(技不是新入手的牌)。文案随 choices
- *  载荷(skillHero/label/skillText),UI 不回查名将目录(一期口径)。testid 沿
- *  jinnang-card-* 族(option.id = skill:<id>)。 */ function JunshiSkillCard({
+/** 军师窗态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同一张
+ *  名将卡面):手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务
+ *  「取消选中」);无发牌音(技不是新入手的牌)。卡面本体按 skillId 反查名将目录
+ *  (heroIdByActiveSkillId,同锦囊牌面回查目录口径);choices 载荷只承担可用性/
+ *  原因/aria-label。testid 沿 jinnang-card-* 族(option.id = skill:<id>)。 */
+function JunshiSkillCard({
   option,
+  skillId,
   index,
   selected,
   onSelect,
   onDeselect,
 }: {
   option: ChoiceOption;
+  /** 主动技 id(调用侧已判 o.skillId != null 才走本件;类型收窄单点在此收口)。 */
+  skillId: string;
   index: number;
   selected: boolean;
   onSelect: () => void;
@@ -297,8 +302,6 @@ function RackCard({
     onLongPress: selected ? onDeselect : null,
     onContextMenu: selected ? onDeselect : undefined,
   });
-  const hero = option.skillHero ?? "";
-  const name = option.label.slice(hero.length + 1); // 剥「属主·」前缀(一期口径)
   return (
     <button
       type="button"
@@ -310,15 +313,14 @@ function RackCard({
       className={selected ? "sel" : option.available ? "usable" : "off"}
       style={{ ["--i" as string]: index }}
     >
-      <JinnangLingjian
-        hero={hero}
-        name={name}
-        text={option.skillText ?? ""}
+      <HeroCardFace
+        heroId={heroIdByActiveSkillId(skillId)}
+        size="compact"
         className={option.available ? (selected ? "sel" : "") : "off"}
         style={tiltVars(`${option.id}#${index}`)}
       >
         {!option.available && option.reason && <span className="reason">{option.reason}</span>}
-      </JinnangLingjian>
+      </HeroCardFace>
     </button>
   );
 }
@@ -438,7 +440,7 @@ export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
   if (!player) return null; // 观战不渲染(不是兜底:观战无手牌是业务事实)
 
   const hand = player.jinnangHand;
-  // 渲染张数:卡牌段=options(手牌 + 令笺混排);常态/目标段=手牌。叠加压缩按渲染
+  // 渲染张数:卡牌段=options(手牌 + 技卡混排);常态/目标段=手牌。叠加压缩按渲染
   // 张数算,窗态下照常工作(#254 口径)。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
   const renderCount = junshi != null ? (targeting ? hand.length : cardOptions.length) : hand.length;
@@ -486,13 +488,14 @@ export function HandRack({ player, junshi, reaction, pile }: HandRackProps) {
       });
     }
     if (junshi != null) {
-      // 卡牌段:choices 原序(手牌序在前、令笺殿后);手牌 key 与常态一致。
+      // 卡牌段:choices 原序(手牌序在前、技卡殿后);手牌 key 与常态一致。
       return cardOptions.map((o, i) => {
         if (o.skillId != null) {
           return (
             <JunshiSkillCard
               key={o.id}
               option={o}
+              skillId={o.skillId}
               index={i}
               selected={junshi.selectedId === o.id && o.available}
               onSelect={() => select(o.id)}

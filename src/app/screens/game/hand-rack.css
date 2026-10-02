@@ -20,14 +20,14 @@
    档类默认 8px)。短横屏降档(#238 已决事项「剩余实现层微调」):media query 里把
    容器 em 基降到 6.4px → 牌面 96×128、架高同步收紧,一处变量全架缩放。 */
 
-/* 令笺(技)变体混排架中(#256):差量样式(.jn-lingjian 作用域,金界格线/技章/徽记/
-   摘要区)收口在本文件尾段——组件 JinnangLingjian.tsx 与 HandRack 同住 screens/game/,
-   消费即加载,无「恰好被别处加载」的暗耦合(#255 收口:原 @import scroll.css 拉入,
-   军师幕残件删除后随迁于此)。 */
+/* 名将技卡(#360):军师窗态技卡换 HeroCardFace 紧凑档,卡面样式单源
+   card/hero-card.css(旧 JinnangLingjian/.jn-lingjian 令笺随 #360 退役);
+   卡基经 --hface-base 随架体 em 基走,声明见下方 .hand-rack 与短横屏断点。 */
 
 .hand-rack {
   position: relative;
   font-size: 8px; /* em 基:架体 chrome 与牌面共用,短横屏降档只改这一处 */
+  --hface-base: 8px; /* 名将卡面(HeroCardFace)卡基,随架体 em 基三档同步(#360) */
   flex: none; /* 手牌架定高不吃纵向弹性,棋盘区(flex-1)自然让位 */
   display: flex;
   gap: 3em;
@@ -97,6 +97,7 @@
 @media (orientation: landscape) and (max-height: 500px) {
   .hand-rack {
     font-size: 6.4px;
+    --hface-base: 6.4px;
   }
 }
 
@@ -305,69 +306,7 @@
   font-size: 4.8px;
 }
 
-/* ── 令笺(技)变体差量(#256 随迁,#255 收口落位):基座复用 .jinnang-card
-   (纸面/尺寸/交互态全同),只换头饰与中段。金=技通道:界格线、技章、徽记描边/字
-   全落 gold-deep(原型 .lingjian 口径)── */
-.jn-lingjian .jie {
-  background: var(--color-gold-deep);
-}
-/* 右上金底「技」章:与朱砂标签章同位同形(#229 技/牌区分) */
-.jn-lingjian .ji {
-  position: absolute;
-  top: 0.9em;
-  right: 0.9em;
-  z-index: 2;
-  width: 2.6em;
-  height: 2.6em;
-  display: grid;
-  place-items: center;
-  border-radius: 0.28em;
-  transform: rotate(2.5deg);
-  background: var(--color-gold-deep);
-  color: var(--color-paper-hi);
-  font-family: var(--font-brush);
-  font-size: 1.5em;
-  box-shadow: inset 0 0 0 0.14em rgba(246, 236, 217, 0.5);
-}
-/* 中段圆形徽记:技名首字(原型 .ji-emblem 形制:径向纸面 + 金细环;径 8em——较原型
-   9.5em 收一档,给下方属主+摘要两行让位,比例同步收紧保形制) */
-.jn-lingjian .hui {
-  flex: 0 0 auto;
-  align-self: center;
-  width: 8em;
-  height: 8em;
-  margin: 0.7em 0;
-  display: grid;
-  place-items: center;
-  border: 0.16em solid color-mix(in srgb, var(--color-gold-deep) 50%, transparent);
-  border-radius: 50%;
-  background: radial-gradient(circle at 50% 42%, var(--color-paper-hi), var(--color-panel-hi));
-}
-.jn-lingjian .hui span {
-  font-family: var(--font-brush);
-  font-size: 3.6em;
-  line-height: 1;
-  color: var(--color-gold-deep);
-}
-/* 摘要区:属主行 + 技能文案摘要(复用牌面 .jiao 两行截断——细则归详情/规则页,
-   牌面只留做决定需要的部分)。摘要居中(原型 .cd 口径)。 */
-.jn-lingjian .zhai {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.4em;
-}
-.jn-lingjian .zhai .zhai-hero {
-  font-size: 1.05em;
-  letter-spacing: 0.14em;
-  color: var(--color-ink-dim);
-}
-.jn-lingjian .zhai .jiao {
-  font-size: 1.05em;
-  line-height: 1.5;
-  text-align: center;
-}
-/* 灰置(冷却/费用/无目标):属主行随 .off .jiao 同口径藏,让位原因印条 */
-.jn-lingjian.off .zhai {
-  visibility: hidden;
-}
+/* ── 名将技卡(#360):军师窗态技卡换 HeroCardFace 紧凑档(与招贤/府库同一张
+   名将卡面,样式单源 card/hero-card.css,旧 .jn-lingjian 令笺差量随退役);
+   卡基经 --hface-base 随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点与
+   layout.css 的 dash-rack 覆写处),15u×20u 恰好满槽位与锦囊牌面同格。 ── */

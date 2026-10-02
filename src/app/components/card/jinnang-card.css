@@ -369,8 +369,11 @@
 }
 
 /* ── 交互态:sel=选中即放大(放大态即详情态,1.6× 金描边);
-   off=不可用下沉置灰,原因印条由消费方以 .reason 子元素提供(出现时笺脚让位)── */
-.jinnang-card.sel {
+   off=不可用下沉置灰,原因印条由消费方以 .reason 子元素提供(出现时笺脚让位)。
+   名将卡面 .hface(#360)同挂此套状态语言——牌面层交互态单源仍在本文件,
+   卡面形制(纸面/章/技能区)各归各的组件样式 ── */
+.jinnang-card.sel,
+.hface.sel {
   transform: translateY(-1.2em) scale(1.6);
   transform-origin: center bottom;
   outline: 0.3em solid var(--color-gold);
@@ -383,19 +386,29 @@
 .jinnang-card.sel .jiao {
   -webkit-line-clamp: 4;
 }
+/* 名将卡面选中=详情态同口径:紧凑档 desc 放开 4 行(detail 档本就不截,不碰) */
+.hface.compact.sel .sdesc {
+  -webkit-line-clamp: 4;
+}
 .jinnang-card.sel .yang {
   min-height: 3.5em;
 }
-.jinnang-card.off {
+.jinnang-card.off,
+.hface.off {
   filter: grayscale(0.9) brightness(0.92);
   transform: translateY(0.9em);
 }
 .jinnang-card.off .jiao {
   visibility: hidden;
 }
+/* 名将卡面灰置同口径:desc 随 .off 藏,让位原因印条(chips 仍可辨名) */
+.hface.off .sdesc {
+  visibility: hidden;
+}
 /* 原因印条:墨底印文纸色字,对比度达标(白纸色字 rgba(43,35,23,.82) 底,原型即如此);
    文案是消费方给的新文案,落文楷(font-wenkai 安全位,同禁 font-deco 红线) */
-.jinnang-card .reason {
+.jinnang-card .reason,
+.hface .reason {
   position: absolute;
   left: -0.2em;
   right: -0.2em;
@@ -409,7 +422,8 @@
   letter-spacing: 0.08em;
 }
 /* 键盘焦点:金色虚线(压过 app.css 的 :where() 零特异度全局圈) */
-.jinnang-card:focus-visible {
+.jinnang-card:focus-visible,
+.hface:focus-visible {
   outline: 0.3em dashed var(--color-gold-deep);
   outline-offset: 0.2em;
 }

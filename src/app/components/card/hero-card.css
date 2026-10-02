@@ -1,0 +1,299 @@
+/* 名将卡面器物件样式(#360,spec #357 T3)——从 proto/treasure/r4.html 节三忠实移植
+   (r5 第五轮仅换被动技名装配,形制同源):类名、形制、色值不做自由发挥。
+   选择器统一收口在 .hface 作用域下防全局串扰(同 jinnang-card.css 口径);色一律
+   var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-* 与 --ease-*
+   token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
+
+   裸色豁免登记(原型定稿色,tokens.css 无对应 token,照原型保留):
+   - #f6ecd9(印文纸色,含其 rgba(246,236,217,·) 形式):将章/技名牌字色,与
+     jinnang-card.css 印文纸色同族;
+   - rgba(217,185,92,·):漆金内衬/名带描边(--color-lacquer-gold 的 rgba 形式,
+     app.css 控件种与 jinnang-card.css 同先例);
+   - rgba(36,29,19,·)(#241d13 漆木暗端的 rgba 形式):立绘纱幕与名带墨底渐变
+     (漆面明暗,hand-rack.css 漆木豁免同族);rgba(54,44,30,·) 为名带墨底亮端
+     (#362c1e,同族);
+   - rgba(250,243,223,0.96) / rgba(238,224,188,0.96):技能区纸底(--color-paper-hi /
+     --color-paper-lo 的 rgba 形式,半透明纱需要 alpha 故不直引 token);
+   - rgba(0,0,0,·):名带投影,漆木上的中性黑影,非墨影语义。
+
+   尺寸:卡基 --u 为几何单位——absolute 定位元素的 em 会解析到自身字号(--u 变量
+   锚定卡基,r4 原型同法,前车之鉴);根 font-size = var(--u),15u×20u 即 3:4 竖卡。
+   档默认:detail 13px(195×260)/ compact 10px(150×200)/ pick 7.6px(114×152,
+   手牌槽位同档);消费方经 --hface-base 覆写任意档(手牌架随架体 em 基 8/7.6/6.4px
+   注入,见 hand-rack.css / layout.css)。 */
+
+/* ── 基座:满幅立绘打底,纸底金内衬(em 制;isolation 让交互态描边不越邻牌,
+   与 .jinnang-card 同口径;rotate 消费 --tilt 微旋通道,jinnang-card.css 同款)── */
+.hface {
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  --u: var(--hface-base, 13px); /* 几何单位=卡基;消费方可经 --hface-base 整档覆写 */
+  font-size: var(--u);
+  flex: 0 0 auto;
+  border-radius: 0.9em;
+  border: 0.2em solid rgba(43, 35, 23, 0.65);
+  background: var(--color-paper-lo);
+  box-shadow:
+    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
+    inset 0 0 0 0.15em rgba(217, 185, 92, 0.5);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  rotate: var(--tilt, 0deg);
+  /* 交互态(sel 上浮放大 / off 下沉置灰)的状态过渡,与 .jinnang-card 同款 */
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out),
+    filter var(--dur-med) var(--ease-out);
+}
+/* 紧凑档(--u 10px 基;.pick 在后覆写基)。装配差量(技能区 chips)见下 */
+.hface.compact {
+  --u: var(--hface-base, 10px);
+}
+/* 招贤档(hero picks,手牌槽位同档;装配=紧凑档) */
+.hface.pick {
+  --u: var(--hface-base, 7.6px);
+}
+
+/* ── 满幅立绘区:占卡上部,下缘纸纱压暗接技能区 ── */
+.hface .stage {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.hface .stage .lihui {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+.hface .stage .lihui img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+}
+/* 满幅占位(画像未至):渐变框 + 大「像」字(现行 onError 占位语言,资源到位即废) */
+.hface .stage .lihui.is-ph {
+  background: linear-gradient(180deg, #cfc09a 0%, #b3a077 62%, #a9946a 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+}
+.hface .stage .lihui.is-ph .ph-xiang {
+  font-family: var(--font-brush);
+  font-size: 4.4em;
+  line-height: 1;
+  color: rgba(43, 35, 23, 0.38);
+}
+.hface .stage .lihui.is-ph .ph-hint {
+  font-size: 0.85em;
+  letter-spacing: 0.18em;
+  color: rgba(43, 35, 23, 0.45);
+}
+.hface .veil {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 42%;
+  background: linear-gradient(180deg, rgba(36, 29, 19, 0) 0%, rgba(36, 29, 19, 0.52) 100%);
+}
+
+/* ── 左上朱砂「将」章(章恒朱砂;压画角=鉴藏同语义,不压字)── */
+.hface .j-seal {
+  position: absolute;
+  top: calc(0.55 * var(--u));
+  left: calc(0.55 * var(--u));
+  width: 2.1em;
+  height: 2.1em;
+  z-index: 3;
+  display: grid;
+  place-items: center;
+  background: var(--color-danger);
+  color: #f6ecd9; /* 印文纸色:原型定稿色(豁免登记见文件头) */
+  border-radius: 0.28em;
+  font-family: var(--font-brush);
+  font-size: 1.4em;
+  line-height: 1;
+  transform: rotate(4deg);
+  box-shadow:
+    0 0.15em 0.3em rgba(43, 35, 23, 0.35),
+    inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+}
+
+/* ── 右上称号竖排小字(实数据;纸签形制,墨字;与名带并排纵列,横向恒脱开)── */
+.hface .m-title {
+  position: absolute;
+  top: calc(0.55 * var(--u));
+  right: calc(4.4 * var(--u)); /* 名带左邻:0.55u 边距 + 名带宽约 3.5u + 净距(逐档覆写) */
+  z-index: 3;
+  writing-mode: vertical-rl;
+  font-family: var(--font-wenkai);
+  font-size: 0.95em;
+  letter-spacing: 0.22em;
+  line-height: 1;
+  color: var(--color-ink);
+  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
+  border: 1px solid rgba(43, 35, 23, 0.4);
+  border-radius: 0.2em;
+  box-shadow: 0 0.2em 0.4em rgba(43, 35, 23, 0.22);
+  padding: 0.6em 0.28em;
+}
+
+/* ── 右侧竖排名将名(毛笔大字;漆金带底=入口/架首章同语系,金归边不染字)── */
+.hface .m-name {
+  position: absolute;
+  right: calc(0.55 * var(--u));
+  bottom: calc(1.6 * var(--u)); /* 0.9u 技能区上叠 + 0.7u 净距(几何恒定) */
+  z-index: 3;
+  writing-mode: vertical-rl;
+  font-family: var(--font-brush);
+  font-size: 2.3em;
+  line-height: 1;
+  letter-spacing: 0.1em;
+  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
+  background: linear-gradient(180deg, rgba(54, 44, 30, 0.94), rgba(36, 29, 19, 0.88));
+  border: 1px solid rgba(217, 185, 92, 0.55);
+  border-radius: 0.22em;
+  box-shadow: 0 0.2em 0.5em rgba(0, 0, 0, 0.4);
+  padding: 0.4em 0.22em;
+}
+
+/* ── 底部技能区:半透明纸底横条(上叠立绘 0.9em,纱缘过渡)── */
+.hface .skz {
+  position: relative;
+  z-index: 2;
+  margin: -0.9em 0.5em 0.5em;
+  background: linear-gradient(180deg, rgba(250, 243, 223, 0.96), rgba(238, 224, 188, 0.96));
+  border: 1px solid rgba(43, 35, 23, 0.4);
+  border-radius: 0.45em;
+  padding: 0.45em 0.55em;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  box-shadow: 0 0.25em 0.6em rgba(43, 35, 23, 0.35);
+}
+.hface .skz .sk {
+  font-size: 0.88em;
+  line-height: 1.45;
+  color: var(--color-ink);
+}
+.hface .skz .sk + .sk {
+  border-top: 1px dashed rgba(43, 35, 23, 0.35);
+  padding-top: 0.32em;
+}
+.hface .skz .shead {
+  display: flex;
+  align-items: center;
+  gap: 0.42em;
+}
+/* 印符:●被动(朱砂圆)/ ◆主动(金菱),形符纯 CSS 不依赖字族 */
+.hface .skz .fu {
+  flex: none;
+  width: 0.62em;
+  height: 0.62em;
+}
+.hface .skz .fu.fu-dot {
+  border-radius: 50%;
+  background: var(--color-attr-hero);
+}
+.hface .skz .fu.fu-dia {
+  background: var(--color-gold-deep);
+  transform: rotate(45deg);
+}
+/* 技名牌:墨底纸字(实数据技名,T1 起被动与主动同形制) */
+.hface .skz .sming {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-brush);
+  font-size: 1.06em;
+  line-height: 1.3;
+  border-radius: 0.25em;
+  padding: 0.04em 0.5em;
+  background: var(--color-ink);
+  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
+  white-space: nowrap;
+}
+.hface .skz .cd {
+  font-size: 0.82em;
+  color: var(--color-ink-dim);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.hface .skz .sdesc {
+  margin-top: 0.12em;
+  color: var(--color-ink);
+}
+
+/* ── 紧凑档装配:同骨架换装配——技能区从「技名牌+全文」换成「技名 chips 行 +
+   desc 两行截断」;立绘/名带/称号签/将章/技能区五件套全共用 ── */
+.hface.compact .m-name {
+  font-size: 1.9em;
+}
+.hface.compact .m-title {
+  font-size: 0.85em;
+  letter-spacing: 0.14em;
+  right: calc(3.8 * var(--u));
+}
+.hface.compact .skz {
+  margin: -0.9em 0.45em 0.45em;
+  padding: 0.4em 0.5em;
+  gap: 0.3em;
+}
+.hface.compact .bd-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.7em;
+}
+.hface.compact .bd {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.38em;
+  font-size: 0.92em;
+  line-height: 1.5;
+  border: 1px solid rgba(43, 35, 23, 0.4);
+  background: var(--color-paper-hi);
+  border-radius: 0.25em;
+  padding: 0.06em 0.45em;
+  white-space: nowrap;
+  color: var(--color-ink);
+}
+.hface.compact .bd .fu {
+  width: 0.62em;
+  height: 0.62em;
+}
+.hface.compact .bd .fu.fu-dot {
+  border-radius: 50%;
+  background: var(--color-attr-hero);
+}
+.hface.compact .bd .fu.fu-dia {
+  background: var(--color-gold-deep);
+  transform: rotate(45deg);
+}
+.hface.compact .sdesc {
+  margin-top: 0;
+  font-size: 0.92em;
+  line-height: 1.5;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* ── 招贤档(pick)差量:称号签右位随 7.6px 基收窄 ── */
+.hface.pick .m-title {
+  right: calc(3.9 * var(--u));
+}
+
+/* ── 微旋(reduced-motion 退场,.jinnang-card 同款兜层)── */
+@media (prefers-reduced-motion: reduce) {
+  .hface {
+    rotate: 0deg;
+  }
+}

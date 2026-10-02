@@ -8,10 +8,10 @@
 // (test/jinnang.test.ts、test/reaction-window.test.ts、test/hero-skill.test.ts),
 // 本 spec 只留交互接线,断言全走可见 UI 态(选中/禁用/印条/窗收/牌离架)。
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
-// 多标签牌(缓兵之计)双章、令笺(主动技)牌面、作罢路径、出牌墨线端点对准。
+// 多标签牌(缓兵之计)双章、名将技卡(主动技,#360 起 HeroCardFace 紧凑档)、作罢路径、出牌墨线端点对准。
 // 种子 7 离线核算(真实引擎流程离线核算:含 doDraftRoll 骰流):人类先手、起手火烧连营
 // (开局军师窗=稳定停靠点)。不走 pickCapital 共享助手(其收尾会自动「不出」),本 spec
-// 自行点城+确认以保留窗态。灰置/令笺局面走 force 引擎直写(#237 无天然种子同时凑齐)。
+// 自行点城+确认以保留窗态。灰置/技卡局面走 force 引擎直写(#237 无天然种子同时凑齐)。
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
 // 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 import { test, expect } from "./fixtures";
@@ -175,10 +175,10 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await expect(opt).toBeVisible(); // 牌回卡牌段(作罢语义的 UI 面)
   });
 
-  test("灰置牌印条/多标签双章/令笺:双标签占额灰置、令笺选中→出牌发技转灰置", async ({ page }) => {
+  test("灰置牌印条/多标签双章/技卡:双标签占额灰置、技卡选中→出牌发技转灰置", async ({ page }) => {
     await startJunshi(page, 7);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
-    // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 令笺可用可发;
+    // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 技卡可用可发;
     // 求贤令(援,标签未占)= 可用对照组。
     await force(
       page,
@@ -200,17 +200,19 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await expect(huan.locator(".reason")).toHaveText("本回合已用过〔谋〕〔攻〕");
     // 可用牌照常
     await expect(page.getByTestId(TESTIDS.jinnangCard("求贤令"))).toBeEnabled();
-    // 令笺:技名/属主上牌面;点选=选中(.sel 挂牌面根),出牌点亮→发技(useHeroSkill)
+    // 名将技卡(#360 换 HeroCardFace 紧凑档):技名 chips(◆擂鼓+●掷金=被动技名,T1
+    // 数据)/名将名上卡面;点选=选中(.sel 挂卡面根),出牌点亮→发技(useHeroSkill)
     const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai-leigu"));
     await expect(ji).toBeVisible();
-    await expect(ji.locator(".jn-lingjian")).toContainText("擂鼓");
-    await expect(ji.locator(".jn-lingjian")).toContainText("张星彩");
+    await expect(ji.locator(".hface")).toContainText("擂鼓");
+    await expect(ji.locator(".hface")).toContainText("掷金"); // 被动技名(TriggerSkill.name)
+    await expect(ji.locator(".hface")).toContainText("张星彩");
     await ji.click();
-    await expect(ji.locator(".jn-lingjian")).toHaveClass(/sel/);
+    await expect(ji.locator(".hface")).toHaveClass(/sel/);
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 发技 → 令笺转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,UI 只读
+    // 发技 → 技卡转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,UI 只读
     // choices 展示;求贤令仍可用 → 相位留在军师窗态,settleJinnangExit 口径)
-    await expect(ji.locator(".jn-lingjian")).toHaveClass(/off/);
+    await expect(ji.locator(".hface")).toHaveClass(/off/);
     await expect(ji.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
   });
 });
