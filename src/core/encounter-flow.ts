@@ -22,6 +22,7 @@ import { findHolding } from "./player";
 import { HEROES } from "./heroes";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnang } from "./jinnang-execution";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 
@@ -126,14 +127,16 @@ export function maybeApplyEncounter(
     );
     return "none";
   }
-  const tier = pickTier(
-    g.dice.nextFloat(),
-    tierShares(mover.reputation, g.encounter.shares),
-  );
+  const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation, g.encounter.shares));
   const def = pickWeighted(
     ENCOUNTERS.filter((c) => c.tier === tier),
     g.dice.nextFloat(),
   );
+  emitGameEvent(g, g.players.indexOf(mover), {
+    kind: "encounterTriggered",
+    encounterId: def.id,
+    tier: def.tier,
+  }); // 事件流(#375):机遇触发(已抽中具体机遇)
   if (def.choices) return g.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
   return g.settleEncounter(mover, atTile, def);
 }
@@ -312,6 +315,7 @@ function applyCashEffect(
   if (effect.delta > 0) {
     mover.cash += effect.delta;
     g.pushFloater(mover, effect.delta, atTile, "income");
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
     g.logEvent(
       "system",
@@ -326,6 +330,7 @@ function applyCashEffect(
   if (r === "liquidating") return "liquidating";
   const bankrupt = r === "bankrupt";
   g.pushFloater(mover, effect.delta, atTile, "expense");
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
   g.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
   g.logEvent(
     "system",
@@ -387,6 +392,11 @@ function applyGrantHeroEffect(
   if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: effect.fallbackCash,
+      reason: "encounter",
+    }); // 事件流(#375):折现
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
@@ -445,14 +455,17 @@ function applyGrantCityEffect(
   const seat = g.players.indexOf(mover);
   // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
   const unownedCities = g.board.tiles
-    .filter(
-      (t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null,
-    )
+    .filter((t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null)
     .map((t) => ({ tileName: t.name, def: g.catalog.get(t.propertyId) }))
     .filter((c): c is { tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: effect.fallbackCash,
+      reason: "encounter",
+    }); // 事件流(#375):折现
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(无城可赐折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
@@ -499,10 +512,22 @@ function applySiphonEffect(
   mover.cash += take;
   g.pushFloater(mover, take, atTile, "income");
   if (take > 0) {
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: -take,
+      reason: "encounter",
+      counterpartSeat: seat,
+    }); // 事件流(#375):金钱变更(被吸取方)
     g.dispatchMoment("CashLost", {
       subject: g.players.indexOf(target),
       amount: take,
     }); // 时机·CashLost:被动失银(被吸取方,#299 派发缺口补齐)
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: take,
+      reason: "encounter",
+      counterpartSeat: g.players.indexOf(target),
+    }); // 事件流(#375):金钱变更(吸取方)
     g.dispatchMoment("CashGained", { subject: seat, amount: take }); // 时机·CashGained:被动得银(吸取方,#299 派发缺口补齐)
   }
   g.logEvent(
@@ -532,12 +557,24 @@ function applyLevyEffect(
   const paid = bankrupt ? 0 : effect.amount;
   if (target && paid > 0) {
     target.cash += paid;
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: paid,
+      reason: "encounter",
+      counterpartSeat: seat,
+    }); // 事件流(#375):金钱变更(得款对手)
     g.dispatchMoment("CashGained", {
       subject: g.players.indexOf(target),
       amount: paid,
     }); // 时机·CashGained:被动得银(得款对手,#299 派发缺口补齐)
   }
   g.pushFloater(mover, -paid, atTile, "expense");
+  emitGameEvent(g, seat, {
+    kind: "cashChanged",
+    delta: -paid,
+    reason: "encounter",
+    counterpartSeat: target ? g.players.indexOf(target) : undefined,
+  }); // 事件流(#375):金钱变更(征粮方)
   g.dispatchMoment("CashLost", { subject: seat, amount: paid });
   g.logEvent(
     "system",
@@ -563,9 +600,15 @@ function applyTradeEffect(
   const target = randomOpponentOf(g, mover);
   mover.cash += effect.amount;
   g.pushFloater(mover, effect.amount, atTile, "income");
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.amount, reason: "encounter" }); // 事件流(#375):金钱变更(互市己方)
   g.dispatchMoment("CashGained", { subject: seat, amount: effect.amount }); // 时机·CashGained:被动得银(互市己方,#299 派发缺口补齐)
   if (target) {
     target.cash += effect.amount;
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: effect.amount,
+      reason: "encounter",
+    }); // 事件流(#375):金钱变更(互市对手)
     g.dispatchMoment("CashGained", {
       subject: g.players.indexOf(target),
       amount: effect.amount,

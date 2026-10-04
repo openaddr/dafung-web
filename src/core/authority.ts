@@ -40,7 +40,9 @@ import {
   resolveHeroSkill,
   resolveJinnang,
   settleJinnangExit,
-  type JinnangPeek, type PendingJinnang, type PendingHeroSkill,
+  type JinnangPeek,
+  type PendingJinnang,
+  type PendingHeroSkill,
 } from "./jinnang-execution";
 // 机遇主流程+体力耗竭域(#320,ADR-0019):机遇触发抽取/抉择机遇入相与选项结算/效果
 // 结算/体力接线与耗竭善后在 encounter-flow.ts,壳内同名方法薄委托;与数据表 encounters.ts
@@ -68,11 +70,7 @@ import {
 // 珍宝+随机事件+城主交涉域(#322,ADR-0019):宝物城/辅路格结算、抽宝拼点、随机事件、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
 // treasures.ts 分层(流程≠数据)。
-import {
-  resolveBranchCell,
-  resolveTreasureCity,
-  resolveTreasureOwner,
-} from "./treasure-flow";
+import { resolveBranchCell, resolveTreasureCity, resolveTreasureOwner } from "./treasure-flow";
 // 移动结算域(#323,ADR-0019):行军三件/辅路抉择/地产决策/落格结算/都城补给在
 // movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
 // marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
@@ -102,6 +100,7 @@ import {
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick } from "./recruitment";
+import { beginGameEventBatch, noteMomentEvent, type GameEvent } from "./game-events";
 import { formatMoney } from "./money";
 import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
@@ -381,7 +380,6 @@ export class GameEngine {
   // #323 去私有化(ADR-0019 条款 3 内部状态透明):movement-flow 域 rollAndMove/buyProperty
   // /upgradeProperty 直写;外部消费仍只走 presentation 视图。
   lastRoll: DiceRoll | null = null;
-  // #107 C2「字段本身不再 public」经 ADR-0019 条款 3 取代(2026-09-29,owner 授权):
   // 域模块(reaction-window.ts 等)经 g.lastMove 直写;外部消费仍只走 presentation 视图。
   lastMove: MovePath | null = null;
   // 纯表现态(spec #107 C2 退役:不再兼任决策载荷):供快照扁平字段(lastLandOutcomeKind/
@@ -415,6 +413,7 @@ export class GameEngine {
   /** 出牌指示线留痕(#281,类型注释见 JinnangPlayTrace):生效点写入,提取器一次性取走;
    *  瞬态不序列化(同 floaters,restore 即清)。 */
   jinnangPlays: JinnangPlayTrace[] = [];
+  gameEvents: GameEvent[] = []; // 事件流当前批(#375,ADR-0020):批界=编排入口开批,词汇表见 game-events.ts
 
   /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
    *  drainFloaters / drainPropertyChanges 是破坏性读——取走全部并清空,消费方
@@ -911,6 +910,7 @@ export class GameEngine {
   // network-client.ts(联机)都调用这一个方法。联机时服务器的消息处理器只需:
   //   socket.on("command", cmd => engine.submitCommand(cmd))
   submitCommand(cmd: GameCommand): void {
+    beginGameEventBatch(this); // 事件流(#375):命令=一次转移,入口开新批(弃上一命令的批)
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
     // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
@@ -1009,6 +1009,7 @@ export class GameEngine {
     this.momentDepth += 1;
     if (this.momentDepth > 2)
       throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
+    noteMomentEvent(this, moment, ctx); // 事件流产出(#375 口 1):时机=转移宣告,映射表见 game-events.ts
     try {
       for (let ownerSeat = 0; ownerSeat < this.players.length; ownerSeat++) {
         const owner = this.players[ownerSeat];
@@ -1287,7 +1288,6 @@ export class GameEngine {
       text,
     });
   }
-  // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
 
   /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
    *  写入一段外部推导的行军轨迹供动画层读取;null 清除。

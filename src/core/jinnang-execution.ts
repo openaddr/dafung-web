@@ -17,6 +17,7 @@ import {
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 // ── 锦囊/军师幕引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -123,9 +124,7 @@ export function resolveJinnang(
       return;
     }
     const [target] = targets;
-    if (
-      !computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
-    ) {
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
       g.warn(`目标不可用:座位 ${target}`);
       return;
     }
@@ -205,7 +204,8 @@ function settleJinnangPlay(
     def.targetDomain === "self"
       ? [userSeat]
       : def.targetDomain === "all-others"
-        ? g.alivePlayers()
+        ? g
+            .alivePlayers()
             .map((p) => g.players.indexOf(p))
             .filter((seat) => seat !== userSeat)
         : [...targets];
@@ -216,7 +216,8 @@ function settleJinnangPlay(
     cardId: def.id,
     targetSeats: shareSeats,
   }); // 时机·JinnangAnnounced:锦囊宣布、结算前(识破诡计反应窗挂点)
-  const queried = g.alivePlayers()
+  const queried = g
+    .alivePlayers()
     .map((p) => g.players.indexOf(p))
     .filter(
       (seat) =>
@@ -282,9 +283,7 @@ export function resolveHeroSkill(
       return;
     }
     const [target] = targets;
-    if (
-      !computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
-    ) {
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
       g.warn(`目标不可用:座位 ${target}`);
       return;
     }
@@ -331,7 +330,12 @@ function cancelPendingSkill(g: GameEngine): void {
 
 /** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(浮字+战报,
  *  与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
-function fireHeroSkill(g: GameEngine, userSeat: number, skill: ActiveSkillDef, targets: number[]): void {
+function fireHeroSkill(
+  g: GameEngine,
+  userSeat: number,
+  skill: ActiveSkillDef,
+  targets: number[],
+): void {
   const user = g.players[userSeat];
   user.heroLastFired[skill.id] = g.round;
   g.pushFloaterText(user, `${user.guohao} 施展【${skill.name}】`, user.position);
@@ -462,6 +466,12 @@ export function executeJinnang(
         gained += pay;
         payers++;
         g.pushFloater(t, -pay, t.position, "expense");
+        emitGameEvent(g, seat, {
+          kind: "cashChanged",
+          delta: -pay,
+          reason: "levyAll",
+          counterpartSeat: userSeat,
+        }); // 事件流(#375):金钱变更(被征方)
         g.dispatchMoment("CashLost", { subject: seat, amount: pay });
         g.logEvent(
           "system",
@@ -474,6 +484,7 @@ export function executeJinnang(
       user.cash += gained;
       if (gained > 0) {
         g.pushFloater(user, gained, user.position, "income");
+        emitGameEvent(g, userSeat, { kind: "cashChanged", delta: gained, reason: "levyAll" }); // 事件流(#375):金钱变更(征银方)
         g.dispatchMoment("CashGained", { subject: userSeat, amount: gained });
       }
       g.logEvent(
@@ -551,6 +562,7 @@ export function executeJinnang(
       const loser = g.players[loserSeat];
       winner.cash += winnerBankGain; // 国库出
       g.pushFloater(winner, winnerBankGain, winner.position, "income");
+      emitGameEvent(g, winnerSeat, { kind: "cashChanged", delta: winnerBankGain, reason: "duel" }); // 事件流(#375):金钱变更(胜者国库款)
       g.dispatchMoment("CashGained", {
         subject: winnerSeat,
         amount: winnerBankGain,
@@ -567,7 +579,19 @@ export function executeJinnang(
         loser.cash -= pay;
         user.cash += pay;
         g.pushFloater(loser, -pay, loser.position, "expense");
+        emitGameEvent(g, loserSeat, {
+          kind: "cashChanged",
+          delta: -pay,
+          reason: "duel",
+          counterpartSeat: userSeat,
+        }); // 事件流(#375):金钱变更(败者赔付)
         g.dispatchMoment("CashLost", { subject: loserSeat, amount: pay });
+        emitGameEvent(g, userSeat, {
+          kind: "cashChanged",
+          delta: pay,
+          reason: "duel",
+          counterpartSeat: loserSeat,
+        }); // 事件流(#375):金钱变更(使用者收款)
         g.dispatchMoment("CashGained", { subject: userSeat, amount: pay });
       }
       g.logEvent(
@@ -678,6 +702,7 @@ function grantHeroToPlayer(
   if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     p.cash += fallbackCash;
     g.pushFloater(p, fallbackCash, p.position, "income");
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: fallbackCash, reason: "fallback" }); // 事件流(#375):招贤折现
     g.dispatchMoment("CashGained", { subject: seat, amount: fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",

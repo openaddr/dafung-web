@@ -5,6 +5,7 @@
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
 import { jinnangCardOf } from "./jinnang";
+import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
 
 // ── 反应窗类型(#281,ADR-0017;#326 types.ts 解散,ADR-0019 类型随域走)────────
@@ -174,6 +175,12 @@ export function openReactionWindow(
     brief,
     `reactionWindow kind=${view.kind} card=${view.cardId} user=${user.id} queried=${queriedTxt}`,
   );
+  emitGameEvent(g, view.userSeat, {
+    kind: "reactionOpened",
+    windowKind: view.kind,
+    cardId: view.cardId,
+    queriedSeats: reactionQueriedOf(view),
+  }); // 事件流(#375):反应窗开启(queriedSeats god-view 明传,ADR-0020)
   autoAnswerBots(g, pr);
   if (reactionAllAnswered(pr)) {
     g.pendingReaction = null; // bot 全代答:同调用内续结算,相位不外显
@@ -215,6 +222,7 @@ function autoAnswerBots(g: GameEngine, pr: PendingReaction): void {
 function appendReactionAnswer(g: GameEngine, pr: PendingReaction, a: ReactionAnswer): void {
   pr.answers.push(a);
   const p = g.players[a.seat];
+  emitGameEvent(g, a.seat, { kind: "reactionAnswered", use: a.use, cardId: a.cardId }); // 事件流(#375):反应窗应答(bot 即席代答同走)
   g.logEvent(
     "system",
     p.guohao,
@@ -234,8 +242,7 @@ export function respondReaction(
 ): void {
   if (!g.assertPhase("AwaitingReaction", "respondReaction")) return;
   const pr = g.pendingReaction;
-  if (pr == null)
-    throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
+  if (pr == null) throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
   const queried = reactionQueriedOf(pr.view);
   if (!queried.includes(seat)) {
     g.warn(`respondReaction:座位 ${seat} 非本窗被询问者`);
@@ -320,6 +327,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `reactionCounter card=${def.id} by=${responder.id} voided=all`,
       );
       traceJinnangPlay(g, first.seat, [payload.userSeat], first.cardId!);
+      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(连环计全计作废)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
       return;
@@ -331,8 +339,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
       const consumed = new Set<ReactionAnswer>();
       for (const play of plays) {
         const share = play.shareSeat;
-        if (share == null)
-          throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
+        if (share == null) throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
         if (negated.has(share)) continue; // 该份已被座位序更小的识破保下:此张退回
         consumeReactionCard(g, play.seat, play.cardId!);
         negated.add(share);
@@ -351,6 +358,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
           `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
         );
         traceJinnangPlay(g, play.seat, [share], play.cardId!);
+        emitGameEvent(g, play.seat, { kind: "jinnangVoided", cardId: def.id, shareSeat: share }); // 事件流(#375):识破生效(该份失效)
       }
       returnSupersededCounters(
         g,
@@ -377,6 +385,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `reactionCounter card=${def.id} by=${responder.id} share=${g.players[share].id}`,
       );
       traceJinnangPlay(g, first.seat, [share], first.cardId!);
+      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(此计落空)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
       return;
@@ -457,7 +466,10 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
 
 /** 拦停落格:行人止步拦检城、照常落格结算(机遇/城池;可能被交涉)。lastMove 截断到
  *  拦检城(行军动画只走此);不弹辅路入口抉择(非自愿止步,不经岔路抉择)。 */
-function settleAmbushStop(g: GameEngine, payload: Extract<ReactionPayload, { kind: "march" }>): void {
+function settleAmbushStop(
+  g: GameEngine,
+  payload: Extract<ReactionPayload, { kind: "march" }>,
+): void {
   const mover = g.players[payload.moverSeat];
   g.lastMove = g.board.computePath(
     payload.fromPos,
@@ -467,6 +479,10 @@ function settleAmbushStop(g: GameEngine, payload: Extract<ReactionPayload, { kin
   );
   mover.onBranch = null;
   mover.position = payload.tileIndex;
+  emitGameEvent(g, payload.moverSeat, {
+    kind: "marchArrived",
+    tileIndex: payload.tileIndex,
+  }); // 事件流(#375):行军落格(拦停止步)
   if (payload.wasOnBranch)
     g.dispatchMoment("BranchExited", {
       subject: payload.moverSeat,

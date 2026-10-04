@@ -22,6 +22,7 @@ import type { HeroDef } from "./heroes";
 import type { LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
+import type { GameEvent } from "./game-events";
 import { HEROES } from "./heroes";
 import { netWorth } from "./networth";
 
@@ -178,6 +179,10 @@ export interface GameSnapshot {
   jinnangDiscard: string[];
   // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
   log: LogEvent[];
+  // 事件流(#375,ADR-0020):当前转移批的类型化事件(批界=编排入口开批,见
+  // game-events.ts beginGameEventBatch)。快照非破坏性透出当前批(同一转移的多次
+  // 快照幂等),随状态恢复回灌;全桌公开转移记录,redact 不裁(ADR-0016 投影透传)。
+  events: GameEvent[];
 }
 
 /** 反应窗挂起态深拷贝(序列化/恢复共用;纯数据,无引用共享)。 */
@@ -820,6 +825,16 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.log,
     write: (e, s) => {
       e.log = [...s.log];
+    },
+  },
+  {
+    // 事件流(#375,ADR-0020):当前转移批随状态走——read 非破坏性透出当前批
+    // (数组浅拷贝,事件记录本身不可变),write 回灌(同一转移的多次快照/恢复端
+    // 看到同一批;旧批由下一转移的编排入口开批弃掉)。词汇表/产出两口见 game-events.ts。
+    key: "events",
+    read: (e) => [...e.gameEvents],
+    write: (e, s) => {
+      e.gameEvents = [...s.events];
     },
   },
 ];

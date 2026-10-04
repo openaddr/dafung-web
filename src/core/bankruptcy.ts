@@ -14,6 +14,7 @@ import type { GameEngine } from "./authority";
 import { settleDebt, sellValueOf } from "./economy";
 import { guidePriceOf } from "./treasures";
 import { formatMoney } from "./money";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
@@ -45,6 +46,13 @@ export function deliverEscrow(g: GameEngine): void {
     amount: e.price,
   }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
   if (e.price > 0) g.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
+  emitGameEvent(g, e.sellerIdx, {
+    kind: "treasureTraded",
+    buyerSeat: e.buyerIdx,
+    sellerSeat: e.sellerIdx,
+    treasureId: e.treasure.id,
+    price: e.price,
+  }); // 事件流(#375):珍宝交割(交易的最终事实;买卖双方银两动账已含 price)
 }
 
 /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。 */
@@ -181,6 +189,11 @@ export function sellTreasureBankruptcy(g: GameEngine, treasureId: string): void 
     treasureId: t.id,
     amount: gain,
   }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "treasure", id: t.id },
+    amount: gain,
+  }); // 事件流(#375):破产变卖(三变卖之一)
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖珍宝成功(三变卖命令之一)
 }
 
@@ -218,6 +231,11 @@ export function sellPropertyBankruptcy(g: GameEngine, propId: string): void {
     gain,
   );
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "property", id: propId },
+    amount: gain,
+  }); // 事件流(#375):破产变卖(三变卖之一)
 }
 
 export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
@@ -241,6 +259,11 @@ export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
     200,
   );
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名将成功(三变卖命令之一)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "hero", id: heroId },
+    amount: 200,
+  }); // 事件流(#375):破产变卖(三变卖之一)
 }
 
 export function confirmBankruptcySettle(g: GameEngine): void {
