@@ -5,14 +5,16 @@
 // 同一函数——diff 启发式与 lastJinnangPlay.seq 旁路随本模块落地退役。
 //
 // 坐标口径与旧提取器一致:提取期按当时引擎态解析棋盘逻辑坐标(浮字锚定依赖提取时刻的
-// 玩家位置,事后无法从事件单独还原)。行军路径:引擎 lastMove 是权威路径单槽,marchArrived
-// 事件按 landIndex 对号取用;反应窗续走的余段用转移前位置(prePositions)截短——与单机
-// remainingMarchPath 同一公式。合并批(联机单 tick 多转移)里非末次行军无路径可播,棋子
-// 由快照状态直接落位(映射缺口,已回报主线,不做 diff 重建旁路)。
+// 玩家位置,事后无法从事件单独还原)。行军路径(#385):marchArrived/capitalHalt 事件
+// 自带 MovePath 摘要,marchEvent 按事件内路径播——合并批(联机单 tick 多转移)多段
+// 行军各播各段,不再依赖引擎 lastMove 单槽;反应窗续走的余段用转移前位置(prePositions)
+// 截短——与单机 remainingMarchPath 同一公式;对不上的路径不播动画、不做 diff 重建。
 import type { GameEngine } from "@core/authority";
 import type { GameEvent } from "@core/game-events";
+import type { MovePath } from "@core/board";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
+import { ENCOUNTERS } from "@core/encounters";
 import { HEROES } from "@core/heroes";
 import { remainingMarchPath } from "./orchestrator";
 import type { FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
@@ -111,6 +113,31 @@ function textFloater(engine: GameEngine, seat: number, text: string): Presentati
   };
 }
 
+/** 浮字事件(文案类,锚指定格——拦检失败等锚事发现场的文案,不锚玩家自身)。 */
+function textFloaterAtTile(engine: GameEngine, seat: number, text: string, tileIndex: number) {
+  const pos = engine.board.positionOf(tileIndex);
+  return {
+    kind: "textFloat" as const,
+    playerId: engine.players[seat].id,
+    text,
+    x: pos.x,
+    y: pos.y,
+    atTile: tileIndex,
+  };
+}
+
+/** propertyId → 城名(数据 bug 当场炸出,零兜底)。 */
+function tileNameOfProperty(engine: GameEngine, propertyId: string): string {
+  return engine.board.at(tileOfProperty(engine, propertyId)).name;
+}
+
+/** 机遇目录条目按 id 查(id 缺目录 = 数据 bug,炸出)。 */
+function encounterDefOf(encounterId: string) {
+  const def = ENCOUNTERS.find((c) => c.id === encounterId);
+  if (def == null) throw new Error(`事件消费:机遇 ${encounterId} 不在目录(数据 bug)`);
+  return def;
+}
+
 /** 金钱浮字(供应=铜钱雨,余=金额浮字)。 */
 function cashFloater(
   engine: GameEngine,
@@ -125,45 +152,54 @@ function cashFloater(
 }
 
 // ─────────────────────── 行军路径解析 ───────────────────────
-/** marchArrived → tokenMoved(路径取自引擎 lastMove 单槽):
- *  - lastMove.landIndex 与事件落点对号才播(对不上=合并批里非末次行军/路径已不在,
- *    不播动画——棋子由快照终态落位;映射缺口已回报,不做位置 diff 重建);
+/** marchArrived/capitalHalt → tokenMoved(路径取自事件自带 MovePath,#385 不再依赖
+ *  引擎 lastMove 单槽——合并批多段行军各播各段):
+ *  - 辅路落位(landBranchStep 判别):主路锚点占位不变,整段辅路坐标序列照播;
+ *  - 主路落点与事件落点对不上:不播动画(棋子由快照终态落位,不做位置 diff 重建);
  *  - 转移前位置(prePosition)在路径中段=反应窗挂起后续走:截短为余段(不拽回起点
  *    重走,与单机 remainingMarchPath 同公式);pre=路径起点=整段照走;
  *  - pre 不在路径上:无法安全播(陈旧路径),不播。 */
 function marchEvent(
   engine: GameEngine,
   seat: number,
-  tileIndex: number,
+  ev: { tileIndex: number; path: MovePath },
   prePosition: number | null,
 ): PresentationEvent | null {
   const player = engine.players[seat];
-  const lastMove = engine.presentation.lastMove;
-  if (lastMove == null || lastMove.landIndex !== tileIndex) return null;
+  const path = ev.path;
+  if (path.landBranchStep != null) {
+    // 辅路落位:position(主路占位)不随行军改变,无截短语义,整段播
+    return { kind: "tokenMoved", playerId: player.id, path };
+  }
+  if (path.landIndex !== ev.tileIndex) return null; // 对不上:不播动画,不重建 diff
   if (prePosition == null || prePosition === player.position) return null;
-  const onPath = lastMove.from === prePosition || lastMove.traversed.includes(prePosition);
+  const onPath = path.from === prePosition || path.traversed.includes(prePosition);
   if (!onPath) return null;
-  const path = remainingMarchPath(lastMove, prePosition, tileIndex);
-  if (path == null) return null; // 挂起点即落点:无余段可播
-  return { kind: "tokenMoved", playerId: player.id, path };
+  const remainder = remainingMarchPath(path, prePosition, ev.tileIndex);
+  if (remainder == null) return null; // 挂起点即落点:无余段可播
+  return { kind: "tokenMoved", playerId: player.id, path: remainder };
 }
 
 /** 行军落位表现(主路落格 marchArrived / 驻跸 capitalHalt 共用):行军动画 +
  *  驻跸印章与文案。驻跸两态(途经必停 / 恰落己都城)按规则都结算驻跸补给,凡
  *  落点=己都城即盖「驻」章出文案(恰落态无 capitalHalt 事件,由落点字段直读);
+ *  辅路落位(landBranchStep 判别)只有行军动画,不参与驻跸/落格章;
  *  补给铜钱雨由随后的 cashChanged(reason="supply") 事件自产,压轴。 */
 function arrivalPresentation(
   engine: GameEngine,
   seat: number,
-  tileIndex: number,
+  ev: { tileIndex: number; path: MovePath },
   prePosition: number | null,
   halted: boolean,
 ): PresentationEvent[] {
   const out: PresentationEvent[] = [];
-  const march = marchEvent(engine, seat, tileIndex, prePosition);
+  const march = marchEvent(engine, seat, ev, prePosition);
   if (march) out.push(march);
-  if (halted || tileIndex === engine.players[seat].capitalIndex) {
-    out.push({ kind: "sealStamped", tileIndex, char: "驻" });
+  if (
+    ev.path.landBranchStep == null &&
+    (halted || ev.tileIndex === engine.players[seat].capitalIndex)
+  ) {
+    out.push({ kind: "sealStamped", tileIndex: ev.tileIndex, char: "驻" });
     out.push(textFloater(engine, seat, "驻跸补给"));
   }
   return out;
@@ -177,6 +213,27 @@ function voidLineTarget(ev: Extract<GameEvent, { kind: "jinnangVoided" }>): numb
   const domain = jinnangCardOf(ev.cardId).targetDomain;
   if (domain === "one") return lastAnnounce.targetSeats[0] ?? null;
   return lastAnnounce.seat; // two-others(全计作废)与 self(落空)都指使用者
+}
+
+/** 耗竭跳过文案(#385 缺口 6):批内前置 exhaustionChoice(同座)= 处置明细已定,
+ *  文案升级为带处置明细的完整版(城名按棋盘查得);孤立 staminaChanged(无可处置
+ *  自动路径)维持缺省口径——浮字恒一条,不与处置明细重复弹。 */
+function exhaustionTextOf(
+  engine: GameEngine,
+  events: readonly GameEvent[],
+  i: number,
+  seat: number,
+): string {
+  for (let j = i - 1; j >= 0; j--) {
+    const prev = events[j];
+    if (prev.kind === "exhaustionChoice" && prev.seat === seat) {
+      const name = tileNameOfProperty(engine, prev.propertyId);
+      const note =
+        prev.exhaustionKind === "downgrade" ? `「${name}」降 1 级` : `「${name}」失去城池`;
+      return `体力耗竭:${note},倒地不起(跳过一回合)`;
+    }
+  }
+  return "体力耗竭,跳过一回合";
 }
 
 // ─────────────────────── 主提取 ───────────────────────
@@ -211,14 +268,14 @@ export function extractBatchEvents(
       }
       case "marchArrived": {
         const seat = seatOf(engine, ev);
-        events_.push(...arrivalPresentation(engine, seat, ev.tileIndex, pre(seat), false));
+        events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), false));
         break;
       }
       case "capitalHalt": {
-        // 驻跸必停:引擎此态不发 marchArrived,行军动画由本事件的落点字段直读
-        // (lastMove 已被截断到都城,landIndex 对号即播);随后补给铜钱雨压轴。
+        // 驻跸必停:引擎此态不发 marchArrived,行军动画由本事件的落点+路径字段直读
+        // (#385:截断到都城的路径随事件走);随后补给铜钱雨压轴。
         const seat = seatOf(engine, ev);
-        events_.push(...arrivalPresentation(engine, seat, ev.tileIndex, pre(seat), true));
+        events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), true));
         break;
       }
       case "capitalSelected": {
@@ -253,6 +310,21 @@ export function extractBatchEvents(
         );
         break;
       }
+      case "propertyRejected": {
+        // 购地被拒/按兵不动(#385):ADR-0013 默认行为自动执行的文案浮字,按 reason 派生
+        events_.push(
+          textFloater(
+            engine,
+            seatOf(engine, ev),
+            ev.reason === "no-warrant"
+              ? "无委任状,不可购"
+              : ev.reason === "insufficient-cash"
+                ? "银两不足,未能购城"
+                : "城已满级,按兵不动",
+          ),
+        );
+        break;
+      }
       case "cashChanged": {
         events_.push(cashFloater(engine, seatOf(engine, ev), ev.delta, ev.reason === "supply"));
         break;
@@ -267,6 +339,18 @@ export function extractBatchEvents(
         events_.push(cashFloater(engine, ev.sellerSeat, ev.price, false));
         break;
       }
+      case "treasureStolen": {
+        // 窃宝宣告(#385,窃玉偷香):文案浮字锚窃方位置
+        const seat = seatOf(engine, ev);
+        events_.push(
+          textFloater(
+            engine,
+            seat,
+            `窃得「${engine.players[ev.victimSeat].guohao}」的「${ev.treasureName}」`,
+          ),
+        );
+        break;
+      }
       case "assetLiquidated": {
         // 破产三变卖:所得浮字;变卖城池=回无主,补易主宣告(旧留痕通道的易主维度)
         const seat = seatOf(engine, ev);
@@ -275,6 +359,14 @@ export function extractBatchEvents(
           events_.push(
             propertyChangedEvent(engine, ev.asset.id, { levelChanged: false, ownerChanged: true }),
           );
+        break;
+      }
+      case "assetTransferred": {
+        // 破产清算逐城易主(#385):每处城一条宣告(归属按提取时刻引擎态=承让方/无主)
+        seatOf(engine, ev);
+        events_.push(
+          propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
+        );
         break;
       }
       case "heroRecruited": {
@@ -345,6 +437,12 @@ export function extractBatchEvents(
         events_.push(textFloater(engine, seat, text));
         break;
       }
+      case "jinnangInflicted": {
+        // 中招宣告(#385,缓兵之计):文案浮字锚中招者位置;实际跳过另有 turnSkipped
+        seatOf(engine, ev);
+        events_.push(textFloater(engine, ev.targetSeat, `中【${ev.cardId}】,下回合无法行动`));
+        break;
+      }
       case "reactionAnswered": {
         // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
         if (ev.use && ev.cardId != null) {
@@ -367,13 +465,23 @@ export function extractBatchEvents(
         }
         break;
       }
+      case "reactionFailed": {
+        // 拦检失败(#385):拼点平/负,牌白耗——文案浮字锚拦检城(事发现场)
+        const seat = seatOf(engine, ev);
+        events_.push(
+          textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
+        );
+        break;
+      }
       case "staminaChanged": {
         const seat = seatOf(engine, ev);
         events_.push(
           textFloater(
             engine,
             seat,
-            ev.reason === "exhaustion" ? "体力耗竭,跳过一回合" : `体力 ${signed(ev.delta)}`,
+            ev.reason === "exhaustion"
+              ? exhaustionTextOf(engine, events, i, seat)
+              : `体力 ${signed(ev.delta)}`,
           ),
         );
         break;
@@ -400,6 +508,17 @@ export function extractBatchEvents(
               : `获锦囊一封${ev.count > 1 ? ` ×${ev.count}` : ""}`,
           ),
         );
+        break;
+      }
+      case "encounterChoice": {
+        // 机遇抉择文案(#385 缺口 6):文案属静态目录,事件只带 id+下标,fx 查表派生
+        const seat = seatOf(engine, ev);
+        const option = encounterDefOf(ev.encounterId).choices?.[ev.choiceIndex];
+        if (option == null)
+          throw new Error(
+            `事件消费:机遇 ${ev.encounterId} 选项 #${ev.choiceIndex} 不在目录(数据 bug)`,
+          );
+        events_.push(textFloater(engine, seat, option.text));
         break;
       }
       case "turnSkipped": {
@@ -435,23 +554,12 @@ export function extractBatchEvents(
   return events_;
 }
 
-/** 行军锚定(present 前、sync 渲染前调用):把 tokenMoved 的路径注入引擎表现通道并
- *  marchBegin 锚回起点——React 先渲染终态会把棋子闪现终点再被拽回,必须在渲染前锚定。
- *  路径与引擎 lastMove 同一对象(整段照走)时不注入(不污染引擎真实表现态);
- *  注入了截短路径时返回 true,调用方在 present 完成后 applyPresentationMove(null) 清掉。 */
-export function anchorMarches(
-  engine: GameEngine,
-  events: PresentationEvent[],
-  sink: FxSink,
-): boolean {
-  let injected = false;
+/** 行军锚定(present 前、sync 渲染前调用):把 tokenMoved 的路径直传 sink 锚定
+ *  marchBegin(#385 起路径随表现事件走,不再注入引擎 lastMove——合并批多段行军
+ *  各持各径,sink 调用即带路径,无需 applyPresentationMove 注入/清理往返)。 */
+export function anchorMarches(events: PresentationEvent[], sink: FxSink): void {
   for (const ev of events) {
     if (ev.kind !== "tokenMoved") continue;
-    if (engine.presentation.lastMove !== ev.path) {
-      engine.applyPresentationMove(ev.path);
-      injected = true;
-    }
-    sink.marchBegin(ev.playerId);
+    sink.marchBegin(ev.playerId, ev.path);
   }
-  return injected;
 }

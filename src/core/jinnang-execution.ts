@@ -532,6 +532,12 @@ export function executeJinnang(
       const treasure = victim.treasures.splice(idx, 1)[0];
       user.treasures.push(treasure);
       g.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
+      emitGameEvent(g, userSeat, {
+        kind: "treasureStolen",
+        victimSeat: g.players.indexOf(victim),
+        treasureId: treasure.id,
+        treasureName: treasure.name,
+      }); // 事件流(#385):窃宝宣告(名字随事件走,牌堆实例 id 带流水号不属可查表目录)
       g.logEvent(
         "system",
         user.guohao,
@@ -555,6 +561,11 @@ export function executeJinnang(
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
       g.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
+      emitGameEvent(g, userSeat, {
+        kind: "jinnangInflicted",
+        cardId: def.id,
+        targetSeat: targets[0],
+      }); // 事件流(#385):中招宣告(fx 锚中招者位置出文案;实际跳过另有 turnSkipped)
       g.logEvent(
         "system",
         user.guohao,

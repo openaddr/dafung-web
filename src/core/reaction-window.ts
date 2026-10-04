@@ -455,6 +455,13 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
   }
   // 平/负:拦检失败,牌白耗(已扣),行人照常续走
   g.pushFloaterText(owner, `拦检失败(掷 ${duel.aRoll} 对 ${duel.bRoll})`, payload.tileIndex);
+  emitGameEvent(g, play.seat, {
+    kind: "reactionFailed",
+    windowKind: "march",
+    tileIndex: payload.tileIndex,
+    aRoll: duel.aRoll,
+    bRoll: duel.bRoll,
+  }); // 事件流(#385):拦检失败(文案浮字 fx 按点数参数拼装,锚拦检城)
   g.logEvent(
     "system",
     owner.guohao,
@@ -471,18 +478,20 @@ function settleAmbushStop(
   payload: Extract<ReactionPayload, { kind: "march" }>,
 ): void {
   const mover = g.players[payload.moverSeat];
-  g.lastMove = g.board.computePath(
+  const path = g.board.computePath(
     payload.fromPos,
     payload.stepsToTile,
     mover.capitalIndex,
     mover.onBranch,
   );
+  g.lastMove = path;
   mover.onBranch = null;
   mover.position = payload.tileIndex;
   emitGameEvent(g, payload.moverSeat, {
     kind: "marchArrived",
     tileIndex: payload.tileIndex,
-  }); // 事件流(#375):行军落格(拦停止步)
+    path,
+  }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
   if (payload.wasOnBranch)
     g.dispatchMoment("BranchExited", {
       subject: payload.moverSeat,

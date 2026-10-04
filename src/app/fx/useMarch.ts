@@ -9,7 +9,8 @@
 // 动画本体仍命令式:直接改 data-token-player 节点的 style.transform + transitionDuration
 // (CSS transition 见 board.css .bv-token),每段时长 ∝ 距离(匀速节奏,常量在 timings.MARCH)。
 import type { GameEngine } from "@core/authority";
-import type { Player} from "@core/model";
+import type { Player } from "@core/model";
+import type { MovePath } from "@core/board";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { playerSlotKey } from "@app/components/board/TokenLayer";
 import { useFxStore } from "./fxStore";
@@ -62,14 +63,17 @@ function slotOffsetFor(engine: GameEngine, player: Player): { x: number; y: numb
   return TOKEN_SLOT_OFFSETS[slot % TOKEN_SLOT_OFFSETS.length];
 }
 
-/** 命令提交后、sync 渲染前调用:把 mover 放进接管集并锚定在起点(path.from)。
- *  必须先于 sync——否则 React 会先渲染终态坐标,棋子闪现终点再被拽回。 */
-export function beginMarch(engine: GameEngine, moverId: string): void {
-  // 表现态经 presentation 视图读(Wave3 候选4);lastMove 可能是 applyPresentationMove 注入的 diff 轨迹。
-  const path = engine.presentation.lastMove;
-  if (!path) return;
+/** 命令提交后、sync 渲染前调用:把 mover 放进接管集并锚定在起点(#385:路径随表现
+ *  事件走,不再读引擎 lastMove)。主路锚 path.from;辅路逐格行进锚辅路前置格——
+ *  棋子视觉位置在辅路上(主路锚点是入口占位),锚回前置格才不闪跳:前置步 = 落点步 −
+ *  途经坐标数(−1 = 待入辅路,起点即主路入口格)。 */
+export function beginMarch(engine: GameEngine, moverId: string, path: MovePath): void {
   const board = engine.board;
-  const start = board.positionOf(path.from);
+  const preStep = (path.landBranchStep ?? 0) - path.branchWaypoints.length;
+  const start =
+    path.landBranchStep != null && preStep >= 0 && board.branch
+      ? board.branch.cells[preStep].position
+      : board.positionOf(path.from);
   marchPos.set(moverId, { x: start.x, y: start.y });
   useFxStore.getState().addMarching(moverId);
 }
@@ -92,17 +96,20 @@ function highlightSegment(engine: GameEngine, from: number, to: number): void {
 }
 
 /**
- * 行军:沿 lastMove 的 branchWaypoints(辅路)与 traversed(主路)逐段推进棋子。
+ * 行军:沿给定路径(#385 起由表现事件自带,不再读引擎 lastMove 单槽——合并批
+ * 多段行军各播各段)的 branchWaypoints(辅路)与 traversed(主路)逐段推进棋子。
  * - 编排时序/弧线分段完全对照旧 animate.ts animateMove;
- * - 经过都城必停时引擎已把 lastMove 截断到都城,本函数自然止步(不再有 halt 补走段);
+ * - 经过都城必停时路径已截断到都城,本函数自然止步(不再有 halt 补走段);
  * - 完成后 removeMarching:React 以终态坐标接管(marchPos 同步删除)。
- * lastMove 为 null(非移动命令)时 no-op。
  */
-export async function animateMove(engine: GameEngine, moverId: string): Promise<void> {
+export async function animateMove(
+  engine: GameEngine,
+  moverId: string,
+  path: MovePath,
+): Promise<void> {
   const e = engine;
-  const path = e.presentation.lastMove;
   const player = e.players.find((p) => p.id === moverId);
-  if (!path || !player) return;
+  if (!player) return;
   const board = e.board;
   // C5:捕获当前代际;resetFx 会递增它,循环在段边界检测到不一致即中止。
   const gen = marchGeneration;
@@ -111,8 +118,8 @@ export async function animateMove(engine: GameEngine, moverId: string): Promise<
    *  不再触碰节点——它可能已随旧棋盘卸载)。 */
   const alive = (): boolean => gen === marchGeneration && marchPos.has(moverId);
 
-  // 接管集未含该棋子(调用方漏了 beginMarch):现场补,起点锚定 from。
-  if (!marchPos.has(moverId)) beginMarch(e, moverId);
+  // 接管集未含该棋子(调用方漏了 beginMarch):现场补,起点按路径锚定。
+  if (!marchPos.has(moverId)) beginMarch(e, moverId, path);
   // 等 React 把「跳过声明式定位 + marchPos 起点」渲染出来,再拿节点开始动画。
   await nextFrame();
   const token = document.querySelector<SVGGElement>(`#bv-tokens [data-token-player="${moverId}"]`);

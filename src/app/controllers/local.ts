@@ -342,16 +342,14 @@ export class LocalController extends GameController {
   }
 
   /** 当前事件批 → 表现事件 → 播放(人类命令/bot 步/Setup 步共用的表现收口):
-   *  事件批直译(#385:演出因果单源 = 引擎事件批;行军余段截短/浮字/出牌线/横幅
-   *  全部在 extractBatchEvents 内完成,不再按相位分支推导)→ 锚定行军起点 → sync →
-   *  present 播放 → 清表现注入 → sync。 */
+   *  事件批直译(#385:演出因果单源 = 引擎事件批;行军路径随事件走,锚定后
+   *  sync → present 播放,无表现注入/清理往返)。 */
   private async presentStep(pre: ReadonlyArray<number | null>): Promise<void> {
     const e = this._engine;
     const events = extractBatchEvents(e, e.gameEvents, pre);
-    const injected = anchorMarches(e, events, this.fxSink);
+    anchorMarches(events, this.fxSink);
     this.sync();
     await present(events, this.fxSink);
-    if (injected) e.applyPresentationMove(null); // 截短路径用完即清,不污染引擎表现态
     this.sync();
   }
 

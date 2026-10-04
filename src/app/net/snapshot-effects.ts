@@ -66,11 +66,11 @@ export class SnapshotEffects {
     const engine = this.getEngine();
     const events: GameEvent[] = net.lastEvents;
     // 提取与行军锚定同步完成(anchorMarches 须先于 React 渲染终态,否则棋子闪现终点
-    // 再被拽回);播放入队串行——队首闭合时重注入本批路径再播:队列期间引擎可被后续
-    // 快照整体 hydrate(lastMove 被覆盖),播放时以事件批自带的路径为准。
+    // 再被拽回);#385 起行军路径随表现事件直传 sink,播放不依赖引擎 lastMove——
+    // 队列期间引擎被后续快照整体 hydrate 也不影响在途路径,合并批多段行军各播各段。
     const presentation = extractBatchEvents(engine, events, prePositions);
     if (presentation.length === 0) return; // 无表现(纯状态批):不占用表现锁
-    const injected = anchorMarches(engine, presentation, this.fxSink);
+    anchorMarches(presentation, this.fxSink);
     this.pendingChunks++;
     const settle = () => {
       this.pendingChunks--;
@@ -78,13 +78,7 @@ export class SnapshotEffects {
     };
     this.fxQueue = this.fxQueue
       .then(async () => {
-        if (injected) {
-          for (const ev of presentation) {
-            if (ev.kind === "tokenMoved") engine.applyPresentationMove(ev.path);
-          }
-        }
         await present(presentation, this.fxSink);
-        if (injected) engine.applyPresentationMove(null); // 清掉表现注入,真实引擎态不被污染
       })
       .then(settle)
       .catch((err) => {

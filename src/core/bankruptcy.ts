@@ -120,6 +120,7 @@ export function settleDebtTraced(
   const moved = player.properties.map((h) => ({ propertyId: h.propertyId, level: h.level }));
   const bankrupt = settleDebt(player, creditor, amount);
   if (bankrupt) {
+    const toSeat = creditor ? g.players.indexOf(creditor) : null;
     for (const m of moved) {
       g.propertyChanges.push({
         tileIndex: g.tileIndexOfProperty(m.propertyId),
@@ -128,6 +129,11 @@ export function settleDebtTraced(
         levelChanged: false,
         ownerChanged: true,
       });
+      emitGameEvent(g, g.players.indexOf(player), {
+        kind: "assetTransferred",
+        propertyId: m.propertyId,
+        toSeat,
+      }); // 事件流(#385):破产清算逐城易主宣告(toSeat=null=回无主)
     }
   }
   return bankrupt;

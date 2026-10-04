@@ -6,6 +6,7 @@
 //   ② createMemorySink —— 测试 adapter:只录制调用序列,供单测断言
 //      present() 的播放顺序与内容,不碰 DOM/音频/store。
 import type { GameEngine } from "@core/authority";
+import type { MovePath } from "@core/board";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio, type SoundEvent } from "./audio";
 import { useFxStore } from "./fxStore";
@@ -21,11 +22,11 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
     rollDice(die: number) {
       return animateDice(die);
     },
-    marchBegin(playerId: string) {
-      beginMarch(getEngine(), playerId);
+    marchBegin(playerId: string, path: MovePath) {
+      beginMarch(getEngine(), playerId, path);
     },
-    marchToken(playerId: string) {
-      return animateMove(getEngine(), playerId);
+    marchToken(playerId: string, path: MovePath) {
+      return animateMove(getEngine(), playerId, path);
     },
     spawnFloater(x, y, amount, coins) {
       useFxStore.getState().spawnFloater(x, y, amount, coins);
@@ -59,8 +60,8 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
 export type FxSinkCall =
   | { op: "sound"; event: SoundEvent }
   | { op: "dice"; die: number }
-  | { op: "marchBegin"; playerId: string }
-  | { op: "march"; playerId: string }
+  | { op: "marchBegin"; playerId: string; path: MovePath }
+  | { op: "march"; playerId: string; path: MovePath }
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
   | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
@@ -86,11 +87,11 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     async rollDice(die) {
       calls.push({ op: "dice", die });
     },
-    marchBegin(playerId) {
-      calls.push({ op: "marchBegin", playerId });
+    marchBegin(playerId: string, path: MovePath) {
+      calls.push({ op: "marchBegin", playerId, path });
     },
-    async marchToken(playerId) {
-      calls.push({ op: "march", playerId });
+    async marchToken(playerId: string, path: MovePath) {
+      calls.push({ op: "march", playerId, path });
     },
     spawnFloater(x, y, amount, coins) {
       calls.push({ op: "floater", x, y, amount, coins });

@@ -81,6 +81,11 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
     throw new Error(`耗竭选项结算:选项载荷缺失(index=${index},数据 bug)`); // 零兜底
   }
   const note = opt.label;
+  emitGameEvent(g, seat, {
+    kind: "exhaustionChoice",
+    propertyId: opt.holdingPropertyId,
+    exhaustionKind: opt.exhaustionKind,
+  }); // 事件流(#385):耗竭处置落定(降级/失城;目录文案 fx 按 propertyId+kind 派生)
   if (opt.exhaustionKind === "downgrade") {
     const holding = findHolding(p, opt.holdingPropertyId);
     if (!holding) throw new Error(`耗竭降级:房产 ${opt.holdingPropertyId} 不在持有列表`);
@@ -221,6 +226,11 @@ function settleEncounterChoice(
   index: number,
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
   const seat = g.players.indexOf(mover);
+  emitGameEvent(g, seat, {
+    kind: "encounterChoice",
+    encounterId: def.id,
+    choiceIndex: index,
+  }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
   // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
   // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
   let costDetail = "";

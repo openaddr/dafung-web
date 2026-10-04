@@ -35,7 +35,7 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.rollDice(ev.die);
         break;
       case "tokenMoved":
-        await sink.marchToken(ev.playerId);
+        await sink.marchToken(ev.playerId, ev.path);
         break;
       case "cashDelta":
         sink.spawnFloater(ev.x, ev.y, ev.amount, false);
@@ -90,10 +90,10 @@ export async function animateDice(die: number): Promise<void> {
 }
 
 /** 反应窗续结算的余段行军路径(#281 拦停/续走):拦检窗挂起时视觉棋子停在
- *  挂起点(途经城前一格),续结算(拦停/放行)后引擎 lastMove 自原起点重算——直接
- *  播会把棋子拽回起点重走全程。本函数把 lastMove 截短为「挂起点 → 落点」余段,
- *  event-extract.marchEvent 据此产出余段 tokenMoved(锚定注入走 applyPresentationMove,
- *  表现侧写 lastMove 的唯一合法入口),复用既有 beginMarch/animateMove 通道平滑补走。
+ *  挂起点(途经城前一格),续结算(拦停/放行)后事件内路径自原起点重算——直接
+ *  播会把棋子拽回起点重走全程。本函数把事件路径截短为「挂起点 → 落点」余段,
+ *  event-extract.marchEvent 据此产出余段 tokenMoved(路径随表现事件直传 sink,
+ *  #385 起不再注入引擎 lastMove),复用既有 beginMarch/animateMove 通道平滑补走。
  *  fromPos 不在路径上且非起点 = 状态 bug,抛错;无余段(挂起点即落点)返回 null。 */
 export function remainingMarchPath(
   path: MovePath,
