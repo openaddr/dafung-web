@@ -2,7 +2,7 @@
 // 引擎态不变量(现金非负 / 身价非负 / 位置合法 / 破产无残留 / 终局有 winner),取代已删的
 // e2e「速战档全程驱动」(66.2s 全库最贵单例)——五条不变量是引擎态断言,浏览器只是昂贵的
 // 驱动器;这里秒级跑几十局(2-4 人 × Simple/Normal × 机遇产品默认档),广度反超浏览器单局。
-// 驱动范式与 test/replay.test.ts 同源:选都 aiSetupStep + 对局 botAct 循环,全 bot 局
+// 驱动范式:选都 aiSetupStep + 对局 botAct 循环,全 bot 局
 // 决策方恒为 bot(AwaitingReaction 反应窗 bot 即席代答,相位不外显)。
 // 步数 guard 打满仍未终局 → isOver 断言当场失败(零兜底:僵局就是要炸出来的 bug)。
 import { describe, it, expect, afterAll } from "bun:test";
@@ -17,9 +17,9 @@ import { loadMap } from "@core/board-loader";
 import sanguoData from "../public/maps/sanguo.json";
 
 const MAP = loadMap(sanguoData);
-/** 速战目标(经济 v2):终局快但胜负判定/终局行都走真路径(同 replay.test.ts 口径)。 */
+/** 速战目标(经济 v2):终局快但胜负判定/终局行都走真路径。 */
 const TARGET = 15000;
-/** 单局步数上限(参考 replay.test.ts 同值):打满仍未终局 → 断言失败,红出来。 */
+/** 单局步数上限打满仍未终局 → 断言失败,红出来。 */
 const STEP_LIMIT = 20_000;
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
