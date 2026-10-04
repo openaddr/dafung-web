@@ -14,7 +14,7 @@
 //   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
 //   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
 //                                            {type:"pickCapital",tileIndex}(L41 选都),
-//                                            收 lobby/snapshot
+//                                            收 lobby/snapshot/events(#390)/dismissed
 // 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
@@ -30,15 +30,11 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty, GameCommand} from "../src/core/authority";
+import type { AiDifficulty, GameCommand } from "../src/core/authority";
+import type { GameEvent } from "../src/core/game-events";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
-import {
-  RoomRegistry,
-  RoomError,
-  type RoomEvent,
-  type RoomSession,
-} from "./room";
+import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
 import { clientView, lobbyView, seatMeta } from "./seat-projection";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
@@ -201,6 +197,27 @@ function onlineSeatsOf(roomId: string): Set<number> {
   return set;
 }
 
+// ──────────────────────────── 事件批下行通道(#390,ADR-0020 折叠切换①)────────────────────────────
+// 每次编排转移(submitCommand/botAct/开局驱动)后 onUpdate→broadcast;引擎当前批
+// (engine.gameEvents,#375)以「数组引用换新」为界——beginGameEventBatch 弃批建新数组,
+// 同一转移的重复通知(托管开关/终态推送等不触碰引擎的广播)引用不变,不重收。
+// 节奏口径:挂进快照 flush 节奏——本 tick 内各转移的批按发生序拼接,flush 时以单条
+// {type:"events"} 明传全体在线座位(不做逐座裁剪,ADR-0020 决策 2)后清空;不逐转移
+// 直发,理由同快照合并:托管 bot 链单 tick 多转移,逐转移直发重蹈 WS 背压覆辙。
+// 断线即丢(无排队无补发,ADR-0020 决策 4;重连全量归折叠切换⑥)。
+const pendingEvents = new Map<string, GameEvent[]>();
+const seenBatches = new Map<string, GameEvent[]>();
+function accumulateEventBatch(roomId: string, room: RoomSession): void {
+  const batch = room.engine?.gameEvents;
+  if (!batch) return; // Lobby 无引擎即无事件批(加入/换图等非对局转移通知)
+  if (seenBatches.get(roomId) === batch) return; // 批引用未换新 = 同一转移的重复通知
+  seenBatches.set(roomId, batch);
+  if (batch.length === 0) return; // 空转转移无内容可拼接
+  const acc = pendingEvents.get(roomId);
+  if (acc) acc.push(...batch);
+  else pendingEvents.set(roomId, [...batch]);
+}
+
 /** 广播(ADR-0016):读 Room 当前状态 + 算 onlineSeats + 按座位逐个投影后发——
  *  锦囊暗牌起,各座位收到的快照不再同一份(自己的手牌全量,他人的只见数量)。
  *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——快速托管局
@@ -213,6 +230,7 @@ const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function broadcast(roomId: string): void {
   const room = registry.get(roomId);
   if (!room) return;
+  accumulateEventBatch(roomId, room); // #390:转移事件批入累积器,随本 tick flush 下发
   let seats = dirtySeats.get(roomId);
   if (!seats) {
     seats = new Set();
@@ -226,9 +244,19 @@ function broadcast(roomId: string): void {
       flushTimers.delete(roomId);
       const pending = dirtySeats.get(roomId);
       dirtySeats.delete(roomId);
+      const events = pendingEvents.get(roomId);
+      pendingEvents.delete(roomId);
       const r = registry.get(roomId);
       if (!pending || !r) return;
       r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=快照封批(#284):本帧带走整批,下一条留痕新批号
+      // 事件批消息(#390):先于快照发(因果在前、状态在后),全体在线座位同一份明传
+      const eventsMsg =
+        events && events.length > 0 ? JSON.stringify({ type: "events" as const, events }) : null;
+      if (eventsMsg) {
+        for (const ws of socketsOf(roomId).values()) {
+          if (ws.readyState === WebSocket.OPEN) ws.send(eventsMsg);
+        }
+      }
       const online = onlineSeatsOf(roomId);
       for (const seat of pending) {
         const ws = socketsOf(roomId).get(seat);
@@ -346,7 +374,7 @@ const HELP = {
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/dismissed",
+      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   maps: CATALOG_ENTRIES.map((e) => ({
@@ -506,6 +534,8 @@ async function handle(req: Request): Promise<Response> {
       }
     }
     roomSockets.delete(id);
+    pendingEvents.delete(id); // #390:房间已散,事件通道状态一并清(引用键随新引擎自然失效)
+    seenBatches.delete(id);
     return sendJson(200, { ok: true, dismissed: id });
   }
 

@@ -6,7 +6,7 @@
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
@@ -14,17 +14,19 @@ import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
+import { stashEventBatch, type EventBatchMsg } from "@app/net/event-feed";
 import { reactionQueriesSeat } from "./reaction";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
 export type { RoomJoinReply };
 
-/** 服务器消息(协议见 scripts/server.ts:lobby / snapshot / dismissed / error)。
+/** 服务器消息(协议见 scripts/server.ts:lobby / snapshot / events / dismissed / error)。
  *  lobby 与 snapshot 都带完整房间字段(clientView 两种形态对齐,见 room.ts)。 */
 export type ServerMsg =
   | ({ type: "lobby" } & NetRoomFields)
   | ({ type: "snapshot" } & NetRoomFields & GameSnapshot)
+  | EventBatchMsg
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 
@@ -296,6 +298,12 @@ export class OnlineController extends GameController {
         this.enteredGame = true;
         useGameStore.getState().setScreen("game");
       }
+      return;
+    }
+    if (msg.type === "events") {
+      // 事件批下行通道(#390):整批暂存 netStore 即返回——不驱动任何 UI/行为,
+      // 折叠消费归后续工单(伞票 #377);接收面与容错口径见 net/event-feed.ts。
+      stashEventBatch(msg.events);
       return;
     }
     if (msg.type === "dismissed") {
