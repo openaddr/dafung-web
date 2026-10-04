@@ -1,7 +1,7 @@
 // 单机(热座)控制器:构造权威 GameEngine,命令统一走 engine.submitCommand,
 // 每次引擎变化后 sync() 灌 store(渲染交给 React 组件)。
-// 阶段 6:接入动画/音效编排(orchestrator.playStepEffects)——
-// 命令 → 驱动仲裁锁交互 → 表现编排(骰子→行军→浮字→印章/横幅)→ bot 异步调度。
+// 表现编排(#385 事件批直读):命令 → 驱动仲裁锁交互 → 引擎事件批直译为表现事件
+// (骰子→行军→浮字→印章/横幅,与联机同一 extractBatchEvents)→ bot 异步调度。
 // Wave 2-A:四路异步流程(人类步/托管/开局接棒/选都)的 busy 布尔争抢收口为
 // 驱动仲裁器(drive.ts)——同一时刻仅一个 drive 会话,FIFO 排队互斥,
 // apLoop 不再 delay(80) 轮询锁,onEnterGame 幂等改查 isDriving()。
@@ -9,16 +9,12 @@ import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine, type EngineConfig } from "@core/authority";
 import { botAct } from "@core/bot";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { setEngine } from "@app/store/gameStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { createEngineSink } from "@app/fx/sinks";
-import {
-  extractStepEvents,
-  maybeShowTurnBanner,
-  present,
-  remainingMarchPath,
-} from "@app/fx/orchestrator";
+import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
+import { present } from "@app/fx/orchestrator";
 import { AUTOPILOT, AUTO_MARCH, BOT, delay, scaleReactionMs } from "@app/fx/timings";
 import { reactionQueriesSeat } from "./reaction";
 import { GameController } from "./controller";
@@ -140,12 +136,10 @@ export class LocalController extends GameController {
       if (!this.reactionQueriedMe(e)) return;
       this.sync(); // 会话已占:interactive 锁定,且 rearm 因 drive 占用不会重复布定时器
       const seat = this.humanSeat(e);
-      await this.runAnimatedStep(
-        () => e.submitCommand({ type: "respondReaction", seat, use: false }),
-        "respondReaction",
+      await this.runAnimatedStep(() =>
+        e.submitCommand({ type: "respondReaction", seat, use: false }),
       );
       await this.runBots();
-      maybeShowTurnBanner(e);
     } finally {
       s.release();
       this.sync();
@@ -172,9 +166,8 @@ export class LocalController extends GameController {
       this.sync(); // 会话已占:interactive 锁定,且 rearm 因 drive 占用不会重复布定时器
       this.fxSink.stampSeal(e.activePlayer.position, "签");
       await delay(AUTO_MARCH.qiqianMs);
-      await this.runAnimatedStep(() => e.submitCommand({ type: "rollAndMove" }), "rollAndMove");
+      await this.runAnimatedStep(() => e.submitCommand({ type: "rollAndMove" }));
       await this.runBots();
-      maybeShowTurnBanner(e);
     } finally {
       s.release();
       this.sync();
@@ -207,7 +200,6 @@ export class LocalController extends GameController {
           // #188 档 3:托管代驾永不出主动技(skills:"hold"——长线战略资源不替主人花),
           // 锦囊仍按策略表(#148 口径:自助托管=按策略)
           await this.runAnimatedStep(() => botAct(e, { skills: "hold" }));
-          maybeShowTurnBanner(e);
           await this.runBots(); // 代打后若轮到真 bot,沿用既有接棒
         } finally {
           s.release();
@@ -288,12 +280,12 @@ export class LocalController extends GameController {
   // 只需在这一个出口拦截,不必逐方法打点。表现编排异步进行,期间仲裁器锁交互。
   dispatchCommand(cmd: GameCommand): void {
     if (!this.interactive) return; // 非本地人类决策时忽略(引擎自身也有相位守卫,双保险)
-    void this.runStep(() => this._engine.submitCommand(cmd), commandLabelOf(cmd));
+    void this.runStep(() => this._engine.submitCommand(cmd));
   }
 
-  /** 进入 Game 屏后调用一次:若开局即轮到 bot(或 Setup 余下全是 bot),接棒驱动;
-   *  轮到人类则只弹首回合横幅。幂等(驱动会话活跃期间不重复启动,旧 if(busy) 的
-   *  仲裁器等价物)。 */
+  /** 进入 Game 屏后调用一次:若开局即轮到 bot(或 Setup 余下全是 bot),接棒驱动。
+   *  幂等(驱动会话活跃期间不重复启动,旧 if(busy) 的仲裁器等价物)。
+   *  开局横幅/建城章由事件批驱动(#385:末位选都批携带 GameStart/TurnStart 事件)。 */
   onEnterGame(): void {
     if (this.drive.isDriving()) return;
     void (async () => {
@@ -311,7 +303,6 @@ export class LocalController extends GameController {
           this.sync();
         }
       }
-      maybeShowTurnBanner(this._engine);
       // #188:开局即轮到人类时上面不走 runBots 链(无链尾 sync),此处补一次——
       // 首回合 Roll 等待态的自动起摇定时器在此布下。
       this.sync();
@@ -330,74 +321,56 @@ export class LocalController extends GameController {
   }
 
   /** 一次引擎推进的完整链(人类命令与 bot 步骤共用骨架):
-   *  引擎推进(run 注入)→ 起点锚定(行军类)→ sync → 表现编排 → bot 接棒 → 回合横幅。
-   *  链首经仲裁器取驱动会话/链尾释放,期间 interactive=false 防连点
+   *  引擎推进(run 注入)→ sync → 事件批直译播放(骰子→行军→浮字→横幅,顺序=事件序)
+   *  → bot 接棒。链首经仲裁器取驱动会话/链尾释放,期间 interactive=false 防连点
    *  (旧 busy 置位/释放的仲裁器等价物)。 */
-  private async runStep(run: () => void, cmdType: string): Promise<void> {
+  private async runStep(run: () => void): Promise<void> {
     const s = await this.drive.requestDrive("human");
     try {
       this.sync();
-      await this.runAnimatedStep(run, cmdType);
+      await this.runAnimatedStep(run);
       await this.runBots();
-      maybeShowTurnBanner(this._engine);
     } finally {
       s.release();
       this.sync();
     }
   }
 
-  /** 「一次引擎推进 + 表现编排」的共享骨架(原 runStep 与 runBots 循环体逐行重复,提取于此):
-   *  捕获推进前相位/玩家 → run() 推进 → 行军类先锚定起点 → sync → 提取表现事件 →
-   *  present 播放(骰子→行军→浮字,顺序=事件顺序)→ sync。
-   *  表现后的收尾两处顺序不同(人类步:先 bot 接棒再弹回合横幅;bot 步:直接弹横幅),
-   *  故 runBots/横幅留在调用方,时序与提取前一致。 */
-  private async runAnimatedStep(run: () => void, cmdType?: string): Promise<void> {
+  /** 转移前锚定基准(#385 行军余段截短用):run() 推进之前捕获,hydrate/结算会覆盖位置。 */
+  private prePositions(): (number | null)[] {
+    return this._engine.players.map((p) => p.position);
+  }
+
+  /** 当前事件批 → 表现事件 → 播放(人类命令/bot 步/Setup 步共用的表现收口):
+   *  事件批直译(#385:演出因果单源 = 引擎事件批;行军余段截短/浮字/出牌线/横幅
+   *  全部在 extractBatchEvents 内完成,不再按相位分支推导)→ 锚定行军起点 → sync →
+   *  present 播放 → 清表现注入 → sync。 */
+  private async presentStep(pre: ReadonlyArray<number | null>): Promise<void> {
     const e = this._engine;
-    const prevPhase = e.turnPhase;
-    const prePlayer = e.players[e.activeIndex];
-    const moverId = e.activePlayer.id;
-    // 反应窗种类(#281):行军窗(半路杀出)的续结算有「挂起点 → 落点」余段位移需
-    // 平滑补走;jinnang 窗无位移,其残存 lastMove(上一次掷骰)须清掉防误播。
-    const marchReaction =
-      prevPhase === "AwaitingReaction" && e.pendingReaction?.view.kind === "march";
-    const prePos = prePlayer?.position; // run() 前快照:prePlayer 是活引用,position 随结算变
-    run();
-    // 反应窗续结算的余段行军(#281 拦停/续走):窗挂起时视觉棋子停在挂起点,续结算后
-    // 引擎 lastMove 自原起点重算——截短为余段再锚定(applyPresentationMove 注入,
-    // remainingMarchPath),复用既有行军通道平滑补走,不拽回起点重走;非行军窗/无余段
-    // 一律清掉 lastMove,提取器(AwaitingReaction 分支)据此不播行军。
-    if (prevPhase === "AwaitingReaction") {
-      const path = e.presentation.lastMove;
-      const short =
-        marchReaction && path != null && prePlayer != null
-          ? remainingMarchPath(path, prePos ?? path.from, prePlayer.position)
-          : null;
-      e.applyPresentationMove(short);
-      if (short != null) this.fxSink.marchBegin(moverId);
-    }
-    // 行军类推进:先锚定起点再 sync——否则 React 先渲染终态,棋子闪现终点再被拽回
-    if (e.presentation.lastMove && prevPhase === "Roll") {
-      this.fxSink.marchBegin(moverId);
-    }
+    const events = extractBatchEvents(e, e.gameEvents, pre);
+    const injected = anchorMarches(e, events, this.fxSink);
     this.sync();
-    // Wave1:提取(读引擎表现态)与播放(FxSink)分离;旧 playStepEffects 内联链
-    // 的时序语义完整保留在 extractStepEvents 的分支与事件顺序里。
-    const events = extractStepEvents(e, prevPhase, moverId, prePlayer, cmdType);
     await present(events, this.fxSink);
+    if (injected) e.applyPresentationMove(null); // 截短路径用完即清,不污染引擎表现态
     this.sync();
   }
 
-  /** 人类选都:引擎落子 + 印章"筑"反馈 + bot 余下选都/进局接棒(驱动会话护全程)。 */
+  /** 「一次引擎推进 + 表现编排」的共享骨架:捕获转移前位置 → run() 推进 → 播放当前批。 */
+  private async runAnimatedStep(run: () => void): Promise<void> {
+    const pre = this.prePositions();
+    run();
+    await this.presentStep(pre);
+  }
+
+  /** 人类选都:引擎落子 + 事件批直译(「筑」章/建城宣告/收尾横幅)+ bot 余下选都/
+   *  进局接棒(驱动会话护全程)。 */
   private async runPickCapital(playerIndex: number, index: number): Promise<void> {
     const e = this._engine;
     const s = await this.drive.requestDrive("human");
     try {
       this.sync();
-      e.pickCapital(playerIndex, index);
-      this.fxSink.stampSeal(index, "筑");
-      this.sync();
+      await this.runAnimatedStep(() => e.pickCapital(playerIndex, index));
       await this.runBots();
-      maybeShowTurnBanner(e);
     } finally {
       s.release();
       this.sync();
@@ -414,9 +387,13 @@ export class LocalController extends GameController {
 
     // 选都阶段的 bot 步进要先于 Playing 循环:人类选都后余下 bot 仍处 Setup,
     // 若只在 Playing 循环体内驱动(aiSetupStep),Setup 期的 bot 会永远轮空卡死流程。
-    while (e.phase === "Setup" && e.aiSetupStep()) {
+    // Setup 步同样走事件批直译(#385):bot 建城「筑」章/开局收尾横幅与人类同通路。
+    for (;;) {
+      const pre = this.prePositions(); // 锚定基准在推进前捕获
+      if (e.phase !== "Setup" || !e.aiSetupStep()) break;
       this.sync();
       await delay(BOT.stepDelayMs);
+      await this.presentStep(pre);
       this.sync();
     }
 
@@ -440,7 +417,6 @@ export class LocalController extends GameController {
       if (!(e.phase === "Playing" && e.players[e.decisionOwner].isBot)) break;
       const before = botFingerprint(e);
       await this.runAnimatedStep(() => botAct(e));
-      maybeShowTurnBanner(e);
       if (botFingerprint(e) === before) {
         // 旧 safety 上限兜的正是这种「驱动循环未收敛」;现在把它变成可断言条件:
         // 空转一步即停并留痕,不再空烧 500 × 750ms 的思考动画。
@@ -450,18 +426,7 @@ export class LocalController extends GameController {
         break;
       }
     }
-    if (e.isOver) {
-      this.fxSink.playSound("victory");
-      this.sync();
-    }
   }
-}
-
-/** 命令 → 表现层标签(交涉"跳过"需要与公道/坐地区分音效,其余同 cmd.type)。 */
-function commandLabelOf(cmd: GameCommand): string {
-  return cmd.type === "resolveTreasureOwner" && cmd.action.type === "skip"
-    ? "resolveTreasureOwner_skip"
-    : cmd.type;
 }
 
 /** bot 推进的廉价状态指纹(runBots stall 检测用;room.ts fingerprint 的简化版):
