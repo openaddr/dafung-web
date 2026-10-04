@@ -44,12 +44,14 @@ export interface PendingHeroSkill {
 }
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
- *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。
+ *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。返回实际入手张数(#384:
+ *  落空=无转移,调用方据此不产事件)。
  *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
-export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
+export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   const p = g.players[seat];
-  if (!p || p.isBankrupt) return;
+  if (!p || p.isBankrupt) return 0;
   let emptyNotified = false;
+  let drawn = 0;
   for (let k = 0; k < count; k++) {
     if (g.jinnangDeck.length === 0) {
       if (!emptyNotified) {
@@ -62,6 +64,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
     g.jinnangDeckCount = g.jinnangDeck.length;
     p.jinnangHand.push(id);
     p.jinnangHandCount = p.jinnangHand.length;
+    drawn++;
     g.logEvent(
       "system",
       p.guohao,
@@ -69,6 +72,21 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
       `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
     );
   }
+  return drawn;
+}
+
+/** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=
+ *  实际入手;0=牌库空落空,无转移即无事件)。开局发牌(setup-flow)直走 drawJinnang
+ *  不发——起手属开局校准点覆盖,与初始现金/体力同口径;游戏时进手(声望献计/机遇/
+ *  锦囊格/随机事件)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
+export function drawJinnangTraced(
+  g: GameEngine,
+  seat: number,
+  count: number,
+  reason: string,
+): void {
+  const drawn = drawJinnang(g, seat, count);
+  if (drawn > 0) emitGameEvent(g, seat, { kind: "jinnangDrawn", count: drawn, reason });
 }
 
 /** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:
@@ -339,6 +357,12 @@ function fireHeroSkill(
   const user = g.players[userSeat];
   user.heroLastFired[skill.id] = g.round;
   g.pushFloaterText(user, `${user.guohao} 施展【${skill.name}】`, user.position);
+  emitGameEvent(g, userSeat, {
+    kind: "heroSkillActivated",
+    skillId: skill.id,
+    skillKind: skill.kind,
+    ...(targets.length > 0 ? { targetSeat: targets[0] } : {}),
+  }); // 事件流(#384):主动技发动(发动者=seat;none 域无 targetSeat 字段)
   g.logEvent(
     "skill",
     user.guohao,
@@ -365,7 +389,13 @@ function fireHeroSkill(
       g.pushFloater(user, -cost, user.position, "expense");
       const seat = targets[0];
       const target = g.players[seat];
+      const staminaBefore = target.stamina;
       const after = g.addStamina(seat, stamina);
+      emitGameEvent(g, seat, {
+        kind: "staminaChanged",
+        delta: after - staminaBefore,
+        reason: "heroRelief",
+      }); // 事件流(#384):体力变更(赈济,夹紧后实际增减)
       g.pushFloaterText(target, `${target.guohao} 体力 +${stamina}`, target.position);
       g.logEvent(
         "system",
