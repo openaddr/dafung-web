@@ -9,7 +9,7 @@
 // 设计取舍:坐标(x/y,棋盘逻辑系)在提取期解析进事件——浮字锚定优先级依赖
 // 提取时刻的玩家状态(辅路位置),事后无法从 atTile 单独还原,故事件自带坐标,
 // atTile 仅保留语义信息供测试断言。
-import type { MovePath} from "@core/board";
+import type { MovePath } from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
 import type { SoundEvent } from "./audio";
 
@@ -86,10 +86,11 @@ export interface FxSink {
   playSound(event: SoundEvent): void;
   /** 掷骰动画(含 diceRoll/diceLand 音与 fallback 停顿),await 到落面。 */
   rollDice(die: number): Promise<void>;
-  /** 行军锚定(同步):把棋子放进接管集并锚回 path.from,必须先于 React 渲染终态。 */
-  marchBegin(playerId: string): void;
-  /** 行军动画(异步):沿引擎当前 lastMove(真实或 presentation 注入)逐段推进。 */
-  marchToken(playerId: string): Promise<void>;
+  /** 行军锚定(同步):把棋子放进接管集并锚回路径起点(#385:路径随表现事件走,
+   *  辅路行进锚回辅路前置格),必须先于 React 渲染终态。 */
+  marchBegin(playerId: string, path: MovePath): void;
+  /** 行军动画(异步):沿给定路径(#385 起事件自带,不再读引擎 lastMove 单槽)逐段推进。 */
+  marchToken(playerId: string, path: MovePath): Promise<void>;
   /** 浮动金额(coins=true 时附带补给铜钱雨)。 */
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   /** 文案浮字(无金额的小字提示,风格对齐浮动金额)。 */

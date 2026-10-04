@@ -1,8 +1,9 @@
 // 联机控制器——重构后只做「协议桥」(替代旧 src/render/network-client.ts 的连接/协议部分,零 DOM):
 // - 不跑引擎,只持「只读引擎」——收到服务器 snapshot 即 restoreFromSnapshot 重 hydrate。
 // - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
-//   快照表现提取归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶)。
-//   本类只剩:协议消息分发、快照 hydrate、表现提取器调用、registry/store 灌数、换图重建。
+//   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
+//   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
+//   本类只剩:协议消息分发、快照 hydrate、表现消费调用、registry/store 灌数、换图重建。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
@@ -43,9 +44,10 @@ export class OnlineController extends GameController {
   seat = -1;
   /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
   private pending = false;
-  /** 快照表现提取器(独立 module,diff 基准与播放队列封装在内)。
-   *  onIdle:表现队列排空时补一次 sync——L42 期间被 fx.playing 锁住的 interactive
-   *  在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮随即就位(与单机 drive 锁同口径)。 */
+  /** 事件批表现消费器(#385):netStore 暂存批(events 下行通道)→ 表现事件 → 播放,
+   *  播放队列与到达序游标封装在内。onIdle:表现队列排空时补一次 sync——L42 期间被
+   *  fx.playing 锁住的 interactive 在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮
+   *  随即就位(与单机 drive 锁同口径)。 */
   private readonly fx = new SnapshotEffects(
     () => this._engine,
     () => this.sync(),
@@ -240,7 +242,9 @@ export class OnlineController extends GameController {
     this.sock = sock;
     sock.onStatus((s) => {
       // F2:全量状态入 netStore(断线横幅读 connection 三值),connected 由 setConnection
-      // 派生写入。并行边界:本回调是 F2 线唯一被授权改动的 online.ts 位置,其余勿动。
+      // 派生写入。断线边界同时废弃在途事件批(#385):断线前收到但未随快照消费的暂存批
+      // 不在重连后补播(状态由重连快照整体重建,ADR-0020 决策 4)。
+      if (s !== "open") this.fx.dropStalledBatch();
       useNetStore.getState().setConnection(s);
     });
     sock.onError(() => {
@@ -261,10 +265,9 @@ export class OnlineController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, ...snap } = msg;
-      // 掷骰检测(联机骰子动画):掷骰只在「本帧前引擎处于 Roll 阶段、本帧已离开」时发生
-      // (rollAndMove 后 turnPhase 变为 决策/驻跸/下一回合)。快照里的 lastRoll 对象每帧
-      // 重建,不能靠引用/字段 diff,用阶段迁移判定最稳。首帧(占位引擎)不算。
-      const prevPhase = this._engine.turnPhase;
+      // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
+      // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
+      const prePositions: (number | null)[] = this._engine.players.map((p) => p.position);
       this.applyRoomFields(msg);
       if (msg.mapId && msg.mapId !== this.mapId) {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
@@ -280,7 +283,9 @@ export class OnlineController extends GameController {
       this._engine.restoreFromSnapshot(snap as GameSnapshot);
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
-      this.fx.play(this.enteredGame && prevPhase === "Roll" && this._engine.turnPhase !== "Roll");
+      // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
+      // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
+      this.fx.play(prePositions);
       // 起签转入沿(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
       // 起摇)→ 钤「签」印。托管中座位由服务器 bot 代打(Roll 不经等待态),观战无座,
       // 都不播——与单机 autoRoll 的起签口径一致。

@@ -19,6 +19,7 @@
 import type { GameEngine, VictoryReason } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
+import type { MovePath } from "./board";
 import { findHolding } from "./player";
 
 // ── 事件公共首部 ──
@@ -68,15 +69,21 @@ export interface DiceRolledBody {
   kind: "diceRolled";
   die: number;
 }
-/** 行军落格(主路落位/拦停止步;辅路格与驻跸各走 capitalHalt/后续结算事件)。 */
+/** 行军落格(主路落位/拦停止步/辅路格落位;驻跸走 capitalHalt)。path=本次行军的
+ *  MovePath 摘要(#385:纯数据序列化友好,随事件走——fx 按事件内路径播动画,合并
+ *  批多段行军各播各段,不再依赖引擎 lastMove 单槽;辅路落位 tileIndex=主路锚点占位,
+ *  以 path.landBranchStep 判别)。 */
 export interface MarchArrivedBody {
   kind: "marchArrived";
   tileIndex: number;
+  path: MovePath;
 }
-/** 都城驻跸(经过己都城必停;补给金额随后以 cashChanged reason="supply" 跟进)。 */
+/** 都城驻跸(经过己都城必停;补给金额随后以 cashChanged reason="supply" 跟进)。
+ *  path=截断到都城的行军路径(#385 同 marchArrived 口径)。 */
 export interface CapitalHaltBody {
   kind: "capitalHalt";
   tileIndex: number;
+  path: MovePath;
 }
 /** 选都建城(开局三段式落子:建都即获城 Lv.0,扣建城费)。 */
 export interface CapitalSelectedBody {
@@ -96,6 +103,14 @@ export interface PropertyUpgradedBody {
   kind: "propertyUpgraded";
   propertyId: string;
   newLevel: number;
+}
+/** 购地被拒/按兵不动(#385 缺口 1):ADR-0013 唯一默认行为自动执行的宣告——
+ *  reason=no-warrant(委任状不足)/insufficient-cash(银两不足)/maxed(城已满级),
+ *  文案由 fx 按 reason 派生(与引擎浮字同口径)。 */
+export interface PropertyRejectedBody {
+  kind: "propertyRejected";
+  propertyId: string;
+  reason: "no-warrant" | "insufficient-cash" | "maxed";
 }
 /** 金钱变更(被动经济结算点;delta 带符号,reason=领域词 slug,counterpartSeat=
  *  玩家间转移的对手座)。主动支出(购地/交涉付款)不产本事件——金额已在
@@ -125,11 +140,26 @@ export interface TreasureTradedBody {
   treasureId: string;
   price: number;
 }
+/** 窃宝(#385 缺口 5,窃玉偷香):seat=窃方,victimSeat=失主;treasureName 随事件走
+ *  (牌堆实例 id 带流水号后缀,名字不属可查表静态目录——成品字段比字符串手术干净)。 */
+export interface TreasureStolenBody {
+  kind: "treasureStolen";
+  victimSeat: number;
+  treasureId: string;
+  treasureName: string;
+}
 /** 破产变卖自救(三变卖命令成交尾;asset=变卖物,amount=所得)。 */
 export interface AssetLiquidatedBody {
   kind: "assetLiquidated";
   asset: { kind: "treasure" | "property" | "hero"; id: string };
   amount: number;
+}
+/** 破产清算资产逐城易主(#385 缺口 2):settleDebt 破产转移的每处城池一条——
+ *  toSeat=承让方座位(债主接管),null=无债主回无主/销毁;易主宣告由 fx 据此产出。 */
+export interface AssetTransferredBody {
+  kind: "assetTransferred";
+  propertyId: string;
+  toSeat: number | null;
 }
 /** 招贤得将(三选一选定/机遇·锦囊送将;heroId=名将 id)。 */
 export interface HeroRecruitedBody {
@@ -195,6 +225,22 @@ export interface EncounterTriggeredBody {
   encounterId: string;
   tier: EncounterTier;
 }
+/** 机遇抉择落定(#385 缺口 6):auto 执行与 resolve 两路共用的结算点产出——
+ *  choiceIndex=def.choices 下标,文案属静态目录(fx 按 encounterId+choiceIndex
+ *  查 ENCOUNTERS 表派生,事件不带成品文案)。 */
+export interface EncounterChosenBody {
+  kind: "encounterChoice";
+  encounterId: string;
+  choiceIndex: number;
+}
+/** 耗竭处置落定(#385 缺口 6):降级/失城两路共用;propertyId+exhaustionKind 足以
+ *  派生目录文案(城名按棋盘查得,fx 拼装),随后 staminaChanged(reason=exhaustion)
+ *  携带耗竭重置——fx 检测批内前置本事件时把跳过文案升级为带处置明细的完整版。 */
+export interface ExhaustionChosenBody {
+  kind: "exhaustionChoice";
+  propertyId: string;
+  exhaustionKind: "downgrade" | "lose";
+}
 /** 锦囊宣布(出牌扣账后、识破窗开窗前;targetSeats=受影响份清单)。 */
 export interface JinnangAnnouncedBody {
   kind: "jinnangAnnounced";
@@ -214,11 +260,27 @@ export interface ReactionAnsweredBody {
   use: boolean;
   cardId?: string;
 }
+/** 拦检失败(#385 缺口 5):拼点平/负,【半路杀出】白耗,行人照常续走——seat=城主
+ *  (出牌方),aRoll/bRoll=拼点点数(文案参数),tileIndex=拦检城(浮字锚格)。 */
+export interface ReactionFailedBody {
+  kind: "reactionFailed";
+  windowKind: "march";
+  tileIndex: number;
+  aRoll: number;
+  bRoll: number;
+}
 /** 识破生效(锦囊被拆:shareSeat=被保住的份(AOE 按份拆),缺省=整计作废/落空)。 */
 export interface JinnangVoidedBody {
   kind: "jinnangVoided";
   cardId: string;
   shareSeat?: number;
+}
+/** 中招宣告(#385 缺口 5,缓兵之计):效果落账点产出——seat=用计者,targetSeat=中招者
+ *  (fx 锚中招者位置出文案;下回合实际跳过另有 turnSkipped 相邻宣告)。 */
+export interface JinnangInflictedBody {
+  kind: "jinnangInflicted";
+  cardId: string;
+  targetSeat: number;
 }
 
 /** 事件体联合(产出 API 的入参形状)。 */
@@ -236,11 +298,14 @@ export type GameEventBody =
   | CapitalSelectedBody
   | PropertyBoughtBody
   | PropertyUpgradedBody
+  | PropertyRejectedBody
   | CashChangedBody
   | TreasureGainedBody
   | TreasureSoldBody
   | TreasureTradedBody
+  | TreasureStolenBody
   | AssetLiquidatedBody
+  | AssetTransferredBody
   | HeroRecruitedBody
   | PlayerBankruptBody
   | SkillFiredBody
@@ -250,10 +315,14 @@ export type GameEventBody =
   | StaminaChangedBody
   | TurnSkippedBody
   | EncounterTriggeredBody
+  | EncounterChosenBody
+  | ExhaustionChosenBody
   | JinnangAnnouncedBody
   | ReactionOpenedBody
   | ReactionAnsweredBody
-  | JinnangVoidedBody;
+  | ReactionFailedBody
+  | JinnangVoidedBody
+  | JinnangInflictedBody;
 
 /** 事件 = 事件体 + 公共首部(快照 `events` 字段与将来联机流式下发的线上形状)。 */
 export type GameEvent = GameEventBody & GameEventBase;
@@ -278,6 +347,14 @@ function requireMomentField<T>(value: T | undefined, label: string): T {
   return value;
 }
 
+/** 行军路径必存校验(#385):marchArrived/capitalHalt 的路径随事件走,产出点引擎
+ *  lastMove 为空 = 状态机 bug,当场炸出(显式 emit 点与时机映射表共用)。 */
+export function requireMovePath(g: GameEngine, label: string): MovePath {
+  const path = g.lastMove;
+  if (path == null) throw new Error(`事件产出:${label} 无行军路径(状态机 bug)`);
+  return path;
+}
+
 /** 时机 → 事件体映射表:登记进词汇表的时机在派发点同步产出事件;引擎侧富化
  *  (查 catalog/持有)在此做。未登记时机(BeforeMarch/BeforeRoll/AfterMarch/
  *  PassedPlayer/MarchPassedCity/LandedOnProperty/BranchEntered/BranchExited 等
@@ -296,9 +373,10 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
     kind: "diceRolled",
     die: requireMomentField(ctx.die, "DieRolled.die"),
   }),
-  CapitalHalt: (_g, ctx) => ({
+  CapitalHalt: (g, ctx) => ({
     kind: "capitalHalt",
     tileIndex: requireMomentField(ctx.tileIndex, "CapitalHalt.tileIndex"),
+    path: requireMovePath(g, "CapitalHalt"), // #385:截断到都城的路径随事件走
   }),
   PropertyBought: (g, ctx) => {
     const propertyId = requireMomentField(ctx.propertyId, "PropertyBought.propertyId");

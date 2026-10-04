@@ -1003,6 +1003,7 @@ export class GameEngine {
     const p = this.players[seat];
     p.cash += amount;
     this.pushFloater(p, amount, p.position, "income");
+    emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
   }
 
   /** 时机派发:遍历所有未破产玩家(座位序)× 技能序;scope 过滤 + cooldown 检查后执行效果。
