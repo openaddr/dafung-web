@@ -251,12 +251,14 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
     // 邻牌让位(noname getSpreadOffset 语义):左邻左移、右邻右移
     expect(after[3].x).toBeLessThan(before[3].x);
     expect(after[5].x).toBeGreaterThan(before[5].x);
-    // 移出回落:几何回到常态(±1px 量测余量);同口径等回落过渡落定(#305 替代固定 300ms)
+    // 移出回落:几何回到常态(±2px 量测余量);同口径等回落过渡落定(#305 替代固定
+    // 300ms)。1px 实测过紧——swiftshader 亚像素合成下回落残差 1.28px(2026-10-02 取证),
+    // 2px 仍足以抓「没回去」级回归。
     await page.mouse.move(0, 0);
     const rest = (await settledRackGeometry(page)).cards;
     rest.forEach((c, i) => {
-      expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(1);
-      expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(1);
+      expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(2);
+      expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(2);
     });
   });
 });
@@ -300,6 +302,9 @@ test.describe("发牌入场级联 reduced-motion(#239 T4)", () => {
     // Chromium 把 0.01ms 序列化成「1e-05s」——按秒解析断言「被压到 <1ms」,
     // 不钉字面量(序列化形式随内核版本漂,物理量不变)
     expect(parseFloat(cs.dur)).toBeLessThanOrEqual(0.001);
-    expect(cs.opacity).toBe("1");
+    // 不透明终态用带重试的 toHaveCSS:delay=0+dur≈0 已钉死「无可见空窗」(承重断言),
+    // 0.01ms 动画的挂载帧采样竞态(backwards 填充下首帧读到 keyframe-0 的 opacity 0,
+    // 2026-10-02 取证)不该在这里放大成 flake。
+    await expect(first).toHaveCSS("opacity", "1");
   });
 });
