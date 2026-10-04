@@ -1,5 +1,5 @@
 // 房间持久化适配器(ADR-0007):把 Room 的落盘做成可注入接口,
-// 让 Room 模块本身零 fs 依赖。默认实现 FileRoomPersistence 落 rooms/*.json,
+// 让 Room 模块本身零 fs 依赖。默认实现 FileRoomPersistence 落 data/rooms/*.json,
 // 与原 server.ts 行为逐字节一致(同一目录、同一文件名、同一 JSON 形状)。
 // 测试可注入 InMemory 实现。
 import {

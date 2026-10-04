@@ -67,7 +67,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - 弹卷轴 ⇔ 选项集 ≥2 真实选项;≤1 引擎自动执行默认行为+浮字(ADR-0013,`engine.choicesFor()`/快照 `choices` 供消费);破产清算例外仍弹。
 - 机遇档位归一/回退单源在 `core/encounters.ts`;引擎缺省 `triggerRate=0`,产品默认来自 jiyu.json。
 - 时机框架:技能=数据声明挂 `HeroDef.skills`,`dispatchMoment` 按座位序×技能序确定性派发;加效果一步(`effects.ts`)/加技能两步(`heroes.ts`)/加时机三步(`timing.ts`+`authority.ts`);效果内禁同步再派发时机(深度>2 抛错);CashGained 仅经济结算点派发,防连锁。
-- 对局日志(ADR-0014):记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**(重放自动重算);`bun scripts/replay-log.ts logs/x.jsonl` 校验终态。
+- 对局日志(ADR-0014):记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**(重放自动重算);`bun scripts/replay-log.ts data/logs/x.jsonl` 校验终态。
 
 ## 验证纪律
 

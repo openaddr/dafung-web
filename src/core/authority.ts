@@ -281,7 +281,7 @@ export class GameEngine {
    *  写入局头行,重放据此 createDice 精确复现。 */
   readonly seed: number;
   /** 对局 id(ADR-0014):构造时生成,随快照序列化/恢复(联机各端一致);
-   *  logs/<gameId>.jsonl 文件名与 IndexedDB key。非 readonly 仅为 restoreFromSnapshot 可写。 */
+   *  data/logs/<gameId>.jsonl 文件名与 IndexedDB key。非 readonly 仅为 restoreFromSnapshot 可写。 */
   gameId: string;
 
   phase: EnginePhase = "Setup";
@@ -463,7 +463,7 @@ export class GameEngine {
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = resolveEncounterConfig(config.encounter);
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
-    // 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 logs/<gameId>.jsonl 文件名
+    // 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 data/logs/<gameId>.jsonl 文件名
     // 与 IndexedDB key;不走引擎 rng(不影响确定性,不随快照漂移)。内联于构造器
     // (#325 壳纪律:自由函数定义只许来自 import,壳内不落地函数声明)。
     this.gameId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
