@@ -7,6 +7,7 @@
 //  - 零兜底:EffectId 查不到(派发器抛错)、必填 params 缺项(req 抛错)都是数据 bug,直接崩。
 import type { GameEngine } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
+import { emitGameEvent } from "./game-events";
 
 /** 效果执行上下文:moment=当前时机;owner=技能属主座位;其余字段(MomentCtx)按时机语义携带——
  *  subject=时机主体座位,die=骰面(DieRolled),amount=金额(CashLost/CashGained/TreasureSold/TradeSettled/
@@ -53,7 +54,13 @@ export const EFFECTS: Record<string, EffectFn> = {
    *  与持有者无关。文本浮字无公共通道(pushFloaterText 为引擎私有,authority.ts 本票禁改),
    *  反馈由派发器统一的 skill 战报行承担。 */
   regenStamina: (engine, ctx, params) => {
-    engine.addStamina(ctx.owner, req(params, "amount"));
+    const before = engine.players[ctx.owner].stamina;
+    const after = engine.addStamina(ctx.owner, req(params, "amount"));
+    emitGameEvent(engine, ctx.owner, {
+      kind: "staminaChanged",
+      delta: after - before,
+      reason: "skill",
+    }); // 事件流(#384):体力变更(被动技,夹紧后实际增减)
     return true;
   },
 };

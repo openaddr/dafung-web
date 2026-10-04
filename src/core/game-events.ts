@@ -13,8 +13,9 @@
 //     产出事件。词汇表未登记的时机(BeforeMarch/PassedPlayer 等前置钩子与高频途经点)
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
 //  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
-//     触发/选都建城/三变卖/交割/金钱结算)在各域模块结算点直呼,reason 用领域词短横
-//     slug(供应/税/行情/机遇/横征/连环……开放词表,新来源即新 slug)。
+//     触发/选都建城/三变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
+//     抽锦囊进手/声望变更/体力变更/跳过回合)在各域模块结算点直呼,reason 用领域词
+//     短横 slug(供应/税/行情/机遇/横征/连环/献计/天命/耗竭……开放词表,新来源即新 slug)。
 import type { GameEngine, VictoryReason } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
@@ -135,10 +136,58 @@ export interface HeroRecruitedBody {
   kind: "heroRecruited";
   heroId: string;
 }
-/** 玩家破产出局(善后完成:名将已释放、资产已转债主;债主座位暂不入事件——
- *  派发点 finalizeBankruptcy 不持有该信息,词汇后续需要时随派发点扩展)。 */
+/** 玩家破产出局(善后完成:名将已释放、资产已转债主;creditorSeat=债主座位,
+ *  null=无债主归银行/销毁——#384 随派发点 finalizeBankruptcy 传参接线)。 */
 export interface PlayerBankruptBody {
   kind: "playerBankrupt";
+  creditorSeat: number | null;
+}
+/** 名将被动技击发(#384):时机技能经 scope/冷却/条件过滤后效果落账成功的瞬间;
+ *  seat=技属主,技参数(步数/金额等)由 HEROES 表按 skillId 现查,不入事件。 */
+export interface SkillFiredBody {
+  kind: "skillFired";
+  heroId: string;
+  skillId: string;
+  moment: GameMoment;
+}
+/** 名将主动技发动(#384,#188 档 3 四类:demolish/relief/patronage/warDrum);
+ *  seat=发动者,targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
+ *  技参数由 HEROES 表按 skillId 现查。 */
+export interface HeroSkillActivatedBody {
+  kind: "heroSkillActivated";
+  skillId: string;
+  skillKind: "demolish" | "relief" | "patronage" | "warDrum";
+  targetSeat?: number;
+}
+/** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
+ *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
+ *  现金/体力同口径);游戏时进手(献计/机遇/锦囊格/随机事件)经 drawJinnangTraced 产出,
+ *  count=实际入手张数(牌库空落空无转移,不产事件)。 */
+export interface JinnangDrawnBody {
+  kind: "jinnangDrawn";
+  count: number;
+  reason: string;
+}
+/** 声望变更(#384):delta=夹紧 ±100 后的实际增减,reason=领域词 slug(机遇抉择=
+ *  encounter/天命格=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
+ *  (reason=repMilestone)。 */
+export interface ReputationChangedBody {
+  kind: "reputationChanged";
+  delta: number;
+  reason: string;
+}
+/** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
+ *  encounter/被动技=skill/主动技赈济=heroRelief/耗竭重置=exhaustion,开放词表)。 */
+export interface StaminaChangedBody {
+  kind: "staminaChanged";
+  delta: number;
+  reason: string;
+}
+/** 跳过回合(#384):skipTurns 消费点(endTurn 推进环)产出,seat=被跳过者——
+ *  中伏/体力耗竭/缓兵之计共用 skipTurns 机制,标记侧由各自因果事件相邻覆盖
+ *  (jinnangAnnounced/staminaChanged/marchArrived),此处宣告「本回合被跳过」。 */
+export interface TurnSkippedBody {
+  kind: "turnSkipped";
 }
 /** 机遇触发(掷骰命中且已抽中具体机遇;encounterId/tier=目录条目)。 */
 export interface EncounterTriggeredBody {
@@ -194,6 +243,12 @@ export type GameEventBody =
   | AssetLiquidatedBody
   | HeroRecruitedBody
   | PlayerBankruptBody
+  | SkillFiredBody
+  | HeroSkillActivatedBody
+  | JinnangDrawnBody
+  | ReputationChangedBody
+  | StaminaChangedBody
+  | TurnSkippedBody
   | EncounterTriggeredBody
   | JinnangAnnouncedBody
   | ReactionOpenedBody
@@ -271,7 +326,10 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
     kind: "heroRecruited",
     heroId: requireMomentField(ctx.heroId, "HeroRecruited.heroId"),
   }),
-  PlayerBankrupt: () => ({ kind: "playerBankrupt" }),
+  PlayerBankrupt: (_g, ctx) => ({
+    kind: "playerBankrupt",
+    creditorSeat: requireMomentField(ctx.creditorSeat, "PlayerBankrupt.creditorSeat"),
+  }),
   JinnangAnnounced: (_g, ctx) => ({
     kind: "jinnangAnnounced",
     cardId: requireMomentField(ctx.cardId, "JinnangAnnounced.cardId"),

@@ -426,7 +426,13 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
   // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
   // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
   if (tile.type === "Fate") {
+    const repBefore = mover.reputation;
     g.addReputation(g.players.indexOf(mover), 20);
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "reputationChanged",
+      delta: mover.reputation - repBefore,
+      reason: "fate",
+    }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
     g.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
     g.lastLandOutcome = { kind: "Noop" };
     g.logEvent(
@@ -451,7 +457,13 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
       `jinnangTile player=${mover.id} tile=#${tile.index}`,
     );
-    g.drawJinnang(g.players.indexOf(mover), 1);
+    const drawn = g.drawJinnang(g.players.indexOf(mover), 1);
+    if (drawn > 0)
+      emitGameEvent(g, g.players.indexOf(mover), {
+        kind: "jinnangDrawn",
+        count: drawn,
+        reason: "jinnangTile",
+      }); // 事件流(#384):抽锦囊进手(牌库空落空=无转移,不产)
     g.endTurn();
     return;
   }

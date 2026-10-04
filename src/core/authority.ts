@@ -100,7 +100,9 @@ import {
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick } from "./recruitment";
-import { beginGameEventBatch, noteMomentEvent, type GameEvent } from "./game-events";
+// 声望域(#121/#147,ADR-0019,#384 自壳迁入):声望落账唯一口+献计里程碑在 reputation.ts。
+import { addReputation } from "./reputation";
+import { beginGameEventBatch, emitGameEvent, noteMomentEvent, type GameEvent } from "./game-events";
 import { formatMoney } from "./money";
 import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
@@ -740,6 +742,7 @@ export class GameEngine {
     while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
       const skipped = this.activePlayer;
       skipped.skipTurns -= 1;
+      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(中伏/耗竭/缓兵之计共用消费点)
       this.logEvent(
         "branch",
         skipped.guohao,
@@ -1027,6 +1030,12 @@ export class GameEngine {
             const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
             owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
+            emitGameEvent(this, ownerSeat, {
+              kind: "skillFired",
+              heroId: hero.id,
+              skillId: skill.id,
+              moment,
+            }); // 事件流(#384):名将被动技击发(seat=技属主)
             this.logEvent(
               "skill",
               owner.guohao,
@@ -1155,26 +1164,11 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。
-   *  声望献计(#147):首次向上穿越 +30/+60/+90 各献锦囊一张(只在本入口挂钩,
-   *  不看来源——把机遇抉择玩好就有实物兑现)。 */
+  /** 声望增减(#121,clamp ±100)+ 声望献计里程碑(#147):薄委托 → reputation.addReputation。
+   *  事件流(#384):里程碑献计进手(jinnangDrawn·reason=repMilestone)在域内产出;
+   *  声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
   addReputation(seat: number, delta: number): void {
-    const p = this.players[seat];
-    const before = p.reputation;
-    p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
-    for (const m of [30, 60, 90]) {
-      if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
-        p.repMilestones.push(m);
-        this.pushFloaterText(p, `民心所向(声望 ${m}),名将献计`, p.position);
-        this.logEvent(
-          "system",
-          p.guohao,
-          `${p.guohao} 声望达 ${m},名将献计一封`,
-          `repMilestone player=${p.id} milestone=${m}`,
-        );
-        this.drawJinnang(seat, 1);
-      }
-    }
+    addReputation(this, seat, delta);
   }
 
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
@@ -1185,9 +1179,9 @@ export class GameEngine {
   // 改直调自由函数);reaction-window 续结算经壳上
   // executeJinnang/settleJinnangExit 公共方法回调,维持 reaction ⇄ 执行跨模块往返。
 
-  /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang。 */
-  drawJinnang(seat: number, count = 1): void {
-    drawJinnang(this, seat, count);
+  /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang;返回实际入手张数(#384)。 */
+  drawJinnang(seat: number, count = 1): number {
+    return drawJinnang(this, seat, count);
   }
 
   /** 军师幕入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */

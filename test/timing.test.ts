@@ -887,7 +887,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.confirmBankruptcySettle();
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([
-      { subject: e.players.indexOf(mover) },
+      { subject: e.players.indexOf(mover), creditorSeat: null }, // #384:债主座位随派发点入事件(null=归银行)
     ]);
     expect(mover.isBankrupt).toBe(true);
     expect(e.isOver).toBe(true); // 2 人局:一人出局即终局(群雄尽灭)

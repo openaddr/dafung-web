@@ -104,7 +104,7 @@ export function payOrLiquidate(
     return "liquidating";
   }
   settleDebtTraced(g, mover, creditor, amount);
-  finalizeBankruptcy(g, mover);
+  finalizeBankruptcy(g, mover, creditor);
   return "bankrupt";
 }
 
@@ -140,8 +140,9 @@ export function hasMarketableAssets(g: GameEngine, p: Player): boolean {
 }
 
 /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主);锦囊手牌清入弃牌堆
- *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。 */
-export function finalizeBankruptcy(g: GameEngine, p: Player): void {
+ *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。
+ *  creditor=债主(#384):随 PlayerBankrupt 派发进事件体(creditorSeat,null=归银行)。 */
+export function finalizeBankruptcy(g: GameEngine, p: Player, creditor: Player | null): void {
   for (const h of p.heroes) g.recruitedHeroIds.delete(h.id);
   p.heroes = [];
   if (p.jinnangHand.length > 0) {
@@ -152,7 +153,10 @@ export function finalizeBankruptcy(g: GameEngine, p: Player): void {
   // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
   // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
   p.capitalIndex = -1;
-  g.dispatchMoment("PlayerBankrupt", { subject: g.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
+  g.dispatchMoment("PlayerBankrupt", {
+    subject: g.players.indexOf(p),
+    creditorSeat: creditor ? g.players.indexOf(creditor) : null,
+  }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
 }
 
 /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
@@ -284,7 +288,7 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     );
   } else {
     settleDebtTraced(g, p, debt.creditor, debt.amount);
-    finalizeBankruptcy(g, p);
+    finalizeBankruptcy(g, p, debt.creditor);
     returnEscrowToSeller(g); // 破产:未付款的托管珍宝退回卖家
     g.logEvent(
       "system",

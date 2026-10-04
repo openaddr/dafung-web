@@ -105,6 +105,8 @@ export interface MomentCtx {
   buyerSeat?: number;
   /** 交易卖家座位(TradeSettled)。 */
   sellerSeat?: number;
+  /** 破产债主座位(PlayerBankrupt;null=无债主归银行/销毁,#384)。 */
+  creditorSeat?: number | null;
   /** 涉事 tile 索引(CapitalHalt/LandedOnProperty/PassedPlayer/BranchExited/MarchPassedCity)。 */
   tileIndex?: number;
   /** 涉事城 id(PropertyBought/PropertyUpgraded/LandedOnProperty)。 */

@@ -21,7 +21,7 @@ import {
 import { findHolding } from "./player";
 import { HEROES } from "./heroes";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
-import { drawJinnang } from "./jinnang-execution";
+import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
@@ -92,10 +92,19 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
   g.endTurn();
 }
 
-/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。 */
+/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。
+ *  重置走 addStamina 唯一口并以 staminaChanged(reason=exhaustion)产事件(#384):
+ *  耗竭入口已保证 stamina=0,增量恒为满值,夹紧不改变落账结果。 */
 function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void {
+  const seat = g.players.indexOf(p);
+  const staminaBefore = p.stamina;
   p.skipTurns += 1;
-  p.stamina = STARTING_STAMINA;
+  const after = g.addStamina(seat, STARTING_STAMINA - staminaBefore);
+  emitGameEvent(g, seat, {
+    kind: "staminaChanged",
+    delta: after - staminaBefore,
+    reason: "exhaustion",
+  }); // 事件流(#384):体力变更(耗竭重置)
   g.pendingExhaustionSeat = null;
   g.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
   g.logEvent(
@@ -220,7 +229,13 @@ function settleEncounterChoice(
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
   if (option.repDelta !== 0) {
+    const repBefore = mover.reputation;
     g.addReputation(seat, option.repDelta);
+    emitGameEvent(g, seat, {
+      kind: "reputationChanged",
+      delta: mover.reputation - repBefore,
+      reason: "encounter",
+    }); // 事件流(#384):声望变更(夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
     g.pushFloaterText(
       mover,
       `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`,
@@ -439,7 +454,7 @@ function applyGrantCardEffect(
     `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`,
   );
-  drawJinnang(g, seat, 1);
+  drawJinnangTraced(g, seat, 1, "encounter"); // 事件流(#384):抽锦囊进手(落空不产)
   return "settled";
 }
 
@@ -638,7 +653,13 @@ function applyEncounterStamina(
 ): "settled" | "exhausted" {
   if (delta === 0) return "settled";
   const seat = g.players.indexOf(mover);
+  const staminaBefore = mover.stamina;
   const stamina = g.addStamina(seat, delta);
+  emitGameEvent(g, seat, {
+    kind: "staminaChanged",
+    delta: stamina - staminaBefore,
+    reason: "encounter",
+  }); // 事件流(#384):体力变更(机遇,夹紧后实际增减)
   const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
   g.pushFloaterText(mover, `体力 ${signed}`, atTile);
   g.logEvent(
