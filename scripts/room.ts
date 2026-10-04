@@ -59,7 +59,7 @@ export type RoomEvent =
 export type RoomObserver = (roomId: string, event: RoomEvent) => void;
 
 /** 对局日志增量落盘钩子(ADR-0014,注入):persist 后/房间行写入后调用,
- *  传输层(server.ts)把 engine.log 新增行追加进 logs/<gameId>.jsonl。room.ts 自身零 fs。 */
+ *  传输层(server.ts)把 engine.log 新增行追加进 data/logs/<gameId>.jsonl。room.ts 自身零 fs。 */
 export type RoomLogSink = (room: RoomSession) => void;
 
 /** 单局房间会话:开局前后都用它(Lobby 态 engine=null)。 */
@@ -613,7 +613,7 @@ export class RoomRegistry {
       snapshot: r.engine ? r.engine.snapshot() : null,
     };
     this.persistence.save(rec);
-    // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(logs/<gameId>.jsonl)
+    // ADR-0014 对局日志:每手快照后把引擎新增日志行经钩子交传输层落盘(data/logs/<gameId>.jsonl)
     if (r.engine) this.logSink?.(r);
   }
 }

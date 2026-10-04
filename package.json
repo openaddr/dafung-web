@@ -6,7 +6,6 @@
   "type": "module",
   "scripts": {
     "dev": "bun scripts/dev.ts",
-    "dev:ui": "bun run --bun vite",
     "play": "bun scripts/play.ts",
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",

@@ -93,7 +93,7 @@ const VALID_MAP_IDS = new Set(CATALOG_ENTRIES.map((e) => e.id));
 mkdirSync(ROOMS_DIR, { recursive: true });
 const persistence = new FileRoomPersistence(ROOMS_DIR);
 
-// ──────────────────────────── 对局日志落盘(ADR-0014:logs/<gameId>.jsonl)────────────────────────────
+// ──────────────────────────── 对局日志落盘(ADR-0014:data/logs/<gameId>.jsonl)────────────────────────────
 // 增量追加:RoomRegistry 每次 persist(每手快照)后经 logSink 通知,把 engine.log 新增行
 // 追加写文件。终局行(final)由引擎在胜负判定时写入 engine.log,随最后一次 flush 自然落盘。
 const LOGS_DIR = resolve(process.env.LOGS_DIR ?? "./data/logs");
@@ -140,7 +140,7 @@ const removedOldLogs = cleanOldLogs();
 
 // ──────────────────────────── 可观测性:房间事件流水(JSONL)────────────────────────────
 // 目标:联机卡死类问题可事后归因。每房间两个落点:
-//   rooms/<code>.events.jsonl  —— 全量事件流(命令/bot 步进/停因/ws 连断,带时间戳)
+//   data/rooms/<code>.events.jsonl  —— 全量事件流(命令/bot 步进/停因/ws 连断,带时间戳)
 //   内存尾巴(每房最近 100 条) —— 供 GET /room/debug 免读盘快速返回
 // room.ts 的引擎侧事件经 RoomObserver 注入;传输层事件(cmd/ws-open/…)在此直接记录。
 const eventTail = new Map<string, unknown[]>();

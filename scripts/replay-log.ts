@@ -2,7 +2,7 @@
 // 重建引擎 → 按序重放(人类命令来自 cmd 行;bot/接管/托管座位由 botAct/aiSetupStepFor
 // 确定性重演,room 行动态调整驱动座位集)→ 与终局行(final)逐字段比对,不一致抛错/非零退出。
 //
-// 用法:bun scripts/replay-log.ts logs/<gameId>.jsonl [更多文件...]
+// 用法:bun scripts/replay-log.ts data/logs/<gameId>.jsonl [更多文件...]
 // 前提:局头 mapId 必须是内置地图(public/maps 清单内);编辑器试玩等无 id 的局不可重放(显式报错)。
 import { readFileSync } from "node:fs";
 import { GameEngine, type EngineConfig } from "../src/core/authority";
@@ -182,7 +182,7 @@ export function assertFinalState(lines: LogEvent[], engine: GameEngine): FinalIn
 if (import.meta.main) {
   const files = process.argv.slice(2);
   if (files.length === 0) {
-    console.error("用法: bun scripts/replay-log.ts logs/<gameId>.jsonl [更多文件...]");
+    console.error("用法: bun scripts/replay-log.ts data/logs/<gameId>.jsonl [更多文件...]");
     process.exit(2);
   }
   let failed = 0;
