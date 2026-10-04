@@ -37,7 +37,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 5. **序列化友好**:需同步的状态无函数、无循环引用、无 DOM 引用;`engine.snapshot()` 即联机广播数据包。
 6. **交互类 UI 组件必须收口 shadcn/Base UI**(弹层/下拉/确认框/表单控件等:`bunx shadcn add <component>` 取无头行为层,套水墨皮,不手搓交互语义);shadcn 变量经 `app.css` 桥接 gen:theme 产出的 `--color-*` token,**配色单源仍是 `core/theme.ts`**。附表与豁免见 [docs/design/组件收口.md](./docs/design/组件收口.md)。
 7. **视觉/交互设计开工前先读 [DESIGN.md](./docs/design/DESIGN.md)**;§4.6 状态表达原则:能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不加文字标牌。
-8. **模块治理(常设,目的=可读性/维护性/扩展性)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;拆分走机制域轴+自由函数+薄委托,**搬运与改名分离**,验收=测试全绿+同种子快照哈希不变+方法清单 diff 零;引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制。细则见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
+8. **模块治理(常设,目的=可读性/维护性/扩展性)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;拆分走机制域轴+自由函数+薄委托,**搬运与改名分离**,验收=测试全绿+方法清单 diff 零(同种子快照哈希验收已由 ADR-0021 删除);引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制。细则见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
 
 ## 完成定义(DoD)
 
@@ -55,7 +55,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 - **core/**(全部纯逻辑):`authority.ts` 引擎壳(状态/薄委托/命令路由/快照通道,purity 门禁看守) · 机制域模块:`reaction-window` 反应窗 · `jinnang-execution` 锦囊执行 · `encounter-flow` 机遇+耗竭 · `movement-flow` 行军落格地产 · `bankruptcy` 破产清算 · `treasure-flow` 珍宝交涉 · `setup-flow` 开局三段式 · `recruitment` 招贤 · `model.ts` 共享领域模型 · `timing.ts`+`effects.ts` 时机总线与效果注册表 · `choices.ts` 决策选项集(ADR-0013) · `board.ts`/`board-loader.ts` 棋盘路径与地图契约 · `economy.ts` 经济原语 · `bot.ts` AI · `heroes.ts`/`treasures.ts`/`encounters.ts` 数据表(加名将/珍宝/机遇只改这些) · `snapshot.ts` 快照序列化 · `constants.ts` 共享常量 · `theme.ts` 配色单源(改后跑 `bun run gen:theme`);划分纪律见架构红线 8(ADR-0019)
 - **app/**:`main.tsx` 入口 · `store/` zustand(game 全局态/net 联机) · `controllers/` 基类+单机+联机+registry(含 `installDebugHooks`) · `components/board/` SVG 棋盘 · `screens/` home/setup/lobby/game/editor(各屏 testids.ts 是 e2e 选择器单源) · `fx/` 骰子/行军/浮字/音效编排
-- **scripts/**:`cli.ts` 纯 CLI 对局 · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-persistence.ts` 落盘适配 · `replay-log.ts` 对局日志重放校验 · `engine-helpers.ts` CLI/Server 共享层 · `shot.mjs` 截图自证单源(起服样板勿手写) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言)
+- **scripts/**:`cli.ts` 纯 CLI 对局 · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-persistence.ts` 落盘适配 · `engine-helpers.ts` CLI/Server 共享层 · `shot.mjs` 截图自证单源(起服样板勿手写) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言)
 
 ## 开发陷阱速查(游戏逻辑;数值一律查 [rules 第 10 页](./docs/reference/rules/10-关键数值总表.md))
 
@@ -67,7 +67,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - 弹卷轴 ⇔ 选项集 ≥2 真实选项;≤1 引擎自动执行默认行为+浮字(ADR-0013,`engine.choicesFor()`/快照 `choices` 供消费);破产清算例外仍弹。
 - 机遇档位归一/回退单源在 `core/encounters.ts`;引擎缺省 `triggerRate=0`,产品默认来自 jiyu.json。
 - 时机框架:技能=数据声明挂 `HeroDef.skills`,`dispatchMoment` 按座位序×技能序确定性派发;加效果一步(`effects.ts`)/加技能两步(`heroes.ts`)/加时机三步(`timing.ts`+`authority.ts`);效果内禁同步再派发时机(深度>2 抛错);CashGained 仅经济结算点派发,防连锁。
-- 对局日志(ADR-0014):记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**(重放自动重算);`bun scripts/replay-log.ts data/logs/x.jsonl` 校验终态。
+- 对局日志(ADR-0014):**纯归档**(ADR-0021 删重放校验器)——记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**;联机落 `data/logs/<gameId>.jsonl`,单机在 IndexedDB,排查直接读 jsonl(格式见[对局日志](./docs/reference/对局日志.md))。
 
 ## 验证纪律
 

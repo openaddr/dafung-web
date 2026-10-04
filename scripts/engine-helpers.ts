@@ -17,7 +17,7 @@ import { botAct } from "../src/core/bot";
 /** 共享地图(主路 + 辅路 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
 export const MAP: LoadedMap = loadMap(sanguoData);
 
-// ──────────────────────────── 内置地图清单加载(CLI/Server/replay 共享) ────────────────────────────
+// ──────────────────────────── 内置地图清单加载(CLI/Server 共享) ────────────────────────────
 const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
 
 /** 地图清单(entries)。损坏/缺失直接抛(零兜底:清单是唯一事实源)。 */
