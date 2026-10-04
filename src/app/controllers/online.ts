@@ -3,7 +3,8 @@
 // - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
 //   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
 //   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
-//   本类只剩:协议消息分发、快照 hydrate、表现消费调用、registry/store 灌数、换图重建。
+//   本类只剩:协议消息分发、事件批折叠(#386)+快照 hydrate(水合无条件覆盖折叠字段,
+//   快照=校准锚)、表现消费调用、registry/store 灌数、换图重建。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
@@ -16,6 +17,7 @@ import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch, type EventBatchMsg } from "@app/net/event-feed";
+import { foldEventBatch } from "@app/net/event-fold";
 import { reactionQueriesSeat } from "./reaction";
 import { setController } from "./registry";
 import { GameController } from "./controller";
@@ -56,6 +58,10 @@ export class OnlineController extends GameController {
   private enteredGame = false;
   /** 上一帧是否处于「我的 Roll 等待态」(#188 起签表现的转入沿检测基准)。 */
   private prevMyRollWait = false;
+  /** 事件批折叠前的棋子位置(#386):同 tick 快照帧 fx.play 的行军锚定基准——折叠切换④
+   *  起事件批先到并折叠推进 position,快照水合前引擎位置已是终态,「转移前视觉停点」
+   *  必须在折叠前捕获。null = 本帧无事件批(空批 flush),快照帧退回水合前引擎位置。 */
+  private pendingMarchAnchors: (number | null)[] | null = null;
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
 
@@ -267,7 +273,10 @@ export class OnlineController extends GameController {
       const { type: _t, ...snap } = msg;
       // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
       // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
-      const prePositions: (number | null)[] = this._engine.players.map((p) => p.position);
+      // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
+      // 本帧无事件批(空批 flush)时引擎位置未被折叠,水合前捕获口径不变。
+      const prePositions = this.pendingMarchAnchors ?? this._engine.players.map((p) => p.position);
+      this.pendingMarchAnchors = null;
       this.applyRoomFields(msg);
       if (msg.mapId && msg.mapId !== this.mapId) {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
@@ -306,9 +315,17 @@ export class OnlineController extends GameController {
       return;
     }
     if (msg.type === "events") {
-      // 事件批下行通道(#390):整批暂存 netStore 即返回——不驱动任何 UI/行为,
-      // 折叠消费归后续工单(伞票 #377);接收面与容错口径见 net/event-feed.ts。
+      // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
+      // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
+      // 不变,不另起平行 store 切片;一次事件批一次重渲)。同 tick 随后的快照照旧
+      // 整体水合并无条件覆盖这两字段(快照=校准锚,折叠漂移当场纠正)。
+      // 折叠前先捕获棋子位置给本帧快照的 fx.play 当行军锚点(见 pendingMarchAnchors)。
+      this.pendingMarchAnchors = this._engine.players.map((p) => p.position);
+      foldEventBatch(this._engine, msg.events);
+      // 表现消费(#385):批照旧暂存 netStore,SnapshotEffects 在快照帧直译播放——
+      // 折叠与演出是同一批的两个独立消费面,互不消耗。
       stashEventBatch(msg.events);
+      this.sync();
       return;
     }
     if (msg.type === "dismissed") {
