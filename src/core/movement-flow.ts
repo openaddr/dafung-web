@@ -18,6 +18,7 @@ import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow } from "./reaction-window";
 import { formatMoney } from "./money";
+import { emitGameEvent } from "./game-events";
 import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
@@ -203,9 +204,7 @@ export function marchTraverse(
           ownerSeat,
           tileIndex: tIdx,
         }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
-        const ambushId = owner.jinnangHand.find(
-          (id) => jinnangCardOf(id).effect.kind === "ambush",
-        );
+        const ambushId = owner.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
         if (ambushId != null) {
           const walkedCount = totalLen - remaining.length;
           const branchPrefix =
@@ -247,6 +246,7 @@ export function settleMarchLanding(
 ): void {
   mover.onBranch = null; // 已在主路(清掉原 onBranch)
   mover.position = landIndex;
+  emitGameEvent(g, g.players.indexOf(mover), { kind: "marchArrived", tileIndex: landIndex }); // 事件流(#375):行军落格
   if (wasOnBranch)
     g.dispatchMoment("BranchExited", {
       subject: g.players.indexOf(mover),
@@ -461,6 +461,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
     if (r === "liquidating") return;
     const bankrupt = r === "bankrupt";
     g.pushFloater(mover, -200, tile.index, "expense");
+    emitGameEvent(g, g.players.indexOf(mover), { kind: "cashChanged", delta: -200, reason: "tax" }); // 事件流(#375):金钱变更(浮字同口径 -200 平记)
     g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
     g.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
     g.logEvent(
@@ -486,8 +487,12 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       bankrupt = r === "bankrupt";
     }
     g.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
-    if (!gain)
-      g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "cashChanged",
+      delta: gain ? delta : -amt,
+      reason: "stock",
+    }); // 事件流(#375):金钱变更(浮字同口径)
+    if (!gain) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
     g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     g.logEvent(
       "system",
@@ -634,6 +639,11 @@ function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "l
   if (supply > 0) {
     mover.cash += supply;
     g.pushFloater(mover, supply, mover.capitalIndex, "supply");
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "cashChanged",
+      delta: supply,
+      reason: "supply",
+    }); // 事件流(#375):金钱变更
     g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
   }
   if (cause === "halt") {
