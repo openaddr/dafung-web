@@ -322,11 +322,13 @@ export async function onlinePickCapitals(pages: Page[]): Promise<void> {
     const picker: Page | undefined = pages[s.currentSetupPlayerIndex];
     const before = JSON.stringify(s);
     if (!picker) {
-      // bot 座位轮到:服务器自动代选,等快照推进即可
+      // bot 座位轮到:服务器自动代选,等快照推进即可。45s:4 worker 满载下服务器
+      // 处理+广播的实测抖动可达 20s+(#370 后 reaction 三例 setup 连挂取证),20s 硬编码
+      // 是安静机假设;外层 90s deadline 仍兜总预算。
       await pages[0].waitForFunction(
         (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
         before,
-        { timeout: 20_000, polling: 200 },
+        { timeout: 45_000, polling: 200 },
       );
       continue;
     }
@@ -339,7 +341,7 @@ export async function onlinePickCapitals(pages: Page[]): Promise<void> {
     await pages[0].waitForFunction(
       (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
       before,
-      { timeout: 20_000, polling: 200 },
+      { timeout: 45_000, polling: 200 },
     );
   }
   throw new Error("联机选都超时未完成");
