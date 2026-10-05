@@ -18,7 +18,8 @@
 //                                            唯一状态通路)/lobby(元数据)/dismissed
 //                                            (#388 折叠切换⑥:正常对局零逐步快照,
 //                                            全量下行=摘要/校准/生命周期三类)
-// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
+// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);保留窗(默认 10
+//      分钟,#380)到期 bot 自动接管、原 token 重连仍可夺回;host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
@@ -82,6 +83,16 @@ const DECISION_TIMEOUT_MS = Math.max(
 const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   0,
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
+);
+
+// 掉线座位保留窗口(#380):对局中断线的座位保留该毫秒——窗口内持 seatToken 重连无缝
+// 夺回;到期 bot 自动接管(等价房主 takeover,重连仍可夺回)。0 = 关闭(恢复纯冻结 +
+// 房主手动接管/#118 停摆看门狗的旧语义)。默认 600000(10 分钟):手机闪断/电梯断网
+// 远够用,真离场不再永久拖死全局。token 是座位归属唯一凭证(ADR-0005),有效期=房间
+// 生命周期,不因保留窗到期失效。
+const RETENTION_WINDOW_MS = Math.max(
+  0,
+  parseInt(process.env.RETENTION_WINDOW_MS ?? "600000", 10) || 0,
 );
 
 // ──────────────────────────── 扩展包装载(#378,ADR-0022 权威侧)────────────────────────────
@@ -209,6 +220,7 @@ const registry = new RoomRegistry(
     encounter: ENCOUNTER,
     decisionTimeoutMs: DECISION_TIMEOUT_MS,
     reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
+    retentionWindowMs: RETENTION_WINDOW_MS,
   },
 );
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
@@ -463,6 +475,10 @@ const HELP = {
       "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
+  retention:
+    "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
+    "窗口内持 seatToken 重连无缝夺回;到期 bot 自动接管(等价房主 takeover,原 token 重连仍可夺回);" +
+    "token 是座位归属唯一凭证(ADR-0005),有效期=房间生命周期,不因保留窗到期失效",
   maps: CATALOG_ENTRIES.map((e) => ({
     id: e.id,
     name: e.name,
@@ -479,6 +495,7 @@ const HELP = {
     JIYU_CONFIG,
     DECISION_TIMEOUT_MS,
     E2E_REACTION_MS: REACTION_WINDOW_MS_OVERRIDE,
+    RETENTION_WINDOW_MS,
   },
 };
 
@@ -747,7 +764,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"}`,
+  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws",
