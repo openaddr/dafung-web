@@ -1,11 +1,13 @@
 // Worker 时钟 + 节拍单源单测(#399 单机统一 C):
 //   ① createWorkerClock 真实 Worker(bun 原生支持 blob worker):到点回发执行回调、
 //      clear 撤回调、dispose 可停;
-//   ② RoomRegistry clock 注入端到端:手动时钟驱动 #188 自动起摇看门狗——
+//   ② 暂停闸(#421 调试观测面):pause 挂起到点回调、resume 按到点序补放、
+//      冻结期 clear 的回调丢弃;
+//   ③ RoomRegistry clock 注入端到端:手动时钟驱动 #188 自动起摇看门狗——
 //      「失焦推进可测」的接缝即注入面(真实后台行为归 e2e/手动验证,单测钉接线)。
 // 节拍常量单源(core/timings)由 watchdogs/bot-driver 改引承担,此处不再重复数值断言。
 import { describe, it, expect } from "bun:test";
-import { createWorkerClock } from "../src/app/net/worker-clock";
+import { createWorkerClock, latestWorkerClock } from "../src/app/net/worker-clock";
 import type { RoomClock } from "../scripts/room";
 import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
 import { RoomRegistry } from "../scripts/room";
@@ -43,6 +45,38 @@ describe("createWorkerClock(真实 Worker)", () => {
       clock.dispose();
     }
   }, 15_000);
+
+  it("暂停闸(#421):pause 挂起到点回调,resume 按到点序补放;冻结期 clear 丢弃", async () => {
+    const clock = createWorkerClock();
+    try {
+      const fired: string[] = [];
+      clock.setTimeout(() => fired.push("a"), 30);
+      clock.setTimeout(() => fired.push("b"), 60);
+      clock.pause();
+      expect(clock.paused).toBe(true);
+      await sleep(250); // 两笔到点:冻结期只挂起不投递
+      expect(fired).toEqual([]);
+      clock.clearTimeout(clock.setTimeout(() => fired.push("c"), 5)); // set+clear 同拍:永不投递
+      const h = clock.setTimeout(() => fired.push("d"), 400); // 冻结期设的新表照走,到点挂起
+      clock.resume();
+      expect(clock.paused).toBe(false);
+      await sleep(0); // 补放是同步循环,resume 返回即已放完
+      expect(fired).toEqual(["a", "b"]); // 按到点序补放
+      await sleep(500);
+      expect(fired).toEqual(["a", "b", "d"]); // resume 后到点照常投递
+      clock.clearTimeout(h);
+    } finally {
+      clock.dispose();
+    }
+  }, 15_000);
+
+  it("latestWorkerClock(#421 寻址):创建即登记,dispose 让位", () => {
+    const before = latestWorkerClock();
+    const clock = createWorkerClock();
+    expect(latestWorkerClock()).toBe(clock);
+    clock.dispose();
+    expect(latestWorkerClock()).toBe(before); // 回落到上一个未销毁时钟(无则 null)
+  });
 });
 
 /** 手动时钟(测试注入):定时全部挂表,fireAll 手动推进——接线断言零真实等待。 */

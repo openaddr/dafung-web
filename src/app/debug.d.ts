@@ -20,6 +20,10 @@ declare global {
       heroDefs: () => HeroDef[];
       /** 当前控制器(交互入口)。 */
       controller: () => GameController | null;
+      /** 房间时钟冻结闸(#421 调试观测面):冻结期间看门狗/自动起摇/慢速托管的
+       *  到点回调挂起;resume 按到点序补放。仅单机对局可冻结(无 Worker 时钟抛错)。 */
+      clockPause: () => void;
+      clockResume: () => void;
     };
   }
 }
