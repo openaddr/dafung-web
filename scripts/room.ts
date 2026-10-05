@@ -1,31 +1,105 @@
 // 房间游戏编排(ADR-0007):房间会话模型 + 生命周期 + 座位 + host 移交 + 落盘。
-// 标准 ports & adapters 的核心:深模块,**零 WS/HTTP/fs 依赖**(不 import ws / node:http / node:fs)。
+// 标准 ports & adapters 的核心:深模块,**零 WS/HTTP/fs/node 依赖**(不 import ws /
+// node:http / node:fs / node:crypto,engine-helpers/room-persistence 的值面也不进 import
+// 图——持久化/地图加载/日志落盘全部做成注入适配器)。
 // 传输层持 WS 句柄、知道 online 状态;视图/transferHost 都接 `onlineSeats: Set<number>` 作入参。
-// 持久化做成注入的 RoomPersistence 适配器。
+// **双运行时同构**(#398 单机统一 B):本模块同时被 bun(server.ts/cli.ts)与浏览器
+// 进程内单机通路(src/app/controllers/local.ts)import——房间编排只有一份,联机与单机
+// 「同一命令路由、同一事件产出」。浏览器所需的全部环境差异(randomness/引擎工厂/快照
+// 水合)在下方「运行时同构原语」节本地实现,与被替换的 bun 侧实现逐字同语义。
 // 三块已拆出(模块治理 10/11 #327):客户端投影 seat-projection.ts(纯搬)、bot 驱动
 // bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
 // 对象注入宿主操作面,投影视图在下方再导出维持原引用面(测试/传输层 import 不动)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
-import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/authority";
-import type { SeatConfig } from "../src/core/authority";
-import type { AiDifficulty, GameCommand } from "../src/core/authority";
+import type { AiDifficulty, EngineConfig, GameCommand, SeatConfig } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
+import { createDice } from "../src/core/dice";
 import type { EncounterConfig } from "../src/core/encounters";
 import type { GameEvent } from "../src/core/game-events";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
-import { createEngine, statusOf } from "./engine-helpers";
-import {
-  type HostConfig,
-  type PersistedSeat,
-  type RoomPersistence,
-  type RoomRecord,
-  recordToSessionData,
-} from "./room-persistence";
+import type { HostConfig, PersistedSeat, RoomPersistence, RoomRecord } from "./room-persistence";
 import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
+
+// ──────────────────────────── 运行时同构原语(#398 单机统一 B)────────────────────────────
+// 被替换物与语义对照(行为零变化,只换运行时来源):
+//   randomBytes/randomInt ← node:crypto → Web Crypto getRandomValues(bun 与浏览器皆有
+//   全局 crypto);token 编码 ← Buffer#toString("base64url") → 本地 base64url 编码器
+//   (同字母表,18 字节恒 24 字符无 padding);createEngine ← engine-helpers(其模块作用域
+//   持 node:fs,不能进浏览器 import 图)→ 引擎构造三行本地等价;快照水合 ←
+//   room-persistence.recordToSessionData/engineFromRecord(同链)→ 本地等价。
+/** CSPRNG 字节串(getRandomValues;调用方:token/房间码)。 */
+const randomBytes = (n: number): Uint8Array => {
+  const out = new Uint8Array(n);
+  crypto.getRandomValues(out);
+  return out;
+};
+/** 均匀 [0, upperExclusive) 随机整数:拒绝采样无模偏(语义同 node:crypto randomInt)。 */
+const randomInt = (upperExclusive: number): number => {
+  const limit = Math.floor(0x1_0000_0000 / upperExclusive) * upperExclusive;
+  const buf = new Uint32Array(1);
+  for (;;) {
+    crypto.getRandomValues(buf);
+    if (buf[0]! < limit) return buf[0]! % upperExclusive;
+  }
+};
+const B64URL = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+/** base64url 编码(字母表与 Buffer#toString("base64url") 一致;尾部无 padding)。 */
+const toBase64Url = (bytes: Uint8Array): string => {
+  let out = "";
+  for (let i = 0; i < bytes.length; i += 3) {
+    const b0 = bytes[i]!;
+    const b1 = bytes[i + 1];
+    const b2 = bytes[i + 2];
+    out += B64URL[b0 >> 2];
+    out += B64URL[((b0 & 3) << 4) | ((b1 ?? 0) >> 4)];
+    if (b1 == null) break;
+    out += B64URL[((b1 & 15) << 2) | ((b2 ?? 0) >> 6)];
+    if (b2 == null) break;
+    out += B64URL[b2 & 63];
+  }
+  return out;
+};
+/** 全新引擎(本地等价 engine-helpers.createEngine;调用点恒显式传图,无默认图分支)。 */
+function createEngine(config: EngineConfig, doDraft: boolean, map: LoadedMap): GameEngine {
+  const engine = new GameEngine(map.board, map.catalog, createDice(config.seed), config);
+  if (doDraft) engine.doDraftRoll();
+  return engine;
+}
+/** 持久化座位 → 构造座位壳(水合重建引擎用;引擎按快照覆盖,名字仅占位)。 */
+function dummySeats(n: number): SeatConfig[] {
+  return Array.from({ length: n }, (_, i) => ({ name: `座 ${i + 1}`, isBot: false }));
+}
+/** RoomRecord 快照 → 引擎(本地等价 room-persistence.engineFromRecord)。
+ *  快照存在但缺地图 id 或加载器 = 记录损坏,当场抛(restoreAll 的「跳过不可恢复房间」
+ *  接住并告警移除——原 MAP 回退分支是旧记录兼容路径,零兜底下不再复刻)。 */
+function engineFromRecord(
+  rec: RoomRecord,
+  mapProvider?: (mapId: string) => LoadedMap,
+  reactionWindowMs?: number,
+): GameEngine | null {
+  if (!rec.snapshot) return null;
+  if (!rec.mapId || !mapProvider)
+    throw new Error(`房间 ${rec.roomId}:快照存在但缺地图 id 或加载器(记录损坏)`);
+  const map = mapProvider(rec.mapId);
+  const engine = createEngine(
+    {
+      seats: dummySeats(rec.seatCount),
+      ...rec.hostConfig,
+      // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
+      ...(rec.encounter ? { encounter: rec.encounter } : {}),
+      // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)
+      ...(reactionWindowMs != null && reactionWindowMs > 0 ? { reactionWindowMs } : {}),
+    },
+    false,
+    map,
+  );
+  engine.restoreFromSnapshot(rec.snapshot);
+  return engine;
+}
 
 // ──────────────────────────── 数据形状 ────────────────────────────
 /** 座位状态:无 WebSocket 句柄(WS 归传输层;ADR-0007 关键不变量 1)。 */
@@ -242,20 +316,19 @@ export class RoomRegistry {
     return count;
   }
 
-  /** 内部:RoomRecord → RoomSession(零 WS 句柄;engine 重建走 persistence 层)。 */
+  /** 内部:RoomRecord → RoomSession(零 WS 句柄;引擎重建走运行时同构原语 engineFromRecord)。 */
   private hydrate(rec: RoomRecord, mapProvider?: (mapId: string) => LoadedMap): RoomSession {
-    const data = recordToSessionData(rec, mapProvider, this.reactionWindowMsOverride);
     return {
-      roomId: data.roomId,
-      seatCount: data.seatCount,
-      seats: data.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao })),
-      hostSeat: data.hostSeat,
-      takeover: data.takeover,
-      autoPilot: data.autoPilot,
-      hostConfig: data.hostConfig,
-      mapId: data.mapId,
-      encounter: data.encounter,
-      engine: data.engine,
+      roomId: rec.roomId,
+      seatCount: rec.seatCount,
+      seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
+      hostSeat: rec.hostSeat ?? 0,
+      takeover: new Set(rec.takeover ?? []),
+      autoPilot: new Map((rec.autoPilot ?? []).map((a) => [a.seat, a.speed] as const)),
+      hostConfig: rec.hostConfig,
+      mapId: rec.mapId ?? null,
+      encounter: rec.encounter ?? null,
+      engine: engineFromRecord(rec, mapProvider, this.reactionWindowMsOverride),
     };
   }
 
@@ -269,7 +342,7 @@ export class RoomRegistry {
 
   // ──────────────────────────── 房间码 / token ────────────────────────────
   private newToken(): string {
-    return randomBytes(18).toString("base64url");
+    return toBase64Url(randomBytes(18));
   }
 
   private newRoomId(): string {
@@ -747,5 +820,3 @@ export class RoomError extends Error {
 
 // ──────────────────────────── 类型再导出(供 server.ts 用)────────────────────────────
 export type { AiDifficulty };
-// statusOf 同样从 engine-helpers 再导出,避免 server.ts 多加一行 import
-export { statusOf };
