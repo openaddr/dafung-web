@@ -91,7 +91,8 @@ export function unregisterExtensionPackage(id: string): void {
   if (pkg == null) throw new Error(`扩展卸载:包「${id}」未装载(状态机 bug)`);
   for (const h of pkg.heroes) {
     const idx = HEROES.indexOf(h);
-    if (idx >= 0) HEROES.splice(idx, 1);
+    if (idx < 0) throw new Error(`扩展卸载:名将「${h.id}」不在注册表(状态机 bug)`);
+    HEROES.splice(idx, 1);
   }
   for (const eid of pkg.effectIds) delete EFFECTS[eid];
   installed.delete(id);

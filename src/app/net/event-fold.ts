@@ -93,11 +93,12 @@ import type {
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { HEROES, type ActiveSkillDef } from "@core/heroes";
 import { TREASURES, type TreasureDef } from "@core/treasures";
+import { REP_MILESTONES } from "@core/reputation";
 import { ENCOUNTERS } from "@core/encounters";
 import { BUY_WARRANT_COST, REACTION_WINDOW_MS } from "@core/constants";
 
 /** 声望献计里程碑(#147):值域与穿越口径同 core reputation.ts(向上穿越、仅首次)。 */
-const REP_MILESTONES = [30, 60, 90] as const;
+// 常量单源在 core/reputation.ts(REP_MILESTONES),勿在本文件重定义。
 
 /** 拦检反应牌(#281):行军窗唯一可打反应牌——按效果域查静态目录,不硬抄牌名字符串。 */
 const AMBUSH_CARD = (() => {
