@@ -247,25 +247,13 @@ export interface PropertyChangeTrace {
 /** 出牌指示线留痕(#281/P2-E,ADR-0010 表现事件流的 core 侧发射点):锦囊/反应牌生效点
  *  写入「使用者 token → 目标 token」墨线素材,表现提取器经 engine.presentation
  *  .drainJinnangPlays() 一次性取走(破坏性读,同 drainPropertyChanges 口径)。
- *  瞬态不序列化(同 floaters/propertyChanges)——单机本地编排通道;联机信号源是
- *  可序列化的 `lastJinnangPlay`(最近一条留痕,客户端快照 diff 提取),两者由
- *  traceJinnangPlay 同点写入、注释互指。 */
+ *  瞬态不序列化(同 floaters/propertyChanges)——单机本地编排通道。联机端不再有
+ *  平行的留痕通道:#385 起出牌线动效由事件批直读(jinnangAnnounced/jinnangVoided
+ *  → fx/event-extract 产 jinnangPlayed),原可序列化 lastJinnangPlay 已随 #412 退役。 */
 export interface JinnangPlayTrace {
   userSeat: number;
   targetSeats: number[];
   cardId: string;
-}
-
-/** 最近出牌留痕(#284,可序列化联机信号源):锦囊/反应牌生效点由 traceJinnangPlay
- *  与瞬态 jinnangPlays 同点写入。**批形状**:seq 是批号(一批=两次封批之间的全部
- *  留痕,同批多条——如 AOE 多人识破循环——聚在同一 plays 里),单调递增防「同参数
- *  牌」diff 去重失效;若只存末条,同批多条留痕在联机只剩一条(2026-09-28 双轴评审
- *  实锤)。出牌是公开事件,redact 不裁(公开信息);入 SNAPSHOT_FIELDS,客户端
- *  SnapshotEffects diff seq 变化即对 plays 逐条产既有 jinnangPlayed 表现事件(禁立
- *  第二 WS 事件通道,ADR-0010)。 */
-export interface LastJinnangPlay {
-  seq: number;
-  plays: JinnangPlayTrace[];
 }
 
 export class GameEngine {
@@ -321,21 +309,10 @@ export class GameEngine {
    *  (SNAPSHOT_FIELDS 单点清单);人类被询问时窗跨命令存续,bot 全被询问时在开窗
    *  同一调用内即席应答并续结算(ADR-0017「bot 持牌即时代答不等满」),相位不外显。 */
   pendingReaction: PendingReaction | null = null;
-  /** 窗/留痕共用的单调流水号(#284):开反应窗写 PendingReaction.seq、出牌留痕写
-   *  lastJinnangPlay.seq,均取 nextJinnangSeq()。cmd 流派生状态,重放重算天然复现;
-   *  快照恢复后在 restoreFromSnapshot 里按「快照内已见的最大 seq」推回(单调不回退)。 */
+  /** 窗实例单调流水号(#284):开反应窗写 PendingReaction.seq(取 nextJinnangSeq)。
+   *  cmd 流派生状态,重放重算天然复现;快照恢复后在 restoreFromSnapshot 里按「快照内
+   *  已见的最大 seq」推回(单调不回退)。 */
   jinnangSeq = 0;
-  /** 最近出牌留痕(#284,联机信号源,批形状见 LastJinnangPlay):写入见 traceJinnangPlay;
-   *  随快照序列化(SNAPSHOT_FIELDS 单点清单)。null=本局尚无出牌。 */
-  lastJinnangPlay: LastJinnangPlay | null = null;
-  /** 当前留痕批(瞬态不序列化,别名指向 lastJinnangPlay):**批界=快照封批**——
-   *  权威侧每次产快照广播前调 sealJinnangPlayBatch() 关批,下一条留痕重新取号成批。
-   *  bot 链不经 submitCommand,批界不能挂命令口(否则 bot 连续出牌丢线,#284 评审)。 */
-  jinnangPlayBatch: LastJinnangPlay | null = null;
-  /** 封批(权威侧产快照前调,server.ts broadcast flush):下一条留痕重新取号。 */
-  sealJinnangPlayBatch(): void {
-    this.jinnangPlayBatch = null;
-  }
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
@@ -1312,15 +1289,11 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
-    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(单机本地编排通道;联机信号源=lastJinnangPlay,随快照恢复)
+    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(单机本地编排通道;出牌线联机面=事件批直读,#385)
     // seq 计数器恢复推回(#284):计数器本身不序列化,按快照内已见的最大 seq 推回,
-    // 保证单调不回退——恢复后开新窗/出新牌的号必然大于恢复前任何已广播的号,
-    // 传输层同窗判据与客户端 diff 去重不因恢复串号。快照无窗无留痕时保持当前值。
-    this.jinnangSeq = Math.max(
-      this.jinnangSeq,
-      s.pendingReaction?.seq ?? 0,
-      s.lastJinnangPlay?.seq ?? 0,
-    );
+    // 保证单调不回退——恢复后开新窗的号必然大于恢复前任何已广播的号,
+    // 传输层同窗判据不因恢复串号。快照无窗时保持当前值。
+    this.jinnangSeq = Math.max(this.jinnangSeq, s.pendingReaction?.seq ?? 0);
     // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告

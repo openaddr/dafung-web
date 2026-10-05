@@ -586,7 +586,7 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.players[0].jinnangHand).toEqual([]); // 暗牌内容不折(ADR-0016)
   });
 
-  it("jinnangAnnounced 出牌扣账:手牌数-1/入弃堆/标签占名额/留痕落 lastJinnangPlay", () => {
+  it("jinnangAnnounced 出牌扣账:手牌数-1/入弃堆/标签占名额", () => {
     const e = makeEngine();
     e.players[0].jinnangHand = ["连环计"];
     e.players[0].jinnangHandCount = 1;
@@ -595,11 +595,6 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.players[0].jinnangHandCount).toBe(0);
     expect(e.jinnangDiscard).toEqual(["连环计"]);
     expect(e.jinnangUsedTags).toEqual(["谋"]);
-    expect(e.lastJinnangPlay).toEqual({
-      seq: 1,
-      plays: [{ userSeat: 0, targetSeats: [1, 2], cardId: "连环计" }],
-    });
-    expect(e.jinnangPlayBatch).toBe(e.lastJinnangPlay);
   });
 
   it("jinnangAnnounced 军情密探:窥探入册(viewer 至下回合到期)", () => {
@@ -627,7 +622,7 @@ describe("折叠投影器 · 锦囊族", () => {
     ]);
 
     expect(e.turnPhase).toBe("AwaitingReaction");
-    expect(e.pendingReaction?.seq).toBe(2); // 留痕 seq 1 之后
+    expect(e.pendingReaction?.seq).toBe(1); // 留痕退役后窗实例号取首个流水(#412)
     expect(e.pendingReaction?.view).toEqual({
       kind: "jinnang",
       cardId: "缓兵之计",
@@ -642,7 +637,7 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.pendingReaction).toBeNull(); // 应答齐即闭窗
   });
 
-  it("jinnangVoided 识破扣账 + 留痕(shareSeat 缺席按单份窗推被指定者)", () => {
+  it("jinnangVoided 识破扣账(应答按座位配对,shareSeat 不参与折叠)", () => {
     const e = makeEngine();
     e.players[1].jinnangHand = ["识破诡计"];
     e.players[1].jinnangHandCount = 1;
@@ -660,10 +655,6 @@ describe("折叠投影器 · 锦囊族", () => {
 
     expect(e.players[1].jinnangHandCount).toBe(0); // 识破牌扣账
     expect(e.jinnangDiscard).toEqual(["缓兵之计", "识破诡计"]);
-    expect(e.lastJinnangPlay?.plays).toEqual([
-      { userSeat: 0, targetSeats: [1], cardId: "缓兵之计" },
-      { userSeat: 1, targetSeats: [1], cardId: "识破诡计" }, // 单份推:被指定者
-    ]);
 
     const e2 = makeEngine(); // AOE:shareSeat 明传,按份配对生效应答
     e2.players[0].jinnangHand = ["横征暴敛"];
@@ -682,10 +673,6 @@ describe("折叠投影器 · 锦囊族", () => {
       ev(1, { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 }),
     ]);
     expect(e2.jinnangDiscard).toEqual(["横征暴敛", "识破诡计"]);
-    expect(e2.lastJinnangPlay?.plays).toEqual([
-      { userSeat: 0, targetSeats: [1], cardId: "横征暴敛" },
-      { userSeat: 1, targetSeats: [1], cardId: "识破诡计" }, // shareSeat 明传
-    ]);
   });
 
   it("行军窗:闭窗应答点扣拦检牌(胜负两路同折);reactionFailed 无状态转移", () => {

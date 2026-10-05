@@ -1,9 +1,9 @@
 // 太史慈 · 扩展名将包(客户端贡献 TS 源)。分发 = 编译后 JS(包根 client.js):
 //   bunx esbuild src/client.ts --format=esm --target=es2022 --outfile=../client.js
-// 结构契约见 src/app/extensions/registry.ts(ExtensionClientPackage)。本包演示三能力
-// 之二/之三:「动画 handler」吃引擎事件批补演出(义从=义字印+文案浮字,破阵=擂鼓
-// 文案浮字);「渲染 hook」供名将专属将旗(assets/flag.svg,站点根相对 URL)。
-// 客户端包代码只做表现,不做任何裁决(裁决全在权威侧)。
+// 结构契约见 src/app/extensions/registry.ts(ExtensionClientPackage)。本包演示三能力:
+// 「动画 handler」吃引擎事件批补演出(义从=义字印+文案浮字,破阵=擂鼓文案浮字);
+// 「渲染 hook」供名将专属将旗(assets/flag.svg,站点根相对 URL);「交互呈现 hook」
+// 声明定制问询的呈现意图(#410,盲选问询=牌背)。客户端包代码只做表现,不做任何裁决。
 import type { GameEngine } from "../../../src/core/authority";
 import type { PresentationEvent } from "../../../src/app/fx/presentation";
 import type { ExtensionClientPackage } from "../../../src/app/extensions/registry";
@@ -51,6 +51,12 @@ const contribution: ExtensionClientPackage = {
   render: {
     /** 名将专属将旗:太史慈卡面(招贤三选一/军师幕技卡/府库详情)挂旗。 */
     heroFlag: (heroId) => (heroId === "taishici" ? { url: FLAG_URL, alt: "太史慈将旗" } : null),
+  },
+  interactions: {
+    /** 问询呈现意图(#410):盲选问询以牌背呈现——选项 label 是序号不是牌面,
+     *  渲染层按意图画牌背+序号(消费挂点归 UI 票);其余问询无定制,走通用卷轴。 */
+    inquiryPresentation: (inquiryId) =>
+      inquiryId === "taishici-blind-pick" ? { blindCards: true } : null,
   },
 };
 

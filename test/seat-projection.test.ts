@@ -316,11 +316,10 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
     expect(god.pendingReaction).toBeNull();
     expect(filtered.pendingReaction).toBeNull();
 
-    // 可见面等价:出牌留痕/弃堆/数量账(暗牌数组差异不外显)
+    // 可见面等价:弃堆/数量账(暗牌数组差异不外显)
     expect(filtered.players[0].jinnangHandCount).toBe(god.players[0].jinnangHandCount);
     expect(filtered.players[1].jinnangHandCount).toBe(god.players[1].jinnangHandCount);
     expect(filtered.jinnangDiscard).toEqual(god.jinnangDiscard);
-    expect(filtered.lastJinnangPlay?.plays).toEqual(god.lastJinnangPlay?.plays);
     expect(filtered.turnPhase).toBe(god.turnPhase);
   });
 

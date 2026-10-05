@@ -41,6 +41,23 @@ const contribution = {
       return true;
     },
   },
+  inquiries: [
+    {
+      /** 「信义盲选」演示(#410,choices 无法自然表达的定制问询):从被询问者手牌
+       *  暗牌中盲选一张。选项集只表达「有几张可选」,label 用序号**不泄露牌面**——
+       *  通用卷轴按 label 渲染会在 UI 上亮出暗牌,盲选必须换呈现(牌背),呈现意图
+       *  由客户端交互 hook 声明(client.ts interactions,blindCards)。选项集本身
+       *  仍走 ChoiceOption 词汇:引擎消费挂点(无匹配 choices 时回调)归后续票,
+       *  届时经 snapshot.choices 单通道透出(ADR-0013 不旁路)。 */
+      id: "taishici-blind-pick",
+      askPlayer: ({ engine, seat }) =>
+        Array.from({ length: engine.players[seat].jinnangHandCount }, (_, i) => ({
+          id: `blind:${i}`,
+          label: `暗牌·第${i + 1}张`,
+          available: true,
+        })),
+    },
+  ],
 };
 var index_default = contribution;
 export { index_default as default };

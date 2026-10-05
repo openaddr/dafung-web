@@ -37,8 +37,8 @@
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
 //                 ADR-0016);jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额)+
-//                 窥探入册(军情密探)+ lastJinnangPlay 留痕;jinnangVoided → 识破牌扣账
-//                 (反应牌 id 出自同批应答,按座位配对;shareSeat 缺席按窗域推份)+ 留痕;
+//                 窥探入册(军情密探);jinnangVoided → 识破牌扣账
+//                 (反应牌 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
 //                 置窗(view/seq 派生,windowMs 单源常量表);reactionAnswered → 应答入账
 //                 + 应答齐闭窗;行军窗闭窗即拦检牌扣账(引擎胜负两路均在结算点扣账,与
@@ -80,7 +80,7 @@
 //   = 产出契约违反,当场炸出不静默跳过;事件引用的静态数据(名将/锦囊/机遇/地产目录)
 //   查无 = 数据 bug,当场炸出;事件序违反(识破无同批窗、应答无窗)当场炸出;delta/数量
 //   等字段缺失由类型系统在编译期兜住(线上形状以 core GameEvent 为准)。
-import type { GameEngine, LastJinnangPlay } from "@core/authority";
+import type { GameEngine } from "@core/authority";
 import type { Player, PropertyHolding } from "@core/model";
 import type { GameEvent } from "@core/game-events";
 import type { PropertyDef } from "@core/economy";
@@ -171,24 +171,6 @@ function holdingOwnerOf(engine: GameEngine, propertyId: string): Player | null {
   return engine.players.find((p) => p.properties.some((h) => h.propertyId === propertyId)) ?? null;
 }
 
-/** 出牌留痕(traceJinnangPlay 的副本侧镜像,#284 批形状):批空则取号新开,同批多条聚进
- *  同一 plays。seq 与反应窗共用引擎单调计数器(引擎 nextJinnangSeq 同式);副本侧序号仅
- *  服务「变了没有」型 diff,号段与权威侧无关。 */
-function tracePlay(
-  engine: GameEngine,
-  userSeat: number,
-  targetSeats: readonly number[],
-  cardId: string,
-): void {
-  if (engine.jinnangPlayBatch == null) {
-    engine.jinnangSeq += 1;
-    const batch = { seq: engine.jinnangSeq, plays: [] } satisfies LastJinnangPlay;
-    engine.jinnangPlayBatch = batch;
-  }
-  engine.jinnangPlayBatch.plays.push({ userSeat, targetSeats: [...targetSeats], cardId });
-  engine.lastJinnangPlay = engine.jinnangPlayBatch;
-}
-
 /** 反应窗被询问座位集(与引擎 reactionQueriedOf 同式:view 单源)。 */
 function queriedOf(view: ReactionView): number[] {
   return view.kind === "jinnang" ? view.queriedBySeat : [view.ownerSeat];
@@ -214,8 +196,8 @@ interface FoldCtx {
   /** 批内锦囊宣布锚点(后写覆盖):reactionOpened 的 targetSeats 同源回溯(宣布与开窗
    *  同一结算)。 */
   lastAnnounce: { cardId: string; userSeat: number; targetSeats: number[] } | null;
-  /** 批内刚闭窗的反应窗(应答齐即结算):jinnangVoided 缺 shareSeat 时按窗域推份座位,
-   *  识破牌 id 出自应答(jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应牌)。 */
+  /** 批内刚闭窗的反应窗(应答齐即结算):jinnangVoided 的识破牌 id 出自应答
+   *  (jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应牌)。 */
   closedWindow: { view: ReactionView; answers: ReactionAnswer[] } | null;
   /** 闭窗内已消费的应答(AOE 多张识破逐份对账用,对象身份去重)。 */
   consumedAnswers: Set<ReactionAnswer>;
@@ -289,9 +271,6 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
  *  syncFromEngine,不逐事件;批消费后随后的快照水合会无条件覆盖全部字段(对账纠偏,
  *  ADR-0020 决策 3——全覆盖后折叠与校准是冗余双保险)。 */
 export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[]): void {
-  // 出牌留痕批界镜像(#284):权威侧每次产快照封批,事件批 = 两次封批间的留痕,折叠
-  // 一批前先闭上一批(副本 jinnangPlayBatch 瞬态不水合,由此处收口)。
-  engine.jinnangPlayBatch = null;
   const ctx: FoldCtx = {
     sawGameStart: false,
     bankruptSeats: new Set<number>(),
@@ -561,7 +540,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           engine.jinnangPeeks.push({ viewer: userSeat, target: ev.targetSeats[0] }); // 效果落账入册(窥探至 viewer 下回合)
         }
         ctx.lastAnnounce = { cardId: ev.cardId, userSeat, targetSeats: [...ev.targetSeats] };
-        tracePlay(engine, userSeat, ev.targetSeats, ev.cardId); // 出牌留痕(宣布点)
         break;
       }
       case "jinnangVoided": {
@@ -583,15 +561,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           throw new Error(`折叠投影:${ev.cardId} 识破无对应生效应答(事件序契约违反)`);
         ctx.consumedAnswers.add(play);
         consumeCard(engine, responder, play.cardId); // 识破牌扣账(被顶替张原样退回,无事件不折)
-        // 留痕份座位:shareSeat 明传(AOE 按份拆);缺席按窗域推——self/连环计全作废=使用者,
-        // 单份=被指定者(窗 view 随闭窗应答锚在本批)
-        const shareSeats =
-          ev.shareSeat != null
-            ? [ev.shareSeat]
-            : jinnangCardOf(ev.cardId).targetDomain === "one"
-              ? [...closed.view.targetSeats]
-              : [closed.view.userSeat];
-        tracePlay(engine, responderSeat, shareSeats, play.cardId);
         break;
       }
       case "reactionOpened": {
@@ -651,7 +620,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             wasOnBranch: false,
           };
         }
-        engine.jinnangSeq += 1; // 窗实例号(nextJinnangSeq 同式,与留痕共用单调计数器)
+        engine.jinnangSeq += 1; // 窗实例号(nextJinnangSeq 同式)
         const pr: PendingReaction = { seq: engine.jinnangSeq, view, answers: [], payload };
         engine.pendingReaction = pr;
         engine.turnPhase = "AwaitingReaction";

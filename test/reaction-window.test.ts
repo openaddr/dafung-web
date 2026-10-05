@@ -489,31 +489,22 @@ describe("出牌指示线留痕(#281/P2-E)", () => {
     expect(e.presentation.drainJinnangPlays()).toEqual([]); // 一次取尽
   });
 
-  it("lastJinnangPlay 联机信号源(#284):批形状/seq 单调、与窗实例号同计数器、随快照往返", () => {
+  it("窗实例号随快照恢复推回(#284 残留半边;留痕通道已随 #412 退役)", () => {
     const e = prepared();
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
     const victimSeat = userSeat === 0 ? 1 : 0;
     armUser(e, userSeat, ["横征暴敛"]);
     setHand(e, victimSeat, ["识破诡计"]);
-    e.resolveJinnang("横征暴敛"); // 宣布留痕 + 开窗(各取一号)
-    const announceSeq = e.lastJinnangPlay!.seq;
+    e.resolveJinnang("横征暴敛"); // 开窗取号(唯一取号口)
     const windowSeq = e.pendingReaction!.seq;
-    expect(announceSeq).toBeGreaterThan(0);
-    expect(windowSeq).toBe(announceSeq + 1); // 同一计数器顺序取号
-    e.respondReaction(victimSeat, true, "识破诡计", victimSeat); // 识破留痕:未封批 → 并入同批(AOE 多留痕不丢)
-    expect(e.lastJinnangPlay!.seq).toBe(announceSeq);
-    expect(e.lastJinnangPlay!.plays).toEqual([
-      { userSeat, targetSeats: [victimSeat], cardId: "横征暴敛" },
-      { userSeat: victimSeat, targetSeats: [victimSeat], cardId: "识破诡计" },
-    ]);
-    // 封批(权威侧产快照前调):下一批重新取号
-    e.sealJinnangPlayBatch();
-    // 快照往返:留痕保真(深拷贝),恢复端 seq 计数器推回到快照见过的最大号
+    expect(windowSeq).toBeGreaterThan(0);
+    // 快照往返:恢复端 seq 计数器推回到快照见过的最大号(单调不回退)
     const snap = e.snapshot();
     const e2 = makeEngine(1);
     e2.restoreFromSnapshot(snap);
-    expect(e2.lastJinnangPlay).toEqual(e.lastJinnangPlay);
+    expect(e2.jinnangSeq).toBe(windowSeq);
+    expect(e2.pendingReaction?.seq).toBe(windowSeq);
   });
 });
 

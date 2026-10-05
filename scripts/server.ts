@@ -329,7 +329,6 @@ function flushRoom(roomId: string): void {
   pendingEvents.delete(roomId);
   const r = registry.get(roomId);
   if (!pending || !r) return;
-  r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=flush 封批(#284):本帧带走整批,下一条留痕新批号
   const online = onlineSeatsOf(roomId);
   // 事件批消息(#390):先发(因果在前、状态在后);每座位各发一份 redactEvents 过滤批
   // (#381 保密后补:发送总口单点,未知 kind 过滤函数当场炸)。序列化成本×座位数可接受

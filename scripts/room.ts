@@ -356,7 +356,7 @@ export class RoomRegistry {
       seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
       hostSeat: rec.hostSeat,
       takeover: new Set(rec.takeover),
-      autoPilot: new Map((rec.autoPilot).map((a) => [a.seat, a.speed] as const)),
+      autoPilot: new Map(rec.autoPilot.map((a) => [a.seat, a.speed] as const)),
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
       encounter: rec.encounter ?? null,
@@ -789,7 +789,6 @@ export class RoomRegistry {
     }
     const events = this.txPendingEvents.get(roomId);
     this.txPendingEvents.delete(roomId);
-    room.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=flush 封批(与 server.ts flush 同口径)
     if (events && events.length > 0) {
       const eventsMsg = JSON.stringify({ type: "events" as const, events });
       for (const ep of eps.values()) if (ep.open) ep.send(eventsMsg);

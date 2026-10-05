@@ -1,5 +1,6 @@
 // 客户端扩展面(#378,ADR-0022 双端加载器·客户端侧):浏览器动态装载的包贡献
-// 注册表——动画 handler(吃引擎事件批补演出)与渲染 hook(名将专属将旗等表现定制)。
+// 注册表——动画 handler(吃引擎事件批补演出)、渲染 hook(名将专属将旗等表现定制)
+// 与交互呈现 hook(定制问询的呈现意图声明,#410)。
 // 装载器(loader.ts)在应用启动时装包;本模块只管「类型契约 + 注册表 + 读口」:
 //  - 客户端包代码只做表现,不做任何裁决(裁决全在权威侧,ADR-0022);
 //  - 注册冲突即炸(零兜底),与 core 注册面同口径;
@@ -33,10 +34,26 @@ export interface ExtensionRenderHooks {
   heroFlag?(heroId: string): ExtensionHeroFlag | null;
 }
 
+// ── 交互呈现 hook(三能力之一·客户端半边,#410)──
+// 权威侧问询(core/extension-contract.ts ExtensionInquiry.askPlayer)产出选项集走
+// snapshot.choices 单通道(ADR-0013 不旁路);本 hook 只声明**呈现意图**——choices
+// 词汇表达不了的「怎么画」(如盲选项画牌背),渲染层按意图定制,弹层行为仍收口 shadcn。
+/** 定制问询呈现意图(声明式;缺省维度走通用卷轴)。 */
+export interface ExtensionInquiryPresentation {
+  /** 选项以牌背呈现(盲选场景):选项 label 是序号不是牌面,渲染层画牌背+序号。 */
+  blindCards?: boolean;
+}
+/** 交互呈现 hook 集(第一版仅问询意图;问询弹层挂点见文件尾登记)。 */
+export interface ExtensionInteractionHooks {
+  /** 问询 id → 呈现意图(null = 无定制,走通用卷轴;多包同挂先装者胜,与 heroFlag 同口径)。 */
+  inquiryPresentation?(inquiryId: string): ExtensionInquiryPresentation | null;
+}
+
 /** 客户端贡献包(包 client 入口的默认导出形状;manifest 由装载器随注册携带入台账)。 */
 export interface ExtensionClientPackage {
   animations?: ExtensionAnimationHandler[];
   render?: ExtensionRenderHooks;
+  interactions?: ExtensionInteractionHooks;
 }
 
 /** 已装客户端包台账(包 id → manifest + 贡献;装载序保留,读口按序取)。 */
@@ -71,13 +88,25 @@ export function extensionHeroFlagOf(heroId: string): ExtensionHeroFlag | null {
   return null;
 }
 
+/** 定制问询呈现意图读口:按装载序取首个命中(null = 无定制,通用卷轴渲染)。 */
+export function extensionInquiryPresentationOf(
+  inquiryId: string,
+): ExtensionInquiryPresentation | null {
+  for (const p of installed.values()) {
+    const hit = p.pkg.interactions?.inquiryPresentation?.(inquiryId);
+    if (hit != null) return hit;
+  }
+  return null;
+}
+
 /** 已装客户端包清单(诊断读口)。 */
 export function registeredClientPackages(): readonly ExtensionManifest[] {
   return [...installed.values()].map((p) => p.manifest);
 }
 
 // ── 接口位(第一版不实现,登记防忘;总登记见 core/extension-contract.ts)──
-// ◻ 交互 handler:定制问询(补足 choices 决策选项集之外的扩展问询)——类型与挂点归后续票。
+// ◻ 问询弹层挂点:定制问询的 UI 消费点(引擎无匹配 choices 时回调 askPlayer 出选项集
+//   + 弹层按呈现意图渲染)——引擎挂点与渲染接线归后续票(类型+注册位+示例已落,#410)。
 // ◻ 牌面/立绘渲染扩展:自定义牌面装配、立绘替换 hook——后续票(本版仅将旗)。
 // ◻ 自定义面板:扩展自有 UI 面板挂点——后续票。
 // ◻ 音效/动效词表:扩展专属 SoundEvent/表现事件种类(现复用既有 PresentationEvent)——后续票。
