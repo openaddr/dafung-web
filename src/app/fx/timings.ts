@@ -13,6 +13,16 @@ export const E2E_TIME_SCALE_KEY = "dafung-e2e-time-scale";
  *  默认不暴露引擎改写面(单机模式控制台可作弊/误触),e2e 与截图脚手架经
  *  addInitScript 预置本键即开,测试/生产分野不靠约定靠门禁。 */
 export const E2E_DEBUG_BRIDGE_KEY = "dafung-e2e-debug-bridge";
+/** e2e 反应窗时长覆盖(单机,毫秒):联机的同款配置经 server env E2E_REACTION_MS
+ *  注入 registry(#284);单机进程内房间(LocalController)经本键走同一 registry
+ *  选项。键由 e2e fixtures 页面加载前写入;生产/真人局无此键=不覆盖,走 core
+ *  REACTION_WINDOW_MS 常量表——配置缺席不是兜底,与 server.ts 同模式。 */
+export const E2E_REACTION_MS_KEY = "dafung-e2e-reaction-ms";
+/** 读反应窗覆盖(0 = 不覆盖):无 localStorage 环境(bun 单测跑 app 模块)按未注入。 */
+export const e2eReactionWindowMs = (): number => {
+  if (typeof localStorage === "undefined") return 0;
+  return Number(localStorage.getItem(E2E_REACTION_MS_KEY) ?? "") || 0;
+};
 /** 地板:headless+软渲下 expect 轮询的可观察下限,保瞬态演出(骰子签面/横幅)可被断言。 */
 export const TIME_SCALE_FLOOR_MS = 100;
 

@@ -47,6 +47,7 @@ function expectFramesRedacted(
       if (m.type === "snapshot") {
         snapshots++;
         const snap = m as {
+          phase?: string;
           players?: { jinnangHand: string[] }[];
           jinnangDeck?: string[];
           jinnangDeckCount?: number;
@@ -57,7 +58,9 @@ function expectFramesRedacted(
             expect(p.jinnangHand, `座位 ${i} 手牌对座位 ${selfSeat} 不可见`).toEqual([]);
         });
         expect(snap.jinnangDeck, "牌库牌序不可见(只剩数量)").toEqual([]);
-        expect(snap.jinnangDeckCount ?? 0).toBeGreaterThan(0);
+        // 牌库在开局洗序(finishSetup,全员定都后)才存在:选都期快照 count=0 是
+        // 「牌库还没有」,不是泄漏——数量保密断言只对 Playing 快照有意义
+        if (snap.phase === "Playing") expect(snap.jinnangDeckCount ?? 0).toBeGreaterThan(0);
       }
       if (m.type === "events") {
         eventBatches++;

@@ -1,7 +1,7 @@
 // 教程防漂移守卫:docs/tutorials/新手第一局.md 的每句「你会看到什么/点什么」
 // 与真实 UI 对齐——文案/交互改动会在这里先炸,文档不许悄悄过期(#169 走查的机器层)。
 import { test, expect } from "./fixtures";
-import { actIfCan, waitSettled, snap } from "./react-helpers";
+import { actIfCan, waitSettled, snap, waitMyPause, force } from "./react-helpers";
 
 test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 UI 断言", async ({ page }) => {
   await page.goto("/");
@@ -56,26 +56,31 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
       { timeout: 90_000 },
     )
     .toBeGreaterThan(before.turnNumber);
-  // bot 接手:「智将运筹中…」等待条(与 bot 决策归属联合轮询——卷轴等人类作答时
-  // interactive=true 条不渲染,单等文案会撞上人类决策窗的静默期)。
-  // 轮询体内必须 actIfCan 代答:回合推进后新回合的军师幕/购地卷轴会再弹,决策权
-  // 钉在人类身上时 owner?.isBot 恒 false——单等会 90s 空转超时(#240 收口实测复现)。
-  await expect
-    .poll(
-      async () => {
-        await actIfCan(page);
-        const s = await snap(page);
-        const owner = s.players[s.decisionOwner];
-        if (!owner?.isBot) return false;
-        return page
-          .getByText("智将运筹中…")
-          .first()
-          .isVisible()
-          .catch(() => false);
-      },
-      { timeout: 90_000 },
-    )
-    .toBe(true);
+  // bot 接手:#398 单机统一后房间编排一拍跑完整条 bot 链(状态即时落、动画排队播),
+  // 引擎不在 bot 决策点停靠——「智将运筹中…」的自然瞬态不复存在(单跑实测:decisionOwner
+  // 恒为人类,bot 决策归属在两次下行拍之间不可观察)。文档句子「底部显示智将运筹中…」
+  // 的文案与挂载点改走 react-solo 思考态同款调试钩子种植(钉文案契约,不钉时序);
+  // 「电脑接手其余玩家」的实质(bot 一拍走完整轮、回合照常推进)已由上一 poll 的
+  // turnNumber 前进覆盖—— turnNumber 只能在全部 bot 座位走完后回到人类。
+  await waitMyPause(page, 0); // 停在人类 Awaiting* 决策点再种植:避开 Roll 自动起摇看门狗竞速
+  await force(
+    page,
+    `
+    const botIdx = e.players.findIndex((p) => p.isBot);
+    if (botIdx < 0) throw new Error("种植失败:无 bot 座位");
+    e.activeIndex = botIdx; // decisionOwner=activeIndex(非交涉相位)→ 等待条按 bot 归属渲染
+    window.__dafung.controller().sync();
+  `,
+  );
+  await expect(page.getByTestId("waiting-bar")).toBeVisible();
+  await expect(page.getByTestId("thinking")).toContainText("智将运筹中…");
+  await force(
+    page,
+    `
+    e.activeIndex = 0; // 还原活跃方:人类命令按 decisionOwner 校验,不得带着 bot 活跃方交命令
+    window.__dafung.controller().sync();
+  `,
+  );
   // 「托管」入口在手牌区
   await expect(page.getByTestId("autopilot-button")).toBeVisible();
   await waitSettled(page);
