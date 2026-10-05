@@ -319,10 +319,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 玩家不知在等谁、也不知金圈是何物;轮到自己时也要明示「点哪」):
   // bot 定都中=「「X」正在定都(第 N/M 位)…」;轮到本地=「轮到你定都:点选一座候选城」。
   // 顺序号取 draft 座位序中尚未定都者,直观呈现还差几人。
+  // 未定判定用 <0(#423 项1):capitalIndex 初始 -1(core/player.ts),`== null` 恒假
+  // ——「余 X 人未定」曾是恒 0;与 TokenLayer 的 setupUnselected 同一口径。
   const setupHint = (() => {
     if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
     const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
-    const pending = snapshot.players.filter((p) => p.capitalIndex == null).length;
+    const pending = snapshot.players.filter((p) => p.capitalIndex < 0).length;
     const myTurn =
       snapshot.currentSetupPlayerIndex ===
       (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
