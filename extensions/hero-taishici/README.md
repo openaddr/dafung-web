@@ -8,6 +8,7 @@ ADR-0022 扩展系统骨架的验收样例:三能力各一最小实现,随引擎
 | 技能/效果注册 | 被动技「义从」(HeroRecruited 时机)+ 自定义效果 `joinGift`;主动技「破阵」复用 warDrum 结算案 |
 | 动画 handler  | 吃 `skillFired`/`heroSkillActivated` 事件批,播「义」字印 + 文案浮字                         |
 | 渲染 hook     | 名将专属将旗(`assets/flag.svg`,招贤/军师幕/府库卡面挂旗)                                    |
+| 交互 handler  | 定制问询「信义盲选」(`taishici-blind-pick`):从暗牌盲选的脱敏选项集;客户端声明牌背呈现       |
 
 ## 布局
 

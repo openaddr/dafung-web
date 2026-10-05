@@ -8,6 +8,7 @@ import {
   registerExtensionAuthorityModule,
   unregisterExtensionPackage,
   registeredExtensionPackages,
+  extensionInquiries,
 } from "@core/extension-registry";
 import type { ExtensionAuthorityModule } from "@core/extension-contract";
 
@@ -139,5 +140,57 @@ describe("扩展注册面(#378)", () => {
 
   it("卸载未装载的包 → 炸", () => {
     expect(() => unregisterExtensionPackage("never-loaded")).toThrow(/未装载/);
+  });
+});
+
+describe("扩展问询注册面(#410 交互 handler)", () => {
+  /** 唯一 id 的最小问询(选项集产出由断言侧自定)。 */
+  function makeInquiryModule(
+    id: string,
+    askPlayer: (ctx: { seat: number }) => unknown,
+  ): ExtensionAuthorityModule {
+    const mod = makeModule();
+    return { ...mod, inquiries: [{ id, askPlayer: askPlayer as never }] };
+  }
+
+  it("注册后读口可见;askPlayer 触发产出选项集(卸载精确还原)", () => {
+    const inquiryId = `test-inquiry-${Math.random().toString(36).slice(2, 8)}`;
+    const mod = makeInquiryModule(inquiryId, ({ seat }) => [
+      { id: `blind:${seat}`, label: "暗牌·第1张", available: true },
+    ]);
+    track(mod);
+    const hit = extensionInquiries().find((q) => q.id === inquiryId);
+    if (hit == null) throw new Error("问询注册后读口不可见(注册面 bug)");
+    // 触发:handler 拿到座位与引擎视图,产出 ChoiceOption 词汇的选项集
+    const opts = hit.askPlayer({ engine: {} as never, seat: 2, params: {} });
+    expect(opts).toEqual([{ id: "blind:2", label: "暗牌·第1张", available: true }]);
+    unregisterExtensionPackage(mod.manifest.id);
+    loadedIds.pop();
+    expect(extensionInquiries().find((q) => q.id === inquiryId)).toBeUndefined();
+  });
+
+  it("问询 id 包内重复 / 与已装包冲突 / 缺 id → 炸", () => {
+    const id = `test-inquiry-${Math.random().toString(36).slice(2, 8)}`;
+    const noop = () => [];
+    expect(() =>
+      registerExtensionAuthorityModule({
+        ...makeInquiryModule(id, noop),
+        inquiries: [
+          { id, askPlayer: noop as never },
+          { id, askPlayer: noop as never },
+        ],
+      }),
+    ).toThrow(new RegExp(`包内问询 id 重复:「${id}」`));
+    const first = makeInquiryModule(id, noop);
+    track(first);
+    expect(() => registerExtensionAuthorityModule(makeInquiryModule(id, noop))).toThrow(
+      new RegExp(`问询 id「${id}」与已装包「${first.manifest.id}」冲突`),
+    );
+    expect(() =>
+      registerExtensionAuthorityModule({
+        ...makeModule(),
+        inquiries: [{ id: "", askPlayer: noop as never }],
+      }),
+    ).toThrow(/缺 id 的问询/);
   });
 });
