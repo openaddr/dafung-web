@@ -122,82 +122,96 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     // 武装:decisionTimeoutMs 后若仍停在同一未接管人类座位 → bot 接管(ADR-0002 语义)。
     // 同房间旧计时器先撤(决策点换了,重算)。driveBots 出口仅在 decisionTimeoutMs>0
     // 时武装(0=关闭,历史行为)。
-    stall: createWatchdog({
-      window: () => ({ tag: ++armSeq, delayMs: host.decisionTimeoutMs }),
-      /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍非服务器驱动)后
-       *  bot 接管并续推连锁。接管走既有 takeover 集合:重连 attachSeat 自动夺回,
-       *  对局日志记 takeover 行(重放把它并入 bot 驱动集,终态逐字段一致)。 */
-      fire: async (r, seat, onUpdate) => {
-        const e = r.engine;
-        if (!host.isCurrentRoom(r) || !e || e.isOver) return;
-        const owner = decisionSeatOf(e);
-        if (owner !== seat || seatControlled(r, seat)) return;
-        r.takeover.add(seat);
-        host.observe(r, { ev: "takeover", seat, auto: true });
-        host.logRoom(
-          r,
-          `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,bot 自动接管(重连/刷新夺回)`,
-          JSON.stringify({ type: "takeover", seat, auto: true }),
-        );
-        host.persist(r);
-        onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
-        await host.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
+    stall: createWatchdog(
+      {
+        window: () => ({ tag: ++armSeq, delayMs: host.decisionTimeoutMs }),
+        /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍非服务器驱动)后
+         *  bot 接管并续推连锁。接管走既有 takeover 集合:重连 attachSeat 自动夺回,
+         *  对局日志记 takeover 行(重放把它并入 bot 驱动集,终态逐字段一致)。 */
+        fire: async (r, seat, onUpdate) => {
+          const e = r.engine;
+          if (!host.isCurrentRoom(r) || !e || e.isOver) return;
+          const owner = decisionSeatOf(e);
+          if (owner !== seat || seatControlled(r, seat)) return;
+          r.takeover.add(seat);
+          host.observe(r, { ev: "takeover", seat, auto: true });
+          host.logRoom(
+            r,
+            `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,bot 自动接管(重连/刷新夺回)`,
+            JSON.stringify({ type: "takeover", seat, auto: true }),
+          );
+          host.persist(r);
+          onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
+          await host.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
+        },
       },
-    }, host.clock),
+      host.clock,
+    ),
     // ──────────────────── 行军自动化(#188 第 1 步)────────────────────
     // 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未接管人类座位的 Roll 相位 → 服务器代发
     // rollAndMove(走 applyCommand 公共命令路径:submitCommand 记 cmd 行 + persist + 广播,
     // 与玩家手点同源)。离线冻结的座位同样代发——Roll 无决策内容,不因离线卡住行军;
     // 真正的抉择仍归本人(超时才由 #118 看门狗接管)。同房间旧计时器先撤(决策点换了,
     // 重算)。
-    autoRoll: createWatchdog({
-      window: () => ({ tag: ++armSeq, delayMs: AUTO_ROLL_DELAY_MS }),
-      /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍非服务器驱动——
-       *  被接管/托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
-      fire: async (r, seat, onUpdate) => {
-        const e = r.engine;
-        if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
-        if (e.turnPhase !== "Roll" || decisionSeatOf(e) !== seat || seatControlled(r, seat)) return;
-        host.observe(r, { ev: "auto-roll", seat });
-        await host.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
+    autoRoll: createWatchdog(
+      {
+        window: () => ({ tag: ++armSeq, delayMs: AUTO_ROLL_DELAY_MS }),
+        /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍非服务器驱动——
+         *  被接管/托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
+        fire: async (r, seat, onUpdate) => {
+          const e = r.engine;
+          if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
+          if (e.turnPhase !== "Roll" || decisionSeatOf(e) !== seat || seatControlled(r, seat))
+            return;
+          host.observe(r, { ev: "auto-roll", seat });
+          await host.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
+        },
       },
-    }, host.clock),
+      host.clock,
+    ),
     // ──────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────
     // 可能多座位同时被询问(AOE),按房间持座位表各配一表;#284 起 seq 判据管重武装
     // (arm)——链重开不再整体撤表,deadline 一次算死;clear(链重开不走,唯一调用点
     // 是解散清理)按房间整表撤。
-    reactionWait: createWatchdog({
-      /** 武装(#284 seq 判据):REACTION_WINDOW_MS(或 env 覆盖值)后若该座位仍是本窗
-       *  待应答的非服务器驱动人类座位 → 服务器代发 respondReaction{use:false}(走
-       *  applyCommand 公共命令路径,与玩家手点同源;ADR-0017:超时兜底=权威侧代发普通
-       *  命令,重放天然复现)。同窗(PendingReaction.seq 未变)且已武装 → 跳过不重武装:
-       *  deadline 开窗一次算死,链重开/他人命令不重置他人倒计时(FreeKill request.lua
-       *  「timestamp+timeout 随包下发、同窗不重置」同语义);seq 变了才撤旧起新。
-       *  离线冻结座位同样武装——断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。 */
-      window: (r) => {
-        const e = r.engine;
-        if (e?.pendingReaction == null) return undefined;
-        const pr = e.pendingReaction;
-        return {
-          tag: pr.seq,
-          delayMs: pr.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
-        };
+    reactionWait: createWatchdog(
+      {
+        /** 武装(#284 seq 判据):REACTION_WINDOW_MS(或 env 覆盖值)后若该座位仍是本窗
+         *  待应答的非服务器驱动人类座位 → 服务器代发 respondReaction{use:false}(走
+         *  applyCommand 公共命令路径,与玩家手点同源;ADR-0017:超时兜底=权威侧代发普通
+         *  命令,重放天然复现)。同窗(PendingReaction.seq 未变)且已武装 → 跳过不重武装:
+         *  deadline 开窗一次算死,链重开/他人命令不重置他人倒计时(FreeKill request.lua
+         *  「timestamp+timeout 随包下发、同窗不重置」同语义);seq 变了才撤旧起新。
+         *  离线冻结座位同样武装——断线者超时即「不用」,不冻结对局(ADR-0017 后果节)。 */
+        window: (r) => {
+          const e = r.engine;
+          if (e?.pendingReaction == null) return undefined;
+          const pr = e.pendingReaction;
+          return {
+            tag: pr.seq,
+            delayMs: pr.view.windowMs, // 已由引擎开窗时解析(override 在 EngineConfig 单点),此处不二次推导(#284 评审)
+          };
+        },
+        /** 到点触发(工厂已核对本火表项):重校验(房间还在/对局未终/仍在
+         *  AwaitingReaction/该座位仍被询问且未应答/仍非服务器驱动)后代发「不用」。
+         *  任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
+        fire: async (r, seat, onUpdate) => {
+          const e = r.engine;
+          if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
+          if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
+          const pr = e.pendingReaction;
+          if (!reactionQueriedSeats(pr.view).includes(seat)) return;
+          if (pr.answers.some((a) => a.seat === seat)) return;
+          if (seatControlled(r, seat)) return; // 代驾接手:循环头已立即代发,不重复
+          host.observe(r, { ev: "reaction-decline", seat });
+          await host.applyCommand(
+            r.roomId,
+            { type: "respondReaction", seat, use: false },
+            onUpdate,
+          );
+        },
       },
-      /** 到点触发(工厂已核对本火表项):重校验(房间还在/对局未终/仍在
-       *  AwaitingReaction/该座位仍被询问且未应答/仍非服务器驱动)后代发「不用」。
-       *  任何一条不满足=窗已被应答或代驾已接手,静默退出。 */
-      fire: async (r, seat, onUpdate) => {
-        const e = r.engine;
-        if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
-        if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction == null) return;
-        const pr = e.pendingReaction;
-        if (!reactionQueriedSeats(pr.view).includes(seat)) return;
-        if (pr.answers.some((a) => a.seat === seat)) return;
-        if (seatControlled(r, seat)) return; // 代驾接手:循环头已立即代发,不重复
-        host.observe(r, { ev: "reaction-decline", seat });
-        await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
-      },
-    }, host.clock),
+      host.clock,
+    ),
     // ──────────────────── 掉线座位保留窗(#380,ADR-0002/0005)────────────────────
     // 武装:markSeatOffline(对局中 WS 断开)时按座位挂保留窗——retentionWindowMs 内
     // 持 token 重连即夺回(attachSeat 撤本座表项);窗口到期未归 → bot 自动接管,语义
@@ -206,33 +220,36 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     // 默认冻结;若另配 #118 看门狗,它按自身窗口独立兜底,两窗互不代替)。
     // 大厅(engine=null)/已终局/已由服务器驱动(接管/托管/原生 bot)的座位不武装
     // (判定归 window,markSeatOffline 无需预筛)。retentionWindowMs=0(缺省)不武装。
-    retention: createWatchdog({
-      window: (r, seat) => {
-        if (host.retentionWindowMs <= 0) return undefined;
-        const e = r.engine;
-        if (!e || e.isOver) return undefined;
-        if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return undefined;
-        return { tag: ++armSeq, delayMs: host.retentionWindowMs };
+    retention: createWatchdog(
+      {
+        window: (r, seat) => {
+          if (host.retentionWindowMs <= 0) return undefined;
+          const e = r.engine;
+          if (!e || e.isOver) return undefined;
+          if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return undefined;
+          return { tag: ++armSeq, delayMs: host.retentionWindowMs };
+        },
+        /** 到点触发:重校验(房间还在/对局未终/仍为人类座位/仍未被服务器驱动——窗口内
+         *  已被房主接管或托管则不动)后 bot 接管并续推连锁。接管写既有 takeover 集合:
+         *  重连 attachSeat 自动夺回 + 撤保留窗,token 不因接管失效(ADR-0005,口径见
+         *  docs/explanation/联机架构.md §6)。 */
+        fire: async (r, seat, onUpdate) => {
+          const e = r.engine;
+          if (!host.isCurrentRoom(r) || !e || e.isOver) return;
+          if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return;
+          r.takeover.add(seat);
+          host.observe(r, { ev: "takeover", seat, auto: true });
+          host.logRoom(
+            r,
+            `座位 ${seat}(${e.players[seat].guohao}) 掉线保留窗口(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,bot 自动接管(重连可夺回)`,
+            JSON.stringify({ type: "takeover", seat, auto: true }),
+          );
+          host.persist(r);
+          onUpdate?.(r); // 先广播接管(客户端座位 controlled 置位)
+          await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
+        },
       },
-      /** 到点触发:重校验(房间还在/对局未终/仍为人类座位/仍未被服务器驱动——窗口内
-       *  已被房主接管或托管则不动)后 bot 接管并续推连锁。接管写既有 takeover 集合:
-       *  重连 attachSeat 自动夺回 + 撤保留窗,token 不因接管失效(ADR-0005,口径见
-       *  docs/explanation/联机架构.md §6)。 */
-      fire: async (r, seat, onUpdate) => {
-        const e = r.engine;
-        if (!host.isCurrentRoom(r) || !e || e.isOver) return;
-        if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return;
-        r.takeover.add(seat);
-        host.observe(r, { ev: "takeover", seat, auto: true });
-        host.logRoom(
-          r,
-          `座位 ${seat}(${e.players[seat].guohao}) 掉线保留窗口(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,bot 自动接管(重连可夺回)`,
-          JSON.stringify({ type: "takeover", seat, auto: true }),
-        );
-        host.persist(r);
-        onUpdate?.(r); // 先广播接管(客户端座位 controlled 置位)
-        await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
-      },
-    }, host.clock),
+      host.clock,
+    ),
   };
 }

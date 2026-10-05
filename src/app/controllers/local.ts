@@ -155,7 +155,10 @@ export class LocalController extends GameController {
     this._engine = engine;
     setEngine(engine);
     this.prePositions = engine.players.map((p) => p.position);
-    this.fx = new SnapshotEffects(() => this._engine, () => this.sync());
+    this.fx = new SnapshotEffects(
+      () => this._engine,
+      () => this.sync(),
+    );
     this.sync();
   }
 
@@ -282,9 +285,9 @@ export class LocalController extends GameController {
       this.pending = false; // 命令未生效:解锁等下一拍
     };
     if (msg.type === "cmd") {
-      this.registry.applyCommand(this.roomId, msg.cmd, () =>
-        this.registry.transportBroadcast(this.roomId),
-      ).catch(report);
+      this.registry
+        .applyCommand(this.roomId, msg.cmd, () => this.registry.transportBroadcast(this.roomId))
+        .catch(report);
       return;
     }
     if (msg.type === "pickCapital") {
@@ -304,6 +307,8 @@ export class LocalController extends GameController {
         .catch(report);
       return;
     }
-    throw new Error(`hostDispatch:未知上行消息形状(type=${String((msg as { type?: string }).type)})`);
+    throw new Error(
+      `hostDispatch:未知上行消息形状(type=${String((msg as { type?: string }).type)})`,
+    );
   }
 }

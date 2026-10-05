@@ -139,11 +139,14 @@ test.describe("三区骨架", () => {
     // #398 单机统一后:快速 bot 链一拍跑完(合并连锁,联机同构),对局态只在人类停点
     // 下行——「自然观察到 bot 活跃」的瞬态不再存在,光效/微标的样式断言改走与
     // react-solo「bot 托管思考态」同款的调试钩子种植(钉 CSS 契约,不钉时序)。
-    await force(page, `
+    await force(
+      page,
+      `
       const botIdx = e.players.findIndex((p) => p.isBot);
       e.activeIndex = botIdx;
       window.__dafung.controller().sync();
-    `);
+    `,
+    );
     const s = await snap(page);
     expect(s.players[s.activeIndex].isBot).toBe(true);
     const card = page.getByTestId(`seat-${s.activeIndex}`);

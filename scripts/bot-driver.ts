@@ -161,8 +161,7 @@ export async function driveBots(
         reason = "no-progress";
         break;
       }
-      if (delay > 0)
-        await new Promise<void>((res) => host.clock.setTimeout(() => res(), delay));
+      if (delay > 0) await new Promise<void>((res) => host.clock.setTimeout(() => res(), delay));
     }
     if (e.phase === "GameOver") reason = "game-over";
     host.observe(r, {
