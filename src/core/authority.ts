@@ -1261,8 +1261,10 @@ export class GameEngine {
     });
   }
 
-  /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
-   *  写入一段外部推导的行军轨迹供动画层读取;null 清除。
+  /** 表现轨迹回写通道(快照恢复专用,与 applyPresentationRoll 对偶):
+   *  序列化单点清单的恢复回写口(lastMove 私有、presentation 视图只读,恢复是唯一
+   *  合法外部写口);lastMove 本身是行军事件的产出契约输入(requireMovePath),动画
+   *  取径已随事件批走(#385),联机快照 diff 消费方已退役。
    *  唯一允许表现侧设置 lastMove 的合法入口(红线 3:引擎态变更须走公共方法)。 */
   applyPresentationMove(path: MovePath | null): void {
     this.lastMove = path;
