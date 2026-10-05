@@ -49,8 +49,9 @@ test("事件批下行:开局选都逐转移到达双端,内容与顺序符合批
   }
   await onlinePickCapitals([host, guest]);
 
-  // 事件批按转移序到达(明传:双端同一份流)。服务端 flush 先发 events 后发 snapshot,
-  // 客户端引擎离开 Setup 时对应批次必然已在线级收集器里,无需额外等待。
+  // 事件批按转移序到达(明传:双端同一份流)。#388 切换后事件批是唯一对局状态通路
+  // (快照只剩开局校准/关键节点),客户端引擎离开 Setup 时对应批次必然已在线级收集
+  // 器里,无需额外等待。
   for (const [label, feed] of [
     ["host", hostFeed],
     ["guest", guestFeed],

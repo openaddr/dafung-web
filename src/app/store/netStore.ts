@@ -66,6 +66,11 @@ export interface NetStoreState extends NetRoomFields {
   pushHint: (hint: string | null, level?: "error" | "info") => void;
   /** #390:事件批入站暂存(容错:空批照存不炸;畸形字段透传,运行时不校验=零兜底)。 */
   pushEventBatch: (events: GameEvent[]) => void;
+  /** #388 重连清批:事件面归零(lastEvents 清空 + eventBatchSeq 回 0)。整房摘要水合前
+   *  调用(ADR-0020 决策 4:断线即丢、重连全量)——重连前的一切暂存批作废,状态唯一
+   *  来源 = 紧随其后的整房摘要。消费游标的同步归零在 SnapshotEffects.resetEventFace,
+   *  两处必须成对调用(拆开会出现「seq 撞号跳批」)。 */
+  resetEventFace: () => void;
   /** 退出联机(回设置屏)时清空,防止残留房间态泄漏到下一次会话。 */
   reset: () => void;
 }
@@ -129,6 +134,8 @@ export const useNetStore = create<NetStoreState>((set) => ({
   // #390:事件批整批覆盖暂存 + 到达计数单调递增(一条消息 = 一批;不驱动任何派生 UI)。
   pushEventBatch: (events) =>
     set((s) => ({ lastEvents: events, eventBatchSeq: s.eventBatchSeq + 1 })),
+  // #388 重连清批:事件面归零(与 SnapshotEffects 消费游标成对,见接口注释)。
+  resetEventFace: () => set({ lastEvents: null, eventBatchSeq: 0 }),
   setDismissed: () => set({ dismissed: true, connected: false }),
   pushHint: (hint, level = "error") => {
     if (netHintTimer != null) clearTimeout(netHintTimer); // 重复 push 先清旧定时器
