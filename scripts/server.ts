@@ -35,6 +35,7 @@ import type { GameEvent } from "../src/core/game-events";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
+import { loadExtensionPackages } from "../src/core/extension-loader";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
 import { clientView, lobbyView, seatMeta } from "./seat-projection";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
@@ -78,6 +79,17 @@ const DECISION_TIMEOUT_MS = Math.max(
 const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   0,
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
+);
+
+// ──────────────────────────── 扩展包装载(#378,ADR-0022 权威侧)────────────────────────────
+// 启动时扫描 extensions/ 目录装载已安装包:名将/效果注册进引擎注册面(全房间生效,
+// 与单机本地引擎装同一份包、语义一致)。零兜底:目录缺失/包格式坏/入口加载失败 =
+// 服务启动当场失败(不静默跳过坏包);目录为空 = 合法零包环境,行为与无扩展一致。
+// 独立小节纪律:本段只做装载与打印,不触碰 broadcast/flush/重连任何逻辑。
+const EXTENSIONS_DIR = resolve(process.env.EXTENSIONS_DIR ?? "./extensions");
+const EXTENSION_PACKAGES = await loadExtensionPackages(EXTENSIONS_DIR);
+console.log(
+  `[server] 扩展包(#378):${EXTENSION_PACKAGES.length > 0 ? EXTENSION_PACKAGES.map((m) => `${m.id}@${m.version}`).join(", ") : "无"}(目录:${EXTENSIONS_DIR})`,
 );
 
 // ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
