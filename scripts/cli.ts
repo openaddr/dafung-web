@@ -5,7 +5,7 @@
 import { resolve } from "node:path";
 import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
-import type { GameCommand} from "../src/core/authority";
+import type { GameCommand } from "../src/core/authority";
 import {
   createEngine,
   loadEngineAt,

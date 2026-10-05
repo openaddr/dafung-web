@@ -214,10 +214,30 @@
   z-index: 1;
   opacity: 0.5;
 }
-.jinnang-card.mount .bj.a { top: 0; left: 0; border-radius: 0.7em 0 0 0; background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%); }
-.jinnang-card.mount .bj.b { top: 0; right: 0; border-radius: 0 0.7em 0 0; background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%); }
-.jinnang-card.mount .bj.c { bottom: 0; left: 0; border-radius: 0 0 0 0.7em; background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%); }
-.jinnang-card.mount .bj.d { bottom: 0; right: 0; border-radius: 0 0 0.7em 0; background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%); }
+.jinnang-card.mount .bj.a {
+  top: 0;
+  left: 0;
+  border-radius: 0.7em 0 0 0;
+  background: linear-gradient(135deg, var(--color-road-main) 0 48%, transparent 50%);
+}
+.jinnang-card.mount .bj.b {
+  top: 0;
+  right: 0;
+  border-radius: 0 0.7em 0 0;
+  background: linear-gradient(225deg, var(--color-road-main) 0 48%, transparent 50%);
+}
+.jinnang-card.mount .bj.c {
+  bottom: 0;
+  left: 0;
+  border-radius: 0 0 0 0.7em;
+  background: linear-gradient(45deg, var(--color-road-main) 0 48%, transparent 50%);
+}
+.jinnang-card.mount .bj.d {
+  bottom: 0;
+  right: 0;
+  border-radius: 0 0 0.7em 0;
+  background: linear-gradient(-45deg, var(--color-road-main) 0 48%, transparent 50%);
+}
 
 /* 画心:距条(界线)随品级(--tone color-mix),内里纸亮端 */
 .jinnang-card.mount .huaxin {

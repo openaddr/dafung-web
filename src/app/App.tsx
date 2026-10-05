@@ -5,7 +5,7 @@
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
@@ -52,8 +52,9 @@ export function App() {
     document.body.dataset.screen = screen;
   }, [screen]);
 
-  // 正式开局:加载地图 → 构造单机控制器(引擎 setup 自动步进至轮到人类)→ 进 Game 屏。
-  // 单机热座:guohao 全在 seats 里,doDraftRoll 定序后 bot 选都步进,轮到人类停。
+  // 正式开局:加载地图 → 构造单机控制器(进程内房间编排,#398:引擎在房间 startGame
+  // 同步段建好并驱动 bot 选都到轮到人类,不再有本地 doDraftRoll/aiSetupStep 直驱)→
+  // 进 Game 屏。单机热座:guohao 预设在座位表首项,bot 国号由开局编排分配。
   const handleStart = useCallback(
     async (config: SetupConfig) => {
       try {
@@ -64,7 +65,6 @@ export function App() {
         const controller = new LocalController(map, {
           seats: config.seats,
           targetNetWorth: config.targetNetWorth,
-          startingCash: config.startingCash,
           difficulty: config.difficulty,
           seed: config.seed ?? urlSeed(),
           // ADR-0014 对局日志局头要素(编辑器试玩不经此口,无地图 id 如实留空)
@@ -72,16 +72,9 @@ export function App() {
           encounter: config.encounter, // 机遇配置(#125):设置屏默认读 jiyu.json,单局覆盖
         });
         setController(controller, await source.loadMapData(config.mapId));
-        const e = controller.engine;
-        e.doDraftRoll();
-        while (e.aiSetupStep()) {
-          /* bot 选都步进(轮到人类即停) */
-        }
-        // setup 推进不走 dispatchCommand,需显式同步(等价 __dafung.sync)
-        useGameStore.getState().syncFromEngine(e);
+        // 开局首帧直灌(此后由房间下行拍驱动 sync;#398 起选都/行军全走房间编排)
+        useGameStore.getState().syncFromEngine(controller.engine);
         setScreen("game");
-        // 开局即轮到 bot(或 Setup 余下全是 bot)时接棒驱动 + 首回合横幅(阶段 6)
-        controller.onEnterGame();
       } catch (err) {
         pushHint(`起兵失败:${(err as Error).message}`);
       }
@@ -160,7 +153,8 @@ export function App() {
     [pushHint],
   );
 
-  // 试玩:直接以编辑中的数据开局(不经图库,对照旧「试玩」语义)
+  // 试玩:直接以编辑中的数据开局(不经图库,对照旧「试玩」语义);#398 起同走
+  // 进程内房间编排(mapId 如实空串,局头留空)。
   const handleEditorStart = useCallback(
     async (data: MapData) => {
       try {
@@ -174,16 +168,11 @@ export function App() {
             { name: "bot四", isBot: true },
           ],
           seed: urlSeed(),
+          mapId: "",
         });
         setController(controller, data);
-        const e = controller.engine;
-        e.doDraftRoll();
-        while (e.aiSetupStep()) {
-          /* bot 选都步进 */
-        }
-        useGameStore.getState().syncFromEngine(e);
+        useGameStore.getState().syncFromEngine(controller.engine);
         setScreen("game");
-        controller.onEnterGame();
       } catch (err) {
         pushHint(`试玩开局失败:${(err as Error).message}`);
       }

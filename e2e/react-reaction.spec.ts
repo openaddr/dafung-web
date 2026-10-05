@@ -3,20 +3,22 @@
 // - 引擎结算断言接「反应窗应答流程」helper 下沉(单测已在守:reaction-window 22 例
 //   全回路 + jinnang.test 唯反应),e2e 每例只留「横幅→点选/不用→结果」接线冒烟
 //   + 视觉锚(倒计时弧 / 架上金边 / 灰置印「唯反应」);
-// - 超时兜底与降噪口两例原样保留(#292 Q2 立照:守 LocalController 客户端定时代发 /
+// - 超时兜底与降噪口两例原样保留(#292 Q2 立照:守权威侧定时代发 /
 //   静默状态机,非引擎语义);超时例换 helper 的 timeout 模式;
 // - 两处硬等待(军师窗采样窗 / choices 重算一拍)换条件 poll(#292 Q4)。
-// 权威侧兜底=LocalController 定时代发「不用」(与手点同一条命令路径);本 spec 反应窗
-// 走 E2E_TIME_SCALE 缩放后的窗长(0.5 倍 → 1500ms,fixtures 先注入 0.25,此 spec 的
-// init 脚本后挂覆盖同键;#284 起窗长单源=view.windowMs,scaleReactionMs 缩放,数值
-// 行为不变)。种子离线核算(seed 7):人类先手、起手火烧连营(军师窗停点=稳定种植点);
-// 种植后人类改持目标牌,bot 手牌/位置/骰队列按用例直写。注意 seed 7 默认 bot 手牌含
-// 火烧连营/半路杀出:bot 回合开始会弹火烧窗(不用+静音=2 选项),拦检例一律以
-// 「行军将过你的城池」文案过滤后再应答(旧三例既有口径)。
+// 权威侧兜底=房间编排反应窗看门狗(#281,room watchdogs)定时代发「不用」(与手点同
+// 一条命令路径;#398 单机统一后单机与联机同走房间编排)。注意:权威窗长=引擎
+// windowMs 原值(3000ms,不吃 e2e 倍率——倍率只缩放演出编排,节拍单源 core/timings,
+// #399);横幅展示时长=scaleReactionMs(windowMs)(0.5 倍 → 1500ms 先收回),timeout 例
+// 预算按展示时长给、结算按权威窗长等。种子离线核算(seed 7):人类先手、起手火烧连营
+// (军师窗停点=稳定种植点);种植后人类改持目标牌,bot 手牌/位置/骰队列按用例直写。
+// 注意 seed 7 默认 bot 手牌含火烧连营/半路杀出:bot 回合开始会弹火烧窗(不用+静音=
+// 2 选项),拦检例一律以「行军将过你的城池」文案过滤后再应答(旧三例既有口径)。
 import { test, expect } from "./fixtures";
 import {
   force,
   waitMyRollDone,
+  waitMyPause,
   skipUntilNextSeat,
   engineState,
   startSolo,
@@ -125,11 +127,12 @@ test.describe("反应窗(#281 单机)", () => {
     await pollReactionSettled(page, baseline, { declined: true });
   });
 
-  test("超时兜底:窗内不应答,LocalController 归零代发「不用」,计照常结算", async ({ page }) => {
+  test("超时兜底:窗内不应答,权威侧看门狗归零代发「不用」,计照常结算", async ({ page }) => {
     await plantCounterScenario(page);
     await awaitReactionWindow(page); // 横幅升起即停靠点
     const citiesBefore = await engineState(page, "e.players[0].properties.length");
-    // 窗长 1500ms(0.5 倍率):到点 UI 自动收回 + 权威侧代发——不点任何钮,等结算
+    // 横幅 1500ms(0.5 倍率)先收回;权威窗长=windowMs 原值 3000ms:到点房间看门狗
+    // 代发——不点任何钮,等结算
     await answerReactionWindow(page, { mode: "timeout", windowMs: 1500 });
     await expect
       .poll(
@@ -169,7 +172,11 @@ test.describe("反应窗(#281 单机)", () => {
       )
       .toBe(true);
     // ── 分支二 平局:补牌 → 城主 3 对行人 3 → 牌白耗,行人照常续走落原落点 ──
-    await force(page, `e.players[0].jinnangHand = ["半路杀出"];`);
+    // #398 快速链适配:分支 1 应答后房间编排一拍跑完整条 bot 链(合并连锁,联机同构),
+    // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → 重种手牌/布位/骰队 → 放行)。
+    await waitMyPause(page, 0);
+    await plantAmbush(page, 4, false);
+    await skipUntilNextSeat(page, 0);
     await awaitReactionWindow(page);
     await expect(
       page.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),
@@ -192,9 +199,11 @@ test.describe("反应窗(#281 单机)", () => {
       .toEqual({ away: true, spent: true });
     // ── 分支三 放行:补牌 → 点「不用」→ 行人续走、牌不耗 ──
     // 结算断言走结果键(mover 离首都 + 牌留手):火烧窗超时代发已把 use=0 留痕写进
-    // 日志,declined 留痕在本局不可作分支信号;此问后人类唯反应手牌驻停军师窗,
-    // 不再有任何拦检窗,结果键一旦为真即终局稳定。
-    await force(page, `e.players[0].jinnangHand = ["半路杀出"];`);
+    // 日志,declined 留痕在本局不可作分支信号;放行后人类唯反应手牌驻停军师窗,
+    // 不再有任何拦检窗,结果键一旦为真即终局稳定。重布场口径同分支二。
+    await waitMyPause(page, 0);
+    await plantAmbush(page, 4, false);
+    await skipUntilNextSeat(page, 0);
     await awaitReactionWindow(page);
     await expect(
       page.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),

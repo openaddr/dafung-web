@@ -5,7 +5,7 @@
 // scripts 不吃 app(层界红线),故不做跨层物理单源。
 // jinnang 窗=公告询问集(联机投影后每人只看到「自己是否被询问」,ADR-0016);
 // march 窗=[城主]。
-import type { ReactionView} from "@core/reaction-window";
+import type { ReactionView } from "@core/reaction-window";
 
 /** 反应窗被询问座位集(view 单源)。 */
 export function reactionQueriedSeats(view: ReactionView): number[] {

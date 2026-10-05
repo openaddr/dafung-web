@@ -3,13 +3,14 @@
 // 引擎变化后 syncFromEngine 灌 store,由 React 组件声明式渲染。
 // 弹层/动画/音效是纯表现,归组件与阶段 6 的动画编排器,不进控制器。
 import type { GameEngine } from "@core/authority";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { useGameStore } from "@app/store/gameStore";
 
 /**
  * 游戏控制器:桥接「引擎(或网络)」与「gameStore」。
- * - 单机(LocalController):持有权威引擎,命令直接 submitCommand。
- * - 联机(OnlineController):持只读引擎,命令发 WS,靠 snapshot 广播重 hydrate。
+ * - 单机(LocalController):进程内房间编排 + MemorySocket(#398 单机统一 B),
+ *   引擎=房间权威引擎直读(内存直连,无 hydrate 副本)。
+ * - 联机(OnlineController):持只读引擎,命令发 WS,靠快照广播重 hydrate。
  */
 export abstract class GameController {
   // ─── 抽象成员(子类提供;语义与旧 ClientController 对齐)──
@@ -26,10 +27,10 @@ export abstract class GameController {
   abstract dispatchCommand(cmd: GameCommand): void;
 
   /** Setup(PickCapital)期点城=为当前选都玩家定都(候选2 收口:相位路由归 GameScreen,
-   *  本方法只承载"落子"这一动作)。仅单机有此交互,故默认 no-op、LocalController 覆写
+   *  本方法只承载"落子"这一动作)。仅单机有此交互,故默认 no-op、子类覆写
    *  ——与 setAutoPilot 的接缝风格一致,屏幕组件对两种模式仍无感(不引入 instanceof)。
-   *  pickCapital 不是 GameCommand(不经 submitCommand),单机侧由 LocalController
-   *  包装驱动仲裁/印章表现/bot 接棒,故不并入 dispatchCommand。 */
+   *  pickCapital 不是 GameCommand(不经 submitCommand),两侧都包装成
+   *  {type:"pickCapital"} 上行(单机=内存双工、联机=WS),校验在房间编排。 */
   setupPickCapital(_tileIndex: number): void {}
 
   /** 是否支持托管(联机 = true:服务器 bot 代打;单机也支持:本地 bot 代打)。 */

@@ -11,7 +11,7 @@
 // 3) props.layerRef:暴露棋子层 <g> 本体,便于批量查(如遍历所有棋子 z 序重排)。
 import { memo } from "react";
 import type { Board } from "@core/board";
-import type { BoardPos} from "@core/board";
+import type { BoardPos } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { marchPos } from "@app/fx/useMarch";

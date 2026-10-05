@@ -6,18 +6,18 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 事实源地图
 
-| 要什么                                      | 去哪                                                                                                                                                                                   |
-| ------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 游戏规则与数值(权威以 `src/core/` 代码为准) | [docs/reference/rules/](./docs/reference/rules/README.md)(十页导览,数值总表在第 10 页)                                                                                                 |
-| 领域词汇(术语定名与弃用名)                  | [CONTEXT.md](./CONTEXT.md)                                                                                                                                                             |
-| 设计决策存档                                | docs/adr/                                                                                                                                                                              |
-| 视觉/交互设计(改 UI 前必读)                 | [docs/design/DESIGN.md](./docs/design/DESIGN.md) + [BRIEF.md](./docs/design/BRIEF.md)                                                                                                  |
-| 交互组件收口附表(shadcn/Base UI)            | [docs/design/组件收口.md](./docs/design/组件收口.md)                                                                                                                                   |
-| 命令清单与测试跑法(单一事实源)              | [docs/how-to/开发与测试.md](./docs/how-to/开发与测试.md)                                                                                                                               |
-| 联机架构 / 部署 / 对局日志                  | [docs/explanation/联机架构.md](./docs/explanation/联机架构.md) · [docs/how-to/部署服务器.md](./docs/how-to/部署服务器.md) · [docs/reference/对局日志.md](./docs/reference/对局日志.md) |
+| 要什么                                       | 去哪                                                                                                                                                                                   |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 游戏规则与数值(权威以 `src/core/` 代码为准)  | [docs/reference/rules/](./docs/reference/rules/README.md)(十页导览,数值总表在第 10 页)                                                                                                 |
+| 领域词汇(术语定名与弃用名)                   | [CONTEXT.md](./CONTEXT.md)                                                                                                                                                             |
+| 设计决策存档                                 | docs/adr/                                                                                                                                                                              |
+| 视觉/交互设计(改 UI 前必读)                  | [docs/design/DESIGN.md](./docs/design/DESIGN.md) + [BRIEF.md](./docs/design/BRIEF.md)                                                                                                  |
+| 交互组件收口附表(shadcn/Base UI)             | [docs/design/组件收口.md](./docs/design/组件收口.md)                                                                                                                                   |
+| 命令清单与测试跑法(单一事实源)               | [docs/how-to/开发与测试.md](./docs/how-to/开发与测试.md)                                                                                                                               |
+| 联机架构 / 部署 / 对局日志                   | [docs/explanation/联机架构.md](./docs/explanation/联机架构.md) · [docs/how-to/部署服务器.md](./docs/how-to/部署服务器.md) · [docs/reference/对局日志.md](./docs/reference/对局日志.md) |
 | 联机框架评估结论与参考仓借东西清单(动工前查) | [docs/reference/参考仓索引.md](./docs/reference/参考仓索引.md)                                                                                                                         |
-| 派单纪律与模板                              | [docs/agents/派单模板.md](./docs/agents/派单模板.md)                                                                                                                                   |
-| 机遇系统配置(`public/config/jiyu.json`)     | rules 第 07 页[声望与机遇](./docs/reference/rules/07-声望与机遇.md)                                                                                                                    |
+| 派单纪律与模板                               | [docs/agents/派单模板.md](./docs/agents/派单模板.md)                                                                                                                                   |
+| 机遇系统配置(`public/config/jiyu.json`)      | rules 第 07 页[声望与机遇](./docs/reference/rules/07-声望与机遇.md)                                                                                                                    |
 
 ## 零兜底原则(全项目贯穿)
 

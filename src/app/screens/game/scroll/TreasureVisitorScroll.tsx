@@ -7,7 +7,7 @@
 // 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级)。
 // 协议零改:resolveTreasureOwner { action: { type: "fair"/"premium", treasureId } } 原样。
 import { useState } from "react";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
@@ -64,9 +64,7 @@ export function TreasureVisitorScroll({
   // 本地 UI 态(不进引擎/快照):关掉后本场合交涉不再重弹,卸载即复位(见文件头注释)。
   const [visitorDismissed, setVisitorDismissed] = useState(false);
 
-  const title = !mode
-    ? `${ownerGuohao}·珍宝抉择`
-    : `${MODE_META[mode].label}·选珍宝`;
+  const title = !mode ? `${ownerGuohao}·珍宝抉择` : `${MODE_META[mode].label}·选珍宝`;
 
   const priceOf = (t: SnapshotTreasure, m: Mode) => {
     const guide = guidePriceOf(t.level);
@@ -104,7 +102,9 @@ export function TreasureVisitorScroll({
               <ScrollButton
                 primary
                 testid={T.treasureSkip}
-                onClick={() => onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })}
+                onClick={() =>
+                  onCommand({ type: "resolveTreasureOwner", action: { type: "skip" } })
+                }
               >
                 暂不交易
               </ScrollButton>

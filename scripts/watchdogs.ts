@@ -6,18 +6,14 @@
 // 实例,三组各自配置「武装窗口(tag+delayMs)」与「到点动作」;行为(超时时长/触发
 // 动作/清理时机)与拆分前逐一对齐,由 room.test.ts 与同种子对拍兜底。
 // registry 经 WatchdogHost 注入房间侧操作;本模块零 WS/HTTP/fs 依赖。
-import type { GameCommand} from "../src/core/authority";
-import type { RoomEvent, RoomSession } from "./room";
+import type { GameCommand } from "../src/core/authority";
+// 节拍单源(#399):AUTO_ROLL_DELAY_MS 全局唯一定义处 = src/core/timings.ts(单机/联机同表)。
+import { AUTO_ROLL_DELAY_MS } from "../src/core/timings";
+import type { RoomClock, RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
 import { seatControlled } from "./seat-projection";
 
 type UpdateFn = (room: RoomSession) => void;
-
-/** 人类回合 Roll 相位自动起摇延迟(#188 第 1 步):Roll 无决策内容,服务器定时
- *  代发 rollAndMove(与单机控制器同语义;客户端起签表现为纯本地演出,不受此值影响)。
- *  字面量而不用 timings.ts:scripts 不吃浏览器 localStorage 倍率,与 src/app/fx/timings.ts
- *  AUTO_MARCH.rollAtMs 的未加速原值(1000)同源,改任一侧须两处同改。 */
-export const AUTO_ROLL_DELAY_MS = 1000;
 
 /** 看门狗宿主:registry 注入的房间侧操作(与 bot-driver 的 DriveBotsHost 同由
  *  registry 内一个 ops 对象满足;watchdogs 不反向 import registry)。 */
@@ -33,6 +29,8 @@ export interface WatchdogHost {
   driveBots(r: RoomSession, onUpdate?: UpdateFn): Promise<void>;
   /** #118 决策停摆超时(ms);0 = 关闭(缺省关,测试友好)。 */
   readonly decisionTimeoutMs: number;
+  /** 定时原语(#399 Worker 时钟注入点):武装/撤表全经它,服务器=全局、单机=Worker。 */
+  readonly clock: RoomClock;
 }
 
 /** 单组看门狗实例:clear=整房撤表(链重开/解散时);arm=按座位武装。fire 由工厂
@@ -59,13 +57,14 @@ interface WatchdogSpec {
 /** 通用工厂:roomId → (座位 → {timer, seq}) 表 + clear/arm/fire 三件套。
  *  arm:同 tag 跳过(不重置倒计时),tag 变撤旧起新;unref 不拖延进程退出。
  *  fire:先核对本火仍属当前表项(seq 不同=已被重武装,本火过期,不动新表),删本火
- *  表项(房间表空则整行撤)后交 spec.fire 重校验+动作——清理时机与拆分前逐一相同。 */
-function createWatchdog(spec: WatchdogSpec): Watchdog {
-  const table = new Map<string, Map<number, { timer: ReturnType<typeof setTimeout>; seq: number }>>();
+ *  表项(房间表空则整行撤)后交 spec.fire 重校验+动作——清理时机与拆分前逐一相同。
+ *  定时全经注入时钟(#399):服务器=全局 setTimeout,单机=Worker 时钟(失焦照跑)。 */
+function createWatchdog(spec: WatchdogSpec, clock: RoomClock): Watchdog {
+  const table = new Map<string, Map<number, { timer: unknown; seq: number }>>();
   const clear = (roomId: string): void => {
     const slots = table.get(roomId);
     if (!slots) return;
-    for (const w of slots.values()) clearTimeout(w.timer);
+    for (const w of slots.values()) clock.clearTimeout(w.timer);
     table.delete(roomId);
   };
   const fire = async (
@@ -88,10 +87,10 @@ function createWatchdog(spec: WatchdogSpec): Watchdog {
     const old = slots?.get(seat);
     if (old) {
       if (old.seq === win.tag) return; // 同窗已武装:到期时刻一次算死,不重置(#284)
-      clearTimeout(old.timer); // 换窗(行军续走下一城等):撤旧起新
+      clock.clearTimeout(old.timer); // 换窗(行军续走下一城等):撤旧起新
     }
-    const timer = setTimeout(() => void fire(r, seat, win.tag, onUpdate), win.delayMs);
-    timer.unref?.();
+    const timer = clock.setTimeout(() => void fire(r, seat, win.tag, onUpdate), win.delayMs);
+    (timer as { unref?: () => void }).unref?.(); // 宿主进程 courtesy(Worker 时钟句柄无 unref)
     (slots ??= new Map()).set(seat, { timer, seq: win.tag });
     table.set(r.roomId, slots);
   };
@@ -130,7 +129,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
         onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
         await host.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
       },
-    }),
+    }, host.clock),
     // ──────────────────── 行军自动化(#188 第 1 步)────────────────────
     // 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未接管人类座位的 Roll 相位 → 服务器代发
     // rollAndMove(走 applyCommand 公共命令路径:submitCommand 记 cmd 行 + persist + 广播,
@@ -148,7 +147,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
         host.observe(r, { ev: "auto-roll", seat });
         await host.applyCommand(r.roomId, { type: "rollAndMove" }, onUpdate);
       },
-    }),
+    }, host.clock),
     // ──────────────────── 反应窗超时兜底(#281,ADR-0017)────────────────────
     // 可能多座位同时被询问(AOE),按房间持座位表各配一表;#284 起 seq 判据管重武装
     // (arm)——链重开不再整体撤表,deadline 一次算死;clear(链重开不走,唯一调用点
@@ -184,6 +183,6 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
         host.observe(r, { ev: "reaction-decline", seat });
         await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
       },
-    }),
+    }, host.clock),
   };
 }

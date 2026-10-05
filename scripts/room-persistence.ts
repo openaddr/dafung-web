@@ -13,7 +13,7 @@ import {
 import { join, resolve } from "node:path";
 import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
-import type { AiDifficulty} from "../src/core/authority";
+import type { AiDifficulty } from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createEngine, MAP } from "./engine-helpers";

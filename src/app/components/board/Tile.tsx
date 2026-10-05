@@ -6,7 +6,7 @@
 // (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
-import type { TileDef} from "@core/board";
+import type { TileDef } from "@core/board";
 import { Theme, groupColor, playerColor, rgba, type Rgb } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
