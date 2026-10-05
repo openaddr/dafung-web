@@ -16,6 +16,7 @@ import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
 import { ENCOUNTERS } from "@core/encounters";
 import { HEROES } from "@core/heroes";
+import { extensionAnimationHandlers } from "@app/extensions/registry";
 import { remainingMarchPath } from "./orchestrator";
 import type { FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
 
@@ -542,6 +543,12 @@ export function extractBatchEvents(
       default:
         break;
     }
+  }
+
+  // 扩展动画 handler(#378,ADR-0022 三能力之二):主提取完成后让已装包吃同一批事件
+  // 补演出(追加在批尾——扩展演出是本转移因果链的下游)。零包时读口为空数组,行为不变。
+  for (const handler of extensionAnimationHandlers()) {
+    events_.push(...handler({ engine, events }));
   }
 
   // 铜钱声(旧 spawnFloaters 口径:有正收入就叮一声,每批一次,排在首个浮字之前)

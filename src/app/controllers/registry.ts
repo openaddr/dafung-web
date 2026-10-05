@@ -4,7 +4,7 @@
 // 联机(后续阶段)注册 OnlineController —— 屏幕组件对两种模式无感。
 import type { Board } from "@core/board";
 import type { MapCatalog } from "@core/board-loader";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 import type { GameController } from "./controller";
 
 let current: GameController | null = null;
@@ -48,6 +48,7 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
+import { HEROES } from "@core/heroes";
 
 /** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
  *  双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY):仅 dev 构建,或 e2e/截图脚手架经
@@ -67,7 +68,10 @@ export function installDebugHooks(): void {
       const e = getEngine();
       if (e) useGameStore.getState().syncFromEngine(e);
     },
-    /** 交互入口(等价旧 __dafung.debug 等;后续可按需扩充)。 */
+    /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——快照/事件面只存
+     *  展示字段,直写 offeredHeroes 必须给完整定义(技能/主动技随对象进麾下)。 */
+    heroDefs: () => [...HEROES],
+    /** 当前控制器(交互入口)。 */
     controller: () => getController(),
   };
 }
