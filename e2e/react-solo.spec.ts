@@ -105,7 +105,7 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
     e.turnPhase = "AwaitingDecision";
     e.activeIndex = 0;
     const me = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
+    const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
     e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
     e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
   `,
@@ -132,7 +132,7 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
     e.turnPhase = "AwaitingDecision";
     e.activeIndex = 0;
     const me = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
+    const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId && e.findOwner(t.propertyId) == null);
     me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
     e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
     e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
