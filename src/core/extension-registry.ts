@@ -14,7 +14,11 @@
 import { HEROES, type HeroDef } from "./heroes";
 import { EFFECTS } from "./effects";
 import { MOMENTS } from "./timing";
-import type { ExtensionAuthorityModule, ExtensionInquiry, ExtensionManifest } from "./extension-contract";
+import type {
+  ExtensionAuthorityModule,
+  ExtensionInquiry,
+  ExtensionManifest,
+} from "./extension-contract";
 
 /** 已装包台账:包 id → 其贡献(精确卸载/冲突检测用)。 */
 const installed = new Map<

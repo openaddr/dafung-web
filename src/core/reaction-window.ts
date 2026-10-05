@@ -121,16 +121,15 @@ export interface PendingReaction {
 // 人类座位(含托管/看门狗代驾)等 respondReaction 命令——权威侧超时代发的也是这条普通
 // 命令,重放天然复现。每次结算只问一轮:每被询问座位至多应答一次。
 
-/** 单调流水号取号(#284):反应窗与出牌留痕共用同一计数器(独立亦可在语义上等效,
- *  共用省一份状态;消费方只做「变了没有」的 diff/判据,不依赖两通道号段关系)。 */
+/** 单调流水号取号(#284):反应窗实例号(挂起点写 PendingReaction.seq)。cmd 流派生
+ *  状态,重放重算天然复现;快照恢复按快照内最大 seq 推回(authority.restoreFromSnapshot)。 */
 function nextJinnangSeq(g: GameEngine): number {
   return ++g.jinnangSeq;
 }
 
-/** 出牌留痕双通道写入(#281/#284):瞬态 jinnangPlays 供单机表现提取器破坏性读
- *  (本地编排,presentation.drainJinnangPlays);可序列化 lastJinnangPlay 供联机
- *  快照 diff(客户端 SnapshotEffects 提取,传输层无独立事件通道)。两通道同点写入,
- *  消费口径注释互指。同批多条留痕(如 AOE 多人识破循环)聚进同一 plays(批界=封批)。 */
+/** 出牌指示线留痕写入(#281/P2-E):生效点写瞬态 jinnangPlays,表现提取器经
+ *  presentation.drainJinnangPlays 破坏性读(单机本地编排通道)。联机端无平行留痕
+ *  通道:#385 起出牌线动效由事件批直读,原可序列化 lastJinnangPlay 已随 #412 退役。 */
 export function traceJinnangPlay(
   g: GameEngine,
   userSeat: number,
@@ -138,9 +137,6 @@ export function traceJinnangPlay(
   cardId: string,
 ): void {
   g.jinnangPlays.push({ userSeat, targetSeats, cardId });
-  if (g.jinnangPlayBatch == null)
-    g.lastJinnangPlay = g.jinnangPlayBatch = { seq: nextJinnangSeq(g), plays: [] };
-  g.jinnangPlayBatch.plays.push({ userSeat, targetSeats, cardId });
 }
 
 /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时

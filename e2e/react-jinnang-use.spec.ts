@@ -223,7 +223,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
 // 300ms 淡出,store 清理窗随 E2E_TIME_SCALE 缩放)。指示线是条件性在场的瞬态元素:禁
 // locator 读(缺元素会挂到超时),全程单次 page.evaluate 内 rAF 轮询原子采样(仓库既有
 // 口径,#272)。反应窗出牌(识破/拦停)的留痕形状由 test/reaction-window.test.ts 在引擎层
-// 钉死;联机端同款线经快照 lastJinnangPlay.seq diff 提取(#284),归 react-reaction-online。
+// 钉死;联机端同款线由事件批直读(#385 event-extract),归 react-reaction-online。
 test.describe("出牌指示线(#281 P2-E)", () => {
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
     await startJunshi(page, 7);

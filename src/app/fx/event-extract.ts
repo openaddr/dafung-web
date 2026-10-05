@@ -2,7 +2,7 @@
 // 引擎每次状态转移产出类型化 GameEvent 批(词汇表 src/core/game-events.ts);本模块把
 // 一批事件直译为 PresentationEvent[](kind+seat+reason+领域字段 → 骰子/行军/浮字/出牌线/
 // 印章/音效/城池宣告/横幅),单机(engine.gameEvents)与联机(netStore lastEvents)共用
-// 同一函数——diff 启发式与 lastJinnangPlay.seq 旁路随本模块落地退役。
+// 同一函数——diff 启发式随本模块落地退役(lastJinnangPlay 留痕旁路已随 #412 移除)。
 //
 // 坐标口径与旧提取器一致:提取期按当时引擎态解析棋盘逻辑坐标(浮字锚定依赖提取时刻的
 // 玩家位置,事后无法从事件单独还原)。行军路径(#385):marchArrived/capitalHalt 事件

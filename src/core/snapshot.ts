@@ -8,14 +8,7 @@
 // 加一个引擎字段只在表里加一条(read/write 同点),不再横跨两个镜像函数五处文件。
 // 契约测试(snapshot-contract.test.ts)断言「serializeGame 产出的键集 = 清单键集」双向一致,
 // 杜绝「序列化了没恢复 / 清单记了没产出」的双向漂移。
-import type {
-  GameEngine,
-  EnginePhase,
-  SetupPhase,
-  LastJinnangPlay,
-  TurnPhase,
-  VictoryReason,
-} from "./authority";
+import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
 import type { HeroDef } from "./heroes";
@@ -169,9 +162,6 @@ export interface GameSnapshot {
    *  本字段是纯派生只读投影,消费方=UI(GameScreen 反应窗态);挂起态 pendingReaction
    *  消费方=恢复重建(restoreFromSnapshot)与传输层超时判据(room.ts 读 seq/answers)。 */
   reaction: import("./reaction-window").ReactionView | null;
-  /** 最近出牌留痕(#284,联机信号源):客户端快照 diff seq 变化产 jinnangPlayed 表现
-   *  事件。公开信息——出牌是公开事件,redact 不裁。 */
-  lastJinnangPlay: LastJinnangPlay | null;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
   jinnangPeeks: import("./jinnang-execution").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
@@ -470,20 +460,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     key: "reaction",
     read: (e) => (e.pendingReaction ? clonePendingReaction(e.pendingReaction)!.view : null),
     write: () => {},
-  },
-  {
-    // 最近出牌留痕(#284,批形状 LastJinnangPlay):联机信号源,客户端 diff seq 对 plays
-    // 逐条产出牌线。出牌是公开事件,redact 不裁;read/write 深拷贝(plays 数组不共享引用)。
-    key: "lastJinnangPlay",
-    read: (e) =>
-      e.lastJinnangPlay
-        ? { seq: e.lastJinnangPlay.seq, plays: e.lastJinnangPlay.plays.map((p) => ({ ...p })) }
-        : null,
-    write: (e, s) => {
-      e.lastJinnangPlay = s.lastJinnangPlay
-        ? { seq: s.lastJinnangPlay.seq, plays: s.lastJinnangPlay.plays.map((p) => ({ ...p })) }
-        : null;
-    },
   },
   {
     // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传
