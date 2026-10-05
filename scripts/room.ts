@@ -203,6 +203,9 @@ export interface CreateRoomConfig {
  *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
  *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
  *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。
+ *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
+ *  token 重连无缝夺回,到期 bot 自动接管(等价房主 takeover,重连仍可夺回)。0 = 关闭
+ *  (缺省关,单机/测试;server.ts 默认 600000=10 分钟,env RETENTION_WINDOW_MS 可调)。
  *  clock(#399 Worker 时钟):编排定时原语(看门狗/慢速托管步进)。缺省 = 宿主全局
  *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
  *  见 src/app/net/worker-clock.ts)——「失焦照跑」,单机与联机同构的最后一环。 */
@@ -210,6 +213,7 @@ export interface RoomRegistryOptions {
   encounter?: EncounterConfig;
   decisionTimeoutMs?: number;
   reactionWindowMs?: number;
+  retentionWindowMs?: number;
   clock?: RoomClock;
 }
 
@@ -235,12 +239,14 @@ export class RoomRegistry {
   private readonly logSink: RoomLogSink | null;
   private readonly encounter?: EncounterConfig;
   private readonly decisionTimeoutMs: number;
+  /** #380 掉线座位保留窗口(ms;0=关,见 RoomRegistryOptions.retentionWindowMs)。 */
+  private readonly retentionWindowMs: number;
   /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
   private readonly reactionWindowMsOverride: number;
   /** #399 编排定时原语(看门狗/慢速托管步进;缺省全局,浏览器注入 Worker 时钟)。 */
   private readonly clock: RoomClock;
-  /** 三组看门狗(#118 停摆/#188 自动起摇/#281 反应窗):通用工厂实例,见 ./watchdogs。
-   *  driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
+  /** 四组看门狗(#118 停摆/#188 自动起摇/#281 反应窗/#380 掉线保留窗):通用工厂实例,
+   *  见 ./watchdogs。driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
   private readonly watchdogs: Watchdogs;
   /** 驱动/看门狗共用的宿主操作面:闭包桥接 registry 私有方法(observe/persist/
    *  applyCommand/…),拆分后 bot-driver/watchdogs 不反向 import 本模块。 */
@@ -266,6 +272,7 @@ export class RoomRegistry {
     this.logSink = logSink ?? null;
     this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
+    this.retentionWindowMs = options?.retentionWindowMs ?? 0;
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
     this.clock = options?.clock ?? globalClock;
     this.watchdogs = createWatchdogs(this.watchdogHost());
@@ -289,6 +296,7 @@ export class RoomRegistry {
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
       driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
+      retentionWindowMs: this.retentionWindowMs,
       clock: this.clock,
     };
   }
@@ -613,10 +621,11 @@ export class RoomRegistry {
     // 解散房间行(ADR-0014):房间删除前先落盘(logRoom 内触发 logSink)
     this.logRoom(room, `房主解散房间(${room.roomId})`, JSON.stringify({ type: "dismiss" }));
     const id = room.roomId;
-    // #118/#188/#281:撤三组看门狗计时器(到点动作自身有房间存在重校验,此为即时清理)
+    // #118/#188/#281/#380:撤四组看门狗计时器(到点动作自身有房间存在重校验,此为即时清理)
     this.watchdogs.stall.clear(id);
     this.watchdogs.autoRoll.clear(id);
     this.watchdogs.reactionWait.clear(id);
+    this.watchdogs.retention.clear(id);
     // 传输面残表一并清(#397):端点/在途累积批/已排定的 flush 定时器随房同撤
     const txTimer = this.txTimers.get(id);
     if (txTimer != null) clearTimeout(txTimer);
@@ -650,14 +659,16 @@ export class RoomRegistry {
   /** WS close 时调用:host 掉线 → transferHost;之后 driveBots(接管/托管座位的连锁)。
    *  seat:刚断开的座位(传输层应已从 stillOnlineSeats 中移除,此处仅作文档/防御)。
    *  stillOnlineSeats:传输层算好后传入(只有传输层知道谁还连着 WS)。
-   *  onUpdate:每次可见状态变化后调。异步(连锁可能含慢速托管步进)。 */
+   *  onUpdate:每次可见状态变化后调。异步(连锁可能含慢速托管步进)。
+   *  #380:对局中断线 → 座位保留窗武装(retentionWindowMs>0 时):窗口内持 token 重连
+   *  无缝夺回(attachSeat 撤表),到期 bot 自动接管;大厅/已终局/已服务器驱动的座位
+   *  由看门狗 window 判定不武装。 */
   async markSeatOffline(
     roomId: string,
     seat: number,
     stillOnlineSeats: Set<number>,
     onUpdate?: (room: RoomSession) => void,
   ): Promise<void> {
-    void seat; // 保留参数以匹配 ADR-0007 接口语义;transport 保证 seat ∉ stillOnlineSeats。
     const room = this.rooms.get(roomId);
     if (!room) return;
     this.observe(room, { ev: "offline", seat, online: [...stillOnlineSeats] });
@@ -671,6 +682,8 @@ export class RoomRegistry {
     }
     this.transferHostIfNeeded(room, stillOnlineSeats);
     this.persist(room);
+    // #380:座位保留窗武装(窗口判定与豁免归 watchdogs.retention 的 window)
+    if (room.engine) this.watchdogs.retention.arm(room, seat, onUpdate);
     onUpdate?.(room); // 先推"该座离线 + 可能的 host 移交"
     await this.driveBots(room, onUpdate); // 接管/托管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/接管)
   }
@@ -686,10 +699,12 @@ export class RoomRegistry {
   }
 
   /** WS 连接建立时调用(ADR-0002/0005):token 是 Seat 归属唯一凭证 →
-   *  连上即从接管集合移除(原玩家持 token 重连夺回)。传输层随后发 clientView 给该 WS。 */
+   *  连上即从接管集合移除(原玩家持 token 重连夺回)。传输层随后发 clientView 给该 WS。
+   *  #380:重连即撤本座位保留窗(到期不误接管已归来的在线座位)。 */
   attachSeat(roomId: string, seat: number): RoomSession | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
+    this.watchdogs.retention.disarm(roomId, seat);
     // 重连房间行(ADR-0014):重放据此把座位移出接管驱动的 bot 集(托管不因重连失效)
     if (room.takeover.has(seat) && room.engine) {
       this.logRoom(
