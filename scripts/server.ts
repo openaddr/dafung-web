@@ -36,9 +36,9 @@ import {
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { AiDifficulty, GameCommand } from "../src/core/authority";
-import type { GameEvent } from "../src/core/game-events";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
+import { EventBatchChannel } from "./event-batch";
 import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
 import { loadExtensionPackages } from "../src/core/extension-loader";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
@@ -198,8 +198,9 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
 //      无 per-seat 面)。
 // 判定全部读引擎 phase/turnPhase/当前批事件 kind,零启发式;检测不到即不校准(漂移纯
 // 信任,ADR-0020 决策 5),不静默兜底。
-const pendingEvents = new Map<string, GameEvent[]>();
-const seenBatches = new Map<string, GameEvent[]>();
+// 事件批累积/去重/排空/合并拍归共享通道单源(#411,scripts/event-batch.ts):
+// 单机传输面(room.ts transportBroadcast)用同一份批语义,双端行为零变化。
+const eventBatches = new EventBatchChannel();
 /** 决策窗校准相位(#388):进入/停留/退出都强制全量(判定依据=引擎公开 turnPhase)。 */
 const CALIBRATION_WINDOWS: ReadonlySet<string> = new Set([
   "AwaitingJinnang",
@@ -235,7 +236,7 @@ const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
   // 基线同步登记(决策窗退出检测的起点)。
   const e = room.engine;
   if (e) {
-    seenBatches.set(room.roomId, e.gameEvents);
+    eventBatches.seedSeen(room.roomId, e.gameEvents);
     settledTurnPhase.set(room.roomId, e.turnPhase);
   }
 });
@@ -277,17 +278,7 @@ function onlineSeatsOf(roomId: string): Set<number> {
 // 一份 redactEvents 过滤批(#381,ADR-0020 决策 2 保密后补)后清空;不逐转移直发,
 // 理由同旧快照合并:托管 bot 链单 tick 多转移,逐转移直发重蹈 WS 背压覆辙。
 // 断线即丢(无排队无补发,ADR-0020 决策 4;重连=整房摘要,见 open 处理器)。
-function accumulateEventBatch(roomId: string, room: RoomSession): void {
-  const batch = room.engine?.gameEvents;
-  if (!batch) return; // Lobby 无引擎即无事件批(加入/换图等非对局转移通知)
-  if (seenBatches.get(roomId) === batch) return; // 批引用未换新 = 同一转移的重复通知
-  seenBatches.set(roomId, batch);
-  if (batch.length === 0) return; // 空转转移无内容可拼接
-  const acc = pendingEvents.get(roomId);
-  if (acc) acc.push(...batch);
-  else pendingEvents.set(roomId, [...batch]);
-}
-
+// 批语义本体(累积/去重/拼接/幂等排空/合并拍)在共享通道 scripts/event-batch.ts(#411)。
 /** 广播(#388 折叠切换⑥):读 Room 当前状态 + 算 onlineSeats,flush 时按序发——
  *  1. 事件批消息(#390,唯一对局状态通路):本 tick 累积批每座位各一份过滤批(空批不发);
  *  2. 关键节点校准快照(②):判定口径见顶部「全量下行三类」——每座位各发各的 per-seat
@@ -299,25 +290,17 @@ function accumulateEventBatch(roomId: string, room: RoomSession): void {
  *  人类节奏的流程(每次命令一个 tick)行为不变;慢速托管的步间 await 天然分 tick,
  *  事件逐批直播保留。 */
 const dirtySeats = new Map<string, Set<number>>();
-const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function broadcast(roomId: string): void {
   const room = registry.get(roomId);
   if (!room) return;
-  accumulateEventBatch(roomId, room); // #390:转移事件批入累积器,随本 tick flush 下发
+  eventBatches.accumulate(roomId, room.engine?.gameEvents); // #390:转移事件批入累积器,随本 tick flush 下发
   let seats = dirtySeats.get(roomId);
   if (!seats) {
     seats = new Set();
     dirtySeats.set(roomId, seats);
   }
   for (const seat of socketsOf(roomId).keys()) seats.add(seat);
-  if (flushTimers.has(roomId)) return; // 本 tick 已排 flush,脏标记会被同一批带走
-  flushTimers.set(
-    roomId,
-    setTimeout(() => {
-      flushTimers.delete(roomId);
-      flushRoom(roomId);
-    }, 0),
-  );
+  eventBatches.schedule(roomId, () => flushRoom(roomId));
 }
 
 /** flush 单体(#388):定时器到点与首连/重连摘要前的强制排空共用。幂等——事件批
@@ -325,8 +308,7 @@ function broadcast(roomId: string): void {
 function flushRoom(roomId: string): void {
   const pending = dirtySeats.get(roomId);
   dirtySeats.delete(roomId);
-  const events = pendingEvents.get(roomId);
-  pendingEvents.delete(roomId);
+  const events = eventBatches.drain(roomId); // #411:幂等排空归共享通道
   const r = registry.get(roomId);
   if (!pending || !r) return;
   const online = onlineSeatsOf(roomId);
@@ -643,8 +625,7 @@ async function handle(req: Request): Promise<Response> {
       }
     }
     roomSockets.delete(id);
-    pendingEvents.delete(id); // #390/#388:房间已散,全量下行状态一并清(引用键随新引擎自然失效)
-    seenBatches.delete(id);
+    eventBatches.forget(id); // #390/#388/#411:房间已散,累积状态一并清(在途拍不撤,迟到回调空转即清残表)
     lastRoomMeta.delete(id);
     settledTurnPhase.delete(id);
     return sendJson(200, { ok: true, dismissed: id });
@@ -691,7 +672,7 @@ Bun.serve<WsSeat>({
       // 到达,重连端会「摘要(已含该批状态)+ 事件批(同批)」各收一次——事件折叠非幂等
       // (现金/入册双计),必须先排空给旧连接、再发摘要。排空时新 socket 尚未注册,
       // 天然收不到这份事件;之后注册、发摘要(保证 ⊇ 累积器全部内容)。
-      flushTimers.delete(roomId); // 已排定的定时 flush 由本同步 flush 覆盖(dirtySeats 随之清空,迟到的回调空转)
+      eventBatches.cancelScheduled(roomId); // 已排定的定时 flush 由本同步 flush 覆盖(迟到回调空转幂等)
       flushRoom(roomId);
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
