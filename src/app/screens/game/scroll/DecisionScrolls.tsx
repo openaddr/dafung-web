@@ -8,7 +8,7 @@
 // choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
 // ——全游戏不可购原因只有引擎一处口径。
 import { useEffect, useRef, useState } from "react";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
 import { ScrollShell, ScrollButton } from "./ScrollShell";

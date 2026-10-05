@@ -115,7 +115,12 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     foldEventBatch(e, [
       ev(0, { kind: "diceRolled", die: 3 }),
       future,
-      ev(1, { kind: "treasureStolen", victimSeat: 0, treasureId: "edict-0", treasureName: "带血的诏书" }),
+      ev(1, {
+        kind: "treasureStolen",
+        victimSeat: 0,
+        treasureId: "edict-0",
+        treasureName: "带血的诏书",
+      }),
     ]);
 
     expect(e.players[0].position).toBe(4);
@@ -132,9 +137,9 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     expect(() =>
       foldEventBatch(e, [ev(null, { kind: "marchArrived", tileIndex: 3, path: path(3) })]),
     ).toThrow(/无主座位/);
-    expect(() => foldEventBatch(e, [ev(null, { kind: "heroRecruited", heroId: "zhouyu" })])).toThrow(
-      /无主座位/,
-    );
+    expect(() =>
+      foldEventBatch(e, [ev(null, { kind: "heroRecruited", heroId: "zhouyu" })]),
+    ).toThrow(/无主座位/);
   });
 });
 
@@ -322,7 +327,12 @@ describe("折叠投影器 · 城池族", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
     foldEventBatch(e, [
-      ev(0, { kind: "capitalSelected", tileIndex: CHANGAN, propertyId: "prop-changan", cost: 2000 }),
+      ev(0, {
+        kind: "capitalSelected",
+        tileIndex: CHANGAN,
+        propertyId: "prop-changan",
+        cost: 2000,
+      }),
     ]);
 
     expect(e.takenCapitalIndices.has(CHANGAN)).toBe(true);
@@ -353,7 +363,9 @@ describe("折叠投影器 · 城池族", () => {
     expect(e.players[0].properties[0]?.level).toBe(2);
 
     const e2 = makeEngine(); // 赐城缺口级联:副本无持有,按事件面补册
-    foldEventBatch(e2, [ev(0, { kind: "propertyUpgraded", propertyId: "prop-luoyang", newLevel: 3 })]);
+    foldEventBatch(e2, [
+      ev(0, { kind: "propertyUpgraded", propertyId: "prop-luoyang", newLevel: 3 }),
+    ]);
     expect(e2.players[0].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 3 });
   });
 
@@ -393,7 +405,9 @@ describe("折叠投影器 · 城池族", () => {
 
     const e2 = makeEngine();
     grantHolding(e2, 0, "prop-luoyang", 2);
-    foldEventBatch(e2, [ev(0, { kind: "assetTransferred", propertyId: "prop-luoyang", toSeat: null })]);
+    foldEventBatch(e2, [
+      ev(0, { kind: "assetTransferred", propertyId: "prop-luoyang", toSeat: null }),
+    ]);
     expect(e2.players[0].properties).toEqual([]);
     expect(e2.players[1].properties).toEqual([]);
   });
@@ -450,9 +464,7 @@ describe("折叠投影器 · 珍宝族", () => {
 describe("折叠投影器 · 金钱族相邻回填", () => {
   it("tax 落格表现态 TaxPaid;批内先破产 → causedBankruptcy 相邻标记", () => {
     const e = makeEngine();
-    foldEventBatch(e, [
-      ev(0, { kind: "cashChanged", delta: -200, reason: "tax" }),
-    ]);
+    foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -200, reason: "tax" })]);
     expect(e.lastLandOutcome).toEqual({ kind: "TaxPaid", amount: 200, causedBankruptcy: false });
 
     const e2 = makeEngine();
@@ -484,8 +496,18 @@ describe("折叠投影器 · 名将族", () => {
     const e = makeEngine();
     e.players[0].heroes.push(HEROES[0]);
     foldEventBatch(e, [
-      ev(0, { kind: "skillFired", heroId: "zhouyu", skillId: "zhouyu-move+1", moment: "BeforeMarch" }),
-      ev(0, { kind: "heroSkillActivated", skillId: "zhouyu-huogong", skillKind: "demolish", targetSeat: 1 }),
+      ev(0, {
+        kind: "skillFired",
+        heroId: "zhouyu",
+        skillId: "zhouyu-move+1",
+        moment: "BeforeMarch",
+      }),
+      ev(0, {
+        kind: "heroSkillActivated",
+        skillId: "zhouyu-huogong",
+        skillKind: "demolish",
+        targetSeat: 1,
+      }),
     ]);
 
     expect(e.players[0].heroLastFired["zhouyu-move+1"]).toBe(1);
@@ -537,7 +559,11 @@ describe("折叠投影器 · 名将族", () => {
 
     foldEventBatch(e, [
       ev(0, { kind: "assetLiquidated", asset: { kind: "treasure", id: "edict-0" }, amount: 2200 }),
-      ev(0, { kind: "assetLiquidated", asset: { kind: "property", id: "prop-luoyang" }, amount: 2400 }),
+      ev(0, {
+        kind: "assetLiquidated",
+        asset: { kind: "property", id: "prop-luoyang" },
+        amount: 2400,
+      }),
       ev(0, { kind: "assetLiquidated", asset: { kind: "hero", id: "zhouyu" }, amount: 200 }),
     ]);
 
@@ -564,9 +590,7 @@ describe("折叠投影器 · 锦囊族", () => {
     const e = makeEngine();
     e.players[0].jinnangHand = ["连环计"];
     e.players[0].jinnangHandCount = 1;
-    foldEventBatch(e, [
-      ev(0, { kind: "jinnangAnnounced", cardId: "连环计", targetSeats: [1, 2] }),
-    ]);
+    foldEventBatch(e, [ev(0, { kind: "jinnangAnnounced", cardId: "连环计", targetSeats: [1, 2] })]);
 
     expect(e.players[0].jinnangHandCount).toBe(0);
     expect(e.jinnangDiscard).toEqual(["连环计"]);
@@ -624,7 +648,12 @@ describe("折叠投影器 · 锦囊族", () => {
     e.players[1].jinnangHandCount = 1;
     foldEventBatch(e, [
       ev(0, { kind: "jinnangAnnounced", cardId: "缓兵之计", targetSeats: [1] }),
-      ev(0, { kind: "reactionOpened", windowKind: "jinnang", cardId: "缓兵之计", queriedSeats: [1] }),
+      ev(0, {
+        kind: "reactionOpened",
+        windowKind: "jinnang",
+        cardId: "缓兵之计",
+        queriedSeats: [1],
+      }),
       ev(1, { kind: "reactionAnswered", use: true, cardId: "识破诡计" }),
       ev(1, { kind: "jinnangVoided", cardId: "缓兵之计" }),
     ]);
@@ -688,15 +717,20 @@ describe("折叠投影器 · 锦囊族", () => {
 
   it("事件序契约违反当场炸:识破无同批窗、应答无窗、行军窗非单座询问", () => {
     const e = makeEngine();
-    expect(() =>
-      foldEventBatch(e, [ev(1, { kind: "jinnangVoided", cardId: "缓兵之计" })]),
-    ).toThrow(/事件序契约违反/);
+    expect(() => foldEventBatch(e, [ev(1, { kind: "jinnangVoided", cardId: "缓兵之计" })])).toThrow(
+      /事件序契约违反/,
+    );
     expect(() => foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false })])).toThrow(
       /事件序契约违反/,
     );
     expect(() =>
       foldEventBatch(e, [
-        ev(0, { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [] }),
+        ev(0, {
+          kind: "reactionOpened",
+          windowKind: "march",
+          cardId: "半路杀出",
+          queriedSeats: [],
+        }),
       ]),
     ).toThrow(/事件产出契约违反/);
   });
@@ -749,7 +783,9 @@ describe("折叠投影器 · 机遇族", () => {
     expect(e.turnPhase).toBe("AwaitingEncounter");
     expect(e.lastLandOutcome?.kind).toBe("Noop");
 
-    foldEventBatch(e, [ev(0, { kind: "encounterChoice", encounterId: "奉迎天子", choiceIndex: 0 })]);
+    foldEventBatch(e, [
+      ev(0, { kind: "encounterChoice", encounterId: "奉迎天子", choiceIndex: 0 }),
+    ]);
     expect(e.turnPhase).toBe("Land"); // 结算后续跑本落格(相位由后续事件/水合精修)
   });
 

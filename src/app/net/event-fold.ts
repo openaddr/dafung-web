@@ -84,7 +84,12 @@ import type { GameEngine, LastJinnangPlay } from "@core/authority";
 import type { Player, PropertyHolding } from "@core/model";
 import type { GameEvent } from "@core/game-events";
 import type { PropertyDef } from "@core/economy";
-import type { PendingReaction, ReactionAnswer, ReactionPayload, ReactionView } from "@core/reaction-window";
+import type {
+  PendingReaction,
+  ReactionAnswer,
+  ReactionPayload,
+  ReactionView,
+} from "@core/reaction-window";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { HEROES, type ActiveSkillDef } from "@core/heroes";
 import { TREASURES, type TreasureDef } from "@core/treasures";
@@ -128,8 +133,7 @@ function treasureDefOf(instanceId: string): TreasureDef {
   const cut = instanceId.lastIndexOf("-");
   const base = cut > 0 ? instanceId.slice(0, cut) : instanceId;
   const def = TREASURES.find((t) => t.id === base);
-  if (def == null)
-    throw new Error(`折叠投影:珍宝实例 ${instanceId} 回溯不到静态定义(数据 bug)`);
+  if (def == null) throw new Error(`折叠投影:珍宝实例 ${instanceId} 回溯不到静态定义(数据 bug)`);
   return { ...def, id: instanceId };
 }
 
@@ -750,8 +754,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 赐城缺口级联(文件头)
         } else {
           const idx = p.heroes.findIndex((h) => h.id === ev.asset.id);
-          if (idx < 0)
-            throw new Error(`折叠投影:遣散名将 ${ev.asset.id} 不在副本麾下(契约违反)`);
+          if (idx < 0) throw new Error(`折叠投影:遣散名将 ${ev.asset.id} 不在副本麾下(契约违反)`);
           p.heroes.splice(idx, 1);
           engine.recruitedHeroIds.delete(ev.asset.id); // 释放回招贤池(引擎 cashHeroBankruptcy)
         }

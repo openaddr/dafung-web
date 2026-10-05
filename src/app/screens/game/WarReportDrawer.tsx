@@ -10,7 +10,7 @@
 // 「加载更早」每次放开一窗,放到见底后锁定全量(此后新增条目照常入列,不再回收,
 // 也不重新出现按钮:用户已表态要读全史,不悄悄缩窗)。关抽屉即重置回一窗。
 import { useState } from "react";
-import type { LogEvent} from "@core/model";
+import type { LogEvent } from "@core/model";
 import type { GameSnapshot } from "@app/store/gameStore";
 import {
   Sheet,

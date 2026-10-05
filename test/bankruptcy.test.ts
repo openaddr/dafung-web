@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import type { Player} from "@core/model";
+import type { Player } from "@core/model";
 import { sellValueOf } from "@core/economy";
 import { guidePriceOf } from "@core/treasures";
 import { testEngine } from "@core/testing";

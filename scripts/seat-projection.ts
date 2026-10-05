@@ -7,7 +7,7 @@
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
 import type { GameEngine } from "../src/core/authority";
 import type { GameSnapshot } from "../src/core/snapshot";
-import type { ReactionView} from "../src/core/reaction-window";
+import type { ReactionView } from "../src/core/reaction-window";
 import type { RoomSession } from "./room";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────

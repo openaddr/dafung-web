@@ -220,7 +220,9 @@ test.describe("三区骨架", () => {
     // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
     //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径,
     // 种出来的是带技能的完整数据,后续行军被动技照常工作)
-    await force(page, `
+    await force(
+      page,
+      `
       e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);
       const s = e.snapshot();
       s.players[0].heroes.push(
@@ -229,7 +231,8 @@ test.describe("三区骨架", () => {
       );
       s.recruitedHeroIds.push("zhouyu", "huatuo");
       e.restoreFromSnapshot(s);
-    `);
+    `,
+    );
     // 双入口计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
     await expect
       .poll(

@@ -3,8 +3,8 @@
 // registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与看门狗组;本模块零 WS/fs。
 import { botAct } from "../src/core/bot";
 import type { GameEngine } from "../src/core/authority";
-import type { GameCommand} from "../src/core/authority";
-import type { ReactionView} from "../src/core/reaction-window";
+import type { GameCommand } from "../src/core/authority";
+import type { ReactionView } from "../src/core/reaction-window";
 import type { RoomBotStopReason, RoomEvent, RoomSession } from "./room";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";
@@ -100,7 +100,11 @@ export async function driveBots(
         for (const seat of queried) {
           if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
           if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
-          await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
+          await host.applyCommand(
+            r.roomId,
+            { type: "respondReaction", seat, use: false },
+            onUpdate,
+          );
         }
         // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
         const now = e.pendingReaction;

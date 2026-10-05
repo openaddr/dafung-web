@@ -6,7 +6,7 @@
 // 实例,三组各自配置「武装窗口(tag+delayMs)」与「到点动作」;行为(超时时长/触发
 // 动作/清理时机)与拆分前逐一对齐,由 room.test.ts 与同种子对拍兜底。
 // registry 经 WatchdogHost 注入房间侧操作;本模块零 WS/HTTP/fs 依赖。
-import type { GameCommand} from "../src/core/authority";
+import type { GameCommand } from "../src/core/authority";
 import type { RoomEvent, RoomSession } from "./room";
 import { decisionSeatOf, reactionQueriedSeats } from "./bot-driver";
 import { seatControlled } from "./seat-projection";
@@ -61,7 +61,10 @@ interface WatchdogSpec {
  *  fire:先核对本火仍属当前表项(seq 不同=已被重武装,本火过期,不动新表),删本火
  *  表项(房间表空则整行撤)后交 spec.fire 重校验+动作——清理时机与拆分前逐一相同。 */
 function createWatchdog(spec: WatchdogSpec): Watchdog {
-  const table = new Map<string, Map<number, { timer: ReturnType<typeof setTimeout>; seq: number }>>();
+  const table = new Map<
+    string,
+    Map<number, { timer: ReturnType<typeof setTimeout>; seq: number }>
+  >();
   const clear = (roomId: string): void => {
     const slots = table.get(roomId);
     if (!slots) return;

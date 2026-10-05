@@ -9,9 +9,10 @@
 import { randomBytes, randomInt } from "node:crypto";
 import { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
-import type { AiDifficulty, GameCommand} from "../src/core/authority";
+import type { AiDifficulty, GameCommand } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterConfig } from "../src/core/encounters";
+import type { GameEvent } from "../src/core/game-events";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -91,8 +92,26 @@ const CODE_LEN = 4;
 export { resolveGuohaoClash } from "../src/core/guohao";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327);测试(test/room.test.ts)仍从
 // 本模块取,再导出免改引用面。传输层 server.ts 已直引 ./seat-projection。
+// clientView 额外具名导入(#397 传输面首连摘要/单拍下行直接取用)。
+import { clientView } from "./seat-projection";
 export { clientView, lobbyView, redactSnapshotForSeat } from "./seat-projection";
 export type { LobbyView } from "./seat-projection";
+
+// ──────────────────────────── 传输面(#397 单机统一 A)────────────────────────────
+// 房间编排经传输抽象收发:对端点的最小要求是「座位归属 + 下行 send + 在线否」三样
+// (ADR-0007 不变量保持:WS 句柄与内存双工端点在此同一视图,本模块仍零 WS 依赖)。
+// 联机通路零改动:server.ts 自持 WS + broadcast/flush,不经本节;单机(src/app 进程内
+// 房间)经 connectSeat 挂上 MemorySocket 的宿主端点,编排每次可见变化经 onUpdate →
+// transportBroadcast 合并成一拍下行——事件批消息先行(因果在前)、整房摘要随后
+// (消息形状与 server.ts flush 逐字同契约;消费端为折叠/直译的既有接收面)。
+export interface SeatEndpoint {
+  /** 座位归属(入座即绑定;token 鉴权在 connectSeat 入口)。 */
+  readonly seat: number;
+  /** 下行一条消息(原始 JSON 字符串,与 WS wire format 同契约)。 */
+  send(data: string): void;
+  /** 连接是否完好(断开后不再下发)。 */
+  readonly open: boolean;
+}
 
 // ──────────────────────────── RoomRegistry:深模块 ────────────────────────────
 export interface CreateRoomConfig {
@@ -131,6 +150,15 @@ export class RoomRegistry {
   /** 驱动/看门狗共用的宿主操作面:闭包桥接 registry 私有方法(observe/persist/
    *  applyCommand/…),拆分后 bot-driver/watchdogs 不反向 import 本模块。 */
   private readonly ops: DriveBotsHost;
+
+  // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的三份每房状态 ──
+  private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
+  /** 本 tick 累积的事件批(引用换新才追加,同 server.ts accumulateEventBatch 口径)。 */
+  private readonly txPendingEvents = new Map<string, GameEvent[]>();
+  /** 最近累积过的批引用(同一转移的重复通知去重)。 */
+  private readonly txSeenBatch = new Map<string, GameEvent[]>();
+  /** 每 tick 至多一拍的合并 flush 定时器(setTimeout(0),与 server.ts 同节奏)。 */
+  private readonly txTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   constructor(
     persistence: RoomPersistence,
@@ -492,6 +520,13 @@ export class RoomRegistry {
     this.watchdogs.stall.clear(id);
     this.watchdogs.autoRoll.clear(id);
     this.watchdogs.reactionWait.clear(id);
+    // 传输面残表一并清(#397):端点/在途累积批/已排定的 flush 定时器随房同撤
+    const txTimer = this.txTimers.get(id);
+    if (txTimer != null) clearTimeout(txTimer);
+    this.txTimers.delete(id);
+    this.seatEndpoints.delete(id);
+    this.txPendingEvents.delete(id);
+    this.txSeenBatch.delete(id);
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -568,6 +603,87 @@ export class RoomRegistry {
     }
     room.takeover.delete(seat);
     return room;
+  }
+
+  // ──────────────────────────── 传输面端点(#397 单机统一 A)────────────────────────────
+  /** 内存端点入座(单机通路):鉴权同 WS upgrade(validateSeat)→ attachSeat 语义
+   *  (持 token 重连夺回座位)→ 立即下发首连整房摘要(god-view,与 server.ts open
+   *  处理器同形状:clientView seat 缺省)。此后编排每次可见变化都会经
+   *  transportBroadcast 合并下行到本端点。 */
+  connectSeat(roomId: string, seat: number, token: string, ep: SeatEndpoint): RoomSession {
+    if (!this.validateSeat(roomId, seat, token)) throw new RoomError(401, "座位鉴权失败");
+    const room = this.attachSeat(roomId, seat);
+    if (!room) throw new RoomError(404, "房间不存在");
+    let eps = this.seatEndpoints.get(roomId);
+    if (!eps) {
+      eps = new Map();
+      this.seatEndpoints.set(roomId, eps);
+    }
+    eps.set(seat, ep);
+    ep.send(JSON.stringify(clientView(room, this.transportOnlineSeats(roomId))));
+    return room;
+  }
+
+  /** 内存端点离座(单机销毁路径):仅摘端点,房间状态不动(解散走 dismissRoom,
+   *  它会一并清传输面残表)。 */
+  disconnectSeat(roomId: string, seat: number): void {
+    const eps = this.seatEndpoints.get(roomId);
+    if (!eps) return;
+    eps.delete(seat);
+    if (eps.size === 0) this.seatEndpoints.delete(roomId);
+  }
+
+  /** 端点在线座位集(ADR-0007 不变量 2 的内存端点版:在线状态归传输面)。 */
+  private transportOnlineSeats(roomId: string): Set<number> {
+    return new Set(this.seatEndpoints.get(roomId)?.keys() ?? []);
+  }
+
+  /** 传输面广播(单机通路;由宿主以 onUpdate 回调喂入):引擎当前批以「数组引用换新」
+   *  为界累积(同 server.ts accumulateEventBatch——引用不变 = 同一转移的重复通知,
+   *  不重收),本 tick 内合并,setTimeout(0) 统一 flush。无端点的房间(联机自持通路)
+   *  只记 seen 基线不排定时器,行为即无操作。 */
+  transportBroadcast(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    if (!room) return;
+    const batch = room.engine?.gameEvents;
+    if (batch && this.txSeenBatch.get(roomId) !== batch) {
+      this.txSeenBatch.set(roomId, batch);
+      if (batch.length > 0) {
+        const acc = this.txPendingEvents.get(roomId);
+        if (acc) acc.push(...batch);
+        else this.txPendingEvents.set(roomId, [...batch]);
+      }
+    }
+    if (this.seatEndpoints.get(roomId) == null || this.txTimers.has(roomId)) return;
+    this.txTimers.set(
+      roomId,
+      setTimeout(() => {
+        this.txTimers.delete(roomId);
+        this.flushTransport(roomId);
+      }, 0),
+    );
+  }
+
+  /** 单拍下行:①事件批消息(因果在前,空批不发)→ ②整房摘要(clientView god-view)。
+   *  消息形状与 server.ts flush 逐字同契约(事件批先行、封批留痕同口径);②的判定在
+   *  单机退化为恒发——内存直连无带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然
+   *  覆盖,折叠漂移零存活窗口(单机客户端状态另有内存直读,见 controllers/local.ts)。 */
+  private flushTransport(roomId: string): void {
+    const room = this.rooms.get(roomId);
+    const eps = this.seatEndpoints.get(roomId);
+    if (!room || !eps || eps.size === 0) {
+      this.txPendingEvents.delete(roomId);
+      return;
+    }
+    const events = this.txPendingEvents.get(roomId);
+    this.txPendingEvents.delete(roomId);
+    room.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=flush 封批(与 server.ts flush 同口径)
+    if (events && events.length > 0) {
+      const eventsMsg = JSON.stringify({ type: "events" as const, events });
+      for (const ep of eps.values()) if (ep.open) ep.send(eventsMsg);
+    }
+    const snapMsg = JSON.stringify(clientView(room, this.transportOnlineSeats(roomId)));
+    for (const ep of eps.values()) if (ep.open) ep.send(snapMsg);
   }
 
   // ──────────────────────────── host 移交(ADR-0002)────────────────────────────

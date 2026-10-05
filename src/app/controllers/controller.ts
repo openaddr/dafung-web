@@ -3,7 +3,7 @@
 // 引擎变化后 syncFromEngine 灌 store,由 React 组件声明式渲染。
 // 弹层/动画/音效是纯表现,归组件与阶段 6 的动画编排器,不进控制器。
 import type { GameEngine } from "@core/authority";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { useGameStore } from "@app/store/gameStore";
 
 /**
