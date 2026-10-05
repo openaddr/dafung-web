@@ -13,7 +13,6 @@ import { HEROES, type ActiveSkillDef } from "./heroes";
 import {
   openReactionWindow,
   resolveDuel,
-  traceJinnangPlay,
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
@@ -228,7 +227,6 @@ function settleJinnangPlay(
             .filter((seat) => seat !== userSeat)
         : [...targets];
   g.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
-  traceJinnangPlay(g, userSeat, shareSeats, def.id);
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
     cardId: def.id,

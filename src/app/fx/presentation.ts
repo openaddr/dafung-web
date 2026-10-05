@@ -55,8 +55,9 @@ export type PresentationEvent =
   | { kind: "sealStamped"; tileIndex: number; char: string }
   | { kind: "turnBanner"; guohao: string; colorIndex: number }
   /** 出牌指示线(#281 P2-E,ADR-0010 表现事件流的 UI 侧新事件类型):锦囊/反应牌
-   *  生效点由引擎留痕(JinnangPlayTrace)提取,每条留痕按「使用者 → 各目标」展开为
-   *  若干段墨线端点(棋盘逻辑坐标,提取期按当时牌局状态解析)。播放为同步下发、
+   *  生效点由事件批直译(#385 event-extract:jinnangAnnounced/jinnangVoided/
+   *  reactionAnswered → 本事件),按「使用者 → 各目标」展开为若干段墨线端点
+   *  (棋盘逻辑坐标,提取期按当时牌局状态解析)。播放为同步下发、
    *  CSS 三段(生长 200ms→停 200ms→淡出 300ms)自走,不占编排时长。 */
   | {
       kind: "jinnangPlayed";

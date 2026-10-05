@@ -244,18 +244,6 @@ export interface PropertyChangeTrace {
   ownerChanged: boolean;
 }
 
-/** 出牌指示线留痕(#281/P2-E,ADR-0010 表现事件流的 core 侧发射点):锦囊/反应牌生效点
- *  写入「使用者 token → 目标 token」墨线素材,表现提取器经 engine.presentation
- *  .drainJinnangPlays() 一次性取走(破坏性读,同 drainPropertyChanges 口径)。
- *  瞬态不序列化(同 floaters/propertyChanges)——单机本地编排通道。联机端不再有
- *  平行的留痕通道:#385 起出牌线动效由事件批直读(jinnangAnnounced/jinnangVoided
- *  → fx/event-extract 产 jinnangPlayed),原可序列化 lastJinnangPlay 已随 #412 退役。 */
-export interface JinnangPlayTrace {
-  userSeat: number;
-  targetSeats: number[];
-  cardId: string;
-}
-
 export class GameEngine {
   readonly board: Board;
   readonly catalog: Catalog;
@@ -389,9 +377,6 @@ export class GameEngine {
    *  提取器一次性取走;瞬态不序列化(同 floaters,restore 即清)。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域直写;外部消费仍只走 presentation.drainPropertyChanges。 */
   propertyChanges: PropertyChangeTrace[] = [];
-  /** 出牌指示线留痕(#281,类型注释见 JinnangPlayTrace):生效点写入,提取器一次性取走;
-   *  瞬态不序列化(同 floaters,restore 即清)。 */
-  jinnangPlays: JinnangPlayTrace[] = [];
   gameEvents: GameEvent[] = []; // 事件流当前批(#375,ADR-0020):批界=编排入口开批,词汇表见 game-events.ts
 
   /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
@@ -405,8 +390,6 @@ export class GameEngine {
     drainFloaters(): FloaterEvent[];
     /** 破坏性读:返回并清空全部城池变更留痕(ADR-0015)。 */
     drainPropertyChanges(): PropertyChangeTrace[];
-    /** 破坏性读:返回并清空全部出牌指示线留痕(#281/P2-E)。 */
-    drainJinnangPlays(): JinnangPlayTrace[];
   } {
     return {
       lastRoll: this.lastRoll,
@@ -421,11 +404,6 @@ export class GameEngine {
         const c = this.propertyChanges;
         this.propertyChanges = [];
         return c;
-      },
-      drainJinnangPlays: () => {
-        const t = this.jinnangPlays;
-        this.jinnangPlays = [];
-        return t;
       },
     };
   }
@@ -1291,7 +1269,6 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
-    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(单机本地编排通道;出牌线联机面=事件批直读,#385)
     // seq 计数器恢复推回(#284):计数器本身不序列化,按快照内已见的最大 seq 推回,
     // 保证单调不回退——恢复后开新窗的号必然大于恢复前任何已广播的号,
     // 传输层同窗判据不因恢复串号。快照无窗时保持当前值。
