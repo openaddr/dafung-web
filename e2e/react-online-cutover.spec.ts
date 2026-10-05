@@ -1,14 +1,14 @@
 // 联机同步模型切换终局验证门(#388,ADR-0020 折叠切换⑥):正常对局零逐步快照——
 // 事件批消息(#390)是唯一对局状态通路,全量下行只剩三类(首连/重连整房摘要、关键
-// 节点校准、房间生命周期)。三道门:
+// 节点校准、房间生命周期;#381 起摘要/校准按接收座位投影,事件批逐座位过滤)。三道门:
 //   1. 全程托管局:双端零输入打满一整局,线级统计 snapshot 类消息——开局校准序列之后
 //      出现的每份快照都必须是校准快照(判定口径与 server.ts 同源镜像),逐步快照为零;
 //      终局由事件折叠收敛(fold gameOver),双端胜者一致。
 //   2. 房间元数据通道:对局中掉线不再搭快照车,靠 lobby 形状指纹变化下发(座位 online
 //      翻转双端可见)。
-//   3. 断线重连:裸关 WS(绕过 closedByUs)走真实退避重连路径 → 整房摘要 god-view
-//      水合(牌序明传 = per-seat 投影退役)→ 双端状态收敛一致 → 折叠继续推进,摘要
-//      之后依旧零逐步快照。
+//   3. 断线重连:裸关 WS(绕过 closedByUs)走真实退避重连路径 → 整房摘要按座位投影
+//      水合(#381:牌序只见数量、他人手牌不可见)→ 双端状态收敛一致 → 折叠继续推进,
+//      摘要之后依旧零逐步快照。
 // 观测口 = Playwright WebSocket framereceived 线级捕获(与 react-online-events 同款);
 // 联机 spec 免注入时间倍率(testUnscaled);跑前需先 build(两 webServer 都消费 dist)。
 import { testUnscaled as test, expect, type Page } from "./fixtures";
@@ -43,8 +43,9 @@ function isCalibrationSnapshot(msg: {
 
 /** 线级连接收集器:按 WS 连接分组捕获全部下行 JSON 帧(须在 goto 前挂上;
  *  本服务器所有帧都是 JSON,非 JSON 帧让 JSON.parse 炸出)。快照审计以连接为单位:
- *  每连接首帧 snapshot = 首连/重连整房摘要(①类全量下行,校准判定口径外的合法
- *  快照——重连落在任意停摆相位时,摘要 events 携带未消化批,不属逐步广播)。 */
+ *  每连接首帧 snapshot = 首连/重连整房摘要(①类全量下行,#381 起按接收座位投影,
+ *  校准判定口径外的合法快照——重连落在任意停摆相位时,摘要 events 携带未消化批,
+ *  不属逐步广播)。 */
 function collectConnections(page: Page): {
   conns: { msgs: Record<string, unknown>[]; firstSnapshotDone: boolean }[];
 } {
@@ -243,7 +244,7 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     await guest.context().close();
   });
 
-  test("断线重连:整房摘要 god-view 水合,事件面清零后折叠继续,依旧零逐步快照", async ({
+  test("断线重连:整房摘要按座位投影水合,事件面清零后折叠继续,依旧零逐步快照", async ({
     browser,
   }) => {
     const host = await (await newBridgeContext(browser)).newPage();
@@ -264,7 +265,8 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     // 轮到离线座抉择则停摆等重连,同为设计内形态
     await driveDecisions([host], 2_000);
 
-    // 重连:退避 ~1s 后新连接出现,首帧 = 整房摘要(god-view:牌序明传,per-seat 投影退役)
+    // 重连:退避 ~1s 后新连接出现,首帧 = 整房摘要(#381 起按接收座位投影:
+    // 牌序只见数量、他人手牌不可见)
     await expect
       .poll(async () => guestFeed.conns.length, { timeout: 20_000, message: "重连新连接出现" })
       .toBeGreaterThanOrEqual(2);
@@ -277,14 +279,16 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
       .toBe(true);
     const summary = reconn.msgs.find((m) => m.type === "snapshot") as {
       phase: string;
+      players: { jinnangHand: string[] }[];
       jinnangDeck: string[];
       jinnangDeckCount: number;
     };
     expect(summary.phase).toBe("Playing");
-    // god-view 明传落定(ADR-0020 决策 2):牌序不再按座位裁剪(旧投影恒 []),
-    // 全体同一份——重连摘要与校准快照同口径
+    // 保密后补落定(#381,ADR-0020 决策 2 兑现):guest(seat1)视角牌序只见数量,
+    // 他人(seat0=host)手牌内容不出网——摘要与校准快照同口径
     expect(summary.jinnangDeckCount).toBeGreaterThan(0);
-    expect(summary.jinnangDeck.length).toBe(summary.jinnangDeckCount);
+    expect(summary.jinnangDeck).toEqual([]);
+    expect(summary.players[0].jinnangHand).toEqual([]);
     await expect(guest.getByTestId("connection-banner")).not.toBeVisible({ timeout: 15_000 });
 
     // 双端状态收敛一致(摘要水合 + 折叠双通道同源)
