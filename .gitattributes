@@ -1,0 +1,26 @@
+# EOL 口径单源:文本一律 LF 入库、LF 落盘。
+# 缘起:oxfmt 以 LF 写盘,而 Windows 全局 core.autocrlf=true 检出 CRLF,
+# 两者错位导致全仓 fmt 批量重写行尾的 footgun;eol=lf 让检出与格式化同口径,
+# 本文件是持久修法,任何机器检出后行为一致(core.autocrlf 不再影响本仓)。
+* text=auto eol=lf
+
+# Windows 批处理按惯例必须 CRLF,豁免出 LF 基线
+*.bat text eol=crlf
+
+# 二进制豁免:不归一 EOL、不做文本 diff
+*.png -text
+*.jpg -text
+*.jpeg -text
+*.gif -text
+*.webp -text
+*.ico -text
+*.icns -text
+*.woff -text
+*.woff2 -text
+*.ttf -text
+*.otf -text
+*.eot -text
+*.ogg -text
+*.mp3 -text
+*.wav -text
+*.jar -text
