@@ -56,6 +56,15 @@ export class SnapshotEffects {
     this.consumedBatchSeq = useNetStore.getState().eventBatchSeq;
   }
 
+  /** 重连成功边界(#388,ADR-0020 决策 4):整房摘要水合前清空事件面——netStore 暂存批
+   *  与到达计数归零,本器消费游标同步归零;断线前的一切批不再参与演出,重连后旧批也
+   *  不会因 seq 撞号被跳过或被当新批消费。状态唯一来源 = 紧随其后的整房摘要。
+   *  与 dropStalledBatch(断线边界,游标对齐作废)成对使用:closed 时对齐、open 时归零。 */
+  resetEventFace(): void {
+    this.consumedBatchSeq = 0;
+    useNetStore.getState().resetEventFace();
+  }
+
   /** 每帧 snapshot(hydrate)后调用:把 netStore 暂存的事件批直译为表现并入队播放。
    *  @param prePositions hydrate 前各座位棋子位置(行军余段截短基准;联机=上一帧
    *  快照的落位,即玩家看到的视觉位置)。 */

@@ -1,10 +1,12 @@
 // 联机控制器——重构后只做「协议桥」(替代旧 src/render/network-client.ts 的连接/协议部分,零 DOM):
-// - 不跑引擎,只持「只读引擎」——收到服务器 snapshot 即 restoreFromSnapshot 重 hydrate。
+// - 不跑引擎,只持「只读引擎」——折叠切换⑥(#388)后状态通路 = 事件批消息(到达即
+//   foldEventBatch 折进副本);snapshot 只剩整房摘要(首连/重连)与关键节点校准,到达
+//   即 restoreFromSnapshot 重 hydrate(水合无条件覆盖折叠字段,快照=校准锚)。
 // - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
 //   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
 //   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
-//   本类只剩:协议消息分发、事件批折叠(#386)+快照 hydrate(水合无条件覆盖折叠字段,
-//   快照=校准锚)、表现消费调用、registry/store 灌数、换图重建。
+//   本类只剩:协议消息分发、事件批折叠(#386)+快照 hydrate(水合=校准锚)、表现消费
+//   调用、registry/store 灌数、换图重建、重连清批(#388:open 时事件面归零)。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
@@ -58,9 +60,9 @@ export class OnlineController extends GameController {
   private enteredGame = false;
   /** 上一帧是否处于「我的 Roll 等待态」(#188 起签表现的转入沿检测基准)。 */
   private prevMyRollWait = false;
-  /** 事件批折叠前的棋子位置(#386):同 tick 快照帧 fx.play 的行军锚定基准——折叠切换④
-   *  起事件批先到并折叠推进 position,快照水合前引擎位置已是终态,「转移前视觉停点」
-   *  必须在折叠前捕获。null = 本帧无事件批(空批 flush),快照帧退回水合前引擎位置。 */
+  /** 上一帧各座位棋子位置(#385 行军锚定基准,#386 折叠前捕获口径)。#388 起表现
+   *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
+   *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
   private pendingMarchAnchors: (number | null)[] | null = null;
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
@@ -248,9 +250,13 @@ export class OnlineController extends GameController {
     this.sock = sock;
     sock.onStatus((s) => {
       // F2:全量状态入 netStore(断线横幅读 connection 三值),connected 由 setConnection
-      // 派生写入。断线边界同时废弃在途事件批(#385):断线前收到但未随快照消费的暂存批
-      // 不在重连后补播(状态由重连快照整体重建,ADR-0020 决策 4)。
-      if (s !== "open") this.fx.dropStalledBatch();
+      // 派生写入。断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
+      // 消费的暂存批不在重连后补播;重连成功(#388 重连语义=整房摘要+清批)则把事件面
+      // 整体归零(暂存批+到达计数+演出消费游标)——重连前的旧批不被当新批消费,状态
+      // 唯一来源 = 紧随其后的整房摘要(ADR-0020 决策 4;服务器重启旧批重发的归口在
+      // server.ts 恢复登记,见 seenBatches 恢复基线)。
+      if (s === "open") this.fx.resetEventFace();
+      else this.fx.dropStalledBatch();
       useNetStore.getState().setConnection(s);
     });
     sock.onError(() => {
@@ -295,17 +301,7 @@ export class OnlineController extends GameController {
       // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
       // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
       this.fx.play(prePositions);
-      // 起签转入沿(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
-      // 起摇)→ 钤「签」印。托管中座位由服务器 bot 代打(Roll 不经等待态),观战无座,
-      // 都不播——与单机 autoRoll 的起签口径一致。
-      const myRollWait =
-        this._engine.phase === "Playing" &&
-        this._engine.turnPhase === "Roll" &&
-        this._engine.decisionOwner === this.seat &&
-        !this._engine.players[this.seat]?.isBot &&
-        !this.autoPilotOn;
-      if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
-      this.prevMyRollWait = myRollWait;
+      this.checkRollSeal();
       this.sync();
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
@@ -317,14 +313,21 @@ export class OnlineController extends GameController {
     if (msg.type === "events") {
       // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
       // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
-      // 不变,不另起平行 store 切片;一次事件批一次重渲)。同 tick 随后的快照照旧
-      // 整体水合并无条件覆盖这两字段(快照=校准锚,折叠漂移当场纠正)。
-      // 折叠前先捕获棋子位置给本帧快照的 fx.play 当行军锚点(见 pendingMarchAnchors)。
-      this.pendingMarchAnchors = this._engine.players.map((p) => p.position);
+      // 不变,不另起平行 store 切片;一次事件批一次重渲)。#388 切换后本通路是唯一
+      // 对局状态下行,快照只在整房摘要/关键节点校准到达(水合无条件覆盖全部字段)。
+      // 折叠前先捕获棋子位置当行军锚点(「转移前视觉停点」口径同快照帧)。
+      const prePositions = this._engine.players.map((p) => p.position);
       foldEventBatch(this._engine, msg.events);
-      // 表现消费(#385):批照旧暂存 netStore,SnapshotEffects 在快照帧直译播放——
-      // 折叠与演出是同一批的两个独立消费面,互不消耗。
+      // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
+      // 正常对局快照不再随转移到达,表现锁(fx.playing,L42 决策卷轴的时序门)不能
+      // 等快照帧;快照帧的 play 由消费游标去重,同批不会播两次。
       stashEventBatch(msg.events);
+      this.fx.play(prePositions);
+      // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
+      // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
+      this.pending = false;
+      useNetStore.getState().setPending(false);
+      this.checkRollSeal();
       this.sync();
       return;
     }
@@ -336,8 +339,24 @@ export class OnlineController extends GameController {
       useGameStore.getState().setScreen("lobby");
       return;
     }
-    // error:闪提示(如非法命令);pending 解锁等下一帧 snapshot 校正。
+    // error:闪提示(如非法命令);pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
+  }
+
+  /** 起签转入沿检测(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
+   *  起摇)→ 钤「签」印。快照帧与事件批帧共用(#388 切换后 Roll 等待态改由事件折叠
+   *  到达,不再有逐步快照承载)。托管中座位由服务器 bot 代打(Roll 不经等待态),观战
+   *  无座,都不播——与单机 autoRoll 的起签口径一致。 */
+  private checkRollSeal(): void {
+    const e = this._engine;
+    const myRollWait =
+      e.phase === "Playing" &&
+      e.turnPhase === "Roll" &&
+      e.decisionOwner === this.seat &&
+      !e.players[this.seat]?.isBot &&
+      !this.autoPilotOn;
+    if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
+    this.prevMyRollWait = myRollWait;
   }
 
   /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
