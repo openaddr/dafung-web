@@ -16,11 +16,11 @@ import type { AiDifficulty, EngineConfig, GameCommand, SeatConfig } from "../src
 import { isSingleCjk } from "../src/core/constants";
 import { createDice } from "../src/core/dice";
 import type { EncounterConfig } from "../src/core/encounters";
-import type { GameEvent } from "../src/core/game-events";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
 import type { HostConfig, PersistedSeat, RoomPersistence, RoomRecord } from "./room-persistence";
+import { EventBatchChannel } from "./event-batch";
 import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
@@ -252,14 +252,11 @@ export class RoomRegistry {
    *  applyCommand/…),拆分后 bot-driver/watchdogs 不反向 import 本模块。 */
   private readonly ops: DriveBotsHost;
 
-  // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的三份每房状态 ──
+  // ── 传输面状态(#397):roomId → 座位 → 端点,及下行合并的批通道 ──
   private readonly seatEndpoints = new Map<string, Map<number, SeatEndpoint>>();
-  /** 本 tick 累积的事件批(引用换新才追加,同 server.ts accumulateEventBatch 口径)。 */
-  private readonly txPendingEvents = new Map<string, GameEvent[]>();
-  /** 最近累积过的批引用(同一转移的重复通知去重)。 */
-  private readonly txSeenBatch = new Map<string, GameEvent[]>();
-  /** 每 tick 至多一拍的合并 flush 定时器(setTimeout(0),与 server.ts 同节奏)。 */
-  private readonly txTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  /** 事件批累积/去重/排空/合并拍归共享通道(#411,scripts/event-batch.ts)——
+   *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
+  private readonly batches = new EventBatchChannel();
 
   constructor(
     persistence: RoomPersistence,
@@ -627,12 +624,9 @@ export class RoomRegistry {
     this.watchdogs.reactionWait.clear(id);
     this.watchdogs.retention.clear(id);
     // 传输面残表一并清(#397):端点/在途累积批/已排定的 flush 定时器随房同撤
-    const txTimer = this.txTimers.get(id);
-    if (txTimer != null) clearTimeout(txTimer);
-    this.txTimers.delete(id);
+    // (#411:批三表与定时器清理归共享通道 dispose)
+    this.batches.dispose(id);
     this.seatEndpoints.delete(id);
-    this.txPendingEvents.delete(id);
-    this.txSeenBatch.delete(id);
     this.rooms.delete(id);
     this.persistence.remove(id);
     return id;
@@ -751,44 +745,30 @@ export class RoomRegistry {
   }
 
   /** 传输面广播(单机通路;由宿主以 onUpdate 回调喂入):引擎当前批以「数组引用换新」
-   *  为界累积(同 server.ts accumulateEventBatch——引用不变 = 同一转移的重复通知,
-   *  不重收),本 tick 内合并,setTimeout(0) 统一 flush。无端点的房间(联机自持通路)
-   *  只记 seen 基线不排定时器,行为即无操作。 */
+   *  为界累积(#411 起批语义归共享通道 scripts/event-batch.ts,与 server.ts 同一份代码:
+   *  引用不变 = 同一转移的重复通知,不重收),本 tick 内合并,setTimeout(0) 统一 flush。
+   *  无端点的房间(联机自持通路)只累积不排定时器,行为即无操作。 */
   transportBroadcast(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
-    const batch = room.engine?.gameEvents;
-    if (batch && this.txSeenBatch.get(roomId) !== batch) {
-      this.txSeenBatch.set(roomId, batch);
-      if (batch.length > 0) {
-        const acc = this.txPendingEvents.get(roomId);
-        if (acc) acc.push(...batch);
-        else this.txPendingEvents.set(roomId, [...batch]);
-      }
-    }
-    if (this.seatEndpoints.get(roomId) == null || this.txTimers.has(roomId)) return;
-    this.txTimers.set(
-      roomId,
-      setTimeout(() => {
-        this.txTimers.delete(roomId);
-        this.flushTransport(roomId);
-      }, 0),
-    );
+    this.batches.accumulate(roomId, room.engine?.gameEvents);
+    if (this.seatEndpoints.get(roomId) == null) return;
+    this.batches.schedule(roomId, () => this.flushTransport(roomId));
   }
 
   /** 单拍下行:①事件批消息(因果在前,空批不发)→ ②整房摘要(clientView god-view)。
    *  消息形状与 server.ts flush 逐字同契约(事件批先行、封批留痕同口径);②的判定在
    *  单机退化为恒发——内存直连无带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然
-   *  覆盖,折叠漂移零存活窗口(单机客户端状态另有内存直读,见 controllers/local.ts)。 */
+   *  覆盖,折叠漂移零存活窗口(单机客户端状态另有内存直读,见 controllers/local.ts)。
+   *  批排空幂等(#411 共享通道):重复 flush 袋空不发 events。 */
   private flushTransport(roomId: string): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
     if (!room || !eps || eps.size === 0) {
-      this.txPendingEvents.delete(roomId);
+      this.batches.drain(roomId);
       return;
     }
-    const events = this.txPendingEvents.get(roomId);
-    this.txPendingEvents.delete(roomId);
+    const events = this.batches.drain(roomId);
     if (events && events.length > 0) {
       const eventsMsg = JSON.stringify({ type: "events" as const, events });
       for (const ep of eps.values()) if (ep.open) ep.send(eventsMsg);
