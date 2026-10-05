@@ -21,19 +21,27 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
  *  /viewSeat)一起重灌,决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点
  *  不再保证 interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴。
  *  #398/#400:单机统一后演出队列与引擎状态解耦(状态随下行拍即时落,动画排队播,
- *  L42 的 fx.playing 锁语义与联机同构)——直写后须等队列排空再交还调用方,否则紧随
- *  其后的交互点击会撞锁被丢(旧锁步世界「settled 即可点」的假设不再成立)。 */
+ *  L42 的 fx.playing 锁语义与联机同构)——直写前后各等队列排空一次:写前等排空防
+ *  「播放中 sync 重灌打断转场,表现队列永久挂起」(终局 e2e 实测:mid-playback 直写
+ *  后 fx.playing 卡死 60s,对局照走、交互永锁);写后等排空保证交还调用方时点击
+ *  不撞锁(旧锁步世界「settled 即可点」的假设不再成立)。 */
 export async function force(page: Page, fn: string): Promise<void> {
+  await waitFxIdle(page);
   await page.evaluate(
     `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
   );
+  await waitFxIdle(page);
+}
+
+/** 等表现队列排空(fx.playing=false)。 */
+export async function waitFxIdle(page: Page, timeout = 20_000): Promise<void> {
   await page.waitForFunction(
     () => {
       const fx = (window as any).__dafung.controller()?.fx;
       return fx == null || !fx.playing;
     },
     undefined,
-    { timeout: 15_000, polling: 100 },
+    { timeout, polling: 100 },
   );
 }
 
@@ -275,7 +283,8 @@ export function engineState(page: Page, pick: string): Promise<any> {
   })()`);
 }
 
-/** 本 spec 反应窗倍率 0.5(窗长 1500ms):后挂 init 脚本覆盖 fixtures 注入的同键。 */
+/** 本 spec 反应窗倍率 0.5(横幅展示=权威窗长折半;权威窗长经 fixtures 注入的
+ *  E2E_REACTION_MS=5000,不吃倍率):后挂 init 脚本覆盖 fixtures 注入的同键。 */
 export async function useHalfScale(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
 }
@@ -347,8 +356,13 @@ export async function onlinePickCapitals(pages: Page[]): Promise<void> {
     for (const p of pages) {
       if (p !== picker) await expect(p.locator(".bv-tile.bv-selectable")).toHaveCount(0);
     }
-    await picker.locator(".bv-tile.bv-selectable").nth(0).click();
-    await picker.getByTestId("confirm-capital-ok").click();
+    // 点城→确认两击走 toPass 整块重试:满载下单发点击可能被演出锁/重挂吞掉,确认框
+    // 不出现会把本助手变成永久卡死(烧满整个测试预算,#381 secrecy 终局实测)。
+    // 重试幂等:选都只在确认击提交(tile 点击只开详情卷轴),未选中前重点同城无害。
+    await expect(async () => {
+      await picker.locator(".bv-tile.bv-selectable").nth(0).click({ timeout: 5_000 });
+      await picker.getByTestId("confirm-capital-ok").click({ timeout: 5_000 });
+    }).toPass({ timeout: 30_000 });
     await pages[0].waitForFunction(
       (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
       before,
@@ -399,26 +413,167 @@ export async function awaitReactionWindow(page: Page, timeout = 60_000): Promise
 }
 
 /** 应答交互(不动结算):counter 模式顺手守「点笺接线」——带 seat 时候选笺随选牌展开
- *  (事件文案报的是进攻方牌,各场景各异,由调用方断言);落印钮未选中时禁用,
- *  click 自带等可用。 */
+ *  (事件文案报的是进攻方牌,各场景各异,由调用方断言);落印钮未选中时禁用。
+ *  #终局 e2e:点击链走页面内直派(单 evaluate 内 50ms 轮询)——CDP 逐击的
+ *  actionability 往返在满载机器上可达秒级,与权威看门狗赛跑会误窗应答/超窗挂死;
+ *  页面内直派照走真实 DOM 事件 → React 处理器(选中→落印的 UI 接线不变),只省
+ *  跨进程往返。窗被看门狗收掉时轮询自愈到下一道窗(选牌状态随窗复位重选)。
+ *  timeout 模式不做应答,仍走原等待。 */
 export async function answerReactionWindow(page: Page, answer: ReactionAnswer): Promise<void> {
   const banner = page.getByTestId(TESTIDS.reactionBanner);
   if (answer.mode === "timeout") {
     await expect(banner).not.toBeVisible({ timeout: answer.windowMs + 12_000 });
     return;
   }
-  if (answer.mode === "counter") {
-    await page.getByTestId(TESTIDS.jinnangCard(answer.card)).click();
-    if (answer.seat != null) {
-      await expect(banner.getByTestId(TESTIDS.reactionSeat(answer.seat))).toBeVisible();
-      await banner.getByTestId(TESTIDS.reactionSeat(answer.seat)).click();
-    }
-    await banner.getByTestId(TESTIDS.reactionConfirm).click();
-    return;
-  }
-  await banner
-    .getByTestId(answer.mode === "decline" ? TESTIDS.reactionDecline : TESTIDS.reactionMute)
-    .click();
+  await page.evaluate(
+    ({ mode, card, seat }) => {
+      const click = (el: Element | null): boolean => {
+        if (el == null) return false;
+        el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+        return true;
+      };
+      return new Promise<void>((resolve, reject) => {
+        const deadline = Date.now() + 30_000;
+        let stage: "card" | "seat" | "confirm" = "card";
+        let cardMisses = 0;
+        const timer = setInterval(() => {
+          if (Date.now() > deadline) {
+            clearInterval(timer);
+            reject(new Error("answerReactionWindow:30s 内未完成应答点击链"));
+            return;
+          }
+          if (mode === "counter") {
+            // counter 路径演出在播先不点(选牌→落印两段点击链被演出拖后会与权威
+            // 看门狗赛跑;窗若在排空期间被代发收掉,轮询自愈到下一道窗,.sel 选中态
+            // 随窗复位、选择段自动重来)。decline/mute 是单发命令应答,见下。
+            const fx = (window as any).__dafung.controller()?.fx;
+            if (fx != null && fx.playing) return;
+            if (stage === "card") {
+              const cardEl = document.querySelector(`[data-testid="jinnang-card-${card}"]`);
+              if (cardEl?.classList.contains("sel")) {
+                stage = seat == null ? "confirm" : "seat";
+              } else {
+                // 点击后等 .sel 落地再进下一段:React 未刷/选中被窗切换清空时重试,
+                // 连续 3 拍未中才再点(防与「再点同牌取消」的 toggle 语义互踩)。
+                cardMisses = cardEl == null ? 0 : cardMisses + 1;
+                if (cardMisses >= 3) {
+                  click(cardEl);
+                  cardMisses = 0;
+                }
+              }
+              return;
+            }
+            if (stage === "seat") {
+              const chip = document.querySelector(`[data-testid="reaction-seat-${seat}"]`);
+              if (chip?.classList.contains("picked") || click(chip)) stage = "confirm";
+              return;
+            }
+            const confirm = document.querySelector<HTMLButtonElement>(
+              '[data-testid="reaction-confirm"]',
+            );
+            if (confirm != null && !confirm.disabled && click(confirm)) {
+              clearInterval(timer);
+              resolve();
+            }
+            return;
+          }
+          // decline/mute 单发命令应答:横幅在即点(联机日常路径,命令触发的新批入队
+          // 追平,不打断在途转场)——不等演出排空,5s 权威窗内必落地。
+          const btn = document.querySelector(
+            `[data-testid="${mode === "decline" ? "reaction-decline" : "reaction-mute"}"]`,
+          );
+          if (click(btn)) {
+            clearInterval(timer);
+            resolve();
+          }
+        }, 50);
+      });
+    },
+    {
+      mode: answer.mode,
+      card: answer.mode === "counter" ? answer.card : "",
+      seat: answer.mode === "counter" ? (answer.seat ?? null) : null,
+    },
+  );
+}
+
+/** 行军拦检窗原子应答:页面内轮询 march 文案(火烧窗同形不同文,以文案过滤)→ 读
+ *  pendingReaction.view.userSeat → 应答(counter=选牌落印;decline=点「不用」,牌不耗)
+ *  ,单 evaluate 完成——读与答同一窗,无 CDP 往返竞速(读到的 mover 即应答的窗,权威
+ *  看门狗赛跑由此免疫;窗被看门狗收掉则复位等下一道拦检窗)。返回被应答窗的行人座位,
+ *  与 mover 断言配对。 */
+export async function answerMarchCounter(
+  page: Page,
+  mode: "counter" | "decline" = "counter",
+): Promise<number> {
+  return page.evaluate(
+    (answerMode) =>
+      new Promise<number>((resolve, reject) => {
+        const click = (el: Element | null): boolean => {
+          if (el == null) return false;
+          el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+          return true;
+        };
+        const deadline = Date.now() + 45_000;
+        let stage: "wait" | "card" | "confirm" = "wait";
+        let mover = -1;
+        let cardMisses = 0;
+        const timer = setInterval(() => {
+          // 演出在播不读取不应答(与 answerReactionWindow 同口径):mover 读取与应答
+          // 都落在演出排空后的当前窗上,读答一致性不受播放节奏影响。
+          const fx = (window as any).__dafung.controller()?.fx;
+          if (fx != null && fx.playing) return;
+          const e = (window as any).__dafung.getEngine();
+          if (Date.now() > deadline) {
+            clearInterval(timer);
+            reject(new Error("answerMarchCounter:45s 内行军拦检窗未应答完成"));
+            return;
+          }
+          if (e.turnPhase !== "AwaitingReaction" || e.pendingReaction?.view?.kind !== "march") {
+            stage = "wait"; // 窗已收(看门狗代发):复位等下一道拦检窗
+            return;
+          }
+          if (
+            stage === "wait" &&
+            !document
+              .querySelector('[data-testid="reaction-text"]')
+              ?.textContent?.includes("行军将过你的城池")
+          )
+            return; // 横幅未起或非 march 文案:继续等
+          if (stage === "wait") {
+            mover = e.pendingReaction.view.userSeat;
+            stage = answerMode === "decline" ? "confirm" : "card";
+          }
+          if (stage === "card") {
+            const cardEl = document.querySelector('[data-testid="jinnang-card-半路杀出"]');
+            if (cardEl?.classList.contains("sel")) {
+              stage = "confirm";
+            } else {
+              // 等 .sel 落地再进下一段(口径同 answerReactionWindow,防 toggle 互踩)
+              cardMisses = cardEl == null ? 0 : cardMisses + 1;
+              if (cardMisses >= 3) {
+                click(cardEl);
+                cardMisses = 0;
+              }
+            }
+            return;
+          }
+          const btn =
+            answerMode === "decline"
+              ? document.querySelector('[data-testid="reaction-decline"]')
+              : document.querySelector<HTMLButtonElement>('[data-testid="reaction-confirm"]');
+          const ready =
+            btn instanceof HTMLButtonElement && answerMode === "counter"
+              ? !btn.disabled
+              : btn != null;
+          if (ready && click(btn)) {
+            clearInterval(timer);
+            resolve(mover);
+          }
+        }, 50);
+      }),
+    mode,
+  );
 }
 
 /** 结算 poll(引擎语义住此):窗收(turnPhase 离开 AwaitingReaction)+ 按勾选断言

@@ -38,9 +38,8 @@ test.describe("体力系统冒烟", () => {
       const capital = p.properties.find((h: any) => h.propertyId === capPropId);
       if (!capital) throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
       capital.level = 1; // 耗竭选项序 = properties 序,都城恒在前
-      const skipBefore = p.skipTurns; // #188:对局自走可能已带辅路中伏等既有跳过,断言改相对值
       e.addStamina(seat, -100); // → 0
-      return { seat, capitalPropId: capPropId, extraPropId: tile.propertyId, skipBefore };
+      return { seat, capitalPropId: capPropId, extraPropId: tile.propertyId };
     });
 
     // 触发耗竭入口 → 相位(直改引擎后必须走控制器 sync:快照与 interactive 派生量
@@ -72,17 +71,22 @@ test.describe("体力系统冒烟", () => {
     // 自选:降都城(选项序 = properties 序,都城在前)
     await page.locator('[data-testid^="scroll-exhaustion-option-"]').first().click();
     await expect(page.getByTestId("scroll-exhaustion")).toBeHidden({ timeout: 15_000 });
-    // 立即读引擎(#188 迁移):耗竭结算在命令内同步落账,而 auto-roll 重武装有 1s 窗——
-    // 若先 waitSettled,对局可能自走一整轮,随机机遇可二次抽干体力触发第二次耗竭
-    // (skipTurns +2、体力再次重置,断言全盘失真)。
+    // 立即读引擎(#188 迁移,#398 增注):耗竭结算在命令内同步落账,但 #398 起命令经
+    // 内存双工异步落账、bot 链一拍跑完——读点与结算之间整轮可能已自走完,skipTurns
+    // 的 +1 会在「下一回合开始」被 endTurn 推进环消费归零,固定读点不再可观测。
+    // 跳回合语义改从结算日志行断言(exhaustionSettle 记账 skipTurns=1,终局稳定);
+    // 体力/等级/持仓不受后续轮影响,照旧直读。
     const after = await page.evaluate(
       (info: { seat: number; capitalPropId: string; extraPropId: string }) => {
         const e = (window as any).__dafung.getEngine();
         const p = e.players[info.seat];
         const levelOf = (id: string) => p.properties.find((h: any) => h.propertyId === id)?.level;
+        const settleLine = e.log.find(
+          (l: any) => l.detail.includes("exhaustionSettle") && l.detail.includes(`player=${p.id}`),
+        );
         return {
           stamina: p.stamina,
-          skipTurns: p.skipTurns,
+          settleLine: settleLine?.detail ?? null,
           capitalLevel: levelOf(info.capitalPropId),
           extraLevel: levelOf(info.extraPropId),
           owned: p.properties.length,
@@ -92,7 +96,8 @@ test.describe("体力系统冒烟", () => {
     );
     await waitSettled(page); // UI 渲染断言前等表现链走完
     expect(after.stamina).toBe(100); // 重置
-    expect(after.skipTurns).toBe(seatInfo.skipBefore + 1); // 跳过下一回合(+1,相对既有值)
+    expect(after.settleLine).toContain("skipTurns=1"); // 跳过下一回合(+1,结算落账)
+    expect(after.settleLine).toContain("stamina=100");
     expect(after.capitalLevel).toBe(0); // 1 → 0(选中降级,地板 0)
     expect(after.extraLevel).toBe(2); // 未被选中不受影响
     expect(after.owned).toBe(2); // 降级不失城

@@ -8,9 +8,11 @@
 // - 两处硬等待(军师窗采样窗 / choices 重算一拍)换条件 poll(#292 Q4)。
 // 权威侧兜底=房间编排反应窗看门狗(#281,room watchdogs)定时代发「不用」(与手点同
 // 一条命令路径;#398 单机统一后单机与联机同走房间编排)。注意:权威窗长=引擎
-// windowMs 原值(3000ms,不吃 e2e 倍率——倍率只缩放演出编排,节拍单源 core/timings,
-// #399);横幅展示时长=scaleReactionMs(windowMs)(0.5 倍 → 1500ms 先收回),timeout 例
-// 预算按展示时长给、结算按权威窗长等。种子离线核算(seed 7):人类先手、起手火烧连营
+// windowMs 原值,不吃 e2e 倍率(倍率只缩放演出编排,节拍单源 core/timings,#399);
+// e2e 经 fixtures 注入 E2E_REACTION_MS=5000 加长权威窗(联机 server env 同款通道,
+// 终局 e2e:3s 窗与「断言+读数+应答」点击链在 4 worker 负载下赛跑,误窗应答);横幅
+// 展示时长=scaleReactionMs(windowMs)(0.5 倍 → 2500ms 先收回),timeout 例预算按展示
+// 时长给、结算按权威窗长等。种子离线核算(seed 7):人类先手、起手火烧连营
 // (军师窗停点=稳定种植点);种植后人类改持目标牌,bot 手牌/位置/骰队列按用例直写。
 // 注意 seed 7 默认 bot 手牌含火烧连营/半路杀出:bot 回合开始会弹火烧窗(不用+静音=
 // 2 选项),拦检例一律以「行军将过你的城池」文案过滤后再应答(旧三例既有口径)。
@@ -25,6 +27,7 @@ import {
   plantDemolishableCity,
   awaitReactionWindow,
   answerReactionWindow,
+  answerMarchCounter,
   pollReactionSettled,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -38,8 +41,10 @@ async function skipMyTurn(page: Page): Promise<void> {
   await skipUntilNextSeat(page, 0);
 }
 
-/** 骰队列补丁:接下来数次掷骰(rollDie)依序取给定值,耗尽自还原(局部确定性)。
- *  #303:由「n 连 6」泛化为任意值序,行程补骰与拦检拼点([6,1]/[3,3])同源。
+/** 骰队列补丁:接下来数次 rollDie 依序取给定值,耗尽自还原(局部确定性)。
+ *  #303:由「n 连 6」泛化为任意值序,拦检拼点([6,1]/[3,3])由此控制。
+ *  ⚠ 只 patch rollDie:行军掷骰走 dice.roll()→闭包(dice.ts),吃种子 rng 不吃本补丁——
+ *  行程确定性由 seed 7 种子局保证,勿把行程骰记进队列(记了会错位拼点取值)。
  *  尾分号必备:单独作为 fn 传 force 时,表达式语句必须自终止,否则吃掉后续 sync()。 */
 const diceQueue = (...values: number[]) => `
   (() => {
@@ -53,10 +58,18 @@ const diceQueue = (...values: number[]) => `
   })();`;
 
 /** 拦检窗就绪种植:人类持半路杀出;三 bot 全部落位人类都城前一格(掷 ≥2 即途经);
+ *  duelDice=拼点骰(开窗前一次种足,拼点是唯一 rollDie 消费者→各取一粒);
  *  withSecondCity=真时(降噪口例):人类在都城 +2..+4 内首个「有城非都」格挪为第二座
  *  城(同一份行程的第二道询问);#303 合并走查例传假——三 bot 各只吃首都一道窗,
- *  平局/放行的续走不会撞出第二道询问。骰队列 n 连 6(人类+bot 行程全定)。 */
-async function plantAmbush(page: Page, diceRolls: number, withSecondCity = true): Promise<void> {
+ *  平局/放行的续走不会撞出第二道询问。
+ *  #398 快速链 + 权威 3s 反应窗:骰必须在开窗前种足、窗内零 force——force 等 fx 排空
+ *  吃掉秒级预算,看门狗到点代发「不用」后,紧随的应答会落到下一个 bot 的窗上(实测:
+ *  读到的 mover1=1,拼点战报 mover=p2)。行程骰=种子 rng(dice.roll 闭包,不吃队列)。 */
+async function plantAmbush(
+  page: Page,
+  duelDice?: [number, number],
+  withSecondCity = true,
+): Promise<void> {
   await force(
     page,
     `
@@ -86,7 +99,7 @@ async function plantAmbush(page: Page, diceRolls: number, withSecondCity = true)
     }`
         : ""
     }
-    ${diceQueue(...Array.from({ length: diceRolls }, () => 6))}
+    ${duelDice ? diceQueue(...duelDice) : ""}
   `,
   );
 }
@@ -131,9 +144,9 @@ test.describe("反应窗(#281 单机)", () => {
     await plantCounterScenario(page);
     await awaitReactionWindow(page); // 横幅升起即停靠点
     const citiesBefore = await engineState(page, "e.players[0].properties.length");
-    // 横幅 1500ms(0.5 倍率)先收回;权威窗长=windowMs 原值 3000ms:到点房间看门狗
-    // 代发——不点任何钮,等结算
-    await answerReactionWindow(page, { mode: "timeout", windowMs: 1500 });
+    // 横幅 2500ms(权威窗 5000ms × 0.5 倍率,fixtures 注入 E2E_REACTION_MS=5000,
+    // 联机 server env 同款通道)先收回;权威窗到点房间看门狗代发——不点任何钮,等结算
+    await answerReactionWindow(page, { mode: "timeout", windowMs: 2500 });
     await expect
       .poll(
         async () =>
@@ -151,19 +164,16 @@ test.describe("反应窗(#281 单机)", () => {
 
   test("半路杀出三分支走查:拦胜止步落格→平局牌白耗续走→点不用放行牌不耗", async ({ page }) => {
     await startSolo(page);
-    // 只留首都一道窗:三 bot 各自行程各开一问,顺序吃满三分支(#292 Q1 合并)
-    await plantAmbush(page, 4, false);
+    // 只留首都一道窗:三 bot 各自行程各开一问,顺序吃满三分支(#292 Q1 合并)。
+    // #398 快速链 + 权威反应窗(5s):拼点骰开窗前种足、窗内零 force(force 等 fx 排空
+    // 会撞看门狗代发,应答落到下一个 bot 的窗上);mover 读取与应答合并为页面内原子
+    // 操作(answerMarchCounter)——读与答同一窗,无 CDP 往返竞速。
+    await plantAmbush(page, [6, 1], false);
     await skipMyTurn(page);
-    // 每分支先等窗再以文案过滤:bot 回合开始的火烧连营窗(seed 7 默认手牌)与拦检窗
-    // 同形不同文,文案断言重试穿过它,只对 march 拦检窗应答(旧三例既有口径)。
-    // ── 分支一 拦胜:横幅文案 + 架上金边(视觉锚)→ 城主 6 对行人 1 → 行人止步首都格照常落格 ──
-    await awaitReactionWindow(page);
-    const marchText = page.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText);
-    await expect(marchText).toContainText("行军将过你的城池");
-    await expect(page.getByTestId(TESTIDS.jinnangCard("半路杀出"))).toHaveClass(/reactive/);
-    const mover1 = await engineState(page, "e.pendingReaction.view.userSeat");
-    await force(page, diceQueue(6, 1));
-    await answerReactionWindow(page, { mode: "counter", card: "半路杀出" });
+    // 每分支以文案过滤(火烧连营窗与拦检窗同形不同文,answerMarchCounter 页面内只认
+    // 「行军将过你的城池」),拦胜/平局以点牌落印应答、放行以「不用」应答。
+    // ── 分支一 拦胜:城主 6 对行人 1 → 行人止步首都格照常落格 ──
+    const mover1 = await answerMarchCounter(page);
     // 拦胜止步:位置落首都格且此后不挪(后续分支不再轮到该 bot),无窗竞态
     await expect
       .poll(
@@ -173,17 +183,13 @@ test.describe("反应窗(#281 单机)", () => {
       .toBe(true);
     // ── 分支二 平局:补牌 → 城主 3 对行人 3 → 牌白耗,行人照常续走落原落点 ──
     // #398 快速链适配:分支 1 应答后房间编排一拍跑完整条 bot 链(合并连锁,联机同构),
-    // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → 重种手牌/布位/骰队 → 放行)。
+    // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → plantAmbush 重种手牌/布位/
+    // 骰队 → 放行)。人类停点恒为回合开始军师窗态(每回合开始抽牌,手牌非空必停),
+    // 放行后首个 bot 掷骰途经首都开窗,拼点取 [3,3]。
     await waitMyPause(page, 0);
-    await plantAmbush(page, 4, false);
+    await plantAmbush(page, [3, 3], false);
     await skipUntilNextSeat(page, 0);
-    await awaitReactionWindow(page);
-    await expect(
-      page.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),
-    ).toContainText("行军将过你的城池");
-    const mover2 = await engineState(page, "e.pendingReaction.view.userSeat");
-    await force(page, diceQueue(3, 3));
-    await answerReactionWindow(page, { mode: "counter", card: "半路杀出" });
+    const mover2 = await answerMarchCounter(page);
     await expect
       .poll(
         async () =>
@@ -200,16 +206,12 @@ test.describe("反应窗(#281 单机)", () => {
     // ── 分支三 放行:补牌 → 点「不用」→ 行人续走、牌不耗 ──
     // 结算断言走结果键(mover 离首都 + 牌留手):火烧窗超时代发已把 use=0 留痕写进
     // 日志,declined 留痕在本局不可作分支信号;放行后人类唯反应手牌驻停军师窗,
-    // 不再有任何拦检窗,结果键一旦为真即终局稳定。重布场口径同分支二。
+    // 不再有任何拦检窗,结果键一旦为真即终局稳定。重布场口径同分支二(不用不拼点,
+    // 无拼点骰)。
     await waitMyPause(page, 0);
-    await plantAmbush(page, 4, false);
+    await plantAmbush(page, undefined, false);
     await skipUntilNextSeat(page, 0);
-    await awaitReactionWindow(page);
-    await expect(
-      page.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),
-    ).toContainText("行军将过你的城池");
-    const mover3 = await engineState(page, "e.pendingReaction.view.userSeat");
-    await answerReactionWindow(page, { mode: "decline" });
+    const mover3 = await answerMarchCounter(page, "decline");
     await expect
       .poll(
         async () =>
@@ -262,12 +264,13 @@ test.describe("反应窗(#281 单机)", () => {
 
   test("降噪口:点「本回合不再询问」后同回合后续询问不弹横幅、下回合恢复", async ({ page }) => {
     await startSolo(page);
-    await plantAmbush(page, 4); // 人类+bot 行程全 6:同一 mover 连开两道拦检窗
+    await plantAmbush(page); // 人类在都城 +2..+4 挪第二城:同一 mover 连开两道拦检窗
     await skipMyTurn(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
     await expect(banner).toBeVisible({ timeout: 45_000 });
-    // 第一道窗:点降噪口=当前窗立即「不用」+本回合静默
-    await banner.getByTestId(TESTIDS.reactionMute).click();
+    // 第一道窗:点降噪口=当前窗立即「不用」+本回合静默(应答点击走页面内直派,
+    // 与权威看门狗无赛跑)
+    await answerReactionWindow(page, { mode: "mute" });
     // 第二道窗(同一 mover 途经第二座城)被静默自动代发不用:两份应答皆 use=0,
     // 且全程只有一次人工点击——第二份必出自静默代发;牌不耗(不用不消耗)
     await expect
@@ -286,6 +289,6 @@ test.describe("反应窗(#281 单机)", () => {
       .toEqual({ resp: 2, keep: true, wasted: true });
     // 回合变更(bot 换位)自动解除静默:下一 mover 的拦检窗横幅恢复弹出
     await expect(banner).toBeVisible({ timeout: 45_000 });
-    await banner.getByTestId(TESTIDS.reactionDecline).click(); // 收尾放行,不留悬窗
+    await answerReactionWindow(page, { mode: "decline" }); // 收尾放行,不留悬窗
   });
 });

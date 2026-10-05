@@ -18,6 +18,7 @@ import { useNetStore } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch } from "@app/net/event-feed";
+import { e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
@@ -107,13 +108,21 @@ export class LocalController extends GameController {
     // 挂在编排 persist 通道上,与旧锁步 sync() 的归档节奏同源(每手一次)。
     // Worker 时钟(#399):编排节拍(看门狗/托管步进)不随页面可见性漂移。
     this.clock = createWorkerClock();
+    // #284 反应窗时长覆盖(单机形态):联机经 server env E2E_REACTION_MS → registry,
+    // 单机经 e2e 注入的 localStorage 键(E2E_REACTION_MS_KEY)→ 同一 registry 选项。
+    // 0/未注入 = 走 core REACTION_WINDOW_MS 常量表(配置缺席不是兜底,server.ts 同模式)。
+    const reactionWindowMs = e2eReactionWindowMs();
     this.registry = new RoomRegistry(
       new MemoryRoomPersistence(),
       undefined,
       (room) => {
         if (room.engine) archiveEngineLog(room.engine);
       },
-      { encounter: config.encounter, clock: this.clock },
+      {
+        encounter: config.encounter,
+        clock: this.clock,
+        ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
+      },
     );
     const created = this.registry.createRoom({
       seatCount: config.seats.length,
