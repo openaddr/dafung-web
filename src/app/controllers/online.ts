@@ -320,12 +320,22 @@ export class OnlineController extends GameController {
       // 对局状态下行,快照只在整房摘要/关键节点校准到达(水合无条件覆盖全部字段)。
       // 折叠前先捕获棋子位置当行军锚点(「转移前视觉停点」口径同快照帧)。
       const prePositions = this._engine.players.map((p) => p.position);
-      foldEventBatch(this._engine, msg.events);
+      // 首帧时序门(#423 项2):水合前(enteredGame=false)的下行批不折叠、不即刻播
+      // 演出——大厅期 clientView 对未开局房间退化为 lobby(无 players),占位壳的座位
+      // 数/目录未经首帧快照校准;开局 flush 事件批先发、校准快照后到(server.ts「因果
+      // 在前、状态在后」),对壳折叠 = 座位越界写 undefined(3 座房首帧 capitalSelected
+      // TypeError,即观察到的 PAGEERROR)或他图目录查无当场炸。批照常暂存:状态由同
+      // flush 的校准快照水合承载(ADR-0020 决策 3),表现消费游标随紧随的快照帧推进,
+      // 直译基于水合后引擎(座位/坐标可用)。门只开在水合前:重连边界服务端先排空旧批
+      // 再发摘要,摘要后批不落此窗。跳过折叠不是吞错——壳本就不是折叠目标,快照才是
+      // 该窗口内唯一状态来源。
+      const hydrated = this.enteredGame;
+      if (hydrated) foldEventBatch(this._engine, msg.events);
       // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
       // 正常对局快照不再随转移到达,表现锁(fx.playing,L42 决策卷轴的时序门)不能
       // 等快照帧;快照帧的 play 由消费游标去重,同批不会播两次。
       stashEventBatch(msg.events);
-      this.fx.play(prePositions);
+      if (hydrated) this.fx.play(prePositions);
       // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
       // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
       this.pending = false;
