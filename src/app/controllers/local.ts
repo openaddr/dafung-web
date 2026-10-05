@@ -19,6 +19,7 @@ import { archiveEngineLog } from "@app/gameLogArchive";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch } from "@app/net/event-feed";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
+import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
 // 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
@@ -75,6 +76,8 @@ export class LocalController extends GameController {
   private readonly registry: RoomRegistry;
   /** 本局房间会话(进程内直读元数据:托管态等房间级字段不走传输)。 */
   private readonly room: RoomSession;
+  /** Worker 时钟(#399):看门狗/慢速托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
+  private readonly clock: WorkerClock;
   private readonly roomId: string;
   private readonly seatToken: string;
   /** 内存双工客户端端点(命令上行/消息下行的唯一通路;与联机 WS 传输同接口)。 */
@@ -102,9 +105,16 @@ export class LocalController extends GameController {
     const botIdx = new Set(config.seats.flatMap((s, i) => (s.isBot ? [i] : [])));
     // ADR-0014 单机对局日志:registry 每次 persist(每手快照)后增量归档 IndexedDB——
     // 挂在编排 persist 通道上,与旧锁步 sync() 的归档节奏同源(每手一次)。
-    this.registry = new RoomRegistry(new MemoryRoomPersistence(), undefined, (room) => {
-      if (room.engine) archiveEngineLog(room.engine);
-    });
+    // Worker 时钟(#399):编排节拍(看门狗/托管步进)不随页面可见性漂移。
+    this.clock = createWorkerClock();
+    this.registry = new RoomRegistry(
+      new MemoryRoomPersistence(),
+      undefined,
+      (room) => {
+        if (room.engine) archiveEngineLog(room.engine);
+      },
+      { encounter: config.encounter, clock: this.clock },
+    );
     const created = this.registry.createRoom({
       seatCount: config.seats.length,
       botIdx,
@@ -208,10 +218,12 @@ export class LocalController extends GameController {
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
-   *  + 事件面归零(防上一局暂存批泄入下一局,联机 resetEventFace 同语义)。 */
+   *  + Worker 时钟停转 + 事件面归零(防上一局暂存批泄入下一局,联机 resetEventFace
+   *  同语义)。 */
   override destroy(): void {
     this.sock.close();
     this.registry.dismissRoom(this.roomId, this.seatToken);
+    this.clock.dispose();
     useNetStore.getState().resetEventFace();
   }
 

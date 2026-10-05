@@ -202,12 +202,31 @@ export interface CreateRoomConfig {
  *  bot 自动接管该座位(重连/刷新夺回,同 ADR-0002 接管语义)。0 = 关闭(缺省关,测试友好);
  *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
  *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
- *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。 */
+ *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。
+ *  clock(#399 Worker 时钟):编排定时原语(看门狗/慢速托管步进)。缺省 = 宿主全局
+ *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
+ *  见 src/app/net/worker-clock.ts)——「失焦照跑」,单机与联机同构的最后一环。 */
 export interface RoomRegistryOptions {
   encounter?: EncounterConfig;
   decisionTimeoutMs?: number;
   reactionWindowMs?: number;
+  clock?: RoomClock;
 }
+
+/** 定时原语(与全局 setTimeout/clearTimeout 同构;句柄类型不透明)。
+ *  #399:注入点——编排内一切「等待」都经它,运行时差异(服务器全局定时器 /
+ *  浏览器 Worker 时钟)归注入方。 */
+export interface RoomClock {
+  setTimeout(cb: () => void, ms: number): unknown;
+  clearTimeout(handle: unknown): void;
+}
+
+/** 缺省时钟 = 宿主全局定时器(bun/服务器;浏览器主线程——被注入 Worker 时钟的
+ *  单机通路不经过它)。 */
+const globalClock: RoomClock = {
+  setTimeout: (cb, ms) => setTimeout(cb, ms),
+  clearTimeout: (handle) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+};
 
 export class RoomRegistry {
   private readonly rooms = new Map<string, RoomSession>();
@@ -218,6 +237,8 @@ export class RoomRegistry {
   private readonly decisionTimeoutMs: number;
   /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
   private readonly reactionWindowMsOverride: number;
+  /** #399 编排定时原语(看门狗/慢速托管步进;缺省全局,浏览器注入 Worker 时钟)。 */
+  private readonly clock: RoomClock;
   /** 三组看门狗(#118 停摆/#188 自动起摇/#281 反应窗):通用工厂实例,见 ./watchdogs。
    *  driveBots 每次进出重评估(链首 clear,链尾按停点重武装)。 */
   private readonly watchdogs: Watchdogs;
@@ -246,6 +267,7 @@ export class RoomRegistry {
     this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
+    this.clock = options?.clock ?? globalClock;
     this.watchdogs = createWatchdogs(this.watchdogHost());
     this.ops = {
       observe: (r, ev) => this.observe(r, ev),
@@ -253,6 +275,7 @@ export class RoomRegistry {
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
       watchdogs: this.watchdogs,
+      clock: this.clock,
     };
   }
 
@@ -266,6 +289,7 @@ export class RoomRegistry {
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
       driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
+      clock: this.clock,
     };
   }
 
