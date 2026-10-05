@@ -48,6 +48,9 @@ export class OnlineController extends GameController {
   seat = -1;
   /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
   private pending = false;
+  /** 换图重建流水号(#415):每次 rebuildForMap 起步自增,落地时对号——号不对 =
+   *  期间有更新的换图指令,本次作废(取图 await 与下行快照/新换图指令竞速的过期落地防回归)。 */
+  private rebuildSeq = 0;
   /** 事件批表现消费器(#385):netStore 暂存批(events 下行通道)→ 表现事件 → 播放,
    *  播放队列与到达序游标封装在内。onIdle:表现队列排空时补一次 sync——L42 期间被
    *  fx.playing 锁住的 interactive 在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮
@@ -362,14 +365,30 @@ export class OnlineController extends GameController {
   /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
    *  BoardView/详情卷轴读的都是 registry 的 MapData,所以两处都要换。 */
   private async rebuildForMap(mapId: string): Promise<void> {
+    const seq = ++this.rebuildSeq;
     let map: LoadedMap;
     let data: import("@core/board-loader").MapData;
     try {
-      const source = new FetchMapSource();
-      data = await source.loadMapData(mapId);
-      map = await loadMapById(source, mapId);
+      ({ map, data } = await this.loadMapBundle(mapId));
     } catch (err) {
       useNetStore.getState().pushHint(`加载地图失败:${(err as Error).message}`);
+      return;
+    }
+    // 过期守卫(#415):取图 await 期间可能有更新的换图指令(rebuildSeq 已自增)——本次作废。
+    if (seq !== this.rebuildSeq) return;
+    if (this.enteredGame && this.mapId === mapId) {
+      // #415:对局快照已先行水合(开局 flush 与本重建的取图竞速,取图可能后落)——
+      // 此时换新占位引擎会把已水合的对局态打回 2 座空壳;房间静默等真人决策时再无
+      // 后续下行纠偏,该端从此读不到真实局面(并发选都停摆的根因)。改「换板不换局」:
+      // 当前引擎态整卷快照,在新图占位壳上复原,对局态与棋盘一次到位。
+      const snap = this._engine.snapshot();
+      this.map = map;
+      this._engine = this.makePlaceholderEngine(map, snap.players.length);
+      this._engine.restoreFromSnapshot(snap);
+      setEngine(this._engine);
+      // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
+      setController(this, data);
+      this.sync();
       return;
     }
     this.mapId = mapId;
@@ -379,6 +398,17 @@ export class OnlineController extends GameController {
     // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
     setController(this, data);
     this.sync();
+  }
+
+  /** 换图取材(清单回查 + 地图加载):rebuildForMap 的取图步,单独成方法 = 测试注入缝
+   *  (bun 单测覆写本方法即可驱动 rebuildForMap,不触网)。 */
+  private async loadMapBundle(
+    mapId: string,
+  ): Promise<{ map: LoadedMap; data: import("@core/board-loader").MapData }> {
+    const source = new FetchMapSource();
+    const data = await source.loadMapData(mapId);
+    const map = await loadMapById(source, mapId);
+    return { map, data };
   }
 
   destroy(): void {
