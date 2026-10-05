@@ -287,52 +287,58 @@ function broadcast(roomId: string): void {
     roomId,
     setTimeout(() => {
       flushTimers.delete(roomId);
-      const pending = dirtySeats.get(roomId);
-      dirtySeats.delete(roomId);
-      const events = pendingEvents.get(roomId);
-      pendingEvents.delete(roomId);
-      const r = registry.get(roomId);
-      if (!pending || !r) return;
-      r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=flush 封批(#284):本帧带走整批,下一条留痕新批号
-      const online = onlineSeatsOf(roomId);
-      // 事件批消息(#390):先发(因果在前、状态在后),全体在线座位同一份明传
-      const eventsMsg =
-        events && events.length > 0 ? JSON.stringify({ type: "events" as const, events }) : null;
-      if (eventsMsg) {
-        for (const ws of socketsOf(roomId).values()) {
-          if (ws.readyState === WebSocket.OPEN) ws.send(eventsMsg);
-        }
-      }
-      // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
-      // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。
-      const e = r.engine;
-      const settled = e?.turnPhase ?? null;
-      const prev = settledTurnPhase.get(roomId) ?? null;
-      settledTurnPhase.set(roomId, settled);
-      const calibrate =
-        e != null &&
-        (e.phase === "Setup" ||
-          (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
-          CALIBRATION_WINDOWS.has(settled ?? "") ||
-          CALIBRATION_WINDOWS.has(prev ?? ""));
-      const metaJson = JSON.stringify(lobbyView(r, online));
-      if (calibrate) {
-        // 关键节点校准(②):god-view 快照全体同一份(seat 缺省不做 per-seat 投影),
-        // 自带房间字段,元数据指纹随车更新
-        const msg = JSON.stringify(clientView(r, online));
-        for (const ws of socketsOf(roomId).values()) {
-          if (ws.readyState === WebSocket.OPEN) ws.send(msg);
-        }
-        lastRoomMeta.set(roomId, metaJson);
-      } else if (lastRoomMeta.get(roomId) !== metaJson) {
-        // 房间元数据消息(③):lobby 形状,指纹变化才发
-        lastRoomMeta.set(roomId, metaJson);
-        for (const ws of socketsOf(roomId).values()) {
-          if (ws.readyState === WebSocket.OPEN) ws.send(metaJson);
-        }
-      }
+      flushRoom(roomId);
     }, 0),
   );
+}
+
+/** flush 单体(#388):定时器到点与首连/重连摘要前的强制排空共用。幂等——事件批
+ *  累积器排空后,重复调用不产 events 消息(pending 为空直接返回)。 */
+function flushRoom(roomId: string): void {
+  const pending = dirtySeats.get(roomId);
+  dirtySeats.delete(roomId);
+  const events = pendingEvents.get(roomId);
+  pendingEvents.delete(roomId);
+  const r = registry.get(roomId);
+  if (!pending || !r) return;
+  r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=flush 封批(#284):本帧带走整批,下一条留痕新批号
+  const online = onlineSeatsOf(roomId);
+  // 事件批消息(#390):先发(因果在前、状态在后),全体在线座位同一份明传
+  const eventsMsg =
+    events && events.length > 0 ? JSON.stringify({ type: "events" as const, events }) : null;
+  if (eventsMsg) {
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(eventsMsg);
+    }
+  }
+  // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
+  // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。
+  const e = r.engine;
+  const settled = e?.turnPhase ?? null;
+  const prev = settledTurnPhase.get(roomId) ?? null;
+  settledTurnPhase.set(roomId, settled);
+  const calibrate =
+    e != null &&
+    (e.phase === "Setup" ||
+      (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
+      CALIBRATION_WINDOWS.has(settled ?? "") ||
+      CALIBRATION_WINDOWS.has(prev ?? ""));
+  const metaJson = JSON.stringify(lobbyView(r, online));
+  if (calibrate) {
+    // 关键节点校准(②):god-view 快照全体同一份(seat 缺省不做 per-seat 投影),
+    // 自带房间字段,元数据指纹随车更新
+    const msg = JSON.stringify(clientView(r, online));
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+    }
+    lastRoomMeta.set(roomId, metaJson);
+  } else if (lastRoomMeta.get(roomId) !== metaJson) {
+    // 房间元数据消息(③):lobby 形状,指纹变化才发
+    lastRoomMeta.set(roomId, metaJson);
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(metaJson);
+    }
+  }
 }
 
 // ──────────────────────────── HTTP 工具 ────────────────────────────
@@ -646,6 +652,12 @@ Bun.serve<WsSeat>({
         ws.close();
         return;
       }
+      // 强制排空(#388 摘要/累积器竞态封口):此刻累积器里未 flush 的转移批若晚于摘要
+      // 到达,重连端会「摘要(已含该批状态)+ 事件批(同批)」各收一次——事件折叠非幂等
+      // (现金/入册双计),必须先排空给旧连接、再发摘要。排空时新 socket 尚未注册,
+      // 天然收不到这份事件;之后注册、发摘要(保证 ⊇ 累积器全部内容)。
+      flushTimers.delete(roomId); // 已排定的定时 flush 由本同步 flush 覆盖(dirtySeats 随之清空,迟到的回调空转)
+      flushRoom(roomId);
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
       // 首连/重连整房摘要(①,#388/ADR-0020 决策 2/4):clientView seat 缺省 = god-view

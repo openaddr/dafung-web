@@ -42,11 +42,15 @@ function isCalibrationSnapshot(msg: {
 }
 
 /** 线级连接收集器:按 WS 连接分组捕获全部下行 JSON 帧(须在 goto 前挂上;
- *  本服务器所有帧都是 JSON,非 JSON 帧让 JSON.parse 炸出)。 */
-function collectConnections(page: Page): { conns: { msgs: Record<string, unknown>[] }[] } {
-  const conns: { msgs: Record<string, unknown>[] }[] = [];
+ *  本服务器所有帧都是 JSON,非 JSON 帧让 JSON.parse 炸出)。快照审计以连接为单位:
+ *  每连接首帧 snapshot = 首连/重连整房摘要(①类全量下行,校准判定口径外的合法
+ *  快照——重连落在任意停摆相位时,摘要 events 携带未消化批,不属逐步广播)。 */
+function collectConnections(page: Page): {
+  conns: { msgs: Record<string, unknown>[]; firstSnapshotDone: boolean }[];
+} {
+  const conns: { msgs: Record<string, unknown>[]; firstSnapshotDone: boolean }[] = [];
   page.on("websocket", (ws) => {
-    const conn = { msgs: [] as Record<string, unknown>[] };
+    const conn = { msgs: [] as Record<string, unknown>[], firstSnapshotDone: false };
     conns.push(conn);
     ws.on("framereceived", (data) => {
       const payload = (data as { payload?: unknown }).payload ?? data;
@@ -54,6 +58,28 @@ function collectConnections(page: Page): { conns: { msgs: Record<string, unknown
     });
   });
   return { conns };
+}
+
+/** 快照审计:逐连接消费消息,首帧 snapshot(整房摘要)豁免,其余必须是校准快照。
+ *  返回逐步快照违例的 {phase, turnPhase} 列表(空数组 = 审计通过)。 */
+function auditStepSnapshots(
+  conns: { msgs: Record<string, unknown>[]; firstSnapshotDone: boolean }[],
+): { phase?: string; turnPhase?: string }[] {
+  const violations: { phase?: string; turnPhase?: string }[] = [];
+  for (const conn of conns) {
+    for (const m of conn.msgs) {
+      if (m.type !== "snapshot") continue;
+      if (!conn.firstSnapshotDone) {
+        conn.firstSnapshotDone = true; // 整房摘要(open 处理器同步首发,每连接恰一份)
+        continue;
+      }
+      const snap = m as { phase?: string; turnPhase?: string; events?: unknown };
+      if (!isCalibrationSnapshot(snap)) {
+        violations.push({ phase: snap.phase, turnPhase: snap.turnPhase });
+      }
+    }
+  }
+  return violations;
 }
 
 /** 读一端的核心引擎态(经 __dafung 调试钩子;跨端一致性断言用)。 */
@@ -160,21 +186,16 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     expect(subs[0]).toBeTruthy();
     expect(subs[1], "双端胜者一致(折叠收敛)").toBe(subs[0]);
 
-    // ── 快照审计:开局校准序列必须存在(摘要/校准通路活着),此后逐步快照必须为零 ──
+    // ── 快照审计:每连接首帧=整房摘要(豁免),此后逐步快照必须为零,只允许校准快照 ──
     for (const [label, feed] of [
       ["host", hostFeed],
       ["guest", guestFeed],
     ] as const) {
-      const snaps = feed.conns.flatMap((c) => c.msgs.filter((m) => m.type === "snapshot")) as {
-        phase?: string;
-        turnPhase?: string;
-        events?: { kind: string }[];
-      }[];
+      const snaps = feed.conns.flatMap((c) => c.msgs.filter((m) => m.type === "snapshot"));
       expect(snaps.length, `${label} 开局校准快照存在`).toBeGreaterThanOrEqual(1);
-      const stepSnaps = snaps.filter((m) => !isCalibrationSnapshot(m));
       expect(
-        stepSnaps.map((m) => ({ phase: m.phase, turnPhase: m.turnPhase })),
-        `${label} 逐步快照必须为零(只允许校准快照)`,
+        auditStepSnapshots(feed.conns),
+        `${label} 逐步快照必须为零(只允许摘要与校准快照)`,
       ).toEqual([]);
       // 事件批通路:全程托管局的转移批全部经 {type:"events"} 到达,终局宣告在内
       const batches = feed.conns.flatMap((c) => c.msgs.filter((m) => m.type === "events")) as {
@@ -275,16 +296,18 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
       )
       .toBe(true);
 
-    // 折叠继续:双端驱动推进对局,重连后事件批继续到达、本端局面随之前进
-    // (事件面清零后不撞号不跳批;只驱 host 会在 guest 抉择回合停摆 → 零转移零事件)
+    // 折叠继续:边驱动边等事件批(驱动并入轮询——满载下固定 8s 驱动窗可能在批次
+    // 到达前耗尽;轮询体内持续清两端决策点,任一转移的批到达即收,40s 预算兜慢环境)
     const before = await coreState(guest);
     const eventsBefore = reconn.msgs.filter((m) => m.type === "events").length;
-    await driveDecisions([host, guest], 8_000);
     await expect
-      .poll(async () => reconn.msgs.filter((m) => m.type === "events").length, {
-        timeout: 20_000,
-        message: "重连后事件批继续到达",
-      })
+      .poll(
+        async () => {
+          await driveDecisions([host, guest], 1_200);
+          return reconn.msgs.filter((m) => m.type === "events").length;
+        },
+        { timeout: 40_000, intervals: [200], message: "重连后事件批继续到达" },
+      )
       .toBeGreaterThan(eventsBefore);
     await expect
       .poll(async () => JSON.stringify(await coreState(guest)) !== JSON.stringify(before), {
@@ -293,19 +316,9 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
       })
       .toBe(true);
 
-    // 摘要之后依旧零逐步快照(重连不重启逐步广播)
-    const postSnaps = reconn.msgs.filter((m) => m.type === "snapshot") as unknown as {
-      phase?: string;
-      turnPhase?: string;
-      events?: { kind: string }[];
-    }[];
+    // 摘要之后依旧零逐步快照(重连不重启逐步广播);重连摘要本身按每连接首帧豁免
     expect(
-      postSnaps
-        .filter((m) => !isCalibrationSnapshot(m))
-        .map((m) => ({
-          phase: m.phase,
-          turnPhase: m.turnPhase,
-        })),
+      auditStepSnapshots([{ msgs: reconn.msgs, firstSnapshotDone: false }]),
       "重连后逐步快照必须为零",
     ).toEqual([]);
 
