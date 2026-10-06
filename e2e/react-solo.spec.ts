@@ -6,7 +6,6 @@
 //   例驱动途中顺带巡检承接
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
 import { readFileSync } from "node:fs";
-import type { Page } from "@playwright/test";
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -20,6 +19,8 @@ import {
   waitMyRollDone,
   waitMyPause,
   dismissJinnangIfUp,
+  freezeClock,
+  unfreezeClock,
 } from "./react-helpers";
 
 test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
@@ -94,18 +95,8 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
 // 明细入口几经迁移,#361 起为牌架双入口+藏品弹层,仪表条徽章纯展示、无键盘通路)。
 
 // ── #421 时钟缝:冻结→种植→点击→断言→恢复 ──
-// 房间时钟冻结闸(window.__dafung.clockPause/clockResume,#421 调试观测面):冻结期间
-// #188 自动起摇与各组看门狗到点回调全部挂起(resume 按到点序补放)。种植类用例先冻结
-// 再动刀,把对局钉死在当前停靠态——旧口径靠「种完手快」与自动推进赛跑(失败实录:
-// force 种植后自动行军清场,对局自走到第 2 轮招贤+半路杀出双开,升级决策被清)。
-// 冻结期断言若仍失败 = 赛跑之外的真 bug,上报而非加睡(零兜底)。助手留驻本文件:
-// 该口径目前只服务种植类两例,不进 react-helpers 共享面。
-async function freezeClock(page: Page): Promise<void> {
-  await page.evaluate(() => (window as any).__dafung.clockPause());
-}
-async function unfreezeClock(page: Page): Promise<void> {
-  await page.evaluate(() => (window as any).__dafung.clockResume());
-}
+// freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
+// 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
 
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);

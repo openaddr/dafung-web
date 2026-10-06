@@ -123,6 +123,21 @@ export async function waitMyPause(page: Page, seat: number, timeout = 30_000): P
     .toBe(true);
 }
 
+// ── #421/#423 时钟缝:冻结→种植→手术→断言→恢复 ──
+// 房间时钟冻结闸(window.__dafung.clockPause/clockResume,#421 调试观测面):冻结期间
+// #188 自动起摇与各组看门狗(含 #118 决策停摆代驾)的到点回调全部挂起(resume 按到点
+// 序补放)。种植类用例先冻结再动刀,把对局钉死在当前停靠态——旧口径靠「种完手快」与
+// 自动推进赛跑。注意冻结的边界:只钉时钟到点回调,钉不住命令自带的同步 bot 链
+// (点击收尾 endTurn 即放链,delay=0 步进不经时钟)——点击后的断言须走结算留痕
+// (日志行/链上不可变字段),不读活态(#421 诊断,react-stamina 同款口径)。
+// 冻结期断言若仍失败 = 赛跑之外的真 bug,上报而非加睡(零兜底)。
+export async function freezeClock(page: Page): Promise<void> {
+  await page.evaluate(() => (window as any).__dafung.clockPause());
+}
+export async function unfreezeClock(page: Page): Promise<void> {
+  await page.evaluate(() => (window as any).__dafung.clockResume());
+}
+
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。
  *  机遇归零(#126):存量 spec 的钉死断言不耐受随机机遇,起兵前把触发率与三档全部
  *  归 0(机遇关闭)。归零后复查一轮,抗设置屏默认值 fetch 竞态;机遇冒烟 spec 自行
