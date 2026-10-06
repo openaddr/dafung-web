@@ -108,7 +108,7 @@ function updatePosition(animated) {
 
 **跑法(可复现)**:浅克隆 `libnoname/noname` → `pnpm install && pnpm build && pnpm serve`(静态服务 8089 端口)。一个坑:`@fastify/static` 把 `.ts` 模块的 MIME 判成 `video/mp2t`,浏览器按严格 MIME 检查拒绝执行 module script——在 `packages/fs/src/index.ts` 注册 `onSend` 钩子,把 `video/mp2t` 改写为 `text/javascript` 即可。驱动方式:headless Chromium + Playwright,点「身份」→ 双击候选将 → 轮询应答「确定/取消/可选目标」跑完整局。
 
-实测截图 10 张存 [sanguosha/noname-live/](./sanguosha/noname-live/)(逐张登记 `manifest.jsonl`;含官方三国杀商用美术,按网图口径仅内部参考、勿入 git)。§2/§3 的代码结论(手牌横排压缩、选中上浮、目标蓝框、详情浮层、指向线)全部与实机一致。
+实测截图 10 张存本地 `sanguosha/noname-live/` 目录(资产未入库——按网图口径仅存本机图库、禁入 git;逐张登记 `manifest.jsonl`;含官方三国杀商用美术,仅内部参考)。§2/§3 的代码结论(手牌横排压缩、选中上浮、目标蓝框、详情浮层、指向线)全部与实机一致。
 
 ### 6.1 响应窗专题(P1-D 反应窗的直接证据)
 

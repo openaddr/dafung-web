@@ -133,7 +133,9 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
       ).toContainText("使用【横征暴敛】");
       // 选牌 → 点 host 座笺 → 落印(点笺接线住 helper)
       await answerReactionWindow(guest, { mode: "counter", card: "识破诡计", seat: 0 });
-      // 联机出牌线(#385):本端事件批直读(jinnangAnnounced/jinnangVoided)出线。
+      // 联机出牌线(#385):服务端事件批直读——jinnangAnnounced/jinnangVoided/
+      // reactionAnswered 经 event-extract 直译为同一 jinnangPlayed 表现事件(识破线
+      // 的端点回溯靠跨批宣布游标),本端即收即播,不读引擎留痕通道。
       // 线是 700ms 瞬态(testUnscaled 不缩放),条件性在场元素禁 locator 读——单次
       // evaluate 内 rAF 轮询原子采样(react-jinnang-use 墨线例同款口径,#272)。
       const sawLine = await guest.evaluate(

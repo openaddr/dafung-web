@@ -127,8 +127,9 @@ export interface GameSnapshot {
   offeredHeroes: HeroRow[];
   // 表现态字段经 presentation 视图读(Wave3 候选4:字段已私有,序列化格式不变)
   lastRoll: DiceRoll | null;
-  // lastMove 全量坐标(waypoints/branchWaypoints)随行军动画坐标一并序列化:
-  // 联机端收到 snapshot 时,行军动画可能尚未播放(或断线重连后需补播),需坐标才能复现路径。
+  // lastMove 全量坐标(waypoints/branchWaypoints)随快照序列化:它是行军事件的产出
+  // 契约输入(requireMovePath 恢复回灌后读它把路径随事件带出,#385 路径随事件走);
+  // 动效取径已改事件自带,快照里的 lastMove 不再是行军动画的取径来源。
   lastMove: MovePath | null;
   // 表现态扁平字段(UI 直接消费;GameScreen/DecisionScrollLayer 口径不变)
   lastLandOutcomeKind: LandOutcomeKind | null;
@@ -709,8 +710,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // lastMove 全量坐标:联机端收到 snapshot 时行军动画可能尚未播放(或断线重连后需补播),
-    // 需坐标才能复现路径。回写走 applyPresentationMove(表现侧写 lastMove 的合法入口)。
+    // lastMove 全量坐标:恢复回灌(它是行军事件产出契约的输入,见接口处注)。
+    // 回写走 applyPresentationMove(表现侧写 lastMove 的合法入口)。
     key: "lastMove",
     read: (e) => e.presentation.lastMove,
     write: (e, s) => {

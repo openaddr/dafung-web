@@ -1,7 +1,7 @@
 // 反应窗域(#281,ADR-0017):锦囊识破窗 + 行军拦检窗的开窗/应答/结算。
 // ADR-0019 委托式拆分:域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;
 // GameEngine 侧保留公共方法 respondReaction 与域外挂点(openReactionWindow/
-// traceJinnangPlay/resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
+// resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
 import { jinnangCardOf } from "./jinnang";
@@ -125,18 +125,6 @@ export interface PendingReaction {
  *  状态,重放重算天然复现;快照恢复按快照内最大 seq 推回(authority.restoreFromSnapshot)。 */
 function nextJinnangSeq(g: GameEngine): number {
   return ++g.jinnangSeq;
-}
-
-/** 出牌指示线留痕写入(#281/P2-E):生效点写瞬态 jinnangPlays,表现提取器经
- *  presentation.drainJinnangPlays 破坏性读(单机本地编排通道)。联机端无平行留痕
- *  通道:#385 起出牌线动效由事件批直读,原可序列化 lastJinnangPlay 已随 #412 退役。 */
-export function traceJinnangPlay(
-  g: GameEngine,
-  userSeat: number,
-  targetSeats: number[],
-  cardId: string,
-): void {
-  g.jinnangPlays.push({ userSeat, targetSeats, cardId });
 }
 
 /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时
@@ -322,7 +310,6 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `${responder.guohao} 识破【${def.id}】,此计作废`,
         `reactionCounter card=${def.id} by=${responder.id} voided=all`,
       );
-      traceJinnangPlay(g, first.seat, [payload.userSeat], first.cardId!);
       emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(连环计全计作废)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
@@ -353,7 +340,6 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
           `${responder.guohao} 识破【${def.id}】,${shielded.guohao} 那一份失效`,
           `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
         );
-        traceJinnangPlay(g, play.seat, [share], play.cardId!);
         emitGameEvent(g, play.seat, { kind: "jinnangVoided", cardId: def.id, shareSeat: share }); // 事件流(#375):识破生效(该份失效)
       }
       returnSupersededCounters(
@@ -380,7 +366,6 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `${responder.guohao} 识破【${def.id}】,此计落空`,
         `reactionCounter card=${def.id} by=${responder.id} share=${g.players[share].id}`,
       );
-      traceJinnangPlay(g, first.seat, [share], first.cardId!);
       emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(此计落空)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
@@ -445,7 +430,6 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
       `${owner.guohao} 拦检成功,${mover.guohao} 止步于此城`,
       `reactionAmbushStop owner=${owner.id} mover=${mover.id} tile=#${payload.tileIndex}`,
     );
-    traceJinnangPlay(g, play.seat, [payload.moverSeat], play.cardId!);
     settleAmbushStop(g, payload);
     return;
   }

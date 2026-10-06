@@ -465,31 +465,12 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
   });
 });
 
-describe("出牌指示线留痕(#281/P2-E)", () => {
-  it("锦囊生效点+识破生效点各留一条;破坏性读一次取尽", () => {
-    const e = prepared();
-    const user = e.activePlayer;
-    const userSeat = e.players.indexOf(user);
-    const victimSeat = userSeat === 0 ? 1 : 0;
-    const victim = e.players[victimSeat];
-    armUser(e, userSeat, ["火烧连营"]);
-    setHand(e, victimSeat, ["识破诡计"]);
-    const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
-    e.resolveJinnang("火烧连营");
-    e.resolveJinnang("火烧连营", [victimSeat]);
-    e.respondReaction(victimSeat, true, "识破诡计", victimSeat);
-    const plays = e.presentation.drainJinnangPlays();
-    expect(plays).toEqual([
-      { userSeat, targetSeats: [victimSeat], cardId: "火烧连营" }, // 宣布点
-      { userSeat: victimSeat, targetSeats: [victimSeat], cardId: "识破诡计" }, // 识破生效点
-    ]);
-    expect(e.presentation.drainJinnangPlays()).toEqual([]); // 一次取尽
-  });
-
-  it("窗实例号随快照恢复推回(#284 残留半边;留痕通道已随 #412 退役)", () => {
+// 出牌指示线留痕通道(#281/P2-E 瞬态 jinnangPlays/drainJinnangPlays)已随 #423 项5 退役:
+// 出牌线因果改事件批承载(jinnangAnnounced/jinnangVoided),批面由 test/game-events.test.ts
+// 「识破窗全程」钉死,表现直译(jinnangPlayed)由 test/presentation.test.ts 钉死——
+// 原留痕形状用例按退役处置,不重写(事件管线两层已全覆盖,重写即重复用例)。
+describe("反应窗窗实例号(#284)", () => {
+  it("窗实例号随快照恢复推回(#284 残留半边)", () => {
     const e = prepared();
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
