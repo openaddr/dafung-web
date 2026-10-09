@@ -169,8 +169,10 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     );
     expect(priceFloater).toBeDefined();
     expect(pcIdx).toBeLessThan(ks.indexOf("cashDelta"));
-    // 铜钱声每批至多一次,且只缀在正收入浮字前(购地纯支出:无铜钱声)
+    // 铜钱声每批至多一次,且只缀在正收入浮字前(购地纯支出:无铜钱声);
+    // 价款浮字的交易提示已由 buy 音承担,pay 被压制防双声(2026-10 音效审计)
     expect(ks.filter((k) => k === "sound").length).toBe(1);
+    expect(events.some((ev) => ev.kind === "sound" && ev.event === "pay")).toBe(false);
   });
 
   it("决策被拒(委任状不足):无据章/buy 音/宣告(零兜底:无成交事件不播出)", () => {
@@ -345,6 +347,7 @@ describe("事件→动效映射表(合成批)", () => {
     const pos1 = e.board.positionOf(e.players[1].position);
     expect(out).toEqual([
       { kind: "sound", event: "coin" }, // 首个正收入浮字前缀一声
+      { kind: "sound", event: "pay" }, // 负向浮字对位缀一声付出(收叮付闷)
       {
         kind: "cashDelta",
         playerId: e.players[0].id,
@@ -364,12 +367,21 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
+  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位)", () => {
+    const e = E();
+    const out = synth(e, [
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "tax" },
+    ]);
+    expect(out[0]).toEqual({ kind: "sound", event: "pay" });
+    expect(out.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(false);
+  });
+
   it("treasureGained/traded/bankrupt/gameOver:语义音效直通", () => {
     const e = E();
     expect(
       synth(e, [{ kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" }]),
     ).toEqual([{ kind: "sound", event: "treasure" }]);
-    // 交割两清:铜钱声 → 买家付款浮字 → 卖家收款浮字(正收入缀声排在批内首个浮字前)
+    // 交割两清:铜钱声 → 付出闷响(买家付款对位)→ 买家付款浮字 → 卖家收款浮字(缀声排在批内首个浮字前)
     expect(
       synth(e, [
         {
@@ -383,9 +395,13 @@ describe("事件→动效映射表(合成批)", () => {
           price: 120,
         },
       ]).map((ev) =>
-        ev.kind === "cashDelta" ? ev.amount : ev.kind === "sound" ? "coin" : ev.kind,
+        ev.kind === "cashDelta"
+          ? ev.amount
+          : ev.kind === "sound"
+            ? ev.event
+            : ev.kind,
       ),
-    ).toEqual(["coin", -120, 120]);
+    ).toEqual(["coin", "pay", -120, 120]);
     expect(
       synth(e, [{ kind: "playerBankrupt", seat: 1, round: 1, turn: 1, creditorSeat: null }]),
     ).toEqual([{ kind: "sound", event: "bankrupt" }]);
