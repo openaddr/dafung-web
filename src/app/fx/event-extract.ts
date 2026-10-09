@@ -18,6 +18,7 @@ import {
   activeSkillDefOf,
   encounterDefOfId,
   eventSeat,
+  eventSeatPlayer,
   heroDefOf,
   type AnnounceCursor,
   type FxPresentedKind,
@@ -426,7 +427,10 @@ export function extractBatchEvents(
       }
       case "jinnangVoided": {
         // 识破生效(#281):线端=应答者 → 被保份/被拆计方(可解析时),字报结果。
+        // shareSeat 过座位契约校验(单源 core/event-tiers,#431 移交顺带项):越界座位
+        // = 产出侧 bug,当场炸出,不静默写 undefined。
         const seat = eventSeat(engine, ev);
+        if (ev.shareSeat != null) eventSeatPlayer(engine, ev.shareSeat, "jinnangVoided.shareSeat");
         const target = voidLineTarget(ev, cursors);
         if (target != null && target !== seat) {
           const from = engine.board.positionOf(engine.players[seat].position);

@@ -67,6 +67,11 @@
 //   ④辅路入口置位:onBranch={step:-1}(selectBranch 入辅路)无专属事件
 //   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
+//   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——
+//   CALIBRATION_WINDOWS/CALIBRATION_EVENT_KINDS(类型化 ReadonlySet,phase/kind 改名=
+//   编译红)+ CALIBRATION_COVERAGE(档位表 calibration-only kind 逐个点名覆盖触发,
+//   漏点名=编译红)。本清单与校准触发是同一决策的两侧,档位判定单源 core/event-tiers,
+//   两处失同步时以档位表+对账机器为准。
 //   另有判定表「校准点」档全项(gameId/targetNetWorth/牌序/rngState/log/pendingDebt 等):
 //     开局/破产清算/洗牌类强制全量节点覆盖,折叠器不碰。
 //

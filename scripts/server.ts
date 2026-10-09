@@ -35,16 +35,24 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty } from "../src/core/authority";
+import type { AiDifficulty, TurnPhase } from "../src/core/authority";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { EventBatchChannel } from "./event-batch";
 // wire 协议编解码单源(#429):上行 parse+dispatch、下行构造全部收口 wire.ts
-import { dismissedMsg, dispatchInbound, encodeDownlink, errorMsg, eventsMsg } from "./wire";
+import { dismissedMsg, dispatchInbound, encodeDownlink, errorMsg } from "./wire";
 import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
 import { loadExtensionPackages } from "../src/core/extension-loader";
-// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
-import { clientView, lobbyView, redactEvents, seatMeta } from "./seat-projection";
+// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room。
+// #431 起逐座位下行只经 assembleDownlinkShot 装配单口(redaction 必经步),校准触发
+// 登记(CALIBRATION_*)同居该模块;eventsMsg 随 events 直发退役出本文件。
+import {
+  assembleDownlinkShot,
+  CALIBRATION_EVENT_KINDS,
+  CALIBRATION_WINDOWS,
+  lobbyView,
+  seatMeta,
+} from "./seat-projection";
 import { FileRoomPersistence, type HostConfig } from "./room-persistence";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
@@ -184,11 +192,13 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
 }
 // ──────────────────────────── 全量下行三类状态(#388 折叠切换⑥,ADR-0020 终局形态)────────────────────────────
 // 同步模型切换落定:正常对局不再按转移广播逐步快照,事件批消息(#390)是唯一对局状态
-// 通路。全量下行只剩三类(ADR-0020 决策 2/3/6),#381 起全部按接收座位投影(保密后补:
-// ADR-0016 冻结的 redactSnapshotForSeat 复活,新增 redactEvents 与之同居 seat-projection.ts):
-//   ① 首连/重连整房摘要 —— WS open 时 clientView 带接收座位:该座位的
+// 通路。全量下行只剩三类(ADR-0020 决策 2/3/6),#381 起全部按接收座位投影(保密后补,
+// #431 起逐座位下行只经 seat-projection 的 assembleDownlinkShot 装配单口,redaction
+// 是装配必经步):
+//   ① 首连/重连整房摘要 —— WS open 时按接收座位取该座位的
 //      redactSnapshotForSeat 投影(他人锦囊手牌/牌库序/反应窗询问集不出网);
-//   ② 关键节点校准 —— flush 时按引擎公开结算态判定(见 CALIBRATION_*),每座位各发
+//   ② 关键节点校准 —— flush 时按引擎公开结算态判定(触发登记=CALIBRATION_*,
+//      seat-projection),每座位各发
 //      各的 per-seat 投影(同 ①):开局(Setup 三段式全程 + finishSetup 批:开局发牌/
 //      牌库洗序/Setup 字段只发生在此)、破产清算批(playerBankrupt:现金清零/债主收款/
 //      珍宝转债主不折)、决策窗五相位(AwaitingJinnang/HeroPick/Encounter/Exhaustion/
@@ -203,21 +213,13 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
 // 事件批累积/去重/排空/合并拍归共享通道单源(#411,scripts/event-batch.ts):
 // 单机传输面(room.ts transportBroadcast)用同一份批语义,双端行为零变化。
 const eventBatches = new EventBatchChannel();
-/** 决策窗校准相位(#388):进入/停留/退出都强制全量(判定依据=引擎公开 turnPhase)。 */
-const CALIBRATION_WINDOWS: ReadonlySet<string> = new Set([
-  "AwaitingJinnang",
-  "AwaitingHeroPick",
-  "AwaitingEncounter",
-  "AwaitingExhaustion",
-  "AwaitingBankruptcySettle",
-]);
-/** 节点事件校准(#388):批内出现即全量。牌库洗牌只发生在 finishSetup(buildJinnangDeck),
- *  随 gameStarted 批覆盖;core 现无中途洗牌,将来新增须随事件产出在此登记。 */
-const CALIBRATION_EVENT_KINDS: ReadonlySet<string> = new Set(["gameStarted", "playerBankrupt"]);
+// 校准触发登记(#388 判定口径,#431 归口):CALIBRATION_WINDOWS/CALIBRATION_EVENT_KINDS
+// 类型化单源迁居 seat-projection(与装配口同居;phase/kind 改名=编译红,覆盖对账见
+// 同模块 CALIBRATION_COVERAGE),本文件只保留 flush 侧的相位基线记录。
 /** 上次下发的房间元数据指纹(lobby 形状 JSON):变化才发 ③,防元数据变更无车可搭。 */
 const lastRoomMeta = new Map<string, string>();
 /** 上次 flush/open 时引擎结算 turnPhase:决策窗退出检测(退出批无相位事件,如「今不用」)。 */
-const settledTurnPhase = new Map<string, string | null>();
+const settledTurnPhase = new Map<string, TurnPhase | null>();
 
 const registry = new RoomRegistry(
   persistence,
@@ -314,16 +316,9 @@ function flushRoom(roomId: string): void {
   const r = registry.get(roomId);
   if (!pending || !r) return;
   const online = onlineSeatsOf(roomId);
-  // 事件批消息(#390):先发(因果在前、状态在后);每座位各发一份 redactEvents 过滤批
-  // (#381 保密后补:发送总口单点,未知 kind 过滤函数当场炸)。序列化成本×座位数可接受
-  // ——对齐旧 per-seat 快照模型,六人局事件批远小于全量快照。
-  if (events && events.length > 0) {
-    for (const ws of socketsOf(roomId).values()) {
-      if (ws.readyState === WebSocket.OPEN) ws.send(eventsMsg(redactEvents(events, ws.data.seat)));
-    }
-  }
   // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
-  // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。
+  // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。先于装配求值:它
+  // 决定每拍是否随发 ②(快照含全量 log,非校准拍不白付 O(log) 序列化)。
   const e = r.engine;
   const settled = e?.turnPhase ?? null;
   const prev = settledTurnPhase.get(roomId) ?? null;
@@ -332,15 +327,28 @@ function flushRoom(roomId: string): void {
     e != null &&
     (e.phase === "Setup" ||
       (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
-      CALIBRATION_WINDOWS.has(settled ?? "") ||
-      CALIBRATION_WINDOWS.has(prev ?? ""));
+      (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+      (prev != null && CALIBRATION_WINDOWS.has(prev)));
+  // 逐座位单拍下行(#431 装配单口):事件批消息(#390)因果在前、状态在后;校准拍
+  // 摘要随车(每座位各发各的 redactSnapshotForSeat 投影,#381:god-view 退役)。
+  // redaction 在装配内必经(#381 保密后补,未知 kind 当场炸),本文件不再直呼
+  // redactEvents/clientView。事件半边恒装配(空批自然产出 null);摘要半边只在校准
+  // 拍构造(快照含全量 log,非校准拍不白付 O(log) 序列化)。序列化成本×座位数可接受
+  // ——六人局事件批远小于全量快照。
+  if (events && events.length > 0) {
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        const msg = assembleDownlinkShot(r, online, ws.data.seat, events, false).events;
+        if (msg != null) ws.send(msg);
+      }
+    }
+  }
   const metaJson = encodeDownlink(lobbyView(r, online));
   if (calibrate) {
-    // 关键节点校准(②):每座位各发各的 redactSnapshotForSeat 投影(#381 保密后补:
-    // 冻结函数复活,god-view 退役),自带房间字段,元数据指纹随车更新
+    // 关键节点校准(②):每座位一份纯摘要拍,自带房间字段,元数据指纹随车更新
     for (const ws of socketsOf(roomId).values()) {
       if (ws.readyState === WebSocket.OPEN)
-        ws.send(encodeDownlink(clientView(r, online, ws.data.seat)));
+        ws.send(assembleDownlinkShot(r, online, ws.data.seat, [], true).snapshot);
     }
     lastRoomMeta.set(roomId, metaJson);
   } else if (lastRoomMeta.get(roomId) !== metaJson) {
@@ -675,11 +683,11 @@ Bun.serve<WsSeat>({
       flushRoom(roomId);
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
-      // 首连/重连整房摘要(①,#388/ADR-0020 决策 4):clientView 带接收座位 = 该座位的
-      // redactSnapshotForSeat 投影(#381 保密后补:冻结函数复活,他人锦囊手牌/牌库序/
-      // 反应窗询问集不出网);重连语义=整房摘要水合,断线期间事件不补发(无 seq/ack,
-      // 决策 4)。
-      ws.send(encodeDownlink(clientView(room, onlineSeatsOf(roomId), seat)));
+      // 首连/重连整房摘要(①,#388/ADR-0020 决策 4):经装配单口取该座位的
+      // redactSnapshotForSeat 投影(#381 保密后补,他人锦囊手牌/牌库序/反应窗询问集
+      // 不出网);重连语义=整房摘要水合,断线期间事件不补发(无 seq/ack,决策 4)。
+      // 批已强制排空(上方 flushRoom),此处纯摘要拍:batch=[],withSnapshot 恒真。
+      ws.send(assembleDownlinkShot(room, onlineSeatsOf(roomId), seat, [], true).snapshot);
       settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
       // 在线集变化通知他人:flush 按元数据指纹差异补发 lobby(③);结算相位基线已登记
       broadcast(roomId);
