@@ -105,8 +105,9 @@ export function registeredClientPackages(): readonly ExtensionManifest[] {
 }
 
 // ── 接口位(第一版不实现,登记防忘;总登记见 core/extension-contract.ts)──
-// ◻ 问询弹层挂点:定制问询的 UI 消费点(引擎无匹配 choices 时回调 askPlayer 出选项集
-//   + 弹层按呈现意图渲染)——引擎挂点与渲染接线归后续票(类型+注册位+示例已落,#410)。
+// ◻ 问询弹层挂点:定制问询的 UI 消费点(引擎挂点已落,#432:askInquiry 挂起 id、无匹配
+//   choices 时 choicesFor 按 id 回调出选项集并盖 inquiryId 章;剩弹层按呈现意图渲染的
+//   接线归 #424)。
 // ◻ 牌面/立绘渲染扩展:自定义牌面装配、立绘替换 hook——后续票(本版仅将旗)。
 // ◻ 自定义面板:扩展自有 UI 面板挂点——后续票。
 // ◻ 音效/动效词表:扩展专属 SoundEvent/表现事件种类(现复用既有 PresentationEvent)——后续票。
