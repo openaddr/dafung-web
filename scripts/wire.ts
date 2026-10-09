@@ -47,8 +47,8 @@ export interface EventBatchMsg {
   events: GameEvent[];
 }
 
-/** lobby/snapshot 共带的房间字段(与客户端 netStore.NetRoomFields 投影一致;
- *  产出单源 seat-projection 的 clientView/lobbyView)。 */
+/** lobby/snapshot 共带的房间字段(产出单源 seat-projection 的 clientView/lobbyView;
+ *  客户端 netStore 的 NetRoomFields 从此别名投影,不再手抄同形接口)。 */
 export interface WireRoomFields {
   roomId: string;
   host: number;
@@ -68,7 +68,8 @@ export type ServerMsg =
   | { type: "dismissed"; roomId: string }
   | { type: "error"; error: string };
 
-/** 事件批消息构造(flush 下行;per-seat 过滤在调用方 seat-projection redactEvents)。 */
+/** 事件批消息构造(flush 下行;per-seat 脱敏在装配单口 assembleDownlinkShot 内部
+ *  完成——#431 起 redaction 是装配必经步,本构造函数只管已装配批的封装)。 */
 export function eventsMsg(events: GameEvent[]): string {
   return JSON.stringify({ type: "events" as const, events });
 }

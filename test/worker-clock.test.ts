@@ -9,7 +9,8 @@
 import { describe, it, expect } from "bun:test";
 import { createWorkerClock, latestWorkerClock } from "../src/app/net/worker-clock";
 import type { RoomClock } from "../scripts/room";
-import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
+import type { RoomPersistence } from "../scripts/room-persistence";
+import type { RoomRecord } from "../scripts/room-record";
 import { RoomRegistry } from "../scripts/room";
 import { MAP } from "../scripts/engine-helpers";
 

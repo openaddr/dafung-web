@@ -2,7 +2,7 @@
 // 让 Room 模块本身零 fs 依赖。默认实现 FileRoomPersistence 落 data/rooms/*.json,
 // 与原 server.ts 行为逐字节一致(同一目录、同一文件名、同一 JSON 形状)。
 // 测试可注入 InMemory 实现。记录形状(RoomRecord 及子形状)与水合纯逻辑单源在
-// room-record.ts(#427);本模块只管介质(fs 落盘/读档),再导出形状维持原引用面。
+// room-record.ts(#427);本模块只管介质(fs 落盘/读档),形状消费方直引 room-record.ts。
 import {
   mkdirSync,
   readFileSync,
@@ -13,11 +13,6 @@ import {
 } from "node:fs";
 import { join, resolve } from "node:path";
 import type { RoomRecord } from "./room-record";
-
-// ──────────────────────────── 形状再导出(维持原引用面)────────────────────────────
-// HostConfig/PersistedSeat/RoomRecord 本体在 room-record.ts(#427 单源);server.ts /
-// src/app/controllers/local.ts / 各测试历史上经本模块取这些类型,再导出免改引用面。
-export type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 
 // ──────────────────────────── 持久化接口 ────────────────────────────
 export interface RoomPersistence {
