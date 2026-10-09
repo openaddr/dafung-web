@@ -3,7 +3,8 @@
 // InMemory 持久化注入(同 room.test.ts 口径),零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError, type SeatEndpoint } from "../scripts/room";
-import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
+import type { RoomPersistence } from "../scripts/room-persistence";
+import type { RoomRecord } from "../scripts/room-record";
 import { MAP } from "../scripts/engine-helpers";
 
 class InMemoryPersistence implements RoomPersistence {

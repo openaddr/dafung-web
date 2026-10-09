@@ -833,6 +833,33 @@ describe("出牌指示线(#281/P2-E,事件批直译)", () => {
   });
 });
 
+// ─────────────── 跨批宣布游标生命周期(#430 票项 3)───────────────
+describe("跨批宣布游标生命周期(#430 票项 3)", () => {
+  it("同引擎跨批衔接:宣布批与识破批分离时,识破线仍指回被拆计使用者", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    synth(e, [
+      { kind: "jinnangAnnounced", seat: 0, round: 1, turn: 1, cardId: "连环计", targetSeats: [1] },
+    ]);
+    const out = synth(e, [{ kind: "jinnangVoided", seat: 1, round: 1, turn: 2, cardId: "连环计" }]);
+    expect(out.some((ev) => ev.kind === "jinnangPlayed")).toBe(true); // 游标跨批存活
+  });
+
+  it("换引擎即新游标:旧局宣布不泄入新局(手工 reset 配对退役后,reset 忘调类 bug 结构性消失)", () => {
+    const ea = makeEngine(7);
+    finishSetup(ea);
+    synth(ea, [
+      { kind: "jinnangAnnounced", seat: 0, round: 1, turn: 1, cardId: "连环计", targetSeats: [1] },
+    ]);
+    const eb = makeEngine(9); // 新一局 = 新引擎实例,游标必须全新
+    finishSetup(eb);
+    const out = synth(eb, [
+      { kind: "jinnangVoided", seat: 1, round: 1, turn: 1, cardId: "连环计" },
+    ]);
+    expect(out.some((ev) => ev.kind === "jinnangPlayed")).toBe(false); // 旧局游标不得越局
+  });
+});
+
 // ─────────────── 播放器 present + memorySink(顺序=事件数组顺序)───────────────
 describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
   it("串行播放:骰子 → 行军 → 浮字 → 横幅,顺序与事件数组一致", async () => {

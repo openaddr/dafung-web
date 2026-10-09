@@ -1,7 +1,8 @@
 // 单机控制器(#398 单机统一 B):「服务器住在本进程」——进程内起房间编排
 // (scripts/room.ts RoomRegistry,与联机 server.ts 同一份编排),经 MemorySocket
 // (src/app/net/transport.ts 内存双工)驱动:
-//   命令上行 = {type:"cmd"|"pickCapital"|"autoPilot"}(与联机 WS wire format 逐字同契约);
+//   命令上行 = wire 协议三族消息(编码/解析/分发单源 scripts/wire.ts #429,与联机 WS
+//              同一本体,不再「同契约」双写);
 //   推进     = 房间编排引擎/bot 链(driveBots)/看门狗(#188 自动起摇、#281 反应窗),
 //              事件批经 transportBroadcast 合并成单拍下行(events 先行、整房摘要随后);
 //   演出消费 = 与联机同一通路(SnapshotEffects → extractBatchEvents → present);
@@ -16,7 +17,6 @@ import type { EncounterConfig } from "@core/encounters";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
-import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch } from "@app/net/event-feed";
 import { e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
@@ -25,16 +25,18 @@ import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 // 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
 import type { RoomSession } from "../../../scripts/room";
-import type { RoomPersistence, RoomRecord } from "../../../scripts/room-persistence";
-import type { ServerMsg } from "./online";
-import { reactionQueriesSeat } from "./reaction";
+import type { RoomPersistence } from "../../../scripts/room-persistence";
+import type { RoomRecord } from "../../../scripts/room-record";
+// wire 协议编解码单源(#429):上行编码(cmdMsg 等)+ 解析分发(dispatchInbound)、
+// 下行消息类型(ServerMsg)全部从这里 import,与联机 server.ts/online.ts 同一份。
+import {
+  autoPilotMsg,
+  cmdMsg,
+  dispatchInbound,
+  pickCapitalMsg,
+  type ServerMsg,
+} from "../../../scripts/wire";
 import { GameController } from "./controller";
-
-/** 上行消息(room 通路与联机 WS wire format 同契约;server.ts message 处理器同族)。 */
-type HostInbound =
-  | { type: "cmd"; cmd: GameCommand }
-  | { type: "pickCapital"; tileIndex: number }
-  | { type: "autoPilot"; on: boolean; speed?: string };
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
  *  isBot 布点与首座(=host 真人)的预设国号——名字/起手银两不进房间通路
@@ -87,14 +89,12 @@ export class LocalController extends GameController {
   private readonly _engine: GameEngine;
   /** 单机恒 seat 0(host 真人;createRoom 强约束 seat0=human)。 */
   readonly seat = 0;
-  /** 命令已发出、下行拍未回(防连点;联机 pending 的单机对应物)。 */
-  private pending = false;
-  /** 事件批表现消费器:与联机同一实例、同一播放队列(netStore 暂存批 → 直译 → present)。 */
-  private readonly fx: SnapshotEffects;
-  /** 已收首帧整房摘要(起签转入沿检测在此之前不启用,与联机 enteredGame 同语义)。 */
-  private enteredGame = false;
-  /** 上一拍是否处于「我的 Roll 等待态」(起签印的转入沿检测基准)。 */
-  private prevMyRollWait = false;
+  /** 交互策略参数(#433 上收基类单源):热座=true——屏前唯一真人座即 seat,
+   *  决策方是 bot 则无人可操作,isBot 判定即座位匹配,不再要求决策方===本座。 */
+  protected override readonly hotSeat = true;
+  protected override get mySeat(): number {
+    return this.seat;
+  }
   /** 上一拍各座位棋子位置(行军锚定基准):内存直连下引擎已在转移后,「转移前视觉
    *  停点」取上一拍同步时的位置(联机「折叠前捕获」的单机对应拍,语义等价)。 */
   private prePositions: ReadonlyArray<number | null>;
@@ -149,7 +149,7 @@ export class LocalController extends GameController {
     const pair = createMemorySocketPair(created.seat);
     this.sock = pair.client;
     pair.client.onMessage((data) => this.onMessage(JSON.parse(data) as ServerMsg));
-    pair.host.onClientMessage((data) => this.hostDispatch(JSON.parse(data) as HostInbound));
+    pair.host.onClientMessage((data) => this.hostDispatch(data));
     this.registry.connectSeat(this.roomId, created.seat, created.token, pair.host);
     // 开局:startGame 同步段建引擎(doDraftRoll)+ driveBots 把 bot 选都驱动到轮到
     // 人类;构造返回时引擎必已就位(同步段直抛 = 起兵失败,App catch 显式报错)。
@@ -164,10 +164,6 @@ export class LocalController extends GameController {
     this._engine = engine;
     setEngine(engine);
     this.prePositions = engine.players.map((p) => p.position);
-    this.fx = new SnapshotEffects(
-      () => this._engine,
-      () => this.sync(),
-    );
     this.sync();
   }
 
@@ -181,34 +177,16 @@ export class LocalController extends GameController {
     return this._engine.decisionOwner;
   }
 
-  /** 此刻本地玩家能否操作:与联机 OnlineController 同构(差异锁 = pending),
-   *  反应窗例外:被询问座位可应答(决策方仍是出牌者,decisionOwner 不适用)。 */
-  get interactive(): boolean {
-    const e = this._engine;
-    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-      const pr = e.pendingReaction;
-      if (pr == null) return false;
-      return !this.pending && reactionQueriesSeat(pr.view, this.seat);
-    }
-    return (
-      e.phase === "Playing" &&
-      !e.players[e.decisionOwner]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn &&
-      !this.fx.playing
-    );
-  }
-
   /** 我的座位托管中(进程内直读房间会话;房间级元数据不走传输,联机=广播回读)。 */
   override get autoPilotOn(): boolean {
     return this.room.autoPilot.has(this.seat);
   }
 
-  // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire format)───
+  // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
   dispatchCommand(cmd: GameCommand): void {
     if (!this.interactive) return; // 非本地决策时忽略(引擎自身也有相位守卫,双保险)
     this.pending = true;
-    this.sock.send(JSON.stringify({ type: "cmd", cmd }));
+    this.sock.send(cmdMsg(cmd));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -220,13 +198,13 @@ export class LocalController extends GameController {
     if (e.currentSetupPlayerIndex !== this.seat) return;
     if (this.pending || this.autoPilotOn) return;
     this.pending = true;
-    this.sock.send(JSON.stringify({ type: "pickCapital", tileIndex }));
+    this.sock.send(pickCapitalMsg(tileIndex));
     this.sync();
   }
 
   /** 自助托管:发 {type:"autoPilot"},生效态从房间会话回读(无乐观更新,联机同构)。 */
   override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
-    this.sock.send(JSON.stringify({ type: "autoPilot", on, speed }));
+    this.sock.send(autoPilotMsg(on, speed));
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -265,59 +243,40 @@ export class LocalController extends GameController {
     useGameStore.getState().pushHint(msg.error);
   }
 
-  /** 起签转入沿(#188):本座位进入 Roll 等待态(房间 ~1s 看门狗自动起摇)→ 钤「签」印。
-   *  与联机 checkRollSeal 同款,托管中由服务器代打不播。 */
-  private checkRollSeal(): void {
-    const e = this._engine;
-    const myRollWait =
-      e.phase === "Playing" &&
-      e.turnPhase === "Roll" &&
-      e.decisionOwner === this.seat &&
-      !e.players[this.seat]?.isBot &&
-      !this.autoPilotOn;
-    if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
-    this.prevMyRollWait = myRollWait;
-  }
-
   protected override sync(): void {
     super.sync();
     // 拍后落锚:本拍位置成为下一拍的「转移前视觉停点」(行军余段截短基准)。
     this.prePositions = this._engine.players.map((p) => p.position);
   }
 
-  // ─── 宿主侧消息分发(= server.ts ws message 处理器的进程内对应物)───
-  /** 三族上行进房间编排公共入口;RoomError(校验失败)显式闪提示 + 解锁 pending
-   *  (联机 error 下行的单机直达),其余异常照炸(零兜底)。 */
-  private hostDispatch(msg: HostInbound): void {
-    const report = (err: unknown): void => {
-      useGameStore.getState().pushHint(err instanceof Error ? err.message : String(err));
-      this.pending = false; // 命令未生效:解锁等下一拍
-    };
-    if (msg.type === "cmd") {
-      this.registry
-        .applyCommand(this.roomId, msg.cmd, () => this.registry.transportBroadcast(this.roomId))
-        .catch(report);
-      return;
-    }
-    if (msg.type === "pickCapital") {
-      this.registry
-        .pickCapital(this.roomId, this.seat, msg.tileIndex, () =>
+  // ─── 宿主侧消息分发(= server.ts ws message 处理器的进程内对应物,同一 codec 本体)───
+  /** 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,双写退役。
+   *  错误按类送通道(两传输面只管送达的 seam):rejected(编排校验失败,如非法命令
+   *  竞态)→ pushHint + 解锁 pending(联机 error 下行的单机直达);badJson/unknownShape
+   *  在内存面结构上不可能(上行只经 wire 构造函数发出),真出现 = 自身 bug,照炸
+   *  (零兜底,不静默吞成提示)。 */
+  private hostDispatch(raw: string): void {
+    void dispatchInbound(raw, {
+      cmd: (cmd) =>
+        this.registry.applyCommand(this.roomId, cmd, () =>
           this.registry.transportBroadcast(this.roomId),
-        )
-        .catch(report);
-      return;
-    }
-    if (msg.type === "autoPilot") {
-      const speed = msg.speed === "slow" ? "slow" : "fast";
-      this.registry
-        .setAutoPilot(this.roomId, this.seat, msg.on, speed, () =>
+        ),
+      pickCapital: (tileIndex) =>
+        this.registry.pickCapital(this.roomId, this.seat, tileIndex, () =>
           this.registry.transportBroadcast(this.roomId),
-        )
-        .catch(report);
-      return;
-    }
-    throw new Error(
-      `hostDispatch:未知上行消息形状(type=${String((msg as { type?: string }).type)})`,
-    );
+        ),
+      setAutoPilot: (on, speed) =>
+        this.registry.setAutoPilot(this.roomId, this.seat, on, speed, () =>
+          this.registry.transportBroadcast(this.roomId),
+        ),
+    }).then((result) => {
+      if (result.ok) return;
+      if (result.reason === "rejected") {
+        useGameStore.getState().pushHint(result.message);
+        this.pending = false; // 命令未生效:解锁等下一拍
+        return;
+      }
+      throw new Error(`hostDispatch:上行消息结构性失败(${result.reason}):${result.message}`);
+    });
   }
 }

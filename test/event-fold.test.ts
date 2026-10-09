@@ -97,14 +97,17 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     expect(e.players[1].position).toBe(5);
   });
 
-  it("未知/校准档 kind 忽略:词汇生长不炸、字段不动(范围定义非吞错)", () => {
+  it("零操作档与线上未知 kind 忽略:档位表口径(范围定义非吞错,#430)", () => {
     const e = makeEngine();
     e.players[0].position = 4;
     const cash0 = e.players[0].cash;
     e.players[1].treasures.push({ ...TREASURES[0], id: "edict-0" });
 
-    // diceRolled 已登记且在折叠范围,此处仅占位;treasureStolen = 已登记但校准档
-    //(窃玉偷香转移五项之二,宣告不转移);futureKind = 词汇表将来扩展的透传形状。
+    // 档位表(core/event-tiers EVENT_TIERS)口径:
+    // - diceRolled = must-fold 档,正常折;
+    // - treasureStolen = calibration-only 档(校准兜底五项之二,宣告不转移),default 忽略;
+    // - futureKind = 词汇表将来扩展的线上透传形状,不在档位联合内 → 忽略(ADR-0020 既定
+    //   口径)。已登记 kind 不可能漏档位:satisfies 映射在写码那刻强制登记。
     const future = {
       kind: "futureKind",
       someField: 1,
@@ -129,17 +132,17 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
     expect(e.players[0].treasures).toHaveLength(0);
   });
 
-  it("无主座位(seat=null)的折叠族事件当场炸(产出契约违反,零兜底)", () => {
+  it("无有效座位(seat=null/越界)的折叠族事件当场炸(产出契约违反,零兜底)", () => {
     const e = makeEngine();
     expect(() =>
       foldEventBatch(e, [ev(null, { kind: "cashChanged", delta: 100, reason: "supply" })]),
-    ).toThrow(/无主座位/);
+    ).toThrow(/无有效座位/);
     expect(() =>
       foldEventBatch(e, [ev(null, { kind: "marchArrived", tileIndex: 3, path: path(3) })]),
-    ).toThrow(/无主座位/);
+    ).toThrow(/无有效座位/);
     expect(() =>
       foldEventBatch(e, [ev(null, { kind: "heroRecruited", heroId: "zhouyu" })]),
-    ).toThrow(/无主座位/);
+    ).toThrow(/无有效座位/);
   });
 });
 

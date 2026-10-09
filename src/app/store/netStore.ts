@@ -1,34 +1,23 @@
 // 联机状态 store(阶段 8):大厅/房间态的响应式数据源。
 // 与 gameStore 分开:gameStore 管「对局快照」,本 store 管「房间元数据」(座位在线/
 // 房主/选图/托管标记)——它们的生命周期不同(房间先于对局存在),混在一起会让
-// snapshot 浅比较被无关字段污染。协议字段与 scripts/room.ts 的 lobbyView/seatMeta 一一对应。
+// snapshot 浅比较被无关字段污染。协议字段单源 scripts/wire.ts WireRoomFields(#429
+// 协议形状;本 store 类型直投影,不再手抄「同形接口+注释互指」)。
 import { create } from "zustand";
 import type { GameController } from "@app/controllers/controller";
 import type { GameEvent } from "@core/game-events";
 // #117 收编:提示 TTL 统一收口 fx/timings.ts(与 gameStore 同一常量 UI.hintTtlMs)。
 import { UI } from "@app/fx/timings";
+// 房间字段协议单源(wire.ts #429;app→scripts 类型导入,构建期擦除,先例 local.ts)。
+import type { WireRoomFields } from "../../../scripts/wire";
 
-/** 座位元数据(服务器 seatMeta 原样转发;字段语义见 scripts/room.ts)。 */
-export interface NetSeatMeta {
-  seat: number;
-  kind: "human" | "bot";
-  taken: boolean;
-  online: boolean;
-  controlled: boolean;
-  /** 自助托管中(bot 代打,身份仍是真人)。 */
-  autoPilot: boolean;
-  /** 预设国号(E7/#19);null = 未预设/bot,开局由引擎分配。大厅据它画单字方章。 */
-  guohao: string | null;
-}
+/** 座位元数据 = 协议座位形状(服务器 seatMeta 产出,单源 seat-projection.ts;
+ *  字段语义见该模块,不再手抄接口)。 */
+export type NetSeatMeta = WireRoomFields["seats"][number];
 
-/** lobby / snapshot 消息共有的房间字段(clientView 两种形态都带,见 room.ts 注释)。 */
-export interface NetRoomFields {
-  roomId: string;
-  host: number;
-  started: boolean;
-  mapId: string | null;
-  seats: NetSeatMeta[];
-}
+/** lobby / snapshot 消息共有的房间字段(clientView 两种形态都带)= 协议形状单源
+ *  WireRoomFields 的客户端别名(原手抄同形接口已退役)。 */
+export type NetRoomFields = WireRoomFields;
 
 export interface NetStoreState extends NetRoomFields {
   /** 本端座位(-1 = 未入座)。 */

@@ -88,6 +88,10 @@ _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
 选项集 ≤1 时引擎自动执行的那一个行为(如放弃购买)。
 _Avoid_: fallback choice(不是兜底,是产品决策)
 
+**定制问询(Custom Inquiry,#432,ADR-0022)**:
+扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)记挂起问询,挂起态 `pendingInquiry` 随快照序列化;无匹配 choices 的相位由挂点按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。id 查无注册问询 = 当场炸(零兜底)。UI 接线归 #424。
+_Avoid_: 自定义问询(ADR-0022 行文旧用词,定名「定制问询」)、自定义弹窗(那是呈现面 inquiryPresentation 的事,不是问询本身)
+
 **对局日志(Game Log)**:
 一局一个 jsonl 文件(联机=服务器 data/logs/,单机=IndexedDB),局头(地图/seed/座位)+中文事件流+机读 params+玩家命令流双层(纯归档:不承诺跨版本复现,ADR-0021)。30 天保底清理。见 ADR-0014。对局屏里的**战报抽屉**(#255)是它的玩家面:右缘把手展开,只读玩法事件(中文简报),机读/审计行(header/cmd/room/final)不入战报。
 _Avoid_: 战报(裸用——现专指对局屏抽屉这件 UI,别再拿它指 jsonl 文件)、history
@@ -234,5 +238,9 @@ _Avoid_: 名将技(旧「名将」称谓)、大招(游戏黑话)、手动技(口
 _Avoid_: 机遇(那是玩法机制,见「机遇」)、日志事件(LogEvent,对局日志行)、表现事件(app 层投影出的动效原语,消费事件流的下游产物)
 
 **事件流(Event Stream)**:
-ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/jinnangVoided/jinnangInflicted)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
+ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/jinnangVoided/jinnangInflicted)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
 _Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnangPlay.seq)、事件总线(那是时机总线 dispatchMoment——技能挂点框架,事件流借其宣告点产出,二者不是一物)
+
+**消费档位(Consumption Tier,#430)**:
+事件流每个 kind 的双面消费档位登记,单源 `src/core/event-tiers.ts` `EVENT_TIERS`:38 个 kind 每个必声明 fold 面×fx 面两格——fold 面(net/event-fold.ts 折叠消费)四档 must-fold(精确折)/fold+calibration(折+校准双覆盖,已知漂移窗由快照校准纠正)/declarative(声明性无转移)/calibration-only(校准兜底,折叠面刻意不折),fx 面(fx/event-extract.ts 表现消费)两档 presented(有表现)/silent(无表现);词汇表新增 kind 未登记档位 = 编译期红(防遗漏机器,派生集约束两消费器 switch 穷尽)。与机遇「档位(Fortune Tag)」无涉:那是好运/中性/霉运的三分定性,消费档位是事件消费面的机器可查判定数据。
+_Avoid_: 档位(裸用——与机遇 Fortune Tag 混淆,见该词条)、判定表(旧散文注释形态,已升为机器可查数据)

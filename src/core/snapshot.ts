@@ -151,6 +151,10 @@ export interface GameSnapshot {
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):军师幕选技后的选人子状态;null=无。 */
   pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
+  /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 挂起的问询 id 句柄 + 透传参数;
+   *  null=无。选项集纯派生(choicesFor 按 id 回调注册问询),但句柄必须随快照走——
+   *  恢复/联机后无句柄则派生不出同一选项集,问询静默蒸发。 */
+  pendingInquiry: { id: string; params: Record<string, number> } | null;
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
@@ -438,6 +442,17 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => (e.pendingSkill ? { ...e.pendingSkill } : null),
     write: (e, s) => {
       e.pendingSkill = s.pendingSkill ? { ...s.pendingSkill } : null;
+    },
+  },
+  {
+    // 定制问询挂起载荷(#432):id 句柄 + 透传参数随快照走(恢复后同一问询可续)
+    key: "pendingInquiry",
+    read: (e) =>
+      e.pendingInquiry ? { ...e.pendingInquiry, params: { ...e.pendingInquiry.params } } : null,
+    write: (e, s) => {
+      e.pendingInquiry = s.pendingInquiry
+        ? { ...s.pendingInquiry, params: { ...s.pendingInquiry.params } }
+        : null;
     },
   },
   {

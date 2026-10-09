@@ -6,7 +6,8 @@
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry } from "../scripts/room";
 import type { RoomClock } from "../scripts/room";
-import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
+import type { RoomPersistence } from "../scripts/room-persistence";
+import type { RoomRecord } from "../scripts/room-record";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
 

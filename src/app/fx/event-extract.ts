@@ -10,34 +10,47 @@
 // 行军各播各段,不再依赖引擎 lastMove 单槽;反应窗续走的余段用转移前位置(prePositions)
 // 截短——与单机 remainingMarchPath 同一公式;对不上的路径不播动画、不做 diff 重建。
 import type { GameEngine } from "@core/authority";
-import type { GameEvent } from "@core/game-events";
+import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
-import { ENCOUNTERS } from "@core/encounters";
-import { HEROES } from "@core/heroes";
+import {
+  activeSkillDefOf,
+  encounterDefOfId,
+  eventSeat,
+  eventSeatPlayer,
+  heroDefOf,
+  type AnnounceCursor,
+  type FxPresentedKind,
+} from "@core/event-tiers";
 import { extensionAnimationHandlers } from "@app/extensions/registry";
 import { remainingMarchPath } from "./orchestrator";
 import type { FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
 
-/** 跨批游标:最近一次锦囊宣布(识破线指回被拆计的使用者/目标用——jinnangVoided 不带
- *  被拆方座位,ReactionAnswered 亦无指向;反应窗「宣布批 → 应答批」跨批因果由此衔接)。
- *  模块级(与旧横幅去重游标同款生命周期),resetFxOrchestration 一并清。 */
-let lastAnnounce: { seat: number; cardId: string; targetSeats: number[] } | null = null;
+/** 跨批宣布游标(形状单源 core/event-tiers AnnounceCursor,#430 票项 3):最近一次锦囊
+ *  宣布(识破线指回被拆计的使用者/目标用——jinnangVoided 不带被拆方座位,ReactionAnswered
+ *  亦无指向;反应窗「宣布批 → 应答批」跨批因果由此衔接)。
+ *  生命周期 = 引擎实例(一局一实例):WeakMap 键控注册表让换局/换图天然拿到全新游标,
+ *  无需任何手工 reset 配对(reset 忘调类 bug 结构性消失);旧模块级 let 与
+ *  resetEventExtractCursors 的手工配对已退役,游标在提取链内显式对象传递。 */
+interface ExtractCursors {
+  lastAnnounce: AnnounceCursor | null;
+}
 
-/** 重置跨批游标(重开局时随 resetFxOrchestration 调用)。 */
-export function resetEventExtractCursors(): void {
-  lastAnnounce = null;
+const cursorsByEngine = new WeakMap<GameEngine, ExtractCursors>();
+
+function cursorsOf(engine: GameEngine): ExtractCursors {
+  let cursors = cursorsByEngine.get(engine);
+  if (cursors == null) {
+    cursors = { lastAnnounce: null };
+    cursorsByEngine.set(engine, cursors);
+  }
+  return cursors;
 }
 
 // ─────────────────────── 取数辅助(契约违反当场炸出,零兜底) ───────────────────────
-/** 事件行动者座位(引擎产出契约:座位型事件恒带有效 seat;缺=产出侧 bug)。 */
-function seatOf(engine: GameEngine, ev: GameEvent): number {
-  if (ev.seat == null || ev.seat < 0 || ev.seat >= engine.players.length)
-    throw new Error(`事件消费:${ev.kind} 缺有效座位(seat=${ev.seat},产出侧契约违反)`);
-  return ev.seat;
-}
-
+// 行动者座位校验单源 core/event-tiers(eventSeat);名将/主动技/机遇目录回查同源
+// (heroDefOf/activeSkillDefOf/encounterDefOfId),文案不再分叉。
 function guohaoOf(engine: GameEngine, seat: number): string {
   return engine.players[seat].guohao;
 }
@@ -88,18 +101,8 @@ function propertyChangedEvent(
   };
 }
 
-function heroNameOf(heroId: string): string {
-  return HEROES.find((h) => h.id === heroId)?.name ?? heroId;
-}
-
-/** 主动技名(heroes 表按 skillId 现查;查不到=数据 bug,炸出)。 */
-function activeSkillNameOf(skillId: string): string {
-  for (const h of HEROES) {
-    if (h.active?.id === skillId) return h.active.name;
-  }
-  throw new Error(`事件消费:主动技 ${skillId} 不在 HEROES 表(数据 bug)`);
-}
-
+// 名将/主动技目录回查单源 core/event-tiers(heroDefOf/activeSkillDefOf);旧本地
+// heroNameOf 的 `?? heroId` 兜底随单源化退役——名将查无是数据 bug,炸出不静默。
 function signed(n: number): string {
   return `${n >= 0 ? "+" : "−"}${Math.abs(n)}`;
 }
@@ -132,12 +135,7 @@ function tileNameOfProperty(engine: GameEngine, propertyId: string): string {
   return engine.board.at(tileOfProperty(engine, propertyId)).name;
 }
 
-/** 机遇目录条目按 id 查(id 缺目录 = 数据 bug,炸出)。 */
-function encounterDefOf(encounterId: string) {
-  const def = ENCOUNTERS.find((c) => c.id === encounterId);
-  if (def == null) throw new Error(`事件消费:机遇 ${encounterId} 不在目录(数据 bug)`);
-  return def;
-}
+// 机遇目录条目按 id 查:单源 core/event-tiers(encounterDefOfId)。
 
 /** 金钱浮字(供应=铜钱雨,余=金额浮字)。 */
 function cashFloater(
@@ -207,13 +205,18 @@ function arrivalPresentation(
 }
 
 /** 识破线目标座位:jinnangVoided 带份(shareSeat)指份;不带份按牌域查宣布游标——
- *  连环计/self 指被拆计使用者,one 指原定目标(=宣布时 targetSeats 首位)。 */
-function voidLineTarget(ev: Extract<GameEvent, { kind: "jinnangVoided" }>): number | null {
+ *  连环计/self 指被拆计使用者,one 指原定目标(=宣布时 targetSeats 首位)。游标由
+ *  提取链显式传递(生命周期=引擎实例,见文件头)。 */
+function voidLineTarget(
+  ev: Extract<GameEvent, { kind: "jinnangVoided" }>,
+  cursors: ExtractCursors,
+): number | null {
   if (ev.shareSeat != null) return ev.shareSeat;
-  if (lastAnnounce == null || lastAnnounce.cardId !== ev.cardId) return null;
+  const announce = cursors.lastAnnounce;
+  if (announce == null || announce.cardId !== ev.cardId) return null;
   const domain = jinnangCardOf(ev.cardId).targetDomain;
-  if (domain === "one") return lastAnnounce.targetSeats[0] ?? null;
-  return lastAnnounce.seat; // two-others(全计作废)与 self(落空)都指使用者
+  if (domain === "one") return announce.targetSeats[0] ?? null;
+  return announce.userSeat; // two-others(全计作废)与 self(落空)都指使用者
 }
 
 /** 耗竭跳过文案(#385 缺口 6):批内前置 exhaustionChoice(同座)= 处置明细已定,
@@ -258,30 +261,31 @@ export function extractBatchEvents(
   })();
   const events_: PresentationEvent[] = [];
   const pre = (seat: number): number | null => prePositions?.[seat] ?? null;
+  const cursors = cursorsOf(engine); // 跨批游标(生命周期=引擎实例,显式对象传递)
 
   for (let i = 0; i < events.length; i++) {
     const ev = events[i];
     switch (ev.kind) {
       case "diceRolled": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push({ kind: "diceRolled", die: ev.die, fast: engine.players[seat].isBot });
         break;
       }
       case "marchArrived": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), false));
         break;
       }
       case "capitalHalt": {
         // 驻跸必停:引擎此态不发 marchArrived,行军动画由本事件的落点+路径字段直读
         // (#385:截断到都城的路径随事件走);随后补给铜钱雨压轴。
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), true));
         break;
       }
       case "capitalSelected": {
         // 选都建城:「筑」章 + 建城宣告(易主维度;联机旧 diff 同款表现,单机由此补齐)
-        seatOf(engine, ev); // 建城者座位契约校验(章/宣告锚格,不锚人)
+        eventSeat(engine, ev); // 建城者座位契约校验(章/宣告锚格,不锚人)
         events_.push({ kind: "sealStamped", tileIndex: ev.tileIndex, char: "筑" });
         events_.push(
           propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
@@ -290,7 +294,7 @@ export function extractBatchEvents(
       }
       case "propertyBought": {
         // 购地成交三件套:据章 → buy 音 → 宣告(易主)→ 价款浮字(音效在前、宣告紧随)
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push({
           kind: "sealStamped",
           tileIndex: tileOfProperty(engine, ev.propertyId),
@@ -316,7 +320,7 @@ export function extractBatchEvents(
         events_.push(
           textFloater(
             engine,
-            seatOf(engine, ev),
+            eventSeat(engine, ev),
             ev.reason === "no-warrant"
               ? "无委任状,不可购"
               : ev.reason === "insufficient-cash"
@@ -327,7 +331,7 @@ export function extractBatchEvents(
         break;
       }
       case "cashChanged": {
-        events_.push(cashFloater(engine, seatOf(engine, ev), ev.delta, ev.reason === "supply"));
+        events_.push(cashFloater(engine, eventSeat(engine, ev), ev.delta, ev.reason === "supply"));
         break;
       }
       case "treasureGained": {
@@ -342,7 +346,7 @@ export function extractBatchEvents(
       }
       case "treasureStolen": {
         // 窃宝宣告(#385,窃玉偷香):文案浮字锚窃方位置
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloater(
             engine,
@@ -354,7 +358,7 @@ export function extractBatchEvents(
       }
       case "assetLiquidated": {
         // 破产三变卖:所得浮字;变卖城池=回无主,补易主宣告(旧留痕通道的易主维度)
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(cashFloater(engine, seat, ev.amount, false));
         if (ev.asset.kind === "property")
           events_.push(
@@ -364,14 +368,16 @@ export function extractBatchEvents(
       }
       case "assetTransferred": {
         // 破产清算逐城易主(#385):每处城一条宣告(归属按提取时刻引擎态=承让方/无主)
-        seatOf(engine, ev);
+        eventSeat(engine, ev);
         events_.push(
           propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
         );
         break;
       }
       case "heroRecruited": {
-        events_.push(textFloater(engine, seatOf(engine, ev), `${heroNameOf(ev.heroId)} 来投`));
+        events_.push(
+          textFloater(engine, eventSeat(engine, ev), `${heroDefOf(ev.heroId).name} 来投`),
+        );
         break;
       }
       case "playerBankrupt": {
@@ -380,9 +386,13 @@ export function extractBatchEvents(
       }
       case "jinnangAnnounced": {
         // 出牌(#281 P2-E):线指方向、字报其名——先各目标出线,再文案浮字。
-        // 记宣布游标:识破线(跨批)指回本计的使用者/目标。
-        const seat = seatOf(engine, ev);
-        lastAnnounce = { seat, cardId: ev.cardId, targetSeats: [...ev.targetSeats] };
+        // 记宣布游标(跨批,生命周期=引擎实例):识破线指回本计的使用者/目标。
+        const seat = eventSeat(engine, ev);
+        cursors.lastAnnounce = {
+          userSeat: seat,
+          cardId: ev.cardId,
+          targetSeats: [...ev.targetSeats],
+        };
         const from = engine.board.positionOf(engine.players[seat].position);
         const lines = ev.targetSeats
           .filter((s) => s !== seat)
@@ -405,20 +415,23 @@ export function extractBatchEvents(
         break;
       }
       case "heroSkillActivated": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloater(
             engine,
             seat,
-            `${guohaoOf(engine, seat)} 施展【${activeSkillNameOf(ev.skillId)}】`,
+            `${guohaoOf(engine, seat)} 施展【${activeSkillDefOf(ev.skillId).name}】`,
           ),
         );
         break;
       }
       case "jinnangVoided": {
         // 识破生效(#281):线端=应答者 → 被保份/被拆计方(可解析时),字报结果。
-        const seat = seatOf(engine, ev);
-        const target = voidLineTarget(ev);
+        // shareSeat 过座位契约校验(单源 core/event-tiers,#431 移交顺带项):越界座位
+        // = 产出侧 bug,当场炸出,不静默写 undefined。
+        const seat = eventSeat(engine, ev);
+        if (ev.shareSeat != null) eventSeatPlayer(engine, ev.shareSeat, "jinnangVoided.shareSeat");
+        const target = voidLineTarget(ev, cursors);
         if (target != null && target !== seat) {
           const from = engine.board.positionOf(engine.players[seat].position);
           const to = engine.board.positionOf(engine.players[target].position);
@@ -440,14 +453,14 @@ export function extractBatchEvents(
       }
       case "jinnangInflicted": {
         // 中招宣告(#385,缓兵之计):文案浮字锚中招者位置;实际跳过另有 turnSkipped
-        seatOf(engine, ev);
+        eventSeat(engine, ev);
         events_.push(textFloater(engine, ev.targetSeat, `中【${ev.cardId}】,下回合无法行动`));
         break;
       }
       case "reactionAnswered": {
         // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
         if (ev.use && ev.cardId != null) {
-          const seat = seatOf(engine, ev);
+          const seat = eventSeat(engine, ev);
           const mover = events
             .slice(i + 1)
             .find(
@@ -468,14 +481,14 @@ export function extractBatchEvents(
       }
       case "reactionFailed": {
         // 拦检失败(#385):拼点平/负,牌白耗——文案浮字锚拦检城(事发现场)
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
         );
         break;
       }
       case "staminaChanged": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloater(
             engine,
@@ -488,7 +501,7 @@ export function extractBatchEvents(
         break;
       }
       case "reputationChanged": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloater(
             engine,
@@ -499,7 +512,7 @@ export function extractBatchEvents(
         break;
       }
       case "jinnangDrawn": {
-        const seat = seatOf(engine, ev);
+        const seat = eventSeat(engine, ev);
         events_.push(
           textFloater(
             engine,
@@ -513,8 +526,8 @@ export function extractBatchEvents(
       }
       case "encounterChoice": {
         // 机遇抉择文案(#385 缺口 6):文案属静态目录,事件只带 id+下标,fx 查表派生
-        const seat = seatOf(engine, ev);
-        const option = encounterDefOf(ev.encounterId).choices?.[ev.choiceIndex];
+        const seat = eventSeat(engine, ev);
+        const option = encounterDefOfId(ev.encounterId).choices?.[ev.choiceIndex];
         if (option == null)
           throw new Error(
             `事件消费:机遇 ${ev.encounterId} 选项 #${ev.choiceIndex} 不在目录(数据 bug)`,
@@ -523,12 +536,12 @@ export function extractBatchEvents(
         break;
       }
       case "turnSkipped": {
-        events_.push(textFloater(engine, seatOf(engine, ev), "被跳过一回合"));
+        events_.push(textFloater(engine, eventSeat(engine, ev), "被跳过一回合"));
         break;
       }
       case "turnStarted": {
         if (i === lastTurnStartIdx) {
-          const seat = seatOf(engine, ev);
+          const seat = eventSeat(engine, ev);
           const p = engine.players[seat];
           events_.push({ kind: "turnBanner", guohao: p.guohao, colorIndex: p.colorIndex });
         }
@@ -538,10 +551,17 @@ export function extractBatchEvents(
         events_.push({ kind: "sound", event: "victory" });
         break;
       }
-      // 无表现的词汇(gameStarted/setupCompleted/turnEnded/round*/encounterTriggered/
-      // reactionOpened/treasureSold/skillFired):状态折叠与卷轴/反应窗 UI 的输入,不产演出。
-      default:
+      // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
+      // 走到这里的已登记 kind 必须是 fx=silent 档(回合/胜负生命周期、treasureSold、
+      // skillFired、encounterTriggered、reactionOpened、exhaustionChoice 等:状态折叠
+      // 与卷轴/反应窗 UI 的输入,不产演出)——presented 档漏 case = 下面赋值编译期红
+      //(FxPresentedKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
+      // 落此跳过:ADR-0020 既定口径,非吞错。
+      default: {
+        const silentKind: Exclude<GameEventBody["kind"], FxPresentedKind> = ev.kind;
+        void silentKind;
         break;
+      }
     }
   }
 
