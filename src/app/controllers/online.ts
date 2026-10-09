@@ -18,22 +18,16 @@ import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
-import { stashEventBatch, type EventBatchMsg } from "@app/net/event-feed";
+import { stashEventBatch } from "@app/net/event-feed";
+// wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
+// 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
+import { autoPilotMsg, cmdMsg, pickCapitalMsg, type ServerMsg } from "../../../scripts/wire";
 import { foldEventBatch } from "@app/net/event-fold";
 import { reactionQueriesSeat } from "./reaction";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
 export type { RoomJoinReply };
-
-/** 服务器消息(协议见 scripts/server.ts:lobby / snapshot / events / dismissed / error)。
- *  lobby 与 snapshot 都带完整房间字段(clientView 两种形态对齐,见 room.ts)。 */
-export type ServerMsg =
-  | ({ type: "lobby" } & NetRoomFields)
-  | ({ type: "snapshot" } & NetRoomFields & GameSnapshot)
-  | EventBatchMsg
-  | { type: "dismissed"; roomId: string }
-  | { type: "error"; error: string };
 
 export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
@@ -144,7 +138,7 @@ export class OnlineController extends GameController {
     // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
-    this.sock.send(JSON.stringify({ type: "cmd", cmd }));
+    this.sock.send(cmdMsg(cmd));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -154,7 +148,7 @@ export class OnlineController extends GameController {
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
-    this.sock.send(JSON.stringify({ type: "autoPilot", on, speed }));
+    this.sock.send(autoPilotMsg(on, speed));
   }
 
   /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
@@ -171,7 +165,7 @@ export class OnlineController extends GameController {
     }
     this.pending = true;
     useNetStore.getState().setPending(true);
-    this.sock.send(JSON.stringify({ type: "pickCapital", tileIndex }));
+    this.sock.send(pickCapitalMsg(tileIndex));
     this.sync(); // pending 期间锁重复提交
   }
 
