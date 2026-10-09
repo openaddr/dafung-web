@@ -5,7 +5,9 @@
 // 权威态变更,副本投影属协议消费面)。
 //
 // ── 折叠范围(#387 全覆盖;字段面以 #384 覆盖判定表「事件覆盖 + 事件+校准(双覆盖)」
-//    为准,逐族对账见本票汇报)──
+//    为准,逐族对账见本票汇报;per-kind 消费档位(精确折/折+校准/声明性/校准兜底)的
+//    机器可查判定数据单源 core/event-tiers.ts EVENT_TIERS,#430——本文件头保留字段级
+//    折叠明细,档位决策以表为准,两处失同步时改表)──
 //   回合/胜负族   gameStarted → phase=Playing + activeIndex/roundAnchor(=首动者);
 //                 turnStarted → activeIndex + turnPhase=Roll + 回合开账(usedTags 清零/
 //                 peeks 到期/窗口与落格决策载荷清场);roundStarted/roundEnded → roundAnchor
@@ -72,8 +74,9 @@
 //   判定表之外存在无事件的转移:机遇「天赐城池」入册、巡幸都城委任状+2(仅 log 行)、
 //   行军窗拦停成功时的拦检牌扣账(本器折于闭窗应答点,批序等效)。它们使副本在批窗口内
 //   与引擎分歧,后续「移除类」折叠(出册/降级)可能查无目标——这是已接受缺口的级联,
-//   略过待下一帧水合纠正;「新增类」折叠恒精确落账。词汇表在生长(game-events.ts),
-//   未登记进折叠范围的 kind 一律忽略——这是折叠范围的定义,不是吞错。
+//   略过待下一帧水合纠正;「新增类」折叠恒精确落账。per-kind 档位与漂移窗见 EVENT_TIERS
+//   (core/event-tiers.ts):词汇表内 kind 的 default 归属由档位表穷尽守卫(FoldHandledKind),
+//   线上未知 kind 一律忽略——这是折叠范围的定义,不是吞错。
 //
 // ── 零兜底 ──
 //   折叠族事件产出恒带具体座位(见 game-events.ts 各产出点,行动者=座位主),seat=null
@@ -82,7 +85,7 @@
 //   等字段缺失由类型系统在编译期兜住(线上形状以 core GameEvent 为准)。
 import type { GameEngine } from "@core/authority";
 import type { Player, PropertyHolding } from "@core/model";
-import type { GameEvent } from "@core/game-events";
+import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { PropertyDef } from "@core/economy";
 import type {
   PendingReaction,
@@ -90,12 +93,20 @@ import type {
   ReactionPayload,
   ReactionView,
 } from "@core/reaction-window";
+import type { ActiveSkillDef } from "@core/heroes";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
-import { HEROES, type ActiveSkillDef } from "@core/heroes";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REP_MILESTONES } from "@core/reputation";
-import { ENCOUNTERS } from "@core/encounters";
 import { BUY_WARRANT_COST, REACTION_WINDOW_MS } from "@core/constants";
+import {
+  activeSkillDefOf,
+  encounterDefOfId,
+  eventSeat,
+  eventSeatPlayer,
+  heroDefOf,
+  type AnnounceCursor,
+  type FoldHandledKind,
+} from "@core/event-tiers";
 
 /** 声望献计里程碑(#147):值域与穿越口径同 core reputation.ts(向上穿越、仅首次)。 */
 // 常量单源在 core/reputation.ts(REP_MILESTONES),勿在本文件重定义。
@@ -106,20 +117,6 @@ const AMBUSH_CARD = (() => {
   if (card == null) throw new Error("折叠投影:静态目录无拦检反应牌(数据 bug)");
   return card;
 })();
-
-/** 静态名将目录回查:事件 heroId 查无 = 数据 bug,当场炸出。 */
-function heroDefOf(heroId: string) {
-  const hero = HEROES.find((h) => h.id === heroId);
-  if (hero == null) throw new Error(`折叠投影:名将 ${heroId} 不在 HEROES 表(数据 bug)`);
-  return hero;
-}
-
-/** 主动技静态回查(HEROES.active;skillId 同时是冷却键)。查无 = 数据 bug,炸出。 */
-function activeSkillOfId(skillId: string): ActiveSkillDef {
-  const skill = HEROES.flatMap((h) => (h.active ? [h.active] : [])).find((s) => s.id === skillId);
-  if (skill == null) throw new Error(`折叠投影:主动技 ${skillId} 不在 HEROES 表(数据 bug)`);
-  return skill;
-}
 
 /** 主动技参数必存校验:HEROES 声明的技参数在折叠落账时缺失 = 数据 bug,当场炸出。 */
 function requireSkillParam(skill: ActiveSkillDef, key: string): number {
@@ -146,10 +143,10 @@ function propertyDefOf(engine: GameEngine, propertyId: string): PropertyDef {
 }
 
 /** 折叠目标玩家解析:折叠族事件都是座位主行为,无主座位(seat=null)= 契约违反,炸出;
- *  返回副本内玩家对象(seat 语义 = players 下标,indexOf 恒等)。 */
+ *  座位校验单源 core/event-tiers(eventSeat),返回副本内玩家对象(seat 语义 = players
+ *  下标,indexOf 恒等)。 */
 function foldTarget(engine: GameEngine, ev: GameEvent): Player {
-  if (ev.seat == null) throw new Error(`折叠投影:${ev.kind} 无主座位(事件产出契约违反)`);
-  return engine.players[ev.seat];
+  return engine.players[eventSeat(engine, ev)];
 }
 
 /** 事件座位号(契约校验后的 number 面):越界座位 = 契约违反,炸出(不静默写 undefined)。 */
@@ -157,13 +154,6 @@ function seatNo(engine: GameEngine, p: Player): number {
   const seat = engine.players.indexOf(p);
   if (seat < 0) throw new Error("折叠投影:玩家不在副本座位表(契约违反)");
   return seat;
-}
-
-/** 目标座位解析:事件携带的目标座位越界 = 契约违反,炸出。 */
-function seatPlayer(engine: GameEngine, seat: number, label: string): Player {
-  const p = engine.players[seat];
-  if (p == null) throw new Error(`折叠投影:${label} 目标座位越界 seat=${seat}(契约违反)`);
-  return p;
 }
 
 /** 副本侧城主查找:按 propertyId 扫全座位(与引擎 findOwner 同式,读副本态)。 */
@@ -194,8 +184,9 @@ interface FoldCtx {
   /** 批内已破产座位:落格表现态 causedBankruptcy 相邻判定(税关/商市)。 */
   bankruptSeats: Set<number>;
   /** 批内锦囊宣布锚点(后写覆盖):reactionOpened 的 targetSeats 同源回溯(宣布与开窗
-   *  同一结算)。 */
-  lastAnnounce: { cardId: string; userSeat: number; targetSeats: number[] } | null;
+   *  同一结算)。游标形状单源 core/event-tiers(AnnounceCursor,与 fx 提取器跨批游标
+   *  同型,各自实例化)。 */
+  lastAnnounce: AnnounceCursor | null;
   /** 批内刚闭窗的反应窗(应答齐即结算):jinnangVoided 的识破牌 id 出自应答
    *  (jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应牌)。 */
   closedWindow: { view: ReactionView; answers: ReactionAnswer[] } | null;
@@ -328,8 +319,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.turnPhase = "GameOver";
         break;
       }
-      case "setupCompleted":
-        break; // Setup 期字段 = 校准兜底五项之五,不折
       // ── 掷骰/行军族 ──
       case "diceRolled":
         engine.lastRoll = { die: ev.die };
@@ -415,8 +404,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         }
         break;
       }
-      case "propertyRejected":
-        break; // 无状态转移(ADR-0013 自动按兵不动的宣告;相位由同批 turnStarted 收场)
       case "exhaustionChoice": {
         const p = foldTarget(engine, ev);
         if (ev.exhaustionKind === "downgrade") {
@@ -434,7 +421,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         let moved: PropertyHolding | null = null;
         if (idx >= 0) moved = bankrupt.properties.splice(idx, 1)[0]!; // 查无 = 赐城缺口级联
         if (ev.toSeat != null) {
-          const creditor = seatPlayer(engine, ev.toSeat, "assetTransferred.toSeat");
+          const creditor = eventSeatPlayer(engine, ev.toSeat, "assetTransferred.toSeat");
           if (moved != null) {
             creditor.properties.push(moved); // 等级/组别随册转移(降级漂移由校准节点纠正)
           } else {
@@ -465,12 +452,10 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "treasureTraded": {
         engine.escrowTreasure = null; // 交割完成托管清(托管置位无事件 = 校准半边)
         engine.treasureVisitor = null; // 交涉收口
-        seatPlayer(engine, ev.buyerSeat, "treasureTraded.buyerSeat").cash -= ev.price;
-        seatPlayer(engine, ev.sellerSeat, "treasureTraded.sellerSeat").cash += ev.price;
+        eventSeatPlayer(engine, ev.buyerSeat, "treasureTraded.buyerSeat").cash -= ev.price;
+        eventSeatPlayer(engine, ev.sellerSeat, "treasureTraded.sellerSeat").cash += ev.price;
         break;
       }
-      case "treasureStolen":
-        break; // 窃玉偷香转移 = 校准兜底五项之二(票面已接受口径),只宣告不折
       // ── 金钱族 ──
       case "cashChanged": {
         const p = foldTarget(engine, ev);
@@ -505,7 +490,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "heroSkillActivated": {
         const user = foldTarget(engine, ev);
         user.heroLastFired[ev.skillId] = ev.round; // 主动技独立冷却,同键记账
-        const skill = activeSkillOfId(ev.skillId);
+        const skill = activeSkillDefOf(ev.skillId);
         switch (skill.kind) {
           case "warDrum":
             engine.heroDiceBonus = requireSkillParam(skill, "bonus");
@@ -604,9 +589,10 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             ownerSeat: ev.queriedSeats[0]!,
             windowMs,
           };
-          // 词汇缺口(回报主线):reactionOpened 不携续走载荷(在途态无事件登记),副本侧
-          // payload 仅类型完备占位、零消费面(UI 读 view/answers/seq;payload 唯一消费方 =
-          // 权威侧 room.ts 超时判据)。若副本侧将来需要该载荷,先补词汇再折。
+          // 词汇缺口(表内声明档,core/event-tiers reactionOpened.declaredGaps,#430 票项 4):
+          // reactionOpened 不携续走载荷(在途态无事件登记),副本侧 payload 仅类型完备
+          // 占位、零消费面(UI 读 view/answers/seq;payload 唯一消费方 = 权威侧 room.ts
+          // 超时判据)。若副本侧将来需要该载荷,先补词汇再折。
           payload = {
             kind: "march",
             moverSeat: userSeat,
@@ -644,13 +630,15 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             // 闭窗应答点(批序与引擎结算点等效)
             const ambush = pr.answers.find((a) => a.use);
             if (ambush != null)
-              consumeCard(engine, seatPlayer(engine, ambush.seat, "行军窗应答"), AMBUSH_CARD.id);
+              consumeCard(
+                engine,
+                eventSeatPlayer(engine, ambush.seat, "行军窗应答"),
+                AMBUSH_CARD.id,
+              );
           }
         }
         break;
       }
-      case "reactionFailed":
-        break; // 无状态转移(声明性;拦检失败扣账已折于闭窗应答点,拼点参数仅文案)
       // ── 声望/体力族 ──
       case "reputationChanged": {
         const p = foldTarget(engine, ev);
@@ -674,14 +662,12 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         foldTarget(engine, ev).skipTurns -= 1; // 消费侧(endTurn 跳过环扣 1)
         break;
       case "jinnangInflicted":
-        seatPlayer(engine, ev.targetSeat, "jinnangInflicted.targetSeat").skipTurns += 1; // 缓兵之计标记侧
+        eventSeatPlayer(engine, ev.targetSeat, "jinnangInflicted.targetSeat").skipTurns += 1; // 缓兵之计标记侧
         break;
       // ── 机遇族 ──
       case "encounterTriggered": {
         foldTarget(engine, ev); // 机遇主体=行动者,座位契约校验
-        const def = ENCOUNTERS.find((c) => c.id === ev.encounterId);
-        if (def == null)
-          throw new Error(`折叠投影:机遇 ${ev.encounterId} 不在 ENCOUNTERS 表(数据 bug)`);
+        const def = encounterDefOfId(ev.encounterId); // 目录回查单源 core/event-tiers
         if (def.choices != null) {
           // 抉择机遇入相(引擎 enterEncounterPhase):置 Noop + 挂起相位;≤1 可用的自动
           // 执行由同批 encounterChoice/turnStarted 覆盖。即时机遇不碰落格表现态——引擎
@@ -730,9 +716,16 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         }
         break;
       }
-      // ── 未登记进折叠范围的族:忽略(范围定义,非吞错;校准档清单见文件头)──
-      default:
+      // ── 折叠面零操作档(default 守卫,档位单源 core/event-tiers)──
+      // 走到这里的已登记 kind 必须是 declarative(声明性无转移)/ calibration-only
+      //(校准兜底不折)档——must-fold / fold+calibration 漏 case = 下面赋值编译期红
+      //(FoldHandledKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
+      // 落此忽略:ADR-0020 既定口径,折叠范围的定义,非吞错。
+      default: {
+        const silentKind: Exclude<GameEventBody["kind"], FoldHandledKind> = ev.kind;
+        void silentKind;
         break;
+      }
     }
   }
 }
