@@ -10,7 +10,7 @@
 // room-record.ts(#427 单源,零 node 依赖,双运行时同一份)。
 // 三块已拆出(模块治理 10/11 #327):客户端投影 seat-projection.ts(纯搬)、bot 驱动
 // bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
-// 对象注入宿主操作面,投影视图在下方再导出维持原引用面(测试/传输层 import 不动)。
+// 对象注入宿主操作面,投影消费方直引 seat-projection.ts(不留再导出转接层)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import type { AiDifficulty, GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
@@ -22,6 +22,7 @@ import type { RoomPersistence } from "./room-persistence";
 import { createEngine, engineFromRecord } from "./room-record";
 import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
+import { assembleDownlinkShot } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不再直呼 wire——
 // 双写退役(形状/封装只有一份),本模块只管排空与节流后的发送。
@@ -127,17 +128,6 @@ export type AutoPilotSpeed = "fast" | "slow";
 
 const CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ"; // 去掉易混 I/L/O
 const CODE_LEN = 4;
-
-// ──────────────────────────── 再导出(维持原引用面)────────────────────────────
-// 算法本体在 src/core/guohao.ts(客户端大厅预告与开局定稿共用);此处再导出维持原引用面。
-export { resolveGuohaoClash } from "../src/core/guohao";
-// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327);测试(test/room.test.ts)仍从
-// 本模块取,再导出免改引用面。传输层 server.ts 已直引 ./seat-projection。
-// #431 起单机传输面的下行装配走 assembleDownlinkShot 单口(viewerSeat=null 显式
-// god-view),clientView 不再被本模块直呼;再导出仅供测试引用面。
-export { clientView, lobbyView, redactSnapshotForSeat } from "./seat-projection";
-export type { LobbyView } from "./seat-projection";
-import { assembleDownlinkShot } from "./seat-projection";
 
 // ──────────────────────────── 传输面(#397 单机统一 A)────────────────────────────
 // 房间编排经传输抽象收发:对端点的最小要求是「座位归属 + 下行 send + 在线否」三样

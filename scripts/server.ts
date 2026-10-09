@@ -53,7 +53,8 @@ import {
   lobbyView,
   seatMeta,
 } from "./seat-projection";
-import { FileRoomPersistence, type HostConfig } from "./room-persistence";
+import { FileRoomPersistence } from "./room-persistence";
+import type { HostConfig } from "./room-record";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域网设备(手机)可访问

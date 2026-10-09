@@ -25,7 +25,8 @@ import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 // 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
 import type { RoomSession } from "../../../scripts/room";
-import type { RoomPersistence, RoomRecord } from "../../../scripts/room-persistence";
+import type { RoomPersistence } from "../../../scripts/room-persistence";
+import type { RoomRecord } from "../../../scripts/room-record";
 // wire 协议编解码单源(#429):上行编码(cmdMsg 等)+ 解析分发(dispatchInbound)、
 // 下行消息类型(ServerMsg)全部从这里 import,与联机 server.ts/online.ts 同一份。
 import {
