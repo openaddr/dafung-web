@@ -22,6 +22,9 @@ import type { RoomPersistence } from "./room-persistence";
 import { createEngine, engineFromRecord } from "./room-record";
 import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
+// wire 协议编解码单源(#429):下行构造收口 wire.ts,「与 server.ts 逐字同契约」的
+// 双写(靠注释互指维稳)退役——形状/封装只有一份,本模块只管排空与节流后的发送。
+import { encodeDownlink, eventsMsg } from "./wire";
 import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
@@ -141,7 +144,7 @@ export type { LobbyView } from "./seat-projection";
 // 联机通路零改动:server.ts 自持 WS + broadcast/flush,不经本节;单机(src/app 进程内
 // 房间)经 connectSeat 挂上 MemorySocket 的宿主端点,编排每次可见变化经 onUpdate →
 // transportBroadcast 合并成一拍下行——事件批消息先行(因果在前)、整房摘要随后
-// (消息形状与 server.ts flush 逐字同契约;消费端为折叠/直译的既有接收面)。
+// (形状/封装收口 wire.ts #429,单源;消费端为折叠/直译的既有接收面)。
 export interface SeatEndpoint {
   /** 座位归属(入座即绑定;token 鉴权在 connectSeat 入口)。 */
   readonly seat: number;
@@ -721,10 +724,11 @@ export class RoomRegistry {
   }
 
   /** 单拍下行:①事件批消息(因果在前,空批不发)→ ②整房摘要(clientView god-view)。
-   *  消息形状与 server.ts flush 逐字同契约(事件批先行、封批留痕同口径);②的判定在
-   *  单机退化为恒发——内存直连无带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然
-   *  覆盖,折叠漂移零存活窗口(单机客户端状态另有内存直读,见 controllers/local.ts)。
-   *  批排空幂等(#411 共享通道):重复 flush 袋空不发 events。 */
+   *  消息形状/封装收口 wire.ts(#429,与 server.ts 同一构造函数——双写退役,不再靠
+   *  注释互指「逐字同契约」);②的判定在单机退化为恒发——内存直连无带宽约束,ADR-0020
+   *  决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口(单机客户端状态另有内存
+   *  直读,见 controllers/local.ts)。批排空幂等(#411 共享通道):重复 flush 袋空不发
+   *  events。 */
   private flushTransport(roomId: string): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
@@ -734,10 +738,10 @@ export class RoomRegistry {
     }
     const events = this.batches.drain(roomId);
     if (events && events.length > 0) {
-      const eventsMsg = JSON.stringify({ type: "events" as const, events });
-      for (const ep of eps.values()) if (ep.open) ep.send(eventsMsg);
+      const payload = eventsMsg(events);
+      for (const ep of eps.values()) if (ep.open) ep.send(payload);
     }
-    const snapMsg = JSON.stringify(clientView(room, this.transportOnlineSeats(roomId)));
+    const snapMsg = encodeDownlink(clientView(room, this.transportOnlineSeats(roomId)));
     for (const ep of eps.values()) if (ep.open) ep.send(snapMsg);
   }
 

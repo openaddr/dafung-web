@@ -35,10 +35,12 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty, GameCommand } from "../src/core/authority";
+import type { AiDifficulty } from "../src/core/authority";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { EventBatchChannel } from "./event-batch";
+// wire 协议编解码单源(#429):上行 parse+dispatch、下行构造全部收口 wire.ts
+import { dismissedMsg, dispatchInbound, encodeDownlink, errorMsg, eventsMsg } from "./wire";
 import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
 import { loadExtensionPackages } from "../src/core/extension-loader";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
@@ -317,10 +319,7 @@ function flushRoom(roomId: string): void {
   // ——对齐旧 per-seat 快照模型,六人局事件批远小于全量快照。
   if (events && events.length > 0) {
     for (const ws of socketsOf(roomId).values()) {
-      if (ws.readyState === WebSocket.OPEN)
-        ws.send(
-          JSON.stringify({ type: "events" as const, events: redactEvents(events, ws.data.seat) }),
-        );
+      if (ws.readyState === WebSocket.OPEN) ws.send(eventsMsg(redactEvents(events, ws.data.seat)));
     }
   }
   // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
@@ -335,13 +334,13 @@ function flushRoom(roomId: string): void {
       (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
       CALIBRATION_WINDOWS.has(settled ?? "") ||
       CALIBRATION_WINDOWS.has(prev ?? ""));
-  const metaJson = JSON.stringify(lobbyView(r, online));
+  const metaJson = encodeDownlink(lobbyView(r, online));
   if (calibrate) {
     // 关键节点校准(②):每座位各发各的 redactSnapshotForSeat 投影(#381 保密后补:
     // 冻结函数复活,god-view 退役),自带房间字段,元数据指纹随车更新
     for (const ws of socketsOf(roomId).values()) {
       if (ws.readyState === WebSocket.OPEN)
-        ws.send(JSON.stringify(clientView(r, online, ws.data.seat)));
+        ws.send(encodeDownlink(clientView(r, online, ws.data.seat)));
     }
     lastRoomMeta.set(roomId, metaJson);
   } else if (lastRoomMeta.get(roomId) !== metaJson) {
@@ -613,7 +612,7 @@ async function handle(req: Request): Promise<Response> {
     const roomId = String(obj.roomId ?? "");
     const id = registry.dismissRoom(roomId, String(obj.seatToken ?? ""));
     // 广播 dismissed 并断开所有连接
-    const msg = JSON.stringify({ type: "dismissed" as const, roomId: id });
+    const msg = dismissedMsg(id);
     for (const ws of socketsOf(id).values()) {
       if (ws.readyState !== WebSocket.CLOSED) {
         try {
@@ -680,59 +679,43 @@ Bun.serve<WsSeat>({
       // redactSnapshotForSeat 投影(#381 保密后补:冻结函数复活,他人锦囊手牌/牌库序/
       // 反应窗询问集不出网);重连语义=整房摘要水合,断线期间事件不补发(无 seq/ack,
       // 决策 4)。
-      ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId), seat)));
+      ws.send(encodeDownlink(clientView(room, onlineSeatsOf(roomId), seat)));
       settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
       // 在线集变化通知他人:flush 按元数据指纹差异补发 lobby(③);结算相位基线已登记
       broadcast(roomId);
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      let msg: {
-        type?: string;
-        cmd?: GameCommand;
-        on?: boolean;
-        speed?: string;
-        tileIndex?: number;
-      };
-      try {
-        msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw).toString());
-      } catch {
-        ws.send(JSON.stringify({ type: "error", error: "bad json" }));
-        return;
-      }
-      if (msg?.type === "cmd" && msg.cmd) {
-        recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
-        void registry
-          .applyCommand(roomId, msg.cmd, () => broadcast(roomId))
-          .catch((err) =>
-            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
-          );
-      } else if (msg?.type === "pickCapital" && typeof msg.tileIndex === "number") {
-        // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
-        recordEvent(roomId, { ev: "pick-capital", seat, tileIndex: msg.tileIndex });
-        void registry
-          .pickCapital(roomId, seat, msg.tileIndex, () => broadcast(roomId))
-          .catch((err) =>
-            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
-          );
-      } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
-        // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-        const speed = msg.speed === "slow" ? "slow" : "fast";
-        recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
-        void registry
-          .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
-          .catch((err) =>
-            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
-          );
-      } else {
-        const r = registry.get(roomId);
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始",
-          }),
-        );
-      }
+      // 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,错误回报是
+      // 返回值的一部分——传输面只负责把失败送到 WS 通道(error 消息下行,#428 口径
+      // 全分支同款,漏 catch 无处藏身);观测流水在 ops 闭包内记(仅已识别形状,同旧)。
+      void dispatchInbound(
+        typeof raw === "string" ? raw : Buffer.from(raw).toString(),
+        {
+          cmd: (cmd) => {
+            recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
+            return registry.applyCommand(roomId, cmd, () => broadcast(roomId));
+          },
+          pickCapital: (tileIndex) => {
+            // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
+            recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
+            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId));
+          },
+          setAutoPilot: (on, speed) => {
+            // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
+            recordEvent(roomId, { ev: "ws-autopilot", seat, on, speed });
+            return registry.setAutoPilot(roomId, seat, on, speed, () => broadcast(roomId));
+          },
+        },
+        {
+          // 未知形状引导文案按房间状态给(对局未开始不给期望形状,给状态说明;原 else 分支同款)
+          unknownShapeText: registry.get(roomId)?.engine
+            ? "expected {type:'cmd',cmd:...}"
+            : "对局未开始",
+        },
+      ).then((result) => {
+        if (!result.ok) ws.send(errorMsg(result.message));
+      });
     },
     close(ws) {
       const { roomId, seat } = ws.data;
