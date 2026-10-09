@@ -20,7 +20,6 @@ import { useFxStore } from "./fxStore";
 import { animateMove, beginMarch } from "./useMarch";
 import { delay, FX } from "./timings";
 import type { FxSink, PresentationEvent } from "./presentation";
-import { resetEventExtractCursors } from "./event-extract";
 
 // ─────────────────────── 播放器 ───────────────────────
 /** 播放一组表现事件:串行 await,顺序 = 数组顺序。所有外设经 FxSink 驱动
@@ -120,9 +119,9 @@ export function remainingMarchPath(
   };
 }
 
-/** 重置编排态(重开局时调用):跨批游标(事件提取)与表现 store 一并清。 */
+/** 重置编排态(重开局时调用):表现 store 一并清。事件提取的跨批宣布游标生命周期
+ *  = 引擎实例(#430:WeakMap 键控,换局换实例即新游标),无手工 reset 配对可忘。 */
 export function resetFxOrchestration(): void {
-  resetEventExtractCursors();
   useFxStore.getState().resetFx();
 }
 
