@@ -17,13 +17,11 @@ import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
-import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch } from "@app/net/event-feed";
 // wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
 import { autoPilotMsg, cmdMsg, pickCapitalMsg, type ServerMsg } from "../../../scripts/wire";
 import { foldEventBatch } from "@app/net/event-fold";
-import { reactionQueriesSeat } from "./reaction";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
@@ -40,23 +38,15 @@ export class OnlineController extends GameController {
   /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
   private map: LoadedMap;
   seat = -1;
-  /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
-  private pending = false;
+  /** 交互策略参数(#433 上收基类单源):热座=false——各端座位固定,他座决策时
+   *  不得解锁本端操作,必须显式判定决策方===自己(决策方是否轮到「我的座位」)。 */
+  protected override readonly hotSeat = false;
+  protected override get mySeat(): number {
+    return this.seat;
+  }
   /** 换图重建流水号(#415):每次 rebuildForMap 起步自增,落地时对号——号不对 =
    *  期间有更新的换图指令,本次作废(取图 await 与下行快照/新换图指令竞速的过期落地防回归)。 */
   private rebuildSeq = 0;
-  /** 事件批表现消费器(#385):netStore 暂存批(events 下行通道)→ 表现事件 → 播放,
-   *  播放队列与到达序游标封装在内。onIdle:表现队列排空时补一次 sync——L42 期间被
-   *  fx.playing 锁住的 interactive 在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮
-   *  随即就位(与单机 drive 锁同口径)。 */
-  private readonly fx = new SnapshotEffects(
-    () => this._engine,
-    () => this.sync(),
-  );
-  /** 是否已在对局屏(首帧 snapshot 才切屏;之后重连/恢复不重复切)。 */
-  private enteredGame = false;
-  /** 上一帧是否处于「我的 Roll 等待态」(#188 起签表现的转入沿检测基准)。 */
-  private prevMyRollWait = false;
   /** 上一帧各座位棋子位置(#385 行军锚定基准,#386 折叠前捕获口径)。#388 起表现
    *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
    *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
@@ -90,31 +80,6 @@ export class OnlineController extends GameController {
   get autoPilotOn(): boolean {
     const s = useNetStore.getState();
     return s.seats[s.mySeat]?.autoPilot ?? false;
-  }
-  /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。
-   *  Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
-   *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。
-   *  L42:再加表现锁 fx.playing——快照落地即可(数据即时),但骰子/行军动画播完前
-   *  决策卷轴/行军按钮不呈现(单机 drive 会话锁的联机等价物;WaitingBar/横幅不受影响,
-   *  它们不吃 interactive)。
-   *  反应窗(#281,ADR-0017 多属主)例外:被询问座位可应答——决策方仍是出牌者,
-   *  decisionOwner 不适用;不加 fx.playing 锁(倒计时不等演出,超时兜底在权威侧)。 */
-  get interactive(): boolean {
-    const e = this._engine;
-    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-      const pr = e.pendingReaction;
-      if (pr == null) return false;
-      // 被询问集公式单源 controllers/reaction.ts(#284);观战(seat=-1)恒不在集内。
-      return !this.pending && this.seat >= 0 && reactionQueriesSeat(pr.view, this.seat);
-    }
-    return (
-      e.decisionOwner === this.seat &&
-      e.phase === "Playing" &&
-      !e.players[e.decisionOwner]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn &&
-      !this.fx.playing
-    );
   }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。 */
@@ -348,22 +313,6 @@ export class OnlineController extends GameController {
     }
     // error:闪提示(如非法命令);pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
-  }
-
-  /** 起签转入沿检测(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
-   *  起摇)→ 钤「签」印。快照帧与事件批帧共用(#388 切换后 Roll 等待态改由事件折叠
-   *  到达,不再有逐步快照承载)。托管中座位由服务器 bot 代打(Roll 不经等待态),观战
-   *  无座,都不播——与单机 autoRoll 的起签口径一致。 */
-  private checkRollSeal(): void {
-    const e = this._engine;
-    const myRollWait =
-      e.phase === "Playing" &&
-      e.turnPhase === "Roll" &&
-      e.decisionOwner === this.seat &&
-      !e.players[this.seat]?.isBot &&
-      !this.autoPilotOn;
-    if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
-    this.prevMyRollWait = myRollWait;
   }
 
   /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
