@@ -1,7 +1,8 @@
 // 房间持久化适配器(ADR-0007):把 Room 的落盘做成可注入接口,
 // 让 Room 模块本身零 fs 依赖。默认实现 FileRoomPersistence 落 data/rooms/*.json,
 // 与原 server.ts 行为逐字节一致(同一目录、同一文件名、同一 JSON 形状)。
-// 测试可注入 InMemory 实现。
+// 测试可注入 InMemory 实现。记录形状(RoomRecord 及子形状)与水合纯逻辑单源在
+// room-record.ts(#427);本模块只管介质(fs 落盘/读档),再导出形状维持原引用面。
 import {
   mkdirSync,
   readFileSync,
@@ -11,44 +12,12 @@ import {
   existsSync,
 } from "node:fs";
 import { join, resolve } from "node:path";
-import type { GameEngine } from "../src/core/authority";
-import type { SeatConfig } from "../src/core/authority";
-import type { AiDifficulty } from "../src/core/authority";
-import type { EncounterConfig } from "../src/core/encounters";
-import type { LoadedMap } from "../src/core/board-loader";
-import { createEngine, MAP } from "./engine-helpers";
+import type { RoomRecord } from "./room-record";
 
-// ──────────────────────────── 共享数据形状(传输层 / 持久化层都用)────────────────────────────
-export interface HostConfig {
-  seed?: number;
-  target?: number;
-  difficulty?: AiDifficulty;
-}
-
-/** 持久化的座位:去掉运行时的 WebSocket 句柄等不可序列化字段。 */
-export interface PersistedSeat {
-  kind: "human" | "bot";
-  token: string | null;
-  /** 加入者预设国号(旧记录无此字段 → null);重名前缀在开局时统一分配。 */
-  guohao: string | null;
-}
-
-/** 落盘的房间记录:RoomSession 的纯数据投影。 */
-export interface RoomRecord {
-  roomId: string;
-  seatCount: number;
-  seats: PersistedSeat[];
-  hostSeat: number;
-  takeover: number[];
-  /** 自助托管(座位 → 速度);与 takeover 分离,重连不清除。 */
-  autoPilot: { seat: number; speed: "fast" | "slow" }[];
-  hostConfig: HostConfig;
-  /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
-  mapId: string | null;
-  /** 本局机遇配置(#135);null/缺省(旧记录)=机遇关。恢复引擎时传回构造 config。 */
-  encounter?: EncounterConfig | null;
-  snapshot: ReturnType<GameEngine["snapshot"]> | null;
-}
+// ──────────────────────────── 形状再导出(维持原引用面)────────────────────────────
+// HostConfig/PersistedSeat/RoomRecord 本体在 room-record.ts(#427 单源);server.ts /
+// src/app/controllers/local.ts / 各测试历史上经本模块取这些类型,再导出免改引用面。
+export type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 
 // ──────────────────────────── 持久化接口 ────────────────────────────
 export interface RoomPersistence {
@@ -117,68 +86,4 @@ export class FileRoomPersistence implements RoomPersistence {
     }
     return ids;
   }
-}
-
-// ──────────────────────────── 重建辅助(自外存恢复 RoomSession)────────────────────────────
-function dummySeats(n: number): SeatConfig[] {
-  return Array.from({ length: n }, (_, i) => ({ name: `座 ${i + 1}`, isBot: false }));
-}
-
-/** 从 RoomRecord 重建引擎(若有 snapshot)。null = Lobby 态(未开局)。
- *  mapProvider:按 mapId 返回 LoadedMap(恢复时用对应地图重建引擎,而非全局 sanguo)。
- *  未提供 mapProvider 或 mapId 为空 → 退回默认 MAP(向后兼容旧记录 / 单机 CLI)。
- *  reactionWindowMs(#284):registry 的 env 覆盖值随恢复透传(>0 才生效),重启后
- *  新开的反应窗与重启前同长(已挂起窗的 windowMs 在快照内保真,不经此)。 */
-export function engineFromRecord(
-  rec: RoomRecord,
-  mapProvider?: (mapId: string) => LoadedMap,
-  reactionWindowMs?: number,
-): GameEngine | null {
-  if (!rec.snapshot) return null;
-  const map = rec.mapId && mapProvider ? mapProvider(rec.mapId) : MAP;
-  const engine = createEngine(
-    {
-      seats: dummySeats(rec.seatCount),
-      ...rec.hostConfig,
-      // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
-      ...(rec.encounter ? { encounter: rec.encounter } : {}),
-      // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)
-      ...(reactionWindowMs != null && reactionWindowMs > 0 ? { reactionWindowMs } : {}),
-    },
-    false,
-    map,
-  );
-  engine.restoreFromSnapshot(rec.snapshot);
-  return engine;
-}
-
-/** 把 RoomRecord 转成 RoomSession 的初始数据(座位不带 conn;takeover 转回 Set)。 */
-export function recordToSessionData(
-  rec: RoomRecord,
-  mapProvider?: (mapId: string) => LoadedMap,
-  reactionWindowMs?: number,
-): {
-  roomId: string;
-  seatCount: number;
-  seats: PersistedSeat[];
-  hostSeat: number;
-  takeover: Set<number>;
-  autoPilot: Map<number, "fast" | "slow">;
-  hostConfig: HostConfig;
-  mapId: string | null;
-  encounter: EncounterConfig | null;
-  engine: GameEngine | null;
-} {
-  return {
-    roomId: rec.roomId,
-    seatCount: rec.seatCount,
-    seats: rec.seats.map((s) => ({ ...s, guohao: s.guohao ?? null })),
-    hostSeat: rec.hostSeat,
-    takeover: new Set(rec.takeover),
-    autoPilot: new Map((rec.autoPilot).map((a) => [a.seat, a.speed] as const)),
-    hostConfig: rec.hostConfig,
-    mapId: rec.mapId ?? null,
-    encounter: rec.encounter ?? null,
-    engine: engineFromRecord(rec, mapProvider, reactionWindowMs),
-  };
 }
