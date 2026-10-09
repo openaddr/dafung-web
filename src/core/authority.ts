@@ -25,6 +25,7 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
+import { extensionInquiries } from "./extension-registry";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
@@ -369,6 +370,12 @@ export class GameEngine {
    *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
   pendingEncounter: EncounterDef | null = null;
 
+  /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 置值;choicesFor 在无匹配 choices
+   *  相位按 id 回调 extensionInquiries 出选项集(选项盖 inquiryId 章,快照 choices 单通道
+   *  透出)。回联回目录现查(与 pendingEncounter 的「id 句柄 + 目录现查」同模式,但目录
+   *  是扩展注册面而非内置表),挂起载荷本身随快照走(恢复后同一问询可续);endTurn 清除。 */
+  pendingInquiry: { id: string; params: Record<string, number> } | null = null;
+
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域直写;外部消费仍只走 presentation.drainFloaters。 */
@@ -499,9 +506,19 @@ export class GameEngine {
       : this.activeIndex;
   }
   /** 当前决策相位的选项集(ADR-0013 choice-set 注册表,snapshot.choices 透出供 UI/调试)。
-   *  纯派生数据:由相位 + 玩家状态实时计算,不新增序列化状态;未注册相位(Roll/Land/…)返回空数组。 */
+   *  纯派生数据:由相位 + 玩家状态实时计算,不新增序列化状态;已注册相位返回计算器结果,
+   *  无匹配 choices(未注册相位)且挂起定制问询时按 id 回调扩展问询出选项集(#432),
+   *  两者皆无返回空数组。 */
   choicesFor(): ChoiceOption[] {
     return computeChoices(this, this.turnPhase);
+  }
+  /** 发起定制问询(#432,ADR-0022 交互 handler):记挂起问询 id,之后无匹配 choices 相位的
+   *  choicesFor 按 id 回调 askPlayer 出选项集(词汇与挂点归本票;解决命令/UI 接线归 #424)。
+   *  id 查无注册问询 = 调用方 bug(扩展未装载/id 拼写错),当场炸(零兜底)。 */
+  askInquiry(id: string, params: Record<string, number> = {}): void {
+    if (!extensionInquiries().some((q) => q.id === id))
+      throw new Error(`定制问询:「${id}」无注册问询(扩展未装载或 id 拼写错误)`);
+    this.pendingInquiry = { id, params };
   }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
@@ -739,6 +756,7 @@ export class GameEngine {
     this.pendingEncounter = null;
     this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
     this.pendingReaction = null; // 反应窗同理(#281):回合收口不留悬窗
+    this.pendingInquiry = null; // 定制问询同理(#432):回合收口不留悬问询
     this.lastTransaction = null;
   }
 
