@@ -22,9 +22,9 @@ import type { RoomPersistence } from "./room-persistence";
 import { createEngine, engineFromRecord } from "./room-record";
 import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
-// wire 协议编解码单源(#429):下行构造收口 wire.ts,「与 server.ts 逐字同契约」的
-// 双写(靠注释互指维稳)退役——形状/封装只有一份,本模块只管排空与节流后的发送。
-import { encodeDownlink, eventsMsg } from "./wire";
+// wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
+// assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不再直呼 wire——
+// 双写退役(形状/封装只有一份),本模块只管排空与节流后的发送。
 import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
@@ -133,10 +133,11 @@ const CODE_LEN = 4;
 export { resolveGuohaoClash } from "../src/core/guohao";
 // 纯视图已拆 seat-projection.ts(模块治理 10/11 #327);测试(test/room.test.ts)仍从
 // 本模块取,再导出免改引用面。传输层 server.ts 已直引 ./seat-projection。
-// clientView 额外具名导入(#397 传输面首连摘要/单拍下行直接取用)。
-import { clientView } from "./seat-projection";
+// #431 起单机传输面的下行装配走 assembleDownlinkShot 单口(viewerSeat=null 显式
+// god-view),clientView 不再被本模块直呼;再导出仅供测试引用面。
 export { clientView, lobbyView, redactSnapshotForSeat } from "./seat-projection";
 export type { LobbyView } from "./seat-projection";
+import { assembleDownlinkShot } from "./seat-projection";
 
 // ──────────────────────────── 传输面(#397 单机统一 A)────────────────────────────
 // 房间编排经传输抽象收发:对端点的最小要求是「座位归属 + 下行 send + 在线否」三样
@@ -660,7 +661,7 @@ export class RoomRegistry {
   }
 
   /** WS 连接建立时调用(ADR-0002/0005):token 是 Seat 归属唯一凭证 →
-   *  连上即从接管集合移除(原玩家持 token 重连夺回)。传输层随后发 clientView 给该 WS。
+   *  连上即从接管集合移除(原玩家持 token 重连夺回)。传输层随后发整房摘要给该 WS。
    *  #380:重连即撤本座位保留窗(到期不误接管已归来的在线座位)。 */
   attachSeat(roomId: string, seat: number): RoomSession | undefined {
     const room = this.rooms.get(roomId);
@@ -680,9 +681,9 @@ export class RoomRegistry {
 
   // ──────────────────────────── 传输面端点(#397 单机统一 A)────────────────────────────
   /** 内存端点入座(单机通路):鉴权同 WS upgrade(validateSeat)→ attachSeat 语义
-   *  (持 token 重连夺回座位)→ 立即下发首连整房摘要(god-view,与 server.ts open
-   *  处理器同形状:clientView seat 缺省)。此后编排每次可见变化都会经
-   *  transportBroadcast 合并下行到本端点。 */
+   *  (持 token 重连夺回座位)→ 立即经装配单口下发首连整房摘要(viewerSeat=null
+   *  显式 god-view,与 server.ts open 处理器同一装配函数、同一消息形状)。此后编排
+   *  每次可见变化都会经 transportBroadcast 合并下行到本端点。 */
   connectSeat(roomId: string, seat: number, token: string, ep: SeatEndpoint): RoomSession {
     if (!this.validateSeat(roomId, seat, token)) throw new RoomError(401, "座位鉴权失败");
     const room = this.attachSeat(roomId, seat);
@@ -693,7 +694,9 @@ export class RoomRegistry {
       this.seatEndpoints.set(roomId, eps);
     }
     eps.set(seat, ep);
-    ep.send(JSON.stringify(clientView(room, this.transportOnlineSeats(roomId))));
+    // 首连整房摘要(#431 装配单口):batch=[] 纯摘要拍;viewerSeat=null = 单机显式
+    // god-view(本机单真人无跨设备泄密面,唯一合法退化口)。
+    ep.send(assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, [], true).snapshot);
     return room;
   }
 
@@ -723,12 +726,14 @@ export class RoomRegistry {
     this.batches.schedule(roomId, () => this.flushTransport(roomId));
   }
 
-  /** 单拍下行:①事件批消息(因果在前,空批不发)→ ②整房摘要(clientView god-view)。
-   *  消息形状/封装收口 wire.ts(#429,与 server.ts 同一构造函数——双写退役,不再靠
-   *  注释互指「逐字同契约」);②的判定在单机退化为恒发——内存直连无带宽约束,ADR-0020
-   *  决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口(单机客户端状态另有内存
-   *  直读,见 controllers/local.ts)。批排空幂等(#411 共享通道):重复 flush 袋空不发
-   *  events。 */
+  /** 单拍下行装配单口(#431):①事件批消息(因果在前,空批不发)→ ②整房摘要,
+   *  经 seat-projection assembleDownlinkShot 一次配齐——viewerSeat=null = 单机显式
+   *  god-view 退化(ADR-0020 决策 2 的显式退化口:本机单真人无跨设备泄密面;将来
+   *  观战/回放类消费面复用本装配,传座位默认拿裁剪流),消息形状/封装同收 wire.ts
+   *  构造函数(#429);②的判定在单机退化为恒发(withSnapshot=true)——内存直连无
+   *  带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口
+   *  (单机客户端状态另有内存直读,见 controllers/local.ts)。批排空幂等(#411
+   *  共享通道):重复 flush 袋空不发 events。 */
   private flushTransport(roomId: string): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
@@ -737,12 +742,17 @@ export class RoomRegistry {
       return;
     }
     const events = this.batches.drain(roomId);
-    if (events && events.length > 0) {
-      const payload = eventsMsg(events);
-      for (const ep of eps.values()) if (ep.open) ep.send(payload);
+    const shot = assembleDownlinkShot(
+      room,
+      this.transportOnlineSeats(roomId),
+      null,
+      events ?? [],
+      true,
+    );
+    if (shot.events != null) {
+      for (const ep of eps.values()) if (ep.open) ep.send(shot.events);
     }
-    const snapMsg = encodeDownlink(clientView(room, this.transportOnlineSeats(roomId)));
-    for (const ep of eps.values()) if (ep.open) ep.send(snapMsg);
+    for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
   }
 
   // ──────────────────────────── host 移交(ADR-0002)────────────────────────────

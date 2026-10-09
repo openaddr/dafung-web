@@ -1,15 +1,22 @@
-// 客户端投影层(ADR-0016 per-seat 投影的联机侧)——从 room.ts 拆出(模块治理 10/11 #327,纯搬不改)。
-// 大厅/快照视图 + 锦囊暗牌 per-seat 裁剪 + 服务器驱动判定 + 廉价进展指纹。
+// 客户端投影层 + 下行装配单口(ADR-0016 per-seat 投影的联机侧)——从 room.ts 拆出
+// (模块治理 10/11 #327,纯搬不改),#431 起兼营下行装配与校准触发登记。
+// 大厅/快照视图 + 锦囊暗牌 per-seat 裁剪 + 单拍下行装配(assembleDownlinkShot:
+// 两个传输面共用的唯一装配口,redaction 必经)+ 关键节点校准触发(CALIBRATION_*,
+// 类型化 + 档位表覆盖对账)+ 服务器驱动判定 + 廉价进展指纹。
 // 纯函数,零 WS/HTTP/fs 依赖;room.ts 持会话模型,server.ts(传输层)与测试直接消费。
 //
 // clientView/lobbyView 自 2026-08-14(架构待办③)起:snapshot 消息补齐 seatCount/started/mapId,
 // 与 lobby 消息的房间字段对齐——客户端从任一消息都能直接得到完整房间态,无需手抄推断。
 // (个人项目,不考虑旧协议兼容;客户端 network-client.ts 同步改。)
-import type { GameEngine } from "../src/core/authority";
+import type { GameEngine, TurnPhase } from "../src/core/authority";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { ReactionView } from "../src/core/reaction-window";
 import type { GameEvent } from "../src/core/game-events";
+import { EVENT_TIERS, type EventKind } from "../src/core/event-tiers";
 import type { RoomSession } from "./room";
+// 下行封装构造收口 wire.ts(#429):装配口只管形状与裁剪,序列化不另起炉灶。
+// (wire 对本模块/room 的引用全是 type 导入,构建期擦除,无运行时环。)
+import { encodeDownlink, eventsMsg } from "./wire";
 
 // ──────────────────────────── 纯视图(传输层与持久化都不参与)────────────────────────────
 /** 座位元数据:lobbyView/clientView 都从这里取(字段与原 server.ts 一致,客户端依赖)。
@@ -98,9 +105,9 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
  *  snapshot 分支携带与 lobby 相同的房间字段(roomId/seatCount/host/started/mapId/seats)
  *  + 引擎快照展开(快照无同名键,不冲突)。
  *  seat(ADR-0016):接收方座位——传入即返回该座位的投影(锦囊暗牌/牌序/抽牌日志已裁);
- *  缺省 = god-view 全量(重放/调试/单测语义,#381 起生产 ws 路径(open 摘要/flush 校准)
- *  一律带座位,保密后补兑现)。 */
-export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: number) {
+ *  缺省/null = god-view 全量(重放/调试/单测语义;#431 起生产 ws 下行一律经
+ *  assembleDownlinkShot 装配,redaction 在装配内必经,直呼本函数不再出现在传输面)。 */
+export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: number | null) {
   if (!r.engine) return lobbyView(r, onlineSeats);
   const base = {
     type: "snapshot" as const,
@@ -209,6 +216,90 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
     }
   });
 }
+
+// ──────────────────────────── 单拍下行装配(#431,发送总口单点执行体)────────────────────────────
+/** 单拍下行装配(ADR-0020 决策 2「发送总口单点」的执行体,#431):两个传输面
+ *  (server.ts flushRoom/open 摘要 + room.ts flushTransport/connectSeat 摘要)的
+ *  逐座位下行只此一个装配口——①事件批消息 + ②整房摘要消息在此一次配齐、封装成
+ *  线上 JSON,redaction 是装配必经步而非调用纪律:
+ *  - viewerSeat 传座位 → 事件批过 redactEvents、摘要过 redactSnapshotForSeat(联机
+ *    必裁;将来观战/回放类消费面复用本口,传座位默认拿裁剪流);
+ *  - viewerSeat 传 null → 显式 god-view 退化(单机内存直连唯一合法取值:本机单真人
+ *    无跨设备泄密面;泄漏面想不走裁剪必须先在签名上写出这个 null,「忘了裁」不存在)。
+ *  withSnapshot:②是否随拍构造——联机校准判定为真才发(快照含全量 log,非校准
+ *  flush 不白付 O(log) 序列化),单机恒发;①恒装配(空批自然产出 null)。
+ *  纯函数:不改输入;零兜底——redactEvents 对未登记 kind 当场炸(编译期穷尽 switch
+ *  + 运行期双保险,防遗漏机器见 test/downlink-assembly.test.ts)。
+ *  返回型按 withSnapshot 收窄:要摘要必得摘要(true 恒 string),调用方免空判。 */
+export function assembleDownlinkShot(
+  r: RoomSession,
+  onlineSeats: Set<number>,
+  viewerSeat: number | null,
+  batch: readonly GameEvent[],
+  withSnapshot: true,
+): { events: string | null; snapshot: string };
+export function assembleDownlinkShot(
+  r: RoomSession,
+  onlineSeats: Set<number>,
+  viewerSeat: number | null,
+  batch: readonly GameEvent[],
+  withSnapshot: false,
+): { events: string | null; snapshot: null };
+export function assembleDownlinkShot(
+  r: RoomSession,
+  onlineSeats: Set<number>,
+  viewerSeat: number | null,
+  batch: readonly GameEvent[],
+  withSnapshot: boolean,
+): { events: string | null; snapshot: string | null } {
+  const events =
+    batch.length > 0
+      ? eventsMsg(viewerSeat == null ? [...batch] : redactEvents(batch, viewerSeat))
+      : null;
+  return {
+    events,
+    snapshot: withSnapshot ? encodeDownlink(clientView(r, onlineSeats, viewerSeat)) : null,
+  };
+}
+
+// ──────────────────────────── 关键节点校准触发(#388 判定口径,#431 类型化归口)────────────────────────────
+// 校准触发登记从 server.ts 归口本模块(#431):与装配口同居一文件——校准判定(何时
+// 发 ②)与单拍装配(②怎么配)是同一份下行政策。折叠端不折清单(客户端 event-fold.ts
+// 「校准兜底项」)与本校准触发的对账以 #430 档位表(EVENT_TIERS)为底册:
+// fold=calibration-only / fold+calibration 的漂移窗即校准的消费面,覆盖关系由下方
+// CALIBRATION_COVERAGE 逐 kind 点名(漏点名 = 编译红)。
+/** 决策窗校准相位(#388):进入/停留/退出都强制全量(判定依据=引擎公开 turnPhase;
+ *  退出沿无相位事件,由 flush 侧 prev/settled 前后沿夹出——窃玉偷香/火攻降级等
+ *  锦囊结算批随窗闭沿落校准)。ReadonlySet<TurnPhase>:相位改名 = 编译红(字符串
+ *  集合退役,#431;bot-driver INPUT_PHASES 同款纪律的登记面补齐)。 */
+export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
+  "AwaitingJinnang",
+  "AwaitingHeroPick",
+  "AwaitingEncounter",
+  "AwaitingExhaustion",
+  "AwaitingBankruptcySettle",
+]);
+/** 节点事件校准(#388):批内出现即全量。牌库洗牌只发生在 finishSetup(buildJinnangDeck),
+ *  随 gameStarted 批覆盖;core 现无中途洗牌,将来新增须随事件产出在此登记。
+ *  ReadonlySet<EventKind>:kind 改名 = 编译红(同上)。 */
+export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
+  "gameStarted",
+  "playerBankrupt",
+]);
+/** 校准覆盖对账(#431,吃 #430 档位表):fold=calibration-only 的 kind(折叠面刻意
+ *  不折,漂移由校准兜)必须在此逐个点名覆盖触发;词汇表新增 calibration-only kind
+ *  未点名 = 编译红(强制先想清楚校准谁兜,或回 EVENT_TIERS 改档/声明漂移纯信任
+ *  ADR-0020 决策 5 的具体理由)。覆盖触发的登记本体 = 上面两集合 + flush 侧
+ *  phase=Setup 判定(server.ts);fold+calibration 档的漂移窗由同表 why 字段登记,
+ *  不在本表重复。 */
+export const CALIBRATION_COVERAGE = {
+  setupCompleted: "开局校准点:phase=Setup 全程强制全量 + gameStarted 批(finishSetup)",
+  treasureStolen: "军师窗沿:窃玉结算随 AwaitingJinnang 窗闭批,prev/settled 前后沿夹出",
+} as const satisfies {
+  readonly [
+    K in EventKind as (typeof EVENT_TIERS)[K]["fold"] extends "calibration-only" ? K : never
+  ]: string;
+};
 
 // ──────────────────────────── 驱动/看门狗共用的座位判定 ────────────────────────────
 /** 该座位当前是否由服务器驱动(原始 bot、被房主接管、或自助托管中)。 */
