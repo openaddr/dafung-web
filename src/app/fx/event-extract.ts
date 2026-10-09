@@ -573,11 +573,20 @@ export function extractBatchEvents(
 
   // 铜钱声(旧 spawnFloaters 口径:有正收入就叮一声,每批一次,排在首个浮字之前)
   const firstFloater = events_.findIndex((e) => e.kind === "cashDelta" || e.kind === "supplyRain");
+  const coinDue =
+    firstFloater >= 0 &&
+    events_.some((e) => (e.kind === "cashDelta" || e.kind === "supplyRain") && e.amount > 0);
+  if (coinDue) events_.splice(firstFloater, 0, { kind: "sound", event: "coin" });
+  // 付出声(2026-10 音效审计对位:收钱有叮、付钱原无声):批内有负向浮字 → pay
+  // 每批一次,缀在 coin 之后、首个浮字之前。购地批不压——价款浮字已由 buy 音
+  // (摇钱袋)报交易,再叠支出闷响是双声;批粒度粗判(合并批同时含购地与无关
+  // 支出时 pay 让位,宁缺勿闹)。
   if (
     firstFloater >= 0 &&
-    events_.some((e) => (e.kind === "cashDelta" || e.kind === "supplyRain") && e.amount > 0)
+    !events_.some((e) => e.kind === "sound" && e.event === "buy") &&
+    events_.some((e) => e.kind === "cashDelta" && e.amount < 0)
   )
-    events_.splice(firstFloater, 0, { kind: "sound", event: "coin" });
+    events_.splice(firstFloater + (coinDue ? 1 : 0), 0, { kind: "sound", event: "pay" });
   return events_;
 }
 
