@@ -23,8 +23,9 @@
 //   ✅ 渲染 hook         app:名将专属将旗(HeroCardFace 消费;assets/ 资源走 URL)
 //   ✅ 交互 handler      定制问询(choices 之外问询,ADR-0022 与 ADR-0020 咬合):
 //                       权威侧 askPlayer 经 extension-registry 注册(本文件
-//                       ExtensionInquiry,#410);引擎消费挂点(无匹配 choices 时回调
-//                       出选项集)与客户端呈现挂点归后续票
+//                       ExtensionInquiry,#410);引擎消费挂点已落(#432:askInquiry
+//                       挂起 id,无匹配 choices 时按 id 回调出选项集,选项盖 inquiryId
+//                       章);解决命令与客户端呈现接线归 #424
 //   ◻ 新牌类型          锦囊/珍宝牌新种类(数据表+结算案+卡面),后续票
 //   ◻ 新格子类型        棋盘格新种类(board.ts 格判别+落格结算),后续票
 //   ◻ 自定义面板        扩展自有 UI 面板/弹层挂点,后续票

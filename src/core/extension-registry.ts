@@ -37,8 +37,9 @@ export function registeredExtensionPackages(): readonly ExtensionManifest[] {
   return [...installed.values()].map((p) => p.manifest);
 }
 
-/** 全部定制问询(#410,装载序):choices 之外的扩展问询生产者;引擎消费挂点
- *  (无匹配 choices 时按 id 回调 askPlayer)归后续票,本读口即未来挂点的唯一取数口。 */
+/** 全部定制问询(#410,装载序):choices 之外的扩展问询生产者;引擎消费挂点已落
+ *  (#432:无匹配 choices 时 choicesFor 按挂起 id 回调 askPlayer,本读口即该挂点的
+ *  唯一取数口)。 */
 export function extensionInquiries(): readonly ExtensionInquiry[] {
   return [...installed.values()].flatMap((p) => p.inquiries);
 }
