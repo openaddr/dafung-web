@@ -438,19 +438,19 @@ export class HybridAudioPlayer extends SynthAudioPlayer {
       src.buffer = buf;
       src.playbackRate.value = 0.92 + Math.random() * 0.16; // 轻微随机变调避免单调
       const g = ctx.createGain();
-      const vol = this.muted ? 0 : 0.6;
-      g.gain.value = vol;
+      // muted 态到不了这里(ensureCtx 对 muted 早退),静音门在 ctx 层已关
+      g.gain.value = 0.6;
       src.connect(g).connect(this.master);
       src.start();
-      // 截断:长尾/连击采样按事件收尾渐隐(变调只影响样本内时长,截断点在输出时间轴上,恒定)
+      // 截断:长尾/连击采样按事件收尾渐隐(变调只影响样本内时长,截断点在输出
+      // 时间轴上,恒定);releaseMs < stopAt×1000 的配置不变量由 audio-mapping.test
+      // 守,此处不做运行时防御
       const trim = FILE_TRIM[event];
       if (trim && buf.duration > trim.stopAt) {
         const tStop = ctx.currentTime + trim.stopAt;
         const tRelease = tStop - trim.releaseMs / 1000;
-        if (!this.muted && tRelease > ctx.currentTime) {
-          g.gain.setValueAtTime(vol, tRelease);
-          g.gain.exponentialRampToValueAtTime(0.0001, tStop);
-        }
+        g.gain.setValueAtTime(0.6, tRelease);
+        g.gain.exponentialRampToValueAtTime(0.0001, tStop);
         src.stop(tStop);
       }
       return;

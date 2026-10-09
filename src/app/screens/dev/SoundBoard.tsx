@@ -2,9 +2,10 @@
 // 点行出声——音效是唯一无法自动验收的维度,听感裁决归人耳;本页把「进对局等触发点」
 // 的验收成本折成一次点击。行集 = Record<SoundEvent,…> 按联合穷尽:加事件漏登记此处
 // 编译期红。标注(素材/合成/裁剪)读 audio.ts 导出的运行时表,不另造第二事实源。
-import { useState } from "react";
+// 图标走 Sym 符号表、标题走 font-wenkai(DESIGN §4.3 字体/符号收口)。
 import { AudioProvider, useAudio } from "@app/fx/AudioProvider";
 import { AUDIO_FILES, FILE_TRIM, getAudio, type SoundEvent } from "@app/fx/audio";
+import { Sym } from "@app/screens/shared/Sym";
 
 /** 每个音效事件的试听行:label = 界面名,when = 真实触发时机(听感必须挂在因果上才有意义)。 */
 const ROWS: Record<SoundEvent, { label: string; when: string }> = {
@@ -28,12 +29,9 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
 };
 
 function Board() {
+  // 与 GameTopBar.MuteSqButton 同口径:context 直读,Provider 外不渲染(非兜底点)
   const audio = useAudio();
-  const [muted, setMuted] = useState(audio?.muted ?? false);
-  const toggleMuted = () => {
-    getAudio().setMuted(!muted);
-    setMuted(!muted);
-  };
+  if (!audio) return null;
   const play = (event: SoundEvent) => {
     // diceHit 带中档冲击强度(0~1),其余事件走默认
     getAudio().play(event, event === "diceHit" ? { intensity: 0.6 } : undefined);
@@ -41,9 +39,15 @@ function Board() {
   return (
     <div className="m-auto flex w-[min(680px,94vw)] flex-col gap-y-3 p-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-deco text-2xl text-ink">音效试听台</h1>
-        <button onClick={toggleMuted} className="note-btn rounded px-3 py-1 text-sm">
-          {muted ? "已静音" : "静音"}
+        <h1 className="font-wenkai text-2xl text-ink">音效试听台</h1>
+        <button
+          type="button"
+          title={audio.muted ? "开音" : "静音"}
+          aria-label={audio.muted ? "开音" : "静音"}
+          onClick={audio.toggleMuted}
+          className="note-btn flex items-center rounded px-3 py-1.5"
+        >
+          <Sym name={audio.muted ? "muted" : "sound"} size={15} />
         </button>
       </div>
       <p className="text-sm text-ink-dim">
@@ -52,30 +56,37 @@ function Board() {
       </p>
       <ul>
         {(Object.entries(ROWS) as [SoundEvent, { label: string; when: string }][]).map(
-          ([event, row]) => (
-            <li
-              key={event}
-              className="flex items-center gap-x-3 border-t border-ink/15 py-2 first:border-t-0"
-            >
-              <button
-                onClick={() => play(event)}
-                className="note-btn min-w-24 shrink-0 rounded px-3 py-1.5 text-sm"
+          ([event, row]) => {
+            const file = AUDIO_FILES[event];
+            const trim = FILE_TRIM[event];
+            return (
+              <li
+                key={event}
+                className="flex items-center gap-x-3 border-t border-ink/15 py-2 first:border-t-0"
               >
-                ▶ {row.label}
-              </button>
-              <span className="min-w-0 flex-1 text-sm text-ink-dim">{row.when}</span>
-              <span className="shrink-0 text-xs text-ink-dim">
-                {AUDIO_FILES[event] ? (
-                  <>
-                    素材 {AUDIO_FILES[event]!.split("/").pop()}
-                    {FILE_TRIM[event] ? ` ·截${FILE_TRIM[event]!.stopAt}s` : ""}
-                  </>
-                ) : (
-                  "合成"
-                )}
-              </span>
-            </li>
-          ),
+                <button
+                  type="button"
+                  onClick={() => play(event)}
+                  aria-label={`试听 ${row.label}`}
+                  className="note-btn flex min-w-24 shrink-0 items-center gap-x-1.5 rounded px-3 py-1.5 text-sm"
+                >
+                  <Sym name="play" size={11} />
+                  {row.label}
+                </button>
+                <span className="min-w-0 flex-1 text-sm text-ink-dim">{row.when}</span>
+                <span className="shrink-0 text-xs text-ink-dim">
+                  {file ? (
+                    <>
+                      素材 {file.split("/").pop()}
+                      {trim ? ` ·截${trim.stopAt}s` : ""}
+                    </>
+                  ) : (
+                    "合成"
+                  )}
+                </span>
+              </li>
+            );
+          },
         )}
       </ul>
     </div>

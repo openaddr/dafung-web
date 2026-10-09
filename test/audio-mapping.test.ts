@@ -29,4 +29,11 @@ describe("音效映射一致性", () => {
       ).toBeDefined();
     }
   });
+
+  it("FILE_TRIM 配置不变量:release 渐隐严格短于截断窗(releaseMs < stopAt×1000)", () => {
+    // 播放侧不做该防御(零兜底):配置错了直接把 setValueAtTime 排进过去,此处当场炸出
+    for (const [event, trim] of Object.entries(FILE_TRIM)) {
+      expect(trim!.releaseMs, `${event} 的 release 不短于截断窗`).toBeLessThan(trim!.stopAt * 1000);
+    }
+  });
 });
