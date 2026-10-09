@@ -702,7 +702,11 @@ Bun.serve<WsSeat>({
       }
       if (msg?.type === "cmd" && msg.cmd) {
         recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
-        void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
+        void registry
+          .applyCommand(roomId, msg.cmd, () => broadcast(roomId))
+          .catch((err) =>
+            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
+          );
       } else if (msg?.type === "pickCapital" && typeof msg.tileIndex === "number") {
         // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
         recordEvent(roomId, { ev: "pick-capital", seat, tileIndex: msg.tileIndex });
