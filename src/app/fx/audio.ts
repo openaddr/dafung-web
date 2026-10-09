@@ -353,7 +353,8 @@ export class SynthAudioPlayer implements AudioPlayer {
 
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
 /** SoundEvent → 音频文件 URL 映射。缺失的 event 走合成回退。 */
-const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
+// 导出给一致性守卫测试与音效试听 dev 页(映射表是运行时配置,消费方按需读)。
+export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // diceRoll 不再映射文件:旧 drum-roll.ogg 是 4s 完整鼓滚奏,行军点击(=掷骰)是
   // 全游戏最高频触发,太吵(#26)——改走上方合成轻快瞬态。
   // banner 同病同治(2026-10 音效审计):回合横幅是每一次换手的固定触发,3.8s 渐强
@@ -386,7 +387,7 @@ const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
  *  coins-shake 全程 3.6s 持续摇,scroll-unroll 4s 纸噪且峰值在 1.4s;
  *  coin-drop 有效能量仅前 0.5s、guqin 是双弹乐句、gong/victory 是完整乐句——后四者不截。
  *  值 = 播放起点后多少秒收尾渐隐。 */
-const FILE_TRIM: Partial<Record<SoundEvent, { stopAt: number; releaseMs: number }>> = {
+export const FILE_TRIM: Partial<Record<SoundEvent, { stopAt: number; releaseMs: number }>> = {
   diceLand: { stopAt: 0.65, releaseMs: 200 },
   upgrade: { stopAt: 0.65, releaseMs: 200 },
   jinnangDraw: { stopAt: 0.65, releaseMs: 200 },
