@@ -17,7 +17,6 @@ import type { EncounterConfig } from "@core/encounters";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
-import { SnapshotEffects } from "@app/net/snapshot-effects";
 import { stashEventBatch } from "@app/net/event-feed";
 import { e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
@@ -36,7 +35,6 @@ import {
   pickCapitalMsg,
   type ServerMsg,
 } from "../../../scripts/wire";
-import { reactionQueriesSeat } from "./reaction";
 import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
@@ -90,14 +88,12 @@ export class LocalController extends GameController {
   private readonly _engine: GameEngine;
   /** 单机恒 seat 0(host 真人;createRoom 强约束 seat0=human)。 */
   readonly seat = 0;
-  /** 命令已发出、下行拍未回(防连点;联机 pending 的单机对应物)。 */
-  private pending = false;
-  /** 事件批表现消费器:与联机同一实例、同一播放队列(netStore 暂存批 → 直译 → present)。 */
-  private readonly fx: SnapshotEffects;
-  /** 已收首帧整房摘要(起签转入沿检测在此之前不启用,与联机 enteredGame 同语义)。 */
-  private enteredGame = false;
-  /** 上一拍是否处于「我的 Roll 等待态」(起签印的转入沿检测基准)。 */
-  private prevMyRollWait = false;
+  /** 交互策略参数(#433 上收基类单源):热座=true——屏前唯一真人座即 seat,
+   *  决策方是 bot 则无人可操作,isBot 判定即座位匹配,不再要求决策方===本座。 */
+  protected override readonly hotSeat = true;
+  protected override get mySeat(): number {
+    return this.seat;
+  }
   /** 上一拍各座位棋子位置(行军锚定基准):内存直连下引擎已在转移后,「转移前视觉
    *  停点」取上一拍同步时的位置(联机「折叠前捕获」的单机对应拍,语义等价)。 */
   private prePositions: ReadonlyArray<number | null>;
@@ -167,10 +163,6 @@ export class LocalController extends GameController {
     this._engine = engine;
     setEngine(engine);
     this.prePositions = engine.players.map((p) => p.position);
-    this.fx = new SnapshotEffects(
-      () => this._engine,
-      () => this.sync(),
-    );
     this.sync();
   }
 
@@ -182,24 +174,6 @@ export class LocalController extends GameController {
   // 内存直连读权威引擎,公式单源引擎 getter。
   get viewSeat(): number {
     return this._engine.decisionOwner;
-  }
-
-  /** 此刻本地玩家能否操作:与联机 OnlineController 同构(差异锁 = pending),
-   *  反应窗例外:被询问座位可应答(决策方仍是出牌者,decisionOwner 不适用)。 */
-  get interactive(): boolean {
-    const e = this._engine;
-    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-      const pr = e.pendingReaction;
-      if (pr == null) return false;
-      return !this.pending && reactionQueriesSeat(pr.view, this.seat);
-    }
-    return (
-      e.phase === "Playing" &&
-      !e.players[e.decisionOwner]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn &&
-      !this.fx.playing
-    );
   }
 
   /** 我的座位托管中(进程内直读房间会话;房间级元数据不走传输,联机=广播回读)。 */
@@ -266,20 +240,6 @@ export class LocalController extends GameController {
     if (msg.type === "lobby") return; // 大厅元数据(开局前首连摘要):单机无大厅读口
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
     useGameStore.getState().pushHint(msg.error);
-  }
-
-  /** 起签转入沿(#188):本座位进入 Roll 等待态(房间 ~1s 看门狗自动起摇)→ 钤「签」印。
-   *  与联机 checkRollSeal 同款,托管中由服务器代打不播。 */
-  private checkRollSeal(): void {
-    const e = this._engine;
-    const myRollWait =
-      e.phase === "Playing" &&
-      e.turnPhase === "Roll" &&
-      e.decisionOwner === this.seat &&
-      !e.players[this.seat]?.isBot &&
-      !this.autoPilotOn;
-    if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
-    this.prevMyRollWait = myRollWait;
   }
 
   protected override sync(): void {
