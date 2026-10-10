@@ -70,9 +70,12 @@ async function pollEventSeen(
     .toBe(true);
 }
 
-/** 标准 UI 建房/加入/选图/开局(种子 430 经路由拦截注入 /room/new 请求体);
+/** 标准 UI 建房/加入/选图/开局(种子经路由拦截注入 /room/new 请求体,缺省 430);
  *  3 座:seat2 不入座,开局由服务器 bot 填充。返回 [host, guest, guest 线级事件批]。 */
-async function twoClientsWithSeed(browser: Browser): Promise<{
+async function twoClientsWithSeed(
+  browser: Browser,
+  seed: number = SEED,
+): Promise<{
   host: Page;
   guest: Page;
   roomId: string;
@@ -84,11 +87,11 @@ async function twoClientsWithSeed(browser: Browser): Promise<{
   await host.goto(`${ONLINE}/?online=1`);
   // 种子注入:建房请求体补 seed(不改 UI 契约;房间确定性来自这一拦截)。
   // 国号预设同步钉死:建房 guohao 取 localStorage 偏好(点击时读),空缺会改变引擎国号池
-  // 洗牌的骰流消耗——演算(seed 430)按 host=魏 / guest=无预设 复刻,此处对齐。
+  // 洗牌的骰流消耗——演算按 host=魏 / guest=无预设 复刻,此处对齐。
   await host.evaluate(() => localStorage.setItem("dafung.guohao", "魏"));
   await host.route("**/room/new", async (route) => {
     const body = JSON.parse(route.request().postData() ?? "{}");
-    body.seed = SEED;
+    body.seed = seed;
     await route.continue({ postData: JSON.stringify(body) });
   });
   await host.getByTestId("lobby-target").fill("30000");
@@ -258,6 +261,68 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
         "降噪代发经事件批留痕",
       );
       // 对局继续:两端各自清决策点,局面持续推进
+      await skipUntilNextSeat(host, 0, 60_000);
+      await skipUntilNextSeat(guest, 1, 60_000);
+    } finally {
+      await host.context().close();
+      await guest.context().close();
+    }
+  });
+
+  test("已应答座位横幅即收、不可重复应答(#453/B2):host 应答后横幅消失,权威侧应答齐窗收续结算", async ({
+    browser,
+  }) => {
+    // 种子 2849 离线核算(hunt:同参建房 host=魏/target 30000/3 座 bot 填 seat2/guest
+    // 入座在 startGame 前,真人各取候选首城):起手牌 host=识破诡计 / guest=识破诡计 /
+    // bot=无,draftOrder=[2,1,0]——选都一结束 bot 先动,例行回合中起手抽牌后宣告
+    // 连环计,询问集=识破持有者全集 [0,1],双人类同窗在两真人任何回合之前升起
+    // (零人类决策卷轴;此前种子 430 只有 guest 持识破,开不出本场景)。
+    const { host, guest, roomId } = await twoClientsWithSeed(browser, 2849);
+    try {
+      await awaitReactionWindow(host);
+      await awaitReactionWindow(guest);
+      // 询问集 per-seat 投影:各端只看到「自己是否被询问」——两端各自在列 = 双人类
+      // 同窗的前提成立(god-view 全集 [0,1] 见对局日志 reactionWindow 行)
+      const queriedOf = (page: Page): Promise<number[]> =>
+        page.evaluate(() => (window as any).__dafung.snapshot().reaction?.queriedBySeat);
+      expect(await queriedOf(host)).toEqual([0]);
+      expect(await queriedOf(guest)).toEqual([1]);
+      // host 点「不用」应答(单发命令;联机日常路径与单机降噪同款点击链)
+      await answerReactionWindow(host, { mode: "decline" });
+      // #453/B2 验收:已应答座位横幅即刻消失、不可再点(入口没了)。权威侧窗未收
+      // (guest 未应答,加长窗 8s 内由其超时代发兜底)——呈现层不许复显横幅。
+      await expect(host.getByTestId(TESTIDS.reactionBanner)).not.toBeVisible({ timeout: 3_000 });
+      // 应答齐窗收续结算:guest 超时代发「不用」后连环计照常执行,对局离开反应相位
+      await expect
+        .poll(
+          async () =>
+            guest.evaluate(
+              () => (window as any).__dafung.snapshot().turnPhase !== "AwaitingReaction",
+            ),
+          { timeout: 20_000, message: "应答齐窗收续结算" },
+        )
+        .toBe(true);
+      // 权威留痕(房间落盘):每被询问座位恰应答一次(重复应答被引擎拒绝,呈现层
+      // 撤入口后无可重复点击面),连环计结算执行
+      await expect
+        .poll(
+          async () => {
+            const rec = JSON.parse(readFileSync(join(roomsDir(), `${roomId}.json`), "utf8")) as any;
+            const log: string[] = (rec.snapshot?.log ?? []).map((l: any) => l.detail);
+            return {
+              hostAnswered: log.filter(
+                (d) => d.includes("reactionRespond") && d.includes("seat=p0"),
+              ).length,
+              guestAnswered: log.filter(
+                (d) => d.includes("reactionRespond") && d.includes("seat=p1"),
+              ).length,
+              settled: log.some((d) => d.includes("jinnangUse") && d.includes("连环计")),
+            };
+          },
+          { timeout: 10_000, message: "权威应答留痕:两座各一次 + 结算执行" },
+        )
+        .toEqual({ hostAnswered: 1, guestAnswered: 1, settled: true });
+      // 对局继续推进:两端各自清决策点,不留悬窗
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
     } finally {
