@@ -14,7 +14,7 @@ import {
   useState,
 } from "react";
 import { flushSync } from "react-dom";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 import { loadMap } from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";

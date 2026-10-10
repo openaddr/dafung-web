@@ -2,16 +2,12 @@
 // 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
-import {
-  RoomRegistry,
-  RoomError,
-  lobbyView,
-  clientView,
-  resolveGuohaoClash,
-  redactSnapshotForSeat,
-} from "../scripts/room";
+import { RoomRegistry, RoomError } from "../scripts/room";
+import { lobbyView, clientView, redactSnapshotForSeat } from "../scripts/seat-projection";
+import { resolveGuohaoClash } from "../src/core/guohao";
 import { JINNANG_CARDS } from "../src/core/jinnang";
-import type { RoomPersistence, RoomRecord } from "../scripts/room-persistence";
+import type { RoomPersistence } from "../scripts/room-persistence";
+import type { RoomRecord } from "../scripts/room-record";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
 

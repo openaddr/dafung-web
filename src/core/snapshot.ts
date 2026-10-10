@@ -8,20 +8,14 @@
 // 加一个引擎字段只在表里加一条(read/write 同点),不再横跨两个镜像函数五处文件。
 // 契约测试(snapshot-contract.test.ts)断言「serializeGame 产出的键集 = 清单键集」双向一致,
 // 杜绝「序列化了没恢复 / 清单记了没产出」的双向漂移。
-import type {
-  GameEngine,
-  EnginePhase,
-  SetupPhase,
-  LastJinnangPlay,
-  TurnPhase,
-  VictoryReason,
-} from "./authority";
+import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
 import type { HeroDef } from "./heroes";
 import type { LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
+import type { GameEvent } from "./game-events";
 import { HEROES } from "./heroes";
 import { netWorth } from "./networth";
 
@@ -133,8 +127,9 @@ export interface GameSnapshot {
   offeredHeroes: HeroRow[];
   // 表现态字段经 presentation 视图读(Wave3 候选4:字段已私有,序列化格式不变)
   lastRoll: DiceRoll | null;
-  // lastMove 全量坐标(waypoints/branchWaypoints)随行军动画坐标一并序列化:
-  // 联机端收到 snapshot 时,行军动画可能尚未播放(或断线重连后需补播),需坐标才能复现路径。
+  // lastMove 全量坐标(waypoints/branchWaypoints)随快照序列化:它是行军事件的产出
+  // 契约输入(requireMovePath 恢复回灌后读它把路径随事件带出,#385 路径随事件走);
+  // 动效取径已改事件自带,快照里的 lastMove 不再是行军动画的取径来源。
   lastMove: MovePath | null;
   // 表现态扁平字段(UI 直接消费;GameScreen/DecisionScrollLayer 口径不变)
   lastLandOutcomeKind: LandOutcomeKind | null;
@@ -156,6 +151,10 @@ export interface GameSnapshot {
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
   /** 技能目标段载荷(#188 档 3):军师幕选技后的选人子状态;null=无。 */
   pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
+  /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 挂起的问询 id 句柄 + 透传参数;
+   *  null=无。选项集纯派生(choicesFor 按 id 回调注册问询),但句柄必须随快照走——
+   *  恢复/联机后无句柄则派生不出同一选项集,问询静默蒸发。 */
+  pendingInquiry: { id: string; params: Record<string, number> } | null;
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
@@ -168,9 +167,6 @@ export interface GameSnapshot {
    *  本字段是纯派生只读投影,消费方=UI(GameScreen 反应窗态);挂起态 pendingReaction
    *  消费方=恢复重建(restoreFromSnapshot)与传输层超时判据(room.ts 读 seq/answers)。 */
   reaction: import("./reaction-window").ReactionView | null;
-  /** 最近出牌留痕(#284,联机信号源):客户端快照 diff seq 变化产 jinnangPlayed 表现
-   *  事件。公开信息——出牌是公开事件,redact 不裁。 */
-  lastJinnangPlay: LastJinnangPlay | null;
   /** 进行中的窥探清单(#122/T4,公开);投影据此放行 viewer 对 target 的手牌内容。 */
   jinnangPeeks: import("./jinnang-execution").JinnangPeek[];
   /** 锦囊牌库剩余数(公开信息,引擎态):牌序被投影裁掉后,数量经本字段照传。 */
@@ -178,6 +174,10 @@ export interface GameSnapshot {
   jinnangDiscard: string[];
   // 完整战报(CLI 跨进程持久化 / 联机端断线重连看历史)。God view 包含 log,各端可截短。
   log: LogEvent[];
+  // 事件流(#375,ADR-0020):当前转移批的类型化事件(批界=编排入口开批,见
+  // game-events.ts beginGameEventBatch)。快照非破坏性透出当前批(同一转移的多次
+  // 快照幂等),随状态恢复回灌;全桌公开转移记录,redact 不裁(ADR-0016 投影透传)。
+  events: GameEvent[];
 }
 
 /** 反应窗挂起态深拷贝(序列化/恢复共用;纯数据,无引用共享)。 */
@@ -445,6 +445,17 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
+    // 定制问询挂起载荷(#432):id 句柄 + 透传参数随快照走(恢复后同一问询可续)
+    key: "pendingInquiry",
+    read: (e) =>
+      e.pendingInquiry ? { ...e.pendingInquiry, params: { ...e.pendingInquiry.params } } : null,
+    write: (e, s) => {
+      e.pendingInquiry = s.pendingInquiry
+        ? { ...s.pendingInquiry, params: { ...s.pendingInquiry.params } }
+        : null;
+    },
+  },
+  {
     // 擂鼓步数加成(#188 档 3):发动与掷骰之间可被广播/落盘,恢复须保真
     key: "heroDiceBonus",
     read: (e) => e.heroDiceBonus,
@@ -465,20 +476,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     key: "reaction",
     read: (e) => (e.pendingReaction ? clonePendingReaction(e.pendingReaction)!.view : null),
     write: () => {},
-  },
-  {
-    // 最近出牌留痕(#284,批形状 LastJinnangPlay):联机信号源,客户端 diff seq 对 plays
-    // 逐条产出牌线。出牌是公开事件,redact 不裁;read/write 深拷贝(plays 数组不共享引用)。
-    key: "lastJinnangPlay",
-    read: (e) =>
-      e.lastJinnangPlay
-        ? { seq: e.lastJinnangPlay.seq, plays: e.lastJinnangPlay.plays.map((p) => ({ ...p })) }
-        : null,
-    write: (e, s) => {
-      e.lastJinnangPlay = s.lastJinnangPlay
-        ? { seq: s.lastJinnangPlay.seq, plays: s.lastJinnangPlay.plays.map((p) => ({ ...p })) }
-        : null;
-    },
   },
   {
     // 牌库剩余数(公开信息,引擎态):投影裁牌序后照传
@@ -728,8 +725,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // lastMove 全量坐标:联机端收到 snapshot 时行军动画可能尚未播放(或断线重连后需补播),
-    // 需坐标才能复现路径。回写走 applyPresentationMove(表现侧写 lastMove 的合法入口)。
+    // lastMove 全量坐标:恢复回灌(它是行军事件产出契约的输入,见接口处注)。
+    // 回写走 applyPresentationMove(表现侧写 lastMove 的合法入口)。
     key: "lastMove",
     read: (e) => e.presentation.lastMove,
     write: (e, s) => {
@@ -820,6 +817,16 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.log,
     write: (e, s) => {
       e.log = [...s.log];
+    },
+  },
+  {
+    // 事件流(#375,ADR-0020):当前转移批随状态走——read 非破坏性透出当前批
+    // (数组浅拷贝,事件记录本身不可变),write 回灌(同一转移的多次快照/恢复端
+    // 看到同一批;旧批由下一转移的编排入口开批弃掉)。词汇表/产出两口见 game-events.ts。
+    key: "events",
+    read: (e) => [...e.gameEvents],
+    write: (e, s) => {
+      e.gameEvents = [...s.events];
     },
   },
 ];

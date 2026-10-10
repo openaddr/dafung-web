@@ -14,8 +14,13 @@
 //   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
 //   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
 //                                            {type:"pickCapital",tileIndex}(L41 选都),
-//                                            收 lobby/snapshot
-// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);host 可解散/接管;
+//                                            收 snapshot(首连摘要/校准,#381 起按接收
+//                                            座位投影)/events(#390 唯一状态通路,#381 起
+//                                            逐座位过滤)/lobby(元数据)/dismissed
+//                                            (#388 折叠切换⑥:正常对局零逐步快照,
+//                                            全量下行=摘要/校准/生命周期三类)
+// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);保留窗(默认 10
+//      分钟,#380)到期 bot 自动接管、原 token 重连仍可夺回;host 可解散/接管;
 //      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
@@ -30,18 +35,26 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty, GameCommand} from "../src/core/authority";
+import type { AiDifficulty, TurnPhase } from "../src/core/authority";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
+import { EventBatchChannel } from "./event-batch";
+// wire 协议编解码单源(#429):上行 parse+dispatch、下行构造全部收口 wire.ts
+import { dismissedMsg, dispatchInbound, encodeDownlink, errorMsg } from "./wire";
+import { RoomRegistry, RoomError, type RoomEvent, type RoomSession } from "./room";
+import { loadExtensionPackages } from "../src/core/extension-loader";
+// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room。
+// #431 起逐座位下行只经 assembleDownlinkShot 装配单口(redaction 必经步),校准触发
+// 登记(CALIBRATION_*)同居该模块;eventsMsg 随 events 直发退役出本文件。
 import {
-  RoomRegistry,
-  RoomError,
-  type RoomEvent,
-  type RoomSession,
-} from "./room";
-// 纯视图已拆 seat-projection.ts(模块治理 10/11 #327):投影函数直引,编排仍在 ./room
-import { clientView, lobbyView, seatMeta } from "./seat-projection";
-import { FileRoomPersistence, type HostConfig } from "./room-persistence";
+  assembleDownlinkShot,
+  CALIBRATION_EVENT_KINDS,
+  CALIBRATION_WINDOWS,
+  lobbyView,
+  seatMeta,
+} from "./seat-projection";
+import { FileRoomPersistence } from "./room-persistence";
+import type { HostConfig } from "./room-record";
 
 const PORT = parseInt(process.env.PORT ?? "3000", 10);
 const HOST = process.env.HOST ?? "0.0.0.0"; // 默认监听所有网卡:局域网设备(手机)可访问
@@ -82,6 +95,27 @@ const DECISION_TIMEOUT_MS = Math.max(
 const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   0,
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
+);
+
+// 掉线座位保留窗口(#380):对局中断线的座位保留该毫秒——窗口内持 seatToken 重连无缝
+// 夺回;到期 bot 自动接管(等价房主 takeover,重连仍可夺回)。0 = 关闭(恢复纯冻结 +
+// 房主手动接管/#118 停摆看门狗的旧语义)。默认 600000(10 分钟):手机闪断/电梯断网
+// 远够用,真离场不再永久拖死全局。token 是座位归属唯一凭证(ADR-0005),有效期=房间
+// 生命周期,不因保留窗到期失效。
+const RETENTION_WINDOW_MS = Math.max(
+  0,
+  parseInt(process.env.RETENTION_WINDOW_MS ?? "600000", 10) || 0,
+);
+
+// ──────────────────────────── 扩展包装载(#378,ADR-0022 权威侧)────────────────────────────
+// 启动时扫描 extensions/ 目录装载已安装包:名将/效果注册进引擎注册面(全房间生效,
+// 与单机本地引擎装同一份包、语义一致)。零兜底:目录缺失/包格式坏/入口加载失败 =
+// 服务启动当场失败(不静默跳过坏包);目录为空 = 合法零包环境,行为与无扩展一致。
+// 独立小节纪律:本段只做装载与打印,不触碰 broadcast/flush/重连任何逻辑。
+const EXTENSIONS_DIR = resolve(process.env.EXTENSIONS_DIR ?? "./extensions");
+const EXTENSION_PACKAGES = await loadExtensionPackages(EXTENSIONS_DIR);
+console.log(
+  `[server] 扩展包(#378):${EXTENSION_PACKAGES.length > 0 ? EXTENSION_PACKAGES.map((m) => `${m.id}@${m.version}`).join(", ") : "无"}(目录:${EXTENSIONS_DIR})`,
 );
 
 // ──────────────────────────── 内置地图(共享层加载,ADR-0007:fs 只在传输层)────────────────────────────
@@ -157,6 +191,37 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
   if (tail.length > TAIL_MAX) tail.shift();
   eventTail.set(roomId, tail);
 }
+// ──────────────────────────── 全量下行三类状态(#388 折叠切换⑥,ADR-0020 终局形态)────────────────────────────
+// 同步模型切换落定:正常对局不再按转移广播逐步快照,事件批消息(#390)是唯一对局状态
+// 通路。全量下行只剩三类(ADR-0020 决策 2/3/6),#381 起全部按接收座位投影(保密后补,
+// #431 起逐座位下行只经 seat-projection 的 assembleDownlinkShot 装配单口,redaction
+// 是装配必经步):
+//   ① 首连/重连整房摘要 —— WS open 时按接收座位取该座位的
+//      redactSnapshotForSeat 投影(他人锦囊手牌/牌库序/反应窗询问集不出网);
+//   ② 关键节点校准 —— flush 时按引擎公开结算态判定(触发登记=CALIBRATION_*,
+//      seat-projection),每座位各发
+//      各的 per-seat 投影(同 ①):开局(Setup 三段式全程 + finishSetup 批:开局发牌/
+//      牌库洗序/Setup 字段只发生在此)、破产清算批(playerBankrupt:现金清零/债主收款/
+//      珍宝转债主不折)、决策窗五相位(AwaitingJinnang/HeroPick/Encounter/Exhaustion/
+//      BankruptcySettle)的进入/停留/退出——窗口进出无专属事件或上下文(offeredHeroes/
+//      pendingEncounter/pendingJinnang 等)不随事件走,折叠器不可推导(event-fold.ts
+//      「校准兜底」同族);
+//   ③ 房间生命周期消息 —— lobby 形状的房间元数据(座位在线/房主/托管/接管),指纹变化
+//      才发(对局中掉线/托管开关等不再搭逐步快照车);dismissed 不变(元数据全公开,
+//      无 per-seat 面)。
+// 判定全部读引擎 phase/turnPhase/当前批事件 kind,零启发式;检测不到即不校准(漂移纯
+// 信任,ADR-0020 决策 5),不静默兜底。
+// 事件批累积/去重/排空/合并拍归共享通道单源(#411,scripts/event-batch.ts):
+// 单机传输面(room.ts transportBroadcast)用同一份批语义,双端行为零变化。
+const eventBatches = new EventBatchChannel();
+// 校准触发登记(#388 判定口径,#431 归口):CALIBRATION_WINDOWS/CALIBRATION_EVENT_KINDS
+// 类型化单源迁居 seat-projection(与装配口同居;phase/kind 改名=编译红,覆盖对账见
+// 同模块 CALIBRATION_COVERAGE),本文件只保留 flush 侧的相位基线记录。
+/** 上次下发的房间元数据指纹(lobby 形状 JSON):变化才发 ③,防元数据变更无车可搭。 */
+const lastRoomMeta = new Map<string, string>();
+/** 上次 flush/open 时引擎结算 turnPhase:决策窗退出检测(退出批无相位事件,如「今不用」)。 */
+const settledTurnPhase = new Map<string, TurnPhase | null>();
+
 const registry = new RoomRegistry(
   persistence,
   (roomId, ev: RoomEvent) => recordEvent(roomId, ev as Record<string, unknown>),
@@ -165,11 +230,20 @@ const registry = new RoomRegistry(
     encounter: ENCOUNTER,
     decisionTimeoutMs: DECISION_TIMEOUT_MS,
     reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
+    retentionWindowMs: RETENTION_WINDOW_MS,
   },
 );
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
   // 恢复房间:对局日志基线 = 恢复快照的 log 长度(重启前这些行已在文件里)
   if (room.engine) logWritten.set(room.engine.gameId, room.engine.log.length);
+  // #388 恢复登记(#390 移交注记归口):恢复快照自带的当前批视为已下行(重启前已广播
+  // 过)——不登记的话,恢复后首次广播会把旧批当新批重发,客户端折叠二次落账。结算相位
+  // 基线同步登记(决策窗退出检测的起点)。
+  const e = room.engine;
+  if (e) {
+    eventBatches.seedSeen(room.roomId, e.gameEvents);
+    settledTurnPhase.set(room.roomId, e.turnPhase);
+  }
 });
 
 // ──────────────────────────── WS 句柄归传输层(ADR-0007 关键不变量 1)────────────────────────────
@@ -201,42 +275,90 @@ function onlineSeatsOf(roomId: string): Set<number> {
   return set;
 }
 
-/** 广播(ADR-0016):读 Room 当前状态 + 算 onlineSeats + 按座位逐个投影后发——
- *  锦囊暗牌起,各座位收到的快照不再同一份(自己的手牌全量,他人的只见数量)。
+// ──────────────────────────── 事件批下行通道(#390,#388 起为唯一对局状态通路)────────────────────────────
+// 每次编排转移(submitCommand/botAct/开局驱动)后 onUpdate→broadcast;引擎当前批
+// (engine.gameEvents,#375)以「数组引用换新」为界——beginGameEventBatch 弃批建新数组,
+// 同一转移的重复通知(托管开关/终态推送等不触碰引擎的广播)引用不变,不重收。
+// 节奏口径:挂进 flush 节奏——本 tick 内各转移的批按发生序拼接,flush 时每座位各发
+// 一份 redactEvents 过滤批(#381,ADR-0020 决策 2 保密后补)后清空;不逐转移直发,
+// 理由同旧快照合并:托管 bot 链单 tick 多转移,逐转移直发重蹈 WS 背压覆辙。
+// 断线即丢(无排队无补发,ADR-0020 决策 4;重连=整房摘要,见 open 处理器)。
+// 批语义本体(累积/去重/拼接/幂等排空/合并拍)在共享通道 scripts/event-batch.ts(#411)。
+/** 广播(#388 折叠切换⑥):读 Room 当前状态 + 算 onlineSeats,flush 时按序发——
+ *  1. 事件批消息(#390,唯一对局状态通路):本 tick 累积批每座位各一份过滤批(空批不发);
+ *  2. 关键节点校准快照(②):判定口径见顶部「全量下行三类」——每座位各发各的 per-seat
+ *     投影,自带房间字段(元数据随车,指纹同步更新);
+ *  3. 房间元数据消息(③):非校准 flush 且元数据指纹变化时补发 lobby 形状一条
+ *     (对局中掉线/托管开关/接管等不再搭快照车)。
  *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——快速托管局
- *  是单同步 tick 里数百步 bot 连锁,逐步直发=数百份全量快照灌爆 WS 背压(Bun 超
- *  maxBackpressure 静默丢消息,页面永久停在旧态,2026-09-09 实测定位);合并后每
- *  座位每 tick 至多一份终态。人类节奏的流程(每次命令一个 tick)行为不变;慢速托管
- *  的步间 await 天然分 tick,逐步直播保留。 */
+ *  是单同步 tick 里数百步 bot 连锁,合并后每 tick 至多一批事件+至多一份校准快照。
+ *  人类节奏的流程(每次命令一个 tick)行为不变;慢速托管的步间 await 天然分 tick,
+ *  事件逐批直播保留。 */
 const dirtySeats = new Map<string, Set<number>>();
-const flushTimers = new Map<string, ReturnType<typeof setTimeout>>();
 function broadcast(roomId: string): void {
   const room = registry.get(roomId);
   if (!room) return;
+  eventBatches.accumulate(roomId, room.engine?.gameEvents); // #390:转移事件批入累积器,随本 tick flush 下发
   let seats = dirtySeats.get(roomId);
   if (!seats) {
     seats = new Set();
     dirtySeats.set(roomId, seats);
   }
   for (const seat of socketsOf(roomId).keys()) seats.add(seat);
-  if (flushTimers.has(roomId)) return; // 本 tick 已排 flush,脏标记会被同一批带走
-  flushTimers.set(
-    roomId,
-    setTimeout(() => {
-      flushTimers.delete(roomId);
-      const pending = dirtySeats.get(roomId);
-      dirtySeats.delete(roomId);
-      const r = registry.get(roomId);
-      if (!pending || !r) return;
-      r.engine?.sealJinnangPlayBatch(); // 出牌留痕批界=快照封批(#284):本帧带走整批,下一条留痕新批号
-      const online = onlineSeatsOf(roomId);
-      for (const seat of pending) {
-        const ws = socketsOf(roomId).get(seat);
-        if (!ws || ws.readyState !== WebSocket.OPEN) continue;
-        ws.send(JSON.stringify(clientView(r, online, seat)));
+  eventBatches.schedule(roomId, () => flushRoom(roomId));
+}
+
+/** flush 单体(#388):定时器到点与首连/重连摘要前的强制排空共用。幂等——事件批
+ *  累积器排空后,重复调用不产 events 消息(pending 为空直接返回)。 */
+function flushRoom(roomId: string): void {
+  const pending = dirtySeats.get(roomId);
+  dirtySeats.delete(roomId);
+  const events = eventBatches.drain(roomId); // #411:幂等排空归共享通道
+  const r = registry.get(roomId);
+  if (!pending || !r) return;
+  const online = onlineSeatsOf(roomId);
+  // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
+  // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。先于装配求值:它
+  // 决定每拍是否随发 ②(快照含全量 log,非校准拍不白付 O(log) 序列化)。
+  const e = r.engine;
+  const settled = e?.turnPhase ?? null;
+  const prev = settledTurnPhase.get(roomId) ?? null;
+  settledTurnPhase.set(roomId, settled);
+  const calibrate =
+    e != null &&
+    (e.phase === "Setup" ||
+      (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
+      (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+      (prev != null && CALIBRATION_WINDOWS.has(prev)));
+  // 逐座位单拍下行(#431 装配单口):事件批消息(#390)因果在前、状态在后;校准拍
+  // 摘要随车(每座位各发各的 redactSnapshotForSeat 投影,#381:god-view 退役)。
+  // redaction 在装配内必经(#381 保密后补,未知 kind 当场炸),本文件不再直呼
+  // redactEvents/clientView。事件半边恒装配(空批自然产出 null);摘要半边只在校准
+  // 拍构造(快照含全量 log,非校准拍不白付 O(log) 序列化)。序列化成本×座位数可接受
+  // ——六人局事件批远小于全量快照。
+  if (events && events.length > 0) {
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) {
+        const msg = assembleDownlinkShot(r, online, ws.data.seat, events, false).events;
+        if (msg != null) ws.send(msg);
       }
-    }, 0),
-  );
+    }
+  }
+  const metaJson = encodeDownlink(lobbyView(r, online));
+  if (calibrate) {
+    // 关键节点校准(②):每座位一份纯摘要拍,自带房间字段,元数据指纹随车更新
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN)
+        ws.send(assembleDownlinkShot(r, online, ws.data.seat, [], true).snapshot);
+    }
+    lastRoomMeta.set(roomId, metaJson);
+  } else if (lastRoomMeta.get(roomId) !== metaJson) {
+    // 房间元数据消息(③):lobby 形状,指纹变化才发
+    lastRoomMeta.set(roomId, metaJson);
+    for (const ws of socketsOf(roomId).values()) {
+      if (ws.readyState === WebSocket.OPEN) ws.send(metaJson);
+    }
+  }
 }
 
 // ──────────────────────────── HTTP 工具 ────────────────────────────
@@ -346,9 +468,13 @@ const HELP = {
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
     "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
-      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/dismissed",
+      "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
+  retention:
+    "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
+    "窗口内持 seatToken 重连无缝夺回;到期 bot 自动接管(等价房主 takeover,原 token 重连仍可夺回);" +
+    "token 是座位归属唯一凭证(ADR-0005),有效期=房间生命周期,不因保留窗到期失效",
   maps: CATALOG_ENTRIES.map((e) => ({
     id: e.id,
     name: e.name,
@@ -365,6 +491,7 @@ const HELP = {
     JIYU_CONFIG,
     DECISION_TIMEOUT_MS,
     E2E_REACTION_MS: REACTION_WINDOW_MS_OVERRIDE,
+    RETENTION_WINDOW_MS,
   },
 };
 
@@ -494,7 +621,7 @@ async function handle(req: Request): Promise<Response> {
     const roomId = String(obj.roomId ?? "");
     const id = registry.dismissRoom(roomId, String(obj.seatToken ?? ""));
     // 广播 dismissed 并断开所有连接
-    const msg = JSON.stringify({ type: "dismissed" as const, roomId: id });
+    const msg = dismissedMsg(id);
     for (const ws of socketsOf(id).values()) {
       if (ws.readyState !== WebSocket.CLOSED) {
         try {
@@ -506,6 +633,9 @@ async function handle(req: Request): Promise<Response> {
       }
     }
     roomSockets.delete(id);
+    eventBatches.forget(id); // #390/#388/#411:房间已散,累积状态一并清(在途拍不撤,迟到回调空转即清残表)
+    lastRoomMeta.delete(id);
+    settledTurnPhase.delete(id);
     return sendJson(200, { ok: true, dismissed: id });
   }
 
@@ -546,54 +676,55 @@ Bun.serve<WsSeat>({
         ws.close();
         return;
       }
+      // 强制排空(#388 摘要/累积器竞态封口):此刻累积器里未 flush 的转移批若晚于摘要
+      // 到达,重连端会「摘要(已含该批状态)+ 事件批(同批)」各收一次——事件折叠非幂等
+      // (现金/入册双计),必须先排空给旧连接、再发摘要。排空时新 socket 尚未注册,
+      // 天然收不到这份事件;之后注册、发摘要(保证 ⊇ 累积器全部内容)。
+      eventBatches.cancelScheduled(roomId); // 已排定的定时 flush 由本同步 flush 覆盖(迟到回调空转幂等)
+      flushRoom(roomId);
       socketsOf(roomId).set(seat, ws);
       recordEvent(roomId, { ev: "ws-open", seat });
-      ws.send(JSON.stringify(clientView(room, onlineSeatsOf(roomId), seat))); // 本座位投影(ADR-0016)
+      // 首连/重连整房摘要(①,#388/ADR-0020 决策 4):经装配单口取该座位的
+      // redactSnapshotForSeat 投影(#381 保密后补,他人锦囊手牌/牌库序/反应窗询问集
+      // 不出网);重连语义=整房摘要水合,断线期间事件不补发(无 seq/ack,决策 4)。
+      // 批已强制排空(上方 flushRoom),此处纯摘要拍:batch=[],withSnapshot 恒真。
+      ws.send(assembleDownlinkShot(room, onlineSeatsOf(roomId), seat, [], true).snapshot);
+      settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
+      // 在线集变化通知他人:flush 按元数据指纹差异补发 lobby(③);结算相位基线已登记
+      broadcast(roomId);
     },
     message(ws, raw) {
       const { roomId, seat } = ws.data;
-      let msg: {
-        type?: string;
-        cmd?: GameCommand;
-        on?: boolean;
-        speed?: string;
-        tileIndex?: number;
-      };
-      try {
-        msg = JSON.parse(typeof raw === "string" ? raw : Buffer.from(raw).toString());
-      } catch {
-        ws.send(JSON.stringify({ type: "error", error: "bad json" }));
-        return;
-      }
-      if (msg?.type === "cmd" && msg.cmd) {
-        recordEvent(roomId, { ev: "cmd", seat, cmd: msg.cmd.type });
-        void registry.applyCommand(roomId, msg.cmd, () => broadcast(roomId));
-      } else if (msg?.type === "pickCapital" && typeof msg.tileIndex === "number") {
-        // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
-        recordEvent(roomId, { ev: "pick-capital", seat, tileIndex: msg.tileIndex });
-        void registry
-          .pickCapital(roomId, seat, msg.tileIndex, () => broadcast(roomId))
-          .catch((err) =>
-            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
-          );
-      } else if (msg?.type === "autoPilot" && typeof msg.on === "boolean") {
-        // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-        const speed = msg.speed === "slow" ? "slow" : "fast";
-        recordEvent(roomId, { ev: "ws-autopilot", seat, on: msg.on, speed });
-        void registry
-          .setAutoPilot(roomId, seat, msg.on, speed, () => broadcast(roomId))
-          .catch((err) =>
-            ws.send(JSON.stringify({ type: "error", error: (err as Error).message })),
-          );
-      } else {
-        const r = registry.get(roomId);
-        ws.send(
-          JSON.stringify({
-            type: "error",
-            error: r?.engine ? "expected {type:'cmd',cmd:...}" : "对局未开始",
-          }),
-        );
-      }
+      // 上行解析+分发收口 wire.dispatchInbound(#429):三族消息一个本体,错误回报是
+      // 返回值的一部分——传输面只负责把失败送到 WS 通道(error 消息下行,#428 口径
+      // 全分支同款,漏 catch 无处藏身);观测流水在 ops 闭包内记(仅已识别形状,同旧)。
+      void dispatchInbound(
+        typeof raw === "string" ? raw : Buffer.from(raw).toString(),
+        {
+          cmd: (cmd) => {
+            recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
+            return registry.applyCommand(roomId, cmd, () => broadcast(roomId));
+          },
+          pickCapital: (tileIndex) => {
+            // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
+            recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
+            return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId));
+          },
+          setAutoPilot: (on, speed) => {
+            // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
+            recordEvent(roomId, { ev: "ws-autopilot", seat, on, speed });
+            return registry.setAutoPilot(roomId, seat, on, speed, () => broadcast(roomId));
+          },
+        },
+        {
+          // 未知形状引导文案按房间状态给(对局未开始不给期望形状,给状态说明;原 else 分支同款)
+          unknownShapeText: registry.get(roomId)?.engine
+            ? "expected {type:'cmd',cmd:...}"
+            : "对局未开始",
+        },
+      ).then((result) => {
+        if (!result.ok) ws.send(errorMsg(result.message));
+      });
     },
     close(ws) {
       const { roomId, seat } = ws.data;
@@ -617,7 +748,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"}`,
+  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws",

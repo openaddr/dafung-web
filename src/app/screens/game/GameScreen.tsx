@@ -18,8 +18,8 @@ import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
-import type { GameCommand} from "@core/authority";
-import type { MapData} from "@core/board-loader";
+import type { GameCommand } from "@core/authority";
+import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
@@ -319,10 +319,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 玩家不知在等谁、也不知金圈是何物;轮到自己时也要明示「点哪」):
   // bot 定都中=「「X」正在定都(第 N/M 位)…」;轮到本地=「轮到你定都:点选一座候选城」。
   // 顺序号取 draft 座位序中尚未定都者,直观呈现还差几人。
+  // 未定判定用 <0(#423 项1):capitalIndex 初始 -1(core/player.ts),`== null` 恒假
+  // ——「余 X 人未定」曾是恒 0;与 TokenLayer 的 setupUnselected 同一口径。
   const setupHint = (() => {
     if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
     const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
-    const pending = snapshot.players.filter((p) => p.capitalIndex == null).length;
+    const pending = snapshot.players.filter((p) => p.capitalIndex < 0).length;
     const myTurn =
       snapshot.currentSetupPlayerIndex ===
       (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
@@ -440,7 +442,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
           珍宝/名将徽章纯展示计数(#361),明细看牌架双入口;
           右段手牌架槽给 HandRack 让位(弹性宽) */}
-        <DashboardBar snapshot={snapshot} player={selfPlayer} controller={controller} autopilotOn={autopilotOn}>
+        <DashboardBar
+          snapshot={snapshot}
+          player={selfPlayer}
+          controller={controller}
+          autopilotOn={autopilotOn}
+        >
           {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
             热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:军师窗态载荷随快照
             派生(窗态下架即出牌面,常态点牌仍开详情);#361:架右端双入口开藏品弹层。 */}

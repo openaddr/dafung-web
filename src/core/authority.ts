@@ -25,6 +25,7 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
+import { extensionInquiries } from "./extension-registry";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
@@ -40,7 +41,9 @@ import {
   resolveHeroSkill,
   resolveJinnang,
   settleJinnangExit,
-  type JinnangPeek, type PendingJinnang, type PendingHeroSkill,
+  type JinnangPeek,
+  type PendingJinnang,
+  type PendingHeroSkill,
 } from "./jinnang-execution";
 // 机遇主流程+体力耗竭域(#320,ADR-0019):机遇触发抽取/抉择机遇入相与选项结算/效果
 // 结算/体力接线与耗竭善后在 encounter-flow.ts,壳内同名方法薄委托;与数据表 encounters.ts
@@ -68,11 +71,7 @@ import {
 // 珍宝+随机事件+城主交涉域(#322,ADR-0019):宝物城/辅路格结算、抽宝拼点、随机事件、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
 // treasures.ts 分层(流程≠数据)。
-import {
-  resolveBranchCell,
-  resolveTreasureCity,
-  resolveTreasureOwner,
-} from "./treasure-flow";
+import { resolveBranchCell, resolveTreasureCity, resolveTreasureOwner } from "./treasure-flow";
 // 移动结算域(#323,ADR-0019):行军三件/辅路抉择/地产决策/落格结算/都城补给在
 // movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
 // marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
@@ -102,6 +101,9 @@ import {
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick } from "./recruitment";
+// 声望域(#121/#147,ADR-0019,#384 自壳迁入):声望落账唯一口+献计里程碑在 reputation.ts。
+import { addReputation } from "./reputation";
+import { beginGameEventBatch, emitGameEvent, noteMomentEvent, type GameEvent } from "./game-events";
 import { formatMoney } from "./money";
 import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
@@ -243,30 +245,6 @@ export interface PropertyChangeTrace {
   ownerChanged: boolean;
 }
 
-/** 出牌指示线留痕(#281/P2-E,ADR-0010 表现事件流的 core 侧发射点):锦囊/反应牌生效点
- *  写入「使用者 token → 目标 token」墨线素材,表现提取器经 engine.presentation
- *  .drainJinnangPlays() 一次性取走(破坏性读,同 drainPropertyChanges 口径)。
- *  瞬态不序列化(同 floaters/propertyChanges)——单机本地编排通道;联机信号源是
- *  可序列化的 `lastJinnangPlay`(最近一条留痕,客户端快照 diff 提取),两者由
- *  traceJinnangPlay 同点写入、注释互指。 */
-export interface JinnangPlayTrace {
-  userSeat: number;
-  targetSeats: number[];
-  cardId: string;
-}
-
-/** 最近出牌留痕(#284,可序列化联机信号源):锦囊/反应牌生效点由 traceJinnangPlay
- *  与瞬态 jinnangPlays 同点写入。**批形状**:seq 是批号(一批=两次封批之间的全部
- *  留痕,同批多条——如 AOE 多人识破循环——聚在同一 plays 里),单调递增防「同参数
- *  牌」diff 去重失效;若只存末条,同批多条留痕在联机只剩一条(2026-09-28 双轴评审
- *  实锤)。出牌是公开事件,redact 不裁(公开信息);入 SNAPSHOT_FIELDS,客户端
- *  SnapshotEffects diff seq 变化即对 plays 逐条产既有 jinnangPlayed 表现事件(禁立
- *  第二 WS 事件通道,ADR-0010)。 */
-export interface LastJinnangPlay {
-  seq: number;
-  plays: JinnangPlayTrace[];
-}
-
 export class GameEngine {
   readonly board: Board;
   readonly catalog: Catalog;
@@ -320,21 +298,10 @@ export class GameEngine {
    *  (SNAPSHOT_FIELDS 单点清单);人类被询问时窗跨命令存续,bot 全被询问时在开窗
    *  同一调用内即席应答并续结算(ADR-0017「bot 持牌即时代答不等满」),相位不外显。 */
   pendingReaction: PendingReaction | null = null;
-  /** 窗/留痕共用的单调流水号(#284):开反应窗写 PendingReaction.seq、出牌留痕写
-   *  lastJinnangPlay.seq,均取 nextJinnangSeq()。cmd 流派生状态,重放重算天然复现;
-   *  快照恢复后在 restoreFromSnapshot 里按「快照内已见的最大 seq」推回(单调不回退)。 */
+  /** 窗实例单调流水号(#284):开反应窗写 PendingReaction.seq(取 nextJinnangSeq)。
+   *  cmd 流派生状态,重放重算天然复现;快照恢复后在 restoreFromSnapshot 里按「快照内
+   *  已见的最大 seq」推回(单调不回退)。 */
   jinnangSeq = 0;
-  /** 最近出牌留痕(#284,联机信号源,批形状见 LastJinnangPlay):写入见 traceJinnangPlay;
-   *  随快照序列化(SNAPSHOT_FIELDS 单点清单)。null=本局尚无出牌。 */
-  lastJinnangPlay: LastJinnangPlay | null = null;
-  /** 当前留痕批(瞬态不序列化,别名指向 lastJinnangPlay):**批界=快照封批**——
-   *  权威侧每次产快照广播前调 sealJinnangPlayBatch() 关批,下一条留痕重新取号成批。
-   *  bot 链不经 submitCommand,批界不能挂命令口(否则 bot 连续出牌丢线,#284 评审)。 */
-  jinnangPlayBatch: LastJinnangPlay | null = null;
-  /** 封批(权威侧产快照前调,server.ts broadcast flush):下一条留痕重新取号。 */
-  sealJinnangPlayBatch(): void {
-    this.jinnangPlayBatch = null;
-  }
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
@@ -381,7 +348,6 @@ export class GameEngine {
   // #323 去私有化(ADR-0019 条款 3 内部状态透明):movement-flow 域 rollAndMove/buyProperty
   // /upgradeProperty 直写;外部消费仍只走 presentation 视图。
   lastRoll: DiceRoll | null = null;
-  // #107 C2「字段本身不再 public」经 ADR-0019 条款 3 取代(2026-09-29,owner 授权):
   // 域模块(reaction-window.ts 等)经 g.lastMove 直写;外部消费仍只走 presentation 视图。
   lastMove: MovePath | null = null;
   // 纯表现态(spec #107 C2 退役:不再兼任决策载荷):供快照扁平字段(lastLandOutcomeKind/
@@ -404,6 +370,12 @@ export class GameEngine {
    *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
   pendingEncounter: EncounterDef | null = null;
 
+  /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 置值;choicesFor 在无匹配 choices
+   *  相位按 id 回调 extensionInquiries 出选项集(选项盖 inquiryId 章,快照 choices 单通道
+   *  透出)。回联回目录现查(与 pendingEncounter 的「id 句柄 + 目录现查」同模式,但目录
+   *  是扩展注册面而非内置表),挂起载荷本身随快照走(恢复后同一问询可续);endTurn 清除。 */
+  pendingInquiry: { id: string; params: Record<string, number> } | null = null;
+
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域直写;外部消费仍只走 presentation.drainFloaters。 */
@@ -412,9 +384,7 @@ export class GameEngine {
    *  提取器一次性取走;瞬态不序列化(同 floaters,restore 即清)。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域直写;外部消费仍只走 presentation.drainPropertyChanges。 */
   propertyChanges: PropertyChangeTrace[] = [];
-  /** 出牌指示线留痕(#281,类型注释见 JinnangPlayTrace):生效点写入,提取器一次性取走;
-   *  瞬态不序列化(同 floaters,restore 即清)。 */
-  jinnangPlays: JinnangPlayTrace[] = [];
+  gameEvents: GameEvent[] = []; // 事件流当前批(#375,ADR-0020):批界=编排入口开批,词汇表见 game-events.ts
 
   /** 表现态只读视图:四个表现字段的唯一合法读口(字段已私有)。
    *  drainFloaters / drainPropertyChanges 是破坏性读——取走全部并清空,消费方
@@ -427,8 +397,6 @@ export class GameEngine {
     drainFloaters(): FloaterEvent[];
     /** 破坏性读:返回并清空全部城池变更留痕(ADR-0015)。 */
     drainPropertyChanges(): PropertyChangeTrace[];
-    /** 破坏性读:返回并清空全部出牌指示线留痕(#281/P2-E)。 */
-    drainJinnangPlays(): JinnangPlayTrace[];
   } {
     return {
       lastRoll: this.lastRoll,
@@ -443,11 +411,6 @@ export class GameEngine {
         const c = this.propertyChanges;
         this.propertyChanges = [];
         return c;
-      },
-      drainJinnangPlays: () => {
-        const t = this.jinnangPlays;
-        this.jinnangPlays = [];
-        return t;
       },
     };
   }
@@ -543,9 +506,19 @@ export class GameEngine {
       : this.activeIndex;
   }
   /** 当前决策相位的选项集(ADR-0013 choice-set 注册表,snapshot.choices 透出供 UI/调试)。
-   *  纯派生数据:由相位 + 玩家状态实时计算,不新增序列化状态;未注册相位(Roll/Land/…)返回空数组。 */
+   *  纯派生数据:由相位 + 玩家状态实时计算,不新增序列化状态;已注册相位返回计算器结果,
+   *  无匹配 choices(未注册相位)且挂起定制问询时按 id 回调扩展问询出选项集(#432),
+   *  两者皆无返回空数组。 */
   choicesFor(): ChoiceOption[] {
     return computeChoices(this, this.turnPhase);
+  }
+  /** 发起定制问询(#432,ADR-0022 交互 handler):记挂起问询 id,之后无匹配 choices 相位的
+   *  choicesFor 按 id 回调 askPlayer 出选项集(词汇与挂点归本票;解决命令/UI 接线归 #424)。
+   *  id 查无注册问询 = 调用方 bug(扩展未装载/id 拼写错),当场炸(零兜底)。 */
+  askInquiry(id: string, params: Record<string, number> = {}): void {
+    if (!extensionInquiries().some((q) => q.id === id))
+      throw new Error(`定制问询:「${id}」无注册问询(扩展未装载或 id 拼写错误)`);
+    this.pendingInquiry = { id, params };
   }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
@@ -741,6 +714,7 @@ export class GameEngine {
     while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
       const skipped = this.activePlayer;
       skipped.skipTurns -= 1;
+      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(中伏/耗竭/缓兵之计共用消费点)
       this.logEvent(
         "branch",
         skipped.guohao,
@@ -782,6 +756,7 @@ export class GameEngine {
     this.pendingEncounter = null;
     this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
     this.pendingReaction = null; // 反应窗同理(#281):回合收口不留悬窗
+    this.pendingInquiry = null; // 定制问询同理(#432):回合收口不留悬问询
     this.lastTransaction = null;
   }
 
@@ -911,6 +886,7 @@ export class GameEngine {
   // network-client.ts(联机)都调用这一个方法。联机时服务器的消息处理器只需:
   //   socket.on("command", cmd => engine.submitCommand(cmd))
   submitCommand(cmd: GameCommand): void {
+    beginGameEventBatch(this); // 事件流(#375):命令=一次转移,入口开新批(弃上一命令的批)
     // 命令流(ADR-0014):每条玩家命令在统一入口记一行 cmd(detail=完整命令 JSON,重放的
     // 机读层)。bot 路径(botAct/aiSetupStepFor 直调引擎方法)不经此口 → 不产生 cmd 行:
     // 给定 seed 后 bot 行为确定,重放自动重算(见 docs/reference/对局日志.md「命令流重放」)。
@@ -1000,6 +976,7 @@ export class GameEngine {
     const p = this.players[seat];
     p.cash += amount;
     this.pushFloater(p, amount, p.position, "income");
+    emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
   }
 
   /** 时机派发:遍历所有未破产玩家(座位序)× 技能序;scope 过滤 + cooldown 检查后执行效果。
@@ -1009,6 +986,7 @@ export class GameEngine {
     this.momentDepth += 1;
     if (this.momentDepth > 2)
       throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
+    noteMomentEvent(this, moment, ctx); // 事件流产出(#375 口 1):时机=转移宣告,映射表见 game-events.ts
     try {
       for (let ownerSeat = 0; ownerSeat < this.players.length; ownerSeat++) {
         const owner = this.players[ownerSeat];
@@ -1026,6 +1004,12 @@ export class GameEngine {
             const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
             owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
+            emitGameEvent(this, ownerSeat, {
+              kind: "skillFired",
+              heroId: hero.id,
+              skillId: skill.id,
+              moment,
+            }); // 事件流(#384):名将被动技击发(seat=技属主)
             this.logEvent(
               "skill",
               owner.guohao,
@@ -1154,26 +1138,11 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。
-   *  声望献计(#147):首次向上穿越 +30/+60/+90 各献锦囊一张(只在本入口挂钩,
-   *  不看来源——把机遇抉择玩好就有实物兑现)。 */
+  /** 声望增减(#121,clamp ±100)+ 声望献计里程碑(#147):薄委托 → reputation.addReputation。
+   *  事件流(#384):里程碑献计进手(jinnangDrawn·reason=repMilestone)在域内产出;
+   *  声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
   addReputation(seat: number, delta: number): void {
-    const p = this.players[seat];
-    const before = p.reputation;
-    p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
-    for (const m of [30, 60, 90]) {
-      if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
-        p.repMilestones.push(m);
-        this.pushFloaterText(p, `民心所向(声望 ${m}),名将献计`, p.position);
-        this.logEvent(
-          "system",
-          p.guohao,
-          `${p.guohao} 声望达 ${m},名将献计一封`,
-          `repMilestone player=${p.id} milestone=${m}`,
-        );
-        this.drawJinnang(seat, 1);
-      }
-    }
+    addReputation(this, seat, delta);
   }
 
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
@@ -1184,9 +1153,9 @@ export class GameEngine {
   // 改直调自由函数);reaction-window 续结算经壳上
   // executeJinnang/settleJinnangExit 公共方法回调,维持 reaction ⇄ 执行跨模块往返。
 
-  /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang。 */
-  drawJinnang(seat: number, count = 1): void {
-    drawJinnang(this, seat, count);
+  /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang;返回实际入手张数(#384)。 */
+  drawJinnang(seat: number, count = 1): number {
+    return drawJinnang(this, seat, count);
   }
 
   /** 军师幕入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */
@@ -1287,10 +1256,11 @@ export class GameEngine {
       text,
     });
   }
-  // 原 public drainFloaters 已并入 presentation 视图(候选4:破坏性读语义文档化在视图类型上)。
 
-  /** 表现轨迹注入通道(联机快照 diff / 将来观战回放共用):
-   *  写入一段外部推导的行军轨迹供动画层读取;null 清除。
+  /** 表现轨迹回写通道(快照恢复专用,与 applyPresentationRoll 对偶):
+   *  序列化单点清单的恢复回写口(lastMove 私有、presentation 视图只读,恢复是唯一
+   *  合法外部写口);lastMove 本身是行军事件的产出契约输入(requireMovePath),动画
+   *  取径已随事件批走(#385),联机快照 diff 消费方已退役。
    *  唯一允许表现侧设置 lastMove 的合法入口(红线 3:引擎态变更须走公共方法)。 */
   applyPresentationMove(path: MovePath | null): void {
     this.lastMove = path;
@@ -1317,15 +1287,10 @@ export class GameEngine {
     this.lastTransaction = null; // 瞬时不序列化:恢复即清
     this.floaters = [];
     this.propertyChanges = []; // 瞬时不序列化:恢复即清(ADR-0015 留痕同 floaters 口径)
-    this.jinnangPlays = []; // 瞬时不序列化:恢复即清(单机本地编排通道;联机信号源=lastJinnangPlay,随快照恢复)
     // seq 计数器恢复推回(#284):计数器本身不序列化,按快照内已见的最大 seq 推回,
-    // 保证单调不回退——恢复后开新窗/出新牌的号必然大于恢复前任何已广播的号,
-    // 传输层同窗判据与客户端 diff 去重不因恢复串号。快照无窗无留痕时保持当前值。
-    this.jinnangSeq = Math.max(
-      this.jinnangSeq,
-      s.pendingReaction?.seq ?? 0,
-      s.lastJinnangPlay?.seq ?? 0,
-    );
+    // 保证单调不回退——恢复后开新窗的号必然大于恢复前任何已广播的号,
+    // 传输层同窗判据不因恢复串号。快照无窗时保持当前值。
+    this.jinnangSeq = Math.max(this.jinnangSeq, s.pendingReaction?.seq ?? 0);
     // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
     // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告

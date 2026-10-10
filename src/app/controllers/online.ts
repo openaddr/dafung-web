@@ -1,32 +1,31 @@
 // 联机控制器——重构后只做「协议桥」(替代旧 src/render/network-client.ts 的连接/协议部分,零 DOM):
-// - 不跑引擎,只持「只读引擎」——收到服务器 snapshot 即 restoreFromSnapshot 重 hydrate。
+// - 不跑引擎,只持「只读引擎」——折叠切换⑥(#388)后状态通路 = 事件批消息(到达即
+//   foldEventBatch 折进副本);snapshot 只剩整房摘要(首连/重连)与关键节点校准,到达
+//   即 restoreFromSnapshot 重 hydrate(水合无条件覆盖折叠字段,快照=校准锚)。
 // - 连接/重连归 net/reconnecting-socket.ts,REST 大厅归 net/lobby-api.ts,
-//   快照表现提取归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶)。
-//   本类只剩:协议消息分发、快照 hydrate、表现提取器调用、registry/store 灌数、换图重建。
+//   事件批表现消费归 net/snapshot-effects.ts(原「一类五职责」拆分,ADR-0007 的客户端对偶;
+//   #385 起演出因果 = 服务端事件批,快照 diff 提取已退役)。
+//   本类只剩:协议消息分发、事件批折叠(#386)+快照 hydrate(水合=校准锚)、表现消费
+//   调用、registry/store 灌数、换图重建、重连清批(#388:open 时事件面归零)。
 import type { LoadedMap } from "@core/board-loader";
 import { createDice } from "@core/dice";
 import { GameEngine } from "@core/authority";
-import type { GameCommand} from "@core/authority";
+import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
-import { SnapshotEffects } from "@app/net/snapshot-effects";
-import { reactionQueriesSeat } from "./reaction";
+import { stashEventBatch } from "@app/net/event-feed";
+// wire 协议编解码单源(#429):下行消息类型(ServerMsg)与上行编码从这里 import——
+// 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
+import { autoPilotMsg, cmdMsg, pickCapitalMsg, type ServerMsg } from "../../../scripts/wire";
+import { foldEventBatch } from "@app/net/event-fold";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
 export type { RoomJoinReply };
-
-/** 服务器消息(协议见 scripts/server.ts:lobby / snapshot / dismissed / error)。
- *  lobby 与 snapshot 都带完整房间字段(clientView 两种形态对齐,见 room.ts)。 */
-export type ServerMsg =
-  | ({ type: "lobby" } & NetRoomFields)
-  | ({ type: "snapshot" } & NetRoomFields & GameSnapshot)
-  | { type: "dismissed"; roomId: string }
-  | { type: "error"; error: string };
 
 export class OnlineController extends GameController {
   private _engine: GameEngine; // 只读:每次 snapshot 用 restoreFromSnapshot 重 hydrate
@@ -39,19 +38,19 @@ export class OnlineController extends GameController {
   /** 当前地图(占位引擎重建用:快照座位数与占位引擎不一致时按数重建)。 */
   private map: LoadedMap;
   seat = -1;
-  /** 发出命令后置 true,收 snapshot 回包清零(防连点重复发;旧 busy 的新等价物)。 */
-  private pending = false;
-  /** 快照表现提取器(独立 module,diff 基准与播放队列封装在内)。
-   *  onIdle:表现队列排空时补一次 sync——L42 期间被 fx.playing 锁住的 interactive
-   *  在骰子/行军动画播完这一刻释放,决策卷轴/行军按钮随即就位(与单机 drive 锁同口径)。 */
-  private readonly fx = new SnapshotEffects(
-    () => this._engine,
-    () => this.sync(),
-  );
-  /** 是否已在对局屏(首帧 snapshot 才切屏;之后重连/恢复不重复切)。 */
-  private enteredGame = false;
-  /** 上一帧是否处于「我的 Roll 等待态」(#188 起签表现的转入沿检测基准)。 */
-  private prevMyRollWait = false;
+  /** 交互策略参数(#433 上收基类单源):热座=false——各端座位固定,他座决策时
+   *  不得解锁本端操作,必须显式判定决策方===自己(决策方是否轮到「我的座位」)。 */
+  protected override readonly hotSeat = false;
+  protected override get mySeat(): number {
+    return this.seat;
+  }
+  /** 换图重建流水号(#415):每次 rebuildForMap 起步自增,落地时对号——号不对 =
+   *  期间有更新的换图指令,本次作废(取图 await 与下行快照/新换图指令竞速的过期落地防回归)。 */
+  private rebuildSeq = 0;
+  /** 上一帧各座位棋子位置(#385 行军锚定基准,#386 折叠前捕获口径)。#388 起表现
+   *  直译改随事件帧走(锚点就地捕获传 play),快照帧的 play 由消费游标去重不再消费
+   *  新批——本字段保留给快照帧的既有兜路(空批校准帧等),不再承载跨帧交接。 */
+  private pendingMarchAnchors: (number | null)[] | null = null;
   /** 托管能力:联机支持(服务器 bot 代打;单机不支持)。 */
   override readonly autopilotSupported = true;
 
@@ -82,31 +81,6 @@ export class OnlineController extends GameController {
     const s = useNetStore.getState();
     return s.seats[s.mySeat]?.autoPilot ?? false;
   }
-  /** 轮到我决策(含珍宝交涉的 decisionOwner)且非 bot 座位、无 pending 命令、未托管。
-   *  Wave3(候选2):基类 canAct 变参收口删除,公共骨架(Playing + 决策方是人类)在此内联,
-   *  联机特有:须轮到「我的座位」,差异锁 = pending(防连点重复发)与托管(服务器 bot 代打)。
-   *  L42:再加表现锁 fx.playing——快照落地即可(数据即时),但骰子/行军动画播完前
-   *  决策卷轴/行军按钮不呈现(单机 drive 会话锁的联机等价物;WaitingBar/横幅不受影响,
-   *  它们不吃 interactive)。
-   *  反应窗(#281,ADR-0017 多属主)例外:被询问座位可应答——决策方仍是出牌者,
-   *  decisionOwner 不适用;不加 fx.playing 锁(倒计时不等演出,超时兜底在权威侧)。 */
-  get interactive(): boolean {
-    const e = this._engine;
-    if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-      const pr = e.pendingReaction;
-      if (pr == null) return false;
-      // 被询问集公式单源 controllers/reaction.ts(#284);观战(seat=-1)恒不在集内。
-      return !this.pending && this.seat >= 0 && reactionQueriesSeat(pr.view, this.seat);
-    }
-    return (
-      e.decisionOwner === this.seat &&
-      e.phase === "Playing" &&
-      !e.players[e.decisionOwner]?.isBot &&
-      !this.pending &&
-      !this.autoPilotOn &&
-      !this.fx.playing
-    );
-  }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。 */
   private makePlaceholderEngine(map: LoadedMap, seatCount = 2): GameEngine {
@@ -129,7 +103,7 @@ export class OnlineController extends GameController {
     // UI F3:pending 透传 netStore(HandPanel 读 netStore.pending 显示「行军中…」;
     // 不给基类加 seam,联机/单机经同一 store 字段取态,单机恒 false)。
     useNetStore.getState().setPending(true);
-    this.sock.send(JSON.stringify({ type: "cmd", cmd }));
+    this.sock.send(cmdMsg(cmd));
     this.sync(); // 刷新 interactive(pending 期间锁操作)
   }
 
@@ -139,7 +113,7 @@ export class OnlineController extends GameController {
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
-    this.sock.send(JSON.stringify({ type: "autoPilot", on, speed }));
+    this.sock.send(autoPilotMsg(on, speed));
   }
 
   /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验
@@ -156,7 +130,7 @@ export class OnlineController extends GameController {
     }
     this.pending = true;
     useNetStore.getState().setPending(true);
-    this.sock.send(JSON.stringify({ type: "pickCapital", tileIndex }));
+    this.sock.send(pickCapitalMsg(tileIndex));
     this.sync(); // pending 期间锁重复提交
   }
 
@@ -238,7 +212,13 @@ export class OnlineController extends GameController {
     this.sock = sock;
     sock.onStatus((s) => {
       // F2:全量状态入 netStore(断线横幅读 connection 三值),connected 由 setConnection
-      // 派生写入。并行边界:本回调是 F2 线唯一被授权改动的 online.ts 位置,其余勿动。
+      // 派生写入。断线边界(s!=="open")废弃在途事件批(#385):断线前收到但未随快照
+      // 消费的暂存批不在重连后补播;重连成功(#388 重连语义=整房摘要+清批)则把事件面
+      // 整体归零(暂存批+到达计数+演出消费游标)——重连前的旧批不被当新批消费,状态
+      // 唯一来源 = 紧随其后的整房摘要(ADR-0020 决策 4;服务器重启旧批重发的归口在
+      // server.ts 恢复登记,见 seenBatches 恢复基线)。
+      if (s === "open") this.fx.resetEventFace();
+      else this.fx.dropStalledBatch();
       useNetStore.getState().setConnection(s);
     });
     sock.onError(() => {
@@ -259,10 +239,12 @@ export class OnlineController extends GameController {
     }
     if (msg.type === "snapshot") {
       const { type: _t, ...snap } = msg;
-      // 掷骰检测(联机骰子动画):掷骰只在「本帧前引擎处于 Roll 阶段、本帧已离开」时发生
-      // (rollAndMove 后 turnPhase 变为 决策/驻跸/下一回合)。快照里的 lastRoll 对象每帧
-      // 重建,不能靠引用/字段 diff,用阶段迁移判定最稳。首帧(占位引擎)不算。
-      const prevPhase = this._engine.turnPhase;
+      // 转移前各座位棋子位置(#385 行军锚定基准):hydrate 覆盖引擎态前捕获——
+      // 反应窗余段行军按「视觉停点 → 落点」截短播用(与单机 runAnimatedStep 同口径)。
+      // #386:同 tick 事件批已先行折叠推进 position,视觉停点改用折叠前捕获的锚点;
+      // 本帧无事件批(空批 flush)时引擎位置未被折叠,水合前捕获口径不变。
+      const prePositions = this.pendingMarchAnchors ?? this._engine.players.map((p) => p.position);
+      this.pendingMarchAnchors = null;
       this.applyRoomFields(msg);
       if (msg.mapId && msg.mapId !== this.mapId) {
         // 快照带了新图(理论上开局前已由 lobby 广播换好;兜底再同步一次)
@@ -278,24 +260,47 @@ export class OnlineController extends GameController {
       this._engine.restoreFromSnapshot(snap as GameSnapshot);
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
-      this.fx.play(this.enteredGame && prevPhase === "Roll" && this._engine.turnPhase !== "Roll");
-      // 起签转入沿(#188 第 1 步):本端人类座位进入「Roll 等待态」(服务器 ~1s 后自动
-      // 起摇)→ 钤「签」印。托管中座位由服务器 bot 代打(Roll 不经等待态),观战无座,
-      // 都不播——与单机 autoRoll 的起签口径一致。
-      const myRollWait =
-        this._engine.phase === "Playing" &&
-        this._engine.turnPhase === "Roll" &&
-        this._engine.decisionOwner === this.seat &&
-        !this._engine.players[this.seat]?.isBot &&
-        !this.autoPilotOn;
-      if (this.enteredGame && myRollWait && !this.prevMyRollWait) this.fx.qiqian(this.seat);
-      this.prevMyRollWait = myRollWait;
+      // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经
+      // SnapshotEffects 直译播放;本帧无批(空批 flush)时游标不推进,自然跳过。
+      this.fx.play(prePositions);
+      this.checkRollSeal();
       this.sync();
       // 首帧 snapshot = 开局:从大厅切到对局屏(仅切屏;数据已 sync 进 gameStore)
       if (!this.enteredGame) {
         this.enteredGame = true;
         useGameStore.getState().setScreen("game");
       }
+      return;
+    }
+    if (msg.type === "events") {
+      // 折叠最小闭环(#386,ADR-0020 决策 1):事件批投影进本地引擎副本(现金/位置
+      // 两族,折叠器见 net/event-fold.ts),经既有 syncFromEngine 通路重渲(界面读口
+      // 不变,不另起平行 store 切片;一次事件批一次重渲)。#388 切换后本通路是唯一
+      // 对局状态下行,快照只在整房摘要/关键节点校准到达(水合无条件覆盖全部字段)。
+      // 折叠前先捕获棋子位置当行军锚点(「转移前视觉停点」口径同快照帧)。
+      const prePositions = this._engine.players.map((p) => p.position);
+      // 首帧时序门(#423 项2):水合前(enteredGame=false)的下行批不折叠、不即刻播
+      // 演出——大厅期 clientView 对未开局房间退化为 lobby(无 players),占位壳的座位
+      // 数/目录未经首帧快照校准;开局 flush 事件批先发、校准快照后到(server.ts「因果
+      // 在前、状态在后」),对壳折叠 = 座位越界写 undefined(3 座房首帧 capitalSelected
+      // TypeError,即观察到的 PAGEERROR)或他图目录查无当场炸。批照常暂存:状态由同
+      // flush 的校准快照水合承载(ADR-0020 决策 3),表现消费游标随紧随的快照帧推进,
+      // 直译基于水合后引擎(座位/坐标可用)。门只开在水合前:重连边界服务端先排空旧批
+      // 再发摘要,摘要后批不落此窗。跳过折叠不是吞错——壳本就不是折叠目标,快照才是
+      // 该窗口内唯一状态来源。
+      const hydrated = this.enteredGame;
+      if (hydrated) foldEventBatch(this._engine, msg.events);
+      // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
+      // 正常对局快照不再随转移到达,表现锁(fx.playing,L42 决策卷轴的时序门)不能
+      // 等快照帧;快照帧的 play 由消费游标去重,同批不会播两次。
+      stashEventBatch(msg.events);
+      if (hydrated) this.fx.play(prePositions);
+      // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
+      // 随后的决策窗校准快照解锁——见 server.ts 校准口径)。
+      this.pending = false;
+      useNetStore.getState().setPending(false);
+      this.checkRollSeal();
+      this.sync();
       return;
     }
     if (msg.type === "dismissed") {
@@ -306,21 +311,37 @@ export class OnlineController extends GameController {
       useGameStore.getState().setScreen("lobby");
       return;
     }
-    // error:闪提示(如非法命令);pending 解锁等下一帧 snapshot 校正。
+    // error:闪提示(如非法命令);pending 解锁等下一帧 events/校准快照校正。
     useGameStore.getState().pushHint(msg.error);
   }
 
   /** 换图重建(lobby 广播驱动):fetch 内置图 → 重建占位引擎 + registry 的 MapData。
    *  BoardView/详情卷轴读的都是 registry 的 MapData,所以两处都要换。 */
   private async rebuildForMap(mapId: string): Promise<void> {
+    const seq = ++this.rebuildSeq;
     let map: LoadedMap;
     let data: import("@core/board-loader").MapData;
     try {
-      const source = new FetchMapSource();
-      data = await source.loadMapData(mapId);
-      map = await loadMapById(source, mapId);
+      ({ map, data } = await this.loadMapBundle(mapId));
     } catch (err) {
       useNetStore.getState().pushHint(`加载地图失败:${(err as Error).message}`);
+      return;
+    }
+    // 过期守卫(#415):取图 await 期间可能有更新的换图指令(rebuildSeq 已自增)——本次作废。
+    if (seq !== this.rebuildSeq) return;
+    if (this.enteredGame && this.mapId === mapId) {
+      // #415:对局快照已先行水合(开局 flush 与本重建的取图竞速,取图可能后落)——
+      // 此时换新占位引擎会把已水合的对局态打回 2 座空壳;房间静默等真人决策时再无
+      // 后续下行纠偏,该端从此读不到真实局面(并发选都停摆的根因)。改「换板不换局」:
+      // 当前引擎态整卷快照,在新图占位壳上复原,对局态与棋盘一次到位。
+      const snap = this._engine.snapshot();
+      this.map = map;
+      this._engine = this.makePlaceholderEngine(map, snap.players.length);
+      this._engine.restoreFromSnapshot(snap);
+      setEngine(this._engine);
+      // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
+      setController(this, data);
+      this.sync();
       return;
     }
     this.mapId = mapId;
@@ -330,6 +351,17 @@ export class OnlineController extends GameController {
     // setController 对同一实例不 destroy(见 registry 守卫),只更新 MapData
     setController(this, data);
     this.sync();
+  }
+
+  /** 换图取材(清单回查 + 地图加载):rebuildForMap 的取图步,单独成方法 = 测试注入缝
+   *  (bun 单测覆写本方法即可驱动 rebuildForMap,不触网)。 */
+  private async loadMapBundle(
+    mapId: string,
+  ): Promise<{ map: LoadedMap; data: import("@core/board-loader").MapData }> {
+    const source = new FetchMapSource();
+    const data = await source.loadMapData(mapId);
+    const map = await loadMapById(source, mapId);
+    return { map, data };
   }
 
   destroy(): void {

@@ -1,10 +1,11 @@
 // 反应窗域(#281,ADR-0017):锦囊识破窗 + 行军拦检窗的开窗/应答/结算。
 // ADR-0019 委托式拆分:域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;
 // GameEngine 侧保留公共方法 respondReaction 与域外挂点(openReactionWindow/
-// traceJinnangPlay/resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
+// resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
 import { jinnangCardOf } from "./jinnang";
+import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
 
 // ── 反应窗类型(#281,ADR-0017;#326 types.ts 解散,ADR-0019 类型随域走)────────
@@ -120,26 +121,10 @@ export interface PendingReaction {
 // 人类座位(含托管/看门狗代驾)等 respondReaction 命令——权威侧超时代发的也是这条普通
 // 命令,重放天然复现。每次结算只问一轮:每被询问座位至多应答一次。
 
-/** 单调流水号取号(#284):反应窗与出牌留痕共用同一计数器(独立亦可在语义上等效,
- *  共用省一份状态;消费方只做「变了没有」的 diff/判据,不依赖两通道号段关系)。 */
+/** 单调流水号取号(#284):反应窗实例号(挂起点写 PendingReaction.seq)。cmd 流派生
+ *  状态,重放重算天然复现;快照恢复按快照内最大 seq 推回(authority.restoreFromSnapshot)。 */
 function nextJinnangSeq(g: GameEngine): number {
   return ++g.jinnangSeq;
-}
-
-/** 出牌留痕双通道写入(#281/#284):瞬态 jinnangPlays 供单机表现提取器破坏性读
- *  (本地编排,presentation.drainJinnangPlays);可序列化 lastJinnangPlay 供联机
- *  快照 diff(客户端 SnapshotEffects 提取,传输层无独立事件通道)。两通道同点写入,
- *  消费口径注释互指。同批多条留痕(如 AOE 多人识破循环)聚进同一 plays(批界=封批)。 */
-export function traceJinnangPlay(
-  g: GameEngine,
-  userSeat: number,
-  targetSeats: number[],
-  cardId: string,
-): void {
-  g.jinnangPlays.push({ userSeat, targetSeats, cardId });
-  if (g.jinnangPlayBatch == null)
-    g.lastJinnangPlay = g.jinnangPlayBatch = { seq: nextJinnangSeq(g), plays: [] };
-  g.jinnangPlayBatch.plays.push({ userSeat, targetSeats, cardId });
 }
 
 /** 开反应窗(挂点共用):置挂起态 → bot 即席代答 → 应答齐则同调用内续结算(bot 全代答时
@@ -174,6 +159,12 @@ export function openReactionWindow(
     brief,
     `reactionWindow kind=${view.kind} card=${view.cardId} user=${user.id} queried=${queriedTxt}`,
   );
+  emitGameEvent(g, view.userSeat, {
+    kind: "reactionOpened",
+    windowKind: view.kind,
+    cardId: view.cardId,
+    queriedSeats: reactionQueriedOf(view),
+  }); // 事件流(#375):反应窗开启(queriedSeats god-view 明传,ADR-0020)
   autoAnswerBots(g, pr);
   if (reactionAllAnswered(pr)) {
     g.pendingReaction = null; // bot 全代答:同调用内续结算,相位不外显
@@ -215,6 +206,7 @@ function autoAnswerBots(g: GameEngine, pr: PendingReaction): void {
 function appendReactionAnswer(g: GameEngine, pr: PendingReaction, a: ReactionAnswer): void {
   pr.answers.push(a);
   const p = g.players[a.seat];
+  emitGameEvent(g, a.seat, { kind: "reactionAnswered", use: a.use, cardId: a.cardId }); // 事件流(#375):反应窗应答(bot 即席代答同走)
   g.logEvent(
     "system",
     p.guohao,
@@ -234,8 +226,7 @@ export function respondReaction(
 ): void {
   if (!g.assertPhase("AwaitingReaction", "respondReaction")) return;
   const pr = g.pendingReaction;
-  if (pr == null)
-    throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
+  if (pr == null) throw new Error("respondReaction:AwaitingReaction 相位无挂起反应窗(状态机 bug)");
   const queried = reactionQueriedOf(pr.view);
   if (!queried.includes(seat)) {
     g.warn(`respondReaction:座位 ${seat} 非本窗被询问者`);
@@ -319,7 +310,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `${responder.guohao} 识破【${def.id}】,此计作废`,
         `reactionCounter card=${def.id} by=${responder.id} voided=all`,
       );
-      traceJinnangPlay(g, first.seat, [payload.userSeat], first.cardId!);
+      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(连环计全计作废)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
       return;
@@ -331,8 +322,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
       const consumed = new Set<ReactionAnswer>();
       for (const play of plays) {
         const share = play.shareSeat;
-        if (share == null)
-          throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
+        if (share == null) throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
         if (negated.has(share)) continue; // 该份已被座位序更小的识破保下:此张退回
         consumeReactionCard(g, play.seat, play.cardId!);
         negated.add(share);
@@ -350,7 +340,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
           `${responder.guohao} 识破【${def.id}】,${shielded.guohao} 那一份失效`,
           `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
         );
-        traceJinnangPlay(g, play.seat, [share], play.cardId!);
+        emitGameEvent(g, play.seat, { kind: "jinnangVoided", cardId: def.id, shareSeat: share }); // 事件流(#375):识破生效(该份失效)
       }
       returnSupersededCounters(
         g,
@@ -376,7 +366,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
         `${responder.guohao} 识破【${def.id}】,此计落空`,
         `reactionCounter card=${def.id} by=${responder.id} share=${g.players[share].id}`,
       );
-      traceJinnangPlay(g, first.seat, [share], first.cardId!);
+      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(此计落空)
       returnSupersededCounters(g, plays.slice(1), def.id);
       g.settleJinnangExit();
       return;
@@ -440,12 +430,18 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
       `${owner.guohao} 拦检成功,${mover.guohao} 止步于此城`,
       `reactionAmbushStop owner=${owner.id} mover=${mover.id} tile=#${payload.tileIndex}`,
     );
-    traceJinnangPlay(g, play.seat, [payload.moverSeat], play.cardId!);
     settleAmbushStop(g, payload);
     return;
   }
   // 平/负:拦检失败,牌白耗(已扣),行人照常续走
   g.pushFloaterText(owner, `拦检失败(掷 ${duel.aRoll} 对 ${duel.bRoll})`, payload.tileIndex);
+  emitGameEvent(g, play.seat, {
+    kind: "reactionFailed",
+    windowKind: "march",
+    tileIndex: payload.tileIndex,
+    aRoll: duel.aRoll,
+    bRoll: duel.bRoll,
+  }); // 事件流(#385):拦检失败(文案浮字 fx 按点数参数拼装,锚拦检城)
   g.logEvent(
     "system",
     owner.guohao,
@@ -457,16 +453,25 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
 
 /** 拦停落格:行人止步拦检城、照常落格结算(机遇/城池;可能被交涉)。lastMove 截断到
  *  拦检城(行军动画只走此);不弹辅路入口抉择(非自愿止步,不经岔路抉择)。 */
-function settleAmbushStop(g: GameEngine, payload: Extract<ReactionPayload, { kind: "march" }>): void {
+function settleAmbushStop(
+  g: GameEngine,
+  payload: Extract<ReactionPayload, { kind: "march" }>,
+): void {
   const mover = g.players[payload.moverSeat];
-  g.lastMove = g.board.computePath(
+  const path = g.board.computePath(
     payload.fromPos,
     payload.stepsToTile,
     mover.capitalIndex,
     mover.onBranch,
   );
+  g.lastMove = path;
   mover.onBranch = null;
   mover.position = payload.tileIndex;
+  emitGameEvent(g, payload.moverSeat, {
+    kind: "marchArrived",
+    tileIndex: payload.tileIndex,
+    path,
+  }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
   if (payload.wasOnBranch)
     g.dispatchMoment("BranchExited", {
       subject: payload.moverSeat,

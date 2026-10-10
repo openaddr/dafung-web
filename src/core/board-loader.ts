@@ -4,7 +4,15 @@
 // 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
 import { createBoard } from "./board";
-import type { Board, BoardBranch, BoardPos, BranchCellKind, BranchCell, TileDef, TileType } from "./board";
+import type {
+  Board,
+  BoardBranch,
+  BoardPos,
+  BranchCellKind,
+  BranchCell,
+  TileDef,
+  TileType,
+} from "./board";
 import type { PropertyDef, TradeFormula } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";

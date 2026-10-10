@@ -3,21 +3,21 @@
 // registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与看门狗组;本模块零 WS/fs。
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import type { GameEngine } from "../src/core/authority";
-import type { GameCommand} from "../src/core/authority";
-import type { ReactionView} from "../src/core/reaction-window";
-import type { RoomBotStopReason, RoomEvent, RoomSession } from "./room";
+import type { GameCommand } from "../src/core/authority";
+import type { ReactionView } from "../src/core/reaction-window";
+// 节拍单源(#399):AUTOPILOT_SLOW_MS 全局唯一定义处 = src/core/timings.ts(单机/联机同表)。
+import { AUTOPILOT_SLOW_MS } from "../src/core/timings";
+import type { RoomClock, RoomBotStopReason, RoomEvent, RoomSession } from "./room";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";
 
 type UpdateFn = (room: RoomSession) => void;
 
-/** 慢速托管:每步决策间隔(ms)——玩家看得清 bot 在做什么。 */
-export const AUTOPILOT_SLOW_MS = 2000;
-
 // botAct 能驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES(契约见该常量:
-// 前九相位 botAct 直驱,AwaitingReaction 由循环头特判停等人类待应答座位,不走 botAct)
+// 除 AwaitingReaction 外各相位 botAct 直驱,AwaitingReaction 由循环头特判停等
+// 人类待应答座位,不走 botAct)
 
-/** 该座位当前步进延迟:托管慢速 2s,其余(bot 座位/takeover/托管快速)为 0。 */
+/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管慢速 2s,其余为 0。 */
 function stepDelayMs(r: RoomSession, seat: number): number {
   return r.autoPilot.get(seat) === "slow" ? AUTOPILOT_SLOW_MS : 0;
 }
@@ -45,6 +45,9 @@ export interface DriveBotsHost {
   readonly decisionTimeoutMs: number;
   /** 三组看门狗(链首 clear / 链尾按停点重武装)。 */
   readonly watchdogs: Watchdogs;
+  /** 定时原语(#399 Worker 时钟注入点):慢速托管步进与 guard 续链全经它,
+   *  服务器=全局 setTimeout、单机=Worker 时钟(失焦照跑)。 */
+  readonly clock: RoomClock;
 }
 
 /** 进行中的驱动链(重入守卫:慢速托管 await 期间,新命令/新触发不再开第二条链,
@@ -87,7 +90,11 @@ export async function driveBots(
         for (const seat of queried) {
           if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
           if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
-          await host.applyCommand(r.roomId, { type: "respondReaction", seat, use: false }, onUpdate);
+          await host.applyCommand(
+            r.roomId,
+            { type: "respondReaction", seat, use: false },
+            onUpdate,
+          );
         }
         // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
         const now = e.pendingReaction;
@@ -142,7 +149,7 @@ export async function driveBots(
         reason = "no-progress";
         break;
       }
-      if (delay > 0) await new Promise((res) => setTimeout(res, delay));
+      if (delay > 0) await new Promise<void>((res) => host.clock.setTimeout(() => res(), delay));
     }
     if (e.phase === "GameOver") reason = "game-over";
     host.observe(r, {
@@ -162,7 +169,7 @@ export async function driveBots(
       guardOwner >= 0 &&
       seatControlled(r, guardOwner)
     ) {
-      setTimeout(
+      host.clock.setTimeout(
         () => {
           void driveBots(host, r, onUpdate);
         },

@@ -7,7 +7,7 @@
 // #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
 // 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
 import { test, expect } from "./fixtures";
-import { actIfCan, force, quickStart, snap, waitMyPause } from "./react-helpers";
+import { force, quickStart, snap, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -161,18 +161,18 @@ test.describe("锦囊 T3:底部手牌架", () => {
 
   test("他人回合:架常驻可见(不收拢)", async ({ page }) => {
     await quickStart(page);
-    // 等决策方换人。人类自动行军可能落上决策格(购地/扩军/机遇…)把 decisionOwner
-    // 钉在 0——轮询体内先用 actIfCan 清人类决策点(react-helpers 通用的「今不用/跳过/
-    // 首选项」放行),纯等会 30s 超时假阳(#239 T4 收口实测:无 seed 时约半数种子命中)。
-    await expect
-      .poll(
-        async () => {
-          await actIfCan(page);
-          return (await snap(page)).decisionOwner;
-        },
-        { timeout: 30_000 },
-      )
-      .not.toBe(0);
+    // #413 调试钩子种植(react-layout「活跃光效」同款口径):#398 单机统一后对局态只在
+    // 人类停点下行,「决策方=bot」只是自走瞬态——负载下等瞬态的 30s 观察窗与 quickStart
+    // 相加烧穿 60s 测试预算,断言根本没跑到(89/91 轮换实证:poll 30s 超时 + 重试 60s 超时)。
+    // 改把引擎直接钉进「他人回合」停车坪(activeIndex 换 bot 席位,相位维持人类停靠态;
+    // 直写引擎不经房间编排,driveBots 不会被触发,钉住的状态稳定)。断言的仍是同一件事:
+    // 决策方≠本端时架与手牌行常驻可见,只是观察从「抢拍自走瞬态」变「读钉住的权威态」。
+    await force(page, `
+      const botIdx = e.players.findIndex((p) => p.isBot);
+      e.activeIndex = botIdx;
+    `);
+    const s = await snap(page);
+    expect(s.decisionOwner).not.toBe(0);
     await expect(page.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangHand)).toBeVisible();
   });

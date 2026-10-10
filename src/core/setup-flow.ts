@@ -14,6 +14,7 @@ import { enterJinnangPhase } from "./jinnang-execution"; // 跨模块直调自�
 import { createTreasureDeck } from "./treasures";
 import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
+import { beginGameEventBatch, emitGameEvent } from "./game-events";
 import type { TileDef } from "./board";
 
 /** Fisher-Yates 洗牌(rng 注入,确定性):开局点将的国号分配与招贤三选一
@@ -47,6 +48,7 @@ export function setGuohao(g: GameEngine, seatIndex: number, char: string): boole
 /** 推进:为国号空的 bot 座位从字池随机分配(避开已用),然后进入点将定序。 */
 export function doDraftRoll(g: GameEngine): void {
   if (g.setupPhase !== "Guohao") return;
+  beginGameEventBatch(g); // 事件流(#375):开局驱动步=一次转移,入口开新批
   // 给 guohao 为空者分配(bot 或漏填的人类)
   const pool = shuffle(
     GUOHAO_POOL.filter((c) => !g.usedGuohao.has(c)),
@@ -78,9 +80,7 @@ export function doDraftRoll(g: GameEngine): void {
     "setup",
     null,
     "点将定序:" +
-      g.draftOrder
-        .map((i) => `${g.players[i].guohao || g.players[i].name}(${rolls[i]})`)
-        .join("→"),
+      g.draftOrder.map((i) => `${g.players[i].guohao || g.players[i].name}(${rolls[i]})`).join("→"),
     `draftRolls=${JSON.stringify(rolls)} order=${JSON.stringify(g.draftOrder)}`,
   );
   g.setupPhase = "PickCapital";
@@ -91,6 +91,7 @@ export function doDraftRoll(g: GameEngine): void {
 /** 当前选都玩家(bots 自动)。返回是否已完成本轮选都(需 UI 再次驱动)。 */
 export function aiSetupStep(g: GameEngine): boolean {
   if (g.setupPhase !== "PickCapital") return false;
+  beginGameEventBatch(g); // 事件流(#375):开局驱动步=一次转移,入口开新批
   const idx = g.currentSetupPlayerIndex;
   if (idx < 0) return false;
   if (!g.players[idx].isBot) return false;
@@ -102,6 +103,7 @@ export function aiSetupStep(g: GameEngine): boolean {
  *  单机侧真人选都不经此口(UI 手选,aiSetupStep 的 isBot 守卫保护热座)。 */
 export function aiSetupStepFor(g: GameEngine, idx: number): boolean {
   if (g.setupPhase !== "PickCapital") return false;
+  beginGameEventBatch(g); // 事件流(#375):开局驱动步=一次转移,入口开新批(aiSetupStep 经此口,二次开批无害)
   if (idx < 0) return false;
   const tileIdx = aiChooseCapital(g);
   if (tileIdx >= 0) {
@@ -146,6 +148,7 @@ export function pickCapital(
   playerIndex: number,
   tileIndex: number,
 ): { ok: boolean; reason?: string } {
+  beginGameEventBatch(g); // 事件流(#375):选都落子=一次转移,入口开新批
   return pickCapitalInternal(g, playerIndex, tileIndex, true);
 }
 
@@ -186,6 +189,12 @@ function pickCapitalInternal(
   player.capitalIndex = tileIndex;
   player.position = tileIndex;
   g.takenCapitalIndices.add(tileIndex);
+  emitGameEvent(g, playerIndex, {
+    kind: "capitalSelected",
+    tileIndex,
+    propertyId: def.id,
+    cost: def.buildCost,
+  }); // 事件流(#375):选都建城
   g.logEvent(
     "setup",
     player.guohao,

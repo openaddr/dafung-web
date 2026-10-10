@@ -62,7 +62,9 @@ let shellLineCount = 0;
   const shellCode = shellFull.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const classNames = [...shellCode.matchAll(/\bclass\s+([A-Za-z_$][\w$]*)/g)].map((m) => m[1]);
   const isSingleGameEngine =
-    classNames.length === 1 && classNames[0] === "GameEngine" && /^export class GameEngine/m.test(shellCode);
+    classNames.length === 1 &&
+    classNames[0] === "GameEngine" &&
+    /^export class GameEngine/m.test(shellCode);
   if (!isSingleGameEngine)
     shellViolations.push({
       rule: "shell-single-class",
@@ -71,7 +73,9 @@ let shellLineCount = 0;
       text: `class ${classNames.join(", class ") || "(无)"}`,
       message: `壳只许 export class GameEngine 一个类声明(实见 ${classNames.length} 个)`,
     });
-  for (const m of shellCode.matchAll(/(?:^|\n)[ \t]*(export\s+)?(default\s+)?(async\s+)?function\s+[A-Za-z_$][\w$]*/g)) {
+  for (const m of shellCode.matchAll(
+    /(?:^|\n)[ \t]*(export\s+)?(default\s+)?(async\s+)?function\s+[A-Za-z_$][\w$]*/g,
+  )) {
     const lineNo = shellCode.slice(0, m.index).split("\n").length; // 剥注释后行号,定位够用
     shellViolations.push({
       rule: "shell-no-free-fn",

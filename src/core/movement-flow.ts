@@ -18,6 +18,7 @@ import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow } from "./reaction-window";
 import { formatMoney } from "./money";
+import { emitGameEvent, requireMovePath } from "./game-events";
 import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
@@ -101,6 +102,11 @@ export function rollAndMove(g: GameEngine): void {
   // 辅路逐格落点先于主路遍历分流:辅路格非城池,无反应窗挂点、无途经城池
   if (path.landBranchStep != null && g.board.branch) {
     mover.onBranch = { step: path.landBranchStep };
+    emitGameEvent(g, g.activeIndex, {
+      kind: "marchArrived",
+      tileIndex: mover.position, // 主路锚点占位(辅路落位不改 position),路径 landBranchStep 判别
+      path,
+    }); // 事件流(#385):辅路落位行军(路径随事件,fx 沿 branchWaypoints 播)
     g.dispatchMoment("AfterMarch", { subject: g.activeIndex }); // 时机·AfterMarch:移动完成(落辅路格)、辅路格结算前
     g.turnPhase = "Land";
     const cell = g.board.branch.cells[path.landBranchStep];
@@ -203,9 +209,7 @@ export function marchTraverse(
           ownerSeat,
           tileIndex: tIdx,
         }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
-        const ambushId = owner.jinnangHand.find(
-          (id) => jinnangCardOf(id).effect.kind === "ambush",
-        );
+        const ambushId = owner.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
         if (ambushId != null) {
           const walkedCount = totalLen - remaining.length;
           const branchPrefix =
@@ -247,6 +251,11 @@ export function settleMarchLanding(
 ): void {
   mover.onBranch = null; // 已在主路(清掉原 onBranch)
   mover.position = landIndex;
+  emitGameEvent(g, g.players.indexOf(mover), {
+    kind: "marchArrived",
+    tileIndex: landIndex,
+    path: requireMovePath(g, "marchArrived"), // #385:路径随事件走(合并批多段行军各播各段)
+  }); // 事件流(#375):行军落格
   if (wasOnBranch)
     g.dispatchMoment("BranchExited", {
       subject: g.players.indexOf(mover),
@@ -426,7 +435,13 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
   // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
   // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
   if (tile.type === "Fate") {
+    const repBefore = mover.reputation;
     g.addReputation(g.players.indexOf(mover), 20);
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "reputationChanged",
+      delta: mover.reputation - repBefore,
+      reason: "fate",
+    }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
     g.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
     g.lastLandOutcome = { kind: "Noop" };
     g.logEvent(
@@ -451,7 +466,13 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
       `jinnangTile player=${mover.id} tile=#${tile.index}`,
     );
-    g.drawJinnang(g.players.indexOf(mover), 1);
+    const drawn = g.drawJinnang(g.players.indexOf(mover), 1);
+    if (drawn > 0)
+      emitGameEvent(g, g.players.indexOf(mover), {
+        kind: "jinnangDrawn",
+        count: drawn,
+        reason: "jinnangTile",
+      }); // 事件流(#384):抽锦囊进手(牌库空落空=无转移,不产)
     g.endTurn();
     return;
   }
@@ -461,6 +482,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
     if (r === "liquidating") return;
     const bankrupt = r === "bankrupt";
     g.pushFloater(mover, -200, tile.index, "expense");
+    emitGameEvent(g, g.players.indexOf(mover), { kind: "cashChanged", delta: -200, reason: "tax" }); // 事件流(#375):金钱变更(浮字同口径 -200 平记)
     g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
     g.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
     g.logEvent(
@@ -486,8 +508,12 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       bankrupt = r === "bankrupt";
     }
     g.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
-    if (!gain)
-      g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "cashChanged",
+      delta: gain ? delta : -amt,
+      reason: "stock",
+    }); // 事件流(#375):金钱变更(浮字同口径)
+    if (!gain) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
     g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     g.logEvent(
       "system",
@@ -593,6 +619,11 @@ function enterDecisionPhase(g: GameEngine): boolean {
   if (def != null && options.some((o) => o.id === "buy")) {
     // 购地不可行(银两/委任状不足):默认行为=不取(浮字文案口径见 ADR-0013 决议 2)
     const noWarrant = p.warrants < BUY_WARRANT_COST;
+    emitGameEvent(g, g.players.indexOf(p), {
+      kind: "propertyRejected",
+      propertyId: def.id,
+      reason: noWarrant ? "no-warrant" : "insufficient-cash",
+    }); // 事件流(#385):购地被拒(文案浮字由 fx 按 reason 派生)
     g.logEvent(
       "buy",
       p.guohao,
@@ -602,6 +633,11 @@ function enterDecisionPhase(g: GameEngine): boolean {
     g.pushFloaterText(p, noWarrant ? "无委任状,不可购" : "银两不足,未能购城", p.position);
   } else if (def != null) {
     // 扩军不可行(城已满级):默认行为=按兵不动
+    emitGameEvent(g, g.players.indexOf(p), {
+      kind: "propertyRejected",
+      propertyId: def.id,
+      reason: "maxed",
+    }); // 事件流(#385):按兵不动(城已满级)
     g.logEvent(
       "upgrade",
       p.guohao,
@@ -634,6 +670,11 @@ function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "l
   if (supply > 0) {
     mover.cash += supply;
     g.pushFloater(mover, supply, mover.capitalIndex, "supply");
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "cashChanged",
+      delta: supply,
+      reason: "supply",
+    }); // 事件流(#375):金钱变更
     g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
   }
   if (cause === "halt") {

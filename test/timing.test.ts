@@ -8,7 +8,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import { HEROES } from "@core/heroes";
-import type { HeroDef, TriggerSkill} from "@core/heroes";
+import type { HeroDef, TriggerSkill } from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
@@ -258,8 +258,20 @@ describe("时机框架:派发点位", () => {
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-before", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-after", name: "测试技", when: "AfterMarch", effect: "test-capture", scope: "any" },
+          {
+            id: "cap-before",
+            name: "测试技",
+            when: "BeforeMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-after",
+            name: "测试技",
+            when: "AfterMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
         ]);
       // 两位玩家都挂(首动者由 seed 决定,capture 技能只在本人行军时留痕)
       e.players[0].heroes.push(captureHero());
@@ -400,7 +412,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" }]),
+        heroWith([
+          { id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" },
+        ]),
       );
       expect(() => e.dispatchMoment("CashLost", { subject: 1 })).toThrow(/嵌套超过 2 层/);
     } finally {
@@ -417,7 +431,15 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "nest", name: "测试技", when: "CashLost", effect: "test-nested-once", scope: "any" }]),
+        heroWith([
+          {
+            id: "nest",
+            name: "测试技",
+            when: "CashLost",
+            effect: "test-nested-once",
+            scope: "any",
+          },
+        ]),
       );
       e.dispatchMoment("CashLost", { subject: 1 }); // 不抛
       expect(fireCount(e, "nest")).toBe(1);
@@ -429,7 +451,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
   it("未知 EffectId 抛错(注册表查不到=数据 bug,零兜底)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]));
+    e.players[0].heroes.push(
+      heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]),
+    );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/未知效果/);
   });
 
@@ -437,7 +461,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.players[0].heroes.push(
-      heroWith([{ id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} }]),
+      heroWith([
+        { id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} },
+      ]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/参数缺失/);
   });
@@ -549,9 +575,27 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-march", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-roll", name: "测试技", when: "BeforeRoll", effect: "test-capture", scope: "any" },
-          { id: "cap-die", name: "测试技", when: "DieRolled", effect: "test-capture", scope: "any" },
+          {
+            id: "cap-march",
+            name: "测试技",
+            when: "BeforeMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-roll",
+            name: "测试技",
+            when: "BeforeRoll",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-die",
+            name: "测试技",
+            when: "DieRolled",
+            effect: "test-capture",
+            scope: "any",
+          },
         ]);
       e.players[0].heroes.push(captureHero());
       e.players[1].heroes.push(captureHero());
@@ -887,7 +931,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.confirmBankruptcySettle();
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([
-      { subject: e.players.indexOf(mover) },
+      { subject: e.players.indexOf(mover), creditorSeat: null }, // #384:债主座位随派发点入事件(null=归银行)
     ]);
     expect(mover.isBankrupt).toBe(true);
     expect(e.isOver).toBe(true); // 2 人局:一人出局即终局(群雄尽灭)
@@ -1077,7 +1121,11 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantHero", fallbackCash: 200 }));
+    testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({ kind: "grantHero", fallbackCash: 200 }),
+    );
     expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat, amount: 200 },
     ]);

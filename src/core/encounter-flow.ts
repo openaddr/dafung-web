@@ -21,7 +21,8 @@ import {
 import { findHolding } from "./player";
 import { HEROES } from "./heroes";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
-import { drawJinnang } from "./jinnang-execution";
+import { drawJinnangTraced } from "./jinnang-execution";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 
@@ -80,6 +81,11 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
     throw new Error(`耗竭选项结算:选项载荷缺失(index=${index},数据 bug)`); // 零兜底
   }
   const note = opt.label;
+  emitGameEvent(g, seat, {
+    kind: "exhaustionChoice",
+    propertyId: opt.holdingPropertyId,
+    exhaustionKind: opt.exhaustionKind,
+  }); // 事件流(#385):耗竭处置落定(降级/失城;目录文案 fx 按 propertyId+kind 派生)
   if (opt.exhaustionKind === "downgrade") {
     const holding = findHolding(p, opt.holdingPropertyId);
     if (!holding) throw new Error(`耗竭降级:房产 ${opt.holdingPropertyId} 不在持有列表`);
@@ -91,10 +97,19 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
   g.endTurn();
 }
 
-/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。 */
+/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。
+ *  重置走 addStamina 唯一口并以 staminaChanged(reason=exhaustion)产事件(#384):
+ *  耗竭入口已保证 stamina=0,增量恒为满值,夹紧不改变落账结果。 */
 function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void {
+  const seat = g.players.indexOf(p);
+  const staminaBefore = p.stamina;
   p.skipTurns += 1;
-  p.stamina = STARTING_STAMINA;
+  const after = g.addStamina(seat, STARTING_STAMINA - staminaBefore);
+  emitGameEvent(g, seat, {
+    kind: "staminaChanged",
+    delta: after - staminaBefore,
+    reason: "exhaustion",
+  }); // 事件流(#384):体力变更(耗竭重置)
   g.pendingExhaustionSeat = null;
   g.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
   g.logEvent(
@@ -126,14 +141,16 @@ export function maybeApplyEncounter(
     );
     return "none";
   }
-  const tier = pickTier(
-    g.dice.nextFloat(),
-    tierShares(mover.reputation, g.encounter.shares),
-  );
+  const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation, g.encounter.shares));
   const def = pickWeighted(
     ENCOUNTERS.filter((c) => c.tier === tier),
     g.dice.nextFloat(),
   );
+  emitGameEvent(g, g.players.indexOf(mover), {
+    kind: "encounterTriggered",
+    encounterId: def.id,
+    tier: def.tier,
+  }); // 事件流(#375):机遇触发(已抽中具体机遇)
   if (def.choices) return g.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
   return g.settleEncounter(mover, atTile, def);
 }
@@ -209,6 +226,11 @@ function settleEncounterChoice(
   index: number,
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
   const seat = g.players.indexOf(mover);
+  emitGameEvent(g, seat, {
+    kind: "encounterChoice",
+    encounterId: def.id,
+    choiceIndex: index,
+  }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
   // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
   // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
   let costDetail = "";
@@ -217,7 +239,13 @@ function settleEncounterChoice(
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
   if (option.repDelta !== 0) {
+    const repBefore = mover.reputation;
     g.addReputation(seat, option.repDelta);
+    emitGameEvent(g, seat, {
+      kind: "reputationChanged",
+      delta: mover.reputation - repBefore,
+      reason: "encounter",
+    }); // 事件流(#384):声望变更(夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
     g.pushFloaterText(
       mover,
       `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`,
@@ -312,6 +340,7 @@ function applyCashEffect(
   if (effect.delta > 0) {
     mover.cash += effect.delta;
     g.pushFloater(mover, effect.delta, atTile, "income");
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
     g.logEvent(
       "system",
@@ -326,6 +355,7 @@ function applyCashEffect(
   if (r === "liquidating") return "liquidating";
   const bankrupt = r === "bankrupt";
   g.pushFloater(mover, effect.delta, atTile, "expense");
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
   g.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
   g.logEvent(
     "system",
@@ -387,6 +417,11 @@ function applyGrantHeroEffect(
   if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: effect.fallbackCash,
+      reason: "encounter",
+    }); // 事件流(#375):折现
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
@@ -429,7 +464,7 @@ function applyGrantCardEffect(
     `${mover.guohao} 机遇「${def.id}」:${narr},得锦囊一封`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} grantCard=1`,
   );
-  drawJinnang(g, seat, 1);
+  drawJinnangTraced(g, seat, 1, "encounter"); // 事件流(#384):抽锦囊进手(落空不产)
   return "settled";
 }
 
@@ -445,14 +480,17 @@ function applyGrantCityEffect(
   const seat = g.players.indexOf(mover);
   // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
   const unownedCities = g.board.tiles
-    .filter(
-      (t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null,
-    )
+    .filter((t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null)
     .map((t) => ({ tileName: t.name, def: g.catalog.get(t.propertyId) }))
     .filter((c): c is { tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: effect.fallbackCash,
+      reason: "encounter",
+    }); // 事件流(#375):折现
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.fallbackCash }); // 时机·CashGained:被动得银(无城可赐折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
@@ -499,10 +537,22 @@ function applySiphonEffect(
   mover.cash += take;
   g.pushFloater(mover, take, atTile, "income");
   if (take > 0) {
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: -take,
+      reason: "encounter",
+      counterpartSeat: seat,
+    }); // 事件流(#375):金钱变更(被吸取方)
     g.dispatchMoment("CashLost", {
       subject: g.players.indexOf(target),
       amount: take,
     }); // 时机·CashLost:被动失银(被吸取方,#299 派发缺口补齐)
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: take,
+      reason: "encounter",
+      counterpartSeat: g.players.indexOf(target),
+    }); // 事件流(#375):金钱变更(吸取方)
     g.dispatchMoment("CashGained", { subject: seat, amount: take }); // 时机·CashGained:被动得银(吸取方,#299 派发缺口补齐)
   }
   g.logEvent(
@@ -532,12 +582,24 @@ function applyLevyEffect(
   const paid = bankrupt ? 0 : effect.amount;
   if (target && paid > 0) {
     target.cash += paid;
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: paid,
+      reason: "encounter",
+      counterpartSeat: seat,
+    }); // 事件流(#375):金钱变更(得款对手)
     g.dispatchMoment("CashGained", {
       subject: g.players.indexOf(target),
       amount: paid,
     }); // 时机·CashGained:被动得银(得款对手,#299 派发缺口补齐)
   }
   g.pushFloater(mover, -paid, atTile, "expense");
+  emitGameEvent(g, seat, {
+    kind: "cashChanged",
+    delta: -paid,
+    reason: "encounter",
+    counterpartSeat: target ? g.players.indexOf(target) : undefined,
+  }); // 事件流(#375):金钱变更(征粮方)
   g.dispatchMoment("CashLost", { subject: seat, amount: paid });
   g.logEvent(
     "system",
@@ -563,9 +625,15 @@ function applyTradeEffect(
   const target = randomOpponentOf(g, mover);
   mover.cash += effect.amount;
   g.pushFloater(mover, effect.amount, atTile, "income");
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.amount, reason: "encounter" }); // 事件流(#375):金钱变更(互市己方)
   g.dispatchMoment("CashGained", { subject: seat, amount: effect.amount }); // 时机·CashGained:被动得银(互市己方,#299 派发缺口补齐)
   if (target) {
     target.cash += effect.amount;
+    emitGameEvent(g, g.players.indexOf(target), {
+      kind: "cashChanged",
+      delta: effect.amount,
+      reason: "encounter",
+    }); // 事件流(#375):金钱变更(互市对手)
     g.dispatchMoment("CashGained", {
       subject: g.players.indexOf(target),
       amount: effect.amount,
@@ -595,7 +663,13 @@ function applyEncounterStamina(
 ): "settled" | "exhausted" {
   if (delta === 0) return "settled";
   const seat = g.players.indexOf(mover);
+  const staminaBefore = mover.stamina;
   const stamina = g.addStamina(seat, delta);
+  emitGameEvent(g, seat, {
+    kind: "staminaChanged",
+    delta: stamina - staminaBefore,
+    reason: "encounter",
+  }); // 事件流(#384):体力变更(机遇,夹紧后实际增减)
   const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
   g.pushFloaterText(mover, `体力 ${signed}`, atTile);
   g.logEvent(

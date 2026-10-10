@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 44 60" role="img" aria-label="太史慈将旗">
+  <!-- 太史慈专属将旗(扩展包 assets 示例):站点根相对 URL 由客户端渲染 hook 读用 -->
+  <g>
+    <path d="M6 4 L38 4 L38 40 L22 34 L6 40 Z" fill="#8f2f2c" stroke="#2b2317" stroke-width="2.5" stroke-linejoin="round"/>
+    <rect x="3" y="2" width="3.5" height="56" rx="1.6" fill="#4a3a24" stroke="#2b2317" stroke-width="1.5"/>
+    <circle cx="4.75" cy="4.5" r="2.2" fill="#d9b95c" stroke="#2b2317" stroke-width="1"/>
+    <text x="23" y="28" text-anchor="middle" font-size="20" font-family="serif" font-weight="bold" fill="#f6ecd9">义</text>
+  </g>
+</svg>

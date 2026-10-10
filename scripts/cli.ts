@@ -23,6 +23,14 @@ import {
   loadBuiltinMapById,
   type GameConfig,
 } from "./engine-helpers";
+import { loadExtensionPackages } from "../src/core/extension-loader";
+
+// ──────────────────────────── 扩展包装载(#412,与 server.ts 同口径)────────────────────────────
+// 每命令一进程:启动即装载 extensions/(名将/效果/问询注册进引擎注册面,CLI 对局与
+// 服务器/单机同规则)。零兜底口径同 server.ts:坏包当场炸;空目录 = 合法零包。
+// stdout 只出命令 JSON(脚本消费面),装载诊断不打印。
+const EXTENSIONS_DIR = resolve(process.env.EXTENSIONS_DIR ?? "./extensions");
+await loadExtensionPackages(EXTENSIONS_DIR);
 
 // ──────────────────────────── arg 解析 ────────────────────────────
 interface ParsedArgs {

@@ -88,12 +88,16 @@ _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
 选项集 ≤1 时引擎自动执行的那一个行为(如放弃购买)。
 _Avoid_: fallback choice(不是兜底,是产品决策)
 
+**定制问询(Custom Inquiry,#432,ADR-0022)**:
+扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)记挂起问询,挂起态 `pendingInquiry` 随快照序列化;无匹配 choices 的相位由挂点按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。id 查无注册问询 = 当场炸(零兜底)。UI 接线归 #424。
+_Avoid_: 自定义问询(ADR-0022 行文旧用词,定名「定制问询」)、自定义弹窗(那是呈现面 inquiryPresentation 的事,不是问询本身)
+
 **对局日志(Game Log)**:
-一局一个 jsonl 文件(联机=服务器 data/logs/,单机=IndexedDB),局头(地图/seed/座位)+中文事件流+机读 params+玩家命令流双层,支持命令流重放复现。30 天保底清理。见 ADR-0014。对局屏里的**战报抽屉**(#255)是它的玩家面:右缘把手展开,只读玩法事件(中文简报),机读/审计行(header/cmd/room/final)不入战报。
+一局一个 jsonl 文件(联机=服务器 data/logs/,单机=IndexedDB),局头(地图/seed/座位)+中文事件流+机读 params+玩家命令流双层(纯归档:不承诺跨版本复现,ADR-0021)。30 天保底清理。见 ADR-0014。对局屏里的**战报抽屉**(#255)是它的玩家面:右缘把手展开,只读玩法事件(中文简报),机读/审计行(header/cmd/room/final)不入战报。
 _Avoid_: 战报(裸用——现专指对局屏抽屉这件 UI,别再拿它指 jsonl 文件)、history
 
 **命令流重放(Command Replay)**:
-以 seed+座位+玩家命令序列重建确定性引擎的复现方式。_Avoid_: 读叙述推理(精度不足)
+以 seed+座位+玩家命令序列重建确定性引擎的复现方式。已随 ADR-0021 退役,术语仅存档(cmd 行保留为审计归档)。_Avoid_: 读叙述推理(精度不足)
 
 ## 经济
 
@@ -109,7 +113,7 @@ _Avoid_: 运气(口语,指代不明)、福缘/威望(弃用)
 
 **机遇(Encounter)**:
 行军落格后按概率触发、早于城池结算的事件:带 好运/中性/霉运 之一的档位、内容标签(名将/银两/城池…),效果多数面向系统侧、少数引发玩家间互动;带抉择的机遇走抉择卷轴,由玩家选择是否承担代价(如「携民渡江」:舍银两换声望)。id 用中文且必须自带因果(名字与效果互证)。
-_Avoid_: 事件(已被表现事件/对局日志占用)、奇遇/际遇(弃用)
+_Avoid_: 事件(现指 GameEvent,见「事件流」)、奇遇/际遇(弃用)
 
 **体力(Stamina)**:
 每位 Seat 的对局内数值(0~100,开局 100),常规对局不变;机遇与名将技能使其增减。耗竭(归 0)时立即受罚——降 1 级房产(全部 0 级则失去一座房产)并跳过下一回合,随后重置为 100。
@@ -123,7 +127,7 @@ _Avoid_: 稀有度(那是珍宝 level)、品级
 
 **锦囊(Jinnang)**:
 暗置手牌卡牌系统,全游戏唯一的隐藏信息,博弈乐趣的核心,对局基本机制(无开关)。经锦囊格/机遇奖励/声望献计/军师来投/起手发牌获取后暗置于己方;常规牌只在「自己回合开始、掷骰前」的军师幕中主动使用,带「即时」标记的反应锦囊改在他人回合的反应窗打出(见「反应锦囊」词条);常规牌的目标域(自身/指定一名玩家/指定两名玩家/全体其他玩家)由牌面固定。id 用中文且自带因果(名字与效果互证)。
-_Avoid_: 技能(那是名将的被动技/主动技,锦囊是牌不是技)、宝物(与珍宝混淆)、事件(已被占用)、反应牌(旧称,现名反应锦囊)
+_Avoid_: 技能(那是名将的被动技/主动技,锦囊是牌不是技)、宝物(与珍宝混淆)、事件(现指 GameEvent,见「事件流」)、反应牌(旧称,现名反应锦囊)
 
 **锦囊手牌**:
 某座位暗置的锦囊集合。内容仅本人可见(联机经 per-seat 投影),数量全员可见(牌背计数,本身就是博弈信息)。无上限(#250),抽牌永不作废,理论上限=整副牌库(18 张)。
@@ -226,3 +230,17 @@ _Avoid_: 锦囊卷轴(旧名;旧 testid 族 scroll-jinnang* 已随 #255 退役)�
 **主动技(Active Skill)**:
 名将手动发动的技能(#188 档 3),与被动技(时机框架自动触发)并存;每名将至多一个,在军师幕内发动,走独立冷却(heroLastFired,键 = 技 id),不占锦囊标签名额。出技是公开事件(浮字+战报);结算复用既有路径(如火攻 = 火烧连营同款),技能结算内不派发时机(防技能链)。看门狗/托管代驾永不主动出技。
 _Avoid_: 名将技(旧「名将」称谓)、大招(游戏黑话)、手动技(口语)
+
+## 事件流
+
+**事件(GameEvent)**:
+引擎每次状态转移产出的类型化记录:行动者座位 + 领域动词(kind:回合相位/掷骰/行军落格/金钱变更/购地/升级/出牌/识破/交割/机遇触发/破产/招贤/选都驻跸等)+ 对象与原因字段 + 发生时刻(轮/回)。词汇表与产出两口(时机映射表 + 域模块结算点显式 emit)单源 `src/core/game-events.ts`;随快照 `events` 字段输出,是动效因果的协议一等公民(ADR-0020)——消费方直读,不再靠快照 diff 反推。与对局日志(LogEvent)分工:日志是人类复盘 + 命令流重放存档,事件是机器接口。
+_Avoid_: 机遇(那是玩法机制,见「机遇」)、日志事件(LogEvent,对局日志行)、表现事件(app 层投影出的动效原语,消费事件流的下游产物)
+
+**事件流(Event Stream)**:
+ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/jinnangVoided/jinnangInflicted)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
+_Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnangPlay.seq)、事件总线(那是时机总线 dispatchMoment——技能挂点框架,事件流借其宣告点产出,二者不是一物)
+
+**消费档位(Consumption Tier,#430)**:
+事件流每个 kind 的双面消费档位登记,单源 `src/core/event-tiers.ts` `EVENT_TIERS`:38 个 kind 每个必声明 fold 面×fx 面两格——fold 面(net/event-fold.ts 折叠消费)四档 must-fold(精确折)/fold+calibration(折+校准双覆盖,已知漂移窗由快照校准纠正)/declarative(声明性无转移)/calibration-only(校准兜底,折叠面刻意不折),fx 面(fx/event-extract.ts 表现消费)两档 presented(有表现)/silent(无表现);词汇表新增 kind 未登记档位 = 编译期红(防遗漏机器,派生集约束两消费器 switch 穷尽)。与机遇「档位(Fortune Tag)」无涉:那是好运/中性/霉运的三分定性,消费档位是事件消费面的机器可查判定数据。
+_Avoid_: 档位(裸用——与机遇 Fortune Tag 混淆,见该词条)、判定表(旧散文注释形态,已升为机器可查数据)
