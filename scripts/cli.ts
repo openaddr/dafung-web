@@ -185,6 +185,18 @@ function autoDrive(e: GameEngine): { stoppedBy: "human" | "over" | "idle"; steps
   return { stoppedBy: "over", steps };
 }
 
+/** 提交命令并如实透出引擎是否接受:引擎对相位不符等非法命令是 warn 留痕 + 静默无操作
+ *  (assertPhase 口径),此处比对指纹抓出未生效,reason = 末条系统警告——恒报 ok:true
+ *  会让 LLM 以为命令成功而状态机原地没动(#441)。与 pick-capital 的 ok/reason 口径对齐。 */
+function submitCmd(e: GameEngine, cmd: GameCommand): { ok: boolean; reason?: string } {
+  const before = fingerprint(e);
+  const logBefore = e.log.length;
+  e.submitCommand(cmd);
+  if (fingerprint(e) !== before) return { ok: true };
+  const warn = e.log.slice(logBefore).find((ev) => ev.category === "system");
+  return { ok: false, reason: warn ? warn.brief : "命令未产生状态变化(详见 log 末条)" };
+}
+
 // ──────────────────────────── main ────────────────────────────
 function main(): void {
   const argv = process.argv.slice(2);
@@ -228,6 +240,7 @@ function main(): void {
               full: "完整 snapshot",
             },
             options: { "--state path": "状态文件路径(默认 data/cli-state.json,相对 cwd)" },
+            注: "快捷命令(roll/buy/…/cmd)ok:false = 命令被引擎拒绝,reason 给原因(如相位不符)",
             "cmd JSON 示例(按相位)": {
               AwaitingEncounter:
                 '{"type":"resolveEncounterChoice","index":0}(下标见 status.choices)',
@@ -320,83 +333,91 @@ function main(): void {
         return;
       }
       case "roll": {
-        engine.submitCommand({ type: "rollAndMove" });
+        const r = submitCmd(engine, { type: "rollAndMove" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "roll", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify({ ok: r.ok, reason: r.reason, command: "roll", ...statusOf(engine) }, null, 2),
+        );
         return;
       }
       case "buy": {
-        engine.submitCommand({ type: "buyProperty" });
+        const r = submitCmd(engine, { type: "buyProperty" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "buy", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "buy", ...statusOf(engine) }, null, 2));
         return;
       }
       case "upgrade": {
-        engine.submitCommand({ type: "upgradeProperty" });
+        const r = submitCmd(engine, { type: "upgradeProperty" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "upgrade", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify({ ok: r.ok, reason: r.reason, command: "upgrade", ...statusOf(engine) }, null, 2),
+        );
         return;
       }
       case "skip": {
-        engine.submitCommand({ type: "endDecision" });
+        const r = submitCmd(engine, { type: "endDecision" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "skip", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "skip", ...statusOf(engine) }, null, 2));
         return;
       }
       case "main": {
-        engine.submitCommand({ type: "selectBranch", kind: "Main" });
+        const r = submitCmd(engine, { type: "selectBranch", kind: "Main" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "main", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "main", ...statusOf(engine) }, null, 2));
         return;
       }
       case "branch": {
-        engine.submitCommand({ type: "selectBranch", kind: "Branch" });
+        const r = submitCmd(engine, { type: "selectBranch", kind: "Branch" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "branch", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "branch", ...statusOf(engine) }, null, 2));
         return;
       }
       case "fair": {
         const treasureId = positionals[1];
         if (!treasureId) throw new Error("用法:fair <treasureId>");
-        engine.submitCommand({
+        const r = submitCmd(engine, {
           type: "resolveTreasureOwner",
           action: { type: "fair", treasureId },
         });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "fair", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "fair", ...statusOf(engine) }, null, 2));
         return;
       }
       case "premium": {
         const treasureId = positionals[1];
         if (!treasureId) throw new Error("用法:premium <treasureId>");
-        engine.submitCommand({
+        const r = submitCmd(engine, {
           type: "resolveTreasureOwner",
           action: { type: "premium", treasureId },
         });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "premium", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify({ ok: r.ok, reason: r.reason, command: "premium", ...statusOf(engine) }, null, 2),
+        );
         return;
       }
       case "tskip": {
-        engine.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });
+        const r = submitCmd(engine, { type: "resolveTreasureOwner", action: { type: "skip" } });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "tskip", ...statusOf(engine) }, null, 2));
+        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "tskip", ...statusOf(engine) }, null, 2));
         return;
       }
       case "confirm": {
-        engine.submitCommand({ type: "confirmBankruptcySettle" });
+        const r = submitCmd(engine, { type: "confirmBankruptcySettle" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: true, command: "confirm", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify({ ok: r.ok, reason: r.reason, command: "confirm", ...statusOf(engine) }, null, 2),
+        );
         return;
       }
       case "cmd": {
         const jsonStr = positionals[1];
         if (!jsonStr) throw new Error("用法:cmd <json>(GameCommand JSON 字符串)");
         const cmd = JSON.parse(jsonStr) as GameCommand;
-        engine.submitCommand(cmd);
+        const r = submitCmd(engine, cmd);
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: true, command: "cmd", cmd, ...statusOf(engine) }, null, 2),
+          JSON.stringify({ ok: r.ok, reason: r.reason, command: "cmd", cmd, ...statusOf(engine) }, null, 2),
         );
         return;
       }
