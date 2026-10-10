@@ -600,7 +600,7 @@ function applyLevyEffect(
     reason: "encounter",
     counterpartSeat: target ? g.players.indexOf(target) : undefined,
   }); // 事件流(#375):金钱变更(征粮方)
-  g.dispatchMoment("CashLost", { subject: seat, amount: paid });
+  if (paid > 0) g.dispatchMoment("CashLost", { subject: seat, amount: paid }); // 时机·CashLost:被动失银(征粮;实付 0=致破不派发,#452 口径,与汲取 take>0 守卫同款)
   g.logEvent(
     "system",
     mover.guohao,
@@ -679,12 +679,15 @@ function applyEncounterStamina(
     `encounterStamina player=${mover.id} id=${def.id} tier=${def.tier} delta=${delta} stamina=${stamina}`,
   );
   if (stamina !== 0) return "settled";
+  const turnBefore = g.turnNumber;
   const ex = exhaustIfDepleted(g, seat);
   if (ex === "none") throw new Error("机遇体力结算后 stamina>0:耗竭判定状态不一致"); // 零兜底:状态不一致炸出来
-  if (ex === "auto" && g.turnPhase !== "Roll" && !g.isOver) {
-    // 自动惩罚收口(#132):唯一可用选项路径(settleExhaustionChoice)内部已 endTurn
-    // (turnPhase=Roll);「无可处置城池」纯跳回合路径不收尾回合——由机遇结算侧补
-    // endTurn,人倒下了回合即止,不留悬空相位。
+  if (ex === "auto" && g.turnNumber === turnBefore && !g.isOver) {
+    // 自动惩罚收口(#132/#452):以 turnNumber 前后比对判「未被收尾」——不用 turnPhase
+    // 嗅探(endTurn 会经 enterJinnangPhase 把相位改写为 AwaitingJinnang,判据失真,
+    // 曾误补第二枪 endTurn 吞掉下家整回合)。唯一可用选项路径(settleExhaustionChoice)
+    // 内部已 endTurn,turnNumber 已 +1 → 不补;「无可处置城池」纯跳回合路径不收尾回合
+    // (turnNumber 不变)→ 由机遇结算侧补 endTurn,人倒下了回合即止,不留悬空相位。
     g.endTurn();
   }
   return "exhausted"; // phase/auto 一律占用本落格:调用方不得续跑城池结算
