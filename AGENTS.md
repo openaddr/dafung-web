@@ -9,7 +9,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 | 要什么                                       | 去哪                                                                                                                                                                                   |
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 游戏规则与数值(权威以 `src/core/` 代码为准)  | [docs/reference/rules/](./docs/reference/rules/README.md)(十页导览,数值总表在第 10 页)                                                                                                 |
-| 领域词汇(术语定名与弃用名)                   | [CONTEXT.md](./CONTEXT.md)                                                                                                                                                             |
+| 领域词汇(术语定名与弃用名)                   | [GLOSSARY.md](./GLOSSARY.md)                                                                                                                                                         |
 | 设计决策存档                                 | docs/adr/                                                                                                                                                                              |
 | 视觉/交互设计(改 UI 前必读)                  | [docs/design/DESIGN.md](./docs/design/DESIGN.md) + [BRIEF.md](./docs/design/BRIEF.md)                                                                                                  |
 | 交互组件收口附表(shadcn/Base UI)             | [docs/design/组件收口.md](./docs/design/组件收口.md)                                                                                                                                   |
@@ -44,7 +44,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 改动**玩家可见机制**(相位、数值、牌、事件、地图字段、操作流程)时,除代码与测试外,**同一 PR 内**必须:
 
 - [ ] 回填 `docs/reference/rules/` 对应规则页(数值带符号名锚点,禁写行号)
-- [ ] 新术语登记 [CONTEXT.md](./CONTEXT.md)
+- [ ] 新术语登记 [GLOSSARY.md](./GLOSSARY.md)
 - [ ] README 文档地图与受影响文档链接有效(全仓库无死链)
 
 ## 文档风格规约

@@ -21,7 +21,7 @@
 - 快照无需新增序列化状态(选项集由相位+玩家状态实时派生)。
 - bot 决策与人类决策共用同一选项集口径,消除第三套判断漂移的风险。
 
-## 术语(登记入 CONTEXT.md 语言表)
+## 术语(登记入 GLOSSARY.md 语言表)
 
 - **Choice-set(选项集)**:某决策相位下决策者当前全部可用行为(含 available/reason)。
   _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
