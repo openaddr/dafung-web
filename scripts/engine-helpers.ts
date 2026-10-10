@@ -1,9 +1,9 @@
-// 引擎 CLI/Server 共享层:地图加载 + 状态文件 I/O + 状态摘要 + bot 自动驱动。
+// 引擎 CLI/Server 共享层:地图加载 + 状态文件 I/O + 状态摘要。
 // scripts/cli.ts(每命令一进程,状态落 state.json)与 scripts/server.ts(常驻 HTTP,
 // 内存引擎 + 落盘)共同复用,保证两端同一地图、同一序列化格式、同一 bot 语义。
 // import 用相对路径(Node 不认 vite alias);core/ 零 DOM,Node 直接可跑。
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
+import { join, resolve, dirname } from "node:path";
 import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
@@ -12,7 +12,6 @@ import type { SeatConfig, EngineConfig } from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
 import type { TurnPhase, AiDifficulty} from "../src/core/authority";
 import { createDice } from "../src/core/dice";
-import { botAct } from "../src/core/bot";
 
 /** 共享地图(主路 + 辅路 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
 export const MAP: LoadedMap = loadMap(sanguoData);
@@ -81,13 +80,16 @@ export function loadEngineAt(path: string): { engine: GameEngine; config: GameCo
     throw new Error(`state 文件不存在:${path}(先 new 开新局)`);
   }
   const raw = JSON.parse(readFileSync(path, "utf-8")) as PersistedState;
-  // 用保存时的 config 重建一个引擎(只为了让 readonly 字段就位),然后覆盖可变状态
-  const engine = createEngine(raw.config, false);
+  // 按落盘 mapId 重建引擎(readonly 字段就位 + 同一张地图),再覆盖可变状态;
+  // 旧格式 state 无 mapId → 显式抛错重开(无兼容负担,零兜底)。
+  if (!raw.config.mapId) throw new Error("state 文件缺 mapId(旧格式):请 new 重开");
+  const engine = createEngine(raw.config, false, loadBuiltinMapById(raw.config.mapId));
   engine.restoreFromSnapshot(raw.snapshot);
   return { engine, config: raw.config };
 }
 
 export function saveEngineAt(path: string, engine: GameEngine, config: GameConfig): void {
+  mkdirSync(dirname(path), { recursive: true }); // I/O 卫生:父目录不存在则建
   const state: PersistedState = { snapshot: engine.snapshot(), config };
   writeFileSync(path, JSON.stringify(state, null, 2), "utf-8");
 }
@@ -128,6 +130,12 @@ export function statusOf(e: GameEngine) {
     branchStartTile: s.branchStartTile,
     rngState: s.rngState,
     offeredCapitals: s.offeredCapitals,
+    // 可用选项集(ADR-0013;快照 choices = engine.choicesFor() 全集,过滤 available;
+    // 非选项集相位 choicesFor 返回 [] → 此处亦 [])。
+    choices: s.choices.filter((o) => o.available),
+    // 反应窗公告(ReactionView | null,快照字段透传,零派生):
+    // jinnang 窗含 queriedBySeat/windowMs,march 窗含 ownerSeat。
+    reaction: s.reaction,
     players: s.players.map((p) => ({
       guohao: p.guohao,
       isBot: p.isBot,
@@ -151,6 +159,8 @@ export function statusOf(e: GameEngine) {
       activePlayer?.isBot,
       // 城主视角(AwaitingTreasureOwner):提示该谁抉择
       s.turnPhase === "AwaitingTreasureOwner" ? decisionOwnerGuohao(e) : undefined,
+      // 军师幕(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill
+      e.pendingSkill?.skillId,
     ),
   };
 }
@@ -162,13 +172,14 @@ function decisionOwnerGuohao(e: GameEngine): string | undefined {
   return e.players[e.decisionOwner]?.guohao;
 }
 
-export function promptFor(
+function promptFor(
   phase: string,
   setupPhase: string,
   tp: TurnPhase,
   guohao: string | undefined,
   isBot: boolean | undefined,
   decisionOwner?: string,
+  pendingSkillId?: string,
 ): string {
   if (!guohao) return "";
   const who = `${guohao}${isBot ? "(bot)" : ""}`;
@@ -189,6 +200,18 @@ export function promptFor(
       return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
     case "AwaitingHeroPick":
       return `${who} 招贤纳士:选名将(cmd {"type":"resolveHeroPick","index":0..2})`;
+    case "AwaitingEncounter":
+      return `${who} 抉择机遇(cmd {"type":"resolveEncounterChoice","index":<choices 下标>},见 status.choices)`;
+    case "AwaitingExhaustion":
+      return `${who} 体力耗竭(cmd {"type":"resolveExhaustionChoice","index":<下标>},见 status.choices)`;
+    case "AwaitingJinnang": {
+      const skill = pendingSkillId
+        ? `;待发动技:cmd {"type":"useHeroSkill","skillId":"${pendingSkillId}"}(或其目标段/cancel 作罢)`
+        : "";
+      return `${who} 军师幕:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
+    }
+    case "AwaitingReaction":
+      return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"},待应答座位与窗信息见 status.reaction)`;
     case "AwaitingTreasureOwner":
       return `${decisionOwner ?? who} 城主抉择:公道买卖(fair <id>)/坐地起价(premium <id>)/跳过(tskip)`;
     case "AwaitingBankruptcySettle":
@@ -230,55 +253,6 @@ export function boardOf(e: GameEngine) {
   };
 }
 
-// ──────────────────────────── bot 自动驱动 ────────────────────────────
-// botAct 一次推进一个决策点;但要"轮到谁"取决于相位:大部分相位由 active 玩家抉择,
-// AwaitingTreasureOwner 例外——城主(可能 ≠ 访客)抉择。归属判断统一走 engine.decisionOwner
-// (收口,不再手抄 treasureVisitor 推导)。
-export function botOwnsDecision(e: GameEngine): boolean {
-  switch (e.turnPhase) {
-    case "AwaitingTreasureOwner":
-      // 城主抉择(可能 ≠ 访客)。treasureVisitor 缺失 → 非法状态,不驱动(与原语义一致)。
-      if (e.treasureVisitor == null) return false;
-      return e.players[e.decisionOwner]?.isBot === true;
-    case "AwaitingBankruptcySettle":
-    case "Roll":
-    case "AwaitingBranch":
-    case "AwaitingDecision":
-    case "AwaitingHeroPick":
-      return e.activePlayer.isBot;
-    default:
-      return false;
-  }
-}
-
-export type BotStopReason = "human" | "over" | "idle";
-
-/** 连续驱动 bot 决策直到:轮到人类(human)/ 游戏结束(over)/ 无进展(idle 防死循环)。
- *  同步执行(服务器无动画需求)。每次 botAct 后取指纹,不变即停(正常情况下引擎保证进展)。 */
-export function autoResolveBots(e: GameEngine): { reason: BotStopReason; steps: number } {
-  let steps = 0;
-  let guard = 0;
-  while (e.phase !== "GameOver" && botOwnsDecision(e) && guard++ < 500) {
-    const before = fingerprint(e);
-    botAct(e);
-    steps++;
-    if (e.isOver) return { reason: "over", steps };
-    if (fingerprint(e) === before) return { reason: "idle", steps }; // botAct 未改任何状态 → 交还人类
-  }
-  if (e.isOver || e.phase === "GameOver") return { reason: "over", steps };
-  return { reason: botOwnsDecision(e) ? "idle" : "human", steps };
-}
-
-/** 廉价状态指纹:相位 + active + 选都进度 + 各玩家现金/珍宝/城/名将计数。任何真实进展都会改变它。 */
-function fingerprint(e: GameEngine): string {
-  return [
-    e.phase,
-    e.setupPhase,
-    e.turnPhase,
-    e.activeIndex,
-    e.currentDraftIndex,
-    e.players
-      .map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`)
-      .join(","),
-  ].join("|");
-}
+// bot 自动驱动已迁出:CLI 侧在 scripts/cli.ts(auto/run-to-end),服务器侧在
+// scripts/bot-driver.ts(driveBots);可驱动相位正典 = src/core/bot.ts 的
+// BOT_ATTENDED_PHASES。此处不再有共享副本。

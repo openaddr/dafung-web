@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 import { GameEngine, type EngineConfig } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
-import { botAct } from "../src/core/bot";
+import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { netWorth } from "../src/core/networth";
 import type { GameCommand} from "../src/core/authority";
 import type { LogEvent} from "../src/core/model";
@@ -56,20 +56,8 @@ type RoomEv =
 /** cmd 行的命令形状:GameCommand ∪ 选都(pickCapital 不是 GameCommand,见 authority.ts)。 */
 type ReplayCmd = GameCommand | { type: "pickCapital"; seat: number; tileIndex: number };
 
-// botAct 能驱动的相位(与 room.ts INPUT_PHASES 同源;引擎内部过渡相位无需驱动)
-const INPUT_PHASES = new Set([
-  "Roll",
-  "AwaitingBranch",
-  "AwaitingDecision",
-  "AwaitingHeroPick",
-  "AwaitingEncounter", // 抉择机遇(#124):与 room.ts 同源补齐
-  "AwaitingJinnang", // 锦囊(#122/T2):botAct 走策略表(T6),骰驱确定性,重放一致
-  "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
-  "AwaitingTreasureOwner",
-  "AwaitingBankruptcySettle",
-  "AwaitingReaction", // 反应窗(#281):bot 座位引擎开窗即席代答(重放无需驱动);
-  // 人类应答走 cmd 行天然重放——driveBots 特判停等,不走 botAct
-]);
+// botAct 能驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES(契约见该常量;
+// AwaitingReaction 重放无需驱动:bot 座位开窗即席代答,人类应答走 cmd 行天然复现)
 
 /** 驱动服务器控制的座位直到轮到人类/终局(与 room.ts driveBots 同骨架:决策点归属 +
  *  可驱动相位;此处无 WS/直播,纯状态推进)。 */
@@ -88,7 +76,7 @@ function driveBots(e: GameEngine, takeover: Set<number>, autopilot: Set<number>)
       // cmd 行,天然复现。停在窗上即break等下一条 cmd 行(decisionOwner 在窗内仍是
       // 出牌者,botAct 无从驱动,不可落进通用分支空转)。
       if (e.turnPhase === "AwaitingReaction") break;
-      if (!INPUT_PHASES.has(e.turnPhase)) break;
+      if (!BOT_ATTENDED_PHASES.has(e.turnPhase)) break;
       const seat = e.decisionOwner;
       if (!controlled(seat)) break;
       botAct(e);

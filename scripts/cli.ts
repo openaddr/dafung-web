@@ -1,11 +1,17 @@
-// 纯 CLI:每命令一进程,引擎状态持久到 state.json(默认 ./state.json,--state path 覆盖)。
-// 运行:bun scripts/cli.ts <command> [args] [--state path]
-// 流程:load state.json → 重建引擎(restore) → 执行命令 → save state.json → stdout 输出 JSON。
-// 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用。
+// 纯 CLI 对局 + LLM 演练线:每命令一进程,引擎状态持久到 state 文件(默认 data/cli-state.json,--state path 覆盖)。
+// LLM 演练线:new 全参数面开局 → auto-setup → auto(stoppedBy=human 停等)→ 人类按
+// status.prompt / choices / reaction 发命令推进,循环到终局;全 bot 局可 run-to-end 一步跑完。
+// 共享层(地图/序列化/状态摘要)在 ./engine-helpers,与 server.ts 复用;
+// bot 驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES。
+import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
-import type { GameCommand} from "../src/core/authority";
+import type { GameCommand } from "../src/core/authority";
+import type { AiDifficulty } from "../src/core/authority";
+import { parseEncounterFile, type EncounterConfig } from "../src/core/encounters";
+import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
+import { reactionQueriedSeats } from "./bot-driver";
 import {
   createEngine,
   loadEngineAt,
@@ -13,6 +19,8 @@ import {
   autoSetup,
   statusOf,
   boardOf,
+  builtinMapCatalog,
+  loadBuiltinMapById,
   type GameConfig,
 } from "./engine-helpers";
 
@@ -44,12 +52,36 @@ function parseArgs(argv: string[]): ParsedArgs {
 }
 
 // ──────────────────────────── state 路径 ────────────────────────────
-// 持久化(序列化/restore)在 engine-helpers,这里只决定 state.json 路径。
+// 持久化(序列化/restore)在 engine-helpers,这里只决定 state 文件路径。
 function statePath(flags: Record<string, string>): string {
-  return resolve(flags.state ?? "./state.json");
+  return resolve(flags.state ?? "data/cli-state.json");
 }
 
-// ──────────────────────────── 命令实现 ────────────────────────────
+// ──────────────────────────── new 参数解析 ────────────────────────────
+/** 整数 flag:缺失 undefined,非整数(含「12abc」类 parseInt 截断)显式抛——
+ *  seed/starting-cash 等是重放要素,静默截断 = 污染局头。 */
+function intFlag(flags: Record<string, string>, key: string): number | undefined {
+  if (flags[key] === undefined) return undefined;
+  if (!/^-?\d+$/.test(flags[key])) throw new Error(`--${key} 必须为整数,收到:${flags[key]}`);
+  return parseInt(flags[key], 10);
+}
+
+function parseDifficulty(v: string): AiDifficulty {
+  if (v !== "Simple" && v !== "Normal")
+    throw new Error(`--difficulty 只收 Simple|Normal,收到:${v}`);
+  return v;
+}
+
+/** --encounter 解析:"jiyu" = 产品默认配置(public/config/jiyu.json);其余按路径读。
+ *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇配置是重放要素(触发判定消耗
+ *  骰流),坏配置不许静默降级。 */
+function loadEncounterCfg(spec: string): EncounterConfig {
+  const path = spec === "jiyu" ? resolve("public/config/jiyu.json") : resolve(spec);
+  const cfg = parseEncounterFile(JSON.parse(readFileSync(path, "utf-8")));
+  if (!cfg) throw new Error(`机遇配置无效(triggerRate/baseRates 结构不齐):${path}`);
+  return cfg;
+}
+
 function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: GameConfig } {
   const seatsNum = parseInt(flags.seats ?? "2", 10);
   if (!(seatsNum >= 2 && seatsNum <= 4)) throw new Error("--seats 必须 2-4");
@@ -60,8 +92,15 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
       .filter(Boolean)
       .map((s) => parseInt(s, 10)),
   );
-  const target = flags.target !== undefined ? parseInt(flags.target, 10) : undefined;
-  const seed = flags.seed !== undefined ? parseInt(flags.seed, 10) : undefined;
+  const target = intFlag(flags, "target");
+  const seed = intFlag(flags, "seed");
+  const startingCash = intFlag(flags, "starting-cash");
+  const reactionWindowMs = intFlag(flags, "reaction-window-ms");
+  // 地图:--map <id>,缺省 = 内置清单首项;未知 id 由 loadBuiltinMapById 抛错
+  const mapId = flags.map ?? builtinMapCatalog()[0].id;
+  const map = loadBuiltinMapById(mapId);
+  const difficulty = flags.difficulty !== undefined ? parseDifficulty(flags.difficulty) : undefined;
+  const encounter = flags.encounter !== undefined ? loadEncounterCfg(flags.encounter) : undefined;
 
   const seats: SeatConfig[] = [];
   for (let i = 0; i < seatsNum; i++) {
@@ -71,8 +110,71 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
       // guohao 留空,doDraftRoll 会从字池分配(对 bot 必要,对人类也省事)
     });
   }
-  const engine = createEngine({ seats, targetNetWorth: target, seed });
-  return { engine, config: { seats, targetNetWorth: target, seed } };
+  // config 即落盘构造参数(mapId 为重放要素必带,ADR-0014;encounter/reactionWindowMs
+  // 有则存,缺省语义 = 机遇关 / 反应窗查 core 常量表,与 EngineConfig 对齐)
+  const config: GameConfig = {
+    seats,
+    targetNetWorth: target,
+    ...(seed !== undefined && { seed }),
+    ...(startingCash !== undefined && { startingCash }),
+    ...(difficulty !== undefined && { difficulty }),
+    mapId,
+    ...(encounter !== undefined && { encounter }),
+    ...(reactionWindowMs !== undefined && { reactionWindowMs }),
+  };
+  const engine = createEngine(config, true, map);
+  return { engine, config };
+}
+
+// ──────────────────────────── auto 驱动(LLM 演练线)────────────────────────────
+/** 廉价状态指纹:相位 + setupPhase + turnPhase + active + 各座位现金/珍宝/城/名将计数。
+ *  任何真实进展都会改变它;botAct 前后不变 = 无进展。 */
+function fingerprint(e: GameEngine): string {
+  return [
+    e.phase,
+    e.setupPhase,
+    e.turnPhase,
+    e.activeIndex,
+    e.players
+      .map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`)
+      .join(","),
+  ].join("|");
+}
+
+/** 当前决策点是否 bot 受控。被询问座位公式单源 = bot-driver.reactionQueriedSeats
+ *  (scripts 层正典,与 app 层三层注释互指)。AwaitingReaction:bot 座位由引擎开窗同
+ *  调用即席代答(ADR-0017,全 bot 被询问时相位不外显)→ 窗在必有未应答人类座位,
+ *  没有即状态机不一致,抛错(零兜底),有人类待应答则停等。其余相位 = 决策方
+ *  engine.decisionOwner(TreasureOwner=城主,其余折叠为 active)。 */
+function botControls(e: GameEngine): boolean {
+  if (e.phase !== "Playing") return false;
+  if (e.turnPhase === "AwaitingReaction") {
+    const pr = e.pendingReaction;
+    if (pr == null) throw new Error("AwaitingReaction 相位 pendingReaction 缺失:状态机不一致"); // 零兜底
+    const waitingHumans = reactionQueriedSeats(pr.view).filter(
+      (seat) => !pr.answers.some((a) => a.seat === seat) && !e.players[seat].isBot,
+    );
+    if (waitingHumans.length === 0)
+      throw new Error("反应窗在而无未应答人类座位:bot 座位应已即席代答收窗,状态机不一致");
+    return false;
+  }
+  if (!BOT_ATTENDED_PHASES.has(e.turnPhase)) return false;
+  return e.players[e.decisionOwner].isBot;
+}
+
+/** 连续驱动 bot 决策点直到:轮到人类(human)/ 游戏结束(over)/ 无进展(idle)。
+ *  每步 botAct 前后比对指纹,不变即停(botAct 空转 = 状态机异常,交调用方暴露)。 */
+function autoDrive(e: GameEngine): { stoppedBy: "human" | "over" | "idle"; steps: number } {
+  let steps = 0;
+  while (!e.isOver) {
+    if (!botControls(e)) return { stoppedBy: "human", steps };
+    const before = fingerprint(e);
+    botAct(e);
+    steps++;
+    if (e.isOver) return { stoppedBy: "over", steps };
+    if (fingerprint(e) === before) return { stoppedBy: "idle", steps };
+  }
+  return { stoppedBy: "over", steps };
 }
 
 // ──────────────────────────── main ────────────────────────────
@@ -99,9 +201,11 @@ function main(): void {
         JSON.stringify(
           {
             commands: {
-              "new [--seats N] [--seed S] [--bot 0,1] [--target T]":
-                "开新局(创建引擎 → doDraftRoll → 存)",
+              "new [--seats N] [--bot 0,1] [--seed S] [--target T]":
+                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --difficulty Simple|Normal / --starting-cash N / --encounter jiyu|<路径>(缺省=机遇关)/ --reaction-window-ms N",
               "auto-setup": "自动跑选都到 Playing",
+              auto: "连续驱动 bot 决策,直到轮到人类(stoppedBy=human)/终局(over)/无进展(idle)",
+              "run-to-end": "全 bot 局一键跑完到终局(任一座位非 bot 即抛错)",
               "pick-capital <tileIndex>": "当前玩家选都",
               roll: "行军(rollAndMove)",
               "buy | upgrade | skip": "购地/扩军/跳过(AwaitingDecision)",
@@ -110,12 +214,22 @@ function main(): void {
               "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",
               confirm: "破产清算结算(AwaitingBankruptcySettle)",
               "cmd <json>": "任意 GameCommand(JSON 字符串)",
-              status: "当前状态摘要 + prompt",
+              status: "当前状态摘要 + prompt + choices + reaction",
               "log [n]": "最近 n 条战报(默认 20)",
               board: "棋盘 tile 列表(owner/level)",
               full: "完整 snapshot",
             },
-            options: { "--state path": "状态文件路径(默认 ./state.json)" },
+            options: { "--state path": "状态文件路径(默认 data/cli-state.json,相对 cwd)" },
+            "cmd JSON 示例(按相位)": {
+              AwaitingEncounter:
+                '{"type":"resolveEncounterChoice","index":0}(下标见 status.choices)',
+              AwaitingExhaustion:
+                '{"type":"resolveExhaustionChoice","index":0}(下标见 status.choices)',
+              AwaitingJinnang:
+                '{"type":"useJinnang","cardId":"<id>"} / {"type":"useJinnang","cardId":null}(今不用);待发动技 {"type":"useHeroSkill","skillId":"<id>"}',
+              AwaitingReaction:
+                '{"type":"respondReaction","seat":1,"use":false}(待应答座位见 status.reaction)',
+            },
           },
           null,
           2,
@@ -131,7 +245,7 @@ function main(): void {
       return;
     }
 
-    // 其他命令都需要加载引擎(状态文件 → 重建;查询命令也写回,以防 rngState/log 变化)
+    // 其他命令都需要加载引擎(状态文件 → 按 config.mapId 重建;查询命令也写回,以防 rngState/log 变化)
     const { engine, config } = loadEngineAt(path);
 
     switch (command) {
@@ -140,6 +254,44 @@ function main(): void {
         saveEngineAt(path, engine, config);
         console.log(
           JSON.stringify({ ok: true, command: "auto-setup", ...statusOf(engine) }, null, 2),
+        );
+        return;
+      }
+      case "auto": {
+        const r = autoDrive(engine);
+        saveEngineAt(path, engine, config);
+        console.log(
+          JSON.stringify(
+            {
+              ok: true,
+              command: "auto",
+              stoppedBy: r.stoppedBy,
+              steps: r.steps,
+              ...statusOf(engine),
+            },
+            null,
+            2,
+          ),
+        );
+        return;
+      }
+      case "run-to-end": {
+        if (engine.players.some((p) => !p.isBot))
+          throw new Error("run-to-end 仅限全 bot 局(有真人座位请用 auto)");
+        if (engine.phase === "Setup") autoSetup(engine);
+        const r = autoDrive(engine);
+        // 全 bot 局唯一合法出口是终局;idle/human 都是引擎状态机 bug,该崩(零兜底)
+        if (r.stoppedBy !== "over")
+          throw new Error(
+            `run-to-end 异常停止(${r.stoppedBy},steps=${r.steps}):全 bot 局必须跑完到终局,状态机 bug`,
+          );
+        saveEngineAt(path, engine, config);
+        console.log(
+          JSON.stringify(
+            { ok: true, command: "run-to-end", steps: r.steps, ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }
