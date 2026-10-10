@@ -1,7 +1,7 @@
 // bot/接管/托管驱动(ADR-0002 接管;spec: autopilot)——从 room.ts 拆出(模块治理 10/11 #327,纯搬不改)。
 // 连续驱动服务器控制的决策点:bot 座位走 botAct,接管/托管座位代驾,冻结真人座位不驱动。
 // registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与看门狗组;本模块零 WS/fs。
-import { botAct } from "../src/core/bot";
+import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import type { GameEngine } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
 import type { ReactionView } from "../src/core/reaction-window";
@@ -13,21 +13,9 @@ import type { Watchdogs } from "./watchdogs";
 
 type UpdateFn = (room: RoomSession) => void;
 
-// botAct 能驱动的相位(其它相位是引擎内部过渡,无需外部驱动)
-const INPUT_PHASES = new Set([
-  "Roll",
-  "AwaitingBranch",
-  "AwaitingDecision",
-  "AwaitingHeroPick",
-  "AwaitingEncounter", // 抉择机遇(#124):bot 贪心策略,见 bot.ts
-  "AwaitingJinnang", // 锦囊(#122/T2):bot 恒「今不用」保守推进(策略表在 T6)
-  "AwaitingExhaustion", // 体力耗竭(#130):bot 随机弃城
-  "AwaitingTreasureOwner",
-  "AwaitingBankruptcySettle",
-  "AwaitingReaction", // 反应窗(#281):bot 座位引擎开窗即席代答;人类座位等 respondReaction
-  // (driveBots 循环头特判收敛「待应答人类座位」,不走 botAct——决策方
-  // 天然多属主,decisionOwner 不适用)
-]);
+// botAct 能驱动的相位正典 = src/core/bot.ts 的 BOT_ATTENDED_PHASES(契约见该常量:
+// 除 AwaitingReaction 外各相位 botAct 直驱,AwaitingReaction 由循环头特判停等
+// 人类待应答座位,不走 botAct)
 
 /** 当前决策点座位步进延迟(#399 步进经注入时钟):托管慢速 2s,其余为 0。 */
 function stepDelayMs(r: RoomSession, seat: number): number {
@@ -128,7 +116,7 @@ export async function driveBots(
       const owner = decisionSeatOf(e);
       const phaseOk = setup
         ? e.setupPhase === "PickCapital" && owner >= 0
-        : INPUT_PHASES.has(e.turnPhase);
+        : BOT_ATTENDED_PHASES.has(e.turnPhase);
       if (!phaseOk) {
         reason = "not-input-phase";
         break;
