@@ -5,6 +5,8 @@ import { createDice } from "@core/dice";
 import type { Player } from "@core/model";
 import { sellValueOf } from "@core/economy";
 import { guidePriceOf } from "@core/treasures";
+import { HEROES } from "@core/heroes";
+import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
@@ -309,5 +311,55 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
     e.confirmBankruptcySettle();
     expect(p.cash).toBe(0); // 全额清偿,无其他扣减
     expect(p.isBankrupt).toBe(false);
+  });
+});
+
+describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现金派发,实付 0 不派发", () => {
+  const CAOPI = HEROES.find((h) => h.id === "caopi")!;
+
+  it("清算自救后清偿:实付现金派 CashLost,曹丕渔利恰得 50", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    const caopi = e.players.find((q) => q !== p)!;
+    caopi.heroes.push(CAOPI);
+    const caopiCash0 = caopi.cash;
+    p.cash = 100;
+    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
+    const r = testEngine(e).payOrLiquidate(p, null, 200);
+    expect(r).toBe("liquidating");
+    e.sellTreasureBankruptcy("t1"); // +600 → cash 700
+    e.confirmBankruptcySettle(); // 实付 200 清偿
+    expect(p.cash).toBe(500);
+    expect(p.isBankrupt).toBe(false);
+    expect(caopi.cash).toBe(caopiCash0 + 50); // 与现金直付同口径:渔利恰一次
+  });
+
+  it("征粮归一:直付派发(渔利 +50);致破实付 0 不派发(曹丕分文不得)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    const caopi = e.players.find((q) => q !== p)!;
+    caopi.heroes.push(CAOPI);
+    const caopiCash0 = caopi.cash;
+    const levy: EncounterDef = {
+      id: "假道征粮",
+      tier: "霉运",
+      tags: ["银两", "玩家"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "levy", amount: 150 },
+    };
+    // 直付腿:现金充足 → 实付 150 派发;对手收 150 转移 + 曹丕(持牌者=对手)渔利 50
+    testEngine(e).applyEncounter(p, p.position, levy);
+    const afterDirect = caopi.cash;
+    expect(afterDirect).toBe(caopiCash0 + 150 + 50);
+    // 致破腿:现金不足且无产可清算 → paid=0 → 不派发,曹丕分文不得
+    p.cash = 10;
+    p.properties = [];
+    const r = testEngine(e).applyEncounter(p, p.position, levy);
+    expect(r).toBe("bankrupt");
+    expect(p.isBankrupt).toBe(true);
+    expect(caopi.cash).toBe(afterDirect); // 0 额不派发:渔利不再白得 50
   });
 });
