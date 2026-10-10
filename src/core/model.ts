@@ -31,8 +31,8 @@ export interface Player {
   heroes: HeroDef[]; // 已招揽的名将(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
   heroLastFired: Record<string, number>; // 技能冷却:skill.id → 上次触发的 round(供 cooldown 判定)
-  reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 CONTEXT.md;#121)
-  stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 CONTEXT.md;#130)
+  reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 GLOSSARY.md;#121)
+  stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 GLOSSARY.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
   /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */
   repMilestones: number[];
