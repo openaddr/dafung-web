@@ -12,6 +12,7 @@ import type { AiDifficulty } from "../src/core/authority";
 import { parseEncounterFile, type EncounterConfig } from "../src/core/encounters";
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { reactionQueriedSeats } from "./bot-driver";
+import { fingerprint } from "./seat-projection";
 import {
   createEngine,
   loadEngineAt,
@@ -135,19 +136,9 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
 }
 
 // ──────────────────────────── auto 驱动(LLM 演练线)────────────────────────────
-/** 廉价状态指纹:相位 + setupPhase + turnPhase + active + 各座位现金/珍宝/城/名将计数。
- *  任何真实进展都会改变它;botAct 前后不变 = 无进展。 */
-function fingerprint(e: GameEngine): string {
-  return [
-    e.phase,
-    e.setupPhase,
-    e.turnPhase,
-    e.activeIndex,
-    e.players
-      .map((p) => `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}`)
-      .join(","),
-  ].join("|");
-}
+// 进展指纹单源 = seat-projection.fingerprint(联机侧正典,含 turnNumber/position/
+// skipTurns/warrants 全量字段)。勿在 CLI 手抄缩水副本:缩水版看不见「破产位被跳 +
+// 中伏跳过绕一圈回到原 active」这类零计数变化但真实前进的循环,会误判 idle(#442 dogfood 实锤)。
 
 /** 当前决策点是否 bot 受控。被询问座位公式单源 = bot-driver.reactionQueriedSeats
  *  (scripts 层正典,与 app 层三层注释互指)。AwaitingReaction:bot 座位由引擎开窗同
