@@ -809,3 +809,60 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
     expect(e.takenCapitalIndices.size).toBe(0);
   });
 });
+
+describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
+  // sanguo 咸阳 = tile 1(宝物城;并权后带 propertyId,走城池三分折叠路径)。
+  const XIANGLAND = 1;
+
+  it("无主宝物城:足额 → AwaitingDecision + pendingLand(与普通城同路径)", () => {
+    const e = makeEngine();
+    foldEventBatch(e, [
+      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+    ]);
+    expect(e.players[0].position).toBe(XIANGLAND);
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-xianyang" });
+    expect(e.lastLandOutcome?.kind).toBe("PropertyAvailable");
+  });
+
+  it("己方宝物城:未满级 → AwaitingDecision(OwnProperty);满级 → Land 收场", () => {
+    const e = makeEngine();
+    grantHolding(e, 0, "prop-xianyang", 0);
+    foldEventBatch(e, [
+      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+    ]);
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: "prop-xianyang" });
+    expect(e.lastLandOutcome?.kind).toBe("OwnProperty");
+
+    const e2 = makeEngine();
+    grantHolding(e2, 0, "prop-xianyang", 3); // 满级:自动按兵不动(相位由同批 turnStarted 收场)
+    foldEventBatch(e2, [
+      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+    ]);
+    expect(e2.turnPhase).toBe("Land");
+    expect(e2.pendingLand).toBeNull();
+  });
+
+  it("他人宝物城:城主有宝 → AwaitingTreasureOwner 到来;无宝 → Land 收场", () => {
+    const e = makeEngine();
+    grantHolding(e, 1, "prop-xianyang", 0);
+    e.players[1].treasures.push({ ...TREASURES[0]!, id: "fold-probe" });
+    foldEventBatch(e, [
+      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+    ]);
+    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
+    expect(e.treasureVisitor?.ownerIdx).toBe(1);
+    expect(e.treasureVisitor?.def.id).toBe("prop-xianyang");
+    expect(e.lastLandOutcome?.kind).toBe("TreasureTrade");
+
+    const e2 = makeEngine();
+    grantHolding(e2, 1, "prop-xianyang", 0); // 无宝:无事发生
+    foldEventBatch(e2, [
+      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+    ]);
+    expect(e2.turnPhase).toBe("Land");
+    expect(e2.treasureVisitor).toBeNull();
+    expect(e2.lastLandOutcome?.kind).toBe("Noop");
+  });
+});

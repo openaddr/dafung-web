@@ -22,7 +22,15 @@
       "id": "prop-xianyang",
       "name": "咸阳",
       "pos": [-1100, -435],
-      "type": "TreasureCity"
+      "type": "TreasureCity",
+      "group": "a",
+      "region": "中原",
+      "price": 3400,
+      "buildCost": 1700,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-hanzhong",
@@ -74,6 +82,20 @@
       "tradeAdd": [200, 700, 1800, 4000],
       "valueByLevel": [1000, 1400, 2000, 2900],
       "tradeMult": [2, 4, 6, 10],
+      "resupplyPerLevel": 300
+    },
+    {
+      "id": "prop-shangyong",
+      "name": "上庸",
+      "pos": [-1350, 805],
+      "type": "TreasureCity",
+      "group": "b",
+      "region": "荆楚",
+      "price": 2400,
+      "buildCost": 1200,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1000, 1400, 2000, 2900],
+      "tradeAdd": [200, 700, 1800, 4000],
       "resupplyPerLevel": 300
     },
     {
@@ -145,6 +167,20 @@
       "tradeAdd": [200, 800, 2000, 4500],
       "valueByLevel": [1100, 1600, 2300, 3200],
       "tradeMult": [2, 4, 6, 10],
+      "resupplyPerLevel": 300
+    },
+    {
+      "id": "prop-xiapi",
+      "name": "下邳",
+      "pos": [1550, 495],
+      "type": "TreasureCity",
+      "group": "g",
+      "region": "青徐",
+      "price": 2700,
+      "buildCost": 1400,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1100, 1600, 2300, 3200],
+      "tradeAdd": [200, 800, 2000, 4500],
       "resupplyPerLevel": 300
     },
     {
@@ -228,7 +264,15 @@
       "id": "prop-hangu",
       "name": "函谷关",
       "pos": [-300, 185],
-      "type": "TreasureCity"
+      "type": "TreasureCity",
+      "group": "e",
+      "region": "西凉",
+      "price": 2200,
+      "buildCost": 1100,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [900, 1300, 1900, 2600],
+      "tradeAdd": [200, 700, 1600, 3700],
+      "resupplyPerLevel": 200
     },
     {
       "id": "prop-luoyang",
@@ -247,7 +291,15 @@
       "id": "prop-hulao",
       "name": "虎牢关",
       "pos": [500, 185],
-      "type": "TreasureCity"
+      "type": "TreasureCity",
+      "group": "a",
+      "region": "中原",
+      "price": 3400,
+      "buildCost": 1700,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-xuchang",
@@ -280,6 +332,20 @@
       "name": "商市",
       "pos": [1300, -125],
       "type": "Stock"
+    },
+    {
+      "id": "prop-hongnong",
+      "name": "弘农",
+      "pos": [1550, -125],
+      "type": "TreasureCity",
+      "group": "a",
+      "region": "中原",
+      "price": 3400,
+      "buildCost": 1700,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1400, 2000, 2900, 4100],
+      "tradeAdd": [300, 1000, 2500, 5500],
+      "resupplyPerLevel": 400
     },
     {
       "id": "prop-ziwu",
@@ -459,7 +525,15 @@
       "id": "prop-wan",
       "name": "宛城",
       "pos": [-300, -745],
-      "type": "TreasureCity"
+      "type": "TreasureCity",
+      "group": "f",
+      "region": "幽燕",
+      "price": 2400,
+      "buildCost": 1200,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1000, 1400, 2000, 2900],
+      "tradeAdd": [200, 700, 1800, 4000],
+      "resupplyPerLevel": 200
     },
     {
       "id": "prop-kuiji",

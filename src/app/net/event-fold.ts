@@ -198,7 +198,10 @@ interface FoldCtx {
 }
 
 /** 主路落格推演(settleMarchLanding → resolveLanding 的事件面镜像):相位 + 待决策落格 +
- *  落格表现态 + 珍宝交涉到来(判定表 treasureVisitor「到来=marchArrived 相邻」半边)。 */
+ *  落格表现态 + 珍宝交涉到来(判定表 treasureVisitor「到来=marchArrived 相邻」半边)。
+ *  宝物城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演;探宝挂交易链尾
+ *  且 outcome=Noop 不产折叠相位(引擎 drawTreasureAt 置 Noop 后 endTurn,同批
+ *  turnStarted 收场)。 */
 function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): void {
   engine.pendingLand = null;
   const tile = engine.board.at(tileIndex);
@@ -208,8 +211,9 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
     engine.lastLandOutcome = { kind: "OwnProperty" };
     return;
   }
-  if (tile.type !== "Property" || tile.propertyId == null) {
-    // 卧龙岗/宝物城/特殊格:引擎先置 Noop 再各自结算(税/商市金额由相邻 cashChanged 回填)
+  // 宝物城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演(无主/己城/他人城);
+  // 无 propertyId = 卧龙岗/特殊格:引擎先置 Noop 再各自结算(税/商市金额由相邻 cashChanged 回填)
+  if (tile.propertyId == null || (tile.type !== "Property" && tile.type !== "TreasureCity")) {
     engine.turnPhase = "Land";
     engine.lastLandOutcome = { kind: "Noop" };
     return;

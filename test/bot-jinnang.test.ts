@@ -225,7 +225,10 @@ describe("锦囊 bot 策略(#148)", () => {
     e.activePlayer.jinnangHand = ["军情密探", "求贤令"];
     e.activePlayer.jinnangHandCount = 2;
     expect(jinnangIntent(e, "军情密探").use).toBe(true); // 手牌 2
-    expect(jinnangIntent(e, "军情密探").targets![0]).toBe(1); // 目标取现金最高者(并列座位序小)
+    // 钉死并列:现金最高者不随选都建城费(都城候选池扩容后座位间差值漂移)漂移
+    e.players[1].cash = 1000;
+    e.players[2].cash = 1000;
+    expect(jinnangIntent(e, "军情密探").targets![0]).toBe(1); // 并列取座位序小
   });
 
   it("连环计/军情密探已 live(T4):策略面达标端到端会用出(牌入弃堆)", () => {

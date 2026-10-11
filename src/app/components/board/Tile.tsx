@@ -218,6 +218,9 @@ const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string 
   Fate: { color: "danger", icon: "凶" },
   Tax: { color: "danger", icon: "税" },
   Stock: { color: "money", icon: "市" },
+  // 宝物城不入此表(ADR-0024):它是有 propertyId 的可购买城池,走下方城池渲染分支
+  // (建筑/归属/等级/价签俱全),「宝」身份由城池分支内的宝印承担——若入表,
+  // isIconTile 分流会把它画成无归属的大字格,丢掉归属/等级渲染。
 };
 
 // ── #96 易主检测已收编(ADR-0015)──
@@ -604,6 +607,35 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 fill={rgba(Theme.goldBright)}
               >
                 起
+              </text>
+            </g>
+          ) : null}
+          {/* 宝物城宝印(ADR-0024):「宝」身份独立标识——金底墨字方印,与「都/起」印
+              同制式(20×20 圆角方 + -6° 手钤)同锚点(49,-33)互斥(都城化的宝物城
+              「都」印优先,王旗/金晕已示都城身份)。墨字取「都」印金字的对偶:
+              金=既有事件强调语言,一粒金方点总览即辨「此城会探宝」。 */}
+          {tile.type === "TreasureCity" && !isCapital ? (
+            <g className="bv-treasure-seal" transform="translate(49 -33) rotate(-6)">
+              <rect
+                x={-10}
+                y={-10}
+                width={20}
+                height={20}
+                rx={2}
+                fill={rgba(Theme.goldBright)}
+                stroke="rgba(60,45,20,0.6)"
+                strokeWidth={1.4}
+              />
+              <text
+                x={0}
+                y={5}
+                textAnchor="middle"
+                fontFamily="var(--font-brush)"
+                fontSize={14}
+                fontWeight={700}
+                fill={rgba(Theme.ink)}
+              >
+                宝
               </text>
             </g>
           ) : null}

@@ -73,6 +73,15 @@ const SANGUO_TIER: Record<string, number> = {
   "prop-liangzhou": 18,
   "prop-youzhou": 22,
   "prop-liaodong": 18,
+  // 宝物城(ADR-0024 同权入册,档位钉死):咸阳/虎牢关/弘农=34(中原),函谷关=22(西凉),
+  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)——三图同 id 同档
+  "prop-xianyang": 34,
+  "prop-hulao": 34,
+  "prop-hongnong": 34,
+  "prop-hangu": 22,
+  "prop-wan": 24,
+  "prop-shangyong": 24,
+  "prop-xiapi": 27,
 };
 const ZY_TIER: Record<string, number> = {
   "prop-luoyang": 40,
@@ -120,7 +129,8 @@ function checkMap(name: string, data: unknown, tierOf: Record<string, number>, c
 function checkResupply(name: string, data: any) {
   it(`${name}:都城补给按区域档(边陲200/中庸300/沃野400/乘法城300)`, () => {
     for (const t of data.tiles as any[]) {
-      if ((t.type ?? "Property") !== "Property") continue;
+      // 宝物城(ADR-0024)同为城池,补给档与普通城同表
+      if ((t.type ?? "Property") !== "Property" && t.type !== "TreasureCity") continue;
       const expected = MULT_CITY.has(t.id)
         ? 300
         : FERTILE.includes(t.region)

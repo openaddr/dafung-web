@@ -1,19 +1,30 @@
-// 珍宝+城主交涉域(#322,ADR-0019 委托式拆分):宝物城落格结算
-// (resolveTreasureCity)、抽宝拼点(drawTreasureAt)与城主交涉(resolveTreasureOwner)。
-// 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;与数据表 treasures.ts 分层
-// (流程≠数据)。escrow 托管两步(deliverEscrow/returnEscrowToSeller)在 bankruptcy.ts
-// (#321),本域经 g. 壳上薄委托往返消费,不在本模块重复实现。
+// 珍宝+城主交涉域(#322,ADR-0019 委托式拆分):交易链收尾(finishTradeChain,含
+// 宝物城链尾探宝挂件 ADR-0024)、抽宝拼点(drawTreasureAt)与城主交涉
+// (resolveTreasureOwner)。域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;
+// 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步(deliverEscrow/
+// returnEscrowToSeller)在 bankruptcy.ts(#321),本域经 g. 壳上薄委托往返消费,
+// 不在本模块重复实现。
 import type { GameEngine } from "./authority";
-import type { TileDef } from "./board";
 import { guidePriceOf, premiumPriceOf } from "./treasures";
 import { findHolding } from "./player";
 import { formatMoney } from "./money";
 import { canUpgrade } from "./economy";
 import type { Player } from "./model";
 
-/** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
-export function resolveTreasureCity(g: GameEngine, mover: Player, tile: TileDef): void {
-  drawTreasureAt(g, mover, tile.name, tile.index);
+/** 交易链收尾(ADR-0024 落格结算顺序正典:机遇 roll → 城池交易链 → 探宝):
+ *  普通城直接结束回合;落点是宝物城则链尾必接一次探宝(抽宝拼点,自带 endTurn)。
+ *  交易链的全部时机(PropertyBought/PropertyUpgraded/CashLost 等)已由各命令在
+ *  调用本函数前派发完毕——TreasureGained 恒后于交易结算点,不进决策挂起期。
+ *  链中途转入清算(AwaitingBankruptcySettle 挂起)或付款破产的路径不经本函数,
+ *  由调用方直接 endTurn(探宝不触发)。movement-flow 各终端与 resolveTreasureOwner
+ *  经壳上 g.finishTradeChain 薄委托消费。 */
+export function finishTradeChain(g: GameEngine, mover: Player): void {
+  const tile = g.board.at(mover.position);
+  if (tile.type === "TreasureCity") {
+    drawTreasureAt(g, mover, tile.name, tile.index);
+    return;
+  }
+  g.endTurn();
 }
 
 /** 抽珍宝并拼点判定(宝物城落格)。
@@ -92,7 +103,8 @@ export function resolveTreasureOwner(
   if (action.type === "skip") {
     g.logEvent("system", owner.guohao, `${owner.guohao} 不交易`, `treasureSkip owner=${owner.id}`);
     g.treasureVisitor = null;
-    g.endTurn();
+    // 不交易也是交涉终端 → 宝物城链尾探宝(普通城 endTurn,ADR-0024)
+    finishTradeChain(g, mover);
     return;
   }
 
@@ -165,5 +177,11 @@ export function resolveTreasureOwner(
     -price,
   );
   g.treasureVisitor = null;
-  g.endTurn();
+  if (bankrupt) {
+    // 付款破产:交易链中断,探宝不触发(ADR-0024),直接收回合
+    g.endTurn();
+  } else {
+    // 交涉成交终端(CashLost 已派发)→ 宝物城链尾探宝(普通城 endTurn)
+    finishTradeChain(g, mover);
+  }
 }

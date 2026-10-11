@@ -9,7 +9,11 @@ export interface BoardPos {
 }
 
 /** 格子类型。v2.0 棋盘 Property/TreasureCity/Wolong/Tax/Stock/Chance/Fate 均有落格处理。 */
-export type TileType = "Property" | "Tax" | "Chance" | "Fate" | "Stock" | "Wolong" | "TreasureCity"; // 宝物城:不可购买;落格触发珍宝判定
+export type TileType = "Property" | "Tax" | "Chance" | "Fate" | "Stock" | "Wolong" | "TreasureCity"; // 宝物城:可购买城池(与普通城同权,ADR-0024);落格(交易链后)拼点探宝
+
+/** 城池格谓词:Property 与 TreasureCity 同权(ADR-0024)——购地/拦检/天赐等一切城池语义统一走此判定。 */
+export const isCityType = (type: TileType): boolean =>
+  type === "Property" || type === "TreasureCity";
 
 /** 单个格子定义。IsCapitalEligible=可作都城;Region=区域分组(美术配色)。 */
 export interface TileDef {

@@ -8,8 +8,8 @@ import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
 
 const MAP = loadMap(sanguoData);
-const FATE_TILE = 13;
-const CHANCE_TILE = 31;
+const FATE_TILE = 14;
+const CHANCE_TILE = 33;
 
 function makeEngine(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {

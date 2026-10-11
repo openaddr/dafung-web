@@ -4,7 +4,16 @@
 // #362:交涉选宝/破产变卖走选宝弹层(装裱卡点选=金描边上浮,二段式成交),语义断言
 // 以命令流(ADR-0014 cmd 行)与引擎结算为准,零放宽。
 import { test, expect, type Page } from "./fixtures";
-import { quickStart, force, snap, engineState, actIfCan } from "./react-helpers";
+import {
+  quickStart,
+  force,
+  snap,
+  engineState,
+  actIfCan,
+  freezeClock,
+  unfreezeClock,
+  waitFxIdle,
+} from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
 import { guidePriceOf } from "../src/core/treasures";
 
@@ -217,4 +226,56 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
     await page.locator(`[data-tile="${propTile}"]`).click();
     await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
   }).toPass({ timeout: 15_000 });
+});
+
+test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝留痕(ADR-0024)", async ({ page }) => {
+  await quickStart(page);
+  await freezeClock(page); // 钉死看门狗:强制行军/落格不与自动起摇、停摆代驾赛跑
+  try {
+    // 摆位到无主宝物城邻格,直走 rollAndMove 掷定 1 步后的同一段引擎路径:
+    // 途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;机遇已被 fixtures 归零)。
+    // 落无主宝物城 → 交易链:可购决策挂起(同权,ADR-0024;不再直探)。
+    const tcIndex = await page.evaluate(() => {
+      const e = (window as any).__dafung.getEngine();
+      e.phase = "Playing";
+      e.activeIndex = 0;
+      const me = e.players[0];
+      const tc = e.board.tiles.find(
+        (t: { type: string; propertyId: string | null }) =>
+          t.type === "TreasureCity" && !e.findOwner(t.propertyId),
+      );
+      if (tc == null) throw new Error("盘面无无主宝物城(数据 bug)");
+      const from = (tc.index + e.board.count - 1) % e.board.count;
+      me.position = from;
+      const walked = e.marchTraverse(me, [tc.index], 1, tc.index, from, 1);
+      if (walked !== "landed") throw new Error(`marchTraverse=${walked}(单格无拦检,契约违反)`);
+      e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
+      e.settleMarchLanding(me, tc.index);
+      (window as any).__dafung.sync();
+      return tc.index;
+    });
+    await expect(page.getByTestId("scroll-buy")).toBeVisible();
+    const pid = await engineState(page, `e.board.at(${tcIndex}).propertyId`);
+    await waitFxIdle(page);
+    const logLenBefore = (await snap(page)).log.length;
+    await page.getByTestId("action-buy").click();
+    // 结算留痕零放宽:买城入册 + 交易链尾探宝(gain/miss 任一),且探宝行后于买城行
+    // (ADR-0024 顺序正典:机遇 → 交易链 → 探宝;探宝自带 endTurn)。
+    await expect
+      .poll(
+        async () => {
+          const s = await snap(page);
+          const lines: { detail: string }[] = s.log.slice(logLenBefore);
+          const buyAt = lines.findIndex((l) => l.detail.includes(`buy player=p0 prop=${pid}`));
+          const treasureAt = lines.findIndex(
+            (l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"),
+          );
+          return { buy: buyAt >= 0, treasure: treasureAt >= 0, order: treasureAt > buyAt };
+        },
+        { timeout: 15_000, message: "宝物城买城→链尾探宝留痕(顺序正典)" },
+      )
+      .toEqual({ buy: true, treasure: true, order: true });
+  } finally {
+    await unfreezeClock(page);
+  }
 });

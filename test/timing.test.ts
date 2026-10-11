@@ -185,7 +185,8 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落税关付出银(CashLost);
+    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落宝物城——按兵不动(交易链终端)
+    // 后链尾拼点得宝(TreasureGained;ADR-0024 落格顺序正典:机遇→交易链→探宝);
     // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
@@ -197,7 +198,7 @@ describe("时机框架:派发点位", () => {
       "BeforeRoll",
       "DieRolled",
       "AfterMarch",
-      "CashLost", // 首回合税关失银(骰流随 18 张牌库漂移后的确定性序列)
+      "TreasureGained", // 首回合宝物城:按兵不动 → 交易链尾探宝(ADR-0024)
       "TurnEnd", // 第一位玩家
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",

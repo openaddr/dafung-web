@@ -4,23 +4,23 @@
     "name": "环游图",
     "file": "huanyou.json",
     "desc": "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合",
-    "tileCount": 31,
+    "tileCount": 38,
     "targetNetWorth": 30000
   },
   {
     "id": "chessboard",
     "name": "棋盘天下",
     "file": "chessboard.json",
-    "desc": "蛇形全网格版:7×6 主环 42 格 S 形铺满,行末 U 弯衔接",
-    "tileCount": 31,
+    "desc": "蛇形全网格版:7×6 主环 45 格 S 形铺满,行末 U 弯衔接,东西延伸列藏宝物城",
+    "tileCount": 38,
     "targetNetWorth": 30000
   },
   {
     "id": "sanguo",
     "name": "群雄逐鹿",
     "file": "sanguo.json",
-    "desc": "30 城主环,三国郡县州",
-    "tileCount": 30,
+    "desc": "37 城主环,三国郡县州",
+    "tileCount": 37,
     "targetNetWorth": 30000
   },
   {
