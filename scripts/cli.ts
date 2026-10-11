@@ -327,40 +327,72 @@ function main(): void {
         const r = submitCmd(engine, { type: "rollAndMove" });
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: r.ok, reason: r.reason, command: "roll", ...statusOf(engine) }, null, 2),
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "roll", ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }
       case "buy": {
         const r = submitCmd(engine, { type: "buyProperty" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "buy", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "buy", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "upgrade": {
         const r = submitCmd(engine, { type: "upgradeProperty" });
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: r.ok, reason: r.reason, command: "upgrade", ...statusOf(engine) }, null, 2),
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "upgrade", ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }
       case "skip": {
         const r = submitCmd(engine, { type: "endDecision" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "skip", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "skip", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "main": {
         const r = submitCmd(engine, { type: "selectBranch", kind: "Main" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "main", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "main", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "branch": {
         const r = submitCmd(engine, { type: "selectBranch", kind: "Branch" });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "branch", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "branch", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "fair": {
@@ -371,7 +403,13 @@ function main(): void {
           action: { type: "fair", treasureId },
         });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "fair", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "fair", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "premium": {
@@ -383,21 +421,35 @@ function main(): void {
         });
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: r.ok, reason: r.reason, command: "premium", ...statusOf(engine) }, null, 2),
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "premium", ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }
       case "tskip": {
         const r = submitCmd(engine, { type: "resolveTreasureOwner", action: { type: "skip" } });
         saveEngineAt(path, engine, config);
-        console.log(JSON.stringify({ ok: r.ok, reason: r.reason, command: "tskip", ...statusOf(engine) }, null, 2));
+        console.log(
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "tskip", ...statusOf(engine) },
+            null,
+            2,
+          ),
+        );
         return;
       }
       case "confirm": {
         const r = submitCmd(engine, { type: "confirmBankruptcySettle" });
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: r.ok, reason: r.reason, command: "confirm", ...statusOf(engine) }, null, 2),
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "confirm", ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }
@@ -408,7 +460,11 @@ function main(): void {
         const r = submitCmd(engine, cmd);
         saveEngineAt(path, engine, config);
         console.log(
-          JSON.stringify({ ok: r.ok, reason: r.reason, command: "cmd", cmd, ...statusOf(engine) }, null, 2),
+          JSON.stringify(
+            { ok: r.ok, reason: r.reason, command: "cmd", cmd, ...statusOf(engine) },
+            null,
+            2,
+          ),
         );
         return;
       }

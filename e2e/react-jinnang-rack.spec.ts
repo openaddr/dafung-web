@@ -167,10 +167,13 @@ test.describe("锦囊 T3:底部手牌架", () => {
     // 改把引擎直接钉进「他人回合」停车坪(activeIndex 换 bot 席位,相位维持人类停靠态;
     // 直写引擎不经房间编排,driveBots 不会被触发,钉住的状态稳定)。断言的仍是同一件事:
     // 决策方≠本端时架与手牌行常驻可见,只是观察从「抢拍自走瞬态」变「读钉住的权威态」。
-    await force(page, `
+    await force(
+      page,
+      `
       const botIdx = e.players.findIndex((p) => p.isBot);
       e.activeIndex = botIdx;
-    `);
+    `,
+    );
     const s = await snap(page);
     expect(s.decisionOwner).not.toBe(0);
     await expect(page.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
