@@ -110,9 +110,7 @@ const grepProc = Bun.spawnSync(
   { stdout: "pipe", stderr: "pipe" },
 );
 if (grepProc.exitCode !== 0 && grepProc.exitCode !== 1) {
-  console.error(
-    `[freshness] 冲突标记扫描失败:${new TextDecoder().decode(grepProc.stderr).trim()}`,
-  );
+  console.error(`[freshness] 冲突标记扫描失败:${new TextDecoder().decode(grepProc.stderr).trim()}`);
   process.exit(2);
 }
 const conflicted = new TextDecoder().decode(grepProc.stdout).trim();
