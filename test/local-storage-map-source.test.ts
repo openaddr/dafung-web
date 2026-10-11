@@ -3,7 +3,7 @@
 import { describe, it, expect, beforeEach } from "bun:test";
 import { LocalStorageMapSource, type StorageLike } from "@app/map-sources";
 import { isCustomId } from "@core/map-source";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 import sanguoData from "../public/maps/sanguo.json";
 
 /** 内存 StorageLike mock(实现 getItem/setItem/removeItem)。 */

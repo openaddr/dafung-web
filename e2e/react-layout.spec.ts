@@ -136,29 +136,23 @@ test.describe("三区骨架", () => {
     page,
   }) => {
     await quickStart(page);
-    await expect
-      .poll(
-        async () => {
-          // #255 既有 flake 定性收口(无 seed 快停人类落购地格):人类停在决策点时
-          // activeIndex 恒为自身,轮询体永不满足——轮询体内放行决策点,让活跃方轮到 bot
-          //(口径对齐本文件浮签用例的 clear())。
-          await dismissJinnangIfUp(page);
-          await actIfCan(page).catch(() => false);
-          const s = await snap(page);
-          if (s.phase !== "Playing") return false;
-          const active = s.players[s.activeIndex];
-          if (!active.isBot) return false; // 等 bot 回合:光效/微标只在他人卡上,自身回合 viewSeat 无卡
-          const card = page.getByTestId(`seat-${s.activeIndex}`);
-          const cls = (await card.getAttribute("class")) ?? "";
-          return (
-            cls.includes("active") &&
-            (await card.getByText("运筹中").count()) === 1 &&
-            (await card.locator(".timerbar").count()) === 0
-          );
-        },
-        { message: "活跃 bot 席位卡挂金圈光效 + 运筹中微标(无倒计时条,2026-09-25 拍板)" },
-      )
-      .toBe(true);
+    // #398 单机统一后:快速 bot 链一拍跑完(合并连锁,联机同构),对局态只在人类停点
+    // 下行——「自然观察到 bot 活跃」的瞬态不再存在,光效/微标的样式断言改走与
+    // react-solo「bot 托管思考态」同款的调试钩子种植(钉 CSS 契约,不钉时序)。
+    await force(
+      page,
+      `
+      const botIdx = e.players.findIndex((p) => p.isBot);
+      e.activeIndex = botIdx;
+      window.__dafung.controller().sync();
+    `,
+    );
+    const s = await snap(page);
+    expect(s.players[s.activeIndex].isBot).toBe(true);
+    const card = page.getByTestId(`seat-${s.activeIndex}`);
+    await expect(card).toHaveClass(/active/);
+    await expect(card.getByText("运筹中")).toHaveCount(1);
+    await expect(card.locator(".timerbar")).toHaveCount(0);
   });
 
   test("仪表条:现金大数随快照、签面驻留、托管入口在(单机)", async ({ page }) => {
@@ -220,7 +214,9 @@ test.describe("三区骨架", () => {
     // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
     //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径,
     // 种出来的是带技能的完整数据,后续行军被动技照常工作)
-    await force(page, `
+    await force(
+      page,
+      `
       e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);
       const s = e.snapshot();
       s.players[0].heroes.push(
@@ -229,7 +225,8 @@ test.describe("三区骨架", () => {
       );
       s.recruitedHeroIds.push("zhouyu", "huatuo");
       e.restoreFromSnapshot(s);
-    `);
+    `,
+    );
     // 双入口计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
     await expect
       .poll(

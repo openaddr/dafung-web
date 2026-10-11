@@ -32,7 +32,7 @@ import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { loadMap } from "../src/core/board-loader";
 import { MIN_TILE_DIST } from "../src/core/constants";
-import type { MapData, MapTile} from "../src/core/board-loader";
+import type { MapData, MapTile } from "../src/core/board-loader";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");

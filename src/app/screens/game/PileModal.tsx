@@ -120,8 +120,7 @@ function TreasureGrid({ player }: { player: SnapshotPlayer }) {
     <>
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        已持有 · {player.treasures.length} 件
-        <small>(右上角标=品级,底色随品级;名牌=指导价)</small>
+        已持有 · {player.treasures.length} 件<small>(右上角标=品级,底色随品级;名牌=指导价)</small>
       </div>
       <div className="pile-grid">
         {player.treasures.map((t) => (
@@ -148,8 +147,7 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
     <>
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {player.heroes.length} 席
-        <small>(HeroCardFace 详情档)</small>
+        麾下名将 · {player.heroes.length} 席<small>(HeroCardFace 详情档)</small>
       </div>
       <div className="pile-hero-grid">
         {player.heroes.map((h) => (

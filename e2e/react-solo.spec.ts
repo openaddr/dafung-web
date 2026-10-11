@@ -19,6 +19,8 @@ import {
   waitMyRollDone,
   waitMyPause,
   dismissJinnangIfUp,
+  freezeClock,
+  unfreezeClock,
 } from "./react-helpers";
 
 test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
@@ -92,66 +94,134 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
 // 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章;
 // 明细入口几经迁移,#361 起为牌架双入口+藏品弹层,仪表条徽章纯展示、无键盘通路)。
 
+// ── #421 时钟缝:冻结→种植→点击→断言→恢复 ──
+// freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
+// 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
+
 test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
   await quickStart(page);
-  // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)。
-  // C2 起 buyProperty 消费 pendingLand(决策载荷),布场须两态同步:表现(lastLandOutcome)
-  // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
-  // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
-  // interactive=false,卷轴恒不弹。
-  await force(
-    page,
-    `
-    e.turnPhase = "AwaitingDecision";
-    e.activeIndex = 0;
-    const me = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.propertyId && !me.properties.some((h) => h.propertyId === t.propertyId));
-    e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
-    e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
-  `,
-  );
-  // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
-  await expect(page.getByTestId("scroll-buy")).toBeVisible();
-  await expect(page.getByTestId("action-buy")).toBeEnabled();
-  const before = (await snap(page)).players[0];
-  await page.getByTestId("action-buy").click();
-  await expect
-    .poll(async () => (await snap(page)).players[0].properties.length, { timeout: 15_000 })
-    .toBe(before.properties.length + 1);
-  const after = (await snap(page)).players[0];
-  expect(after.cash).toBeLessThan(before.cash);
-  expect(after.warrants).toBe(before.warrants - 1);
+  await freezeClock(page);
+  try {
+    // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)。
+    // C2 起 buyProperty 消费 pendingLand(决策载荷),布场须两态同步:表现(lastLandOutcome)
+    // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
+    // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
+    // interactive=false,卷轴恒不弹(#421 起冻结先行,种植在钉死的静止态上做)。
+    await force(
+      page,
+      `
+      e.turnPhase = "AwaitingDecision";
+      e.activeIndex = 0;
+      const me = e.activePlayer;
+      const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
+      e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
+      e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
+    `,
+    );
+    // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
+    await expect(page.getByTestId("scroll-buy")).toBeVisible();
+    await expect(page.getByTestId("action-buy")).toBeEnabled();
+    const before = (await snap(page)).players[0];
+    const logLenBefore = (await snap(page)).log.length;
+    await page.getByTestId("action-buy").click();
+    // 扣银两/耗委任状以 buy 留痕为凭(detail 的 price/cash/warrants= 结算瞬间值):
+    // 购地收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金(横征暴敛等)、
+    // 也可正当拆掉本方城(火烧连营/火攻)——#421 冻结只钉看门狗节拍、钉不住命令自带
+    // 的同步连锁,点击后再读快照属与连锁的竞速读数。
+    const buyLine = async (): Promise<{ detail: string } | undefined> =>
+      (await snap(page)).log
+        .slice(logLenBefore)
+        .find(
+          (l: { category: string; detail: string }) =>
+            l.category === "buy" && l.detail.startsWith("buy player=p0 "),
+        );
+    await expect
+      .poll(async () => (await buyLine()) != null, {
+        timeout: 15_000,
+        message: "buy 留痕:购地落地(无主城入册)",
+      })
+      .toBe(true);
+    await expect
+      .poll(
+        async () => {
+          const line = await buyLine();
+          return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
+        },
+        { timeout: 15_000, message: "buy 留痕现金=结算瞬间值,必低于种前现金(扣价)" },
+      )
+      .toBeLessThan(before.cash);
+    await expect
+      .poll(
+        async () => {
+          const line = await buyLine();
+          return line == null ? null : Number(/warrants=(\d+)/.exec(line.detail)![1]);
+        },
+        { timeout: 15_000, message: "buy 留痕委任状=结算瞬间值,须较种前少一张(耗状)" },
+      )
+      .toBe(before.warrants - 1);
+  } finally {
+    await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
+  }
 });
 
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
-  // #188:先钉活跃座位到人类(0),理由同「购地决策」用例
-  await force(
-    page,
-    `
-    e.turnPhase = "AwaitingDecision";
-    e.activeIndex = 0;
-    const me = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId);
-    me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
-    e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
-    e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
-  `,
-  );
-  await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
-  await expect(page.getByTestId("action-upgrade")).toBeEnabled();
-  const before = (await snap(page)).players[0].cash;
-  await page.getByTestId("action-upgrade").click();
-  // 升级免费:等级 +1,现金不变
-  await expect
-    .poll(
-      async () =>
-        (await snap(page)).players[0].properties.find((h: { level: number }) => h.level === 1) !=
-        null,
-      { timeout: 15_000 },
-    )
-    .toBe(true);
-  expect((await snap(page)).players[0].cash).toBe(before);
+  await freezeClock(page);
+  try {
+    // #188:先钉活跃座位到人类(0),理由同「购地决策」用例(#421 起冻结先行)
+    await force(
+      page,
+      `
+      e.turnPhase = "AwaitingDecision";
+      e.activeIndex = 0;
+      const me = e.activePlayer;
+      const tile = e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(me.capitalIndex).propertyId && e.findOwner(t.propertyId) == null);
+      me.properties.push({ propertyId: tile.propertyId, level: 0, group: "a", maxLevel: 3 });
+      e.lastLandOutcome = { kind: "OwnProperty", property: e.catalog.get(tile.propertyId), owner: me };
+      e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
+    `,
+    );
+    await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
+    await expect(page.getByTestId("action-upgrade")).toBeEnabled();
+    const before = (await snap(page)).players[0].cash;
+    const logLenBefore = (await snap(page)).log.length;
+    await page.getByTestId("action-upgrade").click();
+    // 升级免费:等级 +1,现金不变——两者都以 upgrade 留痕为凭(detail 的 level=/cash=
+    // 结算瞬间值):升级收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金
+    // (横征暴敛/征辟补偿等)、也可正当拆掉本方刚升级的城(火烧连营/周瑜火攻专烧城多
+    // 者)——#421 冻结只钉看门狗节拍、钉不住命令自带的同步连锁,点击后再读快照属与
+    // 连锁的竞速读数(失败实录:升级落地同拍被火攻拆回 Lv.0,快照断言永不达)。
+    await expect
+      .poll(
+        async () => {
+          const line = (await snap(page)).log
+            .slice(logLenBefore)
+            .find(
+              (l: { category: string; detail: string }) =>
+                l.category === "upgrade" && l.detail.startsWith("upgrade player=p0 "),
+            );
+          return line == null ? null : Number(/level=(\d+)/.exec(line.detail)![1]);
+        },
+        { timeout: 15_000, message: "upgrade 留痕:扩军落地(等级 +1)" },
+      )
+      .toBe(1);
+    await expect
+      .poll(
+        async () => {
+          const line = (await snap(page)).log
+            .slice(logLenBefore)
+            .find(
+              (l: { category: string; detail: string }) =>
+                l.category === "upgrade" && l.detail.startsWith("upgrade player=p0 "),
+            );
+          return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
+        },
+        { timeout: 15_000, message: "upgrade 留痕现金=结算瞬间值,须等于种前现金(免费)" },
+      )
+      .toBe(before);
+  } finally {
+    await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
+  }
 });
 
 test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),下回合掷骰沿辅路推进", async ({ page }) => {
@@ -227,8 +297,9 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
   // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
   // 掷骰可能落在辅路起点等决策格:把余下决策也推完才 endTurn 触发胜利判定;
   // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
-  // LocalController.viewSeat 恒跟 activeIndex 访客,UI 只渲染访客只读视角,owner 为 bot
-  // 时也无驱动方代打),同样以调试钩子按 owner 身份「不交易」绕过。
+  // #398 单机统一后 viewSeat 恒跟 decisionOwner(引擎 getter:珍宝交涉相位=城主),
+  // UI 只渲染访客只读视角,owner 为 bot 时也无驱动方代打),同样以调试钩子按 owner
+  // 身份「不交易」绕过。
   // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
   // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
   // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中

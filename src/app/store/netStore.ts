@@ -1,33 +1,23 @@
 // 联机状态 store(阶段 8):大厅/房间态的响应式数据源。
 // 与 gameStore 分开:gameStore 管「对局快照」,本 store 管「房间元数据」(座位在线/
 // 房主/选图/托管标记)——它们的生命周期不同(房间先于对局存在),混在一起会让
-// snapshot 浅比较被无关字段污染。协议字段与 scripts/room.ts 的 lobbyView/seatMeta 一一对应。
+// snapshot 浅比较被无关字段污染。协议字段单源 scripts/wire.ts WireRoomFields(#429
+// 协议形状;本 store 类型直投影,不再手抄「同形接口+注释互指」)。
 import { create } from "zustand";
 import type { GameController } from "@app/controllers/controller";
+import type { GameEvent } from "@core/game-events";
 // #117 收编:提示 TTL 统一收口 fx/timings.ts(与 gameStore 同一常量 UI.hintTtlMs)。
 import { UI } from "@app/fx/timings";
+// 房间字段协议单源(wire.ts #429;app→scripts 类型导入,构建期擦除,先例 local.ts)。
+import type { WireRoomFields } from "../../../scripts/wire";
 
-/** 座位元数据(服务器 seatMeta 原样转发;字段语义见 scripts/room.ts)。 */
-export interface NetSeatMeta {
-  seat: number;
-  kind: "human" | "bot";
-  taken: boolean;
-  online: boolean;
-  controlled: boolean;
-  /** 自助托管中(bot 代打,身份仍是真人)。 */
-  autoPilot: boolean;
-  /** 预设国号(E7/#19);null = 未预设/bot,开局由引擎分配。大厅据它画单字方章。 */
-  guohao: string | null;
-}
+/** 座位元数据 = 协议座位形状(服务器 seatMeta 产出,单源 seat-projection.ts;
+ *  字段语义见该模块,不再手抄接口)。 */
+export type NetSeatMeta = WireRoomFields["seats"][number];
 
-/** lobby / snapshot 消息共有的房间字段(clientView 两种形态都带,见 room.ts 注释)。 */
-export interface NetRoomFields {
-  roomId: string;
-  host: number;
-  started: boolean;
-  mapId: string | null;
-  seats: NetSeatMeta[];
-}
+/** lobby / snapshot 消息共有的房间字段(clientView 两种形态都带)= 协议形状单源
+ *  WireRoomFields 的客户端别名(原手抄同形接口已退役)。 */
+export type NetRoomFields = WireRoomFields;
 
 export interface NetStoreState extends NetRoomFields {
   /** 本端座位(-1 = 未入座)。 */
@@ -47,6 +37,12 @@ export interface NetStoreState extends NetRoomFields {
   /** 命令已发出、快照未回(UI F3 的行军中… 态)。写入端点在 online.ts,读取端点在 HandPanel;
    *  并行边界:本文件只允许这三行(pending 字段 + setter + EMPTY 初值),其余归本线独占。 */
   pending: boolean;
+  /** 事件批下行通道(#390,ADR-0020 折叠切换①):最近收到的服务端事件批(一批发 =
+   *  一次编排转移的产出,词汇表见 core/game-events.ts)。纯暂存,不驱动任何 UI/行为——
+   *  折叠为本地状态的消费端归后续工单(伞票 #377)。null = 尚未收到过。 */
+  lastEvents: GameEvent[] | null;
+  /** 事件批到达计数器:每收到一条 events 消息 +1(单调递增;后续折叠器锚定到达序用)。 */
+  eventBatchSeq: number;
 
   /** 入座成功(REST 回包)或收到广播后统一灌房间字段。 */
   setRoom: (v: Partial<NetRoomFields> & { roomId: string }) => void;
@@ -57,6 +53,13 @@ export interface NetStoreState extends NetRoomFields {
   setConnection: (status: "open" | "closed" | "gaveUp") => void;
   setDismissed: () => void;
   pushHint: (hint: string | null, level?: "error" | "info") => void;
+  /** #390:事件批入站暂存(容错:空批照存不炸;畸形字段透传,运行时不校验=零兜底)。 */
+  pushEventBatch: (events: GameEvent[]) => void;
+  /** #388 重连清批:事件面归零(lastEvents 清空 + eventBatchSeq 回 0)。整房摘要水合前
+   *  调用(ADR-0020 决策 4:断线即丢、重连全量)——重连前的一切暂存批作废,状态唯一
+   *  来源 = 紧随其后的整房摘要。消费游标的同步归零在 SnapshotEffects.resetEventFace,
+   *  两处必须成对调用(拆开会出现「seq 撞号跳批」)。 */
+  resetEventFace: () => void;
   /** 退出联机(回设置屏)时清空,防止残留房间态泄漏到下一次会话。 */
   reset: () => void;
 }
@@ -74,6 +77,8 @@ const EMPTY: Pick<
   | "hint"
   | "hintLevel"
   | "pending"
+  | "lastEvents"
+  | "eventBatchSeq"
 > = {
   host: -1,
   started: false,
@@ -86,6 +91,8 @@ const EMPTY: Pick<
   hint: null,
   hintLevel: "error",
   pending: false,
+  lastEvents: null,
+  eventBatchSeq: 0,
 };
 
 // F4:hint 过期定时器归 store 持有(TTL 单一口径 = fx/timings.ts UI.hintTtlMs,#117 收编)。
@@ -113,6 +120,11 @@ export const useNetStore = create<NetStoreState>((set) => ({
   // "正常在线"才闪提示,gaveUp 后不该再走在线分支,故一并置 false)。
   setConnection: (status) => set({ connection: status, connected: status === "open" }),
   setPending: (pending) => set({ pending }),
+  // #390:事件批整批覆盖暂存 + 到达计数单调递增(一条消息 = 一批;不驱动任何派生 UI)。
+  pushEventBatch: (events) =>
+    set((s) => ({ lastEvents: events, eventBatchSeq: s.eventBatchSeq + 1 })),
+  // #388 重连清批:事件面归零(与 SnapshotEffects 消费游标成对,见接口注释)。
+  resetEventFace: () => set({ lastEvents: null, eventBatchSeq: 0 }),
   setDismissed: () => set({ dismissed: true, connected: false }),
   pushHint: (hint, level = "error") => {
     if (netHintTimer != null) clearTimeout(netHintTimer); // 重复 push 先清旧定时器

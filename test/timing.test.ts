@@ -1,5 +1,5 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
-// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 26 时机各挂点至少一例
+// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 39 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect } from "bun:test";
@@ -7,8 +7,10 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
+import { WARRANTS_PER_PASS } from "@core/constants";
 import { HEROES } from "@core/heroes";
-import type { HeroDef, TriggerSkill} from "@core/heroes";
+import { guidePriceOf } from "@core/treasures";
+import type { HeroDef, TriggerSkill } from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
@@ -166,7 +168,14 @@ describe("时机框架:派发点位", () => {
     const e = makeEngine(1);
     const calls = recordMoments(e);
     finishSetup(e);
-    expect(calls).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
+    // #456:起手发牌经 drawJinnang 单点派 JinnangGained(每座位一派,拍定要派),夹在 SetupComplete 与 GameStart 之间
+    expect(calls).toEqual([
+      "SetupComplete",
+      "JinnangGained",
+      "JinnangGained",
+      "GameStart",
+      "TurnStart",
+    ]);
   });
 
   it("一回合的时机序列:BeforeMarch→BeforeRoll→DieRolled→AfterMarch→TurnEnd→(回合切换)TurnStart;回锚点时 TurnEnd→RoundEnd→RoundStart→TurnStart", () => {
@@ -182,6 +191,8 @@ describe("时机框架:派发点位", () => {
     // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
+      "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
+      "JinnangGained",
       "GameStart", // 开局收尾(最后落子者 → 对局开始)
       "TurnStart", // 开局首回合
       "BeforeMarch",
@@ -258,8 +269,20 @@ describe("时机框架:派发点位", () => {
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-before", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-after", name: "测试技", when: "AfterMarch", effect: "test-capture", scope: "any" },
+          {
+            id: "cap-before",
+            name: "测试技",
+            when: "BeforeMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-after",
+            name: "测试技",
+            when: "AfterMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
         ]);
       // 两位玩家都挂(首动者由 seed 决定,capture 技能只在本人行军时留痕)
       e.players[0].heroes.push(captureHero());
@@ -400,7 +423,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" }]),
+        heroWith([
+          { id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" },
+        ]),
       );
       expect(() => e.dispatchMoment("CashLost", { subject: 1 })).toThrow(/嵌套超过 2 层/);
     } finally {
@@ -417,7 +442,15 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       const e = makeEngine(1);
       finishSetup(e);
       e.players[0].heroes.push(
-        heroWith([{ id: "nest", name: "测试技", when: "CashLost", effect: "test-nested-once", scope: "any" }]),
+        heroWith([
+          {
+            id: "nest",
+            name: "测试技",
+            when: "CashLost",
+            effect: "test-nested-once",
+            scope: "any",
+          },
+        ]),
       );
       e.dispatchMoment("CashLost", { subject: 1 }); // 不抛
       expect(fireCount(e, "nest")).toBe(1);
@@ -429,7 +462,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
   it("未知 EffectId 抛错(注册表查不到=数据 bug,零兜底)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]));
+    e.players[0].heroes.push(
+      heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]),
+    );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/未知效果/);
   });
 
@@ -437,7 +472,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.players[0].heroes.push(
-      heroWith([{ id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} }]),
+      heroWith([
+        { id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} },
+      ]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/参数缺失/);
   });
@@ -510,10 +547,19 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
     e.players[0].heroes.push(heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
     finishSetup(e);
     const lastPicker = e.draftOrder[e.draftOrder.length - 1];
-    expect(entries.map((x) => x.moment)).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
+    // #456:起手发牌两派夹在中间,时机主序列不变
+    expect(entries.map((x) => x.moment)).toEqual([
+      "SetupComplete",
+      "JinnangGained",
+      "JinnangGained",
+      "GameStart",
+      "TurnStart",
+    ]);
     expect(entries[0].ctx.subject).toBe(lastPicker); // SetupComplete:最后一位选都落子者
-    expect(entries[1].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
-    expect(entries[2].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
+    expect(entries[1].ctx).toEqual({ subject: 0, count: 1 }); // JinnangGained:起手发牌(座位序)
+    expect(entries[2].ctx).toEqual({ subject: 1, count: 1 });
+    expect(entries[3].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
+    expect(entries[4].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
     expect(fireCount(e, "gs")).toBe(1); // GameStart 已可挂技能(选都完成前的英雄池注入)
   });
 
@@ -549,9 +595,27 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
       const e = makeEngine(1);
       const captureHero = () =>
         heroWith([
-          { id: "cap-march", name: "测试技", when: "BeforeMarch", effect: "test-capture", scope: "any" },
-          { id: "cap-roll", name: "测试技", when: "BeforeRoll", effect: "test-capture", scope: "any" },
-          { id: "cap-die", name: "测试技", when: "DieRolled", effect: "test-capture", scope: "any" },
+          {
+            id: "cap-march",
+            name: "测试技",
+            when: "BeforeMarch",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-roll",
+            name: "测试技",
+            when: "BeforeRoll",
+            effect: "test-capture",
+            scope: "any",
+          },
+          {
+            id: "cap-die",
+            name: "测试技",
+            when: "DieRolled",
+            effect: "test-capture",
+            scope: "any",
+          },
         ]);
       e.players[0].heroes.push(captureHero());
       e.players[1].heroes.push(captureHero());
@@ -673,7 +737,6 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -741,7 +804,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     mover.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -799,7 +861,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -842,7 +903,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -861,6 +921,77 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     expect(e.winReason).toBe("LastStanding");
     expect(entries.filter((x) => x.moment === "GameOver").map((x) => x.ctx.subject)).toEqual([
       ownerSeat,
+    ]);
+  });
+
+  it("买家清算自救后交割(escrow 路):卖家收款 CashGained 恰一派(收款派发下沉 #455,交割点不补派)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = 1 - visitorSeat;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
+    e.players[ownerSeat].treasures.push({ id: "escrow-t", name: "托管测试宝", level: 3 }); // 指导价=交涉价
+    e.players[visitorSeat].cash = 10; // 付不起 → 变卖自救
+    e.players[visitorSeat].treasures.push({ id: "self-t", name: "自救宝", level: 5 }); // 指导价 600
+    const price = guidePriceOf(3);
+    const ownerCash0 = e.players[ownerSeat].cash;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
+    e.resolveTreasureOwner({ type: "fair", treasureId: "escrow-t" });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 进清算,escrow 挂起
+    e.sellTreasureBankruptcy("self-t"); // +600 凑足
+    e.confirmBankruptcySettle(); // 清偿 → 交割
+    expect(e.escrowTreasure).toBeNull(); // 已交割
+    expect(e.players[visitorSeat].treasures.some((t) => t.id === "escrow-t")).toBe(true);
+    expect(e.players[ownerSeat].cash).toBe(ownerCash0 + price); // 卖家恰收一次价款
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, amount: price }, // 恰一派:清偿收款点派发,交割点不再补派
+    ]);
+  });
+
+  it("曹丕渔利联动(#455):交涉付款路渔利恰 +50,卖家收款 CashGained 不触发渔利(无连锁)", () => {
+    const e = makeEngine(1, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = (visitorSeat + 1) % 3;
+    const caopiSeat = (visitorSeat + 2) % 3;
+    e.players[caopiSeat].heroes.push(HEROES.find((h) => h.id === "caopi")!); // 渔利:他人失银 → +50
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
+    e.players[ownerSeat].treasures.push({ id: "trade-t", name: "联动测试宝", level: 1 }); // 指导价 100
+    const price = guidePriceOf(1);
+    const visitorCash0 = e.players[visitorSeat].cash;
+    const ownerCash0 = e.players[ownerSeat].cash;
+    const caopiCash0 = e.players[caopiSeat].cash;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    e.resolveTreasureOwner({ type: "fair", treasureId: "trade-t" }); // 直付成交
+    expect(e.players[visitorSeat].cash).toBe(visitorCash0 - price); // 付款方实付
+    expect(e.players[ownerSeat].cash).toBe(ownerCash0 + price); // 收款方恰一派
+    expect(e.players[caopiSeat].cash).toBe(caopiCash0 + 50); // 渔利恰一次(由付款 CashLost 触发)
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: visitorSeat, amount: price },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, amount: price }, // 收款 CashGained 不反哺渔利
     ]);
   });
 });
@@ -887,7 +1018,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
     e.confirmBankruptcySettle();
     expect(entries.filter((x) => x.moment === "PlayerBankrupt").map((x) => x.ctx)).toEqual([
-      { subject: e.players.indexOf(mover) },
+      { subject: e.players.indexOf(mover), creditorSeat: null }, // #384:债主座位随派发点入事件(null=归银行)
     ]);
     expect(mover.isBankrupt).toBe(true);
     expect(e.isOver).toBe(true); // 2 人局:一人出局即终局(群雄尽灭)
@@ -905,7 +1036,6 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.properties.push({
       propertyId: extraDef.id,
       group: extraDef.group,
-      purchasePrice: extraDef.purchasePrice,
       level: 0,
       maxLevel: extraDef.maxLevel,
     });
@@ -1077,7 +1207,11 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantHero", fallbackCash: 200 }));
+    testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({ kind: "grantHero", fallbackCash: 200 }),
+    );
     expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat, amount: 200 },
     ]);
@@ -1098,5 +1232,457 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     expect(entries2.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat2, amount: 300 },
     ]);
+  });
+});
+
+// ──────────────────── 事件化第二批(#456):状态与牌流六新时机 ────────────────────
+describe("时机框架:事件化第二批(#456)", () => {
+  /** 合成即时机遇(同 #299 块 enc 口径;staminaDelta 走机遇体力接线)。 */
+  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
+    id: "测试机遇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "t",
+    effect,
+  });
+
+  /** 摆军师幕测试态(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
+  function armJinnang(e: GameEngine, cards: string[]) {
+    const p = e.activePlayer;
+    p.jinnangHand = [...cards];
+    p.jinnangHandCount = cards.length;
+    e.turnPhase = "AwaitingJinnang";
+    return p;
+  }
+
+  it("TurnSkipImposed:三写点各自派发(subject=被跳者;缓兵 +=1 / 辅路中伏 =1 / 耗竭 +=1,写点语义差保留)", () => {
+    // ① 缓兵之计(jinnang-execution skipTurn:skipTurns += 1)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const userSeat = e.activeIndex;
+    const victimSeat = 1 - userSeat;
+    armJinnang(e, ["缓兵之计"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("缓兵之计");
+    e.resolveJinnang("缓兵之计", [victimSeat]);
+    expect(e.players[victimSeat].skipTurns).toBe(1);
+    expect(entries.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, reason: "jinnang" },
+    ]);
+
+    // ② 辅路中伏(treasure-flow resolveBranchCell penalty:skipTurns = 1 赋值)
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const mover2 = e2.activePlayer;
+    const penalty = e2.board.branch!.cells.find((c) => c.kind === "penalty")!;
+    const entries2 = recordMomentCtx(e2);
+    testEngine(e2).resolveBranchCell(mover2, penalty);
+    expect(mover2.skipTurns).toBe(1);
+    expect(entries2.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: e2.players.indexOf(mover2), reason: "ambush" },
+    ]);
+
+    // ③ 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += 1)
+    const e3 = makeEngine(1);
+    finishSetup(e3);
+    const mover3 = e3.activePlayer;
+    const seat3 = e3.players.indexOf(mover3);
+    const entries3 = recordMomentCtx(e3);
+    const r = testEngine(e3).applyEncounter(
+      mover3,
+      mover3.position,
+      enc({
+        kind: "cash",
+        delta: 0,
+        staminaDelta: -100,
+      }),
+    );
+    expect(r).toBe("exhausted"); // 无可处置城池 → 纯跳回合自动善后
+    expect(mover3.skipTurns).toBe(1);
+    expect(entries3.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: seat3, reason: "exhaustion" },
+    ]);
+  });
+
+  it("JinnangGained:drawJinnang 物理单点派发——起手发牌每座位一派(拍定要派)+ 游戏时授书路再派(count=实际入手)", () => {
+    const e = makeEngine(1);
+    const entries = recordMomentCtx(e);
+    finishSetup(e);
+    // 起手(JINNANG_STARTING_HAND=1):每座位恰一派——事件流「开局不发」是显示口径,不约束总线
+    expect(entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx)).toEqual(
+      e.players.map((_, seat) => ({ subject: seat, count: 1 })),
+    );
+    // 游戏时:机遇圯上授书(grantCard → drawJinnangTraced → drawJinnang)再进手一张
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantCard" }));
+    expect(mover.jinnangHand.length).toBe(1);
+    const gains = entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx);
+    expect(gains[gains.length - 1]).toEqual({ subject: seat, count: 1 });
+    expect(gains).toHaveLength(e.players.length + 1); // 起手 n 派 + 授书 1 派,单点覆盖无多派
+  });
+
+  it("PeekApplied:军情密探窥探入册后派发(subject=使用者,targetSeat=被窥者)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const userSeat = e.activeIndex;
+    const targetSeat = 1 - userSeat;
+    armJinnang(e, ["军情密探"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [targetSeat]);
+    expect(e.jinnangPeeks).toEqual([{ viewer: userSeat, target: targetSeat }]);
+    expect(entries.filter((x) => x.moment === "PeekApplied").map((x) => x.ctx)).toEqual([
+      { subject: userSeat, targetSeat },
+    ]);
+  });
+
+  it("StaminaChanged:仅机遇路派发(delta=夹紧后实际增减);同流程耗竭重置不派(恰一派钉住口径)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const entries = recordMomentCtx(e);
+    const r = testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({
+        kind: "cash",
+        delta: 0,
+        staminaDelta: -100,
+      }),
+    );
+    expect(r).toBe("exhausted");
+    expect(mover.stamina).toBe(100); // 耗竭善后已重置(addStamina 落账但不派时机)
+    expect(entries.filter((x) => x.moment === "StaminaChanged").map((x) => x.ctx)).toEqual([
+      { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;善后重置 +100 不派
+    ]);
+  });
+
+  it("ReputationChanged:addReputation 唯一写口单点广播——天命格 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const fateTile = e.board.tiles.find((t) => t.type === "Fate")!;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, fateTile.index);
+    expect(mover.reputation).toBe(20);
+    expect(entries.filter((x) => x.moment === "ReputationChanged").map((x) => x.ctx)).toEqual([
+      { subject: seat, delta: 20 },
+    ]);
+  });
+
+  it("WarrantGained:途经己都城巡幸得委任状后派发(subject=行者,tileIndex=都城)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const n = e.board.count;
+    const warrants0 = mover.warrants;
+    const entries = recordMomentCtx(e);
+    testEngine(e).placeActive((mover.capitalIndex - 1 + n) % n);
+    passJinnang(e).rollAndMove(); // 掷 1-6 必途经/落己都城
+    expect(entries.filter((x) => x.moment === "WarrantGained").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(mover), tileIndex: mover.capitalIndex },
+    ]);
+    expect(mover.warrants).toBe(warrants0 + WARRANTS_PER_PASS);
+  });
+});
+
+// ──────────────────── 事件化第二批·资产域(#457):四新时机 + 留痕补齐 ────────────────────
+describe("时机框架:事件化第二批·资产域(#457)", () => {
+  /** 合成即时机遇(同 #456 块 enc 口径)。 */
+  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
+    id: "测试机遇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "t",
+    effect,
+  });
+
+  /** 摆军师幕测试态(同 #456 块 armJinnang 口径)。 */
+  function armJinnang(e: GameEngine, cards: string[]) {
+    const p = e.activePlayer;
+    p.jinnangHand = [...cards];
+    p.jinnangHandCount = cards.length;
+    e.turnPhase = "AwaitingJinnang";
+    return p;
+  }
+
+  /** 给 victim 一座指定等级的非都城城(火烧/耗竭场景用)。 */
+  function giveCity(
+    e: GameEngine,
+    owner: number,
+    level: number,
+  ): { propertyId: string; tileIndex: number } {
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[owner].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      level,
+      maxLevel: def.maxLevel,
+    });
+    return { propertyId: def.id, tileIndex: tile.index };
+  }
+
+  it("TreasureLost:以宝换贤交出两件每件一派 + 窃玉偷香失主与窃方(#455 A4)同点成对(subject=失主)", () => {
+    // ① 以宝换贤(grantHero 型选项:先扣 2 件珍宝再得将,splice 处每件一派)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    mover.treasures.push(
+      { id: "cost-t1", name: "换贤宝一", level: 1 },
+      { id: "cost-t2", name: "换贤宝二", level: 2 },
+    );
+    const entries = recordMomentCtx(e);
+    testEngine(e).enterEncounter({
+      id: "以宝换贤",
+      tier: "好运",
+      tags: ["名将"],
+      weight: 1,
+      text: "t",
+      choices: [
+        { text: "献两件珍宝换名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+        { text: "婉言相拒", repDelta: 0 },
+      ],
+    });
+    expect(e.turnPhase).toBe("AwaitingEncounter"); // 两选项皆可用 → 抉择相位
+    e.resolveEncounterChoice(0);
+    expect(entries.filter((x) => x.moment === "TreasureLost").map((x) => x.ctx)).toEqual([
+      { subject: seat, treasureId: "cost-t1" }, // splice(0,2) 按手持序每件一派
+      { subject: seat, treasureId: "cost-t2" },
+    ]);
+
+    // ② 窃玉偷香:失主 TreasureLost 与窃方 TreasureGained 同点成对
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const userSeat = e2.activeIndex;
+    const victimSeat = 1 - userSeat;
+    e2.players[victimSeat].treasures.push({ id: "stolen-t", name: "被窃宝", level: 3 });
+    armJinnang(e2, ["窃玉偷香"]);
+    const entries2 = recordMomentCtx(e2);
+    e2.resolveJinnang("窃玉偷香");
+    e2.resolveJinnang("窃玉偷香", [victimSeat]);
+    expect(entries2.filter((x) => x.moment === "TreasureLost").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, treasureId: "stolen-t" },
+    ]);
+    expect(entries2.filter((x) => x.moment === "TreasureGained").map((x) => x.ctx)).toEqual([
+      { subject: userSeat, treasureId: "stolen-t" }, // 成对:窃方得宝(#455 A4 既有派发)
+    ]);
+  });
+
+  it("PropertyGained:机遇赐城入册后派发(subject=得城者,ctx.propertyId);留痕补齐(ADR-0015)写法对齐购地", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const owned = new Set(mover.properties.map((h) => h.propertyId));
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({ kind: "grantCity", fallbackCash: 200 }),
+    );
+    const gained = mover.properties.find((h) => !owned.has(h.propertyId));
+    expect(gained).toBeDefined(); // sanguo 恒有无主城 → 走赐城路不折现
+    expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, propertyId: gained!.propertyId },
+    ]);
+    // 留痕补齐(三无写点 → 补 ADR-0015):赐城即易主(无主→得城者),形状对齐 movement-flow buyProperty
+    const trace = e.propertyChanges[e.propertyChanges.length - 1];
+    expect(trace).toEqual({
+      tileIndex: e.tileIndexOfProperty(gained!.propertyId),
+      level: 0,
+      ownerColorIndex: mover.colorIndex,
+      levelChanged: false,
+      ownerChanged: true,
+    });
+    expect(e.findOwner(gained!.propertyId)).toBe(mover); // 印章/涟漪表现通路可走到
+  });
+
+  it("PropertyDemolished/Lost:火烧连营锦囊路调用侧与耗竭按其果各派(subject=城主,tileIndex 随行);火攻主动技路不派", () => {
+    // ① 火烧连营·降级(victim 有 Lv>0 城)→ PropertyDemolished,挂调用侧
+    const e = makeEngine(1);
+    finishSetup(e);
+    const victimSeat = 1 - e.activeIndex;
+    const city = giveCity(e, victimSeat, 2);
+    armJinnang(e, ["火烧连营"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [victimSeat]);
+    expect(e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level).toBe(1);
+    expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, propertyId: city.propertyId, tileIndex: city.tileIndex },
+    ]);
+    expect(entries.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
+
+    // ② 火烧连营·失城(victim 城防全 0)→ PropertyLost,挂调用侧
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const victimSeat2 = 1 - e2.activeIndex;
+    const city2 = giveCity(e2, victimSeat2, 0);
+    armJinnang(e2, ["火烧连营"]);
+    const entries2 = recordMomentCtx(e2);
+    e2.resolveJinnang("火烧连营");
+    e2.resolveJinnang("火烧连营", [victimSeat2]);
+    expect(e2.players[victimSeat2].properties.some((h) => h.propertyId === city2.propertyId)).toBe(false);
+    expect(entries2.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat2, propertyId: city2.propertyId, tileIndex: city2.tileIndex },
+    ]);
+    expect(entries2.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
+
+    // ③ 火攻主动技:城照样损,时机不派(主动技结算内不派发,既有口径)
+    const e3 = makeEngine(1);
+    finishSetup(e3);
+    e3.activePlayer.heroes.push(HEROES.find((h) => h.id === "zhouyu")!);
+    const victimSeat3 = 1 - e3.activeIndex;
+    const city3 = giveCity(e3, victimSeat3, 2);
+    armJinnang(e3, []);
+    const entries3 = recordMomentCtx(e3);
+    e3.resolveHeroSkill("zhouyu-huogong");
+    e3.resolveHeroSkill("zhouyu-huogong", [victimSeat3]);
+    expect(e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level).toBe(1);
+    expect(
+      entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
+    ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派
+
+    // ④ 耗竭·降级(唯一可用项自动执行)→ PropertyDemolished
+    const e4 = makeEngine(1);
+    finishSetup(e4);
+    const mover4 = e4.activePlayer;
+    const seat4 = e4.players.indexOf(mover4);
+    const city4 = giveCity(e4, seat4, 1);
+    const entries4 = recordMomentCtx(e4);
+    const r4 = testEngine(e4).applyEncounter(
+      mover4,
+      mover4.position,
+      enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
+    );
+    expect(r4).toBe("exhausted");
+    expect(mover4.properties.find((h) => h.propertyId === city4.propertyId)!.level).toBe(0);
+    expect(entries4.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
+      { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
+    ]);
+
+    // ⑤ 耗竭·失城(唯一可用项自动执行)→ PropertyLost + 留痕补齐(城回无主,对齐破产变卖)
+    const e5 = makeEngine(1);
+    finishSetup(e5);
+    const mover5 = e5.activePlayer;
+    const seat5 = e5.players.indexOf(mover5);
+    const city5 = giveCity(e5, seat5, 0);
+    const entries5 = recordMomentCtx(e5);
+    const r5 = testEngine(e5).applyEncounter(
+      mover5,
+      mover5.position,
+      enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
+    );
+    expect(r5).toBe("exhausted");
+    expect(mover5.properties.some((h) => h.propertyId === city5.propertyId)).toBe(false);
+    expect(e5.findOwner(city5.propertyId)).toBeNull(); // 城回无主
+    expect(entries5.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: seat5, propertyId: city5.propertyId, tileIndex: city5.tileIndex },
+    ]);
+    expect(e5.propertyChanges[e5.propertyChanges.length - 1]).toEqual({
+      tileIndex: city5.tileIndex,
+      level: 0,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
+    }); // 留痕补齐:形状对齐 bankruptcy sellPropertyBankruptcy
+  });
+
+  it("AssetsSeized:破产终局恰一派(subject=债主,cities/treasureCount=被收资产);无债主不派、不逐件派", () => {
+    // 有债主:城+宝被收走,一次派发(珍宝经 settleDebt 转移、名将释放非转移,均不逐件)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const moverSeat = e.activeIndex;
+    const creditorSeat = 1 - moverSeat;
+    const city = giveCity(e, moverSeat, 2);
+    mover.treasures.push({ id: "seized-t", name: "被收宝", level: 1 });
+    mover.cash = 0;
+    const citiesSeized = mover.properties.map((h) => h.propertyId); // settleDebt 整册转移(含都城)
+    const entries = recordMomentCtx(e);
+    e.pendingDebt = { amount: 200, creditor: e.players[creditorSeat] };
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
+    e.confirmBankruptcySettle();
+    expect(mover.isBankrupt).toBe(true);
+    expect(entries.filter((x) => x.moment === "AssetsSeized").map((x) => x.ctx)).toEqual([
+      { subject: creditorSeat, creditorSeat, cities: citiesSeized, treasureCount: 1 },
+    ]);
+    expect(e.players[creditorSeat].properties.some((h) => h.propertyId === city.propertyId)).toBe(
+      true,
+    ); // 资产确已转债主
+    expect(
+      entries.filter((x) => x.moment === "TreasureGained" || x.moment === "PropertyGained"),
+    ).toHaveLength(0); // 不逐件派:转移发生在 settleDebt 内,无逐件时机
+
+    // 无债主(归银行/销毁):PlayerBankrupt 照派,AssetsSeized 不派(无收走方)
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    e2.activePlayer.cash = 0;
+    const entries2 = recordMomentCtx(e2);
+    e2.pendingDebt = { amount: 200, creditor: null };
+    testEngine(e2).forceTurnPhase("AwaitingBankruptcySettle");
+    e2.confirmBankruptcySettle();
+    expect(entries2.filter((x) => x.moment === "PlayerBankrupt")).toHaveLength(1);
+    expect(entries2.filter((x) => x.moment === "AssetsSeized")).toHaveLength(0);
+  });
+});
+
+// ──────────────────── 事件化第一批(#455):现有时机补漏 + 收款派发下沉 ────────────────────
+describe("时机框架:事件化第一批(#455)", () => {
+  /** nextFloat 定值骰替身(商市涨跌两向钉死;本路径不掷骰)。 */
+  function stubFloat(e: GameEngine, float: number): void {
+    const dice: Dice = {
+      roll: () => {
+        throw new Error("测试路径不应 roll");
+      },
+      rollDie: () => {
+        throw new Error("测试路径不应 rollDie");
+      },
+      nextFloat: () => float,
+      getRngState: () => 0,
+      setRngState: () => {},
+    };
+    (e as unknown as { dice: Dice }).dice = dice;
+  }
+
+  it("商市看涨(A1):得银侧补派 CashGained(与看跌侧 CashLost 对称),金额=实得", () => {
+    const stockTile = MAP.board.tiles.findIndex((t) => t.type === "Stock");
+    expect(stockTile).toBeGreaterThanOrEqual(0);
+
+    // 看涨:nextFloat→0 → gain=true、amt=100(+100)
+    const up = makeEngine(1);
+    finishSetup(up);
+    stubFloat(up, 0);
+    const mover = up.activePlayer;
+    const seat = up.players.indexOf(mover);
+    const cash0 = mover.cash;
+    const entries = recordMomentCtx(up);
+    testEngine(up).landActiveAt(stockTile);
+    expect(mover.cash).toBe(cash0 + 100); // 行情 +100 入账
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, amount: 100 }, // 恰一派,金额=实得
+    ]);
+    expect(entries.filter((x) => x.moment === "CashLost")).toHaveLength(0); // 得银侧不派失银
+
+    // 看跌:nextFloat→0.9 → gain=false、amt=190(−190)——既有派发不动
+    const down = makeEngine(1);
+    finishSetup(down);
+    stubFloat(down, 0.9);
+    const loser = down.activePlayer;
+    const cash02 = loser.cash;
+    const entries2 = recordMomentCtx(down);
+    testEngine(down).landActiveAt(stockTile);
+    expect(loser.cash).toBe(cash02 - 190);
+    expect(entries2.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: down.players.indexOf(loser), amount: 190 },
+    ]);
+    expect(entries2.filter((x) => x.moment === "CashGained")).toHaveLength(0); // 失银侧不派得银
   });
 });

@@ -65,7 +65,13 @@ export interface DashboardBarProps {
   children?: ReactNode;
 }
 
-export function DashboardBar({ snapshot, player, controller, autopilotOn, children }: DashboardBarProps) {
+export function DashboardBar({
+  snapshot,
+  player,
+  controller,
+  autopilotOn,
+  children,
+}: DashboardBarProps) {
   const net = useNetStore();
   const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
   // 浮标跟「被展示的玩家」走:坐姿=自己;观战=被跟随者(房主座)。快照按座直取,

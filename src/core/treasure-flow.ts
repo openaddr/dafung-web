@@ -11,6 +11,7 @@ import { guidePriceOf, premiumPriceOf } from "./treasures";
 import { findHolding } from "./player";
 import { formatMoney } from "./money";
 import { canUpgrade } from "./economy";
+import { drawJinnangTraced } from "./jinnang-execution";
 import type { Player } from "./model";
 
 /** 宝物城落格:从牌堆抽 1 件 → 掷双骰(2d6)判定 → ≥ 等级则获得。 */
@@ -20,7 +21,12 @@ export function resolveTreasureCity(g: GameEngine, mover: Player, tile: TileDef)
 
 /** 抽珍宝并拼点判定(复用于宝物城落格 + 辅路 treasure 格)。
  *  sourceName=来源名(城名/「辅路探宝」),atTile=浮动金额锚点 tile 索引。 */
-export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string, atTile: number): void {
+export function drawTreasureAt(
+  g: GameEngine,
+  mover: Player,
+  sourceName: string,
+  atTile: number,
+): void {
   g.lastLandOutcome = { kind: "Noop" };
   g.turnPhase = "Land";
   if (g.treasureDeck.length === 0) {
@@ -103,7 +109,7 @@ export function applyRandomEvent(
   if (ev.jinnangDraw) {
     // 军师来投(#147):事件额外献锦囊一张
     g.pushFloaterText(mover, "军师来投,献计一封", atTile);
-    g.drawJinnang(g.players.indexOf(mover), 1);
+    drawJinnangTraced(g, g.players.indexOf(mover), 1, "randomEvent"); // 事件流(#384):抽锦囊进手(落空不产)
   }
   g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
   g.logEvent(
@@ -131,6 +137,10 @@ export function resolveBranchCell(g: GameEngine, mover: Player, cell: BranchCell
   g.lastLandOutcome = { kind: "Noop" };
   g.turnPhase = "Land";
   mover.skipTurns = 1;
+  g.dispatchMoment("TurnSkipImposed", {
+    subject: g.players.indexOf(mover),
+    reason: "ambush",
+  }); // 时机·TurnSkipImposed:辅路中伏强加跳回合(#456,写点 =1 赋值语义保留)
   g.logEvent(
     "branch",
     mover.guohao,
@@ -158,12 +168,7 @@ export function resolveTreasureOwner(
   const def = tv.def;
 
   if (action.type === "skip") {
-    g.logEvent(
-      "system",
-      owner.guohao,
-      `${owner.guohao} 不交易`,
-      `treasureSkip owner=${owner.id}`,
-    );
+    g.logEvent("system", owner.guohao, `${owner.guohao} 不交易`, `treasureSkip owner=${owner.id}`);
     g.treasureVisitor = null;
     g.endTurn();
     return;
@@ -221,8 +226,7 @@ export function resolveTreasureOwner(
   else g.deliverEscrow(); // 付款到账:交货
   g.pushFloater(mover, -price, mover.position, "expense");
   g.pushFloater(owner, price, mover.position, "income");
-  if (price > 0)
-    g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
+  if (price > 0) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
   g.lastLandOutcome = {
     kind: "TreasureTrade",
     property: def,

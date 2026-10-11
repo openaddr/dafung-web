@@ -25,7 +25,7 @@
 
 ## 术语表
 
-Authority / Room / Seat / Host / Client、锦囊与暗牌、声望与机遇等术语口径,统一见 [`CONTEXT.md`](../../../CONTEXT.md)。
+Authority / Room / Seat / Host / Client、锦囊与暗牌、声望与机遇等术语口径,统一见 [`GLOSSARY.md`](../../../GLOSSARY.md)。
 
 ## 相关文档
 

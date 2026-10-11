@@ -25,7 +25,11 @@ test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
 });
 
 /** 交涉现场种植(城主=人类座位 0,访客=bot 座位 1):给城主塞珍宝 + 一座被访的城。
- *  #188:先钉人类座位为决策方(AwaitingTreasureOwner 的 decisionOwner=城主,天然成立)。 */
+ *  #188:先钉人类座位为决策方(AwaitingTreasureOwner 的 decisionOwner=城主,天然成立)。
+ *  #413:被访城必须无人持有——定都本身会产出 level 0 的 holding(setup-flow),若撞上
+ *  「offeredCapitals[0] 恰是盘面第一座地产城」的种子,直写 push 会造出同 propertyId 的
+ *  重复 holding,结算的 findHolding 升的是首件(都城 0→1),断言读到的也是首件(恒 1),
+ *  「+1 级」永不成立。findOwner 单源引擎查询。 */
 async function plantTrade(page: Page): Promise<void> {
   await quickStart(page);
   await force(
@@ -35,7 +39,7 @@ async function plantTrade(page: Page): Promise<void> {
     e.activeIndex = 1;
     const owner = e.players[0];
     owner.treasures.push({ id: "jade_seal", name: "传国玉玺", level: 3, desc: "天命所归" });
-    const tile = e.board.tiles.find((t) => t.propertyId);
+    const tile = e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId));
     owner.properties.push({
       propertyId: tile.propertyId,
       level: 1,
@@ -90,53 +94,43 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await expect(confirm).toHaveText("确认成交");
   await expect(pick).toBeVisible();
   expect((await snap(page)).turnPhase).toBe("AwaitingTreasureOwner");
-  const cashBefore = (await snap(page)).players[0].cash;
   // 第二段=确认提交
   await confirm.click();
-  await expect(pick).toBeHidden();
-  // 命令流(ADR-0014):resolveTreasureOwner { fair, treasureId } 原样入账(协议零改)
+  // 结算留痕断言(#413):交涉成交后对局自走续跑,且 bot 链零步延(stepDelayMs=0)——
+  // 成交拍与后续合法效果(bot 火烧连营随机降城、下一棒交涉扣款)会挤进同一段同步任务,
+  // 负载下任何「拍后读活状态」都能错过结算瞬态(89/91 轮换实证:活状态逐条 poll 读回
+  // +100/+350/+1 级被打回)。改断结算自身的追加留痕(ADR-0014 对局日志,结算路径内
+  // 同步写入,不可回改):cmd 原样入账 + 公道成交升 Lv.2 + 指导价成交未走清算 + 托管
+  // 交割买家付清——「城主入账指导价/珍宝离手入买家/城池 +1 级」三语义逐条对应留痕,
+  // 断言不弱反强(观察从可变活状态移到不可变审计线)。
   await expect
     .poll(
-      async () => {
-        const s = await snap(page);
-        const cmd = s.log.find(
-          (l: { category: string; detail: string }) =>
-            l.category === "cmd" && l.detail.includes("resolveTreasureOwner"),
-        );
-        return cmd ? JSON.parse(cmd.detail) : null;
-      },
-      { timeout: 15_000, message: "命令流记录 resolveTreasureOwner 命令" },
+      async () =>
+        page.evaluate(() => {
+          const s = (window as any).__dafung.snapshot();
+          const line = (cat: string, key: string) =>
+            s.log.find(
+              (l: { category: string; detail: string }) =>
+                l.category === cat && l.detail.includes(key),
+            );
+          const cmd = line("cmd", "resolveTreasureOwner");
+          return {
+            cmd: cmd ? JSON.parse(cmd.detail) : null,
+            upgrade: line("upgrade", "fairUpgrade")?.detail ?? null,
+            trade: line("trade", "treasureFair")?.detail ?? null,
+            deliver: line("trade", "escrowDeliver")?.detail ?? null,
+          };
+        }),
+      { timeout: 30_000, message: "珍宝交涉结算留痕:cmd/fairUpgrade/treasureFair/escrowDeliver" },
     )
-    .toEqual({ type: "resolveTreasureOwner", action: { type: "fair", treasureId: "jade_seal" } });
-  // 结算语义:城主 +指导价(玩家间付银);珍宝离手入买家;城池 +1 级(fair 奖励)
-  await expect
-    .poll(async () => (await snap(page)).players[0].cash, {
-      timeout: 15_000,
-      message: "城主入账指导价",
-    })
-    .toBe(cashBefore + guidePriceOf(3));
-  await expect
-    .poll(async () => (await snap(page)).players[0].treasures, { timeout: 15_000 })
-    .toHaveLength(0);
-  await expect
-    .poll(
-      async () => {
-        const s = await snap(page);
-        return s.players[1].treasures.some((t: { id: string }) => t.id === "jade_seal");
-      },
-      { timeout: 15_000, message: "珍宝交割入买家手" },
-    )
-    .toBe(true);
-  await expect
-    .poll(
-      async () => {
-        const s = await snap(page);
-        return s.players[0].properties.find((h: { propertyId: string }) => h.propertyId === pid)
-          ?.level;
-      },
-      { timeout: 15_000, message: "公道买卖成交城池 +1 级" },
-    )
-    .toBe(2);
+    .toEqual({
+      cmd: { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "jade_seal" } },
+      upgrade: `fairUpgrade prop=${pid} owner=p0 visitor=p1 level=2`,
+      trade: `treasureFair owner=p0 visitor=p1 treasure=jade_seal level=3 price=${guidePriceOf(3)} bankrupt=false`,
+      deliver: `escrowDeliver buyer=p1 seller=p0 treasure=jade_seal price=${guidePriceOf(3)}`,
+    });
+  // 层随结算收口(DOM 契约):结算留痕已被上方钉住,层收跟拍不再吃自走竞速
+  await expect(pick).toBeHidden({ timeout: 30_000 });
 });
 
 test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算", async ({ page }) => {

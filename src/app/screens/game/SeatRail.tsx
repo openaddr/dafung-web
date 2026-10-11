@@ -178,25 +178,28 @@ function SeatCard({
 
 /** 席位竖卡列:槽位切分 + 渲染。整个列随快照声明式重渲,无本地状态。
  *  槽位切分(文件头规则):列容 3;4-6 右列 3 + 左列其余;7+ 右 3 + 左 3 + 顶行缩微。
- *  targets(#256 目标段):军师窗指向性牌的候选席位(键=座位号),在场时候选席
+ *  selfSeat(#453 收口契约):本参数是「屏前真人的自我身份」——单机热座恒 0、联机=本座,
+ *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):窥探放行(#122/T4,#453/B1
+ *  教训——审计 #446 曾因 prop 名 viewSeat 误判绑定错位)与「自身不出卡」消费的都是
+ *  稳定身份。targets(#256 目标段):军师窗指向性牌的候选席位(键=座位号),在场时候选席
  *  金圈呼吸、点席位即出;GameScreen 从快照 choices 派生,本件只呈现。 */
 export interface SeatRailProps {
   snapshot: GameSnapshot;
-  viewSeat: number;
+  selfSeat: number;
   targets?: {
     bySeat: Map<number, { available: boolean; reason?: string }>;
     onPick: (seat: number) => void;
   };
 }
 
-export function SeatRail({ snapshot, viewSeat, targets }: SeatRailProps) {
+export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
   // 军情密探(#122/T4):本座位窥探中的对手——只有这些席位的手牌内容在浮签放行
   const peeking = new Set(
-    snapshot.jinnangPeeks.filter((pk) => pk.viewer === viewSeat).map((pk) => pk.target),
+    snapshot.jinnangPeeks.filter((pk) => pk.viewer === selfSeat).map((pk) => pk.target),
   );
   const opponents: Seated[] = snapshot.players
     .map((p, seat) => ({ p, seat }))
-    .filter(({ seat }) => seat !== viewSeat);
+    .filter(({ seat }) => seat !== selfSeat);
   const right = opponents.slice(0, 3);
   const left = opponents.slice(3, 6);
   const top = opponents.slice(6);

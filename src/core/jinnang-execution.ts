@@ -13,10 +13,10 @@ import { HEROES, type ActiveSkillDef } from "./heroes";
 import {
   openReactionWindow,
   resolveDuel,
-  traceJinnangPlay,
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 // ── 锦囊/军师幕引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -43,12 +43,16 @@ export interface PendingHeroSkill {
 }
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
- *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。
- *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
-export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
+ *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。返回实际入手张数(#384:
+ *  落空=无转移,调用方据此不产事件)。
+ *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
+ *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),五路同覆盖
+ *  ——起手发牌/锦囊格/辅路军师来投/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
+export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   const p = g.players[seat];
-  if (!p || p.isBankrupt) return;
+  if (!p || p.isBankrupt) return 0;
   let emptyNotified = false;
+  let drawn = 0;
   for (let k = 0; k < count; k++) {
     if (g.jinnangDeck.length === 0) {
       if (!emptyNotified) {
@@ -61,6 +65,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
     g.jinnangDeckCount = g.jinnangDeck.length;
     p.jinnangHand.push(id);
     p.jinnangHandCount = p.jinnangHand.length;
+    drawn++;
     g.logEvent(
       "system",
       p.guohao,
@@ -68,6 +73,22 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): void {
       `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
     );
   }
+  if (drawn > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: drawn }); // 时机·JinnangGained:得锦囊进手(#456,落空不派)
+  return drawn;
+}
+
+/** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=
+ *  实际入手;0=牌库空落空,无转移即无事件)。开局发牌(setup-flow)直走 drawJinnang
+ *  不发——起手属开局校准点覆盖,与初始现金/体力同口径;游戏时进手(声望献计/机遇/
+ *  锦囊格/随机事件)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
+export function drawJinnangTraced(
+  g: GameEngine,
+  seat: number,
+  count: number,
+  reason: string,
+): void {
+  const drawn = drawJinnang(g, seat, count);
+  if (drawn > 0) emitGameEvent(g, seat, { kind: "jinnangDrawn", count: drawn, reason });
 }
 
 /** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:
@@ -123,9 +144,7 @@ export function resolveJinnang(
       return;
     }
     const [target] = targets;
-    if (
-      !computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
-    ) {
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
       g.warn(`目标不可用:座位 ${target}`);
       return;
     }
@@ -205,18 +224,19 @@ function settleJinnangPlay(
     def.targetDomain === "self"
       ? [userSeat]
       : def.targetDomain === "all-others"
-        ? g.alivePlayers()
+        ? g
+            .alivePlayers()
             .map((p) => g.players.indexOf(p))
             .filter((seat) => seat !== userSeat)
         : [...targets];
   g.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
-  traceJinnangPlay(g, userSeat, shareSeats, def.id);
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
     cardId: def.id,
     targetSeats: shareSeats,
   }); // 时机·JinnangAnnounced:锦囊宣布、结算前(识破诡计反应窗挂点)
-  const queried = g.alivePlayers()
+  const queried = g
+    .alivePlayers()
     .map((p) => g.players.indexOf(p))
     .filter(
       (seat) =>
@@ -282,9 +302,7 @@ export function resolveHeroSkill(
       return;
     }
     const [target] = targets;
-    if (
-      !computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)
-    ) {
+    if (!computeChoices(g, "AwaitingJinnang").some((o) => o.id === `t${target}` && o.available)) {
       g.warn(`目标不可用:座位 ${target}`);
       return;
     }
@@ -331,10 +349,21 @@ function cancelPendingSkill(g: GameEngine): void {
 
 /** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(浮字+战报,
  *  与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
-function fireHeroSkill(g: GameEngine, userSeat: number, skill: ActiveSkillDef, targets: number[]): void {
+function fireHeroSkill(
+  g: GameEngine,
+  userSeat: number,
+  skill: ActiveSkillDef,
+  targets: number[],
+): void {
   const user = g.players[userSeat];
   user.heroLastFired[skill.id] = g.round;
   g.pushFloaterText(user, `${user.guohao} 施展【${skill.name}】`, user.position);
+  emitGameEvent(g, userSeat, {
+    kind: "heroSkillActivated",
+    skillId: skill.id,
+    skillKind: skill.kind,
+    ...(targets.length > 0 ? { targetSeat: targets[0] } : {}),
+  }); // 事件流(#384):主动技发动(发动者=seat;none 域无 targetSeat 字段)
   g.logEvent(
     "skill",
     user.guohao,
@@ -343,7 +372,9 @@ function fireHeroSkill(g: GameEngine, userSeat: number, skill: ActiveSkillDef, t
   );
   switch (skill.kind) {
     case "demolish":
-      // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)
+      // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)。
+      // #457 拍定:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻主动技路
+      // 不派——守「主动技结算内不派发时机」既有口径(见本文件头「结算内不派发时机」)。
       demolishOnVictim(
         g,
         user,
@@ -361,7 +392,13 @@ function fireHeroSkill(g: GameEngine, userSeat: number, skill: ActiveSkillDef, t
       g.pushFloater(user, -cost, user.position, "expense");
       const seat = targets[0];
       const target = g.players[seat];
+      const staminaBefore = target.stamina;
       const after = g.addStamina(seat, stamina);
+      emitGameEvent(g, seat, {
+        kind: "staminaChanged",
+        delta: after - staminaBefore,
+        reason: "heroRelief",
+      }); // 事件流(#384):体力变更(赈济,夹紧后实际增减)
       g.pushFloaterText(target, `${target.guohao} 体力 +${stamina}`, target.position);
       g.logEvent(
         "system",
@@ -462,6 +499,12 @@ export function executeJinnang(
         gained += pay;
         payers++;
         g.pushFloater(t, -pay, t.position, "expense");
+        emitGameEvent(g, seat, {
+          kind: "cashChanged",
+          delta: -pay,
+          reason: "levyAll",
+          counterpartSeat: userSeat,
+        }); // 事件流(#375):金钱变更(被征方)
         g.dispatchMoment("CashLost", { subject: seat, amount: pay });
         g.logEvent(
           "system",
@@ -474,6 +517,7 @@ export function executeJinnang(
       user.cash += gained;
       if (gained > 0) {
         g.pushFloater(user, gained, user.position, "income");
+        emitGameEvent(g, userSeat, { kind: "cashChanged", delta: gained, reason: "levyAll" }); // 事件流(#375):金钱变更(征银方)
         g.dispatchMoment("CashGained", { subject: userSeat, amount: gained });
       }
       g.logEvent(
@@ -489,8 +533,19 @@ export function executeJinnang(
       const victim = g.players[targets[0]];
       const idx = Math.floor(g.dice.nextFloat() * victim.treasures.length);
       const treasure = victim.treasures.splice(idx, 1)[0];
+      g.dispatchMoment("TreasureLost", {
+        subject: g.players.indexOf(victim),
+        treasureId: treasure.id,
+      }); // 时机·TreasureLost:窃玉偷香失窃方(非售出流失,#457,与下得宝时机同点成对)
       user.treasures.push(treasure);
+      g.dispatchMoment("TreasureGained", { subject: userSeat, treasureId: treasure.id }); // 时机·TreasureGained:窃玉偷香得宝(#455 A4 补派,subject=窃方)
       g.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
+      emitGameEvent(g, userSeat, {
+        kind: "treasureStolen",
+        victimSeat: g.players.indexOf(victim),
+        treasureId: treasure.id,
+        treasureName: treasure.name,
+      }); // 事件流(#385):窃宝宣告(名字随事件走,牌堆实例 id 带流水号不属可查表目录)
       g.logEvent(
         "system",
         user.guohao,
@@ -501,19 +556,36 @@ export function executeJinnang(
     }
     case "demolish": {
       const victim = g.players[targets[0]];
-      demolishOnVictim(
+      const outcome = demolishOnVictim(
         g,
         user,
         victim,
         `使用锦囊【${def.id}】`,
         `jinnangUse player=${user.id} card=${def.id}`,
       );
+      g.dispatchMoment(
+        outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost",
+        {
+          subject: g.players.indexOf(victim),
+          propertyId: outcome.propertyId,
+          tileIndex: outcome.tileIndex,
+        },
+      ); // 时机·PropertyDemolished/Lost:火烧连营城损(#457 拍定挂调用侧按果择一——单点内不派,火攻主动技路不派)
       break;
     }
     case "skipTurn": {
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
+      g.dispatchMoment("TurnSkipImposed", {
+        subject: targets[0],
+        reason: "jinnang",
+      }); // 时机·TurnSkipImposed:缓兵之计强加跳回合(#456,写点 +=1 语义保留)
       g.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
+      emitGameEvent(g, userSeat, {
+        kind: "jinnangInflicted",
+        cardId: def.id,
+        targetSeat: targets[0],
+      }); // 事件流(#385):中招宣告(fx 锚中招者位置出文案;实际跳过另有 turnSkipped)
       g.logEvent(
         "system",
         user.guohao,
@@ -551,6 +623,7 @@ export function executeJinnang(
       const loser = g.players[loserSeat];
       winner.cash += winnerBankGain; // 国库出
       g.pushFloater(winner, winnerBankGain, winner.position, "income");
+      emitGameEvent(g, winnerSeat, { kind: "cashChanged", delta: winnerBankGain, reason: "duel" }); // 事件流(#375):金钱变更(胜者国库款)
       g.dispatchMoment("CashGained", {
         subject: winnerSeat,
         amount: winnerBankGain,
@@ -567,7 +640,19 @@ export function executeJinnang(
         loser.cash -= pay;
         user.cash += pay;
         g.pushFloater(loser, -pay, loser.position, "expense");
+        emitGameEvent(g, loserSeat, {
+          kind: "cashChanged",
+          delta: -pay,
+          reason: "duel",
+          counterpartSeat: userSeat,
+        }); // 事件流(#375):金钱变更(败者赔付)
         g.dispatchMoment("CashLost", { subject: loserSeat, amount: pay });
+        emitGameEvent(g, userSeat, {
+          kind: "cashChanged",
+          delta: pay,
+          reason: "duel",
+          counterpartSeat: loserSeat,
+        }); // 事件流(#375):金钱变更(使用者收款)
         g.dispatchMoment("CashGained", { subject: userSeat, amount: pay });
       }
       g.logEvent(
@@ -582,6 +667,7 @@ export function executeJinnang(
     case "peek": {
       const target = targets[0];
       g.jinnangPeeks.push({ viewer: userSeat, target });
+      g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)
       g.pushFloaterText(
         user,
         `细作已入 ${g.players[target].guohao} 营中(至你下回合)`,
@@ -608,11 +694,21 @@ export function executeJinnang(
   }
 }
 
+/** demolish 结果(#457):供锦囊路调用侧择一派发 PropertyDemolished/Lost——
+ *  派发不进单点(火攻主动技路共用本单点但不派,拍定两调用点分别挂)。 */
+interface DemolishOutcome {
+  kind: "demolished" | "lost";
+  propertyId: string;
+  tileIndex: number;
+}
+
 /** demolish 结算单点(#122 火烧连营 与 #188 档 3 周瑜火攻共用):随机降目标一座
  *  Lv>0 城 1 级(都城可降);城防全 0 级则失一座非都城(都城不可失,#226 根因修复:
  *  失城只从非都城中取,与耗竭「都城可降不可失」、破产「都城不可变卖」同口径)。
  *  「仅剩 0 级都城」的目标已被选项集门槛(demolishTargetOk)拦下,空池 = 门槛被绕过,
  *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
+ *  返回 DemolishOutcome(#457):城损时机的派发归锦囊路调用侧(火烧连营按果派发;
+ *  火攻主动技路「结算内不派发」口径不派),本单点只结算不派发。
  *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」/「主动技【火攻】」);
  *  auditPrefix=机读 detail 前缀(各自保留原键名)。 */
 function demolishOnVictim(
@@ -621,7 +717,7 @@ function demolishOnVictim(
   victim: Player,
   sourceLabel: string,
   auditPrefix: string,
-): void {
+): DemolishOutcome {
   const upgradable = victim.properties.filter((h) => h.level > 0);
   const tileIndexOf = (pid: string) => g.board.tiles.findIndex((t) => t.propertyId === pid);
   if (upgradable.length > 0) {
@@ -640,28 +736,29 @@ function demolishOnVictim(
       `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`,
       `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`,
     );
-  } else {
-    const capPropId = g.board.at(victim.capitalIndex)?.propertyId;
-    const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
-    if (losable.length === 0)
-      throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
-    const h = losable[Math.floor(g.dice.nextFloat() * losable.length)];
-    victim.properties.splice(victim.properties.indexOf(h), 1);
-    g.propertyChanges.push({
-      tileIndex: tileIndexOf(h.propertyId),
-      level: 0,
-      ownerColorIndex: null,
-      levelChanged: false,
-      ownerChanged: true,
-    }); // 失城=回无主(ADR-0015)
-    const lostName = g.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
-    g.logEvent(
-      "system",
-      user.guohao,
-      `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
-      `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
-    );
+    return { kind: "demolished", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
   }
+  const capPropId = g.board.at(victim.capitalIndex)?.propertyId;
+  const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
+  if (losable.length === 0)
+    throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
+  const h = losable[Math.floor(g.dice.nextFloat() * losable.length)];
+  victim.properties.splice(victim.properties.indexOf(h), 1);
+  g.propertyChanges.push({
+    tileIndex: tileIndexOf(h.propertyId),
+    level: 0,
+    ownerColorIndex: null,
+    levelChanged: false,
+    ownerChanged: true,
+  }); // 失城=回无主(ADR-0015)
+  const lostName = g.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
+  g.logEvent(
+    "system",
+    user.guohao,
+    `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
+    `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
+  );
+  return { kind: "lost", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
 }
 
 /** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):满编/名将已尽折现,否则骰选一名。
@@ -678,6 +775,7 @@ function grantHeroToPlayer(
   if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     p.cash += fallbackCash;
     g.pushFloater(p, fallbackCash, p.position, "income");
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: fallbackCash, reason: "fallback" }); // 事件流(#375):招贤折现
     g.dispatchMoment("CashGained", { subject: seat, amount: fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",

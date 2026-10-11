@@ -16,8 +16,8 @@
 // - 重叠城检测:MIN_TILE_DIST + findTooClosePairs(与旧版共用 core 几何工具),
 //   以红圈覆盖层高亮(SVG 根追加 circle 节点,React 不管的外来节点)。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { MapData, MapTile} from "@core/board-loader";
-import type { TileType} from "@core/board";
+import type { MapData, MapTile } from "@core/board-loader";
+import type { TileType } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";

@@ -55,6 +55,8 @@ export const TESTIDS = {
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
   modalClose: "modal-close",
+  /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
+  heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
   // ── 动作条(#256 军师窗态:军师幕弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */

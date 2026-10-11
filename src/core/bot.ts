@@ -1,12 +1,30 @@
 // AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
-import type { GameEngine } from "./authority";
+import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf, TREASURE_MEAN_PRICE } from "./treasures";
+import { beginGameEventBatch } from "./game-events";
+
+/** bot 可驱动的回合相位正典(bot-driver/replay-log 等消费方 import 此常量,禁再各自抄副本)。
+ *  契约:除 AwaitingReaction 外各相位 botAct switch 直驱;AwaitingReaction 特判——bot
+ *  座位由引擎开窗同调用即席代答(ADR-0017「bot 持牌即时代答」,全 bot 被询问时相位不外显),
+ *  驱动器只停等人类待应答座位,不得对其调 botAct。 */
+export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
+  "Roll",
+  "AwaitingBranch",
+  "AwaitingDecision",
+  "AwaitingHeroPick",
+  "AwaitingEncounter",
+  "AwaitingJinnang",
+  "AwaitingExhaustion",
+  "AwaitingTreasureOwner",
+  "AwaitingBankruptcySettle",
+  "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
+]);
 
 /** 座位散列(抉择声望折算系数的性格源,#124):纯座位派生,确定性、与对局状态无关,
  *  不消耗引擎骰(重放安全)。 */
@@ -381,6 +399,7 @@ function driveJinnang(engine: GameEngine, simple: boolean, skills: "strategy" | 
 
 /** 驱动当前 bot 回合的一步决策;UI 在 bot 回合轮询调用直到进入下一玩家或 GameOver。 */
 export function botAct(engine: GameEngine, opts?: BotActOptions): void {
+  beginGameEventBatch(engine); // 事件流(#375):bot 步=一次转移,入口开新批(与 submitCommand 同批界纪律)
   const p = engine.activePlayer;
   const simple = engine.difficulty === "Simple";
 
@@ -402,8 +421,7 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
         // 平均掷骰 3.5:辅路每格约 1/3.5 概率被踩中(简化估)
         const hitProb = 1 / 3.5;
         for (const c of cells) {
-          if (c.kind === "treasure")
-            branchEv += hitProb * TREASURE_MEAN_PRICE; // 探宝期望(踩中率 × 珍宝指导价全表均值,treasures.ts 推导,#299 对表不写死)
+          if (c.kind === "treasure") branchEv += hitProb * TREASURE_MEAN_PRICE; // 探宝期望(踩中率 × 珍宝指导价全表均值,treasures.ts 推导,#299 对表不写死)
           else if (c.kind === "event") branchEv += hitProb * 100; // 锦囊轻微正期望
           else branchEv -= hitProb * 500; // 中伏:跳一回合的机会成本
         }

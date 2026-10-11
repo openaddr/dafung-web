@@ -7,6 +7,8 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
 import { testEngine } from "@core/testing";
+import { beginGameEventBatch } from "@core/game-events";
+import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
   normalizeEncounterBaseRates,
@@ -81,6 +83,20 @@ function peekDie(e: GameEngine): number {
   const probe = createDice(0);
   probe.setRngState(e.dice.getRngState());
   return probe.roll().die;
+}
+
+/** 包一层 dispatchMoment,记录派发的时机 + 完整 ctx(时机总线断言用,同 timing.test 口径)。 */
+function recordMomentCtx(e: GameEngine): { moment: GameMoment; ctx: MomentCtx }[] {
+  const entries: { moment: GameMoment; ctx: MomentCtx }[] = [];
+  const orig = e.dispatchMoment.bind(e);
+  (e as unknown as { dispatchMoment: (m: GameMoment, ctx: MomentCtx) => void }).dispatchMoment = (
+    m,
+    ctx,
+  ) => {
+    entries.push({ moment: m, ctx: { ...ctx } });
+    return orig(m, ctx);
+  };
+  return entries;
 }
 
 /** 挪位后掷骰,恰好落在 targetTile(路径不得途经都城)。 */
@@ -297,6 +313,44 @@ describe("机遇引擎行为", () => {
     });
     expect(full.heroes.length).toBe(3); // 不超容量
     expect(full.cash).toBe(cashBefore + 200); // 转银两补偿
+  });
+
+  it("授宝遇牌堆空 → 折现 100 两两件套(#455 A2):cashChanged 事件 + CashGained 时机缺一不可", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const te = testEngine(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    e.treasureDeck.length = 0; // 牌堆清空 → 「搜刮一空」折现路
+    const cash0 = mover.cash;
+    const entries = recordMomentCtx(e);
+    beginGameEventBatch(e);
+    const r = te.applyEncounter(mover, mover.position, {
+      id: "窖藏现世",
+      tier: "好运",
+      tags: ["珍宝"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "grantTreasure" },
+    });
+    expect(r).toBe("settled");
+    expect(mover.treasures).toHaveLength(0); // 无宝可得
+    expect(mover.cash).toBe(cash0 + 100); // 折现 100 两入账
+    // 事件半边:cashChanged(reason=encounter,delta=100)
+    const events = e.snapshot().events;
+    expect(
+      events.some(
+        (v) =>
+          v.kind === "cashChanged" &&
+          v.seat === seat &&
+          v.delta === 100 &&
+          v.reason === "encounter",
+      ),
+    ).toBe(true);
+    // 时机半边:CashGained(subject=折现者,amount=100)
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, amount: 100 },
+    ]);
   });
 
   it("结算路径:玩家转移上限=对方现金;levy 破产走 endTurn", () => {
@@ -841,7 +895,6 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     e.players[seat].properties.push({
       propertyId: d.id,
       group: d.group,
-      purchasePrice: d.buildCost,
       level,
       maxLevel: d.maxLevel,
     });
@@ -994,5 +1047,69 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     expect(mover.skipTurns).toBe(1);
     expect(mover.stamina).toBe(100);
     expect(e.pendingEncounter).toBeNull();
+  });
+});
+
+describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞下家回合", () => {
+  /** 给 seat 一座指定等级的非都城房产(上块 giveProperty 同款,不跨文件 import):
+   *  恰一座 >0 级城 → 耗竭可用选项 =1 → 走 settleExhaustionChoice 自动执行路径。 */
+  function giveOneProperty(e: GameEngine, seat: number, level: number): void {
+    const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
+    const tile = MAP.board.tiles.find(
+      (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+    )!;
+    const d = MAP.catalog.get(tile.propertyId)!;
+    e.players[seat].properties.push({
+      propertyId: d.id,
+      group: d.group,
+      level,
+      maxLevel: d.maxLevel,
+    });
+  }
+
+  /** 开局并保留起手锦囊(下家须持可用牌,军师幕才开窗——老用例清空手牌故测不到 #452);
+   *  仅活跃玩家收卷停 Roll。 */
+  function finishSetupKeepHands(e: GameEngine): void {
+    e.doDraftRoll();
+    let guard = 0;
+    while (e.phase === "Setup" && guard++ < 50) {
+      const idx = e.currentSetupPlayerIndex;
+      if (idx < 0) break;
+      if (e.players[idx].isBot) e.aiSetupStep();
+      else {
+        const capIdx = e.firstAvailableCapitalIndex();
+        if (capIdx < 0) break;
+        e.pickCapital(idx, capIdx);
+      }
+    }
+    if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+  }
+
+  it("唯一可用选项自动执行后:下家照常入军师幕且可行动,turnNumber 恰 +1", () => {
+    const e = makeEngine(7, undefined, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetupKeepHands(e);
+    const mover = e.activePlayer;
+    const nextSeat = (e.activeIndex + 1) % e.players.length;
+    expect(e.players.every((p) => p.jinnangHandCount > 0)).toBe(true); // 场景前提:人人持牌
+    giveOneProperty(e, e.activeIndex, 1);
+    const turn0 = e.turnNumber;
+    testEngine(e).applyEncounter(mover, mover.position, {
+      id: "夜行军",
+      tier: "霉运",
+      tags: ["体力"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "cash", delta: 0, staminaDelta: -100 }, // 纯体力事件:直落 0 触发耗竭
+    });
+    expect(mover.skipTurns).toBe(1); // 耗竭惩罚落账
+    expect(mover.stamina).toBe(100);
+    expect(e.activeIndex).toBe(nextSeat); // 下家回合照常开始(不被吞)
+    expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:自动路径内已 endTurn,不得补第二枪
+    expect(e.turnPhase).toBe("AwaitingJinnang"); // 下家军师幕开窗
+    expect(e.choicesFor().length).toBeGreaterThan(0); // 卷轴有真实选项,可行动
   });
 });

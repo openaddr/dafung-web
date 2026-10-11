@@ -93,7 +93,7 @@
 | 一期 | P0-A 牌面组件 + P0-B 军师幕牌面化 + P1-C 底部手牌架   | 零改动                                            | BRIEF 四门槛(typecheck/bun test/本屏 e2e/评审) |
 | 二期 | P1-D 反应窗(牌架即反应窗)+ P2-E 指示线 + 珍宝牌面变体 | 随 #188 档 1(反应窗相位,ADR-0017)+ 新表现事件类型 | 同上 + 联机双端 e2e                            |
 
-两期均已实施(一期 #233/#236–#240,二期 #281:反应窗引擎+UI 同窗落地,P2-E 指示线走 ADR-0010 新表现事件类型 `jinnangPlayed`,珍宝变体启用 frameTone 通道——落地形态见 DESIGN.md §4.5)。P2-E 联机通路随 #284 收口:联机端同款指示线由快照 `lastJinnangPlay.seq` diff 提取(快照字段单通道,不立独立事件帧),反应窗时长单源 `view.windowMs` 随快照下发(窗级 deadline 与时长单源见 [ADR-0017 补记](../adr/0017-non-blocking-reaction-windows.md))。
+两期均已实施(一期 #233/#236–#240,二期 #281:反应窗引擎+UI 同窗落地,P2-E 指示线走 ADR-0010 新表现事件类型 `jinnangPlayed`,珍宝变体启用 frameTone 通道——落地形态见 DESIGN.md §4.5)。P2-E 联机通路随 #284 收口:联机端同款指示线曾由快照 `lastJinnangPlay.seq` diff 提取(快照字段单通道,不立独立事件帧;**#385 起此通路退役,改由服务端事件批直读——ADR-0020 折叠切换③;`lastJinnangPlay` 快照字段本体已随 #412 移除,现行口径=事件批直读**),反应窗时长单源 `view.windowMs` 随快照下发(窗级 deadline 与时长单源见 [ADR-0017 补记](../adr/0017-non-blocking-reaction-windows.md))。
 
 ## 7. 已决事项(2026-09-23 拷问会,原「开放问题」销题)
 

@@ -55,7 +55,6 @@ function setupOwnerChoice(e: GameEngine, defId: string) {
   owner.properties.push({
     propertyId: defId,
     group: def.group,
-    purchasePrice: def.purchasePrice,
     level: 0,
     maxLevel: def.maxLevel,
   });

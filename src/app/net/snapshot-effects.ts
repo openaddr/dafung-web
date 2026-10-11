@@ -1,37 +1,32 @@
-// 快照表现提取器(从 controllers/online.ts 拆出,net/ 下独立文件):联机端无本地引擎
-// 推进事件,表现全靠相邻快照 diff——本 module 持 diff 基准(上帧位置/现金/破产位)与
-// 表现播放队列,把 diff 提取为统一事件数组交给 orchestrator.present(Wave1 语义原样保留,
-// 含 Wave1 新增的破产音效对齐)。为什么独立:它是有状态的纯表现逻辑,不碰协议/store,
-// 独立后 OnlineController 才能瘦成纯「协议桥」。行为零变化。
+// 事件批表现消费器(联机端,#385,ADR-0020 折叠切换③):联机端无本地引擎推进,
+// 演出因果来自服务端事件批下行通道(#390:{type:"events"} 消息 → netStore lastEvents
+// 暂存)。本模块持「到达序消费游标 + 表现播放队列」,在每帧快照 hydrate 后把暂存批
+// 直译为表现事件(event-extract.extractBatchEvents,与单机同一消费函数)交给
+// orchestrator.present 播放。旧版相邻快照 diff 提取(prevPos/prevCash/prevBankrupt/
+// prevProps/prevJinnangPlay.seq)已全部退役——动效因果是协议一等公民,不再猜测。
+//
+// 时序契约:服务端同一 flush 先发 events 消息、后发快照(因果在前、状态在后),WS
+// 有序,故快照处理时 netStore 暂存批恰为本 tick 的转移事件;在 hydrate 之后消费,
+// 坐标/行军路径解析基于转移后引擎态。空批 flush 无 events 消息,游标不推进即跳过。
+// 断线即丢(无排队无补发,ADR-0020 决策 4):断线时游标对齐当前到达序,重连后不补播
+// 旧演出(整局状态已由重连快照重建)。
 import type { GameEngine } from "@core/authority";
-import { findHolding } from "@core/player";
+import type { GameEvent } from "@core/game-events";
 import { createEngineSink } from "@app/fx/sinks";
-import { present, turnBannerEvent } from "@app/fx/orchestrator";
-import type { PresentationEvent } from "@app/fx/presentation";
+import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
+import { present } from "@app/fx/orchestrator";
+import { useNetStore } from "@app/store/netStore";
 
-/** 快照级表现(diff → 事件 → present):
- *  - diceRolled/cashDelta/tokenMoved/propertyChanged/sound(bankrupt)/turnBanner 事件
- *    统一交给 present 播放(与单机同一条播放路径,形状不再漂移)。
- *  - 浮字走 diff(floaters 不序列化);行军经 applyPresentationMove 注入 diff 推导的
- *    轨迹(快照虽含 lastMove,但那是"发令端视角",重放以本地 diff 为准,语义更稳)。
- *  - 骰子:本地无掷骰授权(点数在服务器),diceRolled 事件驱动 ThreeDice.roll——
- *    各端轨迹/初始条件由本地随机流决定,各不相同没关系:**落面 = 服务器权威点数**。 */
 export class SnapshotEffects {
-  /** 上一帧快照的玩家位置/现金/破产位(diff 基准)。 */
-  private prevPos = new Map<string, { position: number; onStep: number | null }>();
-  private prevCash = new Map<string, number>();
-  private prevBankrupt = new Set<string>();
-  /** 上一帧快照的城池归属/等级(propertyId → 归属色/等级,ADR-0015 diff 基准)。 */
-  private prevProps = new Map<string, { ownerColorIndex: number | null; level: number }>();
-  /** 上一帧快照的最近出牌留痕流水号(#284 diff 基准;null=尚未见过任何帧)。 */
-  private prevJinnangPlaySeq: number | null = null;
   /** 表现链串行化:快照可能连续到达,排队播放避免两次行军互踩。 */
   private fxQueue: Promise<void> = Promise.resolve();
   /** 在途表现块计数(>0 = 骰子/行军/横幅仍在播)。L42:联机版单机 busy 锁——
    *  OnlineController.interactive 据此关门,决策卷轴等动画播完才呈现(与单机
    *  LocalController 的 drive 会话锁同口径)。 */
   private pendingChunks = 0;
-  /** 表现出口(Wave1):引擎经 getter 绑定(换图会整体替换引擎实例,getter 始终取最新)。 */
+  /** 已消费的事件批到达序(netStore.eventBatchSeq):一条 events 消息只消费一次。 */
+  private consumedBatchSeq = 0;
+  /** 表现出口:引擎经 getter 绑定(换图会整体替换引擎实例,getter 始终取最新)。 */
   private readonly fxSink = createEngineSink(() => this.getEngine());
   /** 队列排空(忙→闲)回调:OnlineController 用来补一次 sync,放出被锁的 interactive。 */
   private readonly onIdle: (() => void) | null;
@@ -48,185 +43,58 @@ export class SnapshotEffects {
   }
 
   /** 起签印(#188 第 1 步):本端人类座位进入 Roll 等待态时,在行军者脚下钤「签」印——
-   *  服务器 ~1s 后自动起摇,骰子/行军经下一帧快照正常播出(单机 autoRoll 同款表现,
+   *  服务器 ~1s 后自动起摇,骰子/行军经事件批正常播出(单机 autoRoll 同款表现,
    *  复用 sealStamped 印章通道,不新增事件类型)。纯表现,无同步语义。 */
   qiqian(seat: number): void {
     const engine = this.getEngine();
     this.fxSink.stampSeal(engine.players[seat].position, "签");
   }
 
-  /** 每帧 snapshot 后调用:newRoll = 本帧发生了掷骰(阶段迁移判定,见协议桥注释)。 */
-  play(newRoll: boolean): void {
+  /** 断线边界:把当前到达序标记为已消费——断线前收到但未随快照消费的暂存批,
+   *  重连后不补播(状态已由重连快照整体重建,旧演出无因果意义)。 */
+  dropStalledBatch(): void {
+    this.consumedBatchSeq = useNetStore.getState().eventBatchSeq;
+  }
+
+  /** 重连成功边界(#388,ADR-0020 决策 4):整房摘要水合前清空事件面——netStore 暂存批
+   *  与到达计数归零,本器消费游标同步归零;断线前的一切批不再参与演出,重连后旧批也
+   *  不会因 seq 撞号被跳过或被当新批消费。状态唯一来源 = 紧随其后的整房摘要。
+   *  与 dropStalledBatch(断线边界,游标对齐作废)成对使用:closed 时对齐、open 时归零。 */
+  resetEventFace(): void {
+    this.consumedBatchSeq = 0;
+    useNetStore.getState().resetEventFace();
+  }
+
+  /** 每帧 snapshot(hydrate)后调用:把 netStore 暂存的事件批直译为表现并入队播放。
+   *  @param prePositions hydrate 前各座位棋子位置(行军余段截短基准;联机=上一帧
+   *  快照的落位,即玩家看到的视觉位置)。 */
+  play(prePositions: ReadonlyArray<number | null>): void {
+    const net = useNetStore.getState();
+    if (net.lastEvents == null || net.eventBatchSeq === this.consumedBatchSeq) return;
+    this.consumedBatchSeq = net.eventBatchSeq;
     const engine = this.getEngine();
-    const board = engine.board;
-    const tileCount = board.tiles.length;
-    const events: PresentationEvent[] = [];
-
-    // 0) 新掷骰 → diceRolled 事件(排在行军前,时序对齐单机 Roll 步的 骰子→行军 链)。
-    if (newRoll) {
-      const die = engine.presentation.lastRoll?.die;
-      if (die) events.push({ kind: "diceRolled", die });
-    }
-
-    // 1) 现金 diff → cashDelta 事件(锚到玩家当前格逻辑坐标)
-    for (const p of engine.players) {
-      const prev = this.prevCash.get(p.id);
-      if (prev != null && p.cash !== prev) {
-        const pos = board.positionOf(p.position);
-        events.push({
-          kind: "cashDelta",
-          playerId: p.id,
-          amount: p.cash - prev,
-          x: pos.x,
-          y: pos.y,
-          atTile: p.position,
-        });
-      }
-      this.prevCash.set(p.id, p.cash);
-    }
-
-    // 2) 位置 diff → tokenMoved 事件(首帧只记位置,不动画;辅路进出不做主路行军)。
-    //    Setup·PickCapital 的落位是「筑城」不是行军:不播 march,改盖「筑」印(单机
-    //    runPickCapital 同款表现,避免选都棋子横穿棋盘的伪行军)。
-    //    棋子渲染必须立刻让位(否则 React 先画终点再被拽回):提取期同步经
-    //    applyPresentationMove(引擎合法表现通道)注入 diff 推导的轨迹锚定旧位置,
-    //    present 播放时再沿轨迹补走;表现完清掉注入,避免污染后续判断。
-    let marched = false;
-    const setupPick = engine.phase === "Setup";
-    for (const p of engine.players) {
-      const prev = this.prevPos.get(p.id);
-      this.prevPos.set(p.id, { position: p.position, onStep: p.onBranch?.step ?? null });
-      if (!prev || prev.onStep != null || p.onBranch != null) continue;
-      if (p.position === prev.position) continue;
-      if (setupPick) {
-        events.push({ kind: "sealStamped", tileIndex: p.position, char: "筑" });
-        continue;
-      }
-      const traversed: number[] = [];
-      for (let i = 1; i <= tileCount; i++) {
-        const t = (prev.position + i) % tileCount;
-        traversed.push(t);
-        if (t === p.position) break;
-      }
-      // X1:本帧行进止于己方都城(经过必停或恰落,引擎两态都结算驻跸补给)→
-      // 与单机 extractStepEvents 同款:路径补 passedCapital 语义,行军后先盖「驻」章
-      // 再出「驻跸补给」文案浮字。
-      const capitalHalt = p.position === p.capitalIndex;
-      const path = {
-        from: prev.position,
-        traversed,
-        landIndex: p.position,
-        passedCapital: capitalHalt,
-        capitalIndex: capitalHalt ? p.position : -1,
-        waypoints: [],
-        landBranchStep: null,
-        branchWaypoints: [],
-      };
-      engine.applyPresentationMove(path);
-      this.fxSink.marchBegin(p.id);
-      events.push({ kind: "tokenMoved", playerId: p.id, path });
-      if (capitalHalt) {
-        const pos = board.positionOf(p.position);
-        events.push({ kind: "sealStamped", tileIndex: p.position, char: "驻" });
-        events.push({
-          kind: "textFloat",
-          playerId: p.id,
-          text: "驻跸补给",
-          x: pos.x,
-          y: pos.y,
-          atTile: p.position,
-        });
-      }
-      marched = true;
-    }
-
-    // 2.5) 城池归属/等级 diff → propertyChanged 事件(ADR-0015):与单机提取器同一
-    //      事件形状,经 present → sink 下发 nonce 驱动 Tile 宣告(印重钤/楼生长/易主
-    //      流光)。首帧只记基准不宣告(与位置 diff 同口径);等级与归属独立判维度,
-    //      各驱动各的动画。排在行军后(棋子落定城池再宣告)、破产音前。
-    for (const tile of board.tiles) {
-      const propId = tile.propertyId;
-      if (propId == null) continue;
-      let ownerColorIndex: number | null = null;
-      let level = 0;
-      for (const p of engine.players) {
-        const h = findHolding(p, propId);
-        if (h != null) {
-          ownerColorIndex = p.colorIndex;
-          level = h.level;
-          break;
-        }
-      }
-      const prev = this.prevProps.get(propId);
-      this.prevProps.set(propId, { ownerColorIndex, level });
-      if (prev == null) continue; // 首帧:只建基准
-      if (prev.level === level && prev.ownerColorIndex === ownerColorIndex) continue;
-      events.push({
-        kind: "propertyChanged",
-        tileIndex: tile.index,
-        level,
-        ownerColorIndex,
-        levelChanged: prev.level !== level,
-        ownerChanged: prev.ownerColorIndex !== ownerColorIndex,
-      });
-    }
-
-    // 2.6) 出牌留痕 diff → jinnangPlayed 事件(#284):lastJinnangPlay.seq 变化即新批
-    //      (seq 单调递增,同参数牌不去重失效)。批形状:同命令多条留痕(AOE 多人识破)
-    //      逐条出线。与单机提取器 jinnangPlayEvents 同一展开口径:使用者 → 各目标(空
-    //      目标/自指不出线),线端点按当前棋盘逻辑坐标解析。出牌是公开事件(god-view
-    //      字段,redact 不裁),各端各画各的线。首帧/重连首帧只记基准不补播(与其他
-    //      diff 表现同口径)——首帧按「是否见过任何帧」判定,不按 lastJinnangPlay 是否
-    //      为 null:留痕只在出牌帧出现,若以它判首帧,第一条留痕会被误当基准吞掉
-    //      (2026-09-28 截图自证实测)。
-    const lastPlay = engine.lastJinnangPlay;
-    if (this.prevJinnangPlaySeq == null) {
-      this.prevJinnangPlaySeq = lastPlay?.seq ?? 0;
-    } else if (lastPlay != null && lastPlay.seq !== this.prevJinnangPlaySeq) {
-      for (const play of lastPlay.plays) {
-        const from = board.positionOf(engine.players[play.userSeat].position);
-        const lines = play.targetSeats
-          .filter((seat) => seat !== play.userSeat)
-          .map((seat) => {
-            const to = board.positionOf(engine.players[seat].position);
-            return { x1: from.x, y1: from.y, x2: to.x, y2: to.y };
-          });
-        if (lines.length > 0) {
-          events.push({
-            kind: "jinnangPlayed",
-            playerId: engine.players[play.userSeat].id,
-            cardId: play.cardId,
-            lines,
-          });
-        }
-      }
-      this.prevJinnangPlaySeq = lastPlay.seq;
-    }
-
-    // 2.7) 破产 diff → bankrupt 音效事件(对齐单机 playStepEffects 的破产音;Wave1 修复项)。
-    for (const p of engine.players) {
-      if (p.isBankrupt && !this.prevBankrupt.has(p.id)) {
-        events.push({ kind: "sound", event: "bankrupt" });
-      }
-      if (p.isBankrupt) this.prevBankrupt.add(p.id);
-    }
-
-    // 3) 回合横幅事件(活跃座位变化时,orchestrator 内去重;排在行军后,不打架)
-    const banner = turnBannerEvent(engine);
-    if (banner) events.push(banner);
-
-    if (events.length === 0) return; // 无表现(首帧/纯等待帧):不占用表现锁
+    const events: GameEvent[] = net.lastEvents;
+    // 提取与行军锚定同步完成(anchorMarches 须先于 React 渲染终态,否则棋子闪现终点
+    // 再被拽回);#385 起行军路径随表现事件直传 sink,播放不依赖引擎 lastMove——
+    // 队列期间引擎被后续快照整体 hydrate 也不影响在途路径,合并批多段行军各播各段。
+    const presentation = extractBatchEvents(engine, events, prePositions);
+    if (presentation.length === 0) return; // 无表现(纯状态批):不占用表现锁
+    anchorMarches(presentation, this.fxSink);
     this.pendingChunks++;
     const settle = () => {
       this.pendingChunks--;
       if (this.pendingChunks === 0) this.onIdle?.(); // 忙→闲:放出被锁的 interactive
     };
-    this.fxQueue = this.fxQueue.then(() => present(events, this.fxSink)).then(settle);
-    if (marched) {
-      // 清掉 diff 推导的 presentation 轨迹:真实引擎态(服务器权威)不被本地表现污染
-      this.fxQueue = this.fxQueue.then(() => {
-        engine.applyPresentationMove(null);
+    this.fxQueue = this.fxQueue
+      .then(async () => {
+        await present(presentation, this.fxSink);
+      })
+      .then(settle)
+      .catch((err) => {
+        // 表现层异常必须暴露(零兜底):响亮记错并照常收队——任由拒绝传播会毒化队列
+        // (后续所有批次不再播放、interactive 永锁),静默吞掉更是掩 bug。
+        settle();
+        console.error("[SnapshotEffects] 表现播放异常:", err);
       });
-    }
   }
 }

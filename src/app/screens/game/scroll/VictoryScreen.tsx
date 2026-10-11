@@ -3,7 +3,7 @@
 // E1/E2:入场演出有声有叙——banner 鼓点起势 + 大字落定时 stamp 锣声重音 + victory 号角,
 // 与视觉阶梯(0/300/600ms)对齐;再战按钮 1800ms 后才挂载防误触。
 import { useEffect, useState } from "react";
-import type { VictoryReason} from "@core/authority";
+import type { VictoryReason } from "@core/authority";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
 import { finishDiceOverlay } from "@app/fx/ThreeDice";

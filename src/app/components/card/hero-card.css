@@ -126,6 +126,18 @@
     inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
 }
 
+/* ── 扩展将旗(#378 渲染 hook):扩展包 assets 的旗图,「将」章下方同侧;纯展示
+     零交互(器物豁免类,同 j-seal 口径),URL 由包 hook 提供,尺寸随档 --u 缩放 ── */
+.hface .x-flag {
+  position: absolute;
+  top: calc(3 * var(--u));
+  left: calc(0.55 * var(--u));
+  width: calc(2.2 * var(--u));
+  height: auto;
+  z-index: 3;
+  filter: drop-shadow(0 0.15em 0.3em rgba(43, 35, 23, 0.35));
+}
+
 /* ── 右上称号竖排小字(实数据;纸签形制,墨字;与名带并排纵列,横向恒脱开)── */
 .hface .m-title {
   position: absolute;

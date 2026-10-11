@@ -11,7 +11,7 @@
 // HintBar(top-3)下方(top-12),互不叠位。
 import { useEffect, useState } from "react";
 import type { GameSnapshot } from "@app/store/gameStore";
-import type { TurnPhase} from "@core/authority";
+import type { TurnPhase } from "@core/authority";
 import { PHASE_CHOICES } from "@core/choices";
 import { TESTIDS } from "./testids";
 

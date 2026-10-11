@@ -3,7 +3,7 @@
    点选=金描边+上浮,价签随选中转成交色,底部二段式成交钮。
    样式经 Portal 渲染在 body,.game-layout 罩不到——.treasure-pick 作用域 +
    treasure-pick- 前缀防串扰(pile-modal.css 同先例)。
-   色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-*/--ease-*
+   色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-*、--ease-*
    token(卡面 transform/box-shadow 过渡由 jinnang-card.css 基座 token 化承担),
    reduced-motion 由 app.css M-4 全局兜层压瞬时,本文件无需另写兜层。 */
 

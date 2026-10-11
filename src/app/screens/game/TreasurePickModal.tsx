@@ -82,8 +82,7 @@ export function TreasurePickModal({
       {context}
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        待选 · {treasures.length} 件
-        <small>(点选=金描边上浮,价签转成交;底部两段确认)</small>
+        待选 · {treasures.length} 件<small>(点选=金描边上浮,价签转成交;底部两段确认)</small>
       </div>
       <div className="pile-grid">
         {treasures.map((t) => {
@@ -140,9 +139,7 @@ export function TreasurePickModal({
             }
             onConfirm(picked!.id);
           }}
-          className={
-            "treasure-pick-btn treasure-pick-ok" + (armed ? " treasure-pick-armed" : "")
-          }
+          className={"treasure-pick-btn treasure-pick-ok" + (armed ? " treasure-pick-armed" : "")}
         >
           {armed ? `确认${confirmLabel}` : confirmLabel}
         </button>

@@ -10,7 +10,7 @@ import {
   entryFromFile,
   isCustomId,
 } from "@core/map-source";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 
 /** 清单 + 内置图 JSON 的根 URL(相对站点根)。 */
 const MAPS_BASE = "/maps/";

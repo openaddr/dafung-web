@@ -4,7 +4,7 @@
 // 联机(后续阶段)注册 OnlineController —— 屏幕组件对两种模式无感。
 import type { Board } from "@core/board";
 import type { MapCatalog } from "@core/board-loader";
-import type { MapData} from "@core/board-loader";
+import type { MapData } from "@core/board-loader";
 import type { GameController } from "./controller";
 
 let current: GameController | null = null;
@@ -48,6 +48,8 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
+import { latestWorkerClock } from "@app/net/worker-clock";
+import { HEROES } from "@core/heroes";
 
 /** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
  *  双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY):仅 dev 构建,或 e2e/截图脚手架经
@@ -67,7 +69,26 @@ export function installDebugHooks(): void {
       const e = getEngine();
       if (e) useGameStore.getState().syncFromEngine(e);
     },
-    /** 交互入口(等价旧 __dafung.debug 等;后续可按需扩充)。 */
+    /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——快照/事件面只存
+     *  展示字段,直写 offeredHeroes 必须给完整定义(技能/主动技随对象进麾下)。 */
+    heroDefs: () => [...HEROES],
+    /** 当前控制器(交互入口)。 */
     controller: () => getController(),
+    // ── 房间时钟冻结闸(#421,调试观测面)──
+    // pause 后看门狗(#188 自动起摇/#281 反应窗/#118 停摆/#380 保留窗)与慢速托管
+    // 步进的到点回调全部挂起,resume 按到点序补放——e2e 把对局钉在任意停靠态做
+    // 「种植→点击→断言」手术,根除与自动推进的竞速。纯调试面:产品路径从不调用,
+    // 不冻结时零行为变化;冻结后断言仍失败 = 真 bug,上报而非掩盖(零兜底)。
+    // 无活动 Worker 时钟(未开局/联机对局)当场抛错——调试面误用要响,不静默。
+    clockPause: () => {
+      const c = latestWorkerClock();
+      if (c == null) throw new Error("clockPause:无活动 Worker 时钟(仅单机对局可冻结)");
+      c.pause();
+    },
+    clockResume: () => {
+      const c = latestWorkerClock();
+      if (c == null) throw new Error("clockResume:无活动 Worker 时钟(仅单机对局可冻结)");
+      c.resume();
+    },
   };
 }

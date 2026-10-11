@@ -14,7 +14,10 @@ import type { EncounterDef } from "./encounters";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
 
-/** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法同步;签名漂移在此编译期炸出)。 */
+/** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法**人工对齐**)。实况:缝经
+ *  构造器 `as unknown as` 转型,编译期不校验本接口与引擎私有签名的漂移——漂移在运行时
+ *  以「not a function」炸出;对齐靠本接口逐项对照 authority.ts 私有方法清单(#459 已
+ *  对齐两处,applyEncounter/enterEncounter 的返回联合)。 */
 interface EngineTestInternals {
   resolveLanding(): void;
   resolveBranchCell(mover: Player, cell: BranchCell): void;
@@ -28,7 +31,7 @@ interface EngineTestInternals {
     mover: Player,
     atTile: number,
     def: EncounterDef,
-  ): "settled" | "liquidating" | "bankrupt";
+  ): "settled" | "liquidating" | "bankrupt" | "exhausted";
   maybeApplyEncounter(
     mover: Player,
     atTile: number,
@@ -37,7 +40,7 @@ interface EngineTestInternals {
     mover: Player,
     atTile: number,
     def: EncounterDef,
-  ): "deciding" | "settled" | "liquidating" | "bankrupt";
+  ): "deciding" | "liquidating" | "bankrupt" | "exhausted";
 }
 
 export class TestEngine {
@@ -118,19 +121,21 @@ export class TestEngine {
     return this.internals.maybeApplyEncounter(mover, atTile);
   }
 
-  /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。 */
+  /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。返回联合与
+   *  encounter-flow.settleEncounter 全量对齐(含 exhausted,#459)。 */
   applyEncounter(
     mover: Player,
     atTile: number,
     def: EncounterDef,
-  ): "settled" | "liquidating" | "bankrupt" {
+  ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
     return this.internals.settleEncounter(mover, atTile, def);
   }
 
   /** 触达抉择机遇入相(指定具体事件,绕过触发/抽取随机;#124):等价引擎抽中 choices 型
    *  机遇后的进入逻辑——可用选项 ≤1 自动执行(回合收尾),≥2 进 AwaitingEncounter。
-   *  mover=当前活跃玩家,atTile=其所在格。 */
-  enterEncounter(def: EncounterDef): "deciding" | "settled" | "liquidating" | "bankrupt" {
+   *  mover=当前活跃玩家,atTile=其所在格。返回联合与 encounter-flow.enterEncounterPhase
+   *  全量对齐(恒不返回 settled,含 exhausted,#459)。 */
+  enterEncounter(def: EncounterDef): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
     const mover = this.engine.activePlayer;
     return this.internals.enterEncounterPhase(mover, mover.position, def);
   }

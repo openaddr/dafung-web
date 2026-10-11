@@ -14,11 +14,14 @@ import type { GameEngine } from "./authority";
 import { settleDebt, sellValueOf } from "./economy";
 import { guidePriceOf } from "./treasures";
 import { formatMoney } from "./money";
+import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
- *  交易成局(TradeSettled)/卖家收款(CashGained)四个时机都在此派发——无论直接付清还是
- *  清算变卖自救后付清,走到这里 = 交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。 */
+ *  交易成局(TradeSettled)三个时机在此派发——无论直接付清还是清算变卖自救后付清,走到这里 =
+ *  交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。
+ *  卖家收款 CashGained 不在此派(#455 A3+A5 收款派发下沉):挂在 payOrLiquidate 直付收款点
+ *  与 confirm 清偿收款点(creditor 视角),此处派会与通道派发双计。 */
 export function deliverEscrow(g: GameEngine): void {
   const e = g.escrowTreasure;
   if (!e) return;
@@ -44,7 +47,13 @@ export function deliverEscrow(g: GameEngine): void {
     sellerSeat: e.sellerIdx,
     amount: e.price,
   }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
-  if (e.price > 0) g.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
+  emitGameEvent(g, e.sellerIdx, {
+    kind: "treasureTraded",
+    buyerSeat: e.buyerIdx,
+    sellerSeat: e.sellerIdx,
+    treasureId: e.treasure.id,
+    price: e.price,
+  }); // 事件流(#375):珍宝交割(交易的最终事实;买卖双方银两动账已含 price)
 }
 
 /** 交割托管:买家破产 → 未付款的托管珍宝退回卖家。 */
@@ -72,7 +81,9 @@ export function returnEscrowToSeller(g: GameEngine): void {
   }
 }
 
-/** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。 */
+/** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。
+ *  玩家间收款统一通道(#455 A3+A5):直付到账点对债主派 CashGained(收款方视角,amount=实收);
+ *  creditor=null(归银行)无玩家收款,不派发。 */
 export function payOrLiquidate(
   g: GameEngine,
   mover: Player,
@@ -81,7 +92,13 @@ export function payOrLiquidate(
 ): "ok" | "liquidating" | "bankrupt" {
   if (mover.cash >= amount) {
     mover.cash -= amount;
-    if (creditor) creditor.cash += amount;
+    if (creditor) {
+      creditor.cash += amount;
+      g.dispatchMoment("CashGained", {
+        subject: g.players.indexOf(creditor),
+        amount,
+      }); // 时机·CashGained:被动得银(直付收款,债主)
+    }
     return "ok";
   }
   if (hasMarketableAssets(g, mover)) {
@@ -96,13 +113,16 @@ export function payOrLiquidate(
     return "liquidating";
   }
   settleDebtTraced(g, mover, creditor, amount);
-  finalizeBankruptcy(g, mover);
+  finalizeBankruptcy(g, mover, creditor);
   return "bankrupt";
 }
 
 /** 结算债务并留痕资产转移(ADR-0015):破产即转移/销毁的每处地产写一条 ownerChanged
  *  留痕(债主接管,无债主回无主),表现提取器据此产出易主宣告。等级不因转移改变。
- *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(与 pushFloater 同一收口思路)。 */
+ *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(与 pushFloater 同一收口思路)。
+ *  时机·AssetsSeized(#457):破产终局恰一派(债主视角,与 PlayerBankrupt 破产者视角
+ *  成对)——珍宝在 economy.settleDebt 内转移、名将是释放非转移,均不逐件派;
+ *  无债主(归银行/销毁)无收走方,不派。 */
 export function settleDebtTraced(
   g: GameEngine,
   player: Player,
@@ -110,8 +130,10 @@ export function settleDebtTraced(
   amount: number,
 ): boolean {
   const moved = player.properties.map((h) => ({ propertyId: h.propertyId, level: h.level }));
+  const treasureCount = player.treasures.length;
   const bankrupt = settleDebt(player, creditor, amount);
   if (bankrupt) {
+    const toSeat = creditor ? g.players.indexOf(creditor) : null;
     for (const m of moved) {
       g.propertyChanges.push({
         tileIndex: g.tileIndexOfProperty(m.propertyId),
@@ -120,6 +142,20 @@ export function settleDebtTraced(
         levelChanged: false,
         ownerChanged: true,
       });
+      emitGameEvent(g, g.players.indexOf(player), {
+        kind: "assetTransferred",
+        propertyId: m.propertyId,
+        toSeat,
+      }); // 事件流(#385):破产清算逐城易主宣告(toSeat=null=回无主)
+    }
+    if (creditor) {
+      const creditorSeat = g.players.indexOf(creditor);
+      g.dispatchMoment("AssetsSeized", {
+        subject: creditorSeat,
+        creditorSeat,
+        cities: moved.map((m) => m.propertyId),
+        treasureCount,
+      }); // 时机·AssetsSeized:破产资产被债主收走(终局一次派发,#457)
     }
   }
   return bankrupt;
@@ -132,8 +168,9 @@ export function hasMarketableAssets(g: GameEngine, p: Player): boolean {
 }
 
 /** 破产善后:名将释放回招贤池(treasures 已由 settleDebt 转债主);锦囊手牌清入弃牌堆
- *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。 */
-export function finalizeBankruptcy(g: GameEngine, p: Player): void {
+ *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。
+ *  creditor=债主(#384):随 PlayerBankrupt 派发进事件体(creditorSeat,null=归银行)。 */
+export function finalizeBankruptcy(g: GameEngine, p: Player, creditor: Player | null): void {
   for (const h of p.heroes) g.recruitedHeroIds.delete(h.id);
   p.heroes = [];
   if (p.jinnangHand.length > 0) {
@@ -144,7 +181,10 @@ export function finalizeBankruptcy(g: GameEngine, p: Player): void {
   // 都城已转债主(settleDebt 转移了 properties),玩家不再持有都城。
   // 清 capitalIndex 使 capitalOwnerOf/renderTiles 不再返回破产者。
   p.capitalIndex = -1;
-  g.dispatchMoment("PlayerBankrupt", { subject: g.players.indexOf(p) }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
+  g.dispatchMoment("PlayerBankrupt", {
+    subject: g.players.indexOf(p),
+    creditorSeat: creditor ? g.players.indexOf(creditor) : null,
+  }); // 时机·PlayerBankrupt:破产出局善后完成(名将已释放、资产已转债主)
 }
 
 /** 凑足即止硬守卫:现金已达自救线(≥债务)后,一切变卖命令直接拒绝(零兜底:引擎硬拒绝,不靠 UI 禁用自觉)。 */
@@ -181,6 +221,11 @@ export function sellTreasureBankruptcy(g: GameEngine, treasureId: string): void 
     treasureId: t.id,
     amount: gain,
   }); // 时机·TreasureSold:破产变卖珍宝(两挂点之一,另一处在交割)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "treasure", id: t.id },
+    amount: gain,
+  }); // 事件流(#375):破产变卖(三变卖之一)
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖珍宝成功(三变卖命令之一)
 }
 
@@ -218,6 +263,11 @@ export function sellPropertyBankruptcy(g: GameEngine, propId: string): void {
     gain,
   );
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: gain }); // 时机·BankruptcySettle:变卖城池成功(三变卖命令之一)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "property", id: propId },
+    amount: gain,
+  }); // 事件流(#375):破产变卖(三变卖之一)
 }
 
 export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
@@ -241,6 +291,11 @@ export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
     200,
   );
   g.dispatchMoment("BankruptcySettle", { subject: g.activeIndex, amount: 200 }); // 时机·BankruptcySettle:遣散名将成功(三变卖命令之一)
+  emitGameEvent(g, g.activeIndex, {
+    kind: "assetLiquidated",
+    asset: { kind: "hero", id: heroId },
+    amount: 200,
+  }); // 事件流(#375):破产变卖(三变卖之一)
 }
 
 export function confirmBankruptcySettle(g: GameEngine): void {
@@ -251,8 +306,18 @@ export function confirmBankruptcySettle(g: GameEngine): void {
   if (g.treasureVisitor) g.treasureVisitor = null;
   if (p.cash >= debt.amount) {
     p.cash -= debt.amount;
-    if (debt.creditor) debt.creditor.cash += debt.amount;
+    if (debt.creditor) {
+      debt.creditor.cash += debt.amount;
+      g.dispatchMoment("CashGained", {
+        subject: g.players.indexOf(debt.creditor),
+        amount: debt.amount,
+      }); // 时机·CashGained:被动得银(清偿收款,债主;#455 A3+A5 收款派发下沉,deliverEscrow 不再补派)
+    }
     deliverEscrow(g); // 清算自救成功:托管珍宝交货给买家
+    // 时机·CashLost:被动失银(清算后清偿,#452 口径归一)——与现金直付同口径,按实付
+    // 现金额派发(曹丕渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
+    // 现金支出),不派发。
+    g.dispatchMoment("CashLost", { subject: g.activeIndex, amount: debt.amount });
     g.logEvent(
       "system",
       p.guohao,
@@ -261,7 +326,7 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     );
   } else {
     settleDebtTraced(g, p, debt.creditor, debt.amount);
-    finalizeBankruptcy(g, p);
+    finalizeBankruptcy(g, p, debt.creditor);
     returnEscrowToSeller(g); // 破产:未付款的托管珍宝退回卖家
     g.logEvent(
       "system",

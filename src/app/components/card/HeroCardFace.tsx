@@ -20,6 +20,7 @@
 // 经 --hface-base 覆写(手牌架随架体 em 基注入,见 hand-rack.css / layout.css)。
 import { useState, type HTMLAttributes } from "react";
 import { HEROES, type HeroDef } from "@core/heroes";
+import { extensionHeroFlagOf } from "@app/extensions/registry";
 import "./hero-card.css";
 
 /** 按名将 id 查目录(目录外 id = 数据 bug,抛错不兜底)。 */
@@ -62,12 +63,7 @@ function Lihui({ src, name }: { src: string; name: string }) {
   }
   return (
     <div className="lihui">
-      <img
-        src={src}
-        alt={`${name}画像`}
-        onError={() => setFailed(true)}
-        draggable={false}
-      />
+      <img src={src} alt={`${name}画像`} onError={() => setFailed(true)} draggable={false} />
     </div>
   );
 }
@@ -135,6 +131,7 @@ export function HeroCardFace({
   ...rest
 }: HeroCardFaceProps) {
   const def = heroDefOf(heroId);
+  const flag = extensionHeroFlagOf(heroId); // 扩展将旗(#378 渲染 hook):null = 无旗,卡面维持现状
   const classes = [
     "hface",
     size !== "detail" ? "compact" : "",
@@ -153,8 +150,19 @@ export function HeroCardFace({
         </span>
         <span className="m-title">{def.title}</span>
         <span className="m-name">{def.name}</span>
+        {flag && (
+          <img
+            className="x-flag"
+            data-testid={`hero-flag-${heroId}`}
+            src={flag.url}
+            alt={flag.alt ?? "将旗"}
+            draggable={false}
+          />
+        )}
       </div>
-      <div className="skz">{size === "detail" ? <SkillRows def={def} /> : <SkillChips def={def} />}</div>
+      <div className="skz">
+        {size === "detail" ? <SkillRows def={def} /> : <SkillChips def={def} />}
+      </div>
       {children}
     </div>
   );

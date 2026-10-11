@@ -3,7 +3,6 @@
   "entry": [
     "index.html",
     "scripts/cli.ts",
-    "scripts/replay-log.ts",
     "scripts/fetch-asset.ts",
     "scripts/make-chessboard-map.ts",
     "scripts/shot.mjs",

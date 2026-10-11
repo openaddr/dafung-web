@@ -18,8 +18,8 @@ import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap } from "@app/controllers/registry";
-import type { GameCommand} from "@core/authority";
-import type { MapData} from "@core/board-loader";
+import type { GameCommand } from "@core/authority";
+import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
@@ -233,11 +233,15 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
   // 命令=respondReaction(seat 显式携带)。与军师窗态互斥(AwaitingReaction 相位)。
   // 被询问判定公式单源 controllers/reaction.ts(#284);观战(-1)恒不被询问。
+  // 已应答退出窗态(#453/B2):本座已在 pendingReaction.answers 占座(用与不用都占座)
+  // 即不再复显横幅/金边/可打牌面——UI 消费权威应答账本,防残留与重复点击入口;引擎
+  // 对重复应答本就警告拒绝。answers 逐条公开(联机投影不裁,seat-projection.ts 注)。
   const reactionUp =
     snapshot.phase === "Playing" &&
     snapshot.turnPhase === "AwaitingReaction" &&
     snapshot.reaction != null &&
-    reactionQueriesSeat(snapshot.reaction, selfSeat);
+    reactionQueriesSeat(snapshot.reaction, selfSeat) &&
+    !snapshot.pendingReaction!.answers.some((a) => a.seat === selfSeat);
   // 窗实例号(#284):seq 变化即新窗(同 kind/userSeat/cardId 的连续窗不靠 key 区分了),
   // 横幅重挂=倒计时弧重起、静默代发重评估,与权威侧窗级 deadline 同享同一判据。
   const reactionSeq = snapshot.pendingReaction?.seq ?? null;
@@ -319,10 +323,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 玩家不知在等谁、也不知金圈是何物;轮到自己时也要明示「点哪」):
   // bot 定都中=「「X」正在定都(第 N/M 位)…」;轮到本地=「轮到你定都:点选一座候选城」。
   // 顺序号取 draft 座位序中尚未定都者,直观呈现还差几人。
+  // 未定判定用 <0(#423 项1):capitalIndex 初始 -1(core/player.ts),`== null` 恒假
+  // ——「余 X 人未定」曾是恒 0;与 TokenLayer 的 setupUnselected 同一口径。
   const setupHint = (() => {
     if (snapshot.phase !== "Setup" || snapshot.setupPhase !== "PickCapital") return null;
     const cur = snapshot.players[snapshot.currentSetupPlayerIndex];
-    const pending = snapshot.players.filter((p) => p.capitalIndex == null).length;
+    const pending = snapshot.players.filter((p) => p.capitalIndex < 0).length;
     const myTurn =
       snapshot.currentSetupPlayerIndex ===
       (useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0);
@@ -418,11 +424,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           onZoomOut={() => boardRef.current?.zoomBy(0.8)}
         />
         {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
-          排除的是稳定自局座位(selfSeat),非热座 viewSeat——后者随决策方轮转。
+          消费的是稳定自局座位(selfSeat):窥探放行与「自身不出卡」都要「人」而非决策
+          视角——热座 viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
           #256 目标段:候选席位卡金圈呼吸+点席位即出(targets 由快照 choices 派生)。 */}
         <SeatRail
           snapshot={snapshot}
-          viewSeat={selfSeat}
+          selfSeat={selfSeat}
           targets={
             junshiTargeting
               ? {
@@ -440,7 +447,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
           珍宝/名将徽章纯展示计数(#361),明细看牌架双入口;
           右段手牌架槽给 HandRack 让位(弹性宽) */}
-        <DashboardBar snapshot={snapshot} player={selfPlayer} controller={controller} autopilotOn={autopilotOn}>
+        <DashboardBar
+          snapshot={snapshot}
+          player={selfPlayer}
+          controller={controller}
+          autopilotOn={autopilotOn}
+        >
           {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
             热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:军师窗态载荷随快照
             派生(窗态下架即出牌面,常态点牌仍开详情);#361:架右端双入口开藏品弹层。 */}

@@ -110,10 +110,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
           }
           // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
           const jinnangPass = p.getByTestId("actionbar-pass");
-          if (
-            (await jinnangPass.isVisible().catch(() => false)) &&
-            (await tryClick(jinnangPass))
-          ) {
+          if ((await jinnangPass.isVisible().catch(() => false)) && (await tryClick(jinnangPass))) {
             actions++;
             break;
           }
@@ -237,7 +234,10 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
                 if ((await inline.count()) > 0) {
                   // 点击 10s 上限(与 actIfCan 同口径):系统性破坏下 actionability
                   // 重试会烧满测试超时,失败即按未行动处理,交还轮询预算
-                  await inline.first().click({ timeout: 10_000 }).catch(() => {});
+                  await inline
+                    .first()
+                    .click({ timeout: 10_000 })
+                    .catch(() => {});
                   break;
                 }
                 // 锦囊卷轴优先「今不用」(#122/T2),同上
@@ -250,7 +250,10 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
                   '[data-testid^="scroll-"]:not([data-testid*="jinnang"]) button:not([disabled])',
                 );
                 if ((await scrollPrimary.count()) > 0) {
-                  await scrollPrimary.first().click({ timeout: 10_000 }).catch(() => {});
+                  await scrollPrimary
+                    .first()
+                    .click({ timeout: 10_000 })
+                    .catch(() => {});
                   break;
                 }
               }
