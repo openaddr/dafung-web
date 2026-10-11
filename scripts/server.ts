@@ -14,6 +14,8 @@
 //   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
 //   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
 //                                            {type:"pickCapital",tileIndex}(L41 选都),
+//                                            上行一律以本连接座位名义(#454:cmd 校验
+//                                            提交者=决策归属,非归属 403 回执 error),
 //                                            收 snapshot(首连摘要/校准,#381 起按接收
 //                                            座位投影)/events(#390 唯一状态通路,#381 起
 //                                            逐座位过滤)/lobby(元数据)/dismissed
@@ -703,7 +705,10 @@ Bun.serve<WsSeat>({
         {
           cmd: (cmd) => {
             recordEvent(roomId, { ev: "cmd", seat, cmd: cmd.type });
-            return registry.applyCommand(roomId, cmd, () => broadcast(roomId));
+            // #454:cmd 面座位鉴权——连接只能以本连接座位(seat)提交命令,非决策
+            // 归属(非活跃玩家/非反应窗被询问者)403 拒绝并回执 error;校验在 room 层
+            // applyCommandFromSeat,与 pickCapital/autoPilot 座位校验同位同款。
+            return registry.applyCommandFromSeat(roomId, seat, cmd, () => broadcast(roomId));
           },
           pickCapital: (tileIndex) => {
             // L41 选都落子:只能以本连接座位名义(seat 即发送者);校验/落子/推进在 room 层
