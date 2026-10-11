@@ -8,7 +8,7 @@
 //      锦囊数量账在暗牌数组恒空(redacted 水合形态)下仍自洽。
 // 发送面接线(消息真实到达客户端)归 e2e/react-online-secrecy.spec.ts。
 import { describe, it, expect } from "bun:test";
-import { redactEvents, clientView } from "../scripts/seat-projection";
+import { redactEvents, clientView, redactSnapshotForSeat } from "../scripts/seat-projection";
 import { RoomRegistry } from "../scripts/room";
 import { MAP } from "../scripts/engine-helpers";
 import type { RoomPersistence } from "../scripts/room-persistence";
@@ -340,5 +340,55 @@ describe("过滤批 × 折叠器咬合(#381:事件到了就是「我能看的」
     expect(opened?.queriedSeats).toEqual([-1, -1]);
     expect(filtered.players[2].jinnangHandCount).toBe(god.players[2].jinnangHandCount);
     expect(filtered.jinnangDiscard).toEqual(god.jinnangDiscard);
+  });
+});
+
+// ──────────────────────────── ④ 快照投影 × 折叠咬合(#461)────────────────────────────
+describe("redactSnapshotForSeat · 快照路径查询集数量语义(#461)", () => {
+  /** 开窗态快照:三席 AOE 窗挂着(seat2 用横征暴敛,询问集 [0,1]),走真实折叠器置窗。 */
+  function snapshotAtOpenWindow() {
+    const e = makeEngine();
+    foldEventBatch(e, [
+      ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
+      ev(2, {
+        kind: "reactionOpened",
+        windowKind: "jinnang",
+        cardId: "横征暴敛",
+        queriedSeats: [0, 1],
+      }),
+    ]);
+    return e.snapshot();
+  }
+
+  it("被询问座位:投影保查询集数量([-1,1]),水合覆盖折叠态后首答不误闭窗", () => {
+    const mine = redactSnapshotForSeat(snapshotAtOpenWindow(), 1);
+    // 投影形状:身份匿名、数量保留(与 redactEvents 同一口径)——开窗拍校准全量快照
+    // 会无条件覆盖折叠态,查询集若被覆盖成长度 1,折叠器闭窗算术(answers 数 ≥ 查询数)
+    // 在首条应答即全员误闭窗(#461 根因:非应答端横幅提前消失)。
+    const view = mine.pendingReaction?.view;
+    expect(view?.kind).toBe("jinnang");
+    expect(view?.kind === "jinnang" && view.queriedBySeat).toEqual([-1, 1]);
+    // 公开派生载荷同口径(wire 双份同裁;客户端本地派生跟随挂起态)
+    const pub = mine.reaction;
+    expect(pub?.kind).toBe("jinnang");
+    expect(pub?.kind === "jinnang" && pub.queriedBySeat).toEqual([-1, 1]);
+    // 控制器可见面:自己仍判定被询问,他人身份不可见
+    expect(reactionQueriesSeat(mine.pendingReaction!.view, 1)).toBe(true);
+    expect(reactionQueriesSeat(mine.pendingReaction!.view, 0)).toBe(false);
+
+    // 咬合(校准拍真实次序=水合覆盖折叠态):首条应答后窗必须仍开着——修复前此处
+    // 挂长度 1 的查询集,host 应答批一到副本即误闭窗(非应答端横幅提前消失)。
+    const restored = makeEngine();
+    restored.restoreFromSnapshot(mine);
+    expect(restored.pendingReaction).not.toBeNull();
+    foldEventBatch(restored, [ev(0, { kind: "reactionAnswered", use: false })]);
+    expect(restored.pendingReaction).not.toBeNull();
+  });
+
+  it("非被询问座位:全匿数量保留([-1,-1]),判定不被询问", () => {
+    const other = redactSnapshotForSeat(snapshotAtOpenWindow(), 2);
+    const view = other.pendingReaction?.view;
+    expect(view?.kind === "jinnang" && view.queriedBySeat).toEqual([-1, -1]);
+    expect(reactionQueriesSeat(other.pendingReaction!.view, 2)).toBe(false);
   });
 });
