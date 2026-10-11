@@ -380,6 +380,8 @@ function applyGrantTreasureEffect(
   if (g.treasureDeck.length === 0) {
     mover.cash += 100; // 牌堆空 → 转 100 两(探宝的"搜刮一空"口径)
     g.pushFloater(mover, 100, atTile, "income");
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: 100, reason: "encounter" }); // 事件流(#375):折现(#455 A2 补缺口)
+    g.dispatchMoment("CashGained", { subject: seat, amount: 100 }); // 时机·CashGained:被动得银(授宝空堆折现,#455 A2 补派)
     g.logEvent(
       "system",
       mover.guohao,

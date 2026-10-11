@@ -7,6 +7,8 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
 import { testEngine } from "@core/testing";
+import { beginGameEventBatch } from "@core/game-events";
+import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
   normalizeEncounterBaseRates,
@@ -81,6 +83,20 @@ function peekDie(e: GameEngine): number {
   const probe = createDice(0);
   probe.setRngState(e.dice.getRngState());
   return probe.roll().die;
+}
+
+/** 包一层 dispatchMoment,记录派发的时机 + 完整 ctx(时机总线断言用,同 timing.test 口径)。 */
+function recordMomentCtx(e: GameEngine): { moment: GameMoment; ctx: MomentCtx }[] {
+  const entries: { moment: GameMoment; ctx: MomentCtx }[] = [];
+  const orig = e.dispatchMoment.bind(e);
+  (e as unknown as { dispatchMoment: (m: GameMoment, ctx: MomentCtx) => void }).dispatchMoment = (
+    m,
+    ctx,
+  ) => {
+    entries.push({ moment: m, ctx: { ...ctx } });
+    return orig(m, ctx);
+  };
+  return entries;
 }
 
 /** 挪位后掷骰,恰好落在 targetTile(路径不得途经都城)。 */
@@ -297,6 +313,44 @@ describe("机遇引擎行为", () => {
     });
     expect(full.heroes.length).toBe(3); // 不超容量
     expect(full.cash).toBe(cashBefore + 200); // 转银两补偿
+  });
+
+  it("授宝遇牌堆空 → 折现 100 两两件套(#455 A2):cashChanged 事件 + CashGained 时机缺一不可", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const te = testEngine(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    e.treasureDeck.length = 0; // 牌堆清空 → 「搜刮一空」折现路
+    const cash0 = mover.cash;
+    const entries = recordMomentCtx(e);
+    beginGameEventBatch(e);
+    const r = te.applyEncounter(mover, mover.position, {
+      id: "窖藏现世",
+      tier: "好运",
+      tags: ["珍宝"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "grantTreasure" },
+    });
+    expect(r).toBe("settled");
+    expect(mover.treasures).toHaveLength(0); // 无宝可得
+    expect(mover.cash).toBe(cash0 + 100); // 折现 100 两入账
+    // 事件半边:cashChanged(reason=encounter,delta=100)
+    const events = e.snapshot().events;
+    expect(
+      events.some(
+        (v) =>
+          v.kind === "cashChanged" &&
+          v.seat === seat &&
+          v.delta === 100 &&
+          v.reason === "encounter",
+      ),
+    ).toBe(true);
+    // 时机半边:CashGained(subject=折现者,amount=100)
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, amount: 100 },
+    ]);
   });
 
   it("结算路径:玩家转移上限=对方现金;levy 破产走 endTurn", () => {

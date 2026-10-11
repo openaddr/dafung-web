@@ -529,6 +529,7 @@ export function executeJinnang(
       const idx = Math.floor(g.dice.nextFloat() * victim.treasures.length);
       const treasure = victim.treasures.splice(idx, 1)[0];
       user.treasures.push(treasure);
+      g.dispatchMoment("TreasureGained", { subject: userSeat, treasureId: treasure.id }); // 时机·TreasureGained:窃玉偷香得宝(#455 A4 补派,subject=窃方)
       g.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
       emitGameEvent(g, userSeat, {
         kind: "treasureStolen",

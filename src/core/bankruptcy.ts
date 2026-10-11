@@ -18,8 +18,10 @@ import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
- *  交易成局(TradeSettled)/卖家收款(CashGained)四个时机都在此派发——无论直接付清还是
- *  清算变卖自救后付清,走到这里 = 交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。 */
+ *  交易成局(TradeSettled)三个时机在此派发——无论直接付清还是清算变卖自救后付清,走到这里 =
+ *  交割完成(此时卖家两路都已被付款);买家破产走退宝路径,不触发。
+ *  卖家收款 CashGained 不在此派(#455 A3+A5 收款派发下沉):挂在 payOrLiquidate 直付收款点
+ *  与 confirm 清偿收款点(creditor 视角),此处派会与通道派发双计。 */
 export function deliverEscrow(g: GameEngine): void {
   const e = g.escrowTreasure;
   if (!e) return;
@@ -45,7 +47,6 @@ export function deliverEscrow(g: GameEngine): void {
     sellerSeat: e.sellerIdx,
     amount: e.price,
   }); // 时机·TradeSettled:买家付清、交割完成(主体=城主/卖家)
-  if (e.price > 0) g.dispatchMoment("CashGained", { subject: e.sellerIdx, amount: e.price }); // 时机·CashGained:被动得银(交涉收款,卖家)
   emitGameEvent(g, e.sellerIdx, {
     kind: "treasureTraded",
     buyerSeat: e.buyerIdx,
@@ -80,7 +81,9 @@ export function returnEscrowToSeller(g: GameEngine): void {
   }
 }
 
-/** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。 */
+/** 付款或触发清算:现金够→扣款("ok");不够但有可变卖资产→AwaitingBankruptcySettle("liquidating");无资产→破产("bankrupt")。
+ *  玩家间收款统一通道(#455 A3+A5):直付到账点对债主派 CashGained(收款方视角,amount=实收);
+ *  creditor=null(归银行)无玩家收款,不派发。 */
 export function payOrLiquidate(
   g: GameEngine,
   mover: Player,
@@ -89,7 +92,13 @@ export function payOrLiquidate(
 ): "ok" | "liquidating" | "bankrupt" {
   if (mover.cash >= amount) {
     mover.cash -= amount;
-    if (creditor) creditor.cash += amount;
+    if (creditor) {
+      creditor.cash += amount;
+      g.dispatchMoment("CashGained", {
+        subject: g.players.indexOf(creditor),
+        amount,
+      }); // 时机·CashGained:被动得银(直付收款,债主)
+    }
     return "ok";
   }
   if (hasMarketableAssets(g, mover)) {
@@ -284,7 +293,13 @@ export function confirmBankruptcySettle(g: GameEngine): void {
   if (g.treasureVisitor) g.treasureVisitor = null;
   if (p.cash >= debt.amount) {
     p.cash -= debt.amount;
-    if (debt.creditor) debt.creditor.cash += debt.amount;
+    if (debt.creditor) {
+      debt.creditor.cash += debt.amount;
+      g.dispatchMoment("CashGained", {
+        subject: g.players.indexOf(debt.creditor),
+        amount: debt.amount,
+      }); // 时机·CashGained:被动得银(清偿收款,债主;#455 A3+A5 收款派发下沉,deliverEscrow 不再补派)
+    }
     deliverEscrow(g); // 清算自救成功:托管珍宝交货给买家
     // 时机·CashLost:被动失银(清算后清偿,#452 口径归一)——与现金直付同口径,按实付
     // 现金额派发(曹丕渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
