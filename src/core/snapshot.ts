@@ -685,13 +685,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           level: t.level,
           desc: t.desc,
         }));
-        // properties:从 catalog 补 purchasePrice/maxLevel(snapshot 只存 propertyId/level/group)
+        // properties:从 catalog 补 group/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {
           const def = e.catalog.get(h.propertyId);
           return {
             propertyId: h.propertyId,
             group: h.group ?? def?.group ?? "z",
-            purchasePrice: def?.purchasePrice ?? def?.buildCost ?? 0,
             level: h.level,
             maxLevel: def?.maxLevel ?? 3,
           };

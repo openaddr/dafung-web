@@ -73,7 +73,9 @@ export type GameMoment =
   | "PropertyLost"
   /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
   | "HeroRecruited"
-  /** 得宝后:拼点得宝 drawTreasureAt 成功 + escrow 交割买家得宝,两处。ctx.treasureId。subject = 得宝者。 */
+  /** 得宝后:四处——拼点得宝(treasure-flow drawTreasureAt)/机遇授宝(encounter-flow)/
+   *  escrow 交割买家得宝(bankruptcy deliverEscrow)/窃玉偷香得宝(jinnang-execution,#455 A4)。
+   *  ctx.treasureId。subject = 得宝者。 */
   | "TreasureGained"
   /** 售宝后:交涉成交(escrow 交割,卖家视角;买家破产退宝不触发)+ 破产变卖珍宝,两处。
    *  ctx.treasureId/ctx.amount = 售价。subject = 卖家。 */
@@ -93,7 +95,9 @@ export type GameMoment =
    *  subject = 使用者(窥方)。 */
   | "PeekApplied"
   // ── 玩家状态 ──
-  /** 被动得银:applyResupply 补给(驻跸/落都城)/随机事件得款(锦囊/天命/辅路)/交涉收款(卖家)。
+  /** 被动得银:applyResupply 补给(驻跸/落都城)/随机事件得款(锦囊/辅路;天命格 +20 声望
+   *  不走银)/机遇得款与折现/玩家间收款(#455 下沉后两通道:payOrLiquidate 直付到账、
+   *  confirmBankruptcySettle 清偿,均债主视角)。
    *  ctx.amount = 得银额。subject = 得银者。
    *  **防连锁**:仅经济结算点派发——效果层收益(grantSkillCash)不触发 CashGained,技能链不递归放大。 */
   | "CashGained"
