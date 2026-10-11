@@ -14,9 +14,9 @@ import { botAct } from "@core/bot";
 import { netWorth } from "@core/networth";
 import { ENCOUNTER_PRODUCT_DEFAULTS } from "@core/encounters";
 import { loadMap } from "@core/board-loader";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 /** 速战目标(经济 v2):终局快但胜负判定/终局行都走真路径。 */
 const TARGET = 15000;
 /** 单局步数上限打满仍未终局 → 断言失败,红出来。 */

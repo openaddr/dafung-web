@@ -6,12 +6,12 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { botAct, jinnangIntent } from "@core/bot";
 import { jinnangCardOf } from "@core/jinnang";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -124,7 +124,9 @@ describe("锦囊 bot 策略(#148)", () => {
   });
 
   it("异类标签连用:一次 botAct 把求贤令+横征暴敛连用完再收卷", () => {
-    const e = prepared();
+    // seed 1(#471 换源重钓):求贤令招到华佗(无资金型技能),横征暴敛账面干净;
+    // 默认 seed 42 会招曹丕,其「他人失金+50/施惠回补」技能干扰现金断言。
+    const e = prepared(1);
     const user = armJinnang(e, ["求贤令", "横征暴敛"]);
     e.players[1].cash = 300;
     botAct(e);

@@ -128,7 +128,7 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
   await waitForEngine(page);
-  // 自建图 = sanguo 副本:30 主路城,进入选都阶段
+  // 自建图 = 当前图副本(huanyou):45 格,进入选都阶段
   expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
   expect((await snap(page)).phase).toBe("Setup");
 });

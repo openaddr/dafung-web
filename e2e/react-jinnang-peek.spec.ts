@@ -12,17 +12,52 @@
 //   · 可见半场(绑定判别):冻结后引擎直写一枚窥探账 + 决策方=bot 的停泊态——
 //     决策视角(viewSeat=1)≠自我身份(selfSeat=0),此刻浮签放行窥见当且仅当
 //     过滤绑 selfSeat,判别力最强且无竞速。
-// 种子 7(react-jinnang-use 同款):人类先手,开局军师窗=稳定停靠点;军情密探目标门槛
-// =对方有珍宝,给 bot1 挂一件进目标段;bot1 手牌钉成火烧连营(开局无非都城城,火烧
-// 连营灰置不可出)——bot1 不会出牌,窥探观察窗不受干扰。
+// 种子离线核算(地图重钉 sanguo→huanyou,fix/sanguo-zhongyuan-layout;seed 63 × huanyou,
+// tmp 仿真脚本复算,react-jinnang-use 同源):人类先手(draftOrder=[0,1,3,2]),选都三候选
+// [函谷关(21),江陵(12),幽州(42)] 取 DOM 首格=12 江陵,起手求贤令(自身域恒可用)
+// → 开局军师窗=稳定停靠点保留(seed 7 在本图起手唯反应牌不开窗,故换 63)。军情密探目标
+// 门槛=对方有珍宝,给 bot1 挂一件进目标段;bot1 手牌钉成火烧连营(开局无非都城城,火烧
+// 连营灰置不可出)——bot1 不会出牌,窥探观察窗不受干扰。放行后的行程骰以 marchQueue 钉
+// 「一」落 13 下邳(12 江陵 +1,未购宝物城=落格抉择,actIfCan 可清)——自然骰不可信
+// (Bun 与浏览器 sort 比较器调用数不同),且骰六落卧龙岗弹招贤卷轴会拖长到期半场。
 import { test, expect } from "./fixtures";
-import { actIfCan, force, freezeClock, snap, startSolo } from "./react-helpers";
+import { actIfCan, force, freezeClock, snap, openSoloSetup, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import type { Page } from "@playwright/test";
+
+/** 开局收口(seed 63 × huanyou 离线核算,见文件头注):选图/起兵/定都(候选 DOM 首格
+ *  =12 江陵)后停稳在人类开局军师窗——引擎直写种植的稳定停靠点(内部自带 0.5 倍率;
+ *  react-helpers 的 startSolo 钉死 seed 7,本图种子下不开窗,故本 spec 自持开局链)。 */
+async function startPeekStop(page: Page): Promise<void> {
+  await useHalfScale(page);
+  await page.goto("/?seed=63");
+  await page.getByTestId("home-select-map").click();
+  await page.getByTestId("map-item-huanyou").click();
+  await page.getByTestId("map-confirm").click();
+  await openSoloSetup(page);
+  await page.getByTestId("start-game").click();
+  await page.locator(".bv-tile.bv-selectable").first().click();
+  await page.getByTestId("confirm-capital-ok").click();
+  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+}
+
+/** 行军骰队列(行程):接下来数次 rollAndMove 的行程骰依序取给定值,耗尽自还原
+ *  (react-reaction / react-jinnang-use 同款;patch 命中时不消耗种子 rng)。尾分号必备。 */
+const marchQueue = (...values: number[]) => `
+  (() => {
+    const o = e.dice.roll.bind(e.dice);
+    const q = [${values.join(", ")}];
+    e.dice.roll = () => {
+      const v = q.shift();
+      if (q.length === 0) e.dice.roll = o;
+      return { die: v ?? o().die };
+    };
+  })();`;
 
 test.describe("军情密探热座窥探(#453)", () => {
   test("窥探到期即收回;对手行动期间(决策方=bot)浮签放行窥见", async ({ page }) => {
-    await startSolo(page); // 停稳在开局军师窗(AwaitingJinnang,人类先手)
-    // 种植(jinnang-use 同款门槛):bot1 有珍宝=可被窥探;人类改持军情密探。
+    await startPeekStop(page); // 停稳在开局军师窗(AwaitingJinnang,人类先手)
+    // 种植(jinnang-use 同款门槛):bot1 有珍宝=可被窥探;人类改持军情密探;行程骰钉「一」。
     await force(
       page,
       `
@@ -31,6 +66,7 @@ test.describe("军情密探热座窥探(#453)", () => {
       e.players[1].jinnangHandCount = 1;
       e.players[0].jinnangHand = ["军情密探"];
       e.players[0].jinnangHandCount = 1;
+      ${marchQueue(1)}
     `,
     );
     // 出牌进目标段,点 bot1 席位即出(免二次确认;jinnang-use 同款交互链)

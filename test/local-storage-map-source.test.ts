@@ -4,7 +4,7 @@ import { describe, it, expect, beforeEach } from "bun:test";
 import { LocalStorageMapSource, type StorageLike } from "@app/map-sources";
 import { isCustomId } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 
 /** 内存 StorageLike mock(实现 getItem/setItem/removeItem)。 */
 function makeMemoryStorage(): StorageLike {
@@ -186,12 +186,12 @@ describe("LocalStorageMapSource(持久化与容错)", () => {
     expect(src.listMaps()).rejects.toThrow(/非数组/);
   });
 
-  it("存入完整 sanguo 数据能无损往返", async () => {
+  it("存入完整 huanyou 数据能无损往返", async () => {
     const storage = makeMemoryStorage();
     const src = new LocalStorageMapSource(storage);
-    const id = src.saveCustomMap("完整三国", sanguoData as MapData);
+    const id = src.saveCustomMap("完整三国", huanyouData as MapData);
     const loaded = await src.loadMapData(id);
-    expect(loaded.tiles.length).toBe((sanguoData as MapData).tiles.length);
-    expect(loaded.targetNetWorth).toBe((sanguoData as MapData).targetNetWorth);
+    expect(loaded.tiles.length).toBe((huanyouData as MapData).tiles.length);
+    expect(loaded.targetNetWorth).toBe((huanyouData as MapData).targetNetWorth);
   });
 });

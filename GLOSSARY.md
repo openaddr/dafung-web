@@ -39,7 +39,7 @@ _Avoid_: frontend(泛指渲染层)、app
 _Avoid_: 择图 / 沙盘 / 疆域(古风化命名已弃用,统一用直白表述)
 
 **内置地图(Built-in Map)**:
-随版本打包发布、位于 `public/maps/` 的地图 JSON。玩家不可修改。如 `sanguo.json`。
+随版本打包发布、位于 `public/maps/` 的地图 JSON。玩家不可修改。如 `huanyou.json`。
 _Avoid_: 官方地图、默认地图
 
 **环游图**:

@@ -4,12 +4,12 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { testEngine } from "@core/testing";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(sanguoData);
-const FATE_TILE = 14;
-const CHANCE_TILE = 33;
+const MAP = loadMap(huanyouData);
+const FATE_TILE = 31; // tile-fate-1 天命(huanyou 环位 P31)
+const CHANCE_TILE = 30; // tile-chance-1 锦囊(huanyou 环位 P30)
 
 function makeEngine(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
@@ -49,7 +49,7 @@ describe("声望字段贯通(#121)", () => {
     expect(e.players[seat].reputation).toBe(20);
   });
 
-  it("锦囊格退役:按普通格落空结算,声望不变", () => {
+  it("落锦囊格:抽牌不改声望,照常交回合", () => {
     const e = makeEngine();
     const te = testEngine(e);
     const seat = e.activeIndex;

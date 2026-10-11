@@ -9,10 +9,10 @@ import { HEROES } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import { testEngine } from "@core/testing";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {

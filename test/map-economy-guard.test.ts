@@ -1,11 +1,10 @@
-// 经济数值 v2 一致性守卫:四张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
+// 经济数值 v2 一致性守卫:三张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
 // buildCost/resupplyPerLevel 必须严格落在其价位档的标准值上(乘法城另表),
 // 珍宝指导价表/等级倍率/引擎默认值一并锁定——防手改地图数值漂移。
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
 import { isCityType } from "@core/board";
 import { TREASURE_PRICE, CITY_LEVEL_MULTIPLIER } from "@core/treasures";
-import sanguoData from "../public/maps/sanguo.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import chessboardData from "../public/maps/chessboard.json";
 import huanyouData from "../public/maps/huanyou.json";
@@ -41,8 +40,8 @@ TIERS.set(30, {
   valueByLevel: [12, 18, 26, 36].map(tierLiang),
 });
 
-/** sanguo 逐城价位档(档号=购价百两);zhongyuan/chessboard 各自映射到同一张表。 */
-const SANGUO_TIER: Record<string, number> = {
+/** 环游图逐城价位档(档号=购价百两);chessboard 与环游图同 id 同档,zhongyuan 各自映射到同一张表。 */
+const HUANYOU_TIER: Record<string, number> = {
   "prop-changan": 40,
   "prop-luoyang": 40,
   "prop-jianye": 40,
@@ -75,7 +74,7 @@ const SANGUO_TIER: Record<string, number> = {
   "prop-youzhou": 22,
   "prop-liaodong": 18,
   // 宝物城(ADR-0024 同权入册,档位钉死):咸阳/虎牢关/弘农=34(中原),函谷关=22(西凉),
-  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)——三图同 id 同档
+  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)——环游/chessboard 同 id 同档
   "prop-xianyang": 34,
   "prop-hulao": 34,
   "prop-hongnong": 34,
@@ -112,7 +111,7 @@ function checkMap(name: string, data: unknown, tierOf: Record<string, number>, c
     expect(m.startingCash).toBe(10000);
   });
   it(`${name}:逐城数值必须落在价位档标准值上`, () => {
-    // convertedTiles:有意的「城转特殊格」登记(#147 锦囊格改造:sanguo 子午谷),守卫只护「不意外漂移」
+    // convertedTiles:有意的「城转特殊格」登记,守卫只护「不意外漂移」
     expect(m.properties.length).toBe(Object.keys(tierOf).length - convertedTiles); // 无城遗漏/多城
     for (const p of m.properties) {
       const tier = tierOf[p.id];
@@ -145,11 +144,9 @@ function checkResupply(name: string, data: any) {
 }
 
 describe("经济数值 v2 守卫", () => {
-  checkMap("sanguo", sanguoData, SANGUO_TIER, 1); // #147:子午谷转锦囊格
-  checkMap("chessboard", chessboardData, SANGUO_TIER); // 从 sanguo 派生,同表
-  checkMap("huanyou", huanyouData, SANGUO_TIER); // #249:从 chessboard 派生(同 42 格,仅环序/坐标重排),同表
+  checkMap("chessboard", chessboardData, HUANYOU_TIER); // 与环游图同 id 同档(同源经济)
+  checkMap("huanyou", huanyouData, HUANYOU_TIER); // 核心维护图,#249 环序重排
   checkMap("zhongyuan", zhongyuanData, ZY_TIER);
-  checkResupply("sanguo", sanguoData);
   checkResupply("chessboard", chessboardData);
   checkResupply("huanyou", huanyouData);
   checkResupply("zhongyuan", zhongyuanData);

@@ -9,10 +9,10 @@ import type { TurnPhase } from "@core/authority";
 import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -105,8 +105,8 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   for (const p of e.players) {
     p.properties = p.properties.filter((h) => !pathProps.includes(h.propertyId));
   }
-  mover.position = 9;
-  mover.capitalIndex = 0; // 路径 9→10→11,都城挪出路径
+  mover.position = 15;
+  mover.capitalIndex = 0; // 路径 15→16→17(新野驿站→武昌→赤壁),都城挪出路径
   owner.capitalIndex = 3;
   if (opts.ownerBot) owner.isBot = true; // bot 城主:开窗即席代答(ADR-0017 §3)
   grantCity(e, ownerSeat, "prop-wuchang"); // 格 10 武昌,城主城
@@ -302,11 +302,11 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
       ownerSeat,
       windowMs: REACTION_WINDOW_MS.MarchPassedCity, // #284:开窗时长随 view 走
     });
-    expect(mover.position).toBe(9); // 挂起中未落位
+    expect(mover.position).toBe(15); // 挂起中未落位
     scriptDice(e, { rollDies: [5, 3] }); // 拼点:城主 5 > 行人 3
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
-    expect(mover.position).toBe(10); // 止步拦检城
+    expect(mover.position).toBe(16); // 止步拦检城
     expect(e.turnPhase).toBe("AwaitingTreasureOwner"); // 照常落格:城主有珍宝 → 交涉
     expect(e.jinnangDiscard).toContain("半路杀出");
     expect(e.players[ownerSeat].jinnangHand).toEqual([]);
@@ -319,7 +319,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     scriptDice(e, { rollDies: [4, 4] }); // 平局
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
-    expect(mover.position).toBe(11); // 落原点(赤壁)
+    expect(mover.position).toBe(17); // 落原点(赤壁)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 平局牌白耗
   });
@@ -331,7 +331,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     scriptDice(e, { rollDies: [2, 6] }); // 城主 2 < 行人 6
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
-    expect(mover.position).toBe(11); // 落原点(赤壁)
+    expect(mover.position).toBe(17); // 落原点(赤壁)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 落败牌白耗
   });
@@ -340,7 +340,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     const a = marchUp({ ownerCards: ["半路杀出"] });
     a.e.rollAndMove();
     a.e.respondReaction(a.ownerSeat, false);
-    expect(a.mover.position).toBe(11);
+    expect(a.mover.position).toBe(17);
     expect(a.e.jinnangDiscard).not.toContain("半路杀出"); // 不用不耗牌
     expect(a.e.turnPhase).toBe("AwaitingDecision");
 
@@ -348,19 +348,19 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     b.e.rollAndMove();
     expect(b.e.turnPhase).not.toBe("AwaitingReaction");
     expect(b.e.pendingReaction).toBeNull();
-    expect(b.mover.position).toBe(11);
+    expect(b.mover.position).toBe(17);
   });
 
   it("拦停成功即止:同程多座己城,拦停后后续城不再问(窗只开一次)", () => {
     const { e, mover, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
-    grantCity(e, ownerSeat, "prop-chibi"); // 格 11(落点)也是城主城
+    grantCity(e, ownerSeat, "prop-chibi"); // 格 17(落点)也是城主城
     e.rollAndMove();
     expect(e.turnPhase).toBe("AwaitingReaction");
     scriptDice(e, { rollDies: [5, 3] });
     e.respondReaction(ownerSeat, true, "半路杀出");
-    expect(mover.position).toBe(10); // 止步第一座拦检城
+    expect(mover.position).toBe(16); // 止步第一座拦检城
     expect(e.log.filter((l) => l.detail.includes("reactionWindow")).length).toBe(1);
-    // 止步落格结算:格 10 城主无珍宝 → 无事发生收尾
+    // 止步落格结算:格 16 城主无珍宝 → 无事发生收尾
     expect(e.turnPhase).toBe("Roll");
   });
 });
@@ -416,7 +416,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     scriptDice(a.e, { die: 2, rollDies: [5, 3] });
     a.e.rollAndMove();
     expect(a.e.turnPhase).not.toBe("AwaitingReaction"); // bot 即席应答+结算
-    expect(a.mover.position).toBe(10); // 拦停成功
+    expect(a.mover.position).toBe(16); // 拦停成功
     expect(a.owner.jinnangHand).toEqual([]);
 
     // 行人现金非第一 → 不拦,窗不开(即席不用),照常落原点
@@ -424,7 +424,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     b.e.players[b.ownerSeat].cash = 99999; // 城主更富,行人非第一
     b.e.rollAndMove();
     expect(b.e.turnPhase).not.toBe("AwaitingReaction");
-    expect(b.mover.position).toBe(11);
+    expect(b.mover.position).toBe(17);
     expect(b.owner.jinnangHand).toEqual(["半路杀出"]); // 牌未耗
   });
 });

@@ -19,7 +19,7 @@ import type { LoadedMap } from "../src/core/board-loader";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const testMapProvider = (_id: string): LoadedMap => MAP;
-const VALID_MAP_IDS = new Set(["sanguo"]);
+const VALID_MAP_IDS = new Set(["huanyou"]);
 
 /** 手动时钟(测试注入):定时全部挂表,fireAll 手动推进。 */
 class ManualClock implements RoomClock {
@@ -76,7 +76,7 @@ async function playingRoom(reg: RoomRegistry): Promise<string> {
   });
   const roomId = created.room.roomId;
   reg.joinSeat(roomId);
-  reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++) {
@@ -231,7 +231,7 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
       hostConfig: { seed: 42 },
     });
     const roomId = created.room.roomId;
-    reg1.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+    reg1.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
     await reg1.startGame(roomId, created.token, undefined, testMapProvider);
     const e1 = () => reg1.get(roomId)!.engine!;
     // host 选都 → 服务器驱动余下 bot 座位接棒,直到停下(必有非空事件批)

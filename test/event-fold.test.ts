@@ -13,15 +13,15 @@ import { HEROES } from "@core/heroes";
 import { TREASURES } from "@core/treasures";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
-// sanguo 地图锚点:长安=tile 0(购价 4000)、洛阳=tile 3。
+// huanyou 地图锚点:长安=tile 0(购价 4000)、洛阳=tile 22。
 const CHANGAN = 0;
-const LUOYANG = 3;
+const LUOYANG = 22;
 
 function makeEngine(): GameEngine {
   const seats: SeatConfig[] = [
@@ -811,7 +811,7 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
 });
 
 describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
-  // sanguo 咸阳 = tile 1(宝物城;并权后带 propertyId,走城池三分折叠路径)。
+  // huanyou 咸阳 = tile 1(宝物城;并权后带 propertyId,走城池三分折叠路径)。
   const XIANGLAND = 1;
 
   it("无主宝物城:足额 → AwaitingDecision + pendingLand(与普通城同路径)", () => {

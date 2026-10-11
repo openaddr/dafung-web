@@ -9,9 +9,17 @@
 // 本 spec 只留交互接线,断言全走可见 UI 态(选中/禁用/印条/窗收/牌离架)。
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
 // 多标签牌(缓兵之计)双章、名将技卡(主动技,#360 起 HeroCardFace 紧凑档)、作罢路径、出牌墨线端点对准。
-// 种子 7 离线核算(真实引擎流程离线核算:含 doDraftRoll 骰流):人类先手、起手火烧连营
-// (开局军师窗=稳定停靠点)。不走 pickCapital 共享助手(其收尾会自动「不出」),本 spec
-// 自行点城+确认以保留窗态。灰置/技卡局面走 force 引擎直写(#237 无天然种子同时凑齐)。
+// 种子离线核算(地图重钉 sanguo→huanyou,fix/sanguo-zhongyuan-layout;seed 63 × huanyou,
+// tmp 仿真脚本复算:含 doDraftRoll 骰流):人类先手(draftOrder=[0,1,3,2]),选都三候选
+// [函谷关(21),江陵(12),幽州(42)] 取 DOM 首格=12 江陵(bot 都:豫=5 江州、陇=17 赤壁、
+// 荆=4 成都),起手求贤令(自身域恒可用)→ **开局军师窗=稳定停靠点保留**(sanguo seed 7
+// 的「起手火烧连营开窗」在本图种子下不存在,seed 7 起手唯反应牌不开窗)。不走 pickCapital
+// 共享助手(其收尾会自动「不出」),本 spec 自行点城+确认以保留窗态。灰置/技卡局面走 force
+// 引擎直写(#237 无天然种子同时凑齐)。
+// 自然骰钉死(棒 2 口径:Bun 与浏览器 sort 比较器调用数不同,自然骰不可信):识破例放行后
+// 人类自动行军以 marchSteps 钉「一」落 13 下邳=plantDemolishableCity 的自家种植城(无落格
+// 抉择,直通 bot 链)——不钉则骰六落 18 卧龙岗弹招贤卷轴,skipUntilNextSeat 只认
+// action-*/actionbar-pass,会空转到超时。
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
 // 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 import { test, expect } from "./fixtures";
@@ -31,15 +39,30 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
   await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-sanguo").click();
+  await page.getByTestId("map-item-huanyou").click();
   await page.getByTestId("map-confirm").click();
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId("confirm-capital-ok").click();
-  // 军师窗态:动作条(卡牌段)就位 = 停稳在开局窗态
+  // 军师窗态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手求贤令恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
+
+/** 行军骰队列(行程):接下来数次 rollAndMove 的行程骰依序取给定值,耗尽自还原
+ *  (react-reaction.spec.ts 同款,局部确定性;patch 命中时不消耗种子 rng,还原后种子流
+ *  无缝续走)。与拼点 rollDie 队列分属两个注入口互不串队——本 spec 只用行程队列。
+ *  尾分号必备:单独作为 fn 传 force 时,表达式语句必须自终止,否则吃掉后续 sync()。 */
+const marchQueue = (...values: number[]) => `
+  (() => {
+    const o = e.dice.roll.bind(e.dice);
+    const q = [${values.join(", ")}];
+    e.dice.roll = () => {
+      const v = q.shift();
+      if (q.length === 0) e.dice.roll = o;
+      return { die: v ?? o().die };
+    };
+  })();`;
 
 /** 给 bot 1 挪一座 1 级非都城(原 jinnang-play-line.spec.ts 随迁,#305):火烧连营的
  *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
@@ -68,15 +91,18 @@ async function plantBotCity(page: Page): Promise<void> {
 }
 
 test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", () => {
-  test("seed7 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
-    await startJunshi(page, 7);
-    // 种植:人类改持识破诡计 + 一座可失之城;bot 全持火烧连营(首个行动 bot 回合开始即出)
+  test("seed63 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
+    await startJunshi(page, 63);
+    // 种植:人类改持识破诡计 + 一座可失之城(都城 12 江陵 +1=13 下邳,0 级);bot 全持
+    // 火烧连营(首个行动 bot 回合开始即出,城最多者=人类);行程骰钉「一」:放行后自动
+    // 行军落自家种植城,无落格抉择直通 bot 链(不钉则骰六落卧龙岗,招贤卷轴无人能清)。
     await plantDemolishableCity(page);
     await force(
       page,
       `
       e.players[0].jinnangHand = ["识破诡计"];
       for (let i = 1; i < e.players.length; i++) e.players[i].jinnangHand = ["火烧连营"];
+      ${marchQueue(1)}
     `,
     );
     await page.getByTestId(TESTIDS.actionbarPass).click();
@@ -104,10 +130,18 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveCount(0);
   });
 
-  test("seed7 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
-    await startJunshi(page, 7);
-    // 直写钉牌(UI 选都路径的发牌与离线演算路径可能差一位骰流,钉牌免漂移)
-    await force(page, `e.players[0].jinnangHand = ["火烧连营"];`);
+  test("seed63 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
+    await startJunshi(page, 63);
+    // 直写钉牌(开局起手是求贤令,与本例无关——钉火烧连营验「任意手牌放行后留架」);
+    // 行程骰钉「一」:放行后自动行军落 13 下邳(12 江陵 +1,未购宝物城=落格抉择停靠),
+    // 断言全程不赌自然骰。(#188 自动起摇由通行链路全程走通——waitMyRollDone 家族全依赖它)
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["火烧连营"];
+      ${marchQueue(1)}
+    `,
+    );
     // 「不出」:窗收(卡牌段离场),架常驻、牌仍在(不消耗;手牌记账归引擎层,
     // 放行后自动起摇由 #188 通行链路全程走通——waitMyRollDone 家族全依赖它)
     await page.getByTestId(TESTIDS.actionbarPass).click();
@@ -116,7 +150,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
   });
 
   test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
-    await startJunshi(page, 7);
+    await startJunshi(page, 63);
     await force(page, `e.players[0].jinnangHand = ["求贤令"];`);
     const opt = page.getByTestId(TESTIDS.jinnangCard("求贤令"));
     await expect(opt).toBeVisible();
@@ -129,7 +163,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
   });
 
   test("军情密探:出牌进目标段,候选席位金圈呼吸,点席位即出(免二次确认)", async ({ page }) => {
-    await startJunshi(page, 7);
+    await startJunshi(page, 63);
     // 先停稳在开局军师窗态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
     await force(
@@ -155,7 +189,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
   });
 
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
-    await startJunshi(page, 7);
+    await startJunshi(page, 63);
     await force(
       page,
       `
@@ -176,7 +210,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
   });
 
   test("灰置牌印条/多标签双章/技卡:双标签占额灰置、技卡选中→出牌发技转灰置", async ({ page }) => {
-    await startJunshi(page, 7);
+    await startJunshi(page, 63);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
     // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 技卡可用可发;
     // 求贤令(援,标签未占)= 可用对照组。
@@ -227,8 +261,9 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
 // jinnangPlayed 表现事件);反应窗出牌(识破/拦停)的联机端同款线归 react-reaction-online。
 test.describe("出牌指示线(#281 P2-E)", () => {
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
-    await startJunshi(page, 7);
-    // 种植:人类持火烧连营 + bot 1 有一座可拆城;清他座反应牌(不开反应窗,线在宣告点即出)
+    await startJunshi(page, 63);
+    // 种植:人类持火烧连营 + bot 1 有一座可拆城(都城 12 江陵 +1=13 下邳,挪入 level 1);
+    // 清他座反应牌(不开反应窗,线在宣告点即出)
     await plantBotCity(page);
     await force(
       page,

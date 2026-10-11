@@ -10,7 +10,7 @@ import {
   type CatalogFileEntry,
 } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 
 /** 内存 MapSource(单测用):不依赖 fetch/localStorage。 */
@@ -27,10 +27,10 @@ function makeMemorySource(entries: MapEntry[], data: Record<string, MapData>): M
 describe("loadMapById(统一加载入口)", () => {
   it("按 id 从源加载并构建 LoadedMap", async () => {
     const src = makeMemorySource(
-      [{ id: "sanguo", name: "群雄逐鹿", desc: "", tileCount: 30, targetNetWorth: 8000 }],
-      { sanguo: sanguoData as MapData },
+      [{ id: "huanyou", name: "环游图", desc: "", tileCount: 38, targetNetWorth: 8000 }],
+      { huanyou: huanyouData as MapData },
     );
-    const m = await loadMapById(src, "sanguo");
+    const m = await loadMapById(src, "huanyou");
     expect(m.tiles.length).toBeGreaterThanOrEqual(30);
     expect(m.targetNetWorth).toBe(30000); // 经济 v2
   });
@@ -38,15 +38,15 @@ describe("loadMapById(统一加载入口)", () => {
   it("不同 id 加载到不同地图", async () => {
     const src = makeMemorySource(
       [
-        { id: "sanguo", name: "群雄逐鹿", desc: "", tileCount: 30, targetNetWorth: 8000 },
+        { id: "huanyou", name: "环游图", desc: "", tileCount: 38, targetNetWorth: 8000 },
         { id: "zhongyuan", name: "中原争霸", desc: "", tileCount: 8, targetNetWorth: 5000 },
       ],
       {
-        sanguo: sanguoData as MapData,
+        huanyou: huanyouData as MapData,
         zhongyuan: zhongyuanData as MapData,
       },
     );
-    const [a, b] = await Promise.all([loadMapById(src, "sanguo"), loadMapById(src, "zhongyuan")]);
+    const [a, b] = await Promise.all([loadMapById(src, "huanyou"), loadMapById(src, "zhongyuan")]);
     expect(a.tiles.length).not.toBe(b.tiles.length);
     expect(a.properties.length).not.toBe(b.properties.length); // 经济 v2:全局目标统一,以城数区分
   });
@@ -90,9 +90,9 @@ describe("parseCatalog(清单解析)", () => {
   it("合法清单解析成功", () => {
     const catalog: CatalogFileEntry[] = [
       {
-        id: "sanguo",
-        name: "群雄逐鹿",
-        file: "sanguo.json",
+        id: "huanyou",
+        name: "环游图",
+        file: "huanyou.json",
         desc: "...",
         tileCount: 30,
         targetNetWorth: 8000,
@@ -149,23 +149,23 @@ describe("parseCatalog(清单解析)", () => {
 describe("entryFromFile / isCustomId", () => {
   it("entryFromFile 去掉 file 字段", () => {
     const e: CatalogFileEntry = {
-      id: "sanguo",
-      name: "群雄逐鹿",
-      file: "sanguo.json",
+      id: "huanyou",
+      name: "环游图",
+      file: "huanyou.json",
       desc: "...",
       tileCount: 30,
       targetNetWorth: 8000,
     };
     const m = entryFromFile(e);
-    expect(m.id).toBe("sanguo");
-    expect(m.name).toBe("群雄逐鹿");
+    expect(m.id).toBe("huanyou");
+    expect(m.name).toBe("环游图");
     expect((m as unknown as Record<string, unknown>).file).toBeUndefined();
     expect(m.custom).toBeUndefined(); // 内置图无 custom 标记
   });
 
   it("isCustomId 识别 custom- 前缀", () => {
     expect(isCustomId("custom-123")).toBe(true);
-    expect(isCustomId("sanguo")).toBe(false);
+    expect(isCustomId("huanyou")).toBe(false);
     expect(isCustomId(CUSTOM_ID_PREFIX)).toBe(true); // 仅前缀也算(边界)
   });
 });

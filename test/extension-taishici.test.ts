@@ -19,12 +19,12 @@ import {
   registerExtensionClientPackage,
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },

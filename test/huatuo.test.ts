@@ -8,7 +8,7 @@ import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { EFFECTS } from "@core/effects";
 import { testEngine } from "@core/testing";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
@@ -19,7 +19,7 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
   return e;
 }
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {

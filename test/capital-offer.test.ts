@@ -4,14 +4,14 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import { loadMap } from "@core/board-loader";
 
-const SANGUO = loadMap(sanguoData);
+const HUANYOU = loadMap(huanyouData);
 const ZHONGYUAN = loadMap(zhongyuanData);
 
-function makeEngine(seed: number, seats: SeatConfig[], map = SANGUO): GameEngine {
+function makeEngine(seed: number, seats: SeatConfig[], map = HUANYOU): GameEngine {
   const cfg: EngineConfig = { seats, targetNetWorth: 30000 };
   return new GameEngine(map.board, map.catalog, createDice(seed), cfg);
 }
@@ -137,7 +137,7 @@ describe("选都三选一:快照与极端地图", () => {
     expect(b.snapshot()).toEqual(snap);
   });
 
-  it("8 人局(sanguo 31 城)候选不耗尽,全员有都城", () => {
+  it("8 人局(huanyou 38 城)候选不耗尽,全员有都城", () => {
     const e = makeEngine(
       11,
       Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })),

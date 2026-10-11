@@ -4,7 +4,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import {
   JINNANG_CARDS,
@@ -14,7 +14,7 @@ import {
   jinnangCardOf,
 } from "@core/jinnang";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]) {
   const cfg: EngineConfig = {
@@ -357,11 +357,11 @@ import { testEngine } from "@core/testing";
 import { ENCOUNTERS } from "@core/encounters";
 
 describe("锦囊渠道(T5)", () => {
-  it("落锦囊格必抽一张(index 23 与 33 两格)", () => {
+  it("落锦囊格必抽一张(index 30 锦囊格)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     const handBefore = e.players[0].jinnangHand.length;
-    testEngine(e).landActiveAt(23); // 子午谷改建的锦囊格(#473 后 sanguo 环位)
+    testEngine(e).landActiveAt(30); // tile-chance-1 锦囊格(huanyou 环位 P30)
     expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
     expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
   });

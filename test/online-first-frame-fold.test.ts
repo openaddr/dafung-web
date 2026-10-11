@@ -13,11 +13,11 @@ import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import type { GameSnapshot } from "@core/snapshot";
 import type { GameEvent } from "@core/game-events";
 import { OnlineController } from "@app/controllers/online";
-import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
+import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 
-const SANGUO: { map: LoadedMap; data: MapData } = {
-  map: loadMap(sanguoData),
-  data: sanguoData as unknown as MapData,
+const HUANYOU: { map: LoadedMap; data: MapData } = {
+  map: loadMap(huanyouData),
+  data: huanyouData as unknown as MapData,
 };
 
 /** 私有面访问缝(测试专用;onMessage/enteredGame 均 @app 内聚私有)。 */
@@ -44,15 +44,15 @@ function firstBatchCapitalSelected(): GameEvent[] {
 
 /** 三座房校准快照(复刻 startGame+driveBots:座位 2 自动 bot 先选,与服务器同构)。
  *  返回消息与 bot 定都格——落格随种子走,期望值从引擎快照派生,不硬编码地图知识。 */
-function sanguoRoomSnapshot(): { msg: Record<string, unknown>; botCapitalIndex: number } {
-  const engine = new GameEngine(SANGUO.map.board, SANGUO.map.catalog, createDice(430), {
+function huanyouRoomSnapshot(): { msg: Record<string, unknown>; botCapitalIndex: number } {
+  const engine = new GameEngine(HUANYOU.map.board, HUANYOU.map.catalog, createDice(430), {
     seats: [
       { name: "座 1", isBot: false },
       { name: "座 2", isBot: false },
       { name: "座 3", isBot: true },
     ],
     seed: 430,
-    mapId: "sanguo",
+    mapId: "huanyou",
   });
   engine.doDraftRoll();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
@@ -66,7 +66,7 @@ function sanguoRoomSnapshot(): { msg: Record<string, unknown>; botCapitalIndex: 
       seatCount: 3,
       host: 0,
       started: true,
-      mapId: "sanguo",
+      mapId: "huanyou",
       seats: [],
       ...snap,
     },
@@ -76,7 +76,7 @@ function sanguoRoomSnapshot(): { msg: Record<string, unknown>; botCapitalIndex: 
 
 describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
   it("水合前的 events 批不折叠进占位壳:状态由随后的校准快照承载,全程无抛", () => {
-    const c = new OnlineController(SANGUO.map, "sanguo"); // 占位壳:2 座(缺省),同图隔离座位变量
+    const c = new OnlineController(HUANYOU.map, "huanyou"); // 占位壳:2 座(缺省),同图隔离座位变量
     const x = c as unknown as TestAccess;
     expect(x.enteredGame).toBe(false);
 
@@ -89,7 +89,7 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
     expect(c.engine.players[2]).toBeUndefined(); // 壳还是壳:座位没被事件越界造出
 
     // 同 flush 的校准快照紧随:水合即状态(3 座 + bot 已定都)
-    const { msg, botCapitalIndex } = sanguoRoomSnapshot();
+    const { msg, botCapitalIndex } = huanyouRoomSnapshot();
     x.onMessage(msg);
     expect(x.enteredGame).toBe(true);
     expect(c.engine.players).toHaveLength(3);
@@ -97,9 +97,9 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
   });
 
   it("水合后的 events 批照常折叠(门只开在水合前)", () => {
-    const c = new OnlineController(SANGUO.map, "sanguo");
+    const c = new OnlineController(HUANYOU.map, "huanyou");
     const x = c as unknown as TestAccess;
-    x.onMessage(sanguoRoomSnapshot().msg); // 先水合(3 座)
+    x.onMessage(huanyouRoomSnapshot().msg); // 先水合(3 座)
     expect(x.enteredGame).toBe(true);
     // 第二位真人落子:正常批照折(cash 不折、入册照常)
     expect(() =>

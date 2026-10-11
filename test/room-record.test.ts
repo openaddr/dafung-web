@@ -33,7 +33,7 @@ class InMemoryPersistence implements RoomPersistence {
 }
 
 const mapProvider = (_id: string): LoadedMap => MAP;
-const VALID_MAP_IDS = new Set(["sanguo"]);
+const VALID_MAP_IDS = new Set(["huanyou"]);
 
 /** 造一条带快照的真实落盘记录(双人房,host 选都完毕进 Playing 后取持久化投影)。
  *  进程内缓存:三个用例共用同一条记录,开局只走一次。 */
@@ -52,7 +52,7 @@ async function recordWithSnapshot(): Promise<RoomRecord> {
     hostConfig: { seed: 42 },
   });
   const roomId = created.room.roomId;
-  reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, mapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++) {

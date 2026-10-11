@@ -13,9 +13,9 @@ import { testEngine } from "@core/testing";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]) {
   const cfg: EngineConfig = {
@@ -203,7 +203,7 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     const fate = MAP.board.tiles.find((tile) => tile.type === "Fate");
-    expect(fate).toBeDefined(); // sanguo 设天命格(数据不变量)
+    expect(fate).toBeDefined(); // huanyou 设天命格(数据不变量)
     beginGameEventBatch(e);
     t.landActiveAt(fate!.index);
     const events = e.snapshot().events;
@@ -261,7 +261,8 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
 
 describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat", () => {
   it("跳过回合:标记回合不产 skip 事件;下回合到点消费产出 [turnEnded, turnSkipped, turnStarted]", () => {
-    const e = makeEngine(1);
+    // seed 2(#471 换源重钓):都城非宝物城,回合收尾不带链尾探宝事件干扰断言
+    const e = makeEngine(2);
     finishSetup(e);
     const t = testEngine(e);
     const skipped = e.activePlayer;

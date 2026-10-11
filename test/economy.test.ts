@@ -1,9 +1,9 @@
 import { describe, it, expect } from "bun:test";
 import { buy, upgrade, settleDebt, sellValueOf } from "@core/economy";
 import { createPlayer } from "@core/player";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
-const catalog = loadMap(sanguoData).catalog;
+const catalog = loadMap(huanyouData).catalog;
 
 const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),等级价值 [1600,2400,3400,4800]
 

@@ -310,7 +310,7 @@ export async function startSolo(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=7");
   await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-sanguo").click();
+  await page.getByTestId("map-item-huanyou").click();
   await page.getByTestId("map-confirm").click();
   await openSoloSetup(page);
   await page.getByTestId("start-game").click();
