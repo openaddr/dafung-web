@@ -26,7 +26,6 @@ describe("地产交易", () => {
     expect(p.cash).toBe(6000);
     expect(p.properties).toHaveLength(1);
     expect(p.properties[0].level).toBe(0);
-    expect(p.properties[0].purchasePrice).toBe(4000);
   });
 
   it("现金不足拒绝购买", () => {

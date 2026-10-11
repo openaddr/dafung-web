@@ -9,7 +9,11 @@ import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
 import type { AiDifficulty } from "../src/core/authority";
-import { parseEncounterFile, type EncounterConfig } from "../src/core/encounters";
+import {
+  ENCOUNTER_PRODUCT_DEFAULTS,
+  parseEncounterFile,
+  type EncounterConfig,
+} from "../src/core/encounters";
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { reactionQueriedSeats } from "./bot-driver";
 import { fingerprint } from "./seat-projection";
@@ -109,7 +113,10 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   const mapId = flags.map ?? builtinMapCatalog()[0].id;
   const map = loadBuiltinMapById(mapId);
   const difficulty = flags.difficulty !== undefined ? parseDifficulty(flags.difficulty) : undefined;
-  const encounter = flags.encounter !== undefined ? loadEncounterCfg(flags.encounter) : undefined;
+  // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认档(ENCOUNTER_PRODUCT_DEFAULTS,
+  // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 triggerRate=0 恒关,CLI 对局要与
+  // 产品同源可触发机遇。
+  const encounter = flags.encounter !== undefined ? loadEncounterCfg(flags.encounter) : ENCOUNTER_PRODUCT_DEFAULTS;
 
   const seats: SeatConfig[] = [];
   for (let i = 0; i < seatsNum; i++) {
@@ -119,8 +126,8 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
       // guohao 留空,doDraftRoll 会从字池分配(对 bot 必要,对人类也省事)
     });
   }
-  // config 即落盘构造参数(mapId 为重放要素必带,ADR-0014;encounter/reactionWindowMs
-  // 有则存,缺省语义 = 机遇关 / 反应窗查 core 常量表,与 EngineConfig 对齐)
+  // config 即落盘构造参数(mapId 为重放要素必带,ADR-0014;encounter 恒存(缺省=产品
+  // 默认档)/reactionWindowMs 有则存,反应窗缺省查 core 常量表,与 EngineConfig 对齐)
   const config: GameConfig = {
     seats,
     targetNetWorth: target,
@@ -128,7 +135,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
     ...(startingCash !== undefined && { startingCash }),
     ...(difficulty !== undefined && { difficulty }),
     mapId,
-    ...(encounter !== undefined && { encounter }),
+    encounter,
     ...(reactionWindowMs !== undefined && { reactionWindowMs }),
   };
   const engine = createEngine(config, true, map);
@@ -213,7 +220,7 @@ function main(): void {
           {
             commands: {
               "new [--seats N] [--bot 0,1] [--seed S] [--target T]":
-                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --difficulty Simple|Normal / --starting-cash N / --encounter jiyu|<路径>(缺省=机遇关)/ --reaction-window-ms N",
+                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --difficulty Simple|Normal / --starting-cash N / --encounter jiyu|<路径>(缺省=产品默认档)/ --reaction-window-ms N",
               "auto-setup": "自动跑选都到 Playing",
               auto: "连续驱动 bot 决策,直到轮到人类(stoppedBy=human)/终局(over)/无进展(idle)",
               "run-to-end": "全 bot 局一键跑完到终局(任一座位非 bot 即抛错)",

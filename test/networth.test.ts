@@ -48,7 +48,6 @@ describe("身价计算", () => {
     p.properties.push({
       propertyId: changan.id,
       group: changan.group,
-      purchasePrice: changan.buildCost,
       level: 1,
       maxLevel: changan.maxLevel,
     });

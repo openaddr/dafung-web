@@ -60,7 +60,6 @@ function grantHolding(e: GameEngine, seat: number, propertyId: string, level: nu
   e.players[seat].properties.push({
     propertyId: def.id,
     group: def.group,
-    purchasePrice: def.purchasePrice,
     level,
     maxLevel: def.maxLevel,
   });
@@ -345,7 +344,6 @@ describe("折叠投影器 · 城池族", () => {
       {
         propertyId: "prop-changan",
         group: "a",
-        purchasePrice: 4000,
         level: 0,
         maxLevel: 3,
       },

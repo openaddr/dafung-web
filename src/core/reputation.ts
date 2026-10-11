@@ -13,11 +13,14 @@ import { drawJinnangTraced } from "./jinnang-execution";
 
 /** 声望增减(#121):机遇抉择/天命格的唯一写入口,clamp ±100。
  *  声望献计(#147):首次向上穿越 +30/+60/+90 各献锦囊一张(只在本入口挂钩,
- *  不看来源——把机遇抉择玩好就有实物兑现)。 */
+ *  不看来源——把机遇抉择玩好就有实物兑现)。
+ *  时机·ReputationChanged(#456):唯一写口单点广播(夹紧提交后派发,天命格/机遇 repDelta
+ *  两路天然全覆盖);事件流 reputationChanged 的 before/after 差值模式在各调用点,并存不冲突。 */
 export function addReputation(g: GameEngine, seat: number, delta: number): void {
   const p = g.players[seat];
   const before = p.reputation;
   p.reputation = Math.max(-100, Math.min(100, p.reputation + delta));
+  g.dispatchMoment("ReputationChanged", { subject: seat, delta: p.reputation - before }); // 时机·ReputationChanged:声望变更(#456,delta=夹紧后实际增减)
   for (const m of REP_MILESTONES) {
     if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
       p.repMilestones.push(m);

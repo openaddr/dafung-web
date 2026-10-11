@@ -4,11 +4,11 @@
 import type { HeroDef } from "./heroes";
 import type { TreasureDef } from "./treasures";
 
-/** 玩家持有的地产。Level 0..maxLevel(购入/建都即为 Lv.0);升级免费(到达触发)。 */
+/** 玩家持有的地产。Level 0..maxLevel(购入/建都即为 Lv.0);升级免费(到达触发)。
+ *  不存购入价:身价=仅现金、变卖走 def.valueByLevel,持有价零玩法消费(已删)。 */
 export interface PropertyHolding {
   propertyId: string;
   group: string;
-  purchasePrice: number;
   level: number;
   maxLevel: number;
 }

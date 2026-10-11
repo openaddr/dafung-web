@@ -1,6 +1,6 @@
-// 锦囊(Chance)/ 天命(Fate)随机事件库——三国典故化重写。
-// 纯随机抽取(每次落格独立),效果温和(±100~250)。
-// Chance = 锦囊妙计(得计,偏正面);Fate = 天命难违(偏负面)。
+// 锦囊(Chance)随机事件库——三国典故化重写。
+// 纯随机抽取(每次落格独立),偏正面(0~+250)。Chance = 锦囊妙计(得计)。
+// 天命(Fate)格不在此表:#121 起落格固定 +20 声望(movement-flow 直写),原天命坏事表已删。
 export interface RandomEvent {
   id: string;
   text: string; // 战报简报
@@ -14,11 +14,4 @@ export const CHANCE_EVENTS: RandomEvent[] = [
   { id: "ally", text: "义士来投", cashDelta: 150 },
   { id: "harvest", text: "风调雨顺", cashDelta: 100 },
   { id: "strategist", text: "军师来投,献计一封", cashDelta: 0, jinnangDraw: true }, // #147:辅路→锦囊佐料渠道
-];
-
-export const FATE_EVENTS: RandomEvent[] = [
-  { id: "maicheng", text: "败走麦城", cashDelta: -250 },
-  { id: "fire-camp", text: "火烧连营", cashDelta: -200 },
-  { id: "jieting", text: "痛失街亭", cashDelta: -150 },
-  { id: "ambush", text: "中伏溃散", cashDelta: -100 },
 ];
