@@ -5,7 +5,7 @@
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
 // ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
-/** 时机类型(34 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
+/** 时机类型(39 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
 export type GameMoment =
   // ── 生命周期 ──
@@ -57,9 +57,20 @@ export type GameMoment =
   // ── 资产与交易 ──
   /** 购城后:buyProperty 成功尾。ctx.propertyId = 购入城。subject = 买家。 */
   | "PropertyBought"
+  /** 得城后(#457):机遇赐城入册处(与 PropertyBought「购」语义区分:无主城白得,不经购买)。
+   *  ctx.propertyId = 得到的城。subject = 得城者。 */
+  | "PropertyGained"
   /** 城池升级后:扩军 upgradeProperty 成功 + 公道买卖成交升级,两处(满级不触发)。
    *  ctx.propertyId = 升级城。subject = 城主。 */
   | "PropertyUpgraded"
+  /** 城池受损·降 1 级(#457):火烧连营(锦囊路 demolishOnVictim 调用侧)与耗竭「降 1 级」
+   *  处置,两写点。火攻主动技路不派(主动技结算内不派发既有口径)。
+   *  ctx.propertyId/ctx.tileIndex = 涉事城。subject = 城主。 */
+  | "PropertyDemolished"
+  /** 失城(#457):火烧连营城防尽毁失城(锦囊路调用侧,与降级同点按果择一)与耗竭
+   *  「失去整座」处置,两写点(都城不可失,失的恒为非都城)。
+   *  ctx.propertyId/ctx.tileIndex = 失去的城。subject = 失城者。 */
+  | "PropertyLost"
   /** 招贤后:resolveHeroPick 选定名将(tryRecruitHero 只出三选一候选)。ctx.heroId。subject = 招贤者。 */
   | "HeroRecruited"
   /** 得宝后:拼点得宝 drawTreasureAt 成功 + escrow 交割买家得宝,两处。ctx.treasureId。subject = 得宝者。 */
@@ -67,6 +78,9 @@ export type GameMoment =
   /** 售宝后:交涉成交(escrow 交割,卖家视角;买家破产退宝不触发)+ 破产变卖珍宝,两处。
    *  ctx.treasureId/ctx.amount = 售价。subject = 卖家。 */
   | "TreasureSold"
+  /** 失宝后(#457):珍宝非售出流失——以宝换贤交出代价(每件一派)与窃玉偷香失窃方,
+   *  两写点,与 TreasureSold(售出)语义区分。ctx.treasureId。subject = 失宝者。 */
+  | "TreasureLost"
   /** 交涉成交:escrow 买家付清价款、交割完成(fair/premium 同;买家破产退宝不触发)。
    *  ctx.buyerSeat/ctx.sellerSeat/ctx.amount = 成交价。subject = 城主(= 卖家)。 */
   | "TradeSettled"
@@ -100,6 +114,11 @@ export type GameMoment =
   // ── 破产与终局结算 ──
   /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
   | "PlayerBankrupt"
+  /** 破产资产被收走(#457):settleDebtTraced 破产终局一次派发(不逐件——珍宝在
+   *  economy.settleDebt 内转移、名将是释放非转移),与 PlayerBankrupt(破产者视角)成对,
+   *  本时机 = 债主视角;无债主(归银行/销毁)不派。ctx.creditorSeat = 债主(= subject),
+   *  ctx.cities = 被收走的城 id 列表,ctx.treasureCount = 被收走的珍宝件数。subject = 债主。 */
+  | "AssetsSeized"
   /** 破产每笔变卖后:变卖珍宝/变卖城池/遣散名将三个命令成功尾(变卖自救进行中,结局未定)。
    *  ctx.amount = 变卖所得。subject = 变卖者。 */
   | "BankruptcySettle"
@@ -150,6 +169,10 @@ export interface MomentCtx {
   targetSeat?: number;
   /** 变更量(带符号,夹紧后实际值;StaminaChanged/ReputationChanged)。 */
   delta?: number;
+  /** 被收走的城 id 列表(AssetsSeized:破产终局资产转移)。 */
+  cities?: string[];
+  /** 被收走的珍宝件数(AssetsSeized;名将是释放非转移,不计数)。 */
+  treasureCount?: number;
 }
 
 /** 时机集中注册表(单一事实源)。新增时机必须在此登记——派发器与文档据此校验完备性。 */
@@ -177,10 +200,14 @@ export const MOMENTS: readonly GameMoment[] = [
   "WarrantGained",
   // 资产与交易
   "PropertyBought",
+  "PropertyGained",
   "PropertyUpgraded",
+  "PropertyDemolished",
+  "PropertyLost",
   "HeroRecruited",
   "TreasureGained",
   "TreasureSold",
+  "TreasureLost",
   "TradeSettled",
   "JinnangGained",
   "PeekApplied",
@@ -192,6 +219,7 @@ export const MOMENTS: readonly GameMoment[] = [
   "ReputationChanged",
   // 破产与终局结算
   "PlayerBankrupt",
+  "AssetsSeized",
   "BankruptcySettle",
   // 反应窗挂点(#281)
   "JinnangAnnounced",

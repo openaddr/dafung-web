@@ -1397,6 +1397,251 @@ describe("时机框架:事件化第二批(#456)", () => {
   });
 });
 
+// ──────────────────── 事件化第二批·资产域(#457):四新时机 + 留痕补齐 ────────────────────
+describe("时机框架:事件化第二批·资产域(#457)", () => {
+  /** 合成即时机遇(同 #456 块 enc 口径)。 */
+  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
+    id: "测试机遇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "t",
+    effect,
+  });
+
+  /** 摆军师幕测试态(同 #456 块 armJinnang 口径)。 */
+  function armJinnang(e: GameEngine, cards: string[]) {
+    const p = e.activePlayer;
+    p.jinnangHand = [...cards];
+    p.jinnangHandCount = cards.length;
+    e.turnPhase = "AwaitingJinnang";
+    return p;
+  }
+
+  /** 给 victim 一座指定等级的非都城城(火烧/耗竭场景用)。 */
+  function giveCity(
+    e: GameEngine,
+    owner: number,
+    level: number,
+  ): { propertyId: string; tileIndex: number } {
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[owner].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level,
+      maxLevel: def.maxLevel,
+    });
+    return { propertyId: def.id, tileIndex: tile.index };
+  }
+
+  it("TreasureLost:以宝换贤交出两件每件一派 + 窃玉偷香失主与窃方(#455 A4)同点成对(subject=失主)", () => {
+    // ① 以宝换贤(grantHero 型选项:先扣 2 件珍宝再得将,splice 处每件一派)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    mover.treasures.push(
+      { id: "cost-t1", name: "换贤宝一", level: 1 },
+      { id: "cost-t2", name: "换贤宝二", level: 2 },
+    );
+    const entries = recordMomentCtx(e);
+    testEngine(e).enterEncounter({
+      id: "以宝换贤",
+      tier: "好运",
+      tags: ["名将"],
+      weight: 1,
+      text: "t",
+      choices: [
+        { text: "献两件珍宝换名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+        { text: "婉言相拒", repDelta: 0 },
+      ],
+    });
+    expect(e.turnPhase).toBe("AwaitingEncounter"); // 两选项皆可用 → 抉择相位
+    e.resolveEncounterChoice(0);
+    expect(entries.filter((x) => x.moment === "TreasureLost").map((x) => x.ctx)).toEqual([
+      { subject: seat, treasureId: "cost-t1" }, // splice(0,2) 按手持序每件一派
+      { subject: seat, treasureId: "cost-t2" },
+    ]);
+
+    // ② 窃玉偷香:失主 TreasureLost 与窃方 TreasureGained 同点成对
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const userSeat = e2.activeIndex;
+    const victimSeat = 1 - userSeat;
+    e2.players[victimSeat].treasures.push({ id: "stolen-t", name: "被窃宝", level: 3 });
+    armJinnang(e2, ["窃玉偷香"]);
+    const entries2 = recordMomentCtx(e2);
+    e2.resolveJinnang("窃玉偷香");
+    e2.resolveJinnang("窃玉偷香", [victimSeat]);
+    expect(entries2.filter((x) => x.moment === "TreasureLost").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, treasureId: "stolen-t" },
+    ]);
+    expect(entries2.filter((x) => x.moment === "TreasureGained").map((x) => x.ctx)).toEqual([
+      { subject: userSeat, treasureId: "stolen-t" }, // 成对:窃方得宝(#455 A4 既有派发)
+    ]);
+  });
+
+  it("PropertyGained:机遇赐城入册后派发(subject=得城者,ctx.propertyId);留痕补齐(ADR-0015)写法对齐购地", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const owned = new Set(mover.properties.map((h) => h.propertyId));
+    const entries = recordMomentCtx(e);
+    testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({ kind: "grantCity", fallbackCash: 200 }),
+    );
+    const gained = mover.properties.find((h) => !owned.has(h.propertyId));
+    expect(gained).toBeDefined(); // sanguo 恒有无主城 → 走赐城路不折现
+    expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, propertyId: gained!.propertyId },
+    ]);
+    // 留痕补齐(三无写点 → 补 ADR-0015):赐城即易主(无主→得城者),形状对齐 movement-flow buyProperty
+    const trace = e.propertyChanges[e.propertyChanges.length - 1];
+    expect(trace).toEqual({
+      tileIndex: e.tileIndexOfProperty(gained!.propertyId),
+      level: 0,
+      ownerColorIndex: mover.colorIndex,
+      levelChanged: false,
+      ownerChanged: true,
+    });
+    expect(e.findOwner(gained!.propertyId)).toBe(mover); // 印章/涟漪表现通路可走到
+  });
+
+  it("PropertyDemolished/Lost:火烧连营锦囊路调用侧与耗竭按其果各派(subject=城主,tileIndex 随行);火攻主动技路不派", () => {
+    // ① 火烧连营·降级(victim 有 Lv>0 城)→ PropertyDemolished,挂调用侧
+    const e = makeEngine(1);
+    finishSetup(e);
+    const victimSeat = 1 - e.activeIndex;
+    const city = giveCity(e, victimSeat, 2);
+    armJinnang(e, ["火烧连营"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [victimSeat]);
+    expect(e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level).toBe(1);
+    expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, propertyId: city.propertyId, tileIndex: city.tileIndex },
+    ]);
+    expect(entries.filter((x) => x.moment === "PropertyLost")).toHaveLength(0);
+
+    // ② 火烧连营·失城(victim 城防全 0)→ PropertyLost,挂调用侧
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const victimSeat2 = 1 - e2.activeIndex;
+    const city2 = giveCity(e2, victimSeat2, 0);
+    armJinnang(e2, ["火烧连营"]);
+    const entries2 = recordMomentCtx(e2);
+    e2.resolveJinnang("火烧连营");
+    e2.resolveJinnang("火烧连营", [victimSeat2]);
+    expect(e2.players[victimSeat2].properties.some((h) => h.propertyId === city2.propertyId)).toBe(false);
+    expect(entries2.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat2, propertyId: city2.propertyId, tileIndex: city2.tileIndex },
+    ]);
+    expect(entries2.filter((x) => x.moment === "PropertyDemolished")).toHaveLength(0);
+
+    // ③ 火攻主动技:城照样损,时机不派(主动技结算内不派发,既有口径)
+    const e3 = makeEngine(1);
+    finishSetup(e3);
+    e3.activePlayer.heroes.push(HEROES.find((h) => h.id === "zhouyu")!);
+    const victimSeat3 = 1 - e3.activeIndex;
+    const city3 = giveCity(e3, victimSeat3, 2);
+    armJinnang(e3, []);
+    const entries3 = recordMomentCtx(e3);
+    e3.resolveHeroSkill("zhouyu-huogong");
+    e3.resolveHeroSkill("zhouyu-huogong", [victimSeat3]);
+    expect(e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level).toBe(1);
+    expect(
+      entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
+    ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派
+
+    // ④ 耗竭·降级(唯一可用项自动执行)→ PropertyDemolished
+    const e4 = makeEngine(1);
+    finishSetup(e4);
+    const mover4 = e4.activePlayer;
+    const seat4 = e4.players.indexOf(mover4);
+    const city4 = giveCity(e4, seat4, 1);
+    const entries4 = recordMomentCtx(e4);
+    const r4 = testEngine(e4).applyEncounter(
+      mover4,
+      mover4.position,
+      enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
+    );
+    expect(r4).toBe("exhausted");
+    expect(mover4.properties.find((h) => h.propertyId === city4.propertyId)!.level).toBe(0);
+    expect(entries4.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
+      { subject: seat4, propertyId: city4.propertyId, tileIndex: city4.tileIndex },
+    ]);
+
+    // ⑤ 耗竭·失城(唯一可用项自动执行)→ PropertyLost + 留痕补齐(城回无主,对齐破产变卖)
+    const e5 = makeEngine(1);
+    finishSetup(e5);
+    const mover5 = e5.activePlayer;
+    const seat5 = e5.players.indexOf(mover5);
+    const city5 = giveCity(e5, seat5, 0);
+    const entries5 = recordMomentCtx(e5);
+    const r5 = testEngine(e5).applyEncounter(
+      mover5,
+      mover5.position,
+      enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
+    );
+    expect(r5).toBe("exhausted");
+    expect(mover5.properties.some((h) => h.propertyId === city5.propertyId)).toBe(false);
+    expect(e5.findOwner(city5.propertyId)).toBeNull(); // 城回无主
+    expect(entries5.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
+      { subject: seat5, propertyId: city5.propertyId, tileIndex: city5.tileIndex },
+    ]);
+    expect(e5.propertyChanges[e5.propertyChanges.length - 1]).toEqual({
+      tileIndex: city5.tileIndex,
+      level: 0,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
+    }); // 留痕补齐:形状对齐 bankruptcy sellPropertyBankruptcy
+  });
+
+  it("AssetsSeized:破产终局恰一派(subject=债主,cities/treasureCount=被收资产);无债主不派、不逐件派", () => {
+    // 有债主:城+宝被收走,一次派发(珍宝经 settleDebt 转移、名将释放非转移,均不逐件)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const moverSeat = e.activeIndex;
+    const creditorSeat = 1 - moverSeat;
+    const city = giveCity(e, moverSeat, 2);
+    mover.treasures.push({ id: "seized-t", name: "被收宝", level: 1 });
+    mover.cash = 0;
+    const citiesSeized = mover.properties.map((h) => h.propertyId); // settleDebt 整册转移(含都城)
+    const entries = recordMomentCtx(e);
+    e.pendingDebt = { amount: 200, creditor: e.players[creditorSeat] };
+    testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
+    e.confirmBankruptcySettle();
+    expect(mover.isBankrupt).toBe(true);
+    expect(entries.filter((x) => x.moment === "AssetsSeized").map((x) => x.ctx)).toEqual([
+      { subject: creditorSeat, creditorSeat, cities: citiesSeized, treasureCount: 1 },
+    ]);
+    expect(e.players[creditorSeat].properties.some((h) => h.propertyId === city.propertyId)).toBe(
+      true,
+    ); // 资产确已转债主
+    expect(
+      entries.filter((x) => x.moment === "TreasureGained" || x.moment === "PropertyGained"),
+    ).toHaveLength(0); // 不逐件派:转移发生在 settleDebt 内,无逐件时机
+
+    // 无债主(归银行/销毁):PlayerBankrupt 照派,AssetsSeized 不派(无收走方)
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    e2.activePlayer.cash = 0;
+    const entries2 = recordMomentCtx(e2);
+    e2.pendingDebt = { amount: 200, creditor: null };
+    testEngine(e2).forceTurnPhase("AwaitingBankruptcySettle");
+    e2.confirmBankruptcySettle();
+    expect(entries2.filter((x) => x.moment === "PlayerBankrupt")).toHaveLength(1);
+    expect(entries2.filter((x) => x.moment === "AssetsSeized")).toHaveLength(0);
+  });
+});
+
 // ──────────────────── 事件化第一批(#455):现有时机补漏 + 收款派发下沉 ────────────────────
 describe("时机框架:事件化第一批(#455)", () => {
   /** nextFloat 定值骰替身(商市涨跌两向钉死;本路径不掷骰)。 */
