@@ -9,7 +9,7 @@ test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览",
   await page.getByTestId("home-select-map").click();
   const panel = page.getByTestId("map-select-panel");
   await expect(panel).toBeVisible();
-  await expect(page.getByTestId("map-item-sanguo")).toContainText("30 城");
+  await expect(page.getByTestId("map-item-huanyou")).toContainText("38 城");
   await expect(page.getByTestId("map-item-zhongyuan")).toContainText("8 城");
   // 点 zhongyuan → 异步加载 + 简版预览 SVG
   await page.getByTestId("map-item-zhongyuan").click();

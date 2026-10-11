@@ -4,7 +4,7 @@
 // import 用相对路径(Node 不认 vite alias);core/ 零 DOM,Node 直接可跑。
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
-import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
+import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { GameEngine } from "../src/core/authority";
@@ -14,7 +14,7 @@ import type { TurnPhase, AiDifficulty } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 
 /** 共享地图(主环 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
-export const MAP: LoadedMap = loadMap(sanguoData);
+export const MAP: LoadedMap = loadMap(huanyouData);
 
 // ──────────────────────────── 内置地图清单加载(CLI/Server 共享) ────────────────────────────
 const MAPS_DIR = resolve(process.env.MAPS_DIR ?? "./public/maps");
@@ -63,7 +63,7 @@ export interface PersistedState {
 }
 
 /** 全新引擎:构造 +(可选)国号摇骰定序。不落盘。
- *  map 可选:传入则用该地图(联机每房间各持自己的 LoadedMap);省略则用默认 sanguo(CLI / 单机)。 */
+ *  map 可选:传入则用该地图(联机每房间各持自己的 LoadedMap);省略则用默认 huanyou(CLI / 单机)。 */
 export function createEngine(config: GameConfig, doDraft = true, map: LoadedMap = MAP): GameEngine {
   const engine = new GameEngine(
     map.board,

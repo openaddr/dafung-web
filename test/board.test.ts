@@ -1,8 +1,8 @@
 import { describe, it, expect } from "bun:test";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
-const loaded = loadMap(sanguoData);
+const loaded = loadMap(huanyouData);
 const board = loaded.board;
 // 用名字查 index,避免 boards.json 增删格后 index 位移导致单测脆弱
 const idx = (name: string) => board.tiles.find((t) => t.name === name)!.index;
@@ -40,10 +40,9 @@ describe("棋盘路径(单环)", () => {
   });
 
   it("长边生成蜿蜒途经点,短边直线", () => {
-    const last = board.count - 1;
-    const wps = board.edgeWaypoints(last, 0); // 末→首 环边(长)
+    const wps = board.edgeWaypoints(idx("上庸"), idx("交州")); // 西延伸列长边(650 > 阈值 300)
     expect(wps.length).toBe(2);
-    const wpsShort = board.edgeWaypoints(0, 1); // 相邻短边
+    const wpsShort = board.edgeWaypoints(idx("江州"), idx("上庸")); // 延伸列短步(250 < 阈值 300)
     expect(wpsShort.length).toBe(0);
   });
 });

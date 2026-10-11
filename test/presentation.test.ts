@@ -9,7 +9,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { extractBatchEvents } from "../src/app/fx/event-extract";
 import { present, resetFxOrchestration } from "../src/app/fx/orchestrator";
@@ -18,7 +18,7 @@ import { useFxStore } from "../src/app/fx/fxStore";
 import type { PresentationEvent } from "../src/app/fx/presentation";
 import { testEngine } from "@core/testing";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[], targetNetWorth = 8000): GameEngine {
   const cfg: EngineConfig = {

@@ -1,6 +1,6 @@
 // 机遇配置(#125):默认文件 public/config/jiyu.json 完整性 + 设置屏纯函数
 // (结构校验/单字段边界校验/EngineConfig.encounter 透传/fetch 回退)。
-// jiyu.json 按 encounters.test.ts 读 public/maps/sanguo.json 同款范式直接 import
+// jiyu.json 按 encounters.test.ts 读 public/maps/huanyou.json 同款范式直接 import
 // (bun 解析失败即 import 报错 = 测试红),fetch 路径用注入 stub 验证。
 import { describe, it, expect, afterEach } from "bun:test";
 import jiyuConfig from "../public/config/jiyu.json";

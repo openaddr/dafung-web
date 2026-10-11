@@ -24,7 +24,7 @@ export interface MapSource {
   loadMapData(id: string): Promise<MapData>;
 }
 
-/** 按 id 从源加载并校验构建为 LoadedMap。统一入口,取代所有硬编码 fetch sanguo.json。 */
+/** 按 id 从源加载并校验构建为 LoadedMap。统一入口,取代各处硬编码 fetch 内置地图 JSON。 */
 export async function loadMapById(mapSource: MapSource, id: string): Promise<LoadedMap> {
   const data = await mapSource.loadMapData(id);
   return loadMap(data);

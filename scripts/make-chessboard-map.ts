@@ -31,7 +31,13 @@ import type { MapData, MapTile } from "../src/core/board-loader";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const src = JSON.parse(readFileSync(resolve(root, "public/maps/sanguo.json"), "utf8")) as MapData;
+// 经济数据源 = 当前 chessboard.json 自身(自再生:经济字段原样保留,只重排 pos)。
+// 已知漂移(不在 #471 范围):LAYOUT 未登记 ADR-0024 新增的三座宝物城
+//(prop-shangyong/prop-xiapi/prop-hongnong),对含它们的源运行会当场抛
+//「布局表缺少 tile」——漂移就该炸出来,静默放过才是 bug。
+const src = JSON.parse(
+  readFileSync(resolve(root, "public/maps/chessboard.json"), "utf8"),
+) as MapData;
 
 // ── 网格参数(#58:7×6 蛇形全网格,间距暴增)──
 const COLS = 7,
@@ -43,7 +49,7 @@ const gx = (c: number) => 100 + (c - 3) * COL_STEP; // 列 0..6 → x -1100..130
 const gy = (r: number) => 30 + (r - 2.5) * ROW_STEP; // 行 0..5 → y -745..805
 
 // ── 蛇形布局表:id → [col, row] ──
-// 主环走向(tiles 数组顺序 = 原 sanguo 顺序,未重排,只换坐标):
+// 主环走向(tiles 数组顺序沿旧图环序,未重排,只换坐标):
 //   行 0 自左向右(中原:长安→宛城)→ U 弯 ↓
 //   行 1 自右向左(卧龙岗/新野驿站过渡,荆楚:襄阳→长沙)→ U 弯 ↓
 //   行 2 自左向右(凶/荆楚南段/涪陵渡/巴蜀东端)→ U 弯 ↓

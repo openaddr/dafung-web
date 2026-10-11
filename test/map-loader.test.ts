@@ -1,11 +1,11 @@
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
 import { sideArc } from "@core/board";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 
 describe("地图加载器(合法)", () => {
   it("内置三国地图加载成功", () => {
-    const m = loadMap(sanguoData);
+    const m = loadMap(huanyouData);
     expect(m.tiles.length).toBeGreaterThanOrEqual(30);
     expect(m.board.count).toBe(m.tiles.length);
     expect(m.targetNetWorth).toBe(30000);
@@ -14,7 +14,7 @@ describe("地图加载器(合法)", () => {
   });
 
   it("主路按 tiles 数组顺序闭合", () => {
-    const m = loadMap(sanguoData);
+    const m = loadMap(huanyouData);
     let cur = 0;
     for (let i = 0; i < m.board.count; i++) cur = m.board.next(cur);
     expect(cur).toBe(0);
@@ -22,7 +22,7 @@ describe("地图加载器(合法)", () => {
 });
 
 describe("地图校验(非法应抛可读错误)", () => {
-  const base = () => JSON.parse(JSON.stringify(sanguoData));
+  const base = () => JSON.parse(JSON.stringify(huanyouData));
 
   it("版本不符", () => {
     const d = base();

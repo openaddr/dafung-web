@@ -8,10 +8,10 @@ import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { hasUsableJinnang } from "@core/choices";
 import { botAct } from "@core/bot";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },

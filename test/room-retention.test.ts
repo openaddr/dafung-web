@@ -54,7 +54,7 @@ class InMemoryPersistence implements RoomPersistence {
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const testMapProvider = (_id: string): LoadedMap => MAP;
-const VALID_MAP_IDS = new Set(["sanguo"]);
+const VALID_MAP_IDS = new Set(["huanyou"]);
 
 /** 收集型观察者 + 注入手册时钟的 registry:保留窗到点全靠 fireAll 手动推进。 */
 function observedWith(opts: { retentionWindowMs: number }) {
@@ -78,7 +78,7 @@ async function startedRoom(reg: RoomRegistry, seats: number, botIdx: number[]) {
   });
   const roomId = created.room.roomId;
   for (let i = 1; i < seats; i++) if (!botIdx.includes(i)) reg.joinSeat(roomId);
-  reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   return {

@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { netWorth } from "@core/networth";
 import { HEROES } from "@core/heroes";
@@ -17,7 +17,7 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
   return e;
 }
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[], target = 30000) {
   const cfg: EngineConfig = {

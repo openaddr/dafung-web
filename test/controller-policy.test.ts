@@ -13,11 +13,11 @@ import type { ReactionView } from "@core/reaction-window";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import { GameController } from "@app/controllers/controller";
 import { OnlineController } from "@app/controllers/online";
-import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
+import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 
-const SANGUO: { map: LoadedMap; data: MapData } = {
-  map: loadMap(sanguoData),
-  data: sanguoData as unknown as MapData,
+const HUANYOU: { map: LoadedMap; data: MapData } = {
+  map: loadMap(huanyouData),
+  data: huanyouData as unknown as MapData,
 };
 
 /** 策略探针:基类公式的一切子类输入(座位/热座/锁)显式注入,直读 interactive 断言。 */
@@ -231,7 +231,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
 
 describe("OnlineController 参数面(#433 薄测:参数怎么取)", () => {
   it("未入座(mySeat=-1)+ 占位壳 Setup:不可操作;策略公式消费联机参数(热座=false、座位=入座分配)", () => {
-    const c = new OnlineController(SANGUO.map, "sanguo");
+    const c = new OnlineController(HUANYOU.map, "huanyou");
     expect(c.viewSeat).toBe(-1);
     expect(c.interactive).toBe(false);
     c.destroy();

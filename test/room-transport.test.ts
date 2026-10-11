@@ -56,7 +56,7 @@ function makeStartedRoom(seed = 42) {
     hostConfig: { seed },
   });
   const roomId = created.room.roomId;
-  reg.setMap(roomId, "sanguo", created.token, new Set(["sanguo"]));
+  reg.setMap(roomId, "huanyou", created.token, new Set(["huanyou"]));
   return { reg, roomId, token: created.token };
 }
 

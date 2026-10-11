@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import {
   TREASURE_PRICE,
@@ -14,7 +14,7 @@ import {
 } from "@core/treasures";
 import { testEngine } from "@core/testing";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(
   seed = 1,
@@ -263,7 +263,7 @@ describe("珍宝系统", () => {
 });
 
 describe("宝物城并权与落格顺序(ADR-0024)", () => {
-  /** sanguo 首座未作都城的宝物城(ADR-0024 后宝物城可选都,须避开 taken)。 */
+  /** huanyou 首座未作都城的宝物城(ADR-0024 后宝物城可选都,须避开 taken)。 */
   function treasureTile(e: GameEngine) {
     return e.board.tiles.find(
       (t) => t.type === "TreasureCity" && !e.takenCapitalIndices.has(t.index),

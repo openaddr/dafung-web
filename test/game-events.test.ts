@@ -13,9 +13,9 @@ import { HEROES } from "@core/heroes";
 import { jinnangCardOf } from "@core/jinnang";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import type { TurnPhase } from "@core/authority";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[], encounter?: EngineConfig["encounter"]) {
   const cfg: EngineConfig = {
@@ -150,7 +150,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
         land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
       );
     });
-    expect(target).toBeDefined(); // sanguo 必有无主城可达(数据不变量)
+    expect(target).toBeDefined(); // huanyou 必有无主城可达(数据不变量)
     t.place(seat, target!.index);
     beginGameEventBatch(e);
     e.rollAndMove();
@@ -193,7 +193,7 @@ describe("事件流(#375):金钱变更", () => {
     finishSetup(e);
     const t = testEngine(e);
     const taxTile = MAP.board.tiles.find((tile) => tile.type === "Tax");
-    expect(taxTile).toBeDefined(); // sanguo 设税关(数据不变量)
+    expect(taxTile).toBeDefined(); // huanyou 设税关(数据不变量)
     t.placeActive(taxTile!.index);
     beginGameEventBatch(e);
     t.land();

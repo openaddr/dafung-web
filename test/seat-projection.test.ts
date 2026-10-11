@@ -177,7 +177,7 @@ class InMemoryPersistence implements RoomPersistence {
   }
 }
 
-const VALID_MAP_IDS = new Set(["sanguo"]);
+const VALID_MAP_IDS = new Set(["huanyou"]);
 const testMapProvider = (_id: string): LoadedMap => MAP;
 
 /** 开一局已进 Playing 的双人类房(seat0=host / seat1=guest;发牌在 finishSetup)。 */
@@ -190,7 +190,7 @@ async function roomAtPlaying() {
   });
   const roomId = created.room.roomId;
   reg.joinSeat(roomId);
-  reg.setMap(roomId, "sanguo", created.token, VALID_MAP_IDS);
+  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e.phase === "Setup"; i++)

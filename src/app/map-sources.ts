@@ -146,7 +146,7 @@ export class LocalStorageMapSource implements MapSource {
 }
 
 /** 默认地图 id:清单第一项(与服务器侧一致;无历史选择时的回退)。
- *  async 因清单需 fetch。无清单时回退 "sanguo"(保底)。 */
+ *  async 因清单需 fetch。 */
 export async function getDefaultMapId(): Promise<string> {
   const maps = await getMapSource().listMaps();
   // 零兜底原则:清单为空 = maps/index.json 加载失败/损坏,直接抛错暴露问题,

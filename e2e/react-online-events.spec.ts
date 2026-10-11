@@ -41,7 +41,7 @@ test("事件批下行:开局选都逐转移到达双端,内容与顺序符合批
   await guest.goto(`${ONLINE}/?room=${roomId}`);
   await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-sanguo").click();
+  await host.getByTestId("map-item-huanyou").click();
   await host.getByTestId("map-confirm").click();
   await host.getByTestId("lobby-start").click();
   for (const p of [host, guest]) {

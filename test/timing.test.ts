@@ -14,7 +14,7 @@ import type { HeroDef, TriggerSkill } from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
-import sanguoData from "../public/maps/sanguo.json";
+import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
@@ -25,7 +25,7 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
   return e;
 }
 
-const MAP = loadMap(sanguoData);
+const MAP = loadMap(huanyouData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {
@@ -135,29 +135,38 @@ function peekDie(e: GameEngine): number {
   return probe.roll().die;
 }
 
+/** 活跃玩家掷骰(预读骰面)恰落 target 的路径是否避开其都城(必停会截断 = 不可达)。 */
+function landPathClear(e: GameEngine, target: number): boolean {
+  const die = peekDie(e);
+  const n = e.board.count;
+  const from = (((target - die) % n) + n) % n;
+  return !Array.from({ length: die }, (_, i) => (from + 1 + i) % n).some(
+    (t) => t === e.activePlayer.capitalIndex && t !== target,
+  );
+}
+
 /** 把当前活跃玩家挪位后掷骰,恰好落在 targetTile。路径不得途经其都城(必停会截断,场景无效即抛错)。 */
 function landActiveOn(e: GameEngine, targetTile: number): void {
-  const p = e.activePlayer;
+  if (!landPathClear(e, targetTile))
+    throw new Error(
+      `测试场景无效:落 #${targetTile} 的路径途经都城 #${e.activePlayer.capitalIndex}(必停截断)`,
+    );
   const die = peekDie(e);
   const n = e.board.count;
   const from = (((targetTile - die) % n) + n) % n;
-  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n).some(
-    (t) => t === p.capitalIndex && t !== targetTile,
-  );
-  if (passesCapital)
-    throw new Error(`测试场景无效:落 #${targetTile} 的路径途经都城 #${p.capitalIndex}(必停截断)`);
   testEngine(e).placeActive(from);
   passJinnang(e).rollAndMove();
 }
 
-/** 任选一座无主普通城(非任何人都城):构造购城/落城/途经场景。 */
+/** 任选一座无主普通城(非任何人都城,且从当前位置掷骰直达不途经都城):构造购城/落城/途经场景。 */
 function freePropertyTile(e: GameEngine) {
   return e.board.tiles.find(
     (t) =>
       t.type === "Property" &&
       t.propertyId != null &&
       e.findOwner(t.propertyId) == null &&
-      e.capitalOwnerOf(t.index) == null,
+      e.capitalOwnerOf(t.index) == null &&
+      landPathClear(e, t.index),
   )!;
 }
 
@@ -185,9 +194,8 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落宝物城——按兵不动(交易链终端)
-    // 后链尾拼点得宝(TreasureGained;ADR-0024 落格顺序正典:机遇→交易链→探宝);
-    // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
+    // seed=1(huanyou #471 换源重钉):两位玩家分别落汉中/零陵(无主城,跳过购地),
+    // 落城链无时机派发,AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
       "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
@@ -198,14 +206,13 @@ describe("时机框架:派发点位", () => {
       "BeforeRoll",
       "DieRolled",
       "AfterMarch",
-      "TreasureGained", // 首回合宝物城:按兵不动 → 交易链尾探宝(ADR-0024)
-      "TurnEnd", // 第一位玩家
+      "TurnEnd", // 第一位玩家(落汉中,跳过购地无时机)
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",
       "BeforeRoll",
       "DieRolled",
       "AfterMarch",
-      "TurnEnd", // 第二位玩家(落天命格,+20 声望无时机)
+      "TurnEnd", // 第二位玩家(落零陵,跳过购地无时机)
       "RoundEnd",
       "RoundStart",
       "TurnStart", // 轮次交替 + 新轮首位玩家
@@ -788,7 +795,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.type === "TreasureCity")!;
+    const tile = e.board.tiles.find((t) => t.type === "TreasureCity" && landPathClear(e, t.index))!;
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1 }]; // Lv1:双骰 2-12 恒 ≥ 1
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
@@ -1424,7 +1431,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       enc({ kind: "grantCity", fallbackCash: 200 }),
     );
     const gained = mover.properties.find((h) => !owned.has(h.propertyId));
-    expect(gained).toBeDefined(); // sanguo 恒有无主城 → 走赐城路不折现
+    expect(gained).toBeDefined(); // huanyou 恒有无主城 → 走赐城路不折现
     expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
       { subject: seat, propertyId: gained!.propertyId },
     ]);

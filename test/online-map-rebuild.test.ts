@@ -11,8 +11,8 @@ import { createDice } from "@core/dice";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import type { GameSnapshot } from "@core/snapshot";
 import { OnlineController } from "@app/controllers/online";
+import chessboardData from "../public/maps/chessboard.json" with { type: "json" };
 import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
-import sanguoData from "../public/maps/sanguo.json" with { type: "json" };
 import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
 
 interface Bundle {
@@ -20,8 +20,11 @@ interface Bundle {
   data: MapData;
 }
 
+const CHESSBOARD: Bundle = {
+  map: loadMap(chessboardData),
+  data: chessboardData as unknown as MapData,
+};
 const HUANYOU: Bundle = { map: loadMap(huanyouData), data: huanyouData as unknown as MapData };
-const SANGUO: Bundle = { map: loadMap(sanguoData), data: sanguoData as unknown as MapData };
 const ZHONGYUAN: Bundle = {
   map: loadMap(zhongyuanData),
   data: zhongyuanData as unknown as MapData,
@@ -73,15 +76,15 @@ type RoomSnapshotPayload = Pick<
 };
 
 /** 服务器侧三座房开局快照(种子 430 复刻 startGame+driveBots:座位 2 自动 bot 先选)。 */
-function sanguoRoomSnapshot(): RoomSnapshotPayload {
-  const engine = new GameEngine(SANGUO.map.board, SANGUO.map.catalog, createDice(430), {
+function zhongyuanRoomSnapshot(): RoomSnapshotPayload {
+  const engine = new GameEngine(ZHONGYUAN.map.board, ZHONGYUAN.map.catalog, createDice(430), {
     seats: [
       { name: "座 1", isBot: false },
       { name: "座 2", isBot: false },
       { name: "座 3", isBot: true },
     ],
     seed: 430,
-    mapId: "sanguo",
+    mapId: "zhongyuan",
   });
   engine.doDraftRoll();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
@@ -94,7 +97,7 @@ function sanguoRoomSnapshot(): RoomSnapshotPayload {
     seatCount: 3,
     host: 0,
     started: true,
-    mapId: "sanguo",
+    mapId: "zhongyuan",
     seats: [],
     ...snap,
   } as RoomSnapshotPayload;
@@ -106,16 +109,16 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     // 大厅选图广播 → 换图重建起步(取图 await 在途)
-    x.onMessage(lobbyMsg("sanguo"));
+    x.onMessage(lobbyMsg("zhongyuan"));
     // 开局 flush 先行:快照水合三座对局态(#415 竞速的另一半)
-    const snap = sanguoRoomSnapshot();
+    const snap = zhongyuanRoomSnapshot();
     x.onMessage(snap);
     expect(x.enteredGame).toBe(true);
     expect(c.engine.players).toHaveLength(3);
     // 取图后落地:不许打回空壳
-    gates.gate("sanguo").resolve(SANGUO);
+    gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();
-    expect(x.mapId).toBe("sanguo");
+    expect(x.mapId).toBe("zhongyuan");
     expect(c.engine.players).toHaveLength(3);
     expect(c.engine.phase).toBe(snap.phase);
     expect(c.engine.setupPhase).toBe(snap.setupPhase);
@@ -125,38 +128,38 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     );
     expect(c.engine.players.map((p) => p.cash)).toEqual(snap.players.map((p) => p.cash));
     // 棋盘换到新图(BoardView 与折叠器的 catalog 查询都吃新图面)
-    expect(c.engine.board).toBe(SANGUO.map.board);
+    expect(c.engine.board).toBe(ZHONGYUAN.map.board);
   });
 
   it("更新换图在途:过期取图落地丢弃,不回退旧图", async () => {
     const c = new OnlineController(HUANYOU.map, "huanyou");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
-    // 大厅先后切两图:zhongyuan(A,在途)→ sanguo(B,后到);A 的取图最后落地
+    // 大厅先后切两图:zhongyuan(A,在途)→ chessboard(B,后到);A 的取图最后落地
     x.onMessage(lobbyMsg("zhongyuan"));
-    x.onMessage(lobbyMsg("sanguo"));
+    x.onMessage(lobbyMsg("chessboard"));
     expect(x.mapId).toBe("huanyou"); // 两次取图都在途,mapId 未动
-    gates.gate("sanguo").resolve(SANGUO);
+    gates.gate("chessboard").resolve(CHESSBOARD);
     await drain();
-    expect(x.mapId).toBe("sanguo");
-    expect(c.engine.board).toBe(SANGUO.map.board);
+    expect(x.mapId).toBe("chessboard");
+    expect(c.engine.board).toBe(CHESSBOARD.map.board);
     // 过期的 zhongyuan 取图后到:必须整单丢弃(不回退、不换板)
     gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();
-    expect(x.mapId).toBe("sanguo");
-    expect(c.engine.board).toBe(SANGUO.map.board);
+    expect(x.mapId).toBe("chessboard");
+    expect(c.engine.board).toBe(CHESSBOARD.map.board);
   });
 
   it("开局前落地(既有语义):整换新图占位壳,等快照水合", async () => {
     const c = new OnlineController(HUANYOU.map, "huanyou");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
-    x.onMessage(lobbyMsg("sanguo"));
+    x.onMessage(lobbyMsg("zhongyuan"));
     expect(x.enteredGame).toBe(false);
-    gates.gate("sanguo").resolve(SANGUO);
+    gates.gate("zhongyuan").resolve(ZHONGYUAN);
     await drain();
-    expect(x.mapId).toBe("sanguo");
-    expect(c.engine.board).toBe(SANGUO.map.board);
+    expect(x.mapId).toBe("zhongyuan");
+    expect(c.engine.board).toBe(ZHONGYUAN.map.board);
     expect(c.engine.players).toHaveLength(2); // 大厅占位壳:缺省 2 座,等首帧快照重建
   });
 });

@@ -27,7 +27,7 @@ function makeController(): LocalController {
       { name: "诸侯3", isBot: true },
     ],
     seed: 7,
-    mapId: "sanguo",
+    mapId: "huanyou",
   });
 }
 
