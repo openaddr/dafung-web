@@ -159,6 +159,20 @@
       "resupplyPerLevel": 300
     },
     {
+      "id": "prop-shangyong",
+      "name": "上庸",
+      "pos": [500, 850],
+      "type": "TreasureCity",
+      "group": "b",
+      "region": "荆楚",
+      "price": 2400,
+      "buildCost": 1200,
+      "tradeMult": [2, 4, 6, 10],
+      "valueByLevel": [1000, 1400, 2000, 2900],
+      "tradeAdd": [200, 700, 1800, 4000],
+      "resupplyPerLevel": 300
+    },
+    {
       "id": "prop-changsha",
       "name": "长沙",
       "pos": [632, 716],
@@ -170,20 +184,6 @@
       "valueByLevel": [900, 1300, 1900, 2600],
       "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 200
-    },
-    {
-      "id": "prop-shangyong",
-      "name": "上庸",
-      "pos": [440, 820],
-      "type": "TreasureCity",
-      "group": "b",
-      "region": "荆楚",
-      "price": 2400,
-      "buildCost": 1200,
-      "tradeMult": [2, 4, 6, 10],
-      "valueByLevel": [1000, 1400, 2000, 2900],
-      "tradeAdd": [200, 700, 1800, 4000],
-      "resupplyPerLevel": 300
     },
     {
       "id": "tile-fate-1",
