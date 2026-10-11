@@ -119,12 +119,13 @@ export function VictoryScreen({
   useEffect(() => {
     // D2:终局瞬间切屏可能赶在骰子 holdMs 隐藏定时器之前,先清残留 overlay(z-45 压屏)。
     finishDiceOverlay();
-    // E1:入场音组——0ms 鼓点起势(banner),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
+    // E1:入场音组——0ms 鼓点起势(victoryDrum,终局专属鼓滚奏;回合横幅已撤鼓滚,
+    // 见 audio.ts 音效审计注),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
     // 同帧落印 #95),
     // 700ms 号角(victory)接棒,与下方视觉阶梯 0/300/600ms 同一节奏轨道。
     // 音效轨偏移(450/700)与 victory.css 视觉阶梯成对编排,单收 JS 侧反造双源——#117 审计豁免。
     const audio = getAudio();
-    audio.play("banner");
+    audio.play("victoryDrum");
     const stampT = window.setTimeout(() => audio.play("stamp"), 450);
     const fanfareT = window.setTimeout(() => audio.play("victory"), 700);
     const buttonT = window.setTimeout(() => setShowButton(true), UI.victoryButtonMs);
