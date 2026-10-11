@@ -110,7 +110,9 @@ test.describe("体力系统冒烟", () => {
             const line = e.log
               .slice(info.logLen)
               .find((l: any) => l.detail.includes("exhaustionSettle"));
-            return line == null ? null : { brief: line.brief as string, detail: line.detail as string };
+            return line == null
+              ? null
+              : { brief: line.brief as string, detail: line.detail as string };
           },
           { logLen: logLenBefore },
         );
@@ -123,18 +125,14 @@ test.describe("体力系统冒烟", () => {
       expect(settle.detail).toContain("stamina=100"); // 体力重置(结算落账)
 
       // 链安全活读(结算已落账):都城 0 为地板、可降不可失;体力 100 夹紧免疫链上治疗
-      const live = await page.evaluate(
-        (info: { seat: number; capitalPropId: string }) => {
-          const e = (window as any).__dafung.getEngine();
-          const p = e.players[info.seat];
-          return {
-            stamina: p.stamina,
-            capitalLevel: p.properties.find((h: any) => h.propertyId === info.capitalPropId)
-              ?.level,
-          };
-        },
-        seatInfo,
-      );
+      const live = await page.evaluate((info: { seat: number; capitalPropId: string }) => {
+        const e = (window as any).__dafung.getEngine();
+        const p = e.players[info.seat];
+        return {
+          stamina: p.stamina,
+          capitalLevel: p.properties.find((h: any) => h.propertyId === info.capitalPropId)?.level,
+        };
+      }, seatInfo);
       expect(live.capitalLevel).toBe(0); // 1 → 0(选中降级,地板 0)
       expect(live.stamina).toBe(100); // 重置
 

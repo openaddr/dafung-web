@@ -81,7 +81,9 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
     expect(x.enteredGame).toBe(false);
 
     // 开局 flush 的 events 先到:3 座房的 bot 首批(capitalSelected seat=2 越界 2 座壳)
-    expect(() => x.onMessage({ type: "events", events: firstBatchCapitalSelected() })).not.toThrow();
+    expect(() =>
+      x.onMessage({ type: "events", events: firstBatchCapitalSelected() }),
+    ).not.toThrow();
     expect(x.enteredGame).toBe(false); // 未水合,壳状态不许被批推进
     expect(c.engine.players).toHaveLength(2);
     expect(c.engine.players[2]).toBeUndefined(); // 壳还是壳:座位没被事件越界造出
@@ -104,7 +106,15 @@ describe("OnlineController 首帧事件批时序门(#423 项2)", () => {
       x.onMessage({
         type: "events",
         events: [
-          { kind: "capitalSelected", seat: 0, round: 0, turn: 0, tileIndex: 3, propertyId: "prop-luoyang", cost: 2000 },
+          {
+            kind: "capitalSelected",
+            seat: 0,
+            round: 0,
+            turn: 0,
+            tileIndex: 3,
+            propertyId: "prop-luoyang",
+            cost: 2000,
+          },
         ],
       }),
     ).not.toThrow();
