@@ -45,7 +45,9 @@ export interface PendingHeroSkill {
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
  *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。返回实际入手张数(#384:
  *  落空=无转移,调用方据此不产事件)。
- *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
+ *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
+ *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),五路同覆盖
+ *  ——起手发牌/锦囊格/辅路军师来投/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
 export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   const p = g.players[seat];
   if (!p || p.isBankrupt) return 0;
@@ -71,6 +73,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
       `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
     );
   }
+  if (drawn > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: drawn }); // 时机·JinnangGained:得锦囊进手(#456,落空不派)
   return drawn;
 }
 
@@ -559,6 +562,10 @@ export function executeJinnang(
     case "skipTurn": {
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
+      g.dispatchMoment("TurnSkipImposed", {
+        subject: targets[0],
+        reason: "jinnang",
+      }); // 时机·TurnSkipImposed:缓兵之计强加跳回合(#456,写点 +=1 语义保留)
       g.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
       emitGameEvent(g, userSeat, {
         kind: "jinnangInflicted",
@@ -646,6 +653,7 @@ export function executeJinnang(
     case "peek": {
       const target = targets[0];
       g.jinnangPeeks.push({ viewer: userSeat, target });
+      g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)
       g.pushFloaterText(
         user,
         `细作已入 ${g.players[target].guohao} 营中(至你下回合)`,

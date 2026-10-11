@@ -137,6 +137,10 @@ export function resolveBranchCell(g: GameEngine, mover: Player, cell: BranchCell
   g.lastLandOutcome = { kind: "Noop" };
   g.turnPhase = "Land";
   mover.skipTurns = 1;
+  g.dispatchMoment("TurnSkipImposed", {
+    subject: g.players.indexOf(mover),
+    reason: "ambush",
+  }); // 时机·TurnSkipImposed:辅路中伏强加跳回合(#456,写点 =1 赋值语义保留)
   g.logEvent(
     "branch",
     mover.guohao,

@@ -104,6 +104,7 @@ function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void 
   const seat = g.players.indexOf(p);
   const staminaBefore = p.stamina;
   p.skipTurns += 1;
+  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }); // 时机·TurnSkipImposed:耗竭善后强加跳回合(#456,写点 +=1 语义保留)
   const after = g.addStamina(seat, STARTING_STAMINA - staminaBefore);
   emitGameEvent(g, seat, {
     kind: "staminaChanged",
@@ -672,6 +673,10 @@ function applyEncounterStamina(
     delta: stamina - staminaBefore,
     reason: "encounter",
   }); // 事件流(#384):体力变更(机遇,夹紧后实际增减)
+  g.dispatchMoment("StaminaChanged", {
+    subject: seat,
+    delta: stamina - staminaBefore,
+  }); // 时机·StaminaChanged:机遇路体力变更(#456 拍定仅机遇路挂——耗竭重置是系统复位、华佗赈济属主动技结算内,两处均不派)
   const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
   g.pushFloaterText(mover, `体力 ${signed}`, atTile);
   g.logEvent(

@@ -7,6 +7,7 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
+import { WARRANTS_PER_PASS } from "@core/constants";
 import { HEROES } from "@core/heroes";
 import { guidePriceOf } from "@core/treasures";
 import type { HeroDef, TriggerSkill } from "@core/heroes";
@@ -167,7 +168,14 @@ describe("时机框架:派发点位", () => {
     const e = makeEngine(1);
     const calls = recordMoments(e);
     finishSetup(e);
-    expect(calls).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
+    // #456:起手发牌经 drawJinnang 单点派 JinnangGained(每座位一派,拍定要派),夹在 SetupComplete 与 GameStart 之间
+    expect(calls).toEqual([
+      "SetupComplete",
+      "JinnangGained",
+      "JinnangGained",
+      "GameStart",
+      "TurnStart",
+    ]);
   });
 
   it("一回合的时机序列:BeforeMarch→BeforeRoll→DieRolled→AfterMarch→TurnEnd→(回合切换)TurnStart;回锚点时 TurnEnd→RoundEnd→RoundStart→TurnStart", () => {
@@ -183,6 +191,8 @@ describe("时机框架:派发点位", () => {
     // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
+      "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
+      "JinnangGained",
       "GameStart", // 开局收尾(最后落子者 → 对局开始)
       "TurnStart", // 开局首回合
       "BeforeMarch",
@@ -537,10 +547,19 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
     e.players[0].heroes.push(heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
     finishSetup(e);
     const lastPicker = e.draftOrder[e.draftOrder.length - 1];
-    expect(entries.map((x) => x.moment)).toEqual(["SetupComplete", "GameStart", "TurnStart"]);
+    // #456:起手发牌两派夹在中间,时机主序列不变
+    expect(entries.map((x) => x.moment)).toEqual([
+      "SetupComplete",
+      "JinnangGained",
+      "JinnangGained",
+      "GameStart",
+      "TurnStart",
+    ]);
     expect(entries[0].ctx.subject).toBe(lastPicker); // SetupComplete:最后一位选都落子者
-    expect(entries[1].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
-    expect(entries[2].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
+    expect(entries[1].ctx).toEqual({ subject: 0, count: 1 }); // JinnangGained:起手发牌(座位序)
+    expect(entries[2].ctx).toEqual({ subject: 1, count: 1 });
+    expect(entries[3].ctx.subject).toBe(e.roundAnchor); // GameStart:对局开始,主体=首动者
+    expect(entries[4].ctx.subject).toBe(e.roundAnchor); // TurnStart:开局首回合
     expect(fireCount(e, "gs")).toBe(1); // GameStart 已可挂技能(选都完成前的英雄池注入)
   });
 
@@ -1220,6 +1239,161 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     expect(entries2.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat2, amount: 300 },
     ]);
+  });
+});
+
+// ──────────────────── 事件化第二批(#456):状态与牌流六新时机 ────────────────────
+describe("时机框架:事件化第二批(#456)", () => {
+  /** 合成即时机遇(同 #299 块 enc 口径;staminaDelta 走机遇体力接线)。 */
+  const enc = (effect: EncounterDef["effect"]): EncounterDef => ({
+    id: "测试机遇",
+    tier: "好运",
+    tags: ["银两"],
+    weight: 1,
+    text: "t",
+    effect,
+  });
+
+  /** 摆军师幕测试态(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
+  function armJinnang(e: GameEngine, cards: string[]) {
+    const p = e.activePlayer;
+    p.jinnangHand = [...cards];
+    p.jinnangHandCount = cards.length;
+    e.turnPhase = "AwaitingJinnang";
+    return p;
+  }
+
+  it("TurnSkipImposed:三写点各自派发(subject=被跳者;缓兵 +=1 / 辅路中伏 =1 / 耗竭 +=1,写点语义差保留)", () => {
+    // ① 缓兵之计(jinnang-execution skipTurn:skipTurns += 1)
+    const e = makeEngine(1);
+    finishSetup(e);
+    const userSeat = e.activeIndex;
+    const victimSeat = 1 - userSeat;
+    armJinnang(e, ["缓兵之计"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("缓兵之计");
+    e.resolveJinnang("缓兵之计", [victimSeat]);
+    expect(e.players[victimSeat].skipTurns).toBe(1);
+    expect(entries.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: victimSeat, reason: "jinnang" },
+    ]);
+
+    // ② 辅路中伏(treasure-flow resolveBranchCell penalty:skipTurns = 1 赋值)
+    const e2 = makeEngine(1);
+    finishSetup(e2);
+    const mover2 = e2.activePlayer;
+    const penalty = e2.board.branch!.cells.find((c) => c.kind === "penalty")!;
+    const entries2 = recordMomentCtx(e2);
+    testEngine(e2).resolveBranchCell(mover2, penalty);
+    expect(mover2.skipTurns).toBe(1);
+    expect(entries2.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: e2.players.indexOf(mover2), reason: "ambush" },
+    ]);
+
+    // ③ 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += 1)
+    const e3 = makeEngine(1);
+    finishSetup(e3);
+    const mover3 = e3.activePlayer;
+    const seat3 = e3.players.indexOf(mover3);
+    const entries3 = recordMomentCtx(e3);
+    const r = testEngine(e3).applyEncounter(
+      mover3,
+      mover3.position,
+      enc({
+        kind: "cash",
+        delta: 0,
+        staminaDelta: -100,
+      }),
+    );
+    expect(r).toBe("exhausted"); // 无可处置城池 → 纯跳回合自动善后
+    expect(mover3.skipTurns).toBe(1);
+    expect(entries3.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
+      { subject: seat3, reason: "exhaustion" },
+    ]);
+  });
+
+  it("JinnangGained:drawJinnang 物理单点派发——起手发牌每座位一派(拍定要派)+ 游戏时授书路再派(count=实际入手)", () => {
+    const e = makeEngine(1);
+    const entries = recordMomentCtx(e);
+    finishSetup(e);
+    // 起手(JINNANG_STARTING_HAND=1):每座位恰一派——事件流「开局不发」是显示口径,不约束总线
+    expect(entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx)).toEqual(
+      e.players.map((_, seat) => ({ subject: seat, count: 1 })),
+    );
+    // 游戏时:机遇圯上授书(grantCard → drawJinnangTraced → drawJinnang)再进手一张
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantCard" }));
+    expect(mover.jinnangHand.length).toBe(1);
+    const gains = entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx);
+    expect(gains[gains.length - 1]).toEqual({ subject: seat, count: 1 });
+    expect(gains).toHaveLength(e.players.length + 1); // 起手 n 派 + 授书 1 派,单点覆盖无多派
+  });
+
+  it("PeekApplied:军情密探窥探入册后派发(subject=使用者,targetSeat=被窥者)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const userSeat = e.activeIndex;
+    const targetSeat = 1 - userSeat;
+    armJinnang(e, ["军情密探"]);
+    const entries = recordMomentCtx(e);
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [targetSeat]);
+    expect(e.jinnangPeeks).toEqual([{ viewer: userSeat, target: targetSeat }]);
+    expect(entries.filter((x) => x.moment === "PeekApplied").map((x) => x.ctx)).toEqual([
+      { subject: userSeat, targetSeat },
+    ]);
+  });
+
+  it("StaminaChanged:仅机遇路派发(delta=夹紧后实际增减);同流程耗竭重置不派(恰一派钉住口径)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const entries = recordMomentCtx(e);
+    const r = testEngine(e).applyEncounter(
+      mover,
+      mover.position,
+      enc({
+        kind: "cash",
+        delta: 0,
+        staminaDelta: -100,
+      }),
+    );
+    expect(r).toBe("exhausted");
+    expect(mover.stamina).toBe(100); // 耗竭善后已重置(addStamina 落账但不派时机)
+    expect(entries.filter((x) => x.moment === "StaminaChanged").map((x) => x.ctx)).toEqual([
+      { subject: seat, delta: -100 }, // 机遇路 −100 恰一派;善后重置 +100 不派
+    ]);
+  });
+
+  it("ReputationChanged:addReputation 唯一写口单点广播——天命格 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    const fateTile = e.board.tiles.find((t) => t.type === "Fate")!;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, fateTile.index);
+    expect(mover.reputation).toBe(20);
+    expect(entries.filter((x) => x.moment === "ReputationChanged").map((x) => x.ctx)).toEqual([
+      { subject: seat, delta: 20 },
+    ]);
+  });
+
+  it("WarrantGained:途经己都城巡幸得委任状后派发(subject=行者,tileIndex=都城)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const n = e.board.count;
+    const warrants0 = mover.warrants;
+    const entries = recordMomentCtx(e);
+    testEngine(e).placeActive((mover.capitalIndex - 1 + n) % n);
+    passJinnang(e).rollAndMove(); // 掷 1-6 必途经/落己都城
+    expect(entries.filter((x) => x.moment === "WarrantGained").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(mover), tileIndex: mover.capitalIndex },
+    ]);
+    expect(mover.warrants).toBe(warrants0 + WARRANTS_PER_PASS);
   });
 });
 
