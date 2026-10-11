@@ -26,7 +26,12 @@ import { assembleDownlinkShot } from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
 // assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不再直呼 wire——
 // 双写退役(形状/封装只有一份),本模块只管排空与节流后的发送。
-import { driveBots as driveBotsSession, type DriveBotsHost } from "./bot-driver";
+import {
+  decisionSeatOf,
+  driveBots as driveBotsSession,
+  reactionQueriedSeats,
+  type DriveBotsHost,
+} from "./bot-driver";
 import { createWatchdogs, type WatchdogHost, type Watchdogs } from "./watchdogs";
 
 // ──────────────────────────── 运行时同构原语(#398 单机统一 B)────────────────────────────
@@ -594,7 +599,9 @@ export class RoomRegistry {
   /** 应用一条人类命令并驱动 bot/接管/托管座位的连锁。
    *  onUpdate:每次可见状态变化后调(初始命令结果后 + 每个 botAct 步后),传输层在回调里 broadcast。
    *  这保留了原 server.ts 的逐步直播 UX(network-client 的渐进 snapshot 反馈)。
-   *  异步:连锁可能含慢速托管步进(在途时本调用被重入守卫跳过,由既有链接管)。 */
+   *  异步:连锁可能含慢速托管步进(在途时本调用被重入守卫跳过,由既有链接管)。
+   *  信任面:本方法是无座位鉴权的内部通路(服务器自驱:bot-driver/watchdogs 代发,及
+   *  单机 local.ts 唯一真人自证身份);联机 WS 面的外部输入必须走 applyCommandFromSeat。 */
   async applyCommand(
     roomId: string,
     cmd: GameCommand,
@@ -606,6 +613,41 @@ export class RoomRegistry {
     this.persist(room);
     onUpdate?.(room); // 人类命令结果先推
     await this.driveBots(room, onUpdate); // bot/接管/托管座位的连锁,逐步 persist+onUpdate
+  }
+
+  /** 联机 cmd 提交者座位校验(#454,#445 Bug3):WS 连接只能以本连接绑定的座位提交
+   *  命令,非决策归属座位一律 403 拒绝(与 pickCapital「未轮到该座位选都」同款房间
+   *  编排拒绝;经 wire.dispatchInbound rejected → error 消息回执发送者)。
+   *  归属口径与引擎 submitCommand 的 issuer 判定同源(引擎侧语义零改动,校验前置编排层):
+   *  - respondReaction:被询问座位(本窗待应答),且 cmd.seat 必须=提交者座位——应答
+   *    归属随 cmd.seat 过网,替他人应答即越权(识破代打/代弃权的实锤面);
+   *  - 其余命令:decisionSeatOf(Setup=当前选都位;Playing=decisionOwner,含珍宝交涉
+   *    城主与 AwaitingBankruptcySettle 清算抉择者=activePlayer)。
+   *  无身份座位(-1 旁观/越界)不归属任何决策点,天然(显式)拒于门外。
+   *  内部通路不经此口:bot-driver/watchdogs 直调 applyCommand(服务器自驱,座位天然
+   *  正确),单机 local.ts 同走内部通路——均不受本校验影响。 */
+  async applyCommandFromSeat(
+    roomId: string,
+    seat: number,
+    cmd: GameCommand,
+    onUpdate?: (room: RoomSession) => void,
+  ): Promise<void> {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.engine) return; // 房间/对局不存在:与内部通路同口径(WS 断连竞态)
+    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
+      throw new RoomError(400, "seat 非法"); // 旁观/越界座位不可提交任何游戏命令
+    const e = room.engine;
+    if (cmd.type === "respondReaction") {
+      const pr = e.pendingReaction;
+      const queried = pr != null ? reactionQueriedSeats(pr.view) : [];
+      const alreadyAnswered = pr != null && pr.answers.some((a) => a.seat === seat);
+      if (cmd.seat !== seat || !queried.includes(seat) || alreadyAnswered)
+        throw new RoomError(403, "非本窗被询问座位,不能应答(更不能替他人应答)");
+    } else {
+      const owner = decisionSeatOf(e);
+      if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
+    }
+    await this.applyCommand(roomId, cmd, onUpdate);
   }
 
   /** WS close 时调用:host 掉线 → transferHost;之后 driveBots(接管/托管座位的连锁)。

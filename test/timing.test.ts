@@ -8,6 +8,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import { HEROES } from "@core/heroes";
+import { guidePriceOf } from "@core/treasures";
 import type { HeroDef, TriggerSkill } from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
@@ -907,6 +908,79 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
       ownerSeat,
     ]);
   });
+
+  it("买家清算自救后交割(escrow 路):卖家收款 CashGained 恰一派(收款派发下沉 #455,交割点不补派)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = 1 - visitorSeat;
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
+    e.players[ownerSeat].treasures.push({ id: "escrow-t", name: "托管测试宝", level: 3 }); // 指导价=交涉价
+    e.players[visitorSeat].cash = 10; // 付不起 → 变卖自救
+    e.players[visitorSeat].treasures.push({ id: "self-t", name: "自救宝", level: 5 }); // 指导价 600
+    const price = guidePriceOf(3);
+    const ownerCash0 = e.players[ownerSeat].cash;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
+    e.resolveTreasureOwner({ type: "fair", treasureId: "escrow-t" });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 进清算,escrow 挂起
+    e.sellTreasureBankruptcy("self-t"); // +600 凑足
+    e.confirmBankruptcySettle(); // 清偿 → 交割
+    expect(e.escrowTreasure).toBeNull(); // 已交割
+    expect(e.players[visitorSeat].treasures.some((t) => t.id === "escrow-t")).toBe(true);
+    expect(e.players[ownerSeat].cash).toBe(ownerCash0 + price); // 卖家恰收一次价款
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, amount: price }, // 恰一派:清偿收款点派发,交割点不再补派
+    ]);
+  });
+
+  it("曹丕渔利联动(#455):交涉付款路渔利恰 +50,卖家收款 CashGained 不触发渔利(无连锁)", () => {
+    const e = makeEngine(1, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    const visitorSeat = e.activeIndex;
+    const ownerSeat = (visitorSeat + 1) % 3;
+    const caopiSeat = (visitorSeat + 2) % 3;
+    e.players[caopiSeat].heroes.push(HEROES.find((h) => h.id === "caopi")!); // 渔利:他人失银 → +50
+    const tile = freePropertyTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    e.players[ownerSeat].properties.push({
+      propertyId: def.id,
+      group: def.group,
+      purchasePrice: def.purchasePrice,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
+    e.players[ownerSeat].treasures.push({ id: "trade-t", name: "联动测试宝", level: 1 }); // 指导价 100
+    const price = guidePriceOf(1);
+    const visitorCash0 = e.players[visitorSeat].cash;
+    const ownerCash0 = e.players[ownerSeat].cash;
+    const caopiCash0 = e.players[caopiSeat].cash;
+    const entries = recordMomentCtx(e);
+    landActiveOn(e, tile.index);
+    e.resolveTreasureOwner({ type: "fair", treasureId: "trade-t" }); // 直付成交
+    expect(e.players[visitorSeat].cash).toBe(visitorCash0 - price); // 付款方实付
+    expect(e.players[ownerSeat].cash).toBe(ownerCash0 + price); // 收款方恰一派
+    expect(e.players[caopiSeat].cash).toBe(caopiCash0 + 50); // 渔利恰一次(由付款 CashLost 触发)
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: visitorSeat, amount: price },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: ownerSeat, amount: price }, // 收款 CashGained 不反哺渔利
+    ]);
+  });
 });
 
 describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/BankruptcySettle)", () => {
@@ -1146,5 +1220,58 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     expect(entries2.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat2, amount: 300 },
     ]);
+  });
+});
+
+// ──────────────────── 事件化第一批(#455):现有时机补漏 + 收款派发下沉 ────────────────────
+describe("时机框架:事件化第一批(#455)", () => {
+  /** nextFloat 定值骰替身(商市涨跌两向钉死;本路径不掷骰)。 */
+  function stubFloat(e: GameEngine, float: number): void {
+    const dice: Dice = {
+      roll: () => {
+        throw new Error("测试路径不应 roll");
+      },
+      rollDie: () => {
+        throw new Error("测试路径不应 rollDie");
+      },
+      nextFloat: () => float,
+      getRngState: () => 0,
+      setRngState: () => {},
+    };
+    (e as unknown as { dice: Dice }).dice = dice;
+  }
+
+  it("商市看涨(A1):得银侧补派 CashGained(与看跌侧 CashLost 对称),金额=实得", () => {
+    const stockTile = MAP.board.tiles.findIndex((t) => t.type === "Stock");
+    expect(stockTile).toBeGreaterThanOrEqual(0);
+
+    // 看涨:nextFloat→0 → gain=true、amt=100(+100)
+    const up = makeEngine(1);
+    finishSetup(up);
+    stubFloat(up, 0);
+    const mover = up.activePlayer;
+    const seat = up.players.indexOf(mover);
+    const cash0 = mover.cash;
+    const entries = recordMomentCtx(up);
+    testEngine(up).landActiveAt(stockTile);
+    expect(mover.cash).toBe(cash0 + 100); // 行情 +100 入账
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: seat, amount: 100 }, // 恰一派,金额=实得
+    ]);
+    expect(entries.filter((x) => x.moment === "CashLost")).toHaveLength(0); // 得银侧不派失银
+
+    // 看跌:nextFloat→0.9 → gain=false、amt=190(−190)——既有派发不动
+    const down = makeEngine(1);
+    finishSetup(down);
+    stubFloat(down, 0.9);
+    const loser = down.activePlayer;
+    const cash02 = loser.cash;
+    const entries2 = recordMomentCtx(down);
+    testEngine(down).landActiveAt(stockTile);
+    expect(loser.cash).toBe(cash02 - 190);
+    expect(entries2.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: down.players.indexOf(loser), amount: 190 },
+    ]);
+    expect(entries2.filter((x) => x.moment === "CashGained")).toHaveLength(0); // 失银侧不派得银
   });
 });

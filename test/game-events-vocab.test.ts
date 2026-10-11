@@ -567,7 +567,7 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     expect(e.players[otherSeat].skipTurns).toBe(1);
   });
 
-  it("窃玉偷香:产出 [jinnangAnnounced, treasureStolen],失主/珍宝名随事件(id 带流水号,名字不入查表)", () => {
+  it("窃玉偷香:产出 [jinnangAnnounced, treasureGained, treasureStolen](#455 A4 增派 TreasureGained 时机→事件),失主/珍宝名随事件(id 带流水号,名字不入查表)", () => {
     const e = makeEngine(3);
     finishSetup(e);
     const user = e.activePlayer;
@@ -587,8 +587,13 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     e.resolveJinnang("窃玉偷香"); // one 域:入目标段
     e.resolveJinnang("窃玉偷香", [otherSeat]);
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["jinnangAnnounced", "treasureStolen"]);
+    expect(kinds(events)).toEqual(["jinnangAnnounced", "treasureGained", "treasureStolen"]);
     expect(events[1]).toMatchObject({
+      kind: "treasureGained",
+      seat: userSeat, // subject=窃方
+      treasureId: "seal-1",
+    });
+    expect(events[2]).toMatchObject({
       kind: "treasureStolen",
       seat: userSeat,
       victimSeat: otherSeat,

@@ -7,6 +7,7 @@ import { sellValueOf } from "@core/economy";
 import { guidePriceOf } from "@core/treasures";
 import { HEROES } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
+import type { GameMoment, MomentCtx } from "@core/timing";
 import { testEngine } from "@core/testing";
 import sanguoData from "../public/maps/sanguo.json";
 import { loadMap } from "@core/board-loader";
@@ -361,5 +362,67 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     expect(r).toBe("bankrupt");
     expect(p.isBankrupt).toBe(true);
     expect(caopi.cash).toBe(afterDirect); // 0 额不派发:渔利不再白得 50
+  });
+});
+
+// ──────────────────── 收款派发下沉(#455 A3+A5):玩家间每次收款恰一派 ────────────────────
+describe("收款派发下沉(#455 A3+A5):直付/清偿收款点派 CashGained(收款方视角),恰一派", () => {
+  /** 包一层 dispatchMoment,记录派发的时机 + 完整 ctx(同 timing.test 口径)。 */
+  function recordCashMoments(e: GameEngine): { moment: GameMoment; ctx: MomentCtx }[] {
+    const entries: { moment: GameMoment; ctx: MomentCtx }[] = [];
+    const orig = e.dispatchMoment.bind(e);
+    (e as unknown as { dispatchMoment: (m: GameMoment, ctx: MomentCtx) => void }).dispatchMoment = (
+      m,
+      ctx,
+    ) => {
+      entries.push({ moment: m, ctx: { ...ctx } });
+      return orig(m, ctx);
+    };
+    return entries;
+  }
+
+  it("直付路:payOrLiquidate ok 派 CashGained(subject=收款债主,amount=实收);creditor=null(归银行)不派", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const payer = e.activePlayer;
+    const creditor = e.players.find((q) => q !== payer)!;
+    const payerCash0 = payer.cash;
+    const creditorCash0 = creditor.cash;
+    const entries = recordCashMoments(e);
+    const r = testEngine(e).payOrLiquidate(payer, creditor, 150);
+    expect(r).toBe("ok");
+    expect(payer.cash).toBe(payerCash0 - 150); // 付款方实付
+    expect(creditor.cash).toBe(creditorCash0 + 150); // 收款方实收
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(creditor), amount: 150 }, // 恰一派
+    ]);
+    expect(entries.filter((x) => x.moment === "CashLost")).toHaveLength(0); // 本窄面只测收款半边(付款侧 CashLost 由调用域派发)
+
+    // creditor=null(税/行情等归银行):无玩家收款,不派发
+    const entries2 = recordCashMoments(e);
+    expect(testEngine(e).payOrLiquidate(payer, null, 100)).toBe("ok");
+    expect(entries2.filter((x) => x.moment === "CashGained")).toHaveLength(0);
+  });
+
+  it("清偿路:confirm 清偿成功收款点派 CashGained(subject=债主),与付款方 CashLost(#452)成对且各恰一次", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.activePlayer;
+    const creditor = e.players.find((q) => q !== p)!;
+    p.cash = 100;
+    p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
+    const creditorCash0 = creditor.cash;
+    const entries = recordCashMoments(e);
+    expect(testEngine(e).payOrLiquidate(p, creditor, 200)).toBe("liquidating");
+    e.sellTreasureBankruptcy("t1"); // +600 → 凑足
+    e.confirmBankruptcySettle(); // 实付 200 清偿 → 债主收款
+    expect(p.cash).toBe(500);
+    expect(creditor.cash).toBe(creditorCash0 + 200); // 收款方恰一派(清算路不再经 deliverEscrow 补派)
+    expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(creditor), amount: 200 },
+    ]);
+    expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
+      { subject: e.players.indexOf(p), amount: 200 }, // 付款半边(#452 口径)成对在列
+    ]);
   });
 });

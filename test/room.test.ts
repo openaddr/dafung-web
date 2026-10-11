@@ -813,6 +813,129 @@ describe("RoomRegistry · 命令 + onUpdate 直播", () => {
   });
 });
 
+describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
+  /** 开一个识破反应窗:活跃座位手「火烧连营」,另一座位手「识破诡计」+ 都城持仓。
+   *  布场口径同 test/reaction-window.test.ts(直调引擎公共面摆测试态,不经 cmd 通道)。 */
+  async function openCounterWindow(reg: RoomRegistry, roomId: string) {
+    const e = reg.get(roomId)!.engine!;
+    const phase0: string = e.turnPhase; // 先宽化留底(下方窄化守卫会把 turnPhase 收成字面量)
+    if (phase0 !== "AwaitingJinnang") throw new Error(`测试预期开局锦囊相位,实际 ${phase0}`);
+    if (e.players.length !== 2) throw new Error("测试预期 2 座房间");
+    const userSeat = e.activeIndex;
+    const victimSeat = 1 - userSeat;
+    e.players[userSeat].jinnangHand = ["火烧连营"];
+    e.players[userSeat].jinnangHandCount = 1;
+    e.players[victimSeat].jinnangHand = ["识破诡计"];
+    e.players[victimSeat].jinnangHandCount = 1;
+    const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
+    e.players[victimSeat].properties = [
+      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+    ];
+    e.resolveJinnang("火烧连营"); // 入目标段
+    e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
+    expect(e.turnPhase as string).toBe("AwaitingReaction");
+    return { e, userSeat, victimSeat };
+  }
+
+  it("非决策归属座位发命令 → 403,引擎不动", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    const e = reg.get(roomId)!.engine!;
+    const owner = e.decisionOwner;
+    const other = owner === 0 ? 1 : 0;
+    await expectRoomError(
+      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
+      403,
+    );
+    expect(e.decisionOwner).toBe(owner); // 引擎状态未动
+  });
+
+  it("决策归属座位放行:rollAndMove 正常起摇", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    const e = reg.get(roomId)!.engine!;
+    await reg.applyCommandFromSeat(roomId, e.decisionOwner, { type: "rollAndMove" });
+    // 命令已达引擎:cmd 流记行(每回合开头都是锦囊相位,turnPhase 值会循环回原值,不作断言)
+    expect(e.log.some((l) => l.category === "cmd" && l.detail.includes('"rollAndMove"'))).toBe(
+      true,
+    );
+  });
+
+  it("Setup 期非当前选都位发命令 → 403", async () => {
+    const { reg, roomId } = await startRoom({ seats: 2, bot: [] });
+    const e = reg.get(roomId)!.engine!;
+    const cur = e.currentSetupPlayerIndex;
+    const other = cur === 0 ? 1 : 0;
+    await expectRoomError(
+      () => reg.applyCommandFromSeat(roomId, other, { type: "rollAndMove" }),
+      403,
+    );
+  });
+
+  it("无身份座位(-1 旁观/越界)发命令 → 400", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    await expectRoomError(() => reg.applyCommandFromSeat(roomId, -1, { type: "rollAndMove" }), 400);
+    await expectRoomError(() => reg.applyCommandFromSeat(roomId, 9, { type: "rollAndMove" }), 400);
+  });
+
+  it("反应窗:非被询问座位替他人应答 → 403,窗不动(#445 Bug3 实锤面)", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    const { e, victimSeat } = await openCounterWindow(reg, roomId);
+    const outsider = 1 - victimSeat;
+    // 圈外座位伪造受害者应答(替打识破):拒,窗与牌都不动
+    await expectRoomError(
+      () =>
+        reg.applyCommandFromSeat(roomId, outsider, {
+          type: "respondReaction",
+          seat: victimSeat,
+          use: true,
+          cardId: "识破诡计",
+          shareSeat: victimSeat,
+        }),
+      403,
+    );
+    expect(e.pendingReaction).not.toBeNull(); // 窗未被伪造应答收走
+    expect(e.players[victimSeat].jinnangHand).toEqual(["识破诡计"]); // 牌未被冒用
+    // 圈外座位以自己名义应答(非被询问者):同样拒
+    await expectRoomError(
+      () =>
+        reg.applyCommandFromSeat(roomId, outsider, {
+          type: "respondReaction",
+          seat: outsider,
+          use: false,
+        }),
+      403,
+    );
+    expect(e.pendingReaction).not.toBeNull();
+  });
+
+  it("反应窗:被询问座位本人应答放行(不用 → 照常结算)", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    const { e, victimSeat } = await openCounterWindow(reg, roomId);
+    await reg.applyCommandFromSeat(roomId, victimSeat, {
+      type: "respondReaction",
+      seat: victimSeat,
+      use: false,
+    });
+    expect(e.pendingReaction).toBeNull();
+    expect(e.turnPhase).toBe("Roll"); // 结算收卷(同 reaction-window.test 口径)
+  });
+
+  it("无反应窗时 respondReaction → 403(无人被询问=无归属)", async () => {
+    const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
+    await pickAllHumanCapitals(reg, roomId);
+    const e = reg.get(roomId)!.engine!;
+    expect(e.pendingReaction).toBeNull();
+    await expectRoomError(
+      () => reg.applyCommandFromSeat(roomId, 0, { type: "respondReaction", seat: 0, use: false }),
+      403,
+    );
+  });
+});
+
 describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
   it("新 registry 共享同一 persistence → restoreAll 恢复房间(引擎/hostSeat/相位/mapId)", async () => {
     const persistence = new InMemoryPersistence();

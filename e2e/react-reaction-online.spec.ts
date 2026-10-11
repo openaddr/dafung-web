@@ -281,12 +281,13 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
     try {
       await awaitReactionWindow(host);
       await awaitReactionWindow(guest);
-      // 询问集 per-seat 投影:各端只看到「自己是否被询问」——两端各自在列 = 双人类
-      // 同窗的前提成立(god-view 全集 [0,1] 见对局日志 reactionWindow 行)
+      // 询问集 per-seat 投影(#461 起=身份匿名、数量保留,与脱敏批同口径):自己座位
+      // 在列 + 他人位匿名占位(-1)——两端各自在列 = 双人类同窗的前提成立(god-view
+      // 全集 [0,1] 见对局日志 reactionWindow 行);数量保留是折叠器闭窗算术的分母。
       const queriedOf = (page: Page): Promise<number[]> =>
         page.evaluate(() => (window as any).__dafung.snapshot().reaction?.queriedBySeat);
-      expect(await queriedOf(host)).toEqual([0]);
-      expect(await queriedOf(guest)).toEqual([1]);
+      expect(await queriedOf(host)).toEqual([0, -1]);
+      expect(await queriedOf(guest)).toEqual([-1, 1]);
       // host 点「不用」应答(单发命令;联机日常路径与单机降噪同款点击链)
       await answerReactionWindow(host, { mode: "decline" });
       // #453/B2 验收:已应答座位横幅即刻消失、不可再点(入口没了)。权威侧窗未收
@@ -325,6 +326,45 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
       // 对局继续推进:两端各自清决策点,不留悬窗
       await skipUntilNextSeat(host, 0, 60_000);
       await skipUntilNextSeat(guest, 1, 60_000);
+    } finally {
+      await host.context().close();
+      await guest.context().close();
+    }
+  });
+
+  test("非应答端横幅保持(#461):host 应答后 guest 横幅不消失、仍可应答,应答齐权威即收窗", async ({
+    browser,
+  }) => {
+    // 同种子 2849 双人类连环计窗(场景核算见上例)。#461 根因:军师窗开窗拍必带校准
+    // 全量快照,其 per-seat 投影把查询集覆盖成长度 1,折叠器闭窗算术(answers 数 ≥
+    // 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:横幅提前消失、丧失应答
+    // 入口,权威侧窗实际仍开满 8s,玩家被超时代发兜底。
+    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 2849);
+    try {
+      const before = await awaitReactionWindow(guest);
+      await awaitReactionWindow(host);
+      await answerReactionWindow(host, { mode: "decline" });
+      // guest(非应答端)横幅必须跨 host 应答持续显示:poll 逐拍复验可见性,拍距跨过
+      // 2.5s(远小于 8s 权威窗)才算数——修复前首答批数百 ms 内即误闭窗,poll 必挂。
+      const t0 = Date.now();
+      await expect
+        .poll(
+          async () => {
+            await expect(guest.getByTestId(TESTIDS.reactionBanner)).toBeVisible();
+            return Date.now() - t0;
+          },
+          { timeout: 5_000, intervals: [500], message: "guest 横幅在 host 应答后须持续显示" },
+        )
+        .toBeGreaterThan(2_500);
+      // guest 仍可应答:点「不用」——应答齐(2/2)权威窗立收续结算(远早于超时代发)
+      await answerReactionWindow(guest, { mode: "decline" });
+      await pollReactionSettled(guest, before, {});
+      // 权威留痕:guest 自己的应答(seat=1)过网入账
+      await pollEventSeen(
+        guestFeed,
+        (ev) => ev.kind === "reactionAnswered" && ev.seat === 1,
+        "guest 应答经事件批留痕",
+      );
     } finally {
       await host.context().close();
       await guest.context().close();

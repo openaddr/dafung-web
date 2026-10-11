@@ -513,7 +513,8 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       delta: gain ? delta : -amt,
       reason: "stock",
     }); // 事件流(#375):金钱变更(浮字同口径)
-    if (!gain) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
+    if (gain) g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: delta }); // 时机·CashGained:被动得银(商市行情看涨,#455 A1 补派,与看跌侧对称)
+    else g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
     g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
     g.logEvent(
       "system",
