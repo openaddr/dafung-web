@@ -2,7 +2,7 @@
 // 主路 = tiles 数组顺序闭合环。校验失败抛可读错误。
 // 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
-import { createBoard } from "./board";
+import { createBoard, isCityType } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
 import type { PropertyDef, TradeFormula } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
@@ -90,10 +90,13 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const pos: BoardPos = { x: t.pos[0], y: t.pos[1] };
     positions.push(pos);
     const type = (t.type ?? "Property") as TileDef["type"];
-    // 城池规模(Lv0 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非地产格无 size
+    // 宝物城与普通城池同权(ADR-0024):propertyId / 都城候选 / size 推断同口径,
+    // catalog 入册与校验同一路径(见下方 properties 段)。
+    const isCity = isCityType(type);
+    // 城池规模(Lv0 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非城池格无 size
     const value = t.valueByLevel;
     const size: TileDef["size"] =
-      type === "Property" && value
+      isCity && value
         ? value[0] >= 20
           ? "large"
           : value[0] >= 10
@@ -105,8 +108,8 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       type,
       name: t.name,
       position: pos,
-      propertyId: type === "Property" ? t.id : null,
-      isCapitalEligible: type === "Property",
+      propertyId: isCity ? t.id : null,
+      isCapitalEligible: isCity,
       region: t.region ?? null,
       size,
     };
@@ -122,10 +125,11 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     }
   }
 
-  // properties(仅 Property 格进 catalog;Chance/Fate 等跳过)
+  // properties(城池格进 catalog:Property 与 TreasureCity 同口径,ADR-0024;特殊格跳过)
   const properties: PropertyDef[] = [];
   d.tiles.forEach((t, i) => {
-    if ((t.type ?? "Property") !== "Property") return;
+    const type = t.type ?? "Property";
+    if (!isCityType(type)) return;
     const values = t.valueByLevel;
     if (!Array.isArray(values) || values.length !== maxLevel + 1) {
       fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);

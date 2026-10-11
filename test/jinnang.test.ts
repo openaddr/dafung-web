@@ -357,11 +357,11 @@ import { testEngine } from "@core/testing";
 import { ENCOUNTERS } from "@core/encounters";
 
 describe("锦囊渠道(T5)", () => {
-  it("落锦囊格必抽一张(index 22 与 31 两格)", () => {
+  it("落锦囊格必抽一张(index 23 与 33 两格)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     const handBefore = e.players[0].jinnangHand.length;
-    testEngine(e).landActiveAt(22); // 子午谷改建的锦囊格
+    testEngine(e).landActiveAt(23); // 子午谷改建的锦囊格(#473 后 sanguo 环位)
     expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
     expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
   });

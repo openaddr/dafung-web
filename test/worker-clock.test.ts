@@ -142,7 +142,16 @@ describe("RoomRegistry clock 注入(#399:编排节拍经注入时钟)", () => {
     expect(clock.size).toBeGreaterThanOrEqual(1);
     clock.fireAll(); // 手动推进节拍:看门狗到点 → applyCommand rollAndMove → 链式推进
     await sleep(20); // fire 是异步链(applyCommand+driveBots),让出事件循环
-    // auto-roll 代发生效:回合量前进(快速链可能已绕回下一个 Roll 等待态,以轮次为准)
+    // auto-roll 代发生效:回合量前进(快速链可能已绕回下一个 Roll 等待态,以轮次为准)。
+    // #473 后首摇可能落在带抉择的格(无主城/宝物城等)停住人类决策:清决策点再补拍
+    // fire,让链走完一个回合(代发本身已由离开 Roll 证明)。
+    for (let i = 0; i < 4 && e.turnNumber === turn0; i++) {
+      if (e.turnPhase === "AwaitingDecision") e.endDecision();
+      else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(0);
+      else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
+      clock.fireAll();
+      await sleep(20);
+    }
     expect(e.turnNumber).toBeGreaterThan(turn0);
     reg.dismissRoom(created.room.roomId, created.token);
   }, 20_000);

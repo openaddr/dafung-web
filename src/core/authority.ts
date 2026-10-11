@@ -3,7 +3,7 @@
 // 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
 // jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
-import type { Board, MovePath, TileDef } from "./board";
+import type { Board, MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
@@ -71,7 +71,7 @@ import {
 // 珍宝+城主交涉域(#322,ADR-0019):宝物城落格结算、抽宝拼点、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
 // treasures.ts 分层(流程≠数据)。
-import { resolveTreasureCity, resolveTreasureOwner } from "./treasure-flow";
+import { finishTradeChain, resolveTreasureOwner } from "./treasure-flow";
 // 移动结算域(#323,ADR-0019):行军三件/地产决策/落格结算/都城补给在
 // movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
 // marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
@@ -770,18 +770,20 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
-  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):宝物城落格结算
-  // (resolveTreasureCity)、抽宝拼点(drawTreasureAt)与城主交涉(resolveTreasureOwner)
-  // 均为自由函数,首参接引擎实例;
+  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):交易链收尾
+  // (finishTradeChain,含宝物城链尾探宝挂件 ADR-0024)、抽宝拼点(drawTreasureAt)
+  // 与城主交涉(resolveTreasureOwner)均为自由函数,首参接引擎实例;
   // 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步经 bankruptcy.ts 的壳上薄委托
   // g.deliverEscrow/g.returnEscrowToSeller 往返消费。壳内仅留同名方法薄委托:公共入口
-  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 宝物城落格(壳内
-  // resolveLanding 消费 + testing.ts 白盒窄面);drawTreasureAt 域内自洽,不留壳。
+  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 交易链收尾(落格结算
+  // movement-flow 消费,ADR-0024 后宝物城落格走城池分流、探宝挂交易链尾);
+  // drawTreasureAt 域内自洽(finishTradeChain 域内直调),不留壳。
 
-  /** 宝物城落格:薄委托 → treasure-flow.resolveTreasureCity(#323 去私有化 ADR-0019 条款 3:
-   *  落格结算 movement-flow.resolveLanding 经 g. 直调)。 */
-  resolveTreasureCity(mover: Player, tile: TileDef): void {
-    resolveTreasureCity(this, mover, tile);
+  /** 交易链收尾:普通城结束回合;宝物城链尾接一次探宝(自带 endTurn)。
+   *  薄委托 → treasure-flow.finishTradeChain(ADR-0024 落格结算顺序正典:
+   *  机遇 roll → 交易链 → 探宝;清算/破产中断路径不经此)。 */
+  finishTradeChain(mover: Player): void {
+    finishTradeChain(this, mover);
   }
 
   /** 城主抉择:公道买卖/坐地起价/跳过(escrow 托管语义见 treasure-flow.resolveTreasureOwner)。薄委托。 */

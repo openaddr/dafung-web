@@ -18,7 +18,7 @@ const SPECIAL_TILE_DESC: Record<Exclude<TileType, "Property">, string> = {
   Fate: "天命:落格触发随机凶事,得失约 100~250 两",
   Tax: "税关:落格缴税 200 两",
   Stock: "商市:落格行情波动,得失约 100~200 两",
-  TreasureCity: "宝物城:不可购买;落格拼点探宝(双骰 ≥ 珍宝等级即得宝)",
+  TreasureCity: "可购买的宝物城:落格先交易,后拼点探宝(双骰 ≥ 珍宝等级即得宝)",
 };
 
 export interface TileDetailScrollProps {

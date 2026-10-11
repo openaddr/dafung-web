@@ -76,7 +76,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     finishSetup(a);
     let steps = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 5000) {
+    while (!a.isOver && guard++ < 30000) {
       // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) {
         steps++;
@@ -128,12 +128,12 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
   });
 
   it("中点恢复后独立续跑到终局,终态与直跑完全一致", () => {
-    // 路径 A:一台引擎直跑到底
+    // 路径 A:一台引擎直跑到底(环位调整后本 seed 对局步数上探 2.5 万,guard 同步放宽)
     const a = makeEngine(13);
     finishSetup(a);
     let n = 0;
     let guard = 0;
-    while (!a.isOver && guard++ < 5000) {
+    while (!a.isOver && guard++ < 30000) {
       // 经济 v2 目标 30000:终局步数远超旧 500 上限
       if (stepPlaying(a)) n++;
     }
@@ -150,7 +150,7 @@ describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () 
     const b2 = makeEngine(13);
     b2.restoreFromSnapshot(b1.snapshot());
     guard = 0;
-    while (!b2.isOver && guard++ < 5000) {
+    while (!b2.isOver && guard++ < 30000) {
       // 同路径 A:经济 v2 + #188 档 3 技能骰流,终局步数远超旧 500 上限
       stepPlaying(b2);
     }

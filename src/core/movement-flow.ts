@@ -6,10 +6,10 @@
 // 域内自洽不留壳)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
 // 方法薄委托(外部 importer 无感),src/core/authority.ts「回合状态机」区段。
-// 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、宝物城
-// g.resolveTreasureCity、escrow 清算 g.payOrLiquidate、
-// 锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗直调
-// reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
+// 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、交易链收尾
+// g.finishTradeChain(普通城 endTurn;宝物城链尾探宝,ADR-0024)、escrow 清算
+// g.payOrLiquidate、锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗
+// 直调 reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
 // 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
 import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
@@ -22,6 +22,7 @@ import { emitGameEvent, requireMovePath } from "./game-events";
 import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
+import { isCityType } from "./board";
 import type { TileDef } from "./board";
 
 // ── 落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
@@ -164,7 +165,7 @@ export function marchTraverse(
     }
     // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
     const tile = g.board.at(tIdx);
-    if (tile.type === "Property" && tile.propertyId != null) {
+    if (isCityType(tile.type) && tile.propertyId != null) {
       const owner = g.findOwner(tile.propertyId);
       if (owner != null && owner !== mover && !owner.isBankrupt) {
         const ownerSeat = g.players.indexOf(owner);
@@ -241,7 +242,7 @@ export function buyProperty(g: GameEngine): void {
   // 进驻(买)新城需要委任状;不足则拒绝(NoWarrant),UI 会禁用购买按钮
   if (buyer.warrants < BUY_WARRANT_COST) {
     g.lastTransaction = { status: "NoWarrant" };
-    g.endTurn();
+    g.finishTradeChain(buyer); // 自动拒绝也是交易链终端 → 宝物城链尾探宝(ADR-0024)
     return;
   }
   const r = buy(buyer, def);
@@ -266,7 +267,9 @@ export function buyProperty(g: GameEngine): void {
     );
     g.dispatchMoment("PropertyBought", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
   }
-  g.endTurn();
+  // 交易链终端(买成/拒买):先收尾交易链全部时机派发,再走宝物城链尾探宝(ADR-0024
+  // 落格顺序正典:机遇 roll → 交易链 → 探宝;TreasureGained 不进决策挂起期)。
+  g.finishTradeChain(buyer);
 }
 
 /** 扩军(决策命令):免费升一级,留痕(ADR-0015,等级维度)+ 战报。 */
@@ -292,10 +295,11 @@ export function upgradeProperty(g: GameEngine): void {
     );
     g.dispatchMoment("PropertyUpgraded", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyUpgraded:扩军成功(两挂点之一,另一处在公道买卖成交)
   }
-  g.endTurn();
+  // 交易链终端(升成):PropertyUpgraded 派发完后接宝物城链尾探宝(ADR-0024)
+  g.finishTradeChain(g.activePlayer);
 }
 
-/** 按兵不动(决策命令):放弃购地/扩军,回合收尾。 */
+/** 按兵不动(决策命令):放弃购地/扩军,交易链终端收尾(宝物城接链尾探宝)。 */
 export function endDecision(g: GameEngine): void {
   if (!g.assertPhase("AwaitingDecision", "EndDecision")) return;
   g.logEvent(
@@ -304,14 +308,17 @@ export function endDecision(g: GameEngine): void {
     `${g.activePlayer.guohao} 按兵不动`,
     `skip player=${g.activePlayer.id}`,
   );
-  g.endTurn();
+  g.finishTradeChain(g.activePlayer);
 }
 
-/** 落格结算:按落格类型分流——己都城(补给+招贤)/ 卧龙岗(招贤)/ 宝物城(拼点探宝,
- *  treasure-flow)/ 特殊格(天命/锦囊/税关/商市)/ 城池(购地/扩军/珍宝交涉)。 */
+/** 落格结算:按落格类型分流——己都城(补给+招贤)/ 卧龙岗(招贤)/ 特殊格(天命/
+ *  锦囊/税关/商市)/ 城池(购地/扩军/珍宝交涉)。宝物城与普通城池同权走城池分流
+ *  (resolveProperty),其探宝固定挂交易链尾(ADR-0024 落格结算顺序正典:
+ *  **机遇 roll → 城池交易链(购地/扩军/按兵不动/珍宝交涉,含自动拒绝;一次落格
+ *  至多一段)→ 探宝**;链中途转入清算/破产则探宝不触发)。 */
 export function resolveLanding(g: GameEngine): void {
   const mover = g.activePlayer;
-  // 落点恰为自己都城:补给 + 招贤纳士
+  // 落点恰为自己都城:补给 + 招贤纳士(都城特化先于城池结算:宝物城化的都城走驻跸,不探宝)
   if (mover.capitalIndex === mover.position) {
     const supply = applyResupply(g, mover);
     g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
@@ -327,12 +334,7 @@ export function resolveLanding(g: GameEngine): void {
     g.tryRecruitHero(mover);
     return;
   }
-  // 宝物城:掷双骰判定获取珍宝
-  if (tile.type === "TreasureCity") {
-    g.resolveTreasureCity(mover, tile);
-    return;
-  }
-  if (tile.type !== "Property") {
+  if (!isCityType(tile.type)) {
     resolveSpecial(g, mover, tile);
     return;
   }
@@ -439,14 +441,14 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
   g.endTurn();
 }
 
-/** 城池落格结算:无主 → 可购决策;己城 → 可扩军决策;他人城 → 珍宝交涉(城主有宝)
- *  或无事发生。 */
+/** 城池落格结算(含宝物城,ADR-0024 同权):无主 → 可购决策;己城 → 可扩军决策;
+ *  他人城 → 珍宝交涉(城主有宝)或无事发生。各终端收口统一走 finishTradeChain
+ *  (普通城 endTurn;宝物城链尾接一次探宝,自带 endTurn)。 */
 function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
   const def = g.catalog.get(tile.propertyId);
   if (!def) {
-    g.lastLandOutcome = { kind: "Noop" };
-    g.endTurn();
-    return;
+    // 城池格必进 catalog(loader 同口径入册):查无定义=引擎/loader 失步,炸出来而不是静默跳过
+    throw new Error(`城池格 ${tile.propertyId} 无 catalog 定义`);
   }
   const owner = g.findOwner(def.id);
   if (owner == null) {
@@ -499,7 +501,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
       `treasureAwait owner=${owner.id} visitor=${mover.id} treasures=${owner.treasures.length}`,
     );
   } else {
-    // 城主无珍宝:无事发生
+    // 城主无珍宝:无事发生(他人城终端 → 宝物城接链尾探宝)
     g.lastLandOutcome = { kind: "Noop" };
     g.logEvent(
       "system",
@@ -507,7 +509,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
       `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`,
       `noTreasure owner=${owner.id} visitor=${mover.id}`,
     );
-    g.endTurn();
+    g.finishTradeChain(mover);
   }
 }
 
@@ -559,7 +561,8 @@ function enterDecisionPhase(g: GameEngine): boolean {
     // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
     g.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
   }
-  g.endTurn();
+  // 自动拒绝终端(买不起/无委任状/城满级):宝物城同样接链尾探宝(ADR-0024)
+  g.finishTradeChain(p);
   return false;
 }
 
