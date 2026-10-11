@@ -231,6 +231,52 @@ _Avoid_: 锦囊卷轴(旧名;旧 testid 族 scroll-jinnang* 已随 #255 退役)�
 名将手动发动的技能(#188 档 3),与被动技(时机框架自动触发)并存;每名将至多一个,在军师幕内发动,走独立冷却(heroLastFired,键 = 技 id),不占锦囊标签名额。出技是公开事件(浮字+战报);结算复用既有路径(如火攻 = 火烧连营同款),技能结算内不派发时机(防技能链)。看门狗/托管代驾永不主动出技。
 _Avoid_: 名将技(旧「名将」称谓)、大招(游戏黑话)、手动技(口语)
 
+## 时机总线
+
+**被强加跳回合(TurnSkipImposed)**:
+回合被外部效果强制跳过的时机:缓兵之计(`+=1`)/辅路中伏(`=1` 赋值)/体力耗竭善后(`+=1`)三写点各自派发、写点语义差保留;`ctx.reason` 区分缘由(jinnang/ambush/exhaustion)。定义单源 `timing.ts`。
+_Avoid_: 跳过(裸用——事件流的 turnSkipped 是事件,这是时机)、眩晕/禁手(别家游戏语)
+
+**得锦囊进手(JinnangGained)**:
+锦囊入手的时机:抽牌物理单点(`jinnang-execution.ts` `drawJinnang`)内部派发,五条获取渠道全覆盖(起手发牌/锦囊格/辅路军师来投/机遇「圯上授书」/声望献计);`ctx.count`=本次实际入手张数,牌库空落空不派;暗牌不带牌 id(ADR-0016 保密口径)。
+_Avoid_: 抽卡(口语,落空不派)、摸牌
+
+**窥探生效(PeekApplied)**:
+锦囊「军情密探」窥探入册后的时机:subject=窥方,`ctx.targetSeat`=被窥者;只记「窥探发生了」,窥到的牌面内容仍按保密口径走。
+_Avoid_: 偷看(口语)、侦查
+
+**体力变更(StaminaChanged)**:
+体力增减的时机:**仅机遇路**派发(`encounter-flow.ts` 机遇体力落账结算处),`ctx.delta`=夹紧 0~100 后实际增减(带符号);耗竭重置 100(系统复位非收益)与华佗赈济(「主动技结算内不派时机」既有口径)有意不派。
+_Avoid_: 回血(游戏黑话)、体力事件(与事件流 staminaChanged 事件混淆)
+
+**声望变更(ReputationChanged)**:
+声望增减的时机:挂 `addReputation` 唯一写口单点广播,天命格固定 +20 与机遇 `repDelta` 两路天然全覆盖;`ctx.delta`=夹紧 ±100 后实际增减(带符号)。
+_Avoid_: 民心(浮字文案语,不作机制名)、威望(弃用,见「声望」)
+
+**巡幸得状(WarrantGained)**:
+行军途经自己都城获委任状的时机(Monopoly 过起点式,每程 +`WARRANTS_PER_PASS` 张):必停截断与恰落都城两路同挂,`ctx.tileIndex`=都城。
+_Avoid_: 过起点领钱(得的是委任状,不是现金)、俸禄
+
+**失宝(TreasureLost)**:
+珍宝非售出流失的时机:以宝换贤交出代价(每件一派)与窃玉偷香失窃方两写点,与「售出」(TreasureSold)语义区分;`ctx.treasureId`。
+_Avoid_: 失窃(只覆盖窃玉一路——以宝换贤是主动交出)、丢宝(口语)
+
+**得城(PropertyGained)**:
+无主城白得的时机(机遇赐城入册处):不经购买、不耗委任状,与「购」(PropertyBought)语义区分;`ctx.propertyId`。
+_Avoid_: 获封(口语)、占领
+
+**城池受损(PropertyDemolished)**:
+城池降 1 级的时机:火烧连营(锦囊路调用侧)与耗竭「降 1 级」处置两写点;火攻主动技路不派(「主动技结算内不派时机」既有口径);`ctx.propertyId`/`ctx.tileIndex`。
+_Avoid_: 拆城(是降级,城仍在你手)、焚城
+
+**失城(PropertyLost)**:
+失去整座城的时机:火烧连营城防尽毁(锦囊路调用侧,与降级同点按果择一)与耗竭「失去整座」处置两写点;都城不可失,失的恒为非都城(城回无主);`ctx.propertyId`/`ctx.tileIndex`。
+_Avoid_: 丢城(口语)、城破(与破产混淆)
+
+**资产被收走(AssetsSeized)**:
+破产终局资产转移的时机(债主视角,与 `PlayerBankrupt` 的破产者视角成对):`settleDebtTraced` 一次派发、不逐件;`ctx.cities`=被收城 id 列表、`ctx.treasureCount`=珍宝件数(名将是释放非转移,不计数);无债主(归银行/销毁)不派。
+_Avoid_: 抄家(口语)、没收(归银行时不派——本时机只认债主)
+
 ## 事件流
 
 **事件(GameEvent)**:
