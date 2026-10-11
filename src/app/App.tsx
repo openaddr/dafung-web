@@ -210,9 +210,7 @@ export function App() {
   // 由 CSS 后代选择器命中棋盘 svg 做首帧缓推。退场不做:保留瞬时卸载。
   // ?dev=sound 音效试听台:dev 工具直达,压过一切 store 路由(不进 screen 状态机);
   // SPA 内 URL 不变,挂载时读一次即可。
-  const [devSound] = useState(
-    () => new URLSearchParams(location.search).get("dev") === "sound",
-  );
+  const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
   let content: ReactNode = null;
   if (devSound) {
     content = <SoundBoard />;

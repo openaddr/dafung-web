@@ -37,8 +37,6 @@ function path(landIndex: number): MovePath {
     passedCapital: false,
     capitalIndex: -1,
     waypoints: [],
-    landBranchStep: null,
-    branchWaypoints: [],
   };
 }
 

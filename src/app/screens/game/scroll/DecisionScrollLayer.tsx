@@ -15,7 +15,6 @@ import type { GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import {
   BankruptcyScroll,
-  BranchDecisionScroll,
   BuyDecisionScroll,
   EncounterChoiceScroll,
   ExhaustionChoiceScroll,
@@ -213,9 +212,6 @@ export function DecisionScrollLayer({
     // 联机 pending 期间 interactive=false,卷轴暂不弹——命令回包后相位离开,无需「…中」占位。
     if (interactive && snapshot.phase === "Playing") {
       const tp = snapshot.turnPhase;
-      if (tp === "AwaitingBranch") {
-        return <BranchDecisionScroll choices={snapshot.choices} onCommand={dispatch} />;
-      }
       if (tp === "AwaitingDecision") {
         const p = players[snapshot.activeIndex];
         const def = snapshot.lastLandOutcomeProperty

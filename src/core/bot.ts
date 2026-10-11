@@ -1,4 +1,4 @@
-// AI 诸侯:回合 EV 决策(抽签/辅路/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
+// AI 诸侯:回合 EV 决策(抽签/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
@@ -6,7 +6,7 @@ import type { EncounterEffect } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
-import { guidePriceOf, TREASURE_MEAN_PRICE } from "./treasures";
+import { guidePriceOf } from "./treasures";
 import { beginGameEventBatch } from "./game-events";
 
 /** bot 可驱动的回合相位正典(bot-driver/replay-log 等消费方 import 此常量,禁再各自抄副本)。
@@ -15,7 +15,6 @@ import { beginGameEventBatch } from "./game-events";
  *  驱动器只停等人类待应答座位,不得对其调 botAct。 */
 export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "Roll",
-  "AwaitingBranch",
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter",
@@ -63,28 +62,6 @@ export function encounterCashImpact(effect: EncounterEffect | undefined): number
     case "grantTreasure":
       return 0;
   }
-}
-
-function estimateDestValue(engine: GameEngine, p: Player, destIndex: number): number {
-  const tile = engine.board.at(destIndex);
-  const def = engine.catalog.get(tile.propertyId);
-  if (!def) return 0;
-  const owner = engine.findOwner(def.id);
-  if (!owner) return def.purchasePrice / 4; // 可买
-  if (owner === p) {
-    // 可免费扩军:价值 ≈ 升级后与当前等级城池价值之差 / 4(满级为 0)
-    const h = p.properties.find((x) => x.propertyId === def.id);
-    if (!h || h.level >= def.maxLevel) return 0;
-    return (def.valueByLevel[h.level + 1] - def.valueByLevel[h.level]) / 4;
-  }
-  return 0; // 落他人城:无过路费(城主无珍宝=无事;有珍宝则城主择公道买卖/坐地起价,访客不可控,估中性)
-}
-
-/** 辅路入口抉择:走大路时下一落点的近似价值(平均掷骰 3.5 步后的 tile)。 */
-function estimateBranchMainEv(engine: GameEngine, p: Player): number {
-  const n = engine.board.count;
-  const dest = (p.position + 4) % n; // 约 3-4 步后的主路落点
-  return estimateDestValue(engine, p, dest);
 }
 
 // ────────────────────────── 锦囊策略(#148,T6,docs/explanation/锦囊设计.md §8)──────────────────────────
@@ -407,30 +384,6 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
     case "Roll":
       engine.rollAndMove();
       break;
-
-    case "AwaitingBranch": {
-      // 辅路入口抉择:Simple 随机;Normal 估辅路 EV(treasure≈指导价期望 + event 轻微正 − penalty 风险)vs 主路落点价值
-      if (simple) {
-        engine.selectBranch(engine.dice.nextFloat() < 0.5 ? "Main" : "Branch");
-        return;
-      }
-      const branch = engine.board.branch;
-      let branchEv = 0;
-      if (branch) {
-        const cells = branch.cells;
-        // 平均掷骰 3.5:辅路每格约 1/3.5 概率被踩中(简化估)
-        const hitProb = 1 / 3.5;
-        for (const c of cells) {
-          if (c.kind === "treasure") branchEv += hitProb * TREASURE_MEAN_PRICE; // 探宝期望(踩中率 × 珍宝指导价全表均值,treasures.ts 推导,#299 对表不写死)
-          else if (c.kind === "event") branchEv += hitProb * 100; // 锦囊轻微正期望
-          else branchEv -= hitProb * 500; // 中伏:跳一回合的机会成本
-        }
-      }
-      // 主路:下一落点价值(起点 tile 之后约 3.5 步)
-      const mainEv = estimateBranchMainEv(engine, p);
-      engine.selectBranch(branchEv >= mainEv ? "Branch" : "Main");
-      return;
-    }
 
     case "AwaitingDecision": {
       // ADR-0013:先经 choicesFor 选项集注册表过滤可用项(与引擎自动执行同一口径,防第三套

@@ -355,7 +355,6 @@ describe("锦囊使用回路(T2)", () => {
 // ──────────────────────────── 渠道(T5)────────────────────────────
 import { testEngine } from "@core/testing";
 import { ENCOUNTERS } from "@core/encounters";
-import { CHANCE_EVENTS } from "@core/events";
 
 describe("锦囊渠道(T5)", () => {
   it("落锦囊格必抽一张(index 22 与 31 两格)", () => {
@@ -397,13 +396,6 @@ describe("锦囊渠道(T5)", () => {
     expect(entry!.tags).toContain("锦囊");
     expect(entry!.effect?.kind).toBe("grantCard");
     expect(entry!.weight).toBeGreaterThan(0);
-  });
-
-  it("辅路事件池:军师来投带 jinnangDraw 标记且零现金", () => {
-    const ev = CHANCE_EVENTS.find((e) => e.id === "strategist");
-    expect(ev).toBeDefined();
-    expect(ev!.jinnangDraw).toBe(true);
-    expect(ev!.cashDelta).toBe(0);
   });
 });
 

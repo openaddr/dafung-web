@@ -63,8 +63,7 @@ function finishSetup(e: GameEngine) {
 function autoResolve(e: GameEngine) {
   let guard = 0;
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
-    if (e.turnPhase === "AwaitingBranch") e.selectBranch("Main");
-    else if (e.turnPhase === "AwaitingDecision") e.endDecision();
+    if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1); // 选跳过位之外的第 2 项,避免招入名将干扰断言
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
     else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
@@ -151,13 +150,12 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
   passJinnang(e).rollAndMove();
 }
 
-/** 任选一座无主普通城(非任何人都城、非辅路起点):构造购城/落城/途经场景。 */
+/** 任选一座无主普通城(非任何人都城):构造购城/落城/途经场景。 */
 function freePropertyTile(e: GameEngine) {
   return e.board.tiles.find(
     (t) =>
       t.type === "Property" &&
       t.propertyId != null &&
-      !e.board.getBranchStart(t.index) &&
       e.findOwner(t.propertyId) == null &&
       e.capitalOwnerOf(t.index) == null,
   )!;
@@ -187,7 +185,7 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落格由随机事件付出银(CashLost);
+    // seed=1:#281 牌库 18 张改写洗牌骰流,首回合落税关付出银(CashLost);
     // 第二位玩家仍落天命格(+20 声望),AfterMarch 之后直接 TurnEnd,如实钉住
     expect(calls).toEqual([
       "SetupComplete",
@@ -199,7 +197,7 @@ describe("时机框架:派发点位", () => {
       "BeforeRoll",
       "DieRolled",
       "AfterMarch",
-      "CashLost", // 首回合随机事件失银(骰流随 18 张牌库漂移后的确定性序列)
+      "CashLost", // 首回合税关失银(骰流随 18 张牌库漂移后的确定性序列)
       "TurnEnd", // 第一位玩家
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",
@@ -580,7 +578,7 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
   });
 });
 
-describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExited)", () => {
+describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
   it("BeforeRoll 在 BeforeMarch 之后、DieRolled 之前;掷骰前位置未动、骰面尚未产生", () => {
     const captured: { when: GameMoment; pos: number; die: number | null }[] = [];
     EFFECTS["test-capture"] = (engine, ctx) => {
@@ -636,57 +634,6 @@ describe("时机框架:掷骰与行军细化(BeforeRoll/BranchEntered/BranchExit
     } finally {
       delete EFFECTS["test-capture"];
     }
-  });
-
-  it('BranchEntered:selectBranch("Branch") 置待入辅路态后派发(主体=抉择者),随后直接 TurnEnd', () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const entries = recordMomentCtx(e);
-    const chooser = e.activePlayer;
-    testEngine(e).placeActive(e.board.branch!.startNode); // 摆在辅路入口(真实场景由落格触发)
-    testEngine(e).forceTurnPhase("AwaitingBranch");
-    e.selectBranch("Branch");
-    const be = entries.filter((x) => x.moment === "BranchEntered");
-    expect(be).toHaveLength(1);
-    expect(be[0].ctx.subject).toBe(e.players.indexOf(chooser));
-    expect(be[0].ctx.tileIndex).toBe(e.board.branch!.startNode);
-    expect(chooser.onBranch).toEqual({ step: -1 }); // 已置「待入辅路」
-    // 入辅路=本回合结束:紧随其后的是本回合 TurnEnd(此后才是下一位玩家 TurnStart)
-    expect(entries[entries.findIndex((x) => x.moment === "BranchEntered") + 1].moment).toBe(
-      "TurnEnd",
-    );
-  });
-
-  it("BranchExited:辅路推进汇入主路时派发一次(tileIndex=主路落点),先于 AfterMarch", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    // 挂 +10 行军加成:辅路 5 格,骰 1-6 + 10 必然汇入主路
-    mover.heroes.push(
-      heroWith([
-        {
-          id: "mb10",
-          name: "测试技",
-          when: "BeforeMarch",
-          effect: "moveBonus",
-          params: { steps: 10 },
-          scope: "self",
-        },
-      ]),
-    );
-    mover.onBranch = { step: 0 }; // 在辅路第 0 格
-    testEngine(e).placeActive(e.board.branch!.startNode); // 辅路行军时主路位置=入口占位
-    const entries = recordMomentCtx(e);
-    passJinnang(e).rollAndMove();
-    autoResolve(e);
-    const bx = entries.filter((x) => x.moment === "BranchExited");
-    expect(bx).toHaveLength(1); // 恰好一次(汇入主路)
-    expect(bx[0].ctx.subject).toBe(e.players.indexOf(mover));
-    expect(bx[0].ctx.tileIndex).toBe(mover.position); // 主路落点
-    expect(mover.onBranch).toBeNull(); // 已清辅路态
-    // 同回合内先于 AfterMarch
-    const after = entries.findIndex((x) => x.moment === "AfterMarch");
-    expect(entries.findIndex((x) => x.moment === "BranchExited")).toBeLessThan(after);
   });
 });
 
@@ -1256,7 +1203,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     return p;
   }
 
-  it("TurnSkipImposed:三写点各自派发(subject=被跳者;缓兵 +=1 / 辅路中伏 =1 / 耗竭 +=1,写点语义差保留)", () => {
+  it("TurnSkipImposed:两写点各自派发(subject=被跳者;缓兵 +=1 / 耗竭 +=1,写点语义差保留)", () => {
     // ① 缓兵之计(jinnang-execution skipTurn:skipTurns += 1)
     const e = makeEngine(1);
     finishSetup(e);
@@ -1271,19 +1218,7 @@ describe("时机框架:事件化第二批(#456)", () => {
       { subject: victimSeat, reason: "jinnang" },
     ]);
 
-    // ② 辅路中伏(treasure-flow resolveBranchCell penalty:skipTurns = 1 赋值)
-    const e2 = makeEngine(1);
-    finishSetup(e2);
-    const mover2 = e2.activePlayer;
-    const penalty = e2.board.branch!.cells.find((c) => c.kind === "penalty")!;
-    const entries2 = recordMomentCtx(e2);
-    testEngine(e2).resolveBranchCell(mover2, penalty);
-    expect(mover2.skipTurns).toBe(1);
-    expect(entries2.filter((x) => x.moment === "TurnSkipImposed").map((x) => x.ctx)).toEqual([
-      { subject: e2.players.indexOf(mover2), reason: "ambush" },
-    ]);
-
-    // ③ 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += 1)
+    // ② 耗竭善后(encounter-flow applyExhaustionAftermath:skipTurns += 1)
     const e3 = makeEngine(1);
     finishSetup(e3);
     const mover3 = e3.activePlayer;
@@ -1514,7 +1449,9 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries = recordMomentCtx(e);
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victimSeat]);
-    expect(e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level).toBe(1);
+    expect(
+      e.players[victimSeat].properties.find((h) => h.propertyId === city.propertyId)!.level,
+    ).toBe(1);
     expect(entries.filter((x) => x.moment === "PropertyDemolished").map((x) => x.ctx)).toEqual([
       { subject: victimSeat, propertyId: city.propertyId, tileIndex: city.tileIndex },
     ]);
@@ -1529,7 +1466,9 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries2 = recordMomentCtx(e2);
     e2.resolveJinnang("火烧连营");
     e2.resolveJinnang("火烧连营", [victimSeat2]);
-    expect(e2.players[victimSeat2].properties.some((h) => h.propertyId === city2.propertyId)).toBe(false);
+    expect(e2.players[victimSeat2].properties.some((h) => h.propertyId === city2.propertyId)).toBe(
+      false,
+    );
     expect(entries2.filter((x) => x.moment === "PropertyLost").map((x) => x.ctx)).toEqual([
       { subject: victimSeat2, propertyId: city2.propertyId, tileIndex: city2.tileIndex },
     ]);
@@ -1545,7 +1484,9 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries3 = recordMomentCtx(e3);
     e3.resolveHeroSkill("zhouyu-huogong");
     e3.resolveHeroSkill("zhouyu-huogong", [victimSeat3]);
-    expect(e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level).toBe(1);
+    expect(
+      e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level,
+    ).toBe(1);
     expect(
       entries3.filter((x) => x.moment === "PropertyDemolished" || x.moment === "PropertyLost"),
     ).toHaveLength(0); // 钉住口径:两调用点分别挂,单点与火攻路都不派

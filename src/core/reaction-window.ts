@@ -94,8 +94,6 @@ export type ReactionPayload =
       fromPos: number;
       /** 原掷骰总步数(同上)。 */
       steps: number;
-      /** 行军前是否在辅路(含待入态;BranchExited 派发判定)。 */
-      wasOnBranch: boolean;
     };
 
 /** 反应窗挂起态(#281):公告 + 应答记录 + 续结算载荷。全部随快照序列化(SNAPSHOT_FIELDS
@@ -454,31 +452,20 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
 }
 
 /** 拦停落格:行人止步拦检城、照常落格结算(机遇/城池;可能被交涉)。lastMove 截断到
- *  拦检城(行军动画只走此);不弹辅路入口抉择(非自愿止步,不经岔路抉择)。 */
+ *  拦检城(行军动画只走此)。 */
 function settleAmbushStop(
   g: GameEngine,
   payload: Extract<ReactionPayload, { kind: "march" }>,
 ): void {
   const mover = g.players[payload.moverSeat];
-  const path = g.board.computePath(
-    payload.fromPos,
-    payload.stepsToTile,
-    mover.capitalIndex,
-    mover.onBranch,
-  );
+  const path = g.board.computePath(payload.fromPos, payload.stepsToTile, mover.capitalIndex);
   g.lastMove = path;
-  mover.onBranch = null;
   mover.position = payload.tileIndex;
   emitGameEvent(g, payload.moverSeat, {
     kind: "marchArrived",
     tileIndex: payload.tileIndex,
     path,
   }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
-  if (payload.wasOnBranch)
-    g.dispatchMoment("BranchExited", {
-      subject: payload.moverSeat,
-      tileIndex: payload.tileIndex,
-    }); // 时机·BranchExited:辅路行军被拦停汇入主路(止步点)
   g.dispatchMoment("AfterMarch", { subject: payload.moverSeat }); // 时机·AfterMarch:移动完成(拦停止步)、落格结算前
   g.turnPhase = "Land";
   const enc = g.maybeApplyEncounter(mover, payload.tileIndex);
@@ -495,12 +482,11 @@ function resumeMarch(g: GameEngine, payload: Extract<ReactionPayload, { kind: "m
     payload.resumeTiles,
     payload.totalTiles,
     payload.landIndex,
-    payload.wasOnBranch,
     payload.fromPos,
     payload.steps,
   );
   if (walked !== "landed") return; // suspended=下一城又开窗(新挂点续链);halted=续走中必停已结算
-  g.settleMarchLanding(mover, payload.landIndex, payload.wasOnBranch);
+  g.settleMarchLanding(mover, payload.landIndex);
 }
 
 /** 拼点公共结算(#281 自连环计提出):双方各掷 1d6,点数高者胜,平局 winnerSeat=null。

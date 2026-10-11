@@ -19,12 +19,9 @@ import { foldEventBatch } from "@app/net/event-fold";
 
 const MAP = loadMap(sanguoData);
 
-// sanguo 地图锚点:长安=tile 0(购价 4000)、洛阳=tile 3、许昌=tile 5(辅路起点)、
-// 襄阳=tile 8(辅路终点);辅路格 [treasure, treasure, event, treasure, penalty]。
+// sanguo 地图锚点:长安=tile 0(购价 4000)、洛阳=tile 3。
 const CHANGAN = 0;
 const LUOYANG = 3;
-const XUCHANG = 5;
-const PENALTY_STEP = 4;
 
 function makeEngine(): GameEngine {
   const seats: SeatConfig[] = [
@@ -40,8 +37,8 @@ function ev<B extends GameEventBody>(seat: number | null, body: B): GameEvent {
   return { ...body, seat, round: 1, turn: 1 };
 }
 
-/** 最小 MovePath 形状(折叠器读 tileIndex/landBranchStep,路径字段随类型契约补齐)。 */
-function path(landIndex: number, landBranchStep: number | null = null): MovePath {
+/** 最小 MovePath 形状(折叠器读 tileIndex,路径字段随类型契约补齐)。 */
+function path(landIndex: number): MovePath {
   return {
     from: 0,
     traversed: [],
@@ -49,8 +46,6 @@ function path(landIndex: number, landBranchStep: number | null = null): MovePath
     passedCapital: false,
     capitalIndex: -1,
     waypoints: [],
-    landBranchStep,
-    branchWaypoints: [],
   };
 }
 
@@ -214,11 +209,10 @@ describe("折叠投影器 · 掷骰/行军族", () => {
     expect(e.heroDiceBonus).toBe(0); // 擂鼓加成掷骰时点消费
   });
 
-  it("capitalHalt 落位清辅路态,补给金额由相邻 cashChanged·supply 回填", () => {
+  it("capitalHalt 落位,补给金额由相邻 cashChanged·supply 回填", () => {
     const e = makeEngine();
     e.players[0].capitalIndex = CHANGAN;
     e.players[0].position = 10;
-    e.players[0].onBranch = { step: 2 };
     const cash0 = e.players[0].cash;
 
     foldEventBatch(e, [
@@ -227,7 +221,6 @@ describe("折叠投影器 · 掷骰/行军族", () => {
     ]);
 
     expect(e.players[0].position).toBe(CHANGAN);
-    expect(e.players[0].onBranch).toBeNull();
     expect(e.lastMove?.landIndex).toBe(CHANGAN);
     expect(e.turnPhase).toBe("Land");
     expect(e.lastLandOutcome).toEqual({ kind: "OwnProperty", resupply: 800 });
@@ -286,41 +279,6 @@ describe("折叠投影器 · 掷骰/行军族", () => {
     expect(e2.treasureVisitor).toBeNull();
     expect(e2.turnPhase).toBe("Land");
     expect(e2.lastLandOutcome?.kind).toBe("Noop");
-  });
-
-  it("marchArrived 辅路起点要隘 → AwaitingBranch(入口抉择;置位本身 = 校准档)", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: XUCHANG, path: path(XUCHANG) })]);
-
-    expect(e.turnPhase).toBe("AwaitingBranch");
-    expect(e.pendingLand).toBeNull();
-    expect(e.players[0].onBranch).toBeNull(); // 入辅路置位无事件,不折
-  });
-
-  it("marchArrived 辅路落位:onBranch 置步、position 不动;中伏格 skipTurns=1(标记侧)", () => {
-    const e = makeEngine();
-    e.players[0].position = XUCHANG;
-    foldEventBatch(e, [
-      ev(0, {
-        kind: "marchArrived",
-        tileIndex: XUCHANG, // 主路锚点占位
-        path: path(XUCHANG, PENALTY_STEP),
-      }),
-    ]);
-
-    expect(e.players[0].position).toBe(XUCHANG);
-    expect(e.players[0].onBranch).toEqual({ step: PENALTY_STEP });
-    expect(e.players[0].skipTurns).toBe(1);
-    expect(e.turnPhase).toBe("Land");
-  });
-
-  it("marchArrived 主路落位清辅路态(汇入推进语义)", () => {
-    const e = makeEngine();
-    e.players[0].onBranch = { step: 1 };
-    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: CHANGAN, path: path(CHANGAN) })]);
-
-    expect(e.players[0].onBranch).toBeNull();
-    expect(e.players[0].position).toBe(CHANGAN);
   });
 });
 

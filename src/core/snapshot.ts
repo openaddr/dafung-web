@@ -49,7 +49,6 @@ export interface SnapshotPlayer {
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
-  onBranch: { step: number } | null;
   skipTurns: number;
   properties: { propertyId: string; level: number; group: string }[];
   heroes: HeroRow[];
@@ -110,11 +109,6 @@ export interface GameSnapshot {
     sellerIdx: number;
     price: number;
   } | null;
-  // 纯派生(board 常量)
-  branchStartTile: number | null;
-  branchEndTile: number | null;
-  // 纯派生(相位 + 棋位实时计算)
-  currentTileIsBranchStart: boolean;
   // 决策相位选项集(ADR-0013):纯派生数据(choices.ts 注册表),UI/调试可见;
   // 联机零负担——无需序列化恢复,重 hydrate 后重算即得。
   choices: ChoiceOption[];
@@ -127,7 +121,7 @@ export interface GameSnapshot {
   offeredHeroes: HeroRow[];
   // 表现态字段经 presentation 视图读(Wave3 候选4:字段已私有,序列化格式不变)
   lastRoll: DiceRoll | null;
-  // lastMove 全量坐标(waypoints/branchWaypoints)随快照序列化:它是行军事件的产出
+  // lastMove 全量坐标(waypoints)随快照序列化:它是行军事件的产出
   // 契约输入(requireMovePath 恢复回灌后读它把路径随事件带出,#385 路径随事件走);
   // 动效取径已改事件自带,快照里的 lastMove 不再是行军动画的取径来源。
   lastMove: MovePath | null;
@@ -221,7 +215,6 @@ function clonePendingReaction(
           landIndex: pr.payload.landIndex,
           fromPos: pr.payload.fromPos,
           steps: pr.payload.steps,
-          wasOnBranch: pr.payload.wasOnBranch,
         };
   return { seq: pr.seq, view, answers, payload };
 }
@@ -575,24 +568,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // 纯派生(board 常量,不随对局变)
-    key: "branchStartTile",
-    read: (e) => (e.board.branch ? e.board.branch.startNode : null),
-    write: () => {},
-  },
-  {
-    // 纯派生(同 branchStartTile)
-    key: "branchEndTile",
-    read: (e) => (e.board.branch ? e.board.branch.endNode : null),
-    write: () => {},
-  },
-  {
-    // 纯派生(相位 + 棋位实时计算)
-    key: "currentTileIsBranchStart",
-    read: (e) => e.currentTileIsBranchStart(),
-    write: () => {},
-  },
-  {
     // 决策相位选项集(ADR-0013):纯派生,重 hydrate 后重算即得
     key: "choices",
     read: (e) => e.choicesFor(),
@@ -628,7 +603,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         isBankrupt: p.isBankrupt,
         position: p.position,
         capitalIndex: p.capitalIndex,
-        onBranch: p.onBranch,
         skipTurns: p.skipTurns,
         properties: p.properties.map((h) => ({
           propertyId: h.propertyId,
@@ -667,7 +641,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.isBankrupt = ps.isBankrupt;
         p.position = ps.position;
         p.capitalIndex = ps.capitalIndex;
-        p.onBranch = ps.onBranch ? { step: ps.onBranch.step } : null;
         p.skipTurns = ps.skipTurns;
         // heroes:查 HEROES 表补 skill/cooldown(snapshot 故意只存展示字段)
         p.heroes = ps.heroes
@@ -739,8 +712,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
               passedCapital: m.passedCapital,
               capitalIndex: m.capitalIndex,
               waypoints: [...m.waypoints],
-              landBranchStep: m.landBranchStep,
-              branchWaypoints: [...m.branchWaypoints],
             }
           : null,
       );

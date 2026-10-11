@@ -20,11 +20,6 @@
 // 收紧,富余画纸不进视口)。最小间距 310 ≥ MIN_TILE_DIST(80);城池铭牌外缘
 // ~104×2.2≈229 < 行距 310 < 列距 400,无压盖。
 //
-// 辅路(branch):许昌 → 襄阳,start/end 引用的主环格与 cells 的 kind 节奏
-// (treasure×2 → event → treasure → penalty)零改动,只重摆 cells 坐标:
-// 五格沿第 0/1 行之间的行间走廊(y=-590,距上下城池铭牌各 ≥ 155)横向排开,
-// 首尾自然斜接许昌/襄阳,不与主路交叉。
-//
 // 运行:bun scripts/make-chessboard-map.ts(确定性输出,可随时重新生成)。
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -62,12 +57,12 @@ const LAYOUT: Record<string, [number, number]> = {
   "prop-hangu": [2, 0], // 函谷关
   "prop-luoyang": [3, 0], // 洛阳
   "prop-hulao": [4, 0], // 虎牢关
-  "prop-xuchang": [5, 0], // 许昌:辅路入口
+  "prop-xuchang": [5, 0], // 许昌
   "prop-wan": [6, 0], // 宛城:行 0 末,东缘 U 弯下行
   // 行 1(自右向左):卧龙岗/新野驿站 + 荆楚北段
   "tile-wolong": [6, 1], // 卧龙岗:U 弯后第一格
   // (tile-ferry-xinye 新野驿站 插在卧龙岗之后,占 (5,1),见 FERRY_TILES)
-  "prop-xiangyang": [4, 1], // 襄阳:辅路终点
+  "prop-xiangyang": [4, 1], // 襄阳
   "prop-jiangxia": [3, 1],
   "prop-wuchang": [2, 1],
   "prop-chibi": [1, 1],
@@ -131,19 +126,6 @@ const FERRY_TILES: Array<{
   },
 ];
 
-// ── 辅路:许昌 → 襄阳,cells 走行 0/1 之间的行间走廊 ──
-// kind 节奏沿用 sanguo 原 branch:treasure×2 → event → treasure → penalty(零改动)。
-// 走廊 y=-590(行距中点):距上行/下行城池铭牌边缘各 ≥ 155-114≈40(圆点 r18
-// 实际与铭牌无碰),格间距 85 ≥ MIN_TILE_DIST(80);首尾斜接许昌 (900,-745)
-// / 襄阳 (500,-435),整条辅路不与主路交叉。
-const BRANCH_CELLS: Array<{ kind: "treasure" | "event" | "penalty"; x: number; y: number }> = [
-  { kind: "treasure", x: 820, y: -590 },
-  { kind: "treasure", x: 735, y: -590 },
-  { kind: "event", x: 650, y: -590 },
-  { kind: "treasure", x: 565, y: -590 },
-  { kind: "penalty", x: 480, y: -590 },
-];
-
 // ── 组装:逐 tile 只替换 pos,其余字段(id/name/type/group/价格/租金)原样保留 ──
 const tiles: MapTile[] = src.tiles.map((t) => {
   const cell = LAYOUT[t.id];
@@ -160,12 +142,6 @@ for (const { after, tile, c, r } of FERRY_TILES) {
 const out: MapData = {
   ...src,
   tiles,
-  branch: {
-    id: "zhongyuan-side",
-    start: "prop-xuchang",
-    end: "prop-xiangyang",
-    cells: BRANCH_CELLS.map(({ kind, x, y }) => ({ kind, pos: [x, y] })),
-  },
 };
 
 // ── 内置断言:网格对齐 + 间距 ──
@@ -177,7 +153,7 @@ for (const t of tiles) {
   const onGrid = [...colSet].some((x) => x === t.pos[0]) && [...rowSet].some((y) => y === t.pos[1]);
   if (!onGrid) throw new Error(`${t.name} 不在网格点上`);
 }
-const allPts = [...tiles.map((t) => t.pos), ...out.branch!.cells.map((c) => c.pos)];
+const allPts = tiles.map((t) => t.pos);
 for (let i = 0; i < allPts.length; i++)
   for (let j = i + 1; j < allPts.length; j++) {
     const d = Math.hypot(allPts[i][0] - allPts[j][0], allPts[i][1] - allPts[j][1]);
@@ -187,9 +163,7 @@ for (let i = 0; i < allPts.length; i++)
 // ── loadMap 严格校验(与运行时同一代码路径)──
 const loaded = loadMap(JSON.parse(JSON.stringify(out)));
 const propCount = loaded.properties.length;
-console.log(
-  `loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城 / 辅路 ${out.branch!.cells.length} 格`,
-);
+console.log(`loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城`);
 
 // ── 写 chessboard.json ──
 writeFileSync(resolve(root, "public/maps/chessboard.json"), JSON.stringify(out, null, 2) + "\n");
@@ -201,7 +175,7 @@ const entry = {
   id: "chessboard",
   name: "棋盘天下",
   file: "chessboard.json",
-  desc: "蛇形全网格版:7×6 主环 42 格 S 形铺满,行末 U 弯衔接;许昌—襄阳辅路沿北走廊",
+  desc: "蛇形全网格版:7×6 主环 42 格 S 形铺满,行末 U 弯衔接",
   tileCount: propCount,
   targetNetWorth: src.targetNetWorth,
 };

@@ -3,13 +3,12 @@
 //
 // 能力两件:
 //  1. 相位摆位:把引擎摆到指定 turnPhase 的前置态(place/placeActive/forceTurnPhase/armDecision);
-//  2. 内部步骤触达:测试实际在用的私有步骤清单(resolveLanding / resolveBranchCell /
+//  2. 内部步骤触达:测试实际在用的私有步骤清单(resolveLanding /
 //     tryRecruitHero / payOrLiquidate——grep test/ 统计口径,2026-08)。
 // 方法全部显式签名,不放 any;对私有成员的窄化集中在本类构造器一处(全仓库测试面
 // 因此不再出现散落的 as any 直写引擎内部)。dispatchMoment 是引擎 public 方法,测试
 // 直调即可,无需经此口;timing.test.ts 的 dispatchMoment 间谍为类型化测试替身,保留原位。
 import type { GameEngine, TurnPhase } from "./authority";
-import type { BranchCell } from "./board";
 import type { EncounterDef } from "./encounters";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
@@ -20,7 +19,6 @@ import type { Player } from "./model";
  *  对齐两处,applyEncounter/enterEncounter 的返回联合)。 */
 interface EngineTestInternals {
   resolveLanding(): void;
-  resolveBranchCell(mover: Player, cell: BranchCell): void;
   tryRecruitHero(mover: Player): void;
   payOrLiquidate(
     mover: Player,
@@ -96,11 +94,6 @@ export class TestEngine {
   landActiveAt(tile: number): void {
     this.placeActive(tile);
     this.land();
-  }
-
-  /** 触达私有辅路格结算(mover 须已在辅路 onBranch={step} 态)。 */
-  resolveBranchCell(mover: Player, cell: BranchCell): void {
-    this.internals.resolveBranchCell(mover, cell);
   }
 
   /** 触达私有招贤纳士(三选一候选生成)。 */

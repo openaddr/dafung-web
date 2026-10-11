@@ -65,9 +65,8 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
     const steps = die + 1; // 疾行加成一并计入路径预言
     const target = MAP.board.tiles.find((tile) => {
       if (tile.propertyId == null) return false;
-      const path = MAP.board.computePath(tile.index, steps, mover.capitalIndex, null);
-      if (path.passedCapital || path.landBranchStep != null) return false;
-      if (MAP.board.getBranchStart(path.landIndex)) return false;
+      const path = MAP.board.computePath(tile.index, steps, mover.capitalIndex);
+      if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
       return (
         land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
@@ -261,27 +260,24 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
 });
 
 describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat", () => {
-  it("辅路中伏:标记回合不产 skip 事件;下回合到点消费产出 [turnEnded, turnSkipped, turnStarted]", () => {
+  it("跳过回合:标记回合不产 skip 事件;下回合到点消费产出 [turnEnded, turnSkipped, turnStarted]", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const t = testEngine(e);
-    const ambushed = e.activePlayer;
-    const seat = e.players.indexOf(ambushed);
-    const branchStart = MAP.board.tiles.findIndex((tile) => tile.name === "许昌"); // 辅路起点(game.test.ts 同款)
-    expect(branchStart).toBeGreaterThanOrEqual(0);
-    ambushed.onBranch = { step: 4 }; // 辅路第 4 格 = 中伏(penalty)
-    t.placeActive(branchStart);
-    t.forceTurnPhase("Land");
+    const skipped = e.activePlayer;
+    const seat = e.players.indexOf(skipped);
+    skipped.skipTurns = 1; // 标记侧(耗竭善后/缓兵之计共用 skipTurns)
+    t.forceTurnPhase("AwaitingDecision");
     beginGameEventBatch(e);
-    t.resolveBranchCell(ambushed, e.board.branch!.cells[4]); // 中伏:skipTurns=1 + endTurn
+    e.endDecision(); // 标记回合收尾(本回合不产 skip 事件)
     expect(kinds(e.snapshot().events)).toEqual(["turnEnded", "turnStarted"]); // 标记侧无 skip 事件
-    e.turnPhase = "AwaitingDecision";
+    t.forceTurnPhase("AwaitingDecision");
     beginGameEventBatch(e);
-    e.endDecision(); // 对家收尾 → 推进到中伏者 → 跳过
+    e.endDecision(); // 回合收尾 → 推进到被跳过者 → 跳过
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["turnEnded", "turnSkipped", "turnStarted"]);
     expect(events[1]).toMatchObject({ kind: "turnSkipped", seat });
-    expect(ambushed.skipTurns).toBe(0);
+    expect(skipped.skipTurns).toBe(0);
   });
 
   it("playerBankrupt 债主座位:无债主=null;有债主=债主座位(#384 传参接线)", () => {
@@ -420,9 +416,8 @@ describe("事件流(#385 缺口 3):行军路径随事件 marchArrived.path", () 
     const die = createDice(e.dice.getRngState()).roll().die; // 探针骰,不消耗引擎 rng
     const target = MAP.board.tiles.find((tile) => {
       if (tile.propertyId == null) return false;
-      const path = MAP.board.computePath(tile.index, die, mover.capitalIndex, null);
-      if (path.passedCapital || path.landBranchStep != null) return false;
-      if (MAP.board.getBranchStart(path.landIndex)) return false;
+      const path = MAP.board.computePath(tile.index, die, mover.capitalIndex);
+      if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
       return (
         land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
@@ -439,7 +434,6 @@ describe("事件流(#385 缺口 3):行军路径随事件 marchArrived.path", () 
     expect(march.path.from).toBe(target!.index);
     expect(march.path.landIndex).toBe(march.tileIndex);
     expect(march.path.traversed).toHaveLength(die);
-    expect(march.path.landBranchStep).toBeNull();
   });
 
   it("驻跸必停:capitalHalt 路径截断到都城(时机映射表从引擎 lastMove 取)", () => {
@@ -461,32 +455,6 @@ describe("事件流(#385 缺口 3):行军路径随事件 marchArrived.path", () 
   });
 });
 
-describe("事件流(#385 缺口 4):辅路落位行军 marchArrived", () => {
-  it("待入辅路掷骰:辅路落位产出 marchArrived(路径 landBranchStep/branchWaypoints 齐备)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const t = testEngine(e);
-    const mover = e.activePlayer;
-    const seat = e.players.indexOf(mover);
-    const branchStart = MAP.board.tiles.findIndex((tile) => tile.name === "许昌"); // 辅路起点
-    expect(branchStart).toBeGreaterThanOrEqual(0);
-    expect(e.board.branch).not.toBeNull();
-    mover.onBranch = { step: -1 }; // 待入辅路
-    t.place(seat, branchStart);
-    const die = createDice(e.dice.getRngState()).roll().die;
-    beginGameEventBatch(e);
-    e.rollAndMove();
-    const events = e.snapshot().events;
-    expect(events[0]).toMatchObject({ kind: "diceRolled", seat });
-    const march = events[1] as Extract<GameEvent, { kind: "marchArrived" }>;
-    if (march?.path.landBranchStep == null) return; // 骰步溢出汇入主路:走主路落格口径,另案覆盖
-    expect(kinds(events).indexOf("marchArrived")).toBe(1); // 骰后紧随(辅路格结算事件在其后)
-    expect(march.tileIndex).toBe(branchStart); // 主路锚点占位(辅路落位不改 position)
-    expect(march.path.landBranchStep).toBe(die - 1);
-    expect(march.path.branchWaypoints).toHaveLength(die);
-  });
-});
-
 describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => {
   it("拦检失败:拼点平/负产出 reactionFailed(点数与拦检城随事件;拦停成功则无)", () => {
     const e = makeEngine(3);
@@ -498,7 +466,6 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     const owner = e.players[ownerSeat];
     const tile = MAP.board.tiles.find((x) => {
       if (x.type !== "Property" || x.propertyId == null) return false;
-      if (MAP.board.getBranchStart(x.index)) return false;
       if (x.index === mover.capitalIndex || x.index === owner.capitalIndex) return false;
       const prev = MAP.board.at((x.index - 1 + MAP.board.count) % MAP.board.count);
       return (

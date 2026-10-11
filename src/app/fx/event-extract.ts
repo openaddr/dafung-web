@@ -55,15 +55,11 @@ function guohaoOf(engine: GameEngine, seat: number): string {
   return engine.players[seat].guohao;
 }
 
-/** 玩家锚点(逻辑坐标):辅路格优先(棋子在辅路上时主路起点会与棋子分离)→ 当前格。 */
+/** 玩家锚点(逻辑坐标):当前格。 */
 function playerAnchor(engine: GameEngine, seat: number): { x: number; y: number; atTile: number } {
   const p = engine.players[seat];
   const board = engine.board;
-  const onBranchPos =
-    p.onBranch != null && board.branch
-      ? (board.branch.cells[p.onBranch.step]?.position ?? null)
-      : null;
-  const pos = onBranchPos ?? board.positionOf(p.position);
+  const pos = board.positionOf(p.position);
   return { x: pos.x, y: pos.y, atTile: p.position };
 }
 
@@ -153,7 +149,6 @@ function cashFloater(
 // ─────────────────────── 行军路径解析 ───────────────────────
 /** marchArrived/capitalHalt → tokenMoved(路径取自事件自带 MovePath,#385 不再依赖
  *  引擎 lastMove 单槽——合并批多段行军各播各段):
- *  - 辅路落位(landBranchStep 判别):主路锚点占位不变,整段辅路坐标序列照播;
  *  - 主路落点与事件落点对不上:不播动画(棋子由快照终态落位,不做位置 diff 重建);
  *  - 转移前位置(prePosition)在路径中段=反应窗挂起后续走:截短为余段(不拽回起点
  *    重走,与单机 remainingMarchPath 同公式);pre=路径起点=整段照走;
@@ -166,10 +161,6 @@ function marchEvent(
 ): PresentationEvent | null {
   const player = engine.players[seat];
   const path = ev.path;
-  if (path.landBranchStep != null) {
-    // 辅路落位:position(主路占位)不随行军改变,无截短语义,整段播
-    return { kind: "tokenMoved", playerId: player.id, path };
-  }
   if (path.landIndex !== ev.tileIndex) return null; // 对不上:不播动画,不重建 diff
   if (prePosition == null || prePosition === player.position) return null;
   const onPath = path.from === prePosition || path.traversed.includes(prePosition);
@@ -179,10 +170,9 @@ function marchEvent(
   return { kind: "tokenMoved", playerId: player.id, path: remainder };
 }
 
-/** 行军落位表现(主路落格 marchArrived / 驻跸 capitalHalt 共用):行军动画 +
+/** 行军落位表现(落格 marchArrived / 驻跸 capitalHalt 共用):行军动画 +
  *  驻跸印章与文案。驻跸两态(途经必停 / 恰落己都城)按规则都结算驻跸补给,凡
  *  落点=己都城即盖「驻」章出文案(恰落态无 capitalHalt 事件,由落点字段直读);
- *  辅路落位(landBranchStep 判别)只有行军动画,不参与驻跸/落格章;
  *  补给铜钱雨由随后的 cashChanged(reason="supply") 事件自产,压轴。 */
 function arrivalPresentation(
   engine: GameEngine,
@@ -194,10 +184,7 @@ function arrivalPresentation(
   const out: PresentationEvent[] = [];
   const march = marchEvent(engine, seat, ev, prePosition);
   if (march) out.push(march);
-  if (
-    ev.path.landBranchStep == null &&
-    (halted || ev.tileIndex === engine.players[seat].capitalIndex)
-  ) {
+  if (halted || ev.tileIndex === engine.players[seat].capitalIndex) {
     out.push({ kind: "sealStamped", tileIndex: ev.tileIndex, char: "驻" });
     out.push(textFloater(engine, seat, "驻跸补给"));
   }

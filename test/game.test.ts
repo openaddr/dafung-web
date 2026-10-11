@@ -109,8 +109,7 @@ describe("开局三段式", () => {
 function autoResolve(e: GameEngine) {
   let guard = 0;
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
-    if (e.turnPhase === "AwaitingBranch") e.selectBranch("Branch");
-    else if (e.turnPhase === "AwaitingDecision") e.endDecision();
+    if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(0);
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
     else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();
@@ -293,7 +292,6 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     passJinnang(e).rollAndMove();
     const die = e.presentation.lastRoll!.die;
     expect(p.position).toBe(p.capitalIndex); // 停在都城(必停或恰落,都不前进)
-    expect(p.onBranch).toBeNull();
     expect(p.warrants).toBe(w0 + 2); // 巡幸都城 +2 委任(两种情形都发)
     expect(p.cash).toBe(cash0 + e.capitalSupplyOf(p).supply); // 驻跸/落都城补给
     if (die > 1) {
@@ -344,155 +342,6 @@ describe("经过都城必停(无驻跸/继续抉择)", () => {
     let guard = 0;
     while (!e.isOver && guard++ < 30) botAct(e);
     expect(e.turnNumber).toBeGreaterThan(t0); // 驱动序列持续推进,无卡死
-  });
-});
-
-describe("分岔辅路(入口抉择 = 待入,下回合掷骰推进)", () => {
-  const BRANCH_START = MAP.tiles.findIndex((t) => t.name === "许昌"); // 辅路起点
-  const BRANCH_END = MAP.tiles.findIndex((t) => t.name === "襄阳"); // 辅路终点
-
-  /** 把当前活跃玩家放到辅路起点并设 AwaitingBranch(模拟落格到起点)。 */
-  function landOnBranchStart(e: GameEngine) {
-    const p = e.activePlayer;
-    p.onBranch = null;
-    const t = testEngine(e);
-    t.placeActive(BRANCH_START);
-    t.forceTurnPhase("AwaitingBranch"); // 摆辅路入口抉择相位(真实场景由落格触发)
-  }
-
-  it("入口抉择 selectBranch(Branch):置待入状态 step=-1,本回合结束且不结算任何格", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const cash0 = p.cash;
-    landOnBranchStart(e);
-    e.selectBranch("Branch");
-    expect(p.onBranch).toEqual({ step: -1 }); // 待入辅路
-    expect(p.position).toBe(BRANCH_START); // 棋子仍在主路入口格
-    expect(e.turnPhase).toBe("Roll"); // 本回合已结束(endTurn 推进到下家)
-    expect(e.activePlayer).not.toBe(p);
-    expect(p.cash).toBe(cash0); // 未结算任何辅路格效果
-    // 战报:最后一条 branch 记录就是「取道辅路」,其后无探宝/锦囊/中伏结算
-    const branchLogs = e.log.filter((ev) => ev.category === "branch");
-    expect(branchLogs[branchLogs.length - 1]?.brief).toContain("取道辅路");
-    // 入口不再重复弹:待入状态下 currentTileIsBranchStart 为假
-    e.activeIndex = e.players.indexOf(p);
-    expect(e.currentTileIsBranchStart()).toBe(false);
-  });
-
-  it("入口抉择 selectBranch(Main):按普通城落格(许昌可购买)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    landOnBranchStart(e);
-    e.selectBranch("Main");
-    expect(p.onBranch).toBeNull();
-    expect(p.position).toBe(BRANCH_START);
-    // 许昌是无主城 → AwaitingDecision(可购买)
-    expect(e.turnPhase as string).toBe("AwaitingDecision");
-  });
-
-  it("下回合掷骰推进:掷 die=k 落辅路第 k 格(0 基 k-1)并触发该格效果", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    landOnBranchStart(e);
-    e.selectBranch("Branch");
-    // 拨回该玩家(selectBranch 已 endTurn),模拟其下回合
-    e.activeIndex = e.players.indexOf(p);
-    passJinnang(e).rollAndMove();
-    const die = e.presentation.lastRoll!.die;
-    const N = e.board.branch!.cells.length;
-    if (die <= N) {
-      expect(p.onBranch).toEqual({ step: die - 1 }); // 掷几点走几格:第 die 格
-      expect(p.position).toBe(BRANCH_START); // 主路位置仍是入口占位
-      expect(
-        e.log.some((ev) => ev.category === "roll" && ev.detail.includes(`branchStep=${die - 1}`)),
-      ).toBe(true);
-      // 落格触发该格效果(treasure=探宝 / event=锦囊 / penalty=中伏跳回合)
-      const kind = e.board.branch!.cells[die - 1].kind;
-      if (kind === "treasure") expect(e.log.some((ev) => ev.brief.includes("辅路探宝"))).toBe(true);
-      else if (kind === "event")
-        expect(e.log.some((ev) => ev.brief.includes("辅路锦囊"))).toBe(true);
-      else expect(p.skipTurns).toBe(1);
-    } else {
-      // die > N:溢出汇入主路(掷满辅路格后从终点继续走剩余步数)
-      expect(p.onBranch).toBeNull();
-      expect(p.position).not.toBe(BRANCH_START);
-    }
-  });
-
-  it("快照恢复:待入状态 step=-1 序列化/恢复一致,恢复后掷骰仍沿辅路推进", () => {
-    const e1 = makeEngine(9);
-    finishSetup(e1);
-    const p1 = e1.activePlayer;
-    const idxP = e1.players.indexOf(p1);
-    landOnBranchStart(e1);
-    e1.selectBranch("Branch");
-    expect(e1.snapshot().players[idxP].onBranch).toEqual({ step: -1 });
-    // 恢复到同构新引擎(联机/持久化路径),拨回待入玩家
-    const e2 = makeEngine(2); // 种子无所谓:恢复会覆盖 rngState
-    e2.restoreFromSnapshot(e1.snapshot());
-    expect(e2.players[idxP].onBranch).toEqual({ step: -1 });
-    e1.activeIndex = idxP;
-    e2.activeIndex = idxP;
-    // 两引擎同走一步(掷同一颗骰),快照仍逐字段一致;待入状态被掷骰消化
-    e1.rollAndMove();
-    e2.rollAndMove();
-    // #62:快照含对局日志,条目带 Date.now() 毫秒戳——两引擎写入跨毫秒即伪差异
-    //(实测失败 diff 仅 ts 相差 1),对比前把 ts 归零,只影响本断言不碰快照契约
-    const stable = (s: unknown) => JSON.stringify(s, (k, v) => (k === "ts" ? 0 : v));
-    expect(stable(e2.snapshot())).toBe(stable(e1.snapshot()));
-    const ob = e1.players[idxP].onBranch;
-    expect(ob == null || ob.step >= 0).toBe(true);
-  });
-
-  it("penalty 格触发 skipTurns:踩中第 4 格(中伏)→ 下回合被跳过", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    // 直接置入辅路第 4 格(penalty)并调用 resolveBranchCell
-    const t = testEngine(e);
-    p.onBranch = { step: 4 };
-    t.placeActive(BRANCH_START);
-    t.forceTurnPhase("Land");
-    t.resolveBranchCell(p, e.board.branch!.cells[4]);
-    expect(p.skipTurns).toBe(1);
-    // 战报含"中伏"
-    expect(e.log.some((ev) => ev.category === "branch" && ev.brief.includes("中伏"))).toBe(true);
-  });
-
-  it("辅路终点汇入:从 step0 走完所有格 → 清 onBranch,落 endNode(主路)", () => {
-    const board = MAP.board;
-    const N = board.branch!.cells.length;
-    const path = board.computePath(BRANCH_START, N, -1, { step: 0 });
-    expect(path.landBranchStep).toBeNull();
-    expect(path.landIndex).toBe(BRANCH_END);
-  });
-
-  it("bot 辅路入口抉择保留:AwaitingBranch 下 botAct 二选一均推进(辅路=待入+回合结束)", () => {
-    const e = makeEngine(5, [
-      { name: "A", isBot: true, guohao: "魏" },
-      { name: "B", isBot: true, guohao: "蜀" },
-    ]);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const t = testEngine(e);
-    p.onBranch = null;
-    t.placeActive(BRANCH_START);
-    t.forceTurnPhase("AwaitingBranch");
-    botAct(e);
-    const tp: string = e.turnPhase;
-    const ob = p.onBranch as { step: number } | null; // 经显式联合重置窄化(赋值 null 的窄化不随 botAct 失效)
-    expect(tp).not.toBe("AwaitingBranch"); // 抉择已消化
-    if (ob != null) {
-      // 选了辅路:待入状态 + 本回合结束
-      expect(ob.step).toBe(-1);
-      expect(tp).toBe("Roll");
-      expect(e.activePlayer).not.toBe(p);
-    }
-    // 选了大路:入口按普通城落格(许昌无主 → 可购买决策)
-    else expect(tp).toBe("AwaitingDecision");
   });
 });
 

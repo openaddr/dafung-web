@@ -1,18 +1,9 @@
 // 地图加载器:把 MapData(JSON)校验并构建为运行时对象(Board + catalog + 属性)。
-// 主路 = tiles 数组顺序闭合环;分岔辅路 branch 的 start/end 用 tile id 引用,
-// cells 的坐标由 JSON 手配。校验失败抛可读错误。
+// 主路 = tiles 数组顺序闭合环。校验失败抛可读错误。
 // 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
 import { createBoard } from "./board";
-import type {
-  Board,
-  BoardBranch,
-  BoardPos,
-  BranchCellKind,
-  BranchCell,
-  TileDef,
-  TileType,
-} from "./board";
+import type { Board, BoardPos, TileDef, TileType } from "./board";
 import type { PropertyDef, TradeFormula } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
@@ -25,7 +16,6 @@ export interface MapData {
   maxLevel: number;
   resupplyPerLevel: number;
   tiles: MapTile[];
-  branch?: MapBranch | null; // 分岔辅路(可空;旧版 shortcuts 字段已废弃)
 }
 
 export interface MapTile {
@@ -48,19 +38,6 @@ export interface MapTile {
   trade?: TradeFormula;
 }
 
-/** 分岔辅路格(JSON 形式):kind + 手配坐标。 */
-export interface MapBranchCell {
-  kind: BranchCellKind;
-  pos: number[]; // [x, y] 辅路格坐标(地图作者手配)
-}
-/** 分岔辅路(JSON 形式):start/end 为主路 tile id;cells 为辅路格子(逐格掷骰沿此推进)。 */
-export interface MapBranch {
-  id: string;
-  start: string; // tile id(主路起点)
-  end: string; // tile id(主路终点)
-  cells: MapBranchCell[];
-}
-
 const SUPPORTED_VERSION = 1;
 
 export interface MapCatalog {
@@ -72,7 +49,6 @@ export interface LoadedMap {
   board: Board;
   properties: PropertyDef[];
   tiles: TileDef[];
-  branch: BoardBranch | null;
   catalog: MapCatalog;
   targetNetWorth: number;
   startingCash: number;
@@ -188,31 +164,11 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     },
   };
 
-  // 分岔辅路(start/end 为 tile id,解析为 index;cells 坐标由 JSON 手配)
-  let branch: BoardBranch | null = null;
-  if (d.branch) {
-    const b = d.branch;
-    const startIdx = idToIdx.get(b.start);
-    const endIdx = idToIdx.get(b.end);
-    if (startIdx == null) fail(`辅路 start 引用无效:${b.start}`);
-    if (endIdx == null) fail(`辅路 end 引用无效:${b.end}`);
-    if (startIdx === endIdx) fail("辅路 start 与 end 相同");
-    if (!Array.isArray(b.cells) || b.cells.length === 0) fail("辅路 cells 为空");
-    const cells: BranchCell[] = b.cells.map((c, i) => {
-      if (c.kind !== "treasure" && c.kind !== "event" && c.kind !== "penalty")
-        fail(`辅路第 ${i + 1} 格 kind 非法:${String(c.kind)}`);
-      if (!Array.isArray(c.pos) || c.pos.length !== 2) fail(`辅路第 ${i + 1} 格 pos 格式错误`);
-      return { kind: c.kind, position: { x: c.pos[0], y: c.pos[1] } };
-    });
-    branch = { id: b.id, startNode: startIdx, endNode: endIdx, cells };
-  }
-
-  const board = createBoard(tiles, branch);
+  const board = createBoard(tiles);
   return {
     board,
     properties,
     tiles,
-    branch,
     catalog,
     targetNetWorth: d.targetNetWorth,
     startingCash: d.startingCash,

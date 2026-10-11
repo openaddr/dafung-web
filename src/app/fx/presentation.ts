@@ -6,8 +6,8 @@
 //   - 播放器 present() 只负责"按什么顺序怎么播"(消费 FxSink);
 //   - FxSink 收窄 audio/dice/fxStore/march 四个能力,生产 adapter 组装单例,
 //     测试用 createMemorySink() 录制调用断言顺序与内容(ADR-0006 预留位)。
-// 设计取舍:坐标(x/y,棋盘逻辑系)在提取期解析进事件——浮字锚定优先级依赖
-// 提取时刻的玩家状态(辅路位置),事后无法从 atTile 单独还原,故事件自带坐标,
+// 设计取舍:坐标(x/y,棋盘逻辑系)在提取期解析进事件——浮字锚定依赖提取时刻的
+// 玩家状态,事后无法从 atTile 单独还原,故事件自带坐标,
 // atTile 仅保留语义信息供测试断言。
 import type { MovePath } from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
@@ -87,8 +87,8 @@ export interface FxSink {
   playSound(event: SoundEvent): void;
   /** 掷骰动画(含 diceRoll/diceLand 音与 fallback 停顿),await 到落面。 */
   rollDice(die: number): Promise<void>;
-  /** 行军锚定(同步):把棋子放进接管集并锚回路径起点(#385:路径随表现事件走,
-   *  辅路行进锚回辅路前置格),必须先于 React 渲染终态。 */
+  /** 行军锚定(同步):把棋子放进接管集并锚回路径起点(#385:路径随表现事件走),
+   *  必须先于 React 渲染终态。 */
   marchBegin(playerId: string, path: MovePath): void;
   /** 行军动画(异步):沿给定路径(#385 起事件自带,不再读引擎 lastMove 单槽)逐段推进。 */
   marchToken(playerId: string, path: MovePath): Promise<void>;

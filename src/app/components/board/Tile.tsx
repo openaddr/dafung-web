@@ -325,8 +325,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
             stroke="rgba(40,28,12,0.45)"
             strokeWidth={1}
           />
-          {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。
-              珍宝格的宝/囊/伏图标在 StaticLayers 辅路格上,此处不重复画。 */}
+          {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。 */}
           {tile.type === "Stock"
             ? // 商市:大字两侧挂一对红灯笼(圆 + 穗),暖色点缀商业氛围
               [-34, 34].map((lx) => (

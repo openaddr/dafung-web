@@ -1,9 +1,9 @@
-// 静态层:宣纸滤镜 defs、溪山清远图远景横带、江河、暗角、驿道(主路+辅路)。
+// 静态层:宣纸滤镜 defs、溪山清远图远景横带、江河、暗角、驿道(主路)。
 // 江河/驿道忠实移植自 src/render/board.ts 的 drawMountainsAndRivers / drawRoads / defs 段,
 // 地图不变即不变 → 整个组件 React.memo,players 变化不会重渲这里。
 import { memo } from "react";
 import type { Board } from "@core/board";
-import { Theme, rgba } from "@core/theme";
+import { Theme } from "@core/theme";
 
 // viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致。
 // #39:城池间距 1.4x 重排(三张地图坐标同步放大)→ 逻辑画布以 (100,30) 为心等比 1.4x:
@@ -305,7 +305,7 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
   );
 });
 
-// ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 箭羽行进向 + 辅路(虚赭橙 + 格子图标 + 起点碑亭) ──
+// ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 箭羽行进向 ──
 
 /** 箭羽形状(#73):一枚人字形羽(尖朝 +x 行进向),挂在段中点、旋向行进方向。 */
 const ROAD_ARROW_D = "M -9,-7 L 5,0 L -9,7";
@@ -352,106 +352,13 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     }
   }
 
-  const branch = board.branch;
-  let branchEls: React.ReactNode = null;
-  if (branch) {
-    const start = board.positionOf(branch.startNode);
-    const end = board.positionOf(branch.endNode);
-    const pts = [start, ...branch.cells.map((c) => c.position), end];
-    branchEls = (
-      <>
-        <path className="bv-road-branch stroke-road-side" d={poly(pts)} data-branch={branch.id} />
-        {branch.cells.map((c, i) => {
-          const color =
-            c.kind === "treasure"
-              ? Theme.goldBright
-              : c.kind === "event"
-                ? Theme.gold
-                : Theme.danger;
-          const icon = c.kind === "treasure" ? "宝" : c.kind === "event" ? "囊" : "伏";
-          return (
-            <g
-              key={`bc-${i}`}
-              data-branch-cell={i}
-              transform={`translate(${c.position.x} ${c.position.y})`}
-            >
-              {/* #76 整体放大一档(r 18→30、字 18→28、描边 2→3):总览(1280×700)下
-                  「宝/囊/伏」字与碑亭可辨;chessboard 辅路格距 85,直径 60 不互撞。 */}
-              <circle r={30} fill={rgba(Theme.panel)} stroke={rgba(color)} strokeWidth={3} />
-              <text
-                textAnchor="middle"
-                y={9.5}
-                fontFamily="var(--font-brush)"
-                fontSize={28}
-                fontWeight={700}
-                fill={rgba(color)}
-              >
-                {icon}
-              </text>
-            </g>
-          );
-        })}
-        {/* A4 辅路入口记号:碑亭剪影(几笔水墨 path:宝顶+翘角亭盖+双柱+基座),
-            替代与水墨语境脱节的「⇄」字符;位置沿辅路首段走向偏移,并取背离棋盘
-            中心的法向侧,记号永远落在路外侧、不压主路。 */}
-        {(() => {
-          const first = branch.cells[0]?.position ?? end;
-          const dx = first.x - start.x;
-          const dy = first.y - start.y;
-          const len = Math.hypot(dx, dy) || 1;
-          const ux = dx / len;
-          const uy = dy / len;
-          // 法向两个候选,取与"起点→棋盘中心反向"更一致的一侧(朝路外)
-          const nx = -uy;
-          const ny = ux;
-          const side = nx * start.x + ny * start.y >= 0 ? 1 : -1;
-          const mx = start.x + ux * 46 + nx * side * 30;
-          const my = start.y + uy * 46 + ny * side * 30;
-          const ang = (Math.atan2(dy, dx) * 180) / Math.PI;
-          return (
-            // #76 整体 scale(1.6) 与辅路格同步放大(等效逐笔描边 2.2→3.5、跨度 ±12→±19,
-            // 选改动小的一路):总览下碑亭剪影可辨,仍落在辅路外侧不压主路。
-            <g
-              transform={`translate(${mx} ${my}) rotate(${ang}) scale(1.6)`}
-              fill="none"
-              stroke={rgba(Theme.roadSide)}
-              strokeWidth={2.2}
-              strokeLinecap="round"
-              opacity={0.9}
-            >
-              {/* 宝顶 */}
-              <circle cx={0} cy={-12} r={1.8} fill={rgba(Theme.roadSide)} stroke="none" />
-              {/* 翘角亭盖(两笔弧) */}
-              <path d="M -12,-2 Q -8,-8 0,-9 Q 8,-8 12,-2" />
-              <path d="M -12,-2 Q -14,0 -15,2 M 12,-2 Q 14,0 15,2" strokeWidth={1.4} />
-              {/* 双柱 + 基座 */}
-              <line x1={-7} y1={-2} x2={-7} y2={9} />
-              <line x1={7} y1={-2} x2={7} y2={9} />
-              <path d="M -11,10 L 11,10" />
-              {/* 柱间一竖碑(点出"碑"亭) */}
-              <rect
-                x={-1.5}
-                y={0}
-                width={3}
-                height={8}
-                fill={rgba(Theme.roadSide, 0.85)}
-                stroke="none"
-              />
-            </g>
-          );
-        })()}
-      </>
-    );
-  }
-
   return (
     <g id="bv-roads">
-      {/* 区域底色先画,主/辅路压在其上 */}
+      {/* 区域底色先画,主路压在其上 */}
       <RegionTintLayer board={board} />
       {segments}
       {/* 箭羽画在全部主路之上(#73),不被后续段的路笔压住 */}
       {feathers}
-      {branchEls}
     </g>
   );
 });

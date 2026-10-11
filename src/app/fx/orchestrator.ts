@@ -114,8 +114,6 @@ export function remainingMarchPath(
     passedCapital: false,
     capitalIndex: -1,
     waypoints: [],
-    landBranchStep: null,
-    branchWaypoints: [],
   };
 }
 

@@ -1,5 +1,5 @@
 // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
-// settleMarchLanding,含伏兵挂点/驻跸必停/辅路入口)、辅路抉择(selectBranch)、
+// settleMarchLanding,含伏兵挂点/驻跸必停)、
 // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
 // endDecision)、落格结算(resolveLanding;resolveSpecial/resolveProperty/
 // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
@@ -7,7 +7,7 @@
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
 // 方法薄委托(外部 importer 无感),src/core/authority.ts「回合状态机」区段。
 // 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、宝物城
-// g.resolveTreasureCity、辅路格 g.resolveBranchCell、escrow 清算 g.payOrLiquidate、
+// g.resolveTreasureCity、escrow 清算 g.payOrLiquidate、
 // 锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗直调
 // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
 // 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
@@ -24,10 +24,7 @@ import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 import type { TileDef } from "./board";
 
-// ── 择路/落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
-/** 路线抉择:大路(主环)/ 辅路(辅路逐格行进)。 */
-export type RouteKind = "Main" | "Branch";
-
+// ── 落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
 /** 落格结果。 */
 export type LandOutcomeKind =
   | "Noop"
@@ -67,15 +64,12 @@ export interface LandOutcomeSnapshot {
   causedBankruptcy: boolean | null;
 }
 
-/** 抽签 → 移动(主路或辅路逐格)→ 经过自己都城必停(补给+结束回合);否则落格结算。
- *  辅路逐格:computePath 按 onBranch 沿 cells 推进,落辅路格触发 resolveBranchCell;
- *  onBranch={step:-1} = 入口待入辅路(上回合选「入辅路」,本回合掷骰起沿辅路格推进)。
+/** 抽签 → 移动 → 经过自己都城必停(补给+结束回合);否则落格结算。
  *  主路途经遍历(#281):每格途经棋子派发;他人城主城池可被半路杀出拦检,窗挂起时
  *  本调用返回,respondReaction 应答后续走/落格。 */
 export function rollAndMove(g: GameEngine): void {
   if (!g.assertPhase("Roll", "RollAndMove")) return;
   const mover = g.activePlayer;
-  const wasOnBranch = mover.onBranch != null; // 行军前是否在辅路(含 step=-1 待入态):BranchExited 派发判定
   g.dispatchMoment("BeforeMarch", { subject: g.activeIndex }); // 时机·BeforeMarch:掷骰前(行军加成挂点,如周瑜 moveBonus)
   g.dispatchMoment("BeforeRoll", { subject: g.activeIndex }); // 时机·BeforeRoll:掷骰前、BeforeMarch 之后(骰子机制系技能挂点,与 BeforeMarch 的语义区分见 timing.ts)
   const roll = g.dice.roll();
@@ -85,50 +79,32 @@ export function rollAndMove(g: GameEngine): void {
   const drumBonus = g.heroDiceBonus; // 取走擂鼓加成(#188 档 3):发动与掷骰同回合
   g.heroDiceBonus = 0;
   const steps = roll.die + moveBonus + drumBonus;
-  const path = g.board.computePath(mover.position, steps, mover.capitalIndex, mover.onBranch);
+  const path = g.board.computePath(mover.position, steps, mover.capitalIndex);
   const fromPos = mover.position;
   g.lastMove = path;
-  const destName =
-    path.landBranchStep != null && g.board.branch
-      ? `辅路第${path.landBranchStep + 1}格`
-      : g.board.at(path.landIndex).name;
+  const destName = g.board.at(path.landIndex).name;
   g.logEvent(
     "roll",
     mover.guohao,
     `${mover.guohao} 抽签 ${SIGN_FACES[roll.die - 1]}${moveBonus + drumBonus ? `(+${moveBonus + drumBonus})` : ""} → ${destName}`,
-    `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus + drumBonus} from=#${fromPos} land=#${path.landIndex} branchStep=${path.landBranchStep ?? -1} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
+    `roll player=${mover.id} die=${roll.die} steps=${steps} bonus=${moveBonus + drumBonus} from=#${fromPos} land=#${path.landIndex} passedCapital=${path.passedCapital} wps=${path.waypoints.length}`,
   );
 
-  // 辅路逐格落点先于主路遍历分流:辅路格非城池,无反应窗挂点、无途经城池
-  if (path.landBranchStep != null && g.board.branch) {
-    mover.onBranch = { step: path.landBranchStep };
-    emitGameEvent(g, g.activeIndex, {
-      kind: "marchArrived",
-      tileIndex: mover.position, // 主路锚点占位(辅路落位不改 position),路径 landBranchStep 判别
-      path,
-    }); // 事件流(#385):辅路落位行军(路径随事件,fx 沿 branchWaypoints 播)
-    g.dispatchMoment("AfterMarch", { subject: g.activeIndex }); // 时机·AfterMarch:移动完成(落辅路格)、辅路格结算前
-    g.turnPhase = "Land";
-    const cell = g.board.branch.cells[path.landBranchStep];
-    g.resolveBranchCell(mover, cell);
-    return;
-  }
-  // 主路行军(含辅路汇入):逐格途经遍历,#281 反应窗可中途拦停
+  // 逐格途经遍历,#281 反应窗可中途拦停
   const walked = marchTraverse(
     g,
     mover,
     path.traversed,
     path.traversed.length,
     path.landIndex,
-    wasOnBranch,
     fromPos,
     steps,
   );
   if (walked !== "landed") return; // suspended=拦检窗挂起(respondReaction 续走);halted=必停已结算
-  settleMarchLanding(g, mover, path.landIndex, wasOnBranch);
+  settleMarchLanding(g, mover, path.landIndex);
 }
 
-/** 主路途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
+/** 途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
  *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——颁发委任状,
  *  落点不在都城则必停截断(放弃剩余步数,补给+结束回合);③ 他人城主城池(城主存活)
  *  ——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
@@ -141,7 +117,6 @@ export function marchTraverse(
   remaining: number[],
   totalLen: number,
   landIndex: number,
-  wasOnBranch: boolean,
   fromPos: number,
   steps: number,
 ): "landed" | "halted" | "suspended" {
@@ -173,23 +148,8 @@ export function marchTraverse(
       );
       if (landIndex !== mover.capitalIndex) {
         const walkedCount = totalLen - remaining.length;
-        const branchPrefix =
-          mover.onBranch != null && g.board.branch
-            ? g.board.branch.cells.length - mover.onBranch.step
-            : 0;
-        g.lastMove = g.board.computePath(
-          fromPos,
-          branchPrefix + walkedCount + 1,
-          mover.capitalIndex,
-          mover.onBranch,
-        );
-        mover.onBranch = null; // 辅路汇入主路后路过都城:必停已在主路,清辅路态
+        g.lastMove = g.board.computePath(fromPos, walkedCount + 1, mover.capitalIndex);
         mover.position = mover.capitalIndex;
-        if (wasOnBranch)
-          g.dispatchMoment("BranchExited", {
-            subject: moverSeat,
-            tileIndex: mover.position,
-          }); // 时机·BranchExited:辅路推进汇入主路(汇入后必停都城的截断落点)
         g.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
         g.dispatchMoment("CapitalHalt", {
           subject: moverSeat,
@@ -216,10 +176,6 @@ export function marchTraverse(
         const ambushId = owner.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
         if (ambushId != null) {
           const walkedCount = totalLen - remaining.length;
-          const branchPrefix =
-            mover.onBranch != null && g.board.branch
-              ? g.board.branch.cells.length - mover.onBranch.step
-              : 0;
           openReactionWindow(
             g,
             { kind: "march", cardId: ambushId, userSeat: moverSeat, ownerSeat },
@@ -227,13 +183,12 @@ export function marchTraverse(
               kind: "march",
               moverSeat,
               tileIndex: tIdx,
-              stepsToTile: branchPrefix + walkedCount + 1,
+              stepsToTile: walkedCount + 1,
               totalTiles: totalLen,
               resumeTiles: remaining.slice(1),
               landIndex,
               fromPos,
               steps,
-              wasOnBranch,
             },
           );
           return "suspended"; // 窗挂起:人类被询问时等 respondReaction;bot 全代答时续走已在窗结算内完成
@@ -245,41 +200,18 @@ export function marchTraverse(
   return "landed";
 }
 
-/** 主路落格收尾(走完遍历无拦停):清辅路态、落位、BranchExited/AfterMarch、
- *  辅路入口抉择或落格结算(机遇/城池)。 */
-export function settleMarchLanding(
-  g: GameEngine,
-  mover: Player,
-  landIndex: number,
-  wasOnBranch: boolean,
-): void {
-  mover.onBranch = null; // 已在主路(清掉原 onBranch)
+/** 落格收尾(走完遍历无拦停):落位、AfterMarch、落格结算(机遇/城池)。 */
+export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: number): void {
   mover.position = landIndex;
   emitGameEvent(g, g.players.indexOf(mover), {
     kind: "marchArrived",
     tileIndex: landIndex,
     path: requireMovePath(g, "marchArrived"), // #385:路径随事件走(合并批多段行军各播各段)
   }); // 事件流(#375):行军落格
-  if (wasOnBranch)
-    g.dispatchMoment("BranchExited", {
-      subject: g.players.indexOf(mover),
-      tileIndex: landIndex,
-    }); // 时机·BranchExited:辅路推进汇入主路(落点回主路)
-  g.dispatchMoment("AfterMarch", { subject: g.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(主路落位)、落格结算(辅路入口抉择/resolveLanding)前
-  // 落在辅路起点(且未在辅路)→ 弹入口抉择
-  if (g.board.getBranchStart(landIndex)) {
-    g.turnPhase = "AwaitingBranch";
-    g.logEvent(
-      "branch",
-      mover.guohao,
-      `${mover.guohao} 至辅路要隘「${g.board.at(landIndex).name}」:走大路 or 入辅路`,
-      `awaitingBranch player=${mover.id} tile=#${landIndex}`,
-    );
-    return; // 等 selectBranch
-  }
+  g.dispatchMoment("AfterMarch", { subject: g.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(落位)、落格结算(resolveLanding)前
   g.turnPhase = "Land";
   // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
-  // (必停都城/辅路格不触发:必停是驻跸补给特化流,辅路即将整体移除)。
+  // (必停都城不触发:必停是驻跸补给特化流)。
   // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
   // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
   // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
@@ -287,33 +219,6 @@ export function settleMarchLanding(
   const enc = g.maybeApplyEncounter(mover, landIndex);
   if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
     return;
-  resolveLanding(g);
-}
-
-/** 辅路入口抉择:"Main"=走大路(起点 tile 按普通城落格,可购买等);
- *  "Branch"=入辅路——本回合结束(棋子留在主路入口格,置「待入辅路」onBranch={step:-1}),
- *  下回合掷骰起沿辅路格推进(掷几点走几格,溢出从辅路终点汇入主路,见 computePath)。
- *  复用 AwaitingBranch 阶段 + selectBranch(改语义,不新加 phase)。 */
-export function selectBranch(g: GameEngine, kind: RouteKind): void {
-  if (!g.assertPhase("AwaitingBranch", "SelectBranch")) return;
-  const p = g.activePlayer;
-  const tile = g.board.at(p.position);
-  g.logEvent(
-    "branch",
-    p.guohao,
-    `${p.guohao} 于「${tile.name}」取${kind === "Branch" ? "道辅路(下回合掷骰进发)" : "大路"}`,
-    `selectBranch player=${p.id} kind=${kind} at=#${p.position} cash=${p.cash}`,
-  );
-  if (kind === "Branch" && g.board.branch) {
-    // 入辅路 = 本回合结束:置「待入辅路」,不结算任何格;下回合 rollAndMove 沿辅路推进
-    p.onBranch = { step: -1 };
-    g.dispatchMoment("BranchEntered", { subject: g.activeIndex, tileIndex: p.position }); // 时机·BranchEntered:入辅路(置待入辅路态后)
-    g.turnPhase = "Land";
-    g.endTurn();
-    return;
-  }
-  // 走大路:起点 tile 按普通落格处理(可购买/升级/交涉等)
-  g.turnPhase = "Land";
   resolveLanding(g);
 }
 

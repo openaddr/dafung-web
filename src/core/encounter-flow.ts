@@ -117,7 +117,7 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
   g.endTurn();
 }
 
-/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。
+/** 耗竭善后(#130):跳过下一回合(skipTurns 共用机制)+ 体力重置 100。
  *  重置走 addStamina 唯一口并以 staminaChanged(reason=exhaustion)产事件(#384):
  *  耗竭入口已保证 stamina=0,增量恒为满值,夹紧不改变落账结果。 */
 function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void {
@@ -257,8 +257,7 @@ function settleEncounterChoice(
   let costDetail = "";
   if (option.effect?.kind === "grantHero") {
     const cost = mover.treasures.splice(0, ENCOUNTER_HERO_TREASURE_COST);
-    for (const t of cost)
-      g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
+    for (const t of cost) g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
   if (option.repDelta !== 0) {
@@ -507,9 +506,7 @@ function applyGrantCityEffect(
   const unownedCities = g.board.tiles
     .filter((t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null)
     .map((t) => ({ tileIndex: t.index, tileName: t.name, def: g.catalog.get(t.propertyId) }))
-    .filter(
-      (c): c is { tileIndex: number; tileName: string; def: PropertyDef } => c.def != null,
-    );
+    .filter((c): c is { tileIndex: number; tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
