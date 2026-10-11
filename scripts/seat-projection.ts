@@ -58,13 +58,22 @@ export function lobbyView(r: RoomSession, onlineSeats: Set<number>): LobbyView {
   };
 }
 
+/** 匿名座位占位:queriedSeats/queriedBySeat 裁剪后被剥身份的座位一律置换为它——非合法
+ *  座位号,消费面(折叠器闭窗算术读 length、控制器/UI 读 includes(自己))都不会把它
+ *  当人。事件批(redactEvents)与快照投影(redactReactionView)两条下行路径共用。 */
+const ANON_SEAT = -1;
+
 /** 反应窗公开载荷的 per-seat 投影(#281,ADR-0016):公告字段(cardId/userSeat/
- *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——每人只看到「我是否
- *  被询问」(在列→[自己座位],不在列→[]),他人询问集一律裁掉,否则泄漏谁持识破诡计。
- *  march 窗无私有档,原样返回。纯函数。 */
+ *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——**身份匿名、数量
+ *  保留**(与 redactEvents 同一口径):自己座位保留,他人一律置换 ANON_SEAT。数量必须
+ *  保留:军师窗开窗拍必带校准全量快照,水合无条件覆盖折叠态——若投影把查询集覆盖成
+ *  [自己]/[](长度 ≤1),折叠器(event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」
+ *  在首条应答即全员误闭窗(#461:非应答端横幅提前消失、丧失应答入口);匿名化相对
+ *  god-view 恰好只裁「谁」,同窗询问数量本就可由公开应答流推出(每被询问座位恰应答
+ *  一次),零额外泄漏。march 窗无私有档,原样返回。纯函数。 */
 function redactReactionView(v: ReactionView, seat: number): ReactionView {
   if (v.kind !== "jinnang") return v;
-  return { ...v, queriedBySeat: v.queriedBySeat.includes(seat) ? [seat] : [] };
+  return { ...v, queriedBySeat: v.queriedBySeat.map((s) => (s === seat ? seat : ANON_SEAT)) };
 }
 
 /** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
@@ -88,9 +97,10 @@ export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapsh
     ...s,
     players,
     jinnangDeck: [], // 牌序只裁不给;剩余数走引擎态 jinnangDeckCount
-    // 反应窗询问集(#281):挂起态(god-view)与公开载荷两处都按座位投影——
+    // 反应窗询问集(#281;#461 起与 redactEvents 同口径=身份匿名、数量保留,见
+    // redactReactionView 头注):挂起态(god-view)与公开载荷两处都按座位投影——
     // 客户端 restoreFromSnapshot 靠裁剪后的挂起态重建 AwaitingReaction,公开载荷
-    // 随之派生,UI 只会看到「我是否被询问」。
+    // 随之派生;查询集数量是折叠器闭窗算术的分母,水合覆盖不得使其缩水。
     pendingReaction:
       s.pendingReaction != null
         ? { ...s.pendingReaction, view: redactReactionView(s.pendingReaction.view, seat) }
@@ -123,10 +133,6 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
 }
 
 // ──────────────────────────── 事件批逐座位过滤(#381,发送总口单点)────────────────────────────
-/** 匿名座位占位:queriedSeats 裁剪后被剥身份的座位一律置换为它——非合法座位号,
- *  消费面(折叠器闭窗算术读 length、控制器/UI 读 includes(自己))都不会把它当人。 */
-const ANON_SEAT = -1;
-
 /** 事件批逐座位过滤(#381,ADR-0020 决策 2 的发送总口单点):逐 kind 审计隐私档位后
  *  重建批——公开事件原样透传,携带他人隐藏信息的事件按 ADR-0016 三档口径裁剪。
  *  穷尽 switch:词汇表新增 kind 未在此登记 = 编译期炸(default 收 never),与快照
