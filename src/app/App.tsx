@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
+import { ENCOUNTER_PRODUCT_DEFAULTS } from "@core/encounters";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
@@ -17,6 +18,7 @@ import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
+import { SoundBoard } from "@app/screens/dev/SoundBoard";
 import { HintBar } from "@app/screens/shared/HintBar";
 // R3-C2(#89) 屏幕切换入场转场:keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
 import "./styles/screen-transition.css";
@@ -169,6 +171,8 @@ export function App() {
           ],
           seed: urlSeed(),
           mapId: "",
+          // 试玩机遇走产品默认档(#458):引擎缺省 triggerRate=0 恒关,试玩须与正式局同源可触发
+          encounter: ENCOUNTER_PRODUCT_DEFAULTS,
         });
         setController(controller, data);
         useGameStore.getState().syncFromEngine(controller.engine);
@@ -204,8 +208,13 @@ export function App() {
   // R3-C2(#89) 屏幕切换入场转场:五屏统一收进 keyed 外壳,key=screen 换屏即重挂,
   // 挂 .screen-in 播入场(淡入 + 8px 上移落定);对局屏追加 .screen-in-game,
   // 由 CSS 后代选择器命中棋盘 svg 做首帧缓推。退场不做:保留瞬时卸载。
+  // ?dev=sound 音效试听台:dev 工具直达,压过一切 store 路由(不进 screen 状态机);
+  // SPA 内 URL 不变,挂载时读一次即可。
+  const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
   let content: ReactNode = null;
-  if (screen === "game") {
+  if (devSound) {
+    content = <SoundBoard />;
+  } else if (screen === "game") {
     content = <GameScreen />;
   } else if (screen === "lobby") {
     content = <LobbyScreen onExit={handleExitLobby} />;

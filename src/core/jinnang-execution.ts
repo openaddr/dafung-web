@@ -45,7 +45,9 @@ export interface PendingHeroSkill {
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
  *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。返回实际入手张数(#384:
  *  落空=无转移,调用方据此不产事件)。
- *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。 */
+ *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
+ *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),四路同覆盖
+ *  ——起手发牌/锦囊格/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
 export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   const p = g.players[seat];
   if (!p || p.isBankrupt) return 0;
@@ -71,6 +73,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
       `jinnangDraw player=${p.id} handSize=${p.jinnangHand.length}`,
     );
   }
+  if (drawn > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: drawn }); // 时机·JinnangGained:得锦囊进手(#456,落空不派)
   return drawn;
 }
 
@@ -369,7 +372,9 @@ function fireHeroSkill(
   );
   switch (skill.kind) {
     case "demolish":
-      // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)
+      // 火攻 = 火烧连营同款 demolish 结算(#226 守卫:都城可降不可失)。
+      // #457 拍定:城损时机(PropertyDemolished/Lost)只挂锦囊路调用侧,火攻主动技路
+      // 不派——守「主动技结算内不派发时机」既有口径(见本文件头「结算内不派发时机」)。
       demolishOnVictim(
         g,
         user,
@@ -528,6 +533,10 @@ export function executeJinnang(
       const victim = g.players[targets[0]];
       const idx = Math.floor(g.dice.nextFloat() * victim.treasures.length);
       const treasure = victim.treasures.splice(idx, 1)[0];
+      g.dispatchMoment("TreasureLost", {
+        subject: g.players.indexOf(victim),
+        treasureId: treasure.id,
+      }); // 时机·TreasureLost:窃玉偷香失窃方(非售出流失,#457,与下得宝时机同点成对)
       user.treasures.push(treasure);
       g.dispatchMoment("TreasureGained", { subject: userSeat, treasureId: treasure.id }); // 时机·TreasureGained:窃玉偷香得宝(#455 A4 补派,subject=窃方)
       g.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
@@ -547,18 +556,27 @@ export function executeJinnang(
     }
     case "demolish": {
       const victim = g.players[targets[0]];
-      demolishOnVictim(
+      const outcome = demolishOnVictim(
         g,
         user,
         victim,
         `使用锦囊【${def.id}】`,
         `jinnangUse player=${user.id} card=${def.id}`,
       );
+      g.dispatchMoment(outcome.kind === "demolished" ? "PropertyDemolished" : "PropertyLost", {
+        subject: g.players.indexOf(victim),
+        propertyId: outcome.propertyId,
+        tileIndex: outcome.tileIndex,
+      }); // 时机·PropertyDemolished/Lost:火烧连营城损(#457 拍定挂调用侧按果择一——单点内不派,火攻主动技路不派)
       break;
     }
     case "skipTurn": {
       const victim = g.players[targets[0]];
       victim.skipTurns += 1;
+      g.dispatchMoment("TurnSkipImposed", {
+        subject: targets[0],
+        reason: "jinnang",
+      }); // 时机·TurnSkipImposed:缓兵之计强加跳回合(#456,写点 +=1 语义保留)
       g.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
       emitGameEvent(g, userSeat, {
         kind: "jinnangInflicted",
@@ -646,6 +664,7 @@ export function executeJinnang(
     case "peek": {
       const target = targets[0];
       g.jinnangPeeks.push({ viewer: userSeat, target });
+      g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)
       g.pushFloaterText(
         user,
         `细作已入 ${g.players[target].guohao} 营中(至你下回合)`,
@@ -672,11 +691,21 @@ export function executeJinnang(
   }
 }
 
+/** demolish 结果(#457):供锦囊路调用侧择一派发 PropertyDemolished/Lost——
+ *  派发不进单点(火攻主动技路共用本单点但不派,拍定两调用点分别挂)。 */
+interface DemolishOutcome {
+  kind: "demolished" | "lost";
+  propertyId: string;
+  tileIndex: number;
+}
+
 /** demolish 结算单点(#122 火烧连营 与 #188 档 3 周瑜火攻共用):随机降目标一座
  *  Lv>0 城 1 级(都城可降);城防全 0 级则失一座非都城(都城不可失,#226 根因修复:
  *  失城只从非都城中取,与耗竭「都城可降不可失」、破产「都城不可变卖」同口径)。
  *  「仅剩 0 级都城」的目标已被选项集门槛(demolishTargetOk)拦下,空池 = 门槛被绕过,
  *  当场抛出(零兜底:让状态机 bug 在出生地暴露)。
+ *  返回 DemolishOutcome(#457):城损时机的派发归锦囊路调用侧(火烧连营按果派发;
+ *  火攻主动技路「结算内不派发」口径不派),本单点只结算不派发。
  *  sourceLabel=战报来源段(「使用锦囊【火烧连营】」/「主动技【火攻】」);
  *  auditPrefix=机读 detail 前缀(各自保留原键名)。 */
 function demolishOnVictim(
@@ -685,7 +714,7 @@ function demolishOnVictim(
   victim: Player,
   sourceLabel: string,
   auditPrefix: string,
-): void {
+): DemolishOutcome {
   const upgradable = victim.properties.filter((h) => h.level > 0);
   const tileIndexOf = (pid: string) => g.board.tiles.findIndex((t) => t.propertyId === pid);
   if (upgradable.length > 0) {
@@ -704,28 +733,28 @@ function demolishOnVictim(
       `${user.guohao} ${sourceLabel}:${victim.guohao} 的城防降为 ${h.level} 级`,
       `${auditPrefix} victim=${victim.id} prop=${h.propertyId} level=${h.level}`,
     );
-  } else {
-    const capPropId = g.board.at(victim.capitalIndex)?.propertyId;
-    const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
-    if (losable.length === 0)
-      throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
-    const h = losable[Math.floor(g.dice.nextFloat() * losable.length)];
-    victim.properties.splice(victim.properties.indexOf(h), 1);
-    g.propertyChanges.push({
-      tileIndex: tileIndexOf(h.propertyId),
-      level: 0,
-      ownerColorIndex: null,
-      levelChanged: false,
-      ownerChanged: true,
-    }); // 失城=回无主(ADR-0015)
-    const lostName = g.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
-    g.logEvent(
-      "system",
-      user.guohao,
-      `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
-      `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
-    );
+    return { kind: "demolished", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
   }
+  const capPropId = g.board.at(victim.capitalIndex)?.propertyId;
+  const losable = victim.properties.filter((h) => h.propertyId !== capPropId);
+  if (losable.length === 0) throw new Error("demolish:目标无可失之城(目标门槛应已拦截,状态机 bug)");
+  const h = losable[Math.floor(g.dice.nextFloat() * losable.length)];
+  victim.properties.splice(victim.properties.indexOf(h), 1);
+  g.propertyChanges.push({
+    tileIndex: tileIndexOf(h.propertyId),
+    level: 0,
+    ownerColorIndex: null,
+    levelChanged: false,
+    ownerChanged: true,
+  }); // 失城=回无主(ADR-0015)
+  const lostName = g.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
+  g.logEvent(
+    "system",
+    user.guohao,
+    `${user.guohao} ${sourceLabel}:${victim.guohao} 城防尽毁,失「${lostName}」`,
+    `${auditPrefix} victim=${victim.id} lost=${h.propertyId}`,
+  );
+  return { kind: "lost", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
 }
 
 /** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):满编/名将已尽折现,否则骰选一名。

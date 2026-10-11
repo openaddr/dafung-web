@@ -136,6 +136,10 @@ export function marchTraverse(
     // ② 己都城:巡幸委任状;若落点不在都城 → 必停截断(lastMove 只走到都城)
     if (tIdx === mover.capitalIndex) {
       mover.warrants += WARRANTS_PER_PASS;
+      g.dispatchMoment("WarrantGained", {
+        subject: moverSeat,
+        tileIndex: tIdx,
+      }); // 时机·WarrantGained:途经己都城巡幸得委任状(#456,必停截断/恰落都城两路同挂)
       g.logEvent(
         "supply",
         mover.guohao,

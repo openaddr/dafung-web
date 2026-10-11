@@ -182,7 +182,6 @@ function pickCapitalInternal(
   player.properties.push({
     propertyId: def.id,
     group: def.group,
-    purchasePrice: def.buildCost,
     level: 0,
     maxLevel: def.maxLevel,
   });

@@ -12,13 +12,15 @@ export type SoundEvent =
   | "diceLand" // 骰子停下
   | "marchStart" // 行军启动(高频触发:轻嗒瞬态,50ms 去重 + 连发音量衰减)
   | "coin" // 铜钱(收入)
+  | "pay" // 支出(负浮字步的「付钱」闷响,与 coin 上行叮声成对)
   | "stamp" // 印章(建都/据城)
-  | "banner" // 横幅(回合/事件)
+  | "banner" // 横幅(回合/事件;合成 whoosh,不映射文件——见 AUDIO_FILES 注)
   | "buy" // 购买成功
   | "upgrade" // 扩军
   | "treasure" // 得珍宝
   | "bankrupt" // 破产
   | "victory" // 胜利
+  | "victoryDrum" // 胜利入场鼓点(仅终局屏 0ms;与 banner 分家,鼓滚奏只留给终局)
   | "scrollOpen" // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
   | "jinnangDraw" // 锦囊发牌/入手(手牌架新牌挂载即播,#239 T4)
   | "jinnangSelect"; // 军师幕点选牌面(选中瞬间的极轻嗒,#239 T4)
@@ -111,6 +113,9 @@ export class SynthAudioPlayer implements AudioPlayer {
       case "coin":
         this.coin(ctx);
         break;
+      case "pay":
+        this.payOut(ctx);
+        break;
       case "stamp":
         this.stamp(ctx);
         break;
@@ -131,6 +136,10 @@ export class SynthAudioPlayer implements AudioPlayer {
         break;
       case "victory":
         this.victory(ctx);
+        break;
+      case "victoryDrum":
+        // 文件通路挂了才走到这里:退化为 banner 同款 whoosh(鼓滚奏缺失不阻断终局)
+        this.banner(ctx);
         break;
       case "jinnangDraw":
         this.jinnangDraw(ctx);
@@ -282,6 +291,13 @@ export class SynthAudioPlayer implements AudioPlayer {
     this.tone(ctx, 1760, 0.18, "sine", 0.18);
   }
 
+  // 付出/支出(与 coin 成对:收钱上行叮、付钱下行闷;音量压半档——支出高频次,
+  // 技能费/交涉礼金/落格罚金都走这里,响度过高会疲劳)
+  private payOut(ctx: AudioContext): void {
+    this.tone(ctx, 990, 0.09, "sine", 0.16);
+    setTimeout(() => this.tone(ctx, 660, 0.14, "sine", 0.12), 70);
+  }
+
   // 得珍宝(升调叮咚)
   private treasure(ctx: AudioContext): void {
     this.tone(ctx, 880, 0.1, "triangle", 0.3);
@@ -337,19 +353,24 @@ export class SynthAudioPlayer implements AudioPlayer {
 
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
 /** SoundEvent → 音频文件 URL 映射。缺失的 event 走合成回退。 */
-const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
+// 导出给一致性守卫测试与音效试听 dev 页(映射表是运行时配置,消费方按需读)。
+export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // diceRoll 不再映射文件:旧 drum-roll.ogg 是 4s 完整鼓滚奏,行军点击(=掷骰)是
-  // 全游戏最高频触发,太吵(#26)——改走上方合成轻快瞬态。banner 低频保留鼓滚奏。
+  // 全游戏最高频触发,太吵(#26)——改走上方合成轻快瞬态。
+  // banner 同病同治(2026-10 音效审计):回合横幅是每一次换手的固定触发,3.8s 渐强
+  // 鼓滚恰好铺满整个「掷骰+行军」过程,bot 连手时与骰子/木鱼/落币叠成噪声墙——
+  // 撤文件映射,回合横幅回归合成 whoosh(0.35s,见 SynthAudioPlayer.banner);
+  // 鼓滚奏只留给终局:新设 victoryDrum 单独映射(VictoryScreen 入场起势)。
   // A5(#52):stamp 换 Freesound 759526 真实印章采样(CC0,lq ogg 直链),
   // 文件通路 gain 0.6 × master 0.5 = 0.3,与既有音量档对齐;sinks.ts 调用点零改动。
   diceLand: "/assets/audio/woodblock-hit.ogg",
   coin: "/assets/audio/coin-drop.ogg",
   stamp: "/assets/audio/stamp-seal.ogg",
-  banner: "/assets/audio/drum-roll.ogg",
   buy: "/assets/audio/coins-shake.ogg",
   treasure: "/assets/audio/guqin-note.ogg",
   bankrupt: "/assets/audio/gong-long.ogg",
   victory: "/assets/audio/victory-fanfare.ogg",
+  victoryDrum: "/assets/audio/drum-roll.ogg",
   upgrade: "/assets/audio/woodblock-hit.ogg",
   // 卷轴展开(Freesound 710764,CC0;manifest audio:scroll-unroll 已登记)。
   // #65 已接入:ScrollShell 挂载即 play("scrollOpen"),与展开动画同帧。
@@ -358,6 +379,20 @@ const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // 的质感语言。jinnangSelect 刻意不映射:现成采样里无贴切的「极轻选中嗒」,
   // 走上方合成(marchStart 同族),不硬凑重采样。
   jinnangDraw: "/assets/audio/woodblock-hit.ogg",
+};
+
+/** 文件播放的截断表(播放侧收尾,不动素材文件):部分采样是长尾/多连击录音,
+ *  全长播在高频事件上会与下一步音效叠成泥——按事件截断 + release 渐隐。
+ *  包络实测(100ms 窗):woodblock-hit 为 4 连击(强击在 0.5s,其后是碎敲),
+ *  coins-shake 全程 3.6s 持续摇,scroll-unroll 4s 纸噪且峰值在 1.4s;
+ *  coin-drop 有效能量仅前 0.5s、guqin 是双弹乐句、gong/victory 是完整乐句——后四者不截。
+ *  值 = 播放起点后多少秒收尾渐隐。 */
+export const FILE_TRIM: Partial<Record<SoundEvent, { stopAt: number; releaseMs: number }>> = {
+  diceLand: { stopAt: 0.65, releaseMs: 200 },
+  upgrade: { stopAt: 0.65, releaseMs: 200 },
+  jinnangDraw: { stopAt: 0.65, releaseMs: 200 },
+  buy: { stopAt: 1.6, releaseMs: 300 },
+  scrollOpen: { stopAt: 1.8, releaseMs: 300 },
 };
 
 /**
@@ -397,15 +432,27 @@ export class HybridAudioPlayer extends SynthAudioPlayer {
     const ctx = this.ensureCtx();
     if (!ctx || !this.master) return;
     const buf = this.buffers.get(event);
-    // 有真实音效 buffer → 播放文件
+    // 有真实音效 buffer → 播放文件(带 FILE_TRIM 截断)
     if (buf) {
       const src = ctx.createBufferSource();
       src.buffer = buf;
       src.playbackRate.value = 0.92 + Math.random() * 0.16; // 轻微随机变调避免单调
       const g = ctx.createGain();
-      g.gain.value = this.muted ? 0 : 0.6;
+      // muted 态到不了这里(ensureCtx 对 muted 早退),静音门在 ctx 层已关
+      g.gain.value = 0.6;
       src.connect(g).connect(this.master);
       src.start();
+      // 截断:长尾/连击采样按事件收尾渐隐(变调只影响样本内时长,截断点在输出
+      // 时间轴上,恒定);releaseMs < stopAt×1000 的配置不变量由 audio-mapping.test
+      // 守,此处不做运行时防御
+      const trim = FILE_TRIM[event];
+      if (trim && buf.duration > trim.stopAt) {
+        const tStop = ctx.currentTime + trim.stopAt;
+        const tRelease = tStop - trim.releaseMs / 1000;
+        g.gain.setValueAtTime(0.6, tRelease);
+        g.gain.exponentialRampToValueAtTime(0.0001, tStop);
+        src.stop(tStop);
+      }
       return;
     }
     // 无 buffer 或加载失败(null/未就绪)→ 合成回退(文件还在加载中也临时合成)

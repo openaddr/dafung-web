@@ -999,8 +999,9 @@ export class GameEngine {
    *  - "self":属主是时机主体(owner === subject)
    *  - "others":时机主体不是属主(owner !== subject)
    *  - "any":主体不限
-   *  - "actor":时机主体恰为当前行动玩家(subject === activeIndex,属主不限)——当前所有派发点
-   *    主体即行动者,与 "any" 等价;未来出现「非行动玩家」主体的时机(如回合外失财)时二者分化。
+   *  - "actor":时机主体恰为当前行动玩家(subject === activeIndex,属主不限)——与 "any"
+   *    的分化点在主体是否行动者:交涉成交(卖家)/破产收款(债主)等回合外主体时机
+   *    满足 "any" 而不满足 "actor"。
    *  缺省 = "self"。 */
   private scopePasses(scope: TriggerSkill["scope"], subject: number, ownerSeat: number): boolean {
     switch (scope ?? "self") {
@@ -1264,8 +1265,8 @@ export class GameEngine {
     this.jinnangSeq = Math.max(this.jinnangSeq, s.pendingReaction?.seq ?? 0);
     // 抉择机遇载荷回链(#124):pendingEncounter 不单列序列化,机遇 id 随派生 choices
     // (选项携带 encounterId)过网,此处按 id 从目录重建引用——与 pendingLand 的
-    // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)→ 显式降级:留痕警告
-    // 并退回 Roll(该玩家重掷、机遇作废),不卡死相位。
+    // 「id 句柄 + 目录现查」同模式。查无(目录版本不符/外来快照)= 数据损坏,零兜底
+    // 直接抛错(不静默作废玩家机遇、不降级退回 Roll)。
     if (this.turnPhase === "AwaitingExhaustion") {
       // 耗竭座位 = 行动者本人(#130):耗竭恒发生在本人回合内,恢复按 activeIndex 重派生
       this.pendingExhaustionSeat = this.activeIndex;

@@ -55,7 +55,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 - **core/**(全部纯逻辑):`authority.ts` 引擎壳(状态/薄委托/命令路由/快照通道,purity 门禁看守) · 机制域模块:`reaction-window` 反应窗 · `jinnang-execution` 锦囊执行 · `encounter-flow` 机遇+耗竭 · `movement-flow` 行军落格地产 · `bankruptcy` 破产清算 · `treasure-flow` 珍宝交涉 · `setup-flow` 开局三段式 · `recruitment` 招贤 · `model.ts` 共享领域模型 · `timing.ts`+`effects.ts` 时机总线与效果注册表 · `choices.ts` 决策选项集(ADR-0013) · `board.ts`/`board-loader.ts` 棋盘路径与地图契约 · `economy.ts` 经济原语 · `bot.ts` AI · `heroes.ts`/`treasures.ts`/`encounters.ts` 数据表(加名将/珍宝/机遇只改这些) · `snapshot.ts` 快照序列化 · `constants.ts` 共享常量 · `theme.ts` 配色单源(改后跑 `bun run gen:theme`);划分纪律见架构红线 8(ADR-0019)
 - **app/**:`main.tsx` 入口 · `store/` zustand(game 全局态/net 联机) · `controllers/` 基类+单机+联机+registry(含 `installDebugHooks`) · `components/board/` SVG 棋盘 · `screens/` home/setup/lobby/game/editor(各屏 testids.ts 是 e2e 选择器单源) · `fx/` 骰子/行军/浮字/音效编排
-- **scripts/**:`cli.ts` 纯 CLI 对局 + LLM 演练线(auto/run-to-end) · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-persistence.ts` 落盘适配 · `engine-helpers.ts` CLI/Server 共享层 · `shot.mjs` 截图自证单源(起服样板勿手写) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言)
+- **scripts/**:`cli.ts` 纯 CLI 对局 + LLM 演练线(auto/run-to-end) · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-record.ts` 房间记录形状+「记录→引擎」重建单源 · `room-persistence.ts` 落盘适配 · `wire.ts` wire 协议编解码单源(联机 WS/单机内存双工同一本体) · `seat-projection.ts` 客户端投影层+下行装配单口(per-seat redaction 必经) · `event-batch.ts` 事件批下行通道共享批语义 · `bot-driver.ts` bot/接管/托管驱动(零 WS/fs) · `watchdogs.ts` 四组同构看门狗(停摆接管/自动起摇/反应窗/掉线保留) · `engine-helpers.ts` CLI/Server 共享层 · `dev.ts` 一键开发编排(vite+引擎服务一条命令) · `play.ts` 一键快照游玩(build+起服) · `generate-theme-tokens.ts` gen:theme token 生成(theme.ts 单源) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言) · `check-doc-links.ts` 文档死链门禁 · `fetch-asset.ts` Wikimedia/三国杀 wiki 抓图登记 · `make-chessboard-map.ts`/`make-huanyou-map.ts` 内置地图生成器 · `shot.mjs` 截图自证单源(起服样板勿手写)
 
 ## 开发陷阱速查(游戏逻辑;数值一律查 [rules 第 10 页](./docs/reference/rules/10-关键数值总表.md))
 
@@ -75,9 +75,10 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - **改完码**:`bun run lint`(oxlint,0 warning 基线)+ `bun run fmt`(oxfmt)先过;日常 `bun run build`(tsc+vite)+ `bun test`;改 `scripts/` 加跑 `bun run typecheck:scripts`。
 - **分层**:工单收口只跑本工单 spec(`bun run test:e2e:one`);全量 `E2E_WORKERS=4 bun run test:e2e` 每分支一次,PR 前收口(≤4 分钟门禁)。命令细节见[开发与测试](./docs/how-to/开发与测试.md)。
 - e2e 时间倍率 `E2E_TIME_SCALE`(默认 0.25)由 fixtures 注入,仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
+- **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单(2026-10-05 误杀断网事故的硬规矩)。
 
 ## Agent 工作流
 
 - Issue tracker:GitHub Issues(`openaddr/dafung-web`;gh 未认证走 token+REST 等效通路),细则见 [docs/agents/issue-tracker.md](./docs/agents/issue-tracker.md) 与 [triage-labels.md](./docs/agents/triage-labels.md);领域文档消费方式见 [docs/agents/domain.md](./docs/agents/domain.md)。
-- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(四条纪律+模板+QC 检查单);截图自证一律走 `scripts/shot.mjs`。
+- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单);截图自证一律走 `scripts/shot.mjs`。
 - 覆盖率体检与耗时回顾各有 skill(`.agents/skills/`),按其 SKILL.md 触发条件使用,勿日常化。

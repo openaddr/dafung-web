@@ -346,7 +346,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         p.properties.push({
           propertyId: def.id,
           group: def.group,
-          purchasePrice: def.purchasePrice,
           level: 0,
           maxLevel: def.maxLevel,
         });
@@ -361,7 +360,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         buyer.properties.push({
           propertyId: def.id,
           group: def.group,
-          purchasePrice: def.purchasePrice,
           level: 0,
           maxLevel: def.maxLevel,
         });
@@ -379,7 +377,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           owner.properties.push({
             propertyId: def.id,
             group: def.group,
-            purchasePrice: def.purchasePrice,
             level: ev.newLevel,
             maxLevel: def.maxLevel,
           });
@@ -411,7 +408,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             creditor.properties.push({
               propertyId: def.id,
               group: def.group,
-              purchasePrice: def.purchasePrice,
               level: 0, // 副本无持有时的等级漂移,水合纠正
               maxLevel: def.maxLevel,
             });

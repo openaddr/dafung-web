@@ -117,7 +117,6 @@ describe("选项集注册表(choices.ts)", () => {
     p.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -163,7 +162,6 @@ describe("选项集注册表(choices.ts)", () => {
     p.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -253,7 +251,6 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     me.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: def.maxLevel,
       maxLevel: def.maxLevel,
     });
@@ -294,7 +291,6 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     me.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -339,7 +335,6 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     p.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });

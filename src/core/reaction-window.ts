@@ -12,8 +12,10 @@ import { REACTION_WINDOW_MS } from "./constants";
 /** 锦囊宣布反应窗的公开载荷:挂起点公告(哪个结算点、牌、使用者、目标)+ 被询问集。
  *  可见性登记(ADR-0016 投影白名单;redact 改造归传输层下一道缝,字段形状已按两档可投影设计):
  *  - public:cardId/userSeat/targetSeats —— 出牌本就公开事件,全员可见;
- *  - per-seat private:queriedBySeat —— god-view 为被询问座位全集;联机 redact 时每座位
- *    只投影「自己是否被询问」(在列→[自己座位],不在列→[]),他人询问态不外泄。 */
+ *  - per-seat private:queriedBySeat —— god-view 为被询问座位全集;联机 redact 时
+ *    **身份匿名、数量保留**(自己座位保留,他人一律置换 -1 匿名占位,投影单口
+ *    scripts/seat-projection.ts redactReactionView):「谁被询问」不外泄,数量必须
+ *    保留——折叠器闭窗算术读 length,压成 ≤1 会在首条应答误闭窗(#461)。 */
 export interface JinnangReactionView {
   kind: "jinnang";
   /** 被公告的锦囊 id(识破的对象)。 */

@@ -80,7 +80,6 @@ function grantCity(e: GameEngine, seat: number, propertyId: string) {
   e.players[seat].properties.push({
     propertyId,
     group: "a",
-    purchasePrice: 1000,
     level: 2,
     maxLevel: 3,
   });
@@ -136,9 +135,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     armUser(e, userSeat, ["火烧连营"]);
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     e.resolveJinnang("火烧连营"); // 入目标段
     e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
     expect(e.turnPhase).toBe("AwaitingReaction");
@@ -173,9 +170,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     armUser(e, userSeat, ["火烧连营"]);
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victimSeat]);
     e.respondReaction(victimSeat, false); // 不用(超时代发的同款命令)
@@ -264,9 +259,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, x, ["识破诡计"]);
     setHand(e, y, ["识破诡计"]);
     const capId = e.board.at(e.players[x].capitalIndex)?.propertyId;
-    e.players[x].properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
+    e.players[x].properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [x]); // 双持牌者同窗:queried=[x,y]
     expect(e.turnPhase).toBe("AwaitingReaction");
@@ -407,9 +400,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     armUser(e, userSeat, ["火烧连营"]);
     setHand(e, botSeat, ["识破诡计"]);
     const capId = e.board.at(e.players[victimSeat].capitalIndex)?.propertyId;
-    e.players[victimSeat].properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
+    e.players[victimSeat].properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victimSeat]);
     // bot 即席「不用」:窗收掉,火烧照常结算
@@ -448,9 +439,7 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     setHand(e, userSeat, []); // 使用者清手:技后收卷不被 dealt 牌拽回军师幕
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
-    victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
-    ];
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
     user.heroes = [zhouyu];

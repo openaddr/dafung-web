@@ -132,7 +132,6 @@ describe("军师幕:主动技选项集(#188 档 3)", () => {
         propertyId: e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capV)!
           .propertyId!,
         group: "a",
-        purchasePrice: 1000,
         level: 2,
         maxLevel: 3,
       },
@@ -183,7 +182,6 @@ describe("主动技结算(#188 档 3)", () => {
     foe.properties.push({
       propertyId: plain,
       group: "a",
-      purchasePrice: 1000,
       level: 1,
       maxLevel: 3,
     });
@@ -292,13 +290,12 @@ describe("军师幕 bot 决策(#188 档 3)", () => {
       )
       .map((t) => t.propertyId!);
     e.players[rich].properties.push(
-      { propertyId: plains[0], group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 },
-      { propertyId: plains[1], group: "a", purchasePrice: 1000, level: 1, maxLevel: 3 },
+      { propertyId: plains[0], group: "a", level: 1, maxLevel: 3 },
+      { propertyId: plains[1], group: "a", level: 1, maxLevel: 3 },
     );
     e.players[poor].properties.push({
       propertyId: plains[2],
       group: "a",
-      purchasePrice: 1000,
       level: 1,
       maxLevel: 3,
     });

@@ -370,7 +370,6 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
     p.properties.push({
       propertyId: def.id,
       group: "g",
-      purchasePrice: 100,
       level: def.maxLevel, // 已满级 → 扩军不可用,仅剩按兵不动假选择
       maxLevel: def.maxLevel,
     });
@@ -477,7 +476,6 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     owner.properties.push({
       propertyId: tile!.propertyId!,
       group: "g",
-      purchasePrice: 100,
       level: 0,
       maxLevel: 3,
     });
@@ -621,7 +619,6 @@ describe("事件流(#385 缺口 6):机遇抉择/耗竭处置的目录文案事�
     mover.properties.push({
       propertyId: tile.propertyId!,
       group: "g",
-      purchasePrice: 100,
       level: 1, // 唯一 Lv>0 城:降级单选项 → 自动执行(仍走 settleExhaustionChoice 同口)
       maxLevel: 3,
     });

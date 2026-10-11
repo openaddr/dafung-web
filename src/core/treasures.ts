@@ -10,7 +10,6 @@ export interface TreasureDef {
   level: number; // 1-10
   count?: number; // 牌堆中数量(仅 TREASURES 表用)
   desc?: string; // 风味描述
-  effect?: string; // 预留:被动效果(暂不实现)
 }
 
 export const TREASURES: TreasureDef[] = [

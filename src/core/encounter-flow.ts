@@ -90,8 +90,28 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
     const holding = findHolding(p, opt.holdingPropertyId);
     if (!holding) throw new Error(`耗竭降级:房产 ${opt.holdingPropertyId} 不在持有列表`);
     holding.level -= 1; // 可用性已保证 level>0
+    g.dispatchMoment("PropertyDemolished", {
+      subject: seat,
+      propertyId: opt.holdingPropertyId,
+      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
+    }); // 时机·PropertyDemolished:耗竭「降 1 级」处置(#457)
   } else {
+    const lost = findHolding(p, opt.holdingPropertyId);
+    if (!lost) throw new Error(`耗竭失城:房产 ${opt.holdingPropertyId} 不在持有列表`); // 零兜底
+    // 城池变更留痕(ADR-0015,本写点补齐 #457):失城回无主,形状对齐破产变卖(bankruptcy.ts)
+    g.propertyChanges.push({
+      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
+      level: lost.level,
+      ownerColorIndex: null,
+      levelChanged: false,
+      ownerChanged: true,
+    });
     p.properties = p.properties.filter((h) => h.propertyId !== opt.holdingPropertyId); // 城回无主
+    g.dispatchMoment("PropertyLost", {
+      subject: seat,
+      propertyId: opt.holdingPropertyId,
+      tileIndex: g.tileIndexOfProperty(opt.holdingPropertyId),
+    }); // 时机·PropertyLost:耗竭「失去整座」处置(#457)
   }
   applyExhaustionAftermath(g, p, note);
   g.endTurn();
@@ -104,6 +124,7 @@ function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void 
   const seat = g.players.indexOf(p);
   const staminaBefore = p.stamina;
   p.skipTurns += 1;
+  g.dispatchMoment("TurnSkipImposed", { subject: seat, reason: "exhaustion" }); // 时机·TurnSkipImposed:耗竭善后强加跳回合(#456,写点 +=1 语义保留)
   const after = g.addStamina(seat, STARTING_STAMINA - staminaBefore);
   emitGameEvent(g, seat, {
     kind: "staminaChanged",
@@ -236,6 +257,7 @@ function settleEncounterChoice(
   let costDetail = "";
   if (option.effect?.kind === "grantHero") {
     const cost = mover.treasures.splice(0, ENCOUNTER_HERO_TREASURE_COST);
+    for (const t of cost) g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
   if (option.repDelta !== 0) {
@@ -483,8 +505,8 @@ function applyGrantCityEffect(
   // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
   const unownedCities = g.board.tiles
     .filter((t) => t.type === "Property" && t.propertyId && g.findOwner(t.propertyId) == null)
-    .map((t) => ({ tileName: t.name, def: g.catalog.get(t.propertyId) }))
-    .filter((c): c is { tileName: string; def: PropertyDef } => c.def != null);
+    .map((t) => ({ tileIndex: t.index, tileName: t.name, def: g.catalog.get(t.propertyId) }))
+    .filter((c): c is { tileIndex: number; tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {
     mover.cash += effect.fallbackCash;
     g.pushFloater(mover, effect.fallbackCash, atTile, "income");
@@ -508,9 +530,16 @@ function applyGrantCityEffect(
   mover.properties.push({
     propertyId: defCity.id,
     group: defCity.group,
-    purchasePrice: defCity.buildCost,
     level: 0,
     maxLevel: defCity.maxLevel,
+  });
+  // 城池变更留痕(ADR-0015,本写点补齐 #457):赐城即易主(无主 → 得城者),形状对齐购地
+  g.propertyChanges.push({
+    tileIndex: picked.tileIndex,
+    level: 0,
+    ownerColorIndex: mover.colorIndex,
+    levelChanged: false,
+    ownerChanged: true,
   });
   g.pushFloaterText(mover, `机遇「${def.id}」:${picked.tileName} 归你所有`, atTile);
   g.logEvent(
@@ -519,6 +548,7 @@ function applyGrantCityEffect(
     `${mover.guohao} 机遇「${def.id}」:${narr},得「${picked.tileName}」`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} city=${defCity.id}`,
   );
+  g.dispatchMoment("PropertyGained", { subject: seat, propertyId: defCity.id }); // 时机·PropertyGained:机遇赐城(与 PropertyBought「购」语义区分,#457)
   return "settled";
 }
 
@@ -672,6 +702,10 @@ function applyEncounterStamina(
     delta: stamina - staminaBefore,
     reason: "encounter",
   }); // 事件流(#384):体力变更(机遇,夹紧后实际增减)
+  g.dispatchMoment("StaminaChanged", {
+    subject: seat,
+    delta: stamina - staminaBefore,
+  }); // 时机·StaminaChanged:机遇路体力变更(#456 拍定仅机遇路挂——耗竭重置是系统复位、华佗赈济属主动技结算内,两处均不派)
   const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
   g.pushFloaterText(mover, `体力 ${signed}`, atTile);
   g.logEvent(
