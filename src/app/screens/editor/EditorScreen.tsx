@@ -475,7 +475,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const stats = useMemo(() => {
     const prices = map.tiles.map((t) => t.price ?? 0).sort((a, b) => a - b);
     const total = prices.reduce((s, v) => s + v, 0);
-    return `城 ${map.tiles.length} · 辅路 ${map.branch ? map.branch.cells.length + " 格" : "无"} · 总价 ${formatMoney(total)} · 单城 ${formatMoney(prices[0] ?? 0)}~${formatMoney(prices[prices.length - 1] ?? 0)}`;
+    return `城 ${map.tiles.length} · 总价 ${formatMoney(total)} · 单城 ${formatMoney(prices[0] ?? 0)}~${formatMoney(prices[prices.length - 1] ?? 0)}`;
   }, [map]);
 
   // S13(#46):min-h-10 保证触达 ≥40px(原 py-1.5 实测约 30px);字号/圆角不变
@@ -698,20 +698,6 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             </div>
           </div>
         </div>
-
-        {/* 辅路摘要(只读,对照旧版:辅路由地图作者在 JSON 手配) */}
-        {map.branch && (
-          <div className="mt-3 border-t border-ink/20 pt-2 text-xs text-ink-dim">
-            <h4 className="mb-1 font-wenkai text-sm text-ink">辅路(只读)</h4>
-            <p>
-              {map.tiles.find((t) => t.id === map.branch!.start)?.name ?? map.branch.start}
-              {" → "}
-              {map.tiles.find((t) => t.id === map.branch!.end)?.name ?? map.branch.end}
-              {" · "}
-              {map.branch.cells.length} 格
-            </p>
-          </div>
-        )}
 
         <p className="mt-3 border-t border-ink/20 pt-2 text-xs text-ink-dim">{stats}</p>
 

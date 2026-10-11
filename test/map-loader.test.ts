@@ -19,27 +19,6 @@ describe("地图加载器(合法)", () => {
     for (let i = 0; i < m.board.count; i++) cur = m.board.next(cur);
     expect(cur).toBe(0);
   });
-
-  it("辅路 start/end(tile id)解析为 index,cells 携带坐标", () => {
-    const m = loadMap(sanguoData);
-    expect(m.branch).not.toBeNull();
-    const findIdx = (pid: string) => m.tiles.findIndex((t) => t.propertyId === pid);
-    expect(m.branch!.startNode).toBe(findIdx("prop-xuchang"));
-    expect(m.branch!.endNode).toBe(findIdx("prop-xiangyang"));
-    expect(m.branch!.cells.length).toBe(5);
-    for (const c of m.branch!.cells) {
-      expect(typeof c.position.x).toBe("number");
-      expect(typeof c.position.y).toBe("number");
-    }
-  });
-
-  it("辅路格 kind 序列:3 珍宝 + 1 锦囊 + 1 中伏", () => {
-    const m = loadMap(sanguoData);
-    const kinds = m.branch!.cells.map((c) => c.kind);
-    expect(kinds.filter((k) => k === "treasure").length).toBe(3);
-    expect(kinds.filter((k) => k === "event").length).toBe(1);
-    expect(kinds.filter((k) => k === "penalty").length).toBe(1);
-  });
 });
 
 describe("地图校验(非法应抛可读错误)", () => {
@@ -70,26 +49,6 @@ describe("地图校验(非法应抛可读错误)", () => {
     const d = base();
     d.tiles[0].price = -1;
     expect(() => loadMap(d)).toThrow(/为负/);
-  });
-  it("辅路 start 引用无效", () => {
-    const d = base();
-    d.branch.start = "no-such-tile";
-    expect(() => loadMap(d)).toThrow(/start 引用无效/);
-  });
-  it("辅路 start === end", () => {
-    const d = base();
-    d.branch.end = d.branch.start;
-    expect(() => loadMap(d)).toThrow(/相同/);
-  });
-  it("辅路 cells 为空", () => {
-    const d = base();
-    d.branch.cells = [];
-    expect(() => loadMap(d)).toThrow(/cells 为空/);
-  });
-  it("辅路格 kind 非法", () => {
-    const d = base();
-    d.branch.cells[0].kind = "wow";
-    expect(() => loadMap(d)).toThrow(/kind 非法/);
   });
 });
 

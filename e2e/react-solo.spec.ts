@@ -18,7 +18,6 @@ import {
   pickCapital,
   waitMyRollDone,
   waitMyPause,
-  dismissJinnangIfUp,
   freezeClock,
   unfreezeClock,
 } from "./react-helpers";
@@ -224,48 +223,6 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
   }
 });
 
-test("分岔辅路:落辅路起点弹抉择,入辅路=待入(本回合结束),下回合掷骰沿辅路推进", async ({ page }) => {
-  await quickStart(page);
-  const turnBefore = (await snap(page)).turnNumber;
-  // #188:先钉活跃座位到人类(0),理由同「购地决策」用例;下轮 onBranch 推进断言按座位 0 读
-  await force(
-    page,
-    `
-    e.turnPhase = "AwaitingBranch";
-    e.activeIndex = 0;
-    e.activePlayer.onBranch = null;
-  `,
-  );
-  await expect(page.getByTestId("scroll-branch")).toBeVisible();
-  await expect(page.getByTestId("scroll-branch")).toContainText("辅路");
-  await page.getByTestId("action-branch").click();
-  // selectBranch("Branch"):置待入状态 onBranch={step:-1},棋子留在入口格,本回合结束
-  await expect
-    .poll(
-      async () => page.evaluate(() => (window as any).__dafung.getEngine().players[0].onBranch),
-      { timeout: 10_000 },
-    )
-    .toEqual({ step: -1 });
-  await expect
-    .poll(async () => (await snap(page)).turnNumber, { timeout: 10_000 })
-    .toBeGreaterThan(turnBefore);
-  // 下回合掷骰:掷几点走几格辅路格(第 die 格);die 超长则从辅路终点汇入主路
-  // #188:掷骰自动触发,无须点行军——轮询体内放行每回合开始的锦囊卷轴(#122),
-  // 自动起摇后 onBranch 自会推进(轮到 bot 先行时耐心等人类回合到来)。
-  await expect
-    .poll(
-      async () => {
-        await dismissJinnangIfUp(page);
-        const ob = await page.evaluate(
-          () => (window as any).__dafung.getEngine().players[0].onBranch,
-        );
-        return ob == null || ob.step >= 0;
-      },
-      { timeout: 20_000 },
-    )
-    .toBe(true);
-});
-
 // X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
 // bot 回合同屏仅等待条一处反馈(等待条同时是唯一挂载点,断言双锚定防回退)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
@@ -285,7 +242,7 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
 });
 
 test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)", async ({ page }) => {
-  // 锁种子:不锁时随机骰路偶发决策链超长(辅路/交涉连环)超出等待窗——TODO 记账的抖动家族,
+  // 锁种子:不锁时随机骰路偶发决策链超长(交涉连环)超出等待窗——TODO 记账的抖动家族,
   // 锁定后本用例确定性通过;骰路覆盖广度由 test/invariant-soak.test.ts 的多 seed 引擎
   // soak 承担(#293 Q1:全程驱动去浏览器化,本例只承接 UI 显示层巡检)。
   await quickStart(page, 7);
@@ -295,7 +252,7 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
   // 人类 3× 目标恒为最高达标者,胜者确定性不变。
   await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
   // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
-  // 掷骰可能落在辅路起点等决策格:把余下决策也推完才 endTurn 触发胜利判定;
+  // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定;
   // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
   // #398 单机统一后 viewSeat 恒跟 decisionOwner(引擎 getter:珍宝交涉相位=城主),
   // UI 只渲染访客只读视角,owner 为 bot 时也无驱动方代打),同样以调试钩子按 owner

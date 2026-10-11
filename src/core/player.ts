@@ -25,7 +25,6 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     isBankrupt: false,
     position: 0,
     capitalIndex: -1,
-    onBranch: null,
     skipTurns: 0,
     properties: [],
     heroes: [],

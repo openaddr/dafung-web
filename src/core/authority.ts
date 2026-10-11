@@ -3,13 +3,13 @@
 // 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
 // jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
-import type { Board, BranchCell, MovePath, TileDef } from "./board";
+import type { Board, MovePath, TileDef } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
 import type { HeroDef, TriggerSkill } from "./heroes";
 import type { TreasureDef } from "./treasures";
-import type { LandOutcome, PendingLand, RouteKind } from "./movement-flow";
+import type { LandOutcome, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
 import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
@@ -68,11 +68,11 @@ import {
   sellPropertyBankruptcy,
   sellTreasureBankruptcy,
 } from "./bankruptcy";
-// 珍宝+随机事件+城主交涉域(#322,ADR-0019):宝物城/辅路格结算、抽宝拼点、随机事件、
+// 珍宝+城主交涉域(#322,ADR-0019):宝物城落格结算、抽宝拼点、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
 // treasures.ts 分层(流程≠数据)。
-import { resolveBranchCell, resolveTreasureCity, resolveTreasureOwner } from "./treasure-flow";
-// 移动结算域(#323,ADR-0019):行军三件/辅路抉择/地产决策/落格结算/都城补给在
+import { resolveTreasureCity, resolveTreasureOwner } from "./treasure-flow";
+// 移动结算域(#323,ADR-0019):行军三件/地产决策/落格结算/都城补给在
 // movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
 // marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
 import {
@@ -83,7 +83,6 @@ import {
   pendingLandDef,
   resolveLanding,
   rollAndMove,
-  selectBranch,
   settleMarchLanding,
   upgradeProperty,
 } from "./movement-flow";
@@ -140,7 +139,6 @@ export type SetupPhase = "Guohao" | "PickCapital" | "Done";
  *  AwaitingReaction(#281,ADR-0017)= 反应窗:结算中段停相位(先例 AwaitingTreasureOwner),等被询问座位的 respondReaction 应答;全部应答后引擎续结算。 */
 export type TurnPhase =
   | "Roll"
-  | "AwaitingBranch"
   | "AwaitingDecision"
   | "AwaitingHeroPick"
   | "AwaitingEncounter"
@@ -160,7 +158,6 @@ export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding";
 /** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */
 export type GameCommand =
   | { type: "rollAndMove" }
-  | { type: "selectBranch"; kind: RouteKind }
   | { type: "buyProperty" }
   | { type: "upgradeProperty" }
   | { type: "endDecision" }
@@ -193,7 +190,6 @@ const DEFAULT_CASH = 10000;
 /** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
 const CMD_BRIEF: Record<GameCommand["type"], string> = {
   rollAndMove: "行军",
-  selectBranch: "择路",
   buyProperty: "购地",
   upgradeProperty: "扩军",
   endDecision: "按兵不动",
@@ -442,7 +438,6 @@ export class GameEngine {
       isBankrupt: false,
       position: 0,
       capitalIndex: -1,
-      onBranch: null,
       skipTurns: 0,
       properties: [],
       heroes: [],
@@ -527,13 +522,6 @@ export class GameEngine {
   capitalOwnerOf(tileIndex: number): Player | null {
     return this.players.find((p) => p.capitalIndex === tileIndex) ?? null;
   }
-  /** 当前活跃玩家所在主路 tile 是否为辅路起点(供 UI 决定是否弹辅路抉择)。
-   *  onBranch={step:-1}(入口待入)不算:已抉择过,不再重复弹。 */
-  currentTileIsBranchStart(): boolean {
-    return (
-      this.activePlayer.onBranch == null && this.board.getBranchStart(this.activePlayer.position)
-    );
-  }
   alivePlayers(): Player[] {
     return this.players.filter((p) => !p.isBankrupt);
   }
@@ -591,7 +579,7 @@ export class GameEngine {
 
   // ──────────────────────────── 回合状态机 ────────────────────────────
   // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
-  // settleMarchLanding,含伏兵挂点/驻跸必停/辅路入口)、辅路抉择(selectBranch)、
+  // settleMarchLanding,含伏兵挂点/驻跸必停)、
   // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
   // endDecision)、落格结算(resolveLanding;resolveSpecial/resolveProperty/
   // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
@@ -599,33 +587,32 @@ export class GameEngine {
   // 壳内仅留同名公共方法薄委托(外部 importer 无感):命令口经 submitCommand 分发、
   // bot 直调、testing.ts 白盒窄面触达 resolveLanding。跨域往返与既有票一致走壳上
   // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调;机遇/
-  // 宝物城/辅路格/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
+  // 宝物城/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
   // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
   // 迁出而删,见反应窗区段)。
 
-  /** 抽签 → 移动(主路或辅路逐格)→ 落格结算:薄委托 → movement-flow.rollAndMove。 */
+  /** 抽签 → 移动 → 落格结算:薄委托 → movement-flow.rollAndMove。 */
   rollAndMove(): void {
     rollAndMove(this);
   }
 
-  /** 主路途经遍历(#281,途经棋子/驻跸必停/伏兵拦检):薄委托 → movement-flow.marchTraverse
+  /** 途经遍历(#281,途经棋子/驻跸必停/伏兵拦检):薄委托 → movement-flow.marchTraverse
    *  (reaction-window 拦检续走经此回调)。 */
   marchTraverse(
     mover: Player,
     remaining: number[],
     totalLen: number,
     landIndex: number,
-    wasOnBranch: boolean,
     fromPos: number,
     steps: number,
   ): "landed" | "halted" | "suspended" {
-    return marchTraverse(this, mover, remaining, totalLen, landIndex, wasOnBranch, fromPos, steps);
+    return marchTraverse(this, mover, remaining, totalLen, landIndex, fromPos, steps);
   }
 
-  /** 主路落格收尾(辅路入口抉择/机遇/落格结算):薄委托 → movement-flow.settleMarchLanding
+  /** 落格收尾(机遇/落格结算):薄委托 → movement-flow.settleMarchLanding
    *  (reaction-window 拦检续走经此回调)。 */
-  settleMarchLanding(mover: Player, landIndex: number, wasOnBranch: boolean): void {
-    settleMarchLanding(this, mover, landIndex, wasOnBranch);
+  settleMarchLanding(mover: Player, landIndex: number): void {
+    settleMarchLanding(this, mover, landIndex);
   }
 
   // ──────────────────────────── 反应窗(#281,ADR-0017)────────────────────────────
@@ -638,11 +625,6 @@ export class GameEngine {
   /** 反应窗应答(#281 公共入口,UI/bot 驱动器/联机/超时代发同走):薄委托。 */
   respondReaction(seat: number, use: boolean, cardId?: string, shareSeat?: number): void {
     respondReaction(this, seat, use, cardId, shareSeat);
-  }
-
-  /** 辅路入口抉择(走大路/入辅路):薄委托 → movement-flow.selectBranch。 */
-  selectBranch(kind: RouteKind): void {
-    selectBranch(this, kind);
   }
 
   /** 待决策落格的地产定义(价格/等级口径单一出处):薄委托 → movement-flow.pendingLandDef
@@ -709,16 +691,16 @@ export class GameEngine {
       return;
     }
     this.advanceToNextActive();
-    // 中伏跳过:若新活跃玩家 skipTurns>0,扣 1 并继续推进到下一位(直到找到可行动者)
+    // 跳过回合:若新活跃玩家 skipTurns>0,扣 1 并继续推进到下一位(直到找到可行动者)
     let safety = 0;
     while (this.activePlayer.skipTurns > 0 && !this.isOver && safety++ < this.players.length + 2) {
       const skipped = this.activePlayer;
       skipped.skipTurns -= 1;
-      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(中伏/耗竭/缓兵之计共用消费点)
+      emitGameEvent(this, this.players.indexOf(skipped), { kind: "turnSkipped" }); // 事件流(#384):跳过回合(耗竭/缓兵之计共用消费点)
       this.logEvent(
-        "branch",
+        "system",
         skipped.guohao,
-        `${skipped.guohao} 中伏未消,跳过本回合`,
+        `${skipped.guohao} 按兵不动`,
         `skipTurn player=${skipped.id} remaining=${skipped.skipTurns}`,
       );
       this.advanceToNextActive();
@@ -737,8 +719,6 @@ export class GameEngine {
       this.dispatchMoment("RoundStart", { subject: this.roundAnchor });
     }
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
-    // 辅路入口抉择由 rollAndMove 落格到 startNode 时触发(本回合内 selectBranch 处理);
-    // endTurn 不再重复设置 AwaitingBranch,否则选"大路"停在起点的玩家每回合被反复提示。
     this.turnPhase = "Roll";
     this.turnNumber += 1;
     // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
@@ -790,25 +770,18 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
-  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):宝物城落格与辅路格结算
-  // (resolveTreasureCity/resolveBranchCell)、抽宝拼点(drawTreasureAt)、随机事件结算
-  // (applyRandomEvent)与城主交涉(resolveTreasureOwner)均为自由函数,首参接引擎实例;
+  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):宝物城落格结算
+  // (resolveTreasureCity)、抽宝拼点(drawTreasureAt)与城主交涉(resolveTreasureOwner)
+  // 均为自由函数,首参接引擎实例;
   // 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步经 bankruptcy.ts 的壳上薄委托
   // g.deliverEscrow/g.returnEscrowToSeller 往返消费。壳内仅留同名方法薄委托:公共入口
-  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 宝物城/辅路两步(壳内
-  // resolveLanding/marchTraverse 消费 + testing.ts 白盒窄面);drawTreasureAt/applyRandomEvent
-  // 域内自洽,不留壳。
+  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 宝物城落格(壳内
+  // resolveLanding 消费 + testing.ts 白盒窄面);drawTreasureAt 域内自洽,不留壳。
 
   /** 宝物城落格:薄委托 → treasure-flow.resolveTreasureCity(#323 去私有化 ADR-0019 条款 3:
    *  落格结算 movement-flow.resolveLanding 经 g. 直调)。 */
   resolveTreasureCity(mover: Player, tile: TileDef): void {
     resolveTreasureCity(this, mover, tile);
-  }
-
-  /** 辅路格落格:薄委托 → treasure-flow.resolveBranchCell(#323 去私有化:行军途经
-   *  marchTraverse 调用点迁 movement-flow 后经 g. 直调;testing.ts 白盒窄面照旧)。 */
-  resolveBranchCell(mover: Player, cell: BranchCell): void {
-    resolveBranchCell(this, mover, cell);
   }
 
   /** 城主抉择:公道买卖/坐地起价/跳过(escrow 托管语义见 treasure-flow.resolveTreasureOwner)。薄委托。 */
@@ -912,8 +885,6 @@ export class GameEngine {
     switch (cmd.type) {
       case "rollAndMove":
         return this.rollAndMove();
-      case "selectBranch":
-        return this.selectBranch(cmd.kind);
       case "buyProperty":
         return this.buyProperty();
       case "upgradeProperty":

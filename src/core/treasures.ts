@@ -43,14 +43,6 @@ export function guidePriceOf(level: number): number {
   return price;
 }
 
-/** 指导价全表均值(两,#299 bot 估值对表):辅路探宝 EV 的落宝期望价——踩中辅路
- *  treasure 格抽到几级珍宝不可知,按全表算术平均计;由 TREASURE_PRICE 推导不写死,
- *  改价目表自动跟随(现表 = 10400/10 = 1040 两)。 */
-export const TREASURE_MEAN_PRICE = (() => {
-  const prices = Object.values(TREASURE_PRICE);
-  return prices.reduce((sum, v) => sum + v, 0) / prices.length;
-})();
-
 /** 贸易售价(旧公式,向后兼容):markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
 export function tradePriceOf(
   guidePrice: number,

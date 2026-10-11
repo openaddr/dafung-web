@@ -25,8 +25,7 @@ export interface Player {
   isBankrupt: boolean;
   position: number;
   capitalIndex: number;
-  onBranch: { step: number } | null; // 在分岔辅路第几格(null=在主路;step=-1=入口待入辅路,棋子仍在主路入口格)
-  skipTurns: number; // 待跳过的回合计数(辅路 penalty 格触发)
+  skipTurns: number; // 待跳过的回合计数(耗竭善后/缓兵之计)
   properties: PropertyHolding[];
   heroes: HeroDef[]; // 已招揽的名将(上限 HERO_CAPACITY)
   treasures: TreasureDef[]; // 持有的珍宝
@@ -48,9 +47,9 @@ export interface Player {
  *  category 分类表(显式化,新增类别须同步 docs/reference/对局日志.md):
  *  - 局头:header(构造时首行,重放要素:gameId/mapId/seed/座位表/现金/目标)
  *  - 玩法事件:roll 掷骰 | buy 购地 | upgrade 扩军/成交升级 | trade 珍宝交涉+escrow 交割退回 |
- *    supply 补给/委任状 | tax 税关 | branch 辅路抉择/中伏跳过 | halt 驻跸必停 |
+ *    supply 补给/委任状 | tax 税关 | halt 驻跸必停 |
  *    setup 开局流程(定序/三候选/选都/招贤)| skill 时机技能击发 | system 其余玩法杂项
- *    (随机事件/商市/破产清算过程/警告)| victory 胜负 | final 终局行(机读终态面板,重放断言锚点)
+ *    (商市/破产清算过程/警告)| victory 胜负 | final 终局行(机读终态面板,重放断言锚点)
  *  - 命令类:cmd(submitCommand 提交的玩家命令,detail=命令 JSON;bot 直调引擎方法不产生,
  *    确定性重放自动重算——见 docs/reference/对局日志.md「命令流」)
  *  - 房间类:room(房间生命周期:开局/托管/接管/离线/重连/解散;联机由 room.ts 写、
@@ -71,7 +70,6 @@ export interface LogEvent {
     | "trade"
     | "supply"
     | "tax"
-    | "branch"
     | "halt"
     | "setup"
     | "skill"

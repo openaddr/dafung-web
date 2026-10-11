@@ -47,33 +47,22 @@ function segDuration(a: { x: number; y: number }, b: { x: number; y: number }): 
 /** 终点槽位错移:与 TokenLayer 共用 playerSlotKey 分组,避免 mover 先落槽 1 再被
  *  声明式渲染拨回槽 0 的抖动(旧 animate.ts 同款坑,注释照搬)。 */
 function slotOffsetFor(engine: GameEngine, player: Player): { x: number; y: number } {
-  const board = engine.board;
   const byTile = new Map<string, string[]>();
   for (const p of engine.players) {
     if (p.isBankrupt) continue;
-    const key = playerSlotKey(p, board);
+    const key = playerSlotKey(p);
     const arr = byTile.get(key) ?? [];
     arr.push(p.id);
     byTile.set(key, arr);
   }
-  const slot = Math.max(
-    0,
-    (byTile.get(playerSlotKey(player, board)) ?? [player.id]).indexOf(player.id),
-  );
+  const slot = Math.max(0, (byTile.get(playerSlotKey(player)) ?? [player.id]).indexOf(player.id));
   return TOKEN_SLOT_OFFSETS[slot % TOKEN_SLOT_OFFSETS.length];
 }
 
 /** 命令提交后、sync 渲染前调用:把 mover 放进接管集并锚定在起点(#385:路径随表现
- *  事件走,不再读引擎 lastMove)。主路锚 path.from;辅路逐格行进锚辅路前置格——
- *  棋子视觉位置在辅路上(主路锚点是入口占位),锚回前置格才不闪跳:前置步 = 落点步 −
- *  途经坐标数(−1 = 待入辅路,起点即主路入口格)。 */
+ *  事件走,不再读引擎 lastMove)。锚 path.from。 */
 export function beginMarch(engine: GameEngine, moverId: string, path: MovePath): void {
-  const board = engine.board;
-  const preStep = (path.landBranchStep ?? 0) - path.branchWaypoints.length;
-  const start =
-    path.landBranchStep != null && preStep >= 0 && board.branch
-      ? board.branch.cells[preStep].position
-      : board.positionOf(path.from);
+  const start = engine.board.positionOf(path.from);
   marchPos.set(moverId, { x: start.x, y: start.y });
   useFxStore.getState().addMarching(moverId);
 }
@@ -97,7 +86,7 @@ function highlightSegment(engine: GameEngine, from: number, to: number): void {
 
 /**
  * 行军:沿给定路径(#385 起由表现事件自带,不再读引擎 lastMove 单槽——合并批
- * 多段行军各播各段)的 branchWaypoints(辅路)与 traversed(主路)逐段推进棋子。
+ * 多段行军各播各段)的 traversed 逐段推进棋子。
  * - 编排时序/弧线分段完全对照旧 animate.ts animateMove;
  * - 经过都城必停时路径已截断到都城,本函数自然止步(不再有 halt 补走段);
  * - 完成后 removeMarching:React 以终态坐标接管(marchPos 同步删除)。
@@ -142,13 +131,6 @@ export async function animateMove(
     await delay(dur + MARCH.segSlackMs);
     return alive() && token.isConnected;
   };
-
-  // 辅路逐格行进:沿 branchWaypoints 推进
-  if (path.branchWaypoints && path.branchWaypoints.length > 0) {
-    for (const wp of path.branchWaypoints) {
-      if (!(await step(wp.x, wp.y))) return endMarch(moverId);
-    }
-  }
 
   if (path.traversed.length > 0) {
     const target = player.position;

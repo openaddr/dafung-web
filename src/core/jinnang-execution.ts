@@ -77,7 +77,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
 /** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=
  *  实际入手;0=牌库空落空,无转移即无事件)。开局发牌(setup-flow)直走 drawJinnang
  *  不发——起手属开局校准点覆盖,与初始现金/体力同口径;游戏时进手(声望献计/机遇/
- *  锦囊格/随机事件)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
+ *  锦囊格)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
 export function drawJinnangTraced(
   g: GameEngine,
   seat: number,

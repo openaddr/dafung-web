@@ -15,13 +15,8 @@
 // 渡口/驿站格,42 格 id 全集齐备)——逐 tile 只换 pos 并重排数组顺序,其余字段
 // (id/name/type/group/region/价格/租金/补给)原样保留,经济守卫测试同 SANGUO_TIER 表。
 //
-// 辅路(branch):沿用 许昌 → 襄阳(与 sanguo/chessboard 同挂点、同 kind 节奏
-// treasure×2 → event → treasure → penalty)。理由:语义零变(许昌入荆楚的捷径);
-// 环序重排后许昌 (5,3) 与襄阳 (1,4) 环程差 37 步(≥8,真捷径),cells 沿行3/行4
-// 之间的行间走廊(y=340)横排,不与主路任何边相交。
-//
-// 本脚本内置 #249 全部硬约束断言(首尾相邻/网格相邻/锚点环距/节奏无三连同型/
-// 辅路捷径与走廊),违反直接抛错(零兜底)。运行:bun scripts/make-huanyou-map.ts
+// 本脚本内置 #249 全部硬约束断言(首尾相邻/网格相邻/锚点环距/节奏无三连同型),
+// 违反直接抛错(零兜底)。运行:bun scripts/make-huanyou-map.ts
 // (确定性输出,可随时重新生成)。
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -67,13 +62,13 @@ const RING: Array<{ id: string; c: number; r: number }> = [
   { id: "prop-wuchang", c: 4, r: 4 }, // P14 武昌
   { id: "prop-chibi", c: 3, r: 4 }, // P15 赤壁
   { id: "tile-wolong", c: 2, r: 4 }, // P16 卧龙岗(招贤)
-  { id: "prop-xiangyang", c: 1, r: 4 }, // P17 襄阳:辅路终点
+  { id: "prop-xiangyang", c: 1, r: 4 }, // P17 襄阳
   // 行3(东行):西凉 → 中原 → 青徐
   { id: "prop-liangzhou", c: 1, r: 3 }, // P18 凉州
   { id: "prop-hangu", c: 2, r: 3 }, // P19 函谷关(珍宝城)
   { id: "prop-luoyang", c: 3, r: 3 }, // P20 洛阳:都城锚
   { id: "prop-hulao", c: 4, r: 3 }, // P21 虎牢关(珍宝城)
-  { id: "prop-xuchang", c: 5, r: 3 }, // P22 许昌:辅路入口
+  { id: "prop-xuchang", c: 5, r: 3 }, // P22 许昌
   { id: "prop-xuzhou", c: 6, r: 3 }, // P23 徐州
   // 行2(西行):商市贴江东、天命/锦囊散布中段、街亭收西端
   { id: "tile-stock-1", c: 6, r: 2 }, // P24 商市
@@ -101,19 +96,6 @@ const RING: Array<{ id: string; c: number; r: number }> = [
 // ── 四个自然都城锚点(环距均匀性断言用)──
 const ANCHORS = ["prop-changan", "prop-changsha", "prop-luoyang", "prop-linzi"];
 
-// ── 辅路:许昌 (5,3) → 襄阳 (1,4),cells 走行3/行4 行间走廊(y = (185+495)/2 = 340)──
-// kind 节奏沿用 sanguo 原 branch:treasure×2 → event → treasure → penalty。
-// cells 自许昌下方起均匀西行(间距 330),末格斜下接襄阳,整条不与主路交叉。
-const BRANCH_CELLS: Array<{ kind: "treasure" | "event" | "penalty"; pos: [number, number] }> = [
-  { kind: "treasure", pos: [760, 340] },
-  { kind: "treasure", pos: [430, 340] },
-  { kind: "event", pos: [100, 340] },
-  { kind: "treasure", pos: [-230, 340] },
-  { kind: "penalty", pos: [-560, 340] },
-];
-const BRANCH_START = "prop-xuchang";
-const BRANCH_END = "prop-xiangyang";
-
 // ── 组装:按 RING 顺序从 chessboard 逐 tile 取数、只换 pos ──
 const byId = new Map(src.tiles.map((t) => [t.id, t]));
 const tiles: MapTile[] = RING.map(({ id, c, r }) => {
@@ -131,12 +113,6 @@ if (tiles.length !== COLS * ROWS) throw new Error(`主环 ${tiles.length} 格 �
 const out: MapData = {
   ...src,
   tiles,
-  branch: {
-    id: "zhongyuan-side",
-    start: BRANCH_START,
-    end: BRANCH_END,
-    cells: BRANCH_CELLS.map(({ kind, pos }) => ({ kind, pos })),
-  },
 };
 
 const N = tiles.length;
@@ -190,45 +166,8 @@ for (let i = 0; i < N; i++) {
   if (a === b && b === c) throw new Error(`P${i}..P${(i + 2) % N} 连续三格同型「${a}」`);
 }
 
-// ── 断言 6:辅路是真捷径 + 起终点避锚 + 走廊合规 ──
-const bStart = idxOf(BRANCH_START);
-const bEnd = idxOf(BRANCH_END);
-if (bStart < 0 || bEnd < 0) throw new Error("辅路挂点不在环上");
-if (ringDist(bStart, bEnd) < 8)
-  throw new Error(`辅路环程差 ${ringDist(bStart, bEnd)} < 8,非真捷径`);
-const anchorNeighbors = new Set(anchorIdx.flatMap((a) => [(a + 1) % N, (a + N - 1) % N]));
-for (const [role, i] of [["入口", bStart] as const, ["出口", bEnd] as const])
-  if (anchorNeighbors.has(i)) throw new Error(`辅路${role} ${label(i)} 与都城锚点相邻`);
-const corridorY = (gy(3) + gy(4)) / 2; // 行3/行4 行间走廊中点
-for (const { pos } of BRANCH_CELLS)
-  if (pos[1] !== corridorY) throw new Error(`辅路格 y=${pos[1]} 不在行间走廊 y=${corridorY}`);
-// 辅路链(入口→cells→出口)与主环任何边不得真交(共享端点的相接豁免)
-type Pt = { x: number; y: number };
-const chain: Pt[] = [
-  { x: tiles[bStart].pos[0], y: tiles[bStart].pos[1] },
-  ...BRANCH_CELLS.map(({ pos }) => ({ x: pos[0], y: pos[1] })),
-  { x: tiles[bEnd].pos[0], y: tiles[bEnd].pos[1] },
-];
-const cross = (p1: Pt, p2: Pt, p3: Pt, p4: Pt) => {
-  const o = (a: Pt, b: Pt, c: Pt) =>
-    Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
-  return o(p1, p2, p3) * o(p1, p2, p4) < 0 && o(p3, p4, p1) * o(p3, p4, p2) < 0;
-};
-const share = (a: Pt, b: Pt, c: Pt, d: Pt) =>
-  (a.x === c.x && a.y === c.y) ||
-  (a.x === d.x && a.y === d.y) ||
-  (b.x === c.x && b.y === c.y) ||
-  (b.x === d.x && b.y === d.y);
-for (let i = 0; i < N; i++) {
-  const m1 = { x: tiles[i].pos[0], y: tiles[i].pos[1] };
-  const m2 = { x: tiles[(i + 1) % N].pos[0], y: tiles[(i + 1) % N].pos[1] };
-  for (let j = 0; j < chain.length - 1; j++)
-    if (!share(chain[j], chain[j + 1], m1, m2) && cross(chain[j], chain[j + 1], m1, m2))
-      throw new Error(`辅路段 ${j} 与主路边 ${label(i)}→${label((i + 1) % N)} 相交`);
-}
-
-// ── 断言 7:全格(主环 + 辅路)最小间距 ≥ MIN_TILE_DIST ──
-const allPts = [...tiles.map((t) => t.pos), ...out.branch!.cells.map((c) => c.pos)];
+// ── 断言 6:主环全格最小间距 ≥ MIN_TILE_DIST ──
+const allPts = tiles.map((t) => t.pos);
 for (let i = 0; i < allPts.length; i++)
   for (let j = i + 1; j < allPts.length; j++) {
     const d = Math.hypot(allPts[i][0] - allPts[j][0], allPts[i][1] - allPts[j][1]);
@@ -238,9 +177,7 @@ for (let i = 0; i < allPts.length; i++)
 // ── loadMap 严格校验(与运行时同一代码路径)──
 const loaded = loadMap(JSON.parse(JSON.stringify(out)));
 const propCount = loaded.properties.length;
-console.log(
-  `loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城 / 辅路 ${out.branch!.cells.length} 格`,
-);
+console.log(`loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座城`);
 
 // ── 写 huanyou.json ──
 // oxfmt 按项目配置忽略 public/**,纯数字数组(JSON.stringify 会逐项换行)手动收紧凑,
@@ -262,7 +199,7 @@ const entry = {
   id: "huanyou",
   name: "环游图",
   file: "huanyou.json",
-  desc: "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合;许昌—襄阳辅路穿中部走廊",
+  desc: "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合",
   // tileCount 口径 = 城池数(与既有条目/选图面板「N 城」一致),非格数
   tileCount: propCount,
   targetNetWorth: src.targetNetWorth,
@@ -272,7 +209,7 @@ if (at >= 0) index[at] = entry;
 else index.unshift(entry);
 writeFileSync(idxPath, JSON.stringify(index, null, 2) + "\n");
 
-// ── 报告:分配表 + 锚点环距 + 类型序列 + 辅路摘要 ──
+// ── 报告:分配表 + 锚点环距 + 类型序列 ──
 console.log("\n主环分配表(P# 城名 格位):");
 const zoneOf = (i: number) =>
   i === 0
@@ -298,7 +235,4 @@ console.log(
   `\n都城锚点:${ANCHORS.map((id) => `${tiles[idxOf(id)].name}@P${idxOf(id)}`).join(" · ")} 环距 ${gaps.join("/")}(max−min=${spread})`,
 );
 console.log(`\n全环类型序列:\n${kinds.join(" ")}`);
-console.log(
-  `\n辅路:${tiles[bStart].name}@P${bStart} → ${tiles[bEnd].name}@P${bEnd},环程差 ${ringDist(bStart, bEnd)} 步(辅路 6 步,省 ${ringDist(bStart, bEnd) - 6}),cells ${out.branch!.cells.map((c) => c.kind).join("→")}`,
-);
 console.log("\n已写入 public/maps/huanyou.json 并前置 index.json 首项");

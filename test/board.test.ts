@@ -7,7 +7,7 @@ const board = loaded.board;
 // 用名字查 index,避免 boards.json 增删格后 index 位移导致单测脆弱
 const idx = (name: string) => board.tiles.find((t) => t.name === name)!.index;
 
-describe("棋盘路径(主环 + 分岔辅路)", () => {
+describe("棋盘路径(单环)", () => {
   it("主环闭合:走 N 步回起点", () => {
     let cur = 0;
     for (let i = 0; i < board.count; i++) cur = board.next(cur);
@@ -20,8 +20,6 @@ describe("棋盘路径(主环 + 分岔辅路)", () => {
     expect(p.traversed).toEqual([from + 1, from + 2, from + 3]);
     expect(p.landIndex).toBe(from + 3);
     expect(p.from).toBe(from);
-    expect(p.landBranchStep).toBeNull();
-    expect(p.branchWaypoints).toEqual([]);
   });
 
   it("computePath 环绕过尾", () => {
@@ -47,73 +45,5 @@ describe("棋盘路径(主环 + 分岔辅路)", () => {
     expect(wps.length).toBe(2);
     const wpsShort = board.edgeWaypoints(0, 1); // 相邻短边
     expect(wpsShort.length).toBe(0);
-  });
-
-  it("辅路起点可被 getBranchStart 识别", () => {
-    expect(board.branch).not.toBeNull();
-    const startName = board.tiles[board.branch!.startNode].name;
-    const endName = board.tiles[board.branch!.endNode].name;
-    expect(startName).toBe("许昌");
-    expect(endName).toBe("襄阳");
-    expect(board.getBranchStart(idx("许昌"))).toBe(true);
-    expect(board.getBranchStart(idx("长安"))).toBe(false);
-    expect(board.branch!.cells.length).toBe(5);
-  });
-
-  it("辅路逐格:onBranch 从 step0 走 2 步 → 落 step2(event 格),含 branchWaypoints", () => {
-    const start = board.branch!.startNode;
-    const p = board.computePath(start, 2, -1, { step: 0 });
-    expect(p.landBranchStep).toBe(2);
-    expect(p.landIndex).toBe(start); // 占位:辅路落格主路位置仍是起点
-    expect(p.branchWaypoints.length).toBe(2); // 经第 1、2 格
-    expect(p.traversed).toEqual([]);
-    expect(board.branch!.cells[2].kind).toBe("event");
-  });
-
-  it("辅路汇入:从 step0 走超过总格数 → 汇入 endNode 主路并清空 landBranchStep", () => {
-    const N = board.branch!.cells.length;
-    const end = board.branch!.endNode;
-    // 从 step0 走 N+2 步:用 N 步到 endNode,剩 2 步走主路
-    const p = board.computePath(board.branch!.startNode, N + 2, -1, { step: 0 });
-    expect(p.landBranchStep).toBeNull(); // 已汇入主路
-    expect(p.landIndex).toBe((end + 2) % board.count);
-    expect(p.branchWaypoints.length).toBeGreaterThan(0); // 含辅路格 + endNode
-    expect(p.traversed.length).toBe(2); // endNode 后再走 2 步主路
-  });
-
-  it("辅路恰巧到终点:从 step0 走 N 步 → 落 endNode", () => {
-    const N = board.branch!.cells.length;
-    const end = board.branch!.endNode;
-    const p = board.computePath(board.branch!.startNode, N, -1, { step: 0 });
-    expect(p.landBranchStep).toBeNull();
-    expect(p.landIndex).toBe(end);
-    expect(p.traversed).toEqual([]);
-  });
-
-  it("入口待入(step=-1):掷 k 走 k 格 → 落第 k 格(0 基 k-1),途经第 1..k 格", () => {
-    const start = board.branch!.startNode;
-    const N = board.branch!.cells.length;
-    for (let k = 1; k <= N; k++) {
-      const p = board.computePath(start, k, -1, { step: -1 });
-      expect(p.landBranchStep).toBe(k - 1);
-      expect(p.landIndex).toBe(start); // 占位:待入/辅路落格主路位置仍是入口
-      expect(p.branchWaypoints).toHaveLength(k); // 途经第 1..k 格
-      expect(p.traversed).toEqual([]);
-    }
-  });
-
-  it("入口待入(step=-1)溢出:k=N+1 恰落 endNode;k>N+1 从 endNode 继续走主路", () => {
-    const start = board.branch!.startNode;
-    const N = board.branch!.cells.length;
-    const end = board.branch!.endNode;
-    const exact = board.computePath(start, N + 1, -1, { step: -1 });
-    expect(exact.landBranchStep).toBeNull();
-    expect(exact.landIndex).toBe(end);
-    expect(exact.branchWaypoints).toHaveLength(N + 1); // 全部辅路格 + endNode
-    expect(exact.traversed).toEqual([]);
-    const over = board.computePath(start, N + 3, -1, { step: -1 });
-    expect(over.landBranchStep).toBeNull();
-    expect(over.landIndex).toBe((end + 2) % board.count);
-    expect(over.traversed).toHaveLength(2);
   });
 });

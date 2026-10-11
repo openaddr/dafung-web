@@ -31,8 +31,7 @@ const VIEW_H = 600;
 const PAD = 40;
 
 /** 由 MapData 生成简化 SVG 预览节点:主路折线(按 tiles 顺序)+ 城池点。
- *  分岔辅路格(pos 存在但不构成主路序列)暂无法从 MapTile 区分——简版预览
- *  按数组顺序连线,视觉近似即可,精确棋盘留给对局渲染。 */
+ *  简版预览按数组顺序连线,视觉近似即可,精确棋盘留给对局渲染。 */
 function MiniMap({ data }: { data: MapData }) {
   const pts = data.tiles.map((t) => ({ x: t.pos[0], y: t.pos[1], name: t.name }));
   if (!pts.length) return null;

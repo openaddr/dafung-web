@@ -220,12 +220,7 @@ describe("主动技结算(#188 档 3)", () => {
     const startPos = mirror.activePlayer.position;
     mirror.rollAndMove();
     const die = mirror.presentation.lastRoll!.die;
-    const path = mirror.board.computePath(
-      startPos,
-      die + 2,
-      mirror.activePlayer.capitalIndex,
-      null,
-    );
+    const path = mirror.board.computePath(startPos, die + 2, mirror.activePlayer.capitalIndex);
     const expected =
       path.passedCapital && path.landIndex !== mirror.activePlayer.capitalIndex
         ? mirror.activePlayer.capitalIndex

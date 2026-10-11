@@ -561,7 +561,6 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
         landIndex: 11,
         fromPos: 9,
         steps: 2,
-        wasOnBranch: false,
       },
     };
     setHand(e, 1, ["半路杀出"]);

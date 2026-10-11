@@ -34,8 +34,6 @@ export interface BoardPlayer {
   guohao: string;
   colorIndex: number;
   position: number;
-  /** 在分岔辅路第几格(null=在主路)。 */
-  onBranch: { step: number } | null;
   /** 都城主路索引(-1=未选都)。 */
   capitalIndex: number;
   isBankrupt: boolean;

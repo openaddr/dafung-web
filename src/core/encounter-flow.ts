@@ -97,7 +97,7 @@ function settleExhaustionChoice(g: GameEngine, seat: number, index: number): voi
   g.endTurn();
 }
 
-/** 耗竭善后(#130):跳过下一回合(复用辅路惩罚的 skipTurns 机制)+ 体力重置 100。
+/** 耗竭善后(#130):跳过下一回合(skipTurns 共用机制)+ 体力重置 100。
  *  重置走 addStamina 唯一口并以 staminaChanged(reason=exhaustion)产事件(#384):
  *  耗竭入口已保证 stamina=0,增量恒为满值,夹紧不改变落账结果。 */
 function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void {

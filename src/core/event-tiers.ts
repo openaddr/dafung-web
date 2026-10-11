@@ -89,7 +89,7 @@ export const EVENT_TIERS = {
   marchArrived: {
     fold: "must-fold",
     fx: "presented",
-    why: "落位+落格推演镜像(相位/pendingLand/落格表现态/交涉到来),路径随事件走(#385);中伏格 skipTurns=1 标记侧",
+    why: "落位+落格推演镜像(相位/pendingLand/落格表现态/交涉到来),路径随事件走(#385)",
   },
   capitalHalt: {
     fold: "must-fold",

@@ -30,7 +30,6 @@ const WAR_CATEGORIES: ReadonlySet<LogEvent["category"]> = new Set([
   "trade",
   "supply",
   "tax",
-  "branch",
   "halt",
   "setup",
   "skill",

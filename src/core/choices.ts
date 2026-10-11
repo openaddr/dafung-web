@@ -104,14 +104,6 @@ function treasureOwnerChoices(): ChoiceOption[] {
   ];
 }
 
-/** AwaitingBranch(两选,永不自动执行)。 */
-function branchChoices(): ChoiceOption[] {
-  return [
-    { id: "main", label: "走大路", available: true },
-    { id: "branch", label: "入辅路", available: true },
-  ];
-}
-
 /** AwaitingHeroPick(候选三选一,永不自动执行)。 */
 function heroPickChoices(e: GameEngine): ChoiceOption[] {
   return e.offeredHeroes.map((h) => ({
@@ -436,7 +428,6 @@ export function hasUsableJinnang(e: GameEngine): boolean {
 export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceOption[]>> = {
   AwaitingDecision: decisionChoices,
   AwaitingTreasureOwner: treasureOwnerChoices,
-  AwaitingBranch: branchChoices,
   AwaitingHeroPick: heroPickChoices,
   AwaitingEncounter: encounterChoices,
   AwaitingJinnang: jinnangChoices,

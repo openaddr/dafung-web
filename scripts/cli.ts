@@ -138,7 +138,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
 // ──────────────────────────── auto 驱动(LLM 演练线)────────────────────────────
 // 进展指纹单源 = seat-projection.fingerprint(联机侧正典,含 turnNumber/position/
 // skipTurns/warrants 全量字段)。勿在 CLI 手抄缩水副本:缩水版看不见「破产位被跳 +
-// 中伏跳过绕一圈回到原 active」这类零计数变化但真实前进的循环,会误判 idle(#442 dogfood 实锤)。
+// 跳过回合绕一圈回到原 active」这类零计数变化但真实前进的循环,会误判 idle(#442 dogfood 实锤)。
 
 /** 当前决策点是否 bot 受控。被询问座位公式单源 = bot-driver.reactionQueriedSeats
  *  (scripts 层正典,与 app 层三层注释互指)。AwaitingReaction:bot 座位由引擎开窗同
@@ -220,8 +220,6 @@ function main(): void {
               "pick-capital <tileIndex>": "当前玩家选都",
               roll: "行军(rollAndMove)",
               "buy | upgrade | skip": "购地/扩军/跳过(AwaitingDecision)",
-              "main | branch":
-                "走大路/入辅路(AwaitingBranch;入辅路=本回合结束,下回合掷骰沿辅路推进)",
               "fair <id> | premium <id> | tskip": "公道买卖/坐地起价/跳过(AwaitingTreasureOwner)",
               confirm: "破产清算结算(AwaitingBankruptcySettle)",
               "cmd <json>": "任意 GameCommand(JSON 字符串)",
@@ -365,30 +363,6 @@ function main(): void {
         console.log(
           JSON.stringify(
             { ok: r.ok, reason: r.reason, command: "skip", ...statusOf(engine) },
-            null,
-            2,
-          ),
-        );
-        return;
-      }
-      case "main": {
-        const r = submitCmd(engine, { type: "selectBranch", kind: "Main" });
-        saveEngineAt(path, engine, config);
-        console.log(
-          JSON.stringify(
-            { ok: r.ok, reason: r.reason, command: "main", ...statusOf(engine) },
-            null,
-            2,
-          ),
-        );
-        return;
-      }
-      case "branch": {
-        const r = submitCmd(engine, { type: "selectBranch", kind: "Branch" });
-        saveEngineAt(path, engine, config);
-        console.log(
-          JSON.stringify(
-            { ok: r.ok, reason: r.reason, command: "branch", ...statusOf(engine) },
             null,
             2,
           ),

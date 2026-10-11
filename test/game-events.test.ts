@@ -140,12 +140,11 @@ describe("事件流(#375):掷骰行军与购地", () => {
     const seat = e.players.indexOf(mover);
     // 预言骰面:同种子探针骰不消耗引擎 rng(mulberry32 状态续掷语义)
     const die = createDice(e.dice.getRngState()).roll().die;
-    // 找一个摆位:掷 die 后落无主城、途中不驻跸、不落辅路入口
+    // 找一个摆位:掷 die 后落无主城、途中不驻跸
     const target = MAP.board.tiles.find((tile) => {
       if (tile.propertyId == null) return false;
-      const path = MAP.board.computePath(tile.index, die, mover.capitalIndex, null);
-      if (path.passedCapital || path.landBranchStep != null) return false;
-      if (MAP.board.getBranchStart(path.landIndex)) return false;
+      const path = MAP.board.computePath(tile.index, die, mover.capitalIndex);
+      if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
       return (
         land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
@@ -168,11 +167,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
     const t = testEngine(e);
     const buyer = e.activePlayer;
     const tile = MAP.board.tiles.find(
-      (x) =>
-        x.type === "Property" &&
-        x.propertyId != null &&
-        e.findOwner(x.propertyId) == null &&
-        !MAP.board.getBranchStart(x.index),
+      (x) => x.type === "Property" && x.propertyId != null && e.findOwner(x.propertyId) == null,
     )!;
     buyer.cash = e.catalog.get(tile.propertyId!)!.purchasePrice + 100; // 买得起且低于目标身价(不触发终局)
     t.landActiveAt(tile.index);
@@ -390,11 +385,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     const visitor = e.activePlayer; // 访客 = 当前活跃座位
     const owner = e.players[e.players.indexOf(visitor) === 0 ? 1 : 0]; // 城主 = 对座
     const tile = MAP.board.tiles.find(
-      (x) =>
-        x.type === "Property" &&
-        x.propertyId != null &&
-        x.index !== visitor.capitalIndex &&
-        !MAP.board.getBranchStart(x.index),
+      (x) => x.type === "Property" && x.propertyId != null && x.index !== visitor.capitalIndex,
     )!;
     owner.properties.push({
       propertyId: tile.propertyId!,

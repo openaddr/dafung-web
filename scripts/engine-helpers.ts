@@ -13,7 +13,7 @@ import type { EncounterConfig } from "../src/core/encounters";
 import type { TurnPhase, AiDifficulty } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 
-/** 共享地图(主路 + 辅路 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
+/** 共享地图(主环 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
 export const MAP: LoadedMap = loadMap(sanguoData);
 
 // ──────────────────────────── 内置地图清单加载(CLI/Server 共享) ────────────────────────────
@@ -127,7 +127,6 @@ export function statusOf(e: GameEngine) {
     turnNumber: s.turnNumber,
     round: s.round,
     lastRoll: s.lastRoll?.die ?? null,
-    branchStartTile: s.branchStartTile,
     rngState: s.rngState,
     offeredCapitals: s.offeredCapitals,
     // 可用选项集(ADR-0013;快照 choices = engine.choicesFor() 全集,过滤 available;
@@ -145,7 +144,6 @@ export function statusOf(e: GameEngine) {
       position: p.position,
       capitalIndex: p.capitalIndex,
       isBankrupt: p.isBankrupt,
-      onBranch: p.onBranch,
       skipTurns: p.skipTurns,
       treasures: p.treasures.length,
       properties: p.properties.length,
@@ -194,8 +192,6 @@ function promptFor(
   switch (tp) {
     case "Roll":
       return `${who} 的回合:行军(roll)`;
-    case "AwaitingBranch":
-      return `${who} 到达辅路入口:走大路(main)或入辅路(branch)`;
     case "AwaitingDecision":
       return `${who} 落城:购地(buy)/扩军(upgrade)/跳过(skip)`;
     case "AwaitingHeroPick":
@@ -243,13 +239,6 @@ export function boardOf(e: GameEngine) {
   });
   return {
     tiles,
-    branch: e.board.branch
-      ? {
-          start: e.board.branch.startNode,
-          end: e.board.branch.endNode,
-          cells: e.board.branch.cells.map((c, i) => ({ step: i, kind: c.kind })),
-        }
-      : null,
   };
 }
 

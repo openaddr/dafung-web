@@ -1,4 +1,4 @@
-// 常规决策卷轴(岔口/购地/扩军/机遇/耗竭):从旧侧栏 ActionInline 迁入卷轴体系。
+// 常规决策卷轴(购地/扩军/机遇/耗竭):从旧侧栏 ActionInline 迁入卷轴体系。
 // 交互重构原则:所有需要玩家权衡的选择一律走卷轴弹层,侧栏手牌区不再有决策按钮;
 // 卷轴轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
 // 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
@@ -31,60 +31,6 @@ function useNumberShortcuts(actions: Array<() => void>) {
   }, []);
 }
 
-// ── 驿道岔口(AwaitingBranch)──
-export function BranchDecisionScroll({
-  choices,
-  onCommand,
-}: {
-  /** 当前相位选项集(快照透出):走大路/入辅路的 available/reason 单源引擎注册表。 */
-  choices: ChoiceOption[];
-  onCommand: (cmd: GameCommand) => void;
-}) {
-  // 选项集消费缝(spec #107 C1):两选当前恒可用,可用性仍只读注册表产出——未来技能
-  // 改动选项可用性时卷轴随之,UI 不私自判定。选项缺失 = 相位与注册表不符(数据 bug),
-  // 非空断言让其抛(零兜底,与 Layer 对 catalog 的断言同款)。
-  const main = choices.find((o) => o.id === "main")!;
-  const branch = choices.find((o) => o.id === "branch")!;
-  // G-19:1=大路 2=辅路(不可选的选项按键无效,与购地卷轴口径一致)
-  useNumberShortcuts([
-    () => {
-      if (main.available) onCommand({ type: "selectBranch", kind: "Main" });
-    },
-    () => {
-      if (branch.available) onCommand({ type: "selectBranch", kind: "Branch" });
-    },
-  ]);
-  return (
-    <ScrollShell title="驿道岔口" testid={T.branchScroll}>
-      {/* A4(#51):事件描述正文用霞鹜文楷(font-wenkai,接入点示意) */}
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
-        驿道至此分岔:大路平坦快捷,辅路僻静多机。入辅路者本回合就此扎营,来日掷骰进发。
-      </p>
-      <div className="flex flex-wrap justify-center gap-3">
-        <ScrollButton
-          primary
-          shortcut={1}
-          disabled={!main.available}
-          title={main.available ? undefined : main.reason}
-          testid={TESTIDS.actionButton("main")}
-          onClick={() => onCommand({ type: "selectBranch", kind: "Main" })}
-        >
-          走大路
-        </ScrollButton>
-        <ScrollButton
-          shortcut={2}
-          disabled={!branch.available}
-          title={branch.available ? undefined : branch.reason}
-          testid={TESTIDS.actionButton("branch")}
-          onClick={() => onCommand({ type: "selectBranch", kind: "Branch" })}
-        >
-          入辅路
-        </ScrollButton>
-      </div>
-    </ScrollShell>
-  );
-}
-
 // ── 抉择机遇(AwaitingEncounter,#124):机遇文段 + 目录选项按钮 ──
 // 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
 // label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
@@ -109,7 +55,7 @@ export function EncounterChoiceScroll({
   );
   return (
     <ScrollShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
-      {/* 机遇文段:事件描述正文用霞鹜文楷(与岔口卷轴同款) */}
+      {/* 机遇文段:事件描述正文用霞鹜文楷 */}
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
       <div className="flex flex-col gap-2.5">
         {choices.map((o, i) => (

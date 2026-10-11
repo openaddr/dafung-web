@@ -5,7 +5,7 @@
 // (engine.round,roundAnchor 锚定)。新增时机 = ① 此处 GameMoment 加一项 + MOMENTS 注册;
 // ② authority.ts 在正确点位挂一个 dispatchMoment 派发。仅此两步,再无散派。
 
-/** 时机类型(28 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
+/** 时机类型(26 个,按七类分组)。subject(时机主体座位)与 ctx 字段见各时机注释;
  *  分类目录 + 技能灵感示例见 docs/explanation/时机框架.md。 */
 export type GameMoment =
   // ── 生命周期 ──
@@ -34,13 +34,8 @@ export type GameMoment =
   | "BeforeRoll"
   /** 骰子掷出后(细粒度):die 已定、行军尚未计算。ctx.die = 骰面。subject = 掷骰者。 */
   | "DieRolled"
-  /** 行军后:移动执行完(位置/lastMove 就绪)、落格结算(驻跸必停/辅路分派/resolveLanding)之前。subject = 行军玩家。 */
+  /** 行军后:移动执行完(位置/lastMove 就绪)、落格结算(驻跸必停/resolveLanding)之前。subject = 行军玩家。 */
   | "AfterMarch"
-  /** 入辅路:selectBranch("Branch") 置 onBranch={step:-1}(待入辅路)后、endTurn 前。subject = 抉择者。 */
-  | "BranchEntered"
-  /** 出辅路:辅路推进汇入主路处(落点回主路,含汇入后必停都城的截断落点),AfterMarch 之前。
-   *  ctx.tileIndex = 主路落点。subject = 行军玩家。 */
-  | "BranchExited"
   // ── 落格与路径 ──
   /** 驻跸:经过自己都城必停,applyResupply(cause="halt") 结算处(AfterMarch 之后)。
    *  ctx.tileIndex = 都城。subject = 驻跸者。 */
@@ -68,11 +63,11 @@ export type GameMoment =
    *  ctx.buyerSeat/ctx.sellerSeat/ctx.amount = 成交价。subject = 城主(= 卖家)。 */
   | "TradeSettled"
   // ── 玩家状态 ──
-  /** 被动得银:applyResupply 补给(驻跸/落都城)/随机事件得款(锦囊/天命/辅路)/交涉收款(卖家)。
+  /** 被动得银:applyResupply 补给(驻跸/落都城)/交涉收款(卖家)。
    *  ctx.amount = 得银额。subject = 得银者。
    *  **防连锁**:仅经济结算点派发——效果层收益(grantSkillCash)不触发 CashGained,技能链不递归放大。 */
   | "CashGained"
-  /** 玩家被动失去银两(细粒度):税/交涉付款/随机事件损失等非自愿支出(主动买城不算)。subject = 失财者。 */
+  /** 玩家被动失去银两(细粒度):税/交涉付款等非自愿支出(主动买城不算)。subject = 失财者。 */
   | "CashLost"
   // ── 破产与终局结算 ──
   /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
@@ -107,7 +102,7 @@ export interface MomentCtx {
   sellerSeat?: number;
   /** 破产债主座位(PlayerBankrupt;null=无债主归银行/销毁,#384)。 */
   creditorSeat?: number | null;
-  /** 涉事 tile 索引(CapitalHalt/LandedOnProperty/PassedPlayer/BranchExited/MarchPassedCity)。 */
+  /** 涉事 tile 索引(CapitalHalt/LandedOnProperty/PassedPlayer/MarchPassedCity)。 */
   tileIndex?: number;
   /** 涉事城 id(PropertyBought/PropertyUpgraded/LandedOnProperty)。 */
   propertyId?: string;
@@ -137,8 +132,6 @@ export const MOMENTS: readonly GameMoment[] = [
   "BeforeRoll",
   "DieRolled",
   "AfterMarch",
-  "BranchEntered",
-  "BranchExited",
   // 落格与路径
   "CapitalHalt",
   "LandedOnProperty",

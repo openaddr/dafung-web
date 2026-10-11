@@ -60,7 +60,6 @@ class PolicyProbe extends GameController {
 
 const TURN_PHASES: TurnPhase[] = [
   "Roll",
-  "AwaitingBranch",
   "AwaitingDecision",
   "AwaitingHeroPick",
   "AwaitingEncounter",

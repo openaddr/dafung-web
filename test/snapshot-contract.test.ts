@@ -58,11 +58,7 @@ function comparableLog(log: GameEngine["log"]) {
 function armBuyDecision(e: GameEngine): { tilePropertyId: string } {
   const t = testEngine(e);
   const tile = e.board.tiles.find(
-    (x) =>
-      x.type === "Property" &&
-      x.propertyId != null &&
-      e.findOwner(x.propertyId) == null &&
-      !e.board.getBranchStart(x.index),
+    (x) => x.type === "Property" && x.propertyId != null && e.findOwner(x.propertyId) == null,
   )!;
   const tilePropertyId = tile.propertyId!; // 谓词已保证非空
   e.activePlayer.cash = 99999; // 买得起 + 起手 3 委任状 → 购地/不取两真选,必进决策相位

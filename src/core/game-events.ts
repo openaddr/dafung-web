@@ -69,10 +69,9 @@ export interface DiceRolledBody {
   kind: "diceRolled";
   die: number;
 }
-/** 行军落格(主路落位/拦停止步/辅路格落位;驻跸走 capitalHalt)。path=本次行军的
+/** 行军落格(落位/拦停止步;驻跸走 capitalHalt)。path=本次行军的
  *  MovePath 摘要(#385:纯数据序列化友好,随事件走——fx 按事件内路径播动画,合并
- *  批多段行军各播各段,不再依赖引擎 lastMove 单槽;辅路落位 tileIndex=主路锚点占位,
- *  以 path.landBranchStep 判别)。 */
+ *  批多段行军各播各段,不再依赖引擎 lastMove 单槽)。 */
 export interface MarchArrivedBody {
   kind: "marchArrived";
   tileIndex: number;
@@ -191,7 +190,7 @@ export interface HeroSkillActivatedBody {
 }
 /** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
  *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
- *  现金/体力同口径);游戏时进手(献计/机遇/锦囊格/随机事件)经 drawJinnangTraced 产出,
+ *  现金/体力同口径);游戏时进手(献计/机遇/锦囊格)经 drawJinnangTraced 产出,
  *  count=实际入手张数(牌库空落空无转移,不产事件)。 */
 export interface JinnangDrawnBody {
   kind: "jinnangDrawn";
@@ -214,7 +213,7 @@ export interface StaminaChangedBody {
   reason: string;
 }
 /** 跳过回合(#384):skipTurns 消费点(endTurn 推进环)产出,seat=被跳过者——
- *  中伏/体力耗竭/缓兵之计共用 skipTurns 机制,标记侧由各自因果事件相邻覆盖
+ *  体力耗竭/缓兵之计共用 skipTurns 机制,标记侧由各自因果事件相邻覆盖
  *  (jinnangAnnounced/staminaChanged/marchArrived),此处宣告「本回合被跳过」。 */
 export interface TurnSkippedBody {
   kind: "turnSkipped";
@@ -357,7 +356,7 @@ export function requireMovePath(g: GameEngine, label: string): MovePath {
 
 /** 时机 → 事件体映射表:登记进词汇表的时机在派发点同步产出事件;引擎侧富化
  *  (查 catalog/持有)在此做。未登记时机(BeforeMarch/BeforeRoll/AfterMarch/
- *  PassedPlayer/MarchPassedCity/LandedOnProperty/BranchEntered/BranchExited 等
+ *  PassedPlayer/MarchPassedCity/LandedOnProperty 等
  *  前置钩子与途经点)不产出事件。 */
 type MomentEventFactory = (g: GameEngine, ctx: MomentCtx) => GameEventBody;
 

@@ -168,8 +168,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
       passedCapital: false,
       capitalIndex: -1,
       waypoints: [],
-      landBranchStep: null,
-      branchWaypoints: [],
     },
   },
   {
@@ -182,8 +180,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
       passedCapital: false,
       capitalIndex: -1,
       waypoints: [],
-      landBranchStep: null,
-      branchWaypoints: [],
     },
   },
   { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },

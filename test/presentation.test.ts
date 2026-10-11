@@ -300,26 +300,6 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     expect(text).toBeDefined();
     if (text?.kind === "textFloat") expect(text.text).toBe("无委任状,不可购");
   });
-
-  it("辅路落位行军(#385 缺口闭合):marchArrived 带辅路路径 → tokenMoved 沿辅路坐标序列", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const branchStart = MAP.board.tiles.findIndex((tile) => tile.name === "许昌"); // 辅路起点
-    expect(branchStart).toBeGreaterThanOrEqual(0);
-    expect(e.board.branch).not.toBeNull();
-    testEngine(e).placeActive(branchStart);
-    p.onBranch = { step: -1 }; // 待入辅路:本回合掷骰沿辅路推进
-    const events = stepEvents(e, () => e.submitCommand({ type: "rollAndMove" }));
-    const march = events.find((ev) => ev.kind === "tokenMoved");
-    expect(march).toBeDefined(); // 辅路落位必有行军动画(旧行为:无事件不播)
-    if (march?.kind === "tokenMoved") {
-      if (march.path.landBranchStep == null) return; // 骰步溢出汇入主路:另案口径
-      expect(march.path.branchWaypoints.length).toBeGreaterThan(0);
-      expect(march.path.branchWaypoints[0]).toEqual(e.board.branch!.cells[0].position);
-    }
-    expect(kinds(events)).not.toContain("sealStamped"); // 辅路格不参与驻跸章
-  });
 });
 
 // ─────────────── 事件批直译:合成批的映射表 ───────────────
@@ -673,8 +653,8 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const e = E();
     const from0 = e.players[0].position;
     const from1 = e.players[1].position;
-    const path0 = e.board.computePath(from0, 2, e.players[0].capitalIndex, null);
-    const path1 = e.board.computePath(from1, 3, e.players[1].capitalIndex, null);
+    const path0 = e.board.computePath(from0, 2, e.players[0].capitalIndex);
+    const path1 = e.board.computePath(from1, 3, e.players[1].capitalIndex);
     testEngine(e).place(0, path0.landIndex); // 快照终态:两段行军均已落位
     testEngine(e).place(1, path1.landIndex);
     const out = extractBatchEvents(
@@ -711,7 +691,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     const e = E();
     const mover = e.players[0];
     const from = mover.position;
-    const path = e.board.computePath(from, 4, mover.capitalIndex, null);
+    const path = e.board.computePath(from, 4, mover.capitalIndex);
     const ambushTile = path.traversed[1]; // 挂起点:途经第 2 格
     testEngine(e).place(0, path.landIndex); // 快照终态:已落格
     const out = extractBatchEvents(
@@ -877,8 +857,6 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
             passedCapital: false,
             capitalIndex: -1,
             waypoints: [],
-            landBranchStep: null,
-            branchWaypoints: [],
           },
         },
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
@@ -898,8 +876,6 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
         passedCapital: false,
         capitalIndex: -1,
         waypoints: [],
-        landBranchStep: null,
-        branchWaypoints: [],
       },
     });
     expect(sink.calls[2]).toEqual({ op: "floater", x: 10, y: 20, amount: -120, coins: false });
@@ -1062,8 +1038,6 @@ describe("remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)", (
     passedCapital: false,
     capitalIndex: -1,
     waypoints: [],
-    landBranchStep: null,
-    branchWaypoints: [],
   };
 
   it("拦停(挂起点=途格 #5):余段只含挂起点之后到落点(#7)", () => {
@@ -1075,8 +1049,6 @@ describe("remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)", (
       passedCapital: false,
       capitalIndex: -1,
       waypoints: [],
-      landBranchStep: null,
-      branchWaypoints: [],
     });
   });
 

@@ -51,8 +51,7 @@ function finishSetup(e: GameEngine) {
 function autoResolve(e: GameEngine) {
   let guard = 0;
   while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
-    if (e.turnPhase === "AwaitingBranch") e.selectBranch("Main");
-    else if (e.turnPhase === "AwaitingDecision") e.endDecision();
+    if (e.turnPhase === "AwaitingDecision") e.endDecision();
     else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1);
     else if (e.turnPhase === "AwaitingTreasureOwner") e.resolveTreasureOwner({ type: "skip" });
     else if (e.turnPhase === "AwaitingBankruptcySettle") e.confirmBankruptcySettle();

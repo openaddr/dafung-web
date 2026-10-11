@@ -125,11 +125,7 @@ const def = (id: string, effect: EncounterDef["effect"]): EncounterDef => ({
 /** 找一座无主普通城并掷骰恰落其上(逐候选尝试,跳过途经都城的无效场景)。 */
 function landOnFreeTile(e: GameEngine): void {
   const candidates = e.board.tiles.filter(
-    (t) =>
-      t.type === "Property" &&
-      t.propertyId != null &&
-      !e.board.getBranchStart(t.index) &&
-      e.findOwner(t.propertyId) == null,
+    (t) => t.type === "Property" && t.propertyId != null && e.findOwner(t.propertyId) == null,
   );
   let lastError: unknown = null;
   for (const t of candidates) {
@@ -396,8 +392,7 @@ describe("机遇引擎行为", () => {
         passJinnang(e).rollAndMove();
         let guard = 0;
         while (e.turnPhase !== "Roll" && e.turnPhase !== "GameOver" && guard++ < 20) {
-          if (e.turnPhase === "AwaitingBranch") e.selectBranch("Main");
-          else if (e.turnPhase === "AwaitingDecision") e.endDecision();
+          if (e.turnPhase === "AwaitingDecision") e.endDecision();
           else if (e.turnPhase === "AwaitingHeroPick") e.resolveHeroPick(1);
           else if (e.turnPhase === "AwaitingEncounter") {
             // 抉择机遇(#124):选第一个可用项(结盟互市等单选项不会到这——引擎已自动执行)

@@ -474,32 +474,5 @@
       "tradeMult": [2, 4, 6, 10],
       "resupplyPerLevel": 400
     }
-  ],
-  "branch": {
-    "id": "zhongyuan-side",
-    "start": "prop-xuchang",
-    "end": "prop-xiangyang",
-    "cells": [
-      {
-        "kind": "treasure",
-        "pos": [820, -590]
-      },
-      {
-        "kind": "treasure",
-        "pos": [735, -590]
-      },
-      {
-        "kind": "event",
-        "pos": [650, -590]
-      },
-      {
-        "kind": "treasure",
-        "pos": [565, -590]
-      },
-      {
-        "kind": "penalty",
-        "pos": [480, -590]
-      }
-    ]
-  }
+  ]
 }

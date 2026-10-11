@@ -15,10 +15,9 @@
 //                 round/turnNumber 逐事件摸事件首部(turnStarted 特殊:引擎派发后才
 //                 turnNumber+1,故 +1;开局首回合同批有 gameStarted 先行,取首部本值)
 //   掷骰/行军族   diceRolled → lastRoll + heroDiceBonus 消费清零;capitalHalt → position/
-//                 onBranch=null/lastMove/turnPhase=Land(补给金额相邻回填);marchArrived →
-//                 主路:position/onBranch=null/lastMove/落格推演(turnPhase + pendingLand +
-//                 lastLandOutcome + treasureVisitor 到来)/辅路要隘 → AwaitingBranch;
-//                 辅路格:onBranch 置步(汇入推进语义)/中伏格 skipTurns=1(标记侧相邻)
+//                 lastMove/turnPhase=Land(补给金额相邻回填);marchArrived → position/
+//                 lastMove/落格推演(turnPhase + pendingLand +
+//                 lastLandOutcome + treasureVisitor 到来)
 //   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv0 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 委任状-常量/地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
@@ -55,16 +54,15 @@
 //                 (缓兵之计标记侧)
 //   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter;
 //                 encounterChoice → 无状态转移(声明性;效果经现金/声望/体力/得宝/招贤折)
-//   纯派生字段    netWorth(=cash)/choices/decisionOwner/currentTileIsBranchStart/
+//   纯派生字段    netWorth(=cash)/choices/decisionOwner/
 //                 lastLandOutcomeKind/lastLandOutcomeProperty/logCount/
-//                 currentSetupPlayerIndex/branchStartTile/branchEndTile/
+//                 currentSetupPlayerIndex/
 //                 reaction(=pendingReaction.view)不折自得
 //
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
 //   ①城池降级精确等级:火烧连营/火攻随机降级目标与结果不在任何事件(demolish 结算无事件)
 //   ②窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
 //   ③军师窗目标段子状态:pendingJinnang/pendingSkill 无专属事件
-//   ④辅路入口置位:onBranch={step:-1}(selectBranch 入辅路)无专属事件
 //   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
 //   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——
@@ -204,13 +202,6 @@ interface FoldCtx {
 function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): void {
   engine.pendingLand = null;
   const tile = engine.board.at(tileIndex);
-  // 辅路入口要隘先于一切落格结算(引擎首检):等 selectBranch 抉择;「入辅路置位」
-  //(onBranch={step:-1})无专属事件 = 校准兜底五项之四
-  if (engine.board.getBranchStart(tileIndex)) {
-    engine.turnPhase = "AwaitingBranch";
-    engine.lastLandOutcome = null;
-    return;
-  }
   // 己都城:补给(金额由相邻 cashChanged·supply 回填)+ 招贤(候选 = 招贤校准档)
   if (mover.capitalIndex === tileIndex) {
     engine.turnPhase = "Land";
@@ -331,19 +322,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       case "marchArrived": {
         const mover = foldTarget(engine, ev);
-        if (ev.path.landBranchStep != null && engine.board.branch) {
-          // 辅路落位:position 不变(主路锚点占位),onBranch 置步(汇入推进语义,非五项
-          // 之「辅路入口置位」);中伏格 = 标记侧相邻
-          mover.onBranch = { step: ev.path.landBranchStep };
-          engine.lastMove = ev.path;
-          engine.turnPhase = "Land";
-          engine.pendingLand = null;
-          engine.lastLandOutcome = { kind: "Noop" }; // resolveBranchCell 三路皆先置 Noop
-          const cell = engine.board.branch.cells[ev.path.landBranchStep];
-          if (cell.kind === "penalty") mover.skipTurns = 1; // 中伏,下回合跳过(标记侧)
-          break;
-        }
-        mover.onBranch = null; // 主路落位:汇入/已在主路,清辅路态
         mover.position = ev.tileIndex;
         engine.lastMove = ev.path;
         foldMainLanding(engine, mover, ev.tileIndex);
@@ -352,7 +330,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "capitalHalt": {
         const mover = foldTarget(engine, ev);
         mover.position = ev.tileIndex;
-        mover.onBranch = null; // 必停已在主路(引擎截断落位处清辅路态)
         engine.lastMove = ev.path;
         engine.turnPhase = "Land";
         engine.pendingLand = null;
@@ -608,7 +585,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
             landIndex: -1,
             fromPos: -1,
             steps: 0,
-            wasOnBranch: false,
           };
         }
         engine.jinnangSeq += 1; // 窗实例号(nextJinnangSeq 同式)

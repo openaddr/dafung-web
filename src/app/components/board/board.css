@@ -101,20 +101,6 @@
   /* W2-包D(审计 A1):0.38→0.5——纸面上更足的墨褐路面,不再发灰;stroke 色不动 */
   opacity: 0.5;
 }
-.bv-road-branch {
-  fill: none;
-  stroke-width: 8;
-  stroke-linecap: round;
-  stroke-dasharray: 14 8;
-  opacity: 0.9;
-  /* 虚线流动归 --dur-fx 拍(1.4s→1.3s);linear 保留:连续流动必须匀速 */
-  animation: bv-side-flow var(--dur-fx) linear infinite;
-}
-@keyframes bv-side-flow {
-  to {
-    stroke-dashoffset: -22;
-  }
-}
 
 /* ── 棋子(旌旗)──
    用 CSS transform 定位 + transition 平滑过渡(与旧 board.ts setTokenPosition 同机制:
@@ -268,7 +254,7 @@
 }
 
 /* ── M-9 降耗:用户偏好减弱动态时,停用全部装饰动画
-   (常驻 infinite:旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 辅路虚线流动 / 候选金圈脉冲;
+   (常驻 infinite:旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 候选金圈脉冲;
      #96 一次性出场:等级印 pop / 建筑顶层生长 / 易主流光),
    保留静态视觉;候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪);
    易主流光停用后由基态 opacity 0 保持隐形,等级印以基态 -8° 钤印斜姿静置,
@@ -280,7 +266,6 @@
   .bv-tile.bv-capital .bv-capital-glow,
   .bv-active-ring,
   .bv-tile.bv-selectable .bv-tile-hilite,
-  .bv-road-branch,
   .bv-level-seal-pop,
   .bv-build-grow,
   .bv-own-flash {
