@@ -3,6 +3,7 @@
 // 珍宝指导价表/等级倍率/引擎默认值一并锁定——防手改地图数值漂移。
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
+import { isCityType } from "@core/board";
 import { TREASURE_PRICE, CITY_LEVEL_MULTIPLIER } from "@core/treasures";
 import sanguoData from "../public/maps/sanguo.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
@@ -130,7 +131,7 @@ function checkResupply(name: string, data: any) {
   it(`${name}:都城补给按区域档(边陲200/中庸300/沃野400/乘法城300)`, () => {
     for (const t of data.tiles as any[]) {
       // 宝物城(ADR-0024)同为城池,补给档与普通城同表
-      if ((t.type ?? "Property") !== "Property" && t.type !== "TreasureCity") continue;
+      if (!isCityType(t.type ?? "Property")) continue;
       const expected = MULT_CITY.has(t.id)
         ? 300
         : FERTILE.includes(t.region)

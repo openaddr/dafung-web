@@ -16,13 +16,29 @@ import { testEngine } from "@core/testing";
 
 const MAP = loadMap(sanguoData);
 
-function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
+function makeEngine(
+  seed = 1,
+  encounter?: { triggerRate: number; good?: number; neutral?: number; bad?: number },
+  seats?: SeatConfig[],
+): GameEngine {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
     ],
     targetNetWorth: 30000,
+    ...(encounter
+      ? {
+          encounter: {
+            triggerRate: encounter.triggerRate,
+            baseRates: {
+              good: encounter.good ?? 34,
+              neutral: encounter.neutral ?? 33,
+              bad: encounter.bad ?? 33,
+            },
+          },
+        }
+      : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -45,6 +61,26 @@ function finishSetup(e: GameEngine) {
 function passJinnang(e: GameEngine): GameEngine {
   while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
+}
+
+function peekDie(e: GameEngine): number {
+  const probe = createDice(0);
+  probe.setRngState(e.dice.getRngState());
+  return probe.roll().die;
+}
+
+/** 挪位后掷骰,恰好落在 targetTile(路径不得途经都城)。真掷骰路径:过 settleMarchLanding(机遇挂点)。 */
+function landActiveOn(e: GameEngine, targetTile: number): void {
+  const p = e.activePlayer;
+  const die = peekDie(e);
+  const n = e.board.count;
+  const from = (((targetTile - die) % n) + n) % n;
+  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n).some(
+    (t) => t === p.capitalIndex && t !== targetTile,
+  );
+  if (passesCapital) throw new Error(`场景无效:途经都城`);
+  testEngine(e).placeActive(from);
+  passJinnang(e).rollAndMove();
 }
 
 const TID = "test-treasure";
@@ -254,6 +290,44 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
     expect(treasureTrail(e)).toBe(true); // 交易链尾探宝留痕
     expect(passJinnang(e).turnPhase).toBe("Roll"); // 探宝自带 endTurn
     expect(e.treasureDeck.length).toBe(13); // 牌堆 14 → 抽 1(失败也回堆底,此处不计成败只计抽动)
+  });
+
+  /** 全中性机遇池钓种子:钓「携民渡江」(抉择机遇)恰好落在宝物城的种子。
+   *  必须走真掷骰(landActiveOn):机遇挂点在 settleMarchLanding,白盒 land() 不经过。 */
+  const ENC_NEUTRAL = { triggerRate: 100, neutral: 100 };
+  function seedEncounterOnTreasureCity(): { seed: number; tileIndex: number } {
+    for (let seed = 1; seed <= 80; seed++) {
+      const probe = makeEngine(seed, ENC_NEUTRAL);
+      finishSetup(probe);
+      const tiles = probe.board.tiles.filter(
+        (x) => x.type === "TreasureCity" && !probe.takenCapitalIndices.has(x.index),
+      );
+      for (const tile of tiles) {
+        const e = makeEngine(seed, ENC_NEUTRAL);
+        finishSetup(e);
+        try {
+          landActiveOn(e, tile.index);
+        } catch {
+          continue; // 途经都城的场景换下一座
+        }
+        if (e.turnPhase === "AwaitingEncounter" && e.pendingEncounter?.id === "携民渡江")
+          return { seed, tileIndex: tile.index };
+      }
+    }
+    throw new Error("80 种子内未抽中 携民渡江@宝物城");
+  }
+
+  it("机遇先于交易链:机遇解完才进购地决策,链尾照旧探宝(ADR-0024 顺序正典)", () => {
+    const { seed, tileIndex } = seedEncounterOnTreasureCity();
+    const e = makeEngine(seed, ENC_NEUTRAL);
+    finishSetup(e);
+    landActiveOn(e, tileIndex);
+    expect(e.turnPhase).toBe("AwaitingEncounter"); // 机遇占用落格,交易链未启动
+    e.submitCommand({ type: "resolveEncounterChoice", index: 0 }); // 携民渡江(费银 150)
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 机遇解完,才进购地决策
+    e.buyProperty();
+    expect(treasureTrail(e)).toBe(true); // 交易链尾探宝
+    expect(passJinnang(e).turnPhase).toBe("Roll");
   });
 
   it("落己方宝物城 → 扩军成功 → 链尾探宝", () => {

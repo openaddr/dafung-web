@@ -3,7 +3,7 @@
     "id": "huanyou",
     "name": "环游图",
     "file": "huanyou.json",
-    "desc": "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合",
+    "desc": "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合,东西延伸列藏宝物城",
     "tileCount": 38,
     "targetNetWorth": 30000
   },

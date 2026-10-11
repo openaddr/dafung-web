@@ -447,9 +447,8 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
 function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
   const def = g.catalog.get(tile.propertyId);
   if (!def) {
-    g.lastLandOutcome = { kind: "Noop" };
-    g.endTurn();
-    return;
+    // 城池格必进 catalog(loader 同口径入册):查无定义=引擎/loader 失步,炸出来而不是静默跳过
+    throw new Error(`城池格 ${tile.propertyId} 无 catalog 定义`);
   }
   const owner = g.findOwner(def.id);
   if (owner == null) {

@@ -97,6 +97,7 @@ import type {
   ReactionView,
 } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/heroes";
+import { isCityType } from "@core/board";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REP_MILESTONES } from "@core/reputation";
@@ -213,7 +214,7 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
   }
   // 宝物城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演(无主/己城/他人城);
   // 无 propertyId = 卧龙岗/特殊格:引擎先置 Noop 再各自结算(税/商市金额由相邻 cashChanged 回填)
-  if (tile.propertyId == null || (tile.type !== "Property" && tile.type !== "TreasureCity")) {
+  if (tile.propertyId == null || !isCityType(tile.type)) {
     engine.turnPhase = "Land";
     engine.lastLandOutcome = { kind: "Noop" };
     return;
