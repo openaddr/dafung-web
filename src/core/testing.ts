@@ -14,7 +14,10 @@ import type { EncounterDef } from "./encounters";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
 
-/** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法同步;签名漂移在此编译期炸出)。 */
+/** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法**人工对齐**)。实况:缝经
+ *  构造器 `as unknown as` 转型,编译期不校验本接口与引擎私有签名的漂移——漂移在运行时
+ *  以「not a function」炸出;对齐靠本接口逐项对照 authority.ts 私有方法清单(#459 已
+ *  对齐两处,applyEncounter/enterEncounter 的返回联合)。 */
 interface EngineTestInternals {
   resolveLanding(): void;
   resolveBranchCell(mover: Player, cell: BranchCell): void;

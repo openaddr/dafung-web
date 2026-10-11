@@ -6,6 +6,7 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
+import { ENCOUNTER_PRODUCT_DEFAULTS } from "@core/encounters";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
@@ -169,6 +170,8 @@ export function App() {
           ],
           seed: urlSeed(),
           mapId: "",
+          // 试玩机遇走产品默认档(#458):引擎缺省 triggerRate=0 恒关,试玩须与正式局同源可触发
+          encounter: ENCOUNTER_PRODUCT_DEFAULTS,
         });
         setController(controller, data);
         useGameStore.getState().syncFromEngine(controller.engine);

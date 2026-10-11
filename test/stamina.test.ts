@@ -29,7 +29,6 @@ function giveProperty(e: GameEngine, seat: number, level: number): string {
   e.players[seat].properties.push({
     propertyId: def.id,
     group: def.group,
-    purchasePrice: def.buildCost,
     level,
     maxLevel: def.maxLevel,
   });

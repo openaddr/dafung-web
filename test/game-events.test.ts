@@ -399,7 +399,6 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     owner.properties.push({
       propertyId: tile.propertyId!,
       group: "a",
-      purchasePrice: 100,
       level: 0,
       maxLevel: 3,
     });

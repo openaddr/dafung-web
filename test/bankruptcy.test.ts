@@ -76,7 +76,6 @@ function giveSellableCity(e: GameEngine, p: Player): { propId: string; lv0Value:
   p.properties.push({
     propertyId: def.id,
     group: def.group,
-    purchasePrice: def.purchasePrice,
     level: 0,
     maxLevel: def.maxLevel,
   });

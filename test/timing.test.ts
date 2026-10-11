@@ -1,5 +1,5 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
-// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 26 时机各挂点至少一例
+// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 39 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect } from "bun:test";
@@ -737,7 +737,6 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -805,7 +804,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     mover.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -863,7 +861,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -906,7 +903,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -938,7 +934,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -978,7 +973,6 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     e.players[ownerSeat].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -1042,7 +1036,6 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     mover.properties.push({
       propertyId: extraDef.id,
       group: extraDef.group,
-      purchasePrice: extraDef.purchasePrice,
       level: 0,
       maxLevel: extraDef.maxLevel,
     });
@@ -1429,7 +1422,6 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     e.players[owner].properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level,
       maxLevel: def.maxLevel,
     });

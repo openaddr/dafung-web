@@ -201,7 +201,6 @@ describe("选都落账守卫(#226):建城费与都城持仓双写一致", () => 
             `${p.id}(${p.guohao}) seed=${seed} n=${n}:都城持仓缺失(#226)`,
           ).toBeDefined();
           expect(holding!.level).toBe(0); // 建都即 Lv.0
-          expect(holding!.purchasePrice).toBe(def.buildCost);
           expect(p.cash).toBe(e.startingCash - def.buildCost); // 钱账一致:恰好扣一次建城费
         }
       }

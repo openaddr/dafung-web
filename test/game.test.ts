@@ -557,7 +557,6 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     owner.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -581,7 +580,6 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     owner.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });
@@ -624,7 +622,6 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     me.properties.push({
       propertyId: def.id,
       group: def.group,
-      purchasePrice: def.purchasePrice,
       level: 0,
       maxLevel: def.maxLevel,
     });

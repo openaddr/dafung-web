@@ -533,7 +533,6 @@ function applyGrantCityEffect(
   mover.properties.push({
     propertyId: defCity.id,
     group: defCity.group,
-    purchasePrice: defCity.buildCost,
     level: 0,
     maxLevel: defCity.maxLevel,
   });

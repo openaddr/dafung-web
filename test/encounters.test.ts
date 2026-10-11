@@ -895,7 +895,6 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     e.players[seat].properties.push({
       propertyId: d.id,
       group: d.group,
-      purchasePrice: d.buildCost,
       level,
       maxLevel: d.maxLevel,
     });
@@ -1063,7 +1062,6 @@ describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞�
     e.players[seat].properties.push({
       propertyId: d.id,
       group: d.group,
-      purchasePrice: d.buildCost,
       level,
       maxLevel: d.maxLevel,
     });

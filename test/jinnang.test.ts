@@ -479,7 +479,6 @@ describe("锦囊目标段(T3)", () => {
     victim.properties.push({
       propertyId: freeId,
       group: "a",
-      purchasePrice: 1000,
       level: 0,
       maxLevel: 3,
     });

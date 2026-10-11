@@ -198,7 +198,6 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     e.activePlayer.properties.push({
       propertyId: propId,
       group: "g",
-      purchasePrice: 100,
       level: 1,
       maxLevel: 3,
     });
@@ -402,7 +401,6 @@ describe("事件→动效映射表(合成批)", () => {
     e.players[0].properties.push({
       propertyId: capProp,
       group: "g",
-      purchasePrice: 100,
       level: 0,
       maxLevel: 3,
     });
@@ -531,7 +529,6 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     e.players[1].properties.push({
       propertyId: propId,
       group: "g",
-      purchasePrice: 100,
       level: 1,
       maxLevel: 3,
     });

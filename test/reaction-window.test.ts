@@ -80,7 +80,6 @@ function grantCity(e: GameEngine, seat: number, propertyId: string) {
   e.players[seat].properties.push({
     propertyId,
     group: "a",
-    purchasePrice: 1000,
     level: 2,
     maxLevel: 3,
   });
@@ -137,7 +136,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3 },
     ];
     e.resolveJinnang("火烧连营"); // 入目标段
     e.resolveJinnang("火烧连营", [victimSeat]); // 宣布 → 反应窗挂起
@@ -174,7 +173,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3 },
     ];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victimSeat]);
@@ -265,7 +264,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     setHand(e, y, ["识破诡计"]);
     const capId = e.board.at(e.players[x].capitalIndex)?.propertyId;
     e.players[x].properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3 },
     ];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [x]); // 双持牌者同窗:queried=[x,y]
@@ -408,7 +407,7 @@ describe("bot 即席代答(ADR-0017 §3:bot 持牌即时代答不等满)", () =>
     setHand(e, botSeat, ["识破诡计"]);
     const capId = e.board.at(e.players[victimSeat].capitalIndex)?.propertyId;
     e.players[victimSeat].properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3 },
     ];
     e.resolveJinnang("火烧连营");
     e.resolveJinnang("火烧连营", [victimSeat]);
@@ -449,7 +448,7 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [
-      { propertyId: capId!, group: "a", purchasePrice: 1000, level: 2, maxLevel: 3 },
+      { propertyId: capId!, group: "a", level: 2, maxLevel: 3 },
     ];
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
