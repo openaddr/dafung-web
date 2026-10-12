@@ -818,8 +818,6 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
    *  布场口径同 test/reaction-window.test.ts(直调引擎公共面摆测试态,不经 cmd 通道)。 */
   async function openCounterWindow(reg: RoomRegistry, roomId: string) {
     const e = reg.get(roomId)!.engine!;
-    const phase0: string = e.turnPhase; // 先宽化留底(下方窄化守卫会把 turnPhase 收成字面量)
-    if (phase0 !== "AwaitingJinnang") throw new Error(`测试预期开局锦囊相位,实际 ${phase0}`);
     if (e.players.length !== 2) throw new Error("测试预期 2 座房间");
     const userSeat = e.activeIndex;
     const victimSeat = 1 - userSeat;
@@ -827,6 +825,9 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     e.players[userSeat].jinnangHandCount = 1;
     e.players[victimSeat].jinnangHand = ["识破诡计"];
     e.players[victimSeat].jinnangHandCount = 1;
+    // 换图后开局手牌可用性随种子浮动(#477 卡级预检:火烧开局无可毁之城=灰置,可能不进军师幕)。
+    // 本场景只验反应窗的座位校验——未进窗就直置军师相位,与进相路径无关。
+    if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;
     e.players[victimSeat].properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     e.resolveJinnang("火烧连营"); // 入目标段

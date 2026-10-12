@@ -428,20 +428,30 @@ describe("锦囊目标段(T3)", () => {
   });
 
   it("窃玉偷香:无珍宝灰置;有珍宝 → 随机夺一张(骰驱)", () => {
-    const e = makeEngine(42);
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
     finishSetup(e);
     e.resolveJinnang(null);
-    const victim = e.players[1];
+    const userSeat = e.players.indexOf(e.activePlayer);
+    const victimSeat = userSeat === 0 ? 1 : 0;
+    const thirdSeat = [0, 1, 2].find((i) => i !== userSeat && i !== victimSeat)!;
+    const victim = e.players[victimSeat];
+    // 卡级预检(#477):需一名有珍宝对手,牌才可用——第三席挂一件保牌可用,目标段灰置才可达
+    e.players[thirdSeat].treasures.push({ id: "t0", name: "夜明珠", level: 1 });
     armJinnang(e, ["窃玉偷香"]);
     e.resolveJinnang("窃玉偷香");
-    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(false);
-    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.reason).toBe("无珍宝");
+    expect(e.choicesFor().find((o) => o.targetSeat === victimSeat)?.available).toBe(false);
+    expect(e.choicesFor().find((o) => o.targetSeat === victimSeat)?.reason).toBe("无珍宝");
+    expect(e.choicesFor().find((o) => o.targetSeat === thirdSeat)?.available).toBe(true);
     victim.treasures.push(
       { id: "t1", name: "和氏璧", level: 3 },
       { id: "t2", name: "随侯珠", level: 2 },
     );
-    expect(e.choicesFor().find((o) => o.targetSeat === 1)?.available).toBe(true);
-    e.resolveJinnang("窃玉偷香", [1]);
+    expect(e.choicesFor().find((o) => o.targetSeat === victimSeat)?.available).toBe(true);
+    e.resolveJinnang("窃玉偷香", [victimSeat]);
     expect(e.activePlayer.treasures.length).toBe(1);
     expect(victim.treasures.length).toBe(1);
   });
@@ -485,7 +495,11 @@ describe("锦囊目标段(T3)", () => {
   });
 
   it("火烧连营不可毁都城(#226):目标仅剩 0 级都城 → 门槛拦截,钱已扣、都城持仓恒在", () => {
-    const e = makeEngine(42);
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
     finishSetup(e);
     e.resolveJinnang(null);
     const user = e.activePlayer; // seed 42 定序首动者
@@ -497,6 +511,17 @@ describe("锦囊目标段(T3)", () => {
     expect(victim.properties).toHaveLength(1);
     expect(victim.properties[0].propertyId).toBe(capPropId);
     expect(victim.properties[0].level).toBe(0);
+    // 第三席挂一座 Lv1 城(卡级预检 #477:存在他法有效目标,牌可用,目标段灰置才可达)
+    const thirdSeat = [0, 1, 2].find((i) => i !== victimSeat && e.players[i] !== user)!;
+    const freeSeedId = e.board.tiles.find(
+      (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+    )!.propertyId!;
+    e.players[thirdSeat].properties.push({
+      propertyId: freeSeedId,
+      group: "a",
+      level: 1,
+      maxLevel: 3,
+    });
     armJinnang(e, ["火烧连营"]);
     e.resolveJinnang("火烧连营");
     // 目标门槛(选项集单口,ADR-0013):都城可降不可失——仅剩 0 级都城 = 无可毁之城
@@ -602,6 +627,26 @@ describe("连环计·二虎竞食(T4)", () => {
     armJinnang(e, ["连环计"]);
     const opt = e.choicesFor().find((o) => o.id === "连环计");
     expect(opt?.available).toBe(false);
+  });
+
+  it("两人局火烧连营灰置「无可毁之城」(对手无可毁之城,#477)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["火烧连营"]);
+    const opt = e.choicesFor().find((o) => o.id === "火烧连营");
+    expect(opt?.available).toBe(false);
+    expect(opt?.reason).toBe("无可毁之城");
+  });
+
+  it("两人局窃玉偷香灰置「无珍宝」(对手无珍宝,#477)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["窃玉偷香"]);
+    const opt = e.choicesFor().find((o) => o.id === "窃玉偷香");
+    expect(opt?.available).toBe(false);
+    expect(opt?.reason).toBe("无珍宝");
   });
 });
 
