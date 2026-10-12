@@ -8,7 +8,6 @@
 /** 音效事件(游戏语义,与具体实现解耦)。 */
 export type SoundEvent =
   | "diceRoll" // 掷骰开始(翻滚启动)
-  | "diceHit" // 骰子碰撞(物理事件,带 intensity 0~1)
   | "diceLand" // 骰子停下
   | "marchStart" // 行军启动(高频触发:轻嗒瞬态,50ms 去重 + 连发音量衰减)
   | "coin" // 铜钱(收入)
@@ -43,7 +42,7 @@ export class SynthAudioPlayer implements AudioPlayer {
   protected master: GainNode | null = null;
   protected muted = false;
   protected readonly volume = 0.5;
-  /** 噪声缓存(2 秒):diceRoll/banner/diceHit/stamp 共用同一份白噪声,
+  /** 噪声缓存(2 秒):diceRoll/banner/stamp 共用同一份白噪声,
    *  各合成单元用随机 offset 取不同片段,免去每次 play 重新生成随机样本(消除 GC 抖动)。 */
   private noiseCache: AudioBuffer | null = null;
   private static readonly NOISE_CACHE_DUR = 2; // 秒(覆盖最长 diceRoll 0.4s × 余量)
@@ -103,9 +102,6 @@ export class SynthAudioPlayer implements AudioPlayer {
     switch (event) {
       case "diceRoll":
         this.diceRoll(ctx, intensity);
-        break;
-      case "diceHit":
-        this.diceHit(ctx, intensity);
         break;
       case "diceLand":
         this.diceLand(ctx);
@@ -266,12 +262,6 @@ export class SynthAudioPlayer implements AudioPlayer {
   private marchStart(ctx: AudioContext, volScale: number): void {
     this.noiseBurst(ctx, 0.07, "highpass", 3200, 0.7, 0.09 * volScale);
     this.tone(ctx, 2400, 0.04, "sine", 0.03 * volScale);
-  }
-
-  // 骰子碰撞(短促噪声 burst,物理事件,随强度)
-  private diceHit(ctx: AudioContext, intensity: number): void {
-    const vol = Math.min(0.5, 0.12 + intensity * 0.28);
-    this.noiseBurst(ctx, 0.09, "bandpass", 2200, 1.2, vol);
   }
 
   // 骰子停下(thump)

@@ -21,7 +21,7 @@ export type PresentationEvent =
       die: number;
       /** C1:bot 驱动的掷骰走半速(提取期按推进前活跃玩家 isBot 判定)。
        *  速度不进 FxSink.rollDice 签名——生产实现(sinks.ts)不透传附加参数,
-       *  由 present() 在掷前设置 ThreeDice 的模块级速度开关(见 orchestrator)。 */
+       *  由 present() 在掷前设置签面演出的模块级速度开关(见 orchestrator)。 */
       fast?: boolean;
     }
   | { kind: "tokenMoved"; playerId: string; path: MovePath }

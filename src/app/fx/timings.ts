@@ -76,22 +76,16 @@ export const FX = {
   jinnangLineMs: sc(700),
 } as const;
 
-/** 3D 骰子掷骰节奏(ThreeDice 实播墙钟判据;时长集中调参)。
- *  C1 bot 掷骰半速:bot 回合节奏优先,翻滚/硬上限/落定停留全面减半。
- *  X5:落定后先弹大字签面确认结果,holdMs 满再渐隐退场(fadeOutMs);任何掷骰
- *  (含 bot/软渲 fallback)结束后都有 ≥300ms 可读结果。
- *  与 token 同值者(holdMs=--dur-reveal / botMinRollMs=fadeOutMs=--dur-med /
- *  botHoldMs=--dur-slow)经 Motion 取数;minRollMs/hardCapMs/botHardCapMs/
- *  fallbackHoldMs 是编排判据,保留字面量。 */
+/** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;时长集中调参)。
+ *  C1 bot 掷骰半速:bot 回合节奏优先,停留压到 slow 档;签面弹入(fx.css
+ *  dice-sign-in 0.3s)须落在 botHoldMs(400ms)预算内。任何掷骰(含 bot)结束后
+ *  都有 ≥300ms 可读结果(holdMs+fadeOutMs,由 test/choreography-invariants.test.ts 钉住)。
+ *  与 token 同值者(holdMs=--dur-reveal / botHoldMs=--dur-slow / fadeOutMs=--dur-med)
+ *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。 */
 export const DICE = {
-  minRollMs: sc(500), // 至少滚 0.5s(人类掷骰的翻滚感)
-  hardCapMs: sc(1500), // 墙钟硬上限(与 GPU 帧率无关)
-  holdMs: sc(Motion.dur.reveal), // 落定后结果(3D 骰 + 大字签面)停留,再渐隐;与 --dur-reveal 同源(经 Motion)
-  botMinRollMs: sc(Motion.dur.med), // 与 --dur-med 同源(经 Motion)
-  botHardCapMs: sc(900),
-  botHoldMs: sc(Motion.dur.slow), // X5:250 → 400(签面弹入 ~300ms + 可读停留);与 --dur-slow 同源(经 Motion)
-  fallbackHoldMs: sc(650), // X5 软渲/无 WebGL 文字签面的停留
-  fadeOutMs: sc(Motion.dur.med), // X5 overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
+  holdMs: sc(Motion.dur.reveal), // 签面停留(人类);与 --dur-reveal 同源(经 Motion)
+  botHoldMs: sc(Motion.dur.slow), // 签面停留(bot 半速档);与 --dur-slow 同源(经 Motion)
+  fadeOutMs: sc(Motion.dur.med), // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
 } as const;
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

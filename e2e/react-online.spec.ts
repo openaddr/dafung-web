@@ -267,7 +267,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         continue;
       }
       // 关键断言①:快照已到 AwaitingDecision·PropertyAvailable,但购地卷轴尚未挂载
-      //(骰子 ≥500ms + 行军逐段仍在播;若动画期间就弹,此处立即失败)
+      //(骰签停留 600ms + 渐隐 + 行军逐段仍在播;若动画期间就弹,此处立即失败)
       await expect(roller.getByTestId("scroll-buy")).toHaveCount(0);
       // 关键断言②:动画播完卷轴才出现,且距快照落地非瞬时(骰子+行军节奏)
       const t0 = Date.now();

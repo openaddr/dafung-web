@@ -32,12 +32,10 @@
   },
   "dependencies": {
     "@base-ui/react": "^1.8.0",
-    "cannon-es": "^0.20.0",
     "clsx": "^2.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "tailwind-merge": "^3.6.0",
-    "three": "^0.185.1",
     "zustand": "^5.0.15"
   },
   "devDependencies": {
@@ -48,7 +46,6 @@
     "@types/node": "^22.20.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
-    "@types/three": "^0.185.1",
     "@vitejs/plugin-react": "^4.7.0",
     "knip": "^6.38.0",
     "oxfmt": "^0.70.0",

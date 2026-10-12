@@ -10,8 +10,7 @@ import { Sym } from "@app/screens/shared/Sym";
 /** 每个音效事件的试听行:label = 界面名,when = 真实触发时机(听感必须挂在因果上才有意义)。 */
 const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   diceRoll: { label: "掷骰", when: "每次掷骰起手(合成沙锤瞬态;旧鼓滚奏 #26 已撤)" },
-  diceHit: { label: "骰子碰撞", when: "3D 骰物理撞击(60ms 节流,随冲击强度)" },
-  diceLand: { label: "落骰", when: "骰子停定(木叩,播放侧截 0.65s)" },
+  diceLand: { label: "落骰", when: "掷骰签面现身(木叩,播放侧截 0.65s;与起手沙锤同拍)" },
   marchStart: { label: "行军启动", when: "棋子起步(轻嗒;50ms 去重+连发衰减)" },
   coin: { label: "收入叮", when: "批内有正收入浮字(每批一次,缀首个浮字前)" },
   pay: { label: "支出闷响", when: "批内有负向浮字且非购地批(收叮付闷对位)" },
@@ -33,8 +32,7 @@ function Board() {
   const audio = useAudio();
   if (!audio) return null;
   const play = (event: SoundEvent) => {
-    // diceHit 带中档冲击强度(0~1),其余事件走默认
-    getAudio().play(event, event === "diceHit" ? { intensity: 0.6 } : undefined);
+    getAudio().play(event);
   };
   return (
     <div className="m-auto flex w-[min(680px,94vw)] flex-col gap-y-3 p-6">
