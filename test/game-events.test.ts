@@ -230,7 +230,7 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
     const userSeat = e.players.indexOf(user);
     user.jinnangHand = ["求贤令"];
     user.jinnangHandCount = 1;
-    e.turnPhase = "AwaitingJinnang"; // 军师幕摆位(#122/T2 白盒)
+    e.turnPhase = "AwaitingJinnang"; // 出牌阶段摆位(#122/T2 白盒)
     beginGameEventBatch(e);
     e.resolveJinnang("求贤令");
     const events = e.snapshot().events;

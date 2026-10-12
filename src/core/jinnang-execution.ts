@@ -1,4 +1,4 @@
-// 锦囊+主动技+效果执行域(#122/#188 档 3,ADR-0019 委托式拆分 #319):军师幕
+// 锦囊+主动技+效果执行域(#122/#188 档 3,ADR-0019 委托式拆分 #319):出牌阶段
 // (AwaitingJinnang)抽牌/用牌决策、出牌宣布与反应窗挂点、锦囊效果执行、名将主动技
 // 结算,以及 demolish/招贤两个共享结算单点。域逻辑=自由函数,首参接 GameEngine 直接
 // 读写引擎状态;与数据表 jinnang.ts/heroes.ts 分层(执行≠数据)。GameEngine 侧保留同名
@@ -19,7 +19,7 @@ import {
 import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
-// ── 锦囊/军师幕引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
+// ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
 /** 军情密探窥探(#122/T4):viewer 可见 target 的锦囊手牌内容,至 viewer 下回合开始
  *  (endTurn 轮到 viewer 时清除)。窥探事件本身公开,清单随快照。 */
 export interface JinnangPeek {
@@ -102,7 +102,7 @@ export function enterJinnangPhase(g: GameEngine): void {
 /** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/可用(标签名额)
  *  后结算效果,再重算选项集——同回合仍有可用牌(异类标签)则继续停留卷轴,否则进 Roll。
  *  用牌是公开事件(浮字+战报),暗的只有持有(ADR-0016)。
- *  #188 档 3:军师幕内与技能目标段(pendingSkill)共存——cardId=null 时若停在技能目标段,
+ *  #188 档 3:出牌阶段内与技能目标段(pendingSkill)共存——cardId=null 时若停在技能目标段,
  *  代为作罢该技(驱动方兜子状态安全),其余锦囊命令属跨子状态误用,警告拒绝。 */
 export function resolveJinnang(
   g: GameEngine,
@@ -210,7 +210,7 @@ function consumeJinnangCard(
 /** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(浮字+出牌指示线留痕)→
  *  JinnangAnnounced 时机 → 持识破诡计者(使用者除外)询问窗;无有效识破则照常执行。
  *  主动技不经此口(fireHeroSkill 直结算,#229 口径:主动技不可被识破);反应牌自身永经
- *  军师幕「唯反应」灰置,不经 announce 通道(识破不可被识破的另一半保证)。 */
+ *  出牌阶段「唯反应」灰置,不经 announce 通道(识破不可被识破的另一半保证)。 */
 function settleJinnangPlay(
   g: GameEngine,
   user: Player,
@@ -266,7 +266,7 @@ function settleJinnangPlay(
 }
 
 // ──────────────────────────── 名将主动技(#188 档 3)────────────────────────────
-// 军师幕(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
+// 出牌阶段(AwaitingJinnang)内与锦囊同窗决策:resolveHeroSkill 与 resolveJinnang 并列的
 // 命令入口。校验(冷却/持有/目标)单源选项集(choices.ts),UI/bot 永不裁决(ADR-0013);
 // 结算复用既有路径(火攻=demolishOnVictim),不新造 effect kind;结算内不派发时机
 // (防技能链级联,与 grantSkillCash 不派发 CashGained 同口径)。

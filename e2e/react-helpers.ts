@@ -73,7 +73,7 @@ export async function pickCapital(page: Page, nth = 0): Promise<void> {
   await dismissJinnangIfUp(page);
 }
 
-/** 军师窗态在场则「不出」放行(#122/T2;#256 军师幕弹窗退役,放行点迁动作条
+/** 出牌阶段态在场则「不出」放行(#122/T2;#256 旧弹窗退役,放行点迁动作条
  *  actionbar-pass,原 scroll-jinnang-pass 语义平移);无窗态零等待。
  *  各用例/驱动循环的放行点统一走此助手,勿再复制可见性探测块。 */
 export async function dismissJinnangIfUp(page: Page): Promise<void> {
@@ -219,7 +219,7 @@ export function fmtMoney(cash: number): string {
  *  行军自动化后对局自走,调用方的步进循环依赖本助手清决策点;无决策点返回 false 时
  *  局面仍在自动推进,循环侧按「快照变化即不算停滞」计预算(勿空转烧步数)。 */
 export async function actIfCan(p: Page): Promise<boolean> {
-  // 军师窗态(#256,原 scroll-jinnang-pass 放行点迁动作条):回合开始自动起摇前可能
+  // 出牌阶段态(#256,原 scroll-jinnang-pass 放行点迁动作条):回合开始自动起摇前可能
   // 停在窗态——默认「不出」放行,绝不替测试用牌。必须先于通配 scroll 分支
   // (会误点第一张牌)。
   const jinnangPass = p.getByTestId("actionbar-pass");
@@ -305,7 +305,7 @@ export async function useHalfScale(page: Page): Promise<void> {
 }
 
 /** 开局(seed 7 离线核算:人类先手,起手火烧连营=可用牌):选图/起兵/定都后停稳在
- *  人类开局军师窗——引擎直写种植的稳定停靠点(内部自带 0.5 倍率)。 */
+ *  人类开局出牌阶段——引擎直写种植的稳定停靠点(内部自带 0.5 倍率)。 */
 export async function startSolo(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=7");

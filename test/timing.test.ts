@@ -1058,7 +1058,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     effect,
   });
 
-  /** 摆军师幕测试态:当前玩家持牌停在锦囊相位(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
+  /** 摆出牌阶段测试态:当前玩家持牌停在锦囊相位(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
     p.jinnangHand = [...cards];
@@ -1202,7 +1202,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     effect,
   });
 
-  /** 摆军师幕测试态(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
+  /** 摆出牌阶段测试态(同 test/bot-jinnang.test.ts armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
     p.jinnangHand = [...cards];
@@ -1345,7 +1345,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     effect,
   });
 
-  /** 摆军师幕测试态(同 #456 块 armJinnang 口径)。 */
+  /** 摆出牌阶段测试态(同 #456 块 armJinnang 口径)。 */
   function armJinnang(e: GameEngine, cards: string[]) {
     const p = e.activePlayer;
     p.jinnangHand = [...cards];

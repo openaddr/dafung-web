@@ -38,7 +38,7 @@ export interface TokenSlot {
   marching: boolean;
   /** L47:本地视角自己的棋子(玩家色微光圈,棋盘侧「我是谁」锚点)。 */
   mine: boolean;
-  /** #256 目标段:军师窗候选棋子(金虚线环呼吸,与席位卡金圈同步,双锚点)。 */
+  /** #256 目标段:出牌阶段候选棋子(金虚线环呼吸,与席位卡金圈同步,双锚点)。 */
   targeted: boolean;
 }
 

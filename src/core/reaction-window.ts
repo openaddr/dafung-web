@@ -391,7 +391,7 @@ function returnSupersededCounters(g: GameEngine, plays: ReactionAnswer[], cardId
 }
 
 /** 反应牌扣账(#281):离手入弃堆。不入 jinnangUsedTags 名额——名额账本是活跃玩家的
- *  军师幕额度(回合开始清零),反应牌多在他人回合打出,混入会污染账本。 */
+ *  出牌阶段额度(回合开始清零),反应牌多在他人回合打出,混入会污染账本。 */
 function consumeReactionCard(g: GameEngine, seat: number, cardId: string): void {
   const p = g.players[seat];
   p.jinnangHand.splice(p.jinnangHand.indexOf(cardId), 1);

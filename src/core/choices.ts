@@ -47,7 +47,7 @@ export interface ChoiceOption {
   cardTags?: string[];
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
-  /** 名将主动技选项专属(#188 档 3):id=`skill:${skillId}`;军师幕文案随选项派生透出
+  /** 名将主动技选项专属(#188 档 3):id=`skill:${skillId}`;出牌阶段文案随选项派生透出
    *  (同 encounterId 通道口径);skillHero=属主名将名(卷轴组合显示)。 */
   skillId?: string;
   skillText?: string;
@@ -275,7 +275,7 @@ export function heroSkillTargetOk(
   return { ok: true };
 }
 
-/** AwaitingJinnang(军师幕,#122/T2 + #188 档 3):统一决策窗——锦囊卡牌段 + 就绪主动技 +
+/** AwaitingJinnang(出牌阶段,#122/T2 + #188 档 3):统一决策窗——锦囊卡牌段 + 就绪主动技 +
  *  「今不用」。目标段二态:pendingJinnang(锦囊选人)或 pendingSkill(技能选人)在场时
  *  改列候选座位 +「作罢」。锦囊 effect 尚未接入结算的种类灰置。 */
 function jinnangChoices(e: GameEngine): ChoiceOption[] {
@@ -322,7 +322,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     const def = jinnangCardOf(cardId);
     const quotaBlocked = def.tags.some((t) => used.has(t));
     const implemented = JINNANG_LIVE_EFFECTS.has(def.effect.kind);
-    // 纯反应牌(#281):不经军师幕,恒灰置「唯反应」——持唯反应牌不进军师幕
+    // 纯反应牌(#281):不经出牌阶段,恒灰置「唯反应」——持唯反应牌不进「出牌阶段」
     // (hasUsableJinnang 由此不计纯反应牌);只在反应窗(snapshot.reaction)打出。
     const reactionOnly = isReactionCard(def);
     // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4);单目标域(#477)同样
@@ -388,7 +388,7 @@ export function skillCooldownLeft(
   return Math.max(0, skill.cooldown - (e.round - last));
 }
 
-/** 军师幕主动技选项段(#188 档 3):冷却就绪 + 可执行才 available;不可用带 reason
+/** 出牌阶段主动技选项段(#188 档 3):冷却就绪 + 可执行才 available;不可用带 reason
  *  (冷却优先报,其次费用/目标门槛)。与锦囊选项同窗并列,UI 以 skillId 区分「技」章。 */
 function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
@@ -429,9 +429,9 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   return out;
 }
 
-/** 军师幕「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
+/** 出牌阶段「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
  *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。纯反应牌(#281)经
- *  「唯反应」灰置 available=false,天然不计入:持唯反应牌不进军师幕。 */
+ *  「唯反应」灰置 available=false,天然不计入:持唯反应牌不进「出牌阶段」。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
   return computeChoices(e, "AwaitingJinnang").some(
     (o) => o.available && (o.cardTags != null || o.skillId != null),

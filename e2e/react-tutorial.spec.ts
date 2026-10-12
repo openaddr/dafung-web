@@ -3,7 +3,7 @@
 import { test, expect } from "./fixtures";
 import { actIfCan, waitSettled, snap, waitMyPause, force } from "./react-helpers";
 
-test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 UI 断言", async ({ page }) => {
+test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每句 UI 断言", async ({ page }) => {
   await page.goto("/");
   // 「开一局单机」:首页四入口
   await page.getByTestId("home-solo").click();
@@ -25,7 +25,7 @@ test("教程走查:起兵→选都→自动行军→军师幕→托管的每句 
   await expect(detail.getByText("定都于此")).toBeVisible();
   await expect(detail.getByText("再想想")).toBeVisible();
   await page.getByTestId("confirm-capital-ok").click();
-  // 「军师窗态」(#256 军师幕弹窗退役,教程断言改架中口径):起手是否停窗随牌库
+  // 「出牌阶段态」(#256 旧弹窗退役,教程断言改架中口径):起手是否停窗随牌库
   // 洗序,条件断言——窗态在场 = 架中可用牌 + 动作条,「不出」放行(原「今不用」
   // 语义平移,牌不消耗;窗态无弹窗文案可断)
   const ab = page.getByTestId("actionbar");

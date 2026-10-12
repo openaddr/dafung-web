@@ -1,4 +1,4 @@
-// 名将卡面组件(#360,spec #357 T3):武将卡归一单源——招贤三选一/军师幕确认/
+// 名将卡面组件(#360,spec #357 T3):武将卡归一单源——招贤三选一/出牌阶段确认/
 // 府库详情同一组件两档装配,全游戏一张名将卡面。视觉基线 proto/treasure/r5.html
 // 节三(r4 形制 + 五轮被动技名):满幅立绘打底(stage)+ 右侧竖排名(m-name,
 // 毛笔大字漆金带)+ 右上称号竖排纸签(m-title)+ 左上朱砂「将」章(j-seal)+
@@ -30,7 +30,7 @@ export function heroDefOf(heroId: string): HeroDef {
   return def;
 }
 
-/** 按主动技 id 反查名将 id(军师窗态技卡消费:choices 选项只带 skillId)。 */
+/** 按主动技 id 反查名将 id(出牌阶段态技卡消费:choices 选项只带 skillId)。 */
 export function heroIdByActiveSkillId(skillId: string): string {
   const hero = HEROES.find((h) => h.active?.id === skillId);
   if (!hero) throw new Error(`主动技不在名将目录:${skillId}`);
@@ -39,7 +39,7 @@ export function heroIdByActiveSkillId(skillId: string): string {
 
 /** 装配/尺寸档(r4 节三两档 + 招贤同槽位档):
  *  - detail:技能全文(技名牌+desc 全文,13px 基)——府库详情档;
- *  - compact:技名 chips + desc 两行截断(10px 基)——军师幕确认;
+ *  - compact:技名 chips + desc 两行截断(10px 基)——出牌阶段确认;
  *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排。 */
 export type HeroCardFaceSize = "detail" | "compact" | "pick";
 

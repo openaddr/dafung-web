@@ -20,7 +20,7 @@
    档类默认 8px)。短横屏降档(#238 已决事项「剩余实现层微调」):media query 里把
    容器 em 基降到 6.4px → 牌面 96×128、架高同步收紧,一处变量全架缩放。 */
 
-/* 名将技卡(#360):军师窗态技卡换 HeroCardFace 紧凑档,卡面样式单源
+/* 名将技卡(#360):出牌阶段态技卡换 HeroCardFace 紧凑档,卡面样式单源
    card/hero-card.css(旧 JinnangLingjian/.jn-lingjian 令笺随 #360 退役);
    卡基经 --hface-base 随架体 em 基走,声明见下方 .hand-rack 与短横屏断点。 */
 
@@ -136,7 +136,7 @@
 
 /* ── 焦点圈(#239 T4 走查修正):app.css S2 全局圈是墨虚线,落在漆木架底上近不可见
    (墨 #2b2317 对漆木 #332a1e ≈ 1.3:1)——架上牌钮焦点圈改鎏金虚线
-   (金 #c8a13a 对漆木 ≈ 5.5:1,达标可见),与军师幕金虚线焦点语言同族。 ── */
+   (金 #c8a13a 对漆木 ≈ 5.5:1,达标可见),与出牌阶段金虚线焦点语言同族。 ── */
 .hand-rack-hand > button:focus-visible {
   outline: 2px dashed var(--color-gold);
   outline-offset: 3px;
@@ -154,7 +154,7 @@
   margin-left: calc(var(--jn-step) - 15em);
 }
 
-/* ── hover 挥出(常时态;军师窗态金边上浮归 #256):悬停牌上浮全显
+/* ── hover 挥出(常时态;出牌阶段态金边上浮归 #256):悬停牌上浮全显
    (translateY(-1.6em) scale(1.12)+深投影,原型 .many :hover 基线),邻牌让位移植
    noname getSpreadOffset(GPL,noname/apps/core/noname/ui/index.js L187:右邻让满幅
    cw−step、左邻让 2 成)。左邻用 :has(「身后有悬停牌」)表达;z-index 落 button
@@ -180,7 +180,7 @@
 /* reduced-motion:挥出过渡由 app.css M-4 全局兜层压成瞬时(0.01ms)——「直接上浮」
    口径,本文件无需另写(发牌入场的 delay 归零特例见上,那是 M-4 管不到的唯一缝)。 ── */
 
-/* ── 军师窗态(#256:军师幕弹窗退役,架即出牌面;原型 .playable 口径)──
+/* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
    - 可出=.usable 微上浮(钮层),hover 升满幅;
    - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
@@ -341,7 +341,7 @@
   outline-offset: 3px;
 }
 
-/* ── 名将技卡(#360):军师窗态技卡换 HeroCardFace 紧凑档(与招贤/府库同一张
+/* ── 名将技卡(#360):出牌阶段态技卡换 HeroCardFace 紧凑档(与招贤/府库同一张
    名将卡面,样式单源 card/hero-card.css,旧 .jn-lingjian 令笺差量随退役);
    卡基经 --hface-base 随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点与
    layout.css 的 dash-rack 覆写处),15u×20u 恰好满槽位与锦囊牌面同格。 ── */

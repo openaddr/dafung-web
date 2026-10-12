@@ -2,7 +2,7 @@
 //  1. 经真实装载通路(loadExtensionPackages)注册后,招贤三选一可选到太史慈;
 //  2. 事件序列断言:resolveHeroPick 一批内 heroRecruited → cashChanged(skill 落账)
 //     → skillFired(义从击发)——自定义效果 joinGift 经引擎公共方法结算(+100 两);
-//  3. 主动技「破阵」:军师幕选项可见、发动后 heroDiceBonus=1、heroSkillActivated 随批产出;
+//  3. 主动技「破阵」:出牌阶段选项可见、发动后 heroDiceBonus=1、heroSkillActivated 随批产出;
 //  4. 交互问询「信义盲选」(#410):权威半边经注册面读口触发产脱敏选项集;客户端半边
 //     经真实 client 入口注册后呈现意图读口命中(blindCards)。
 // 引擎布场模式复制 test/hero-skill.test.ts(makeEngine/finishSetup,不 import 测试文件);
@@ -120,7 +120,7 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     expect(p.heroLastFired["taishici-yicong"]).toBe(e.round);
   });
 
-  it("主动技「破阵」:军师幕选项可见,发动后本回合步数 +1,heroSkillActivated 随批产出", () => {
+  it("主动技「破阵」:出牌阶段选项可见,发动后本回合步数 +1,heroSkillActivated 随批产出", () => {
     const e = prepared();
     const p = e.activePlayer;
     p.heroes.push(taishiciDef!);

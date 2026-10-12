@@ -29,7 +29,7 @@ export interface HeroDef {
   title: string; // 火烧赤壁(称号,风味)
   desc: string; // 给玩家看的技能说明
   skills?: TriggerSkill[]; // 一武多技(时机驱动,按数组序派发)
-  /** 主动技(#188 档 3):军师幕(与锦囊合并窗,AwaitingJinnang 相位)内手动发动,
+  /** 主动技(#188 档 3):出牌阶段(与锦囊合并窗,AwaitingJinnang 相位)内手动发动,
    *  独立冷却(复用 heroLastFired,键=active.id);每名将至多一个,缺省=无主动技。 */
   active?: ActiveSkillDef;
   image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)

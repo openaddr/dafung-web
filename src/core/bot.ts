@@ -92,7 +92,7 @@ export interface JinnangIntent {
  *  Math.random,重放安全)。
  *  目标候选的可达性预筛(非己/存活/有珍宝/有城)是 choices.ts jinnangTargetOk 的
  *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。
- *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应牌不经军师幕。) */
+ *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应牌不经出牌阶段。) */
 export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent {
   const def = jinnangCardOf(cardId);
   const me = engine.activePlayer;
@@ -145,8 +145,8 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
     }
     case "counter":
     case "ambush":
-      // 反应牌不经军师幕(#281「唯反应」):策略表永不评估,走到这里=调用方数据 bug
-      throw new Error(`反应牌【${cardId}】不经军师幕(jinnangIntent 不应评估反应牌)`);
+      // 反应牌不经出牌阶段(#281「唯反应」):策略表永不评估,走到这里=调用方数据 bug
+      throw new Error(`反应牌【${cardId}】不经出牌阶段(jinnangIntent 不应评估反应牌)`);
   }
 }
 
@@ -323,7 +323,7 @@ function commitHeroSkillTargets(engine: GameEngine, skillId: string): boolean {
   return false;
 }
 
-/** 军师幕决策(#148 锦囊 → #188 档 3 扩义):可用项(经 choicesFor 同口径,ADR-0013)
+/** 出牌阶段决策(#148 锦囊 → #188 档 3 扩义):可用项(经 choicesFor 同口径,ADR-0013)
  *  = 可用锦囊 + (skills="strategy" 时的)就绪主动技,按窗口顺序逐项过策略表,取第一张
  *  「值得用」的;锦囊指向域提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;
  *  技能目标段同构。用一项后引擎可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;
@@ -407,7 +407,7 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
     }
 
     case "AwaitingJinnang": {
-      // 军师幕(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):conservative(看门狗/接管)
+      // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):conservative(看门狗/接管)
       // 一律保守推进——技能目标段/锦囊目标段先作罢再收卷,不掷骰,永不代花资源;托管按
       // 策略表(§8)经 driveJinnang 推进,其中主动技遵 skills 政策(代驾 "hold" 永不出技)。
       if (opts?.conservative) {

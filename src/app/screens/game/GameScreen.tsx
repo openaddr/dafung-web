@@ -3,7 +3,7 @@
 // HandPanel→仪表条+手牌架、TreasuryPanel→仪表条计数徽章、
 // OthersPanel→席位卡、CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为
 // 全局兜底,席位卡活跃光效承担「谁在行动」指名(操作不限时,无倒计时条)。
-// 军师窗态(#256):军师幕弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
+// 出牌阶段态(#256):旧弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
 // 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
 // 门控,与退役前弹窗同门)接线三方:HandRack(窗态牌面/手势)、ActionBar(两段
 // 动作条)、SeatRail+TokenLayer(目标段候选呼吸)。引擎相位/choices/命令语义
@@ -158,9 +158,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
   const players = snapshot.players;
 
-  // ── 军师窗态(#256):AwaitingJinnang 的呈现层状态机(选牌在本件,命令直发引擎)──
-  // 门与退役前的军师幕卷轴完全同款:interactive 门控=本地决策(controller 单源),
-  // choices 含 pass/cancel = 注册表确已产出军师窗选项(相位/选项集不符时不进窗态)。
+  // ── 出牌阶段态(#256):AwaitingJinnang 的呈现层状态机(选牌在本件,命令直发引擎)──
+  // 门与退役前的卷轴弹窗完全同款:interactive 门控=本地决策(controller 单源),
+  // choices 含 pass/cancel = 注册表确已产出出牌阶段选项(相位/选项集不符时不进窗态)。
   const junshiUp =
     interactive &&
     snapshot.phase === "Playing" &&
@@ -231,7 +231,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
 
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
-  // 命令=respondReaction(seat 显式携带)。与军师窗态互斥(AwaitingReaction 相位)。
+  // 命令=respondReaction(seat 显式携带)。与出牌阶段态互斥(AwaitingReaction 相位)。
   // 被询问判定公式单源 controllers/reaction.ts(#284);观战(-1)恒不被询问。
   // 已应答退出窗态(#453/B2):本座已在 pendingReaction.answers 占座(用与不用都占座)
   // 即不再复显横幅/金边/可打牌面——UI 消费权威应答账本,防残留与重复点击入口;引擎
@@ -454,7 +454,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           autopilotOn={autopilotOn}
         >
           {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
-            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:军师窗态载荷随快照
+            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:出牌阶段态载荷随快照
             派生(窗态下架即出牌面,常态点牌仍开详情);#361:架右端双入口开藏品弹层。 */}
           <HandRack
             player={selfPlayer}

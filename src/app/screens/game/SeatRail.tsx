@@ -6,7 +6,7 @@
 // 活跃方=金圈光效+「运筹中」微标(DESIGN.md §4.6 例外保留项,仅此一处;操作不限时,
 // 无回合倒计时条,2026-09-25 拍板)。终局胜者=席位卡金环(.won,DESIGN §4.6:撤掉
 // 文字状态仍可辨则不加文字,无「胜」字章)。
-// 目标段(#256):军师窗指向性牌确认后,候选席位卡金圈呼吸(.candidate/.seat-target,
+// 目标段(#256):出牌阶段指向性牌确认后,候选席位卡金圈呼吸(.candidate/.seat-target,
 // 原型 .selglow 移植,无文字章)+ 点席位即出(免二次确认);棋盘 token 同步呼吸归
 // TokenLayer 挂点。暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探
 // 窥探目标在浮签里追加窥见牌名(原 OthersPanel title 语义平移)。
@@ -181,7 +181,7 @@ function SeatCard({
  *  selfSeat(#453 收口契约):本参数是「屏前真人的自我身份」——单机热座恒 0、联机=本座,
  *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):窥探放行(#122/T4,#453/B1
  *  教训——审计 #446 曾因 prop 名 viewSeat 误判绑定错位)与「自身不出卡」消费的都是
- *  稳定身份。targets(#256 目标段):军师窗指向性牌的候选席位(键=座位号),在场时候选席
+ *  稳定身份。targets(#256 目标段):出牌阶段指向性牌的候选席位(键=座位号),在场时候选席
  *  金圈呼吸、点席位即出;GameScreen 从快照 choices 派生,本件只呈现。 */
 export interface SeatRailProps {
   snapshot: GameSnapshot;

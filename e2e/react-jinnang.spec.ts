@@ -6,7 +6,7 @@
 // huanyou,tmp 仿真脚本复算,与 reaction/jinnang-use/peek 三 spec 同源)——
 // draftOrder=[0,1,3,2] 人类先手;选都三候选 [函谷关(21),江陵(12),幽州(42)],
 // DOM 按格索引序取首格=12 江陵(bot 都:豫=5 江州、陇=17 赤壁、荆=4 成都);
-// 起手牌=求贤令(自身域恒可用)→ **开局军师窗照常升起**(AwaitingJinnang 停靠点保留,
+// 起手牌=求贤令(自身域恒可用)→ **开局出牌阶段照常进入**(AwaitingJinnang 停靠点保留,
 // 与 sanguo seed 49 的「起手唯反应、卷轴后自走」不同):发牌后、任何掷骰前静止,
 // 牌库 14 / 各手 1 不随对局自走漂移。
 import { test, expect } from "./fixtures";
@@ -16,7 +16,7 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 test.describe("锦囊 T1:发牌与可见性", () => {
   test("起手各 1 张:架中见自己牌面;牌库余 14;席位卡见计数章", async ({ page }) => {
     // seed 63 = 真人首动(jinnang-use 同款离线核算,见文件头注):首回合即人类且起手
-    // 求贤令恒可用,开局锦囊卷轴(军师窗)停下时恰「发牌后、任何掷骰前」,牌库 14 /
+    // 求贤令恒可用,开局出牌阶段停稳时恰「发牌后、任何掷骰前」,牌库 14 /
     // 各手 1 不随对局自走漂移。
     await page.goto("/?seed=63");
     // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列

@@ -1,4 +1,4 @@
-// 名将主动技 + 军师幕合并窗单测(#188 档 3):冷却闸门、目标校验(复用 #226 守卫)、
+// 名将主动技 + 出牌阶段合并窗单测(#188 档 3):冷却闸门、目标校验(复用 #226 守卫)、
 // 四技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面)。
 import { describe, it, expect } from "bun:test";
@@ -48,7 +48,7 @@ function prepared(seed?: number, seats?: SeatConfig[]) {
   return e;
 }
 
-/** 把引擎摆到「当前玩家持 hero、停在军师幕」的测试态,返回主动玩家。
+/** 把引擎摆到「当前玩家持 hero、停在出牌阶段」的测试态,返回主动玩家。
  *  手牌清空:技单项场景不掺起手锦囊变量(需要牌的用例自布)。 */
 function armSkill(e: GameEngine, heroId: string) {
   const hero = HEROES.find((h) => h.id === heroId);
@@ -66,7 +66,7 @@ const skillOpt = (e: GameEngine, skillId: string) =>
 
 const seatOpt = (e: GameEngine, seat: number) => e.choicesFor().find((o) => o.id === `t${seat}`);
 
-describe("军师幕:主动技选项集(#188 档 3)", () => {
+describe("出牌阶段:主动技选项集(#188 档 3)", () => {
   it("无目标技就绪 → 窗口选项就绪(id=skill:*,技文案随选项);发动后冷却中灰置,过冷却轮复活", () => {
     const e = prepared();
     armSkill(e, "zhangxingcai");
@@ -248,7 +248,7 @@ describe("主动技结算(#188 档 3)", () => {
   });
 });
 
-describe("军师幕 bot 决策(#188 档 3)", () => {
+describe("出牌阶段 bot 决策(#188 档 3)", () => {
   it("strategy:无牌有就绪技 → bot 出技(擂鼓发动);看门狗 conservative 永不出技;托管 hold 亦不出", () => {
     // 真 bot:出擂鼓
     const e = prepared();

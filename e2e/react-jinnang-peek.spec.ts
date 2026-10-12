@@ -15,7 +15,7 @@
 // 种子离线核算(地图重钉 sanguo→huanyou,fix/sanguo-zhongyuan-layout;seed 63 × huanyou,
 // tmp 仿真脚本复算,react-jinnang-use 同源):人类先手(draftOrder=[0,1,3,2]),选都三候选
 // [函谷关(21),江陵(12),幽州(42)] 取 DOM 首格=12 江陵,起手求贤令(自身域恒可用)
-// → 开局军师窗=稳定停靠点保留(seed 7 在本图起手唯反应牌不开窗,故换 63)。军情密探
+// → 开局出牌阶段=稳定停靠点保留(seed 7 在本图起手唯反应牌不开窗,故换 63)。军情密探
 // 进目标段无附加门槛(#477 起卡级才查存活对手,实测恒可用),bot1 挂一件珍宝不影响本窗;
 // bot1 手牌钉成火烧连营(开局无非都城城,#477 起火烧卡级灰置不可出)——bot1 不会出牌,
 // 窥探观察窗不受干扰。放行后的行程骰以 marchQueue 钉
@@ -27,7 +27,7 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
 /** 开局收口(seed 63 × huanyou 离线核算,见文件头注):选图/起兵/定都(候选 DOM 首格
- *  =12 江陵)后停稳在人类开局军师窗——引擎直写种植的稳定停靠点(内部自带 0.5 倍率;
+ *  =12 江陵)后停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点(内部自带 0.5 倍率;
  *  react-helpers 的 startSolo 钉死 seed 7,本图种子下不开窗,故本 spec 自持开局链)。 */
 async function startPeekStop(page: Page): Promise<void> {
   await useHalfScale(page);
@@ -57,7 +57,7 @@ const marchQueue = (...values: number[]) => `
 
 test.describe("军情密探热座窥探(#453)", () => {
   test("窥探到期即收回;对手行动期间(决策方=bot)浮签放行窥见", async ({ page }) => {
-    await startPeekStop(page); // 停稳在开局军师窗(AwaitingJinnang,人类先手)
+    await startPeekStop(page); // 停稳在开局出牌阶段(AwaitingJinnang,人类先手)
     // 种植(jinnang-use 同款门槛):bot1 有珍宝=可被窥探;人类改持军情密探;行程骰钉「一」。
     await force(
       page,
