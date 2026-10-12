@@ -143,7 +143,7 @@ export interface GameSnapshot {
   jinnangUsedTags: string[];
   /** 锦囊目标段载荷(#122/T3):选牌后的选人子状态;null=卡牌段。 */
   pendingJinnang: import("./jinnang-execution").PendingJinnang | null;
-  /** 技能目标段载荷(#188 档 3):军师幕选技后的选人子状态;null=无。 */
+  /** 技能目标段载荷(#188 档 3):出牌阶段选技后的选人子状态;null=无。 */
   pendingSkill: import("./jinnang-execution").PendingHeroSkill | null;
   /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 挂起的问询 id 句柄 + 透传参数;
    *  null=无。选项集纯派生(choicesFor 按 id 回调注册问询),但句柄必须随快照走——

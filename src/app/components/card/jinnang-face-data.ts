@@ -62,7 +62,7 @@ export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
   return "gold";
 }
 
-/** 军师幕/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌
+/** 出牌阶段/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌
  *  在同一位置恒同角(重渲不翻滚),幅度收敛在「人手摆上去」的一指拨动。散列用 FNV-1a
  *  (乘 31 类散列 mod 小素数会塌到末字符,正负角分布失效);prefers-reduced-motion
  *  的退场在 jinnang-card.css 兜层(JS 不感知)。 */

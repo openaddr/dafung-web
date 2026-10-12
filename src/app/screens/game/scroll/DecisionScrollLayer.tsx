@@ -282,8 +282,8 @@ export function DecisionScrollLayer({
       }
     }
 
-    // ── 军师幕路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架
-    // (军师窗态/动作条/目标段接线归 GameScreen;引擎相位与 choices 零改动)。
+    // ── 出牌阶段路由已退役(#256):AwaitingJinnang 不再弹卷轴,出牌面上架手牌架
+    // (出牌阶段态/动作条/目标段接线归 GameScreen;引擎相位与 choices 零改动)。
     // JinnangScroll 组件体已随 #255 收口删除;令笺亦于 #360 退役(技卡换
     // HeroCardFace 紧凑档,归 HandRack 窗态消费)──
 

@@ -25,7 +25,7 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   victoryDrum: { label: "终局鼓点", when: "终局屏 0ms 起势(鼓滚奏唯一保留位)" },
   scrollOpen: { label: "卷轴展开", when: "卷轴挂载(纸响,播放侧截 1.8s)" },
   jinnangDraw: { label: "锦囊入手", when: "手牌架新牌落架(木叩,播放侧截 0.65s)" },
-  jinnangSelect: { label: "选牌轻嗒", when: "军师幕/反应窗点选牌面(极轻瞬态)" },
+  jinnangSelect: { label: "选牌轻嗒", when: "出牌阶段/反应窗点选牌面(极轻瞬态)" },
 };
 
 function Board() {

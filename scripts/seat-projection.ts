@@ -66,7 +66,7 @@ const ANON_SEAT = -1;
 /** 反应窗公开载荷的 per-seat 投影(#281,ADR-0016):公告字段(cardId/userSeat/
  *  targetSeats)public 原样;queriedBySeat 是 per-seat private 档——**身份匿名、数量
  *  保留**(与 redactEvents 同一口径):自己座位保留,他人一律置换 ANON_SEAT。数量必须
- *  保留:军师窗开窗拍必带校准全量快照,水合无条件覆盖折叠态——若投影把查询集覆盖成
+ *  保留:出牌阶段开窗拍必带校准全量快照,水合无条件覆盖折叠态——若投影把查询集覆盖成
  *  [自己]/[](长度 ≤1),折叠器(event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」
  *  在首条应答即全员误闭窗(#461:非应答端横幅提前消失、丧失应答入口);匿名化相对
  *  god-view 恰好只裁「谁」,同窗询问数量本就可由公开应答流推出(每被询问座位恰应答
@@ -300,7 +300,7 @@ export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
  *  不在本表重复。 */
 export const CALIBRATION_COVERAGE = {
   setupCompleted: "开局校准点:phase=Setup 全程强制全量 + gameStarted 批(finishSetup)",
-  treasureStolen: "军师窗沿:窃玉结算随 AwaitingJinnang 窗闭批,prev/settled 前后沿夹出",
+  treasureStolen: "出牌阶段窗沿:窃玉结算随 AwaitingJinnang 窗闭批,prev/settled 前后沿夹出",
 } as const satisfies {
   readonly [
     K in EventKind as (typeof EVENT_TIERS)[K]["fold"] extends "calibration-only" ? K : never

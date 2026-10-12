@@ -720,7 +720,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
 });
 
 // ─────────────── 出牌指示线(事件批口径)───────────────
-/** 军师幕出牌步骤(横征暴敛=A面全体域):提取事件含 jinnangPlayed(jinnangAnnounced 直译)。 */
+/** 出牌阶段出牌步骤(横征暴敛=A面全体域):提取事件含 jinnangPlayed(jinnangAnnounced 直译)。 */
 function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {
   const e = makeEngine(seed);
   finishSetup(e);

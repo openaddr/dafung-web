@@ -62,7 +62,7 @@
 // ── 校准兜底项(#384 判定表对账:折叠器不碰,由快照水合纠正,ADR-0020 决策 3)──
 //   ①城池降级精确等级:火烧连营/火攻随机降级目标与结果不在任何事件(demolish 结算无事件)
 //   ②窃玉偷香珍宝转移:treasureStolen 只宣告不转移(双方珍宝列表校准)
-//   ③军师窗目标段子状态:pendingJinnang/pendingSkill 无专属事件
+//   ③出牌阶段目标段子状态:pendingJinnang/pendingSkill 无专属事件
 //   ⑤Setup 期字段:draftOrder/draftRolls/currentDraftIndex/offeredCapitals/usedGuohao/
 //     setupPhase,开局校准点覆盖
 //   对账机器(#431):本校准清单的发射侧触发登记单源 scripts/seat-projection——

@@ -31,7 +31,7 @@ import { extensionInquiries } from "./extension-registry";
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
 // marchTraverse 进了 movement-flow.ts,改直调已导出的自由函数,壳内只留 respondReaction。)
 import { respondReaction, type PendingReaction } from "./reaction-window";
-// 锦囊+主动技+效果执行域(#319,ADR-0019):军师幕决策/出牌/效果结算在 jinnang-execution.ts,
+// 锦囊+主动技+效果执行域(#319,ADR-0019):出牌阶段决策/出牌/效果结算在 jinnang-execution.ts,
 // 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调;
 // 载荷类型(JinnangPeek/PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
 import {
@@ -176,7 +176,7 @@ export type GameCommand =
   | { type: "cashHeroBankruptcy"; heroId: string }
   | { type: "confirmBankruptcySettle" }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
-  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3):军师幕内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3):出牌阶段内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
@@ -278,10 +278,10 @@ export class GameEngine {
   jinnangUsedTags: string[] = [];
   /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态;null=卡牌段。随快照走。 */
   pendingJinnang: PendingJinnang | null = null;
-  /** 技能目标段载荷(#188 档 3):军师幕内选技后的选人子状态;null=无。与 pendingJinnang
+  /** 技能目标段载荷(#188 档 3):出牌阶段内选技后的选人子状态;null=无。与 pendingJinnang
    *  互斥(同一时刻至多一个子状态)。随快照走(目标段中途断线可恢复)。 */
   pendingSkill: PendingHeroSkill | null = null;
-  /** 擂鼓步数加成(#188 档 3):军师幕发动 warDrum 技写入,本回合 rollAndMove 掷骰后
+  /** 擂鼓步数加成(#188 档 3):出牌阶段发动 warDrum 技写入,本回合 rollAndMove 掷骰后
    *  取走清零。可序列化——发动与掷骰之间可被快照广播/落盘,与瞬态 marchBonus(同一次
    *  rollAndMove 内写读平衡)不同,必须跨进程保真。 */
   heroDiceBonus = 0;
@@ -533,7 +533,7 @@ export class GameEngine {
   // 自由函数,在 setup-flow.ts,首参接引擎实例;aiChooseCapital/pickCapitalInternal/
   // skipCurrentDraftPick 域内自洽不留壳。setup 期骰流顺序敏感(offeredCapitals 候选
   // 随 rngState 序列化,联机/恢复必须一致),域内逐字保留消耗顺序;首回合锦囊发牌经
-  // 壳上 g.drawJinnang,军师幕入场由域直调 jinnang-execution.enterJinnangPhase 自由
+  // 壳上 g.drawJinnang,出牌阶段入场由域直调 jinnang-execution.enterJinnangPhase 自由
   // 函数(#319/#320 跨模块直调先例)。壳内仅留本 getter(选都进度派生查询)与同名
   // 公共方法薄委托(外部 importer 无感)。
 
@@ -1120,7 +1120,7 @@ export class GameEngine {
   }
 
   // ──────────────── 锦囊+主动技+效果执行(#122/#188 档 3,ADR-0019)────────────────
-  // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/军师幕用牌与出技
+  // 域逻辑在 jinnang-execution.ts(ADR-0019 委托式拆分,#319):抽牌/出牌阶段用牌与出技
   // 决策/出牌宣布与反应窗挂点/效果执行/主动技结算/demolish 与招贤共享单点均为自由函数,
   // 首参接引擎实例。壳内仅留同名公共方法薄委托(外部 importer 无感)与 enterJinnangPhase
   // 私有薄委托(回合壳 endTurn 调用;开局入局 finishSetup 随 #324 迁 setup-flow.ts 后
@@ -1132,7 +1132,7 @@ export class GameEngine {
     return drawJinnang(this, seat, count);
   }
 
-  /** 军师幕入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */
+  /** 出牌阶段入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */
   private enterJinnangPhase(): void {
     enterJinnangPhase(this);
   }

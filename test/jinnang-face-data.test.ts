@@ -172,7 +172,7 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
   });
 });
 
-describe("rackTilt(军师幕/反应窗牌面微旋,±1.5°)", () => {
+describe("rackTilt(出牌阶段/反应窗牌面微旋,±1.5°)", () => {
   it("输出恒在 ±1.5° 内,同 key 确定性(重渲不翻滚)", () => {
     const keys = ["火烧连营#0", "识破诡计#1", "连环计#2", "求贤令#3", "横征暴敛#4"];
     for (const k of keys) {

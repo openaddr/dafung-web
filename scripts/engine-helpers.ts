@@ -157,7 +157,7 @@ export function statusOf(e: GameEngine) {
       activePlayer?.isBot,
       // 城主视角(AwaitingTreasureOwner):提示该谁抉择
       s.turnPhase === "AwaitingTreasureOwner" ? decisionOwnerGuohao(e) : undefined,
-      // 军师幕(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill
+      // 出牌阶段(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill
       e.pendingSkill?.skillId,
     ),
   };
@@ -204,7 +204,7 @@ function promptFor(
       const skill = pendingSkillId
         ? `;待发动技:cmd {"type":"useHeroSkill","skillId":"${pendingSkillId}"}(或其目标段/cancel 作罢)`
         : "";
-      return `${who} 军师幕:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
+      return `${who} 出牌阶段:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
     }
     case "AwaitingReaction":
       return `反应窗(cmd {"type":"respondReaction","seat":<n>,"use":<bool>,"cardId":"<id>"},待应答座位与窗信息见 status.reaction)`;

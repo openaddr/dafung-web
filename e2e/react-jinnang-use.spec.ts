@@ -1,7 +1,7 @@
-// 锦囊使用回路(#122/T2;#256 军师窗态迁移;#281 免战金牌退役改写;#305 整备):
-// 军师幕弹窗退役,出牌面上架手牌架——点牌=选中放大(放大态即详情态),动作条「出牌」=
+// 锦囊使用回路(#122/T2;#256 出牌阶段态迁移;#281 免战金牌退役改写;#305 整备):
+// 旧弹窗退役,出牌面上架手牌架——点牌=选中放大(放大态即详情态),动作条「出牌」=
 // 确认、「不出」=今不用,目标段=席位即靶(金圈呼吸+棋盘 token 呼吸,点席位即出免二次确认)。
-// #281:免战金牌随档 1 退役(预防开盾删除),原「出牌经军师幕」用例改写为「识破诡计
+// #281:免战金牌随档 1 退役(预防开盾删除),原「出牌走旧弹窗」用例改写为「识破诡计
 // 经反应窗打出」——架中反应牌呼吸金边,点牌选中,横幅落印确认。
 // #305 整备两件事:①出牌指示线用例自 jinnang-play-line.spec.ts 并入(出牌→墨线同一
 // 交互链,原文件删除);②引擎断言下沉——结算/留痕/记账归引擎层单测
@@ -12,7 +12,7 @@
 // 种子离线核算(地图重钉 sanguo→huanyou,fix/sanguo-zhongyuan-layout;seed 63 × huanyou,
 // tmp 仿真脚本复算:含 doDraftRoll 骰流):人类先手(draftOrder=[0,1,3,2]),选都三候选
 // [函谷关(21),江陵(12),幽州(42)] 取 DOM 首格=12 江陵(bot 都:豫=5 江州、陇=17 赤壁、
-// 荆=4 成都),起手求贤令(自身域恒可用)→ **开局军师窗=稳定停靠点保留**(sanguo seed 7
+// 荆=4 成都),起手求贤令(自身域恒可用)→ **开局出牌阶段=稳定停靠点保留**(sanguo seed 7
 // 的「起手火烧连营开窗」在本图种子下不存在,seed 7 起手唯反应牌不开窗)。不走 pickCapital
 // 共享助手(其收尾会自动「不出」),本 spec 自行点城+确认以保留窗态。灰置/技卡局面走 force
 // 引擎直写(#237 无天然种子同时凑齐)。
@@ -45,7 +45,7 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await page.getByTestId("start-game").click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId("confirm-capital-ok").click();
-  // 军师窗态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手求贤令恒可用,窗必升起)
+  // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手求贤令恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
@@ -90,7 +90,7 @@ async function plantBotCity(page: Page): Promise<void> {
   );
 }
 
-test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", () => {
+test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)", () => {
   test("seed63 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
     await startJunshi(page, 63);
     // 种植:人类改持识破诡计 + 一座可失之城(都城 12 江陵 +1=13 下邳,0 级);bot 全持
@@ -164,7 +164,7 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
 
   test("军情密探:出牌进目标段,候选席位金圈呼吸,点席位即出(免二次确认)", async ({ page }) => {
     await startJunshi(page, 63);
-    // 先停稳在开局军师窗态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
+    // 先停稳在开局出牌阶段态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
     await force(
       page,
@@ -245,14 +245,14 @@ test.describe("锦囊使用回路(T2,军师窗态;#281 识破诡计反应窗)", 
     await expect(ji.locator(".hface")).toHaveClass(/sel/);
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     // 发技 → 技卡转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,UI 只读
-    // choices 展示;求贤令仍可用 → 相位留在军师窗态,settleJinnangExit 口径)
+    // choices 展示;求贤令仍可用 → 相位留在出牌阶段态,settleJinnangExit 口径)
     await expect(ji.locator(".hface")).toHaveClass(/off/);
     await expect(ji.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
   });
 });
 
 // ───────────────────────── 出牌指示线(#281 P2-E;#305 自 jinnang-play-line 并入)─────────────────────────
-// 军师幕出牌后(#256 后出牌面=手牌架),棋盘出现「使用者 token → 目标 token」水墨墨线
+// 出牌阶段出牌后(#256 后出牌面=手牌架),棋盘出现「使用者 token → 目标 token」水墨墨线
 // (fx-svg-jline,BoardFxLayer 渲染进 #bv-fx;三段 CSS 动画 200ms 生长 → 200ms 停持 →
 // 300ms 淡出,store 清理窗随 E2E_TIME_SCALE 缩放)。指示线是条件性在场的瞬态元素:禁
 // locator 读(缺元素会挂到超时),全程单次 page.evaluate 内 rAF 轮询原子采样(仓库既有

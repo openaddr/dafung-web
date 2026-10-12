@@ -58,7 +58,7 @@ export const TESTIDS = {
   /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
-  // ── 动作条(#256 军师窗态:军师幕弹窗退役,浮于仪表条上缘,两段制)──
+  // ── 动作条(#256 出牌阶段态:旧弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */
   actionbar: "actionbar",
   /** 卡牌段「出牌」确认钮(选中放大牌后可用;未选中=禁用)。 */
@@ -72,7 +72,7 @@ export const TESTIDS = {
   /** 目标段席位点击层(真按钮覆盖席位卡;点席位即出,免二次确认)。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
 
-  // ── 手牌架(#238 常驻;#256 军师窗态;#254 叠加压缩)──
+  // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──
   /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的
    *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻,观战除外)。 */
   jinnangHand: "jinnang-hand",

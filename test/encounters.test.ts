@@ -1045,7 +1045,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
   });
 });
 
-describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞下家回合", () => {
+describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不吞下家回合", () => {
   /** 给 seat 一座指定等级的非都城房产(上块 giveProperty 同款,不跨文件 import):
    *  恰一座 >0 级城 → 耗竭可用选项 =1 → 走 settleExhaustionChoice 自动执行路径。 */
   function giveOneProperty(e: GameEngine, seat: number, level: number): void {
@@ -1062,7 +1062,7 @@ describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞�
     });
   }
 
-  /** 开局并保留起手锦囊(下家须持可用牌,军师幕才开窗——老用例清空手牌故测不到 #452);
+  /** 开局并保留起手锦囊(下家须持可用牌,出牌阶段才开窗——老用例清空手牌故测不到 #452);
    *  仅活跃玩家收卷停 Roll。 */
   function finishSetupKeepHands(e: GameEngine): void {
     e.doDraftRoll();
@@ -1080,7 +1080,7 @@ describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞�
     if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   }
 
-  it("唯一可用选项自动执行后:下家照常入军师幕且可行动,turnNumber 恰 +1", () => {
+  it("唯一可用选项自动执行后:下家照常入出牌阶段且可行动,turnNumber 恰 +1", () => {
     const e = makeEngine(7, undefined, [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
@@ -1104,7 +1104,7 @@ describe("耗竭自动收口 × 军师幕(#452):唯一选项自动路径不吞�
     expect(mover.stamina).toBe(100);
     expect(e.activeIndex).toBe(nextSeat); // 下家回合照常开始(不被吞)
     expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:自动路径内已 endTurn,不得补第二枪
-    expect(e.turnPhase).toBe("AwaitingJinnang"); // 下家军师幕开窗
+    expect(e.turnPhase).toBe("AwaitingJinnang"); // 下家出牌阶段开窗
     expect(e.choicesFor().length).toBeGreaterThan(0); // 卷轴有真实选项,可行动
   });
 });

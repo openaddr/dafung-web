@@ -245,7 +245,7 @@ describe("锦囊使用回路(T2)", () => {
     for (const k of kinds) expect(JINNANG_LIVE_EFFECTS.has(k)).toBe(true);
   });
 
-  it("唯反应牌不进军师幕(#281):灰置「唯反应」、hasUsableJinnang 不计、用牌命令被拒", () => {
+  it("唯反应牌不进「出牌阶段」(#281):灰置「唯反应」、hasUsableJinnang 不计、用牌命令被拒", () => {
     const e = makeEngine(42);
     finishSetup(e);
     const p = armJinnang(e, ["识破诡计"]);
@@ -261,7 +261,7 @@ describe("锦囊使用回路(T2)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("持唯反应牌不触发军师幕(hasUsableJinnang 不计纯反应牌,#281)", () => {
+  it("持唯反应牌不触发「出牌阶段」(hasUsableJinnang 不计纯反应牌,#281)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null); // 清开局卷轴
@@ -307,7 +307,7 @@ describe("锦囊使用回路(T2)", () => {
     expect(e.turnPhase).toBe("AwaitingJinnang"); // 求贤(援)名额未占 → 停留卷轴
     expect(e.choicesFor().find((o) => o.id === "求贤令")?.available).toBe(true);
     e.resolveJinnang("求贤令");
-    // #188 档 3:新招名将的主动技即就绪 → 军师幕重算后停留(合并窗语义);今不用收卷
+    // #188 档 3:新招名将的主动技即就绪 → 出牌阶段重算后停留(合并窗语义);今不用收卷
     expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
     if (e.turnPhase === "AwaitingJinnang") {
       expect(e.choicesFor().some((o) => o.available && o.skillId != null)).toBe(true);

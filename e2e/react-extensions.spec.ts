@@ -87,10 +87,10 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     await waitSettled(page);
   });
 
-  test("主动技「破阵」:军师幕可发,复用 warDrum 结算步数 +1,扩展浮字播报", async ({ page }) => {
+  test("主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1,扩展浮字播报", async ({ page }) => {
     await useHalfScale(page); // 放缓演出:发技后自动起摇前留足断言窗(heroDiceBonus 消费前)
     await quickStart(page, 7);
-    // 种植:人类麾下带示例名将,停军师幕(技卡承载 HeroCardFace compact 档,将旗同挂)
+    // 种植:人类麾下带示例名将,停出牌阶段(技卡承载 HeroCardFace compact 档,将旗同挂)
     await force(
       page,
       `
@@ -108,7 +108,7 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     );
     const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici-pozhen"));
     await expect(ji).toBeVisible();
-    // 渲染 hook 第二卡面:军师幕技卡(compact 档)同样挂将旗
+    // 渲染 hook 第二卡面:出牌阶段技卡(compact 档)同样挂将旗
     await expect(ji.getByTestId(TESTIDS.heroFlag("taishici"))).toHaveAttribute(
       "src",
       "/extensions/hero-taishici/assets/flag.svg",

@@ -157,7 +157,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(victim.jinnangHand).toEqual([]); // 识破诡计已耗
     expect(e.jinnangDiscard).toContain("火烧连营");
     expect(e.jinnangDiscard).toContain("识破诡计");
-    expect(e.turnPhase).toBe("Roll"); // 军师幕收卷
+    expect(e.turnPhase).toBe("Roll"); // 出牌阶段收卷
     expect(e.log.some((l) => l.detail.includes("reactionCounter"))).toBe(true);
   });
 
@@ -436,7 +436,7 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     const userSeat = e.players.indexOf(user);
     const victimSeat = userSeat === 0 ? 1 : 0;
     const victim = e.players[victimSeat];
-    setHand(e, userSeat, []); // 使用者清手:技后收卷不被 dealt 牌拽回军师幕
+    setHand(e, userSeat, []); // 使用者清手:技后收卷不被 dealt 牌拽回出牌阶段
     setHand(e, victimSeat, ["识破诡计"]);
     const capId = e.board.at(victim.capitalIndex)?.propertyId;
     victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];

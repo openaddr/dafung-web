@@ -21,7 +21,7 @@ export const SCROLL_TESTIDS = {
   exhaustionScroll: "scroll-exhaustion",
   exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
-  // (scroll-jinnang* 族已随军师幕弹窗退役删除,#256/#255:放行点迁 actionbar-pass,
+  // (scroll-jinnang* 族已随旧弹窗退役删除,#256/#255:放行点迁 actionbar-pass,
   //  选项/确认 testid 族由 HandRack 的 jinnang-card-* 与动作条 actionbar-* 承担。)
 
   treasureScroll: "scroll-treasure",

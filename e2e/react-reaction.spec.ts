@@ -5,7 +5,7 @@
 //   + 视觉锚(倒计时弧 / 架上金边 / 灰置印「唯反应」);
 // - 超时兜底与降噪口两例原样保留(#292 Q2 立照:守权威侧定时代发 /
 //   静默状态机,非引擎语义);超时例换 helper 的 timeout 模式;
-// - 两处硬等待(军师窗采样窗 / choices 重算一拍)换条件 poll(#292 Q4)。
+// - 两处硬等待(出牌阶段采样窗 / choices 重算一拍)换条件 poll(#292 Q4)。
 // 权威侧兜底=房间编排反应窗看门狗(#281,room watchdogs)定时代发「不用」(与手点同
 // 一条命令路径;#398 单机统一后单机与联机同走房间编排)。注意:权威窗长=引擎
 // windowMs 原值,不吃 e2e 倍率(倍率只缩放演出编排,节拍单源 core/timings,#399);
@@ -16,10 +16,10 @@
 // 地图重钉(sanguo→huanyou,fix/sanguo-zhongyuan-layout):种子离线核算(seed 7 ×
 // huanyou,tmp 仿真脚本复算)——draftOrder=[0,3,2,1] 人类先手;选都三候选
 // [函谷关,下邳,邺城] 取 DOM 首格=13 下邳(bot 都:黔=28 子午谷、荆=24 许昌、宋=14 江夏);
-// 起手牌=识破诡计(唯反应,不入可用集)→ **开局不进军师窗**(无 actionbar「不出」停靠,
+// 起手牌=识破诡计(唯反应,不入可用集)→ **开局不进「出牌阶段」**(无 actionbar「不出」停靠,
 // 旧 startSolo 的停靠点在本图种子下不存在),自动起摇掷「五」落 18 卧龙岗——开局停靠点
 // =招贤纳士三选一(soloAtHeroPick 等卷轴升起)。续局点首将周瑜(pickFirstHero:疾行=
-// 人类行军步数恒 +1,行程骰队列已计入;火攻=回合 2+ 军师窗停靠点来源)。种植后人类
+// 人类行军步数恒 +1,行程骰队列已计入;火攻=回合 2+ 出牌阶段停靠点来源)。种植后人类
 // 无再手动的回合:窗由 bot 链带到(火烧例=bot1 回合开始即出;拦检例=bot1 自首都前一格
 // 掷骰途经下邳)。bot 手牌/位置/骰队列按用例直写;bot1 起手天然持半路杀出(拦检例
 // bot 侧不构成干扰:城主 auto 应答仅当行人是严格首富,离线核算全程未触发)。
@@ -60,7 +60,7 @@ async function soloAtHeroPick(page: Page): Promise<void> {
 }
 
 /** 招贤三选一点首将(周瑜)续局:回合随即收尾交 bot 链。疾行(行军 +1)与火攻(后续
- *  军师窗停靠点来源)两技能被多条编排依赖,勿换将。 */
+ *  出牌阶段停靠点来源)两技能被多条编排依赖,勿换将。 */
 async function pickFirstHero(page: Page): Promise<void> {
   await page.getByTestId(SCROLL_TESTIDS.heroPickOption(0)).click();
 }
@@ -172,7 +172,7 @@ async function plantCounterScenario(page: Page): Promise<void> {
   await pickFirstHero(page);
 }
 
-/** 等人类军师窗升起(seed 7 × huanyou 开局无窗:起手唯反应牌;回合 2 起由可选项带到
+/** 等人类出牌阶段窗态升起(seed 7 × huanyou 开局无窗:起手唯反应牌;回合 2 起由可选项带到
  *  ——混排例=手牌火烧连营本就可用,唯反应例=火攻引窗,p1 都城升 Lv.1 变「可降级」
  *  使火攻可指定)。poll 带 decisionOwner 守卫:bot 链步进途中的 AwaitingJinnang 瞬拍
  *  (decisionOwner=bot)不误配。 */
@@ -183,7 +183,7 @@ async function waitJinnangStop(page: Page): Promise<void> {
         const s = await snap(page);
         return s.decisionOwner === 0 && s.turnPhase === "AwaitingJinnang";
       },
-      { timeout: 60_000, message: "人类军师窗未升起" },
+      { timeout: 60_000, message: "人类出牌阶段未进入" },
     )
     .toBe(true);
 }
@@ -234,7 +234,7 @@ test.describe("反应窗(#281 单机)", () => {
   test("半路杀出三分支走查:拦胜止步落格→平局牌白耗续走→点不用放行牌不耗", async ({ page }) => {
     await soloAtHeroPick(page);
     // 火攻停点钉子:p2 都城升 Lv.1(可降级)→ 周瑜火攻自人类回合 2 起恒可指定,
-    // 每个人类回合开始必停军师窗(waitMyPause 停靠点与行程骰解耦,不赌落格)。
+    // 每个人类回合开始必停出牌阶段(waitMyPause 停靠点与行程骰解耦,不赌落格)。
     await force(page, `e.players[2].properties[0].level = 1;`);
     // 只留首都一道窗:三 bot 各自行程各开一问,顺序吃满三分支(#292 Q1 合并)。
     // #398 快速链 + 权威反应窗(5s):拼点骰开窗前种足、窗内零 force(force 等 fx 排空
@@ -257,7 +257,7 @@ test.describe("反应窗(#281 单机)", () => {
     // ── 分支二 平局:补牌 → 城主 3 对行人 3 → 牌白耗,行人照常续走落原落点 ──
     // #398 快速链适配:分支 1 应答后房间编排一拍跑完整条 bot 链(合并连锁,联机同构),
     // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → plantAmbush 重种手牌/布位/
-    // 骰队 → 放行)。停靠=回合开始军师窗(火攻钉子)。行程骰队列 [1,5]:人类骰 1
+    // 骰队 → 放行)。停靠=回合开始出牌阶段(火攻钉子)。行程骰队列 [1,5]:人类骰 1
     // (+疾行止于 20 凉州可购决策——**停靠让 fx 排空**,若人类一路走到无人停靠格,看门狗
     // 自动化会连播行军动画,answerMarchCounter 的 fx 门在 5s 权威窗内永远等不到空闲);
     // bot 首个行程骰 5 → 拦检窗后续走至 17 落格,away 不赌自然骰。
@@ -281,7 +281,7 @@ test.describe("反应窗(#281 单机)", () => {
     // ── 分支三 放行:补牌 → 点「不用」→ 行人续走、牌不耗 ──
     // 结算断言走结果键(mover 离首都 + 牌留手):火烧窗超时代发已把 use=0 留痕写进
     // 日志,declined 留痕在本局不可作分支信号;放行后结果键一旦为真即终局稳定。
-    // 停靠=回合开始军师窗(火攻钉子)。行程骰队列 [2,5]:人类骰 2(+疾行 → 23 虎牢关
+    // 停靠=回合开始出牌阶段(火攻钉子)。行程骰队列 [2,5]:人类骰 2(+疾行 → 23 虎牢关
     // 可购决策,fx 排空原理同分支二),bot 首个行程骰 5(拦检放行后续走至 17 落格)。
     await waitMyPause(page, 0);
     await plantAmbush(page, { withSecondCity: false, marchSteps: [2, 5] });
@@ -302,13 +302,13 @@ test.describe("反应窗(#281 单机)", () => {
       .toEqual({ away: true, keep: true });
   });
 
-  test("军师幕「唯反应」:两张反应牌皆灰置不入可用集,放行后照常自动起摇", async ({ page }) => {
+  test("出牌阶段「唯反应」:两张反应牌皆灰置不入可用集,放行后照常自动起摇", async ({ page }) => {
     test.setTimeout(90_000); // bot 链(含 p2 求贤令窗 5s 看门狗代发)+ 两段行程,60s 基线偏紧
     await soloAtHeroPick(page); // 停稳招贤卷轴(#303 轻瘦身:手搓开局链路收口 soloAtHeroPick)
     // 招贤停靠点换牌 + 火攻引窗:人类手牌换成两张反应牌(唯反应不入 choices 可用集,
-    // 双牌皆灰置);唯反应手牌自身带不出军师窗(seed 7 起手即唯反应,开局无窗可驻),
-    // p1 都城升 Lv.1(可降级)使周瑜火攻可指定 → 人类回合 2 军师窗必升起,唯反应灰置
-    // 得以在活窗内验证。(#303 实测注仍立:军师窗壳对唯反应手牌驻留、等「不出」点击;
+    // 双牌皆灰置);唯反应手牌自身起不了窗态(seed 7 起手即唯反应,开局无窗可驻),
+    // p1 都城升 Lv.1(可降级)使周瑜火攻可指定 → 人类回合 2 出牌阶段窗态必升起,唯反应灰置
+    // 得以在活窗内验证。(#303 实测注仍立:窗态对唯反应手牌驻留、等「不出」点击;
     // 「窗不在场」断言本就不成立,可守的本质=灰置印 + 放行后自动起摇。)
     await force(
       page,
@@ -330,7 +330,7 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(shipo.locator(".reason")).toHaveText("唯反应(反应窗打出)");
     await expect(banlu.locator(".reason")).toHaveText("唯反应(反应窗打出)");
     // 行程骰钉子(放行前种足):放行后唯反应手牌驻留窗壳等「不出」,而唯反应+火攻
-    // 未发使每个回合开始都重开窗——waitMyRollDone 的完成判定(离开 Roll/军师窗)会把
+    // 未发使每个回合开始都重开窗——waitMyRollDone 的完成判定(离开 Roll/出牌阶段)会把
     // 采样全打在人类回合内,赌自然落格必挂。骰 1(+疾行 → 20 凉州可购决策)把「一手
     // 走完」钉成确定性停靠。
     await force(page, marchQueue(1));
@@ -339,9 +339,9 @@ test.describe("反应窗(#281 单机)", () => {
     await waitMyRollDone(page, 0);
   });
 
-  test("军师幕混排:反应牌灰置印「唯反应」,可用牌照常可出", async ({ page }) => {
+  test("出牌阶段混排:反应牌灰置印「唯反应」,可用牌照常可出", async ({ page }) => {
     await soloAtHeroPick(page); // 停稳招贤卷轴
-    // 招贤停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 军师窗升起
+    // 招贤停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 出牌阶段窗态升起
     await force(page, `e.players[0].jinnangHand = ["火烧连营", "识破诡计"];`);
     await pickFirstHero(page);
     await waitJinnangStop(page);

@@ -57,7 +57,7 @@ function finishSetup(e: GameEngine) {
   }
 }
 
-/** 放行军师窗(开局发牌后入相位;endTurn 后下家停在 AwaitingJinnang,已 Roll 时零操作)。 */
+/** 放行出牌阶段(开局发牌后入相位;endTurn 后下家停在 AwaitingJinnang,已 Roll 时零操作)。 */
 function passJinnang(e: GameEngine): GameEngine {
   while (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
@@ -191,7 +191,7 @@ describe("珍宝系统", () => {
     expect(owner.treasures.length).toBe(ownerTreas0);
     expect(owner.cash).toBe(ownerCash0);
     expect(mover.treasures.length).toBe(0);
-    expect(passJinnang(e).turnPhase).toBe("Roll"); // 已 endTurn(军师窗放行)→ 下一玩家 Roll
+    expect(passJinnang(e).turnPhase).toBe("Roll"); // 已 endTurn(出牌阶段放行)→ 下一玩家 Roll
   });
 
   it("访客现金不足:珍宝进托管区,不可被访客变卖抵抗破产(套利封堵)", () => {

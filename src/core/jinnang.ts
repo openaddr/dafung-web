@@ -9,12 +9,12 @@
 //   名将(非武将);text 首段四字计名前缀仅入详情浮层,牌面笺脚渲染时剥离。
 
 /** 锦囊标签(GLOSSARY.md):功能类别,每回合每类限用一张;一张牌可有多枚,
- *  使用即同时占用其全部标签的本回合名额。「即时」(#281)标记反应锦囊:不经军师幕,
- *  在反应窗打出——名额账本(jinnangUsedTags)只记活跃玩家的军师幕额度,反应牌不入账。 */
+ *  使用即同时占用其全部标签的本回合名额。「即时」(#281)标记反应锦囊:不经出牌阶段,
+ *  在反应窗打出——名额账本(jinnangUsedTags)只记活跃玩家的出牌阶段额度,反应牌不入账。 */
 export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
 
 /** 目标域:由牌面固定(GLOSSARY.md 锦囊条)。two-others 仅连环计(二虎竞食);
- *  reaction(#281)= 纯反应牌:无手动目标段,不经军师幕目标校验,只在反应窗打出。 */
+ *  reaction(#281)= 纯反应牌:无手动目标段,不经出牌阶段目标校验,只在反应窗打出。 */
 export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others" | "reaction";
 
 /** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地;
@@ -41,7 +41,7 @@ export interface JinnangCardDef {
 }
 
 /** 目录 v1(#281 起 9 种):设计拷问会定稿,变更须过「无博弈不锦囊」红线评审。
- *  反应牌两张(识破诡计/半路杀出,「即时」标记)不走军师幕,只在反应窗打出。 */
+ *  反应牌两张(识破诡计/半路杀出,「即时」标记)不经出牌阶段,只在反应窗打出。 */
 export const JINNANG_CARDS: JinnangCardDef[] = [
   {
     id: "连环计",
@@ -117,8 +117,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
   },
 ];
 
-/** 纯反应牌判定(#281 单源):reaction 域 = 只在反应窗打出,不经军师幕/announce 通道。
- *  choices(军师幕灰置「唯反应」)、bot(反应决策)与引擎挂点共用此判定。 */
+/** 纯反应牌判定(#281 单源):reaction 域 = 只在反应窗打出,不经出牌阶段/announce 通道。
+ *  choices(出牌阶段灰置「唯反应」)、bot(反应决策)与引擎挂点共用此判定。 */
 export function isReactionCard(def: JinnangCardDef): boolean {
   return def.targetDomain === "reaction";
 }

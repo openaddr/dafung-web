@@ -825,7 +825,7 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     e.players[userSeat].jinnangHandCount = 1;
     e.players[victimSeat].jinnangHand = ["识破诡计"];
     e.players[victimSeat].jinnangHandCount = 1;
-    // 换图后开局手牌可用性随种子浮动(#477 卡级预检:火烧开局无可毁之城=灰置,可能不进军师幕)。
+    // 换图后开局手牌可用性随种子浮动(#477 卡级预检:火烧开局无可毁之城=灰置,可能不进「出牌阶段」)。
     // 本场景只验反应窗的座位校验——未进窗就直置军师相位,与进相路径无关。
     if (e.turnPhase !== "AwaitingJinnang") e.turnPhase = "AwaitingJinnang";
     const capId = e.board.at(e.players[victimSeat].capitalIndex!)?.propertyId;

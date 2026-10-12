@@ -335,7 +335,7 @@ describe("锦囊 bot 策略(#148)", () => {
         },
       ),
     ).toEqual({ calls: 0, deckDelta: 0, phase: "Roll" });
-    // 唯反应牌(#281):不参评军师幕,恒今不用
+    // 唯反应牌(#281):不参评出牌阶段,恒今不用
     expect(scenario((x) => armJinnang(x, ["识破诡计"]))).toEqual({
       calls: 0,
       deckDelta: 0,

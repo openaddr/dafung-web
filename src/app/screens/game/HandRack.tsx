@@ -11,7 +11,7 @@
 // 语义);桌面=底部居中面板、窄屏(useIsNarrow)=贴底抽屉(上圆角+抓手上条),
 // 一个组件两种皮。挂载不夺焦 = Dialog.Popup initialFocus={false}。
 //
-// 军师窗态(#256,军师幕弹窗退役):轮到玩家且 hasUsableJinnang 时,架就地进窗态
+// 出牌阶段态(#256,旧弹窗退役):轮到玩家且 hasUsableJinnang 时,架就地进窗态
 // ——不弹窗,提示不弹窗。GameScreen 从快照(turnPhase=AwaitingJinnang + choices)
 // 派生 junshi 载荷传入,本件只呈现与发手势:
 //   卡牌段:可出牌金边上浮(.usable);不可用灰置+原因印条(.off+.reason,原因文案
@@ -62,7 +62,7 @@ import "./hand-rack.css";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
-/** 军师窗态载荷(#256;GameScreen 派生,null=常态架)。 */
+/** 出牌阶段态载荷(#256;GameScreen 派生,null=常态架)。 */
 export interface JunshiWindow {
   /** 卡牌段选项(锦囊+技卡,choices 原序,含灰置;目标段传空数组)。 */
   options: ChoiceOption[];
@@ -149,7 +149,7 @@ function nthSame(hand: string[], i: number, id: string): number {
   return hand.slice(0, i).filter((x) => x === id).length;
 }
 
-/** 窗态牌面微旋(#234 P2-E TablePile 质感,±1.5°):军师幕/反应窗内的牌面按
+/** 窗态牌面微旋(#234 P2-E TablePile 质感,±1.5°):出牌阶段/反应窗内的牌面按
  *  「牌 id+#序」确定性取角(重渲不翻滚),经 --tilt 注入牌面(jinnang-card.css
  *  的 rotate:var(--tilt),与交互态 transform 正交;reduced-motion 由 CSS 兜层归零)。
  *  常态架不微旋——质感只归「出手瞬间」的窗态。 */
@@ -270,7 +270,7 @@ function RackCard({
   );
 }
 
-/** 军师窗态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同一张
+/** 出牌阶段态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同一张
  *  名将卡面):手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务
  *  「取消选中」);无发牌音(技不是新入手的牌)。卡面本体按 skillId 反查名将目录
  *  (heroIdByActiveSkillId,同锦囊牌面回查目录口径);choices 载荷只承担可用性/
@@ -325,7 +325,7 @@ function JunshiSkillCard({
 /** 反应窗态载荷(#281,P1-D 牌架即反应窗;GameScreen 派生,缺省=常态架)。
  *  banner=已组装的结算事件横幅(ReactionBanner 件,本件只负责定位在架上缘——
  *  「横幅从手牌架上缘长出」);reactiveIds=此刻可打的反应锦囊(呼吸金边,点牌=选中,
- *  确认在横幅落印钮);selectedId/onSelect=选中可逆(再点同牌取消)。与军师窗态
+ *  确认在横幅落印钮);selectedId/onSelect=选中可逆(再点同牌取消)。与出牌阶段态
  *  (AwaitingJinnang)互斥,不并存。 */
 export interface RackReaction {
   banner: ReactNode;
@@ -337,7 +337,7 @@ export interface RackReaction {
 export interface HandRackProps {
   /** 本地视角玩家(null = 观战/未入座,整个架不渲染)。 */
   player: SnapshotPlayer | null;
-  /** 军师窗态(#256);缺省 = 常态架(点牌开详情)。 */
+  /** 出牌阶段态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
@@ -417,7 +417,7 @@ function RackEntry({
 }
 
 /** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背)+
- *  右端双入口(#361);军师窗态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+
+ *  右端双入口(#361);出牌阶段态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+
  *  反应牌呼吸金边。 */
 export function HandRack({ player, junshi, reaction }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
