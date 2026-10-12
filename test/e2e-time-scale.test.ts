@@ -70,13 +70,8 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
   });
 
   it("DICE", () => {
-    expect(DICE.minRollMs).toBe(500);
-    expect(DICE.hardCapMs).toBe(1500);
     expect(DICE.holdMs).toBe(Motion.dur.reveal);
-    expect(DICE.botMinRollMs).toBe(Motion.dur.med);
-    expect(DICE.botHardCapMs).toBe(900);
     expect(DICE.botHoldMs).toBe(Motion.dur.slow);
-    expect(DICE.fallbackHoldMs).toBe(650);
     expect(DICE.fadeOutMs).toBe(Motion.dur.med);
   });
 

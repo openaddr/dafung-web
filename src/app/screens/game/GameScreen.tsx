@@ -338,7 +338,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
 
   return (
     <AudioProvider>
-      {/* 3D 骰子(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
+      {/* 掷骰签面(自建全屏 overlay,不渲染内容)——与 AudioProvider 同挂在 Game 屏,
           生命周期=一局;#188 第 1 步:掷骰由控制器定时自动发起(起签后起摇),演出期间
           控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />

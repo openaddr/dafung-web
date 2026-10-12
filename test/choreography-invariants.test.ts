@@ -4,8 +4,8 @@
 // 收编时悄悄破坏演出语义:
 //   横幅 — FX.bannerMs 必须大于 CSS 演出全长 Motion.dur.banner(余量为正,播完有余再清),
 //          FX.bannerHoldMs 必须小于 FX.bannerMs(停留窗是编排窗的子区间);
-//   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts X5 注释原文:任何掷骰结束后
-//          都有 ≥300ms 可读结果);
+//   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
+//          (含 bot)结束后都有 ≥300ms 可读结果);
 //   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
 //   倍率地板 — TIME_SCALE_FLOOR_MS ≥ 100(headless+软渲的可观察下限不被悄悄调低)。
 // 数值本身的逐位锁定在 test/e2e-time-scale.test.ts(生产恒等快照),本文件只管关系。
@@ -22,7 +22,7 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(FX.bannerHoldMs).toBeLessThan(FX.bannerMs);
   });
 
-  it("骰子可读结果:DICE.holdMs + DICE.fadeOutMs >= 300(X5:任何掷骰结束后有 ≥300ms 可读结果)", () => {
+  it("骰子可读结果:DICE.holdMs + DICE.fadeOutMs >= 300(任何掷骰(含 bot)结束后有 ≥300ms 可读结果)", () => {
     expect(DICE.holdMs + DICE.fadeOutMs).toBeGreaterThanOrEqual(300);
   });
 

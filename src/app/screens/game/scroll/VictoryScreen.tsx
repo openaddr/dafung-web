@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { VictoryReason } from "@core/authority";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
-import { finishDiceOverlay } from "@app/fx/ThreeDice";
+import { finishDiceOverlay } from "@app/fx/DiceOverlay";
 // #117 收编:再战按钮延后挂载时长走 fx/timings.ts(UI.victoryButtonMs)。
 import { UI } from "@app/fx/timings";
 // #174:全屏模态语义——胜利屏是全屏覆盖而非弹窗(#155 结论,不套 ui/dialog 的
@@ -117,7 +117,7 @@ export function VictoryScreen({
   // E2:再战按钮延后挂载(防演出高潮期误触重开)。
   const [showButton, setShowButton] = useState(false);
   useEffect(() => {
-    // D2:终局瞬间切屏可能赶在骰子 holdMs 隐藏定时器之前,先清残留 overlay(z-45 压屏)。
+    // D2:终局瞬间切屏可能赶在签面 hold 定时器之前,先清残留 overlay(z-45 压屏)。
     finishDiceOverlay();
     // E1:入场音组——0ms 鼓点起势(victoryDrum,终局专属鼓滚奏;回合横幅已撤鼓滚,
     // 见 audio.ts 音效审计注),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印

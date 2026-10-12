@@ -7,7 +7,7 @@
    JS 侧 FX.bannerMs 经 fx/timings.ts 同源换算)。
    例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
 
-/* ── 3D 骰子全屏覆盖层(ThreeDice append 到 body,样式必须在此定义)──
+/* ── 掷骰签面全屏覆盖层(DiceOverlay 掷骰时 append 到 body,样式必须在此定义)──
    ⚠ 教训(2026-08-16):本规则原住旧 style.css,阶段 10 删旧层时被误删——
    overlay 没有 fixed 定位就瘫在文档流末尾被 overflow:hidden 吃掉,骰子动画
    自此隐形而 e2e(swiftshader)不验视觉,一路全绿未察觉。body 上挂载的元素
@@ -30,7 +30,7 @@
   }
 }
 
-/* X5 渐隐退场:覆盖入场动画(display:none 硬切的替代;--dur-med=250ms 与 DICE.fadeOutMs 同步,
+/* 渐隐退场:覆盖入场动画(display:none 硬切的替代;--dur-med=250ms 与 DICE.fadeOutMs 同步,
    改时长须两处同改)。退场缓动归 --ease-in。 */
 .dice-overlay.dice-overlay-out {
   animation: dice-overlay-out var(--dur-med) var(--ease-in) forwards;
@@ -44,9 +44,9 @@
   }
 }
 
-/* X5 落定大字签面(3D 骰落定确认 / 软渲 fallback 文字签面共用):
-   底色、双线框、墨字镜像 ThreeDice.ts createFaceTextures 的骰面材质——
-   这些字面量是「骰面材质」而非色板色(与 3D 贴图逐值一致),故不引 token;
+/* 掷骰大字签面(唯一掷骰演出,#483 3D 骰退役;原为 3D 落定确认/软渲 fallback 共用):
+   底色、双线框、墨字为旧 3D 骰面材质的同款字面量(「骰面」视觉身份的存续)——
+   这些字面量是「骰面材质」而非色板色,故不引 token;
    黑色阴影属投影,保留字面量。 */
 .dice-sign {
   position: absolute;

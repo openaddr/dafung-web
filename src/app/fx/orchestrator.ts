@@ -14,8 +14,7 @@
 import type { MovePath } from "@core/board";
 import { formatMoney } from "@core/money";
 import { getAudio } from "./audio";
-import { diceApi } from "./DiceOverlay";
-import { setDiceFast, showFallbackDiceSign } from "./ThreeDice";
+import { diceApi, setDiceFast } from "./DiceOverlay";
 import { useFxStore } from "./fxStore";
 import { animateMove, beginMarch } from "./useMarch";
 import { delay, FX } from "./timings";
@@ -74,18 +73,14 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
 }
 
 // ─────────────────────── 骰子动画 ───────────────────────
-/** 掷骰表现:3D 物理骰优先;WebGL 不可用 → 全屏文字签面(X5:弹入→停留→渐隐,
- *  替代旧「黑屏干等 650ms」),签面现身时落骰声(时序对齐 3D 路径)。
- *  生产 sink 的 rollDice 落点(sinks.ts),单机/联机共用。 */
+/** 掷骰表现:全屏签面(diceApi → DiceOverlay:弹入→停留→渐隐),单机/联机共用。
+ *  起手沙锤 + 签面现身落骰声同拍(时序沿袭旧无 WebGL 签面路径,onLand 同步)。
+ *  生产 sink 的 rollDice 落点(sinks.ts)。 */
 export async function animateDice(die: number): Promise<void> {
   const audio = getAudio();
   audio.play("diceRoll");
-  if (diceApi.available) {
-    await diceApi.roll(die);
-    audio.play("diceLand");
-    return;
-  }
-  await showFallbackDiceSign(die, () => audio.play("diceLand"));
+  audio.play("diceLand");
+  await diceApi.roll(die);
 }
 
 /** 反应窗续结算的余段行军路径(#281 拦停/续走):拦检窗挂起时视觉棋子停在
