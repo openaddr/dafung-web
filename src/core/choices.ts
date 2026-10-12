@@ -325,13 +325,27 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
     // 纯反应牌(#281):不经军师幕,恒灰置「唯反应」——持唯反应牌不进军师幕
     // (hasUsableJinnang 由此不计纯反应牌);只在反应窗(snapshot.reaction)打出。
     const reactionOnly = isReactionCard(def);
-    // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4)
+    // 连环计需要两名有效目标:候选不足即灰置「对手不足」(T4);单目标域(#477)同样
+    // 预检——一名有效目标都没有时牌不可名标,放行只会烧空/窥空(火烧=对手无可毁之城,
+    // 窃玉=对手无珍宝,密探/缓兵=无存活对手,末者实际对局不可达,域级守卫顺手覆盖)。
     const needTwo = def.targetDomain === "two-others";
-    const validTargets = needTwo
-      ? e.players.filter((_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok)
-          .length
-      : 0;
-    const targetsShort = needTwo && validTargets < 2;
+    const needOne = def.targetDomain === "one";
+    const validTargets =
+      needTwo || needOne
+        ? e.players.filter(
+            (_, i) => jinnangTargetOk(e, e.players.indexOf(p), i, def.effect.kind).ok,
+          ).length
+        : 0;
+    const targetsShort = (needTwo && validTargets < 2) || (needOne && validTargets < 1);
+    const targetsReason = !targetsShort
+      ? undefined
+      : needTwo
+        ? "对手不足"
+        : def.effect.kind === "demolish"
+          ? "无可毁之城"
+          : def.effect.kind === "stealTreasure"
+            ? "无珍宝"
+            : "对手不足";
     return {
       id: cardId,
       label: def.id,
@@ -341,7 +355,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
         : !implemented
           ? "此计暂未启用"
           : targetsShort
-            ? "对手不足"
+            ? targetsReason
             : quotaBlocked
               ? `本回合已用过〔${def.tags.filter((t) => used.has(t)).join("〕〔")}〕`
               : undefined,
