@@ -20,6 +20,14 @@ game-specific checklist and evidence conventions.
 2. 浏览器操作用会话内建能力(browser-use:control-browser / web-gui-tester);截图存 `docs/dogfood/screenshots/`(只留本地不入库),报告写 `docs/dogfood/report.md`(入库存档)。
 3. 横屏是第一视口:设 932×430(与 Android 目标一致)再走查;窄竖屏只做一次冒烟。
 
+### 工装坑(走查实锤,先读再动手)
+
+- **改了 `public/`(地图/配置)必先 build 再开页面**:preview 吃构建期拷贝,不 build 就是拿旧资产走查——曾三轮评审改一个从未生效的坐标。
+- **e2e 或别的 preview 在跑时严禁并行 rebuild dist**:重建会删掉已加载客户端的懒加载 chunk,造成假死/假失败——勿当产品 bug 立案。
+- **面板切后台 = 游戏停摆**:主循环 rAF 驱动,浏览器后台节流即冻结(失焦暂停的既知行为,`setTimeout` 仍走、`requestAnimationFrame` 归零即此症)。走查期间保持面板前台;跨回合保活给标签页 `markHandoff()`(回合结束未标记的标签页会被释放,对局连着丢)。
+- **页面内交互走 JS 派发**:locator/cua 点击易超时;SVG 元素没有 `.click()`——统一 `el.dispatchEvent(new MouseEvent("click", { bubbles: true }))`。
+- 出牌阶段的等待不长 scroll 弹窗:手牌架可交互 + 浮动的「不出」钮即是在等人,轮询探测别只盯 `[data-testid^="scroll-"]`。
+
 ## 走查清单(按序,发现问题就地取证)
 
 1. **首页四入口**:单机/联机/选择地图/编辑器,每张卡可达、文案无截断。
