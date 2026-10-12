@@ -11,7 +11,6 @@ import { createDice } from "@core/dice";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import type { GameSnapshot } from "@core/snapshot";
 import { OnlineController } from "@app/controllers/online";
-import chessboardData from "../public/maps/chessboard.json" with { type: "json" };
 import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
 
@@ -20,10 +19,6 @@ interface Bundle {
   data: MapData;
 }
 
-const CHESSBOARD: Bundle = {
-  map: loadMap(chessboardData),
-  data: chessboardData as unknown as MapData,
-};
 const HUANYOU: Bundle = { map: loadMap(huanyouData), data: huanyouData as unknown as MapData };
 const ZHONGYUAN: Bundle = {
   map: loadMap(zhongyuanData),
@@ -135,19 +130,25 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     const c = new OnlineController(HUANYOU.map, "huanyou");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
-    // 大厅先后切两图:zhongyuan(A,在途)→ chessboard(B,后到);A 的取图最后落地
+    // 大厅先后两次切 zhongyuan(同图重切:首次落地前 mapId 未动,第二次照样起步
+    // rebuild,竞速语义与异图连切一致);后到的取图先落地(独立 loadMap 实例,
+    // board 对象身份可区分先后)
     x.onMessage(lobbyMsg("zhongyuan"));
-    x.onMessage(lobbyMsg("chessboard"));
+    x.onMessage(lobbyMsg("zhongyuan"));
     expect(x.mapId).toBe("huanyou"); // 两次取图都在途,mapId 未动
-    gates.gate("chessboard").resolve(CHESSBOARD);
+    const LATEST: Bundle = {
+      map: loadMap(zhongyuanData),
+      data: zhongyuanData as unknown as MapData,
+    };
+    gates.gate("zhongyuan", 1).resolve(LATEST);
     await drain();
-    expect(x.mapId).toBe("chessboard");
-    expect(c.engine.board).toBe(CHESSBOARD.map.board);
-    // 过期的 zhongyuan 取图后到:必须整单丢弃(不回退、不换板)
-    gates.gate("zhongyuan").resolve(ZHONGYUAN);
+    expect(x.mapId).toBe("zhongyuan");
+    expect(c.engine.board).toBe(LATEST.map.board);
+    // 过期的首次取图后到:必须整单丢弃(不回退、不换板)
+    gates.gate("zhongyuan", 0).resolve(ZHONGYUAN);
     await drain();
-    expect(x.mapId).toBe("chessboard");
-    expect(c.engine.board).toBe(CHESSBOARD.map.board);
+    expect(x.mapId).toBe("zhongyuan");
+    expect(c.engine.board).toBe(LATEST.map.board);
   });
 
   it("开局前落地(既有语义):整换新图占位壳,等快照水合", async () => {

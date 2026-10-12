@@ -1,4 +1,4 @@
-// 经济数值 v2 一致性守卫:三张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
+// 经济数值 v2 一致性守卫:两张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
 // buildCost/resupplyPerLevel 必须严格落在其价位档的标准值上(乘法城另表),
 // 珍宝指导价表/等级倍率/引擎默认值一并锁定——防手改地图数值漂移。
 import { describe, it, expect } from "bun:test";
@@ -6,7 +6,6 @@ import { loadMap } from "@core/board-loader";
 import { isCityType } from "@core/board";
 import { TREASURE_PRICE, CITY_LEVEL_MULTIPLIER } from "@core/treasures";
 import zhongyuanData from "../public/maps/zhongyuan.json";
-import chessboardData from "../public/maps/chessboard.json";
 import huanyouData from "../public/maps/huanyou.json";
 
 /** 价位档标准表(#299 重标定后唯一单位=两;档号是「购价百两」速记——18 档即 1,800 两,
@@ -40,7 +39,7 @@ TIERS.set(30, {
   valueByLevel: [12, 18, 26, 36].map(tierLiang),
 });
 
-/** 环游图逐城价位档(档号=购价百两);chessboard 与环游图同 id 同档,zhongyuan 各自映射到同一张表。 */
+/** 环游图逐城价位档(档号=购价百两);zhongyuan 各自映射到同一张表。 */
 const HUANYOU_TIER: Record<string, number> = {
   "prop-changan": 40,
   "prop-luoyang": 40,
@@ -74,7 +73,7 @@ const HUANYOU_TIER: Record<string, number> = {
   "prop-youzhou": 22,
   "prop-liaodong": 18,
   // 宝物城(ADR-0024 同权入册,档位钉死):咸阳/虎牢关/弘农=34(中原),函谷关=22(西凉),
-  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)——环游/chessboard 同 id 同档
+  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)
   "prop-xianyang": 34,
   "prop-hulao": 34,
   "prop-hongnong": 34,
@@ -144,10 +143,8 @@ function checkResupply(name: string, data: any) {
 }
 
 describe("经济数值 v2 守卫", () => {
-  checkMap("chessboard", chessboardData, HUANYOU_TIER); // 与环游图同 id 同档(同源经济)
   checkMap("huanyou", huanyouData, HUANYOU_TIER); // 核心维护图,#249 环序重排
   checkMap("zhongyuan", zhongyuanData, ZY_TIER);
-  checkResupply("chessboard", chessboardData);
   checkResupply("huanyou", huanyouData);
   checkResupply("zhongyuan", zhongyuanData);
 

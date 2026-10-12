@@ -8,14 +8,6 @@
     "targetNetWorth": 30000
   },
   {
-    "id": "chessboard",
-    "name": "棋盘天下",
-    "file": "chessboard.json",
-    "desc": "蛇形全网格版:7×6 主环 45 格 S 形铺满,行末 U 弯衔接,东西延伸列藏宝物城",
-    "tileCount": 38,
-    "targetNetWorth": 30000
-  },
-  {
     "id": "zhongyuan",
     "name": "中原争霸",
     "file": "zhongyuan.json",
