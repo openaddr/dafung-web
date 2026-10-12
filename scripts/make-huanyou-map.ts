@@ -1,20 +1,19 @@
 // 生成「环游图」内置地图(public/maps/huanyou.json)——#249 地图环序重排。
 //
-// #249 病根:「棋盘天下」主环顺序沿旧图未重排,首格长安与尾格会稽同在
-// 西列相隔 5 行,闭环边靠 board.sideArc 绕西缘画长弧,玩家看不出这是个环。
-// 本图沿用 chessboard 的 7×6 蛇形网格几何(坐标/间距/画布完全一致,StaticLayers
-// 兼容),但**重排主环顺序(tiles 数组顺序)**:长安 (0,0) 为蛇头沿西栈道南下,
-// 蛇形盘完全图后会稽 (1,0) 与长安同排相邻——闭环边就是顶部一行一格横边,
-// 环在画面上可读闭合。主环拓扑仍是 tiles 数组顺序闭合环,引擎零改动。
+// 主环 45 格沿 7×6 蛇形网格加东西延伸列排布,且**环序重排**(#249:旧环序首尾
+// 同在西列相隔 5 行,闭环边靠 board.sideArc 绕西缘画长弧,玩家看不出这是个环):
+// 长安 (0,0) 为蛇头沿西栈道南下,蛇形盘完全图后会稽 (1,0) 与长安同排相邻——
+// 闭环边就是顶部一行一格横边,环在画面上可读闭合。主环拓扑仍是 tiles 数组顺序
+// 闭合环,引擎零改动。
 //
 // 走法(见 RING 表):西栈道(蜀道线)南下 → 底行东行(南疆/荆南)→ 行4 西行
 // (荆楚北)→ 行3 东行(西凉→中原→青徐)→ 行2 西行(青徐尾→关陇西)→
 // 行1 东行(并青→江东)→ 行0 西行(江东尾→幽燕→中原西归)→ 会稽收尾。
 // ADR-0024:主环 45 格(42 + 上庸/下邳/弘农三座宝物城,东西延伸列单格凸出)。
 //
-// 经济数据源:chessboard.json(与环游图同 id 同档经济,且含 #147 还原的子午谷与
-// 两只渡口/驿站格,45 格 id 全集齐备)——逐 tile 只换 pos 并重排数组顺序,其余字段
-// (id/name/type/group/region/价格/租金/补给)原样保留,经济守卫测试同 HUANYOU_TIER 表。
+// 经济数据源:huanyou.json 自身(**自再生**:经济字段原样保留,只重算几何)——
+// 逐 tile 只换 pos,其余字段(id/name/type/group/region/价格/租金/补给)原样保留,
+// 经济守卫测试同 HUANYOU_TIER 表。
 //
 // 本脚本内置 #249 全部硬约束断言(首尾相邻/网格相邻/锚点环距/节奏无三连同型),
 // 违反直接抛错(零兜底)。运行:bun scripts/make-huanyou-map.ts
@@ -29,19 +28,17 @@ import type { MapData, MapTile } from "../src/core/board-loader";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
-const src = JSON.parse(
-  readFileSync(resolve(root, "public/maps/chessboard.json"), "utf8"),
-) as MapData;
+const src = JSON.parse(readFileSync(resolve(root, "public/maps/huanyou.json"), "utf8")) as MapData;
 
-// ── 网格参数(与 chessboard 完全一致 + ADR-0024 东西延伸列)──
-// ADR-0024 宝物城调平 4→7:chessboard 已向东西各延伸一列收编上庸/弘农/下邳
-//(c=-1 → x=-1350、c=7 → x=1550,与相邻标准列间距 250);本图沿用同一延伸几何,
-// 三城按本图环序就近落位(底行西端上庸 / 荆楚东端下邳 / 商市与子午谷之间弘农)。
+// ── 网格参数(7×6 蛇形网格 + ADR-0024 东西延伸列)──
+// ADR-0024 宝物城调平 4→7:向东西各延伸一列收编上庸/弘农/下邳
+//(c=-1 → x=-1350、c=7 → x=1550,与相邻标准列间距 250);
+// 三城按环序就近落位(底行西端上庸 / 荆楚东端下邳 / 商市与子午谷之间弘农)。
 const COLS = 7,
   ROWS = 6;
 const COL_STEP = 400,
   ROW_STEP = 310;
-// ADR-0024 延伸列 x(与相邻标准列间距 250,列距 400 的收敛档;与 make-chessboard 同款)
+// ADR-0024 延伸列 x(与相邻标准列间距 250,列距 400 的收敛档)
 const EXT_COL_X: Record<number, number> = { [-1]: -1350, 7: 1550 };
 const gx = (c: number) => EXT_COL_X[c] ?? 100 + (c - 3) * COL_STEP; // 列 0..6 → x -1100..1300
 const gy = (r: number) => 30 + (r - 2.5) * ROW_STEP; // 行 0..5 → y -745..805
@@ -106,11 +103,11 @@ const RING: Array<{ id: string; c: number; r: number }> = [
 // ── 四个自然都城锚点(环距均匀性断言用)──
 const ANCHORS = ["prop-changan", "prop-changsha", "prop-luoyang", "prop-linzi"];
 
-// ── 组装:按 RING 顺序从 chessboard 逐 tile 取数、只换 pos ──
+// ── 组装:按 RING 顺序从源图逐 tile 取数、只换 pos ──
 const byId = new Map(src.tiles.map((t) => [t.id, t]));
 const tiles: MapTile[] = RING.map(({ id, c, r }) => {
   const t = byId.get(id);
-  if (!t) throw new Error(`chessboard 缺少 tile:${id}`);
+  if (!t) throw new Error(`huanyou.json 缺少 tile:${id}`);
   return { ...t, pos: [gx(c), gy(r)] };
 });
 // id 全集恰好用尽:多一格少一格都是走位表错
@@ -202,7 +199,7 @@ console.log(`loadMap 校验通过:${loaded.tiles.length} 格 / ${propCount} 座�
 
 // ── 写 huanyou.json ──
 // oxfmt 按项目配置忽略 public/**,纯数字数组(JSON.stringify 会逐项换行)手动收紧凑,
-// 与 chessboard.json 既有产物风格一致。
+// 保持既有产物风格。
 const compactJson = (s: string) =>
   s.replace(
     /\[\s+(-?\d+(?:,\s+-?\d+)*)\s+\]/g,
@@ -220,7 +217,7 @@ const entry = {
   id: "huanyou",
   name: "环游图",
   file: "huanyou.json",
-  desc: "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合",
+  desc: "首尾相连的蛇形环:会稽与长安同排相邻,一格闭环边可见闭合,东西延伸列藏宝物城",
   // tileCount 口径 = 城池数(与既有条目/选图面板「N 城」一致),非格数
   tileCount: propCount,
   targetNetWorth: src.targetNetWorth,

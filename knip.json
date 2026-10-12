@@ -4,7 +4,6 @@
     "index.html",
     "scripts/cli.ts",
     "scripts/fetch-asset.ts",
-    "scripts/make-chessboard-map.ts",
     "scripts/shot.mjs",
     "test/**/*.test.ts",
     "e2e/**/*.spec.ts",

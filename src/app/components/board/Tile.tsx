@@ -64,7 +64,7 @@ interface TileProps {
 // hover 重排随 SVG transform 同步放大,无需另调)。
 // 屏幕上的净大小 = TILE_SCALE / 画布放大倍数(1.4x):#58 蛇形重排后网格步距
 // 列 400/行 310,城池再放大:1.96→2.2(净 2.2/1.4≈1.57x)。
-// 压盖校验:铭牌外缘 ~104×2.2≈229 < 行距 310 < 列距 400(chessboard 蛇形网格步距)。
+// 压盖校验:铭牌外缘 ~104×2.2≈229 < 行距 310 < 列距 400(环游图蛇形网格步距)。
 const TILE_SCALE = 2.2;
 
 // ── 竖排木匾城名 ──
@@ -522,7 +522,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
               仍可辨的形状级王权信号,不依赖文字/描边细节。
               旗杆基点固定 -40:城楼加层长高后旗杆「立于楼中」(城头立旗),旗面高度不变,
-              不加重与邻城铭牌的既有避让余量(chessboard 存在同列 196 的近距上下邻城)。 */}
+              不加重与邻城铭牌的既有避让余量(环游图存在同列 196 的近距上下邻城)。 */}
           {isCapital && state.capitalColorIndex != null ? (
             <g className="bv-tile-flag">
               <line x1={0} y1={-40} x2={0} y2={-88} stroke="rgba(50,35,15,0.8)" strokeWidth={2} />

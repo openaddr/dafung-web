@@ -209,7 +209,7 @@ export const TerrainLayer = memo(function TerrainLayer() {
 // 区域色 radial 晕染(峰值 opacity 15%,边缘渐隐到 0),城池/道路可读性不降。
 // 区域中心不写死布局,而是从 board.tiles 的 region(中文名,两张内置图均随
 // group 一起配置)反查 Theme.groupNames 得到 a–h,再取该区域城池坐标的
-// 几何中心 → 内置图(huanyou/chessboard/zhongyuan)自适应,自定义地图同样生效。
+// 几何中心 → 内置图(huanyou/zhongyuan)自适应,自定义地图同样生效。
 /** 区域名(中原…)→ 分组键(a–h),预计算反查表。 */
 const REGION_TO_GROUP: ReadonlyMap<string, string> = new Map(
   Object.entries(Theme.groupNames).map(([g, name]) => [name, g]),
