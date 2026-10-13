@@ -431,6 +431,19 @@ const MIME: Record<string, string> = {
   ".woff": "font/woff",
   ".webp": "image/webp",
 };
+/** 缓存策略按文件类别三分(哈希文件名=内容寻址,才配长缓存):
+ *  - /bundles/* 是 vite 内容哈希产物,内容变→文件名变 → immutable 一年,回访零请求;
+ *  - index.html 引用哈希文件名,no-cache=可缓存但每次回源校验——发版后旧 html 才不会
+ *    指向已不存在的哈希文件 404;
+ *  - 其余静态资产(字体/图/音频/maps/config)无哈希名,保守 60s(原口径)。
+ *  压缩不在此做:生产走 Caddy 反代 encode 指令(部署层职责,2026-10-12 拍板);
+ *  LAN/play 直连路径已知为裸传,详见 docs/how-to/部署服务器.md。 */
+function cacheHeader(rel: string): string {
+  if (rel.startsWith("/bundles/")) return "public, max-age=31536000, immutable";
+  if (rel === "/index.html") return "public, no-cache";
+  return "public, max-age=60";
+}
+
 async function serveStatic(urlPath: string): Promise<Response> {
   if (!existsSync(STATIC_DIR)) {
     return sendJson(404, { ok: false, error: `静态目录不存在:${STATIC_DIR}(先 bun run build)` });
@@ -448,7 +461,7 @@ async function serveStatic(urlPath: string): Promise<Response> {
   return new Response(file, {
     headers: {
       "Content-Type": MIME[extname(filePath).toLowerCase()] ?? "application/octet-stream",
-      "Cache-Control": "public, max-age=60",
+      "Cache-Control": cacheHeader(rel),
     },
   });
 }
