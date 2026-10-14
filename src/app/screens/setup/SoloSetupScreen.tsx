@@ -170,7 +170,7 @@ export function SoloSetupScreen({
           <h1 className="font-brush text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
           <button
             type="button"
-            data-testid="solo-setup-back-top"
+            data-testid={TID.backTop}
             onClick={onBack}
             aria-label="返回首页"
             className="note-btn absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[32px] text-ink cursor-pointer transition-colors"

@@ -3,6 +3,7 @@
 // screen = 单机配置页(信息架构重构后由原 SetupScreen 迁来;首页 testids 见 home/)。
 export const TID = {
   screen: "solo-setup-screen",
+  backTop: "setup-back-top",
   seatCount: "setup-seat-count",
   target: "setup-target",
   difficulty: "setup-difficulty",
