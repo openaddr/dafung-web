@@ -120,7 +120,7 @@ function NamePlaque({
           x={40}
           y={y0 + 15 + i * step}
           textAnchor="middle"
-          fontFamily="var(--font-deco)"
+          fontFamily="var(--font-title)"
           fontSize={fs}
           fontWeight={700}
           fill={capital ? rgba(Theme.ink) : "rgba(238,210,140,0.96)"}
@@ -168,7 +168,7 @@ function LevelSeal({ level, replay }: { level: number; replay: boolean }) {
       <text
         y={4.2}
         textAnchor="middle"
-        fontFamily="var(--font-brush)"
+        fontFamily="var(--font-title)"
         fontSize={12}
         fontWeight={700}
         fill={rgba(Theme.ink)}
@@ -200,7 +200,7 @@ function CandidateSeal({ order }: { order: number }) {
       <text
         y={4.2}
         textAnchor="middle"
-        fontFamily="var(--font-brush)"
+        fontFamily="var(--font-title)"
         fontSize={12}
         fontWeight={700}
         fill={rgba(Theme.goldBright)}
@@ -573,7 +573,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 x={0}
                 y={5}
                 textAnchor="middle"
-                fontFamily="var(--font-brush)"
+                fontFamily="var(--font-title)"
                 fontSize={14}
                 fontWeight={700}
                 fill={rgba(Theme.goldBright)}
@@ -601,7 +601,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 x={0}
                 y={5}
                 textAnchor="middle"
-                fontFamily="var(--font-brush)"
+                fontFamily="var(--font-title)"
                 fontSize={14}
                 fontWeight={700}
                 fill={rgba(Theme.goldBright)}
@@ -630,7 +630,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
                 x={0}
                 y={5}
                 textAnchor="middle"
-                fontFamily="var(--font-brush)"
+                fontFamily="var(--font-title)"
                 fontSize={14}
                 fontWeight={700}
                 fill={rgba(Theme.ink)}

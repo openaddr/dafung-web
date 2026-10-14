@@ -21,6 +21,7 @@
 - **audio:scroll-unroll** — CC0 / leoanderson67 (Freesound) — 47184B (ogg) — [source](https://freesound.org/s/710764/) — 2026-08-30
 - **font:wenkai** — SIL OFL 1.1 / Lxgw(LXGW WenKai);打包 Chawye Hsu — 2856992B(59 分片 woff2,Regular;分片集按项目文本语料筛选,Light 未取) — [source](https://github.com/chawyehsu/lxgw-wenkai-webfont) — 2026-08-30
 - **font:longcang** — SIL OFL 1.1 / Chen Xiaomin(Long Cang 龙藏) — 1483328B(24 分片 woff2;高频桶 + latin/标点) — [source](https://fonts.google.com/specimen/Long+Cang) — 2026-08-30
+- **font:kuhei** — 免费商用(站酷字体系列:可商用,不可转售/注册商标)/ 站酷 ZCOOL(站酷酷黑体体验版,© HuXiaoBo 2016) — 364044B(18 分片 woff2;项目语料频次桶 + latin/标点,扫描零缺字) — [source](https://www.zcool.com.cn/special/zcoolfonts)(获取通道:npm @fontpkg/zcool-ku-hei@3.12.0,已验真 name 表 ZCOOL_KuHei) — 2026-10-14
 - **hero:simayi:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)司马懿-经典形象 · wiki 上传者 17981205 — 210233B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=2199) — 2026-08-30 ⚠️ review_required
 - **audio:woodblock** — CC BY-SA 4.0 / Krol111 — 23057B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Blok_music.ogg) — 2026-08-07 ⚠️ review_required
 - **audio:coins-shake** — Public domain / ezwa (pdsounds.org) — 93992B (ogg) — [source](https://commons.wikimedia.org/wiki/File:Shaking_coins_in_palm.ogg) — 2026-08-07

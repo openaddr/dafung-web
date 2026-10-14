@@ -165,7 +165,7 @@
   left: 50%;
   background: var(--player-color, var(--color-ink));
   color: #fff;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 28px;
   padding: 6px 28px;
   border-radius: 4px;
@@ -238,7 +238,7 @@
   stroke-width: 3;
 }
 .fx-svg-seal text {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-weight: 700;
   fill: var(--color-paper);
 }

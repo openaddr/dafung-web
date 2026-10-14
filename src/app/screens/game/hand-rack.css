@@ -44,8 +44,8 @@
   z-index: 5; /* 压过 board-wrap 内浮层溢出(hint/WaitingBar 均在架上方区域) */
 }
 
-/* ── 架首章:竖排「锦囊手牌」漆金描边(原型 .jia-zhang 制式;字族落 font-brush
-   ——新文案禁 font-deco,BRIEF §2,印文用笔书同 jinnang-card.css .seal 口径)── */
+/* ── 架首章:竖排「锦囊手牌」漆金描边(原型 .jia-zhang 制式;章=印文类,#508 起落
+   font-title,同 jinnang-card.css .seal 口径)── */
 .hand-rack-zhang {
   position: absolute;
   left: 2em;
@@ -54,7 +54,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75em;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.625em; /* 原型 13px @8px 基 */
   line-height: 1;
   color: var(--color-lacquer-gold);
@@ -298,9 +298,9 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* 品名:毛笔字漆金(字族 font-brush,BRIEF §2 印文/题名口径) */
+/* 品名:题名漆金(#508 起字族 font-title,BRIEF §2 印文/题名口径) */
 .rack-entry .pming {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.875em;
   letter-spacing: 0.3em;
   margin-right: -0.3em;

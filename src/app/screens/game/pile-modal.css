@@ -48,11 +48,11 @@
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(43, 35, 23, 0.35);
 }
-/* 题名即 DialogTitle(可达名单源,PileModal 组件侧);字族 font-brush(新文案禁
-   font-deco,BRIEF §2),朱印小章随题名右落 */
+/* 题名即 DialogTitle(可达名单源,PileModal 组件侧);字族 font-title(#508 标题字族),
+   朱印小章随题名右落 */
 .pile-modal .pile-title {
   margin: 0;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 27px;
   line-height: 1;
   letter-spacing: 0.1em;
