@@ -140,7 +140,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "huatuo",
-    image: "", // 画像资源未落地(#133):UI 画像位 onError 兜底显「像」字占位,资源到位后回填路径
+    image: "/assets/heroes/hero-huatuo-noname.webp", // 画像已落地(#507 素材批/#511 卡面接入;noname 源补缺,sgs 缺此将)
     name: "华佗",
     title: "神医",
     desc: "每 3 轮为自身恢复 15 体力(不与世界为敌,只与病痛为敌)",
