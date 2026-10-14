@@ -1,7 +1,8 @@
 // 顶部对局条(#253 三区骨架,原型 .topbar 移植):回合 chip(第 N 轮 + 目标身价)+
 // 活跃方名 | 牌库/弃牌计数 + 复位/缩放/静音角钮。状态卡(右栏退役)的回合/活跃方
 // 信息由本条承担;筹码数字全部直读引擎快照既有字段,不重算。
-// 角钮为既有能力平移(复位 ◎ / 缩放 +− / 静音 ♪),不新增功能;40px 触达(W5)。
+// 角钮为既有能力平移(复位 ◎ / 缩放 +− / 静音 ♪,#495 起三者全走 Sym SVG 同排一致),
+// 不新增功能;40px 触达(W5)。
 // 本件挂在 AudioProvider 内(mute 读 context)。
 import { rgba, playerColor } from "@core/theme";
 import { formatMoney } from "@core/money";
@@ -10,6 +11,7 @@ import { useAudio } from "@app/fx/AudioProvider";
 import { Sym } from "@app/screens/shared/Sym";
 import { TESTIDS } from "./testids";
 import "./layout.css";
+import "./game-hud.css";
 
 export interface GameTopBarProps {
   snapshot: GameSnapshot;
@@ -50,12 +52,14 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
 
   return (
     <div className="topbar" data-testid={TESTIDS.topBar}>
-      {/* 回合 chip:本方印 + 第 N 轮 + 目标身价(标准档 30,000 两) */}
+      {/* 回合 chip:本方印 + 第 N 轮 + 目标身价(标准档 30,000 两)。换轮脉冲(#495):
+            以 snapshot.round 为 key 重播 game-chip-pulse(键变 → 重挂载 → 一拍回弹),
+            与仪表条现金 pulse 同拍;终局后 round 不再走,chip 不再空跳。 */}
       <span className="chip">
         <span className="seal-s" style={{ background: rgba(playerColor(self.colorIndex)) }}>
           {self.guohao.charAt(0)}
         </span>
-        <span className="t" data-testid={TESTIDS.topbarRound}>
+        <span key={snapshot.round} className="t game-chip-pulse" data-testid={TESTIDS.topbarRound}>
           第 {snapshot.round} 轮
         </span>
         <span className="d" data-testid={TESTIDS.topbarTarget}>
@@ -101,6 +105,8 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           >
             <Sym name="reset" size={15} />
           </button>
+          {/* 缩放(#495 文本 +/− 换 Sym SVG,与复位/静音同排一致;符号登记见
+              docs/reference/界面符号.md) */}
           <button
             type="button"
             title="放大棋盘"
@@ -108,7 +114,7 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
             onClick={onZoomIn}
             className="sqbtn"
           >
-            +
+            <Sym name="zoomIn" size={15} />
           </button>
           <button
             type="button"
@@ -117,7 +123,7 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
             onClick={onZoomOut}
             className="sqbtn"
           >
-            −
+            <Sym name="zoomOut" size={15} />
           </button>
           <MuteSqButton />
         </div>

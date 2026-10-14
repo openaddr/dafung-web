@@ -14,7 +14,9 @@ export type SymName =
   | "muted"
   | "play"
   | "close"
-  | "expand";
+  | "expand"
+  | "zoomIn"
+  | "zoomOut";
 
 const PATHS: Record<SymName, ReactNode> = {
   // 返回 ←
@@ -57,6 +59,15 @@ const PATHS: Record<SymName, ReactNode> = {
   close: <path d="M4 4 L16 14 M16 4 L4 14" fill="none" />,
   // 展开/下拉 ▾
   expand: <path d="M4 6 L10 11.5 L16 6" fill="none" />,
+  // 放大 +(对称十字,#495 对局顶栏缩放钮)
+  zoomIn: (
+    <>
+      <path d="M11 3.5 V12.5" fill="none" />
+      <path d="M6.5 8 H15.5" fill="none" />
+    </>
+  ),
+  // 缩小 −(横线,与放大成对)
+  zoomOut: <path d="M6.5 8 H15.5" fill="none" />,
 };
 
 export function Sym({

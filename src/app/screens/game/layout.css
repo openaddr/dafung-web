@@ -67,6 +67,29 @@
   outline: 2px dashed var(--color-gold);
   outline-offset: -3px;
 }
+/* 未读角标(#495):收起时累计新增战报条数,开抽屉清零。制式搬 rack-entry-badge
+   朱砂圆印同族(hand-rack.css 先例,缩比适配竖签;印面纸色字豁免见文件头),
+   挂把手左上角朝屏内——把手常驻右缘,角印外溢不出视口。 */
+.game-layout .log-tab .log-tab-badge {
+  position: absolute;
+  top: -9px;
+  left: -9px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: var(--color-danger);
+  color: #f6ecd9;
+  font-family: var(--font-wenkai);
+  font-size: 11px;
+  writing-mode: horizontal-tb; /* 把手竖排,印内数字回横排 */
+  box-shadow:
+    0 2px 4px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1.5px rgba(246, 236, 217, 0.55);
+  transform: rotate(4deg);
+  display: grid;
+  place-items: center;
+}
 
 /* ── 战报抽屉条目(#255,ui/sheet 壳内):纸底墨字从简;轮次小签 + 中文简报,
    倒序(最新在上)。Sheet 经 Portal 渲染在 document.body,.game-layout 作用域罩
@@ -102,6 +125,14 @@
 .war-brief {
   min-width: 0;
   overflow-wrap: anywhere;
+}
+/* 行动方玩家色竖条(#495):条目首 6px 竖条,色=行动方玩家色(组件内联,同 .guo-yin
+   印章既有数据通道);无主行为不出条。 */
+.war-color {
+  flex: 0 0 auto;
+  width: 6px;
+  align-self: stretch;
+  border-radius: 2px;
 }
 /* 「加载更早」:窗口化渲染按窗放开更早历史;列表底部的安静墨字钮,不要抢戏 */
 .war-earlier {
