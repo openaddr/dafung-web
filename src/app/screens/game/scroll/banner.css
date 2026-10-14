@@ -64,6 +64,14 @@
   background: color-mix(in srgb, var(--color-panel-hi) 72%, var(--color-gold-bright) 28%);
 }
 
+/* ── 印面漆金化(#492 决议①;#509 残留①「印面白字 on danger ≈2.9:1」壳内收口):
+   笺头单字印(.note-head > i,制式在 app.css)在横幅域内转金印——漆金底 + 漆字
+   ≥5:1,朱砂保留给危险/破产语义与按钮;全局制式归口 app.css(S8 收口时对齐)。 ── */
+.banner-shell .note-head > i {
+  color: var(--color-lacquer);
+  background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold-deep));
+}
+
 /* ── 收起/幽灵退场:上浮淡出(--dur-fast 快档退场;210ms 出口 = 150 + 60 余量,
    与幽灵帧协议 GHOST.frameMs 同口径)。规则写在 .banner-card 之后,同特异性后到胜 ── */
 @keyframes banner-lift {
