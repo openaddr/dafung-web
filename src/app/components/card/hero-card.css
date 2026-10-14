@@ -4,17 +4,15 @@
    var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-* 与 --ease-*
    token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
 
-   裸色豁免登记(原型定稿色,tokens.css 无对应 token,照原型保留):
-   - #f6ecd9(印文纸色,含其 rgba(246,236,217,·) 形式):将章/技名牌字色,与
-     jinnang-card.css 印文纸色同族;
+   裸色豁免登记(#510 深底适配后存留;印文纸色字面量 #f6ecd9 已收口 --color-ink,
+   技能区亮纸条已改墨面漆金——「深底适配不换制式」,件与件相对关系不变):
    - rgba(217,185,92,·):漆金内衬/名带描边(--color-lacquer-gold 的 rgba 形式,
-     app.css 控件种与 jinnang-card.css 同先例);
-   - rgba(36,29,19,·)(#241d13 漆木暗端的 rgba 形式):立绘纱幕与名带墨底渐变
-     (漆面明暗,hand-rack.css 漆木豁免同族);rgba(54,44,30,·) 为名带墨底亮端
-     (#362c1e,同族);
-   - rgba(250,243,223,0.96) / rgba(238,224,188,0.96):技能区纸底(--color-paper-hi /
-     --color-paper-lo 的 rgba 形式,半透明纱需要 alpha 故不直引 token);
-   - rgba(0,0,0,·):名带投影,漆木上的中性黑影,非墨影语义。
+     app.css 控件种同先例);
+   - rgba(36,29,19,·)(#241d13 漆木暗端 = --color-paper-lo 的 rgba 形式):立绘纱幕
+     (画上压暗,画材语义随图不随主题,保留);
+   - rgba(0,0,0,·):名带投影,漆木上的中性黑影,非墨影语义;
+   - 画像占位 .is-ph 的宣纸渐变与墨字:立绘通道占位件,立绘接入归 S5(卡面 B 案),
+     本票不动(占位亮底在深卡内读作「未上画的画心」,暂留)。
 
    尺寸:卡基 --u 为几何单位——absolute 定位元素的 em 会解析到自身字号(--u 变量
    锚定卡基,r4 原型同法,前车之鉴);根 font-size = var(--u),15u×20u 即 3:4 竖卡。
@@ -33,10 +31,11 @@
   font-size: var(--u);
   flex: 0 0 auto;
   border-radius: 0.9em;
-  border: 0.2em solid rgba(43, 35, 23, 0.65);
+  /* 漆金描边(#510 深底适配:墨框字面量在深底上近隐形;卡面 B 案「墨面金框」同语) */
+  border: 0.2em solid color-mix(in srgb, var(--color-lacquer-gold) 38%, transparent);
   background: var(--color-paper-lo);
   box-shadow:
-    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
+    0 0.35em 0.8em rgba(0, 0, 0, 0.4),
     inset 0 0 0 0.15em rgba(217, 185, 92, 0.5);
   overflow: hidden;
   display: flex;
@@ -104,7 +103,8 @@
   background: linear-gradient(180deg, rgba(36, 29, 19, 0) 0%, rgba(36, 29, 19, 0.52) 100%);
 }
 
-/* ── 左上朱砂「将」章(章恒朱砂;压画角=鉴藏同语义,不压字)── */
+/* ── 左上朱砂「将」章(章恒朱砂;压画角=鉴藏同语义,不压字);朱印深底+纸字为
+   #510 残留必修口径(约定见 layout.css 文件头)── */
 .hface .j-seal {
   position: absolute;
   top: calc(0.55 * var(--u));
@@ -114,16 +114,16 @@
   z-index: 3;
   display: grid;
   place-items: center;
-  background: var(--color-danger);
-  color: #f6ecd9; /* 印文纸色:原型定稿色(豁免登记见文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   border-radius: 0.28em;
   font-family: var(--font-title);
   font-size: 1.4em;
   line-height: 1;
   transform: rotate(4deg);
   box-shadow:
-    0 0.15em 0.3em rgba(43, 35, 23, 0.35),
-    inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+    0 0.15em 0.3em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 
 /* ── 扩展将旗(#378 渲染 hook):扩展包 assets 的旗图,「将」章下方同侧;纯展示
@@ -135,10 +135,10 @@
   width: calc(2.2 * var(--u));
   height: auto;
   z-index: 3;
-  filter: drop-shadow(0 0.15em 0.3em rgba(43, 35, 23, 0.35));
+  filter: drop-shadow(0 0.15em 0.3em rgba(0, 0, 0, 0.4));
 }
 
-/* ── 右上称号竖排小字(实数据;纸签形制,墨字;与名带并排纵列,横向恒脱开)── */
+/* ── 右上称号竖排小字(实数据;纸签形制,纸字;与名带并排纵列,横向恒脱开)── */
 .hface .m-title {
   position: absolute;
   top: calc(0.55 * var(--u));
@@ -151,9 +151,9 @@
   line-height: 1;
   color: var(--color-ink);
   background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 0.2em;
-  box-shadow: 0 0.2em 0.4em rgba(43, 35, 23, 0.22);
+  box-shadow: 0 0.2em 0.4em rgba(0, 0, 0, 0.4);
   padding: 0.6em 0.28em;
 }
 
@@ -168,27 +168,37 @@
   font-size: 2.3em;
   line-height: 1;
   letter-spacing: 0.1em;
-  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
-  background: linear-gradient(180deg, rgba(54, 44, 30, 0.94), rgba(36, 29, 19, 0.88));
+  color: var(--color-ink); /* 印文纸色(#510 收口字面量) */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-panel-hi) 94%, transparent),
+    color-mix(in srgb, var(--color-paper-lo) 88%, transparent)
+  );
   border: 1px solid rgba(217, 185, 92, 0.55);
   border-radius: 0.22em;
   box-shadow: 0 0.2em 0.5em rgba(0, 0, 0, 0.4);
   padding: 0.4em 0.22em;
 }
 
-/* ── 底部技能区:半透明纸底横条(上叠立绘 0.9em,纱缘过渡)── */
+/* ── 底部技能区:半透明墨面横条(上叠立绘 0.9em,纱缘过渡)。
+   #510 深底适配:原亮纸纱在玄墨鎏金后 paper-hi/ink 皆反转,亮底配亮字不可读——
+   改墨面纱(半透明面板/漆木),字色纸/金不变,制式(横条+技名牌+符)不动。 ── */
 .hface .skz {
   position: relative;
   z-index: 2;
   margin: -0.9em 0.5em 0.5em;
-  background: linear-gradient(180deg, rgba(250, 243, 223, 0.96), rgba(238, 224, 188, 0.96));
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-panel-hi) 96%, transparent),
+    color-mix(in srgb, var(--color-lacquer) 96%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 0.45em;
   padding: 0.45em 0.55em;
   display: flex;
   flex-direction: column;
   gap: 0.3em;
-  box-shadow: 0 0.25em 0.6em rgba(43, 35, 23, 0.35);
+  box-shadow: 0 0.25em 0.6em rgba(0, 0, 0, 0.45);
 }
 .hface .skz .sk {
   font-size: 0.88em;
@@ -196,7 +206,7 @@
   color: var(--color-ink);
 }
 .hface .skz .sk + .sk {
-  border-top: 1px dashed rgba(43, 35, 23, 0.35);
+  border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 28%, transparent);
   padding-top: 0.32em;
 }
 .hface .skz .shead {
@@ -218,7 +228,8 @@
   background: var(--color-gold-deep);
   transform: rotate(45deg);
 }
-/* 技名牌:墨底纸字(实数据技名,T1 起被动与主动同形制) */
+/* 技名牌:漆底金字题签(#510 深底适配:原墨底纸字所锚 token 已反转,改漆金语言,
+   对漆木底 ≥7:1);形制(圆角小签)不动 */
 .hface .skz .sming {
   display: inline-flex;
   align-items: center;
@@ -227,8 +238,9 @@
   line-height: 1.3;
   border-radius: 0.25em;
   padding: 0.04em 0.5em;
-  background: var(--color-ink);
-  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   white-space: nowrap;
 }
 .hface .skz .cd {
@@ -269,7 +281,7 @@
   gap: 0.38em;
   font-size: 0.92em;
   line-height: 1.5;
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   background: var(--color-paper-hi);
   border-radius: 0.25em;
   padding: 0.06em 0.45em;

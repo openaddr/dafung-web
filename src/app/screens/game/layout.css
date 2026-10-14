@@ -1,17 +1,25 @@
 /* 对局屏三区布局(#253 布局骨架)——从原型 tmp/prototype-layout.html v3.2(已验收
    视觉基线)忠实移植:顶部条 / 右缘席位竖卡列 / 底部仪表条+手牌架;右栏 aside 退役。
    所有规则作用域在 .game-layout 下防全局串扰(同 hand-rack.css 收口先例);
-   色一律 var(--color-*) 或墨影 rgba(43,35,23,·)(裸色豁免登记见各段注释);
-   尺寸/字号/间距/动画曲线以原型为准,勿自由发挥。
+   #510 玄墨鎏金换装:色一律 var(--color-*) 或其 color-mix/rgba alpha 形式
+   (裸色豁免登记见下);尺寸/字号/间距/动画曲线以原型为准,勿自由发挥。
 
-   裸色豁免登记(原型定稿色,tokens.css 无对应 token;与 hand-rack.css 豁免同族):
-   - #463a28 / #241d13:漆木仪表条渐变两端(架上映、架下暗,即 hand-rack 原渐变);
-   - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式);
-   - rgba(200,161,58,·)/rgba(212,175,55,·):金圈系(--color-gold 的 rgba 形式;
-     活跃光效/目标段候选呼吸为原型定稿值,胜者金环光晕为同族推导);
+   裸色豁免登记(#510 深色化后存留;发丝线群/#4a3f2c/朱印白字已按 #509 残留必修收口):
+   - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式,CSS 无法对
+     hex var 直接调 alpha 的既定写法;可调 alpha 处一律 color-mix);
+   - rgba(200,161,58,·)/rgba(212,175,55,·):金圈系(--color-gold / 原型定稿金,活跃
+     光效/候选呼吸/胜者金环的原型定稿值);
    - rgba(138,106,28,·):金圈外投墨金影(原型定稿,金影语义非墨影);
-   - rgba(0,0,0,·):漆木上的中性黑影,非墨影语义;
-   - #f6ead6 / #f6ecd9:印面纸色字(全仓印章语言既有惯例字面量)。
+   - rgba(0,0,0,·):深墨底上的中性黑影,投影非色板(fx.css 同规)。
+
+   玄墨鎏金新约定(#510,#509 残留必修收口口径,S9 卷轴同用):
+   - 朱印深底 = color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep)):
+     danger 值换血后偏亮,印面纸色字对原值仅 ≈2.9:1;混深底后 ≥5:1,朱砂语义不变;
+   - 国号印 = 漆面深底金字 + 玩家色环(--pc)+ 漆金细衬(漆金环/双描边方案,#491
+     印章漆金化):玩家色由组件注入 --pc 自定义属性,字色不再压在玩家色上
+     (原白字 on 玩家色 1.9-2.9);
+   - 墨发丝线 rgba(43,35,23,·) 全数退役:深底上近隐形,分隔/描边改漆金细线
+     (color-mix 漆金/鎏金),落影改中性黑。
 
    与原型的实装级偏差(功能/规则要求,非视觉自由发挥):
    - 顶部条角钮 36→40px(W5 触达 ≥40px 仓库红线);
@@ -52,16 +60,25 @@
   font-size: 13px;
   letter-spacing: 0.25em;
   color: var(--color-lacquer-gold);
-  background: linear-gradient(180deg, #463a28, var(--color-lacquer));
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
   border: 1px solid rgba(217, 185, 92, 0.45);
   border-right: 0;
   border-radius: 4px 0 0 4px;
   padding: 12px 5px;
   cursor: pointer;
   opacity: 0.92;
+  /* 悬停微反馈统一(#490 微档):亮金描边 + 印影 + 微缩放,--dur-fast 一触即应 */
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 .game-layout .log-tab:hover {
   opacity: 1;
+  transform: scale(1.02);
+  border-color: var(--color-gold-bright);
+  box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
 }
 .game-layout .log-tab:focus-visible {
   outline: 2px dashed var(--color-gold);
@@ -78,22 +95,24 @@
   height: 20px;
   padding: 0 5px;
   border-radius: 10px;
-  background: var(--color-danger);
-  color: #f6ecd9;
+  /* 朱印深底(#510 残留必修:纸色字对 danger 原值 ≈2.9:1,混深底后 ≥5:1,约定见文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   font-family: var(--font-wenkai);
   font-size: 11px;
   writing-mode: horizontal-tb; /* 把手竖排,印内数字回横排 */
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1.5px rgba(246, 236, 217, 0.55);
+    inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
   transform: rotate(4deg);
   display: grid;
   place-items: center;
 }
 
-/* ── 战报抽屉条目(#255,ui/sheet 壳内):纸底墨字从简;轮次小签 + 中文简报,
+/* ── 战报抽屉条目(#255,ui/sheet 壳内):墨底纸字从简;轮次小签 + 中文简报,
    倒序(最新在上)。Sheet 经 Portal 渲染在 document.body,.game-layout 作用域罩
-   不到——选择器裸排,war-* 前缀防串扰。裸色豁免:墨影发丝线 rgba(43,35,23,·)。 ── */
+   不到——选择器裸排,war-* 前缀防串扰。发丝分隔线走漆金细线(#510:墨发丝线
+   深底近隐形,#509 残留必修)。 ── */
 .war-list {
   margin: 0;
   padding: 0.5rem 1rem 1rem;
@@ -105,7 +124,7 @@
   align-items: flex-start;
   gap: 10px;
   padding: 7px 2px;
-  border-bottom: 1px solid rgba(43, 35, 23, 0.12);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 18%, transparent);
   font-family: var(--font-wenkai);
   font-size: 13px;
   line-height: 1.55;
@@ -139,7 +158,7 @@
   margin: 0 1rem 0.75rem;
   padding: 6px 14px;
   align-self: center;
-  border: 1px solid rgba(43, 35, 23, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   border-radius: 3px;
   background: none;
   font-family: var(--font-wenkai);
@@ -147,10 +166,15 @@
   letter-spacing: 0.08em;
   color: var(--color-ink-dim);
   cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 .war-earlier:hover {
   color: var(--color-ink);
-  border-color: rgba(43, 35, 23, 0.45);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
 }
 
 /* ── 棋盘区:全幅垫底(下缘让位仪表条)── */
@@ -172,18 +196,22 @@
   z-index: 5;
   pointer-events: none; /* chips 不挡棋盘拖拽,钮/chip 自身放行 */
 }
+/* 顶部 chip:深墨面板 + 漆金描边 + 纸色字(#510 玄墨鎏金;旧亮纸底在深屏上是眩光块) */
 .game-layout .chip {
   display: inline-flex;
   align-items: center;
   gap: 8px;
   border-radius: 3px;
-  border: 1px solid rgba(43, 35, 23, 0.25);
-  background: rgba(244, 236, 216, 0.92);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+  color: var(--color-ink);
   padding: 6px 10px;
-  box-shadow: 0 1px 3px rgba(43, 35, 23, 0.2);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
   pointer-events: auto;
 }
 .game-layout .chip .seal-s {
+  /* 国号小印(#510 漆金环/双描边方案,约定见文件头):漆面深底金字 + 玩家色环
+     (--pc 组件注入)+ 漆金细衬;字不再压玩家色(原白字 1.9-2.9 不可读) */
   width: 22px;
   height: 22px;
   transform: rotate(-4deg);
@@ -193,7 +221,10 @@
   font-family: var(--font-title);
   font-size: 13px;
   line-height: 1;
-  color: #f6ead6;
+  color: var(--color-lacquer-gold);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
+  border: 1.5px solid var(--pc, var(--color-gold));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
 }
 .game-layout .chip .t {
   font-family: var(--font-brush);
@@ -229,22 +260,30 @@
   color: var(--color-ink);
   font-weight: 400;
 }
-/* 角钮(复位/缩放/静音):原型 .sqbtn 制式,36→40px 按 W5 触达线 */
+/* 角钮(复位/缩放/静音):原型 .sqbtn 制式,36→40px 按 W5 触达线;#510 入深墨漆金 */
 .game-layout .sqbtn {
   width: 40px;
   height: 40px;
   border-radius: 3px;
-  border: 1px solid rgba(43, 35, 23, 0.3);
-  background: rgba(244, 236, 216, 0.92);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
   display: grid;
   place-items: center;
   font-family: var(--font-brush);
   font-size: 15px;
   color: var(--color-ink-dim);
   cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 .game-layout .sqbtn:hover {
   color: var(--color-ink);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
+  box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
 }
 
 /* ── 席位竖卡列:右缘纵列(3 张封顶);4-6 席左右两列;7+ 余席顶行缩微 ──
@@ -287,10 +326,11 @@
 .game-layout .seat {
   position: relative;
   width: 104px;
-  border: 1.5px solid rgba(43, 35, 23, 0.4);
+  /* 漆金描边(#510 席位卡入玄墨鎏金;活跃/候选态金圈在其上加重) */
+  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   border-radius: 6px;
   background: linear-gradient(180deg, var(--color-panel), var(--color-panel-hi));
-  box-shadow: 0 2px 6px rgba(43, 35, 23, 0.22);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
   overflow: hidden;
   padding: 8px 8px 9px;
   display: flex;
@@ -302,6 +342,8 @@
   align-items: center;
   gap: 6px;
 }
+/* 国号印(#510 漆金环/双描边方案,约定见文件头):漆面深底金字 + 玩家色环(--pc)
+   + 漆金细衬;原「玩家色底+白字」印面 1.9-2.9:1 不可读,字色自此不压玩家色。 */
 .game-layout .guo-yin {
   transform: rotate(-4deg);
   display: grid;
@@ -309,8 +351,10 @@
   border-radius: 4px;
   font-family: var(--font-title);
   line-height: 1;
-  color: #f6ead6;
-  box-shadow: inset 0 0 0 1.5px rgba(246, 236, 217, 0.4);
+  color: var(--color-lacquer-gold);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
+  border: 1.5px solid var(--pc, var(--color-gold));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
   flex: 0 0 auto;
 }
 .game-layout .seat .guo-yin {
@@ -321,7 +365,7 @@
 .game-layout .seat .nm {
   font-size: 11px;
   line-height: 1.2;
-  color: #4a3f2c;
+  color: var(--color-ink-dim); /* #509 残留必修:原 #4a3f2c 深字在新深席位卡不可读 */
   letter-spacing: 0.02em;
   overflow: hidden;
 }
@@ -339,12 +383,13 @@
 .game-layout .seat.bankrupt .cash {
   text-decoration: line-through;
 }
-/* 体力血条:条内刻度数字,纸白字+深色投影保证任意填充色可读;低于三成转红 */
+/* 体力血条:条内刻度数字,纸白字+深色投影保证任意填充色可读;低于三成转红
+   (盾形体力语义适配另行,S4 保留条形现役制——票面口径「条形血条可保留」) */
 .game-layout .hpbar {
   height: 11px;
-  border: 1px solid rgba(43, 35, 23, 0.45);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   border-radius: 5px;
-  background: rgba(43, 35, 23, 0.16);
+  background: rgba(0, 0, 0, 0.4);
   position: relative;
   overflow: hidden;
   display: block;
@@ -354,11 +399,19 @@
   top: 0;
   bottom: 0;
   left: 0;
-  background: linear-gradient(90deg, #5f955f, var(--color-money));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-money) 55%, var(--color-bg-deep)),
+    var(--color-money)
+  );
   border-radius: 4px;
 }
 .game-layout .hpbar.low i {
-  background: linear-gradient(90deg, #c05a4a, var(--color-danger));
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-danger) 55%, var(--color-bg-deep)),
+    var(--color-danger)
+  );
 }
 .game-layout .hpbar em {
   position: absolute;
@@ -368,11 +421,17 @@
   font-style: normal;
   font-size: 9.5px;
   line-height: 1;
-  color: #fdf8ec;
+  color: var(--color-ink);
   font-variant-numeric: tabular-nums;
   text-shadow:
-    0 0 2px rgba(43, 35, 23, 0.95),
-    0 1px 1px rgba(43, 35, 23, 0.9);
+    0 0 2px rgba(0, 0, 0, 0.95),
+    0 1px 1px rgba(0, 0, 0, 0.9);
+}
+/* 体力条触发元拉满卡宽(#510 自审就地调):#495 起 Tip 触发钮包住 .hpbar 后是
+   .relative.flex 行内的 flex item,主轴不自然拉伸——缩瘪成 2px 竖线(2026-10-13
+   基线为满宽条+刻度数)。钮撑满后 block 血条随行铺满,刻度数随之可见。 */
+.game-layout .seat .relative.flex > button:has(> .hpbar) {
+  flex: 1 1 auto;
 }
 /* 属性徽章:程序化 SVG 图标(属性色)+ 裸值;两列网格,只显值不显文字类目 */
 .game-layout .vgrid {
@@ -422,7 +481,13 @@
   width: 8px;
   height: 12px;
   border-radius: 1.5px;
-  background: linear-gradient(160deg, #3d3324, var(--color-lacquer) 60%, #262017);
+  /* 漆木牌背:漆面明暗三段(玄墨鎏金后直接吃面板/漆木/暗纸 token,#510 收口字面量) */
+  background: linear-gradient(
+    160deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 60%,
+    var(--color-paper-lo)
+  );
   box-shadow: inset 0 0 0 0.8px rgba(217, 185, 92, 0.5);
 }
 /* 活跃方:金圈光效 + 「运筹中」微标(§4.6 例外保留项,全布局仅此一处文字标牌) */
@@ -481,7 +546,13 @@
   z-index: 6;
   display: flex;
   align-items: stretch;
-  background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+  /* 漆木条:架上映、架下暗三段(玄墨鎏金后直接吃 token,#510 收口字面量) */
+  background: linear-gradient(
+    180deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 60%,
+    var(--color-paper-lo)
+  );
   box-shadow:
     inset 0 2px 0 rgba(217, 185, 92, 0.4),
     inset 0 14px 24px rgba(0, 0, 0, 0.35);
@@ -506,9 +577,7 @@
   height: 40px;
   font-size: 24px;
   border-radius: 5px;
-  box-shadow:
-    inset 0 0 0 1.5px rgba(246, 236, 217, 0.4),
-    0 2px 5px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 .game-layout .me .nm {
   font-family: var(--font-brush);
@@ -529,12 +598,14 @@
   font-size: 12px;
 }
 .game-layout .me .you {
-  background: var(--color-danger);
-  color: #f6ead6;
+  /* 朱印深底(#510 残留必修,约定见文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 45%, transparent);
 }
 .game-layout .me .guan {
-  border: 1px solid rgba(246, 236, 217, 0.35);
-  color: rgba(246, 236, 217, 0.6);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 35%, transparent);
+  color: color-mix(in srgb, var(--color-ink) 60%, transparent);
 }
 .game-layout .me .head .sp {
   flex: 1;
@@ -550,9 +621,15 @@
   letter-spacing: 0.12em;
   cursor: pointer;
   background: none;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    background var(--dur-fast) var(--ease-out);
 }
 .game-layout .tuoguan:hover {
   background: rgba(217, 185, 92, 0.15);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
 }
 .game-layout .dash-speed {
   font-family: var(--font-wenkai);
@@ -676,18 +753,18 @@
 .game-layout .actionbar.right-shift {
   margin-left: var(--actionbar-shift);
 }
-/* 目标段「选择目标」标签(信息件,非按钮):纸底金边,与顶部 chip 同族 */
+/* 目标段「选择目标」标签(信息件,非按钮):深墨面板+金边,与顶部 chip 同族(#510) */
 .game-layout .actionbar .actionbar-lab {
   font-family: var(--font-wenkai);
   font-size: 14px;
   letter-spacing: 0.2em;
   text-indent: 0.1em;
   color: var(--color-ink);
-  background: rgba(244, 236, 216, 0.92);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
   border: 1.5px solid var(--color-gold);
   border-radius: 4px;
   padding: 7px 18px;
-  box-shadow: 0 2px 8px rgba(138, 106, 28, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
 .game-layout .actionbar .actionbar-btn {
   font-family: var(--font-brush);
@@ -698,6 +775,10 @@
   border-radius: 4px;
   border: 0;
   cursor: pointer;
+  /* 悬停微反馈统一(#490 微档):亮金内环 + 印影 + 微缩放 */
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
 /* 墨钮(DESIGN §4.2 推进对局的主行动):漆底金字;启用态金内环=原型 .armed */
 .game-layout .actionbar .actionbar-btn.mo {
@@ -705,7 +786,7 @@
   color: var(--color-lacquer-gold);
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.6),
-    0 2px 5px rgba(43, 35, 23, 0.4);
+    0 2px 5px rgba(0, 0, 0, 0.45);
 }
 .game-layout .actionbar .actionbar-btn.mo:disabled {
   opacity: 0.45;
@@ -714,12 +795,13 @@
 .game-layout .actionbar .actionbar-btn.mo:not(:disabled) {
   box-shadow:
     inset 0 0 0 1.5px var(--color-gold),
-    0 2px 6px rgba(43, 35, 23, 0.45);
+    0 2px 6px rgba(0, 0, 0, 0.5);
 }
 .game-layout .actionbar .actionbar-btn.mo:not(:disabled):hover {
+  transform: scale(1.02);
   box-shadow:
     inset 0 0 0 2px var(--color-gold-bright),
-    0 3px 8px rgba(43, 35, 23, 0.5);
+    0 3px 8px rgba(0, 0, 0, 0.55);
 }
 /* 次级漆钮(不出/作罢):原型 .qian 同族 */
 .game-layout .actionbar .actionbar-btn.qian {
@@ -727,12 +809,13 @@
   color: var(--color-lacquer-gold);
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.5),
-    0 2px 5px rgba(43, 35, 23, 0.4);
+    0 2px 5px rgba(0, 0, 0, 0.45);
 }
 .game-layout .actionbar .actionbar-btn.qian:hover {
+  transform: scale(1.02);
   box-shadow:
     inset 0 0 0 1.5px var(--color-gold),
-    0 2px 6px rgba(43, 35, 23, 0.45);
+    0 2px 6px rgba(0, 0, 0, 0.5);
 }
 .game-layout .actionbar .actionbar-btn:focus-visible {
   outline: 2px dashed var(--color-gold);
@@ -956,7 +1039,7 @@
 /* ── B 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,
    竖屏不做游戏布局)── 常驻 DOM(RotateHintOverlay,GameScreen 挂),显隐全在
    CSS:竖屏 + 窄幅 + 粗指针(真手机)才全屏接管挡住对局;桌面窄窗口
-   (pointer: fine)不触发。裸色豁免:漆木渐变/漆金字同 .dash/.log-tab 既有族。 */
+   (pointer: fine)不触发。漆木渐变/漆金字同 .dash 既有族(#510 收口 token)。 */
 .game-layout .rotate-hint {
   display: none;
 }
@@ -970,7 +1053,12 @@
     align-items: center;
     justify-content: center;
     gap: 16px;
-    background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+    background: linear-gradient(
+      180deg,
+      var(--color-panel-hi),
+      var(--color-lacquer) 60%,
+      var(--color-paper-lo)
+    );
     color: var(--color-lacquer-gold);
     font-family: var(--font-brush);
     font-size: 21px;

@@ -3,8 +3,10 @@
    点选=金描边+上浮,价签随选中转成交色,底部二段式成交钮。
    样式经 Portal 渲染在 body,.game-layout 罩不到——.treasure-pick 作用域 +
    treasure-pick- 前缀防串扰(pile-modal.css 同先例)。
-   色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-*、--ease-*
-   token(卡面 transform/box-shadow 过渡由 jinnang-card.css 基座 token 化承担),
+   色一律 var(--color-*) 或其 color-mix alpha 形式(#510 玄墨鎏金:墨影
+   rgba(43,35,23,·) 退役——发丝线改漆金细线,落影改中性黑,悬停微反馈统一走
+   #490 微档:亮金描边+微缩放);动效时长/缓动走 --dur-*、--ease-* token
+   (卡面 transform/box-shadow 过渡由 jinnang-card.css 基座 token 化承担),
    reduced-motion 由 app.css M-4 全局兜层压瞬时,本文件无需另写兜层。 */
 
 /* ── 语境区:交涉报价口径句 / 破产已凑进度(backpack .trade-mode/.bkr-owe+.prog 移植)── */
@@ -56,8 +58,8 @@
   transition: width var(--dur-med) var(--ease-out);
 }
 
-/* ── 可点选卡格:点选=金描边+上浮(backpack .fuku-cell.sel 原值;hover 微抬示意
-   可点,选中恒压过 hover)── */
+/* ── 可点选卡格:点选=金描边+上浮(backpack .fuku-cell.sel 原值;hover 微抬+
+   亮金 hairline 示意可点(#490 微档),选中恒压过 hover)── */
 .treasure-pick .treasure-pick-cell {
   padding: 0;
   margin: 0;
@@ -68,12 +70,15 @@
 }
 .treasure-pick .treasure-pick-cell:hover .pile-cell-card {
   transform: translateY(-3px);
+  box-shadow:
+    0 0.4em 0.9em rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 55%, transparent);
 }
 .treasure-pick .treasure-pick-sel .pile-cell-card {
   outline: 0.32em solid var(--color-gold);
   outline-offset: 0.18em;
   transform: translateY(-6px);
-  box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.45);
+  box-shadow: 0 1em 1.8em rgba(0, 0, 0, 0.5);
 }
 /* 价签:选中转成交色(backpack .fuku-cell.sel .price-tag:金底纸色字) */
 .treasure-pick .treasure-pick-sel .pile-price {
@@ -90,7 +95,7 @@
   gap: 14px;
   margin-top: 18px;
   padding-top: 14px;
-  border-top: 1px dashed rgba(43, 35, 23, 0.35);
+  border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
 }
 .treasure-pick .treasure-pick-sum {
   font-family: var(--font-wenkai);
@@ -104,22 +109,35 @@
   letter-spacing: 0.12em;
   color: var(--color-ink);
   background: var(--color-paper-hi);
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 5px;
   padding: 6px 22px;
   cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
 }
 .treasure-pick .treasure-pick-btn:hover:not(:disabled) {
-  background: var(--color-panel);
+  background: var(--color-panel-hi);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
 }
-/* 成交主行动:墨底纸色字(ScrollButton primary 同观感,弹层自持不走 ScrollGhost) */
+/* 成交主行动:墨钮制式(DESIGN §4.2 主行动=漆底金字金内环,#510 玄墨鎏金换装;
+   旧「墨底纸色字」注释所锚的深浅 token 语义已随 #509 值换血反转,制式归一墨钮) */
 .treasure-pick .treasure-pick-ok {
   font-size: 16px;
   padding: 7px 30px;
-  background: var(--color-ink);
-  color: var(--color-paper-hi);
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
   border-color: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
+}
+.treasure-pick .treasure-pick-ok:hover:not(:disabled) {
+  background: var(--color-lacquer);
+  box-shadow:
+    inset 0 0 0 2px var(--color-gold-bright),
+    0 0 8px rgba(138, 106, 28, 0.45);
 }
 .treasure-pick .treasure-pick-ok:disabled {
   opacity: 0.4;

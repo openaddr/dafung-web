@@ -6,9 +6,8 @@
    --ease-* token,入场动画属一次性演出,reduced-motion 由 app.css M-4 全局兜层压
    瞬时,本文件无需另写兜层。
 
-   裸色豁免登记(原型定稿色,tokens.css 无对应 token):
-   - #f6ecd9(印面纸色字,含其 rgba(246,236,217,·) 形式):朱印小章字色/角标内衬,
-     全仓印章语言既有惯例字面量(jinnang-card.css 同登记);
+   裸色豁免登记(#510 玄墨鎏金后存留;墨影发丝线 rgba(43,35,23,·) 已退役——分隔/
+   描边改漆金细线,朱印改深底+纸字,口径同 layout.css 文件头约定):
    - rgba(200,161,58,·):漆金内环(--color-gold 的 rgba 形式,layout.css 豁免同族);
    - rgba(0,0,0,·):弹层落影,中性黑影非墨影语义。
 
@@ -40,13 +39,13 @@
   }
 }
 
-/* ── 弹层头:题名(brush 大字+朱印小章)· 副题 + 右上 X;下缘发丝线分隔 ── */
+/* ── 弹层头:题名(brush 大字+朱印小章)· 副题 + 右上 X;下缘漆金发丝线分隔 ── */
 .pile-modal .pile-head {
   display: flex;
   align-items: center;
   gap: 16px;
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(43, 35, 23, 0.35);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
 }
 /* 题名即 DialogTitle(可达名单源,PileModal 组件侧);字族 font-title(#508 标题字族),
    朱印小章随题名右落 */
@@ -66,8 +65,9 @@
   margin-left: 6px;
   vertical-align: 3px;
   font-size: 13px;
-  background: var(--color-danger);
-  color: #f6ecd9; /* 印面纸色字(豁免登记见文件头) */
+  /* 朱印深底(#510 残留必修,约定见 layout.css 文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   border-radius: 3px;
   transform: rotate(2.5deg);
 }
@@ -83,7 +83,7 @@
   margin-left: auto;
   width: 26px;
   height: 26px;
-  border: 1px solid rgba(43, 35, 23, 0.35);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 50%;
   display: grid;
   place-items: center;
@@ -92,10 +92,15 @@
   line-height: 1;
   color: var(--color-ink-dim);
   cursor: pointer;
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
 }
 .pile-modal .pile-close:hover {
   color: var(--color-ink);
-  border-color: rgba(43, 35, 23, 0.55);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
 }
 
 /* ── 区签:朱砂菱点 + 计数 + 括注小字(r5 .zone-label 制式)── */
@@ -145,7 +150,7 @@
   line-height: 1.5;
   color: var(--color-money);
   background: var(--color-paper-hi);
-  border: 1px solid rgba(43, 35, 23, 0.28);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 25%, transparent);
   border-radius: 3px;
   padding: 1px 8px;
   font-variant-numeric: tabular-nums;

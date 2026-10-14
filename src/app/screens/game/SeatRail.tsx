@@ -102,7 +102,9 @@ function SeatCard({
     >
       {active && <span className="think">运筹中</span>}
       <div className="vhead">
-        <span className="guo-yin" style={{ background: rgba(playerColor(p.colorIndex)) }}>
+        {/* 国号印(#510 漆金环/双描边方案):玩家色经 --pc 注入印环,字走漆面金字
+            (原「玩家色底+白字」印面 1.9-2.9 不可读,制式见 layout.css .guo-yin) */}
+        <span className="guo-yin" style={{ ["--pc" as string]: rgba(playerColor(p.colorIndex)) }}>
           {p.guohao.charAt(0)}
         </span>
         <span className="nm">

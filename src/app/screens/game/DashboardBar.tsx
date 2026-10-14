@@ -65,7 +65,11 @@ export function DashboardBar({
     <div className="dash" data-testid={TESTIDS.dashboardBar}>
       <div className="me">
         <div className="head">
-          <span className="guo-yin" style={{ background: rgba(playerColor(shown.colorIndex)) }}>
+          {/* 国号印(#510 漆金环/双描边方案):玩家色经 --pc 注入印环(见 layout.css) */}
+          <span
+            className="guo-yin"
+            style={{ ["--pc" as string]: rgba(playerColor(shown.colorIndex)) }}
+          >
             {shown.guohao.charAt(0)}
           </span>
           <span className="nm">

@@ -56,7 +56,8 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
             以 snapshot.round 为 key 重播 game-chip-pulse(键变 → 重挂载 → 一拍回弹),
             与仪表条现金 pulse 同拍;终局后 round 不再走,chip 不再空跳。 */}
       <span className="chip">
-        <span className="seal-s" style={{ background: rgba(playerColor(self.colorIndex)) }}>
+        {/* 国号小印(#510 漆金环/双描边方案):玩家色经 --pc 注入印环(见 layout.css) */}
+        <span className="seal-s" style={{ ["--pc" as string]: rgba(playerColor(self.colorIndex)) }}>
           {self.guohao.charAt(0)}
         </span>
         <span key={snapshot.round} className="t game-chip-pulse" data-testid={TESTIDS.topbarRound}>

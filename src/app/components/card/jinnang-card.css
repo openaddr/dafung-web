@@ -1,16 +1,17 @@
 /* 锦囊牌面器物件样式(#236 一期 T1)——从 tmp/prototype-jinnang-ui.html 第一 <style> 块
    忠实移植(2026-09-24 用户已验收的视觉基线):类名、形制、色值不做自由发挥。
    选择器统一收口在 .jinnang-card / .jinnang-detail 作用域下(原型是裸类名,入库改为
-   组件前缀防全局串扰);色一律 var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动
-   走 --dur-* 与 --ease-* token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
+   组件前缀防全局串扰);#510 玄墨鎏金深底适配:色一律 var(--color-*) 或其
+   color-mix alpha 形式,墨影 rgba(43,35,23,·) 全数退役(深底上近隐形——描边改漆金
+   细线,落影改中性黑,印文纸色字面量收口 --color-ink);动效时长/缓动走 --dur-* 与
+   --ease-* token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
 
-   裸色豁免登记(原型定稿色,tokens.css 暂无对应 token,照原型保留——本文件唯二豁免):
-   - #9a6a3c(铜框)/ #8d9298(银框):frameTone 品级通道二期启用,先留定稿色;
-   - #f6ecd9(印文纸色,含其 rgba(246,236,217,·) 形式):章面/印条/印文字色。
-   同类登记:牌背漆木渐变两端 #3d3324/#262017(漆面明暗,无 token);漆金
-   rgba(217,185,92,·)= --color-lacquer-gold、漆底 rgba(51,42,30,·)= --color-lacquer、
-   发丝衬里 rgba(250,243,223,·)= --color-paper-hi 的 rgba 形式(app.css 控件种同先例);
-   牌背印面落影 rgba(0,0,0,·) 是漆木上的中性黑影,非墨影语义。
+   裸色豁免登记(#510 深底适配后存留,照原型保留):
+   - #9a6a3c(铜框)/ #8d9298(银框):frameTone 品级通道定稿色(品级语义色,非深浅
+     档);牌背朱印 .yin-s 深底随残留必修口径改 color-mix(约定见 layout.css 文件头)。
+   同类登记:漆金 rgba(217,185,92,·)= --color-lacquer-gold、漆底 rgba(51,42,30,·)=
+   --color-lacquer 的 rgba alpha 形式(app.css 控件种同先例);牌背印面落影
+   rgba(0,0,0,·) 是漆木上的中性黑影,非墨影语义。
 
    尺寸档(em 制):.jinnang-card 基准 font-size:8px→120×160,.lg 16px→240×320
    ——与 jinnang-face-data.ts 的 JINNANG_FACE_SIZE_EM 互为镜像(测试钉住);
@@ -36,11 +37,12 @@
     var(--color-paper-hi) 58%,
     var(--color-panel-hi) 100%
   );
-  border: 0.2em solid rgba(43, 35, 23, 0.65);
+  /* 漆金描边(#510 深底适配:墨框字面量深底近隐形;卡面 B 案「墨面金框」同语) */
+  border: 0.2em solid color-mix(in srgb, var(--color-lacquer-gold) 38%, transparent);
   border-radius: 0.9em;
   box-shadow:
-    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.15em rgba(250, 243, 223, 0.7);
+    0 0.35em 0.8em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.15em color-mix(in srgb, var(--color-ink) 55%, transparent);
   padding: 1em;
   display: flex;
   flex-direction: column;
@@ -98,8 +100,9 @@
 .jinnang-detail .seal {
   width: 2.3em;
   height: 2.3em;
-  background: var(--color-danger);
-  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  /* 朱印深底(#510 残留必修,约定见 layout.css 文件头):纸字对深朱 ≥5:1 */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   border-radius: 0.28em;
   font-family: var(--font-title);
   font-size: 1.5em;
@@ -107,8 +110,8 @@
   place-items: center;
   transform: rotate(2.5deg);
   box-shadow:
-    0 0.15em 0.3em rgba(43, 35, 23, 0.35),
-    inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+    0 0.15em 0.3em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 
 /* ── 纹样窗:程序化 SVG 线稿(path 自原型逐条移植),族色描边 + 55% 族色细框 ── */
@@ -192,17 +195,26 @@
 .jinnang-card.mount {
   padding: 0;
   overflow: hidden;
-  box-shadow: 0 0.35em 0.8em rgba(43, 35, 23, 0.22);
+  box-shadow: 0 0.35em 0.8em rgba(0, 0, 0, 0.4);
 }
 
-/* 绫边:裱布底 + 双向程序化斜纹(零图片,DESIGN §4.5) */
+/* 绫边:裱布底 + 双向程序化斜纹(零图片,DESIGN §4.5;#510 深底适配:斜纹改
+   纸色细纹,墨纹在深绫上不可见) */
 .jinnang-card.mount .ling {
   position: absolute;
   inset: 0;
   border-radius: 0.7em;
   background:
-    repeating-linear-gradient(45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
-    repeating-linear-gradient(-45deg, rgba(43, 35, 23, 0.05) 0 0.3em, transparent 0.3em 0.85em),
+    repeating-linear-gradient(
+      45deg,
+      color-mix(in srgb, var(--color-ink) 7%, transparent) 0 0.3em,
+      transparent 0.3em 0.85em
+    ),
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in srgb, var(--color-ink) 7%, transparent) 0 0.3em,
+      transparent 0.3em 0.85em
+    ),
     linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
 }
 
@@ -245,8 +257,8 @@
   inset: 1.5em;
   border-radius: 0.3em;
   background: var(--color-paper-hi);
-  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-ink)) 42%, rgba(43, 35, 23, 0.38));
-  box-shadow: 0 0.2em 0.5em rgba(43, 35, 23, 0.14);
+  border: 0.14em solid color-mix(in srgb, var(--tone, var(--color-gold-deep)) 55%, transparent);
+  box-shadow: 0 0.2em 0.5em rgba(0, 0, 0, 0.4);
   display: flex;
   flex-direction: column;
   padding: 0.9em;
@@ -314,9 +326,9 @@
   z-index: 2;
   writing-mode: vertical-rl;
   background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 0.2em;
-  box-shadow: 0 0.2em 0.4em rgba(43, 35, 23, 0.22);
+  box-shadow: 0 0.2em 0.4em rgba(0, 0, 0, 0.4);
   padding: 0.7em 0.32em;
   display: flex;
   align-items: center;
@@ -350,8 +362,9 @@
 }
 
 /* ── 品级角标(#359 新形制,第四轮决议③):牌右上角菱形小底 + 品级数字,
-   底色随品级(铜/银/金,与距条 --tone 同源);与框色通道并存=色弱冗余;
-   数字白+墨晕,铜/银/金三底均可读。 ── */
+   底色随品级(铜/银/金,与距条 --tone 同源);与框色通道并存=色弱冗余。
+   #510 深底适配:数字改深墨+纸色光晕(原「数字白」所锚 --color-paper-hi 已反转,
+   深字对金/铜/银三底整体更稳,铜底弱档由冗余通道与光晕兜住可辨性)。 ── */
 .jinnang-card.mount .lv-badge {
   position: absolute;
   top: 0.62em;
@@ -361,10 +374,10 @@
   height: 2.3em;
   transform: rotate(45deg);
   background: var(--tone, var(--color-ink-dim));
-  border: 0.13em solid rgba(43, 35, 23, 0.55);
+  border: 0.13em solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   box-shadow:
-    0 0.12em 0.3em rgba(43, 35, 23, 0.35),
-    inset 0 0 0 0.1em rgba(250, 243, 223, 0.4);
+    0 0.12em 0.3em rgba(0, 0, 0, 0.45),
+    inset 0 0 0 0.1em color-mix(in srgb, var(--color-ink) 40%, transparent);
   display: grid;
   place-items: center;
 }
@@ -375,8 +388,8 @@
   font-size: 1.08em;
   line-height: 1;
   letter-spacing: -0.04em;
-  color: var(--color-paper-hi);
-  text-shadow: 0 0 0.2em rgba(43, 35, 23, 0.85);
+  color: var(--color-bg-deep);
+  text-shadow: 0 0 0.25em color-mix(in srgb, var(--color-ink) 60%, transparent);
   font-variant-numeric: tabular-nums;
 }
 
@@ -398,7 +411,7 @@
   transform-origin: center bottom;
   outline: 0.3em solid var(--color-gold);
   outline-offset: 0.12em;
-  box-shadow: 0 1em 1.8em rgba(43, 35, 23, 0.38);
+  box-shadow: 0 1em 1.8em rgba(0, 0, 0, 0.5);
   z-index: 6;
 }
 /* 选中=详情态(spec US4「放大至全文可读」):笺脚放开 4 行(与 lg 详情档同),
@@ -425,7 +438,7 @@
 .hface.off .sdesc {
   visibility: hidden;
 }
-/* 原因印条:墨底印文纸色字,对比度达标(白纸色字 rgba(43,35,23,.82) 底,原型即如此);
+/* 原因印条:墨底印文纸色字,对比度达标(深墨底 ≈ color-mix bg-deep,纸字 ≥10:1);
    文案是消费方给的新文案,落文楷(font-wenkai 安全位,同禁 font-deco 红线) */
 .jinnang-card .reason,
 .hface .reason {
@@ -433,8 +446,8 @@
   left: -0.2em;
   right: -0.2em;
   bottom: 0.9em;
-  background: rgba(43, 35, 23, 0.82);
-  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  background: color-mix(in srgb, var(--color-bg-deep) 88%, transparent);
+  color: var(--color-ink);
   font-family: var(--font-wenkai);
   font-size: 1.25em;
   text-align: center;
@@ -450,7 +463,13 @@
 
 /* ── 牌背(暗置语义):漆木底 + 「锦囊」朱印 + 回纹双环 ── */
 .jinnang-card.back {
-  background: linear-gradient(160deg, #3d3324, var(--color-lacquer) 55%, #262017);
+  /* 漆木三段(#510 收口字面量,同 hand-rack.css 架体) */
+  background: linear-gradient(
+    160deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 55%,
+    var(--color-paper-lo)
+  );
   align-items: center;
   justify-content: center;
 }
@@ -475,19 +494,20 @@
   position: relative;
   width: 6em;
   height: 6em;
-  background: var(--color-danger);
+  /* 朱印深底(#510 残留必修,约定见 layout.css 文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
   border-radius: 0.4em;
   transform: rotate(-3deg);
   display: grid;
   place-items: center;
   box-shadow:
     0 0.3em 0.7em rgba(0, 0, 0, 0.45),
-    inset 0 0 0 0.18em rgba(246, 236, 217, 0.5);
+    inset 0 0 0 0.18em color-mix(in srgb, var(--color-ink) 50%, transparent);
 }
 .jinnang-card .yin-s span {
   font-family: var(--font-title);
   font-size: 2em;
-  color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
+  color: var(--color-ink);
   line-height: 1.12;
   display: block;
   text-align: center;
@@ -495,16 +515,16 @@
 
 /* ── 详情内容面板(JinnangCardDetail):五段 = 牌名 / 章行 / 全文 / 虚线分隔 / 脚注。
    非弹层——弹层壳(抽屉/浮层)归消费方,本件只是可嵌入的内容面板;
-   纸面用 paper-hi/lo 渐变,消费方可覆盖宽度。 ── */
+   墨面用 paper-hi/lo 渐变,消费方可覆盖宽度。 ── */
 .jinnang-detail {
   width: 340px;
   max-width: 100%;
   box-sizing: border-box;
   background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
-  border: 1px solid rgba(43, 35, 23, 0.35);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   border-radius: 6px;
   padding: 22px 24px;
-  box-shadow: 0 3px 10px rgba(43, 35, 23, 0.2);
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
   color: var(--color-ink);
   font-family: var(--font-wenkai);
 }
@@ -542,7 +562,7 @@
 .jinnang-detail .dt-foot {
   margin-top: 14px;
   padding-top: 12px;
-  border-top: 1px dashed rgba(43, 35, 23, 0.3);
+  border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   font-size: 12px;
   color: var(--color-ink-dim);
   line-height: 1.8;

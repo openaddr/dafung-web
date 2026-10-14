@@ -24,13 +24,29 @@ export async function openShotSession({
   /** 建局后等待的卷轴 testid(如 "scroll-jinnang";不等待传 null)。 */
   waitScroll = null,
 } = {}) {
-  const vite = spawn("bunx", ["vite", "preview", "--port", String(port), "--strictPort"], {
+  // 起服走 bun.exe 绝对路径(Windows node spawn 找不到 bunx——那是 shim 脚本不是
+  // 可执行文件;BUN_EXE 显式注入,缺配置即抛,零兜底):
+  //   BUN_EXE='C:\App\nodejs\bun.exe' node tmp/<场景>.mjs
+  const bunExe = process.env.BUN_EXE;
+  if (!bunExe)
+    throw new Error("BUN_EXE 未设:起服需要 bun.exe 绝对路径(如 C:\\App\\nodejs\\bun.exe)");
+  const vite = spawn(bunExe, ["x", "vite", "preview", "--port", String(port), "--strictPort"], {
     stdio: "ignore",
     detached: true, // 独立进程组:杀组连带子进程(记录 PID,不用 pkill 防误伤)
   });
   const killVite = () => {
     if (vite.pid != null && vite.exitCode === null && vite.signalCode === null) {
-      process.kill(-vite.pid, "SIGTERM");
+      try {
+        process.kill(-vite.pid, "SIGTERM");
+      } catch {
+        // Windows 无 Unix 进程组语义(kill(-pid) ESRCH):退回单进程终结,
+        // 否则 preview server 孤儿占口(2026-10-14 #510 实测翻车)。
+        try {
+          process.kill(vite.pid, "SIGTERM");
+        } catch {
+          // 已自行退出,清理竞态,非吞错
+        }
+      }
     }
   };
   process.on("exit", killVite);
