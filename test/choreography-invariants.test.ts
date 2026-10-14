@@ -5,12 +5,15 @@
 //   横幅 — FX.bannerMs 必须大于 CSS 演出全长 Motion.dur.banner(余量为正,播完有余再清),
 //          FX.bannerHoldMs 必须小于 FX.bannerMs(停留窗是编排窗的子区间);
 //   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
-//          (含 bot)结束后都有 ≥300ms 可读结果);
+//          (含 bot)结束后都有 ≥300ms 可读结果);S7 两段式 bot 半速语义(bot 摇签
+//          严格短于人类摇签);
+//   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点双印错拍 < 合印拍 <
+//          双印清理窗(合印播完有余再清);
 //   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
 //   倍率地板 — TIME_SCALE_FLOOR_MS ≥ 100(headless+软渲的可观察下限不被悄悄调低)。
 // 数值本身的逐位锁定在 test/e2e-time-scale.test.ts(生产恒等快照),本文件只管关系。
 import { describe, it, expect } from "bun:test";
-import { BOT, DICE, FX, MARCH, TIME_SCALE_FLOOR_MS } from "../src/app/fx/timings";
+import { BOT, CEREMONY, DICE, DUEL, FX, MARCH, TIME_SCALE_FLOOR_MS } from "../src/app/fx/timings";
 import { Motion } from "../src/core/theme";
 
 describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系)", () => {
@@ -24,6 +27,22 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
 
   it("骰子可读结果:DICE.holdMs + DICE.fadeOutMs >= 300(任何掷骰(含 bot)结束后有 ≥300ms 可读结果)", () => {
     expect(DICE.holdMs + DICE.fadeOutMs).toBeGreaterThanOrEqual(300);
+  });
+
+  it("骰签两段式 bot 半速语义(S7):bot 摇签严格短于人类摇签,bot 停留严格短于人类停留", () => {
+    expect(DICE.botShakeMs).toBeLessThan(DICE.shakeMs);
+    expect(DICE.botHoldMs).toBeLessThan(DICE.holdMs);
+  });
+
+  it("破产仪式三拍时间轴递增(S7):墨渍拍 < 撒币拍 < 收口,倒旗全长落在收口窗内", () => {
+    expect(CEREMONY.blotAtMs).toBeLessThan(CEREMONY.coinsAtMs);
+    expect(CEREMONY.coinsAtMs).toBeLessThan(CEREMONY.settleMs);
+    expect(CEREMONY.fallMs).toBeLessThanOrEqual(CEREMONY.settleMs);
+  });
+
+  it("拼点双印节拍有序(S7):错拍 < 合印拍 < 双印清理窗(播完有余再清)", () => {
+    expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs);
+    expect(DUEL.verdictMs).toBeLessThan(FX.duelMs);
   });
 
   it("行军段时长夹取区间有序:MARCH.minSegMs < MARCH.maxSegMs", () => {
