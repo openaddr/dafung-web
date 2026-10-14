@@ -105,9 +105,7 @@ export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
       </TooltipTrigger>
       <TooltipContent side={side} sideOffset={8} data-testid={TESTIDS.attrTip}>
         <TooltipTitle>{tip.name}</TooltipTitle>
-        {tip.detail !== "" && (
-          <span className="block text-[rgba(246,236,217,0.85)]">{tip.detail}</span>
-        )}
+        {tip.detail !== "" && <span className="block text-ink/85">{tip.detail}</span>}
       </TooltipContent>
     </Tooltip>
   );

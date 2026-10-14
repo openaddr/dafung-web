@@ -383,7 +383,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             // null),同槽上下错开不再叠字。
             <div
               data-testid={TESTIDS.hint}
-              className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
+              className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
             >
               {setupHint}
             </div>

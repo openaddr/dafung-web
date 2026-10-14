@@ -158,20 +158,36 @@
   }
 }
 
-/* 回合旌旗横幅 */
+/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题):
+   深墨漆匾 + 漆金双环描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+
+   玩家色光晕承身份(--player-color 由 FxLayer 注入;原「玩家色底+白字」对部分
+   玩家色对比 1.9-2.9 不可读,#509 残留必修同源收口)。
+   编排零改动:时长/缓动/关键帧仍归 --dur-banner + fx-banner-fly(1800ms 硬同步点)。 */
 .fx-turn-banner {
   position: absolute;
   top: 16%;
   left: 50%;
-  background: var(--player-color, var(--color-ink));
-  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: linear-gradient(
+    180deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 58%,
+    var(--color-bg-deep)
+  );
+  color: var(--color-lacquer-gold);
   font-family: var(--font-title);
   font-size: 28px;
   padding: 6px 28px;
   border-radius: 4px;
   opacity: 0;
-  border: 3px solid var(--color-gold-bright);
-  box-shadow: 0 0 40px rgba(0, 0, 0, 0.4);
+  border: 2px solid var(--color-lacquer-gold);
+  box-shadow:
+    inset 0 0 0 1.5px color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent),
+    0 0 36px color-mix(in srgb, var(--player-color, var(--color-gold)) 40%, transparent),
+    0 10px 30px rgba(0, 0, 0, 0.5);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   letter-spacing: 8px;
   pointer-events: none;
   z-index: 25;
@@ -181,6 +197,19 @@
      改横幅节奏只改 Motion.dur.banner 一处。缓动取 --ease-out:主读感是 0-20% 的
      入场展开,退场段由透明度遮蔽。 */
   animation: fx-banner-fly var(--dur-banner) var(--ease-out) forwards;
+}
+/* 朱印题:横幅两侧朱砂小方(漆金环衬;装饰印,不含文字) */
+.fx-turn-banner::before,
+.fx-turn-banner::after {
+  content: "";
+  flex: 0 0 auto;
+  width: 11px;
+  height: 11px;
+  border-radius: 2px;
+  transform: rotate(45deg);
+  /* 朱印深底(#510 残留必修口径,约定见 screens/game/layout.css 文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 @keyframes fx-banner-fly {
   0% {
@@ -233,14 +262,16 @@
     fx-svg-seal-linger 0.85s var(--ease-out) forwards;
 }
 .fx-svg-seal rect {
-  fill: var(--color-danger);
-  stroke: var(--color-paper); /* 印边米白:复用浅宣纸 token */
+  /* 朱印深底(#510 残留必修口径,约定见 screens/game/layout.css 文件头;原引用
+     --color-paper 已随 #509 token 换血消失,借机收口 --color-ink) */
+  fill: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  stroke: var(--color-ink);
   stroke-width: 3;
 }
 .fx-svg-seal text {
   font-family: var(--font-title);
   font-weight: 700;
-  fill: var(--color-paper);
+  fill: var(--color-ink);
 }
 @keyframes fx-svg-seal-linger {
   0% {
