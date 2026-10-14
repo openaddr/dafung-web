@@ -8,7 +8,7 @@
 // 快捷键,DESIGN §4.6 邻域);卡 title 带全文,desc 截断不丢信息。
 import type { GameCommand } from "@core/authority";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
-import { ScrollShell } from "./ScrollShell";
+import { BannerShell } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** 候选名将的最小展示形状(snapshot.offeredHeroes 展示子集;卡面本体按 id 回查
@@ -29,7 +29,7 @@ export interface HeroPickScrollProps {
 export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   if (!offered.length) return null; // 与旧 showHeroPickScroll 一致:无候选不弹
   return (
-    <ScrollShell title="招贤纳士" testid={T.heroPickScroll}>
+    <BannerShell title="招贤纳士" testid={T.heroPickScroll}>
       <div className="flex justify-center gap-5">
         {offered.map((h, i) => (
           <button
@@ -44,6 +44,6 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
           </button>
         ))}
       </div>
-    </ScrollShell>
+    </BannerShell>
   );
 }

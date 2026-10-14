@@ -28,7 +28,7 @@ import { UI } from "@app/fx/timings";
 import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
 // S2:卷轴式弹窗——只 import 不改 scroll/ 目录(并行 agent 可能动它)
 import { ConfirmDialog } from "@app/screens/game/scroll/ConfirmDialog";
-import { ScrollShell, ScrollButton } from "@app/screens/game/scroll/ScrollShell";
+import { BannerShell, BannerButton } from "@app/screens/game/scroll/BannerShell";
 import { Sym } from "@app/screens/shared/Sym";
 import { TID } from "./testids";
 
@@ -102,7 +102,7 @@ const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
 
 /** S2:卷轴式输入卷轴——替代 window.prompt(原生弹窗在卷轴主题里出戏,且 E2E 里
  *  dialog 处理与页面交互互斥)。scroll/ 的 ConfirmDialog 不支持输入,故在编辑器内
- *  用 ScrollShell + ScrollButton 拼装,样式与 ConfirmDialog 小卡片形态对齐。 */
+ *  用 BannerShell + BannerButton 拼装,样式与 ConfirmDialog 小卡片形态对齐(S9 起壳为全屏宣告横幅制式)。 */
 function InputScroll({
   title,
   label,
@@ -117,7 +117,7 @@ function InputScroll({
   onCancel: () => void;
 }) {
   const [value, setValue] = useState(defaultValue);
-  // #174:焦点陷阱不再自配——InputScroll 主体就是 ScrollShell,壳内 DialogFocusScope
+  // #174:焦点陷阱不再自配——InputScroll 主体就是 BannerShell,壳内 DialogFocusScope
   // (FocusScope 惯用法)已提供 Tab 圈定与关闭还焦;输入框 autoFocus 保持直接可输入
   // 手感(挂载不夺焦口径,焦点已在壳内)。原 useDialogFocus 外壳 trapRef 是与壳内
   // 陷阱并存的双实现,收编删除。
@@ -125,7 +125,7 @@ function InputScroll({
   const trimmed = value.trim();
   const canConfirm = trimmed.length > 0;
   return (
-    <ScrollShell title={title} onClose={onCancel} testid="editor-input-scroll">
+    <BannerShell title={title} onClose={onCancel} testid="editor-input-scroll">
       {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
       <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-ink">
         {label}
@@ -146,19 +146,19 @@ function InputScroll({
         />
       </label>
       <div className="flex flex-wrap justify-center gap-3">
-        <ScrollButton
+        <BannerButton
           primary
           testid="editor-input-ok"
           onClick={() => onOk(trimmed)}
           disabled={!canConfirm}
         >
           确定
-        </ScrollButton>
-        <ScrollButton testid="editor-input-cancel" onClick={onCancel}>
+        </BannerButton>
+        <BannerButton testid="editor-input-cancel" onClick={onCancel}>
           取消
-        </ScrollButton>
+        </BannerButton>
       </div>
-    </ScrollShell>
+    </BannerShell>
   );
 }
 
@@ -593,7 +593,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           onChange={onImportFile}
         />
 
-        <h3 className="font-brush mb-1 mt-3 text-xl text-ink">编辑地图</h3>
+        <h3 className="font-title mb-1 mt-3 text-xl text-ink">编辑地图</h3>
         <p className="mb-3 text-xs text-ink-dim">
           拖拽城池改位置(松手后自动连线);点击城池编辑属性。
         </p>

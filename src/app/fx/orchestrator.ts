@@ -36,7 +36,8 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.marchToken(ev.playerId, ev.path);
         break;
       case "cashDelta":
-        sink.spawnFloater(ev.x, ev.y, ev.amount, false);
+        // 铜钱雨扩容(S7):纳税付银带 coins 档,随雨落币
+        sink.spawnFloater(ev.x, ev.y, ev.amount, ev.coins === true);
         break;
       case "supplyRain":
         sink.spawnFloater(ev.x, ev.y, ev.amount, true);
@@ -45,7 +46,25 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         sink.spawnTextFloater(ev.x, ev.y, ev.text);
         break;
       case "sealStamped":
-        sink.stampSeal(ev.tileIndex, ev.char);
+        sink.stampSeal(ev.tileIndex, ev.char, ev.tone);
+        break;
+      case "landPulse":
+        // 落格定音(S7):金圈一拍,同步下发 CSS 自走。
+        sink.landPulse(ev.tileIndex);
+        break;
+      case "duelStamps":
+        // 拼点双印(S7):音画错拍由 sink 编排(同步下发),不占编排时长。
+        sink.stampDuel(ev);
+        break;
+      case "haltBanner":
+        // 都城停全屏宣告(S7):号角+震屏同拍,等横幅读过峰值段再接驻章
+        // (同 turnBanner 的 C3 口径;生产 sink 返回 void,不收签名)。
+        sink.showHaltBanner(ev);
+        await delay(FX.haltHoldMs);
+        break;
+      case "bankruptCeremony":
+        // 破产仪式(S7):三拍串行编排(倒旗→墨渍→撒币,三音随拍),await 到收口。
+        await sink.bankruptCeremony(ev);
         break;
       case "turnBanner":
         // C3:横幅占用编排时长——showBanner 本身异步置 store 即返回(音画由 CSS 动画
@@ -73,13 +92,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
 }
 
 // ─────────────────────── 骰子动画 ───────────────────────
-/** 掷骰表现:全屏签面(diceApi → DiceOverlay:弹入→停留→渐隐),单机/联机共用。
- *  起手沙锤 + 签面现身落骰声同拍(时序沿袭旧无 WebGL 签面路径,onLand 同步)。
+/** 掷骰表现:全屏签面(diceApi → DiceOverlay:摇签→落定→停留→渐隐),单机/联机共用。
+ *  起手沙锤在此(落骰声已挪到签面落定拍,DiceOverlay 内音画同拍)。
  *  生产 sink 的 rollDice 落点(sinks.ts)。 */
 export async function animateDice(die: number): Promise<void> {
-  const audio = getAudio();
-  audio.play("diceRoll");
-  audio.play("diceLand");
+  getAudio().play("diceRoll");
   await diceApi.roll(die);
 }
 

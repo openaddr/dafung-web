@@ -13,9 +13,11 @@ import { rgba, Theme } from "@core/theme";
 //
 // 地域变体(#风土形制):两张内置地图全部城池都是 large(valueByLevel ≥20),单靠规模档
 // 分不出形制,同盘 31 座同模子必单调。按区域分组字母(Theme.groupNames 的 a–h)选风格:
-//   north(默认 a/f/g 等)官式:暖白墙 + 朱柱 + 青灰瓦,中原/幽燕/青徐的礼制气象;
-//   south(b/c/d/h)粉墙黛瓦:墙身提白、柱转深棕,荆楚/江东/岭南/巴蜀的水乡底色;
+//   north(默认 a/f/g 等)官式:暖褐墙 + 朱柱 + 墨青瓦,中原/幽燕/青徐的礼制气象;
+//   south(b/c/d/h)粉墙黛瓦:墙身提亮、柱转深棕,荆楚/江东/岭南/巴蜀的水乡底色;
 //   desert(e)土堡平顶:夯土堡身 + 平顶雉堞、无木构楼阁,西凉边地的营造。
+// (#512 玄墨深底重调色:造型/几何完全不动,只换表现色——深底上建筑群=暖色聚落,
+// 漆金描檐+金窗灯火点睛,「美观且不炫目」。)
 // 形制差异是总览下「区域轮廓」的第一层信号,精确区域仍交给色带;自定义地图未知分组
 // 一律回落 north,不崩。
 
@@ -78,17 +80,17 @@ function eaveShadow(w: number, tipY: number): string {
 function Lantern({ x }: { x: number }) {
   return (
     <g>
-      <line x1={x} y1={-14} x2={x} y2={-10} stroke="rgba(50,35,15,0.7)" strokeWidth={1} />
+      <line x1={x} y1={-14} x2={x} y2={-10} stroke={rgba(Theme.inkwash, 0.55)} strokeWidth={1} />
       <ellipse
         cx={x}
         cy={-6.5}
         rx={3.2}
         ry={4}
-        fill="rgba(178,44,34,0.92)"
-        stroke="rgba(120,20,15,0.7)"
+        fill={rgba(Theme.danger, 0.92)}
+        stroke={rgba(Theme.bgDeep, 0.7)}
         strokeWidth={0.8}
       />
-      <line x1={x} y1={-2.5} x2={x} y2={1.5} stroke="rgba(200,60,40,0.8)" strokeWidth={0.8} />
+      <line x1={x} y1={-2.5} x2={x} y2={1.5} stroke={rgba(Theme.danger, 0.8)} strokeWidth={0.8} />
     </g>
   );
 }
@@ -121,26 +123,37 @@ function cityTower(level: number): TowerGeom | null {
   };
 }
 
-// ── 建筑表现色(集中常量;渐变本体挂 BoardDefs 的 bv-roof-grad / bv-wall-grad——
-//    每城内联 defs 会产生重复 id 冲突,统一在 StaticLayers 声明)──
-const ROOF_FILL = "url(#bv-roof-grad)"; // 青瓦/黛瓦(冷灰蓝:宣纸暖底上的对比层,替代旧红褐)
-const ROOF_STROKE = "rgba(56,64,75,0.9)"; // 瓦脊深线
+// ── 建筑表现色(#512 玄墨深底重调色,造型不动;集中常量;渐变本体挂 BoardDefs 的
+//    bv-roof-grad / bv-wall-grad——每城内联 defs 会产生重复 id 冲突,统一在 StaticLayers 声明)──
+// 口径:官式=暖褐墙+朱柱;南式=提亮粉墙+深棕柱;土堡=夯土+墨青瓦面;普遍=漆金描檐
+// (檐口金笔)+金窗灯火(直棂窗暖金);描边/缝线统一压玄墨,不与深底争。
+const ROOF_FILL = "url(#bv-roof-grad)"; // 墨青瓦面(StaticLayers 渐变,玄墨深底档)
+const ROOF_STROKE = "rgba(24,30,36,0.9)"; // 瓦脊深线
 const PLATFORM_FILL = "url(#bv-wall-grad)"; // 夯土城台
-const PLATFORM_STROKE = "rgba(90,70,40,0.55)";
-const BODY_STROKE = "rgba(90,70,40,0.55)";
-const LATTICE_FILL = "#7a5a3a"; // 直棂窗
-const GATE_FILL = "#4a3826"; // 门洞深影
-const RAIL_FILL = "#c9b58c"; // 台顶木栏杆
-const GROUND_SHADOW = "rgba(90,70,40,0.2)"; // 建筑落地投影(整卡的"重量"来源)
+const PLATFORM_STROKE = "rgba(16,12,7,0.7)";
+const BODY_STROKE = "rgba(16,12,7,0.7)";
+const LATTICE_FILL = "#c08a2e"; // 直棂窗=金窗灯火(暖金窗扇)
+const LATTICE_STROKE = "rgba(30,20,8,0.8)"; // 窗框深线
+const LATTICE_SHEEN = "rgba(255,224,150,0.55)"; // 窗棂受光(灯火透光)
+const GATE_FILL = "#2a2012"; // 门洞深影
+const GATE_EDGE = rgba(Theme.lacquerGold, 0.55); // 门洞漆金描边
+const RAIL_FILL = "#93794a"; // 台顶木栏杆(沉木色)
+const GROUND_SHADOW = "rgba(4,3,2,0.5)"; // 建筑落地投影(整卡的"重量"来源)
+const SEAM_STROKE = "rgba(8,6,3,0.4)"; // 砖缝/夯土横缝
+const BATTLEMENT_FILL = "rgba(28,22,14,0.75)"; // 雉堞(墙头垛子)
+const EAVE_SHADOW_STROKE = "rgba(8,10,13,0.65)"; // 檐口阴影
+const ROOF_SHEEN_STROKE = rgba(Theme.lacquerGold, 0.3); // 漆金描檐(檐口金笔,克制)
+const TOWER_CORE_FILL = "#36414b"; // 加层塔身剪影(墨青,藏于各层檐面之后)
 
-/** 风格变体的墙/柱配色:body = 墙身,column = 木柱。 */
+/** 风格变体的墙/柱配色:body = 墙身,column = 木柱。(#512 深底档:墙身压进暖褐/粉调
+ *  中明度,柱色保持朱/棕色相——总览下建筑群是深底上的暖色聚落,不与铭牌金边争辉。) */
 interface BuildingStyle {
   body: string;
   column: string;
 }
-const STYLE_NORTH: BuildingStyle = { body: "#eee2c2", column: "#9e3b32" }; // 官式:暖白墙朱柱
-const STYLE_SOUTH: BuildingStyle = { body: "#f5f2e8", column: "#5c4331" }; // 粉墙黛瓦:提白墙深棕柱
-const STYLE_DESERT: BuildingStyle = { body: "#e6d2a8", column: "#8a5a3a" }; // 土堡:夯土色
+const STYLE_NORTH: BuildingStyle = { body: "#b09670", column: "#a84438" }; // 官式:暖褐墙朱柱
+const STYLE_SOUTH: BuildingStyle = { body: "#d9cfb9", column: "#6d5339" }; // 粉墙黛瓦:提亮粉墙深棕柱
+const STYLE_DESERT: BuildingStyle = { body: "#bfa276", column: "#7d5233" }; // 土堡:夯土色
 /** 南方水乡系分组(荆楚 b/岭南 c/巴蜀 d/江东 h)→ 粉墙黛瓦;西凉 e → 土堡;其余官式。 */
 function buildingStyle(group: string): BuildingStyle {
   if (group === "e") return STYLE_DESERT;
@@ -148,7 +161,7 @@ function buildingStyle(group: string): BuildingStyle {
     ? STYLE_SOUTH
     : STYLE_NORTH;
 }
-const DESERT_ROOF = "#8a7a5e"; // 土堡平顶檐口(暖土灰,不入青瓦渐变)
+const DESERT_ROOF = "#98875f"; // 土堡平顶檐口(暖土灰,不入青瓦渐变)
 
 /** 朱柱直棂窗开间:墙身 + 四柱 + 中央直棂窗(窗棂三笔)。
  *  x/y/w/h 为墙身矩形,winH 为窗高;柱贴墙两缘与窗两侧,大小两档楼身共用。 */
@@ -193,10 +206,10 @@ function PillaredBay({
         width={winW}
         height={winH}
         fill={LATTICE_FILL}
-        stroke="rgba(60,40,20,0.6)"
+        stroke={LATTICE_STROKE}
         strokeWidth={0.7}
       />
-      <g stroke="rgba(238,222,180,0.55)" strokeWidth={0.7}>
+      <g stroke={LATTICE_SHEEN} strokeWidth={0.7}>
         <line x1={cx - winW * 0.22} y1={y + 2} x2={cx - winW * 0.22} y2={y + 2 + winH} />
         <line x1={cx} y1={y + 2} x2={cx} y2={y + 2 + winH} />
         <line x1={cx + winW * 0.22} y1={y + 2} x2={cx + winW * 0.22} y2={y + 2 + winH} />
@@ -236,7 +249,7 @@ export function Building({
         y={tower.core.y}
         width={tower.core.w}
         height={tower.core.h}
-        fill="#4a5260"
+        fill={TOWER_CORE_FILL}
         opacity={0.95}
       />
       {/* #96/ADR-0015 扩军瞬间:只有新晋最顶层檐面重播 bv-build-grow 生长(board.css,
@@ -269,7 +282,7 @@ export function Building({
         <path
           d={tower.roofs[level - 1]}
           fill={rgba(Theme.goldBright, 0.96)}
-          stroke="rgba(60,30,15,0.65)"
+          stroke={rgba(Theme.bgDeep, 0.7)}
           strokeWidth={1.2}
         />
         <circle
@@ -277,7 +290,7 @@ export function Building({
           cy={tower.topApex + 2}
           r={2.2}
           fill={rgba(Theme.goldBright)}
-          stroke="rgba(60,30,15,0.7)"
+          stroke={rgba(Theme.bgDeep, 0.75)}
           strokeWidth={0.7}
         />
       </g>
@@ -315,12 +328,7 @@ export function Building({
           strokeWidth={1.1}
           strokeLinejoin="round"
         />
-        <path
-          d={roofSheen(25, -8.5)}
-          fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={0.7}
-        />
+        <path d={roofSheen(25, -8.5)} fill="none" stroke={ROOF_SHEEN_STROKE} strokeWidth={0.7} />
       </>
     );
   } else if (size === "medium") {
@@ -338,14 +346,14 @@ export function Building({
           stroke={PLATFORM_STROKE}
           strokeWidth={1.3}
         />
-        <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
+        <g stroke={SEAM_STROKE} strokeWidth={0.7}>
           <line x1={-32} y1={3} x2={32} y2={3} />
           <line x1={-34} y1={8} x2={34} y2={8} />
           <line x1={-20} y1={3} x2={-20} y2={8} />
           <line x1={22} y1={-2} x2={22} y2={3} />
         </g>
         {/* 雉堞(墙头两侧) */}
-        <g fill="rgba(90,70,40,0.45)">
+        <g fill={BATTLEMENT_FILL}>
           <rect x={-29} y={-5} width={6} height={3.5} />
           <rect x={-20.5} y={-5} width={6} height={3.5} />
           <rect x={14.5} y={-5} width={6} height={3.5} />
@@ -354,7 +362,7 @@ export function Building({
         <path
           d="M -6.5,12 L -6.5,2 Q -6.5,-2.5 0,-2.5 Q 6.5,-2.5 6.5,2 L 6.5,12 Z"
           fill={GATE_FILL}
-          stroke="rgba(212,175,105,0.5)"
+          stroke={GATE_EDGE}
           strokeWidth={1}
         />
         <PillaredBay x={-15} y={-17} w={30} h={15} winH={7} style={style} />
@@ -365,12 +373,7 @@ export function Building({
           strokeWidth={1.1}
           strokeLinejoin="round"
         />
-        <path
-          d={roofSheen(27, -16.5)}
-          fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={0.7}
-        />
+        <path d={roofSheen(27, -16.5)} fill="none" stroke={ROOF_SHEEN_STROKE} strokeWidth={0.7} />
       </>
     );
   } else if (isDesert) {
@@ -387,7 +390,7 @@ export function Building({
           stroke={PLATFORM_STROKE}
           strokeWidth={1.4}
         />
-        <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
+        <g stroke={SEAM_STROKE} strokeWidth={0.7}>
           <line x1={-45} y1={2} x2={45} y2={2} />
           <line x1={-47} y1={8} x2={47} y2={8} />
           <line x1={-24} y1={2} x2={-24} y2={8} />
@@ -397,7 +400,7 @@ export function Building({
         <path
           d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z"
           fill={GATE_FILL}
-          stroke="rgba(212,175,105,0.5)"
+          stroke={GATE_EDGE}
           strokeWidth={1.1}
         />
         <rect
@@ -412,7 +415,7 @@ export function Building({
         {/* 高窗两笔 + 堡身夯土横缝 */}
         <rect x={-16} y={-12} width={8} height={6} fill={LATTICE_FILL} />
         <rect x={8} y={-12} width={8} height={6} fill={LATTICE_FILL} />
-        <line x1={-30} y1={-8} x2={30} y2={-8} stroke="rgba(90,70,40,0.15)" strokeWidth={0.7} />
+        <line x1={-30} y1={-8} x2={30} y2={-8} stroke={SEAM_STROKE} strokeWidth={0.7} />
         <rect
           x={-33}
           y={-20.5}
@@ -451,7 +454,7 @@ export function Building({
           stroke={PLATFORM_STROKE}
           strokeWidth={1.4}
         />
-        <g stroke="rgba(90,70,40,0.18)" strokeWidth={0.7}>
+        <g stroke={SEAM_STROKE} strokeWidth={0.7}>
           <line x1={-45} y1={2} x2={45} y2={2} />
           <line x1={-47} y1={8} x2={47} y2={8} />
           <line x1={-24} y1={2} x2={-24} y2={8} />
@@ -461,10 +464,10 @@ export function Building({
         <path
           d="M -8,14 L -8,1 Q -8,-5 0,-5 Q 8,-5 8,1 L 8,14 Z"
           fill={GATE_FILL}
-          stroke="rgba(212,175,105,0.5)"
+          stroke={GATE_EDGE}
           strokeWidth={1.1}
         />
-        <g fill={RAIL_FILL} stroke="rgba(90,70,40,0.4)" strokeWidth={0.5}>
+        <g fill={RAIL_FILL} stroke={rgba(Theme.bgDeep, 0.6)} strokeWidth={0.5}>
           <rect x={-34} y={-7.5} width={68} height={1.8} />
           {[-32, -20, -8, 6, 18, 30].map((x) => (
             <rect key={x} x={x} y={-5.8} width={1.8} height={2.8} />
@@ -478,12 +481,7 @@ export function Building({
           strokeWidth={1.2}
           strokeLinejoin="round"
         />
-        <path
-          d={roofSheen(40, -21)}
-          fill="none"
-          stroke="rgba(255,255,255,0.12)"
-          strokeWidth={0.8}
-        />
+        <path d={roofSheen(40, -21)} fill="none" stroke={ROOF_SHEEN_STROKE} strokeWidth={0.8} />
         <PillaredBay x={-13} y={-29} w={26} h={9} winH={4} style={style} />
         <path
           d={upper}
@@ -522,7 +520,7 @@ export function Building({
           key={i}
           d={d}
           fill="none"
-          stroke="rgba(35,40,48,0.5)"
+          stroke={EAVE_SHADOW_STROKE}
           strokeWidth={1}
           strokeLinecap="round"
         />

@@ -37,7 +37,8 @@ const S = (() => {
   const raw = Number(localStorage.getItem(E2E_TIME_SCALE_KEY) ?? "");
   return Number.isFinite(raw) && raw > 0 ? raw : 1;
 })();
-const sc = S === 1 ? (ms: number) => ms : makeScaler(S);
+/** e2e 时间缩放(模块内约定俗成的 sc;desk.ts 等新演出模块同源取数,不各自造轮子)。 */
+export const sc = S === 1 ? (ms: number) => ms : makeScaler(S);
 
 export const BOT = {
   stepDelayMs: sc(750),
@@ -74,18 +75,58 @@ export const FX = {
    *  IndicatorLine 同参数),三段编排进 fx.css 的单条 keyframes(百分比刻度),本值
    *  只作 store 清理窗口与动画全长硬同步,改任一侧须两处同改。 */
   jinnangLineMs: sc(700),
+  /** 落格定音金圈一拍(S7 #513):fx-svg-pulse 全长 0.65s + 清理余量,fx.css 同名
+   *  keyframe 硬同步,改任一侧须两处同改。 */
+  landPulseMs: sc(750),
+  /** 拼点双印全程存活(S7 #513):双骰印错拍(DUEL.clackGapMs)→ 合印拍
+   *  (DUEL.verdictMs)钤下,合印 linger 1.15s 收尾 → 全长 ≈1.67s + 余量;fx.css
+   *  fx-duel-* keyframe 百分比刻度硬同步,改任一侧须两处同改。 */
+  duelMs: sc(1800),
+  /** 都城停全屏横幅存活(S7 #513):fx-halt-banner-fly 全长 2.2s + 清理余量,
+   *  与 fx.css 同名 keyframe 硬同步(特例字面量,同 seal/骰签口径)。 */
+  haltBannerMs: sc(2400),
+  /** 都城停横幅占用编排时长(同 bannerHoldMs 口径):等入场展开+驻停读过一拍,
+   *  驻章与补给铜钱雨在其后接续。 */
+  haltHoldMs: sc(1400),
+  /** 破产仪式墨渍晕开全程(S7):fx-inkblot-bloom 1s + 清理余量,fx.css 硬同步。 */
+  inkBlotMs: sc(1100),
+  /** 破产仪式撒币全程(S7):fx-coin-burst 1.3s + 清理余量,fx.css 硬同步。 */
+  coinBurstMs: sc(1400),
 } as const;
 
 /** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;时长集中调参)。
- *  C1 bot 掷骰半速:bot 回合节奏优先,停留压到 slow 档;签面弹入(fx.css
- *  dice-sign-in 0.3s)须落在 botHoldMs(400ms)预算内。任何掷骰(含 bot)结束后
+ *  S7 两段式(#513/#492 拍板:标准档摇签 0.6s):先摇签段(墨字虚影 60ms 级轮换,
+ *  全段恰 10 次换签,DiceOverlay 按 shakeMs/10 求轮换周期)→ 大字 outBack 落定
+ *  (金圈同拍+桌面微震 4px,desk.ts)→ 停留 → 渐隐。
+ *  C1 bot 掷骰半速:bot 摇签/停留都压半,回合节奏优先。任何掷骰(含 bot)结束后
  *  都有 ≥300ms 可读结果(holdMs+fadeOutMs,由 test/choreography-invariants.test.ts 钉住)。
  *  与 token 同值者(holdMs=--dur-reveal / botHoldMs=--dur-slow / fadeOutMs=--dur-med)
- *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。 */
+ *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。摇签段无 token 对应,保留字面量。 */
 export const DICE = {
+  shakeMs: sc(600), // 摇签段(人类标准档 0.6s,#492);fx.css .dice-sign-shaking 虚影态同段硬同步
+  botShakeMs: sc(300), // 摇签段(bot 半速档)
   holdMs: sc(Motion.dur.reveal), // 签面停留(人类);与 --dur-reveal 同源(经 Motion)
   botHoldMs: sc(Motion.dur.slow), // 签面停留(bot 半速档);与 --dur-slow 同源(经 Motion)
   fadeOutMs: sc(Motion.dur.med), // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
+} as const;
+
+/** 拼点双印节拍(S7 #513):音画错拍锚点(经 sc 缩放),sinks.stampDuel 消费。
+ *  与 fx.css .fx-duel-die-b 的 0.15s / .fx-duel-verdict 的 0.52s animation-delay
+ *  硬同步(特例字面量,同 seal/骰签口径),改任一侧须两处同改。 */
+export const DUEL = {
+  clackGapMs: sc(150), // 第二枚骰点印错拍(含第二声 tileClack)
+  verdictMs: sc(520), // 合印拍:「失/平」大印钤下(stamp 音;|a−b|≥3 大胜负同拍震屏)
+} as const;
+
+/** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币):累计毫秒锚点(经 sc 缩放),
+ *  sinks.bankruptCeremony 串行消费。与 fx.css fx-flag-fall(1.1s)/fx-inkblot-bloom
+ *  (1s)/fx-coin-burst(1.3s)硬同步,改任一侧须两处同改。 */
+export const CEREMONY = {
+  fallMs: sc(1100), // 旌旗缓倒全长(墨渍在其尾段 1.0s 拍开晕)
+  blotAtMs: sc(1000), // 铭牌墨渍晕开起始拍
+  coinsAtMs: sc(1500), // 铜钱撒落拍(coinsBox 音同拍)
+  settleMs: sc(2600), // 仪式收口(撒币看完再交还编排链)
+  coinCount: 10, // 撒币枚数(8–12 档中值,#492 决议)
 } as const;
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

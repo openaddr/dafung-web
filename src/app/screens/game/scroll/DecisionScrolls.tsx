@@ -1,17 +1,18 @@
-// 常规决策卷轴(购地/扩军/机遇/耗竭):从旧侧栏 ActionInline 迁入卷轴体系。
-// 交互重构原则:所有需要玩家权衡的选择一律走卷轴弹层,侧栏手牌区不再有决策按钮;
-// 卷轴轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
+// 常规决策弹层(购地/扩军/机遇/耗竭):从旧侧栏 ActionInline 迁入弹层体系(S9 起壳为
+// 全屏宣告横幅,卷轴壳退役)。
+// 交互重构原则:所有需要玩家权衡的选择一律走弹层,侧栏手牌区不再有决策按钮;
+// 弹层轮到即自动弹出(DecisionScrollLayer 按相位路由),且无可关 ×——决策相位必须选择。
 // 按钮 testid 沿用旧 action-* 命名(action-buy/…),文案与语义不变,
-// 只是位置从侧栏搬进卷轴,e2e 断言零语义变化。
+// 只是位置从侧栏搬进弹层,e2e 断言零语义变化。
 // (经过都城必停后「驻跸或行进」卷轴已删:引擎直接结算,无玩家抉择。)
-// spec #107 C1(UI 半边选项集消费缝):三个卷轴的可用性/不可用原因一律从快照
+// spec #107 C1(UI 半边选项集消费缝):三个弹层的可用性/不可用原因一律从快照
 // choices(choices.ts 注册表产出,ADR-0013)读取,UI 不再重推 canBuy/maxed/reason
 // ——全游戏不可购原因只有引擎一处口径。
 import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
-import { ScrollShell, ScrollButton } from "./ScrollShell";
+import { BannerShell, BannerButton } from "./BannerShell";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
@@ -54,12 +55,12 @@ export function EncounterChoiceScroll({
     }),
   );
   return (
-    <ScrollShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
+    <BannerShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
       {/* 机遇文段:事件描述正文用霞鹜文楷 */}
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
       <div className="flex flex-col gap-2.5">
         {choices.map((o, i) => (
-          <ScrollButton
+          <BannerButton
             key={o.id}
             primary={i === 0}
             shortcut={i + 1}
@@ -69,7 +70,7 @@ export function EncounterChoiceScroll({
             onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
           >
             {o.label}
-          </ScrollButton>
+          </BannerButton>
         ))}
       </div>
       {choices.some((o) => !o.available) && (
@@ -77,7 +78,7 @@ export function EncounterChoiceScroll({
           {choices.find((o) => !o.available)?.reason}
         </p>
       )}
-    </ScrollShell>
+    </BannerShell>
   );
 }
 
@@ -98,13 +99,13 @@ export function ExhaustionChoiceScroll({
     }),
   );
   return (
-    <ScrollShell title="体力耗竭" testid={T.exhaustionScroll}>
+    <BannerShell title="体力耗竭" testid={T.exhaustionScroll}>
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
         体力耗竭,倒地不起!择一座城池弃之苟活:降 1 级,或失去整座。歇罢这阵,体力自会回满。
       </p>
       <div className="flex flex-col gap-2.5">
         {choices.map((o, i) => (
-          <ScrollButton
+          <BannerButton
             key={o.id}
             primary={i === 0}
             shortcut={i + 1}
@@ -114,10 +115,10 @@ export function ExhaustionChoiceScroll({
             onClick={() => onCommand({ type: "resolveExhaustionChoice", index: i })}
           >
             {o.label}
-          </ScrollButton>
+          </BannerButton>
         ))}
       </div>
-    </ScrollShell>
+    </BannerShell>
   );
 }
 
@@ -155,7 +156,7 @@ export function BuyDecisionScroll({
   // G-20:资产行 —— 一眼看清持有/需付/差额(负差红字)
   const diff = cash - property.purchasePrice;
   return (
-    <ScrollShell title="购地抉择" testid={T.buyScroll}>
+    <BannerShell title="购地抉择" testid={T.buyScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」{region ? ` · ${region}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
@@ -178,7 +179,7 @@ export function BuyDecisionScroll({
         </button>
       )}
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <ScrollButton
+        <BannerButton
           primary
           disabled={!buy.available}
           title={buy.available ? undefined : buy.reason}
@@ -187,17 +188,17 @@ export function BuyDecisionScroll({
           onClick={() => onCommand({ type: "buyProperty" })}
         >
           购地 {formatMoney(property.purchasePrice)}·1委任
-        </ScrollButton>
-        <ScrollButton
+        </BannerButton>
+        <BannerButton
           shortcut={2}
           testid={TESTIDS.actionButton("skip")}
           onClick={() => onCommand({ type: "endDecision" })}
         >
           不取
-        </ScrollButton>
+        </BannerButton>
       </div>
       {!buy.available && <p className="mt-2 text-center text-xs text-ink-dim">{buy.reason}</p>}
-    </ScrollShell>
+    </BannerShell>
   );
 }
 
@@ -231,7 +232,7 @@ export function UpgradeDecisionScroll({
     () => onCommand({ type: "endDecision" }),
   ]);
   return (
-    <ScrollShell title="扩军抉择" testid={T.upgradeScroll}>
+    <BannerShell title="扩军抉择" testid={T.upgradeScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
@@ -242,7 +243,7 @@ export function UpgradeDecisionScroll({
       {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行) */}
       <ValueTable property={property} highlight={{ level: level + 1, label: "扩军后" }} />
       <div className="flex flex-wrap items-center justify-center gap-3">
-        <ScrollButton
+        <BannerButton
           primary
           disabled={!upgrade.available}
           title={upgrade.available ? undefined : upgrade.reason}
@@ -251,18 +252,18 @@ export function UpgradeDecisionScroll({
           onClick={() => onCommand({ type: "upgradeProperty" })}
         >
           扩军(免费)
-        </ScrollButton>
-        <ScrollButton
+        </BannerButton>
+        <BannerButton
           shortcut={2}
           testid={TESTIDS.actionButton("skip")}
           onClick={() => onCommand({ type: "endDecision" })}
         >
           按兵不动
-        </ScrollButton>
+        </BannerButton>
       </div>
       {!upgrade.available && (
         <p className="mt-2 text-center text-xs text-ink-dim">{upgrade.reason}</p>
       )}
-    </ScrollShell>
+    </BannerShell>
   );
 }

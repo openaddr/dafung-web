@@ -34,7 +34,7 @@ function DialogContent({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
   /** 透传给内部遮罩(DialogOverlay)。非模态弹层(modal="trap-focus")需要遮罩
-   *  pointer-events 放行底层交互——必须走内联 style:scroll.css 等未分层规则里的
+   *  pointer-events 放行底层交互——必须走内联 style:banner.css 等未分层规则里的
    *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
   overlayProps?: React.ComponentProps<typeof DialogPrimitive.Backdrop>;
 }) {
@@ -44,7 +44,9 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-ink shadow-[var(--ink-shadow-lg)]",
+          // S9 深底适配:墨发丝边(rgba(43,35,23,·))在玄墨深底上隐形,收口为漆金发丝边
+          // (gold/30 = --color-gold 的 alpha 写法);纸面渐变已是 S3 深底 token,不动。
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-ink shadow-[var(--ink-shadow-lg)]",
           className,
         )}
         {...props}
@@ -59,7 +61,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("m-0 font-brush text-[22px] tracking-[3px] text-ink", className)}
+      className={cn("m-0 font-title text-[22px] tracking-[3px] text-ink", className)}
       {...props}
     />
   );

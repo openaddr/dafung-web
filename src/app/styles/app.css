@@ -22,10 +22,20 @@
   --accent: var(--color-panel-hi);
   --accent-foreground: var(--color-ink);
   --destructive: var(--color-danger);
-  --border: rgba(43, 35, 23, 0.28);
-  --input: rgba(43, 35, 23, 0.28);
+  --border: var(--hairline-strong);
+  --input: var(--hairline-strong);
   --ring: var(--color-gold);
   --radius: 0.1875rem; /* 3px,与卷轴/纸面圆角一致 */
+}
+
+/* ── 玄墨鎏金(#514/S8)深底发丝线:主题 ink(纸白)按透明度稀释,
+   经 color-mix 从 var(--color-ink) 派生——不引入第二个颜色事实源。
+   旧浅底时代的 rgba(43,35,23,*) 墨线在深底上隐形,全项目发丝线一律消费这两档
+   (常规档=species 群边线,加强档=shadcn --border/--input 桥);
+   TSX 内的边框则走 Tailwind 的 border-ink/NN(同一 color-mix 数学,同源等价)。── */
+:root {
+  --hairline: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  --hairline-strong: color-mix(in srgb, var(--color-ink) 30%, transparent);
 }
 
 html,
@@ -50,6 +60,8 @@ body,
    以 var() 内置回退挂在 body,全站继承,组件级 font-brush/font-deco 等按需覆盖。── */
 body {
   font-family: var(--font-wenkai, "KaiTi", "STKaiti", serif);
+  /* 玄墨鎏金(#514):根底色跟进深底,首帧/屏间空档不再闪白(屏幕各自 bg-bg 与此同源) */
+  background: var(--color-bg);
 }
 
 :root {
@@ -124,30 +136,40 @@ button:not(:disabled):active {
   background: var(--color-gold-bright);
 }
 
-/* ── 纸纹(视觉重做 v2 重做):程序化宣纸肌理,两层 feTurbulence 噪点叠加。
-   曾用 Wikimedia 宣纸实拍(xuan-paper.jpg,已随本次移除出 assets/):那是带
-   挂轴/展签内容的展厅照片,平铺出来读作「失焦展厅」而非纸面。改用代码内
-   data-URI SVG 噪点:细齿层(baseFrequency 0.9)给纤维颗粒,云斑层
-   (0.012/0.016)给手工纸的厚薄不均;multiply 只压亮部,墨色恒为暖褐。
-   菜单屏 0.12 / 对局屏 0.08(格线优先)。零资产授权负担,视觉属代码。── */
+/* ── 纸纹(玄墨鎏金 #514 改版):深底鎏金噪点。
+   旧浅底方案 = 暖褐噪点 mix-blend-mode:multiply(在浅纸上压出纤维阴影);
+   深底上 multiply 只会往黑里糊(black 已是下限),纹理失效。改为**正向鎏金尘**:
+   同一套 feTurbulence 噪点结构,色阵改吐淡金(#d9b95c 系),撤掉混合模式用
+   normal 低透明叠加——深底上读作漆面的金屑微光,与对局屏金色发丝线同语言。
+   菜单屏 0.10 / 对局屏 0.06(格线优先)。零资产授权负担,视觉属代码。── */
 :root {
-  --texture-opacity-menu: 0.12;
-  --texture-opacity-game: 0.08;
-  --ink-shadow-sm: 0 2px 8px rgba(43, 35, 23, 0.18);
-  --ink-shadow-lg: 0 10px 30px rgba(43, 35, 23, 0.35);
+  --texture-opacity-menu: 0.1;
+  --texture-opacity-game: 0.06;
+  /* 深底投影:黑基(暖墨褐在近黑底上不可读),机制/档位不变。 */
+  --ink-shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.45);
+  --ink-shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.6);
 }
+/* 案头晕影(深底适配):旧浅底版向边缘压暖褐墨;深底上反向取 depth——
+   边缘向 bg-deep 更深的黑里沉(两层径向:黑角 + 中上区一抹鎏金微光),
+   中心亮周边暗的灯下观感,不再是纸面暗角。 */
 #app::before {
   content: "";
   position: fixed;
   inset: 0;
   z-index: 59;
   pointer-events: none;
-  background: radial-gradient(
-    ellipse 120% 105% at 50% 46%,
-    transparent 58%,
-    rgba(43, 35, 23, 0.07) 76%,
-    rgba(43, 35, 23, 0.17) 100%
-  );
+  background:
+    radial-gradient(
+      ellipse 90% 70% at 50% 30%,
+      color-mix(in srgb, var(--color-gold) 5%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 120% 105% at 50% 46%,
+      transparent 55%,
+      rgba(0, 0, 0, 0.24) 78%,
+      rgba(0, 0, 0, 0.5) 100%
+    );
 }
 #app::after {
   content: "";
@@ -156,12 +178,11 @@ button:not(:disabled):active {
   z-index: 60;
   pointer-events: none;
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.2 0 0 0 0 0.12 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E"),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.016' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.2 0 0 0 0 0.12 0 0 0 0.4 0'/%3E%3C/filter%3E%3Crect width='700' height='700' filter='url(%23m)'/%3E%3C/svg%3E");
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.73 0 0 0 0 0.36 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.016' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.73 0 0 0 0 0.36 0 0 0 0.3 0'/%3E%3C/filter%3E%3Crect width='700' height='700' filter='url(%23m)'/%3E%3C/svg%3E");
   background-size:
     240px 240px,
     700px 700px;
-  mix-blend-mode: multiply;
   opacity: var(--texture-opacity-menu);
 }
 /* 对局屏(#87):对局中格线优先,纹理退后。特异性高于基准规则,与书写顺序无关。 */
@@ -169,71 +190,97 @@ body[data-screen="game"] #app::after {
   opacity: var(--texture-opacity-game);
 }
 
-/* ── 控件种(视觉重做 v2):全项目按钮/面板的「器物」基种。
-   语义:墨=主行动(落子无悔)·朱=权与险·金=势(轮次/选中,不再作按钮底)·笺=次级。
-   组件在类名上叠加 Tailwind 排版工具类,本文件只持有材质。── */
+/* ── 控件种(视觉重做 v2 → 玄墨鎏金 #514 深底重定义):全项目按钮/面板的「器物」基种。
+   语义不变:墨=主行动(落子无悔)·朱=权与险·金=势(轮次/选中,不再作按钮底)·笺=次级。
+   材质换深底等价物:墨钮=近黑漆底金边金字(漆器镶金)、笺=暗笺底发丝边、朱钮=沉朱底
+   近白字(深底上浅朱+白字对比不足,压深保 4.5:1)、印=漆金(印章漆金化,#506 拍板)。
+   悬停微反馈与对局屏同语言(S4 layout.css):金边/金圈提亮 + 底色微升,不动字色。── */
 
-/* 墨钮:浓墨漆底 + 漆金文字,一切推进对局的主行动(行军/买/扩/结算/开局)。 */
+/* 墨钮:近黑漆底 + 金发丝边 + 漆金文字,一切推进对局的主行动(行军/买/扩/结算/开局)。
+   渐变自 panel 沉到 bg-deep(比页面底更黑一档,靠金边浮出),hover 金边提亮。 */
 .ink-btn {
-  background: linear-gradient(180deg, #463a29, var(--color-lacquer));
+  background: linear-gradient(180deg, var(--color-panel), var(--color-bg-deep));
   color: var(--color-lacquer-gold);
-  border: 1px solid rgba(43, 35, 23, 0.9);
+  border: 1px solid color-mix(in srgb, var(--color-gold) 40%, transparent);
   box-shadow:
-    inset 0 1px 0 rgba(217, 185, 92, 0.28),
+    inset 0 1px 0 color-mix(in srgb, var(--color-gold-bright) 25%, transparent),
     var(--ink-shadow-sm);
 }
 .ink-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #52452f, #3d3223);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
+  border-color: color-mix(in srgb, var(--color-gold) 65%, transparent);
 }
 .ink-btn:disabled {
   filter: saturate(0.4) brightness(0.82);
 }
 
-/* 笺钮:笺纸底 + 发丝墨边,次级动作/工具。 */
+/* 笺钮:暗笺底 + 发丝边,次级动作/工具;hover 底升一档 + 边缘晕金(金=势的预告)。 */
 .note-btn {
   background: var(--color-panel);
   color: var(--color-ink);
-  border: 1px solid rgba(43, 35, 23, 0.28);
-  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.1);
+  border: 1px solid var(--hairline);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
 .note-btn:hover:not(:disabled) {
   background: var(--color-panel-hi);
+  border-color: color-mix(in srgb, var(--color-gold) 45%, transparent);
 }
 
 /* 笺选:原生 <select> 的皮肤(编辑器「类型」/托管速度等残留下拉)——
    appearance:none 去系统外观,自绘下拉箭头(Sym expand 同款折角);弹出的选项列表
-   是浏览器绘制,无法主题化,接受。 */
+   是浏览器绘制,无法主题化,接受。箭头色 = ink-dim 的 URI 编码(深底可见)。 */
 .note-select {
   appearance: none;
   -webkit-appearance: none;
   background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%236f6146' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%23c6b491' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
       no-repeat right 6px center / 12px auto,
     var(--color-panel);
   color: var(--color-ink);
-  border: 1px solid rgba(43, 35, 23, 0.28);
+  border: 1px solid var(--hairline);
   border-radius: 3px;
-  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.1);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
   padding-right: 22px;
 }
 
-/* 朱钮:朱砂底白字,不可逆/危险确认(认破产/解散)。 */
+/* 朱钮:沉朱底近白字,不可逆/危险确认(认破产/解散)。danger 亮朱在深底上
+   直接铺白字只有 ~2.9:1(#509 QC),向黑里压两档(color-mix 派生,单源不破)
+   ——深朱衬近白,对比回 4.5:1 以上,朱=权险的分量感反而更重。 */
 .cinnabar-btn {
-  background: linear-gradient(180deg, #c1483a, var(--color-danger));
-  color: #f8ead8;
-  border: 1px solid rgba(80, 22, 14, 0.85);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-danger) 82%, black),
+    color-mix(in srgb, var(--color-danger) 55%, black)
+  );
+  color: #ffead9;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, black);
   box-shadow:
-    inset 0 1px 0 rgba(255, 220, 190, 0.25),
+    inset 0 1px 0 rgba(255, 220, 190, 0.22),
     var(--ink-shadow-sm);
 }
 .cinnabar-btn:hover:not(:disabled) {
-  background: linear-gradient(180deg, #cd5243, #a03428);
+  background: linear-gradient(
+    180deg,
+    var(--color-danger),
+    color-mix(in srgb, var(--color-danger) 62%, black)
+  );
+  border-color: color-mix(in srgb, var(--color-danger) 55%, black);
 }
 
-/* 笺纸面板:面板底 + 发丝墨边 + 墨褐投影——「有边有衬里的纸」,不是浮圆角矩形。 */
+/* 漆金印(.seal-gold,#506「印章漆金化」):金箔底 + 玄墨字的小方章。
+   消费点:首页「逐鹿」落款印/大厅国号章/准备页字盘选中章等本域印面;
+   印文动态者由组件自带 testid,本类只持材质。 */
+.seal-gold {
+  background: linear-gradient(180deg, var(--color-gold-bright), var(--color-gold-deep));
+  color: var(--color-bg-deep);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+
+/* 笺纸面板(深底=暗笺):面板底 + 发丝边 + 黑基投影——「有边有衬里的暗笺」,
+   不是浮圆角矩形。 */
 .note-card {
   background: var(--color-panel);
-  border: 1px solid rgba(43, 35, 23, 0.24);
+  border: 1px solid var(--hairline);
   box-shadow: var(--ink-shadow-sm);
 }
 
@@ -253,7 +300,7 @@ body[data-screen="game"] #app::after {
   content: "";
   flex: 1;
   height: 1px;
-  background: rgba(43, 35, 23, 0.22);
+  background: var(--hairline);
 }
 .note-head > i {
   font-style: normal;
@@ -263,12 +310,17 @@ body[data-screen="game"] #app::after {
   width: 22px;
   height: 22px;
   flex: none;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 14px;
   line-height: 1;
-  color: #f6ead6;
-  background: var(--color-danger);
+  /* 沉朱印:danger 亮朱向黑压一档衬近白字(深底对比;同 .cinnabar-btn 手筋) */
+  color: #ffead9;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-danger) 82%, black),
+    color-mix(in srgb, var(--color-danger) 55%, black)
+  );
   border-radius: 2px;
   rotate: -4deg;
-  box-shadow: 0 1px 2px rgba(43, 35, 23, 0.3);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }

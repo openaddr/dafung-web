@@ -4,8 +4,8 @@
 // 协议一处可查。调用方(DecisionScrollLayer)只剩三件事:
 //   1. 给出本帧 child;
 //   2. 按子节点类型算 opts.skip(胜利屏这类全屏覆盖不配退场帧);
-//   3. 事件侧就地收场的卷轴(详情卷轴走 ScrollShell closing 出口)调 yield() 让位。
-// 跨层通道仍是唯一的 ScrollGhostContext(ScrollShell 侧 disabled/inert/rollback 防御不动);
+//   3. 事件侧就地收场的弹层(详情横幅走 BannerShell closing 出口)调 yield() 让位。
+// 跨层通道仍是唯一的 BannerGhostContext(壳侧 disabled/inert/退场动画防御不动);
 // 本文件不 import 任何 css/音频,保持可在 bun test 直接测纯规则。
 import { isValidElement, useEffect, useRef, useState, type ReactNode } from "react";
 // #117 收编:驻留时长进 fx/timings.ts(唯一收口点),口径注释(GHOST.frameMs)随迁。
@@ -40,10 +40,10 @@ export interface UseGhostChildOpts {
 
 export interface GhostChildSlot {
   /** 退场帧(上一帧子节点的原样快照),无则 null。调用方渲染在当前子节点之后,
-   *  并包进 ScrollGhostContext.Provider 值 true(Shell 据此挂 rollback、禁音、inert)。 */
+   *  并包进 BannerGhostContext.Provider 值 true(壳据此挂退场类、禁音、inert)。 */
   ghost: ReactNode | null;
   /** 让位标记(事件侧协议,原 shellClosedRef):上一帧子节点已在别处就地演过收场——
-   *  详情卷轴走 ScrollShell 的 closing 出口(210ms rollback 后才卸载)——其退场不再补
+   *  详情横幅走 BannerShell 的 closing 出口(210ms 退场后才卸载)——其退场不再补
    *  幽灵帧,防卸载后又重挂一具重复播放收起动画的替身(二连播)。标记在下一次身份
    *  变化时消费一次后自动复位;身份未变则一直待命。 */
   yield: () => void;

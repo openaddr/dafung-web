@@ -71,7 +71,7 @@ export function WaitingBar({ snapshot, interactive, viewSeat, online }: WaitingB
   return (
     <div
       data-testid={TESTIDS.waitingBar}
-      className="waiting-bar pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-full border border-gold/50 bg-ink/80 px-3 py-0.5 font-brush text-sm text-panel shadow"
+      className="waiting-bar pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-full border border-gold/50 bg-panel/95 px-3 py-0.5 font-title text-sm text-ink shadow"
     >
       {/* X7 #26:thinking testid 迁到文案 span(原 GameScreen 底部角标,单机 bot 用例仍走此断言) */}
       <span data-testid={TESTIDS.thinking}>

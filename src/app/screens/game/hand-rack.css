@@ -7,12 +7,11 @@
    【注意:注释内禁写「星号紧跟斜杠」的字符组合(如 --dur-星-斜杠--ease)——
    那等于提前闭合注释,把后续真规则吞进垃圾选择器整块丢弃(本文件首版实证翻车)。】
 
-   裸色豁免登记(原型定稿色,tokens.css 暂无对应 token;与 jinnang-card.css 的
-   牌背漆木端色同族——漆面明暗,无 token):
-   - #463a28 / #241d13:漆木架渐变两端(架上明、架下暗);
+   裸色豁免登记(#510 玄墨鎏金后存留;漆木渐变两端已收口 token,墨影 rgba(43,35,23,·)
+   已退役——深底上改中性黑影):
    - rgba(217,185,92,·):漆金高光/描边(--color-lacquer-gold 的 rgba 形式,app.css
      控件种同先例);
-   - rgba(0,0,0,·):漆木上的中性黑影(架口内阴影),非墨影语义。
+   - rgba(0,0,0,·):漆木上的中性黑影(架口内阴影/落影),非墨影语义。
 
    尺寸:容器 font-size 即 em 基(基准 8px,与 .jinnang-card 的 standard 档同值),
    架体 chrome(章/衬垫/间隙)全 em 表达;牌面经 `.hand-rack .jinnang-card
@@ -37,15 +36,21 @@
      10.75em + 件距 1.75em ≈ 26.5em,内边距含原 2.5em 呼吸位),手牌行/叠加压缩在
      剩余 content box 内居中,不与入口争格 */
   padding: 1.6em calc(2.5em + 24em) calc(1.75em + var(--safe-bottom)) calc(2.5em + 5em);
-  background: linear-gradient(180deg, #463a28, var(--color-lacquer) 60%, #241d13);
+  /* 漆木架:架上明、架下暗三段(#510 收口字面量,同 layout.css .dash) */
+  background: linear-gradient(
+    180deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 60%,
+    var(--color-paper-lo)
+  );
   box-shadow:
     inset 0 2px 0 rgba(217, 185, 92, 0.4),
     /* 漆金上缘高光(原型定稿) */ inset 0 14px 24px rgba(0, 0, 0, 0.35); /* 架口黑影 */
   z-index: 5; /* 压过 board-wrap 内浮层溢出(hint/WaitingBar 均在架上方区域) */
 }
 
-/* ── 架首章:竖排「锦囊手牌」漆金描边(原型 .jia-zhang 制式;字族落 font-brush
-   ——新文案禁 font-deco,BRIEF §2,印文用笔书同 jinnang-card.css .seal 口径)── */
+/* ── 架首章:竖排「锦囊手牌」漆金描边(原型 .jia-zhang 制式;章=印文类,#508 起落
+   font-title,同 jinnang-card.css .seal 口径)── */
 .hand-rack-zhang {
   position: absolute;
   left: 2em;
@@ -54,7 +59,7 @@
   display: flex;
   flex-direction: column;
   gap: 0.75em;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.625em; /* 原型 13px @8px 基 */
   line-height: 1;
   color: var(--color-lacquer-gold);
@@ -93,6 +98,22 @@
 .hand-rack-back {
   transform: rotate(-9deg);
   /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
+}
+
+/* ── 常态牌悬停微反馈(#490 微档,#510 统一悬停语言):≤3 张全展态的牌悬停
+   微抬示意可点(亮金 hairline 印影随 .many/.junshi 各态既有口径;.many 挥出、
+   .junshi 上浮、.reactive 呼吸金边各自压过本块)。 ── */
+.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button {
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button:not(.reactive):hover {
+  transform: translateY(-0.35em);
+}
+.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button:not(.reactive):hover .jinnang-card,
+.hand-rack:not(.junshi) .hand-rack-hand:not(.many) > button.reactive:hover .jinnang-card {
+  box-shadow:
+    0 0.5em 1em rgba(0, 0, 0, 0.45),
+    0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
 }
 
 /* ── 短横屏降档(Android 短横屏 844×390 一类):em 基 8→6.4px(牌面 96×128),
@@ -169,7 +190,7 @@
   z-index: 9;
 }
 .hand-rack-hand.many > button:hover .jinnang-card {
-  box-shadow: 0 1em 1.6em rgba(43, 35, 23, 0.4); /* 原型 hover 深投影(裸色豁免:墨影族) */
+  box-shadow: 0 1em 1.6em rgba(0, 0, 0, 0.5); /* 悬停深投影(#510:墨影改中性黑影) */
 }
 .hand-rack-hand.many:has(> button:hover) > button:not(:hover):has(~ button:hover) {
   transform: translateX(calc(var(--jn-spread-left) * -1));
@@ -245,12 +266,13 @@
   animation: rack-sheet-in var(--dur-med) var(--ease-out);
 }
 
-/* 详情壳抓手上条(窄屏抽屉形态;桌面面板不挂,由组件按形态渲染) */
+/* 详情壳抓手上条(窄屏抽屉形态;桌面面板不挂,由组件按形态渲染):漆金细条
+   (#510:墨影把手在深底上近隐形) */
 .jinnang-detail-grab {
   width: 44px;
   height: 5px;
   border-radius: 3px;
-  background: rgba(43, 35, 23, 0.3);
+  background: color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   margin: 0 auto 14px;
 }
 
@@ -258,7 +280,7 @@
    入口小件,形制照 proto/treasure/r5.html 节一(漆金牌底+漆金描边+朱砂数量角标,
    绝对定位贴架右下;架体右内边距已让位,见 .hand-rack)。全 em 制随架体 em 基缩放
    (7.6px 槽位档 / 6.4px 短横屏降档自动随动,断点只调密度不重排)。
-   裸色豁免:#f6ecd9 印面纸色字(印章语言既有惯例字面量,jinnang-card.css 同登记)。 ── */
+   朱印深底+纸字口径同 layout.css 文件头约定(#510 残留必修)。 ── */
 .hand-rack-entries {
   position: absolute;
   right: 3.25em;
@@ -273,18 +295,37 @@
   padding: 1.25em 1em 1em;
   border: 0;
   border-radius: 1em;
-  background: linear-gradient(170deg, #463a28, var(--color-lacquer) 70%, #241d13);
+  /* 漆木小件三段(玄墨鎏金后直接吃 token,#510 收口字面量) */
+  background: linear-gradient(
+    170deg,
+    var(--color-panel-hi),
+    var(--color-lacquer) 70%,
+    var(--color-paper-lo)
+  );
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.55),
-    inset 0 0 0 3px rgba(36, 29, 19, 0.8),
+    inset 0 0 0 3px color-mix(in srgb, var(--color-paper-lo) 80%, transparent),
     0 3px 8px rgba(0, 0, 0, 0.45);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.5em;
   cursor: pointer;
+  /* 悬停微反馈统一(#490 微档):亮金描边 + 印影 + 微缩放 */
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
-/* 图腾位:宝石=珍宝 / 令旗=名将(AttrIcon 笔画化线稿,零图片;漆金描边) */
+.rack-entry:hover {
+  transform: scale(1.02);
+  box-shadow:
+    inset 0 0 0 1px var(--color-gold-bright),
+    inset 0 0 0 3px color-mix(in srgb, var(--color-paper-lo) 80%, transparent),
+    0 3px 10px rgba(0, 0, 0, 0.55),
+    0 0 8px rgba(138, 106, 28, 0.4);
+}
+/* 图腾位:宝石=珍宝(线稿)/ 名将=立绘画心(#511 卡面 B 案,太史慈提案图,
+   断图回退令旗线稿;金框画心同语——漆金细框圈住小像) */
 .rack-entry .tu {
   width: 5.5em;
   height: 5.75em;
@@ -298,9 +339,19 @@
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* 品名:毛笔字漆金(字族 font-brush,BRIEF §2 印文/题名口径) */
+.rack-entry .tu .hero-entry-art {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  display: block;
+  border-radius: 0.45em;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
+  box-shadow: 0 0.15em 0.35em rgba(0, 0, 0, 0.4);
+}
+/* 品名:题名漆金(#508 起字族 font-title,BRIEF §2 印文/题名口径) */
 .rack-entry .pming {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.875em;
   letter-spacing: 0.3em;
   margin-right: -0.3em;
@@ -310,7 +361,8 @@
   white-space: nowrap;
 }
 /* 数量角标:右上悬垂朱砂圆印(计数,与 r5 pack-badge 同族;grid 居中免行高校直,
-   字级放大放内层 i——外层 em 恒架体 em 基,尺寸链不漂) */
+   字级放大放内层 i——外层 em 恒架体 em 基,尺寸链不漂);朱印深底+纸字为 #510
+   残留必修口径(约定见 layout.css 文件头)。 */
 .rack-entry-badge {
   position: absolute;
   top: -1.125em;
@@ -319,12 +371,12 @@
   height: 3em;
   padding: 0 0.625em;
   border-radius: 1.5em;
-  background: var(--color-danger);
-  color: #f6ecd9; /* 印面纸色字(豁免登记见文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   font-family: var(--font-wenkai);
   box-shadow:
     0 2px 4px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1.5px rgba(246, 236, 217, 0.55);
+    inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
   transform: rotate(4deg);
   display: grid;
   place-items: center;

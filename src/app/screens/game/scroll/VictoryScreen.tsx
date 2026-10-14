@@ -1,5 +1,5 @@
 // 胜利全屏:对照旧 createVictory —— 天下归一大字(金辉呼吸+弹跳入场)+ 国号称帝 +
-// 终局信息 + 再战按钮 + 烟花粒子(React 状态驱动,粒子动画用 scroll.css keyframe)。
+// 终局信息 + 再战按钮 + 烟花粒子(React 状态驱动,粒子动画用 victory.css keyframe)。
 // E1/E2:入场演出有声有叙——banner 鼓点起势 + 大字落定时 stamp 锣声重音 + victory 号角,
 // 与视觉阶梯(0/300/600ms)对齐;再战按钮 1800ms 后才挂载防误触。
 import { useEffect, useState } from "react";
@@ -11,9 +11,9 @@ import { finishDiceOverlay } from "@app/fx/DiceOverlay";
 import { UI } from "@app/fx/timings";
 // #174:全屏模态语义——胜利屏是全屏覆盖而非弹窗(#155 结论,不套 ui/dialog 的
 // Portal+遮罩点关),焦点口径走共享的 FocusScope 惯用法封装:Tab 圈定 + 卸载还焦,
-// 挂载不夺焦(与 ScrollShell 同款)。
+// 挂载不夺焦(与 BannerShell 同款)。
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
-import { ScrollButton } from "./ScrollShell";
+import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
 
@@ -149,7 +149,7 @@ export function VictoryScreen({
   // W2-包D(审计 A2):absolute→fixed——终局必须盖过侧栏(absolute 只盖棋盘区,
   // 侧栏仍露出半截与「天下归一」分庭);fixed 脱离布局流压满视口,testid/逻辑零变化。
   // #174:壳上 role=dialog/aria-modal 全屏模态语义(可达名称 aria-label=「终局」,
-  // 与 ScrollShell 的题名口径同款);FocusScope 挂壳提供 Tab 陷阱与再战(卸载)还焦,
+  // 与横幅壳的题名口径同款);FocusScope 挂壳提供 Tab 陷阱与再战(卸载)还焦,
   // 挂载不夺焦不打断终局演出;asChild 直并壳体,DOM 节点/testid 零变化。
   return (
     <DialogFocusScope asChild>
@@ -177,7 +177,7 @@ export function VictoryScreen({
         {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
         <h1
           data-testid={T.victoryTitle}
-          className="victory-anim-title m-0 font-brush text-gold-bright"
+          className="victory-anim-title m-0 font-title text-gold-bright"
           style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
         >
           天下归一
@@ -189,13 +189,13 @@ export function VictoryScreen({
         <div className="mt-2.5 flex items-center justify-center gap-3">
           <div
             data-testid={T.victorySub}
-            className="victory-step victory-step-sub font-brush text-[34px] tracking-[6px] text-white"
+            className="victory-step victory-step-sub font-title text-[34px] tracking-[6px] text-white"
             style={{ color: rgba(playerColor(colorIndex)) }}
           >
             「{guohao}」称帝
           </div>
           {/* 印内单字:国号本就 1 字(线上重名时服务器才加方位前缀),取 guohao 首字两口径通吃。 */}
-          <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-brush text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
+          <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-title text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
             {Array.from(guohao)[0]}
           </span>
         </div>
@@ -227,13 +227,13 @@ export function VictoryScreen({
             /* ADR-0014:对局日志终局在此一键导出(完整 jsonl,复盘/重放用);
                与「再战一局」同挂 showButton 延时,防演出高潮期误触。 */
             <div className="flex items-center justify-center gap-3">
-              <ScrollButton primary testid={T.victoryRestart} onClick={onRestart}>
+              <BannerButton primary testid={T.victoryRestart} onClick={onRestart}>
                 再战一局
-              </ScrollButton>
+              </BannerButton>
               {onExportLog && (
-                <ScrollButton testid={T.logExport} onClick={onExportLog}>
+                <BannerButton testid={T.logExport} onClick={onExportLog}>
                   导出日志
-                </ScrollButton>
+                </BannerButton>
               )}
             </div>
           )}

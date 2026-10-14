@@ -1,8 +1,9 @@
-// 名将卡面组件(#360,spec #357 T3):武将卡归一单源——招贤三选一/出牌阶段确认/
-// 府库详情同一组件两档装配,全游戏一张名将卡面。视觉基线 proto/treasure/r5.html
-// 节三(r4 形制 + 五轮被动技名):满幅立绘打底(stage)+ 右侧竖排名(m-name,
-// 毛笔大字漆金带)+ 右上称号竖排纸签(m-title)+ 左上朱砂「将」章(j-seal)+
-// 底部半透明纸底技能区(skz)。
+// 名将卡面组件(#360,spec #357 T3;#511 卡面 B 案改制):武将卡归一单源——招贤
+// 三选一/出牌阶段确认/府库详情同一组件两档装配,全游戏一张名将卡面。视觉基线
+// proto/treasure/r4.html 节三 → #511 B 案「墨面金框」制式:宣纸纸底 + 金框双线画心
+// (立绘 img 只进画心,object-cover 裁满)+ 漆金牌名带(m-name)+ 右上称号竖排纸签
+// (m-title)+ 左上朱砂「将」章(j-seal)+ 技角标(j-badge,技数)+ 底部技能区(skz)。
+// 缺图回退 = 姓氏朱印(#511 票面口径,白纸画心空底+朱印姓字,显式不静默)。
 //
 // 器物豁免类(同 JinnangCardFace 口径):纯展示零交互状态、不套 shadcn;交互语义
 // (选中/确认/点击)全部归消费方,testid/aria/title 经 ...rest 挂根,本组件不持有。
@@ -12,8 +13,9 @@
 // 数据单源:core/heroes.ts HEROES——组件按 heroId 回查目录(同 JinnangCardFace 的
 // jinnangCardOf 口径);技名渲染走 TriggerSkill.name(#358 T1)+ ActiveSkillDef.name,
 // 主动加「冷却 N 轮」。目录外 id 直接抛错(零兜底:目录外名将不允许存在)。
-// 画像缺失(image="")或加载失败:显式「像」占位(现行 onError 语言,可感知不静默;
-// 空 src 浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍翻车教训)。
+// 画像缺失(image="")或加载失败:显式「姓氏朱印」占位(现行 onError 语言,可感知
+// 不静默;空 src 浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍
+// 翻车教训)。
 //
 // 尺寸:卡基 --u 锚定(absolute 定位元素一律 calc(N * var(--u)),不落 em——em 解析
 // 到自身字号,r4 原型同法);档默认 detail 13px / compact 10px / pick 7.6px,消费方
@@ -48,14 +50,15 @@ export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   size?: HeroCardFaceSize;
 }
 
-/** 满幅画像位:object-cover 裁满立绘区;空路径/加载失败显「像」占位(显式不静默)。 */
+/** 金框画心立绘位(#511 B 案):object-cover 裁满画心;空路径/加载失败显「姓氏朱印」
+ *  占位(#511 票面口径,显式不静默)。 */
 function Lihui({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
     return (
       <div className="lihui is-ph">
         <span className="ph-xiang" aria-hidden="true">
-          像
+          {name.slice(0, 1)}
         </span>
         <span className="ph-hint">画像未至</span>
       </div>
@@ -120,7 +123,12 @@ function SkillChips({ def }: { def: HeroDef }) {
   );
 }
 
-/** 名将卡面:立绘/名带/称号签/将章/技能区五件套,两档同源换装配。
+/** 技数(被动+主动合计;技角标 j-badge 承载,pick 档技能区截断时仍可读)。 */
+function skillCount(def: HeroDef): number {
+  return (def.skills?.length ?? 0) + (def.active != null ? 1 : 0);
+}
+
+/** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">,
  *  样式见 jinnang-card.css)由消费方这样挂入(同 JinnangCardFace 口径)。 */
 export function HeroCardFace({
@@ -132,6 +140,7 @@ export function HeroCardFace({
 }: HeroCardFaceProps) {
   const def = heroDefOf(heroId);
   const flag = extensionHeroFlagOf(heroId); // 扩展将旗(#378 渲染 hook):null = 无旗,卡面维持现状
+  const ji = skillCount(def);
   const classes = [
     "hface",
     size !== "detail" ? "compact" : "",
@@ -142,24 +151,31 @@ export function HeroCardFace({
     .join(" ");
   return (
     <div className={classes} {...rest}>
+      {/* 金框画心:立绘+技角标(角标锚画心内右下角);带/签/章/旗挂卡根——画心高度
+          随技能区伸缩,竖排名带若锚在画心内会因可用高度不足换列撑宽(2026-10-14
+          实拍翻车:名带盖住称号签),故四件 overlay 全部以卡根为定位上下文 */}
       <div className="stage">
         <Lihui src={def.image} name={def.name} />
-        <div className="veil" aria-hidden="true" />
-        <span className="j-seal" aria-hidden="true">
-          将
-        </span>
-        <span className="m-title">{def.title}</span>
-        <span className="m-name">{def.name}</span>
-        {flag && (
-          <img
-            className="x-flag"
-            data-testid={`hero-flag-${heroId}`}
-            src={flag.url}
-            alt={flag.alt ?? "将旗"}
-            draggable={false}
-          />
+        {ji > 0 && (
+          <span className="j-badge" aria-label={`技能 ${ji} 个`}>
+            技<i>{ji}</i>
+          </span>
         )}
       </div>
+      <span className="j-seal" aria-hidden="true">
+        将
+      </span>
+      <span className="m-title">{def.title}</span>
+      <span className="m-name">{def.name}</span>
+      {flag && (
+        <img
+          className="x-flag"
+          data-testid={`hero-flag-${heroId}`}
+          src={flag.url}
+          alt={flag.alt ?? "将旗"}
+          draggable={false}
+        />
+      )}
       <div className="skz">
         {size === "detail" ? <SkillRows def={def} /> : <SkillChips def={def} />}
       </div>

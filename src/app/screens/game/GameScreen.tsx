@@ -56,7 +56,7 @@ export function GameScreen() {
     return (
       <div className="flex h-full w-full items-center justify-center bg-bg p-6">
         <div className="rounded-lg border-2 border-gold/60 bg-panel px-10 py-8 text-center shadow">
-          <div className="font-brush text-3xl text-ink tracking-widest">尚未开局</div>
+          <div className="font-title text-3xl text-ink tracking-widest">尚未开局</div>
           <div className="mt-2 font-deco text-sm text-ink-dim">对局数据不存在或已丢失</div>
           <button
             type="button"
@@ -383,7 +383,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             // null),同槽上下错开不再叠字。
             <div
               data-testid={TESTIDS.hint}
-              className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel/95 px-4 py-1 font-brush text-lg shadow-sm"
+              className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
             >
               {setupHint}
             </div>

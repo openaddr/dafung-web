@@ -1,20 +1,22 @@
 /* 名将卡面器物件样式(#360,spec #357 T3)——从 proto/treasure/r4.html 节三忠实移植
    (r5 第五轮仅换被动技名装配,形制同源):类名、形制、色值不做自由发挥。
-   选择器统一收口在 .hface 作用域下防全局串扰(同 jinnang-card.css 口径);色一律
-   var(--color-*) 或墨影 rgba(43,35,23,·);动效时长/缓动走 --dur-* 与 --ease-*
-   token(tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
+   选择器统一收口在 .hface 作用域下防全局串扰(同 jinnang-card.css 口径);动效时长/
+   缓动走 --dur-* 与 --ease-* token(tokens.css 单源,reduced-motion 由 app.css 全局
+   兜层承担)。
 
-   裸色豁免登记(原型定稿色,tokens.css 无对应 token,照原型保留):
-   - #f6ecd9(印文纸色,含其 rgba(246,236,217,·) 形式):将章/技名牌字色,与
-     jinnang-card.css 印文纸色同族;
+   #511 卡面 B 案「墨面金框」改制:满幅立绘 → 纸底+金框双线画心+立绘——用户判词
+   「纸底保证文字可读,立绘只进金框画心」。漆金牌名带/称号签/将章/技角标/技能区
+   五件照旧(带/签自承底色);缺图回退改「姓氏朱印」(#511 票面口径,宣纸画心空底
+   +朱印姓字,显式不静默);纱幕 .veil 随满幅立绘退役(画心制式下无字压画)。
+
+   卡面纸底画材色(#511 B 案,豁免登记):玄墨鎏金后 theme 纸系 token 已整阶反转成
+   深底阶,「纸底」是物理宣纸画材——随器物不随主题,落本地画材变量而非 theme token;
+   与 jinnang-card.css 的 --card-* 同值镜像(两文件无加载顺序契约,改一处必改另一处)。
+
+   裸色豁免登记(#511 后存留):
    - rgba(217,185,92,·):漆金内衬/名带描边(--color-lacquer-gold 的 rgba 形式,
-     app.css 控件种与 jinnang-card.css 同先例);
-   - rgba(36,29,19,·)(#241d13 漆木暗端的 rgba 形式):立绘纱幕与名带墨底渐变
-     (漆面明暗,hand-rack.css 漆木豁免同族);rgba(54,44,30,·) 为名带墨底亮端
-     (#362c1e,同族);
-   - rgba(250,243,223,0.96) / rgba(238,224,188,0.96):技能区纸底(--color-paper-hi /
-     --color-paper-lo 的 rgba 形式,半透明纱需要 alpha 故不直引 token);
-   - rgba(0,0,0,·):名带投影,漆木上的中性黑影,非墨影语义。
+     app.css 控件种同先例);
+   - rgba(0,0,0,·):名带/技能区投影,器物带上的中性黑影,非墨影语义。
 
    尺寸:卡基 --u 为几何单位——absolute 定位元素的 em 会解析到自身字号(--u 变量
    锚定卡基,r4 原型同法,前车之鉴);根 font-size = var(--u),15u×20u 即 3:4 竖卡。
@@ -22,9 +24,15 @@
    手牌槽位同档);消费方经 --hface-base 覆写任意档(手牌架随架体 em 基 8/7.6/6.4px
    注入,见 hand-rack.css / layout.css)。 */
 
-/* ── 基座:满幅立绘打底,纸底金内衬(em 制;isolation 让交互态描边不越邻牌,
+/* ── 基座:宣纸纸底 + 漆金描边(em 制;isolation 让交互态描边不越邻牌,
    与 .jinnang-card 同口径;rotate 消费 --tilt 微旋通道,jinnang-card.css 同款)── */
 .hface {
+  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;jinnang-card.css 同值镜像) */
+  --card-paper: #f1e7d0;
+  --card-paper-deep: #e3d4b2;
+  --card-xin: #f9f2e0;
+  --card-ink: #2f2718;
+  --card-ink-dim: #6b5c40;
   position: relative;
   isolation: isolate;
   width: 15em;
@@ -33,11 +41,12 @@
   font-size: var(--u);
   flex: 0 0 auto;
   border-radius: 0.9em;
-  border: 0.2em solid rgba(43, 35, 23, 0.65);
-  background: var(--color-paper-lo);
+  /* 漆金描边 + 纸上墨色发丝衬里(同 jinnang-card.css 基座口径) */
+  border: 0.2em solid color-mix(in srgb, var(--color-lacquer-gold) 38%, transparent);
+  background: linear-gradient(168deg, var(--card-paper) 0%, var(--card-paper-deep) 100%);
   box-shadow:
-    0 0.35em 0.8em rgba(43, 35, 23, 0.22),
-    inset 0 0 0 0.15em rgba(217, 185, 92, 0.5);
+    0 0.35em 0.8em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.15em color-mix(in srgb, var(--card-ink) 16%, transparent);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -57,11 +66,18 @@
   --u: var(--hface-base, 7.6px);
 }
 
-/* ── 满幅立绘区:占卡上部,下缘纸纱压暗接技能区 ── */
+/* ── 金框画心(#511 B 案,原满幅立绘区改制):占卡上部,漆金双线框(外框+内衬)
+   圈住立绘,白纸空底(像未至时姓氏朱印落此);上/左/右让出卡基衬里,下缘接技能区 ── */
 .hface .stage {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
+  margin: 0.55em 0.55em 0;
+  border: 0.14em solid color-mix(in srgb, var(--color-lacquer-gold) 62%, transparent);
+  border-radius: 0.45em;
+  background: var(--card-xin);
+  box-shadow: inset 0 0 0 0.12em color-mix(in srgb, var(--color-lacquer-gold) 26%, transparent);
+  overflow: hidden;
 }
 .hface .stage .lihui {
   position: absolute;
@@ -75,36 +91,39 @@
   object-position: top center;
   display: block;
 }
-/* 满幅占位(画像未至):渐变框 + 大「像」字(现行 onError 占位语言,资源到位即废) */
+/* 缺图回退(#511 票面口径「断网/缺图回退姓氏朱印」):白纸画心空底 + 朱印姓字
+   (显式不静默;印深底纸字 = layout.css 文件头 #510 残留必修口径) */
 .hface .stage .lihui.is-ph {
-  background: linear-gradient(180deg, #cfc09a 0%, #b3a077 62%, #a9946a 100%);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4em;
+  gap: 0.6em;
 }
 .hface .stage .lihui.is-ph .ph-xiang {
-  font-family: var(--font-brush);
-  font-size: 4.4em;
+  font-family: var(--font-title);
+  font-size: 1.9em;
   line-height: 1;
-  color: rgba(43, 35, 23, 0.38);
+  width: 2.2em;
+  height: 2.2em;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
+  border-radius: 0.28em;
+  transform: rotate(3deg);
+  box-shadow:
+    0 0.15em 0.3em rgba(0, 0, 0, 0.35),
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 .hface .stage .lihui.is-ph .ph-hint {
-  font-size: 0.85em;
+  font-size: 0.8em;
   letter-spacing: 0.18em;
-  color: rgba(43, 35, 23, 0.45);
-}
-.hface .veil {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 42%;
-  background: linear-gradient(180deg, rgba(36, 29, 19, 0) 0%, rgba(36, 29, 19, 0.52) 100%);
+  color: var(--card-ink-dim);
 }
 
-/* ── 左上朱砂「将」章(章恒朱砂;压画角=鉴藏同语义,不压字)── */
+/* ── 左上朱砂「将」章(章恒朱砂;压画心框角=鉴藏同语义,不压字;挂卡根定位,
+   见组件内注);朱印深底+纸字为 #510 残留必修口径(约定见 layout.css 文件头)── */
 .hface .j-seal {
   position: absolute;
   top: calc(0.55 * var(--u));
@@ -114,20 +133,21 @@
   z-index: 3;
   display: grid;
   place-items: center;
-  background: var(--color-danger);
-  color: #f6ecd9; /* 印文纸色:原型定稿色(豁免登记见文件头) */
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
   border-radius: 0.28em;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.4em;
   line-height: 1;
   transform: rotate(4deg);
   box-shadow:
-    0 0.15em 0.3em rgba(43, 35, 23, 0.35),
-    inset 0 0 0 0.14em rgba(246, 236, 217, 0.55);
+    0 0.15em 0.3em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 
-/* ── 扩展将旗(#378 渲染 hook):扩展包 assets 的旗图,「将」章下方同侧;纯展示
-     零交互(器物豁免类,同 j-seal 口径),URL 由包 hook 提供,尺寸随档 --u 缩放 ── */
+/* ── 扩展将旗(#378 渲染 hook):扩展包 assets 的旗图,「将」章下方同侧(挂卡根
+     定位);纯展示零交互(器物豁免类,同 j-seal 口径),URL 由包 hook 提供,尺寸随
+     档 --u 缩放 ── */
 .hface .x-flag {
   position: absolute;
   top: calc(3 * var(--u));
@@ -135,10 +155,11 @@
   width: calc(2.2 * var(--u));
   height: auto;
   z-index: 3;
-  filter: drop-shadow(0 0.15em 0.3em rgba(43, 35, 23, 0.35));
+  filter: drop-shadow(0 0.15em 0.3em rgba(0, 0, 0, 0.4));
 }
 
-/* ── 右上称号竖排小字(实数据;纸签形制,墨字;与名带并排纵列,横向恒脱开)── */
+/* ── 右上称号竖排小字(实数据;白纸签+墨字,#511 B 案文字恒在纸底;挂卡根定位,
+     名带左邻纵列,横向恒脱开)── */
 .hface .m-title {
   position: absolute;
   top: calc(0.55 * var(--u));
@@ -149,46 +170,87 @@
   font-size: 0.95em;
   letter-spacing: 0.22em;
   line-height: 1;
-  color: var(--color-ink);
-  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-paper-lo));
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  color: var(--card-ink);
+  background: linear-gradient(180deg, var(--card-xin), var(--card-paper));
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
   border-radius: 0.2em;
-  box-shadow: 0 0.2em 0.4em rgba(43, 35, 23, 0.22);
+  box-shadow: 0 0.2em 0.4em rgba(0, 0, 0, 0.4);
   padding: 0.6em 0.28em;
 }
 
-/* ── 右侧竖排名将名(毛笔大字;漆金带底=入口/架首章同语系,金归边不染字)── */
+/* ── 技角标(#511 B 案):画心内右下角漆金小签承技能数(被动+主动合计,无技不渲染)
+   ——pick 档技能区被截断时技数仍一望可读;是信息角标非状态标牌(DESIGN §4.6 不冲突);
+   形制与技名牌 .sming 同语(漆底金字+漆金细衬)。锚画心(不随卡根):底位固定在
+   画心内角,不与卡根 overlay(名带/称号签)争位 ── */
+.hface .j-badge {
+  position: absolute;
+  bottom: calc(0.55 * var(--u));
+  right: calc(0.55 * var(--u));
+  z-index: 3;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.24em;
+  font-family: var(--font-title);
+  font-size: 0.95em;
+  line-height: 1;
+  color: var(--color-lacquer-gold);
+  background: var(--color-lacquer);
+  border-radius: 0.24em;
+  padding: 0.3em 0.42em;
+  box-shadow:
+    0 0.15em 0.3em rgba(0, 0, 0, 0.35),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
+  font-variant-numeric: tabular-nums;
+}
+.hface .j-badge i {
+  font-style: normal;
+  color: var(--color-gold-bright);
+}
+
+/* ── 右侧竖排名将名(题名大字;漆金牌名带,#511 B 案制式:漆底纸字金边,压画心
+     右缘=三国杀名牌语言,带自承底色不依赖画)。挂卡根、上缘锚定(top 而非
+     bottom)——卡根恒 20u 高,竖排名带可用高度与技能区高解耦,永不换列
+     (2026-10-14 实拍教训:锚画心 bottom 时画心随技能区变矮,名带换列撑宽)── */
 .hface .m-name {
   position: absolute;
   right: calc(0.55 * var(--u));
-  bottom: calc(1.6 * var(--u)); /* 0.9u 技能区上叠 + 0.7u 净距(几何恒定) */
+  top: calc(0.55 * var(--u));
   z-index: 3;
   writing-mode: vertical-rl;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 2.3em;
   line-height: 1;
   letter-spacing: 0.1em;
-  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
-  background: linear-gradient(180deg, rgba(54, 44, 30, 0.94), rgba(36, 29, 19, 0.88));
+  color: var(--color-ink); /* 印文纸色(#510 收口字面量) */
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-panel-hi) 94%, transparent),
+    color-mix(in srgb, var(--color-paper-lo) 88%, transparent)
+  );
   border: 1px solid rgba(217, 185, 92, 0.55);
   border-radius: 0.22em;
   box-shadow: 0 0.2em 0.5em rgba(0, 0, 0, 0.4);
   padding: 0.4em 0.22em;
 }
 
-/* ── 底部技能区:半透明纸底横条(上叠立绘 0.9em,纱缘过渡)── */
+/* ── 底部技能区:墨面漆金横条(#510 深底适配定稿制式;#511 B 案下改为画心下缘
+   独立题跋带——不再上叠画心,金框画心四边完整可见,左右与画心边距对齐 0.55em)── */
 .hface .skz {
   position: relative;
   z-index: 2;
-  margin: -0.9em 0.5em 0.5em;
-  background: linear-gradient(180deg, rgba(250, 243, 223, 0.96), rgba(238, 224, 188, 0.96));
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  margin: 0.45em 0.55em 0.55em;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-panel-hi) 96%, transparent),
+    color-mix(in srgb, var(--color-lacquer) 96%, transparent)
+  );
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 0.45em;
   padding: 0.45em 0.55em;
   display: flex;
   flex-direction: column;
   gap: 0.3em;
-  box-shadow: 0 0.25em 0.6em rgba(43, 35, 23, 0.35);
+  box-shadow: 0 0.25em 0.6em rgba(0, 0, 0, 0.45);
 }
 .hface .skz .sk {
   font-size: 0.88em;
@@ -196,7 +258,7 @@
   color: var(--color-ink);
 }
 .hface .skz .sk + .sk {
-  border-top: 1px dashed rgba(43, 35, 23, 0.35);
+  border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 28%, transparent);
   padding-top: 0.32em;
 }
 .hface .skz .shead {
@@ -218,7 +280,8 @@
   background: var(--color-gold-deep);
   transform: rotate(45deg);
 }
-/* 技名牌:墨底纸字(实数据技名,T1 起被动与主动同形制) */
+/* 技名牌:漆底金字题签(#510 深底适配:原墨底纸字所锚 token 已反转,改漆金语言,
+   对漆木底 ≥7:1);形制(圆角小签)不动 */
 .hface .skz .sming {
   display: inline-flex;
   align-items: center;
@@ -227,8 +290,9 @@
   line-height: 1.3;
   border-radius: 0.25em;
   padding: 0.04em 0.5em;
-  background: var(--color-ink);
-  color: #f6ecd9; /* 印文纸色(豁免登记见文件头) */
+  background: var(--color-lacquer);
+  color: var(--color-lacquer-gold);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   white-space: nowrap;
 }
 .hface .skz .cd {
@@ -253,7 +317,7 @@
   right: calc(3.8 * var(--u));
 }
 .hface.compact .skz {
-  margin: -0.9em 0.45em 0.45em;
+  margin: 0.4em 0.55em 0.5em;
   padding: 0.4em 0.5em;
   gap: 0.3em;
 }
@@ -269,7 +333,7 @@
   gap: 0.38em;
   font-size: 0.92em;
   line-height: 1.5;
-  border: 1px solid rgba(43, 35, 23, 0.4);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   background: var(--color-paper-hi);
   border-radius: 0.25em;
   padding: 0.06em 0.45em;

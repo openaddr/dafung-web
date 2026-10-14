@@ -1,7 +1,7 @@
 // shadcn/ui Tooltip(base-vega 风格)的水墨适配底件:Base UI 行为 + 本项目 token 皮。
 // 由 components.json + `bunx shadcn add tooltip` 的拷贝管线维护(已按水墨主题改皮,
 // 后续 CLI 更新组件时 diff 这里的改皮差异)。改皮登记(相对 CLI 原样):
-//   ① Popup 皮换水墨「墨底纸金」(原型 .proto-tip 口径:rgba(43,35,23,.94) 墨底 +
+//   ① Popup 皮「墨底纸金」(原型 .proto-tip 口径;S9 深底适配后墨底收口 bg-panel/94、
 //      纸色文字 + 金发丝边 + 墨影);② 去 Arrow(原型浮签无箭头);③ 去动画类
 //      (tw-animate-css 未入仓,原样保留只会是死类;浮签即时显隐同原型);
 //   ④ cn 别名修正为 @app/utils/cn(CLI 生成的是裸 "cn",本仓不可解析)。
@@ -44,7 +44,7 @@ function TooltipContent({
         <TooltipPrimitive.Popup
           data-slot="tooltip-content"
           className={cn(
-            "z-50 w-max max-w-60 rounded-[4px] border border-[rgba(217,185,92,0.35)] bg-[rgba(43,35,23,0.94)] px-3 py-1.5 text-left text-xs leading-relaxed text-[#f6ecd9] shadow-[var(--ink-shadow-lg)]",
+            "z-50 w-max max-w-60 rounded-[4px] border border-gold/35 bg-panel/94 px-3 py-1.5 text-left text-xs leading-relaxed text-ink shadow-[var(--ink-shadow-lg)]",
             className,
           )}
           {...props}

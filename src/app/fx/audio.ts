@@ -22,7 +22,11 @@ export type SoundEvent =
   | "victoryDrum" // 胜利入场鼓点(仅终局屏 0ms;与 banner 分家,鼓滚奏只留给终局)
   | "scrollOpen" // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
   | "jinnangDraw" // 锦囊发牌/入手(手牌架新牌挂载即播,#239 T4)
-  | "jinnangSelect"; // 出牌阶段点选牌面(选中瞬间的极轻嗒,#239 T4)
+  | "jinnangSelect" // 出牌阶段点选牌面(选中瞬间的极轻嗒,#239 T4)
+  | "tileClack" // 骨牌叩(S7 拼点双印:双骰点印错拍各一声)
+  | "coinsBox" // 铜钱入匣(S7 破产仪式撒币拍)
+  | "rain" // 雨声铺底(S7 破产仪式开锣,音量压档 FILE_GAIN)
+  | "haltGong"; // 都城停号角(S7 全屏宣告开拍;复用 gong-long 素材)
 
 /** 可拔插音效播放器接口。合成 / 文件 / 静音 各自实现。 */
 export interface AudioPlayer {
@@ -142,6 +146,19 @@ export class SynthAudioPlayer implements AudioPlayer {
         break;
       case "jinnangSelect":
         this.jinnangSelect(ctx);
+        break;
+      case "tileClack":
+        this.tileClack(ctx);
+        break;
+      case "coinsBox":
+        this.coinsBox(ctx);
+        break;
+      case "rain":
+        this.rain(ctx);
+        break;
+      case "haltGong":
+        // 合成回退:与 bankrupt 同族低沉降调(文件通路见 AUDIO_FILES——复用 gong-long)
+        this.bankrupt(ctx);
         break;
     }
   }
@@ -339,6 +356,25 @@ export class SynthAudioPlayer implements AudioPlayer {
     this.noiseBurst(ctx, 0.045, "highpass", 3800, 0.7, 0.055);
     this.tone(ctx, 2700, 0.03, "sine", 0.02);
   }
+
+  // 骨牌叩(S7 拼点双印:骰点印钤下的木质脆叩;合成回退,文件通路 tile-clack)
+  private tileClack(ctx: AudioContext): void {
+    this.thump(ctx, 420, 0.07, 0.32);
+    this.noiseBurst(ctx, 0.04, "highpass", 2600, 1.2, 0.14);
+  }
+
+  // 铜钱入匣(S7 破产仪式撒币拍:双钱急落 + 匣底闷响;合成回退,文件通路 coins-box)
+  private coinsBox(ctx: AudioContext): void {
+    this.coin(ctx);
+    setTimeout(() => this.coin(ctx), 70);
+    setTimeout(() => this.thump(ctx, 160, 0.14, 0.3), 120);
+  }
+
+  // 雨声铺底(S7 破产仪式开锣:宽带低通噪声软起 400ms,合成回退;文件通路 rain,
+  // FILE_GAIN 压至 0.3 档,只做萧索衬底不抢长锣)
+  private rain(ctx: AudioContext): void {
+    this.noiseBurst(ctx, 2.4, "lowpass", 1400, 0.4, 0.12, 900, 400);
+  }
 }
 
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
@@ -369,6 +405,17 @@ export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // 的质感语言。jinnangSelect 刻意不映射:现成采样里无贴切的「极轻选中嗒」,
   // 走上方合成(marchStart 同族),不硬凑重采样。
   jinnangDraw: "/assets/audio/woodblock-hit.ogg",
+  // S7 演出包(#513,S1 素材批 CC0 三件,Freesound lq ogg 直链,CREDITS 已登记):
+  tileClack: "/assets/audio/audio-tile-clack.ogg", // 拼点双印骨牌叩
+  coinsBox: "/assets/audio/audio-coins-box.ogg", // 破产撒币入匣
+  rain: "/assets/audio/audio-rain.ogg", // 破产雨床(FILE_GAIN 压档)
+  haltGong: "/assets/audio/gong-long.ogg", // 都城停号角(与 bankrupt 同素材复用)
+};
+
+/** 文件通路分事件音量(S7 #513「音量克制」):缺省 0.6(既有档),雨床压至 0.3
+ *  只做衬底。仅作用于文件通路;合成回退走各自合成单元的内置音量。 */
+export const FILE_GAIN: Partial<Record<SoundEvent, number>> = {
+  rain: 0.3,
 };
 
 /** 文件播放的截断表(播放侧收尾,不动素材文件):部分采样是长尾/多连击录音,
@@ -383,6 +430,8 @@ export const FILE_TRIM: Partial<Record<SoundEvent, { stopAt: number; releaseMs: 
   jinnangDraw: { stopAt: 0.65, releaseMs: 200 },
   buy: { stopAt: 1.6, releaseMs: 300 },
   scrollOpen: { stopAt: 1.8, releaseMs: 300 },
+  // S7:雨床是长录音( field recording),仪式只借开头一段萧索,3s 收尾渐隐
+  rain: { stopAt: 3, releaseMs: 600 },
 };
 
 /**
@@ -428,8 +477,10 @@ export class HybridAudioPlayer extends SynthAudioPlayer {
       src.buffer = buf;
       src.playbackRate.value = 0.92 + Math.random() * 0.16; // 轻微随机变调避免单调
       const g = ctx.createGain();
-      // muted 态到不了这里(ensureCtx 对 muted 早退),静音门在 ctx 层已关
-      g.gain.value = 0.6;
+      // muted 态到不了这里(ensureCtx 对 muted 早退),静音门在 ctx 层已关;
+      // 分事件音量(FILE_GAIN,rain 压档)缺省 0.6 与既有档对齐
+      const gain = FILE_GAIN[event] ?? 0.6;
+      g.gain.value = gain;
       src.connect(g).connect(this.master);
       src.start();
       // 截断:长尾/连击采样按事件收尾渐隐(变调只影响样本内时长,截断点在输出
@@ -439,7 +490,7 @@ export class HybridAudioPlayer extends SynthAudioPlayer {
       if (trim && buf.duration > trim.stopAt) {
         const tStop = ctx.currentTime + trim.stopAt;
         const tRelease = tStop - trim.releaseMs / 1000;
-        g.gain.setValueAtTime(0.6, tRelease);
+        g.gain.setValueAtTime(gain, tRelease);
         g.gain.exponentialRampToValueAtTime(0.0001, tStop);
         src.stop(tStop);
       }

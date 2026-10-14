@@ -1,17 +1,18 @@
 /* 反应窗(#281,#234 P1-D「牌架即反应窗」)样式收口:结算事件横幅(从手牌架上缘
-   长出)+ 架上反应牌呼吸金边。色一律 var(--color-*) 或墨影 rgba(43,35,23,·);
+   长出)+ 架上反应牌呼吸金边。色一律 var(--color-*) 或其 color-mix alpha 形式
+   (#510 玄墨鎏金:墨影 rgba(43,35,23,·) 退役,发丝线/弱轨改漆金细线);
    动效时长/缓动走 --dur-* 与 --ease-* token(tokens.css 单源)。文案笔书(新文案禁
    font-deco,BRIEF §2);按钮种同 ActionBar 口径(墨钮=漆底金字金内环,次级=同底漆钮),
    但本件独立类名(.reaction-btn)——actionbar-btn 作用域锁在 .game-layout .actionbar 下,
    不跨件复用选择器。
 
-   裸色豁免登记:rgba(43,35,23,·)=墨影族;rgba(200,161,58,·)/rgba(217,185,92,·)=
-   --color-gold / --color-gold-bright 通道、rgba(111,97,70,·)=墨褐通道——皆既有 token
-   的 rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色;呼吸金边另走
-   --color-gold / --color-gold-bright 的 color-mix,印条纸色用既有 --color-paper-hi。 */
+   裸色豁免登记(#510 后存留):rgba(200,161,58,·)/rgba(217,185,92,·)=
+   --color-gold / --color-gold-bright / --color-lacquer-gold 通道(CSS 无法对 hex var
+   直接调 alpha 的既定写法,可调 alpha 处一律 color-mix);rgba(138,106,28,·)=墨金影。
+   悬停微反馈统一(#490 微档):可点件 hover 亮金描边+微缩放,--dur-fast。 */
 
 /* ── 横幅:定位在架体(.hand-rack 为定位上下文)上缘,从架沿长出(scaleY 入场);
-   纸底墨框 + 朱砂倒计时弧,同族于 WaitingBar/选都提示的浮层语言 ── */
+   深墨面板 + 漆金描边 + 朱砂倒计时弧(#510 玄墨鎏金,同 HUD 面板语言)── */
 .reaction-banner {
   position: absolute;
   bottom: calc(100% + 6px);
@@ -22,10 +23,10 @@
   gap: 10px;
   max-width: min(92vw, 720px);
   padding: 7px 12px;
-  border: 1.5px solid rgba(43, 35, 23, 0.55);
+  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
   border-radius: 5px;
-  background: linear-gradient(180deg, var(--color-paper-hi), var(--color-panel-hi));
-  box-shadow: 0 4px 14px rgba(43, 35, 23, 0.35);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
   transform: translateX(-50%);
   transform-origin: bottom center;
   animation: reaction-banner-in var(--dur-med) var(--ease-out);
@@ -37,9 +38,9 @@
   }
 }
 
-/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(笔书) */
+/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(横幅标题字,#508 起 font-title) */
 .reaction-text {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 17px;
   line-height: 1.3;
   letter-spacing: 0.06em;
@@ -63,12 +64,17 @@
   font-size: 16px;
   color: var(--color-ink);
   background: var(--color-panel);
-  border: 1.5px solid rgba(43, 35, 23, 0.4);
+  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   border-radius: 50%;
   cursor: pointer;
   transition:
     border-color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
+}
+.reaction-seat-chip:hover {
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
 }
 .reaction-seat-chip.picked {
   border-color: var(--color-gold);
@@ -87,6 +93,11 @@
   border-radius: 4px;
   border: 0;
   cursor: pointer;
+  /* 悬停微反馈统一(#490 微档):亮金内环 + 微缩放 */
+  transition:
+    transform var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out),
+    opacity var(--dur-fast) var(--ease-out);
 }
 .reaction-btn.mo {
   background: var(--color-lacquer);
@@ -101,15 +112,18 @@
   box-shadow: inset 0 0 0 1.5px var(--color-gold);
 }
 .reaction-btn.mo:not(:disabled):hover {
+  transform: scale(1.02);
   box-shadow: inset 0 0 0 2px var(--color-gold-bright);
 }
 .reaction-btn.qian {
   background: var(--color-lacquer);
-  color: var(--color-panel-hi);
+  color: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
   opacity: 0.92;
 }
 .reaction-btn.qian:hover {
   opacity: 1;
+  transform: scale(1.02);
+  box-shadow: inset 0 0 0 1.5px var(--color-gold);
 }
 
 /* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用) */
@@ -121,7 +135,7 @@
   background: none;
   border: 0;
   cursor: pointer;
-  text-decoration: underline rgba(111, 97, 70, 0.4);
+  text-decoration: underline color-mix(in srgb, var(--color-ink-dim) 40%, transparent);
   text-underline-offset: 3px;
 }
 .reaction-mute:hover {
@@ -137,7 +151,7 @@
 }
 .reaction-timer .track {
   fill: none;
-  stroke: rgba(43, 35, 23, 0.15);
+  stroke: color-mix(in srgb, var(--color-lacquer-gold) 22%, transparent);
   stroke-width: 3.5;
 }
 .reaction-timer .arc {

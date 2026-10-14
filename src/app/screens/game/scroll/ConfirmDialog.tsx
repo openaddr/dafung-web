@@ -1,16 +1,17 @@
 // 通用确认弹层:对照旧 createConfirm(选都确认等场景)。
-// 不走 ScrollShell 的完整卷轴,用旧 confirm-box 的小卡片形态(标题 + 正文 + 两按钮)。
+// 不走 BannerShell 的完整横幅,用小卡片形态(标题 + 正文 + 两按钮),材质同横幅制式
+// (banner-card:漆底+漆金描边+压下入场)。
 // #153 收口到 ui/dialog(Base UI 水墨底件):role=dialog/aria-labelledby/aria-describedby、
-// 焦点陷阱、Esc 关闭、关闭还焦、初始聚焦确认钮全部由底件白拿;水墨小卡视觉、
-// scroll-anim 入场动画与全部 data-testid 与旧自绘版一致,调用方 props 签名不变。
+// 焦点陷阱、Esc 关闭、关闭还焦、初始聚焦确认钮全部由底件白拿;漆金小卡视觉、
+// banner 入场动画与全部 data-testid 与旧自绘版一致,调用方 props 签名不变。
 // 模态口径(#155/#158 结论):backdropBlocks=true → modal=true(全模态:焦点陷阱 +
 // 锁滚 + 内部底衬拦棋盘,编辑器重置/导入失败同旧遮罩拦截体验);backdropBlocks=false
 // → modal="trap-focus"(只陷阱焦点,不锁滚、不拦外部指针)——选都确认态下棋盘保持
 // 可点,玩家点另一座候选城即可换选择,弹窗内容跟随不关(旧版确认框同体验)。
 import { useEffect, useRef, type ReactNode } from "react";
-import "./scroll.css";
+import "./banner.css";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@app/components/ui/dialog";
-import { ScrollButton } from "./ScrollShell";
+import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 export interface ConfirmDialogProps {
@@ -108,36 +109,26 @@ export function ConfirmDialog({
         ref={popupRef}
         data-testid={testid ?? T.confirmDialog}
         overlayProps={{
-          className: "scroll-anim-overlay",
-          // 非模态遮罩只保留暗纱视觉、放行点击。必须内联 style:scroll-anim-overlay
+          className: "banner-overlay",
+          // 非模态遮罩只保留暗纱视觉、放行点击。必须内联 style:banner-overlay
           // 自带 pointer-events:auto(未分层 CSS 恒压过 utilities 层的 none 类)。
           style: backdropBlocks ? undefined : { pointerEvents: "none" },
         }}
         // 弹层居中改 auto-margin 口径(inset-0 + m-auto + 尺寸自适应):入场动画
-        // scroll-anim-unroll 的关键帧写 transform,会覆盖底件默认 -translate-x/y-1/2
+        // banner-drop 的关键帧写 transform,会覆盖底件默认 -translate-x/y-1/2
         // 居中位移造成开场跳位;translate-x/y-0 抵消默认位移后动画帧只承担落位动势。
-        // 切勿加 relative(会经 twMerge 顶掉底件默认的 fixed,fixed 同样是挂轴
-        // absolute 定位的包含块)。pointer-events-auto:遮罩放行时卡片仍要接住点击。
+        // 切勿加 relative(会经 twMerge 顶掉底件默认的 fixed)。pointer-events-auto:
+        // 遮罩放行时卡片仍要接住点击。banner-card = 漆金横幅制式小卡(材质/入场动画,
+        // banner.css);banner-shell = 次级笺钮描边收口的作用域钩子。
         className={
-          "inset-0 m-auto h-max w-max translate-x-0 translate-y-0 max-w-[400px] px-7 scroll-anim-unroll" +
+          "banner-card banner-shell inset-0 m-auto h-max w-max translate-x-0 translate-y-0 max-w-[400px] px-7 py-5" +
           (backdropBlocks ? "" : " pointer-events-auto")
         }
       >
-        {/* 挂轴单杆(视觉重做 v2):小确认卡也带顶杆,与决策卷轴同一器物语言 */}
-        <div
-          aria-hidden="true"
-          className="pointer-events-none absolute -inset-x-4 -top-2.5 z-10 flex h-[17px] items-center"
-        >
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
-          <span className="h-[11px] flex-1 bg-gradient-to-b from-[#56462e] via-[#3a2f1e] to-[#241c11] shadow-[inset_0_1px_0_rgba(217,185,92,0.4)]" />
-          <span className="h-[17px] w-[17px] flex-none rounded-full bg-gradient-to-b from-[#5c4c34] to-[#241c11] shadow-[0_1px_3px_rgba(43,35,23,0.5)]" />
-        </div>
         <DialogTitle data-testid={T.scrollTitle} className="mb-2 text-center text-xl">
           {title}
         </DialogTitle>
-        {/* #91(R3-C4) 与 ScrollShell 同步两层摊开:标题随卡片壳体(scroll-anim-unroll)
-            淡入落位,标题以下的纸身(正文+按钮)以顶缘为轴 scaleY 展开,标题字不压扁。 */}
-        <div className="scroll-anim-unroll-paper">
+        <div>
           {/* W2 包E(审计 A5):正文是动态 children(地图名/城名等),字族迁 wenkai 不落小薇。
               底件 DialogTitle/DialogDescription 白拿 aria-labelledby/aria-describedby 口径。 */}
           <DialogDescription className="mb-3.5 font-wenkai text-[17px] text-ink">
@@ -146,16 +137,16 @@ export function ConfirmDialog({
           <div className="flex flex-wrap justify-center gap-3">
             {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
                 e2e 无需知道通用/专用两套名字 */}
-            <ScrollButton
+            <BannerButton
               primary
               testid={testid ? `${testid}-ok` : T.confirmOk}
               onClick={onConfirm}
             >
               {confirmLabel}
-            </ScrollButton>
-            <ScrollButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>
+            </BannerButton>
+            <BannerButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>
               {cancelLabel}
-            </ScrollButton>
+            </BannerButton>
           </div>
         </div>
       </DialogContent>
