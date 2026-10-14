@@ -10,6 +10,8 @@ import type { GameEvent } from "@core/game-events";
 import { UI } from "@app/fx/timings";
 // 房间字段协议单源(wire.ts #429;app→scripts 类型导入,构建期擦除,先例 local.ts)。
 import type { WireRoomFields } from "../../../scripts/wire";
+// #494 重连进度形状单源(传输层产出,本 store 只透传暂存)。
+import type { ReconnectProgress } from "@app/net/reconnecting-socket";
 
 /** 座位元数据 = 协议座位形状(服务器 seatMeta 产出,单源 seat-projection.ts;
  *  字段语义见该模块,不再手抄接口)。 */
@@ -28,9 +30,14 @@ export interface NetStoreState extends NetRoomFields {
    *  二值 connected 区分不了「还没连过」与「断了正在重连」,横幅只要后者,
    *  且重连耗尽(gaveUp)要换文案「请刷新页面」——所以透出三值全量。 */
   connection: "idle" | "open" | "closed" | "gaveUp";
+  /** #494 重连进度(attempt = 正在进行的第 n 次尝试,max = 放弃上限;null = 非重连中)。
+   *  写入端 online.ts(透传自 ReconnectingSocket.onProgress),读取端 ConnectionBanner;
+   *  连上(open)由 setConnection 一并归零,不劳消费方清理。 */
+  reconnect: ReconnectProgress | null;
   /** 房主已解散(大厅/对局都该退出)。 */
   dismissed: boolean;
-  /** 操作提示(加入失败/开局失败等;F4 起过期逻辑下沉到本 store 统一 1.8s)。 */
+  /** 操作提示(加入失败/开局失败等;F4 起过期逻辑下沉到本 store,#494 起分级 TTL:
+   *  error 5s / info 1.8s)。 */
   hint: string | null;
   /** 提示级别(error = 红底白字 chip;info = 灰字面板)。 */
   hintLevel: "error" | "info";
@@ -51,6 +58,8 @@ export interface NetStoreState extends NetRoomFields {
   setConnected: (connected: boolean) => void;
   /** F2:写入 socket 全量状态(open/closed/gaveUp);connected 由其派生同步。 */
   setConnection: (status: "open" | "closed" | "gaveUp") => void;
+  /** #494:重连进度入 store(透传,不加工)。 */
+  setReconnect: (p: ReconnectProgress | null) => void;
   setDismissed: () => void;
   pushHint: (hint: string | null, level?: "error" | "info") => void;
   /** #390:事件批入站暂存(容错:空批照存不炸;畸形字段透传,运行时不校验=零兜底)。 */
@@ -73,6 +82,7 @@ const EMPTY: Pick<
   | "mySeat"
   | "connected"
   | "connection"
+  | "reconnect"
   | "dismissed"
   | "hint"
   | "hintLevel"
@@ -87,6 +97,7 @@ const EMPTY: Pick<
   mySeat: -1,
   connected: false,
   connection: "idle",
+  reconnect: null,
   dismissed: false,
   hint: null,
   hintLevel: "error",
@@ -95,11 +106,16 @@ const EMPTY: Pick<
   eventBatchSeq: 0,
 };
 
-// F4:hint 过期定时器归 store 持有(TTL 单一口径 = fx/timings.ts UI.hintTtlMs,#117 收编)。
+// F4:hint 过期定时器归 store 持有(TTL 基准 = fx/timings.ts UI.hintTtlMs,#117 收编)。
 // 原三处渲染点各自 setTimeout(game 1.5s / lobby 1.8s / App+solo-setup 永不过期——
 // 评审 F4 的三套口径问题);下沉后重复 push 先清旧定时器,无论哪个屏触发、是否切屏,
 // 过期时长都一致。
 let netHintTimer: ReturnType<typeof setTimeout> | null = null;
+
+// #494 错误/信息分级 TTL:失败类提示照抄 info 的 1.8s 一闪而过读不完,
+// error 延长到 5s(票面口径「≥5s 或不自动过期」,取自动过期——红字常驻反成噪音);
+// info 维持 UI.hintTtlMs。常量落使用处:本票文件所有权不含 fx/timings.ts,收编归口后移。
+const HINT_ERROR_TTL_MS = 5000;
 
 export const useNetStore = create<NetStoreState>((set) => ({
   roomId: "",
@@ -117,8 +133,16 @@ export const useNetStore = create<NetStoreState>((set) => ({
   setMySeat: (mySeat) => set({ mySeat }),
   setConnected: (connected) => set({ connected }),
   // F2:socket 全量状态入 store;connected 由此派生(onError 回调按 connected 判断
-  // "正常在线"才闪提示,gaveUp 后不该再走在线分支,故一并置 false)。
-  setConnection: (status) => set({ connection: status, connected: status === "open" }),
+  // "正常在线"才闪提示,gaveUp 后不该再走在线分支,故一并置 false)。#494:连上即清
+  // 重连进度(横幅随 connection 回 open 消失,进度不残留)。
+  setConnection: (status) =>
+    set(
+      status === "open"
+        ? { connection: status, connected: true, reconnect: null }
+        : { connection: status, connected: false },
+    ),
+  // #494:重连进度透传(写入端 online.ts 订阅 ReconnectingSocket.onProgress)。
+  setReconnect: (p) => set({ reconnect: p }),
   setPending: (pending) => set({ pending }),
   // #390:事件批整批覆盖暂存 + 到达计数单调递增(一条消息 = 一批;不驱动任何派生 UI)。
   pushEventBatch: (events) =>
@@ -128,7 +152,14 @@ export const useNetStore = create<NetStoreState>((set) => ({
   setDismissed: () => set({ dismissed: true, connected: false }),
   pushHint: (hint, level = "error") => {
     if (netHintTimer != null) clearTimeout(netHintTimer); // 重复 push 先清旧定时器
-    netHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), UI.hintTtlMs);
+    // #494 分级 TTL:error 5s / info 1.8s(见 HINT_ERROR_TTL_MS 注)。
+    netHintTimer =
+      hint === null
+        ? null
+        : setTimeout(
+            () => set({ hint: null }),
+            level === "error" ? HINT_ERROR_TTL_MS : UI.hintTtlMs,
+          );
     set({ hint, hintLevel: level });
   },
   reset: () => {

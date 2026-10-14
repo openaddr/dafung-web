@@ -10,6 +10,13 @@
  *  10 次重连耗尽 → gaveUp(由宿主决定如何提示,本层不做 UI)。 */
 export type SocketStatus = "open" | "closed" | "gaveUp";
 
+/** 重连进度(#494):attempt = 已排定/正在进行的第 n 次重连尝试(1 起),
+ *  max = 放弃上限(退避次数耗尽即 gaveUp)。消费端 ConnectionBanner 显示「第 n/N 次」。 */
+export interface ReconnectProgress {
+  attempt: number;
+  max: number;
+}
+
 /** WebSocket 的最小结构(浏览器原生 WebSocket 结构兼容;测试注入假实现)。 */
 export interface WebSocketLike {
   readyState: number;
@@ -59,6 +66,7 @@ export class ReconnectingSocket {
 
   private readonly messageCbs = new Set<(data: string) => void>();
   private readonly statusCbs = new Set<(status: SocketStatus) => void>();
+  private readonly progressCbs = new Set<(p: ReconnectProgress) => void>();
   private readonly errorCbs = new Set<() => void>();
 
   constructor(opts: ReconnectingSocketOptions) {
@@ -126,6 +134,13 @@ export class ReconnectingSocket {
     return () => this.statusCbs.delete(cb);
   }
 
+  /** 订阅重连进度(#494):每次排定新一轮重连尝试(退避定时已挂)后回调,attempt 为
+   *  即将进行的尝试序号;连上(open)后的归零由宿主经 netStore 承担,本层不持 UI 态。 */
+  onProgress(cb: (p: ReconnectProgress) => void): () => void {
+    this.progressCbs.add(cb);
+    return () => this.progressCbs.delete(cb);
+  }
+
   /** 原始 onerror 透传(重连尝试期间的 error 不打扰;仅正常在线时闪提示——判定归协议桥)。 */
   onError(cb: () => void): () => void {
     this.errorCbs.add(cb);
@@ -142,6 +157,9 @@ export class ReconnectingSocket {
     const backoff = Math.min(this.baseMs * 2 ** this.reconnectAttempts, this.maxMs);
     const delayMs = backoff * (0.7 + this.random() * 0.6); // ±30% 抖动
     this.reconnectAttempts++;
+    this.progressCbs.forEach((cb) =>
+      cb({ attempt: this.reconnectAttempts, max: this.maxAttempts }),
+    );
     this.reconnectTimer = this.timer.setTimeout(() => {
       this.reconnectTimer = null;
       this.spawn();

@@ -2,11 +2,14 @@
 // 「还没建连」与「断了正在重连」,前者不该出横幅,所以数据源是三值状态。
 // closed = 自动重连中(呼吸动画提示"还在努力");gaveUp = 10 次退避耗尽,只能刷新;
 // 重连成功 socket 会再报 open,connection 回 open → 横幅自动消失(无需额外清理)。
+// #494:重连中附「(第 n/N 次)」真实进度(计数透传自 ReconnectingSocket,经
+// netStore.reconnect;非重连态为 null,缺计数时只显示基础文案,不造假进度)。
 // W2 包E(审计 A5):断线话术是动态文案,字族迁 wenkai(新文案不落小薇)。
 import { useNetStore } from "@app/store/netStore";
 
 export function ConnectionBanner() {
   const connection = useNetStore((s) => s.connection);
+  const reconnect = useNetStore((s) => s.reconnect);
   if (connection !== "closed" && connection !== "gaveUp") return null;
   // 挂载点:game 屏棋盘区顶部(z-20 压过 hint)、lobby 屏卡片上方,由调用方决定布局。
   const gaveUp = connection === "gaveUp";
@@ -21,7 +24,9 @@ export function ConnectionBanner() {
     >
       {/* S3(#36):贴顶横幅在刘海屏横屏下会被刘海切字,垂直内边距吃进 safe-top */}
       <span style={{ paddingTop: "calc(var(--safe-top) + 6px)", paddingBottom: "6px" }}>
-        {gaveUp ? "已断线,请刷新页面" : "连接中断,重连中…"}
+        {gaveUp
+          ? "已断线,请刷新页面"
+          : `连接中断,重连中…${reconnect ? `(第 ${reconnect.attempt}/${reconnect.max} 次)` : ""}`}
       </span>
     </div>
   );
