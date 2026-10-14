@@ -17,7 +17,8 @@
 .bv-tile:hover .bv-tile-hilite,
 /* M-2 触屏:无 hover,:active 由 touch 按压激活,给出等效按压反馈 */
 .bv-tile:active .bv-tile-hilite {
-  opacity: 0.5;
+  /* #512 深底档:金盘 hover 从 0.5 压到 0.35——玄墨底上金盘天然显眼,反馈够读即可 */
+  opacity: 0.35;
 }
 /* X4(#23) 选都候选金圈两档:
    .bv-candidate  候选集全座位可见——旁观席位静态低透明金圈(不可点、不脉冲),
@@ -92,14 +93,23 @@
   }
 }
 
-/* ── 驿道 ── */
+/* ── 驿道(#512 漆金细线)──
+   主路=路身(roadMain token,窄档)+ 细线芯(roadSide token)双层同弧线:
+   玄墨底上「漆木路身压底、亮赭线芯走金」,替代浅底时代的宽墨褐带。 */
 .bv-road-main {
   fill: none;
-  stroke-width: 16;
+  stroke-width: 10;
   stroke-linecap: round;
   stroke-linejoin: round;
-  /* W2-包D(审计 A1):0.38→0.5——纸面上更足的墨褐路面,不再发灰;stroke 色不动 */
-  opacity: 0.5;
+  opacity: 0.55;
+}
+.bv-road-core {
+  fill: none;
+  stroke: var(--color-road-side);
+  stroke-width: 2.6;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.65;
 }
 
 /* ── 棋子(旌旗)──
@@ -111,7 +121,8 @@
   pointer-events: none;
 }
 .bv-token-flag {
-  filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+  /* #512 阴影向字面量收口:阴影色 = bgDeep token 的透明档(color-mix),不再散落黑值 */
+  filter: drop-shadow(0 2px 2px color-mix(in srgb, var(--color-bg-deep) 45%, transparent));
 }
 /* 旌旗轻微"呼吸"(旗面摇曳感);行军动画(阶段 6)可直接覆盖 transform 过渡。
    摇曳周期归 --dur-ambient(2.8s→2.6s 就近),缓动用 easeInOutSine 同款 token */
@@ -131,8 +142,8 @@
 
 /* ── #30 行军中棋子强调 ──
    行军接管(skipTokenIds / marchPos 路径)期间:
-   - 旗子金边拖影:drop-shadow 金晕(金 = Theme.goldBright 212,175,55 的表现色,
-     集中于此处一条注释说明,不散落硬编码);
+   - 旗子金边拖影:drop-shadow 金晕(金 = --color-gold token 的表现色,样式内收口,
+     不散落硬编码);
    - 落脚指示环(TokenLayer 内 .bv-token-march-ring 圆):旋转 + 呼吸,
      圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。
    S6(#39) 行军缓动:逐段 linear 的接缝顿挫改 easeInOutSine(--ease-sine)——段内两端缓、
@@ -148,7 +159,10 @@
   transform-origin: center;
 }
 .bv-token.bv-token-marching .bv-token-flag {
-  filter: drop-shadow(0 0 5px rgba(212, 175, 55, 0.95)) drop-shadow(0 2px 2px rgba(0, 0, 0, 0.35));
+  /* 金边拖影(#512 收口 token):金 = --color-gold 的表现色,集中此处一条注释说明;
+     阴影同上走 bgDeep 透明档 */
+  filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-gold) 95%, transparent))
+    drop-shadow(0 2px 2px color-mix(in srgb, var(--color-bg-deep) 45%, transparent));
 }
 .bv-token.bv-token-marching .bv-token-march-ring {
   opacity: 1;
