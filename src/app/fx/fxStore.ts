@@ -25,6 +25,8 @@ export interface SealFx {
   x: number;
   y: number;
   char: string;
+  /** 印色档(S7):缺省朱砂深底;gold=漆金印(探宝「得」)。 */
+  tone?: "gold";
 }
 
 export interface BannerFx {
@@ -32,6 +34,47 @@ export interface BannerFx {
   guohao: string;
   /** 玩家色 rgba 字符串(--player-color)。 */
   color: string;
+}
+
+/** 都城停全屏宣告横幅(S7 #513):漆金横幅级宣告(FxLayer 屏幕层渲染)。 */
+export interface HaltBannerFx {
+  id: number;
+  guohao: string;
+  /** 玩家色 rgba 字符串(--player-color)。 */
+  color: string;
+  cityName: string;
+}
+
+/** 落格定音金圈(S7 #513):落点格一拍即散。 */
+export interface PulseFx {
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** 拼点双印(S7 #513):双骰点印 + 合印(verdict=lose「失」/tie 金「平」)。 */
+export interface DuelFx {
+  id: number;
+  x: number;
+  y: number;
+  a: number;
+  b: number;
+  verdict: "lose" | "tie";
+}
+
+/** 铭牌墨渍(S7 破产仪式第二拍):径向晕开即散。 */
+export interface InkBlotFx {
+  id: number;
+  x: number;
+  y: number;
+}
+
+/** 铜钱撒落(S7 破产仪式第三拍):count 枚一次性径向抛撒(≠补给铜钱雨的定数 6)。 */
+export interface CoinBurstFx {
+  id: number;
+  x: number;
+  y: number;
+  count: number;
 }
 
 /** 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线的两个端点
@@ -63,18 +106,38 @@ interface FxState {
   floaters: FloaterFx[];
   seals: SealFx[];
   banner: BannerFx | null;
+  /** 都城停全屏宣告(S7)。 */
+  halt: HaltBannerFx | null;
   /** 出牌指示线(#281 P2-E)。 */
   jinnangLines: JinnangLineFx[];
   /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位。 */
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
+  /** 落格定音金圈(S7)。 */
+  pulses: PulseFx[];
+  /** 拼点双印(S7)。 */
+  duels: DuelFx[];
+  /** 破产仪式墨渍(S7)。 */
+  inkBlots: InkBlotFx[];
+  /** 破产仪式撒币(S7)。 */
+  coinBursts: CoinBurstFx[];
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string): void;
   showBanner(guohao: string, color: string): void;
-  stampSeal(x: number, y: number, char: string): void;
+  stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
+  /** 都城停全屏宣告(S7):横幅随 CSS 全长自清。 */
+  showHaltBanner(guohao: string, color: string, cityName: string): void;
+  /** 落格定音金圈一拍(S7)。 */
+  spawnPulse(x: number, y: number): void;
+  /** 拼点双印(S7):一次一批(双骰印+合印同一记录,CSS 错拍自走)。 */
+  stampDuel(x: number, y: number, a: number, b: number, verdict: "lose" | "tie"): void;
+  /** 破产仪式墨渍晕开(S7)。 */
+  spawnInkBlot(x: number, y: number): void;
+  /** 破产仪式铜钱撒落(S7)。 */
+  spawnCoinBurst(x: number, y: number, count: number): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -93,9 +156,14 @@ export const useFxStore = create<FxState>((set) => ({
   floaters: [],
   seals: [],
   banner: null,
+  halt: null,
   jinnangLines: [],
   marching: new Set<string>(),
   announces: new Map<number, TileAnnounce>(),
+  pulses: [],
+  duels: [],
+  inkBlots: [],
+  coinBursts: [],
 
   spawnFloater(x, y, amount, coins) {
     const id = nextId++;
@@ -122,10 +190,46 @@ export const useFxStore = create<FxState>((set) => ({
     setTimeout(() => set((s) => (s.banner?.id === id ? { banner: null } : {})), FX.bannerMs);
   },
 
-  stampSeal(x, y, char) {
+  stampSeal(x, y, char, tone) {
     const id = nextId++;
-    set((s) => ({ seals: [...s.seals, { id, x, y, char }] }));
+    set((s) => ({ seals: [...s.seals, { id, x, y, char, tone }] }));
     setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
+  },
+
+  showHaltBanner(guohao, color, cityName) {
+    const id = nextId++;
+    set({ halt: { id, guohao, color, cityName } });
+    setTimeout(() => set((s) => (s.halt?.id === id ? { halt: null } : {})), FX.haltBannerMs);
+  },
+
+  spawnPulse(x, y) {
+    const id = nextId++;
+    set((s) => ({ pulses: [...s.pulses, { id, x, y }] }));
+    setTimeout(() => set((s) => ({ pulses: s.pulses.filter((p) => p.id !== id) })), FX.landPulseMs);
+  },
+
+  stampDuel(x, y, a, b, verdict) {
+    const id = nextId++;
+    set((s) => ({ duels: [...s.duels, { id, x, y, a, b, verdict }] }));
+    setTimeout(() => set((s) => ({ duels: s.duels.filter((d) => d.id !== id) })), FX.duelMs);
+  },
+
+  spawnInkBlot(x, y) {
+    const id = nextId++;
+    set((s) => ({ inkBlots: [...s.inkBlots, { id, x, y }] }));
+    setTimeout(
+      () => set((s) => ({ inkBlots: s.inkBlots.filter((b) => b.id !== id) })),
+      FX.inkBlotMs,
+    );
+  },
+
+  spawnCoinBurst(x, y, count) {
+    const id = nextId++;
+    set((s) => ({ coinBursts: [...s.coinBursts, { id, x, y, count }] }));
+    setTimeout(
+      () => set((s) => ({ coinBursts: s.coinBursts.filter((b) => b.id !== id) })),
+      FX.coinBurstMs,
+    );
   },
 
   spawnJinnangLine(x1, y1, x2, y2) {
@@ -175,9 +279,14 @@ export const useFxStore = create<FxState>((set) => ({
       floaters: [],
       seals: [],
       banner: null,
+      halt: null,
       jinnangLines: [],
       marching: new Set<string>(),
       announces: new Map(),
+      pulses: [],
+      duels: [],
+      inkBlots: [],
+      coinBursts: [],
     });
   },
 }));

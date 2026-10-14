@@ -29,6 +29,8 @@ export type PresentationEvent =
       kind: "cashDelta";
       playerId: string;
       amount: number;
+      /** 铜钱雨扩容(S7 #513):纳税付银随雨落币(补给走独立 supplyRain,不带本档)。 */
+      coins?: boolean;
       /** 棋盘逻辑坐标(SVG 系,提取期已按 旧优先级 锚定)。 */
       x: number;
       y: number;
@@ -52,8 +54,44 @@ export type PresentationEvent =
       y: number;
       atTile: number | null;
     }
-  | { kind: "sealStamped"; tileIndex: number; char: string }
+  | {
+      kind: "sealStamped";
+      tileIndex: number;
+      char: string;
+      /** 印色档(S7 #513):缺省=朱砂深底(据/筑/驻);gold=漆金印(探宝拼点「得」),
+       *  漆金化口径(#492:金印留给得/平语义,朱砂保留给危险/破产)。 */
+      tone?: "gold";
+    }
   | { kind: "turnBanner"; guohao: string; colorIndex: number }
+  /** 落格定音(S7 #513,BRIEF 台账 #9 翻案件):行军落在事件/机遇格(税/仓/锦囊/
+   *  天命/卧龙)的金圈一拍——零新引擎事件,提取期按落点格型直译,同步下发 CSS 自走。 */
+  | { kind: "landPulse"; tileIndex: number }
+  /** 拼点双印(S7 #513):拦检拼点平/负(reactionFailed)的双骰点印——a/b=双方掷点,
+   *  左右错拍钤下后合成大印:verdict=lose 钤「失」、tie 钤金「平」(#492 平局诚实呈现);
+   *  得宝侧(拼点胜)不走本事件,由 treasureGained 的金「得」印承担。 */
+  | {
+      kind: "duelStamps";
+      tileIndex: number;
+      x: number;
+      y: number;
+      a: number;
+      b: number;
+      verdict: "lose" | "tie";
+    }
+  /** 都城路过必停全屏宣告(S7 #513):capitalHalt 事件的漆金横幅级宣告(与回合横幅
+   *  同语感、更高强度),haltGong 号角+震屏由 sink 同拍发起。 */
+  | {
+      kind: "haltBanner";
+      playerId: string;
+      guohao: string;
+      colorIndex: number;
+      /** 都城名(提取期按 tileIndex 查盘)。 */
+      cityName: string;
+    }
+  /** 破产仪式(S7 #513):playerBankrupt 的三拍全屏演出——旌旗缓倒(倒旗)→
+   *  铭牌墨渍晕开 → 铜钱撒落;bankrupt 长锣/rain 雨床/coinsBox 入匣三音由 sink
+   *  按拍发起(x/y=破产者落点,提取期解析,锚墨渍与撒币现场)。 */
+  | { kind: "bankruptCeremony"; playerId: string; x: number; y: number }
   /** 出牌指示线(#281 P2-E,ADR-0010 表现事件流的 UI 侧新事件类型):锦囊/反应牌
    *  生效点由事件批直译(#385 event-extract:jinnangAnnounced/jinnangVoided/
    *  reactionAnswered → 本事件),按「使用者 → 各目标」展开为若干段墨线端点
@@ -98,8 +136,17 @@ export interface FxSink {
   spawnTextFloater(x: number, y: number, text: string): void;
   /** 回合横幅(含 whoosh 音)。 */
   showBanner(guohao: string, colorIndex: number): void;
-  /** 朱砂印章(含 stamp 音);坐标由实现按 tileIndex 换算(需要引擎/棋盘)。 */
-  stampSeal(tileIndex: number, char: string): void;
+  /** 朱砂印章(含 stamp 音);坐标由实现按 tileIndex 换算(需要引擎/棋盘)。
+   *  tone="gold"=漆金印(S7 探宝「得」印)。 */
+  stampSeal(tileIndex: number, char: string, tone?: "gold"): void;
+  /** 落格定音(S7):落点格金圈一拍,同步下发 CSS 自走(生产实现按 tileIndex 换算)。 */
+  landPulse(tileIndex: number): void;
+  /** 拼点双印(S7):双骰点印错拍钤下→合印,音画错拍由实现编排(同步下发)。 */
+  stampDuel(ev: Extract<PresentationEvent, { kind: "duelStamps" }>): void;
+  /** 都城停全屏宣告(S7):haltGong+震屏同拍,横幅经 fxStore 下发(动画 CSS 自走)。 */
+  showHaltBanner(ev: Extract<PresentationEvent, { kind: "haltBanner" }>): void;
+  /** 破产仪式(S7):三拍串行编排(倒旗→墨渍→撒币),await 到仪式收口。 */
+  bankruptCeremony(ev: Extract<PresentationEvent, { kind: "bankruptCeremony" }>): Promise<void>;
   /** 出牌指示线(#281 P2-E):一段「使用者→目标」墨线端点(棋盘逻辑坐标),
    *  同步下发、CSS 三段自走(生产实现经 fxStore,渲染归 BoardFxLayer 的 #bv-fx 层)。 */
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;

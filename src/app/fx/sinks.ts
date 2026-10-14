@@ -9,9 +9,14 @@ import type { GameEngine } from "@core/authority";
 import type { MovePath } from "@core/board";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio, type SoundEvent } from "./audio";
+import { fallTokenFlag, shakeDesk } from "./desk";
 import { useFxStore } from "./fxStore";
 import { animateDice, animateMove, beginMarch } from "./orchestrator";
+import { CEREMONY, DUEL, delay } from "./timings";
 import type { FxSink, PropertyChangedEvent } from "./presentation";
+
+/** 拼点大胜负判定(S7 #492 震屏大事件档):双方掷点差 ≥3 视作大胜负,合印拍震屏。 */
+const DUEL_BLOWOUT_MARGIN = 3;
 
 /** 生产 sink:单机/联机控制器共用(各持一份,引擎 getter 各自绑定)。 */
 export function createEngineSink(getEngine: () => GameEngine): FxSink {
@@ -38,11 +43,51 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
       getAudio().play("banner");
       useFxStore.getState().showBanner(guohao, rgba(playerColor(colorIndex)));
     },
-    stampSeal(tileIndex, char) {
+    stampSeal(tileIndex, char, tone) {
       const engine = getEngine();
       const pos = engine.board.positionOf(tileIndex);
       getAudio().play("stamp");
-      useFxStore.getState().stampSeal(pos.x, pos.y - 20, char);
+      useFxStore.getState().stampSeal(pos.x, pos.y - 20, char, tone);
+    },
+    landPulse(tileIndex) {
+      const pos = getEngine().board.positionOf(tileIndex);
+      useFxStore.getState().spawnPulse(pos.x, pos.y);
+    },
+    stampDuel(ev) {
+      // 拼点双印(S7):双骰印落店 CSS 错拍自走,骨牌叩声随两印错拍、合印拍落
+      // stamp 音;大胜负(|a−b|≥3)合印同拍震屏。
+      useFxStore.getState().stampDuel(ev.x, ev.y, ev.a, ev.b, ev.verdict);
+      const audio = getAudio();
+      audio.play("tileClack");
+      window.setTimeout(() => audio.play("tileClack"), DUEL.clackGapMs);
+      window.setTimeout(() => {
+        audio.play("stamp");
+        if (Math.abs(ev.a - ev.b) >= DUEL_BLOWOUT_MARGIN) shakeDesk();
+      }, DUEL.verdictMs);
+    },
+    showHaltBanner(ev) {
+      // 都城停全屏宣告(S7):号角(haltGong,复用 gong-long 素材)+震屏同拍,
+      // 横幅动画 CSS 自走;编排时长由 present 侧 haltHoldMs 承担。
+      getAudio().play("haltGong");
+      shakeDesk();
+      useFxStore
+        .getState()
+        .showHaltBanner(ev.guohao, rgba(playerColor(ev.colorIndex)), ev.cityName);
+    },
+    async bankruptCeremony(ev) {
+      // 破产仪式(S7 #513)三拍串行:长锣开锣+雨床铺底+震屏 → 旌旗缓倒 →
+      // 墨渍晕开 → 铜钱撒落(coinsBox 同拍)。
+      const audio = getAudio();
+      audio.play("bankrupt");
+      audio.play("rain");
+      shakeDesk();
+      fallTokenFlag(ev.playerId);
+      await delay(CEREMONY.blotAtMs);
+      useFxStore.getState().spawnInkBlot(ev.x, ev.y);
+      await delay(CEREMONY.coinsAtMs - CEREMONY.blotAtMs);
+      audio.play("coinsBox");
+      useFxStore.getState().spawnCoinBurst(ev.x, ev.y, CEREMONY.coinCount);
+      await delay(CEREMONY.settleMs - CEREMONY.coinsAtMs);
     },
     spawnJinnangLine(x1, y1, x2, y2) {
       useFxStore.getState().spawnJinnangLine(x1, y1, x2, y2);
@@ -65,7 +110,11 @@ export type FxSinkCall =
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
   | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
-  | { op: "seal"; tileIndex: number; char: string }
+  | { op: "seal"; tileIndex: number; char: string; tone?: "gold" }
+  | { op: "landPulse"; tileIndex: number }
+  | { op: "duel"; x: number; y: number; a: number; b: number; verdict: "lose" | "tie" }
+  | { op: "haltBanner"; guohao: string; colorIndex: number; cityName: string }
+  | { op: "bankruptCeremony"; playerId: string; x: number; y: number }
   | { op: "jinnangLine"; x1: number; y1: number; x2: number; y2: number }
   | {
       op: "announceTile";
@@ -76,7 +125,7 @@ export type FxSinkCall =
       ownerChanged: boolean;
     };
 
-/** 测试 sink:录制所有调用;march/dice 立即 resolve(不测 DOM 细节,只测事件语义与时序)。 */
+/** 测试 sink:录制所有调用;march/dice/仪式立即 resolve(不测 DOM 细节,只测事件语义与时序)。 */
 export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
   const calls: FxSinkCall[] = [];
   return {
@@ -102,8 +151,25 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     showBanner(guohao, colorIndex) {
       calls.push({ op: "banner", guohao, colorIndex });
     },
-    stampSeal(tileIndex, char) {
-      calls.push({ op: "seal", tileIndex, char });
+    stampSeal(tileIndex, char, tone) {
+      calls.push({ op: "seal", tileIndex, char, tone });
+    },
+    landPulse(tileIndex) {
+      calls.push({ op: "landPulse", tileIndex });
+    },
+    stampDuel(ev) {
+      calls.push({ op: "duel", x: ev.x, y: ev.y, a: ev.a, b: ev.b, verdict: ev.verdict });
+    },
+    showHaltBanner(ev) {
+      calls.push({
+        op: "haltBanner",
+        guohao: ev.guohao,
+        colorIndex: ev.colorIndex,
+        cityName: ev.cityName,
+      });
+    },
+    async bankruptCeremony(ev) {
+      calls.push({ op: "bankruptCeremony", playerId: ev.playerId, x: ev.x, y: ev.y });
     },
     spawnJinnangLine(x1, y1, x2, y2) {
       calls.push({ op: "jinnangLine", x1, y1, x2, y2 });

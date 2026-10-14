@@ -8,6 +8,7 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { ENCOUNTERS } from "@core/encounters";
+import { isCityType } from "@core/board";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
@@ -249,7 +250,17 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       expect(pc.ownerColorIndex).toBeNull(); // 无债主:回无主
       expect(pc.levelChanged).toBe(false);
     }
-    expect(settleEvents.some((ev) => ev.kind === "sound" && ev.event === "bankrupt")).toBe(true);
+    expect(settleEvents.some((ev) => ev.kind === "sound" && ev.event === "bankrupt")).toBe(false);
+    // S7 破产仪式(#513):playerBankrupt → bankruptCeremony(倒旗/墨渍/撒币三拍由
+    // sink 编排,三音随拍发起);末位独存即终局,gameOver → victory 压轴。
+    const ceremony = settleEvents.find((ev) => ev.kind === "bankruptCeremony");
+    expect(ceremony).toBeDefined();
+    if (ceremony?.kind === "bankruptCeremony") {
+      expect(ceremony.playerId).toBe(p.id);
+      const pos = e.board.positionOf(p.position);
+      expect(ceremony.x).toBe(pos.x);
+      expect(ceremony.y).toBe(pos.y);
+    }
     expect(settleEvents[settleEvents.length - 1]).toEqual({ kind: "sound", event: "victory" });
   });
 
@@ -316,7 +327,7 @@ function synth(e: GameEngine, events: GameEvent[]): PresentationEvent[] {
 describe("事件→动效映射表(合成批)", () => {
   const E = () => makeEngine(7);
 
-  it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨", () => {
+  it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨;纳税随雨落币(S7)", () => {
     const e = E();
     const out = synth(e, [
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "tax" },
@@ -331,6 +342,7 @@ describe("事件→动效映射表(合成批)", () => {
         kind: "cashDelta",
         playerId: e.players[0].id,
         amount: -200,
+        coins: true, // S7 铜钱雨扩容:纳税付银随雨落币(#513)
         x: pos0.x,
         y: pos0.y,
         atTile: e.players[0].position,
@@ -346,20 +358,32 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
-  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位)", () => {
+  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位);非税负向不带 coins", () => {
     const e = E();
     const out = synth(e, [
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "tax" },
     ]);
     expect(out[0]).toEqual({ kind: "sound", event: "pay" });
     expect(out.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(false);
+    const plain = synth(e, [
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -50, reason: "encounter" },
+    ]);
+    const floater = plain.find((ev) => ev.kind === "cashDelta");
+    expect(floater).toMatchObject({ amount: -50, coins: false });
   });
 
-  it("treasureGained/traded/bankrupt/gameOver:语义音效直通", () => {
+  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 拼点双印得半);traded/bankrupt/gameOver 直通", () => {
     const e = E();
-    expect(
-      synth(e, [{ kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" }]),
-    ).toEqual([{ kind: "sound", event: "treasure" }]);
+    const gain = synth(e, [
+      { kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" },
+    ]);
+    expect(gain[0]).toEqual({
+      kind: "sealStamped",
+      tileIndex: e.players[0].position,
+      char: "得",
+      tone: "gold",
+    });
+    expect(gain[1]).toEqual({ kind: "sound", event: "treasure" });
     // 交割两清:铜钱声 → 付出闷响(买家付款对位)→ 买家付款浮字 → 卖家收款浮字(缀声排在批内首个浮字前)
     expect(
       synth(e, [
@@ -377,9 +401,17 @@ describe("事件→动效映射表(合成批)", () => {
         ev.kind === "cashDelta" ? ev.amount : ev.kind === "sound" ? ev.event : ev.kind,
       ),
     ).toEqual(["coin", "pay", -120, 120]);
+    // 破产(S7):仪式事件(三拍 sink 编排,extract 侧不再直出 bankrupt 音)
     expect(
       synth(e, [{ kind: "playerBankrupt", seat: 1, round: 1, turn: 1, creditorSeat: null }]),
-    ).toEqual([{ kind: "sound", event: "bankrupt" }]);
+    ).toEqual([
+      {
+        kind: "bankruptCeremony",
+        playerId: e.players[1].id,
+        x: e.board.positionOf(e.players[1].position).x,
+        y: e.board.positionOf(e.players[1].position).y,
+      },
+    ]);
     expect(
       synth(e, [{ kind: "gameOver", seat: 0, round: 1, turn: 1, reason: "TargetNetWorth" }]),
     ).toEqual([{ kind: "sound", event: "victory" }]);
@@ -543,7 +575,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     else throw new Error("assetTransferred 应产易主宣告");
   });
 
-  it("reactionFailed:拦检失败文案浮字锚拦检城,掷点参数拼装(缺口 5)", () => {
+  it("reactionFailed:拼点双印(S7)双骰点印+合印,文案浮字锚拦检城(缺口 5)", () => {
     const e = E();
     const out = synth(e, [
       {
@@ -556,17 +588,45 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
         aRoll: 2,
         bRoll: 5,
       },
-    ]);
-    expect(out).toEqual([
       {
-        kind: "textFloat",
-        playerId: e.players[1].id,
-        text: "拦检失败(掷 2 对 5)",
-        x: e.board.positionOf(5).x,
-        y: e.board.positionOf(5).y,
-        atTile: 5,
+        kind: "reactionFailed",
+        seat: 1,
+        round: 1,
+        turn: 1,
+        windowKind: "march",
+        tileIndex: 5,
+        aRoll: 3,
+        bRoll: 3,
       },
     ]);
+    const pos = e.board.positionOf(5);
+    // 负局:双骰点印(2 对 5)→ 合「失」印;平局:金「平」印(#492 平局诚实呈现)
+    expect(out[0]).toEqual({
+      kind: "duelStamps",
+      tileIndex: 5,
+      x: pos.x,
+      y: pos.y,
+      a: 2,
+      b: 5,
+      verdict: "lose",
+    });
+    expect(out[2]).toEqual({
+      kind: "duelStamps",
+      tileIndex: 5,
+      x: pos.x,
+      y: pos.y,
+      a: 3,
+      b: 3,
+      verdict: "tie",
+    });
+    expect(out[1]).toEqual({
+      kind: "textFloat",
+      playerId: e.players[1].id,
+      text: "拦检失败(掷 2 对 5)",
+      x: pos.x,
+      y: pos.y,
+      atTile: 5,
+    });
   });
 
   it("jinnangInflicted / treasureStolen / encounterChoice:文案浮字按事件字段直读(缺口 5/6)", () => {
@@ -656,6 +716,68 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: 50, reason: "skill" },
     ]);
     expect(out.map((ev) => ev.kind)).toEqual(["sound", "cashDelta"]); // 正收入缀铜钱声
+  });
+
+  it("落格定音(S7 #513):事件/机遇格落点 landPulse 一拍;城池格不拍(据章即定音)", () => {
+    const e = E();
+    const special = e.board.tiles.find((t) => !isCityType(t.type))!;
+    const city = e.board.tiles.find((t) => isCityType(t.type))!;
+    const path = e.board.computePath(e.players[0].position, 1, e.players[0].capitalIndex);
+    testEngine(e).place(0, special.index); // 快照终态:已落特殊格
+    const atSpecial = extractBatchEvents(
+      e,
+      [{ kind: "marchArrived", seat: 0, round: 1, turn: 1, tileIndex: special.index, path }],
+      [e.players[0].position],
+    );
+    expect(atSpecial.some((ev) => ev.kind === "landPulse")).toBe(true);
+    // 城池格:落格不拍(购地据章/宣告承担定音)
+    testEngine(e).place(0, city.index);
+    const atCity = extractBatchEvents(
+      e,
+      [
+        {
+          kind: "marchArrived",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          tileIndex: city.index,
+          path: e.board.computePath(e.players[0].position, 1, e.players[0].capitalIndex),
+        },
+      ],
+      [e.players[0].position],
+    );
+    expect(atCity.some((ev) => ev.kind === "landPulse")).toBe(false);
+  });
+
+  it("都城停全屏宣告(S7 #513):capitalHalt → haltBanner(国号/座色/都城名提取期解析)", () => {
+    const e = E();
+    const p = e.players[0];
+    const path = e.board.computePath(p.position, 1, p.capitalIndex);
+    const out = extractBatchEvents(
+      e,
+      [
+        {
+          kind: "capitalHalt",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          tileIndex: p.capitalIndex,
+          path,
+        },
+      ],
+      [p.position], // pre=当前位置:marchEvent 判无余段(行军段不播),宣告/驻章照出
+    );
+    expect(out).toContainEqual({
+      kind: "haltBanner",
+      playerId: p.id,
+      guohao: p.guohao,
+      colorIndex: p.colorIndex,
+      cityName: e.board.at(p.capitalIndex).name,
+    });
+    // 驻章与文案照旧(宣告插行军与驻章之间,此处无余段行军即缺席)
+    expect(out.some((ev) => ev.kind === "sealStamped" && ev.char === "驻")).toBe(true);
+    expect(out.some((ev) => ev.kind === "textFloat" && ev.text === "驻跸补给")).toBe(true);
+    expect(out.some((ev) => ev.kind === "landPulse")).toBe(false); // 驻跸不加定音拍
   });
 
   it("合并批多段行军(缺口 3):各 marchArrived 自带路径,两段各播各段", () => {
@@ -903,6 +1025,25 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     expect(sink.calls).toEqual([
       { op: "floater", x: 1, y: 2, amount: 300, coins: true },
       { op: "sound", event: "treasure" },
+    ]);
+  });
+
+  it("S7 演出直通 sink:landPulse/duelStamps/haltBanner/bankruptCeremony(memorySink 录制)", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        { kind: "landPulse", tileIndex: 3 },
+        { kind: "duelStamps", tileIndex: 5, x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
+        { kind: "haltBanner", playerId: "p1", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
+        { kind: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
+      ],
+      sink,
+    );
+    expect(sink.calls).toEqual([
+      { op: "landPulse", tileIndex: 3 },
+      { op: "duel", x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
+      { op: "haltBanner", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
+      { op: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
     ]);
   });
 

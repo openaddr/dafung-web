@@ -15,6 +15,8 @@ const FLOATER_MIN_PX = 12;
 /** X3 同锚点浮字垂直错位步长(逻辑单位,≈1.4 行字高):同格同帧双浮字
  *  (如成交 −300/+300)按出现序上移错开,不再沿同一轨迹精确叠印。 */
 const FLOATER_STAGGER_UNITS = 36;
+/** 破产撒币枚数上限(每枚随机落点;超过不再加密度)。 */
+const COIN_BURST_MAX = 12;
 
 /** 当前缩放下 1 逻辑单位 = 多少屏幕像素(读 <svg#board> 客户宽与现行 viewBox)。 */
 function pxPerUnit(): number | null {
@@ -35,15 +37,66 @@ function floaterFontSize(): number {
   return Math.max(FLOATER_BASE_UNITS, FLOATER_MIN_PX / s);
 }
 
-/** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂印章 + 出牌指示线。 */
+/** 铜钱一枚(泉字金币):补给雨与撒币共用同一视觉件(金圆底+墨字)。
+ *  x/y=锚点(SVG 逻辑单位,transform attribute 定位),dx/dy=随机落点
+ *  (CSS 变量喂 fx-svg-coin-rain keyframe),delayMs=错拍入场。 */
+function Coin({
+  x,
+  y,
+  dx,
+  dy,
+  delayMs = 0,
+}: {
+  x: number;
+  y: number;
+  dx: number;
+  dy: number;
+  delayMs?: number;
+}) {
+  return (
+    <g
+      className="fx-svg-coin"
+      transform={`translate(${x} ${y})`}
+      style={{
+        ["--dx" as string]: `${dx}px`,
+        ["--dy" as string]: `${dy}px`,
+        animationDelay: `${delayMs}ms`,
+      }}
+    >
+      {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
+      <circle r={11} />
+      <text y={4} textAnchor="middle">
+        泉
+      </text>
+    </g>
+  );
+}
+
+/** 补给铜钱雨落点(定数 6 枚,横向散布)。 */
+const SUPPLY_COINS = 6;
+
+/** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂/漆金印章 +
+ *  出牌指示线 + 落格定音金圈 + 拼点双印 + 破产墨渍/撒币(S7)。 */
 export function BoardFxLayer() {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
   const jinnangLines = useFxStore((s) => s.jinnangLines);
+  const pulses = useFxStore((s) => s.pulses);
+  const duels = useFxStore((s) => s.duels);
+  const inkBlots = useFxStore((s) => s.inkBlots);
+  const coinBursts = useFxStore((s) => s.coinBursts);
   const fontSize = floaterFontSize();
 
   return (
     <>
+      {/* 墨渍径向渐变(破产仪式第二拍):单例 defs,实例经 fill=url(#) 引用 */}
+      <defs>
+        <radialGradient id="fx-ink-grad">
+          <stop offset="0%" stopColor="var(--color-ink)" stopOpacity="0.85" />
+          <stop offset="55%" stopColor="var(--color-ink)" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="var(--color-ink)" stopOpacity="0" />
+        </radialGradient>
+      </defs>
       {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013):逻辑坐标直接使用,无需换算。
           X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
       {floaters.map((f, i) => {
@@ -61,32 +114,81 @@ export function BoardFxLayer() {
               {f.text ?? formatFloater(f.amount)}
             </text>
             {f.coins &&
-              Array.from({ length: 6 }, (_, c) => (
-                <g
+              Array.from({ length: SUPPLY_COINS }, (_, c) => (
+                <Coin
                   key={c}
-                  className="fx-svg-coin"
-                  transform={`translate(${f.x} ${y})`}
-                  style={{ ["--dx" as string]: `${Math.round((Math.random() - 0.5) * 60)}px` }}
-                >
-                  {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
-                  <circle r={11} />
-                  <text y={4} textAnchor="middle">
-                    泉
-                  </text>
-                </g>
+                  x={f.x}
+                  y={y}
+                  dx={Math.round((Math.random() - 0.5) * 60)}
+                  dy={90 + Math.round(Math.random() * 30)}
+                />
               ))}
           </g>
         );
       })}
-      {/* 朱砂印章:红底米白字方印,坐标即逻辑坐标 */}
+      {/* 落格定音(S7):事件/机遇格落点金圈一拍 */}
+      {pulses.map((p) => (
+        <circle key={p.id} className="fx-svg-pulse" cx={p.x} cy={p.y} r={26} />
+      ))}
+      {/* 朱砂印章(漆金档见 .fx-svg-seal-gold):坐标即逻辑坐标 */}
       {seals.map((s) => (
-        <g key={s.id} className="fx-svg-seal" transform={`translate(${s.x} ${s.y})`}>
+        <g
+          key={s.id}
+          className={`fx-svg-seal${s.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
+          transform={`translate(${s.x} ${s.y})`}
+        >
           <rect x={-29} y={-29} width={58} height={58} rx={9} />
           <text y={11} textAnchor="middle" fontSize={32}>
             {s.char}
           </text>
         </g>
       ))}
+      {/* 拼点双印(S7):双骰点印左右错拍钤下 → 合印(失/金平),CSS 错拍自走 */}
+      {duels.map((d) => (
+        <g key={d.id} className="fx-duel" transform={`translate(${d.x} ${d.y})`}>
+          <g className="fx-duel-die fx-duel-die-a" transform="translate(-42 -8)">
+            <rect x={-21} y={-21} width={42} height={42} rx={8} />
+            <text y={10} textAnchor="middle" fontSize={28}>
+              {d.a}
+            </text>
+          </g>
+          <g className="fx-duel-die fx-duel-die-b" transform="translate(42 -8)">
+            <rect x={-21} y={-21} width={42} height={42} rx={8} />
+            <text y={10} textAnchor="middle" fontSize={28}>
+              {d.b}
+            </text>
+          </g>
+          <g className={`fx-duel-verdict${d.verdict === "tie" ? " fx-duel-verdict-tie" : ""}`}>
+            <rect x={-34} y={-34} width={68} height={68} rx={10} />
+            <text y={14} textAnchor="middle" fontSize={40}>
+              {d.verdict === "tie" ? "平" : "失"}
+            </text>
+          </g>
+        </g>
+      ))}
+      {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散) */}
+      {inkBlots.map((b) => (
+        <circle
+          key={b.id}
+          className="fx-svg-inkblot"
+          cx={b.x}
+          cy={b.y}
+          r={34}
+          fill="url(#fx-ink-grad)"
+        />
+      ))}
+      {coinBursts.map((b) =>
+        Array.from({ length: Math.min(b.count, COIN_BURST_MAX) }, (_, c) => (
+          <Coin
+            key={`${b.id}-${c}`}
+            x={b.x}
+            y={b.y}
+            dx={Math.round((Math.random() - 0.5) * 150)}
+            dy={Math.round(Math.random() * 130) - 20}
+            delayMs={(c % 4) * 45}
+          />
+        )),
+      )}
       {/* 出牌指示线(#281 P2-E):「使用者→目标」水墨墨线,坐标即逻辑坐标。
           data-fx-jinnang-line 供 e2e 单次 evaluate 采样(fx 层内部 data 属性不进
           TESTIDS 单源,同层 data-fx-layer 先例);pathLength=1 归一化供生长动画。 */}
@@ -106,9 +208,11 @@ export function BoardFxLayer() {
   );
 }
 
-/** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):仅回合旌旗横幅(屏幕居中,不属于棋盘系)。 */
+/** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):回合旌旗横幅 + 都城停全屏
+ *  宣告(屏幕居中元素,不属于棋盘系)。 */
 export function FxLayer() {
   const banner = useFxStore((s) => s.banner);
+  const halt = useFxStore((s) => s.halt);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" data-fx-layer>
@@ -120,6 +224,19 @@ export function FxLayer() {
           style={{ ["--player-color" as string]: banner.color }}
         >
           【{banner.guohao}】之回合
+        </div>
+      )}
+      {/* 都城停全屏宣告(S7):漆金横幅级,与回合横幅同语感更高强度 */}
+      {halt && (
+        <div
+          key={halt.id}
+          className="fx-halt-banner"
+          style={{ ["--player-color" as string]: halt.color }}
+        >
+          <span className="fx-halt-title">驻 跸</span>
+          <span className="fx-halt-sub">
+            【{halt.guohao}】入「{halt.cityName}」·补给入帐
+          </span>
         </div>
       )}
     </div>

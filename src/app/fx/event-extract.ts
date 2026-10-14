@@ -12,6 +12,7 @@
 import type { GameEngine } from "@core/authority";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
+import { isCityType } from "@core/board";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
 import {
@@ -133,17 +134,31 @@ function tileNameOfProperty(engine: GameEngine, propertyId: string): string {
 
 // 机遇目录条目按 id 查:单源 core/event-tiers(encounterDefOfId)。
 
-/** 金钱浮字(供应=铜钱雨,余=金额浮字)。 */
+/** 金钱浮字(供应=铜钱雨,余=金额浮字;纳税(S7 铜钱雨扩容)随雨落币——
+ *  付税读作钱币离手,与补给同视觉语汇、异方向文案)。 */
 function cashFloater(
   engine: GameEngine,
   seat: number,
   delta: number,
   supply: boolean,
+  coins = false,
 ): PresentationEvent {
   const anchor = playerAnchor(engine, seat);
   return supply
     ? { kind: "supplyRain", playerId: engine.players[seat].id, amount: delta, ...anchor }
-    : { kind: "cashDelta", playerId: engine.players[seat].id, amount: delta, ...anchor };
+    : { kind: "cashDelta", playerId: engine.players[seat].id, amount: delta, coins, ...anchor };
+}
+
+/** 都城停全屏宣告事件(S7 #513):国号/座色/都城名按提取时刻引擎态解析。 */
+function haltBannerEvent(engine: GameEngine, seat: number, tileIndex: number): PresentationEvent {
+  const p = engine.players[seat];
+  return {
+    kind: "haltBanner",
+    playerId: p.id,
+    guohao: p.guohao,
+    colorIndex: p.colorIndex,
+    cityName: engine.board.at(tileIndex).name,
+  };
 }
 
 // ─────────────────────── 行军路径解析 ───────────────────────
@@ -173,17 +188,27 @@ function marchEvent(
 /** 行军落位表现(落格 marchArrived / 驻跸 capitalHalt 共用):行军动画 +
  *  驻跸印章与文案。驻跸两态(途经必停 / 恰落己都城)按规则都结算驻跸补给,凡
  *  落点=己都城即盖「驻」章出文案(恰落态无 capitalHalt 事件,由落点字段直读);
- *  补给铜钱雨由随后的 cashChanged(reason="supply") 事件自产,压轴。 */
+ *  补给铜钱雨由随后的 cashChanged(reason="supply") 事件自产,压轴。
+ *  announce(S7):插在行军与驻章之间的全屏宣告(都城停横幅),present 串行 await
+ *  时序=行军 → 宣告 → 驻章。 */
 function arrivalPresentation(
   engine: GameEngine,
   seat: number,
   ev: { tileIndex: number; path: MovePath },
   prePosition: number | null,
   halted: boolean,
+  announce?: PresentationEvent,
 ): PresentationEvent[] {
   const out: PresentationEvent[] = [];
   const march = marchEvent(engine, seat, ev, prePosition);
   if (march) out.push(march);
+  if (announce) out.push(announce);
+  // 落格定音(S7 #513,BRIEF #9 翻案):落在事件/机遇格(非城池格:税/仓/锦囊/
+  // 天命/卧龙)金圈一拍,恰落己都城(驻章即定音)与驻跸(横幅+驻章)不加拍。
+  const tile = engine.board.at(ev.tileIndex);
+  if (!halted && !isCityType(tile.type) && ev.tileIndex !== engine.players[seat].capitalIndex) {
+    out.push({ kind: "landPulse", tileIndex: ev.tileIndex });
+  }
   if (halted || ev.tileIndex === engine.players[seat].capitalIndex) {
     out.push({ kind: "sealStamped", tileIndex: ev.tileIndex, char: "驻" });
     out.push(textFloater(engine, seat, "驻跸补给"));
@@ -265,9 +290,19 @@ export function extractBatchEvents(
       }
       case "capitalHalt": {
         // 驻跸必停:引擎此态不发 marchArrived,行军动画由本事件的落点+路径字段直读
-        // (#385:截断到都城的路径随事件走);随后补给铜钱雨压轴。
+        // (#385:截断到都城的路径随事件走);都城停全屏宣告(S7)插行军与驻章之间,
+        // 补给铜钱雨由随后 cashChanged(reason="supply") 压轴。
         const seat = eventSeat(engine, ev);
-        events_.push(...arrivalPresentation(engine, seat, ev, pre(seat), true));
+        events_.push(
+          ...arrivalPresentation(
+            engine,
+            seat,
+            ev,
+            pre(seat),
+            true,
+            haltBannerEvent(engine, seat, ev.tileIndex),
+          ),
+        );
         break;
       }
       case "capitalSelected": {
@@ -318,10 +353,28 @@ export function extractBatchEvents(
         break;
       }
       case "cashChanged": {
-        events_.push(cashFloater(engine, eventSeat(engine, ev), ev.delta, ev.reason === "supply"));
+        // 纳税(reason="tax")铜钱雨扩容(S7 #513):负向付税随雨落币
+        events_.push(
+          cashFloater(
+            engine,
+            eventSeat(engine, ev),
+            ev.delta,
+            ev.reason === "supply",
+            ev.reason === "tax" && ev.delta < 0,
+          ),
+        );
         break;
       }
       case "treasureGained": {
+        // 探宝拼点胜(S7 拼点双印「得」半):漆金「得」印钤在宝物城落点 + treasure 音。
+        // 拼点掷点不入引擎事件(零新事件口径),双骰点印仅拦检侧(reactionFailed)有。
+        const seat = eventSeat(engine, ev);
+        events_.push({
+          kind: "sealStamped",
+          tileIndex: engine.players[seat].position,
+          char: "得",
+          tone: "gold",
+        });
         events_.push({ kind: "sound", event: "treasure" });
         break;
       }
@@ -368,7 +421,16 @@ export function extractBatchEvents(
         break;
       }
       case "playerBankrupt": {
-        events_.push({ kind: "sound", event: "bankrupt" });
+        // 破产仪式(S7 #513):倒旗→墨渍→撒币三拍由 sink 串行编排(三音随拍发起),
+        // 提取期只锚现场(破产者落点=墨渍/撒币坐标)。
+        const seat = eventSeat(engine, ev);
+        const anchor = playerAnchor(engine, seat);
+        events_.push({
+          kind: "bankruptCeremony",
+          playerId: engine.players[seat].id,
+          x: anchor.x,
+          y: anchor.y,
+        });
         break;
       }
       case "jinnangAnnounced": {
@@ -467,8 +529,20 @@ export function extractBatchEvents(
         break;
       }
       case "reactionFailed": {
-        // 拦检失败(#385):拼点平/负,牌白耗——文案浮字锚拦检城(事发现场)
+        // 拼点双印(S7 #513):双骰点印左右错拍钤下→合成「失」大印,平局出金「平」印
+        // (#492 平局诚实呈现);大胜负震屏由 sink 在合印拍判 |a−b| 发起。文案浮字
+        // 照旧锚拦检城(事发现场)。
         const seat = eventSeat(engine, ev);
+        const pos = engine.board.positionOf(ev.tileIndex);
+        events_.push({
+          kind: "duelStamps",
+          tileIndex: ev.tileIndex,
+          x: pos.x,
+          y: pos.y,
+          a: ev.aRoll,
+          b: ev.bRoll,
+          verdict: ev.aRoll === ev.bRoll ? "tie" : "lose",
+        });
         events_.push(
           textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
         );
