@@ -221,6 +221,9 @@ export class OnlineController extends GameController {
       else this.fx.dropStalledBatch();
       useNetStore.getState().setConnection(s);
     });
+    // #494:重连进度透传 netStore(ConnectionBanner 显示「第 n/N 次」;open 清零归
+    // setConnection 单点,见 netStore)。
+    sock.onProgress((p) => useNetStore.getState().setReconnect(p));
     sock.onError(() => {
       // 重连尝试期间的 error 不打扰(onclose 马上接管);仅正常在线时闪提示
       if (useNetStore.getState().connected) useNetStore.getState().pushHint("连接异常");

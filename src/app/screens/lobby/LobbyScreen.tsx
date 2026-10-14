@@ -1,5 +1,6 @@
 // 联机大厅屏(阶段 8,对照旧 src/render/lobby.ts + network-client 的连接屏合并为一屏):
-// - 未入座:建房(诸侯数/目标身价)或凭房间码加入;
+// - 未入座:建房(诸侯数/目标身价)、凭房间码加入,或「上次房间 · 一键重进」(#494,
+//   LAST_ROOM_KEY 有记忆时出按钮);
 // - 已入座:房间码 / 座位列表(在线·离线·bot·托管)/ 当前地图(host 可换)/ 房主开局;
 // - 被解散:提示 + 返回首页。
 // 服务器地址单源 src/app/net/server-base.ts(#279):默认同源 location.origin(网页与引擎
@@ -92,7 +93,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       // 上次加入/建房的码预填进加入框(localStorage 记忆,成功入座时写入)。
       localStorage.getItem(LAST_ROOM_KEY) ?? "",
   );
+  // #494 一键重进:上次入座成功的房码(与加入框预填同读 LAST_ROOM_KEY,但独立成态——
+  // 玩家改动/清空加入框不影响「上次房间」的指向)。空串 = 无记忆,不出按钮。
+  const [lastRoom] = useState(() => localStorage.getItem(LAST_ROOM_KEY) ?? "");
   const [busy, setBusy] = useState(false); // 请求进行中:按钮防连点
+  // #494 开局转场态:host 点开局 → 首帧 snapshot 切屏之间的空窗(REST 先回、快照广播
+  // 未到),卡片级遮罩告知「正在开局…」。本屏随切屏(keyed 换屏)卸载,无需手工复位;
+  // 开局请求失败时在 guard 内显式撤掉(遮罩不能盖着错误提示常驻)。
+  const [starting, setStarting] = useState(false);
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [mapName, setMapName] = useState<string | null>(null);
   // W2:房间码「已复制」小态(1s 自清;不用 pushHint——那是错误/流程通道,复制是即时确认)
@@ -118,6 +126,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // 依赖 (roomId/isHost/needMore) 变化时重置下标,避免切视角后先闪一句不合适的话。
   const isHost = host === mySeat;
   const needMore = seats.some((s) => !s.taken);
+  // #494 等待区实质进度:已入座/总座位(seats 广播现成,纯派生)。
+  const takenCount = seats.filter((s) => s.taken).length;
   const hostInviteLine = "把房间码发给好友，入座即可开局"; // #84:固定首句(发码指引)
   const waitLines = !isHost
     ? ["等待房主开局…", "主公尚在谋划…", "稍安勿躁…"]
@@ -290,6 +300,26 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 </button>
               </div>
             </div>
+            {/* #494 一键重进:断线/刷新丢局后免凭记忆重输——凭 LAST_ROOM_KEY 直接入座
+                (走 joinRoom 同一路径;房间已不存在时 error hint 按 5s TTL 显式报错,不静默)。
+                按钮置于加入框上方;label 含房码(动态文案),字族走 wenkai(混排红线,同 backBase)。 */}
+            {lastRoom && (
+              <button
+                disabled={busy}
+                title={busy ? "处理中…" : `重进房间 ${lastRoom}`}
+                onClick={() => {
+                  void guard(async () => {
+                    await controller!.joinRoom(
+                      lastRoom,
+                      localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined,
+                    );
+                  });
+                }}
+                className={backBase + " note-btn self-center text-sm font-bold"}
+              >
+                上次房间 {lastRoom} · 一键重进
+              </button>
+            )}
             {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
               空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
             <form
@@ -390,7 +420,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       <ConnectionBanner />
       <div className="m-auto flex w-full flex-col items-center">
         {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-        <div className="scroll-anim-unroll note-card w-[min(420px,92vw)] rounded-[8px] p-5">
+        <div className="scroll-anim-unroll note-card relative w-[min(420px,92vw)] rounded-[8px] p-5">
           {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
           <h1 className="font-brush text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">
             大厅
@@ -415,7 +445,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             {
               isHost
                 ? needMore
-                  ? `${hostInviteLine}；${waitLines[waitIdx]}` // #84:固定首句 + 轮换趣味句(A4:全角分号)
+                  ? // #494:实质进度前置(已入座 n/m),发码指引次之,趣味句降为末位补充
+                    `已入座 ${takenCount}/${seats.length}；${hostInviteLine}；${waitLines[waitIdx]}` // A4:全角分号
                   : "坐席已满，可开局；点开局后未入座自动 bot 填充。" // A4:标点全角统一
                 : waitLines[waitIdx] /* 非 host:轮换等待文案 */
             }
@@ -538,7 +569,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                       useNetStore.getState().pushHint("请先在地图面板点「确认选择」", "info");
                       return;
                     }
-                    void guard(() => controller!.startGame());
+                    // #494:遮罩从点击起挂(不等 REST);失败撤掉、成功由切屏卸载收尾。
+                    setStarting(true);
+                    void guard(async () => {
+                      try {
+                        await controller!.startGame();
+                      } catch (err) {
+                        setStarting(false);
+                        throw err; // guard 统一推 error hint(#494:error 级 5s)
+                      }
+                    });
                   }}
                   className={btnBase + " ink-btn font-bold"}
                 >
@@ -573,6 +613,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           >
             {busy ? "处理中…" : "离开房间"}
           </button>
+
+          {/* #494 开局转场遮罩:host 点开局 → 首帧快照切屏的空窗期盖住整卡(消除
+              「点了没反应」的空窗感;盖住即挡交互,防重复点开局/离开)。动画复用
+              scroll-anim-unroll(横向舒展=卷轴再展开一次;reduced-motion 瞬时),
+              文案为动态状态字,字族走 wenkai(混排红线,同横幅)。 */}
+          {starting && (
+            <div className="scroll-anim-unroll absolute inset-0 z-10 flex items-center justify-center rounded-[8px] bg-bg/85">
+              <span className="font-wenkai text-lg font-bold text-ink">正在开局…</span>
+            </div>
+          )}
         </div>
       </div>
 
