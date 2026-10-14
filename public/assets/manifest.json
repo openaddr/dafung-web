@@ -146,5 +146,90 @@
     "author": "夏圭(Xia Gui,南宋);Commons 全卷扫描 24557×1210 中段裁带(弃印区)→ 2880×311 webp q80",
     "fetched_at": "2026-08-30",
     "review_required": false
+  },
+  "hero:huatuo:noname": {
+    "path": "assets/heroes/hero-huatuo-noname.webp",
+    "avatar": "assets/heroes/hero-huatuo-noname-avatar.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/huatuo.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "hero:caopi:noname": {
+    "path": "assets/heroes/hero-caopi-noname.webp",
+    "avatar": "assets/heroes/hero-caopi-noname-avatar.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/caopi.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "hero:zhangxingcai:noname": {
+    "path": "assets/heroes/hero-zhangxingcai-noname.webp",
+    "avatar": "assets/heroes/hero-zhangxingcai-noname-avatar.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/zhangxingcai.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "hero:zhouyu:noname": {
+    "path": "assets/heroes/hero-zhouyu-noname.webp",
+    "avatar": "assets/heroes/hero-zhouyu-noname-avatar.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/zhouyu.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "hero:taishici:noname": {
+    "path": "assets/heroes/hero-taishici-noname.webp",
+    "avatar": "assets/heroes/hero-taishici-noname-avatar.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/taishici.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "texture:zhulin": {
+    "path": "assets/textures/texture-zhulin.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/background/zhulin_bg.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "texture:lanting": {
+    "path": "assets/textures/texture-lanting.webp",
+    "source": "https://cdn.jsdelivr.net/gh/libccy/noname@master/image/background/lanting_bg.jpg",
+    "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
+    "fetched_at": "2026-10-14",
+    "review_required": true
+  },
+  "audio:tile-clack": {
+    "path": "assets/audio/audio-tile-clack.ogg",
+    "source": "https://freesound.org/s/745028/",
+    "license": "CC0",
+    "author": "poenia (Freesound,「Domino_sfx_moveTile」lq ogg 预览直链)",
+    "fetched_at": "2026-10-14",
+    "review_required": false
+  },
+  "audio:coins-box": {
+    "path": "assets/audio/audio-coins-box.ogg",
+    "source": "https://freesound.org/s/190945/",
+    "license": "CC0",
+    "author": "5thWall (Freesound,「coins_into_box.wav」lq ogg 预览直链)",
+    "fetched_at": "2026-10-14",
+    "review_required": false
+  },
+  "audio:rain": {
+    "path": "assets/audio/audio-rain.ogg",
+    "source": "https://freesound.org/s/320520/",
+    "license": "CC0",
+    "author": "Opticreep (Freesound,「Rain (Field Recording)」lq ogg 预览直链)",
+    "fetched_at": "2026-10-14",
+    "review_required": false
   }
 }
