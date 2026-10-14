@@ -67,23 +67,23 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);
   return (
     <g className="bv-token-flag">
-      {/* 旗杆 */}
-      <line x1={0} y1={0} x2={0} y2={-34} stroke="rgba(40,28,10,0.85)" strokeWidth={2.5} />
-      {/* 三角旌旗(玩家色)。B2:白描边一圈——棋子是"人",要在城旗(燕尾)/王旗(双层大三角)
-          之外第一眼可辨,白边在任何底色上勾出旗形轮廓;原深色描边退为内侧次层。 */}
+      {/* 旗杆(#512 深底适配:暗金装饰线 inkwash,深色杆在玄墨底上不可见) */}
+      <line x1={0} y1={0} x2={0} y2={-34} stroke={rgba(Theme.inkwash, 0.85)} strokeWidth={2.5} />
+      {/* 三角旌旗(玩家色)。B2:纸色描边一圈——棋子是"人",要在城旗(燕尾)/王旗(双层大三角)
+          之外第一眼可辨,纸色边在任何底色上勾出旗形轮廓;内侧玄墨细线再压一层层次。 */}
       <polygon
         points="0,-34 26,-26 0,-16"
         fill={rgba(c)}
-        stroke="rgba(255,252,240,0.95)"
+        stroke={rgba(Theme.ink, 0.95)}
         strokeWidth={1.6}
       />
       <polygon
         points="0,-34 26,-26 0,-16"
         fill="none"
-        stroke="rgba(40,28,10,0.5)"
+        stroke={rgba(Theme.bgDeep, 0.6)}
         strokeWidth={0.6}
       />
-      {/* 国号字 */}
+      {/* 国号字(#512:纸色字 + 玄墨衬底描边,任意玩家色旗面上可读) */}
       <text
         x={9}
         y={-23}
@@ -91,12 +91,22 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
         fontFamily="var(--font-brush)"
         fontSize={13}
         fontWeight={700}
-        fill="#fff"
+        fill={rgba(Theme.ink)}
+        stroke={rgba(Theme.bgDeep, 0.85)}
+        strokeWidth={2}
+        paintOrder="stroke"
       >
         {p.guohao || "?"}
       </text>
       {/* 底座印玺 */}
-      <circle cx={0} cy={2} r={6} fill={rgba(c)} stroke="rgba(40,28,10,0.7)" strokeWidth={1.5} />
+      <circle
+        cx={0}
+        cy={2}
+        r={6}
+        fill={rgba(c)}
+        stroke={rgba(Theme.bgDeep, 0.85)}
+        strokeWidth={1.5}
+      />
     </g>
   );
 }

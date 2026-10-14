@@ -1,9 +1,11 @@
-// 静态层:宣纸滤镜 defs、溪山清远图远景横带、江河、暗角、驿道(主路)。
+// 静态层:玄墨地形底(feTurbulence 暗纹+四角晕影)、江河、驿道(主路漆金细线+箭羽)。
 // 江河/驿道忠实移植自 src/render/board.ts 的 drawMountainsAndRivers / drawRoads / defs 段,
 // 地图不变即不变 → 整个组件 React.memo,players 变化不会重渲这里。
+// #512 玄墨深底化(方案一「重调色保留」):地形底从宣纸浅底换玄墨深底(bg 系 token),
+// 溪山清远远景横带本票先摘除(S10 换新素材,挂点见 TerrainLayer TODO);区域晕染降音量。
 import { memo } from "react";
 import type { Board } from "@core/board";
-import { Theme } from "@core/theme";
+import { Theme, rgba } from "@core/theme";
 
 // viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致。
 // #39:城池间距 1.4x 重排(三张地图坐标同步放大)→ 逻辑画布以 (100,30) 为心等比 1.4x:
@@ -27,20 +29,22 @@ const O = {
   h: VB.h + EDGE_PAD * 2,
 } as const;
 
-// #100 溪山清远图远景横带:真迹中段裁带(2880×311)铺棋盘上/下缘,高≈画布 18%
-// (348 逻辑单位)——横带 3220×348 与图像原生同为 ≈9.25:1,preserveAspectRatio="slice"
-// 下几乎无裁切。
-const SCENE_BAND_H = Math.round(VB.h * 0.18); // = 348
+// #512 深底装饰色(无对应 token 的阴影向/水面色,收敛此块;金/墨/纸语义色一律走 Theme)
+const VIGNETTE_EDGE = "rgba(6,4,2,0.55)"; // 四角晕影(比 bgDeep 更沉的纯阴影,不读色相)
+const RIVER_HAZE = "rgba(86,118,148,0.26)"; // 江河氤氲水汽(宽淡线)
+const RIVER_CORE = "rgba(112,146,178,0.42)"; // 江河水流浓芯(细线)
 
 /** 点列 → path d(M/L 折线),与 render/svg-util.polylinePath 同式。 */
 function poly(pts: { x: number; y: number }[]): string {
   return pts.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
 }
 
-// ── defs:宣纸噪点滤镜 + 暗角渐变 ──
+// ── defs:玄墨噪点滤镜 + 晕影渐变 ──
 export const BoardDefs = memo(function BoardDefs() {
   return (
     <defs>
+      {/* 玄墨暗纹(#512):feTurbulence 出墨金细纹(inkwash 色相,低 alpha),压在深底上
+          读作「漆面的磨砂暗纹」而非纸纹;旧宣纸暖噪点(0.55/0.45/0.28)随浅底退役。 */}
       <filter id="bv-paper" x="-5%" y="-5%" width="110%" height="110%">
         <feTurbulence
           type="fractalNoise"
@@ -52,12 +56,13 @@ export const BoardDefs = memo(function BoardDefs() {
         <feColorMatrix
           in="n"
           type="matrix"
-          values="0 0 0 0 0.55  0 0 0 0 0.45  0 0 0 0 0.28  0 0 0 0.06 0"
+          values="0 0 0 0 0.61  0 0 0 0 0.54  0 0 0 0 0.37  0 0 0 0.07 0"
         />
       </filter>
+      {/* 四角晕影:中心透明 → 边缘沉向纯阴影(#512 阴影向;深底上晕影只加进深不加色) */}
       <radialGradient id="bv-vignette" cx="50%" cy="50%" r="62%">
-        <stop offset="60%" stopColor="#eae0c6" stopOpacity={0} />
-        <stop offset="100%" stopColor="#5c4522" stopOpacity={0.3} />
+        <stop offset="55%" stopColor="var(--color-bg)" stopOpacity={0} />
+        <stop offset="100%" stopColor={VIGNETTE_EDGE} stopOpacity={0.55} />
       </radialGradient>
       {/* F2 都城光晕:金色中心 → 边缘渐 0(替代 Tile 内联 filter:blur(9px)——
           blur 滤镜随 zoom 每帧重算,渐变填充近零开销;脉动仍走 CSS opacity)。 */}
@@ -88,117 +93,70 @@ export const BoardDefs = memo(function BoardDefs() {
         <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
         <rect x={O.x} y={VB.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
-      {/* #100 远景横带的内容渐隐 mask:横带外缘贴 VB 边界(pan 出界的渐隐由外层
-          bv-edge-mask 统一负责),内缘朝棋盘中心渐隐——外缘 55% 全显、余下 45%
-          线性淡出到 0,避免 0.12 透明度的画面在带底留下一条硬切线。 */}
-      <linearGradient id="bv-scene-fade-t" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#fff" />
-        <stop offset="0.55" stopColor="#fff" />
-        <stop offset="1" stopColor="#fff" stopOpacity={0} />
-      </linearGradient>
-      <linearGradient id="bv-scene-fade-b" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#fff" stopOpacity={0} />
-        <stop offset="0.55" stopColor="#fff" />
-        <stop offset="1" stopColor="#fff" />
-      </linearGradient>
-      <mask
-        id="bv-scene-mask"
-        maskUnits="userSpaceOnUse"
-        x={VB.x}
-        y={VB.y}
-        width={VB.w}
-        height={VB.h}
-      >
-        <rect x={VB.x} y={VB.y} width={VB.w} height={SCENE_BAND_H} fill="url(#bv-scene-fade-t)" />
-        <rect
-          x={VB.x}
-          y={VB.y + VB.h - SCENE_BAND_H}
-          width={VB.w}
-          height={SCENE_BAND_H}
-          fill="url(#bv-scene-fade-b)"
-        />
-      </mask>
+      {/* F2 都城光晕(#512 克制档):金色中心 → 边缘渐 0;峰值压到 0.4(旧 0.55)——
+          深底上金晕天然显眼,「美观且不炫目」验收词下收一档;脉动仍走 CSS opacity。 */}
       <radialGradient id="bv-capital-glow-grad" cx="50%" cy="50%" r="50%">
-        <stop offset="0%" stopColor="#d4af37" stopOpacity={0.55} />
-        <stop offset="55%" stopColor="#d4af37" stopOpacity={0.28} />
-        <stop offset="100%" stopColor="#d4af37" stopOpacity={0} />
+        <stop offset="0%" stopColor="var(--color-gold)" stopOpacity={0.4} />
+        <stop offset="55%" stopColor="var(--color-gold)" stopOpacity={0.2} />
+        <stop offset="100%" stopColor="var(--color-gold)" stopOpacity={0} />
       </radialGradient>
-      {/* 城池建筑共享渐变(AB 混合·B 精绘):青瓦屋面与夯土城台。每城内联 defs 会产生
-          重复 id 冲突,统一挂这里,Tile 以 url(#…) 引用;gradientUnits 默认
-          objectBoundingBox = 各自屋面/墙身的包围盒,多档建筑共用同一份定义。 */}
+      {/* 城池建筑共享渐变(AB 混合·B 精绘,#512 深底档):墨青瓦屋面与夯土城台。
+          每城内联 defs 会产生重复 id 冲突,统一挂这里,Tile 以 url(#…) 引用;
+          gradientUnits 默认 objectBoundingBox = 各自屋面/墙身的包围盒,多档建筑共用同一份定义。 */}
       <linearGradient id="bv-roof-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#5f6b7a" />
-        <stop offset="1" stopColor="#434c59" />
+        <stop offset="0" stopColor="#51606c" />
+        <stop offset="1" stopColor="#3a4550" />
       </linearGradient>
       <linearGradient id="bv-wall-grad" x1="0" y1="0" x2="0" y2="1">
-        <stop offset="0" stopColor="#e3d3ad" />
-        <stop offset="1" stopColor="#c6b184" />
+        <stop offset="0" stopColor="#b59c74" />
+        <stop offset="1" stopColor="#8a714c" />
       </linearGradient>
     </defs>
   );
 });
 
-// ── 背景:宣纸底 + 噪点 + 溪山清远图远景横带/江河 + 暗角 ──
+// ── 背景:玄墨底 + 噪点暗纹 + 江河 + 四角晕影 ──
 export const TerrainLayer = memo(function TerrainLayer() {
   return (
-    // #24:整组地形(纸底/噪点/远景横带/江河/暗角)套边缘渐隐 mask——纸面画布从 VB
-    // 扩到 O,mask 让外围平滑淡出至页面背景,消除外缘硬切。
+    // #24:整组地形(底色/噪点/江河/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
+    // mask 让外围平滑淡出至页面背景,消除外缘硬切。
     <g mask="url(#bv-edge-mask)">
-      {/* 纸底与 vignette 内圈色随设计系统 v2 提亮(旧 #e8dcc0 → #eae0c6,DESIGN.md §4.1) */}
-      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#eae0c6" />
-      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.5} />
-      {/* #100 远景:夏圭《溪山清远图》(PD)中段横带铺棋盘上/下缘,高≈画布 18%、
-          opacity 0.12,压在江河层之下。替代旧手写 polygon 山——真迹横带与折线山
-          叠加显乱,远景山意象整体交由真迹承担(取舍见 #100)。下带水平镜像,
-          避免总览时上下两带同构;横带自身内缘渐隐由 bv-scene-mask 负责。 */}
-      <g mask="url(#bv-scene-mask)" opacity={0.12}>
-        <image
-          href="/assets/textures/xishan-qingyuan.webp"
-          x={VB.x}
-          y={VB.y}
-          width={VB.w}
-          height={SCENE_BAND_H}
-          preserveAspectRatio="xMidYMid slice"
-        />
-        <image
-          href="/assets/textures/xishan-qingyuan.webp"
-          x={VB.x}
-          y={VB.y + VB.h - SCENE_BAND_H}
-          width={VB.w}
-          height={SCENE_BAND_H}
-          preserveAspectRatio="xMidYMid slice"
-          transform={`translate(${2 * (VB.x + VB.w / 2)} 0) scale(-1 1)`}
-        />
-      </g>
+      {/* 玄墨地形底(#512):bg token 铺底(与页面深底同族,边缘渐隐后无缝),
+          暗纹 = feTurbulence 墨金细纹,低音量。 */}
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill={rgba(Theme.bg)} />
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.55} />
+      {/* TODO(S10 古画退役+新素材):旧溪山清远远景横带已随玄墨深底化摘除(#512,
+          浅底真迹在漆黑上发灰争辉);远景山意象待 S10 换新素材后在此挂点重铺
+          (层级:暗纹之上、江河之下,内缘渐隐 mask 一并恢复)。 */}
       {/* #39 画布 1.4x:两条贝塞尔江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。
           视觉重做 v2:水面加一笔浓芯(双线笔触)——淡宽线是氤氲水汽,浓细线是水流本身,
-          两笔同弧线叠出「岸线晕、水线清」的水墨层次。 */}
+          两笔同弧线叠出「岸线晕、水线清」的水墨层次;#512 提亮一档配玄墨深底。 */}
       <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
         <g fill="none" strokeLinecap="round" opacity={0.45}>
           <path
             d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
-            stroke="rgba(70,110,140,0.28)"
+            stroke={RIVER_HAZE}
             strokeWidth={10}
           />
           <path
             d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
-            stroke="rgba(52,92,122,0.4)"
+            stroke={RIVER_CORE}
             strokeWidth={2.6}
           />
           <path
             d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-            stroke="rgba(70,110,140,0.28)"
+            stroke={RIVER_HAZE}
             strokeWidth={8}
           />
           <path
             d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-            stroke="rgba(52,92,122,0.4)"
+            stroke={RIVER_CORE}
             strokeWidth={2.2}
           />
         </g>
       </g>
-      {/* 暗角铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的暗角矩形切线就是用户看到的硬边),
-          其暗角集中在四角、恰好落在渐隐带内,与 mask 叠加后自然消隐。 */}
+      {/* 四角晕影铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的晕影矩形切线就是用户看到的硬边),
+          晕影集中在四角、恰好落在渐隐带内,与 mask 叠加后自然消隐。 */}
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-vignette)" />
     </g>
   );
@@ -206,7 +164,9 @@ export const TerrainLayer = memo(function TerrainLayer() {
 
 // ── 区域底色晕染 ──
 // 玩家不读区域名也能"感知"地域:每个地理区域(中原/荆楚/…)铺一层极淡的
-// 区域色 radial 晕染(峰值 opacity 15%,边缘渐隐到 0),城池/道路可读性不降。
+// 区域色 radial 晕染,城池/道路可读性不降。#512 深底适配:深底上彩色晕染天然
+// 显眼(加色模式观感),「区域低音量」压到峰值 10%(70% 处 5%),只余色相推移
+// 不成「光斑」——美观且不炫目。
 // 区域中心不写死布局,而是从 board.tiles 的 region(中文名,两张内置图均随
 // group 一起配置)反查 Theme.groupNames 得到 a–h,再取该区域城池坐标的
 // 几何中心 → 内置图(huanyou/zhongyuan)自适应,自定义地图同样生效。
@@ -266,17 +226,17 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
           cy={b.cy}
           r={b.r}
         >
-          {/* #77 峰值 8%→15%、70% 处 4%→8%:相邻区域交界能看出色相推移,
-              仍明显弱于道路(0.38)与铭牌(0.92),不与可读性争。 */}
+          {/* #512 深底低音量:峰值 10%、70% 处 5%(浅底时代 15%/8%)——相邻区域交界
+              仍能看出色相推移,但在玄墨底上不再读作彩色光斑;仍明显弱于道路与铭牌。 */}
           <stop
             offset="0%"
             style={{ stopColor: `var(--color-group-${b.group})` }}
-            stopOpacity={0.15}
+            stopOpacity={0.1}
           />
           <stop
             offset="70%"
             style={{ stopColor: `var(--color-group-${b.group})` }}
-            stopOpacity={0.08}
+            stopOpacity={0.05}
           />
           <stop
             offset="100%"
@@ -305,7 +265,9 @@ const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board 
   );
 });
 
-// ── 驿道:主路(粗褐,逐段带避城弧线途经点)+ 箭羽行进向 ──
+// ── 驿道:主路(漆木路身+漆金细线芯,逐段带避城弧线途经点)+ 箭羽行进向 ──
+// #512:主路从「宽墨褐带」改「漆金细线」——roadMain 路身压底(窄档),其上 roadSide
+// 细线芯走亮赭(S3 备好的两枚 token 同框);箭羽换熟金(goldDeep),深底上读作鎏金行进向。
 
 /** 箭羽形状(#73):一枚人字形羽(尖朝 +x 行进向),挂在段中点、旋向行进方向。 */
 const ROAD_ARROW_D = "M -9,-7 L 5,0 L -9,7";
@@ -319,13 +281,16 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     const a = board.positionOf(i);
     const b = board.positionOf(to);
     const pts = [a, ...board.edgeWaypoints(i, to), b];
+    const d = poly(pts);
     segments.push(
       <path
         key={`seg-${i}`}
         className="bv-road-main stroke-road-main"
-        d={poly(pts)}
+        d={d}
         data-segment={`${i}-${to}`}
       />,
+      // 漆金细线芯:叠在路身同弧线上,#512 深底化口径(stroke 色在 board.css 消费 token)
+      <path key={`core-${i}`} className="bv-road-core" d={d} />,
     );
     // #73 主路箭羽:取途经点列正中两点的中点为锚(U 弯=edgeWaypoints 两点中点,
     // 直段=a/b 中点),连线方向即该处行进向——总览下箭羽成节奏点列,U 弯方向可读;
@@ -343,8 +308,8 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
           className="bv-road-arrow"
           d={ROAD_ARROW_D}
           fill="none"
-          stroke="rgba(90,70,40,0.5)"
-          strokeWidth={4.5}
+          stroke={rgba(Theme.goldDeep, 0.6)}
+          strokeWidth={4}
           strokeLinecap="round"
           transform={`translate(${mx} ${my}) rotate(${ang}) translate(${off} 0)`}
         />,
