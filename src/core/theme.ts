@@ -1,4 +1,4 @@
-// 古风水墨设计系统:宣纸色板、墨/朱砂/赭石/石青/金/青绿、地产分组色、玩家色、动效时长/缓动。
+// 古风设计系统:玄墨鎏金色板(漆黑为纸/鎏金为骨)、朱砂/青绿/黛青/靛青、地产分组色、玩家色、动效时长/缓动。
 // 改这里即全局换肤/换动效节奏。
 //
 // 配色与动效唯一源:本文件 Theme / Motion 对象。Tailwind token 由
@@ -23,46 +23,48 @@ export const hex = (h: string): Rgb => {
 export const rgba = (c: Rgb, a = 1): string => `rgba(${c.r},${c.g},${c.b},${a})`;
 
 export const Theme = {
-  // 古风核心配色(视觉重做 v2「一纸墨戏,方寸庙堂」:纸提亮半档降黄褐,
-  // 新增 lacquer/goldDeep/lacquerGold 三个「墨钮/金字」材质位,详见 docs/design/DESIGN.md §4)
-  bg: hex("eae0c6"), // 宣纸(案头桌面)
-  bgDeep: hex("dccfa9"), // 宣纸深(远山/阴影)
-  panel: hex("f4ecd8"), // 浅宣纸面板(笺纸面)
-  panelHi: hex("e6d9b4"), // 笺纸衬里/hover
-  paperHi: hex("faf3df"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 纸面)
-  paperLo: hex("eee0bc"), // 卷轴体渐变暗端
-  ink: hex("2b2317"), // 焦墨(正文/标题)
-  inkDim: hex("6f6146"), // 重墨(次级文字)
+  // 玄墨鎏金核心配色(方向 D #489/ADR-0026,值换血 #509:漆黑为纸,鎏金为骨——
+  // 纸系=玄墨深底阶,墨系=反转的纸色文字阶,金系=漆金阶;详见 docs/design/DESIGN.md §3 方向 D)
+  bg: hex("1f1a13"), // 玄墨底(全局底·案头漆黑)
+  bgDeep: hex("16110c"), // 玄墨底之深(远山/阴影衬,比底更沉)
+  panel: hex("2b2317"), // 墨面板(笺纸面→墨面)
+  panelHi: hex("3d3325"), // 墨面板衬里/hover
+  paperHi: hex("3b3222"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 深纸面)
+  paperLo: hex("241d13"), // 卷轴体渐变暗端
+  ink: hex("f4ecd8"), // 纸色(正文/标题;墨系反转:深底上的纸色字)
+  inkDim: hex("c6b491"), // 淡纸(次级文字,对 panelHi 仍 ≥4.5:1)
   lacquer: hex("332a1e"), // 浓墨漆木(主按钮底/卷轴杆)——墨=落子无悔,主行动色
   lacquerGold: hex("d9b95c"), // 漆底金字(墨钮文字/杆箍线)
-  gold: hex("c8a13a"), // 鎏金(轮次/能量/金印,不再作按钮底)
-  goldBright: hex("d4af37"), // 亮金(都城光晕/行军拖影)
-  goldDeep: hex("755917"), // 熟金(纸底金字可读档,对纸底两端 ≥4.5:1;与 attrWarrant 同批拍板加深,2026-09-25)
-  money: hex("4a7a4a"), // 青绿(收入)
-  danger: hex("b23a2e"), // 朱砂(印章/扣减/税/破产)
-  // 在线/成功(审计 A4:「在线」小字于笺面 3.2:1 不达 AA → 加深一档至 ≈4.8:1)
-  success: hex("0b7a52"),
-  sealQing: hex("3f6a6b"), // 黛青(次级印章,中性事件)
-  jishi: hex("2b4a6f"), // 靛青(即时族,#281 反应锦囊标签章/族色:与朱砂标签章、金底技章
-  // 区分的第三种章色;宣纸/笺纸面上 ≈7.7:1 达 AA,生成 token --color-jishi)
+  gold: hex("d9b95c"), // 鎏金(轮次/能量/金印/描边,不再作按钮底)
+  goldBright: hex("ecd28a"), // 亮金(都城光晕/行军拖影)
+  goldDeep: hex("c8a13a"), // 熟金(金字可读档:对 panel/paperHi 各底 ≥5:1,小字红线优先;
+  // #509 就地调值——票面建议 #8a6a1c 对深底仅 ≈3.3:1 不达 4.5,故取亮一档)
+  money: hex("79a965"), // 青绿(收入,深底提亮档)
+  danger: hex("e2634d"), // 朱砂(危险/破产/朱钮/扣减文字;语义收窄 #506,
+  // 值取「深底小字 ≥4.5」与「朱钮纸白字 ≈2.9(过渡,S4/S9 印章漆金化后重形)」的平衡点)
+  // 在线/成功(深底提亮档:对 panel 4.9:1)
+  success: hex("35a374"),
+  sealQing: hex("76aaa5"), // 黛青(次级印章,中性事件;深底提亮档)
+  jishi: hex("82a4cc"), // 靛青(即时族,#281 反应锦囊标签章/族色:与朱砂标签章、金底技章
+  // 区分的第三种章色;深底面板上 ≈6:1 达 AA,生成 token --color-jishi)
 
   // 驿道
-  roadMain: hex("7a5c38"), // 主路褐(加深一档增墨感)
-  roadSide: hex("b5713a"), // 支路赭石
+  roadMain: hex("8a6c44"), // 主路褐(深底提亮一档,S6 棋盘深底化可再调)
+  roadSide: hex("c07f47"), // 支路赭石(深底提亮一档)
 
-  // 墨色深浅(远山/书法)
+  // 墨色深浅(远山/书法;深底下即暗金/暗纸装饰线)
   inkwash: hex("9c8a5e"),
 
-  // 地产分组色(a–h,降饱和配宣纸)
+  // 地产分组色(a–h,降饱和提亮配玄墨深底)
   groupColors: {
-    a: hex("8a5a3a"), // 中原
-    b: hex("3a6a8a"), // 荆楚
-    c: hex("7a3a6a"), // 岭南
-    d: hex("c47a2a"), // 巴蜀
-    e: hex("5a8a4a"), // 西凉
-    f: hex("9a3a2a"), // 幽燕
-    g: hex("2a6a8a"), // 青徐
-    h: hex("2a8a7a"), // 江东
+    a: hex("c2956c"), // 中原
+    b: hex("7faccd"), // 荆楚
+    c: hex("c28cc2"), // 岭南
+    d: hex("d5a055"), // 巴蜀
+    e: hex("85b570"), // 西凉
+    f: hex("d97560"), // 幽燕
+    g: hex("70a4c4"), // 青徐
+    h: hex("58ae9a"), // 江东
   } as Record<string, Rgb>,
 
   groupNames: {
@@ -76,34 +78,35 @@ export const Theme = {
     h: "江东",
   } as Record<string, string>,
 
-  // ── 属性色变体(#253 布局骨架,取色以原型 tmp/prototype-layout.html v3 为准)──
-  // 一属性一色;每属性两档:无后缀 = 纸面深变体(宣纸/笺面上 ≥4.5:1),Bright = 漆木
-  // 深底(仪表条)亮变体。徽章/数值一律吃 --color-attr-* token,组件零硬编码色值。
+  // ── 属性色变体(#253 布局骨架)──
+  // 一属性一色;每属性两档:无后缀 = 墨面档(#509 换血后宣纸面已是深底,此档按
+  // panel/panelHi 深底调亮,小字 ≥4.5:1),Bright = 漆木深底(仪表条)亮变体(值沿用)。
+  // 徽章/数值一律吃 --color-attr-* token,组件零硬编码色值。
   // 生成器(gen:theme)只认顶层 Rgb,故平铺为 attr* 键;其中三处与既有 token 同值
   // (委任=goldDeep / 城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
-  attrCash: hex("3d6538"), // 现金 = 青绿加深(重要数字最高优先,brush 加大)
+  attrCash: hex("7cab66"), // 现金 = 青绿(重要数字最高优先,brush 加大)
   attrCashBright: hex("8fbf77"), // 现金·漆底亮档
-  attrWarrant: hex("755917"), // 委任 = 熟金加深(对席位卡纸底两端 ≥4.5:1;与 goldDeep 同值互证,同批拍板)
+  attrWarrant: hex("c8a13a"), // 委任 = 熟金(与 goldDeep 同值互证,语义同源)
   attrWarrantBright: hex("e0c06a"), // 委任·漆底亮档
-  attrCity: hex("3f6a6b"), // 城池 = 黛青(同 sealQing)
+  attrCity: hex("76aaa5"), // 城池 = 黛青(同 sealQing)
   attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)
-  attrRep: hex("7a3a6a"), // 声望 = 紫
+  attrRep: hex("c28cc2"), // 声望 = 紫
   attrRepBright: hex("c583b4"), // 声望·漆底亮档
-  attrGem: hex("8f5215"), // 珍宝 = 橙金
+  attrGem: hex("d89a55"), // 珍宝 = 橙金
   attrGemBright: hex("e09a52"), // 珍宝·漆底亮档
-  attrHero: hex("b23a2e"), // 名将 = 朱砂(同 danger)
+  attrHero: hex("e2634d"), // 名将 = 朱砂(同 danger)
   attrHeroBright: hex("e07a6a"), // 名将·漆底亮档
 
-  // 玩家色(8 色,用于旌旗/边框/王旗;上限 8 人,一席一色)
+  // 玩家色(8 色,用于旌旗/边框/王旗;上限 8 人,一席一色;#509 降饱和提亮配玄墨深底)
   playerColors: [
-    hex("2a6a8a"), // 石青
-    hex("b23a2e"), // 朱砂
-    hex("5a8a4a"), // 青绿
-    hex("7a3a6a"), // 紫
-    hex("c47a2a"), // 赭橙
-    hex("2a8a7a"), // 松绿
-    hex("9a7a1f"), // 鎏金
-    hex("4a3a2a"), // 玄茶
+    hex("70a4c4"), // 石青
+    hex("e2634d"), // 朱砂(同 danger)
+    hex("85b570"), // 青绿
+    hex("c28cc2"), // 紫
+    hex("d5a055"), // 赭橙
+    hex("58ae9a"), // 松绿
+    hex("c8a95a"), // 鎏金
+    hex("b59d7c"), // 玄茶
   ],
 } as const;
 
