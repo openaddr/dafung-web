@@ -593,7 +593,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           onChange={onImportFile}
         />
 
-        <h3 className="font-brush mb-1 mt-3 text-xl text-ink">编辑地图</h3>
+        <h3 className="font-title mb-1 mt-3 text-xl text-ink">编辑地图</h3>
         <p className="mb-3 text-xs text-ink-dim">
           拖拽城池改位置(松手后自动连线);点击城池编辑属性。
         </p>

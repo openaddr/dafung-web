@@ -177,7 +177,7 @@ export function VictoryScreen({
         {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
         <h1
           data-testid={T.victoryTitle}
-          className="victory-anim-title m-0 font-brush text-gold-bright"
+          className="victory-anim-title m-0 font-title text-gold-bright"
           style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
         >
           天下归一
@@ -189,13 +189,13 @@ export function VictoryScreen({
         <div className="mt-2.5 flex items-center justify-center gap-3">
           <div
             data-testid={T.victorySub}
-            className="victory-step victory-step-sub font-brush text-[34px] tracking-[6px] text-white"
+            className="victory-step victory-step-sub font-title text-[34px] tracking-[6px] text-white"
             style={{ color: rgba(playerColor(colorIndex)) }}
           >
             「{guohao}」称帝
           </div>
           {/* 印内单字:国号本就 1 字(线上重名时服务器才加方位前缀),取 guohao 首字两口径通吃。 */}
-          <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-brush text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
+          <span className="victory-stamp-seal inline-flex h-14 w-14 items-center justify-center rounded-md border-[3px] border-danger font-title text-[32px] leading-none text-danger rotate-[-6deg] opacity-90">
             {Array.from(guohao)[0]}
           </span>
         </div>

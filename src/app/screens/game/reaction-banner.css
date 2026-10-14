@@ -37,9 +37,9 @@
   }
 }
 
-/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(笔书) */
+/* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(横幅标题字,#508 起 font-title) */
 .reaction-text {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 17px;
   line-height: 1.3;
   letter-spacing: 0.06em;

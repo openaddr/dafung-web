@@ -73,7 +73,7 @@ export function HomeScreen({
       <div className="m-auto flex w-full flex-col items-center">
         {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
           #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏) */}
-        <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest pl-[0.1em]">
+        <h1 className="home-title-in font-title text-6xl text-ink tracking-widest pl-[0.1em]">
           群雄逐鹿
         </h1>
         {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
@@ -97,7 +97,7 @@ export function HomeScreen({
             {/* 落款朱印:右端钤「逐鹿」竖读小印 */}
             <span
               aria-hidden="true"
-              className="absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] bg-danger px-1.5 py-1.5 font-brush text-[15px] leading-[1.15] text-[#f6ead6] shadow-[0_1px_3px_rgba(43,35,23,0.4)]"
+              className="absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] bg-danger px-1.5 py-1.5 font-title text-[15px] leading-[1.15] text-[#f6ead6] shadow-[0_1px_3px_rgba(43,35,23,0.4)]"
               style={{ writingMode: "vertical-rl" }}
             >
               逐鹿

@@ -117,7 +117,7 @@
   background: var(--color-danger);
   color: #f6ecd9; /* 印文纸色:原型定稿色(豁免登记见文件头) */
   border-radius: 0.28em;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.4em;
   line-height: 1;
   transform: rotate(4deg);
@@ -157,14 +157,14 @@
   padding: 0.6em 0.28em;
 }
 
-/* ── 右侧竖排名将名(毛笔大字;漆金带底=入口/架首章同语系,金归边不染字)── */
+/* ── 右侧竖排名将名(题名大字;漆金带底=入口/架首章同语系,金归边不染字)── */
 .hface .m-name {
   position: absolute;
   right: calc(0.55 * var(--u));
   bottom: calc(1.6 * var(--u)); /* 0.9u 技能区上叠 + 0.7u 净距(几何恒定) */
   z-index: 3;
   writing-mode: vertical-rl;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 2.3em;
   line-height: 1;
   letter-spacing: 0.1em;

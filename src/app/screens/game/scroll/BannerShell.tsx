@@ -173,14 +173,14 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
       <div className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5">
         <span
           aria-hidden="true"
-          className="flex h-[24px] w-[24px] flex-none rotate-[-4deg] items-center justify-center rounded-[3px] bg-gradient-to-b from-gold-bright to-gold-deep font-brush text-[15px] leading-none text-lacquer shadow-[0_1px_3px_rgba(43,35,23,0.5)]"
+          className="flex h-[24px] w-[24px] flex-none rotate-[-4deg] items-center justify-center rounded-[3px] bg-gradient-to-b from-gold-bright to-gold-deep font-title text-[15px] leading-none text-lacquer shadow-[0_1px_3px_rgba(43,35,23,0.5)]"
         >
           {/* 题印取题名首个汉字:详情题名带「」引号,直取首字会把括号钤进印里 */}
           {title.match(/\p{Script=Han}/u)?.[0] ?? title.slice(0, 1)}
         </span>
         <h2
           data-testid={T.scrollTitle}
-          className="m-0 font-brush text-[26px] tracking-[4px] text-gold-bright"
+          className="m-0 font-title text-[26px] tracking-[4px] text-gold-bright"
         >
           {title}
         </h2>

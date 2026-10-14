@@ -190,7 +190,7 @@
   display: grid;
   place-items: center;
   border-radius: 2px;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 13px;
   line-height: 1;
   color: #f6ead6;
@@ -307,7 +307,7 @@
   display: grid;
   place-items: center;
   border-radius: 4px;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   line-height: 1;
   color: #f6ead6;
   box-shadow: inset 0 0 0 1.5px rgba(246, 236, 217, 0.4);
@@ -525,7 +525,7 @@
   display: grid;
   place-items: center;
   border-radius: 3px;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 12px;
 }
 .game-layout .me .you {

@@ -167,7 +167,7 @@ export function SoloSetupScreen({
         {/* #497 ①:顶部返回位 —— 标题行右端 Sym 箭头小笺钮(复用 onBack),8 诸侯 +
           机遇展开时不必滚到卡底即可退;h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿) */}
         <div className="relative w-full flex justify-center">
-          <h1 className="font-brush text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
+          <h1 className="font-title text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
           <button
             type="button"
             data-testid={TID.backTop}
@@ -324,7 +324,7 @@ export function SoloSetupScreen({
                   className="su-seat-row grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1"
                 >
                   <span
-                    className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-brush text-base text-[#f6ead6]"
+                    className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base text-[#f6ead6]"
                     style={{ background: color }}
                   >
                     {i + 1}

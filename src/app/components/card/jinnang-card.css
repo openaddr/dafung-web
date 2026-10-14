@@ -70,7 +70,7 @@
   border-radius: 0.16em;
 }
 .jinnang-card .ming {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 2em;
   line-height: 1.15;
   letter-spacing: 0.06em;
@@ -83,8 +83,8 @@
 }
 
 /* ── 标签章:右上竖排(多标签逐枚下挂),朱砂方章 2.5deg 微旋(章恒朱砂,
-   DESIGN §4.2 朱=权险;族色只入界格线与纹样窗)。印文用 font-brush:
-   小薇离线镜像有空芯字形,新文案禁用 font-deco(BRIEF §2,note-head 同先例)。── */
+   DESIGN §4.2 朱=权险;族色只入界格线与纹样窗)。印文用 font-title(#508 标题字族;
+   小薇离线镜像有空芯字形,禁用 font-deco,BRIEF §2,note-head 同先例)。── */
 .jinnang-card .zhang {
   position: absolute;
   top: 0.9em;
@@ -101,7 +101,7 @@
   background: var(--color-danger);
   color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
   border-radius: 0.28em;
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.5em;
   display: grid;
   place-items: center;
@@ -329,7 +329,7 @@
   font-family: var(--font-wenkai);
 }
 .jinnang-card.mount .qian .qian-ming {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 1.7em;
   letter-spacing: 0.1em;
   line-height: 1.1;
@@ -485,7 +485,7 @@
     inset 0 0 0 0.18em rgba(246, 236, 217, 0.5);
 }
 .jinnang-card .yin-s span {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 2em;
   color: #f6ecd9; /* 印文纸色:原型定稿色,暂无 token(豁免登记见文件头) */
   line-height: 1.12;
@@ -509,7 +509,7 @@
   font-family: var(--font-wenkai);
 }
 .jinnang-detail .dt-ming {
-  font-family: var(--font-brush);
+  font-family: var(--font-title);
   font-size: 26px;
   margin-bottom: 6px;
 }

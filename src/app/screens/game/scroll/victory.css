@@ -5,9 +5,11 @@
    S9 #515:烟花粒子/标题辉光等 keyframe 随卷轴壳退役自 scroll.css 归位本文件——
    它们本就只被胜利屏消费。 */
 
-/* ── A6(#53) 千里江山图局部(王希孟,Public Domain;Commons 1e section → webp):
-   青绿山水带作胜利屏最底一层背景(100% 宽保持原比例,贴屏底),
-   上压暗色渐变——屏底 0.45 渐升至 0.95:只露出一条低透明山水带,层次增强不抢大字。
+/* ── 胜利屏背景(S9 #515 接位:S10 #516 退役浅色千里江山横带——与玄墨深底冲突,
+   文件已下架)。接位素材 = S1 入库的竹林深景(noname 内置,manifest 已登记,
+   引用处登记见 textures/README.md):贴屏底一条,上压玄墨渐变只露低透明竹影,
+   层次增强不抢金字。渐变/径向基色取 core/theme.ts 的 bg(#1f1a13)/bgDeep(#16110c)
+   的 rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。
    多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。
    遮罩淡入(--dur-reveal 胜利拍)+ pointer-events:auto(压住棋盘)同规则合并。── */
 @keyframes victory-overlay-in {
@@ -24,12 +26,12 @@
   background:
     linear-gradient(
       to top,
-      rgba(20, 15, 5, 0.45) 0%,
-      rgba(20, 15, 5, 0.82) 26%,
-      rgba(20, 15, 5, 0.95) 42%
+      rgba(22, 17, 12, 0.5) 0%,
+      rgba(22, 17, 12, 0.84) 26%,
+      rgba(22, 17, 12, 0.96) 42%
     ),
-    url("/assets/textures/qianli-jiangshan.webp") center bottom / 100% auto no-repeat,
-    radial-gradient(circle, rgba(40, 30, 10, 0.75), rgba(20, 15, 5, 0.92));
+    url("/assets/textures/texture-zhulin.webp") center bottom / 100% auto no-repeat,
+    radial-gradient(circle, rgba(31, 26, 19, 0.78), rgba(22, 17, 12, 0.94));
 }
 
 /* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)── */
