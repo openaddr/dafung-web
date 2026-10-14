@@ -4,7 +4,8 @@
 // 移除(贝塞尔曲线起快收慢,1.25s 时位移/渐隐已基本走完,提前卸载不可见)。
 // 观战空态同样消费(S12):浮标跟「被展示的玩家」走,与坐姿分支同款反馈。
 // (#255:渲染件 DeltaFloatSpans 随 HandPanel 退役删除——唯一消费方仪表条 DashboardBar
-//  漆底直出亮档配色,不复用纸面档色。)
+//  漆底直出亮档配色,不复用纸面档色。#495:渲染件 DeltaFloats 随本件共享给席位卡
+//  SeatRail(对手现金/体力浮标),hook 与渲染件同域单源,调用方不再各抄一份。)
 import { useEffect, useRef, useState } from "react";
 import { Motion } from "@core/theme";
 
@@ -40,4 +41,33 @@ export function useDeltaFloat(value: number | null): DeltaFloat[] {
     return () => clearTimeout(timer);
   }, [value]);
   return floats;
+}
+
+/** 浮标 span 组(#495 自 DashboardBar 收拢至此,与 hook 同域单源):漆底直出亮档配色
+ *  (正=lacquerGold / 负=attr-hero-bright),动画复用 game-hud.css game-cash-float;
+ *  定位锚=调用方的 relative 容器(右上悬出),数值格式化由调用方给(现金走
+ *  formatMoney 带单位,裸数值直出)。 */
+export function DeltaFloats({
+  floats,
+  fmt,
+}: {
+  floats: DeltaFloat[];
+  fmt: (delta: number) => string;
+}) {
+  return (
+    <>
+      {floats.map((f) => (
+        <span
+          key={f.id}
+          aria-hidden="true"
+          className={
+            "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
+            (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
+          }
+        >
+          {fmt(f.delta)}
+        </span>
+      ))}
+    </>
+  );
 }

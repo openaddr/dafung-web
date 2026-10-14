@@ -10,9 +10,12 @@
 // 原型 .selglow 移植,无文字章)+ 点席位即出(免二次确认);棋盘 token 同步呼吸归
 // TokenLayer 挂点。暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探
 // 窥探目标在浮签里追加窥见牌名(原 OthersPanel title 语义平移)。
+// 变化反馈(#495):对手现金/体力挂 useDeltaFloat 浮标(与仪表条同款机制,正金负朱,
+//  渲染件 DeltaFloats 共享单源)——大富翁最核心的「谁在变富」不再静默。
 import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
+import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
 import { AttrIcon, MiniBacks } from "./AttrIcon";
 import { ATTR_TIPS, Tip, type TipText } from "./Tip";
 import { TESTIDS } from "./testids";
@@ -59,6 +62,11 @@ function SeatCard({
           detail: `${ATTR_TIPS.hand.detail};窥见:${peekedHand.join("、")}`,
         }
       : { name: ATTR_TIPS.hand.name, detail: `${ATTR_TIPS.hand.detail}(以牌背示意,数量为准)` };
+  // 变化浮标(#495):对手现金/体力与仪表条同款机制——首帧只立基准不浮,跨快照
+  // 跳变才出标。浮标挂卡内 relative 容器(带 testid 的数值本体保持纯文本,e2e
+  // textContent 断言不受浮标串扰)。
+  const cashFloats = useDeltaFloat(p.cash);
+  const staminaFloats = useDeltaFloat(p.stamina);
   const badges = (
     <>
       <Tip
@@ -102,15 +110,30 @@ function SeatCard({
           {p.isBot ? " 智" : ""}
         </span>
       </div>
-      <div className="cash" data-testid={TESTIDS.seatCash(seat)}>
-        {formatMoney(p.cash)}
+      {/* 现金(#495 挂浮标):relative 容器锚浮标;数值本体 span 保持 testid 纯文本 */}
+      <div className="cash relative">
+        <span data-testid={TESTIDS.seatCash(seat)}>{formatMoney(p.cash)}</span>
+        <DeltaFloats
+          floats={cashFloats}
+          fmt={(d) => (d > 0 ? "+" : "−") + formatMoney(Math.abs(d))}
+        />
       </div>
-      <Tip tip={ATTR_TIPS.stamina} testId={TESTIDS.seatStamina(seat)}>
-        <span className={"hpbar" + (p.stamina < STAMINA_LOW ? " low" : "")}>
-          <i style={{ width: `${p.stamina}%` }} />
-          <em>{p.stamina}</em>
-        </span>
-      </Tip>
+      {/* 体力血条(#495 挂浮标):浮标挂在 Tip 外的 relative 容器——血条本体
+          overflow:hidden 会裁掉上浮标;容器保 flex(席位卡是 flex 列,Tip 触发元
+          靠 flex item 拉满卡宽,普通 div 包裹会缩瘪)且触发元(含 testid)文本
+          仍只有刻度数 */}
+      <div className="relative flex">
+        <Tip tip={ATTR_TIPS.stamina} testId={TESTIDS.seatStamina(seat)}>
+          <span className={"hpbar" + (p.stamina < STAMINA_LOW ? " low" : "")}>
+            <i style={{ width: `${p.stamina}%` }} />
+            <em>{p.stamina}</em>
+          </span>
+        </Tip>
+        <DeltaFloats
+          floats={staminaFloats}
+          fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
+        />
+      </div>
       {mini ? (
         /* 缩微四格:城/手牌一行(现金+血条在上,复用常态卡结构) */
         <div className="vgrid">{badges}</div>
@@ -176,7 +199,8 @@ function SeatCard({
   );
 }
 
-/** 席位竖卡列:槽位切分 + 渲染。整个列随快照声明式重渲,无本地状态。
+/** 席位竖卡列:槽位切分 + 渲染。整个列随快照声明式重渲;唯一的组件内状态是
+ *  SeatCard 的现金/体力浮标(#495,useDeltaFloat 自持,随卡挂载随值自清)。
  *  槽位切分(文件头规则):列容 3;4-6 右列 3 + 左列其余;7+ 右 3 + 左 3 + 顶行缩微。
  *  selfSeat(#453 收口契约):本参数是「屏前真人的自我身份」——单机热座恒 0、联机=本座,
  *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):窥探放行(#122/T4,#453/B1

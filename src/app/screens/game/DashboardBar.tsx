@@ -14,7 +14,7 @@ import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import type { GameController } from "@app/controllers/controller";
-import { useDeltaFloat, type DeltaFloat } from "./useDeltaFloat";
+import { useDeltaFloat, DeltaFloats, type DeltaFloat } from "./useDeltaFloat";
 import { AttrIcon } from "./AttrIcon";
 import { ATTR_TIPS, Tip } from "./Tip";
 import { TESTIDS } from "./testids";
@@ -31,27 +31,6 @@ function gainPulseKey(floats: DeltaFloat[]): number {
     if (floats[i].delta > 0) return floats[i].id;
   }
   return 0;
-}
-
-/** 现金/委任浮标 span(评审去重:两处同形收拢):漆底直出亮档配色(正=lacquerGold /
- *  负=attr-hero-bright),动画复用 game-hud.css game-cash-float;数值格式化由调用方给
- *  (现金走 formatMoney 带单位,委任裸数)。 */
-function DeltaFloats({ floats, fmt }: { floats: DeltaFloat[]; fmt: (delta: number) => string }) {
-  return (
-    <>
-      {floats.map((f) => (
-        <span
-          key={f.id}
-          className={
-            "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
-            (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
-          }
-        >
-          {fmt(f.delta)}
-        </span>
-      ))}
-    </>
-  );
 }
 
 export interface DashboardBarProps {
