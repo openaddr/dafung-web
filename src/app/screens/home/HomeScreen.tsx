@@ -81,23 +81,19 @@ export function HomeScreen({
           — 三国大富翁 —
         </div>
 
-        {/* 视觉重做 v2 签名件:千里江山装裱横带——《千里江山图》(PD,textures 已入库)
-          青绿山水作装裱横幅铺在标题与入口之间,multiply 融纸;右端钤「逐鹿」朱印落款,
-          上下深色细线 = 裱边。填补首页中央真空,本屏记忆点。
-          home-band-h=短横屏档压画心高(dogfood ISSUE-002:430px 高首屏免滚动)。 */}
+        {/* 视觉重做 v2 签名件:千里江山装裱横带 —— 玄墨鎏金版(#514/S8):
+          古画素材归 S10 处理,本票先摘《千里江山图》留**深底占位**——
+          漆金裱边框(home.css .home-scroll-band)+ 深色渐变画心,右端钤「逐鹿」漆金印落款,
+          上下金线 = 裱边「矩」。TODO(S10):此处挂深色古风横带素材(见 #488 素材源),
+          挂点 = .home-scroll-band 内替换占位块,外框/落款印不动。 */}
         <div className="home-band-in home-gap-tight relative mb-10 w-[min(880px,92vw)]">
           <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
-            <img
-              src="/assets/textures/qianli-jiangshan.webp"
-              alt=""
-              aria-hidden="true"
-              className="home-band-h block h-[clamp(96px,15vw,168px)] w-full select-none object-cover mix-blend-multiply"
-              draggable={false}
-            />
-            {/* 落款朱印:右端钤「逐鹿」竖读小印 */}
+            {/* 画心占位:深色渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
+            <div className="home-band-h home-band-heart w-full select-none" aria-hidden="true" />
+            {/* 落款漆金印:右端钤「逐鹿」竖读小印(#506 印章漆金化) */}
             <span
               aria-hidden="true"
-              className="absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] bg-danger px-1.5 py-1.5 font-title text-[15px] leading-[1.15] text-[#f6ead6] shadow-[0_1px_3px_rgba(43,35,23,0.4)]"
+              className="seal-gold absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] px-1.5 py-1.5 font-title text-[15px] leading-[1.15]"
               style={{ writingMode: "vertical-rl" }}
             >
               逐鹿
