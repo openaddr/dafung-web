@@ -360,8 +360,8 @@ interface StackVars {
   spreadRight: number;
 }
 
-/** 入口图腾(#361):宝石=珍宝 / 令旗=名将,AttrIcon 图形笔画化(r5 节一线稿原样
- *  移植,程序化 SVG 零图片资产);漆金描边由 CSS(.rack-entry .tu svg)承担。 */
+/** 入口图腾(#361):宝石=珍宝,AttrIcon 图形笔画化(r5 节一线稿原样移植,程序化
+ *  SVG 零图片资产);漆金描边由 CSS(.rack-entry .tu svg)承担。 */
 const ENTRY_GEM_ICON = (
   <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
     <path d="M8 1.8 13 6.2 8 14.2 3 6.2z" />
@@ -376,6 +376,23 @@ const ENTRY_HERO_ICON = (
     <path d="M6.4 5.8h4.2" />
   </svg>
 );
+
+/** 名将入口画心(#511 卡面 B 案):图腾位接太史慈立绘提案(S1 noname 小图变体,
+ *  素材映射 docs/design/素材映射.md);断图/缺图回退令旗线稿(与 HeroCardFace 的
+ *  Lihui 同「显式回退」口径)。纯装饰(aria-hidden 由 .tu 承担),不表达玩家数据。 */
+function HeroEntryArt() {
+  const [failed, setFailed] = useState(false);
+  if (failed) return ENTRY_HERO_ICON;
+  return (
+    <img
+      className="hero-entry-art"
+      src="/assets/heroes/hero-taishici-noname-avatar.webp"
+      alt=""
+      onError={() => setFailed(true)}
+      draggable={false}
+    />
+  );
+}
 
 /** 牌架入口小件(#361,形制照 proto/treasure/r5.html 节一):漆金牌底+漆金描边+
  *  朱砂数量角标的漆木小件,右上悬垂计数,图腾线稿+毛笔品名。真 <button>(键盘可达;
@@ -628,7 +645,7 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
           testid={TESTIDS.rackHeroes}
           label="名将"
           count={`${player.heroes.length}/${HERO_CAPACITY}`}
-          icon={ENTRY_HERO_ICON}
+          icon={<HeroEntryArt />}
           onOpen={() => setPileModal("heroes")}
         />
       </div>

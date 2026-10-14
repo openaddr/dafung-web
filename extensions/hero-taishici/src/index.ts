@@ -14,7 +14,9 @@ const contribution: ExtensionAuthorityContribution = {
       name: "太史慈",
       title: "信义笃行",
       desc: "被招揽时义从归心:立即 +100 两(来投之礼)",
-      image: "", // 立绘未落地:卡面走「像」占位(华佗先例);专属将旗由客户端渲染 hook 提供
+      // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
+      // 专属将旗仍由客户端渲染 hook 提供
+      image: "/assets/heroes/hero-taishici-noname.webp",
       skills: [
         {
           id: "taishici-yicong",
