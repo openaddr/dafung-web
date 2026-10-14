@@ -1,0 +1,98 @@
+/* 全屏宣告横幅(S9 #515,#492 决议②「漆金横幅+朱印题」,卷轴壳退役)。
+   决策弹层制式:深墨横幅带(漆木系)+漆金描边+金印题+正文井(纸色正文)。
+   色一律 var(--color-*) 或既有 token 的 rgba alpha/color-mix 写法;动效时长/缓动走
+   --dur-* 与 --ease-*(tokens.css 单源,core/theme.ts 配色/动效双单源)。
+
+   裸色豁免登记(沿 reaction-banner.css 同款口径):rgba(43,35,23,·)=墨影族(阴影,
+   非描边);rgba(217,185,92,·)=--color-lacquer-gold/--color-gold 通道、
+   rgba(30,23,12,·)=全应用遮罩墨纱族(ui/dialog|sheet 同值)——皆既有 token 的
+   rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。 */
+
+/* ── 遮罩:沿用旧 #scroll-layer 定位栈语义(挂载容器 pointer-events-none,
+   遮罩自身必须显式开启,否则点击穿透到棋盘);#239 T4 窄短横屏升格 fixed 口径保留 ── */
+.banner-overlay {
+  pointer-events: auto;
+  animation: banner-fade-in var(--dur-med) var(--ease-out);
+}
+@keyframes banner-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── 横幅带材质:深墨底(漆木系渐变)+漆金双描边(外 1.5px 实线+内 1px 发丝)+
+   墨影;入场 = 自上缘压下 + 淡入(--dur-slow 大件入场单拍,#492 ⑤区右案口径)── */
+.banner-card {
+  background: linear-gradient(180deg, var(--color-lacquer), var(--color-panel));
+  border: 1.5px solid rgba(217, 185, 92, 0.55);
+  border-radius: 6px;
+  box-shadow:
+    inset 0 0 0 1px rgba(217, 185, 92, 0.16),
+    var(--ink-shadow-lg);
+  animation: banner-drop var(--dur-slow) var(--ease-out);
+}
+@keyframes banner-drop {
+  from {
+    transform: translateY(-28px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+/* ── 正文井:深墨实底(bg-deep)收口深底可读性(小字 ≥4.5:1)——漆金带上直接排
+   小字对 danger 仅 ≈4.1,井底加深后纸色正文 ≈16:1、淡纸 ≈9:1、朱砂警示 ≈5.5:1 ── */
+.banner-body {
+  background: var(--color-bg-deep);
+  border: 1px solid rgba(217, 185, 92, 0.2);
+  border-radius: 4px;
+}
+
+/* ── 次级笺钮在横幅上的收口:note-btn 的墨发丝边(rgba(43,35,23,·))在深墨带上
+   隐形,panel 底与带底也几乎同值——统一收口为 panel-hi 衬底 + 漆金发丝边
+   (同 reaction-btn 语言:次级=同底漆钮)。仅作用域 .banner-shell,不跨件复用。 ── */
+.banner-shell .note-btn {
+  background: var(--color-panel-hi);
+  border-color: rgba(217, 185, 92, 0.38);
+}
+.banner-shell .note-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-panel-hi) 72%, var(--color-gold-bright) 28%);
+}
+
+/* ── 收起/幽灵退场:上浮淡出(--dur-fast 快档退场;210ms 出口 = 150 + 60 余量,
+   与幽灵帧协议 GHOST.frameMs 同口径)。规则写在 .banner-card 之后,同特异性后到胜 ── */
+@keyframes banner-lift {
+  to {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+.banner-anim-out {
+  animation: banner-lift var(--dur-fast) var(--ease-in) forwards;
+}
+@keyframes banner-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.banner-overlay-out {
+  pointer-events: none;
+  animation: banner-fade-out var(--dur-fast) var(--ease-in) forwards;
+}
+
+/* ── 短横屏遮罩升格(#239 T4 收口,沿旧 scroll-anim-overlay 同款):板区被手牌架
+   压到 ~240px 时 absolute 遮罩随板区裁切,决策瞬间模态优先级高于牌架,升格 fixed
+   盖全屏;桌面/竖屏维持 absolute 随板区居中。无层级规则天然压过 Tailwind utilities ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .banner-overlay {
+    position: fixed;
+  }
+}

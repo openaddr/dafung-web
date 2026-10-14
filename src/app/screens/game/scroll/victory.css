@@ -1,14 +1,26 @@
-/* 胜利屏专属动画(E2 胜利叙事序列)。独立于 scroll.css:
-   避免与其他并行改动的 css 文件冲突;本文件只被 VictoryScreen.tsx 引入。
+/* 胜利屏专属动画(E2 胜利叙事序列)。独立文件:本文件只被 VictoryScreen.tsx 引入。
    阶梯:标题 0ms → 称帝行 300ms → 终局信息 600ms → 终榜 900ms(E4 第 4 拍);
    另有称帝朱砂印 450ms 一拍(#95),不入阶梯——与 VictoryScreen 的 stamp 锣声 450ms 定时同帧。
-   → 再战按钮由组件延迟 1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。 */
+   → 再战按钮由组件延迟 1800ms 才挂载(防误触,须阻断 pointer-events,CSS 延迟做不到)。
+   S9 #515:烟花粒子/标题辉光等 keyframe 随卷轴壳退役自 scroll.css 归位本文件——
+   它们本就只被胜利屏消费。 */
 
 /* ── A6(#53) 千里江山图局部(王希孟,Public Domain;Commons 1e section → webp):
    青绿山水带作胜利屏最底一层背景(100% 宽保持原比例,贴屏底),
    上压暗色渐变——屏底 0.45 渐升至 0.95:只露出一条低透明山水带,层次增强不抢大字。
-   多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。── */
+   多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。
+   遮罩淡入(--dur-reveal 胜利拍)+ pointer-events:auto(压住棋盘)同规则合并。── */
+@keyframes victory-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
 .victory-anim-overlay {
+  pointer-events: auto;
+  animation: victory-overlay-in var(--dur-reveal) var(--ease-out);
   background:
     linear-gradient(
       to top,
@@ -18,6 +30,65 @@
     ),
     url("/assets/textures/qianli-jiangshan.webp") center bottom / 100% auto no-repeat,
     radial-gradient(circle, rgba(40, 30, 10, 0.75), rgba(20, 15, 5, 0.92));
+}
+
+/* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)── */
+@keyframes firework-burst {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.2);
+    opacity: 0;
+  }
+}
+.firework-particle {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 9999px;
+  pointer-events: none;
+  /* 逐粒时长由唯一消费方 VictoryScreen.tsx 注入 --fw-dur(烟花随机化,不归档);
+     不写回退值——零兜底,漏注入即炸出来。 */
+  animation: firework-burst var(--fw-dur) var(--ease-out) forwards;
+}
+
+/* ── 胜利标题:金色辉光呼吸 + 弹跳入场 ── */
+@keyframes victory-glow {
+  0%,
+  100% {
+    text-shadow:
+      0 0 30px var(--color-gold-bright),
+      0 4px 10px rgba(0, 0, 0, 0.6);
+  }
+  50% {
+    text-shadow:
+      0 0 60px var(--color-gold-bright),
+      0 0 100px var(--color-gold),
+      0 4px 10px rgba(0, 0, 0, 0.6);
+  }
+}
+@keyframes victory-bounce-in {
+  0% {
+    transform: scale(0.2);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.15);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+.victory-anim-title {
+  animation:
+    /* 辉光呼吸归 --dur-ambient(2s→2.6s 就近);弹跳入场归 --dur-reveal 胜利拍,
+       back 类统一 --ease-out-back(原 bezier 与 token 同值) */
+    victory-glow var(--dur-ambient) var(--ease-sine) infinite,
+    victory-bounce-in var(--dur-reveal) var(--ease-out-back);
 }
 
 @keyframes victory-fade-up {

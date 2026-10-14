@@ -1,11 +1,10 @@
-/* 决策卷轴 / 胜利屏的 CSS keyframe 动画。
-   为什么单独一个文件而不是全塞 Tailwind:展开/烟花/辉光这类多关键帧动画
-   Tailwind 任意值写法可读性差,且旧版(style.css)就有同款命名,便于对照迁移。 */
+/* S9 #515 收口后的残余共用件:旧卷轴壳(挂轴双杆/纸身摊开/rollback 收起/遮罩类)
+   已全部退役迁 banner.css(全屏宣告横幅制式),决策弹层不再消费本文件。
+   仅存 `.scroll-anim-unroll` 面板入场工具类——lobby/setup 三处菜单屏(S8 归口)
+   在用,类名即 e2e 无关的纯视觉契约;S8 菜单屏深色化时一并迁走,届时本文件可删。 */
 
-/* ── 卷轴壳体入场:淡入 + 轻微下落落位 + 横向舒展(#91 R3-C4 两层重构之外层)。
-   旧版整壳(含标题栏)一起 scaleY 摊开,起步 ~200ms 标题字被纵向压扁,读感是
-   pop-zoom 而非「宣纸摊开」;现在纵向摊开移交给内层纸身(scroll-paper-unroll),
-   壳体全程不变形 ── */
+/* ── 面板入场:淡入 + 轻微下落落位 + 横向舒展(#91 R3-C4 外层壳体的通用化残留)。
+   时长/缓动引 tokens.css 的 --dur-* 与 --ease-* 族 ── */
 @keyframes scroll-unroll {
   from {
     transform: translateY(-8px) scaleX(0.97);
@@ -16,157 +15,6 @@
     opacity: 1;
   }
 }
-
-/* ── 遮罩淡入 ── */
-@keyframes scroll-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)── */
-@keyframes firework-burst {
-  0% {
-    transform: translate(0, 0) scale(1);
-    opacity: 1;
-  }
-  100% {
-    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.2);
-    opacity: 0;
-  }
-}
-
-/* ── 胜利标题:金色辉光呼吸 ── */
-@keyframes victory-glow {
-  0%,
-  100% {
-    text-shadow:
-      0 0 30px var(--color-gold-bright),
-      0 4px 10px rgba(0, 0, 0, 0.6);
-  }
-  50% {
-    text-shadow:
-      0 0 60px var(--color-gold-bright),
-      0 0 100px var(--color-gold),
-      0 4px 10px rgba(0, 0, 0, 0.6);
-  }
-}
-
-/* ── 胜利标题:弹跳入场 ── */
-@keyframes victory-bounce-in {
-  0% {
-    transform: scale(0.2);
-    opacity: 0;
-  }
-  60% {
-    transform: scale(1.15);
-    opacity: 1;
-  }
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
-
-/* ── 动画工具类(供组件直接挂 class;时长/缓动引 tokens.css 的 --dur-* 与 --ease-* 族,
-   注意注释内不能出现"星号斜杠"序列——会提前终止块注释吞掉后续规则,#88 曾因此折损下行规则)── */
-.scroll-anim-overlay {
-  /* 挂载容器 #scroll-layer 是 pointer-events-none(无弹层时不挡棋盘),
-     遮罩自身必须显式开启,否则点击穿透到棋盘。 */
-  pointer-events: auto;
-  animation: scroll-fade-in var(--dur-med) var(--ease-out);
-}
 .scroll-anim-unroll {
-  /* 壳体只做淡入+位移+横向舒展。不再用 --ease-out-back 过冲:过冲是配合旧整壳
-     scaleY 的回弹口径,纵向交给纸身层后壳体双份缓动会显得忙乱;scaleX 对纵向
-     origin 不敏感,无需再声明 transform-origin。 */
   animation: scroll-unroll var(--dur-med) var(--ease-out);
-}
-
-/* ── 内层纸身摊开(#91 R3-C4 两层重构之内层):标题栏以下的宣纸以顶缘为轴
-   scaleY 展开。延迟 calc(var(--dur-instant) * 0.75)(=60ms 拍)起步 + backwards
-   fill 在延迟窗内钉住 from 帧压扁态——标题先落位、纸身在其下摊开 ── */
-@keyframes scroll-paper-unroll {
-  from {
-    transform: scaleY(0);
-  }
-  to {
-    transform: scaleY(1);
-  }
-}
-.scroll-anim-unroll-paper {
-  transform-origin: top;
-  animation: scroll-paper-unroll var(--dur-med) var(--ease-out) calc(var(--dur-instant) * 0.75)
-    backwards;
-}
-@media (prefers-reduced-motion: reduce) {
-  .scroll-anim-unroll-paper {
-    /* app.css 的全局减弱动态效果兜层只把 animation-duration 压到瞬时,不重置 delay;
-       本层若保留 60ms 延迟窗,内容会「先空白再弹现」。delay 一并归零,与兜层口径对齐。 */
-    animation-delay: 0ms;
-  }
-}
-
-/* ── 卷轴收起:向上"卷走"宣纸(#90 R3-C3,unroll 的反向)——只写 to 帧,from 取
-   元素当前自然态;时长/缓动走快档退场口径,fill forwards 把终帧钉住等卸载 ── */
-@keyframes scroll-rollup {
-  to {
-    transform: scaleY(0.08) translateY(-6px);
-    opacity: 0;
-  }
-}
-.scroll-anim-rollback {
-  transform-origin: top center;
-  animation: scroll-rollup var(--dur-fast) var(--ease-in) forwards;
-}
-
-/* ── 收起时遮罩同步淡出。pointer-events 必须写在 CSS 里而不是靠 Tailwind 工具类:
-   本文件是未分层规则,优先级恒压过 utilities 层的 pointer-events-none,
-   同为未分层规则靠源码顺序才能确保收起中遮罩真正放行点击 ── */
-@keyframes scroll-fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
-.scroll-anim-overlay-out {
-  pointer-events: none;
-  animation: scroll-fade-out var(--dur-fast) var(--ease-in) forwards;
-}
-.firework-particle {
-  position: absolute;
-  width: 4px;
-  height: 4px;
-  border-radius: 9999px;
-  pointer-events: none;
-  /* 逐粒时长由唯一消费方 VictoryScreen.tsx 注入 --fw-dur(烟花随机化,不归档);
-     不写回退值——零兜底,漏注入即炸出来。 */
-  animation: firework-burst var(--fw-dur) var(--ease-out) forwards;
-}
-.victory-anim-title {
-  animation:
-    /* 辉光呼吸归 --dur-ambient(2s→2.6s 就近);弹跳入场归 --dur-reveal 胜利拍,
-       back 类统一 --ease-out-back(原 bezier 与 token 同值) */
-    victory-glow var(--dur-ambient) var(--ease-sine) infinite,
-    victory-bounce-in var(--dur-reveal) var(--ease-out-back);
-}
-.victory-anim-overlay {
-  pointer-events: auto;
-  animation: scroll-fade-in var(--dur-reveal) var(--ease-out);
-}
-
-/* ── 短横屏遮罩升格(#239 T4 收尾,主线):板区被手牌架压到 ~240px,absolute 遮罩
-   随板区裁切——卷轴壳 ~330px 垂直居中后标题栏出屏(HEAD 既有病,牌架落地后更显)。
-   决策遮罩在此断点升格 fixed 盖全屏:决策瞬间模态优先级高于牌架,且卷轴里的牌面
-   就是架上的牌,信息无损失;桌面/竖屏维持 absolute 随板区居中。scroll.css 无层级,
-   规则天然压过 Tailwind utilities 的 absolute(BRIEF §5 层叠记档同款)。 ── */
-@media (orientation: landscape) and (max-height: 500px) {
-  .scroll-anim-overlay {
-    position: fixed;
-  }
 }
