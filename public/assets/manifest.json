@@ -97,7 +97,10 @@
     "license": "Public domain",
     "author": "王希孟(Wang Ximeng,北宋);1920px thumb → webp q82",
     "fetched_at": "2026-08-30",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-10-14",
+    "retired_reason": "#516 玄墨鎏金视觉方向:古画横带退役,深色素材接位;文件已下架,本条目留档"
   },
   "audio:stamp-seal": {
     "path": "assets/audio/stamp-seal.ogg",
@@ -145,7 +148,10 @@
     "license": "Public domain",
     "author": "夏圭(Xia Gui,南宋);Commons 全卷扫描 24557×1210 中段裁带(弃印区)→ 2880×311 webp q80",
     "fetched_at": "2026-08-30",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-10-14",
+    "retired_reason": "#516 玄墨鎏金视觉方向:古画横带退役,深色素材接位;文件已下架,本条目留档"
   },
   "hero:huatuo:noname": {
     "path": "assets/heroes/hero-huatuo-noname.webp",
