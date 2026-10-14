@@ -71,15 +71,21 @@ export interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   cardId: string;
   size?: JinnangFaceSize;
   frameTone?: FrameTone;
+  /** 画心立绘通道(#511 B 案):传入节点即渲染(容器裁剪,位图 cover 铺满画心);
+   *  缺省=族色纹样线稿回退(P0-A 纹样窗降级为缺图回退——立绘只进金框画心,
+   *  牌名/标签章/笺脚文字恒在纸底,可读性红线)。 */
+  art?: ReactNode;
 }
 
-/** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 纹样窗 / 笺脚(别称已剥离,
- *  2 行截断;large 4 行)。children 透传到牌面末尾——不可用态的原因印条
- *  (<span className="reason">,样式见 jinnang-card.css)由消费方这样挂入。 */
+/** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 金框画心(art 立绘,缺省
+ *  纹样线稿回退)/ 笺脚(别称已剥离,2 行截断;large 4 行)。children 透传到牌面
+ *  末尾——不可用态的原因印条(<span className="reason">,样式见 jinnang-card.css)
+ *  由消费方这样挂入。 */
 export function JinnangCardFace({
   cardId,
   size = "standard",
   frameTone = "none",
+  art,
   className,
   children,
   ...rest
@@ -110,9 +116,13 @@ export function JinnangCardFace({
         ))}
       </div>
       <div className="yang">
-        <svg viewBox="0 0 100 70" aria-hidden="true">
-          {PATTERN_PATHS[fam.pattern]}
-        </svg>
+        {art == null ? (
+          <svg viewBox="0 0 100 70" aria-hidden="true">
+            {PATTERN_PATHS[fam.pattern]}
+          </svg>
+        ) : (
+          <div className="art">{art}</div>
+        )}
       </div>
       <div className="jiao">{jinnangAliasSplit(def.text).body}</div>
       {children}
@@ -120,14 +130,15 @@ export function JinnangCardFace({
   );
 }
 
-/** 珍宝牌面(#234 变体,#281 落地,#359 装裱升级):「名家鉴藏」装裱形制
+/** 珍宝牌面(#234 变体,#281 落地,#359 装裱升级,#511 B 案改制):「名家鉴藏」装裱形制
  *  (视觉基准 proto/treasure/r5.html 节二,语言源第三轮 backpack.html)——
- *  绫边(程序化斜纹)/四角包角/画心(距条随品级)/题签(竖排承牌名)/
- *  鉴藏印(朱砂,右下)/跋文 六件套;品级大字退役,品级=画心距条+右上品级角标
- *  (菱形小底+数字,底色随品级)双通道。画心双通道:art 传入 ReactNode 即渲染
- *  (容器裁剪),缺省=远山肌理回退(程序化 SVG)。宝章恒朱砂(DESIGN §4.5
- *  「章恒朱砂」);数据单源 core/treasures.ts(TreasureDef),本组件不复制目录;
- *  消费方(手牌架珍宝明细行)经 title 自带指导价浮签。 */
+ *  绫边(程序化斜纹)/四角包角/画心(漆金外框+品级距条内衬,白纸画心)/题签
+ *  (竖排承牌名,白纸签墨字)/鉴藏印(朱砂,右下)/跋文 六件套;品级大字退役,
+ *  品级=画心距条内衬+右上品级角标(菱形小底+数字,底色随品级)双通道。
+ *  画心双通道:art 传入 ReactNode 即渲染(容器裁剪),缺省=远山肌理回退(程序化
+ *  SVG)。宝章恒朱砂(DESIGN §4.5「章恒朱砂」);数据单源 core/treasures.ts
+ *  (TreasureDef),本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带
+ *  指导价浮签。 */
 export interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   name: string;
   /** 品级 1..10(core/treasures.ts TreasureDef.level);越界=数据 bug 显式抛错(零兜底)。 */

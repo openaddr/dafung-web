@@ -169,7 +169,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-14",
+    "retired_reason": "#511 卡面 B 案画像源定档:sgs 十周年原画画质统一胜出,曹丕 noname 与同名小图变体退役;文件已下架,本条目留档"
   },
   "hero:zhangxingcai:noname": {
     "path": "assets/heroes/hero-zhangxingcai-noname.webp",
@@ -178,7 +181,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-14",
+    "retired_reason": "#511 卡面 B 案画像源定档:sgs 十周年原画画质统一胜出,张星彩 noname 与同名小图变体退役;文件已下架,本条目留档"
   },
   "hero:zhouyu:noname": {
     "path": "assets/heroes/hero-zhouyu-noname.webp",
@@ -187,7 +193,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-14",
+    "retired_reason": "#511 卡面 B 案画像源定档:sgs 十周年原画画质统一胜出,周瑜 noname 与同名小图变体退役;文件已下架,本条目留档"
   },
   "hero:taishici:noname": {
     "path": "assets/heroes/hero-taishici-noname.webp",
