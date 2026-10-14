@@ -15,7 +15,7 @@ import { formatMoney } from "@core/money";
 import { Motion } from "@core/theme";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import { TreasurePickModal } from "../TreasurePickModal";
-import { ScrollShell, ScrollButton } from "./ScrollShell";
+import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 export interface BankruptcyScrollProps {
@@ -58,7 +58,7 @@ export function BankruptcyScroll({
   const [pickOpen, setPickOpen] = useState(false);
   /* ── #94 凑足达成的一拍脉冲 ──
      为什么不用 animation 类:项目惯例 keyframes 都住在领域 css(board/fx/scroll/victory),
-     没有通用脉冲帧可引用,也不为此改 scroll.css → 用 transition transform 一拍替代:
+     没有通用脉冲帧可引用,也不为此改 banner.css → 用 transition transform 一拍替代:
      达成瞬间 scale-110,--dur-med(250ms)后回落,一次性不循环。
      why 一次性成立:清算期现金只增不减(凑足后引擎 assertStillOwing 硬拒绝再卖),
      settled 单调翻真一次,pulse 自然只播一遍。 */
@@ -77,7 +77,7 @@ export function BankruptcyScroll({
   const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
   return (
     <>
-      <ScrollShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
+      <BannerShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
         <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
           {settled
             ? "现金已凑足债务!点「结算」清偿,转危为安。"
@@ -112,13 +112,13 @@ export function BankruptcyScroll({
             <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
               {/* #362:裸卖钮退役,点入口开选宝弹层(装裱卡点选+二段式变卖,同交涉款) */}
               {treasures.length > 0 ? (
-                <ScrollButton
+                <BannerButton
                   testid={T.bankruptcySellTreasureOpen}
                   onClick={() => setPickOpen(true)}
                   title="装裱卡点选,二段式变卖"
                 >
                   变卖珍宝 · {treasures.length} 件
-                </ScrollButton>
+                </BannerButton>
               ) : (
                 <span className="text-xs text-ink-dim">无</span>
               )}
@@ -131,7 +131,7 @@ export function BankruptcyScroll({
             </h4>
             <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
               {sellableProperties.map((p) => (
-                <ScrollButton
+                <BannerButton
                   key={p.propId}
                   testid={T.bankruptcySellProp(p.propId)}
                   onClick={() => onCommand({ type: "sellPropertyBankruptcy", propId: p.propId })}
@@ -148,7 +148,7 @@ export function BankruptcyScroll({
                       </span>
                     )}
                   </span>
-                </ScrollButton>
+                </BannerButton>
               ))}
               {sellableProperties.length === 0 && <span className="text-xs text-ink-dim">无</span>}
             </div>
@@ -160,22 +160,22 @@ export function BankruptcyScroll({
             </h4>
             <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
               {heroes.map((h) => (
-                <ScrollButton
+                <BannerButton
                   key={h.id}
                   testid={T.bankruptcySellHero(h.id)}
                   onClick={() => onCommand({ type: "cashHeroBankruptcy", heroId: h.id })}
                 >
                   遣·{h.name} +{formatMoney(200)}
-                </ScrollButton>
+                </BannerButton>
               ))}
               {heroes.length === 0 && <span className="text-xs text-ink-dim">无</span>}
             </div>
           </section>
         </div>
         {/* 结算钉底:在滚动容器之外,滚动资产列表时它纹丝不动 */}
-        <div className="mt-3 flex justify-center border-t border-[rgba(140,110,60,0.35)] pt-3">
+        <div className="mt-3 flex justify-center border-t border-gold/30 pt-3">
           {/* #94 两态:owe>0=警示次级(此时结算=引擎 finalizeBankruptcy 毁局,须红字说破);
-            owe===0=主行动墨钮,外层 span 承载一拍脉冲(ScrollButton 不吃自定义类,又不能改 ScrollShell)。 */}
+            owe===0=主行动墨钮,外层 span 承载一拍脉冲(BannerButton 不吃自定义类)。 */}
           {settled ? (
             <span
               className={
@@ -183,13 +183,13 @@ export function BankruptcyScroll({
                 (pulsing ? "scale-110" : "scale-100")
               }
             >
-              <ScrollButton
+              <BannerButton
                 primary
                 testid={T.bankruptcyConfirm}
                 onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
               >
                 结算 · 凑足!免破产
-              </ScrollButton>
+              </BannerButton>
             </span>
           ) : (
             <button
@@ -204,7 +204,7 @@ export function BankruptcyScroll({
             </button>
           )}
         </div>
-      </ScrollShell>
+      </BannerShell>
       {/* #362 变卖珍宝选宝弹层:同交涉款选择模式;进度区=已凑/债务(cap 100%,
           与卷轴进度条同一算式),凑足后再卖由引擎 assertStillOwing 硬拒绝。 */}
       {pickOpen && treasures.length > 0 && (

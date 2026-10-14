@@ -3,8 +3,8 @@
 // 命令统一经 controller.dispatchCommand 下发——组件不直接改引擎,与旧 openScroll 体系同构。
 // Wave3(候选5):不再 import getEngine 摸活引擎,城名/地产定义经 getControllerContext。
 // 挂载于 GameScreen #scroll-layer(absolute 覆盖,pointer-events 由各弹层自身开启)。
-// #90(R3-C3):相位切换时保留上一个子节点 210ms 作幽灵退场帧(经 ScrollGhostContext
-// 让其 ScrollShell 以 rollback 类收场),决策卷轴「卷起来收走」不再瞬时消失。
+// #90(R3-C3):相位切换时保留上一个子节点 210ms 作幽灵退场帧(经 BannerGhostContext
+// 让其壳体以退场类收场),决策弹层「收走」不再瞬时消失。
 // #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
 // 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
 import { Fragment } from "react";
@@ -24,7 +24,7 @@ import {
   UpgradeDecisionScroll,
   VictoryScreen,
 } from "./index";
-import { ScrollGhostContext } from "./ScrollShell";
+import { BannerGhostContext } from "./BannerShell";
 import { useGhostChild } from "./useGhostChild";
 import { exportGameLog } from "../gameLogExport";
 import type { TileDetailRequest } from "../useCapitalPick";
@@ -315,10 +315,10 @@ export function DecisionScrollLayer({
     <>
       {/* 常驻 key 槽:幽灵帧出列时当前子节点不被 React 按位对调重挂 */}
       <Fragment key="scroll-current">{child}</Fragment>
-      {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ ScrollShell 幽灵态整体 inert,
+      {/* 幽灵帧渲染在当前子节点之后(DOM 末位)+ 壳体幽灵态整体 inert,
           保证任何选择器/点击永远先命中真实卷轴 */}
       {ghostSlot.ghost !== null && (
-        <ScrollGhostContext.Provider value={true}>{ghostSlot.ghost}</ScrollGhostContext.Provider>
+        <BannerGhostContext.Provider value={true}>{ghostSlot.ghost}</BannerGhostContext.Provider>
       )}
     </>
   );

@@ -12,7 +12,7 @@ import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import { TreasurePickModal } from "../TreasurePickModal";
-import { ScrollShell, ScrollButton } from "./ScrollShell";
+import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
 /** 城定义里定价要用的字段(接受完整 PropertyDef,也接受裁剪版)。 */
@@ -75,7 +75,7 @@ export function TreasureVisitorScroll({
   if (role === "visitor") {
     if (visitorDismissed) return null;
     return (
-      <ScrollShell
+      <BannerShell
         title={`${ownerGuohao}·珍宝抉择`}
         testid={T.treasureScroll}
         onClose={() => setVisitorDismissed(true)}
@@ -84,13 +84,13 @@ export function TreasureVisitorScroll({
           {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
           件珍宝,正在权衡是否出售…
         </p>
-      </ScrollShell>
+      </BannerShell>
     );
   }
 
   return (
     <>
-      <ScrollShell title={title} testid={T.treasureScroll}>
+      <BannerShell title={title} testid={T.treasureScroll}>
         {!mode ? (
           <>
             <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
@@ -99,7 +99,7 @@ export function TreasureVisitorScroll({
             <div className="flex flex-wrap justify-center gap-3">
               {/* W4b 逃生口:模式选择步随时可「暂不交易」退出(引擎 resolveTreasureOwner 已支持
                   skip 分支,core/authority.ts),城主不必在公道/坐地里二选一。 */}
-              <ScrollButton
+              <BannerButton
                 primary
                 testid={T.treasureSkip}
                 onClick={() =>
@@ -107,21 +107,21 @@ export function TreasureVisitorScroll({
                 }
               >
                 暂不交易
-              </ScrollButton>
-              <ScrollButton
+              </BannerButton>
+              <BannerButton
                 testid={T.treasureModeFair}
                 onClick={() => setMode("fair")}
                 title={MODE_META.fair.terms}
               >
                 公道买卖
-              </ScrollButton>
-              <ScrollButton
+              </BannerButton>
+              <BannerButton
                 testid={T.treasureModePremium}
                 onClick={() => setMode("premium")}
                 title={MODE_META.premium.terms}
               >
                 坐地起价
-              </ScrollButton>
+              </BannerButton>
             </div>
           </>
         ) : (
@@ -131,7 +131,7 @@ export function TreasureVisitorScroll({
             件珍宝,在弹层中点选要出售的。
           </p>
         )}
-      </ScrollShell>
+      </BannerShell>
       {mode !== null && (
         <TreasurePickModal
           title={`${MODE_META[mode].label} · 选珍宝`}

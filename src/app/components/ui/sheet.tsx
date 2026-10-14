@@ -57,7 +57,7 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden border-[rgba(43,35,23,0.28)] bg-gradient-to-b from-paper-hi to-paper-lo text-ink text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
+          "fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-ink text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
           SIDE_CLASSES[side],
           className,
         )}
@@ -70,7 +70,7 @@ function SheetContent({
           <SheetPrimitive.Close
             data-slot="sheet-close"
             aria-label="关闭"
-            className="absolute top-3 right-3 flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-[rgba(43,35,23,0.25)] bg-panel text-ink-dim hover:text-ink focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
+            className="absolute top-3 right-3 flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-ink-dim hover:text-ink focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
           >
             {/* × 符号走内联 SVG(Sym 同款口径:箭头/符号类不在字体栈内裸排,离线字体零 tofu) */}
             <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
@@ -93,10 +93,7 @@ function SheetHeader({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-header"
-      className={cn(
-        "flex flex-col gap-1 border-b border-[rgba(43,35,23,0.18)] px-4 pb-3 pt-4",
-        className,
-      )}
+      className={cn("flex flex-col gap-1 border-b border-gold/15 px-4 pb-3 pt-4", className)}
       {...props}
     />
   );
@@ -106,10 +103,7 @@ function SheetFooter({ className, ...props }: React.ComponentProps<"div">) {
   return (
     <div
       data-slot="sheet-footer"
-      className={cn(
-        "mt-auto flex flex-col gap-2 border-t border-[rgba(43,35,23,0.18)] px-4 py-3",
-        className,
-      )}
+      className={cn("mt-auto flex flex-col gap-2 border-t border-gold/15 px-4 py-3", className)}
       {...props}
     />
   );
