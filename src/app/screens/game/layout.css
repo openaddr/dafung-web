@@ -628,8 +628,11 @@
 /* ── 动作条(#256 出牌阶段态):斗地主式两段动作条,居中浮于仪表条上缘(原型
    .actionbar 移植,bottom 184px=仪表条 172px+12px 气口)——锚条不锚牌,空手牌时
    按钮仍在;选中放大牌占中时整条右让(.right-shift,原型 240px;实装仪表条左段 344px 使架中心右偏,实测 400px 起不压牌面)。
-   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai(原型小薇禁新用)。 ── */
+   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai(原型小薇禁新用)。
+   右让量收变量 --actionbar-shift(#496):魔数直写时短横屏断点无口可覆,844×390 下
+   必溢出视口;变量落在本元素,断点重定义见文件尾短横屏块。 ── */
 .game-layout .actionbar {
+  --actionbar-shift: 400px;
   position: absolute;
   left: 50%;
   bottom: calc(184px + var(--safe-bottom));
@@ -640,7 +643,7 @@
   gap: 14px;
 }
 .game-layout .actionbar.right-shift {
-  margin-left: 400px;
+  margin-left: var(--actionbar-shift);
 }
 /* 目标段「选择目标」标签(信息件,非按钮):纸底金边,与顶部 chip 同族 */
 .game-layout .actionbar .actionbar-lab {
@@ -830,6 +833,18 @@
   .game-layout .log-tab,
   .game-layout .actionbar {
     bottom: calc(144px + var(--safe-bottom));
+  }
+  /* 右让量短横屏收档(#496):桌面 400px 是 344px 左段+7.6px 牌基的实测口径,
+     844×390 下直写必溢出(条右缘 422+400+≈96>844)。本档 .me 344→296px、
+     架体 em 基 7.6→6.4px(hand-rack.css 同拍),放大牌占位等比变小,右让取同档
+     296px:条右缘 ≈422+296+96=814<844 完整可见,左缘 ≈622 仍不压放大牌面。
+     按钮钉横排:右让后条落在视口右段,abspos 收缩适配的可用宽(<首选宽)会把
+     钮字挤成竖排,nowrap 保「出牌/不出」二字横排不折。 */
+  .game-layout .actionbar {
+    --actionbar-shift: 296px;
+  }
+  .game-layout .actionbar .actionbar-btn {
+    white-space: nowrap;
   }
   .game-layout .me {
     width: 296px;
