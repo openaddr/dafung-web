@@ -323,7 +323,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             {/* 加入:凭码占第一个空 human 座位;X14(#33) form 包裹——回车即提交(等价点「加入」;
               空码/处理中不动,与按钮禁用同口径)。小屏键盘弹起时按钮随 #13 滚动容器可达 */}
             <form
-              className="font-deco text-sm text-ink border-t border-[rgba(43,35,23,0.22)] pt-4"
+              className="font-deco text-sm text-ink border-t border-ink/20 pt-4"
               onSubmit={(e) => {
                 e.preventDefault();
                 if (busy || !joinCode.trim()) return;
@@ -433,8 +433,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             onClick={copyRoomCode}
             title="点击复制房间码"
             aria-label={`房间码 ${roomId}，点击复制`}
-            // R3-B13(#85):hover 用底色反馈不动字色——金字于浅底对比不足(原 hover:text-gold 会掉到 1.8:1)
-            className="mt-2 block w-full rounded-[3px] border-y-2 border-[rgba(43,35,23,0.4)] py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
+            // R3-B13(#85):hover 用底色反馈不动字色;玄墨版(#514):房码签上下改金线裱边
+            //(金=势,房码是开局第一步的「势」件),hover 金晕同语言
+            className="mt-2 block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
           >
             {roomId}
           </button>
@@ -496,7 +497,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                       <span
                         data-testid={LID.seatGuohao(s.seat)}
                         title={`预设国号「${s.guohao}」`}
-                        className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] bg-danger font-title text-[13px] leading-none text-[#f6ead6]"
+                        // 玄墨版(#514):国号章漆金化(.seal-gold,#506 印章漆金化)
+                        className="seal-gold inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] font-title text-[13px] leading-none font-bold"
                       >
                         {s.guohao}
                       </span>
@@ -508,7 +510,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                       <>
                         <span
                           title="虚位以待"
-                          className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-[rgba(43,35,23,0.25)] font-title text-[11px] leading-none text-ink-dim/70"
+                          className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-ink/25 font-title text-[11px] leading-none text-ink-dim/70"
                         >
                           虚
                         </span>

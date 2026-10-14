@@ -196,7 +196,7 @@ export function SoloSetupScreen({
             </button>
           </div>
           {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-          <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
+          <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-ink/20 pb-3">
             立国号、定诸侯,起兵逐鹿天下。
           </p>
 
@@ -294,7 +294,7 @@ export function SoloSetupScreen({
                         onChange={(e) =>
                           setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
                         }
-                        className="min-h-[36px] rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
+                        className="min-h-[36px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
                       />
                     </label>
                   ))}
@@ -309,7 +309,7 @@ export function SoloSetupScreen({
           {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}
           <div className="su-seats flex flex-col gap-1.5">
             {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
-            <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b border-[rgba(43,35,23,0.25)] pb-1">
+            <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b border-ink/25 pb-1">
               <span />
               <span>国号</span>
               <span>类型</span>
@@ -324,7 +324,7 @@ export function SoloSetupScreen({
                   className="su-seat-row grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1"
                 >
                   <span
-                    className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base text-[#f6ead6]"
+                    className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base font-bold text-[color:var(--color-bg-deep)]"
                     style={{ background: color }}
                   >
                     {i + 1}
@@ -399,8 +399,8 @@ export function SoloSetupScreen({
                   // (审计裁决:首屏可达优先;触屏 32px 仍可用)
                   "w-8 h-8 rounded border font-deco text-base cursor-pointer transition-colors " +
                   (guohao === ch
-                    ? // 选中=钤印:朱砂实底(国号印的预览,与对局内方印同语言)
-                      "border-danger bg-danger text-[#f6ead6]"
+                    ? // 选中=钤印:漆金印(印章漆金化,#506;与对局内方印同语言,.seal-gold 在 app.css)
+                      "border-gold-deep seal-gold font-bold"
                     : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
                 }
               >
