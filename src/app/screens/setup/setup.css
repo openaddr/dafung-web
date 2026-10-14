@@ -1,0 +1,82 @@
+/* 单机配置页局部样式(#497):起兵 busy 呼吸 + 短横屏密度档。
+   放在 setup/ 目录内:这些样式只服务本屏,不污染全局体系(同 home.css 口径);
+   动画只动 opacity(GPU 合成,不触发布局),时长走 --dur-* token。 */
+
+/* 起兵 busy(#497 ②):墨钮金环呼吸 —— 大图加载期间给「进行中」的活反馈,
+   页面不再静止。呼吸挂 --dur-ambient 半频(1.3s,与棋盘金圈同拍;
+   tokens.css 允许的整数倍/半频 calc 特例);金环 box-shadow 静态绘制、只动 opacity。
+   仅 busy 期挂 .su-busy,开局切屏即卸。 */
+.su-busy {
+  position: relative;
+  isolation: isolate;
+}
+.su-busy::after {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  box-shadow:
+    0 0 0 2px var(--color-gold),
+    0 0 14px rgba(200, 161, 58, 0.5);
+  opacity: 0;
+  animation: su-breathe calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
+  pointer-events: none;
+}
+@keyframes su-breathe {
+  0%,
+  100% {
+    opacity: 0.1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* ── 短横屏密度档(#497 ③):666×360 等 max-height:480px 视口压纵向呼吸,
+   让「起兵」CTA 尽量上移可达。只压 padding/间距/座位行高(含真人国号输入行),
+   字级与材质不动、不重排 —— home 同款思路(观感不变,空间让位)。
+   桌面大屏(>480px 高)完全不进此档;类名无条件挂载、规则只在此档生效。 ── */
+@media (max-height: 480px) {
+  .su-root {
+    padding: 0.75rem;
+  }
+  .su-card {
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+  }
+  .su-map-row {
+    margin-bottom: 0.125rem;
+  }
+  .su-subtitle {
+    margin-bottom: 0.625rem;
+    padding-bottom: 0.5rem;
+  }
+  .su-head {
+    margin-bottom: 0.5rem;
+  }
+  .su-controls {
+    gap: 0.375rem;
+    margin-bottom: 0.5rem;
+  }
+  .su-seats {
+    gap: 0.25rem;
+  }
+  .su-seat-row {
+    padding-top: 0.125rem;
+    padding-bottom: 0.125rem;
+  }
+  .su-guohao-input {
+    min-height: 32px;
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  .su-pool-label {
+    margin-top: 0.375rem;
+  }
+  .su-pool {
+    gap: 0.25rem;
+  }
+  .su-actions {
+    margin-top: 0.5rem;
+  }
+}

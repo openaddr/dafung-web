@@ -32,6 +32,8 @@ import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 import { Sym } from "@app/screens/shared/Sym";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
+// #497:本屏局部样式(起兵 busy 呼吸 + 短横屏密度档),同 home.css 口径(screen 目录内自持)
+import "./setup.css";
 
 /** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
  *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
@@ -101,10 +103,18 @@ export function SoloSetupScreen({
   // 机遇(#125):默认档位 = public/config/jiyu.json(挂载后 fetch;首帧先显内置默认同值,
   // fetch 成功以文件值为准,失败维持内置默认——回退语义见 encounterConfig.ts)。
   const [encounter, setEncounter] = useState<EncounterFormValues>(BUILTIN_ENCOUNTER_DEFAULTS);
+  // #497 ⑤:折叠区说明文案的数值单独钉住配置加载结果 —— 表单编辑只动 encounter,
+  // 说明里的「默认档位」恒显配置值,不再手抄字面量(免与 jiyu.json 漂移成第二事实源)。
+  const [encounterDefaults, setEncounterDefaults] = useState<EncounterFormValues>(
+    BUILTIN_ENCOUNTER_DEFAULTS,
+  );
   useEffect(() => {
     let alive = true;
     fetchEncounterDefaults().then((v) => {
-      if (alive) setEncounter(v);
+      if (alive) {
+        setEncounter(v);
+        setEncounterDefaults(v);
+      }
     });
     return () => {
       alive = false;
@@ -149,14 +159,30 @@ export function SoloSetupScreen({
   return (
     // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
     // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断
-    <div data-testid={TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
+    <div
+      data-testid={TID.screen}
+      className="su-root flex h-full flex-col overflow-y-auto bg-bg p-6"
+    >
       <div className="m-auto flex w-full flex-col items-center">
-        <h1 className="font-brush text-4xl text-ink tracking-widest">单机模式</h1>
+        {/* #497 ①:顶部返回位 —— 标题行右端 Sym 箭头小笺钮(复用 onBack),8 诸侯 +
+          机遇展开时不必滚到卡底即可退;h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿) */}
+        <div className="relative w-full flex justify-center">
+          <h1 className="font-brush text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
+          <button
+            type="button"
+            data-testid="solo-setup-back-top"
+            onClick={onBack}
+            aria-label="返回首页"
+            className="note-btn absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[32px] text-ink cursor-pointer transition-colors"
+          >
+            <Sym name="back" size={14} />
+          </button>
+        </div>
 
         {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-        <div className="scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] p-5 mt-4">
+        <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] p-5 mt-4">
           {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-          <div className="font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
+          <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
             <span>当前地图:</span>
             <span data-testid={TID.currentMapName} className="text-ink">
               {mapName}
@@ -170,19 +196,19 @@ export function SoloSetupScreen({
             </button>
           </div>
           {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-          <p className="font-wenkai text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
+          <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-[rgba(43,35,23,0.18)] pb-3">
             立国号、定诸侯,起兵逐鹿天下。
           </p>
 
           {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
-          <h3 className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
+          <h3 className="su-head note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
             <i>阵</i>
             <span>开局布阵</span>
           </h3>
 
           {/* 诸侯数 / 目标身价 / AI 难度:X10(#29)原生 select 全退场——小范围数值走 stepper,
             受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式) */}
-          <div className="flex flex-col gap-3 font-deco text-sm text-ink mb-4">
+          <div className="su-controls flex flex-col gap-3 font-deco text-sm text-ink mb-4">
             <div className="flex flex-col gap-1">
               <span>诸侯数</span>
               <Stepper
@@ -274,16 +300,14 @@ export function SoloSetupScreen({
                   ))}
                 </div>
                 <p className="font-wenkai text-xs text-ink-dim">
-                  默认档位读自 config/jiyu.json(触发 40%,三档
-                  30/45/25)。触发概率为每次落格触发机遇的百分比; 三档基准按占比归一,和不必为
-                  100(非法值由引擎回退默认)。仅对本局生效。
+                  {`默认档位读自 config/jiyu.json(触发 ${encounterDefaults.triggerRate}%,三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。触发概率为每次落格触发机遇的百分比;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
                 </p>
               </div>
             </details>
           </div>
 
           {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}
-          <div className="flex flex-col gap-1.5">
+          <div className="su-seats flex flex-col gap-1.5">
             {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
             <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b border-[rgba(43,35,23,0.25)] pb-1">
               <span />
@@ -297,7 +321,7 @@ export function SoloSetupScreen({
                 <div
                   key={i}
                   data-testid={TID.seatRow(i)}
-                  className="grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1"
+                  className="su-seat-row grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1"
                 >
                   <span
                     className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-brush text-base text-[#f6ead6]"
@@ -327,7 +351,7 @@ export function SoloSetupScreen({
                         // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
                         // A7(#54):国号输入位用龙藏行书点缀(font-hand)
                         className={
-                          "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
+                          "su-guohao-input w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
                           (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
                         }
                       />
@@ -355,12 +379,14 @@ export function SoloSetupScreen({
           {/* 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
             #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
             承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号 */}
-          <div className="font-deco text-xs text-ink-dim mt-3 mb-1">字盘快选国号:</div>
+          <div className="su-pool-label font-deco text-xs text-ink-dim mt-3 mb-1">
+            字盘快选国号:
+          </div>
           <div
             data-testid={TID.guohaoPool}
             role="group"
             aria-label="字盘快选国号"
-            className="flex flex-wrap gap-1"
+            className="su-pool flex flex-wrap gap-1"
           >
             {GUOHAO_POOL.slice(0, 26).map((ch) => (
               <button
@@ -384,7 +410,7 @@ export function SoloSetupScreen({
           </div>
 
           {/* 操作区:返回首页 / 起兵 */}
-          <div className="flex items-center gap-2.5 mt-4">
+          <div className="su-actions flex items-center gap-2.5 mt-4">
             <button
               data-testid="solo-setup-back"
               onClick={onBack}
@@ -401,7 +427,9 @@ export function SoloSetupScreen({
               className={
                 btnBase +
                 // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按
-                " ink-btn font-bold py-2.5 px-8 disabled:opacity-40 disabled:cursor-not-allowed"
+                " ink-btn font-bold py-2.5 px-8 disabled:opacity-40 disabled:cursor-not-allowed" +
+                // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
+                (busy ? " su-busy" : "")
               }
             >
               {busy ? "调兵遣将中…" : "起兵"}

@@ -55,7 +55,9 @@ export function HomeScreen({
     tid: HOME_TID.solo,
     label: "单机模式",
     onClick: onSolo,
-    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl home-btn-gold ink-btn font-bold`,
+    // #497 ④:home-btn-gold(金底变体遗物)退役 —— 主入口现为墨钮,与次级笺钮
+    // 共用同一条金色笔触 hover 线(home-btn-brush),hover 语言全屏统一
+    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn font-bold`,
   };
   const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
@@ -69,8 +71,11 @@ export function HomeScreen({
     // 666×360 横屏等小视口下四入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
     <div data-testid={HOME_TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
       <div className="m-auto flex w-full flex-col items-center">
-        {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进 */}
-        <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest">群雄逐鹿</h1>
+        {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
+          #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏) */}
+        <h1 className="home-title-in font-brush text-6xl text-ink tracking-widest pl-[0.1em]">
+          群雄逐鹿
+        </h1>
         {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
         <div className="home-title-in-sub home-sub-tight font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
           — 三国大富翁 —

@@ -226,7 +226,8 @@ export function MapSelectPanel({
                     className={
                       "text-left rounded-[3px] border px-3 py-2.5 transition-colors cursor-pointer " +
                       (selected
-                        ? "border-gold bg-gold/15"
+                        ? // #497 ④:选中金色档与 SegmentedSelect 统一 gold/25(漂移收敛)
+                          "border-gold bg-gold/25"
                         : "border-ink/25 bg-bg/60 hover:border-gold/60")
                     }
                   >

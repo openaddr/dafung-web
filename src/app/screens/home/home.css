@@ -68,11 +68,9 @@
   transform: scaleX(1);
 }
 
-/* H-1 金底变体:金底上金色笔触线不可见(同色),取反为墨线;
-   panel 底按钮保持上方金线不变。写在基础规则之后,同特异度后来者覆盖。 */
-.home-btn-gold::after {
-  background: var(--color-ink);
-}
+/* H-1 金底变体已退役(#497):主入口改墨钮后,原 .home-btn-gold 类名(金底,误导)与
+   「笔触线取反为墨线」的覆盖规则一并删除——墨钮与笺钮共用同一条金色笔触 hover 线
+   (金=势,hover 语言全屏统一),勿回加。 */
 
 /* H-4 键盘 focus-visible 轮廓:虚线墨圈(与笔触下划线并存,鼠标路径不受影响) */
 .home-btn-brush:focus-visible {
