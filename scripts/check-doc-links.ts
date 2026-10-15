@@ -17,7 +17,7 @@
 // 用法:bun scripts/check-doc-links.ts
 // 退出码:0=全绿;1=有死链(逐条 文件:行 列出);2=自身运行出错
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { dirname, join, normalize } from "node:path/posix";
 
 if (process.argv.length > 2) {
@@ -128,7 +128,17 @@ for (const file of mdFiles) {
           ? trackedDirs.has(resolved.replace(/\/$/, ""))
           : tracked.has(resolved);
         if (!alive) {
-          dead.push({ file, line: i + 1, target, reason: "目标不在 jj 跟踪集" });
+          // 磁盘存在但不在 jj 跟踪集 = gitignore 排除或超 snapshot 大小上限被拒(jj 自动
+          // 快照本会收编新文件,落不到跟踪集必有原因);真不存在才是普通死链
+          const onDisk = existsSync(resolved.replace(/\/$/, ""));
+          dead.push({
+            file,
+            line: i + 1,
+            target,
+            reason: onDisk
+              ? "目标在磁盘存在但未入 jj 跟踪集(gitignore 排除或超 snapshot 大小上限)——查该文件为何未被跟踪"
+              : "目标不在 jj 跟踪集",
+          });
           continue;
         }
       }

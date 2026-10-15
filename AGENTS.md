@@ -49,7 +49,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 文档风格规约
 
-全中文,入口文件英文命名(深层文档中文文件名,ADR 英文);受众玩家优先;数值表只做索引 + 代码锚点,**不复制数值造第二事实源**,活文档禁写行号;README 主 CTA 置顶,开发内容下沉 how-to/;发版走 git tag + GitHub Releases,不建 CHANGELOG。
+全中文,入口文件英文命名(深层文档中文文件名,ADR 英文);受众玩家优先;数值表只做索引 + 代码锚点,**不复制数值造第二事实源**(计数同理——用例数/时机数/文件数等一律指向不落数),活文档禁写行号;README 主 CTA 置顶,开发内容下沉 how-to/;发版走 git tag + GitHub Releases,不建 CHANGELOG。
 
 ## 关键文件
 
@@ -71,7 +71,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 ## 验证纪律
 
 - **测试宁缺毋滥**:宁愿不要测试用例,也不要垃圾用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
-- **开工前**:`bun run check:freshness`(基线指纹 / 落后 origin-master / 冲突标记三合一;过期禁止开工,审计取证尤其如此——防在旧基线上修已消失的问题)。
+- **开工前**:`bun run check:freshness`(基线指纹 / 落后 origin-master / 冲突标记三合一;过期禁止开工,审计取证尤其如此——防在旧基线上修已消失的问题)。多轮任务每轮续作前重跑——并行会话可能已合票推进 master(2026-10-15 实锤:收账把工作副本运到新基线)。
 - **改完码**:`bun run lint`(oxlint,0 warning 基线)+ `bun run fmt`(oxfmt)先过;日常 `bun run build`(tsc+vite)+ `bun test`;改 `scripts/` 加跑 `bun run typecheck:scripts`。
 - **分层**:工单收口只跑本工单 spec(`bun run test:e2e:one`);全量 `E2E_WORKERS=4 bun run test:e2e` 每分支一次,PR 前收口(墙钟预算 ~5 分钟,门禁=放行判据)。命令细节见[开发与测试](./docs/how-to/开发与测试.md)。
 - e2e 时间倍率 `E2E_TIME_SCALE`(默认 0.25)由 fixtures 注入,仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。

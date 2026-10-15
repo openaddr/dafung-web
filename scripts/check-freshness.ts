@@ -163,18 +163,14 @@ if (behindMain > maxBehind) {
 // rule 5:冲突标记扫描(只查外对 `<<<<<<< `/`>>>>>>> `,行首+空格,规避 md setext
 // `======` 误报);二进制文件(内容含 NUL)跳过
 const conflicted: string[] = [];
-for (const file of jj("file", "list")
-  .split("\n")
-  .filter(Boolean)) {
+for (const file of jj("file", "list").split("\n").filter(Boolean)) {
   const bytes = readFileSync(file);
   if (bytes.includes(0)) continue;
   if (/^(<<<<<<< |>>>>>>> )/m.test(bytes.toString())) conflicted.push(file);
 }
 if (conflicted.length > 0) {
   conflicted.sort();
-  failures.push(
-    `以下文件含未解冲突标记(污染所有下游读取方,见 #462):\n${conflicted.join("\n")}`,
-  );
+  failures.push(`以下文件含未解冲突标记(污染所有下游读取方,见 #462):\n${conflicted.join("\n")}`);
 }
 
 if (failures.length > 0) {
