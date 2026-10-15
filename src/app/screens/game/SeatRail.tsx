@@ -6,10 +6,11 @@
 // 活跃方=金圈光效+「运筹中」微标(DESIGN.md §4.6 例外保留项,仅此一处;操作不限时,
 // 无回合倒计时条,2026-09-25 拍板)。终局胜者=席位卡金环(.won,DESIGN §4.6:撤掉
 // 文字状态仍可辨则不加文字,无「胜」字章)。
-// 目标段(#256):出牌阶段指向性牌确认后,候选席位卡金圈呼吸(.candidate/.seat-target,
-// 原型 .selglow 移植,无文字章)+ 点席位即出(免二次确认);棋盘 token 同步呼吸归
-// TokenLayer 挂点。暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探
-// 窥探目标在浮签里追加窥见牌名(原 OthersPanel title 语义平移)。
+// 目标段(#256/#417):出牌阶段指向性牌确认后,候选席位卡金圈呼吸(.candidate,
+// 原型 .selglow 移植,无文字章)+ 点席位=选中(实金停持态 .picked,再点同席取消,
+// #417 统一口径)+ 动作条「出」钮打出;棋盘 token 同步呼吸归 TokenLayer 挂点。
+// 暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探窥探目标在浮签里
+// 追加窥见牌名(原 OthersPanel title 语义平移)。
 // 变化反馈(#495):对手现金/体力挂 useDeltaFloat 浮标(与仪表条同款机制,正金负朱,
 //  渲染件 DeltaFloats 共享单源)——大富翁最核心的「谁在变富」不再静默。
 import { formatMoney } from "@core/money";
@@ -20,6 +21,7 @@ import { AttrIcon, MiniBacks } from "./AttrIcon";
 import { ATTR_TIPS, Tip, type TipText } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
+import "./seat-target.css";
 
 /** 体力血条转红的低体力线(原型图例口径「低于三成转红」)。 */
 const STAMINA_LOW = 30;
@@ -29,10 +31,12 @@ interface Seated {
   seat: number;
 }
 
-/** 目标段(#256)单席点击槽:available=候选(金圈呼吸,可点即出);
- *  不可用席位照列不动,reason 进浮签(title,DESIGN §4.6 禁文字章)。 */
+/** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
+ *  selected=已选中(实金停持,再点取消);不可用席位照列不动,reason 进浮签
+ *  (title,DESIGN §4.6 禁文字章)。 */
 export interface SeatTargetSlot {
   available: boolean;
+  selected?: boolean;
   reason?: string;
   onPick: () => void;
 }
@@ -97,7 +101,8 @@ function SeatCard({
         (active ? " active" : "") +
         (winner ? " won" : "") +
         (p.isBankrupt ? " bankrupt" : "") +
-        (target?.available ? " candidate" : "")
+        (target?.available ? " candidate" : "") +
+        (target?.selected ? " picked" : "")
       }
     >
       {active && <span className="think">运筹中</span>}
@@ -180,14 +185,16 @@ function SeatCard({
           </Tip>
         </div>
       )}
-      {/* 目标段点击层(#256):真按钮覆盖卡面(键盘可达,不自写交互语义);点席位即出,
-          免二次确认。席位卡本体仍是展示件,候选态=金圈呼吸(.candidate,layout.css)。 */}
+      {/* 目标段点击层(#256/#417):真按钮覆盖卡面(键盘可达,不自写交互语义);
+          点席位=选中/再点取消(选中实金停持 .picked,样式 seat-target.css),打出走
+          动作条「出」确认钮。席位卡本体仍是展示件,候选态=金圈呼吸(.candidate)。 */}
       {target && (
         <button
           type="button"
           data-testid={TESTIDS.seatTarget(seat)}
-          className="seat-target"
+          className={"seat-target" + (target.selected ? " picked" : "")}
           disabled={!target.available}
+          aria-pressed={target.available ? Boolean(target.selected) : undefined}
           aria-label={
             target.available
               ? `指定 ${p.guohao || p.name} 为目标`
@@ -207,13 +214,14 @@ function SeatCard({
  *  selfSeat(#453 收口契约):本参数是「屏前真人的自我身份」——单机热座恒 0、联机=本座,
  *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):窥探放行(#122/T4,#453/B1
  *  教训——审计 #446 曾因 prop 名 viewSeat 误判绑定错位)与「自身不出卡」消费的都是
- *  稳定身份。targets(#256 目标段):出牌阶段指向性牌的候选席位(键=座位号),在场时候选席
- *  金圈呼吸、点席位即出;GameScreen 从快照 choices 派生,本件只呈现。 */
+ *  稳定身份。targets(#256/#417 目标段):出牌阶段指向性牌的候选席位(键=座位号),
+ *  在场时候选席金圈呼吸、点席位=选中/再点同席取消(打出归动作条「出」确认钮,
+ *  GameScreen 从快照 choices 派生,本件只呈现)。 */
 export interface SeatRailProps {
   snapshot: GameSnapshot;
   selfSeat: number;
   targets?: {
-    bySeat: Map<number, { available: boolean; reason?: string }>;
+    bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
     onPick: (seat: number) => void;
   };
 }
@@ -233,7 +241,12 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
   const targetSlot = (seat: number): SeatTargetSlot | undefined => {
     const t = targets?.bySeat.get(seat);
     if (!t || !targets) return undefined;
-    return { available: t.available, reason: t.reason, onPick: () => targets.onPick(seat) };
+    return {
+      available: t.available,
+      selected: t.selected,
+      reason: t.reason,
+      onPick: () => targets.onPick(seat),
+    };
   };
 
   // 单卡渲染单源(mini 参数收拢:常态列与顶行缩微同构,仅形态差异——评审去重前
