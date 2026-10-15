@@ -5,8 +5,10 @@
 // (改名/搬目录/大扫除)收口前跑一次,有死链直接红,零兜底。
 //
 // 范围与口径:
-//   - 扫 git 跟踪(已入 index)的全部 .md;走 ls-files,天然跳过 tmp/、node_modules
-//   - 只查 [](...) 内链:目标必须在 git 跟踪集里(链接到未跟踪文件=别的机器上
+//   - 扫 jj 跟踪(工作副本 @ 树)的全部 .md;走 jj file list,天然跳过 gitignore 的
+//     tmp/、node_modules,未提交新文件也在扫描集里(#533 jj 化:git ls-files -z 退役,
+//     jj workspace 无 .git 也能跑)
+//   - 只查 [](...) 内链:目标必须在 jj 跟踪集里(链接到未跟踪文件=别的机器上
 //     就是死链,同样算红);目录链接按「跟踪集里有其后代文件」判活
 //   - #锚点对目标文件标题(GitHub slug 仿真);纯 #锚点按同页标题校验
 //   - 围栏代码块(```/~~~)内的链接不查——示例不是导航
@@ -23,17 +25,22 @@ if (process.argv.length > 2) {
   process.exit(2);
 }
 
-function git(...gitArgs: string[]): string {
-  const proc = Bun.spawnSync(["git", ...gitArgs], { stdout: "pipe", stderr: "pipe" });
+function jj(...jjArgs: string[]): string {
+  const proc = Bun.spawnSync(["jj", ...jjArgs], { stdout: "pipe", stderr: "pipe" });
   if (proc.exitCode !== 0) {
-    console.error(`[doc-links] git ${gitArgs.join(" ")} 失败:\n${proc.stderr.toString()}`);
+    console.error(`[doc-links] jj ${jjArgs.join(" ")} 失败:\n${proc.stderr.toString()}`);
     process.exit(2);
   }
   return proc.stdout.toString();
 }
 
-// -z:NUL 分隔且不转义非 ASCII 路径(默认 quotePath 会把中文路径变成八进制字面量)
-const allTracked = git("ls-files", "-z").split("\0").filter(Boolean);
+// jj file list:每行一个仓库相对路径,UTF-8 原样输出(无 git quotePath 的八进制转义,
+// 旧版 -z NUL 解析随之退役);Windows 上分隔符是反斜杠,归一成 / 与下方 posix 链接
+// 解析对齐(本仓文件名不含字面反斜杠,归一零风险)
+const allTracked = jj("file", "list")
+  .split("\n")
+  .filter(Boolean)
+  .map((p) => p.replace(/\\/g, "/"));
 const tracked = new Set(allTracked);
 const mdFiles = allTracked.filter((f) => f.toLowerCase().endsWith(".md"));
 const trackedDirs = new Set<string>();
@@ -121,7 +128,7 @@ for (const file of mdFiles) {
           ? trackedDirs.has(resolved.replace(/\/$/, ""))
           : tracked.has(resolved);
         if (!alive) {
-          dead.push({ file, line: i + 1, target, reason: "目标不在 git 跟踪集" });
+          dead.push({ file, line: i + 1, target, reason: "目标不在 jj 跟踪集" });
           continue;
         }
       }
