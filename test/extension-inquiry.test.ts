@@ -79,6 +79,7 @@ function fakeInquiryModule(captured: { seat: number }[]): ExtensionAuthorityModu
             available: true,
           }));
         },
+        resolve: () => {}, // 应答口(#424);本文件只测选项集生产面,注册面形状完备即可
       },
     ],
   };

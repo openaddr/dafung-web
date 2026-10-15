@@ -53,10 +53,10 @@ const contribution: ExtensionClientPackage = {
     heroFlag: (heroId) => (heroId === "taishici" ? { url: FLAG_URL, alt: "太史慈将旗" } : null),
   },
   interactions: {
-    /** 问询呈现意图(#410):盲选问询以牌背呈现——选项 label 是序号不是牌面,
-     *  渲染层按意图画牌背+序号(消费挂点归 UI 票);其余问询无定制,走通用卷轴。 */
+    /** 问询呈现意图(#410 声明/#424 弹层消费):盲选问询以牌背呈现——选项 label 是
+     *  序号不是牌面,弹层按意图画牌背+序号(InquiryScroll);题名挂扩展词汇。 */
     inquiryPresentation: (inquiryId) =>
-      inquiryId === "taishici-blind-pick" ? { blindCards: true } : null,
+      inquiryId === "taishici-blind-pick" ? { title: "信义盲选", blindCards: true } : null,
   },
 };
 

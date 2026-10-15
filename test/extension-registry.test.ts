@@ -144,13 +144,13 @@ describe("扩展注册面(#378)", () => {
 });
 
 describe("扩展问询注册面(#410 交互 handler)", () => {
-  /** 唯一 id 的最小问询(选项集产出由断言侧自定)。 */
+  /** 唯一 id 的最小问询(选项集产出由断言侧自定;resolve 应答口 #424,注册面不触发)。 */
   function makeInquiryModule(
     id: string,
     askPlayer: (ctx: { seat: number }) => unknown,
   ): ExtensionAuthorityModule {
     const mod = makeModule();
-    return { ...mod, inquiries: [{ id, askPlayer: askPlayer as never }] };
+    return { ...mod, inquiries: [{ id, askPlayer: askPlayer as never, resolve: () => {} }] };
   }
 
   it("注册后读口可见;askPlayer 触发产出选项集(卸载精确还原)", () => {
@@ -172,12 +172,13 @@ describe("扩展问询注册面(#410 交互 handler)", () => {
   it("问询 id 包内重复 / 与已装包冲突 / 缺 id → 炸", () => {
     const id = `test-inquiry-${Math.random().toString(36).slice(2, 8)}`;
     const noop = () => [];
+    const noop2 = () => {};
     expect(() =>
       registerExtensionAuthorityModule({
         ...makeInquiryModule(id, noop),
         inquiries: [
-          { id, askPlayer: noop as never },
-          { id, askPlayer: noop as never },
+          { id, askPlayer: noop as never, resolve: noop2 },
+          { id, askPlayer: noop as never, resolve: noop2 },
         ],
       }),
     ).toThrow(new RegExp(`包内问询 id 重复:「${id}」`));
@@ -189,7 +190,7 @@ describe("扩展问询注册面(#410 交互 handler)", () => {
     expect(() =>
       registerExtensionAuthorityModule({
         ...makeModule(),
-        inquiries: [{ id: "", askPlayer: noop as never }],
+        inquiries: [{ id: "", askPlayer: noop as never, resolve: noop2 }],
       }),
     ).toThrow(/缺 id 的问询/);
   });

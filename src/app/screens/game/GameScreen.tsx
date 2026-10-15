@@ -37,6 +37,7 @@ import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
 import { WarReportDrawer } from "./WarReportDrawer";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
+import { InquiryLayer } from "./InquiryScroll";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
@@ -408,6 +409,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               interactive={interactive}
               tileDetail={tileDetail}
             />
+            {/* 定制问询弹层路由(#424,ADR-0022 交互 handler 客户端半边):与决策卷轴
+              平级同槽(AwaitingInquiry 与各决策相位互斥,无同帧双弹层),呈现意图定制。 */}
+            <InquiryLayer snapshot={snapshot} interactive={interactive} />
           </div>
           {/* 版本角标(构建排查用;右下角,席位卡列与仪表条之间的空档) */}
           <span className="pointer-events-none absolute right-1 bottom-0.5 font-wenkai text-[10px] text-ink-dim/70">

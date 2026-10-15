@@ -22,10 +22,10 @@
 //   ✅ 动画 handler      app:吃引擎事件批补演出(src/app/extensions,消费点 fx/event-extract)
 //   ✅ 渲染 hook         app:名将专属将旗(HeroCardFace 消费;assets/ 资源走 URL)
 //   ✅ 交互 handler      定制问询(choices 之外问询,ADR-0022 与 ADR-0020 咬合):
-//                       权威侧 askPlayer 经 extension-registry 注册(本文件
-//                       ExtensionInquiry,#410);引擎消费挂点已落(#432:askInquiry
-//                       挂起 id,无匹配 choices 时按 id 回调出选项集,选项盖 inquiryId
-//                       章);解决命令与客户端呈现接线归 #424
+//                       权威侧 askPlayer/resolve 经 extension-registry 注册(本文件
+//                       ExtensionInquiry,#410/#424);引擎相位化消费(#424:AwaitingInquiry
+//                       相位+PHASE_CHOICES 注册条目+resolveInquiry 命令回灌 resolve,
+//                       选项盖 inquiryId 章);客户端问询弹层按呈现意图渲染(同票落地)
 //   ◻ 新牌类型          锦囊/珍宝牌新种类(数据表+结算案+卡面),后续票
 //   ◻ 新格子类型        棋盘格新种类(board.ts 格判别+落格结算),后续票
 //   ◻ 自定义面板        扩展自有 UI 面板/弹层挂点,后续票
@@ -67,27 +67,35 @@ export interface ExtensionAuthorityContribution {
   inquiries?: ExtensionInquiry[];
 }
 
-// ── 交互 handler(#410,#378 遗留概念位落型)──
+// ── 交互 handler(#410/#424,#378 遗留概念位落型)──
 // 与 choices 通路(ADR-0013)的咬合口径:**handler 是选项集的上游生产者之一,不是
 // 旁路**——choices 已能表达的问询仍走各相位注册的计算器;handler 只接管 choices 无法
 // 自然表达的定制问询(如「从两张暗牌中盲选」:通用卷轴按 label 渲染会泄露牌面)。
-// 引擎在无匹配 choices 时按 id 回调 askPlayer,产出的选项集**仍用 ChoiceOption 词汇**,
-// 经 snapshot.choices 单通道透出——UI/bot/联机零新消费通路;定制呈现意图(牌背等)
+// 引擎相位化消费(#424):askInquiry 置挂起载荷并按选项集分流(≥2 可用进 AwaitingInquiry
+// 相位),选项集经 PHASE_CHOICES.AwaitingInquiry 注册条目按 id 回调 askPlayer 产出,
+// **仍用 ChoiceOption 词汇**经 snapshot.choices 单通道透出——UI/bot/联机零新消费通路;
+// 玩家应答经 resolveInquiry 命令回灌本接口的 resolve 结算;定制呈现意图(牌背等)
 // 由客户端交互 hook 声明(src/app/extensions/registry.ts),弹层行为收口 shadcn。
-/** 定制问询上下文:engine=只读语义(产选项不改状态,状态变更是后续命令结算的事);
- *  seat=被询问者座位(决策归属,联机侧据此投影私密问询);params=发起方透传参数
- *  (包作者自定义词汇,与 EffectFn 的 params 同纪律:缺项由 handler 自己炸出)。 */
+/** 定制问询上下文:askPlayer 侧 engine=只读语义(产选项不改状态);resolve 侧 engine=
+ *  结算语义(应答生效走引擎公共方法,同 EffectFn 纪律);seat=被询问者座位(决策归属,
+ *  联机侧据此投影私密问询);params=发起方透传参数(包作者自定义词汇,与 EffectFn 的
+ *  params 同纪律:缺项由 handler 自己炸出)。 */
 export interface ExtensionInquiryCtx {
   engine: GameEngine;
   seat: number;
   params: Record<string, number>;
 }
 
-/** 单条定制问询:id 全局唯一(与已装包冲突即炸,extension-registry 校验);askPlayer
- *  纯函数(core 纪律同 EffectFn:禁 DOM/React、无随机数/时钟)。 */
+/** 单条定制问询:id 全局唯一(与已装包冲突即炸,extension-registry 校验);两侧均纯函数
+ *  (core 纪律同 EffectFn:禁 DOM/React、无随机数/时钟)——askPlayer 产选项集(选项 id
+ *  是应答句柄);resolve 收应答结算(optionId 之外的选择=调用方 bug,-handler 自己炸出;
+ *  引擎已先行校验选项存在且可用)。 */
 export interface ExtensionInquiry {
   id: string;
   askPlayer(ctx: ExtensionInquiryCtx): ChoiceOption[];
+  /** 应答结算(#424):玩家/命令路(resolveInquiry)与引擎自动执行(选项集 ≤1 可用,
+   *  ADR-0013)共用此口回灌。结算完毕由引擎清挂起载荷并续回合收口,handler 不管流程。 */
+  resolve(ctx: ExtensionInquiryCtx, optionId: string): void;
 }
 
 /** 权威侧装载单元:manifest(来自 manifest.json)+ 贡献(来自入口模块)——

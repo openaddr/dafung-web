@@ -447,23 +447,24 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingJinnang: jinnangChoices,
   AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
+  AwaitingInquiry: inquiryChoices, // 定制问询(#424,ADR-0022):与内置相位同表单通道
 };
 
 /** 自动执行例外名单(ADR-0013 决议 3):这些相位即使唯一选项也照常弹卷轴。 */
 export const EXCLUDED_FROM_AUTO: ReadonlySet<TurnPhase> = new Set(["AwaitingBankruptcySettle"]);
 
-/** 按相位查注册表计算选项集(引擎 choicesFor / 进入相位前的预检共用)。已注册相位
- *  计算器优先;无匹配 choices(未注册相位)时挂点回调定制问询(#432),见 inquiryChoices。 */
+/** 按相位查注册表计算选项集(引擎 choicesFor / 进入相位前的预检共用)。定制问询(#424)
+ *  与内置相位同表:AwaitingInquiry 注册 inquiryChoices,#432 的「无匹配相位 fallthrough
+ *  改道问询」退役——挂起问询 ⇔ AwaitingInquiry 是状态机不变量(askInquiry 置相位/
+ *  endTurn 收口延期守卫),非问询相位不回调 handler,注册表查无计算器即空集。 */
 export function computeChoices(e: GameEngine, phase: TurnPhase): ChoiceOption[] {
-  const compute = PHASE_CHOICES[phase];
-  if (compute) return compute(e);
-  return inquiryChoices(e);
+  return PHASE_CHOICES[phase]?.(e) ?? [];
 }
 
-/** 定制问询挂点(#432,ADR-0022 交互 handler):无匹配 choices 时按挂起 id 回调
- *  extensionInquiries 出选项集——handler 是选项集的上游生产者之一,不是旁路;产出仍用
- *  ChoiceOption 词汇,统一盖 inquiryId 章(客户端查呈现意图的唯一线索)。零兜底:挂起
- *  id 查无注册问询(如对局中途卸包)= 状态机 bug,当场炸出不静默跳过。 */
+/** 定制问询选项计算器(#424 注册为 AwaitingInquiry 条目,ADR-0022 交互 handler):
+ *  按挂起 id 回调 extensionInquiries 出选项集——handler 是选项集的上游生产者之一,不是
+ *  旁路;产出仍用 ChoiceOption 词汇,统一盖 inquiryId 章(客户端查呈现意图的唯一线索)。
+ *  零兜底:挂起 id 查无注册问询(如对局中途卸包)= 状态机 bug,当场炸出不静默跳过。 */
 function inquiryChoices(e: GameEngine): ChoiceOption[] {
   const pending = e.pendingInquiry;
   if (pending == null) return [];
