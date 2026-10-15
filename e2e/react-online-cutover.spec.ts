@@ -13,19 +13,30 @@
 // 联机 spec 免注入时间倍率(testUnscaled);跑前需先 build(两 webServer 都消费 dist)。
 import { testUnscaled as test, expect, type Page } from "./fixtures";
 import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "./react-helpers";
+import { EVENT_TIERS } from "../src/core/event-tiers";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
 /** 校准快照判定(e2e 侧镜像,口径与 scripts/server.ts CALIBRATION_* 一致):
- *  开局 Setup 全程 / 节点批(gameStarted·playerBankrupt)/ 决策窗五相位停留 /
- *  决策窗退出收尾(空批 flush)。其余 snapshot = 逐步快照(切换后的违例)。 */
+ *  开局 Setup 全程 / 节点批(gameStarted·playerBankrupt)/ 决策窗五相位与反应窗停留 /
+ *  校准兜底批(#430 档位表 fold ∈ {fold+calibration, calibration-only} 的 kind——
+ *  窃玉偷香/耗竭处置等结算批按设计随窗闭沿落校准,折叠面不精确折、状态由校准覆盖)。
+ *  其余 snapshot = 逐步快照(切换后的违例)。#529 注:快档 40ms/步后,bot 链的窗闭沿/
+ *  窗停留逐拍被 flush 冲洗出来,上述两类合法校准形状从「从不出现」变为「常态出现」,
+ *  镜像据此补齐;普通 kind 的逐步快照仍是违例。 */
 const CALIBRATION_EVENT_KINDS = new Set(["gameStarted", "playerBankrupt"]);
+const CALIBRATION_BACKED_KINDS: ReadonlySet<string> = new Set(
+  Object.entries(EVENT_TIERS)
+    .filter(([, tier]) => tier.fold === "fold+calibration" || tier.fold === "calibration-only")
+    .map(([kind]) => kind),
+);
 const CALIBRATION_WINDOWS = new Set([
   "AwaitingJinnang",
   "AwaitingHeroPick",
   "AwaitingEncounter",
   "AwaitingExhaustion",
   "AwaitingBankruptcySettle",
+  "AwaitingReaction",
 ]);
 function isCalibrationSnapshot(msg: {
   phase?: string;
@@ -37,7 +48,8 @@ function isCalibrationSnapshot(msg: {
     msg.phase === "Setup" ||
     CALIBRATION_WINDOWS.has(msg.turnPhase ?? "") ||
     events.length === 0 ||
-    events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind))
+    events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
+    events.some((ev) => CALIBRATION_BACKED_KINDS.has(ev.kind))
   );
 }
 

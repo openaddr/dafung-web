@@ -275,9 +275,9 @@ export function assembleDownlinkShot(
 // fold=calibration-only / fold+calibration 的漂移窗即校准的消费面,覆盖关系由下方
 // CALIBRATION_COVERAGE 逐 kind 点名(漏点名 = 编译红)。
 /** 决策窗校准相位(#388):进入/停留/退出都强制全量(判定依据=引擎公开 turnPhase;
- *  退出沿无相位事件,由 flush 侧 prev/settled 前后沿夹出——窃玉偷香/火攻降级等
- *  锦囊结算批随窗闭沿落校准)。ReadonlySet<TurnPhase>:相位改名 = 编译红(字符串
- *  集合退役,#431;bot-driver INPUT_PHASES 同款纪律的登记面补齐)。 */
+ *  退出沿无相位事件,由 flush 侧 prev/settled 前后沿夹出)。ReadonlySet<TurnPhase>:
+ *  相位改名 = 编译红(字符串集合退役,#431;bot-driver INPUT_PHASES 同款纪律的登记面
+ *  补齐)。 */
 export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingJinnang",
   "AwaitingHeroPick",
@@ -292,6 +292,17 @@ export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
   "gameStarted",
   "playerBankrupt",
 ]);
+/** 校准兜底 kind 集(#430 档位表推导):fold ∈ {fold+calibration, calibration-only}——
+ *  折叠面不精确折/刻意不折,转移由校准快照覆盖(对账底册见下方 CALIBRATION_COVERAGE)。
+ *  #529 起兼作窗闭沿校准的判据面:闭沿批为空批或含兜底 kind 才落校准——快档 40ms/步
+ *  把每个闭沿都冲洗成独立 flush,不限流 doom 全量快照随每次出牌闭沿跟发,退化成逐步
+ *  广播(违背 ADR-0020「快照不再作为逐步同步单元」);普通 kind 结算折叠精确,事件批
+ *  即事实,无需快照随车。 */
+export const CALIBRATION_BACKED_KINDS: ReadonlySet<EventKind> = new Set(
+  (Object.entries(EVENT_TIERS) as [EventKind, (typeof EVENT_TIERS)[EventKind]][])
+    .filter(([, tier]) => tier.fold === "fold+calibration" || tier.fold === "calibration-only")
+    .map(([kind]) => kind),
+);
 /** 校准覆盖对账(#431,吃 #430 档位表):fold=calibration-only 的 kind(折叠面刻意
  *  不折,漂移由校准兜)必须在此逐个点名覆盖触发;词汇表新增 calibration-only kind
  *  未点名 = 编译红(强制先想清楚校准谁兜,或回 EVENT_TIERS 改档/声明漂移纯信任
