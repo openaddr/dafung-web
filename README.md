@@ -33,7 +33,8 @@
 ## 为开发者
 
 ```bash
+jj git clone https://github.com/openaddr/dafung-web && cd dafung-web
 bun install && bun run dev   # 本地开发服务器 http://localhost:5173
 ```
 
-测试与 AI 自动化接口见[开发与测试](./docs/how-to/开发与测试.md);架构与红线见 [AGENTS.md](./AGENTS.md);设计决策存档见 [docs/adr/](./docs/adr/)。
+本仓 VCS 为 jj colocated,`jj git clone` 是首选克隆方式;未装 jj 时 `git clone` 亦可(双通道,git = 逃生舱)。测试与 AI 自动化接口及版本协作口径见[开发与测试](./docs/how-to/开发与测试.md);架构与红线见 [AGENTS.md](./AGENTS.md);设计决策存档见 [docs/adr/](./docs/adr/)。
