@@ -3,6 +3,7 @@
 // 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "../scripts/room";
+import type { RoomClock } from "../scripts/room";
 import { lobbyView, clientView, redactSnapshotForSeat } from "../scripts/seat-projection";
 import { resolveGuohaoClash } from "../src/core/guohao";
 import { JINNANG_CARDS } from "../src/core/jinnang";
@@ -29,6 +30,31 @@ class InMemoryPersistence implements RoomPersistence {
     return [...this.m.keys()];
   }
 }
+
+/** 手动时钟(测试注入,#529 快档语义用例):定时全挂表,fireAll 手动泵,零真实等待。 */
+class ManualClock implements RoomClock {
+  private readonly pending = new Map<unknown, () => void>();
+  setTimeout(cb: () => void, _ms: number): unknown {
+    const id = {} as unknown;
+    this.pending.set(id, cb);
+    return id;
+  }
+  clearTimeout(handle: unknown): void {
+    this.pending.delete(handle);
+  }
+  fireAll(): void {
+    const cbs = [...this.pending.values()];
+    this.pending.clear();
+    for (const cb of cbs) cb();
+  }
+  get size(): number {
+    return this.pending.size;
+  }
+}
+
+/** 宏任务让位:等待真实 setTimeout(0),保证链的全部 microtask 延续(含嵌套 await)
+ *  先于下一次泵送落地(纯 Promise.resolve 只让一位,嵌套延续会与 fireAll 交错)。 */
+const macroTick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 /** 断言 fn 抛 RoomError 且 status 匹配(fn 可为同步或异步方法)。 */
 async function expectRoomError(
@@ -93,6 +119,22 @@ async function setupStartedRoom(
   const r = await startRoom(opts);
   await pickAllHumanCapitals(r.reg, r.roomId);
   return r;
+}
+
+/** 双人真人房选都进 Playing(ManualClock 注入:#529 快档语义用例——托管链步进全走
+ *  手动泵,零真实等待,下限/可撤销语义可精确断言)。 */
+async function playingRoomWithClock(clock: RoomClock) {
+  const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
+  const created = reg.createRoom({ seatCount: 2, botIdx: new Set(), hostConfig: { seed: 42 } });
+  const roomId = created.room.roomId;
+  reg.joinSeat(roomId);
+  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+  await reg.startGame(roomId, created.token, undefined, testMapProvider);
+  const e = () => reg.get(roomId)!.engine!;
+  for (let i = 0; i < 20 && e().phase === "Setup"; i++)
+    await reg.pickCapital(roomId, e().currentSetupPlayerIndex, e().offeredCapitals[0]!);
+  expect(e().phase).toBe("Playing");
+  return { reg, roomId };
 }
 
 describe("RoomRegistry · 房间生命周期", () => {
@@ -306,9 +348,13 @@ describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
     const e = reg.get(roomId)!.engine!;
     expect(e.phase).toBe("Setup"); // 开局停在真人 host
     await reg.setAutoPilot(roomId, 0, true, "fast"); // host 托管 → 全座位服务器驱动
+    // #529:fire-and-forget 单拍只代选一步,余下选都经时钟自续——轮询等 Setup 跑完
+    for (let i = 0; i < 1500 && e.phase === "Setup"; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     expect(e.phase === "Playing" || e.phase === "GameOver").toBe(true); // 选都自动跑完,不留 Setup
     expect(e.setupPhase).toBe("Done"); // 完成信号看 setupPhase(破产会转走都城,capitalIndex 不可作判据)
-  });
+  }, 30_000);
 });
 
 describe("RoomRegistry · 联机国号预设与重名前缀(autos 28)", () => {
@@ -653,23 +699,76 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [1] });
     await reg.setAutoPilot(roomId, 0, true, "fast");
     expect(reg.get(roomId)!.autoPilot.has(0)).toBe(true);
-    // seat0 托管 → 全场服务器驱动;超过 500 步的链经 setTimeout 续链,轮询等终局
+    // seat0 托管 → 全场服务器驱动;#529 快档 40ms/步经真实时钟自续(~210 步 ≈ 8-10s),
+    // 轮询等终局(预算留满 30s 墙钟,消防员轮询不改节奏)
     const room = reg.get(roomId)!;
-    for (let i = 0; i < 600 && room.engine!.phase !== "GameOver"; i++) {
+    for (let i = 0; i < 3000 && room.engine!.phase !== "GameOver"; i++) {
       await new Promise((r) => setTimeout(r, 10));
     }
     expect(room.engine!.phase).toBe("GameOver");
-  }, 30000);
+  }, 45_000);
+
+  it("快档下限生效(#529):开托管不瞬通——fire-and-forget 单拍只进一步,泵送才续链", async () => {
+    const clock = new ManualClock();
+    const { reg, roomId } = await playingRoomWithClock(clock);
+    const e = reg.get(roomId)!.engine!;
+    await reg.setAutoPilot(roomId, 0, true, "fast");
+    await reg.setAutoPilot(roomId, 1, true, "fast");
+    // 零泵送:fire-and-forget 链至多同步走第一拍即挂时钟等下一拍(旧零延迟实现在此
+    // 已整局瞬通直落终局)——快档下限 = 对局不可能在单个宏任务里打完
+    expect(e.isOver).toBe(false);
+    // 泵送:链经注入时钟逐步自续(guard 续链同走时钟)直到终局
+    for (let i = 0; i < 20_000 && !e.isOver; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    expect(e.phase).toBe("GameOver");
+  });
+
+  it("快档可撤销(#529):收回后泵到时钟排空即停在真人决策点,重开续跑终局", async () => {
+    const clock = new ManualClock();
+    const { reg, roomId } = await playingRoomWithClock(clock);
+    const e = reg.get(roomId)!.engine!;
+    await reg.setAutoPilot(roomId, 0, true, "fast");
+    await reg.setAutoPilot(roomId, 1, true, "fast");
+    for (let i = 0; i < 5; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    expect(e.phase).toBe("Playing"); // 推进几拍仍在对局中(下限保证)
+    // 收回 seat0(误触切回)→ 泵到时钟排空:链在 seat0 的决策点停(human-turn 出口,
+    // decisionTimeoutMs=0 无看门狗定时),对局不直落终局
+    await reg.setAutoPilot(roomId, 0, false, "fast");
+    for (let i = 0; i < 20_000 && clock.size > 0; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    expect(clock.size).toBe(0); // 时钟排空 = 链与看门狗全部停摆,无后台续跑
+    expect(e.isOver).toBe(false);
+    expect(e.decisionOwner).toBe(0); // 停在收回座位的真人决策门
+    // 重开快档 → 续跑到终局(可恢复)
+    await reg.setAutoPilot(roomId, 0, true, "fast");
+    for (let i = 0; i < 20_000 && !e.isOver; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    expect(e.phase).toBe("GameOver");
+  });
 
   it("部分托管:seat0 托管,推进到 seat1(真人)决策点停", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 3, bot: [] }); // 三真人
     await reg.setAutoPilot(roomId, 0, true, "fast");
     const room = reg.get(roomId)!;
     expect(room.engine!.phase).toBe("Playing");
+    // #529:快档链 40ms/步经真实时钟异步自续,setAutoPilot 已不 await 整链——
+    // 轮询等链推进到非 seat0 的真人决策点停(human-turn 出口)
+    for (let i = 0; i < 1500 && room.engine!.decisionOwner === 0; i++) {
+      await new Promise((r) => setTimeout(r, 10));
+    }
     // 决策归属落在非 seat0 的真人手上
     expect(room.engine!.players[room.engine!.decisionOwner].isBot).toBe(false);
     expect(room.engine!.decisionOwner).not.toBe(0);
-  });
+  }, 30_000);
 
   it("收回托管 → autoPilot 移除,后续停在 human-turn", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [1] });
@@ -1213,9 +1312,10 @@ describe("锦囊×房间上下文(#148):接管保守 vs 托管策略", () => {
     e.players[0].jinnangHandCount = 1;
     await reg.setAutoPilot(roomId, 0, true, "fast");
     await reg.setAutoPilot(roomId, 1, true, "fast"); // 对座也托管:对局才会循环回 seat0 回合
-    for (let i = 0; i < 300 && e.players[0].jinnangHand.length > 0 && !e.isOver; i++) {
+    // #529:快档 40ms/步异步自续,等策略用牌(预算 12s:~210 步整局 8-10s 内必经 seat0 锦囊相位)
+    for (let i = 0; i < 600 && e.players[0].jinnangHand.length > 0 && !e.isOver; i++) {
       await new Promise((r) => setTimeout(r, 20)); // driveBots 自驱,轮询等策略用牌
     }
     expect(e.players[0].jinnangHand.length).toBeLessThan(1); // 托管策略把牌用了
-  });
+  }, 30_000);
 });

@@ -86,7 +86,10 @@ async function playingRoom(reg: RoomRegistry): Promise<string> {
   return roomId;
 }
 
-/** 托管全场后经注入时钟泵到终局:fireAll 推进 guard 续链/看门狗,直到 GameOver。 */
+/** 托管全场后经注入时钟泵到终局:fireAll 推进 guard 续链/看门狗,直到 GameOver。
+ *  #529 泵法:快档链 40ms/步全部经 ManualClock 定时,fireAll 逐拍放行,步间延续
+ *  (microtask)在 sleep(2) 的宏任务间隙跑完——setAutoPilot 已 fire-and-forget,
+ *  全程零 await 整链,与生产「命令步间落地」同一通路。 */
 async function pumpToGameOver(
   reg: RoomRegistry,
   roomId: string,
