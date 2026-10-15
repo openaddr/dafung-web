@@ -36,17 +36,11 @@ curl -s -X POST -H "Authorization: token $token" -H "Accept: application/vnd.git
 
 ## Pull requests as a triage surface
 
-**PRs as a request surface: no.** _(Set to `yes` if this repo treats external PRs as feature requests; `/triage` reads this flag.)_
-
-When set to `yes`, PRs run through the same labels and states as issues, using the `gh pr` equivalents:
-
-- **Read a PR**: `gh pr view <number> --comments` and `gh pr diff <number>` for the diff.
-- **List external PRs for triage**: `gh pr list --state open --json number,title,body,labels,author,authorAssociation,comments` then keep only `authorAssociation` of `CONTRIBUTOR`, `FIRST_TIME_CONTRIBUTOR`, or `NONE` (drop `OWNER`/`MEMBER`/`COLLABORATOR`).
-- **Comment / label / close**: `gh pr comment`, `gh pr edit --add-label`/`--remove-label`, `gh pr close`.
+**PRs as a request surface:no**——本仓库不把 PR 当需求单走 triage 状态机(工单一律进 issues)。
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
-注:本仓库 master 有分支保护(禁直推/禁 merge commit,一律 PR + squash),PR 号与 issue 号共用同一编号空间。**仓库 VCS=jj colocated(优先)**:合入后主树收账两步 `jj bookmark move master --to master@origin` + `jj new master`(详见[派单模板](派单模板.md)jj 配方节);子代理 git 通路照常。
+注:本仓库 master 有分支保护(禁直推/禁 merge commit,一律 PR + squash),PR 号与 issue 号共用同一编号空间。**仓库 VCS=jj colocated(优先)**:合入后主树收账两步见[开发与测试](../how-to/开发与测试.md)「版本协作」节;子代理 git 通路照常。
 
 ## When a skill says "publish to the issue tracker"
 
