@@ -174,6 +174,7 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     await twoClientsSetup([host, guest]);
 
     // 双端开快速托管(默认 fast):整局零输入,服务器 bot 链直跑终局
+    // (#529 快档 40ms/步下限:整局 ~8-10s,审计面不受节奏影响)
     for (const p of [host, guest]) {
       await expect(p.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
       await p.getByTestId("autopilot-button").click();

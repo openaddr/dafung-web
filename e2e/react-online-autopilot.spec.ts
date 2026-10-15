@@ -37,33 +37,88 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   return [host, guest];
 }
 
-test("双端快速托管:零输入到终局,两端胜者一致", async ({ browser }) => {
-  // #306 预算收紧:快速托管全 bot 秒级推进,实测整局 ~15s 内,上限从 180/120s 对折再对折。
-  test.setTimeout(90_000);
-  const clients = await twoClients(browser);
+/** 读一端核心引擎态(经 __dafung 调试钩子;停点/冻结断言用,与 react-online-cutover 同款)。 */
+async function coreState(p: Page) {
+  return p.evaluate(() => {
+    const s = (window as any).__dafung.snapshot();
+    return {
+      phase: s.phase as string,
+      round: s.round as number,
+      turnNumber: s.turnNumber as number,
+      activeIndex: s.activeIndex as number,
+      decisionOwner: s.decisionOwner as number,
+      turnPhase: s.turnPhase as string | null,
+      positions: s.players.map((x: any) => x.position as number),
+      cash: s.players.map((x: any) => x.cash as number),
+    };
+  });
+}
+
+test("双端快速托管:快档推进,中途收回即停(冻结),重开续跑到终局,两端胜者一致", async ({
+  browser,
+}) => {
+  // #529 快档 40ms/步下限:整局 ~8-10s(不再瞬通),本例覆盖「误触可撤销(切回即停)」
+  // 产品口径——中段收回 host 托管 → 链在 host 决策点停 → 重开续跑到终局。
+  test.setTimeout(150_000);
+  const [host, guest] = await twoClients(browser);
   try {
-    // 两端都开托管(默认快速)
-    for (const c of clients) {
+    // 两端都开托管(默认快速):Setup 由托管代选
+    for (const c of [host, guest]) {
       await expect(c.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
       await c.getByTestId("autopilot-button").click();
     }
-    // 零输入等终局
-    for (const c of clients) {
-      await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 60_000 });
+    // 等进 Playing 再让快档跑一段(≥2.5s ≈ 60+ 步,确保收回落在对局中段)
+    await expect
+      .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
+        timeout: 30_000,
+        message: "托管代选完 Setup 进 Playing",
+      })
+      .toBe("Playing");
+    await host.waitForTimeout(2_500);
+    // 中途收回 host 托管:生效广播回读按钮复位「托管」
+    await host.getByTestId("autopilot-button").click();
+    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 15_000 });
+    // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点)
+    await expect
+      .poll(
+        async () => {
+          const s = await coreState(host).catch(() => null);
+          if (s == null) return "";
+          return s.decisionOwner === 0 &&
+            s.turnPhase !== "Roll" &&
+            s.turnPhase !== "AwaitingReaction"
+            ? (s.turnPhase ?? "")
+            : "";
+        },
+        { timeout: 30_000, message: "收回后链在 host 决策点停" },
+      )
+      .not.toBe("");
+    // 冻结断言:停点后 3s 状态零变化且仍在对局(旧瞬通局此刻早已直落终局)
+    const frozen = await coreState(host);
+    expect(frozen.phase).toBe("Playing");
+    await host.waitForTimeout(3_000);
+    expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
+    // 重开快档 → 续跑到终局,零输入,两端胜者一致
+    await host.getByTestId("autopilot-button").click();
+    for (const c of [host, guest]) {
+      await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 90_000 });
     }
-    const subs = await Promise.all(clients.map((c) => c.getByTestId("victory-sub").textContent()));
+    const subs = await Promise.all(
+      [host, guest].map((c) => c.getByTestId("victory-sub").textContent()),
+    );
     expect(subs[0]).toBeTruthy();
     expect(subs[1]).toBe(subs[0]);
   } finally {
-    for (const c of clients) await c.context().close();
+    for (const c of [host, guest]) await c.context().close();
   }
 });
 
 test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ browser }) => {
   // #306 预算收紧(52.8→30s):弃慢速全双端(2s/步是旧例最大耗时),也弃「双端快速托管
-  // 等 Playing 再收回」——快速局服务器秒级跑完整局,收回永远输给终局(实测 GameOver)。
-  // 定式:guest 开慢速托管(2s/步爬行,对局绝无跑飞之虞),host 开快速托管后**立即**收回
-  // (仍在 Setup,窗口毫秒级);收回后 host=真人决策门,对局必停在 human-turn。
+  // 等 Playing 再收回」——#529 前快速局服务器秒级跑完整局,收回永远输给终局(实测
+  // GameOver);#529 后快档 40ms/步窗口本已充裕,本例定式保留:guest 开慢速托管(2s/步
+  // 爬行,对局绝无跑飞之虞),host 开快速托管后**立即**收回(仍在 Setup);收回后
+  // host=真人决策门,对局必停在 human-turn。
   test.setTimeout(120_000);
   const [host, guest] = await twoClients(browser);
   try {
