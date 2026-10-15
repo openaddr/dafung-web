@@ -86,7 +86,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 本项目 **优先使用 jj-vcs(colocated 模式)** 协作开发:`jj git init --colocate` 已落地,.jj 与 .git 共存,git/jj 双通道全兼容。口径:
 
-- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`,#537 试点验证中;git worktree = 逃生舱通道),网络断可全本地流转,最后统一推。
+- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`——#537 试点已通过,workspace 为正式通道;git worktree = 逃生舱通道),网络断可全本地流转,最后统一推。
 - **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
 - 操作配方、0.45 摩擦清单与命令速查的单一事实源:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节;派单场景三律见[派单模板](./docs/agents/派单模板.md)jj 配方节。
 
