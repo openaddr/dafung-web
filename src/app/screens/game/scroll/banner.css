@@ -64,6 +64,15 @@
   background: color-mix(in srgb, var(--color-panel-hi) 72%, var(--color-gold-bright) 28%);
 }
 
+/* ── 价值表高亮行行尾角标(#92 ValueTable 购地/扩军/城池详情共用):角标盒是行
+   flex 尾项,右缘与表内容缘零间隙,表容器 overflow-hidden 在亚像素舍入下削边
+   ——购地横幅 Lv.0 行「购入档」右缘裁切(#530 狗粮)。命中行选择器借行唯一
+   border-l-gold 类,给角标一拍出边距让出表缘;命中行本就带 border-l-2 的 2px
+   列差,同族不计。仅正文井域,不跨件复用。 ── */
+.banner-body .border-l-gold > .whitespace-nowrap {
+  margin-inline-end: 8px;
+}
+
 /* ── 印面漆金化(#492 决议①;#509 残留①「印面白字 on danger ≈2.9:1」壳内收口):
    笺头单字印(.note-head > i,制式在 app.css)在横幅域内转金印——漆金底 + 漆字
    ≥5:1,朱砂保留给危险/破产语义与按钮;全局制式归口 app.css(S8 收口时对齐)。 ── */
