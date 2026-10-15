@@ -46,7 +46,8 @@ import {
 } from "@app/components/card/JinnangCardFace";
 import { HeroCardFace, heroIdByActiveSkillId } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
-import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { Sym } from "@app/screens/shared/Sym";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
@@ -92,7 +93,9 @@ interface RackCardJunshi {
 }
 
 /** 详情弹层壳:内容 = JinnangCardDetail 五段面板,壳(定位/遮罩/出口)归本件。
- *  modal=true(默认):焦点陷阱+锁滚+Esc/点遮罩关闭全由底件承担。 */
+ *  modal=true(默认):焦点陷阱+锁滚+Esc/点遮罩关闭全由底件承担。#530:补 × 关闭钮
+ *  (DialogClose 承载交互语义,Sym close 同城池详情制式;此前弹层零按钮,唯一出口
+ *  是点背衬,关闭 affordance 与城池详情不一致)。 */
 function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () => void }) {
   const isNarrow = useIsNarrow();
   const def = jinnangCardOf(cardId);
@@ -120,6 +123,20 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
               "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-0 w-max max-w-[92vw] max-h-[86dvh] overflow-y-auto"
         }
       >
+        {/* × 关闭钮(#530):弹层内唯一可见出口,点击语义归底件 DialogClose。
+            制式同城池详情题行关闭钮(BannerShell):44px 热区 + 漆金发丝描边圆钮,
+            hover 用 group 让整个热区点亮。详情面板纸色,墨字近钮即衬。 */}
+        <DialogClose
+          aria-label="关闭"
+          className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-ink-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-ink"
+          >
+            <Sym name="close" size={13} />
+          </span>
+        </DialogClose>
         {/* 可达名:牌名即标题(sr-only,视觉由 JinnangCardDetail 的 dt-ming 承担) */}
         <DialogTitle className="sr-only">{def.id}</DialogTitle>
         {isNarrow && <div aria-hidden="true" className="jinnang-detail-grab" />}

@@ -60,6 +60,14 @@ export function DashboardBar({
   const warrantFloats = useDeltaFloat(shown.warrants);
   const cashPulseKey = gainPulseKey(cashFloats);
   const warrantPulseKey = gainPulseKey(warrantFloats);
+  // 待起摇(#530):本端座位轮到且停在 Roll 等待态(自动起摇在途,~1.8s)——签面
+  // 驻留的是上轮点数,静置即误导(狗粮静置 40s+)。托管中由 bot 代打(Roll 不经
+  // 等待态,与 controller.checkRollSeal 同判),不提示。
+  const awaitingMyRoll =
+    player != null &&
+    !autopilotOn &&
+    snapshot.turnPhase === "Roll" &&
+    snapshot.players[snapshot.activeIndex]?.id === player.id;
 
   return (
     <div className="dash" data-testid={TESTIDS.dashboardBar}>
@@ -169,10 +177,20 @@ export function DashboardBar({
           </Tip>
         </div>
         <div className="rows">
-          {/* 签面(原 dice-face 方章迁此;结果驻留)+ 珍宝/名将计数徽章(纯展示,见下) */}
+          {/* 签面(原 dice-face 方章迁此;结果驻留)+ 珍宝/名将计数徽章(纯展示,见下)。
+              待起摇(#530):签面转「待」浅印 + 呼吸金边(样式 game-hud.css .await)——
+              UI 状态变化承载(DESIGN §4.6),不加文字标牌;上轮点数历史归战报。 */}
           {player && (
-            <Tip tip={ATTR_TIPS.sign} testId={TESTIDS.diceFace} className="badge b-sign">
-              {snapshot.lastRoll ? DIE_FACE[snapshot.lastRoll.die - 1] : "签"}
+            <Tip
+              tip={ATTR_TIPS.sign}
+              testId={TESTIDS.diceFace}
+              className={"badge b-sign" + (awaitingMyRoll ? " await" : "")}
+            >
+              {awaitingMyRoll
+                ? "待"
+                : snapshot.lastRoll
+                  ? DIE_FACE[snapshot.lastRoll.die - 1]
+                  : "签"}
             </Tip>
           )}
           {/* 珍宝/名将计数徽章:纯展示计数(#361)——明细排退役后无处可展,徽章只报数;

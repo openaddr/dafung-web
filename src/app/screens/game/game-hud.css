@@ -36,3 +36,32 @@
 .game-chip-pulse {
   animation: game-chip-pulse var(--dur-med) var(--ease-out-back);
 }
+
+/* 待起摇(#530):签面章呼吸金边 + 签面「待」浅印。本端座位轮到且停在 Roll 等待态
+ * (自动起摇 ~1.8s 在途)时挂 .await——驻留的上轮点数已陈旧,等待期用 UI 状态变化
+ * 承载(DESIGN §4.6,不加文字标牌)。呼吸语言沿 reaction-banner.css 反应牌金边同拍
+ * (--dur-ambient × --ease-sine);状态判定在 DashboardBar(turnPhase + activeIndex,
+ * 与 controller.checkRollSeal 的 myRollWait 同判)。 */
+.game-layout .badge.b-sign.await {
+  animation: sign-await-breathe var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes sign-await-breathe {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    color: color-mix(in srgb, var(--color-ink-dim) 72%, transparent);
+  }
+  50% {
+    border-color: var(--color-gold-bright);
+    color: var(--color-ink);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* 呼吸降级为静态待起摇态(边色/字色取呼吸中间拍),同 reaction-banner 显式口径
+     (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。 */
+  .game-layout .badge.b-sign.await {
+    animation: none;
+    border-color: color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
+    color: var(--color-ink);
+  }
+}
