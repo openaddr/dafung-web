@@ -14,8 +14,9 @@
 //     upstream」改锚定为 @ 的最近书签祖先(`heads(::@ & bookmarks())`)上的本地书签,
 //     逐个比对其 `@origin` 对应物。顺带修复:git 版在 colocated 主树里 git HEAD 恒
 //     detached、rule 2 永远走「跳过」分支形同虚设;锚点化后此检查真正生效。
-//     注意 jj fetch 会把能 ff 的被跟踪本地书签自动快进到远端位置,纯「落后」会在
-//     fetch 时自愈——rule 2 实际拦截的是书签与远端「分叉」(非 ff)类状态。
+//     注意(0.45 实测,#537 试点):jj fetch **不会**自动快进本地书签——纯「落后」要
+//     bookmark move(或 rebase -d master@origin)自愈;rule 2 拦截的正是「落后」与
+//     「书签与远端分叉(非 ff)」两类状态。
 //   - `rev-list --left-right --count` → revset 计数(`jj log --no-graph` 逐 commit 数行)。
 //     位置用 @ 本身而非书签位置,ahead 计数一律 `~empty()` 排除 jj 空工作副本提交,
 //     否则空 @ 的 ahead+1 会把「纯过期」(ahead==0)误判成「有意分叉」。
