@@ -10,6 +10,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 | -------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 游戏规则与数值(权威以 `src/core/` 代码为准)  | [docs/reference/rules/](./docs/reference/rules/README.md)(十页导览,数值总表在第 10 页)                                                                                                 |
 | 领域词汇(术语定名与弃用名)                   | [GLOSSARY.md](./GLOSSARY.md)                                                                                                                                                           |
+| 代码文件职责速查(哪个文件管什么)             | [docs/reference/代码地图.md](./docs/reference/代码地图.md)                                                                                                                             |
 | 设计决策存档                                 | docs/adr/                                                                                                                                                                              |
 | 视觉/交互设计(改 UI 前必读)                  | [docs/design/DESIGN.md](./docs/design/DESIGN.md) + [BRIEF.md](./docs/design/BRIEF.md)                                                                                                  |
 | 交互组件收口附表(shadcn/Base UI)             | [docs/design/组件收口.md](./docs/design/组件收口.md)                                                                                                                                   |
@@ -53,9 +54,13 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 关键文件
 
-- **core/**(全部纯逻辑):`authority.ts` 引擎壳(状态/薄委托/命令路由/快照通道,purity 门禁看守) · 机制域模块:`reaction-window` 反应窗 · `jinnang-execution` 锦囊执行 · `encounter-flow` 机遇+耗竭 · `movement-flow` 行军落格地产 · `bankruptcy` 破产清算 · `treasure-flow` 珍宝交涉 · `setup-flow` 开局三段式 · `recruitment` 招贤 · `model.ts` 共享领域模型 · `timing.ts`+`effects.ts` 时机总线与效果注册表 · `choices.ts` 决策选项集(ADR-0013) · `board.ts`/`board-loader.ts` 棋盘路径与地图契约 · `economy.ts` 经济原语 · `bot.ts` AI · `heroes.ts`/`treasures.ts`/`encounters.ts` 数据表(加名将/珍宝/机遇只改这些) · `snapshot.ts` 快照序列化 · `constants.ts` 共享常量 · `theme.ts` 配色单源(改后跑 `bun run gen:theme`);划分纪律见架构红线 8(ADR-0019)
-- **app/**:`main.tsx` 入口 · `store/` zustand(game 全局态/net 联机) · `controllers/` 基类+单机+联机+registry(含 `installDebugHooks`) · `components/board/` SVG 棋盘 · `screens/` home/setup/lobby/game/editor(各屏 testids.ts 是 e2e 选择器单源) · `fx/` 骰子/行军/浮字/音效编排
-- **scripts/**:`cli.ts` 纯 CLI 对局 + LLM 演练线(auto/run-to-end) · `server.ts` 权威引擎服务(瘦传输) · `room.ts` 房间编排(零 WS 依赖) · `room-record.ts` 房间记录形状+「记录→引擎」重建单源 · `room-persistence.ts` 落盘适配 · `wire.ts` wire 协议编解码单源(联机 WS/单机内存双工同一本体) · `seat-projection.ts` 客户端投影层+下行装配单口(per-seat redaction 必经) · `event-batch.ts` 事件批下行通道共享批语义 · `bot-driver.ts` bot/接管/托管驱动(零 WS/fs) · `watchdogs.ts` 四组同构看门狗(停摆接管/自动起摇/反应窗/掉线保留) · `engine-helpers.ts` CLI/Server 共享层 · `dev.ts` 一键开发编排(vite+引擎服务一条命令) · `play.ts` 一键快照游玩(build+起服) · `generate-theme-tokens.ts` gen:theme token 生成(theme.ts 单源) · `check-freshness.ts` 开工基线检查 · `check-core-purity.ts` 架构红线门禁(baseline 指纹+壳纪律断言) · `check-doc-links.ts` 文档死链门禁 · `fetch-asset.ts` Wikimedia/三国杀 wiki 抓图登记 · `make-huanyou-map.ts` 内置地图生成器 · `shot.mjs` 截图自证单源(起服样板勿手写)
+各文件职责速查见 [docs/reference/代码地图.md](./docs/reference/代码地图.md)。三条高频路由常驻于此:
+
+- 加名将/珍宝/机遇 = 只改 `core/` 三张数据表(`heroes.ts` / `treasures.ts` / `encounters.ts`);
+- 改配色 = 单源 `core/theme.ts`,改后跑 `bun run gen:theme`,不手改 tokens.css;
+- e2e 选择器 = 各屏 `testids.ts` 单源,勿硬编码字符串。
+
+联机协议面五个单源(动协议前先看代码地图):`seat-projection.ts`(per-seat 下行装配必经)、`wire.ts`(联机 WS 与单机内存双工同一本体)、`event-batch.ts`(共享批语义)、`room-record.ts`(「记录→引擎」重建单源)、`watchdogs.ts`(四组同构看门狗)。
 
 ## 开发陷阱速查(游戏逻辑;数值一律查 [rules 第 10 页](./docs/reference/rules/10-关键数值总表.md))
 
@@ -72,20 +77,18 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 - **测试宁缺毋滥**:宁愿不要测试用例,也不要垃圾用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
 - **开工前**:`bun run check:freshness`(基线指纹 / 落后 origin-master / 冲突标记三合一;过期禁止开工,审计取证尤其如此——防在旧基线上修已消失的问题)。多轮任务每轮续作前重跑——并行会话可能已合票推进 master(2026-10-15 实锤:收账把工作副本运到新基线)。
-- **改完码**:`bun run lint`(oxlint,0 warning 基线)+ `bun run fmt`(oxfmt)先过;日常 `bun run build`(tsc+vite)+ `bun test`;改 `scripts/` 加跑 `bun run typecheck:scripts`。
-- **分层**:工单收口只跑本工单 spec(`bun run test:e2e:one`);全量 `E2E_WORKERS=4 bun run test:e2e` 每分支一次,PR 前收口(墙钟预算 ~5 分钟,门禁=放行判据)。命令细节见[开发与测试](./docs/how-to/开发与测试.md)。
-- e2e 时间倍率 `E2E_TIME_SCALE`(默认 0.25)由 fixtures 注入,仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
+- **改完码**:lint(0 warning 基线)+ fmt 先过,日常 build + `bun test`;改 `scripts/` 加跑 typecheck:scripts。命令与跑法细节一律见[开发与测试](./docs/how-to/开发与测试.md)(命令单一事实源)。
+- **分层**:工单收口只跑本工单 spec;全量 e2e 每分支一次、PR 前收口,门禁=放行判据(判据、workers 与墙钟预算见开发与测试)。
+- e2e 时间倍率仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
 - **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单(2026-10-05 误杀断网事故的硬规矩)。
 
 ## 版本协作(jj 优先)
 
 本项目 **优先使用 jj-vcs(colocated 模式)** 协作开发:`jj git init --colocate` 已落地,.jj 与 .git 共存,git/jj 双通道全兼容。口径:
 
-- **主线(会话)用 jj**:分支/合并/收账/审查走 jj——`jj st`/`jj describe`/`jj bookmark`/`jj git push --bookmark <名>`;**合入 master 后主树收账两步**:`jj bookmark move master --to master@origin` + `jj new master`。
-- **子代理用 git 无感协作**:git worktree + git 命令照常(jj colocated 双通道),从集成分支/本地书签切活;网络断可全本地流转,最后统一推。
-- **master 受保护**(禁直推/禁 merge commit,一律 PR + squash)——大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
-- **0.45 实测口径**:push 新书签必须显式 `--bookmark`;`snapshot.max-new-file-size` 已调 5MiB;**jj 命令只在主树跑**(git worktree 目录无 .jj);squash 合入后本地 change 自动消隐。
-- 操作详版与摩擦清单见[派单模板](./docs/agents/派单模板.md)jj 配方节;命令速查见[开发与测试](./docs/how-to/开发与测试.md)。
+- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理用 git 无感协作**(git worktree + git 命令照常),网络断可全本地流转,最后统一推。
+- **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
+- 操作配方、0.45 摩擦清单与命令速查的单一事实源:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节;派单场景三律见[派单模板](./docs/agents/派单模板.md)jj 配方节。
 
 ## Agent 工作流
 

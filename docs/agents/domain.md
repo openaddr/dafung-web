@@ -2,6 +2,8 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
+> 注:本文件为 mattpocock-skills 模板原文(未本地化);文内文件名与 ADR 示例(event-sourced-orders / postgres 等)是通用示例,非本仓实际文件。
+
 ## Before exploring, read these
 
 - **`GLOSSARY.md`** at the repo root, or
