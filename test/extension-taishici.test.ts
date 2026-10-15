@@ -163,8 +163,44 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     p.jinnangHandCount = 0;
     expect(inquiry.askPlayer({ engine: e, seat, params: {} })).toEqual([]);
 
-    // 客户端半边:呈现意图读口命中牌背;未注册问询无定制(null = 通用卷轴)
-    expect(extensionInquiryPresentationOf("taishici-blind-pick")).toEqual({ blindCards: true });
+    // 客户端半边:呈现意图读口命中牌背+题名(#424 InquiryScroll 消费);未注册问询无定制(null = 通用卷轴)
+    expect(extensionInquiryPresentationOf("taishici-blind-pick")).toEqual({
+      title: "信义盲选",
+      blindCards: true,
+    });
     expect(extensionInquiryPresentationOf("no-such-inquiry")).toBeNull();
+  });
+
+  it("信义盲选对局可玩(#424):招贤触发问询(≥2 手牌弹层)→ resolveInquiry 应答弃 1 摸 1 生效", () => {
+    const e = prepared();
+    const p = e.activePlayer;
+    p.jinnangHand = ["连环计", "缓兵之计"];
+    p.jinnangHandCount = 2;
+    e.offeredHeroes = [taishiciDef!];
+    e.turnPhase = "AwaitingHeroPick";
+    // 招贤得太史慈:义从(+100)先结算,信义盲选随后挂起 → AwaitingInquiry 等应答
+    // (endTurn 收口延期:resolveHeroPick 流程原样续跑,收口被引擎挡板接住停在问询上)
+    const cashBefore = p.cash;
+    e.submitCommand({ type: "resolveHeroPick", index: 0 });
+    expect(p.cash).toBe(cashBefore + 100);
+    // (TS 对可变属性的赋值收窄:显式放宽断言字面量类型)
+    expect<string>(e.turnPhase).toBe("AwaitingInquiry");
+    expect(e.pendingInquiry).toEqual({ id: "taishici-blind-pick", params: {} });
+    // 选项集脱敏:序号 label,不泄露牌面
+    expect(e.choicesFor().map((o) => o.id)).toEqual(["blind:0", "blind:1"]);
+    expect(JSON.stringify(e.choicesFor())).not.toContain("连环计");
+    // 应答:盲中的第 2 张(缓兵之计)弃掉、摸 1 张补位,回合收口补完(轮转推进)
+    e.submitCommand({ type: "resolveInquiry", optionId: "blind:1" });
+    expect(e.pendingInquiry).toBeNull();
+    expect(e.turnPhase).not.toBe("AwaitingInquiry");
+    expect(p.jinnangHand).toHaveLength(2);
+    expect(p.jinnangHand).not.toContain("缓兵之计");
+    expect(e.jinnangDiscard).toContain("缓兵之计");
+    expect(e.activeIndex).not.toBe(0);
+    // 战报双留痕:发起 + 应答
+    expect(e.log.some((l) => l.detail.includes("inquiryAwait"))).toBe(true);
+    expect(
+      e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("blind:1")),
+    ).toBe(true);
   });
 });

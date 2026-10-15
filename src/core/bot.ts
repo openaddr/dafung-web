@@ -22,6 +22,7 @@ export const BOT_ATTENDED_PHASES: ReadonlySet<TurnPhase> = new Set([
   "AwaitingExhaustion",
   "AwaitingTreasureOwner",
   "AwaitingBankruptcySettle",
+  "AwaitingInquiry", // 定制问询(#424):扩展问询挂起时 bot 同样被驱动应答
   "AwaitingReaction", // 见头注:开窗即席代答,驱动器停等人类,不走 botAct
 ]);
 
@@ -519,6 +520,16 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
         break;
       }
       engine.confirmBankruptcySettle();
+      break;
+    }
+
+    case "AwaitingInquiry": {
+      // 定制问询(#424):语义对 bot 不透明(选项效果是扩展词汇),随机择一可用项应答
+      // (确定性走引擎骰,重放不漂);问询无不可用项时必有 ≥2 可用(引擎分流保证)。
+      const avail = engine.choicesFor().filter((o) => o.available);
+      if (avail.length === 0)
+        throw new Error("AwaitingInquiry 相位无可用选项:状态机不一致(引擎分流 bug)"); // 零兜底
+      engine.resolveInquiry(avail[Math.floor(engine.dice.nextFloat() * avail.length)].id);
       break;
     }
 

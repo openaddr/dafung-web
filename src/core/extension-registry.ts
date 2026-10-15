@@ -37,9 +37,9 @@ export function registeredExtensionPackages(): readonly ExtensionManifest[] {
   return [...installed.values()].map((p) => p.manifest);
 }
 
-/** 全部定制问询(#410,装载序):choices 之外的扩展问询生产者;引擎消费挂点已落
- *  (#432:无匹配 choices 时 choicesFor 按挂起 id 回调 askPlayer,本读口即该挂点的
- *  唯一取数口)。 */
+/** 全部定制问询(#410,装载序):choices 之外的扩展问询生产者;引擎相位化消费已落
+ *  (#424:AwaitingInquiry 相位 + PHASE_CHOICES 注册条目按挂起 id 回调 askPlayer +
+ *  resolveInquiry 命令回灌 resolve,本读口即该挂点的唯一取数口)。 */
 export function extensionInquiries(): readonly ExtensionInquiry[] {
   return [...installed.values()].flatMap((p) => p.inquiries);
 }

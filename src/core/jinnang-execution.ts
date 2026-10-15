@@ -91,6 +91,25 @@ export function drawJinnangTraced(
   if (drawn > 0) emitGameEvent(g, seat, { kind: "jinnangDrawn", count: drawn, reason });
 }
 
+/** 弃锦囊(#424):指定一张手牌离手入弃堆(消耗性出牌 consumeJinnangCard 之外的
+ *  一般弃置口,drawJinnang 的对偶面)。扩展问询结算(信义盲选弃 1 摸 1)与将来
+ *  弃牌型效果共用。手中无此牌 = 调用方 bug,当场炸(零兜底,不静默吞)。
+ *  弃堆本就明置(公开信息),留痕记牌名,与出牌扣账同口径。 */
+export function discardJinnang(g: GameEngine, seat: number, cardId: string): void {
+  const p = g.players[seat];
+  const idx = p.jinnangHand.indexOf(cardId);
+  if (idx < 0) throw new Error(`弃锦囊:${p.guohao} 手中无【${cardId}】(状态机/扩展 bug)`);
+  p.jinnangHand.splice(idx, 1);
+  p.jinnangHandCount = p.jinnangHand.length;
+  g.jinnangDiscard.push(cardId);
+  g.logEvent(
+    "system",
+    p.guohao,
+    `${p.guohao} 弃了一张锦囊【${cardId}】(手牌 ${p.jinnangHand.length})`,
+    `jinnangDiscard player=${p.id} card=${cardId} handSize=${p.jinnangHand.length}`,
+  );
+}
+
 /** 回合开始掷骰前(#122/T2):按注册表算锦囊选项集,有可用牌才进相位(ADR-0013:
  *  ≤1 可用=静默跳过不弹卷轴)。无可用牌时维持 Roll,不打扰。 */
 export function enterJinnangPhase(g: GameEngine): void {

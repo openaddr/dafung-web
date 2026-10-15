@@ -4,7 +4,7 @@ const contribution = {
       id: "taishici",
       name: "太史慈",
       title: "信义笃行",
-      desc: "被招揽时义从归心:立即 +100 两(来投之礼)",
+      desc: "被招揽时义从归心:+100 两(来投之礼),并行「信义盲选」:从手牌盲选一张弃旧换新",
       // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
       // 专属将旗仍由客户端渲染 hook 提供
       image: "/assets/heroes/hero-taishici-noname.webp",
@@ -16,6 +16,16 @@ const contribution = {
           // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
           effect: "joinGift",
           params: { amount: 100 },
+          scope: "self",
+        },
+        {
+          // 「信义盲选」触发技(#424 对局可玩):招揽即问询发起。空手牌无可盲选,
+          // 效果条件不满足静默跳过(EffectFn 语义,非兜底);1 张=唯一选项自动执行
+          // (ADR-0013,引擎分流);≥2 张=弹问询卷轴(客户端按呈现意图画牌背)。
+          id: "taishici-blindpick",
+          name: "信义盲选",
+          when: "HeroRecruited",
+          effect: "blindPickRitual",
           scope: "self",
         },
       ],
@@ -41,22 +51,44 @@ const contribution = {
       engine.grantSkillCash(ctx.owner, amount);
       return true;
     },
+    /** 信义盲选发起(#424):经引擎公共方法 askInquiry 挂起问询(选项集分流/相位进出
+     *  全在引擎 inquiry-flow 域,扩展只报「要问了」)。 */
+    blindPickRitual: (engine, ctx) => {
+      if (engine.players[ctx.owner].jinnangHandCount === 0) return false;
+      engine.askInquiry("taishici-blind-pick");
+      return true;
+    },
   },
   inquiries: [
     {
-      /** 「信义盲选」演示(#410,choices 无法自然表达的定制问询):从被询问者手牌
-       *  暗牌中盲选一张。选项集只表达「有几张可选」,label 用序号**不泄露牌面**——
-       *  通用卷轴按 label 渲染会在 UI 上亮出暗牌,盲选必须换呈现(牌背),呈现意图
-       *  由客户端交互 hook 声明(client.ts interactions,blindCards)。选项集本身
-       *  仍走 ChoiceOption 词汇:引擎消费挂点(无匹配 choices 时回调)归后续票,
-       *  届时经 snapshot.choices 单通道透出(ADR-0013 不旁路)。 */
+      /** 「信义盲选」演示(#410 注册/#424 全链,choices 无法自然表达的定制问询):
+       *  从被询问者手牌暗牌中盲选一张。选项集只表达「有几张可选」,label 用序号
+       *  **不泄露牌面**——通用卷轴按 label 渲染会在 UI 上亮出暗牌,盲选必须换呈现
+       *  (牌背),呈现意图由客户端交互 hook 声明(client.ts interactions,blindCards)。
+       *  选项集本身仍走 ChoiceOption 词汇:AwaitingInquiry 相位注册条目按 id 回调产出,
+       *  经 snapshot.choices 单通道透出(ADR-0013 不旁路)。 */
       id: "taishici-blind-pick",
+      name: "信义盲选",
+      // 战报显示名(#424):玩家可读,不亮内部 id
       askPlayer: ({ engine, seat }) =>
         Array.from({ length: engine.players[seat].jinnangHandCount }, (_, i) => ({
           id: `blind:${i}`,
           label: `暗牌·第${i + 1}张`,
           available: true,
         })),
+      /** 应答结算(#424):盲中的暗牌弃掉、立即摸一张(信义试炼,舍旧迎新)。
+       *  选项 id=手牌下标句柄(问询挂起期间手牌不变——挂起即相位,无 intervening 命令),
+       *  越界 = 调用方/状态机 bug,当场炸(零兜底)。 */
+      resolve: ({ engine, seat }, optionId) => {
+        if (!optionId.startsWith("blind:"))
+          throw new Error(`信义盲选:未知选项「${optionId}」(调用方 bug)`);
+        const hand = engine.players[seat].jinnangHand;
+        const cardId = hand[Number(optionId.slice("blind:".length))];
+        if (cardId == null)
+          throw new Error(`信义盲选:选项「${optionId}」越界(手牌 ${hand.length} 张,状态机 bug)`);
+        engine.discardJinnang(seat, cardId);
+        engine.drawJinnang(seat, 1);
+      },
     },
   ],
 };

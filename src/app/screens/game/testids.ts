@@ -85,6 +85,12 @@ export const TESTIDS = {
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 
+  // ── 定制问询弹层(#424,ADR-0022 交互 handler 客户端半边;scroll-* 前缀族)──
+  /** 问询弹层容器(横幅制式;题名随呈现意图,缺省「问询」)。 */
+  inquiryScroll: "scroll-inquiry",
+  /** 问询选项(下标 = snapshot.choices 序):blindCards 意图下=牌背钮,通用意图下=笺钮。 */
+  inquiryOption: (index: number) => `scroll-inquiry-option-${index}` as const,
+
   // ── 反应窗(#281,#234 P1-D 牌架即反应窗)──
   /** 结算事件横幅(从手牌架上缘长出;仅被询问座位渲染)。 */
   reactionBanner: "reaction-banner",

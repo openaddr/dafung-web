@@ -131,4 +131,59 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     // 动画 handler:破阵扩展浮字
     expect(await samplePromise).toEqual({ seal: null, floater: true });
   });
+
+  test("定制问询「信义盲选」全链(#424):招贤触发→问询弹层牌背盲选→应答弃 1 摸 1 生效", async ({
+    page,
+  }) => {
+    await quickStart(page, 7);
+    // 种植:候选只放太史慈 + 手牌 2 张(≥2 可用才进问询相位;起手 1 张走引擎自动执行不弹)
+    await force(
+      page,
+      `
+      {
+        const defs = window.__dafung.heroDefs();
+        const taishici = defs.find((h) => h.id === "taishici");
+        if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
+        e.phase = "Playing";
+        e.activeIndex = 0;
+        e.offeredHeroes = [taishici];
+        e.turnPhase = "AwaitingHeroPick";
+        e.players[0].jinnangHand = ["连环计", "缓兵之计"];
+        e.players[0].jinnangHandCount = 2;
+      }
+    `,
+    );
+    await page.getByTestId(T.heroPickScroll).getByTestId(T.heroPickOption(0)).click();
+
+    // 问询弹层(#424 InquiryLayer):题名随呈现意图(信义盲选),牌背盲选——
+    // 选项 label 是序号,牌面(连环计/缓兵之计)不得在任何可见文本里泄露
+    const inquiry = page.getByTestId(TESTIDS.inquiryScroll);
+    await expect(inquiry).toBeVisible();
+    await expect(inquiry.getByTestId(T.scrollTitle)).toHaveText("信义盲选");
+    const inquiryText = await inquiry.innerText();
+    expect(inquiryText).not.toContain("连环计");
+    expect(inquiryText).not.toContain("缓兵之计");
+    expect(await engineState(page, "e.turnPhase")).toBe("AwaitingInquiry");
+
+    // 应答:点第 1 张暗牌 → 引擎回灌扩展 resolve(弃「连环计」摸 1 张补位)→ 收口补完
+    await inquiry.getByTestId(TESTIDS.inquiryOption(0)).click();
+    await expect(inquiry).toBeHidden();
+    await expect
+      .poll(
+        () =>
+          engineState(
+            page,
+            "({ pending: e.pendingInquiry, handLen: e.players[0].jinnangHand.length, first: e.players[0].jinnangHand[0], recycled: e.jinnangDiscard.includes('连环计') })",
+          ),
+        { timeout: 10_000, intervals: [50] },
+      )
+      .toEqual({ pending: null, handLen: 2, first: "缓兵之计", recycled: true });
+    // 战报双留痕(发起 + 应答)
+    expect(
+      await engineState(
+        page,
+        "e.log.some((l) => l.detail.includes('inquiryAwait')) && e.log.some((l) => l.detail.includes('inquiryResolve'))",
+      ),
+    ).toBe(true);
+  });
 });

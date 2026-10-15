@@ -40,6 +40,8 @@ export interface ExtensionRenderHooks {
 // 词汇表达不了的「怎么画」(如盲选项画牌背),渲染层按意图定制,弹层行为仍收口 shadcn。
 /** 定制问询呈现意图(声明式;缺省维度走通用卷轴)。 */
 export interface ExtensionInquiryPresentation {
+  /** 弹层题名(扩展词汇,如「信义盲选」);缺省通用「问询」。 */
+  title?: string;
   /** 选项以牌背呈现(盲选场景):选项 label 是序号不是牌面,渲染层画牌背+序号。 */
   blindCards?: boolean;
 }
@@ -105,10 +107,9 @@ export function registeredClientPackages(): readonly ExtensionManifest[] {
 }
 
 // ── 接口位(第一版不实现,登记防忘;总登记见 core/extension-contract.ts)──
-// ◻ 问询弹层挂点:定制问询的 UI 消费点(引擎挂点已落,#432:askInquiry 挂起 id、无匹配
-//   choices 时 choicesFor 按 id 回调出选项集并盖 inquiryId 章;剩弹层按呈现意图渲染的
-//   接线归 #424)。
 // ◻ 牌面/立绘渲染扩展:自定义牌面装配、立绘替换 hook——后续票(本版仅将旗)。
 // ◻ 自定义面板:扩展自有 UI 面板挂点——后续票。
 // ◻ 音效/动效词表:扩展专属 SoundEvent/表现事件种类(现复用既有 PresentationEvent)——后续票。
 // ◻ 文案资源表:包内文案 i18n/集中管理(现文案内联包代码)——后续票。
+// (问询弹层挂点已落(#424):InquiryLayer 按呈现意图渲染定制问询,消费
+//  extensionInquiryPresentationOf——本读口不再是占位 seam。)

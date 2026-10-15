@@ -25,7 +25,9 @@ import {
   type EncounterRuntimeConfig,
 } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
-import { extensionInquiries } from "./extension-registry";
+// 定制问询流程域(#424,ADR-0022 交互 handler 消费挂点):发起/应答在 inquiry-flow.ts,
+// 壳内同名公共方法薄委托;选项集计算在 choices.ts(PHASE_CHOICES.AwaitingInquiry 注册条目)。
+import { askInquiry, resolveInquiry } from "./inquiry-flow";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
@@ -35,6 +37,7 @@ import { respondReaction, type PendingReaction } from "./reaction-window";
 // 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调;
 // 载荷类型(JinnangPeek/PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
 import {
+  discardJinnang,
   drawJinnang,
   enterJinnangPhase,
   executeJinnang,
@@ -147,6 +150,7 @@ export type TurnPhase =
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
   | "AwaitingReaction" // 反应窗(#281):锦囊宣布/行军途经城池的识破、拦检询问
+  | "AwaitingInquiry" // 定制问询(#424,ADR-0022 交互 handler):扩展问询挂起等应答
   | "Land"
   | "EndTurn"
   | "GameOver";
@@ -182,7 +186,11 @@ export type GameCommand =
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
   // use=true 时 cardId=打出的反应牌;shareSeat 仅识破 AOE 必带=被保护份的座位(替他人
   // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略)。
-  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
+  | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number }
+  // 定制问询应答(#424,ADR-0022 交互 handler):决策者对挂起问询(AwaitingInquiry)择一,
+  // optionId=选项 id(snapshot.choices 的 inquiryId 章选项)。应答回灌扩展 resolve 结算后
+  // 补完被延期的回合收口(见 endTurn 问询挡板)。
+  | { type: "resolveInquiry"; optionId: string };
 
 const DEFAULT_TARGET = 30000;
 const DEFAULT_CASH = 10000;
@@ -204,6 +212,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   useJinnang: "用锦囊",
   useHeroSkill: "出技",
   respondReaction: "反应窗应答",
+  resolveInquiry: "问询应答",
 };
 
 /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家);表现态 floaters 的行类型,
@@ -366,10 +375,11 @@ export class GameEngine {
    *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
   pendingEncounter: EncounterDef | null = null;
 
-  /** 定制问询挂起载荷(#432,ADR-0022):askInquiry 置值;choicesFor 在无匹配 choices
-   *  相位按 id 回调 extensionInquiries 出选项集(选项盖 inquiryId 章,快照 choices 单通道
-   *  透出)。回联回目录现查(与 pendingEncounter 的「id 句柄 + 目录现查」同模式,但目录
-   *  是扩展注册面而非内置表),挂起载荷本身随快照走(恢复后同一问询可续);endTurn 清除。 */
+  /** 定制问询挂起载荷(#432 置值/#424 相位化,ADR-0022):非 null ⇔ turnPhase ===
+   *  "AwaitingInquiry"(不变量,endTurn 入口挡板+收尾断言守卫);选项集经
+   *  PHASE_CHOICES.AwaitingInquiry 注册的 inquiryChoices 按 id 回调扩展出快照(选项盖
+   *  inquiryId 章,snapshot.choices 单通道透出)。目录现查模式同 pendingEncounter,但目录
+   *  是扩展注册面而非内置表;载荷随快照走(恢复后同一问询可续),清账归 resolveInquiry。 */
   pendingInquiry: { id: string; params: Record<string, number> } | null = null;
 
   log: LogEvent[] = [];
@@ -507,13 +517,16 @@ export class GameEngine {
   choicesFor(): ChoiceOption[] {
     return computeChoices(this, this.turnPhase);
   }
-  /** 发起定制问询(#432,ADR-0022 交互 handler):记挂起问询 id,之后无匹配 choices 相位的
-   *  choicesFor 按 id 回调 askPlayer 出选项集(词汇与挂点归本票;解决命令/UI 接线归 #424)。
-   *  id 查无注册问询 = 调用方 bug(扩展未装载/id 拼写错),当场炸(零兜底)。 */
+  /** 发起定制问询(#424,ADR-0022 交互 handler;#432 置载荷 → 本票升格相位入口):
+   *  薄委托 → inquiry-flow.askInquiry(选项集分流/相位进出/自动执行归域模块)。 */
   askInquiry(id: string, params: Record<string, number> = {}): void {
-    if (!extensionInquiries().some((q) => q.id === id))
-      throw new Error(`定制问询:「${id}」无注册问询(扩展未装载或 id 拼写错误)`);
-    this.pendingInquiry = { id, params };
+    askInquiry(this, id, params);
+  }
+
+  /** 应答定制问询(#424 命令入口,UI/bot/联机经 submitCommand 分发):
+   *  薄委托 → inquiry-flow.resolveInquiry(校验/回灌扩展 resolve/续收口归域模块)。 */
+  resolveInquiry(optionId: string): void {
+    resolveInquiry(this, optionId);
   }
   findOwner(propertyId: string): Player | null {
     return this.players.find((p) => findHolding(p, propertyId) != null) ?? null;
@@ -671,6 +684,11 @@ export class GameEngine {
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
   endTurn(): void {
+    // 定制问询收口延期(#424):问询挂起(= AwaitingInquiry 相位,不变量)时回合收口
+    // 等应答解挂后经 resolveInquiry 补完(先例=AwaitingReaction 停相位续结算)。发起方
+    // 流程照常调 endTurn,此处原样返回——不是兜底,是状态机规则:未应答的问询不得被
+    // 收口吞掉(#432「收口即清悬问询」的过渡口径随本票退役)。
+    if (this.pendingInquiry != null) return;
     this.dispatchMoment("TurnEnd", { subject: this.activeIndex }); // 时机·TurnEnd:回合收尾(胜负判定/结算移除前)
     this.turnPhase = "EndTurn";
     const result = this.checkVictory();
@@ -719,6 +737,10 @@ export class GameEngine {
       this.dispatchMoment("RoundStart", { subject: this.roundAnchor });
     }
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
+    // 收尾不变量(#424):收口期时机(TurnEnd/RoundStart/TurnStart)内发起问询 = 扩展违约
+    // ——挂起问询将与 Roll 相位并存,选项集派生断链,当场炸出不静默(扩展 bug 修数据去)。
+    if (this.pendingInquiry != null)
+      throw new Error("定制问询:回合收口过程中被挂起(收口期时机内 askInquiry 违约,扩展 bug)");
     this.turnPhase = "Roll";
     this.turnNumber += 1;
     // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
@@ -736,7 +758,8 @@ export class GameEngine {
     this.pendingEncounter = null;
     this.pendingJinnang = null; // 目标段中途回合被收口(异常/终局):不留悬载荷
     this.pendingReaction = null; // 反应窗同理(#281):回合收口不留悬窗
-    this.pendingInquiry = null; // 定制问询同理(#432):回合收口不留悬问询
+    // 定制问询不再在此清(#424 收口延期):入口挡板+TurnStart 后的不变量断言保证挂起
+    // 问询到不了收口段——悬载荷清账归 resolveInquiry 应答路径。
     this.lastTransaction = null;
   }
 
@@ -913,6 +936,8 @@ export class GameEngine {
         return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
       case "useHeroSkill":
         return this.resolveHeroSkill(cmd.skillId, cmd.targets, cmd.cancel);
+      case "resolveInquiry":
+        return this.resolveInquiry(cmd.optionId);
     }
   }
 
@@ -1130,6 +1155,11 @@ export class GameEngine {
   /** 抽锦囊(#122/T1):薄委托 → jinnang-execution.drawJinnang;返回实际入手张数(#384)。 */
   drawJinnang(seat: number, count = 1): number {
     return drawJinnang(this, seat, count);
+  }
+
+  /** 弃锦囊(#424):薄委托 → jinnang-execution.discardJinnang(扩展问询结算等消费)。 */
+  discardJinnang(seat: number, cardId: string): void {
+    discardJinnang(this, seat, cardId);
   }
 
   /** 出牌阶段入场(#122/T2):薄委托 → jinnang-execution.enterJinnangPhase。 */
