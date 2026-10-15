@@ -47,7 +47,9 @@ async function plantTrade(page: Page): Promise<void> {
     e.phase = "Playing";
     e.activeIndex = 1;
     const owner = e.players[0];
-    owner.treasures.push({ id: "jade_seal", name: "传国玉玺", level: 3, desc: "天命所归" });
+    // id 必须在 TREASURES 目录内(#521 起装裱卡画心按实例 id 回查目录,目录外抛错);
+    // level 3 是压价虚构(真玺 level 10),价签数学只认行内 level
+    owner.treasures.push({ id: "seal", name: "传国玉玺", level: 3, desc: "天命所归" });
     const tile = e.board.tiles.find((t) => t.propertyId && !e.findOwner(t.propertyId));
     owner.properties.push({
       propertyId: tile.propertyId,
@@ -71,7 +73,7 @@ test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }
   const pick = page.getByTestId("scroll-treasure-pick");
   await expect(pick).toBeVisible();
   await expect(pick).toContainText("坐地起价"); // 标题随口径
-  const item = page.getByTestId("scroll-treasure-item-jade_seal");
+  const item = page.getByTestId("scroll-treasure-item-seal");
   await expect(item).toBeVisible();
   // 返回:关层回模式选择步(本地状态回退,不发命令)
   await page.getByTestId("scroll-treasure-back").click();
@@ -86,7 +88,7 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await page.getByTestId("scroll-treasure-mode-fair").click();
   const pick = page.getByTestId("scroll-treasure-pick");
   await expect(pick).toBeVisible();
-  const item = page.getByTestId("scroll-treasure-item-jade_seal");
+  const item = page.getByTestId("scroll-treasure-item-seal");
   await expect(item).toBeVisible();
   // 价签:未选=指导价;指导价单源 core/treasures(不写第二事实源)
   await expect(item).toContainText(`指导价 ${fmtMoney(guidePriceOf(3))}`);
@@ -133,10 +135,10 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
       { timeout: 30_000, message: "珍宝交涉结算留痕:cmd/fairUpgrade/treasureFair/escrowDeliver" },
     )
     .toEqual({
-      cmd: { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "jade_seal" } },
+      cmd: { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal" } },
       upgrade: `fairUpgrade prop=${pid} owner=p0 visitor=p1 level=2`,
-      trade: `treasureFair owner=p0 visitor=p1 treasure=jade_seal level=3 price=${guidePriceOf(3)} bankrupt=false`,
-      deliver: `escrowDeliver buyer=p1 seller=p0 treasure=jade_seal price=${guidePriceOf(3)}`,
+      trade: `treasureFair owner=p0 visitor=p1 treasure=seal level=3 price=${guidePriceOf(3)} bankrupt=false`,
+      deliver: `escrowDeliver buyer=p1 seller=p0 treasure=seal price=${guidePriceOf(3)}`,
     });
   // 层随结算收口(DOM 契约):结算留痕已被上方钉住,层收跟拍不再吃自走竞速
   await expect(pick).toBeHidden({ timeout: 30_000 });
@@ -150,7 +152,7 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
     e.phase = "Playing";
     e.activeIndex = 0;
     const me = e.activePlayer;
-    me.treasures.push({ id: "jade_seal", name: "传国玉玺", level: 3, desc: "x" });
+    me.treasures.push({ id: "seal", name: "传国玉玺", level: 3, desc: "x" });
     me.treasures.push({ id: "hat", name: "草帽", level: 1, desc: "x" });
     me.heroes.push({ id: "zhouyu", name: "周瑜", title: "火烧赤壁", desc: "x" });
     const tile = e.board.tiles.find((t) => t.propertyId && e.board.tiles.indexOf(t) !== me.capitalIndex);
@@ -170,7 +172,7 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
   await expect(pick).toBeVisible();
   await expect(pick).toContainText("变卖自救"); // 标题语义保留
   await expect(page.getByTestId("scroll-bankruptcy-pick-progress")).toContainText("已凑");
-  const item = page.getByTestId("scroll-bankruptcy-sell-treasure-jade_seal");
+  const item = page.getByTestId("scroll-bankruptcy-sell-treasure-seal");
   await expect(item).toBeVisible();
   await expect(item).toContainText(`至 ${fmtMoney(guidePriceOf(3))}`); // 指导价口径
   // 二段式:点选 → 确认武装 → 提交
@@ -192,7 +194,7 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
   // 售出即收层;重开清单随快照刷新(已卖件消失,余件仍在)
   await page.getByTestId("scroll-bankruptcy-sell-treasure-open").click();
   await expect(page.getByTestId("scroll-bankruptcy-treasure-pick")).toBeVisible();
-  await expect(page.getByTestId("scroll-bankruptcy-sell-treasure-jade_seal")).toHaveCount(0);
+  await expect(page.getByTestId("scroll-bankruptcy-sell-treasure-seal")).toHaveCount(0);
   await expect(page.getByTestId("scroll-bankruptcy-sell-treasure-hat")).toBeVisible();
 });
 

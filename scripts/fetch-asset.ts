@@ -24,6 +24,10 @@
 //   # Commons 音频模式(--kind audio:只收 audio/ogg;可加 --max-bytes 51200 预算):
 //   bun scripts/fetch-asset.ts --id audio:rain --query "rain ogg" --category audio --kind audio --max-bytes 51200
 //
+//   # Commons File 直取模式(#521 珍宝画心:选图靠人工审图定文件,不靠搜索排序;
+//   可加 --webp 82 走 Pillow 转换):
+//   bun scripts/fetch-asset.ts --id treasure:seal --commons-file "File:Qing Jade Seal 01.jpg" --category treasures --width 480 --webp 82
+//
 // Commons 模式:跳过非图文件(PDF/DjVu 书扫);优先 SVG/矢量;429 退避重试。
 // wiki 模式:File 页(curid 或「文件:」标题)走 imageinfo API 取原图直链 + 上传者 + 尺寸口径;
 //   patchwiki 缩略图直链自动还原为原图;下载后按 PNG 签名读 IHDR 尺寸,与 API 口径不符即抛错;
@@ -53,6 +57,7 @@ const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 interface Args {
   id: string;
   query?: string;
+  commonsFile?: string;
   wiki?: string;
   noname?: string;
   nonameDir: string;
@@ -84,15 +89,19 @@ function parseArgs(): Args {
   };
   const id = get("id");
   const query = get("query");
+  const commonsFile = get("commons-file");
   const wiki = get("wiki");
   const noname = get("noname");
   const local = get("local");
   const freesound = get("freesound");
-  const sources = [query, wiki, noname, local, freesound].filter((s) => s !== undefined);
+  const sources = [query, commonsFile, wiki, noname, local, freesound].filter(
+    (s) => s !== undefined,
+  );
   if (!id || sources.length !== 1) {
     console.error(
-      "用法(五源二选一,恰好给一个):\n" +
+      "用法(六源二选一,恰好给一个):\n" +
         "  fetch-asset.ts --id <id> --query <搜索词> [--category heroes|treasures|tiles] [--width 256] [--limit 8] [--kind image|audio] [--max-bytes N]  # Commons 搜索\n" +
+        '  fetch-asset.ts --id <id> --commons-file "File:标题.jpg" [--category treasures] [--width 480] [--webp 82]     # Commons File 直取\n' +
         "  fetch-asset.ts --id <id> --wiki <wikiFile页URL|patchwiki直链> [--category heroes]                       # 三国杀 wiki 立绘\n" +
         "  fetch-asset.ts --id <id> --noname <拼音文件名> [--noname-dir character|background] [--webp 82] [--max-height N] [--avatar 200]  # noname jsdelivr\n" +
         '  fetch-asset.ts --id <id> --local <文件路径> [--license "文本"] [--webp 82] [--max-height N] [--avatar 200]  # 本地克隆(FreeKill 等)\n' +
@@ -116,6 +125,7 @@ function parseArgs(): Args {
   return {
     id,
     query,
+    commonsFile,
     wiki,
     noname,
     nonameDir,
@@ -780,20 +790,13 @@ async function mainWiki(args: Args): Promise<void> {
   );
 }
 
-async function mainCommons(args: Args): Promise<void> {
-  const audio = args.kind === "audio";
+/** Commons 图入库公共尾段(搜索模式与 --commons-file 直取共用):下载(预算内)→
+ *  可选 --webp 走 Pillow 转换(中间原件不落地)→ manifest + CREDITS 登记。 */
+async function ingestCommonsImage(args: Args, info: ImgInfo, title: string): Promise<void> {
   const catDir = join(ASSETS, args.category);
   mkdirSync(catDir, { recursive: true });
-
-  const titles = await searchFiles(args.query!, args.limit);
-  if (!titles.length) throw new Error(`Wikimedia 无结果:${args.query}`);
-  const picked = audio ? await pickAudioCandidate(titles) : await pickCandidate(titles, args.width);
-  if (!picked) throw new Error(`无可用的${audio ? "音频" : "图片"}结果:${args.query}`);
-
-  const { info, title } = picked;
   const slug = slugify(args.id);
   const filename = `${slug}${info.ext}`;
-  const relPath = `assets/${args.category}/${filename}`;
   const dest = join(catDir, filename);
   removeStaleFiles(catDir, slug);
   const buf = await fetchBuffer(info.thumburl);
@@ -802,8 +805,12 @@ async function mainCommons(args: Args): Promise<void> {
       `原件 ${buf.length}B 超出 --max-bytes ${args.maxBytes}B(不裁剪,换更短素材):${info.thumburl}`,
     );
   writeDest(buf, dest);
-
-  const licenseClear = /\b(CC0|CC-?BY|Public domain|GFDL|PD)\b/i.test(info.license);
+  const conv = finishImageConvert(catDir, args.category, slug, info.ext, {
+    webp: args.webp,
+    maxHeight: args.maxHeight,
+  });
+  const relPath = conv.webpPath || `assets/${args.category}/${filename}`;
+  const licenseClear = /\b(CC0|CC[\s-]?BY|Public domain|GFDL|PD)\b/i.test(info.license);
   const today = new Date().toISOString().slice(0, 10);
   upsertManifest(args.id, {
     path: relPath,
@@ -814,10 +821,38 @@ async function mainCommons(args: Args): Promise<void> {
     review_required: !licenseClear,
   });
   const reviewTag = !licenseClear ? " ⚠️ review_required" : "";
+  const dims = conv.dims || `${info.width}×${info.height}`;
   appendCredit(
-    `- **${args.id}** — ${info.license} / ${info.author} — ${buf.length}B (${info.width}×${info.height}, ${info.mime}) — [source](${info.source}) — ${today}${reviewTag}`,
+    `- **${args.id}** — ${info.license} / ${info.author} — ${conv.bytes || buf.length}B (${dims}, ${conv.webpPath ? "webp" : info.mime}) — [source](${info.source}) — ${today}${reviewTag}`,
   );
-  console.log(`✓ ${args.id} → ${relPath} (${buf.length}B, ${info.mime}${reviewTag})\n  ${title}`);
+  console.log(
+    `✓ ${args.id} → ${relPath} (${conv.bytes || buf.length}B, ${conv.webpPath ? "webp" : info.mime}${reviewTag})\n  ${title}`,
+  );
+}
+
+/** --commons-file 直取(#521 珍宝画心):标题人工审图后精确指定,不走搜索排序;
+ *  授权判定/登记与搜索模式同一尾段(ingestCommonsImage)。 */
+async function mainCommonsFile(args: Args): Promise<void> {
+  const title = decodeURIComponent(args.commonsFile!)
+    .replace(/_/g, " ")
+    .replace(/^File:/i, "")
+    .trim();
+  if (!title) throw new Error(`--commons-file 解析不出 File 标题:${args.commonsFile}`);
+  const info = await imageInfo(`File:${title}`, args.width);
+  if (!GOOD_MIME.has(info.mime))
+    throw new Error(`不是可用的栅格/矢量图(mime=${info.mime}):File:${title}`);
+  await ingestCommonsImage(args, info, title);
+}
+
+async function mainCommons(args: Args): Promise<void> {
+  const audio = args.kind === "audio";
+
+  const titles = await searchFiles(args.query!, args.limit);
+  if (!titles.length) throw new Error(`Wikimedia 无结果:${args.query}`);
+  const picked = audio ? await pickAudioCandidate(titles) : await pickCandidate(titles, args.width);
+  if (!picked) throw new Error(`无可用的${audio ? "音频" : "图片"}结果:${args.query}`);
+
+  await ingestCommonsImage(args, picked.info, picked.title);
 }
 
 async function main(): Promise<void> {
@@ -826,6 +861,7 @@ async function main(): Promise<void> {
   if (args.noname) return mainNoname(args);
   if (args.local) return mainLocal(args);
   if (args.freesound) return mainFreesound(args);
+  if (args.commonsFile) return mainCommonsFile(args);
   return mainCommons(args);
 }
 

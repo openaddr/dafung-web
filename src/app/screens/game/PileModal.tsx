@@ -6,8 +6,9 @@
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭全部白拿,不自写交互语义,
 // 同 JinnangDetailSheet 先例);挂载不夺焦 = initialFocus={false},焦点留在入口
 // 小件上,Esc 直关即可;可见题名即 DialogTitle(可达名=视觉题名同一节点)。
-// 画心双通道:本层走缺省回退(远山肌理;快照珍宝无画心数据),art 通道保留在
-// TreasureCardFace props 上;无「曾持有」区——UI 只显示当前状态(DESIGN §4.6)。
+// 画心双通道:快照珍宝行不带画心数据,展示层经 treasureImagePath 按 id 回查
+// TREASURES 目录(#521 画心批),目录行缺 image 时仍走缺省回退(远山肌理);
+// 无「曾持有」区——UI 只显示当前状态(DESIGN §4.6)。
 // 空陈列照常可开:计数角标如实报 0、网格自然为空(业务空态,非兜底)。
 // 样式在 pile-modal.css(经 Portal 渲染在 body,.game-layout 罩不到——pile-* 前缀
 // 防串扰,war-* 同先例)。
@@ -15,6 +16,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
+import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -113,8 +115,9 @@ export function PileShell({
 }
 
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
- *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心走缺省回退
- *  (远山肌理),art 通道保留;指导价同时进 title 浮签(名称/品级/风味文一行看全)。 */
+ *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心 = 目录
+ *  image(#521 画心批,快照行按 id 回查 TREASURES),目录行缺 image 时走缺省回退
+ *  (远山肌理);指导价同时进 title 浮签(名称/品级/风味文一行看全)。 */
 function TreasureGrid({ player }: { player: SnapshotPlayer }) {
   return (
     <>
@@ -123,18 +126,22 @@ function TreasureGrid({ player }: { player: SnapshotPlayer }) {
         已持有 · {player.treasures.length} 件<small>(右上角标=品级,底色随品级;名牌=指导价)</small>
       </div>
       <div className="pile-grid">
-        {player.treasures.map((t) => (
-          <div className="pile-cell" key={t.id}>
-            <TreasureCardFace
-              name={t.name}
-              level={t.level}
-              desc={t.desc}
-              className="pile-cell-card"
-              title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
-            />
-            <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-          </div>
-        ))}
+        {player.treasures.map((t) => {
+          const image = treasureImagePath(t.id);
+          return (
+            <div className="pile-cell" key={t.id}>
+              <TreasureCardFace
+                name={t.name}
+                level={t.level}
+                desc={t.desc}
+                art={image != null ? <img src={image} alt="" /> : undefined}
+                className="pile-cell-card"
+                title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
+              />
+              <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
+            </div>
+          );
+        })}
       </div>
     </>
   );

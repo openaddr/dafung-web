@@ -41,3 +41,9 @@
 - **audio:tile-clack** — CC0 / poenia (Freesound) — 7521B (ogg;「Domino_sfx_moveTile」lq 预览) — [source](https://freesound.org/s/745028/) — 2026-10-14
 - **audio:coins-box** — CC0 / 5thWall (Freesound) — 49874B (ogg;「coins_into_box.wav」lq 预览) — [source](https://freesound.org/s/190945/) — 2026-10-14
 - **audio:rain** — CC0 / Opticreep (Freesound) — 43259B (ogg;「Rain (Field Recording)」lq 预览) — [source](https://freesound.org/s/320520/) — 2026-10-14
+- **treasure:edict** — CC BY-SA 4.0 / Kcx36 — 84016B (500×375, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E7%A4%BE%E4%BC%9A%E5%BE%81%E9%9B%86-%E5%85%89%E7%BB%AA%E5%9C%A3%E6%97%A8-%E6%B8%85%E4%BB%A3-%E5%A4%A7%E7%90%86%E5%B7%9E%E5%8D%9A%E7%89%A9%E9%A6%86_2025-02-11_01.jpg) — 2026-10-15
+- **treasure:seal** — CC0 / Gary Lee Todd, Ph.D. — 7680B (500×333, webp) — [source](https://commons.wikimedia.org/wiki/File%3AQing_Jade_Seal%2C_Qianlong_Reign_01.jpg) — 2026-10-15
+- **treasure:lychee** — CC BY-SA 4.0 / Duluthkid — 39088B (500×375, webp) — [source](https://commons.wikimedia.org/wiki/File%3APlate_of_peeled_lychee_fruit_2019_10-32-11_PM.jpeg) — 2026-10-15
+- **treasure:hu** — CC BY-SA 4.0 / Hpppp0527 — 28120B (500×337, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%95%86%E9%9E%85%E6%96%B9%E5%8D%87_164037.jpg) — 2026-10-15
+- **treasure:hat** — CC BY-SA 4.0 / Elekes Andor — 48112B (500×375, webp) — [source](https://commons.wikimedia.org/wiki/File%3ABamboo_hat_(blue)_-_Indonesia%2C_2012_(2).JPG) — 2026-10-15
+- **treasure:qingnang** — Public domain / Wang, Bing — 130100B (500×896, webp) — [source](https://commons.wikimedia.org/wiki/File%3ANew_Edition_with_Supplemental_Annotations_of_The_Inner_Canon_of_the_Yellow_Emperor._Su_wen_WDL11409.jpg) — 2026-10-15
