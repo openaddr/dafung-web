@@ -1,0 +1,18 @@
+/* 目标段选中态(#417 目标选择统一口径):候选=金圈呼吸(.candidate,layout.css),
+ * 选中=实金双环停持(呼吸停、恒定不闪)——「定靶」与「候选」一眼可辨,DESIGN §4.6
+ * 纯 UI 态表达不加文字章。独立成文件:#417 工单不触 layout.css(并行票隔离),
+ * 选中态样式随 SeatRail 引入。环制式沿 #510 漆金环/双描边口径(外实金环+内发丝线)。 */
+.game-layout .seat.picked {
+  animation: none;
+  border-color: var(--color-gold);
+  box-shadow:
+    0 0 0 3px var(--color-gold),
+    inset 0 0 0 1.5px var(--color-gold),
+    0 3px 12px rgba(138, 106, 28, 0.55);
+}
+.game-layout .seat.picked:hover {
+  box-shadow:
+    0 0 0 3px var(--color-gold),
+    inset 0 0 0 1.5px var(--color-gold),
+    0 4px 14px rgba(138, 106, 28, 0.6);
+}

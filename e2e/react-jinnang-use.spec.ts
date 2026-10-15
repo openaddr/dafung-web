@@ -1,6 +1,7 @@
-// 锦囊使用回路(#122/T2;#256 出牌阶段态迁移;#281 免战金牌退役改写;#305 整备):
+// 锦囊使用回路(#122/T2;#256 出牌阶段态迁移;#281 免战金牌退役改写;#305 整备;#417 目标选择统一):
 // 旧弹窗退役,出牌面上架手牌架——点牌=选中放大(放大态即详情态),动作条「出牌」=
-// 确认、「不出」=今不用,目标段=席位即靶(金圈呼吸+棋盘 token 呼吸,点席位即出免二次确认)。
+// 确认、「不出」=今不用,目标段=席位即靶(金圈呼吸+棋盘 token 呼吸;#417 起点席位=
+// 选中(实金停持 .picked),再点同席取消,动作条「出」钮打出——不再点席位即出)。
 // #281:免战金牌随档 1 退役(预防开盾删除),原「出牌走旧弹窗」用例改写为「识破诡计
 // 经反应窗打出」——架中反应牌呼吸金边,点牌选中,横幅落印确认。
 // #305 整备两件事:①出牌指示线用例自 jinnang-play-line.spec.ts 并入(出牌→墨线同一
@@ -162,7 +163,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toHaveCount(0);
   });
 
-  test("军情密探:出牌进目标段,候选席位金圈呼吸,点席位即出(免二次确认)", async ({ page }) => {
+  test("军情密探:出牌进目标段,点席位选中/再点取消,#417 「出」钮确认打出", async ({ page }) => {
     await startJunshi(page, 63);
     // 先停稳在开局出牌阶段态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
@@ -177,13 +178,25 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toBeVisible();
     await opt.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 目标段:动作条切「选择目标/作罢」;候选席位卡金圈呼吸 + 棋盘 token 呼吸挂点
-    await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeVisible();
+    // 目标段:动作条切「选择目标(禁)/作罢」;候选席位卡金圈呼吸 + 棋盘 token 呼吸挂点
+    const confirm = page.getByTestId(TESTIDS.actionbarTarget);
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toBeDisabled(); // 未选中席:「选择目标」引导态
     await expect(page.getByTestId("seat-1")).toHaveClass(/candidate/);
     await expect(page.locator(".bv-token-target-ring")).not.toHaveCount(0);
-    // 点席位即出(免二次确认):目标段收、牌离架(#305:窥探结算与回收记账归
+    // 点席位=选中(.picked 实金停持,呼吸停):确认钮点亮为「出」
+    await page.getByTestId(TESTIDS.seatTarget(1)).click();
+    await expect(page.getByTestId("seat-1")).toHaveClass(/picked/);
+    await expect(confirm).toBeEnabled();
+    // 再点同席=取消选中(#417):picked 摘除、确认钮回禁用
+    await page.getByTestId(TESTIDS.seatTarget(1)).click();
+    await expect(page.getByTestId("seat-1")).not.toHaveClass(/picked/);
+    await expect(confirm).toBeDisabled();
+    // 三点重选 → 「出」钮确认打出:目标段收、牌离架(#305:窥探结算与回收记账归
     // test/jinnang.test.ts「军情密探·窥探」)
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
+    await expect(confirm).toBeEnabled();
+    await confirm.click();
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeHidden();
     await expect(opt).toHaveCount(0);
   });
@@ -278,7 +291,7 @@ test.describe("出牌指示线(#281 P2-E)", () => {
     `,
     );
     await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeEnabled();
-    // 点牌选中 → 出牌进目标段 → 席位点层点候选目标(点席位即出,免二次确认)
+    // 点牌选中 → 出牌进目标段 → 席位点层点候选目标选中 → 动作条「出」确认打出(#417 两步)
     await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     const targetBtn = page.locator('[data-testid^="seat-target-"]').first();
@@ -310,7 +323,9 @@ test.describe("出牌指示线(#281 P2-E)", () => {
         to: b.positionOf(e.players[${targetSeat}].position),
       };
     })()`);
+    // #417 两步:点席位只选中,动作条「出」钮才打出(墨线在打出后现身,sample 轮询覆盖)
     await targetBtn.click();
+    await page.getByTestId(TESTIDS.actionbarTarget).click();
     const sample = (await samplePromise) as {
       found: boolean;
       x1?: number;

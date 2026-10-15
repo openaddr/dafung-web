@@ -70,11 +70,12 @@ test.describe("军情密探热座窥探(#453)", () => {
       ${marchQueue(1)}
     `,
     );
-    // 出牌进目标段,点 bot1 席位即出(免二次确认;jinnang-use 同款交互链)
+    // 出牌进目标段,点 bot1 席位选中(#417 两步)→ 动作条「出」钮打出(jinnang-use 同款交互链)
     await page.getByTestId(TESTIDS.jinnangCard("军情密探")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     await expect(page.getByTestId(TESTIDS.seatTarget(1))).toBeVisible();
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
+    await page.getByTestId(TESTIDS.actionbarTarget).click();
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeHidden();
 
     // 手牌浮签断言口:hover 席位卡手牌徽章,读当前开着的浮签(Base UI 关闭态仍挂 DOM,
