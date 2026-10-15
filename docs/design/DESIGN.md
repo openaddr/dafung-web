@@ -254,4 +254,4 @@
 | 珍宝藏品弹层 | [2026-10-13/07-treasure-modal.png](./ui-reference/current-ui/2026-10-13/07-treasure-modal.png)                                                        |
 
 > tmp/ 不入库:对比图以本表为索引,提交前可由 `tmp/audit-shots.mjs` 分别对
-> master(worktree)与本分支重拍再生成(SHOT_BASE/SHOT_OUT 环境变量)。
+> master(workspace)与本分支重拍再生成(SHOT_BASE/SHOT_OUT 环境变量;重拍通道=jj workspace 或 shot.mjs 直跑,git worktree=逃生舱)。
