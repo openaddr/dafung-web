@@ -92,8 +92,8 @@ _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
 选项集 ≤1 时引擎自动执行的那一个行为(如放弃购买)。
 _Avoid_: fallback choice(不是兜底,是产品决策)
 
-**定制问询(Custom Inquiry,#432,ADR-0022)**:
-扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)记挂起问询,挂起态 `pendingInquiry` 随快照序列化;无匹配 choices 的相位由挂点按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。id 查无注册问询 = 当场炸(零兜底)。UI 接线归 #424。
+**定制问询(Custom Inquiry,#424,ADR-0022)**:
+扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)置挂起问询并按选项集分流——可用 ≥2 进 `AwaitingInquiry` 相位(`pendingInquiry` 随快照序列化,挂起⇔相位不变量,挡回合收口);选项集由 `choices.ts` `PHASE_CHOICES` 注册条目按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。应答命令 `resolveInquiry` 回灌扩展 `resolve` 结算后补完收口;=1 可用自动执行、=0 作废(ADR-0013 分流)。id 查无注册问询 = 当场炸(零兜底)。
 _Avoid_: 自定义问询(ADR-0022 行文旧用词,定名「定制问询」)、自定义弹窗(那是呈现面 inquiryPresentation 的事,不是问询本身)
 
 **对局日志(Game Log)**:

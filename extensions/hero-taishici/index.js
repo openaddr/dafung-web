@@ -16,7 +16,7 @@ const contribution = {
           // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
           effect: "joinGift",
           params: { amount: 100 },
-          scope: "self"
+          scope: "self",
         },
         {
           // 「信义盲选」触发技(#424 对局可玩):招揽即问询发起。空手牌无可盲选,
@@ -26,8 +26,8 @@ const contribution = {
           name: "信义盲选",
           when: "HeroRecruited",
           effect: "blindPickRitual",
-          scope: "self"
-        }
+          scope: "self",
+        },
       ],
       active: {
         id: "taishici-pozhen",
@@ -37,9 +37,9 @@ const contribution = {
         target: "none",
         kind: "warDrum",
         // 复用既有结算案(jinnang-execution warDrum 路径),扩展零新增 kind
-        params: { bonus: 1 }
-      }
-    }
+        params: { bonus: 1 },
+      },
+    },
   ],
   effects: {
     /** 来投之礼:属主立即得 params.amount 两。走引擎 grantSkillCash(浮字+cashChanged
@@ -57,7 +57,7 @@ const contribution = {
       if (engine.players[ctx.owner].jinnangHandCount === 0) return false;
       engine.askInquiry("taishici-blind-pick");
       return true;
-    }
+    },
   },
   inquiries: [
     {
@@ -68,11 +68,14 @@ const contribution = {
        *  选项集本身仍走 ChoiceOption 词汇:AwaitingInquiry 相位注册条目按 id 回调产出,
        *  经 snapshot.choices 单通道透出(ADR-0013 不旁路)。 */
       id: "taishici-blind-pick",
-      askPlayer: ({ engine, seat }) => Array.from({ length: engine.players[seat].jinnangHandCount }, (_, i) => ({
-        id: `blind:${i}`,
-        label: `暗牌·第${i + 1}张`,
-        available: true
-      })),
+      name: "信义盲选",
+      // 战报显示名(#424):玩家可读,不亮内部 id
+      askPlayer: ({ engine, seat }) =>
+        Array.from({ length: engine.players[seat].jinnangHandCount }, (_, i) => ({
+          id: `blind:${i}`,
+          label: `暗牌·第${i + 1}张`,
+          available: true,
+        })),
       /** 应答结算(#424):盲中的暗牌弃掉、立即摸一张(信义试炼,舍旧迎新)。
        *  选项 id=手牌下标句柄(问询挂起期间手牌不变——挂起即相位,无 intervening 命令),
        *  越界 = 调用方/状态机 bug,当场炸(零兜底)。 */
@@ -85,11 +88,9 @@ const contribution = {
           throw new Error(`信义盲选:选项「${optionId}」越界(手牌 ${hand.length} 张,状态机 bug)`);
         engine.discardJinnang(seat, cardId);
         engine.drawJinnang(seat, 1);
-      }
-    }
-  ]
+      },
+    },
+  ],
 };
 var index_default = contribution;
-export {
-  index_default as default
-};
+export { index_default as default };

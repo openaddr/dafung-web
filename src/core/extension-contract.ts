@@ -88,10 +88,13 @@ export interface ExtensionInquiryCtx {
 
 /** 单条定制问询:id 全局唯一(与已装包冲突即炸,extension-registry 校验);两侧均纯函数
  *  (core 纪律同 EffectFn:禁 DOM/React、无随机数/时钟)——askPlayer 产选项集(选项 id
- *  是应答句柄);resolve 收应答结算(optionId 之外的选择=调用方 bug,-handler 自己炸出;
+ *  是应答句柄);resolve 收应答结算(optionId 之外的选择=调用方 bug,handler 自己炸出;
  *  引擎已先行校验选项存在且可用)。 */
 export interface ExtensionInquiry {
   id: string;
+  /** 显示名(战报等玩家可见文案用,如「信义盲选」);缺省战报退回 id(扩展 id 多为
+   *  包词汇 ASCII,给了名字就别让玩家读内部标识——展示缺省,非错误兜底)。 */
+  name?: string;
   askPlayer(ctx: ExtensionInquiryCtx): ChoiceOption[];
   /** 应答结算(#424):玩家/命令路(resolveInquiry)与引擎自动执行(选项集 ≤1 可用,
    *  ADR-0013)共用此口回灌。结算完毕由引擎清挂起载荷并续回合收口,handler 不管流程。 */

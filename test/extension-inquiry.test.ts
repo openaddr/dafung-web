@@ -104,8 +104,13 @@ afterEach(() => {
 });
 
 /** 装载假问询包(权威侧 + 客户端呈现意图一并注册,返回 askPlayer/resolve 观测位)。 */
-function loadFakeInquiry(): { captured: { seat: number[]; answers: Array<{ optionId: string; seat: number }> } } {
-  const captured = { seat: [] as number[], answers: [] as Array<{ optionId: string; seat: number }> };
+function loadFakeInquiry(): {
+  captured: { seat: number[]; answers: Array<{ optionId: string; seat: number }> };
+} {
+  const captured = {
+    seat: [] as number[],
+    answers: [] as Array<{ optionId: string; seat: number }>,
+  };
   registerExtensionAuthorityModule(fakeInquiryModule(captured));
   loadedPkgs.push(PKG_ID);
   registerExtensionClientPackage(
@@ -276,7 +281,9 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
     expect(e.turnPhase).not.toBe("AwaitingInquiry"); // 收口已完成(轮转推进)
     expect(e.activeIndex).not.toBe(activeBefore);
     // 战报留痕:应答行可查
-    expect(e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("blind:1"))).toBe(true);
+    expect(
+      e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("blind:1")),
+    ).toBe(true);
   });
 
   it("命令路拒绝:未知选项/不可用选项 warn 拒绝,挂起问询保持(不静默吞应答)", () => {
@@ -311,7 +318,9 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
     expect(captured.answers).toEqual([{ optionId: "blind:0", seat: e.decisionOwner }]);
     expect(e.pendingInquiry).toBeNull();
     expect(e.turnPhase).not.toBe("AwaitingInquiry");
-    expect(e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("auto"))).toBe(true);
+    expect(
+      e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("auto")),
+    ).toBe(true);
     // 零可用:问询作废(战报留痕),不留悬载荷
     e.askInquiry(INQUIRY_ID, { n: 0 });
     expect(e.pendingInquiry).toBeNull();

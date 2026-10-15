@@ -15,8 +15,9 @@ import { extensionInquiries } from "./extension-registry";
  *  enterEncounterPhase);=0 → 问询作废(战报留痕)。自动执行/作废即刻清载荷并保持原相位,
  *  发起方流程无感续跑。 */
 export function askInquiry(g: GameEngine, id: string, params: Record<string, number> = {}): void {
-  if (!extensionInquiries().some((q) => q.id === id))
-    throw new Error(`定制问询:「${id}」无注册问询(扩展未装载或 id 拼写错误)`);
+  const inquiry = extensionInquiries().find((q) => q.id === id);
+  if (inquiry == null) throw new Error(`定制问询:「${id}」无注册问询(扩展未装载或 id 拼写错误)`);
+  const name = inquiry.name ?? id; // 战报显示名(缺省退 id:展示缺省,非错误兜底)
   g.pendingInquiry = { id, params };
   const owner = g.activePlayer;
   const available = computeChoices(g, "AwaitingInquiry").filter((o) => o.available);
@@ -25,7 +26,7 @@ export function askInquiry(g: GameEngine, id: string, params: Record<string, num
     g.logEvent(
       "system",
       owner.guohao,
-      `${owner.guohao} 面临定制问询「${id}」:${available.length} 项抉择`,
+      `${owner.guohao} 面临定制问询「${name}」:${available.length} 项抉择`,
       `inquiryAwait player=${owner.id} id=${id} options=${available.length}`,
     );
     return;
@@ -37,12 +38,12 @@ export function askInquiry(g: GameEngine, id: string, params: Record<string, num
     g.logEvent(
       "system",
       owner.guohao,
-      `${owner.guohao} 的问询「${id}」无可选项,作罢`,
+      `${owner.guohao} 的问询「${name}」无可选项,作罢`,
       `inquiryVoid player=${owner.id} id=${id}`,
     );
     return;
   }
-  settleInquiryAnswer(g, id, params, picked, true);
+  settleInquiryAnswer(g, id, name, params, picked, true);
 }
 
 /** 应答定制问询(命令通路,UI/bot/联机同走;壳上 submitCommand 路由):相位+选项校验
@@ -62,7 +63,8 @@ export function resolveInquiry(g: GameEngine, optionId: string): void {
     g.warn(`ResolveInquiry:选项「${optionId}」不可用(${opt.reason ?? "原因不明"})`);
     return;
   }
-  settleInquiryAnswer(g, pending.id, pending.params, opt, false);
+  const name = extensionInquiries().find((q) => q.id === pending.id)?.name ?? pending.id;
+  settleInquiryAnswer(g, pending.id, name, pending.params, opt, false);
   g.endTurn();
 }
 
@@ -72,6 +74,7 @@ export function resolveInquiry(g: GameEngine, optionId: string): void {
 function settleInquiryAnswer(
   g: GameEngine,
   id: string,
+  name: string,
   params: Record<string, number>,
   opt: ChoiceOption,
   auto: boolean,
@@ -86,8 +89,8 @@ function settleInquiryAnswer(
     "system",
     p.guohao,
     auto
-      ? `${p.guohao} 的问询「${id}」唯一可选项自动执行:${opt.label}`
-      : `${p.guohao} 应答问询「${id}」:${opt.label}`,
+      ? `${p.guohao} 的问询「${name}」唯一可选项自动执行:${opt.label}`
+      : `${p.guohao} 应答问询「${name}」:${opt.label}`,
     `inquiryResolve player=${p.id} id=${id} option=${opt.id}${auto ? " auto" : ""}`,
   );
   if (auto) g.pushFloaterText(p, opt.label, p.position);

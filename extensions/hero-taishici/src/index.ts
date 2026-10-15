@@ -77,6 +77,7 @@ const contribution: ExtensionAuthorityContribution = {
        *  选项集本身仍走 ChoiceOption 词汇:AwaitingInquiry 相位注册条目按 id 回调产出,
        *  经 snapshot.choices 单通道透出(ADR-0013 不旁路)。 */
       id: "taishici-blind-pick",
+      name: "信义盲选", // 战报显示名(#424):玩家可读,不亮内部 id
       askPlayer: ({ engine, seat }) =>
         Array.from({ length: engine.players[seat].jinnangHandCount }, (_, i) => ({
           id: `blind:${i}`,

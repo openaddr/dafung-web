@@ -104,7 +104,8 @@ export function InquiryScroll({
               className="relative cursor-pointer rounded-[5px] transition-transform hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
             >
               <JinnangCardBack>
-                <span className="absolute inset-0 flex items-center justify-center font-brush text-[44px] text-[rgba(217,185,92,0.75)]">
+                {/* 序号落牌背下幅(避让居中的「锦囊」朱印;漆金同牌面回纹色) */}
+                <span className="absolute inset-x-0 top-[66%] flex justify-center font-brush text-[38px] leading-none text-[rgba(217,185,92,0.8)]">
                   {i + 1}
                 </span>
               </JinnangCardBack>
