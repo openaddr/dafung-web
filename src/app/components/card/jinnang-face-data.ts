@@ -3,6 +3,7 @@
 // 本文件只持有「牌面怎么画」的映射——别称剥离、四族色、目标域中文、尺寸档,
 // 消费方:JinnangCardFace.tsx(同目录)与 jinnang-card.css(族色类/尺寸档为镜像)。
 import type { JinnangTag, JinnangTargetDomain } from "@core/jinnang";
+import { TREASURES } from "@core/treasures";
 
 /** 纹样族:一标签一族(方案 §4 P0-A)——谋=云纹 / 攻=火纹 / 守=盾纹 / 援=枝纹 /
  *  即时=电纹(#281 反应锦囊:电光石火,反应窗一闪即发)。 */
@@ -60,6 +61,17 @@ export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
   if (level <= 3) return "tong";
   if (level <= 6) return "yin";
   return "gold";
+}
+
+/** 珍宝画心路径(#521 画心批):快照珍宝实例 id → 目录画心。牌堆实例 id =
+ *  「目录 id-序号」(core/treasures.ts createTreasureDeck 展开格式),按目录 id 前缀
+ *  回查;目录行有 image 才给路径(缺省=装裱卡远山肌理回退,art 通道既有语义),
+ *  目录外 id = 数据 bug 抛错(零兜底)。快照 TreasureRow 不带 image(瘦下行),
+ *  故在展示层按 id 回查目录——与 PileModal 经 guidePriceOf 回查同口径。 */
+export function treasureImagePath(treasureId: string): string | undefined {
+  const def = TREASURES.find((t) => treasureId === t.id || treasureId.startsWith(`${t.id}-`));
+  if (def == null) throw new Error(`珍宝实例 ${treasureId} 不在 TREASURES 目录(数据 bug)`);
+  return def.image;
 }
 
 /** 出牌阶段/反应窗牌面微旋(#234 P2-E TablePile 质感):确定性伪随机 ±1.5°——同一张牌

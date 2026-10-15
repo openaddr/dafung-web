@@ -2,7 +2,7 @@
 // 目标域中文 / 尺寸表。牌面数据单源 core/jinnang.ts,本文件只验证「牌面怎么画」
 // 的映射(src/app/components/card/jinnang-face-data.ts)与单源对齐。
 import { describe, it, expect } from "bun:test";
-import { readFileSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { JINNANG_CARDS } from "@core/jinnang";
 import { TREASURES } from "@core/treasures";
 import {
@@ -10,6 +10,7 @@ import {
   JINNANG_FAMILY,
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
+  treasureImagePath,
   rackTilt,
 } from "@app/components/card/jinnang-face-data";
 
@@ -169,6 +170,26 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
     for (const piece of ["ling", "bj", "huaxin", "qian", "jian-yin", "ba", "lv-badge"]) {
       expect(css().includes(`.jinnang-card.mount .${piece}`)).toBe(true);
     }
+  });
+});
+
+describe("treasureImagePath(装裱卡画心查表,#521)", () => {
+  it("目录六件全带画心,且路径指向真实存在的文件(素材批同真,防断链)", () => {
+    expect(TREASURES.length).toBe(6);
+    for (const t of TREASURES) {
+      expect(t.image, `${t.id} 缺画心字段`).toStartWith("/assets/treasures/");
+      expect(
+        existsSync(new URL(`../public${t.image}`, import.meta.url)),
+        `${t.image} 文件不存在`,
+      ).toBe(true);
+    }
+  });
+
+  it("实例 id(「目录 id-序号」)与裸目录 id 都能查到;目录外 id 抛错(零兜底)", () => {
+    expect(treasureImagePath("seal")).toBe("/assets/treasures/treasure-seal.webp");
+    expect(treasureImagePath("seal-3")).toBe(treasureImagePath("seal")); // 牌堆展开带序号
+    expect(treasureImagePath("hat-12")).toBe("/assets/treasures/treasure-hat.webp");
+    expect(() => treasureImagePath("jade_seal")).toThrow(/TREASURES/);
   });
 });
 

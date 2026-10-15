@@ -10,6 +10,7 @@
 import { useState, type ReactNode } from "react";
 import { PileShell } from "./PileModal";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
+import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import "./pile-modal.css";
 import "./treasure-pick.css";
@@ -87,6 +88,7 @@ export function TreasurePickModal({
       <div className="pile-grid">
         {treasures.map((t) => {
           const sel = t.id === pickedId;
+          const image = treasureImagePath(t.id);
           return (
             <button
               type="button"
@@ -103,6 +105,7 @@ export function TreasurePickModal({
                 name={t.name}
                 level={t.level}
                 desc={t.desc}
+                art={image != null ? <img src={image} alt="" /> : undefined}
                 className="pile-cell-card"
                 title={`${t.name} · 品级 ${t.level}${t.desc ? ` · ${t.desc}` : ""}`}
               />

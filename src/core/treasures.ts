@@ -10,15 +10,58 @@ export interface TreasureDef {
   level: number; // 1-10
   count?: number; // 牌堆中数量(仅 TREASURES 表用)
   desc?: string; // 风味描述
+  image?: string; // 装裱卡画心(public 下,如 /assets/treasures/treasure-seal.webp;#521 画心批,同华佗 image 先例:纯数据字段,机制零消费;缺省=装裱卡回退远山肌理)
 }
 
 export const TREASURES: TreasureDef[] = [
-  { id: "edict", name: "带血的诏书", level: 9, count: 1, desc: "衣带诏,董承受命" },
-  { id: "seal", name: "传国玉玺", level: 10, count: 1, desc: "受命于天,既寿永昌" },
-  { id: "lychee", name: "新鲜的荔枝", level: 9, count: 3, desc: "一骑红尘妃子笑" },
-  { id: "hu", name: "小斛", level: 3, count: 3, desc: "曹操小斛杀粮官" },
-  { id: "hat", name: "草帽", level: 1, count: 1, desc: "编草为生,布衣起家" },
-  { id: "qingnang", name: "青囊书残卷", level: 5, count: 5, desc: "华佗遗书,残缺不全" },
+  {
+    id: "edict",
+    name: "带血的诏书",
+    level: 9,
+    count: 1,
+    desc: "衣带诏,董承受命",
+    image: "/assets/treasures/treasure-edict.webp",
+  },
+  {
+    id: "seal",
+    name: "传国玉玺",
+    level: 10,
+    count: 1,
+    desc: "受命于天,既寿永昌",
+    image: "/assets/treasures/treasure-seal.webp",
+  },
+  {
+    id: "lychee",
+    name: "新鲜的荔枝",
+    level: 9,
+    count: 3,
+    desc: "一骑红尘妃子笑",
+    image: "/assets/treasures/treasure-lychee.webp",
+  },
+  {
+    id: "hu",
+    name: "小斛",
+    level: 3,
+    count: 3,
+    desc: "曹操小斛杀粮官",
+    image: "/assets/treasures/treasure-hu.webp",
+  },
+  {
+    id: "hat",
+    name: "草帽",
+    level: 1,
+    count: 1,
+    desc: "编草为生,布衣起家",
+    image: "/assets/treasures/treasure-hat.webp",
+  },
+  {
+    id: "qingnang",
+    name: "青囊书残卷",
+    level: 5,
+    count: 5,
+    desc: "华佗遗书,残缺不全",
+    image: "/assets/treasures/treasure-qingnang.webp",
+  },
 ];
 
 /** 等级 → 指导价(两):Lv1-4 线性,Lv5+ 加速增长(100/200/300/400/600/800/1200/1600/2200/3000 两)。 */

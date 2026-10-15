@@ -24,19 +24,19 @@
     "review_required": false
   },
   "treasure:edict": {
-    "path": "assets/treasures/treasure-edict.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Tongzhi_reign_Qing_dynasty_edict",
-    "license": "Public domain",
-    "author": "The imperial government of the Manchu Qing Dynasty",
-    "fetched_at": "2026-08-07",
+    "path": "assets/treasures/treasure-edict.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3A%E7%A4%BE%E4%BC%9A%E5%BE%81%E9%9B%86-%E5%85%89%E7%BB%AA%E5%9C%A3%E6%97%A8-%E6%B8%85%E4%BB%A3-%E5%A4%A7%E7%90%86%E5%B7%9E%E5%8D%9A%E7%89%A9%E9%A6%86_2025-02-11_01.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Kcx36",
+    "fetched_at": "2026-10-15",
     "review_required": false
   },
   "treasure:hu": {
-    "path": "assets/treasures/treasure-hu.jpg",
-    "source": "https://commons.wikimedia.org/wiki/File:Bronze_Shang_Yang_Measure",
-    "license": "CC0",
-    "author": "Gary Todd",
-    "fetched_at": "2026-08-07",
+    "path": "assets/treasures/treasure-hu.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3A%E5%95%86%E9%9E%85%E6%96%B9%E5%8D%87_164037.jpg",
+    "license": "CC BY-SA 4.0",
+    "author": "Hpppp0527",
+    "fetched_at": "2026-10-15",
     "review_required": false
   },
   "audio:coin": {
@@ -245,6 +245,38 @@
     "license": "CC0",
     "author": "Opticreep (Freesound,「Rain (Field Recording)」lq ogg 预览直链)",
     "fetched_at": "2026-10-14",
+    "review_required": false
+  },
+  "treasure:seal": {
+    "path": "assets/treasures/treasure-seal.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3AQing_Jade_Seal%2C_Qianlong_Reign_01.jpg",
+    "license": "CC0",
+    "author": "Gary Lee Todd, Ph.D.",
+    "fetched_at": "2026-10-15",
+    "review_required": false
+  },
+  "treasure:lychee": {
+    "path": "assets/treasures/treasure-lychee.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3APlate_of_peeled_lychee_fruit_2019_10-32-11_PM.jpeg",
+    "license": "CC BY-SA 4.0",
+    "author": "Duluthkid",
+    "fetched_at": "2026-10-15",
+    "review_required": false
+  },
+  "treasure:hat": {
+    "path": "assets/treasures/treasure-hat.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3ABamboo_hat_(blue)_-_Indonesia%2C_2012_(2).JPG",
+    "license": "CC BY-SA 4.0",
+    "author": "Elekes Andor",
+    "fetched_at": "2026-10-15",
+    "review_required": false
+  },
+  "treasure:qingnang": {
+    "path": "assets/treasures/treasure-qingnang.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3ANew_Edition_with_Supplemental_Annotations_of_The_Inner_Canon_of_the_Yellow_Emperor._Su_wen_WDL11409.jpg",
+    "license": "Public domain",
+    "author": "Wang, Bing",
+    "fetched_at": "2026-10-15",
     "review_required": false
   }
 }
