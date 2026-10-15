@@ -13,3 +13,10 @@ export const AUTO_ROLL_DELAY_MS = 1000;
 
 /** 慢速托管:每步决策间隔(ms)——玩家看得清 bot 在做什么。 */
 export const AUTOPILOT_SLOW_MS = 2000;
+
+/** 快速托管:每步决策间隔(ms)——下限节流(#529)。快档若零延迟,整条托管链在单个
+ *  宏任务里同步瞬通(实测 273ms 直落终局):误触即终局,且「收回/切速」命令只能排队
+ *  到链尾,中途不可撤销。40ms 让每步经注入时钟 setTimeout 让出宏任务——命令得以在
+ *  步间落地,链在下一步的 seatControlled 复查处可停(切回即停);整局 ≈ 40ms × ~210 步
+ *  ≈ 8-10s。权威节奏不吃 E2E_TIME_SCALE(见文件头)。 */
+export const AUTOPILOT_FAST_MS = 40;

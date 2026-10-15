@@ -511,8 +511,12 @@ export class RoomRegistry {
 
   /** 玩家自助托管(spec: autopilot):把自己的座位交给 bot 代打(on)或收回(off)。
    *  与 takeover 分离:重连(attachSeat)不清除,只有本人经此方法收回。
-   *  收回后在途连锁做完到下一个决策点自然停(driveBots 每步重查 seatControlled)。
-   *  对局中才可托管(未开局 409);切换后 onUpdate 广播,若轮到该座位立即驱动。 */
+   *  收回后在途连锁做完到下一个决策点自然停(driveBots 每步重查 seatControlled,
+   *  快档 40ms/步 → 切回即停,#529)。
+   *  对局中才可托管(未开局 409);切换后 onUpdate 广播,若轮到该座位立即驱动。
+   *  fire-and-forget(#529 死锁教训):只调度驱动链第一拍即返回,不 await 整条链——
+   *  快档链 40ms/步自续,await 它 = 本命令挂满整局(生产)/ 与 ManualClock 泵法互等
+   *  死锁(测试);后续步经注入时钟自续,重入守卫保证不双开。 */
   async setAutoPilot(
     roomId: string,
     seat: number,
@@ -540,7 +544,7 @@ export class RoomRegistry {
     );
     this.persist(room);
     onUpdate?.(room); // 先广播托管状态
-    await this.driveBots(room, onUpdate); // 若轮到该座位,立即开始代打
+    void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
     return room;
   }
 

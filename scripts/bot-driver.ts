@@ -5,8 +5,9 @@ import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import type { GameEngine } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
 import type { ReactionView } from "../src/core/reaction-window";
-// 节拍单源(#399):AUTOPILOT_SLOW_MS 全局唯一定义处 = src/core/timings.ts(单机/联机同表)。
-import { AUTOPILOT_SLOW_MS } from "../src/core/timings";
+// 节拍单源(#399):AUTOPILOT_SLOW_MS / AUTOPILOT_FAST_MS 全局唯一定义处 =
+// src/core/timings.ts(单机/联机同表;#529 快档下限根因注在该常量上)。
+import { AUTOPILOT_FAST_MS, AUTOPILOT_SLOW_MS } from "../src/core/timings";
 import type { RoomClock, RoomBotStopReason, RoomEvent, RoomSession } from "./room";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";
@@ -17,9 +18,11 @@ type UpdateFn = (room: RoomSession) => void;
 // 除 AwaitingReaction 外各相位 botAct 直驱,AwaitingReaction 由循环头特判停等
 // 人类待应答座位,不走 botAct)
 
-/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管慢速 2s,其余为 0。 */
+/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管慢速 2s / 快速 40ms(#529 下限
+ *  节流,步间让出宏任务,收回/切速得以在步间落地),其余(bot/接管)为 0。 */
 function stepDelayMs(r: RoomSession, seat: number): number {
-  return r.autoPilot.get(seat) === "slow" ? AUTOPILOT_SLOW_MS : 0;
+  const mode = r.autoPilot.get(seat);
+  return mode === "slow" ? AUTOPILOT_SLOW_MS : mode === "fast" ? AUTOPILOT_FAST_MS : 0;
 }
 
 /** 当前决策点归属座位:Setup·PickCapital=当前选都位,Playing=decisionOwner(珍宝
@@ -60,8 +63,11 @@ const driving = new WeakSet<RoomSession>();
  *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
  *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
  *  (seatControlled=false)→ 游戏等其重连或房主接管。
- *  慢速托管座位每步间延迟 2s(异步);每步 persist + onUpdate:客户端能逐步看到动作。
- *  返回 Promise:fast 模式下任务同步完成(零延迟),语义与旧同步版一致。 */
+ *  慢速托管每步间 2s、快速托管 40ms(#529),均经注入时钟异步步进(步间让出宏任务);
+ *  每步 persist + onUpdate:客户端能逐步看到动作。
+ *  调用方纪律(#529 死锁教训):setAutoPilot 等入口只调度本函数即返回(fire-and-forget),
+ *  不得 await 整条链——快档链以 40ms/步自续到终局,await 它 = 该命令挂满整局(生产)/
+ *  与 ManualClock 泵法互等死锁(测试)。 */
 export async function driveBots(
   host: DriveBotsHost,
   r: RoomSession,

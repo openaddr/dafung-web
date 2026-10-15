@@ -50,6 +50,7 @@ import { loadExtensionPackages } from "../src/core/extension-loader";
 // 登记(CALIBRATION_*)同居该模块;eventsMsg 随 events 直发退役出本文件。
 import {
   assembleDownlinkShot,
+  CALIBRATION_BACKED_KINDS,
   CALIBRATION_EVENT_KINDS,
   CALIBRATION_WINDOWS,
   lobbyView,
@@ -322,16 +323,23 @@ function flushRoom(roomId: string): void {
   // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
   // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。先于装配求值:它
   // 决定每拍是否随发 ②(快照含全量 log,非校准拍不白付 O(log) 序列化)。
+  // #529 闭沿限流:快档 40ms/步后每个窗闭沿都是独立 flush,闭沿校准只在批为空批
+  // (纯收尾拍)或含校准兜底 kind(窃玉偷香等折叠面不精确折、状态靠校准覆盖的结算)
+  // 时落全量——普通 kind 结算批折叠精确,事件批即事实,快照不再随车;否则全量快照
+  // 会随每次出牌闭沿跟发,退化成逐步广播(ADR-0020「快照不再作为逐步同步单元」)。
   const e = r.engine;
   const settled = e?.turnPhase ?? null;
   const prev = settledTurnPhase.get(roomId) ?? null;
   settledTurnPhase.set(roomId, settled);
+  const closeEdgeBatch =
+    (events ?? []).length === 0 ||
+    (events ?? []).some((ev) => CALIBRATION_BACKED_KINDS.has(ev.kind));
   const calibrate =
     e != null &&
     (e.phase === "Setup" ||
       (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
       (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
-      (prev != null && CALIBRATION_WINDOWS.has(prev)));
+      (prev != null && CALIBRATION_WINDOWS.has(prev) && closeEdgeBatch));
   // 逐座位单拍下行(#431 装配单口):事件批消息(#390)因果在前、状态在后;校准拍
   // 摘要随车(每座位各发各的 redactSnapshotForSeat 投影,#381:god-view 退役)。
   // redaction 在装配内必经(#381 保密后补,未知 kind 当场炸),本文件不再直呼
