@@ -174,7 +174,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 卡牌段选中(选中可逆:点它牌换选/再点同牌/右键/长按取消在 HandRack);进目标段
   // 与退窗态即清空重选(与一期弹窗口径一致)。
   const [junshiSelectedId, setJunshiSelectedId] = useState<string | null>(null);
-  useEffect(() => setJunshiSelectedId(null), [junshiTargeting, junshiUp]);
+  // 目标段选中席(#417 统一口径:首点选中/再点同席取消——不再点席位即出;席位点击层
+  // 与数字键共用此选中态,执行走动作条「出」确认钮)。进/出目标段即清空重选。
+  const [junshiTargetSeat, setJunshiTargetSeat] = useState<number | null>(null);
+  useEffect(() => {
+    setJunshiSelectedId(null);
+    setJunshiTargetSeat(null);
+  }, [junshiTargeting, junshiUp]);
   const junshiOptions =
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")
@@ -194,8 +200,15 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 只在 controller/map 就位后挂载,正常流到不了 null)。
   const dispatchCommand = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
 
-  // 卡牌段确认(动作钮「出牌」与 Enter 共用):选中项发命令;落印音效随一期迁移。
+  // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席
+  // 发命令;落印音效随一期迁移。
   const junshiConfirm = () => {
+    if (junshiTargeting) {
+      if (junshiTargetSeat == null) return;
+      getAudio().play("stamp");
+      dispatchCommand(junshiSeatCmd(junshiTargetSeat));
+      return;
+    }
     if (junshiSelected == null) return;
     getAudio().play("stamp");
     dispatchCommand(
@@ -216,18 +229,21 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       dispatchCommand({ type: "useJinnang", cardId: null });
     }
   };
-  // 目标段:点席位即出(免二次确认;席位点击层与数字键共用)。
+  // 目标段选席(#417):席位点击层与数字键同写一个选中态(首点选中/再点同席取消);
+  // 打出经 junshiConfirm(动作条「出」)。
+  const junshiToggleSeat = (targetSeat: number) =>
+    setJunshiTargetSeat((cur) => (cur === targetSeat ? null : targetSeat));
   const junshiSeatCmd = (targetSeat: number): GameCommand =>
     junshiPendingSkill != null
       ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, targets: [targetSeat] }
       : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [targetSeat] };
 
-  // 目标段数字键 1..n 直发可用席位命令(useDigitKeyPick 单源,一期 G-19 旧口径;
-  // 卡牌段数字键在 HandRack)。
+  // 目标段数字键 1..n 选中可用席位(#417 与点选同口径:只选中,不打出;
+  // useDigitKeyPick 单源;卡牌段数字键在 HandRack)。
   useDigitKeyPick(
     junshiTargeting,
     junshiSeatOptions.filter((o) => o.available).map((o) => o.targetSeat),
-    (targetSeat) => dispatchCommand(junshiSeatCmd(targetSeat)),
+    junshiToggleSeat,
   );
 
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
@@ -304,7 +320,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         durationMs={scaleReactionMs(reaction.windowMs)}
         shareSeats={reactShareSeats}
         shareSeat={reactShare}
-        onPickShare={setReactShare}
+        onPickShare={(seat) => setReactShare((cur) => (cur === seat ? null : seat))} // #417 首点选中/再点取消
         seatLabel={(seat) => snapshot.players[seat].guohao}
         confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
         onConfirm={() => {
@@ -430,7 +446,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
           消费的是稳定自局座位(selfSeat):窥探放行与「自身不出卡」都要「人」而非决策
           视角——热座 viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
-          #256 目标段:候选席位卡金圈呼吸+点席位即出(targets 由快照 choices 派生)。 */}
+          #256/#417 目标段:候选席位卡金圈呼吸,点席位=选中/再点取消(targets 由快照
+          choices 派生,打出走动作条「出」)。 */}
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
@@ -440,10 +457,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
                   bySeat: new Map(
                     junshiSeatOptions.map((o) => [
                       o.targetSeat,
-                      { available: o.available, reason: o.reason },
+                      {
+                        available: o.available,
+                        reason: o.reason,
+                        selected: o.targetSeat === junshiTargetSeat,
+                      },
                     ]),
                   ),
-                  onPick: (seat: number) => dispatchCommand(junshiSeatCmd(seat)),
+                  onPick: junshiToggleSeat, // #417 首点选中/再点取消,打出走动作条「出」
                 }
               : undefined
           }
@@ -490,12 +511,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             }
           />
         </DashboardBar>
-        {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=选择目标/作罢;
-          选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。 */}
+        {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=出(选中席
+          点亮,#417)/作罢;选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。 */}
         {junshiUp && (
           <ActionBar
             segment={junshiTargeting ? "target" : "card"}
-            playEnabled={junshiSelected != null}
+            playEnabled={junshiTargeting ? junshiTargetSeat != null : junshiSelected != null}
             onPlay={junshiConfirm}
             onPass={junshiPass}
             rightShift={!junshiTargeting && junshiSelected != null}
