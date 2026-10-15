@@ -13,7 +13,7 @@
 
 1. **宝物城与普通城池完全同权**:loader 为 `TreasureCity` 建立与 `Property` 同口径的 catalog(完整经济字段:price/buildCost/valueByLevel/tradeMult/tradeAdd/group/region),赋 propertyId,**可购买、可扩军、可交涉、可公道买卖、可当选都候选**(`isCapitalEligible=true`)。TileType 保留 `"TreasureCity"` 成员不收编——它承载渲染身份与规则叙事,探宝挂件随 type 走。
 2. **落格结算顺序定序为正典**(写入 rules/03 与代码注释):**机遇 roll(既有前置,仅天命格豁免)→ 城池交易链(购地/扩军/按兵不动/珍宝交涉,含买不起等自动拒绝;一次落格至多一段)→ 探宝**。宝物城的探宝固定挂在交易链尾:链上任何终端(买成/升成/按兵不动/交涉三择/自动拒绝/他人城无宝)之后必触发一次探宝;链中途转入清算或破产则探宝不触发;探宝结算自带 endTurn。探宝本体(抽一件→2d6≥等级→得宝/回堆底)逻辑不变。
-3. **数量调平**:huanyou/chessboard/sanguo 三图各新增 3 座宝物城(4→7),既有 4 座补全经济字段;zhongyuan(8 格纯买地小图)不参与。新城约束:与既有宝物城环距不相邻、过地图生成断言(huanyou 无三连同型/间距)、价格取邻近城档位、三图同 id 同名同 group/region。
+3. **数量调平**:huanyou/chessboard/sanguo 三图各新增 3 座宝物城(4→7),既有 4 座补全经济字段;zhongyuan(8 格纯买地小图)不参与。新城约束:与既有宝物城环距不相邻、过地图生成断言(huanyou 无三连同型/间距)、价格取邻近城档位、三图同 id 同名同 group/region。(**2026-10 注**:chessboard/sanguo 两图已随 [ADR-0025](0025-map-consolidation.md) 收敛移除,本项调平最终只在 huanyou 落地。)
 4. **术语**:GLOSSARY 新增「宝物城」词条;「拼点」词条登记两义(锦囊/拦检=双人对骰;探宝=2d6≥珍宝等级的单人判定),不改名。
 
 ## 后果
