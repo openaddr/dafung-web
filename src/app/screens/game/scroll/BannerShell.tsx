@@ -171,6 +171,7 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
       {/* 题行:金印 + 笔书题名。题印漆金化(#492 决议①「印章漆金化」):漆底金字,
           朱砂保留给危险/破产语义与按钮;题名金字(漆金题)对漆底 ≥8:1。 */}
       <div className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5">
+        {/* 题印投影 rgba(43,35,23,·) 为裸色:墨影族阴影豁免,登记本体见同域 banner.css 头注 */}
         <span
           aria-hidden="true"
           className="flex h-[24px] w-[24px] flex-none rotate-[-4deg] items-center justify-center rounded-[3px] bg-gradient-to-b from-gold-bright to-gold-deep font-title text-[15px] leading-none text-lacquer shadow-[0_1px_3px_rgba(43,35,23,0.5)]"

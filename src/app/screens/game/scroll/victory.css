@@ -93,6 +93,15 @@
     victory-bounce-in var(--dur-reveal) var(--ease-out-back);
 }
 
+/* reduced-motion:辉光呼吸是 infinite 环境动效,与 stamp-seal 同粒度就地登记——
+   app.css M-4 全局兜层只把 infinite 压成单次瞬时,仍属「跑了动画」;按 board.css
+   M-9 口径直接停用,标题以无辉光的自然态静置(金字对玄墨底对比已足,辉光纯装饰)。 */
+@media (prefers-reduced-motion: reduce) {
+  .victory-anim-title {
+    animation: none;
+  }
+}
+
 @keyframes victory-fade-up {
   from {
     opacity: 0;
