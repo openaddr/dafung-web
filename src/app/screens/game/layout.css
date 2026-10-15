@@ -766,56 +766,74 @@
   padding: 7px 18px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
 }
+/* 按钮(#528 深底可辨性修复):玄墨换装后漆底(#332a1e)与棋盘玄墨底(#1f1a13)
+   明度几乎同档(1.23:1)且 border:0 只靠 1px 内环,深底上轮廓被吃掉=走查员找不到
+   (dogfood #526 ISSUE-001,黑盒实测对比度达标但「实际不可辨」)。三招:
+   ① 亮金 hairline 外描边勾轮廓(--color-gold 系 color-mix,横幅 reaction-banner
+   漆金描边同语感);② 墨底提亮一档(lacquer 平底 → panel-hi/panel 渐变,同
+   .actionbar-lab 托板族)与棋盘深底拉开;③ 字阶 15→17px(对齐 reaction-text)。
+   本条无入场动画、无半透明叠加态(走查报告猜疑项,查证不存在)——可见性全靠
+   常驻态自身。字/描边实测:金字对 panel-hi 6.5:1、hairline@0.6 对棋盘底 4.1:1。 */
 .game-layout .actionbar .actionbar-btn {
   font-family: var(--font-brush);
-  font-size: 15px;
+  font-size: 17px;
   letter-spacing: 0.25em;
   text-indent: 0.25em;
-  padding: 9px 24px;
+  padding: 8px 22px;
   border-radius: 4px;
-  border: 0;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 60%, transparent);
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
   cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.55);
   /* 悬停微反馈统一(#490 微档):亮金内环 + 印影 + 微缩放 */
   transition:
     transform var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out);
+    box-shadow var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out);
 }
-/* 墨钮(DESIGN §4.2 推进对局的主行动):漆底金字;启用态金内环=原型 .armed */
+/* 墨钮(DESIGN §4.2 推进对局的主行动):漆底金字;启用态金内环=原型 .armed,
+   描边升全金+弱光晕与次级拉开强度(dogfood 建议:两钮视觉强度拉开) */
 .game-layout .actionbar .actionbar-btn.mo {
-  background: var(--color-lacquer);
   color: var(--color-lacquer-gold);
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.6),
-    0 2px 5px rgba(0, 0, 0, 0.45);
+    0 3px 10px rgba(0, 0, 0, 0.55);
 }
 .game-layout .actionbar .actionbar-btn.mo:disabled {
-  opacity: 0.45;
+  /* #528 0.45→0.6:入场未选牌时「出牌」恒 disabled,原值深底上整钮近隐形
+     (「出钮尤甚」主因);0.6 下 hairline 仍可辨(2.3:1)、字对混底 3.6:1
+     (禁用字无 WCAG 门槛),禁用感不丢 */
+  opacity: 0.6;
   cursor: not-allowed;
 }
 .game-layout .actionbar .actionbar-btn.mo:not(:disabled) {
+  border-color: var(--color-gold);
   box-shadow:
     inset 0 0 0 1.5px var(--color-gold),
-    0 2px 6px rgba(0, 0, 0, 0.5);
+    0 0 10px rgba(200, 161, 58, 0.35),
+    0 3px 10px rgba(0, 0, 0, 0.55);
 }
 .game-layout .actionbar .actionbar-btn.mo:not(:disabled):hover {
   transform: scale(1.02);
+  border-color: var(--color-gold-bright);
   box-shadow:
     inset 0 0 0 2px var(--color-gold-bright),
-    0 3px 8px rgba(0, 0, 0, 0.55);
+    0 0 12px rgba(200, 161, 58, 0.45),
+    0 3px 12px rgba(0, 0, 0, 0.6);
 }
-/* 次级漆钮(不出/作罢):原型 .qian 同族 */
+/* 次级漆钮(不出/作罢):原型 .qian 同族;同底渐变靠 hairline 弱档与墨钮拉开 */
 .game-layout .actionbar .actionbar-btn.qian {
-  background: var(--color-lacquer);
   color: var(--color-lacquer-gold);
   box-shadow:
     inset 0 0 0 1px rgba(217, 185, 92, 0.5),
-    0 2px 5px rgba(0, 0, 0, 0.45);
+    0 3px 10px rgba(0, 0, 0, 0.55);
 }
 .game-layout .actionbar .actionbar-btn.qian:hover {
   transform: scale(1.02);
+  border-color: var(--color-gold-bright);
   box-shadow:
     inset 0 0 0 1.5px var(--color-gold),
-    0 2px 6px rgba(0, 0, 0, 0.5);
+    0 3px 10px rgba(0, 0, 0, 0.6);
 }
 .game-layout .actionbar .actionbar-btn:focus-visible {
   outline: 2px dashed var(--color-gold);
