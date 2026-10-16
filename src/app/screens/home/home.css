@@ -78,10 +78,14 @@
   outline-offset: 2px;
 }
 
-/* ── 视觉重做 v2 签名件:千里江山装裱横带(玄墨鎏金版,#514/S8)──
+/* ── 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位)──
    .home-scroll-band:漆金裱边 = 上下近黑漆边(漆)+ 内侧金线(金,裱工的「矩」);
-   古画素材归 S10,画心暂由 .home-band-heart 深色渐变占位(中央一抹鎏金微光),
-   TODO(S10) 挂素材时替换占位块即可,外框不动。
+   画心(#558):texture-lanting 接位(center 35% 裁中上段行气)+ 压深渐变——
+   压深取值锚点:横带读作深色古画横批而非黑洞(中段留出纸纹),且其上
+   文字/「逐鹿」印仍是最高亮层;radial 鎏金微光层经 ::after 保持画心最上层。
+   短横屏 72px 档撤素材回纯渐变(过窄裁不出画心,见底部媒体查询)。
+   .home-band-hero:周瑜立绘右端低透明亮相——纯装饰,mask 向左渐隐入深底,
+   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位)。
    .home-band-in:入场——画心自横向微舒展 + 淡入(与标题先行、按钮 stagger 的
    节奏衔接:标题 0ms → 横带 120ms → 按钮 300ms 起)。 */
 .home-scroll-band {
@@ -93,14 +97,37 @@
     var(--ink-shadow-sm);
 }
 .home-band-heart {
+  position: relative;
   height: clamp(96px, 15vw, 168px);
   background:
-    radial-gradient(
-      ellipse 55% 130% at 50% 50%,
-      color-mix(in srgb, var(--color-gold) 8%, transparent),
-      transparent 72%
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
+      color-mix(in srgb, var(--color-bg-deep) 55%, transparent) 50%,
+      color-mix(in srgb, var(--color-bg-deep) 70%, transparent)
     ),
-    linear-gradient(180deg, var(--color-panel), var(--color-bg-deep));
+    url(/assets/textures/texture-lanting.webp) center 35% / cover no-repeat;
+}
+/* 鎏金微光 ::after 承载:绘制序 = 元素背景(纹理压深)< 伪元素(微光)< 后续 DOM
+   (立绘/印章),微光仍居画心最上;短横屏档只换元素背景,微光两档通用。 */
+.home-band-heart::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 55% 130% at 50% 50%,
+    color-mix(in srgb, var(--color-gold) 8%, transparent),
+    transparent 72%
+  );
+}
+/* 立绘贴右:h-full + w-auto 锁纵横比(不写 inset-y,防绝对定位 replaced 元素
+   按内在尺寸解算);mask 左缘全透→42% 处全实,向左渐隐入深底;opacity 0.3 =
+   鎏金调压暗档,文字/印章保持最高亮层。 */
+.home-band-hero {
+  object-fit: contain;
+  opacity: 0.3;
+  mask-image: linear-gradient(90deg, transparent, #000 42%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 42%);
 }
 .home-band-in {
   animation: home-band-in var(--dur-slow) var(--ease-out) 0.12s both;
@@ -123,8 +150,14 @@
    一次可见,免滚动。只压纵向呼吸(横带高/间距/按钮 padding),字级与材质不动
    ——观感不变,空间让位。桌面大屏(>480px 高)完全不进此档。 ── */
 @media (max-height: 480px) {
+  /* #558:短横屏 72px 档撤素材——过窄裁不出画心,横带回纯渐变占位
+     (微光 ::after 不在此撤,两档通用);立绘整体 display:none。 */
   .home-band-h {
     height: 72px;
+    background: linear-gradient(180deg, var(--color-panel), var(--color-bg-deep));
+  }
+  .home-band-hero {
+    display: none;
   }
   .home-gap-tight {
     margin-bottom: 1rem;
