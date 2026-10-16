@@ -586,7 +586,8 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
           {/* 价格字(#40 S7):仅无主城渲染——有主城铭牌已是深玩家色底,购入价纯属
               噪声(等级/归属才是持续信息),不再输出;无主漆木深卡上用淡纸字(inkDim
-              对 lacquer ≥4.5:1,#512 深卡浅字)。 */}
+              对 lacquer ≥4.5:1,#512 深卡浅字)。#557:40 城连排「4,000 两」成纹理噪声,
+              压 alpha 0.75 降噪(对比度余量充足,放大后仍清晰可读)。 */}
           {!ownerRgb && (
             <text
               x={0}
@@ -594,7 +595,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               textAnchor="middle"
               fontFamily="var(--font-deco)"
               fontSize={16}
-              fill={rgba(Theme.inkDim)}
+              fill={rgba(Theme.inkDim, 0.75)}
             >
               {price}
             </text>

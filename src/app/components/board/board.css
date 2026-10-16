@@ -20,6 +20,17 @@
   /* #512 深底档:金盘 hover 从 0.5 压到 0.35——玄墨底上金盘天然显眼,反馈够读即可 */
   opacity: 0.35;
 }
+/* #557 悬停反馈穿透遮挡:金盘 hilite r62 大半被 104×88 铭牌盖住,只露 ≈3px 边缘——
+   hover 时铭牌描边同步升亮金,反馈从遮挡里读得出来(CSS stroke 压过 SVG stroke
+   展示属性);限定 rect 只命中地产铭牌卡,三族事件格(bv-tile-border 挂在 <g> 上)
+   不吃此规则。触屏 :active 与金盘同口径。 */
+.bv-tile rect.bv-tile-border {
+  transition: stroke var(--dur-fast) var(--ease-out);
+}
+.bv-tile:hover rect.bv-tile-border,
+.bv-tile:active rect.bv-tile-border {
+  stroke: var(--color-gold-bright);
+}
 /* X4(#23) 选都候选金圈两档:
    .bv-candidate  候选集全座位可见——旁观席位静态低透明金圈(不可点、不脉冲),
                   远看即知「当前轮到谁在从这三城里挑」;
