@@ -75,18 +75,18 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 验证纪律
 
-- **测试宁缺毋滥**:宁愿不要测试用例,也不要垃圾用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
+- **测试宁缺毋滥**:宁愿不要测试用例,也不要重复用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
 - **开工前**:`bun run check:freshness`(基线指纹 / 落后 origin-master / 冲突标记三合一;过期禁止开工,审计取证尤其如此——防在旧基线上修已消失的问题)。多轮任务每轮续作前重跑——并行会话可能已合票推进 master(2026-10-15 实锤:收账把工作副本运到新基线)。
-- **改完码**:lint(0 warning 基线)+ fmt 先过,日常 build + `bun test`;改 `scripts/` 加跑 typecheck:scripts。命令与跑法细节一律见[开发与测试](./docs/how-to/开发与测试.md)。
+- **验证分层**:迭代中只跑定向轻反馈(改哪域跑哪段 `bun test`、fmt 随手自动修);**门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint(0 warning 基线)+ fmt + build + `bun test`,改 `scripts/` 加跑 typecheck:scripts。命令与跑法细节一律见[开发与测试](./docs/how-to/开发与测试.md)。
 - **分层**:工单收口只跑本工单 spec;全量 e2e 每分支一次、PR 前收口,门禁=放行判据(判据、workers 与墙钟预算见开发与测试)。
 - e2e 时间倍率仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
-- **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单(2026-10-05 误杀断网事故的硬规矩)。
+- **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单。
 
 ## 版本协作(jj 优先)
 
 本项目用 **jj-vcs(colocated 模式)** 协作:.jj 与 .git 共存,git 双通道全兼容。口径:
 
-- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`,正式通道;git worktree = 逃生舱通道),网络断可全本地流转,最后统一推。
+- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`),网络断可全本地流转,最后统一推。
 - **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
 - 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
 
