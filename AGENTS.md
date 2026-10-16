@@ -1,6 +1,6 @@
 # dafung-web — 群雄逐鹿(三国大富翁)
 
-TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,纯逻辑、可上服务器)+ **瘦客户端**(`src/app/`,React)。单机模式(1 真人对阵电脑)与联机模式(每人一台设备,WebSocket 同步)。个人项目,朋友圈子自用,**不考虑任何向前/向后兼容性**——需要重构直接改,别把「兼容」「迁移」当理由。
+TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,纯逻辑、可上服务器)+ **瘦客户端**(`src/app/`)。单机模式(1 真人对阵电脑)与联机模式(每人一台设备,WebSocket 同步)。个人项目,朋友圈子自用,**不考虑任何向前/向后兼容性**——需要重构直接改,别把「兼容」「迁移」当理由。
 
 **本文件是路由与红线,不当事实源**:细节在下述文档里,按需读,别在这里找数值。
 
@@ -34,11 +34,11 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 1. **`src/core/` 零 DOM 依赖**:不 import 任何 `app/`(React 层)或 DOM API——引擎将来上服务器,任何耦合都阻断联机化。✅ `import type { Player } from "./types"`;❌ `import { useGameStore } from "../app/store/gameStore"`。
 2. **GameEngine player-agnostic**:引擎只知道 `activeIndex`,不关心「谁在这个屏幕前」;不写 `if (player.isLocal)`。
 3. **所有状态变更走引擎公共方法**(如 `engine.buyProperty()`),不直接改属性——保证服务器可审计/序列化每次操作。
-4. **LocalController 是单机专用层**(`src/app/controllers/local.ts`,假设活跃真人就在本屏前);联机走 `online.ts`;两者共享 `controller.ts` 基类。controller 不加引擎假设:引擎要做新事,先加引擎方法,controller 只调用。
-5. **序列化友好**:需同步的状态无函数、无循环引用、无 DOM 引用;联机状态通路=引擎产出的类型化事件批(折叠切换⑥ #388 起为唯一状态下行,快照只作重连摘要与校准锚,ADR-0020)。
+4. **LocalController 是单机专用层**(假设活跃真人就在本屏前);联机走 `online.ts`;两者共享 `controller.ts` 基类。controller 不加引擎假设:引擎要做新事,先加引擎方法,controller 只调用。
+5. **序列化友好**:需同步的状态无函数、无循环引用、无 DOM 引用;联机状态通路=引擎产出的类型化事件批(唯一状态下行,快照只作重连摘要与校准锚,ADR-0020)。
 6. **交互类 UI 组件必须收口 shadcn/Base UI**(弹层/下拉/确认框/表单控件等:`bunx shadcn add <component>` 取无头行为层,套水墨皮,不手搓交互语义);shadcn 变量经 `app.css` 桥接 gen:theme 产出的 `--color-*` token,**配色单源仍是 `core/theme.ts`**。附表与豁免见 [docs/design/组件收口.md](./docs/design/组件收口.md)。
-7. **视觉/交互设计开工前先读 [DESIGN.md](./docs/design/DESIGN.md)**;§4.6 状态表达原则:能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不加文字标牌。
-8. **模块治理(常设,目的=可读性/维护性/扩展性)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;拆分走机制域轴+自由函数+薄委托,**搬运与改名分离**,验收=测试全绿+方法清单 diff 零(同种子快照哈希验收已由 ADR-0021 删除);引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制。细则见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
+7. **状态表达原则**(DESIGN §4.6):能用 UI 状态变化(边框/色彩/位移/光圈)标识的,不加文字标牌。
+8. **模块治理(常设)**:源文件单一主题、文件名必须是具体领域词——笼统聚合桶(game/utils/helpers/types 式)禁止,词汇表 `_Avoid` 词不上文件名;引擎壳 `authority.ts` 的行数与内容禁区由 `scripts/check-core-purity.ts` 断言强制;拆分配方(机制域轴+自由函数+薄委托、搬运与改名分离、验收判据)见 [ADR-0019](./docs/adr/0019-module-governance-principle.md)。
 
 ## 完成定义(DoD)
 
@@ -71,27 +71,26 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - 弹卷轴 ⇔ 选项集 ≥2 真实选项;≤1 引擎自动执行默认行为+浮字(ADR-0013,`engine.choicesFor()`/快照 `choices` 供消费);破产清算例外仍弹。
 - 机遇档位归一/回退单源在 `core/encounters.ts`;引擎缺省 `triggerRate=0`,产品默认来自 jiyu.json。
 - 时机框架:技能=数据声明挂 `HeroDef.skills`,`dispatchMoment` 按座位序×技能序确定性派发;加效果一步(`effects.ts`)/加技能两步(`heroes.ts`)/加时机三步(`timing.ts`+`authority.ts`);效果内禁同步再派发时机(深度>2 抛错);CashGained 仅经济结算点派发,防连锁。
-- 对局日志(ADR-0014):**纯归档**(ADR-0021 删重放校验器)——记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**;联机落 `data/logs/<gameId>.jsonl`,单机在 IndexedDB,排查直接读 jsonl(格式见[对局日志](./docs/reference/对局日志.md))。
+- 对局日志(ADR-0014):**纯归档**——记人类 `submitCommand`/`pickCapital` 全量,**bot 路径不记**;联机落 `data/logs/<gameId>.jsonl`,单机在 IndexedDB,排查直接读 jsonl(格式见[对局日志](./docs/reference/对局日志.md))。
 
 ## 验证纪律
 
 - **测试宁缺毋滥**:宁愿不要测试用例,也不要垃圾用例、低性能用例——这种测试会严重降低开发迭代效率;发现即删除或重写,新增用例先回答「守住什么、花几秒」。
 - **开工前**:`bun run check:freshness`(基线指纹 / 落后 origin-master / 冲突标记三合一;过期禁止开工,审计取证尤其如此——防在旧基线上修已消失的问题)。多轮任务每轮续作前重跑——并行会话可能已合票推进 master(2026-10-15 实锤:收账把工作副本运到新基线)。
-- **改完码**:lint(0 warning 基线)+ fmt 先过,日常 build + `bun test`;改 `scripts/` 加跑 typecheck:scripts。命令与跑法细节一律见[开发与测试](./docs/how-to/开发与测试.md)(命令单一事实源)。
+- **改完码**:lint(0 warning 基线)+ fmt 先过,日常 build + `bun test`;改 `scripts/` 加跑 typecheck:scripts。命令与跑法细节一律见[开发与测试](./docs/how-to/开发与测试.md)。
 - **分层**:工单收口只跑本工单 spec;全量 e2e 每分支一次、PR 前收口,门禁=放行判据(判据、workers 与墙钟预算见开发与测试)。
 - e2e 时间倍率仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
 - **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单(2026-10-05 误杀断网事故的硬规矩)。
 
 ## 版本协作(jj 优先)
 
-本项目 **优先使用 jj-vcs(colocated 模式)** 协作开发:`jj git init --colocate` 已落地,.jj 与 .git 共存,git/jj 双通道全兼容。口径:
+本项目用 **jj-vcs(colocated 模式)** 协作:.jj 与 .git 共存,git 双通道全兼容。口径:
 
-- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`——#537 试点已通过,workspace 为正式通道;git worktree = 逃生舱通道),网络断可全本地流转,最后统一推。
+- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`,正式通道;git worktree = 逃生舱通道),网络断可全本地流转,最后统一推。
 - **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
-- 操作配方、0.45 摩擦清单与命令速查的单一事实源:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节;派单场景三律见[派单模板](./docs/agents/派单模板.md)jj 配方节。
+- 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
 
 ## Agent 工作流
 
 - Issue tracker:GitHub Issues(`openaddr/dafung-web`;gh 未认证走 token+REST 等效通路),细则见 [docs/agents/issue-tracker.md](./docs/agents/issue-tracker.md) 与 [triage-labels.md](./docs/agents/triage-labels.md);领域文档消费方式见 [docs/agents/domain.md](./docs/agents/domain.md)。
-- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单);截图自证一律走 `scripts/shot.mjs`。
-- 覆盖率体检与耗时回顾各有 skill(`.agents/skills/`),按其 SKILL.md 触发条件使用,勿日常化。
+- **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单+jj 配方三律);截图自证一律走 `scripts/shot.mjs`。
