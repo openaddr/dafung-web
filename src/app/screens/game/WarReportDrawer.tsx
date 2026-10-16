@@ -114,16 +114,23 @@ export function WarReportDrawer({ snapshot }: { snapshot: GameSnapshot }) {
           >
             <SheetHeader>
               <SheetTitle>战报</SheetTitle>
-              <SheetDescription>对局事件史,新在上;关后零占位。</SheetDescription>
+              <SheetDescription>对局事件史,新在上。</SheetDescription>
             </SheetHeader>
             <ul className="war-list">
               {entries.map((e, i) => {
                 const actorColor = e.player ? colorByGuohao.get(e.player) : undefined;
+                // 回合分组锚(#556):倒序呈现下组首=该轮最新一条。仅组首显轮签,
+                // 其余条目轮签位留空(列宽不塌);组首与上条的轮界由 .war-head
+                // 上缘加重 hairline 承担(layout.css),首条无上界。
+                const roundHead = i === 0 || entries[i - 1].round !== e.round;
                 return (
                   // key 用过滤序的稳定下标(log 只增,下标不漂);倒序后同刻条目相对次序稳定
-                  <li key={total - visibleCount + i} className="war-item">
+                  <li
+                    key={total - visibleCount + i}
+                    className={"war-item" + (roundHead && i > 0 ? " war-head" : "")}
+                  >
                     {actorColor && <i className="war-color" style={{ background: actorColor }} />}
-                    <span className="war-round">轮{e.round}</span>
+                    <span className="war-round">{roundHead ? `轮${e.round}` : ""}</span>
                     <span className="war-brief">{e.brief}</span>
                   </li>
                 );

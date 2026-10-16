@@ -158,7 +158,9 @@ function SeatCard({
           {badges}
           <Tip
             tip={ATTR_TIPS.rep}
-            className="ib c-rep"
+            /* 负声望警示(#556):值 <0 值色改朱砂(数值即信息,色变即状态,§4.6
+               不加标牌);样式 layout.css .ib.c-rep.rep-neg。 */
+            className={"ib c-rep" + (p.reputation < 0 ? " rep-neg" : "")}
             testId={TESTIDS.seatAttr(seat, "rep")}
             ariaLabel={`声望 ${p.reputation}`}
           >

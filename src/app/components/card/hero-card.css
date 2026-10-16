@@ -27,10 +27,11 @@
 /* ── 基座:宣纸纸底 + 漆金描边(em 制;isolation 让交互态描边不越邻牌,
    与 .jinnang-card 同口径;rotate 消费 --tilt 微旋通道,jinnang-card.css 同款)── */
 .hface {
-  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;jinnang-card.css 同值镜像) */
-  --card-paper: #f1e7d0;
+  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;jinnang-card.css 同值镜像)。
+     #556 双亮区降半档随镜像同步:纸底亮端 #f1e7d0→#ece1c6、画心 #f9f2e0→#f2e8d2 */
+  --card-paper: #ece1c6;
   --card-paper-deep: #e3d4b2;
-  --card-xin: #f9f2e0;
+  --card-xin: #f2e8d2;
   --card-ink: #2f2718;
   --card-ink-dim: #6b5c40;
   position: relative;

@@ -29,10 +29,12 @@
    isolation:每张牌自成一个层叠上下文——标签章的 z-index 不得越过「叠在本牌之上的
    邻牌」(手牌架压缩布局会叠牌;无 isolate 时章会浮到邻牌上面穿模,2026-09-25 走查)── */
 .jinnang-card {
-  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;hero-card.css 同值镜像) */
-  --card-paper: #f1e7d0;
+  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;hero-card.css 同值镜像)。
+     #556 双亮区降半档:纸底亮端 #f1e7d0→#ece1c6、画心 #f9f2e0→#f2e8d2
+     (墨字 #2f2718 对画心 ≈12:1,可读红线不动) */
+  --card-paper: #ece1c6;
   --card-paper-deep: #e3d4b2;
-  --card-xin: #f9f2e0;
+  --card-xin: #f2e8d2;
   --card-ink: #2f2718;
   --card-ink-dim: #6b5c40;
   position: relative;
@@ -136,7 +138,7 @@
   display: grid;
   place-items: center;
   overflow: hidden;
-  min-height: 6em;
+  min-height: 4.5em; /* 4.5em(#556):为笺脚 1.32em 字级让位(原 6em) */
 }
 /* 画心·立绘通道(#511):art 传入节点即渲染(容器裁剪,位图 cover 铺满画心);
    纹样线稿降级为缺图回退(锦囊目录暂无立绘资产,现走线稿,通道先行为 S1 后续
@@ -168,7 +170,9 @@
 
 /* ── 笺脚:效果正文(别称已剥离,jinnangAliasSplit),2 行截断;large 详情档 4 行 ── */
 .jinnang-card .jiao {
-  font-size: 1.12em;
+  /* 1.32em(#556):7.6px 架档 em 基下 ≈10px,出牌决策面描述可读;字级放大由
+     画心 min-height 让位(6em→4.5em)吸收,2 行截断口径不变 */
+  font-size: 1.32em;
   line-height: 1.62;
   color: var(--card-ink); /* 纸上墨字(可读性红线:#511 文字恒在纸底) */
   font-variant-numeric: tabular-nums;
@@ -448,7 +452,7 @@
   z-index: 6;
 }
 /* 选中=详情态(spec US4「放大至全文可读」):笺脚放开 4 行(与 lg 详情档同),
-   纹样窗同步让位(min-height 6em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
+   纹样窗同步让位(min-height 4.5em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
 .jinnang-card.sel .jiao {
   -webkit-line-clamp: 4;
 }

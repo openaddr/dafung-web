@@ -203,7 +203,7 @@
 
 /* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
-   - 可出=.usable 微上浮(钮层),hover 升满幅;
+   - 可出=.usable 微上浮+亮金 hairline 金边(#556,静态常驻),hover 升满幅;
    - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
      钮层只管层叠 z-index 与消隐自身 transform,避免与 .many hover 挥出叠加);
    - 不可用=.off 下沉置灰(disabled,原因印条 .reason 由牌面 children 承担,文案
@@ -217,6 +217,10 @@
 }
 .hand-rack.junshi .hand-rack-hand > button.usable {
   transform: translateY(-0.6em);
+  /* 可出金边(#556 兑现 HandRack.tsx「金边上浮」承诺):亮金 hairline 静态常驻
+     (§4.6 状态用边/色表达,不加标牌、不呼吸),同 :hover hairline 语
+     (本文件常态牌悬停块同款 color-mix 60%);钮层 p-0 贴牌缘,圈即牌廓 */
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
 }
 .hand-rack.junshi .hand-rack-hand > button.usable:hover {
   transform: translateY(-1em);
