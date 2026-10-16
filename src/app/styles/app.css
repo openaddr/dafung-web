@@ -38,6 +38,18 @@
   --hairline-strong: color-mix(in srgb, var(--color-ink) 30%, transparent);
 }
 
+/* ── #559 深色原生控件与占位符 ──
+   color-scheme:dark:原生控件(number spinner/autofill/系统滚动条等)按深色模式
+   渲染,不再按浅色反白突兀;全站无浅色模式,html 声明一次全生效。
+   ::placeholder:浏览器默认占位符灰在深底实测 ≈3.7:1 不达 AA;token 化 ink-dim
+   后 ≈8.5:1。全局一处,组件可用更高特异度覆盖。── */
+html {
+  color-scheme: dark;
+}
+::placeholder {
+  color: var(--color-ink-dim);
+}
+
 html,
 body,
 #app {

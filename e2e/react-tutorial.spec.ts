@@ -11,7 +11,7 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
   // 「起兵」节:三档身价 + 难度两档 + 国号字盘
   await expect(page.getByText("速战")).toBeVisible();
   await expect(page.getByText("鏖战")).toBeVisible();
-  await expect(page.getByText("智将(EV)")).toBeVisible();
+  await expect(page.getByText("智将(EV)")).toBeVisible(); // #559 括号统一全角
   await expect(page.getByText("庸才(随机)")).toBeVisible();
   await expect(page.getByText("字盘快选国号")).toBeVisible();
   // 「起兵」按钮 → 选都(「调兵遣将中…」为瞬态,静态 grep 已核,此处验证点击后进选都)
