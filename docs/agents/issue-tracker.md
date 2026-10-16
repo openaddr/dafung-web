@@ -40,7 +40,7 @@ curl -s -X POST -H "Authorization: token $token" -H "Accept: application/vnd.git
 
 GitHub shares one number space across issues and PRs, so a bare `#42` may be either — resolve with `gh pr view 42` and fall back to `gh issue view 42`.
 
-注:本仓库 master 有分支保护(禁直推/禁 merge commit,一律 PR + squash),PR 号与 issue 号共用同一编号空间。**仓库 VCS=jj colocated(优先)**:合入后主树收账两步见[开发与测试](../how-to/开发与测试.md)「版本协作」节;子代理协作走 jj workspace(#537 试点验证中;git worktree = 逃生舱通道)。
+注:本仓库 master 有分支保护(禁直推/禁 merge commit,一律 PR + squash),PR 号与 issue 号共用同一编号空间。**仓库 VCS=jj colocated(优先)**:合入后主树收账两步见[开发与测试](../how-to/开发与测试.md)「版本协作」节;子代理协作走 jj workspace(正式通道;git worktree = 逃生舱通道)。
 
 ## When a skill says "publish to the issue tracker"
 
