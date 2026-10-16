@@ -81,15 +81,23 @@ export function HomeScreen({
           — 三国大富翁 —
         </div>
 
-        {/* 视觉重做 v2 签名件:千里江山装裱横带 —— 玄墨鎏金版(#514/S8):
-          古画素材归 S10 处理,本票先摘《千里江山图》留**深底占位**——
-          漆金裱边框(home.css .home-scroll-band)+ 深色渐变画心,右端钤「逐鹿」漆金印落款,
-          上下金线 = 裱边「矩」。TODO(S10):此处挂深色古风横带素材(见 #488 素材源),
-          挂点 = .home-scroll-band 内替换占位块,外框/落款印不动。 */}
+        {/* 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位):
+          texture-lanting 横批 + 压深渐变(home.css .home-band-heart),右端周瑜立绘
+          低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款,
+          上下金线 = 裱边「矩」。横带是氛围位不是演出位(§4.6/方向 D),静态无动效;
+          短横屏 72px 档素材与立绘都撤(过窄裁不出画心,home.css 媒体查询)。 */}
         <div className="home-band-in home-gap-tight relative mb-10 w-[min(880px,92vw)]">
           <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
-            {/* 画心占位:深色渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
+            {/* 画心:lanting 纹理+压深渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
             <div className="home-band-h home-band-heart w-full select-none" aria-hidden="true" />
+            {/* 周瑜立绘:右端低透明亮相——aria-hidden + 空 alt 不进可访问名,
+                pointer-events-none 纯装饰;先于印章入 DOM,「逐鹿」印保持最高亮层 */}
+            <img
+              src="/assets/heroes/hero-zhouyu-sgs.png"
+              alt=""
+              aria-hidden="true"
+              className="home-band-hero pointer-events-none absolute top-0 right-0 h-full w-auto select-none"
+            />
             {/* 落款漆金印:右端钤「逐鹿」竖读小印(#506 印章漆金化) */}
             <span
               aria-hidden="true"
@@ -129,15 +137,16 @@ export function HomeScreen({
           </div>
         </div>
 
-        {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏,提对比(text-ink)。
+        {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏。#558:13px→14px(选图入口
+          第二载体不该是全屏最小字),「当前地图:」与图名同用 text-ink,仅箭头 ink-dim。
           W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
           (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */}
         <button
           type="button"
           onClick={() => setShowMapSelect(true)}
-          className="note-btn home-maprow-tight rounded-[3px] font-wenkai text-[13px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
+          className="note-btn home-maprow-tight rounded-[3px] font-wenkai text-[14px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
         >
-          <span className="text-ink-dim">当前地图:</span>
+          <span className="text-ink">当前地图:</span>
           <span data-testid={TID.currentMapName} className="text-ink">
             {mapName}
           </span>
