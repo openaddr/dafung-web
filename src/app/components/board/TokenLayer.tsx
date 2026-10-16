@@ -40,6 +40,8 @@ export interface TokenSlot {
   mine: boolean;
   /** #256 目标段:出牌阶段候选棋子(金虚线环呼吸,与席位卡金圈同步,双锚点)。 */
   targeted: boolean;
+  /** #557 同格拥挤档:同格 >4 子(旗面 scale 0.85,给 8 槽圆周让位)。 */
+  crowded: boolean;
 }
 
 interface TokenLayerProps {
@@ -58,10 +60,12 @@ interface TokenLayerProps {
 }
 
 /** #30/#39/#58 棋子放大比例:旗/字/印玺等比 scale。屏幕净大小 = TOKEN_SCALE /
- *  TILE_SCALE(城池 2.2):2.24/2.2≈净 1.02x,与城池等比同步,总览下旌旗仍是
- *  可辨色块。scale 落在独立 <g transform> 属性上,与 .bv-token 的 CSS
- *  style.transform(行军命令式写入 translate)互不覆盖。 */
-const TOKEN_SCALE = 2.24;
+ *  TILE_SCALE(城池 2.2):2.6/2.2≈净 1.18x(#557 总览可辨性:较原 2.24 净放大
+ *  ≈16%,旗面/国号字在总览缩放下更大更可辨)。scale 落在独立 <g transform> 属性上,
+ *  与 .bv-token 的 CSS style.transform(行军命令式写入 translate)互不覆盖。 */
+const TOKEN_SCALE = 2.6;
+/** #557 同格拥挤档:同格 >4 子时旗面整体再乘 0.85,给 8 槽圆周留出彼此轮廓。 */
+const TOKEN_CROWD_SCALE = 0.85;
 
 function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);
@@ -112,7 +116,7 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
 }
 
 const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
-  const { player: p, x, y, opacity, marching, mine, targeted } = slot;
+  const { player: p, x, y, opacity, marching, mine, targeted, crowded } = slot;
   const c = playerColor(p.colorIndex);
   return (
     <g
@@ -120,17 +124,27 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
       data-token-player={p.id}
       style={{ transform: `translate(${x}px, ${y}px)`, opacity }}
     >
-      <g transform={`scale(${TOKEN_SCALE})`}>
+      <g transform={`scale(${TOKEN_SCALE * (crowded ? TOKEN_CROWD_SCALE : 1)})`}>
         {/* L47 自己的棋子:玩家色微光圈(棋盘侧「我是谁」锚点,board.css 呼吸动画;
-            与 #30 行军金环区分——色环=身份,金虚线环=正在动) */}
+            与 #30 行军金环区分——色环=身份,金虚线环=正在动)。
+            #557:主环加粗 3.5 + 叠同色细外圈,「这是你的棋子」远看一眼可认 */}
         {mine && (
-          <circle
-            className="bv-token-mine-halo"
-            r={15}
-            fill="none"
-            stroke={rgba(c, 0.6)}
-            strokeWidth={2.5}
-          />
+          <>
+            <circle
+              className="bv-token-mine-halo"
+              r={15}
+              fill="none"
+              stroke={rgba(c, 0.6)}
+              strokeWidth={3.5}
+            />
+            <circle
+              className="bv-token-mine-halo"
+              r={20}
+              fill="none"
+              stroke={rgba(c, 0.32)}
+              strokeWidth={1.5}
+            />
+          </>
         )}
         {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
             金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
@@ -184,7 +198,16 @@ export const TokenLayer = memo(function TokenLayer({
     const mine = p.id === mineId;
     const targeted = targetedIds?.has(p.id) ?? false;
     if (setupUnselected && p.capitalIndex < 0) {
-      slots.push({ player: p, x: 0, y: 0, opacity: 0, marching: false, mine, targeted });
+      slots.push({
+        player: p,
+        x: 0,
+        y: 0,
+        opacity: 0,
+        marching: false,
+        mine,
+        targeted,
+        crowded: false,
+      });
       continue;
     }
     if (skipTokenIds?.has(p.id)) {
@@ -195,7 +218,16 @@ export const TokenLayer = memo(function TokenLayer({
       // 动画结束 removeMarching 后 React 终态接管,强调态随之自然消退)。
       const mp = marchPos.get(p.id);
       if (!mp) continue;
-      slots.push({ player: p, x: mp.x, y: mp.y, opacity: 1, marching: true, mine, targeted });
+      slots.push({
+        player: p,
+        x: mp.x,
+        y: mp.y,
+        opacity: 1,
+        marching: true,
+        mine,
+        targeted,
+        crowded: false, // 行军中在路径上、不占同格槽位语义
+      });
       continue;
     }
     const pos = tokenRenderPos(p, board);
@@ -209,6 +241,7 @@ export const TokenLayer = memo(function TokenLayer({
       marching: false,
       mine,
       targeted,
+      crowded: mates.length > TOKEN_SLOT_OFFSETS.length / 2,
     });
   }
 
