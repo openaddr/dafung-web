@@ -9,6 +9,8 @@ export const LID = {
   join: "lobby-join",
   // #279:联机服务器地址(未入座可改;默认同源,覆写持久化 localStorage)
   serverBase: "lobby-server-base",
+  // #559:探活状态点(挂载定性一次;checking 不渲染;点旁带文字,不只靠颜色)
+  serverStatus: "lobby-server-status",
   // 房间区(已入座)
   roomCode: "room-code",
   seatRow: (n: number) => `lobby-seat-${n}` as const,

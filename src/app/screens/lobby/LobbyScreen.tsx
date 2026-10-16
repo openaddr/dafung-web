@@ -109,6 +109,11 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const [waitIdx, setWaitIdx] = useState(0);
   // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)
   const mapSource = useMemo(builtinMapSource, []);
+  // #559:服务器探活状态(checking=定性中,不渲染状态点)。挂载时探活一次
+  // (GET {base}/health,3s 超时,AbortController 掐断;不重试不轮询,一次定性)。
+  // 应答非 {ok:true}(网络死/非引擎服务)一律「未连通」——只给预期,不禁任何操作
+  // (建房/加入失败仍走既有 hint 通路报错)。
+  const [serverAlive, setServerAlive] = useState<"checking" | "ok" | "fail">("checking");
   // L-8:刚「空→有人」的座位集合(仅这些行放入场动画);ref 记上一帧 taken 做状态 diff
   const [seatEntered, setSeatEntered] = useState<ReadonlySet<number>>(new Set());
   const prevTakenRef = useRef<Map<number, boolean>>(new Map());
@@ -118,6 +123,30 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   useEffect(() => {
     return () => {
       if (copyTimerRef.current != null) clearTimeout(copyTimerRef.current);
+    };
+  }, []);
+
+  // #559:挂载探活一次(见 serverAlive 注释)。alive 旗标防卸载后 setState
+  // (cleanup abort 会让 fetch 走 catch);catch 的唯一消费=显式置「未连通」态,
+  // 让死服务器在「服务器」标签旁可见,不再等点「建房」才出 5s 即逝 hint。
+  useEffect(() => {
+    let alive = true;
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 3000);
+    fetch(`${getServerBase()}/health`, { signal: ctrl.signal })
+      .then((res) => res.json() as Promise<{ ok: boolean }>)
+      .then((data) => {
+        if (alive) setServerAlive(data.ok === true ? "ok" : "fail");
+      })
+      .catch(() => {
+        // 零兜底例外①:探活失败的显式消费 = 置失败态呈现给用户,不吞错装无事
+        if (alive) setServerAlive("fail");
+      })
+      .finally(() => clearTimeout(timer));
+    return () => {
+      alive = false;
+      clearTimeout(timer);
+      ctrl.abort();
     };
   }, []);
 
@@ -372,6 +401,24 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               <label htmlFor={LID.serverBase} className="shrink-0 text-ink-dim">
                 服务器
               </label>
+              {/* #559:探活状态点(挂载定性一次;checking 不渲染)。S7 口径:状态不能只靠
+                  颜色,点旁带文字。 */}
+              {serverAlive !== "checking" && (
+                <span
+                  data-testid={LID.serverStatus}
+                  className={
+                    "flex shrink-0 items-center gap-1 text-xs " +
+                    (serverAlive === "ok" ? "text-success" : "text-danger")
+                  }
+                >
+                  <span
+                    className={
+                      "w-2 h-2 rounded-full " + (serverAlive === "ok" ? "bg-success" : "bg-danger")
+                    }
+                  />
+                  {serverAlive === "ok" ? "已连" : "未连通"}
+                </span>
+              )}
               <input
                 data-testid={LID.serverBase}
                 defaultValue={getServerBase()}
@@ -510,7 +557,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                       <>
                         <span
                           title="虚位以待"
-                          className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-ink/25 font-title text-[11px] leading-none text-ink-dim/70"
+                          // #559:text-ink-dim/70 → 全值 ink-dim(4.18:1 → 7.6:1,panel 上达 AA)
+                          className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-ink/25 font-title text-[11px] leading-none text-ink-dim"
                         >
                           虚
                         </span>

@@ -164,23 +164,26 @@ export function SoloSetupScreen({
       className="su-root flex h-full flex-col overflow-y-auto bg-bg p-6"
     >
       <div className="m-auto flex w-full flex-col items-center">
-        {/* #497 ①:顶部返回位 —— 标题行右端 Sym 箭头小笺钮(复用 onBack),8 诸侯 +
-          机遇展开时不必滚到卡底即可退;h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿) */}
+        {/* #497 ①/#559:顶部返回位 —— Sym 左指箭头小笺钮放标题左侧(惯例位;原右端
+          与箭头朝向矛盾),复用 onBack,8 诸侯 + 机遇展开时不必滚到卡底即可退;
+          h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿) */}
         <div className="relative w-full flex justify-center">
-          <h1 className="font-title text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
           <button
             type="button"
             data-testid={TID.backTop}
             onClick={onBack}
             aria-label="返回首页"
-            className="note-btn absolute right-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[32px] text-ink cursor-pointer transition-colors"
+            className="note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[32px] text-ink cursor-pointer transition-colors"
           >
             <Sym name="back" size={14} />
           </button>
+          <h1 className="font-title text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
         </div>
 
-        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时) */}
-        <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] p-5 mt-4">
+        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时)
+          #559:p-5 → px-5 py-4 压纵向呼吸,「起兵」CTA 入 1280×800 折叠线;
+          mt-4 → mt-3(实测 px-5 py-4 + 并排后仍差 7px,追加 4px 级间距微调补足) */}
+        <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
           {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
           <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
             <span>当前地图:</span>
@@ -200,25 +203,43 @@ export function SoloSetupScreen({
             立国号、定诸侯,起兵逐鹿天下。
           </p>
 
-          {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
-          <h3 className="su-head note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
+          {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar)
+            #559:mb-3 → mb-2 折叠线微调 */}
+          <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
             <i>阵</i>
             <span>开局布阵</span>
           </h3>
 
           {/* 诸侯数 / 目标身价 / AI 难度:X10(#29)原生 select 全退场——小范围数值走 stepper,
-            受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式) */}
-          <div className="su-controls flex flex-col gap-3 font-deco text-sm text-ink mb-4">
-            <div className="flex flex-col gap-1">
-              <span>诸侯数</span>
-              <Stepper
-                testid={TID.seatCount}
-                ariaLabel="诸侯数"
-                value={seatCount}
-                min={2}
-                max={8}
-                onChange={setSeatCount}
-              />
+            受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式)。
+            #559:诸侯数与 AI 难度(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高,
+            「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读 */}
+          <div className="su-controls flex flex-col gap-2 font-deco text-sm text-ink mb-3">
+            <div className="grid grid-cols-2 gap-2">
+              <div className="flex flex-col gap-1">
+                <span>诸侯数</span>
+                <Stepper
+                  testid={TID.seatCount}
+                  ariaLabel="诸侯数"
+                  value={seatCount}
+                  min={2}
+                  max={8}
+                  onChange={setSeatCount}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span>AI 难度</span>
+                <SegmentedSelect
+                  testid={TID.difficulty}
+                  ariaLabel="AI 难度"
+                  value={difficulty}
+                  onChange={setDifficulty}
+                  options={[
+                    { value: "Normal", label: "智将(EV)" },
+                    { value: "Simple", label: "庸才(随机)" },
+                  ]}
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1">
               <span>目标身价</span>
@@ -236,19 +257,6 @@ export function SoloSetupScreen({
                     </span>
                   ),
                 }))}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span>AI 难度</span>
-              <SegmentedSelect
-                testid={TID.difficulty}
-                ariaLabel="AI 难度"
-                value={difficulty}
-                onChange={setDifficulty}
-                options={[
-                  { value: "Normal", label: "智将(EV)" },
-                  { value: "Simple", label: "庸才(随机)" },
-                ]}
               />
             </div>
 
@@ -409,8 +417,8 @@ export function SoloSetupScreen({
             ))}
           </div>
 
-          {/* 操作区:返回首页 / 起兵 */}
-          <div className="su-actions flex items-center gap-2.5 mt-4">
+          {/* 操作区:返回首页 / 起兵(#559:mt-4 → mt-3 折叠线微调) */}
+          <div className="su-actions flex items-center gap-2.5 mt-3">
             <button
               data-testid="solo-setup-back"
               onClick={onBack}
