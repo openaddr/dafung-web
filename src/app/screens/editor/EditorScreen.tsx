@@ -488,17 +488,24 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const primaryBtn =
     "ink-btn inline-flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded-[5px] px-3 py-2 font-wenkai text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
-  const inputCls = "rounded-[3px] border border-[rgba(43,35,23,0.28)] bg-bg px-2 py-1 w-full";
+  // #555:墨线 rgba(43,35,23,*) 在深底上隐形,输入框边线收编 border-ink/30(:136/:680 同款)
+  const inputCls = "rounded-[3px] border border-ink/30 bg-bg px-2 py-1 w-full";
   // 原生 select 的主题皮肤(选项列表本身是浏览器绘制,接受)
   const selectCls = "note-select px-2 py-1 w-full text-sm";
+  // #555:校验/重叠警告条——text-danger 叠 bg-danger/10 压 panel 只有 3.98:1,底色
+  // 「再沉一档」:danger 10% 改混入 bg-deep(color-mix 两枚活值 token,同 app.css
+  // 发丝线手法,不引入第二色源),text-danger 对它 4.9:1 过 AA 小字线。
+  const warnCls =
+    "mb-3 rounded border border-danger/60 bg-[color-mix(in_srgb,var(--color-danger)_10%,var(--color-bg-deep))] p-2 text-xs text-danger";
 
   return (
     // S2:relative 作为卷轴弹层(absolute inset-0)的定位锚
     <div data-testid={TID.screen} className="relative flex h-full overflow-hidden">
       {/* 棋盘区:外层包裹 div 负责城池拖拽(BoardView 本体不动,空白 pan/zoom 照常)。
-          底色给纸色(dogfood ISSUE-009 收尾):画布渐隐区之外透出的不再是深色页面纹理,
-          而是「案台」纸色——编辑视野落在画布边缘时不再出现深浅版块错觉。 */}
-      <div className="relative min-w-0 flex-1 bg-[#eae0c6]">
+          画布壳走 bg-bg(#555):与 StaticLayers 铺的地图深底 Theme.bg 同 token 同色,
+          渐隐区之外透出的就是地图底本色,不再有「浅案台硬切深地图」的接缝
+          (旧纸色方案的前提已被 #512 棋盘深底化推翻)。 */}
+      <div className="relative min-w-0 flex-1 bg-bg">
         <div
           ref={wrapRef}
           className="h-full w-full"
@@ -524,7 +531,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         {ghost && (
           <div
             data-testid={TID.dragGhost}
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-[rgba(43,35,23,0.4)] bg-panel/95 px-2 py-0.5 font-wenkai text-sm text-ink shadow-sm"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-ink/40 bg-panel/95 px-2 py-0.5 font-wenkai text-sm text-ink shadow-sm"
             style={{ left: ghost.x, top: ghost.y }}
           >
             {ghost.name}
@@ -534,8 +541,11 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
 
       {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar)。
           S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行)
-          S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源) */}
-      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-[rgba(43,35,23,0.35)] bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(43,35,23,0.3)]">
+          S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源)
+          #555:panel 画 panel 分界丢失——边线收编 border-ink/30(app.css --hairline-strong
+          的同源等价,见 app.css 发丝线注),inset 阴影换 ink-shadow-lg 的黑基
+          (暖墨褐阴影在近黑底上不可读,app.css「深底投影:黑基」同口径)。 */}
+      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-ink/30 bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(0,0,0,0.6)]">
         <div className="flex flex-wrap gap-1.5">
           <button data-testid={TID.exit} className={btn} onClick={onExit}>
             <Sym name="back" size={13} />
@@ -599,20 +609,14 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         </p>
 
         {/* 校验状态:严格 loadMap 失败 → 禁保存/试玩并显示原因(对照旧版试玩按钮禁用逻辑)。
-            S3:危险色收编为 token(border-danger/bg-danger/10/text-danger) */}
+            S3:危险色收编为 token(border-danger/text-danger);#555:底色沉一档见 warnCls */}
         {!validation.ok && (
-          <div
-            data-testid={TID.validationError}
-            className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger"
-          >
+          <div data-testid={TID.validationError} className={warnCls}>
             {validation.error}
           </div>
         )}
         {overlapping.length > 0 && validation.ok && (
-          <div
-            data-testid={TID.overlapWarning}
-            className="mb-3 rounded border border-danger/60 bg-danger/10 p-2 text-xs text-danger"
-          >
+          <div data-testid={TID.overlapWarning} className={warnCls}>
             第 {overlapping.map((i) => i + 1).join("、")} 城距离过近(红圈标出),保存前请拉开。
           </div>
         )}
