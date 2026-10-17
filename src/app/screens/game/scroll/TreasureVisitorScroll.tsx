@@ -4,23 +4,20 @@
 // 选择步、不发命令;访客(落城的活跃玩家)非决策方,只看到等待交涉的只读视角——可关
 // (X8 #27,关闭即回棋盘,等待反馈交还 WaitingBar 体系),关了本场合交涉不再重弹;
 // 相位离开组件卸载,状态随之复位,下一场交涉照常弹出。
-// 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级)。
+// 价格口径:公道 = guidePriceOf(level);坐地 = premiumPriceOf(指导价, 城定义, 城等级),
+// 与引擎结算同一函数(treasure-flow),UI 报价不写第二事实源。价签:未选=公道「指导价 N」
+// 单行 / 坐地双行「指导价 N + 要价 N」(要价=坐地成交价,GLOSSARY);选中统一转
+// 「成交 · 至 N」;结算行坐地给分解式「指导价 + 加价 = 入账」。
 // 协议零改:resolveTreasureOwner { action: { type: "fair"/"premium", treasureId } } 原样。
 import { useState } from "react";
 import type { GameCommand } from "@core/authority";
+import type { PropertyDef } from "@core/economy";
 import { guidePriceOf, premiumPriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import type { SnapshotTreasure } from "@app/store/gameStore";
 import { TreasurePickModal } from "../TreasurePickModal";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
-
-/** 城定义里定价要用的字段(接受完整 PropertyDef,也接受裁剪版)。 */
-export interface TradePropertyInfo {
-  id: string;
-  tradeAdd?: number[];
-  tradeMult?: number[];
-}
 
 export interface TreasureVisitorScrollProps {
   /** 当前视角:owner = 城主(可决策);visitor = 访客(只读等待)。 */
@@ -33,8 +30,9 @@ export interface TreasureVisitorScrollProps {
   tileName: string;
   /** 城主持有的珍宝(快照展示子集;价格由 level 经 guidePriceOf/premiumPriceOf 推导)。 */
   treasures: SnapshotTreasure[];
-  /** 交涉城的定义(算坐地起价用)+ 当前城等级。 */
-  property: TradePropertyInfo;
+  /** 交涉城的完整定义:premiumPriceOf 的定价输入(tradeAdd/tradeMult/trade)整只随城走,
+   *  不挑字段——挑着传必以漏传收场,旧公式地图上报价就偏离引擎入账。 */
+  property: PropertyDef;
   cityLevel: number;
   onCommand: (cmd: GameCommand) => void;
 }
@@ -66,10 +64,9 @@ export function TreasureVisitorScroll({
 
   const title = !mode ? `${ownerGuohao}·珍宝抉择` : `${MODE_META[mode].label}·选珍宝`;
 
-  const priceOf = (t: SnapshotTreasure, m: Mode) => {
-    const guide = guidePriceOf(t.level);
-    return m === "fair" ? guide : premiumPriceOf(guide, property, cityLevel);
-  };
+  const guideOf = (t: SnapshotTreasure) => guidePriceOf(t.level);
+  const priceOf = (guide: number) =>
+    mode === "fair" ? guide : premiumPriceOf(guide, property, cityLevel);
 
   // ── 访客视角:只读等待(决策权在城主),可关(X8 #27)──
   if (role === "visitor") {
@@ -144,13 +141,24 @@ export function TreasureVisitorScroll({
           }
           treasures={treasures}
           tagOf={(t, selected) => {
-            const price = priceOf(t, mode);
-            return selected ? `成交 · 至 ${formatMoney(price)}` : `指导价 ${formatMoney(price)}`;
+            const guide = guideOf(t);
+            const price = priceOf(guide);
+            if (selected) return `成交 · 至 ${formatMoney(price)}`;
+            if (mode === "fair") return `指导价 ${formatMoney(guide)}`;
+            return (
+              <span className="treasure-pick-ask">
+                <span>指导价 {formatMoney(guide)}</span>
+                <b>要价 {formatMoney(price)}</b>
+              </span>
+            );
           }}
-          summaryOf={(t) =>
-            `卖出 ${t.name} · 入账 ${formatMoney(priceOf(t, mode))}` +
-            (mode === "fair" ? ` · ${tileName} +1 级` : "")
-          }
+          summaryOf={(t) => {
+            const guide = guideOf(t);
+            const price = priceOf(guide);
+            return mode === "fair"
+              ? `卖出 ${t.name} · 入账 ${formatMoney(guide)} · ${tileName} +1 级`
+              : `卖出 ${t.name} · 指导价 ${formatMoney(guide)} + 加价 ${formatMoney(price - guide)} = 入账 ${formatMoney(price)}`;
+          }}
           hint="点选要出售的珍宝"
           confirmLabel="成交"
           testids={{

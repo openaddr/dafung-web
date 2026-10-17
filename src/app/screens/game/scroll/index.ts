@@ -5,7 +5,7 @@ export type { BannerShellProps } from "./BannerShell";
 export { HeroPickScroll } from "./HeroPickScroll";
 export type { HeroPickScrollProps, HeroOfferInfo } from "./HeroPickScroll";
 export { TreasureVisitorScroll } from "./TreasureVisitorScroll";
-export type { TreasureVisitorScrollProps, TradePropertyInfo } from "./TreasureVisitorScroll";
+export type { TreasureVisitorScrollProps } from "./TreasureVisitorScroll";
 export { BankruptcyScroll } from "./BankruptcyScroll";
 export type { BankruptcyScrollProps } from "./BankruptcyScroll";
 export { ConfirmDialog } from "./ConfirmDialog";
