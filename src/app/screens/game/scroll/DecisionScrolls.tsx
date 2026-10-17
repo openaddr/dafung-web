@@ -153,7 +153,8 @@ export function BuyDecisionScroll({
     },
     () => onCommand({ type: "endDecision" }),
   ]);
-  // G-20:资产行 —— 一眼看清持有/需付/差额(负差红字)
+  // G-20:资产行 —— 一眼看清持有/需付/差额(付得起记「余」,缺口记「差」红字;
+  // formatMoney 只收非负数,缺口取绝对值,负值会被钳成「0 两」)
   const diff = cash - property.purchasePrice;
   return (
     <BannerShell title="购地抉择" testid={T.buyScroll}>
@@ -162,8 +163,9 @@ export function BuyDecisionScroll({
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
       <p className="m-1 mb-2.5 text-center text-sm text-ink">
-        持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} · 差{" "}
-        <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(diff)}</span>
+        持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} ·{" "}
+        {diff >= 0 ? "余" : "差"}{" "}
+        <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(Math.abs(diff))}</span>
       </p>
       {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,Lv0 起逐级升)。
           #92:买入即落 Lv.0(升级由到达免费触发),高亮购入档 */}
