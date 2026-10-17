@@ -261,10 +261,13 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
     expect(phaseOf(e)).toBe("AwaitingReaction");
     e.respondReaction(otherSeat, true, "识破诡计", otherSeat); // 保自己那份
     const events = e.snapshot().events;
+    // #571 反识破链:识破打出也公开宣布——链环 jinnangAnnounced(识破诡计)插在
+    // 应答与判定之间;无人可反不开第二窗,链即终,jinnangVoided 判定落账
     expect(kinds(events)).toEqual([
       "jinnangAnnounced",
       "reactionOpened",
       "reactionAnswered",
+      "jinnangAnnounced",
       "jinnangVoided",
     ]);
     expect(events[0]).toMatchObject({
@@ -285,6 +288,12 @@ describe("事件流(#375):锦囊出牌与反应窗", () => {
       cardId: "识破诡计",
     });
     expect(events[3]).toMatchObject({
+      kind: "jinnangAnnounced",
+      seat: otherSeat,
+      cardId: "识破诡计",
+      targetSeats: [otherSeat],
+    });
+    expect(events[4]).toMatchObject({
       kind: "jinnangVoided",
       seat: otherSeat,
       cardId: "横征暴敛",

@@ -184,8 +184,9 @@ export type GameCommand =
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
-  // use=true 时 cardId=打出的反应牌;shareSeat 仅识破 AOE 必带=被保护份的座位(替他人
-  // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略)。
+  // use=true 时 cardId=打出的反应牌;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
+  // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略);反识破链环窗
+  // 不带份(争夺份随窗载荷,#571 ADR-0027)。
   | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number }
   // 定制问询应答(#424,ADR-0022 交互 handler):决策者对挂起问询(AwaitingInquiry)择一,
   // optionId=选项 id(snapshot.choices 的 inquiryId 章选项)。应答回灌扩展 resolve 结算后

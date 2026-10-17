@@ -312,7 +312,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         key={`reaction-${reactionSeq}`}
         text={
           reaction.kind === "jinnang"
-            ? `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
+            ? snapshot.pendingReaction?.payload.kind === "counter"
+              ? // 反识破链环(#571):公告的是一张识破,文案带链根与争夺份
+                `${snapshot.players[reaction.userSeat].guohao} 识破【${snapshot.pendingReaction.payload.root.cardId}】${
+                  snapshot.pendingReaction.payload.shareSeat != null
+                    ? `(保 ${snapshot.players[snapshot.pendingReaction.payload.shareSeat].guohao})`
+                    : ""
+                },可反识破`
+              : `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
             : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
         }
         // 时长单源(#284):读快照 windowMs 过缩放包装,不再按窗种引常量表——

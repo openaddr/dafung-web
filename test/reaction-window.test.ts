@@ -200,7 +200,7 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e.turnPhase).toBe("Roll");
   });
 
-  it("AOE 同份多张识破:座位序第一张生效,其余原样退回不消耗(替他人拆招同份)", () => {
+  it("AOE 同份多张识破:座位序第一张进链,其余原样退回不消耗(替他人拆招同份);链环被不用则站住(#571)", () => {
     const e = prepared(42, SEATS3);
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
@@ -212,18 +212,23 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     e.players[low].cash = 500;
     e.players[high].cash = 500;
     e.resolveJinnang("横征暴敛");
-    // 两张都拆 low 那份:座位序 low 生效,high 原样收回
+    // 两张都拆 low 那份:座位序 low 进反识破链,high 原样收回
     e.respondReaction(high, true, "识破诡计", low);
     e.respondReaction(low, true, "识破诡计", low);
+    // #571:low 的识破进链环窗,high(持收回的第二张)被询问反识破,不用 → low 站住
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    expect(jinnangView(e).cardId).toBe("识破诡计");
+    expect(jinnangView(e).userSeat).toBe(low);
+    e.respondReaction(high, false);
     expect(e.pendingReaction).toBeNull();
     expect(e.players[low].cash).toBe(500); // low 的份被保下
     expect(e.players[high].cash).toBe(300); // high 照缴 200(他的识破去保 low 了)
     expect(e.players[low].jinnangHand).toEqual([]); // 生效者耗牌
-    expect(e.players[high].jinnangHand).toEqual(["识破诡计"]); // 被顶替者原样退回
+    expect(e.players[high].jinnangHand).toEqual(["识破诡计"]); // 被顶替者原样退回,链窗不用仍留手
     expect(e.log.some((l) => l.detail.includes("reactionCounterReturn"))).toBe(true);
   });
 
-  it("连环计:任意一张识破即全计作废(缺角);双人应答按座位序第一张生效、其余退回", () => {
+  it("连环计:任意一张识破进链,链环不用则全计作废(缺角);双人应答按座位序第一张生效、其余退回(#571)", () => {
     const e = prepared(42, SEATS3);
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
@@ -241,6 +246,10 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(jinnangView(e).targetSeats.sort()).toEqual([a, b].sort());
     e.respondReaction(b, true, "识破诡计"); // 连环计 shareSeat 可省略(任意一张即全计作废)
     e.respondReaction(a, true, "识破诡计");
+    // #571:座位序 a 的识破进链环窗,b(被顶替收回的第二张)被询问反识破,不用 → a 站住
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    expect(jinnangView(e).userSeat).toBe(a);
+    e.respondReaction(b, false);
     expect(e.pendingReaction).toBeNull();
     expect(e.log.some((l) => l.detail.includes("jinnangDuel"))).toBe(false); // 全计作废,拼点未发生
     expect(e.players[a].jinnangHand).toEqual([]); // 座位序第一张生效耗牌
@@ -280,8 +289,14 @@ describe("识破诡计(JinnangAnnounced 反应窗)", () => {
     expect(e2.turnPhase).toBe("AwaitingReaction");
     expect(e2.pendingReaction).toEqual(e.pendingReaction);
     expect(e2.snapshot().reaction).toEqual(snap.reaction);
-    // 恢复端续答收窗:识破生效,x 的城防原样
+    // 恢复端续答收窗:x 的识破进反识破链环(#571),y 持被顶替收回的第二张被询问;
+    // y 先用(W2 生效=救计,x 的识破作废)再反悔路径不测——此处走不用:x 站住,城防原样
     e2.respondReaction(y, true, "识破诡计", x);
+    expect(e2.turnPhase).toBe("AwaitingReaction"); // #571:链环窗挂起(询问 y)
+    expect(e2.pendingReaction?.view.kind === "jinnang" && e2.pendingReaction.view.cardId).toBe(
+      "识破诡计",
+    );
+    e2.respondReaction(y, false);
     expect(e2.pendingReaction).toBeNull();
     expect(e2.players[x].properties[0].level).toBe(2);
   });
@@ -558,6 +573,169 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     e.players[0].cash = 10000;
     expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "半路杀出" });
     e.players[0].cash = 20000; // 并列第一:不拦
+    expect(botReactionDecision(e, 1)).toEqual({ use: false });
+  });
+});
+
+// ── 反识破链(识破可被识破,#571/ADR-0027)───────────────────────────────────
+describe("反识破链(#571/ADR-0027)", () => {
+  /** 火烧连营打向 victim、victim 识破自保进链环的双窗布场,返回引擎与座位。 */
+  function burnWithCounter(seed = 42) {
+    const e = prepared(seed);
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const victimSeat = userSeat === 0 ? 1 : 0;
+    const victim = e.players[victimSeat];
+    armUser(e, userSeat, ["火烧连营", "识破诡计"]); // 使用者持第二张识破(救计)
+    setHand(e, victimSeat, ["识破诡计"]);
+    const capId = e.board.at(victim.capitalIndex)?.propertyId;
+    victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
+    e.resolveJinnang("火烧连营");
+    e.resolveJinnang("火烧连营", [victimSeat]); // 根窗挂起
+    e.respondReaction(victimSeat, true, "识破诡计", victimSeat); // victim 拆 → 链环窗挂起
+    return { e, userSeat, victimSeat, victim };
+  }
+
+  it("救计:原使用者反识破→计恢复照常结算,三牌皆耗、被反识破不回手", () => {
+    const { e, userSeat, victimSeat, victim } = burnWithCounter();
+    expect(e.turnPhase).toBe("AwaitingReaction"); // 链环窗(询问原使用者)
+    expect(jinnangView(e).cardId).toBe("识破诡计");
+    expect(jinnangView(e).userSeat).toBe(victimSeat);
+    expect(e.players[victimSeat].jinnangHand).toEqual([]); // 宣布环已扣账
+    e.respondReaction(userSeat, true, "识破诡计"); // 救计(链环应答不带份)
+    expect(e.pendingReaction).toBeNull(); // victim 空手无人可反:站住(protects=false)→ 计恢复
+    expect(victim.properties[0].level).toBe(1); // 火烧照常结算
+    expect(e.players[userSeat].jinnangHand).toEqual([]); // 火烧+救计识破皆耗
+    expect(e.players[victimSeat].jinnangHand).toEqual([]); // 被反识破也不回手
+    expect(e.jinnangDiscard.filter((c) => c === "识破诡计").length).toBe(2);
+    expect(e.turnPhase).toBe("Roll");
+  });
+
+  it("链中快照往返:counter 载荷(根上下文/protects)保真,恢复端续答收链", () => {
+    const { e, userSeat, victimSeat } = burnWithCounter();
+    const snap = e.snapshot();
+    const e2 = makeEngine(1);
+    e2.restoreFromSnapshot(snap);
+    expect(e2.pendingReaction).toEqual(e.pendingReaction); // counter 载荷随挂起态往返
+    e2.respondReaction(userSeat, true, "识破诡计");
+    expect(e2.pendingReaction).toBeNull();
+    expect(e2.players[victimSeat].properties[0].level).toBe(1); // 恢复端结算落到恢复引擎的对象上
+  });
+
+  it("AOE 护招被拆:第三者反识破拆掉保护→该份恢复受击,两牌皆耗", () => {
+    const e = prepared(42, SEATS3);
+    const user = e.activePlayer;
+    const userSeat = e.players.indexOf(user);
+    const others = [0, 1, 2].filter((i) => i !== userSeat);
+    const [x, y] = others;
+    armUser(e, userSeat, ["横征暴敛"]);
+    setHand(e, x, ["识破诡计"]);
+    setHand(e, y, ["识破诡计"]);
+    e.players[x].cash = 500;
+    e.players[y].cash = 500;
+    const userCashBefore = user.cash;
+    e.resolveJinnang("横征暴敛");
+    e.respondReaction(x, true, "识破诡计", x); // x 自保
+    e.respondReaction(y, false); // y 根窗不用
+    expect(e.turnPhase).toBe("AwaitingReaction"); // x 的保护进链环窗,y 被询问
+    e.respondReaction(y, true, "识破诡计"); // y 反识破:拆 x 的保护(拉偏架)
+    expect(e.pendingReaction).toBeNull(); // 双方空手:站住(protects=false)→ x 份恢复受击
+    expect(e.players[x].cash).toBe(300); // x 照缴 200
+    expect(e.players[y].cash).toBe(300); // y 本就未保护,照缴
+    expect(user.cash).toBe(userCashBefore + 400);
+    expect(e.players[x].jinnangHand).toEqual([]);
+    expect(e.players[y].jinnangHand).toEqual([]);
+  });
+});
+// ── 反识破链环 bot 决策(#571/ADR-0027:只护己利——救被拆的己计/护被反的己份)──
+describe("botReactionDecision 链环口径(#571)", () => {
+  /** 摆一个反识破链环窗(公开字段直设,同相位摆位口径)。 */
+  function armChainWindow(
+    seats: SeatConfig[],
+    opts: { rootUserSeat: number; rootCardId: string; shareSeat?: number; protects: boolean },
+  ) {
+    const e = makeEngine(42, seats);
+    finishSetup(e);
+    e.pendingReaction = {
+      seq: 1, // #284:测试摆位给一个占位实例号(真实分配在 openReactionWindow)
+      view: {
+        kind: "jinnang",
+        cardId: "识破诡计",
+        userSeat: 2,
+        targetSeats: opts.shareSeat != null ? [opts.shareSeat] : [],
+        queriedBySeat: [],
+        windowMs: REACTION_WINDOW_MS.JinnangAnnounced,
+      },
+      answers: [],
+      payload: {
+        kind: "counter",
+        userSeat: 2,
+        cardId: "识破诡计",
+        root: { userSeat: opts.rootUserSeat, cardId: opts.rootCardId, targets: [] },
+        negated: [],
+        protects: opts.protects,
+        upcoming: [],
+        ...(opts.shareSeat != null ? { shareSeat: opts.shareSeat } : {}),
+      },
+    };
+    return e;
+  }
+
+  it("救计:protects=true 且我是链根使用者→净值划算就反(链环应答不带份)", () => {
+    const e = armChainWindow(SEATS3, {
+      rootUserSeat: 1,
+      rootCardId: "横征暴敛",
+      shareSeat: 2,
+      protects: true,
+    });
+    setHand(e, 1, ["识破诡计"]);
+    e.players[2].cash = 500; // 争夺份现金充足:效果幅度 200 > 底价
+    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计" });
+  });
+
+  it("别人的计被拆不救:protects=true 且链根非我 → 不用", () => {
+    const e = armChainWindow(SEATS3, {
+      rootUserSeat: 0,
+      rootCardId: "横征暴敛",
+      shareSeat: 2,
+      protects: true,
+    });
+    setHand(e, 1, ["识破诡计"]);
+    expect(botReactionDecision(e, 1)).toEqual({ use: false });
+  });
+
+  it("护份:protects=false 且争夺份是我(保护将被拆)→ 净值划算就反", () => {
+    const e = armChainWindow(SEATS3, {
+      rootUserSeat: 0,
+      rootCardId: "横征暴敛",
+      shareSeat: 1,
+      protects: false,
+    });
+    setHand(e, 1, ["识破诡计"]);
+    e.players[1].cash = 500;
+    expect(botReactionDecision(e, 1)).toEqual({ use: true, cardId: "识破诡计" });
+  });
+
+  it("拆的是别人的保护:protects=false 且争夺份非我 → 不用", () => {
+    const e = armChainWindow(SEATS3, {
+      rootUserSeat: 0,
+      rootCardId: "横征暴敛",
+      shareSeat: 2,
+      protects: false,
+    });
+    setHand(e, 1, ["识破诡计"]);
+    expect(botReactionDecision(e, 1)).toEqual({ use: false });
+  });
+
+  it("净值贪心照旧:救计效果幅度不抵底价不反(争夺份穷到征不到银)", () => {
+    const e = armChainWindow(SEATS3, {
+      rootUserSeat: 1,
+      rootCardId: "横征暴敛",
+      shareSeat: 2,
+      protects: true,
+    });
+    setHand(e, 1, ["识破诡计"]);
+    e.players[2].cash = 50; // 效果幅度 min(200,50)=50 < 底价 100
     expect(botReactionDecision(e, 1)).toEqual({ use: false });
   });
 });

@@ -3,6 +3,7 @@
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
+import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
 import { heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
@@ -151,7 +152,8 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
   }
 }
 
-/** 反应窗决策出口(#281):use=true 携牌 id;识破 AOE 另携被保护份座位(自保=自己)。 */
+/** 反应窗决策出口(#281):use=true 携牌 id;识破根窗 AOE 另携被保护份座位(自保=自己);
+ *  反识破链环不带份(争夺份随窗,#571)。 */
 export interface ReactionDecision {
   use: boolean;
   cardId?: string;
@@ -215,9 +217,43 @@ function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): 
   }
 }
 
-/** 反应窗决策(#281):纯函数,不掷骰不改状态,确定性(引擎即席代答与重放同一路径)。
- *  - 识破诡计:bot 只自保——仅当公告的锦囊落在自己那份上才考虑,净值贪心(估损 >
- *    牌值底价才拆);替他人拆招是人玩家专属政局玩法,bot 不做。
+/** 反应窗「伤我利」判据(#281 自保口径的 #571 泛化):公告的牌站住会伤到 seat 的利益,
+ *  返回估损视点(估损座位+根牌+应答份);与己无关返回 null。
+ *  - 根窗(payload.jinnang):公告锦囊落我份 → 视点=自己(估损=被击损失);
+ *  - 链环 protects=true(识破站住=根计被拆):我是链根使用者才伤(救计),估损视点=
+ *    争夺份(根计在那份上的效果幅度≈我的得利损失;连环计无份按自席取 victim 视点保守值);
+ *  - 链环 protects=false(识破被反=根计恢复受击):恢复的份落我头上才伤(护),视点=自己。 */
+function counterHarmOf(
+  pr: PendingReaction,
+  seat: number,
+): { estimateSeat: number; rootCardId: string; shareSeat?: number } | null {
+  if (pr.payload.kind === "jinnang") {
+    if (pr.view.kind !== "jinnang") return null; // jinnang 载荷必挂 jinnang 窗(状态机不变量)
+    if (!pr.view.targetSeats.includes(seat)) return null;
+    return { estimateSeat: seat, rootCardId: pr.view.cardId, shareSeat: seat };
+  }
+  if (pr.payload.kind !== "counter") return null; // march 窗另有分支,到不了这里
+  const { root, shareSeat, protects } = pr.payload;
+  if (protects) {
+    if (root.userSeat !== seat) return null; // 别人的计被拆,与己无关
+    return { estimateSeat: shareSeat ?? seat, rootCardId: root.cardId, shareSeat };
+  }
+  const rootDomain = jinnangCardOf(root.cardId).targetDomain;
+  const restored =
+    rootDomain === "all-others" || rootDomain === "one"
+      ? (shareSeat ?? root.targets[0])
+      : rootDomain === "self"
+        ? root.userSeat
+        : undefined; // two-others:恢复=两目标进拼点,份不定位
+  if (restored != null ? restored !== seat : !root.targets.includes(seat)) return null;
+  return { estimateSeat: seat, rootCardId: root.cardId, shareSeat };
+}
+
+/** 反应窗决策(#281,#571 泛化):纯函数,不掷骰不改状态,确定性(引擎即席代答与重放
+ *  同一路径)。
+ *  - 识破诡计:bot 只护己利——公告伤我利才考虑,净值贪心(估损 > 牌值底价才出):
+ *    根窗拆攻我份的锦囊(#281 现状),链环救被拆的己计/护被反的己份(#571);
+ *    替他人拆招是人玩家专属政局玩法,bot 不做。
  *  - 半路杀出:确定性启发——行人现金全场第一(严格大于其余存活者)才拦,否则不拦。
  *  - conservative(看门狗/接管)与 skills:"hold"(自助托管/代驾)永不使用反应牌
  *    (超时一律不用,#148/#229「代驾不花牌」口径)。 */
@@ -237,13 +273,17 @@ export function botReactionDecision(
     if (richest && cardId != null) return { use: true, cardId };
     return { use: false };
   }
-  // 识破诡计:只拆指定自己的那份
-  if (!pr.view.targetSeats.includes(seat)) return { use: false };
-  if (counterLossEstimate(engine, seat, pr.view.cardId) <= EST_COUNTER_CARD_VALUE)
+  // 识破诡计:只护己利(#571)
+  const harm = counterHarmOf(pr, seat);
+  if (harm == null) return { use: false };
+  if (counterLossEstimate(engine, harm.estimateSeat, harm.rootCardId) <= EST_COUNTER_CARD_VALUE)
     return { use: false };
   const cardId = me.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "counter");
   if (cardId == null) return { use: false };
-  return { use: true, cardId, shareSeat: seat };
+  // 根窗 AOE 携自保份(#281);链环应答不带份——争夺份随窗载荷(#571)
+  return pr.payload.kind === "jinnang"
+    ? { use: true, cardId, shareSeat: seat }
+    : { use: true, cardId };
 }
 
 /** 主动技意图(#188 档 3):策略表对单个技能的「用/不用 + 偏好目标序」。净值贪心、

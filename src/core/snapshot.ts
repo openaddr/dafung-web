@@ -205,17 +205,29 @@ function clonePendingReaction(
           cardId: pr.payload.cardId,
           targets: [...pr.payload.targets],
         }
-      : {
-          kind: "march",
-          moverSeat: pr.payload.moverSeat,
-          tileIndex: pr.payload.tileIndex,
-          stepsToTile: pr.payload.stepsToTile,
-          totalTiles: pr.payload.totalTiles,
-          resumeTiles: [...pr.payload.resumeTiles],
-          landIndex: pr.payload.landIndex,
-          fromPos: pr.payload.fromPos,
-          steps: pr.payload.steps,
-        };
+      : pr.payload.kind === "counter"
+        ? {
+            // 反识破链环(#571,ADR-0027):根上下文/豁免集/兄弟链逐字段克隆
+            kind: "counter",
+            userSeat: pr.payload.userSeat,
+            cardId: pr.payload.cardId,
+            root: { ...pr.payload.root, targets: [...pr.payload.root.targets] },
+            negated: [...pr.payload.negated],
+            protects: pr.payload.protects,
+            upcoming: pr.payload.upcoming.map((u) => ({ ...u })),
+            ...(pr.payload.shareSeat != null ? { shareSeat: pr.payload.shareSeat } : {}),
+          }
+        : {
+            kind: "march",
+            moverSeat: pr.payload.moverSeat,
+            tileIndex: pr.payload.tileIndex,
+            stepsToTile: pr.payload.stepsToTile,
+            totalTiles: pr.payload.totalTiles,
+            resumeTiles: [...pr.payload.resumeTiles],
+            landIndex: pr.payload.landIndex,
+            fromPos: pr.payload.fromPos,
+            steps: pr.payload.steps,
+          };
   return { seq: pr.seq, view, answers, payload };
 }
 
