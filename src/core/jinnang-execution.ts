@@ -6,7 +6,7 @@
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
 import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
-import { jinnangCardOf } from "./jinnang";
+import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
 import { HEROES, type ActiveSkillDef } from "./heroes";
@@ -82,36 +82,25 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   return drawn;
 }
 
-/** 弃牌堆洗回牌库(牌库耗尽的正式机制,非防御逻辑):弃牌堆骰序(Fisher-Yates,
+/** 弃牌堆洗回牌库(牌库耗尽的正式机制,非防御逻辑):弃牌堆骰序(diceShuffle 单源,
  *  g.dice 驱动——与开局 buildJinnangDeck 同一随机源,rngState 随快照序列化,联机/恢复
- *  确定性一致)整体洗成新牌库,弃堆清空,公开计数同步。洗回宣告三件套:浮字
- *  (「弃牌堆 N 张洗回牌库」,与「锦囊已空」同通路)+ 对局日志一行(jinnangReshuffle
- *  机读前缀)+ jinnangReshuffled 事件(count=洗回张数;洗后牌序是暗信息,事件不带
- *  牌 id——ADR-0016,比保密口径只少不多)。 */
+ *  确定性一致)整体洗成新牌库,弃堆清空,公开计数同步。宣告走事件面:对局日志一行
+ *  (jinnangReshuffle 机读前缀)+ jinnangReshuffled 事件(count=洗回张数;洗后牌序是
+ *  暗信息,事件不带牌 id——ADR-0016,比保密口径只少不多);浮字由 fx 面消费事件派生
+ *  (event-extract,单机/联机同通路,引擎侧不推)。 */
 function reshuffleDiscardIntoDeck(g: GameEngine, seat: number): void {
-  const deck = g.jinnangDiscard;
-  for (let i = deck.length - 1; i > 0; i--) {
-    const j = Math.floor(g.dice.nextFloat() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
-  }
+  const deck = diceShuffle(g.jinnangDiscard, g.dice);
   g.jinnangDeck = deck;
   g.jinnangDiscard = [];
   g.jinnangDeckCount = g.jinnangDeck.length;
-  const n = deck.length;
-  g.floaters.push({
-    playerIndex: seat,
-    amount: 0,
-    kind: "msg",
-    text: `弃牌堆 ${n} 张洗回牌库`,
-  });
   const p = g.players[seat];
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} 弃牌堆 ${n} 张洗回牌库`,
-    `jinnangReshuffle player=${p.id} count=${n}`,
+    `${p.guohao} 弃牌堆 ${deck.length} 张洗回牌库`,
+    `jinnangReshuffle player=${p.id} count=${deck.length}`,
   );
-  emitGameEvent(g, seat, { kind: "jinnangReshuffled", count: n });
+  emitGameEvent(g, seat, { kind: "jinnangReshuffled", count: deck.length });
 }
 
 /** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=

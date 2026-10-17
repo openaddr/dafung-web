@@ -91,7 +91,12 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
           牌库恒 0,「0」角标误导玩家以为牌堆空了(dogfood 2026-09-28 同因) */}
       {playing && (
         <div className="misc">
-          <span className="deck-orn" role="img" title="锦囊牌库" aria-label="锦囊牌库">
+          <span
+            className="deck-orn"
+            role="img"
+            title={`锦囊牌库 ${snapshot.jinnangDeckCount}`}
+            aria-label={`锦囊牌库 ${snapshot.jinnangDeckCount}`}
+          >
             <Sym name="pile" size={20} strokeWidth={1.5} />
             <b className="deck-orn-badge" data-testid={TESTIDS.topbarDeck}>
               {snapshot.jinnangDeckCount}

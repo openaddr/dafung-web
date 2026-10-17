@@ -153,7 +153,7 @@ describe("锦囊发牌(引擎缝)", () => {
     expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true); // 抽空后落空提示(既有语义不变)
   });
 
-  it("牌库抽空:落空浮字「锦囊已空」,不报错不回流", () => {
+  it("牌库抽空(弃堆亦空):落空浮字「锦囊已空」,零转移", () => {
     const e = makeEngine(3);
     finishSetup(e);
     e.jinnangDeck = [];
@@ -216,7 +216,7 @@ describe("弃牌堆洗回(牌库耗尽)", () => {
     expect(circulation(e)).toBe(18);
   });
 
-  it("触发:牌库空+弃牌非空 → 洗回并入手;浮字/战报/事件三宣告,计数同步", () => {
+  it("触发:牌库空+弃牌非空 → 洗回并入手;战报/事件宣告(浮字归 fx 面),计数同步", () => {
     const e = makeEngine(7);
     finishSetup(e);
     e.jinnangDeck = [];
@@ -235,11 +235,6 @@ describe("弃牌堆洗回(牌库耗尽)", () => {
     // 战报:机读前缀归 jinnang 类,同不落牌名
     const reshuffleLog = e.log.find((l) => l.detail.includes("jinnangReshuffle"));
     expect(reshuffleLog?.detail).toContain("count=3");
-    const msgs = e.presentation
-      .drainFloaters()
-      .filter((f) => f.kind === "msg")
-      .map((f) => (f as { text: string }).text);
-    expect(msgs.some((t) => t.includes("弃牌堆 3 张洗回牌库"))).toBe(true);
   });
 
   it("双空:牌库与弃堆皆空 → 落空零转移,不产洗回事件", () => {

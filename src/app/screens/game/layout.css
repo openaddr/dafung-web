@@ -261,16 +261,17 @@
   pointer-events: auto;
 }
 /* 锦囊牌库小件(纯展示,非按钮无 hover 态;弃牌 chip 已退役):迷你牌背
-   (Sym pile,竖笺+朱印框)+ 朱砂数量角标。印框 .pile-seal 落朱砂、笺体随字色
-   (Sym 单色走 currentColor 的约定不破);角标朱印深底+纸字口径见文件头
-   「玄墨鎏金新约定」。角标锚 svg 盒右下——pile 笺体在 22×16 盒内居中,盒右内
-   20px 档余 7.6px 空白,角标恰落在笺右角上。 */
+   (Sym pile,竖笺+朱印框)+ 朱砂数量角标。印框 .deck-orn-seal 落朱砂、笺体随字色
+   (Sym 单色走 currentColor 的约定不破;类名缀 deck-orn 防 churn——Sym 是共享符号,
+   不得私挂消费侧语境名)。角标朱印深底+纸字口径见文件头「玄墨鎏金新约定」。角标锚
+   svg 盒右下——pile 笺体在 22×16 盒内居中,盒右内 20px 档余 7.6px 空白,角标恰落在
+   笺右角上。 */
 .game-layout .deck-orn {
   position: relative;
   align-self: center;
   color: var(--color-ink-dim);
 }
-.game-layout .deck-orn .pile-seal {
+.game-layout .deck-orn .deck-orn-seal {
   stroke: var(--color-danger);
 }
 .game-layout .deck-orn-badge {

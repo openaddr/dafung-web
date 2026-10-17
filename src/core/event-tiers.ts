@@ -183,8 +183,8 @@ export const EVENT_TIERS = {
   },
   jinnangReshuffled: {
     fold: "must-fold",
-    fx: "silent",
-    why: "弃牌堆骰序洗回牌库:牌库数+count/弃堆清零(count=弃堆全量转移,精确折);洗后牌序=暗信息不折(中途洗牌随批全量,已登记 CALIBRATION_EVENT_KINDS);浮字引擎侧已推,fx 无演出",
+    fx: "presented",
+    why: "弃牌堆骰序洗回牌库:牌库数+count/弃堆清零(count=弃堆全量转移,精确折);洗后牌序=暗信息不折(中途洗牌随批全量,已登记 CALIBRATION_EVENT_KINDS);表现=洗回浮字(与获锦囊浮字同 fx 通路,单机/联机同见)",
   },
   jinnangAnnounced: {
     fold: "must-fold",

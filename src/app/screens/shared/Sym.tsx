@@ -70,12 +70,12 @@ const PATHS: Record<SymName, ReactNode> = {
   // 缩小 −(横线,与放大成对)
   zoomOut: <path d="M6.5 8 H15.5" fill="none" />,
   // 牌库(锦囊牌堆)牌背缩形:竖笺(3:4 牌面制约)+ 中央朱印框。印面留白示意「锦囊」
-  // 印——文字不进图标(零字体依赖);印框 .pile-seal 由消费侧 CSS 落朱砂,笺体随
+  // 印——文字不进图标(零字体依赖);印框 .deck-orn-seal 由消费侧 CSS 落朱砂,笺体随
   // currentColor(Sym 单色约定不破,登记见 docs/reference/界面符号.md)。
   pile: (
     <>
       <rect x="6.1" y="1.5" width="9.8" height="13" rx="1.2" fill="none" />
-      <rect x="8.5" y="5.5" width="5" height="5" rx="0.7" fill="none" className="pile-seal" />
+      <rect x="8.5" y="5.5" width="5" height="5" rx="0.7" fill="none" className="deck-orn-seal" />
     </>
   ),
 };
