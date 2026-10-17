@@ -1,5 +1,5 @@
 // 顶部对局条(#253 三区骨架,原型 .topbar 移植):回合 chip(第 N 轮 + 目标身价)+
-// 活跃方名 | 牌库/弃牌计数 + 复位/缩放/静音角钮。状态卡(右栏退役)的回合/活跃方
+// 活跃方名 | 锦囊牌库小件 + 复位/缩放/静音角钮。状态卡(右栏退役)的回合/活跃方
 // 信息由本条承担;筹码数字全部直读引擎快照既有字段,不重算。
 // 角钮为既有能力平移(复位 ◎ / 缩放 +− / 静音 ♪,#495 起三者全走 Sym SVG 同排一致),
 // 不新增功能;40px 触达(W5)。
@@ -85,15 +85,17 @@ export function GameTopBar({ snapshot, self, onResetView, onZoomIn, onZoomOut }:
         </span>
       )}
       <span className="sp" />
-      {/* 牌库/弃牌计数(#122 公开信息)仅对局中显示:Setup 期牌库恒 0,
-          「牌库 0」误导玩家以为牌堆空了(dogfood 2026-09-28) */}
+      {/* 锦囊牌库小件(#122 公开信息;纯展示,非按钮无点击——symbol 登记见
+          docs/reference/界面符号.md):迷你牌背(Sym pile)+ 朱砂数量角标。弃牌计数
+          退役:18−牌库−Σ席位手牌可推导,顶栏不复述冗余。仅对局中显示:Setup 期
+          牌库恒 0,「0」角标误导玩家以为牌堆空了(dogfood 2026-09-28 同因) */}
       {playing && (
         <div className="misc">
-          <span className="chip">
-            牌库 <b data-testid={TESTIDS.topbarDeck}>{snapshot.jinnangDeckCount}</b>
-          </span>
-          <span className="chip">
-            弃牌 <b data-testid={TESTIDS.topbarDiscard}>{snapshot.jinnangDiscard.length}</b>
+          <span className="deck-orn" role="img" title="锦囊牌库" aria-label="锦囊牌库">
+            <Sym name="pile" size={20} strokeWidth={1.5} />
+            <b className="deck-orn-badge" data-testid={TESTIDS.topbarDeck}>
+              {snapshot.jinnangDeckCount}
+            </b>
           </span>
           {/* 总览复位 / 缩放(既有能力平移;#98 缩放显式入口保留) */}
           <button

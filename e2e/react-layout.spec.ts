@@ -35,7 +35,7 @@ test.describe("三区骨架", () => {
     }
   });
 
-  test("顶部条:回合 chip / 活跃方 / 目标身价 / 牌库弃牌计数与快照一致", async ({ page }) => {
+  test("顶部条:回合 chip / 活跃方 / 目标身价 / 锦囊牌库角标与快照一致", async ({ page }) => {
     await quickStart(page);
     await expect
       .poll(async () => {
@@ -43,12 +43,10 @@ test.describe("三区骨架", () => {
         const round = await page.getByTestId("topbar-round").textContent();
         const target = await page.getByTestId("topbar-target").textContent();
         const deck = await page.getByTestId("topbar-deck").textContent();
-        const discard = await page.getByTestId("topbar-discard").textContent();
         return (
           round === `第 ${s.round} 轮` &&
           target === `目标 ${fmtMoney(s.targetNetWorth)}` &&
           deck === String(s.jinnangDeckCount) &&
-          discard === String(s.jinnangDiscard.length) &&
           (await page.getByTestId("topbar-active").textContent()) ===
             `${s.players[s.activeIndex].guohao}之回合`
         );
