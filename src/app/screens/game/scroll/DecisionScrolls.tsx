@@ -223,9 +223,10 @@ export function UpgradeDecisionScroll({
   // 产出,UI 不再重推 level >= maxLevel(升级免费,无银两门槛)。选项缺失 = 相位与
   // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
   const upgrade = choices.find((o) => o.id === "upgrade")!;
-  // 价值变化 = 当前级 → 下一级城池价值(下标 = 等级)
-  const valueNow = property.valueByLevel[level] ?? 0;
-  const valueNext = upgrade.available ? (property.valueByLevel[level + 1] ?? valueNow) : valueNow;
+  // 价值变化 = 当前级 → 下一级城池价值(下标 = 等级;直接下标,board-loader 已校验
+  // valueByLevel 长度 = maxLevel+1,越界 = 数据 bug 炸出)
+  const valueNow = property.valueByLevel[level];
+  const valueNext = upgrade.available ? property.valueByLevel[level + 1] : valueNow;
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
     () => {

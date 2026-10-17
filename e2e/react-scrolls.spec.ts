@@ -257,6 +257,9 @@ test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝
       return tc.index;
     });
     await expect(page.getByTestId("scroll-buy")).toBeVisible();
+    // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
+    await expect(page.getByTestId("scroll-buy")).toContainText("余");
+    await expect(page.getByTestId("scroll-buy")).not.toContainText("差");
     const pid = await engineState(page, `e.board.at(${tcIndex}).propertyId`);
     await waitFxIdle(page);
     const logLenBefore = (await snap(page)).log.length;
