@@ -1,7 +1,8 @@
 // 掷骰签面演出(#483:three.js 3D 骰退役,签面转正为唯一掷骰表现):
 // S7 两段式(#513/#492 拍板:标准档摇签 0.6s)——
 //   第一段 摇签:墨字虚影 60ms 级轮换(全段恰 10 次换签)带微旋,签卡隐去只余字影;
-//   第二段 落定:大字 outBack 钤落(签卡随之现身)+ 落点金圈同拍 + 桌面微震 4px。
+//   第二段 落定:大字 outBack 钤落(签卡随之现身)+ 落点金圈同拍(不上震屏——
+//   震屏仅限全场级大事件,DESIGN §6)。
 // 之后停留(holdMs;bot 走半速档:摇签/停留都压半)→ 渐隐退场。
 // 样式与时长见 fx.css .dice-sign/.dice-sign-shaking/.dice-sign-land/.fx-dice-ring 与
 // fx/timings.ts DICE。mount/unmount 归 React;触发走 diceApi 模块桥——控制器(非
@@ -10,7 +11,6 @@
 import { useEffect } from "react";
 import { SIGN_FACES } from "@core/constants";
 import { getAudio } from "./audio";
-import { shakeDesk } from "./desk";
 import { DICE } from "./timings";
 
 // ── C1 bot 半速掷骰(模块级速度开关)──
@@ -73,7 +73,7 @@ function rollSign(die: number): Promise<void> {
   return new Promise<void>((resolve) => {
     window.setTimeout(() => {
       window.clearInterval(shuffler);
-      // 第二段 落定:大字 outBack 钤落 + 落点金圈同拍 + 桌面微震;落骰声从起手
+      // 第二段 落定:大字 outBack 钤落 + 落点金圈同拍;落骰声从起手
       // 挪到本拍(orchestrator.animateDice 只保留起手沙锤),音画同拍。
       sign.textContent = SIGN_FACES[die - 1];
       sign.style.rotate = "";
@@ -81,7 +81,6 @@ function rollSign(die: number): Promise<void> {
       sign.classList.add("dice-sign-land");
       overlay.insertBefore(ring, sign);
       getAudio().play("diceLand");
-      shakeDesk();
       window.setTimeout(
         () => {
           if (activeOverlay === overlay) activeOverlay = null;
