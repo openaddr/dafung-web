@@ -164,3 +164,13 @@ function endMarch(moverId: string): void {
   marchPos.delete(moverId);
   useFxStore.getState().removeMarching(moverId);
 }
+
+/** 收回「已锚定、未开播」的行军接管(终局封场专用,orchestrator.present 收队路径
+ *  调用):anchorMarches 在 play() 拍就把批内全部 tokenMoved 预塞接管,截断后不再
+ *  播的行军若不收回,棋子会被 TokenLayer 冻结在起点挂行军金边直到整页 reload。
+ *  同 id 恰有在途动画时(合并批同玩家多段行军),直接移出 marching 即 C5 取消
+ *  令牌,在途循环下个段边界自终止(棋子已在胜利屏下,终态接管不可见)。 */
+export function abandonMarch(moverId: string): void {
+  marchPos.delete(moverId);
+  useFxStore.getState().removeMarching(moverId);
+}

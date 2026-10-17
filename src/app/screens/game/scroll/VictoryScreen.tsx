@@ -6,7 +6,7 @@ import { useEffect, useState } from "react";
 import type { VictoryReason } from "@core/authority";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
-import { finishDiceOverlay } from "@app/fx/DiceOverlay";
+import { finishPresentation } from "@app/fx/orchestrator";
 // #117 收编:再战按钮延后挂载时长走 fx/timings.ts(UI.victoryButtonMs)。
 import { UI } from "@app/fx/timings";
 // #174:全屏模态语义——胜利屏是全屏覆盖而非弹窗(#155 结论,不套 ui/dialog 的
@@ -117,8 +117,11 @@ export function VictoryScreen({
   // E2:再战按钮延后挂载(防演出高潮期误触重开)。
   const [showButton, setShowButton] = useState(false);
   useEffect(() => {
-    // D2:终局瞬间切屏可能赶在签面 hold 定时器之前,先清残留 overlay(z-45 压屏)。
-    finishDiceOverlay();
+    // D2 全层化(orchestrator.finishPresentation):终局 = 整个表现层使命终结——
+    // 胜利屏一挂即封场收队:终局批先于本屏入队(快照同拍到达),其内后续骰子/行军
+    // 不再播,z-45 骰子 overlay 的在场一张也一并摘除。原先只清在场一张,管不住
+    // 演出队列里积压的后续掷骰(出局后剩余整局合并下行时,骰子会在本屏上摇到排空)。
+    finishPresentation();
     // E1:入场音组——0ms 鼓点起势(victoryDrum,终局专属鼓滚奏;回合横幅已撤鼓滚,
     // 见 audio.ts 音效审计注),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
     // 同帧落印 #95),

@@ -32,7 +32,8 @@ function consumeDiceFast(): boolean {
 // 在场 overlay 引用(D2 终局提前收场用;present() 串行 await,同时至多一张)。
 let activeOverlay: HTMLElement | null = null;
 
-/** D2:骰子演出提前收场(终局切胜利屏时由 VictoryScreen mount 调用)。
+/** D2:骰子演出提前收场(生产调用口 = orchestrator.finishPresentation,胜利屏
+ *  挂载封场整个表现层时连带调用;本函数只管在场这一张)。
  *  这是生命周期规则而非兜底:对局结束 = 骰子表现层使命终结——立即移除在场
  *  overlay,防止 z-45 残留压住胜利屏。摇签轮换/hold/渐隐定时器不取消:闭包只
  *  触碰自己的 overlay 节点,节点移除后均为无害操作(轮换下个 tick 被 clearInterval),

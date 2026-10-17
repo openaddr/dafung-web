@@ -14,17 +14,43 @@
 import type { MovePath } from "@core/board";
 import { formatMoney } from "@core/money";
 import { getAudio } from "./audio";
-import { diceApi, setDiceFast } from "./DiceOverlay";
+import { diceApi, finishDiceOverlay, setDiceFast } from "./DiceOverlay";
 import { useFxStore } from "./fxStore";
-import { animateMove, beginMarch } from "./useMarch";
+import { abandonMarch, animateMove, beginMarch } from "./useMarch";
 import { delay, FX } from "./timings";
 import type { FxSink, PresentationEvent } from "./presentation";
+
+// ─────────────────────── 终局封场(D2 全层化)───────────────────────
+// D2 的生命周期规则(对局结束 = 表现层使命终结)从骰子 overlay 升格到整个表现层:
+// 胜利屏挂载即 finishPresentation(),present 在事件边界发现已封场即收队,剩余表现
+// 事件整体不播(在途的那个事件自然播完,不产生半截特效状态)。背景 bug:玩家出局后
+// 剩余整局被房间编排 0ms 同步跑完、事件批经合并拍毫秒级下行,客户端实速串行的演出
+// 队列积压数分钟,骰子(z-45)一张接一张压在胜利屏(z-40)上摇到排空——D2 原先只
+// 清在场一张,管不住队里后续的。收队时把批内未开播 tokenMoved 的行军接管一并收回
+// (abandonMarch):anchorMarches 在 play() 拍就已预塞 marching,不收回则棋子被
+// TokenLayer 冻结在起点挂行军金边直到整页 reload;同 id 恰有在途动画时,移出
+// marching 即 C5 取消令牌(useMarch 订阅器),在途循环下个段边界自终止。
+// 收队 return 而非 throw:SnapshotEffects 的 catch 是给真异常留的,封场收队是生命
+// 周期规则,响 error 日志反而掩真错。
+let sealed = false;
+
+/** 终局封场:胜利屏挂载时调用(VictoryScreen);封场后一切 present 立即收队。 */
+export function finishPresentation(): void {
+  sealed = true;
+  finishDiceOverlay();
+}
 
 // ─────────────────────── 播放器 ───────────────────────
 /** 播放一组表现事件:串行 await,顺序 = 数组顺序。所有外设经 FxSink 驱动
  *  (生产 = createEngineSink 单例组装;测试 = createMemorySink 录制)。 */
 export async function present(events: PresentationEvent[], sink: FxSink): Promise<void> {
-  for (const ev of events) {
+  for (const [i, ev] of events.entries()) {
+    if (sealed) {
+      for (const rest of events.slice(i)) {
+        if (rest.kind === "tokenMoved") abandonMarch(rest.playerId);
+      }
+      return;
+    }
     switch (ev.kind) {
       case "diceRolled":
         // C1:bot 掷骰半速——速度开关在掷前设置(roll 内即消费复位);
@@ -129,9 +155,13 @@ export function remainingMarchPath(
   };
 }
 
-/** 重置编排态(重开局时调用):表现 store 一并清。事件提取的跨批宣布游标生命周期
- *  = 引擎实例(#430:WeakMap 键控,换局换实例即新游标),无手工 reset 配对可忘。 */
+/** 重置编排态(重开局时调用):表现 store 一并清,终局封场一并解封(生产 = 整页
+ *  reload 天然新态;单测 beforeEach 靠此隔离,防封场态跨文件泄漏——bun test 单进程
+ *  顺序跑,模块态跨文件存活,而 local-room.test.ts 无 beforeEach reset)。
+ *  事件提取的跨批宣布游标生命周期 = 引擎实例(#430:WeakMap 键控,换局换实例即新
+ *  游标),无手工 reset 配对可忘。 */
 export function resetFxOrchestration(): void {
+  sealed = false;
   useFxStore.getState().resetFx();
 }
 

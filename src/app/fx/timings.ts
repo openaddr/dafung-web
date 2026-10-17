@@ -99,7 +99,9 @@ export const FX = {
  *  全段恰 10 次换签,DiceOverlay 按 shakeMs/10 求轮换周期)→ 大字 outBack 落定
  *  (金圈同拍+桌面微震 4px,desk.ts)→ 停留 → 渐隐。
  *  C1 bot 掷骰半速:bot 摇签/停留都压半,回合节奏优先。任何掷骰(含 bot)结束后
- *  都有 ≥300ms 可读结果(holdMs+fadeOutMs,由 test/choreography-invariants.test.ts 钉住)。
+ *  都有 ≥300ms 可读结果(holdMs+fadeOutMs,由 test/choreography-invariants.test.ts
+ *  钉住;非终局局的承诺——终局封场(orchestrator.finishPresentation)后骰子演出
+ *  可在事件边界被整体截断,是生命周期规则不是回归)。
  *  与 token 同值者(holdMs=--dur-reveal / botHoldMs=--dur-slow / fadeOutMs=--dur-med)
  *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。摇签段无 token 对应,保留字面量。 */
 export const DICE = {
