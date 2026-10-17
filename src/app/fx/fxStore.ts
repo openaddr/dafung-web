@@ -110,7 +110,9 @@ interface FxState {
   halt: HaltBannerFx | null;
   /** 出牌指示线(#281 P2-E)。 */
   jinnangLines: JinnangLineFx[];
-  /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位。 */
+  /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位;
+   *  外部移出某 id = 在途行军的取消令牌(C5,订阅器在 useMarch:段边界自终止并清
+   *  marchPos)——终局封场的接管收回(orchestrator→abandonMarch)即走此通道。 */
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
