@@ -651,40 +651,66 @@ describe("连环计·二虎竞食(T4)", () => {
   });
 });
 
-describe("军情密探·窥探(T4)", () => {
-  it("窥探入账;viewer 下回合开始到期清零", () => {
+describe("军情密探·窥探(#575 即时一次性)", () => {
+  it("生效产出 peekApplied(窥方/被窥者+手牌内容随事件走);无任何持续窗口", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
     armJinnang(e, ["军情密探"]);
+    const targetHand = [...e.players[1].jinnangHand];
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
-    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
-    const p = e.activePlayer;
-    e.rollAndMove();
-    let seenOther = false;
-    let guard = 0;
-    while (!e.isOver && guard++ < 50) {
-      if (e.activePlayer !== p) seenOther = true;
-      else if (seenOther) break;
-      if (e.turnPhase === "Roll") e.rollAndMove();
-      else if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
-      else botAct(e);
-    }
-    expect(seenOther).toBe(true);
-    expect(e.jinnangPeeks).toEqual([]); // 轮回 viewer:到期
+    // 事件=窥探的唯一载体(viewer 凭事件得一次阅览权):真生效才产出,手牌快照随行
+    const ev = e.gameEvents.find((x) => x.kind === "peekApplied");
+    expect(ev).toMatchObject({
+      kind: "peekApplied",
+      seat: 0,
+      viewerSeat: 0,
+      targetSeat: 1,
+      hand: targetHand,
+    });
+    // 即时一次性:窥探无任何客户端/快照状态(引擎账本已删,快照零字段)
+    expect(Object.hasOwn(e.snapshot(), "jinnangPeeks")).toBe(false);
   });
 
-  it("快照往返:peeks 保真", () => {
+  it("PeekApplied 时机同址派发(subject=使用者,targetSeat=被窥者);战报公开不泄牌名", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.resolveJinnang(null);
     armJinnang(e, ["军情密探"]);
+    const entries: { moment: string; ctx: unknown }[] = [];
+    const orig = e.dispatchMoment.bind(e);
+    (e as { dispatchMoment: (m: string, ctx: unknown) => void }).dispatchMoment = (
+      m: string,
+      ctx: unknown,
+    ) => {
+      entries.push({ moment: m, ctx });
+      return orig(m as never, ctx as never);
+    };
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
-    const e2 = makeEngine(1);
-    e2.restoreFromSnapshot(e.snapshot());
-    expect(e2.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
+    expect(entries.filter((x) => x.moment === "PeekApplied").map((x) => x.ctx)).toEqual([
+      { subject: 0, targetSeat: 1 },
+    ]);
+    expect(e.log.some((l) => l.brief.includes("窥探 蜀 的锦囊"))).toBe(true);
+    expect(e.log.some((l) => l.brief.includes("至下回合"))).toBe(false); // 时窗口径随 #575 删除
+  });
+
+  it("被识破不产出 peekApplied(识破只护份,窥探从未发生)", () => {
+    const e = makeEngine(42);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    armJinnang(e, ["军情密探"]);
+    e.players[1].jinnangHand = ["识破诡计"]; // armJinnang 清过反应牌,此处重植
+    e.players[1].jinnangHandCount = 1;
+    e.resolveJinnang("军情密探");
+    e.resolveJinnang("军情密探", [1]);
+    expect(e.turnPhase).toBe("AwaitingReaction"); // 宣布 → 识破窗挂起
+    e.respondReaction(1, true, "识破诡计", 1); // 自保识破
+    expect(e.pendingReaction).toBeNull();
+    expect(e.turnPhase).toBe("Roll"); // 计被拆,照常收卷
+    expect(e.gameEvents.some((x) => x.kind === "peekApplied")).toBe(false);
+    expect(e.jinnangDiscard).toContain("识破诡计"); // 识破牌已耗,军情密探也无处可窥
   });
 });
 

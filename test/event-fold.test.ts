@@ -164,10 +164,6 @@ describe("折叠投影器 · 回合/胜负族", () => {
     e.treasureVisitor = { def: MAP.catalog.get("prop-luoyang")!, ownerIdx: 1 };
     e.pendingReaction = null;
     e.jinnangUsedTags = ["谋"];
-    e.jinnangPeeks = [
-      { viewer: 1, target: 0 },
-      { viewer: 0, target: 1 },
-    ];
     const turn: GameEvent = { kind: "turnStarted", seat: 1, round: 2, turn: 5 };
     foldEventBatch(e, [turn]);
 
@@ -179,7 +175,6 @@ describe("折叠投影器 · 回合/胜负族", () => {
     expect(e.lastLandOutcome).toBeNull();
     expect(e.treasureVisitor).toBeNull(); // 交涉窗口收口(turnEnded 相邻同口径)
     expect(e.jinnangUsedTags).toEqual([]); // 标签名额清零
-    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]); // viewer=新活跃者到期
   });
 
   it("roundStarted/roundEnded 定轮次锚点;gameOver 定胜负终局", () => {
@@ -556,14 +551,29 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.jinnangUsedTags).toEqual(["谋"]);
   });
 
-  it("jinnangAnnounced 军情密探:窥探入册(viewer 至下回合到期)", () => {
+  it("peekApplied 零折(#575):窥探即时一次性,无任何客户端状态(声明性零转移)", () => {
+    const e = makeEngine();
+    e.players[0].jinnangHand = ["连环计"];
+    e.players[0].jinnangHandCount = 1;
+    e.turnPhase = "Roll";
+    foldEventBatch(e, [
+      ev(0, { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] }),
+    ]);
+    // 零折:窥探不落任何副本字段(手牌数/相位等一概不动;弹层纯演出归表现面)
+    expect(e.players[0].jinnangHandCount).toBe(1);
+    expect(e.turnPhase).toBe("Roll");
+  });
+
+  it("jinnangAnnounced 军情密探:窥探不再随宣布入册(#575 抢跑入册退役,生效归 peekApplied)", () => {
     const e = makeEngine();
     e.players[0].jinnangHandCount = 1;
     foldEventBatch(e, [
       ev(0, { kind: "jinnangAnnounced", cardId: "军情密探", targetSeats: [1] }),
       ev(0, { kind: "jinnangDrawn", count: 0, reason: "noop" }),
     ]);
-    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
+    // 只折出牌扣账,窥探零入册(被识破不再残留幻影窥探——存量偏差随 #575 消解)
+    expect(e.jinnangUsedTags).toEqual(["谋"]);
+    expect(e.jinnangDiscard).toEqual(["军情密探"]);
   });
 
   it("reactionOpened 置窗(view/seq/windowMs 派生)+ AwaitingReaction;应答齐闭窗", () => {

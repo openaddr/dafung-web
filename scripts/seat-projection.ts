@@ -78,7 +78,8 @@ function redactReactionView(v: ReactionView, seat: number): ReactionView {
 
 /** 锦囊暗牌投影(ADR-0016):god-view 快照按「接收座位」裁剪。白名单三档——
  *  public 原样 / count-only 只给数量 / private 只发本人:
- *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);
+ *  - 他人锦囊手牌 → count-only(清空内容 + jinnangHandCount 数量);窥探(#575 即时
+ *    一次性)不再有快照放行——阅览权随 peekApplied 事件走(redactEvents 逐座位裁);
  *  - 锦囊牌库牌序 → count-only(牌序决定未来抽牌,泄了等于开了天眼;只留剩余数);
  *  - 含锦囊内容的对局日志行 → 不外发(引擎侧已源头不落内容,此处按机读键过滤抽牌行,防御性双保险);
  *  - 反应窗询问集(#281)→ per-seat private(挂起态 pendingReaction.view 与公开派生
@@ -86,11 +87,9 @@ function redactReactionView(v: ReactionView, seat: number): ReactionView {
  *  - 其余(银两/城池/珍宝/弃牌堆…)全部 public 原样——明置信息不裁。
  *  纯函数:不改输入;单测直测(redact 缝,ADR-0016 的落点)。 */
 export function redactSnapshotForSeat(s: GameSnapshot, seat: number): GameSnapshot {
-  // 军情密探(#122/T4):本座位进行中的窥探目标,内容对 viewer 放行
-  const peeked = new Set(s.jinnangPeeks.filter((pk) => pk.viewer === seat).map((pk) => pk.target));
   const players = s.players.map((p, i) => {
     // 数量走引擎态 jinnangHandCount(公开信息),此处只裁内容
-    if (i === seat || peeked.has(i)) return p;
+    if (i === seat) return p;
     return { ...p, jinnangHand: [] };
   });
   return {
@@ -138,7 +137,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *  穷尽 switch:词汇表新增 kind 未在此登记 = 编译期炸(default 收 never),与快照
  *  投影「新增载荷登记」同纪律;运行时对未知 kind 同样当场炸(零兜底)。
  *
- *  全 38 kind 隐私审计(2026-10,#381):
+ *  全 39 kind 隐私审计(2026-10,#381;#575 补 peekApplied):
  *  - 透传(37 kind,全桌公开面,原样):
  *    · 生命周期族 gameStarted/setupCompleted/turnEnded/turnStarted/roundEnded/
  *      roundStarted/gameOver;
@@ -158,21 +157,27 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed;
  *    · 机遇族 encounterTriggered/encounterChoice;声望/体力/跳过族 reputationChanged/
  *      staminaChanged/turnSkipped。
- *  - 裁剪(1 kind):reactionOpened 的 jinnang 窗——queriedSeats 是 per-seat private 档
- *    (god-view 全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量
- *    保留**:接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
- *    (event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」按此数组长度收窗,清零
- *    会让非被询问端在首条应答即误闭窗、第二条应答触发「无挂起反应窗」契约炸出;且
- *    应答事件 seat 本就公开(每被询问座位恰应答一次),同窗内询问数量可由公开应答流
- *    推出——匿名化相对 god-view 恰好只裁「谁」,零额外泄漏(march 窗全公开——城主
- *    归属可由棋盘推导,原样透传)。
- *  纯函数:不改输入;单测直测。 */
+ *  - 裁剪(2 kind):
+ *    · reactionOpened 的 jinnang 窗——queriedSeats 是 per-seat private 档(god-view
+ *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
+ *      接收座位在列保留自己座位,其余一律置换 ANON_SEAT。数量必须保留:折叠器
+ *      (event-fold.ts)闭窗算术「应答数 ≥ queriedBySeat.length」按此数组长度收窗,清零
+ *      会让非被询问端在首条应答即误闭窗、第二条应答触发「无挂起反应窗」契约炸出;且
+ *      应答事件 seat 本就公开(每被询问座位恰应答一次),同窗内询问数量可由公开应答流
+ *      推出——匿名化相对 god-view 恰好只裁「谁」,零额外泄漏(march 窗全公开——城主
+ *      归属可由棋盘推导,原样透传)。
+ *    · peekApplied(#575)——hand 是被窥者锦囊手牌内容,per-seat private:仅窥方
+ *      (viewerSeat)座位保留(窥探弹层的阅览权随事件走,快照无窥探放行),其余座位
+ *      一律裁空。viewerSeat/targetSeat 本身公开(窥探动作公开:浮字/战报照记),裁的
+ *      只是牌面内容;目标座位本人信息自己本就持有,零额外泄漏。 */
 export function redactEvents(batch: readonly GameEvent[], seat: number): GameEvent[] {
   return batch.map((ev) => {
     switch (ev.kind) {
       case "reactionOpened":
         if (ev.windowKind !== "jinnang") return ev; // march 窗全公开(城主=棋盘可推导)
         return { ...ev, queriedSeats: ev.queriedSeats.map((s) => (s === seat ? seat : ANON_SEAT)) };
+      case "peekApplied":
+        return ev.viewerSeat === seat ? ev : { ...ev, hand: [] }; // 仅窥方保留手牌内容
       // ── 透传族(全桌公开,原样)──
       case "gameStarted":
       case "setupCompleted":

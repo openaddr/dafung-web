@@ -35,7 +35,7 @@ import { askInquiry, resolveInquiry } from "./inquiry-flow";
 import { respondReaction, type PendingReaction } from "./reaction-window";
 // 锦囊+主动技+效果执行域(#319,ADR-0019):出牌阶段决策/出牌/效果结算在 jinnang-execution.ts,
 // 壳内同名公共方法薄委托转发;reaction-window 续结算经壳上 executeJinnang/settleJinnangExit 回调;
-// 载荷类型(JinnangPeek/PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
+// 载荷类型(PendingJinnang/PendingHeroSkill)随域走(#326,ADR-0019)。
 import {
   discardJinnang,
   drawJinnang,
@@ -44,7 +44,6 @@ import {
   resolveHeroSkill,
   resolveJinnang,
   settleJinnangExit,
-  type JinnangPeek,
   type PendingJinnang,
   type PendingHeroSkill,
 } from "./jinnang-execution";
@@ -295,8 +294,6 @@ export class GameEngine {
    *  取走清零。可序列化——发动与掷骰之间可被快照广播/落盘,与瞬态 marchBonus(同一次
    *  rollAndMove 内写读平衡)不同,必须跨进程保真。 */
   heroDiceBonus = 0;
-  /** 进行中的窥探(#122/T4):viewer 至其下回合开始可见 target 手牌内容(投影放行)。 */
-  jinnangPeeks: JinnangPeek[] = [];
   /** 锦囊牌库剩余数(公开信息):联机投影裁掉牌序后据此透出(同 jinnangHandCount 口径)。 */
   jinnangDeckCount = 0;
   /** 反应窗挂起态(#281,ADR-0017):null=无窗。挂起点存公告/应答/续结算载荷 →
@@ -745,9 +742,8 @@ export class GameEngine {
     this.turnPhase = "Roll";
     this.turnNumber += 1;
     // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
-    // (#281:免战盾随免战金牌退役,到期清理一并删除。)
+    // (#281:免战盾随免战金牌退役,到期清理一并删除;#575:窥探即时一次性,无到期账。)
     this.jinnangUsedTags = [];
-    this.jinnangPeeks = this.jinnangPeeks.filter((pk) => pk.viewer !== this.activeIndex); // 窥探至 viewer 下回合开始到期
     this.enterJinnangPhase();
     // 不重置 lastRoll / lastMove:doRoll 的骰子翻滚与行军动画在 rollAndMove 之后执行,
     // 而落点有主(珍宝交涉/自己城补给)时 rollAndMove 会内部 endTurn,重置会让 doRoll 读到 null 而崩。

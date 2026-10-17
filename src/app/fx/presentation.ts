@@ -104,6 +104,21 @@ export type PresentationEvent =
       cardId: string;
       lines: { x1: number; y1: number; x2: number; y2: number }[];
     }
+  /** 窥探弹层(#575,军情密探即时窥探):viewer-only 一次性演出——peekApplied 事件
+   *  直译,弹层陈列被窥者锦囊手牌(hand 随事件走,redactEvents 逐座位裁、非 viewer
+   *  恒空,ADR-0016),牌背→翻面 stagger 入场,点击任意处/X 关闭,关闭即逝、无持续
+   *  窗口。同步下发(无编排时长,不占演出锁);弹层组件按 viewerSeat===本座自门。 */
+  | {
+      kind: "peekRevealed";
+      /** 窥方座位(仅此座位的客户端渲染弹层)。 */
+      viewerSeat: number;
+      /** 被窥者座位。 */
+      targetSeat: number;
+      /** 被窥者国号(提取期解析,弹层副题「窥 {国号} 营锦囊」)。 */
+      guohao: string;
+      /** 被窥者锦囊手牌内容(非 viewer 座位恒空——redactEvents 逐座位裁,ADR-0016)。 */
+      hand: string[];
+    }
   /** 语义音效(得宝/破产/扩军/买入等):不绑定视觉的纯声音事件。 */
   | { kind: "sound"; event: SoundEvent }
   /** 城池宣告(ADR-0015):扩军/易主的可播放信号,字段 = 引擎结算留痕
@@ -150,6 +165,9 @@ export interface FxSink {
   /** 出牌指示线(#281 P2-E):一段「使用者→目标」墨线端点(棋盘逻辑坐标),
    *  同步下发、CSS 三段自走(生产实现经 fxStore,渲染归 BoardFxLayer 的 #bv-fx 层)。 */
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
+  /** 窥探弹层(#575):viewer-only 一次性演出开关态下发(fxStore.peek,关闭即清);
+   *  同步、无编排时长,非 viewer 座位由弹层组件自门。 */
+  revealPeek(ev: Extract<PresentationEvent, { kind: "peekRevealed" }>): void;
   /** 城池宣告(ADR-0015):扩军/易主时驱动 Tile 重播宣告动画。生产实现经 fxStore
    *  下发 nonce(Tile 订阅,nonce 变化即重挂重播);测试实现录制供断言序列。 */
   announceTileChange(ev: PropertyChangedEvent): void;

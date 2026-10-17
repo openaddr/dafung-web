@@ -86,8 +86,8 @@ export type GameMoment =
    *  ctx.count = 本次实际入手张数(牌库空落空不派,与 jinnangDrawn 事件「无转移不产」同口径)。
    *  暗牌不带牌 id(ADR-0016 保密口径)。subject = 得牌者。 */
   | "JinnangGained"
-  /** 窥探生效(#456):军情密探 jinnangPeeks 入册后。ctx.targetSeat = 被窥者。
-   *  subject = 使用者(窥方)。 */
+  /** 窥探生效(#456):军情密探真生效时(#575 即时一次性,同址产出 peekApplied 事件)。
+   *  ctx.targetSeat = 被窥者。subject = 使用者(窥方)。被识破不派(窥探从未发生)。 */
   | "PeekApplied"
   // ── 玩家状态 ──
   /** 被动得银:applyResupply 补给(驻跸/落都城)/机遇得款与折现/玩家间收款(#455 下沉后

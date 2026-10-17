@@ -9,8 +9,8 @@
 // 目标段(#256/#417):出牌阶段指向性牌确认后,候选席位卡金圈呼吸(.candidate,
 // 原型 .selglow 移植,无文字章)+ 点席位=选中(实金停持态 .picked,再点同席取消,
 // #417 统一口径)+ 动作条「出」钮打出;棋盘 token 同步呼吸归 TokenLayer 挂点。
-// 暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探窥探目标在浮签里
-// 追加窥见牌名(原 OthersPanel title 语义平移)。
+// 暗牌(联机他人手牌)只显牌背+计数(ADR-0016 投影口径);军情密探窥探(#575 即时
+// 一次性)归窥探弹层演出,席位卡浮签恒纯「暗置」口径。
 // 变化反馈(#495):对手现金/体力挂 useDeltaFloat 浮标(与仪表条同款机制,正金负朱,
 //  渲染件 DeltaFloats 共享单源)——大富翁最核心的「谁在变富」不再静默。
 import { formatMoney } from "@core/money";
@@ -47,7 +47,6 @@ function SeatCard({
   seat,
   active,
   winner,
-  peekedHand,
   target,
   mini = false,
 }: {
@@ -55,17 +54,14 @@ function SeatCard({
   seat: number;
   active: boolean;
   winner: boolean;
-  peekedHand: string[];
   target?: SeatTargetSlot;
   mini?: boolean;
 }) {
-  const handTip: TipText =
-    peekedHand.length > 0
-      ? {
-          name: ATTR_TIPS.hand.name,
-          detail: `${ATTR_TIPS.hand.detail};窥见:${peekedHand.join("、")}`,
-        }
-      : { name: ATTR_TIPS.hand.name, detail: `${ATTR_TIPS.hand.detail}(以牌背示意,数量为准)` };
+  // 手牌浮签恒纯「暗置」口径(#575:窥探即时一次性,窥见放行随 jinnangPeeks 账本退役)
+  const handTip: TipText = {
+    name: ATTR_TIPS.hand.name,
+    detail: `${ATTR_TIPS.hand.detail}(以牌背示意,数量为准)`,
+  };
   // 变化浮标(#495):对手现金/体力与仪表条同款机制——首帧只立基准不浮,跨快照
   // 跳变才出标。浮标挂卡内 relative 容器(带 testid 的数值本体保持纯文本,e2e
   // textContent 断言不受浮标串扰)。
@@ -214,8 +210,7 @@ function SeatCard({
  *  SeatCard 的现金/体力浮标(#495,useDeltaFloat 自持,随卡挂载随值自清)。
  *  槽位切分(文件头规则):列容 3;4-6 右列 3 + 左列其余;7+ 右 3 + 左 3 + 顶行缩微。
  *  selfSeat(#453 收口契约):本参数是「屏前真人的自我身份」——单机热座恒 0、联机=本座,
- *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):窥探放行(#122/T4,#453/B1
- *  教训——审计 #446 曾因 prop 名 viewSeat 误判绑定错位)与「自身不出卡」消费的都是
+ *  勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转):「自身不出卡」消费的是
  *  稳定身份。targets(#256/#417 目标段):出牌阶段指向性牌的候选席位(键=座位号),
  *  在场时候选席金圈呼吸、点席位=选中/再点同席取消(打出归动作条「出」确认钮,
  *  GameScreen 从快照 choices 派生,本件只呈现)。 */
@@ -229,10 +224,6 @@ export interface SeatRailProps {
 }
 
 export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
-  // 军情密探(#122/T4):本座位窥探中的对手——只有这些席位的手牌内容在浮签放行
-  const peeking = new Set(
-    snapshot.jinnangPeeks.filter((pk) => pk.viewer === selfSeat).map((pk) => pk.target),
-  );
   const opponents: Seated[] = snapshot.players
     .map((p, seat) => ({ p, seat }))
     .filter(({ seat }) => seat !== selfSeat);
@@ -260,7 +251,6 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
       seat={seat}
       active={snapshot.phase === "Playing" && seat === snapshot.activeIndex}
       winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
-      peekedHand={peeking.has(seat) ? p.jinnangHand : []}
       target={targetSlot(seat)}
       mini={mini}
     />

@@ -50,7 +50,7 @@ export interface EventTier {
   readonly declaredGaps?: readonly string[];
 }
 
-// ─────────────────────── per-kind 档位表(38 kind 全登记)───────────────────────
+// ─────────────────────── per-kind 档位表(39 kind 全登记)───────────────────────
 export const EVENT_TIERS = {
   // ── 回合/胜负族 ──
   gameStarted: {
@@ -213,6 +213,11 @@ export const EVENT_TIERS = {
     fold: "must-fold",
     fx: "presented",
     why: "缓兵之计标记侧:目标 skipTurns+1;表现=中招浮字(实际跳过另有 turnSkipped)",
+  },
+  peekApplied: {
+    fold: "declarative",
+    fx: "presented",
+    why: "窥探生效宣告(#575 即时一次性):窥探零客户端状态(账本已删,弹层纯演出、关闭即逝),fold 面零转移;表现=viewer-only 窥探弹层(hand 随事件走,redact 逐座位裁)",
   },
   // ── 声望/体力/跳过族 ──
   reputationChanged: {

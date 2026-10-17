@@ -108,6 +108,12 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         // 每目标一段,数量恒小(锦囊目标域至多全体)。
         for (const l of ev.lines) sink.spawnJinnangLine(l.x1, l.y1, l.x2, l.y2);
         break;
+      case "peekRevealed":
+        // 窥探弹层(#575):viewer-only 演出同步下发(fxStore 开关态,关闭即清),
+        // 不占编排时长——游戏在弹层后照常推进;非 viewer 座位由弹层组件按
+        // viewerSeat===本座自门(零渲染)。
+        sink.revealPeek(ev);
+        break;
       case "propertyChanged":
         // 城池宣告(ADR-0015):经 sink 下发 nonce 驱动 Tile 重播宣告动画。
         // 同步下发(无编排时长)——与相邻事件的相对序由 store 写入序保证。

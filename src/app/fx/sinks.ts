@@ -92,6 +92,9 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
     spawnJinnangLine(x1, y1, x2, y2) {
       useFxStore.getState().spawnJinnangLine(x1, y1, x2, y2);
     },
+    revealPeek(ev) {
+      useFxStore.getState().revealPeek(ev.viewerSeat, ev.targetSeat, ev.guohao, ev.hand);
+    },
     announceTileChange(ev: PropertyChangedEvent) {
       // 城池宣告(ADR-0015):经 store 下发 nonce,Tile 订阅重播(何时播归播放器)
       useFxStore
@@ -116,6 +119,13 @@ export type FxSinkCall =
   | { op: "haltBanner"; guohao: string; colorIndex: number; cityName: string }
   | { op: "bankruptCeremony"; playerId: string; x: number; y: number }
   | { op: "jinnangLine"; x1: number; y1: number; x2: number; y2: number }
+  | {
+      op: "peekRevealed";
+      viewerSeat: number;
+      targetSeat: number;
+      guohao: string;
+      hand: string[];
+    }
   | {
       op: "announceTile";
       tileIndex: number;
@@ -173,6 +183,15 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     },
     spawnJinnangLine(x1, y1, x2, y2) {
       calls.push({ op: "jinnangLine", x1, y1, x2, y2 });
+    },
+    revealPeek(ev) {
+      calls.push({
+        op: "peekRevealed",
+        viewerSeat: ev.viewerSeat,
+        targetSeat: ev.targetSeat,
+        guohao: ev.guohao,
+        hand: [...ev.hand],
+      });
     },
     announceTileChange(ev) {
       calls.push({

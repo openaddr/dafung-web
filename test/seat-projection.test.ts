@@ -1,6 +1,7 @@
 // 保密后补单测(#381,ADR-0020 决策 2 发送总口单点):三道闸——
-//   ① redactEvents 逐 kind 隐私档位:38 kind 全量普查(37 透传逐字相等 + reactionOpened
-//      jinnang 窗身份匿名保数量 + march 窗全公开透传)、未知 kind 当场炸(零兜底)、纯函数;
+//   ① redactEvents 逐 kind 隐私档位:39 kind 全量普查(37 透传逐字相等 + reactionOpened
+//      jinnang 窗身份匿名保数量 + march 窗全公开透传 + peekApplied 非 viewer 裁空(#575);
+//      逐座位隐私行为详见 room.test 窥探投影)、未知 kind 当场炸(零兜底)、纯函数;
 //   ② 摘要/校准投影复活路径(clientView 带座位):guest 摘要无 host 手牌内容、有 count、
 //      牌库只见数量——冻结函数 redactSnapshotForSeat 在 open/flush 校准两处的口径锚;
 //   ③ 过滤 × 折叠咬合:过滤批折叠(god-view 批折叠为对照)在「该座位可见面」等价——

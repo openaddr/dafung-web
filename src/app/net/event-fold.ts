@@ -10,7 +10,7 @@
 //    折叠明细,档位决策以表为准,两处失同步时改表)──
 //   回合/胜负族   gameStarted → phase=Playing + activeIndex/roundAnchor(=首动者);
 //                 turnStarted → activeIndex + turnPhase=Roll + 回合开账(usedTags 清零/
-//                 peeks 到期/窗口与落格决策载荷清场);roundStarted/roundEnded → roundAnchor
+//                 窗口与落格决策载荷清场);roundStarted/roundEnded → roundAnchor
 //                 (=轮次锚点主体);gameOver → isOver/winner/winReason/phase/turnPhase。
 //                 round/turnNumber 逐事件摸事件首部(turnStarted 特殊:引擎派发后才
 //                 turnNumber+1,故 +1;开局首回合同批有 gameStarted 先行,取首部本值)
@@ -37,8 +37,9 @@
 //                 cashChanged·skill 折)、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
-//                 ADR-0016);jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额)+
-//                 窥探入册(军情密探);jinnangVoided → 识破牌扣账
+//                 ADR-0016);jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
+//                 peekApplied → 零折(窥探即时一次性 #575,无任何客户端状态);
+//                 jinnangVoided → 识破牌扣账
 //                 (反应牌 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
 //                 置窗(view/seq 派生,windowMs 单源常量表);reactionAnswered → 应答入账
@@ -296,7 +297,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         engine.treasureVisitor = null; // 交涉窗口必在本回合内收口(成交/不交易/破产清算三路)
         engine.pendingReaction = null; // endTurn 不留悬窗
         engine.jinnangUsedTags = []; // 锦囊回合开账:标签名额清零
-        engine.jinnangPeeks = engine.jinnangPeeks.filter((pk) => pk.viewer !== ev.seat); // 窥探至 viewer 下回合开始到期
         break;
       }
       case "turnEnded":
@@ -502,11 +502,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const card = jinnangCardOf(ev.cardId);
         consumeCard(engine, user, ev.cardId); // 出牌即扣账:离手+手牌数-1+弃堆
         engine.jinnangUsedTags.push(...card.tags); // 标签名额占用(生产点先扣账后宣告,批序等效)
-        if (card.effect.kind === "peek") {
-          if (ev.targetSeats.length !== 1)
-            throw new Error("折叠投影:军情密探宣布无唯一目标(事件产出契约违反)");
-          engine.jinnangPeeks.push({ viewer: userSeat, target: ev.targetSeats[0] }); // 效果落账入册(窥探至 viewer 下回合)
-        }
+        // 窥探(#575)零折:军情密探即时一次性,peekApplied 声明性事件,窥探无任何客户端状态
         ctx.lastAnnounce = { cardId: ev.cardId, userSeat, targetSeats: [...ev.targetSeats] };
         break;
       }
