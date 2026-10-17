@@ -6,7 +6,7 @@
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
 import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
-import { jinnangCardOf } from "./jinnang";
+import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
 import { HEROES, type ActiveSkillDef } from "./heroes";
@@ -36,8 +36,9 @@ export interface PendingHeroSkill {
 }
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
- *  牌库空→浮字「锦囊已空」落空(每次调用至多提示一次)。返回实际入手张数(#384:
- *  落空=无转移,调用方据此不产事件)。
+ *  牌库空而弃牌非空 → 弃牌堆骰序洗回牌库(正式机制,逐张检查,洗回后继续抽满 count)
+ *  再抽;双空(牌库与弃堆皆空)→ 浮字「锦囊已空」落空(每次调用至多提示一次)。
+ *  返回实际入手张数(#384:落空=无转移,调用方据此不产事件)。
  *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
  *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),四路同覆盖
  *  ——起手发牌/锦囊格/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
@@ -48,11 +49,15 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   let drawn = 0;
   for (let k = 0; k < count; k++) {
     if (g.jinnangDeck.length === 0) {
-      if (!emptyNotified) {
-        g.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已空" });
-        emptyNotified = true;
+      if (g.jinnangDiscard.length > 0) {
+        reshuffleDiscardIntoDeck(g, seat); // 洗回后落到下方堆顶抽取,本迭代照常入手
+      } else {
+        if (!emptyNotified) {
+          g.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已空" });
+          emptyNotified = true;
+        }
+        continue;
       }
-      continue;
     }
     const id = g.jinnangDeck.pop()!;
     g.jinnangDeckCount = g.jinnangDeck.length;
@@ -68,6 +73,27 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   }
   if (drawn > 0) g.dispatchMoment("JinnangGained", { subject: seat, count: drawn }); // 时机·JinnangGained:得锦囊进手(#456,落空不派)
   return drawn;
+}
+
+/** 弃牌堆洗回牌库(牌库耗尽的正式机制,非防御逻辑):弃牌堆骰序(diceShuffle 单源,
+ *  g.dice 驱动——与开局 buildJinnangDeck 同一随机源,rngState 随快照序列化,联机/恢复
+ *  确定性一致)整体洗成新牌库,弃堆清空,公开计数同步。宣告走事件面:对局日志一行
+ *  (jinnangReshuffle 机读前缀)+ jinnangReshuffled 事件(count=洗回张数;洗后牌序是
+ *  暗信息,事件不带牌 id——ADR-0016,比保密口径只少不多);浮字由 fx 面消费事件派生
+ *  (event-extract,单机/联机同通路,引擎侧不推)。 */
+function reshuffleDiscardIntoDeck(g: GameEngine, seat: number): void {
+  const deck = diceShuffle(g.jinnangDiscard, g.dice);
+  g.jinnangDeck = deck;
+  g.jinnangDiscard = [];
+  g.jinnangDeckCount = g.jinnangDeck.length;
+  const p = g.players[seat];
+  g.logEvent(
+    "system",
+    p.guohao,
+    `${p.guohao} 弃牌堆 ${deck.length} 张洗回牌库`,
+    `jinnangReshuffle player=${p.id} count=${deck.length}`,
+  );
+  emitGameEvent(g, seat, { kind: "jinnangReshuffled", count: deck.length });
 }
 
 /** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=

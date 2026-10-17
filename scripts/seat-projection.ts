@@ -137,8 +137,8 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *  穷尽 switch:词汇表新增 kind 未在此登记 = 编译期炸(default 收 never),与快照
  *  投影「新增载荷登记」同纪律;运行时对未知 kind 同样当场炸(零兜底)。
  *
- *  全 39 kind 隐私审计(2026-10,#381;#575 补 peekApplied):
- *  - 透传(37 kind,全桌公开面,原样):
+ *  全 40 kind 隐私审计(2026-10,#381;#575 补 peekApplied、洗回补 jinnangReshuffled):
+ *  - 透传(39 kind,全桌公开面,原样):
  *    · 生命周期族 gameStarted/setupCompleted/turnEnded/turnStarted/roundEnded/
  *      roundStarted/gameOver;
  *    · 掷骰/行军族 diceRolled/marchArrived/capitalHalt/capitalSelected;
@@ -152,6 +152,8 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *    · 名将族 heroRecruited/playerBankrupt/skillFired/heroSkillActivated(麾下名将
  *      是公开信息);
  *    · 锦囊族 jinnangDrawn(count-only 设计,#384:座位+张数口径不写牌名,核实无需改)/
+ *      jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
+ *      比 ADR-0016 保密口径只少不多)/
  *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangInflicted/
  *      reactionAnswered(应答逐条公开记入战报——ADR-0016「应答记录不裁」,use=false
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed;
@@ -205,6 +207,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "skillFired":
       case "heroSkillActivated":
       case "jinnangDrawn":
+      case "jinnangReshuffled":
       case "reputationChanged":
       case "staminaChanged":
       case "turnSkipped":
@@ -290,12 +293,14 @@ export const CALIBRATION_WINDOWS: ReadonlySet<TurnPhase> = new Set([
   "AwaitingExhaustion",
   "AwaitingBankruptcySettle",
 ]);
-/** 节点事件校准(#388):批内出现即全量。牌库洗牌只发生在 finishSetup(buildJinnangDeck),
- *  随 gameStarted 批覆盖;core 现无中途洗牌,将来新增须随事件产出在此登记。
+/** 节点事件校准(#388):批内出现即全量。牌库洗牌两处:开局 finishSetup(buildJinnangDeck)
+ *  随 gameStarted 批覆盖;中途弃牌堆洗回(jinnangReshuffled)随批触发全量——洗后牌序
+ *  不经事件与折叠面(暗信息,ADR-0016),god-view 副本牌序靠校准节点对齐。
  *  ReadonlySet<EventKind>:kind 改名 = 编译红(同上)。 */
 export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
   "gameStarted",
   "playerBankrupt",
+  "jinnangReshuffled",
 ]);
 /** 校准兜底 kind 集(#430 档位表推导):fold ∈ {fold+calibration, calibration-only}——
  *  折叠面不精确折/刻意不折,转移由校准快照覆盖(对账底册见下方 CALIBRATION_COVERAGE)。

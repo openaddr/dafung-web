@@ -9,6 +9,8 @@
 // 常量注释(零语义漂移)。另:dice-face(签面)语义已迁仪表条「签」徽章,testid 不变。
 // #361 退役核销:pile-row(expandPile 明细行)随明细排退役删除,接替者是牌架双入口
 // (rack-treasures/rack-heroes)+ 两独立弹层(treasure-modal/hero-modal)。
+// 2026-10-17 退役核销:topbar-discard 随顶栏弃牌 chip 退役(18−牌库−Σ席位手牌可推导),
+// 接替形态=锦囊牌库小件(topbar-deck 落朱砂角标)。
 export const TESTIDS = {
   // ── 三区布局(#253):顶部条 / 席位竖卡列 / 底部仪表条 ──
   topBar: "top-bar",
@@ -16,8 +18,9 @@ export const TESTIDS = {
   /** 活跃方名 chip(「X之回合」;终局=「「X」称帝」)。 */
   topbarActive: "topbar-active",
   topbarTarget: "topbar-target",
+  /** 锦囊牌库小件(纯展示)的朱砂角标数,textContent 恒纯数字。弃牌计数退役:
+   *  18−牌库−Σ席位手牌可推导,顶栏不复述(topbar-discard 一并核销)。 */
   topbarDeck: "topbar-deck",
-  topbarDiscard: "topbar-discard",
   /** 席位竖卡列容器(含右列/左列/顶行三槽位)。 */
   seatRail: "seat-rail",
   /** 席位竖卡(seat = 绝对座位号);观战与自身不出卡。 */
