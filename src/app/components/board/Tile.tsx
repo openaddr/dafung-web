@@ -3,15 +3,15 @@
 // 按区域分形制变体)。
 // 玄墨鎏金深底化(#512,#500 决议方案一「重调色保留」):铭牌=深卡浅字(漆金细边深卡
 // lacquer 系+纸色字);事件格外轮廓三族(天命云纹圆龛/锦囊幡旗形/税关城垛缺口形,
-// 毛笔大字保留);等级印漆金化;都城金匾是深卡唯一例外(金底墨字)。
+// 毛笔大字保留);都城金匾是深卡唯一例外(金底墨字)。
 // 本文件不再散落色值字面量:语义色吃 Theme token,棋盘专属装饰色收敛到文件头常量块。
-// 宣告动效(ADR-0015):扩军(印重钤/楼生长)与易主(流光)的「何时播」归表现事件流——
+// 宣告动效(ADR-0015):扩军(新珠落位)与易主(流光)的「何时播」归表现事件流——
 // 播放器经 sink 在 fxStore 下发宣告 nonce,本组件订阅重播;组件内不做 props diff 自触发
 // (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
 import type { TileDef } from "@core/board";
-import { Theme, groupColor, playerColor, rgba, type Rgb } from "@core/theme";
+import { Theme, groupColor, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
 
@@ -19,19 +19,6 @@ import { Building } from "./tile-building";
  *  缺乏层次,统一乘暗系数得到同色相的深卡(zoom-out 后"色块=地盘"仍按色相可辨)。 */
 function shade(c: { r: number; g: number; b: number }, f: number) {
   return { r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) };
-}
-
-/** 染瓦实色:玩家色 60% 混入墨青瓦底色 40%(#512 深底化:混色基底从浅宣纸换墨青瓦
- *  暗端——往浅里混会得到亮彩瓦、在玄墨底上炫目;往墨青里混得到"暗彩瓦"——有主城瓦
- *  带色而沉,无主城瓦是墨青,对比即归属,色相在总览下仍可辨,且实色不随底层渐变漂移)。 */
-function roofTintOf(c: Rgb): string {
-  const k = 0.6;
-  const base = { r: 70, g: 82, b: 94 }; // 墨青瓦面中间调(与 bv-roof-grad 两端同族)
-  return rgba({
-    r: Math.round(c.r * k + base.r * (1 - k)),
-    g: Math.round(c.g * k + base.g * (1 - k)),
-    b: Math.round(c.b * k + base.b * (1 - k)),
-  });
 }
 
 export interface TileVisualState {
@@ -58,7 +45,8 @@ export interface TileVisualState {
 interface TileProps {
   tile: TileDef;
   group: string; // 地产分组(catalog.get(propertyId).group),区域色带用
-  price: string; // formatMoney 后的购入价
+  /** 满级档(catalog.get(propertyId).maxLevel),满贯金框判据;非地产格无珠不读。 */
+  maxLevel: number;
   state: TileVisualState;
   onClick?: (index: number) => void;
 }
@@ -148,52 +136,64 @@ function NamePlaque({
   );
 }
 
-// ── 等级印(铭牌左下小方章):大写数字壹/贰/叁,Lv0 无印 ──
-// 精确读级通道(形状通道 = Building 城楼加层)。#512 漆金化:漆木深卡底 + 熟金边/字,
-// 有主铭牌是深玩家色底,漆金方章总览即一粒金边方点(有/无 = 扩没扩军),放大后读数字
-// 对级;与都城「都」印(右上、朱底金字)位置与配色互斥不撞车,与选都候选印(bgDeep 底
-// 亮金边)以底色深浅区分。
-const LEVEL_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
+// ── 档位珠(铭牌左下小金珠):城池等级的唯一视觉通道(2026-10-17 拷问定案)──
+// 珠数=等级,Lv0 无珠,满级珠外加金框加冕——变卖价/都城补给/坐地起价全挂在等级上,
+// 珠数是离散计数、总览可数不依赖识字。旧双通道(城楼加层+壹贰叁小印)总览双双不可辨
+// (加层每级高差 5px 竖向预算顶死、16px 暗印只是一粒点),随本批退役(GLOSSARY「档位珠」)。
+// #96/ADR-0015 出场落位:bv-pip-grow(board.css,scale 0.6→1)只挂最末一颗新珠——扩军
+// 宣告 nonce(replay=growNonce>0)经 key 重挂时末珠生长、其余珠静置;快照恢复(nonce=0)
+// 全组静置不播。
+/** 相邻珠心距;满贯金框宽随它推导(level × PIP_STEP + 6),改距不双改。 */
+const PIP_STEP = 10;
 
-// #96/ADR-0015 出场钤章:bv-level-seal-pop(board.css,盖章归一后引用 fx.css 的共享
-// 落章弧 fx-seal-slam)scale 2.2→1 回弹落章。replay=true(本城有过扩军宣告)才挂
-// 动画类;key 由调用方取宣告 nonce,nonce 变化重挂重播;平时(含快照恢复)静置不播。
-function LevelSeal({ level, replay }: { level: number; replay: boolean }) {
+function LevelPips({
+  level,
+  maxLevel,
+  replay,
+}: {
+  level: number;
+  maxLevel: number;
+  replay: boolean;
+}) {
+  const full = level >= maxLevel;
   return (
-    <g
-      className={`bv-level-seal${replay ? " bv-level-seal-pop" : ""}`}
-      transform="translate(-41 31)"
-    >
-      <rect
-        x={-8}
-        y={-8}
-        width={16}
-        height={16}
-        rx={2}
-        fill={rgba(Theme.lacquer, 0.96)}
-        stroke={rgba(Theme.goldDeep, 0.9)}
-        strokeWidth={1.1}
-      />
-      <text
-        y={4.2}
-        textAnchor="middle"
-        fontFamily="var(--font-title)"
-        fontSize={12}
-        fontWeight={700}
-        fill={rgba(Theme.goldDeep)}
-      >
-        {LEVEL_SEAL_CHARS[level]}
-      </text>
+    <g className="bv-level-pips" transform="translate(-41 31)" data-level={level}>
+      {/* 满贯金框:满级加冕记(补给 ×(Lv+1) 到顶/变卖顶价),与珠同锚只包珠行 */}
+      {full ? (
+        <rect
+          className="bv-pips-crown"
+          x={-8}
+          y={-8}
+          width={level * PIP_STEP + 6}
+          height={16}
+          rx={3}
+          fill="none"
+          stroke={rgba(Theme.goldBright)}
+          strokeWidth={1.3}
+        />
+      ) : null}
+      {Array.from({ length: level }, (_, i) => (
+        <circle
+          key={i}
+          className={i === level - 1 && replay ? "bv-pip bv-pip-grow" : "bv-pip"}
+          cx={i * PIP_STEP}
+          cy={0}
+          r={4.5}
+          fill={rgba(Theme.gold)}
+          stroke={rgba(Theme.bgDeep, 0.8)}
+          strokeWidth={0.8}
+        />
+      ))}
     </g>
   );
 }
 
 // ── X4(#23) 选都候选序号印:壹/贰/叁(引擎滚出顺序=第几候选)──
-// 复用 LevelSeal 方章形制(16×16 圆角方 + 笔书大字),描金变体:玄墨底金框金字——
-// 与「都」印(朱底金字)同读作「印=特殊城」,又以底色相区分;与等级印(漆木底熟金)
-// 以底色深浅区分。候选期无主无等级,与 LevelSeal 同锚点(-41 31)而时段互斥(Setup 期
+// 16×16 圆角方 + 笔书大字,描金变体:玄墨底金框金字——与「起」「宝」印同读作
+// 「印=特殊标记」;候选期无主无等级,与档位珠同锚点(-41 31)而时段互斥(Setup 期
 // Lv 恒 0),不叠印;总览下是一粒金边方点,与脉冲金圈构成「三城仪式组」,放大后读序号
 // (「我选叁号城」)。
+const CANDIDATE_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
 function CandidateSeal({ order }: { order: number }) {
   return (
     <g className="bv-candidate-seal" transform="translate(-41 31)">
@@ -215,7 +215,7 @@ function CandidateSeal({ order }: { order: number }) {
         fontWeight={700}
         fill={rgba(Theme.goldBright)}
       >
-        {LEVEL_SEAL_CHARS[order]}
+        {CANDIDATE_SEAL_CHARS[order]}
       </text>
     </g>
   );
@@ -323,7 +323,7 @@ const EVENT_LAYOUT: Partial<
 // 触发源是播放器/sink 而非组件自 diff(易主在破产清算/变卖等结算点发生,props diff
 // 无法区分「易主」与「终态加载」)。
 
-export const Tile = memo(function Tile({ tile, group, price, state, onClick }: TileProps) {
+export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }: TileProps) {
   // ADR-0015 城池宣告信号:selector 按本城 tileIndex 取记录,他城宣告不触发本城重渲。
   // nonce 单调递增、播完自然过期(无清理定时器);0 = 该维从未宣告,静置。
   const announce = useFxStore((s) => s.announces.get(tile.index));
@@ -343,7 +343,7 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
   // #74 色带恒用区域分组色(groupColors):玩家色板与分组色板高度同源(石青≈荆楚、
   // 朱砂≈幽燕…),有主城染玩家色会与异地无主城撞色、误读区域归属;归属辨识交由
-  // 铭牌深底/屋顶染瓦/城主旗承担,色带专职「区域色相」导航。
+  // 铭牌深底/城主旗承担,色带专职「区域色相」导航。
   const bandFill = tile.propertyId
     ? rgba(groupColor(group))
     : isIconTile
@@ -538,15 +538,9 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           {/* 建筑整体 scale 1.08(都城):以城脚(y=12)为锚,只向上长高="微抬升",
               不踩进底座;无主/领地保持原尺度。 */}
           <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
-            {/* 有主城染瓦:玩家色混瓦色实色盖住全部屋面(含加层),与铭牌描边/城旗同源
-                (沿用 playerColor props,无新通道);group 传入驱动地域形制变体。 */}
-            <Building
-              size={tile.size ?? "medium"}
-              level={state.level}
-              tint={ownerRgb ? roofTintOf(ownerRgb) : null}
-              group={group}
-              growNonce={growNonce}
-            />
+            {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
+                归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯风味)。 */}
+            <Building size={tile.size ?? "medium"} group={group} />
           </g>
           {/* 分组色带(顶部):恒用区域色(#74,不再随持有者染玩家色)。
               B1 两级设计:总览读不了字,色带是"形状层"信号——加高一档并描深边,
@@ -584,31 +578,20 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
           ) : null}
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
           <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
-          {/* 价格字(#40 S7):仅无主城渲染——有主城铭牌已是深玩家色底,购入价纯属
-              噪声(等级/归属才是持续信息),不再输出;无主漆木深卡上用淡纸字(inkDim
-              对 lacquer ≥4.5:1,#512 深卡浅字)。#557:40 城连排「4,000 两」成纹理噪声,
-              压 alpha 0.75 降噪(对比度余量充足,放大后仍清晰可读)。 */}
-          {!ownerRgb && (
-            <text
-              x={0}
-              y={42}
-              textAnchor="middle"
-              fontFamily="var(--font-deco)"
-              fontSize={16}
-              fill={rgba(Theme.inkDim, 0.75)}
-            >
-              {price}
-            </text>
-          )}
-          {/* #96 等级=城楼加层(Building 内,层数即等级)+ 等级印(铭牌左下,壹/贰/叁,Lv0 无印)。
-              双通道:形状(高低)总览可读,印章放大后精确对级;替换旧的 0-3 面旌旗(总览不可辨,已删)。
-              扩军瞬间双拍(ADR-0015):宣告 nonce 经事件流下发,新顶层屋檐生长 + 印章重钤
-              均以 nonce 为 key 重挂重播;nonce 不变时等级印随 props 静态更新,不重播。 */}
+          {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
+              无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
+              重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
           {state.level > 0 ? (
-            <LevelSeal key={growNonce} level={state.level} replay={growNonce > 0} />
+            <LevelPips
+              key={growNonce}
+              level={state.level}
+              maxLevel={maxLevel}
+              replay={growNonce > 0}
+            />
           ) : null}
-          {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):与等级印同形制描金变体,
-              Setup 期与等级印时段互斥;旁观席位同见(仪式感是全座的,可点只在本地)。 */}
+          {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
+              Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);旁观席位同见
+              (仪式感是全座的,可点只在本地)。 */}
           {state.capitalCandidateOrder != null ? (
             <CandidateSeal order={state.capitalCandidateOrder} />
           ) : null}
@@ -659,37 +642,11 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               </text>
             </g>
           ) : null}
-          {/* 需求2·都城③ 朱底金字方印「都」:右上角、旋转 -6°(手钤印的随意感)、金边框;
-              B4:14→20——总览(≈0.43 系数)下 14px 印已趋不可见,放大到 20 让远距仍是一粒
-              可辨的朱红方点;与领地区分"这是都城"的第二冗余信号(王旗之外印也认得)。 */}
-          {isCapital ? (
-            <g className="bv-capital-seal" transform="translate(49 -33) rotate(-6)">
-              <rect
-                x={-10}
-                y={-10}
-                width={20}
-                height={20}
-                rx={2}
-                fill={rgba(Theme.danger)}
-                stroke={rgba(Theme.goldBright)}
-                strokeWidth={1.4}
-              />
-              <text
-                x={0}
-                y={5}
-                textAnchor="middle"
-                fontFamily="var(--font-title)"
-                fontSize={14}
-                fontWeight={700}
-                fill={rgba(Theme.goldBright)}
-              >
-                都
-              </text>
-            </g>
-          ) : null}
           {/* #73 起点印:起始城(tileIndex 0,长安)铭牌右上盖「起」字朱印——制式与
-              「都」印同族(20×20 圆角方 + 朱底金边 + -6° 手钤),字为「起」;与主路
-              首段双箭羽互为表里,总览下即知行进自哪城始。 */}
+              「宝」印同族(20×20 圆角方 + 朱底金边 + -6° 手钤),字为「起」;与主路
+              首段双箭羽互为表里,总览下即知行进自哪城始。「都」印已随 2026-10-17 拷问
+              退役(都城身份=光晕+王旗双通道,印是第三重重复);本锚点(49,-33)由
+              起/宝两印沿用,都城化的宝物城宝印让位逻辑同步删除。 */}
           {tile.index === 0 ? (
             <g className="bv-start-seal" transform="translate(49 -33) rotate(-6)">
               <rect
@@ -715,12 +672,13 @@ export const Tile = memo(function Tile({ tile, group, price, state, onClick }: T
               </text>
             </g>
           ) : null}
-          {/* 宝物城宝印(ADR-0024):「宝」身份独立标识——金底墨字方印,与「都/起」印
-              同制式(20×20 圆角方 + -6° 手钤)同锚点(49,-33)互斥(都城化的宝物城
-              「都」印优先,王旗/金晕已示都城身份)。墨字取「都」印金字的对偶:
-              金=既有事件强调语言,一粒金方点总览即辨「此城会探宝」。
+          {/* 宝物城宝印(ADR-0024):「宝」身份独立标识——金底墨字方印,与「起」印
+              同制式(20×20 圆角方 + -6° 手钤)同锚点(49,-33)。旧「都城化让位」条件
+              (都印优先)随都印退役删除——都城身份现由光晕+王旗承担,与本印不同锚不撞,
+              都城化的宝物城仍可辨「此城会探宝」。
+              墨字取金字的对偶:金=既有事件强调语言,一粒金方点总览即辨。
               #512:墨字用玄墨底色(S3 换血后 ink=纸色,金底上须配深字才可读)。 */}
-          {tile.type === "TreasureCity" && !isCapital ? (
+          {tile.type === "TreasureCity" ? (
             <g className="bv-treasure-seal" transform="translate(49 -33) rotate(-6)">
               <rect
                 x={-10}

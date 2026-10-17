@@ -16,7 +16,6 @@ import {
 import { flushSync } from "react-dom";
 import type { MapData } from "@core/board-loader";
 import { loadMap } from "@core/board-loader";
-import { formatMoney } from "@core/money";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
@@ -209,7 +208,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
               key={tile.index}
               tile={tile}
               group={def?.group ?? ""}
-              price={def ? formatMoney(def.purchasePrice) : ""}
+              maxLevel={def?.maxLevel ?? 0}
               state={tileStates.get(tile.index)!}
               onClick={handleTileClick ?? undefined}
             />

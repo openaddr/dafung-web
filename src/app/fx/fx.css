@@ -327,8 +327,9 @@
 /* 朱砂印章(SVG 版,建都/购城确认时"啪"地盖下):rotate/scale 用独立属性,
    不覆盖元素上定位用的 transform attribute。
    盖章归一(ADR-0015):「落章弧」(抬印 -12°/2.2 倍/透明 → 钤定 -8°/1 倍/实)收敛为
-   共享 keyframes fx-seal-slam(下),本印与 board.css 的等级印重钤(.bv-level-seal-pop)
-   各自引用,时长/缓动由各类名参数化——两处不再各写一份位姿。 */
+   共享 keyframes fx-seal-slam(下),时长/缓动由消费类名参数化。旧第二消费者(棋盘
+   等级印重钤)已随 2026-10-17 档位珠批退役——棋盘扩军演出改「珠落位」(board.css
+   .bv-pip-grow,生长不入章),本 keyframes 现仅剩 SVG 浮层印一个消费者。 */
 @keyframes fx-seal-slam {
   from {
     rotate: -12deg;

@@ -1,7 +1,9 @@
 // 城池建筑程序化精绘(票 #328 自 Tile.tsx 抽出):Building 只吃纯几何/风格参数
-// (size/level/tint/group/growNonce),不吃 TileProps、不订阅任何域外状态;归属色与宣告
-// nonce 由 Tile 主组件换算为 props 传入。塔几何/形制变体/装饰子件随组件闭环,
+// (size/group),不吃 TileProps、不订阅任何域外状态。形制变体/装饰子件随组件闭环,
 // 不反向依赖 Tile.tsx。
+// 等级与归属不上楼(2026-10-17 拷问:一格一语言,重复表达裁单一)——旧「城楼加层」
+// 形状通道与「染瓦」归属通道双双退役:等级归铭牌左下档位珠(Tile.tsx LevelPips),
+// 归属归铭牌底染+城旗;楼回归纯规格/风味。
 import type { ReactNode } from "react";
 import { rgba, Theme } from "@core/theme";
 
@@ -20,36 +22,6 @@ import { rgba, Theme } from "@core/theme";
 // 漆金描檐+金窗灯火点睛,「美观且不炫目」。)
 // 形制差异是总览下「区域轮廓」的第一层信号,精确区域仍交给色带;自定义地图未知分组
 // 一律回落 north,不崩。
-
-// ── 城楼加层(等级语言·形状通道):层数 = 城池等级 ──
-// 旧表现(0-3 面小旌旗)总览下趋近不可辨,改为建筑本体生长:楼身之上逐层收分加飞檐
-// (塔状层檐),楼越高等级越高——「高低 + 宽窄」双变化是总览即可读的形状信号;精确对级
-// 交给铭牌左下的等级印(LevelSeal),满级金顶收束(下)。
-//
-// 锚定色带上沿(TOWER_BASE)而非各档屋脊:色带是不透明横条、总盖住 -44..-34,
-// 自屋脊起叠的话首层会整段落进色带背后不可见;锚 -44 让「露出高度」成为直接设计参数,
-// 且三档规模共用同一规格——塔形只读作等级,不与规模档位混淆。
-// 竖向预算(不得再加高):环游图最近上下邻城同列 196,上邻铭牌底 ≈ -118(board),
-// 再往上是上邻价格字区(不可压),折算 building-local(都城另有 1.08 抬升)≈ -61.3;
-// Lv3 檐尖(-61)+ 刹珠压线即止。
-const TOWER_BASE = -44;
-/** 各层檐口:hw = 半宽(逐层收分出塔姿),apex = 脊顶 y,roofH = 脊到檐角的落差。
- *  步高下大上小(8/5/4):总览下「无塔↔首层」差最大(有无判断最敏感),高等级的区分
- *  转由收分骤变(13/8.6/6.5)+ Lv3 金顶承担,不纯靠高度。 */
-const STORY_ROOFS = [
-  { hw: 13, apex: -52, roofH: 4.5 },
-  { hw: 8.6, apex: -57, roofH: 3.6 },
-  { hw: 6.5, apex: -61, roofH: 3.2 },
-] as const;
-
-interface TowerGeom {
-  /** 塔身核心矩形(深瓦色剪影,藏于各层檐面之后贯通)。 */
-  core: { x: number; y: number; w: number; h: number };
-  /** 各层飞檐 path d(染瓦层复用同串,保证逐点对齐)。 */
-  roofs: string[];
-  /** 顶层脊顶 y(金顶收束用)。 */
-  topApex: number;
-}
 
 /** 飞檐屋面(实心体块):r = 脊口半宽,w = 檐角半宽,apex = 脊顶 y,tipY = 檐角 y。
  *  两侧 Q 弧做「檐口平缓、近脊陡峻」的凹曲檐线,底缘浅弧下垂成檐口厚度、并在两端
@@ -107,22 +79,6 @@ function RoofRidge({ r, apex }: { r: number; apex: number }) {
   );
 }
 
-/** 生成加层几何(层数 = 等级,Lv0 → null 正常态):窄塔身自色带后贯通至顶层檐下,
- *  檐面自下而上逐层收分叠盖其上——上层墙脚沉入下层檐面,无悬浮接缝,读作同一座楼长高。 */
-function cityTower(level: number): TowerGeom | null {
-  if (level === 0) return null;
-  const specs: (typeof STORY_ROOFS)[number][] = [];
-  for (let i = 0; i < level; i++) specs.push(STORY_ROOFS[i]); // level > 3 = 配置越界,当场崩出(零兜底)
-  const top = specs[level - 1];
-  const coreTop = top.apex + top.roofH + 4;
-  return {
-    // 核心沉至 -39(而非恰贴色带上缘):都城建筑另有 1.08 抬升,-41 会被抬出色带外露悬空缝
-    core: { x: -top.hw * 0.75, y: coreTop, w: top.hw * 1.5, h: TOWER_BASE + 5 - coreTop },
-    roofs: specs.map(({ hw, apex, roofH }) => eavesRoof(hw * 0.42, hw * 1.7, apex, apex + roofH)),
-    topApex: top.apex,
-  };
-}
-
 // ── 建筑表现色(#512 玄墨深底重调色,造型不动;集中常量;渐变本体挂 BoardDefs 的
 //    bv-roof-grad / bv-wall-grad——每城内联 defs 会产生重复 id 冲突,统一在 StaticLayers 声明)──
 // 口径:官式=暖褐墙+朱柱;南式=提亮粉墙+深棕柱;土堡=夯土+墨青瓦面;普遍=漆金描檐
@@ -143,7 +99,6 @@ const SEAM_STROKE = "rgba(8,6,3,0.4)"; // 砖缝/夯土横缝
 const BATTLEMENT_FILL = "rgba(28,22,14,0.75)"; // 雉堞(墙头垛子)
 const EAVE_SHADOW_STROKE = "rgba(8,10,13,0.65)"; // 檐口阴影
 const ROOF_SHEEN_STROKE = rgba(Theme.lacquerGold, 0.3); // 漆金描檐(檐口金笔,克制)
-const TOWER_CORE_FILL = "#36414b"; // 加层塔身剪影(墨青,藏于各层檐面之后)
 
 /** 风格变体的墙/柱配色:body = 墙身,column = 木柱。(#512 深底档:墙身压进暖褐/粉调
  *  中明度,柱色保持朱/棕色相——总览下建筑群是深底上的暖色聚落,不与铭牌金边争辉。) */
@@ -218,93 +173,22 @@ function PillaredBay({
   );
 }
 
-/** growNonce:本城扩军宣告 nonce(fxStore.announces,ADR-0015)。0 = 未宣告(开局
- *  铺盘/快照恢复)静置;>0 时受影响元素挂生长动画类,nonce 变化即重挂(key)重播。 */
 export function Building({
   size,
-  level,
-  tint,
   group,
-  growNonce,
 }: {
   size: "large" | "medium" | "small";
-  level: number;
-  /** 染瓦实色(玩家色混瓦色暗端,null=无主不染)。 */
-  tint?: string | null;
   /** 区域分组字母(a–h,地域变体用;未知/缺失回落官式)。 */
   group: string;
-  growNonce: number;
 }) {
   const style = buildingStyle(group);
   const isDesert = group === "e";
-  // 加层(层数=等级)+ 满级金顶收束:顶层檐面金填 + 脊顶刹珠。
-  // 金只收在楼顶一处、全静态——脉动金环/金台座是都城的既有语言(环形/座形,位置互斥),
-  // 不与之争;乘法城棋盘上无专属造型,金顶不会与之混淆。
-  const tower = cityTower(level);
-  const storyEls = tower ? (
-    <>
-      <rect
-        className="bv-city-core"
-        x={tower.core.x}
-        y={tower.core.y}
-        width={tower.core.w}
-        height={tower.core.h}
-        fill={TOWER_CORE_FILL}
-        opacity={0.95}
-      />
-      {/* #96/ADR-0015 扩军瞬间:只有新晋最顶层檐面重播 bv-build-grow 生长(board.css,
-          scale 0.6→1 自底边中心)——key 取宣告 nonce(播放器经 sink 下发,非 props diff),
-          nonce 变化即重挂重播,其余层 key 不变原地复用,不整楼重播;nonce=0 静置不播。 */}
-      {tower.roofs.map((d, i) => {
-        const isTopStory = i === tower.roofs.length - 1;
-        return (
-          <path
-            key={isTopStory ? `top-story-${growNonce}` : i}
-            className={
-              isTopStory ? `bv-city-story${growNonce > 0 ? " bv-build-grow" : ""}` : "bv-city-story"
-            }
-            d={d}
-            fill={isDesert ? DESERT_ROOF : ROOF_FILL}
-            stroke={ROOF_STROKE}
-            strokeWidth={1}
-            strokeLinejoin="round"
-          />
-        );
-      })}
-    </>
-  ) : null;
-  const finial =
-    tower && level >= STORY_ROOFS.length ? (
-      // #96 满级金顶与顶层檐面同形叠加:升到 Lv3 的宣告 nonce 已 >0(同拍下发),
-      // 挂载即与顶层同拍 bv-build-grow 生长(同形同步缩放,不会露底稿),无需 key;
-      // 快照恢复的满级城 nonce=0,静置全形。
-      <g className={`bv-city-finial${growNonce > 0 ? " bv-build-grow" : ""}`}>
-        <path
-          d={tower.roofs[level - 1]}
-          fill={rgba(Theme.goldBright, 0.96)}
-          stroke={rgba(Theme.bgDeep, 0.7)}
-          strokeWidth={1.2}
-        />
-        <circle
-          cx={0}
-          cy={tower.topApex + 2}
-          r={2.2}
-          fill={rgba(Theme.goldBright)}
-          stroke={rgba(Theme.bgDeep, 0.75)}
-          strokeWidth={0.7}
-        />
-      </g>
-    ) : null;
-  // 各档屋面轮廓(供染瓦叠加用):染层直接复用底稿 d 串,保证形状逐点对齐;
-  // 加层檐面一并入列——玩家色染瓦须盖住整座楼(含加层),归属色不断层。
-  let baseRoofs: string[] = [];
   let eaveShadows: string[] = [];
   let decor: ReactNode = null;
   let structure: ReactNode = null;
   if (size === "small") {
-    // 坡顶小屋(村落/关隘):木身 + 挑檐青瓦 + 门与直棂窗;加层自色带上沿起叠
+    // 坡顶小屋(村落/关隘):木身 + 挑檐青瓦 + 门与直棂窗
     const roof = eavesRoof(6.5, 25, -19, -8.5);
-    baseRoofs = [roof];
     eaveShadows = [eaveShadow(25, -8.5)];
     decor = <RoofRidge r={6.5} apex={-19} />;
     structure = (
@@ -334,7 +218,6 @@ export function Building({
   } else if (size === "medium") {
     // 县城:夯土矮墙(雉堞/拱门/砖缝)+ 单层城楼 + 飞檐青瓦
     const roof = eavesRoof(8, 27, -26, -16.5);
-    baseRoofs = [roof];
     eaveShadows = [eaveShadow(27, -16.5)];
     decor = <RoofRidge r={8} apex={-26} />;
     structure = (
@@ -378,9 +261,6 @@ export function Building({
     );
   } else if (isDesert) {
     // 西凉土堡(large):夯土堡身 + 平顶檐口 + 雉堞,无木构楼阁——边地营造的另一路形制。
-    // 染瓦通道改染平顶檐口条(堡顶即"瓦位"),归属色仍盖住建筑主体。
-    const slab = "M -33,-20.5 L 33,-20.5 L 33,-17.5 L -33,-17.5 Z";
-    baseRoofs = [slab]; // 土堡平顶:无飞檐(无 eaveShadows/decor)
     structure = (
       <>
         <ellipse cx={0} cy={14.5} rx={52} ry={5.5} fill={GROUND_SHADOW} />
@@ -436,7 +316,6 @@ export function Building({
     // large:夯土城台(梯形收分/砖缝/拱门/台顶木栏)+ 两层木构城楼 + 重檐飞檐(重镇/州治)
     const lower = eavesRoof(9, 40, -30, -21);
     const upper = eavesRoof(8, 25, -40, -32);
-    baseRoofs = [lower, upper];
     eaveShadows = [eaveShadow(40, -21), eaveShadow(25, -32)];
     // 灯笼挂 ±13.5:城门两侧、匾额(x≥27)遮不到的对称位
     decor = (
@@ -493,28 +372,10 @@ export function Building({
       </>
     );
   }
-  const roofTint = tint ? (
-    <g className="bv-roof-tint">
-      {[...baseRoofs, ...(tower ? tower.roofs : [])].map((d, i) => {
-        const isTopStory = tower != null && i === baseRoofs.length + tower.roofs.length - 1;
-        return (
-          <path
-            key={isTopStory ? `top-story-${growNonce}` : i}
-            className={isTopStory && growNonce > 0 ? "bv-build-grow" : undefined}
-            d={d}
-            fill={tint}
-          />
-        );
-      })}
-    </g>
-  ) : null;
   return (
     <>
       {structure}
-      {storyEls}
-      {roofTint}
-      {/* 檐口阴影/正脊吻兽/灯笼:恒画在染瓦之上(染瓦实色会盖掉其下的细节,
-          之下则「有主城无阴影」不一致)。 */}
+      {/* 檐口阴影/正脊吻兽/灯笼:画在屋面之后,压出檐口厚度与进深。 */}
       {eaveShadows.map((d, i) => (
         <path
           key={i}
@@ -526,7 +387,6 @@ export function Building({
         />
       ))}
       {decor}
-      {finial}
     </>
   );
 }
