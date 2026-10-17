@@ -26,9 +26,10 @@ import { actIfCan, force, freezeClock, snap, openSoloSetup, useHalfScale } from 
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
 
-/** 开局收口(seed 63 × huanyou 离线核算,见文件头注):选图/起兵/定都(候选 DOM 首格
- *  =12 江陵)后停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点(内部自带 0.5 倍率;
- *  react-helpers 的 startSolo 钉死 seed 7,本图种子下不开窗,故本 spec 自持开局链)。 */
+/** 开局收口(seed 63 × huanyou ADR-0027 环序真浏览器复算):选图/起兵/定都(候选 DOM
+ *  首格=11 长沙)后停稳在人类开局出牌阶段(起手横征暴敛恒可用,窗必升起)——引擎直写
+ *  种植的稳定停靠点(内部自带 0.5 倍率;react-helpers 的 startSolo 钉死 seed 7,起手
+ *  唯反应牌不开窗,故本 spec 自持开局链)。 */
 async function startPeekStop(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=63");

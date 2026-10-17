@@ -304,8 +304,9 @@ export async function useHalfScale(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
 }
 
-/** 开局(seed 7 离线核算:人类先手,起手火烧连营=可用牌):选图/起兵/定都后停稳在
- *  人类开局出牌阶段——引擎直写种植的稳定停靠点(内部自带 0.5 倍率)。 */
+/** 开局(seed 7 × 环游图 ADR-0027 环序真浏览器核算:draftOrder=[0,3,2,1] 人类先手,
+ *  候选 DOM 首格=长沙,起手识破诡计=唯反应):选图/起兵/定都后停稳在开局链的稳定点
+ *  ——自动起摇落江州弹购地抉择卷轴(内部自带 0.5 倍率;引擎直写种植任何相位可用)。 */
 export async function startSolo(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=7");

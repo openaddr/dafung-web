@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
+import { createBoard, type TileDef } from "@core/board";
 
 const loaded = loadMap(huanyouData);
 const board = loaded.board;
@@ -39,10 +40,20 @@ describe("棋盘路径(单环)", () => {
     expect(p2.landIndex).toBe(p2.capitalIndex);
   });
 
-  it("长边生成蜿蜒途经点,短边直线", () => {
-    const wps = board.edgeWaypoints(idx("上庸"), idx("交州")); // 西延伸列长边(650 > 阈值 300)
-    expect(wps.length).toBe(2);
-    const wpsShort = board.edgeWaypoints(idx("江州"), idx("上庸")); // 延伸列短步(250 < 阈值 300)
-    expect(wpsShort.length).toBe(0);
+  it("避城弧线阈值:短边直线、长边蜿蜒;闭环对角边照常走弧(ADR-0027)", () => {
+    // 新环游图全边 ≥ 行距 320,天然全弧,阈值语义改用合成双城板钉死
+    const tile = (i: number, x: number): TileDef => ({
+      index: i,
+      type: "Property",
+      name: i === 0 ? "甲" : "乙",
+      position: { x, y: 0 },
+      propertyId: `p${i}`,
+      isCapitalEligible: false,
+      region: null,
+    });
+    expect(createBoard([tile(0, 0), tile(1, 200)]).edgeWaypoints(0, 1)).toHaveLength(0);
+    expect(createBoard([tile(0, 0), tile(1, 400)]).edgeWaypoints(0, 1)).toHaveLength(2);
+    // 闭环边 会稽⇗长安(对角 ≈497)是全图唯一非正交边,与其他边同走避城弧
+    expect(board.edgeWaypoints(idx("会稽"), idx("长安"))).toHaveLength(2);
   });
 });

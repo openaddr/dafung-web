@@ -357,11 +357,12 @@ import { testEngine } from "@core/testing";
 import { ENCOUNTERS } from "@core/encounters";
 
 describe("锦囊渠道(T5)", () => {
-  it("落锦囊格必抽一张(index 30 锦囊格)", () => {
+  it("落锦囊格必抽一张(tile-chance-1 锦囊格)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     const handBefore = e.players[0].jinnangHand.length;
-    testEngine(e).landActiveAt(30); // tile-chance-1 锦囊格(huanyou 环位 P30)
+    const chance = MAP.board.tiles.find((t) => t.name === "锦囊")!.index;
+    testEngine(e).landActiveAt(chance); // tile-chance-1(ADR-0027 环位 P41)
     expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
     expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
   });

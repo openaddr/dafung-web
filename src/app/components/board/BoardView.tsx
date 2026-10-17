@@ -21,7 +21,7 @@ import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
 import { TokenLayer } from "./TokenLayer";
-import { FIT_VIEW_BOX, panCursorClass, usePanZoom } from "./usePanZoom";
+import { computeFitView, panCursorClass, usePanZoom } from "./usePanZoom";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
 
@@ -122,14 +122,16 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   ref,
 ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // F1:viewBox 由 hook 命令式 setAttribute 更新,不产生 React 重渲;
-  // svg 的 viewBox prop 只下发一次初始总览值(FIT_VIEW_BOX 常量),此后 React 不改写。
-  const { handlers, grabbing, reset, zoomBy } = usePanZoom(svgRef);
-  useImperativeHandle(ref, () => ({ reset, zoomBy }), [reset, zoomBy]);
-  const [hoverTile, setHoverTile] = useState<number | null>(null);
-
   // 地图 → Board/catalog(地图引用不变则不重建;道路避城弧线计算在 RoadsLayer 内做)
   const loaded = useMemo(() => loadMap(map), [map]);
+  // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),
+  // 地图引用不变则视口不变;F1:viewBox 由 hook 命令式 setAttribute 更新,
+  // svg 的 viewBox prop 只下发一次初始总览值,此后 React 不改写。
+  const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
+  const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
+  const { handlers, grabbing, reset, zoomBy } = usePanZoom(svgRef, fit);
+  useImperativeHandle(ref, () => ({ reset, zoomBy }), [reset, zoomBy]);
+  const [hoverTile, setHoverTile] = useState<number | null>(null);
 
   // propertyId → 持有 {player, level}(players 变化才重算)
   const holdings = useMemo(() => {
@@ -222,7 +224,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     <svg
       id="board"
       ref={svgRef}
-      viewBox={FIT_VIEW_BOX}
+      viewBox={fitBox}
       preserveAspectRatio="xMidYMid meet"
       /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管 viewBox 平移缩放打架);
          overscroll contain 防拖到边缘时滚动整个页面。 */
@@ -230,8 +232,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
       className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
       {...handlers}
     >
-      <BoardDefs />
-      <TerrainLayer />
+      <BoardDefs fit={fit} />
+      <TerrainLayer fit={fit} />
       <RoadsLayer board={loaded.board} />
       <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
       <TokenLayer

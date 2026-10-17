@@ -5,29 +5,30 @@
 // 溪山清远远景横带本票先摘除(S10 换新素材,挂点见 TerrainLayer TODO);区域晕染降音量。
 import { memo } from "react";
 import type { Board } from "@core/board";
+import type { ViewBox } from "./usePanZoom";
 import { Theme, rgba } from "@core/theme";
 
-// viewBox 常量与旧 board.ts / usePanZoom FIT_VIEW 保持一致。
-// #39:城池间距 1.4x 重排(三张地图坐标同步放大)→ 逻辑画布以 (100,30) 为心等比 1.4x:
-// 2300×1380 → 3220×1932,江河由 TERRAIN_SCALE 变换跟随(远景横带按新画布坐标直接铺)。
+// 地形画布随图走(ADR-0027):不再钉死 viewBox 常量,由 BoardView 把
+// computeFitView 推导的总览视口传进来,延展画布 = 总览 + EDGE_PAD 渐隐带。
+// #39 江河仍按旧画布坐标手绘,整组以旧画布心 (100,30) 等比 1.4x 跟随
+// (纯装饰水墨,内容横带 ±1600 覆盖任何内置图,位置不必随图重排)。
 const TERRAIN_SCALE = 1.4;
-const VB = { x: -1510, y: -936, w: 3220, h: 1932 } as const;
 
-// #24/#38 边缘连续性:地形宣纸向外延展的画布(比 VB 大一圈),配 mask 四边线性渐隐——
-// 纸面在 VB 边界之外 EDGE_PAD 带宽内渐隐为透明,透出页面背景,消除边界的硬切。
-// #38 根因教训:旧实现用单个椭圆 radial 渐隐,渐隐带起点(约在 VB 边界外 260~410 单位)
-// 超出了 pan 钳制可达范围(OVER=140),用户永远平移不到渐变区 → 效果完全不可感知;
-// 且暗角/区域晕染 rect 裁在 VB 上,平移到边缘时反而是它们制造了新的硬切线。
-// 现:①渐隐带从 VB 边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD);
+// #24/#38 边缘连续性:地形宣纸向外延展的画布(比总览大一圈),配 mask 四边线性渐隐——
+// 纸面在总览边界之外 EDGE_PAD 带宽内渐隐为透明,透出页面背景,消除边界的硬切。
+// #38 根因教训:旧实现用单个椭圆 radial 渐隐,渐隐带起点超出了 pan 钳制可达范围
+// (OVER=140),用户永远平移不到渐变区 → 效果完全不可感知;
+// 且暗角/区域晕染 rect 裁在总览上,平移到边缘时反而是它们制造了新的硬切线。
+// 现:①渐隐带从总览边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD);
 // ②OVER(usePanZoom)放宽到带宽的一半,pan 到极限时正处渐变中段;
-// ③暗角/区域晕染 rect 一并扩到 O,不再有 VB 边界的裁切线。
+// ③暗角/区域晕染 rect 一并扩到 O,不再有总览边界的裁切线。
 const EDGE_PAD = 700;
-const O = {
-  x: VB.x - EDGE_PAD,
-  y: VB.y - EDGE_PAD,
-  w: VB.w + EDGE_PAD * 2,
-  h: VB.h + EDGE_PAD * 2,
-} as const;
+const canvasOf = (fit: ViewBox) => ({
+  x: fit.x - EDGE_PAD,
+  y: fit.y - EDGE_PAD,
+  w: fit.w + EDGE_PAD * 2,
+  h: fit.h + EDGE_PAD * 2,
+});
 
 // #512 深底装饰色(无对应 token 的阴影向/水面色,收敛此块;金/墨/纸语义色一律走 Theme)
 const VIGNETTE_EDGE = "rgba(6,4,2,0.55)"; // 四角晕影(比 bgDeep 更沉的纯阴影,不读色相)
@@ -40,7 +41,8 @@ function poly(pts: { x: number; y: number }[]): string {
 }
 
 // ── defs:玄墨噪点滤镜 + 晕影渐变 ──
-export const BoardDefs = memo(function BoardDefs() {
+export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
+  const O = canvasOf(fit);
   return (
     <defs>
       {/* 玄墨暗纹(#512):feTurbulence 出墨金细纹(inkwash 色相,低 alpha),压在深底上
@@ -89,9 +91,9 @@ export const BoardDefs = memo(function BoardDefs() {
       <mask id="bv-edge-mask" maskUnits="userSpaceOnUse" x={O.x} y={O.y} width={O.w} height={O.h}>
         <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="#fff" />
         <rect x={O.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-l)" />
-        <rect x={VB.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-r)" />
+        <rect x={fit.x} y={O.y} width={EDGE_PAD} height={O.h} fill="url(#bv-edge-fade-r)" />
         <rect x={O.x} y={O.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-t)" />
-        <rect x={O.x} y={VB.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
+        <rect x={O.x} y={fit.y} width={O.w} height={EDGE_PAD} fill="url(#bv-edge-fade-b)" />
       </mask>
       {/* F2 都城光晕(#512 克制档):金色中心 → 边缘渐 0;峰值压到 0.4(旧 0.55)——
           深底上金晕天然显眼,「美观且不炫目」验收词下收一档;脉动仍走 CSS opacity。 */}
@@ -116,7 +118,8 @@ export const BoardDefs = memo(function BoardDefs() {
 });
 
 // ── 背景:玄墨底 + 噪点暗纹 + 江河 + 四角晕影 ──
-export const TerrainLayer = memo(function TerrainLayer() {
+export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }) {
+  const O = canvasOf(fit);
   return (
     // #24:整组地形(底色/噪点/江河/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
     // mask 让外围平滑淡出至页面背景,消除外缘硬切。

@@ -361,7 +361,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       <DiceOverlay />
       <div className="game-layout relative h-full w-full overflow-hidden bg-bg text-ink">
         {/* 棋盘区全幅垫底(id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点)。
-          棋盘初始取景 = FIT_VIEW 固定 viewBox + preserveAspectRatio meet——容器变矮
+          棋盘初始取景 = computeFitView 按图推导的总览 viewBox + preserveAspectRatio
+          meet——容器变矮
           整盘等比缩小,无需 pan/zoom 补偿。 */}
         <div id="board-wrap" className="board-area">
           {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
