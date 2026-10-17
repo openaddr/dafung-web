@@ -506,6 +506,22 @@ export function extractBatchEvents(
         events_.push(textFloater(engine, ev.targetSeat, `中【${ev.cardId}】,下回合无法行动`));
         break;
       }
+      case "peekApplied": {
+        // 窥探弹层(#575,军情密探即时窥探):viewer-only 演出——座位契约校验后按事件
+        // 直译(手牌内容随事件走,redactEvents 已逐座位裁、非 viewer 恒空,ADR-0016);
+        // 目标国号提取期解析进事件(弹层副题用),无净表现档(hand 空)也照发,弹层
+        // 组件按 viewerSeat===本座自门(他座客户端零渲染)。
+        const viewerSeat = eventSeat(engine, ev);
+        eventSeatPlayer(engine, ev.targetSeat, "peekApplied.targetSeat");
+        events_.push({
+          kind: "peekRevealed",
+          viewerSeat,
+          targetSeat: ev.targetSeat,
+          guohao: guohaoOf(engine, ev.targetSeat),
+          hand: [...ev.hand],
+        });
+        break;
+      }
       case "reactionAnswered": {
         // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
         if (ev.use && ev.cardId != null) {

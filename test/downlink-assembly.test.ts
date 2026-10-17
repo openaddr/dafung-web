@@ -148,7 +148,8 @@ describe("assembleDownlinkShot · redaction 必经步(#431)", () => {
 
 // ──────────────────────────── ③ 全 kind 普查(底册=#430 档位表)────────────────────────────
 
-/** 38 kind 最小事件体(37 透传同 seat-projection.test 口径 + reactionOpened 双窗)。 */
+/** 39 kind 最小事件体(38 透传同 seat-projection.test 口径 + reactionOpened 双窗 +
+ *  peekApplied,#575)。 */
 const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "gameStarted" },
   { kind: "setupCompleted" },
@@ -209,6 +210,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
+  { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] },
   { kind: "reactionOpened", windowKind: "jinnang", cardId: "横征暴敛", queriedSeats: [0, 1] },
   { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [1] },
 ];

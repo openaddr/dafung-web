@@ -244,8 +244,10 @@ describe("锦囊 bot 策略(#148)", () => {
     const used = ["连环计", "军情密探"].filter((c) => !user.jinnangHand.includes(c));
     expect(used.length).toBe(1);
     expect(e.jinnangDiscard).toContain(used[0]);
+    // 效果留痕(#575):窥探=peekApplied 事件、连环计=duel 战报,二者取其一
     expect(
-      e.jinnangPeeks.length + (e.log.some((l) => l.detail.includes("duel")) ? 1 : 0),
+      e.gameEvents.filter((x) => x.kind === "peekApplied").length +
+        (e.log.some((l) => l.detail.includes("duel")) ? 1 : 0),
     ).toBeGreaterThanOrEqual(1);
     expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
   });

@@ -36,6 +36,7 @@ import { DashboardBar } from "./DashboardBar";
 import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
 import { WarReportDrawer } from "./WarReportDrawer";
+import { PeekModal } from "./PeekModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { InquiryLayer } from "./InquiryScroll";
 import { useCapitalPick } from "./useCapitalPick";
@@ -452,8 +453,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           onZoomOut={() => boardRef.current?.zoomBy(0.8)}
         />
         {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
-          消费的是稳定自局座位(selfSeat):窥探放行与「自身不出卡」都要「人」而非决策
-          视角——热座 viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
+          消费的是稳定自局座位(selfSeat):「自身不出卡」要「人」而非决策视角——热座
+          viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
           #256/#417 目标段:候选席位卡金圈呼吸,点席位=选中/再点取消(targets 由快照
           choices 派生,打出走动作条「出」)。 */}
         <SeatRail
@@ -532,6 +533,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         )}
         {/* 战报抽屉(#255):右缘竖把手 + 抽屉渲染对局日志;常收零占位(收起时只有把手)。 */}
         <WarReportDrawer snapshot={snapshot} />
+        {/* 窥探弹层(#575):军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
+          (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
+        <PeekModal selfSeat={selfSeat} />
         {/* 竖屏手机「请横屏」提示层(#276 纠偏):常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>

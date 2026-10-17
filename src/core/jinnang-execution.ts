@@ -20,13 +20,6 @@ import { emitGameEvent } from "./game-events";
 import type { Player } from "./model";
 
 // ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
-/** 军情密探窥探(#122/T4):viewer 可见 target 的锦囊手牌内容,至 viewer 下回合开始
- *  (endTurn 轮到 viewer 时清除)。窥探事件本身公开,清单随快照。 */
-export interface JinnangPeek {
-  viewer: number;
-  target: number;
-}
-
 /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态(同相位内重算选项集);
  *  stage:one=单选立即执行;two-a/two-b=连环计两步(第二步排除第一步)。
  *  picked 为已定座位;随快照走(目标段中途断线可恢复)。 */
@@ -682,18 +675,24 @@ export function executeJinnang(
       break;
     }
     case "peek": {
-      const target = targets[0];
-      g.jinnangPeeks.push({ viewer: userSeat, target });
+      // 军情密探(#575 即时一次性):真生效处产出 peekApplied——窥方/被窥者+手牌内容
+      // 随事件走(viewer 凭事件看一次,redact 逐座位裁,ADR-0016);被识破到不了这里。
+      // 唯一目标契约(#575 自折叠侧迁入产出侧):announce 的 targetSeats 已由目标段
+      // 校验,此处不唯一 = 状态机 bug,当场炸出。
+      if (targets.length !== 1) throw new Error("军情密探:宣布无唯一目标(状态机 bug)");
+      const target = targets[0]!;
+      emitGameEvent(g, userSeat, {
+        kind: "peekApplied",
+        viewerSeat: userSeat,
+        targetSeat: target,
+        hand: [...g.players[target].jinnangHand],
+      });
       g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)
-      g.pushFloaterText(
-        user,
-        `细作已入 ${g.players[target].guohao} 营中(至你下回合)`,
-        user.position,
-      );
+      g.pushFloaterText(user, `细作已入 ${g.players[target].guohao} 营中`, user.position);
       g.logEvent(
         "system",
         user.guohao,
-        `${user.guohao} 使用锦囊【军情密探】:窥探 ${g.players[target].guohao} 的锦囊(至下回合)`,
+        `${user.guohao} 使用锦囊【军情密探】:窥探 ${g.players[target].guohao} 的锦囊`,
         `jinnangUse player=${user.id} card=${def.id} peek viewer=${userSeat} target=${target}`,
       );
       break;

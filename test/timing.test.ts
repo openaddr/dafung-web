@@ -1266,7 +1266,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     expect(gains).toHaveLength(e.players.length + 1); // 起手 n 派 + 授书 1 派,单点覆盖无多派
   });
 
-  it("PeekApplied:军情密探窥探入册后派发(subject=使用者,targetSeat=被窥者)", () => {
+  it("PeekApplied:军情密探窥探生效时派发(subject=使用者,targetSeat=被窥者)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const userSeat = e.activeIndex;
@@ -1275,7 +1275,6 @@ describe("时机框架:事件化第二批(#456)", () => {
     const entries = recordMomentCtx(e);
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [targetSeat]);
-    expect(e.jinnangPeeks).toEqual([{ viewer: userSeat, target: targetSeat }]);
     expect(entries.filter((x) => x.moment === "PeekApplied").map((x) => x.ctx)).toEqual([
       { subject: userSeat, targetSeat },
     ]);

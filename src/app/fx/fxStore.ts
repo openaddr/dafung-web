@@ -87,6 +87,19 @@ export interface JinnangLineFx {
   y2: number;
 }
 
+/** 窥探弹层(#575,军情密探即时窥探):viewer-only 一次性演出的开关态——被窥者
+ *  锦囊手牌陈列,关闭即清(无持续窗口、无自动过期:关闭动作归玩家);viewerSeat
+ *  供弹层组件按本座自门(仅 viewer=本座渲染,他座客户端持有记录但零渲染)。 */
+export interface PeekFx {
+  id: number;
+  viewerSeat: number;
+  targetSeat: number;
+  /** 被窥者国号(弹层副题「窥 {国号} 营锦囊」)。 */
+  guohao: string;
+  /** 被窥者锦囊手牌内容(viewer 之外恒空——redactEvents 逐座位裁,ADR-0016)。 */
+  hand: string[];
+}
+
 /** 城池宣告记录(ADR-0015):Tile 订阅本记录重播宣告动画,自身不做 props diff。
  *  按 tileIndex 各存一条,nonce 单调递增、播完自然过期(不清理定时器,下条覆盖):
  *  level/owner 两维独立计数,各自作为 Tile 内受影响元素的 React key——nonce 变化
@@ -110,6 +123,8 @@ interface FxState {
   halt: HaltBannerFx | null;
   /** 出牌指示线(#281 P2-E)。 */
   jinnangLines: JinnangLineFx[];
+  /** 窥探弹层(#575):null=关闭(关闭即清,无任何残留)。 */
+  peek: PeekFx | null;
   /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位;
    *  外部移出某 id = 在途行军的取消令牌(C5,订阅器在 useMarch:段边界自终止并清
    *  marchPos)——终局封场的接管收回(orchestrator→abandonMarch)即走此通道。 */
@@ -130,6 +145,10 @@ interface FxState {
   showBanner(guohao: string, color: string): void;
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
+  /** 窥探弹层(#575):置开关态(同拍再窥=替换,id 单调供弹层重挂重播入场)。 */
+  revealPeek(viewerSeat: number, targetSeat: number, guohao: string, hand: string[]): void;
+  /** 关闭窥探弹层(#575):关闭即清,无任何残留。 */
+  closePeek(): void;
   /** 都城停全屏宣告(S7):横幅随 CSS 全长自清。 */
   showHaltBanner(guohao: string, color: string, cityName: string): void;
   /** 落格定音金圈一拍(S7)。 */
@@ -160,6 +179,7 @@ export const useFxStore = create<FxState>((set) => ({
   banner: null,
   halt: null,
   jinnangLines: [],
+  peek: null,
   marching: new Set<string>(),
   announces: new Map<number, TileAnnounce>(),
   pulses: [],
@@ -244,6 +264,14 @@ export const useFxStore = create<FxState>((set) => ({
     );
   },
 
+  revealPeek(viewerSeat, targetSeat, guohao, hand) {
+    set({ peek: { id: nextId++, viewerSeat, targetSeat, guohao, hand: [...hand] } });
+  },
+
+  closePeek() {
+    set({ peek: null });
+  },
+
   addMarching(id) {
     set((s) => {
       if (s.marching.has(id)) return {};
@@ -283,6 +311,7 @@ export const useFxStore = create<FxState>((set) => ({
       banner: null,
       halt: null,
       jinnangLines: [],
+      peek: null,
       marching: new Set<string>(),
       announces: new Map(),
       pulses: [],

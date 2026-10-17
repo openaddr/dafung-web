@@ -55,6 +55,14 @@ export const TESTIDS = {
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
   modalClose: "modal-close",
+
+  // ── 窥探弹层(#575,军情密探即时窥探;viewer-only 演出)──
+  /** 弹层容器(PileShell 壳;仅 viewer=本座渲染,关闭即清)。 */
+  peekModal: "peek-modal",
+  /** 被窥锦囊牌面(cardId=牌名;弹层内容区点击即关闭)。 */
+  peekCard: (cardId: string) => `peek-card-${cardId}` as const,
+  /** 空手牌空态(「囊中空空」浅印;目标有效性对手牌数无守卫,真业务态)。 */
+  peekEmpty: "peek-empty",
   /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 

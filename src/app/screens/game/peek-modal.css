@@ -1,0 +1,70 @@
+/* 窥探弹层(#575)——军情密探即时窥探的 viewer-only 演出层。壳复用 pile-modal
+   (PileShell,Portal 渲染在 body,.game-layout 罩不到——peek-* 前缀防串扰,
+   pile-modal.css 的 war 同先例),本文件只管内容区:锦囊牌背→翻面 stagger 入场 +
+   空手牌浅印空态。色一律 var(--color-*) 或墨影 rgba(43,35,23,·);时长/缓动走
+   --dur-* 与 --ease-* token;翻面与错峰均一次性入场动画,reduced-motion 由
+   app.css M-4 全局兜层压瞬时,本文件无需另写兜层。 */
+
+/* ── 内容区:牌面横排居中(手牌无上限,容换行);点击任意处关闭(语义归组件)── */
+.peek-modal .peek-body {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-items: center;
+  gap: 22px;
+  padding: 26px 8px 14px;
+  cursor: pointer;
+}
+
+/* ── 翻面单元:牌背(漆木底)→ 牌面,3D 翻转入场,第 i 张错峰 --dur-fast;
+   before-reduced-motion 下 M-4 压瞬时,直接呈现牌面终态 ── */
+.peek-modal .peek-flip {
+  perspective: 720px;
+  animation: peek-cell-in var(--dur-med) var(--ease-out) both;
+  animation-delay: calc(var(--peek-i, 0) * var(--dur-fast));
+}
+.peek-modal .peek-flip-inner {
+  position: relative;
+  transform-style: preserve-3d;
+  animation: peek-flip var(--dur-slow) var(--ease-out) both;
+  animation-delay: calc(var(--peek-i, 0) * var(--dur-fast) + var(--dur-fast));
+}
+.peek-modal .peek-back,
+.peek-modal .peek-face {
+  backface-visibility: hidden;
+}
+.peek-modal .peek-back {
+  position: absolute;
+  inset: 0;
+}
+.peek-modal .peek-face {
+  transform: rotateY(180deg);
+}
+@keyframes peek-flip {
+  from {
+    transform: rotateY(0deg);
+  }
+  to {
+    transform: rotateY(180deg);
+  }
+}
+@keyframes peek-cell-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.8em);
+  }
+}
+
+/* ── 空手牌空态:浅印「囊中空空」(真业务态:目标有效性对手牌数无守卫,#477)── */
+.peek-modal .peek-empty-seal {
+  display: inline-block;
+  padding: 20px 32px;
+  border: 2px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
+  border-radius: 6px;
+  color: var(--color-ink-dim);
+  font-family: var(--font-brush);
+  font-size: 26px;
+  letter-spacing: 0.3em;
+  transform: rotate(-3deg);
+  opacity: 0.75;
+}

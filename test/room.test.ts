@@ -4,7 +4,12 @@
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "../scripts/room";
 import type { RoomClock } from "../scripts/room";
-import { lobbyView, clientView, redactSnapshotForSeat } from "../scripts/seat-projection";
+import {
+  lobbyView,
+  clientView,
+  redactSnapshotForSeat,
+  redactEvents,
+} from "../scripts/seat-projection";
 import { resolveGuohaoClash } from "../src/core/guohao";
 import { JINNANG_CARDS } from "../src/core/jinnang";
 import type { RoomPersistence } from "../scripts/room-persistence";
@@ -1261,8 +1266,8 @@ describe("锦囊暗牌投影(ADR-0016 · redactSnapshotForSeat)", () => {
   });
 });
 
-describe("窥探投影(ADR-0016 · #122/T4)", () => {
-  it("viewer 视角:窥探目标手牌内容放行,第三者仍裁空;到期后裁回", async () => {
+describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
+  it("阅览权随 peekApplied 事件走:viewer 座位保留手牌内容,他人裁空;快照恒无窥探放行", async () => {
     const { reg, roomId } = await (async () => {
       const r = await setupStartedRoom({ seats: 3, bot: [2] });
       r.reg.get(r.roomId)!.engine!.drawJinnang(0, 2);
@@ -1272,17 +1277,36 @@ describe("窥探投影(ADR-0016 · #122/T4)", () => {
     e.resolveJinnang(null);
     e.activePlayer.jinnangHand = ["军情密探"];
     e.activePlayer.jinnangHandCount = 1;
+    // 清走他座识破诡计(不开反应窗)并钉死被窥手牌:事件 hand 内容确定非空
+    for (const other of [1, 2]) {
+      e.players[other].jinnangHand = e.players[other].jinnangHand.filter(
+        (id) => id !== "识破诡计" && id !== "半路杀出",
+      );
+      e.players[other].jinnangHandCount = e.players[other].jinnangHand.length;
+    }
+    e.players[1].jinnangHand = ["连环计"];
+    e.players[1].jinnangHandCount = 1;
     e.turnPhase = "AwaitingJinnang";
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
-    expect(e.jinnangPeeks).toEqual([{ viewer: 0, target: 1 }]);
+    // 事件=窥探的唯一载体:viewer 手牌内容随行,redact 逐座位裁(ADR-0016)
+    const batch = e.gameEvents;
+    const ev = batch.find((x) => x.kind === "peekApplied");
+    expect(ev).toMatchObject({ kind: "peekApplied", viewerSeat: 0, targetSeat: 1 });
+    const hand = ev!.kind === "peekApplied" ? ev!.hand : [];
+    expect(hand).toEqual(["连环计"]);
+    const forViewer = redactEvents(batch, 0).find((x) => x.kind === "peekApplied");
+    const forThird = redactEvents(batch, 2).find((x) => x.kind === "peekApplied");
+    expect(forViewer).toMatchObject({ hand }); // 窥方保留内容
+    expect(forThird).toMatchObject({ hand: [] }); // 第三者裁空
+    // 快照恒无窥探放行(#575 持续窗口退役):viewer 视角他人手牌照旧 count-only
     const snap = e.snapshot();
     const view0 = redactSnapshotForSeat(snap, 0);
     const view2 = redactSnapshotForSeat(snap, 2);
-    expect(view0.players[1].jinnangHand).toEqual(snap.players[1].jinnangHand); // viewer 见内容
-    expect(view0.players[2].jinnangHand).toEqual([]); // 非目标仍裁
+    expect(view0.players[1].jinnangHand).toEqual([]); // 被窥者内容不再随快照放行
+    expect(view0.players[2].jinnangHand).toEqual([]);
     expect(view2.players[0].jinnangHand).toEqual(snap.players[0].jinnangHand); // 自己恒全量
-    expect(view2.players[1].jinnangHand).toEqual([]); // 第三者不见窥探内容
+    expect(view2.players[1].jinnangHand).toEqual([]);
   });
 });
 

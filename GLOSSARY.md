@@ -219,6 +219,9 @@ _Avoid_: 裸列表选宝(卷轴按钮点牌名即成交的旧交互,已退役)�
 坐地起价交涉中卖方开出的价(= 该笔交易的成交价):指导价 × `tradeMult[城池等级]` + `tradeAdd[城池等级]`,与引擎入账同一函数(`premiumPriceOf`,公式细则见 rules 05-珍宝)。选宝弹层坐地未选价签双行呈现——指导价(基准)在上、要价(实得)在下,选中转「成交 · 至 N 两」,结算行给「指导价 + 加价 = 入账」分解式(加价 = 要价 − 指导价)。与「指导价」分野:公道买卖的成交价就是指导价,坐地起价的成交价是要价;成交落定前不称「成交价」。
 _Avoid_: 成交价(成交前)、定价(读作全局牌价,实为逐城逐等级开价)
 
+**窥探弹层(Peek Modal,#575)**:
+军情密探**即时窥探**的 viewer-only 演出层(壳复用藏品弹层 PileShell,题名「军情密探」+朱印小章「探」+副题「窥 {国号} 营锦囊」,组件单源 `src/app/screens/game/PeekModal.tsx`):打出且未被识破后立即可看一次被窥者锦囊手牌——竖笺牌面(标准档)横排、牌背翻面错峰入场,点击任意处或右上 X 关闭,**关闭即逝**(无持续窗口、无残留;旧「至你的下回合开始」时窗已退役);目标空手牌给「囊中空空」浅印空态(真业务态)。仅窥方(viewer=本座)客户端弹演出,他人只见公开浮字;手牌内容随 `peekApplied` 事件走(redact 逐座位裁,ADR-0016),窥探零客户端状态。
+_Avoid_: 窥探窗口/窥探时窗(持续窗口旧口径,已退役)、窥见浮签(席位卡手牌浮签追加牌名的旧呈现,已退役)
 **席位卡(Seat Card,#253)**:
 对局屏右缘席位竖卡列里每个对手的一张窄卡:国号印+名 / 现金 / 体力血条 / 属性图标徽章(两行制);活跃方金圈光效指名「谁在行动」(操作不限时,无回合倒计时,2026-09-25 拍板),军师目标段候选金圈呼吸、点卡即出;终局胜者卡挂金环(DESIGN §4.6,无文字章)。观战与自身不出卡。组件单源 `src/app/screens/game/SeatRail.tsx`。
 _Avoid_: 诸侯列表(旧右栏 OthersPanel 语义,已退役)、玩家卡
@@ -264,8 +267,8 @@ _Avoid_: 跳过(裸用——事件流的 turnSkipped 是事件,这是时机)、�
 _Avoid_: 抽卡(口语,落空不派)、摸牌
 
 **窥探生效(PeekApplied)**:
-锦囊「军情密探」窥探入册后的时机:subject=窥方,`ctx.targetSeat`=被窥者;只记「窥探发生了」,窥到的牌面内容仍按保密口径走。
-_Avoid_: 偷看(口语)、侦查
+锦囊「军情密探」窥探生效后的时机(#575 起即时一次性,与 `peekApplied` 事件同址产出):subject=窥方,`ctx.targetSeat`=被窥者;只记「窥探发生了」,被识破不派(窥探从未发生)。
+_Avoid_: 偷看(口语)、侦查、窥探入册(持续窗口旧口径,已退役)
 
 **体力变更(StaminaChanged)**:
 体力增减的时机:**仅机遇路**派发(`encounter-flow.ts` 机遇体力落账结算处),`ctx.delta`=夹紧 0~100 后实际增减(带符号);耗竭重置 100(系统复位非收益)与华佗赈济(「主动技结算内不派时机」既有口径)有意不派。
@@ -306,9 +309,9 @@ _Avoid_: 抄家(口语)、没收(归银行时不派——本时机只认债主)
 _Avoid_: 机遇(那是玩法机制,见「机遇」)、日志事件(LogEvent,对局日志行)、表现事件(app 层投影出的动效原语,消费事件流的下游产物)
 
 **事件流(Event Stream)**:
-ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/jinnangVoided/jinnangInflicted)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
+ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/jinnangVoided/jinnangInflicted/peekApplied)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
 _Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnangPlay.seq)、事件总线(那是时机总线 dispatchMoment——技能挂点框架,事件流借其宣告点产出,二者不是一物)
 
 **消费档位(Consumption Tier,#430)**:
-事件流每个 kind 的双面消费档位登记,单源 `src/core/event-tiers.ts` `EVENT_TIERS`:38 个 kind 每个必声明 fold 面×fx 面两格——fold 面(net/event-fold.ts 折叠消费)四档 must-fold(精确折)/fold+calibration(折+校准双覆盖,已知漂移窗由快照校准纠正)/declarative(声明性无转移)/calibration-only(校准兜底,折叠面刻意不折),fx 面(fx/event-extract.ts 表现消费)两档 presented(有表现)/silent(无表现);词汇表新增 kind 未登记档位 = 编译期红(防遗漏机器,派生集约束两消费器 switch 穷尽)。与机遇「档位(Fortune Tag)」无涉:那是好运/中性/霉运的三分定性,消费档位是事件消费面的机器可查判定数据。
+事件流每个 kind 的双面消费档位登记,单源 `src/core/event-tiers.ts` `EVENT_TIERS`:39 个 kind 每个必声明 fold 面×fx 面两格——fold 面(net/event-fold.ts 折叠消费)四档 must-fold(精确折)/fold+calibration(折+校准双覆盖,已知漂移窗由快照校准纠正)/declarative(声明性无转移)/calibration-only(校准兜底,折叠面刻意不折),fx 面(fx/event-extract.ts 表现消费)两档 presented(有表现)/silent(无表现);词汇表新增 kind 未登记档位 = 编译期红(防遗漏机器,派生集约束两消费器 switch 穷尽)。与机遇「档位(Fortune Tag)」无涉:那是好运/中性/霉运的三分定性,消费档位是事件消费面的机器可查判定数据。
 _Avoid_: 档位(裸用——与机遇 Fortune Tag 混淆,见该词条)、判定表(旧散文注释形态,已升为机器可查数据)
