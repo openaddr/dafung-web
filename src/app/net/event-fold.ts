@@ -37,7 +37,8 @@
 //                 cashChanged·skill 折)、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
-//                 ADR-0016);jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额)+
+//                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
+//                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额)+
 //                 窥探入册(军情密探);jinnangVoided → 识破牌扣账
 //                 (反应牌 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
@@ -494,6 +495,13 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const p = foldTarget(engine, ev);
         p.jinnangHandCount += ev.count; // 内容=暗牌不折(ADR-0016);牌序=校准档
         engine.jinnangDeckCount -= ev.count;
+        break;
+      }
+      case "jinnangReshuffled": {
+        // 弃牌堆骰序洗回牌库:牌库数+count、弃堆清零(count=洗回前弃堆全量,精确折);
+        // 洗后牌序=暗牌不折(ADR-0016),中途洗牌随批全量校准(CALIBRATION_EVENT_KINDS)
+        engine.jinnangDeckCount += ev.count;
+        engine.jinnangDiscard = [];
         break;
       }
       case "jinnangAnnounced": {

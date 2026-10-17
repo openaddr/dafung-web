@@ -442,7 +442,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             {VERSION}
           </span>
         </div>
-        {/* 顶部对局条:回合 chip(第 N 轮 + 目标身价)+ 活跃方名 | 牌库/弃牌 + 复位/缩放/静音 */}
+        {/* 顶部对局条:回合 chip(第 N 轮 + 目标身价)+ 活跃方名 | 锦囊牌库小件 + 复位/缩放/静音 */}
         <GameTopBar
           snapshot={snapshot}
           /* chip 印章=自局视角;观战未入座跟随房主座(快照按座直取,取不到即接线 bug) */

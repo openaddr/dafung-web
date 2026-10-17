@@ -153,7 +153,7 @@ describe("锦囊发牌(引擎缝)", () => {
     expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true); // 抽空后落空提示(既有语义不变)
   });
 
-  it("牌库抽空:落空浮字「锦囊已空」,不报错不回流", () => {
+  it("牌库抽空(弃堆亦空):落空浮字「锦囊已空」,零转移", () => {
     const e = makeEngine(3);
     finishSetup(e);
     e.jinnangDeck = [];
@@ -191,6 +191,87 @@ describe("锦囊发牌(引擎缝)", () => {
       expect(logStr.includes(card.id)).toBe(false);
     }
     expect(JSON.stringify(e.log).includes("抽了一张锦囊")).toBe(true);
+  });
+});
+
+// ──────────────────────────── 弃牌堆洗回(牌库耗尽机制)────────────────────────────
+describe("弃牌堆洗回(牌库耗尽)", () => {
+  /** 循环读数(牌只在三处,#198 守恒同口径):牌库+弃堆+在世者手牌。 */
+  function circulation(e: GameEngine): number {
+    return (
+      e.jinnangDeck.length +
+      e.jinnangDiscard.length +
+      e.players.filter((x) => !x.isBankrupt).reduce((s, x) => s + x.jinnangHand.length, 0)
+    );
+  }
+
+  it("守恒:洗回前后 18 = 牌库+各座位手牌+弃堆 恒成立", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    expect(circulation(e)).toBe(18);
+    e.jinnangDiscard.push(...e.jinnangDeck.splice(0)); // 牌库耗尽的真实面貌:全数经手牌/弃堆流转
+    e.jinnangDeckCount = 0;
+    expect(circulation(e)).toBe(18);
+    e.drawJinnang(0, 2); // 牌库空、弃堆 16 张 → 洗回 → 抽 2
+    expect(circulation(e)).toBe(18);
+  });
+
+  it("触发:牌库空+弃牌非空 → 洗回并入手;战报/事件宣告(浮字归 fx 面),计数同步", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.jinnangDeck = [];
+    e.jinnangDeckCount = 0;
+    e.jinnangDiscard = ["横征暴敛", "军情密探", "识破诡计"];
+    const handBefore = e.players[0].jinnangHand.length;
+    expect(e.drawJinnang(0, 2)).toBe(2);
+    expect(e.jinnangDiscard).toEqual([]); // 洗回即清空
+    expect(e.jinnangDeck.length).toBe(1); // 3 洗回 − 抽 2
+    expect(e.jinnangDeckCount).toBe(1);
+    expect(e.players[0].jinnangHand.length).toBe(handBefore + 2);
+    // 事件只带张数不带牌 id(洗后牌序是暗信息,ADR-0016)
+    const ev = e.snapshot().events.find((x) => x.kind === "jinnangReshuffled");
+    expect(ev).toMatchObject({ kind: "jinnangReshuffled", seat: 0, count: 3 });
+    expect(Object.keys(ev!).sort()).toEqual(["count", "kind", "round", "seat", "turn"]);
+    // 战报:机读前缀归 jinnang 类,同不落牌名
+    const reshuffleLog = e.log.find((l) => l.detail.includes("jinnangReshuffle"));
+    expect(reshuffleLog?.detail).toContain("count=3");
+  });
+
+  it("双空:牌库与弃堆皆空 → 落空零转移,不产洗回事件", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.jinnangDeck = [];
+    e.jinnangDeckCount = 0;
+    e.jinnangDiscard = [];
+    const before = circulation(e);
+    expect(e.drawJinnang(0, 3)).toBe(0);
+    expect(circulation(e)).toBe(before);
+    expect(e.snapshot().events.some((x) => x.kind === "jinnangReshuffled")).toBe(false);
+    const msgs = e.presentation
+      .drainFloaters()
+      .filter((f) => f.kind === "msg")
+      .map((f) => (f as { text: string }).text);
+    expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true);
+  });
+
+  it("确定性:同 seed+同指令序列,两局洗回后牌库牌序一致", () => {
+    const seats = [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: true },
+    ];
+    const e1 = makeEngine(13, seats);
+    const e2 = makeEngine(13, seats);
+    finishSetup(e1);
+    finishSetup(e2);
+    for (const e of [e1, e2]) {
+      e.jinnangDeck = [];
+      e.jinnangDeckCount = 0;
+      e.jinnangDiscard = ["横征暴敛", "军情密探", "识破诡计", "连环计"];
+    }
+    e1.drawJinnang(0, 2);
+    e2.drawJinnang(0, 2);
+    expect(e1.jinnangDeck).toEqual(e2.jinnangDeck); // 同骰序洗回:牌序逐张一致
+    expect(e1.players.map((p) => p.jinnangHand)).toEqual(e2.players.map((p) => p.jinnangHand));
   });
 });
 

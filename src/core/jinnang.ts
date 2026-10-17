@@ -139,12 +139,16 @@ export function jinnangCardOf(id: string): JinnangCardDef {
   return def;
 }
 
-/** 开局洗牌(Fisher-Yates,骰子驱动):同 seed 同牌序,抽牌从牌堆顶(pop)出。 */
-export function buildJinnangDeck(dice: { nextFloat(): number }): string[] {
-  const deck = [...JINNANG_DECK_LIST];
-  for (let i = deck.length - 1; i > 0; i--) {
+/** 骰序洗牌(Fisher-Yates,骰子驱动):同 seed 同序,开局牌库与耗尽洗回共用单源。 */
+export function diceShuffle<T>(arr: T[], dice: { nextFloat(): number }): T[] {
+  for (let i = arr.length - 1; i > 0; i--) {
     const j = Math.floor(dice.nextFloat() * (i + 1));
-    [deck[i], deck[j]] = [deck[j], deck[i]];
+    [arr[i], arr[j]] = [arr[j], arr[i]];
   }
-  return deck;
+  return arr;
+}
+
+/** 开局洗牌:目录展平副本骰序打乱,抽牌从牌堆顶(pop)出。 */
+export function buildJinnangDeck(dice: { nextFloat(): number }): string[] {
+  return diceShuffle([...JINNANG_DECK_LIST], dice);
 }
