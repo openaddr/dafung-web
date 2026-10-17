@@ -2,7 +2,20 @@
 
 TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,纯逻辑、可上服务器)+ **瘦客户端**(`src/app/`)。单机模式(1 真人对阵电脑)与联机模式(每人一台设备,WebSocket 同步)。个人项目,朋友圈子自用,**不考虑任何向前/向后兼容性**——需要重构直接改,别把「兼容」「迁移」当理由。
 
-**本文件是路由与红线,不当事实源**:细节在下述文档里,按需读,别在这里找数值。
+**本文件是路由与红线,不当事实源**:细节在下述文档里,按需读,别在这里找数值。**开工第一步看第一章:任何改动先开工作区,不直接改主树。**
+
+## 版本协作(jj;硬纪律:先开工作区,再改任何东西)
+
+本项目用 **jj-vcs**(colocated,.jj 与 .git 共存,git 双通道仅作逃生舱)。**多会话并行是常态,而主树工作副本只有一份;jj 命令自带整树快照,直接改主树会把并行会话的写入折进你的提交(2026-10-17 实锤:一个书签三度被污染)。所以——**
+
+> **任何写盘改动(代码/文档/配置/数据,不分体量)开工前必须先 `jj workspace add ../dafung-web-ws-<代号>`,在 workspace 内干活与交付;主树 @ 只做停靠位(查状态/收账),永不留活。**
+
+- **进场检查**:主树 @ 有非自己生产的内容 = 有别的会话在用——不要 `jj new` 盖上去,自己走 workspace;拿不准就报告用户。
+- **交付**:workspace 内 `jj describe` → `jj bookmark create/move` → `jj git push --bookmark <名>` + PR;谁建谁清(`jj workspace forget <名>` + 删目录)。
+- **收账**(合入后回主树):`jj git fetch` → `jj bookmark move master --to master@origin` → `jj new master`。
+- **push 前核对**:`jj diff --stat` 与预期文件集一致——多出的文件 = 被并行写入折入,先拆再推。
+- **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支单 PR 入库。
+- 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
 
 ## 事实源地图
 
@@ -81,14 +94,6 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - **分层**:工单收口只跑本工单 spec;全量 e2e 每分支一次、PR 前收口,门禁=放行判据(判据、workers 与墙钟预算见开发与测试)。
 - e2e 时间倍率仅测试生效;联机/韧性 spec 用免注入的 `testUnscaled`。
 - **杀进程先验名**:清端口占用必先 `tasklist` 验进程名再杀,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单。
-
-## 版本协作(jj 优先)
-
-本项目用 **jj-vcs(colocated 模式)** 协作:.jj 与 .git 共存,git 双通道全兼容。口径:
-
-- **主线(会话)用 jj**:分支/合并/收账/审查走 jj;**子代理协作走 jj workspace**(`jj workspace add ../dafung-web-ws-<代号>`),网络断可全本地流转,最后统一推。
-- **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支(如 `xuanmo-batch` 先例)单 PR 入库。
-- 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
 
 ## Agent 工作流
 
