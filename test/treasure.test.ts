@@ -420,8 +420,9 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
       maxLevel: def.maxLevel,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
-    // 咸阳 Lv0 premium = 指导价×2 + 300;付不起但有可变卖资产 → 清算自救挂起
-    const price = TREASURE_PRICE[TLEVEL] * 2 + 300;
+    // 宝物城 Lv0 premium = 指导价×城乘数+城加价(随落点城而异,按 def 推导);
+    // 付不起但有可变卖资产 → 清算自救挂起
+    const price = premiumPriceOf(TREASURE_PRICE[TLEVEL], def, 0);
     mover.cash = price - 1;
     mover.treasures.push({ id: "old-t", name: "旧藏", level: 5, count: 1, desc: "" }); // 变卖 600 足额自救
     testEngine(e).landActiveAt(tile.index);

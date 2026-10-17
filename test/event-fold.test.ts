@@ -811,8 +811,8 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
 });
 
 describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
-  // huanyou 咸阳 = tile 1(宝物城;并权后带 propertyId,走城池三分折叠路径)。
-  const XIANGLAND = 1;
+  // huanyou 咸阳 = 宝物城(ADR-0027 环位 P24;并权后带 propertyId,走城池三分折叠路径)。
+  const XIANGLAND = MAP.board.tiles.find((t) => t.propertyId === "prop-xianyang")!.index;
 
   it("无主宝物城:足额 → AwaitingDecision + pendingLand(与普通城同路径)", () => {
     const e = makeEngine();

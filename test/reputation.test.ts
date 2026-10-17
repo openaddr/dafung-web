@@ -8,8 +8,9 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
 const MAP = loadMap(huanyouData);
-const FATE_TILE = 31; // tile-fate-1 天命(huanyou 环位 P31)
-const CHANCE_TILE = 30; // tile-chance-1 锦囊(huanyou 环位 P30)
+const byName = (name: string) => MAP.board.tiles.find((t) => t.name === name)!.index;
+const FATE_TILE = byName("天命"); // tile-fate-1(ADR-0027 环位 P37)
+const CHANCE_TILE = byName("锦囊"); // tile-chance-1(ADR-0027 环位 P41)
 
 function makeEngine(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {

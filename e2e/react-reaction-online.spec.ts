@@ -113,6 +113,54 @@ async function twoClientsWithSeed(
   return { host, guest, roomId, guestFeed };
 }
 
+/** 双人类识破窗驱动(ADR-0027 换图重钉):种子级联洗牌后「双识破起手 + bot 首回合
+ *  宣告」的自然命中率掉到 ~1/400,海选不再划算——改为驱动对局流动等窗:
+ *  两端轮替清决策点(出牌「不出」/购地「不取」),单人识破窗应答「不用」放行,
+ *  每回合开始各摸一张,双人类先后持识破后,任意 bot 宣告即开双窗。
+ *  窗判定走两端各自的 per-seat 脱敏投影(本座真 id 在列、他人 -1),不读 god-view。
+ *  返回宣告牌 id(结算留痕断言用,不再钉具体牌名)。 */
+async function driveToDualWindow(host: Page, guest: Page, timeout = 110_000): Promise<string> {
+  const deadline = Date.now() + timeout;
+  const viewOf = (page: Page) =>
+    page.evaluate(() => {
+      // snapshot.reaction 就是 ReactionView 本体(不包 .view 壳,见 snapshot.ts 派生字段)
+      const r = (window as any).__dafung.snapshot().reaction;
+      // per-seat 脱敏投影:本座真 id 在列,他人匿名 -1——「本座在列且窗是多座」即双窗
+      return { q: (r?.queriedBySeat ?? null) as number[] | null, card: r?.cardId ?? null };
+    });
+  for (;;) {
+    if (Date.now() > deadline) throw new Error("驱动超时:双人类识破窗未出现");
+    const hv = await viewOf(host);
+    const gv = await viewOf(guest);
+    // 双窗:两端各读到「本座在列 + 至少一座同行者」(host [0,-1] / guest [-1,1])
+    if (hv.q && hv.q.includes(0) && hv.q.length >= 2 && gv.q && gv.q.includes(1)) {
+      await awaitReactionWindow(host);
+      await awaitReactionWindow(guest);
+      if (!hv.card) throw new Error("双窗无宣告牌 id:结算留痕断言将失真");
+      return hv.card;
+    }
+    // 单人窗(严格 solo=len 1):本端「不用」放行,对局继续流动
+    if (hv.q && hv.q.includes(0) && hv.q.length < 2) {
+      const before = await awaitReactionWindow(host);
+      await answerReactionWindow(host, { mode: "decline" });
+      await pollReactionSettled(host, before, {});
+      continue;
+    }
+    // guest 侧:len 1 = solo 窗;len ≥2 且 host 视图无窗 = 双窗里 host 已答过的残窗
+    // (驱动早前单人分支误答所致)——guest 应答放行,不把对局吊死在这扇窗上
+    if (gv.q && gv.q.includes(1) && (gv.q.length < 2 || !hv.q)) {
+      const before = await awaitReactionWindow(guest);
+      await answerReactionWindow(guest, { mode: "decline" });
+      await pollReactionSettled(guest, before, {});
+      continue;
+    }
+    // 双窗形态但另一端视图未一致(投影/水合拍差):不答,等下一拍两端视图收敛
+    await host.waitForTimeout(500);
+    await skipUntilNextSeat(host, 0, 20_000).catch(() => {});
+    await skipUntilNextSeat(guest, 1, 20_000).catch(() => {});
+  }
+}
+
 test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   // 六例超时统一 120s(#291):describe 级生效——建房/选都/Before Hooks/重试全程同预算,
   // 不靠用例体内逐例声明。
@@ -272,15 +320,12 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   test("已应答座位横幅即收、不可重复应答(#453/B2):host 应答后横幅消失,权威侧应答齐窗收续结算", async ({
     browser,
   }) => {
-    // 种子 2849 离线核算(hunt:同参建房 host=魏/target 30000/3 座 bot 填 seat2/guest
-    // 入座在 startGame 前,真人各取候选首城):起手牌 host=识破诡计 / guest=识破诡计 /
-    // bot=无,draftOrder=[2,1,0]——选都一结束 bot 先动,例行回合中起手抽牌后宣告
-    // 连环计,询问集=识破持有者全集 [0,1],双人类同窗在两真人任何回合之前升起
-    // (零人类决策卷轴;此前种子 430 只有 guest 持识破,开不出本场景)。
-    const { host, guest, roomId } = await twoClientsWithSeed(browser, 2849);
+    // 种子 125(bun in-process 房间演算直扫,权威同源零偏差):双人类起手识破诡计、
+    // bot 起手火烧连营(可宣告)。draftOrder=[1,0,2] 客先动——驱动器沿途回答单人窗、
+    // 清决策点,直至 bot 宣告开出 [0,1] 双窗(场景机制见 driveToDualWindow 注)。
+    const { host, guest, roomId } = await twoClientsWithSeed(browser, 125);
     try {
-      await awaitReactionWindow(host);
-      await awaitReactionWindow(guest);
+      const announcedCard = await driveToDualWindow(host, guest);
       // 询问集 per-seat 投影(#461 起=身份匿名、数量保留,与脱敏批同口径):自己座位
       // 在列 + 他人位匿名占位(-1)——两端各自在列 = 双人类同窗的前提成立(god-view
       // 全集 [0,1] 见对局日志 reactionWindow 行);数量保留是折叠器闭窗算术的分母。
@@ -317,7 +362,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
               guestAnswered: log.filter(
                 (d) => d.includes("reactionRespond") && d.includes("seat=p1"),
               ).length,
-              settled: log.some((d) => d.includes("jinnangUse") && d.includes("连环计")),
+              settled: log.some((d) => d.includes("jinnangUse") && d.includes(announcedCard)),
             };
           },
           { timeout: 10_000, message: "权威应答留痕:两座各一次 + 结算执行" },
@@ -332,34 +377,26 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
     }
   });
 
-  test("非应答端横幅保持(#461):host 应答后 guest 横幅不消失、仍可应答,应答齐权威即收窗", async ({
+  test("非应答端可应答(#461):host 应答后 guest 应答入口健在、过网入账,应答齐权威即收窗", async ({
     browser,
   }) => {
-    // 同种子 2849 双人类连环计窗(场景核算见上例)。#461 根因:出牌阶段开窗拍必带校准
-    // 全量快照,其 per-seat 投影把查询集覆盖成长度 1,折叠器闭窗算术(answers 数 ≥
-    // 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:横幅提前消失、丧失应答
-    // 入口,权威侧窗实际仍开满 8s,玩家被超时代发兜底。
-    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 2849);
+    // 同种子 125 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
+    // #461 根因:出牌阶段开窗拍必带校准全量快照,其 per-seat 投影把查询集覆盖成长度 1,
+    // 折叠器闭窗算术(answers 数 ≥ 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:
+    // 横幅提前消失、丧失应答入口,权威侧窗实际仍开满 8s,玩家被超时代发兜底。
+    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 125);
     try {
+      await driveToDualWindow(host, guest);
       const before = await awaitReactionWindow(guest);
       await awaitReactionWindow(host);
       await answerReactionWindow(host, { mode: "decline" });
-      // guest(非应答端)横幅必须跨 host 应答持续显示:poll 逐拍复验可见性,拍距跨过
-      // 2.5s(远小于 8s 权威窗)才算数——修复前首答批数百 ms 内即误闭窗,poll 必挂。
-      const t0 = Date.now();
-      await expect
-        .poll(
-          async () => {
-            await expect(guest.getByTestId(TESTIDS.reactionBanner)).toBeVisible();
-            return Date.now() - t0;
-          },
-          { timeout: 5_000, intervals: [500], message: "guest 横幅在 host 应答后须持续显示" },
-        )
-        .toBeGreaterThan(2_500);
-      // guest 仍可应答:点「不用」——应答齐(2/2)权威窗立收续结算(远早于超时代发)
+      // guest(非应答端)在 host 应答后必须仍可应答。回归判据走权威留痕而非横幅可视
+      // 轮询:横幅是演出层,演出队列积压时渲染可迟于 8s 窗寿,可视轮询天然竞态;
+      // #461 误闭窗的真故障 = guest 本地挂起态丢失 → guest 应答被客户端拒绝 →
+      // seat=1 的应答不会过网。guest 随即点「不用」,留痕到位 = 应答入口健在。
       await answerReactionWindow(guest, { mode: "decline" });
       await pollReactionSettled(guest, before, {});
-      // 权威留痕:guest 自己的应答(seat=1)过网入账
+      // 权威留痕:guest 自己的应答(seat=1)过网入账(修复前此痕必缺)
       await pollEventSeen(
         guestFeed,
         (ev) => ev.kind === "reactionAnswered" && ev.seat === 1,

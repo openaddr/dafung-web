@@ -18,7 +18,8 @@ import { useNetStore } from "../src/app/store/netStore";
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
-/** seed 7:人类先手(react-helpers 离线核算同源),构造返回即停在人类选都三选一。 */
+/** seed 1:人类先手(ADR-0027 换图重钉:候选采样吃坐标,seed 7 先手漂成 bot),
+ * 构造返回即停在人类选都三选一。 */
 function makeController(): LocalController {
   return new LocalController(MAP, {
     seats: [
@@ -26,7 +27,7 @@ function makeController(): LocalController {
       { name: "诸侯2", isBot: true },
       { name: "诸侯3", isBot: true },
     ],
-    seed: 7,
+    seed: 1,
     mapId: "huanyou",
   });
 }
@@ -58,7 +59,10 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
       expect(c.engine.phase).toBe("Playing");
       expect(useGameStore.getState().snapshot?.phase).toBe("Playing");
       expect(useNetStore.getState().eventBatchSeq).toBeGreaterThan(0); // events 通道已驱动
-      expect(c.interactive).toBe(true); // 轮到人类(seed 7 首回合),无在途命令
+      // 轮到人类且表现链已排空(选都浮字×3 + 开局横幅 >100ms,负载下更久——轮询等闲)
+      const deadline = Date.now() + 3000;
+      while (!c.interactive && Date.now() < deadline) await sleep(50);
+      expect(c.interactive).toBe(true);
     } finally {
       c.destroy();
     }

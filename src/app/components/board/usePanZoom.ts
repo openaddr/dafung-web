@@ -5,23 +5,50 @@
 // BoardView 全量 reconciliation(40 城 + 棋子层)。现改为把当前 viewBox 存 ref,
 // 直接对 <svg> setAttribute("viewBox") 命令式更新;React 侧只在挂载时写入一次
 // 初始总览值(BoardView 传常量 prop,此后 React 不再触碰该属性)。
+//
+// ADR-0027:总览视口不再硬编码(FIT_VIEW 常量随 #58 老布局漂移,东西延伸列
+// 加入后左右各空 ~12%),改由 computeFitView 按当图城池包围盒动态推导——
+// 环游图/中原图/自制图统一自适应,「改图忘改视口」这类漂移从此绝根。
 import { useCallback, useEffect, useRef, useState } from "react";
-
-/** 总览 viewBox(贴紧城池范围 + 边距)。
- *  #58 蛇形全网格重排:7 列 × 400 / 6 行 × 310 → 城池包围盒
- *  x -1236..1436(城台底座半宽 62×2.2)、y -945..906(王旗顶 -91×2.2 ~ 价格字底 46×2.2),
- *  即内容 2672×1851 @中心 (100,-20)。边距 ~3% 并保持宽高比 5/3=1.667
- *  (与 StaticLayers VB 同比例,preserveAspectRatio 不产生新留白)。 */
-export const FIT_VIEW = { x: -1490, y: -974, w: 3180, h: 1908 } as const;
-
-/** 总览 viewBox 属性串(BoardView 作初始 prop 一次性下发,React 之后不再改写)。 */
-export const FIT_VIEW_BOX = `${FIT_VIEW.x} ${FIT_VIEW.y} ${FIT_VIEW.w} ${FIT_VIEW.h}`;
+import type { BoardPos } from "@core/board";
 
 const MAX_ZOOM = 8;
 // #38:允许超出总览边界约 = 边缘渐隐带(EDGE_PAD=700)的一半——pan 到极限时
 // 视口恰好落在地形渐隐带中段,能看到"纸面平滑淡出到页面背景"的效果(旧值 140
 // 根本平移不到渐隐区,是 #38"看不到效果"的根因之一)。
 const OVER = 350;
+
+/** 总览内容外扩口径(与 Tile 层实际占面对齐,单位 = 世界坐标):
+ *  - 两侧:城台半宽 104×2.2/2 ≈ 115;边界竖边避城弧线外凸 ≤160(sideArc 档位上限)
+ *  - 上方:王旗顶约 −91×2.2 ≈ −200(旗高于城台)
+ *  - 下方:价格字底约 46×2.2 ≈ 101;横边弧线外凸 ≤160 压倒字底
+ *  再加 4% 呼吸边距。宽高比随内容(不再钉 5/3——容器失配交给
+ *  preserveAspectRatio meet,地形层 EDGE_PAD 渐隐带负责补边)。 */
+const PAD_SIDE = 180;
+const PAD_TOP = 220;
+const PAD_BOTTOM = 180;
+const BREATH = 1.04;
+
+/** 按当图城池包围盒推导总览 viewBox(纯函数;BoardView 挂载时算一次)。 */
+export function computeFitView(tiles: readonly { position: BoardPos }[]): ViewBox {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const { position: p } of tiles) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const x0 = minX - PAD_SIDE,
+    y0 = minY - PAD_TOP,
+    x1 = maxX + PAD_SIDE,
+    y1 = maxY + PAD_BOTTOM;
+  const w = (x1 - x0) * BREATH,
+    h = (y1 - y0) * BREATH;
+  return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+}
 
 export interface ViewBox {
   x: number;
@@ -30,11 +57,11 @@ export interface ViewBox {
   h: number;
 }
 
-function clampVb(v: ViewBox): ViewBox {
-  const w = Math.max(FIT_VIEW.w / MAX_ZOOM, Math.min(FIT_VIEW.w, v.w));
-  const h = Math.max(FIT_VIEW.h / MAX_ZOOM, Math.min(FIT_VIEW.h, v.h));
-  const x = Math.max(FIT_VIEW.x - OVER, Math.min(FIT_VIEW.x + FIT_VIEW.w - w + OVER, v.x));
-  const y = Math.max(FIT_VIEW.y - OVER, Math.min(FIT_VIEW.y + FIT_VIEW.h - h + OVER, v.y));
+function clampVb(v: ViewBox, fit: ViewBox): ViewBox {
+  const w = Math.max(fit.w / MAX_ZOOM, Math.min(fit.w, v.w));
+  const h = Math.max(fit.h / MAX_ZOOM, Math.min(fit.h, v.h));
+  const x = Math.max(fit.x - OVER, Math.min(fit.x + fit.w - w + OVER, v.x));
+  const y = Math.max(fit.y - OVER, Math.min(fit.y + fit.h - h + OVER, v.y));
   return { x, y, w, h };
 }
 
@@ -56,9 +83,9 @@ export interface PanZoom {
   getView: () => ViewBox;
 }
 
-export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZoom {
+export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: ViewBox): PanZoom {
   // 真源:ref 里的当前 viewBox(命令式更新,不触发 React 渲染)。
-  const view = useRef<ViewBox>({ ...FIT_VIEW });
+  const view = useRef<ViewBox>({ ...fit });
   const apply = useCallback(() => {
     const el = svgRef.current;
     if (!el) return;
@@ -67,10 +94,10 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
   }, [svgRef]);
   const setView = useCallback(
     (next: ViewBox) => {
-      view.current = clampVb(next);
+      view.current = clampVb(next, fit);
       apply();
     },
-    [apply],
+    [apply, fit],
   );
 
   // 多指追踪(P0-5):单指=平移;双指=按两指距离比缩放、以中点为锚(与 wheel 同源算法)。
@@ -189,8 +216,8 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>): PanZo
   );
 
   const reset = useCallback(() => {
-    setView({ ...FIT_VIEW });
-  }, [setView]);
+    setView({ ...fit });
+  }, [setView, fit]);
 
   const getView = useCallback(() => ({ ...view.current }), []);
 

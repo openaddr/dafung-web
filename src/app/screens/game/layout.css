@@ -192,6 +192,15 @@
   inset: 0 0 calc(172px + var(--safe-bottom)) 0;
   overflow: hidden;
 }
+/* ADR-0027 满格总览铺满后,右列城池铭牌不再藏在留白里,而是正对席位竖卡列——
+   棋盘区让位一列卡宽(104 卡 + 12 气口 + 12 余量);4-6 席的左列存在时左缘同款。
+   :has 随 SeatRail 实际渲染的列开合,7+ 席顶行缩微(不占左右列)时棋盘回满幅。 */
+.game-layout .board-area:has(~ .seat-rail .seatcol) {
+  right: 128px;
+}
+.game-layout .board-area:has(~ .seat-rail .seatcol.left) {
+  left: 128px;
+}
 
 /* ── 顶部条:回合 chip + 活跃方 | 牌库/弃牌 + 角钮 ── */
 .game-layout .topbar {
@@ -956,7 +965,10 @@
     gap: 5px;
   }
 
-  .game-layout .board-area {
+  /* 短横屏:席位卡折右上横排,左右让位不适用(让 128px 也躲不开横排),棋盘回满幅 */
+  .game-layout .board-area,
+  .game-layout .board-area:has(~ .seat-rail .seatcol),
+  .game-layout .board-area:has(~ .seat-rail .seatcol.left) {
     inset: 0 0 calc(132px + var(--safe-bottom)) 0;
   }
   .game-layout .dash {
