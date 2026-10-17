@@ -5,7 +5,9 @@
 //   横幅 — FX.bannerMs 必须大于 CSS 演出全长 Motion.dur.banner(余量为正,播完有余再清),
 //          FX.bannerHoldMs 必须小于 FX.bannerMs(停留窗是编排窗的子区间);
 //   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
-//          (含 bot)结束后都有 ≥300ms 可读结果);S7 两段式 bot 半速语义(bot 摇签
+//          (含 bot)结束后都有 ≥300ms 可读结果;终局封场豁免:胜利屏挂载即封场
+//          (orchestrator.finishPresentation),终局局的骰子可在事件边界被整体截断,
+//          是生命周期规则不是回归);S7 两段式 bot 半速语义(bot 摇签
 //          严格短于人类摇签);
 //   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点双印错拍 < 合印拍 <
 //          双印清理窗(合印播完有余再清);

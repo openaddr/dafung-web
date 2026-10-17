@@ -13,7 +13,7 @@ import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { extractBatchEvents } from "../src/app/fx/event-extract";
-import { present, resetFxOrchestration } from "../src/app/fx/orchestrator";
+import { finishPresentation, present, resetFxOrchestration } from "../src/app/fx/orchestrator";
 import { createMemorySink } from "../src/app/fx/sinks";
 import { useFxStore } from "../src/app/fx/fxStore";
 import type { PresentationEvent } from "../src/app/fx/presentation";
@@ -1089,6 +1089,75 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     const sink = createMemorySink();
     await present([], sink);
     expect(sink.calls).toEqual([]);
+  });
+});
+
+// ─────────────── 终局封场(present 事件边界收队,orchestrator.finishPresentation)───────────────
+describe("终局封场 finishPresentation(present 事件边界收队)", () => {
+  const pathOf = (land: number) => ({
+    from: 0,
+    traversed: [land],
+    landIndex: land,
+    passedCapital: false,
+    capitalIndex: -1,
+    waypoints: [],
+  });
+
+  it("播中封场:在途事件播完即收队——剩余事件不播、未开播行军接管被收回,正常 resolve 不 reject", async () => {
+    useFxStore.getState().resetFx();
+    const sink = createMemorySink();
+    // anchorMarches(play() 拍)会把批内全部 tokenMoved 预塞行军接管——memorySink
+    // 的 marchBegin 只录制不接管,这里手工模拟锚定后的接管集。
+    useFxStore.getState().addMarching("p1");
+    useFxStore.getState().addMarching("p2");
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    const sinkGate = {
+      ...sink,
+      async marchToken(playerId: string, path: MovePath) {
+        if (playerId === "p1") await gate; // 挂起 p1:封场恰好钉在两段行军之间
+        sink.calls.push({ op: "march", playerId, path });
+      },
+    };
+    const events: PresentationEvent[] = [
+      { kind: "diceRolled", die: 3 },
+      { kind: "tokenMoved", playerId: "p1", path: pathOf(2) },
+      { kind: "tokenMoved", playerId: "p2", path: pathOf(5) },
+      { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
+    ];
+    const done = present(events, sinkGate);
+    await tick(); // 骰子已播,p1 行军挂起中
+    finishPresentation();
+    release();
+    await done; // 生命周期规则收队必须正常 resolve——throw 会被 SnapshotEffects 记成表现异常
+    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "march"]); // p2 行军与横幅未播
+    expect(useFxStore.getState().marching.has("p2")).toBe(false); // 不收回则棋子冻结在起点挂金边
+    resetFxOrchestration(); // 解封复原:封场态不得泄漏给后续用例/文件(bun test 单进程顺序跑)
+  });
+
+  it("封场后新批:整批不播,批内行军接管一并收回", async () => {
+    useFxStore.getState().resetFx();
+    const sink = createMemorySink();
+    useFxStore.getState().addMarching("p9"); // 同上,模拟 play() 拍的锚定
+    finishPresentation();
+    await present(
+      [
+        { kind: "tokenMoved", playerId: "p9", path: pathOf(3) },
+        { kind: "cashDelta", playerId: "p9", amount: 5, x: 0, y: 0, atTile: 3 },
+      ],
+      sink,
+    );
+    expect(sink.calls).toEqual([]);
+    expect(useFxStore.getState().marching.has("p9")).toBe(false);
+    resetFxOrchestration();
+  });
+
+  it("resetFxOrchestration 解封:封场后 reset,后续 present 照常全量播", async () => {
+    finishPresentation();
+    resetFxOrchestration();
+    const sink = createMemorySink();
+    await present([{ kind: "sound", event: "treasure" }], sink);
+    expect(sink.calls).toEqual([{ op: "sound", event: "treasure" }]);
   });
 });
 
