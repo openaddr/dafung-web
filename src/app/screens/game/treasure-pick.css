@@ -86,6 +86,20 @@
   border-color: transparent;
   color: var(--color-paper-hi);
 }
+/* 坐地未选双行价签:指导价在上(淡=基准)、要价在下(浓=实得);卡格列宽 128px,
+   横排算式放不下,分解式归底部结算行,签内只两行并置 */
+.treasure-pick .treasure-pick-ask {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+.treasure-pick .treasure-pick-ask > span {
+  color: var(--color-ink-dim);
+}
+.treasure-pick .treasure-pick-ask b {
+  font-weight: 400;
+}
 
 /* ── 底部条:返回 + 结算预览 + 二段式成交(backpack .trade-foot 制式)── */
 .treasure-pick .treasure-pick-foot {

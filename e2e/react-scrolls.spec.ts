@@ -15,7 +15,7 @@ import {
   waitFxIdle,
 } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
-import { guidePriceOf } from "../src/core/treasures";
+import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
 
 test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);
@@ -75,6 +75,19 @@ test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }
   await expect(pick).toContainText("坐地起价"); // 标题随口径
   const item = page.getByTestId("scroll-treasure-item-seal");
   await expect(item).toBeVisible();
+  // 坐地价签:未选=双行「指导价+要价」,要价与引擎结算同一 premiumPriceOf(单源;
+  // 种植 holding level=1,城定义无 trade 字段→两侧行同一回退分支)
+  const guide = guidePriceOf(3);
+  const def = await engineState(page, "e.treasureVisitor.def");
+  const ask = premiumPriceOf(guide, def, 1);
+  await expect(item).toContainText(`指导价 ${fmtMoney(guide)}`);
+  await expect(item).toContainText(`要价 ${fmtMoney(ask)}`);
+  // 点选:价签转「成交 · 至 要价」,结算行给分解式「指导价 + 加价 = 入账」
+  await item.click();
+  await expect(item).toContainText(`成交 · 至 ${fmtMoney(ask)}`);
+  await expect(pick).toContainText(
+    `指导价 ${fmtMoney(guide)} + 加价 ${fmtMoney(ask - guide)} = 入账 ${fmtMoney(ask)}`,
+  );
   // 返回:关层回模式选择步(本地状态回退,不发命令)
   await page.getByTestId("scroll-treasure-back").click();
   await expect(pick).toBeHidden();
