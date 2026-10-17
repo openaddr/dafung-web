@@ -228,8 +228,9 @@ function consumeJinnangCard(
 
 /** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(浮字+出牌指示线留痕)→
  *  JinnangAnnounced 时机 → 持识破诡计者(使用者除外)询问窗;无有效识破则照常执行。
- *  主动技不经此口(fireHeroSkill 直结算,#229 口径:主动技不可被识破);反应牌自身永经
- *  出牌阶段「唯反应」灰置,不经 announce 通道(识破不可被识破的另一半保证)。 */
+ *  主动技不经此口(fireHeroSkill 直结算,#229 口径:主动技不可被识破);反应牌不经
+ *  出牌阶段「唯反应」灰置,根窗永不挂反应牌——识破自身的反制走 reaction-window
+ *  链环窗(payload.counter,反识破,#571 ADR-0027)。 */
 function settleJinnangPlay(
   g: GameEngine,
   user: Player,

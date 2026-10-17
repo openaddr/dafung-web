@@ -20,7 +20,7 @@ export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others" |
 /** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地;
  *  #281 反应牌(counter/ambush)在反应窗结算,不经 executeJinnang 常规通道)。 */
 export type JinnangEffect =
-  | { kind: "counter" } // 识破诡计(反应):被公告锦囊的那一份对目标失效;识破不可被识破
+  | { kind: "counter" } // 识破诡计(反应):被公告锦囊的那一份对目标失效;识破亦可被识破(反识破链,ADR-0027)
   | { kind: "ambush" } // 半路杀出(反应):他人行军途经己城,城主打出与之拼点拦停
   | { kind: "grantHero"; fallbackCash: number } // 求贤令:招贤一枚,名将尽折现
   | { kind: "levyAll"; amount: number } // 横征暴敛:全体其他玩家各付(上限=现金,不清算)
@@ -96,7 +96,7 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
     copies: 2,
     tags: ["即时"],
     targetDomain: "reaction",
-    text: "他人锦囊指定任意目标时,可在反应窗打出:此计对那一份失效。识破不可被识破。",
+    text: "他人锦囊指定任意目标时,可在反应窗打出:此计对那一份失效。识破亦可被识破。",
     effect: { kind: "counter" },
   },
   {
@@ -117,7 +117,8 @@ export const JINNANG_CARDS: JinnangCardDef[] = [
   },
 ];
 
-/** 纯反应牌判定(#281 单源):reaction 域 = 只在反应窗打出,不经出牌阶段/announce 通道。
+/** 纯反应牌判定(#281 单源):reaction 域 = 只在反应窗打出,不经出牌阶段(反识破链环
+ *  的公开宣布在 reaction-window 链环窗,#571 ADR-0027,不经出牌通道)。
  *  choices(出牌阶段灰置「唯反应」)、bot(反应决策)与引擎挂点共用此判定。 */
 export function isReactionCard(def: JinnangCardDef): boolean {
   return def.targetDomain === "reaction";

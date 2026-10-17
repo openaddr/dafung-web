@@ -77,6 +77,24 @@ export type ReactionPayload =
       targets: number[];
     }
   | {
+      /** 反识破链环(#571,ADR-0027):被公告的是一张识破诡计,站住则其否定生效。 */
+      kind: "counter";
+      /** 识破使用者(本环公告者)。 */
+      userSeat: number;
+      /** 本环打出的反应牌 id(目录唯一 counter=「识破诡计」)。 */
+      cardId: string;
+      /** 链根:被拆的原锦囊上下文(链终续根结算)。 */
+      root: { userSeat: number; cardId: string; targets: number[] };
+      /** 本环争夺的份(all-others 根=具体座位;one/self=其唯一份;连环计=整计,省略)。 */
+      shareSeat?: number;
+      /** 已定案的豁免份集(兄弟链累积;根结算并入 exempt)。 */
+      negated: number[];
+      /** 本环站住时根锦囊的待遇:true=该份被保住(整计域=作废生效);false=本环已被反(份照常受击/整计恢复)。 */
+      protects: boolean;
+      /** 待续兄弟链环(AOE 各份座位序第一张,牌已随 W1 收窗扣账;本链收口后逐环宣布)。 */
+      upcoming: { seat: number; cardId: string; shareSeat?: number }[];
+    }
+  | {
       /** 行军途经城池被挂起:拦停成功则止步该城照常落格,否则续走余下途经格。 */
       kind: "march";
       moverSeat: number;
@@ -151,7 +169,9 @@ export function openReactionWindow(
     .join("+");
   const brief =
     view.kind === "jinnang"
-      ? `${user.guohao} 使用锦囊【${view.cardId}】,反应窗开启`
+      ? payload.kind === "counter"
+        ? `${user.guohao} 打出【${view.cardId}】(反识破),反应窗开启`
+        : `${user.guohao} 使用锦囊【${view.cardId}】,反应窗开启`
       : `${user.guohao} 行军途经 ${g.players[view.ownerSeat].guohao} 的城池,可【${view.cardId}】拦检`;
   g.logEvent(
     "system",
@@ -247,23 +267,33 @@ export function respondReaction(
       return;
     }
     if (pr.view.kind === "jinnang") {
-      // 份校验:AOE 必带且须在受影响名单内;连环计可省略(任意一张识破即全计作废),
-      // 带了须合法;self/one 份额唯一,shareSeat 不参与语义。
-      const domain = jinnangCardOf(pr.view.cardId).targetDomain;
-      if (
-        domain === "all-others" &&
-        (shareSeat == null || !pr.view.targetSeats.includes(shareSeat))
-      ) {
-        g.warn(`respondReaction:识破【${pr.view.cardId}】须指定被保护份`);
-        return;
-      }
-      if (
-        domain === "two-others" &&
-        shareSeat != null &&
-        !pr.view.targetSeats.includes(shareSeat)
-      ) {
-        g.warn(`respondReaction:shareSeat ${shareSeat} 非【${pr.view.cardId}】的目标`);
-        return;
+      if (pr.payload.kind === "jinnang") {
+        // 份校验(根窗):AOE 必带且须在受影响名单内;连环计可省略(任意一张识破即全计作废),
+        // 带了须合法;self/one 份额唯一,shareSeat 不参与语义。
+        const domain = jinnangCardOf(pr.view.cardId).targetDomain;
+        if (
+          domain === "all-others" &&
+          (shareSeat == null || !pr.view.targetSeats.includes(shareSeat))
+        ) {
+          g.warn(`respondReaction:识破【${pr.view.cardId}】须指定被保护份`);
+          return;
+        }
+        if (
+          domain === "two-others" &&
+          shareSeat != null &&
+          !pr.view.targetSeats.includes(shareSeat)
+        ) {
+          g.warn(`respondReaction:shareSeat ${shareSeat} 非【${pr.view.cardId}】的目标`);
+          return;
+        }
+      } else {
+        // 份校验(反识破链环,#571):争夺份由载荷携带,应答不带份;带错份拒绝。
+        if (pr.payload.kind !== "counter")
+          throw new Error("respondReaction:jinnang 窗挂 march 载荷(状态机 bug)"); // 零兜底
+        if (shareSeat != null && shareSeat !== pr.payload.shareSeat) {
+          g.warn(`respondReaction:反识破应答份 ${shareSeat} 与争夺份不符`);
+          return;
+        }
       }
     }
   }
@@ -274,20 +304,90 @@ export function respondReaction(
   }
 }
 
-/** 反应窗续结算(pr 已离场 pendingReaction):按窗种类分派。深呼吸约束(#281):
- *  识破结算直接续执行原锦囊,不再开新反应窗(识破不可被识破);拦检结算(拼点/止步
- *  落格)不再询问——续走途经的「下一座城」是新挂点,不属窗内结算。 */
+/** 反应窗续结算(pr 已离场 pendingReaction):按窗种类分派。识破窗按载荷分支:根窗
+ *  (payload.jinnang)=锦囊宣布的拆招,链环窗(payload.counter,#571 ADR-0027)=反识破,
+ *  链环经相位窗逐环开问、开窗即返回不加深(「效果内禁同步再派发时机」红线约束的是
+ *  effect 帧,窗结算走命令帧,不破);拦检结算(拼点/止步落格)不再询问——续走途经的
+ *  「下一座城」是新挂点,不属窗内结算。 */
 function resolveReactionWindow(g: GameEngine, pr: PendingReaction): void {
   if (pr.view.kind === "jinnang") settleCounterWindow(g, pr);
   else settleAmbushWindow(g, pr);
 }
 
-/** 识破窗结算:座位序逐张生效(AOE 各拆各份;同份/连环计多张识破按座位序第一张生效,
- *  其余原样退回手牌不消耗);无有效识破则照常执行被公告锦囊。 */
+/** 识破窗结算分发:根窗与反识破链环窗共用相位(AwaitingReaction),按载荷种类分流。 */
 function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
-  if (pr.view.kind !== "jinnang" || pr.payload.kind !== "jinnang")
-    throw new Error("识破窗结算:载荷与公告不符(状态机 bug)"); // 零兜底
+  if (pr.view.kind !== "jinnang") throw new Error("识破窗结算:载荷与公告不符(状态机 bug)"); // 零兜底
+  if (pr.payload.kind === "jinnang") settleRootCounterWindow(g, pr);
+  else if (pr.payload.kind === "counter") settleChainCounterWindow(g, pr);
+  else throw new Error("识破窗结算:march 载荷挂 jinnang 窗(状态机 bug)"); // 零兜底
+}
+
+/** 反识破链环宣布(#571,ADR-0027):牌已随应答收窗扣账,此处只公开宣布——走
+ *  JinnangAnnounced 时机(公开事件+出牌线,与根锦囊同口),持识破者(本环打出者除外,
+ *  含链根使用者救计)开下一环询问窗;无人可反不开窗,本环立即站住(#281「不开窗直接
+ *  结算」同口径)。protects=本环站住时争夺份的待遇:根窗首环恒 true(保住);链环窗
+ *  逐环翻转(反识破站住=上一环作废=该份恢复受击)。 */
+function announceCounterLink(
+  g: GameEngine,
+  seat: number,
+  cardId: string,
+  share: number | undefined,
+  root: Extract<ReactionPayload, { kind: "counter" }>["root"],
+  negated: number[],
+  upcoming: Extract<ReactionPayload, { kind: "counter" }>["upcoming"],
+  protects: boolean,
+): void {
+  const responder = g.players[seat];
+  g.pushFloaterText(responder, `${responder.guohao} 打出【${cardId}】`, responder.position);
+  g.logEvent(
+    "system",
+    responder.guohao,
+    `${responder.guohao} 打出【${cardId}】,欲拆 ${g.players[root.userSeat].guohao} 的【${root.cardId}】`,
+    `reactionCounterAnnounce by=${responder.id} root=${root.cardId}${share != null ? ` share=${g.players[share].id}` : ""}`,
+  );
+  g.dispatchMoment("JinnangAnnounced", {
+    subject: seat,
+    cardId,
+    targetSeats: share != null ? [share] : [],
+  }); // 时机·JinnangAnnounced:识破宣布(链环与根同口,事件流公开)
+  const payload: ReactionPayload = {
+    kind: "counter",
+    userSeat: seat,
+    cardId,
+    root: { ...root, targets: [...root.targets] },
+    negated: [...negated],
+    protects,
+    upcoming: upcoming.map((u) => ({ ...u })),
+    ...(share != null ? { shareSeat: share } : {}),
+  };
+  const queried = g
+    .alivePlayers()
+    .map((p) => g.players.indexOf(p))
+    .filter(
+      (s) =>
+        s !== seat &&
+        g.players[s].jinnangHand.some((id) => jinnangCardOf(id).effect.kind === "counter"),
+    );
+  if (queried.length === 0) {
+    settleCounterStands(g, payload);
+    return;
+  }
+  const view: ReactionViewSeed = {
+    kind: "jinnang",
+    cardId,
+    userSeat: seat,
+    targetSeats: share != null ? [share] : [],
+    queriedBySeat: queried,
+  };
+  openReactionWindow(g, view, payload); // bot 全代答时窗在开窗调用内即席结算
+}
+
+/** 识破根窗结算(#281 结算面 + #571 链化):座位序逐张生效,每份/整计的座位序第一张从
+ *  「直接生效」改为宣布进反识破链;同窗同份其余原样退回手牌不消耗;无有效识破则照常
+ *  执行被公告锦囊。链环牌随本窗收窗即扣账(应答=打出;兄弟环先扣防双耗,被反也不回手)。 */
+function settleRootCounterWindow(g: GameEngine, pr: PendingReaction): void {
   const payload = pr.payload;
+  if (payload.kind !== "jinnang") throw new Error("识破根窗结算:载荷不符(状态机 bug)"); // 零兜底
   const user = g.players[payload.userSeat];
   const def = jinnangCardOf(payload.cardId);
   const plays = pr.answers.filter((a) => a.use).sort((a, b) => a.seat - b.seat); // 座位序确定性
@@ -296,85 +396,183 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
     g.settleJinnangExit();
     return;
   }
+  const root = {
+    userSeat: payload.userSeat,
+    cardId: payload.cardId,
+    targets: [...payload.targets],
+  };
   switch (def.targetDomain) {
     case "two-others": {
-      // 连环计:任意一张识破即全计作废(缺角,与平局作废同逻辑);座位序第一张生效,
-      // 其余识破原样退回手牌不消耗
-      const first = plays[0];
+      // 连环计:座位序第一张进链(缺角语义链终裁决:站住=全计作废,被反=恢复),其余退回
+      const first = plays[0]!;
       consumeReactionCard(g, first.seat, first.cardId!);
-      const responder = g.players[first.seat];
-      g.pushFloaterText(responder, `识破!【${def.id}】作废`, responder.position);
-      g.logEvent(
-        "system",
-        responder.guohao,
-        `${responder.guohao} 识破【${def.id}】,此计作废`,
-        `reactionCounter card=${def.id} by=${responder.id} voided=all`,
-      );
-      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(连环计全计作废)
+      announceCounterLink(g, first.seat, first.cardId!, undefined, root, [], [], true);
       returnSupersededCounters(g, plays.slice(1), def.id);
-      g.settleJinnangExit();
       return;
     }
     case "all-others": {
-      // AOE 按份拆:每份(每个被指定者)只免其中一份;多持牌者各拆各份,同份多张按
-      // 座位序第一张生效,其余退回(每份计只问一轮,不重复询问)
-      const negated = new Set<number>();
-      const consumed = new Set<ReactionAnswer>();
+      // AOE 按份拆:每份座位序第一张进各自反识破链(兄弟链按座位序串行),同份其余退回
+      const claimed = new Set<number>();
+      const upcoming: Extract<ReactionPayload, { kind: "counter" }>["upcoming"] = [];
+      const superseded: ReactionAnswer[] = [];
+      let first: ReactionAnswer | null = null;
       for (const play of plays) {
         const share = play.shareSeat;
         if (share == null) throw new Error(`识破窗结算:${def.id} 的识破缺 shareSeat(命令校验缺口)`); // 零兜底
-        if (negated.has(share)) continue; // 该份已被座位序更小的识破保下:此张退回
-        consumeReactionCard(g, play.seat, play.cardId!);
-        negated.add(share);
-        consumed.add(play);
-        const responder = g.players[play.seat];
-        const shielded = g.players[share];
-        g.pushFloaterText(
-          shielded,
-          `${responder.guohao} 识破,${shielded.guohao} 免于【${def.id}】`,
-          shielded.position,
-        );
-        g.logEvent(
-          "system",
-          responder.guohao,
-          `${responder.guohao} 识破【${def.id}】,${shielded.guohao} 那一份失效`,
-          `reactionCounter card=${def.id} by=${responder.id} share=${shielded.id}`,
-        );
-        emitGameEvent(g, play.seat, { kind: "jinnangVoided", cardId: def.id, shareSeat: share }); // 事件流(#375):识破生效(该份失效)
+        if (claimed.has(share)) {
+          superseded.push(play); // 该份已被座位序更小的识破占住:此张退回
+          continue;
+        }
+        claimed.add(share);
+        consumeReactionCard(g, play.seat, play.cardId!); // 收窗即扣账(兄弟环防双耗)
+        if (first == null) first = play;
+        else upcoming.push({ seat: play.seat, cardId: play.cardId!, shareSeat: share });
       }
-      returnSupersededCounters(
-        g,
-        plays.filter((p) => !consumed.has(p)),
-        def.id,
-      );
-      g.executeJinnang(user, payload.userSeat, def, payload.targets, negated);
-      g.settleJinnangExit();
+      if (first == null) throw new Error("识破根窗结算:AOE 有应答但无首张(状态机 bug)"); // 零兜底
+      returnSupersededCounters(g, superseded, def.id);
+      announceCounterLink(g, first.seat, first.cardId!, first.shareSeat, root, [], upcoming, true);
       return;
     }
     case "one":
     case "self": {
-      // 单份计(self 的份=使用者自身):座位序第一张识破生效,此计对那份失效=整计落空;
-      // 其余退回
-      const first = plays[0];
-      consumeReactionCard(g, first.seat, first.cardId!);
+      // 单份计(self 的份=使用者自身):座位序第一张进链,整计落空在链终裁决;其余退回
+      const first = plays[0]!;
       const share = def.targetDomain === "self" ? payload.userSeat : payload.targets[0];
-      const responder = g.players[first.seat];
-      g.pushFloaterText(responder, `识破!【${def.id}】落空`, responder.position);
-      g.logEvent(
-        "system",
-        responder.guohao,
-        `${responder.guohao} 识破【${def.id}】,此计落空`,
-        `reactionCounter card=${def.id} by=${responder.id} share=${g.players[share].id}`,
-      );
-      emitGameEvent(g, first.seat, { kind: "jinnangVoided", cardId: def.id }); // 事件流(#375):识破生效(此计落空)
+      consumeReactionCard(g, first.seat, first.cardId!);
+      announceCounterLink(g, first.seat, first.cardId!, share, root, [], [], true);
       returnSupersededCounters(g, plays.slice(1), def.id);
-      g.settleJinnangExit();
       return;
     }
     case "reaction":
-      // 反应牌不可被识破(#281 红线):反应牌永不经 announce 通道,挂不起识破窗
-      throw new Error(`识破窗挂起了反应牌【${def.id}】(状态机 bug)`);
+      // 根窗不挂反应牌:反应牌不经出牌阶段/出牌通道,链环窗走 payload.counter(状态机 bug)
+      throw new Error(`识破根窗挂起了反应牌【${def.id}】(状态机 bug)`);
   }
+}
+
+/** 反识破链环窗结算(#571,ADR-0027):座位序第一张反识破生效=本环识破作废(已扣账
+ *  不回手,事件+浮字落账),进下一环;同窗其余退回;无有效反识破则本环站住,链终裁定
+ *  根锦囊待遇。 */
+function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
+  const payload = pr.payload;
+  if (payload.kind !== "counter") throw new Error("反识破链环结算:载荷不符(状态机 bug)"); // 零兜底
+  const plays = pr.answers.filter((a) => a.use).sort((a, b) => a.seat - b.seat);
+  if (plays.length === 0) {
+    settleCounterStands(g, payload);
+    return;
+  }
+  const first = plays[0]!;
+  returnSupersededCounters(g, plays.slice(1), payload.cardId);
+  consumeReactionCard(g, first.seat, first.cardId!); // 收窗即扣账:被反识破也不回手
+  const rescuer = g.players[first.seat];
+  const announcer = g.players[payload.userSeat];
+  g.pushFloaterText(
+    announcer,
+    `${rescuer.guohao} 反识破!【${payload.cardId}】作废`,
+    announcer.position,
+  );
+  g.logEvent(
+    "system",
+    rescuer.guohao,
+    `${rescuer.guohao} 反识破,${announcer.guohao} 的【${payload.cardId}】作废`,
+    `reactionCounterVoid card=${payload.cardId} by=${rescuer.id} on=${announcer.id}`,
+  );
+  emitGameEvent(g, first.seat, {
+    kind: "jinnangVoided",
+    cardId: payload.cardId,
+    ...(payload.shareSeat != null ? { shareSeat: payload.shareSeat } : {}),
+  }); // 事件流:反识破生效(识破被拆,份=争夺份)
+  announceCounterLink(
+    g,
+    first.seat,
+    first.cardId!,
+    payload.shareSeat,
+    payload.root,
+    payload.negated,
+    payload.upcoming,
+    !payload.protects, // 站住待遇逐环翻转:反识破站住=上一环作废=该份恢复受击
+  );
+}
+
+/** 反识破链环站住(#571,ADR-0027):站住识破的否定生效——整计域(连环计/单份计)
+ *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;AOE 该份入豁免集
+ *  (判定浮字逐份落账,protect=false 的环不落账=该份照常受击)。兄弟链未清则续开
+ *  下一环(牌已随根窗收窗扣账),清空后按根域收口执行。 */
+function settleCounterStands(
+  g: GameEngine,
+  payload: Extract<ReactionPayload, { kind: "counter" }>,
+): void {
+  const root = payload.root;
+  const rootDef = jinnangCardOf(root.cardId);
+  const responder = g.players[payload.userSeat];
+  if (rootDef.targetDomain !== "all-others") {
+    if (payload.protects) {
+      // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局
+      const verdict = rootDef.targetDomain === "two-others" ? "作废" : "落空";
+      g.pushFloaterText(responder, `识破!【${rootDef.id}】${verdict}`, responder.position);
+      const detail =
+        rootDef.targetDomain === "two-others"
+          ? `reactionCounter card=${rootDef.id} by=${responder.id} voided=all`
+          : `reactionCounter card=${rootDef.id} by=${responder.id} share=${g.players[payload.shareSeat!].id}`;
+      g.logEvent(
+        "system",
+        responder.guohao,
+        `${responder.guohao} 识破【${rootDef.id}】,此计${verdict}`,
+        detail,
+      );
+      emitGameEvent(g, payload.userSeat, { kind: "jinnangVoided", cardId: rootDef.id });
+      g.settleJinnangExit();
+      return;
+    }
+    g.executeJinnang(g.players[root.userSeat], root.userSeat, rootDef, root.targets); // 本环被反:计恢复
+    g.settleJinnangExit();
+    return;
+  }
+  // AOE:本环保下的份判定落账
+  if (payload.protects && payload.shareSeat != null) {
+    const shielded = g.players[payload.shareSeat];
+    g.pushFloaterText(
+      shielded,
+      `${responder.guohao} 识破,${shielded.guohao} 免于【${rootDef.id}】`,
+      shielded.position,
+    );
+    g.logEvent(
+      "system",
+      responder.guohao,
+      `${responder.guohao} 识破【${rootDef.id}】,${shielded.guohao} 那一份失效`,
+      `reactionCounter card=${rootDef.id} by=${responder.id} share=${shielded.id}`,
+    );
+    emitGameEvent(g, payload.userSeat, {
+      kind: "jinnangVoided",
+      cardId: rootDef.id,
+      shareSeat: payload.shareSeat,
+    });
+  }
+  const negated =
+    payload.protects && payload.shareSeat != null
+      ? [...payload.negated, payload.shareSeat]
+      : [...payload.negated];
+  if (payload.upcoming.length > 0) {
+    const next = payload.upcoming[0]!;
+    announceCounterLink(
+      g,
+      next.seat,
+      next.cardId,
+      next.shareSeat,
+      root,
+      negated,
+      payload.upcoming.slice(1),
+      true,
+    );
+    return;
+  }
+  g.executeJinnang(
+    g.players[root.userSeat],
+    root.userSeat,
+    rootDef,
+    root.targets,
+    new Set(negated),
+  );
+  g.settleJinnangExit();
 }
 
 /** 同窗被顶替的识破原样退回不消耗(#281):牌从未离手,只留战报痕。 */
