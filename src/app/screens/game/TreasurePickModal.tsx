@@ -1,7 +1,7 @@
 // 交易选宝弹层(#362,spec #357 T5):城主交涉「公道买卖/坐地起价」选定后的选宝
 // 界面与破产变卖自救共用同一选择模式(视觉基准 proto/treasure/backpack.html 节三
 // 交易弹段)——PileShell 壳 + 装裱卡网格,点选=金描边上浮,价签随选中转「成交 · 至
-// N 两」(变卖恒「至 N 两」);底部成交/变卖钮二段式防误触:第一段=预选态点亮
+// N 两」(变卖恒「至 N 两」;坐地未选为双行「指导价/要价」,调用方 tagOf 给形);底部成交/变卖钮二段式防误触:第一段=预选态点亮
 // 「确认成交」,第二段=确认提交。选牌(可反悔)与成交(提交)分两段,替代旧
 // 「点牌名即成交」。
 // 协议零改:treasureId 原样进 resolveTreasureOwner / sellTreasureBankruptcy;拾取器
@@ -37,8 +37,9 @@ export interface TreasurePickModalProps {
   /** 语境区(题名下、网格上):交涉=报价口径句;破产=已凑/债务进度条。 */
   context?: ReactNode;
   treasures: SnapshotTreasure[];
-  /** 价签文案(随选中态):未选=指导价/至 N 两,交涉选中=「成交 · 至 N 两」。 */
-  tagOf: (t: SnapshotTreasure, selected: boolean) => string;
+  /** 价签(随选中态):交涉未选=「指导价 N」/坐地双行「指导价+要价」小节,选中=「成交 ·
+   *  至 N 两」;变卖恒「至 N 两」。返回 ReactNode(字符串或双行小节)。 */
+  tagOf: (t: SnapshotTreasure, selected: boolean) => ReactNode;
   /** 底部结算预览句(选中才显示):「卖出 X · 入账 N 两 · 长安 +1 级」。 */
   summaryOf: (t: SnapshotTreasure) => string;
   /** 无预选时结算位的指引句。 */

@@ -191,11 +191,7 @@ export function DecisionScrollLayer({
                 visitorGuohao={visitor.guohao}
                 tileName={board.at(visitor.position)?.name ?? ""}
                 treasures={owner.treasures}
-                property={{
-                  id: propDef.id,
-                  tradeAdd: propDef.tradeAdd,
-                  tradeMult: propDef.tradeMult,
-                }}
+                property={propDef}
                 cityLevel={ownerLevel}
                 onCommand={dispatch}
               />
