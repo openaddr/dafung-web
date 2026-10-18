@@ -85,7 +85,6 @@ function heroWith(skills: TriggerSkill[], id = "test-hero"): HeroDef {
     id,
     name: "测试名将",
     title: "",
-    desc: "",
     skills,
     image: "/assets/heroes/hero-zhouyu-sgs.png",
   };
@@ -97,7 +96,15 @@ const gain = (
   when: GameMoment,
   amount: number,
   extra: Partial<TriggerSkill> = {},
-): TriggerSkill => ({ id, name: "测试技", when, effect: "gainCash", params: { amount }, ...extra });
+): TriggerSkill => ({
+  id,
+  name: "测试技",
+  desc: "技效",
+  when,
+  effect: "gainCash",
+  params: { amount },
+  ...extra,
+});
 
 /** 某技能的击发次数(按战报 skill 行统计,抗其他现金变化干扰)。 */
 const fireCount = (e: GameEngine, skillId: string) =>
@@ -278,6 +285,7 @@ describe("时机框架:派发点位", () => {
           {
             id: "cap-before",
             name: "测试技",
+            desc: "技效",
             when: "BeforeMarch",
             effect: "test-capture",
             scope: "any",
@@ -285,6 +293,7 @@ describe("时机框架:派发点位", () => {
           {
             id: "cap-after",
             name: "测试技",
+            desc: "技效",
             when: "AfterMarch",
             effect: "test-capture",
             scope: "any",
@@ -430,7 +439,14 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
       finishSetup(e);
       e.players[0].heroes.push(
         heroWith([
-          { id: "rec", name: "测试技", when: "CashLost", effect: "test-recursive", scope: "any" },
+          {
+            id: "rec",
+            name: "测试技",
+            desc: "技效",
+            when: "CashLost",
+            effect: "test-recursive",
+            scope: "any",
+          },
         ]),
       );
       expect(() => e.dispatchMoment("CashLost", { subject: 1 })).toThrow(/嵌套超过 2 层/);
@@ -452,6 +468,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
           {
             id: "nest",
             name: "测试技",
+            desc: "技效",
             when: "CashLost",
             effect: "test-nested-once",
             scope: "any",
@@ -469,7 +486,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const e = makeEngine(1);
     finishSetup(e);
     e.players[0].heroes.push(
-      heroWith([{ id: "bad", name: "测试技", when: "CashLost", effect: "no-such-effect" }]),
+      heroWith([
+        { id: "bad", name: "测试技", desc: "技效", when: "CashLost", effect: "no-such-effect" },
+      ]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/未知效果/);
   });
@@ -479,7 +498,14 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     finishSetup(e);
     e.players[0].heroes.push(
       heroWith([
-        { id: "no-params", name: "测试技", when: "CashLost", effect: "gainCash", params: {} },
+        {
+          id: "no-params",
+          name: "测试技",
+          desc: "技效",
+          when: "CashLost",
+          effect: "gainCash",
+          params: {},
+        },
       ]),
     );
     expect(() => e.dispatchMoment("CashLost", { subject: 0 })).toThrow(/参数缺失/);
@@ -494,6 +520,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
         {
           id: "mb-a",
           name: "测试技",
+          desc: "技效",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 1 },
@@ -502,6 +529,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
         {
           id: "mb-b",
           name: "测试技",
+          desc: "技效",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 2 },
@@ -527,6 +555,7 @@ describe("时机框架:效果注册表(行为等价)", () => {
         {
           id: "gif",
           name: "测试技",
+          desc: "技效",
           when: "DieRolled",
           effect: "gainIfFace",
           params: { face: 6, amount: 20 },
@@ -604,6 +633,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
           {
             id: "cap-march",
             name: "测试技",
+            desc: "技效",
             when: "BeforeMarch",
             effect: "test-capture",
             scope: "any",
@@ -611,6 +641,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
           {
             id: "cap-roll",
             name: "测试技",
+            desc: "技效",
             when: "BeforeRoll",
             effect: "test-capture",
             scope: "any",
@@ -618,6 +649,7 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
           {
             id: "cap-die",
             name: "测试技",
+            desc: "技效",
             when: "DieRolled",
             effect: "test-capture",
             scope: "any",
@@ -657,6 +689,7 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
         {
           id: "mb1",
           name: "测试技",
+          desc: "技效",
           when: "BeforeMarch",
           effect: "moveBonus",
           params: { steps: 1 },
@@ -1156,9 +1189,57 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.heroes.push(
-      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
-      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
-      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+      {
+        id: "h1",
+        name: "甲",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h1-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h2",
+        name: "乙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h2-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h3",
+        name: "丙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h3-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
@@ -1176,9 +1257,57 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e2);
     const user = e2.activePlayer;
     user.heroes.push(
-      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
-      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
-      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+      {
+        id: "h1",
+        name: "甲",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h1-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h2",
+        name: "乙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h2-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h3",
+        name: "丙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h3-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
     );
     const seat2 = e2.players.indexOf(user);
     const entries2 = recordMomentCtx(e2);

@@ -71,8 +71,9 @@ function Lihui({ src, name }: { src: string; name: string }) {
   );
 }
 
-/** 详情档技能区:●被动(TriggerSkill.name + 名将 desc 全文)/ ◆主动(ActiveSkillDef
- *  .name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。 */
+/** 详情档技能区:●被动(TriggerSkill.name + 该技 desc 全文)/ ◆主动(ActiveSkillDef
+ *  .name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。#604 desc 挂技自带——多被动将
+ *  逐行各印各的,不再共用名将根描述(太史慈双被动重复印字隐患就此修掉)。 */
 function SkillRows({ def }: { def: HeroDef }) {
   return (
     <>
@@ -82,7 +83,7 @@ function SkillRows({ def }: { def: HeroDef }) {
             <i className="fu fu-dot" aria-hidden="true" />
             <span className="sming">{s.name}</span>
           </div>
-          <div className="sdesc">{def.desc}</div>
+          <div className="sdesc">{s.desc}</div>
         </div>
       ))}
       {def.active && (
@@ -118,7 +119,8 @@ function SkillChips({ def }: { def: HeroDef }) {
           </span>
         )}
       </div>
-      <div className="sdesc">{def.desc}</div>
+      {/* T1 过渡行(#604):紧凑档暂显首条被动技描述保旧观感,T2(卡面 chips-only)整体撤除 */}
+      <div className="sdesc">{def.skills?.[0]?.desc}</div>
     </>
   );
 }

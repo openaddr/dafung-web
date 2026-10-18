@@ -301,7 +301,7 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
   });
 });
 
-describe("名将数据表完整性(#358:被动技必有名)", () => {
+describe("名将数据表完整性(#358:被动技必有名;#604:每技必有描述)", () => {
   it("HEROES 全部被动技 name 非空、主动技 name 非空,技能 id 全局唯一(后续加将必填)", () => {
     const skillIds: string[] = [];
     for (const h of HEROES) {
@@ -315,5 +315,17 @@ describe("名将数据表完整性(#358:被动技必有名)", () => {
       }
     }
     expect(new Set(skillIds).size).toBe(skillIds.length);
+  });
+
+  it("每将 ≥1 被动技且每技(含主动)desc 非空(#604:招贤浮字/卡面技能区/全览弹框的数据依赖)", () => {
+    for (const h of HEROES) {
+      expect((h.skills ?? []).length, `${h.id} 无被动技`).toBeGreaterThan(0);
+      for (const s of h.skills ?? []) {
+        expect(s.desc.length, `${h.id}/${s.id} desc 空`).toBeGreaterThan(0);
+      }
+      if (h.active) {
+        expect(h.active.desc.length, `${h.id}/${h.active.id} desc 空`).toBeGreaterThan(0);
+      }
+    }
   });
 });

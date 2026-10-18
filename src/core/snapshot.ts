@@ -27,12 +27,11 @@ export interface TreasureRow {
   desc?: string;
 }
 
-/** 快照名将行(只存展示字段;skill/cooldown 由 HEROES 表按 id 回查)。 */
+/** 快照名将行(只存展示字段;skill/cooldown/技效描述由 HEROES 表按 id 回查,#604)。 */
 export interface HeroRow {
   id: string;
   name: string;
   title: string;
-  desc: string;
   image: string;
 }
 
@@ -615,7 +614,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           id: h.id,
           name: h.name,
           title: h.title,
-          desc: h.desc,
           image: h.image,
         })),
         // 名将冷却记录(跨进程恢复 cooldown 判定)
@@ -674,14 +672,14 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢 skill/cooldown)
+    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢 skill/cooldown;
+    // 技效描述不落快照——客户端按 id 回查目录单源,#604)
     key: "offeredHeroes",
     read: (e) =>
       e.offeredHeroes.map((h) => ({
         id: h.id,
         name: h.name,
         title: h.title,
-        desc: h.desc,
         image: h.image,
       })),
     write: (e, s) => {

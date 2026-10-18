@@ -294,9 +294,57 @@ describe("机遇引擎行为", () => {
 
     const full = e.activePlayer;
     full.heroes.push(
-      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
-      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
-      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+      {
+        id: "h1",
+        name: "甲",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h1-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h2",
+        name: "乙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h2-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h3",
+        name: "丙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h3-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
     );
     const cashBefore = full.cash;
     te.applyEncounter(full, full.position, {
@@ -555,9 +603,57 @@ describe("抉择机遇(#124):入相与快照", () => {
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1"), treasure("t2"));
     mover.heroes.push(
-      { id: "h1", name: "甲", title: "", desc: "", skills: [], image: "" },
-      { id: "h2", name: "乙", title: "", desc: "", skills: [], image: "" },
-      { id: "h3", name: "丙", title: "", desc: "", skills: [], image: "" },
+      {
+        id: "h1",
+        name: "甲",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h1-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h2",
+        name: "乙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h2-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
+      {
+        id: "h3",
+        name: "丙",
+        title: "",
+        image: "",
+        skills: [
+          {
+            id: "h3-skill",
+            name: "技",
+            desc: "技效",
+            when: "DieRolled",
+            effect: "gainCash",
+            params: { amount: 1 },
+            scope: "any",
+          },
+        ],
+      },
     );
     e.pendingEncounter = byId("以宝换贤");
     testEngine(e).forceTurnPhase("AwaitingEncounter");

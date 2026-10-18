@@ -8,7 +8,7 @@
 import type { GameEngine } from "./authority";
 import type { Player } from "./model";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES } from "./heroes";
+import { HEROES, passiveDescLineOf } from "./heroes";
 import { shuffle } from "./setup-flow";
 
 /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。
@@ -44,7 +44,8 @@ export function resolveHeroPick(g: GameEngine, index: number): void {
     g.logEvent(
       "setup",
       g.activePlayer.guohao,
-      `${g.activePlayer.guohao} 招贤纳士,得「${hero.name}」:${hero.desc}`,
+      // 浮字文案=全部被动技描述拼接(passiveDescLineOf,单被动将与旧根 desc 逐字同)
+      `${g.activePlayer.guohao} 招贤纳士,得「${hero.name}」:${passiveDescLineOf(hero)}`,
       `pickHero player=${g.activePlayer.id} hero=${hero.id}`,
     );
     g.dispatchMoment("HeroRecruited", { subject: g.activeIndex, heroId: hero.id }); // 时机·HeroRecruited:招贤成功(选定名将;tryRecruitHero 只出三选一候选)

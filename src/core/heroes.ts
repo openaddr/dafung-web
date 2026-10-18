@@ -10,6 +10,7 @@ import type { GameMoment } from "./timing";
 export interface TriggerSkill {
   id: string; // 唯一 id(如 "zhouyu-move+1";同时是 heroLastFired 冷却键)
   name: string; // 技名(如 "疾行";UI 技名 chips 与规则页用,#358;纯展示,不参与判定)
+  desc: string; // 技效说明(玩家可见;招贤浮字/卡面技能区/技能全览弹框消费;#604 自名将根下沉,每技自带)
   when: GameMoment; // 触发时机(查 src/core/timing.ts)
   effect: string; // EffectId,查 src/core/effects.ts 注册表;未知 id 派发时直接抛错(数据 bug)
   params?: Record<string, number>; // 效果参数(纯数据,可序列化)
@@ -27,8 +28,7 @@ export interface HeroDef {
   id: string;
   name: string; // 周瑜
   title: string; // 火烧赤壁(称号,风味)
-  desc: string; // 给玩家看的技能说明
-  skills?: TriggerSkill[]; // 一武多技(时机驱动,按数组序派发)
+  skills?: TriggerSkill[]; // 一武多技(时机驱动,按数组序派发;技效说明随技走,#604)
   /** 主动技(#188 档 3):出牌阶段(与锦囊合并窗,AwaitingJinnang 相位)内手动发动,
    *  独立冷却(复用 heroLastFired,键=active.id);每名将至多一个,缺省=无主动技。 */
   active?: ActiveSkillDef;
@@ -56,17 +56,23 @@ export interface ActiveSkillDef {
   params?: Record<string, number>;
 }
 
+/** 名将全部被动技描述拼接(#604 desc 挂技自带后的单源读口):招贤/机遇/送将浮字与
+ *  卡面 title 浮签共用;单被动将与旧根描述逐字同。 */
+export function passiveDescLineOf(hero: HeroDef): string {
+  return (hero.skills ?? []).map((s) => s.desc).join(";");
+}
+
 export const HEROES: HeroDef[] = [
   {
     id: "zhouyu",
     image: "/assets/heroes/hero-zhouyu-sgs.png",
     name: "周瑜",
     title: "雅量高致",
-    desc: "你的移动步数始终 +1",
     skills: [
       {
         id: "zhouyu-move+1",
         name: "疾行",
+        desc: "你的移动步数始终 +1",
         when: "BeforeMarch",
         effect: "moveBonus",
         params: { steps: 1 },
@@ -89,11 +95,11 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
     title: "承继大统",
-    desc: "其他玩家被动失去银两时,你 +50 两",
     skills: [
       {
         id: "caopi-gain-on-other-lose",
         name: "渔利", // 提案名(#358 施工资未拍板,报告供审)
+        desc: "其他玩家被动失去银两时,你 +50 两",
         when: "CashLost",
         effect: "gainCash",
         params: { amount: 50 },
@@ -116,11 +122,11 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-zhangxingcai-sgs.png",
     name: "张星彩",
     title: "银翎飞骑",
-    desc: "场上任意人掷出 6,你 +20 两",
     skills: [
       {
         id: "zhangxingcai-gain-on-six",
         name: "掷金",
+        desc: "场上任意人掷出 6,你 +20 两",
         when: "DieRolled",
         effect: "gainIfFace",
         params: { face: 6, amount: 20 },
@@ -143,13 +149,13 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-huatuo-noname.webp", // 画像已落地(#507 素材批/#511 卡面接入;noname 源补缺,sgs 缺此将)
     name: "华佗",
     title: "神医",
-    desc: "每 3 轮为自身恢复 15 体力(不与世界为敌,只与病痛为敌)",
     // scope="any":RoundStart 的 subject 是轮次锚点,缺省 self 会让非锚点持有者永不触发——
     // 每次轮首派发都参评,效果内部落账给持有者(ctx.owner);cooldown 3(轮)即「每 3 轮一跳」。
     skills: [
       {
         id: "huatuo-regen-stamina",
         name: "青囊",
+        desc: "每 3 轮为自身恢复 15 体力(不与世界为敌,只与病痛为敌)",
         when: "RoundStart",
         effect: "regenStamina",
         params: { amount: 15 },

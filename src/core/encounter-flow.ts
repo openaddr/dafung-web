@@ -20,7 +20,7 @@ import {
   type EncounterEffect,
 } from "./encounters";
 import { findHolding } from "./player";
-import { HEROES } from "./heroes";
+import { HEROES, passiveDescLineOf } from "./heroes";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
@@ -464,7 +464,7 @@ function applyGrantHeroEffect(
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${hero.desc}`,
+    `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${passiveDescLineOf(hero)}`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`,
   );
   g.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
