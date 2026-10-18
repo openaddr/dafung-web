@@ -9,7 +9,7 @@ import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
 import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES, type ActiveSkillDef } from "./heroes";
+import { HEROES, passiveDescLineOf, type ActiveSkillDef } from "./heroes";
 import {
   openReactionWindow,
   resolveDuel,
@@ -834,7 +834,7 @@ function grantHeroToPlayer(
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} ${prefix},得「${hero.name}」:${hero.desc}`,
+    `${p.guohao} ${prefix},得「${hero.name}」:${passiveDescLineOf(hero)}`,
     `heroGrant ${auditTag} player=${p.id} hero=${hero.id}`,
   );
   g.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });

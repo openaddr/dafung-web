@@ -40,10 +40,17 @@ export function heroIdByActiveSkillId(skillId: string): string {
 }
 
 /** 装配/尺寸档(r4 节三两档 + 招贤同槽位档):
- *  - detail:技能全文(技名牌+desc 全文,13px 基)——府库详情档;
- *  - compact:技名 chips + desc 两行截断(10px 基)——出牌阶段确认;
- *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排。 */
+ *  - detail:技能全文(技名牌+该技 desc 全文,13px 基)——府库详情档;
+ *  - compact:技名 chips 不带描述(10px 基)——出牌阶段确认;点技名开技能全览(#605);
+ *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排,分流同 #605。 */
 export type HeroCardFaceSize = "detail" | "compact" | "pick";
+
+/** 技名 chip 点击判定(#605 消费方分流单源):事件目标落在卡面技名 chip 上则返回
+ *  技 id,否则 null。chips 挂 data-skill=技 id(本组件渲染),点谁/开合语义归消费方。 */
+export function skillIdFromClick(e: { target: EventTarget | null }): string | null {
+  const chip = (e.target as HTMLElement | null)?.closest("[data-skill]");
+  return chip?.getAttribute("data-skill") ?? null;
+}
 
 export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   heroId: string;
@@ -71,8 +78,9 @@ function Lihui({ src, name }: { src: string; name: string }) {
   );
 }
 
-/** 详情档技能区:●被动(TriggerSkill.name + 名将 desc 全文)/ ◆主动(ActiveSkillDef
- *  .name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。 */
+/** 详情档技能区:●被动(TriggerSkill.name + 该技 desc 全文)/ ◆主动(ActiveSkillDef
+ *  .name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。#604 desc 挂技自带——多被动将
+ *  逐行各印各的,不再共用名将根描述(太史慈双被动重复印字隐患就此修掉)。 */
 function SkillRows({ def }: { def: HeroDef }) {
   return (
     <>
@@ -82,7 +90,7 @@ function SkillRows({ def }: { def: HeroDef }) {
             <i className="fu fu-dot" aria-hidden="true" />
             <span className="sming">{s.name}</span>
           </div>
-          <div className="sdesc">{def.desc}</div>
+          <div className="sdesc">{s.desc}</div>
         </div>
       ))}
       {def.active && (
@@ -99,27 +107,25 @@ function SkillRows({ def }: { def: HeroDef }) {
   );
 }
 
-/** 紧凑档技能区:●/◆ 技名 chips 一行 + 名将 desc 两行截断(全文留 title 浮签,
- *  消费方口径)。 */
+/** 紧凑档技能区(#605):●/◆ 技名 chips 一行,描述全撤——技效全文走「点技名→技能
+ *  全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免口径,点击
+ *  分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
 function SkillChips({ def }: { def: HeroDef }) {
   return (
-    <>
-      <div className="bd-row">
-        {(def.skills ?? []).map((s) => (
-          <span className="bd" key={s.id}>
-            <i className="fu fu-dot" aria-hidden="true" />
-            {s.name}
-          </span>
-        ))}
-        {def.active && (
-          <span className="bd">
-            <i className="fu fu-dia" aria-hidden="true" />
-            {def.active.name}
-          </span>
-        )}
-      </div>
-      <div className="sdesc">{def.desc}</div>
-    </>
+    <div className="bd-row">
+      {(def.skills ?? []).map((s) => (
+        <span className="bd" key={s.id} data-skill={s.id}>
+          <i className="fu fu-dot" aria-hidden="true" />
+          {s.name}
+        </span>
+      ))}
+      {def.active && (
+        <span className="bd" data-skill={def.active.id}>
+          <i className="fu fu-dia" aria-hidden="true" />
+          {def.active.name}
+        </span>
+      )}
+    </div>
   );
 }
 

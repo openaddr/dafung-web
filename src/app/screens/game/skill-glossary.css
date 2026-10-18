@@ -1,0 +1,53 @@
+/* 技能全览弹框(#605):经 Portal 渲染在 body,.game-layout 罩不到——skg- 前缀防串扰
+   (pile-* 同先例)。行制式沿卡面技能区(●/◆ 符+技名+desc 全文,主动带冷却),被点技
+   漆金框高亮(§4.6 状态表达,不加文字标牌)。 */
+.skg-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 12px;
+  min-width: 300px;
+}
+.skg-row {
+  border: 1px solid transparent;
+  border-radius: 3px;
+  padding: 8px 10px;
+  background: color-mix(in srgb, var(--color-paper-hi) 55%, transparent);
+}
+.skg-row.is-hl {
+  border-color: var(--color-lacquer-gold);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold) 45%, transparent);
+}
+.skg-shead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.skg-sming {
+  font-weight: 600;
+  letter-spacing: 1px;
+}
+.skg-cd {
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  margin-left: auto;
+}
+.skg-sdesc {
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--color-ink);
+}
+.skg-fu {
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+.skg-fu-dot {
+  border-radius: 50%;
+  background: var(--color-attr-hero);
+}
+.skg-fu-dia {
+  background: var(--color-gold-deep);
+  transform: rotate(45deg);
+}

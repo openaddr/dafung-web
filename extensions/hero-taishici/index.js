@@ -4,7 +4,6 @@ const contribution = {
       id: "taishici",
       name: "太史慈",
       title: "信义笃行",
-      desc: "被招揽时义从归心:+100 两(来投之礼),并行「信义盲选」:从手牌盲选一张弃旧换新",
       // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
       // 专属将旗仍由客户端渲染 hook 提供
       image: "/assets/heroes/hero-taishici-noname.webp",
@@ -12,6 +11,7 @@ const contribution = {
         {
           id: "taishici-yicong",
           name: "义从",
+          desc: "被招揽时义从归心:+100 两(来投之礼)",
           when: "HeroRecruited",
           // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
           effect: "joinGift",
@@ -24,6 +24,7 @@ const contribution = {
           // (ADR-0013,引擎分流);≥2 张=弹问询卷轴(客户端按呈现意图画牌背)。
           id: "taishici-blindpick",
           name: "信义盲选",
+          desc: "信义试炼:从你的手牌中盲选一张,弃旧换新",
           when: "HeroRecruited",
           effect: "blindPickRitual",
           scope: "self",

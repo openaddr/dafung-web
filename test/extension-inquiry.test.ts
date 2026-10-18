@@ -161,12 +161,12 @@ function loadTurnStartInquiry(): { inquiryId: string; heroDefId: string } {
         id: heroDefId,
         name: "试探名将",
         title: "收口期",
-        desc: "测试用:TurnStart 时机发起定制问询(违约样本)",
         image: "",
         skills: [
           {
             id: `${heroDefId}-skill`,
             name: "收口发问",
+            desc: "测试用:TurnStart 时机发起定制问询(违约样本)",
             when: "TurnStart",
             effect: `${heroDefId}-effect`,
             scope: "any",
@@ -336,12 +336,12 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
       id: heroDefId,
       name: "试探名将",
       title: "收口期",
-      desc: "测试用",
       image: "",
       skills: [
         {
           id: `${heroDefId}-skill`,
           name: "收口发问",
+          desc: "测试用",
           when: "TurnStart",
           effect: `${heroDefId}-effect`,
           scope: "any",

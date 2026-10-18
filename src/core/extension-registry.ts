@@ -95,8 +95,13 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
       );
   }
 
-  // 引用校验(把派发期数据 bug 提前到装载点):when 必须是登记时机;effect 必须可解析。
+  // 引用校验(把派发期数据 bug 提前到装载点):when 必须是登记时机;effect 必须可解析;
+  // 技效描述必非空(#604 desc 挂技自带,扩展包是裸 JS 类型层守不住,装载点补位)。
   for (const h of heroes) {
+    if ((h.skills ?? []).length === 0)
+      throw new Error(
+        `扩展注册:${manifest.id} 名将「${h.id}」零技能(招贤浮字/卡面技能区依赖被动技,数据 bug)`,
+      );
     for (const s of h.skills ?? []) {
       if (!MOMENTS.includes(s.when))
         throw new Error(
@@ -106,7 +111,13 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
         throw new Error(
           `扩展注册:${manifest.id} 名将「${h.id}」技能「${s.id}」引用了不可解析效果「${s.effect}」(内置表与本包均无)`,
         );
+      if (s.desc == null || s.desc.length === 0)
+        throw new Error(`扩展注册:${manifest.id} 名将「${h.id}」技能「${s.id}」缺技效描述(desc)`);
     }
+    if (h.active != null && (h.active.desc == null || h.active.desc.length === 0))
+      throw new Error(
+        `扩展注册:${manifest.id} 名将「${h.id}」主动技「${h.active.id}」缺技效描述(desc)`,
+      );
     // 主动技的 kind 结算案穷尽由 core/jinnang-execution.ts 的 never 守卫在编译期/结算期逼出,
     // 此处不重复登记第二份 kind 清单(单一事实源纪律)。
   }
