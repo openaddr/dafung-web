@@ -28,9 +28,7 @@ export function seatMeta(r: RoomSession, onlineSeats: Set<number>) {
     kind: s.kind,
     taken: s.token != null,
     online: onlineSeats.has(i),
-    // 该座位当前是否由服务器驱动:开局前 bot 座位;开局后 bot 座位或被房主接管的座位
-    controlled: r.engine ? r.engine.players[i].isBot || r.takeover.has(i) : s.kind === "bot",
-    // 自助托管中(bot 代打,但身份仍是真人;UI 据此显示「托管」标记)
+    // 托管中(bot 代打,但身份仍是真人;UI 据此显示「托管」标记,ADR-0028 单一开关)
     autoPilot: r.autoPilot.has(i),
     guohao: s.guohao,
   }));
@@ -329,12 +327,9 @@ export const CALIBRATION_COVERAGE = {
 };
 
 // ──────────────────────────── 驱动/看门狗共用的座位判定 ────────────────────────────
-/** 该座位当前是否由服务器驱动(原始 bot、被房主接管、或自助托管中)。 */
+/** 该座位当前是否由服务器驱动(原生 bot,或托管中——ADR-0028 单一开关,含看门狗代开)。 */
 export function seatControlled(r: RoomSession, seat: number): boolean {
-  return (
-    r.engine != null &&
-    (r.engine.players[seat]?.isBot || r.takeover.has(seat) || r.autoPilot.has(seat))
-  );
+  return r.engine != null && (r.engine.players[seat]?.isBot || r.autoPilot.has(seat));
 }
 
 /** 廉价状态指纹:任何真实进展都会改变它(防 botAct 空转死循环)。

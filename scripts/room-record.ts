@@ -31,8 +31,7 @@ export interface RoomRecord {
   seatCount: number;
   seats: PersistedSeat[];
   hostSeat: number;
-  takeover: number[];
-  /** 自助托管座位集;与 takeover 分离,重连不清除。 */
+  /** 托管座位集(ADR-0028 单一开关);重连不清除,只有本人收回/看门狗代开。 */
   autoPilot: number[];
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */

@@ -203,7 +203,6 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
           { kind: "bot", token: null, guohao: null },
         ],
         hostSeat: 0,
-        takeover: [],
         autoPilot: [],
         hostConfig: {},
         mapId: null,

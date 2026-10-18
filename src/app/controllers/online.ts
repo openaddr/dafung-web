@@ -167,12 +167,6 @@ export class OnlineController extends GameController {
     await this.api.startGame({ roomId: this.roomId, seatToken: this.seatToken });
   }
 
-  /** host 强令 bot 接管掉线座位(ADR-0002;当前 UI 未接,协议侧备齐)。 */
-  async takeover(seat: number): Promise<void> {
-    if (!this.roomId || !this.seatToken) throw new Error("未入座");
-    await this.api.takeover({ roomId: this.roomId, seatToken: this.seatToken }, seat);
-  }
-
   /** host 解散房间(当前 UI 未接,协议侧备齐)。 */
   async dismissRoom(): Promise<void> {
     if (!this.roomId || !this.seatToken) throw new Error("未入座");

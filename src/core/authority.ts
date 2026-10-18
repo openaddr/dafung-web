@@ -582,7 +582,7 @@ export class GameEngine {
   }
 
   /** 公共选都入口:人类落子(单机 UI / 联机 WS)走这里——记 cmd 行(ADR-0014 命令流,
-   *  重放的机读层);bot/接管/托管的代选域内走 pickCapitalInternal(logCmd=false)。
+   *  重放的机读层);bot/托管的代选域内走 pickCapitalInternal(logCmd=false)。
    *  薄委托 → setup-flow.pickCapital。 */
   pickCapital(playerIndex: number, tileIndex: number): { ok: boolean; reason?: string } {
     return pickCapital(this, playerIndex, tileIndex);
@@ -1089,9 +1089,9 @@ export class GameEngine {
     );
   }
 
-  /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/接管/离线/重连/
-   *  解散/开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
-   *  重放脚本据此动态调整「bot 驱动座位集」(takeover/autopilot 与 room.seatControlled 同源)。 */
+  /** 房间层日志行(ADR-0014):把房间/控制器层的生命周期事件(托管开关/离线/解散/
+   *  开局)写进对局日志(category "room")。brief 中文;detail 为机读 JSON——
+   *  重放脚本据此动态调整「bot 驱动座位集」(autopilot 行与 room.seatControlled 同源)。 */
   logRoomEvent(brief: string, detail: string): void {
     this.logEvent("room", null, brief, detail);
   }

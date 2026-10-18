@@ -52,7 +52,7 @@ export interface Player {
  *    (商市/破产清算过程/警告)| victory 胜负 | final 终局行(机读终态面板,重放断言锚点)
  *  - 命令类:cmd(submitCommand 提交的玩家命令,detail=命令 JSON;bot 直调引擎方法不产生,
  *    确定性重放自动重算——见 docs/reference/对局日志.md「命令流」)
- *  - 房间类:room(房间生命周期:开局/托管/接管/离线/重连/解散;联机由 room.ts 写、
+ *  - 房间类:room(房间生命周期:开局/托管/离线/解散;联机由 room.ts 写、
  *    单机托管由 LocalController 写,detail=机读 JSON,重放据此调整 bot 驱动座位集) */
 export interface LogEvent {
   ts: number; // 时间(epoch ms,引擎侧 Date.now())

@@ -1,4 +1,4 @@
-// REST 大厅客户端(从 controllers/online.ts 拆出):建房/加入/选图/开局/接管/解散的
+// REST 大厅客户端(从 controllers/online.ts 拆出):建房/加入/选图/开局/解散的
 // fetch 包装 + 入座回包收窄 + WS 升级 URL 拼接。为什么独立:「URL 与回包形状」是纯协议
 // 知识,与引擎/store/表现无关,原先混在控制器里无法单测;独立后 OnlineController 只剩
 // 「协议桥」职责(收消息→灌 store)。逻辑逐行照搬拆分前实现,零行为变化。
@@ -70,11 +70,6 @@ export class LobbyApi {
   /** host 开局(POST /room/start;引擎在服务器侧构造,本端只等首帧 snapshot)。 */
   startGame(creds: RoomCreds): Promise<Record<string, unknown>> {
     return this.http("/room/start", creds);
-  }
-
-  /** host 强令 bot 接管掉线座位(POST /room/takeover;ADR-0002)。当前 UI 未接,协议侧先备齐。 */
-  takeover(creds: RoomCreds, seat: number): Promise<Record<string, unknown>> {
-    return this.http("/room/takeover", { ...creds, seat });
   }
 
   /** host 解散房间(POST /room/dismiss;当前 UI 未接,协议侧先备齐)。 */

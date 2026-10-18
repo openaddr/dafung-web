@@ -1,12 +1,13 @@
 // 四组同构看门狗——从 room.ts 拆出并收敛为一个通用工厂(模块治理 10/11 #327)。
-//   #118 决策停摆 stall:人类座位停在决策点超时 → bot 自动接管(ADR-0002 语义)
+//   #118 决策停摆 stall:真人座位停在决策点超时 → 看门狗代开托管(ADR-0028)
 //   #188 自动起摇 autoRoll:Roll 相位超时 → 服务器代发 rollAndMove(行军自动化)
 //   #281/#284 反应窗 reactionWait:开窗超时 → 代发「不用」(ADR-0017)
-//   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → bot 自动接管(ADR-0002)
-// 原三份手写 clear/arm/fire 同构三件套收敛为 createWatchdog 工厂:返回 {clear, arm,
-// disarm} 实例,三组各自配置「武装窗口(tag+delayMs)」与「到点动作」;行为(超时时长/触发
-// 动作/清理时机)与拆分前逐一对齐,由 room.test.ts 与同种子对拍兜底。
-// registry 经 WatchdogHost 注入房间侧操作;本模块零 WS/HTTP/fs 依赖。
+//   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → 看门狗代开托管(ADR-0028)
+// 代开托管 = 拨唯一「托管」开关(autoPilot.add,by:"watchdog",只开不关;重连不清,
+// 本人点「收回」拿回控制)。原三份手写 clear/arm/fire 同构三件套收敛为 createWatchdog
+// 工厂:返回 {clear, arm, disarm} 实例,三组各自配置「武装窗口(tag+delayMs)」与
+// 「到点动作」;行为(超时时长/触发动作/清理时机)与拆分前逐一对齐,由 room.test.ts
+// 与同种子对拍兜底。registry 经 WatchdogHost 注入房间侧操作;本模块零 WS/HTTP/fs 依赖。
 import type { GameCommand } from "../src/core/authority";
 // 节拍单源(#399):AUTO_ROLL_DELAY_MS 全局唯一定义处 = src/core/timings.ts(单机/联机同表)。
 import { AUTO_ROLL_DELAY_MS } from "../src/core/timings";
@@ -117,47 +118,58 @@ let armSeq = 0;
 
 /** 四组看门狗(registry 构造时创建一次,随注册表生命周期)。 */
 export function createWatchdogs(host: WatchdogHost): Watchdogs {
+  // 看门狗代开托管(stall/retention 两道 fire 共用,ADR-0028):拨唯一「托管」开关 +
+  // autopilot(by:"watchdog")观测行 + 对局日志行(brief 同形状机读 detail)+ persist,
+  // 再由调用方续推 driveBots 解冻。开关只开不关;出处只进日志,行为与自助托管无分叉。
+  const watchdogOpenAutoPilot = async (
+    r: RoomSession,
+    seat: number,
+    brief: string,
+    onUpdate?: UpdateFn,
+  ): Promise<void> => {
+    r.autoPilot.add(seat);
+    host.observe(r, { ev: "autopilot", seat, on: true, by: "watchdog" });
+    host.logRoom(r, brief, JSON.stringify({ type: "autopilot", seat, on: true, by: "watchdog" }));
+    host.persist(r);
+    onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位,等待条换「智将运筹中…」)
+    await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
+  };
   return {
     // ──────────────────── 决策停摆看门狗(#118)────────────────────
-    // 武装:decisionTimeoutMs 后若仍停在同一未接管人类座位 → bot 接管(ADR-0002 语义)。
-    // 同房间旧计时器先撤(决策点换了,重算)。driveBots 出口仅在 decisionTimeoutMs>0
-    // 时武装(0=关闭,历史行为)。
+    // 武装:decisionTimeoutMs 后若仍停在同一未被托管的真人座位 → 看门狗代开托管
+    // (ADR-0028)。同房间旧计时器先撤(决策点换了,重算)。driveBots 出口仅在
+    // decisionTimeoutMs>0 时武装(0=关闭,历史行为)。
     stall: createWatchdog(
       {
         window: () => ({ tag: ++armSeq, delayMs: host.decisionTimeoutMs }),
-        /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍非服务器驱动)后
-         *  bot 接管并续推连锁。接管走既有 takeover 集合:重连 attachSeat 自动夺回,
-         *  对局日志记 takeover 行(重放把它并入 bot 驱动集,终态逐字段一致)。 */
+        /** 超时触发:重校验(房间还在/对局未终/仍停在该座位/该座位仍未被托管)后
+         *  代开托管并续推连锁。重连不清托管,原玩家点「收回」拿回控制(ADR-0028)。 */
         fire: async (r, seat, onUpdate) => {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver) return;
           const owner = decisionSeatOf(e);
           if (owner !== seat || seatControlled(r, seat)) return;
-          r.takeover.add(seat);
-          host.observe(r, { ev: "takeover", seat, auto: true });
-          host.logRoom(
+          await watchdogOpenAutoPilot(
             r,
-            `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,bot 自动接管(重连/刷新夺回)`,
-            JSON.stringify({ type: "takeover", seat, auto: true }),
+            seat,
+            `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,自动托管`,
+            onUpdate,
           );
-          host.persist(r);
-          onUpdate?.(r); // 先广播接管(客户端座位controlled 置位,等待条换「智将运筹中…」)
-          await host.driveBots(r, onUpdate); // 解冻续推;再停下一个真人决策点时出口重新武装
         },
       },
       host.clock,
     ),
     // ──────────────────── 行军自动化(#188 第 1 步)────────────────────
-    // 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未接管人类座位的 Roll 相位 → 服务器代发
+    // 武装:AUTO_ROLL_DELAY_MS 后若仍停在同一未被托管的真人座位的 Roll 相位 → 服务器代发
     // rollAndMove(走 applyCommand 公共命令路径:submitCommand 记 cmd 行 + persist + 广播,
     // 与玩家手点同源)。离线冻结的座位同样代发——Roll 无决策内容,不因离线卡住行军;
-    // 真正的抉择仍归本人(超时才由 #118 看门狗接管)。同房间旧计时器先撤(决策点换了,
+    // 真正的抉择仍归本人(超时才由 #118 看门狗代开托管)。同房间旧计时器先撤(决策点换了,
     // 重算)。
     autoRoll: createWatchdog(
       {
         window: () => ({ tag: ++armSeq, delayMs: AUTO_ROLL_DELAY_MS }),
-        /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍非服务器驱动——
-         *  被接管/托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
+        /** 到点触发:重校验(房间还在/对局未终/仍停在该座位的 Roll/该座位仍未被托管——
+         *  托管后 Roll 归 botAct 驱动,不重复代发)后经 applyCommand 起摇。 */
         fire: async (r, seat, onUpdate) => {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver || e.phase !== "Playing") return;
@@ -214,12 +226,14 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     ),
     // ──────────────────── 掉线座位保留窗(#380,ADR-0002/0005)────────────────────
     // 武装:markSeatOffline(对局中 WS 断开)时按座位挂保留窗——retentionWindowMs 内
-    // 持 token 重连即夺回(attachSeat 撤本座表项);窗口到期未归 → bot 自动接管,语义
-    // 等价房主 takeover(ADR-0002 出口):写 takeover 集合 + takeover(auto) 观测行 +
-    // 对局日志行,driveBots 解冻续推。窗口期内该座位回合到来维持冻结停摆不变(ADR-0002
-    // 默认冻结;若另配 #118 看门狗,它按自身窗口独立兜底,两窗互不代替)。
-    // 大厅(engine=null)/已终局/已由服务器驱动(接管/托管/原生 bot)的座位不武装
-    // (判定归 window,markSeatOffline 无需预筛)。retentionWindowMs=0(缺省)不武装。
+    // 持 token 重连即归座(attachSeat 撤本座表项);窗口到期未归 → 看门狗代开托管
+    // (ADR-0028):写 autoPilot 集 + autopilot(by:"watchdog")观测行 + 对局日志行,
+    // driveBots 解冻续推;重连不清托管,原玩家点「收回」拿回控制(token 不因保留窗
+    // 到期失效,ADR-0005,口径见 docs/explanation/联机架构.md §6)。窗口期内该座位
+    // 回合到来维持冻结停摆不变(ADR-0002 默认冻结;若另配 #118 看门狗,它按自身窗口
+    // 独立兜底,两窗互不代替)。大厅(engine=null)/已终局/已被服务器驱动(托管/原生
+    // bot)的座位不武装(判定归 window,markSeatOffline 无需预筛)。retentionWindowMs=0
+    // (缺省)不武装。
     retention: createWatchdog(
       {
         window: (r, seat) => {
@@ -229,24 +243,18 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
           if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return undefined;
           return { tag: ++armSeq, delayMs: host.retentionWindowMs };
         },
-        /** 到点触发:重校验(房间还在/对局未终/仍为人类座位/仍未被服务器驱动——窗口内
-         *  已被房主接管或托管则不动)后 bot 接管并续推连锁。接管写既有 takeover 集合:
-         *  重连 attachSeat 自动夺回 + 撤保留窗,token 不因接管失效(ADR-0005,口径见
-         *  docs/explanation/联机架构.md §6)。 */
+        /** 到点触发:重校验(房间还在/对局未终/仍为人类座位/仍未被托管——窗口内已
+         *  托管则不动)后代开托管并续推连锁。 */
         fire: async (r, seat, onUpdate) => {
           const e = r.engine;
           if (!host.isCurrentRoom(r) || !e || e.isOver) return;
           if (r.seats[seat].kind !== "human" || seatControlled(r, seat)) return;
-          r.takeover.add(seat);
-          host.observe(r, { ev: "takeover", seat, auto: true });
-          host.logRoom(
+          await watchdogOpenAutoPilot(
             r,
-            `座位 ${seat}(${e.players[seat].guohao}) 掉线保留窗口(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,bot 自动接管(重连可夺回)`,
-            JSON.stringify({ type: "takeover", seat, auto: true }),
+            seat,
+            `座位 ${seat}(${e.players[seat].guohao}) 断线保留窗(${Math.round(host.retentionWindowMs / 1000)} 秒)到期,自动托管`,
+            onUpdate,
           );
-          host.persist(r);
-          onUpdate?.(r); // 先广播接管(客户端座位 controlled 置位)
-          await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
         },
       },
       host.clock,

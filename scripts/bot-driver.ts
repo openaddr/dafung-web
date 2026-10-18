@@ -1,5 +1,5 @@
-// bot/接管/托管驱动(ADR-0002 接管;#580 代打行为单源)——从 room.ts 拆出(模块治理 10/11 #327)。
-// 连续驱动服务器控制的决策点:bot 座位走 botAct,托管/接管代驾同一裸调入口(bot 同款),
+// bot/托管驱动(#580 代打行为单源;ADR-0028 接管即自动托管)——从 room.ts 拆出(模块治理 10/11 #327)。
+// 连续驱动服务器控制的决策点:bot 座位走 botAct,托管代驾(含看门狗代开)同一裸调入口(bot 同款),
 // 冻结真人座位不驱动。registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与
 // 看门狗组;本模块零 WS/fs。
 import { botAct, botReactionDecision, BOT_ATTENDED_PHASES } from "../src/core/bot";
@@ -19,7 +19,7 @@ type UpdateFn = (room: RoomSession) => void;
 // 人类待应答座位,不走 botAct)
 
 /** 当前决策点座位步进延迟(#399 步进经注入时钟):托管 2s/步(替人玩,节奏像人),
- *  其余(bot/接管)为 0。 */
+ *  非托管座位为 0。 */
 function stepDelayMs(r: RoomSession, seat: number): number {
   return r.autoPilot.has(seat) ? AUTOPILOT_STEP_MS : 0;
 }
@@ -61,7 +61,7 @@ const driving = new WeakSet<RoomSession>();
 /** 连续驱动服务器控制的决策点,直到轮到人类(在线或冻结)/ 游戏结束 / 无进展。
  *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
  *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
- *  (seatControlled=false)→ 游戏等其重连或房主接管。
+ *  (seatControlled=false)→ 游戏等其重连或保留窗看门狗代开托管(ADR-0028)。
  *  托管每步间 2s(单节拍,#580),经注入时钟异步步进(步间让出宏任务);
  *  每步 persist + onUpdate:客户端能逐步看到动作。
  *  调用方纪律(#529 死锁教训):setAutoPilot 等入口只调度本函数即返回(fire-and-forget),
