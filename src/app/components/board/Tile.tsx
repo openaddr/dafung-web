@@ -598,7 +598,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
           {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
               需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
               仍可辨的形状级王权信号,不依赖文字/描边细节。
-              旗杆基点固定 -40:城楼加层长高后旗杆「立于楼中」(城头立旗),旗面高度不变,
+              旗杆基点固定 -40:恰接大档城楼屋脊(城头立旗),旗面高度不变,
               不加重与邻城铭牌的既有避让余量(环游图存在同列 196 的近距上下邻城)。 */}
           {isCapital && state.capitalColorIndex != null ? (
             <g className="bv-tile-flag">

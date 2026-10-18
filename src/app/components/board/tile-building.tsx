@@ -25,7 +25,7 @@ import { rgba, Theme } from "@core/theme";
 
 /** 飞檐屋面(实心体块):r = 脊口半宽,w = 檐角半宽,apex = 脊顶 y,tipY = 檐角 y。
  *  两侧 Q 弧做「檐口平缓、近脊陡峻」的凹曲檐线,底缘浅弧下垂成檐口厚度、并在两端
- *  回勾出翘角。染瓦层复用同一 d 串,生长动画期间玩家色染层与屋面逐帧对齐。 */
+ *  回勾出翘角。 */
 function eavesRoof(r: number, w: number, apex: number, tipY: number): string {
   const l = w - 3;
   return (
@@ -41,14 +41,13 @@ function roofSheen(w: number, tipY: number): string {
   return `M ${-w * 0.75},${tipY + 1.5} Q 0,${tipY + 4.5} ${w * 0.75},${tipY + 1.5}`;
 }
 
-/** 檐口阴影:沿屋面底缘的同一弧线补一笔深线,压出檐口厚度与进深(置于染瓦之上——
- *  染瓦为实色,画在其下会被整片盖掉,有主/无主城一侧有影一侧没有,不一致)。 */
+/** 檐口阴影:沿屋面底缘的同一弧线补一笔深线,压出檐口厚度与进深。 */
 function eaveShadow(w: number, tipY: number): string {
   const l = w - 3;
   return `M ${-l},${tipY + 4.5} Q 0,${tipY + 8} ${l},${tipY + 4.5}`;
 }
 
-/** 檐下红灯笼:吊线 + 朱红灯身 + 灯穗,呼应商市格的灯笼语言(静态点缀,不参与染瓦)。 */
+/** 檐下红灯笼:吊线 + 朱红灯身 + 灯穗,呼应商市格的灯笼语言(静态点缀)。 */
 function Lantern({ x }: { x: number }) {
   return (
     <g>

@@ -105,7 +105,7 @@ export interface PeekFx {
  *  level/owner 两维独立计数,各自作为 Tile 内受影响元素的 React key——nonce 变化
  *  即重挂重播,不变则原地静置。0 = 该维从未宣告(开局铺盘/快照恢复不播动画)。 */
 export interface TileAnnounce {
-  /** 扩军宣告 nonce:等级印重钤 + 顶层生长(含金顶/染瓦末片)以其为 key。 */
+  /** 扩军宣告 nonce:档位珠末珠落位(bv-pip-grow)以其为 key。 */
   level: number;
   /** 易主宣告 nonce:易主流光以其为 key。 */
   owner: number;
