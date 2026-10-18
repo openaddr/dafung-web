@@ -601,6 +601,12 @@ export function extractBatchEvents(
         );
         break;
       }
+      case "jinnangReshuffled": {
+        // 洗回宣告走 fx 面(引擎不推浮字):单机/联机各端同见,文案与战报同口径
+        const seat = eventSeat(engine, ev);
+        events_.push(textFloater(engine, seat, `弃牌堆 ${ev.count} 张洗回牌库`));
+        break;
+      }
       case "encounterChoice": {
         // 机遇抉择文案(#385 缺口 6):文案属静态目录,事件只带 id+下标,fx 查表派生
         const seat = eventSeat(engine, ev);
