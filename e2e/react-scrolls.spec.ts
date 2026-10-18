@@ -16,8 +16,9 @@ import {
 } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
-test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
+test("招贤卷轴:三选一,点技名先看全览不选将,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);
   // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
   // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
@@ -25,12 +26,21 @@ test("招贤卷轴:三选一,选后关闭并清空候选", async ({ page }) => {
   const scroll = page.getByTestId("scroll-hero-pick");
   await expect(scroll).toBeVisible();
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
+  // 先看后选(#605/#606):点候选将技名 chip=开技能全览弹框,不触发选将(候选不清空、
+  // 招贤层仍在);关弹框后照常点卡选将。
+  await scroll.getByRole("button").nth(1).locator("[data-skill]").first().click();
+  const glossary = page.getByTestId(TESTIDS.skillGlossary);
+  await expect(glossary).toBeVisible();
+  await expect(scroll).toBeVisible();
+  expect((await snap(page)).offeredHeroes).toHaveLength(3); // 看将不发命令
+  await page.getByTestId(TESTIDS.modalClose).click();
+  await expect(glossary).toHaveCount(0);
   await scroll.getByRole("button").nth(1).click();
   await expect(scroll).toBeHidden();
   // 选中的名将入手(战报或手牌区可见名字);快照候选清空
   // e2e 编译上下文看不到 src/app 的全局声明,evaluate 内以 any 访问调试钩子
-  const snap = await page.evaluate(() => (window as any).__dafung.snapshot());
-  expect(snap.offeredHeroes).toHaveLength(0);
+  const after = await page.evaluate(() => (window as any).__dafung.snapshot());
+  expect(after.offeredHeroes).toHaveLength(0);
 });
 
 /** 交涉现场种植(城主=人类座位 0,访客=bot 座位 1):给城主塞珍宝 + 一座被访的城。

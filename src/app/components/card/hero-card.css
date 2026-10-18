@@ -337,7 +337,7 @@
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   background: var(--color-paper-hi);
   border-radius: 0.25em;
-  padding: 0.06em 0.45em;
+  padding: 0.18em 0.5em; /* 热区补足:chip 即全览弹框入口(#605),触屏可点 */
   white-space: nowrap;
   color: var(--color-ink);
 }
