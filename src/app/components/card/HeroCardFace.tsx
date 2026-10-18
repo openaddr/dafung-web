@@ -40,10 +40,17 @@ export function heroIdByActiveSkillId(skillId: string): string {
 }
 
 /** 装配/尺寸档(r4 节三两档 + 招贤同槽位档):
- *  - detail:技能全文(技名牌+desc 全文,13px 基)——府库详情档;
- *  - compact:技名 chips + desc 两行截断(10px 基)——出牌阶段确认;
- *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排。 */
+ *  - detail:技能全文(技名牌+该技 desc 全文,13px 基)——府库详情档;
+ *  - compact:技名 chips 不带描述(10px 基)——出牌阶段确认;点技名开技能全览(#605);
+ *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排,分流同 #605。 */
 export type HeroCardFaceSize = "detail" | "compact" | "pick";
+
+/** 技名 chip 点击判定(#605 消费方分流单源):事件目标落在卡面技名 chip 上则返回
+ *  技 id,否则 null。chips 挂 data-skill=技 id(本组件渲染),点谁/开合语义归消费方。 */
+export function skillIdFromClick(e: { target: EventTarget | null }): string | null {
+  const chip = (e.target as HTMLElement | null)?.closest("[data-skill]");
+  return chip?.getAttribute("data-skill") ?? null;
+}
 
 export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   heroId: string;

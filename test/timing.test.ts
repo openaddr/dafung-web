@@ -1189,57 +1189,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.heroes.push(
-      {
-        id: "h1",
-        name: "甲",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h1-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
-      {
-        id: "h2",
-        name: "乙",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h2-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
-      {
-        id: "h3",
-        name: "丙",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h3-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
+      { id: "h1", name: "甲", title: "", image: "" },
+      { id: "h2", name: "乙", title: "", image: "" },
+      { id: "h3", name: "丙", title: "", image: "" },
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
@@ -1257,57 +1209,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e2);
     const user = e2.activePlayer;
     user.heroes.push(
-      {
-        id: "h1",
-        name: "甲",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h1-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
-      {
-        id: "h2",
-        name: "乙",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h2-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
-      {
-        id: "h3",
-        name: "丙",
-        title: "",
-        image: "",
-        skills: [
-          {
-            id: "h3-skill",
-            name: "技",
-            desc: "技效",
-            when: "DieRolled",
-            effect: "gainCash",
-            params: { amount: 1 },
-            scope: "any",
-          },
-        ],
-      },
+      { id: "h1", name: "甲", title: "", image: "" },
+      { id: "h2", name: "乙", title: "", image: "" },
+      { id: "h3", name: "丙", title: "", image: "" },
     );
     const seat2 = e2.players.indexOf(user);
     const entries2 = recordMomentCtx(e2);

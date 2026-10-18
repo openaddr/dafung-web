@@ -45,7 +45,11 @@ import {
   JinnangCardDetail,
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
-import { HeroCardFace, heroIdByActiveSkillId } from "@app/components/card/HeroCardFace";
+import {
+  HeroCardFace,
+  heroIdByActiveSkillId,
+  skillIdFromClick,
+} from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { Sym } from "@app/screens/shared/Sym";
@@ -322,17 +326,17 @@ function JunshiSkillCard({
     onLongPress: selected ? onDeselect : null,
     onContextMenu: selected ? onDeselect : undefined,
   });
-  // 点技名 chip=开全览(不选中),点卡面其余处=选中/取消:target closest([data-skill])
-  // 判定分流。tap.props.onClick 在此被覆写,长按吞补发 click 按 hook 钦定口径手读
-  // fired(fired 读后即清);长按/右键取消选中的语义不受影响(pointer 族原样生效)。
+  // 点技名 chip=开全览(不选中),点卡面其余处=选中/取消:skillIdFromClick 判定分流。
+  // tap.props.onClick 在此被覆写,长按吞补发 click 按 hook 钦定口径手读 fired(fired
+  // 读后即清);长按/右键取消选中的语义不受影响(pointer 族原样生效)。
   const onCardClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
     if (tap.fired.current) {
       tap.fired.current = false;
       return;
     }
-    const chip = (e.target as HTMLElement).closest("[data-skill]");
-    if (chip != null) {
-      onInspect(heroId, chip.getAttribute("data-skill")!);
+    const chipSkillId = skillIdFromClick(e);
+    if (chipSkillId != null) {
+      onInspect(heroId, chipSkillId);
       return;
     }
     if (selected) onDeselect();

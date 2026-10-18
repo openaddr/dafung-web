@@ -153,6 +153,56 @@ describe("扩展注册面(#378)", () => {
     ).toThrow(/不可解析效果/);
   });
 
+  it("零技能名将 / 技缺描述 / 主动技缺描述 → 炸(#604:浮字/卡面数据依赖,装载点提前暴露)", () => {
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          heroes: [{ id: "no-skill-hero", name: "无技将", title: "", image: "", skills: [] }],
+        }),
+      ),
+    ).toThrow(/零技能/);
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          heroes: [
+            {
+              id: "no-desc-hero",
+              name: "缺描述",
+              title: "",
+              image: "",
+              skills: [{ id: "s3", name: "技", desc: "", when: "DieRolled", effect: "gainCash" }],
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/缺技效描述/);
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          heroes: [
+            {
+              id: "bad-active-hero",
+              name: "主动缺描述",
+              title: "",
+              image: "",
+              skills: [
+                { id: "s4", name: "技", desc: "技效", when: "DieRolled", effect: "gainCash" },
+              ],
+              active: {
+                id: "a1",
+                name: "主动",
+                cooldown: 1,
+                desc: "",
+                target: "none" as const,
+                kind: "warDrum" as const,
+              },
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/主动技「a1」缺技效描述/);
+  });
+
   it("卸载未装载的包 → 炸", () => {
     expect(() => unregisterExtensionPackage("never-loaded")).toThrow(/未装载/);
   });

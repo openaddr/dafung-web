@@ -231,7 +231,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
       `
       e.players[0].jinnangHand = ["缓兵之计", "求贤令"];
       e.jinnangUsedTags = ["谋", "攻"];
-      e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", desc: "", image: "", skills: [],
+      e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", image: "", skills: [],
         active: { id: "zhangxingcai-leigu", name: "擂鼓", cooldown: 4,
           desc: "擂鼓进军:本回合你的下一次掷骰步数 +2(签面不变)。",
           target: "none", kind: "warDrum", params: { bonus: 2 } } }];
@@ -255,7 +255,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(ji.locator(".hface")).toContainText("张星彩");
     // 技能全览(#605):点技名 chip=开全览弹框(不选中)——被点技高亮行、全部技与描述
     // 全文在场;关闭后卡面照常可选中(chip 点击不触发选将/选中)
-    await ji.locator('[data-skill="zhangxingcai-leigu"]').click();
+    await ji.locator(TESTIDS.skillChip("zhangxingcai-leigu")).click();
     const glossary = page.getByTestId(TESTIDS.skillGlossary);
     await expect(glossary).toBeVisible();
     await expect(

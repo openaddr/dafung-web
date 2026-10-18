@@ -74,6 +74,10 @@ export const TESTIDS = {
   skillGlossary: "skill-glossary",
   /** 技能行(skillId=技 id;被点技挂 is-hl 高亮类)。 */
   skillGlossaryRow: (skillId: string) => `skill-glossary-row-${skillId}` as const,
+  /** 卡面技名 chip 定位选择器(chip 挂 data-skill=技 id,渲染单源在 HeroCardFace;
+   *  e2e 点 chip 走此选择器,勿裸写属性串)。 */
+  skillChip: (skillId: string) => `[data-skill="${skillId}"]` as const,
+  skillChipAny: "[data-skill]" as const,
 
   // ── 动作条(#256 出牌阶段态:旧弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */

@@ -10,7 +10,7 @@
 import { useState, type MouseEvent as ReactMouseEvent } from "react";
 import type { GameCommand } from "@core/authority";
 import { passiveDescLineOf } from "@core/heroes";
-import { HeroCardFace, heroDefOf } from "@app/components/card/HeroCardFace";
+import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { BannerShell } from "./BannerShell";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "../SkillGlossaryDialog";
 import { SCROLL_TESTIDS as T } from "./testids";
@@ -35,9 +35,9 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   if (!offered.length) return null; // 与旧 showHeroPickScroll 一致:无候选不弹
   const pick = (e: ReactMouseEvent<HTMLButtonElement>, i: number) => {
-    const chip = (e.target as HTMLElement).closest("[data-skill]");
-    if (chip != null) {
-      setGlossary({ heroId: offered[i]!.id, skillId: chip.getAttribute("data-skill")! });
+    const chipSkillId = skillIdFromClick(e);
+    if (chipSkillId != null) {
+      setGlossary({ heroId: offered[i]!.id, skillId: chipSkillId });
       return;
     }
     onCommand({ type: "resolveHeroPick", index: i });

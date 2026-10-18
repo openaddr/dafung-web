@@ -28,7 +28,7 @@ test("招贤卷轴:三选一,点技名先看全览不选将,选后关闭并清�
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
   // 先看后选(#605/#606):点候选将技名 chip=开技能全览弹框,不触发选将(候选不清空、
   // 招贤层仍在);关弹框后照常点卡选将。
-  await scroll.getByRole("button").nth(1).locator("[data-skill]").first().click();
+  await scroll.getByRole("button").nth(1).locator(TESTIDS.skillChipAny).first().click();
   const glossary = page.getByTestId(TESTIDS.skillGlossary);
   await expect(glossary).toBeVisible();
   await expect(scroll).toBeVisible();
