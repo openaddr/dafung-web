@@ -37,6 +37,7 @@ import {
   useRef,
   useState,
   type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
 import {
@@ -58,6 +59,7 @@ import { jinnangCardOf } from "@core/jinnang";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { PileModal, type PileModalKind } from "./PileModal";
+import { SkillGlossaryDialog, type SkillGlossaryTarget } from "./SkillGlossaryDialog";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -299,6 +301,7 @@ function JunshiSkillCard({
   selected,
   onSelect,
   onDeselect,
+  onInspect,
 }: {
   option: ChoiceOption;
   /** 主动技 id(调用侧已判 o.skillId != null 才走本件;类型收窄单点在此收口)。 */
@@ -307,7 +310,10 @@ function JunshiSkillCard({
   selected: boolean;
   onSelect: () => void;
   onDeselect: () => void;
+  /** 点技名 chip 开技能全览(#605):参数=(名将 id, 被点技 id)。 */
+  onInspect: (heroId: string, skillId: string) => void;
 }) {
+  const heroId = heroIdByActiveSkillId(skillId);
   const tap = useTapOrLongPress({
     onTap: () => {
       if (selected) onDeselect();
@@ -316,10 +322,27 @@ function JunshiSkillCard({
     onLongPress: selected ? onDeselect : null,
     onContextMenu: selected ? onDeselect : undefined,
   });
+  // 点技名 chip=开全览(不选中),点卡面其余处=选中/取消:target closest([data-skill])
+  // 判定分流。tap.props.onClick 在此被覆写,长按吞补发 click 按 hook 钦定口径手读
+  // fired(fired 读后即清);长按/右键取消选中的语义不受影响(pointer 族原样生效)。
+  const onCardClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
+    if (tap.fired.current) {
+      tap.fired.current = false;
+      return;
+    }
+    const chip = (e.target as HTMLElement).closest("[data-skill]");
+    if (chip != null) {
+      onInspect(heroId, chip.getAttribute("data-skill")!);
+      return;
+    }
+    if (selected) onDeselect();
+    else onSelect();
+  };
   return (
     <button
       type="button"
       {...tap.props}
+      onClick={onCardClick}
       data-testid={TESTIDS.jinnangCard(option.id)}
       aria-label={option.label}
       aria-pressed={option.available ? selected : undefined}
@@ -328,7 +351,7 @@ function JunshiSkillCard({
       style={{ ["--i" as string]: index }}
     >
       <HeroCardFace
-        heroId={heroIdByActiveSkillId(skillId)}
+        heroId={heroId}
         size="compact"
         className={option.available ? (selected ? "sel" : "") : "off"}
         style={tiltVars(`${option.id}#${index}`)}
@@ -457,6 +480,8 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
   // 藏品弹层开合态(#361):null=全收;一次一层,点入口开、Esc/点外/X 关。
   const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
+  // 技能全览弹框开合态(#605):null=收;点技卡技名 chip 开,Esc/点外/X 关。
+  const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
   const mounted = player != null;
@@ -587,6 +612,7 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
               selected={junshi.selectedId === o.id && o.available}
               onSelect={() => select(o.id)}
               onDeselect={() => select(null)}
+              onInspect={(heroId, chipSkillId) => setGlossary({ heroId, skillId: chipSkillId })}
             />
           );
         }
@@ -688,6 +714,8 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
       {pileModal !== null && (
         <PileModal kind={pileModal} player={player} onClose={() => setPileModal(null)} />
       )}
+      {/* 技能全览弹框(#605):点技卡技名 chip 开,只读,关闭即清 */}
+      <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
     </section>
   );
 }

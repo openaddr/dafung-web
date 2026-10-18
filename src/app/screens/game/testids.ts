@@ -69,6 +69,12 @@ export const TESTIDS = {
   /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
+  // ── 技能全览弹框(#605,规格 #603 T2:卡面技名 chips 的唯一详情出口)──
+  /** 弹层容器(PileShell 壳;点卡面任一技名 chip 弹出,只读无命令钮)。 */
+  skillGlossary: "skill-glossary",
+  /** 技能行(skillId=技 id;被点技挂 is-hl 高亮类)。 */
+  skillGlossaryRow: (skillId: string) => `skill-glossary-row-${skillId}` as const,
+
   // ── 动作条(#256 出牌阶段态:旧弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */
   actionbar: "actionbar",

@@ -100,28 +100,25 @@ function SkillRows({ def }: { def: HeroDef }) {
   );
 }
 
-/** 紧凑档技能区:●/◆ 技名 chips 一行 + 名将 desc 两行截断(全文留 title 浮签,
- *  消费方口径)。 */
+/** 紧凑档技能区(#605):●/◆ 技名 chips 一行,描述全撤——技效全文走「点技名→技能
+ *  全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免口径,点击
+ *  分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
 function SkillChips({ def }: { def: HeroDef }) {
   return (
-    <>
-      <div className="bd-row">
-        {(def.skills ?? []).map((s) => (
-          <span className="bd" key={s.id}>
-            <i className="fu fu-dot" aria-hidden="true" />
-            {s.name}
-          </span>
-        ))}
-        {def.active && (
-          <span className="bd">
-            <i className="fu fu-dia" aria-hidden="true" />
-            {def.active.name}
-          </span>
-        )}
-      </div>
-      {/* T1 过渡行(#604):紧凑档暂显首条被动技描述保旧观感,T2(卡面 chips-only)整体撤除 */}
-      <div className="sdesc">{def.skills?.[0]?.desc}</div>
-    </>
+    <div className="bd-row">
+      {(def.skills ?? []).map((s) => (
+        <span className="bd" key={s.id} data-skill={s.id}>
+          <i className="fu fu-dot" aria-hidden="true" />
+          {s.name}
+        </span>
+      ))}
+      {def.active && (
+        <span className="bd" data-skill={def.active.id}>
+          <i className="fu fu-dia" aria-hidden="true" />
+          {def.active.name}
+        </span>
+      )}
+    </div>
   );
 }
 
