@@ -95,8 +95,9 @@ export type RoomBotStopReason =
 export type RoomEvent =
   | { ev: "start"; mapId: string }
   | { ev: "map"; mapId: string }
-  | { ev: "takeover"; seat: number; auto?: true } // auto=true(#118):决策停摆看门狗代接管,非房主手动
-  | { ev: "autopilot"; seat: number; on: boolean }
+  /** 托管开关拨动(ADR-0028 单一开关):by 分辨触发源——self=玩家自助(含收回),
+   *  watchdog=看门狗代开(#118 停摆/#380 保留窗,只开不关)。对局日志行同形状。 */
+  | { ev: "autopilot"; seat: number; on: boolean; by: "self" | "watchdog" }
   | { ev: "offline"; seat: number; online: number[] }
   | { ev: "auto-roll"; seat: number } // #188:人类座位 Roll 相位超时未摇,服务器代发起摇
   | { ev: "reaction-decline"; seat: number } // #281:被询问座位反应窗超时,服务器代发「不用」
@@ -116,9 +117,9 @@ export interface RoomSession {
   seatCount: number;
   seats: SeatState[];
   hostSeat: number; // 当前 host 座位(开局=0;host 掉线则移交,ADR-0002)
-  takeover: Set<number>; // 房主强令 bot 接管的人类座位(重连时移除=夺回)
-  /** 自助托管座位集:玩家把自己的座位交给 bot 代打(行为=bot 同款,#580 行为单源)。
-   *  与 takeover 分离——重连不清除,只有玩家自己收回(autos 02/spec: autopilot)。 */
+  /** 托管座位集(ADR-0028 单一开关):人类座位交 bot 代打的唯一状态域。触发源两道
+   *  ——玩家自助(setAutoPilot,可开可关)与看门狗代开(#118 停摆/#380 保留窗到期,
+   *  只开不关);重连不清,只有本人收回。出处只进观测行/对局日志(by 字段),行为无分叉。 */
   autoPilot: Set<number>;
   hostConfig: HostConfig;
   /** 本房间所选地图 id(建房时 null;host setMap 后填;startGame 前 must 非 null)。 */
@@ -159,13 +160,13 @@ export interface CreateRoomConfig {
 /** Registry 注入项(server.ts 构造时传;ADR-0007:fs 读取归传输层,room.ts 只消费结果)。
  *  encounter(#135):联机机遇配置——服务器读 jiyu.json 后注入,
  *  startGame 透传进引擎 EngineConfig.encounter。缺省 = 机遇关(引擎缺省语义,历史行为)。
- *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未接管人类座位的决策点超过该毫秒,
- *  bot 自动接管该座位(重连/刷新夺回,同 ADR-0002 接管语义)。0 = 关闭(缺省关,测试友好);
- *  server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
+ *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未被托管的真人座位的决策点超过
+ *  该毫秒,看门狗代开该座位托管(ADR-0028;重连不清,本人点「收回」拿回)。0 = 关闭
+ *  (缺省关,测试友好);server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
  *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
  *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。
  *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
- *  token 重连无缝夺回,到期 bot 自动接管(等价房主 takeover,重连仍可夺回)。0 = 关闭
+ *  token 重连无缝归座,到期看门狗代开托管(ADR-0028;重连不清托管)。0 = 关闭
  *  (缺省关,单机/测试;server.ts 默认 600000=10 分钟,env RETENTION_WINDOW_MS 可调)。
  *  clock(#399 Worker 时钟):编排定时原语(看门狗/托管步进)。缺省 = 宿主全局
  *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
@@ -313,7 +314,6 @@ export class RoomRegistry {
       seatCount: rec.seatCount,
       seats: rec.seats.map((s) => ({ kind: s.kind, token: s.token, guohao: s.guohao ?? null })),
       hostSeat: rec.hostSeat,
-      takeover: new Set(rec.takeover),
       autoPilot: new Set(rec.autoPilot),
       hostConfig: rec.hostConfig,
       mapId: rec.mapId ?? null,
@@ -367,7 +367,6 @@ export class RoomRegistry {
       seatCount,
       seats,
       hostSeat: 0,
-      takeover: new Set(),
       autoPilot: new Set(),
       hostConfig,
       mapId: null,
@@ -417,7 +416,7 @@ export class RoomRegistry {
   }
 
   /** host 开局:构造引擎(doDraftRoll 自动国号)后停在 Setup·PickCapital(L41:真人
-   *  各自在自己屏幕三选一,经 WS pickCapital 落子;bot/接管/托管座位由 driveBots 代选,
+   *  各自在自己屏幕三选一,经 WS pickCapital 落子;bot/托管座位由 driveBots 代选,
    *  全 bot 驱动房自动跑完进 Playing)。首帧 onUpdate 即 Setup 态(含首位选都者三候选)。
    *  onUpdate:开局首帧 + 每个 bot 步后调(逐步直播,保留原 server.ts 行为)。
    *  mapProvider:按 mapId 返回 LoadedMap(服务器从 public/maps 加载后注入;ADR-0007:
@@ -476,12 +475,12 @@ export class RoomRegistry {
     );
     this.persist(room);
     onUpdate?.(room); // 开局首帧(Setup 态:offeredCapitals=首位选都者三候选)
-    await this.driveBots(room, onUpdate); // bot/接管/托管座位先驱动(全 bot 驱动房自动进 Playing)
+    await this.driveBots(room, onUpdate); // bot/托管座位先驱动(全 bot 驱动房自动进 Playing)
     return room;
   }
 
   /** 真人选都落子(L41):校验「轮到该座位 + tileIndex ∈ 三候选」后引擎落子;
-   *  选完由引擎滚换下一位候选,余下 bot/接管/托管座位 driveBots 接力。
+   *  选完由引擎滚换下一位候选,余下 bot/托管座位 driveBots 接力。
    *  轮次/候选校验与 engine.pickCapital 同源(消息透传),这里补 HTTP 语义状态码。 */
   async pickCapital(
     roomId: string,
@@ -507,9 +506,9 @@ export class RoomRegistry {
     return room;
   }
 
-  /** 玩家自助托管(spec: autopilot):把自己的座位交给 bot 代打(on)或收回(off)。
-   *  代打行为=bot 同款(#580 行为单源,无速度分档)。与 takeover 分离:重连(attachSeat)
-   *  不清除,只有本人经此方法收回。
+  /** 玩家自助托管(spec: autopilot,ADR-0028 单一开关):把自己的座位交给 bot 代打
+   *  (on)或收回(off)。代打行为=bot 同款(#580 行为单源,无速度分档)。
+   *  重连(attachSeat)不清除——托管持久到本人经此方法收回(一键收回,ADR-0028)。
    *  收回后在途连锁做完到下一个决策点自然停(driveBots 每步重查 seatControlled,
    *  步间让出宏任务 → 切回即停)。
    *  对局中才可托管(未开局 409);切换后 onUpdate 广播,若轮到该座位立即驱动。
@@ -529,45 +528,17 @@ export class RoomRegistry {
     if (room.seats[seat].kind === "bot") throw new RoomError(400, "bot 座位无需托管");
     if (on) room.autoPilot.add(seat);
     else room.autoPilot.delete(seat);
-    this.observe(room, { ev: "autopilot", seat, on });
-    // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集
+    this.observe(room, { ev: "autopilot", seat, on, by: "self" });
+    // 托管开关房间行(ADR-0014):机读 detail 供重放调整 bot 驱动座位集(by 分辨触发源)
     const seatGuohao = room.engine.players[seat].guohao;
     this.logRoom(
       room,
       on ? `${seatGuohao} 开启托管,交由电脑代打` : `${seatGuohao} 关闭托管,收回操作`,
-      JSON.stringify({ type: "autopilot", seat, on }),
+      JSON.stringify({ type: "autopilot", seat, on, by: "self" }),
     );
     this.persist(room);
     onUpdate?.(room); // 先广播托管状态
     void this.driveBots(room, onUpdate); // 只调度第一拍,链经注入时钟自续(#529,见方法注)
-    return room;
-  }
-
-  /** host 强令 bot 接管某 human 座位(ADR-0002)。若该 seat 正轮到,driveBots 解冻。
-   *  onUpdate:每个 botAct 步后调。异步(driveBots 可能含托管步进)。 */
-  async takeoverSeat(
-    roomId: string,
-    hostToken: string,
-    seat: number,
-    onUpdate?: (room: RoomSession) => void,
-  ): Promise<RoomSession> {
-    const room = this.rooms.get(roomId);
-    if (!room || !room.engine) throw new RoomError(404, "对局不存在");
-    if (hostToken !== room.seats[room.hostSeat].token) throw new RoomError(403, "仅 host 可接管");
-    if (!Number.isInteger(seat) || seat < 0 || seat >= room.seats.length)
-      throw new RoomError(400, "seat 非法");
-    if (room.seats[seat].kind === "bot") throw new RoomError(400, "该座位本就是 bot");
-    room.takeover.add(seat);
-    this.observe(room, { ev: "takeover", seat });
-    // 接管房间行(ADR-0014):重放据此把该座位并入 bot 驱动集
-    this.logRoom(
-      room,
-      `房主令 bot 接管座位 ${seat}(${room.engine.players[seat].guohao})`,
-      JSON.stringify({ type: "takeover", seat }),
-    );
-    await this.driveBots(room, onUpdate); // 若该 seat 正轮到,立即 bot 驱动解冻(逐步 persist+onUpdate)
-    this.persist(room);
-    onUpdate?.(room); // 终态
     return room;
   }
 
@@ -595,7 +566,7 @@ export class RoomRegistry {
   }
 
   // ──────────────────────────── 命令 + 掉线 ────────────────────────────
-  /** 应用一条人类命令并驱动 bot/接管/托管座位的连锁。
+  /** 应用一条人类命令并驱动 bot/托管座位的连锁。
    *  onUpdate:每次可见状态变化后调(初始命令结果后 + 每个 botAct 步后),传输层在回调里 broadcast。
    *  这保留了原 server.ts 的逐步直播 UX(network-client 的渐进 snapshot 反馈)。
    *  异步:连锁可能含托管步进(在途时本调用被重入守卫跳过,由既有链接管)。
@@ -611,7 +582,7 @@ export class RoomRegistry {
     room.engine.submitCommand(cmd);
     this.persist(room);
     onUpdate?.(room); // 人类命令结果先推
-    await this.driveBots(room, onUpdate); // bot/接管/托管座位的连锁,逐步 persist+onUpdate
+    await this.driveBots(room, onUpdate); // bot/托管座位的连锁,逐步 persist+onUpdate
   }
 
   /** 联机 cmd 提交者座位校验(#454,#445 Bug3):WS 连接只能以本连接绑定的座位提交
@@ -649,13 +620,13 @@ export class RoomRegistry {
     await this.applyCommand(roomId, cmd, onUpdate);
   }
 
-  /** WS close 时调用:host 掉线 → transferHost;之后 driveBots(接管/托管座位的连锁)。
+  /** WS close 时调用:host 掉线 → transferHost;之后 driveBots(托管座位的连锁)。
    *  seat:刚断开的座位(传输层应已从 stillOnlineSeats 中移除,此处仅作文档/防御)。
    *  stillOnlineSeats:传输层算好后传入(只有传输层知道谁还连着 WS)。
    *  onUpdate:每次可见状态变化后调。异步(连锁可能含托管步进)。
    *  #380:对局中断线 → 座位保留窗武装(retentionWindowMs>0 时):窗口内持 token 重连
-   *  无缝夺回(attachSeat 撤表),到期 bot 自动接管;大厅/已终局/已服务器驱动的座位
-   *  由看门狗 window 判定不武装。 */
+   *  无缝归座(attachSeat 撤表),到期看门狗代开托管(ADR-0028);大厅/已终局/已服务
+   *  器驱动的座位由看门狗 window 判定不武装。 */
   async markSeatOffline(
     roomId: string,
     seat: number,
@@ -678,7 +649,7 @@ export class RoomRegistry {
     // #380:座位保留窗武装(窗口判定与豁免归 watchdogs.retention 的 window)
     if (room.engine) this.watchdogs.retention.arm(room, seat, onUpdate);
     onUpdate?.(room); // 先推"该座离线 + 可能的 host 移交"
-    await this.driveBots(room, onUpdate); // 接管/托管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/接管)
+    await this.driveBots(room, onUpdate); // 托管中的座位若轮到,继续;冻结的人类座位不驱动(等重连/托管代开)
   }
 
   // ──────────────────────────── 鉴权 ────────────────────────────
@@ -691,30 +662,22 @@ export class RoomRegistry {
     return true;
   }
 
-  /** WS 连接建立时调用(ADR-0002/0005):token 是 Seat 归属唯一凭证 →
-   *  连上即从接管集合移除(原玩家持 token 重连夺回)。传输层随后发整房摘要给该 WS。
-   *  #380:重连即撤本座位保留窗(到期不误接管已归来的在线座位)。 */
+  /** WS 连接建立时调用(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即归座。
+   *  传输层随后发整房摘要给该 WS。托管开关不动(ADR-0028:重连不清托管,回来的人
+   *  点「收回」拿回控制)。
+   *  #380:重连即撤本座位保留窗(到期不误托管已归来的在线座位)。 */
   attachSeat(roomId: string, seat: number): RoomSession | undefined {
     const room = this.rooms.get(roomId);
     if (!room) return undefined;
     this.watchdogs.retention.disarm(roomId, seat);
-    // 重连房间行(ADR-0014):重放据此把座位移出接管驱动的 bot 集(托管不因重连失效)
-    if (room.takeover.has(seat) && room.engine) {
-      this.logRoom(
-        room,
-        `座位 ${seat}(${room.engine.players[seat].guohao}) 重连,退出接管`,
-        JSON.stringify({ type: "attach", seat }),
-      );
-    }
-    room.takeover.delete(seat);
     return room;
   }
 
   // ──────────────────────────── 传输面端点(#397 单机统一 A)────────────────────────────
   /** 内存端点入座(单机通路):鉴权同 WS upgrade(validateSeat)→ attachSeat 语义
-   *  (持 token 重连夺回座位)→ 立即经装配单口下发首连整房摘要(viewerSeat=null
-   *  显式 god-view,与 server.ts open 处理器同一装配函数、同一消息形状)。此后编排
-   *  每次可见变化都会经 transportBroadcast 合并下行到本端点。 */
+   *  (持 token 重连归座;托管开关不动,ADR-0028)→ 立即经装配单口下发首连整房摘要
+   *  (viewerSeat=null 显式 god-view,与 server.ts open 处理器同一装配函数、同一消息形状)。
+   *  此后编排每次可见变化都会经 transportBroadcast 合并下行到本端点。 */
   connectSeat(roomId: string, seat: number, token: string, ep: SeatEndpoint): RoomSession {
     if (!this.validateSeat(roomId, seat, token)) throw new RoomError(401, "座位鉴权失败");
     const room = this.attachSeat(roomId, seat);
@@ -821,7 +784,6 @@ export class RoomRegistry {
         guohao: s.guohao,
       })),
       hostSeat: r.hostSeat,
-      takeover: [...r.takeover],
       autoPilot: [...r.autoPilot],
       hostConfig: r.hostConfig,
       mapId: r.mapId,

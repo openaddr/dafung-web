@@ -1,6 +1,6 @@
 // Room 模块单测(ADR-0007):房间逻辑首次可不开 socket / 不碰磁盘单测。
-// 覆盖 ADR-0002 掉线/接管/解散语义 —— 这些 e2e 不覆盖(e2e 只走建房/加入/开局/掷骰)。
-// 用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
+// 覆盖 ADR-0002 掉线/解散与 ADR-0028 托管(接管即自动托管)语义 —— 这些 e2e 不覆盖
+// (e2e 只走建房/加入/开局/掷骰)。用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "../scripts/room";
 import type { RoomClock, SeatEndpoint } from "../scripts/room";
@@ -350,17 +350,6 @@ describe("RoomRegistry · 真人选都 pickCapital(L41)", () => {
     expect(e.players[cur].capitalIndex).not.toBe(-1);
   });
 
-  it("接管代选:host 接管选都中的真人 → 服务器 bot 代选推进", async () => {
-    const { reg, roomId, hostToken } = await startRoom({ seats: 3, bot: [] });
-    const e = reg.get(roomId)!.engine!;
-    const cur = e.currentSetupPlayerIndex;
-    const before = e.currentDraftIndex;
-    await reg.takeoverSeat(roomId, hostToken, cur, undefined);
-    expect(e.currentDraftIndex).toBe(before + 1);
-    expect(e.players[cur].capitalIndex).not.toBe(-1);
-    expect(reg.get(roomId)!.takeover.has(cur)).toBe(true);
-  });
-
   it("全 bot 驱动房自动开局不回归:开局后无人选都,托管即自动跑完 Setup", async () => {
     const { reg, roomId } = await startRoom({ seats: 2, bot: [1] });
     const e = reg.get(roomId)!.engine!;
@@ -466,21 +455,13 @@ describe("RoomRegistry · ADR-0002 掉线 / host 移交", () => {
   });
 });
 
-describe("RoomRegistry · ADR-0002 接管(takeoverSeat)", () => {
-  it("host 强令 bot 接管 human 座位 → takeover 集合包含该 seat", async () => {
-    const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 3, bot: [2] });
-    await reg.takeoverSeat(roomId, hostToken, 1);
-    expect(reg.get(roomId)!.takeover.has(1)).toBe(true);
-  });
-
-  it("非 host 接管 → 403", async () => {
+describe("RoomRegistry · 重连(attachSeat,ADR-0028)", () => {
+  it("重连不清托管:attachSeat 后 autoPilot 仍在,拿回控制靠本人「收回」", async () => {
+    // 回归锚:守「重连即夺回」旧口径不复活(ADR-0028 单一开关,重连不动开关)。用时 <1s。
     const { reg, roomId } = await setupStartedRoom({ seats: 3, bot: [2] });
-    await expectRoomError(() => reg.takeoverSeat(roomId, "not-host", 1), 403);
-  });
-
-  it("接管 bot 座位 → 400", async () => {
-    const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 3, bot: [2] });
-    await expectRoomError(() => reg.takeoverSeat(roomId, hostToken, 2), 400); // seat2 本就是 bot
+    await reg.setAutoPilot(roomId, 0, true);
+    reg.attachSeat(roomId, 0); // 原玩家持 token 重连
+    expect(reg.get(roomId)!.autoPilot.has(0)).toBe(true);
   });
 });
 
@@ -498,16 +479,6 @@ describe("RoomRegistry · 解散(dismissRoom)", () => {
     const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 2, bot: [1] });
     await expectRoomError(() => reg.dismissRoom(roomId, "not-host"), 403);
     await expectRoomError(() => reg.dismissRoom("NOPE", hostToken), 404);
-  });
-});
-
-describe("RoomRegistry · 重连夺回(attachSeat)", () => {
-  it("接管后 attachSeat → takeover 移除该 seat(持 token 重连夺回)", async () => {
-    const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 3, bot: [2] });
-    await reg.takeoverSeat(roomId, hostToken, 1);
-    expect(reg.get(roomId)!.takeover.has(1)).toBe(true);
-    reg.attachSeat(roomId, 1); // 原玩家持 token 重连
-    expect(reg.get(roomId)!.takeover.has(1)).toBe(false);
   });
 });
 
@@ -638,8 +609,15 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     return { reg, events };
   }
 
-  it("开局 + host 接管 seat0 → start/bot-step 序列 + 终局 bot-stop(game-over)", async () => {
-    const { reg, events } = observed();
+  it("开局 + host 托管 seat0 → start/autopilot/bot-step 序列 + 终局 bot-stop(game-over)", async () => {
+    const events: { roomId: string; event: Record<string, unknown> }[] = [];
+    const clock = new ManualClock();
+    const reg = new RoomRegistry(
+      new InMemoryPersistence(),
+      (roomId, event) => events.push({ roomId, event: event as Record<string, unknown> }),
+      undefined,
+      { clock },
+    );
     const { room, token } = reg.createRoom({
       seatCount: 2,
       botIdx: new Set([1]),
@@ -650,33 +628,24 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     expect(events.find((e) => e.event.ev === "start")).toBeTruthy();
     const stops = events.filter((e) => e.event.ev === "bot-stop");
     expect(stops[0].event.reason).toBe("human-turn");
-    // host 强令 bot 接管 seat0 → 全 bot 自行终局
-    await reg.takeoverSeat(room.roomId, token, 0, undefined);
-    expect(events.find((e) => e.event.ev === "takeover")?.event.seat).toBe(0);
-    expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
-    // 经济 v2(目标 30000)全 bot 对局超过单链 500 步:经 setTimeout 续链,轮询等终局。
-    // 反应窗(#281):接管/托管座位被询问时,room.ts driveBots 依 ADR-0017 代发「不用」
-    //(权威侧超时兜底=代发普通命令;本用例的轮询代发与其口径一致)
-    for (let i = 0; i < 1200 && events.at(-1)?.event.reason !== "game-over"; i++) {
-      const e = reg.get(room.roomId)?.engine;
-      const pr = e?.phase === "Playing" ? e.pendingReaction : null;
-      if (e && pr) {
-        const queried = pr.view.kind === "jinnang" ? pr.view.queriedBySeat : [pr.view.ownerSeat];
-        const seat = queried.find(
-          (s2) => !e.players[s2].isBot && !pr.answers.some((a) => a.seat === s2),
-        );
-        if (seat != null) {
-          await reg.applyCommand(room.roomId, { type: "respondReaction", seat, use: false });
-          continue;
-        }
-      }
-      await new Promise((r) => setTimeout(r, 10));
+    // host 开启托管 seat0 → 全座位服务器驱动,自行终局(#580:fire-and-forget,链经时钟自续)
+    await reg.setAutoPilot(room.roomId, 0, true);
+    expect(events.find((e) => e.event.ev === "autopilot")?.event).toMatchObject({
+      seat: 0,
+      on: true,
+      by: "self",
+    });
+    // 泵送:托管链 2s/步经注入时钟,fireAll 逐拍放行直到终局(bot 座位 0 延迟随链同走)
+    for (let i = 0; i < 20_000 && events.at(-1)?.event.reason !== "game-over"; i++) {
+      clock.fireAll();
+      await macroTick();
     }
     expect(events.at(-1)?.event.ev).toBe("bot-stop");
     expect(events.at(-1)?.event.reason).toBe("game-over");
+    expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
     // 所有事件都带正确的 roomId
     expect(events.every((e) => e.roomId === room.roomId)).toBe(true);
-  });
+  }, 60_000);
 
   it("人类座位在线 → bot-stop reason=human-turn(正常等待)", async () => {
     const { reg, events } = observed();
@@ -783,17 +752,6 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
     expect(reg.get(roomId)!.autoPilot.has(0)).toBe(false);
   });
 
-  it("重连(attachSeat)清 takeover 不清 autoPilot:两旗并存合法,行为无分叉(#580)", async () => {
-    const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 3, bot: [] });
-    reg.takeoverSeat(roomId, hostToken, 1, undefined);
-    await reg.setAutoPilot(roomId, 1, true); // seat1 已被接管,再自助托管
-    reg.attachSeat(roomId, 1); // 重连 → takeover 清(重连即夺回),autoPilot 保留(持久到本人收回)
-    const room = reg.get(roomId)!;
-    expect(room.takeover.has(1)).toBe(false);
-    expect(room.autoPilot.has(1)).toBe(true);
-    // 两旗只剩生命周期含义(#580):并存座位照常由 driveBots 同一裸调入口代打,无行为分叉
-  });
-
   it("bot 座位托管 → 400;未开局 → 409", async () => {
     const { reg, roomId, hostToken } = await setupStartedRoom({ seats: 3, bot: [2] });
     await expectRoomError(() => reg.setAutoPilot(roomId, 2, true), 400); // bot 座位
@@ -835,7 +793,7 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
     expect(ev).toMatchObject({ seat: 0, on: true });
   }, 30000);
 
-  it("ADR-0014 房间生命周期行进对局日志 + logSink 增量钩子(开局/托管/接管/解散)", async () => {
+  it("ADR-0014 房间生命周期行进对局日志 + logSink 增量钩子(开局/托管/解散)", async () => {
     const flushed: Array<{ gameId: string; len: number }> = [];
     const reg = new RoomRegistry(new InMemoryPersistence(), undefined, (room) =>
       flushed.push({ gameId: room.engine!.gameId, len: room.engine!.log.length }),
@@ -866,9 +824,6 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
         (l) => l.detail.includes('"type":"autopilot"') && l.detail.includes('"on":false'),
       ),
     ).toBe(true);
-    // 接管行
-    await reg.takeoverSeat(created.room.roomId, created.token, 0, undefined);
-    expect(roomRows().some((l) => l.detail.includes('"type":"takeover"'))).toBe(true);
     // logSink:persist 与房间行写入后都会被调(对局日志 jsonl 增量追加的驱动源)
     expect(flushed.length).toBeGreaterThan(3);
     expect(flushed.every((f) => f.gameId === engine.gameId)).toBe(true);
@@ -1143,8 +1098,16 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
   }
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-  it("人类座位停摆超时 → bot 自动接管(auto 事件+对局继续),重连 attachSeat 夺回", async () => {
-    const { reg, events } = observedWith({ decisionTimeoutMs: 25 });
+  it("人类座位停摆超时 → 看门狗代开托管(by:watchdog 观测行+对局日志行+对局继续)", async () => {
+    // 手泵时钟:代开托管后链 2s/步全经注入时钟(接管时代 0ms 直推的旧泵法不再适用)
+    const clock = new ManualClock();
+    const events: Record<string, unknown>[] = [];
+    const reg = new RoomRegistry(
+      new InMemoryPersistence(),
+      (_roomId, event) => events.push(event as Record<string, unknown>),
+      undefined,
+      { decisionTimeoutMs: 25, clock },
+    );
     const created = reg.createRoom({
       seatCount: 3,
       botIdx: new Set([2]),
@@ -1156,21 +1119,32 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     await reg.startGame(roomId, created.token, undefined, testMapProvider); // 停在 seat0(Roll)
     const e = reg.get(roomId)!.engine!;
     expect(e.phase).toBe("Setup"); // 选都阶段即停 seat0(human)
-    // 25ms 超时 → seat0 被自动接管;连锁推进到 seat1(人类)又停 → 再超时接管 → 对局持续走
-    await sleep(300);
-    const takeovers = events.filter((ev) => ev.ev === "takeover");
-    expect(takeovers.length).toBeGreaterThanOrEqual(1);
-    expect(takeovers.every((ev) => ev.auto === true)).toBe(true); // 全部为看门狗代接管,非房主手动
-    // 对局确有进展(接管后 driveBots 续推:选都走完进 Playing,不再永久挂)
+    // 泵送:25ms 停摆窗到点 → 代开托管 → 链推进到下一真人又停 → 再代开 → 直至出 Setup
+    for (let i = 0; i < 4000 && e.phase === "Setup"; i++) {
+      clock.fireAll();
+      await macroTick();
+    }
+    const aps = events.filter((ev) => ev.ev === "autopilot");
+    expect(aps.length).toBeGreaterThanOrEqual(1);
+    expect(aps.every((ev) => ev.by === "watchdog" && ev.on === true)).toBe(true); // 只开不关,出处=看门狗
+    // 开关确实拨了(单一状态域:不再有第二套接管集合)
+    const stalledSeat = aps[0].seat as number;
+    expect(reg.get(roomId)!.autoPilot.has(stalledSeat)).toBe(true);
+    // 对局日志行(ADR-0014):机读 autopilot(by:watchdog)+ brief 记停摆代开
+    expect(
+      e.log.some(
+        (l) =>
+          l.category === "room" &&
+          l.detail.includes('"type":"autopilot"') &&
+          l.detail.includes('"by":"watchdog"') &&
+          l.brief.includes("决策停摆"),
+      ),
+    ).toBe(true);
+    // 对局确有进展(托管后 driveBots 续推:选都走完进 Playing,不再永久挂)
     expect(["Playing", "GameOver"]).toContain(e.phase);
-    // 重连夺回(attachSeat 既有语义,ADR-0002):被看门狗接管的座位,重连即收回
-    // (首位选都者按骰序不定,故取实际被接管者断言,不写死座位号)
-    const stalledSeat = takeovers[0].seat as number;
-    reg.attachSeat(roomId, stalledSeat);
-    expect(reg.get(roomId)!.takeover.has(stalledSeat)).toBe(false);
   });
 
-  it("decisionTimeoutMs=0(缺省)→ 永不自动接管(人类座位正常等待,历史行为)", async () => {
+  it("decisionTimeoutMs=0(缺省)→ 永不代开托管(真人座位正常等待,历史行为)", async () => {
     const { reg, events } = observedWith();
     const created = reg.createRoom({
       seatCount: 2,
@@ -1181,11 +1155,11 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
     await reg.startGame(roomId, created.token, undefined, testMapProvider);
     await sleep(120);
-    expect(events.some((ev) => ev.ev === "takeover")).toBe(false);
-    expect(reg.get(roomId)!.takeover.size).toBe(0);
+    expect(events.some((ev) => ev.ev === "autopilot")).toBe(false);
+    expect(reg.get(roomId)!.autoPilot.size).toBe(0);
   });
 
-  it("解散房间撤看门狗:超时窗口内 dismiss → 无迟到接管、无未处理拒绝", async () => {
+  it("解散房间撤看门狗:超时窗口内 dismiss → 无迟到托管、无未处理拒绝", async () => {
     const { reg, events } = observedWith({ decisionTimeoutMs: 400 });
     const created = reg.createRoom({
       seatCount: 2,
@@ -1198,7 +1172,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     reg.dismissRoom(roomId, created.token); // 窗口内解散 → clearStall
     await sleep(500);
     expect(reg.get(roomId)).toBeUndefined();
-    expect(events.some((ev) => ev.ev === "takeover")).toBe(false);
+    expect(events.some((ev) => ev.ev === "autopilot")).toBe(false);
   });
 });
 
@@ -1311,16 +1285,16 @@ describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
   });
 });
 
-describe("代打行为单源(#580):接管/托管同款 bot 策略", () => {
-  it("接管座位按策略用牌(横征暴敛可用即用;原「接管保守不用」口径随 #580 退役)", async () => {
+describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略", () => {
+  it("托管座位按策略用牌(横征暴敛可用即用;原「代驾保守不用」口径随 #580 退役)", async () => {
     const clock = new ManualClock();
     const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
-    const { roomId, token } = await playingRoom(reg);
+    const { roomId } = await playingRoom(reg);
     const e = reg.get(roomId)!.engine!;
     e.players[0].jinnangHand = ["横征暴敛"];
     e.players[0].jinnangHandCount = 1;
-    // 房主接管 seat0(#580 后与 bot 同款策略,无保守分支)+ 对座托管:对局持续代打
-    await reg.takeoverSeat(roomId, token, 0);
+    // 双座都托管(#580 后与 bot 同款策略,无保守分支):对局持续代打
+    await reg.setAutoPilot(roomId, 0, true);
     await reg.setAutoPilot(roomId, 1, true);
     // 泵送:链经注入时钟自续,直到策略用牌(横征=可用即用,seat0 首个锦囊相位即耗)
     for (let i = 0; i < 4000 && e.players[0].jinnangHand.length > 0 && !e.isOver; i++) {
@@ -1356,14 +1330,14 @@ describe("代打行为单源(#580):接管/托管同款 bot 策略", () => {
     expect(cmdRow?.detail).toContain('"cardId":"识破诡计"');
   });
 
-  // ── 终局覆盖下沉(#580 接管 cutover e2e 终局覆盖下沉)──
+  // ── 终局覆盖下沉(#580 托管 cutover e2e 终局覆盖下沉)──
   // cutover e2e 的全程骑局在单节拍 2s/步下超预算不可救,终局折叠收敛与双端胜者一致
   // 下沉本用例:registry 传输面双端点收全下行,ManualClock 手泵骑到 GameOver(零墙钟)。
   // 面差注记:registry 面 flush 恒发快照(room.ts「单机显式退化口」,ADR-0020 决策 3),
   // WS 面「逐步快照为零」判据在本面不可满足;同一不变量(状态下行不只靠快照、事件批
   // 自足)在本面以「流文法恒定 + 事件批折叠收敛到终局」承载,见断言①③。
 
-  it("托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 接管 cutover e2e 终局覆盖下沉)", async () => {
+  it("托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)", async () => {
     const clock = new ManualClock();
     const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
     const { roomId, token, guestToken } = await playingRoom(reg);

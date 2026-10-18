@@ -649,7 +649,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           )}
 
           {/* P0-2:常驻「离开房间」入口(此前唯一退出=房主解散,玩家被困)。
-            服务端无 /room/leave 路由(scripts/server.ts 只有 new/join/map/start/takeover/dismiss),
+            服务端无 /room/leave 路由(scripts/server.ts 只有 new/join/map/start/dismiss),
             故走本地退出:onExit = App.handleExitLobby(setController(null) → destroy 关 WS 清重连定时器
             + netStore.reset + 回设置屏)。座位 token 服务器侧掉线冻结机制已有,重进可重新加入。 */}
           <button

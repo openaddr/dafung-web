@@ -2,7 +2,7 @@
 // 运行:bun run serve  (env: PORT / HOST / ROOMS_DIR / STATIC_DIR)
 //
 // 本文件只管:HTTP 路由 + WS 生命周期 + broadcast + 静态托管 + 落盘目录注入。
-// 房间游戏编排(座位/接管/bot 驱动/host 移交/纯视图)全在 scripts/room.ts 的 RoomRegistry。
+// 房间游戏编排(座位/托管/bot 驱动/host 移交/纯视图)全在 scripts/room.ts 的 RoomRegistry。
 // 持久化适配器(FileRoomPersistence)在 scripts/room-persistence.ts,可注入(测试用 InMemory)。
 //
 // 生命周期(ADR-0004 大厅 + ADR-0005 seatToken + ADR-0002 掉线):
@@ -11,7 +11,6 @@
 //   POST /room/start {roomId,seatToken}    → host 开局:构造引擎(doDraftRoll 自动国号),
 //                                            停在 Setup·PickCapital(L41:真人各自三选一)
 //   POST /room/dismiss {roomId,seatToken}  → host 解散房间(广播 dismissed,断开所有连接)
-//   POST /room/takeover {roomId,seatToken,seat} → host 强令 bot 接管某掉线 Seat(ADR-0002)
 //   WS   /ws?room=&seat=&token=            → 入座连接;发 {type:"cmd",cmd:...} /
 //                                            {type:"pickCapital",tileIndex}(L41 选都),
 //                                            上行一律以本连接座位名义(#454:cmd 校验
@@ -21,9 +20,10 @@
 //                                            逐座位过滤)/lobby(元数据)/dismissed
 //                                            (#388 折叠切换⑥:正常对局零逐步快照,
 //                                            全量下行=摘要/校准/生命周期三类)
-// 掉线:WS close → 该 Seat 冻结(不自动 bot,只在其轮到时才卡);保留窗(默认 10
-//      分钟,#380)到期 bot 自动接管、原 token 重连仍可夺回;host 可解散/接管;
-//      host 自己掉线 → 身份移交在场最久真人;重连(持 token)夺回 Seat。
+// 掉线:WS close → 该 Seat 冻结(不自动代打,只在其轮到时才卡);保留窗(默认 10
+//      分钟,#380)到期看门狗代开托管、重连不清托管(原 token 重连归座,点「收回」
+//      拿回控制,ADR-0028);host 可解散(ADR-0028 后唯一出口);host 自己掉线 →
+//      身份移交在场最久真人;重连(持 token)归座。
 // 设计见 docs/explanation/联机架构.md + docs/adr/0001..0007。
 //
 // 运行时:Bun 原生(Bun.serve + 内置 WebSocket,2026-08 自 node:http+ws 迁移,行为语义不变)。
@@ -85,8 +85,9 @@ function loadEncounterConfig() {
 }
 const ENCOUNTER = loadEncounterConfig();
 
-// 决策停摆看门狗(#118):等待某人类座位决策超过该毫秒 → bot 自动接管(重连/刷新夺回)。
-// 0 = 关闭。默认 120s:正常思考远够用,真停摆(页面卡死/断连)不再永久拖死全局。
+// 决策停摆看门狗(#118):等待某真人座位决策超过该毫秒 → 看门狗代开托管(ADR-0028,
+// 重连不清,本人点「收回」拿回)。0 = 关闭。默认 120s:正常思考远够用,真停摆(页面
+// 卡死/断连)不再永久拖死全局。
 const DECISION_TIMEOUT_MS = Math.max(
   0,
   parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0,
@@ -101,8 +102,8 @@ const REACTION_WINDOW_MS_OVERRIDE = Math.max(
 );
 
 // 掉线座位保留窗口(#380):对局中断线的座位保留该毫秒——窗口内持 seatToken 重连无缝
-// 夺回;到期 bot 自动接管(等价房主 takeover,重连仍可夺回)。0 = 关闭(恢复纯冻结 +
-// 房主手动接管/#118 停摆看门狗的旧语义)。默认 600000(10 分钟):手机闪断/电梯断网
+// 归座;到期看门狗代开托管(ADR-0028,重连不清托管,原玩家点「收回」拿回)。0 = 关闭
+// (恢复纯冻结 + #118 停摆看门狗的旧语义)。默认 600000(10 分钟):手机闪断/电梯断网
 // 远够用,真离场不再永久拖死全局。token 是座位归属唯一凭证(ADR-0005),有效期=房间
 // 生命周期,不因保留窗到期失效。
 const RETENTION_WINDOW_MS = Math.max(
@@ -209,7 +210,7 @@ function recordEvent(roomId: string, ev: Record<string, unknown>): void {
 //      BankruptcySettle)的进入/停留/退出——窗口进出无专属事件或上下文(offeredHeroes/
 //      pendingEncounter/pendingJinnang 等)不随事件走,折叠器不可推导(event-fold.ts
 //      「校准兜底」同族);
-//   ③ 房间生命周期消息 —— lobby 形状的房间元数据(座位在线/房主/托管/接管),指纹变化
+//   ③ 房间生命周期消息 —— lobby 形状的房间元数据(座位在线/房主/托管),指纹变化
 //      才发(对局中掉线/托管开关等不再搭逐步快照车);dismissed 不变(元数据全公开,
 //      无 per-seat 面)。
 // 判定全部读引擎 phase/turnPhase/当前批事件 kind,零启发式;检测不到即不校准(漂移纯
@@ -292,8 +293,8 @@ function onlineSeatsOf(roomId: string): Set<number> {
  *  2. 关键节点校准快照(②):判定口径见顶部「全量下行三类」——每座位各发各的 per-seat
  *     投影,自带房间字段(元数据随车,指纹同步更新);
  *  3. 房间元数据消息(③):非校准 flush 且元数据指纹变化时补发 lobby 形状一条
- *     (对局中掉线/托管开关/接管等不再搭快照车)。
- *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——bot/接管局
+ *     (对局中掉线/托管开关等不再搭快照车)。
+ *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——bot 局
  *  的零延迟连锁落在一个同步 tick 里,合并后每 tick 至多一批事件+至多一份校准快照。
  *  人类节奏的流程(每次命令一个 tick)行为不变;托管的步间 await 天然分 tick,
  *  事件逐批直播保留。 */
@@ -487,16 +488,15 @@ const HELP = {
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
     "POST /room/start":
       "开局 body:{roomId,seatToken}(仅 host,需已选图;开局后进选都三选一,WS pickCapital 落子)",
-    "POST /room/takeover": "host 强令 bot 接管掉线 Seat body:{roomId,seatToken,seat}",
     "POST /room/dismiss": "host 解散房间 body:{roomId,seatToken}",
-    "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/takeover)+ 最近 50 条事件尾巴",
+    "GET  /room/debug?room=": "调试:实时房间状态(相位/座位/托管)+ 最近 50 条事件尾巴",
     "WS  /ws?room=&seat=&token=":
       "入座连接;发 {type:'cmd',cmd:...} / {type:'pickCapital',tileIndex},收 lobby/snapshot/events/dismissed",
     "GET /、/assets/*...": "静态托管 dist/(网页同源)",
   },
   retention:
     "掉线座位保留窗口(#380):对局中断线的座位保留 RETENTION_WINDOW_MS(env 可调,默认 600000=10 分钟,0=关);" +
-    "窗口内持 seatToken 重连无缝夺回;到期 bot 自动接管(等价房主 takeover,原 token 重连仍可夺回);" +
+    "窗口内持 seatToken 重连无缝归座;到期看门狗代开托管(ADR-0028,重连不清托管,原玩家点「收回」拿回);" +
     "token 是座位归属唯一凭证(ADR-0005),有效期=房间生命周期,不因保留窗到期失效",
   maps: CATALOG_ENTRIES.map((e) => ({
     id: e.id,
@@ -548,7 +548,7 @@ async function handle(req: Request): Promise<Response> {
           activeIndex: e?.activeIndex ?? null,
           hostSeat: room.hostSeat,
           mapId: room.mapId,
-          takeover: [...room.takeover],
+          autoPilot: [...room.autoPilot],
           seats: seatMeta(room, onlineSeatsOf(roomId)),
         },
         events: (eventTail.get(roomId) ?? []).slice(-50),
@@ -631,15 +631,6 @@ async function handle(req: Request): Promise<Response> {
     return sendJson(200, { ok: true, ...statusOf(room.engine!) });
   }
 
-  if (path === "/room/takeover") {
-    const roomId = String(obj.roomId ?? "");
-    const seat = intField(obj, "seat", -1);
-    const room = await registry.takeoverSeat(roomId, String(obj.seatToken ?? ""), seat, () =>
-      broadcast(roomId),
-    );
-    return sendJson(200, { ok: true, takeover: seat, ...statusOf(room.engine!) });
-  }
-
   if (path === "/room/dismiss") {
     const roomId = String(obj.roomId ?? "");
     const id = registry.dismissRoom(roomId, String(obj.seatToken ?? ""));
@@ -692,7 +683,8 @@ Bun.serve<WsSeat>({
   },
   websocket: {
     open(ws) {
-      // 重连夺回(ADR-0002/0005):token 是 Seat 归属唯一凭证 → 连上即从接管集合移除。
+      // 重连归座(ADR-0002/0005):token 是 Seat 归属唯一凭证。托管开关不动(ADR-0028:
+      // 重连不清托管,回来的人点「收回」拿回控制)。
       const { roomId, seat } = ws.data;
       const room = registry.attachSeat(roomId, seat);
       if (!room) {
@@ -758,7 +750,7 @@ Bun.serve<WsSeat>({
       const cur = socketsOf(roomId).get(seat);
       if (cur === ws) socketsOf(roomId).delete(seat);
       recordEvent(roomId, { ev: "ws-close", seat });
-      // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + bot 接管判断
+      // 算"还在线的座位"(不含刚断开的本 seat),交给 Room 做 host 移交 + 托管代开判断
       const stillOnline = onlineSeatsOf(roomId);
       void registry.markSeatOffline(roomId, seat, stillOnline, () => broadcast(roomId));
     },
@@ -777,5 +769,5 @@ console.log(
   `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"}`,
 );
 console.log(
-  "[server] 大厅 /room/new|join|start|takeover|dismiss;掉线冻结+房主出口(ADR-0002);WS /ws",
+  "[server] 大厅 /room/new|join|start|dismiss;掉线冻结+房主解散出口(ADR-0002/0028);WS /ws",
 );

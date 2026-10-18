@@ -99,7 +99,7 @@ export function aiSetupStep(g: GameEngine): boolean {
 }
 
 /** 服务器代选(L41 联机):为指定座位按 bot 同评分选都,不校验 isBot——
- *  驱动资格(bot 座位 / takeover / 自助托管)由调用方(room.seatControlled)保证,
+ *  驱动资格(bot 座位 / 托管,含看门狗代开)由调用方(room.seatControlled)保证,
  *  单机侧真人选都不经此口(UI 手选,aiSetupStep 的 isBot 守卫保护热座)。 */
 export function aiSetupStepFor(g: GameEngine, idx: number): boolean {
   if (g.setupPhase !== "PickCapital") return false;
@@ -142,7 +142,7 @@ export function firstAvailableCapitalIndex(g: GameEngine): number {
 
 /** 公共选都入口:人类落子(单机 UI / 联机 WS)走这里——记 cmd 行(ADR-0014 命令流,
  *  重放的机读层;选都不是 GameCommand,detail 用 {type:"pickCapital",seat,tileIndex})。
- *  bot/接管/托管的代选走 pickCapitalInternal(logCmd=false):确定性,重放自动重算,不记 cmd 行。 */
+ *  bot/托管的代选走 pickCapitalInternal(logCmd=false):确定性,重放自动重算,不记 cmd 行。 */
 export function pickCapital(
   g: GameEngine,
   playerIndex: number,
