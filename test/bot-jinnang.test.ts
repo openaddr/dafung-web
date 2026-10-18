@@ -1,5 +1,7 @@
 // 锦囊 bot 策略单测(#148/T6):策略表逐牌「用/不用 + 目标选择」、Simple 掺骰弃权、
-// conservative 看门狗口径、策略决策不掷骰。缝约定同 test/jinnang.test.ts
+// 策略决策不掷骰。代打行为单源(#580):托管/接管代驾与 bot 同走 botAct 裸调,
+// 无独立口径,本套件的策略断言即代打口径。
+// 缝约定同 test/jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面
 // + bot 纯决策出口 jinnangIntent——连环计/军情密探结算未接入,端到端到不了)。
 import { describe, it, expect } from "bun:test";
@@ -279,34 +281,6 @@ describe("锦囊 bot 策略(#148)", () => {
       return { hand: [...x.activePlayer.jinnangHand], phase: x.turnPhase, cash: x.players[1].cash };
     };
     expect(run(7)).toEqual(run(7));
-  });
-
-  it("conservative=true(看门狗):恒今不用、不掷骰、牌库不动;目标段中途也作罢收卷", () => {
-    const e = prepared();
-    e.players[1].cash = 300; // 策略面(横征/求贤=可用即用)必用,conservative 也不得用
-    const user = armJinnang(e, ["横征暴敛", "求贤令"]);
-    const deckBefore = e.jinnangDeckCount;
-    const d = stubDice(e, 0.99);
-    botAct(e, { conservative: true });
-    expect(d.calls()).toBe(0); // 不掷骰
-    expect(user.jinnangHand).toEqual(["横征暴敛", "求贤令"]);
-    expect(e.jinnangUsedTags).toEqual([]);
-    expect(e.players[1].cash).toBe(300);
-    expect(e.jinnangDeckCount).toBe(deckBefore);
-    expect(e.turnPhase).toBe("Roll");
-
-    // 目标段中途接管:先作罢(牌退回)再今不用,同样不掷骰
-    const e2 = prepared();
-    e2.players[1].cash = e2.players[0].cash + 500;
-    const user2 = armJinnang(e2, ["缓兵之计"]);
-    e2.resolveJinnang("缓兵之计"); // 人类残局:已入目标段
-    expect(e2.pendingJinnang).not.toBeNull();
-    const d2 = stubDice(e2, 0.99);
-    botAct(e2, { conservative: true });
-    expect(d2.calls()).toBe(0);
-    expect(user2.jinnangHand).toEqual(["缓兵之计"]);
-    expect(e2.players[1].skipTurns).toBe(0);
-    expect(e2.turnPhase).toBe("Roll");
   });
 
   it("策略决策不掷骰:Normal 各场景 nextFloat 零调用、牌库计数不变", () => {

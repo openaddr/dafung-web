@@ -206,8 +206,8 @@ function reactionAllAnswered(pr: PendingReaction): boolean {
 }
 
 /** bot 即席代答(ADR-0017 §3「bot 持牌即时代答不等满」):被询问的 isBot 座位按策略
- *  即席应答。人类座位(含托管/看门狗代驾)不代答——代驾永不主动出反应牌,超时一律
- *  不用,兜底命令由权威侧传输层代发(#148/#229 口径)。 */
+ *  即席应答。人类座位(含托管/看门狗代驾)也不在此代答——代驾应答由权威侧驱动链按
+ *  同一决策(botReactionDecision,#580 行为单源)代发;超时兜底命令由传输层代发。 */
 function autoAnswerBots(g: GameEngine, pr: PendingReaction): void {
   for (const seat of reactionQueriedOf(pr.view)) {
     if (!g.players[seat].isBot) continue;

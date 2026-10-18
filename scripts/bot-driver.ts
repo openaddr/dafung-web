@@ -1,13 +1,13 @@
-// bot/接管/托管驱动(ADR-0002 接管;spec: autopilot)——从 room.ts 拆出(模块治理 10/11 #327,纯搬不改)。
-// 连续驱动服务器控制的决策点:bot 座位走 botAct,接管/托管座位代驾,冻结真人座位不驱动。
-// registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与看门狗组;本模块零 WS/fs。
-import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
+// bot/接管/托管驱动(ADR-0002 接管;#580 代打行为单源)——从 room.ts 拆出(模块治理 10/11 #327)。
+// 连续驱动服务器控制的决策点:bot 座位走 botAct,托管/接管代驾同一裸调入口(bot 同款),
+// 冻结真人座位不驱动。registry 经 DriveBotsHost 注入 observe/persist/applyCommand 与
+// 看门狗组;本模块零 WS/fs。
+import { botAct, botReactionDecision, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import type { GameEngine } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
 import type { ReactionView } from "../src/core/reaction-window";
-// 节拍单源(#399):AUTOPILOT_SLOW_MS / AUTOPILOT_FAST_MS 全局唯一定义处 =
-// src/core/timings.ts(单机/联机同表;#529 快档下限根因注在该常量上)。
-import { AUTOPILOT_FAST_MS, AUTOPILOT_SLOW_MS } from "../src/core/timings";
+// 节拍单源(#399):AUTOPILOT_STEP_MS 全局唯一定义处 = src/core/timings.ts(单机/联机同表)。
+import { AUTOPILOT_STEP_MS } from "../src/core/timings";
 import type { RoomClock, RoomBotStopReason, RoomEvent, RoomSession } from "./room";
 import { fingerprint, seatControlled } from "./seat-projection";
 import type { Watchdogs } from "./watchdogs";
@@ -18,11 +18,10 @@ type UpdateFn = (room: RoomSession) => void;
 // 除 AwaitingReaction 外各相位 botAct 直驱,AwaitingReaction 由循环头特判停等
 // 人类待应答座位,不走 botAct)
 
-/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管慢速 2s / 快速 40ms(#529 下限
- *  节流,步间让出宏任务,收回/切速得以在步间落地),其余(bot/接管)为 0。 */
+/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管 2s/步(替人玩,节奏像人),
+ *  其余(bot/接管)为 0。 */
 function stepDelayMs(r: RoomSession, seat: number): number {
-  const mode = r.autoPilot.get(seat);
-  return mode === "slow" ? AUTOPILOT_SLOW_MS : mode === "fast" ? AUTOPILOT_FAST_MS : 0;
+  return r.autoPilot.has(seat) ? AUTOPILOT_STEP_MS : 0;
 }
 
 /** 当前决策点归属座位:Setup·PickCapital=当前选都位,Playing=decisionOwner(珍宝
@@ -48,12 +47,12 @@ export interface DriveBotsHost {
   readonly decisionTimeoutMs: number;
   /** 三组看门狗(链首 clear / 链尾按停点重武装)。 */
   readonly watchdogs: Watchdogs;
-  /** 定时原语(#399 Worker 时钟注入点):慢速托管步进与 guard 续链全经它,
+  /** 定时原语(#399 Worker 时钟注入点):托管步进与 guard 续链全经它,
    *  服务器=全局 setTimeout、单机=Worker 时钟(失焦照跑)。 */
   readonly clock: RoomClock;
 }
 
-/** 进行中的驱动链(重入守卫:慢速托管 await 期间,新命令/新触发不再开第二条链,
+/** 进行中的驱动链(重入守卫:托管 await 期间,新命令/新触发不再开第二条链,
  *  由挂起中的循环继续接管——它每步重查状态,天然覆盖后续进展)。
  *  原 registry 实例字段,随拆平移为模块级:RoomSession 每房间唯一对象,WeakSet
  *  按对象区分,跨注册表不串(会话对象从不跨 registry 驱动)。 */
@@ -63,10 +62,10 @@ const driving = new WeakSet<RoomSession>();
  *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
  *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
  *  (seatControlled=false)→ 游戏等其重连或房主接管。
- *  慢速托管每步间 2s、快速托管 40ms(#529),均经注入时钟异步步进(步间让出宏任务);
+ *  托管每步间 2s(单节拍,#580),经注入时钟异步步进(步间让出宏任务);
  *  每步 persist + onUpdate:客户端能逐步看到动作。
  *  调用方纪律(#529 死锁教训):setAutoPilot 等入口只调度本函数即返回(fire-and-forget),
- *  不得 await 整条链——快档链以 40ms/步自续到终局,await 它 = 该命令挂满整局(生产)/
+ *  不得 await 整条链——托管链以 2s/步自续,await 它 = 该命令挂满整条链(生产)/
  *  与 ManualClock 泵法互等死锁(测试)。 */
 export async function driveBots(
   host: DriveBotsHost,
@@ -87,8 +86,8 @@ export async function driveBots(
     let reason: RoomBotStopReason = "guard";
     while (e.phase !== "GameOver" && guard++ < 500) {
       // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
-      // 托管/接管(代驾)立即代发「不用」(#148/#229 口径,超时兜底也是同款普通命令);
-      // 在线/离线真人在链尾按座位武装超时定时器(归零代发 respondReaction{use:false})。
+      // 托管/接管代驾按 botReactionDecision 策略答案立即代发(与 bot 同款口径,#580;
+      // 在线/离线真人在链尾按座位武装超时定时器,归零代发 respondReaction{use:false})。
       // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
       if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
         const pr = e.pendingReaction;
@@ -96,9 +95,11 @@ export async function driveBots(
         for (const seat of queried) {
           if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
           if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
+          const d = botReactionDecision(e, seat);
           await host.applyCommand(
             r.roomId,
-            { type: "respondReaction", seat, use: false },
+            // 协议零新增:应答命令本就携带牌 id/自保份座位可选位,策略答案原样透传(#580)
+            { type: "respondReaction", seat, use: d.use, cardId: d.cardId, shareSeat: d.shareSeat },
             onUpdate,
           );
         }
@@ -134,11 +135,7 @@ export async function driveBots(
       const delay = stepDelayMs(r, owner);
       const before = fingerprint(e);
       if (setup) e.aiSetupStepFor(owner);
-      else
-        botAct(e, {
-          conservative: r.takeover.has(owner) && !r.autoPilot.has(owner),
-          skills: e.players[owner].isBot ? "strategy" : "hold",
-        }); // #118×#148:接管=保守(看门狗/房主接管不替玩家花锦囊),自助托管=按策略;#188 档 3:主动技唯真 bot 出,代驾(接管/托管)永不出
+      else botAct(e); // bot/托管/接管同款裸调(#580 行为单源)
       host.observe(r, {
         ev: "bot-step",
         seat: owner,

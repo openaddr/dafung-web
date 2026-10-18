@@ -522,14 +522,6 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
     return e;
   }
 
-  it("hold/conservative 永不出反应牌(代驾不花牌,#148/#229)", () => {
-    const e = armCounterWindow(SEATS3, { cardId: "横征暴敛", userSeat: 0, targetSeats: [1, 2] });
-    setHand(e, 1, ["识破诡计"]);
-    e.players[1].cash = 500;
-    expect(botReactionDecision(e, 1, { conservative: true })).toEqual({ use: false });
-    expect(botReactionDecision(e, 1, { skills: "hold" })).toEqual({ use: false });
-  });
-
   it("识破只自保:指定自己且净值划算才拆(shareSeat=自己);指定他人不拆", () => {
     const e = armCounterWindow(SEATS3, { cardId: "横征暴敛", userSeat: 0, targetSeats: [1, 2] });
     setHand(e, 1, ["识破诡计"]);

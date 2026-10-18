@@ -1,12 +1,11 @@
 // 底部仪表条(#253 三区骨架,原型 .dash/.me 移植):身份头 + 现金大数(全屏唯一)+
-// 属性徽章(深底亮变体)+ 体力血条 + 签徽章 + 托管/速度 + 珍宝/名将计数徽章;
+// 属性徽章(深底亮变体)+ 体力血条 + 签徽章 + 托管热钮 + 珍宝/名将计数徽章;
 // 右段为手牌架槽(HandRack 原样入槽,弹性宽)。右栏手牌区(HandPanel)与珍宝·名将区
 // (TreasuryPanel)已随 #253/#255 退役;珍宝/名将徽章 = 纯展示计数(#361 起,明细看
 // 牌架双入口——expandPile 点开展开机制随明细排退役而消亡)。
 // 观战(未入座):身份头转灰「观」印 + 被跟随者(房主座)资产只读呈现(原 S12 语义),
 // 托管/签面不渲染(无座可托,原 G-10 口径)。
 // 浮标/脉冲机制复用 useDeltaFloat/game-hud.css。
-import { useState } from "react";
 import type { ReactNode } from "react";
 import { formatMoney } from "@core/money";
 import { HERO_CAPACITY } from "@core/constants";
@@ -52,7 +51,6 @@ export function DashboardBar({
   children,
 }: DashboardBarProps) {
   const net = useNetStore();
-  const [autopilotSpeed, setAutopilotSpeed] = useState<"fast" | "slow">("fast");
   // 浮标跟「被展示的玩家」走:坐姿=自己;观战=被跟随者(房主座)。快照按座直取,
   // 取不到即接线 bug,按零兜底原则炸出来(原 HandPanel 同一口径)。
   const shown = player ?? snapshot.players[net.host];
@@ -93,31 +91,17 @@ export function DashboardBar({
             </span>
           )}
           <span className="sp" />
-          {/* 托管热钮 + 速度(联机=服务器 bot 代打;单机=本地 bot 代打,autopilotSupported 控显隐) */}
+          {/* 托管热钮(联机=服务器 bot 代打;单机=本地 bot 代打,autopilotSupported 控显隐) */}
           {player && controller?.autopilotSupported && (
             <>
               <button
                 type="button"
                 data-testid={TESTIDS.autopilotButton}
-                onClick={() => controller.setAutoPilot(!autopilotOn, autopilotSpeed)}
+                onClick={() => controller.setAutoPilot(!autopilotOn)}
                 className="tuoguan"
               >
                 {autopilotOn ? "收回" : "托管"}
               </button>
-              <select
-                data-testid={TESTIDS.autopilotSpeed}
-                value={autopilotSpeed}
-                onChange={(e) => {
-                  const speed = e.target.value as "fast" | "slow";
-                  setAutopilotSpeed(speed);
-                  if (autopilotOn) controller.setAutoPilot(true, speed); // 托管中切速立即生效
-                }}
-                aria-label="托管速度"
-                className="dash-speed"
-              >
-                <option value="fast">快</option>
-                <option value="slow">慢</option>
-              </select>
               {autopilotOn && <span className="tuoguan-on">托管中</span>}
             </>
           )}

@@ -16,18 +16,16 @@
 // - 穷尽纪律:dispatch 对 InboundMsg 穷尽 switch(新增消息类型漏分支 = 编译红,
 //   default 收 never),与 seat-projection redactEvents 同机器。
 import type { GameCommand } from "../src/core/authority";
-import type { AutoPilotSpeed } from "./room";
 import type { GameEvent } from "../src/core/game-events";
 import type { GameSnapshot } from "../src/core/snapshot";
 import type { LobbyView } from "./seat-projection";
 
 // ──────────────────────────── 上行:union + 编码 ────────────────────────────
-/** 上行消息(线上形状解析归一后):autoPilot 的 speed 在此归一为 fast|slow
- *  (线上缺省/乱值一律 fast——原 server.ts/local.ts 双写的同一句归一)。 */
+/** 上行消息(线上形状):autoPilot 只载开关(#580 速度分档已删,无归一)。 */
 export type InboundMsg =
   | { type: "cmd"; cmd: GameCommand }
   | { type: "pickCapital"; tileIndex: number }
-  | { type: "autoPilot"; on: boolean; speed: AutoPilotSpeed };
+  | { type: "autoPilot"; on: boolean };
 
 /** 上行编码(客户端发送端单源;手写判别字面量 = 双写复辟)。 */
 export function cmdMsg(cmd: GameCommand): string {
@@ -36,8 +34,8 @@ export function cmdMsg(cmd: GameCommand): string {
 export function pickCapitalMsg(tileIndex: number): string {
   return JSON.stringify({ type: "pickCapital" as const, tileIndex });
 }
-export function autoPilotMsg(on: boolean, speed: AutoPilotSpeed): string {
-  return JSON.stringify({ type: "autoPilot" as const, on, speed });
+export function autoPilotMsg(on: boolean): string {
+  return JSON.stringify({ type: "autoPilot" as const, on });
 }
 
 // ──────────────────────────── 下行:union + 构造 ────────────────────────────
@@ -92,7 +90,7 @@ export function encodeDownlink(msg: ServerMsg): string {
 export interface InboundOps {
   cmd(cmd: GameCommand): Promise<unknown> | unknown;
   pickCapital(tileIndex: number): Promise<unknown> | unknown;
-  setAutoPilot(on: boolean, speed: AutoPilotSpeed): Promise<unknown> | unknown;
+  setAutoPilot(on: boolean): Promise<unknown> | unknown;
 }
 
 /** 上行分发结果——错误回报是返回值的一部分,不抛到传输层之外:
@@ -119,7 +117,7 @@ function parseInboundMsg(m: unknown): InboundMsg | null {
     return { type: "pickCapital", tileIndex: r.tileIndex };
   }
   if (r.type === "autoPilot" && typeof r.on === "boolean") {
-    return { type: "autoPilot", on: r.on, speed: r.speed === "slow" ? "slow" : "fast" };
+    return { type: "autoPilot", on: r.on };
   }
   return null;
 }
@@ -155,7 +153,7 @@ export async function dispatchInbound(
         await ops.pickCapital(msg.tileIndex);
         break;
       case "autoPilot":
-        await ops.setAutoPilot(msg.on, msg.speed);
+        await ops.setAutoPilot(msg.on);
         break;
       default: {
         // 穷尽机器:InboundMsg 新增成员漏分支 = 编译红(default 收 never)。

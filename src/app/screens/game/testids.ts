@@ -120,7 +120,6 @@ export const TESTIDS = {
 
   // ── 托管(联机;spec: autopilot)──
   autopilotButton: "autopilot-button",
-  autopilotSpeed: "autopilot-speed",
 
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串

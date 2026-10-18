@@ -203,7 +203,7 @@ describe("RoomRegistry · 掉线座位保留窗(#380)", () => {
     const controlled = reg
       .get(roomId)!
       .engine!.players.findIndex((p, i) => i !== stalled && !p.isBot);
-    await reg.setAutoPilot(roomId, controlled, true, "fast"); // 托管 → 服务器驱动
+    await reg.setAutoPilot(roomId, controlled, true); // 托管 → 服务器驱动
     const before = clock.size;
     await reg.markSeatOffline(roomId, controlled, new Set([0]));
     expect(clock.size).toBe(before);

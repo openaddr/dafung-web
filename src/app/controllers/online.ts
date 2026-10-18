@@ -108,12 +108,12 @@ export class OnlineController extends GameController {
   }
 
   /** 自助托管(spec: autopilot):发 WS 消息,生效状态从 seats 广播回读(无乐观更新)。 */
-  override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
+  override setAutoPilot(on: boolean): void {
     if (!this.sock?.isOpen) {
       useGameStore.getState().pushHint("连接未就绪");
       return;
     }
-    this.sock.send(autoPilotMsg(on, speed));
+    this.sock.send(autoPilotMsg(on));
   }
 
   /** Setup(PickCapital)落子(L41 联机):发 WS {type:"pickCapital"}——轮次/候选校验

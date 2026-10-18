@@ -79,7 +79,7 @@ export class LocalController extends GameController {
   private readonly registry: RoomRegistry;
   /** 本局房间会话(进程内直读元数据:托管态等房间级字段不走传输)。 */
   private readonly room: RoomSession;
-  /** Worker 时钟(#399):看门狗/慢速托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
+  /** Worker 时钟(#399):看门狗/托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
   private readonly clock: WorkerClock;
   private readonly roomId: string;
   private readonly seatToken: string;
@@ -203,8 +203,8 @@ export class LocalController extends GameController {
   }
 
   /** 自助托管:发 {type:"autoPilot"},生效态从房间会话回读(无乐观更新,联机同构)。 */
-  override setAutoPilot(on: boolean, speed: "fast" | "slow"): void {
-    this.sock.send(autoPilotMsg(on, speed));
+  override setAutoPilot(on: boolean): void {
+    this.sock.send(autoPilotMsg(on));
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -265,8 +265,8 @@ export class LocalController extends GameController {
         this.registry.pickCapital(this.roomId, this.seat, tileIndex, () =>
           this.registry.transportBroadcast(this.roomId),
         ),
-      setAutoPilot: (on, speed) =>
-        this.registry.setAutoPilot(this.roomId, this.seat, on, speed, () =>
+      setAutoPilot: (on) =>
+        this.registry.setAutoPilot(this.roomId, this.seat, on, () =>
           this.registry.transportBroadcast(this.roomId),
         ),
     }).then((result) => {

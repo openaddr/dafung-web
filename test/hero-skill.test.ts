@@ -249,29 +249,15 @@ describe("主动技结算(#188 档 3)", () => {
 });
 
 describe("出牌阶段 bot 决策(#188 档 3)", () => {
-  it("strategy:无牌有就绪技 → bot 出技(擂鼓发动);看门狗 conservative 永不出技;托管 hold 亦不出", () => {
-    // 真 bot:出擂鼓
+  it("strategy:无牌有就绪技 → 裸调出技(擂鼓发动);代驾(接管/托管)同走本入口按策略出技(#580)", () => {
     const e = prepared();
     armSkill(e, "zhangxingcai");
     botAct(e);
     expect(e.heroDiceBonus).toBe(2);
     expect(e.turnPhase).toBe("Roll");
-    // 看门狗接管:不出技,今不用收卷
-    const e2 = prepared();
-    armSkill(e2, "zhangxingcai");
-    botAct(e2, { conservative: true });
-    expect(e2.heroDiceBonus).toBe(0);
-    expect(e2.activePlayer.heroLastFired["zhangxingcai-leigu"]).toBeUndefined();
-    expect(e2.turnPhase).toBe("Roll");
-    // 自助托管(hold):锦囊按策略,但技不出
-    const e3 = prepared();
-    armSkill(e3, "zhangxingcai");
-    botAct(e3, { skills: "hold" });
-    expect(e3.heroDiceBonus).toBe(0);
-    expect(e3.turnPhase).toBe("Roll");
   });
 
-  it("strategy:火攻挑城最多者;保守接管停在技能目标段 → 作罢回卡牌段/收卷不卡死", () => {
+  it("strategy:火攻挑城最多者;中途停在技能目标段 → 裸调续推目标段不卡死(#580 同款入口)", () => {
     const e = prepared(42, [
       { name: "A", isBot: true, guohao: "魏" },
       { name: "B", isBot: true, guohao: "蜀" },
@@ -305,11 +291,11 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
     );
     expect(richHit).toBe(true); // 城最多者挨烧(demolish 随机降其一座)
     expect(e.players[poor].properties.find((h) => h.propertyId === plains[2])?.level).toBe(1); // 未被波及
-    // 中途接管停在技能目标段:conservative 作罢不卡死(回卡牌段或收卷)
+    // 中途停在技能目标段(#580 后同款裸调入口):续推完成目标段结算,不卡死
     const e2 = prepared();
     armSkill(e2, "caopi");
     e2.resolveHeroSkill("caopi-zhengpi"); // 入目标段
-    botAct(e2, { conservative: true });
+    botAct(e2);
     expect(e2.pendingSkill).toBe(null);
     expect(e2.turnPhase).toBe("Roll");
   });

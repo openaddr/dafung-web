@@ -32,8 +32,8 @@ export interface RoomRecord {
   seats: PersistedSeat[];
   hostSeat: number;
   takeover: number[];
-  /** 自助托管(座位 → 速度);与 takeover 分离,重连不清除。 */
-  autoPilot: { seat: number; speed: "fast" | "slow" }[];
+  /** 自助托管座位集;与 takeover 分离,重连不清除。 */
+  autoPilot: number[];
   hostConfig: HostConfig;
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;

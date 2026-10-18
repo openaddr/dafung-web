@@ -87,7 +87,7 @@ async function playingRoom(reg: RoomRegistry): Promise<string> {
 }
 
 /** 托管全场后经注入时钟泵到终局:fireAll 推进 guard 续链/看门狗,直到 GameOver。
- *  #529 泵法:快档链 40ms/步全部经 ManualClock 定时,fireAll 逐拍放行,步间延续
+ *  #580 泵法:托管链 2s/步全部经 ManualClock 定时,fireAll 逐拍放行,步间延续
  *  (microtask)在 sleep(2) 的宏任务间隙跑完——setAutoPilot 已 fire-and-forget,
  *  全程零 await 整链,与生产「命令步间落地」同一通路。 */
 async function pumpToGameOver(
@@ -126,7 +126,7 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
       const e1 = () => reg1.get(roomId)!.engine!;
       // 推进半局:托管当前决策归属座位,链在另一真人的决策点停——真实「进行中」存档点
       const firstOwner = e1().decisionOwner;
-      await reg1.setAutoPilot(roomId, firstOwner, true, "fast");
+      await reg1.setAutoPilot(roomId, firstOwner, true);
       const other = 1 - firstOwner;
       expect(e1().phase).toBe("Playing");
       expect(e1().isOver).toBe(false);
@@ -147,8 +147,8 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
       expect(JSON.stringify(restored.engine!.snapshot())).toBe(JSON.stringify(e1().snapshot()));
 
       // 双路续跑:A=原进程继续,B=恢复进程继续——同一存档点出发,终态一致
-      await reg1.setAutoPilot(roomId, other, true, "fast");
-      await reg2.setAutoPilot(roomId, other, true, "fast");
+      await reg1.setAutoPilot(roomId, other, true);
+      await reg2.setAutoPilot(roomId, other, true);
       await pumpToGameOver(reg1, roomId, clock1);
       await pumpToGameOver(reg2, roomId, clock2);
       expect(comparable(restored.engine!.snapshot())).toBe(comparable(e1().snapshot()));
@@ -167,8 +167,8 @@ describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () 
       const clock = new ManualClock();
       const reg1 = new RoomRegistry(new FileRoomPersistence(dir), undefined, undefined, { clock });
       const roomId = await playingRoom(reg1);
-      await reg1.setAutoPilot(roomId, 0, true, "fast");
-      await reg1.setAutoPilot(roomId, 1, true, "fast");
+      await reg1.setAutoPilot(roomId, 0, true);
+      await reg1.setAutoPilot(roomId, 1, true);
       await pumpToGameOver(reg1, roomId, clock);
       const finalSnap = reg1.get(roomId)!.engine!.snapshot();
 
