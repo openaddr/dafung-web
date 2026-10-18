@@ -5,6 +5,7 @@
 //   - 远端 head 分支在合并确认前被删 = GitHub 自动关闭 PR 且不可重开(#552 实锤)——删分支排在校验之后。
 //   - 远端分支删除与 jj 远端账本不同步,删后同名书签 `jj git push` 报「Nothing changed」拒推——换名书签重开,
 //     本脚本管不到历史账本,但保证新收口不再产生这种残局。
+//   - 并行会话落票把 master 推前,DIRTY 拖到合并才暴露 = 回溯重定基——push 前强制 check:freshness(红即停)。
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
@@ -65,6 +66,17 @@ if (!description) {
   process.exit(1);
 }
 const title = flag("--title") ?? description;
+
+// 1.5) push 前新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
+// 回溯重定基冤枉半小时;红即停,刻意带旧基线收口走手动链 + check:freshness --allow-behind)
+const freshness = Bun.spawnSync(["bun", "scripts/check-freshness.ts"], {
+  stdout: "inherit",
+  stderr: "inherit",
+});
+if (freshness.exitCode !== 0) {
+  console.error("[pr-merge] check:freshness 红——master 已被并行会话推进,先重定基再收口。");
+  process.exit(1);
+}
 
 // 2) push(幂等:已推过=exit 0)
 jj("git", "push", "--bookmark", bookmark);

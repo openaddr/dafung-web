@@ -4,7 +4,7 @@
 //      (事件批原样 + 摘要全量)。两模式的保密面必须恰好相反。
 //   ② redaction 必经步:裁剪发生在装配内部而非调用纪律——未知 kind 带座位装配当场炸
 //      (零兜底),绕过 redactEvents 的装配实现在此红。
-//   ③ 全 kind 普查(底册=#430 档位表):39 kind 逐个过装配(viewer 模式)不炸;
+//   ③ 全 kind 普查(底册=#430 档位表):逐 kind 过装配(viewer 模式)不炸;
 //      fixture 集对 EVENT_TIERS 键域穷尽——词汇表新增 kind 漏 fixture = 运行期红,
 //      与 redactEvents 编译期穷尽 switch 构成双道防遗漏机器。
 //   ④ 节拍形状:空批 events=null;withSnapshot=false snapshot=null(联机非校准
@@ -148,7 +148,7 @@ describe("assembleDownlinkShot · redaction 必经步(#431)", () => {
 
 // ──────────────────────────── ③ 全 kind 普查(底册=#430 档位表)────────────────────────────
 
-/** 40 kind 最小事件体(39 透传同 seat-projection.test 口径 + reactionOpened 双窗)。 */
+/** 全 kind 最小事件体(透传同 seat-projection.test 口径 + reactionOpened 双窗)。 */
 const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "gameStarted" },
   { kind: "setupCompleted" },

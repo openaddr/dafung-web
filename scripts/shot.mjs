@@ -10,10 +10,10 @@
 //   await s.shot("tmp/ui-shots/x/scroll.png", '[data-testid="scroll-jinnang"]'); // 元素级
 //   await s.close();
 // 跑法:先 `flock tmp/build.lock bun run build`(preview 服务 dist),再 `node tmp/<场景>.mjs`。
-import { spawn } from "node:child_process";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";
+import { preview } from "vite";
 
 export async function openShotSession({
   port = 5300,
@@ -24,45 +24,12 @@ export async function openShotSession({
   /** 建局后等待的卷轴 testid(如 "scroll-jinnang";不等待传 null)。 */
   waitScroll = null,
 } = {}) {
-  // 起服走 bun.exe 绝对路径(Windows node spawn 找不到 bunx——那是 shim 脚本不是
-  // 可执行文件;BUN_EXE 显式注入,缺配置即抛,零兜底):
-  //   BUN_EXE='C:\App\nodejs\bun.exe' node tmp/<场景>.mjs
-  const bunExe = process.env.BUN_EXE;
-  if (!bunExe)
-    throw new Error("BUN_EXE 未设:起服需要 bun.exe 绝对路径(如 C:\\App\\nodejs\\bun.exe)");
-  const vite = spawn(bunExe, ["x", "vite", "preview", "--port", String(port), "--strictPort"], {
-    stdio: "ignore",
-    detached: true, // 独立进程组:杀组连带子进程(记录 PID,不用 pkill 防误伤)
-  });
-  const killVite = () => {
-    if (vite.pid != null && vite.exitCode === null && vite.signalCode === null) {
-      try {
-        process.kill(-vite.pid, "SIGTERM");
-      } catch {
-        // Windows 无 Unix 进程组语义(kill(-pid) ESRCH):退回单进程终结,
-        // 否则 preview server 孤儿占口(2026-10-14 #510 实测翻车)。
-        try {
-          process.kill(vite.pid, "SIGTERM");
-        } catch {
-          // 已自行退出,清理竞态,非吞错
-        }
-      }
-    }
-  };
-  process.on("exit", killVite);
-
+  // 起服走 vite JS API(preview 在本进程内跑,close() 随调用收干净——旧
+  // spawn(bun x vite) 通道杀 wrapper 留 node 孤儿占口,三代会话受害
+  // (#510/#583 实测击杀、2026-10-18 retro 立项根治);strictPort 口被占当场炸。
+  //   node tmp/<场景>.mjs
+  const server = await preview({ preview: { port, strictPort: true } });
   const url = `http://localhost:${port}/`;
-  let up = false;
-  for (let i = 0; i < 60 && !up; i++) {
-    await new Promise((r) => setTimeout(r, 500));
-    up = await fetch(url)
-      .then((r) => r.ok)
-      .catch(() => false);
-  }
-  if (!up) {
-    killVite();
-    throw new Error(`vite ${port} 30s 未就绪(先 flock tmp/build.lock bun run build?)`);
-  }
 
   const browser = await chromium.launch({
     // Windows 走系统 Edge 通道(免下载自带浏览器),与 playwright.config 同口径;
@@ -117,7 +84,7 @@ export async function openShotSession({
     },
     async close() {
       await browser.close();
-      killVite();
+      await server.close();
     },
   };
 }

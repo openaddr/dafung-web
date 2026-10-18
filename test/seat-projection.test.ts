@@ -1,5 +1,5 @@
 // 保密后补单测(#381,ADR-0020 决策 2 发送总口单点):三道闸——
-//   ① redactEvents 逐 kind 隐私档位:39 kind 全量普查(37 透传逐字相等 + reactionOpened
+//   ① redactEvents 逐 kind 隐私档位:全 kind 普查(透传逐字相等 + reactionOpened
 //      jinnang 窗身份匿名保数量 + march 窗全公开透传 + peekApplied 非 viewer 裁空(#575);
 //      逐座位隐私行为详见 room.test 窥探投影)、未知 kind 当场炸(零兜底)、纯函数;
 //   ② 摘要/校准投影复活路径(clientView 带座位):guest 摘要无 host 手牌内容、有 count、
@@ -80,10 +80,11 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
+  { kind: "jinnangReshuffled", count: 3 },
 ];
 
 describe("redactEvents · 逐 kind 隐私档位(#381)", () => {
-  it("37 个透传 kind:任意座位视角逐字相等(全桌公开面零裁剪)", () => {
+  it("透传 kind:任意座位视角逐字相等(全桌公开面零裁剪)", () => {
     const god = PASSTHROUGH_BODIES.map((b, i) => ev(i % 3, b));
     for (const seat of [0, 1, 2]) {
       expect(JSON.stringify(redactEvents(god, seat))).toBe(JSON.stringify(god));

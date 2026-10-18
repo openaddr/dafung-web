@@ -137,8 +137,8 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *  穷尽 switch:词汇表新增 kind 未在此登记 = 编译期炸(default 收 never),与快照
  *  投影「新增载荷登记」同纪律;运行时对未知 kind 同样当场炸(零兜底)。
  *
- *  全 40 kind 隐私审计(2026-10,#381;#575 补 peekApplied、洗回补 jinnangReshuffled):
- *  - 透传(39 kind,全桌公开面,原样):
+ *  全 kind 隐私审计(2026-10,#381):
+ *  - 透传(全桌公开面,原样):
  *    · 生命周期族 gameStarted/setupCompleted/turnEnded/turnStarted/roundEnded/
  *      roundStarted/gameOver;
  *    · 掷骰/行军族 diceRolled/marchArrived/capitalHalt/capitalSelected;
