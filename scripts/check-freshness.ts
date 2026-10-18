@@ -26,6 +26,11 @@
 //     被抓到——特性不是噪音(零兜底)。
 //
 // 判定规则:
+//   0) 主树占用:当前工作区是主树(colocated 有 .git)且 @ 非空 = 有并行会话留活——
+//      此时开工或收口都会把别人的活卷进自己的操作(2026-10-17 书签三度污染 +
+//      2026-10-18 收口在主树 jj new master 切走并行工作副本两次)。红 = 一切修改走
+//      workspace(AGENTS.md 版本协作);在 jj workspace 里跑则跳过(已隔离,主树
+//      占用与己无关)。
 //   1) fetch 失败 → 失败:网络不通时结论不可信;修网络,或显式 --no-fetch 用本地引用
 //      (离线 deliberately,会打提示)。
 //   2) 落后锚点书签自己的 @origin(任何数量)→ 失败:先 jj git fetch,再
@@ -38,7 +43,7 @@
 //
 // 用法:bun scripts/check-freshness.ts [--max-behind-master 10] [--no-fetch] [--allow-behind]
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const args = process.argv.slice(2);
 const flag = (name: string) => {
@@ -118,6 +123,18 @@ if (doFetch) {
 }
 
 const failures: string[] = [];
+
+// rule 0:主树占用(见判定规则 0;workspace 内无 .git 天然跳过)
+if (existsSync(".git")) {
+  if (jj("log", "-r", "@", "--no-graph", "-T", "empty") === "false") {
+    const statLines = jj("diff", "--stat").split("\n").filter(Boolean);
+    failures.push(
+      `主树 @ 非空(${statLines[statLines.length - 1]})——有并行会话留活,一切修改走 ` +
+        `workspace:jj workspace add ../dafung-web-ws-<代号>(AGENTS.md 版本协作);` +
+        `收账/收口的 jj new master 也到自己 workspace 跑`,
+    );
+  }
+}
 
 // rule 2:锚点书签逐个比对 @origin 对应物,任何落后都红
 if (anchorNames.length > 0) {

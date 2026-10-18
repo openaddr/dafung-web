@@ -6,13 +6,13 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 版本协作(jj;硬纪律:先开工作区,再改任何东西)
 
-本项目用 **jj-vcs**(colocated,.jj 与 .git 共存,git 双通道仅作逃生舱)。**多会话并行是常态,而主树工作副本只有一份;jj 命令自带整树快照,直接改主树会把并行会话的写入折进你的提交(2026-10-17 实锤:一个书签三度被污染)。所以——**
+本项目用 **jj-vcs**(colocated,.jj 与 .git 共存,git 双通道仅作逃生舱)。**多会话并行是常态,而主树工作副本只有一份;jj 命令自带整树快照,直接改主树会把并行会话的写入折进你的提交(2026-10-17 实锤:一个书签三度被污染;2026-10-18 实锤:收口在主树跑 `jj new master`,把并行会话的工作副本连切两次)。所以——**
 
-> **任何写盘改动(代码/文档/配置/数据,不分体量)开工前必须先 `jj workspace add ../dafung-web-ws-<代号>`,在 workspace 内干活与交付;主树 @ 只做停靠位(查状态/收账),永不留活。**
+> **任何写盘改动(代码/文档/配置/数据,不分体量)开工前必须先 `jj workspace add ../dafung-web-ws-<代号>`,在 workspace 内干活与交付;主树 @ 只读快查(查状态/收账),永不留活——一切改变 @ 的操作(`jj new`/`restore`/`edit`/`commit`/`squash`)一律在自己 workspace 里跑,收账的 `jj new master` 也不例外。**
 
 - **进场检查**:主树 @ 有非自己生产的内容 = 有别的会话在用——不要 `jj new` 盖上去,自己走 workspace;拿不准就报告用户。
 - **交付**:workspace 内 `jj describe` → `jj bookmark create/move` → `jj git push --bookmark <名>` + PR;谁建谁清(`jj workspace forget <名>` + 删目录)。
-- **收账**(合入后回主树):`jj git fetch` → `jj bookmark move master --to master@origin` → `jj new master`。
+- **收账**(合入后):`jj git fetch`(回主树跑,workspace 无 .git;只读不切 @)→ 在**自己 workspace** 里 `jj bookmark move master --to master@origin` → `jj new master`。
 - **push 前核对**:`jj diff --stat` 与预期文件集一致——多出的文件 = 被并行写入折入,先拆再推。
 - **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支单 PR 入库。
 - 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
