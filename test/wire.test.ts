@@ -74,34 +74,29 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
       pickCapital: (tileIndex) => {
         seen.push(tileIndex);
       },
-      setAutoPilot: (on, speed) => {
-        seen.push({ on, speed });
+      setAutoPilot: (on) => {
+        seen.push({ on });
       },
     };
     const cmd = { type: "respondReaction", seat: 0, use: false } as GameCommand;
     expect(await dispatchInbound(cmdMsg(cmd), ops)).toEqual({ ok: true });
     expect(await dispatchInbound(pickCapitalMsg(3), ops)).toEqual({ ok: true });
-    expect(await dispatchInbound(autoPilotMsg(true, "slow"), ops)).toEqual({ ok: true });
-    expect(seen).toEqual([cmd, 3, { on: true, speed: "slow" }]);
+    expect(await dispatchInbound(autoPilotMsg(true), ops)).toEqual({ ok: true });
+    expect(seen).toEqual([cmd, 3, { on: true }]);
   });
 
-  it("autoPilot speed 归一:非 slow 一律 fast(缺省/乱值同口径,单机联机一份)", async () => {
-    const seen: { on: boolean; speed: string }[] = [];
+  it("入向归一(#580):autoPilot 只收 on——带冗余 speed 的报文按 {on} 接受(非兼容代码,字段不参与形状)", async () => {
+    const seen: { on: boolean }[] = [];
     const ops: InboundOps = {
       cmd: () => {},
       pickCapital: () => {},
-      setAutoPilot: (on, speed) => {
-        seen.push({ on, speed });
+      setAutoPilot: (on) => {
+        seen.push({ on });
       },
     };
     await dispatchInbound(JSON.stringify({ type: "autoPilot", on: true }), ops);
-    await dispatchInbound(JSON.stringify({ type: "autoPilot", on: true, speed: "bogus" }), ops);
-    await dispatchInbound(JSON.stringify({ type: "autoPilot", on: true, speed: "slow" }), ops);
-    expect(seen).toEqual([
-      { on: true, speed: "fast" },
-      { on: true, speed: "fast" },
-      { on: true, speed: "slow" },
-    ]);
+    await dispatchInbound(JSON.stringify({ type: "autoPilot", on: false, speed: "slow" }), ops);
+    expect(seen).toEqual([{ on: true }, { on: false }]);
   });
 
   it("badJson:JSON 解析失败归 badJson,ops 不被触达", async () => {
@@ -158,7 +153,7 @@ describe("wire 上行 dispatch(#429 错误回报=返回值)", () => {
     });
     expect(r2).toEqual({ ok: false, reason: "rejected", message: "非选都阶段" });
 
-    const r3 = await dispatchInbound(autoPilotMsg(false, "fast"), {
+    const r3 = await dispatchInbound(autoPilotMsg(false), {
       cmd: () => {},
       pickCapital: () => {},
       setAutoPilot: () => {

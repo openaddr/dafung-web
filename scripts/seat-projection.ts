@@ -304,10 +304,10 @@ export const CALIBRATION_EVENT_KINDS: ReadonlySet<EventKind> = new Set([
 ]);
 /** 校准兜底 kind 集(#430 档位表推导):fold ∈ {fold+calibration, calibration-only}——
  *  折叠面不精确折/刻意不折,转移由校准快照覆盖(对账底册见下方 CALIBRATION_COVERAGE)。
- *  #529 起兼作窗闭沿校准的判据面:闭沿批为空批或含兜底 kind 才落校准——快档 40ms/步
- *  把每个闭沿都冲洗成独立 flush,不限流 doom 全量快照随每次出牌闭沿跟发,退化成逐步
- *  广播(违背 ADR-0020「快照不再作为逐步同步单元」);普通 kind 结算折叠精确,事件批
- *  即事实,无需快照随车。 */
+ *  #529 起兼作窗闭沿校准的判据面:闭沿批为空批或含兜底 kind 才落校准——托管步进经
+ *  时钟异步步进(#580 归一单节拍 2s/步)把每个闭沿都冲洗成独立 flush,不限流 doom
+ *  全量快照随每次出牌闭沿跟发,退化成逐步广播(违背 ADR-0020「快照不再作为逐步同步
+ *  单元」);普通 kind 结算折叠精确,事件批即事实,无需快照随车。 */
 export const CALIBRATION_BACKED_KINDS: ReadonlySet<EventKind> = new Set(
   (Object.entries(EVENT_TIERS) as [EventKind, (typeof EVENT_TIERS)[EventKind]][])
     .filter(([, tier]) => tier.fold === "fold+calibration" || tier.fold === "calibration-only")

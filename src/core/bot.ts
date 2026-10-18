@@ -68,16 +68,6 @@ export function encounterCashImpact(effect: EncounterEffect | undefined): number
 
 // ────────────────────────── 锦囊策略(#148,T6,docs/explanation/锦囊设计.md §8)──────────────────────────
 
-/** botAct 选项(#148):conservative=看门狗接管口径——锦囊永不主动用,一律「今不用」
- *  保守推进(目标段先作罢再收卷),全程不掷骰(重放安全);缺省 false=托管按策略表。
- *  skills(#188 档 3):主动技政策——缺省 "strategy"=真 bot 依净值贪心可出技;
- *  "hold"=永不出技(人类座位的代驾:自助托管,及看门狗/接管——技能是长线战略资源,
- *  代驾不替主人花;比锦囊更保守:锦囊代驾口径是「接管不用、自助托管按策略」)。 */
-export interface BotActOptions {
-  conservative?: boolean;
-  skills?: "strategy" | "hold";
-}
-
 /** 锦囊意图(#148):策略表对单张牌的「用/不用 + 偏好目标序」。exported 供单测
  *  (连环计/军情密探结算未接入,端到端到不了,纯决策直测)。 */
 export interface JinnangIntent {
@@ -249,20 +239,14 @@ function counterHarmOf(
   return { estimateSeat: seat, rootCardId: root.cardId, shareSeat };
 }
 
-/** 反应窗决策(#281,#571 泛化):纯函数,不掷骰不改状态,确定性(引擎即席代答与重放
- *  同一路径)。
+/** 反应窗决策(#281,#571 泛化):纯函数,不掷骰不改状态,确定性(引擎即席代答、驱动器
+ *  代发与重放同一路径)。托管/接管代驾与 bot 座位同走本决策(#580 行为单源,无任何
+ *  代驾特殊分支)。
  *  - 识破诡计:bot 只护己利——公告伤我利才考虑,净值贪心(估损 > 牌值底价才出):
  *    根窗拆攻我份的锦囊(#281 现状),链环救被拆的己计/护被反的己份(#571);
  *    替他人拆招是人玩家专属政局玩法,bot 不做。
- *  - 半路杀出:确定性启发——行人现金全场第一(严格大于其余存活者)才拦,否则不拦。
- *  - conservative(看门狗/接管)与 skills:"hold"(自助托管/代驾)永不使用反应牌
- *    (超时一律不用,#148/#229「代驾不花牌」口径)。 */
-export function botReactionDecision(
-  engine: GameEngine,
-  seat: number,
-  opts?: BotActOptions,
-): ReactionDecision {
-  if (opts?.conservative || opts?.skills === "hold") return { use: false };
+ *  - 半路杀出:确定性启发——行人现金全场第一(严格大于其余存活者)才拦,否则不拦。 */
+export function botReactionDecision(engine: GameEngine, seat: number): ReactionDecision {
   const pr = engine.pendingReaction;
   if (pr == null) throw new Error(`botReactionDecision:座位 ${seat} 无挂起反应窗(驱动器 bug)`); // 零兜底
   const me = engine.players[seat];
@@ -365,12 +349,11 @@ function commitHeroSkillTargets(engine: GameEngine, skillId: string): boolean {
 }
 
 /** 出牌阶段决策(#148 锦囊 → #188 档 3 扩义):可用项(经 choicesFor 同口径,ADR-0013)
- *  = 可用锦囊 + (skills="strategy" 时的)就绪主动技,按窗口顺序逐项过策略表,取第一张
- *  「值得用」的;锦囊指向域提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;
- *  技能目标段同构。用一项后引擎可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;
- *  tried 挡作罢-重选死循环,guard 兜底。Simple 难度掺骰 50% 弃权(确定性:同 seed 同掷)。
- *  skills="hold"(人类座位代驾):技能选项不参评,目标段残留亦只作罢不续推。 */
-function driveJinnang(engine: GameEngine, simple: boolean, skills: "strategy" | "hold"): void {
+ *  = 可用锦囊 + 就绪主动技,按窗口顺序逐项过策略表,取第一张「值得用」的;锦囊指向域
+ *  提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能目标段同构。用一项后引擎
+ *  可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;tried 挡作罢-重选死循环,
+ *  guard 兜底。Simple 难度掺骰 50% 弃权(确定性:同 seed 同掷)。 */
+function driveJinnang(engine: GameEngine, simple: boolean): void {
   const tried = new Set<string>();
   if (engine.pendingJinnang) {
     // 中途接管:上一调用停在锦囊目标段,先续推完这一张
@@ -378,13 +361,13 @@ function driveJinnang(engine: GameEngine, simple: boolean, skills: "strategy" | 
     tried.add(cardId);
     commitJinnangTargets(engine, cardId);
   }
-  if (engine.pendingSkill && skills === "strategy") {
+  if (engine.pendingSkill) {
     // 中途接管:停在技能目标段,续推这一技
     const skillId = engine.pendingSkill.skillId;
     tried.add(`skill:${skillId}`);
     commitHeroSkillTargets(engine, skillId);
   }
-  const skillEligible = (o: { skillId?: string }) => o.skillId != null && skills === "strategy";
+  const skillEligible = (o: { skillId?: string }) => o.skillId != null;
   let guard = 0;
   while (engine.turnPhase === "AwaitingJinnang" && guard++ < 12) {
     const chosen = engine
@@ -415,8 +398,9 @@ function driveJinnang(engine: GameEngine, simple: boolean, skills: "strategy" | 
   }
 }
 
-/** 驱动当前 bot 回合的一步决策;UI 在 bot 回合轮询调用直到进入下一玩家或 GameOver。 */
-export function botAct(engine: GameEngine, opts?: BotActOptions): void {
+/** 驱动当前 bot 回合的一步决策;UI 在 bot 回合轮询调用直到进入下一玩家或 GameOver。
+ *  托管/接管代驾与 bot 座位同走本入口(#580 行为单源):代打=bot 同款,无选项管道。 */
+export function botAct(engine: GameEngine): void {
   beginGameEventBatch(engine); // 事件流(#375):bot 步=一次转移,入口开新批(与 submitCommand 同批界纪律)
   const p = engine.activePlayer;
   const simple = engine.difficulty === "Simple";
@@ -448,17 +432,9 @@ export function botAct(engine: GameEngine, opts?: BotActOptions): void {
     }
 
     case "AwaitingJinnang": {
-      // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):conservative(看门狗/接管)
-      // 一律保守推进——技能目标段/锦囊目标段先作罢再收卷,不掷骰,永不代花资源;托管按
-      // 策略表(§8)经 driveJinnang 推进,其中主动技遵 skills 政策(代驾 "hold" 永不出技)。
-      if (opts?.conservative) {
-        if (engine.pendingSkill)
-          engine.resolveHeroSkill(engine.pendingSkill.skillId, undefined, true); // 技能目标段:作罢(不记冷却)
-        if (engine.pendingJinnang) engine.resolveJinnang(null); // 锦囊目标段:作罢(牌退回)
-        if (engine.turnPhase === "AwaitingJinnang") engine.resolveJinnang(null); // 卡牌段:今不用
-        break;
-      }
-      driveJinnang(engine, simple, opts?.skills ?? "strategy");
+      // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):按策略表(§8)经
+      // driveJinnang 推进——bot/托管/接管同一套(#580 行为单源)。
+      driveJinnang(engine, simple);
       break;
     }
 

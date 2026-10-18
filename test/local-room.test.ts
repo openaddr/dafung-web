@@ -74,7 +74,7 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
       c.setupPickCapital(c.engine.offeredCapitals[0]!);
       await sleep(100);
       expect(c.autoPilotOn).toBe(false);
-      c.setAutoPilot(true, "fast");
+      c.setAutoPilot(true);
       await sleep(100);
       expect(c.autoPilotOn).toBe(true);
       // 代打推进:setAutoPilot 即接 driveBots(座位受控,无看门狗等待),轮次前进

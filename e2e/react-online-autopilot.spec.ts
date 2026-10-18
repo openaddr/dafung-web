@@ -2,6 +2,8 @@
 // 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)。
 // #306:REST 占座契约例已下沉 test/room.test.ts(room.ts 零 WS,bun test 直打)——
 // lobbyView 即 /room/new·join 响应体,UI 层不再重复守传输契约;本文件只守托管行为 UI。
+// #580 托管归一:单节拍 2s/步(权威节奏不吃 E2E_TIME_SCALE),无速度分档可切;
+// 轮询超时一律按「步数×2s」富余给。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 
@@ -54,31 +56,38 @@ async function coreState(p: Page) {
   });
 }
 
-test("双端快速托管:快档推进,中途收回即停(冻结),重开续跑到终局,两端胜者一致", async ({
-  browser,
-}) => {
-  // #529 快档 40ms/步下限:整局 ~8-10s(不再瞬通),本例覆盖「误触可撤销(切回即停)」
-  // 产品口径——中段收回 host 托管 → 链在 host 决策点停 → 重开续跑到终局。
-  test.setTimeout(150_000);
+test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有界断言,#580)", async ({ browser }) => {
+  // #580 单节拍 2s/步:整局分钟级,本例**不骑终局**——有界断言:双端开托管 → 等推进 →
+  // host 中途收回(按钮复位 + 推进停驻)→ 重开 → 推进恢复。「两端胜者一致」由 bun 层
+  // 全 bot/托管局泵送对拍覆盖(test/room-recovery 终态一致用例),不在 UI 层重复。
+  test.setTimeout(240_000);
   const [host, guest] = await twoClients(browser);
   try {
-    // 两端都开托管(默认快速):Setup 由托管代选
+    // 两端都开托管:Setup 由托管代选
     for (const c of [host, guest]) {
       await expect(c.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
       await c.getByTestId("autopilot-button").click();
     }
-    // 等进 Playing 再让快档跑一段(≥2.5s ≈ 60+ 步,确保收回落在对局中段)
+    // 轮询等推进:进 Playing(选都 2 步 ≈ 4s;超时按步数×2s 富余给)
     await expect
       .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
-        timeout: 30_000,
+        timeout: 60_000,
         message: "托管代选完 Setup 进 Playing",
       })
       .toBe("Playing");
-    await host.waitForTimeout(2_500);
+    // 确信「推进中」而非「恰停」:turnNumber 再前进(每回合数步,2s/步)
+    const turnAtPlaying = (await coreState(host)).turnNumber;
+    await expect
+      .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
+        timeout: 60_000,
+        message: "托管推进中(turnNumber 前进)",
+      })
+      .toBeGreaterThan(turnAtPlaying);
     // 中途收回 host 托管:生效广播回读按钮复位「托管」
     await host.getByTestId("autopilot-button").click();
     await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 15_000 });
-    // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点)
+    // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点;
+    // guest 仍托管,其当前回合收尾后才轮到 host——轮询窗按步数×2s 富余给)
     await expect
       .poll(
         async () => {
@@ -90,40 +99,34 @@ test("双端快速托管:快档推进,中途收回即停(冻结),重开续跑到
             ? (s.turnPhase ?? "")
             : "";
         },
-        { timeout: 30_000, message: "收回后链在 host 决策点停" },
+        { timeout: 90_000, message: "收回后链在 host 决策点停" },
       )
       .not.toBe("");
-    // 冻结断言:停点后 3s 状态零变化且仍在对局(旧瞬通局此刻早已直落终局)
+    // 冻结断言:停点后 3s 状态零变化且仍在对局(决策门在 host,guest 托管也推不动)
     const frozen = await coreState(host);
     expect(frozen.phase).toBe("Playing");
     await host.waitForTimeout(3_000);
     expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
-    // 重开快档 → 续跑到终局,零输入,两端胜者一致
+    // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)
     await host.getByTestId("autopilot-button").click();
-    for (const c of [host, guest]) {
-      await expect(c.getByTestId("victory-screen")).toBeVisible({ timeout: 90_000 });
-    }
-    const subs = await Promise.all(
-      [host, guest].map((c) => c.getByTestId("victory-sub").textContent()),
-    );
-    expect(subs[0]).toBeTruthy();
-    expect(subs[1]).toBe(subs[0]);
+    await expect
+      .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
+        timeout: 60_000,
+        message: "重开托管后推进恢复(turnNumber 前进)",
+      })
+      .toBeGreaterThan(frozen.turnNumber);
   } finally {
     for (const c of [host, guest]) await c.context().close();
   }
 });
 
 test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ browser }) => {
-  // #306 预算收紧(52.8→30s):弃慢速全双端(2s/步是旧例最大耗时),也弃「双端快速托管
-  // 等 Playing 再收回」——#529 前快速局服务器秒级跑完整局,收回永远输给终局(实测
-  // GameOver);#529 后快档 40ms/步窗口本已充裕,本例定式保留:guest 开慢速托管(2s/步
-  // 爬行,对局绝无跑飞之虞),host 开快速托管后**立即**收回(仍在 Setup);收回后
-  // host=真人决策门,对局必停在 human-turn。
-  test.setTimeout(120_000);
+  // #580 单节拍后本例定式保留:guest 开托管(2s/步爬行,对局绝无跑飞之虞),host 开
+  // 托管后**立即**收回(仍在 Setup);收回后 host=真人决策门,对局必停在 human-turn。
+  test.setTimeout(150_000);
   const [host, guest] = await twoClients(browser);
   try {
-    // guest 开慢速托管(对局发动机,慢速保收回窗口与后继行军观察的从容)
-    await guest.getByTestId("autopilot-speed").selectOption("slow");
+    // guest 开托管(对局发动机;单节拍 2s/步,保收回窗口与后继行军观察的从容)
     await guest.getByTestId("autopilot-button").click();
     let guestOn = false;
     // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
@@ -150,9 +153,9 @@ test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ bro
     ) {
       await guest.getByTestId("autopilot-button").click();
     }
-    // host 开快速托管 → 随即收回(TODO #13:生效广播可迟到,过早补点会双击翻转——
-    // 轮询窗 10s 逐拍复查 + 补点前即时复查,把翻转窗口压到一次读取内。慢速 guest
-    // 爬行兜底:即便生效迟到十余秒,对局也只前进数步)
+    // host 开托管 → 随即收回(TODO #13:生效广播可迟到,过早补点会双击翻转——
+    // 轮询窗 10s 逐拍复查 + 补点前即时复查,把翻转窗口压到一次读取内。guest
+    // 2s/步爬行兜底:即便生效迟到十余秒,对局也只前进数步)
     await host.getByTestId("autopilot-button").click();
     let on = false;
     // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败

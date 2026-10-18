@@ -680,20 +680,6 @@
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
 }
-.game-layout .dash-speed {
-  font-family: var(--font-wenkai);
-  font-size: 12px;
-  color: var(--color-lacquer-gold);
-  background: none;
-  border: 1px solid rgba(217, 185, 92, 0.3);
-  border-radius: 3px;
-  padding: 5px 2px;
-  cursor: pointer;
-}
-.game-layout .dash-speed option {
-  color: var(--color-ink);
-  background: var(--color-panel);
-}
 .game-layout .tuoguan-on {
   font-family: var(--font-wenkai);
   font-size: 11px;

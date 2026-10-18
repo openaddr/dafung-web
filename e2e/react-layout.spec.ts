@@ -165,7 +165,6 @@ test.describe("三区骨架", () => {
       .toBe(true);
     await expect(page.getByTestId("dice-face")).toHaveText(/[签一二三四五六]/);
     await expect(page.getByTestId("autopilot-button")).toBeVisible();
-    await expect(page.getByTestId("autopilot-speed")).toBeVisible();
     // 珍宝/名将计数徽章(纯展示计数,#361 起不可点)
     await expect(page.getByTestId("dash-treasures")).toBeVisible();
     await expect(page.getByTestId("dash-heroes")).toHaveText(/\/3$/);

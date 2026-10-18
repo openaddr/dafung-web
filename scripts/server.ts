@@ -293,9 +293,9 @@ function onlineSeatsOf(roomId: string): Set<number> {
  *     投影,自带房间字段(元数据随车,指纹同步更新);
  *  3. 房间元数据消息(③):非校准 flush 且元数据指纹变化时补发 lobby 形状一条
  *     (对局中掉线/托管开关/接管等不再搭快照车)。
- *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——快速托管局
- *  是单同步 tick 里数百步 bot 连锁,合并后每 tick 至多一批事件+至多一份校准快照。
- *  人类节奏的流程(每次命令一个 tick)行为不变;慢速托管的步间 await 天然分 tick,
+ *  「最新者胜」合并:本 tick 内只标记脏座位,setTimeout(0) 统一 flush——bot/接管局
+ *  的零延迟连锁落在一个同步 tick 里,合并后每 tick 至多一批事件+至多一份校准快照。
+ *  人类节奏的流程(每次命令一个 tick)行为不变;托管的步间 await 天然分 tick,
  *  事件逐批直播保留。 */
 const dirtySeats = new Map<string, Set<number>>();
 function broadcast(roomId: string): void {
@@ -323,7 +323,7 @@ function flushRoom(roomId: string): void {
   // 校准判定(#388):读引擎公开结算态,零启发式;prev=上次 flush/open 的结算相位
   // (决策窗退出批无相位事件,如锦囊「今不用」,靠前后沿夹出)。先于装配求值:它
   // 决定每拍是否随发 ②(快照含全量 log,非校准拍不白付 O(log) 序列化)。
-  // #529 闭沿限流:快档 40ms/步后每个窗闭沿都是独立 flush,闭沿校准只在批为空批
+  // #529 闭沿限流:每个窗闭沿都是独立 flush(托管步进让闭沿彼此错拍),闭沿校准只在批为空批
   // (纯收尾拍)或含校准兜底 kind(窃玉偷香等折叠面不精确折、状态靠校准覆盖的结算)
   // 时落全量——普通 kind 结算批折叠精确,事件批即事实,快照不再随车;否则全量快照
   // 会随每次出牌闭沿跟发,退化成逐步广播(ADR-0020「快照不再作为逐步同步单元」)。
@@ -736,10 +736,10 @@ Bun.serve<WsSeat>({
             recordEvent(roomId, { ev: "pick-capital", seat, tileIndex });
             return registry.pickCapital(roomId, seat, tileIndex, () => broadcast(roomId));
           },
-          setAutoPilot: (on, speed) => {
+          setAutoPilot: (on) => {
             // 自助托管(spec: autopilot):只能作用于发送者自己的座位(seat 即本连接座位)
-            recordEvent(roomId, { ev: "ws-autopilot", seat, on, speed });
-            return registry.setAutoPilot(roomId, seat, on, speed, () => broadcast(roomId));
+            recordEvent(roomId, { ev: "ws-autopilot", seat, on });
+            return registry.setAutoPilot(roomId, seat, on, () => broadcast(roomId));
           },
         },
         {

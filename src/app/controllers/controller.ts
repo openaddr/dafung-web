@@ -53,7 +53,7 @@ export abstract class GameController {
     return false;
   }
   /** 切换托管(子类覆写:联机发 WS {type:"autoPilot"};单机本地驱动)。 */
-  setAutoPilot(_on: boolean, _speed: "fast" | "slow"): void {}
+  setAutoPilot(_on: boolean): void {}
 
   /** 释放长生命周期资源(WS 连接等);无资源子类可不覆写。 */
   destroy(): void {}

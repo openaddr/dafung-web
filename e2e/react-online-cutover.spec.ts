@@ -21,9 +21,9 @@ const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
  *  开局 Setup 全程 / 节点批(gameStarted·playerBankrupt)/ 决策窗五相位与反应窗停留 /
  *  校准兜底批(#430 档位表 fold ∈ {fold+calibration, calibration-only} 的 kind——
  *  窃玉偷香/耗竭处置等结算批按设计随窗闭沿落校准,折叠面不精确折、状态由校准覆盖)。
- *  其余 snapshot = 逐步快照(切换后的违例)。#529 注:快档 40ms/步后,bot 链的窗闭沿/
- *  窗停留逐拍被 flush 冲洗出来,上述两类合法校准形状从「从不出现」变为「常态出现」,
- *  镜像据此补齐;普通 kind 的逐步快照仍是违例。 */
+ *  其余 snapshot = 逐步快照(切换后的违例)。#529 注:托管步进改时钟异步步进后(#580
+ *  归一单节拍 2s/步),bot 链的窗闭沿/窗停留逐拍被 flush 冲洗出来,上述两类合法校准
+ *  形状从「从不出现」变为「常态出现」,镜像据此补齐;普通 kind 的逐步快照仍是违例。 */
 const CALIBRATION_EVENT_KINDS = new Set(["gameStarted", "playerBankrupt"]);
 const CALIBRATION_BACKED_KINDS: ReadonlySet<string> = new Set(
   Object.entries(EVENT_TIERS)
@@ -177,7 +177,7 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
   // 窗口 + 双端驱动,满载下墙钟抖动大。
   test.setTimeout(240_000);
 
-  test("全程托管局:零逐步快照,事件批是唯一状态通路,终局由折叠收敛", async ({ browser }) => {
+  test("托管骑局:零逐步快照,状态下行只走事件批与校准快照", async ({ browser }) => {
     const host = await (await newBridgeContext(browser)).newPage();
     const guest = await (await newBridgeContext(browser)).newPage();
     // 收集器先于导航挂上(建连发生在 create/join 之后,不漏帧)
@@ -185,20 +185,16 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     const guestFeed = collectConnections(guest);
     await twoClientsSetup([host, guest]);
 
-    // 双端开快速托管(默认 fast):整局零输入,服务器 bot 链直跑终局
-    // (#529 快档 40ms/步下限:整局 ~8-10s,审计面不受节奏影响)
+    // 双端开托管(唯一档),有界骑局:推进过两轮即收审计。#580 单节拍 2s/步,全程
+    // 骑局=分钟级不进 e2e 预算——终局折叠收敛与双端胜者一致改由 test/ 房间级全程
+    // 骑局用例守住(ManualClock 零墙钟),本例守真实 WS 面的下行形状。
     for (const p of [host, guest]) {
       await expect(p.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
       await p.getByTestId("autopilot-button").click();
     }
-    for (const p of [host, guest]) {
-      await expect(p.getByTestId("victory-screen")).toBeVisible({ timeout: 120_000 });
-    }
-    const subs = await Promise.all(
-      [host, guest].map((c) => c.getByTestId("victory-sub").textContent()),
-    );
-    expect(subs[0]).toBeTruthy();
-    expect(subs[1], "双端胜者一致(折叠收敛)").toBe(subs[0]);
+    await expect
+      .poll(async () => (await coreState(host)).turnNumber, { timeout: 120_000 })
+      .toBeGreaterThan(2);
 
     // ── 快照审计:每连接首帧=整房摘要(豁免),此后逐步快照必须为零,只允许校准快照 ──
     for (const [label, feed] of [
@@ -211,13 +207,11 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
         auditStepSnapshots(feed.conns),
         `${label} 逐步快照必须为零(只允许摘要与校准快照)`,
       ).toEqual([]);
-      // 事件批通路:全程托管局的转移批全部经 {type:"events"} 到达,终局宣告在内
+      // 事件批通路:托管骑局的转移批全部经 {type:"events"} 到达(有界窗口,不涉终局)
       const batches = feed.conns.flatMap((c) => c.msgs.filter((m) => m.type === "events")) as {
         events: { kind: string }[];
       }[];
       expect(batches.length, `${label} 事件批到达`).toBeGreaterThanOrEqual(1);
-      const kinds = batches.flatMap((b) => b.events.map((ev) => ev.kind));
-      expect(kinds, `${label} 终局宣告经事件批到达`).toContain("gameOver");
     }
 
     await host.context().close();
