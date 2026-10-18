@@ -20,6 +20,10 @@ const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms";
 
 export default defineConfig({
   testDir: "./e2e",
+  // 陈旧服务器守门:webServer 就绪后、用例前比对「本地 dist 引用的 bundle 集」与
+  // 「服务器实际吐出的」,不一致即报错指路换端口(2026-10-17 实锤:4173 旧 preview
+  // 被复用,联机族 21 例假红;守门原理见 e2e/global-setup.ts 头注)。
+  globalSetup: "./e2e/global-setup.ts",
   // e2e 产物(trace/失败截图/视频)进 tmp/:与 shot.mjs 工作区同区,gitignore 单点覆盖
   outputDir: "tmp/test-results",
   fullyParallel: true,
