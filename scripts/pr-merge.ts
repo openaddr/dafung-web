@@ -147,19 +147,27 @@ if (!merged) {
   process.exit(1);
 }
 
-// 5) 确认合入后才许删分支(时序即护栏)
-Bun.spawnSync(["git", "push", "origin", "--delete", bookmark], {
-  stdout: "inherit",
-  stderr: "inherit",
-});
+// 5) 确认合入后才许删分支(时序即护栏)——jj 全通道(2026-10-18 retro:旧
+//    git push origin --delete 通道在 workspace 无 .git 必炸;`push --deleted`
+//    是全仓扫尾,顺带传播其他会话已删待推的受tracking书签,语义可接受)
 const localDelete = Bun.spawnSync(["jj", "bookmark", "delete", bookmark], {
   stdout: "pipe",
   stderr: "pipe",
 });
 if (localDelete.exitCode !== 0) {
   console.warn(
-    `[pr-merge] 本地书签 ${bookmark} 清理失败(可手动 jj bookmark delete):${new TextDecoder().decode(localDelete.stderr).trim()}`,
+    `[pr-merge] 本地书签 ${bookmark} 删除失败(可手动 jj bookmark delete):${new TextDecoder().decode(localDelete.stderr).trim()}`,
   );
+} else {
+  const pushDeleted = Bun.spawnSync(["jj", "git", "push", "--deleted"], {
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (pushDeleted.exitCode !== 0) {
+    console.warn(
+      "[pr-merge] 远端分支删除传播失败(可手动 jj git push --deleted)——合并已验证,残留不碍收口。",
+    );
+  }
 }
 console.log(
   `[pr-merge] #${prNumber} 收口完成。主线收账两步:jj git fetch → jj bookmark move master --to master@origin → jj new master`,
