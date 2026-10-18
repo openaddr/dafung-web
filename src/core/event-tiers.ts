@@ -50,7 +50,7 @@ export interface EventTier {
   readonly declaredGaps?: readonly string[];
 }
 
-// ─────────────────────── per-kind 档位表(39 kind 全登记)───────────────────────
+// ─────────────────────── per-kind 档位表(全 kind 登记)───────────────────────
 export const EVENT_TIERS = {
   // ── 回合/胜负族 ──
   gameStarted: {
