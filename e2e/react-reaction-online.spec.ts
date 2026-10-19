@@ -18,7 +18,9 @@
 // #388 切换后:对局中 log 只随校准快照更新(不再逐步实时),declined/countered 等
 // 权威语义断言改走线级事件批(framereceived 捕获 {type:"events"},#390 唯一状态通路);
 // 现金/窗收断言仍走折叠后的本地快照(pollReactionSettled 的 paid/unpaid/up 键)。
-// 窗长走服务器 env E2E_REACTION_MS=8000(playwright.config webServer 注入,#284):
+// 窗长走服务器 env E2E_REACTION_MS=15000(playwright.config webServer 注入,#284;
+// #626 加固 8s→15s:窗寿盖过 4-worker 帧停滞的观测延迟,窗开又关 = 等窗 helper
+// 等不到的 flake 族退役):
 // 权威侧定时器与客户端横幅(view.windowMs 随快照)同长,本 spec 从此与 3s 广播赛跑脱钩。
 import { testUnscaled as test, expect } from "./fixtures";
 import {
@@ -36,8 +38,9 @@ import type { Browser, Page } from "@playwright/test";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 const SEED = 430;
-/** 加长窗(playwright.config E2E_REACTION_MS 注入 server,spec 侧同源取值——单源,不双持)。 */
-const REACTION_MS = Number(process.env.E2E_REACTION_MS ?? 8000);
+/** 加长窗(playwright.config E2E_REACTION_MS 注入 server,spec 侧同源取值——fallback
+ *  与 config 的值成对改,#626)。 */
+const REACTION_MS = Number(process.env.E2E_REACTION_MS ?? 15000);
 
 /** 房间落盘目录(与 playwright.config 的 E2E_ROOMS_DIR 同源):断线用例的服务端观测口。 */
 function roomsDir(): string {
@@ -229,7 +232,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
     const { host, guest, guestFeed } = await twoClientsWithSeed(browser);
     try {
       const before = await awaitReactionWindow(guest);
-      // 不应答:横幅到点自动收回(客户端 8s 投影=view.windowMs),权威侧代发「不用」
+      // 不应答:横幅到点自动收回(客户端窗寿投影=view.windowMs),权威侧代发「不用」
       // ——两份全缴。断言窗略大于窗长(住 helper timeout 模式):横幅收回必发生在
       // 加长窗拍,3s 旧窗反而不满足。
       await answerReactionWindow(guest, { mode: "timeout", windowMs: REACTION_MS });
@@ -297,7 +300,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
       const before = await awaitReactionWindow(guest);
       const banner = guest.getByTestId(TESTIDS.reactionBanner);
       // 点降噪口 = 当前窗立即「不用」+本回合静默:横幅应即刻收回——断言窗小于窗长,
-      // 若走的是超时代发(8s)这条断言必挂,「立即」由此钉死(#291:本例灵魂)。
+      // 若走的是超时代发(整个窗寿)这条断言必挂,「立即」由此钉死(#291:本例灵魂)。
       await answerReactionWindow(guest, { mode: "mute" });
       await expect(banner).not.toBeVisible({ timeout: REACTION_MS - 3_000 });
       // 权威侧真态:use=0 应答入账,两份全缴(降噪代发与手点同一条普通命令),窗收续推;
@@ -336,7 +339,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
       // host 点「不用」应答(单发命令;联机日常路径与单机降噪同款点击链)
       await answerReactionWindow(host, { mode: "decline" });
       // #453/B2 验收:已应答座位横幅即刻消失、不可再点(入口没了)。权威侧窗未收
-      // (guest 未应答,加长窗 8s 内由其超时代发兜底)——呈现层不许复显横幅。
+      // (guest 未应答,加长窗内由其超时代发兜底)——呈现层不许复显横幅。
       await expect(host.getByTestId(TESTIDS.reactionBanner)).not.toBeVisible({ timeout: 3_000 });
       // 应答齐窗收续结算:guest 超时代发「不用」后连环计照常执行,对局离开反应相位
       await expect
@@ -383,7 +386,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
     // 同种子 125 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
     // #461 根因:出牌阶段开窗拍必带校准全量快照,其 per-seat 投影把查询集覆盖成长度 1,
     // 折叠器闭窗算术(answers 数 ≥ 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:
-    // 横幅提前消失、丧失应答入口,权威侧窗实际仍开满 8s,玩家被超时代发兜底。
+    // 横幅提前消失、丧失应答入口,权威侧窗实际仍开满窗寿,玩家被超时代发兜底。
     const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 125);
     try {
       await driveToDualWindow(host, guest);
@@ -391,7 +394,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
       await awaitReactionWindow(host);
       await answerReactionWindow(host, { mode: "decline" });
       // guest(非应答端)在 host 应答后必须仍可应答。回归判据走权威留痕而非横幅可视
-      // 轮询:横幅是演出层,演出队列积压时渲染可迟于 8s 窗寿,可视轮询天然竞态;
+      // 轮询:横幅是演出层,演出队列积压时渲染可迟于窗寿,可视轮询天然竞态;
       // #461 误闭窗的真故障 = guest 本地挂起态丢失 → guest 应答被客户端拒绝 →
       // seat=1 的应答不会过网。guest 随即点「不用」,留痕到位 = 应答入口健在。
       await answerReactionWindow(guest, { mode: "decline" });

@@ -5,21 +5,23 @@ import { test, expect } from "./fixtures";
 import { quickStart, force, engineState } from "./react-helpers";
 
 test("滚轮缩放:向上滚放大城池", async ({ page }) => {
-  // master 对照实验(#240 收口)曾在全量负载下翻车:缩放动画轮询 5s 在高压下不够,
-  // 标 slow 对齐外层超时(与 encounters/online 同口径,2026-09-25 flake 还债)。
+  // 满载 flake 族退役(#620 登记→#626 加固):原断言读 tile boundingBox(布局派生
+  // 量),svg 自身尺寸沉降(面板挂载/字体)与缩放增长同轴打架,全量负载下掩盖真缩放。
+  // 缩放实为同步 viewBox 重写(usePanZoom.onWheel 命令式 setAttribute,无动画——
+  // 原 TODO #13「动画过渡」前提有误),断言真源 viewBox.w 变小(=放大),与平移例
+  // 同口径;test.slow 保留作操作时序余量。
   test.slow();
   await quickStart(page);
-  const tile = page.locator("[data-tile='3']");
-  const before = await tile.boundingBox();
   const svg = page.locator("#board");
+  const vbW0 = Number((await svg.getAttribute("viewBox"))!.split(/\s+/)[2]);
   const box = (await svg.boundingBox())!;
   await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.wheel(0, -400); // 向上滚 = 放大
-  // TODO #13:缩放是动画过渡,原固定 250ms 在全量负载下动画未完就读 boundingBox。
-  // 改为轮询"宽度真的变大了"(5s 余量),到位即断言通过。
+  await page.mouse.wheel(0, -400); // 向上滚 = 放大(viewBox.w 经 exp(-0.6)≈0.55 收缩)
   await expect
-    .poll(async () => (await tile.boundingBox())?.width ?? 0, { timeout: 5_000 })
-    .toBeGreaterThan(before!.width);
+    .poll(async () => Number((await svg.getAttribute("viewBox"))!.split(/\s+/)[2]), {
+      timeout: 5_000,
+    })
+    .toBeLessThan(vbW0);
 });
 
 test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
