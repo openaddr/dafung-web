@@ -27,7 +27,7 @@ import {
 import { jinnangCardOf } from "./jinnang";
 // 定制问询流程域(#424,ADR-0022 交互 handler 消费挂点):发起/应答在 inquiry-flow.ts,
 // 壳内同名公共方法薄委托;选项集计算在 choices.ts(PHASE_CHOICES.AwaitingInquiry 注册条目)。
-import { askInquiry, resolveInquiry } from "./inquiry-flow";
+import { askInquiry, resolveInquiry, drainDeferredInquiries } from "./inquiry-flow";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
 // (#323:域外挂点 openReactionWindow 的私有壳委托随移动结算域迁出而删——调用点
@@ -376,6 +376,13 @@ export class GameEngine {
    *  是扩展注册面而非内置表;载荷随快照走(恢复后同一问询可续),清账归 resolveInquiry。 */
   pendingInquiry: { id: string; params: Record<string, number> } | null = null;
 
+  /** 定制问询延期队列(#615):时机派发中(depth>0)askInquiry 只入队不开窗——中途开窗
+   *  会被外层流程把 turnPhase 覆写回去,破坏上条不变量;开窗延迟到派发稳定点排空
+   *  (endTurn 入口 / resolveInquiry 尾端,排空逻辑归 inquiry-flow.drainDeferredInquiries)。
+   *  队列只存 {id,params} 句柄,选项集/结算以开窗与应答时刻现算(askPlayer 是回调);
+   *  载荷随快照走(恢复后同一批问询照排),清账归排空开窗后的应答路径。 */
+  deferredInquiries: { id: string; params: Record<string, number> }[] = [];
+
   log: LogEvent[] = [];
   /** 浮动金额反馈事件(+收入/-支出,位置=tile 索引或玩家),渲染层消费后清空。
    *  #319 去 private(ADR-0019 条款 3 内部状态透明):jinnang-execution 域直写;外部消费仍只走 presentation.drainFloaters。 */
@@ -676,6 +683,9 @@ export class GameEngine {
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
   endTurn(): void {
+    // 延期问询排空(#615):先于挂起挡板——派发中入队的问询在此稳定点开窗(选项集现算),
+    // 开出窗口即被下方挡板延期,且相位已在排空时置 AwaitingInquiry,不变量成立。
+    drainDeferredInquiries(this);
     // 定制问询收口延期(#424):问询挂起(= AwaitingInquiry 相位,不变量)时回合收口
     // 等应答解挂后经 resolveInquiry 补完(先例=AwaitingReaction 停相位续结算)。发起方
     // 流程照常调 endTurn,此处原样返回——不是兜底,是状态机规则:未应答的问询不得被
@@ -729,9 +739,10 @@ export class GameEngine {
       this.dispatchMoment("RoundStart", { subject: this.roundAnchor });
     }
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
-    // 收尾不变量(#424):收口期时机(TurnEnd/RoundStart/TurnStart)内发起问询 = 扩展违约
-    // ——挂起问询将与 Roll 相位并存,选项集派生断链,当场炸出不静默(扩展 bug 修数据去)。
-    if (this.pendingInquiry != null)
+    // 收尾不变量(#424;#615 扩及延期队列):收口期时机(TurnEnd/RoundStart/TurnStart)
+    // 内发起问询 = 扩展违约——挂起/延期问询将与 Roll 相位并存,选项集派生断链,当场炸出
+    // 不静默(扩展 bug 修数据去)。
+    if (this.pendingInquiry != null || this.deferredInquiries.length > 0)
       throw new Error("定制问询:回合收口过程中被挂起(收口期时机内 askInquiry 违约,扩展 bug)");
     this.turnPhase = "Roll";
     this.turnNumber += 1;
@@ -938,9 +949,12 @@ export class GameEngine {
   // 零新增序列化状态:技能从 HEROES 数据派生;冷却复用 heroLastFired(键=skill.id)。
   // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/explanation/时机框架.md。
 
-  /** 派发深度计数(瞬态,不序列化):每次进入 dispatchMoment +1。>2 层直接抛错——
-   *  不变量校验而非兜底:效果内同步再派发时机只能有一层嵌套,递归链是框架 bug,必须崩出来。 */
-  private momentDepth = 0;
+  /** 派发深度计数(#615 改公开并更名 momentDispatchDepth,原 momentDepth:域模块
+   *  inquiry-flow.askInquiry 经 g. 读它判定「派发中与否」决定入队还是直接开窗,ADR-0019
+   *  条款 3 内部状态透明):每次进入 dispatchMoment +1,出栈 -1。>2 层直接抛错——
+   *  不变量校验而非兜底:效果内同步再派发时机只能有一层嵌套,递归链是框架 bug,必须崩出来。
+   *  纯运行时态不序列化:恢复后天然 0(不在派发中),延期队列照排不受影响。 */
+  momentDispatchDepth = 0;
 
   /** 行军加成累计(瞬态,不序列化):BeforeMarch·moveBonus 效果写入,rollAndMove 掷骰后
    *  takeMarchBonus 取走并清零——同一次 rollAndMove 内写读平衡,快照永远看不到残值。 */
@@ -972,8 +986,8 @@ export class GameEngine {
    *  ctx(MomentCtx):subject=时机主体座位,其余字段(die/amount/passedSeat/ownerSeat/propertyId/
    *  treasureId/heroId/buyerSeat/sellerSeat/tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
   dispatchMoment(moment: GameMoment, ctx: MomentCtx): void {
-    this.momentDepth += 1;
-    if (this.momentDepth > 2)
+    this.momentDispatchDepth += 1;
+    if (this.momentDispatchDepth > 2)
       throw new Error(`时机派发嵌套超过 2 层(${moment}):禁止效果内同步再派发时机(防递归)`);
     noteMomentEvent(this, moment, ctx); // 事件流产出(#375 口 1):时机=转移宣告,映射表见 game-events.ts
     try {
@@ -1009,7 +1023,7 @@ export class GameEngine {
         }
       }
     } finally {
-      this.momentDepth -= 1;
+      this.momentDispatchDepth -= 1;
     }
   }
 
