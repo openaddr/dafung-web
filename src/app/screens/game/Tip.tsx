@@ -6,7 +6,10 @@
 //   ① 长按通路——useTapOrLongPress 复合手势单源(400ms,位移超容差自动取消);
 //   ② 翻面判定——开签瞬间量触发元 getBoundingClientRect,右缘放不下即 side="left"。
 // (#361:onClick/ariaExpanded 随 expandPile 退役移除——浮签触发元回归纯展示,
-// 点击无动作。)
+// 点击无动作。#622 城池徽章局部翻案:触发元可选装回轻点通道(onTap=开名下城池
+// 清单)+ aria-expanded 随弹层开合同步;不传 = 现状纯展示,珍宝/名将/声望/委任
+// 徽章行为零变化。轻点/长按不打架由 useTapOrLongPress 单源保证:长按触发后吞掉
+// 随后的合成 click,触屏轻点=弹层、长按=浮签并存。)
 // tip 文案:结构化 { name, detail }(2026-09-25 评审去重:撤「名词|一句话」打包串的
 // 渲染时 indexOf 解析),与规则页口径对齐(docs/reference/rules/)。
 import { useState } from "react";
@@ -53,12 +56,27 @@ export interface TipProps {
   testId?: string;
   /** 触发元可达名(默认 = 名词;徽章在此带上数值,如「委任状 2」)。 */
   ariaLabel?: string;
+  /** 轻点动作(#622:城池徽章装回点击,轻点=开名下城池清单;桌面同效)。
+   *  不传 = 纯展示现状(click 空转,珍宝/名将等行为零变化);长按仍开浮签。 */
+  onTap?: () => void;
+  /** 弹层开合态(#622:onTap 装回时随名下城池清单开合同步 aria-expanded;
+   *  不传不出该属性——浮签不是弹层,不用此语义)。 */
+  ariaExpanded?: boolean;
 }
 
-export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
+export function Tip({
+  tip,
+  children,
+  className,
+  testId,
+  ariaLabel,
+  onTap,
+  ariaExpanded,
+}: TipProps) {
   const [open, setOpen] = useState(false);
   const [side, setSide] = useState<"bottom" | "left">("bottom");
   const press = useTapOrLongPress({
+    onTap,
     onLongPress: (el) => openToward(el),
     ms: LONG_PRESS_MS,
   });
@@ -80,6 +98,7 @@ export function Tip({ tip, children, className, testId, ariaLabel }: TipProps) {
       <TooltipTrigger
         type="button"
         aria-label={ariaLabel ?? tip.name}
+        aria-expanded={ariaExpanded}
         data-testid={testId}
         className={
           "cursor-help border-0 bg-transparent p-0 text-left [font:inherit] outline-offset-2 " +

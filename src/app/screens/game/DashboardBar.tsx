@@ -6,6 +6,9 @@
 // 观战(未入座):身份头转灰「观」印 + 被跟随者(房主座)资产只读呈现(原 S12 语义),
 // 托管/签面不渲染(无座可托,原 G-10 口径)。
 // 浮标/脉冲机制复用 useDeltaFloat/game-hud.css。
+// #622 城池徽章装回点击(#361 局部翻案):轻点=名下城池清单(CityLedgerModal,开合态
+// 归消费方 GameScreen;目标=被展示玩家,坐姿=自己→「本方」,观战=跟随座→国号题名),
+// aria-expanded 随弹层;珍宝/名将徽章维持纯展示计数;长按浮签不受影响。
 import type { ReactNode } from "react";
 import { formatMoney } from "@core/money";
 import { HERO_CAPACITY } from "@core/constants";
@@ -16,6 +19,7 @@ import type { GameController } from "@app/controllers/controller";
 import { useDeltaFloat, DeltaFloats, type DeltaFloat } from "./useDeltaFloat";
 import { AttrIcon } from "./AttrIcon";
 import { ATTR_TIPS, Tip } from "./Tip";
+import type { CityLedgerWiring } from "./SeatRail";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 import "./game-hud.css";
@@ -39,6 +43,8 @@ export interface DashboardBarProps {
   controller: GameController | null;
   /** 托管态(useAutopilotOn 单源;GameScreen 已取,免重复订阅)。 */
   autopilotOn: boolean;
+  /** 名下城池清单(#622):城池徽章轻点开弹层,开合态归消费方(GameScreen 持态)。 */
+  cityLedger: CityLedgerWiring;
   /** 手牌架槽内容(HandRack;观战时不渲染)。 */
   children?: ReactNode;
 }
@@ -48,12 +54,16 @@ export function DashboardBar({
   player,
   controller,
   autopilotOn,
+  cityLedger,
   children,
 }: DashboardBarProps) {
   const net = useNetStore();
   // 浮标跟「被展示的玩家」走:坐姿=自己;观战=被跟随者(房主座)。快照按座直取,
   // 取不到即接线 bug,按零兜底原则炸出来(原 HandPanel 同一口径)。
   const shown = player ?? snapshot.players[net.host];
+  // 被展示玩家的座位(#622 清单目标):player 与快照 players 同行同源,按引用落座;
+  // 观战=房主座。
+  const shownSeat = player ? snapshot.players.indexOf(player) : net.host;
   const cashFloats = useDeltaFloat(shown.cash);
   const warrantFloats = useDeltaFloat(shown.warrants);
   const cashPulseKey = gainPulseKey(cashFloats);
@@ -135,11 +145,15 @@ export function DashboardBar({
               fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
             />
           </Tip>
+          {/* 城池徽章(#622):唯一装回点击的属性徽章——轻点=名下城池清单(目标=被展示
+              玩家);aria-expanded 随弹层开合。 */}
           <Tip
             tip={ATTR_TIPS.city}
             testId={TESTIDS.dashAttr("city")}
             ariaLabel={`城池 ${shown.properties.length}`}
             className="badge b-city"
+            onTap={() => cityLedger.onOpen(shownSeat)}
+            ariaExpanded={cityLedger.openSeat === shownSeat}
           >
             <AttrIcon kind="city" />
             {shown.properties.length}

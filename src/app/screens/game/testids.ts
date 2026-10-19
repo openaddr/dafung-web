@@ -79,6 +79,14 @@ export const TESTIDS = {
   skillChip: (skillId: string) => `[data-skill="${skillId}"]` as const,
   skillChipAny: "[data-skill]" as const,
 
+  // ── 名下城池清单弹层(#622,规格 #621:席位卡/仪表条城池徽章点开)──
+  /** 弹层容器(PileShell 壳,朱印「城」;只读五列清单,零操作项,随快照实时重渲)。 */
+  cityLedger: "city-ledger",
+  /** 城池行(propertyId=城 id;行序=棋盘 index 序;行首空位为 T2 缩略图预留)。 */
+  cityLedgerRow: (propertyId: string) => `city-ledger-row-${propertyId}` as const,
+  /** 空态(「名下暂无城池」浅印;名下无城=真业务态,未购地/破产清场均可达)。 */
+  cityLedgerEmpty: "city-ledger-empty",
+
   // ── 动作条(#256 出牌阶段态:旧弹窗退役,浮于仪表条上缘,两段制)──
   /** 动作条容器(卡牌段=出牌/不出;目标段=选择目标标签+作罢)。 */
   actionbar: "actionbar",

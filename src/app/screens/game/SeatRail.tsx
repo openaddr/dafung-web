@@ -13,6 +13,9 @@
 // 一次性)归窥探弹层演出,席位卡浮签恒纯「暗置」口径。
 // 变化反馈(#495):对手现金/体力挂 useDeltaFloat 浮标(与仪表条同款机制,正金负朱,
 //  渲染件 DeltaFloats 共享单源)——大富翁最核心的「谁在变富」不再静默。
+// #622 城池徽章装回点击(#361 局部翻案):轻点=名下城池清单弹层(CityLedgerModal,
+// 开合态归消费方 GameScreen),aria-expanded 随弹层;其余徽章维持纯展示;长按浮签
+// 不受影响(useTapOrLongPress 单源:长按触发后吞掉合成 click,两手势并存)。
 import { formatMoney } from "@core/money";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
@@ -41,6 +44,13 @@ export interface SeatTargetSlot {
   onPick: () => void;
 }
 
+/** 名下城池清单弹层(#622)的席位侧载荷:openSeat=当前开着的清单目标(null=关),
+ *  onOpen=点城池徽章请求开清单;aria-expanded 由 openSeat===seat 派生。 */
+export interface CityLedgerWiring {
+  openSeat: number | null;
+  onOpen: (seat: number) => void;
+}
+
 /** 单张席位竖卡。mini = 顶行缩微形态(原型其五:缩为四格——现金+血条 | 城/手牌)。 */
 function SeatCard({
   p,
@@ -48,6 +58,7 @@ function SeatCard({
   active,
   winner,
   target,
+  cityLedger,
   mini = false,
 }: {
   p: SnapshotPlayer;
@@ -55,6 +66,7 @@ function SeatCard({
   active: boolean;
   winner: boolean;
   target?: SeatTargetSlot;
+  cityLedger: CityLedgerWiring;
   mini?: boolean;
 }) {
   // 手牌浮签恒纯「暗置」口径(#575:窥探即时一次性,窥见放行随 jinnangPeeks 账本退役)
@@ -69,11 +81,15 @@ function SeatCard({
   const staminaFloats = useDeltaFloat(p.stamina);
   const badges = (
     <>
+      {/* 城池徽章(#622):唯一装回点击的属性徽章——轻点=名下城池清单(观战同样
+          可点,城池数据全员公开明置);aria-expanded 随弹层开合。 */}
       <Tip
         tip={ATTR_TIPS.city}
         className="ib c-city"
         testId={TESTIDS.seatAttr(seat, "city")}
         ariaLabel={`城池 ${p.properties.length}`}
+        onTap={() => cityLedger.onOpen(seat)}
+        ariaExpanded={cityLedger.openSeat === seat}
       >
         <AttrIcon kind="city" />
         {p.properties.length}
@@ -218,9 +234,11 @@ export interface SeatRailProps {
     bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
     onPick: (seat: number) => void;
   };
+  /** 名下城池清单(#622):城池徽章轻点开弹层,开合态归消费方(GameScreen 持态)。 */
+  cityLedger: CityLedgerWiring;
 }
 
-export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
+export function SeatRail({ snapshot, selfSeat, targets, cityLedger }: SeatRailProps) {
   const opponents: Seated[] = snapshot.players
     .map((p, seat) => ({ p, seat }))
     .filter(({ seat }) => seat !== selfSeat);
@@ -249,6 +267,7 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
       active={snapshot.phase === "Playing" && seat === snapshot.activeIndex}
       winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
       target={targetSlot(seat)}
+      cityLedger={cityLedger}
       mini={mini}
     />
   );
