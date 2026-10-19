@@ -37,6 +37,7 @@ import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
 import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
+import { CityLedgerModal } from "./CityLedgerModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { InquiryLayer } from "./InquiryScroll";
 import { useCapitalPick } from "./useCapitalPick";
@@ -150,6 +151,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
+  // 名下城池清单弹层(#622)开合态(同 SkillGlossaryDialog 先例:交互语义归消费方)。
+  // 目标持座位号不持玩家对象——弹层开着随快照实时重渲;selfSeat 命中即自看口径。
+  const [cityLedgerSeat, setCityLedgerSeat] = useState<number | null>(null);
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
@@ -460,6 +464,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
+          cityLedger={{ openSeat: cityLedgerSeat, onOpen: setCityLedgerSeat }}
           targets={
             junshiTargeting
               ? {
@@ -486,6 +491,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           player={selfPlayer}
           controller={controller}
           autopilotOn={autopilotOn}
+          cityLedger={{ openSeat: cityLedgerSeat, onOpen: setCityLedgerSeat }}
         >
           {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
             热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:出牌阶段态载荷随快照
@@ -536,6 +542,16 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 窥探弹层(#575):军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
         <PeekModal selfSeat={selfSeat} />
+        {/* 名下城池清单弹层(#622):席位卡/仪表条城池徽章点开,只读五列清单;
+          开合态在本件(上),目标持座位号——弹层开着随快照实时重渲。 */}
+        {cityLedgerSeat != null && (
+          <CityLedgerModal
+            snapshot={snapshot}
+            seat={cityLedgerSeat}
+            self={cityLedgerSeat === selfSeat}
+            onClose={() => setCityLedgerSeat(null)}
+          />
+        )}
         {/* 竖屏手机「请横屏」提示层(#276 纠偏):常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>
