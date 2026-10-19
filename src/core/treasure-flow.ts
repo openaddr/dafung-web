@@ -177,19 +177,21 @@ export function resolveTreasureOwner(
   const kindKey = action.type === "fair" ? "treasureFair" : "treasurePremium";
   const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
   const bankruptSuffix = bankrupt ? " → 破产" : "";
+  // #617:实收=0 不挂(iff 不变量另一半)——买家余现金为 0 的破产成交零现金过手,两行
+  // detail 照旧(bankrupt=true)但 amount 缺省,不写 0/-0。
   g.logEvent(
     "trade",
     owner.guohao,
     `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankruptSuffix}`,
     `${kindKey} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
-    cashMoved,
+    cashMoved > 0 ? cashMoved : undefined,
   );
   g.logEvent(
     "trade",
     mover.guohao,
     `${mover.guohao} 付 ${formatMoney(cashMoved)} 购「${treasure.name}」${bankruptSuffix}`,
     `treasureBuy buyer=${mover.id} seller=${owner.id} treasure=${treasure.id} price=${price} bankrupt=${bankrupt}`,
-    -cashMoved,
+    cashMoved > 0 ? -cashMoved : undefined,
   );
   g.treasureVisitor = null;
   if (bankrupt) {

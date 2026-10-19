@@ -1,8 +1,9 @@
 // 对局日志现金对账不变量(#617):amount 只记现金收付(+收入/-支出),任何玩家的
 // 现金变动当且仅当恰有带 amount 的日志行对应;非现金事件(得宝估价/escrow 资产交割)
-// amount 必须缺省。脚本化一段三人对局,覆盖得宝、直付成交(fair+premium)、清算成交、
-// 破产成交四条路径,断言逐玩家 Σamount == 引擎观测的现金净变动——场景内除四路径外
-// 无其他现金流(机遇缺省关闭;不落自己都城故无补给;锦囊全部放行不出)。
+// 与零实收行 amount 必须缺省。脚本化一段三人对局,覆盖得宝、直付成交(fair+premium)、
+// 清算成交、破产成交、清算失败破产扫账五条路径,断言逐玩家 Σamount == 引擎观测的现金
+// 净变动——场景内除五路径外无其他现金流(机遇缺省关闭;不落自己都城故无补给;锦囊全部
+// 放行不出);另以独立用例构造现金 0 破产成交,锁定实收=0 不挂。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
@@ -82,7 +83,7 @@ const rowOf = (e: GameEngine, prefix: string, need: string, from = 0) =>
   e.log.find((l, i) => i >= from && l.detail.startsWith(prefix) && l.detail.includes(need))!;
 
 describe("对局日志现金对账(#617)", () => {
-  it("一段对局:得宝/直付 fair+premium/清算成交/破产成交,逐玩家 Σamount == 现金净变动", () => {
+  it("一段对局:得宝/直付 fair+premium/清算成交/破产成交/清算失败扫账,逐玩家 Σamount == 现金净变动", () => {
     const e = makeEngine();
     finishSetup(e);
     passJinnang(e);
@@ -176,6 +177,28 @@ describe("对局日志现金对账(#617)", () => {
     expect(rowOf(e, "escrowReturn", "treasure=t8").amount).toBeUndefined(); // 退回=资产转移
     expect(wei.cash).toBe(0);
 
+    // S8(吴回):清算失败→破产扫账(#617 补账支路)——吴(现金 100,持 t2)公道买卖购
+    // 蜀 t8(Lv8,价 1600)→ 变卖 t2(+100)后仍不足 → confirm 破产,余现金 200 整扫给蜀
+    forceVisit(e, "prop-luoyang", 2); // 蜀回按兵不动让过(洛阳归吴为业主),零现金流
+    e.resolveTreasureOwner({ type: "skip" });
+    passJinnang(e); // → 吴
+    const mark8 = e.log.length;
+    forceVisit(e, "prop-chengdu", 1);
+    e.resolveTreasureOwner({ type: "fair", treasureId: "t8" });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    e.sellTreasureBankruptcy("t2"); // +100(bkSellTreasure 自带正确 amount)
+    expect(rowOf(e, "bkSellTreasure", "treasure=t2", mark8).amount).toBe(100);
+    e.confirmBankruptcySettle(); // 变卖殆尽仍不足 → 破产,扫账=当时全部现金给蜀
+    expect(wu.isBankrupt).toBe(true);
+    expect(wu.cash).toBe(0);
+    expect(rowOf(e, "bkBankrupt", `player=${wu.id}`, mark8).amount).toBe(-200); // 买家侧:余现金 200 整扫离手
+    const s8Seller = rowOf(e, "treasureFair", "treasure=t8", mark8); // 卖家侧:扫账实收行(与直付卖家行同形)
+    expect(s8Seller.amount).toBe(200); // 实收=买家余现金,非成交价 1600
+    expect(s8Seller.player).toBe("蜀");
+    expect(s8Seller.detail).toContain("price=1600"); // detail 成交价仍是谈定价
+    expect(s8Seller.detail).toContain("bankrupt=true");
+    expect(rowOf(e, "escrowReturn", "treasure=t8", mark8).amount).toBeUndefined(); // 退回=资产转移
+
     // 总不变量:逐玩家 Σamount == 引擎观测现金净变动(窗口内除四路径外无其他现金流)
     const cashEnd = e.players.map((p) => p.cash);
     for (let i = 0; i < e.players.length; i++) {
@@ -198,5 +221,37 @@ describe("对局日志现金对账(#617)", () => {
     expect(
       cashless.filter((l) => l.amount !== undefined).map((l) => `${l.category}:${l.detail}`),
     ).toEqual([]);
+
+    // 全窗无零额 amount 行(0/-0 均不允许——零实收不挂,独立用例另作构造锁定)
+    expect(
+      e.log
+        .slice(mark)
+        .filter((l) => l.amount === 0)
+        .map((l) => `${l.category}:${l.detail}`),
+    ).toEqual([]);
+  });
+
+  it("实收=0 不挂:现金 0 且无可变卖资产的买家破产成交,买卖两行 amount 缺省", () => {
+    const e = makeEngine();
+    finishSetup(e);
+    passJinnang(e);
+    const buyer = e.activePlayer;
+    const seller = e.players[(e.players.indexOf(buyer) + 1) % e.players.length]!;
+    // 买家清到零现金且无可变卖资产(仅留都城)→ 交涉即直接破产,余现金 0 扫账
+    buyer.cash = 0;
+    buyer.treasures = [];
+    buyer.heroes = [];
+    const capProp = e.board.at(buyer.capitalIndex)?.propertyId;
+    buyer.properties = buyer.properties.filter((h) => h.propertyId === capProp);
+    seller.treasures.push(tr("t8", 8));
+    forceVisit(e, "prop-luoyang", e.players.indexOf(seller)); // 卖家无产地(悬置态),forceVisit 代植
+    e.resolveTreasureOwner({ type: "fair", treasureId: "t8" }); // 价 1600 >> 0 → 直接破产
+    expect(buyer.isBankrupt).toBe(true);
+    expect(buyer.cash).toBe(0);
+    const sellerRow = rowOf(e, "treasureFair", "treasure=t8");
+    expect(sellerRow.amount).toBeUndefined(); // 实收=0:卖家行不挂 amount(修复前写 0)
+    expect(sellerRow.detail).toContain("bankrupt=true");
+    expect(rowOf(e, `treasureBuy buyer=${buyer.id}`, "treasure=t8").amount).toBeUndefined(); // 修复前写 -0
+    expect(rowOf(e, "escrowReturn", "treasure=t8").amount).toBeUndefined();
   });
 });
