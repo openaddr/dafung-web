@@ -77,7 +77,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 开发陷阱速查(游戏逻辑;数值一律查 [rules 第 10 页](./docs/reference/rules/10-关键数值总表.md))
 
-- 选都三选一的候选 `offeredCapitals` 随 rngState 序列化——联机/恢复必须一致。
+- 选都三选一的候选 `offeredCapitals` 随 rngState 序列化——联机/恢复必须一致。**起点=各人自己的都城**(选都即迁城);出生位 tile 0 仅选都期临时落位,非共同起点(「起」印已随 #620 退役)。
 - 都城**路过必停**、结束回合,无「驻跸/继续」抉择(`AwaitingCapitalHalt` 相位已删,勿复活)。
 - **身价=仅现金**:购地直接降身价;本作无过路费/升级费,城池升级只挂公道买卖成交路径。
 - 破产自救**凑足即止**:现金≥债务后引擎硬拒绝继续变卖(`assertStillOwing`),不靠 UI 禁用自觉。
