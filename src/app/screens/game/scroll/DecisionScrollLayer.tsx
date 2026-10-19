@@ -11,6 +11,7 @@ import { Fragment } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
+import { Theme } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import {
@@ -36,6 +37,14 @@ export interface DecisionScrollLayerProps {
   /** 城池详情/选都确认流程(spec #107 C5 下沉:状态机在 useCapitalPick,本层只按
    *  请求渲染,不再收 4 个流程 props)。null = 不弹。 */
   tileDetail: TileDetailRequest | null;
+}
+
+// 地域行标签单源:色带按区域分组着色,分组名恒显作色带的名字锚点,州名与分组异名
+// 时追加(「幽燕 · 并州」)。自定义地图未知分组(z)无分组名,只显州名。
+function regionLineLabel(group: string | undefined, region: string | null): string {
+  const groupName = group != null ? Theme.groupNames[group] : undefined;
+  if (!groupName) return region ?? "";
+  return !region || region === groupName ? groupName : `${groupName} · ${region}`;
 }
 
 export function DecisionScrollLayer({
@@ -102,7 +111,7 @@ export function DecisionScrollLayer({
           tileIndex={tileIndex}
           tileName={tile.name}
           tileType={tile.type}
-          region={tile.region ?? ""}
+          regionLabel={regionLineLabel(def?.group, tile.region)}
           property={
             def
               ? {
@@ -221,7 +230,7 @@ export function DecisionScrollLayer({
             return (
               <BuyDecisionScroll
                 tileName={tile?.name ?? def.id}
-                region={tile?.region ?? ""}
+                regionLabel={regionLineLabel(def.group, tile?.region ?? null)}
                 property={{
                   purchasePrice: def.purchasePrice,
                   maxLevel: def.maxLevel,

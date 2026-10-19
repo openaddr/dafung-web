@@ -125,14 +125,15 @@ export function ExhaustionChoiceScroll({
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({
   tileName,
-  region,
+  regionLabel,
   property,
   cash,
   choices,
   onCommand,
 }: {
   tileName: string;
-  region: string;
+  /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer)。 */
+  regionLabel: string;
   property: { purchasePrice: number; maxLevel: number; valueByLevel: number[] };
   cash: number;
   /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
@@ -159,7 +160,7 @@ export function BuyDecisionScroll({
   return (
     <BannerShell title="购地抉择" testid={T.buyScroll}>
       <p className="m-1 text-center text-sm text-ink-dim">
-        「{tileName}」{region ? ` · ${region}` : ""} · 无主 · 购入{" "}
+        「{tileName}」{regionLabel ? ` · ${regionLabel}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
       <p className="m-1 mb-2.5 text-center text-sm text-ink">

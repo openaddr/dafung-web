@@ -27,8 +27,8 @@ export interface TileDetailScrollProps {
   tileName: string;
   /** 格类型:非 Property 走特殊地点说明分支。 */
   tileType: TileType;
-  /** 地域名(如 幽州;特殊地点可为空)。 */
-  region: string;
+  /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer;特殊地点不显示)。 */
+  regionLabel: string;
   /** 城池定义(价/等级/价值);特殊地点为 null。 */
   property: {
     id: string;
@@ -51,7 +51,7 @@ export function TileDetailScroll({
   tileIndex,
   tileName,
   tileType,
-  region,
+  regionLabel,
   property,
   ownerGuohao,
   ownerLevel,
@@ -65,7 +65,7 @@ export function TileDetailScroll({
       {property ? (
         <>
           <p className="m-1 mb-3 text-center text-sm text-ink-dim">
-            {region} · {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
+            {regionLabel} · {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
             {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入{" "}
             {formatMoney(property.purchasePrice)}
           </p>
