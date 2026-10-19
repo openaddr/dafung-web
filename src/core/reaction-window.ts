@@ -632,14 +632,14 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
     return;
   }
   // 平/负:拦检失败,牌白耗(已扣),行人照常续走
-  g.pushFloaterText(owner, `拦检失败(掷 ${duel.aRoll} 对 ${duel.bRoll})`, payload.tileIndex);
+  g.pushFloaterText(owner, "拦检失败", payload.tileIndex);
   emitGameEvent(g, play.seat, {
     kind: "reactionFailed",
     windowKind: "march",
     tileIndex: payload.tileIndex,
     aRoll: duel.aRoll,
     bRoll: duel.bRoll,
-  }); // 事件流(#385):拦检失败(文案浮字 fx 按点数参数拼装,锚拦检城)
+  }); // 事件流(#385):拦检失败宣告(浮字不带点数括注——点数只在拼点签面,ADR-0030)
   g.logEvent(
     "system",
     owner.guohao,
@@ -688,7 +688,10 @@ function resumeMarch(g: GameEngine, payload: Extract<ReactionPayload, { kind: "m
 }
 
 /** 拼点公共结算(#281 自连环计提出):双方各掷 1d6,点数高者胜,平局 winnerSeat=null。
- *  连环计(二虎竞食)与半路杀出拦检共用;掷点战报与银两/拦停等后效由调用方落账。 */
+ *  连环计(二虎竞食)与半路杀出拦检共用;掷点战报与银两/拦停等后效由调用方落账。
+ *  duelResolved 在此单点 emit(#636,ADR-0030):两调用点天然全覆盖,产出时点=结算
+ *  完成紧邻、先于调用方的全部后效(拦停 marchArrived/银两 cashChanged);拼点骰不派
+ *  diceRolled、不走掷骰时机(张星彩掷金边界不变)。 */
 export function resolveDuel(
   g: GameEngine,
   aSeat: number,
@@ -696,5 +699,14 @@ export function resolveDuel(
 ): { aRoll: number; bRoll: number; winnerSeat: number | null } {
   const aRoll = g.dice.rollDie();
   const bRoll = g.dice.rollDie();
-  return { aRoll, bRoll, winnerSeat: aRoll === bRoll ? null : aRoll > bRoll ? aSeat : bSeat };
+  const winnerSeat = aRoll === bRoll ? null : aRoll > bRoll ? aSeat : bSeat;
+  emitGameEvent(g, aSeat, {
+    kind: "duelResolved",
+    aSeat,
+    bSeat,
+    aRoll,
+    bRoll,
+    winnerSeat,
+  }); // 事件流(#636,ADR-0030):拼点点数入事件流(seat=a 方)
+  return { aRoll, bRoll, winnerSeat };
 }

@@ -9,8 +9,8 @@
 //          (orchestrator.finishPresentation),终局局的骰子可在事件边界被整体截断,
 //          是生命周期规则不是回归);S7 两段式 bot 半速语义(bot 摇签
 //          严格短于人类摇签);
-//   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点双印错拍 < 合印拍 <
-//          双印清理窗(合印播完有余再清);
+//   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点签面节拍有序
+//          (幕启 < 摇、错拍落 < 判词);
 //   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
 //   倍率地板 — TIME_SCALE_FLOOR_MS ≥ 100(headless+软渲的可观察下限不被悄悄调低)。
 // 数值本身的逐位锁定在 test/e2e-time-scale.test.ts(生产恒等快照),本文件只管关系。
@@ -42,10 +42,16 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(CEREMONY.fallMs).toBeLessThanOrEqual(CEREMONY.settleMs);
   });
 
-  it("拼点双印节拍有序(S7):错拍 < 合印拍 < 双印清理窗(播完有余再清)", () => {
-    expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs);
-    expect(DUEL.verdictMs).toBeLessThan(FX.duelMs);
+  it("拼点签面节拍有序(#637,ADR-0030):幕启 < 摇,错拍落 < 判词,判词停留与收场渐出俱为正", () => {
+    expect(DUEL.curtainMs).toBeGreaterThan(0); // 幕启:玄墨幕渐入+两签虚位(摇签等幕启后起跑)
+    expect(DUEL.curtainMs).toBeLessThan(DUEL.shakeMs); // 幕启 < 并行起摇
+    expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs); // 座位序错拍落 < 判词拍(错拍=clackGap 间隙,延续既有拼点节拍)
+    expect(DUEL.holdMs).toBeGreaterThan(0); // 判词停留(金圈/金平可读窗)
+    expect(DUEL.fadeOutMs).toBeGreaterThan(0); // 整幕渐出
   });
+
+  // 大胜负点差档(blowoutMargin)的行为断言归位 test/presentation.test.ts isBlowout
+  // 边界两支(#639)——此处原「>= 1」近恒真断言已删(测试宁缺毋滥)。
 
   it("行军段时长夹取区间有序:MARCH.minSegMs < MARCH.maxSegMs", () => {
     expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);

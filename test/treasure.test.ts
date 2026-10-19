@@ -5,6 +5,7 @@ import { createDice } from "@core/dice";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { TREASURE_PRICE, TREASURES, createTreasureDeck, premiumPriceOf } from "@core/treasures";
+import { beginGameEventBatch } from "@core/game-events";
 import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
@@ -262,12 +263,14 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).toBe("AwaitingDecision"); // 同权:进购地决策(不再直探)
     expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: def.id });
+    beginGameEventBatch(e); // 批界=购地+链尾探宝(#636 探宝拼点事件面断言)
     e.buyProperty();
     expect(mover.properties.some((h) => h.propertyId === def.id)).toBe(true); // 得地
     expect(e.log.some((l) => l.detail.includes(`buy player=${mover.id} prop=${def.id}`))).toBe(
       true,
     );
     expect(treasureTrail(e)).toBe(true); // 交易链尾探宝留痕
+    expect(e.snapshot().events.some((ev) => ev.kind === "duelResolved")).toBe(false); // 探宝拼点=单人判定不走 resolveDuel,不派(#636)
     expect(passJinnang(e).turnPhase).toBe("Roll"); // 探宝自带 endTurn
     expect(e.treasureDeck.length).toBe(13); // 牌堆 14 → 抽 1(失败也回堆底,此处不计成败只计抽动)
   });

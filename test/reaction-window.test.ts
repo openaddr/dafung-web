@@ -5,6 +5,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
+import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import type { TurnPhase } from "@core/authority";
 import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
@@ -89,6 +90,14 @@ function grantCity(e: GameEngine, seat: number, propertyId: string) {
     maxLevel: 3,
   });
 }
+
+/** 拼点结算事件速读(#636):当前批内 duelResolved(断言前自行 beginGameEventBatch 划批)。 */
+const duelEventsOf = (e: GameEngine) =>
+  e
+    .snapshot()
+    .events.filter(
+      (ev): ev is Extract<GameEvent, { kind: "duelResolved" }> => ev.kind === "duelResolved",
+    );
 
 /** 测试预期当前挂起的是识破窗,窄化返回公告载荷(窄化失败=测试预期落空,红出来)。 */
 function jinnangView(e: GameEngine) {
@@ -324,36 +333,85 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     });
     expect(mover.position).toBe(START); // 挂起中未落位
     scriptDice(e, { rollDies: [5, 3] }); // 拼点:城主 5 > 行人 3
+    beginGameEventBatch(e); // 批界=拦检结算(事件断言用)
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
     expect(mover.position).toBe(PASSED); // 止步拦检城
     expect(e.turnPhase).toBe("AwaitingTreasureOwner"); // 照常落格:城主有珍宝 → 交涉
     expect(e.jinnangDiscard).toContain("半路杀出");
     expect(e.players[ownerSeat].jinnangHand).toEqual([]);
+    const duel = duelEventsOf(e); // 拦检胜支:恰一条,字段正确(#636)
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({
+      seat: ownerSeat, // a 方=城主(resolveDuel 首参)
+      aSeat: ownerSeat,
+      bSeat: moverSeat,
+      aRoll: 5,
+      bRoll: 3,
+      winnerSeat: ownerSeat,
+    });
   });
 
   it("拦检平局:牌白耗,行人照常续走落原点", () => {
-    const { e, mover, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
+    const { e, mover, moverSeat, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
     e.rollAndMove();
     expect(e.turnPhase).toBe("AwaitingReaction");
     scriptDice(e, { rollDies: [4, 4] }); // 平局
+    beginGameEventBatch(e);
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
     expect(mover.position).toBe(LAND); // 落原点(江夏)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 平局牌白耗
+    const duel = duelEventsOf(e); // 平局支:winnerSeat=null(#636)
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({
+      aSeat: ownerSeat,
+      bSeat: moverSeat,
+      aRoll: 4,
+      bRoll: 4,
+      winnerSeat: null,
+    });
   });
 
   it("拦检落败:城主骰输,牌白耗,行人照常续走落原点", () => {
-    const { e, mover, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
+    const { e, mover, moverSeat, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
     e.rollAndMove();
     expect(e.turnPhase).toBe("AwaitingReaction");
     scriptDice(e, { rollDies: [2, 6] }); // 城主 2 < 行人 6
+    beginGameEventBatch(e);
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
     expect(mover.position).toBe(LAND); // 落原点(江夏)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 落败牌白耗
+    const duel = duelEventsOf(e); // 落败支:胜者=行人(#636)
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({
+      aSeat: ownerSeat,
+      bSeat: moverSeat,
+      aRoll: 2,
+      bRoll: 6,
+      winnerSeat: moverSeat,
+    });
+  });
+
+  it("拼点全程不派 DieRolled、不触发张星彩掷金(既有边界,#636 事件面钉死)", () => {
+    const { e, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
+    e.players[ownerSeat].heroes = [HEROES.find((h) => h.id === "zhangxingcai")!]; // 掷金:任意人掷 6 即 +20
+    scriptDice(e, { die: 2, rollDies: [6, 2] }); // 行军骰 2;拼点 6 对 2——若误派 DieRolled,掷金必触发
+    const ownerCashBefore = e.players[ownerSeat].cash;
+    beginGameEventBatch(e); // 批界=行军掷骰 + 反应窗 + 拼点结算全程
+    e.rollAndMove();
+    e.respondReaction(ownerSeat, true, "半路杀出");
+    const events = e.snapshot().events;
+    const rolls = events.filter(
+      (ev): ev is Extract<GameEvent, { kind: "diceRolled" }> => ev.kind === "diceRolled",
+    );
+    expect(rolls.map((r) => r.die)).toEqual([2]); // 唯一掷骰事件=行军骰(拼点 6/2 不入)
+    expect(events.some((ev) => ev.kind === "skillFired")).toBe(false); // 掷金未击发
+    expect(events.some((ev) => ev.kind === "duelResolved")).toBe(true); // 对照:拼点确实发生
+    expect(e.players[ownerSeat].cash).toBe(ownerCashBefore); // 无 +20
   });
 
   it("城主不用:行人照常续走;无牌城主不开窗直接走完", () => {

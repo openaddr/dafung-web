@@ -16,7 +16,7 @@ import { extractBatchEvents } from "../src/app/fx/event-extract";
 import { finishPresentation, present, resetFxOrchestration } from "../src/app/fx/orchestrator";
 import { createMemorySink } from "../src/app/fx/sinks";
 import { useFxStore } from "../src/app/fx/fxStore";
-import type { PresentationEvent } from "../src/app/fx/presentation";
+import { isBlowout, type PresentationEvent } from "../src/app/fx/presentation";
 import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
@@ -372,7 +372,7 @@ describe("事件→动效映射表(合成批)", () => {
     expect(floater).toMatchObject({ amount: -50, coins: false });
   });
 
-  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 拼点双印得半);traded/bankrupt/gameOver 直通", () => {
+  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 探宝拼点得半);traded/bankrupt/gameOver 直通", () => {
     const e = E();
     const gain = synth(e, [
       { kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" },
@@ -575,7 +575,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     else throw new Error("assetTransferred 应产易主宣告");
   });
 
-  it("reactionFailed:拼点双印(S7)双骰点印+合印,文案浮字锚拦检城(缺口 5)", () => {
+  it("reactionFailed:文案浮字「拦检失败」锚拦检城,不带点数括注(点数只落拼点签面,ADR-0030)", () => {
     const e = E();
     const out = synth(e, [
       {
@@ -600,29 +600,19 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       },
     ]);
     const pos = e.board.positionOf(5);
-    // 负局:双骰点印(2 对 5)→ 合「失」印;平局:金「平」印(#492 平局诚实呈现)
+    // 平/负同文案:骰面信息全在拼点签面(duelResolved 直译),浮字不落第二处
     expect(out[0]).toEqual({
-      kind: "duelStamps",
-      tileIndex: 5,
+      kind: "textFloat",
+      playerId: e.players[1].id,
+      text: "拦检失败",
       x: pos.x,
       y: pos.y,
-      a: 2,
-      b: 5,
-      verdict: "lose",
-    });
-    expect(out[2]).toEqual({
-      kind: "duelStamps",
-      tileIndex: 5,
-      x: pos.x,
-      y: pos.y,
-      a: 3,
-      b: 3,
-      verdict: "tie",
+      atTile: 5,
     });
     expect(out[1]).toEqual({
       kind: "textFloat",
       playerId: e.players[1].id,
-      text: "拦检失败(掷 2 对 5)",
+      text: "拦检失败",
       x: pos.x,
       y: pos.y,
       atTile: 5,
@@ -841,6 +831,135 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
   });
 });
 
+// ─────────────── 拼点签面直译(#637,ADR-0030)───────────────
+describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
+  const E = () => makeEngine(7);
+
+  it("胜负局:sides=双方座位元数据(国号/座色/掷点,按座位号升序),winnerSeat 随事件走;场景无关(拦检/连环计同式)", () => {
+    const e = E();
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 0,
+        round: 1,
+        turn: 1,
+        aSeat: 0,
+        bSeat: 1,
+        aRoll: 6,
+        bRoll: 1,
+        winnerSeat: 0,
+      },
+    ]);
+    expect(out).toEqual([
+      {
+        kind: "duelSigns",
+        sides: [
+          { seat: 0, playerId: e.players[0].id, guohao: "魏", colorIndex: 0, roll: 6 },
+          { seat: 1, playerId: e.players[1].id, guohao: "蜀", colorIndex: 1, roll: 1 },
+        ],
+        winnerSeat: 0,
+      },
+    ]);
+  });
+
+  it("平局:winnerSeat=null 原样透传;sides 按座位升序重排(#639:aSeat=resolveDuel 首参不保证座位号小,错拍落定序=座位升序)", () => {
+    const e = E();
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 1,
+        round: 1,
+        turn: 1,
+        aSeat: 1,
+        bSeat: 0,
+        aRoll: 3,
+        bRoll: 3,
+        winnerSeat: null,
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    if (out[0].kind !== "duelSigns") throw new Error("duelResolved 应直译 duelSigns");
+    expect(out[0].winnerSeat).toBeNull();
+    // aSeat=1 > bSeat=0:sides 重排为 [0,1](升序),掷点仍各随其主
+    expect(out[0].sides.map((s) => s.seat)).toEqual([0, 1]);
+    expect(out[0].sides.map((s) => s.roll)).toEqual([3, 3]);
+  });
+
+  it("大胜负升序重排后掷点各随其主:aSeat=2/bSeat=1(aSeat 座位号更大)重排后 roll 不串位", () => {
+    const e = makeEngine(7, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 2,
+        round: 1,
+        turn: 1,
+        aSeat: 2,
+        bSeat: 1,
+        aRoll: 6,
+        bRoll: 1,
+        winnerSeat: 2,
+      },
+    ]);
+    if (out[0].kind !== "duelSigns") throw new Error("duelResolved 应直译 duelSigns");
+    expect(out[0].sides.map((s) => [s.seat, s.roll] as const)).toEqual([
+      [1, 1],
+      [2, 6],
+    ]);
+    expect(out[0].winnerSeat).toBe(2);
+  });
+
+  it("契约违反当场炸出(零兜底):winnerSeat 不在拼点双方/座位越界", () => {
+    const e = E();
+    expect(() =>
+      synth(e, [
+        {
+          kind: "duelResolved",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          aSeat: 0,
+          bSeat: 1,
+          aRoll: 6,
+          bRoll: 2,
+          winnerSeat: 2,
+        },
+      ]),
+    ).toThrow();
+    expect(() =>
+      synth(e, [
+        {
+          kind: "duelResolved",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          aSeat: 0,
+          bSeat: 9,
+          aRoll: 6,
+          bRoll: 2,
+          winnerSeat: 0,
+        },
+      ]),
+    ).toThrow();
+  });
+});
+
+// ─────────────── 大胜负震屏判定(#639 评审必修:行为断言取代时长表近恒真档)───────────────
+describe("isBlowout(拼点大胜负震屏判定:|a−b| ≥ DUEL.blowoutMargin,判词拍消费)", () => {
+  it("点差 3(恰等 margin)=震屏;方向无关", () => {
+    expect(isBlowout(6, 3)).toBe(true);
+    expect(isBlowout(3, 6)).toBe(true);
+  });
+
+  it("点差 2(不足 margin)=不震", () => {
+    expect(isBlowout(5, 3)).toBe(false);
+    expect(isBlowout(3, 5)).toBe(false);
+  });
+});
+
 // ─────────────── 出牌指示线(事件批口径)───────────────
 /** 出牌阶段出牌步骤(横征暴敛=A面全体域):提取事件含 jinnangPlayed(jinnangAnnounced 直译)。 */
 function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {
@@ -1028,12 +1147,11 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     ]);
   });
 
-  it("S7 演出直通 sink:landPulse/duelStamps/haltBanner/bankruptCeremony(memorySink 录制)", async () => {
+  it("S7 演出直通 sink:landPulse/haltBanner/bankruptCeremony(memorySink 录制)", async () => {
     const sink = createMemorySink();
     await present(
       [
         { kind: "landPulse", tileIndex: 3 },
-        { kind: "duelStamps", tileIndex: 5, x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
         { kind: "haltBanner", playerId: "p1", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
         { kind: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
       ],
@@ -1041,9 +1159,37 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     );
     expect(sink.calls).toEqual([
       { op: "landPulse", tileIndex: 3 },
-      { op: "duel", x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
       { op: "haltBanner", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
       { op: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
+    ]);
+  });
+
+  it("拼点签面直通 sink(#637):duelSigns 整场 await 后才播下一事件(串行=签面收场后棋盘后效才登场)", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        {
+          kind: "duelSigns",
+          sides: [
+            { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
+            { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
+          ],
+          winnerSeat: 0,
+        },
+        { kind: "cashDelta", playerId: "p1", amount: -120, x: 1, y: 2, atTile: null },
+      ],
+      sink,
+    );
+    expect(sink.calls).toEqual([
+      {
+        op: "duelSigns",
+        sides: [
+          { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
+          { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
+        ],
+        winnerSeat: 0,
+      },
+      { op: "floater", x: 1, y: 2, amount: -120, coins: false },
     ]);
   });
 

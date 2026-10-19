@@ -229,7 +229,10 @@
     "license": "CC0",
     "author": "poenia (Freesound,「Domino_sfx_moveTile」lq ogg 预览直链)",
     "fetched_at": "2026-10-14",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-10-20",
+    "retired_reason": "#638 拼点签面单通道收口(ADR-0030):拼点双印整线退役,骨牌叩唯一消费者 sinks.stampDuel 随线删除;文件已下架,本条目留档"
   },
   "audio:coins-box": {
     "path": "assets/audio/audio-coins-box.ogg",

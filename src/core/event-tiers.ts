@@ -207,7 +207,12 @@ export const EVENT_TIERS = {
   reactionFailed: {
     fold: "declarative",
     fx: "presented",
-    why: "拼点平/负宣告:零状态转移(拦检牌扣账已折于闭窗应答点,拼点参数仅文案);表现=事发现场浮字",
+    why: "拼点平/负宣告:零状态转移(拦检牌扣账已折于闭窗应答点);表现=事发现场浮字(点数演出归全屏签面 duelSigns,#637)",
+  },
+  duelResolved: {
+    fold: "declarative",
+    fx: "presented",
+    why: "拼点结算宣告(#636,ADR-0030):resolveDuel 单点产出,两方座位/两枚点数/胜者随事件走;零状态转移(胜负后果由调用点既有事件折:拦停=marchArrived、银两=cashChanged·duel);表现=拼点签面(#637,全屏多签直译,场景无关)",
   },
   jinnangVoided: {
     fold: "must-fold",

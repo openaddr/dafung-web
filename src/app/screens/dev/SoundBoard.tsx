@@ -25,7 +25,6 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   scrollOpen: { label: "卷轴展开", when: "卷轴挂载(纸响,播放侧截 1.8s)" },
   jinnangDraw: { label: "锦囊入手", when: "手牌架新牌落架(木叩,播放侧截 0.65s)" },
   jinnangSelect: { label: "选牌轻嗒", when: "出牌阶段/反应窗点选牌面(极轻瞬态)" },
-  tileClack: { label: "骰点叩", when: "S7 拼点双印:双骰点印错拍各一声(#513)" },
   coinsBox: { label: "铜钱入匣", when: "S7 破产仪式撒币拍(#513)" },
   rain: { label: "雨声铺底", when: "S7 破产仪式开锣(压档衬底,播放侧截 3s;#513)" },
   haltGong: { label: "都城停锣", when: "S7 都城路过必停全屏宣告开拍(复用长锣;#513)" },

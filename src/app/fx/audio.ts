@@ -23,7 +23,6 @@ export type SoundEvent =
   | "scrollOpen" // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
   | "jinnangDraw" // 锦囊发牌/入手(手牌架新牌挂载即播,#239 T4)
   | "jinnangSelect" // 出牌阶段点选牌面(选中瞬间的极轻嗒,#239 T4)
-  | "tileClack" // 骨牌叩(S7 拼点双印:双骰点印错拍各一声)
   | "coinsBox" // 铜钱入匣(S7 破产仪式撒币拍)
   | "rain" // 雨声铺底(S7 破产仪式开锣,音量压档 FILE_GAIN)
   | "haltGong"; // 都城停号角(S7 全屏宣告开拍;复用 gong-long 素材)
@@ -146,9 +145,6 @@ export class SynthAudioPlayer implements AudioPlayer {
         break;
       case "jinnangSelect":
         this.jinnangSelect(ctx);
-        break;
-      case "tileClack":
-        this.tileClack(ctx);
         break;
       case "coinsBox":
         this.coinsBox(ctx);
@@ -357,12 +353,6 @@ export class SynthAudioPlayer implements AudioPlayer {
     this.tone(ctx, 2700, 0.03, "sine", 0.02);
   }
 
-  // 骨牌叩(S7 拼点双印:骰点印钤下的木质脆叩;合成回退,文件通路 tile-clack)
-  private tileClack(ctx: AudioContext): void {
-    this.thump(ctx, 420, 0.07, 0.32);
-    this.noiseBurst(ctx, 0.04, "highpass", 2600, 1.2, 0.14);
-  }
-
   // 铜钱入匣(S7 破产仪式撒币拍:双钱急落 + 匣底闷响;合成回退,文件通路 coins-box)
   private coinsBox(ctx: AudioContext): void {
     this.coin(ctx);
@@ -405,8 +395,8 @@ export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // 的质感语言。jinnangSelect 刻意不映射:现成采样里无贴切的「极轻选中嗒」,
   // 走上方合成(marchStart 同族),不硬凑重采样。
   jinnangDraw: "/assets/audio/woodblock-hit.ogg",
-  // S7 演出包(#513,S1 素材批 CC0 三件,Freesound lq ogg 直链,CREDITS 已登记):
-  tileClack: "/assets/audio/audio-tile-clack.ogg", // 拼点双印骨牌叩
+  // S7 演出包(#513,S1 素材批 CC0,Freesound lq ogg 直链,CREDITS 已登记;
+  // 同批 tile-clack 骨牌叩已随拼点双印退役 #638,manifest/CREDITS 留档):
   coinsBox: "/assets/audio/audio-coins-box.ogg", // 破产撒币入匣
   rain: "/assets/audio/audio-rain.ogg", // 破产雨床(FILE_GAIN 压档)
   haltGong: "/assets/audio/gong-long.ogg", // 都城停号角(与 bankrupt 同素材复用)

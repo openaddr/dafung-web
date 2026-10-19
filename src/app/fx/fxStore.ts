@@ -52,16 +52,6 @@ export interface PulseFx {
   y: number;
 }
 
-/** 拼点双印(S7 #513):双骰点印 + 合印(verdict=lose「失」/tie 金「平」)。 */
-export interface DuelFx {
-  id: number;
-  x: number;
-  y: number;
-  a: number;
-  b: number;
-  verdict: "lose" | "tie";
-}
-
 /** 铭牌墨渍(S7 破产仪式第二拍):径向晕开即散。 */
 export interface InkBlotFx {
   id: number;
@@ -133,8 +123,6 @@ interface FxState {
   announces: ReadonlyMap<number, TileAnnounce>;
   /** 落格定音金圈(S7)。 */
   pulses: PulseFx[];
-  /** 拼点双印(S7)。 */
-  duels: DuelFx[];
   /** 破产仪式墨渍(S7)。 */
   inkBlots: InkBlotFx[];
   /** 破产仪式撒币(S7)。 */
@@ -153,8 +141,6 @@ interface FxState {
   showHaltBanner(guohao: string, color: string, cityName: string): void;
   /** 落格定音金圈一拍(S7)。 */
   spawnPulse(x: number, y: number): void;
-  /** 拼点双印(S7):一次一批(双骰印+合印同一记录,CSS 错拍自走)。 */
-  stampDuel(x: number, y: number, a: number, b: number, verdict: "lose" | "tie"): void;
   /** 破产仪式墨渍晕开(S7)。 */
   spawnInkBlot(x: number, y: number): void;
   /** 破产仪式铜钱撒落(S7)。 */
@@ -183,7 +169,6 @@ export const useFxStore = create<FxState>((set) => ({
   marching: new Set<string>(),
   announces: new Map<number, TileAnnounce>(),
   pulses: [],
-  duels: [],
   inkBlots: [],
   coinBursts: [],
 
@@ -228,12 +213,6 @@ export const useFxStore = create<FxState>((set) => ({
     const id = nextId++;
     set((s) => ({ pulses: [...s.pulses, { id, x, y }] }));
     setTimeout(() => set((s) => ({ pulses: s.pulses.filter((p) => p.id !== id) })), FX.landPulseMs);
-  },
-
-  stampDuel(x, y, a, b, verdict) {
-    const id = nextId++;
-    set((s) => ({ duels: [...s.duels, { id, x, y, a, b, verdict }] }));
-    setTimeout(() => set((s) => ({ duels: s.duels.filter((d) => d.id !== id) })), FX.duelMs);
   },
 
   spawnInkBlot(x, y) {
@@ -315,7 +294,6 @@ export const useFxStore = create<FxState>((set) => ({
       marching: new Set<string>(),
       announces: new Map(),
       pulses: [],
-      duels: [],
       inkBlots: [],
       coinBursts: [],
     });

@@ -5,6 +5,7 @@
 // 字号随视图缩放、按当前缩放设 12px 等效下限。
 // FxLayer(HTML)仅保留回合横幅——它是屏幕居中元素,不属于棋盘坐标系。
 import { useFxStore } from "./fxStore";
+import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
 import "./fx.css";
 
@@ -76,13 +77,13 @@ function Coin({
 const SUPPLY_COINS = 6;
 
 /** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂/漆金印章 +
- *  出牌指示线 + 落格定音金圈 + 拼点双印 + 破产墨渍/撒币(S7)。 */
+ *  出牌指示线 + 落格定音金圈 + 破产墨渍/撒币(S7)。拼点演出归全屏签面
+ *  (DuelSignsOverlay,ADR-0030 单通道)。 */
 export function BoardFxLayer() {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
   const jinnangLines = useFxStore((s) => s.jinnangLines);
   const pulses = useFxStore((s) => s.pulses);
-  const duels = useFxStore((s) => s.duels);
   const inkBlots = useFxStore((s) => s.inkBlots);
   const coinBursts = useFxStore((s) => s.coinBursts);
   const fontSize = floaterFontSize();
@@ -143,29 +144,6 @@ export function BoardFxLayer() {
           </text>
         </g>
       ))}
-      {/* 拼点双印(S7):双骰点印左右错拍钤下 → 合印(失/金平),CSS 错拍自走 */}
-      {duels.map((d) => (
-        <g key={d.id} className="fx-duel" transform={`translate(${d.x} ${d.y})`}>
-          <g className="fx-duel-die fx-duel-die-a" transform="translate(-42 -8)">
-            <rect x={-21} y={-21} width={42} height={42} rx={8} />
-            <text y={10} textAnchor="middle" fontSize={28}>
-              {d.a}
-            </text>
-          </g>
-          <g className="fx-duel-die fx-duel-die-b" transform="translate(42 -8)">
-            <rect x={-21} y={-21} width={42} height={42} rx={8} />
-            <text y={10} textAnchor="middle" fontSize={28}>
-              {d.b}
-            </text>
-          </g>
-          <g className={`fx-duel-verdict${d.verdict === "tie" ? " fx-duel-verdict-tie" : ""}`}>
-            <rect x={-34} y={-34} width={68} height={68} rx={10} />
-            <text y={14} textAnchor="middle" fontSize={40}>
-              {d.verdict === "tie" ? "平" : "失"}
-            </text>
-          </g>
-        </g>
-      ))}
       {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散) */}
       {inkBlots.map((b) => (
         <circle
@@ -209,13 +187,15 @@ export function BoardFxLayer() {
 }
 
 /** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):回合旌旗横幅 + 都城停全屏
- *  宣告(屏幕居中元素,不属于棋盘系)。 */
+ *  宣告(屏幕居中元素,不属于棋盘系)+ 拼点签面演出桥(DuelSignsOverlay 渲染 null,
+ *  仅在挂载期绑定 duelSignsApi 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。 */
 export function FxLayer() {
   const banner = useFxStore((s) => s.banner);
   const halt = useFxStore((s) => s.halt);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" data-fx-layer>
+      <DuelSignsOverlay />
       {/* 回合旌旗横幅:key=id 保证同一玩家连续两回合也能重启动画 */}
       {banner && (
         <div

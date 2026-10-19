@@ -38,7 +38,7 @@
 - **hero:taishici:noname** — noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用 / noname 项目(libccy/noname)打包;原画游卡桌游 — 25328B (350×464 + 头像 151×200, webp) — [source](https://cdn.jsdelivr.net/gh/libccy/noname@master/image/character/taishici.jpg) — 2026-10-14 ⚠️ review_required
 - **texture:zhulin** — noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用 / noname 项目(libccy/noname)打包;原画游卡桌游 — 40156B (1000×600, webp) — [source](https://cdn.jsdelivr.net/gh/libccy/noname@master/image/background/zhulin_bg.jpg) — 2026-10-14 ⚠️ review_required
 - **texture:lanting** — noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用 / noname 项目(libccy/noname)打包;原画游卡桌游 — 204908B (1360×768, webp) — [source](https://cdn.jsdelivr.net/gh/libccy/noname@master/image/background/lanting_bg.jpg) — 2026-10-14 ⚠️ review_required
-- **audio:tile-clack** — CC0 / poenia (Freesound) — 7521B (ogg;「Domino_sfx_moveTile」lq 预览) — [source](https://freesound.org/s/745028/) — 2026-10-14
+- **audio:tile-clack** — CC0 / poenia (Freesound) — 7521B (ogg;「Domino_sfx_moveTile」lq 预览) — [source](https://freesound.org/s/745028/) — 2026-10-14 ⚠️ 已退役(2026-10-20 #638 拼点签面单通道收口:拼点双印整线退役,骨牌叩无消费者;文件已删,条目留档)
 - **audio:coins-box** — CC0 / 5thWall (Freesound) — 49874B (ogg;「coins_into_box.wav」lq 预览) — [source](https://freesound.org/s/190945/) — 2026-10-14
 - **audio:rain** — CC0 / Opticreep (Freesound) — 43259B (ogg;「Rain (Field Recording)」lq 预览) — [source](https://freesound.org/s/320520/) — 2026-10-14
 - **treasure:edict** — CC BY-SA 4.0 / Kcx36 — 84016B (500×375, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E7%A4%BE%E4%BC%9A%E5%BE%81%E9%9B%86-%E5%85%89%E7%BB%AA%E5%9C%A3%E6%97%A8-%E6%B8%85%E4%BB%A3-%E5%A4%A7%E7%90%86%E5%B7%9E%E5%8D%9A%E7%89%A9%E9%A6%86_2025-02-11_01.jpg) — 2026-10-15

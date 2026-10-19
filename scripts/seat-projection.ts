@@ -154,7 +154,8 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      比 ADR-0016 保密口径只少不多)/
  *      jinnangAnnounced(出牌本就公开宣布)/jinnangVoided/jinnangInflicted/
  *      reactionAnswered(应答逐条公开记入战报——ADR-0016「应答记录不裁」,use=false
- *      无手牌信息,use=true 的牌已面明打出)/reactionFailed;
+ *      无手牌信息,use=true 的牌已面明打出)/reactionFailed/
+ *      duelResolved(#636/ADR-0030:拼点本就公开信息,座位/点数/胜者全员同见);
  *    · 机遇族 encounterTriggered/encounterChoice;声望/体力/跳过族 reputationChanged/
  *      staminaChanged/turnSkipped。
  *  - 裁剪(2 kind):
@@ -215,6 +216,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "jinnangAnnounced":
       case "reactionAnswered":
       case "reactionFailed":
+      case "duelResolved": // #636/ADR-0030:拼点结算(两方座位/两枚点数/胜者,平局 null)全桌公开信息,与 reactionFailed 同列透传
       case "jinnangVoided":
       case "jinnangInflicted":
         return ev;

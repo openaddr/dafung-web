@@ -116,6 +116,14 @@ export const TESTIDS = {
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
 
+  // ── 拼点签面(#637,ADR-0030 全屏拼点演出;一次性演出,全桌同见)──
+  /** 全屏签面幕容器(幕启→并行摇→错拍落→判词→渐出;append 到 body,非棋盘层)。 */
+  duelOverlay: "duel-overlay",
+  /** 参与者签面(seat = 绝对座位号;签头=玩家色底+国号,签身=骨牌大字)。 */
+  duelSign: (seat: number) => `duel-sign-${seat}` as const,
+  /** 中缝朱砂「拼」印(data-verdict = pending|win|tie 判词态;tie 钤变金「平」)。 */
+  duelVerdict: "duel-verdict",
+
   // ── 定制问询弹层(#424,ADR-0022 交互 handler 客户端半边;scroll-* 前缀族)──
   /** 问询弹层容器(横幅制式;题名随呈现意图,缺省「问询」)。 */
   inquiryScroll: "scroll-inquiry",

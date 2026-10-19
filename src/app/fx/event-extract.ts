@@ -26,7 +26,7 @@ import {
 } from "@core/event-tiers";
 import { extensionAnimationHandlers } from "@app/extensions/registry";
 import { remainingMarchPath } from "./orchestrator";
-import type { FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
+import type { DuelSide, FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
 
 /** 跨批宣布游标(形状单源 core/event-tiers AnnounceCursor,#430 票项 3):最近一次锦囊
  *  宣布(识破线指回被拆计的使用者/目标用——jinnangVoided 不带被拆方座位,ReactionAnswered
@@ -366,8 +366,9 @@ export function extractBatchEvents(
         break;
       }
       case "treasureGained": {
-        // 探宝拼点胜(S7 拼点双印「得」半):漆金「得」印钤在宝物城落点 + treasure 音。
-        // 拼点掷点不入引擎事件(零新事件口径),双骰点印仅拦检侧(reactionFailed)有。
+        // 探宝拼点胜(S7):漆金「得」印钤在宝物城落点 + treasure 音(拼点胜半场的
+        // 印章语义)。探宝拼点是单人 2d6 判定、不走 resolveDuel,无 duelResolved(#636/ADR-0030:
+        // 玩家对拼的点数已入事件流,探宝判定不入)。
         const seat = eventSeat(engine, ev);
         events_.push({
           kind: "sealStamped",
@@ -545,23 +546,41 @@ export function extractBatchEvents(
         break;
       }
       case "reactionFailed": {
-        // 拼点双印(S7 #513):双骰点印左右错拍钤下→合成「失」大印,平局出金「平」印
-        // (#492 平局诚实呈现);大胜负震屏由 sink 在合印拍判 |a−b| 发起。文案浮字
-        // 照旧锚拦检城(事发现场)。
+        // 拦检失败宣告(ADR-0030 单通道):拼点骰面信息全在签面(duelResolved 直译),
+        // 此处只余文案浮字(不带点数括注——点数不落第二处),照旧锚拦检城(事发现场)。
         const seat = eventSeat(engine, ev);
-        const pos = engine.board.positionOf(ev.tileIndex);
-        events_.push({
-          kind: "duelStamps",
-          tileIndex: ev.tileIndex,
-          x: pos.x,
-          y: pos.y,
-          a: ev.aRoll,
-          b: ev.bRoll,
-          verdict: ev.aRoll === ev.bRoll ? "tie" : "lose",
-        });
-        events_.push(
-          textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
-        );
+        events_.push(textFloaterAtTile(engine, seat, "拦检失败", ev.tileIndex));
+        break;
+      }
+      case "duelResolved": {
+        // 拼点签面(#637,ADR-0030):duelResolved 直译——双方座位元数据提取期解析进
+        // 事件(签头国号/玩家色、签身掷点),组件零查询;胜者随事件走(winnerSeat,
+        // 平局 null)。场景无关:拦检与连环计同式,签面即是信息,点数不落第二处。
+        // 落定序=座位号升序(#639 评审必修):aSeat=resolveDuel 首参(拦检=城主/
+        // 连环计=首目标)不保证座位号小,照数组序落定会与代码库「座位序」惯用法
+        //(升序,如 dispatchMoment)漂移——sides 排序后入事件,左右排布与错拍落定
+        // 序随之自然=座位升序。
+        if (ev.winnerSeat != null && ev.winnerSeat !== ev.aSeat && ev.winnerSeat !== ev.bSeat)
+          throw new Error(
+            `事件消费:duelResolved.winnerSeat=${ev.winnerSeat} 不在拼点双方 [${ev.aSeat},${ev.bSeat}](契约违反)`,
+          );
+        const sides: DuelSide[] = [ev.aSeat, ev.bSeat]
+          .sort((x, y) => x - y)
+          .map((seat) => {
+            const p = eventSeatPlayer(
+              engine,
+              seat,
+              `duelResolved.${seat === ev.aSeat ? "aSeat" : "bSeat"}`,
+            );
+            return {
+              seat,
+              playerId: p.id,
+              guohao: p.guohao,
+              colorIndex: p.colorIndex,
+              roll: seat === ev.aSeat ? ev.aRoll : ev.bRoll,
+            };
+          });
+        events_.push({ kind: "duelSigns", sides, winnerSeat: ev.winnerSeat });
         break;
       }
       case "staminaChanged": {

@@ -45,7 +45,9 @@
 //                 reactionOpened → pendingReaction
 //                 置窗(view/seq 派生,windowMs 单源常量表);reactionAnswered → 应答入账
 //                 + 应答齐闭窗;行军窗闭窗即拦检牌扣账(引擎胜负两路均在结算点扣账,与
-//                 应答同批);reactionFailed → 无状态转移(声明性)
+//                 应答同批);reactionFailed → 无状态转移(声明性);
+//                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
+//                 后果由调用点既有事件折——拦停=marchArrived、银两=cashChanged·duel)
 //   声望/体力族   reputationChanged → 声望 += 夹紧后实际增减 + 献计里程碑穿越重算;
 //                 staminaChanged → 体力 += 夹紧后实际增减;reason=exhaustion 相邻 →
 //                 skipTurns+1(耗竭善后标记侧)
