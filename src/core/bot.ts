@@ -478,8 +478,10 @@ export function botAct(engine: GameEngine): void {
 
     case "AwaitingTreasureOwner": {
       // bot 城主:公道买卖(指导价)/坐地起价(加价)/跳过——高等级珍宝(≥6)溢价卖,
-      // 低等级公道卖,偶尔(20%)跳过。
-      const owner = engine.players[engine.treasureVisitor?.ownerIdx ?? 0];
+      // 低等级公道卖,偶尔(20%)跳过。交涉上下文非空是该相位的引擎不变量(#615:
+      // 曾有「?? 0」把不变量破坏兜成座位 0,把相位覆写 bug 掩盖到 treasure-flow 空引用
+      // 才崩——删除,不变量破坏就该在读取点当场炸)。
+      const owner = engine.players[engine.treasureVisitor!.ownerIdx];
       const treasures = owner.treasures;
       if (treasures.length === 0) {
         engine.resolveTreasureOwner({ type: "skip" });

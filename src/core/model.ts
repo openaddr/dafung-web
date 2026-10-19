@@ -77,5 +77,5 @@ export interface LogEvent {
     | "final"
     | "cmd"
     | "room";
-  amount?: number; // 涉及金额(+收入 / -支出)
+  amount?: number; // 仅现金收付(+收入 / -支出);非现金资产估价走 detail value=(#617)
 }

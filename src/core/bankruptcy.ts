@@ -306,6 +306,7 @@ export function confirmBankruptcySettle(g: GameEngine): void {
   if (g.treasureVisitor) g.treasureVisitor = null;
   if (p.cash >= debt.amount) {
     p.cash -= debt.amount;
+    const escrow = g.escrowTreasure; // 非空 ⟺ 本笔债即珍宝价款(玩家间债唯一入口=resolveTreasureOwner 挂起)
     if (debt.creditor) {
       debt.creditor.cash += debt.amount;
       g.dispatchMoment("CashGained", {
@@ -318,13 +319,36 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     // 现金额派发(曹丕渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
     // 现金支出),不派发。
     g.dispatchMoment("CashLost", { subject: g.activeIndex, amount: debt.amount });
+    // #617:清偿即买家现金支出,bkConfirm 挂 amount 作对账锚点(通用债同口径)
     g.logEvent(
       "system",
       p.guohao,
       `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`,
       `bkConfirm player=${p.id} paid=${debt.amount}`,
+      -debt.amount,
     );
+    if (escrow) {
+      // #617 清算成交补卖家收款行(与直付成交卖家行同形,amount=+price)。fair/premium 以
+      // 价款对指导价判定:escrow 只存价款,premium 恒溢价(坐地起价无平价参数),公平——
+      // 若未来地图配出平价 premium,此处标签失真属配置边角,价格数字仍准。
+      const seller = g.players[escrow.sellerIdx];
+      const fair = escrow.price === guidePriceOf(escrow.treasure.level);
+      g.logEvent(
+        "trade",
+        seller.guohao,
+        `${seller.guohao} ${fair ? "公道买卖" : "坐地起价"}「${escrow.treasure.name}」给 ${p.guohao},售价 ${formatMoney(escrow.price)}`,
+        `treasure${fair ? "Fair" : "Premium"} owner=${seller.id} visitor=${p.id} treasure=${escrow.treasure.id} level=${escrow.treasure.level} price=${escrow.price} bankrupt=false`,
+        escrow.price,
+      );
+    }
   } else {
+    // #617:破产扫账——settleDebt 破产支路把买家余现金整扫给债主(无债主则现金销毁)。
+    // 买家侧 bkBankrupt 挂 amount=-swept(现金离开买家是一方收付,无债主的税/机遇债扫账
+    // 同样挂,与税关单边行同理),swept=0 不挂;有债主(珍宝托管债)补卖家收款行——与
+    // 直付成交卖家行同形(fair/premium 以价款对指导价判定,同款启发式),amount=扫账实收
+    // 而非成交价,detail price 仍是谈定价。
+    const swept = p.cash;
+    const escrow = g.escrowTreasure; // 先于退宝捕获(有债主必在托管:玩家间债唯一入口=resolveTreasureOwner 挂起)
     settleDebtTraced(g, p, debt.creditor, debt.amount);
     finalizeBankruptcy(g, p, debt.creditor);
     returnEscrowToSeller(g); // 破产:未付款的托管珍宝退回卖家
@@ -333,7 +357,20 @@ export function confirmBankruptcySettle(g: GameEngine): void {
       p.guohao,
       `${p.guohao} 变卖殆尽仍不足,破产出局`,
       `bkBankrupt player=${p.id} debt=${debt.amount}`,
+      swept > 0 ? -swept : undefined,
     );
+    if (debt.creditor && swept > 0) {
+      const seller = debt.creditor;
+      const deal = escrow!; // 非空断言:玩家间债必有托管(缺失=状态机 bug,当场炸)
+      const fair = deal.price === guidePriceOf(deal.treasure.level);
+      g.logEvent(
+        "trade",
+        seller.guohao,
+        `${seller.guohao} ${fair ? "公道买卖" : "坐地起价"}「${deal.treasure.name}」给 ${p.guohao},售价 ${formatMoney(deal.price)},破产扫账实收 ${formatMoney(swept)}`,
+        `${fair ? "treasureFair" : "treasurePremium"} owner=${seller.id} visitor=${p.id} treasure=${deal.treasure.id} level=${deal.treasure.level} price=${deal.price} bankrupt=true`,
+        swept,
+      );
+    }
   }
   g.turnPhase = "Land";
   g.endTurn();

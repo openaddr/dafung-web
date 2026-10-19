@@ -148,6 +148,10 @@ export interface GameSnapshot {
    *  null=无。选项集纯派生(choicesFor 按 id 回调注册问询),但句柄必须随快照走——
    *  恢复/联机后无句柄则派生不出同一选项集,问询静默蒸发。 */
   pendingInquiry: { id: string; params: Record<string, number> } | null;
+  /** 定制问询延期队列(#615):派发中 askInquiry 入队、稳定点排空开窗;句柄载荷随快照走
+   *  (恢复后同一批问询照排,下一收口边界照常开窗)。派发深度为纯运行时态不入快照——
+   *  恢复后天然 0(不在派发中),队列照排不受影响。 */
+  deferredInquiries: { id: string; params: Record<string, number> }[];
   /** 擂鼓步数加成(#188 档 3):本回合 rollAndMove 消费;发动与掷骰之间可被快照广播,须保真。 */
   heroDiceBonus: number;
   /** 反应窗挂起态(#281,god-view):公告/应答/续结算载荷全部随快照走(ADR-0017,
@@ -447,6 +451,15 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
       e.pendingInquiry = s.pendingInquiry
         ? { ...s.pendingInquiry, params: { ...s.pendingInquiry.params } }
         : null;
+    },
+  },
+  {
+    // 定制问询延期队列(#615):句柄载荷随快照走,恢复后在下一稳定点照常排空开窗;
+    // 派发深度为纯运行时态不入快照(恢复后天然 0),见 GameSnapshot.deferredInquiries 注
+    key: "deferredInquiries",
+    read: (e) => e.deferredInquiries.map((q) => ({ ...q, params: { ...q.params } })),
+    write: (e, s) => {
+      e.deferredInquiries = s.deferredInquiries.map((q) => ({ ...q, params: { ...q.params } }));
     },
   },
   {

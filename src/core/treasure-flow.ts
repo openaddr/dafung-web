@@ -59,12 +59,12 @@ export function drawTreasureAt(
     // 成功:获得珍宝
     mover.treasures.push(treasure);
     g.pushFloater(mover, guidePrice, atTile, "income");
+    // #617:得宝是资产入册非现金收付,不挂 amount;指导价降为机读估价(detail value=)
     g.logEvent(
       "system",
       mover.guohao,
       `${mover.guohao} 在「${sourceName}」探得「${treasure.name}」(Lv.${treasure.level}),拼点 ${d1}+${d2}=${roll} ≥ ${treasure.level},喜得珍宝!`,
-      `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
-      guidePrice,
+      `treasureGain player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2} value=${guidePrice}`,
     );
     g.dispatchMoment("TreasureGained", {
       subject: g.players.indexOf(mover),
@@ -154,8 +154,9 @@ export function resolveTreasureOwner(
     sellerIdx: tv.ownerIdx,
     price,
   };
+  const cashBefore = mover.cash; // 破产扫账锚点:settleDebt 破产支路把余现金尽数过手卖家,实付≠成交价
   const r = g.payOrLiquidate(mover, owner, price);
-  if (r === "liquidating") return; // 清算自救:escrow 挂起,confirmBankruptcySettle 里交割/退还
+  if (r === "liquidating") return; // 清算自救:escrow 挂起,confirmBankruptcySettle 里交割/记账
   const bankrupt = r === "bankrupt";
   if (bankrupt) g.returnEscrowToSeller(); // 买家破产:珍宝退回卖家
   else g.deliverEscrow(); // 付款到账:交货
@@ -169,13 +170,28 @@ export function resolveTreasureOwner(
     amount: price,
     causedBankruptcy: bankrupt,
   };
+  // 双向记账(#617):amount 只记现金实收付——直付=成交价;破产=余现金扫账(非成交价,
+  // detail price 仍是谈定价)。卖家行留成交痕(+实收),买家行 treasureBuy 留付款痕(-实付),
+  // 替换原「卖家名下单行 -price」把卖方收入记负的错账。
+  const cashMoved = bankrupt ? cashBefore : price;
+  const kindKey = action.type === "fair" ? "treasureFair" : "treasurePremium";
   const verb = action.type === "fair" ? "公道买卖" : "坐地起价";
+  const bankruptSuffix = bankrupt ? " → 破产" : "";
+  // #617:实收=0 不挂(iff 不变量另一半)——买家余现金为 0 的破产成交零现金过手,两行
+  // detail 照旧(bankrupt=true)但 amount 缺省,不写 0/-0。
   g.logEvent(
     "trade",
     owner.guohao,
-    `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankrupt ? " → 破产" : ""}`,
-    `treasure${action.type === "fair" ? "Fair" : "Premium"} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
-    -price,
+    `${owner.guohao} ${verb}「${treasure.name}」给 ${mover.guohao},售价 ${formatMoney(price)}${bankruptSuffix}`,
+    `${kindKey} owner=${owner.id} visitor=${mover.id} treasure=${treasure.id} level=${treasure.level} price=${price} bankrupt=${bankrupt}`,
+    cashMoved > 0 ? cashMoved : undefined,
+  );
+  g.logEvent(
+    "trade",
+    mover.guohao,
+    `${mover.guohao} 付 ${formatMoney(cashMoved)} 购「${treasure.name}」${bankruptSuffix}`,
+    `treasureBuy buyer=${mover.id} seller=${owner.id} treasure=${treasure.id} price=${price} bankrupt=${bankrupt}`,
+    cashMoved > 0 ? -cashMoved : undefined,
   );
   g.treasureVisitor = null;
   if (bankrupt) {

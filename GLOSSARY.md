@@ -117,7 +117,7 @@ _Avoid_: options(过泛)、actions(与 GameCommand 混淆)
 _Avoid_: fallback choice(不是兜底,是产品决策)
 
 **定制问询(Custom Inquiry,#424,ADR-0022)**:
-扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)置挂起问询并按选项集分流——可用 ≥2 进 `AwaitingInquiry` 相位(`pendingInquiry` 随快照序列化,挂起⇔相位不变量,挡回合收口);选项集由 `choices.ts` `PHASE_CHOICES` 注册条目按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。应答命令 `resolveInquiry` 回灌扩展 `resolve` 结算后补完收口;=1 可用自动执行、=0 作废(ADR-0013 分流)。id 查无注册问询 = 当场炸(零兜底)。
+扩展交互 handler 在既有决策相位之外发起的问询:引擎公共方法 `askInquiry`(id+params)置挂起问询并按选项集分流——可用 ≥2 进 `AwaitingInquiry` 相位(`pendingInquiry` 随快照序列化,挂起⇔相位不变量,挡回合收口)。#615 起开窗时机分流:时机派发流中发起的问询不即刻开窗,入延期队列 `deferredInquiries`(同随快照序列化),回合收口边界(endTurn 入口)等稳定点排空开窗,挂起⇔相位不变量全程保持;派发外发起仍即刻分流。选项集由 `choices.ts` `PHASE_CHOICES` 注册条目按 id 回调扩展 `askPlayer` 出选项集,选项统一盖 `inquiryId` 章、经 snapshot.choices 单通道过网——与既有相位选项同一词汇(ChoiceOption)同一通路,非旁路。应答命令 `resolveInquiry` 回灌扩展 `resolve` 结算后补完收口;=1 可用自动执行、=0 作废(ADR-0013 分流)。id 查无注册问询 = 当场炸(零兜底)。
 _Avoid_: 自定义问询(ADR-0022 行文旧用词,定名「定制问询」)、自定义弹窗(那是呈现面 inquiryPresentation 的事,不是问询本身)
 
 **对局日志(Game Log)**:
