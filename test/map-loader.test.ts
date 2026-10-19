@@ -60,6 +60,31 @@ describe("地图校验(非法应抛可读错误)", () => {
     d.tiles[0].tradeMult = [2, 4];
     expect(() => loadMap(d)).toThrow(/tradeMult/);
   });
+  it("缺 maxLevel(等级上限逐图必配,不再默认 3)", () => {
+    const d = base();
+    delete d.maxLevel;
+    expect(() => loadMap(d)).toThrow(/maxLevel/);
+  });
+  it("缺顶层 resupplyPerLevel(地图级补给默认值必配)", () => {
+    const d = base();
+    delete d.resupplyPerLevel;
+    expect(() => loadMap(d)).toThrow(/resupplyPerLevel/);
+  });
+  it("城缺 price(免费城须显式写 0,不再默认 0)", () => {
+    const d = base();
+    delete d.tiles[0].price;
+    expect(() => loadMap(d)).toThrow(/price/);
+  });
+  it("城缺 buildCost(建城费必配,不再默认 0)", () => {
+    const d = base();
+    delete d.tiles[0].buildCost;
+    expect(() => loadMap(d)).toThrow(/buildCost/);
+  });
+  it("城缺 group(区域分组必配,不再默认 z)", () => {
+    const d = base();
+    delete d.tiles[0].group;
+    expect(() => loadMap(d)).toThrow(/group/);
+  });
 });
 
 describe("避城算法 sideArc", () => {

@@ -13,7 +13,9 @@ export interface MapData {
   version: number;
   targetNetWorth: number;
   startingCash: number;
+  /** 等级上限(逐图必配,loadMap 校验 ≥1 整数;城池持有等级 0..maxLevel)。 */
   maxLevel: number;
+  /** 都城补给/级(两)的地图级默认值(必配,loadMap 校验);逐城可覆盖。 */
   resupplyPerLevel: number;
   tiles: MapTile[];
 }
@@ -23,10 +25,10 @@ export interface MapTile {
   name: string;
   pos: number[]; // [x, y]
   type?: TileType; // 默认 Property;Chance/Fate 等非地产格用
-  group?: string;
+  group?: string; // 区域分组字母(Theme.groupNames a–h):城池格必配,loadMap 校验
   region?: string;
-  price?: number;
-  buildCost?: number;
+  price?: number; // 购价(两):城池格必配,免费城显式写 0
+  buildCost?: number; // 建城费(两):城池格必配
   /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
   valueByLevel?: number[];
   /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
@@ -75,8 +77,14 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   }
   if (!Array.isArray(d.tiles) || d.tiles.length === 0) fail("tiles 为空");
 
-  const maxLevel = d.maxLevel ?? 3;
-  const resupply = d.resupplyPerLevel ?? 0;
+  if (!Number.isInteger(d.maxLevel) || d.maxLevel < 1) {
+    fail(`maxLevel 必配且须为 ≥1 的整数(当前:${String(d.maxLevel)})`);
+  }
+  const maxLevel = d.maxLevel;
+  if (typeof d.resupplyPerLevel !== "number") {
+    fail("缺顶层 resupplyPerLevel(地图级都城补给/级默认值,逐城可覆盖)");
+  }
+  const resupply = d.resupplyPerLevel;
 
   // tiles + 坐标
   const idToIdx = new Map<string, number>();
@@ -128,16 +136,22 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     if (!Array.isArray(t.tradeMult) || t.tradeMult.length !== maxLevel + 1) {
       fail(`第 ${i + 1} 城 tradeMult 必配且长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
     }
-    if ((t.price ?? 0) < 0 || (t.buildCost ?? 0) < 0) {
+    if (t.price == null || t.buildCost == null) {
+      fail(`第 ${i + 1} 城 price/buildCost 必配(免费城显式写 0)`);
+    }
+    if (t.price < 0 || t.buildCost < 0) {
       fail(`第 ${i + 1} 城价格/buildCost 不能为负`);
+    }
+    if (!t.group) {
+      fail(`第 ${i + 1} 城 group 必配(区域分组字母,Theme.groupNames a–h)`);
     }
     properties.push({
       id: t.id,
-      group: t.group ?? "z",
-      purchasePrice: t.price ?? 0,
+      group: t.group,
+      purchasePrice: t.price,
       maxLevel,
       valueByLevel: values,
-      buildCost: t.buildCost ?? 0,
+      buildCost: t.buildCost,
       resupplyPerLevel: t.resupplyPerLevel ?? resupply, // 逐城显式优先;缺省回退地图顶层(自定义地图)
       tradeAdd: t.tradeAdd,
       tradeMult: t.tradeMult,

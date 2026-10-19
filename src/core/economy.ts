@@ -11,10 +11,10 @@ export interface PropertyDef {
   id: string;
   group: string; // 'a'..'h'
   purchasePrice: number;
-  maxLevel: number; // 最高等级(默认 3;持有等级 0..maxLevel,共 4 级)
+  maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 0..maxLevel,购入/建都即 Lv.0)
   valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
-  resupplyPerLevel: number; // 普通城为 0
+  resupplyPerLevel: number; // 都城补给/级(引擎仅都城消费;逐城配置,缺省回退地图顶层)
   /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。地图逐城必配,长度由 loadMap 校验。 */
   tradeAdd: number[];
   /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):同上公式。地图逐城必配,长度由 loadMap 校验。 */
@@ -59,9 +59,10 @@ export function sellValueOf(def: PropertyDef, level: number): number {
   return def.valueByLevel[level];
 }
 
-/** 都城补给 = resupplyPerLevel × (level+1);def/level 缺失时为 0。集中一处,供引擎/bot/UI 复用。 */
-export function supplyFor(resupplyPerLevel: number | undefined, level: number | undefined): number {
-  return (resupplyPerLevel ?? 0) * ((level ?? 0) + 1);
+/** 都城补给 = resupplyPerLevel × (level+1)。集中一处,供引擎复用;
+ *  实参与城池配置同域(loadMap 校验),不做缺失兜底。 */
+export function supplyFor(resupplyPerLevel: number, level: number): number {
+  return resupplyPerLevel * (level + 1);
 }
 
 /**
