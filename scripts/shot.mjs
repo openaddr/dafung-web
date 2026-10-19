@@ -10,6 +10,12 @@
 //   await s.shot("tmp/ui-shots/x/scroll.png", '[data-testid="scroll-jinnang"]'); // 元素级
 //   await s.close();
 // 跑法:先 `flock tmp/build.lock bun run build`(preview 服务 dist),再 `node tmp/<场景>.mjs`。
+//
+// force 双写陷阱(2026-10-20 实锤,三轮 force 不生效才定位):count 类镜像字段
+// (jinnangHandCount 等)由引擎在结算点维护,只改源数组(jinnangHand)UI 投影不动——
+// 改局必须源数组与镜像字段同写,如 `p.jinnangHand=[]; p.jinnangHandCount=0;`。
+// 图标/小件视觉迭代:s.page.setContent 拼放大预览页(多尺寸×双底色)整页截图,
+// 比实拍元素级截图快一个量级;实拍留给最终自证。
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import { chromium } from "playwright";

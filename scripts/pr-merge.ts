@@ -8,6 +8,8 @@
 //   - 并行会话落票把 master 推前,DIRTY 拖到合并才暴露 = 回溯重定基——push 前强制 check:freshness(红即停)。
 //   - workspace 收工即删,主树 @ 无人前移,游玩线一 build 就是旧代码(2026-10-19 实锤)——
 //     合并验证后自动收账:move master 书签 + 主树空停靠的 @ 前移(有活不动)。
+//   - 断网断在合并后(#628 实锤):重跑即恢复——0 步预检 head 书签的 PR 已 MERGED 就跳过
+//     push/合并直达清理+收账(gh pr merge 对已合入 PR 非零报错,不预检则恢复态死循环)。
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
@@ -62,92 +64,137 @@ if (!bookmark || bookmark.startsWith("-")) {
   process.exit(2);
 }
 
-// 1) 书签在本地且已描述(空描述=未交付,红)
-const description = jj("log", "-r", bookmark, "--no-graph", "-T", "description.first_line()");
-if (!description) {
-  console.error(`[pr-merge] 书签 ${bookmark} 的 change 没有描述——先 jj describe(交付纪律)。`);
-  process.exit(1);
-}
-const title = flag("--title") ?? description;
-
-// 1.5) push 前新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
-// 回溯重定基冤枉半小时;红即停,刻意带旧基线收口走手动链 + check:freshness --allow-behind)
-const freshness = Bun.spawnSync(["bun", "scripts/check-freshness.ts"], {
-  stdout: "inherit",
-  stderr: "inherit",
-});
-if (freshness.exitCode !== 0) {
-  console.error("[pr-merge] check:freshness 红——master 已被并行会话推进,先重定基再收口。");
-  process.exit(1);
-}
-
-// 2) push(幂等:已推过=exit 0)
-jj("git", "push", "--bookmark", bookmark);
-console.log(`[pr-merge] 书签已推:${bookmark}`);
-
-// 3) 开 PR(已存在则复用开着的)
-let url = "";
-const bodyFile = flag("--body-file");
-const createArgs = ["pr", "create", "--head", bookmark, "--title", title];
-if (bodyFile) {
-  createArgs.push("--body-file", bodyFile);
-} else {
-  createArgs.push("--body", title);
-}
-const created = Bun.spawnSync(["gh", ...repoFlag, ...createArgs], {
-  stdout: "pipe",
-  stderr: "pipe",
-});
-if (created.exitCode === 0) {
-  url = new TextDecoder().decode(created.stdout).trim();
-} else {
-  const existing = gh(
-    "pr",
-    "list",
-    "--head",
-    bookmark,
-    "--state",
-    "open",
-    "--json",
-    "url",
-    "-q",
-    ".[0].url",
+// 0) 恢复预检:head=本书签的 PR 若已 MERGED,即上次收口已过合并、断在清理/收账——
+//    跳过描述检查/新鲜度门/push/开 PR/合并(1-4 步)直达删分支+收账。各步本就容忍
+//    已做过的状态(书签被手工删走→删分支步 warn 后照走)。
+const mergedPrUrl = (() => {
+  const probe = Bun.spawnSync(
+    [
+      "gh",
+      ...repoFlag,
+      "pr",
+      "list",
+      "--head",
+      bookmark,
+      "--state",
+      "merged",
+      "--json",
+      "url",
+      "-q",
+      ".[0].url",
+    ],
+    { stdout: "pipe", stderr: "pipe" },
   );
-  if (!existing) {
+  // 探测失败不许静默降级成「无已合入 PR」——网络抖动会误入主流程,死在第 1 步书签
+  // 检查(书签已被手工删走的恢复态)或合并步 already-merged 死循环。此刻零状态变更,
+  // 响亮中止零成本;下游合并本来就离不开 gh。
+  if (probe.exitCode !== 0) {
     console.error(
-      `[pr-merge] 开 PR 失败且无现存开着的 PR:${new TextDecoder().decode(created.stderr).trim()}`,
+      `[pr-merge] 恢复预检 gh 探测失败(网络?)——停,稍后重跑:${new TextDecoder().decode(probe.stderr).trim()}`,
     );
     process.exit(1);
   }
-  url = existing;
-  console.log("[pr-merge] PR 已存在,复用。");
-}
-const prNumber = url.match(/\/pull\/(\d+)/)?.[1];
-if (!prNumber) {
-  console.error(`[pr-merge] 从 URL 提取 PR 号失败:${url}`);
-  process.exit(1);
-}
-console.log(`[pr-merge] PR #${prNumber}:${url}`);
+  return new TextDecoder().decode(probe.stdout).trim();
+})();
 
-if (createOnly) {
-  console.log("[pr-merge] --create-only:到此为止,合并交主线。");
-  process.exit(0);
-}
-
-// 4) 带号合并 + 验证 MERGED(gh 输出会说谎——usage 报错时可能已合入;以 state 为准)
-gh("pr", "merge", prNumber, "--squash");
-let merged = false;
-for (let i = 0; i < 5; i++) {
-  const state = gh("pr", "view", prNumber, "--json", "state", "-q", ".state");
-  if (state === "MERGED") {
-    merged = true;
-    break;
+let prNumber = "";
+if (mergedPrUrl) {
+  prNumber = mergedPrUrl.match(/\/pull\/(\d+)/)?.[1] ?? "";
+  if (!prNumber) {
+    console.error(`[pr-merge] 从已合入 PR URL 提取号失败:${mergedPrUrl}`);
+    process.exit(1);
   }
-  sleepSync(1000);
+  console.log(`[pr-merge] PR #${prNumber} 已 MERGED——恢复模式:跳过 push/合并,直达清理+收账。`);
 }
-if (!merged) {
-  console.error(`[pr-merge] PR #${prNumber} 合并后 state 未到 MERGED——远端分支保留,人工处置。`);
-  process.exit(1);
+
+if (!prNumber) {
+  // 1) 书签在本地且已描述(空描述=未交付,红)
+  const description = jj("log", "-r", bookmark, "--no-graph", "-T", "description.first_line()");
+  if (!description) {
+    console.error(`[pr-merge] 书签 ${bookmark} 的 change 没有描述——先 jj describe(交付纪律)。`);
+    process.exit(1);
+  }
+  const title = flag("--title") ?? description;
+
+  // 1.5) push 前新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
+  // 回溯重定基冤枉半小时;红即停,刻意带旧基线收口走手动链 + check:freshness --allow-behind)
+  const freshness = Bun.spawnSync(["bun", "scripts/check-freshness.ts"], {
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  if (freshness.exitCode !== 0) {
+    console.error("[pr-merge] check:freshness 红——master 已被并行会话推进,先重定基再收口。");
+    process.exit(1);
+  }
+
+  // 2) push(幂等:已推过=exit 0)
+  jj("git", "push", "--bookmark", bookmark);
+  console.log(`[pr-merge] 书签已推:${bookmark}`);
+
+  // 3) 开 PR(已存在则复用开着的)
+  let url = "";
+  const bodyFile = flag("--body-file");
+  const createArgs = ["pr", "create", "--head", bookmark, "--title", title];
+  if (bodyFile) {
+    createArgs.push("--body-file", bodyFile);
+  } else {
+    createArgs.push("--body", title);
+  }
+  const created = Bun.spawnSync(["gh", ...repoFlag, ...createArgs], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (created.exitCode === 0) {
+    url = new TextDecoder().decode(created.stdout).trim();
+  } else {
+    const existing = gh(
+      "pr",
+      "list",
+      "--head",
+      bookmark,
+      "--state",
+      "open",
+      "--json",
+      "url",
+      "-q",
+      ".[0].url",
+    );
+    if (!existing) {
+      console.error(
+        `[pr-merge] 开 PR 失败且无现存开着的 PR:${new TextDecoder().decode(created.stderr).trim()}`,
+      );
+      process.exit(1);
+    }
+    url = existing;
+    console.log("[pr-merge] PR 已存在,复用。");
+  }
+  prNumber = url.match(/\/pull\/(\d+)/)?.[1] ?? "";
+  if (!prNumber) {
+    console.error(`[pr-merge] 从 URL 提取 PR 号失败:${url}`);
+    process.exit(1);
+  }
+  console.log(`[pr-merge] PR #${prNumber}:${url}`);
+
+  if (createOnly) {
+    console.log("[pr-merge] --create-only:到此为止,合并交主线。");
+    process.exit(0);
+  }
+
+  // 4) 带号合并 + 验证 MERGED(gh 输出会说谎——usage 报错时可能已合入;以 state 为准)
+  gh("pr", "merge", prNumber, "--squash");
+  let merged = false;
+  for (let i = 0; i < 5; i++) {
+    const state = gh("pr", "view", prNumber, "--json", "state", "-q", ".state");
+    if (state === "MERGED") {
+      merged = true;
+      break;
+    }
+    sleepSync(1000);
+  }
+  if (!merged) {
+    console.error(`[pr-merge] PR #${prNumber} 合并后 state 未到 MERGED——远端分支保留,人工处置。`);
+    process.exit(1);
+  }
 }
 
 // 5) 确认合入后才许删分支(时序即护栏)——jj 全通道(2026-10-18 retro:旧
