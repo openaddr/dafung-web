@@ -17,19 +17,13 @@ import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
 
-function makeEngine(
-  seed = 1,
-  seats?: SeatConfig[],
-  target = 30000,
-  difficulty: "Simple" | "Normal" = "Normal",
-) {
+function makeEngine(seed = 1, seats?: SeatConfig[], target = 30000) {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
     ],
     targetNetWorth: target,
-    difficulty,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -306,24 +300,22 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     { name: "B", isBot: true, guohao: "蜀" },
   ];
 
-  it("可购相位:Simple/Normal botAct 均推进(buy 或 endDecision 都离开决策相位)", () => {
-    for (const difficulty of ["Simple", "Normal"] as const) {
-      const e = makeEngine(5, botSeats, 30000, difficulty);
-      finishSetup(e);
-      const p = e.activePlayer;
-      const { def } = freeProperty(e);
-      p.cash = def.purchasePrice * 2; // 两档启发式都可能买
-      p.warrants = 3;
-      armDecision(e, "PropertyAvailable", def.id);
-      const props0 = p.properties.length;
-      botAct(e);
-      expect(e.turnPhase).not.toBe("AwaitingDecision");
-      expect(p.properties.length - props0).toBeLessThanOrEqual(1); // 买或没买,不越界
-    }
+  it("可购相位:botAct 推进(buy 或 endDecision 都离开决策相位)", () => {
+    const e = makeEngine(5, botSeats, 30000);
+    finishSetup(e);
+    const p = e.activePlayer;
+    const { def } = freeProperty(e);
+    p.cash = def.purchasePrice * 2;
+    p.warrants = 3;
+    armDecision(e, "PropertyAvailable", def.id);
+    const props0 = p.properties.length;
+    botAct(e);
+    expect(e.turnPhase).not.toBe("AwaitingDecision");
+    expect(p.properties.length - props0).toBeLessThanOrEqual(1); // 买或没买,不越界
   });
 
-  it("可扩军相位:Normal bot 必扩军;满级位引擎已自动按兵不动,bot 不再触达", () => {
-    const e = makeEngine(5, botSeats, 30000, "Normal");
+  it("可扩军相位:bot 必扩军;满级位引擎已自动按兵不动,bot 不再触达", () => {
+    const e = makeEngine(5, botSeats, 30000);
     finishSetup(e);
     const p = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(p.capitalIndex).propertyId)!;
@@ -341,7 +333,7 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     armDecision(e, "OwnProperty", def.id);
     botAct(e);
     expect(e.turnPhase).not.toBe("AwaitingDecision");
-    expect(p.properties.find((x) => x.propertyId === def.id)!.level).toBe(1); // Normal 必扩
+    expect(p.properties.find((x) => x.propertyId === def.id)!.level).toBe(1); // bot 必扩
   });
 });
 

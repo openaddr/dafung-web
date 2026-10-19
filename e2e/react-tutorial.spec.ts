@@ -8,11 +8,9 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
   // 「开一局单机」:首页四入口
   await page.getByTestId("home-solo").click();
   await page.getByTestId("solo-setup-screen").waitFor();
-  // 「起兵」节:三档身价 + 难度两档 + 国号字盘
+  // 「起兵」节:三档身价 + 国号字盘(#613 难度档退役,两档断言随删)
   await expect(page.getByText("速战")).toBeVisible();
   await expect(page.getByText("鏖战")).toBeVisible();
-  await expect(page.getByText("智将(EV)")).toBeVisible(); // #559 括号统一全角
-  await expect(page.getByText("庸才(随机)")).toBeVisible();
   await expect(page.getByText("字盘快选国号")).toBeVisible();
   // 「起兵」按钮 → 选都(「调兵遣将中…」为瞬态,静态 grep 已核,此处验证点击后进选都)
   await page.getByTestId("start-game").click();
@@ -57,8 +55,8 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
     )
     .toBeGreaterThan(before.turnNumber);
   // bot 接手:#398 单机统一后房间编排一拍跑完整条 bot 链(状态即时落、动画排队播),
-  // 引擎不在 bot 决策点停靠——「智将运筹中…」的自然瞬态不复存在(单跑实测:decisionOwner
-  // 恒为人类,bot 决策归属在两次下行拍之间不可观察)。文档句子「底部显示智将运筹中…」
+  // 引擎不在 bot 决策点停靠——「运筹中…」的自然瞬态不复存在(单跑实测:decisionOwner
+  // 恒为人类,bot 决策归属在两次下行拍之间不可观察)。文档句子「底部显示运筹中…」
   // 的文案与挂载点改走 react-solo 思考态同款调试钩子种植(钉文案契约,不钉时序);
   // 「电脑接手其余玩家」的实质(bot 一拍走完整轮、回合照常推进)已由上一 poll 的
   // turnNumber 前进覆盖—— turnNumber 只能在全部 bot 座位走完后回到人类。
@@ -73,7 +71,7 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
   `,
   );
   await expect(page.getByTestId("waiting-bar")).toBeVisible();
-  await expect(page.getByTestId("thinking")).toContainText("智将运筹中…");
+  await expect(page.getByTestId("thinking")).toContainText("运筹中…");
   await force(
     page,
     `

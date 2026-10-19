@@ -129,7 +129,7 @@ function aiChooseCapital(g: GameEngine): number {
     const def = g.catalog.get(t.propertyId);
     if (!def) return -Infinity;
     let value = (def.resupplyPerLevel * 8.0) / def.buildCost; // 都城价值=补给性价比(本作不收租,看 resupplyPerLevel)
-    value += g.difficulty === "Simple" ? g.dice.nextFloat() * 2.0 : g.dice.nextFloat() * 0.3;
+    value += g.dice.nextFloat() * 0.3; // 小扰动防同分死板
     return value;
   };
   return [...candidates].sort((a, b) => score(b) - score(a))[0].index;

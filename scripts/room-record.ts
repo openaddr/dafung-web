@@ -6,7 +6,7 @@
 // 的「跳过不可恢复房间」接住并告警移除)。持久化介质(FileRoomPersistence/内存)归
 // room-persistence.ts,房间编排归 room.ts,两者同源消费本模块。
 import { GameEngine } from "../src/core/authority";
-import type { AiDifficulty, EngineConfig, SeatConfig } from "../src/core/authority";
+import type { EngineConfig, SeatConfig } from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createDice } from "../src/core/dice";
@@ -14,7 +14,6 @@ import { createDice } from "../src/core/dice";
 export interface HostConfig {
   seed?: number;
   target?: number;
-  difficulty?: AiDifficulty;
 }
 
 /** 持久化的座位:去掉运行时的 WebSocket 句柄等不可序列化字段。 */

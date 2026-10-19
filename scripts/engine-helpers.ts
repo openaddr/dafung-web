@@ -10,7 +10,7 @@ import { parseCatalog, type CatalogFileEntry } from "../src/core/map-source";
 import { GameEngine } from "../src/core/authority";
 import type { SeatConfig, EngineConfig } from "../src/core/authority";
 import type { EncounterConfig } from "../src/core/encounters";
-import type { TurnPhase, AiDifficulty } from "../src/core/authority";
+import type { TurnPhase } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 
 /** 共享地图(主环 + catalog)。CLI 与 Server 用同一份,避免漂移。 */
@@ -47,7 +47,6 @@ export interface GameConfig {
   seats: SeatConfig[];
   targetNetWorth?: number;
   startingCash?: number;
-  difficulty?: AiDifficulty;
   seed?: number;
   /** 地图 id(ADR-0014:随引擎写入对局日志局头,重放要素)。 */
   mapId?: string;

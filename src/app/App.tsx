@@ -67,7 +67,6 @@ export function App() {
         const controller = new LocalController(map, {
           seats: config.seats,
           targetNetWorth: config.targetNetWorth,
-          difficulty: config.difficulty,
           seed: config.seed ?? urlSeed(),
           // ADR-0014 对局日志局头要素(编辑器试玩不经此口,无地图 id 如实留空)
           mapId: config.mapId,

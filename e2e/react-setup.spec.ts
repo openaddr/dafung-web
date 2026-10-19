@@ -10,9 +10,9 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   const screen = page.getByTestId("solo-setup-screen");
   await expect(screen).toBeVisible();
   // X10(#29):select → stepper/分段选择器,断言改为数值文本 + 选项 aria-pressed
+  // (#613 难度档退役:难度选择器随删,原 setup-difficulty-Normal 断言退役)
   await expect(page.getByTestId("setup-seat-count")).toHaveText("4");
   await expect(page.getByTestId("setup-target-30000")).toHaveAttribute("aria-pressed", "true");
-  await expect(page.getByTestId("setup-difficulty-Normal")).toHaveAttribute("aria-pressed", "true");
   // #249:默认图换「环游图」(index.json 首项),断言跟默认名单源
   await expect(page.getByTestId("current-map-name")).toHaveText("环游图", { timeout: 10_000 });
 

@@ -131,7 +131,7 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
     host.observe(r, { ev: "autopilot", seat, on: true, by: "watchdog" });
     host.logRoom(r, brief, JSON.stringify({ type: "autopilot", seat, on: true, by: "watchdog" }));
     host.persist(r);
-    onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位,等待条换「智将运筹中…」)
+    onUpdate?.(r); // 先广播托管(客户端「托管中」徽章置位;托管座位 isBot 不变,等待条走真人措辞)
     await host.driveBots(r, onUpdate); // 若该座位正轮到,解冻续推
   };
   return {

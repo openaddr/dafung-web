@@ -12,7 +12,7 @@
 // 自动起摇/反应窗定时器全部删除——单机与联机从此只差「传输在不在网上」。
 import type { LoadedMap } from "@core/board-loader";
 import type { GameEngine } from "@core/authority";
-import type { AiDifficulty, GameCommand, SeatConfig } from "@core/authority";
+import type { GameCommand, SeatConfig } from "@core/authority";
 import type { EncounterConfig } from "@core/encounters";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
@@ -44,7 +44,6 @@ import { GameController } from "./controller";
 export interface SoloRoomConfig {
   seats: SeatConfig[];
   targetNetWorth?: number;
-  difficulty?: AiDifficulty;
   /** 骰子种子(?seed= 复现;缺省引擎自由掷)。 */
   seed?: number;
   /** 地图 id(ADR-0014 局头要素;编辑器试玩不经图库,如实空串)。 */
@@ -130,7 +129,6 @@ export class LocalController extends GameController {
       hostConfig: {
         seed: config.seed,
         target: config.targetNetWorth,
-        difficulty: config.difficulty,
       },
       guohao,
     });

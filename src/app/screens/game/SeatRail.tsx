@@ -108,10 +108,7 @@ function SeatCard({
         <span className="guo-yin" style={{ ["--pc" as string]: rgba(playerColor(p.colorIndex)) }}>
           {p.guohao.charAt(0)}
         </span>
-        <span className="nm">
-          {p.guohao || p.name}
-          {p.isBot ? " 智" : ""}
-        </span>
+        <span className="nm">{p.guohao || p.name}</span>
       </div>
       {/* 现金(#495 挂浮标):relative 容器锚浮标;数值本体 span 保持 testid 纯文本 */}
       <div className="cash relative">
