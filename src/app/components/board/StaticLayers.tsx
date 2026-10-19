@@ -297,7 +297,8 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     );
     // #73 主路箭羽:取途经点列正中两点的中点为锚(U 弯=edgeWaypoints 两点中点,
     // 直段=a/b 中点),连线方向即该处行进向——总览下箭羽成节奏点列,U 弯方向可读;
-    // 首段(自起点长安出发)画双羽,与起点「起」印一起标识行进起点。
+    // 首段画双羽,环路行进方向自首段起读(旧起点「起」印已随 2026-10-19 拷问退役:
+    // 游戏无共同起点,选都后各人行军自都城始)。
     const mi = Math.floor((pts.length - 1) / 2);
     const m0 = pts[mi];
     const m1 = pts[mi + 1];
