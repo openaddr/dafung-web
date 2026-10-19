@@ -16,7 +16,7 @@ import { extractBatchEvents } from "../src/app/fx/event-extract";
 import { finishPresentation, present, resetFxOrchestration } from "../src/app/fx/orchestrator";
 import { createMemorySink } from "../src/app/fx/sinks";
 import { useFxStore } from "../src/app/fx/fxStore";
-import type { PresentationEvent } from "../src/app/fx/presentation";
+import { isBlowout, type PresentationEvent } from "../src/app/fx/presentation";
 import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
@@ -835,7 +835,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
 describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
   const E = () => makeEngine(7);
 
-  it("胜负局:sides=双方座位元数据(国号/座色/掷点,aSeat 先落),winnerSeat 随事件走;场景无关(拦检/连环计同式)", () => {
+  it("胜负局:sides=双方座位元数据(国号/座色/掷点,按座位号升序),winnerSeat 随事件走;场景无关(拦检/连环计同式)", () => {
     const e = E();
     const out = synth(e, [
       {
@@ -862,7 +862,7 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
     ]);
   });
 
-  it("平局:winnerSeat=null 原样透传;数组序=aSeat 先落(座位序错拍落定的组件输入)", () => {
+  it("平局:winnerSeat=null 原样透传;sides 按座位升序重排(#639:aSeat=resolveDuel 首参不保证座位号小,错拍落定序=座位升序)", () => {
     const e = E();
     const out = synth(e, [
       {
@@ -880,8 +880,36 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
     expect(out).toHaveLength(1);
     if (out[0].kind !== "duelSigns") throw new Error("duelResolved 应直译 duelSigns");
     expect(out[0].winnerSeat).toBeNull();
-    expect(out[0].sides.map((s) => s.seat)).toEqual([1, 0]);
+    // aSeat=1 > bSeat=0:sides 重排为 [0,1](升序),掷点仍各随其主
+    expect(out[0].sides.map((s) => s.seat)).toEqual([0, 1]);
     expect(out[0].sides.map((s) => s.roll)).toEqual([3, 3]);
+  });
+
+  it("大胜负升序重排后掷点各随其主:aSeat=2/bSeat=1(aSeat 座位号更大)重排后 roll 不串位", () => {
+    const e = makeEngine(7, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 2,
+        round: 1,
+        turn: 1,
+        aSeat: 2,
+        bSeat: 1,
+        aRoll: 6,
+        bRoll: 1,
+        winnerSeat: 2,
+      },
+    ]);
+    if (out[0].kind !== "duelSigns") throw new Error("duelResolved 应直译 duelSigns");
+    expect(out[0].sides.map((s) => [s.seat, s.roll] as const)).toEqual([
+      [1, 1],
+      [2, 6],
+    ]);
+    expect(out[0].winnerSeat).toBe(2);
   });
 
   it("契约违反当场炸出(零兜底):winnerSeat 不在拼点双方/座位越界", () => {
@@ -916,6 +944,19 @@ describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
         },
       ]),
     ).toThrow();
+  });
+});
+
+// ─────────────── 大胜负震屏判定(#639 评审必修:行为断言取代时长表近恒真档)───────────────
+describe("isBlowout(拼点大胜负震屏判定:|a−b| ≥ DUEL.blowoutMargin,判词拍消费)", () => {
+  it("点差 3(恰等 margin)=震屏;方向无关", () => {
+    expect(isBlowout(6, 3)).toBe(true);
+    expect(isBlowout(3, 6)).toBe(true);
+  });
+
+  it("点差 2(不足 margin)=不震", () => {
+    expect(isBlowout(5, 3)).toBe(false);
+    expect(isBlowout(3, 5)).toBe(false);
   });
 });
 

@@ -43,16 +43,15 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
   });
 
   it("拼点签面节拍有序(#637,ADR-0030):幕启 < 摇,错拍落 < 判词,判词停留与收场渐出俱为正", () => {
-    expect(DUEL.curtainMs).toBeGreaterThan(0); // 幕启:玄墨幕渐入+两签虚位
+    expect(DUEL.curtainMs).toBeGreaterThan(0); // 幕启:玄墨幕渐入+两签虚位(摇签等幕启后起跑)
     expect(DUEL.curtainMs).toBeLessThan(DUEL.shakeMs); // 幕启 < 并行起摇
     expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs); // 座位序错拍落 < 判词拍(错拍=clackGap 间隙,延续既有拼点节拍)
     expect(DUEL.holdMs).toBeGreaterThan(0); // 判词停留(金圈/金平可读窗)
     expect(DUEL.fadeOutMs).toBeGreaterThan(0); // 整幕渐出
   });
 
-  it("拼点大胜负点差档为正(S7 #492,#637 签面同源):DUEL.blowoutMargin >= 1", () => {
-    expect(DUEL.blowoutMargin).toBeGreaterThanOrEqual(1);
-  });
+  // 大胜负点差档(blowoutMargin)的行为断言归位 test/presentation.test.ts isBlowout
+  // 边界两支(#639)——此处原「>= 1」近恒真断言已删(测试宁缺毋滥)。
 
   it("行军段时长夹取区间有序:MARCH.minSegMs < MARCH.maxSegMs", () => {
     expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);

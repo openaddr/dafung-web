@@ -556,24 +556,30 @@ export function extractBatchEvents(
         // 拼点签面(#637,ADR-0030):duelResolved 直译——双方座位元数据提取期解析进
         // 事件(签头国号/玩家色、签身掷点),组件零查询;胜者随事件走(winnerSeat,
         // 平局 null)。场景无关:拦检与连环计同式,签面即是信息,点数不落第二处。
+        // 落定序=座位号升序(#639 评审必修):aSeat=resolveDuel 首参(拦检=城主/
+        // 连环计=首目标)不保证座位号小,照数组序落定会与代码库「座位序」惯用法
+        //(升序,如 dispatchMoment)漂移——sides 排序后入事件,左右排布与错拍落定
+        // 序随之自然=座位升序。
         if (ev.winnerSeat != null && ev.winnerSeat !== ev.aSeat && ev.winnerSeat !== ev.bSeat)
           throw new Error(
             `事件消费:duelResolved.winnerSeat=${ev.winnerSeat} 不在拼点双方 [${ev.aSeat},${ev.bSeat}](契约违反)`,
           );
-        const sides: DuelSide[] = [ev.aSeat, ev.bSeat].map((seat) => {
-          const p = eventSeatPlayer(
-            engine,
-            seat,
-            `duelResolved.${seat === ev.aSeat ? "aSeat" : "bSeat"}`,
-          );
-          return {
-            seat,
-            playerId: p.id,
-            guohao: p.guohao,
-            colorIndex: p.colorIndex,
-            roll: seat === ev.aSeat ? ev.aRoll : ev.bRoll,
-          };
-        });
+        const sides: DuelSide[] = [ev.aSeat, ev.bSeat]
+          .sort((x, y) => x - y)
+          .map((seat) => {
+            const p = eventSeatPlayer(
+              engine,
+              seat,
+              `duelResolved.${seat === ev.aSeat ? "aSeat" : "bSeat"}`,
+            );
+            return {
+              seat,
+              playerId: p.id,
+              guohao: p.guohao,
+              colorIndex: p.colorIndex,
+              roll: seat === ev.aSeat ? ev.aRoll : ev.bRoll,
+            };
+          });
         events_.push({ kind: "duelSigns", sides, winnerSeat: ev.winnerSeat });
         break;
       }

@@ -15,7 +15,7 @@ import { playerColor, rgba } from "@core/theme";
 import { TESTIDS } from "@app/screens/game/testids";
 import { getAudio } from "./audio";
 import { shakeDesk } from "./desk";
-import type { DuelSignsEvent, DuelSide } from "./presentation";
+import { isBlowout, type DuelSignsEvent, type DuelSide } from "./presentation";
 import { DUEL, delay } from "./timings";
 
 // 在场 overlay 引用(D2 终局提前收场用;present() 串行 await,同时至多一场)。
@@ -84,7 +84,8 @@ function landSign(sign: SignHandle): void {
 
 /** 判词拍:胜负全靠状态语言——胜者金光圈+金描边(.duel-sign-win)、败者降饱和沉暗
  *  (.duel-sign-dim),零「胜/负」文字章;平局双方无圈、中缝印钤变金「平」(重播钤落)。
- *  合印 stamp 音同拍(ADR-0030 判词拍);点差 ≥blowoutMargin 震屏,<3 不震。 */
+ *  合印 stamp 音同拍(ADR-0030 判词拍);大胜负震屏判定=isBlowout 单源
+ *  (点差 ≥blowoutMargin,边界行为单测钉死)。 */
 function applyVerdict(ev: DuelSignsEvent, signs: SignHandle[], seal: HTMLDivElement): void {
   if (ev.winnerSeat == null) {
     seal.dataset.verdict = "tie";
@@ -99,8 +100,7 @@ function applyVerdict(ev: DuelSignsEvent, signs: SignHandle[], seal: HTMLDivElem
     }
   }
   getAudio().play("stamp");
-  const [a, b] = [ev.sides[0].roll, ev.sides[1].roll];
-  if (Math.abs(a - b) >= DUEL.blowoutMargin) shakeDesk();
+  if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) shakeDesk();
 }
 
 /** 整场演出:幕启→并行摇→座位序错拍落→判词→停留→渐出,节拍全走 DUEL 组
@@ -126,14 +126,17 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
   overlay.appendChild(seal);
   document.body.appendChild(overlay);
   activeOverlay = overlay;
-  const stopShakers = signs.map((s) => startShaking(s));
+  let stopShakers: (() => void)[] = [];
   try {
     // ── 幕启:玄墨幕渐入(CSS,时长=curtainMs)、两签虚位+「拼」印钤立 ──
+    // 摇签不在此段起跑(#639 评审必修,ADR-0030 节拍「幕启→并行起摇」):幕启期间
+    // 两签保持虚位(字面缺席),起摇等幕启落定。
     await delay(DUEL.curtainMs);
     // ── 并行起摇:沙锤音起手,虚影轮换(全速恒定)──
+    stopShakers = signs.map((s) => startShaking(s));
     getAudio().play("diceRoll");
     await delay(DUEL.shakeMs);
-    // ── 依座位序错拍落定(数组序=aSeat 先落,间隙=clackGap):每拍 diceLand 音 ──
+    // ── 依座位序错拍落定(数组序=座位升序,提取期已排;间隙=clackGap):每拍 diceLand 音 ──
     for (const [i, sign] of signs.entries()) {
       stopShakers[i]();
       if (i > 0) await delay(DUEL.clackGapMs);

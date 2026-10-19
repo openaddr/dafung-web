@@ -12,6 +12,7 @@
 import type { MovePath } from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
 import type { SoundEvent } from "./audio";
+import { DUEL } from "./timings";
 
 /** 表现事件:数组顺序 = 播放顺序(present 串行 await)。宁可少而精,按两侧现有
  *  调用收口;新增表现 = 加判别分支,而不是在控制器里另起内联链。 */
@@ -109,11 +110,13 @@ export type PresentationEvent =
     }
   /** 拼点签面(#637,ADR-0030):duelResolved 直译的全屏多签演出——每名参与者一枚
    *  骨牌大字签面(签头=玩家色底+国号),并行起摇、依座位序错拍落定;判词=胜者金光圈
-   *  败者沉暗(零「胜/负」文字章,DESIGN §4.6)、平局中缝钤变金「平」;点差悬殊震屏。
-   *  场景无关:拦检(半路杀出)与连环计(二虎竞食)同式,签面即是信息、点数不落第二处。 */
+   *  败者沉暗(零「胜/负」文字章,DESIGN §4.6)、平局中缝钤变金「平」;点差悬殊震屏
+   *  (isBlowout 判定)。场景无关:拦检(半路杀出)与连环计(二虎竞食)同式,
+   *  签面即是信息、点数不落第二处。 */
   | {
       kind: "duelSigns";
-      /** 参与拼点的双方签面(数组序=落定序:aSeat 先落);座位元数据提取期解析进
+      /** 参与拼点的双方签面(数组序=座位号升序,落定序与左右排布随之=座位升序;
+       *  aSeat=resolveDuel 首参不保证座位号小,提取期已排序);座位元数据提取期解析进
        *  事件(签头国号/玩家色、签身点数),组件零查询。 */
       sides: DuelSide[];
       /** 胜者座位(null=平局,双方无圈、中缝印钤金「平」)。 */
@@ -145,6 +148,13 @@ export interface DuelSide {
   colorIndex: number;
   /** 拼点掷点(签身骨牌大字一~六)。 */
   roll: number;
+}
+
+/** 拼点大胜负判定(S7 #492/DESIGN §6,#637 签面判词拍同源消费):点差
+ *  |a−b| ≥ DUEL.blowoutMargin 判震屏。纯函数单测缝,边界行为由单测钉死
+ * (#639 评审必修:行为断言取代时长表里的近恒真档位断言)。 */
+export function isBlowout(aRoll: number, bRoll: number): boolean {
+  return Math.abs(aRoll - bRoll) >= DUEL.blowoutMargin;
 }
 
 /**
