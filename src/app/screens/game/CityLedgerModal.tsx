@@ -1,7 +1,7 @@
 // 名下城池清单弹层(#622,规格 #621):席位卡/仪表条城池徽章点开的只读清单——
-// 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),五列 = 城名 /
-// 等级 / 购入价 / 变卖价 / 交易加成;行首位为 T2 真实格缩略图预留位(本票不画
-// 格子,#623 接手)。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
+// 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),行首真实格缩略图
+// (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级 / 购入价 / 变卖价 /
+// 交易加成。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
 // 「本方名下城池」;挂载不夺焦、Esc/点外/X 三路关闭全由底件白拿),零操作项;
 // 弹层开着随快照实时重渲(数据每渲染现查 snapshot + board/catalog,不冻结不快照)。
 // 宝物城与都城同权入列(ADR-0024,无特判外壳)。数据口径(与引擎同一函数):
@@ -14,12 +14,13 @@ import { sellValueOf } from "@core/economy";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
 import { PileShell } from "./PileModal";
+import { TileThumb } from "./TileThumb";
 import { TESTIDS } from "./testids";
 
-/** 行栅格(六列):行首空位 = 行军格缩略图预留位(#623);后五列 = 五字段。
+/** 行栅格(六列):行首 = 真实格缩略图位(约 96px 高,列宽随之);后五列 = 五字段。
  *  表头与数据行共用同一模板,列对齐不漂移。 */
 const GRID_COLS =
-  "grid grid-cols-[56px_minmax(7em,1.3fr)_minmax(5em,0.9fr)_minmax(6.5em,1fr)_minmax(6.5em,1fr)_minmax(8em,1.1fr)] items-center";
+  "grid grid-cols-[88px_minmax(7em,1.3fr)_minmax(5em,0.9fr)_minmax(6.5em,1fr)_minmax(6.5em,1fr)_minmax(8em,1.1fr)] items-center";
 
 export function CityLedgerModal({
   snapshot,
@@ -67,7 +68,7 @@ export function CityLedgerModal({
             名下城池 · {rows.length} 城<small>(行序 = 行军顺序)</small>
           </div>
           <div className={GRID_COLS + " border-b border-gold/25 pb-1.5 font-brush text-ink"}>
-            {/* 行首列:缩略图位(#623),本票留空 */}
+            {/* 行首列:缩略图列头(图形列,无文字头) */}
             <span aria-hidden="true" />
             <span>城名</span>
             <span>等级</span>
@@ -83,8 +84,8 @@ export function CityLedgerModal({
                 className={GRID_COLS + " border-t border-gold/15 py-1.5 first:border-t-0"}
                 title={`棋盘第 ${tileIndex} 格`}
               >
-                {/* 行首列:缩略图位(#623),本票留空 */}
-                <span aria-hidden="true" />
+                {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}
+                <TileThumb tile={tile} def={def} tileIndex={tileIndex} players={snapshot.players} />
                 <span className="font-wenkai text-ink">{tile.name}</span>
                 <span className="text-ink-dim tabular-nums">
                   Lv.{h.level}/{def.maxLevel}
