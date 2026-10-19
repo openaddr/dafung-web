@@ -3,7 +3,8 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
-import { createDice } from "@core/dice";
+import { createDice, type Dice } from "@core/dice";
+import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import {
@@ -729,6 +730,72 @@ describe("连环计·二虎竞食(T4)", () => {
     const opt = e.choicesFor().find((o) => o.id === "窃玉偷香");
     expect(opt?.available).toBe(false);
     expect(opt?.reason).toBe("无珍宝");
+  });
+});
+
+// ── 连环计拼点入事件流(#636,ADR-0030):resolveDuel 单点 emit 的连环计侧三支 ──
+describe("连环计 duelResolved(#636,ADR-0030)", () => {
+  /** 骰子替身(同 test/reaction-window.test.ts scriptDice 口径):rollDie 按脚本出点。 */
+  function scriptDice(e: GameEngine, rollDies: number[]) {
+    let di = 0;
+    const dice: Dice = {
+      roll: () => ({ die: 1 }),
+      rollDie: () => rollDies[di++] ?? 1,
+      nextFloat: () => 0.99,
+      getRngState: () => 0,
+      setRngState: () => {},
+    };
+    (e as unknown as { dice: Dice }).dice = dice;
+  }
+
+  /** 连环计拼点驱动:two-a 首挑=a(即 aSeat),批界始于最终执行的 two-b,拼点事件批内可查。 */
+  function duelDriven(rolls: [number, number]) {
+    const e = makeEngine(42, [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+      { name: "C", isBot: false, guohao: "吴" },
+    ]);
+    finishSetup(e);
+    e.resolveJinnang(null);
+    const others = [0, 1, 2].filter((i) => i !== e.players.indexOf(e.activePlayer));
+    const [a, b] = others;
+    armJinnang(e, ["连环计"]);
+    e.resolveJinnang("连环计");
+    e.resolveJinnang("连环计", [a!]);
+    scriptDice(e, [...rolls]);
+    beginGameEventBatch(e);
+    e.resolveJinnang("连环计", [b!]); // two-b 落定即执行拼点
+    const duel = e
+      .snapshot()
+      .events.filter(
+        (ev): ev is Extract<GameEvent, { kind: "duelResolved" }> => ev.kind === "duelResolved",
+      );
+    return { duel, a: a!, b: b! };
+  }
+
+  it("a 方胜:恰一条,座位/点数/胜者字段正确", () => {
+    const { duel, a, b } = duelDriven([6, 2]);
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({
+      seat: a, // emit seat=a 方(resolveDuel 首参)
+      aSeat: a,
+      bSeat: b,
+      aRoll: 6,
+      bRoll: 2,
+      winnerSeat: a,
+    });
+  });
+
+  it("b 方胜:aRoll<bRoll,胜者=bSeat", () => {
+    const { duel, a, b } = duelDriven([2, 6]);
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({ aSeat: a, bSeat: b, aRoll: 2, bRoll: 6, winnerSeat: b });
+  });
+
+  it("平局:winnerSeat=null(此计作废,双方无事)", () => {
+    const { duel, a, b } = duelDriven([3, 3]);
+    expect(duel.length).toBe(1);
+    expect(duel[0]).toMatchObject({ aSeat: a, bSeat: b, aRoll: 3, bRoll: 3, winnerSeat: null });
   });
 });
 

@@ -41,7 +41,7 @@ function path(landIndex: number): MovePath {
   };
 }
 
-/** 37 个透传 kind 的最小事件体(每种一条;redactEvents 只认 kind,字段面不审计)。 */
+/** 38 个透传 kind 的最小事件体(每种一条;redactEvents 只认 kind,字段面不审计)。 */
 const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "gameStarted" },
   { kind: "setupCompleted" },
@@ -78,6 +78,7 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },
+  { kind: "duelResolved", aSeat: 0, bSeat: 1, aRoll: 6, bRoll: 2, winnerSeat: 0 },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "jinnangReshuffled", count: 3 },

@@ -367,7 +367,8 @@ export function extractBatchEvents(
       }
       case "treasureGained": {
         // 探宝拼点胜(S7 拼点双印「得」半):漆金「得」印钤在宝物城落点 + treasure 音。
-        // 拼点掷点不入引擎事件(零新事件口径),双骰点印仅拦检侧(reactionFailed)有。
+        // 探宝拼点是单人 2d6 判定、不走 resolveDuel,无 duelResolved(#636/ADR-0030:
+        // 玩家对拼的点数已入事件流,探宝判定不入)。
         const seat = eventSeat(engine, ev);
         events_.push({
           kind: "sealStamped",

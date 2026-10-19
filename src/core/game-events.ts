@@ -276,6 +276,19 @@ export interface ReactionFailedBody {
   aRoll: number;
   bRoll: number;
 }
+/** 拼点结算(#636,ADR-0030):公共拼点 resolveDuel 单点产出,拦检(半路杀出)与
+ *  连环计(二虎竞食)两调用点天然全覆盖——两方座位(aSeat/bSeat)、两枚点数
+ *  (aRoll/bRoll)、胜者座位(平局 winnerSeat=null)。探宝拼点是单人 2d6 判定、不走
+ *  resolveDuel,不产本事件;拼点骰是独立词汇:不派 diceRolled、不触发掷骰时机
+ *  (张星彩掷金边界不变,rules 08)。 */
+export interface DuelResolvedBody {
+  kind: "duelResolved";
+  aSeat: number;
+  bSeat: number;
+  aRoll: number;
+  bRoll: number;
+  winnerSeat: number | null;
+}
 /** 识破生效(锦囊被拆:shareSeat=被保住的份(AOE 按份拆),缺省=整计作废/落空)。 */
 export interface JinnangVoidedBody {
   kind: "jinnangVoided";
@@ -339,6 +352,7 @@ export type GameEventBody =
   | ReactionOpenedBody
   | ReactionAnsweredBody
   | ReactionFailedBody
+  | DuelResolvedBody
   | JinnangVoidedBody
   | JinnangInflictedBody
   | PeekAppliedBody;
