@@ -568,12 +568,13 @@ function enterDecisionPhase(g: GameEngine): boolean {
 
 /** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。
  *  返回 { supply, level }:supply=补给金额,level=都城当前等级。
- *  一并返回 level 是为让 applyResupply 写日志时免再做一次 board.at+findHolding(原重复查找)。 */
+ *  一并返回 level 是为让 applyResupply 写日志时免再做一次 board.at+findHolding(原重复查找)。
+ *  只在 Setup 完成后调用:都城恒为城池格、建都即持有且都城不可失——缺失 = 引擎状态 bug,直接炸。 */
 export function capitalSupplyOf(g: GameEngine, player: Player): { supply: number; level: number } {
   const tile = g.board.at(player.capitalIndex);
-  const def = g.catalog.get(tile.propertyId);
-  const h = findHolding(player, def?.id ?? "");
-  return { supply: supplyFor(def?.resupplyPerLevel, h?.level), level: h?.level ?? 0 };
+  const def = g.catalog.get(tile.propertyId!)!; // 都城恒为城池格,def 必在册
+  const h = findHolding(player, def.id)!; // 建都即持有且都城不可失
+  return { supply: supplyFor(def.resupplyPerLevel, h.level), level: h.level };
 }
 
 /** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
