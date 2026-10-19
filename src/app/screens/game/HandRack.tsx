@@ -64,6 +64,7 @@ import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { PileModal, type PileModalKind } from "./PileModal";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "./SkillGlossaryDialog";
+import { ATTR_ENTRY_D } from "./AttrIcon";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -404,29 +405,25 @@ interface StackVars {
   spreadRight: number;
 }
 
-/** 入口图腾(#361):宝石=珍宝,AttrIcon 图形笔画化(r5 节一线稿原样移植,程序化
- *  SVG 零图片资产);漆金描边由 CSS(.rack-entry .tu svg)承担。 */
-const ENTRY_GEM_ICON = (
-  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-    <path d="M8 1.8 13 6.2 8 14.2 3 6.2z" />
-    <path d="M3 6.2h10" />
-    <path d="M8 1.8 6 6.2l2 8 2-8z" />
-  </svg>
-);
-const ENTRY_HERO_ICON = (
-  <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-    <path d="M4 1.8v12.4" />
-    <path d="M4.8 2.6h8.4l-2.6 3.2 2.6 3.2H4.8z" />
-    <path d="M6.4 5.8h4.2" />
-  </svg>
-);
+/** 入口图腾(#361):玉璧=珍宝 / 战盔=名将,几何吃 AttrIcon 的 ATTR_ENTRY_D 单源
+ *  (2026-10-19 收编原逐字副本,中式化改版同步生效);漆金线稿绘制属性由 CSS
+ *  (.rack-entry .tu svg)承担。 */
+function EntryIcon({ kind }: { kind: "gem" | "hero" }) {
+  return (
+    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+      {ATTR_ENTRY_D[kind].map((d) => (
+        <path key={d} d={d} />
+      ))}
+    </svg>
+  );
+}
 
 /** 名将入口画心(#511 卡面 B 案):图腾位接太史慈立绘提案(S1 noname 小图变体,
- *  素材映射 docs/design/素材映射.md);断图/缺图回退令旗线稿(与 HeroCardFace 的
+ *  素材映射 docs/design/素材映射.md);断图/缺图回退战盔线稿(与 HeroCardFace 的
  *  Lihui 同「显式回退」口径)。纯装饰(aria-hidden 由 .tu 承担),不表达玩家数据。 */
 function HeroEntryArt() {
   const [failed, setFailed] = useState(false);
-  if (failed) return ENTRY_HERO_ICON;
+  if (failed) return <EntryIcon kind="hero" />;
   return (
     <img
       className="hero-entry-art"
@@ -685,7 +682,7 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
           testid={TESTIDS.rackTreasures}
           label="珍宝"
           count={String(player.treasures.length)}
-          icon={ENTRY_GEM_ICON}
+          icon={<EntryIcon kind="gem" />}
           onOpen={() => setPileModal("treasures")}
         />
         <RackEntry

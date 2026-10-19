@@ -539,6 +539,12 @@
   );
   box-shadow: inset 0 0 0 0.8px rgba(217, 185, 92, 0.5);
 }
+/* 空牌背:手牌 0 张的占位(虚线轮廓,图标恒在;漆金淡出同牌背描边语) */
+.game-layout .mini-back-empty {
+  background: none;
+  box-shadow: none;
+  border: 0.8px dashed color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
+}
 /* 活跃方:金圈光效 + 「运筹中」微标(§4.6 例外保留项,全布局仅此一处文字标牌) */
 .game-layout .seat .think {
   position: absolute;
