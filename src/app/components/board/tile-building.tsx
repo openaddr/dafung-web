@@ -1,5 +1,5 @@
 // 城池建筑程序化精绘(票 #328 自 Tile.tsx 抽出):Building 只吃纯几何/风格参数
-// (size/group),不吃 TileProps、不订阅任何域外状态。形制变体/装饰子件随组件闭环,
+// (group),不吃 TileProps、不订阅任何域外状态。形制变体/装饰子件随组件闭环,
 // 不反向依赖 Tile.tsx。
 // 等级与归属不上楼(2026-10-17 拷问:一格一语言,重复表达裁单一)——旧「城楼加层」
 // 形状通道与「染瓦」归属通道双双退役:等级归铭牌左下档位珠(Tile.tsx LevelPips),
@@ -8,13 +8,13 @@ import type { ReactNode } from "react";
 import { rgba, Theme } from "@core/theme";
 
 // ── 城池建筑:程序化精绘 ──
-// 三档形制:重镇 = 夯土城台(梯形收分/砖缝/拱门/台顶木栏)+ 两层木构城楼(朱柱/直棂窗)
-// + 重檐飞檐青瓦;县城 = 单层城楼踞矮墙(雉堞);村落/关隘 = 坡顶小屋。
+// 重镇形制:夯土城台(梯形收分/砖缝/拱门/台顶木栏)+ 两层木构城楼(朱柱/直棂窗)
+// + 重檐飞檐青瓦;西凉为土堡平顶变体。
 // 飞檐是实心屋面 path(eavesRoof):近脊陡、檐口平、檐角回勾上翘——古建轮廓的辨识核心,
 // 替换旧「矩形 + 直角三角」的简笔画。
 //
-// 地域变体(#风土形制):两张内置地图全部城池都是 large(valueByLevel ≥20),单靠规模档
-// 分不出形制,同盘 31 座同模子必单调。按区域分组字母(Theme.groupNames 的 a–h)选风格:
+// 旧「规模三档形制」(县城/村落小屋)已随经济 v2 退役:两张内置地图全部城池同档,
+// 单靠规模分不出形制。多样性走区域分组字母(Theme.groupNames 的 a–h)选风格:
 //   north(默认 a/f/g 等)官式:暖褐墙 + 朱柱 + 墨青瓦,中原/幽燕/青徐的礼制气象;
 //   south(b/c/d/h)粉墙黛瓦:墙身提亮、柱转深棕,荆楚/江东/岭南/巴蜀的水乡底色;
 //   desert(e)土堡平顶:夯土堡身 + 平顶雉堞、无木构楼阁,西凉边地的营造。
@@ -66,18 +66,6 @@ function Lantern({ x }: { x: number }) {
   );
 }
 
-/** 正脊 + 吻兽:脊顶一条收边压顶,两端小卷作吻(r = 脊口半宽,apex = 脊顶 y)。 */
-function RoofRidge({ r, apex }: { r: number; apex: number }) {
-  const half = r + 1.5;
-  return (
-    <g fill={ROOF_STROKE}>
-      <rect x={-half} y={apex - 1.8} width={half * 2} height={2.2} rx={1} />
-      <path d={`M ${-half - 0.6},${apex - 1.2} q -2.2,-0.4 -2.6,-2.4 q 2.2,0.2 3.2,1.6 z`} />
-      <path d={`M ${half + 0.6},${apex - 1.2} q 2.2,-0.4 2.6,-2.4 q -2.2,0.2 -3.2,1.6 z`} />
-    </g>
-  );
-}
-
 // ── 建筑表现色(#512 玄墨深底重调色,造型不动;集中常量;渐变本体挂 BoardDefs 的
 //    bv-roof-grad / bv-wall-grad——每城内联 defs 会产生重复 id 冲突,统一在 StaticLayers 声明)──
 // 口径:官式=暖褐墙+朱柱;南式=提亮粉墙+深棕柱;土堡=夯土+墨青瓦面;普遍=漆金描檐
@@ -95,7 +83,6 @@ const GATE_EDGE = rgba(Theme.lacquerGold, 0.55); // 门洞漆金描边
 const RAIL_FILL = "#93794a"; // 台顶木栏杆(沉木色)
 const GROUND_SHADOW = "rgba(4,3,2,0.5)"; // 建筑落地投影(整卡的"重量"来源)
 const SEAM_STROKE = "rgba(8,6,3,0.4)"; // 砖缝/夯土横缝
-const BATTLEMENT_FILL = "rgba(28,22,14,0.75)"; // 雉堞(墙头垛子)
 const EAVE_SHADOW_STROKE = "rgba(8,10,13,0.65)"; // 檐口阴影
 const ROOF_SHEEN_STROKE = rgba(Theme.lacquerGold, 0.3); // 漆金描檐(檐口金笔,克制)
 
@@ -173,10 +160,8 @@ function PillaredBay({
 }
 
 export function Building({
-  size,
   group,
 }: {
-  size: "large" | "medium" | "small";
   /** 区域分组字母(a–h,地域变体用;未知/缺失回落官式)。 */
   group: string;
 }) {
@@ -185,81 +170,8 @@ export function Building({
   let eaveShadows: string[] = [];
   let decor: ReactNode = null;
   let structure: ReactNode = null;
-  if (size === "small") {
-    // 坡顶小屋(村落/关隘):木身 + 挑檐青瓦 + 门与直棂窗
-    const roof = eavesRoof(6.5, 25, -19, -8.5);
-    eaveShadows = [eaveShadow(25, -8.5)];
-    decor = <RoofRidge r={6.5} apex={-19} />;
-    structure = (
-      <>
-        <ellipse cx={0} cy={13} rx={30} ry={4} fill={GROUND_SHADOW} />
-        <rect
-          x={-18}
-          y={-1}
-          width={36}
-          height={13}
-          fill={style.body}
-          stroke={BODY_STROKE}
-          strokeWidth={1.3}
-        />
-        <rect x={-5} y={3} width={10} height={9} fill={GATE_FILL} />
-        <rect x={8} y={3} width={6} height={6} fill={LATTICE_FILL} />
-        <path
-          d={roof}
-          fill={isDesert ? DESERT_ROOF : ROOF_FILL}
-          stroke={ROOF_STROKE}
-          strokeWidth={1.1}
-          strokeLinejoin="round"
-        />
-        <path d={roofSheen(25, -8.5)} fill="none" stroke={ROOF_SHEEN_STROKE} strokeWidth={0.7} />
-      </>
-    );
-  } else if (size === "medium") {
-    // 县城:夯土矮墙(雉堞/拱门/砖缝)+ 单层城楼 + 飞檐青瓦
-    const roof = eavesRoof(8, 27, -26, -16.5);
-    eaveShadows = [eaveShadow(27, -16.5)];
-    decor = <RoofRidge r={8} apex={-26} />;
-    structure = (
-      <>
-        <ellipse cx={0} cy={13} rx={40} ry={4.5} fill={GROUND_SHADOW} />
-        <polygon
-          points="-36,12 36,12 31.5,-2 -31.5,-2"
-          fill={PLATFORM_FILL}
-          stroke={PLATFORM_STROKE}
-          strokeWidth={1.3}
-        />
-        <g stroke={SEAM_STROKE} strokeWidth={0.7}>
-          <line x1={-32} y1={3} x2={32} y2={3} />
-          <line x1={-34} y1={8} x2={34} y2={8} />
-          <line x1={-20} y1={3} x2={-20} y2={8} />
-          <line x1={22} y1={-2} x2={22} y2={3} />
-        </g>
-        {/* 雉堞(墙头两侧) */}
-        <g fill={BATTLEMENT_FILL}>
-          <rect x={-29} y={-5} width={6} height={3.5} />
-          <rect x={-20.5} y={-5} width={6} height={3.5} />
-          <rect x={14.5} y={-5} width={6} height={3.5} />
-          <rect x={23} y={-5} width={6} height={3.5} />
-        </g>
-        <path
-          d="M -6.5,12 L -6.5,2 Q -6.5,-2.5 0,-2.5 Q 6.5,-2.5 6.5,2 L 6.5,12 Z"
-          fill={GATE_FILL}
-          stroke={GATE_EDGE}
-          strokeWidth={1}
-        />
-        <PillaredBay x={-15} y={-17} w={30} h={15} winH={7} style={style} />
-        <path
-          d={roof}
-          fill={isDesert ? DESERT_ROOF : ROOF_FILL}
-          stroke={ROOF_STROKE}
-          strokeWidth={1.1}
-          strokeLinejoin="round"
-        />
-        <path d={roofSheen(27, -16.5)} fill="none" stroke={ROOF_SHEEN_STROKE} strokeWidth={0.7} />
-      </>
-    );
-  } else if (isDesert) {
-    // 西凉土堡(large):夯土堡身 + 平顶檐口 + 雉堞,无木构楼阁——边地营造的另一路形制。
+  if (isDesert) {
+    // 西凉土堡:夯土堡身 + 平顶檐口 + 雉堞,无木构楼阁——边地营造的另一路形制。
     structure = (
       <>
         <ellipse cx={0} cy={14.5} rx={52} ry={5.5} fill={GROUND_SHADOW} />
@@ -312,7 +224,7 @@ export function Building({
       </>
     );
   } else {
-    // large:夯土城台(梯形收分/砖缝/拱门/台顶木栏)+ 两层木构城楼 + 重檐飞檐(重镇/州治)
+    // 官式重镇:夯土城台(梯形收分/砖缝/拱门/台顶木栏)+ 两层木构城楼 + 重檐飞檐(重镇/州治)
     const lower = eavesRoof(9, 40, -30, -21);
     const upper = eavesRoof(8, 25, -40, -32);
     eaveShadows = [eaveShadow(40, -21), eaveShadow(25, -32)];

@@ -50,6 +50,16 @@ describe("地图校验(非法应抛可读错误)", () => {
     d.tiles[0].price = -1;
     expect(() => loadMap(d)).toThrow(/为负/);
   });
+  it("城缺 tradeAdd(坐地起价逐城必配,零兜底)", () => {
+    const d = base();
+    delete d.tiles[0].tradeAdd;
+    expect(() => loadMap(d)).toThrow(/tradeAdd/);
+  });
+  it("城 tradeMult 长度与等级数不符(越界等级会静默换公式,当场拒绝)", () => {
+    const d = base();
+    d.tiles[0].tradeMult = [2, 4];
+    expect(() => loadMap(d)).toThrow(/tradeMult/);
+  });
 });
 
 describe("避城算法 sideArc", () => {

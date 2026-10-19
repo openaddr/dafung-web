@@ -85,8 +85,8 @@ test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }
   await expect(pick).toContainText("坐地起价"); // 标题随口径
   const item = page.getByTestId("scroll-treasure-item-seal");
   await expect(item).toBeVisible();
-  // 坐地价签:未选=双行「指导价+要价」,要价与引擎结算同一 premiumPriceOf(单源;
-  // 种植 holding level=1,城定义无 trade 字段→两侧行同一回退分支)
+  // 坐地价签:未选=双行「指导价+要价」,要价与引擎结算同一 premiumPriceOf
+  // (种植 holding level=1,UI 与引擎同走 per-level 公式)
   const guide = guidePriceOf(3);
   const def = await engineState(page, "e.treasureVisitor.def");
   const ask = premiumPriceOf(guide, def, 1);

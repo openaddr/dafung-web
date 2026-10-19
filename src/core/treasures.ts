@@ -1,7 +1,7 @@
 // 珍宝系统:数据驱动的珍宝定义 + 牌堆管理。
 // 新增珍宝 = 往 TREASURES 加一条 TreasureDef。牌堆自动初始化。
 // 珍宝类型随域走(#326 types.ts 解散,ADR-0019):珍宝定义由本文件拥有。
-import type { TradeFormula } from "./economy";
+import type { PropertyDef } from "./economy";
 
 /** 珍宝定义(牌堆实例与玩家持有共用)。 */
 export interface TreasureDef {
@@ -85,35 +85,15 @@ export function guidePriceOf(level: number): number {
   return price;
 }
 
-/** 贸易售价(旧公式,向后兼容):markup=加价(指导价+param×等级倍率)、multiply=翻倍(指导价×param×等级倍率)、默认×1.5 保底高于指导价。集中公式防漂移。 */
-export function tradePriceOf(
-  guidePrice: number,
-  trade: TradeFormula | undefined,
-  levelMult: number,
-): number {
-  if (trade?.type === "markup") return guidePrice + trade.param * levelMult;
-  if (trade?.type === "multiply") return guidePrice * trade.param * levelMult;
-  return guidePrice * 1.5 * levelMult;
-}
-
-/** 城池等级 → 坐地起价倍率(旧 trade 公式回退用;下标 = 等级,Lv0..3)。
- *  新字段 tradeAdd/tradeMult 由地图 json 直接配置(同样下标 = 等级)。 */
-export const CITY_LEVEL_MULTIPLIER = [2, 3, 4, 5]; // L0=×2, L1=×3, L2=×4, L3=×5
-
-/** 坐地起价售价(新公式,per-level 加值/乘数优先;无则回退旧 trade 公式)。
- *  公式:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加;cityLevel 0..3)。 */
+/** 坐地起价售价:指导价 × tradeMult[cityLevel] + tradeAdd[cityLevel](先乘再加、四舍五入)。
+ *  tradeMult/tradeAdd 逐城必配(地图 schema 必填,loadMap 校验长度 = maxLevel+1),
+ *  cityLevel 0..maxLevel 与两表同域(等级由引擎封闭变更),不在此设防。集中公式防漂移,供引擎/UI 复用。 */
 export function premiumPriceOf(
   guidePrice: number,
-  def: { tradeAdd?: number[]; tradeMult?: number[]; trade?: TradeFormula },
+  def: Pick<PropertyDef, "tradeAdd" | "tradeMult">,
   cityLevel: number,
 ): number {
-  const add = def.tradeAdd?.[cityLevel];
-  const mult = def.tradeMult?.[cityLevel];
-  if (add != null || mult != null) {
-    return Math.round(guidePrice * (mult ?? 1) + (add ?? 0)); // 先乘再加
-  }
-  // 回退:旧 trade 公式 + CITY_LEVEL_MULTIPLIER
-  return tradePriceOf(guidePrice, def.trade, CITY_LEVEL_MULTIPLIER[cityLevel] ?? 1);
+  return Math.round(guidePrice * def.tradeMult[cityLevel] + def.tradeAdd[cityLevel]);
 }
 
 /** 初始化牌堆:展开所有珍宝为单独实例(如 荔枝 ×3 → 3 张)。 */

@@ -30,6 +30,7 @@ Authority / Room / Seat / Host / Client、锦囊与暗牌、声望与机遇等�
 ## 相关文档
 
 - ADR 索引:[`docs/adr/`](../../adr/)(规则相关:0012 决策卷轴、0013 选项集与自动执行、0016 暗牌投影、0017 非阻塞反应窗)
+- 城池经济(购价恒定与三条等级曲线的关系):[`docs/explanation/城池经济.md`](../../explanation/城池经济.md)
 - 时机框架(技能系统设计视角):[`docs/explanation/时机框架.md`](../../explanation/时机框架.md)
 - 锦囊设计(设计叙事):[`docs/explanation/锦囊设计.md`](../../explanation/锦囊设计.md)
 - 设计哲学(为何这么取舍):[`docs/explanation/设计哲学.md`](../../explanation/设计哲学.md)

@@ -76,21 +76,12 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
  * 任何城名字都只有 ~6-8px——总览不指望读字,靠「色带=区域色相 / 旗形=归属」的形状层辨认
  * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
- * large 20(×1)、medium 21(×0.9=18.9)、small 23(×0.8=18.4)——小城字号下限抬高补回缩放损失。
- * (#58 城池再放大 2.2x 后匾额字另加一档:17/18/20 → 20/21/23,≈+15%。)
+ * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;规模三档视觉通道已随经济 v2 退役)。
  */
-function NamePlaque({
-  name,
-  capital,
-  size,
-}: {
-  name: string;
-  capital: boolean;
-  size: "large" | "medium" | "small";
-}) {
+function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
   const chars = [...name].slice(0, 3); // 城名 2-3 字
   const w = capital ? 34 : 26;
-  const fs = size === "small" ? 23 : size === "medium" ? 21 : 20;
+  const fs = 20;
   const step = fs + 3; // B5:字距留缝(20→23),三字匾整体高度随之 +6
   const h = chars.length * step + 12;
   const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与色带/王旗/小旌旗重叠
@@ -330,7 +321,6 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
   const growNonce = announce?.level ?? 0;
   // 易主流光仅在有过易主宣告后渲染(开局铺盘不闪);key=nonce 每次易主重挂重播。
   const ownFlash = announce != null && announce.owner > 0 ? announce : null;
-  const sizeScale = tile.size === "small" ? 0.8 : tile.size === "medium" ? 0.9 : 1;
   const isCapital = state.capitalColorIndex != null;
   const isIconTile = tile.type in ICON_THEME;
   // 事件格外轮廓三族(#500):天命/锦囊/税关换族形,不再画通用圆角方牌
@@ -370,7 +360,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
       id={`tile-${tile.index}`}
       data-tile={tile.index}
       data-name={tile.name}
-      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${sizeScale * TILE_SCALE})`}
+      transform={`translate(${tile.position.x} ${tile.position.y}) scale(${TILE_SCALE})`}
       onClick={onClick ? () => onClick(tile.index) : undefined}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
@@ -540,7 +530,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
           <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
             {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
                 归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯风味)。 */}
-            <Building size={tile.size ?? "medium"} group={group} />
+            <Building group={group} />
           </g>
           {/* 分组色带(顶部):恒用区域色(#74,不再随持有者染玩家色)。
               B1 两级设计:总览读不了字,色带是"形状层"信号——加高一档并描深边,
@@ -577,7 +567,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             />
           ) : null}
           {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
-          <NamePlaque name={tile.name} capital={isCapital} size={tile.size ?? "medium"} />
+          <NamePlaque name={tile.name} capital={isCapital} />
           {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
               无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
               重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}

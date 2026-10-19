@@ -114,8 +114,9 @@ export function resolveTreasureOwner(
     return;
   }
   const guidePrice = guidePriceOf(owner.treasures[tIdx].level);
-  const holding = findHolding(owner, def.id);
-  const cityLevel = holding?.level ?? 0;
+  // 交涉只在他人有主城触发(movement-flow 落城结算),城主必持有该城;缺失 = 引擎状态 bug
+  const holding = findHolding(owner, def.id)!;
+  const cityLevel = holding.level;
 
   // 售价:fair=指导价;premium=坐地起价(per-level 加价/乘数)
   const price = action.type === "fair" ? guidePrice : premiumPriceOf(guidePrice, def, cityLevel);
@@ -124,7 +125,7 @@ export function resolveTreasureOwner(
 
   // 公道买卖且交易达成 → 城池 +1 级(满级封顶)。升级是对城主选择公道的奖励:
   // 挂在交易达成时(城主选定 fair 且珍宝已离手入托管),此后买家破产退宝也不回滚。
-  if (action.type === "fair" && holding && canUpgrade(holding)) {
+  if (action.type === "fair" && canUpgrade(holding)) {
     holding.level += 1;
     // 城池变更留痕(ADR-0015):公道买卖成交升级(PropertyUpgraded 另一挂点),
     // 与扩军同维度(等级变更、归属不变)
