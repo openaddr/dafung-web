@@ -1,4 +1,4 @@
-// 锦囊 bot 策略单测(#148/T6):策略表逐牌「用/不用 + 目标选择」、Simple 掺骰弃权、
+// 锦囊 bot 策略单测(#148/T6):策略表逐牌「用/不用 + 目标选择」、
 // 策略决策不掷骰。代打行为单源(#580):托管/接管代驾与 bot 同走 botAct 裸调,
 // 无独立口径,本套件的策略断言即代打口径。
 // 缝约定同 test/jinnang.test.ts
@@ -25,11 +25,10 @@ const SEATS3: SeatConfig[] = [
   { name: "C", isBot: true },
 ];
 
-function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2, difficulty?: "Simple" | "Normal") {
+function makeEngine(seed = 42, seats: SeatConfig[] = SEATS2) {
   const cfg: EngineConfig = {
     seats,
     targetNetWorth: 30000,
-    ...(difficulty ? { difficulty } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -52,8 +51,8 @@ function finishSetup(e: GameEngine) {
 }
 
 /** 开好局并清掉开局锦囊卷轴(seed 42 开局必弹),当前玩家处可测态。 */
-function prepared(seed?: number, seats?: SeatConfig[], difficulty?: "Simple" | "Normal") {
-  const e = makeEngine(seed, seats, difficulty);
+function prepared(seed?: number, seats?: SeatConfig[]) {
+  const e = makeEngine(seed, seats);
   finishSetup(e);
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
   return e;
@@ -254,36 +253,7 @@ describe("锦囊 bot 策略(#148)", () => {
     expect(["Roll", "AwaitingJinnang"]).toContain(e.turnPhase);
   });
 
-  it("Simple 难度:50% 弃权掺骰(<0.5 弃权,≥0.5 照用);同 seed 复现", () => {
-    const e = prepared(42, SEATS2, "Simple");
-    e.players[1].cash = 300;
-    armJinnang(e, ["横征暴敛"]); // 策略=必用,弃权与否全看那一掷
-    const d1 = stubDice(e, 0.1);
-    botAct(e);
-    expect(d1.calls()).toBe(1); // 恰好一掷
-    expect(e.activePlayer.jinnangHand).toEqual(["横征暴敛"]);
-    expect(e.turnPhase).toBe("Roll");
-
-    armJinnang(e, ["横征暴敛"]);
-    const d2 = stubDice(e, 0.9);
-    botAct(e);
-    expect(d2.calls()).toBe(1);
-    expect(e.activePlayer.jinnangHand).toEqual([]);
-    expect(e.players[1].cash).toBe(100);
-    expect(e.turnPhase).toBe("Roll");
-
-    // 同 seed 两次全真跑(真骰)结果一致:掺骰保确定性
-    const run = (seed: number) => {
-      const x = prepared(seed, SEATS2, "Simple");
-      x.players[1].cash = 300;
-      armJinnang(x, ["横征暴敛"]);
-      botAct(x);
-      return { hand: [...x.activePlayer.jinnangHand], phase: x.turnPhase, cash: x.players[1].cash };
-    };
-    expect(run(7)).toEqual(run(7));
-  });
-
-  it("策略决策不掷骰:Normal 各场景 nextFloat 零调用、牌库计数不变", () => {
+  it("策略决策不掷骰:各场景 nextFloat 零调用、牌库计数不变", () => {
     const scenario = (arm: (e: GameEngine) => void, tweak?: (e: GameEngine) => void) => {
       const x = prepared();
       tweak?.(x);

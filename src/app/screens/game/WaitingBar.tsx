@@ -1,5 +1,5 @@
 // G-3/16/21 统一等待状态条:本地玩家非交互时,按「谁在拖节奏」给出过程反馈。
-//   - bot 行动 →「智将运筹中…」(X7 #26:GameScreen 底部「运筹中…」角标已删,本条是唯一等待反馈)
+//   - bot 行动 →「运筹中…」(X7 #26:GameScreen 底部「运筹中…」角标已删,本条是唯一等待反馈)
 //   - 联机轮到远端人类掷骰 →「静候『魏』落子…」
 //   - 决策类相位(Awaiting* 系)轮到非本地玩家 →「『魏』正在抉择…」;
 //     破产清算相位 →「『魏』正在变卖家产…」(G-21 债权人可见对方变卖抵债)
@@ -47,7 +47,7 @@ function waitingText(
   const owner = snapshot.players[snapshot.decisionOwner];
   if (!owner) return null;
   const name = `「${owner.guohao}」`;
-  if (owner.isBot) return "智将运筹中…";
+  if (owner.isBot) return "运筹中…";
   if (online && snapshot.decisionOwner !== viewSeat) {
     // 联机远端人类:掷骰阶段=静候落子;决策相位=正在抉择(破产清算单独措辞)。
     if (snapshot.turnPhase === "AwaitingBankruptcySettle") return `${name}正在变卖家产…`;

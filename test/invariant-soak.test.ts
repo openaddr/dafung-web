@@ -1,14 +1,13 @@
 // 引擎不变量 soak(#293 Q1 / #304):GameEngine 直驱多 seed 全 bot 局,逐步断言六条
 // 引擎态不变量(现金非负 / 身价非负 / 位置合法 / 破产无残留 / 终局有 winner / 锦囊守恒),
 // 取代已删的 e2e「速战档全程驱动」(66.2s 全库最贵单例)——不变量是引擎态断言,浏览器只是
-// 昂贵的驱动器;这里秒级跑几十局(2-4 人 × Simple/Normal × 机遇产品默认档),广度反超浏览器单局。
+// 昂贵的驱动器;这里秒级跑几十局(2-4 人 × 机遇产品默认档),广度反超浏览器单局。
 // 驱动范式:选都 aiSetupStep + 对局 botAct 循环,全 bot 局
 // 决策方恒为 bot(AwaitingReaction 反应窗 bot 即席代答,相位不外显)。
 // 步数 guard 打满仍未终局 → isOver 断言当场失败(零兜底:僵局就是要炸出来的 bug)。
 import { describe, it, expect, afterAll } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
-import type { AiDifficulty } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { netWorth } from "@core/networth";
@@ -24,7 +23,7 @@ const TARGET = 15000;
 const STEP_LIMIT = 20_000;
 const SEEDS = Array.from({ length: 24 }, (_, i) => i + 1);
 
-function makeEngine(seed: number, seatCount: number, difficulty: AiDifficulty): GameEngine {
+function makeEngine(seed: number, seatCount: number): GameEngine {
   const seats: SeatConfig[] = Array.from({ length: seatCount }, (_, i) => ({
     name: `Bot${i + 1}`,
     isBot: true,
@@ -32,7 +31,6 @@ function makeEngine(seed: number, seatCount: number, difficulty: AiDifficulty): 
   const cfg: EngineConfig = {
     seats,
     targetNetWorth: TARGET,
-    difficulty,
     encounter: ENCOUNTER_PRODUCT_DEFAULTS, // 产品默认 40%:机遇抉择/银两转移路径纳入巡检
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
@@ -116,9 +114,8 @@ afterAll(() => {
 describe("引擎不变量 soak:GameEngine 直驱多 seed 全 bot 局(#304)", () => {
   for (const seed of SEEDS) {
     const seatCount = 2 + (seed % 3); // 2/3/4 人轮转
-    const difficulty: AiDifficulty = seed % 2 === 0 ? "Normal" : "Simple";
-    it(`seed ${seed}(${seatCount}人 ${difficulty}):六不变量逐步成立,终局有胜者`, () => {
-      const e = makeEngine(seed, seatCount, difficulty);
+    it(`seed ${seed}(${seatCount}人):六不变量逐步成立,终局有胜者`, () => {
+      const e = makeEngine(seed, seatCount);
       driveSetup(e);
       const t0 = e.turnNumber;
       driveToOver(e, `seed=${seed}`);

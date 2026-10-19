@@ -12,7 +12,7 @@
 // bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
 // 对象注入宿主操作面,投影消费方直引 seat-projection.ts(不留再导出转接层)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
-import type { AiDifficulty, GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
+import type { GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterConfig } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
@@ -447,7 +447,6 @@ export class RoomRegistry {
         seats: seatsCfg,
         seed: room.hostConfig.seed,
         targetNetWorth: room.hostConfig.target,
-        difficulty: room.hostConfig.difficulty,
         mapId: room.mapId!,
         // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
         // 引擎侧归一/回退单源 resolveEncounterConfig;undefined = 机遇关(缺省注入)。
@@ -806,6 +805,3 @@ export class RoomError extends Error {
     this.name = "RoomError";
   }
 }
-
-// ──────────────────────────── 类型再导出(供 server.ts 用)────────────────────────────
-export type { AiDifficulty };

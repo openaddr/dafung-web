@@ -8,7 +8,6 @@ import { resolve } from "node:path";
 import type { GameEngine } from "../src/core/authority";
 import type { SeatConfig } from "../src/core/authority";
 import type { GameCommand } from "../src/core/authority";
-import type { AiDifficulty } from "../src/core/authority";
 import {
   ENCOUNTER_PRODUCT_DEFAULTS,
   parseEncounterFile,
@@ -79,12 +78,6 @@ function intFlag(flags: Record<string, string>, key: string): number | undefined
   return parseInt(flags[key], 10);
 }
 
-function parseDifficulty(v: string): AiDifficulty {
-  if (v !== "Simple" && v !== "Normal")
-    throw new Error(`--difficulty 只收 Simple|Normal,收到:${v}`);
-  return v;
-}
-
 /** --encounter 解析:"jiyu" = 产品默认配置(public/config/jiyu.json);其余按路径读。
  *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇配置是重放要素(触发判定消耗
  *  骰流),坏配置不许静默降级。 */
@@ -112,7 +105,6 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   // 地图:--map <id>,缺省 = 内置清单首项;未知 id 由 loadBuiltinMapById 抛错
   const mapId = flags.map ?? builtinMapCatalog()[0].id;
   const map = loadBuiltinMapById(mapId);
-  const difficulty = flags.difficulty !== undefined ? parseDifficulty(flags.difficulty) : undefined;
   // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认档(ENCOUNTER_PRODUCT_DEFAULTS,
   // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 triggerRate=0 恒关,CLI 对局要与
   // 产品同源可触发机遇。
@@ -134,7 +126,6 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
     targetNetWorth: target,
     ...(seed !== undefined && { seed }),
     ...(startingCash !== undefined && { startingCash }),
-    ...(difficulty !== undefined && { difficulty }),
     mapId,
     encounter,
     ...(reactionWindowMs !== undefined && { reactionWindowMs }),
@@ -221,7 +212,7 @@ function main(): void {
           {
             commands: {
               "new [--seats N] [--bot 0,1] [--seed S] [--target T]":
-                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --difficulty Simple|Normal / --starting-cash N / --encounter jiyu|<路径>(缺省=产品默认档)/ --reaction-window-ms N",
+                "开新局;参数面:--map <id>(缺省=内置清单首项)/ --starting-cash N / --encounter jiyu|<路径>(缺省=产品默认档)/ --reaction-window-ms N",
               "auto-setup": "自动跑选都到 Playing",
               auto: "连续驱动 bot 决策,直到轮到人类(stoppedBy=human)/终局(over)/无进展(idle)",
               "run-to-end": "全 bot 局一键跑完到终局(任一座位非 bot 即抛错)",

@@ -121,7 +121,6 @@ export interface EngineConfig {
   seats: SeatConfig[];
   targetNetWorth?: number; // 默认 30000
   startingCash?: number; // 默认 10000
-  difficulty?: AiDifficulty; // 默认 Normal
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
@@ -153,8 +152,6 @@ export type TurnPhase =
   | "Land"
   | "EndTurn"
   | "GameOver";
-
-export type AiDifficulty = "Simple" | "Normal";
 
 export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding";
 
@@ -257,7 +254,6 @@ export class GameEngine {
   readonly players: Player[];
   readonly targetNetWorth: number;
   readonly startingCash: number;
-  readonly difficulty: AiDifficulty;
   /** 地图 id(ADR-0014 局头要素;来自 EngineConfig,空串=非清单地图如编辑器试玩)。 */
   readonly mapId: string;
   /** 初始骰子种子(构造时的 rng 状态 = 有效种子,无论显式注入还是随机生成);
@@ -425,7 +421,6 @@ export class GameEngine {
     this.dice = dice;
     this.targetNetWorth = config.targetNetWorth ?? DEFAULT_TARGET;
     this.startingCash = config.startingCash ?? DEFAULT_CASH;
-    this.difficulty = config.difficulty ?? "Normal";
     this.mapId = config.mapId ?? "";
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = resolveEncounterConfig(config.encounter);
@@ -473,7 +468,6 @@ export class GameEngine {
         gameId: this.gameId,
         mapId: this.mapId,
         seed: this.seed,
-        difficulty: this.difficulty,
         targetNetWorth: this.targetNetWorth,
         startingCash: this.startingCash,
         startedAt: Date.now(),

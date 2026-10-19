@@ -6,7 +6,6 @@ export const TID = {
   backTop: "setup-back-top",
   seatCount: "setup-seat-count",
   target: "setup-target",
-  difficulty: "setup-difficulty",
   /** 座位行(N = 0 起的座位下标;0 = 真人,其余 bot)。 */
   seatRow: (n: number) => `setup-seat-${n}`,
   seatGuohaoInput: (n: number) => `setup-seat-${n}-guohao`,

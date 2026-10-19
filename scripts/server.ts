@@ -37,7 +37,7 @@ import {
   unlinkSync,
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
-import type { AiDifficulty, TurnPhase } from "../src/core/authority";
+import type { TurnPhase } from "../src/core/authority";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { EventBatchChannel } from "./event-batch";
@@ -482,7 +482,7 @@ const HELP = {
     "GET /health": "存活 + 运行时长 + 房间数",
     "GET /help": "本接口列表",
     "POST /room/new":
-      "建房 body:{seats,bot?,seed?,target?,difficulty?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
+      "建房 body:{seats,bot?,seed?,target?,guohao?} → {seat:0,seatToken,...lobby}(mapId=null;guohao=host 预设国号)",
     "POST /room/join":
       "入座 body:{roomId,guohao?} → {seat,seatToken,...lobby}(guohao=预设国号,重名开局时加方位前缀)",
     "POST /room/map": "host 选图 body:{roomId,seatToken,mapId} → {...lobby}(仅 host,开局前)",
@@ -570,14 +570,9 @@ async function handle(req: Request): Promise<Response> {
         .map((s) => parseInt(s, 10))
         .filter((n) => Number.isInteger(n) && n >= 0 && n < seatCount),
     );
-    const difficulty = obj.difficulty as AiDifficulty | undefined;
-    if (difficulty != null && difficulty !== "Simple" && difficulty !== "Normal") {
-      throw httpError(400, "difficulty 只能是 Simple | Normal");
-    }
     const hostConfig: HostConfig = {
       seed: obj.seed != null ? intField(obj, "seed", 0) : undefined,
       target: obj.target != null ? intField(obj, "target", 0) : undefined,
-      difficulty,
     };
     // 国号可选(R3-D1 #99):带上则作为 host(seat0)预设,开局时与房间内其它座位去重(对照 /room/join)
     const guohao = obj.guohao == null ? undefined : String(obj.guohao);

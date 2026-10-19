@@ -42,7 +42,6 @@ export interface SetupConfig {
   seats: SeatConfig[];
   targetNetWorth: number;
   startingCash: number;
-  difficulty: "Simple" | "Normal";
   /** 选中的地图 id(延迟加载:起兵时才 loadMapById,与旧行为一致)。 */
   mapId: string;
   /** 骰子种子(可选,注入 EngineConfig)。 */
@@ -83,7 +82,6 @@ export function SoloSetupScreen({
 }: SoloSetupScreenProps) {
   const [seatCount, setSeatCount] = useState(4);
   const [target, setTarget] = useState(30000);
-  const [difficulty, setDifficulty] = useState<"Simple" | "Normal">("Normal");
   // 单机模式仅首行可编:真人国号默认读上次起兵用的国号(localStorage 无记录则「魏」);bot 国号引擎分配
   const [guohao, setGuohao] = useState(() => localStorage.getItem(GUOHAO_PREF_KEY) ?? "魏");
   // S-8:hint 只承载错误提示(装饰文案上移副标题);null = 无错不渲染
@@ -140,7 +138,6 @@ export function SoloSetupScreen({
         seats,
         targetNetWorth: target,
         startingCash: STARTING_CASH,
-        difficulty,
         mapId: currentMap,
         // 机遇四值原值透传(设置屏不归一;引擎 resolveEncounterConfig 负责夹紧/归一/回退)
         encounter: toEncounterConfig(encounter),
@@ -215,31 +212,16 @@ export function SoloSetupScreen({
             #559:诸侯数与 AI 难度(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高,
             「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读 */}
           <div className="su-controls flex flex-col gap-2 font-deco text-sm text-ink mb-3">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="flex flex-col gap-1">
-                <span>诸侯数</span>
-                <Stepper
-                  testid={TID.seatCount}
-                  ariaLabel="诸侯数"
-                  value={seatCount}
-                  min={2}
-                  max={8}
-                  onChange={setSeatCount}
-                />
-              </div>
-              <div className="flex flex-col gap-1">
-                <span>AI 难度</span>
-                <SegmentedSelect
-                  testid={TID.difficulty}
-                  ariaLabel="AI 难度"
-                  value={difficulty}
-                  onChange={setDifficulty}
-                  options={[
-                    { value: "Normal", label: "智将(EV)" },
-                    { value: "Simple", label: "庸才(随机)" },
-                  ]}
-                />
-              </div>
+            <div className="flex flex-col gap-1">
+              <span>诸侯数</span>
+              <Stepper
+                testid={TID.seatCount}
+                ariaLabel="诸侯数"
+                value={seatCount}
+                min={2}
+                max={8}
+                onChange={setSeatCount}
+              />
             </div>
             <div className="flex flex-col gap-1">
               <span>目标身价</span>

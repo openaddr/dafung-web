@@ -1,4 +1,4 @@
-// AI 诸侯:回合 EV 决策(抽签/买/升级/抉择机遇/锦囊),Simple/Normal 两档。
+// AI 诸侯:回合 EV 决策(抽签/买/升级/抉择机遇/锦囊),单档(#613 难度系统退役)。
 // 选都决策在 GameEngine.aiChooseCapital。经过都城必停由引擎 rollAndMove 直接结算,无 bot 抉择点。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { Player } from "./model";
@@ -352,8 +352,8 @@ function commitHeroSkillTargets(engine: GameEngine, skillId: string): boolean {
  *  = 可用锦囊 + 就绪主动技,按窗口顺序逐项过策略表,取第一张「值得用」的;锦囊指向域
  *  提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能目标段同构。用一项后引擎
  *  可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;tried 挡作罢-重选死循环,
- *  guard 兜底。Simple 难度掺骰 50% 弃权(确定性:同 seed 同掷)。 */
-function driveJinnang(engine: GameEngine, simple: boolean): void {
+ *  guard 兜底。 */
+function driveJinnang(engine: GameEngine): void {
   const tried = new Set<string>();
   if (engine.pendingJinnang) {
     // 中途接管:上一调用停在锦囊目标段,先续推完这一张
@@ -383,10 +383,6 @@ function driveJinnang(engine: GameEngine, simple: boolean): void {
       engine.resolveJinnang(null);
       break;
     }
-    if (simple && engine.dice.nextFloat() < 0.5) {
-      engine.resolveJinnang(null); // Simple 50% 弃权
-      break;
-    }
     tried.add(chosen.id);
     if (chosen.skillId != null) {
       engine.resolveHeroSkill(chosen.skillId); // other/any 域 → 入目标段;none 域 → 直接执行
@@ -403,7 +399,6 @@ function driveJinnang(engine: GameEngine, simple: boolean): void {
 export function botAct(engine: GameEngine): void {
   beginGameEventBatch(engine); // 事件流(#375):bot 步=一次转移,入口开新批(与 submitCommand 同批界纪律)
   const p = engine.activePlayer;
-  const simple = engine.difficulty === "Simple";
 
   switch (engine.turnPhase) {
     case "Roll":
@@ -416,15 +411,11 @@ export function botAct(engine: GameEngine): void {
       const avail = engine.choicesFor().filter((o) => o.available);
       const def = engine.pendingLand != null ? engine.pendingLandDef() : null; // 决策上下文(spec #107 C2)
       if (avail.some((o) => o.id === "buy") && def) {
-        const want =
-          p.cash > def.purchasePrice * 1.5 && (simple ? engine.dice.nextFloat() < 0.5 : true);
-        if (want) engine.buyProperty();
+        if (p.cash > def.purchasePrice * 1.5) engine.buyProperty();
         else engine.endDecision();
       } else if (avail.some((o) => o.id === "upgrade")) {
-        // 扩军免费:未满级即升(Simple 保留随机性情;满级已被引擎自动按兵不动)
-        const want = simple ? engine.dice.nextFloat() < 0.75 : true;
-        if (want) engine.upgradeProperty();
-        else engine.endDecision();
+        // 扩军免费:未满级即升(满级已被引擎自动按兵不动)
+        engine.upgradeProperty();
       } else {
         engine.endDecision();
       }
@@ -434,7 +425,7 @@ export function botAct(engine: GameEngine): void {
     case "AwaitingJinnang": {
       // 出牌阶段(#122/T2 → #148/T6 策略 → #188 档 3 并入主动技):按策略表(§8)经
       // driveJinnang 推进——bot/托管/接管同一套(#580 行为单源)。
-      driveJinnang(engine, simple);
+      driveJinnang(engine);
       break;
     }
 
@@ -462,7 +453,7 @@ export function botAct(engine: GameEngine): void {
     case "AwaitingEncounter": {
       // 抉择机遇(#124):立即净值贪心——score = 选项 effect 银两影响 + repDelta × 声望折银
       // 系数(repCoefficient(decisionOwner),不同 bot 性格不同)。确定性:不掷骰,同分取
-      // 目录序在前者。Simple/Normal 同策略:一次性小事件不值得两档启发式。选项集先经
+      // 目录序在前者。选项集先经
       // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
       const enc = engine.pendingEncounter;
       if (!enc || !enc.choices)
@@ -486,9 +477,8 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingTreasureOwner": {
-      // bot 城主:公道买卖(指导价)/坐地起价(加价)/跳过。
-      //  Normal:高等级珍宝(≥6)溢价卖,低等级公道卖,偶尔(20%)跳过。
-      //  Simple:随机 fair/premium/skip。
+      // bot 城主:公道买卖(指导价)/坐地起价(加价)/跳过——高等级珍宝(≥6)溢价卖,
+      // 低等级公道卖,偶尔(20%)跳过。
       const owner = engine.players[engine.treasureVisitor?.ownerIdx ?? 0];
       const treasures = owner.treasures;
       if (treasures.length === 0) {
@@ -496,14 +486,6 @@ export function botAct(engine: GameEngine): void {
         break;
       }
       const pick = treasures[Math.floor(engine.dice.nextFloat() * treasures.length)];
-      if (simple) {
-        const r = engine.dice.nextFloat();
-        if (r < 0.34) engine.resolveTreasureOwner({ type: "fair", treasureId: pick.id });
-        else if (r < 0.68) engine.resolveTreasureOwner({ type: "premium", treasureId: pick.id });
-        else engine.resolveTreasureOwner({ type: "skip" });
-        break;
-      }
-      // Normal
       if (engine.dice.nextFloat() < 0.2) {
         engine.resolveTreasureOwner({ type: "skip" });
         break;
