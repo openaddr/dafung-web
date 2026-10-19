@@ -6,10 +6,13 @@
 //   - 远端分支删除与 jj 远端账本不同步,删后同名书签 `jj git push` 报「Nothing changed」拒推——换名书签重开,
 //     本脚本管不到历史账本,但保证新收口不再产生这种残局。
 //   - 并行会话落票把 master 推前,DIRTY 拖到合并才暴露 = 回溯重定基——push 前强制 check:freshness(红即停)。
+//   - workspace 收工即删,主树 @ 无人前移,游玩线一 build 就是旧代码(2026-10-19 实锤)——
+//     合并验证后自动收账:move master 书签 + 主树空停靠的 @ 前移(有活不动)。
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
+import * as path from "node:path";
 
 function jj(...args: string[]): string {
   const proc = Bun.spawnSync(["jj", ...args], { stdout: "pipe", stderr: "pipe" });
@@ -169,6 +172,79 @@ if (localDelete.exitCode !== 0) {
     );
   }
 }
-console.log(
-  `[pr-merge] #${prNumber} 收口完成。主线收账两步:jj git fetch → jj bookmark move master --to master@origin → jj new master`,
-);
+// 6) 自动收账(合入即主树前移,AGENTS 版本协作的唯一 @ 例外):fetch → move 本地
+//    master 书签 → 把主树(default 工作区)空停靠的 @ 前移到新 master。守卫:主树 @
+//    有活(OCCUPIED)一律不动——「收账防折写」禁令的核心原样保留,让给在场会话;
+//    已停靠 master 则幂等跳过。任一步失败只警告不退出:合并已验证,收账残留不碍收口
+//    (与删分支步同口径),手动补两条 = jj bookmark move master --to master@origin +
+//    回主树 jj new master。
+const fetched = Bun.spawnSync(["jj", "git", "fetch"], {
+  stdout: "inherit",
+  stderr: "inherit",
+});
+if (fetched.exitCode !== 0) {
+  console.warn(
+    "[pr-merge] jj git fetch 失败——跳过自动收账(手动:fetch → move master → 回主树 jj new master)",
+  );
+} else {
+  const moved = Bun.spawnSync(["jj", "bookmark", "move", "master", "--to", "master@origin"], {
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  if (moved.exitCode !== 0) {
+    console.warn(
+      `[pr-merge] master 书签移动失败(可手动 jj bookmark move master --to master@origin):${new TextDecoder().decode(moved.stderr).trim()}`,
+    );
+  }
+  // 主树定位:default 工作区路径(jj workspace list 逐行「<名>: <路径> <change> …」;
+  // 相对路径相对当前 workspace root,在主树里跑时为「.」)
+  const mainLine = jj("workspace", "list")
+    .split("\n")
+    .find((l) => l.startsWith("default:"));
+  const mainRel = mainLine?.split(/\s+/)[1];
+  if (!mainRel) {
+    console.warn("[pr-merge] workspace list 无 default 工作区——跳过主树停靠前移");
+  } else {
+    const mainTree = path.resolve(jj("root"), mainRel);
+    const jjAt = (rev: string, template: string) =>
+      Bun.spawnSync(["jj", "log", "-r", rev, "--no-graph", "-T", template], {
+        cwd: mainTree,
+        stdout: "pipe",
+        stderr: "pipe",
+      });
+    const occupancy = jjAt("@", 'if(empty, "EMPTY", "OCCUPIED")');
+    if (occupancy.exitCode !== 0) {
+      console.warn(
+        `[pr-merge] 主树状态探测失败(可手动回主树 jj new master):${new TextDecoder().decode(occupancy.stderr).trim()}`,
+      );
+    } else if (new TextDecoder().decode(occupancy.stdout).trim() !== "EMPTY") {
+      console.warn("[pr-merge] 主树 @ 有活——不动,让给在场会话;游玩/构建前自行回主树 jj new master");
+    } else {
+      const docked = jjAt("@-", "change_id.short()");
+      const atMaster = Bun.spawnSync(
+        ["jj", "log", "-r", "master", "--no-graph", "-T", "change_id.short()"],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      if (
+        docked.exitCode === 0 &&
+        atMaster.exitCode === 0 &&
+        new TextDecoder().decode(docked.stdout).trim() ===
+          new TextDecoder().decode(atMaster.stdout).trim()
+      ) {
+        console.log("[pr-merge] 主树已停靠新 master,跳过前移");
+      } else {
+        const dock = Bun.spawnSync(["jj", "new", "master"], {
+          cwd: mainTree,
+          stdout: "inherit",
+          stderr: "inherit",
+        });
+        console.log(
+          dock.exitCode === 0
+            ? "[pr-merge] 主树已前移停靠新 master(空 @ 自动收账)"
+            : "[pr-merge] 主树停靠前移失败(可手动回主树 jj new master)",
+        );
+      }
+    }
+  }
+}
+console.log(`[pr-merge] #${prNumber} 收口完成。`);

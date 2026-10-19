@@ -133,6 +133,17 @@ if (existsSync(".git")) {
         `workspace:jj workspace add ../dafung-web-ws-<代号>(AGENTS.md 版本协作);` +
         `收账/收口的 jj new master 也到自己 workspace 跑`,
     );
+  } else {
+    // 空停靠基线滞后检查(2026-10-19:pr-merge 收口尾步常态自愈;网页合并/脚本外收口
+    // 会漂)。只警告不失败:空 @ 修复 = 一条 jj new master,快查语境失败过重;但滞后
+    // 会让主树 build/游玩拿到旧代码(2026-10-19 实锤),必须点名。
+    const behindMaster = countRev(`::(master@origin) & ~::@`);
+    if (behindMaster > 0) {
+      console.warn(
+        `[freshness] ⚠ 主树空停靠在落后 origin/master ${behindMaster} 个提交的基线上——` +
+          `主树 build/游玩会拿到旧代码;回主树 jj new master 前移(pr-merge 收口尾步会自动做)`,
+      );
+    }
   }
 }
 
