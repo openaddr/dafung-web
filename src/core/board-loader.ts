@@ -4,7 +4,7 @@
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
 import { createBoard, isCityType } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
-import type { PropertyDef, TradeFormula } from "./economy";
+import type { PropertyDef } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
 
@@ -29,13 +29,12 @@ export interface MapTile {
   buildCost?: number;
   /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
   valueByLevel?: number[];
-  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。 */
-  tradeAdd?: number[];
-  /** 坐地起价乘数(per-level):与 PropertyDef 同义。 */
-  tradeMult?: number[];
+  /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
+  tradeAdd: number[];
+  /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
+  tradeMult: number[];
   /** 都城补给/级(分):内置地图逐城显式声明;缺省回退地图顶层 resupplyPerLevel(自定义地图用)。 */
   resupplyPerLevel?: number;
-  trade?: TradeFormula;
 }
 
 const SUPPORTED_VERSION = 1;
@@ -90,19 +89,9 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const pos: BoardPos = { x: t.pos[0], y: t.pos[1] };
     positions.push(pos);
     const type = (t.type ?? "Property") as TileDef["type"];
-    // 宝物城与普通城池同权(ADR-0024):propertyId / 都城候选 / size 推断同口径,
+    // 宝物城与普通城池同权(ADR-0024):propertyId / 都城候选同口径,
     // catalog 入册与校验同一路径(见下方 properties 段)。
     const isCity = isCityType(type);
-    // 城池规模(Lv0 价值推断):≥20 大重镇 / ≥10 中 / <10 小;非城池格无 size
-    const value = t.valueByLevel;
-    const size: TileDef["size"] =
-      isCity && value
-        ? value[0] >= 20
-          ? "large"
-          : value[0] >= 10
-            ? "medium"
-            : "small"
-        : undefined;
     return {
       index: i,
       type,
@@ -111,7 +100,6 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       propertyId: isCity ? t.id : null,
       isCapitalEligible: isCity,
       region: t.region ?? null,
-      size,
     };
   });
 
@@ -134,6 +122,12 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     if (!Array.isArray(values) || values.length !== maxLevel + 1) {
       fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
     }
+    if (!Array.isArray(t.tradeAdd) || t.tradeAdd.length !== maxLevel + 1) {
+      fail(`第 ${i + 1} 城 tradeAdd 必配且长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
+    }
+    if (!Array.isArray(t.tradeMult) || t.tradeMult.length !== maxLevel + 1) {
+      fail(`第 ${i + 1} 城 tradeMult 必配且长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);
+    }
     if ((t.price ?? 0) < 0 || (t.buildCost ?? 0) < 0) {
       fail(`第 ${i + 1} 城价格/buildCost 不能为负`);
     }
@@ -147,7 +141,6 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       resupplyPerLevel: t.resupplyPerLevel ?? resupply, // 逐城显式优先;缺省回退地图顶层(自定义地图)
       tradeAdd: t.tradeAdd,
       tradeMult: t.tradeMult,
-      trade: t.trade,
     });
   });
 

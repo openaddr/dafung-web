@@ -1,10 +1,10 @@
 // 经济数值 v2 一致性守卫:两张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
 // buildCost/resupplyPerLevel 必须严格落在其价位档的标准值上(乘法城另表),
-// 珍宝指导价表/等级倍率/引擎默认值一并锁定——防手改地图数值漂移。
+// 珍宝指导价表一并锁定——防手改地图数值漂移。
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
 import { isCityType } from "@core/board";
-import { TREASURE_PRICE, CITY_LEVEL_MULTIPLIER } from "@core/treasures";
+import { TREASURE_PRICE } from "@core/treasures";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import huanyouData from "../public/maps/huanyou.json";
 
@@ -161,8 +161,5 @@ describe("经济数值 v2 守卫", () => {
       9: 2200,
       10: 3000,
     });
-  });
-  it("城池等级倍率(v2):L0 起步 ×1.5", () => {
-    expect(CITY_LEVEL_MULTIPLIER).toEqual([2, 3, 4, 5]);
   });
 });

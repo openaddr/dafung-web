@@ -30,8 +30,8 @@ export interface TreasureVisitorScrollProps {
   tileName: string;
   /** 城主持有的珍宝(快照展示子集;价格由 level 经 guidePriceOf/premiumPriceOf 推导)。 */
   treasures: SnapshotTreasure[];
-  /** 交涉城的完整定义:premiumPriceOf 的定价输入(tradeAdd/tradeMult/trade)整只随城走,
-   *  不挑字段——挑着传必以漏传收场,旧公式地图上报价就偏离引擎入账。 */
+  /** 交涉城的完整定义:premiumPriceOf 的定价输入(tradeAdd/tradeMult)整只随城走,
+   *  不挑字段——挑着传必以漏传收场,报价偏离引擎入账。 */
   property: PropertyDef;
   cityLevel: number;
   onCommand: (cmd: GameCommand) => void;

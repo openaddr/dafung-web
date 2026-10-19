@@ -15,19 +15,10 @@ export interface PropertyDef {
   valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
   resupplyPerLevel: number; // 普通城为 0
-  /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
-  tradeAdd?: number[];
-  /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。 */
-  tradeMult?: number[];
-  /** 旧贸易公式(向后兼容):premiumPriceOf 无 tradeAdd/tradeMult 时回退到此 × CITY_LEVEL_MULTIPLIER。 */
-  trade?: TradeFormula;
-}
-
-/** 旧贸易公式(向后兼容;新字段 tradeAdd/tradeMult):multiply=翻倍(指导价×param×等级倍率);markup=加价(指导价+param×等级倍率)。
- *  新字段 tradeAdd/tradeMult(per-level)优先;此字段仅作回退。 */
-export interface TradeFormula {
-  type: "multiply" | "markup";
-  param: number;
+  /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。地图逐城必配,长度由 loadMap 校验。 */
+  tradeAdd: number[];
+  /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):同上公式。地图逐城必配,长度由 loadMap 校验。 */
+  tradeMult: number[];
 }
 
 /** 交易结果(判别联合):Ok/AlreadyMaxLevel 恒带 newLevel(等级口径唯一出处),

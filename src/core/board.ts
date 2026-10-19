@@ -25,7 +25,6 @@ export interface TileDef {
   isCapitalEligible: boolean;
   region: string | null;
   waypoints?: BoardPos[]; // 可选:主路该 tile 入边手配途经点(预留,默认自动避城)
-  size?: "large" | "medium" | "small";
 }
 
 /** 移动路径。Traversed=真实 tile 索引;Waypoints=动画途经位置(避城弧线)。 */

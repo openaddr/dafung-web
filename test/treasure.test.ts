@@ -4,14 +4,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
-import {
-  TREASURE_PRICE,
-  CITY_LEVEL_MULTIPLIER,
-  TREASURES,
-  createTreasureDeck,
-  premiumPriceOf,
-  tradePriceOf,
-} from "@core/treasures";
+import { TREASURE_PRICE, TREASURES, createTreasureDeck, premiumPriceOf } from "@core/treasures";
 import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
@@ -166,19 +159,6 @@ describe("珍宝系统", () => {
     expect(priceL0).toBe(guide * 2);
     expect(priceL3).toBe(guide * 5);
     expect(priceL3).toBeGreaterThan(priceL0);
-  });
-
-  it("premiumPriceOf:无 tradeAdd/tradeMult 时回退旧 trade 公式 + CITY_LEVEL_MULTIPLIER", () => {
-    const guide = 1000;
-    // multiply(2) + Lv0(下标 = 等级)
-    const p0 = premiumPriceOf(guide, { trade: { type: "multiply", param: 2 } }, 0);
-    expect(p0).toBe(guide * 2 * CITY_LEVEL_MULTIPLIER[0]);
-    // markup(300) + Lv1
-    const p1 = premiumPriceOf(guide, { trade: { type: "markup", param: 300 } }, 1);
-    expect(p1).toBe(guide + 300 * CITY_LEVEL_MULTIPLIER[1]);
-    // 都没设:tradePriceOf 默认 ×1.5
-    const p2 = premiumPriceOf(guide, {}, 0);
-    expect(p2).toBe(tradePriceOf(guide, undefined, CITY_LEVEL_MULTIPLIER[0]));
   });
 
   it("跳过:不交易,无珍宝/资金变化,结束回合", () => {

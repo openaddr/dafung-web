@@ -271,5 +271,5 @@ function label(i: number) {
 }
 function kindOf(t: MapTile): string {
   if ((t.type ?? "Property") !== "Property") return String(t.type);
-  return (t.tradeAdd ?? []).length > 0 && t.tradeAdd!.every((v) => v === 0) ? "乘法城" : "加法城";
+  return t.tradeAdd.every((v) => v === 0) ? "乘法城" : "加法城";
 }
