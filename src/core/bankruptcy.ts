@@ -306,6 +306,7 @@ export function confirmBankruptcySettle(g: GameEngine): void {
   if (g.treasureVisitor) g.treasureVisitor = null;
   if (p.cash >= debt.amount) {
     p.cash -= debt.amount;
+    const escrow = g.escrowTreasure; // 非空 ⟺ 本笔债即珍宝价款(玩家间债唯一入口=resolveTreasureOwner 挂起)
     if (debt.creditor) {
       debt.creditor.cash += debt.amount;
       g.dispatchMoment("CashGained", {
@@ -318,12 +319,28 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     // 现金额派发(曹丕渔利等 CashLost 监听方三路径行为一致);破产分支为资产转移(非
     // 现金支出),不派发。
     g.dispatchMoment("CashLost", { subject: g.activeIndex, amount: debt.amount });
+    // #617:清偿即买家现金支出,bkConfirm 挂 amount 作对账锚点(通用债同口径)
     g.logEvent(
       "system",
       p.guohao,
       `${p.guohao} 清偿债务 ${formatMoney(debt.amount)},转危为安`,
       `bkConfirm player=${p.id} paid=${debt.amount}`,
+      -debt.amount,
     );
+    if (escrow) {
+      // #617 清算成交补卖家收款行(与直付成交卖家行同形,amount=+price)。fair/premium 以
+      // 价款对指导价判定:escrow 只存价款,premium 恒溢价(坐地起价无平价参数),公平——
+      // 若未来地图配出平价 premium,此处标签失真属配置边角,价格数字仍准。
+      const seller = g.players[escrow.sellerIdx];
+      const fair = escrow.price === guidePriceOf(escrow.treasure.level);
+      g.logEvent(
+        "trade",
+        seller.guohao,
+        `${seller.guohao} ${fair ? "公道买卖" : "坐地起价"}「${escrow.treasure.name}」给 ${p.guohao},售价 ${formatMoney(escrow.price)}`,
+        `treasure${fair ? "Fair" : "Premium"} owner=${seller.id} visitor=${p.id} treasure=${escrow.treasure.id} level=${escrow.treasure.level} price=${escrow.price} bankrupt=false`,
+        escrow.price,
+      );
+    }
   } else {
     settleDebtTraced(g, p, debt.creditor, debt.amount);
     finalizeBankruptcy(g, p, debt.creditor);
