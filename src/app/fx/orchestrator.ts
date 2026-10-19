@@ -80,10 +80,6 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         // 落格定音(S7):金圈一拍,同步下发 CSS 自走。
         sink.landPulse(ev.tileIndex);
         break;
-      case "duelStamps":
-        // 拼点双印(S7):音画错拍由 sink 编排(同步下发),不占编排时长。
-        sink.stampDuel(ev);
-        break;
       case "duelSigns":
         // 拼点签面(#637,ADR-0030):全屏多签演出整场,await 到收口——串行编排
         // 保证签面收场后棋盘后效(止步/续走/银两浮字)才登场。

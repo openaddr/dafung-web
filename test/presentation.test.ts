@@ -372,7 +372,7 @@ describe("事件→动效映射表(合成批)", () => {
     expect(floater).toMatchObject({ amount: -50, coins: false });
   });
 
-  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 拼点双印得半);traded/bankrupt/gameOver 直通", () => {
+  it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 探宝拼点得半);traded/bankrupt/gameOver 直通", () => {
     const e = E();
     const gain = synth(e, [
       { kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" },
@@ -575,7 +575,7 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     else throw new Error("assetTransferred 应产易主宣告");
   });
 
-  it("reactionFailed:拼点双印(S7)双骰点印+合印,文案浮字锚拦检城(缺口 5)", () => {
+  it("reactionFailed:文案浮字「拦检失败」锚拦检城,不带点数括注(点数只落拼点签面,ADR-0030)", () => {
     const e = E();
     const out = synth(e, [
       {
@@ -600,29 +600,19 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       },
     ]);
     const pos = e.board.positionOf(5);
-    // 负局:双骰点印(2 对 5)→ 合「失」印;平局:金「平」印(#492 平局诚实呈现)
+    // 平/负同文案:骰面信息全在拼点签面(duelResolved 直译),浮字不落第二处
     expect(out[0]).toEqual({
-      kind: "duelStamps",
-      tileIndex: 5,
+      kind: "textFloat",
+      playerId: e.players[1].id,
+      text: "拦检失败",
       x: pos.x,
       y: pos.y,
-      a: 2,
-      b: 5,
-      verdict: "lose",
-    });
-    expect(out[2]).toEqual({
-      kind: "duelStamps",
-      tileIndex: 5,
-      x: pos.x,
-      y: pos.y,
-      a: 3,
-      b: 3,
-      verdict: "tie",
+      atTile: 5,
     });
     expect(out[1]).toEqual({
       kind: "textFloat",
       playerId: e.players[1].id,
-      text: "拦检失败(掷 2 对 5)",
+      text: "拦检失败",
       x: pos.x,
       y: pos.y,
       atTile: 5,
@@ -1116,12 +1106,11 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     ]);
   });
 
-  it("S7 演出直通 sink:landPulse/duelStamps/haltBanner/bankruptCeremony(memorySink 录制)", async () => {
+  it("S7 演出直通 sink:landPulse/haltBanner/bankruptCeremony(memorySink 录制)", async () => {
     const sink = createMemorySink();
     await present(
       [
         { kind: "landPulse", tileIndex: 3 },
-        { kind: "duelStamps", tileIndex: 5, x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
         { kind: "haltBanner", playerId: "p1", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
         { kind: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
       ],
@@ -1129,7 +1118,6 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     );
     expect(sink.calls).toEqual([
       { op: "landPulse", tileIndex: 3 },
-      { op: "duel", x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
       { op: "haltBanner", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
       { op: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
     ]);

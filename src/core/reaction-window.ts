@@ -632,14 +632,14 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
     return;
   }
   // 平/负:拦检失败,牌白耗(已扣),行人照常续走
-  g.pushFloaterText(owner, `拦检失败(掷 ${duel.aRoll} 对 ${duel.bRoll})`, payload.tileIndex);
+  g.pushFloaterText(owner, "拦检失败", payload.tileIndex);
   emitGameEvent(g, play.seat, {
     kind: "reactionFailed",
     windowKind: "march",
     tileIndex: payload.tileIndex,
     aRoll: duel.aRoll,
     bRoll: duel.bRoll,
-  }); // 事件流(#385):拦检失败(文案浮字 fx 按点数参数拼装,锚拦检城)
+  }); // 事件流(#385):拦检失败宣告(浮字不带点数括注——点数只在拼点签面,ADR-0030)
   g.logEvent(
     "system",
     owner.guohao,

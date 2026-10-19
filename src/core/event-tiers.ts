@@ -207,7 +207,7 @@ export const EVENT_TIERS = {
   reactionFailed: {
     fold: "declarative",
     fx: "presented",
-    why: "拼点平/负宣告:零状态转移(拦检牌扣账已折于闭窗应答点,拼点参数仅文案);表现=事发现场浮字",
+    why: "拼点平/负宣告:零状态转移(拦检牌扣账已折于闭窗应答点);表现=事发现场浮字(点数演出归全屏签面 duelSigns,#637)",
   },
   duelResolved: {
     fold: "declarative",

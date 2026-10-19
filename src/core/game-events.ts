@@ -268,7 +268,7 @@ export interface ReactionAnsweredBody {
   cardId?: string;
 }
 /** 拦检失败(#385 缺口 5):拼点平/负,【半路杀出】白耗,行人照常续走——seat=城主
- *  (出牌方),aRoll/bRoll=拼点点数(文案参数),tileIndex=拦检城(浮字锚格)。 */
+ *  (出牌方),aRoll/bRoll=拼点点数(全桌公开,签面演出与战报同源),tileIndex=拦检城(浮字锚格)。 */
 export interface ReactionFailedBody {
   kind: "reactionFailed";
   windowKind: "march";

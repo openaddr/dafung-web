@@ -66,18 +66,6 @@ export type PresentationEvent =
   /** 落格定音(S7 #513,BRIEF 台账 #9 翻案件):行军落在事件/机遇格(税/仓/锦囊/
    *  天命/卧龙)的金圈一拍——零新引擎事件,提取期按落点格型直译,同步下发 CSS 自走。 */
   | { kind: "landPulse"; tileIndex: number }
-  /** 拼点双印(S7 #513):拦检拼点平/负(reactionFailed)的双骰点印——a/b=双方掷点,
-   *  左右错拍钤下后合成大印:verdict=lose 钤「失」、tie 钤金「平」(#492 平局诚实呈现);
-   *  得宝侧(拼点胜)不走本事件,由 treasureGained 的金「得」印承担。 */
-  | {
-      kind: "duelStamps";
-      tileIndex: number;
-      x: number;
-      y: number;
-      a: number;
-      b: number;
-      verdict: "lose" | "tie";
-    }
   /** 都城路过必停全屏宣告(S7 #513):capitalHalt 事件的漆金横幅级宣告(与回合横幅
    *  同语感、更高强度),haltGong 号角+震屏由 sink 同拍发起。 */
   | {
@@ -122,8 +110,7 @@ export type PresentationEvent =
   /** 拼点签面(#637,ADR-0030):duelResolved 直译的全屏多签演出——每名参与者一枚
    *  骨牌大字签面(签头=玩家色底+国号),并行起摇、依座位序错拍落定;判词=胜者金光圈
    *  败者沉暗(零「胜/负」文字章,DESIGN §4.6)、平局中缝钤变金「平」;点差悬殊震屏。
-   *  场景无关:拦检(半路杀出)与连环计(二虎竞食)同式。取代旧 duelStamps 的表现位
-   *  (旧棋盘双印 #T3 拆除前短暂双通道并存)。 */
+   *  场景无关:拦检(半路杀出)与连环计(二虎竞食)同式,签面即是信息、点数不落第二处。 */
   | {
       kind: "duelSigns";
       /** 参与拼点的双方签面(数组序=落定序:aSeat 先落);座位元数据提取期解析进
@@ -186,8 +173,6 @@ export interface FxSink {
   stampSeal(tileIndex: number, char: string, tone?: "gold"): void;
   /** 落格定音(S7):落点格金圈一拍,同步下发 CSS 自走(生产实现按 tileIndex 换算)。 */
   landPulse(tileIndex: number): void;
-  /** 拼点双印(S7):双骰点印错拍钤下→合印,音画错拍由实现编排(同步下发)。 */
-  stampDuel(ev: Extract<PresentationEvent, { kind: "duelStamps" }>): void;
   /** 拼点签面(#637,ADR-0030):全屏多签演出整场(幕启→摇→落→判词→渐出),
    *  await 到整幕收口——串行编排保证签面收场后棋盘后效才登场。 */
   showDuelSigns(ev: DuelSignsEvent): Promise<void>;

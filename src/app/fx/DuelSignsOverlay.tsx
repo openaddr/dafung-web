@@ -9,7 +9,6 @@
 // Promise 天然保证(orchestrator duelSigns case → sink.showDuelSigns)。
 // 模块桥模式同 DiceOverlay:mount/unmount 归 React(挂 Game 屏一次),触发走
 // duelSignsApi 模块桥——生产 sink(sinks.ts,非 React 世界)直调,实例不进 store。
-// 旧棋盘双印(duelStamps → BoardFxLayer)T3 才拆,期间双通道短暂并存(#637 判据明示)。
 import { useEffect } from "react";
 import { SIGN_FACES } from "@core/constants";
 import { playerColor, rgba } from "@core/theme";

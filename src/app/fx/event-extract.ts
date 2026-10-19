@@ -366,8 +366,8 @@ export function extractBatchEvents(
         break;
       }
       case "treasureGained": {
-        // 探宝拼点胜(S7 拼点双印「得」半):漆金「得」印钤在宝物城落点 + treasure 音。
-        // 探宝拼点是单人 2d6 判定、不走 resolveDuel,无 duelResolved(#636/ADR-0030:
+        // 探宝拼点胜(S7):漆金「得」印钤在宝物城落点 + treasure 音(拼点胜半场的
+        // 印章语义)。探宝拼点是单人 2d6 判定、不走 resolveDuel,无 duelResolved(#636/ADR-0030:
         // 玩家对拼的点数已入事件流,探宝判定不入)。
         const seat = eventSeat(engine, ev);
         events_.push({
@@ -546,30 +546,16 @@ export function extractBatchEvents(
         break;
       }
       case "reactionFailed": {
-        // 拼点双印(S7 #513):双骰点印左右错拍钤下→合成「失」大印,平局出金「平」印
-        // (#492 平局诚实呈现);大胜负震屏由 sink 在合印拍判 |a−b| 发起。文案浮字
-        // 照旧锚拦检城(事发现场)。
+        // 拦检失败宣告(ADR-0030 单通道):拼点骰面信息全在签面(duelResolved 直译),
+        // 此处只余文案浮字(不带点数括注——点数不落第二处),照旧锚拦检城(事发现场)。
         const seat = eventSeat(engine, ev);
-        const pos = engine.board.positionOf(ev.tileIndex);
-        events_.push({
-          kind: "duelStamps",
-          tileIndex: ev.tileIndex,
-          x: pos.x,
-          y: pos.y,
-          a: ev.aRoll,
-          b: ev.bRoll,
-          verdict: ev.aRoll === ev.bRoll ? "tie" : "lose",
-        });
-        events_.push(
-          textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
-        );
+        events_.push(textFloaterAtTile(engine, seat, "拦检失败", ev.tileIndex));
         break;
       }
       case "duelResolved": {
         // 拼点签面(#637,ADR-0030):duelResolved 直译——双方座位元数据提取期解析进
         // 事件(签头国号/玩家色、签身掷点),组件零查询;胜者随事件走(winnerSeat,
         // 平局 null)。场景无关:拦检与连环计同式,签面即是信息,点数不落第二处。
-        // 拦检侧旧双印(duelStamps)T3 才拆,期间双通道短暂并存。
         if (ev.winnerSeat != null && ev.winnerSeat !== ev.aSeat && ev.winnerSeat !== ev.bSeat)
           throw new Error(
             `事件消费:duelResolved.winnerSeat=${ev.winnerSeat} 不在拼点双方 [${ev.aSeat},${ev.bSeat}](契约违反)`,

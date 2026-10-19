@@ -13,7 +13,7 @@ import { duelSignsApi } from "./DuelSignsOverlay";
 import { fallTokenFlag, shakeDesk } from "./desk";
 import { useFxStore } from "./fxStore";
 import { animateDice, animateMove, beginMarch } from "./orchestrator";
-import { CEREMONY, DUEL, delay } from "./timings";
+import { CEREMONY, delay } from "./timings";
 import type { DuelSide, FxSink, PropertyChangedEvent } from "./presentation";
 
 /** 生产 sink:单机/联机控制器共用(各持一份,引擎 getter 各自绑定)。 */
@@ -50,18 +50,6 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
     landPulse(tileIndex) {
       const pos = getEngine().board.positionOf(tileIndex);
       useFxStore.getState().spawnPulse(pos.x, pos.y);
-    },
-    stampDuel(ev) {
-      // 拼点双印(S7):双骰印落店 CSS 错拍自走,骨牌叩声随两印错拍、合印拍落
-      // stamp 音;大胜负(|a−b|≥DUEL.blowoutMargin)合印同拍震屏。T3 随全屏签面退役。
-      useFxStore.getState().stampDuel(ev.x, ev.y, ev.a, ev.b, ev.verdict);
-      const audio = getAudio();
-      audio.play("tileClack");
-      window.setTimeout(() => audio.play("tileClack"), DUEL.clackGapMs);
-      window.setTimeout(() => {
-        audio.play("stamp");
-        if (Math.abs(ev.a - ev.b) >= DUEL.blowoutMargin) shakeDesk();
-      }, DUEL.verdictMs);
     },
     showDuelSigns(ev) {
       // 拼点签面(#637,ADR-0030):全屏多签演出整场经模块桥直调 DiceOverlay 同族
@@ -118,7 +106,6 @@ export type FxSinkCall =
   | { op: "banner"; guohao: string; colorIndex: number }
   | { op: "seal"; tileIndex: number; char: string; tone?: "gold" }
   | { op: "landPulse"; tileIndex: number }
-  | { op: "duel"; x: number; y: number; a: number; b: number; verdict: "lose" | "tie" }
   | { op: "duelSigns"; sides: DuelSide[]; winnerSeat: number | null }
   | { op: "haltBanner"; guohao: string; colorIndex: number; cityName: string }
   | { op: "bankruptCeremony"; playerId: string; x: number; y: number }
@@ -170,9 +157,6 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     },
     landPulse(tileIndex) {
       calls.push({ op: "landPulse", tileIndex });
-    },
-    stampDuel(ev) {
-      calls.push({ op: "duel", x: ev.x, y: ev.y, a: ev.a, b: ev.b, verdict: ev.verdict });
     },
     async showDuelSigns(ev) {
       calls.push({ op: "duelSigns", sides: ev.sides, winnerSeat: ev.winnerSeat });
