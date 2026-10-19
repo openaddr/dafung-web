@@ -178,8 +178,8 @@
       "id": "prop-huarong",
       "name": "华容道",
       "pos": [0, 640],
-      "group": "c",
-      "region": "岭南",
+      "group": "b",
+      "region": "荆楚",
       "price": 3000,
       "buildCost": 1500,
       "tradeAdd": [0, 0, 0, 0],
@@ -508,14 +508,14 @@
       "id": "prop-yongzhou",
       "name": "雍州",
       "pos": [0, 0],
-      "group": "e",
-      "region": "西凉",
+      "group": "a",
+      "region": "中原",
       "price": 2200,
       "buildCost": 1100,
       "tradeAdd": [200, 700, 1600, 3700],
       "valueByLevel": [900, 1300, 1900, 2600],
       "tradeMult": [2, 4, 6, 10],
-      "resupplyPerLevel": 200
+      "resupplyPerLevel": 400
     },
     {
       "id": "tile-chance-1",

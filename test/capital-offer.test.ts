@@ -64,12 +64,24 @@ describe("选都三选一:候选生成", () => {
     }
   });
 
-  it("地理分散:三候选不全在同一区域(固定 seed 概率断言)", () => {
+  it("地理分散:三候选两两间距足够远(固定 seed 断言)", () => {
+    // 生成算法本就是纯几何选点(距离排名,setup-flow rollOfferedCapitals),region 只是
+    // 地理 proxy——雍州归入中原后中原横跨西北-中央-东北,同 region 的三候选(seed 4
+    // 雍/邺/洛)恰是分散的。按真不变量断言:阈值 800 ≈ 两格步距,观测 seed 1-8 最小
+    // 两两间距 1032,聚到邻格(≈500)即炸。
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
       const e = makeEngine(seed, humans(2));
       e.doDraftRoll();
-      const regions = e.offeredCapitals.map((i) => e.board.at(i).region);
-      expect(new Set(regions).size).toBeGreaterThanOrEqual(2);
+      const ts = e.offeredCapitals.map((i) => e.board.at(i));
+      for (let a = 0; a < ts.length; a++) {
+        for (let b = a + 1; b < ts.length; b++) {
+          const d = Math.hypot(
+            ts[a].position.x - ts[b].position.x,
+            ts[a].position.y - ts[b].position.y,
+          );
+          expect(d).toBeGreaterThanOrEqual(800);
+        }
+      }
     }
   });
 
