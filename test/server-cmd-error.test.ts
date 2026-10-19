@@ -5,8 +5,10 @@
 // cmd 分支同口径——引擎 submitCommand 抛错(零兜底契约)必须回报给发送者而非炸进程。
 // 注入手法:respondReaction 携带越界 seat(座位号随命令过网,越界即 players[seat]
 // 取 undefined 抛 TypeError)——与竞态同源:非法载荷服务端当场拒绝。
-// 真 WS 真 HTTP(子进程起 scripts/server.ts,同 playwright.config webServer 口径)。
-import { describe, it, expect, afterAll } from "bun:test";
+// 真 WS 真 HTTP(子进程起 scripts/server.ts,同 playwright.config webServer 口径);
+// spawn 前预检端口无残孤占位(#594 同主题的 bun:test 版,2026-10-19 实锤:
+// 残孤占 4280 → 健康检查打旧进程、新进程 EADDRINUSE 暴毙 → exitCode 假失败)。
+import { describe, it, expect, afterAll, beforeAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -15,18 +17,35 @@ const PORT = "4280"; // 本票专用测试端口(避开 e2e 的 3021/4184 与默
 const BASE = `http://127.0.0.1:${PORT}`;
 const ROOMS_DIR = mkdtempSync(join(tmpdir(), "dafung-428-"));
 
-const proc = Bun.spawn(["bun", "scripts/server.ts"], {
-  cwd: join(import.meta.dir, ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
-  env: {
-    ...process.env,
-    PORT,
-    HOST: "127.0.0.1",
-    ROOMS_DIR,
-    LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
-    STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
-  },
-  stdout: "pipe",
-  stderr: "pipe",
+let proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
+
+beforeAll(async () => {
+  let stale = false;
+  try {
+    stale = (await fetch(`${BASE}/health`)).ok;
+  } catch {
+    /* 连接失败 = 端口空闲,正常路径 */
+  }
+  if (stale) {
+    throw new Error(
+      `端口 ${PORT} 已有 /health 应答:疑似残孤测试服占位(新进程将 EADDRINUSE 假失败)。` +
+        `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
+    );
+  }
+  proc = Bun.spawn(["bun", "scripts/server.ts"], {
+    cwd: join(import.meta.dir, ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
+    env: {
+      ...process.env,
+      PORT,
+      HOST: "127.0.0.1",
+      ROOMS_DIR,
+      LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
+      STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
+    },
+    stdout: "pipe",
+    stderr: "pipe",
+  });
+  await waitHealthy();
 });
 
 afterAll(() => {
@@ -104,8 +123,6 @@ function openWs(url: string): Promise<WebSocket> {
 
 describe("server cmd 分支错误回报(#428)", () => {
   it("非法命令注入:该客户端收到 error 下行,服务器进程存活且服务继续", async () => {
-    await waitHealthy();
-
     // 建房(2 座,座位 1 bot)→ 选图 → 开局(停在选都三选一)
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });
     const roomId = created.roomId as string;
