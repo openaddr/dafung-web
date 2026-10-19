@@ -252,6 +252,17 @@ test.describe("反应窗(#281 单机)", () => {
     // 「行军将过你的城池」),拦胜/平局以点牌落印应答、放行以「不用」应答。
     // ── 分支一 拦胜:城主 6 对行人 1 → 行人止步首都格照常落格 ──
     const mover1 = await answerMarchCounter(page);
+    // 拼点签面(#637,ADR-0030):拦胜判词=城主(座 0)金圈+金描边,行人签沉暗;
+    // 全屏签面幕在结算批首位登场(点差 6−1≥3 判词拍震屏,纯视觉不在此断言)。
+    const duelWin = page.getByTestId(TESTIDS.duelOverlay);
+    await duelWin.waitFor({ timeout: 10_000 });
+    await expect(duelWin.getByTestId(TESTIDS.duelSign(0))).toBeVisible();
+    await expect(duelWin.getByTestId(TESTIDS.duelSign(mover1))).toBeVisible();
+    await expect(duelWin.getByTestId(TESTIDS.duelVerdict)).toHaveAttribute("data-verdict", "win", {
+      timeout: 10_000,
+    });
+    await expect(duelWin.getByTestId(TESTIDS.duelSign(0))).toHaveClass(/duel-sign-win/);
+    await expect(duelWin.getByTestId(TESTIDS.duelSign(mover1))).toHaveClass(/duel-sign-dim/);
     // 拦胜止步:位置落首都格且此后不挪(后续分支不再轮到该 bot),无窗竞态
     await expect
       .poll(
@@ -270,6 +281,17 @@ test.describe("反应窗(#281 单机)", () => {
     await plantAmbush(page, { duelDice: [3, 3], withSecondCity: false, marchSteps: [1, 5] });
     await skipUntilNextSeat(page, 0);
     const mover2 = await answerMarchCounter(page);
+    // 拼点签面(平局判词,#637):双方无圈(无 win/dim 态类),中缝印钤变金「平」
+    // ——「都没圈」与「还没判」不可区分,文字承载语义例外(ADR-0030)。
+    const duelTie = page.getByTestId(TESTIDS.duelOverlay);
+    await duelTie.waitFor({ timeout: 10_000 });
+    await expect(duelTie.getByTestId(TESTIDS.duelVerdict)).toHaveAttribute("data-verdict", "tie", {
+      timeout: 10_000,
+    });
+    await expect(duelTie.getByTestId(TESTIDS.duelVerdict)).toHaveText("平");
+    await expect(duelTie.getByTestId(TESTIDS.duelSign(0))).not.toHaveClass(/duel-sign-win/);
+    await expect(duelTie.getByTestId(TESTIDS.duelSign(0))).not.toHaveClass(/duel-sign-dim/);
+    await expect(duelTie.getByTestId(TESTIDS.duelSign(mover2))).not.toHaveClass(/duel-sign-win/);
     await expect
       .poll(
         async () =>

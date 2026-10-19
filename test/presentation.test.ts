@@ -841,6 +841,94 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
   });
 });
 
+// ─────────────── 拼点签面直译(#637,ADR-0030)───────────────
+describe("拼点签面直译(#637,ADR-0030:duelResolved → duelSigns)", () => {
+  const E = () => makeEngine(7);
+
+  it("胜负局:sides=双方座位元数据(国号/座色/掷点,aSeat 先落),winnerSeat 随事件走;场景无关(拦检/连环计同式)", () => {
+    const e = E();
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 0,
+        round: 1,
+        turn: 1,
+        aSeat: 0,
+        bSeat: 1,
+        aRoll: 6,
+        bRoll: 1,
+        winnerSeat: 0,
+      },
+    ]);
+    expect(out).toEqual([
+      {
+        kind: "duelSigns",
+        sides: [
+          { seat: 0, playerId: e.players[0].id, guohao: "魏", colorIndex: 0, roll: 6 },
+          { seat: 1, playerId: e.players[1].id, guohao: "蜀", colorIndex: 1, roll: 1 },
+        ],
+        winnerSeat: 0,
+      },
+    ]);
+  });
+
+  it("平局:winnerSeat=null 原样透传;数组序=aSeat 先落(座位序错拍落定的组件输入)", () => {
+    const e = E();
+    const out = synth(e, [
+      {
+        kind: "duelResolved",
+        seat: 1,
+        round: 1,
+        turn: 1,
+        aSeat: 1,
+        bSeat: 0,
+        aRoll: 3,
+        bRoll: 3,
+        winnerSeat: null,
+      },
+    ]);
+    expect(out).toHaveLength(1);
+    if (out[0].kind !== "duelSigns") throw new Error("duelResolved 应直译 duelSigns");
+    expect(out[0].winnerSeat).toBeNull();
+    expect(out[0].sides.map((s) => s.seat)).toEqual([1, 0]);
+    expect(out[0].sides.map((s) => s.roll)).toEqual([3, 3]);
+  });
+
+  it("契约违反当场炸出(零兜底):winnerSeat 不在拼点双方/座位越界", () => {
+    const e = E();
+    expect(() =>
+      synth(e, [
+        {
+          kind: "duelResolved",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          aSeat: 0,
+          bSeat: 1,
+          aRoll: 6,
+          bRoll: 2,
+          winnerSeat: 2,
+        },
+      ]),
+    ).toThrow();
+    expect(() =>
+      synth(e, [
+        {
+          kind: "duelResolved",
+          seat: 0,
+          round: 1,
+          turn: 1,
+          aSeat: 0,
+          bSeat: 9,
+          aRoll: 6,
+          bRoll: 2,
+          winnerSeat: 0,
+        },
+      ]),
+    ).toThrow();
+  });
+});
+
 // ─────────────── 出牌指示线(事件批口径)───────────────
 /** 出牌阶段出牌步骤(横征暴敛=A面全体域):提取事件含 jinnangPlayed(jinnangAnnounced 直译)。 */
 function extractLevyStep(seed = 7): { e: GameEngine; events: PresentationEvent[] } {
@@ -1044,6 +1132,35 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
       { op: "duel", x: 1, y: 2, a: 2, b: 5, verdict: "lose" },
       { op: "haltBanner", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
       { op: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
+    ]);
+  });
+
+  it("拼点签面直通 sink(#637):duelSigns 整场 await 后才播下一事件(串行=签面收场后棋盘后效才登场)", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        {
+          kind: "duelSigns",
+          sides: [
+            { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
+            { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
+          ],
+          winnerSeat: 0,
+        },
+        { kind: "cashDelta", playerId: "p1", amount: -120, x: 1, y: 2, atTile: null },
+      ],
+      sink,
+    );
+    expect(sink.calls).toEqual([
+      {
+        op: "duelSigns",
+        sides: [
+          { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
+          { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
+        ],
+        winnerSeat: 0,
+      },
+      { op: "floater", x: 1, y: 2, amount: -120, coins: false },
     ]);
   });
 

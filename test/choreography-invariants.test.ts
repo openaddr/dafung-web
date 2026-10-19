@@ -47,6 +47,18 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(DUEL.verdictMs).toBeLessThan(FX.duelMs);
   });
 
+  it("拼点签面节拍有序(#637,ADR-0030):幕启 < 摇,错拍落 < 判词,判词停留与收场渐出俱为正", () => {
+    expect(DUEL.curtainMs).toBeGreaterThan(0); // 幕启:玄墨幕渐入+两签虚位
+    expect(DUEL.curtainMs).toBeLessThan(DUEL.shakeMs); // 幕启 < 并行起摇
+    expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs); // 座位序错拍落 < 判词拍(与旧双印同组共用两拍)
+    expect(DUEL.holdMs).toBeGreaterThan(0); // 判词停留(金圈/金平可读窗)
+    expect(DUEL.fadeOutMs).toBeGreaterThan(0); // 整幕渐出
+  });
+
+  it("拼点大胜负点差档为正(S7 #492,#637 签面同源):DUEL.blowoutMargin >= 1", () => {
+    expect(DUEL.blowoutMargin).toBeGreaterThanOrEqual(1);
+  });
+
   it("行军段时长夹取区间有序:MARCH.minSegMs < MARCH.maxSegMs", () => {
     expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);
   });

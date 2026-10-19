@@ -26,7 +26,7 @@ import {
 } from "@core/event-tiers";
 import { extensionAnimationHandlers } from "@app/extensions/registry";
 import { remainingMarchPath } from "./orchestrator";
-import type { FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
+import type { DuelSide, FxSink, PresentationEvent, PropertyChangedEvent } from "./presentation";
 
 /** 跨批宣布游标(形状单源 core/event-tiers AnnounceCursor,#430 票项 3):最近一次锦囊
  *  宣布(识破线指回被拆计的使用者/目标用——jinnangVoided 不带被拆方座位,ReactionAnswered
@@ -563,6 +563,32 @@ export function extractBatchEvents(
         events_.push(
           textFloaterAtTile(engine, seat, `拦检失败(掷 ${ev.aRoll} 对 ${ev.bRoll})`, ev.tileIndex),
         );
+        break;
+      }
+      case "duelResolved": {
+        // 拼点签面(#637,ADR-0030):duelResolved 直译——双方座位元数据提取期解析进
+        // 事件(签头国号/玩家色、签身掷点),组件零查询;胜者随事件走(winnerSeat,
+        // 平局 null)。场景无关:拦检与连环计同式,签面即是信息,点数不落第二处。
+        // 拦检侧旧双印(duelStamps)T3 才拆,期间双通道短暂并存。
+        if (ev.winnerSeat != null && ev.winnerSeat !== ev.aSeat && ev.winnerSeat !== ev.bSeat)
+          throw new Error(
+            `事件消费:duelResolved.winnerSeat=${ev.winnerSeat} 不在拼点双方 [${ev.aSeat},${ev.bSeat}](契约违反)`,
+          );
+        const sides: DuelSide[] = [ev.aSeat, ev.bSeat].map((seat) => {
+          const p = eventSeatPlayer(
+            engine,
+            seat,
+            `duelResolved.${seat === ev.aSeat ? "aSeat" : "bSeat"}`,
+          );
+          return {
+            seat,
+            playerId: p.id,
+            guohao: p.guohao,
+            colorIndex: p.colorIndex,
+            roll: seat === ev.aSeat ? ev.aRoll : ev.bRoll,
+          };
+        });
+        events_.push({ kind: "duelSigns", sides, winnerSeat: ev.winnerSeat });
         break;
       }
       case "staminaChanged": {

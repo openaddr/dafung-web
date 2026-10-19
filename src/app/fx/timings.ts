@@ -112,12 +112,22 @@ export const DICE = {
   fadeOutMs: sc(Motion.dur.med), // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
 } as const;
 
-/** 拼点双印节拍(S7 #513):音画错拍锚点(经 sc 缩放),sinks.stampDuel 消费。
- *  与 fx.css .fx-duel-die-b 的 0.15s / .fx-duel-verdict 的 0.52s animation-delay
- *  硬同步(特例字面量,同 seal/骰签口径),改任一侧须两处同改。 */
+/** 拼点演出节拍:旧双印(S7 #513,sinks.stampDuel 消费,T3 拆)+ 新全屏签面
+ *  (#637,ADR-0030,DuelSignsOverlay 消费)共用一组(错拍/判词两拍同源——签面
+ *  落定「延续既有拼点节拍」,ADR-0030 原文)。全组经 sc 缩放;签面整场固定全速,
+ *  不随 bot 半速(公共大事件非回合等待,#637 口径)。
+ *  旧双印与 fx.css .fx-duel-die-b 的 0.15s / .fx-duel-verdict 的 0.52s
+ *  animation-delay 硬同步(特例字面量,同 seal/骰签口径),改任一侧须两处同改。 */
 export const DUEL = {
-  clackGapMs: sc(150), // 第二枚骰点印错拍(含第二声 tileClack)
-  verdictMs: sc(520), // 合印拍:「失/平」大印钤下(stamp 音;|a−b|≥3 大胜负同拍震屏)
+  curtainMs: sc(200), // 签面·幕启:玄墨幕渐入+两签虚位
+  shakeMs: sc(600), // 签面·并行起摇:虚影轮换段(与 DICE.shakeMs 同值,语义独立——全速恒定)
+  clackGapMs: sc(150), // 第二枚骰点印错拍(含第二声 tileClack);签面·座位序错拍落定间隙
+  verdictMs: sc(520), // 合印拍:「失/平」大印钤下(stamp 音);签面·末拍落定→判词拍(金圈/金平+震屏判点差)
+  holdMs: sc(600), // 签面·判词停留
+  fadeOutMs: sc(Motion.dur.med), // 签面·整幕渐出;与 --dur-med 同源(经 Motion),fx.css .duel-overlay-out 消费同一 token
+  /** 拼点大胜负点差(S7 #492 震屏大事件档):|a−b|≥本值判词拍震屏(DESIGN §6)。
+   *  时间表里只此一个非时长字段,双消费器(sinks 旧印/签面新演出)同源取数。 */
+  blowoutMargin: 3,
 } as const;
 
 /** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币):累计毫秒锚点(经 sc 缩放),

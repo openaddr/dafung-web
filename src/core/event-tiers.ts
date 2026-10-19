@@ -211,8 +211,8 @@ export const EVENT_TIERS = {
   },
   duelResolved: {
     fold: "declarative",
-    fx: "silent",
-    why: "拼点结算宣告(#636,ADR-0030):resolveDuel 单点产出,两方座位/两枚点数/胜者随事件走;零状态转移(胜负后果由调用点既有事件折:拦停=marchArrived、银两=cashChanged·duel);表现=T2 拼点签面翻 presented,silent=表现提取的显式无表现档、非漏接",
+    fx: "presented",
+    why: "拼点结算宣告(#636,ADR-0030):resolveDuel 单点产出,两方座位/两枚点数/胜者随事件走;零状态转移(胜负后果由调用点既有事件折:拦停=marchArrived、银两=cashChanged·duel);表现=拼点签面(#637,全屏多签直译,场景无关)",
   },
   jinnangVoided: {
     fold: "must-fold",

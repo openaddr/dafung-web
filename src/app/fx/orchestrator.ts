@@ -15,6 +15,7 @@ import type { MovePath } from "@core/board";
 import { formatMoney } from "@core/money";
 import { getAudio } from "./audio";
 import { diceApi, finishDiceOverlay, setDiceFast } from "./DiceOverlay";
+import { finishDuelSigns } from "./DuelSignsOverlay";
 import { useFxStore } from "./fxStore";
 import { abandonMarch, animateMove, beginMarch } from "./useMarch";
 import { delay, FX } from "./timings";
@@ -38,6 +39,7 @@ let sealed = false;
 export function finishPresentation(): void {
   sealed = true;
   finishDiceOverlay();
+  finishDuelSigns();
 }
 
 // ─────────────────────── 播放器 ───────────────────────
@@ -81,6 +83,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
       case "duelStamps":
         // 拼点双印(S7):音画错拍由 sink 编排(同步下发),不占编排时长。
         sink.stampDuel(ev);
+        break;
+      case "duelSigns":
+        // 拼点签面(#637,ADR-0030):全屏多签演出整场,await 到收口——串行编排
+        // 保证签面收场后棋盘后效(止步/续走/银两浮字)才登场。
+        await sink.showDuelSigns(ev);
         break;
       case "haltBanner":
         // 都城停全屏宣告(S7):号角+震屏同拍,等横幅读过峰值段再接驻章

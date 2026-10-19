@@ -5,6 +5,7 @@
 // 字号随视图缩放、按当前缩放设 12px 等效下限。
 // FxLayer(HTML)仅保留回合横幅——它是屏幕居中元素,不属于棋盘坐标系。
 import { useFxStore } from "./fxStore";
+import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
 import "./fx.css";
 
@@ -209,13 +210,15 @@ export function BoardFxLayer() {
 }
 
 /** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):回合旌旗横幅 + 都城停全屏
- *  宣告(屏幕居中元素,不属于棋盘系)。 */
+ *  宣告(屏幕居中元素,不属于棋盘系)+ 拼点签面演出桥(DuelSignsOverlay 渲染 null,
+ *  仅在挂载期绑定 duelSignsApi 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。 */
 export function FxLayer() {
   const banner = useFxStore((s) => s.banner);
   const halt = useFxStore((s) => s.halt);
 
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" data-fx-layer>
+      <DuelSignsOverlay />
       {/* 回合旌旗横幅:key=id 保证同一玩家连续两回合也能重启动画 */}
       {banner && (
         <div
