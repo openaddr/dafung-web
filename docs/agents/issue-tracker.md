@@ -11,14 +11,15 @@ Issues and specs for this repo live as GitHub issues at `openaddr/dafung-web`. U
 - **Comment on an issue**: `gh issue comment <number> --body "..."`
 - **Apply / remove labels**: `gh issue edit <number> --add-label "..."` / `--remove-label "..."`
 - **Close**: `gh issue close <number> --comment "..."`
+- **开工/认领前撞车复查**:`gh issue list --state open --limit 50` 扫标题与近评论——并行会话可能已独立定罪同一问题(#615 与 wayfinder #644 同日双发现实锤,靠事后交叉引用止损);有交叉先在票上评论对账再动工。
 
 Infer the repo from `git remote -v` — `gh` does this automatically when run inside a clone. **jj workspace 内无 .git,gh 探测不到仓库**:补 `-R openaddr/dafung-web`(或设 `GH_REPO=openaddr/dafung-web`)。
 
 ## 本仓库特记:gh 可用性
 
-**2026-08-29 起 `gh` 已安装并认证完成**(openaddr,keyring,scopes 含 repo/read:org),以上 gh 命令为主要通路,优先使用。
+**2026-08-29 起 `gh` 已安装并认证完成**(openaddr,keyring,scopes 含 repo/read:org),以上 gh 命令为主要通路,优先使用。(2026-10-20:gh keyring token 已失效,待 `gh auth refresh` 恢复;其间 REST 通路在役,已实测全流程。)
 
-若 gh 暂不可用,备选通路 = **git 凭据管理器 token + REST API**(曾在 PR #1-#10 全流程验证):
+若 gh 暂不可用,备选通路 = **git 凭据管理器 token + REST API**(曾在 PR #1-#10 全流程验证,#645 合并再验证):
 
 ```bash
 token=$(printf "protocol=https\nhost=github.com\n" | git credential fill 2>/dev/null | grep '^password=' | cut -d= -f2)
@@ -33,6 +34,12 @@ curl -s -X POST -H "Authorization: token $token" -H "Accept: application/vnd.git
 ```
 
 多行 body 经 JSON 文件传入(`-d @file`),避免 shell 转义问题。gh 完成认证后(`gh auth login`)优先回到 gh 命令。
+
+**REST 通路三律(2026-10-20 retro 实锤):**
+
+- **调用写纯 bash curl,禁裹 node `execSync`**:Windows 下 execSync 走 cmd.exe,认证头被 mangle——同 token 同刻实测 bash curl 200 / execSync 401 Bad credentials。
+- **token 防回显**:execSync 的报错会把整条命令(含 token)打进输出(实锤一次,当日轮换);credential fill 的输出只取前缀核对(`awk '{print substr($2,1,4)}'`),不整段打印;token 经变量走 stdin 进脚本,不硬编码。
+- **瞬态 401 先复测再定性**:对 `/rate_limit` 打一发,200 即 token 活着(网络抖动会伪装成凭据失效,实测同分钟内 401 与 200 并存);merge 类重试前先 GET 读 `merged` 字段防重复(PUT 幂等已实测无害,但不依赖)。
 
 ## Pull requests as a triage surface
 
