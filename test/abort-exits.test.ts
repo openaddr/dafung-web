@@ -5,6 +5,9 @@
 // 故障注入口径:①botAct 对「相位挂着、载荷已空」失配态当场炸(#649 零兜底读点,直接
 // 复用为注入点);②AwaitingExhaustion 空载荷时 botAct 静默 no-op(指纹不变=断链指纹);
 // ③worker 侧假 clock 注入(LocalController 构造器测试缝),worker 脚本契约另钉。
+// 矩阵交叉钉(#643 终验):故障型×座位控制权两条交叉——失配注入落在托管座(人类+托管,
+// 非原生 bot)仍出口①响亮终局;断链指纹落在人类可决策座位(托管已收回)不武装任何
+// 看门狗、不 abort,维持现状等玩家。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig, VictoryReason } from "@core/authority";
@@ -14,6 +17,8 @@ import { serializeGame, restoreGameSnapshot } from "@core/snapshot";
 import { STALL_ABORT_MS } from "@core/timings";
 import { RoomRegistry } from "../scripts/room";
 import type { RoomClock } from "../scripts/room";
+import { decisionSeatOf } from "../scripts/bot-driver";
+import { seatControlled } from "../scripts/seat-projection";
 import type { RoomPersistence } from "../scripts/room-persistence";
 import type { RoomRecord } from "../scripts/room-record";
 import { MAP } from "../scripts/engine-helpers";
@@ -200,6 +205,50 @@ describe("驱动链死亡出口(#642 三出口故障注入)", () => {
     expectAbortedFinalRow(e, "驱动链停摆超时");
     expect(e.log[e.log.length - 1]!.detail).toContain("AwaitingExhaustion");
     expect(e.log[e.log.length - 1]!.detail).toContain("座位 0");
+    reg.dismissRoom(roomId, token);
+  }, 20_000);
+
+  it("交叉①(#643)失配态注入在托管座(人类+托管,非原生 bot):仍走出口①响亮终局", async () => {
+    const { reg, roomId, clock, e, token } = await autoPilotRoom();
+    const room = reg.get(roomId)!;
+    // 白盒钉死爆炸点=托管座:引擎侧是人类玩家(isBot=false),仅凭托管开关被服务器驱动
+    e.activeIndex = 0;
+    expect(room.seats[0]!.kind).toBe("human");
+    expect(room.autoPilot.has(0)).toBe(true);
+    expect(e.players[0]!.isBot).toBe(false);
+    expect(decisionSeatOf(e)).toBe(0);
+    expect(seatControlled(room, 0)).toBe(true);
+    // #649 病灶式失配(与出口①既有例同款):相位挂着、载荷已空
+    e.turnPhase = "AwaitingHeroPick";
+    e.offeredHeroes = [];
+    clock.fireAll(); // 泵停着的步进 await → 链下一拍 botAct(托管座)→ 抛
+    await macroTick();
+    expect(e.isOver).toBe(true);
+    expect(e.winReason).toBe("aborted");
+    expectAbortedFinalRow(e, "offeredHeroes");
+    expect(e.log[e.log.length - 1]!.detail).toContain("驱动链异常");
+    expect(gameOverOf(e)?.reason).toBe("aborted");
+    reg.dismissRoom(roomId, token);
+  }, 20_000);
+
+  it("交叉②(#643)断链指纹落在人类可决策座位:不武装 stallAbort、不 abort,维持现状等玩家", async () => {
+    const { reg, roomId, clock, e, token } = await autoPilotRoom({ stallAbortMs: 5000 });
+    // 人类经公开 API 收回托管(在途链持重入守卫,调度即返回;原链仍停在步进 await)
+    await reg.setAutoPilot(roomId, 0, false);
+    // 注入出口②同款断链指纹,与出口②既有例唯一差别:决策座位控制权已回到人类
+    e.turnPhase = "AwaitingExhaustion";
+    e.pendingExhaustionSeat = null;
+    const room = reg.get(roomId)!;
+    expect(room.autoPilot.has(0)).toBe(false);
+    expect(decisionSeatOf(e)).toBe(0);
+    expect(seatControlled(room, 0)).toBe(false); // 人类可决策座位:非 bot、托管已收回
+    clock.fireAll(); // 泵:链头重读控制权 → 不可驱动即停,不进 botAct(断链态不归服务器管)
+    await macroTick();
+    expect(e.isOver).toBe(false); // 不 abort:人类座位的失配态不是服务器侧软锁
+    expect(clock.size).toBe(0); // 零看门狗武装(stallAbort/stall/autoRoll 全不武装)
+    clock.fireAll(); // 再泵仍无火可点:无任何定时器
+    await macroTick();
+    expect(e.isOver).toBe(false);
     reg.dismissRoom(roomId, token);
   }, 20_000);
 });
