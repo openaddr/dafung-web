@@ -163,6 +163,11 @@ export interface CreateRoomConfig {
  *  decisionTimeoutMs(#118):决策停摆看门狗——引擎停在未被托管的真人座位的决策点超过
  *  该毫秒,看门狗代开该座位托管(ADR-0028;重连不清,本人点「收回」拿回)。0 = 关闭
  *  (缺省关,测试友好);server.ts 默认 120s(env DECISION_TIMEOUT_MS 可调)。
+ *  stallAbortMs(#642):驱动链停摆作废看门狗——no-progress 断链且决策座位属服务器驱动
+ *  (bot/托管)超过该毫秒,看门狗 abortGame 响亮终局(零无声软锁)。缺省 = 随
+ *  decisionTimeoutMs 同窗(联机不传即 120s;这是设计内派生,非兜底);单机显式传
+ *  STALL_ABORT_MS(core/timings 单源 30s),不经 decisionTimeoutMs——后者在单机保持
+ *  缺省关,#118 human-turn 既有 stall 行为零变化。0 = 显式关闭。
  *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
  *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。
  *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
@@ -174,6 +179,7 @@ export interface CreateRoomConfig {
 export interface RoomRegistryOptions {
   encounter?: EncounterConfig;
   decisionTimeoutMs?: number;
+  stallAbortMs?: number;
   reactionWindowMs?: number;
   retentionWindowMs?: number;
   clock?: RoomClock;
@@ -201,6 +207,8 @@ export class RoomRegistry {
   private readonly logSink: RoomLogSink | null;
   private readonly encounter?: EncounterConfig;
   private readonly decisionTimeoutMs: number;
+  /** #642 驱动链停摆作废窗口(ms;缺省随 decisionTimeoutMs 同窗,见选项注)。 */
+  private readonly stallAbortMs: number;
   /** #380 掉线座位保留窗口(ms;0=关,见 RoomRegistryOptions.retentionWindowMs)。 */
   private readonly retentionWindowMs: number;
   /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
@@ -231,6 +239,7 @@ export class RoomRegistry {
     this.logSink = logSink ?? null;
     this.encounter = options?.encounter;
     this.decisionTimeoutMs = options?.decisionTimeoutMs ?? 0;
+    this.stallAbortMs = options?.stallAbortMs ?? options?.decisionTimeoutMs ?? 0;
     this.retentionWindowMs = options?.retentionWindowMs ?? 0;
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
     this.clock = options?.clock ?? globalClock;
@@ -239,7 +248,9 @@ export class RoomRegistry {
       observe: (r, ev) => this.observe(r, ev),
       persist: (r) => this.persist(r),
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
+      abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
+      stallAbortMs: this.stallAbortMs,
       watchdogs: this.watchdogs,
       clock: this.clock,
     };
@@ -254,7 +265,9 @@ export class RoomRegistry {
       persist: (r) => this.persist(r),
       applyCommand: (roomId, cmd, onUpdate) => this.applyCommand(roomId, cmd, onUpdate),
       driveBots: (r, onUpdate) => this.driveBots(r, onUpdate),
+      abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
+      stallAbortMs: this.stallAbortMs,
       retentionWindowMs: this.retentionWindowMs,
       clock: this.clock,
     };
@@ -617,6 +630,20 @@ export class RoomRegistry {
       if (seat !== owner) throw new RoomError(403, `未轮到该座位决策(归属:座位 ${owner})`);
     }
     await this.applyCommand(roomId, cmd, onUpdate);
+  }
+
+  // ──────────────────────────── 响亮终局(#642)────────────────────────────
+  /** 房间编排侧作废入口(三出口共用):引擎 abortGame(幂等,域本体 game-events.abortGame)
+   *  + persist(终局行随 logSink 落盘 ADR-0014)+ 常规下行广播(事件批 gameOver
+   *  reason="aborted" 与整房摘要照走 per-seat 投影)。调用方=驱动链 catch(出口①)/
+   *  stallAbort 看门狗(出口②)/ 单机 LocalController 时钟 fatal(出口③)。
+   *  房间/引擎不存在 = 调用方 bug,显式抛错(零兜底)。 */
+  abortGame(roomId: string, reason: string, onUpdate?: (room: RoomSession) => void): void {
+    const room = this.rooms.get(roomId);
+    if (!room || !room.engine) throw new RoomError(409, "房间不存在或对局未开始,不可作废");
+    room.engine.abortGame(reason);
+    this.persist(room);
+    onUpdate?.(room);
   }
 
   /** WS close 时调用:host 掉线 → transferHost;之后 driveBots(托管座位的连锁)。

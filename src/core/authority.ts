@@ -104,7 +104,13 @@ import {
 import { tryRecruitHero, resolveHeroPick } from "./recruitment";
 // 声望域(#121/#147,ADR-0019,#384 自壳迁入):声望落账唯一口+献计里程碑在 reputation.ts。
 import { addReputation } from "./reputation";
-import { beginGameEventBatch, emitGameEvent, noteMomentEvent, type GameEvent } from "./game-events";
+import {
+  beginGameEventBatch,
+  emitGameEvent,
+  noteMomentEvent,
+  abortGame,
+  type GameEvent,
+} from "./game-events";
 import { formatMoney } from "./money";
 import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
@@ -153,7 +159,9 @@ export type TurnPhase =
   | "EndTurn"
   | "GameOver";
 
-export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding";
+/** "aborted" = 异常终局(#642 响亮终局):对局因驱动链死亡作废,winner 恒 null;
+ *  终局行/gameOver 事件以本值判别(域本体见 game-events.abortGame)。 */
+export type VictoryReason = "None" | "TargetNetWorth" | "LastStanding" | "aborted";
 
 /** 玩家可提交的游戏命令(联机时 = 网络协议的消息类型)。 */
 export type GameCommand =
@@ -789,6 +797,14 @@ export class GameEngine {
       .sort((a, b) => netWorth(b) - netWorth(a));
     if (reached.length > 0) return { winner: reached[0], reason: "TargetNetWorth" };
     return { winner: null, reason: "None" };
+  }
+
+  // ──────────────────────────── 异常终局(#642 响亮终局)────────────────────────────
+  /** 驱动链死亡出口的唯一引擎语义(链内抛异常/驱动链停摆/时钟挂死三出口共用):
+   *  对局作废、无胜者,终局行与 gameOver 事件(reason="aborted")照常产出,幂等。
+   *  薄委托 → game-events.abortGame(壳行数锁,域本体与语义详注在该处)。 */
+  abortGame(reason: string): void {
+    abortGame(this, reason);
   }
 
   private advanceToNextActive(): void {

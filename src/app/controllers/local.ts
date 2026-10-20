@@ -21,6 +21,7 @@ import { stashEventBatch } from "@app/net/event-feed";
 import { e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
+import { STALL_ABORT_MS } from "@core/timings";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
 // 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
@@ -99,14 +100,15 @@ export class LocalController extends GameController {
   private prePositions: ReadonlyArray<number | null>;
   override readonly autopilotSupported = true;
 
-  constructor(map: LoadedMap, config: SoloRoomConfig) {
+  constructor(map: LoadedMap, config: SoloRoomConfig, clockOverride?: WorkerClock) {
     super();
     const guohao = config.seats[0]?.guohao;
     const botIdx = new Set(config.seats.flatMap((s, i) => (s.isBot ? [i] : [])));
     // ADR-0014 单机对局日志:registry 每次 persist(每手快照)后增量归档 IndexedDB——
     // 挂在编排 persist 通道上,与旧锁步 sync() 的归档节奏同源(每手一次)。
     // Worker 时钟(#399):编排节拍(看门狗/托管步进)不随页面可见性漂移。
-    this.clock = createWorkerClock();
+    // clockOverride:测试注入缝(#642 出口③假 clock),生产缺省自建真实 Worker 时钟。
+    this.clock = clockOverride ?? createWorkerClock();
     // #284 反应窗时长覆盖(单机形态):联机经 server env E2E_REACTION_MS → registry,
     // 单机经 e2e 注入的 localStorage 键(E2E_REACTION_MS_KEY)→ 同一 registry 选项。
     // 0/未注入 = 走 core REACTION_WINDOW_MS 常量表(配置缺席不是兜底,server.ts 同模式)。
@@ -120,9 +122,19 @@ export class LocalController extends GameController {
       {
         encounter: config.encounter,
         clock: this.clock,
+        // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
+        // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
+        stallAbortMs: STALL_ABORT_MS,
         ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
       },
     );
+    // #642 出口③:时钟挂死(worker 崩溃/内部异常)= 编排节拍永久不可靠 → 对局作废
+    // 响亮终局,错误摘要进 abort reason 与对局日志(经房间 abortGame 常规 persist/下行)。
+    this.clock.onFatal((message) => {
+      this.registry.abortGame(this.roomId, `时钟挂死:${message}`, () =>
+        this.registry.transportBroadcast(this.roomId),
+      );
+    });
     const created = this.registry.createRoom({
       seatCount: config.seats.length,
       botIdx,

@@ -315,12 +315,14 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       }
       case "gameOver": {
-        const winner = foldTarget(engine, ev); // subject=胜者
         engine.isOver = true;
-        engine.winner = winner;
         engine.winReason = ev.reason;
         engine.phase = "GameOver";
         engine.turnPhase = "GameOver";
+        // #642 异常终局(reason="aborted"):无胜者——subject 是派发主体(activeIndex)
+        // 而非胜者,显式分支置 null,不当胜者折叠(与引擎 abortGame 同态;终局 UI 呈现
+        // 归 #642 第二棒)。正常终局 subject=胜者,照旧按座位折叠。
+        engine.winner = ev.reason === "aborted" ? null : foldTarget(engine, ev);
         break;
       }
       // ── 掷骰/行军族 ──

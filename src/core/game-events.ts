@@ -21,6 +21,7 @@ import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
 import type { MovePath } from "./board";
 import { findHolding } from "./player";
+import { netWorth } from "./networth";
 
 // ── 事件公共首部 ──
 /** 每条事件都携带:行动者座位(谁做的;null=系统/国库等无主行为)+ 发生时刻
@@ -59,7 +60,9 @@ export interface RoundEndedBody {
 export interface RoundStartedBody {
   kind: "roundStarted";
 }
-/** 终局(胜负判定确定;subject=胜者,reason=判定依据)。 */
+/** 终局(胜负判定确定;subject=胜者,reason=判定依据)。异常终局(#642,winReason=
+ *  "aborted")同 kind 走本词汇:无胜者(winner=null),subject=派发主体(activeIndex)
+ *  而非胜者,消费方以 reason="aborted" 判别(见 event-fold / fx 提取器的显式分支)。 */
 export interface GameOverBody {
   kind: "gameOver";
   reason: VictoryReason;
@@ -453,4 +456,49 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
 export function noteMomentEvent(g: GameEngine, moment: GameMoment, ctx: MomentCtx): void {
   const factory = MOMENT_EVENT_FACTORIES[moment];
   if (factory) emitGameEvent(g, ctx.subject, factory(g, ctx));
+}
+
+// ── 异常终局(#642 响亮终局,wayfinder #644「bot 对局零无声软锁」)──
+/** 驱动链死亡出口(链内抛异常/驱动链停摆/时钟挂死)的唯一引擎语义:对局当场作废——
+ *  无胜者(winner=null)、winReason="aborted"、phase/turnPhase=GameOver;终局行
+ *  (category final,机读面板含 abortReason 摘要与全体玩家终态)与 GameOver 时机
+ *  (gameOver 事件 reason="aborted" 判别,subject=activeIndex)照常产出,经编排侧
+ *  persist/广播走常规下行通路。幂等:已终局(正常或已作废)再调用直接返回——多出口
+ *  并发时首因优先,次因不覆盖已落账的终局行。
+ *  域本体放本模块的理由:批界(beginGameEventBatch)/事件词汇(gameOver)/终局行三通道
+ *  都在这里,且壳行数锁下 authority.ts 只留薄委托。调用方=房间编排三出口(room.abortGame
+ *  经 ops 注入 bot-driver/watchdogs,单机 LocalController 时钟 fatal 同口)。 */
+export function abortGame(g: GameEngine, reason: string): void {
+  if (g.isOver) return; // 幂等(非兜底:重复出口以首因为准)
+  beginGameEventBatch(g); // 编排级转移(#375 批界):abort 由脚本直呼(不经 submitCommand/botAct),自行开批
+  g.isOver = true;
+  g.winner = null;
+  g.winReason = "aborted";
+  g.phase = "GameOver";
+  g.turnPhase = "GameOver";
+  g.logEvent(
+    "final",
+    null,
+    `对局作废(异常终局):${reason}`,
+    JSON.stringify({
+      type: "final",
+      round: g.round,
+      turnNumber: g.turnNumber,
+      winner: null,
+      winReason: "aborted",
+      abortReason: reason,
+      players: g.players.map((p) => ({
+        id: p.id,
+        guohao: p.guohao,
+        isBot: p.isBot,
+        isBankrupt: p.isBankrupt,
+        cash: p.cash,
+        netWorth: netWorth(p),
+        position: p.position,
+      })),
+    }),
+  );
+  // 时机·GameOver 照常派发:subject=activeIndex 是派发主体、非胜者(消费方以
+  // reason="aborted" 判别;当前无 GameOver 时机监听技,事件面照常齐全)
+  g.dispatchMoment("GameOver", { subject: g.activeIndex });
 }
