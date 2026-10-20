@@ -683,16 +683,24 @@ export class GameEngine {
   // ──────────────────────────── 回合结束 / 胜负 ────────────────────────────
   // #320 去私有化(ADR-0019 条款 3):机遇/耗竭域 encounter-flow.ts 结算路径直调 g.endTurn 收尾回合
   endTurn(): void {
-    // 延期问询排空(#615):先于挂起挡板——派发中入队的问询在此稳定点开窗(选项集现算),
-    // 开出窗口即被下方挡板延期,且相位已在排空时置 AwaitingInquiry,不变量成立。
-    drainDeferredInquiries(this);
     // 定制问询收口延期(#424):问询挂起(= AwaitingInquiry 相位,不变量)时回合收口
     // 等应答解挂后经 resolveInquiry 补完(先例=AwaitingReaction 停相位续结算)。发起方
     // 流程照常调 endTurn,此处原样返回——不是兜底,是状态机规则:未应答的问询不得被
-    // 收口吞掉(#432「收口即清悬问询」的过渡口径随本票退役)。
+    // 收口吞掉(#432「收口即清悬问询」的过渡口径随本票退役)。挡板置于相位拨动之前:
+    // 挂起时下方排空本就是 no-op(drain 循环条件 pendingInquiry==null),前移纯语义等价。
     if (this.pendingInquiry != null) return;
-    this.dispatchMoment("TurnEnd", { subject: this.activeIndex }); // 时机·TurnEnd:回合收尾(胜负判定/结算移除前)
+    // 收口边界事务性(#649):先拨离 Awaiting* 相位,再进排空/TurnEnd 派发两个同步抛错点。
+    // 域收口范式是「清载荷 → endTurn」(treasure-flow/recruitment/encounter-flow 三处同构),
+    // 若先跑可能抛错的收口段后拨相位,异常炸出的同时引擎滞留「已清载荷未拨相位」失配态
+    // (#640 病灶态的结构性残余,驱动链下一拍连环崩=无声软锁)。先拨 EndTurn:此后任一点
+    // 抛错,相位均不在任何 Awaiting*,现场保持合法;排空开出新窗仍会置 AwaitingInquiry
+    // (不变量不破),抛错照炸(零兜底)。
     this.turnPhase = "EndTurn";
+    // 延期问询排空(#615):派发中入队的问询在此稳定点开窗(选项集现算),开出窗口即被
+    // 下方挡板延期,且相位已在排空时置 AwaitingInquiry,不变量成立。
+    drainDeferredInquiries(this);
+    if (this.pendingInquiry != null) return; // 排空开出新窗 = 收口延期(同上,应答解挂后补完)
+    this.dispatchMoment("TurnEnd", { subject: this.activeIndex }); // 时机·TurnEnd:回合收尾(胜负判定/结算移除前)
     const result = this.checkVictory();
     if (result.winner) {
       this.isOver = true;

@@ -443,10 +443,12 @@ export function botAct(engine: GameEngine): void {
     }
 
     case "AwaitingHeroPick": {
-      // bot 招贤纳士:随机选一位
+      // bot 招贤纳士:随机选一位。候选非空是该相位的引擎不变量(recruitment.ts 载荷与相位
+      // 同点置位);曾有「空候选 resolveHeroPick(0)」把「相位挂着、载荷已空」的失配态静默
+      // 驱过掩盖(#649),删——失配就该在读取点当场炸,零兜底(同 AwaitingEncounter 口径)。
       const count = engine.offeredHeroes.length;
-      if (count > 0) engine.resolveHeroPick(Math.floor(engine.dice.nextFloat() * count));
-      else engine.resolveHeroPick(0);
+      if (count === 0) throw new Error("AwaitingHeroPick 相位 offeredHeroes 为空:状态机不一致"); // 零兜底
+      engine.resolveHeroPick(Math.floor(engine.dice.nextFloat() * count));
       break;
     }
 
