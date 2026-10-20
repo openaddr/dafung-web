@@ -51,6 +51,9 @@ export interface GameStoreState {
   viewSeat: number;
   /** 此刻本地玩家能否操作(由控制器判定写入:UI 不自行推导,保持单一来源)。 */
   interactive: boolean;
+  /** 本座位动作在途(#611「行军中…」提示源,与 interactive 同拍由控制器写入):
+   *  命令已发未回或本座位行军会话未落定——按钮灰且轮到我时的等待条文案来源。 */
+  selfPresenting: boolean;
 
   // ── UI 态 ──
   screen: Screen;
@@ -66,6 +69,7 @@ export interface GameStoreState {
   syncFromEngine: (engine: GameEngine) => void;
   setViewSeat: (seat: number) => void;
   setInteractive: (interactive: boolean) => void;
+  setSelfPresenting: (selfPresenting: boolean) => void;
   /** 短暂提示:F4 起过期逻辑下沉到 store(统一 1.8s,重复 push 先清旧定时器),
    *  渲染层不再各自 setTimeout——原来 game 1.5s / lobby 1.8s / App+solo-setup 永不
    *  过期,三套口径同一文案行为不一致。level 决定渲染样式(error=红 chip)。 */
@@ -78,6 +82,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   snapshot: null,
   viewSeat: -1,
   interactive: false,
+  selfPresenting: false,
   screen: "setup",
   hint: null,
   hintLevel: "error",
@@ -90,6 +95,7 @@ export const useGameStore = create<GameStoreState>((set) => ({
   },
   setViewSeat: (seat) => set({ viewSeat: seat }),
   setInteractive: (interactive) => set({ interactive }),
+  setSelfPresenting: (selfPresenting) => set({ selfPresenting }),
   // F4:定时器归 store 持有(模块级单例——同一时刻只有一条 hint 在屏)。
   // 重复 push 先清旧定时器,保证「最新一条 1.8s 后消失」;原来屏层各自 setTimeout,
   // App/solo-setup 没挂定时器导致提示永不过期(评审 F4 的口径漂移点)。

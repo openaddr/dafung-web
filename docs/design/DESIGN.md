@@ -3,7 +3,10 @@
 > 状态:方向已定稿,分屏前后对比截图随施工批次补充(见 §7)。
 > 红线对齐:引擎(src/core 游戏逻辑)零改动;本文所述 theme.ts 改动仅涉配色/动效
 > token 单源(gen:theme 管线的生成源),非引擎裁决逻辑;全部 data-testid、
-> fx/timings scaler 机制、ADR-0010/0012/0013/0015 表现契约原样保留。
+> fx/timings 演出时长单口(演出编排族 `scStage`、界面/节拍族 `sc`,时长表皆是
+> 各自通道的活投影;#610 起 e2e 键运行时化,追帧倍率经除法只进演出编排)、
+> ADR-0010/0012/0013/0015
+> 表现契约原样保留。
 >
 > **⚠ 方向修订(2026-10-13,[#489](https://github.com/openaddr/dafung-web/issues/489)/[ADR-0026](../adr/0026-visual-direction-revision-xuanmo-liujin.md))**:
 > 视觉基准由方向 B「水墨留白·笺纸集」修订为 **方向 D「玄墨鎏金」**(§3)——

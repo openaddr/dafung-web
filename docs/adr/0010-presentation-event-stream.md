@@ -27,4 +27,4 @@ audio/dice/fxStore/march 收口为 `FxSink` 接口;生产 adapter 组装既有�
 ## 关联
 
 - ADR-0006 预留的"共享动画编排器"位置即本 ADR 的落点;动画仍不进 controller 基类
-- `engine.applyPresentationMove`(联机注入 diff 路径)是 tokenMoved 事件在联机侧的载体,红线 3 合规
+- **tokenMoved 的联机载体**(2026-10-18 修订:原「`engine.applyPresentationMove` 是 tokenMoved 事件在联机侧的载体」句已过时——该联机注入 diff 路径随折叠切换③ #385 退役,ADR-0020):现行口径 = 行军路径随 `tokenMoved` 事件自带、`anchorMarches` 直传 sink;引擎侧 `applyPresentationMove` 仅存留为表现态 `lastMove` 的写通道(ADR-0029 不变量①)。红线 3 合规不变

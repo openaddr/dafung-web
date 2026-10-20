@@ -29,8 +29,8 @@ import type { FxSink, PresentationEvent } from "./presentation";
 // 队列积压数分钟,骰子(z-45)一张接一张压在胜利屏(z-40)上摇到排空——D2 原先只
 // 清在场一张,管不住队里后续的。收队时把批内未开播 tokenMoved 的行军接管一并收回
 // (abandonMarch):anchorMarches 在 play() 拍就已预塞 marching,不收回则棋子被
-// TokenLayer 冻结在起点挂行军金边直到整页 reload;同 id 恰有在途动画时,移出
-// marching 即 C5 取消令牌(useMarch 订阅器),在途循环下个段边界自终止。
+// TokenLayer 冻结在起点挂行军金边直到整页 reload;同 id 恰有在途动画时,会话令牌
+// 即删(#609 per-id 会话),在途循环下个段边界自终止。
 // 收队 return 而非 throw:SnapshotEffects 的 catch 是给真异常留的,封场收队是生命
 // 周期规则,响 error 日志反而掩真错。
 let sealed = false;
@@ -61,7 +61,8 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.rollDice(ev.die);
         break;
       case "tokenMoved":
-        await sink.marchToken(ev.playerId, ev.path);
+        // 不变量①哑渲染:逐帧坐标提取拍已烤进事件,present 只透传(零引擎读取)。
+        await sink.marchToken(ev.playerId, ev.keyframes);
         break;
       case "cashDelta":
         // 铜钱雨扩容(S7):纳税付银带 coins 档,随雨落币
@@ -74,11 +75,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         sink.spawnTextFloater(ev.x, ev.y, ev.text);
         break;
       case "sealStamped":
-        sink.stampSeal(ev.tileIndex, ev.char, ev.tone);
+        sink.stampSeal(ev.x, ev.y, ev.char, ev.tone);
         break;
       case "landPulse":
-        // 落格定音(S7):金圈一拍,同步下发 CSS 自走。
-        sink.landPulse(ev.tileIndex);
+        // 落格定音(S7):金圈一拍,同步下发 CSS 自走(坐标提取烤好)。
+        sink.landPulse(ev.x, ev.y);
         break;
       case "duelSigns":
         // 拼点签面(#637,ADR-0030):全屏多签演出整场,await 到收口——串行编排

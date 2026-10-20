@@ -24,6 +24,17 @@ declare global {
        *  到点回调挂起;resume 按到点序补放。仅单机对局可冻结(无 Worker 时钟抛错)。 */
       clockPause: () => void;
       clockResume: () => void;
+      /** 落后即校准诊断计数(#610,ADR-0029 ③;只读快照,累计值——实体现在
+       *  fx/catchup.ts catchupCounters):laggy/catchup/snap 分类计数 + 末次判据
+       *  依据(游标差/批龄/生效倍率),e2e 可断言、现场排查可取。 */
+      fxCatchup: () => {
+        laggyBatches: number;
+        catchupBatches: number;
+        snapBatches: number;
+        lastGapBatches: number;
+        lastWaitMs: number;
+        lastRuntimeScale: number;
+      };
     };
   }
 }

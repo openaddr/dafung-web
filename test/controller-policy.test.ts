@@ -1,9 +1,12 @@
 // 控制器交互策略公式表驱动单测(#433):「此刻本地玩家能不能点」上收基类
 // GameController.canAct 后,策略公式只剩一份。本文件穷举公式输入空间钉死语义:
-//   相位判定(EnginePhase × TurnPhase 全集)× 三把锁(pending/托管/演出,8 组合)
+//   相位判定(EnginePhase × TurnPhase 全集)× 三把锁(pending/托管/本座位演出,8 组合)
 //   × 决策方判定(决策方座位 × 人/bot)× 热座语义开关(单机/联机唯一语义差,
 //   显式参数化,#433)+ AwaitingReaction 多属主例外(被询问集判定;决策方/托管/
 //   演出锁在该分支全部不适用——倒计时不等演出,超时兜底在权威侧)。
+//   #611 交互锁解绑(ADR-0029 §4):演出锁改绑「本座位演出落定」——生产读数 =
+//   players[mySeat].id → useMarch 行军会话查询口,新增会话驱动维度表钉死接线:
+//   本座在途关、他座在途/队列积压(公式无全局队列输入,结构性)开。
 // 两个真实控制器只剩「参数怎么取」:LocalController(热座=true、mySeat=0)由
 // test/local-room.test.ts 既有行为断言守住;OnlineController(热座=false、
 // mySeat=入座分配)参数面在本文件尾部薄测。
@@ -13,6 +16,8 @@ import type { ReactionView } from "@core/reaction-window";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import { GameController } from "@app/controllers/controller";
 import { OnlineController } from "@app/controllers/online";
+import { abandonAllMarches, abandonMarch, beginMarch } from "../src/app/fx/useMarch";
+import type { MarchSegmentFrames } from "../src/app/fx/presentation";
 import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 
 const HUANYOU: { map: LoadedMap; data: MapData } = {
@@ -20,15 +25,22 @@ const HUANYOU: { map: LoadedMap; data: MapData } = {
   data: huanyouData as unknown as MapData,
 };
 
-/** 策略探针:基类公式的一切子类输入(座位/热座/锁)显式注入,直读 interactive 断言。 */
+/** 策略探针:基类公式的一切子类输入(座位/热座/锁)显式注入,直读 interactive 断言。
+ *  fxPlaying 缺省不注入(= 走基类生产实现:本座位 id → useMarch 行军会话查询口,
+ *  #611),显式传布尔才覆写——演出锁的「读数怎么来」与「公式怎么消费」分开钉。 */
 class PolicyProbe extends GameController {
-  private readonly p: { mySeat: number; hotSeat: boolean; autoPilot: boolean; fxPlaying: boolean };
+  private readonly p: {
+    mySeat: number;
+    hotSeat: boolean;
+    autoPilot: boolean;
+    fxPlaying?: boolean;
+  };
   constructor(
     private readonly fakeEngine: GameEngine,
     p: { mySeat: number; hotSeat: boolean; autoPilot?: boolean; fxPlaying?: boolean },
   ) {
     super();
-    this.p = { autoPilot: false, fxPlaying: false, ...p };
+    this.p = { autoPilot: false, ...p };
   }
   get engine(): GameEngine {
     return this.fakeEngine;
@@ -43,8 +55,10 @@ class PolicyProbe extends GameController {
     return this.p.hotSeat;
   }
   protected override get fxPlaying(): boolean {
-    return this.p.fxPlaying;
+    return this.p.fxPlaying ?? super.fxPlaying;
   }
+  /** 探针豁免行军会话订阅(基类构造期装订):不往公共 gameStore 灌替身引擎态。 */
+  protected override watchMarching(): void {}
   /** 锁注入:pending 是基类 protected 字段(子类协议面写),探针借同族访问写。 */
   setPending(v: boolean): void {
     this.pending = v;
@@ -73,20 +87,24 @@ const TURN_PHASES: TurnPhase[] = [
   "GameOver",
 ];
 
-/** 策略公式读数所需的引擎面(相位/决策方/挂起反应窗/座位表);其余字段公式不读。 */
+/** 策略公式读数所需的引擎面(相位/决策方/挂起反应窗/座位表);其余字段公式不读。
+ *  座位表缺省带 id(#611:演出锁生产读数走 players[mySeat].id → 行军会话口)。 */
 function fakeEngine(o: {
   phase?: EnginePhase;
   turnPhase?: TurnPhase;
   decisionOwner?: number;
   pendingReaction?: { view: ReactionView } | null;
-  players?: { isBot: boolean }[];
+  players?: { isBot: boolean; id?: string }[];
 }): GameEngine {
   return {
     phase: o.phase ?? "Playing",
     turnPhase: o.turnPhase ?? "Roll",
     decisionOwner: o.decisionOwner ?? 0,
     pendingReaction: o.pendingReaction ?? null,
-    players: o.players ?? [{ isBot: false }, { isBot: true }],
+    players: o.players ?? [
+      { isBot: false, id: "p1" },
+      { isBot: true, id: "p2" },
+    ],
   } as unknown as GameEngine;
 }
 
@@ -128,7 +146,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
     }
   });
 
-  it("三把锁:主分支 pending×托管×演出 全 8 组合 × 非 AwaitingReaction 的 turnPhase 全集——任一上锁即关", () => {
+  it("三把锁:主分支 pending×托管×本座位演出 全 8 组合 × 非 AwaitingReaction 的 turnPhase 全集——任一上锁即关(#611:演出锁读数=本座位未落定)", () => {
     for (const turnPhase of TURN_PHASES.filter((t) => t !== "AwaitingReaction")) {
       for (const pending of [false, true]) {
         for (const autoPilot of [false, true]) {
@@ -145,6 +163,65 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
         }
       }
     }
+  });
+
+  // ── 演出锁改绑本座位(#611,ADR-0029 §4):会话驱动维度表 ──
+  // 探针不注入 fxPlaying(走基类生产读数:players[mySeat].id → useMarch 会话口),
+  // 直接驱动真实行军会话钉死「读数怎么来 + 公式怎么消费」两端:
+  //   本座位行军在途 → 关;他座位行军在途(队列积压的常态形态)→ 开——
+  //   「队列积压但本座位无演出」对公式不可分辨 = 结构性无此输入(全局队列
+  //   pendingChunks 不进公式),行为级旁证由 local-room 排空独立断言承担。
+  const marchKF: MarchSegmentFrames[] = [
+    {
+      points: [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+      ],
+      flow: [
+        { x: 0, y: 0 },
+        { x: 1, y: 1 },
+      ],
+    },
+  ];
+  const sessionProbe = (): PolicyProbe =>
+    new PolicyProbe(
+      fakeEngine({
+        turnPhase: "AwaitingDecision",
+        decisionOwner: 0,
+        players: [
+          { isBot: false, id: "p1" },
+          { isBot: true, id: "p2" },
+        ],
+      }),
+      { mySeat: 0, hotSeat: false },
+    );
+
+  it("演出锁改绑本座位(#611):他座位行军在途不关门——决策卷轴照弹,别人的棋子照飞", () => {
+    try {
+      beginMarch("p2", marchKF);
+      expect(sessionProbe().interactive).toBe(true);
+    } finally {
+      abandonAllMarches();
+    }
+  });
+
+  it("演出锁改绑本座位(#611):本座位行军在途关门,会话落定(播完/作废删会话)即开门", () => {
+    try {
+      beginMarch("p1", marchKF);
+      expect(sessionProbe().interactive).toBe(false);
+      abandonMarch("p1");
+      expect(sessionProbe().interactive).toBe(true);
+    } finally {
+      abandonAllMarches();
+    }
+  });
+
+  it("演出锁读数零兜底(#611):本座位不在引擎座位表当场炸出(控制器/引擎错位是 bug,不静默当无演出)", () => {
+    const probe = new PolicyProbe(
+      fakeEngine({ decisionOwner: 0, players: [{ isBot: false, id: "p1" }] }),
+      { mySeat: 3, hotSeat: true }, // 热座豁免决策方判定 → 公式走到演出锁读数
+    );
+    expect(() => probe.interactive).toThrow();
   });
 
   const decisionRows = [

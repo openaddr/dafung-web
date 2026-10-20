@@ -132,6 +132,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;顶部条复位钮用)
   const boardRef = useRef<BoardViewHandle>(null);
   const interactive = useGameStore((s) => s.interactive);
+  // 本座位动作在途(#611「行军中…」提示源):与 interactive 同拍由控制器写入,
+  // WaitingBar 与按钮同源消费——亮一起亮、灰一起灰。
+  const selfPresenting = useGameStore((s) => s.selfPresenting);
   const viewSeat = useGameStore((s) => s.viewSeat);
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
@@ -433,6 +436,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           <WaitingBar
             snapshot={snapshot}
             interactive={interactive}
+            selfPresenting={selfPresenting}
             viewSeat={viewSeat}
             online={net.roomId !== ""}
           />

@@ -59,10 +59,16 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
       expect(c.engine.phase).toBe("Playing");
       expect(useGameStore.getState().snapshot?.phase).toBe("Playing");
       expect(useNetStore.getState().eventBatchSeq).toBeGreaterThan(0); // events 通道已驱动
-      // 轮到人类且表现链已排空(选都浮字×3 + 开局横幅 >100ms,负载下更久——轮询等闲)
+      // #611 交互锁解绑(ADR-0029 §4):interactive 改绑「本座位演出落定」——选都批
+      // (筑章/宣告/横幅)无本座位行军,轮到人类即开门,不待全局队列排空(①);
+      // 全局表现队列最终排空是另一件事,独立断言(②)——两件事分开验。
       const deadline = Date.now() + 3000;
-      while (!c.interactive && Date.now() < deadline) await sleep(50);
+      while (!c.interactive && Date.now() < deadline) await sleep(20);
       expect(c.interactive).toBe(true);
+      // ② 表现队列排空观察口(fxBusy):浮字/横幅等全局演出播完即闲,与交互锁脱钩。
+      const drainDeadline = Date.now() + 5000;
+      while (c.fxBusy && Date.now() < drainDeadline) await sleep(20);
+      expect(c.fxBusy).toBe(false);
     } finally {
       c.destroy();
     }

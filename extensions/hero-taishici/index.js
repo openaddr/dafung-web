@@ -4,6 +4,8 @@ const contribution = {
       id: "taishici",
       name: "太史慈",
       title: "信义笃行",
+      // (名将级 desc 已随 #604 下沉为每技自带,下方 skills 各带 desc;typecheck
+      //  纳入 extensions 面后暴露的包漂移,随修)
       // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
       // 专属将旗仍由客户端渲染 hook 提供
       image: "/assets/heroes/hero-taishici-noname.webp",
@@ -11,7 +13,8 @@ const contribution = {
         {
           id: "taishici-yicong",
           name: "义从",
-          desc: "被招揽时义从归心:+100 两(来投之礼)",
+          // desc 必填(#604 每技自带,typecheck 纳入 extensions 面后暴露的包漂移,随修)
+          desc: "被招揽时义从归心:立得 +100 两来投之礼",
           when: "HeroRecruited",
           // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
           effect: "joinGift",
@@ -19,12 +22,12 @@ const contribution = {
           scope: "self",
         },
         {
-          // 「信义盲选」触发技(#424 对局可玩):招揽即问询发起。空手牌无可盲选,
+          // 「信义盲选」触发技(#424 对局可玩):招贤即问询发起。空手牌无可盲选,
           // 效果条件不满足静默跳过(EffectFn 语义,非兜底);1 张=唯一选项自动执行
           // (ADR-0013,引擎分流);≥2 张=弹问询卷轴(客户端按呈现意图画牌背)。
           id: "taishici-blindpick",
           name: "信义盲选",
-          desc: "信义试炼:从你的手牌中盲选一张,弃旧换新",
+          desc: "被招揽时行信义试炼:从手牌中盲选一张,弃旧换新",
           when: "HeroRecruited",
           effect: "blindPickRitual",
           scope: "self",

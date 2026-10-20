@@ -25,5 +25,5 @@
       "@app/*": ["src/app/*"]
     }
   },
-  "include": ["src", "test", "e2e", "*.config.ts"]
+  "include": ["src", "test", "e2e", "extensions", "*.config.ts"]
 }

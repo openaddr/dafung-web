@@ -5,6 +5,7 @@
 // 容器像素(对照旧 svgCoordHelpers.getScreenCTM 方案)——pan/zoom 后下一次
 // 重渲还能自动对位,编排侧(控制器/行军)无需关心屏幕坐标。
 import { create } from "zustand";
+import { subscribeWithSelector } from "zustand/middleware";
 import { FX } from "./timings";
 
 export interface FloaterFx {
@@ -116,8 +117,9 @@ interface FxState {
   /** 窥探弹层(#575):null=关闭(关闭即清,无任何残留)。 */
   peek: PeekFx | null;
   /** 行军动画接管中的玩家 id(→ BoardView.skipTokenIds):React 声明式定位让位;
-   *  外部移出某 id = 在途行军的取消令牌(C5,订阅器在 useMarch:段边界自终止并清
-   *  marchPos)——终局封场的接管收回(orchestrator→abandonMarch)即走此通道。 */
+   *  外部移出某 id = 在途行军的取消令牌(selector 订阅在 useMarch,按 id 派发:
+   *  会话作废 + 清 marchPos,#609 per-id 行军会话)——终局封场的接管收回
+   *  (orchestrator→abandonMarch)与重连边界(abandonAllMarches)即走此通道。 */
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
@@ -159,143 +161,148 @@ interface FxState {
   resetFx(): void;
 }
 
-export const useFxStore = create<FxState>((set) => ({
-  floaters: [],
-  seals: [],
-  banner: null,
-  halt: null,
-  jinnangLines: [],
-  peek: null,
-  marching: new Set<string>(),
-  announces: new Map<number, TileAnnounce>(),
-  pulses: [],
-  inkBlots: [],
-  coinBursts: [],
+export const useFxStore = create<FxState>()(
+  subscribeWithSelector((set) => ({
+    floaters: [],
+    seals: [],
+    banner: null,
+    halt: null,
+    jinnangLines: [],
+    peek: null,
+    marching: new Set<string>(),
+    announces: new Map<number, TileAnnounce>(),
+    pulses: [],
+    inkBlots: [],
+    coinBursts: [],
 
-  spawnFloater(x, y, amount, coins) {
-    const id = nextId++;
-    set((s) => ({ floaters: [...s.floaters, { id, x, y, amount, coins }] }));
-    // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
-    setTimeout(
-      () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
-      FX.floaterMs,
-    );
-  },
+    spawnFloater(x, y, amount, coins) {
+      const id = nextId++;
+      set((s) => ({ floaters: [...s.floaters, { id, x, y, amount, coins }] }));
+      // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
+      setTimeout(
+        () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
+        FX.floaterMs,
+      );
+    },
 
-  spawnTextFloater(x, y, text) {
-    const id = nextId++;
-    set((s) => ({ floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text }] }));
-    setTimeout(
-      () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
-      FX.floaterMs,
-    );
-  },
+    spawnTextFloater(x, y, text) {
+      const id = nextId++;
+      set((s) => ({ floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text }] }));
+      setTimeout(
+        () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
+        FX.floaterMs,
+      );
+    },
 
-  showBanner(guohao, color) {
-    const id = nextId++;
-    set({ banner: { id, guohao, color } });
-    setTimeout(() => set((s) => (s.banner?.id === id ? { banner: null } : {})), FX.bannerMs);
-  },
+    showBanner(guohao, color) {
+      const id = nextId++;
+      set({ banner: { id, guohao, color } });
+      setTimeout(() => set((s) => (s.banner?.id === id ? { banner: null } : {})), FX.bannerMs);
+    },
 
-  stampSeal(x, y, char, tone) {
-    const id = nextId++;
-    set((s) => ({ seals: [...s.seals, { id, x, y, char, tone }] }));
-    setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
-  },
+    stampSeal(x, y, char, tone) {
+      const id = nextId++;
+      set((s) => ({ seals: [...s.seals, { id, x, y, char, tone }] }));
+      setTimeout(() => set((s) => ({ seals: s.seals.filter((f) => f.id !== id) })), FX.sealMs);
+    },
 
-  showHaltBanner(guohao, color, cityName) {
-    const id = nextId++;
-    set({ halt: { id, guohao, color, cityName } });
-    setTimeout(() => set((s) => (s.halt?.id === id ? { halt: null } : {})), FX.haltBannerMs);
-  },
+    showHaltBanner(guohao, color, cityName) {
+      const id = nextId++;
+      set({ halt: { id, guohao, color, cityName } });
+      setTimeout(() => set((s) => (s.halt?.id === id ? { halt: null } : {})), FX.haltBannerMs);
+    },
 
-  spawnPulse(x, y) {
-    const id = nextId++;
-    set((s) => ({ pulses: [...s.pulses, { id, x, y }] }));
-    setTimeout(() => set((s) => ({ pulses: s.pulses.filter((p) => p.id !== id) })), FX.landPulseMs);
-  },
+    spawnPulse(x, y) {
+      const id = nextId++;
+      set((s) => ({ pulses: [...s.pulses, { id, x, y }] }));
+      setTimeout(
+        () => set((s) => ({ pulses: s.pulses.filter((p) => p.id !== id) })),
+        FX.landPulseMs,
+      );
+    },
 
-  spawnInkBlot(x, y) {
-    const id = nextId++;
-    set((s) => ({ inkBlots: [...s.inkBlots, { id, x, y }] }));
-    setTimeout(
-      () => set((s) => ({ inkBlots: s.inkBlots.filter((b) => b.id !== id) })),
-      FX.inkBlotMs,
-    );
-  },
+    spawnInkBlot(x, y) {
+      const id = nextId++;
+      set((s) => ({ inkBlots: [...s.inkBlots, { id, x, y }] }));
+      setTimeout(
+        () => set((s) => ({ inkBlots: s.inkBlots.filter((b) => b.id !== id) })),
+        FX.inkBlotMs,
+      );
+    },
 
-  spawnCoinBurst(x, y, count) {
-    const id = nextId++;
-    set((s) => ({ coinBursts: [...s.coinBursts, { id, x, y, count }] }));
-    setTimeout(
-      () => set((s) => ({ coinBursts: s.coinBursts.filter((b) => b.id !== id) })),
-      FX.coinBurstMs,
-    );
-  },
+    spawnCoinBurst(x, y, count) {
+      const id = nextId++;
+      set((s) => ({ coinBursts: [...s.coinBursts, { id, x, y, count }] }));
+      setTimeout(
+        () => set((s) => ({ coinBursts: s.coinBursts.filter((b) => b.id !== id) })),
+        FX.coinBurstMs,
+      );
+    },
 
-  spawnJinnangLine(x1, y1, x2, y2) {
-    const id = nextId++;
-    set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
-    // 超时自清:与 fx.css 的三段 keyframe 全长(FX.jinnangLineMs=700ms)硬同步
-    setTimeout(
-      () => set((s) => ({ jinnangLines: s.jinnangLines.filter((l) => l.id !== id) })),
-      FX.jinnangLineMs,
-    );
-  },
+    spawnJinnangLine(x1, y1, x2, y2) {
+      const id = nextId++;
+      set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
+      // 超时自清:与 fx.css 的三段 keyframe 全长(FX.jinnangLineMs=700ms)硬同步
+      setTimeout(
+        () => set((s) => ({ jinnangLines: s.jinnangLines.filter((l) => l.id !== id) })),
+        FX.jinnangLineMs,
+      );
+    },
 
-  revealPeek(viewerSeat, targetSeat, guohao, hand) {
-    set({ peek: { id: nextId++, viewerSeat, targetSeat, guohao, hand: [...hand] } });
-  },
+    revealPeek(viewerSeat, targetSeat, guohao, hand) {
+      set({ peek: { id: nextId++, viewerSeat, targetSeat, guohao, hand: [...hand] } });
+    },
 
-  closePeek() {
-    set({ peek: null });
-  },
+    closePeek() {
+      set({ peek: null });
+    },
 
-  addMarching(id) {
-    set((s) => {
-      if (s.marching.has(id)) return {};
-      const next = new Set(s.marching);
-      next.add(id);
-      return { marching: next };
-    });
-  },
+    addMarching(id) {
+      set((s) => {
+        if (s.marching.has(id)) return {};
+        const next = new Set(s.marching);
+        next.add(id);
+        return { marching: next };
+      });
+    },
 
-  removeMarching(id) {
-    set((s) => {
-      if (!s.marching.has(id)) return {};
-      const next = new Set(s.marching);
-      next.delete(id);
-      return { marching: next };
-    });
-  },
+    removeMarching(id) {
+      set((s) => {
+        if (!s.marching.has(id)) return {};
+        const next = new Set(s.marching);
+        next.delete(id);
+        return { marching: next };
+      });
+    },
 
-  announceTileChange(tileIndex, levelChanged, ownerChanged, ownerColorIndex) {
-    set((s) => {
-      const prev = s.announces.get(tileIndex) ?? { level: 0, owner: 0, ownerColorIndex: null };
-      const next: TileAnnounce = {
-        level: levelChanged ? prev.level + 1 : prev.level,
-        owner: ownerChanged ? prev.owner + 1 : prev.owner,
-        ownerColorIndex: ownerChanged ? ownerColorIndex : prev.ownerColorIndex,
-      };
-      const announces = new Map(s.announces);
-      announces.set(tileIndex, next);
-      return { announces };
-    });
-  },
+    announceTileChange(tileIndex, levelChanged, ownerChanged, ownerColorIndex) {
+      set((s) => {
+        const prev = s.announces.get(tileIndex) ?? { level: 0, owner: 0, ownerColorIndex: null };
+        const next: TileAnnounce = {
+          level: levelChanged ? prev.level + 1 : prev.level,
+          owner: ownerChanged ? prev.owner + 1 : prev.owner,
+          ownerColorIndex: ownerChanged ? ownerColorIndex : prev.ownerColorIndex,
+        };
+        const announces = new Map(s.announces);
+        announces.set(tileIndex, next);
+        return { announces };
+      });
+    },
 
-  resetFx() {
-    set({
-      floaters: [],
-      seals: [],
-      banner: null,
-      halt: null,
-      jinnangLines: [],
-      peek: null,
-      marching: new Set<string>(),
-      announces: new Map(),
-      pulses: [],
-      inkBlots: [],
-      coinBursts: [],
-    });
-  },
-}));
+    resetFx() {
+      set({
+        floaters: [],
+        seals: [],
+        banner: null,
+        halt: null,
+        jinnangLines: [],
+        peek: null,
+        marching: new Set<string>(),
+        announces: new Map(),
+        pulses: [],
+        inkBlots: [],
+        coinBursts: [],
+      });
+    },
+  })),
+);

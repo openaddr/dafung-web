@@ -19,6 +19,7 @@ import {
   registerExtensionClientPackage,
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
+import { extractBatchEvents } from "@app/fx/event-extract";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
@@ -140,6 +141,32 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     );
     expect(activated?.skillId).toBe("taishici-pozhen");
     expect(activated?.skillKind).toBe("warDrum");
+  });
+
+  it("义从印坐标契约(#608 全坐标化,复审 F2 钉子):client.js 编译产物产的 sealStamped 自带有限 x/y", () => {
+    // 编译产物运行时加载(浏览器 glob 装载 client.js 而非 src/client.ts),tsconfig
+    // 面封不住——本钉子经真实注册的编译产物走提取链;旧形状 {tileIndex,char} 在此
+    // 即红(soak 实锤 translate(undefined NaN)),提取尾坐标 belt 为其护栏。
+    const e = prepared();
+    const pos = e.board.positionOf(e.players[0].position);
+    const out = extractBatchEvents(e, [
+      {
+        kind: "skillFired",
+        seat: 0,
+        round: 1,
+        turn: 1,
+        heroId: "taishici",
+        skillId: "taishici-yicong",
+        moment: "HeroRecruited",
+      },
+    ]);
+    const seal = out.find(
+      (ev): ev is Extract<typeof ev, { kind: "sealStamped" }> => ev.kind === "sealStamped",
+    );
+    if (seal == null) throw new Error("义从印未随 skillFired 产出(包动画 handler 失效)");
+    expect(seal.char).toBe("义");
+    expect(seal.x).toBe(pos.x);
+    expect(seal.y).toBe(pos.y);
   });
 
   it("交互问询「信义盲选」(#410):读口触发产脱敏选项集(张数随手牌);客户端呈现意图=牌背", () => {
