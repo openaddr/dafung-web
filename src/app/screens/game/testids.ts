@@ -100,7 +100,9 @@ export const TESTIDS = {
   actionbarTarget: "actionbar-target",
   /** 目标段「作罢」(收回此计牌:不消耗、不记冷却)。 */
   actionbarCancel: "actionbar-cancel",
-  /** 目标段席位点击层(真按钮覆盖席位卡;点席位即出,免二次确认)。 */
+  /** 目标段席位点击层(真按钮;点席位=选中/再点同席取消,打出走动作条「出」,#417)。
+   *  自选目标起仪表条身份区「你」印在目标段兼任自己候选钮,复用本族 testid
+   *  (对手席位卡与仪表条同一选择器通路)。 */
   seatTarget: (seat: number) => `seat-target-${seat}` as const,
 
   // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──

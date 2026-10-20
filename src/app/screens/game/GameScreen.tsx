@@ -251,6 +251,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     junshiToggleSeat,
   );
 
+  // 目标段自己候选(自选目标):引擎候选集本就映射全体玩家(自己 available 与否随
+  // 目标域,any 域放行——华佗·赈济),席位栏结构性不出自己卡(#253),自己的候选面
+  // 落仪表条身份区「你」印。观战(未入座,selfSeat<0)无自己,不出钮。
+  const selfTargetOption =
+    junshiTargeting && selfSeat >= 0
+      ? junshiSeatOptions.find((o) => o.targetSeat === selfSeat)
+      : undefined;
+
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
   // 命令=respondReaction(seat 显式携带)。与出牌阶段态互斥(AwaitingReaction 相位)。
@@ -492,6 +500,17 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           controller={controller}
           autopilotOn={autopilotOn}
           cityLedger={{ openSeat: cityLedgerSeat, onOpen: setCityLedgerSeat }}
+          selfTarget={
+            selfTargetOption
+              ? {
+                  seat: selfSeat,
+                  available: selfTargetOption.available,
+                  reason: selfTargetOption.reason,
+                  selected: junshiTargetSeat === selfSeat,
+                  onPick: () => junshiToggleSeat(selfSeat),
+                }
+              : undefined
+          }
         >
           {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
             热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:出牌阶段态载荷随快照

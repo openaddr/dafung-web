@@ -1,6 +1,7 @@
 // 底部仪表条(#253 三区骨架,原型 .dash/.me 移植):身份头 + 现金大数(全屏唯一)+
 // 属性徽章(深底亮变体)+ 体力血条 + 签徽章 + 托管热钮 + 珍宝/名将计数徽章;
-// 右段为手牌架槽(HandRack 原样入槽,弹性宽)。右栏手牌区(HandPanel)与珍宝·名将区
+// 目标段身份区兼任自己候选钮(自选目标:any 域技含自己,「你」印变身候选钮,
+// 样式 game-hud.css .you-target)。右段为手牌架槽(HandRack 原样入槽,弹性宽)。右栏手牌区(HandPanel)与珍宝·名将区
 // (TreasuryPanel)已随 #253/#255 退役;珍宝/名将徽章 = 纯展示计数(#361 起,明细看
 // 牌架双入口——expandPile 点开展开机制随明细排退役而消亡)。
 // 观战(未入座):身份头转灰「观」印 + 被跟随者(房主座)资产只读呈现(原 S12 语义),
@@ -19,7 +20,7 @@ import type { GameController } from "@app/controllers/controller";
 import { useDeltaFloat, DeltaFloats, type DeltaFloat } from "./useDeltaFloat";
 import { AttrIcon } from "./AttrIcon";
 import { ATTR_TIPS, Tip } from "./Tip";
-import type { CityLedgerWiring } from "./SeatRail";
+import type { SeatTargetSlot, CityLedgerWiring } from "./SeatRail";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 import "./game-hud.css";
@@ -45,6 +46,10 @@ export interface DashboardBarProps {
   autopilotOn: boolean;
   /** 名下城池清单(#622):城池徽章轻点开弹层,开合态归消费方(GameScreen 持态)。 */
   cityLedger: CityLedgerWiring;
+  /** 目标段自己候选(自选目标:any 域技含自己;undefined=非目标段/观战,「你」印还原
+   *  展示死章)。席位栏结构性不出自己卡(#253),自己的候选面落身份区——与席位卡
+   *  SeatTargetSlot 完全同口径,候选集由 GameScreen 从快照 choices 派生。 */
+  selfTarget?: (SeatTargetSlot & { seat: number }) | undefined;
   /** 手牌架槽内容(HandRack;观战时不渲染)。 */
   children?: ReactNode;
 }
@@ -55,6 +60,7 @@ export function DashboardBar({
   controller,
   autopilotOn,
   cityLedger,
+  selfTarget,
   children,
 }: DashboardBarProps) {
   const net = useNetStore();
@@ -92,9 +98,34 @@ export function DashboardBar({
             {shown.guohao} · {player ? "本方视角" : "跟随视角"}
           </span>
           {player ? (
-            <span className="you" data-testid={TESTIDS.dashYou} title="这是你">
-              你
-            </span>
+            selfTarget ? (
+              /* 目标段自己候选钮(自选目标):与席位卡点击层同口径——真按钮(键盘可达,
+                 不自写交互语义)、候选=金圈呼吸(.candidate)、选中=实金停持(.picked)、
+                 不可用=禁用印原因(title/aria,DESIGN §4.6 不加文字章);testid 复用
+                 seatTarget(seat) 族,e2e 与对手席位同一选择器通路。 */
+              <button
+                type="button"
+                data-testid={TESTIDS.seatTarget(selfTarget.seat)}
+                className={
+                  "you you-target" +
+                  (selfTarget.available ? " candidate" : "") +
+                  (selfTarget.selected ? " picked" : "")
+                }
+                disabled={!selfTarget.available}
+                aria-pressed={selfTarget.available ? Boolean(selfTarget.selected) : undefined}
+                aria-label={
+                  selfTarget.available ? "指定自己为目标" : `不可指定:${selfTarget.reason ?? ""}`
+                }
+                title={selfTarget.available ? undefined : selfTarget.reason}
+                onClick={selfTarget.onPick}
+              >
+                你
+              </button>
+            ) : (
+              <span className="you" data-testid={TESTIDS.dashYou} title="这是你">
+                你
+              </span>
+            )
           ) : (
             <span className="guan" title={`观战 · 跟随「${shown.guohao}」的视角`}>
               观
