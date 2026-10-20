@@ -1,8 +1,9 @@
-// 四组同构看门狗——从 room.ts 拆出并收敛为一个通用工厂(模块治理 10/11 #327)。
+// 五组同构看门狗——从 room.ts 拆出并收敛为一个通用工厂(模块治理 10/11 #327)。
 //   #118 决策停摆 stall:真人座位停在决策点超时 → 看门狗代开托管(ADR-0028)
 //   #188 自动起摇 autoRoll:Roll 相位超时 → 服务器代发 rollAndMove(行军自动化)
 //   #281/#284 反应窗 reactionWait:开窗超时 → 代发「不用」(ADR-0017)
 //   #380 掉线保留窗 retention:对局中断线座位保留窗口到期 → 看门狗代开托管(ADR-0028)
+//   #642 驱动链停摆作废 stallAbort:no-progress 断链超时 → abortGame 响亮终局(零无声软锁)
 // 代开托管 = 拨唯一「托管」开关(autoPilot.add,by:"watchdog",只开不关;重连不清,
 // 本人点「收回」拿回控制)。原三份手写 clear/arm/fire 同构三件套收敛为 createWatchdog
 // 工厂:返回 {clear, arm, disarm} 实例,三组各自配置「武装窗口(tag+delayMs)」与
@@ -29,8 +30,13 @@ export interface WatchdogHost {
   persist(r: RoomSession): void;
   applyCommand(roomId: string, cmd: GameCommand, onUpdate?: UpdateFn): Promise<void>;
   driveBots(r: RoomSession, onUpdate?: UpdateFn): Promise<void>;
+  /** #642 响亮终局房间入口:引擎 abortGame + persist + 常规下行广播(stallAbort 点火用)。 */
+  abortGame(r: RoomSession, reason: string, onUpdate?: UpdateFn): void;
   /** #118 决策停摆超时(ms);0 = 关闭(缺省关,测试友好)。 */
   readonly decisionTimeoutMs: number;
+  /** #642 驱动链停摆作废窗口(ms);0 = 关闭。联机随 decisionTimeoutMs 同窗,单机
+   *  LocalController 显式传 STALL_ABORT_MS(core/timings 单源)。 */
+  readonly stallAbortMs: number;
   /** #380 掉线座位保留窗口(ms);0 = 关闭(缺省关,单机/测试;服务器默认 10 分钟)。 */
   readonly retentionWindowMs: number;
   /** 定时原语(#399 Worker 时钟注入点):武装/撤表全经它,服务器=全局、单机=Worker。 */
@@ -50,6 +56,7 @@ export interface Watchdogs {
   autoRoll: Watchdog; // #188 自动起摇
   reactionWait: Watchdog; // #281/#284 反应窗
   retention: Watchdog; // #380 掉线座位保留窗
+  stallAbort: Watchdog; // #642 驱动链停摆作废(出口②)
 }
 
 /** 单组配置:window 算本轮武装窗口——undefined=当前无职责(不武装);tag 相同=
@@ -116,7 +123,7 @@ function createWatchdog(spec: WatchdogSpec, clock: RoomClock): Watchdog {
  *  同拆分前「同房间旧计时器先撤」的语义)。 */
 let armSeq = 0;
 
-/** 四组看门狗(registry 构造时创建一次,随注册表生命周期)。 */
+/** 五组看门狗(registry 构造时创建一次,随注册表生命周期)。 */
 export function createWatchdogs(host: WatchdogHost): Watchdogs {
   // 看门狗代开托管(stall/retention 两道 fire 共用,ADR-0028):拨唯一「托管」开关 +
   // autopilot(by:"watchdog")观测行 + 对局日志行(brief 同形状机读 detail)+ persist,
@@ -153,6 +160,28 @@ export function createWatchdogs(host: WatchdogHost): Watchdogs {
             r,
             seat,
             `座位 ${seat}(${e.players[seat].guohao}) 决策停摆超 ${Math.round(host.decisionTimeoutMs / 1000)} 秒,自动托管`,
+            onUpdate,
+          );
+        },
+      },
+      host.clock,
+    ),
+    // ──────────────────── 驱动链停摆作废(#642,出口②)────────────────────
+    // 武装:bot-driver 链以 no-progress 断链(出口②)且决策座位属服务器驱动(bot/托管)
+    // 时按 stallAbortMs 窗口武装(0=关);与 #118 stall 是两组看门狗——点火动作不同
+    //(作废 vs 代开托管),human-turn 既有 stall 行为一行不动(票面红线)。到点重校验
+    //(房间还在/对局未终/仍停同一决策座位/座位仍被服务器驱动——期间链重开推进了决策点
+    // 或人类收回托管即 stands down)后 abortGame 响亮终局,reason 带相位/座位指纹。
+    stallAbort: createWatchdog(
+      {
+        window: () => ({ tag: ++armSeq, delayMs: host.stallAbortMs }),
+        fire: (r, seat, onUpdate) => {
+          const e = r.engine;
+          if (!host.isCurrentRoom(r) || !e || e.isOver) return;
+          if (decisionSeatOf(e) !== seat || !seatControlled(r, seat)) return;
+          host.abortGame(
+            r,
+            `驱动链停摆超时:${e.phase}/${e.turnPhase},决策座位 ${seat}(${e.players[seat].guohao}) 停摆 ${Math.round(host.stallAbortMs / 1000)} 秒无进展`,
             onUpdate,
           );
         },

@@ -14,7 +14,7 @@
 import type { RoomClock } from "../../../scripts/room";
 
 /** 带生命周期与暂停闸的房间时钟:RoomClock + dispose(控制器销毁时停 Worker,
- *  泄漏=bug)+ pause/resume(调试冻结面,#421)。 */
+ *  泄漏=bug)+ pause/resume(调试冻结面,#421)+ onFatal(时钟挂死通道,#642 出口③)。 */
 export interface WorkerClock extends RoomClock {
   dispose(): void;
   /** 冻结:此后到点的回调挂起(定时本身照走,只扣下投递)。可重入(幂等)。 */
@@ -23,14 +23,22 @@ export interface WorkerClock extends RoomClock {
   resume(): void;
   /** 当前是否冻结(调试面自省用)。 */
   readonly paused: boolean;
+  /** 时钟挂死通道(#642 出口③):worker 崩溃(onerror)或 worker 内部异常(fatal
+   *  postMessage)= 定时节拍永久不可靠(挂起的 setTimeout 回调永不投递,驱动链/看门狗
+   *  全部卡死)。监听方(LocalController)据此对所在房间 abortGame 响亮终局。 */
+  onFatal(listener: (message: string) => void): void;
 }
 
-/** Worker 内脚本:按 id 定时,到点回发 id;clear 按 id 撤表。零依赖纯字符串
- *  (blob URL 装载,bun 与浏览器通用,单测可直跑真实 Worker)。 */
-const WORKER_SOURCE =
+/** Worker 内脚本:按 id 定时,到点回发 id;clear 按 id 撤表;任何内部异常转 fatal
+ *  回发(#642 出口③触发源:时钟坏=对局停摆,必须响亮,不许静默)。零依赖纯字符串
+ *  (blob URL 装载,bun 与浏览器通用,单测可直跑真实 Worker——契约测试经 WORKER_SOURCE)。
+ *  export 仅为测试钉契约(abort-exits.test.ts 直跑本源验证 fatal 回发),生产零消费。 */
+export const WORKER_SOURCE =
   `let t=new Map();self.onmessage=(e)=>{const d=e.data;` +
+  `try{` +
   `if(d.act==="set"){const h=setTimeout(()=>{t.delete(d.id);self.postMessage(d.id)},d.ms);t.set(d.id,h)}` +
-  `else{const h=t.get(d.id);if(h!=null)clearTimeout(h);t.delete(d.id)}};`;
+  `else{const h=t.get(d.id);if(h!=null)clearTimeout(h);t.delete(d.id)}` +
+  `}catch(err){self.postMessage({act:"fatal",message:String((err&&err.message)||err)})}};`;
 
 /** 最近创建且未销毁的 Worker 时钟(单机进程内至多一条存活对局;销毁即让位)。
  *  window.__dafung 冻结面(#421)经 latestWorkerClock() 寻址——调试面不摸
@@ -42,7 +50,8 @@ export function latestWorkerClock(): WorkerClock | null {
 }
 
 /** 构造 Worker 时钟:主侧持有「id → 回调」表,worker 只做定时与回发。
- *  worker 异常显式报错(零兜底:时钟坏了=对局停摆,必须响亮,不许静默)。 */
+ *  worker 异常显式报错(零兜底:时钟坏了=对局停摆,必须响亮,不许静默)——除 console
+ *  外经 onFatal 通道上报(#642 出口③),LocalController 据此对所在房间 abortGame。 */
 export function createWorkerClock(): WorkerClock {
   const url = URL.createObjectURL(new Blob([WORKER_SOURCE], { type: "text/javascript" }));
   const worker = new Worker(url);
@@ -50,7 +59,16 @@ export function createWorkerClock(): WorkerClock {
   let nextId = 0;
   let paused = false;
   const held: number[] = []; // 冻结期到点挂起的回调 id(到点序,resume 补放)
-  worker.onmessage = (ev: MessageEvent<number>) => {
+  let fatalListener: ((message: string) => void) | null = null;
+  const fatal = (message: string): void => {
+    console.error("[worker-clock] 时钟挂死,定时节拍已不可靠:", message);
+    fatalListener?.(message);
+  };
+  worker.onmessage = (ev: MessageEvent<number | { act: "fatal"; message: string }>) => {
+    if (typeof ev.data !== "number") {
+      fatal(ev.data.message); // worker 内部异常自报(fatal postMessage,出口③)
+      return;
+    }
     const cb = callbacks.get(ev.data);
     if (cb == null) return; // 已在主侧清除:迟到回发丢弃(clear 竞态的正常路径)
     if (paused) {
@@ -61,7 +79,8 @@ export function createWorkerClock(): WorkerClock {
     cb();
   };
   worker.onerror = (ev: ErrorEvent) => {
-    console.error("[worker-clock] worker 异常,定时节拍已不可靠:", ev.message);
+    // #642 出口③:worker 崩溃 = 定时节拍永久不可靠(在途回调永不投递)——上报致命通道
+    fatal(ev.message || "worker onerror(无错误消息)");
   };
   const clock: WorkerClock = {
     setTimeout(cb: () => void, ms: number): unknown {
@@ -90,6 +109,9 @@ export function createWorkerClock(): WorkerClock {
     },
     get paused(): boolean {
       return paused;
+    },
+    onFatal(listener: (message: string) => void): void {
+      fatalListener = listener;
     },
     dispose(): void {
       worker.terminate();

@@ -45,6 +45,11 @@ export interface DriveBotsHost {
   applyCommand(roomId: string, cmd: GameCommand, onUpdate?: UpdateFn): Promise<void>;
   /** #118 决策停摆超时(ms);0 = 关闭。 */
   readonly decisionTimeoutMs: number;
+  /** #642 驱动链停摆作废窗口(ms);0 = 关闭。联机随 decisionTimeoutMs 同窗,单机
+   *  LocalController 显式传 STALL_ABORT_MS(core/timings 单源)。 */
+  readonly stallAbortMs: number;
+  /** #642 响亮终局房间入口:引擎 abortGame + persist + 常规下行广播(三出口共用)。 */
+  abortGame(r: RoomSession, reason: string, onUpdate?: UpdateFn): void;
   /** 三组看门狗(链首 clear / 链尾按停点重武装)。 */
   readonly watchdogs: Watchdogs;
   /** 定时原语(#399 Worker 时钟注入点):托管步进与 guard 续链全经它,
@@ -66,7 +71,10 @@ const driving = new WeakSet<RoomSession>();
  *  每步 persist + onUpdate:客户端能逐步看到动作。
  *  调用方纪律(#529 死锁教训):setAutoPilot 等入口只调度本函数即返回(fire-and-forget),
  *  不得 await 整条链——托管链以 2s/步自续,await 它 = 该命令挂满整条链(生产)/
- *  与 ManualClock 泵法互等死锁(测试)。 */
+ *  与 ManualClock 泵法互等死锁(测试)。
+ *  #642 死亡出口在本函数闭合两处:链内抛错(出口①,catch → abortGame)与 no-progress
+ *  断链(出口②,武装 stallAbort 看门狗);时钟挂死(出口③)在 worker-clock/LocalController
+ *  侧闭合——三出口同归 engine.abortGame 响亮终局。 */
 export async function driveBots(
   host: DriveBotsHost,
   r: RoomSession,
@@ -84,75 +92,93 @@ export async function driveBots(
   try {
     let guard = 0;
     let reason: RoomBotStopReason = "guard";
-    while (e.phase !== "GameOver" && guard++ < 500) {
-      // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
-      // 托管/接管代驾按 botReactionDecision 策略答案立即代发(与 bot 同款口径,#580;
-      // 在线/离线真人在链尾按座位武装超时定时器,归零代发 respondReaction{use:false})。
-      // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
-      if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
-        const pr = e.pendingReaction;
-        const queried = pr ? reactionQueriedSeats(pr.view) : [];
-        for (const seat of queried) {
-          if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
-          if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
-          const d = botReactionDecision(e, seat);
-          await host.applyCommand(
-            r.roomId,
-            // 协议零新增:应答命令本就携带牌 id/自保份座位可选位,策略答案原样透传(#580)
-            { type: "respondReaction", seat, use: d.use, cardId: d.cardId, shareSeat: d.shareSeat },
-            onUpdate,
-          );
+    // 出口①(#642 响亮终局):链内任何同步抛错(botAct/开局步进/反应窗代发的引擎命令)
+    // = 驱动链死亡,finally 删 driving 后无人再拉链(#640 实锤:无声软锁)。链层捕获 →
+    // 响亮终局(「显式向用户报错」豁免:异常摘要必须进 abort reason 与对局日志,不许
+    // 静默吞),链终止;driving 清理沿用 finally。
+    try {
+      while (e.phase !== "GameOver" && guard++ < 500) {
+        // 反应窗(#281,ADR-0017):bot 座位引擎开窗时已即席代答,这里只等人类座位——
+        // 托管/接管代驾按 botReactionDecision 策略答案立即代发(与 bot 同款口径,#580;
+        // 在线/离线真人在链尾按座位武装超时定时器,归零代发 respondReaction{use:false})。
+        // 决策方天然多属主,decisionOwner/botAct 都不适用,故先于通用路径特判。
+        if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
+          const pr = e.pendingReaction;
+          const queried = pr ? reactionQueriedSeats(pr.view) : [];
+          for (const seat of queried) {
+            if (pr!.answers.some((a) => a.seat === seat)) continue; // 已应答
+            if (!seatControlled(r, seat)) continue; // 代驾座位才立即代发
+            const d = botReactionDecision(e, seat);
+            await host.applyCommand(
+              r.roomId,
+              // 协议零新增:应答命令本就携带牌 id/自保份座位可选位,策略答案原样透传(#580)
+              {
+                type: "respondReaction",
+                seat,
+                use: d.use,
+                cardId: d.cardId,
+                shareSeat: d.shareSeat,
+              },
+              onUpdate,
+            );
+          }
+          // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
+          const now = e.pendingReaction;
+          const stillWaiting =
+            e.turnPhase === "AwaitingReaction" && now != null
+              ? reactionQueriedSeats(now.view).filter(
+                  (s) => !now.answers.some((a) => a.seat === s) && !seatControlled(r, s),
+                )
+              : [];
+          if (stillWaiting.length > 0) {
+            reason = "human-turn"; // 等待真人应答:出口为待应答座位武装 per-seat 定时器
+            break;
+          }
+          continue; // 窗已收/无待应答:回循环头按新相位续推
         }
-        // 代发可能收窗续结算(march 续走下一城又开窗也在此链内),重读现场再定去留
-        const now = e.pendingReaction;
-        const stillWaiting =
-          e.turnPhase === "AwaitingReaction" && now != null
-            ? reactionQueriedSeats(now.view).filter(
-                (s) => !now.answers.some((a) => a.seat === s) && !seatControlled(r, s),
-              )
-            : [];
-        if (stillWaiting.length > 0) {
-          reason = "human-turn"; // 等待真人应答:出口为待应答座位武装 per-seat 定时器
+        // Setup 期(bot/接管/托管代选 aiSetupStepFor)与 Playing 期(botAct)统一到
+        // 同一步进骨架:决策点归属与可驱动相位不同,observe/persist/直播/进展检查共用。
+        const setup = e.phase === "Setup";
+        const owner = decisionSeatOf(e);
+        const phaseOk = setup
+          ? e.setupPhase === "PickCapital" && owner >= 0
+          : BOT_ATTENDED_PHASES.has(e.turnPhase);
+        if (!phaseOk) {
+          reason = "not-input-phase";
           break;
         }
-        continue; // 窗已收/无待应答:回循环头按新相位续推
+        if (!seatControlled(r, owner)) {
+          reason = "human-turn";
+          break;
+        }
+        const delay = stepDelayMs(r, owner);
+        const before = fingerprint(e);
+        if (setup) e.aiSetupStepFor(owner);
+        else botAct(e); // bot/托管/接管同款裸调(#580 行为单源)
+        host.observe(r, {
+          ev: "bot-step",
+          seat: owner,
+          turnPhase: e.turnPhase,
+          active: e.activeIndex,
+        });
+        host.persist(r);
+        onUpdate?.(r); // 每步直播
+        if (e.isOver) {
+          reason = "game-over";
+          break;
+        }
+        if (fingerprint(e) === before) {
+          reason = "no-progress";
+          break;
+        }
+        if (delay > 0) await new Promise<void>((res) => host.clock.setTimeout(() => res(), delay));
       }
-      // Setup 期(bot/接管/托管代选 aiSetupStepFor)与 Playing 期(botAct)统一到
-      // 同一步进骨架:决策点归属与可驱动相位不同,observe/persist/直播/进展检查共用。
-      const setup = e.phase === "Setup";
-      const owner = decisionSeatOf(e);
-      const phaseOk = setup
-        ? e.setupPhase === "PickCapital" && owner >= 0
-        : BOT_ATTENDED_PHASES.has(e.turnPhase);
-      if (!phaseOk) {
-        reason = "not-input-phase";
-        break;
-      }
-      if (!seatControlled(r, owner)) {
-        reason = "human-turn";
-        break;
-      }
-      const delay = stepDelayMs(r, owner);
-      const before = fingerprint(e);
-      if (setup) e.aiSetupStepFor(owner);
-      else botAct(e); // bot/托管/接管同款裸调(#580 行为单源)
-      host.observe(r, {
-        ev: "bot-step",
-        seat: owner,
-        turnPhase: e.turnPhase,
-        active: e.activeIndex,
-      });
-      host.persist(r);
-      onUpdate?.(r); // 每步直播
-      if (e.isOver) {
-        reason = "game-over";
-        break;
-      }
-      if (fingerprint(e) === before) {
-        reason = "no-progress";
-        break;
-      }
-      if (delay > 0) await new Promise<void>((res) => host.clock.setTimeout(() => res(), delay));
+    } catch (err) {
+      // 出口①点火:异常摘要送进 abort reason(引擎终局行随对局日志落账)+ 常规下行
+      // 广播,然后链终止(本 catch 即上报通路,非静默;上报自身再炸照常往外抛,零兜底)。
+      const summary = err instanceof Error ? err.message : String(err);
+      host.abortGame(r, `驱动链异常:${summary}`, onUpdate);
+      return;
     }
     if (e.phase === "GameOver") reason = "game-over";
     host.observe(r, {
@@ -179,6 +205,18 @@ export async function driveBots(
         stepDelayMs(r, guardOwner),
       );
     }
+    // 出口②(#642):no-progress 断链且决策座位属服务器驱动(bot/托管)= 链死无人再拉,
+    // 武装停摆作废看门狗(窗口=stallAbortMs:联机随 decisionTimeoutMs,单机 STALL_ABORT_MS),
+    // 到点 abortGame 响亮终局(见 watchdogs.stallAbort)。0=关;人类可决策的断链不在此列
+    //(链只在座位被驱动后才可能 no-progress,守卫式照写防御归属漂移:不可驱动即维持
+    // 现状等玩家)。human-turn 既有 stall 武装一行不动(票面红线)。
+    if (
+      reason === "no-progress" &&
+      host.stallAbortMs > 0 &&
+      guardOwner >= 0 &&
+      seatControlled(r, guardOwner)
+    )
+      host.watchdogs.stallAbort.arm(r, guardOwner, onUpdate);
     // #118/#188/#281 出口评估:链停在未接管的真人座位——
     // 反应窗(#281):为每个待应答人类座位武装 per-seat 超时定时器(托管/接管座位
     // 已在循环头立即代发,不在待应答集);

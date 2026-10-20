@@ -14,3 +14,10 @@ export const AUTO_ROLL_DELAY_MS = 1000;
  *  setTimeout 让出宏任务,收回/重开命令得以在步间落地;链在下一步的座位归属复查处
  *  即停(收回即停,重开续跑)。权威节奏不吃 E2E_TIME_SCALE(见文件头)。 */
 export const AUTOPILOT_STEP_MS = 2000;
+
+/** 驱动链停摆作废窗口(单机,#642 响亮终局):no-progress 断链且决策座位属服务器驱动
+ *  (bot/托管)时武装 stallAbort 看门狗,到点 abortGame 响亮终局(零无声软锁)。经
+ *  RoomRegistryOptions.stallAbortMs 注入——单机 LocalController 传本常量(30s);
+ *  联机不传,随既有 decisionTimeoutMs 同窗(见 room.ts 选项注)。权威节奏单源表惯例:
+ *  不吃 e2e 倍率,单机/联机同表。 */
+export const STALL_ABORT_MS = 30_000;
