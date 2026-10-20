@@ -78,7 +78,7 @@ export const EVENT_TIERS = {
   gameOver: {
     fold: "must-fold",
     fx: "presented",
-    why: "终局:isOver/winner/winReason/phase/turnPhase;表现=victory 音",
+    why: "终局:isOver/winner/winReason/phase/turnPhase;表现=胜利音;异常终局(reason=aborted #642)不播胜利音——作废面板由快照 GameOver 相位驱动挂载,非事件演出",
   },
   // ── 掷骰/行军族 ──
   diceRolled: {

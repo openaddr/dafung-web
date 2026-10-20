@@ -67,8 +67,26 @@ export function DecisionScrollLayer({
     const board = ctx.board;
     const catalog = ctx.catalog;
 
-    // ── 终局:胜利屏(全屏覆盖,优先级最高)──
-    if (snapshot.phase === "GameOver" && snapshot.winner !== null) {
+    // ── 终局:异常作废(#642)先于胜者路由显式分支——winReason="aborted" 时无胜者
+    //    (winner=null),胜者查找/称帝排名演出整体不落,亮「对局作废」面板(组件按
+    //    winReason 判别联合渲染);出口按钮组与胜局同款同路由。──
+    if (snapshot.phase === "GameOver" && snapshot.winReason === "aborted") {
+      return (
+        <VictoryScreen
+          winReason="aborted"
+          turnNumber={snapshot.round}
+          onRestart={() => location.reload()}
+          onExportLog={() => void exportGameLog(snapshot)}
+        />
+      );
+    }
+
+    // ── 终局:胜利屏(全屏覆盖,优先级最高;winReason 非 aborted 时才查胜者)──
+    if (
+      snapshot.phase === "GameOver" &&
+      snapshot.winReason !== "aborted" &&
+      snapshot.winner !== null
+    ) {
       const winner = players.find((p) => p.id === snapshot.winner);
       if (winner) {
         return (

@@ -742,7 +742,9 @@ export function extractBatchEvents(
         break;
       }
       case "gameOver": {
-        events_.push({ kind: "sound", event: "victory" });
+        // #642 异常终局(reason="aborted"):对局作废无胜者——不播胜利音、无庆祝演出
+        // (作废面板由快照 GameOver 相位驱动挂载,非事件演出);正常终局照播胜利音。
+        if (ev.reason !== "aborted") events_.push({ kind: "sound", event: "victory" });
         break;
       }
       // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
