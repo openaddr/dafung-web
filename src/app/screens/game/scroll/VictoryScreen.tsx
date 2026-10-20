@@ -1,7 +1,9 @@
-// 胜利全屏:对照旧 createVictory —— 天下归一大字(金辉呼吸+弹跳入场)+ 国号称帝 +
-// 终局信息 + 再战按钮 + 烟花粒子(React 状态驱动,粒子动画用 victory.css keyframe)。
-// E1/E2:入场演出有声有叙——banner 鼓点起势 + 大字落定时 stamp 锣声重音 + victory 号角,
-// 与视觉阶梯(0/300/600ms)对齐;再战按钮 1800ms 后才挂载防误触。
+// 终局全屏:胜局=天下归一大字(金辉呼吸+弹跳入场)+ 国号称帝 + 终局信息 + 再战按钮 +
+// 烟花粒子(React 状态驱动,粒子动画用 victory.css keyframe)。E1/E2:入场演出有声有叙
+// ——banner 鼓点起势 + 大字落定时 stamp 锣声重音 + victory 号角,与视觉阶梯(0/300/600ms)
+// 对齐;出口按钮 1800ms 后才挂载防误触。
+// #642 异常终局:winReason="aborted"(无胜者)走显式作废分支——无称帝/排名/烟花/胜利音,
+// 静默亮「对局作废」面板(庆祝语义只属胜局);出口按钮组与胜局同款同路由。
 import { useEffect, useState } from "react";
 import type { VictoryReason } from "@core/authority";
 import { rgba, playerColor } from "@core/theme";
@@ -25,23 +27,32 @@ export interface VictoryStanding {
   bankrupt: boolean;
 }
 
-export interface VictoryScreenProps {
-  /** 胜者国号(单字大展示)。 */
-  guohao: string;
-  /** 胜者颜色索引(国号称帝行的着色)。 */
-  colorIndex: number;
-  /** 终局身价(已格式化或原始值皆可,这里收数字自己格式化口径由主线定 → 收字符串最稳)。 */
-  finalNetWorthLabel: string;
+/** 终局屏 props(#642 判别联合):正常终局带胜者演出数据;异常作废(reason="aborted")
+ *  无胜者,胜者演出数据整体不传——按 winReason 显式分支,不设空值兜底。 */
+export type VictoryScreenProps = {
   /** 用时(回合数)。 */
   turnNumber: number;
-  /** E4(#16):胜因透传引擎 VictoryReason 快照真值(No 长度硬编码"NetWorth"——引擎值为 TargetNetWorth)。 */
-  winReason: VictoryReason;
-  /** E4(#16):终榜(身价降序 + 破产标注),victory-step 第 4 拍。 */
-  standings: VictoryStanding[];
   onRestart: () => void;
   /** ADR-0014:导出对局日志(该局完整 jsonl 落文件,复盘/重放用);不传则不渲染该按钮。 */
   onExportLog?: () => void;
-}
+} & (
+  | {
+      /** E4(#16):胜因透传引擎 VictoryReason 快照真值(No 长度硬编码"NetWorth"——引擎值为 TargetNetWorth)。 */
+      winReason: Exclude<VictoryReason, "aborted">;
+      /** 胜者国号(单字大展示)。 */
+      guohao: string;
+      /** 胜者颜色索引(国号称帝行的着色)。 */
+      colorIndex: number;
+      /** 终局身价(已格式化或原始值皆可,这里收数字自己格式化口径由主线定 → 收字符串最稳)。 */
+      finalNetWorthLabel: string;
+      /** E4(#16):终榜(身价降序 + 破产标注),victory-step 第 4 拍。 */
+      standings: VictoryStanding[];
+    }
+  | {
+      /** #642 异常终局:对局作废,无胜者——胜者演出数据整体不传。 */
+      winReason: "aborted";
+    }
+);
 
 // 烟花配色(S3/S4 收编):主体五色引用 tokens.css 的 var(--color-*),单源 core/theme.ts;
 // 剩两色是"烟花表现专用色"(亮蓝闪点/纯白高光),不入 theme.ts 以免污染语义色板,集中在此注释。
@@ -101,27 +112,24 @@ function spawnBurst(keyPrefix: number): { burst: Particle[]; lingerMs: number } 
   return { burst: out, lingerMs: 1.8 * Math.sqrt(scale) * 1000 + 200 };
 }
 
-export function VictoryScreen({
-  guohao,
-  colorIndex,
-  finalNetWorthLabel,
-  turnNumber,
-  winReason,
-  standings,
-  onRestart,
-  onExportLog,
-}: VictoryScreenProps) {
+export function VictoryScreen(props: VictoryScreenProps) {
   // 烟花粒子队列:定时放波,2 秒后清(与旧版 setTimeout remove 等价)。
   // 相比旧版只放 5 波,这里循环放——庆祝屏停留时间由玩家决定,不烟花会冷场。
+  // (#642 作废态恒空:effect 不放波,庆祝语义只属胜局。)
   const [particles, setParticles] = useState<Particle[]>([]);
-  // E2:再战按钮延后挂载(防演出高潮期误触重开)。
+  // E2:出口按钮延后挂载(防演出高潮期误触重开;作废态无演出,同延防误触)。
   const [showButton, setShowButton] = useState(false);
   useEffect(() => {
     // D2 全层化(orchestrator.finishPresentation):终局 = 整个表现层使命终结——
-    // 胜利屏一挂即封场收队:终局批先于本屏入队(快照同拍到达),其内后续骰子/行军
-    // 不再播,z-45 骰子 overlay 的在场一张也一并摘除。原先只清在场一张,管不住
-    // 演出队列里积压的后续掷骰(出局后剩余整局合并下行时,骰子会在本屏上摇到排空)。
+    // 终局屏一挂即封场收队(胜局与 #642 作废同款):终局批先于本屏入队(快照同拍到达),
+    // 其内后续骰子/行军不再播,z-45 骰子 overlay 的在场一张也一并摘除。
     finishPresentation();
+    if (props.winReason === "aborted") {
+      // #642 异常终局:庆祝演出整体不落——不播鼓/锣/号角、不放烟花(庆祝语义只属
+      // 胜局);面板静默入屏,仅出口按钮照延后挂载(防误触同款)。
+      const buttonT = window.setTimeout(() => setShowButton(true), UI.victoryButtonMs);
+      return () => window.clearTimeout(buttonT);
+    }
     // E1:入场音组——0ms 鼓点起势(victoryDrum,终局专属鼓滚奏;回合横幅已撤鼓滚,
     // 见 audio.ts 音效审计注),450ms 大字落定配锣声重音(stamp,称帝行右侧朱砂印
     // 同帧落印 #95),
@@ -147,8 +155,67 @@ export function VictoryScreen({
       window.clearTimeout(buttonT);
       window.clearInterval(spawner);
     };
-  }, []);
+  }, [props.winReason]);
 
+  // #642 异常终局:对局作废面板——无称帝/排名演出,标题(朱砂,状态色即语义:
+  // 作废≠胜利的金辉)+ 一句说明 + 既有出口按钮组(与胜局同路由,原样复用)。
+  if (props.winReason === "aborted") {
+    return (
+      <DialogFocusScope asChild>
+        <div
+          data-testid={T.victoryScreen}
+          role="dialog"
+          aria-modal="true"
+          aria-label="终局"
+          className="victory-anim-overlay fixed inset-0 z-40 flex flex-col items-center justify-center"
+        >
+          <h1
+            data-testid={T.victoryAbortedTitle}
+            className="victory-step m-0 font-title text-danger"
+            style={{
+              fontSize: "clamp(40px, 11vw, 80px)",
+              letterSpacing: "clamp(6px, 2.5vw, 20px)",
+            }}
+          >
+            对局作废
+          </h1>
+          <div
+            data-testid={T.victoryAbortedNote}
+            className="victory-step victory-step-info mt-4 text-base"
+            style={{ color: INFO_TEXT }}
+          >
+            内部错误导致对局终止,详情见对局日志
+          </div>
+          <div className="victory-step-btn mt-6">
+            {showButton && (
+              <div className="flex items-center justify-center gap-3">
+                <BannerButton primary testid={T.victoryRestart} onClick={props.onRestart}>
+                  再战一局
+                </BannerButton>
+                {props.onExportLog && (
+                  <BannerButton testid={T.logExport} onClick={props.onExportLog}>
+                    导出日志
+                  </BannerButton>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </DialogFocusScope>
+    );
+  }
+
+  // 胜局(非 aborted:winReason 已收窄,胜者演出数据齐备)。
+  const {
+    guohao,
+    colorIndex,
+    finalNetWorthLabel,
+    turnNumber,
+    winReason,
+    standings,
+    onRestart,
+    onExportLog,
+  } = props;
   // W2-包D(审计 A2):absolute→fixed——终局必须盖过侧栏(absolute 只盖棋盘区,
   // 侧栏仍露出半截与「天下归一」分庭);fixed 脱离布局流压满视口,testid/逻辑零变化。
   // #174:壳上 role=dialog/aria-modal 全屏模态语义(可达名称 aria-label=「终局」,
