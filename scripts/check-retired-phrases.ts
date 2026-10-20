@@ -36,6 +36,8 @@ const RETIRED: { phrase: string; note: string }[] = [
   { phrase: "小体量零构建", note: "S2:不分体量一律 workspace(#581)" },
   { phrase: "小体量纯文档", note: "S2:不分体量一律 workspace(#581)" },
   { phrase: "jj 优先", note: "口径升级:一律先开工作区(#581)" },
+  { phrase: "点席位即出", note: "#417 目标选择统一口径:点席位=选中/再点取消,打出走动作条「出」" },
+  { phrase: "点卡即出", note: "#417 同上(席位卡词条旧口径,#633 勘误时人工发现漏网)" },
 ];
 
 // 行内翻面标记:命中即视为历史叙事/退役记录,合法保留
