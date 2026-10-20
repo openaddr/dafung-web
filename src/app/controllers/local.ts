@@ -207,8 +207,9 @@ export class LocalController extends GameController {
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
    *  + Worker 时钟停转 + 事件面归零(防上一局暂存批泄入下一局,联机 resetEventFace
-   *  同语义)。 */
+   *  同语义);基类退订行军会话订阅(#611)。 */
   override destroy(): void {
+    super.destroy();
     this.sock.close();
     this.registry.dismissRoom(this.roomId, this.seatToken);
     this.clock.dispose();

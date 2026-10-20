@@ -11,6 +11,7 @@ import { createDice } from "@core/dice";
 import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import type { GameSnapshot } from "@core/snapshot";
 import { OnlineController } from "@app/controllers/online";
+import { beginMarch, isMarching } from "@app/fx/useMarch";
 import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
 import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
 
@@ -162,5 +163,32 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     expect(x.mapId).toBe("zhongyuan");
     expect(c.engine.board).toBe(ZHONGYUAN.map.board);
     expect(c.engine.players).toHaveLength(2); // 大厅占位壳:缺省 2 座,等首帧快照重建
+  });
+
+  it("换图边界清演出会话(复审 F5,ADR-0029 §2 边界作废同族):落地拍在途行军会话统一作废", async () => {
+    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const gates = stubLoader(c);
+    const x = c as unknown as TestAccess;
+    x.onMessage(lobbyMsg("zhongyuan"));
+    // 伪批锚定一枚在途会话(烤的是旧板几何;无 DOM 环境 beginMarch 只走簿记)
+    const kf = [
+      {
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+        flow: [
+          { x: 0, y: 0 },
+          { x: 10, y: 0 },
+        ],
+      },
+    ];
+    beginMarch("p-f5", kf);
+    expect(isMarching("p-f5")).toBe(true);
+    gates.gate("zhongyuan").resolve(ZHONGYUAN);
+    await drain();
+    expect(x.mapId).toBe("zhongyuan");
+    // 会话已随换图边界作废:旧板行军不飞进新板(待播块同拍作废,共用 voidAllQueued)
+    expect(isMarching("p-f5")).toBe(false);
   });
 });

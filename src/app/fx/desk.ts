@@ -3,10 +3,12 @@
 // 目标节点分别归 GameScreen(#board-wrap)与 TokenLayer([data-token-player])所有,
 // 表现是「对既有节点的一次性 class/animation 注入」,无坐标无数据,store 中转只会
 // 多一跳。样式与 keyframe 单源 fx.css(.fx-desk-shake / .fx-token-fall)。
-import { sc } from "./timings";
+import { scStage } from "./timings";
 
-/** 震屏全长(fx.css fx-desk-shake 0.4s 硬同步,特例字面量同 seal/骰签口径)。 */
-const DESK_SHAKE_MS = sc(400);
+/** 震屏全长(fx.css fx-desk-shake 0.4s 硬同步,特例字面量同 seal/骰签口径)。
+ *  演出编排族(吃 scStage,F4 作用域拆分):调用时取数保运行时活投影(模块加载
+ *  烤定常量会漏掉追帧倍率的播放期变化)。 */
+const deskShakeMs = (): number => scStage(400);
 
 /** 桌面微震(#492 拍板 4px 档,大事件限定:破产/拼点大胜负/都城停;掷骰落定
  *  不上震屏,原则在 DESIGN §6)。
@@ -21,7 +23,7 @@ export function shakeDesk(): void {
   desk.classList.remove("fx-desk-shake");
   void desk.offsetWidth; // 强制 reflow:同类连触时重启 animation
   desk.classList.add("fx-desk-shake");
-  window.setTimeout(() => desk.classList.remove("fx-desk-shake"), DESK_SHAKE_MS);
+  window.setTimeout(() => desk.classList.remove("fx-desk-shake"), deskShakeMs());
 }
 
 /** 旌旗缓倒(破产仪式第一拍):给破产玩家棋子的旗面挂 .fx-token-fall,播

@@ -22,6 +22,7 @@ import { stashEventBatch } from "@app/net/event-feed";
 // 依赖方向 app → scripts(local.ts import room 先例成立),双端形状只有一份。
 import { autoPilotMsg, cmdMsg, pickCapitalMsg, type ServerMsg } from "../../../scripts/wire";
 import { foldEventBatch } from "@app/net/event-fold";
+import { abandonAllMarches } from "@app/fx/useMarch";
 import { setController } from "./registry";
 import { GameController } from "./controller";
 
@@ -288,8 +289,9 @@ export class OnlineController extends GameController {
       const hydrated = this.enteredGame;
       if (hydrated) foldEventBatch(this._engine, msg.events);
       // 表现消费(#385):批经 SnapshotEffects 直译播放。#388 起直译随事件帧走——
-      // 正常对局快照不再随转移到达,表现锁(fx.playing,L42 决策卷轴的时序门)不能
-      // 等快照帧;快照帧的 play 由消费游标去重,同批不会播两次。
+      // 正常对局快照不再随转移到达,表现锁(fxPlaying=本座位演出落定,#611 改绑,
+      // L42 决策卷轴的时序门)不能等快照帧;快照帧的 play 由消费游标去重,同批不会
+      // 播两次。
       stashEventBatch(msg.events);
       if (hydrated) this.fx.play(prePositions);
       // #388:命令在途锁在此解锁(旧世界靠快照回包清零;空批转移无 events 消息,由
@@ -326,6 +328,13 @@ export class OnlineController extends GameController {
     }
     // 过期守卫(#415):取图 await 期间可能有更新的换图指令(rebuildSeq 已自增)——本次作废。
     if (seq !== this.rebuildSeq) return;
+    // 换图边界清演出(ADR-0029 §2 边界作废同族,复审 F5):棋盘几何整体更换,在途
+    // 行军会话与待播块烤的都是旧板坐标(不变量①提取即定格),换板后续播/续飞 = 棋子
+    // 在新板上走旧板轨迹、浮字锚错格——旧演出无因果意义,统一作废,棋子由新引擎的
+    // 声明式终态落位。待播块连带作废(同族语义);入队游标与判据态不动——批到达序
+    // 连续性(去重)与积压治理都跟棋盘身份正交,新图批照常消费。
+    abandonAllMarches();
+    this.fx.voidQueuedForBoardSwap();
     if (this.enteredGame && this.mapId === mapId) {
       // #415:对局快照已先行水合(开局 flush 与本重建的取图竞速,取图可能后落)——
       // 此时换新占位引擎会把已水合的对局态打回 2 座空壳;房间静默等真人决策时再无
@@ -362,6 +371,7 @@ export class OnlineController extends GameController {
   }
 
   destroy(): void {
+    super.destroy(); // 基类退订行军会话订阅(#611)
     // socket.close 内部先置 closedByUs 再关:onclose 不触发重连,退避定时器一并清
     this.sock?.close();
     this.sock = null;

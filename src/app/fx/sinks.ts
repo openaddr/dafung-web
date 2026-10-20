@@ -1,12 +1,10 @@
 // FxSink 的两个实现(表现事件的"出口"):
 //   ① createEngineSink —— 生产 adapter:把接口组装到既有单例(getAudio/diceApi/
-//      useFxStore/useMarch),行为与 Wave1 之前逐一对齐(零行为变化)。
-//      引擎经 getter 注入而非直接闭包:联机 rebuildForMap 会整体替换引擎实例,
-//      getter 保证 sink 永远指向当前引擎(棋子行军/印章坐标都读引擎态)。
+//      useFxStore/useMarch)。不变量①全坐标化(ADR-0029/#608):一切坐标随事件
+//      烤好进来,sink 零引擎读取——createEngineSink 无参数,签名即「播放期摸不到
+//      引擎」的编译期证明。
 //   ② createMemorySink —— 测试 adapter:只录制调用序列,供单测断言
 //      present() 的播放顺序与内容,不碰 DOM/音频/store。
-import type { GameEngine } from "@core/authority";
-import type { MovePath } from "@core/board";
 import { playerColor, rgba } from "@core/theme";
 import { getAudio, type SoundEvent } from "./audio";
 import { duelSignsApi } from "./DuelSignsOverlay";
@@ -14,10 +12,13 @@ import { fallTokenFlag, shakeDesk } from "./desk";
 import { useFxStore } from "./fxStore";
 import { animateDice, animateMove, beginMarch } from "./orchestrator";
 import { CEREMONY, delay } from "./timings";
-import type { DuelSide, FxSink, PropertyChangedEvent } from "./presentation";
+import type { DuelSide, FxSink, MarchSegmentFrames, PropertyChangedEvent } from "./presentation";
 
-/** 生产 sink:单机/联机控制器共用(各持一份,引擎 getter 各自绑定)。 */
-export function createEngineSink(getEngine: () => GameEngine): FxSink {
+/** 印章视觉上抬(格中心 → 印面锚点的静态偏移):表现几何常量,非引擎态。 */
+const SEAL_LIFT_PX = 20;
+
+/** 生产 sink:单机/联机控制器共用(无引擎依赖,换图换引擎实例均无感)。 */
+export function createEngineSink(): FxSink {
   return {
     playSound(event: SoundEvent) {
       getAudio().play(event);
@@ -25,11 +26,11 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
     rollDice(die: number) {
       return animateDice(die);
     },
-    marchBegin(playerId: string, path: MovePath) {
-      beginMarch(getEngine(), playerId, path);
+    marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
+      beginMarch(playerId, keyframes);
     },
-    marchToken(playerId: string, path: MovePath) {
-      return animateMove(getEngine(), playerId, path);
+    marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
+      return animateMove(playerId, keyframes);
     },
     spawnFloater(x, y, amount, coins) {
       useFxStore.getState().spawnFloater(x, y, amount, coins);
@@ -41,15 +42,12 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
       getAudio().play("banner");
       useFxStore.getState().showBanner(guohao, rgba(playerColor(colorIndex)));
     },
-    stampSeal(tileIndex, char, tone) {
-      const engine = getEngine();
-      const pos = engine.board.positionOf(tileIndex);
+    stampSeal(x, y, char, tone) {
       getAudio().play("stamp");
-      useFxStore.getState().stampSeal(pos.x, pos.y - 20, char, tone);
+      useFxStore.getState().stampSeal(x, y - SEAL_LIFT_PX, char, tone);
     },
-    landPulse(tileIndex) {
-      const pos = getEngine().board.positionOf(tileIndex);
-      useFxStore.getState().spawnPulse(pos.x, pos.y);
+    landPulse(x, y) {
+      useFxStore.getState().spawnPulse(x, y);
     },
     showDuelSigns(ev) {
       // 拼点签面(#637,ADR-0030):全屏多签演出整场经模块桥直调 DiceOverlay 同族
@@ -99,13 +97,13 @@ export function createEngineSink(getEngine: () => GameEngine): FxSink {
 export type FxSinkCall =
   | { op: "sound"; event: SoundEvent }
   | { op: "dice"; die: number }
-  | { op: "marchBegin"; playerId: string; path: MovePath }
-  | { op: "march"; playerId: string; path: MovePath }
+  | { op: "marchBegin"; playerId: string; keyframes: MarchSegmentFrames[] }
+  | { op: "march"; playerId: string; keyframes: MarchSegmentFrames[] }
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
   | { op: "textFloater"; x: number; y: number; text: string }
   | { op: "banner"; guohao: string; colorIndex: number }
-  | { op: "seal"; tileIndex: number; char: string; tone?: "gold" }
-  | { op: "landPulse"; tileIndex: number }
+  | { op: "seal"; x: number; y: number; char: string; tone?: "gold" }
+  | { op: "landPulse"; x: number; y: number }
   | { op: "duelSigns"; sides: DuelSide[]; winnerSeat: number | null }
   | { op: "haltBanner"; guohao: string; colorIndex: number; cityName: string }
   | { op: "bankruptCeremony"; playerId: string; x: number; y: number }
@@ -137,11 +135,11 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     async rollDice(die) {
       calls.push({ op: "dice", die });
     },
-    marchBegin(playerId: string, path: MovePath) {
-      calls.push({ op: "marchBegin", playerId, path });
+    marchBegin(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
+      calls.push({ op: "marchBegin", playerId, keyframes: [...keyframes] });
     },
-    async marchToken(playerId: string, path: MovePath) {
-      calls.push({ op: "march", playerId, path });
+    async marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
+      calls.push({ op: "march", playerId, keyframes: [...keyframes] });
     },
     spawnFloater(x, y, amount, coins) {
       calls.push({ op: "floater", x, y, amount, coins });
@@ -152,11 +150,11 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     showBanner(guohao, colorIndex) {
       calls.push({ op: "banner", guohao, colorIndex });
     },
-    stampSeal(tileIndex, char, tone) {
-      calls.push({ op: "seal", tileIndex, char, tone });
+    stampSeal(x, y, char, tone) {
+      calls.push({ op: "seal", x, y, char, ...(tone == null ? {} : { tone }) });
     },
-    landPulse(tileIndex) {
-      calls.push({ op: "landPulse", tileIndex });
+    landPulse(x, y) {
+      calls.push({ op: "landPulse", x, y });
     },
     async showDuelSigns(ev) {
       calls.push({ op: "duelSigns", sides: ev.sides, winnerSeat: ev.winnerSeat });

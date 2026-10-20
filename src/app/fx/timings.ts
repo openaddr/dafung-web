@@ -3,6 +3,12 @@
 // 与 CSS 动效 token 的关系(C8 #107):唯一源 core/theme.ts Motion,gen:theme 产出 tokens.css。
 // 本文件数值恰等于某 --dur-* 的字段直接引用 Motion(app→core 单向依赖,theme.ts 零依赖无环),
 // 改 Motion 一处 CSS/JS 同步;不等的字段是编排窗口(非 token 节拍),保留字面量单独调参。
+// #610 起分两条缩放通道,下方时长表全是各自通道的活投影(getter),取数时求值:
+//   演出编排时长(MARCH/FX/DICE/DUEL/CEREMONY 五族 + desk 震屏)吃 scStage =
+//   e2e 键 × 追帧除法(ADR-0029 ③ 正典方向:积压越深播得越快,1.5~3x 压缩);
+//   界面/节拍类(UI.*、GHOST、AUTO_*、BOT、反应窗倒计时弧、判据时距)只吃 sc
+//   (e2e 键)——它们不是棋盘演出,压缩治不了积压、只会与权威节拍失配。
+// 追帧速度倍率变化即时作用于播放期取数,无键无追帧时逐位恒等(直通不落地板)。
 import { Motion } from "@core/theme";
 
 /** e2e 时间倍率(#114):共享 fixture 在页面加载前写入 localStorage;生产/真人局
@@ -37,18 +43,81 @@ const S = (() => {
   const raw = Number(localStorage.getItem(E2E_TIME_SCALE_KEY) ?? "");
   return Number.isFinite(raw) && raw > 0 ? raw : 1;
 })();
-/** e2e 时间缩放(模块内约定俗成的 sc;desk.ts 等新演出模块同源取数,不各自造轮子)。 */
-export const sc = S === 1 ? (ms: number) => ms : makeScaler(S);
 
+// ── 追帧运行时速度倍率(#610,ADR-0029 不变量③轻档)──
+// 生产由 SnapshotEffects 出队点判档驱动(积压越深倍率越高,LAG.scaleMin~scaleMax,
+// 回落到线即回 1);e2e/单测从不驱动(判据主尺 = 到达序游标差,机器时间,天然不误触发)。
+// 域 = 速度倍率(#570 决议正典:「积压越深播得越快,1.5~3x 全演出压缩」),消费在
+// scStage 的除法里(时长 = 基准 ÷ 倍率)。评审实锤(#608-#611 复审 F1):旧实现把
+// 倍率乘进时长,积压越深播得越慢,方向与决议相反——本域注释即钉死教训。与 e2e 键的
+// 合成在 scStage:两通道语义正交(整局时间轴缩放 vs 应急速播),除法天然同向可组合。
+let catchupScale = 1;
+
+/** 设置追帧运行时速度倍率(唯一生产调用口 = SnapshotEffects 判档路径):非法值当场炸
+ *  (零兜底)——倍率是确定事实,静默夹取会掩盖判档 bug;<1 = 减速,与「追帧」相反,同炸。 */
+export const setCatchupScale = (scale: number): void => {
+  if (!(Number.isFinite(scale) && scale >= 1))
+    throw new Error(`setCatchupScale:非法追帧速度倍率 ${scale}`);
+  catchupScale = scale;
+};
+
+/** 界面/节拍时长缩放(模块内约定俗成的 sc):只吃 e2e 键,追帧倍率不进门——反应窗
+ *  倒计时弧必须与权威窗同长(scaleReactionMs),UI TTL、GHOST、AUTO_MARCH/AUTOPILOT、
+ *  bot 节拍都不是棋盘演出(追帧是播放侧治理,产出端节拍不配套,ADR-0029 判据基调)。
+ *  无键时直通(不落地板,80ms 级短拍保持原值)。 */
+export const sc = (ms: number): number => {
+  if (S === 1) return ms;
+  return Math.max(Math.round(ms * S), TIME_SCALE_FLOOR_MS);
+};
+
+/** 演出编排时长缩放(行军/特效/骰签/拼点/仪式五族的唯一取数口):e2e 通道(sc)之上
+ *  再除追帧速度倍率——1.5~3x 速播 = 时长压到 1/1.5~1/3,倍率变化即时作用于播放期
+ *  取数。除法不再落地板:地板(TIME_SCALE_FLOOR_MS)是 e2e 缩短方向的观察性下限,
+ *  追帧若也吃地板,80ms 短拍在 1.5x 档反从 80 涨到 100,压缩方向被地板二次倒转。 */
+export const scStage = (ms: number): number => {
+  const base = sc(ms);
+  return catchupScale === 1 ? base : Math.round(base / catchupScale);
+};
+
+/** 落后即校准判据阈值(#610,ADR-0029 ③;#570 决议:混合尺+分类非布尔,数值观感定标)。
+ *  定标依据(bot 产批节拍:非托管座位 0ms 连发,一个 bot 回合 ≈3-6 批瞬时到齐;
+ *  最长常规演出块 = 都城停链/破产仪式 ≈6s):
+ *  - gapBatches=3:差 3 批 = 整整一个 bot 回合的演出未开播,追帧介入;1-2 批 =
+ *    回合内尾流,瞬时抖动平滑吸收(colyseus peak 档);
+ *  - ageMs=10s:单批再长也应在 10s 内开播(≈2× 最长块),兜住主尺盲区(单批超长、
+ *    游标差恒小,#600);吃 sc(只随 e2e 键,判据时距不进追帧通道——阈值追倍率会
+ *    抵消负反馈),烤定值不随运行时倍率漂移;
+ *  - consecutiveForSnap=4:3× 顶速连播 4 块(≈4-6s)仍追不上 = 产出结构性快于
+ *    播放上限,升吸附(colyseus ema 持续分量同构);
+ *  - scaleMin/scaleMax=1.5~3(决议口径,速度域:scStage 时长除以倍率)、
+ *    scaleStep=0.5/批:gap=3 起步 1.5×,每深一批 +0.5×,gap≥6 顶格 3×。
+ *    批数/倍率无量纲,不吃 sc。 */
+export const LAG = {
+  gapBatches: 3,
+  ageMs: sc(10000),
+  consecutiveForSnap: 4,
+  scaleMin: 1.5,
+  scaleMax: 3,
+  scaleStep: 0.5,
+} as const;
+
+/** bot 单步延时(单机 runBots 节奏):产出端节拍(ADR-0028 单节拍口径)——追帧是
+ *  播放侧治理,产出端不配套(ADR-0029 判据基调),只吃 sc(e2e 键)。 */
 export const BOT = {
-  stepDelayMs: sc(750),
+  get stepDelayMs() {
+    return sc(750);
+  },
 } as const;
 
 /** 令牌行军(旧 animate.ts animateMove 的逐段节奏,语义不变):
- *  每段时长 ∝ 距离(匀速),夹在 [minSegMs, maxSegMs] 之间。 */
+ *  每段时长 ∝ 距离(匀速),夹在 [minSegMs, maxSegMs] 之间。演出编排族(吃 scStage)。 */
 export const MARCH = {
-  minSegMs: sc(80),
-  maxSegMs: sc(460),
+  get minSegMs() {
+    return scStage(80);
+  },
+  get maxSegMs() {
+    return scStage(460);
+  },
   /** 像素/秒:距离 ÷ speed = 段时长(旧实现 dist / 720,单位 px/s) */
   speed: 720,
   /** 每段 transition 结束后的额外缓冲。S6(#39):10→0——缓动改 easeInOutSine
@@ -57,40 +126,64 @@ export const MARCH = {
   segSlackMs: 0,
 } as const;
 
-/** 瞬时特效存活时长(与 fx.css 的 keyframe 时长保持一致;超时自清防 store 积压)。
- *  CSS 侧时长/缓动唯一源 core/theme.ts Motion(经 gen:theme 产出 tokens.css):
+/** 瞬时特效存活时长(演出编排族,吃 scStage;与 fx.css 的 keyframe 时长保持一致;
+ *  超时自清防 store 积压)。CSS 侧时长/缓动唯一源 core/theme.ts Motion(经 gen:theme 产出 tokens.css):
  *  floaterMs/bannerMs 与 --dur-fx/--dur-banner 同源(经 Motion);bannerMs 的
  *  +100 清理余量保留字面量。coinMs/sealMs/roadFlowMs 不等于任何 token,是编排窗口,
  *  保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
 export const FX = {
-  floaterMs: sc(Motion.dur.fx), // 与 --dur-fx 同源(经 Motion)
-  coinMs: sc(1500),
-  bannerMs: sc(Motion.dur.banner + 100), // fx-banner-fly 全长同源(--dur-banner,经 Motion)+ 100 清理余量(#117 同源化,余量保留字面量)
+  get floaterMs() {
+    return scStage(Motion.dur.fx);
+  }, // 与 --dur-fx 同源(经 Motion)
+  get coinMs() {
+    return scStage(1500);
+  },
+  get bannerMs() {
+    return scStage(Motion.dur.banner + 100);
+  }, // fx-banner-fly 全长同源(--dur-banner,经 Motion)+ 100 清理余量(#117 同源化,余量保留字面量)
   /** C3 回合横幅占用编排时长:等横幅走到峰值停留段(1.8s 动画的 20%-75% 区间),
    *  取 1.0s——下一演出(骰子)不再与横幅入场重叠,又不把回合节奏拖满全长。 */
-  bannerHoldMs: sc(1000),
-  sealMs: sc(900),
-  roadFlowMs: sc(700), // 驿道流光高亮存留
+  get bannerHoldMs() {
+    return scStage(1000);
+  },
+  get sealMs() {
+    return scStage(900);
+  },
+  get roadFlowMs() {
+    return scStage(700);
+  }, // 驿道流光高亮存留
   /** 出牌指示线全程存活(#281 P2-E):生长 200ms → 停 200ms → 淡出 300ms(FreeKill
    *  IndicatorLine 同参数),三段编排进 fx.css 的单条 keyframes(百分比刻度),本值
    *  只作 store 清理窗口与动画全长硬同步,改任一侧须两处同改。 */
-  jinnangLineMs: sc(700),
+  get jinnangLineMs() {
+    return scStage(700);
+  },
   /** 落格定音金圈一拍(S7 #513):fx-svg-pulse 全长 0.65s + 清理余量,fx.css 同名
    *  keyframe 硬同步,改任一侧须两处同改。 */
-  landPulseMs: sc(750),
+  get landPulseMs() {
+    return scStage(750);
+  },
   /** 都城停全屏横幅存活(S7 #513):fx-halt-banner-fly 全长 2.2s + 清理余量,
    *  与 fx.css 同名 keyframe 硬同步(特例字面量,同 seal/骰签口径)。 */
-  haltBannerMs: sc(2400),
+  get haltBannerMs() {
+    return scStage(2400);
+  },
   /** 都城停横幅占用编排时长(同 bannerHoldMs 口径):等入场展开+驻停读过一拍,
    *  驻章与补给铜钱雨在其后接续。 */
-  haltHoldMs: sc(1400),
+  get haltHoldMs() {
+    return scStage(1400);
+  },
   /** 破产仪式墨渍晕开全程(S7):fx-inkblot-bloom 1s + 清理余量,fx.css 硬同步。 */
-  inkBlotMs: sc(1100),
+  get inkBlotMs() {
+    return scStage(1100);
+  },
   /** 破产仪式撒币全程(S7):fx-coin-burst 1.3s + 清理余量,fx.css 硬同步。 */
-  coinBurstMs: sc(1400),
+  get coinBurstMs() {
+    return scStage(1400);
+  },
 } as const;
 
-/** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;时长集中调参)。
+/** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;演出编排族,吃 scStage;时长集中调参)。
  *  S7 两段式(#513/#492 拍板:标准档摇签 0.6s):先摇签段(墨字虚影 60ms 级轮换,
  *  全段恰 10 次换签,DiceOverlay 按 shakeMs/10 求轮换周期)→ 大字 outBack 落定
  *  (金圈同拍+桌面微震 4px,desk.ts)→ 停留 → 渐隐。
@@ -101,37 +194,73 @@ export const FX = {
  *  与 token 同值者(holdMs=--dur-reveal / botHoldMs=--dur-slow / fadeOutMs=--dur-med)
  *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。摇签段无 token 对应,保留字面量。 */
 export const DICE = {
-  shakeMs: sc(600), // 摇签段(人类标准档 0.6s,#492);fx.css .dice-sign-shaking 虚影态同段硬同步
-  botShakeMs: sc(300), // 摇签段(bot 半速档)
-  holdMs: sc(Motion.dur.reveal), // 签面停留(人类);与 --dur-reveal 同源(经 Motion)
-  botHoldMs: sc(Motion.dur.slow), // 签面停留(bot 半速档);与 --dur-slow 同源(经 Motion)
-  fadeOutMs: sc(Motion.dur.med), // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
+  get shakeMs() {
+    return scStage(600);
+  }, // 摇签段(人类标准档 0.6s,#492);fx.css .dice-sign-shaking 虚影态同段硬同步
+  get botShakeMs() {
+    return scStage(300);
+  }, // 摇签段(bot 半速档)
+  get holdMs() {
+    return scStage(Motion.dur.reveal);
+  }, // 签面停留(人类);与 --dur-reveal 同源(经 Motion)
+  get botHoldMs() {
+    return scStage(Motion.dur.slow);
+  }, // 签面停留(bot 半速档);与 --dur-slow 同源(经 Motion)
+  get fadeOutMs() {
+    return scStage(Motion.dur.med);
+  }, // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
 } as const;
 
 /** 拼点演出节拍(#637,ADR-0030,全屏签面 DuelSignsOverlay 消费):错拍/判词两拍
  *  延续既有拼点节拍(ADR-0030 原文「签面落定延续既有拼点节拍」;旧棋盘双印的节拍组
- *  随 T3 #638 整线退役,组名与两拍原值留用)。全组经 sc 缩放;签面整场固定全速,
- *  不随 bot 半速(公共大事件非回合等待,#637 口径)。 */
+ *  随 T3 #638 整线退役,组名与两拍原值留用)。全组吃 scStage(演出编排族,#610);
+ *  签面整场固定全速,不随 bot 半速(公共大事件非回合等待,#637 口径)。 */
 export const DUEL = {
-  curtainMs: sc(200), // 签面·幕启:玄墨幕渐入+两签虚位
-  shakeMs: sc(600), // 签面·并行起摇:虚影轮换段(与 DICE.shakeMs 同值,语义独立——全速恒定)
-  clackGapMs: sc(150), // 签面·座位序错拍落定间隙(第二签延迟落定的空拍;各拍落定自发声)
-  verdictMs: sc(520), // 签面·末签落定→判词拍:金圈/沉暗/金「平」钤落(stamp 音,大胜负同拍震屏)
-  holdMs: sc(600), // 签面·判词停留
-  fadeOutMs: sc(Motion.dur.med), // 签面·整幕渐出;与 --dur-med 同源(经 Motion),fx.css .duel-overlay-out 消费同一 token
+  /** 签面·幕启:玄墨幕渐入+两签虚位 */
+  get curtainMs() {
+    return scStage(200);
+  },
+  /** 签面·并行起摇:虚影轮换段(与 DICE.shakeMs 同值,语义独立——全速恒定) */
+  get shakeMs() {
+    return scStage(600);
+  },
+  /** 签面·座位序错拍落定间隙(第二签延迟落定的空拍;各拍落定自发声) */
+  get clackGapMs() {
+    return scStage(150);
+  },
+  /** 签面·末签落定→判词拍:金圈/沉暗/金「平」钤落(stamp 音,大胜负同拍震屏) */
+  get verdictMs() {
+    return scStage(520);
+  },
+  /** 签面·判词停留 */
+  get holdMs() {
+    return scStage(600);
+  },
+  /** 签面·整幕渐出;与 --dur-med 同源(经 Motion),fx.css .duel-overlay-out 消费同一 token */
+  get fadeOutMs() {
+    return scStage(Motion.dur.med);
+  },
   /** 拼点大胜负点差(S7 #492 震屏大事件档):|a−b|≥本值判词拍震屏(DESIGN §6)。
    *  时间表里只此一个非时长字段,签面判词拍同源取数。 */
   blowoutMargin: 3,
 } as const;
 
-/** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币):累计毫秒锚点(经 sc 缩放),
+/** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币;演出编排族,吃 scStage):累计毫秒锚点,
  *  sinks.bankruptCeremony 串行消费。与 fx.css fx-flag-fall(1.1s)/fx-inkblot-bloom
  *  (1s)/fx-coin-burst(1.3s)硬同步,改任一侧须两处同改。 */
 export const CEREMONY = {
-  fallMs: sc(1100), // 旌旗缓倒全长(墨渍在其尾段 1.0s 拍开晕)
-  blotAtMs: sc(1000), // 铭牌墨渍晕开起始拍
-  coinsAtMs: sc(1500), // 铜钱撒落拍(coinsBox 音同拍)
-  settleMs: sc(2600), // 仪式收口(撒币看完再交还编排链)
+  get fallMs() {
+    return scStage(1100);
+  }, // 旌旗缓倒全长(墨渍在其尾段 1.0s 拍开晕)
+  get blotAtMs() {
+    return scStage(1000);
+  }, // 铭牌墨渍晕开起始拍
+  get coinsAtMs() {
+    return scStage(1500);
+  }, // 铜钱撒落拍(coinsBox 音同拍)
+  get settleMs() {
+    return scStage(2600);
+  }, // 仪式收口(撒币看完再交还编排链)
   coinCount: 10, // 撒币枚数(8–12 档中值,#492 决议)
 } as const;
 
@@ -142,44 +271,64 @@ export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeou
  *  scroll-anim-rollback 走 --dur-fast = 150ms(Motion.dur.fast,经 gen:theme),210 =
  *  150 + 60ms 余量,保证动画播完有余再卸载。刻意字面量而不读运行时 CSS——
  *  getComputedStyle 首帧未就绪且触发强制布局;同源关系以此注释钉死,改 --dur-fast 时
- *  这里要跟着核一遍。 */
+ *  这里要跟着核一遍。界面帧驻留(非棋盘演出),只吃 sc 不吃追帧(F4 作用域拆分)。 */
 export const GHOST = {
-  frameMs: sc(210),
+  get frameMs() {
+    return sc(210);
+  },
 } as const;
 
 /** 托管代打空转(#117 收编):local.ts apLoop 在无人类决策点时(真 bot 轮次由 runBots
- *  驱动/Setup 待手选)的轮询间隔——空转让步,不与 bot 节奏(BOT.stepDelayMs)混用。 */
+ *  驱动/Setup 待手选)的轮询间隔——空转让步,不与 bot 节奏(BOT.stepDelayMs)混用。
+ *  产出侧空转节拍,只吃 sc 不吃追帧(F4 作用域拆分,同 BOT 口径)。 */
 export const AUTOPILOT = {
-  idleMs: sc(200),
+  get idleMs() {
+    return sc(200);
+  },
 } as const;
 
 /** 行军自动化(#188 第 1 步):人类回合 Roll 相位的自动起摇节奏。
  *  进入 Roll 后等 rollAtMs(约 1s,起签的静默酝酿拍)→ 钤「签」印起签 →
  *  再等 qiqianMs(约 0.8s,起签印章的驻留)→ 自动 rollAndMove(与手点同一条命令路径)。
- *  服务器侧(room.ts)的同类定时用固定 1s:scripts 不吃 localStorage 倍率,见 room.ts 注释。 */
+ *  服务器侧(room.ts)的同类定时用固定 1s:scripts 不吃 localStorage 倍率,见 room.ts 注释。
+ *  自动起摇 = 命令提交节拍(权威侧配速,非演出时长),只吃 sc 不吃追帧(F4 作用域拆分)。 */
 export const AUTO_MARCH = {
-  rollAtMs: sc(1000),
-  qiqianMs: sc(800),
+  get rollAtMs() {
+    return sc(1000);
+  },
+  get qiqianMs() {
+    return sc(800);
+  },
 } as const;
 
 /** 反应窗时长缩放包装(#281 引入,#284 单源收口):开窗时长的权威值是
  *  `ReactionView.windowMs`(引擎开窗时查 core/constants REACTION_WINDOW_MS 写入,
  *  随快照 view 走;联机权威侧可经服务器 env E2E_REACTION_MS 覆盖,两端同长自动成立)。
  *  UI 倒计时弧/横幅与单机权威侧定时器(LocalController)一律「取 windowMs → 过本函数」
- *  消费,不再各自引常量表(双源消灭);E2E_TIME_SCALE 缩放通道(#225)收口在此。 */
+ *  消费,不再各自引常量表(双源消灭);E2E_TIME_SCALE 缩放通道(#225)收口在此。
+ *  只吃 sc 不吃追帧(F4 作用域拆分):倒计时弧必须与权威窗同长,追帧压缩会失配。 */
 export const scaleReactionMs = (windowMs: number): number => sc(windowMs);
 
 /** 界面层反馈节奏(#117 收编,非棋盘特效):提示/状态条的自动清除 TTL 与胜利屏
- *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参。 */
+ *  交互件的延后挂载。UI 直改即生效的反馈,不吃编排链,独立于 FX/DICE 调参;
+ *  只吃 sc 不吃追帧(F4 作用域拆分)。 */
 export const UI = {
   /** F4 三屏统一提示 TTL(gameStore.pushHint / netStore.pushHint 单一口径)。 */
-  hintTtlMs: sc(1800),
+  get hintTtlMs() {
+    return sc(1800);
+  },
   /** 编辑器状态条反馈自动清除(EditorScreen 保存/另存/重置/导入四处 setStatus)。 */
-  statusClearMs: sc(1500),
+  get statusClearMs() {
+    return sc(1500);
+  },
   /** 胜利屏「再战」按钮延后挂载(E2:入场演出高潮期防误触重开)。 */
-  victoryButtonMs: sc(1800),
+  get victoryButtonMs() {
+    return sc(1800);
+  },
   /** 大厅国号复制成功反馈的自动熄灭(L-7:ref 计时防重复点击提前熄灭)。 */
-  copyFeedbackMs: sc(1000),
+  get copyFeedbackMs() {
+    return sc(1000);
+  },
 } as const;
 
 /** 等一帧(requestAnimationFrame 两拍:先让 React commit,再拿稳定 DOM)。 */

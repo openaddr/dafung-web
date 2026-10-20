@@ -20,6 +20,9 @@ export interface WaitingBarProps {
   snapshot: GameSnapshot;
   /** 此刻本地玩家能否操作(false = 本地在等别人)。 */
   interactive: boolean;
+  /** 本座位动作在途(#611 提示统一,与 interactive 同拍由控制器写入):命令回音
+   *  或本座位行军会话未落定——轮到我、按钮灰时的等待文案来源,与按钮同源。 */
+  selfPresenting: boolean;
   /** 本地视角座位(联机=自己分到的座位;单机=当前活跃人类座位)。 */
   viewSeat: number;
   /** 是否联机对局(单机时除本地外只有 bot,不出现「静候远端人类」分支)。 */
@@ -38,6 +41,7 @@ const WAIT_ANNOUNCE_S = 8;
 function waitingText(
   snapshot: GameSnapshot,
   interactive: boolean,
+  selfPresenting: boolean,
   viewSeat: number,
   online: boolean,
 ): string | null {
@@ -54,11 +58,21 @@ function waitingText(
     if (DECISION_PHASES.has(snapshot.turnPhase)) return `${name}正在抉择…`;
     return `静候${name}落子…`;
   }
+  // #611 提示统一(ADR-0029 §4):轮到我、非 bot,而按钮仍灰 = 自我侧动作在途
+  // (命令回音/本座位行军会话)——与按钮同源派生量(selfPresenting),亮一起亮、
+  // 灰一起灰,消灭「提示消失按钮仍灰」。托管不在此列(自我侧无动作,恒 false)。
+  if (selfPresenting && snapshot.decisionOwner === viewSeat) return "行军中…";
   return null;
 }
 
-export function WaitingBar({ snapshot, interactive, viewSeat, online }: WaitingBarProps) {
-  const text = waitingText(snapshot, interactive, viewSeat, online);
+export function WaitingBar({
+  snapshot,
+  interactive,
+  selfPresenting,
+  viewSeat,
+  online,
+}: WaitingBarProps) {
+  const text = waitingText(snapshot, interactive, selfPresenting, viewSeat, online);
   // 已候秒数:按连续等待会话计时,text 变化(等待对象换了)即归零重计;条卸载即清表。
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {

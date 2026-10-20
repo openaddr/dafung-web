@@ -15,13 +15,8 @@ import type { BoardPos } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { marchPos } from "@app/fx/useMarch";
+import { playerSlotKey, tokenSlotGroups, tokenSlotOffset } from "./tokenSlots";
 import type { BoardPlayer } from "./BoardView";
-
-/** 玩家所在的「格子槽位键」:与 src/render/board.ts 的 playerSlotKey 逻辑一致
- *  (按 position 分组)。两端必须共用同一规则,否则落格偏移先错后纠、可见抖动。 */
-export function playerSlotKey(p: Pick<BoardPlayer, "position">): string {
-  return String(p.position);
-}
 
 /** 玩家当前渲染坐标。 */
 export function tokenRenderPos(p: BoardPlayer, board: Board): BoardPos {
@@ -183,15 +178,9 @@ export const TokenLayer = memo(function TokenLayer({
   targetedIds,
   layerRef,
 }: TokenLayerProps) {
-  // 同格错位:按槽位键分组,组内按 TOKEN_SLOT_OFFSETS 错位摆放
-  const bySlot = new Map<string, string[]>();
-  for (const p of players) {
-    if (p.isBankrupt) continue;
-    const key = playerSlotKey(p);
-    const arr = bySlot.get(key);
-    if (arr) arr.push(p.id);
-    else bySlot.set(key, [p.id]);
-  }
+  // 同格错位:分组/偏移公式单源 tokenSlots.ts(与提取拍烤 keyframes 的落格偏移同源,
+  // #608 不变量①同源校验——两侧各持一份公式 = 落格偏移先错后纠的可见抖动复发)。
+  const bySlot = tokenSlotGroups(players);
 
   const slots: TokenSlot[] = [];
   for (const p of players) {
@@ -232,7 +221,7 @@ export const TokenLayer = memo(function TokenLayer({
     }
     const pos = tokenRenderPos(p, board);
     const mates = bySlot.get(playerSlotKey(p)) ?? [p.id];
-    const off = TOKEN_SLOT_OFFSETS[Math.max(0, mates.indexOf(p.id)) % TOKEN_SLOT_OFFSETS.length];
+    const off = tokenSlotOffset(players, p);
     slots.push({
       player: p,
       x: pos.x + off.x,

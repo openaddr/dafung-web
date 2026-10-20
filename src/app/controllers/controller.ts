@@ -9,7 +9,9 @@
 import type { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/authority";
 import { useGameStore } from "@app/store/gameStore";
+import { useFxStore } from "@app/fx/fxStore";
 import { SnapshotEffects } from "@app/net/snapshot-effects";
+import { isMarching } from "@app/fx/useMarch";
 import { reactionQueriesSeat } from "./reaction";
 
 /**
@@ -55,8 +57,10 @@ export abstract class GameController {
   /** 切换托管(子类覆写:联机发 WS {type:"autoPilot"};单机本地驱动)。 */
   setAutoPilot(_on: boolean): void {}
 
-  /** 释放长生命周期资源(WS 连接等);无资源子类可不覆写。 */
-  destroy(): void {}
+  /** 释放长生命周期资源(基类=行军会话订阅退订;子类覆写必须调 super.destroy())。 */
+  destroy(): void {
+    this.unsubMarching?.();
+  }
 
   // ─── 交互策略状态(#433 上收;子类协议面读写)───
   /** 在途命令锁:命令已发出、下行拍未回(防连点)。子类上行时置位、下行拍解锁。 */
@@ -71,12 +75,52 @@ export abstract class GameController {
   );
   /** 上一拍是否处于「我的 Roll 等待态」(起签印的转入沿检测基准)。 */
   private prevMyRollWait = false;
+  /** 行军会话集订阅退订器(watchMarching 装订,destroy 退订;探针豁免订阅 → null)。 */
+  private unsubMarching: (() => void) | null = null;
 
-  /** 演出锁(公式读数 seam):表现队列仍在播——快照数据已落地,但骰子/行军/横幅
-   *  未完,决策卷轴/行军按钮不呈现(L42;WaitingBar/横幅不受影响,它们不吃
-   *  interactive)。独立 getter 供公式单测注入,生产读基类持有的消费器。 */
-  protected get fxPlaying(): boolean {
+  constructor() {
+    this.watchMarching();
+  }
+
+  /** 本座位演出落定 → 重评 canAct 的接线(#611 解锁拍):订阅 fxStore.marching,
+   *  会话集增删即重灌 store——解锁由会话收尾驱动,不再等全局队列排空的 onIdle。
+   *  protected 可覆写:策略探针(test/controller-policy)覆写为 no-op,不往公共
+   *  store 灌替身引擎态(测试隔离)。 */
+  protected watchMarching(): void {
+    this.unsubMarching = useFxStore.subscribe(
+      (s) => s.marching,
+      () => this.sync(),
+    );
+  }
+
+  /** 全局表现队列在播(观察口,canAct 已不消费,#611):骰子/浮字/横幅/他座行军等
+   *  整队列的排空状态。交互锁改绑本座位演出落定后,本量仅供测试与诊断读数
+   *  (local-room「队列最终排空」独立断言)。 */
+  get fxBusy(): boolean {
     return this.fx.playing;
+  }
+
+  /** 演出锁(公式读数 seam):本座位相关演出未落定——我的行军会话仍在途(#609
+   *  会话语义;播完/追帧放完/吸附作废删会话即落定,#611 改绑,ADR-0029 §4)。
+   *  全局队列积压不再进门(他座棋子照飞、决策卷轴照弹);独立 getter 供公式单测
+   *  注入,生产读 useMarch 的会话查询口。座位 -1 = 观战/未入座(显式业务态,
+   *  非缺数据):无本座位演出可言,恒未在途;座位 ≥0 而座位表查无 = 控制器/引擎
+   *  错位 bug,当场炸出。 */
+  protected get fxPlaying(): boolean {
+    const seat = this.mySeat;
+    if (seat < 0) return false;
+    const player = this.engine.players[seat];
+    if (player == null) {
+      throw new Error(`fxPlaying:本座位 ${seat} 不在引擎座位表(控制器/引擎错位 bug)`);
+    }
+    return isMarching(player.id);
+  }
+
+  /** 「行军中…」提示源(与按钮同源 canAct 的自我侧输入,#611 提示统一):本座位
+   *  动作在途 = 命令已发未回(pending)或本座位行军会话未落定(fxPlaying)。
+   *  托管中恒 false(自我侧无动作在途,不与托管指示抢话)。 */
+  protected get selfPresenting(): boolean {
+    return this.pending || this.fxPlaying;
   }
 
   /** 此刻本地玩家能否操作(写进 store.interactive,UI 据此启用控件)。
@@ -87,8 +131,9 @@ export abstract class GameController {
    *    脱敏批逐字拷贝,锦囊窗 queriedBySeat 含 -1 匿名占位(他座身份置换、数量
    *    保留),includes(-1) 可为真——不设守卫观战即可应答。
    *  - 主分支:Playing × 决策方轮到本地(热座豁免见 hotSeat)× 决策方非 bot
-   *    × 无在途命令 × 未托管 × 演出播完(热座分支无需同款守卫:decisionOwner
-   *    恒为真实座位索引,等值判定对 -1 天然不成立)。 */
+   *    × 无在途命令 × 未托管 × 本座位演出落定(#611 改绑:只等自己的行军会话,
+   *    他座棋子照飞、队列积压不进门,ADR-0029 §4;热座分支无需同款守卫:
+   *    decisionOwner 恒为真实座位索引,等值判定对 -1 天然不成立)。 */
   get interactive(): boolean {
     return this.canAct();
   }
@@ -133,12 +178,14 @@ export abstract class GameController {
 
   // ─── 状态桥 ───
   /** 引擎变化后的统一出口:快照灌 store(旧 fullRender 的新等价物)。
-   *  同时刷新 interactive 派生量,保证 UI 一次重渲拿到一致的状态。 */
+   *  同时刷新 interactive 与 selfPresenting(#611「行军中…」提示源,与按钮同源
+   *  canAct 的自我侧输入)两个派生量,保证 UI 一次重渲拿到一致的状态。 */
   protected sync(): void {
     const store = useGameStore.getState();
     store.syncFromEngine(this.engine);
     // viewSeat 一并刷:单机热座跟随活跃座位,联机恒为本座——均在控制器侧收口,UI 不自行推导。
     store.setViewSeat(this.viewSeat);
     store.setInteractive(this.interactive);
+    store.setSelfPresenting(this.selfPresenting);
   }
 }

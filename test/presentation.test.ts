@@ -12,11 +12,16 @@ import { isCityType } from "@core/board";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
-import { extractBatchEvents } from "../src/app/fx/event-extract";
+import { anchorMarches, extractBatchEvents } from "../src/app/fx/event-extract";
 import { finishPresentation, present, resetFxOrchestration } from "../src/app/fx/orchestrator";
-import { createMemorySink } from "../src/app/fx/sinks";
+import { createEngineSink, createMemorySink } from "../src/app/fx/sinks";
+import { abandonMarch, animateMove, marchPos } from "../src/app/fx/useMarch";
 import { useFxStore } from "../src/app/fx/fxStore";
-import { isBlowout, type PresentationEvent } from "../src/app/fx/presentation";
+import {
+  isBlowout,
+  type MarchSegmentFrames,
+  type PresentationEvent,
+} from "../src/app/fx/presentation";
 import { testEngine } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
@@ -80,8 +85,10 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     if (e.presentation.lastMove) {
       expect(events[1].kind).toBe("tokenMoved");
       if (events[1].kind === "tokenMoved") {
-        expect(events[1].path.from).toBe(e.presentation.lastMove.from);
-        expect(events[1].path.landIndex).toBe(e.presentation.lastMove.landIndex);
+        // 不变量①提取即定格(#608):首帧=路径起点中心,段数=实走格数
+        const kf = events[1].keyframes;
+        expect(kf.length).toBe(e.presentation.lastMove.traversed.length);
+        expect(kf[0].points[0]).toEqual(e.board.positionOf(e.presentation.lastMove.from));
       }
     }
     const ks = kinds(events);
@@ -103,8 +110,11 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       const march = events.find((ev) => ev.kind === "tokenMoved");
       expect(march).toBeDefined();
       if (march?.kind === "tokenMoved") {
-        expect(march.path.landIndex).toBe(p.capitalIndex);
-        expect(march.path.traversed[march.path.traversed.length - 1]).toBe(p.capitalIndex);
+        // lastMove 截断到都城:末段流光终点=都城中心(几何提取拍烤死)
+        const kf = march.keyframes;
+        expect(kf[kf.length - 1].flow[kf[kf.length - 1].flow.length - 1]).toEqual(
+          e.board.positionOf(p.capitalIndex),
+        );
       }
       // 驻跸三件套顺序:行军 → 驻章 → 文案 → 补给铜钱雨(先盖章再铜钱雨)
       const ks = kinds(events);
@@ -377,9 +387,12 @@ describe("事件→动效映射表(合成批)", () => {
     const gain = synth(e, [
       { kind: "treasureGained", seat: 0, round: 1, turn: 1, treasureId: "t1" },
     ]);
+    const gainPos = e.board.positionOf(e.players[0].position);
     expect(gain[0]).toEqual({
       kind: "sealStamped",
       tileIndex: e.players[0].position,
+      x: gainPos.x,
+      y: gainPos.y,
       char: "得",
       tone: "gold",
     });
@@ -439,7 +452,14 @@ describe("事件→动效映射表(合成批)", () => {
         cost: 100,
       },
     ]);
-    expect(out[0]).toEqual({ kind: "sealStamped", tileIndex: cap, char: "筑" });
+    const capPos = e.board.positionOf(cap);
+    expect(out[0]).toEqual({
+      kind: "sealStamped",
+      tileIndex: cap,
+      x: capPos.x,
+      y: capPos.y,
+      char: "筑",
+    });
     if (out[1].kind === "propertyChanged") {
       expect(out[1].ownerChanged).toBe(true);
       expect(out[1].levelChanged).toBe(false);
@@ -804,8 +824,13 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       (ev): ev is Extract<PresentationEvent, { kind: "tokenMoved" }> => ev.kind === "tokenMoved",
     );
     expect(marches).toHaveLength(2); // 旧行为:非末段依赖 lastMove 单槽,只有末段能播
-    expect(marches[0].path.landIndex).toBe(path0.landIndex);
-    expect(marches[1].path.landIndex).toBe(path1.landIndex);
+    // 各段各播:末段流光终点=各自落格中心(几何提取拍烤死,#608 不变量①)
+    expect(marches[0].keyframes[marches[0].keyframes.length - 1].flow.at(-1)).toEqual(
+      e.board.positionOf(path0.landIndex),
+    );
+    expect(marches[1].keyframes[marches[1].keyframes.length - 1].flow.at(-1)).toEqual(
+      e.board.positionOf(path1.landIndex),
+    );
   });
 
   it("反应窗余段截短逻辑保持:事件内路径 + 挂起点前置位置 → 余段 tokenMoved", () => {
@@ -825,8 +850,9 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     );
     expect(march).toBeDefined();
     if (march != null) {
-      expect(march.path.from).toBe(ambushTile); // 不拽回起点:自挂起点续走
-      expect(march.path.traversed).toEqual(path.traversed.slice(2));
+      // 不拽回起点:首帧=挂起点中心续走;段数=余段格数(路径截短,#281)
+      expect(march.keyframes[0].points[0]).toEqual(e.board.positionOf(ambushTile));
+      expect(march.keyframes.length).toBe(path.traversed.slice(2).length);
     }
   });
 });
@@ -1100,14 +1126,15 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
         {
           kind: "tokenMoved",
           playerId: "p1",
-          path: {
-            from: 0,
-            traversed: [1],
-            landIndex: 1,
-            passedCapital: false,
-            capitalIndex: -1,
-            waypoints: [],
-          },
+          keyframes: [
+            {
+              points: [
+                { x: 0, y: 0 },
+                { x: 7, y: 8 },
+              ],
+              flow: [{ x: 0, y: 0 }],
+            },
+          ],
         },
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
         { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
@@ -1119,14 +1146,15 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     expect(sink.calls[1]).toEqual({
       op: "march",
       playerId: "p1",
-      path: {
-        from: 0,
-        traversed: [1],
-        landIndex: 1,
-        passedCapital: false,
-        capitalIndex: -1,
-        waypoints: [],
-      },
+      keyframes: [
+        {
+          points: [
+            { x: 0, y: 0 },
+            { x: 7, y: 8 },
+          ],
+          flow: [{ x: 0, y: 0 }],
+        },
+      ],
     });
     expect(sink.calls[2]).toEqual({ op: "floater", x: 10, y: 20, amount: -120, coins: false });
     expect(sink.calls[3]).toEqual({ op: "banner", guohao: "蜀", colorIndex: 1 });
@@ -1151,14 +1179,14 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     const sink = createMemorySink();
     await present(
       [
-        { kind: "landPulse", tileIndex: 3 },
+        { kind: "landPulse", tileIndex: 3, x: 30, y: 40 },
         { kind: "haltBanner", playerId: "p1", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
         { kind: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
       ],
       sink,
     );
     expect(sink.calls).toEqual([
-      { op: "landPulse", tileIndex: 3 },
+      { op: "landPulse", x: 30, y: 40 },
       { op: "haltBanner", guohao: "魏", colorIndex: 0, cityName: "洛阳" },
       { op: "bankruptCeremony", playerId: "p1", x: 3, y: 4 },
     ]);
@@ -1240,14 +1268,16 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
 
 // ─────────────── 终局封场(present 事件边界收队,orchestrator.finishPresentation)───────────────
 describe("终局封场 finishPresentation(present 事件边界收队)", () => {
-  const pathOf = (land: number) => ({
-    from: 0,
-    traversed: [land],
-    landIndex: land,
-    passedCapital: false,
-    capitalIndex: -1,
-    waypoints: [],
-  });
+  /** 合成 tokenMoved 的最小 keyframes(memory sink 不渲染,形状合法即可)。 */
+  const kfOf = (n: number): MarchSegmentFrames[] => [
+    {
+      points: [
+        { x: n, y: 0 },
+        { x: n, y: 1 },
+      ],
+      flow: [{ x: n, y: 0 }],
+    },
+  ];
 
   it("播中封场:在途事件播完即收队——剩余事件不播、未开播行军接管被收回,正常 resolve 不 reject", async () => {
     useFxStore.getState().resetFx();
@@ -1260,15 +1290,15 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
     const gate = new Promise<void>((r) => (release = r));
     const sinkGate = {
       ...sink,
-      async marchToken(playerId: string, path: MovePath) {
+      async marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]) {
         if (playerId === "p1") await gate; // 挂起 p1:封场恰好钉在两段行军之间
-        sink.calls.push({ op: "march", playerId, path });
+        sink.calls.push({ op: "march", playerId, keyframes: [...keyframes] });
       },
     };
     const events: PresentationEvent[] = [
       { kind: "diceRolled", die: 3 },
-      { kind: "tokenMoved", playerId: "p1", path: pathOf(2) },
-      { kind: "tokenMoved", playerId: "p2", path: pathOf(5) },
+      { kind: "tokenMoved", playerId: "p1", keyframes: kfOf(2) },
+      { kind: "tokenMoved", playerId: "p2", keyframes: kfOf(5) },
       { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
     ];
     const done = present(events, sinkGate);
@@ -1288,7 +1318,7 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
     finishPresentation();
     await present(
       [
-        { kind: "tokenMoved", playerId: "p9", path: pathOf(3) },
+        { kind: "tokenMoved", playerId: "p9", keyframes: kfOf(3) },
         { kind: "cashDelta", playerId: "p9", amount: 5, x: 0, y: 0, atTile: 3 },
       ],
       sink,
@@ -1354,6 +1384,80 @@ describe("SnapshotEffects 事件批消费游标(#385 联机通路)", () => {
     fx.play(e.players.map((p) => p.position));
     await tick();
     expect(floaterCount()).toBe(0);
+  });
+});
+
+// ─────────────── 行军单写者:per-id 会话与顶替/段队列(#609,ADR-0029 不变量②)───────────────
+/** 行军会话用例的最小 keyframes:单段两帧(起点→终点),几何合法即可。 */
+function marchFrames(...pts: Array<{ x: number; y: number }>): MarchSegmentFrames[] {
+  return [{ points: pts, flow: [pts[0]] }];
+}
+const moved = (playerId: string, keyframes: MarchSegmentFrames[]): PresentationEvent => ({
+  kind: "tokenMoved",
+  playerId,
+  keyframes,
+});
+
+describe("行军单写者:per-id 会话与顶替/段队列(#609,ADR-0029 不变量②)", () => {
+  /** 真实会话簿记通路:anchorMarches + 生产 sink(bun 单测无 DOM,只触状态面)。 */
+  const anchor = (events: PresentationEvent[]) => anchorMarches(events, createEngineSink());
+
+  it("同批同 id 双预塞=段队列追加:锚点保持第一段首帧,不覆写(双预塞错接起点 bug 修复)", () => {
+    anchor([
+      moved("p1", marchFrames({ x: 1, y: 1 }, { x: 2, y: 2 })),
+      moved("p1", marchFrames({ x: 2, y: 2 }, { x: 3, y: 3 })),
+    ]);
+    expect(marchPos.get("p1")).toEqual({ x: 1, y: 1 }); // 旧实现覆写成第二段起点
+    expect(useFxStore.getState().marching.has("p1")).toBe(true);
+  });
+
+  it("跨批顶替:新批锚=新会话首帧直切;旧批 animateMove 段边界自终止,不收新主之尾", async () => {
+    const stale = marchFrames({ x: 0, y: 0 }, { x: 5, y: 0 });
+    anchor([moved("p1", stale)]); // 批 1:锚定(队列中,未播)
+    anchor([moved("p1", marchFrames({ x: 9, y: 9 }, { x: 10, y: 9 }))]); // 批 2:顶替
+    expect(marchPos.get("p1")).toEqual({ x: 9, y: 9 });
+    await animateMove("p1", stale); // 旧批演出迟到:必须无主自终止,不得触碰新主接管
+    expect(marchPos.get("p1")).toEqual({ x: 9, y: 9 });
+    expect(useFxStore.getState().marching.has("p1")).toBe(true);
+  });
+
+  it("段队列收尾:同批两段逐段播——非末段保持接管,末段才会话收尾", async () => {
+    const first = marchFrames({ x: 1, y: 1 }, { x: 2, y: 2 });
+    const second = marchFrames({ x: 2, y: 2 }, { x: 3, y: 3 });
+    anchor([moved("p1", first), moved("p1", second)]);
+    await animateMove("p1", first);
+    expect(useFxStore.getState().marching.has("p1")).toBe(true); // 非末段:会话仍在
+    await animateMove("p1", second);
+    expect(useFxStore.getState().marching.has("p1")).toBe(false); // 末段收尾
+    expect(marchPos.has("p1")).toBe(false);
+  });
+
+  it("abandonMarch per-id:只作废目标会话,他 id 在途会话不殃及", async () => {
+    const kb = marchFrames({ x: 0, y: 5 }, { x: 1, y: 5 });
+    anchor([moved("pA", marchFrames({ x: 0, y: 0 }, { x: 1, y: 0 })), moved("pB", kb)]);
+    abandonMarch("pA");
+    expect(marchPos.has("pA")).toBe(false);
+    expect(useFxStore.getState().marching.has("pA")).toBe(false);
+    expect(marchPos.get("pB")).toEqual({ x: 0, y: 5 }); // B 会话健在
+    await animateMove("pB", kb); // B 仍按会话主人正常收尾(旧全局代际会误杀 → 红)
+    expect(useFxStore.getState().marching.has("pB")).toBe(false);
+  });
+
+  it("重连边界清会话:dropStalledBatch/resetEventFace 作废全部在途行军接管", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const fx = new SnapshotEffects(() => e);
+    anchor([
+      moved("pX", marchFrames({ x: 0, y: 0 }, { x: 1, y: 0 })),
+      moved("pY", marchFrames({ x: 0, y: 2 }, { x: 1, y: 2 })),
+    ]);
+    fx.dropStalledBatch(); // 断线边界
+    expect(marchPos.size).toBe(0);
+    expect(useFxStore.getState().marching.size).toBe(0);
+    anchor([moved("pX", marchFrames({ x: 4, y: 4 }, { x: 5, y: 4 }))]);
+    fx.resetEventFace(); // 重连成功边界
+    expect(marchPos.size).toBe(0);
+    expect(useFxStore.getState().marching.size).toBe(0);
   });
 });
 

@@ -48,6 +48,7 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
+import { catchupCounters } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
 import { HEROES } from "@core/heroes";
 
@@ -90,5 +91,7 @@ export function installDebugHooks(): void {
       if (c == null) throw new Error("clockResume:无活动 Worker 时钟(仅单机对局可冻结)");
       c.resume();
     },
+    // ── 落后即校准诊断面(#610,ADR-0029 ③;只读快照,实体见 fx/catchup.ts)──
+    fxCatchup: () => ({ ...catchupCounters }),
   };
 }

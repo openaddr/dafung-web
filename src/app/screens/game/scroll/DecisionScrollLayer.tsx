@@ -179,8 +179,9 @@ export function DecisionScrollLayer({
     }
 
     // ── 珍宝使交涉:城主决策视角;本地是访客时给只读等待视角 ──
-    // L42:城主卷轴是决策卷轴,补 interactive 门控(联机 fx.playing / 单机 drive 锁期间
-    // 行军未完不弹);访客只读等待面板视同 WaitingBar 的过程反馈,保持即时。
+    // L42:城主卷轴是决策卷轴,补 interactive 门控(本座位演出落定前不弹,#611:
+    // canAct 改绑 fxStore 行军会话,他座棋子照飞、队列积压不进门);访客只读等待
+    // 面板视同 WaitingBar 的过程反馈,保持即时。
     if (snapshot.treasureVisitor && snapshot.turnPhase === "AwaitingTreasureOwner") {
       const tv = snapshot.treasureVisitor;
       const owner = players[tv.ownerIdx];

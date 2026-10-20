@@ -14,7 +14,7 @@ const contribution = {
         if (ev.seat == null) continue;
         if (ev.kind === "skillFired" && ev.skillId === PASSIVE_SKILL_ID) {
           const a = anchorOf(engine, ev.seat);
-          out.push({ kind: "sealStamped", tileIndex: a.atTile, char: "义" });
+          out.push({ kind: "sealStamped", tileIndex: a.atTile, x: a.x, y: a.y, char: "义" });
           out.push({
             kind: "textFloat",
             playerId: engine.players[ev.seat].id,

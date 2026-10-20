@@ -27,7 +27,9 @@ const contribution: ExtensionClientPackage = {
         if (ev.seat == null) continue;
         if (ev.kind === "skillFired" && ev.skillId === PASSIVE_SKILL_ID) {
           const a = anchorOf(engine, ev.seat);
-          out.push({ kind: "sealStamped", tileIndex: a.atTile, char: "义" });
+          // sealStamped 全坐标化(#608 不变量①):x/y 提取拍烤进事件,缺省即 NaN
+          // transform(旧形状 {tileIndex,char} 的实锤病灶);tileIndex 仅留语义。
+          out.push({ kind: "sealStamped", tileIndex: a.atTile, x: a.x, y: a.y, char: "义" });
           out.push({
             kind: "textFloat",
             playerId: engine.players[ev.seat].id,
