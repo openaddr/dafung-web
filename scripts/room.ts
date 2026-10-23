@@ -169,7 +169,7 @@ export interface CreateRoomConfig {
  *  STALL_ABORT_MS(core/timings 单源 30s),不经 decisionTimeoutMs——后者在单机保持
  *  缺省关,#118 human-turn 既有 stall 行为零变化。0 = 显式关闭。
  *  reactionWindowMs(#284):反应窗时长覆盖(env E2E_REACTION_MS,模式照 DECISION_TIMEOUT_MS);
- *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化)。
+ *  0 = 不覆盖,走 core REACTION_WINDOW_MS 常量表(缺省查表,数值以常量表为准)。
  *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
  *  token 重连无缝归座,到期看门狗代开托管(ADR-0028;重连不清托管)。0 = 关闭
  *  (缺省关,单机/测试;server.ts 默认 600000=10 分钟,env RETENTION_WINDOW_MS 可调)。

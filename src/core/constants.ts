@@ -41,6 +41,6 @@ export function isSingleCjk(s: string): boolean {
  *  只认 respondReaction 命令、不计时。E2E_TIME_SCALE 缩放由消费方处理(读取后自乘),
  *  本表不做缩放。 */
 export const REACTION_WINDOW_MS: Record<"JinnangAnnounced" | "MarchPassedCity", number> = {
-  JinnangAnnounced: 3000,
-  MarchPassedCity: 3000,
+  JinnangAnnounced: 15000,
+  MarchPassedCity: 15000,
 };
