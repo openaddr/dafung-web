@@ -11,7 +11,7 @@
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
 import type { TileDef } from "@core/board";
-import { Theme, groupColor, playerColor, rgba } from "@core/theme";
+import { Theme, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
 
@@ -44,7 +44,7 @@ export interface TileVisualState {
 
 interface TileProps {
   tile: TileDef;
-  group: string; // 地产分组(catalog.get(propertyId).group),区域色带用
+  group: string; // 地产分组(catalog.get(propertyId).group),建筑地域形制变体用
   /** 满级档(catalog.get(propertyId).maxLevel),满贯金框判据;非地产格无珠不读。 */
   maxLevel: number;
   state: TileVisualState;
@@ -73,7 +73,7 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
  * 方案取舍:选"逐字纵排"而非 SVG writing-mode(后者 Firefox/Safari 对 tb 支持参差,逐字定位最稳)。
  *
  * 两级可读设计(B1):总览(computeFitView 按图推导,3400 宽级 → ~1000px 容器,缩放系数 ≈0.3-0.45)下
- * 任何城名字都只有 ~6-8px——总览不指望读字,靠「色带=区域色相 / 旗形=归属」的形状层辨认
+ * 任何城名字都只有 ~6-8px——总览不指望读字,靠「铭牌色块/旗形=归属」的形状层辨认
  * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
  * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;规模三档视觉通道已随经济 v2 退役)。
@@ -84,7 +84,7 @@ function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
   const fs = 20;
   const step = fs + 3; // B5:字距留缝(20→23),三字匾整体高度随之 +6
   const h = chars.length * step + 12;
-  const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与色带/王旗/小旌旗重叠
+  const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与王旗/小旌旗重叠
   const y0 = -22;
   const rivet = capital ? rgba(Theme.bgDeep, 0.6) : PLAQUE_EDGE; // 金匾钉帽换深色,金钉钉金匾不可见
   return (
@@ -228,7 +228,7 @@ const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string 
 // 天命=云纹圆龛(金边圆龛+肩部双云卷)/ 锦囊=幡旗形(悬杆横旗+燕尾旗脚)/
 // 税关=城垛缺口形(垛口锯齿顶)。三族均:漆木深卡身 + 漆金描边,替换通用圆角方牌;
 // 毛笔大字与格名保留(版位随族形微调,见 EVENT_LAYOUT)。商市/卧龙岗不入族——
-// 保留圆角深卡+色带,大字即族色信号。
+// 保留圆角深卡,大字即族色信号。
 const SHRINE_FILL = rgba(Theme.lacquer, 0.92); // 族形卡身(漆木深卡)
 const SHRINE_EDGE = rgba(Theme.goldDeep, 0.9); // 漆金描边
 
@@ -326,19 +326,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
   // 事件格外轮廓三族(#500):天命/锦囊/税关换族形,不再画通用圆角方牌
   const familyShape =
     isIconTile && (tile.type === "Fate" || tile.type === "Chance" || tile.type === "Tax");
-  // 三族仍要色带吗?不——族形自身就是外轮廓,色带横条会切在圆龛/旗面上,故三族不铺带,
-  // 大字即族色信号;商市/卧龙岗保留深卡+色带。
-  const hasBand =
-    !!tile.propertyId || (isIconTile && (tile.type === "Stock" || tile.type === "Wolong"));
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
-  // #74 色带恒用区域分组色(groupColors):玩家色板与分组色板高度同源(石青≈荆楚、
-  // 朱砂≈幽燕…),有主城染玩家色会与异地无主城撞色、误读区域归属;归属辨识交由
-  // 铭牌深底/城主旗承担,色带专职「区域色相」导航。
-  const bandFill = tile.propertyId
-    ? rgba(groupColor(group))
-    : isIconTile
-      ? rgba(Theme[ICON_THEME[tile.type]!.color as "goldBright" | "danger" | "money"])
-      : rgba(Theme.inkwash, 0.5);
 
   const cls = [
     "bv-tile",
@@ -419,19 +407,6 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
 
       {isIconTile ? (
         <>
-          {hasBand ? (
-            <rect
-              className="bv-tile-band"
-              x={-46}
-              y={-44}
-              width={92}
-              height={10}
-              rx={2}
-              fill={bandFill}
-              stroke={rgba(Theme.bgDeep, 0.6)}
-              strokeWidth={1}
-            />
-          ) : null}
           {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。
               天命云纹/锦囊卷轴已升格为外轮廓三族(FateShrine/ChanceBanner),不再重复画。 */}
           {tile.type === "Stock"
@@ -529,23 +504,9 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
               不踩进底座;无主/领地保持原尺度。 */}
           <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
             {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
-                归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯风味)。 */}
+                归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格×地域风味)。 */}
             <Building group={group} />
           </g>
-          {/* 分组色带(顶部):恒用区域色(#74,不再随持有者染玩家色)。
-              B1 两级设计:总览读不了字,色带是"形状层"信号——加高一档并描深边,
-              让远看时色带在漆木深卡/铭牌底上仍有清晰的色块轮廓可辨。 */}
-          <rect
-            className="bv-tile-band"
-            x={-46}
-            y={-44}
-            width={92}
-            height={10}
-            rx={2}
-            fill={bandFill}
-            stroke={rgba(Theme.bgDeep, 0.6)}
-            strokeWidth={1}
-          />
           {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
               时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
               语言)。宣告 nonce 经事件流下发;key=nonce 每次易主重挂重播,动画播完停在

@@ -39,8 +39,8 @@ export interface DecisionScrollLayerProps {
   tileDetail: TileDetailRequest | null;
 }
 
-// 地域行标签单源:色带按区域分组着色,分组名恒显作色带的名字锚点,州名与分组异名
-// 时追加(「幽燕 · 并州」)。自定义地图未知分组(z)无分组名,只显州名。
+// 地域行标签单源:分组名恒显作地域行锚点,州名与分组异名时追加(「幽燕 · 并州」)。
+// 自定义地图未知分组(z)无分组名,只显州名。
 function regionLineLabel(group: string | undefined, region: string | null): string {
   const groupName = group != null ? Theme.groupNames[group] : undefined;
   if (!groupName) return region ?? "";
