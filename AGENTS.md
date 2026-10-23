@@ -13,7 +13,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 - **进场检查**:主树 @ 有非自己生产的内容 = 有别的会话在用——不要 `jj new` 盖上去,自己走 workspace;拿不准就报告用户。
 - **交付**:workspace 内 `jj describe` → `jj bookmark create/move` → `jj git push --bookmark <名>` + PR;谁建谁清(`jj workspace forget <名>` + 删目录)。
 - **收账**(合入后):**`pr-merge.ts` 收口尾步已自动做**——`jj git fetch` → `jj bookmark move master --to master@origin` → 主树空 @ 前移 `jj new master`( jj 命令不依赖 .git,workspace 直跑即可;只有 git 逃生舱命令才必须回主树)。手动通路仅剩网页合并/脚本外收口时用,同三条顺序。
-- **push 前核对**:`jj diff --stat` 与预期文件集一致——多出的文件 = 被并行写入折入,先拆再推。
+- **文件集自查两拍**:①编辑落盘后立即一拍——并行会话的折入/抹盘连磁盘带快照一起变,先对账再花门禁钱(2026-10-17 骰签批实锤:门禁在被抹状态上跑完全绿);②push 前一拍:`jj diff --stat` 与预期文件集一致,多出的文件 = 被并行写入折入,先拆再推;收口走 `pr-merge.ts --expect <路径>` 硬闸。
 - **master 受保护**(禁直推/禁 merge commit,一律 PR + squash);大批次走集成分支单 PR 入库。
 - 操作配方、0.45 摩擦清单与命令速查:[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节。
 

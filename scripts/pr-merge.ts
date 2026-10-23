@@ -13,6 +13,9 @@
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
+//   --expect <路径>(可重复)= 预期文件集硬闸(S3):change diff 与声明集精确对账,多出
+//   (并行写入折入,先 split)与少了(编辑被并行抹掉/声明笔误)都红即停——两案同根
+//   (2026-10-17 档位珠批折入远端书签、骰签批主树编辑被活会话抹盘且门禁全绿假 assurance)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
 import * as path from "node:path";
 
@@ -57,9 +60,12 @@ const flag = (name: string) => {
 };
 const bookmark = args.find((a) => !a.startsWith("--"));
 const createOnly = args.includes("--create-only");
+const expectPaths = args
+  .flatMap((a, i) => (a === "--expect" ? [args[i + 1] ?? ""] : []))
+  .filter((p) => p && !p.startsWith("--"));
 if (!bookmark || bookmark.startsWith("-")) {
   console.error(
-    "[pr-merge] 用法:bun scripts/pr-merge.ts <书签名> [--title ...] [--body-file <路径>] [--create-only]",
+    "[pr-merge] 用法:bun scripts/pr-merge.ts <书签名> [--title ...] [--body-file <路径>] [--create-only] [--expect <路径>]...",
   );
   process.exit(2);
 }
@@ -115,6 +121,34 @@ if (!prNumber) {
     process.exit(1);
   }
   const title = flag("--title") ?? description;
+
+  // 1.2) 预期文件集对账(--expect 可重复声明;S3 闸,见头注)。对账对象=change diff
+  //      本体(即 PR 将含的全部文件);路径反斜杠归一(Windows jj 输出带「\」)。
+  if (expectPaths.length > 0) {
+    const norm = (p: string) => p.replaceAll("\\", "/");
+    const actual = jj("diff", "-r", bookmark, "--name-only")
+      .split("\n")
+      .map((s) => norm(s.trim()))
+      .filter(Boolean)
+      .sort();
+    const declared = expectPaths.map(norm).sort();
+    const extras = actual.filter((f) => !declared.includes(f));
+    const missing = declared.filter((f) => !actual.includes(f));
+    if (extras.length > 0 || missing.length > 0) {
+      if (extras.length > 0) {
+        console.error(
+          `[pr-merge] change 里有声明外的文件(并行写入折入?先 split 拆出再推):\n  ${extras.join("\n  ")}`,
+        );
+      }
+      if (missing.length > 0) {
+        console.error(
+          `[pr-merge] 声明了但 change 里没有(编辑被并行抹掉?声明笔误?):\n  ${missing.join("\n  ")}`,
+        );
+      }
+      process.exit(1);
+    }
+    console.log(`[pr-merge] 文件集对账通过(${actual.length} 个):${actual.join(" ")}`);
+  }
 
   // 1.5) push 前新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
   // 回溯重定基冤枉半小时;红即停,刻意带旧基线收口走手动链 + check:freshness --allow-behind)

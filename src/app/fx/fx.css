@@ -125,8 +125,8 @@
   }
 }
 
-/* ── 桌面微震(S7 #492 拍板 4px 档:破产/拼点大胜负/都城停,大事件限定;
-   掷骰落定不上震屏)──
+/* ── 桌面微震(S7 #492 拍板 4px 档,大事件限定;适用事件清单与原则单源
+   在 DESIGN §6 动效规范,此处只指路不枚举)──
    挂 #board-wrap(desk.shakeDesk 注入类,0.4s 后自摘);走独立 translate 属性,
    不碰容器既有 transform。时长与 fx/timings.ts desk.ts DESK_SHAKE_MS=400 硬同步。 */
 .fx-desk-shake {
