@@ -670,11 +670,11 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
               </label>
             ))}
 
-            {/* 等级价值表:逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1)。
+            {/* 变卖价表(#671 正名,旧称城池价值):逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1)。
                 W2 审计:cols-4 一行收齐 Lv0~Lv3(原 cols-3 的 Lv3 孤行);窄侧栏挤压由
                 输入框 min-w-0 兜住(grid 轨道 minmax(0,1fr) 可缩,px-1 保数字可读) */}
             <div className="mt-1 border-t border-ink/20 pt-2">
-              <div className="mb-1 text-xs text-ink-dim">城池价值表(Lv0~Lv{maxLevel})</div>
+              <div className="mb-1 text-xs text-ink-dim">变卖价表(Lv0~Lv{maxLevel})</div>
               <div className="grid grid-cols-4 gap-1">
                 {Array.from({ length: maxLevel + 1 }, (_, lvl) => (
                   <label key={lvl} className="flex flex-col gap-0.5">

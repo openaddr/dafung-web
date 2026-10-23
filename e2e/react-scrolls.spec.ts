@@ -251,6 +251,15 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
     await page.locator(`[data-tile="${propTile}"]`).click();
     await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
   }).toPass({ timeout: 15_000 });
+  // #671 列语义钉:主列恒为交易加成;第二列按城型——该格是某家都城则显「都城补给」
+  // (变卖价对都城是死信息),普通城显「变卖价」
+  const detailIsCapital = await page.evaluate((idx) => {
+    const e = (window as any).__dafung.getEngine();
+    return e.players.some((p: { capitalIndex: number | null }) => p.capitalIndex === idx);
+  }, propTile);
+  const detail = page.getByTestId("scroll-tile-detail");
+  await expect(detail.getByText("交易加成")).toBeVisible();
+  await expect(detail.getByText(detailIsCapital ? "都城补给" : "变卖价")).toBeVisible();
 });
 
 test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝留痕(ADR-0024)", async ({ page }) => {

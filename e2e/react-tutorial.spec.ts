@@ -22,6 +22,9 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
   await expect(detail).toBeVisible();
   await expect(detail.getByText("定都于此")).toBeVisible();
   await expect(detail.getByText("再想想")).toBeVisible();
+  // #671:选都候选按「将成为都城」显示补给列(变卖价对都城是死信息)
+  await expect(detail.getByText("交易加成")).toBeVisible();
+  await expect(detail.getByText("都城补给")).toBeVisible();
   await page.getByTestId("confirm-capital-ok").click();
   // 「出牌阶段态」(#256 旧弹窗退役,教程断言改架中口径):起手是否停窗随牌库
   // 洗序,条件断言——窗态在场 = 架中可用牌 + 动作条,「不出」放行(原「今不用」
