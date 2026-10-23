@@ -52,6 +52,7 @@ import {
 } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { Sym } from "@app/screens/shared/Sym";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
@@ -119,20 +120,21 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
             Esc 直关即可;底件 finalFocus 默认还焦触发元素,不另配。 */
         initialFocus={false}
         aria-label={`锦囊详情:${def.id}`}
-        // 底件默认屏幕居中(fixed top-1/2 left-1/2 -translate-x/y-1/2),两形态都改
-        // 贴底:冲突组(top/translate-y 等)由 cn(twMerge)按后者覆盖。
+        // 底件默认屏幕居中(fixed top-1/2 left-1/2 + translate 消费 --drag-x/y),
+        // 两形态都改贴底:冲突组(top/translate-y 等)由 cn(twMerge)按后者覆盖;
+        // 桌面形态的 translate-y 改消费拖动变量(#674,缺省 0px = 原贴底)。
         className={
           isNarrow
             ? // 窄屏:贴底全宽抽屉(上圆角 + 抓手上条,原型 .xiang-sheet 制式;
               // max-h 86dvh + 内滚 = 方案「看不全」三层保证之②)
               "jinnang-detail-sheet inset-x-0 bottom-0 top-auto translate-x-0 translate-y-0 w-full max-w-full max-h-[86dvh] overflow-y-auto rounded-b-none rounded-t-[14px] px-5 pt-3 pb-[calc(var(--safe-bottom)+16px)]"
             : // 桌面:底部居中面板(同口径 86dvh 内滚;下缘让出安全区)
-              "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-0 w-max max-w-[92vw] max-h-[86dvh] overflow-y-auto"
+              "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-[var(--drag-y,0px)] w-max max-w-[92vw] max-h-[86dvh] overflow-y-auto"
         }
       >
         {/* × 关闭钮(#530):弹层内唯一可见出口,点击语义归底件 DialogClose。
             制式同城池详情题行关闭钮(BannerShell):44px 热区 + 漆金发丝描边圆钮,
-            hover 用 group 让整个热区点亮。详情面板纸色,墨字近钮即衬。 */}
+            hover 用 group 让整个热区点亮;z-10 恒在拖动把手条之上,热区不受遮。 */}
         <DialogClose
           aria-label="关闭"
           className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
@@ -147,6 +149,17 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
         {/* 可达名:牌名即标题(sr-only,视觉由 JinnangCardDetail 的 dt-ming 承担) */}
         <DialogTitle className="sr-only">{def.id}</DialogTitle>
         {isNarrow && <div aria-hidden="true" className="jinnang-detail-grab" />}
+        {/* 桌面形态题名区拖动把手(#674):透明条覆盖牌名行一带(22px 内衬 + 26px
+            牌名),hover 显 grab 光标即拖动示意——题名在 JinnangCardDetail 的
+            dt-ming(card/ 目录只读消费,无法摊其上),以覆盖条代替;窄屏贴底抽屉
+            形态不渲染把手 = 禁用拖动(断点单源 useIsNarrow/IS_NARROW_QUERY)。 */}
+        {!isNarrow && (
+          <DialogDragHandle
+            aria-hidden="true"
+            className="absolute inset-x-0 top-0 z-0 h-[52px]"
+            testid={TESTIDS.modalDragHandle}
+          />
+        )}
         <JinnangCardDetail cardId={cardId} />
       </DialogContent>
     </Dialog>

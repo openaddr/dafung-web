@@ -11,8 +11,10 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import "./banner.css";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
+import { TESTIDS } from "../testids";
 
 export interface ConfirmDialogProps {
   title: string;
@@ -115,18 +117,24 @@ export function ConfirmDialog({
           style: backdropBlocks ? undefined : { pointerEvents: "none" },
         }}
         // 弹层居中改 auto-margin 口径(inset-0 + m-auto + 尺寸自适应):入场动画
-        // banner-drop 的关键帧写 transform,会覆盖底件默认 -translate-x/y-1/2
-        // 居中位移造成开场跳位;translate-x/y-0 抵消默认位移后动画帧只承担落位动势。
-        // 切勿加 relative(会经 twMerge 顶掉底件默认的 fixed)。pointer-events-auto:
-        // 遮罩放行时卡片仍要接住点击。banner-card = 漆金横幅制式小卡(材质/入场动画,
-        // banner.css);banner-shell = 次级笺钮描边收口的作用域钩子。
+        // banner-drop 的关键帧写 transform,与 translate 属性叠加合成但动画帧承担
+        // 落位动势;translate-x/y-* 消费 --drag-x/--drag-y(#674,变量由题名拖动
+        // 命令式写入,缺省 0px = 原居中)。切勿加 relative(会经 twMerge 顶掉底件
+        // 默认的 fixed)。pointer-events-auto:遮罩放行时卡片仍要接住点击。
+        // banner-card = 漆金横幅制式小卡(材质/入场动画,banner.css);banner-shell =
+        // 次级笺钮描边收口的作用域钩子。
         className={
-          "banner-card banner-shell inset-0 m-auto h-max w-max translate-x-0 translate-y-0 max-w-[400px] px-7 py-5" +
+          "banner-card banner-shell inset-0 m-auto h-max w-max translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] max-w-[400px] px-7 py-5" +
           (backdropBlocks ? "" : " pointer-events-auto")
         }
       >
         <DialogTitle data-testid={T.scrollTitle} className="mb-2 text-center text-xl">
-          {title}
+          {/* 题名行兼拖动把手(#674):题名元素已挂 scroll-title 契约,把手是题名内
+              的块级 span(DialogDragHandle 消费 DialogContent 下发的原语;句语内容
+              合法,可达名仍归 h2 单节点)。 */}
+          <DialogDragHandle as="span" className="block" testid={TESTIDS.modalDragHandle}>
+            {title}
+          </DialogDragHandle>
         </DialogTitle>
         <div>
           {/* W2 包E(审计 A5):正文是动态 children(地图名/城名等),字族迁 wenkai 不落小薇。

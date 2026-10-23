@@ -2,12 +2,22 @@
 // 由 components.json + `bunx shadcn add dialog` 的拷贝管线维护(已按水墨主题改皮,
 // 后续 CLI 更新组件时 diff 这里的改皮差异)。部件映射:Overlay→Backdrop、
 // Content→Popup,导出名与 data-slot 沿用 shadcn 惯例不变。
-// 简单确认框/纯表单弹层直接用本文件;器物级自定义皮肤(如游戏卷轴 ScrollShell)
+// 简单确认框/纯表单弹层直接用本文件;器物级自定义皮肤(如游戏横幅 BannerShell)
 // 直接用 @base-ui/react 的 Dialog 原语自行组皮,行为口径(焦点陷阱/aria-modal/
 // Esc/点外关闭)与本底件保持一致。
+// 题名拖动(#674):底件系弹窗出厂即带——本体外挂 --drag-x/--drag-y 变量消费位,
+// 拖拽逻辑单源在 hooks/use-dialog-drag;shell 经 <DialogDragHandle> 组件把手摊在
+// 题名行上(PileShell/ConfirmDialog/MapSelectPanel/JinnangDetailSheet 桌面形态),
+// 业务弹窗(children)零改动。遮罩随拖离中心减淡,色值单源在 hook 文件。
 import * as React from "react";
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@app/utils/cn";
+import {
+  DialogDragProvider,
+  OVERLAY_TINT,
+  OVERLAY_TINT_DIMMED,
+  useDialogDrag,
+} from "@app/hooks/use-dialog-drag";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -16,12 +26,18 @@ const DialogClose = DialogPrimitive.Close;
 
 function DialogOverlay({
   className,
+  dimmed,
+  style,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Backdrop>) {
+}: React.ComponentProps<typeof DialogPrimitive.Backdrop> & {
+  /** 拖离中心减淡态(#674;useDialogDrag 的 dimmed,色值单源在 hook 文件)。 */
+  dimmed?: boolean;
+}) {
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
-      className={cn("fixed inset-0 z-50 bg-[rgba(30,23,12,0.42)]", className)}
+      className={cn("fixed inset-0 z-50", className)}
+      style={{ backgroundColor: dimmed ? OVERLAY_TINT_DIMMED : OVERLAY_TINT, ...style }}
       {...props}
     />
   );
@@ -31,6 +47,7 @@ function DialogContent({
   className,
   children,
   overlayProps,
+  ref: contentRef,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Popup> & {
   /** 透传给内部遮罩(DialogOverlay)。非模态弹层(modal="trap-focus")需要遮罩
@@ -38,20 +55,31 @@ function DialogContent({
    *  pointer-events:auto 恒压过 utilities 层的 pointer-events-none 类。 */
   overlayProps?: React.ComponentProps<typeof DialogPrimitive.Backdrop>;
 }) {
+  // 题名拖动(#674):拖拽原语住本件,弹窗本体即变量宿主;消费方 ref(如
+  // ConfirmDialog 的 popupRef)与本件内部 ref 组合,不覆盖。
+  const popupRef = React.useRef<HTMLDivElement | null>(null);
+  const drag = useDialogDrag({ popupRef });
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay {...overlayProps} />
+      <DialogOverlay {...overlayProps} dimmed={drag.dimmed} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
+        ref={(node: HTMLDivElement | null) => {
+          popupRef.current = node;
+          if (typeof contentRef === "function") contentRef(node);
+          else if (contentRef != null) contentRef.current = node;
+        }}
         className={cn(
           // S9 深底适配:墨发丝边(rgba(43,35,23,·))在玄墨深底上隐形,收口为漆金发丝边
           // (gold/30 = --color-gold 的 alpha 写法);纸面渐变已是 S3 深底 token,不动。
-          "fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] -translate-x-1/2 -translate-y-1/2 flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-ink shadow-[var(--ink-shadow-lg)]",
+          // 居中位移消费 --drag-x/--drag-y(#674,变量由题名拖动命令式写入,缺省 0px =
+          // 原居中);消费方以同组 translate-x/y-* 类经 twMerge 改写(贴底抽屉/宏中距)。
+          "fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-ink shadow-[var(--ink-shadow-lg)]",
           className,
         )}
         {...props}
       >
-        {children}
+        <DialogDragProvider value={drag}>{children}</DialogDragProvider>
       </DialogPrimitive.Popup>
     </DialogPrimitive.Portal>
   );

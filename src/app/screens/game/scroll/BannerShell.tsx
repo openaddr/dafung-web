@@ -8,7 +8,13 @@
 // 陷阱/关闭还焦 + role=dialog/aria-modal;收起中与幽灵退场帧不走 FocusScope(纯视觉重放,
 // 自带 aria-hidden/inert)。刻意不用 Dialog.Content:它强制 Portal 会破坏 #scroll-layer
 // 定位栈与幽灵帧协议。
-// 拖拽(旧卷轴的「拖到一旁」)随壳退役:横幅是宣告件,轮到即弹、选完即走,无常驻需求。
+// 拖拽(ADR-0031 翻案):横幅决策弹窗支持题名行拖动——「边看边掂量」需要把弹层拖到
+// 一旁看盘面,旧判词「横幅是宣告件,无常驻需求」废止。拖拽逻辑单源在
+// hooks/use-dialog-drag(与 ui/dialog 底件系同一份),本壳只接三处:题行挂把手、
+// 壳体 transform 消费 --drag-x/--drag-y、遮罩随拖离中心减淡(色值单源在 hook)。
+// 退场帧(幽灵帧/banner-anim-out)不绑拖动:exit 重放是纯视觉,把手事件随活实例
+// 卸载失效,退场帧整体 inert+pointer-events:none 不可达。入场动画 banner-drop 写
+// transform、与 translate 属性叠加合成,动画进行中拖动照录变量、动画结束后位移生效。
 import {
   createContext,
   useCallback,
@@ -23,7 +29,10 @@ import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
 import "./banner.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
+// 题名拖动(#674,ADR-0031):原语单源与遮罩色值单源都在 hook 文件
+import { OVERLAY_TINT, OVERLAY_TINT_DIMMED, useDialogDrag } from "@app/hooks/use-dialog-drag";
 import { SCROLL_TESTIDS as T } from "./testids";
+import { TESTIDS } from "../testids";
 
 /** #90(R3-C3)退场幽灵帧开关:DecisionScrollLayer 相位切换时把上一个子节点快照
  *  再渲染 210ms 作退场帧,用本上下文标记该实例是幽灵——Shell 直接以退场类登场,
@@ -155,22 +164,36 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
     }
   }, [title]);
 
+  // 题名拖动(#674):壳体即变量宿主;题名更替 = 内容换新(#90 内容身份由题名承载),
+  // 位置随 resetKey 回中心。
+  const shellRef = useRef<HTMLDivElement | null>(null);
+  const drag = useDialogDrag({ popupRef: shellRef, resetKey: title });
+
   // 壳体本体(横幅带 + 金印题行 + 正文井):活横幅与退场帧两条渲染路径共用同一份 JSX。
   // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已
   // aria-hidden+inert,壳上的 role 对辅助技术不可见,无需按路径分支。
+  // translate 消费 --drag-x/--drag-y(缺省 0px = 原居中;banner-drop/lift 写 transform,
+  // 与 translate 属性叠加合成——入场动画进行中拖动照录变量,动画结束位移生效)。
   const shellBody = (
     <div
+      ref={shellRef}
       role="dialog"
       aria-modal="true"
       aria-label={title}
       data-testid={testid ?? T.scrollShell}
-      className={`banner-card banner-shell relative flex max-h-[86dvh] w-[min(92vw,640px)] flex-col px-6 py-4 ${
+      className={`banner-card banner-shell relative flex max-h-[86dvh] w-[min(92vw,640px)] translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
         exiting ? "banner-anim-out" : ""
       }`}
     >
-      {/* 题行:金印 + 笔书题名。题印漆金化(#492 决议①「印章漆金化」):漆底金字,
-          朱砂保留给危险/破产语义与按钮;题名金字(漆金题)对漆底 ≥8:1。 */}
-      <div className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5">
+      {/* 题行:金印 + 笔书题名,兼拖动把手(#674):把手事件/触屏隔离/抓取光标由
+          handleProps 承担;行内 X 钮自带豁免(起点命中按钮不启动拖)且自身
+          cursor-pointer 类在钮上恒胜继承的 grab。题印漆金化(#492 决议①「印章漆金化」):
+          漆底金字,朱砂保留给危险/破产语义与按钮;题名金字(漆金题)对漆底 ≥8:1。 */}
+      <div
+        {...drag.handleProps}
+        data-testid={TESTIDS.modalDragHandle}
+        className="relative mb-3 flex shrink-0 items-center justify-center gap-2.5 border-b border-[rgba(217,185,92,0.35)] px-1 pb-2 pt-0.5"
+      >
         {/* 题印投影 rgba(43,35,23,·) 为裸色:墨影族阴影豁免,登记本体见同域 banner.css 头注 */}
         <span
           aria-hidden="true"
@@ -222,7 +245,9 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
   if (exiting) {
     return (
       <div
-        className="banner-overlay banner-overlay-out absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]"
+        className="banner-overlay banner-overlay-out absolute inset-0 z-30 flex items-center justify-center"
+        // 退场帧恒常色(减淡只属活横幅的拖离态);色值单源在 hook 文件
+        style={{ backgroundColor: OVERLAY_TINT }}
         aria-hidden={exiting || undefined}
         // 幽灵帧整体 inert:退场重放帧里的按钮是旧闭包死钮,浏览器层面禁掉
         // 命中/聚焦,任何 `.first()` 类选择器都不会再点到它(#90 e2e 回归教训)
@@ -244,7 +269,9 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
   // 误关)。Esc/点外关闭沿用窗级 Esc 监听 + 遮罩点击,与 ui/dialog.tsx 行为口径一致。
   return (
     <div
-      className="banner-overlay absolute inset-0 z-30 flex items-center justify-center bg-[rgba(30,23,12,0.42)]"
+      className="banner-overlay absolute inset-0 z-30 flex items-center justify-center"
+      // 遮罩随拖离中心减淡(#674):非零位移且超出吸附半径时转淡档,色值单源在 hook 文件
+      style={{ backgroundColor: drag.dimmed ? OVERLAY_TINT_DIMMED : OVERLAY_TINT }}
       // 点遮罩空白处关闭(仅可关弹层);收起中放行点击,重复出口由 requestClose 挡掉
       onClick={(e) => {
         if (e.target === e.currentTarget) requestClose();

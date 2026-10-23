@@ -22,7 +22,7 @@ const FOCUSABLE_SELECTOR = [
   "[tabindex]:not([tabindex='-1'])",
 ].join(",");
 
-/** 可聚焦且实际渲染(inert/display:none 排除;含离屏但非隐藏的元素,遮罩拖拽场景需要)。 */
+/** 可聚焦且实际渲染(inert/display:none 排除;含离屏但非隐藏的元素)。 */
 function focusableIn(container: HTMLElement): HTMLElement[] {
   return Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
     (el) => !el.closest("[inert]") && el.getClientRects().length > 0,
@@ -30,8 +30,8 @@ function focusableIn(container: HTMLElement): HTMLElement[] {
 }
 
 export interface DialogFocusScopeProps {
-  /** 把陷阱行为合并到子元素上(ScrollShell/VictoryScreen 均以此挂壳,不引入额外 DOM 节点;
-   *  子元素自带 ref 时与其组合,不覆盖——Shell 的拖拽 bodyRef 依赖这一点)。 */
+  /** 把陷阱行为合并到子元素上(BannerShell/VictoryScreen 均以此挂壳,不引入额外 DOM 节点;
+   *  子元素自带 ref 时与其组合,不覆盖)。 */
   asChild?: boolean;
   children: ReactNode;
 }

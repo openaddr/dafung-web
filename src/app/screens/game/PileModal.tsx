@@ -14,6 +14,7 @@
 // 防串扰,war-* 同先例)。
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
@@ -87,7 +88,9 @@ export function PileShell({
         initialFocus={false}
         className={className ? `pile-modal ${className}` : "pile-modal"}
       >
-        <div className="pile-head">
+        {/* 题名行兼拖动把手(#674):把手原语由 DialogContent 下发,行内 X 钮自带
+            豁免(起点命中按钮不启动拖)——五个藏品弹层共用本壳,自动获得同一手势 */}
+        <DialogDragHandle className="pile-head" testid={TESTIDS.modalDragHandle}>
           <div>
             {/* 可达名:题名即 DialogTitle(视觉/读屏同一节点,不另写 sr-only) */}
             <DialogTitle className="pile-title">
@@ -107,7 +110,7 @@ export function PileShell({
           >
             ×
           </button>
-        </div>
+        </DialogDragHandle>
         {children}
       </DialogContent>
     </Dialog>
