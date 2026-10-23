@@ -10,6 +10,9 @@
 //   await s.shot("tmp/ui-shots/x/scroll.png", '[data-testid="scroll-jinnang"]'); // 元素级
 //   await s.close();
 // 跑法:先 `flock tmp/build.lock bun run build`(preview 服务 dist),再 `node tmp/<场景>.mjs`。
+// 干净静帧配方(2026-10-24 实锤:单 clockPause 冻不住在途演出,行军落格照样触发
+// 购地卷轴糊进截图):先 `autopilot-button` 托管(代打消化一切抉择卷轴)→等几拍→
+// `window.__dafung.clockPause()`→留 ~1s 排空在途演出→再拍。
 //
 // force 双写陷阱(2026-10-20 实锤,三轮 force 不生效才定位):count 类镜像字段
 // (jinnangHandCount 等)由引擎在结算点维护,只改源数组(jinnangHand)UI 投影不动——
