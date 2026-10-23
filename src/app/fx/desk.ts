@@ -10,8 +10,8 @@ import { scStage } from "./timings";
  *  烤定常量会漏掉追帧倍率的播放期变化)。 */
 const deskShakeMs = (): number => scStage(400);
 
-/** 桌面微震(#492 拍板 4px 档,大事件限定:破产/拼点大胜负/都城停;掷骰落定
- *  不上震屏,原则在 DESIGN §6)。
+/** 桌面微震(#492 拍板 4px 档,大事件限定;适用事件清单与「常规回合动作不上震屏」
+ *  原则单源在 DESIGN §6 动效规范,此处只指路不枚举)。
  *  对 #board-wrap 挂 .fx-desk-shake 播一次 keyframe;重复触发先摘类再强制 reflow
  *  重启动画(破产仪式等连拍场景不吞拍)。reduced-motion 由 app.css 全局兜层压成
  *  0.01ms(位移不可见,与浮字/横幅同兜底通路)。
