@@ -4,11 +4,15 @@
     "index.html",
     "scripts/cli.ts",
     "scripts/fetch-asset.ts",
+    "scripts/make-huanyou-map.ts",
+    "scripts/pr-merge.ts",
     "scripts/shot.mjs",
+    "scripts/sim-jinnang.ts",
+    "scripts/ws-run.ts",
     "test/**/*.test.ts",
     "e2e/**/*.spec.ts",
     "e2e/fixtures.ts",
     "e2e/react-helpers.ts"
   ],
-  "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**"]
+  "ignore": ["public/fonts/fonts.css", "src/app/components/ui/**", "extensions/**"]
 }
