@@ -1,8 +1,10 @@
-// 静态层:玄墨地形底(feTurbulence 暗纹+四角晕影)、江河、驿道(主路漆金细线+箭羽)。
-// 江河/驿道忠实移植自 src/render/board.ts 的 drawMountainsAndRivers / drawRoads / defs 段,
+// 静态层:玄墨地形底(feTurbulence 暗纹+四角晕影)、驿道(主路漆金细线+箭羽)。
+// 驿道忠实移植自旧 src/render/board.ts 的 drawRoads / defs 段,
 // 地图不变即不变 → 整个组件 React.memo,players 变化不会重渲这里。
 // #512 玄墨深底化(方案一「重调色保留」):地形底从宣纸浅底换玄墨深底(bg 系 token),
-// 溪山清远远景横带本票先摘除(S10 换新素材,挂点见 TerrainLayer TODO);区域晕染降音量。
+// 溪山清远远景横带本票先摘除(S10 换新素材,挂点见 TerrainLayer TODO)。
+// 2026-10-24 拷问:装饰性江河双线与区域底色晕染双双退役——江河被用户判「没啥用」,
+// 晕染实拍 A/B 近零感知;区域视觉待机制化时重新设计(分组色板随之退役)。
 import { memo } from "react";
 import type { Board } from "@core/board";
 import type { ViewBox } from "./usePanZoom";
@@ -10,18 +12,15 @@ import { Theme, rgba } from "@core/theme";
 
 // 地形画布随图走(ADR-0027):不再钉死 viewBox 常量,由 BoardView 把
 // computeFitView 推导的总览视口传进来,延展画布 = 总览 + EDGE_PAD 渐隐带。
-// #39 江河仍按旧画布坐标手绘,整组以旧画布心 (100,30) 等比 1.4x 跟随
-// (纯装饰水墨,内容横带 ±1600 覆盖任何内置图,位置不必随图重排)。
-const TERRAIN_SCALE = 1.4;
 
 // #24/#38 边缘连续性:地形宣纸向外延展的画布(比总览大一圈),配 mask 四边线性渐隐——
 // 纸面在总览边界之外 EDGE_PAD 带宽内渐隐为透明,透出页面背景,消除边界的硬切。
 // #38 根因教训:旧实现用单个椭圆 radial 渐隐,渐隐带起点超出了 pan 钳制可达范围
 // (OVER=140),用户永远平移不到渐变区 → 效果完全不可感知;
-// 且暗角/区域晕染 rect 裁在总览上,平移到边缘时反而是它们制造了新的硬切线。
+// 且暗角 rect 裁在总览上,平移到边缘时反而是它制造了新的硬切线。
 // 现:①渐隐带从总览边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD);
 // ②OVER(usePanZoom)放宽到带宽的一半,pan 到极限时正处渐变中段;
-// ③暗角/区域晕染 rect 一并扩到 O,不再有总览边界的裁切线。
+// ③暗角 rect 一并扩到 O,不再有总览边界的裁切线。
 const EDGE_PAD = 700;
 const canvasOf = (fit: ViewBox) => ({
   x: fit.x - EDGE_PAD,
@@ -30,10 +29,8 @@ const canvasOf = (fit: ViewBox) => ({
   h: fit.h + EDGE_PAD * 2,
 });
 
-// #512 深底装饰色(无对应 token 的阴影向/水面色,收敛此块;金/墨/纸语义色一律走 Theme)
+// #512 深底装饰色(无对应 token 的阴影向色,收敛此块;金/墨/纸语义色一律走 Theme)
 const VIGNETTE_EDGE = "rgba(6,4,2,0.55)"; // 四角晕影(比 bgDeep 更沉的纯阴影,不读色相)
-const RIVER_HAZE = "rgba(86,118,148,0.26)"; // 江河氤氲水汽(宽淡线)
-const RIVER_CORE = "rgba(112,146,178,0.42)"; // 江河水流浓芯(细线)
 
 /** 点列 → path d(M/L 折线),与 render/svg-util.polylinePath 同式。 */
 function poly(pts: { x: number; y: number }[]): string {
@@ -117,11 +114,11 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
   );
 });
 
-// ── 背景:玄墨底 + 噪点暗纹 + 江河 + 四角晕影 ──
+// ── 背景:玄墨底 + 噪点暗纹 + 四角晕影 ──
 export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }) {
   const O = canvasOf(fit);
   return (
-    // #24:整组地形(底色/噪点/江河/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
+    // #24:整组地形(底色/噪点/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
     // mask 让外围平滑淡出至页面背景,消除外缘硬切。
     <g mask="url(#bv-edge-mask)">
       {/* 玄墨地形底(#512):bg token 铺底(与页面深底同族,边缘渐隐后无缝),
@@ -130,140 +127,12 @@ export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.55} />
       {/* TODO(S10 古画退役+新素材):旧溪山清远远景横带已随玄墨深底化摘除(#512,
           浅底真迹在漆黑上发灰争辉);远景山意象待 S10 换新素材后在此挂点重铺
-          (层级:暗纹之上、江河之下,内缘渐隐 mask 一并恢复)。 */}
-      {/* #39 画布 1.4x:两条贝塞尔江河仍按旧画布坐标手绘,整组以画布中心 (100,30) 等比放大跟随。
-          视觉重做 v2:水面加一笔浓芯(双线笔触)——淡宽线是氤氲水汽,浓细线是水流本身,
-          两笔同弧线叠出「岸线晕、水线清」的水墨层次;#512 提亮一档配玄墨深底。 */}
-      <g transform={`translate(100 30) scale(${TERRAIN_SCALE}) translate(-100 -30)`}>
-        <g fill="none" strokeLinecap="round" opacity={0.45}>
-          <path
-            d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
-            stroke={RIVER_HAZE}
-            strokeWidth={10}
-          />
-          <path
-            d="M -1000,260 Q -600,300 -300,250 T 200,280 T 700,300 T 1200,260"
-            stroke={RIVER_CORE}
-            strokeWidth={2.6}
-          />
-          <path
-            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-            stroke={RIVER_HAZE}
-            strokeWidth={8}
-          />
-          <path
-            d="M -1000,-200 Q -500,-160 0,-210 T 600,-180 T 1200,-220"
-            stroke={RIVER_CORE}
-            strokeWidth={2.2}
-          />
-        </g>
-      </g>
+          (层级:暗纹之上,内缘渐隐 mask 一并恢复)。 */}
+      {/* 装饰性江河双线(两条贝塞尔蓝灰波浪,旧画布坐标手绘)已随 2026-10-24 拷问
+          退役——用户判词「没啥用」;重铺须连 DESIGN.md 江河条一并重议。 */}
       {/* 四角晕影铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的晕影矩形切线就是用户看到的硬边),
           晕影集中在四角、恰好落在渐隐带内,与 mask 叠加后自然消隐。 */}
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-vignette)" />
-    </g>
-  );
-});
-
-// ── 区域底色晕染 ──
-// 玩家不读区域名也能"感知"地域:每个地理区域(中原/荆楚/…)铺一层极淡的
-// 区域色 radial 晕染,城池/道路可读性不降。#512 深底适配:深底上彩色晕染天然
-// 显眼(加色模式观感),「区域低音量」压到峰值 10%(70% 处 5%),只余色相推移
-// 不成「光斑」——美观且不炫目。
-// 区域中心不写死布局,而是从 board.tiles 的 region(中文名,两张内置图均随
-// group 一起配置)反查 Theme.groupNames 得到 a–h,再取该区域城池坐标的
-// 几何中心 → 内置图(huanyou/zhongyuan)自适应,自定义地图同样生效。
-/** 区域名(中原…)→ 分组键(a–h),预计算反查表。 */
-const REGION_TO_GROUP: ReadonlyMap<string, string> = new Map(
-  Object.entries(Theme.groupNames).map(([g, name]) => [name, g]),
-);
-
-interface RegionBlob {
-  group: string;
-  cx: number;
-  cy: number;
-  r: number;
-}
-
-/** 按 group 聚合城池坐标 → 每区域一个 {中心, 半径}。
- *  半径 = 城池到中心最大距离 × 系数,再夹在 [240, 640]:
- *  下限保证稀疏区域(如西凉 3 城)仍有成片色感,上限防大扩散糊到邻区。
- *  A3:系数 1.7 → 1.3——8 层全幅渐变在棋盘中央叠糊,收紧后每片晕染基本只罩
- *  本区域城池带,中央让位给江河水墨;#77 峰值 8% → 15%(70% 处 4% → 8%),
- *  边缘 0 的渐变口径不变,半径系数 1.3 亦不动。 */
-function regionBlobs(
-  tiles: readonly { region: string | null; position: { x: number; y: number } }[],
-): RegionBlob[] {
-  const byGroup = new Map<string, { x: number; y: number }[]>();
-  for (const t of tiles) {
-    const g = t.region ? REGION_TO_GROUP.get(t.region) : undefined;
-    if (!g) continue; // 非地产格 / 未知区域名不参与晕染
-    let arr = byGroup.get(g);
-    if (!arr) byGroup.set(g, (arr = []));
-    arr.push(t.position);
-  }
-  const blobs: RegionBlob[] = [];
-  for (const [group, pts] of byGroup) {
-    const cx = pts.reduce((s, p) => s + p.x, 0) / pts.length;
-    const cy = pts.reduce((s, p) => s + p.y, 0) / pts.length;
-    const maxDist = Math.max(...pts.map((p) => Math.hypot(p.x - cx, p.y - cy)));
-    blobs.push({ group, cx, cy, r: Math.min(640, Math.max(240, maxDist * 1.3)) });
-  }
-  return blobs;
-}
-
-/** 区域底色层:8 个静态 radialGradient rect(无动画,渲染开销可忽略)。
- *  渲染在 RoadsLayer 组内最前 = 宣纸底之上、道路之下——道路压色而不被色糊。 */
-const RegionTintLayer = memo(function RegionTintLayer({ board }: { board: Board }) {
-  const blobs = regionBlobs(board.tiles);
-  if (!blobs.length) return null;
-  return (
-    <g id="bv-region-tint">
-      {blobs.map((b) => (
-        // gradientUnits=userSpaceOnUse:圆心即区域几何中心,不随 rect 尺寸缩放
-        <radialGradient
-          key={b.group}
-          id={`bv-tint-${b.group}`}
-          gradientUnits="userSpaceOnUse"
-          cx={b.cx}
-          cy={b.cy}
-          r={b.r}
-        >
-          {/* #512 深底低音量:峰值 10%、70% 处 5%(浅底时代 15%/8%)——相邻区域交界
-              仍能看出色相推移,但在玄墨底上不再读作彩色光斑;仍明显弱于道路与铭牌。 */}
-          <stop
-            offset="0%"
-            style={{ stopColor: `var(--color-group-${b.group})` }}
-            stopOpacity={0.1}
-          />
-          <stop
-            offset="70%"
-            style={{ stopColor: `var(--color-group-${b.group})` }}
-            stopOpacity={0.05}
-          />
-          <stop
-            offset="100%"
-            style={{ stopColor: `var(--color-group-${b.group})` }}
-            stopOpacity={0}
-          />
-        </radialGradient>
-      ))}
-      {blobs.map((b) => (
-        // 渐变 rect 只铺本 blob 的圆域 bbox(外接正方形),不再铺满整幅延展画布:
-        // 8 组各铺一张 O 大小的半透明 rect 时,渐变止点(r 外全透明)之外的像素虽是
-        // 全透明,但 8 张 4620×3332 的层叠让「有色区/无色区」的包络边缘在浅纸面上
-        // 读作一块错位的「重影」(dogfood 2026-09-28 ISSUE-009:编辑器画布重影实锤,
-        // 遮挡实验逐层定位到本层;游戏屏同码但因视角/缩放不显)。圆域 bbox 裁剪后,
-        // rect 边缘恰在渐变 fully-transparent 半径上,视觉无差异;区域感不丢。
-        <rect
-          key={`r-${b.group}`}
-          x={b.cx - b.r}
-          y={b.cy - b.r}
-          width={b.r * 2}
-          height={b.r * 2}
-          fill={`url(#bv-tint-${b.group})`}
-        />
-      ))}
     </g>
   );
 });
@@ -323,8 +192,6 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
 
   return (
     <g id="bv-roads">
-      {/* 区域底色先画,主路压在其上 */}
-      <RegionTintLayer board={board} />
       {segments}
       {/* 箭羽画在全部主路之上(#73),不被后续段的路笔压住 */}
       {feathers}
