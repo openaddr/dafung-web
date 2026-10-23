@@ -1,6 +1,6 @@
 // 城池详情卷轴(#33/#34/#35):
-//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 购入价 / 等级收益表;
-//     特殊地点(Chance/驿站/税关等非地产格)显示类型说明,同样可点开查看。
+//   - 只读查看:城名 / 地域 / 持有者(含都城等级)/ 购入价 / 等级表(交易加成 + 变卖价
+//     或都城补给,#671);特殊地点(Chance/驿站/税关等非地产格)显示类型说明,同样可点开查看。
 //   - S10(#43):保留右上 ×(壳 44px 热区),关闭 = ×/遮罩/Esc;
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
@@ -29,12 +29,15 @@ export interface TileDetailScrollProps {
   tileType: TileType;
   /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer;特殊地点不显示)。 */
   regionLabel: string;
-  /** 城池定义(价/等级/价值);特殊地点为 null。 */
+  /** 城池定义(价/等级/交易加成/变卖价/补给);特殊地点为 null。 */
   property: {
     id: string;
     purchasePrice: number;
     maxLevel: number;
     valueByLevel: number[];
+    tradeMult: number[];
+    tradeAdd: number[];
+    resupplyPerLevel: number;
   } | null;
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
@@ -69,10 +72,13 @@ export function TileDetailScroll({
             {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入{" "}
             {formatMoney(property.purchasePrice)}
           </p>
-          {/* 等级价值表:抽成共用 ValueTable(购地卷轴复用同一张表,避免两处漂移)。
+          {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
+              #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
+              是死信息:都城永不可变卖),普通城显示变卖价。
               #92:持有城高亮持有者当前档;无主城没有「当前」可言(ownerLevel 仅为占位 0),不标 */}
           <ValueTable
             property={property}
+            second={isCapital || pickCapital ? "supply" : "sell"}
             highlight={ownerGuohao ? { level: ownerLevel, label: "当前" } : undefined}
           />
         </>

@@ -29,7 +29,7 @@ export interface MapTile {
   region?: string;
   price?: number; // 购价(两):城池格必配,免费城显式写 0
   buildCost?: number; // 建城费(两):城池格必配
-  /** 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级。 */
+  /** 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级。 */
   valueByLevel?: number[];
   /** 坐地起价加价值(per-level,两):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
   tradeAdd: number[];

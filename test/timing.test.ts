@@ -1036,7 +1036,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     const propGain = extraDef.valueByLevel[0];
     expect(settle.map((x) => x.ctx)).toEqual([
       { subject: e.players.indexOf(mover), amount: 100 }, // 珍宝按指导价(Lv1=100)
-      { subject: e.players.indexOf(mover), amount: propGain }, // 城按等级价值
+      { subject: e.players.indexOf(mover), amount: propGain }, // 城按等级变卖价
     ]);
     const sold = entries.filter((x) => x.moment === "TreasureSold").map((x) => x.ctx);
     expect(sold).toEqual([{ subject: e.players.indexOf(mover), treasureId: "bk-t", amount: 100 }]); // 破产变卖也走 TreasureSold

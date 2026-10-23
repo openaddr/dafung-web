@@ -161,7 +161,7 @@ const EST_COUNTER_CARD_VALUE = 100;
 const EST_SKIP_TURN_LOSS = 200;
 
 /** 被公告锦囊落在 seat 头上的估损(#281 净值贪心,确定性不掷骰):火烧连营=最高降级
- *  城池价值差(城防全 0 级则按最便宜非都城整城价值,都城不可失 #226 同口径);
+ *  变卖价差(城防全 0 级则按最便宜非都城整城变卖价,都城不可失 #226 同口径);
  *  横征暴敛=200(上限现金);缓兵之计=跳回合常数;连环计=被卷入拼点期望损失;
  *  窃玉=最便宜珍宝指导价;军情密探=0(bot 拿情报无用);求贤令=0(不损他人)。 */
 function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): number {

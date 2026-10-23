@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
+import { supplyFor } from "@core/economy";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
@@ -134,7 +135,14 @@ export function BuyDecisionScroll({
   tileName: string;
   /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer)。 */
   regionLabel: string;
-  property: { purchasePrice: number; maxLevel: number; valueByLevel: number[] };
+  property: {
+    purchasePrice: number;
+    maxLevel: number;
+    valueByLevel: number[];
+    tradeMult: number[];
+    tradeAdd: number[];
+    resupplyPerLevel: number;
+  };
   cash: number;
   /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
   choices: ChoiceOption[];
@@ -168,17 +176,17 @@ export function BuyDecisionScroll({
         {diff >= 0 ? "余" : "差"}{" "}
         <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(Math.abs(diff))}</span>
       </p>
-      {/* 复用城池详情的等级价值表:买地的权衡核心是逐级价值(升级免费,Lv0 起逐级升)。
-          #92:买入即落 Lv.0(升级由到达免费触发),高亮购入档 */}
+      {/* 复用城池详情的等级表:买地的权衡核心是这座城往后怎么生钱——交易加成(未来
+          坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.0,高亮购入档 */}
       {showValues ? (
-        <ValueTable property={property} highlight={{ level: 0, label: "购入档" }} />
+        <ValueTable property={property} second="sell" highlight={{ level: 0, label: "购入档" }} />
       ) : (
         <button
           type="button"
           onClick={() => setShowValues(true)}
           className="mx-auto mb-1 block font-deco text-xs text-gold-deep underline cursor-pointer hover:text-ink"
         >
-          查看等级价值
+          查看等级表
         </button>
       )}
       <div className="flex flex-wrap items-center justify-center gap-3">
@@ -210,13 +218,22 @@ export function UpgradeDecisionScroll({
   tileName,
   level,
   property,
+  isCapital,
   choices,
   onCommand,
 }: {
   tileName: string;
   level: number;
-  property: { maxLevel: number; valueByLevel: number[] };
-  /** 当前相位选项集(快照透出):upgrade 项的 available/reason 单源引擎注册表。 */
+  property: {
+    maxLevel: number;
+    valueByLevel: number[];
+    tradeMult: number[];
+    tradeAdd: number[];
+    resupplyPerLevel: number;
+  };
+  /** 是否城主的都城(#671):都城第二列显示补给、变化行补补给增量(都城不可变卖)。 */
+  isCapital: boolean;
+  /** 当前相位选项集(快照透传):upgrade 项的 available/reason 单源引擎注册表。 */
   choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
@@ -224,10 +241,15 @@ export function UpgradeDecisionScroll({
   // 产出,UI 不再重推 level >= maxLevel(升级免费,无银两门槛)。选项缺失 = 相位与
   // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
   const upgrade = choices.find((o) => o.id === "upgrade")!;
-  // 价值变化 = 当前级 → 下一级城池价值(下标 = 等级;直接下标,board-loader 已校验
-  // valueByLevel 长度 = maxLevel+1,越界 = 数据 bug 炸出)
+  // 变化行 = 当前级 → 下一级(下标 = 等级;直接下标,board-loader 已校验各数组
+  // 长度 = maxLevel+1,越界 = 数据 bug 炸出)。#671:等级的真实收益是交易加成上涨
+  // (坐地要价变贵)+ 变卖价上涨,都城再+补给上涨——三条都摆出来,别只给变卖价。
+  const multNow = property.tradeMult[level];
+  const multNext = property.tradeMult[level + 1];
+  const addNow = property.tradeAdd[level];
+  const addNext = property.tradeAdd[level + 1];
   const valueNow = property.valueByLevel[level];
-  const valueNext = upgrade.available ? property.valueByLevel[level + 1] : valueNow;
+  const valueNext = property.valueByLevel[level + 1];
   // G-19:1=扩军(不可升时无效)2=按兵不动
   useNumberShortcuts([
     () => {
@@ -240,12 +262,32 @@ export function UpgradeDecisionScroll({
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
-      <p className="m-1 mb-3 text-center text-sm text-ink-dim">
-        城池价值:{formatMoney(valueNow)} →{" "}
-        {upgrade.available ? formatMoney(valueNext) : `(${upgrade.reason})`}
-      </p>
-      {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行) */}
-      <ValueTable property={property} highlight={{ level: level + 1, label: "扩军后" }} />
+      {upgrade.available ? (
+        <>
+          <p className="m-1 text-center text-sm text-ink-dim">
+            交易加成 ×{multNow} +{formatMoney(addNow)} → ×{multNext} +{formatMoney(addNext)}
+          </p>
+          <p className="m-1 text-center text-sm text-ink-dim">
+            变卖价 {formatMoney(valueNow)} → {formatMoney(valueNext)}
+          </p>
+          {isCapital && (
+            <p className="m-1 text-center text-sm text-ink-dim">
+              都城补给 {formatMoney(supplyFor(property.resupplyPerLevel, level))} →{" "}
+              {formatMoney(supplyFor(property.resupplyPerLevel, level + 1))}
+              (每回合)
+            </p>
+          )}
+        </>
+      ) : (
+        <p className="m-1 mb-3 text-center text-sm text-ink-dim">({upgrade.reason})</p>
+      )}
+      {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行);
+          #671:都城第二列显示补给 */}
+      <ValueTable
+        property={property}
+        second={isCapital ? "supply" : "sell"}
+        highlight={{ level: level + 1, label: "扩军后" }}
+      />
       <div className="flex flex-wrap items-center justify-center gap-3">
         <BannerButton
           primary

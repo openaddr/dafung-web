@@ -243,7 +243,7 @@ export function sellPropertyBankruptcy(g: GameEngine, propId: string): void {
     return;
   }
   const h = p.properties.splice(idx, 1)[0];
-  // 变卖价 = 该等级的城池价值(地图 json valueByLevel 显式定义),非购入价
+  // 变卖价 = 该等级的变卖价(地图 json valueByLevel 显式定义,#671 正名,旧称城池价值),非购入价
   const gain = sellValueOf(g.catalog.get(propId)!, h.level);
   p.cash += gain;
   // 城池变更留痕(ADR-0015):变卖给银行即回无主,等级维度不变

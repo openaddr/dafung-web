@@ -5,7 +5,7 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(huanyouData).catalog;
 
-const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),等级价值 [1600,2400,3400,4800]
+const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),变卖价 [1600,2400,3400,4800]
 
 function mk(cash = 10000) {
   return createPlayer({
@@ -55,7 +55,7 @@ describe("地产交易", () => {
     expect(changan.valueByLevel).toHaveLength(4);
   });
 
-  it("变卖价 = 各等级城池价值(valueByLevel 显式定义)", () => {
+  it("变卖价 = valueByLevel 逐档显式定义(#671 正名,旧称城池价值)", () => {
     const p = mk(100000);
     buy(p, changan);
     expect(sellValueOf(changan, 0)).toBe(1600);

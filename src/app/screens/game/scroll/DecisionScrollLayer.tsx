@@ -137,6 +137,9 @@ export function DecisionScrollLayer({
                   purchasePrice: def.purchasePrice,
                   maxLevel: def.maxLevel,
                   valueByLevel: def.valueByLevel,
+                  tradeMult: def.tradeMult,
+                  tradeAdd: def.tradeAdd,
+                  resupplyPerLevel: def.resupplyPerLevel,
                 }
               : null
           }
@@ -254,6 +257,9 @@ export function DecisionScrollLayer({
                   purchasePrice: def.purchasePrice,
                   maxLevel: def.maxLevel,
                   valueByLevel: def.valueByLevel,
+                  tradeMult: def.tradeMult,
+                  tradeAdd: def.tradeAdd,
+                  resupplyPerLevel: def.resupplyPerLevel,
                 }}
                 cash={p.cash}
                 choices={snapshot.choices}
@@ -269,7 +275,15 @@ export function DecisionScrollLayer({
                 property={{
                   maxLevel: def.maxLevel,
                   valueByLevel: def.valueByLevel,
+                  tradeMult: def.tradeMult,
+                  tradeAdd: def.tradeAdd,
+                  resupplyPerLevel: def.resupplyPerLevel,
                 }}
+                isCapital={
+                  p.capitalIndex !== null &&
+                  p.capitalIndex !== undefined &&
+                  board.at(p.capitalIndex).propertyId === def.id
+                }
                 choices={snapshot.choices}
                 onCommand={dispatch}
               />

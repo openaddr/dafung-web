@@ -12,7 +12,7 @@ export interface PropertyDef {
   group: string; // 'a'..'h'
   purchasePrice: number;
   maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 0..maxLevel,购入/建都即 Lv.0)
-  valueByLevel: number[]; // 各等级城池价值(变卖价),长度 = maxLevel+1,下标 = 等级
+  valueByLevel: number[]; // 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
   resupplyPerLevel: number; // 都城补给/级(引擎仅都城消费;逐城配置,缺省回退地图顶层)
   /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。地图逐城必配,长度由 loadMap 校验。 */
@@ -54,7 +54,7 @@ export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
   return { status: "Ok", newLevel: h.level };
 }
 
-/** 城池当前等级的变卖价(各等级价值显式定义于地图 json 的 valueByLevel,下标 = 等级)。 */
+/** 城池当前等级的变卖价(各等级变卖价显式定义于地图 json 的 valueByLevel,下标 = 等级)。 */
 export function sellValueOf(def: PropertyDef, level: number): number {
   return def.valueByLevel[level];
 }
