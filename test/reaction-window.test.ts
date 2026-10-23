@@ -132,9 +132,9 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
 }
 
 describe("反应窗配置表(#281/constants)", () => {
-  it("键=挂点时机,默认 3000ms;权威侧读取,E2E 缩放由消费方处理", () => {
-    expect(REACTION_WINDOW_MS.JinnangAnnounced).toBe(3000);
-    expect(REACTION_WINDOW_MS.MarchPassedCity).toBe(3000);
+  it("键=挂点时机,默认 15000ms;权威侧读取,E2E 缩放由消费方处理", () => {
+    expect(REACTION_WINDOW_MS.JinnangAnnounced).toBe(15000);
+    expect(REACTION_WINDOW_MS.MarchPassedCity).toBe(15000);
     expect(Object.keys(REACTION_WINDOW_MS).sort()).toEqual(["JinnangAnnounced", "MarchPassedCity"]);
   });
 });

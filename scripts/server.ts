@@ -93,9 +93,9 @@ const DECISION_TIMEOUT_MS = Math.max(
   parseInt(process.env.DECISION_TIMEOUT_MS ?? "120000", 10) || 0,
 );
 
-// 反应窗时长覆盖(#284):env E2E_REACTION_MS 注入加长窗(联机 e2e 脱 3s 赛跑;
+// 反应窗时长覆盖(#284):env E2E_REACTION_MS 注入定长窗(e2e 与产品默认窗长解耦;
 // 两端同长自动成立——时长随快照 view.windowMs 下发)。0 = 不覆盖,走 core
-// REACTION_WINDOW_MS 常量表(默认 3000,零产品行为变化);缺省走常量表是配置不是兜底。
+// REACTION_WINDOW_MS 常量表(缺省查表,数值以常量表为准);缺省走常量表是配置不是兜底。
 const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   0,
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
