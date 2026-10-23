@@ -55,18 +55,6 @@ export const Theme = {
   // 墨色深浅(远山/书法;深底下即暗金/暗纸装饰线)
   inkwash: hex("9c8a5e"),
 
-  // 地产分组色(a–h,降饱和提亮配玄墨深底)
-  groupColors: {
-    a: hex("c2956c"), // 中原
-    b: hex("7faccd"), // 荆楚
-    c: hex("c28cc2"), // 岭南
-    d: hex("d5a055"), // 巴蜀
-    e: hex("85b570"), // 西凉
-    f: hex("d97560"), // 幽燕
-    g: hex("70a4c4"), // 青徐
-    h: hex("58ae9a"), // 江东
-  } as Record<string, Rgb>,
-
   groupNames: {
     a: "中原",
     b: "荆楚",
@@ -152,9 +140,6 @@ export const Motion = {
     sine: "cubic-bezier(0.45, 0, 0.55, 1)",
   },
 } as const;
-
-export const groupColor = (group: string | null): Rgb =>
-  group && Theme.groupColors[group] ? Theme.groupColors[group] : Theme.inkDim;
 
 export const playerColor = (index: number): Rgb =>
   Theme.playerColors[index % Theme.playerColors.length];

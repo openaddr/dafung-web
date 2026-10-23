@@ -33,14 +33,6 @@
   --color-attr-gem-bright: #e09a52;
   --color-attr-hero: #e2634d;
   --color-attr-hero-bright: #e07a6a;
-  --color-group-a: #c2956c;
-  --color-group-b: #7faccd;
-  --color-group-c: #c28cc2;
-  --color-group-d: #d5a055;
-  --color-group-e: #85b570;
-  --color-group-f: #d97560;
-  --color-group-g: #70a4c4;
-  --color-group-h: #58ae9a;
   /* ── 动效·时长(--dur-*):短→长承担 反馈→面板→大件→演出→常驻;呼吸类统一 --dur-ambient(允许整数倍/半频 calc 特例) ── */
   --dur-instant: 80ms;
   --dur-fast: 150ms;

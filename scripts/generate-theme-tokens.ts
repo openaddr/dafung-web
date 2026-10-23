@@ -25,11 +25,6 @@ for (const [key, value] of Object.entries(Theme)) {
   lines.push(`  --color-${kebab(key)}: ${toHex(value as { r: number; g: number; b: number })};`);
 }
 
-// 地产分组色:--color-group-a … --color-group-h
-for (const [group, rgb] of Object.entries(Theme.groupColors)) {
-  lines.push(`  --color-group-${group}: ${toHex(rgb)};`);
-}
-
 // ── 动效 token(R3-C1 #88):唯一源 core/theme.ts Motion,消费一律 var(),不写回退值 ──
 // --ease-out/--ease-in 有意落在 Tailwind v4 的 --ease-* 命名空间上:同值覆盖框架默认
 // 缓动,TSX 里写 ease-out/ease-in 工具类即得到同一曲线。
