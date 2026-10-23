@@ -10,7 +10,9 @@ import type { MapData } from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
 import { Dialog, DialogContent } from "@app/components/ui/dialog";
+import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { TID } from "./testids";
+import { TESTIDS } from "../game/testids";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
 import "@app/screens/game/scroll/scroll.css";
@@ -187,11 +189,16 @@ export function MapSelectPanel({
         // note-card(非分层)自压底件的纸底/发丝边 utilities,水墨皮不变。
         className="scroll-anim-unroll note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
       >
-        {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar) */}
-        <h3 className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim">
+        {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar);
+            兼拖动把手(#674,DialogDragHandle 消费 DialogContent 下发的原语) */}
+        <DialogDragHandle
+          as="h3"
+          className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim"
+          testid={TESTIDS.modalDragHandle}
+        >
           <i>图</i>
           <span>选择地图</span>
-        </h3>
+        </DialogDragHandle>
 
         {!entries && !error && <p className="font-wenkai text-ink-dim py-6">载入地图清单…</p>}
         {error && (

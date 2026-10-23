@@ -5,7 +5,8 @@
 
    裸色豁免登记(沿 reaction-banner.css 同款口径):rgba(43,35,23,·)=墨影族(阴影,
    非描边);rgba(217,185,92,·)=--color-lacquer-gold/--color-gold 通道、
-   rgba(30,23,12,·)=全应用遮罩墨纱族(ui/dialog|sheet 同值)——皆既有 token 的
+   rgba(30,23,12,·)=全应用遮罩墨纱族(ui/dialog|sheet 同值;底件系两档色值自 #674
+   起单源 hooks/use-dialog-drag 的 OVERLAY_TINT*)——皆既有 token 的
    rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。 */
 
 /* ── 遮罩:沿用旧 #scroll-layer 定位栈语义(挂载容器 pointer-events-none,

@@ -58,6 +58,9 @@ export const TESTIDS = {
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
   modalClose: "modal-close",
+  /** 弹窗题名拖动把手(#674,与 modal-close 同族):两壳(ui/dialog 底件系与
+   *  BannerShell 横幅系)的题名行 handle 同挂;叠层时 e2e 用容器作用域区分。 */
+  modalDragHandle: "modal-drag-handle",
 
   // ── 窥探弹层(#575,军情密探即时窥探;viewer-only 演出)──
   /** 弹层容器(PileShell 壳;仅 viewer=本座渲染,关闭即清)。 */
