@@ -146,8 +146,12 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
   await Promise.all([waitSettled(host), waitSettled(guest)]);
   expect(await coreState(guest)).toEqual(await coreState(host));
 
-  // ── 托管入口存在(联机专属;spec: autopilot)──
-  await expect(guest.getByTestId("autopilot-button")).toBeVisible();
+  // ── 托管入口存在(联机专属;spec: autopilot;#701 起入口=自机格 tap 弹层托管
+  // 开关,格 tap DOM 直派穿决策卷轴遮罩,react-online-autopilot setAutopilot 同配方)──
+  await guest.getByTestId("seat-self").dispatchEvent("click");
+  await expect(guest.getByTestId("seat-pop-autopilot-1")).toBeVisible();
+  await guest.keyboard.press("Escape");
+  await expect(guest.getByTestId("seat-pop-1")).toBeHidden();
 
   await host.context().close();
   await guest.context().close();

@@ -304,22 +304,6 @@ export async function useHalfScale(page: Page): Promise<void> {
   await page.addInitScript(() => localStorage.setItem("dafung-e2e-time-scale", "0.5"));
 }
 
-/** 开局(seed 7 × 环游图 ADR-0027 环序真浏览器核算:draftOrder=[0,3,2,1] 人类先手,
- *  候选 DOM 首格=长沙,起手识破诡计=唯反应):选图/起兵/定都后停稳在开局链的稳定点
- *  ——自动起摇落江州弹购地抉择卷轴(内部自带 0.5 倍率;引擎直写种植任何相位可用)。 */
-export async function startSolo(page: Page): Promise<void> {
-  await useHalfScale(page);
-  await page.goto("/?seed=7");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-huanyou").click();
-  await page.getByTestId("map-confirm").click();
-  await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
-  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-}
-
 /** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
  *  demolishOnVictim 排除)——bot 火烧连营的 城最多者∩可拆 目标恒人类。 */
 export async function plantDemolishableCity(page: Page): Promise<void> {

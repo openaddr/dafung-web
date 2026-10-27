@@ -33,7 +33,7 @@ export interface TokenSlot {
   marching: boolean;
   /** L47:本地视角自己的棋子(玩家色微光圈,棋盘侧「我是谁」锚点)。 */
   mine: boolean;
-  /** #256 目标段:出牌阶段候选棋子(金虚线环呼吸,与席位卡金圈同步,双锚点)。 */
+  /** #256 目标段:出牌阶段候选棋子(金虚线环呼吸,与席位格金圈同步,双锚点)。 */
   targeted: boolean;
   /** #557 同格拥挤档:同格 >4 子(旗面 scale 0.85,给 8 槽圆周让位)。 */
   crowded: boolean;
@@ -151,7 +151,7 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
           strokeWidth={2}
           strokeDasharray="6 5"
         />
-        {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位卡金圈同步呼吸
+        {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位格金圈同步呼吸
             ——席位是身份,棋盘是地理,双锚点)。非候选(无效目标)不挂。 */}
         {targeted && (
           <circle

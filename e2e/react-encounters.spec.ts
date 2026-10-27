@@ -36,8 +36,11 @@ test.describe("机遇系统冒烟", () => {
       shares: { good: 0, neutral: 100, bad: 0 },
     });
 
-    // 声望渲染:仪表条声望徽章(#253 迁移:状态卡/诸侯列表退役,aria 即名词+值),初值 0
-    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute("aria-label", "声望 0");
+    // 声望渲染:席位格声望徽章(#700 仪表条退役,aria 即名词+值),初值 0
+    await expect(page.getByTestId(TESTIDS.seatAttr(0, "rep"))).toHaveAttribute(
+      "aria-label",
+      "声望 0",
+    );
 
     const scroll = page.getByTestId("scroll-encounter");
     // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。#188 行军自动化后 bot 回合/
@@ -66,7 +69,7 @@ test.describe("机遇系统冒烟", () => {
     // 声望渲染:结算后声望可为负——tierShares 档位下限夹紧 [5,95](encounters.ts),
     // 三档即便归零,好运/霉运仍各保底 5%:奉迎天子首选项 −10、霉运首选项 −18/−15
     // 都可能被抽中并经「点第一选项收卷」落账。负号是合法终态,断言只锁「徽章渲染整数」。
-    await expect(page.getByTestId(TESTIDS.dashAttr("rep"))).toHaveAttribute(
+    await expect(page.getByTestId(TESTIDS.seatAttr(0, "rep"))).toHaveAttribute(
       "aria-label",
       /声望 -?\d+/,
     );

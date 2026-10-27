@@ -9,15 +9,13 @@ export type SymName =
   | "back"
   | "undo"
   | "redo"
-  | "reset"
   | "sound"
   | "muted"
   | "play"
   | "close"
   | "expand"
-  | "zoomIn"
-  | "zoomOut"
-  | "pile";
+  | "overview"
+  | "settings";
 
 const PATHS: Record<SymName, ReactNode> = {
   // 返回 ←
@@ -29,13 +27,6 @@ const PATHS: Record<SymName, ReactNode> = {
   // 重做 ↷(顺时针回弯箭头,与 undo 镜像)
   redo: (
     <path d="M17 7 V12 H12 M16.6 11.6 C15.5 7.8 12.8 5.6 9.4 5.6 C7 5.6 5 7 4.4 9" fill="none" />
-  ),
-  // 复位 ◎(外环 + 内环)
-  reset: (
-    <>
-      <circle cx="11" cy="8" r="6.2" fill="none" />
-      <circle cx="11" cy="8" r="2.6" fill="none" />
-    </>
   ),
   // 静音(开音)♪:符尾 + 音头 + 笔杆
   sound: (
@@ -60,22 +51,22 @@ const PATHS: Record<SymName, ReactNode> = {
   close: <path d="M4 4 L16 14 M16 4 L4 14" fill="none" />,
   // 展开/下拉 ▾
   expand: <path d="M4 6 L10 11.5 L16 6" fill="none" />,
-  // 放大 +(对称十字,#495 对局顶栏缩放钮)
-  zoomIn: (
+  // 总览 ☰(三横册页,诸侯总览弹窗入口,#700 顶钮左移)
+  overview: (
     <>
-      <path d="M11 3.5 V12.5" fill="none" />
-      <path d="M6.5 8 H15.5" fill="none" />
+      <path d="M4.5 4.5 H17.5" fill="none" />
+      <path d="M4.5 8 H17.5" fill="none" />
+      <path d="M4.5 11.5 H17.5" fill="none" />
     </>
   ),
-  // 缩小 −(横线,与放大成对)
-  zoomOut: <path d="M6.5 8 H15.5" fill="none" />,
-  // 牌库(锦囊牌堆)牌背缩形:竖笺(3:4 牌面制约)+ 中央朱印框。印面留白示意「锦囊」
-  // 印——文字不进图标(零字体依赖);印框 .deck-orn-seal 由消费侧 CSS 落朱砂,笺体随
-  // currentColor(Sym 单色约定不破,登记见 docs/reference/界面符号.md)。
-  pile: (
+  // 设置 ⚙(齿圈:中环 + 八向齿,设置弹层入口,#700 顶钮左移)
+  settings: (
     <>
-      <rect x="6.1" y="1.5" width="9.8" height="13" rx="1.2" fill="none" />
-      <rect x="8.5" y="5.5" width="5" height="5" rx="0.7" fill="none" className="deck-orn-seal" />
+      <circle cx="11" cy="8" r="2.6" fill="none" />
+      <path
+        d="M11 2.4 V4.4 M11 11.6 V13.6 M5.4 8 H7.4 M14.6 8 H16.6 M7 4 L8.4 5.4 M13.6 10.6 L15 12 M15 4 L13.6 5.4 M8.4 10.6 L7 12"
+        fill="none"
+      />
     </>
   ),
 };

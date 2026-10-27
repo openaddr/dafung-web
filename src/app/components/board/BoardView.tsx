@@ -67,9 +67,8 @@ export interface BoardViewProps {
   className?: string;
 }
 
-/** ref 命令式句柄:还原总览视图(等价旧 BoardView.resetView)。 */
+/** ref 命令式句柄(#700:reset 随顶栏复位钮退役,只剩缩放)。 */
 export interface BoardViewHandle {
-  reset: () => void;
   /** #98 按钮缩放:以当前视口中心为锚按倍率缩放(factor>1 放大,如 1.25/0.8)。 */
   zoomBy: (factor: number) => void;
 }
@@ -128,8 +127,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   // svg 的 viewBox prop 只下发一次初始总览值,此后 React 不改写。
   const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
-  const { handlers, grabbing, reset, zoomBy } = usePanZoom(svgRef, fit);
-  useImperativeHandle(ref, () => ({ reset, zoomBy }), [reset, zoomBy]);
+  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit);
+  useImperativeHandle(ref, () => ({ zoomBy }), [zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
   // propertyId → 持有 {player, level}(players 变化才重算)
@@ -242,7 +241,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         skipTokenIds={skipTokenIds}
         /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
         mineId={viewSeat}
-        /* #256 目标段:候选棋子金虚线环呼吸(与席位卡金圈同步) */
+        /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
         targetedIds={targetedPlayerIds}
         layerRef={tokenLayerRef}
       />

@@ -137,9 +137,9 @@ test.describe("体力系统冒烟", () => {
       expect(live.stamina).toBe(100); // 重置
 
       await waitSettled(page); // UI 渲染断言前等表现链走完
-      // 体力上仪表(#253 迁移:侧栏退役,体力血条驻留底部仪表条,数值刻在条内)
-      await expect(page.getByTestId("dash-stamina")).toBeVisible();
-      await expect(page.getByTestId("dash-stamina")).toHaveText("100");
+      // 体力上仪表(#253 迁移;#700 仪表条退役,体力条在自机格:满值=色条满宽 100%)
+      const staminaFill = page.getByTestId("seat-stamina-0").locator(".strack i");
+      await expect(staminaFill).toHaveAttribute("style", /width:\s*100%/);
     } finally {
       await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
     }

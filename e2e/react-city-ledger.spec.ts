@@ -131,12 +131,12 @@ test("城池徽章点开名下城池清单:自看五列字段/行序、对手国
     // 不灌则种植城不可见(首轮实录:漏 sync,行序断言 -1)。
     await page.evaluate(() => (window as any).__dafung.controller().sync());
 
-    // ── 自看入口:仪表条城池徽章 ──
-    await page.getByTestId(TESTIDS.dashAttr("city")).click();
+    // ── 自看入口:自机格城池徽章(#700 仪表条退役,徽章在席位格)──
+    await page.getByTestId(TESTIDS.seatAttr(0, "city")).click();
     const modal = page.getByTestId(TESTIDS.cityLedger);
     await expect(modal).toBeVisible();
     await expect(modal.getByText("本方名下城池")).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.dashAttr("city"))).toHaveAttribute(
+    await expect(page.getByTestId(TESTIDS.seatAttr(0, "city"))).toHaveAttribute(
       "aria-expanded",
       "true",
     );
@@ -193,7 +193,7 @@ test("城池徽章点开名下城池清单:自看五列字段/行序、对手国
     // ── 关闭:X 钮 ──
     await page.getByTestId(TESTIDS.modalClose).click();
     await expect(modal).toBeHidden();
-    await expect(page.getByTestId(TESTIDS.dashAttr("city"))).toHaveAttribute(
+    await expect(page.getByTestId(TESTIDS.seatAttr(0, "city"))).toHaveAttribute(
       "aria-expanded",
       "false",
     );

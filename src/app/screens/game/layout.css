@@ -1,7 +1,10 @@
-/* 对局屏三区布局(#253 布局骨架)——从原型 tmp/prototype-layout.html v3.2(已验收
-   视觉基线)忠实移植:顶部条 / 右缘席位竖卡列 / 底部仪表条+手牌架;右栏 aside 退役。
-   所有规则作用域在 .game-layout 下防全局串扰(同 hand-rack.css 收口先例);
-   #510 玄墨鎏金换装:色一律 var(--color-*) 或其 color-mix/rgba alpha 形式
+/* 对局屏全浮层布局(#700 骨架)——从原型 tmp/席位侧列原型.html ①全屏语境/④顶钮
+   左移对账/⑥设置弹层 三节判决忠实移植:顶部浮层(顶左两钮 + 顶中「N 轮」chip)/
+   右缘席位格列(#698 重形:96×38 双行八项格)/ 底缘透明手牌区(签面驻左端)/
+   右下三圆钮;旧顶部条与底部仪表条(.dash)退役。
+   所有规则作用域在 .game-layout 下防全局串扰(设置弹层经 Portal 挂 body,
+   .setrow 系裸排前缀防串扰,同 war-* 先例);
+   #510 玄墨鎏金:色一律 var(--color-*) 或其 color-mix/rgba alpha 形式
    (裸色豁免登记见下);尺寸/字号/间距/动画曲线以原型为准,勿自由发挥。
 
    裸色豁免登记(#510 深色化后存留;发丝线群/#4a3f2c/朱印白字已按 #509 残留必修收口):
@@ -15,17 +18,14 @@
    玄墨鎏金新约定(#510,#509 残留必修收口口径,S9 卷轴同用):
    - 朱印深底 = color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep)):
      danger 值换血后偏亮,印面纸色字对原值仅 ≈2.9:1;混深底后 ≥5:1,朱砂语义不变;
-   - 国号印 = 漆面深底金字 + 玩家色环(--pc)+ 漆金细衬(漆金环/双描边方案,#491
-     印章漆金化):玩家色由组件注入 --pc 自定义属性,字色不再压在玩家色上
-     (原白字 on 玩家色 1.9-2.9);
    - 墨发丝线 rgba(43,35,23,·) 全数退役:深底上近隐形,分隔/描边改漆金细线
      (color-mix 漆金/鎏金),落影改中性黑。
 
    与原型的实装级偏差(功能/规则要求,非视觉自由发挥):
-   - 顶部条角钮 36→40px(W5 触达 ≥40px 仓库红线);
    - 新文案字体走 font-wenkai/font-brush(DESIGN.md §4.3 字体安全规约,原型的小薇禁新用);
-   - .candidate 金圈呼吸态属 #254 目标段,本票不移植;
-   - 手牌牌背组至多示意 3 张(#250 手牌无上限,数量以裸排数字为准)。
+   - 三圆钮计数角标字级 8→10px、底色按 #510 朱印深底+纸字约定(对齐 deck-orn-badge
+     角标族现役制式,原型的 danger 实底+白字在深底上不达读线);
+   - 手牌区右缘内收 104px(席位条 96+8 让位口径):叠加压缩的手牌行不得相侵席位格。
 
    【注意:注释内禁写「星号紧跟斜杠」的字符组合——等于提前闭合注释
    (hand-rack.css 首版实证翻车)。】 */
@@ -48,65 +48,20 @@
   }
 }
 
-/* ── 战报把手(#255):仪表条上缘右角竖签(原型 .log-tab 忠实移植;字族落 font-brush
-   ——新文案禁 font-deco,DESIGN §4.3)。常收零占位:收起时屏幕上只有这一条。 ── */
-.game-layout .log-tab {
-  position: absolute;
-  right: 0;
-  bottom: calc(184px + var(--safe-bottom));
-  z-index: 5;
-  writing-mode: vertical-rl;
-  font-family: var(--font-brush);
-  font-size: 13px;
-  letter-spacing: 0.25em;
-  color: var(--color-lacquer-gold);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
-  border: 1px solid rgba(217, 185, 92, 0.45);
-  border-right: 0;
-  border-radius: 4px 0 0 4px;
-  padding: 12px 5px;
-  cursor: pointer;
-  opacity: 0.92;
-  /* 悬停微反馈统一(#490 微档):亮金描边 + 印影 + 微缩放,--dur-fast 一触即应 */
-  transition:
-    transform var(--dur-fast) var(--ease-out),
-    border-color var(--dur-fast) var(--ease-out),
-    box-shadow var(--dur-fast) var(--ease-out),
-    opacity var(--dur-fast) var(--ease-out);
+/* ── 现金/体力变化浮标(#495,game-hud.css 并入):原文件唯一存留规则随 DashboardBar
+   退役迁入(消费方=SeatRail 席位格对手格浮标,useDeltaFloat 单源挂类)。 ── */
+.game-layout .game-cash-float {
+  animation: game-cash-float var(--dur-fx) var(--ease-out) forwards;
 }
-.game-layout .log-tab:hover {
-  opacity: 1;
-  transform: scale(1.02);
-  border-color: var(--color-gold-bright);
-  box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
-}
-.game-layout .log-tab:focus-visible {
-  outline: 2px dashed var(--color-gold);
-  outline-offset: -3px;
-}
-/* 未读角标(#495):收起时累计新增战报条数,开抽屉清零。制式搬 rack-entry-badge
-   朱砂圆印同族(hand-rack.css 先例,缩比适配竖签;印面纸色字豁免见文件头),
-   挂把手左上角朝屏内——把手常驻右缘,角印外溢不出视口。 */
-.game-layout .log-tab .log-tab-badge {
-  position: absolute;
-  top: -9px;
-  left: -9px;
-  min-width: 20px;
-  height: 20px;
-  padding: 0 5px;
-  border-radius: 10px;
-  /* 朱印深底(#510 残留必修:纸色字对 danger 原值 ≈2.9:1,混深底后 ≥5:1,约定见文件头) */
-  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
-  font-family: var(--font-wenkai);
-  font-size: 11px;
-  writing-mode: horizontal-tb; /* 把手竖排,印内数字回横排 */
-  box-shadow:
-    0 2px 4px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
-  transform: rotate(4deg);
-  display: grid;
-  place-items: center;
+@keyframes game-cash-float {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
 }
 
 /* ── 战报抽屉条目(#255,ui/sheet 壳内):墨底纸字从简;轮签仅组首显示(#556
@@ -154,8 +109,8 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-/* 行动方玩家色竖条(#495):条目首 6px 竖条,色=行动方玩家色(组件内联,同 .guo-yin
-   印章既有数据通道);无主行为不出条。 */
+/* 行动方玩家色竖条(#495):条目首 6px 竖条,色=行动方玩家色(组件内联 --pc/
+   style 注入通路);无主行为不出条。 */
 .war-color {
   flex: 0 0 auto;
   width: 6px;
@@ -186,152 +141,94 @@
   transform: scale(1.02);
 }
 
-/* ── 棋盘区:全幅垫底(下缘让位仪表条)── */
+/* ── 棋盘区:全幅垫底(仪表条退役,下缘不再让位;手牌区/浮层全透明压在棋盘上)── */
 .game-layout .board-area {
   position: absolute;
-  inset: 0 0 calc(172px + var(--safe-bottom)) 0;
+  inset: 0;
   overflow: hidden;
 }
-/* ADR-0027 满格总览铺满后,右列城池铭牌不再藏在留白里,而是正对席位竖卡列——
-   棋盘区让位一列卡宽(104 卡 + 12 气口 + 12 余量);4-6 席的左列存在时左缘同款。
-   :has 随 SeatRail 实际渲染的列开合,7+ 席顶行缩微(不占左右列)时棋盘回满幅。 */
+/* ADR-0027 满格总览铺满后,右列城池铭牌正对右缘席位格列:取景右让 = 席位条实际宽
+   标定(96 格宽 + 8 右距 = 104px 口径,#700 校准旧 128px 死值)。:has 随 SeatRail
+   实际渲染的列开合。 */
 .game-layout .board-area:has(~ .seat-rail .seatcol) {
-  right: 128px;
-}
-.game-layout .board-area:has(~ .seat-rail .seatcol.left) {
-  left: 128px;
+  right: calc(var(--safe-right) + 104px);
 }
 
-/* ── 顶部条:回合 chip + 活跃方 | 锦囊牌库小件 + 角钮 ── */
+/* ── 顶部浮层(#700 顶钮左移):顶左两钮(总览/设置,32×32 避 safe-area)+
+   顶中「N 轮」浮置 chip(原型 ①topbtns/turnchip 判决移植)── */
 .game-layout .topbar {
   position: absolute;
-  top: calc(var(--safe-top) + 10px);
-  left: calc(var(--safe-left) + 12px);
-  right: calc(var(--safe-right) + 12px);
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  z-index: 5;
-  pointer-events: none; /* chips 不挡棋盘拖拽,钮/chip 自身放行 */
+  top: calc(var(--safe-top) + 8px);
+  left: calc(var(--safe-left) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  z-index: 6;
+  pointer-events: none; /* 容器不挡棋盘拖拽,钮/chip 自身放行 */
 }
-/* 顶部 chip:深墨面板 + 漆金描边 + 纸色字(#510 玄墨鎏金;旧亮纸底在深屏上是眩光块) */
-.game-layout .chip {
+.game-layout .topbtns {
+  /* inline-flex 收宽度=内容(display:flex 是块级盒会撑满 topbar 全行,pointer-events
+     auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复) */
   display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  border-radius: 3px;
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
-  color: var(--color-ink);
-  padding: 6px 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+  gap: 6px;
   pointer-events: auto;
 }
-.game-layout .chip .seal-s {
-  /* 国号小印(#510 漆金环/双描边方案,约定见文件头):漆面深底金字 + 玩家色环
-     (--pc 组件注入)+ 漆金细衬;字不再压玩家色(原白字 1.9-2.9 不可读) */
-  width: 22px;
-  height: 22px;
-  transform: rotate(-4deg);
+.game-layout .tbtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
   display: grid;
   place-items: center;
-  border-radius: 2px;
-  font-family: var(--font-title);
-  font-size: 13px;
-  line-height: 1;
-  color: var(--color-lacquer-gold);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
-  border: 1.5px solid var(--pc, var(--color-gold));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
-}
-.game-layout .chip .t {
-  font-family: var(--font-brush);
-  font-size: 15px;
-}
-/* 顶栏事件 chip 文字(活跃方之回合/终局称帝):比 .t 收一档 14px;称帝金字=熟金
-   (评审去重:撤 GameTopBar 内联字号/颜色) */
-.game-layout .chip .t-active,
-.game-layout .chip .t-win {
-  font-size: 14px;
-}
-.game-layout .chip .t-win {
-  color: var(--color-gold-deep);
-}
-.game-layout .chip .d {
-  font-size: 11px;
-  color: var(--color-ink-dim);
-}
-.game-layout .topbar .sp {
-  flex: 1;
-}
-.game-layout .misc {
-  display: flex;
-  gap: 8px;
-  pointer-events: auto;
-}
-/* 锦囊牌库小件(纯展示,非按钮无 hover 态;弃牌 chip 已退役):迷你牌背
-   (Sym pile,竖笺+朱印框)+ 朱砂数量角标。印框 .deck-orn-seal 落朱砂、笺体随字色
-   (Sym 单色走 currentColor 的约定不破;类名缀 deck-orn 防 churn——Sym 是共享符号,
-   不得私挂消费侧语境名)。角标朱印深底+纸字口径见文件头「玄墨鎏金新约定」。角标锚
-   svg 盒右下——pile 笺体在 22×16 盒内居中,盒右内 20px 档余 7.6px 空白,角标恰落在
-   笺右角上。 */
-.game-layout .deck-orn {
-  position: relative;
-  align-self: center;
-  color: var(--color-ink-dim);
-}
-.game-layout .deck-orn .deck-orn-seal {
-  stroke: var(--color-danger);
-}
-.game-layout .deck-orn-badge {
-  position: absolute;
-  right: -3px;
-  bottom: -4px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3.5px;
-  border-radius: 7px;
-  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
-  font-family: var(--font-wenkai);
-  font-size: 10px;
-  font-weight: 400;
-  line-height: 1;
-  font-variant-numeric: tabular-nums;
-  box-shadow:
-    0 1px 3px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 55%, transparent);
-  display: grid;
-  place-items: center;
-}
-/* 角钮(复位/缩放/静音):原型 .sqbtn 制式,36→40px 按 W5 触达线;#510 入深墨漆金 */
-.game-layout .sqbtn {
-  width: 40px;
-  height: 40px;
-  border-radius: 3px;
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
-  display: grid;
-  place-items: center;
-  font-family: var(--font-brush);
-  font-size: 15px;
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
   color: var(--color-ink-dim);
   cursor: pointer;
+  padding: 0;
   transition:
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
 }
-.game-layout .sqbtn:hover {
+.game-layout .tbtn:hover:not(:disabled) {
   color: var(--color-ink);
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
   box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
 }
+.game-layout .tbtn:disabled {
+  cursor: default;
+  opacity: 0.45;
+}
+.game-layout .tbtn:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 2px;
+}
+/* 顶中「N 轮」chip:浮置视口中线(top+2 对齐原型 turnchip y10 vs 钮区 y8) */
+.game-layout .turnchip {
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 6;
+  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border-radius: 5px;
+  padding: 3px 10px;
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  font-family: var(--font-wenkai);
+  pointer-events: auto;
+}
+.game-layout .turnchip b {
+  color: var(--color-ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
 
-/* ── 席位竖卡列:右缘纵列(3 张封顶);4-6 席左右两列;7+ 余席顶行缩微 ──
-   列层全幅铺底(自身透明不吃事件),席位卡/浮签触发元自持 pointer-events。 */
+/* ── 席位格列(#698 席位条重形):右缘单列 96×38 双行八项格,一人一格(自机入列)──
+   原型 tmp/席位侧列原型.html ①②③ 判决移植:几何/字号/间距以原型为准,色一律现役
+   token(原型 --g* 对射:gbg→bg、gink→ink、ginkdim→ink-dim、ggold→gold、gsuccess→
+   success、gdanger→danger、gcash/gcity/gem/rep→attr-*;格底 rgba(36,29,19,.92)=
+   paper-lo)。列层全幅铺底(自身透明不吃事件),格/浮签触发元自持 pointer-events。 */
 .game-layout .seat-rail {
   position: absolute;
   inset: 0;
@@ -341,195 +238,140 @@
 .game-layout .seat-rail .seat {
   pointer-events: auto;
 }
+/* 列:宽 96 固定、格间距 2px、y8 起排(安全区让位沿用 --safe-*);列区可用高=
+   视口高−顶距 8−钮区预算(基准档 54 = 44 钮高 + 10 底距;桌面档舒展 52+10=62,
+   断点覆写见文件尾桌面档块)。 */
 .game-layout .seatcol {
   position: absolute;
-  top: calc(var(--safe-top) + 104px);
-  right: calc(var(--safe-right) + 12px);
+  top: calc(var(--safe-top) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  bottom: 54px;
+  width: 96px;
   z-index: 4;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 2px;
 }
-.game-layout .seatcol.left {
-  left: calc(var(--safe-left) + 12px);
-  right: auto;
-}
-.game-layout .seatrow-top {
-  position: absolute;
-  top: calc(var(--safe-top) + 60px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 4;
-  display: flex;
-  gap: 10px;
-}
-/* 顶行缩微卡(原型其五 mini8:宽 96,四格形态由组件侧只渲染 城/手牌 徽章行) */
-.game-layout .seatrow-top .seat {
-  width: 96px;
-}
+/* 格:高=clamp(30,(可用高−14)/8,38)——14=7 道格间距,满编 8 席恰好铺满列区,
+   390/375/320 三档矮横屏全部零滚动(拍板口径);桌面档与矮横屏档共用结构,断点零分支。 */
 .game-layout .seat {
   position: relative;
-  width: 104px;
-  /* 漆金描边(#510 席位卡入玄墨鎏金;活跃/候选态金圈在其上加重) */
-  border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
-  border-radius: 6px;
-  background: linear-gradient(180deg, var(--color-panel), var(--color-panel-hi));
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-  padding: 8px 8px 9px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  height: clamp(30px, calc((100% - 14px) / 8), 38px);
+  background: color-mix(in srgb, var(--color-paper-lo) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border-radius: 5px;
+  padding: 3px 5px 2px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
-.game-layout .seat .vhead {
+/* 行1:国号印 + 现金主数 + 体力色条 */
+.game-layout .seat .l1 {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
-/* 国号印(#510 漆金环/双描边方案,约定见文件头):漆面深底金字 + 玩家色环(--pc)
-   + 漆金细衬;原「玩家色底+白字」印面 1.9-2.9:1 不可读,字色自此不压玩家色。 */
-.game-layout .guo-yin {
-  transform: rotate(-4deg);
-  display: grid;
-  place-items: center;
-  border-radius: 4px;
+/* 国号印(座位色制式,原型 .pseal):玩家色经 --pc 注入,印面=座位色字 on 26% 混底;
+   字符居中=line-height 钉死。 */
+.game-layout .seat .pseal {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
   font-family: var(--font-title);
+  font-size: 8.5px;
   line-height: 1;
-  color: var(--color-lacquer-gold);
-  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-lacquer));
-  border: 1.5px solid var(--pc, var(--color-gold));
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
-  flex: 0 0 auto;
+  background: color-mix(in srgb, var(--pc) 26%, var(--color-bg));
+  border: 1px solid var(--pc);
+  color: var(--pc);
 }
-.game-layout .seat .guo-yin {
-  width: 30px;
-  height: 30px;
-  font-size: 18px;
-}
-.game-layout .seat .nm {
-  font-size: 11px;
-  line-height: 1.2;
-  color: var(--color-ink-dim); /* #509 残留必修:原 #4a3f2c 深字在新深席位卡不可读 */
-  letter-spacing: 0.02em;
-  overflow: hidden;
-}
+/* 现金主数:中文习惯无千分位、省「两」(格上口径,原型 .cash-s;千分位全称在
+   后续明细弹层)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
 .game-layout .seat .cash {
-  font-family: var(--font-brush);
-  font-size: 18px;
-  line-height: 1.15;
-  color: var(--color-attr-cash);
-  font-variant-numeric: tabular-nums;
-}
-.game-layout .seat.bankrupt {
-  opacity: 0.4;
-}
-.game-layout .seat.bankrupt .nm,
-.game-layout .seat.bankrupt .cash {
-  text-decoration: line-through;
-}
-/* 体力血条:条内刻度数字,纸白字+深色投影保证任意填充色可读;低于三成转红
-   (盾形体力语义适配另行,S4 保留条形现役制——票面口径「条形血条可保留」) */
-.game-layout .hpbar {
-  height: 11px;
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
-  border-radius: 5px;
-  background: rgba(0, 0, 0, 0.4);
-  position: relative;
-  overflow: hidden;
-  display: block;
-}
-.game-layout .hpbar i {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-money) 55%, var(--color-bg-deep)),
-    var(--color-money)
-  );
-  border-radius: 4px;
-}
-.game-layout .hpbar.low i {
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-danger) 55%, var(--color-bg-deep)),
-    var(--color-danger)
-  );
-}
-.game-layout .hpbar em {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  font-style: normal;
-  font-size: 9.5px;
+  font-size: 10.5px;
   line-height: 1;
-  color: var(--color-ink);
+  color: var(--color-attr-cash);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  text-shadow:
-    0 0 2px rgba(0, 0, 0, 0.95),
-    0 1px 1px rgba(0, 0, 0, 0.9);
 }
-/* 体力条触发元拉满卡宽(#510 自审就地调):#495 起 Tip 触发钮包住 .hpbar 后是
-   .relative.flex 行内的 flex item,主轴不自然拉伸——缩瘪成 2px 竖线(2026-10-13
-   基线为满宽条+刻度数)。钮撑满后 block 血条随行铺满,刻度数随之可见。 */
-.game-layout .seat .relative.flex > button:has(> .hpbar) {
+/* 体力色条:3px 细轨吃行1剩余宽度;濒耗竭(低于三成)转朱砂。格上无刻度数(原型
+   口径,数值归弹层);浮签触发元拉满剩余宽,细轨不缩瘪。 */
+.game-layout .seat .strack-tip {
   flex: 1 1 auto;
+  min-width: 0;
+  margin-left: 2px;
 }
-/* 属性徽章:程序化 SVG 图标(属性色)+ 裸值;两列网格,只显值不显文字类目 */
-.game-layout .vgrid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 3px 8px;
-  margin-top: 2px;
+.game-layout .seat .strack {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  overflow: hidden;
 }
-.game-layout .ib {
+.game-layout .seat .strack i {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+}
+.game-layout .seat .strack.low i {
+  background: var(--color-danger);
+}
+/* 行2:城楼/牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分(几何上不可能
+   溢出,拍板口径);图标 9×9 逐路径复刻 AttrIcon 资产,卷轴/牌背随原型吃淡纸。 */
+.game-layout .seat .l2 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.game-layout .seat .ai {
   display: inline-flex;
   align-items: center;
-  gap: 3.5px;
-  font-size: 12px;
+  gap: 1px;
+  font-size: 8.5px;
   line-height: 1;
+  color: var(--color-ink-dim);
+  white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-.game-layout .ib.c-warrant {
-  color: var(--color-attr-warrant);
+.game-layout .seat .ai svg {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
 }
-.game-layout .ib.c-city {
+.game-layout .seat .ai.ai-city {
   color: var(--color-attr-city);
-}
-.game-layout .ib.c-rep {
-  color: var(--color-attr-rep);
 }
 /* 负声望警示(#556):值 <0 挂 .rep-neg(SeatRail 侧),值色改朱砂——数值即信息,
    色变即状态(§4.6,不加文字标牌);图标 fill=currentColor 随值同色。 */
-.game-layout .ib.c-rep.rep-neg {
+.game-layout .seat .ai.ai-rep {
+  color: var(--color-attr-rep);
+}
+.game-layout .seat .ai.ai-rep.rep-neg {
   color: var(--color-danger);
 }
-.game-layout .ib.c-gem {
+.game-layout .seat .ai.ai-gem {
   color: var(--color-attr-gem);
 }
-.game-layout .ib.c-hero {
+.game-layout .seat .ai.ai-hero {
   color: var(--color-attr-hero);
 }
-.game-layout .ib.c-hand {
-  color: var(--color-ink);
-  gap: 2px;
-}
-.game-layout .ib svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-}
+/* 迷你牌背组(AttrIcon MiniBacks,唯一消费方=席位格行2 牌背项):漆木底+漆金描边
+   (锦囊牌背语言),格上 4×6 缩比;空牌背=虚线轮廓占位(0 张空态可读,#250 口径)。 */
 .game-layout .mini-backs {
   display: inline-flex;
-  gap: 1.5px;
+  gap: 1px;
   align-items: center;
 }
 .game-layout .mini-back {
-  width: 8px;
-  height: 12px;
-  border-radius: 1.5px;
+  width: 4px;
+  height: 6px;
+  border-radius: 1px;
   /* 漆木牌背:漆面明暗三段(玄墨鎏金后直接吃面板/漆木/暗纸 token,#510 收口字面量) */
   background: linear-gradient(
     160deg,
@@ -539,37 +381,25 @@
   );
   box-shadow: inset 0 0 0 0.8px rgba(217, 185, 92, 0.5);
 }
-/* 空牌背:手牌 0 张的占位(虚线轮廓,图标恒在;漆金淡出同牌背描边语) */
 .game-layout .mini-back-empty {
   background: none;
   box-shadow: none;
   border: 0.8px dashed color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
 }
-/* 活跃方:金圈光效 + 「运筹中」微标(§4.6 例外保留项,全布局仅此一处文字标牌) */
-.game-layout .seat .think {
-  position: absolute;
-  top: -1px;
-  right: -1px;
-  background: var(--color-lacquer);
-  color: var(--color-lacquer-gold);
-  font-family: var(--font-wenkai);
-  font-size: 10px;
-  padding: 2.5px 6px;
-  border-radius: 0 4px 0 4px;
-  letter-spacing: 0.1em;
-}
+/* 活跃方:金圈呼吸(状态全视觉,§4.6;旧「运筹中」文字微标随席位卡形态退役)——
+   静态=金边+1.5px 金圈+外晕,呼吸=外圈 opacity 往复(reduced-motion 退场留静圈)。 */
 .game-layout .seat.active {
   border-color: var(--color-gold);
   box-shadow:
-    0 0 0 2px rgba(200, 161, 58, 0.5),
-    0 2px 8px rgba(138, 106, 28, 0.4);
+    0 0 0 1.5px var(--color-gold),
+    0 0 12px rgba(217, 185, 92, 0.35);
 }
 .game-layout .seat.active::after {
   content: "";
   position: absolute;
-  inset: -5px;
-  border: 2px solid rgba(200, 161, 58, 0.6);
-  border-radius: 9px;
+  inset: -4px;
+  border: 1.5px solid rgba(217, 185, 92, 0.6);
+  border-radius: 7px;
   animation: seat-glow var(--dur-ambient) var(--ease-sine) infinite;
   pointer-events: none;
 }
@@ -582,8 +412,25 @@
     opacity: 1;
   }
 }
+/* 破产:整格降透明+印灰(原型 .is-bankrupt;旧划名随国号名行退役——格上已无名) */
+.game-layout .seat.bankrupt {
+  opacity: 0.45;
+}
+.game-layout .seat.bankrupt .pseal {
+  filter: grayscale(1);
+}
+/* 自机:金描边+左金条+金渐变,无「你」字(§4.6;rgba(217,185,92,·) 裸色豁免见文件头) */
+.game-layout .seat.self {
+  border-color: rgba(217, 185, 92, 0.6);
+  background: linear-gradient(
+    90deg,
+    rgba(217, 185, 92, 0.17),
+    color-mix(in srgb, var(--color-paper-lo) 92%, transparent) 46%
+  );
+  box-shadow: inset 3px 0 0 var(--color-gold);
+}
 /* 终局胜者:金色双环(DESIGN §4.6——撤掉文字状态仍可辨则不加文字:胜者身份由
-   金环+终局横幅承载,国号印/名保留,无「胜」字章;终局时活跃光效已停,两态不并立)。 */
+   金环+终局横幅承载,无「胜」字章;终局时活跃光效已停,两态不并立)。 */
 .game-layout .seat.won {
   border-color: var(--color-gold);
   box-shadow:
@@ -591,200 +438,246 @@
     0 0 12px rgba(200, 161, 58, 0.45);
 }
 
-/* ── 底部仪表条:自局徽章区 | 手牌架(弹性)── */
-.game-layout .dash {
+/* ── 底缘透明手牌区(#700,原型 ①handzone 判决移植):左端签面 + 手牌架,透明
+   居中浮置;右缘内收 104px(席位条让位,叠加压缩手牌行不相侵席位格)。
+   容器不吃事件(不挡棋盘拖拽),签面/牌钮自持 pointer-events。 ── */
+.game-layout .handzone {
   position: absolute;
   left: 0;
-  right: 0;
+  right: calc(var(--safe-right) + 104px);
   bottom: 0;
-  height: calc(172px + var(--safe-bottom));
-  z-index: 6;
+  z-index: 5;
   display: flex;
-  align-items: stretch;
-  /* 漆木条:架上映、架下暗三段(玄墨鎏金后直接吃 token,#510 收口字面量) */
-  background: linear-gradient(
-    180deg,
-    var(--color-panel-hi),
-    var(--color-lacquer) 60%,
-    var(--color-paper-lo)
-  );
-  box-shadow:
-    inset 0 2px 0 rgba(217, 185, 92, 0.4),
-    inset 0 14px 24px rgba(0, 0, 0, 0.35);
-}
-.game-layout .me {
-  width: 344px;
-  flex: 0 0 auto;
-  display: flex;
-  flex-direction: column;
+  align-items: flex-end;
   justify-content: center;
-  gap: 8px;
-  padding: 14px 16px calc(14px + var(--safe-bottom)) 18px;
-  border-right: 1px solid rgba(217, 185, 92, 0.22);
+  gap: 10px;
+  padding-bottom: calc(var(--safe-bottom) + 8px);
+  pointer-events: none;
 }
-.game-layout .me .head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
+.game-layout .handzone > * {
+  pointer-events: auto;
 }
-.game-layout .me .guo-yin {
-  width: 40px;
-  height: 40px;
-  font-size: 24px;
+/* 架体透明区不挡棋盘(#700 回归修复):.hand-rack 挂 .handzone > * 的 auto 后,
+   空手牌态(选都期)的架体盒子(牌高 160px+ 级)整片压进棋盘下缘——选都候选城
+   落点在架下时 Playwright hit-target 永不过(e2e/react-war-report seed49 实锤),
+   真人也点不到候选城。架体容器降 none,真交互件(牌卡钮/反应窗横幅)自持放行;
+   签面 Tip 与弹层(挂 body portal)不在本块管辖。 */
+.game-layout .handzone .hand-rack {
+  pointer-events: none;
+}
+.game-layout .handzone .hand-rack :is(button, .reaction-banner) {
+  pointer-events: auto;
+}
+/* 签面(原仪表条「签」徽章平移,testid dice-face 不变;原型 .diceseal 制式):
+   驻左端(align-self flex-end + 原型 margin);待起摇(#530)转「待」浅印 + 呼吸
+   金边(.await,自 game-hud.css 并入)——UI 状态变化承载(DESIGN §4.6)。 */
+.game-layout .diceseal {
+  flex: none;
+  align-self: flex-end;
+  margin: 0 4px 4px 0;
+  width: 26px;
+  height: 26px;
   border-radius: 5px;
-  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
-}
-.game-layout .me .nm {
-  font-family: var(--font-brush);
-  font-size: 19px;
+  background: var(--color-lacquer);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   color: var(--color-lacquer-gold);
-  white-space: nowrap;
-}
-.game-layout .me .you,
-.game-layout .me .guan {
-  width: 22px;
-  height: 22px;
-  flex: 0 0 auto;
-  transform: rotate(-4deg);
   display: grid;
   place-items: center;
-  border-radius: 3px;
-  font-family: var(--font-title);
-  font-size: 12px;
+  font-family: var(--font-brush);
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
 }
-.game-layout .me .you {
-  /* 朱印深底(#510 残留必修,约定见文件头) */
-  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 45%, transparent);
+.game-layout .diceseal.await {
+  animation: sign-await-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
-.game-layout .me .guan {
-  border: 1px solid color-mix(in srgb, var(--color-ink) 35%, transparent);
-  color: color-mix(in srgb, var(--color-ink) 60%, transparent);
+@keyframes sign-await-breathe {
+  0%,
+  100% {
+    border-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    color: color-mix(in srgb, var(--color-ink-dim) 72%, transparent);
+  }
+  50% {
+    border-color: var(--color-gold-bright);
+    color: var(--color-ink);
+  }
 }
-.game-layout .me .head .sp {
-  flex: 1;
+@media (prefers-reduced-motion: reduce) {
+  /* 呼吸降级为静态待起摇态(边色/字色取呼吸中间拍),同 reaction-banner 显式口径 */
+  .game-layout .diceseal.await {
+    animation: none;
+    border-color: color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
+    color: var(--color-ink);
+  }
 }
-/* 托管热钮 + 速度(HandPanel 托管行平移;漆底描边钮) */
-.game-layout .tuoguan {
+
+/* ── 右下三圆钮(#700,原型 ①gembtns 判决移植):锦囊(手牌显隐开关,亮=显示)/
+   珍宝 / 名将,44px 圆 + 计数角标(名将含上限 x/3;桌面档舒展 52px,见文件尾);
+   上缘 = 席位列区下界(基准 44 钮高 + 10 底距 = 54px 列区预算,几何不变量见
+   SeatRail/layout 席位列;桌面档 62px 随拍)。 ── */
+.game-layout .pilebtns {
+  position: absolute;
+  right: calc(var(--safe-right) + 8px);
+  bottom: calc(var(--safe-bottom) + 10px);
+  z-index: 7;
+  display: flex;
+  gap: 6px;
+}
+.game-layout .gbtn {
+  position: relative;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--color-panel) 92%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-ink) 18%, transparent);
   font-family: var(--font-wenkai);
-  font-size: 12px;
-  color: var(--color-lacquer-gold);
-  border: 1px solid rgba(217, 185, 92, 0.5);
-  border-radius: 3px;
-  padding: 5px 9px;
-  letter-spacing: 0.12em;
+  font-size: 11px;
+  line-height: 1.1;
+  color: var(--color-ink);
+  text-align: center;
   cursor: pointer;
-  background: none;
+  padding: 0;
   transition:
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
-    background var(--dur-fast) var(--ease-out);
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
 }
-.game-layout .tuoguan:hover {
-  background: rgba(217, 185, 92, 0.15);
-  border-color: var(--color-gold-bright);
+.game-layout .gbtn:hover {
   transform: scale(1.02);
+  border-color: var(--color-gold-bright);
+  box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
 }
-.game-layout .tuoguan-on {
+/* 锦囊开关亮态(.on = 手牌显示中):原型 gbtn.on 金描边 + 金晕 */
+.game-layout .gbtn.on {
+  border-color: var(--color-gold);
+  color: var(--color-gold);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-gold) 40%, transparent),
+    0 0 10px color-mix(in srgb, var(--color-gold) 30%, transparent);
+}
+.game-layout .gbtn:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 2px;
+}
+/* 计数角标:右上悬垂朱砂圆印(#510 朱印深底+纸字约定,deck-orn-badge 角标族制式;
+   名将 = x/3 带上限)。 */
+.game-layout .gbtn .cnt {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3.5px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
+  color: var(--color-ink);
+  font-style: normal;
   font-family: var(--font-wenkai);
-  font-size: 11px;
-  color: var(--color-gold-bright);
-  white-space: nowrap;
-}
-.game-layout .me .rows {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-/* 仪表条徽章:SVG 图标(属性色亮化变体,漆底上提亮)+ 裸值 */
-.game-layout .badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
+  font-size: 10px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 55%, transparent);
+  display: grid;
+  place-items: center;
 }
-.game-layout .badge svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-}
-.game-layout .badge.b-cash {
-  font-family: var(--font-brush);
-  font-size: 19px;
-  color: var(--color-attr-cash-bright);
-}
-.game-layout .badge.b-cash .cash-lab {
-  font-family: var(--font-wenkai);
-  font-size: 11px;
-  color: rgba(217, 185, 92, 0.7);
-  letter-spacing: 0.1em;
-}
-.game-layout .badge.b-warrant {
-  color: var(--color-attr-warrant-bright);
-}
-.game-layout .badge.b-city {
-  color: var(--color-attr-city-bright);
-}
-.game-layout .badge.b-rep {
-  color: var(--color-attr-rep-bright);
-}
-.game-layout .badge.b-gem {
-  color: var(--color-attr-gem-bright);
-}
-.game-layout .badge.b-hero {
-  color: var(--color-attr-hero-bright);
-}
-.game-layout .badge .hpbar {
-  width: 80px;
-  height: 9px;
-  border-color: rgba(217, 185, 92, 0.45);
-  background: rgba(0, 0, 0, 0.3);
-}
-.game-layout .badge.b-sign {
-  font-family: var(--font-brush);
-  color: var(--color-lacquer-gold);
-  border: 1px solid rgba(217, 185, 92, 0.4);
-  border-radius: 3px;
-  padding: 4px 8px;
-  font-size: 14px;
-}
-/* 浮标动画复用 game-hud.css 的 game-cash-float;漆底配色由 DashboardBar 直出
-   (正=lacquerGold / 负=attr-hero-bright),不走纸面档色。 */
 
-/* 手牌架槽:HandRack 原样入槽(全展形态不动),漆木底/投影由 .dash 承担 */
-.game-layout .dash-rack {
-  flex: 1;
-  position: relative;
+/* ── 设置弹层(#700,原型 ⑥pop/setrow 判决移植;经 Portal 挂 body,选择器裸排,
+   set-* 前缀防串扰):壳尺寸/圆角/衬垫随原型 pop 270px;行=13px 文肯淡纸分隔。 ── */
+.settings-dialog {
+  background: linear-gradient(180deg, var(--color-panel-hi), var(--color-paper-lo));
+  border-color: color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
+}
+.setrow {
   display: flex;
-  min-width: 0;
-}
-.game-layout .dash-rack .hand-rack {
-  flex: 1 1 auto;
-  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 2px;
+  border: 0;
+  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 9%, transparent);
   background: none;
-  box-shadow: none;
-  z-index: auto;
-  /* em 基降为原型 7.6px:牌面 152×203 内收,172px 条内上下各留一口气 */
-  font-size: 7.6px;
-  --hface-base: 7.6px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
-  padding-bottom: 1.75em;
+  font-family: var(--font-wenkai);
+  font-size: 13px;
+  color: var(--color-ink);
+  text-align: left;
+}
+.setrow:last-of-type {
+  border-bottom: none;
+}
+/* 行级按钮(战报›/回到主页):真按钮语义,悬停微反馈(#490 微档) */
+.setrow-btn {
+  cursor: pointer;
+  transition:
+    color var(--dur-fast) var(--ease-out),
+    transform var(--dur-fast) var(--ease-out);
+}
+.setrow-btn:hover {
+  color: var(--color-gold-bright);
+  transform: scale(1.01);
+}
+.setrow-btn:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: -2px;
+}
+/* 值位淡字(演出加速档/版本戳) */
+.setval {
+  font-style: normal;
+  font-size: 11px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+/* 音效开关(Base UI Switch 原语,原型 .switch 制式):轨 34×19 圆角,knob 15px;
+   on=轨转 success、knob 推右转纸白。交互语义(键盘/aria)归底件,本件只出皮。 */
+.setsw {
+  position: relative;
+  width: 34px;
+  height: 19px;
+  flex: none;
+  border-radius: 10px;
+  border: 0;
+  padding: 0;
+  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.setsw[data-checked] {
+  background: var(--color-success);
+}
+.setsw:focus-visible {
+  outline: 2px dashed var(--color-gold);
+  outline-offset: 2px;
+}
+.setsw-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  background: var(--color-ink-dim);
+  transition: left var(--dur-fast) var(--ease-out);
+}
+.setsw[data-checked] .setsw-thumb {
+  left: 17px;
+  background: var(--color-ink);
 }
 
-/* ── 动作条(#256 出牌阶段态):斗地主式两段动作条,居中浮于仪表条上缘(原型
-   .actionbar 移植,bottom 184px=仪表条 172px+12px 气口)——锚条不锚牌,空手牌时
-   按钮仍在;选中放大牌占中时整条右让(.right-shift,原型 240px;实装仪表条左段 344px 使架中心右偏,实测 400px 起不压牌面)。
-   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai(原型小薇禁新用)。
-   右让量收变量 --actionbar-shift(#496):魔数直写时短横屏断点无口可覆,844×390 下
-   必溢出视口;变量落在本元素,断点重定义见文件尾短横屏块。 ── */
+/* ── 动作条(#256 出牌阶段态):斗地主式两段动作条,浮于手牌区上缘(底 176px=
+   桌面牌高 160px + 区底距 8px + 8px 气口)——选中放大牌占中时整条右让
+   (.right-shift,手牌区居中后取原型 240px 档,#700 重标定)。
+   按钮=原型 .btn 制式;字体按 DESIGN §4.3 新文案红线落 brush/wenkai。
+   右让量收变量 --actionbar-shift(#496):断点重定义见文件尾形态分档块。 ── */
 .game-layout .actionbar {
-  --actionbar-shift: 400px;
+  --actionbar-shift: 240px;
   position: absolute;
   left: 50%;
-  bottom: calc(184px + var(--safe-bottom));
+  bottom: calc(176px + var(--safe-bottom));
   transform: translateX(-50%);
   z-index: 7;
   display: flex;
@@ -869,8 +762,8 @@
 }
 
 /* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
-   呼吸,禁文字章),点击层 .seat-target 真按钮覆盖卡面(键盘可达,不自写交互语义);
-   非候选(免战庇护/无效目标)席位卡不动,原因在点击层 title 浮签。 ── */
+   呼吸,禁文字章),点击层 .seat-target 真按钮覆盖格面(键盘可达,不自写交互语义);
+   非候选(免战庇护/无效目标)格不动,原因在点击层 title 浮签。 ── */
 .game-layout .seat.candidate {
   border-color: var(--color-gold);
   box-shadow:
@@ -901,7 +794,7 @@
   inset: 0;
   z-index: 3;
   border: 0;
-  border-radius: 6px;
+  border-radius: 5px;
   background: transparent;
   cursor: pointer;
   padding: 0;
@@ -945,151 +838,60 @@
   }
 }
 
-/* ══ #276 窄屏 / 短横屏响应式收口(纠偏定案:移动端只做横屏形态)══
-   纯 CSS 断点重排;断点外(桌面 ≥1280×720)零变化。两块集中放文件尾:
-   A 短横屏沿 hand-rack.css 既有断点先例(orientation: landscape + max-height: 500px);
-   B 竖屏不做布局,只出「请横屏」提示层(portrait + max-width: 700px + pointer: coarse)。 */
+/* ══ 对局屏形态分档(#703 收口;#680 拍板:同构模板一套,无桌面专属布局)══
+   同构模板以移动横屏为基准档,按视口分两档(ADR-0018 修订 + ADR-0032):
+   A 矮横屏档(orientation: landscape + max-height: 500px,Android 844×390 一类):
+     全浮层紧凑档,允许重排——动作条锚点随牌高(160→128px)收紧、右让收档;
+     手牌架 em 基降档(8→6.4px)是 hand-rack.css 既有断点的事;
+   B 桌面档(其余一切横屏):布局零重排,密度/字号随视口舒展——手牌卡与三圆钮
+     适度放大(两处几何同拍耦合,见桌面档块注),棋盘取景右让 104px 居中净空;
+   C 竖屏不做布局,只出「请横屏」提示层(portrait + max-width: 700px + pointer: coarse)。 */
 
-/* ── A 短横屏(Android 短横屏 844×390 一类)──
-   顶部条压缩(chip 全保留不藏,角钮 40px 触达不动);仪表条 172→132px 紧凑档,
-   棋盘区下缘/战报把手/动作条 bottom 同拍跟随;席位卡右列保留、卡片紧凑,
-   列高由 top/bottom 夹出、放不下的卡向左换列(横屏宽度富余)。
-   手牌架降档是 hand-rack.css 既有断点的事,本文件只把 dash-rack 槽内的 em 基
-   7.6px 放开到同一断点档 6.4px——槽内定基特异性更高,不放开则降档永不生效。 */
+/* ── A 矮横屏(Android 矮横屏 844×390 一类)──
+   #700 全浮层骨架后本档只剩动作条锚点与右让差量:顶部浮层(32px 钮/12px chip)/
+   三圆钮(44px)尺寸以原型 844×390 判决为准,与基准档同形零分支。 */
 @media (orientation: landscape) and (max-height: 500px) {
-  .game-layout .topbar {
-    gap: 6px;
-  }
-  .game-layout .chip {
-    gap: 5px;
-    padding: 4px 7px;
-  }
-  .game-layout .chip .seal-s {
-    width: 18px;
-    height: 18px;
-    font-size: 11px;
-  }
-  .game-layout .chip .t {
-    font-size: 13px;
-  }
-  .game-layout .chip .t-active,
-  .game-layout .chip .t-win {
-    font-size: 12px;
-  }
-  .game-layout .chip .d {
-    font-size: 10px;
-  }
-  .game-layout .misc {
-    gap: 5px;
-  }
-  /* 牌库角标右探 ~3px:短横屏 misc gap 收 5px 档,补右距防压邻钮 */
-  .game-layout .deck-orn {
-    margin-right: 4px;
-  }
-
-  /* 短横屏:席位卡折右上横排,左右让位不适用(让 128px 也躲不开横排),棋盘回满幅 */
-  .game-layout .board-area,
-  .game-layout .board-area:has(~ .seat-rail .seatcol),
-  .game-layout .board-area:has(~ .seat-rail .seatcol.left) {
-    inset: 0 0 calc(132px + var(--safe-bottom)) 0;
-  }
-  .game-layout .dash {
-    height: calc(132px + var(--safe-bottom));
-  }
-  /* 把手/动作条锚仪表条上缘:132px + 12px 气口(同桌面 184px 口径) */
-  .game-layout .log-tab,
   .game-layout .actionbar {
     bottom: calc(144px + var(--safe-bottom));
-  }
-  /* 右让量短横屏收档(#496):桌面 400px 是 344px 左段+7.6px 牌基的实测口径,
-     844×390 下直写必溢出(条右缘 422+400+≈96>844)。本档 .me 344→296px、
-     架体 em 基 7.6→6.4px(hand-rack.css 同拍),放大牌占位等比变小,右让取同档
-     296px:条右缘 ≈422+296+96=814<844 完整可见,左缘 ≈622 仍不压放大牌面。
-     按钮钉横排:右让后条落在视口右段,abspos 收缩适配的可用宽(<首选宽)会把
-     钮字挤成竖排,nowrap 保「出牌/不出」二字横排不折。 */
-  .game-layout .actionbar {
-    --actionbar-shift: 296px;
+    /* 右让量矮横屏收档(#496/#700 重标定):矮横屏牌面 96px 宽(6.4px 基),
+       放大 1.6× 半幅 ≈77px,动作条半幅 ≈90px,手牌区中线左偏视口中线 52px
+       (席位条 104px 让位之半)——200px 右让后条右缘 ≈712<740(席位条左缘)完整可见。 */
+    --actionbar-shift: 200px;
   }
   .game-layout .actionbar .actionbar-btn {
+    /* 钉横排:abspos 收缩适配的可用宽(<首选宽)会把钮字挤成竖排,保「出牌/不出」
+       二字横排不折。 */
     white-space: nowrap;
-  }
-  .game-layout .me {
-    width: 296px;
-    gap: 5px;
-    padding: 8px 12px calc(8px + var(--safe-bottom)) 14px;
-  }
-  .game-layout .me .guo-yin {
-    width: 32px;
-    height: 32px;
-    font-size: 19px;
-  }
-  .game-layout .me .nm {
-    font-size: 16px;
-  }
-  .game-layout .me .rows {
-    gap: 6px 8px;
-  }
-  .game-layout .badge.b-cash {
-    font-size: 16px;
-  }
-  .game-layout .badge.b-sign {
-    padding: 2px 6px;
-    font-size: 12px;
-  }
-  .game-layout .badge .hpbar {
-    width: 64px;
-  }
-  .game-layout .dash-rack .hand-rack {
-    font-size: 6.4px;
-    --hface-base: 6.4px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
-  }
-
-  .game-layout .seatcol {
-    top: calc(var(--safe-top) + 56px);
-    bottom: calc(140px + var(--safe-bottom));
-    flex-wrap: wrap-reverse; /* 溢出列展开在主列左侧,首列仍贴右缘 */
-    gap: 6px;
-  }
-  .game-layout .seat {
-    width: 88px;
-    padding: 4px 6px 5px;
-    gap: 3px;
-  }
-  .game-layout .seat .guo-yin {
-    width: 20px;
-    height: 20px;
-    font-size: 12px;
-  }
-  .game-layout .seat .nm {
-    font-size: 10px;
-  }
-  .game-layout .seat .cash {
-    font-size: 13px;
-  }
-  .game-layout .seat .hpbar {
-    height: 7px;
-  }
-  .game-layout .seat .hpbar em {
-    font-size: 6.5px;
-  }
-  .game-layout .seat .vgrid {
-    margin-top: 0;
-    gap: 2px 6px;
-  }
-  .game-layout .seat .ib {
-    font-size: 10px;
-  }
-  .game-layout .seat .ib svg {
-    width: 10px;
-    height: 10px;
-  }
-  .game-layout .seat .mini-back {
-    width: 6px;
-    height: 9px;
   }
 }
 
-/* ── B 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,
+/* ── B 桌面档(其余一切横屏,#703 校准):密度舒展,布局零重排──
+   手牌卡 em 基 8→9.6px(牌面 120×160→144×192,名将卡基 --hface-base 同拍随动);
+   三圆钮 44→52px。两处几何随拍耦合,断档即错位:
+   ① 动作条锚点 = 桌面牌高 192 + 区底距 8 + 气口 8 = 208px(基准档 176px、
+     矮横屏档 144px 各随各的牌高);
+   ② 席位列区下界 = 钮区预算(52 钮高 + 10 底距 = 62px,替代基准档 44+10=54)。
+   席位格 96×38 制式不动(格高 clamp 上限 38 桌面恒触顶,列不满即止),棋盘取景
+   右让 104px 不变(取景居中净空由 board-area 让位天然成立)。 */
+@media (orientation: landscape) and (min-height: 501px) {
+  .game-layout .handzone .hand-rack {
+    font-size: 9.6px;
+    --hface-base: 9.6px; /* 名将卡面卡基随槽位 em 基(#360,hand-rack.css 同款) */
+  }
+  .game-layout .actionbar {
+    bottom: calc(208px + var(--safe-bottom));
+  }
+  .game-layout .gbtn {
+    width: 52px;
+    height: 52px;
+    font-size: 12px;
+  }
+  .game-layout .seatcol {
+    bottom: 62px;
+  }
+}
+
+/* ── C 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,
    竖屏不做游戏布局)── 常驻 DOM(RotateHintOverlay,GameScreen 挂),显隐全在
    CSS:竖屏 + 窄幅 + 粗指针(真手机)才全屏接管挡住对局;桌面窄窗口
    (pointer: fine)不触发。漆木渐变/漆金字同 .dash 既有族(#510 收口 token)。 */
