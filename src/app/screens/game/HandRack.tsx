@@ -21,14 +21,12 @@
 //   名将技卡(#188 档 3):HeroCardFace 紧凑档混排架中(#360,与招贤/府库同卡面)。
 //   目标段(pendingJinnang/pendingSkill 在场):整架退出交互——已出计牌金描边上浮
 //   印「已出牌 · 待择目标」,其余牌灰置印「目标段不可换牌」;
-//   选目标在席位卡(SeatRail targets),本架不再接手势。
+//   选目标在席位格(SeatRail targets),本架不再接手势。
 // 叠加压缩(#254)窗态下照常工作(状态 transform 与挥出同落 button 层,顺序收口在
 // hand-rack.css 的窗态块)。
 //
-// 牌架双入口(#361,expandPile 明细排退役):架右端并排「珍宝 N」「名将 N/3」入口
-// 小件(漆金牌底+漆金描边+朱砂数量角标,形制照 proto/treasure/r5.html 节一)——
-// 点谁开谁的层:珍宝入口开珍宝弹层(装裱卡网格)、名将入口开名将弹层(HeroCardFace
-// 详情档网格),弹层壳与陈列在 PileModal.tsx;仪表条徽章随之转纯展示计数。
+// 藏品双入口(#361)随 #700 退役:接替者=右下三圆钮(PileButtons,珍宝/名将圆钮
+// 点开同名藏品弹层,弹层壳与陈列仍在 PileModal.tsx)。
 //
 // 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
 import {
@@ -59,13 +57,10 @@ import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
-import { HERO_CAPACITY } from "@core/constants";
 import { jinnangCardOf } from "@core/jinnang";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { PileModal, type PileModalKind } from "./PileModal";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "./SkillGlossaryDialog";
-import { ATTR_ENTRY_D } from "./AttrIcon";
 import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
@@ -418,89 +413,21 @@ interface StackVars {
   spreadRight: number;
 }
 
-/** 入口图腾(#361):玉璧=珍宝 / 战盔=名将,几何吃 AttrIcon 的 ATTR_ENTRY_D 单源
- *  (2026-10-19 收编原逐字副本,中式化改版同步生效);漆金线稿绘制属性由 CSS
- *  (.rack-entry .tu svg)承担。 */
-function EntryIcon({ kind }: { kind: "gem" | "hero" }) {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true" focusable="false">
-      {ATTR_ENTRY_D[kind].map((d) => (
-        <path key={d} d={d} />
-      ))}
-    </svg>
-  );
-}
-
-/** 名将入口画心(#511 卡面 B 案):图腾位接太史慈立绘提案(S1 noname 小图变体,
- *  素材映射 docs/design/素材映射.md);断图/缺图回退战盔线稿(与 HeroCardFace 的
- *  Lihui 同「显式回退」口径)。纯装饰(aria-hidden 由 .tu 承担),不表达玩家数据。 */
-function HeroEntryArt() {
-  const [failed, setFailed] = useState(false);
-  if (failed) return <EntryIcon kind="hero" />;
-  return (
-    <img
-      className="hero-entry-art"
-      src="/assets/heroes/hero-taishici-noname-avatar.webp"
-      alt=""
-      onError={() => setFailed(true)}
-      draggable={false}
-    />
-  );
-}
-
-/** 牌架入口小件(#361,形制照 proto/treasure/r5.html 节一):漆金牌底+漆金描边+
- *  朱砂数量角标的漆木小件,右上悬垂计数,图腾线稿+毛笔品名。真 <button>(键盘可达;
- *  交互语义不自写,aria-haspopup 指向弹层)。count 即展示串(珍宝=N、名将=N/3),
- *  空陈列照常可开(空网格是业务空态)。 */
-function RackEntry({
-  testid,
-  label,
-  count,
-  icon,
-  onOpen,
-}: {
-  testid: string;
-  label: string;
-  count: string;
-  icon: ReactNode;
-  onOpen: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      data-testid={testid}
-      aria-label={`${label} ${count}`}
-      aria-haspopup="dialog"
-      onClick={onOpen}
-      className="rack-entry"
-    >
-      <span className="rack-entry-badge" aria-hidden="true">
-        <i>{count}</i>
-      </span>
-      <span className="tu" aria-hidden="true">
-        {icon}
-      </span>
-      <span className="pming" aria-hidden="true">
-        {label}
-      </span>
-    </button>
-  );
-}
-
-/** 屏幕下缘常驻漆木手牌架:架首竖排「锦囊手牌」章 + 手牌横排(空态斜放牌背)+
- *  右端双入口(#361);出牌阶段态(#256)下架即出牌面,反应窗态(#281)横幅挂架上缘+
- *  反应牌呼吸金边。 */
+/** 屏幕下缘手牌架(#238 一期 T3;#700 全浮层骨架改形:透明浮置、chrome 退役):
+ *  手牌横排(空态斜放牌背占位)——漆木条底/架首竖排章随仪表条一并退役(原型
+ *  席位侧列原型.html ①handzone:透明居中浮置,签面驻左端归 HandZone),藏品双入口
+ *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
+ *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边。
+ *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
 export function HandRack({ player, junshi, reaction }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
-  // 藏品弹层开合态(#361):null=全收;一次一层,点入口开、Esc/点外/X 关。
-  const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
   // 技能全览弹框开合态(#605):null=收;点技卡技名 chip 开,Esc/点外/X 关。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
   const mounted = player != null;
 
-  // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位卡)。
+  // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
   const targeting =
     junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
 
@@ -681,31 +608,6 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
       {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
           (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。 */}
       {reaction?.banner}
-      {/* 架首章:竖排漆金描边(纯装饰,架的可达名由 aria-label 承担) */}
-      <span aria-hidden="true" className="hand-rack-zhang">
-        <span>锦</span>
-        <span>囊</span>
-        <span>手</span>
-        <span>牌</span>
-      </span>
-      {/* 牌架双入口(#361):架右端并排「珍宝 N」「名将 N/3」,点谁开谁的层(弹层壳
-          与陈列归 PileModal,标题随入口)。计数即展示串,数据单源快照。 */}
-      <div className="hand-rack-entries">
-        <RackEntry
-          testid={TESTIDS.rackTreasures}
-          label="珍宝"
-          count={String(player.treasures.length)}
-          icon={<EntryIcon kind="gem" />}
-          onOpen={() => setPileModal("treasures")}
-        />
-        <RackEntry
-          testid={TESTIDS.rackHeroes}
-          label="名将"
-          count={`${player.heroes.length}/${HERO_CAPACITY}`}
-          icon={<HeroEntryArt />}
-          onOpen={() => setPileModal("heroes")}
-        />
-      </div>
       {renderCount > 0 ? (
         /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
             ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。 */
@@ -723,10 +625,6 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
       )}
       {detailId !== null && (
         <JinnangDetailSheet cardId={detailId} onClose={() => setDetailId(null)} />
-      )}
-      {/* 藏品弹层(#361):入口点开的「珍宝」/「名将」独立弹层,壳与陈列归 PileModal */}
-      {pileModal !== null && (
-        <PileModal kind={pileModal} player={player} onClose={() => setPileModal(null)} />
       )}
       {/* 技能全览弹框(#605):点技卡技名 chip 开,只读,关闭即清 */}
       <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />

@@ -1,9 +1,9 @@
-// 目标段选自己(自选目标拷问拍板):any 域主动技(华佗·赈济)的候选含自己,但席位栏
-// 结构性不出自己卡(#253「观战与自身不出卡」)——自己的候选面=仪表条身份区「你」印
-// 变身候选钮(GameScreen 从快照 choices 派生,与席位卡点击层同口径:金圈呼吸/实金停持/
-// 灰置印原因,testid 复用 seatTarget(seat) 族)。引擎侧 any 域放行自己已由
+// 目标段选自己(自选目标拷问拍板):any 域主动技(华佗·赈济)的候选含自己——#700
+// 起自选目标回归席位格单点(旧仪表条「你」印候选钮随仪表条退役):自机格的点击层
+// 即候选钮(GameScreen 从快照 choices 派生,与对手席同口径;候选金圈呼吸挂格、
+// 选中实金停持挂按钮,testid 复用 seatTarget(seat) 族)。引擎侧 any 域放行自己已由
 // test/hero-skill.test.ts 锁定;本 spec 只验交互接线,断言全走可见 UI 态(#305 口径,
-// 含自疗落账=仪表条体力刻度/现金大数);结算细则归 test/hero-skill.test.ts。
+// 含自疗落账=自机格体力色条/现金裸数);结算细则归 test/hero-skill.test.ts。
 // 种局同 react-jinnang-use.spec.ts 口径:seed 63 × 环游图,开局出牌阶段态=稳定停靠点,
 // 技/牌走 force 引擎直写;两例均在出牌阶段内收束,不推进回合、不赌自然骰。
 import { test, expect } from "./fixtures";
@@ -37,7 +37,7 @@ const HUATUO = `
   e.players[0].stamina = 50;
 `;
 
-test.describe("目标段选自己(仪表条身份区候选钮)", () => {
+test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 63);
     await force(page, HUATUO);
@@ -45,14 +45,15 @@ test.describe("目标段选自己(仪表条身份区候选钮)", () => {
     await expect(ji).toBeVisible();
     await ji.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 打出前基准:仪表条体力刻度 50(种局直写值)
-    const stamina = page.getByTestId(TESTIDS.dashStamina).locator(".hpbar em");
-    await expect(stamina).toHaveText("50");
-    // 目标段:自己候选钮就位(候选金圈呼吸),未选中时「选择目标」引导态禁用
+    // 打出前基准:自机格体力条宽 50%(种局直写值;#700 仪表条退役,格上体力=色条)
+    const staminaFill = page.getByTestId(TESTIDS.seatStamina(0)).locator(".strack i");
+    await expect(staminaFill).toHaveAttribute("style", /width:\s*50%/);
+    // 目标段:自机格点击层就位(候选金圈呼吸挂格,#700 席位格形态),未选中时
+    // 「选择目标」引导态禁用
     const selfBtn = page.getByTestId(TESTIDS.seatTarget(0));
     await expect(selfBtn).toBeVisible();
     await expect(selfBtn).toBeEnabled();
-    await expect(selfBtn).toHaveClass(/candidate/);
+    await expect(page.getByTestId(TESTIDS.seatSelf)).toHaveClass(/candidate/);
     const confirm = page.getByTestId(TESTIDS.actionbarTarget);
     await expect(confirm).toBeDisabled();
     // 点自己=选中(.picked 实金停持)→「出」点亮;再点=取消→回禁用;三点重选→打出
@@ -64,12 +65,12 @@ test.describe("目标段选自己(仪表条身份区候选钮)", () => {
     await expect(confirm).toBeDisabled();
     await selfBtn.click();
     await confirm.click();
-    // 打出:目标段收、技卡转灰置(冷却);自疗落账走可见 UI——仪表条体力 50→80、
-    // 现金大数 2,000→1,900(结算细则归 test/hero-skill.test.ts)
+    // 打出:目标段收、技卡转灰置(冷却);自疗落账走可见 UI——自机格体力条 50%→80%、
+    // 现金裸数 2000→1900(格上无千分位省「两」;结算细则归 test/hero-skill.test.ts)
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeHidden();
     await expect(ji.locator(".hface")).toHaveClass(/off/);
-    await expect(stamina).toHaveText("80");
-    await expect(page.getByTestId(TESTIDS.dashCash)).toContainText("1,900");
+    await expect(staminaFill).toHaveAttribute("style", /width:\s*80%/);
+    await expect(page.getByTestId(TESTIDS.seatCash(0))).toHaveText("1900");
   });
 
   test("军情密探(one 域):你印恒在但禁用,原因「不能指定自己」", async ({ page }) => {

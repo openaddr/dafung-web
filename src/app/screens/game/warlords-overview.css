@@ -1,0 +1,256 @@
+/* 诸侯总览弹窗样式(#702,spec #697 ⑥):原型 tmp/席位侧列原型.html ⑦ 诸侯总览弹窗
+   一节判决原样移植——十列 grid 行行对齐(列序:印/国号单名/现金/体力/牌数/城池 chips/
+   名将 chips/珍宝计数槽/声/委),黛青 cityslot/朱砂 hnslot/gemsq 计数槽/破产行灰化
+   (.dead)/自己行金描边(.self)/活跃方印金圈(.is-active)全按原型制式。弹层经
+   Portal 渲染在 body,.game-layout 罩不到——zl- 前缀防串扰(spop-/pile-/war- 先例
+   同款);色值几何以原型为准,原型 --g* 对射现役 token(对射表见 layout.css 头注):
+   gink→ink、ginkdim→ink-dim、ggold→gold、gcity→attr-city、gdanger→danger、gem→
+   attr-gem;ink/city/danger/gem 系 alpha 一律 color-mix(seat-pop.css 同款),
+   rgba(217,185,92,·) 金系裸色豁免沿 layout.css 文件头判词。
+   实装级偏差(功能/规则要求,非视觉自由发挥):
+   - 行距行高压缩(原型 .srow padding 6px 10px / margin 4px 0 → 3px 10px / 2px 0):
+     近全屏窗体受底件 max-h 86dvh 约束,矮横屏 390 高下满编 8 行必须零滚动零截断
+     (#702 AC),原型行距是独立网页面板排版、无此预算;
+   - 文案字体走 font-wenkai(chips 新文案,DESIGN §4.3 字体安全规约,原型的小薇禁新用);
+   - 名将槽=HERO_CAPACITY 单源(上限恒 3,空槽画空格);珍宝槽=max(3, 件数)——
+     原型 3 槽为示意,持有超过时槽位随之增多,计数槽不折断(零兜底:静默截断=谎报)。
+   【注意:注释内禁写「星号紧跟斜杠」的字符组合——等于提前闭合注释。】 */
+
+/* ── 壳:近全屏分板(原型 .score 制式:漆金边 .4 / 10px 圆角;纸面渐变底件自带)── */
+.zl.zl {
+  width: min(810px, calc(100vw - 28px));
+  padding: 8px 12px 10px;
+  border-radius: 10px;
+  border-color: rgba(217, 185, 92, 0.4);
+}
+
+/* ── 题名行(兼拖动把手):题名金字疏排 + 轮次 + 关闭(原型 .shead 制式)── */
+.zl .zl-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 4px 7px;
+  font-family: var(--font-wenkai);
+}
+.zl .zl-title.zl-title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.2em;
+  font-weight: 500;
+  color: var(--color-gold);
+}
+.zl .zl-round {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.zl .zl-close {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--color-ink-dim);
+  cursor: pointer;
+}
+.zl .zl-close:hover {
+  color: var(--color-ink);
+  border-color: var(--color-gold-bright);
+  transform: scale(1.02);
+}
+
+/* ── 十列行(原型 .srow 制式;列模板原样,行距压缩见文件头偏差注)── */
+.zl .zl-row {
+  display: grid;
+  grid-template-columns: 22px 84px 64px 48px 30px minmax(110px, 1fr) minmax(
+      92px,
+      1fr
+    ) 56px 26px 26px;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+  padding: 3px 10px;
+  margin: 2px 0;
+  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font-family: var(--font-wenkai);
+}
+/* 自己行:金描边 + 微亮底 + 左金条(原型 .srow.self 判决移植) */
+.zl .zl-row.self {
+  border-color: rgba(217, 185, 92, 0.5);
+  background: color-mix(in srgb, var(--color-lacquer) 60%, transparent);
+  box-shadow: inset 3px 0 0 var(--color-gold);
+}
+/* 破产行:照排灰化(原型 .srow.dead) */
+.zl .zl-row.dead {
+  opacity: 0.4;
+}
+
+/* 印:座位色 22×22(原型 .srow .pseal;--pc 由行内注入);活跃方金圈(原型
+   .srow.is-active .pseal,色即状态 §4.6 不加文字) */
+.zl .zl-seal {
+  width: 22px;
+  height: 22px;
+  border-radius: 3px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-title);
+  font-size: 13px;
+  line-height: 1;
+  background: color-mix(in srgb, var(--pc) 26%, var(--color-bg));
+  border: 1px solid var(--pc);
+  color: var(--pc);
+}
+.zl .zl-row.is-active .zl-seal {
+  box-shadow:
+    0 0 0 1.5px var(--color-gold),
+    0 0 8px rgba(217, 185, 92, 0.4);
+}
+/* 国号单名(原型 .nm) */
+.zl .zl-nm {
+  font-size: 12px;
+  color: var(--color-ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* 现金(两):裸数+小「两」(原型 .scash;gcash→attr-cash) */
+.zl .zl-cash {
+  font-size: 15px;
+  color: var(--color-attr-cash);
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.zl .zl-cash i {
+  font-style: normal;
+  font-size: 9px;
+  color: var(--color-ink-dim);
+}
+/* 体力条+值(原型 .sstamp:细轨 26px 定宽 + 裸值;濒耗竭转朱砂同格上口径) */
+.zl .zl-stamp {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--color-ink-dim);
+  font-variant-numeric: tabular-nums;
+}
+.zl .zl-track {
+  width: 26px;
+  flex: none;
+  height: 3px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  overflow: hidden;
+}
+.zl .zl-track i {
+  display: block;
+  height: 100%;
+  background: var(--color-success);
+}
+.zl .zl-track i.low {
+  background: var(--color-danger);
+}
+/* 牌/声/委数值列(原型 .sattr) */
+.zl .zl-attr {
+  font-size: 11px;
+  color: var(--color-ink-dim);
+  white-space: nowrap;
+  text-align: center;
+}
+.zl .zl-attr b {
+  color: var(--color-ink);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 城池列(真按钮,容器=chips 排布面):黛青 chips,超 3 折叠「+N」(原型
+   .citynames/.cityslot/.more)── */
+.zl .zl-cities {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+.zl .zl-cityslot {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--color-attr-city) 50%, transparent);
+  color: var(--color-attr-city);
+  background: color-mix(in srgb, var(--color-attr-city) 12%, transparent);
+}
+.zl .zl-cityslot.zl-more {
+  border-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  color: var(--color-ink-dim);
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+}
+.zl .zl-cities:hover .zl-cityslot {
+  border-color: var(--color-attr-city-bright);
+}
+
+/* ── 名将列:朱砂名 chips + 空槽画空格(原型 .heronames/.hnslot/.empty)── */
+.zl .zl-heroes {
+  min-width: 0;
+  display: flex;
+  gap: 4px;
+  overflow: hidden;
+}
+.zl .zl-hnslot {
+  flex: none;
+  font-size: 10px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  white-space: nowrap;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 50%, transparent);
+  color: var(--color-danger);
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+.zl .zl-hnslot.zl-empty {
+  min-width: 17px;
+  padding: 1px 0;
+  text-align: center;
+  border-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
+  color: var(--color-ink-dim);
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+}
+
+/* ── 珍宝计数槽:17×17 方槽,满槽「玉」(原型 .gemsq/.slot/.full;gem→attr-gem)── */
+.zl .zl-gems {
+  display: flex;
+  gap: 3px;
+}
+.zl .zl-slot {
+  width: 17px;
+  height: 17px;
+  border-radius: 3px;
+  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  display: grid;
+  place-items: center;
+  font-size: 10px;
+}
+.zl .zl-slot.zl-full {
+  border-color: color-mix(in srgb, var(--color-attr-gem) 60%, transparent);
+  color: var(--color-attr-gem);
+  background: color-mix(in srgb, var(--color-attr-gem) 14%, transparent);
+}

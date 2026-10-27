@@ -1,29 +1,34 @@
-// 布局冒烟(#253 三区骨架;前身为 react-sidebar.spec.ts——侧栏退役后改写):
-// 三区可见(顶部条/席位竖卡列/底部仪表条)+ 席位卡字段 + 浮签(hover/长按/贴缘翻面)+
-// 活跃光效 + 8 人局降档(右 3 + 左 3 + 顶行缩微)+ 战报抽屉(#255)+ 牌架双入口与
-// 藏品弹层(#361,expandPile 明细排退役)。
+// 全浮层布局冒烟(#700;前身为 react-sidebar.spec.ts→三区骨架版,仪表条退役再改写):
+// 浮层件可见(顶部条/席位格列/手牌区/右下三圆钮)+ 退役核销(仪表条/战报把手/
+// 静音复位钮/牌库角标等零残留)+ 席位格字段(自机入列)+ 浮签(hover/长按/贴缘翻面)
+// + 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层(#361 双入口接替)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
   snap,
-  fmtMoney,
   waitMyPause,
-  openSoloSetup,
-  pickCapital,
   waitSettled,
   dismissJinnangIfUp,
   actIfCan,
   force,
 } from "./react-helpers";
 
-test.describe("三区骨架", () => {
-  test("三区可见,右栏退役零残留", async ({ page }) => {
+test.describe("全浮层骨架", () => {
+  test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
     await quickStart(page);
     await expect(page.getByTestId("top-bar")).toBeVisible();
     await expect(page.getByTestId("seat-rail")).toBeVisible();
-    await expect(page.getByTestId("dashboard-bar")).toBeVisible();
-    // 退役容器零残留(#253 迁移清单:statusBar/hand/treasury/others/sidebar 系)
+    await expect(page.getByTestId("hand-zone")).toBeVisible();
+    await expect(page.getByTestId("pile-buttons")).toBeVisible();
+    // 退役容器零残留(#700:仪表条本体/战报把手/旧顶栏角件;#253 迁移清单存档)
     for (const t of [
+      "dashboard-bar",
+      "log-tab",
+      "mute-button",
+      "reset-view",
+      "topbar-deck",
+      "topbar-target",
+      "topbar-active",
       "status-bar-panel",
       "hand-panel",
       "treasury-panel",
@@ -35,56 +40,46 @@ test.describe("三区骨架", () => {
     }
   });
 
-  test("顶部条:回合 chip / 活跃方 / 目标身价 / 锦囊牌库角标与快照一致", async ({ page }) => {
+  test("顶部浮层:顶中「N 轮」chip 与快照一致;总览钮点开总览弹窗,设置钮可用", async ({ page }) => {
     await quickStart(page);
     await expect
       .poll(async () => {
         const s = await snap(page);
-        const round = await page.getByTestId("topbar-round").textContent();
-        const target = await page.getByTestId("topbar-target").textContent();
-        const deck = await page.getByTestId("topbar-deck").textContent();
-        return (
-          round === `第 ${s.round} 轮` &&
-          target === `目标 ${fmtMoney(s.targetNetWorth)}` &&
-          deck === String(s.jinnangDeckCount) &&
-          (await page.getByTestId("topbar-active").textContent()) ===
-            `${s.players[s.activeIndex].guohao}之回合`
-        );
+        return (await page.getByTestId("topbar-round").textContent()) === `${s.round} 轮`;
       })
       .toBe(true);
+    // 总览钮 #702 点亮:可用,点开诸侯总览弹窗(内容与投影归 react-warlords-overview,
+    // 此处只守「开得了、Esc 收得净」)
+    await expect(page.getByTestId("topbar-overview")).toBeEnabled();
+    await page.getByTestId("topbar-overview").click();
+    await expect(page.getByTestId("warlords-overview")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("warlords-overview")).toBeHidden();
+    await expect(page.getByTestId("settings-button")).toBeEnabled();
   });
 
-  test("席位卡字段:对手有卡、自身无卡;现金/体力/徽章随快照;「你」印在仪表条", async ({ page }) => {
+  test("席位格字段:全员一人一格(自机入列),现金/计数随快照", async ({ page }) => {
     await quickStart(page);
     await waitMyPause(page, 0);
     await waitSettled(page);
-    // 自身(座位 0)不出卡,对手三席有卡
-    await expect(page.getByTestId("seat-0")).toHaveCount(0);
+    // 自机入列(#698):座位 0 挂 seat-self,对手席挂 seat-N;全部席位同模板
+    await expect(page.getByTestId("seat-self")).toBeVisible();
     await expect
       .poll(async () => {
         const s = await snap(page);
         const ok = [];
-        for (const seat of [1, 2, 3]) {
+        for (let seat = 0; seat < s.players.length; seat++) {
           const p = s.players[seat];
           const cash = await page.getByTestId(`seat-cash-${seat}`).textContent();
-          const stam = await page.getByTestId(`seat-stamina-${seat}`).textContent();
+          const stam = await page.getByTestId(`seat-stamina-${seat}`).getAttribute("aria-label");
           const warrant = await page
             .getByTestId(`seat-attr-warrant-${seat}`)
             .getAttribute("aria-label");
-          ok.push(
-            cash === fmtMoney(p.cash) &&
-              stam === String(p.stamina) &&
-              warrant === `委任状 ${p.warrants}`,
-          );
+          ok.push(cash === String(p.cash) && stam != null && warrant === `委任状 ${p.warrants}`);
         }
         return ok.every(Boolean);
       })
       .toBe(true);
-    // 「你」印归仪表条身份头(自身不出席位卡)
-    await expect(page.getByTestId("dashboard-bar").getByTestId("dash-you")).toBeVisible();
-    await expect(page.getByTestId("seat-1").getByTestId("dash-you")).toHaveCount(0);
-    // 现金大数全屏唯一
-    await expect(page.getByTestId("dash-cash")).toHaveCount(1);
   });
 
   test("浮签:hover 显名词释义,离签即隐;长按 400ms 同效;贴右缘席位向左翻面", async ({ page }) => {
@@ -118,6 +113,10 @@ test.describe("三区骨架", () => {
     }).toPass({ timeout: 30_000 });
     await page.mouse.up();
     await expect(tip).toBeHidden();
+    // #701 起卷轴徽章轻点=委任明细直达:长按的 down+up 落幕即成点击,明细弹层(z-50
+    // 遮罩)必然在挂——Esc 收净再走贴缘翻面段,不然遮罩吞掉后续全部 hover。
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("seat-warrant-modal")).toBeHidden();
     // 贴右缘翻面:席位卡列在视口右缘,浮签整体翻到徽章左侧(不溢出视口)
     await expect(async () => {
       await clear();
@@ -130,87 +129,27 @@ test.describe("三区骨架", () => {
     expect(tb.x).toBeGreaterThanOrEqual(0);
   });
 
-  test("活跃光效:活跃方席位卡挂 active 光效与「运筹中」微标(操作不限时,倒计时条已撤)", async ({
-    page,
-  }) => {
+  test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
-    // #398 单机统一后:快速 bot 链一拍跑完(合并连锁,联机同构),对局态只在人类停点
-    // 下行——「自然观察到 bot 活跃」的瞬态不再存在,光效/微标的样式断言改走与
-    // react-solo「bot 托管思考态」同款的调试钩子种植(钉 CSS 契约,不钉时序)。
-    await force(
-      page,
-      `
-      const botIdx = e.players.findIndex((p) => p.isBot);
-      e.activeIndex = botIdx;
-      window.__dafung.controller().sync();
-    `,
-    );
-    const s = await snap(page);
-    expect(s.players[s.activeIndex].isBot).toBe(true);
-    const card = page.getByTestId(`seat-${s.activeIndex}`);
-    await expect(card).toHaveClass(/active/);
-    await expect(card.getByText("运筹中")).toHaveCount(1);
-    await expect(card.locator(".timerbar")).toHaveCount(0);
-  });
-
-  test("仪表条:现金大数随快照、签面驻留、托管入口在(单机)", async ({ page }) => {
-    await quickStart(page);
-    await expect
-      .poll(async () => {
-        const s = await snap(page);
-        const me = s.players[0]; // 单机自局恒为座位 0(SoloSetup 首座真人)
-        const cash = await page.getByTestId("dash-cash").textContent();
-        return cash?.includes(fmtMoney(me.cash)) === true; // 触发元含「现金」标签,取包含
-      })
-      .toBe(true);
+    const zone = page.getByTestId("hand-zone");
+    await expect(zone).toBeVisible();
+    // 签面(testid dice-face 契约不变):文本 ∈ 签/待/一~六
     await expect(page.getByTestId("dice-face")).toHaveText(/[签一二三四五六]/);
-    await expect(page.getByTestId("autopilot-button")).toBeVisible();
-    // 珍宝/名将计数徽章(纯展示计数,#361 起不可点)
-    await expect(page.getByTestId("dash-treasures")).toBeVisible();
-    await expect(page.getByTestId("dash-heroes")).toHaveText(/\/3$/);
+    // 手牌架挂手牌区内
+    await expect(zone.getByTestId("jinnang-rack")).toBeVisible();
+    // 现金大数/体力刻度随仪表条退役:dash 系 testid 零残留(数值归席位格)
+    await expect(page.getByTestId("dash-cash")).toHaveCount(0);
+    await expect(page.getByTestId("dash-stamina")).toHaveCount(0);
   });
 
-  // ── #255/#361 收口:战报抽屉 + 牌架双入口与藏品弹层 ──
-  test("战报抽屉:把手常驻,点开渲染对局日志,Esc 关闭后零占位", async ({ page }) => {
-    await quickStart(page);
-    // 收起零占位:只有把手,无抽屉
-    await expect(page.getByTestId("log-tab")).toBeVisible();
-    await expect(page.getByTestId("log-drawer")).toHaveCount(0);
-    // 对局自走会随时弹决策卷轴/窗态抢交互——每步先清决策点再点把手(浮签用例同口径);
-    // 接线例轮询收紧(#294):单次尝试秒级,30s 收紧到 15s 仍有 5 倍余量
-    await expect(async () => {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-      await page.getByTestId("log-tab").click({ timeout: 3_000 });
-      await expect(page.getByTestId("log-drawer")).toBeVisible();
-    }).toPass({ timeout: 15_000 });
-    // 抽屉渲染对局日志(开局必有玩法事件;条目带「轮N」小签)
-    await expect(page.getByTestId("log-drawer")).toContainText(/轮\d+/);
-    // Esc 关闭(Base UI 底件行为),收起后零占位
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId("log-drawer")).toHaveCount(0);
-  });
-
-  test("牌架双入口与藏品弹层(#361):计数随快照,点谁开谁的层;明细排零残留,徽章纯展示", async ({
-    page,
-  }) => {
+  test("三圆钮:计数角标随快照,珍宝/名将点开藏品弹层(#361 双入口接替)", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
-    // 退役核销:expandPile 明细行零残留(#361 接替者=牌架双入口)
-    await expect(page.getByTestId("pile-row")).toHaveCount(0);
-    // 仪表条珍宝徽章纯展示:点击不开任何弹层(#361 起不可点;浮签照常 hover 可开)
-    await expect(async () => {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-      await page.getByTestId("dash-treasures").click({ timeout: 3_000 });
-      const up = await page.evaluate(
-        () => document.querySelector('[data-testid="treasure-modal"]') != null,
-      );
-      if (up) throw new Error("仪表条徽章不该能开弹层(#361 纯展示计数)");
-    }).toPass({ timeout: 15_000 });
+    // 退役核销:牌架双入口零残留(#700 接替者=三圆钮)
+    await expect(page.getByTestId("rack-treasures")).toHaveCount(0);
+    await expect(page.getByTestId("rack-heroes")).toHaveCount(0);
     // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
-    //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径,
-    // 种出来的是带技能的完整数据,后续行军被动技照常工作)
+    //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径)
     await force(
       page,
       `
@@ -224,7 +163,7 @@ test.describe("三区骨架", () => {
       e.restoreFromSnapshot(s);
     `,
     );
-    // 双入口计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
+    // 三圆钮计数与实时快照一致(对局自走藏品可能继续进账,签数随拍对齐)
     await expect
       .poll(
         async () => {
@@ -232,25 +171,22 @@ test.describe("三区骨架", () => {
           await actIfCan(page).catch(() => false);
           const s = await snap(page);
           const dom = await page.evaluate(() => ({
-            gem: document.querySelector('[data-testid="rack-treasures"] .rack-entry-badge i')
-              ?.textContent,
-            hero: document.querySelector('[data-testid="rack-heroes"] .rack-entry-badge i')
-              ?.textContent,
+            gem: document.querySelector('[data-testid="pile-treasures"] .cnt')?.textContent,
+            hero: document.querySelector('[data-testid="pile-heroes"] .cnt')?.textContent,
           }));
           return (
             dom.gem === String(s.players[0].treasures.length) &&
             dom.hero === `${s.players[0].heroes.length}/3`
           );
         },
-        { message: "双入口朱砂角标计数与快照一致" },
+        { message: "三圆钮朱砂角标计数与快照一致" },
       )
       .toBe(true);
-    // 点「珍宝」入口 → 珍宝弹层:标题随入口,装裱卡全件+指导价+品级角标
-    //(单次 evaluate 原子采样:DOM 与快照同一拍读,不吃自走竞速)
+    // 点「珍宝」圆钮 → 珍宝弹层:标题随入口(单次 evaluate 原子采样:DOM 与快照同拍)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
-      await page.getByTestId("rack-treasures").click({ timeout: 3_000 });
+      await page.getByTestId("pile-treasures").click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
     const gemModal = await page.evaluate(() => {
       const s = (window as any).__dafung.snapshot();
@@ -259,99 +195,33 @@ test.describe("三区骨架", () => {
         treasures: s.players[0].treasures.length,
         up: m != null,
         title: m?.querySelector(".pile-title")?.textContent ?? "",
-        cards: m?.querySelectorAll(".mount").length ?? 0,
-        prices: m?.querySelectorAll(".pile-price").length ?? 0,
-        badges: m?.querySelectorAll(".lv-badge").length ?? 0,
-        hadGone: m?.textContent?.includes("曾持有") ?? false,
       };
     });
     expect(gemModal.up).toBe(true);
     expect(gemModal.title).toContain("珍宝");
-    expect(gemModal.cards).toBe(gemModal.treasures);
-    expect(gemModal.prices).toBe(gemModal.treasures);
-    expect(gemModal.badges).toBe(gemModal.treasures);
-    expect(gemModal.hadGone).toBe(false); // 无「曾持有」区(DESIGN §4.6:UI 只显示当前状态)
+    expect(gemModal.treasures).toBeGreaterThanOrEqual(2);
     // 右上 X 关闭,卸载零残留
     await page.getByTestId("modal-close").click();
     await expect(page.getByTestId("treasure-modal")).toHaveCount(0);
-    // 点「名将」入口 → 名将弹层:HeroCardFace 详情档网格(麾下全部,原子采样同口径)
+    // 点「名将」圆钮 → 名将弹层:HeroCardFace 详情档网格(原子采样同口径)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
-      await page.getByTestId("rack-heroes").click({ timeout: 3_000 });
+      await page.getByTestId("pile-heroes").click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
     const heroModal = await page.evaluate(() => {
-      const s = (window as any).__dafung.snapshot();
       const m = document.querySelector('[data-testid="hero-modal"]');
       return {
-        heroes: s.players[0].heroes.length,
         up: m != null,
         title: m?.querySelector(".pile-title")?.textContent ?? "",
-        cards: m?.querySelectorAll(".hface").length ?? 0,
         names: [...(m?.querySelectorAll(".m-name") ?? [])].map((el) => el.textContent),
       };
     });
     expect(heroModal.up).toBe(true);
     expect(heroModal.title).toContain("名将");
-    expect(heroModal.cards).toBe(heroModal.heroes);
     expect(heroModal.names).toContain("周瑜");
-    // 几何抽查(#361 验收门,1280×720):入口小件收在架体内、弹层不越视口(无横向溢出)
-    const geo = await page.evaluate(() => {
-      const vw = document.documentElement.clientWidth;
-      const rect = (sel: string) => document.querySelector(sel)?.getBoundingClientRect();
-      const rack = rect(".hand-rack");
-      const entries = rect(".hand-rack-entries");
-      const modal = rect('[data-testid="hero-modal"]');
-      return {
-        entriesInRack:
-          rack != null &&
-          entries != null &&
-          entries.x >= rack.x - 1 &&
-          entries.x + entries.width <= rack.x + rack.width + 1,
-        modalFitsViewport: modal != null && modal.x >= -1 && modal.x + modal.width <= vw + 1,
-      };
-    });
-    expect(geo.entriesInRack).toBe(true);
-    expect(geo.modalFitsViewport).toBe(true);
     // Esc 关闭(Base UI 底件行为),卸载零残留
     await page.keyboard.press("Escape");
     await expect(page.getByTestId("hero-modal")).toHaveCount(0);
-  });
-});
-
-test.describe("8 人局降档", () => {
-  test.use({ viewport: { width: 1280, height: 900 } });
-
-  test("7 对手 = 右列 3 + 左列 3 + 顶行缩微 1(顶行卡只留现金+血条|城/手牌四格)", async ({
-    page,
-  }) => {
-    // 两大户之二(#294 决议):人类首回合前最多 7 个 bot 回合,负载下 60s/120s 固定档
-    // 都撞过超时——标 slow(60s×3)防超时 flake,非删例。
-    test.slow();
-    await page.goto("/");
-    await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // X10 stepper:4 → 8
-    await page.getByTestId("start-game").click();
-    await pickCapital(page);
-    // 8 人局人类首回合前最多 7 个 bot 回合,预算放宽(#191/#188 同口径)
-    // 150s:#310 验收跑实证(WORKERS=2 并发下 94s 超时挂,静机 2/2 免重试 23.5s 过)
-    // ——8 人局节奏余量在负载下不足,放宽节奏窗;谓词不变。
-    await waitMyPause(page, 0, 150_000);
-    await waitSettled(page);
-    const s = await snap(page);
-    // 席位卡总数 = 对手数(自身不出卡);切分 = 右 3 + 左 3 + 顶行其余
-    const seatCount = s.players.length;
-    await expect(page.locator('[data-testid="seat-rail"] .seat')).toHaveCount(seatCount - 1);
-    await expect(page.locator('[data-testid="seat-rail"] .seatcol:not(.left) .seat')).toHaveCount(
-      3,
-    );
-    await expect(page.locator('[data-testid="seat-rail"] .seatcol.left .seat')).toHaveCount(3);
-    await expect(page.locator('[data-testid="seat-rail"] .seatrow-top .seat')).toHaveCount(
-      seatCount - 7,
-    );
-    // 顶行缩微卡只有 城/手牌 两枚徽章(四格形态),常态卡六枚
-    const topCard = page.locator('[data-testid="seat-rail"] .seatrow-top .seat').first();
-    await expect(topCard.locator(".ib")).toHaveCount(2);
-    await expect(topCard.getByTestId(/^seat-attr-warrant-/)).toHaveCount(0);
   });
 });

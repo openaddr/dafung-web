@@ -29,17 +29,21 @@ test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
   await quickStart(page);
   const svg = page.locator("#board");
   const vb0 = await svg.getAttribute("viewBox");
-  // 找一个非城池的空白点作平移起点(避免点中城池/角落控制钮——pan/zoom 监听在
-  // svg 上,从按钮起拖的事件到不了 svg,viewBox 不会动)
+  // 找一个非城池的空白点作平移起点。空白=事件真落棋盘:命中元素必须在 #board 内
+  // 且非城池/按钮——压在棋盘上的浮层(#700 顶钮容器 .topbtns pointer-events:auto
+  // 盖住左上角)旧判据 closest(".bv-tile, button") 挡不住,起手事件被浮层吞掉,
+  // svg 零事件、viewBox 纹丝不动(W4 实锤)。
   const bg = await page.evaluate(() => {
     const b = document.querySelector("#board")!.getBoundingClientRect();
+    const svg = document.querySelector("#board")!;
     for (let y = 8; y < b.height; y += 24) {
       for (let x = 8; x < b.width; x += 24) {
         const el = document.elementFromPoint(b.left + x, b.top + y);
-        if (!el || !el.closest(".bv-tile, button")) return { x: b.left + x, y: b.top + y };
+        if (el && svg.contains(el) && !el.closest(".bv-tile, button"))
+          return { x: b.left + x, y: b.top + y };
       }
     }
-    return { x: b.left + 10, y: b.top + 10 };
+    throw new Error("棋盘全格无非城池空白点(命中不在 #board 内即浮层盖死)——布局或判据崩");
   });
   await page.mouse.move(bg.x, bg.y);
   await page.mouse.down();

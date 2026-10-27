@@ -4,8 +4,12 @@
 // lobbyView 即 /room/new·join 响应体,UI 层不再重复守传输契约;本文件只守托管行为 UI。
 // #580 托管归一:单节拍 2s/步(权威节奏不吃 E2E_TIME_SCALE),无速度分档可切;
 // 轮询超时一律按「步数×2s」富余给。
+// #700/#701 通路改写:托管钮(autopilot-button)随仪表条退役,开关迁自机格 tap 单人
+// 格弹层(SeatPopModal 托管行,Base UI Switch,态=aria-checked);行为语义=ADR-0028
+// 单一托管开关(接管=自动托管),断言意图原样平移。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 // 联机对局依赖真实 WS 广播时序,与其他高负载 spec 并行时易抖:
 // 本文件串行执行,降低双端 + 服务器的并发压力。
@@ -56,6 +60,22 @@ async function coreState(p: Page) {
   });
 }
 
+/** 开/关本端托管(#701 通路):tap 自机格开单人格弹层 → 拨托管开关 → Esc 关层。
+ *  格 tap 一律 DOM 直派 click(react-seat-pop 列首遮挡同款:决策卷轴 z-30 全屏遮罩
+ *  在挂时真点击会被吞,直派照进真实 React onClick;弹层 z-50 恒在卷轴上,开关真点击
+ *  可达)。开关态=aria-checked(useAutopilotOn 广播回读,与引擎 autoPilotOn 同源):
+ *  点前读态、点后轮询确认生效——旧钮「未生效则补点」结构随状态可读而退役,迟到广播
+ *  不再有双击翻转窗口(TODO #13 同因)。 */
+async function setAutopilot(page: Page, seat: number, on: boolean) {
+  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
+  const sw = page.getByTestId(TESTIDS.seatPopAutopilot(seat));
+  await expect(sw).toBeVisible({ timeout: 10_000 });
+  if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
+  await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId(TESTIDS.seatPop(seat))).toBeHidden({ timeout: 5_000 });
+}
+
 test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有界断言,#580)", async ({ browser }) => {
   // #580 单节拍 2s/步:整局分钟级,本例**不骑终局**——有界断言:双端开托管 → 等推进 →
   // host 中途收回(按钮复位 + 推进停驻)→ 重开 → 推进恢复。「两端胜者一致」由 bun 层
@@ -64,10 +84,8 @@ test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有
   const [host, guest] = await twoClients(browser);
   try {
     // 两端都开托管:Setup 由托管代选
-    for (const c of [host, guest]) {
-      await expect(c.getByTestId("autopilot-button")).toBeVisible({ timeout: 10_000 });
-      await c.getByTestId("autopilot-button").click();
-    }
+    await setAutopilot(host, 0, true);
+    await setAutopilot(guest, 1, true);
     // 轮询等推进:进 Playing(选都 2 步 ≈ 4s;超时按步数×2s 富余给)
     await expect
       .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
@@ -83,9 +101,8 @@ test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有
         message: "托管推进中(turnNumber 前进)",
       })
       .toBeGreaterThan(turnAtPlaying);
-    // 中途收回 host 托管:生效广播回读按钮复位「托管」
-    await host.getByTestId("autopilot-button").click();
-    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 15_000 });
+    // 中途收回 host 托管:生效广播回读开关复位(aria-checked=false)
+    await setAutopilot(host, 0, false);
     // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点;
     // guest 仍托管,其当前回合收尾后才轮到 host——轮询窗按步数×2s 富余给)
     await expect
@@ -107,8 +124,9 @@ test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有
     expect(frozen.phase).toBe("Playing");
     await host.waitForTimeout(3_000);
     expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
-    // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)
-    await host.getByTestId("autopilot-button").click();
+    // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)。停点决策卷轴在挂不碍事:
+    // 格 tap 直派穿遮罩,托管接管后已挂决策由托管代发(与旧钮同通路)。
+    await setAutopilot(host, 0, true);
     await expect
       .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
         timeout: 60_000,
@@ -120,96 +138,20 @@ test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有
   }
 });
 
-test("托管收回:按钮复位,轮到自己时行军恢复可用", async ({ browser }) => {
+test("托管收回:开关复位,轮到自己时行军恢复可用", async ({ browser }) => {
   // #580 单节拍后本例定式保留:guest 开托管(2s/步爬行,对局绝无跑飞之虞),host 开
   // 托管后**立即**收回(仍在 Setup);收回后 host=真人决策门,对局必停在 human-turn。
   test.setTimeout(150_000);
   const [host, guest] = await twoClients(browser);
   try {
     // guest 开托管(对局发动机;单节拍 2s/步,保收回窗口与后继行军观察的从容)
-    await guest.getByTestId("autopilot-button").click();
-    let guestOn = false;
-    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
-    await expect
-      .poll(
-        async () => {
-          guestOn = await guest
-            .getByTestId("autopilot-button")
-            .textContent()
-            .then((t) => t === "收回")
-            .catch(() => false);
-          return guestOn;
-        },
-        { timeout: 10_000, intervals: [500] },
-      )
-      .toBe(true)
-      .catch(() => {});
-    if (
-      !guestOn &&
-      (await guest
-        .getByTestId("autopilot-button")
-        .textContent()
-        .catch(() => "")) !== "收回"
-    ) {
-      await guest.getByTestId("autopilot-button").click();
-    }
-    // host 开托管 → 随即收回(TODO #13:生效广播可迟到,过早补点会双击翻转——
-    // 轮询窗 10s 逐拍复查 + 补点前即时复查,把翻转窗口压到一次读取内。guest
-    // 2s/步爬行兜底:即便生效迟到十余秒,对局也只前进数步)
-    await host.getByTestId("autopilot-button").click();
-    let on = false;
-    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
-    await expect
-      .poll(
-        async () => {
-          on = await host
-            .getByTestId("autopilot-button")
-            .textContent()
-            .then((t) => t === "收回")
-            .catch(() => false);
-          return on;
-        },
-        { timeout: 10_000, intervals: [500] },
-      )
-      .toBe(true)
-      .catch(() => {});
-    if (
-      !on &&
-      (await host
-        .getByTestId("autopilot-button")
-        .textContent()
-        .catch(() => "")) !== "收回"
-    ) {
-      await host.getByTestId("autopilot-button").click();
-    }
-    // 收回(同样带「未生效则补点」结构)→ 按钮复位「托管」
-    await host.getByTestId("autopilot-button").click();
-    let off = false;
-    // 生效广播轮询(10s×500ms,与原手写循环同参);超时后走下方补点兜底,不视为失败
-    await expect
-      .poll(
-        async () => {
-          off = await host
-            .getByTestId("autopilot-button")
-            .textContent()
-            .then((t) => t === "托管")
-            .catch(() => false);
-          return off;
-        },
-        { timeout: 10_000, intervals: [500] },
-      )
-      .toBe(true)
-      .catch(() => {});
-    if (
-      !off &&
-      (await host
-        .getByTestId("autopilot-button")
-        .textContent()
-        .catch(() => "")) !== "托管"
-    ) {
-      await host.getByTestId("autopilot-button").click();
-    }
-    await expect(host.getByTestId("autopilot-button")).toHaveText("托管", { timeout: 15_000 });
+    await setAutopilot(guest, 1, true);
+    // host 开托管 → 随即收回(TODO #13:生效广播可迟到——开关点前读态 + 点后生效
+    // 轮询把翻转窗口压到一次读取内,旧「补点」结构随旧钮退役;guest 2s/步爬行兜底:
+    // 即便生效迟到十余秒,对局也只前进数步)
+    await setAutopilot(host, 0, true);
+    // 收回(setAutopilot 内已轮询确认开关复位 aria-checked=false)
+    await setAutopilot(host, 0, false);
     // L41:收回 = 自己决策,选都也不例外——host 在自己选都前收回,服务器停在 Setup 等
     // host 手选(guest 仍托管,由服务器代选)。轮询体内代 host 点候选城 + 确认。
     // (若收回前 host 的托管恰好已代选完,phase 直达 Playing,循环体一次不进,同样成立。)

@@ -12,7 +12,6 @@ import {
   force,
   snap,
   actIfCan,
-  fmtMoney,
   waitForSnapChanged,
   openSoloSetup,
   pickCapital,
@@ -40,24 +39,23 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
   expect(s.isOver).toBe(false);
 });
 
-test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步(#253 迁移)", async ({
+test("席位格同步:自机格现金/委任与引擎快照停靠态同步(#253 迁移;#700 仪表条退役)", async ({
   page,
 }) => {
   await quickStart(page);
-  // 三比对只在活跃方=人类的停靠态可满足:单机热座 viewSeat 跟随决策方,bot 回合
-  // dash-cash 显示的是 bot 的现金、topbar 是 bot 之回合(开局全员同现金时 bot 采样
-  // 碰巧全真——正是本用例史上「快机器过、CI 必挂」假象的另一半)。#188 行军自动化后
-  // 人类窗口隔一整圈 bot 链才重现,先 waitMyPause(30s 预算)等停靠再比对,断言意图
-  // 不变:同一时刻 UI 与快照同步。
-  // #253 迁移:hand-cash→dash-cash、status-guohao→topbar-active、状态卡 meta 的
-  // 活跃方委任→活跃席位卡徽章 aria(身价列随右栏退役不再呈现,断言随之收敛)。
+  // 比对只在活跃方=人类的停靠态可满足:单机热座 viewSeat 跟随决策方,bot 回合
+  // 自机格现金随 viewSeat 走 bot 的账(开局全员同现金时采样碰巧全真——正是本用例
+  // 史上「快机器过、CI 必挂」假象的另一半)。#188 行军自动化后人类窗口隔一整圈
+  // bot 链才重现,先 waitMyPause(30s 预算)等停靠再比对,断言意图不变:同一时刻
+  // UI 与快照同步。
+  // #253 迁移:hand-cash→dash-cash;#700 再迁:dash-cash→自机格现金(格上裸数无
+  // 千分位)、活跃方字条退役(指名由席位格金圈呼吸承担)、「你」印→自机格金样式。
   await waitMyPause(page, 0);
   // 谓词采样必须单次 evaluate 原子完成,禁用裸 locator 读:①多往返在自走对局里跨状态
-  // 采样;②warrant-活跃席在人类停靠态按设计不存在(自身回合无席位卡),locator 读缺失
-  // 元素会挂等到测试超时而非立刻抛——.catch 接不到,轮询必烧穿(CI #269 两挂的真根因:
-  // 开局全员同现金时 bot 回合采样可碰巧全真、快机器抢先过关;现金一分化只剩人类窗口
-  // 可真,而窗口内恰挂死)。#253 迁移:hand-cash→dash-cash、status-guohao→topbar-active、
-  // 状态卡 meta 活跃方委任→活跃席位卡徽章 aria(身价列随右栏退役不再呈现,断言随之收敛)。
+  // 采样;②locator 读缺失元素会挂等到测试超时而非立刻抛——.catch 接不到,轮询必烧穿
+  // (CI #269 两挂的真根因:开局全员同现金时 bot 回合采样可碰巧全真、快机器抢先过关;
+  // 现金一分化只剩人类窗口可真,而窗口内恰挂死)。#698 自机入列后自机格恒在场,
+  // 委任徽章谓词随之收紧(旧 null 宽松分支随「活跃席无卡」形态退役)。
   await expect
     .poll(
       async () => {
@@ -67,27 +65,20 @@ test("三区数据一致:仪表条现金/顶部条活跃方/席位卡委任与�
           const active = s.players[s.activeIndex];
           return {
             meCash: s.players[0].cash,
-            activeGuohao: active.guohao,
             activeWarrants: active.warrants,
-            cash: q("dash-cash")?.textContent ?? "",
-            chip: q("topbar-active")?.textContent ?? "",
+            cash: q("seat-cash-0")?.textContent ?? "",
             warrant: q(`seat-attr-warrant-${s.activeIndex}`)?.getAttribute("aria-label") ?? null,
           };
         });
-        return (
-          r.cash.includes(fmtMoney(r.meCash)) &&
-          r.chip === `${r.activeGuohao}之回合` &&
-          (r.warrant === null || r.warrant === `委任状 ${r.activeWarrants}`)
-        );
+        return r.cash === String(r.meCash) && r.warrant === `委任状 ${r.activeWarrants}`;
       },
-      { timeout: 15_000, message: "仪表条现金/顶部条活跃方/席位卡委任与引擎快照同步" },
+      { timeout: 15_000, message: "自机格现金/委任与引擎快照同步" },
     )
     .toBe(true);
-  // 席位卡列与仪表条就位(结构性,不随推进变化;#253:treasury/others 容器退役)
-  await expect(page.getByTestId("dashboard-bar")).toBeVisible();
+  // 席位格列就位,自机格在列(结构性,不随推进变化;#253:treasury/others 容器退役;
+  // #700:「你」印随仪表条退役,自机识别=自机格金样式)
   await expect(page.getByTestId("seat-rail")).toBeVisible();
-  // 「你」印挂在仪表条身份头(前置 waitMyPause 已停稳在人类回合,viewSeat=0)
-  await expect(page.getByTestId("dashboard-bar").getByTestId("dash-you")).toBeVisible();
+  await expect(page.getByTestId("seat-self")).toBeVisible();
 });
 
 // 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章;

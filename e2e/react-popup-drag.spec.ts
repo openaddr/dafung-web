@@ -46,7 +46,7 @@ test("底件系弹窗题名拖动:拖离减淡、拖回吸附复原(#674)", asyn
   for (let i = 0; i < 10 && (await actIfCan(page)); i++);
   await freezeClock(page);
   try {
-    await page.getByTestId(TESTIDS.dashAttr("city")).click();
+    await page.getByTestId(TESTIDS.seatAttr(0, "city")).click();
     const modal = page.getByTestId(TESTIDS.cityLedger);
     await expect(modal).toBeVisible();
     await waitAnimationsSettled(modal);

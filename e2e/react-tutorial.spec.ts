@@ -82,7 +82,12 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
     window.__dafung.controller().sync();
   `,
   );
-  // 「托管」入口在手牌区
-  await expect(page.getByTestId("autopilot-button")).toBeVisible();
+  // 「托管」入口在自机格弹层(#701;教程文档「点右缘自己的席位格开单人格弹层拨托管
+  //  开关」的机器层):格 tap DOM 直派(列首格被顶栏角钮带遮挡,react-seat-pop 同款),
+  // 开关行仅自机格弹层渲染;Esc 收净再收尾
+  await page.getByTestId("seat-self").dispatchEvent("click");
+  await expect(page.getByTestId("seat-pop-autopilot-0")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("seat-pop-0")).toBeHidden();
   await waitSettled(page);
 });

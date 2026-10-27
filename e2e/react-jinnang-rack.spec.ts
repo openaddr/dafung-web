@@ -202,14 +202,23 @@ test.describe("锦囊 T3:底部手牌架", () => {
 });
 
 test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
-  // 牌面像素宽 = 15em × 7.6px 槽位档 = 114px(原型 --cw 同值);断言留 ±1px 量测余量。
-  const CARD_W = 114;
+  // 牌面像素宽 = 15em × 架体 em 基,现场量测(HandRack.tsx 叠加公式同款口径:
+  // CARD_WIDTH_EM × computed font-size,桌面 8px 基 → 120px)。旧常量 114(15×7.6
+  // 仪表条槽位档)是写死的第二事实源——#700 手牌区改形后架体 em 基 8px,9 张窥条
+  // 118 < 120 真在叠,旧常量反把「真在叠」错判成全展(W4 实锤)。断言留 ±1px 量测余量。
+  const cardWidth = (page: Page): Promise<number> =>
+    page.evaluate(() => {
+      const rack = document.querySelector(".hand-rack");
+      if (!rack) throw new Error("手牌架不在 DOM:无法量测牌面 em 基");
+      return 15 * parseFloat(getComputedStyle(rack).fontSize);
+    });
 
   test("9 张(8 种+重复)叠加:每张露等宽窥条且牌名可辨,末张全宽,行不出架", async ({ page }) => {
     // 停车坪等一轮 bot + 发牌级联落定,内部预算 90s > 60s 默认档——W2 负载下标 slow
     // 防超时 flake(#294 同款「标 slow 防超时,非删」,2026-09-28 全量实证)。
     test.slow();
     await rackStandstill(page, NINE_CARDS);
+    const CARD_W = await cardWidth(page);
     const { cards, row, rack } = await rackGeometry(page);
     expect(cards).toHaveLength(9);
     // 行总宽收进架体(叠加压缩的目的:可用宽内装下任意张数)
@@ -244,6 +253,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   test("3 张全展不叠:相邻牌间留正间隙(一期形态)", async ({ page }) => {
     test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
     await rackStandstill(page, ["连环计", "军情密探", "缓兵之计"]);
+    const CARD_W = await cardWidth(page);
     const { cards } = await rackGeometry(page);
     expect(cards).toHaveLength(3);
     // 不挂 .many(≤3 全展分支);几何上相邻牌左缘距离 ≥ 全宽,且留正间隙(gap 3em ≈ 23px)
@@ -258,6 +268,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   test("hover 挥出全显:悬停牌上浮放大、邻牌两侧让位,移出回落", async ({ page }) => {
     test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
     await rackStandstill(page, NINE_CARDS);
+    const CARD_W = await cardWidth(page);
     const before = (await rackGeometry(page)).cards;
     // 悬停第 5 张(有左右邻):牌钮中心被右侧牌盖住,落点取左缘窥条内(10px 处)
     await page

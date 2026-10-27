@@ -1,8 +1,11 @@
-// Game 屏(#253 三区骨架):棋盘全幅垫底 + 顶部对局条 + 席位竖卡列 + 底部仪表条。
-// 右侧栏(aside)已退役并核销(#253 迁移、#255 删件):StatusBar→顶部条、
-// HandPanel→仪表条+手牌架、TreasuryPanel→仪表条计数徽章、
-// OthersPanel→席位卡、CollapsedRail/侧栏折叠态随 aside 一并退役;WaitingBar 保留为
-// 全局兜底,席位卡活跃光效承担「谁在行动」指名(操作不限时,无倒计时条)。
+// Game 屏(#700 全浮层骨架):棋盘全幅垫底 + 顶部浮层(顶左两钮+顶中 N 轮 chip)+
+// 席位格列(#698 重形)+ 底缘透明手牌区 + 右下三圆钮。
+// 旧顶栏/底部仪表条(DashboardBar)已退役并核销(#700):目标身价/回合方字条/牌库
+// 角标/复位·缩放·静音钮 → 席位格与设置弹层承接;现金/属性徽章/体力/「你」印 →
+// 席位格(#698 起一人一格全字段,自机金样式);签面 → 手牌区左端;托管钮 → #701
+// tap 弹层(过渡期不可达可接受);战报把手 → 设置弹层「战报›」(数据照记)。
+// WaitingBar 保留为全局兜底,席位格活跃金圈呼吸承担「谁在行动」指名(操作不限时,
+// 无倒计时条)。
 // 出牌阶段态(#256):旧弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
 // 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
 // 门控,与退役前弹窗同门)接线三方:HandRack(窗态牌面/手势)、ActionBar(两段
@@ -13,11 +16,11 @@
 // usePanZoom/TokenLayer 其余/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
-import { useEffect, useRef, useState } from "react";
-import { BoardView, type BoardViewHandle } from "@app/components/board/BoardView";
+import { useEffect, useState } from "react";
+import { BoardView } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
-import { getController, getControllerMap } from "@app/controllers/registry";
+import { getController, getControllerMap, setController } from "@app/controllers/registry";
 import type { GameCommand } from "@core/authority";
 import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
@@ -29,10 +32,12 @@ import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
 import { HandRack } from "./HandRack";
+import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
-import { DashboardBar } from "./DashboardBar";
+import { PileButtons } from "./PileButtons";
+import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
 import { WaitingBar } from "./WaitingBar";
 import { WarReportDrawer } from "./WarReportDrawer";
@@ -45,7 +50,6 @@ import { HintBar } from "@app/screens/shared/HintBar";
 import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
-import { VERSION } from "../../../version";
 
 export function GameScreen() {
   const snapshot = useGameStore((s) => s.snapshot);
@@ -124,13 +128,16 @@ function RotateHintOverlay() {
   );
 }
 
-/** 已开局主体:棋盘全幅 + 三区(顶部条/席位卡列/仪表条);hooks 全在此,
+// 锦囊手牌显隐偏好键(#700;键名风格照地图偏好键 MAP_PREF_KEY 的 dafung.* 族)。
+const HAND_VISIBLE_KEY = "dafung.handVisible";
+/** 读偏好:缺键=显示(首局默认亮);仅「0」算收起,其余一律显示。 */
+const readHandPref = (): boolean => localStorage.getItem(HAND_VISIBLE_KEY) !== "0";
+
+/** 已开局主体:棋盘全幅 + 全浮层(顶部条/席位格列/手牌区/三圆钮);hooks 全在此,
  *  snapshot/map 由 GameScreen 门卫。 */
 function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapData }) {
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
-  // 棋盘 pan/zoom 复位句柄(BoardView forwardRef 暴露 reset;顶部条复位钮用)
-  const boardRef = useRef<BoardViewHandle>(null);
   const interactive = useGameStore((s) => s.interactive);
   // 本座位动作在途(#611「行军中…」提示源):与 interactive 同拍由控制器写入,
   // WaitingBar 与按钮同源消费——亮一起亮、灰一起灰。
@@ -141,11 +148,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const localPlayer = useLocalPlayer();
   const net = useNetStore();
   // 自局座位(稳定身份,勿用 viewSeat):单机热座下 viewSeat 跟随决策方轮转(bot 回合
-  // 时指到 bot 席),席位卡「自身不出卡」/仪表条身份/手牌架都需要的是固定的「人」。
+  // 时指到 bot 席),席位格自机格识别/仪表条身份/手牌架都需要的是固定的「人」。
   // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
   const selfSeat = net.roomId !== "" ? viewSeat : 0;
   // 自局玩家(#284 零兜底审视):selfSeat 只在联机观战时为 -1(未入座,显式业务态)——
-  // 返回 null 走观战口径(席位卡/手牌架/仪表条均有观战分支);selfSeat ≥ 0 时缺位 =
+  // 返回 null 走观战口径(席位格/手牌架/仪表条均有观战分支);selfSeat ≥ 0 时缺位 =
   // 快照与座位表不一致(接线 bug),undefined 直通下游崩出来,不做 `?? null` 静默兜底。
   const selfPlayer = selfSeat < 0 ? null : snapshot.players[selfSeat];
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
@@ -157,6 +164,18 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 名下城池清单弹层(#622)开合态(同 SkillGlossaryDialog 先例:交互语义归消费方)。
   // 目标持座位号不持玩家对象——弹层开着随快照实时重渲;selfSeat 命中即自看口径。
   const [cityLedgerSeat, setCityLedgerSeat] = useState<number | null>(null);
+  // 设置弹层/战报抽屉开合态(#700:战报入口降级设置弹层,两态都在本件收口)
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [warReportOpen, setWarReportOpen] = useState(false);
+  // 锦囊手牌显隐开关(#700):对局内记忆、重进恢复(localStorage,键名风格照地图
+  // 偏好键 dafung.mapId);缺键=显示(首局默认亮,原型 ① 锦囊钮亮态)。出牌阶段态
+  // 与反应窗(牌架即窗)强制显示——决策面不能被视野偏好收走。
+  const [handPref, setHandPref] = useState(readHandPref);
+  const toggleHandPref = () =>
+    setHandPref((v) => {
+      localStorage.setItem(HAND_VISIBLE_KEY, v ? "0" : "1");
+      return !v;
+    });
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
@@ -208,6 +227,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 只在 controller/map 就位后挂载,正常流到不了 null)。
   const dispatchCommand = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
 
+  // 回到主页(#700 设置弹层):弃局离屏——销毁控制器(LocalController 释放时钟/
+  // 行军会话,OnlineController 断 WS),本屏随 screen 切换卸载;新开局由各屏流程
+  // 重新 setController(registry 换局销毁契约不变)。
+  const goHome = () => {
+    setController(null);
+    useGameStore.getState().setScreen("setup");
+  };
+
   // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席
   // 发命令;落印音效随一期迁移。
   const junshiConfirm = () => {
@@ -254,14 +281,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     junshiToggleSeat,
   );
 
-  // 目标段自己候选(自选目标):引擎候选集本就映射全体玩家(自己 available 与否随
-  // 目标域,any 域放行——华佗·赈济),席位栏结构性不出自己卡(#253),自己的候选面
-  // 落仪表条身份区「你」印。观战(未入座,selfSeat<0)无自己,不出钮。
-  const selfTargetOption =
-    junshiTargeting && selfSeat >= 0
-      ? junshiSeatOptions.find((o) => o.targetSeat === selfSeat)
-      : undefined;
-
+  // 目标段自选目标(#417):候选含自己(any 域放行——华佗·赈济)时,自机格点击层
+  // 即候选钮(SeatRail targets 按 seats 全量装配,含 selfSeat;testid seatTarget 族
+  // 同一通路)。#700 仪表条退役后「你」印候选钮不再存在,自选目标回归席位格单点。
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
   // 命令=respondReaction(seat 显式携带)。与出牌阶段态互斥(AwaitingReaction 相位)。
@@ -391,7 +413,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
           <ConnectionBanner />
           <BoardView
-            ref={boardRef}
             map={map}
             players={players}
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
@@ -401,7 +422,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             selectableTiles={selectableTiles}
             /* X4(#23):候选集全座位透传——旁观席位也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
-            /* #256 目标段:可用候选席位的棋子金虚线环呼吸(与席位卡金圈同步) */
+            /* #256 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
             targetedPlayerIds={
               junshiTargeting
                 ? new Set(
@@ -432,7 +453,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
           <HintBar hint={hint} level={hintLevel} />
           {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债。
-            #253:席位卡活跃光效+「运筹中」微标承担「谁在行动」指名,本条保留为全局兜底。 */}
+            #253:席位格活跃金圈呼吸承担「谁在行动」指名,本条保留为全局兜底。 */}
           <WaitingBar
             snapshot={snapshot}
             interactive={interactive}
@@ -454,24 +475,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               平级同槽(AwaitingInquiry 与各决策相位互斥,无同帧双弹层),呈现意图定制。 */}
             <InquiryLayer snapshot={snapshot} interactive={interactive} />
           </div>
-          {/* 版本角标(构建排查用;右下角,席位卡列与仪表条之间的空档) */}
-          <span className="pointer-events-none absolute right-1 bottom-0.5 font-wenkai text-[10px] text-ink-dim/70">
-            {VERSION}
-          </span>
         </div>
-        {/* 顶部对局条:回合 chip(第 N 轮 + 目标身价)+ 活跃方名 | 锦囊牌库小件 + 复位/缩放/静音 */}
-        <GameTopBar
-          snapshot={snapshot}
-          /* chip 印章=自局视角;观战未入座跟随房主座(快照按座直取,取不到即接线 bug) */
-          self={selfPlayer ?? players[net.host]}
-          onResetView={() => boardRef.current?.reset()}
-          onZoomIn={() => boardRef.current?.zoomBy(1.25)}
-          onZoomOut={() => boardRef.current?.zoomBy(0.8)}
-        />
-        {/* 席位竖卡列:对手一人一张(观战与自身不出卡),活跃方金圈光效+「运筹中」微标。
-          消费的是稳定自局座位(selfSeat):「自身不出卡」要「人」而非决策视角——热座
+        {/* 顶部浮层(#700):顶左两钮(总览待开放/设置)+ 顶中「N 轮」chip */}
+        <GameTopBar snapshot={snapshot} onOpenSettings={() => setSettingsOpen(true)} />
+        {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列,观战
+          无自机格),活跃方金圈呼吸指名。
+          消费的是稳定自局座位(selfSeat):自机格识别要「人」而非决策视角——热座
           viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
-          #256/#417 目标段:候选席位卡金圈呼吸,点席位=选中/再点取消(targets 由快照
+          #256/#417 目标段:候选席位格金圈呼吸,点格=选中/再点取消(targets 由快照
           choices 派生,打出走动作条「出」)。 */}
         <SeatRail
           snapshot={snapshot}
@@ -495,60 +506,65 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               : undefined
           }
         />
-        {/* 底部仪表条:身份头 + 现金大数(全屏唯一)+ 属性徽章 + 体力血条 + 签 + 托管;
-          珍宝/名将徽章纯展示计数(#361),明细看牌架双入口;
-          右段手牌架槽给 HandRack 让位(弹性宽) */}
-        <DashboardBar
-          snapshot={snapshot}
-          player={selfPlayer}
-          controller={controller}
-          autopilotOn={autopilotOn}
-          cityLedger={{ openSeat: cityLedgerSeat, onOpen: setCityLedgerSeat }}
-          selfTarget={
-            selfTargetOption
-              ? {
-                  seat: selfSeat,
-                  available: selfTargetOption.available,
-                  reason: selfTargetOption.reason,
-                  selected: junshiTargetSeat === selfSeat,
-                  onPick: () => junshiToggleSeat(selfSeat),
-                }
-              : undefined
-          }
-        >
-          {/* #238/T3 底部常驻手牌架(观战自返回 null)。player 用稳定自局玩家——
-            热座 viewSeat 轮到 bot 时架不该换出 bot 的牌。#256:出牌阶段态载荷随快照
-            派生(窗态下架即出牌面,常态点牌仍开详情);#361:架右端双入口开藏品弹层。 */}
-          <HandRack
+        {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架(观战整区不渲染)。
+          显隐=锦囊圆钮偏好 ∥ 窗态强制(出牌阶段/反应窗的决策面不被视野偏好收走);
+          收起=条件挂载(卸载零占位,战斗区最大化)。 */}
+        {(handPref || junshiUp || reactBanner != null) && (
+          <HandZone
+            snapshot={snapshot}
             player={selfPlayer}
-            junshi={
-              junshiUp
-                ? {
-                    options: junshiOptions,
-                    pendingCardId: junshiPendingCard?.cardId ?? null,
-                    pendingSkillId: junshiPendingSkill?.skillId ?? null,
-                    selectedId: junshiSelectedId,
-                    onSelect: setJunshiSelectedId,
-                    onConfirm: junshiConfirm,
-                  }
-                : undefined
-            }
-            reaction={
-              reactBanner != null
-                ? {
-                    banner: reactBanner,
-                    reactiveIds: reactPlayable,
-                    selectedId: reactCardId,
-                    onSelect: (id) => {
-                      getAudio().play("jinnangSelect"); // 选中音(选中可逆,取消不出声)
-                      setReactShare(null); // 换选即清份(份随牌走)
-                      setReactCardId((cur) => (cur === id ? null : id));
-                    },
-                  }
-                : undefined
+            autopilotOn={autopilotOn}
+            children={
+              /* #238/T3 手牌架(player 用稳定自局玩家——热座 viewSeat 轮到 bot 时架
+              不该换出 bot 的牌。#256:出牌阶段态载荷随快照派生;#700:藏品入口
+              迁右下三圆钮,架体只承载牌面与窗态)。 */
+              <HandRack
+                player={selfPlayer}
+                junshi={
+                  junshiUp
+                    ? {
+                        options: junshiOptions,
+                        pendingCardId: junshiPendingCard?.cardId ?? null,
+                        pendingSkillId: junshiPendingSkill?.skillId ?? null,
+                        selectedId: junshiSelectedId,
+                        onSelect: setJunshiSelectedId,
+                        onConfirm: junshiConfirm,
+                      }
+                    : undefined
+                }
+                reaction={
+                  reactBanner != null
+                    ? {
+                        banner: reactBanner,
+                        reactiveIds: reactPlayable,
+                        selectedId: reactCardId,
+                        onSelect: (id) => {
+                          getAudio().play("jinnangSelect"); // 选中音(选中可逆,取消不出声)
+                          setReactShare(null); // 换选即清份(份随牌走)
+                          setReactCardId((cur) => (cur === id ? null : id));
+                        },
+                      }
+                    : undefined
+                }
+              />
             }
           />
-        </DashboardBar>
+        )}
+        {/* 右下三圆钮(#700):锦囊=手牌显隐开关(亮=显示)/ 珍宝 / 名将(藏品弹层
+          入口,#361 双入口接替);坐姿渲染,观战无座整列不出。 */}
+        <PileButtons
+          player={selfPlayer}
+          handVisible={handPref || junshiUp || reactBanner != null}
+          onToggleHand={toggleHandPref}
+        />
+        {/* 设置弹层(#700):音效/演出加速/战报›/版本/回到主页(入口降级收口件) */}
+        {settingsOpen && (
+          <SettingsDialog
+            onClose={() => setSettingsOpen(false)}
+            onOpenWarReport={() => setWarReportOpen(true)}
+            onGoHome={goHome}
+          />
+        )}
         {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=出(选中席
           点亮,#417)/作罢;选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。 */}
         {junshiUp && (
@@ -560,12 +576,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             rightShift={!junshiTargeting && junshiSelected != null}
           />
         )}
-        {/* 战报抽屉(#255):右缘竖把手 + 抽屉渲染对局日志;常收零占位(收起时只有把手)。 */}
-        <WarReportDrawer snapshot={snapshot} />
+        {/* 战报抽屉(#255;#700 入口降级设置弹层):条件挂载,常收零占位。 */}
+        {warReportOpen && (
+          <WarReportDrawer snapshot={snapshot} onClose={() => setWarReportOpen(false)} />
+        )}
         {/* 窥探弹层(#575):军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
         <PeekModal selfSeat={selfSeat} />
-        {/* 名下城池清单弹层(#622):席位卡/仪表条城池徽章点开,只读五列清单;
+        {/* 名下城池清单弹层(#622):席位格/仪表条城池图标点开,只读五列清单;
           开合态在本件(上),目标持座位号——弹层开着随快照实时重渲。 */}
         {cityLedgerSeat != null && (
           <CityLedgerModal

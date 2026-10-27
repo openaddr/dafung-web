@@ -307,7 +307,10 @@ test.describe("出牌指示线(#281 P2-E)", () => {
     // 点牌选中 → 出牌进目标段 → 席位点层点候选目标选中 → 动作条「出」确认打出(#417 两步)
     await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    const targetBtn = page.locator('[data-testid^="seat-target-"]').first();
+    // 目标段按 seats 全量装配(#417 口径:不可指定席也列槽,reason 进浮签)——
+    // seat-target-0=自机槽恒 disabled(不能指定自己),裸 `.first()` 命中它空转到
+    // 超时(W4 实锤);候选=enabled 槽,首个即可(种植保证 bot 1 有可拆城)。
+    const targetBtn = page.locator('[data-testid^="seat-target-"]:not([disabled])').first();
     await expect(targetBtn).toBeVisible({ timeout: 15_000 });
     const targetTestid = await targetBtn.getAttribute("data-testid");
     const targetSeat = Number(targetTestid?.replace("seat-target-", ""));

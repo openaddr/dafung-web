@@ -1,7 +1,9 @@
-// 窄屏 / Android 短横屏形态(#276,纠偏定案:移动端只做横屏形态)——
-// 竖屏手机 390×844(pointer: coarse):「请横屏」提示层全屏接管,对局被挡;
-// 短横屏 844×390:仪表条进入 132px 紧凑档(<150px)、席位卡仍住右缘列;
-// 桌面 1280×720 对照:席位住右缘竖列(x > 视口宽 60%)——锁「断点互串」回归。
+// 形态分档(#276 纠偏定案:移动端只做横屏;#700 全浮层骨架改写;#703 桌面档收口)
+// ——竖屏手机 390×844(pointer: coarse):「请横屏」提示层全屏接管,对局被挡;
+// 矮横屏 844×390:全浮层件就位(顶部两钮/顶中 chip/席位右列/手牌区/右下三圆钮),
+// 席位列与三圆钮互不重叠(列区下界=钮区上缘);桌面档 1280×800/1024×768 对照:
+// 席位住右缘竖列(x > 视口宽 60%)、三圆钮舒展 52px 贴右下、手牌卡放大——
+// 锁「断点互串」回归(两个方向都不串)。
 // 断言全走几何与结构(quickStart 内部状态轮询),零固定 sleep。
 // isMobile+hasTouch 让 Chromium 设备仿真把 pointer 媒询判成 coarse(桌面窄窗口
 // pointer: fine 不触发提示层,红线保持)。
@@ -14,11 +16,11 @@ test.describe("竖屏手机 390×844(coarse pointer)", () => {
   test("「请横屏」提示层全屏接管,对局被挡", async ({ page }) => {
     // 提示层的职责就是挡住对局屏(连选都点击都会被拦),quickStart 的完整流程在竖屏
     // 下走不完——走到对局屏挂载(start-game)即断言:提示层可见、全屏覆盖,
-    // 对局 UI(dashboard-bar)在其身后挂载。
+    // 对局 UI(席位格列)在其身后挂载。
     await page.goto("/");
     await openSoloSetup(page);
     await page.getByTestId("start-game").click();
-    await expect(page.getByTestId("dashboard-bar")).toBeAttached();
+    await expect(page.getByTestId("seat-rail")).toBeAttached();
     const hint = page.getByTestId("rotate-hint");
     await expect(hint).toBeVisible();
     await expect(hint).toContainText("请横屏游玩");
@@ -37,37 +39,97 @@ test.describe("竖屏手机 390×844(coarse pointer)", () => {
   });
 });
 
-test.describe("短横屏 844×390", () => {
+test.describe("矮横屏 844×390", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  test("仪表条进入紧凑档(<150px),席位卡仍住右缘列、在仪表条上方", async ({ page }) => {
+  test("全浮层件就位:席位右列在上、三圆钮右下,列与钮区互不重叠", async ({ page }) => {
     await quickStart(page);
-    const dash = page.getByTestId("dashboard-bar");
-    await expect(dash).toBeVisible();
-    const db = (await dash.boundingBox())!;
-    expect(db.height).toBeLessThan(150);
+    const buttons = page.getByTestId("pile-buttons");
+    await expect(buttons).toBeVisible();
+    const fb = (await buttons.boundingBox())!;
+    // 三圆钮贴右下角(44px 圆钮 + 8px 右距 + 10px 底距)
+    expect(fb.y + fb.height).toBeGreaterThanOrEqual(390 - 56);
+    expect(fb.x + fb.width).toBeGreaterThanOrEqual(844 - 56);
+    // 席位格全列零滚动:每格下缘 ≤ 三圆钮上缘(列区下界=钮区上缘,#700 几何不变量)
     const seats = page.locator('[data-testid="seat-rail"] .seat');
     await expect(seats.first()).toBeAttached();
     const seatCount = await seats.count();
+    expect(seatCount).toBeGreaterThanOrEqual(4);
     for (let i = 0; i < seatCount; i++) {
       const bb = (await seats.nth(i).boundingBox())!;
       expect(bb.x).toBeGreaterThan(844 * 0.6); // 右列保留(不收成横排 chip 条)
-      expect(bb.y + bb.height).toBeLessThan(db.y); // 卡在仪表条上方的中带
+      expect(bb.y + bb.height).toBeLessThanOrEqual(fb.y + 1); // 列在钮区上方,零重叠
     }
+    // 手牌区(透明浮置)在场:与右缘席位列不相侵(区右缘 ≤ 席位格左缘)
+    const zone = page.getByTestId("hand-zone");
+    await expect(zone).toBeVisible();
+    const zb = (await zone.boundingBox())!;
+    const firstSeat = (await seats.first().boundingBox())!;
+    expect(zb.x + zb.width).toBeLessThanOrEqual(firstSeat.x + 1);
   });
 });
 
-test.describe("桌面对照 1280×720", () => {
-  test.use({ viewport: { width: 1280, height: 720 } });
+test.describe("桌面对照 1280×800(#703 桌面档:密度舒展,布局零重排)", () => {
+  test.use({ viewport: { width: 1280, height: 800 } });
 
-  test("席位仍住右缘竖列(x > 视口宽 60%)——断点互串对照", async ({ page }) => {
+  test("席位右缘满列;三圆钮舒展贴右下,列与钮区互不重叠;手牌卡放大", async ({ page }) => {
     await quickStart(page);
+    const buttons = page.getByTestId("pile-buttons");
+    await expect(buttons).toBeVisible();
+    const fb = (await buttons.boundingBox())!;
+    // 桌面档舒展生效:52px 圆钮(基准 44px)——锁桌面档断点命中(矮横屏档不串上桌面)
+    expect(fb.height).toBeGreaterThanOrEqual(50);
+    // 三圆钮贴右下角(52px 圆钮 + 8px 右距 + 10px 底距)
+    expect(fb.y + fb.height).toBeGreaterThanOrEqual(800 - 64);
+    expect(fb.x + fb.width).toBeGreaterThanOrEqual(1280 - 64);
+    // 席位格全列零滚动:每格下缘 ≤ 三圆钮上缘(列区下界=钮区上缘,#700 几何不变量
+    // 桌面档随钮径舒展:62px 预算),列仍在右缘(x > 视口宽 60%,断点互串对照)
+    const seats = page.locator('[data-testid="seat-rail"] .seat');
+    await expect(seats.first()).toBeAttached();
+    const seatCount = await seats.count();
+    expect(seatCount).toBeGreaterThanOrEqual(4);
+    for (let i = 0; i < seatCount; i++) {
+      const bb = (await seats.nth(i).boundingBox())!;
+      expect(bb.x).toBeGreaterThan(1280 * 0.6);
+      expect(bb.y + bb.height).toBeLessThanOrEqual(fb.y + 1); // 列在钮区上方,零重叠
+    }
+    // 手牌区(透明浮置)在场:与右缘席位列不相侵(区右缘 ≤ 席位格左缘)
+    const zone = page.getByTestId("hand-zone");
+    await expect(zone).toBeVisible();
+    const zb = (await zone.boundingBox())!;
+    const firstSeat = (await seats.first().boundingBox())!;
+    expect(zb.x + zb.width).toBeLessThanOrEqual(firstSeat.x + 1);
+    // 手牌卡舒展生效:桌面 em 基 9.6px → 牌面宽 144px(基准 120px;起手 ≥1 张恒在场)
+    const card = page.locator(".hand-rack-hand .jinnang-card").first();
+    await expect(card).toBeAttached();
+    const cb = (await card.boundingBox())!;
+    expect(cb.width).toBeGreaterThanOrEqual(140);
+  });
+});
+
+test.describe("桌面对照 1024×768(#703 第二典型视口:同形不破格)", () => {
+  test.use({ viewport: { width: 1024, height: 768 } });
+
+  test("席位右缘满列、三圆钮右下、手牌区不相侵——与 1280×800 同形", async ({ page }) => {
+    await quickStart(page);
+    const buttons = page.getByTestId("pile-buttons");
+    await expect(buttons).toBeVisible();
+    const fb = (await buttons.boundingBox())!;
+    expect(fb.height).toBeGreaterThanOrEqual(50);
+    expect(fb.y + fb.height).toBeGreaterThanOrEqual(768 - 64);
+    expect(fb.x + fb.width).toBeGreaterThanOrEqual(1024 - 64);
     const seats = page.locator('[data-testid="seat-rail"] .seat');
     await expect(seats.first()).toBeAttached();
     const seatCount = await seats.count();
     for (let i = 0; i < seatCount; i++) {
       const bb = (await seats.nth(i).boundingBox())!;
-      expect(bb.x).toBeGreaterThan(1280 * 0.6);
+      expect(bb.x).toBeGreaterThan(1024 * 0.6);
+      expect(bb.y + bb.height).toBeLessThanOrEqual(fb.y + 1);
     }
+    const zone = page.getByTestId("hand-zone");
+    await expect(zone).toBeVisible();
+    const zb = (await zone.boundingBox())!;
+    const firstSeat = (await seats.first().boundingBox())!;
+    expect(zb.x + zb.width).toBeLessThanOrEqual(firstSeat.x + 1);
   });
 });

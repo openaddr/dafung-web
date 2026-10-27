@@ -266,7 +266,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
         .poll(
           async () => {
             await expect(host.getByTestId(TESTIDS.topBar)).toBeVisible();
-            await expect(host.getByTestId(TESTIDS.dashboardBar)).toBeVisible();
+            await expect(host.getByTestId(TESTIDS.seatRail)).toBeVisible();
             expect(await host.evaluate(() => (window as any).__dafung.snapshot().phase)).toBe(
               "Playing",
             );
