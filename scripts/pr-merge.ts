@@ -161,9 +161,7 @@ if (!prNumber) {
       "commit_id.short()",
     );
     const rootParents = chainRoots.flatMap((r) =>
-      jj("log", "-r", `${r}-`, "--no-graph", "-T", "commit_id.short()")
-        .split("\n")
-        .filter(Boolean),
+      jj("log", "-r", `${r}-`, "--no-graph", "-T", "commit_id.short()").split("\n").filter(Boolean),
     );
     if (!rootParents.every((p) => p === masterOriginId)) {
       console.error(

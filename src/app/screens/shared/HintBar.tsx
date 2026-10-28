@@ -12,9 +12,21 @@ export interface HintBarProps {
   /** 渲染位置变体:overlay = 绝对定位居中(棋盘/整屏浮层,原三处口径);
    *  inline = 文档流内(大厅卡片内的提示行,原 lobby 口径)。 */
   variant?: "overlay" | "inline";
+  /** overlay 变体的纵距类(#732 评审修复):默认 +12px(lobby/App 无知会槽,
+   *  维持原几何);game 屏顶中 +8px 行被知会横幅槽占用,传 +48px 落第二行——
+   *  重立旧「hint/等待条上下错开互不叠位」几何契约。整串类名透传(Tailwind
+   *  arbitrary value 须静态字面量,不收数字插值)。 */
+  overlayTopClass?: string;
 }
 
-export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarProps) {
+const OVERLAY_TOP_DEFAULT = "top-[calc(var(--safe-top)+12px)]";
+
+export function HintBar({
+  hint,
+  level = "error",
+  variant = "overlay",
+  overlayTopClass = OVERLAY_TOP_DEFAULT,
+}: HintBarProps) {
   if (!hint) return null;
   if (variant === "inline") {
     // 大厅卡内:错误红字、信息灰字(保留原 lobby 的轻量行样式)
@@ -35,7 +47,9 @@ export function HintBar({ hint, level = "error", variant = "overlay" }: HintBarP
     <div
       data-testid={TESTIDS.hint}
       className={
-        "pointer-events-none absolute top-[calc(var(--safe-top)+12px)] left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
+        "pointer-events-none absolute left-1/2 -translate-x-1/2 rounded px-4 py-1 shadow " +
+        overlayTopClass +
+        " " +
         (level === "error"
           ? "bg-danger/95 text-white font-wenkai"
           : "bg-panel/95 text-ink font-wenkai")

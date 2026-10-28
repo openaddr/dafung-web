@@ -6,44 +6,18 @@
 // 决策类全屏弹层(BannerShell 族)另论——两者零改动,不经过本槽。
 // 落点 top+8 safe-aware(与顶栏行同排,layout.css 同款 safe 口径);容器不吃事件
 // (知会件纯播报零点击),等待条药丸自带 pointer-events-none。
-import type { GameSnapshot } from "@app/store/gameStore";
 import { useFxStore } from "@app/fx/fxStore";
 import { TESTIDS } from "./testids";
-import { WaitingBar } from "./WaitingBar";
+import { WaitingBar, type WaitingBarProps } from "./WaitingBar";
 import "./notice-banner.css";
 
-export interface NoticeBannerProps {
-  /** 当前对局快照(透传 WaitingBar 的文案派生输入,口径不变)。 */
-  snapshot: GameSnapshot;
-  /** 此刻本地玩家能否操作。 */
-  interactive: boolean;
-  /** 本座位动作在途(#611,与 interactive 同拍)。 */
-  selfPresenting: boolean;
-  /** 本地视角座位。 */
-  viewSeat: number;
-  /** 是否联机对局。 */
-  online: boolean;
-}
-
-export function NoticeBanner({
-  snapshot,
-  interactive,
-  selfPresenting,
-  viewSeat,
-  online,
-}: NoticeBannerProps) {
+export function NoticeBanner(props: WaitingBarProps) {
   const notice = useFxStore((s) => s.notice);
   return (
     <div className="notice-slot" data-testid={TESTIDS.noticeBanner}>
       {notice == null ? (
         // 槽空:常驻级知会(等待条)回归;派生逻辑口径不变(#732 只迁渲染宿主)
-        <WaitingBar
-          snapshot={snapshot}
-          interactive={interactive}
-          selfPresenting={selfPresenting}
-          viewSeat={viewSeat}
-          online={online}
-        />
+        <WaitingBar {...props} />
       ) : notice.kind === "turn" ? (
         // 回合旌旗横幅(漆金横幅带原样迁槽):key=id 保证同一玩家连续两回合也能重启动画
         <div

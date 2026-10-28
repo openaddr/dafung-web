@@ -442,17 +442,23 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* 阶段 6:浮字/铜钱雨/回合横幅/印章(store 驱动的瞬时表现) */}
           <FxLayer />
           {setupHint && (
-            // S8(#41):选都期知会槽恒空(等待条 phase≠Playing 直接 null),选都引导
-            // 独占顶中下方(+48px)一行,与槽内件上下错开不叠字。
+            // S8(#41);#732 评审修复重立几何契约:选都期知会槽恒空(等待条
+            // phase≠Playing 直接 null),选都引导上移驻槽行(+8)——纯播报即知会,
+            // 与槽内件同几何;统一 hint 退第二行(+48),与槽内等待条/横幅上下错开。
             <div
               data-testid={TESTIDS.hint}
-              className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
+              className="pointer-events-none absolute top-[calc(var(--safe-top)+8px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
             >
               {setupHint}
             </div>
           )}
-          {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
-          <HintBar hint={hint} level={hintLevel} />
+          {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致;#732 评审修复:
+              顶中 +8 行归知会槽,game 屏 hint 落 +48 第二行,不再与等待条同轴叠字) */}
+          <HintBar
+            hint={hint}
+            level={hintLevel}
+            overlayTopClass="top-[calc(var(--safe-top)+48px)]"
+          />
           {/* 决策卷轴路由(阶段 6 接线):按相位弹招贤/珍宝/破产/胜利/城池详情。
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。
             选都/详情流程只下发一个窄 props(tileDetail,状态机在 useCapitalPick)。 */}
