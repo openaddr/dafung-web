@@ -10,6 +10,8 @@
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { LID } from "../src/app/screens/lobby/testids";
 
 // 联机对局依赖真实 WS 广播时序,与其他高负载 spec 并行时易抖:
 // 本文件串行执行,降低双端 + 服务器的并发压力。
@@ -23,18 +25,18 @@ async function twoClients(browser: Browser, target = 30000): Promise<[Page, Page
   const guest = await (await newBridgeContext(browser)).newPage();
   // TODO #13:建房/加入 8s→30s、开局 20s→45s——全量并行负载下 WS 广播到达抖动大
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-target").fill(String(target));
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(LID.target).fill(String(target));
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-  await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-huanyou").click();
-  await host.getByTestId("map-confirm").click();
-  await host.getByTestId("lobby-start").click();
+  await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+  await host.getByTestId(LID.selectMap).click();
+  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapConfirm).click();
+  await host.getByTestId(LID.start).click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
     // L41 后开局停在 Setup·PickCapital,卷轴(锦囊相位)要到选都完才可能出现——
     // 此处无 5s 短候可等(#306:白烧 10s/次),只做即时探测;真正的放行在各自用例的
     // 推进环里(托管代发 / 轮询体 dismissJinnangIfUp)。
@@ -164,7 +166,7 @@ test("托管收回:开关复位,轮到自己时行军恢复可用", async ({ bro
           if (s == null) return "";
           if (s.phase === "Setup" && s.currentSetupPlayerIndex === 0) {
             await host.locator(".bv-tile.bv-selectable").nth(0).click({ timeout: 10_000 });
-            await host.getByTestId("confirm-capital-ok").click({ timeout: 10_000 });
+            await host.getByTestId(TESTIDS.confirmCapitalOk).click({ timeout: 10_000 });
           }
           return s.phase;
         },

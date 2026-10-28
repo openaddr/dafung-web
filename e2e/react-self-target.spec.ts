@@ -10,18 +10,20 @@ import { test, expect } from "./fixtures";
 import { force, openSoloSetup, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变发牌序列
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-huanyou").click();
-  await page.getByTestId("map-confirm").click();
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手横征暴敛恒可用)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }

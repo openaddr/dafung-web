@@ -33,18 +33,20 @@ import {
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-huanyou").click();
-  await page.getByTestId("map-confirm").click();
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手横征暴敛恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
@@ -181,15 +183,15 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     const confirm = page.getByTestId(TESTIDS.actionbarTarget);
     await expect(confirm).toBeVisible();
     await expect(confirm).toBeDisabled(); // 未选中席:「选择目标」引导态
-    await expect(page.getByTestId("seat-1")).toHaveClass(/candidate/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/candidate/);
     await expect(page.locator(".bv-token-target-ring")).not.toHaveCount(0);
     // 点席位=选中(.picked 实金停持,呼吸停):确认钮点亮为「出」
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
-    await expect(page.getByTestId("seat-1")).toHaveClass(/picked/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/picked/);
     await expect(confirm).toBeEnabled();
     // 再点同席=取消选中(#417):picked 摘除、确认钮回禁用
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
-    await expect(page.getByTestId("seat-1")).not.toHaveClass(/picked/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).not.toHaveClass(/picked/);
     await expect(confirm).toBeDisabled();
     // 三点重选 → 「出」钮确认打出:目标段收、牌离架(#305:窥探结算与回收记账归
     // test/jinnang.test.ts「军情密探·窥探」)

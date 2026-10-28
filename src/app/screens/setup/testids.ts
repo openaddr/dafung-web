@@ -12,6 +12,8 @@ export const TID = {
   seatType: (n: number) => `setup-seat-${n}-type`,
   guohaoPool: "guohao-pool",
   guohaoChar: (ch: string) => `guohao-char-${ch}`,
+  /** 国号校验错误行(内联即时提示;#664 补登,SoloSetupScreen 渲染)。 */
+  guohaoError: "setup-guohao-error",
   // 机遇折叠区(#125):details 开合杆 + 四个数字输入(触发概率 % / 三档基准)
   encounterToggle: "setup-encounter-toggle",
   encounterTrigger: "setup-encounter-trigger",

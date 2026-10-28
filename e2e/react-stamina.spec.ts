@@ -19,12 +19,15 @@ import {
   freezeClock,
   unfreezeClock,
 } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("体力系统冒烟", () => {
   test("体力耗竭:卷轴弹出、自选降级、体力回 100、跳回合、侧栏渲染", async ({ page }) => {
     await page.goto("/");
     await openSoloSetup(page);
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     // 等轮到人类且停稳(#188:Roll 等待态只存在 ~1s,停靠点改为非 Roll 等待态)
     await waitMyPause(page, 0);
@@ -74,7 +77,9 @@ test.describe("体力系统冒烟", () => {
         (window as any).__dafung.controller().sync();
       }, seatInfo.seat);
       try {
-        await expect(page.getByTestId("scroll-exhaustion")).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByTestId(SCROLL_TESTIDS.exhaustionScroll)).toBeVisible({
+          timeout: 15_000,
+        });
       } catch (e) {
         const dump = await page.evaluate(() => {
           const eng = (window as any).__dafung.getEngine();
@@ -97,7 +102,9 @@ test.describe("体力系统冒烟", () => {
 
       // 自选:降都城(选项序 = properties 序,都城在前)
       await page.locator('[data-testid^="scroll-exhaustion-option-"]').first().click();
-      await expect(page.getByTestId("scroll-exhaustion")).toBeHidden({ timeout: 15_000 });
+      await expect(page.getByTestId(SCROLL_TESTIDS.exhaustionScroll)).toBeHidden({
+        timeout: 15_000,
+      });
       // 断言面走结算留痕(#423 项8):耗竭结算在命令内同步落账,收尾 endTurn 同步放出
       // bot 链(冻结钉不住 delay=0 链步进,#421 诊断)——链上他人回合可正当再拆本方城
       // (火烧连营/周瑜火攻:extraLevel/owned 属竞速读数,不作断言;降级落地与跳回合
@@ -138,7 +145,7 @@ test.describe("体力系统冒烟", () => {
 
       await waitSettled(page); // UI 渲染断言前等表现链走完
       // 体力上仪表(#253 迁移;#700 仪表条退役,体力条在自机格:满值=色条满宽 100%)
-      const staminaFill = page.getByTestId("seat-stamina-0").locator(".strack i");
+      const staminaFill = page.getByTestId(TESTIDS.seatStamina(0)).locator(".strack i");
       await expect(staminaFill).toHaveAttribute("style", /width:\s*100%/);
     } finally {
       await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)

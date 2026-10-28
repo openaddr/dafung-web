@@ -14,6 +14,9 @@
 import { testUnscaled as test, expect, type Page } from "./fixtures";
 import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "./react-helpers";
 import { EVENT_TIERS } from "../src/core/event-tiers";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { LID } from "../src/app/screens/lobby/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
@@ -122,22 +125,24 @@ async function coreState(p: Page) {
 async function twoClientsSetup(pages: [Page, Page]): Promise<void> {
   const [host, guest] = pages;
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-target").fill("30000");
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(LID.target).fill("30000");
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-  await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-huanyou").click();
-  await host.getByTestId("map-confirm").click();
-  await host.getByTestId("lobby-start").click();
+  await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+  await host.getByTestId(LID.selectMap).click();
+  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapConfirm).click();
+  await host.getByTestId(LID.start).click();
   for (const p of pages) {
-    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
   }
   await onlinePickCapitals(pages);
   for (const p of pages) {
-    await p.waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 }).catch(() => null);
+    await p
+      .waitForSelector(`[data-testid=${TESTIDS.actionbarPass}]`, { timeout: 5_000 })
+      .catch(() => null);
     await dismissJinnangIfUp(p);
   }
 }
@@ -177,7 +182,7 @@ async function driveDecisions(pages: Page[], ms: number): Promise<void> {
  *  真点击会被吞,直派照进真实 React onClick);开关态=aria-checked(useAutopilotOn
  *  广播回读,与引擎 autoPilotOn 同源),点前读态防迟到广播双击翻转,点后轮询确认生效。 */
 async function setAutopilot(page: Page, seat: number, on: boolean) {
-  await page.getByTestId("seat-self").dispatchEvent("click");
+  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
   const sw = page.getByTestId(`seat-pop-autopilot-${seat}`);
   await expect(sw).toBeVisible({ timeout: 10_000 });
   if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
@@ -283,7 +288,7 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
       if (!sock?.ws) throw new Error("socket 未建立");
       sock.ws.close();
     });
-    await expect(guest.getByTestId("connection-banner")).toBeVisible({ timeout: 15_000 });
+    await expect(guest.getByTestId(TESTIDS.connectionBanner)).toBeVisible({ timeout: 15_000 });
     // 断线即丢(ADR-0020 决策 4):服务器照常推进(在线端自动起摇),不补发不排队;
     // 轮到离线座抉择则停摆等重连,同为设计内形态
     await driveDecisions([host], 2_000);
@@ -312,7 +317,7 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
     expect(summary.jinnangDeckCount).toBeGreaterThan(0);
     expect(summary.jinnangDeck).toEqual([]);
     expect(summary.players[0].jinnangHand).toEqual([]);
-    await expect(guest.getByTestId("connection-banner")).not.toBeVisible({ timeout: 15_000 });
+    await expect(guest.getByTestId(TESTIDS.connectionBanner)).not.toBeVisible({ timeout: 15_000 });
 
     // 双端状态收敛一致(摘要水合 + 折叠双通道同源)
     await expect

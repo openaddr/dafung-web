@@ -3,35 +3,37 @@
 // 自建图部分归 react-editor.spec,此处覆盖内置图与选中记忆)。
 import { test, expect } from "./fixtures";
 import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览", async ({ page }) => {
   await page.goto("/");
-  await page.getByTestId("home-select-map").click();
-  const panel = page.getByTestId("map-select-panel");
+  await page.getByTestId(HOME_TID.selectMap).click();
+  const panel = page.getByTestId(SETUP_TID.mapPanel);
   await expect(panel).toBeVisible();
-  await expect(page.getByTestId("map-item-huanyou")).toContainText("38 城");
-  await expect(page.getByTestId("map-item-zhongyuan")).toContainText("8 城");
+  await expect(page.getByTestId(SETUP_TID.mapItem("huanyou"))).toContainText("38 城");
+  await expect(page.getByTestId(SETUP_TID.mapItem("zhongyuan"))).toContainText("8 城");
   // 点 zhongyuan → 异步加载 + 简版预览 SVG
-  await page.getByTestId("map-item-zhongyuan").click();
-  await expect(page.getByTestId("map-preview")).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();
+  await expect(page.getByTestId(SETUP_TID.mapPreview)).toBeVisible({ timeout: 10_000 });
 });
 
 test("选 zhongyuan 确认:地图名刷新 + 记忆到 localStorage(dafung.mapId)", async ({ page }) => {
   await page.goto("/");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-zhongyuan").click();
-  await page.getByTestId("map-confirm").click();
-  await expect(page.getByTestId("current-map-name")).toHaveText("中原争霸");
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
+  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("中原争霸");
   expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
 });
 
 test("选 zhongyuan 起兵:棋盘为 8 城小环,快照健康", async ({ page }) => {
   await page.goto("/?seed=42");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-zhongyuan").click();
-  await page.getByTestId("map-confirm").click();
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await waitForEngine(page);
   await expect(page.locator("[data-tile]")).toHaveCount(8);
   const s = await snap(page);

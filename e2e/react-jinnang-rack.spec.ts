@@ -22,12 +22,12 @@ interface Box {
 
 /** 读手牌行内全部牌钮的几何 + 行容器与架体的关键横界(几何断言单一取数口)。 */
 async function rackGeometry(page: Page): Promise<{ cards: Box[]; row: Box; rack: Box }> {
-  return page.evaluate(() => {
+  return page.evaluate((sel) => {
     const rect = (el: Element) => {
       const r = el.getBoundingClientRect();
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     };
-    const row = document.querySelector('[data-testid="jinnang-hand"]');
+    const row = document.querySelector(`[data-testid="${sel}"]`);
     if (!row) throw new Error("手牌行不在 DOM:架未渲染或手牌为空");
     const rack = row.closest(".hand-rack");
     if (!rack) throw new Error("手牌行不在架内:DOM 结构漂移");
@@ -36,7 +36,7 @@ async function rackGeometry(page: Page): Promise<{ cards: Box[]; row: Box; rack:
       row: rect(row),
       rack: rect(rack),
     };
-  });
+  }, TESTIDS.jinnangHand);
 }
 
 /** 几何落定轮询(#305 替代固定硬等待):单次 evaluate 内反复采样同一份盒模型,两拍
@@ -53,7 +53,7 @@ async function settledRackGeometry(
       return { x: r.x, y: r.y, width: r.width, height: r.height };
     };
     const read = () => {
-      const row = document.querySelector('[data-testid="jinnang-hand"]');
+      const row = document.querySelector('[data-testid="${TESTIDS.jinnangHand}"]');
       if (!row) return null;
       const rack = row.closest(".hand-rack");
       if (!rack) return null;
@@ -237,11 +237,13 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
     expect(Math.abs(last.width - CARD_W)).toBeLessThanOrEqual(1);
     expect(last.x + last.width).toBeLessThanOrEqual(rack.x + rack.width + 1);
     // 每张牌名条 peek 布局下可辨:牌名未被邻牌完全盖住(至少一个字身位可见)
-    const mingBoxes = await page.evaluate(() =>
-      [...document.querySelectorAll('[data-testid="jinnang-hand"] .ming')].map((el) => {
-        const r = el.getBoundingClientRect();
-        return { x: r.x, right: r.right };
-      }),
+    const mingBoxes = await page.evaluate(
+      (sel) =>
+        [...document.querySelectorAll(`[data-testid="${sel}"] .ming`)].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { x: r.x, right: r.right };
+        }),
+      TESTIDS.jinnangHand,
     );
     expect(mingBoxes).toHaveLength(9);
     mingBoxes.forEach((m, i) => {
@@ -294,6 +296,110 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
       expect(Math.abs(c.x - before[i].x)).toBeLessThanOrEqual(2);
       expect(Math.abs(c.y - before[i].y)).toBeLessThanOrEqual(2);
     });
+  });
+});
+
+// ── 出牌窗灰置牌可看不可出(#715;#676 定案施工)──
+// 唯反应牌(识破诡计/半路杀出,#281 targetDomain=reaction)在出牌窗恒灰置「唯反应
+// (反应窗打出)」(choices.ts 单源)。#715 前:原生 disabled 吞全部 pointer——不可
+// 查看;#715 后:aria-disabled+自门控——点/长按开详情(现役详情通路),选中/出牌
+// 命令通路仍只对 available 开(GameScreen 确认的 available 过滤 + HandRack 点选/
+// 数字键/Enter 既有口径,前端自门控只是 UI 层,不放宽任何出牌通路)。
+// 测试手法注记:Playwright click 的 Enabled actionability 同样认 aria-disabled(1.55
+// injectedScript getAriaDisabled)——真实浏览器指针并不被拦,灰置牌点击一律走
+// force: true 模拟真人;长按走 page.mouse 裸序列(坐标输入,无 actionability)。
+test.describe("出牌窗灰置牌可看不可出(#715)", () => {
+  const LOCKED = "识破诡计"; // 唯反应(反应窗打出),出牌窗恒灰置
+  const USABLE = "求贤令"; // self 域,出牌窗恒可用(对照组)
+
+  /** 出牌窗停车坪(pinRackIdle 同款钉法 + 窗态变体):quickStart 等人类停稳,把相位
+   *  钉进 AwaitingJinnang + 直写手牌——唯反应手牌恒灰置不影响窗升起(choices 恒含
+   *  pass);引擎直写不经发牌,回合不推进,窗无限期稳定。 */
+  async function pinJunshiWindow(page: Page, cards: string[]): Promise<void> {
+    await quickStart(page);
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ${JSON.stringify(cards)};
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingJinnang";
+    `,
+    );
+    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+  }
+
+  test("唯反应灰置牌:点击开详情(aria-disabled 语义保持),选中与出牌零通路", async ({ page }) => {
+    await pinJunshiWindow(page, [LOCKED]);
+    const card = page.getByTestId(TESTIDS.jinnangCard(LOCKED));
+    await expect(card).toBeVisible();
+    // 禁用形态双钉:原生 disabled 已弃(pointer 可达,可查看),aria-disabled 宣告
+    // 禁用(屏读语义不降级);灰置态仍下沉置灰+唯反应原因印条
+    await expect(card).not.toHaveAttribute("disabled");
+    await expect(card).toHaveAttribute("aria-disabled", "true");
+    await expect(card.locator(".jinnang-card")).toHaveClass(/off/);
+    await expect(card.locator(".reason")).toHaveText("唯反应(反应窗打出)");
+
+    // 点击=只开详情(不选中):动作条「出牌」钮不亮
+    await card.click({ force: true });
+    const detail = page.getByTestId(TESTIDS.jinnangDetail);
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText(LOCKED);
+    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toBeDisabled();
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+
+    // 引擎零命令:相位仍在出牌窗、牌未消耗(出牌命令通路未开)
+    const s = await snap(page);
+    expect(s.turnPhase).toBe("AwaitingJinnang");
+    expect(s.players[0].jinnangHand).toContain(LOCKED);
+  });
+
+  test("唯反应灰置牌:长按同效开详情,补发 click 不双弹", async ({ page }) => {
+    await pinJunshiWindow(page, [LOCKED]);
+    const card = page.getByTestId(TESTIDS.jinnangCard(LOCKED));
+    const box = await card.boundingBox();
+    if (!box) throw new Error("灰置牌无几何盒:窗态未升起");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700); // 越过 500ms 长按判定窗(全套件唯一保留硬等待)
+    await page.mouse.up();
+    const detail = page.getByTestId(TESTIDS.jinnangDetail);
+    await expect(detail).toBeVisible();
+    await expect(detail).toHaveCount(1); // 长按吞补发 click,同一动作不弹两次
+    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toBeDisabled();
+  });
+
+  test("available 对照零回归:点牌选中出牌点亮、长按取消;灰置牌开详情不动选中", async ({ page }) => {
+    await pinJunshiWindow(page, [LOCKED, USABLE]);
+    const locked = page.getByTestId(TESTIDS.jinnangCard(LOCKED));
+    const usable = page.getByTestId(TESTIDS.jinnangCard(USABLE));
+    const play = page.getByTestId(TESTIDS.actionbarPlay);
+
+    // available 牌:点=选中(.sel 放大态),「出牌」点亮(#256 现役手感)
+    await usable.click();
+    await expect(usable.locator(".jinnang-card")).toHaveClass(/sel/);
+    await expect(play).toBeEnabled();
+
+    // 灰置牌点击=只开详情:不夺选中、不动出牌钮(门控在语义层,不在指针层)
+    await locked.click({ force: true });
+    const detail = page.getByTestId(TESTIDS.jinnangDetail);
+    await expect(detail).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+    await expect(usable.locator(".jinnang-card")).toHaveClass(/sel/);
+    await expect(play).toBeEnabled();
+
+    // available 选中态长按=取消选中(窗态既有语义,#653 钉相口径),「出牌」回禁用
+    const box = await usable.boundingBox();
+    if (!box) throw new Error("可用牌无几何盒:窗态未升起");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700);
+    await page.mouse.up();
+    await expect(usable.locator(".jinnang-card")).not.toHaveClass(/sel/);
+    await expect(play).toBeDisabled();
   });
 });
 

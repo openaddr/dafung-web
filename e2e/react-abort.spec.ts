@@ -5,6 +5,8 @@
 // 折叠器全链到 UI——零共享桥污染(force() 既有范式,同 react-scrolls 胜利屏例)。
 import { test, expect } from "./fixtures";
 import { quickStart, force, snap } from "./react-helpers";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test("异常终局:引擎 abortGame → 对局作废面板,无胜者渲染", async ({ page }) => {
   await quickStart(page);
@@ -17,17 +19,17 @@ test("异常终局:引擎 abortGame → 对局作废面板,无胜者渲染", asy
   expect(s.winReason).toBe("aborted");
 
   // 作废面板可见(壳体复用 victory-screen testid),标题+说明=「对局作废」口径
-  await expect(page.getByTestId("victory-screen")).toBeVisible();
-  await expect(page.getByTestId("victory-aborted-title")).toHaveText("对局作废");
-  await expect(page.getByTestId("victory-aborted-note")).toContainText("详情见对局日志");
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryAbortedTitle)).toHaveText("对局作废");
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryAbortedNote)).toContainText("详情见对局日志");
 
   // 无胜者渲染:胜局专属演出元素(天下归一大字/称帝行/终榜)不在场
-  await expect(page.getByTestId("victory-title")).toHaveCount(0);
-  await expect(page.getByTestId("victory-sub")).toHaveCount(0);
-  await expect(page.getByTestId("victory-standings")).toHaveCount(0);
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryTitle)).toHaveCount(0);
+  await expect(page.getByTestId(SCROLL_TESTIDS.victorySub)).toHaveCount(0);
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryStandings)).toHaveCount(0);
 
   // 出口按钮组与胜局同款:再战一局(整页重载回设置屏,原样接既有路由)
-  await expect(page.getByTestId("victory-restart")).toBeVisible();
-  await page.getByTestId("victory-restart").click();
-  await expect(page.getByTestId("home-screen")).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryRestart)).toBeVisible();
+  await page.getByTestId(SCROLL_TESTIDS.victoryRestart).click();
+  await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
 });

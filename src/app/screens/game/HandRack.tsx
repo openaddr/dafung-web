@@ -18,6 +18,7 @@
 //   单源 choices,不另写);点牌=选中放大 1.6×(放大态即详情态,.sel 金描边,样式
 //   单源 jinnang-card.css,笺脚放开 4 行);点它牌换选、再点同牌/右键/长按取消;
 //   数字键 1..n 选中(灰置跳过计数)、Enter 确认(G-19 口径与一期手感一致)。
+//   灰置牌可看不可出(#715):点/长按开详情,不进选中/出牌通路(aria-disabled+自门控)。
 //   名将技卡(#188 档 3):HeroCardFace 紧凑档混排架中(#360,与招贤/府库同卡面)。
 //   目标段(pendingJinnang/pendingSkill 在场):整架退出交互——已出计牌金描边上浮
 //   印「已出牌 · 待择目标」,其余牌灰置印「目标段不可换牌」;
@@ -82,7 +83,9 @@ export interface JunshiWindow {
 
 /** 窗态下单张手牌的呈现/交互槽(null=常态牌:点/长按开详情)。
  *  onSelect/onDeselect 仅卡牌段有语义;目标段整架退出交互(牌钮恒 disabled,事件
- *  不到达,2026-09-25 评审核实后删去调用侧的 no-op 占位),字段可缺省。 */
+ *  不到达,2026-09-25 评审核实后删去调用侧的 no-op 占位),字段可缺省。
+ *  played 字段在场(含 false)即目标段标记:目标段整架原生禁用(#256);卡牌段不传,
+ *  灰置牌走 aria-disabled+自门控(#715)——钮层以此区分两段禁用形态。 */
 interface RackCardJunshi {
   available: boolean;
   selected: boolean;
@@ -200,8 +203,12 @@ function tiltVars(key: string): CSSProperties {
  *  抑制随后的合成 click,同一动作绝不弹两次。
  *  窗态(junshi 槽在场):点牌=选中(音效 jinnangSelect),再点同牌/右键/长按取消;
  *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 JunshiSkillCard/Tip 同形
- *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌 disabled(浏览器禁用契约,
- *  不可选中)。两态共用同一组件与 key:进/出窗态不重挂、不重播发牌音/入场级联。
+ *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌可看不可出(#715,#676 定案):
+ *  弃原生 disabled(浏览器禁用契约吞全部 pointer→不可查看),改 aria-disabled+自门控
+ *  ——点/长按开详情(现役详情通路),选中/出牌命令通路仍只对 available 开(门控在
+ *  语义层,不在指针层);屏读语义不降级(aria-disabled 仍宣告禁用)。目标段(played
+ *  字段在场)整架退出交互(#256),原生禁用保持。两态共用同一组件与 key:进/出窗态
+ *  不重挂、不重播发牌音/入场级联。
  *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),呼吸金边
  *  归 .reactive 类(reaction-banner.css);非反应牌仍走常态详情。
  *  index:发牌入场级联的错峰序(--i)。 */
@@ -220,14 +227,24 @@ function RackCard({
 }) {
   const press = useLongPress();
   // 窗态复合手势(hooks 规则:配置随分支,调用不随分支);常态分支用原语直连。
+  // #715 自门控:非 available 的点/长按=开详情(可看),不触选中/取消通路(不可出)
+  // ——门控在语义层,不在指针层;长按吞补发 click 由 props.onClick 内置(同动作不弹两次)。
   const junshiTap = useTapOrLongPress(
     junshi
       ? {
           onTap: () => {
+            if (!junshi.available) {
+              onOpen(cardId);
+              return;
+            }
             if (junshi.selected) junshi.onDeselect?.();
             else junshi.onSelect?.();
           },
-          onLongPress: junshi.selected ? () => junshi.onDeselect?.() : null,
+          onLongPress: !junshi.available
+            ? () => onOpen(cardId)
+            : junshi.selected
+              ? () => junshi.onDeselect?.()
+              : null,
           onContextMenu: junshi.selected ? () => junshi.onDeselect?.() : undefined,
         }
       : {},
@@ -250,7 +267,13 @@ function RackCard({
         data-testid={TESTIDS.jinnangCard(cardId)}
         aria-label={cardId}
         aria-pressed={s.available && !s.played ? s.selected : undefined}
-        disabled={!s.available || s.played}
+        /* #715:卡牌段灰置弃原生 disabled(禁用契约吞全部 pointer→不可查看),改
+            aria-disabled+自门控(手势层:点/长按开详情,不进选中通路)——出牌命令
+            通路仍只对 available 开(点选/数字键/Enter 确认与 GameScreen 确认过滤
+            既有口径,不放宽);屏读语义不降级(aria-disabled 仍宣告禁用)。
+            目标段(played 在场)整架退出交互(#256),原生禁用保持。 */
+        disabled={s.played != null}
+        aria-disabled={!s.available && s.played == null ? true : undefined}
         className={junshiBtnClass(s)}
         style={{ ["--i" as string]: index }}
       >

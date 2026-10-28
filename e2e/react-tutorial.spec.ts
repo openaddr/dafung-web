@@ -2,40 +2,44 @@
 // 与真实 UI 对齐——文案/交互改动会在这里先炸,文档不许悄悄过期(#169 走查的机器层)。
 import { test, expect } from "./fixtures";
 import { actIfCan, waitSettled, snap, waitMyPause, force } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每句 UI 断言", async ({ page }) => {
   await page.goto("/");
   // 「开一局单机」:首页四入口
-  await page.getByTestId("home-solo").click();
-  await page.getByTestId("solo-setup-screen").waitFor();
+  await page.getByTestId(HOME_TID.solo).click();
+  await page.getByTestId(SETUP_TID.screen).waitFor();
   // 「起兵」节:三档身价 + 国号字盘(#613 难度档退役,两档断言随删)
   await expect(page.getByText("速战")).toBeVisible();
   await expect(page.getByText("鏖战")).toBeVisible();
   await expect(page.getByText("字盘快选国号")).toBeVisible();
   // 「起兵」按钮 → 选都(「调兵遣将中…」为瞬态,静态 grep 已核,此处验证点击后进选都)
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   // 「选都」:横幅文案(#297 起按 turn 分化,轮到玩家=「轮到你定都…」)+ 三候选金圈 + 详情卷轴两钮
   await expect(page.getByText(/轮到你定都:点选一座候选城/)).toBeVisible({ timeout: 30_000 });
   await expect(page.locator(".bv-tile.bv-selectable")).toHaveCount(3);
   await page.locator(".bv-tile.bv-selectable").first().click();
-  const detail = page.getByTestId("scroll-tile-detail");
+  const detail = page.getByTestId(SCROLL_TESTIDS.tileDetailScroll);
   await expect(detail).toBeVisible();
   await expect(detail.getByText("定都于此")).toBeVisible();
   await expect(detail.getByText("再想想")).toBeVisible();
   // #671:选都候选按「将成为都城」显示补给列(变卖价对都城是死信息)
   await expect(detail.getByText("交易加成")).toBeVisible();
   await expect(detail.getByText("都城补给")).toBeVisible();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   // 「出牌阶段态」(#256 旧弹窗退役,教程断言改架中口径):起手是否停窗随牌库
   // 洗序,条件断言——窗态在场 = 架中可用牌 + 动作条,「不出」放行(原「今不用」
   // 语义平移,牌不消耗;窗态无弹窗文案可断)
-  const ab = page.getByTestId("actionbar");
+  const ab = page.getByTestId(TESTIDS.actionbar);
   if (await ab.isVisible().catch(() => false)) {
-    await expect(page.getByTestId("jinnang-rack")).toBeVisible();
-    await page.getByTestId("actionbar-pass").click();
+    await expect(page.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
+    await page.getByTestId(TESTIDS.actionbarPass).click();
   }
   // 「行军自动化」:无行军按钮 + 不点任何东西对局自己推进(turnNumber 前进)
-  await expect(page.locator('[data-testid="roll-button"]')).toHaveCount(0);
+  await expect(page.locator('[data-testid="roll-button"]')).toHaveCount(0); // testids:allow 退役 testid 零残留断言——roll-button 已随 #188 行军自动化删除,无单源可引
   await waitSettled(page);
   const before = await snap(page);
   // 落格卷轴(购地/扩军等)会等人类作答——教程口径「读文案、挑一条」,走查代答直到回合推进
@@ -48,7 +52,7 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
         if (await hero.isVisible().catch(() => false))
           await hero.click({ timeout: 5_000 }).catch(() => {});
         // 珍宝交涉·城主视角(教程「暂不交易(无事发生)」):bot 落我城且我有珍宝时弹出
-        const tSkip = page.getByTestId("scroll-treasure-skip");
+        const tSkip = page.getByTestId(SCROLL_TESTIDS.treasureSkip);
         if (await tSkip.isVisible().catch(() => false))
           await tSkip.click({ timeout: 5_000 }).catch(() => {});
         await waitSettled(page);
@@ -73,8 +77,8 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
     window.__dafung.controller().sync();
   `,
   );
-  await expect(page.getByTestId("waiting-bar")).toBeVisible();
-  await expect(page.getByTestId("thinking")).toContainText("运筹中…");
+  await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
   await force(
     page,
     `
@@ -85,9 +89,9 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
   // 「托管」入口在自机格弹层(#701;教程文档「点右缘自己的席位格开单人格弹层拨托管
   //  开关」的机器层):格 tap DOM 直派(列首格被顶栏角钮带遮挡,react-seat-pop 同款),
   // 开关行仅自机格弹层渲染;Esc 收净再收尾
-  await page.getByTestId("seat-self").dispatchEvent("click");
-  await expect(page.getByTestId("seat-pop-autopilot-0")).toBeVisible();
+  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
+  await expect(page.getByTestId(TESTIDS.seatPopAutopilot(0))).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId("seat-pop-0")).toBeHidden();
+  await expect(page.getByTestId(TESTIDS.seatPop(0))).toBeHidden();
   await waitSettled(page);
 });

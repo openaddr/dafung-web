@@ -11,6 +11,10 @@ import {
   dismissJinnangIfUp,
   newBridgeContext,
 } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import { LID } from "../src/app/screens/lobby/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 
@@ -41,25 +45,27 @@ async function twoClientsSetup(browser: Browser): Promise<[Page, Page]> {
   const host = await (await newBridgeContext(browser)).newPage();
   const guest = await (await newBridgeContext(browser)).newPage();
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-target").fill("30000");
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(LID.target).fill("30000");
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-  await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-huanyou").click();
-  await host.getByTestId("map-confirm").click();
-  await host.getByTestId("lobby-start").click();
+  await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+  await host.getByTestId(LID.selectMap).click();
+  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapConfirm).click();
+  await host.getByTestId(LID.start).click();
   for (const p of [host, guest]) {
-    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
   }
   // L41 开局选都三选一:两客户端各自从 3 候选中选一(助手内断言候选高亮/不越权)
   await onlinePickCapitals([host, guest]);
   // 锦囊相位放行(#122/T2):起手有牌即停卷轴,「今不用」后再继续各自行动。
   // #188:行军按钮已移除(掷骰由服务器定时代发),等卷轴出现即可,无牌则短候跳过。
   for (const p of [host, guest]) {
-    await p.waitForSelector('[data-testid="actionbar-pass"]', { timeout: 5_000 }).catch(() => null);
+    await p
+      .waitForSelector(`[data-testid=${TESTIDS.actionbarPass}]`, { timeout: 5_000 })
+      .catch(() => null);
     await dismissJinnangIfUp(p);
   }
   return [host, guest];
@@ -109,7 +115,7 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
             break;
           }
           // 锦囊卷轴优先「今不用」(#122/T2):通配 scroll 分支会误点第一张牌
-          const jinnangPass = p.getByTestId("actionbar-pass");
+          const jinnangPass = p.getByTestId(TESTIDS.actionbarPass);
           if ((await jinnangPass.isVisible().catch(() => false)) && (await tryClick(jinnangPass))) {
             actions++;
             break;
@@ -148,10 +154,10 @@ test("双端联机:建房→加入→开局→各自选都→各自行动→快�
 
   // ── 托管入口存在(联机专属;spec: autopilot;#701 起入口=自机格 tap 弹层托管
   // 开关,格 tap DOM 直派穿决策卷轴遮罩,react-online-autopilot setAutopilot 同配方)──
-  await guest.getByTestId("seat-self").dispatchEvent("click");
-  await expect(guest.getByTestId("seat-pop-autopilot-1")).toBeVisible();
+  await guest.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
+  await expect(guest.getByTestId(TESTIDS.seatPopAutopilot(1))).toBeVisible();
   await guest.keyboard.press("Escape");
-  await expect(guest.getByTestId("seat-pop-1")).toBeHidden();
+  await expect(guest.getByTestId(TESTIDS.seatPop(1))).toBeHidden();
 
   await host.context().close();
   await guest.context().close();
@@ -245,7 +251,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
                   break;
                 }
                 // 锦囊卷轴优先「今不用」(#122/T2),同上
-                const jinnangPass = p.getByTestId("actionbar-pass");
+                const jinnangPass = p.getByTestId(TESTIDS.actionbarPass);
                 if (await jinnangPass.isVisible().catch(() => false)) {
                   await jinnangPass.click({ timeout: 10_000 }).catch(() => {});
                   break;
@@ -272,10 +278,10 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
       }
       // 关键断言①:快照已到 AwaitingDecision·PropertyAvailable,但购地卷轴尚未挂载
       //(骰签停留 600ms + 渐隐 + 行军逐段仍在播;若动画期间就弹,此处立即失败)
-      await expect(roller.getByTestId("scroll-buy")).toHaveCount(0);
+      await expect(roller.getByTestId(SCROLL_TESTIDS.buyScroll)).toHaveCount(0);
       // 关键断言②:动画播完卷轴才出现,且距快照落地非瞬时(骰子+行军节奏)
       const t0 = Date.now();
-      await expect(roller.getByTestId("scroll-buy")).toBeVisible({ timeout: 20_000 });
+      await expect(roller.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible({ timeout: 20_000 });
       expect(Date.now() - t0).toBeGreaterThanOrEqual(400);
       return; // 捕获一次即通过
     }
@@ -295,10 +301,10 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   // (与 SoloSetup GUOHAO_PREF_KEY 同源),seat0 应挂「蜀」章;与加入者的「魏」不重名,不影响下方预告断言)
   await host.addInitScript(() => localStorage.setItem("dafung.guohao", "蜀"));
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-seat-count-plus").click(); // X10 stepper:2 → 3 座
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(`${LID.seatCount}-plus`).click(); // X10 stepper:2 → 3 座
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
 
   // 两名加入者预设同名「魏」(localStorage 与 SoloSetup GUOHAO_PREF_KEY 同源)
   for (const p of [g1, g2]) {
@@ -306,34 +312,30 @@ test("E7/X14:大厅国号方章 + 重名预告双端可见;房间码回车即加
   }
   // g1 点「加入」;g2 在输入框回车提交(X14 #33:form onSubmit 与点按等价)
   await g1.goto(`${ONLINE}/?online=1`);
-  await g1.getByTestId("lobby-join-input").fill(roomId);
-  await g1.getByTestId("lobby-join").click();
-  await expect(g1.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
+  await g1.getByTestId(LID.joinInput).fill(roomId);
+  await g1.getByTestId(LID.join).click();
+  await expect(g1.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
 
   await g2.goto(`${ONLINE}/?online=1`);
-  await g2.getByTestId("lobby-join-input").fill(roomId);
+  await g2.getByTestId(LID.joinInput).fill(roomId);
   await g2.keyboard.press("Enter");
-  await expect(g2.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
+  await expect(g2.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
 
   // 座位行单字方章:#99 起 host 建房也带预设 → seat0 挂「蜀」章(断言风格同 guest 行);
   // 两加入者各挂「魏」章(先到先得:seat1 保原名,seat2 预告东魏,见下)
-  await expect(host.getByTestId("lobby-seat-0-guohao")).toHaveText("蜀", { timeout: 30_000 });
-  await expect(host.getByTestId("lobby-seat-1-guohao")).toHaveText("魏");
-  await expect(host.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
+  await expect(host.getByTestId(LID.seatGuohao(0))).toHaveText("蜀", { timeout: 30_000 });
+  await expect(host.getByTestId(LID.seatGuohao(1))).toHaveText("魏");
+  await expect(host.getByTestId(LID.seatGuohao(2))).toHaveText("魏");
 
   // 重名预告(先到先得):seat1 保原名无预告;seat2 预告开局改为方位前缀「东魏」;
   // 双方大厅(非仅本人视角)都可见彼此国号与预告
-  await expect(host.getByTestId("lobby-seat-1-guohao-preview")).toHaveCount(0);
-  await expect(host.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
+  await expect(host.getByTestId(LID.guohaoPreview(1))).toHaveCount(0);
+  await expect(host.getByTestId(LID.guohaoPreview(2))).toHaveText(
     "此席国号重名,开局将改为『东魏』",
   );
-  await expect(g1.getByTestId("lobby-seat-2-guohao")).toHaveText("魏");
-  await expect(g1.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
-    "此席国号重名,开局将改为『东魏』",
-  );
-  await expect(g2.getByTestId("lobby-seat-2-guohao-preview")).toHaveText(
-    "此席国号重名,开局将改为『东魏』",
-  );
+  await expect(g1.getByTestId(LID.seatGuohao(2))).toHaveText("魏");
+  await expect(g1.getByTestId(LID.guohaoPreview(2))).toHaveText("此席国号重名,开局将改为『东魏』");
+  await expect(g2.getByTestId(LID.guohaoPreview(2))).toHaveText("此席国号重名,开局将改为『东魏』");
 
   await Promise.all([host, g1, g2].map((p) => p.context().close()));
 });

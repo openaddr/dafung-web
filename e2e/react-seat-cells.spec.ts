@@ -16,6 +16,8 @@ import {
   freezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 /** 行1 现金 + 行2 六计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。 */
 function cellsMatchSnapshot(page: import("@playwright/test").Page) {
@@ -40,24 +42,24 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
     await quickStart(page);
     await expect.poll(() => cellsMatchSnapshot(page)).toBe(true);
     // 一人一格(自机入列):4 席局 = 4 张格,全部在单一 seatcol 内
-    const cells = page.locator('[data-testid="seat-rail"] .seat');
+    const cells = page.locator(`[data-testid=${TESTIDS.seatRail}] .seat`);
     await expect(cells).toHaveCount(4);
-    await expect(page.locator('[data-testid="seat-rail"] .seatcol .seat')).toHaveCount(4);
+    await expect(page.locator(`[data-testid=${TESTIDS.seatRail}] .seatcol .seat`)).toHaveCount(4);
   });
 
   test("满编 8 席(844×390 矮横屏):计数逐席一致,格高 38、列零滚动", async ({ page }) => {
     test.slow(); // 人类首回合前最多 7 个 bot 回合,预算放宽(react-layout 8 席例同口径)
     await page.goto("/");
     await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // 4 → 8
-    await page.getByTestId("start-game").click();
+    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     await waitMyPause(page, 0, 150_000);
     await waitSettled(page);
     // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(真机即此重排路径)
     await page.setViewportSize({ width: 844, height: 390 });
     await expect.poll(() => cellsMatchSnapshot(page)).toBe(true);
-    await expect(page.locator('[data-testid="seat-rail"] .seat')).toHaveCount(8);
+    await expect(page.locator(`[data-testid=${TESTIDS.seatRail}] .seat`)).toHaveCount(8);
     // 零滚动几何:格高 clamp 到 38 上限,8×38+7×2=318 ≤ 可用高 328(390−8−54)
     const geo = await page.evaluate(() => {
       const col = document.querySelector(".seat-rail .seatcol")!;
@@ -86,7 +88,7 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     // 抉择卷轴」或 bot 等待,自机可能真在活跃——钉死行动方,挂点断言才有钉住的
     // 前提;时钟已冻,无自动推进)→ 该格 .active
     await force(page, `e.activeIndex = 1;`);
-    await expect(page.getByTestId("seat-1")).toHaveClass(/active/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/active/);
     // 自机格:seat-self 挂点 + .self 类;活跃已钉在 bot 席 → 自机格无 .active/.picked;
     // seat-N 族不含自机(对手席专用族不变)
     const selfCell = page.getByTestId(TESTIDS.seatSelf);
@@ -94,13 +96,13 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await expect(selfCell).toHaveClass(/self/);
     await expect(selfCell).not.toHaveClass(/active/);
     await expect(selfCell).not.toHaveClass(/picked/);
-    await expect(page.getByTestId("seat-0")).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.seat(0))).toHaveCount(0);
     // 濒耗竭:体力压到 20(<三成)→ 色条挂 .low(转朱砂)
     await force(page, `e.addStamina(1, -80);`);
     await expect(page.getByTestId(TESTIDS.seatStamina(1)).locator(".strack")).toHaveClass(/low/);
     // 破产:直写 isBankrupt → 整格降透明印灰挂点
     await force(page, `e.players[2].isBankrupt = true;`);
-    await expect(page.getByTestId("seat-2")).toHaveClass(/bankrupt/);
+    await expect(page.getByTestId(TESTIDS.seat(2))).toHaveClass(/bankrupt/);
   });
 
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {
@@ -108,13 +110,13 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     // 链路内联本 spec:helpers 帮手非本票所有物;seed 63 起手横征暴敛恒可用,窗必升)。
     // 军情密探目标段同款:给 seat1 挂珍宝凑目标门槛,直写替换手牌。
     await page.goto("/?seed=63");
-    await page.getByTestId("home-select-map").click();
-    await page.getByTestId("map-item-huanyou").click();
-    await page.getByTestId("map-confirm").click();
+    await page.getByTestId(HOME_TID.selectMap).click();
+    await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+    await page.getByTestId(SETUP_TID.mapConfirm).click();
     await openSoloSetup(page);
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.startGame).click();
     await page.locator(".bv-tile.bv-selectable").first().click();
-    await page.getByTestId("confirm-capital-ok").click();
+    await page.getByTestId(TESTIDS.confirmCapitalOk).click();
     await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
     await freezeClock(page);
     await force(
@@ -129,19 +131,19 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await opt.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
     // 目标段:候选格金圈呼吸挂点
-    await expect(page.getByTestId("seat-1")).toHaveClass(/candidate/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/candidate/);
     // 点格=选中(.picked 实金停持),再点同格=取消(#417 统一口径)
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
-    await expect(page.getByTestId("seat-1")).toHaveClass(/picked/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/picked/);
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
-    await expect(page.getByTestId("seat-1")).not.toHaveClass(/picked/);
+    await expect(page.getByTestId(TESTIDS.seat(1))).not.toHaveClass(/picked/);
   });
 });
 
 test.describe("旧席位卡形态退役核销(#698 ③)", () => {
   test("左右两列/顶行缩微/属性两行格/「运筹中」微标/血条刻度零残留", async ({ page }) => {
     await quickStart(page);
-    const rail = page.locator('[data-testid="seat-rail"]');
+    const rail = page.locator(`[data-testid=${TESTIDS.seatRail}]`);
     // 旧三槽位制退役:单列格列,无左列、无顶行缩微
     await expect(rail.locator(".seatcol")).toHaveCount(1);
     await expect(page.locator(".seatcol.left")).toHaveCount(0);

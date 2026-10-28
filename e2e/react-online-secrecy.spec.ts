@@ -14,6 +14,9 @@
 // testUnscaled 全速;跑前需先 build(两 webServer 都消费 dist)。
 import { testUnscaled as test, expect, type Page } from "./fixtures";
 import { newBridgeContext, onlinePickCapitals } from "./react-helpers";
+import { LID } from "../src/app/screens/lobby/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 const SEED = 430;
@@ -90,18 +93,18 @@ function expectFramesRedacted(
 async function twoClientsSetup(pages: [Page, Page]): Promise<void> {
   const [host, guest] = pages;
   await host.goto(`${ONLINE}/?online=1`);
-  await host.getByTestId("lobby-target").fill("30000");
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(LID.target).fill("30000");
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-  await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-huanyou").click();
-  await host.getByTestId("map-confirm").click();
-  await host.getByTestId("lobby-start").click();
+  await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+  await host.getByTestId(LID.selectMap).click();
+  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapConfirm).click();
+  await host.getByTestId(LID.start).click();
   for (const p of pages) {
-    await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+    await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
   }
   await onlinePickCapitals(pages);
 }
@@ -154,19 +157,19 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
       body.seed = SEED;
       await route.continue({ postData: JSON.stringify(body) });
     });
-    await host.getByTestId("lobby-target").fill("30000");
-    await host.getByTestId("lobby-seat-count-plus").click(); // 2 → 3 座(seat2 开局自动 bot)
-    await host.getByTestId("lobby-create").click();
-    await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-    const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+    await host.getByTestId(LID.target).fill("30000");
+    await host.getByTestId(`${LID.seatCount}-plus`).click(); // 2 → 3 座(seat2 开局自动 bot)
+    await host.getByTestId(LID.create).click();
+    await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+    const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
     await guest.goto(`${ONLINE}/?room=${roomId}`);
-    await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-    await host.getByTestId("lobby-select-map").click();
-    await host.getByTestId("map-item-huanyou").click();
-    await host.getByTestId("map-confirm").click();
-    await host.getByTestId("lobby-start").click();
+    await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+    await host.getByTestId(LID.selectMap).click();
+    await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+    await host.getByTestId(SETUP_TID.mapConfirm).click();
+    await host.getByTestId(LID.start).click();
     for (const p of [host, guest]) {
-      await expect(p.getByTestId("top-bar")).toBeVisible({ timeout: 45_000 });
+      await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
     }
     await onlinePickCapitals([host, guest]);
 

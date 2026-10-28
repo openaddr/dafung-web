@@ -10,19 +10,21 @@ import { test, expect } from "./fixtures";
 import { force, snap, freezeClock, openSoloSetup, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 /** 开局收口(seed 63 × huanyou,react-jinnang-use 同款):选图/起兵/定都(候选 DOM
  *  首格)后停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点。 */
 async function startPeekStop(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=63");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-huanyou").click();
-  await page.getByTestId("map-confirm").click();
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 

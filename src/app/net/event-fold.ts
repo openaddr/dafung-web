@@ -447,7 +447,25 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 金钱族 ──
       case "cashChanged": {
         const p = foldTarget(engine, ev);
-        p.cash += ev.delta; // 被动结算逐条累加(delta 带符号;主动支出随领域事件折)
+        // 破产扫账平记对齐(#652):引擎破产支路先经 settleDebt 把现金整扫归零,随后
+        // 税关/商市/机遇结算仍平记整额负 delta(浮字同口径,movement-flow/encounter-flow
+        // 破产支路)——该 delta 是表现宣告,非状态转移(引擎不再动账;PlayerBankrupt
+        // 时机技能只动属主且破产者不触发,该点引擎真值恒为 0)。批序恒 playerBankrupt
+        // 先于平记(finalizeBankruptcy 派发时机同步产事件,先于调用方的 cashChanged),
+        // 故锚 = ctx.bankruptSeats:锚在 → 落 0 即对齐引擎真值,非兜底钳位;锚不在而
+        // 穿零 = 锁步折叠下不存在的副本漂移,契约违反当场炸出(渲染端 formatMoney
+        // 负数契约才不致被折叠中间态击穿)。
+        const next = p.cash + ev.delta;
+        if (next < 0) {
+          const seat = seatNo(engine, p);
+          if (!ctx.bankruptSeats.has(seat))
+            throw new Error(
+              `折叠投影:cashChanged ${ev.delta} 使座位 ${seat} 现金穿零且本批无破产锚(副本漂移,契约违反)`,
+            );
+          p.cash = 0;
+        } else {
+          p.cash = next; // 被动结算逐条累加(delta 带符号;主动支出随领域事件折)
+        }
         // 落格表现态相邻回填(引擎结算序:落格置态 → 经济动账 → 回填金额/破产标记):
         const outcome = engine.lastLandOutcome;
         if (ev.reason === "supply" && outcome?.kind === "OwnProperty" && outcome.resupply == null)
