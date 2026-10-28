@@ -7,10 +7,12 @@
 //   选路/招贤/交涉/清算:语义音效(treasure/bankrupt) → 浮字
 //   回合推进:    turnBanner(下家国号)
 // 事件数组顺序即播放顺序,present 串行 await。
-// 本文件自 #385 起只保留「播放器 + 骰子动画 + 行军余段截短 + 重置」:#385 前的单机
-// 提取器(extractStepEvents 读 lastRoll/lastMove/drainFloaters/drainPropertyChanges/
-// drainJinnangPlays)与联机横幅游标(turnBannerEvent/maybeShowTurnBanner)已由
-// event-extract.ts 的事件批直译取代——演出因果单源 = 引擎事件批(ADR-0020)。
+// 本文件自 #385 起只保留「播放器 + 骰子动画 + 行军余段截短 + 重置」。旧单机提取器
+// (extractStepEvents——曾读 lastRoll/lastMove/引擎浮字队列 drainFloaters/
+// drainPropertyChanges/drainJinnangPlays)与联机横幅游标(turnBannerEvent/
+// maybeShowTurnBanner)均已被 event-extract.ts 的事件批直译取代——演出因果单源 =
+// 引擎事件批(ADR-0020)。引擎浮字通道(drainFloaters/pushFloater 族)#588 清点定谳:
+// 产线零消费,浮字宣告一律走事件 presented 档 + event-extract 派生。
 import type { MovePath } from "@core/board";
 import { formatMoney } from "@core/money";
 import { getAudio } from "./audio";

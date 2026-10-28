@@ -203,10 +203,16 @@ export interface JinnangDrawnBody {
 /** 弃牌堆洗回牌库:抽牌遇牌库空且弃牌非空,弃牌堆骰序洗成新牌库(正式机制,非防御
  *  逻辑)。count=洗回张数(=洗回前弃堆全量);洗后牌序是暗信息,严禁携带牌 id
  *  (ADR-0016,与 jinnangDrawn 同口径且只少不多)。牌库与弃堆双空不产本事件
- *  (落空=无转移,#384 口径)。 */
+ *  (落空=无转移,#384 口径),改产 jinnangExhausted 落空宣告。 */
 export interface JinnangReshuffledBody {
   kind: "jinnangReshuffled";
   count: number;
+}
+/** 牌库已空(#588):抽牌遇牌库与弃堆双空,落空宣告——零状态转移(无牌可抽即无转移,
+ *  #384 口径),fold 面忽略;表现=「锦囊已空」文案浮字(fx 面消费派生,单机/联机同见,
+ *  与 jinnangReshuffled 同通路;每次 drawJinnang 调用至多宣告一次)。 */
+export interface JinnangExhaustedBody {
+  kind: "jinnangExhausted";
 }
 /** 声望变更(#384):delta=夹紧 ±100 后的实际增减,reason=领域词 slug(机遇抉择=
  *  encounter/天命格=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
@@ -345,6 +351,7 @@ export type GameEventBody =
   | HeroSkillActivatedBody
   | JinnangDrawnBody
   | JinnangReshuffledBody
+  | JinnangExhaustedBody
   | ReputationChangedBody
   | StaminaChangedBody
   | TurnSkippedBody

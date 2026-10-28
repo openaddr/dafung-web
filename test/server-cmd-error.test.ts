@@ -17,7 +17,7 @@ const PORT = "4280"; // 本票专用测试端口(避开 e2e 的 3021/4184 与默
 const BASE = `http://127.0.0.1:${PORT}`;
 const ROOMS_DIR = mkdtempSync(join(tmpdir(), "dafung-428-"));
 
-let proc: Bun.Subprocess<"ignore", "pipe", "pipe">;
+let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
 
 beforeAll(async () => {
   let stale = false;
@@ -45,15 +45,21 @@ beforeAll(async () => {
     stdout: "pipe",
     stderr: "pipe",
   });
-  await waitHealthy();
+  await waitHealthy(proc);
 });
 
 afterAll(() => {
-  proc.kill();
+  // proc 可能未 spawn(beforeAll 残孤预检已显式抛出完整处置诊断)——此处只清理
+  // 已存在的资源;旧写法 proc.kill() 炸 TypeError 反把预检诊断埋成两团噪音,
+  // 且抛点在 rmSync 之前,每次预检失败还泄漏一个 tmp 房间目录(#632 实锤)。
+  proc?.kill();
   rmSync(ROOMS_DIR, { recursive: true, force: true });
 });
 
-async function waitHealthy(timeoutMs = 15000): Promise<void> {
+async function waitHealthy(
+  server: Bun.Subprocess<"ignore", "pipe", "pipe">,
+  timeoutMs = 15000,
+): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     try {
@@ -65,7 +71,7 @@ async function waitHealthy(timeoutMs = 15000): Promise<void> {
     await Bun.sleep(100);
   }
   throw new Error(
-    `服务器 ${timeoutMs}ms 内未就绪;stderr:${await new Response(proc.stderr).text()}`,
+    `服务器 ${timeoutMs}ms 内未就绪;stderr:${await new Response(server.stderr).text()}`,
   );
 }
 
@@ -152,7 +158,8 @@ describe("server cmd 分支错误回报(#428)", () => {
     await Bun.sleep(300); // 给潜在异步崩溃留出暴露时间
     const health = await fetch(`${BASE}/health`);
     expect(health.ok).toBe(true);
-    expect(proc.exitCode).toBeNull();
+    // 生命周期不变量:beforeAll 成功才进用例体,proc 必已赋值
+    expect(proc!.exitCode).toBeNull();
 
     ws.close();
   });

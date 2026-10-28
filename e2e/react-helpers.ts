@@ -5,6 +5,8 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 // 键名单源:与 registry.ts 双门禁共用同一常量(playwright 侧对 src 路径的解析同 fixtures.ts)。
 import { E2E_DEBUG_BRIDGE_KEY } from "../src/app/fx/timings";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 /** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
  *  无键不注册 window.__dafung,而 fixtures 的注入只覆盖 fixture page——raw context
@@ -57,7 +59,7 @@ export function snap(page: Page): Promise<any> {
 export async function quickStart(page: Page, seed?: number): Promise<void> {
   await page.goto(seed != null ? `/?seed=${seed}` : "/");
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await pickCapital(page);
   await waitMyRollDone(page, 0);
   await waitSettled(page);
@@ -69,7 +71,7 @@ export async function quickStart(page: Page, seed?: number): Promise<void> {
  *  dismissJinnangIfUp,卷轴异步挂载的竞速在轮询内自愈),此处只做一次即时探测。 */
 export async function pickCapital(page: Page, nth = 0): Promise<void> {
   await page.locator(".bv-tile.bv-selectable").nth(nth).click();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   await dismissJinnangIfUp(page);
 }
 
@@ -77,7 +79,7 @@ export async function pickCapital(page: Page, nth = 0): Promise<void> {
  *  actionbar-pass,原 scroll-jinnang-pass 语义平移);无窗态零等待。
  *  各用例/驱动循环的放行点统一走此助手,勿再复制可见性探测块。 */
 export async function dismissJinnangIfUp(page: Page): Promise<void> {
-  const jp = page.getByTestId("actionbar-pass");
+  const jp = page.getByTestId(TESTIDS.actionbarPass);
   if (await jp.isVisible().catch(() => false)) await jp.click({ timeout: 5_000 }).catch(() => {});
 }
 
@@ -153,16 +155,16 @@ export async function openSoloSetup(page: Page): Promise<void> {
       body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
     }),
   );
-  await page.getByTestId("home-solo").click();
-  await page.getByTestId("solo-setup-screen").waitFor();
-  await page.getByTestId("setup-encounter-toggle").click();
-  for (const f of [
-    "setup-encounter-trigger",
-    "setup-encounter-good",
-    "setup-encounter-neutral",
-    "setup-encounter-bad",
+  await page.getByTestId(HOME_TID.solo).click();
+  await page.getByTestId(SETUP_TID.screen).waitFor();
+  await page.getByTestId(SETUP_TID.encounterToggle).click();
+  for (const tid of [
+    SETUP_TID.encounterTrigger,
+    SETUP_TID.encounterGood,
+    SETUP_TID.encounterNeutral,
+    SETUP_TID.encounterBad,
   ]) {
-    await page.getByTestId(f).fill("0");
+    await page.getByTestId(tid).fill("0");
   }
 }
 
@@ -222,7 +224,7 @@ export async function actIfCan(p: Page): Promise<boolean> {
   // 出牌阶段态(#256,原 scroll-jinnang-pass 放行点迁动作条):回合开始自动起摇前可能
   // 停在窗态——默认「不出」放行,绝不替测试用牌。必须先于通配 scroll 分支
   // (会误点第一张牌)。
-  const jinnangPass = p.getByTestId("actionbar-pass");
+  const jinnangPass = p.getByTestId(TESTIDS.actionbarPass);
   if (await jinnangPass.isVisible().catch(() => false)) {
     return jinnangPass.click({ timeout: 10_000 }).then(
       () => true,
@@ -262,11 +264,11 @@ export async function skipUntilNextSeat(p: Page, seat: number, timeout = 30_000)
   await expect
     .poll(
       async () => {
-        const skip = p.getByTestId("action-skip");
+        const skip = p.getByTestId(TESTIDS.actionButton("skip"));
         if (await skip.isVisible().catch(() => false)) {
           await skip.click({ timeout: 2_000 }).catch(() => {});
         } else {
-          const jp = p.getByTestId("actionbar-pass");
+          const jp = p.getByTestId(TESTIDS.actionbarPass);
           if (await jp.isVisible().catch(() => false)) {
             await jp.click({ timeout: 2_000 }).catch(() => {});
           } else {
@@ -361,7 +363,7 @@ export async function onlinePickCapitals(pages: Page[]): Promise<void> {
     // 重试幂等:选都只在确认击提交(tile 点击只开详情卷轴),未选中前重点同城无害。
     await expect(async () => {
       await picker.locator(".bv-tile.bv-selectable").nth(0).click({ timeout: 5_000 });
-      await picker.getByTestId("confirm-capital-ok").click({ timeout: 5_000 });
+      await picker.getByTestId(TESTIDS.confirmCapitalOk).click({ timeout: 5_000 });
     }).toPass({ timeout: 30_000 });
     await pages[0].waitForFunction(
       (b) => JSON.stringify((window as any).__dafung.snapshot()) !== b,
@@ -426,7 +428,7 @@ export async function answerReactionWindow(page: Page, answer: ReactionAnswer): 
     return;
   }
   await page.evaluate(
-    ({ mode, card, seat }) => {
+    ({ mode, card, seat, ids }) => {
       const click = (el: Element | null): boolean => {
         if (el == null) return false;
         el.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
@@ -469,7 +471,7 @@ export async function answerReactionWindow(page: Page, answer: ReactionAnswer): 
               return;
             }
             const confirm = document.querySelector<HTMLButtonElement>(
-              '[data-testid="reaction-confirm"]',
+              `[data-testid="${ids.confirm}"]`,
             );
             if (confirm != null && !confirm.disabled && click(confirm)) {
               clearInterval(timer);
@@ -480,7 +482,7 @@ export async function answerReactionWindow(page: Page, answer: ReactionAnswer): 
           // decline/mute 单发命令应答:横幅在即点(联机日常路径,命令触发的新批入队
           // 追平,不打断在途转场)——不等演出排空,5s 权威窗内必落地。
           const btn = document.querySelector(
-            `[data-testid="${mode === "decline" ? "reaction-decline" : "reaction-mute"}"]`,
+            `[data-testid="${mode === "decline" ? ids.decline : ids.mute}"]`,
           );
           if (click(btn)) {
             clearInterval(timer);
@@ -493,6 +495,12 @@ export async function answerReactionWindow(page: Page, answer: ReactionAnswer): 
       mode: answer.mode,
       card: answer.mode === "counter" ? answer.card : "",
       seat: answer.mode === "counter" ? (answer.seat ?? null) : null,
+      // 页面内直派的函数体序列化过墙,Node 侧闭包不随行——单源选择器走参数进去。
+      ids: {
+        confirm: TESTIDS.reactionConfirm,
+        decline: TESTIDS.reactionDecline,
+        mute: TESTIDS.reactionMute,
+      },
     },
   );
 }
@@ -507,7 +515,7 @@ export async function answerMarchCounter(
   mode: "counter" | "decline" = "counter",
 ): Promise<number> {
   return page.evaluate(
-    (answerMode) =>
+    ({ mode, ids }) =>
       new Promise<number>((resolve, reject) => {
         const click = (el: Element | null): boolean => {
           if (el == null) return false;
@@ -536,16 +544,16 @@ export async function answerMarchCounter(
           if (
             stage === "wait" &&
             !document
-              .querySelector('[data-testid="reaction-text"]')
+              .querySelector(`[data-testid="${ids.text}"]`)
               ?.textContent?.includes("行军将过你的城池")
           )
             return; // 横幅未起或非 march 文案:继续等
           if (stage === "wait") {
             mover = e.pendingReaction.view.userSeat;
-            stage = answerMode === "decline" ? "confirm" : "card";
+            stage = mode === "decline" ? "confirm" : "card";
           }
           if (stage === "card") {
-            const cardEl = document.querySelector('[data-testid="jinnang-card-半路杀出"]');
+            const cardEl = document.querySelector(`[data-testid="${ids.card}"]`);
             if (cardEl?.classList.contains("sel")) {
               stage = "confirm";
             } else {
@@ -559,20 +567,27 @@ export async function answerMarchCounter(
             return;
           }
           const btn =
-            answerMode === "decline"
-              ? document.querySelector('[data-testid="reaction-decline"]')
-              : document.querySelector<HTMLButtonElement>('[data-testid="reaction-confirm"]');
+            mode === "decline"
+              ? document.querySelector(`[data-testid="${ids.decline}"]`)
+              : document.querySelector<HTMLButtonElement>(`[data-testid="${ids.confirm}"]`);
           const ready =
-            btn instanceof HTMLButtonElement && answerMode === "counter"
-              ? !btn.disabled
-              : btn != null;
+            btn instanceof HTMLButtonElement && mode === "counter" ? !btn.disabled : btn != null;
           if (ready && click(btn)) {
             clearInterval(timer);
             resolve(mover);
           }
         }, 50);
       }),
-    mode,
+    // 函数体序列化过墙,Node 侧闭包不随行——单源选择器走参数进去(口径同上)。
+    {
+      mode,
+      ids: {
+        text: TESTIDS.reactionText,
+        card: TESTIDS.jinnangCard("半路杀出"),
+        decline: TESTIDS.reactionDecline,
+        confirm: TESTIDS.reactionConfirm,
+      },
+    },
   );
 }
 

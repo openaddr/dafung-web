@@ -186,6 +186,11 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "弃牌堆骰序洗回牌库:牌库数+count/弃堆清零(count=弃堆全量转移,精确折);洗后牌序=暗信息不折(中途洗牌随批全量,已登记 CALIBRATION_EVENT_KINDS);表现=洗回浮字(与获锦囊浮字同 fx 通路,单机/联机同见)",
   },
+  jinnangExhausted: {
+    fold: "declarative",
+    fx: "presented",
+    why: "牌库与弃堆双空落空宣告(#588):零状态转移(无牌可抽即无转移,#384 口径);表现=「锦囊已空」文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
+  },
   jinnangAnnounced: {
     fold: "must-fold",
     fx: "presented",

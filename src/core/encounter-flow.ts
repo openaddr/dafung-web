@@ -682,8 +682,9 @@ function applyTradeEffect(
   return "settled";
 }
 
-/** 机遇体力接线(#132):staminaDelta 经 addStamina 落账(clamp 0~100;非 0 留「体力 ±n」
- *  浮字,对局日志 detail 补 stamina=落账值)→ 归 0 触发 exhaustIfDepleted。
+/** 机遇体力接线(#132):staminaDelta 经 addStamina 落账(clamp 0~100;浮字/战报增量记
+ *  夹紧后实际差,非入参请求数,#568 病 B;detail 的 delta=请求数、stamina=落账值)
+ *  → 归 0 触发 exhaustIfDepleted。
  *  返回 "exhausted"=耗竭接管本落格:phase 进 AwaitingExhaustion、auto 已 endTurn 收尾回合——
  *  两种场合调用方都不得续跑城池结算(人倒下了不买地),与 liquidating/bankrupt 同占落格。 */
 function applyEncounterStamina(
@@ -707,7 +708,8 @@ function applyEncounterStamina(
     subject: seat,
     delta: stamina - staminaBefore,
   }); // 时机·StaminaChanged:机遇路体力变更(#456 拍定仅机遇路挂——耗竭重置是系统复位、华佗赈济属主动技结算内,两处均不派)
-  const signed = `${delta > 0 ? "+" : "−"}${Math.abs(delta)}`;
+  const gained = stamina - staminaBefore; // 夹紧后实际差(#568 病 B):浮字/战报增量记实际差,非机遇请求数
+  const signed = `${gained >= 0 ? "+" : "−"}${Math.abs(gained)}`;
   g.pushFloaterText(mover, `体力 ${signed}`, atTile);
   g.logEvent(
     "system",

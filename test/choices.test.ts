@@ -198,7 +198,7 @@ describe("选项集注册表(choices.ts)", () => {
 
 // ─────────────────────── 唯一选项自动执行 ───────────────────────
 describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)", () => {
-  it("银两不足落无主城:不进 AwaitingDecision + 战报 + 浮字「银两不足,未能购城」", () => {
+  it("银两不足落无主城:不进 AwaitingDecision + 战报 + 宣告事件(reason=insufficient-cash)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
@@ -212,11 +212,14 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     expect(
       e.log.some((ev) => ev.detail.includes("skipAvailable") && ev.detail.includes(def.id)),
     ).toBe(true);
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text === "银两不足,未能购城")).toBe(true);
+    expect(
+      e
+        .snapshot()
+        .events.some((ev) => ev.kind === "propertyRejected" && ev.reason === "insufficient-cash"),
+    ).toBe(true); // 文案浮字由 fx 按 reason 派生(见 presentation.test)
   });
 
-  it("无委任状落无主城:不进 AwaitingDecision + 战报 + 浮字「无委任状,不可购」", () => {
+  it("无委任状落无主城:不进 AwaitingDecision + 战报 + 宣告事件(reason=no-warrant)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
@@ -228,11 +231,14 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     expect(e.log.some((ev) => ev.brief.includes("无委任状") && ev.detail.includes(def.id))).toBe(
       true,
     );
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text === "无委任状,不可购")).toBe(true);
+    expect(
+      e
+        .snapshot()
+        .events.some((ev) => ev.kind === "propertyRejected" && ev.reason === "no-warrant"),
+    ).toBe(true);
   });
 
-  it("满级己城:自动按兵不动 + 战报「城已满级,按兵不动」+ 浮字(不再弹假选择)", () => {
+  it("满级己城:自动按兵不动 + 战报「城已满级,按兵不动」+ 宣告事件(reason=maxed,不再弹假选择)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const me = e.activePlayer;
@@ -256,8 +262,9 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
       true,
     );
     expect(e.log.some((ev) => ev.brief.includes("城已满级,按兵不动"))).toBe(true);
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text === "城已满级,按兵不动")).toBe(true);
+    expect(
+      e.snapshot().events.some((ev) => ev.kind === "propertyRejected" && ev.reason === "maxed"),
+    ).toBe(true);
   });
 
   it("有两个真实选项时绝不自动执行:买得起必弹购地卷轴相位", () => {
@@ -269,7 +276,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     p.warrants = 1;
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
-    expect(e.presentation.drainFloaters()).toEqual([]); // 无浮字
+    expect(e.snapshot().events.some((ev) => ev.kind === "propertyRejected")).toBe(false); // 真两难不自动执行,无宣告(浮字随之无)
   });
 
   it("未满级己城:必弹扩军卷轴相位", () => {

@@ -677,6 +677,10 @@ export function extractBatchEvents(
       }
       case "staminaChanged": {
         const seat = eventSeat(engine, ev);
+        // #568 病 A:非耗竭文案=delta 宣告,零实际差=无变化无演出(满体力回蓝/顶格赈济/
+        // 触底机遇不再浮「体力 +0」;发射点不设守卫——事件语义=宣告实际差,含 0,守卫
+        // 单点在表现层折算处)。exhaustion 是耗竭状态宣告,文案与 delta 无关,不受此限。
+        if (ev.reason !== "exhaustion" && ev.delta === 0) break;
         events_.push(
           textFloater(
             engine,
@@ -716,6 +720,12 @@ export function extractBatchEvents(
         // 洗回宣告走 fx 面(引擎不推浮字):单机/联机各端同见,文案与战报同口径
         const seat = eventSeat(engine, ev);
         events_.push(textFloater(engine, seat, `弃牌堆 ${ev.count} 张洗回牌库`));
+        break;
+      }
+      case "jinnangExhausted": {
+        // 牌库弃堆双空落空宣告(#588):文案浮字锚抽牌者——自引擎浮字死通道迁 fx 面,
+        // 单机/联机同见,rules 06「锦囊已空」玩家可见口径由此成立
+        events_.push(textFloater(engine, eventSeat(engine, ev), "锦囊已空"));
         break;
       }
       case "encounterChoice": {

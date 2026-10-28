@@ -199,6 +199,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "heroSkillActivated", skillId: "warDrumZhangfei", skillKind: "warDrum", targetSeat: 1 },
   { kind: "jinnangDrawn", count: 1, reason: "encounter" },
   { kind: "jinnangReshuffled", count: 3 },
+  { kind: "jinnangExhausted" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },
   { kind: "staminaChanged", delta: -15, reason: "encounter" },
   { kind: "turnSkipped" },
