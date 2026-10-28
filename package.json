@@ -10,6 +10,7 @@
     "lint": "oxlint",
     "lint:fix": "oxlint --fix",
     "fmt": "oxfmt",
+    "fmt:check": "oxfmt --check",
     "build": "bun run --bun tsc --noEmit && bun run --bun vite build",
     "preview": "bun run --bun vite preview --port 4173",
     "typecheck": "bun run --bun tsc --noEmit",

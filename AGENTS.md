@@ -83,7 +83,7 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 
 - **测试宁缺毋滥**:重复用例、低性能用例宁可不要,发现即删或重写;新增用例先答「守住什么、花几秒」。
 - **开工前 `bun run check:freshness`**(过期禁止开工;多轮任务每轮续作前重跑,并行会话可能已合票推进 master)。
-- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + build + bun test,改 `scripts/` 加跑 typecheck:scripts。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
+- **门槛挂 PR 前——本地全绿**(无 CI,本地是唯一门):lint 0 warning + fmt + fmt:check + build + bun test,改 `scripts/` 加跑 typecheck:scripts。实锤陷阱:**改共享类型(挂根字段增删一类)先 `bun run typecheck` 盘点全部消费点再动刀**——排除式过滤词的 grep 会按文件名吞命中,漏网到 build 才爆就是几轮返工。
 - **杀进程先验名**:`tasklist` 验进程名,只杀自己拉起的进程;`aurora_slim` 是用户 VPN 日常必用,永不入清理名单。
 
 ## Agent 工作流
