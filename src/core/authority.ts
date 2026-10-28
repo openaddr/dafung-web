@@ -682,7 +682,7 @@ export class GameEngine {
     resolveLanding(this);
   }
 
-  /** 都城补给量查询(tile→def→holding→supplyFor 查找链,测试断言消费):
+  /** 都城补给量查询(tile→def 查找链,测试断言消费):
    *  薄委托 → movement-flow.capitalSupplyOf。 */
   capitalSupplyOf(player: Player): { supply: number; level: number } {
     return capitalSupplyOf(this, player);

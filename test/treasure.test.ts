@@ -118,15 +118,15 @@ describe("珍宝系统", () => {
     expect(owner.cash).toBe(ownerCash0 + guide); // 城主收银(玩家间)
   });
 
-  it("坐地起价(翻倍城·成都 tradeMult):售价 = 指导价×tradeMult[level],且高于指导价", () => {
+  it("坐地起价(纯乘城·街亭 tradeMult):售价 = 指导价×tradeMult[level],且高于指导价", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const def = e.catalog.get("prop-chengdu")!;
-    expect(def.tradeMult).toEqual([2, 3, 4, 5]); // 乘法城逐级(Lv0-3),下标 = 等级
-    const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
+    const def = e.catalog.get("prop-jieting")!;
+    expect(def.tradeMult).toEqual([2, 3, 5, 7]); // 奇城逐级(Lv0-3),下标 = 等级
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-jieting");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 tradeMult=2(乘法城)
+    const price = guide * 2; // Lv0 tradeMult=2(奇城)
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(owner.treasures.length).toBe(0);
@@ -135,14 +135,15 @@ describe("珍宝系统", () => {
     expect(price).toBeGreaterThan(guide); // 高于指导价
   });
 
-  it("坐地起价(加价城·襄阳 tradeAdd):售价 = 指导价 + tradeAdd[level],且高于指导价", () => {
+  it("坐地起价(纯加城·襄阳 tradeAdd):售价 = 指导价×1 + tradeAdd[level],且高于指导价", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-xiangyang")!;
-    expect(def.tradeAdd).toEqual([300, 1000, 2500, 5500]); // 襄阳 34 两档(Lv0-3),下标 = 等级
+    expect(def.tradeAdd).toEqual([200, 400, 800, 1600]); // 郡城加值逐级(Lv0-3),下标 = 等级
+    expect(def.tradeMult).toEqual([1, 1, 1, 1]); // 纯加城倍率恒 1
     const { mover, guide } = setupOwnerChoice(e, "prop-xiangyang");
     const moverCash0 = mover.cash;
-    const price = guide * 2 + 300; // Lv0 = 指导价×tradeMult[0](2) + tradeAdd[0](300),先乘再加
+    const price = guide + 200; // Lv0 = 指导价×tradeMult[0](1) + tradeAdd[0](200),先乘再加
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
     expect(mover.treasures.length).toBe(1);
     expect(mover.cash).toBe(moverCash0 - price);
@@ -152,13 +153,13 @@ describe("珍宝系统", () => {
   it("坐地起价随城等级提升:Lv3 价格 > Lv0 价格", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const def = e.catalog.get("prop-chengdu")!;
+    const def = e.catalog.get("prop-jieting")!;
     const guide = TREASURE_PRICE[TLEVEL];
-    // Lv0 vs Lv3:乘法城 tradeMult=[2,3,4,5](等级 0..3)
+    // Lv0 vs Lv3:奇城 tradeMult=[2,3,5,7](等级 0..3)
     const priceL0 = premiumPriceOf(guide, def, 0);
     const priceL3 = premiumPriceOf(guide, def, 3);
     expect(priceL0).toBe(guide * 2);
-    expect(priceL3).toBe(guide * 5);
+    expect(priceL3).toBe(guide * 7);
     expect(priceL3).toBeGreaterThan(priceL0);
   });
 
@@ -228,9 +229,9 @@ describe("珍宝系统", () => {
   it("坐地起价现金不足:同样进托管区,不得先得宝(premium 路径)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    const { owner, mover, guide } = setupOwnerChoice(e, "prop-chengdu");
+    const { owner, mover, guide } = setupOwnerChoice(e, "prop-jieting");
     const ownerCash0 = owner.cash;
-    const price = guide * 2; // Lv0 乘法城 tradeMult=2
+    const price = guide * 2; // Lv0 奇城 tradeMult=2
     mover.cash = price - 1;
     mover.treasures.push({ id: "other-treasure", name: "旧藏", level: 2, count: 1, desc: "" }); // 有资产可清算
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });

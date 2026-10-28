@@ -201,8 +201,8 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1(huanyou #471 换源重钉):两位玩家分别落汉中/零陵(无主城,跳过购地),
-    // 落城链无时机派发,AfterMarch 之后直接 TurnEnd,如实钉住
+    // seed=1(ADR-0034 重钉):AI 选都改补给性价比(便宜城占优)后两家分选凉州/江州,
+    // 首位玩家落宝物城拼点得宝(TreasureGained)且途经棋子/城池,第二位途经棋子——如实钉住
     expect(calls).toEqual([
       "SetupComplete",
       "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
@@ -212,14 +212,18 @@ describe("时机框架:派发点位", () => {
       "BeforeMarch",
       "BeforeRoll",
       "DieRolled",
+      "PassedPlayer", // 途经棋子
+      "MarchPassedCity", // 途经城池
       "AfterMarch",
-      "TurnEnd", // 第一位玩家(落汉中,跳过购地无时机)
+      "TreasureGained", // 落宝物城拼点得宝
+      "TurnEnd", // 第一位玩家(落宝物城,探宝自带收尾)
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",
       "BeforeRoll",
       "DieRolled",
+      "PassedPlayer", // 途经棋子
       "AfterMarch",
-      "TurnEnd", // 第二位玩家(落零陵,跳过购地无时机)
+      "TurnEnd", // 第二位玩家
       "RoundEnd",
       "RoundStart",
       "TurnStart", // 轮次交替 + 新轮首位玩家

@@ -6,7 +6,7 @@
 //   1. 常规局(无种子):guest 线级捕获全部帧——每份 snapshot(摘要/校准)他人手牌恒空、
 //      牌库恒空只剩数量;每个事件批里 jinnang 窗 queriedSeats 只含自己座位或匿名占位
 //      (-1)。驱动数秒保证事件批非空(断言非空性:摘要至少一份、事件批至少一批)。
-//   2. 种子局(seed 430,与 react-reaction-online 同款确定性):选都一结束 bot 即出
+//   2. 种子局(seed 419,与 react-reaction-online 同款确定性):选都一结束 bot 即出
 //      横征暴敛,全桌只有 guest(seat1)持识破诡计、被询问集 god-view=[1]——guest 侧
 //      事件批可见 [自己];host 侧同一窗只见匿名占位(真实座位 1 不得出现)。双向证明
 //      「身份按座位裁、自己看见自己」。
@@ -19,7 +19,7 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
-const SEED = 430;
+const SEED = 419;
 
 /** 线级连接收集器(react-online-cutover 同款):按 WS 连接分组捕获全部下行 JSON 帧。 */
 function collectConnections(page: Page): { msgs: Record<string, unknown>[] }[] {
@@ -173,7 +173,7 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
     }
     await onlinePickCapitals([host, guest]);
 
-    // 选都一结束 bot 即出横征暴敛(种子 430 离线核算):轮询两端事件批流直到
+    // 选都一结束 bot 即出横征暴敛(种子 419 离线核算):轮询两端事件批流直到
     // jinnang 窗开窗事件到达(取代横幅等待——本例只看线级帧,不做应答交互)
     const firstJinnangWindow = (conns: { msgs: Record<string, unknown>[] }[]) =>
       conns
@@ -186,7 +186,7 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
     await expect
       .poll(async () => firstJinnangWindow(guestConns) != null, {
         timeout: 30_000,
-        message: "guest 事件批流出现 jinnang 窗(种子 430:bot 选都后即出横征暴敛)",
+        message: "guest 事件批流出现 jinnang 窗(种子 419:bot 选都后即出横征暴敛)",
       })
       .toBe(true);
     // 被询问者视角:god-view [1] → 自己可见

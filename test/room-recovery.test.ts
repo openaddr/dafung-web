@@ -72,7 +72,7 @@ async function playingRoom(reg: RoomRegistry): Promise<string> {
   const created = reg.createRoom({
     seatCount: 2,
     botIdx: new Set(),
-    hostConfig: { seed: 42 },
+    hostConfig: { seed: 42, target: 16000 }, // 压低达标线:跑到终局族回到旧局长量级(见 room.test.ts playingRoom)
   });
   const roomId = created.room.roomId;
   reg.joinSeat(roomId);

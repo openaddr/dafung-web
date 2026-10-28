@@ -143,7 +143,13 @@ async function playingRoomWithClock(clock: RoomClock) {
 async function playingRoom(
   reg: RoomRegistry,
 ): Promise<{ roomId: string; token: string; guestToken: string }> {
-  const created = reg.createRoom({ seatCount: 2, botIdx: new Set(), hostConfig: { seed: 42 } });
+  // target 16,000(ADR-0034 后生产图达标局中位 ~290 轮):压低达标线让「跑到终局」族
+  // 回到旧局长量级,60s 预算内收敛;收敛/一致性断言与目标绝对值无关
+  const created = reg.createRoom({
+    seatCount: 2,
+    botIdx: new Set(),
+    hostConfig: { seed: 42, target: 16000 },
+  });
   const roomId = created.room.roomId;
   const guestToken = reg.joinSeat(roomId).token;
   reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);

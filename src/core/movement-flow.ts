@@ -13,7 +13,7 @@
 // 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
 import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
-import { buy, upgrade, supplyFor } from "./economy";
+import { buy, upgrade } from "./economy";
 import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow } from "./reaction-window";
@@ -560,18 +560,18 @@ function enterDecisionPhase(g: GameEngine): boolean {
   return false;
 }
 
-/** 都城补给量(供 bot/UI 复用,集中 tile→def→holding→supplyFor 查找链)。
- *  返回 { supply, level }:supply=补给金额,level=都城当前等级。
+/** 都城补给量(供 bot/UI 复用,集中 tile→def 查找链)。
+ *  返回 { supply, level }:supply=补给金额(地图固定值,不随等级),level=都城当前等级。
  *  一并返回 level 是为让 applyResupply 写日志时免再做一次 board.at+findHolding(原重复查找)。
  *  只在 Setup 完成后调用:都城恒为城池格、建都即持有且都城不可失——缺失 = 引擎状态 bug,直接炸。 */
 export function capitalSupplyOf(g: GameEngine, player: Player): { supply: number; level: number } {
   const tile = g.board.at(player.capitalIndex);
   const def = g.catalog.get(tile.propertyId!)!; // 都城恒为城池格,def 必在册
   const h = findHolding(player, def.id)!; // 建都即持有且都城不可失
-  return { supply: supplyFor(def.resupplyPerLevel, h.level), level: h.level };
+  return { supply: def.resupply, level: h.level };
 }
 
-/** 都城补给 = ResupplyPerLevel × (Level+1);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
+/** 都城补给 = 地图 resupply(固定值,不随城池等级);结算(+现金/浮动/战报),查找走 capitalSupplyOf(单次)。
  *  cause="halt"(经过必停)战报写「军至都城 X,驻跸补给(+N)」;"land"(落点恰为都城)维持原补给文案。 */
 function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "land"): number {
   const { supply, level } = capitalSupplyOf(g, mover);
@@ -596,7 +596,7 @@ function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "l
     g.logEvent(
       "supply",
       mover.guohao,
-      `${mover.guohao} 都城补给 +${formatMoney(supply)}(Lv.${level})`,
+      `${mover.guohao} 都城补给 +${formatMoney(supply)}`,
       `supply player=${mover.id} capital=#${mover.capitalIndex} level=${level} amount=${supply} cash=${mover.cash}`,
       supply,
     );

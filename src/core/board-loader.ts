@@ -15,8 +15,8 @@ export interface MapData {
   startingCash: number;
   /** 等级上限(逐图必配,loadMap 校验 ≥1 整数;城池持有等级 0..maxLevel)。 */
   maxLevel: number;
-  /** 都城补给/级(两)的地图级默认值(必配,loadMap 校验);逐城可覆盖。 */
-  resupplyPerLevel: number;
+  /** 都城补给(两/次)的地图级固定值(必配,loadMap 校验);不随城池等级变化。 */
+  resupply: number;
   tiles: MapTile[];
 }
 
@@ -35,8 +35,6 @@ export interface MapTile {
   tradeAdd: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
   tradeMult: number[];
-  /** 都城补给/级(分):内置地图逐城显式声明;缺省回退地图顶层 resupplyPerLevel(自定义地图用)。 */
-  resupplyPerLevel?: number;
 }
 
 const SUPPORTED_VERSION = 1;
@@ -81,10 +79,10 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     fail(`maxLevel 必配且须为 ≥1 的整数(当前:${String(d.maxLevel)})`);
   }
   const maxLevel = d.maxLevel;
-  if (typeof d.resupplyPerLevel !== "number") {
-    fail("缺顶层 resupplyPerLevel(地图级都城补给/级默认值,逐城可覆盖)");
+  if (typeof d.resupply !== "number") {
+    fail("缺顶层 resupply(都城补给,两/次,固定值)");
   }
-  const resupply = d.resupplyPerLevel;
+  const resupply = d.resupply;
 
   // tiles + 坐标
   const idToIdx = new Map<string, number>();
@@ -152,7 +150,7 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
       maxLevel,
       valueByLevel: values,
       buildCost: t.buildCost,
-      resupplyPerLevel: t.resupplyPerLevel ?? resupply, // 逐城显式优先;缺省回退地图顶层(自定义地图)
+      resupply, // 地图顶层固定值注入,城侧不逐城配置
       tradeAdd: t.tradeAdd,
       tradeMult: t.tradeMult,
     });

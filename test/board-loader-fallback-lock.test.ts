@@ -17,10 +17,6 @@ const ALLOWED: [fragment: string, reason: string][] = [
   ],
   ["region: t.region ?? null", "可空字段:region 本就允许缺省(落 null)"],
   ['const type = t.type ?? "Property";', "schema 默认:properties 段同款口径"],
-  [
-    "resupplyPerLevel: t.resupplyPerLevel ?? resupply",
-    "两层配置:逐城覆盖缺省回退地图顶层(注释明示的自定义地图便利口径)",
-  ],
   ["const arr = m.get(p.group) ?? []", "catalog 构建:分组挂链的查表习惯"],
   ["return id ? (byId.get(id) ?? null) : null;", "catalog.get 契约:查无返回 null(UI 空态消费)"],
   ["return byGroup.get(group) ?? [];", "catalog 构建:空分组返回空表的查表习惯"],

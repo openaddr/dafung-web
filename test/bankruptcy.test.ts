@@ -258,7 +258,7 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
     e.sellPropertyBankruptcy(city.propId);
     expect(p.cash).toBe(guidePriceOf(7) + sellValueOf(def, 0));
     expect(sellValueOf(def, 0)).toBe(def.valueByLevel[0]);
-    expect(sellValueOf(def, 0)).not.toBe(def.purchasePrice); // Lv.0 变卖折价(经济 v2:40%),展示不再标购入价
+    expect(sellValueOf(def, 0)).not.toBe(def.purchasePrice); // Lv.0 变卖折价(经济 v3:60%),展示不再标购入价
 
     // 名将:入账 === 展示(200)
     e.cashHeroBankruptcy("zhouyu");

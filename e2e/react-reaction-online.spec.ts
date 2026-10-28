@@ -1,6 +1,6 @@
 // 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速;#291 决议/#302 整治):
 // 标准双端 UI 流程(react-online 同款)建 3 座房 [host 页=seat0 / guest 页=seat1 /
-// seat2 不入座→开局自动 bot 填充],种子 430 经路由拦截注入建房请求(联机 UI 无种子入口;
+// seat2 不入座→开局自动 bot 填充],种子 419 经路由拦截注入建房请求(联机 UI 无种子入口;
 // 种子是确定性前提)。种子离线核算(同配置引擎演算):draftOrder=[2,1,0] bot 先动且起手
 // 横征暴敛,guest 起手识破诡计,host 起手缓兵之计——选都一结束 bot 即出横征暴敛
 // (全体域,targetSeats=[0,1]),guest 被询问(持识破者=guest;#284 拍板「不狩双人
@@ -39,7 +39,7 @@ import { LID } from "../src/app/screens/lobby/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
-const SEED = 430;
+const SEED = 419;
 /** 加长窗(playwright.config E2E_REACTION_MS 注入 server,spec 侧同源取值——fallback
  *  与 config 的值成对改,#626)。 */
 const REACTION_MS = Number(process.env.E2E_REACTION_MS ?? 15000);
@@ -75,7 +75,7 @@ async function pollEventSeen(
     .toBe(true);
 }
 
-/** 标准 UI 建房/加入/选图/开局(种子经路由拦截注入 /room/new 请求体,缺省 430);
+/** 标准 UI 建房/加入/选图/开局(种子经路由拦截注入 /room/new 请求体,缺省 419);
  *  3 座:seat2 不入座,开局由服务器 bot 填充。返回 [host, guest, guest 线级事件批]。 */
 async function twoClientsWithSeed(
   browser: Browser,
@@ -177,7 +177,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
     const { host, guest, guestFeed } = await twoClientsWithSeed(browser);
     try {
       const before = await awaitReactionWindow(guest);
-      // 询问集真值(#388 god-view 明传,per-seat 裁剪退役):seed 430 全桌只有 guest
+      // 询问集真值(#388 god-view 明传,per-seat 裁剪退役):seed 419 全桌只有 guest
       // 持识破诡计,被询问集恒 [1]
       const queried = await guest.evaluate(
         () => (window as any).__dafung.snapshot().reaction?.queriedBySeat,
@@ -325,10 +325,11 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   test("已应答座位横幅即收、不可重复应答(#453/B2):host 应答后横幅消失,权威侧应答齐窗收续结算", async ({
     browser,
   }) => {
-    // 种子 125(bun in-process 房间演算直扫,权威同源零偏差):双人类起手识破诡计、
-    // bot 起手火烧连营(可宣告)。draftOrder=[1,0,2] 客先动——驱动器沿途回答单人窗、
+    // 种子 837(bun in-process 房间演算直扫,权威同源零偏差;ADR-0034 重钓——AI 选都
+    // 评分变更后原 125 链作废):双人类起手识破诡计、bot 首回合即宣告连环计开出 [0,1]
+    // 双窗。draftOrder 客先动——驱动器沿途回答单人窗、
     // 清决策点,直至 bot 宣告开出 [0,1] 双窗(场景机制见 driveToDualWindow 注)。
-    const { host, guest, roomId } = await twoClientsWithSeed(browser, 125);
+    const { host, guest, roomId } = await twoClientsWithSeed(browser, 837);
     try {
       const announcedCard = await driveToDualWindow(host, guest);
       // 询问集 per-seat 投影(#461 起=身份匿名、数量保留,与脱敏批同口径):自己座位
@@ -385,11 +386,11 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   test("非应答端可应答(#461):host 应答后 guest 应答入口健在、过网入账,应答齐权威即收窗", async ({
     browser,
   }) => {
-    // 同种子 125 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
+    // 同种子 837 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
     // #461 根因:出牌阶段开窗拍必带校准全量快照,其 per-seat 投影把查询集覆盖成长度 1,
     // 折叠器闭窗算术(answers 数 ≥ 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:
     // 横幅提前消失、丧失应答入口,权威侧窗实际仍开满窗寿,玩家被超时代发兜底。
-    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 125);
+    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 837);
     try {
       await driveToDualWindow(host, guest);
       const before = await awaitReactionWindow(guest);

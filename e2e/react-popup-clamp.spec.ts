@@ -135,11 +135,12 @@ test.describe("弹层族矮屏规范(#708)", () => {
 test.describe("决策卷轴拍板钮钉底(#729)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  /** seed 7 拦检链到购地卷轴(react-short-stage startShort 同源配方:huanyou 条带选图
-   *  + 机遇归零 + 选都,人类首个落格即购地抉择)。 */
+  /** seed 50 拦检链到购地卷轴(ADR-0034 重钓:AI 选都评分变更后原 seed 7 链作废,
+   *  react-short-stage startShort 同源配方:huanyou 条带选图 + 机遇归零 + 选都,
+   *  人类首个落格即购地抉择)。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
-    await page.goto(`/?seed=7`);
+    await page.goto(`/?seed=50`);
     await page.getByTestId(HOME_TID.mapStripItem("huanyou")).click();
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();

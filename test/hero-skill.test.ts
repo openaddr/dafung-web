@@ -215,15 +215,17 @@ describe("主动技结算(#188 档 3)", () => {
     expect(mirror.activePlayer.heroLastFired["zhangxingcai-leigu"]).toBe(e.round);
     expect(mirror.turnPhase).toBe("Roll");
     // 行军消费:steps = die + 2(与 board.computePath 期望落点一致),加成清零
-    const startPos = mirror.activePlayer.position;
+    // (先抓行军者引用:落点若是税关等自动收尾格,rollAndMove 后回合已推进,activePlayer 易主)
+    const mover = mirror.activePlayer;
+    const startPos = mover.position;
     mirror.rollAndMove();
     const die = mirror.presentation.lastRoll!.die;
-    const path = mirror.board.computePath(startPos, die + 2, mirror.activePlayer.capitalIndex);
+    const path = mirror.board.computePath(startPos, die + 2, mover.capitalIndex);
     const expected =
-      path.passedCapital && path.landIndex !== mirror.activePlayer.capitalIndex
-        ? mirror.activePlayer.capitalIndex
+      path.passedCapital && path.landIndex !== mover.capitalIndex
+        ? mover.capitalIndex
         : path.landIndex;
-    expect(mirror.activePlayer.position).toBe(expected);
+    expect(mover.position).toBe(expected);
     expect(mirror.heroDiceBonus).toBe(0);
     expect(
       mirror.log.some((l) => l.detail.includes(`steps=${die + 2}`) && l.detail.includes("bonus=2")),

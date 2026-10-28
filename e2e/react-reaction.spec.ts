@@ -44,12 +44,13 @@ import type { Page } from "@playwright/test";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-/** 开局收口(seed 7 × huanyou ADR-0027 环序离线核算,见文件头注):选图/起兵/定都
- *  (候选 DOM 首格=长沙)后,等自动起摇(掷五)落江州弹出的购地抉择卷轴——种植类用例
- *  的稳定停靠点(force 在任何相位可用;此停靠点 engine 停在 AwaitingDecision 等输入)。 */
+/** 开局收口(seed 50 × huanyou ADR-0034 重钉,tmp 引擎仿真复算):AI 选都评分变更后
+ *  bot 选都/骰流全变,原 seed 7 链作废——新链:定都江州(16)、起手唯反应「识破诡计」
+ *  自动起摇(掷三)落凉州(19,无主城)弹购地抉择卷轴。种植类用例的稳定停靠点
+ *  (force 在任何相位可用;此停靠点 engine 停在 AwaitingDecision 等输入)。 */
 async function soloAtBuyAsk(page: Page): Promise<void> {
   await useHalfScale(page);
-  await page.goto("/?seed=7");
+  await page.goto("/?seed=50");
   await page.getByTestId(HOME_TID.selectMap).click();
   await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();
@@ -286,12 +287,13 @@ test.describe("反应窗(#281 单机)", () => {
     // ── 分支二 平局:补牌 → 城主 3 对行人 3 → 牌白耗,行人照常续走落原落点 ──
     // #398 快速链适配:分支 1 应答后房间编排一拍跑完整条 bot 链(合并连锁,联机同构),
     // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → plantAmbush 重种手牌/布位/
-    // 骰队 → 放行)。停靠=回合开始出牌阶段(火攻钉子)。行程骰队列 [1,5]:人类骰 1
-    // (+疾行止于 13 交州可购决策——**停靠让 fx 排空**,若人类一路走到无人停靠格,看门狗
-    // 自动化会连播行军动画,answerMarchCounter 的 fx 门在 5s 权威窗内永远等不到空闲);
-    // bot 首个行程骰 5 → 拦检窗后续走至 15 涪陵渡落格,away 不赌自然骰。
+    // 骰队 → 放行)。停靠=回合开始出牌阶段(火攻钉子)。行程骰队列 [2,5]:人类骰 2
+    // (+疾行止于 19 凉州可购决策——**停靠让 fx 排空**,若人类一路走到无人停靠格,看门狗
+    // 自动化会连播行军动画,answerMarchCounter 的 fx 门在 5s 权威窗内永远等不到空闲;
+    // ADR-0034 重钉:原 [1,5] 落 18=bot 都城剑阁,停靠形态随选都地理失效);
+    // bot 首个行程骰 5 → 自 15 途经江州开拦检窗后续走落格,away 不赌自然骰。
     await waitMyPause(page, 0);
-    await plantAmbush(page, { duelDice: [3, 3], withSecondCity: false, marchSteps: [1, 5] });
+    await plantAmbush(page, { duelDice: [3, 3], withSecondCity: false, marchSteps: [2, 5] });
     await skipUntilNextSeat(page, 0);
     const mover2 = await answerMarchCounter(page);
     // 拼点签面(平局判词,#637):双方无圈(无 win/dim 态类),中缝印钤变金「平」

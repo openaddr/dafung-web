@@ -10,7 +10,7 @@ describe("地图加载器(合法)", () => {
     expect(m.board.count).toBe(m.tiles.length);
     expect(m.targetNetWorth).toBe(30000);
     expect(m.startingCash).toBe(10000);
-    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(4000); // 经济 v2:长安 40 两
+    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(4800); // 经济 v3:长安=名城 48 档
   });
 
   it("主路按 tiles 数组顺序闭合", () => {
@@ -65,10 +65,10 @@ describe("地图校验(非法应抛可读错误)", () => {
     delete d.maxLevel;
     expect(() => loadMap(d)).toThrow(/maxLevel/);
   });
-  it("缺顶层 resupplyPerLevel(地图级补给默认值必配)", () => {
+  it("缺顶层 resupply(地图级都城补给必配,固定值)", () => {
     const d = base();
-    delete d.resupplyPerLevel;
-    expect(() => loadMap(d)).toThrow(/resupplyPerLevel/);
+    delete d.resupply;
+    expect(() => loadMap(d)).toThrow(/resupply/);
   });
   it("城缺 price(免费城须显式写 0,不再默认 0)", () => {
     const d = base();
