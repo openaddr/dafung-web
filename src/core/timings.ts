@@ -15,6 +15,14 @@ export const AUTO_ROLL_DELAY_MS = 1000;
  *  即停(收回即停,重开续跑)。权威节奏不吃 E2E_TIME_SCALE(见文件头)。 */
 export const AUTOPILOT_STEP_MS = 2000;
 
+/** bot 步进配速(#730,ADR-0034):bot 座位每步决策间隔(ms)——产出端配速,让
+ *  bot 连锁的动作按可读节奏逐拍下行,与客户端实速串行的演出队列同量级,普通对局
+ *  不再积压进追帧/吸附档(修正 ADR-0029「产出端已收口、播放侧无需配套」的前提:
+ *  ADR-0028 单节拍只覆盖了托管,bot 恒 0ms 连锁)。经 RoomRegistryOptions.botStepMs
+ *  注入(0/缺席 = 无配速,测试缺省);生产装配层(local.ts / server.ts)显式传本
+ *  常量,单机/联机同值。权威节奏不吃 E2E_TIME_SCALE(见文件头)。 */
+export const BOT_STEP_MS = 3000;
+
 /** 驱动链停摆作废窗口(单机,#642 响亮终局):no-progress 断链且决策座位属服务器驱动
  *  (bot/托管)时武装 stallAbort 看门狗,到点 abortGame 响亮终局(零无声软锁)。经
  *  RoomRegistryOptions.stallAbortMs 注入——单机 LocalController 传本常量(30s);

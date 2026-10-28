@@ -202,9 +202,11 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
     const e = makeEngine(7);
     finishSetup(e);
     const fx = new SnapshotEffects(() => e);
-    // K = N+2:块 1..N 连续超线(第 N 块吸附),N+1/N+2 落回线下(浮字照播);
+    // 同步入队 K 批:第 k 块出队时 gap = K-k+1(主尺机器时间)。连超长度 = K-gapBatches+1,
+    // 须 ≥ consecutiveForSnap → K ≥ gapBatches+consecutiveForSnap(#730 再定标后 5+6=11):
+    // 块 1..6 连续超线(第 6 块吸附),其后落回线下(浮字照播);
     // 行军只挂 1/2/N 三块:吸附块的锚定会话必须被收回(不收回 = 棋子冻结起点挂金边)
-    const K = LAG.consecutiveForSnap + 2;
+    const K = LAG.gapBatches + LAG.consecutiveForSnap;
     const snapDelta = -LAG.consecutiveForSnap;
     const countersBefore = { ...catchupCounters };
     enqueueBatches(
@@ -219,14 +221,15 @@ describe("SnapshotEffects 落后即校准:吸附重档(#610,ADR-0029 ③)", () =
     const amounts = useFxStore.getState().floaters.map((f) => f.amount);
     expect(amounts).not.toContain(snapDelta);
     expect(useFxStore.getState().marching.size).toBe(0);
-    // 追帧块(1..N−1)与回线后的块(N+1..K)演出仍在(加速播 ≠ 不播)
+    // 追帧块(超线游程中未吸附的块:游程 = K-gapBatches+1 = consecutiveForSnap+1,
+    // 吸附占 1 次,余皆追帧)与回线后的块演出仍在(加速播 ≠ 不播)
     expect(amounts).toEqual(
       Array.from({ length: K }, (_, i) => -(i + 1)).filter((d) => d !== snapDelta),
     );
     // 诊断桥计数随判定推进(端到端:出队点判档真发生)
     expect(catchupCounters.snapBatches).toBe(countersBefore.snapBatches + 1);
     expect(catchupCounters.catchupBatches).toBe(
-      countersBefore.catchupBatches + LAG.consecutiveForSnap - 1,
+      countersBefore.catchupBatches + LAG.consecutiveForSnap,
     );
   });
 

@@ -29,6 +29,19 @@ export const e2eReactionWindowMs = (): number => {
   if (typeof localStorage === "undefined") return 0;
   return Number(localStorage.getItem(E2E_REACTION_MS_KEY) ?? "") || 0;
 };
+/** e2e bot 步进配速覆盖(单机,毫秒;#730):联机的同款配置经 server env
+ *  E2E_BOT_STEP_MS 注入 registry;单机进程内房间(LocalController)经本键走同一
+ *  registry 选项 botStepMs。null = 键缺席(生产/真人局/bun 单测),生产装配层走
+ *  core BOT_STEP_MS;显式 "0" = 关配速(e2e 提速通道)。 */
+export const E2E_BOT_STEP_MS_KEY = "dafung-e2e-bot-step-ms";
+/** 读 bot 步进配速覆盖(null = 未注入):键值非法(负数/非数)按未注入。 */
+export const e2eBotStepMs = (): number | null => {
+  if (typeof localStorage === "undefined") return null;
+  const raw = localStorage.getItem(E2E_BOT_STEP_MS_KEY);
+  if (raw == null || raw === "") return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n >= 0 ? n : null;
+};
 /** 地板:headless+软渲下 expect 轮询的可观察下限,保瞬态演出(骰子签面/横幅)可被断言。 */
 export const TIME_SCALE_FLOOR_MS = 100;
 
@@ -79,34 +92,27 @@ export const scStage = (ms: number): number => {
   return catchupScale === 1 ? base : Math.round(base / catchupScale);
 };
 
-/** 落后即校准判据阈值(#610,ADR-0029 ③;#570 决议:混合尺+分类非布尔,数值观感定标)。
- *  定标依据(bot 产批节拍:非托管座位 0ms 连发,一个 bot 回合 ≈3-6 批瞬时到齐;
- *  最长常规演出块 = 都城停链/破产仪式 ≈6s):
- *  - gapBatches=3:差 3 批 = 整整一个 bot 回合的演出未开播,追帧介入;1-2 批 =
- *    回合内尾流,瞬时抖动平滑吸收(colyseus peak 档);
- *  - ageMs=10s:单批再长也应在 10s 内开播(≈2× 最长块),兜住主尺盲区(单批超长、
- *    游标差恒小,#600);吃 sc(只随 e2e 键,判据时距不进追帧通道——阈值追倍率会
- *    抵消负反馈),烤定值不随运行时倍率漂移;
- *  - consecutiveForSnap=4:3× 顶速连播 4 块(≈4-6s)仍追不上 = 产出结构性快于
- *    播放上限,升吸附(colyseus ema 持续分量同构);
+/** 落后即校准判据阈值(#610,ADR-0029 ③;#570 决议:混合尺+分类非布尔;#730/ADR-0034
+ *  再定标:阈值必须高于「配速后正常局」的水位,吸附回归异常治理本位,不为常规积压买单)。
+ *  定标依据(#730 台架实测:bot 已按 BOT_STEP_MS 配速,健康水位 = 在播 1-2 批的回合内
+ *  尾流;最长常规演出块 = 都城停链/破产仪式 ≈6s):
+ *  - gapBatches=5:差 5 批 ≈ 一个完整 bot 回合的演出未开播(配速下 3-4 命令/回合),
+ *    追帧介入;1-4 批 = 正常尾流与瞬时抖动,平滑吸收(colyseus peak 档);
+ *  - ageMs=20s:配速下队列头等待 ≈2-3 批 × 播放时长 ≈6-10s,20s ≈ 2× 余量;兜住主尺
+ *    盲区(单批超长、游标差恒小,#600);吃 sc(只随 e2e 键,判据时距不进追帧通道
+ *    ——阈值追倍率会抵消负反馈),烤定值不随运行时倍率漂移;
+ *  - consecutiveForSnap=6:3× 顶速连播 6 块(≈10s+)仍追不上 = 产出结构性快于播放上限
+ *    (掉线追平/全 bot 观战级),才升吸附(colyseus ema 持续分量同构);
  *  - scaleMin/scaleMax=1.5~3(决议口径,速度域:scStage 时长除以倍率)、
- *    scaleStep=0.5/批:gap=3 起步 1.5×,每深一批 +0.5×,gap≥6 顶格 3×。
+ *    scaleStep=0.5/批:gap=5 起步 1.5×,每深一批 +0.5×,gap≥8 顶格 3×。
  *    批数/倍率无量纲,不吃 sc。 */
 export const LAG = {
-  gapBatches: 3,
-  ageMs: sc(10000),
-  consecutiveForSnap: 4,
+  gapBatches: 5,
+  ageMs: sc(20000),
+  consecutiveForSnap: 6,
   scaleMin: 1.5,
   scaleMax: 3,
   scaleStep: 0.5,
-} as const;
-
-/** bot 单步延时(单机 runBots 节奏):产出端节拍(ADR-0028 单节拍口径)——追帧是
- *  播放侧治理,产出端不配套(ADR-0029 判据基调),只吃 sc(e2e 键)。 */
-export const BOT = {
-  get stepDelayMs() {
-    return sc(750);
-  },
 } as const;
 
 /** 令牌行军(旧 animate.ts animateMove 的逐段节奏,语义不变):
@@ -275,15 +281,6 @@ export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeou
 export const GHOST = {
   get frameMs() {
     return sc(210);
-  },
-} as const;
-
-/** 托管代打空转(#117 收编):local.ts apLoop 在无人类决策点时(真 bot 轮次由 runBots
- *  驱动/Setup 待手选)的轮询间隔——空转让步,不与 bot 节奏(BOT.stepDelayMs)混用。
- *  产出侧空转节拍,只吃 sc 不吃追帧(F4 作用域拆分,同 BOT 口径)。 */
-export const AUTOPILOT = {
-  get idleMs() {
-    return sc(200);
   },
 } as const;
 

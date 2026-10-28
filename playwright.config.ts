@@ -96,6 +96,9 @@ export default defineConfig({
         // 赛跑是 flake 家族)。react-reaction-online.spec 的 fallback 与此值成对改。
         // 客户端横幅读快照 view.windowMs,两端同长自动成立。
         E2E_REACTION_MS: "15000",
+        // bot 配速关隔离(#730):生产 bot 按 core BOT_STEP_MS 逐拍下行(演出可读),
+        // e2e 的 bot 连锁节奏(种子局核算/窗闭沿冲洗)按 0ms 保墙钟,与机遇归零同款隔离。
+        E2E_BOT_STEP_MS: "0",
       },
     },
   ],

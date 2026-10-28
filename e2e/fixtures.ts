@@ -8,6 +8,7 @@ import { test as base, expect, type Browser, type Page } from "@playwright/test"
 // (timings.ts 自身 import @core/theme——playwright 的 tsconfig paths 解析可处理,
 // 若运行时报模块解析失败,回退为字面量 "dafung-e2e-time-scale" 并在此注明。)
 import {
+  E2E_BOT_STEP_MS_KEY,
   E2E_DEBUG_BRIDGE_KEY,
   E2E_REACTION_MS_KEY,
   E2E_TIME_SCALE_KEY,
@@ -26,6 +27,10 @@ const timeScale = process.env.E2E_TIME_SCALE ?? "0.25";
 // registry 选项 reactionWindowMs(与 server env 同一通道);权威窗长不吃倍率,
 // 横幅展示按倍率缩放。
 const reactionMs = process.env.E2E_REACTION_MS ?? "5000";
+// bot 步进配速覆盖(#730):默认 "0" = 关配速——生产 bot 按 core BOT_STEP_MS 配速
+// (演出可读),e2e 对局节奏仍走 0ms 连锁保墙钟;要验配速行为的用例经 env 显式开启。
+// 单机经 E2E_BOT_STEP_MS_KEY → registry 选项 botStepMs(与 server env 同一通道)。
+const botStepMs = process.env.E2E_BOT_STEP_MS ?? "0";
 
 /** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速;并开调试桥门禁
  *  (registry.installDebugHooks 双门禁:生产构建不注册 window.__dafung,dev 或
@@ -33,10 +38,11 @@ const reactionMs = process.env.E2E_REACTION_MS ?? "5000";
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(
-      ({ key, value, bridge, reactionKey, reactionValue }) => {
+      ({ key, value, bridge, reactionKey, reactionValue, botStepKey, botStepValue }) => {
         localStorage.setItem(key, value);
         localStorage.setItem(bridge, "1");
         localStorage.setItem(reactionKey, reactionValue);
+        localStorage.setItem(botStepKey, botStepValue);
       },
       {
         key: E2E_TIME_SCALE_KEY,
@@ -44,6 +50,8 @@ export const test = base.extend({
         bridge: E2E_DEBUG_BRIDGE_KEY,
         reactionKey: E2E_REACTION_MS_KEY,
         reactionValue: reactionMs,
+        botStepKey: E2E_BOT_STEP_MS_KEY,
+        botStepValue: botStepMs,
       },
     );
     await use(page);

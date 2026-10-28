@@ -38,6 +38,7 @@ import {
 } from "node:fs";
 import { extname, join, resolve } from "node:path";
 import type { TurnPhase } from "../src/core/authority";
+import { BOT_STEP_MS } from "../src/core/timings";
 import { ENCOUNTER_PRODUCT_DEFAULTS, parseEncounterFile } from "../src/core/encounters";
 import { statusOf, builtinMapCatalog, loadBuiltinMapById } from "./engine-helpers";
 import { EventBatchChannel } from "./event-batch";
@@ -100,6 +101,15 @@ const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   0,
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
 );
+
+// bot 步进配速(#730,ADR-0034):bot 座位产出端配速,bot 连锁逐拍下行,与客户端
+// 实速串行的演出队列同量级,普通对局不再积压进追帧/吸附档。未注入 = core BOT_STEP_MS
+// (生产缺省,单机/联机同值);显式 "0" = 关配速(联机 e2e 提速通道)。
+const BOT_STEP_MS_OVERRIDE: number | null =
+  process.env.E2E_BOT_STEP_MS == null
+    ? null
+    : Math.max(0, parseInt(process.env.E2E_BOT_STEP_MS, 10) || 0);
+const BOT_STEP_MS_EFFECTIVE = BOT_STEP_MS_OVERRIDE ?? BOT_STEP_MS;
 
 // 掉线座位保留窗口(#380):对局中断线的座位保留该毫秒——窗口内持 seatToken 重连无缝
 // 归座;到期看门狗代开托管(ADR-0028,重连不清托管,原玩家点「收回」拿回)。0 = 关闭
@@ -235,6 +245,7 @@ const registry = new RoomRegistry(
     decisionTimeoutMs: DECISION_TIMEOUT_MS,
     reactionWindowMs: REACTION_WINDOW_MS_OVERRIDE,
     retentionWindowMs: RETENTION_WINDOW_MS,
+    botStepMs: BOT_STEP_MS_EFFECTIVE,
   },
 );
 const restored = registry.restoreAll(loadBuiltinMapById, (room) => {
@@ -514,6 +525,7 @@ const HELP = {
     JIYU_CONFIG,
     DECISION_TIMEOUT_MS,
     E2E_REACTION_MS: REACTION_WINDOW_MS_OVERRIDE,
+    E2E_BOT_STEP_MS: BOT_STEP_MS_EFFECTIVE,
     RETENTION_WINDOW_MS,
   },
 };
@@ -761,7 +773,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"}`,
+  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"};bot 配速(#730):${BOT_STEP_MS_EFFECTIVE > 0 ? `${BOT_STEP_MS_EFFECTIVE}ms/步` : "关"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|dismiss;掉线冻结+房主解散出口(ADR-0002/0028);WS /ws",
