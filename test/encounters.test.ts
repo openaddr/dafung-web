@@ -584,8 +584,12 @@ describe("抉择机遇(#124):入相与快照", () => {
     const text = testEngine(e).logText();
     expect(text.includes("机遇「结盟互市」")).toBe(true);
     expect(text.includes("各得 100 两")).toBe(true);
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text.includes("结盟互市"))).toBe(true);
+    // 选项文案浮字由 fx 按目录派生(单选项自动执行同产 encounterChoice,见 presentation.test)
+    expect(
+      e
+        .snapshot()
+        .events.some((ev) => ev.kind === "encounterChoice" && ev.encounterId === "结盟互市"),
+    ).toBe(true);
   });
 
   it("抽中结盟互市(真实抽取路径)→ 单选项自动执行,机遇解完继续购地决策", () => {
@@ -952,12 +956,29 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const r = testEngine(e).applyEncounter(mover, mover.position, byId("粮道被劫"));
     expect(r).toBe("settled");
     expect(mover.stamina).toBe(35);
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text === "体力 −25")).toBe(true);
+    // 浮字由 fx 消费 staminaChanged 派生(见 presentation.test):锚事件的实际差
+    expect(
+      e
+        .snapshot()
+        .events.some(
+          (ev) => ev.kind === "staminaChanged" && ev.reason === "encounter" && ev.delta === -25,
+        ),
+    ).toBe(true);
     const text = testEngine(e).logText();
     expect(text.includes("机遇「粮道被劫」:粮道遭山贼劫掠,损失折银 250 两,体力 −25")).toBe(true);
     expect(text.includes("encounterStamina")).toBe(true);
     expect(text.includes("stamina=35")).toBe(true);
+  });
+
+  it("体力不足扣到负:战报增量记实际差(#568 病 B)——体力 20 吃 −25 记「体力 −20」", () => {
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 20;
+    testEngine(e).applyEncounter(mover, mover.position, byId("粮道被劫"));
+    const text = testEngine(e).logText();
+    expect(text.includes("体力 −20")).toBe(true); // 实际差 0−20=−20,非请求数 −25
+    expect(text.includes("体力 −25")).toBe(false);
   });
 
   it("体力不足归 0 → 耗竭相位接管本落格:rollAndMove 门线跳过购地,房产降级可 resolve", () => {
@@ -1000,8 +1021,13 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     e.resolveEncounterChoice(0);
     expect(mover.cash).toBe(cash0 - 150);
     expect(mover.stamina).toBe(90);
+    // 浮字由 fx 消费 staminaChanged 派生:锚事件的实际差(60+30 无夹紧)
     expect(
-      e.presentation.drainFloaters().some((f) => f.kind === "msg" && f.text === "体力 +30"),
+      e
+        .snapshot()
+        .events.some(
+          (ev) => ev.kind === "staminaChanged" && ev.reason === "encounter" && ev.delta === 30,
+        ),
     ).toBe(true);
     expect(testEngine(e).logText().includes("stamina=90")).toBe(true);
     expect(e.turnPhase).toBe("Roll"); // 中性床位:机遇解完落空结算收尾
@@ -1016,9 +1042,17 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     testEngine(e).applyEncounter(mover, mover.position, byId("神医行诊"));
     expect(mover.stamina).toBe(75);
     expect(mover.cash).toBe(cash0);
-    const fs = e.presentation.drainFloaters();
-    expect(fs.some((f) => f.kind === "msg" && f.text === "体力 +25")).toBe(true);
-    expect(fs.some((f) => f.kind !== "msg" && f.amount === 0)).toBe(false); // 无 0 金额浮字
+    // 浮字由 fx 消费 staminaChanged 派生:锚事件的实际差
+    expect(
+      e
+        .snapshot()
+        .events.some(
+          (ev) => ev.kind === "staminaChanged" && ev.reason === "encounter" && ev.delta === 25,
+        ),
+    ).toBe(true);
+    expect(e.snapshot().events.some((ev) => ev.kind === "cashChanged" && ev.delta === 0)).toBe(
+      false,
+    ); // 无 0 金额宣告(现金零不落账,浮字随之无)
     const text = testEngine(e).logText();
     expect(text.includes("机遇「神医行诊」:神医路过举家调理,体力 +25")).toBe(true);
     expect(text.includes("+0")).toBe(false); // cash 0 特判生效:全日志无 "+0"

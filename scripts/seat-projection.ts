@@ -207,6 +207,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "heroSkillActivated":
       case "jinnangDrawn":
       case "jinnangReshuffled":
+      case "jinnangExhausted": // #588:双空落空宣告(零转移纯宣告,无座位外隐私字段)
       case "reputationChanged":
       case "staminaChanged":
       case "turnSkipped":

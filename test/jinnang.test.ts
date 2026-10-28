@@ -147,14 +147,11 @@ describe("锦囊发牌(引擎缝)", () => {
     expect(e.jinnangDeck).toEqual([]);
     expect(e.jinnangDeckCount).toBe(0);
     expect(e.jinnangDiscard).toEqual([]); // 无作废:满手作废已废除
-    const msgs = e.presentation
-      .drainFloaters()
-      .filter((f) => f.kind === "msg")
-      .map((f) => (f as { text: string }).text);
-    expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true); // 抽空后落空提示(既有语义不变)
+    // 落空宣告走事件面(#588):一次调用至多一条(既有「至多提示一次」语义不变)
+    expect(e.snapshot().events.filter((x) => x.kind === "jinnangExhausted").length).toBe(1);
   });
 
-  it("牌库抽空(弃堆亦空):落空浮字「锦囊已空」,零转移", () => {
+  it("牌库抽空(弃堆亦空):落空宣告 jinnangExhausted 零转移,浮字「锦囊已空」由 fx 面派生", () => {
     const e = makeEngine(3);
     finishSetup(e);
     e.jinnangDeck = [];
@@ -162,11 +159,8 @@ describe("锦囊发牌(引擎缝)", () => {
     e.drawJinnang(0, 2);
     expect(e.players[0].jinnangHand.length).toBe(handBefore);
     expect(e.jinnangDiscard.length).toBe(0);
-    const msgs = e.presentation
-      .drainFloaters()
-      .filter((f) => f.kind === "msg")
-      .map((f) => (f as { text: string }).text);
-    expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true);
+    const ev = e.snapshot().events.find((x) => x.kind === "jinnangExhausted");
+    expect(ev).toMatchObject({ kind: "jinnangExhausted", seat: 0 });
   });
 
   it("公开计数(引擎态)随抽牌维护:手牌数/牌库余数与内容一致,随快照往返", () => {
@@ -248,11 +242,7 @@ describe("弃牌堆洗回(牌库耗尽)", () => {
     expect(e.drawJinnang(0, 3)).toBe(0);
     expect(circulation(e)).toBe(before);
     expect(e.snapshot().events.some((x) => x.kind === "jinnangReshuffled")).toBe(false);
-    const msgs = e.presentation
-      .drainFloaters()
-      .filter((f) => f.kind === "msg")
-      .map((f) => (f as { text: string }).text);
-    expect(msgs.some((t) => t.includes("锦囊已空"))).toBe(true);
+    expect(e.snapshot().events.some((x) => x.kind === "jinnangExhausted")).toBe(true); // 落空宣告(#588,浮字归 fx 面)
   });
 
   it("确定性:同 seed+同指令序列,两局洗回后牌库牌序一致", () => {

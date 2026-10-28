@@ -37,8 +37,9 @@ export interface PendingHeroSkill {
 
 /** 抽锦囊(#122/T1):从牌库堆顶抽 count 张入手。手牌无上限(#250),抽牌恒成功;
  *  牌库空而弃牌非空 → 弃牌堆骰序洗回牌库(正式机制,逐张检查,洗回后继续抽满 count)
- *  再抽;双空(牌库与弃堆皆空)→ 浮字「锦囊已空」落空(每次调用至多提示一次)。
- *  返回实际入手张数(#384:落空=无转移,调用方据此不产事件)。
+ *  再抽;双空(牌库与弃堆皆空)→ 落空宣告(jinnangExhausted 事件,每次调用至多一次;
+ *  「锦囊已空」浮字由 fx 面消费派生,#588 迁事件面)。
+ *  返回实际入手张数(#384:落空=无转移,调用方据此不产转移类事件)。
  *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
  *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),四路同覆盖
  *  ——起手发牌/锦囊格/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
@@ -53,7 +54,7 @@ export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
         reshuffleDiscardIntoDeck(g, seat); // 洗回后落到下方堆顶抽取,本迭代照常入手
       } else {
         if (!emptyNotified) {
-          g.floaters.push({ playerIndex: seat, amount: 0, kind: "msg", text: "锦囊已空" });
+          emitGameEvent(g, seat, { kind: "jinnangExhausted" }); // 落空宣告走事件面(#588):零转移纯宣告,浮字归 fx
           emptyNotified = true;
         }
         continue;
@@ -433,16 +434,18 @@ function fireHeroSkill(
       const target = g.players[seat];
       const staminaBefore = target.stamina;
       const after = g.addStamina(seat, stamina);
+      const gained = after - staminaBefore; // 夹紧后实际差(#568 病 B):浮字/战报增量记实际差,非技能请求数
+      const signedGained = `${gained >= 0 ? "+" : "−"}${Math.abs(gained)}`;
       emitGameEvent(g, seat, {
         kind: "staminaChanged",
-        delta: after - staminaBefore,
+        delta: gained,
         reason: "heroRelief",
       }); // 事件流(#384):体力变更(赈济,夹紧后实际增减)
-      g.pushFloaterText(target, `${target.guohao} 体力 +${stamina}`, target.position);
+      g.pushFloaterText(target, `${target.guohao} 体力 ${signedGained}`, target.position);
       g.logEvent(
         "system",
         user.guohao,
-        `${user.guohao} 【${skill.name}】:付 ${formatMoney(cost)},${target.guohao} 体力 +${stamina}(现 ${after})`,
+        `${user.guohao} 【${skill.name}】:付 ${formatMoney(cost)},${target.guohao} 体力 ${signedGained}(现 ${after})`,
         `heroRelief owner=${user.id} skill=${skill.id} target=${target.id} cost=${cost} stamina=${stamina} staminaNow=${after}`,
         -cost,
       );

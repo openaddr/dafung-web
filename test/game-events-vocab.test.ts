@@ -172,6 +172,10 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     });
     expect(user.stamina).toBe(100);
     expect(user.cash).toBe(cash0 - 100); // 主动付款不产 cashChanged(金额在技事件内,参数查表)
+    // 战报增量=实际差(#568 病 B):请求 +30、实际 +10,战报不得写请求数
+    const text = testEngine(e).logText();
+    expect(text).toContain("体力 +10(现 100)");
+    expect(text).not.toContain("体力 +30");
   });
 
   it("耗竭重置:exhaustIfDepleted 无可处置路径产出 staminaChanged(reason=exhaustion)", () => {

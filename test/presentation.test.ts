@@ -523,6 +523,19 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
+  it("staminaChanged 零实际差不产浮字(#568 病 A:无变化无演出;exhaustion 状态宣告不受此限)", () => {
+    const e = E();
+    const out = synth(e, [
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "skill" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "heroRelief" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 0, reason: "encounter" },
+      { kind: "staminaChanged", seat: 0, round: 1, turn: 1, delta: 100, reason: "exhaustion" },
+    ]);
+    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
+      "体力耗竭,跳过一回合",
+    ]);
+  });
+
   it("座位契约校验:座位型事件缺有效座位当场炸出(零兜底)", () => {
     const e = E();
     expect(() =>
@@ -561,6 +574,12 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       "银两不足,未能购城",
       "城已满级,按兵不动",
     ]);
+  });
+
+  it("jinnangExhausted:双空落空宣告 → 「锦囊已空」文案浮字(#588 迁 fx 面)", () => {
+    const e = E();
+    const out = synth(e, [{ kind: "jinnangExhausted", seat: 0, round: 1, turn: 1 }]);
+    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual(["锦囊已空"]);
   });
 
   it("assetTransferred:逐城易主宣告(缺口 2)——承让方持有时归属色随提取时刻态,回无主=null", () => {

@@ -147,6 +147,14 @@ describe("华佗·regenStamina 效果(#133)", () => {
     expect(e.players[0].stamina).toBe(100); // +15 溢出作废
     expect(e.players[0].heroLastFired[SKILL_ID]).toBe(e.round); // 击发事实不因 clamp 吞掉
     expect(fireCount(e, SKILL_ID)).toBe(1);
+    // 事件语义=宣告实际差(#568 病 A):满体力击发仍产 staminaChanged(delta=0),
+    // 「+0 不演出」由表现层折算处单点守卫(event-extract),发射点不各贴守卫
+    expect(e.snapshot().events.find((x) => x.kind === "staminaChanged")).toMatchObject({
+      kind: "staminaChanged",
+      seat: 0,
+      delta: 0,
+      reason: "skill",
+    });
   });
 
   it("回血只加不减,不触发耗竭", () => {
