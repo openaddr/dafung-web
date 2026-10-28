@@ -139,7 +139,7 @@ export function DecisionScrollLayer({
                   valueByLevel: def.valueByLevel,
                   tradeMult: def.tradeMult,
                   tradeAdd: def.tradeAdd,
-                  resupplyPerLevel: def.resupplyPerLevel,
+                  resupply: def.resupply,
                 }
               : null
           }
@@ -259,7 +259,7 @@ export function DecisionScrollLayer({
                   valueByLevel: def.valueByLevel,
                   tradeMult: def.tradeMult,
                   tradeAdd: def.tradeAdd,
-                  resupplyPerLevel: def.resupplyPerLevel,
+                  resupply: def.resupply,
                 }}
                 cash={p.cash}
                 choices={snapshot.choices}
@@ -277,7 +277,7 @@ export function DecisionScrollLayer({
                   valueByLevel: def.valueByLevel,
                   tradeMult: def.tradeMult,
                   tradeAdd: def.tradeAdd,
-                  resupplyPerLevel: def.resupplyPerLevel,
+                  resupply: def.resupply,
                 }}
                 isCapital={
                   p.capitalIndex !== null &&

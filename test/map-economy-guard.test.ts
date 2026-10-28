@@ -1,154 +1,144 @@
-// 经济数值 v2 一致性守卫:两张内置地图每座城的 price/tradeAdd/tradeMult/valueByLevel/
-// buildCost/resupplyPerLevel 必须严格落在其价位档的标准值上(乘法城另表),
-// 珍宝指导价表一并锁定——防手改地图数值漂移。
+// 经济数值 v3 一致性守卫(ADR-0034 四档城制):两张内置地图每座城的 price/tradeAdd/
+// tradeMult/valueByLevel/buildCost 必须严格落在其城档(县城/郡城/奇城/名城)的标准值上,
+// 都城补给 = 地图顶层 resupply 固定值,珍宝指导价表一并锁定——防手改地图数值漂移。
+//
+// 四档设计口径(ADR-0034):加法城两档(县城/郡城,倍率恒 1,加值随级翻倍节奏)、
+// 纯乘城一档(奇城,加值恒 0,倍率 [2,3,5,7] 高于名城的 5——高等级配高价值珍宝翻盘)、
+// 乘加城一档(名城,两者皆有、购价明显高,低中高价值珍宝通吃)。
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
-import { isCityType } from "@core/board";
 import { TREASURE_PRICE } from "@core/treasures";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import huanyouData from "../public/maps/huanyou.json";
 
-/** 价位档标准表(#299 重标定后唯一单位=两;档号是「购价百两」速记——18 档即 1,800 两,
- *  乘 100 只是档号到两值的速记乘法,不是货币换算,分/锭已废)。与 .scratch/rescale-maps.cjs
- *  同源,手改任一侧都应在此炸出。 */
-const tierLiang = (tier: number) => tier * 100;
-const ADD: Record<number, number[]> = {
-  18: [1, 5, 13, 30],
-  22: [2, 7, 16, 37],
-  24: [2, 7, 18, 40],
-  27: [2, 8, 20, 45],
-  34: [3, 10, 25, 55],
-  38: [3, 11, 28, 65],
-  40: [3, 12, 30, 70],
+/** 四档标准表(购价百两速记:县城 18 档/郡城·奇城 30 档/名城 48 档)。
+ *  变卖价 = 购价 × [60%, 90%, 120%, 150%];建城费 = 购价 50%。 */
+const TIERS = {
+  县城: {
+    price: 1800,
+    buildCost: 900,
+    tradeMult: [1, 1, 1, 1],
+    tradeAdd: [100, 200, 400, 800],
+    valueByLevel: [1080, 1620, 2160, 2700],
+  },
+  郡城: {
+    price: 3000,
+    buildCost: 1500,
+    tradeMult: [1, 1, 1, 1],
+    tradeAdd: [200, 400, 800, 1600],
+    valueByLevel: [1800, 2700, 3600, 4500],
+  },
+  奇城: {
+    price: 3000,
+    buildCost: 1500,
+    tradeMult: [2, 3, 5, 7],
+    tradeAdd: [0, 0, 0, 0],
+    valueByLevel: [1800, 2700, 3600, 4500],
+  },
+  名城: {
+    price: 4800,
+    buildCost: 2400,
+    tradeMult: [2, 3, 4, 5],
+    tradeAdd: [200, 400, 600, 1200],
+    valueByLevel: [2880, 4320, 5760, 7200],
+  },
 };
-const TIER_OF = (tier: number) => ({
-  price: tierLiang(tier),
-  buildCost: tierLiang(Math.round(tier * 0.5)),
-  tradeAdd: ADD[tier].map(tierLiang),
-  tradeMult: [2, 4, 6, 10],
-  valueByLevel: [0.4, 0.6, 0.85, 1.2].map((k) => tierLiang(Math.round(tier * k))),
-});
-const TIERS = new Map<number, ReturnType<typeof TIER_OF>>();
-for (const tier of [18, 22, 24, 27, 34, 38, 40]) TIERS.set(tier, TIER_OF(tier));
-// 乘法城(3,000 两档):tradeAdd 全 0,tradeMult [2,3,4,5]
-TIERS.set(30, {
-  price: tierLiang(30),
-  buildCost: tierLiang(15),
-  tradeAdd: [0, 0, 0, 0],
-  tradeMult: [2, 3, 4, 5],
-  valueByLevel: [12, 18, 26, 36].map(tierLiang),
-});
 
-/** 环游图逐城价位档(档号=购价百两);zhongyuan 各自映射到同一张表。 */
-const HUANYOU_TIER: Record<string, number> = {
-  "prop-changan": 40,
-  "prop-luoyang": 40,
-  "prop-jianye": 40,
-  "prop-xuchang": 34,
-  "prop-wujun": 38,
-  "prop-kuiji": 34,
-  "prop-chengdu": 30,
-  "prop-ye": 30,
-  "prop-jiange": 30,
-  "prop-jieting": 30,
-  "prop-huarong": 30,
-  "prop-hefei": 30,
-  "prop-xiangyang": 34,
-  "prop-jiangling": 27,
-  "prop-wuchang": 27,
-  "prop-jiangxia": 24,
-  "prop-chibi": 24,
-  "prop-hanzhong": 27,
-  "prop-jiangzhou": 24,
-  "prop-ziwu": 24,
-  "prop-linzi": 27,
-  "prop-xuzhou": 27,
-  "prop-shouchun": 27,
-  "prop-jinyang": 27,
-  "prop-changsha": 22,
-  "prop-lingling": 18,
-  "prop-jiaozhou": 18,
-  "prop-yongzhou": 22,
-  "prop-liangzhou": 18,
-  "prop-youzhou": 22,
-  "prop-liaodong": 18,
-  // 宝物城(ADR-0024 同权入册,档位钉死):咸阳/虎牢关/弘农=34(中原),函谷关=22(西凉),
-  // 宛城=24(幽燕),上庸=24(荆楚),下邳=27(青徐)
-  "prop-xianyang": 34,
-  "prop-hulao": 34,
-  "prop-hongnong": 34,
-  "prop-hangu": 22,
-  "prop-wan": 24,
-  "prop-shangyong": 24,
-  "prop-xiapi": 27,
+/** 环游图逐城城档(38 城:名城4/奇城5/郡城12/县城17);zhongyuan 各自映射。 */
+const HUANYOU_TIER: Record<string, keyof typeof TIERS> = {
+  // 名城(魏蜀吴都城 + 汉室西京)
+  "prop-changan": "名城",
+  "prop-luoyang": "名城",
+  "prop-chengdu": "名城",
+  "prop-jianye": "名城",
+  // 奇城(有故事的知名城池:马谡/魏延/关羽/张辽/赤壁)
+  "prop-jieting": "奇城",
+  "prop-ziwu": "奇城",
+  "prop-huarong": "奇城",
+  "prop-hefei": "奇城",
+  "prop-chibi": "奇城",
+  // 郡城
+  "prop-wujun": "郡城",
+  "prop-hulao": "郡城",
+  "prop-xianyang": "郡城",
+  "prop-xiangyang": "郡城",
+  "prop-xuchang": "郡城",
+  "prop-kuiji": "郡城",
+  "prop-ye": "郡城",
+  "prop-xuzhou": "郡城",
+  "prop-hanzhong": "郡城",
+  "prop-jiangling": "郡城",
+  "prop-xiapi": "郡城",
+  "prop-hongnong": "郡城",
+  // 县城
+  "prop-jiange": "县城",
+  "prop-jinyang": "县城",
+  "prop-wuchang": "县城",
+  "prop-linzi": "县城",
+  "prop-shouchun": "县城",
+  "prop-wan": "县城",
+  "prop-jiangzhou": "县城",
+  "prop-shangyong": "县城",
+  "prop-jiangxia": "县城",
+  "prop-youzhou": "县城",
+  "prop-changsha": "县城",
+  "prop-hangu": "县城",
+  "prop-yongzhou": "县城",
+  "prop-liaodong": "县城",
+  "prop-lingling": "县城",
+  "prop-jiaozhou": "县城",
+  "prop-liangzhou": "县城",
 };
-const ZY_TIER: Record<string, number> = {
-  "prop-luoyang": 40,
-  "prop-mengjin": 38,
-  "prop-hulaoguan": 34,
-  "prop-kaifeng": 38,
-  "prop-xuchang2": 34,
-  "prop-wancheng": 34,
-  "prop-xinye": 34,
-  "prop-henei": 34,
+const ZY_TIER: Record<string, keyof typeof TIERS> = {
+  "prop-luoyang": "名城",
+  "prop-hulaoguan": "奇城",
+  "prop-wancheng": "奇城",
+  "prop-kaifeng": "郡城",
+  "prop-mengjin": "郡城",
+  "prop-xuchang2": "县城",
+  "prop-xinye": "县城",
+  "prop-henei": "县城",
 };
-const MULT_CITY = new Set([
-  "prop-chengdu",
-  "prop-ye",
-  "prop-jiange",
-  "prop-jieting",
-  "prop-huarong",
-  "prop-hefei",
-]);
-const FERTILE = ["中原", "江东"];
-const MEDIUM = ["荆楚", "巴蜀", "青徐", "淮南", "并州"];
 
-function checkMap(name: string, data: unknown, tierOf: Record<string, number>, convertedTiles = 0) {
+/** 各图各档数量分布(ADR-0034 拍板的分配盘子,防逐城微调悄悄改盘子)。 */
+const HUANYOU_COUNTS: Record<keyof typeof TIERS, number> = { 名城: 4, 奇城: 5, 郡城: 12, 县城: 17 };
+const ZY_COUNTS: Record<keyof typeof TIERS, number> = { 名城: 1, 奇城: 2, 郡城: 2, 县城: 3 };
+
+function checkMap(
+  name: string,
+  data: unknown,
+  tierOf: Record<string, keyof typeof TIERS>,
+  counts: Record<keyof typeof TIERS, number>,
+) {
   const m = loadMap(data);
-  it(`${name}:全局数值(目标 30000 / 起手 10000)`, () => {
+  it(`${name}:全局数值(目标 30000 / 起手 10000 / 补给 1000)`, () => {
     expect(m.targetNetWorth).toBe(30000);
     expect(m.startingCash).toBe(10000);
+    for (const p of m.properties) expect(p.resupply, `${p.id} resupply`).toBe(1000);
   });
-  it(`${name}:逐城数值必须落在价位档标准值上`, () => {
-    // convertedTiles:有意的「城转特殊格」登记,守卫只护「不意外漂移」
-    expect(m.properties.length).toBe(Object.keys(tierOf).length - convertedTiles); // 无城遗漏/多城
+  it(`${name}:逐城数值必须落在城档标准值上`, () => {
+    expect(m.properties.length).toBe(Object.keys(tierOf).length); // 无城遗漏/多城
+    const seen: Record<string, number> = {};
     for (const p of m.properties) {
       const tier = tierOf[p.id];
-      expect(tier, `${p.id} 缺价位分配`).toBeDefined();
-      const standard = TIERS.get(tier)!;
+      expect(tier, `${p.id} 缺城档分配`).toBeDefined();
+      const standard = TIERS[tier];
       expect(p.purchasePrice, `${p.id} price`).toBe(standard.price);
       expect(p.buildCost, `${p.id} buildCost`).toBe(standard.buildCost);
       expect(p.tradeAdd, `${p.id} tradeAdd`).toEqual(standard.tradeAdd);
       expect(p.tradeMult, `${p.id} tradeMult`).toEqual(standard.tradeMult);
       expect(p.valueByLevel, `${p.id} valueByLevel`).toEqual(standard.valueByLevel);
+      seen[tier] = (seen[tier] ?? 0) + 1;
     }
+    expect(seen, `${name} 各档数量盘子`).toEqual(counts);
   });
 }
 
-function checkResupply(name: string, data: any) {
-  it(`${name}:都城补给按区域档(边陲200/中庸300/沃野400/乘法城300)`, () => {
-    for (const t of data.tiles as any[]) {
-      // 宝物城(ADR-0024)同为城池,补给档与普通城同表
-      if (!isCityType(t.type ?? "Property")) continue;
-      const expected = MULT_CITY.has(t.id)
-        ? 300
-        : FERTILE.includes(t.region)
-          ? 400
-          : MEDIUM.includes(t.region)
-            ? 300
-            : 200;
-      expect(t.resupplyPerLevel, `${t.id}(${t.name}/${t.region}) resupply`).toBe(expected);
-    }
-  });
-}
+describe("经济数值 v3 守卫(四档城制,ADR-0034)", () => {
+  checkMap("huanyou", huanyouData, HUANYOU_TIER, HUANYOU_COUNTS);
+  checkMap("zhongyuan", zhongyuanData, ZY_TIER, ZY_COUNTS);
 
-describe("经济数值 v2 守卫", () => {
-  checkMap("huanyou", huanyouData, HUANYOU_TIER); // 核心维护图,#249 环序重排
-  checkMap("zhongyuan", zhongyuanData, ZY_TIER);
-  checkResupply("huanyou", huanyouData);
-  checkResupply("zhongyuan", zhongyuanData);
-
-  it("珍宝指导价表(v2):Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两", () => {
+  it("珍宝指导价表(v2 沿用):Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两", () => {
     expect(TREASURE_PRICE).toEqual({
       1: 100,
       2: 200,

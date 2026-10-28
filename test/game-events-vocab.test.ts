@@ -260,8 +260,8 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
 
 describe("事件流(#384):跳过回合 turnSkipped 与破产债主 creditorSeat", () => {
   it("跳过回合:标记回合不产 skip 事件;下回合到点消费产出 [turnEnded, turnSkipped, turnStarted]", () => {
-    // seed 2(#471 换源重钓):都城非宝物城,回合收尾不带链尾探宝事件干扰断言
-    const e = makeEngine(2);
+    // seed 3(ADR-0034 重钓):双都城皆普通城(凉州/剑阁),回合收尾不带链尾探宝事件干扰断言
+    const e = makeEngine(3);
     finishSetup(e);
     const t = testEngine(e);
     const skipped = e.activePlayer;

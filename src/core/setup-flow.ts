@@ -128,7 +128,7 @@ function aiChooseCapital(g: GameEngine): number {
   const score = (t: TileDef): number => {
     const def = g.catalog.get(t.propertyId);
     if (!def) return -Infinity;
-    let value = (def.resupplyPerLevel * 8.0) / def.buildCost; // 都城价值=补给性价比(本作不收租,看 resupplyPerLevel)
+    let value = (def.resupply * 8.0) / def.buildCost; // 都城价值=补给性价比(补给全图同值,分母只剩建城费——便宜城占优)
     value += g.dice.nextFloat() * 0.3; // 小扰动防同分死板
     return value;
   };

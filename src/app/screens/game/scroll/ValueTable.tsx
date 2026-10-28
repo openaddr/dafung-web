@@ -4,18 +4,18 @@
 // 本作无过路费/升级费:升级由到达免费触发(自己到达己城可选扩军;他人落城走珍宝交涉,
 // 公道买卖成交才升级)。城随等级涨的是两样——交易加成(坐地要价公式的城侧可变部分,
 // #671 起为表的主列)与变卖价(破产自救卖给银行的变现价)。都城不可变卖:变卖价对都城
-// 是死信息,第二列按城型由调用方给口径——普通城 "sell",都城与选都候选 "supply"(补给)。
+// 是死信息,第二列按城型由调用方给口径——普通城 "sell",都城与选都候选 "supply"(补给,
+// 固定值不随档位,四行同值)。
 // R3-C5(#92):可选 highlight 标出与当前决策相关的档位(淡金底 + 左金边 + 行尾角标),
 // 免得玩家自己对表;不传时视觉与旧版完全一致。
 import { formatMoney } from "@core/money";
-import { supplyFor } from "@core/economy";
 
 export interface ValueTableProperty {
   maxLevel: number;
   valueByLevel: number[];
   tradeMult: number[];
   tradeAdd: number[];
-  resupplyPerLevel: number;
+  resupply: number;
 }
 
 export function ValueTable({
@@ -53,9 +53,7 @@ export function ValueTable({
               ×{property.tradeMult[i]} +{formatMoney(property.tradeAdd[i])}
             </span>
             <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">
-              {second === "supply"
-                ? formatMoney(supplyFor(property.resupplyPerLevel, i))
-                : formatMoney(value)}
+              {second === "supply" ? formatMoney(property.resupply) : formatMoney(value)}
             </span>
             {hit && (
               <span className="self-center pr-2 whitespace-nowrap font-deco text-[10px] text-gold-deep">

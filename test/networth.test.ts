@@ -6,7 +6,7 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(huanyouData).catalog;
 
-const changan = catalog.get("prop-changan")!; // 经济 v2 购入 4000 分(40 两),升级免费
+const changan = catalog.get("prop-changan")!; // 经济 v3 购入 4,800 两(名城 48 档),升级免费
 
 describe("身价计算", () => {
   it("纯现金身价", () => {
@@ -30,9 +30,9 @@ describe("身价计算", () => {
       isBot: false,
       startingCash: 10000,
     });
-    buy(p, changan); // -4000
+    buy(p, changan); // -4800
     upgrade(p, changan); // 免费(到达升级,无升级费)
-    expect(netWorth(p)).toBe(6000);
+    expect(netWorth(p)).toBe(5200);
   });
 
   it("都城建成后不计账面", () => {
@@ -51,6 +51,6 @@ describe("身价计算", () => {
       level: 1,
       maxLevel: changan.maxLevel,
     });
-    expect(netWorth(p)).toBe(8000); // 仅剩现金(建城费 2000)
+    expect(netWorth(p)).toBe(7600); // 仅剩现金(建城费 2400)
   });
 });

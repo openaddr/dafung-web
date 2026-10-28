@@ -69,6 +69,9 @@ export function engineFromRecord(
     {
       seats: dummySeats(rec.seatCount),
       ...rec.hostConfig,
+      // hostConfig.target 是产品面字段名,引擎侧叫 targetNetWorth——显式映射(startGame 同款);
+      // 房主未定制时回退地图顶层目标,自定义地图恢复不再静默回 30000
+      targetNetWorth: rec.hostConfig.target ?? map.targetNetWorth,
       // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
       ...(rec.encounter ? { encounter: rec.encounter } : {}),
       // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)

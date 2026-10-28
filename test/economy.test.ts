@@ -5,7 +5,7 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(huanyouData).catalog;
 
-const changan = catalog.get("prop-changan")!; // a 组,经济 v2 购入 4000 分(40 两),变卖价 [1600,2400,3400,4800]
+const changan = catalog.get("prop-changan")!; // a 组,经济 v3 购入 4800 两(名城 48 档),变卖价 [2880,4320,5760,7200]
 
 function mk(cash = 10000) {
   return createPlayer({
@@ -23,7 +23,7 @@ describe("地产交易", () => {
     const p = mk();
     const r = buy(p, changan);
     expect(r.status).toBe("Ok");
-    expect(p.cash).toBe(6000);
+    expect(p.cash).toBe(5200);
     expect(p.properties).toHaveLength(1);
     expect(p.properties[0].level).toBe(0);
   });
@@ -41,7 +41,7 @@ describe("地产交易", () => {
     const r = upgrade(p, changan);
     expect(r.status).toBe("Ok");
     if (r.status === "Ok") expect(r.newLevel).toBe(1); // 判别联合:Ok 恒带 newLevel
-    expect(p.cash).toBe(6000); // 升级免费,现金不变
+    expect(p.cash).toBe(5200); // 升级免费,现金不变
   });
 
   it("满级拒绝升级(等级 0..maxLevel = 3,共 4 级)", () => {
@@ -58,10 +58,10 @@ describe("地产交易", () => {
   it("变卖价 = valueByLevel 逐档显式定义(#671 正名,旧称城池价值)", () => {
     const p = mk(100000);
     buy(p, changan);
-    expect(sellValueOf(changan, 0)).toBe(1600);
-    expect(sellValueOf(changan, 1)).toBe(2400);
-    expect(sellValueOf(changan, 2)).toBe(3400);
-    expect(sellValueOf(changan, 3)).toBe(4800);
+    expect(sellValueOf(changan, 0)).toBe(2880);
+    expect(sellValueOf(changan, 1)).toBe(4320);
+    expect(sellValueOf(changan, 2)).toBe(5760);
+    expect(sellValueOf(changan, 3)).toBe(7200);
   });
 });
 

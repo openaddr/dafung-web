@@ -116,7 +116,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     page,
   }) => {
     test.slow(); // 拦检链:授将放行后等 bot 行军至都城前格开窗
-    await startShort(page, 7, true);
+    await startShort(page, 50, true); // seed 50(ADR-0034 重钉,原 7 拦检链随选都评分变更作废):定都江州、起手唯反应自动起摇落凉州购地卷轴
     await plantAmbush(page);
     await grantZhouyuAndPass(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
@@ -163,7 +163,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
 
   test("拼点签面入视口:双签并排整排落视口内,魏签顶/滇签底双出屏清零", async ({ page }) => {
     test.slow(); // 同拦检链 + 拼点演出全程
-    await startShort(page, 7, true);
+    await startShort(page, 50, true); // seed 50(ADR-0034 重钉,原 7 拦检链随选都评分变更作废):定都江州、起手唯反应自动起摇落凉州购地卷轴
     await plantAmbush(page, [6, 1]);
     await grantZhouyuAndPass(page);
     // 页面内原子应答(react-helpers 单源:滤 march 窗/等 fx 排空/点牌落印防互踩)——

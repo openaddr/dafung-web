@@ -12,7 +12,6 @@ import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
-import { supplyFor } from "@core/economy";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
@@ -148,7 +147,7 @@ export function BuyDecisionScroll({
     valueByLevel: number[];
     tradeMult: number[];
     tradeAdd: number[];
-    resupplyPerLevel: number;
+    resupply: number;
   };
   cash: number;
   /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
@@ -243,9 +242,9 @@ export function UpgradeDecisionScroll({
     valueByLevel: number[];
     tradeMult: number[];
     tradeAdd: number[];
-    resupplyPerLevel: number;
+    resupply: number;
   };
-  /** 是否城主的都城(#671):都城第二列显示补给、变化行补补给增量(都城不可变卖)。 */
+  /** 是否城主的都城(#671):都城第二列显示补给(固定值,不随档位;都城不可变卖)。 */
   isCapital: boolean;
   /** 当前相位选项集(快照透传):upgrade 项的 available/reason 单源引擎注册表。 */
   choices: ChoiceOption[];
@@ -257,7 +256,7 @@ export function UpgradeDecisionScroll({
   const upgrade = choices.find((o) => o.id === "upgrade")!;
   // 变化行 = 当前级 → 下一级(下标 = 等级;直接下标,board-loader 已校验各数组
   // 长度 = maxLevel+1,越界 = 数据 bug 炸出)。#671:等级的真实收益是交易加成上涨
-  // (坐地要价变贵)+ 变卖价上涨,都城再+补给上涨——三条都摆出来,别只给变卖价。
+  // (坐地要价变贵)+ 变卖价上涨——两条都摆出来;补给是地图固定值不随级,无变化行。
   const multNow = property.tradeMult[level];
   const multNext = property.tradeMult[level + 1];
   const addNow = property.tradeAdd[level];
@@ -309,13 +308,6 @@ export function UpgradeDecisionScroll({
           <p className="m-1 text-center text-sm text-ink-dim">
             变卖价 {formatMoney(valueNow)} → {formatMoney(valueNext)}
           </p>
-          {isCapital && (
-            <p className="m-1 text-center text-sm text-ink-dim">
-              都城补给 {formatMoney(supplyFor(property.resupplyPerLevel, level))} →{" "}
-              {formatMoney(supplyFor(property.resupplyPerLevel, level + 1))}
-              (每回合)
-            </p>
-          )}
         </>
       ) : (
         <p className="m-1 mb-3 text-center text-sm text-ink-dim">({upgrade.reason})</p>

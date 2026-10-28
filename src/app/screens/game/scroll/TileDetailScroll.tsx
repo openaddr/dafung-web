@@ -37,7 +37,7 @@ export interface TileDetailScrollProps {
     valueByLevel: number[];
     tradeMult: number[];
     tradeAdd: number[];
-    resupplyPerLevel: number;
+    resupply: number;
   } | null;
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;

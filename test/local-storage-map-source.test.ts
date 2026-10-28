@@ -31,7 +31,7 @@ function makeMap(tileCount = 2, targetNetWorth = 5000): MapData {
     targetNetWorth,
     startingCash: 2500,
     maxLevel: 5,
-    resupplyPerLevel: 150,
+    resupply: 150,
     tiles,
   } as unknown as MapData;
 }

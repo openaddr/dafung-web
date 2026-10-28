@@ -116,9 +116,10 @@ describe("对局日志现金对账(#617)", () => {
     expect(rowOf(e, `treasureBuy buyer=${shu.id}`, "treasure=t1").amount).toBe(-100); // 买家实付 -
     expect(rowOf(e, "escrowDeliver", "treasure=t1").amount).toBeUndefined(); // 资产交割不挂 amount
 
-    // S3(吴回):吴坐地起价购蜀 t2(成都 Lv0 乘法城,价 200)——直付 premium
+    // S3(吴回):吴坐地起价购蜀 t2(街亭 Lv0 奇城 ×2,价 200)——直付 premium
+    // (ADR-0034 后成都=名城 ×2+200=400,吴现金 300 付不起会走清算;奇城街亭保住直付路径)
     shu.treasures.push(tr("t2", 1));
-    forceVisit(e, "prop-chengdu", 1);
+    forceVisit(e, "prop-jieting", 1);
     e.resolveTreasureOwner({ type: "premium", treasureId: "t2" });
     passJinnang(e); // → 魏
     expect(rowOf(e, "treasurePremium", "treasure=t2").amount).toBe(200);

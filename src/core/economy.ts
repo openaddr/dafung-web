@@ -4,7 +4,7 @@
 import type { Player, PropertyHolding } from "./model";
 import { findHolding } from "./player";
 
-/** 地产定义。BuildCost=选都建城费;ResupplyPerLevel=都城补给系数。
+/** 地产定义。BuildCost=选都建城费;Resupply=都城补给(固定值,不随等级)。
  *  本作无过路费/升级费:自己到达己城可选免费扩军;他人落城不升级,
  *  仅当城主对该访客的珍宝交涉选择公道买卖且成交时 +1 级(满级封顶)。 */
 export interface PropertyDef {
@@ -14,7 +14,7 @@ export interface PropertyDef {
   maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 0..maxLevel,购入/建都即 Lv.0)
   valueByLevel: number[]; // 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级
   buildCost: number;
-  resupplyPerLevel: number; // 都城补给/级(引擎仅都城消费;逐城配置,缺省回退地图顶层)
+  resupply: number; // 都城补给(两/次,固定;地图顶层 resupply 注入,城侧不逐城配置)
   /** 坐地起价加价值(per-level,两;下标=城池等级 0..maxLevel):premiumPriceOf = 指导价×tradeMult[cityLevel] + tradeAdd[cityLevel]。地图逐城必配,长度由 loadMap 校验。 */
   tradeAdd: number[];
   /** 坐地起价乘数(per-level;下标=城池等级 0..maxLevel):同上公式。地图逐城必配,长度由 loadMap 校验。 */
@@ -57,12 +57,6 @@ export function upgrade(owner: Player, def: PropertyDef): TransactionResult {
 /** 城池当前等级的变卖价(各等级变卖价显式定义于地图 json 的 valueByLevel,下标 = 等级)。 */
 export function sellValueOf(def: PropertyDef, level: number): number {
   return def.valueByLevel[level];
-}
-
-/** 都城补给 = resupplyPerLevel × (level+1)。集中一处,供引擎复用;
- *  实参与城池配置同域(loadMap 校验),不做缺失兜底。 */
-export function supplyFor(resupplyPerLevel: number, level: number): number {
-  return resupplyPerLevel * (level + 1);
 }
 
 /**
