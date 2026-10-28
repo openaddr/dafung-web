@@ -27,8 +27,6 @@
 //
 // 藏品双入口(#361)随 #700 退役:接替者=右下三圆钮(PileButtons,珍宝/名将圆钮
 // 点开同名藏品弹层,弹层壳与陈列仍在 PileModal.tsx)。
-//
-// 观战(localPlayer==null)不渲染整个架:观战无手牌可看(快照投影本就不含他人牌面)。
 import {
   useEffect,
   useLayoutEffect,
@@ -388,8 +386,8 @@ export interface RackReaction {
 }
 
 export interface HandRackProps {
-  /** 本地视角玩家(null = 观战/未入座,整个架不渲染)。 */
-  player: SnapshotPlayer | null;
+  /** 本地视角玩家(对局屏挂载期恒在座)。 */
+  player: SnapshotPlayer;
   /** 出牌阶段态(#256);缺省 = 常态架(点牌开详情)。 */
   junshi?: JunshiWindow;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
@@ -489,8 +487,6 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
     ro.observe(el);
     return () => ro.disconnect();
   }, [mounted]);
-
-  if (!player) return null; // 观战不渲染(不是兜底:观战无手牌是业务事实)
 
   const hand = player.jinnangHand;
   // 渲染张数:卡牌段=options(手牌 + 技卡混排);常态/目标段=手牌。叠加压缩按渲染

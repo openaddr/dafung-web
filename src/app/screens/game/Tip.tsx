@@ -5,6 +5,8 @@
 // 关联白拿,不自写浮层定位);本件只补两件事:
 //   ① 长按通路——useTapOrLongPress 复合手势单源(400ms,位移超容差自动取消);
 //   ② 翻面判定——开签瞬间量触发元 getBoundingClientRect,右缘放不下即 side="left"。
+//   ③ 开签意图闸——onFocus 只认 :focus-visible(#704):弹层关闭还焦是程序化
+//      focus,不算键盘意图,照单全收会把残签复挂在触发元上吃相邻点击。
 // (#361:onClick/ariaExpanded 随 expandPile 退役移除——浮签触发元回归纯展示,
 // 点击无动作。#622 城池徽章局部翻案:触发元可选装回轻点通道(onTap=开名下城池
 // 清单)+ aria-expanded 随弹层开合同步;不传 = 现状纯展示,珍宝/名将/声望/委任
@@ -109,7 +111,14 @@ export function Tip({
         }}
         {...press.props}
         onPointerLeave={() => setOpen(false)}
-        onFocus={(e) => openToward(e.currentTarget)}
+        onFocus={(e) => {
+          // 仅键盘意图开签:与底件 useFocus 同一道 :focus-visible 闸。鼠标点击聚焦
+          // 不算意图(hover 通路已开);弹层关闭还焦(returnFocus 的程序化 focus)
+          // 更不算——否则焦点被送回触发元就把刚收掉的浮签重新挂上,残签面板滞留
+          // 锚位盖住相邻命中点(#704 残影真源,探针实录:tipVisible true 全由
+          // 关弹层还焦的 onFocus 复挂)。
+          if (e.currentTarget.matches(":focus-visible")) openToward(e.currentTarget);
+        }}
         onBlur={() => setOpen(false)}
         onPointerUp={(e) => {
           press.cancel();

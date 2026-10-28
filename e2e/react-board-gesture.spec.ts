@@ -1,4 +1,5 @@
 // #699 棋盘触控手势:双指捏合缩放 + 单指拖拽平移(8px 阈值判拖,拖拽全程不触发落格)。
+// #706 棋盘复位替身:双指轻点(同触同抬、全程中点位移/间距变化 <8px)→ 取景回装载初值。
 // 触摸通路:CDP Input.dispatchTouchEvents——Chromium 输入管线据此合成 PointerEvent,
 // 与真机 touch→pointer 同路(svg 的 touchAction:none 已禁浏览器原生手势接管)。
 // 分工:捏合的锚点/阈值/夹界数学在 test/pan-zoom.test.ts(纯函数);本 spec 守
@@ -115,4 +116,88 @@ test("手牌区起拖不触发棋盘手势(浮层事件不穿透)", async ({ pag
   // 负向断言:留一拍渲染余量后读数,viewBox 必须原样
   await page.waitForTimeout(400);
   expect((await readVb(page)).join(" ")).toBe(vb0);
+});
+
+// #706 双指轻点:同触同抬、两触点间距无捏合、中点无位移 → 取景复位回装载初值
+// (复位钮已退役,这是手动缩放/平移后回到全景的唯一通路;FIT_VIEW 仅装载生效)。
+test("双指轻点(同触同抬零位移):取景复位回装载初值", async ({ page }) => {
+  test.slow();
+  await quickStart(page);
+  const svg = page.locator("#board");
+  const vb0 = (await readVb(page)).join(" ");
+  const box = (await svg.boundingBox())!;
+  const cx = box.x + box.width / 2;
+  const cy = box.y + box.height / 2;
+  const half = (d: number) => [
+    { x: cx - d, y: cy },
+    { x: cx + d, y: cy },
+  ];
+  // 先捏合放大,离开总览(复位须有「不在总览」的前提)
+  const touch = await touchDriver(page);
+  await touch("touchStart", half(40));
+  for (const d of [80, 160]) await touch("touchMove", half(d));
+  await touch("touchEnd", []);
+  await expect
+    .poll(async () => (await readVb(page))[2], { timeout: 5_000 })
+    .toBeLessThan(Number(vb0.split(" ")[2]));
+  expect((await readVb(page)).join(" ")).not.toBe(vb0);
+  // 双指轻点:一次触两条触点、零 move、一次全抬 → viewBox 精确回装载初值
+  const tap = await touchDriver(page);
+  await tap("touchStart", half(30));
+  await tap("touchEnd", []);
+  await expect.poll(async () => (await readVb(page)).join(" "), { timeout: 5_000 }).toBe(vb0);
+});
+
+test("双指同距平移(间距不变、中点位移超阈):走捏合判定,不触发复位", async ({ page }) => {
+  test.slow();
+  await quickStart(page);
+  const vb0 = (await readVb(page)).join(" ");
+  const box = (await page.locator("#board").boundingBox())!;
+  const cy = box.y + box.height / 2;
+  const touch = await touchDriver(page);
+  // 两指同触后同步右移 60px(中点位移 60px ≫ 8px,间距恒 80px):
+  // 落入捏合/拖拽判定,取景移动但绝不复位
+  await touch("touchStart", [
+    { x: box.x + box.width / 2 - 40, y: cy },
+    { x: box.x + box.width / 2 + 40, y: cy },
+  ]);
+  await touch("touchMove", [
+    { x: box.x + box.width / 2 + 20, y: cy },
+    { x: box.x + box.width / 2 + 100, y: cy },
+  ]);
+  await touch("touchEnd", []);
+  // 负向断言:留一拍渲染余量后读数,viewBox 不得回到装载初值(= 未触发复位)
+  await page.waitForTimeout(400);
+  expect((await readVb(page)).join(" ")).not.toBe(vb0);
+});
+
+test("双指轻点起手城池:复位取景且不误触落格点击", async ({ page }) => {
+  test.slow();
+  await quickStart(page);
+  const svg = page.locator("#board");
+  const vb0 = (await readVb(page)).join(" ");
+  // 先以城池为锚捏合放大(锚点不动点 = 该城池始终停在原屏幕位),城池屏位可复用
+  const tile = (await svg.locator(".bv-tile").first().boundingBox())!;
+  const tx = tile.x + tile.width / 2;
+  const ty = tile.y + tile.height / 2;
+  const anchorHalf = (d: number) => [
+    { x: tx - d, y: ty },
+    { x: tx + d, y: ty },
+  ];
+  const touch = await touchDriver(page);
+  await touch("touchStart", anchorHalf(20));
+  await touch("touchMove", anchorHalf(40));
+  await touch("touchEnd", []);
+  await expect
+    .poll(async () => (await readVb(page))[2], { timeout: 5_000 })
+    .toBeLessThan(Number(vb0.split(" ")[2]));
+  // 双指轻点(两触点都落在该城池上,间距 12px 全程不动):复位 + 吞收尾点击
+  const tap = await touchDriver(page);
+  await tap("touchStart", [
+    { x: tx - 6, y: ty },
+    { x: tx + 6, y: ty },
+  ]);
+  await tap("touchEnd", []);
+  await expect.poll(async () => (await readVb(page)).join(" "), { timeout: 5_000 }).toBe(vb0);
+  await expect(page.getByTestId(SCROLL_TESTIDS.tileDetailScroll)).not.toBeVisible();
 });

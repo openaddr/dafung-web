@@ -2,7 +2,6 @@
 // useDeltaFloat hook,现金(G-9)与委任状(#21/X2)复用同一浮标——值跳变时右上
 // 浮出 +/− 标记,上浮渐隐时长走 token --dur-fx(layout.css 的 game-cash-float,#700 自 game-hud.css 并入),组件侧 1.25s
 // 移除(贝塞尔曲线起快收慢,1.25s 时位移/渐隐已基本走完,提前卸载不可见)。
-// 观战空态同样消费(S12):浮标跟「被展示的玩家」走,与坐姿分支同款反馈。
 // (#255:渲染件 DeltaFloatSpans 随 HandPanel 退役删除——唯一消费方仪表条 DashboardBar
 //  漆底直出亮档配色,不复用纸面档色。#495:渲染件 DeltaFloats 随本件共享给席位格
 //  SeatRail(全员现金/体力浮标;自机格自 #697 评审收口起同锚——仪表条退役后自机

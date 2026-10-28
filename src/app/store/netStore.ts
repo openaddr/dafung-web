@@ -177,9 +177,9 @@ export function myAutoPilotOn(s: NetStoreState): boolean {
 }
 
 /** 托管态单源取值 hook(spec #107 C5 收口,GameScreen/HandPanel 唯一回读口径):
- *  联机已入座 = 座位广播(seats[mySeat] 恒存在);联机未入座(观战,mySeat=-1)恒 false
- *  ——观战无托管,是语义态而非数据缺失(#45/S12:此前 GameScreen 内联式
- *  seats[mySeat].autoPilot 在观战态即 TypeError);单机 = 控制器本地标记。
+ *  联机已入座 = 座位广播(seats[mySeat] 恒存在);联机未入座(mySeat=-1,入座前瞬态)恒 false
+ *  ——托管以在座为前提,非数据缺失(#45/S12:此前 GameScreen 内联式
+ *  seats[mySeat].autoPilot 在未入座态即 TypeError);单机 = 控制器本地标记。
  *  不做链式回退——两种模式各有唯一事实源,取错源即暴露接线 bug。
  *  controller 走参数而非 hook 内 getController():与两调用方的既有取径一致
  *  (GameScreen 模块级取、HandPanel props 下发),hook 只负责「选哪个源」。 */

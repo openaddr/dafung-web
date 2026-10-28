@@ -151,12 +151,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 时指到 bot 席),席位格自机格识别/仪表条身份/手牌架都需要的是固定的「人」。
   // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
   const selfSeat = net.roomId !== "" ? viewSeat : 0;
-  // 自局玩家(#284 零兜底审视):selfSeat 只在联机观战时为 -1(未入座,显式业务态)——
-  // 返回 null 走观战口径(席位格/手牌架/仪表条均有观战分支);selfSeat ≥ 0 时缺位 =
-  // 快照与座位表不一致(接线 bug),undefined 直通下游崩出来,不做 `?? null` 静默兜底。
-  const selfPlayer = selfSeat < 0 ? null : snapshot.players[selfSeat];
+  // 自局玩家(#284 零兜底审视):对局屏挂载即已入座(selfSeat 恒 ≥0;观战预留分支
+  // 已随 #690 退役)——座位缺位 = 快照与座位表不一致(接线 bug),undefined 直通
+  // 下游崩出来,不做 `?? null` 静默兜底。
+  const selfPlayer = snapshot.players[selfSeat];
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
-  // 标记,观战(mySeat=-1)恒 false——观战无托管。
+  // 标记(托管以在座为前提,未入座恒 false)。
   const autopilotOn = useAutopilotOn(controller);
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
@@ -287,7 +287,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // ── 反应窗态(#281,#234 P1-D 牌架即反应窗):快照 reaction 专用字段驱动 ──
   // 反应询问不走 choices 单属主通道(多属主),本件从 reaction 派生横幅/可打牌/选份;
   // 命令=respondReaction(seat 显式携带)。与出牌阶段态互斥(AwaitingReaction 相位)。
-  // 被询问判定公式单源 controllers/reaction.ts(#284);观战(-1)恒不被询问。
+  // 被询问判定公式单源 controllers/reaction.ts(#284)。
   // 已应答退出窗态(#453/B2):本座已在 pendingReaction.answers 占座(用与不用都占座)
   // 即不再复显横幅/金边/可打牌面——UI 消费权威应答账本,防残留与重复点击入口;引擎
   // 对重复应答本就警告拒绝。answers 逐条公开(联机投影不裁,seat-projection.ts 注)。
@@ -329,11 +329,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         : []
       : [];
   // 此刻可打的反应锦囊(手牌 ∩ 本窗牌种;目录单源 core/jinnang,UI 不自判合法性)。
-  // reactionUp 已排除观战(selfSeat<0);在座却无 selfPlayer=引擎/快照 bug,`!` 让它
-  // 当场崩出(零兜底,#284 评审)——不写 `!= null` 静默收窄成空手牌。
+  // 在座却无 selfPlayer=引擎/快照 bug,未判空直取让它当场崩出(零兜底,#284 评审)
+  // ——不写 `!= null` 静默收窄成空手牌。
   const reactPlayable =
     reactionUp && reaction != null
-      ? selfPlayer!.jinnangHand.filter(
+      ? selfPlayer.jinnangHand.filter(
           (id) =>
             jinnangCardOf(id).effect.kind === (reaction.kind === "jinnang" ? "counter" : "ambush"),
         )
@@ -416,11 +416,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             map={map}
             players={players}
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
-            viewSeat={localPlayer?.id}
+            viewSeat={localPlayer.id}
             /* 点格相位路由(Playing 详情 / Setup 选都 / 灰城 hint)在 useCapitalPick */
             onTileClick={onTileClick}
             selectableTiles={selectableTiles}
-            /* X4(#23):候选集全座位透传——旁观席位也见静态金圈与壹贰叁序号印 */
+            /* X4(#23):候选集全座位透传——非决策席也见静态金圈与壹贰叁序号印 */
             candidateTiles={offeredCapitals ?? undefined}
             /* #256 目标段:可用候选席位的棋子金虚线环呼吸(与席位格金圈同步) */
             targetedPlayerIds={
@@ -478,8 +478,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         </div>
         {/* 顶部浮层(#700):顶左两钮(总览待开放/设置)+ 顶中「N 轮」chip */}
         <GameTopBar snapshot={snapshot} onOpenSettings={() => setSettingsOpen(true)} />
-        {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列,观战
-          无自机格),活跃方金圈呼吸指名。
+        {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列),
+          活跃方金圈呼吸指名。
           消费的是稳定自局座位(selfSeat):自机格识别要「人」而非决策视角——热座
           viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
           #256/#417 目标段:候选席位格金圈呼吸,点格=选中/再点取消(targets 由快照
@@ -506,7 +506,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               : undefined
           }
         />
-        {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架(观战整区不渲染)。
+        {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架。
           显隐=锦囊圆钮偏好 ∥ 窗态强制(出牌阶段/反应窗的决策面不被视野偏好收走);
           收起=条件挂载(卸载零占位,战斗区最大化)。 */}
         {(handPref || junshiUp || reactBanner != null) && (
@@ -551,7 +551,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           />
         )}
         {/* 右下三圆钮(#700):锦囊=手牌显隐开关(亮=显示)/ 珍宝 / 名将(藏品弹层
-          入口,#361 双入口接替);坐姿渲染,观战无座整列不出。 */}
+          入口,#361 双入口接替);坐姿渲染。 */}
         <PileButtons
           player={selfPlayer}
           handVisible={handPref || junshiUp || reactBanner != null}

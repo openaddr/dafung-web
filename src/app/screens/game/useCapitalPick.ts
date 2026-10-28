@@ -29,7 +29,7 @@ export interface TileDetailRequest {
 export interface CapitalPickFlow {
   /** X4(#23) 选都候选集(引擎三选一,全座位可见;null = 非选都期)。BoardView candidateTiles。 */
   offeredCapitals: number[] | null;
-  /** 轮到本地选都时的可选城集(旁观席位 undefined = 无可点)。BoardView selectableTiles。 */
+  /** 轮到本地选都时的可选城集(非决策席位 undefined = 无可点)。BoardView selectableTiles。 */
   selectableTiles: Set<number> | undefined;
   /** 棋盘点格相位路由(见文件头)。BoardView onTileClick。 */
   onTileClick: (tileIndex: number) => void;
@@ -45,7 +45,7 @@ export function useCapitalPick(args: { snapshot: GameSnapshot }): CapitalPickFlo
   const [detailTileIndex, setDetailTileIndex] = useState<number | null>(null);
 
   // X4(#23) 选都候选:引擎三选一候选(snapshot.offeredCapitals,跨玩家不重复)全座位可见——
-  // 旁观席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
+  // 非决策席位静态低透明金圈 + 壹贰叁序号印(不可点不脉冲),「轮到本地选」才升格为可点脉冲。
   const offeredCapitals =
     snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"
       ? snapshot.offeredCapitals

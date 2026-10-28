@@ -38,7 +38,7 @@ export interface TileVisualState {
   /** 可交互高亮(轮到本地选都的候选集,呼吸脉冲金圈)。 */
   isSelectable: boolean;
   /** X4(#23) 选都候选序号(1 基,引擎滚出顺序;null=非候选)。候选集全座位可见:
-   *  静态低透明金圈(bv-candidate)是旁观档,本地可点脉冲由 isSelectable 升档。 */
+   *  静态低透明金圈(bv-candidate)是非决策席档,本地可点脉冲由 isSelectable 升档。 */
   capitalCandidateOrder: number | null;
 }
 
@@ -541,7 +541,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             />
           ) : null}
           {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
-              Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);旁观席位同见
+              Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
               (仪式感是全座的,可点只在本地)。 */}
           {state.capitalCandidateOrder != null ? (
             <CandidateSeal order={state.capitalCandidateOrder} />
@@ -665,7 +665,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
       )}
       {/* X4+:选都可点指示——描边金环叠于卡面之上。原仅垫底金盘(hilite r=62),
           被卡片遮挡只露边缘光晕,脉冲谷底 0.18 近乎不可见(用户实测「看不出来
-          哪些能选」)。selectable=呼吸描边(与底盘同拍);候选(他席旁观)=静态细环。 */}
+          哪些能选」)。selectable=呼吸描边(与底盘同拍);候选(他席)=静态细环。 */}
       {state.isSelectable ? (
         <rect
           className="bv-pick-ring"

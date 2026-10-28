@@ -111,9 +111,10 @@ export const useGameStore = create<GameStoreState>((set) => ({
 // ──────────────────────────── 派生选择器 ────────────────────────────
 // 纯函数 + useGameStore 订阅:不进 store(避免双份真源),组件按需选用。
 
-/** 本地视角玩家(null = 未入座/未开局)。 */
-export function useLocalPlayer(): SnapshotPlayer | null {
-  return useGameStore((s) => s.snapshot?.players[s.viewSeat] ?? null);
+/** 本地视角玩家(对局屏挂载期恒有解:快照就位且已入座;唯二消费方门卫见 GameScreenLive)。 */
+export function useLocalPlayer(): SnapshotPlayer {
+  // `!` = 挂载门卫的类型面(无快照不进对局屏);座位缺位 = 接线 bug,下游取字段当场炸出。
+  return useGameStore((s) => s.snapshot!.players[s.viewSeat]);
 }
 
 /** 当前活跃玩家(轮到谁行动;null = 未开局)。 */

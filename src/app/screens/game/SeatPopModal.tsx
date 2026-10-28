@@ -154,8 +154,7 @@ export function SeatPopModal({
             珍宝
           </span>
         </div>
-        {/* 托管开关行(仅自机格;autopilotSupported 门卫与旧托管钮同款:联机/单机有,
-            观战无座无自机格天然不渲染) */}
+        {/* 托管开关行(仅自机格;autopilotSupported 门卫与旧托管钮同款:联机/单机有) */}
         {self && controller?.autopilotSupported && (
           <div className="spop-switch-row">
             托管

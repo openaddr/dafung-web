@@ -33,7 +33,7 @@ export const TESTIDS = {
   /** 席位格列容器(#698 重形:右缘单列 96×38 双行八项格,一人一格)。 */
   seatRail: "seat-rail",
   /** 席位格(seat = 绝对座位号),挂对手席;自机格挂 seatSelf(不占本族——
-   *  「自身不出卡」旧契约的 e2e 以 seat-N 缺席为断言,自机入列不破它)。观战无自机格。 */
+   *  「自身不出卡」旧契约的 e2e 以 seat-N 缺席为断言,自机入列不破它)。 */
   seat: (seat: number) => `seat-${seat}` as const,
   seatCash: (seat: number) => `seat-cash-${seat}` as const,
   /** 体力色条(#698:3px 细轨无刻度数;濒耗竭 low 类转朱砂,数值归仪表条/弹层)。 */
@@ -48,7 +48,7 @@ export const TESTIDS = {
   handZone: "hand-zone",
 
   // ── 右下三圆钮(#700:锦囊开关 / 珍宝 / 名将,44px 圆 + 计数角标)──
-  /** 三圆钮容器(坐姿渲染;观战无座整列不出)。 */
+  /** 三圆钮容器(坐姿渲染)。 */
   pileButtons: "pile-buttons",
   /** 锦囊圆钮 = 手牌区显隐开关(亮=显示;对局内记忆,重进恢复)。 */
   jinnangToggle: "jinnang-toggle",
@@ -134,7 +134,7 @@ export const TESTIDS = {
 
   // ── 手牌架(#238 常驻;#256 出牌阶段态;#254 叠加压缩)──
   /** 锦囊(#122):己方手牌容器 / 单张牌面(带牌名)。#238/T3:jinnangHand 挂手牌架的
-   *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻,观战除外)。 */
+   *  「手牌行」(有牌才存在);架本体挂 jinnangRack(常驻)。 */
   jinnangHand: "jinnang-hand",
   jinnangCard: (cardId: string) => `jinnang-card-${cardId}` as const,
   /** #238/T3:底部常驻手牌架容器(架首章 + 手牌行/空态牌背)。 */

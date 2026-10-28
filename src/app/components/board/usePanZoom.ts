@@ -16,6 +16,10 @@
 //     setView→clampViewBox(1×..MAX_ZOOM)——不存在第二套界。
 //   - 单指按下后位移超过 DRAG_THRESHOLD_PX 判拖拽(起手可在城池上);拖拽全程
 //     吞 click(落格点击不误触),小于阈值松开 = 普通点击,城池行为零变化。
+// #706 棋盘复位替身:双指轻点(两指几乎同触同抬,全程中点位移与间距变化均
+//   < DRAG_THRESHOLD_PX)→ 取景回装载时 computeFitView 初值(带现役 clamp,
+//   即时无过渡)。判别纯函数 beyondTwoFingerTap 与单指拖拽共用同一阈值;任一
+//   几何条件不满足即落入既有捏合/拖拽/点击判定,互斥不叠加。
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardPos } from "@core/board";
 
@@ -127,8 +131,24 @@ export function beyondDragThreshold(sx: number, sy: number, x: number, y: number
   return Math.hypot(x - sx, y - sy) > DRAG_THRESHOLD_PX;
 }
 
+/** #706 双指轻点帧判别(纯函数):双指手势的初始中点/初始间距与本帧中点/间距相比,
+ *  中点位移或间距变化任一超 DRAG_THRESHOLD_PX 即判「已进入捏合/拖拽」,轻点候选
+ *  出局(互斥不叠加);阈值与单指拖拽同源,不存在第二套数。 */
+export function beyondTwoFingerTap(
+  mid0: ScreenPt,
+  mid: ScreenPt,
+  dist0: number,
+  dist: number,
+): boolean {
+  return (
+    Math.hypot(mid.x - mid0.x, mid.y - mid0.y) > DRAG_THRESHOLD_PX ||
+    Math.abs(dist - dist0) > DRAG_THRESHOLD_PX
+  );
+}
+
 export interface PanZoom {
-  /** 绑到 <svg> 上的指针事件(拖拽平移;按钮不触发)与 click 捕获(拖拽/捏合吞点击)。 */
+  /** 绑到 <svg> 上的指针事件(拖拽平移/双指捏合/双指轻点复位;按钮不触发)与
+   *  click 捕获(拖拽/捏合/轻点吞点击)。 */
   handlers: {
     onPointerDown: (ev: React.PointerEvent<SVGSVGElement>) => void;
     onPointerMove: (ev: React.PointerEvent<SVGSVGElement>) => void;
@@ -189,6 +209,10 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: V
 
   // 双指几何快照:上一次两指距离(pinch 每帧与上一帧比,增量式缩放)。
   const pinchDist = useRef(0);
+  // #706 轻点候选:第二指落下时记初始中点/间距,双指相续期间任一帧超阈
+  // (beyondTwoFingerTap)或首指已先行拖拽即出局(null);末指抬起仍存活
+  // = 双指轻点成立,取景复位。
+  const tapRef = useRef<{ mid: ScreenPt; dist: number } | null>(null);
 
   const onPointerDown = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
     // 按钮自有点击语义,不进棋盘手势;城池不再排除——从城池起手也要能拖拽平移
@@ -206,10 +230,17 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: V
     });
     if (pointers.current.size === 2) {
       // 第二指落下:进入 pinch,记录初始两指距离;双指手势的收尾 click 一律吞
-      // (两指快触城池不应落格)。
+      // (两指快触城池不应落格)。同时开局轻点候选(#706):首指在此之前已跨
+      // 拖拽阈 = 先拖后搭二指,非「几乎同时 down」,候选直接出局。
       multiRef.current = true;
       const [a, b] = pointers.current.values();
       pinchDist.current = Math.hypot(a.x - b.x, a.y - b.y);
+      tapRef.current = draggedRef.current
+        ? null
+        : { mid: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }, dist: pinchDist.current };
+    } else if (pointers.current.size > 2) {
+      // 第三指起 = 不是双指轻点(判别口径钉死在「双指」);pinch 几何取前两指不变。
+      tapRef.current = null;
     }
     // 城池起手不立即夺获也不切 grabbing:pointer capture 会把收尾 click 重定向到
     // svg,城池的落格点击就死了——夺获推迟到跨过拖拽阈值的那一刻(pointermove 内)。
@@ -236,12 +267,27 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: V
           setView(zoomAt(view.current, frame.ax, frame.ay, frame.factor));
         }
         pinchDist.current = frame.dist;
+        // #706:双指相续期间超阈(中点位移或间距变化 > DRAG_THRESHOLD_PX)
+        // = 走捏合/拖拽,轻点候选当场出局(互斥不叠加,pinch 缩放照常)。
+        const tap = tapRef.current;
+        if (
+          tap &&
+          beyondTwoFingerTap(
+            tap.mid,
+            { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+            tap.dist,
+            frame.dist,
+          )
+        ) {
+          tapRef.current = null;
+        }
         return;
       }
       // 单指:跨过阈值才算拖拽(此前的一切移动视为点击按压抖动,视口不动)
       if (!draggedRef.current) {
         if (!beyondDragThreshold(p.sx, p.sy, p.x, p.y)) return;
         draggedRef.current = true;
+        tapRef.current = null; // #706:抬一指后余指拖拽 = 非轻点,候选出局
         setGrabbing(true);
         // 跨阈即刻夺获指针:后续 move/up(及其 click)重定向到 svg,城池的
         // onClick 从根上不再收到本次手势的收尾(拖拽全程不触发落格点击)。
@@ -254,16 +300,25 @@ export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: V
     [setView],
   );
 
-  const endPan = useCallback((ev: React.PointerEvent<SVGSVGElement>) => {
-    pointers.current.delete(ev.pointerId);
-    if (pointers.current.size === 0) {
-      pinchDist.current = 0;
-      setGrabbing(false);
-    } else if (pointers.current.size === 1) {
-      // pinch 中抬一指:回落为单指拖拽(锚点即剩余指最新位置,天然不跳变)
-      pinchDist.current = 0;
-    }
-  }, []);
+  const endPan = useCallback(
+    (ev: React.PointerEvent<SVGSVGElement>) => {
+      pointers.current.delete(ev.pointerId);
+      if (pointers.current.size === 0) {
+        pinchDist.current = 0;
+        setGrabbing(false);
+        // #706 双指轻点复位:候选存活至末指「抬起」(pointercancel 是系统接管,
+        // 不构成同抬,不触发)→ 取景回装载时 fit 初值;setView 走现役
+        // clampViewBox 管线,即时无过渡。
+        const tap = tapRef.current;
+        tapRef.current = null;
+        if (tap && ev.type === "pointerup") setView({ ...fit });
+      } else if (pointers.current.size === 1) {
+        // pinch 中抬一指:回落为单指拖拽(锚点即剩余指最新位置,天然不跳变)
+        pinchDist.current = 0;
+      }
+    },
+    [fit, setView],
+  );
 
   // 拖拽/捏合收尾的 click 一律吞(capture 相位拦在城池 onClick 之前)。
   // 双保险:跨阈时的 setPointerCapture 通常已把 click 重定向到 svg,此处兜的是
