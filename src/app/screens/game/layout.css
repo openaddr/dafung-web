@@ -154,8 +154,8 @@
   right: calc(var(--safe-right) + 104px);
 }
 
-/* ── 顶部浮层(#700 顶钮左移):顶左两钮(总览/设置,32×32 避 safe-area)+
-   顶中「N 轮」浮置 chip(原型 ①topbtns/turnchip 判决移植)── */
+/* ── 顶部浮层(#700 顶钮左移;#732 顶左行序重排):顶左一行 = 设置/详情两钮
+   (32×32 避 safe-area)+「N 轮」浮置 chip,顶中让给知会横幅槽(NoticeBanner)── */
 .game-layout .topbar {
   position: absolute;
   top: calc(var(--safe-top) + 8px);
@@ -166,8 +166,10 @@
 }
 .game-layout .topbtns {
   /* inline-flex 收宽度=内容(display:flex 是块级盒会撑满 topbar 全行,pointer-events
-     auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复) */
+     auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复);
+     #732 起行内三件(设置/详情/chip)基线对齐:钮 32 高、chip 22 高,居中互齐。 */
   display: inline-flex;
+  align-items: center;
   gap: 6px;
   pointer-events: auto;
 }
@@ -202,13 +204,9 @@
   outline: 2px dashed var(--color-gold);
   outline-offset: 2px;
 }
-/* 顶中「N 轮」chip:浮置视口中线(top+2 对齐原型 turnchip y10 vs 钮区 y8) */
+/* 「N 轮」chip(#732 自顶中迁左):浮置 chip 形态原样(panel 混底+细边框+文肯小字),
+   只挪位——行内静置于详情钮后,与钮行基线对齐(行 align-items:center 承担) */
 .game-layout .turnchip {
-  position: absolute;
-  top: 2px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
   background: color-mix(in srgb, var(--color-panel) 88%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
   border-radius: 5px;

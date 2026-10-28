@@ -1,5 +1,7 @@
-// 诸侯总览弹窗(#702,spec #697 ⑥):左上 ☰ 点开的近全屏十列名录直读分板(LoL
-// 手游记分板式),原型 tmp/席位侧列原型.html ⑦ 诸侯总览弹窗一节判决原样移植——
+// 诸侯详情弹窗(#702,spec #697 ⑥;#732 正名「诸侯详情」,组件名 WarlordsOverview
+// 不改):左上 ☰ 点开的近全屏十列名录直读分板(LoL
+// 手游记分板式),原型 tmp/席位侧列原型.html ⑦ 诸侯总览弹窗一节判决原样移植(原型
+// 时代的旧称,定名见 GLOSSARY「诸侯详情」)——
 // 十列 grid 行行对齐:印/国号单名/现金(两)/体力条+值/牌数/城池名 chips/名将名
 // chips/珍宝计数槽/声/委。名录直读口径(可见性拍板):城池=具体城池名 chips(黛青,
 // 超 3 折叠「+N」;点击开现役 #622 名下城池清单,钻入式单层互斥——本层先关清单再开,
@@ -146,7 +148,7 @@ function OverviewRow({
   );
 }
 
-/** 诸侯总览弹窗:座序即行序,全家福一屏(满编 8 行零滚动,样式文件预算)。城池名
+/** 诸侯详情弹窗:座序即行序,全家福一屏(满编 8 行零滚动,样式文件预算)。城池名
  *  解析与 #622 清单同源(board/catalog 单源,缺城=数据 bug 当场炸)。 */
 export function WarlordsOverview({
   snapshot,
@@ -169,7 +171,7 @@ export function WarlordsOverview({
       .map((h) => {
         const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
         if (tileIndex < 0) {
-          throw new Error(`诸侯总览:propertyId ${h.propertyId} 不在棋盘上(数据 bug)`);
+          throw new Error(`诸侯详情:propertyId ${h.propertyId} 不在棋盘上(数据 bug)`);
         }
         return { name: board.at(tileIndex).name, tileIndex };
       })
@@ -185,7 +187,7 @@ export function WarlordsOverview({
     >
       <DialogContent
         data-testid={TESTIDS.warlordsOverview}
-        aria-label="诸侯总览"
+        aria-label="诸侯详情"
         /* 挂载不夺焦(PileShell 同款):焦点留在触发钮,Esc/点外两路关闭白拿 */
         initialFocus={false}
         className="zl"
@@ -193,7 +195,7 @@ export function WarlordsOverview({
         {/* 题名行兼拖动把手(#674/ADR-0031);✕ 钮自带拖动豁免 */}
         <DialogDragHandle className="zl-head" testid={TESTIDS.modalDragHandle}>
           {/* 可达名:题名即 DialogTitle(视觉/读屏同一节点;疏排照原型 .st 原文) */}
-          <DialogTitle className="zl-title">诸 侯 总 览</DialogTitle>
+          <DialogTitle className="zl-title">诸 侯 详 情</DialogTitle>
           <span className="zl-round">{snapshot.round} 轮</span>
           <button
             type="button"

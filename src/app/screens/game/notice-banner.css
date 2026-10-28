@@ -1,0 +1,22 @@
+/* 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条共用的唯一一条带。
+   分流铁律(ADR-0032,#731):知会件入槽、响应件(ReactionBanner)不入槽留手牌架上缘、
+   决策弹层(BannerShell 族)全屏另论——本槽只收纯播报。
+   槽体锚定顶中 top+8(safe-aware,与顶栏行同排);同槽互斥+排队由 fxStore 知会槽泵
+   结构性保证(同一时刻 notice 至多一条),槽内带件(.fx-turn-banner/.fx-halt-banner,
+   样式族在 fx.css)绝对定位于本槽居中。色一律 var(--color-*),裸色豁免登记见
+   layout.css 文件头(本文件零新增裸色)。 */
+
+.game-layout .notice-slot {
+  position: absolute;
+  top: calc(var(--safe-top) + 8px);
+  left: calc(var(--safe-left) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  height: 32px; /* 与顶栏钮行同高:槽空时等待条药丸在此行内垂直居中 */
+  z-index: 6;
+  pointer-events: none; /* 容器不挡棋盘拖拽;知会件纯播报零点击,全槽无放行件 */
+  /* 槽空件(等待条药丸)行内居中;带件(.fx-turn-banner/.fx-halt-banner)absolute
+     定位于本槽,不吃 flex 布局 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

@@ -163,15 +163,16 @@ export const FX = {
   get landPulseMs() {
     return scStage(750);
   },
-  /** 都城停全屏横幅存活(S7 #513):fx-halt-banner-fly 全长 2.2s + 清理余量,
-   *  与 fx.css 同名 keyframe 硬同步(特例字面量,同 seal/骰签口径)。 */
+  /** 都城停条带存活(#732 降格,原 S7 #513 全屏宣告 2400):条带复用回合横幅的
+   *  fx-banner-fly 全长(--dur-banner 单源)+ 清理余量,与 fx.css 同步(公式同
+   *  bannerMs,语义独立——两族知会各自的清理窗)。 */
   get haltBannerMs() {
-    return scStage(2400);
+    return scStage(Motion.dur.banner + 100);
   },
-  /** 都城停横幅占用编排时长(同 bannerHoldMs 口径):等入场展开+驻停读过一拍,
-   *  驻章与补给铜钱雨在其后接续。 */
+  /** 都城停条带占用编排时长(#732 条带级校准,同 bannerHoldMs 口径):等条带入场
+   *  展开读过一拍,驻章与补给铜钱雨在其后接续(原全屏仪式 1400 随降格退役)。 */
   get haltHoldMs() {
-    return scStage(1400);
+    return scStage(1000);
   },
   /** 破产仪式墨渍晕开全程(S7):fx-inkblot-bloom 1s + 清理余量,fx.css 硬同步。 */
   get inkBlotMs() {

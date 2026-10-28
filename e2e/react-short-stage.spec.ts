@@ -1,5 +1,5 @@
-// 演出层矮横屏三件改(#709,#688 定案施工)@667×375 矮横屏档:
-// ① 反应横幅下移浮置几何——显示期横幅与右缘席位格、顶中「N 轮」chip 零遮挡
+// 演出层矮横屏三件改(#709,#688 定案施工;#732 chip 断言迁左上口径)@667×375 矮横屏档:
+// ① 反应横幅下移浮置几何——显示期横幅与右缘席位格、左上「N 轮」chip 零遮挡
 //    (病根:#709 前横幅 abspos 收缩适配被饿成半幅,竖排字气球直探板中区;
 //    修复后横幅锁架体宽度内,架体自带席位条 104px 让位 = 结构性不相侵),且
 //    auto-hide 不回归(点「不用」窗收横幅即撤;超时/降噪口的权威侧回路归
@@ -112,7 +112,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await expect(page.getByTestId(TESTIDS.actionbar)).toBeHidden();
   });
 
-  test("反应横幅浮置:显示期与席位格、顶中 chip 零遮挡;点不用窗收(auto-hide 不回归)", async ({
+  test("反应横幅浮置:显示期与席位格、左上 chip 零遮挡;点不用窗收(auto-hide 不回归)", async ({
     page,
   }) => {
     test.slow(); // 拦检链:授将放行后等 bot 行军至都城前格开窗
@@ -154,7 +154,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
         seat.bottom <= geo.banner!.y - 0.5;
       expect(noOverlap, "横幅与席位格矩形相交").toBe(true);
     }
-    // 与顶中「N 轮」chip 零遮挡:横幅浮置下带,几何上不可达
+    // 与「N 轮」chip 零遮挡(#732 chip 迁左上):横幅浮置下带(架缘),几何上不可达
     expect(geo.banner!.y).toBeGreaterThanOrEqual(geo.chip!.bottom);
     // auto-hide 不回归(#709 ①):点「不用」= 应答,窗收横幅即撤
     await banner.getByTestId(TESTIDS.reactionDecline).click();

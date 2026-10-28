@@ -1,9 +1,11 @@
-// 瞬时表现层:浮动金额(+/− 与铜钱雨)、回合横幅、朱砂印章。
+// 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章。
 // D1/D4 改造:浮字/印章/铜钱不再走 HTML 覆盖层 + getScreenCTM 一次性换算
 // (拖拽/缩放后即脱锚),而是直接渲染进棋盘 SVG 的 #bv-fx 层(BoardFxLayer,
 // 由 BoardView 挂载)——坐标系与棋盘天然一致,pan/zoom 时随视图一起变换,
 // 字号随视图缩放、按当前缩放设 12px 等效下限。
-// FxLayer(HTML)仅保留回合横幅——它是屏幕居中元素,不属于棋盘坐标系。
+// #732:屏幕级知会(回合横幅/都城停条带)迁顶中知会横幅槽(screens/game/NoticeBanner),
+// 本件只剩拼点签面演出桥(DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi
+// 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。
 import { useFxStore } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
@@ -186,39 +188,14 @@ export function BoardFxLayer() {
   );
 }
 
-/** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):回合旌旗横幅 + 都城停全屏
- *  宣告(屏幕居中元素,不属于棋盘系)+ 拼点签面演出桥(DuelSignsOverlay 渲染 null,
- *  仅在挂载期绑定 duelSignsApi 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。 */
+/** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):拼点签面演出桥
+ *  (DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi 模块桥——签面
+ *  overlay 自行 append 到 body,ADR-0030)。#732 起回合横幅/都城停条带已迁
+ *  顶中知会横幅槽(NoticeBanner),本层不再渲染知会件。 */
 export function FxLayer() {
-  const banner = useFxStore((s) => s.banner);
-  const halt = useFxStore((s) => s.halt);
-
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" data-fx-layer>
       <DuelSignsOverlay />
-      {/* 回合旌旗横幅:key=id 保证同一玩家连续两回合也能重启动画 */}
-      {banner && (
-        <div
-          key={banner.id}
-          className="fx-turn-banner"
-          style={{ ["--player-color" as string]: banner.color }}
-        >
-          【{banner.guohao}】之回合
-        </div>
-      )}
-      {/* 都城停全屏宣告(S7):漆金横幅级,与回合横幅同语感更高强度 */}
-      {halt && (
-        <div
-          key={halt.id}
-          className="fx-halt-banner"
-          style={{ ["--player-color" as string]: halt.color }}
-        >
-          <span className="fx-halt-title">驻 跸</span>
-          <span className="fx-halt-sub">
-            【{halt.guohao}】入「{halt.cityName}」·补给入帐
-          </span>
-        </div>
-      )}
     </div>
   );
 }

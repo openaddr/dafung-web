@@ -55,10 +55,10 @@ export function createEngineSink(): FxSink {
       return duelSignsApi.play(ev);
     },
     showHaltBanner(ev) {
-      // 都城停全屏宣告(S7):号角(haltGong,复用 gong-long 素材)+震屏同拍,
-      // 横幅动画 CSS 自走;编排时长由 present 侧 haltHoldMs 承担。
+      // 都城停条带(#732 降格,原 S7 全屏宣告):号角保留(haltGong,复用 gong-long
+      // 素材);震屏随全屏仪式降格撤销(4px 档是 DESIGN §6 大事件制式,条带级知会
+      // 不再配发),横幅动画 CSS 自走;编排时长由 present 侧 haltHoldMs 条带级校准。
       getAudio().play("haltGong");
-      shakeDesk();
       useFxStore
         .getState()
         .showHaltBanner(ev.guohao, rgba(playerColor(ev.colorIndex)), ev.cityName);

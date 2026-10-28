@@ -1,5 +1,6 @@
-// Game 屏(#700 全浮层骨架):棋盘全幅垫底 + 顶部浮层(顶左两钮+顶中 N 轮 chip)+
-// 席位格列(#698 重形)+ 底缘透明手牌区 + 右下三圆钮。
+// Game 屏(#700 全浮层骨架;#732 顶左行序重排):棋盘全幅垫底 + 顶部浮层(顶左
+// 设置/详情/N 轮 chip 一行)+ 顶中知会横幅槽(NoticeBanner)+ 席位格列(#698 重形)
+// + 底缘透明手牌区 + 右下三圆钮。
 // 旧顶栏/底部仪表条(DashboardBar)已退役并核销(#700):目标身价/回合方字条/牌库
 // 角标/复位·缩放·静音钮 → 席位格与设置弹层承接;现金/属性徽章/体力/「你」印 →
 // 席位格(#698 起一人一格全字段,自机金样式);签面 → 手牌区左端;托管钮 → #701
@@ -39,7 +40,7 @@ import { SeatRail } from "./SeatRail";
 import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
-import { WaitingBar } from "./WaitingBar";
+import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import { CityLedgerModal } from "./CityLedgerModal";
@@ -441,8 +442,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* 阶段 6:浮字/铜钱雨/回合横幅/印章(store 驱动的瞬时表现) */}
           <FxLayer />
           {setupHint && (
-            // S8(#41):WaitingBar 槽复用——选都期 WaitingBar 恒空(phase≠Playing 直接
-            // null),同槽上下错开不再叠字。
+            // S8(#41):选都期知会槽恒空(等待条 phase≠Playing 直接 null),选都引导
+            // 独占顶中下方(+48px)一行,与槽内件上下错开不叠字。
             <div
               data-testid={TESTIDS.hint}
               className="pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
@@ -452,15 +453,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           )}
           {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致) */}
           <HintBar hint={hint} level={hintLevel} />
-          {/* G-3/16/21 统一等待状态条:bot 运筹 / 远端人类落子 / 对方抉择 / 变卖抵债。
-            #253:席位格活跃金圈呼吸承担「谁在行动」指名,本条保留为全局兜底。 */}
-          <WaitingBar
-            snapshot={snapshot}
-            interactive={interactive}
-            selfPresenting={selfPresenting}
-            viewSeat={viewSeat}
-            online={net.roomId !== ""}
-          />
           {/* 决策卷轴路由(阶段 6 接线):按相位弹招贤/珍宝/破产/胜利/城池详情。
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。
             选都/详情流程只下发一个窄 props(tileDetail,状态机在 useCapitalPick)。 */}
@@ -476,8 +468,17 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             <InquiryLayer snapshot={snapshot} interactive={interactive} />
           </div>
         </div>
-        {/* 顶部浮层(#700):顶左两钮(总览待开放/设置)+ 顶中「N 轮」chip */}
+        {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮 + 「N 轮」chip 同排,顶中让给知会槽 */}
         <GameTopBar snapshot={snapshot} onOpenSettings={() => setSettingsOpen(true)} />
+        {/* 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条(宿主迁槽,文案派生
+            口径不变)共用一条带——排队互斥在 fxStore 知会槽泵,瞬态知会优先于等待条。 */}
+        <NoticeBanner
+          snapshot={snapshot}
+          interactive={interactive}
+          selfPresenting={selfPresenting}
+          viewSeat={viewSeat}
+          online={net.roomId !== ""}
+        />
         {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列),
           活跃方金圈呼吸指名。
           消费的是稳定自局座位(selfSeat):自机格识别要「人」而非决策视角——热座

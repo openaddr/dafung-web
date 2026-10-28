@@ -1,8 +1,11 @@
-// 全浮层布局冒烟(#700;前身为 react-sidebar.spec.ts→三区骨架版,仪表条退役再改写):
+// 全浮层布局冒烟(#700;前身为 react-sidebar.spec.ts→三区骨架版,仪表条退役再改写;
+// #732 全 spec 迁 844×390 标准视口——移动横屏为视觉与回归的唯一标准档,桌面档不设
+// 专项布局断言,ADR-0032 标准分辨率原则):
 // 浮层件可见(顶部条/席位格列/手牌区/右下三圆钮)+ 退役核销(仪表条/战报把手/
 // 静音复位钮/牌库角标等零残留)+ 席位格字段(自机入列)+ 浮签(hover/长按/贴缘翻面)
-// + 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层(#361 双入口接替)。
-import { test, expect } from "./fixtures";
+// + 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层(#361 双入口接替)
+// + 顶中知会横幅槽(#732:回合横幅入槽/等待条让位回归/同槽互斥排队/都城停条带)。
+import { test, expect, type Page } from "./fixtures";
 import {
   quickStart,
   snap,
@@ -13,6 +16,9 @@ import {
   force,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+
+// 844×390 标准视口(#732):本 spec 全部用例统一在标准档跑。
+test.use({ viewport: { width: 844, height: 390 } });
 
 test.describe("全浮层骨架", () => {
   test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
@@ -49,8 +55,8 @@ test.describe("全浮层骨架", () => {
         return (await page.getByTestId(TESTIDS.topbarRound).textContent()) === `${s.round} 轮`;
       })
       .toBe(true);
-    // 总览钮 #702 点亮:可用,点开诸侯总览弹窗(内容与投影归 react-warlords-overview,
-    // 此处只守「开得了、Esc 收得净」)
+    // 详情钮 #702 点亮(#732 正名「详情」):可用,点开诸侯详情弹窗(内容与投影归
+    // react-warlords-overview,此处只守「开得了、Esc 收得净」)
     await expect(page.getByTestId(TESTIDS.topbarOverview)).toBeEnabled();
     await page.getByTestId(TESTIDS.topbarOverview).click();
     await expect(page.getByTestId(TESTIDS.warlordsOverview)).toBeVisible();
@@ -227,5 +233,78 @@ test.describe("全浮层骨架", () => {
     // Esc 关闭(Base UI 底件行为),卸载零残留
     await page.keyboard.press("Escape");
     await expect(page.getByTestId(TESTIDS.heroModal)).toHaveCount(0);
+  });
+});
+
+test.describe("顶中知会横幅槽(#732)", () => {
+  // 时间线采样观测(零固定 sleep):标准档(0.25)单条横幅 ~475ms,采样拍 ~100-200ms
+  // 必多拍命中;槽互斥/让位/回归全在同一份时间线上断言,不靠散点轮询赛跑。
+  // 采样拍内随手放行人类决策(dismissJinnangIfUp/actIfCan):对局自走不停摆——
+  // 半速档实锤教训:bot 产批快于实播时追帧/吸附会按 ADR-0029 ③ 丢弃待播知会,
+  // 标准档播放快于产出无积压;人类决策停摆则无回合变化可观测。
+  // 用例含 quickStart 全链 + 采样窗,60s 默认档偏紧,组级放宽(同族口径)。
+  test.setTimeout(240_000);
+  const SAMPLE_MS = 20_000;
+
+  /** 单拍采样:槽内带件数/文本/落点 + 等待条在场(读数收进单次 evaluate)。 */
+  function sampleOnce(page: Page) {
+    return page.evaluate(
+      ({ slot, waiting }) => {
+        const slotEl = document.querySelector(`[data-testid="${slot}"]`);
+        const bandEls = slotEl
+          ? [...slotEl.querySelectorAll<HTMLElement>(".fx-turn-banner,.fx-halt-banner")]
+          : [];
+        const first = bandEls[0]?.getBoundingClientRect();
+        return {
+          bands: bandEls.length,
+          top: first ? first.top : null,
+          turn: bandEls[0]?.textContent ?? null,
+          waiting: document.querySelector(`[data-testid="${waiting}"]`) != null,
+        };
+      },
+      { slot: TESTIDS.noticeBanner, waiting: TESTIDS.waitingBar },
+    );
+  }
+
+  // 排队(≥2 条依次播)与都城停条带形态(高度≤条带级)不走 e2e:#732 三遍实证
+  // ADR-0029 落后即校准的吸附档在 bot 热链期系统性丢弃批末位知会,窗内计数类断言
+  // 与演出治理竞速(观测性竞速,非产品回归;现象与三方案见 #734 留观票)。此二者
+  // 改走机制论证(fxStore 知会槽泵=排队/互斥结构单源)+截图自证
+  // (tmp/ui-shots/hengfu/2-turn-banner-in-slot.png、3-halt-band-in-slot.png)。
+  test("回合横幅入槽:展示期落槽位且等待条让位,播完回归;同刻槽内仅一条", async ({ page }) => {
+    test.slow();
+    await quickStart(page);
+    // 时间线采样:每拍先放行人类决策(保对局自走)再读槽,窗口 20s
+    const t0 = Date.now();
+    const samples: Awaited<ReturnType<typeof sampleOnce>>[] = [];
+    while (Date.now() - t0 < SAMPLE_MS) {
+      await dismissJinnangIfUp(page);
+      await actIfCan(page).catch(() => false);
+      samples.push(await sampleOnce(page));
+    }
+    // ① 回合横幅经槽展示(读数取自槽容器内部查询 = 在槽位),落点在槽位行
+    //   (844×390 槽区 top ≤ 20;旧 16% 落点 ~36+ 必挂)
+    const withTurn = samples.filter((s) => s.turn?.includes("之回合"));
+    expect(withTurn.length, "采样窗内未观测到回合横幅").toBeGreaterThan(0);
+    for (const s of withTurn) expect(s.top!, "回合横幅未落槽位").toBeLessThanOrEqual(20);
+    // ② 同槽互斥:任何采样时刻槽内至多一条带(排队语义由 fxStore 槽泵结构单源,
+    //    不做窗内计数断言——见本 describe 头注)
+    expect(
+      samples.every((s) => s.bands <= 1),
+      "同一时刻槽内出现多条带",
+    ).toBe(true);
+    // ③ 等待条让位与回归:横幅展示期与等待条零并存;最后一条横幅播完后等待条回归
+    expect(
+      samples.every((s) => !(s.turn != null && s.waiting)),
+      "瞬态横幅与等待条同刻并存(让位失效)",
+    ).toBe(true);
+    let lastTurn = -1;
+    samples.forEach((s, i) => {
+      if (s.turn != null) lastTurn = i;
+    });
+    expect(
+      samples.slice(lastTurn + 1).some((s) => s.waiting),
+      "横幅播完后等待条未回归",
+    ).toBe(true);
   });
 });
