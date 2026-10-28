@@ -99,26 +99,33 @@ export function ExhaustionChoiceScroll({
       if (o.available) onCommand({ type: "resolveExhaustionChoice", index: i });
     }),
   );
+  // #729:二选一钮钉底(壳 footer 槽),说明留正文井——耗竭说明 + 双钮在矮横屏
+  // 同样曾被推出视口,同构迁移
   return (
-    <BannerShell title="体力耗竭" testid={T.exhaustionScroll}>
+    <BannerShell
+      title="体力耗竭"
+      testid={T.exhaustionScroll}
+      footer={
+        <div className="flex flex-col gap-2.5">
+          {choices.map((o, i) => (
+            <BannerButton
+              key={o.id}
+              primary={i === 0}
+              shortcut={i + 1}
+              disabled={!o.available}
+              title={o.available ? undefined : o.reason}
+              testid={T.exhaustionOption(i)}
+              onClick={() => onCommand({ type: "resolveExhaustionChoice", index: i })}
+            >
+              {o.label}
+            </BannerButton>
+          ))}
+        </div>
+      }
+    >
       <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
         体力耗竭,倒地不起!择一座城池弃之苟活:降 1 级,或失去整座。歇罢这阵,体力自会回满。
       </p>
-      <div className="flex flex-col gap-2.5">
-        {choices.map((o, i) => (
-          <BannerButton
-            key={o.id}
-            primary={i === 0}
-            shortcut={i + 1}
-            disabled={!o.available}
-            title={o.available ? undefined : o.reason}
-            testid={T.exhaustionOption(i)}
-            onClick={() => onCommand({ type: "resolveExhaustionChoice", index: i })}
-          >
-            {o.label}
-          </BannerButton>
-        ))}
-      </div>
     </BannerShell>
   );
 }
@@ -165,8 +172,34 @@ export function BuyDecisionScroll({
   // G-20:资产行 —— 一眼看清持有/需付/差额(付得起记「余」,缺口记「差」红字;
   // formatMoney 只收非负数,缺口取绝对值,负值会被钳成「0 两」)
   const diff = cash - property.purchasePrice;
+  // #729:拍板两钮钉底(壳 footer 槽)——说明文段/差额行/等级表/不可购原因留正文井,
+  // 正文内滚浏览,「购地/不取」恒在场不随内容滚走(矮横屏实测钮曾被表压出视口)。
   return (
-    <BannerShell title="购地抉择" testid={T.buyScroll}>
+    <BannerShell
+      title="购地抉择"
+      testid={T.buyScroll}
+      footer={
+        <div className="flex items-center justify-center gap-3">
+          <BannerButton
+            primary
+            disabled={!buy.available}
+            title={buy.available ? undefined : buy.reason}
+            shortcut={1}
+            testid={TESTIDS.actionButton("buy")}
+            onClick={() => onCommand({ type: "buyProperty" })}
+          >
+            购地 {formatMoney(property.purchasePrice)}·1委任
+          </BannerButton>
+          <BannerButton
+            shortcut={2}
+            testid={TESTIDS.actionButton("skip")}
+            onClick={() => onCommand({ type: "endDecision" })}
+          >
+            不取
+          </BannerButton>
+        </div>
+      }
+    >
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」{regionLabel ? ` · ${regionLabel}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
@@ -189,25 +222,6 @@ export function BuyDecisionScroll({
           查看等级表
         </button>
       )}
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <BannerButton
-          primary
-          disabled={!buy.available}
-          title={buy.available ? undefined : buy.reason}
-          shortcut={1}
-          testid={TESTIDS.actionButton("buy")}
-          onClick={() => onCommand({ type: "buyProperty" })}
-        >
-          购地 {formatMoney(property.purchasePrice)}·1委任
-        </BannerButton>
-        <BannerButton
-          shortcut={2}
-          testid={TESTIDS.actionButton("skip")}
-          onClick={() => onCommand({ type: "endDecision" })}
-        >
-          不取
-        </BannerButton>
-      </div>
       {!buy.available && <p className="mt-2 text-center text-xs text-ink-dim">{buy.reason}</p>}
     </BannerShell>
   );
@@ -257,8 +271,33 @@ export function UpgradeDecisionScroll({
     },
     () => onCommand({ type: "endDecision" }),
   ]);
+  // #729:扩军/按兵不动两钮钉底(同购地),变化行与价值表留正文井
   return (
-    <BannerShell title="扩军抉择" testid={T.upgradeScroll}>
+    <BannerShell
+      title="扩军抉择"
+      testid={T.upgradeScroll}
+      footer={
+        <div className="flex items-center justify-center gap-3">
+          <BannerButton
+            primary
+            disabled={!upgrade.available}
+            title={upgrade.available ? undefined : upgrade.reason}
+            shortcut={1}
+            testid={TESTIDS.actionButton("upgrade")}
+            onClick={() => onCommand({ type: "upgradeProperty" })}
+          >
+            扩军(免费)
+          </BannerButton>
+          <BannerButton
+            shortcut={2}
+            testid={TESTIDS.actionButton("skip")}
+            onClick={() => onCommand({ type: "endDecision" })}
+          >
+            按兵不动
+          </BannerButton>
+        </div>
+      }
+    >
       <p className="m-1 text-center text-sm text-ink-dim">
         「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
@@ -288,25 +327,6 @@ export function UpgradeDecisionScroll({
         second={isCapital ? "supply" : "sell"}
         highlight={{ level: level + 1, label: "扩军后" }}
       />
-      <div className="flex flex-wrap items-center justify-center gap-3">
-        <BannerButton
-          primary
-          disabled={!upgrade.available}
-          title={upgrade.available ? undefined : upgrade.reason}
-          shortcut={1}
-          testid={TESTIDS.actionButton("upgrade")}
-          onClick={() => onCommand({ type: "upgradeProperty" })}
-        >
-          扩军(免费)
-        </BannerButton>
-        <BannerButton
-          shortcut={2}
-          testid={TESTIDS.actionButton("skip")}
-          onClick={() => onCommand({ type: "endDecision" })}
-        >
-          按兵不动
-        </BannerButton>
-      </div>
       {!upgrade.available && (
         <p className="mt-2 text-center text-xs text-ink-dim">{upgrade.reason}</p>
       )}

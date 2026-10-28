@@ -62,8 +62,26 @@ export function TileDetailScroll({
   onClose,
   pickCapital,
 }: TileDetailScrollProps) {
+  // #729:选都态「定都于此/再想想」钉底(壳 footer 槽);只读查看态不传 footer,
+  // 槽不渲染零余白(详情内容矮,无需钉底段)。
   return (
-    <BannerShell title={`「${tileName}」`} onClose={onClose} testid={T.tileDetailScroll}>
+    <BannerShell
+      title={`「${tileName}」`}
+      onClose={onClose}
+      testid={T.tileDetailScroll}
+      footer={
+        pickCapital ? (
+          <div className="flex justify-center gap-3">
+            <BannerButton primary testid={TESTIDS.confirmCapitalOk} onClick={pickCapital.onConfirm}>
+              定都于此
+            </BannerButton>
+            <BannerButton testid={TESTIDS.confirmCapitalCancel} onClick={onClose}>
+              再想想
+            </BannerButton>
+          </div>
+        ) : undefined
+      }
+    >
       <span hidden data-tile-index={tileIndex} />
       {property ? (
         <>
@@ -88,16 +106,6 @@ export function TileDetailScroll({
               board-loader 不变量:Property 格必有 propertyId(即必有 property),走到此分支的必是特殊格 */}
           {SPECIAL_TILE_DESC[tileType as Exclude<TileType, "Property">]}
         </p>
-      )}
-      {pickCapital && (
-        <div className="mt-4 flex justify-center gap-3">
-          <BannerButton primary testid={TESTIDS.confirmCapitalOk} onClick={pickCapital.onConfirm}>
-            定都于此
-          </BannerButton>
-          <BannerButton testid={TESTIDS.confirmCapitalCancel} onClick={onClose}>
-            再想想
-          </BannerButton>
-        </div>
       )}
     </BannerShell>
   );

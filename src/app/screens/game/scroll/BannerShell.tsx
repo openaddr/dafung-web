@@ -42,6 +42,11 @@ export const BannerGhostContext = createContext(false);
 export interface BannerShellProps {
   title: string;
   children: ReactNode;
+  /** #729 footer 槽:三段式的钉底段(题行钉顶 + 正文井内滚 + 拍板钮钉底)。
+   *  摆固定抉择钮组(购地/扩军/耗竭/选都)或破产结算行——正文内滚合法(浏览内容),
+   *  拍板钮恒在场、永不滚出视口。传了才渲染:不可决断的弹层(机遇选项集/详情等
+   *  钮即内容或无可拍板)不传,槽不占位、零余白。 */
+  footer?: ReactNode;
   /** 只有可放弃的弹层(详情/确认/等待视角)才传;抉择类必须选,不误关(旧卷轴同策略)。
    *  传了 onClose 即支持:点遮罩空白关闭 + Esc 关闭(与 ConfirmDialog 的 Esc 惯例一致)。 */
   onClose?: () => void;
@@ -105,7 +110,7 @@ export function BannerButton({
   );
 }
 
-export function BannerShell({ title, children, onClose, testid }: BannerShellProps) {
+export function BannerShell({ title, children, footer, onClose, testid }: BannerShellProps) {
   // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂退场类、
   // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
   // 再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
@@ -236,6 +241,15 @@ export function BannerShell({ title, children, onClose, testid }: BannerShellPro
           (壳体 max-h 86dvh → 内容区 min-h-0 overflow-y-auto),长内容(破产清单等)
           横屏也不溢出。 */}
       <div className="banner-body min-h-0 overflow-y-auto px-3 py-3">{children}</div>
+      {/* #729 footer 槽:正文井之后的钉底段。shrink-0 + 壳体 flex-col 限高链
+          (max-h-86dvh → body min-h-0 overflow-y-auto)让 footer 在场时正文井自然被
+          压缩内滚,钮组不随内容滚走;发丝分隔线与题行 border-b 同色对称(#729 拍板),
+          水平内衬 px-3 与正文井对齐。活横幅与退场帧共用 shellBody,footer 两路同构。 */}
+      {footer != null && (
+        <div className="mt-3 shrink-0 border-t border-[rgba(217,185,92,0.35)] px-3 pt-3">
+          {footer}
+        </div>
+      )}
     </div>
   );
 
