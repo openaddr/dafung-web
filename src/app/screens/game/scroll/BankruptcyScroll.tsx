@@ -70,46 +70,85 @@ export function BankruptcyScroll({
     return () => window.clearTimeout(t);
   }, [settled]);
 
-  /* ── W4a:资产分组滚动 ──
-     为什么要分:破产时资产可能 20+ 件,旧平铺 flex-wrap 会把卷轴撑得比视口还高,
-     「结算」按钮被顶出屏幕外,玩家根本点不到;分「珍宝/城池/名将」三组、各组
-     max-h-56 内滚,并把「结算」钉在卷轴底部(不随内容滚),任何资产量下都可达。 */
+  /* ── W4a → #729 归一:自搓「结算钉底」退役 ──
+     破产资产可能 20+ 件,旧平铺曾把「结算」顶出屏外——当时的解法是三组各自
+     max-h-56 内滚 + 卷轴内自搓钉底结算行;#729 壳成三段式后归一:资产三组列表归
+     正文井(壳体限高链内滚,不再自设 max-h),结算行(已凑/债务/尚欠 + 进度条)
+     与结算钮迁壳 footer 槽钉底,任何资产量下都可达,横幅系一个语法。 */
   const hasAny = treasures.length > 0 || sellableProperties.length > 0 || heroes.length > 0;
   return (
     <>
-      <BannerShell title={`${guohao}·变卖自救`} testid={T.bankruptcyScroll}>
+      <BannerShell
+        title={`${guohao}·变卖自救`}
+        testid={T.bankruptcyScroll}
+        footer={
+          <div className="flex flex-col gap-2">
+            {/* W2-包D(审计 A2)+ #362:进度条数值伴随——「已凑/债务/尚欠」三数同窗
+              (backpack .bkr-owe 句式),与变卖钮上的「+」金额互为对照。 */}
+            <div
+              data-testid={T.bankruptcyProgress}
+              className="text-right text-xs text-ink-dim tabular-nums"
+            >
+              已凑 {formatMoney(cash)} / 债务 {formatMoney(debtAmount)} · 尚欠 {formatMoney(owe)}
+            </div>
+            {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
+              pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
+              每卖一笔随快照实时涨,凑足时正好满格呼应墨钮。 */}
+            <div className="h-1.5 overflow-hidden rounded-full border border-gold/30 bg-paper-lo">
+              <div
+                className="h-full rounded-full bg-money"
+                style={{
+                  width: `${((debtAmount - owe) / debtAmount) * 100}%`,
+                  transition: "width var(--dur-med) var(--ease-out)",
+                }}
+              />
+            </div>
+            {/* #94 两态:owe>0=警示次级(此时结算=引擎 finalizeBankruptcy 毁局,须红字说破);
+              owe===0=主行动墨钮,外层 span 承载一拍脉冲(BannerButton 不吃自定义类)。 */}
+            <div className="flex justify-center">
+              {settled ? (
+                <span
+                  className={
+                    "inline-block transition-transform duration-[var(--dur-med)] ease-[var(--ease-out)] " +
+                    (pulsing ? "scale-110" : "scale-100")
+                  }
+                >
+                  <BannerButton
+                    primary
+                    testid={T.bankruptcyConfirm}
+                    onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
+                  >
+                    结算 · 凑足!免破产
+                  </BannerButton>
+                </span>
+              ) : (
+                <button
+                  type="button"
+                  data-testid={T.bankruptcyConfirm}
+                  title="现金仍低于债务,此时结算即破产出局"
+                  onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
+                  className="cursor-pointer rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors hover:bg-danger/10"
+                >
+                  {hasAny ? "结算 · 仍欠 " : "结算(无资产可卖)· 仍欠 "}
+                  {formatMoney(owe)},认破产
+                </button>
+              )}
+            </div>
+          </div>
+        }
+      >
         <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
           {settled
             ? "现金已凑足债务!点「结算」清偿,转危为安。"
             : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 200 两)。`}
         </p>
-        {/* W2-包D(审计 A2)+ #362:进度条数值伴随——「已凑/债务/尚欠」三数同窗
-          (backpack .bkr-owe 句式),与变卖钮上的「+」金额互为对照。 */}
-        <div
-          data-testid={T.bankruptcyProgress}
-          className="mx-1 mb-1 text-right text-xs text-ink-dim tabular-nums"
-        >
-          已凑 {formatMoney(cash)} / 债务 {formatMoney(debtAmount)} · 尚欠 {formatMoney(owe)}
-        </div>
-        {/* #94 清偿进度条:进度 = 已凑/债务(payOrLiquidate 仅在 cash<amount 时进清算,
-          pendingDebt.amount 恒 >0,直接除不设防);宽度走动效 token --dur-med/--ease-out,
-          每卖一笔随快照实时涨,凑足时正好满格呼应墨钮。 */}
-        <div className="mx-1 mb-3 h-1.5 overflow-hidden rounded-full border border-gold/30 bg-paper-lo">
-          <div
-            className="h-full rounded-full bg-money"
-            style={{
-              width: `${((debtAmount - owe) / debtAmount) * 100}%`,
-              transition: "width var(--dur-med) var(--ease-out)",
-            }}
-          />
-        </div>
-        <div className="flex max-h-[432px] flex-col gap-2 overflow-hidden">
-          <section className="flex min-h-0 flex-col">
+        <div className="flex flex-col gap-2">
+          <section>
             <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
               <i>宝</i>
               <span>珍宝</span>
             </h4>
-            <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            <div className="flex flex-wrap content-start justify-center gap-2">
               {/* #362:裸卖钮退役,点入口开选宝弹层(装裱卡点选+二段式变卖,同交涉款) */}
               {treasures.length > 0 ? (
                 <BannerButton
@@ -124,12 +163,12 @@ export function BankruptcyScroll({
               )}
             </div>
           </section>
-          <section className="flex min-h-0 flex-col">
+          <section>
             <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
               <i>城</i>
               <span>城池</span>
             </h4>
-            <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            <div className="flex flex-wrap content-start justify-center gap-2">
               {sellableProperties.map((p) => (
                 <BannerButton
                   key={p.propId}
@@ -153,12 +192,12 @@ export function BankruptcyScroll({
               {sellableProperties.length === 0 && <span className="text-xs text-ink-dim">无</span>}
             </div>
           </section>
-          <section className="flex min-h-0 flex-col">
+          <section>
             <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
               <i>贤</i>
               <span>名将</span>
             </h4>
-            <div className="flex max-h-56 flex-wrap content-start justify-center gap-2 overflow-y-auto">
+            <div className="flex flex-wrap content-start justify-center gap-2">
               {heroes.map((h) => (
                 <BannerButton
                   key={h.id}
@@ -171,38 +210,6 @@ export function BankruptcyScroll({
               {heroes.length === 0 && <span className="text-xs text-ink-dim">无</span>}
             </div>
           </section>
-        </div>
-        {/* 结算钉底:在滚动容器之外,滚动资产列表时它纹丝不动 */}
-        <div className="mt-3 flex justify-center border-t border-gold/30 pt-3">
-          {/* #94 两态:owe>0=警示次级(此时结算=引擎 finalizeBankruptcy 毁局,须红字说破);
-            owe===0=主行动墨钮,外层 span 承载一拍脉冲(BannerButton 不吃自定义类)。 */}
-          {settled ? (
-            <span
-              className={
-                "inline-block transition-transform duration-[var(--dur-med)] ease-[var(--ease-out)] " +
-                (pulsing ? "scale-110" : "scale-100")
-              }
-            >
-              <BannerButton
-                primary
-                testid={T.bankruptcyConfirm}
-                onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
-              >
-                结算 · 凑足!免破产
-              </BannerButton>
-            </span>
-          ) : (
-            <button
-              type="button"
-              data-testid={T.bankruptcyConfirm}
-              title="现金仍低于债务,此时结算即破产出局"
-              onClick={() => onCommand({ type: "confirmBankruptcySettle" })}
-              className="cursor-pointer rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors hover:bg-danger/10"
-            >
-              {hasAny ? "结算 · 仍欠 " : "结算(无资产可卖)· 仍欠 "}
-              {formatMoney(owe)},认破产
-            </button>
-          )}
         </div>
       </BannerShell>
       {/* #362 变卖珍宝选宝弹层:同交涉款选择模式;进度区=已凑/债务(cap 100%,
