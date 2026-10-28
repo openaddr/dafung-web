@@ -1,8 +1,9 @@
 [package]
 name = "app"
+# 仅满足 Cargo 清单强制字段;应用版本唯一源是根 package.json(tauri.conf.json 路径引用它,此处被遮蔽)
 version = "0.1.0"
-description = "A Tauri App"
-authors = ["you"]
+description = "群雄逐鹿 — 三国大富翁打包壳"
+authors = ["ning"]
 license = ""
 repository = ""
 edition = "2021"
