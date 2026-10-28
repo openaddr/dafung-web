@@ -1,0 +1,199 @@
+// 演出层矮横屏三件改(#709,#688 定案施工)@667×375 矮横屏档:
+// ① 反应横幅下移浮置几何——显示期横幅与右缘席位格、顶中「N 轮」chip 零遮挡
+//    (病根:#709 前横幅 abspos 收缩适配被饿成半幅,竖排字气球直探板中区;
+//    修复后横幅锁架体宽度内,架体自带席位条 104px 让位 = 结构性不相侵),且
+//    auto-hide 不回归(点「不用」窗收横幅即撤;超时/降噪口的权威侧回路归
+//    react-reaction.spec 既有用例,本单验证跑全量演出族兜底);
+// ② 拼点签面全要素入视口——双签并排(不纵叠)、整排落视口内(#709 前收缩适配
+//    误触发 flex-wrap,魏签顶/滇签底双出屏);
+// ③ 动作条矮横屏压高——条高 ≤36px(43.5→~30)且不压牌面决策区(下缘 ≤ 牌顶 −2),
+//    上缘 ≥195 还棋盘底行可视高度;「不出」放行冒烟 = 功能零回归锚。
+// 种植配方照抄 react-reaction.spec(seed 7 × huanyou 拦检链)/react-jinnang-use.spec
+// (seed 63 起手横征暴敛 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
+// (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
+import { test, expect } from "./fixtures";
+import { answerMarchCounter, force, useHalfScale } from "./react-helpers";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import type { Page } from "@playwright/test";
+
+test.describe("演出层矮横屏三件(#709)@667×375", () => {
+  test.use({ viewport: { width: 667, height: 375 } });
+
+  /** 矮横屏选图开局(#707 条带替代二级弹层)→ 定都首候选,回停靠点:
+   *  waitScroll 给定则等购地卷轴(seed 7 拦检链配方),否则等出牌阶段动作条
+   *  (seed 63 起手横征暴敛恒可用,窗必升起)。 */
+  async function startShort(page: Page, seed: number, waitScroll: boolean): Promise<void> {
+    await useHalfScale(page);
+    await page.goto(`/?seed=${seed}`);
+    await page.getByTestId("home-map-strip-item-huanyou").click();
+    await page.getByTestId("home-solo").click();
+    await page.getByTestId("solo-setup-screen").waitFor();
+    // 机遇归零(#126 同口径):防随机机遇卷轴污染停靠点
+    await page.route("**/config/jiyu.json", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+      }),
+    );
+    await page.getByTestId("start-game").click();
+    await page.locator(".bv-tile.bv-selectable").first().click();
+    await page.getByTestId("confirm-capital-ok").click();
+    if (waitScroll) {
+      await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
+    } else {
+      await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+    }
+  }
+
+  /** 拦检窗种植(react-reaction.spec plantAmbush 同款精简:半路杀出 + 三 bot 落
+   *  人类都城前一格,掷 ≥1 即途经开窗;duelDice=拼点骰开窗前一次种足)。 */
+  async function plantAmbush(page: Page, duelDice?: [number, number]): Promise<void> {
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["半路杀出"];
+      for (let i = 1; i < e.players.length; i++)
+        e.players[i].position = (e.players[0].capitalIndex + e.board.count - 1) % e.board.count;
+      ${
+        duelDice
+          ? `(() => {
+        const o = e.dice.rollDie.bind(e.dice);
+        const q = [${duelDice.join(", ")}];
+        e.dice.rollDie = () => {
+          const v = q.shift();
+          if (q.length === 0) e.dice.rollDie = o;
+          return v ?? o();
+        };
+      })();`
+          : ""
+      }
+    `,
+    );
+  }
+
+  /** 购地卷轴停靠点续局:授周瑜(疾行/火攻多条编排依赖)后「不取」放行,回合交
+   *  bot 链——首个 bot 自都城前一格途经人类都城,拦检窗开(react-reaction.spec 同款)。 */
+  async function grantZhouyuAndPass(page: Page): Promise<void> {
+    await force(
+      page,
+      `e.players[0].heroes.push(__dafung.heroDefs().find((h) => h.id === "zhouyu"));`,
+    );
+    await page.getByTestId(TESTIDS.actionButton("skip")).click();
+  }
+
+  test("动作条压高:条高 ≤36 不压牌面,上缘 ≥195 还棋盘底行;不出放行零回归", async ({ page }) => {
+    await startShort(page, 63, false);
+    const geo = await page.evaluate(
+      ({ bar, cards }) => {
+        const rect = (sel: string) => {
+          const el = document.querySelector(sel);
+          if (el == null) return null;
+          const r = el.getBoundingClientRect();
+          return { y: r.y, bottom: r.bottom, h: r.height, w: r.width };
+        };
+        return { bar: rect(bar), cards: rect(cards), vh: innerHeight };
+      },
+      { bar: ".actionbar", cards: ".hand-rack-hand" },
+    );
+    expect(geo.bar, "动作条未就位").not.toBeNull();
+    expect(geo.cards).not.toBeNull();
+    // 压高(#709 ③):条高 ≤36(改前 43.5);钮字未竖排(竖排气球高 >40)
+    expect(geo.bar!.h).toBeLessThanOrEqual(36);
+    // 不压牌面决策区:条下缘 ≤ 牌顶 −2(锚点 144 = 牌高 128+8 区底距+8 气口不动)
+    expect(geo.bar!.bottom).toBeLessThanOrEqual(geo.cards!.y - 2);
+    // 上缘还给棋盘:条顶 ≥195(改前 187.5;375 − 144 − 30 ≈ 201)
+    expect(geo.bar!.y).toBeGreaterThanOrEqual(195);
+    // 功能冒烟(#681 处置不变:动作条=相位件):「不出」放行,窗收
+    await page.getByTestId(TESTIDS.actionbarPass).click();
+    await expect(page.getByTestId(TESTIDS.actionbar)).toBeHidden();
+  });
+
+  test("反应横幅浮置:显示期与席位格、顶中 chip 零遮挡;点不用窗收(auto-hide 不回归)", async ({
+    page,
+  }) => {
+    test.slow(); // 拦检链:授将放行后等 bot 行军至都城前格开窗
+    await startShort(page, 7, true);
+    await plantAmbush(page);
+    await grantZhouyuAndPass(page);
+    const banner = page.getByTestId(TESTIDS.reactionBanner);
+    await expect(banner).toBeVisible({ timeout: 90_000 });
+    const geo = await page.evaluate(
+      ({ banner, chip, seats }) => {
+        const rect = (el: Element | null) => {
+          if (el == null) return null;
+          const r = el.getBoundingClientRect();
+          return { x: r.x, y: r.y, right: r.right, bottom: r.bottom, h: r.height };
+        };
+        return {
+          banner: rect(document.querySelector(banner)),
+          chip: rect(document.querySelector(chip)),
+          seats: [...document.querySelectorAll(seats)].map((el) => rect(el)!),
+        };
+      },
+      {
+        banner: `[data-testid="${TESTIDS.reactionBanner}"]`,
+        chip: `[data-testid="${TESTIDS.topbarRound}"]`,
+        seats: '[data-testid="seat-rail"] .seat',
+      },
+    );
+    expect(geo.banner, "横幅在断言前已收回(窗被看门狗代发)").not.toBeNull();
+    expect(geo.seats.length).toBeGreaterThanOrEqual(4);
+    // 横幅是矮横屏下的扁条不是气球(改前竖排字气球 h=142)
+    expect(geo.banner!.h).toBeLessThanOrEqual(64);
+    // 与右缘席位格零遮挡:架体(手牌区)自带 104px 让位,横幅不出架体
+    for (const seat of geo.seats) {
+      expect(geo.banner!.right, "横幅右缘侵入席位格列").toBeLessThanOrEqual(seat.x + 0.5);
+      const noOverlap =
+        geo.banner!.right <= seat.x + 0.5 ||
+        seat.right <= geo.banner!.x - 0.5 ||
+        geo.banner!.bottom <= seat.y + 0.5 ||
+        seat.bottom <= geo.banner!.y - 0.5;
+      expect(noOverlap, "横幅与席位格矩形相交").toBe(true);
+    }
+    // 与顶中「N 轮」chip 零遮挡:横幅浮置下带,几何上不可达
+    expect(geo.banner!.y).toBeGreaterThanOrEqual(geo.chip!.bottom);
+    // auto-hide 不回归(#709 ①):点「不用」= 应答,窗收横幅即撤
+    await banner.getByTestId(TESTIDS.reactionDecline).click();
+    await expect(banner).toBeHidden({ timeout: 5_000 });
+  });
+
+  test("拼点签面入视口:双签并排整排落视口内,魏签顶/滇签底双出屏清零", async ({ page }) => {
+    test.slow(); // 同拦检链 + 拼点演出全程
+    await startShort(page, 7, true);
+    await plantAmbush(page, [6, 1]);
+    await grantZhouyuAndPass(page);
+    // 页面内原子应答(react-helpers 单源:滤 march 窗/等 fx 排空/点牌落印防互踩)——
+    // 链上更早的异种窗(p2 求贤令)由其窗种过滤自然跳过
+    await answerMarchCounter(page);
+    const overlay = page.getByTestId(TESTIDS.duelOverlay);
+    await expect(overlay).toBeVisible();
+    await expect(overlay.getByTestId(TESTIDS.duelVerdict)).toHaveAttribute("data-verdict", "win", {
+      timeout: 10_000,
+    });
+    // 几何:双签并排(排高 ≤200,纵叠 would be 2×181+gap≈472)且整排落视口内;
+    // 签面落定有 1.5× 钤落弹跳(toPass 吸收动画中的瞬时盒)。
+    await expect(async () => {
+      const geo = await page.evaluate(() => {
+        const row = document.querySelector(".duel-signs");
+        if (row == null) return null;
+        const rr = row.getBoundingClientRect();
+        const signs = [...document.querySelectorAll(".duel-sign")].map((el) => {
+          const r = el.getBoundingClientRect();
+          return { y: r.y, bottom: r.bottom };
+        });
+        return { rowY: rr.y, rowBottom: rr.bottom, rowH: rr.height, signs, vh: innerHeight };
+      });
+      expect(geo).not.toBeNull();
+      expect(geo!.signs.length).toBe(2);
+      expect(geo!.rowH, "双签纵叠(收缩适配误折行回归)").toBeLessThanOrEqual(200);
+      expect(geo!.rowY).toBeGreaterThanOrEqual(0);
+      expect(geo!.rowBottom).toBeLessThanOrEqual(geo!.vh);
+      for (const s of geo!.signs) {
+        expect(s.y).toBeGreaterThanOrEqual(-1);
+        expect(s.bottom).toBeLessThanOrEqual(geo!.vh + 1);
+      }
+    }).toPass({ timeout: 5_000 });
+  });
+});
