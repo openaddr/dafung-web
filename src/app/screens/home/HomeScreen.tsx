@@ -2,15 +2,25 @@
 // 国号、诸侯数等对局配置移到「单机模式」次级页(SoloSetupScreen),让首页回归
 // 纯导航(用户要求:菜单只显示四个按钮入口)。选图仍是二级面板(MapSelectPanel
 // 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
+// #707 矮横屏档(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
+// 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
+// (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
+// 条带承担,选择+开局一屏完成零滚动;桌面档信息架构零变化。
 import { useState } from "react";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
+import { useMediaQuery } from "@app/hooks/use-media-query";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
 import { Sym } from "@app/screens/shared/Sym";
 import { HOME_TID } from "./testids";
+import { MapStrip } from "./MapStrip";
 import "./home.css";
+
+/** 矮横屏档媒体查询(形态分档断点单源=对局屏 game/layout.css A 档同一查询串,
+ *  home.css 短横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
+const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
 
 export interface HomeScreenProps {
   /** 「单机模式」→ 次级配置页。 */
@@ -37,8 +47,17 @@ export function HomeScreen({
 }: HomeScreenProps) {
   const [selectedMapId, setSelectedMapId] = useState(initialMapId);
   const [showMapSelect, setShowMapSelect] = useState(false);
+  // #707:矮横屏档开关(JS 结构分支:条带 ↔ 地图行+弹层入口;间距收紧仍走 home.css
+  // 同串媒体查询,JS 与 CSS 各管各的不重复)。桌面档恒 false,信息架构零变化。
+  const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
   // 与单机配置页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, selectedMapId);
+
+  // 条带点选 = 弹层确认路径的等价短路:回写选中 + 交接线方持久化(localStorage)。
+  const pickMap = (mapId: string) => {
+    setSelectedMapId(mapId);
+    onMapChange?.(mapId);
+  };
 
   // S1 仪式感三件套:入场 stagger(标题 0.3s 先行,按钮 300ms 起 80ms/个,包裹层播动画)/
   // 笔触下划线 hover / 按压 scale .97,均在 home.css;testid 不变。
@@ -59,9 +78,13 @@ export function HomeScreen({
     // 共用同一条金色笔触 hover 线(home-btn-brush),hover 语言全屏统一
     cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn font-bold`,
   };
+  // #707:矮横屏档「选择地图」入口退役——选图由内联横排条带承担(点选即选,
+  // 弹层路径在该档裁切不可达),次级行剩两口改双列;桌面档三口零变化。
   const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
-    { tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) },
+    ...(!isShortLandscape
+      ? [{ tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) }]
+      : []),
     { tid: HOME_TID.editMap, label: "编辑地图", onClick: () => onEdit(selectedMapId) },
   ];
 
@@ -69,11 +92,18 @@ export function HomeScreen({
     // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
     // flexbox「居中+可滚」标准解:内容不溢出时视觉与 justify-center 一致,
     // 666×360 横屏等小视口下四入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
-    <div data-testid={HOME_TID.screen} className="flex h-full flex-col overflow-y-auto bg-bg p-6">
+    // #707 矮横屏档:条带收纳后内容须零滚动,e2e 断言根容器 scrollHeight==clientHeight。
+    <div
+      data-testid={HOME_TID.screen}
+      className={`flex h-full flex-col overflow-y-auto bg-bg ${isShortLandscape ? "px-6 py-4" : "p-6"}`}
+    >
       <div className="m-auto flex w-full flex-col items-center">
         {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
-          #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏) */}
-        <h1 className="home-title-in font-title text-6xl text-ink tracking-widest pl-[0.1em]">
+          #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏);
+          #707 矮横屏档标题降档给条带让位(收纳档,桌面 6xl 不动) */}
+        <h1
+          className={`home-title-in font-title ${isShortLandscape ? "text-4xl" : "text-6xl"} text-ink tracking-widest pl-[0.1em]`}
+        >
           群雄逐鹿
         </h1>
         {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
@@ -117,7 +147,7 @@ export function HomeScreen({
               {primary.label}
             </button>
           </div>
-          <div className="grid grid-cols-3 gap-x-3">
+          <div className={`grid gap-x-3 ${isShortLandscape ? "grid-cols-2" : "grid-cols-3"}`}>
             {secondary.map((e, i) => (
               // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
               <div
@@ -137,24 +167,35 @@ export function HomeScreen({
           </div>
         </div>
 
-        {/* 当前选中地图回显;H-5:整行可点唤起选图二级屏。#558:13px→14px(选图入口
-          第二载体不该是全屏最小字),「当前地图:」与图名同用 text-ink,仅箭头 ink-dim。
-          W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
-          (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */}
-        <button
-          type="button"
-          onClick={() => setShowMapSelect(true)}
-          className="note-btn home-maprow-tight rounded-[3px] font-wenkai text-[14px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
-        >
-          <span className="text-ink">当前地图:</span>
-          <span data-testid={TID.currentMapName} className="text-ink">
-            {mapName}
-          </span>
-          <Sym name="expand" size={11} className="text-ink-dim" />
-        </button>
+        {/* #707 矮横屏档:内联横排条带 = 本档的地图选择器(替代「当前地图」回显行 +
+            二级弹层;当前选中由条带选中态表达,§4.6 不另设文字回显行)。
+            桌面档维持地图行 + 弹层入口,信息架构零变化。 */}
+        {isShortLandscape ? (
+          <div className="mt-2 w-[min(600px,92vw)]">
+            <MapStrip mapSource={mapSource} selectedMapId={selectedMapId} onSelect={pickMap} />
+          </div>
+        ) : (
+          /* 当前选中地图回显;H-5:整行可点唤起选图二级屏。#558:13px→14px(选图入口
+            第二载体不该是全屏最小字),「当前地图:」与图名同用 text-ink,仅箭头 ink-dim。
+            W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
+            (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */
+          <button
+            type="button"
+            onClick={() => setShowMapSelect(true)}
+            className="note-btn rounded-[3px] font-wenkai text-[14px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
+          >
+            <span className="text-ink">当前地图:</span>
+            <span data-testid={TID.currentMapName} className="text-ink">
+              {mapName}
+            </span>
+            <Sym name="expand" size={11} className="text-ink-dim" />
+          </button>
+        )}
 
-        {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关) */}
-        {showMapSelect && (
+        {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关)。
+            #707:矮横屏档不挂弹层(该档选择器=条带;桌面开着的弹层旋到矮横屏时随档卸载,
+            旋回恢复——showMapSelect 意图保留)。 */}
+        {!isShortLandscape && showMapSelect && (
           <MapSelectPanel
             mapSource={mapSource}
             currentMapId={selectedMapId}

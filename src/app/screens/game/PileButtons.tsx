@@ -5,7 +5,6 @@
 // 出牌阶段/反应窗等窗态下手牌区被强制显示(GameScreen 口径),钮亮随有效显隐走。
 // 珍宝/名将钮 = 藏品弹层入口(#361 牌架双入口的接替者:点谁开谁的层,PileModal
 // 壳与陈列原样)——计数单源快照,与牌架旧入口同一读数。
-// 观战(未入座)不渲染整列:三钮全部以「自己的」藏品/手牌为对象,观战无座即无对象。
 import { useState } from "react";
 import { HERO_CAPACITY } from "@core/constants";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -14,8 +13,8 @@ import { TESTIDS } from "./testids";
 import "./layout.css";
 
 export interface PileButtonsProps {
-  /** 本地视角玩家(null = 观战/未入座,整列不渲染)。 */
-  player: SnapshotPlayer | null;
+  /** 本地视角玩家(对局屏挂载期恒在座)。 */
+  player: SnapshotPlayer;
   /** 手牌区当前有效显隐(亮=显示;GameScreen 计算:偏好 ∥ 窗态强制)。 */
   handVisible: boolean;
   /** 锦囊开关回传(GameScreen 写 localStorage 账本)。 */
@@ -27,7 +26,6 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
   // 藏品弹层开合态(null=全收;一次一层,点钮开、Esc/点外/X 关)——从牌架迁来
   // (#361 双入口退役):收起手牌后藏品弹层必须仍可达,账本随钮不随架。
   const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
-  if (!player) return null; // 观战无座,三钮无对象(不是兜底:观战是显式业务态)
 
   return (
     <>

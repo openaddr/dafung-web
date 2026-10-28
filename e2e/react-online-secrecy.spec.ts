@@ -138,7 +138,7 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
     await guest.context().close();
   });
 
-  test("种子局:被询问者(guest)见 [自己],旁观者(host)只见匿名占位——身份不出网", async ({
+  test("种子局:被询问者(guest)见 [自己],非被询问席(host)只见匿名占位——身份不出网", async ({
     browser,
   }) => {
     const host = await (await newBridgeContext(browser)).newPage();
@@ -188,7 +188,7 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
       .toBe(true);
     // 被询问者视角:god-view [1] → 自己可见
     expect(firstJinnangWindow(guestConns)?.queriedSeats).toEqual([1]);
-    // 旁观者(host,seat0)视角:等同一窗到达 host 帧(同批广播,时序差在毫秒级),
+    // 非被询问席(host,seat0)视角:等同一窗到达 host 帧(同批广播,时序差在毫秒级),
     // 询问集必须全匿——真实座位(0/1/2)一个都不许出现
     await expect
       .poll(async () => firstJinnangWindow(hostConns) != null, {

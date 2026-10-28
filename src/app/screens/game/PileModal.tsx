@@ -157,7 +157,7 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
     <>
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {player.heroes.length} 席<small>(HeroCardFace 详情档)</small>
+        麾下名将 · {player.heroes.length} 席<small>(卡面=技能全文)</small>
       </div>
       <div className="pile-hero-grid">
         {player.heroes.map((h) => (

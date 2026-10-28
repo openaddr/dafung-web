@@ -61,16 +61,6 @@ async function freezeForTap(page: Page) {
   await settleForTap(page);
 }
 
-/** 收残签(本票实测实录):浮签触发元点开弹层后,弹层存续期页面整体 inert——触发元
- *  的 pointerleave 被吞、焦点又因 initialFocus={false} 留在触发元上,弹层关后浮签面板
- *  残留在锚位,恰好盖住席位列相邻图标的命中点,下一个 click 被无限重试吃掉(真机首击
- *  同样会被吃,应用级待修票)。此处置:真实再悬停触发元再挪走,浏览器补发 leave,
- *  浮签随 open=false 摘除——五连链路逐步收签后才走得通。 */
-async function settleTip(page: Page, testid: string) {
-  await page.getByTestId(testid).hover();
-  await page.mouse.move(640, 400);
-}
-
 test.describe("格 tap 单人格弹层(#701 ①)", () => {
   test("自机/对手内容与投影一致;托管行仅自机;Esc/点外关闭", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
@@ -178,7 +168,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(ledger.getByText(`${s.players[1].guohao}名下城池`)).toBeVisible();
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(ledger).toBeHidden();
-      await settleTip(page, TESTIDS.seatAttr(1, "city"));
 
       // 战盔→名将名录(现役 PileShell 名录/卡面;麾下 1 席,卡面出将名)
       await page.getByTestId(TESTIDS.seatAttr(1, "hero")).click();
@@ -188,7 +177,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(heroModal.getByText(hero.name)).toBeVisible();
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(heroModal).toBeHidden();
-      await settleTip(page, TESTIDS.seatAttr(1, "hero"));
 
       // 玉璧→珍宝列表(装裱卡陈列+指导价;指导价读单源 guidePriceOf)
       await page.getByTestId(TESTIDS.seatAttr(1, "gem")).click();
@@ -199,7 +187,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(gemModal.getByText(`指导价 ${fmtMoney(guidePriceOf(gem.level))}`)).toBeVisible();
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(gemModal).toBeHidden();
-      await settleTip(page, TESTIDS.seatAttr(1, "gem"));
 
       // 墨竹→声望数值明细(现值大数 + 献计里程碑章:30 已献金章,60/90 未献素章)
       await page.getByTestId(TESTIDS.seatAttr(1, "rep")).click();
@@ -211,7 +198,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(page.getByTestId(TESTIDS.seatRepMilestone(90))).not.toHaveClass(/claimed/);
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(repModal).toBeHidden();
-      await settleTip(page, TESTIDS.seatAttr(1, "rep"));
 
       // 卷轴→委任明细(现值大数 + 口径一句)
       await page.getByTestId(TESTIDS.seatAttr(1, "warrant")).click();
@@ -221,8 +207,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(warrantModal.getByText("进驻城池时消耗;每过都城 +2")).toBeVisible();
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(warrantModal).toBeHidden();
-      // 末位收签:残留的委任浮签面板恰好盖住手牌图标(下一 assertion 的点击靶)
-      await settleTip(page, TESTIDS.seatAttr(1, "warrant"));
 
       // 牌背=暗牌不可点(ADR-0016):点击不开任何弹层(浮签触发元 claim 止泡),
       // 四明细容器与单人格弹层零浮现
@@ -312,6 +296,47 @@ test.describe("弹层徽章视觉挂点与钻入(#701 ③④)", () => {
           page.evaluate(() => (window as any).__dafung.controller().autoPilotOn as boolean),
         )
         .toBe(false);
+    } finally {
+      await unfreezeClock(page);
+    }
+  });
+});
+
+test.describe("浮签残影回归(#704)", () => {
+  test("悬停浮签点开弹层:存续期收签、关闭后不复挂、邻域直点直达", async ({ page }) => {
+    test.setTimeout(180_000); // 重例放宽(见文件头注)
+    await quickStart(page, 49);
+    await freezeForTap(page);
+    try {
+      const s = await snap(page);
+
+      // 真悬停开签 → 点同一触发元开弹层(城楼→#622 清单)
+      const city = page.getByTestId(TESTIDS.seatAttr(1, "city"));
+      await city.hover();
+      await expect(page.getByTestId(TESTIDS.attrTip)).toBeVisible();
+      await city.click();
+      const ledger = page.getByTestId(TESTIDS.cityLedger);
+      await expect(ledger).toBeVisible();
+      // 弹层存续期浮签已收(遮罩盖场,Chromium 重算悬停链补发 leave;修前也如此)
+      await expect(page.getByTestId(TESTIDS.attrTip)).toHaveCount(0);
+
+      // 关闭后残签不复挂(#704 修前真源:关弹层还焦=程序化 focus,裸 onFocus
+      // 当开签意图把刚收掉的浮签复挂在触发元上,残签面板盖住相邻命中点吃点击)
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(ledger).toBeHidden();
+      await expect(page.getByTestId(TESTIDS.attrTip)).toHaveCount(0);
+
+      // 判据:不二次悬停,邻域直点直达(战盔→名将名录;空麾下如实报快照席数)
+      await page.getByTestId(TESTIDS.seatAttr(1, "hero")).click();
+      const heroModal = page.getByTestId(TESTIDS.seatHeroModal);
+      await expect(heroModal).toBeVisible();
+      await expect(
+        heroModal.getByText(`麾下名将 · ${s.players[1].heroes.length} 席`),
+      ).toBeVisible();
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(heroModal).toBeHidden();
+      // 第二轮关闭同样无残签(点击通路自带 hover,浮签开了又收,关闭后不得复挂)
+      await expect(page.getByTestId(TESTIDS.attrTip)).toHaveCount(0);
     } finally {
       await unfreezeClock(page);
     }

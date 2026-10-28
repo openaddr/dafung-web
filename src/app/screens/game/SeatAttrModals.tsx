@@ -34,7 +34,7 @@ function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void 
     >
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {p.heroes.length} 席<small>(HeroCardFace 详情档)</small>
+        麾下名将 · {p.heroes.length} 席<small>(卡面=技能全文)</small>
       </div>
       <div className="pile-hero-grid">
         {p.heroes.map((h) => (

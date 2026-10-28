@@ -155,7 +155,7 @@ export function WarlordsOverview({
   onClose,
 }: {
   snapshot: GameSnapshot;
-  /** 自机口径(#453 契约):自己行金描边;观战(-1)无自机行。 */
+  /** 自机口径(#453 契约):自己行金描边。 */
   selfSeat: number;
   /** 城池列点击:开 #622 名下城池清单(开合态归消费方 GameTopBar,单层互斥)。 */
   onOpenLedger: (seat: number) => void;

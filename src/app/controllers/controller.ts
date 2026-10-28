@@ -27,7 +27,7 @@ export abstract class GameController {
   /** 视角座位:单机=决策方(热座跟随);联机=自己分到的 seat。 */
   abstract get viewSeat(): number;
   /** 本地玩家座位(交互策略输入):单机恒 0(host 真人);联机=入座分到的 seat
-   *  (未入座=-1)。观战不可操作由 canAct 显式守卫保证——被询问集经脱敏批逐字拷贝
+   *  (未入座=-1,联机入座前瞬态)。未入座不可操作由 canAct 显式守卫保证——被询问集经脱敏批逐字拷贝
    *  含 -1 匿名占位(见 canAct 反应窗分支),不能靠「集合只含真实座位」的推理。 */
   protected abstract get mySeat(): number;
   /** 热座语义(#433 显式参数化;单机=true、联机=false):主分支是否豁免
@@ -103,7 +103,7 @@ export abstract class GameController {
   /** 演出锁(公式读数 seam):本座位相关演出未落定——我的行军会话仍在途(#609
    *  会话语义;播完/追帧放完/吸附作废删会话即落定,#611 改绑,ADR-0029 §4)。
    *  全局队列积压不再进门(他座棋子照飞、决策卷轴照弹);独立 getter 供公式单测
-   *  注入,生产读 useMarch 的会话查询口。座位 -1 = 观战/未入座(显式业务态,
+   *  注入,生产读 useMarch 的会话查询口。座位 -1 = 未入座(联机入座前瞬态,
    *  非缺数据):无本座位演出可言,恒未在途;座位 ≥0 而座位表查无 = 控制器/引擎
    *  错位 bug,当场炸出。 */
   protected get fxPlaying(): boolean {
@@ -127,9 +127,9 @@ export abstract class GameController {
    *  公式单源(#433;表驱动单测 test/controller-policy.test.ts 钉死全输入空间):
    *  - 反应窗例外(ADR-0017 多属主):Playing×AwaitingReaction 时被询问座位可应答
    *    ——决策方仍是出牌者,decisionOwner/hotSeat/托管/演出锁都不适用(倒计时不等
-   *    演出,超时兜底在权威侧);命令在途锁仍适用。观战座显式排除:被询问集经
+   *    演出,超时兜底在权威侧);命令在途锁仍适用。未入座显式排除:被询问集经
    *    脱敏批逐字拷贝,锦囊窗 queriedBySeat 含 -1 匿名占位(他座身份置换、数量
-   *    保留),includes(-1) 可为真——不设守卫观战即可应答。
+   *    保留),includes(-1) 可为真——不设守卫未入座也能应答。
    *  - 主分支:Playing × 决策方轮到本地(热座豁免见 hotSeat)× 决策方非 bot
    *    × 无在途命令 × 未托管 × 本座位演出落定(#611 改绑:只等自己的行军会话,
    *    他座棋子照飞、队列积压不进门,ADR-0029 §4;热座分支无需同款守卫:
@@ -144,7 +144,7 @@ export abstract class GameController {
     if (e.phase === "Playing" && e.turnPhase === "AwaitingReaction") {
       const pr = e.pendingReaction;
       if (pr == null) return false;
-      // 观战座显式守卫:被询问集含 -1 匿名占位(联机脱敏批逐字拷贝),观战必须
+      // 未入座显式守卫:被询问集含 -1 匿名占位(联机脱敏批逐字拷贝),未入座必须
       // 在集合判定前排除,不能指望「座位集只含真实座位」的推理天然保证。
       if (this.mySeat < 0) return false;
       // 被询问集公式单源 controllers/reaction.ts(#284)。

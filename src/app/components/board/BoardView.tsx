@@ -45,7 +45,7 @@ export interface BoardViewProps {
   map: MapData;
   /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */
   players: BoardPlayer[];
-  /** 当前视角玩家 id(L47:自己棋子加玩家色微光圈;观战/未入座不传)。 */
+  /** 当前视角玩家 id(L47:自己棋子加玩家色微光圈;未开局不传)。 */
   viewSeat?: string;
   /** 点击城池回调(索引)。 */
   onTileClick?: (index: number) => void;

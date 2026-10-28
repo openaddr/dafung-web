@@ -275,7 +275,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
       { name: "无挂起窗", view: null as ReactionView | null, queried: false },
       { name: "锦囊窗·我在被询问集", view: jinnangView([0, 2]), queried: true },
       { name: "锦囊窗·我不在集", view: jinnangView([1]), queried: false },
-      // 联机脱敏批把非己座位置换为 -1 占位(数量保留):观战端(mySeat=-1)收到的
+      // 联机脱敏批把非己座位置换为 -1 占位(数量保留):未入座端(mySeat=-1)收到的
       // 被询问集逐字拷贝后可含 -1,includes(-1) 可为真——钉死基类显式守卫(不靠
       // 「集合只含真实座位」的推理)。
       { name: "锦囊窗·被询问集含 -1 匿名占位", view: jinnangView([-1]), queried: false },
@@ -296,7 +296,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
             { mySeat, hotSeat: true, autoPilot: true, fxPlaying: true },
           );
           probe.setPending(pending);
-          // 观战(mySeat=-1)不可操作:基类显式守卫排除——被询问集可含 -1 匿名占位
+          // 未入座(mySeat=-1)不可操作:基类显式守卫排除——被询问集可含 -1 匿名占位
           // (脱敏批逐字拷贝,见上行表),includes(-1) 可为真,非「天然不在集内」。
           const expected = row.view != null && row.queried && mySeat >= 0 && !pending;
           expect(probe.interactive).toBe(expected);

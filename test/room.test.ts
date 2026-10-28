@@ -931,7 +931,7 @@ describe("RoomRegistry · cmd 提交者座位校验(#454)", () => {
     );
   });
 
-  it("无身份座位(-1 旁观/越界)发命令 → 400", async () => {
+  it("无身份座位(-1/越界)发命令 → 400", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [] });
     await pickAllHumanCapitals(reg, roomId);
     await expectRoomError(() => reg.applyCommandFromSeat(roomId, -1, { type: "rollAndMove" }), 400);

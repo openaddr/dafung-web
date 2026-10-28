@@ -29,7 +29,7 @@ export function GameTopBar({ snapshot, onOpenSettings }: GameTopBarProps) {
   const [overviewOpen, setOverviewOpen] = useState(false);
   const [ledgerSeat, setLedgerSeat] = useState<number | null>(null);
   // selfSeat(#453 收口契约):单机热座恒 0、联机=本座,勿用决策视角轮转值——
-  // 与 GameScreen 同式;观战(viewSeat=-1)无自机行,总览全家福照列。
+  // 与 GameScreen 同式。
   const viewSeat = useGameStore((s) => s.viewSeat);
   const roomId = useNetStore((s) => s.roomId);
   const selfSeat = roomId !== "" ? viewSeat : 0;
