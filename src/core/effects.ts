@@ -2,7 +2,8 @@
 // 由派发器(authority.ts dispatchMoment)调用。设计见 docs/explanation/时机框架.md。
 //
 // 约定:
-//  - 效果只能通过引擎公共方法改状态 + pushFloater 留浮字;战报(skill 击发行)由派发器统一记录;
+//  - 效果只能通过引擎公共方法改状态 + 事件宣告(emitGameEvent,浮字由 fx 面消费派生);
+//    战报(skill 击发行)由派发器统一记录;
 //  - 返回 true = 生效(派发器记战报/冷却);false = 条件不满足,静默跳过(不记战报/冷却);
 //  - 零兜底:EffectId 查不到(派发器抛错)、必填 params 缺项(req 抛错)都是数据 bug,直接崩。
 import type { GameEngine } from "./authority";
@@ -51,8 +52,8 @@ export const EFFECTS: Record<string, EffectFn> = {
   },
   /** 体力回复(#133 华佗):属主 +amount(clamp 0~100 由 addStamina 保证;只加不减,不触发耗竭)。
    *  params: { amount }。落账恒走 ctx.owner(技能持有者)——RoundStart 的 subject=轮次锚点,
-   *  与持有者无关。文本浮字无公共通道(pushFloaterText 为引擎私有,authority.ts 本票禁改),
-   *  反馈由派发器统一的 skill 战报行承担。 */
+   *  与持有者无关。浮字由 staminaChanged(reason=skill) 事件在 fx 面派生,
+   *  零实际差无演出(#568)。 */
   regenStamina: (engine, ctx, params) => {
     const before = engine.players[ctx.owner].stamina;
     const after = engine.addStamina(ctx.owner, req(params, "amount"));

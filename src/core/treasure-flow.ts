@@ -21,20 +21,14 @@ import type { Player } from "./model";
 export function finishTradeChain(g: GameEngine, mover: Player): void {
   const tile = g.board.at(mover.position);
   if (tile.type === "TreasureCity") {
-    drawTreasureAt(g, mover, tile.name, tile.index);
+    drawTreasureAt(g, mover, tile.name);
     return;
   }
   g.endTurn();
 }
 
-/** 抽珍宝并拼点判定(宝物城落格)。
- *  sourceName=来源名(城名),atTile=浮动金额锚点 tile 索引。 */
-export function drawTreasureAt(
-  g: GameEngine,
-  mover: Player,
-  sourceName: string,
-  atTile: number,
-): void {
+/** 抽珍宝并拼点判定(宝物城落格)。sourceName=来源名(城名)。 */
+export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string): void {
   g.lastLandOutcome = { kind: "Noop" };
   g.turnPhase = "Land";
   if (g.treasureDeck.length === 0) {
@@ -56,9 +50,9 @@ export function drawTreasureAt(
   const d2 = 1 + Math.floor(g.dice.nextFloat() * 6);
   const roll = d1 + d2;
   if (roll >= treasure.level) {
-    // 成功:获得珍宝
+    // 成功:获得珍宝(宣告走 treasureGained 事件:fx 面=金「得」印+treasure 音;得宝是
+    // 资产入册非现金收付,#617——不推金额浮字,指导价只入机读战报)
     mover.treasures.push(treasure);
-    g.pushFloater(mover, guidePrice, atTile, "income");
     // #617:得宝是资产入册非现金收付,不挂 amount;指导价降为机读估价(detail value=)
     g.logEvent(
       "system",
@@ -160,8 +154,8 @@ export function resolveTreasureOwner(
   const bankrupt = r === "bankrupt";
   if (bankrupt) g.returnEscrowToSeller(); // 买家破产:珍宝退回卖家
   else g.deliverEscrow(); // 付款到账:交货
-  g.pushFloater(mover, -price, mover.position, "expense");
-  g.pushFloater(owner, price, mover.position, "income");
+  // 交割银两浮字由 treasureTraded 事件在 fx 面派生(买家付/卖家收,锚各自位置);
+  // 破产路实付=余现金扫账(非成交价),成交价浮字反而是错账,死写删除(#719)
   if (price > 0) g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: price }); // 时机·CashLost:被动失银(珍宝交涉付款,访客不可拒)
   g.lastLandOutcome = {
     kind: "TreasureTrade",

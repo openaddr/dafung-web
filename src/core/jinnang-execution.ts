@@ -140,7 +140,7 @@ export function enterJinnangPhase(g: GameEngine): void {
 
 /** 用锦囊(#122/T2):cardId=null=今不用(收卷进 Roll);否则校验持有/可用(标签名额)
  *  后结算效果,再重算选项集——同回合仍有可用牌(异类标签)则继续停留卷轴,否则进 Roll。
- *  用牌是公开事件(浮字+战报),暗的只有持有(ADR-0016)。
+ *  用牌是公开事件(战报+宣布事件,浮字由 fx 面派生),暗的只有持有(ADR-0016)。
  *  #188 档 3:出牌阶段内与技能目标段(pendingSkill)共存——cardId=null 时若停在技能目标段,
  *  代为作罢该技(驱动方兜子状态安全),其余锦囊命令属跨子状态误用,警告拒绝。 */
 export function resolveJinnang(
@@ -246,7 +246,7 @@ function consumeJinnangCard(
   g.jinnangUsedTags.push(...def.tags);
 }
 
-/** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(浮字+出牌指示线留痕)→
+/** 锦囊宣布与反应窗挂点(#281):出牌扣账 → 公开事件(jinnangAnnounced 事件浮字+出牌指示线,fx 面派生)→
  *  JinnangAnnounced 时机 → 持识破诡计者(使用者除外)询问窗;无有效识破则照常执行。
  *  主动技不经此口(fireHeroSkill 直结算,#229 口径:主动技不可被识破);反应牌不经
  *  出牌阶段「唯反应」灰置,根窗永不挂反应牌——识破自身的反制走 reaction-window
@@ -269,7 +269,7 @@ function settleJinnangPlay(
             .map((p) => g.players.indexOf(p))
             .filter((seat) => seat !== userSeat)
         : [...targets];
-  g.pushFloaterText(user, `${user.guohao} 使用锦囊【${def.id}】`, user.position);
+  // 出牌宣告走 JinnangAnnounced 时机产事件:fx 面=出牌指示线+文案浮字(#719 死写删除)
   g.dispatchMoment("JinnangAnnounced", {
     subject: userSeat,
     cardId: def.id,
@@ -387,8 +387,7 @@ function cancelPendingSkill(g: GameEngine): void {
   settleJinnangExit(g);
 }
 
-/** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(浮字+战报,
- *  与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
+/** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(施展浮字由 fx 面按事件派生,与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
 function fireHeroSkill(
   g: GameEngine,
   userSeat: number,
@@ -397,7 +396,7 @@ function fireHeroSkill(
 ): void {
   const user = g.players[userSeat];
   user.heroLastFired[skill.id] = g.round;
-  g.pushFloaterText(user, `${user.guohao} 施展【${skill.name}】`, user.position);
+  // 施展宣告走 heroSkillActivated 事件(fx 面文案浮字,#719 死写删除)
   emitGameEvent(g, userSeat, {
     kind: "heroSkillActivated",
     skillId: skill.id,
@@ -428,8 +427,7 @@ function fireHeroSkill(
       const stamina = skill.params?.stamina;
       if (cost === undefined || stamina === undefined)
         throw new Error(`赈济参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
-      user.cash -= cost; // 可用性已保证 cash ≥ cost
-      g.pushFloater(user, -cost, user.position, "expense");
+      user.cash -= cost; // 可用性已保证 cash ≥ cost(费用浮字不另发:施展文案+HUD 现金+战报承载,#719)
       const seat = targets[0];
       const target = g.players[seat];
       const staminaBefore = target.stamina;
@@ -440,8 +438,7 @@ function fireHeroSkill(
         kind: "staminaChanged",
         delta: gained,
         reason: "heroRelief",
-      }); // 事件流(#384):体力变更(赈济,夹紧后实际增减)
-      g.pushFloaterText(target, `${target.guohao} 体力 ${signedGained}`, target.position);
+      }); // 事件流(#384):体力变更(赈济,夹紧后实际增减;目标浮字由 fx 面派生)
       g.logEvent(
         "system",
         user.guohao,
@@ -457,8 +454,7 @@ function fireHeroSkill(
         throw new Error(`征辟参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
       user.warrants += 1;
       const target = g.players[targets[0]];
-      g.grantSkillCash(targets[0], cash); // 国库补偿:+现金 +浮字(不派发 CashGained,防连锁)
-      g.pushFloaterText(user, `${user.guohao} 征辟就任,委任状 +1`, user.position);
+      g.grantSkillCash(targets[0], cash); // 国库补偿:+现金(浮字由 cashChanged·skill 事件在 fx 面派生;不派发 CashGained,防连锁)
       g.logEvent(
         "system",
         user.guohao,
@@ -473,7 +469,6 @@ function fireHeroSkill(
       if (bonus === undefined)
         throw new Error(`擂鼓参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
       g.heroDiceBonus = bonus;
-      g.pushFloaterText(user, `擂鼓进军,本回合掷骰步数 +${bonus}`, user.position);
       g.logEvent(
         "system",
         user.guohao,
@@ -498,7 +493,7 @@ export function settleJinnangExit(g: GameEngine): void {
 /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
  *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。
  *  exempt(#281):识破按份豁免的座位集(横征暴敛 AOE 用;其余计忽略)。
- *  出牌公开事件(浮字/指示线留痕)已在宣布点(settleJinnangPlay)落账。 */
+ *  出牌公开事件(浮字/指示线,fx 面按 jinnangAnnounced 事件派生)已在宣布点(settleJinnangPlay)落账。 */
 export function executeJinnang(
   g: GameEngine,
   user: Player,
@@ -540,7 +535,6 @@ export function executeJinnang(
         t.cash -= pay;
         gained += pay;
         payers++;
-        g.pushFloater(t, -pay, t.position, "expense");
         emitGameEvent(g, seat, {
           kind: "cashChanged",
           delta: -pay,
@@ -558,7 +552,6 @@ export function executeJinnang(
       }
       user.cash += gained;
       if (gained > 0) {
-        g.pushFloater(user, gained, user.position, "income");
         emitGameEvent(g, userSeat, { kind: "cashChanged", delta: gained, reason: "levyAll" }); // 事件流(#375):金钱变更(征银方)
         g.dispatchMoment("CashGained", { subject: userSeat, amount: gained });
       }
@@ -581,7 +574,6 @@ export function executeJinnang(
       }); // 时机·TreasureLost:窃玉偷香失窃方(非售出流失,#457,与下得宝时机同点成对)
       user.treasures.push(treasure);
       g.dispatchMoment("TreasureGained", { subject: userSeat, treasureId: treasure.id }); // 时机·TreasureGained:窃玉偷香得宝(#455 A4 补派,subject=窃方)
-      g.pushFloaterText(user, `窃得「${victim.guohao}」的「${treasure.name}」`, user.position);
       emitGameEvent(g, userSeat, {
         kind: "treasureStolen",
         victimSeat: g.players.indexOf(victim),
@@ -619,7 +611,6 @@ export function executeJinnang(
         subject: targets[0],
         reason: "jinnang",
       }); // 时机·TurnSkipImposed:缓兵之计强加跳回合(#456,写点 +=1 语义保留)
-      g.pushFloaterText(victim, `中【缓兵之计】,下回合无法行动`, victim.position);
       emitGameEvent(g, userSeat, {
         kind: "jinnangInflicted",
         cardId: def.id,
@@ -648,7 +639,7 @@ export function executeJinnang(
         `jinnangUse player=${user.id} card=${def.id} duel a=${aSeat}:${aRoll} b=${bSeat}:${bRoll}`,
       );
       if (winnerSeat == null) {
-        g.pushFloaterText(user, `二虎相持(各 ${aRoll} 点),此计作废`, user.position);
+        // 平局宣告=拼点签面(duelResolved 事件,无胜者即平局作废,ADR-0030 签面即信息)
         g.logEvent(
           "system",
           null,
@@ -661,7 +652,6 @@ export function executeJinnang(
       const winner = g.players[winnerSeat];
       const loser = g.players[loserSeat];
       winner.cash += winnerBankGain; // 国库出
-      g.pushFloater(winner, winnerBankGain, winner.position, "income");
       emitGameEvent(g, winnerSeat, { kind: "cashChanged", delta: winnerBankGain, reason: "duel" }); // 事件流(#375):金钱变更(胜者国库款)
       g.dispatchMoment("CashGained", {
         subject: winnerSeat,
@@ -678,7 +668,6 @@ export function executeJinnang(
       if (pay > 0) {
         loser.cash -= pay;
         user.cash += pay;
-        g.pushFloater(loser, -pay, loser.position, "expense");
         emitGameEvent(g, loserSeat, {
           kind: "cashChanged",
           delta: -pay,
@@ -717,7 +706,8 @@ export function executeJinnang(
         hand: [...g.players[target].jinnangHand],
       });
       g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)
-      g.pushFloaterText(user, `细作已入 ${g.players[target].guohao} 营中`, user.position);
+      // 窥探专属文案浮字不另发(#719 死写删除):出牌宣布(通用浮字+指向线)已公开
+      // 「谁窥了谁」,窥得内容=peekApplied 弹层仅窥方可见
       g.logEvent(
         "system",
         user.guohao,
@@ -818,8 +808,7 @@ function grantHeroToPlayer(
   const candidates = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
   if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     p.cash += fallbackCash;
-    g.pushFloater(p, fallbackCash, p.position, "income");
-    emitGameEvent(g, seat, { kind: "cashChanged", delta: fallbackCash, reason: "fallback" }); // 事件流(#375):招贤折现
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: fallbackCash, reason: "fallback" }); // 事件流(#375):招贤折现(浮字由 fx 面派生)
     g.dispatchMoment("CashGained", { subject: seat, amount: fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
@@ -833,7 +822,7 @@ function grantHeroToPlayer(
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
   p.heroes.push(hero);
   g.recruitedHeroIds.add(hero.id);
-  g.pushFloaterText(p, `${prefix},${hero.name} 来投`, p.position);
+  // 来投宣告走 HeroRecruited 时机产事件(fx 面文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     p.guohao,

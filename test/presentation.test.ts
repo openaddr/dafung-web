@@ -582,6 +582,58 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual(["锦囊已空"]);
   });
 
+  it("propertyGranted:机遇赐城 → 城池易主宣告(#719 迁 fx 面,与购地/破产易主同通路)", () => {
+    const e = E();
+    const tile = e.board.tiles.find(
+      (t) => t.propertyId != null && t.index !== e.players[0].capitalIndex,
+    )!;
+    // 得城者已入册(提取时刻态):宣告归属色=得城者
+    e.players[0].properties.push({
+      propertyId: tile.propertyId!,
+      group: "g",
+      level: 0,
+      maxLevel: 3,
+    });
+    const out = synth(e, [
+      { kind: "propertyGranted", seat: 0, round: 1, turn: 1, propertyId: tile.propertyId! },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({
+      kind: "propertyChanged",
+      tileIndex: tile.index,
+      level: 0,
+      ownerColorIndex: e.players[0].colorIndex,
+      levelChanged: false,
+      ownerChanged: true,
+    });
+  });
+
+  it("repMilestoneCrossed:声望献计里程碑 → 「民心所向,名将献计」文案浮字(#719 迁 fx 面)", () => {
+    const e = E();
+    const out = synth(e, [
+      { kind: "repMilestoneCrossed", seat: 0, round: 1, turn: 1, milestone: 30 },
+    ]);
+    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
+      "民心所向(声望 30),名将献计",
+    ]);
+  });
+
+  it("inquiryAutoExecuted:问询自动执行 → 选项文案浮字,label 随事件走(#719 迁 fx 面)", () => {
+    const e = E();
+    const out = synth(e, [
+      {
+        kind: "inquiryAutoExecuted",
+        seat: 0,
+        round: 1,
+        turn: 1,
+        inquiryId: "xinyi",
+        optionId: "swap",
+        label: "弃旧换新",
+      },
+    ]);
+    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual(["弃旧换新"]);
+  });
+
   it("assetTransferred:逐城易主宣告(缺口 2)——承让方持有时归属色随提取时刻态,回无主=null", () => {
     const e = E();
     const tile = e.board.tiles.find(

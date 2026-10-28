@@ -249,7 +249,6 @@ export function buyProperty(g: GameEngine): void {
   g.lastTransaction = r;
   if (r.status === "Ok") {
     buyer.warrants -= BUY_WARRANT_COST; // 消耗委任状
-    g.pushFloater(buyer, -def.purchasePrice, buyer.position, "expense");
     // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.0)
     g.propertyChanges.push({
       tileIndex: buyer.position,
@@ -352,8 +351,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       kind: "reputationChanged",
       delta: mover.reputation - repBefore,
       reason: "fate",
-    }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
-    g.pushFloaterText(mover, "天命眷顾,声望 +20", tile.index);
+    }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
     g.lastLandOutcome = { kind: "Noop" };
     g.logEvent(
       "system",
@@ -370,7 +368,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
   if (tile.type === "Chance") {
     g.lastLandOutcome = { kind: "Noop" };
     g.turnPhase = "Land";
-    g.pushFloaterText(mover, `${tile.name}:抽一张锦囊`, tile.index);
+    // 抽牌宣告由 jinnangDrawn(reason=jinnangTile)/jinnangExhausted 事件在 fx 面派生
     g.logEvent(
       "system",
       mover.guohao,
@@ -392,8 +390,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
     const r = g.payOrLiquidate(mover, null, 200);
     if (r === "liquidating") return;
     const bankrupt = r === "bankrupt";
-    g.pushFloater(mover, -200, tile.index, "expense");
-    emitGameEvent(g, g.players.indexOf(mover), { kind: "cashChanged", delta: -200, reason: "tax" }); // 事件流(#375):金钱变更(浮字同口径 -200 平记)
+    emitGameEvent(g, g.players.indexOf(mover), { kind: "cashChanged", delta: -200, reason: "tax" }); // 事件流(#375):金钱变更(铜钱雨浮字由 fx 面按 reason=tax 派生,S7)
     g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
     g.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
     g.logEvent(
@@ -418,12 +415,11 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
       if (r === "liquidating") return;
       bankrupt = r === "bankrupt";
     }
-    g.pushFloater(mover, delta, tile.index, gain ? "income" : "expense");
     emitGameEvent(g, g.players.indexOf(mover), {
       kind: "cashChanged",
       delta: gain ? delta : -amt,
       reason: "stock",
-    }); // 事件流(#375):金钱变更(浮字同口径)
+    }); // 事件流(#375):金钱变更(浮字由 fx 面消费派生)
     if (gain) g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: delta }); // 时机·CashGained:被动得银(商市行情看涨,#455 A1 补派,与看跌侧对称)
     else g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
     g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
@@ -514,7 +510,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
 }
 
 /** ADR-0013 决策收口:进入 AwaitingDecision 前先经注册表(choices.ts)计算选项集;
- *  除默认行为(skip)外无可用选项 → 直接自动执行默认行为(战报 + 浮字 + endTurn),
+ *  除默认行为(skip)外无可用选项 → 直接自动执行默认行为(战报 + propertyRejected 事件宣告 + endTurn),
  *  不进决策相位,返回 false;否则进入 AwaitingDecision 等待玩家,返回 true。
  *  调用前须已置 pendingLand(注册表按其分购地/扩军选项)。 */
 function enterDecisionPhase(g: GameEngine): boolean {
@@ -529,7 +525,7 @@ function enterDecisionPhase(g: GameEngine): boolean {
   const def = g.pendingLand != null ? pendingLandDef(g) : null;
   g.lastLandOutcome = { kind: "Noop" };
   if (def != null && options.some((o) => o.id === "buy")) {
-    // 购地不可行(银两/委任状不足):默认行为=不取(浮字文案口径见 ADR-0013 决议 2)
+    // 购地不可行(银两/委任状不足):默认行为=不取(文案口径见 ADR-0013 决议 2,浮字由 fx 按 reason 派生)
     const noWarrant = p.warrants < BUY_WARRANT_COST;
     emitGameEvent(g, g.players.indexOf(p), {
       kind: "propertyRejected",
@@ -542,7 +538,6 @@ function enterDecisionPhase(g: GameEngine): boolean {
       `${p.guohao} 至 ${tile.name},${noWarrant ? "无委任状" : "银两不足"},不可购`,
       `skipAvailable player=${p.id} prop=${def.id} price=${def.purchasePrice} cash=${p.cash} warrants=${p.warrants}`,
     );
-    g.pushFloaterText(p, noWarrant ? "无委任状,不可购" : "银两不足,未能购城", p.position);
   } else if (def != null) {
     // 扩军不可行(城已满级):默认行为=按兵不动
     emitGameEvent(g, g.players.indexOf(p), {
@@ -556,7 +551,6 @@ function enterDecisionPhase(g: GameEngine): boolean {
       `${p.guohao} 至己城 ${tile.name},城已满级,按兵不动`,
       `skipMaxed player=${p.id} prop=${def.id} cash=${p.cash}`,
     );
-    g.pushFloaterText(p, "城已满级,按兵不动", p.position);
   } else {
     // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
     g.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
@@ -583,12 +577,11 @@ function applyResupply(g: GameEngine, mover: Player, cause: "land" | "halt" = "l
   const { supply, level } = capitalSupplyOf(g, mover);
   if (supply > 0) {
     mover.cash += supply;
-    g.pushFloater(mover, supply, mover.capitalIndex, "supply");
     emitGameEvent(g, g.players.indexOf(mover), {
       kind: "cashChanged",
       delta: supply,
       reason: "supply",
-    }); // 事件流(#375):金钱变更
+    }); // 事件流(#375):金钱变更(补给铜钱雨由 fx 面按 reason=supply 派生,S7)
     g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: supply }); // 时机·CashGained:被动得银(都城补给,驻跸/落都城同挂)
   }
   if (cause === "halt") {

@@ -186,6 +186,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "no-warrant" },
+  { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
   { kind: "cashChanged", delta: -200, reason: "tax", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },
   { kind: "treasureSold", treasureId: "golden-seal-1", amount: 800 },
@@ -201,6 +202,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangReshuffled", count: 3 },
   { kind: "jinnangExhausted" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },
+  { kind: "repMilestoneCrossed", milestone: 30 }, // #719 声望献计里程碑
   { kind: "staminaChanged", delta: -15, reason: "encounter" },
   { kind: "turnSkipped" },
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
@@ -213,6 +215,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] },
+  { kind: "inquiryAutoExecuted", inquiryId: "xinyi", optionId: "swap", label: "弃旧换新" }, // #719 问询自动执行
   { kind: "reactionOpened", windowKind: "jinnang", cardId: "横征暴敛", queriedSeats: [0, 1] },
   { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [1] },
 ];

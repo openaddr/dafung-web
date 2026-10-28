@@ -1110,7 +1110,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     e.players[oppSeat].cash = 500;
     const moverCash0 = mover.cash;
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "siphon", amount: 150 }));
+    testEngine(e).applyEncounter(mover, enc({ kind: "siphon", amount: 150 }));
     expect(e.players[oppSeat].cash).toBe(350); // 上限=对方现金,语义不变
     expect(mover.cash).toBe(moverCash0 + 150 + 50); // 吸得 150 + 曹丕 +50
     expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
@@ -1128,7 +1128,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     const moverSeat = e.players.indexOf(mover);
     const oppSeat = moverSeat === 0 ? 1 : 0;
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "trade", amount: 100 }));
+    testEngine(e).applyEncounter(mover, enc({ kind: "trade", amount: 100 }));
     expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: moverSeat, amount: 100 },
       { subject: oppSeat, amount: 100 },
@@ -1142,7 +1142,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     const moverSeat = e.players.indexOf(mover);
     const oppSeat = moverSeat === 0 ? 1 : 0;
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "levy", amount: 120 }));
+    testEngine(e).applyEncounter(mover, enc({ kind: "levy", amount: 120 }));
     expect(entries.filter((x) => x.moment === "CashLost").map((x) => x.ctx)).toEqual([
       { subject: moverSeat, amount: 120 },
     ]);
@@ -1195,11 +1195,7 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(
-      mover,
-      mover.position,
-      enc({ kind: "grantHero", fallbackCash: 200 }),
-    );
+    testEngine(e).applyEncounter(mover, enc({ kind: "grantHero", fallbackCash: 200 }));
     expect(entries.filter((x) => x.moment === "CashGained").map((x) => x.ctx)).toEqual([
       { subject: seat, amount: 200 },
     ]);
@@ -1267,7 +1263,6 @@ describe("时机框架:事件化第二批(#456)", () => {
     const entries3 = recordMomentCtx(e3);
     const r = testEngine(e3).applyEncounter(
       mover3,
-      mover3.position,
       enc({
         kind: "cash",
         delta: 0,
@@ -1292,7 +1287,7 @@ describe("时机框架:事件化第二批(#456)", () => {
     // 游戏时:机遇圯上授书(grantCard → drawJinnangTraced → drawJinnang)再进手一张
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    testEngine(e).applyEncounter(mover, mover.position, enc({ kind: "grantCard" }));
+    testEngine(e).applyEncounter(mover, enc({ kind: "grantCard" }));
     expect(mover.jinnangHand.length).toBe(1);
     const gains = entries.filter((x) => x.moment === "JinnangGained").map((x) => x.ctx);
     expect(gains[gains.length - 1]).toEqual({ subject: seat, count: 1 });
@@ -1321,7 +1316,6 @@ describe("时机框架:事件化第二批(#456)", () => {
     const entries = recordMomentCtx(e);
     const r = testEngine(e).applyEncounter(
       mover,
-      mover.position,
       enc({
         kind: "cash",
         delta: 0,
@@ -1457,11 +1451,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const seat = e.players.indexOf(mover);
     const owned = new Set(mover.properties.map((h) => h.propertyId));
     const entries = recordMomentCtx(e);
-    testEngine(e).applyEncounter(
-      mover,
-      mover.position,
-      enc({ kind: "grantCity", fallbackCash: 200 }),
-    );
+    testEngine(e).applyEncounter(mover, enc({ kind: "grantCity", fallbackCash: 200 }));
     const gained = mover.properties.find((h) => !owned.has(h.propertyId));
     expect(gained).toBeDefined(); // huanyou 恒有无主城 → 走赐城路不折现
     expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
@@ -1540,7 +1530,6 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries4 = recordMomentCtx(e4);
     const r4 = testEngine(e4).applyEncounter(
       mover4,
-      mover4.position,
       enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
     );
     expect(r4).toBe("exhausted");
@@ -1558,7 +1547,6 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries5 = recordMomentCtx(e5);
     const r5 = testEngine(e5).applyEncounter(
       mover5,
-      mover5.position,
       enc({ kind: "cash", delta: 0, staminaDelta: -100 }),
     );
     expect(r5).toBe("exhausted");

@@ -27,7 +27,6 @@ interface EngineTestInternals {
   ): "ok" | "liquidating" | "bankrupt";
   settleEncounter(
     mover: Player,
-    atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt" | "exhausted";
   maybeApplyEncounter(
@@ -36,7 +35,6 @@ interface EngineTestInternals {
   ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt";
   enterEncounterPhase(
     mover: Player,
-    atTile: number,
     def: EncounterDef,
   ): "deciding" | "liquidating" | "bankrupt" | "exhausted";
 }
@@ -118,19 +116,18 @@ export class TestEngine {
    *  encounter-flow.settleEncounter 全量对齐(含 exhausted,#459)。 */
   applyEncounter(
     mover: Player,
-    atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
-    return this.internals.settleEncounter(mover, atTile, def);
+    return this.internals.settleEncounter(mover, def);
   }
 
   /** 触达抉择机遇入相(指定具体事件,绕过触发/抽取随机;#124):等价引擎抽中 choices 型
    *  机遇后的进入逻辑——可用选项 ≤1 自动执行(回合收尾),≥2 进 AwaitingEncounter。
-   *  mover=当前活跃玩家,atTile=其所在格。返回联合与 encounter-flow.enterEncounterPhase
+   *  mover=当前活跃玩家。返回联合与 encounter-flow.enterEncounterPhase
    *  全量对齐(恒不返回 settled,含 exhausted,#459)。 */
   enterEncounter(def: EncounterDef): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
     const mover = this.engine.activePlayer;
-    return this.internals.enterEncounterPhase(mover, mover.position, def);
+    return this.internals.enterEncounterPhase(mover, def);
   }
 
   /** 触达私有付款或触发清算(破产清算路径的引擎入口)。 */

@@ -233,31 +233,26 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     expect(mover.reputation).toBe(100);
   });
 
-  it("声望献计里程碑:跨 30 产出 [jinnangDrawn],count=实际入手,不写牌名(ADR-0016)", () => {
+  it("声望献计里程碑:跨 30 产出 [repMilestoneCrossed, jinnangDrawn],进手 count=实际入手,不写牌名(ADR-0016)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     mover.reputation = 29;
     beginGameEventBatch(e);
-    e.addReputation(seat, 1); // 跨 30:献计一封 → drawJinnangTraced(reason=repMilestone)
+    e.addReputation(seat, 1); // 跨 30:宣告+献计一封 → drawJinnangTraced(reason=repMilestone)
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["jinnangDrawn"]);
-    expect(events[0]).toMatchObject({
+    expect(kinds(events)).toEqual(["repMilestoneCrossed", "jinnangDrawn"]);
+    expect(events[0]).toMatchObject({ kind: "repMilestoneCrossed", seat, milestone: 30 });
+    const drawn = events[1];
+    expect(drawn).toMatchObject({
       kind: "jinnangDrawn",
       seat,
       count: 1,
       reason: "repMilestone",
     });
     // 隐私口径:事件字段里没有牌 id(与对局日志「抽了一张锦囊」同口径)
-    expect(Object.keys(events[0]).sort()).toEqual([
-      "count",
-      "kind",
-      "reason",
-      "round",
-      "seat",
-      "turn",
-    ]);
+    expect(Object.keys(drawn).sort()).toEqual(["count", "kind", "reason", "round", "seat", "turn"]);
     expect(mover.jinnangHandCount).toBe(1);
     expect(mover.repMilestones).toContain(30);
   });

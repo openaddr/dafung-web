@@ -119,7 +119,7 @@ export function payOrLiquidate(
 
 /** 结算债务并留痕资产转移(ADR-0015):破产即转移/销毁的每处地产写一条 ownerChanged
  *  留痕(债主接管,无债主回无主),表现提取器据此产出易主宣告。等级不因转移改变。
- *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(与 pushFloater 同一收口思路)。
+ *  引擎内一切 settleDebt 调用须经此口,防破产易主漏播(逐城 assetTransferred 事件在同一收口)。
  *  时机·AssetsSeized(#457):破产终局恰一派(债主视角,与 PlayerBankrupt 破产者视角
  *  成对)——珍宝在 economy.settleDebt 内转移、名将是释放非转移,均不逐件派;
  *  无债主(归银行/销毁)无收走方,不派。 */
@@ -208,7 +208,6 @@ export function sellTreasureBankruptcy(g: GameEngine, treasureId: string): void 
   const t = p.treasures.splice(idx, 1)[0];
   const gain = guidePriceOf(t.level);
   p.cash += gain;
-  g.pushFloater(p, gain, p.position, "income");
   g.logEvent(
     "system",
     p.guohao,
@@ -254,7 +253,6 @@ export function sellPropertyBankruptcy(g: GameEngine, propId: string): void {
     levelChanged: false,
     ownerChanged: true,
   });
-  g.pushFloater(p, gain, p.position, "income");
   g.logEvent(
     "system",
     p.guohao,
@@ -282,7 +280,6 @@ export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
   const h = p.heroes.splice(idx, 1)[0];
   g.recruitedHeroIds.delete(heroId);
   p.cash += 200; // 名将换银(200 两)
-  g.pushFloater(p, 200, p.position, "income");
   g.logEvent(
     "system",
     p.guohao,

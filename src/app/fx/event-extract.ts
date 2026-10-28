@@ -449,6 +449,15 @@ export function extractBatchEvents(
         );
         break;
       }
+      case "propertyGranted": {
+        // 机遇赐城(#719,传檄而定):城池易主宣告(归属按提取时刻引擎态=得城者),
+        // 与购地/破产易主同通路;据章/buy 音/价款浮字是「购」的待遇,赐城只宣告易主
+        eventSeat(engine, ev);
+        events_.push(
+          propertyChangedEvent(engine, ev.propertyId, { levelChanged: false, ownerChanged: true }),
+        );
+        break;
+      }
       case "cashChanged": {
         // 纳税(reason="tax")铜钱雨扩容(S7 #513):负向付税随雨落币
         events_.push(
@@ -615,6 +624,13 @@ export function extractBatchEvents(
         });
         break;
       }
+      case "inquiryAutoExecuted": {
+        // 定制问询自动执行轻提示(#719,迁 fx 面):label 随事件走(扩展选项非静态目录),
+        // 文案浮字锚决策者位置;命令应答路不产本事件(卷轴 UI 已呈现)
+        const seat = eventSeat(engine, ev);
+        events_.push(textFloater(engine, seat, ev.label));
+        break;
+      }
       case "reactionAnswered": {
         // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
         if (ev.use && ev.cardId != null) {
@@ -701,6 +717,13 @@ export function extractBatchEvents(
             ev.reason === "fate" ? `天命眷顾,声望 ${signed(ev.delta)}` : `声望 ${signed(ev.delta)}`,
           ),
         );
+        break;
+      }
+      case "repMilestoneCrossed": {
+        // 声望献计里程碑宣告(#719,迁 fx 面):文案浮字锚玩家位置;献计进手另有相邻
+        // jinnangDrawn(reason=repMilestone)的「获锦囊一封」
+        const seat = eventSeat(engine, ev);
+        events_.push(textFloater(engine, seat, `民心所向(声望 ${ev.milestone}),名将献计`));
         break;
       }
       case "jinnangDrawn": {

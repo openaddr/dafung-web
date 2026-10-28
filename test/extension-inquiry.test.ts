@@ -321,6 +321,17 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
     expect(
       e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("auto")),
     ).toBe(true);
+    // 自动执行轻提示宣告(#719 四件套):inquiryAutoExecuted 事件,label 随事件走
+    const events = e.snapshot().events;
+    const auto = events.find((v) => v.kind === "inquiryAutoExecuted");
+    expect(auto).toBeDefined();
+    if (auto?.kind === "inquiryAutoExecuted") {
+      expect(auto.seat).toBe(e.decisionOwner);
+      expect(auto.inquiryId).toBe(INQUIRY_ID);
+      expect(auto.optionId).toBe("blind:0");
+      expect(typeof auto.label).toBe("string");
+      expect(auto.label.length).toBeGreaterThan(0);
+    }
     // 零可用:问询作废(战报留痕),不留悬载荷
     e.askInquiry(INQUIRY_ID, { n: 0 });
     expect(e.pendingInquiry).toBeNull();

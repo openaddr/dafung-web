@@ -325,6 +325,14 @@ describe("折叠投影器 · 城池族", () => {
     expect(e2.players[0].properties[0]).toMatchObject({ propertyId: "prop-luoyang", level: 3 });
   });
 
+  it("propertyGranted 机遇赐城 Lv.0 入册(#719,原级联缺口闭合)", () => {
+    const e = makeEngine();
+    foldEventBatch(e, [ev(0, { kind: "propertyGranted", propertyId: "prop-luoyang" })]);
+    expect(e.players[0].properties).toEqual([
+      { propertyId: "prop-luoyang", group: "a", level: 0, maxLevel: 3 },
+    ]);
+  });
+
   it("propertyRejected 无状态转移(声明性)", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;

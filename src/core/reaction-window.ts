@@ -338,7 +338,7 @@ function announceCounterLink(
   protects: boolean,
 ): void {
   const responder = g.players[seat];
-  g.pushFloaterText(responder, `${responder.guohao} 打出【${cardId}】`, responder.position);
+  // 打出宣告走 JinnangAnnounced 时机产事件(fx 面出牌线+文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     responder.guohao,
@@ -450,7 +450,7 @@ function settleRootCounterWindow(g: GameEngine, pr: PendingReaction): void {
 }
 
 /** 反识破链环窗结算(#571,ADR-0027):座位序第一张反识破生效=本环识破作废(已扣账
- *  不回手,事件+浮字落账),进下一环;同窗其余退回;无有效反识破则本环站住,链终裁定
+ *  不回手,事件落账),进下一环;同窗其余退回;无有效反识破则本环站住,链终裁定
  *  根锦囊待遇。 */
 function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
   const payload = pr.payload;
@@ -465,11 +465,7 @@ function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
   consumeReactionCard(g, first.seat, first.cardId!); // 收窗即扣账:被反识破也不回手
   const rescuer = g.players[first.seat];
   const announcer = g.players[payload.userSeat];
-  g.pushFloaterText(
-    announcer,
-    `${rescuer.guohao} 反识破!【${payload.cardId}】作废`,
-    announcer.position,
-  );
+  // 反识破生效宣告走 jinnangVoided 事件(fx 面文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     rescuer.guohao,
@@ -495,7 +491,7 @@ function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
 
 /** 反识破链环站住(#571,ADR-0027):站住识破的否定生效——整计域(连环计/单份计)
  *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;AOE 该份入豁免集
- *  (判定浮字逐份落账,protect=false 的环不落账=该份照常受击)。兄弟链未清则续开
+ *  (判定事件逐份落账,protect=false 的环不落账=该份照常受击)。兄弟链未清则续开
  *  下一环(牌已随根窗收窗扣账),清空后按根域收口执行。 */
 function settleCounterStands(
   g: GameEngine,
@@ -506,9 +502,8 @@ function settleCounterStands(
   const responder = g.players[payload.userSeat];
   if (rootDef.targetDomain !== "all-others") {
     if (payload.protects) {
-      // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局
+      // 整计域:识破站住=作废(连环计缺角)/落空(单份计),终局(宣告走 jinnangVoided 事件,fx 面文案浮字)
       const verdict = rootDef.targetDomain === "two-others" ? "作废" : "落空";
-      g.pushFloaterText(responder, `识破!【${rootDef.id}】${verdict}`, responder.position);
       const detail =
         rootDef.targetDomain === "two-others"
           ? `reactionCounter card=${rootDef.id} by=${responder.id} voided=all`
@@ -530,11 +525,7 @@ function settleCounterStands(
   // AOE:本环保下的份判定落账
   if (payload.protects && payload.shareSeat != null) {
     const shielded = g.players[payload.shareSeat];
-    g.pushFloaterText(
-      shielded,
-      `${responder.guohao} 识破,${shielded.guohao} 免于【${rootDef.id}】`,
-      shielded.position,
-    );
+    // 份保住宣告走 jinnangVoided(shareSeat)事件(fx 面文案浮字,#719 死写删除)
     g.logEvent(
       "system",
       responder.guohao,
@@ -620,8 +611,7 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
     `reactionAmbush owner=${owner.id} mover=${mover.id} a=${duel.aRoll} b=${duel.bRoll}`,
   );
   if (duel.winnerSeat === play.seat) {
-    // 拦停成功:行人止步拦检城
-    g.pushFloaterText(mover, `被 ${owner.guohao} 拦停于途中`, payload.tileIndex);
+    // 拦停成功:行人止步拦检城(宣告=拼点签面胜者+止步落格 marchArrived,文字浮字不另发,#719)
     g.logEvent(
       "system",
       owner.guohao,
@@ -631,8 +621,7 @@ function settleAmbushWindow(g: GameEngine, pr: PendingReaction): void {
     settleAmbushStop(g, payload);
     return;
   }
-  // 平/负:拦检失败,牌白耗(已扣),行人照常续走
-  g.pushFloaterText(owner, "拦检失败", payload.tileIndex);
+  // 平/负:拦检失败,牌白耗(已扣),行人照常续走(宣告走 reactionFailed 事件,fx 面锚事发现场浮字)
   emitGameEvent(g, play.seat, {
     kind: "reactionFailed",
     windowKind: "march",
