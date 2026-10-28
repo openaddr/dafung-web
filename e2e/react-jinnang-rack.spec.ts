@@ -7,7 +7,7 @@
 // #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
 // 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
 import { test, expect } from "./fixtures";
-import { force, freezeClock, quickStart, snap, unfreezeClock, waitMyPause } from "./react-helpers";
+import { force, quickStart, snap, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -118,52 +118,52 @@ async function myFirstCard(page: Page): Promise<string> {
   return hand[0];
 }
 
-/** 反应窗在场则点「不用」应答。#669 把窗拉到 15s 后,窗内该牌点牌语义=打出反应牌
- *  (HandRack reaction.onSelect),「点牌开详情」必然竞速失败;窗可能已被 quickStart
- *  同步链开在冻结前(#421:时钟冻结钉不住同步 bot 链),只能应答不能等过期。
- *  条件性元素用单次原子采样,locator 直点不在场元素会挂到超时。 */
-async function declineReactionIfUp(page: Page): Promise<void> {
-  const up = await page.evaluate(
-    (tid) => document.querySelector(`[data-testid="${tid}"]`) != null,
-    TESTIDS.reactionBanner,
+/** #653:quickStart 停点相位不钉——落 AwaitingJinnang(出牌态)时点牌=选中、长按=取消
+ *  (HandRack 窗态语义),「点牌/长按开详情」断言全灭(8 次随机停点 7/8 过,唯一失败
+ *  恰落出牌态)。rackStandstill 同款钉法 minus 直写手牌(两例断的正是起手牌,故不发牌):
+ *  等人类停稳,把相位钉进 AwaitingDecision 空闲态 + 清 pendingLand/落格投影——窗态
+ *  (junshi 槽/反应横幅均快照相位派生,GameScreen reactionUp 口径)随之卸载,点/长按
+ *  回归常态详情语义,架无限期稳定。取代 #674 的冻结+应答舞步(窗根本开不起来)。 */
+async function pinRackIdle(page: Page): Promise<void> {
+  await quickStart(page);
+  // 90s:quickStart 收尾可能停在 bot 回合,等一整轮 bot 走回人类停靠点(同 rackStandstill 口径)
+  await waitMyPause(page, 0, 90_000);
+  await force(
+    page,
+    `
+    e.lastLandOutcome = null;
+    e.pendingLand = null;
+    e.turnPhase = "AwaitingDecision";
+  `,
   );
-  if (up) await page.getByTestId(TESTIDS.reactionDecline).click();
 }
 
 test.describe("锦囊 T3:底部手牌架", () => {
   test("起手 1 张:架可见且牌在架内;点牌详情含牌名全文;Esc 关闭", async ({ page }) => {
-    await quickStart(page);
-    // 冻结时钟+应答在场反应窗(#674 顺带修,#669/#421 实锤):冻结后无新窗,
-    // 已开窗(同步链开在冻结前)点「不用」关掉,点牌回归详情语义
-    await freezeClock(page);
-    await declineReactionIfUp(page);
-    try {
-      const rack = page.getByTestId(TESTIDS.jinnangRack);
-      await expect(rack).toBeVisible();
-      // 手牌行在架内,恰好 1 张(testid 原值 jinnang-hand / jinnang-card-<牌名>)
-      const hand = page.getByTestId(TESTIDS.jinnangHand);
-      await expect(hand).toBeVisible();
-      const cardId = await myFirstCard(page);
-      await expect(rack.getByTestId(TESTIDS.jinnangCard(cardId))).toHaveCount(1);
+    await pinRackIdle(page);
+    const rack = page.getByTestId(TESTIDS.jinnangRack);
+    await expect(rack).toBeVisible();
+    // 手牌行在架内,恰好 1 张(testid 原值 jinnang-hand / jinnang-card-<牌名>)
+    const hand = page.getByTestId(TESTIDS.jinnangHand);
+    await expect(hand).toBeVisible();
+    const cardId = await myFirstCard(page);
+    await expect(rack.getByTestId(TESTIDS.jinnangCard(cardId))).toHaveCount(1);
 
-      // 点牌 → 详情弹层(桌面=底部面板):含牌名与牌面全文
-      await rack.getByTestId(TESTIDS.jinnangCard(cardId)).click();
-      const detail = page.getByTestId(TESTIDS.jinnangDetail);
-      await expect(detail).toBeVisible();
-      const def = jinnangCardOf(cardId);
-      await expect(detail).toContainText(cardId);
-      await expect(detail).toContainText(def.text);
+    // 点牌 → 详情弹层(桌面=底部面板):含牌名与牌面全文
+    await rack.getByTestId(TESTIDS.jinnangCard(cardId)).click();
+    const detail = page.getByTestId(TESTIDS.jinnangDetail);
+    await expect(detail).toBeVisible();
+    const def = jinnangCardOf(cardId);
+    await expect(detail).toContainText(cardId);
+    await expect(detail).toContainText(def.text);
 
-      // Esc 关闭(detail 容器随 Portal 卸载)
-      await page.keyboard.press("Escape");
-      await expect(detail).toHaveCount(0);
-    } finally {
-      await unfreezeClock(page);
-    }
+    // Esc 关闭(detail 容器随 Portal 卸载)
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
   });
 
   test("长按 500ms 同效开详情,随后的 click 不再触发(不弹两次)", async ({ page }) => {
-    await quickStart(page);
+    await pinRackIdle(page); // #653:出牌态长按=取消选中,先钉空闲态
     const cardId = await myFirstCard(page);
     const card = page.getByTestId(TESTIDS.jinnangCard(cardId));
     const box = await card.boundingBox();

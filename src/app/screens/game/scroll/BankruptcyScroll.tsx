@@ -211,7 +211,7 @@ export function BankruptcyScroll({
         <TreasurePickModal
           title="变卖自救 · 变卖珍宝"
           seal="变"
-          sub={`${guohao} · 变卖入账与引擎同一函数(珍宝按指导价)`}
+          sub={`${guohao} · 按指导价变卖入账`}
           context={
             <div className="treasure-pick-progress" data-testid={T.bankruptcyPickProgress}>
               <div className="treasure-pick-owe">
