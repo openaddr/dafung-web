@@ -4,7 +4,8 @@
 //      换图开局不可达,#684 实拍 tmp/mobile-audit/home-844x390.png);
 //   ② 条带左右滑可达全部地图(植自建图撑出溢出,横向滚轮 = 真实用户滚动通路),
 //      选中态视觉可辨(金框,aria-pressed 语义同步);
-//   ③ 桌面视口零回归:条带不在 DOM,选图仍走「选择地图」→ 二级弹层,地图行回显。
+//   ③ 桌面档不再设专项断言(#733:布局回归收窄到 844×390 移动横屏标准档,
+//      原「桌面视口零回归」case 退役;条带档本就是矮横屏档形态,桌面零重排口径不变)。
 // 几何断言收进 toPass:首页入场 stagger/screen-in 播动画期间量盒有瞬时位移
 // (react-narrow 同法),落定后重试即稳。
 import { test, expect } from "./fixtures";
@@ -124,24 +125,6 @@ test.describe("矮横屏 844×390(条带档)", () => {
     await last.click();
     await expect(last).toHaveAttribute("aria-pressed", "true");
     expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("custom-e2e-6");
-  });
-});
-
-test.describe("桌面视口零回归", () => {
-  test.use({ viewport: { width: 1280, height: 800 } });
-
-  test("条带不在 DOM,选图仍走地图行 + 二级弹层,回显照旧", async ({ page }) => {
-    await page.goto("/");
-    await expect(page.getByTestId(HOME_TID.mapStrip)).toHaveCount(0);
-    await expect(page.getByTestId(HOME_TID.selectMap)).toBeVisible();
-    await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("环游图");
-    await page.getByTestId(HOME_TID.selectMap).click();
-    const panel = page.getByTestId(SETUP_TID.mapPanel);
-    await expect(panel).toBeVisible();
-    await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();
-    await page.getByTestId(SETUP_TID.mapConfirm).click();
-    await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("中原争霸");
-    expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
   });
 });
 

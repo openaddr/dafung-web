@@ -3,7 +3,7 @@
 //
 // 用法:临时场景脚本放 tmp/(gitignore),只写「局面与断言」,样板全走这里:
 //   import { openShotSession } from "../scripts/shot.mjs";
-//   const s = await openShotSession({ port: 5301, viewport: { width: 844, height: 390 } });
+//   const s = await openShotSession({ port: 5301 }); // 视口默认 844×390(移动横屏标准档,#733)
 //   await s.enterGame(49);
 //   await s.force(`e.players[0].jinnangHand = ["连环计"];`);
 //   await s.shot("tmp/ui-shots/x/full.png");                     // 整页
@@ -28,7 +28,7 @@ import { preview } from "vite";
 
 export async function openShotSession({
   port = 5300,
-  viewport = { width: 1280, height: 800 },
+  viewport = { width: 844, height: 390 },
   deviceScaleFactor = 2,
   /** true = 落格机遇关零(确定性无机遇卷轴;默认不 mock,读真实 public/config/jiyu.json)。 */
   zeroEncounter = false,
