@@ -9,6 +9,7 @@
 // 回去,破坏「pendingInquiry≠null ⟺ turnPhase=AwaitingInquiry」不变量。
 import type { GameEngine } from "./authority";
 import { computeChoices, type ChoiceOption } from "./choices";
+import { emitGameEvent } from "./game-events";
 import { extensionInquiries } from "./extension-registry";
 
 /** 发起定制问询(#432 置挂起载荷,#424 升格相位入口;扩展效果函数经壳上公共方法调用):
@@ -100,7 +101,8 @@ export function drainDeferredInquiries(g: GameEngine): void {
 }
 
 /** 应答结算(自动执行与命令应答同路):回灌扩展 resolve(纯逻辑纪律同 EffectFn,经引擎
- *  公共方法改状态)→ 战报留痕(自动执行加浮字轻提示,ADR-0013 决议 2)→ 清挂起载荷。
+ *  公共方法改状态)→ 战报留痕(自动执行加轻提示宣告,#719 迁事件面 inquiryAutoExecuted,
+ *  ADR-0013 决议 2;文案浮字由 fx 面派生)→ 清挂起载荷。
  *  命令路的收口续跑(resolveInquiry 的尾端 endTurn)在载荷清除后自然放行。 */
 function settleInquiryAnswer(
   g: GameEngine,
@@ -124,6 +126,12 @@ function settleInquiryAnswer(
       : `${p.guohao} 应答问询「${name}」:${opt.label}`,
     `inquiryResolve player=${p.id} id=${id} option=${opt.id}${auto ? " auto" : ""}`,
   );
-  if (auto) g.pushFloaterText(p, opt.label, p.position);
+  if (auto)
+    emitGameEvent(g, seat, {
+      kind: "inquiryAutoExecuted",
+      inquiryId: id,
+      optionId: opt.id,
+      label: opt.label,
+    }); // 事件流(#719):自动执行轻提示宣告(浮字由 fx 面派生;命令应答路不产——卷轴 UI 已呈现)
   g.pendingInquiry = null;
 }

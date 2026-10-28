@@ -351,13 +351,13 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
       effect: { kind: "levy", amount: 150 },
     };
     // 直付腿:现金充足 → 实付 150 派发;对手收 150 转移 + 曹丕(持牌者=对手)渔利 50
-    testEngine(e).applyEncounter(p, p.position, levy);
+    testEngine(e).applyEncounter(p, levy);
     const afterDirect = caopi.cash;
     expect(afterDirect).toBe(caopiCash0 + 150 + 50);
     // 致破腿:现金不足且无产可清算 → paid=0 → 不派发,曹丕分文不得
     p.cash = 10;
     p.properties = [];
-    const r = testEngine(e).applyEncounter(p, p.position, levy);
+    const r = testEngine(e).applyEncounter(p, levy);
     expect(r).toBe("bankrupt");
     expect(p.isBankrupt).toBe(true);
     expect(caopi.cash).toBe(afterDirect); // 0 额不派发:渔利不再白得 50

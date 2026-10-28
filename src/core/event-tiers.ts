@@ -117,6 +117,11 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "ADR-0013 自动按兵不动的宣告:零状态转移,相位由同批 turnStarted 收场;表现=按 reason 派生文案浮字",
   },
+  propertyGranted: {
+    fold: "must-fold",
+    fx: "presented",
+    why: "机遇赐城入册(#719,传檄而定):得城者 Lv.0 持有入册——此前是折叠器已知无事件转移的级联缺口,本事件闭合;表现=城池易主宣告(与购地/破产易主同通路)",
+  },
   exhaustionChoice: {
     fold: "fold+calibration",
     fx: "silent",
@@ -234,11 +239,21 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "窥探生效宣告(#575 即时一次性):窥探零客户端状态(账本已删,弹层纯演出、关闭即逝),fold 面零转移;表现=viewer-only 窥探弹层(hand 随事件走,redact 逐座位裁)",
   },
+  inquiryAutoExecuted: {
+    fold: "declarative",
+    fx: "presented",
+    why: "定制问询自动执行轻提示(#719,ADR-0013):可用选项 ≤1 自动执行零相位进出(载荷即刻清账,相位保持原值),效果侧转移经扩展 resolve 走引擎公共方法自产事件;label 随事件走(扩展选项非静态目录,fx 无表可查)且本就公开(choices 单通道);表现=选项文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
+  },
   // ── 声望/体力/跳过族 ──
   reputationChanged: {
     fold: "must-fold",
     fx: "presented",
     why: "声望直加实际增减(delta=夹紧后值)+献计里程碑向上穿越重算",
+  },
+  repMilestoneCrossed: {
+    fold: "declarative",
+    fx: "presented",
+    why: "声望献计里程碑穿越宣告(#719):零新增转移(repMilestones 记账已由 reputationChanged 穿越重算折、进手随 jinnangDrawn 折);表现=「民心所向,名将献计」文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
   },
   staminaChanged: {
     fold: "must-fold",

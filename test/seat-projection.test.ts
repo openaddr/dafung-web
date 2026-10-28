@@ -57,6 +57,7 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "no-warrant" },
+  { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
   { kind: "cashChanged", delta: -200, reason: "tax", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },
   { kind: "treasureSold", treasureId: "golden-seal-1", amount: 800 },
@@ -70,11 +71,13 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "heroSkillActivated", skillId: "warDrumZhangfei", skillKind: "warDrum", targetSeat: 1 },
   { kind: "jinnangDrawn", count: 1, reason: "encounter" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },
+  { kind: "repMilestoneCrossed", milestone: 30 }, // #719 声望献计里程碑
   { kind: "staminaChanged", delta: -15, reason: "encounter" },
   { kind: "turnSkipped" },
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
   { kind: "encounterChoice", encounterId: "shibei", choiceIndex: 0 },
   { kind: "exhaustionChoice", propertyId: "luoyang", exhaustionKind: "downgrade" },
+  { kind: "inquiryAutoExecuted", inquiryId: "xinyi", optionId: "swap", label: "弃旧换新" }, // #719 问询自动执行
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },

@@ -6,6 +6,7 @@
 // after 差值落事件(词汇表见 game-events.ts)。域逻辑=自由函数,首参接 GameEngine;
 // 壳内同名公共方法薄委托(外部 importer 无感)。
 import type { GameEngine } from "./authority";
+import { emitGameEvent } from "./game-events";
 
 /** 声望献计里程碑(#147/#384):唯一事实源,事件折叠侧(event-fold)按此对齐演出。 */
 export const REP_MILESTONES = [30, 60, 90] as const;
@@ -15,7 +16,8 @@ import { drawJinnangTraced } from "./jinnang-execution";
  *  声望献计(#147):首次向上穿越 +30/+60/+90 各献锦囊一张(只在本入口挂钩,
  *  不看来源——把机遇抉择玩好就有实物兑现)。
  *  时机·ReputationChanged(#456):唯一写口单点广播(夹紧提交后派发,天命格/机遇 repDelta
- *  两路天然全覆盖);事件流 reputationChanged 的 before/after 差值模式在各调用点,并存不冲突。 */
+ *  两路天然全覆盖);事件流 reputationChanged 的 before/after 差值模式在各调用点,并存不冲突。
+ *  里程碑穿越宣告 repMilestoneCrossed(#719 迁事件面):零新增转移的纯宣告,浮字由 fx 面派生。 */
 export function addReputation(g: GameEngine, seat: number, delta: number): void {
   const p = g.players[seat];
   const before = p.reputation;
@@ -24,7 +26,7 @@ export function addReputation(g: GameEngine, seat: number, delta: number): void 
   for (const m of REP_MILESTONES) {
     if (before < m && p.reputation >= m && !p.repMilestones.includes(m)) {
       p.repMilestones.push(m);
-      g.pushFloaterText(p, `民心所向(声望 ${m}),名将献计`, p.position);
+      emitGameEvent(g, seat, { kind: "repMilestoneCrossed", milestone: m }); // 事件流(#719):里程碑穿越宣告(浮字由 fx 面派生)
       g.logEvent(
         "system",
         p.guohao,

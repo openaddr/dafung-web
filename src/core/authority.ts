@@ -996,13 +996,13 @@ export class GameEngine {
     return b;
   }
 
-  /** 效果注册表专用通道:技能得银(+现金 +浮字;skill 战报由派发器统一记录)。
+  /** 效果注册表专用通道:技能得银(+现金;skill 战报由派发器统一记录)。
    *  防连锁:此处【不】派发 CashGained——CashGained 仅在经济结算点(补给/事件得款/交涉收款)派发,
-   *  效果层收益不递归(技能给钱再触发得银技能会指数放大技能链,框架层禁止;见 docs/explanation/时机框架.md)。 */
+   *  效果层收益不递归(技能给钱再触发得银技能会指数放大技能链,框架层禁止;见 docs/explanation/时机框架.md)。
+   *  浮字由 cashChanged(reason=skill) 事件在 fx 面派生(#719 死写删除)。 */
   grantSkillCash(seat: number, amount: number): void {
     const p = this.players[seat];
     p.cash += amount;
-    this.pushFloater(p, amount, p.position, "income");
     emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
   }
 
@@ -1258,10 +1258,9 @@ export class GameEngine {
    *  域内经 g.enterEncounterPhase 往返 + testing.ts 白盒窄面)。 */
   enterEncounterPhase(
     mover: Player,
-    atTile: number,
     def: EncounterDef,
   ): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-    return enterEncounterPhase(this, mover, atTile, def);
+    return enterEncounterPhase(this, mover, def);
   }
 
   /** 抉择机遇选项(#124):薄委托 → encounter-flow.resolveEncounterChoice。 */
@@ -1273,10 +1272,9 @@ export class GameEngine {
    *  域内经 g.settleEncounter 往返 + testing.ts 白盒窄面)。 */
   settleEncounter(
     mover: Player,
-    atTile: number,
     def: EncounterDef,
   ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
-    return settleEncounter(this, mover, atTile, def);
+    return settleEncounter(this, mover, def);
   }
 
   /** 文案浮字入队(ADR-0013 唯一选项自动执行的轻提示,无金额):渲染为棋盘一行小字。 */

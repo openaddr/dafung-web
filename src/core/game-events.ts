@@ -14,7 +14,8 @@
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
 //  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
 //     触发/选都建城/三变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
-//     抽锦囊进手/声望变更/体力变更/跳过回合)在各域模块结算点直呼,reason 用领域词
+//     抽锦囊进手/声望变更/体力变更/跳过回合、#719 的声望献计里程碑/问询自动执行)在各域
+//     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/献计/天命/耗竭……开放词表,新来源即新 slug)。
 import type { GameEngine, VictoryReason } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
@@ -113,6 +114,14 @@ export interface PropertyRejectedBody {
   kind: "propertyRejected";
   propertyId: string;
   reason: "no-warrant" | "insufficient-cash" | "maxed";
+}
+/** 机遇赐城(#719,传檄而定):无主城随机赐予的易主宣告——PropertyGained 时机派发点
+ *  同步产出(与 PropertyBought 同表模式);效果名与「购」语义区分(#457)。折面=得城者
+ *  Lv.0 入册(机遇赐城此前是折叠器已知无事件转移的级联缺口,本事件将其闭合);
+ *  表现=城池易主宣告(fx 面派生,与购地/破产易主同通路)。 */
+export interface PropertyGrantedBody {
+  kind: "propertyGranted";
+  propertyId: string;
 }
 /** 金钱变更(被动经济结算点;delta 带符号,reason=领域词 slug,counterpartSeat=
  *  玩家间转移的对手座)。主动支出(购地/交涉付款)不产本事件——金额已在
@@ -222,6 +231,14 @@ export interface ReputationChangedBody {
   delta: number;
   reason: string;
 }
+/** 声望献计里程碑穿越(#719):首次向上越过 +30/+60/+90 的宣告——零新增转移的纯宣告
+ *  (repMilestones 记账由折面按 reputationChanged 穿越重算对齐,献计进手随 jinnangDrawn
+ *  折),折面声明性;表现=「民心所向,名将献计」文案浮字(fx 面派生,单机/联机同见,
+ *  #719 自引擎浮字死通道迁事件面)。 */
+export interface RepMilestoneCrossedBody {
+  kind: "repMilestoneCrossed";
+  milestone: number;
+}
 /** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
  *  encounter/被动技=skill/主动技赈济=heroRelief/耗竭重置=exhaustion,开放词表)。 */
 export interface StaminaChangedBody {
@@ -321,6 +338,18 @@ export interface PeekAppliedBody {
   targetSeat: number;
   hand: string[];
 }
+/** 定制问询自动执行(#719,#424):可用选项 ≤1 的 ADR-0013 自动执行轻提示宣告——
+ *  零相位进出(挂起载荷即刻清账,相位保持原值),折面声明性;label 随事件走
+ *  (扩展问询选项非静态目录,fx 无表可查——成品字段随事件,与 treasureStolen
+ *  的 treasureName 同理);label 本就公开(问询选项走 snapshot.choices 单通道)。
+ *  表现=选项文案浮字(fx 面派生,单机/联机同见,#719 自引擎浮字死通道迁事件面);
+ *  命令应答路(卷轴点选)不产本事件——选项文案已由卷轴 UI 呈现。 */
+export interface InquiryAutoExecutedBody {
+  kind: "inquiryAutoExecuted";
+  inquiryId: string;
+  optionId: string;
+  label: string;
+}
 
 /** 事件体联合(产出 API 的入参形状)。 */
 export type GameEventBody =
@@ -338,6 +367,7 @@ export type GameEventBody =
   | PropertyBoughtBody
   | PropertyUpgradedBody
   | PropertyRejectedBody
+  | PropertyGrantedBody
   | CashChangedBody
   | TreasureGainedBody
   | TreasureSoldBody
@@ -353,6 +383,7 @@ export type GameEventBody =
   | JinnangReshuffledBody
   | JinnangExhaustedBody
   | ReputationChangedBody
+  | RepMilestoneCrossedBody
   | StaminaChangedBody
   | TurnSkippedBody
   | EncounterTriggeredBody
@@ -365,7 +396,8 @@ export type GameEventBody =
   | DuelResolvedBody
   | JinnangVoidedBody
   | JinnangInflictedBody
-  | PeekAppliedBody;
+  | PeekAppliedBody
+  | InquiryAutoExecutedBody;
 
 /** 事件 = 事件体 + 公共首部(快照 `events` 字段与将来联机流式下发的线上形状)。 */
 export type GameEvent = GameEventBody & GameEventBase;
@@ -434,6 +466,10 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
     if (holding == null) throw new Error(`事件产出:城 ${propertyId} 无归属持有(数据 bug)`);
     return { kind: "propertyUpgraded", propertyId, newLevel: holding.level };
   },
+  PropertyGained: (_g, ctx) => ({
+    kind: "propertyGranted",
+    propertyId: requireMomentField(ctx.propertyId, "PropertyGained.propertyId"),
+  }), // 机遇赐城(#719):传檄而定易主宣告(#457 与「购」语义区分的时机挂点)
   TreasureGained: (_g, ctx) => ({
     kind: "treasureGained",
     treasureId: requireMomentField(ctx.treasureId, "TreasureGained.treasureId"),

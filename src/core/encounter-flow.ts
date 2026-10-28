@@ -133,7 +133,8 @@ function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void 
     reason: "exhaustion",
   }); // 事件流(#384):体力变更(耗竭重置)
   g.pendingExhaustionSeat = null;
-  g.pushFloaterText(p, `体力耗竭:${note},倒地不起(跳过一回合)`, p.position);
+  // 耗竭文案由 staminaChanged(reason=exhaustion) 事件在 fx 面派生(exhaustionTextOf,
+  // 批内前置 exhaustionChoice 升级带处置明细版,#719 死写删除)
   g.logEvent(
     "system",
     p.guohao,
@@ -173,12 +174,12 @@ export function maybeApplyEncounter(
     encounterId: def.id,
     tier: def.tier,
   }); // 事件流(#375):机遇触发(已抽中具体机遇)
-  if (def.choices) return g.enterEncounterPhase(mover, atTile, def); // 抉择机遇(#124):不即时结算
-  return g.settleEncounter(mover, atTile, def);
+  if (def.choices) return g.enterEncounterPhase(mover, def); // 抉择机遇(#124):不即时结算
+  return g.settleEncounter(mover, def);
 }
 
 /** 抉择机遇入相(#124):抽中 choices 型机遇后调用。选项集经注册表(choices.ts)计算,
- *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+浮字;结盟互市单选项即「自动发生」;
+ *  ADR-0013:可用选项 ≤1 → 自动执行唯一可用项(战报+encounterChoice 事件文案浮字;结盟互市单选项即「自动发生」;
  *  以宝换贤珍宝不足时只剩「婉言相拒」同理),返回 deciding(回合已在收尾中);
  *  ≥2 → 进 AwaitingEncounter 等待 resolveEncounterChoice,返回 deciding。
  *  两种场合机遇都先于城池结算:自动执行已在内部续跑落格结算(返回 deciding),
@@ -186,7 +187,6 @@ export function maybeApplyEncounter(
 export function enterEncounterPhase(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
 ): "deciding" | "liquidating" | "bankrupt" | "exhausted" {
   g.pendingEncounter = def;
@@ -209,8 +209,8 @@ export function enterEncounterPhase(
   if (idx === undefined)
     throw new Error(`机遇「${def.id}」无可执行选项:choices 与选项注册表不一致(数据 bug)`); // 零兜底:目录数据 bug 应炸出来
   const choice = def.choices![idx];
-  g.pushFloaterText(mover, choice.text, atTile);
-  const r = settleEncounterChoice(g, mover, atTile, def, choice, idx ?? 0);
+  // 选项文案由 settleEncounterChoice 内的 encounterChoice 事件在 fx 面查目录派生(#719 死写删除)
+  const r = settleEncounterChoice(g, mover, def, choice, idx ?? 0);
   return r === "settled" ? "deciding" : r; // settled=回合已收尾;机遇仍占用本落格
 }
 
@@ -231,7 +231,7 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
     );
     return;
   }
-  settleEncounterChoice(g, g.activePlayer, g.activePlayer.position, def, option, index);
+  settleEncounterChoice(g, g.activePlayer, def, option, index);
 }
 
 /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
@@ -242,7 +242,6 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
 function settleEncounterChoice(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   option: EncounterChoiceOption,
   index: number,
@@ -268,12 +267,7 @@ function settleEncounterChoice(
       kind: "reputationChanged",
       delta: mover.reputation - repBefore,
       reason: "encounter",
-    }); // 事件流(#384):声望变更(夹紧后实际增减;献计进手已随落账自产 jinnangDrawn)
-    g.pushFloaterText(
-      mover,
-      `「${def.id}」声望 ${option.repDelta > 0 ? "+" : ""}${option.repDelta}`,
-      atTile,
-    );
+    }); // 事件流(#384):声望变更(夹紧后实际增减,浮字由 fx 面派生;献计进手已随落账自产 jinnangDrawn)
   }
   g.logEvent(
     "system",
@@ -283,11 +277,11 @@ function settleEncounterChoice(
   );
   g.pendingEncounter = null;
   const r = option.effect
-    ? applyEncounterEffect(g, mover, atTile, def, option.effect, option.text)
+    ? applyEncounterEffect(g, mover, def, option.effect, option.text)
     : "settled";
   if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn(优先级高于体力,#132)
   // 选项级体力(#132):repDelta/effect 落账后 staminaDelta 落账;exhausted=耗竭接管本落格
-  const s = applyEncounterStamina(g, mover, atTile, def, option.staminaDelta ?? 0, option.text);
+  const s = applyEncounterStamina(g, mover, def, option.staminaDelta ?? 0, option.text);
   if (s === "exhausted") return "exhausted";
   // 机遇解完 → 继续本落格的城池结算(#120 决策 2,评审修正:原先直接 endTurn 漏掉购地/过路)
   g.turnPhase = "Land";
@@ -295,21 +289,20 @@ function settleEncounterChoice(
   return r;
 }
 
-/** 即时机遇结算(#123):效果落账 + 浮字 + 对局日志。机遇自身银两支出走支付/清算(破产与购地同规则)。
+/** 即时机遇结算(#123):效果落账 + 事件宣告(浮字由 fx 面派生)+ 对局日志。机遇自身银两支出走支付/清算(破产与购地同规则)。
  *  玩家间转移(敌营哗变/假道征粮等)为即时动账:上限=付款方现有现金,不触发对方清算
  *  (对方清算会与移动者回合交织——实现取舍,非 #120 豁免,已在 #120 留评说明)。
  *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
 export function settleEncounter(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
   if (!def.effect) return "settled";
-  return applyEncounterEffect(g, mover, atTile, def, def.effect, def.text);
+  return applyEncounterEffect(g, mover, def, def.effect, def.text);
 }
 
-/** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报/浮字叙事段:即时机遇=def.text,
+/** 机遇效果结算(即时/抉择两路共用,#123/#124)。narr=战报叙事段:即时机遇=def.text,
  *  抉择机遇=所选选项文本——机遇 id 保持出自 def,叙事随所选选项走。
  *  尾部接线体力(#132):效果落账后 effect.staminaDelta 经 applyEncounterStamina 结算,
  *  耗竭返回 exhausted(liquidating/bankrupt 优先,不再结算体力)。
@@ -318,7 +311,6 @@ export function settleEncounter(
 function applyEncounterEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: EncounterEffect,
   narr: string,
@@ -326,25 +318,25 @@ function applyEncounterEffect(
   const r = ((): "settled" | "liquidating" | "bankrupt" => {
     switch (effect.kind) {
       case "cash":
-        return applyCashEffect(g, mover, atTile, def, effect, narr);
+        return applyCashEffect(g, mover, def, effect, narr);
       case "grantTreasure":
-        return applyGrantTreasureEffect(g, mover, atTile, def, narr);
+        return applyGrantTreasureEffect(g, mover, def, narr);
       case "grantHero":
-        return applyGrantHeroEffect(g, mover, atTile, def, effect, narr);
+        return applyGrantHeroEffect(g, mover, def, effect, narr);
       case "grantCard":
-        return applyGrantCardEffect(g, mover, atTile, def, narr);
+        return applyGrantCardEffect(g, mover, def, narr);
       case "grantCity":
-        return applyGrantCityEffect(g, mover, atTile, def, effect, narr);
+        return applyGrantCityEffect(g, mover, def, effect, narr);
       case "siphon":
-        return applySiphonEffect(g, mover, atTile, def, effect, narr);
+        return applySiphonEffect(g, mover, def, effect, narr);
       case "levy":
-        return applyLevyEffect(g, mover, atTile, def, effect, narr);
+        return applyLevyEffect(g, mover, def, effect, narr);
       case "trade":
-        return applyTradeEffect(g, mover, atTile, def, effect, narr);
+        return applyTradeEffect(g, mover, def, effect, narr);
     }
   })();
   if (r !== "settled") return r; // liquidating/bankrupt 优先(#132):清算/破产中断,不再结算体力
-  return applyEncounterStamina(g, mover, atTile, def, effect.staminaDelta ?? 0, narr);
+  return applyEncounterStamina(g, mover, def, effect.staminaDelta ?? 0, narr);
 }
 
 /** 效果·现金增减(#123):正=入账派 CashGained;负=走支付/清算(破产与购地同规则),
@@ -352,7 +344,6 @@ function applyEncounterEffect(
 function applyCashEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "cash" }>,
   narr: string,
@@ -362,8 +353,7 @@ function applyCashEffect(
   if (effect.delta === 0) return "settled";
   if (effect.delta > 0) {
     mover.cash += effect.delta;
-    g.pushFloater(mover, effect.delta, atTile, "income");
-    emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更(浮字由 fx 面派生)
     g.dispatchMoment("CashGained", { subject: seat, amount: effect.delta });
     g.logEvent(
       "system",
@@ -377,8 +367,7 @@ function applyCashEffect(
   const r = g.payOrLiquidate(mover, null, -effect.delta);
   if (r === "liquidating") return "liquidating";
   const bankrupt = r === "bankrupt";
-  g.pushFloater(mover, effect.delta, atTile, "expense");
-  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更(浮字由 fx 面派生)
   g.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
   g.logEvent(
     "system",
@@ -395,15 +384,13 @@ function applyCashEffect(
 function applyGrantTreasureEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   narr: string,
 ): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
   if (g.treasureDeck.length === 0) {
     mover.cash += 100; // 牌堆空 → 转 100 两(探宝的"搜刮一空"口径)
-    g.pushFloater(mover, 100, atTile, "income");
-    emitGameEvent(g, seat, { kind: "cashChanged", delta: 100, reason: "encounter" }); // 事件流(#375):折现(#455 A2 补缺口)
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: 100, reason: "encounter" }); // 事件流(#375):折现(#455 A2 补缺口;浮字由 fx 面派生)
     g.dispatchMoment("CashGained", { subject: seat, amount: 100 }); // 时机·CashGained:被动得银(授宝空堆折现,#455 A2 补派)
     g.logEvent(
       "system",
@@ -417,7 +404,7 @@ function applyGrantTreasureEffect(
   const drawIdx = Math.floor(g.dice.nextFloat() * g.treasureDeck.length);
   const treasure = g.treasureDeck.splice(drawIdx, 1)[0];
   mover.treasures.push(treasure);
-  g.pushFloaterText(mover, `机遇「${def.id}」:${narr},得「${treasure.name}」`, atTile);
+  // 得宝宣告走 TreasureGained 时机产事件(fx 面=金「得」印+treasure 音,#719 死写删除)
   g.logEvent(
     "system",
     mover.guohao,
@@ -432,7 +419,6 @@ function applyGrantTreasureEffect(
 function applyGrantHeroEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "grantHero" }>,
   narr: string,
@@ -441,7 +427,6 @@ function applyGrantHeroEffect(
   const candidates = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
   if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
     mover.cash += effect.fallbackCash;
-    g.pushFloater(mover, effect.fallbackCash, atTile, "income");
     emitGameEvent(g, seat, {
       kind: "cashChanged",
       delta: effect.fallbackCash,
@@ -460,7 +445,7 @@ function applyGrantHeroEffect(
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
   mover.heroes.push(hero);
   g.recruitedHeroIds.add(hero.id);
-  g.pushFloaterText(mover, `机遇「${def.id}」:${hero.name} 来投`, atTile);
+  // 来投宣告走 HeroRecruited 时机产事件(fx 面文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     mover.guohao,
@@ -476,13 +461,12 @@ function applyGrantHeroEffect(
 function applyGrantCardEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   narr: string,
 ): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
-  // 圯上授书(#147):机遇→锦囊流通;手牌无上限(#250)恒入手,牌库空由 drawJinnang 自行落空提示
-  g.pushFloaterText(mover, `机遇「${def.id}」:${narr},得锦囊一封`, atTile);
+  // 圯上授书(#147):机遇→锦囊流通;手牌无上限(#250)恒入手,牌库空落空由 jinnangExhausted
+  // 事件宣告(抽牌宣告=jinnangDrawn 事件 fx 面派生,#719 死写删除)
   g.logEvent(
     "system",
     mover.guohao,
@@ -497,7 +481,6 @@ function applyGrantCardEffect(
 function applyGrantCityEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "grantCity" }>,
   narr: string,
@@ -510,7 +493,6 @@ function applyGrantCityEffect(
     .filter((c): c is { tileIndex: number; tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {
     mover.cash += effect.fallbackCash;
-    g.pushFloater(mover, effect.fallbackCash, atTile, "income");
     emitGameEvent(g, seat, {
       kind: "cashChanged",
       delta: effect.fallbackCash,
@@ -542,7 +524,7 @@ function applyGrantCityEffect(
     levelChanged: false,
     ownerChanged: true,
   });
-  g.pushFloaterText(mover, `机遇「${def.id}」:${picked.tileName} 归你所有`, atTile);
+  // 赐城宣告随 #719 迁事件面(propertyGranted,fx=城池易主宣告):死浮字先行删除
   g.logEvent(
     "system",
     mover.guohao,
@@ -557,7 +539,6 @@ function applyGrantCityEffect(
 function applySiphonEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "siphon" }>,
   narr: string,
@@ -568,7 +549,6 @@ function applySiphonEffect(
   const take = Math.min(effect.amount, target.cash);
   target.cash -= take;
   mover.cash += take;
-  g.pushFloater(mover, take, atTile, "income");
   if (take > 0) {
     emitGameEvent(g, g.players.indexOf(target), {
       kind: "cashChanged",
@@ -602,7 +582,6 @@ function applySiphonEffect(
 function applyLevyEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "levy" }>,
   narr: string,
@@ -626,7 +605,6 @@ function applyLevyEffect(
       amount: paid,
     }); // 时机·CashGained:被动得银(得款对手,#299 派发缺口补齐)
   }
-  g.pushFloater(mover, -paid, atTile, "expense");
   emitGameEvent(g, seat, {
     kind: "cashChanged",
     delta: -paid,
@@ -649,7 +627,6 @@ function applyLevyEffect(
 function applyTradeEffect(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   effect: Extract<EncounterEffect, { kind: "trade" }>,
   narr: string,
@@ -657,8 +634,7 @@ function applyTradeEffect(
   const seat = g.players.indexOf(mover);
   const target = randomOpponentOf(g, mover);
   mover.cash += effect.amount;
-  g.pushFloater(mover, effect.amount, atTile, "income");
-  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.amount, reason: "encounter" }); // 事件流(#375):金钱变更(互市己方)
+  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.amount, reason: "encounter" }); // 事件流(#375):金钱变更(互市己方,浮字由 fx 面派生)
   g.dispatchMoment("CashGained", { subject: seat, amount: effect.amount }); // 时机·CashGained:被动得银(互市己方,#299 派发缺口补齐)
   if (target) {
     target.cash += effect.amount;
@@ -690,7 +666,6 @@ function applyTradeEffect(
 function applyEncounterStamina(
   g: GameEngine,
   mover: Player,
-  atTile: number,
   def: EncounterDef,
   delta: number,
   narr: string,
@@ -710,7 +685,7 @@ function applyEncounterStamina(
   }); // 时机·StaminaChanged:机遇路体力变更(#456 拍定仅机遇路挂——耗竭重置是系统复位、华佗赈济属主动技结算内,两处均不派)
   const gained = stamina - staminaBefore; // 夹紧后实际差(#568 病 B):浮字/战报增量记实际差,非机遇请求数
   const signed = `${gained >= 0 ? "+" : "−"}${Math.abs(gained)}`;
-  g.pushFloaterText(mover, `体力 ${signed}`, atTile);
+  // 体力浮字由 staminaChanged(reason=encounter) 事件在 fx 面派生(#719 死写删除)
   g.logEvent(
     "system",
     mover.guohao,

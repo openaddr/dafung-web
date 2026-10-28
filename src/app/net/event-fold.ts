@@ -21,8 +21,10 @@
 //   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv0 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
 //                 委任状-常量/地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
-//                 持有则按事件补册,赐城缺口级联见下);propertyRejected → 无状态转移
-//                 (声明性;自动按兵不动由同批 turnStarted 收场);exhaustionChoice →
+//                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
+//                 propertyRejected → 无状态转移
+//                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
+//                 机遇赐城得城者 Lv.0 入册(#719,原级联缺口闭合);exhaustionChoice →
 //                 降级 -1 级/失城回无主(处置对象随事件点名,可精确折);assetTransferred →
 //                 破产逐城易主(承让方入册/无债主回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
@@ -78,8 +80,9 @@
 //     开局/破产清算/洗牌类强制全量节点覆盖,折叠器不碰。
 //
 // ── 已知无事件转移的级联口径(移除类折叠查无目标 = 略过,非吞错)──
-//   判定表之外存在无事件的转移:机遇「天赐城池」入册、巡幸都城委任状+2(仅 log 行)、
-//   行军窗拦停成功时的拦检牌扣账(本器折于闭窗应答点,批序等效)。它们使副本在批窗口内
+//   判定表之外存在无事件的转移:巡幸都城委任状+2(仅 log 行)、
+//   行军窗拦停成功时的拦检牌扣账(本器折于闭窗应答点,批序等效)。「机遇天赐城池入册」
+//   已随 propertyGranted(#719)迁入词汇表闭合。剩余无事件转移使副本在批窗口内
 //   与引擎分歧,后续「移除类」折叠(出册/降级)可能查无目标——这是已接受缺口的级联,
 //   略过待下一帧水合纠正;「新增类」折叠恒精确落账。per-kind 档位与漂移窗见 EVENT_TIERS
 //   (core/event-tiers.ts):词汇表内 kind 的 default 归属由档位表穷尽守卫(FoldHandledKind),
@@ -368,6 +371,19 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         buyer.cash -= ev.price; // 主动支出随领域事件(判定表 cash 行)
         buyer.warrants -= BUY_WARRANT_COST; // 进驻新城耗委任状(常量单源 core/constants)
         buyer.properties.push({
+          propertyId: def.id,
+          group: def.group,
+          level: 0,
+          maxLevel: def.maxLevel,
+        });
+        break;
+      }
+      case "propertyGranted": {
+        // 机遇赐城(#719,传檄而定):得城者 Lv.0 入册——此前是「已知无事件转移的级联
+        // 口径」之一,本事件闭合(赐城后的移除类折叠不再查无目标)
+        const grantee = foldTarget(engine, ev);
+        const def = propertyDefOf(engine, ev.propertyId);
+        grantee.properties.push({
           propertyId: def.id,
           group: def.group,
           level: 0,
@@ -715,7 +731,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           if (idx >= 0) p.treasures.splice(idx, 1); // 查无 = 窃玉缺口级联(文件头)
         } else if (ev.asset.kind === "property") {
           const idx = p.properties.findIndex((h) => h.propertyId === ev.asset.id);
-          if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 赐城缺口级联(文件头)
+          if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 缺口级联略过(文件头;赐城缺口已随 propertyGranted 闭合)
         } else {
           const idx = p.heroes.findIndex((h) => h.id === ev.asset.id);
           if (idx < 0) throw new Error(`折叠投影:遣散名将 ${ev.asset.id} 不在副本麾下(契约违反)`);
