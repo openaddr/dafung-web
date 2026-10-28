@@ -5,7 +5,8 @@
 // #620 会话五连漏 cd——四轮门槛对未改动的主树白绿(false pass),更糟的是
 // describe/bookmark 误盖主树空 @,违反主树只读红线。「workspace 内干活」规则早已
 // 写进 AGENTS 版本协作,纯记性规则被执行环境击败;判据 = 机械违规配确定性工具。
-// 用法:bun scripts/ws-run.ts <代号> <命令...>
+// 用法:bun scripts/ws-run.ts <代号> <命令...>(也可 `--` 显式分隔命令,或直接传
+//   workspace 目录全名——两处宽容都为省一次重跑,2026-10-29 retro:全名与 `--` 各实测踩一次)
 //   bun scripts/ws-run.ts retro4 bun test
 //   bun scripts/ws-run.ts retro4 jj describe -m "fix: ..."
 // 代号 → ../dafung-web-ws-<代号>(相对仓库根,与 jj workspace add 建址约定一致);
@@ -16,10 +17,17 @@
 import { existsSync } from "node:fs";
 import { join } from "node:path";
 
-const [code, ...cmd] = process.argv.slice(2);
+const argv = process.argv.slice(2);
+// `--` 是命令分隔符不是参数:摘掉首个,其余原样(放到命令位置上是调用者的错,usage 兜底)
+const sep = argv.indexOf("--");
+const [codeRaw, ...cmd] = sep >= 0 ? [...argv.slice(0, sep), ...argv.slice(sep + 1)] : argv;
+// 代号宽容全名:jj workspace list / 目录浏览里复制出来的就是全名,直接可用
+const code = codeRaw?.startsWith("dafung-web-ws-")
+  ? codeRaw.slice("dafung-web-ws-".length)
+  : codeRaw;
 if (!code || code.startsWith("-") || cmd.length === 0) {
   console.error(
-    "用法:bun scripts/ws-run.ts <代号> <命令...>(命令在 ../dafung-web-ws-<代号> 内执行)",
+    "用法:bun scripts/ws-run.ts <代号|目录全名> [--] <命令...>(命令在 ../dafung-web-ws-<代号> 内执行)",
   );
   process.exit(2);
 }
