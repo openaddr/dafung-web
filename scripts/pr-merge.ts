@@ -13,9 +13,12 @@
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
-//   --expect <路径>(可重复)= 预期文件集硬闸(S3):change diff 与声明集精确对账,多出
-//   (并行写入折入,先 split)与少了(编辑被并行抹掉/声明笔误)都红即停——两案同根
-//   (2026-10-17 档位珠批折入远端书签、骰签批主树编辑被活会话抹盘且门禁全绿假 assurance)。
+//   --expect <路径>(可重复,**必带,缺省拒收**)= 预期文件集硬闸(S3):change diff 与
+//   声明集精确对账,多出(并行写入折入,先 split)与少了(编辑被并行抹掉/声明笔误)都
+//   红即停——两案同根(2026-10-17 档位珠批折入远端书签、骰签批主树编辑被活会话抹盘且
+//   门禁全绿假 assurance)。清单生成=jj diff --from master@origin --to <书签> --name-only。
+//   多提交书签(集成链)自动等效 squash 归拢为单提交再对账(链底须在 master@origin 上,
+//   否则红即停先重定基;2026-10-28 七波 retro)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
 import * as path from "node:path";
 
@@ -121,6 +124,70 @@ if (!prNumber) {
     process.exit(1);
   }
   const title = flag("--title") ?? description;
+
+  // 1.1) 多提交书签自动等效 squash(2026-10-28 七波 retro:脚本只认单提交,集成链
+  //      每波手工 new+restore 六次实锤):master@origin..书签 范围 >1 提交且链底父辈
+  //      恰为 master@origin(fast-forward 链)时,按等效配方 new+restore 归拢为单
+  //      提交(树=原链尖,内容无损);链底不在 master@origin(master 已另推进)→
+  //      红即停先重定基——tree-copy 会抹掉 master 侧额外提交,不许自动碰。老链
+  //      head 与票书签留作 head,手动清。
+  const chainCommits = jj(
+    "log",
+    "-r",
+    `master@origin..${bookmark}`,
+    "--no-graph",
+    "-T",
+    'commit_id.short() ++ "\\n"',
+  )
+    .split("\n")
+    .filter(Boolean);
+  if (chainCommits.length > 1) {
+    const chainRoots = jj(
+      "log",
+      "-r",
+      `roots(master@origin..${bookmark})`,
+      "--no-graph",
+      "-T",
+      'commit_id.short() ++ "\\n"',
+    )
+      .split("\n")
+      .filter(Boolean);
+    const masterOriginId = jj(
+      "log",
+      "-r",
+      "master@origin",
+      "--no-graph",
+      "-T",
+      "commit_id.short()",
+    );
+    const rootParents = chainRoots.flatMap((r) =>
+      jj("log", "-r", `${r}-`, "--no-graph", "-T", "commit_id.short()")
+        .split("\n")
+        .filter(Boolean),
+    );
+    if (!rootParents.every((p) => p === masterOriginId)) {
+      console.error(
+        "[pr-merge] 书签是多提交链且链底不在 master@origin 上——先重定基再收口(自动 squash 的 tree-copy 会抹掉 master 侧额外提交,不许自动碰)。",
+      );
+      process.exit(1);
+    }
+    const fullDescription = jj("log", "-r", bookmark, "--no-graph", "-T", "description");
+    jj("new", "master@origin", "-m", fullDescription);
+    jj("restore", "--from", bookmark);
+    jj("bookmark", "move", bookmark, "--to", "@", "--allow-backwards");
+    console.log(
+      `[pr-merge] 多提交链(${chainCommits.length} 提交)已等效 squash 为单提交(树=原链尖);老链 head 与票书签手动清`,
+    );
+  }
+
+  // 1.15) --expect 必带(2026-10-28 retro:缺省=文件集闸静默跳过,带病合入实锤——
+  //       事后全树对比才补验)。清单生成=jj diff --from master@origin --to <书签> --name-only。
+  if (expectPaths.length === 0) {
+    console.error(
+      "[pr-merge] 缺 --expect——文件集闸不许跳过(清单=jj diff --from master@origin --to <书签> --name-only)。",
+    );
+    process.exit(1);
+  }
 
   // 1.2) 预期文件集对账(--expect 可重复声明;S3 闸,见头注)。对账对象=change diff
   //      本体(即 PR 将含的全部文件);路径反斜杠归一(Windows jj 输出带「\」)。
