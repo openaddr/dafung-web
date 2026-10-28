@@ -235,6 +235,25 @@
   animation: rack-sheet-in var(--dur-med) var(--ease-out);
 }
 
+/* ── 矮屏规范·体部内滚+钉头(#708,弹层族一处口径):壳夹高(视口−64px)后
+   滚动归体部 scroll-area(壳自身 overflow-hidden,组件侧);牌名行 sticky 钉住,
+   原下边距改内衬铺底(钉住带底色盖住滚过内容,不露缝);面板侧边内衬是排版留白,
+   滚过内容只在牌名列内滑动,钉住带无需横扩(横向扩会撞 scroll-area 视口的
+   overflow:scroll 出横向滚)。 ── */
+.jinnang-detail-sheet .jinnang-detail-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.jinnang-detail-sheet .dt-ming {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-bottom: 0;
+  padding-bottom: 6px;
+  background: var(--color-paper-hi);
+  box-shadow: 0 8px 10px -9px rgba(0, 0, 0, 0.5);
+}
+
 /* 详情壳抓手上条(窄屏抽屉形态;桌面面板不挂,由组件按形态渲染):漆金细条
    (#510:墨影把手在深底上近隐形) */
 .jinnang-detail-grab {

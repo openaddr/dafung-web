@@ -80,6 +80,43 @@ export function TreasurePickModal({
       testid={testids.container}
       className="treasure-pick"
       onClose={onClose}
+      /* 底部操作行走 PileShell footer 槽(#708 矮屏规范):钉在壳内下缘,卡格再多
+          内滚多深,返回/结算/成交行恒在场可达 */
+      footer={
+        <div className="treasure-pick-foot">
+          {testids.back !== undefined && (
+            <button
+              type="button"
+              data-testid={testids.back}
+              onClick={onClose}
+              className="treasure-pick-btn"
+            >
+              返回
+            </button>
+          )}
+          {/* aria-live:预选/结算预览随点选播报(点选语言的状态反馈,不加文字标牌) */}
+          <span className="treasure-pick-sum" aria-live="polite">
+            {picked !== undefined ? summaryOf(picked) : hint}
+          </span>
+          <button
+            type="button"
+            data-testid={testids.confirm}
+            disabled={picked === undefined}
+            title={armed ? undefined : "再点一次确认"}
+            onClick={() => {
+              // disabled 保证选中非空(浏览器禁用契约,RackCard 灰置同口径),不写运行时再守
+              if (!armed) {
+                setArmed(true);
+                return;
+              }
+              onConfirm(picked!.id);
+            }}
+            className={"treasure-pick-btn treasure-pick-ok" + (armed ? " treasure-pick-armed" : "")}
+          >
+            {armed ? `确认${confirmLabel}` : confirmLabel}
+          </button>
+        </div>
+      }
     >
       {context}
       <div className="pile-zone">
@@ -114,39 +151,6 @@ export function TreasurePickModal({
             </button>
           );
         })}
-      </div>
-      <div className="treasure-pick-foot">
-        {testids.back !== undefined && (
-          <button
-            type="button"
-            data-testid={testids.back}
-            onClick={onClose}
-            className="treasure-pick-btn"
-          >
-            返回
-          </button>
-        )}
-        {/* aria-live:预选/结算预览随点选播报(点选语言的状态反馈,不加文字标牌) */}
-        <span className="treasure-pick-sum" aria-live="polite">
-          {picked !== undefined ? summaryOf(picked) : hint}
-        </span>
-        <button
-          type="button"
-          data-testid={testids.confirm}
-          disabled={picked === undefined}
-          title={armed ? undefined : "再点一次确认"}
-          onClick={() => {
-            // disabled 保证选中非空(浏览器禁用契约,RackCard 灰置同口径),不写运行时再守
-            if (!armed) {
-              setArmed(true);
-              return;
-            }
-            onConfirm(picked!.id);
-          }}
-          className={"treasure-pick-btn treasure-pick-ok" + (armed ? " treasure-pick-armed" : "")}
-        >
-          {armed ? `确认${confirmLabel}` : confirmLabel}
-        </button>
       </div>
     </PileShell>
   );

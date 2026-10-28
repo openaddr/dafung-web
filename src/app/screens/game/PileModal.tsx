@@ -12,8 +12,12 @@
 // 空陈列照常可开:计数角标如实报 0、网格自然为空(业务空态,非兜底)。
 // 样式在 pile-modal.css(经 Portal 渲染在 body,.game-layout 罩不到——pile-* 前缀
 // 防串扰,war-* 同先例)。
+// 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
+// 体部=ui/scroll-area 内滚(首帧可见滚动提示),底部操作行经 footer 槽钉住不随滚;
+// 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
 import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
@@ -57,12 +61,17 @@ export interface PileShellProps {
   ariaLabel?: string;
   /** 附加类(treasure-pick 选宝态样式挂点);基壳类恒带。 */
   className?: string;
+  /** 钉底操作行(#708 矮屏规范,可选):恒钉在壳内下缘,不随体部滚动——交易选宝
+   *  的成交/变卖行由此传入;只读弹层不传即无操作行。 */
+  footer?: ReactNode;
   onClose: () => void;
   children: ReactNode;
 }
 
 /** 弹层壳(fuku 漆金内环形制,r5 节二/节三同款):题名(朱印小章)+副题 + 右上 X,
- *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。 */
+ *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。
+ *  矮屏规范(#708):头部钉住 + 体部 pile-body 内滚(ui/scroll-area)+ footer 钉底;
+ *  壳自身不滚(夹高细则在 pile-modal.css 规范块)。 */
 export function PileShell({
   title,
   seal,
@@ -70,6 +79,7 @@ export function PileShell({
   testid,
   ariaLabel = title,
   className,
+  footer,
   onClose,
   children,
 }: PileShellProps) {
@@ -111,7 +121,12 @@ export function PileShell({
             ×
           </button>
         </DialogDragHandle>
-        {children}
+        {/* 体部内滚(#708):头部/footer 之外的全部内容;首帧可见滚动提示由
+            ui/scroll-area 底件承担(keepMounted+溢出门控常显) */}
+        <ScrollArea className="pile-body" data-testid={TESTIDS.modalScrollBody}>
+          {children}
+        </ScrollArea>
+        {footer != null && <div className="pile-foot">{footer}</div>}
       </DialogContent>
     </Dialog>
   );

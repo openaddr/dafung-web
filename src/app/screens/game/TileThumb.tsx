@@ -73,14 +73,16 @@ export function TileThumb({
     <svg
       data-testid={TESTIDS.cityLedgerThumb(def.id)}
       aria-hidden="true"
-      /* 板坐标盒:格心 + 局部包围盒 × scale;宽高比 308:360.8,高 96px 时宽约 82px */
+      /* 板坐标盒:格心 + 局部包围盒 × scale;宽高比 308:360.8,基准高 96px 时宽约
+          82px。高度走 city-ledger-thumb 规范类(单源 pile-modal.css,基准 96px/
+          矮屏档 48px):#708 行高自适应,缩略图不再把清单行高钉死在桌面档。 */
       viewBox={[
         tile.position.x + THUMB_BBOX.x * TILE_SCALE,
         tile.position.y + THUMB_BBOX.y * TILE_SCALE,
         THUMB_BBOX.w * TILE_SCALE,
         THUMB_BBOX.h * TILE_SCALE,
       ].join(" ")}
-      className="pointer-events-none block h-24 w-auto"
+      className="city-ledger-thumb pointer-events-none block"
     >
       <Tile tile={tile} group={def.group} maxLevel={def.maxLevel} state={state} />
     </svg>

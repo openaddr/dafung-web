@@ -18,9 +18,10 @@ import { TileThumb } from "./TileThumb";
 import { TESTIDS } from "./testids";
 
 /** 行栅格(六列):行首 = 真实格缩略图位(约 96px 高,列宽随之);后五列 = 五字段。
- *  表头与数据行共用同一模板,列对齐不漂移。 */
+ *  表头与数据行共用同一模板,列对齐不漂移。行首列宽走 --pile-thumbw(默认 88px,
+ *  矮屏档 48px,单源 pile-modal.css 规范块 #708 行高自适应)。 */
 const GRID_COLS =
-  "grid grid-cols-[88px_minmax(7em,1.3fr)_minmax(5em,0.9fr)_minmax(6.5em,1fr)_minmax(6.5em,1fr)_minmax(8em,1.1fr)] items-center";
+  "grid grid-cols-[var(--pile-thumbw,88px)_minmax(7em,1.3fr)_minmax(5em,0.9fr)_minmax(6.5em,1fr)_minmax(6.5em,1fr)_minmax(8em,1.1fr)] items-center";
 
 export function CityLedgerModal({
   snapshot,
@@ -67,7 +68,11 @@ export function CityLedgerModal({
             <span className="pile-zdot" aria-hidden="true" />
             名下城池 · {rows.length} 城<small>(行序 = 行军顺序)</small>
           </div>
-          <div className={GRID_COLS + " border-b border-gold/25 pb-1.5 font-brush text-ink"}>
+          <div
+            className={
+              GRID_COLS + " city-ledger-head border-b border-gold/25 pb-1.5 font-brush text-ink"
+            }
+          >
             {/* 行首列:缩略图列头(图形列,无文字头) */}
             <span aria-hidden="true" />
             <span>城名</span>
@@ -81,7 +86,9 @@ export function CityLedgerModal({
               <div
                 key={def.id}
                 data-testid={TESTIDS.cityLedgerRow(def.id)}
-                className={GRID_COLS + " border-t border-gold/15 py-1.5 first:border-t-0"}
+                className={
+                  GRID_COLS + " city-ledger-row border-t border-gold/15 py-1.5 first:border-t-0"
+                }
                 title={`棋盘第 ${tileIndex} 格`}
               >
                 {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}

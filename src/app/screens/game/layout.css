@@ -849,7 +849,10 @@
 
 /* ── A 矮横屏(Android 矮横屏 844×390 一类)──
    #700 全浮层骨架后本档只剩动作条锚点与右让差量:顶部浮层(32px 钮/12px chip)/
-   三圆钮(44px)尺寸以原型 844×390 判决为准,与基准档同形零分支。 */
+   三圆钮(44px)尺寸以原型 844×390 判决为准,与基准档同形零分支。
+   #709 动作条压高:字阶 17→15px、行高钉 1.2、padding 8→5px——条高 43.5→~30px,
+   上缘随之下落 ~13px 还给棋盘(缓解底行浮压);锚点 144px 不动(128 牌高 + 8 区底距
+   + 8 气口的既有口径,条不得压进牌面决策区)。 */
 @media (orientation: landscape) and (max-height: 500px) {
   .game-layout .actionbar {
     bottom: calc(144px + var(--safe-bottom));
@@ -862,6 +865,9 @@
     /* 钉横排:abspos 收缩适配的可用宽(<首选宽)会把钮字挤成竖排,保「出牌/不出」
        二字横排不折。 */
     white-space: nowrap;
+    font-size: 15px;
+    line-height: 1.2;
+    padding: 5px 16px;
   }
 }
 

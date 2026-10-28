@@ -518,7 +518,10 @@
   }
 }
 
-/* 签面横排(N=2 并排,中缝让位「拼」印;N>2 横排列开不炸)。 */
+/* 签面横排(N=2 并排,中缝让位「拼」印;N>2 横排列开不炸)。width:max-content
+   (#709):旧收缩适配只看得见 left:50% 右侧的半幅可用宽,视口 <844 即误触发
+   flex-wrap 折成纵叠——魏签顶/滇签底双出屏;max-content 保双签并排居中,真比
+   视口宽才折行(max-width:100% 兜住折行边界;portrait 本就不在形态档内)。 */
 .duel-signs {
   position: absolute;
   left: 50%;
@@ -529,6 +532,8 @@
   justify-content: center;
   flex-wrap: wrap;
   gap: 110px;
+  width: max-content;
+  max-width: 100%;
   pointer-events: none;
 }
 

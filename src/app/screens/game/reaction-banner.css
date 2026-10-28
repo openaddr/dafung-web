@@ -11,30 +11,41 @@
    直接调 alpha 的既定写法,可调 alpha 处一律 color-mix);rgba(138,106,28,·)=墨金影。
    悬停微反馈统一(#490 微档):可点件 hover 亮金描边+微缩放,--dur-fast。 */
 
-/* ── 横幅:定位在架体(.hand-rack 为定位上下文)上缘,从架沿长出(scaleY 入场);
-   深墨面板 + 漆金描边 + 朱砂倒计时弧(#510 玄墨鎏金,同 HUD 面板语言)── */
+/* ── 横幅:浮置于架体(.hand-rack 为定位上下文)上缘带(#709 下移浮置:从挤压
+   膨胀的板中区落回架上缘浮置带,矮横屏不再上探盖板/触席位条);深墨面板 + 漆金
+   描边 + 朱砂倒计时弧(#510 玄墨鎏金,同 HUD 面板语言)。
+   宽度自适应(#709):left/right 双锚 + margin auto + max-content——旧 left:50% +
+   translateX 的收缩适配把可用宽饿成架体右半幅,矮横屏下横幅被挤成竖排字气球
+   (按钮一字一行、面板 142px 高直探板中区);架体自身已带席位条 104px 让位
+   (handzone 右缘内收),max-width:100% 锁横幅右缘不出架体 = 结构性不触席位条;
+   下缘锚架上缘,离顶中 chip 半屏之遥,几何上不可达。内容超架宽时 flex-wrap
+   折行(罕见:反识破链长文案 + AOE 选份笺同场),不再压竖排字。── */
 .reaction-banner {
   position: absolute;
   bottom: calc(100% + 6px);
-  left: 50%;
+  left: 0;
+  right: 0;
+  margin-inline: auto;
+  width: max-content;
+  max-width: 100%;
   z-index: 9; /* 架体 z-5 之上;棋盘浮层(hint/WaitingBar)之下不冲突(不同槽位) */
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 10px;
-  max-width: min(92vw, 720px);
   padding: 7px 12px;
   border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
   border-radius: 5px;
   background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-  transform: translateX(-50%);
   transform-origin: bottom center;
   animation: reaction-banner-in var(--dur-med) var(--ease-out);
 }
 @keyframes reaction-banner-in {
   from {
     opacity: 0;
-    transform: translateX(-50%) translateY(0.5em) scaleY(0.7);
+    transform: translateY(0.5em) scaleY(0.7);
   }
 }
 
@@ -83,8 +94,10 @@
     0 0 6px rgba(200, 161, 58, 0.55);
 }
 
-/* 落印(墨钮,DESIGN §4.2 主行动)与不用(次级漆钮):同 ActionBar 按钮种参数 */
+/* 落印(墨钮,DESIGN §4.2 主行动)与不用(次级漆钮):同 ActionBar 按钮种参数。
+   nowrap(#709):折行容器里钮字恒横排,不吃行内挤压。 */
 .reaction-btn {
+  white-space: nowrap;
   font-family: var(--font-brush);
   font-size: 14px;
   letter-spacing: 0.22em;
@@ -126,8 +139,10 @@
   box-shadow: inset 0 0 0 1.5px var(--color-gold);
 }
 
-/* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用) */
+/* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用)。nowrap(#709):
+   横幅折行时整钮挪行,不再被行内挤压成一字一列的竖排。 */
 .reaction-mute {
+  white-space: nowrap;
   font-family: var(--font-wenkai);
   font-size: 12px;
   letter-spacing: 0.08em;

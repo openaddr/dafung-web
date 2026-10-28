@@ -16,12 +16,28 @@
    .pile-modal 一处改齐,不经 twMerge 逐类对抗。 */
 
 /* ── 弹层壳:深绢面板 + 漆金外框 + 内衬漆金环(r5 .fuku 制式;宽 940px 封顶,
-   窄视口 94vw 让位;高 88dvh 内滚 = 「看不全」既有三层保证口径)── */
+   窄视口 94vw 让位)──
+   ── 矮屏规范(#708,五族一处收口,勿在消费点各调)──
+   · 最大高 = 视口高 − 64px(上下安全边各 32px);
+   · 壳自身不滚(flex 列):头部 .pile-head / 底部操作行 .pile-foot 钉住(flex:none),
+     体部 .pile-body(ui/scroll-area)内滚,首帧可见滚动提示(底件 keepMounted+
+     溢出门控常显,本文件再叠上下渐隐提示带);
+   · 矮横屏档(断点=对局屏 A 档同串,见文件尾规范块)行高自适应:卡基/列宽/内衬
+     整体缩档,断头防治(周瑜卡技能行、城池清单行不再切半)。── */
 .pile-modal {
+  /* 行首缩略图列宽(城池清单六列栅格的变量化列,#622;矮屏档缩档见文件尾) */
+  --pile-thumbw: 88px;
   width: min(940px, 94vw);
   max-width: 94vw;
-  max-height: 88dvh;
-  overflow-y: auto;
+  /* 矮屏规范(#708):最大高 = 视口高 − 64px。height 用 min(内容高, 夹高) 给
+     flex 容器一个两分支都确定的定高——纯 max-height 夹取下,体部 flex 项的
+     用后高度不算「确定」,内层 scroll-area 视口的 height:100% 退化为内容高,
+     内滚失灵(首轮实拍实锤);内容矮于夹高时取内容高,壳贴内容不空撑。 */
+  height: min(max-content, calc(100dvh - 64px));
+  max-height: calc(100dvh - 64px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 18px 24px 22px;
   border: 1px solid var(--color-gold-deep);
   border-radius: 8px;
@@ -37,6 +53,50 @@
     opacity: 0;
     transform: translateY(1.5em);
   }
+}
+
+/* ── 钉住的头部 / 底部操作行(#708):flex:none 恒在场,不随体部滚动 ── */
+.pile-modal .pile-head {
+  flex: none;
+}
+.pile-modal .pile-foot {
+  flex: none;
+}
+
+/* ── 体部内滚(#708):占头部/尾部之外全部高;min-height:0 放开 flex 收缩,
+   滚动归 ui/scroll-area 视口,壳缘(漆金环)恒整 ── */
+.pile-modal .pile-body {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 滚动提示渐隐带(#708 首帧可见滚动提示的第二重保证):体部上/下缘 18px 渐隐,
+   各边只在还有同向内容时浮现(溢出侧状态由 ui/scroll-area 的 data-overflow-y-*
+   下发,:has() 沿体部查询),滚到头即收——渐隐收边替代「内容被壳缘硬切」的断头观感 */
+.pile-modal .pile-body::before,
+.pile-modal .pile-body::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 18px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.pile-modal .pile-body::before {
+  top: 0;
+  background: linear-gradient(180deg, var(--color-panel), transparent);
+}
+.pile-modal .pile-body::after {
+  bottom: 0;
+  background: linear-gradient(0deg, var(--color-panel), transparent);
+}
+.pile-modal .pile-body:has([data-overflow-y-start])::before {
+  opacity: 1;
+}
+.pile-modal .pile-body:has([data-overflow-y-end])::after {
+  opacity: 1;
 }
 
 /* ── 弹层头:题名(brush 大字+朱印小章)· 副题 + 右上 X;下缘漆金发丝线分隔 ── */
@@ -126,6 +186,13 @@
   font-size: 11.5px;
 }
 
+/* ── 城池清单行首缩略图(#623/#708):基准高 96px(宽随 viewBox 比例自适应),
+   矮屏档 48px 随列宽同缩——清单行高自适应,见文件尾规范块 ── */
+.pile-modal .city-ledger-thumb {
+  height: 96px;
+  width: auto;
+}
+
 /* ── 珍宝陈列网格:装裱卡大格(r5 .fuku-grid/.fuku-cell/.price-tag 移植);
    卡面吃陈列档 7.6px em 基(=114×152,与 r5 .cellsize 同值,题签/角标直接可读)── */
 .pile-modal .pile-grid {
@@ -166,4 +233,57 @@
   align-items: flex-start;
   gap: 20px 34px;
   padding: 12px 0 2px;
+}
+
+/* ══ 矮屏规范·矮横屏档行高自适应(#708;断点=对局屏 A 档同一查询串,
+   形态分档口径见 game/layout.css 文件尾)══
+   壳夹高后体部可用高随视口收紧,内容单元(卡面/清单行)整体缩档,使审计基准局
+   (麾下 1-3 席 / 名下 2 城)首帧完整可见——断头防治;超出仍走体部内滚+滚动提示。 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .pile-modal {
+    padding: 12px 18px 14px;
+  }
+  .pile-modal .pile-head {
+    padding-bottom: 8px;
+  }
+  .pile-modal .pile-title {
+    font-size: 22px;
+  }
+  .pile-modal .pile-sub {
+    margin-top: 4px;
+  }
+  .pile-modal .pile-zone {
+    margin: 10px 2px 6px;
+  }
+  /* 名将卡:详情档 13px 基 → 8px 基(120×160),技能全文随 em 缩排仍可读
+     (手牌架矮档 8→6.4px 同款降档先例);SeatHeroModal 名录同网格自动同拍 */
+  .pile-modal .pile-hero-grid {
+    --hface-base: 8px;
+    gap: 10px 20px;
+    padding-top: 4px;
+  }
+  /* 珍宝/选宝装裱卡:陈列档 7.6px 基 → 6.4px 基(96×128),名牌随行 */
+  .pile-modal .pile-grid {
+    gap: 10px 12px;
+  }
+  .pile-modal .pile-grid .pile-cell-card {
+    font-size: 6.4px;
+  }
+  /* 城池清单:行首缩略图 96 → 48px(随列宽同缩)、表头/行内衬与字号收档(行高
+     自适应,名下 2 城首帧双行完整;列最小宽随 em 同收,矮横屏窄幅不生横向溢);
+     列模板变量挂 CityLedgerModal 的 GRID_COLS */
+  .pile-modal {
+    --pile-thumbw: 48px;
+  }
+  .pile-modal .city-ledger-thumb {
+    height: 48px;
+  }
+  .pile-modal .city-ledger-head {
+    padding-bottom: 2px;
+    font-size: 14px;
+  }
+  .pile-modal .city-ledger-row {
+    padding-block: 4px;
+    font-size: 14px;
+  }
 }
