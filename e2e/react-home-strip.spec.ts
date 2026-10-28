@@ -10,6 +10,8 @@
 import { test, expect } from "./fixtures";
 import type { Page } from "@playwright/test";
 import { waitForEngine } from "./react-helpers";
+import { HOME_TID } from "../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("矮横屏 844×390(条带档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
@@ -25,27 +27,27 @@ test.describe("矮横屏 844×390(条带档)", () => {
     await page.goto("/?seed=42");
 
     // 条带档结构:内联条带在,弹层入口(选择地图钮/地图回显行)退役
-    const strip = page.getByTestId("home-map-strip");
+    const strip = page.getByTestId(HOME_TID.mapStrip);
     await expect(strip).toBeVisible();
-    await expect(page.getByTestId("home-select-map")).toHaveCount(0);
-    await expect(page.getByTestId("current-map-name")).toHaveCount(0);
-    await expect(page.getByTestId("home-map-strip-item-huanyou")).toBeVisible();
-    await expect(page.getByTestId("home-map-strip-item-zhongyuan")).toBeVisible();
+    await expect(page.getByTestId(HOME_TID.selectMap)).toHaveCount(0);
+    await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveCount(0);
+    await expect(page.getByTestId(HOME_TID.mapStripItem("huanyou"))).toBeVisible();
+    await expect(page.getByTestId(HOME_TID.mapStripItem("zhongyuan"))).toBeVisible();
 
     // 零滚动(首页根滚动容器 + document 双断)+ 主控件零裁半(全部完整落在视口内)
     await expect(async () => {
-      const scroll = await page.evaluate(() => {
-        const root = document.querySelector('[data-testid="home-screen"]');
+      const scroll = await page.evaluate((sel) => {
+        const root = document.querySelector(`[data-testid="${sel}"]`);
         if (!root) throw new Error("home-screen 未挂载");
         return {
           rootDx: root.scrollHeight - root.clientHeight,
           docDx: document.documentElement.scrollHeight - document.documentElement.clientHeight,
         };
-      });
+      }, HOME_TID.screen);
       expect(scroll.rootDx).toBeLessThanOrEqual(1);
       expect(scroll.docDx).toBeLessThanOrEqual(1);
       const vp = { w: 844, h: 390 };
-      for (const tid of ["home-solo", "home-online", "home-edit-map", "home-map-strip"]) {
+      for (const tid of [HOME_TID.solo, HOME_TID.online, HOME_TID.editMap, HOME_TID.mapStrip]) {
         const b = (await page.getByTestId(tid).boundingBox())!;
         expect(b.x, tid).toBeGreaterThanOrEqual(0);
         expect(b.y, tid).toBeGreaterThanOrEqual(0);
@@ -55,8 +57,8 @@ test.describe("矮横屏 844×390(条带档)", () => {
     }).toPass({ timeout: 15_000 });
 
     // 条带内点选即选中:金框选中态(视觉)+ aria-pressed(语义)+ localStorage 记忆
-    const prev = page.getByTestId("home-map-strip-item-huanyou");
-    const next = page.getByTestId("home-map-strip-item-zhongyuan");
+    const prev = page.getByTestId(HOME_TID.mapStripItem("huanyou"));
+    const next = page.getByTestId(HOME_TID.mapStripItem("zhongyuan"));
     await next.click();
     await expect(next).toHaveAttribute("aria-pressed", "true");
     await expect(prev).toHaveAttribute("aria-pressed", "false");
@@ -71,9 +73,9 @@ test.describe("矮横屏 844×390(条带档)", () => {
     expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
 
     // 换图开局全流程可达(旧况此路被裁半弹层堵死):选图 → 单机 → 起兵 → 8 城小环
-    await page.getByTestId("home-solo").click();
-    await expect(page.getByTestId("solo-setup-screen")).toBeVisible();
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(HOME_TID.solo).click();
+    await expect(page.getByTestId(SETUP_TID.screen)).toBeVisible();
+    await page.getByTestId(SETUP_TID.startGame).click();
     await waitForEngine(page);
     await expect(page.locator("[data-tile]")).toHaveCount(8);
   });
@@ -95,10 +97,10 @@ test.describe("矮横屏 844×390(条带档)", () => {
     });
     await page.goto("/");
 
-    const strip = page.getByTestId("home-map-strip");
+    const strip = page.getByTestId(HOME_TID.mapStrip);
     await expect(strip).toBeVisible();
-    const last = page.getByTestId("home-map-strip-item-custom-e2e-6");
-    await expect(page.getByTestId("home-map-strip-item-custom-e2e-1")).toBeVisible();
+    const last = page.getByTestId(HOME_TID.mapStripItem("custom-e2e-6"));
+    await expect(page.getByTestId(HOME_TID.mapStripItem("custom-e2e-1"))).toBeVisible();
 
     // 溢出成立:内容宽 > 容器宽(全图可见才需要本用例;不溢出即断言失效,先钉住前提)
     const { scrollWidth, clientWidth } = await strip.evaluate((el) => ({
@@ -130,15 +132,15 @@ test.describe("桌面视口零回归", () => {
 
   test("条带不在 DOM,选图仍走地图行 + 二级弹层,回显照旧", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByTestId("home-map-strip")).toHaveCount(0);
-    await expect(page.getByTestId("home-select-map")).toBeVisible();
-    await expect(page.getByTestId("current-map-name")).toHaveText("环游图");
-    await page.getByTestId("home-select-map").click();
-    const panel = page.getByTestId("map-select-panel");
+    await expect(page.getByTestId(HOME_TID.mapStrip)).toHaveCount(0);
+    await expect(page.getByTestId(HOME_TID.selectMap)).toBeVisible();
+    await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("环游图");
+    await page.getByTestId(HOME_TID.selectMap).click();
+    const panel = page.getByTestId(SETUP_TID.mapPanel);
     await expect(panel).toBeVisible();
-    await page.getByTestId("map-item-zhongyuan").click();
-    await page.getByTestId("map-confirm").click();
-    await expect(page.getByTestId("current-map-name")).toHaveText("中原争霸");
+    await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();
+    await page.getByTestId(SETUP_TID.mapConfirm).click();
+    await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("中原争霸");
     expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
   });
 });

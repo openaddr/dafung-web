@@ -14,6 +14,8 @@ import {
   actIfCan,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
@@ -73,8 +75,8 @@ test.describe("核心几何不变量(#700 ②:满编 8 席全列零滚动)", () 
     test.slow(); // 人类首回合前最多 7 个 bot 回合,预算放宽(react-seat-cells 同口径)
     await page.goto("/");
     await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // 4 → 8
-    await page.getByTestId("start-game").click();
+    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     await waitMyPause(page, 0, 150_000);
     await waitSettled(page);
@@ -124,7 +126,7 @@ test.describe("锦囊手牌开关(#700 ③)", () => {
     // 重进恢复:新开一局(同源),偏好读回——手牌区开局即收
     await page.goto("/");
     await openSoloSetup(page);
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     await expect(page.getByTestId(TESTIDS.jinnangToggle)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
@@ -170,7 +172,7 @@ test.describe("设置弹层(#700 ⑥)", () => {
     // 回到主页:弃局离屏(控制器销毁),回 setup 首页
     await page.getByTestId(TESTIDS.settingsButton).click();
     await page.getByTestId(TESTIDS.settingsHome).click();
-    await expect(page.getByTestId("home-solo")).toBeVisible();
+    await expect(page.getByTestId(HOME_TID.solo)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.seatRail)).toHaveCount(0);
   });
 });

@@ -19,6 +19,7 @@ import { loadMap } from "@core/board-loader";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
+import { capitalHolderOf, holdingsOf } from "./tileOwnership";
 import { TokenLayer } from "./TokenLayer";
 import { computeFitView, panCursorClass, usePanZoom } from "./usePanZoom";
 import { BoardFxLayer } from "@app/fx/FxLayer";
@@ -131,17 +132,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   useImperativeHandle(ref, () => ({ zoomBy }), [zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
-  // propertyId → 持有 {player, level}(players 变化才重算)
-  const holdings = useMemo(() => {
-    const m = new Map<string, { colorIndex: number; guohao: string; level: number }>();
-    for (const p of players) {
-      for (const h of p.properties) {
-        if (!m.has(h.propertyId))
-          m.set(h.propertyId, { colorIndex: p.colorIndex, guohao: p.guohao, level: h.level });
-      }
-    }
-    return m;
-  }, [players]);
+  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)
+  const holdings = useMemo(() => holdingsOf(players), [players]);
 
   const handleTileClick = useMemo(
     () => (onTileClick ? (i: number) => onTileClick(i) : undefined),
@@ -172,7 +164,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     const m = new Map<number, TileVisualState>();
     for (const tile of loaded.board.tiles) {
       const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
-      const capitalP = players.find((p) => p.capitalIndex === tile.index) ?? null;
+      const capitalP = capitalHolderOf(players, tile.index);
       m.set(tile.index, {
         ownerColorIndex: holding ? holding.colorIndex : null,
         ownerGuohao: holding ? holding.guohao : null,

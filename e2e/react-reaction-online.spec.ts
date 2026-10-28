@@ -35,6 +35,8 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { readFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import type { Browser, Page } from "@playwright/test";
+import { LID } from "../src/app/screens/lobby/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
 const SEED = 430;
@@ -97,17 +99,17 @@ async function twoClientsWithSeed(
     body.seed = seed;
     await route.continue({ postData: JSON.stringify(body) });
   });
-  await host.getByTestId("lobby-target").fill("30000");
-  await host.getByTestId("lobby-seat-count-plus").click(); // 2 → 3 座
-  await host.getByTestId("lobby-create").click();
-  await expect(host.getByTestId("room-code")).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
-  const roomId = (await host.getByTestId("room-code").textContent())?.trim() ?? "";
+  await host.getByTestId(LID.target).fill("30000");
+  await host.getByTestId(`${LID.seatCount}-plus`).click(); // 2 → 3 座
+  await host.getByTestId(LID.create).click();
+  await expect(host.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
+  const roomId = (await host.getByTestId(LID.roomCode).textContent())?.trim() ?? "";
   await guest.goto(`${ONLINE}/?room=${roomId}`);
-  await expect(guest.getByTestId("room-code")).toHaveText(roomId, { timeout: 30_000 });
-  await host.getByTestId("lobby-select-map").click();
-  await host.getByTestId("map-item-huanyou").click();
-  await host.getByTestId("map-confirm").click();
-  await host.getByTestId("lobby-start").click();
+  await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
+  await host.getByTestId(LID.selectMap).click();
+  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapConfirm).click();
+  await host.getByTestId(LID.start).click();
   for (const p of [host, guest]) {
     await expect(p.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 45_000 });
   }

@@ -4,53 +4,57 @@
 // (React 新增能力)与拖拽改坐标。
 import { test, expect, type Page } from "./fixtures";
 import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
+import { TID as EDITOR_TID } from "../src/app/screens/editor/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 async function openEditor(page: Page): Promise<void> {
   await page.goto("/");
-  await page.getByTestId("home-edit-map").click();
-  await expect(page.getByTestId("editor-screen")).toBeVisible();
+  await page.getByTestId(HOME_TID.editMap).click();
+  await expect(page.getByTestId(EDITOR_TID.screen)).toBeVisible();
   await page.locator("[data-tile]").first().waitFor({ state: "attached", timeout: 10_000 });
 }
 
 /** 读取表单里当前选中城的坐标文本(如「坐标:[120, 80]」)。 */
 function posText(page: Page) {
   return page
-    .getByTestId("editor-tile-form")
+    .getByTestId(EDITOR_TID.tileForm)
     .getByText(/^坐标:\[/)
     .textContent();
 }
 
 /** S2:另存新图改走卷轴输入卷轴(原 window.prompt 的 dialog 处理同步替换,断言不变)。 */
 async function saveAs(page: Page, name: string): Promise<void> {
-  await page.getByTestId("editor-save-as").click();
-  const input = page.getByTestId("editor-name-input");
+  await page.getByTestId(EDITOR_TID.saveAs).click();
+  const input = page.getByTestId(EDITOR_TID.nameInput);
   await expect(input).toBeVisible();
   await input.fill(name);
-  await page.getByTestId("editor-input-ok").click();
-  await expect(page.getByTestId("editor-input-scroll")).toBeHidden();
+  await page.getByTestId(EDITOR_TID.inputOk).click();
+  await expect(page.getByTestId(EDITOR_TID.inputScroll)).toBeHidden();
 }
 
 test("打开编辑器:棋盘渲染 + 属性表单就位", async ({ page }) => {
   await openEditor(page);
   expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
-  await expect(page.getByTestId("editor-tile-form")).toBeVisible();
-  await expect(page.getByTestId("editor-undo")).toBeDisabled();
-  await expect(page.getByTestId("editor-redo")).toBeDisabled();
+  await expect(page.getByTestId(EDITOR_TID.tileForm)).toBeVisible();
+  await expect(page.getByTestId(EDITOR_TID.undo)).toBeDisabled();
+  await expect(page.getByTestId(EDITOR_TID.redo)).toBeDisabled();
 });
 
 test("表单改属性:改城名 → undo 撤销 → redo 重做", async ({ page }) => {
   await openEditor(page);
-  const nameField = page.getByTestId("editor-field-name");
+  const nameField = page.getByTestId(EDITOR_TID.field("name"));
   const before = await nameField.inputValue();
   await nameField.fill("测试城");
   await nameField.blur();
   await expect(nameField).toHaveValue("测试城");
-  await expect(page.getByTestId("editor-undo")).toBeEnabled();
+  await expect(page.getByTestId(EDITOR_TID.undo)).toBeEnabled();
   // 撤销:回到原名
-  await page.getByTestId("editor-undo").click();
+  await page.getByTestId(EDITOR_TID.undo).click();
   await expect(nameField).toHaveValue(before);
   // 重做:再次生效
-  await page.getByTestId("editor-redo").click();
+  await page.getByTestId(EDITOR_TID.redo).click();
   await expect(nameField).toHaveValue("测试城");
 });
 
@@ -69,7 +73,7 @@ test("拖拽城池改坐标:坐标文本变化,可撤销还原", async ({ page }
   // TODO #13:坐标写回是拖拽后异步生效,原固定 200ms 改为轮询坐标文本真的变化(5s 余量)
   await expect.poll(() => posText(page), { timeout: 5_000 }).not.toBe(pos0);
   // 撤销拖拽:坐标还原
-  await page.getByTestId("editor-undo").click();
+  await page.getByTestId(EDITOR_TID.undo).click();
   await expect.poll(() => posText(page)).toBe(pos0);
 });
 
@@ -89,9 +93,9 @@ test("自建图出现在选图菜单(custom- 前缀 + 预览可展开)", async (
   await openEditor(page);
   const name = `菜单自建图${Date.now()}`;
   await saveAs(page, name);
-  await page.getByTestId("editor-exit").click();
-  await expect(page.getByTestId("home-screen")).toBeVisible();
-  await page.getByTestId("home-select-map").click();
+  await page.getByTestId(EDITOR_TID.exit).click();
+  await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
+  await page.getByTestId(HOME_TID.selectMap).click();
   const customItem = page.locator('[data-testid^="map-item-custom-"]').filter({ hasText: name });
   await expect(customItem).toBeVisible({ timeout: 10_000 });
   await expect(customItem).toContainText("自建地图");
@@ -99,9 +103,9 @@ test("自建图出现在选图菜单(custom- 前缀 + 预览可展开)", async (
   expect(customId).toMatch(/^map-item-custom-/);
   // 点选展开预览(自建图从 localStorage 异步读)
   await customItem.click();
-  await expect(page.getByTestId("map-preview")).toBeVisible({ timeout: 10_000 });
-  await page.getByTestId("map-confirm").click();
-  await expect(page.getByTestId("current-map-name")).toHaveText(name);
+  await expect(page.getByTestId(SETUP_TID.mapPreview)).toBeVisible({ timeout: 10_000 });
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
+  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText(name);
   expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toMatch(/^custom-/);
 });
 
@@ -112,21 +116,21 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
   const name = `可玩自建图${Date.now()}`;
   await saveAs(page, name);
   // 退出编辑器 → 选图菜单出现自建图条目(custom- 前缀 + 「自建地图」描述)
-  await page.getByTestId("editor-exit").click();
-  await expect(page.getByTestId("home-screen")).toBeVisible();
-  await page.getByTestId("home-select-map").click();
+  await page.getByTestId(EDITOR_TID.exit).click();
+  await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
+  await page.getByTestId(HOME_TID.selectMap).click();
   const customItem = page.locator('[data-testid^="map-item-custom-"]').filter({ hasText: name });
   await expect(customItem).toBeVisible({ timeout: 10_000 });
   await expect(customItem).toContainText("自建地图");
   // 点选展开预览(自建图从 localStorage 异步读)
   await customItem.click();
-  await expect(page.getByTestId("map-preview")).toBeVisible({ timeout: 10_000 });
+  await expect(page.getByTestId(SETUP_TID.mapPreview)).toBeVisible({ timeout: 10_000 });
   // 确认 → 当前地图名刷新 → 起兵进入对局
-  await page.getByTestId("map-confirm").click();
-  await expect(page.getByTestId("current-map-name")).toHaveText(name);
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
+  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText(name);
   expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toMatch(/^custom-/);
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await waitForEngine(page);
   // 自建图 = 当前图副本(huanyou):45 格,进入选都阶段
   expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
@@ -135,8 +139,8 @@ test("自建图入选图菜单,可选可玩:选它起兵进对局(快照健康)"
 
 test("试玩这局:编辑器直接以编辑中数据开局", async ({ page }) => {
   await openEditor(page);
-  await page.getByTestId("editor-try-play").click();
-  await expect(page.getByTestId("top-bar")).toBeVisible({ timeout: 10_000 }); // 收紧:20s→10s,屏级挂载秒级
+  await page.getByTestId(EDITOR_TID.tryPlay).click();
+  await expect(page.getByTestId(TESTIDS.topBar)).toBeVisible({ timeout: 10_000 }); // 收紧:20s→10s,屏级挂载秒级
   // 试玩固定 1 真人 + 3 电脑
   const s = await snap(page);
   expect(s.players).toHaveLength(4);

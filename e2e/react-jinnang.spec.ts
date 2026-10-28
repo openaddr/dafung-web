@@ -12,6 +12,8 @@
 import { test, expect } from "./fixtures";
 import { openSoloSetup, quickStart, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test.describe("锦囊 T1:发牌与可见性", () => {
   test("起手各 1 张:架中见自己牌面;牌库余 14;席位卡见计数章", async ({ page }) => {
@@ -20,16 +22,16 @@ test.describe("锦囊 T1:发牌与可见性", () => {
     // 各手 1 不随对局自走漂移。
     await page.goto("/?seed=63");
     // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
-    await page.getByTestId("home-select-map").click();
-    await page.getByTestId("map-item-huanyou").click();
-    await page.getByTestId("map-confirm").click();
+    await page.getByTestId(HOME_TID.selectMap).click();
+    await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+    await page.getByTestId(SETUP_TID.mapConfirm).click();
     await openSoloSetup(page);
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.startGame).click();
     // 不走 pickCapital(其收尾会「今不用」放行):自行点城+确认,保留开局卷轴。
     // #188:行军自动化后「发牌后、首次掷骰前」的停靠点=开局锦囊卷轴(AwaitingJinnang
     // 等输入,快照静止)。
     await page.locator(".bv-tile.bv-selectable").first().click();
-    await page.getByTestId("confirm-capital-ok").click();
+    await page.getByTestId(TESTIDS.confirmCapitalOk).click();
     await waitMyPause(page, 0);
     // 引擎缝 fail-fast:发牌没进引擎,后面全是废话。
     const eng = await page.evaluate(() => {

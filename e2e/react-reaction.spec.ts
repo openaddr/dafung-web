@@ -41,6 +41,8 @@ import {
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 /** 开局收口(seed 7 × huanyou ADR-0027 环序离线核算,见文件头注):选图/起兵/定都
  *  (候选 DOM 首格=长沙)后,等自动起摇(掷五)落江州弹出的购地抉择卷轴——种植类用例
@@ -48,13 +50,13 @@ import type { Page } from "@playwright/test";
 async function soloAtBuyAsk(page: Page): Promise<void> {
   await useHalfScale(page);
   await page.goto("/?seed=7");
-  await page.getByTestId("home-select-map").click();
-  await page.getByTestId("map-item-huanyou").click();
-  await page.getByTestId("map-confirm").click();
+  await page.getByTestId(HOME_TID.selectMap).click();
+  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId("confirm-capital-ok").click();
+  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
 }
 

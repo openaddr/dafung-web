@@ -26,4 +26,9 @@ export const TID = {
   field: (key: string) => `editor-field-${key}` as const,
   /** 变卖价表第 lvl 级(Lv0..Lv maxLevel;#671 正名,旧称城池价值;testid 沿用 rent 旧名)。 */
   rentLevel: (lvl: number) => `editor-rent-${lvl}` as const,
+  // ── 命名输入小弹层(#664 补登:另存新图/导出前的图名 BannerShell 输入层,
+  //  EditorScreen 渲染;外壳= inputScroll,正文= nameInput,确认钮= inputOk)──
+  inputScroll: "editor-input-scroll",
+  nameInput: "editor-name-input",
+  inputOk: "editor-input-ok",
 } as const;

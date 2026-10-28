@@ -23,6 +23,7 @@ import {
   waitForSnapChanged,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 // 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例(react-seat-pop 同因):60s 缺省
 // 超时装不下,显式放宽——放宽语句必须落在测试体首行(文件顶层调用不生效)。
@@ -239,8 +240,8 @@ test.describe("满编 8 行零滚动零截断(#702 ⑤)", () => {
     test.setTimeout(240_000); // 8 人选都链路更重(react-seat-cells 满编例同因)
     await page.goto("/");
     await openSoloSetup(page);
-    for (let i = 4; i < 8; i++) await page.getByTestId("setup-seat-count-plus").click(); // 4 → 8
-    await page.getByTestId("start-game").click();
+    for (let i = 4; i < 8; i++) await page.getByTestId(`${SETUP_TID.seatCount}-plus`).click(); // 4 → 8
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     await waitMyPause(page, 0, 150_000);
     // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(react-float-skeleton 同法)

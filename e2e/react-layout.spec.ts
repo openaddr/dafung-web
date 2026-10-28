@@ -12,14 +12,15 @@ import {
   actIfCan,
   force,
 } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("全浮层骨架", () => {
   test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
     await quickStart(page);
-    await expect(page.getByTestId("top-bar")).toBeVisible();
-    await expect(page.getByTestId("seat-rail")).toBeVisible();
-    await expect(page.getByTestId("hand-zone")).toBeVisible();
-    await expect(page.getByTestId("pile-buttons")).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.topBar)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.seatRail)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.pileButtons)).toBeVisible();
     // 退役容器零残留(#700:仪表条本体/战报把手/旧顶栏角件;#253 迁移清单存档)
     for (const t of [
       "dashboard-bar",
@@ -45,17 +46,17 @@ test.describe("全浮层骨架", () => {
     await expect
       .poll(async () => {
         const s = await snap(page);
-        return (await page.getByTestId("topbar-round").textContent()) === `${s.round} 轮`;
+        return (await page.getByTestId(TESTIDS.topbarRound).textContent()) === `${s.round} 轮`;
       })
       .toBe(true);
     // 总览钮 #702 点亮:可用,点开诸侯总览弹窗(内容与投影归 react-warlords-overview,
     // 此处只守「开得了、Esc 收得净」)
-    await expect(page.getByTestId("topbar-overview")).toBeEnabled();
-    await page.getByTestId("topbar-overview").click();
-    await expect(page.getByTestId("warlords-overview")).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.topbarOverview)).toBeEnabled();
+    await page.getByTestId(TESTIDS.topbarOverview).click();
+    await expect(page.getByTestId(TESTIDS.warlordsOverview)).toBeVisible();
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("warlords-overview")).toBeHidden();
-    await expect(page.getByTestId("settings-button")).toBeEnabled();
+    await expect(page.getByTestId(TESTIDS.warlordsOverview)).toBeHidden();
+    await expect(page.getByTestId(TESTIDS.settingsButton)).toBeEnabled();
   });
 
   test("席位格字段:全员一人一格(自机入列),现金/计数随快照", async ({ page }) => {
@@ -63,7 +64,7 @@ test.describe("全浮层骨架", () => {
     await waitMyPause(page, 0);
     await waitSettled(page);
     // 自机入列(#698):座位 0 挂 seat-self,对手席挂 seat-N;全部席位同模板
-    await expect(page.getByTestId("seat-self")).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.seatSelf)).toBeVisible();
     await expect
       .poll(async () => {
         const s = await snap(page);
@@ -87,8 +88,8 @@ test.describe("全浮层骨架", () => {
     // 60s 默认档偏紧是超时 flake 家族——标 slow 防超时,非删例。
     test.slow();
     await quickStart(page);
-    const badge = page.getByTestId("seat-attr-warrant-1");
-    const tip = page.getByTestId("attr-tip");
+    const badge = page.getByTestId(TESTIDS.seatAttr(1, "warrant"));
+    const tip = page.getByTestId(TESTIDS.attrTip);
     // 对局自走会随时弹决策卷轴/骰子 overlay 抢走悬停——每步动作都带「清卷轴 + 重试」
     //(断言只依赖图标浮签机制本身,不依赖数值,推进无妨)。
     const clear = async () => {
@@ -116,7 +117,7 @@ test.describe("全浮层骨架", () => {
     // #701 起卷轴徽章轻点=委任明细直达:长按的 down+up 落幕即成点击,明细弹层(z-50
     // 遮罩)必然在挂——Esc 收净再走贴缘翻面段,不然遮罩吞掉后续全部 hover。
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("seat-warrant-modal")).toBeHidden();
+    await expect(page.getByTestId(TESTIDS.seatWarrantModal)).toBeHidden();
     // 贴右缘翻面:席位卡列在视口右缘,浮签整体翻到徽章左侧(不溢出视口)
     await expect(async () => {
       await clear();
@@ -131,23 +132,23 @@ test.describe("全浮层骨架", () => {
 
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
-    const zone = page.getByTestId("hand-zone");
+    const zone = page.getByTestId(TESTIDS.handZone);
     await expect(zone).toBeVisible();
     // 签面(testid dice-face 契约不变):文本 ∈ 签/待/一~六
-    await expect(page.getByTestId("dice-face")).toHaveText(/[签一二三四五六]/);
+    await expect(page.getByTestId(TESTIDS.diceFace)).toHaveText(/[签一二三四五六]/);
     // 手牌架挂手牌区内
-    await expect(zone.getByTestId("jinnang-rack")).toBeVisible();
+    await expect(zone.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
     // 现金大数/体力刻度随仪表条退役:dash 系 testid 零残留(数值归席位格)
-    await expect(page.getByTestId("dash-cash")).toHaveCount(0);
-    await expect(page.getByTestId("dash-stamina")).toHaveCount(0);
+    await expect(page.getByTestId("dash-cash")).toHaveCount(0); // testids:allow 退役 testid 零残留断言——常量已随 #700 核销删除,无单源可引
+    await expect(page.getByTestId("dash-stamina")).toHaveCount(0); // testids:allow 同上(dash 系退役核销)
   });
 
   test("三圆钮:计数角标随快照,珍宝/名将点开藏品弹层(#361 双入口接替)", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
     // 退役核销:牌架双入口零残留(#700 接替者=三圆钮)
-    await expect(page.getByTestId("rack-treasures")).toHaveCount(0);
-    await expect(page.getByTestId("rack-heroes")).toHaveCount(0);
+    await expect(page.getByTestId("rack-treasures")).toHaveCount(0); // testids:allow 退役 testid 零残留断言——常量已随 #361/#700 核销删除,无单源可引
+    await expect(page.getByTestId("rack-heroes")).toHaveCount(0); // testids:allow 同上(牌架双入口退役核销)
     // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
     //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径)
     await force(
@@ -170,10 +171,13 @@ test.describe("全浮层骨架", () => {
           await dismissJinnangIfUp(page);
           await actIfCan(page).catch(() => false);
           const s = await snap(page);
-          const dom = await page.evaluate(() => ({
-            gem: document.querySelector('[data-testid="pile-treasures"] .cnt')?.textContent,
-            hero: document.querySelector('[data-testid="pile-heroes"] .cnt')?.textContent,
-          }));
+          const dom = await page.evaluate(
+            (sel) => ({
+              gem: document.querySelector(`[data-testid="${sel.gem}"] .cnt`)?.textContent,
+              hero: document.querySelector(`[data-testid="${sel.hero}"] .cnt`)?.textContent,
+            }),
+            { gem: TESTIDS.pileTreasures, hero: TESTIDS.pileHeroes },
+          );
           return (
             dom.gem === String(s.players[0].treasures.length) &&
             dom.hero === `${s.players[0].heroes.length}/3`
@@ -186,42 +190,42 @@ test.describe("全浮层骨架", () => {
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
-      await page.getByTestId("pile-treasures").click({ timeout: 3_000 });
+      await page.getByTestId(TESTIDS.pileTreasures).click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
-    const gemModal = await page.evaluate(() => {
+    const gemModal = await page.evaluate((sel) => {
       const s = (window as any).__dafung.snapshot();
-      const m = document.querySelector('[data-testid="treasure-modal"]');
+      const m = document.querySelector(`[data-testid="${sel}"]`);
       return {
         treasures: s.players[0].treasures.length,
         up: m != null,
         title: m?.querySelector(".pile-title")?.textContent ?? "",
       };
-    });
+    }, TESTIDS.treasureModal);
     expect(gemModal.up).toBe(true);
     expect(gemModal.title).toContain("珍宝");
     expect(gemModal.treasures).toBeGreaterThanOrEqual(2);
     // 右上 X 关闭,卸载零残留
-    await page.getByTestId("modal-close").click();
-    await expect(page.getByTestId("treasure-modal")).toHaveCount(0);
+    await page.getByTestId(TESTIDS.modalClose).click();
+    await expect(page.getByTestId(TESTIDS.treasureModal)).toHaveCount(0);
     // 点「名将」圆钮 → 名将弹层:HeroCardFace 详情档网格(原子采样同口径)
     await expect(async () => {
       await dismissJinnangIfUp(page);
       await actIfCan(page).catch(() => false);
-      await page.getByTestId("pile-heroes").click({ timeout: 3_000 });
+      await page.getByTestId(TESTIDS.pileHeroes).click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
-    const heroModal = await page.evaluate(() => {
-      const m = document.querySelector('[data-testid="hero-modal"]');
+    const heroModal = await page.evaluate((sel) => {
+      const m = document.querySelector(`[data-testid="${sel}"]`);
       return {
         up: m != null,
         title: m?.querySelector(".pile-title")?.textContent ?? "",
         names: [...(m?.querySelectorAll(".m-name") ?? [])].map((el) => el.textContent),
       };
-    });
+    }, TESTIDS.heroModal);
     expect(heroModal.up).toBe(true);
     expect(heroModal.title).toContain("名将");
     expect(heroModal.names).toContain("周瑜");
     // Esc 关闭(Base UI 底件行为),卸载零残留
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId("hero-modal")).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.heroModal)).toHaveCount(0);
   });
 });

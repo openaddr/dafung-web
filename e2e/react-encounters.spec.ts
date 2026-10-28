@@ -5,6 +5,8 @@
 import { test, expect } from "./fixtures";
 import { actIfCan, openSoloSetup, pickCapital, waitSettled, waitMyRollDone } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
 test.describe("机遇系统冒烟", () => {
   test("声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
@@ -14,12 +16,12 @@ test.describe("机遇系统冒烟", () => {
     test.slow();
     await page.goto("/");
     await openSoloSetup(page);
-    await page.getByTestId("setup-encounter-toggle").click();
-    await page.getByTestId("setup-encounter-trigger").fill("100");
-    await page.getByTestId("setup-encounter-good").fill("0");
-    await page.getByTestId("setup-encounter-neutral").fill("100");
-    await page.getByTestId("setup-encounter-bad").fill("0");
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.encounterToggle).click();
+    await page.getByTestId(SETUP_TID.encounterTrigger).fill("100");
+    await page.getByTestId(SETUP_TID.encounterGood).fill("0");
+    await page.getByTestId(SETUP_TID.encounterNeutral).fill("100");
+    await page.getByTestId(SETUP_TID.encounterBad).fill("0");
+    await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     // 负载下 30s 窗可爆(#217①,与 #191 同族):等人类的当前一手自动走完,预算 90s。
     // #188:轮询体内逐拍放行锦囊卷轴 + 等自动起摇推进(等 roll-button 可用的旧出口已随
@@ -42,7 +44,7 @@ test.describe("机遇系统冒烟", () => {
       "声望 0",
     );
 
-    const scroll = page.getByTestId("scroll-encounter");
+    const scroll = page.getByTestId(SCROLL_TESTIDS.encounterScroll);
     // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。#188 行军自动化后 bot 回合/
     // 自动起摇期间 actIfCan 恒 false,按步计数会空转烧预算——原「while + 300ms 固定
     // 采样」换 expect.poll 状态轮询:每拍机遇卷轴不在场就经 actIfCan 清决策点推进,

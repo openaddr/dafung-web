@@ -17,13 +17,15 @@ import {
 import { fmtMoney } from "./react-helpers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { HOME_TID } from "../src/app/screens/home/testids";
 
 test("招贤卷轴:三选一,点技名先看全览不选将,选后关闭并清空候选", async ({ page }) => {
   await quickStart(page);
   // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
   // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
   await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
-  const scroll = page.getByTestId("scroll-hero-pick");
+  const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
   await expect(scroll).toBeVisible();
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
   // 先看后选(#605/#606):点候选将技名 chip=开技能全览弹框,不触发选将(候选不清空、
@@ -77,13 +79,13 @@ async function plantTrade(page: Page): Promise<void> {
 
 test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }) => {
   await plantTrade(page);
-  const scroll = page.getByTestId("scroll-treasure");
+  const scroll = page.getByTestId(SCROLL_TESTIDS.treasureScroll);
   await expect(scroll).toBeVisible();
-  await page.getByTestId("scroll-treasure-mode-premium").click();
-  const pick = page.getByTestId("scroll-treasure-pick");
+  await page.getByTestId(SCROLL_TESTIDS.treasureModePremium).click();
+  const pick = page.getByTestId(SCROLL_TESTIDS.treasurePick);
   await expect(pick).toBeVisible();
   await expect(pick).toContainText("坐地起价"); // 标题随口径
-  const item = page.getByTestId("scroll-treasure-item-seal");
+  const item = page.getByTestId(SCROLL_TESTIDS.treasureItem("seal"));
   await expect(item).toBeVisible();
   // 坐地价签:未选=双行「指导价+要价」,要价与引擎结算同一 premiumPriceOf
   // (种植 holding level=1,UI 与引擎同走 per-level 公式)
@@ -99,23 +101,23 @@ test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }
     `指导价 ${fmtMoney(guide)} + 加价 ${fmtMoney(ask - guide)} = 入账 ${fmtMoney(ask)}`,
   );
   // 返回:关层回模式选择步(本地状态回退,不发命令)
-  await page.getByTestId("scroll-treasure-back").click();
+  await page.getByTestId(SCROLL_TESTIDS.treasureBack).click();
   await expect(pick).toBeHidden();
-  await expect(page.getByTestId("scroll-treasure-mode-premium")).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.treasureModePremium)).toBeVisible();
 });
 
 test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算零放宽", async ({ page }) => {
   await plantTrade(page);
-  const scroll = page.getByTestId("scroll-treasure");
+  const scroll = page.getByTestId(SCROLL_TESTIDS.treasureScroll);
   await expect(scroll).toBeVisible();
-  await page.getByTestId("scroll-treasure-mode-fair").click();
-  const pick = page.getByTestId("scroll-treasure-pick");
+  await page.getByTestId(SCROLL_TESTIDS.treasureModeFair).click();
+  const pick = page.getByTestId(SCROLL_TESTIDS.treasurePick);
   await expect(pick).toBeVisible();
-  const item = page.getByTestId("scroll-treasure-item-seal");
+  const item = page.getByTestId(SCROLL_TESTIDS.treasureItem("seal"));
   await expect(item).toBeVisible();
   // 价签:未选=指导价;指导价单源 core/treasures(不写第二事实源)
   await expect(item).toContainText(`指导价 ${fmtMoney(guidePriceOf(3))}`);
-  const confirm = page.getByTestId("scroll-treasure-confirm");
+  const confirm = page.getByTestId(SCROLL_TESTIDS.treasureConfirm);
   await expect(confirm).toBeDisabled(); // 未预选不可成交
   // 被访城 pid(成交后 treasureVisitor 清空,须在提交前取;引擎侧形 = { def, ownerIdx })
   const pid = await engineState(page, "e.treasureVisitor.def.id");
@@ -184,24 +186,24 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
     e.turnPhase = "AwaitingBankruptcySettle";
   `,
   );
-  const scroll = page.getByTestId("scroll-bankruptcy");
+  const scroll = page.getByTestId(SCROLL_TESTIDS.bankruptcyScroll);
   await expect(scroll).toBeVisible();
   // 进度行:已凑/债务/尚欠三数同窗(#362 已凑金额口径)
-  await expect(page.getByTestId("scroll-bankruptcy-debt")).toBeVisible();
-  await expect(page.getByTestId("scroll-bankruptcy-progress")).toContainText("已凑");
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcyDebt)).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcyProgress)).toContainText("已凑");
   // 卷轴内入口开选宝弹层
-  await page.getByTestId("scroll-bankruptcy-sell-treasure-open").click();
-  const pick = page.getByTestId("scroll-bankruptcy-treasure-pick");
+  await page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasureOpen).click();
+  const pick = page.getByTestId(SCROLL_TESTIDS.bankruptcyTreasurePick);
   await expect(pick).toBeVisible();
   await expect(pick).toContainText("变卖自救"); // 标题语义保留
-  await expect(page.getByTestId("scroll-bankruptcy-pick-progress")).toContainText("已凑");
-  const item = page.getByTestId("scroll-bankruptcy-sell-treasure-seal");
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcyPickProgress)).toContainText("已凑");
+  const item = page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasure("seal"));
   await expect(item).toBeVisible();
   await expect(item).toContainText(`至 ${fmtMoney(guidePriceOf(3))}`); // 指导价口径
   // 二段式:点选 → 确认武装 → 提交
   await item.click();
   await expect(item).toHaveAttribute("aria-pressed", "true");
-  const confirm = page.getByTestId("scroll-bankruptcy-sell-treasure-confirm");
+  const confirm = page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasureConfirm);
   await confirm.click();
   await expect(confirm).toHaveText("确认变卖");
   const cashBefore = (await snap(page)).players[0].cash;
@@ -215,10 +217,10 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
     })
     .toBe(cashBefore + guidePriceOf(3));
   // 售出即收层;重开清单随快照刷新(已卖件消失,余件仍在)
-  await page.getByTestId("scroll-bankruptcy-sell-treasure-open").click();
-  await expect(page.getByTestId("scroll-bankruptcy-treasure-pick")).toBeVisible();
-  await expect(page.getByTestId("scroll-bankruptcy-sell-treasure-seal")).toHaveCount(0);
-  await expect(page.getByTestId("scroll-bankruptcy-sell-treasure-hat")).toBeVisible();
+  await page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasureOpen).click();
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcyTreasurePick)).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasure("seal"))).toHaveCount(0);
+  await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasure("hat"))).toBeVisible();
 });
 
 test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
@@ -231,9 +233,9 @@ test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
     e.phase = "GameOver";
   `,
   );
-  await expect(page.getByTestId("victory-screen")).toBeVisible();
-  await page.getByTestId("victory-restart").click();
-  await expect(page.getByTestId("home-screen")).toBeVisible();
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible();
+  await page.getByTestId(SCROLL_TESTIDS.victoryRestart).click();
+  await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
 });
 
 test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) => {
@@ -249,7 +251,7 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
   await actIfCan(page);
   await expect(async () => {
     await page.locator(`[data-tile="${propTile}"]`).click();
-    await expect(page.getByTestId("scroll-tile-detail")).toBeVisible();
+    await expect(page.getByTestId(SCROLL_TESTIDS.tileDetailScroll)).toBeVisible();
   }).toPass({ timeout: 15_000 });
   // #671 列语义钉:主列恒为交易加成;第二列按城型——该格是某家都城则显「都城补给」
   // (变卖价对都城是死信息),普通城显「变卖价」
@@ -257,7 +259,7 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
     const e = (window as any).__dafung.getEngine();
     return e.players.some((p: { capitalIndex: number | null }) => p.capitalIndex === idx);
   }, propTile);
-  const detail = page.getByTestId("scroll-tile-detail");
+  const detail = page.getByTestId(SCROLL_TESTIDS.tileDetailScroll);
   await expect(detail.getByText("交易加成")).toBeVisible();
   await expect(detail.getByText(detailIsCapital ? "都城补给" : "变卖价")).toBeVisible();
 });
@@ -288,14 +290,14 @@ test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝
       (window as any).__dafung.sync();
       return tc.index;
     });
-    await expect(page.getByTestId("scroll-buy")).toBeVisible();
+    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
     // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
-    await expect(page.getByTestId("scroll-buy")).toContainText("余");
-    await expect(page.getByTestId("scroll-buy")).not.toContainText("差");
+    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toContainText("余");
+    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).not.toContainText("差");
     const pid = await engineState(page, `e.board.at(${tcIndex}).propertyId`);
     await waitFxIdle(page);
     const logLenBefore = (await snap(page)).log.length;
-    await page.getByTestId("action-buy").click();
+    await page.getByTestId(TESTIDS.actionButton("buy")).click();
     // 结算留痕零放宽:买城入册 + 交易链尾探宝(gain/miss 任一),且探宝行后于买城行
     // (ADR-0024 顺序正典:机遇 → 交易链 → 探宝;探宝自带 endTurn)。
     await expect

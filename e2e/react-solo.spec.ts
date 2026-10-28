@@ -20,18 +20,23 @@ import {
   freezeClock,
   unfreezeClock,
 } from "./react-helpers";
+import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
   page,
 }) => {
   await page.goto("/");
   await openSoloSetup(page);
-  await page.getByTestId("start-game").click();
+  await page.getByTestId(SETUP_TID.startGame).click();
   await pickCapital(page);
   const logsBefore = (await snap(page)).log.length;
   // 自动起摇:锦囊放行后 ~1s(e2e 加速后 ~250ms)引擎自动 rollAndMove,无须点任何按钮
   await waitMyRollDone(page, 0);
-  await expect(page.getByTestId("dice-face")).toHaveText(/[一二三四五六]/, { timeout: 15_000 });
+  await expect(page.getByTestId(TESTIDS.diceFace)).toHaveText(/[一二三四五六]/, {
+    timeout: 15_000,
+  });
   await expect
     .poll(async () => (await snap(page)).log.length, { timeout: 20_000 })
     .toBeGreaterThan(logsBefore);
@@ -77,8 +82,8 @@ test("席位格同步:自机格现金/委任与引擎快照停靠态同步(#253 
     .toBe(true);
   // 席位格列就位,自机格在列(结构性,不随推进变化;#253:treasury/others 容器退役;
   // #700:「你」印随仪表条退役,自机识别=自机格金样式)
-  await expect(page.getByTestId("seat-rail")).toBeVisible();
-  await expect(page.getByTestId("seat-self")).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.seatRail)).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.seatSelf)).toBeVisible();
 });
 
 // 珍宝行键盘语义用例随本行 UI 退役(#253:TreasuryPanel 收编进仪表条计数徽章;
@@ -109,11 +114,11 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
     `,
     );
     // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
-    await expect(page.getByTestId("scroll-buy")).toBeVisible();
-    await expect(page.getByTestId("action-buy")).toBeEnabled();
+    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.actionButton("buy"))).toBeEnabled();
     const before = (await snap(page)).players[0];
     const logLenBefore = (await snap(page)).log.length;
-    await page.getByTestId("action-buy").click();
+    await page.getByTestId(TESTIDS.actionButton("buy")).click();
     // 扣银两/耗委任状以 buy 留痕为凭(detail 的 price/cash/warrants= 结算瞬间值):
     // 购地收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金(横征暴敛等)、
     // 也可正当拆掉本方城(火烧连营/火攻)——#421 冻结只钉看门狗节拍、钉不住命令自带
@@ -171,11 +176,11 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
       e.pendingLand = { kind: "OwnProperty", propertyId: tile.propertyId };
     `,
     );
-    await expect(page.getByTestId("scroll-upgrade")).toBeVisible();
-    await expect(page.getByTestId("action-upgrade")).toBeEnabled();
+    await expect(page.getByTestId(SCROLL_TESTIDS.upgradeScroll)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.actionButton("upgrade"))).toBeEnabled();
     const before = (await snap(page)).players[0].cash;
     const logLenBefore = (await snap(page)).log.length;
-    await page.getByTestId("action-upgrade").click();
+    await page.getByTestId(TESTIDS.actionButton("upgrade")).click();
     // 升级免费:等级 +1,现金不变——两者都以 upgrade 留痕为凭(detail 的 level=/cash=
     // 结算瞬间值):升级收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金
     // (横征暴敛/征辟补偿等)、也可正当拆掉本方刚升级的城(火烧连营/周瑜火攻专烧城多
@@ -228,8 +233,8 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
     window.__dafung.controller().sync();
   `,
   );
-  await expect(page.getByTestId("waiting-bar")).toBeVisible();
-  await expect(page.getByTestId("thinking")).toContainText("运筹中…");
+  await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
+  await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
 });
 
 test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)", async ({ page }) => {
@@ -280,7 +285,7 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
     // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
     await waitForSnapChanged(page, before).catch(() => {});
   }
-  await expect(page.getByTestId("victory-screen")).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({ timeout: 60_000 });
   // 终局封场(orchestrator.finishPresentation):真终局批先于胜利屏入队,封场后
   // 骰子 overlay(z-45,压胜利屏)不得残留——在场一张随封场摘除,后续掷骰不再播。
   await expect(page.locator(".dice-overlay")).toHaveCount(0, { timeout: 2_000 });
@@ -289,12 +294,12 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
   expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
   // E4(#16):胜因与终榜随快照——本局走 TargetNetWorth(富甲天下),终榜列出全员
   expect(s.winReason).toBe("TargetNetWorth");
-  await expect(page.getByTestId("victory-info")).toContainText("富甲天下");
-  await expect(page.getByTestId("victory-standings")).toContainText("终榜");
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryInfo)).toContainText("富甲天下");
+  await expect(page.getByTestId(SCROLL_TESTIDS.victoryStandings)).toContainText("终榜");
   // ADR-0014:胜利屏「导出日志」落完整 jsonl(局头 header 行 + 命令/事件流 + 终局 final 行)
   const [download] = await Promise.all([
     page.waitForEvent("download"),
-    page.getByTestId("log-export").click(),
+    page.getByTestId(SCROLL_TESTIDS.logExport).click(),
   ]);
   expect(download.suggestedFilename()).toMatch(/^dafung-log-[0-9a-z-]+\.jsonl$/);
   const lines = readFileSync((await download.path())!, "utf-8")

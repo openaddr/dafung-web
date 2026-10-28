@@ -241,4 +241,8 @@ export const TESTIDS = {
   warlordsHeroes: (seat: number) => `warlords-heroes-${seat}` as const,
   /** 珍宝计数槽(槽位=件数示意,空槽画空格;维持计数不开名录)。 */
   warlordsGems: (seat: number) => `warlords-gems-${seat}` as const,
+
+  // ── 联机连接横幅(#664 补登:挂点在 shared/ConnectionBanner,GameScreen/LobbyScreen
+  //  顶部长出;断线重连状态条)──
+  connectionBanner: "connection-banner",
 } as const;

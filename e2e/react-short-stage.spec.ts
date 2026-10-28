@@ -16,6 +16,8 @@ import { answerMarchCounter, force, useHalfScale } from "./react-helpers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+import { HOME_TID } from "../src/app/screens/home/testids";
+import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("演出层矮横屏三件(#709)@667×375", () => {
   test.use({ viewport: { width: 667, height: 375 } });
@@ -26,9 +28,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   async function startShort(page: Page, seed: number, waitScroll: boolean): Promise<void> {
     await useHalfScale(page);
     await page.goto(`/?seed=${seed}`);
-    await page.getByTestId("home-map-strip-item-huanyou").click();
-    await page.getByTestId("home-solo").click();
-    await page.getByTestId("solo-setup-screen").waitFor();
+    await page.getByTestId(HOME_TID.mapStripItem("huanyou")).click();
+    await page.getByTestId(HOME_TID.solo).click();
+    await page.getByTestId(SETUP_TID.screen).waitFor();
     // 机遇归零(#126 同口径):防随机机遇卷轴污染停靠点
     await page.route("**/config/jiyu.json", (route) =>
       route.fulfill({
@@ -37,9 +39,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
         body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
       }),
     );
-    await page.getByTestId("start-game").click();
+    await page.getByTestId(SETUP_TID.startGame).click();
     await page.locator(".bv-tile.bv-selectable").first().click();
-    await page.getByTestId("confirm-capital-ok").click();
+    await page.getByTestId(TESTIDS.confirmCapitalOk).click();
     if (waitScroll) {
       await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
     } else {
@@ -135,7 +137,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
       {
         banner: `[data-testid="${TESTIDS.reactionBanner}"]`,
         chip: `[data-testid="${TESTIDS.topbarRound}"]`,
-        seats: '[data-testid="seat-rail"] .seat',
+        seats: `[data-testid=${TESTIDS.seatRail}] .seat`,
       },
     );
     expect(geo.banner, "横幅在断言前已收回(窗被看门狗代发)").not.toBeNull();

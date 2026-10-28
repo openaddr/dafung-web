@@ -2,30 +2,27 @@
 // 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级档位珠(满级金框)、
 // 都城金台座+王旗、宝物城宝印、持有者燕尾旗全是 Tile 自带渲染,本件零特判。
 // 三条同源口径:
-// ① 状态推导照抄 BoardView.tileStates 口径:归属取全体 players[].properties 对
-//    propertyId 的首见者(与棋盘同一 "首见者得" 规则,players 序即座位序),都城
-//    按全体玩家 capitalIndex 判定(不只看被查看者);交互位全关(isActive/isTaken/
-//    isSelectable/candidate 恒 false/null、不传 onClick)——活跃虚线环、选都候选印、
-//    呼吸金圈、聚焦压暗天然不出现。
+// ① 状态推导与 BoardView 同一实现(board 族单源 tileOwnership.ts,#665 收编):
+//    归属=holdingsOf(全体 players[].properties 对 propertyId 的首见者,players 序即
+//    座位序),都城=capitalHolderOf(全体玩家 capitalIndex 判定,不只看被查看者);
+//    交互位全关(isActive/isTaken/isSelectable/candidate 恒 false/null、不传 onClick)
+//    ——活跃虚线环、选都候选印、呼吸金圈、聚焦压暗天然不出现。
 // ② 渐变 defs(url(#bv-roof-grad/#bv-wall-grad/#bv-capital-glow-grad))引用同文档
 //    棋盘已挂的 BoardDefs——弹层经 Base UI Dialog portal 仍在同一 document,引用
 //    必然解析;不复制兜底副本(零兜底:棋盘不在场本件也不该被用)。
-// ③ 包围盒自算:Tile 以 translate(格心) scale(2.2) 落位,局部包围盒(格坐标)
-//    取格内容极值(见 THUMB_BBOX 注),× TILE_SCALE 平移到板坐标即 viewBox——
-//    四态共用同一盒,行内缩略图等大对齐。
+// ③ 包围盒自算:Tile 以 translate(格心) scale(TILE_SCALE,自 Tile.tsx 导入)落位,
+//    局部包围盒(格坐标)取格内容极值(见 THUMB_BBOX 注),× TILE_SCALE 平移到板
+//    坐标即 viewBox——四态共用同一盒,行内缩略图等大对齐。
 // 非交互由壳承担:pointer-events:none 后 board.css 的 :hover/:active 系(cursor/
 // 金盘/描边升亮)摸不到不可命中元素,天然失效;Tile 的 `tile-${index}` id 与棋盘
 // 重复无害(消费面只有 CSS 类选择器与 data-tile,无 getElementById 依赖)。
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { Tile } from "@app/components/board/Tile";
+import { Tile, TILE_SCALE } from "@app/components/board/Tile";
 import type { TileVisualState } from "@app/components/board/Tile";
+import { capitalHolderOf, holdingsOf } from "@app/components/board/tileOwnership";
 import { TESTIDS } from "./testids";
-
-/** Tile.tsx 内部 TILE_SCALE 同款字面量(棋盘渲染文件本票禁碰,不为其加导出;
- *  两处必须同步——Tile 落位 scale 与本件包围盒换算同源,漂移即裁切)。 */
-const TILE_SCALE = 2.2;
 
 /** 局部包围盒(格坐标,scale 前),按 Tile 当前几何极值定格,四态共用:
  *  x ∈ [-70,70] = 都城金晕圆 r=70(bv-capital-glow,都城呼吸可见,须完整入盒);
@@ -49,15 +46,10 @@ export function TileThumb({
   /** 全体玩家快照(归属首见者 + capitalIndex 判都城的推导源)。 */
   players: SnapshotPlayer[];
 }) {
-  // 归属/等级:与 BoardView.holdings 同一口径——全体玩家按序首见者得(properites
-  // 本应全场互斥,首见规则只是把「同格双主」的数据 bug 表达成确定行为,与棋盘一致)。
-  let holding: { colorIndex: number; guohao: string; level: number } | undefined;
-  for (const p of players) {
-    const h = p.properties.find((ph) => ph.propertyId === tile.propertyId);
-    if (h && !holding) holding = { colorIndex: p.colorIndex, guohao: p.guohao, level: h.level };
-  }
-  // 都城:全体玩家 capitalIndex 命中本格即都城(王旗+金台座),与棋盘同源。
-  const capitalP = players.find((p) => p.capitalIndex === tileIndex) ?? null;
+  // 归属/都城判定单源 board 族 tileOwnership.ts(#665):首见者得与 capitalIndex
+  // 判都城和 BoardView 走同一实现,不再靠注释互证约定同步。
+  const holding = tile.propertyId ? holdingsOf(players).get(tile.propertyId) : undefined;
+  const capitalP = capitalHolderOf(players, tileIndex);
   const state: TileVisualState = {
     ownerColorIndex: holding?.colorIndex ?? null,
     ownerGuohao: holding?.guohao ?? null,
