@@ -1,10 +1,11 @@
-/* 大厅局部样式(W2 "活感"):
+/* 大厅局部样式(W2 "活感" + #766 双列改版):
    - 座位点亮:入座(空→有人)时整行 scale+fade 进场,让"房间是活的"有可感知反馈;
      L8:key 已改为稳定座位号,触发方式是组件按上一帧 taken diff 条件加 .lobby-seat-in,
      上/下线·托管等状态翻转不再重放动画。
    - 底缘让位手势条(#761 ①):.lobby-safe 挂三态根容器,底部 padding 与
      --safe-bottom 取大(p-6 底档 1.5rem;env 缺省 0px 桌面无感)——建房/入座/大厅
-     三态的按钮排不压进真机手势条。取值口=app.css P0-9 唯一变量。 */
+     三态的按钮排不压进真机手势条。取值口=app.css P0-9 唯一变量。
+   - 矮横屏档(#766):双列栅格 + 根部 padding 收紧,见文件尾同串媒体查询。 */
 @keyframes lobby-seat-in {
   from {
     opacity: 0;
@@ -22,4 +23,64 @@
 
 .lobby-safe {
   padding-bottom: max(1.5rem, var(--safe-bottom));
+}
+
+/* ── 矮横屏档(#766 双列改版;断点与 setup.css/home.css/对局屏 game/layout.css A 档同串:
+   orientation: landscape + max-height: 500px,844×390 一类;LobbyScreen 的 useMediaQuery
+   JS 分支同串,改一处改两处)──
+   卡宽 420px 单列 → min(720px,94vw) 双列(宽档由 JSX 条款类给出,这里只管栅格与内滚):
+   未入座:左列=建房组+「高级」折叠,右列=加入组+一键重进主钮+返回;
+   已入座:左列=房码/文案/地图行/离开,右列=座位表+开局排(host 时 sticky 钉底)。
+   两列各自内滚:未入座内容量恒零滚动,已入座 8 席 ≤1 屏。
+   根部 padding 收紧对齐 su-root(#751)口径;底部仍与 --safe-bottom 取大
+   (#774 lobby-safe 语义保持——底档 1.5rem→0.375rem 让位竖向预算,手势条让位不减)。 */
+@media (orientation: landscape) and (max-height: 500px) {
+  .lobby-root {
+    padding-top: 0.375rem;
+    padding-bottom: max(0.375rem, var(--safe-bottom));
+    padding-left: max(0.75rem, var(--safe-left));
+    padding-right: max(0.75rem, var(--safe-right));
+  }
+  /* 撑满式高度:wrap 吃满根滚动埠、卡片弹性吃剩余高,两列各自内滚
+     (不撑破根容器;未入座 4 行内容根恒零滚动)。 */
+  .lobby-wrap {
+    height: 100%;
+  }
+  .lobby-card {
+    margin-top: 0.375rem;
+    padding: 0.5rem 0.75rem;
+  }
+  /* 撑满式高度只给已入座态(右列 8 席吃满、开局排 sticky 钉底有锚);
+     未入座卡轻(~250px),n natural 高度随 m-auto 居中,不拉满留死白。 */
+  .lobby-card-fill {
+    flex: 1;
+    min-height: 0;
+  }
+  .lobby-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    column-gap: 0.75rem;
+    flex: 1;
+    min-height: 0;
+  }
+  .lobby-col {
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .lobby-col-left {
+    gap: 0.375rem;
+  }
+  .lobby-col-right {
+    gap: 0.5rem;
+  }
+  /* host 开局排:sticky 钉右列可视底(su-actions #751 同款;墨纱渐隐衬垫承接滚过内容),
+     底距让位手势条(#761 ①:sticky 锚点并入 --safe-bottom)。 */
+  .lobby-actions {
+    position: sticky;
+    bottom: var(--safe-bottom);
+    padding-top: 0.375rem;
+    background: linear-gradient(180deg, transparent, var(--color-panel) 35%);
+  }
 }

@@ -2,29 +2,37 @@
 // 跨源段是 APK 真机联机的同款形态:页面在静态源(vite preview),REST+WS 打到引擎源
 // (E2E_GAME_PORT;playwright.config 第二个 webServer,自带 CORS)——证明地址单源与
 // 服务端 CORS 生效。默认路径零改动由 react-online(引擎源自托管)全绿背书。
-import { test, expect } from "./fixtures";
+import { test, expect, type Page } from "./fixtures";
 import { LID } from "../src/app/screens/lobby/testids";
 
 const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
+
+// #766:服务器地址收进「高级」details 折叠(默认收起),先展开再改址;
+// fill 需要可见元素,只读值断言(toHaveValue)不要求可见、免点。
+async function openAdvanced(page: Page) {
+  await page.getByTestId(LID.serverToggle).click();
+}
 
 test("服务器地址:默认同源;覆写后跨源建房成功;持久化;清空恢复默认", async ({ page }) => {
   await page.goto("/?online=1");
   await expect(page.getByTestId(LID.screen)).toBeVisible();
   const staticOrigin = new URL(page.url()).origin;
   const input = page.getByTestId(LID.serverBase);
-  await expect(input).toHaveValue(staticOrigin); // 默认 = 页面同源
+  await expect(input).toHaveValue(staticOrigin); // 默认 = 页面同源(收起状态下也可读)
 
   // 覆写到引擎源,失焦即存;建房(REST 建房 + WS 入座广播)打到引擎源 = 跨源链路全通
   // (轮询收紧 #294:REST+WS 建房通常秒级,30s→15s)
+  await openAdvanced(page);
   await input.fill(ONLINE);
   await input.blur();
   await page.getByTestId(LID.create).click();
   await expect(page.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 15_000 });
 
-  // 持久化:reload(?online=1 直进大厅)后覆写仍在
+  // 持久化:reload(?online=1 直进大厅)后覆写仍在(折叠复位默认收起,先展开再清空)
   await page.reload();
   await expect(page.getByTestId(LID.screen)).toBeVisible();
   await expect(page.getByTestId(LID.serverBase)).toHaveValue(ONLINE);
+  await openAdvanced(page);
 
   // 清空保存 = 恢复默认同源
   await page.getByTestId(LID.serverBase).fill("");
