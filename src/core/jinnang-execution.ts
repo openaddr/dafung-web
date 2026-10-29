@@ -10,6 +10,7 @@ import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
 import { HEROES, passiveDescLineOf } from "./heroes";
+import { grantHeroSlot, readySkillSlot, type HeroSlot } from "./roster";
 import type { ActiveSkillDef } from "./skills";
 import {
   openReactionWindow,
@@ -348,7 +349,7 @@ export function resolveHeroSkill(
       return;
     }
     g.pendingSkill = null;
-    fireHeroSkill(g, userSeat, skill, targets);
+    fireHeroSkill(g, userSeat, locateReadySlot(g, p, skillId), skill, targets);
     settleJinnangExit(g);
     return;
   }
@@ -359,17 +360,28 @@ export function resolveHeroSkill(
     g.warn(`${p.guohao} 无此主动技:${skillId}`);
     return;
   }
-  const option = computeChoices(g, "AwaitingJinnang").find((o) => o.id === `skill:${skillId}`);
-  if (!option?.available) {
-    g.warn(`${p.guohao} 主动技【${skill.name}】不可用:${option?.reason ?? "未知原因"}`);
+  // 可用性按技 id 取「任一持有槽就绪」(#785 冷却实例化:同名技各槽各账,命中判定不取首个)
+  const sameId = computeChoices(g, "AwaitingJinnang").filter((o) => o.id === `skill:${skillId}`);
+  const option = sameId.find((o) => o.available);
+  if (!option) {
+    g.warn(`${p.guohao} 主动技【${skill.name}】不可用:${sameId[0].reason ?? "未知原因"}`);
     return;
   }
   if (skill.target !== "none") {
     g.pendingSkill = { skillId };
     return; // 留在相位,选项集重算为候选名单
   }
-  fireHeroSkill(g, userSeat, skill, []);
+  fireHeroSkill(g, userSeat, locateReadySlot(g, p, skillId), skill, []);
   settleJinnangExit(g);
+}
+
+/** 发动定位(槽位序):首个持有该技且冷却就绪的槽。可用性已过选项集闸门(含冷却门),
+ *  槽必存在——查无=状态机 bug,当场炸出(零兜底)。 */
+function locateReadySlot(g: GameEngine, p: Player, skillId: string): HeroSlot {
+  const slot = readySkillSlot(p, skillId, g.round);
+  if (slot == null)
+    throw new Error(`主动技发动定位失败:${skillId}(选项集已放行而槽位查无,状态机 bug)`);
+  return slot;
 }
 
 /** 作罢技能目标段(#188 档 3):清载荷回卡牌段或收卷,技未发动不记冷却。 */
@@ -388,18 +400,22 @@ function cancelPendingSkill(g: GameEngine): void {
   settleJinnangExit(g);
 }
 
-/** 主动技结算:冷却记账(独立冷却,heroLastFired 键=skill.id)+ 公开事件(施展浮字由 fx 面按事件派生,与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
+/** 主动技结算:冷却记账入槽(#785 槽内账,同名技各槽各账)+ 公开事件(施展浮字由 fx 面按
+ *  事件派生,与出牌同口径)+ 效果落账。目标合法性已由目标段选项集校验,此处不再复核。 */
 function fireHeroSkill(
   g: GameEngine,
   userSeat: number,
+  slot: HeroSlot,
   skill: ActiveSkillDef,
   targets: number[],
 ): void {
   const user = g.players[userSeat];
-  user.heroLastFired[skill.id] = g.round;
-  // 施展宣告走 heroSkillActivated 事件(fx 面文案浮字,#719 死写删除)
+  slot.lastFired[skill.id] = g.round;
+  // 施展宣告走 heroSkillActivated 事件(fx 面文案浮字,#719 死写删除;heroId=槽定位,
+  // 折叠按槽记账,同名技多槽不串账)
   emitGameEvent(g, userSeat, {
     kind: "heroSkillActivated",
+    heroId: slot.heroId,
     skillId: skill.id,
     skillKind: skill.kind,
     ...(targets.length > 0 ? { targetSeat: targets[0] } : {}),
@@ -821,14 +837,11 @@ function grantHeroToPlayer(
     return;
   }
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
-  p.heroes.push(hero);
-  g.recruitedHeroIds.add(hero.id);
-  // 来投宣告走 HeroRecruited 时机产事件(fx 面文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     p.guohao,
     `${p.guohao} ${prefix},得「${hero.name}」:${passiveDescLineOf(hero)}`,
     `heroGrant ${auditTag} player=${p.id} hero=${hero.id}`,
   );
-  g.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
+  grantHeroSlot(g, p, hero); // 授技入麾下单点(#785):建槽全池+占池+HeroRecruited(事件体携 skillIds)
 }

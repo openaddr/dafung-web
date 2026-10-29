@@ -7,11 +7,12 @@
 import type { GameEngine, TurnPhase } from "./authority";
 import { canUpgrade } from "./economy";
 import type { ActiveSkillDef } from "./skills";
-import { isActiveSkill, poolActiveSkills, skillById } from "./skills";
+import { isActiveSkill, skillById } from "./skills";
 import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
-import type { HeroDef } from "./heroes";
+import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
+import type { HeroSlot } from "./roster";
 import type { EncounterChoiceOption } from "./encounters";
 import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
 import { extensionInquiries } from "./extension-registry";
@@ -211,9 +212,9 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
         available: stillOwing,
         reason: "已凑足债务",
       })),
-    ...p.heroes.map<ChoiceOption>((h) => ({
-      id: `cash-hero:${h.id}`,
-      label: `遣散「${h.name}」`,
+    ...p.heroes.map<ChoiceOption>((slot) => ({
+      id: `cash-hero:${slot.heroId}`,
+      label: `遣散「${heroById(slot.heroId).name}」`,
       available: stillOwing,
       reason: "已凑足债务",
     })),
@@ -368,38 +369,39 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];
 }
 
-/** 按 id 查玩家麾下主动技(#188 档 3;麾下池含该技且其为主动技才命中,池引用经装配点
- *  校验可解析):查无返回 null(命令与麾下不符时由调用方处置)。 */
-export function activeSkillOf(p: { heroes: HeroDef[] }, skillId: string): ActiveSkillDef | null {
-  for (const h of p.heroes) {
-    if (!h.skillPool.includes(skillId)) continue;
+/** 按 id 查玩家麾下主动技(#188 档 3;槽内已授技含该技且其为主动技才命中,技引用经
+ *  授技单点校验可解析):查无返回 null(命令与麾下不符时由调用方处置)。 */
+export function activeSkillOf(p: { heroes: HeroSlot[] }, skillId: string): ActiveSkillDef | null {
+  for (const slot of p.heroes) {
+    if (!slot.skillIds.includes(skillId)) continue;
     const def = skillById(skillId);
     if (isActiveSkill(def)) return def;
   }
   return null;
 }
 
-/** 冷却剩余轮数(#188 档 3):>0 = 仍在冷却(heroLastFired 键 = active.id,与被动技同机制)。 */
-export function skillCooldownLeft(
-  e: GameEngine,
-  p: { heroLastFired: Record<string, number> },
-  skill: ActiveSkillDef,
-): number {
-  const last = p.heroLastFired[skill.id];
+/** 冷却剩余轮数(#188 档 3;#785 槽内账:>0 = 仍在冷却,键=active.id,同槽各技/同名技
+ *  各槽各账)。 */
+export function skillCooldownLeft(e: GameEngine, slot: HeroSlot, skill: ActiveSkillDef): number {
+  const last = slot.lastFired[skill.id];
   if (last == null) return 0;
   return Math.max(0, skill.cooldown - (e.round - last));
 }
 
-/** 出牌阶段主动技选项段(#188 档 3):冷却就绪 + 可执行才 available;不可用带 reason
- *  (冷却优先报,其次费用/目标门槛)。与锦囊选项同窗并列,UI 以 skillId 区分「技」章。 */
+/** 出牌阶段主动技选项段(#188 档 3):遍历麾下槽位序×槽内已授技序(=池序),冷却就绪 +
+ *  可执行才 available;不可用带 reason(冷却优先报,其次费用/目标门槛)。同名技多槽各出
+ *  各项(冷却账独立,命中判定取首个可用项,槽定位单源 roster.readySkillSlot);与锦囊
+ *  选项同窗并列,UI 以 skillId 区分「技」章。 */
 function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
   const userSeat = e.players.indexOf(p);
   const out: ChoiceOption[] = [];
-  for (const hero of p.heroes) {
-    for (const skill of poolActiveSkills(hero.skillPool)) {
-      // 池可含多条主动技(ADR-0036 逐字表)
-      const cdLeft = skillCooldownLeft(e, p, skill);
+  for (const slot of p.heroes) {
+    const hero = heroById(slot.heroId);
+    for (const skillId of slot.skillIds) {
+      const skill = skillById(skillId);
+      if (!isActiveSkill(skill)) continue; // 槽可含多条主动技(ADR-0036 逐字表)
+      const cdLeft = skillCooldownLeft(e, slot, skill);
       let available = cdLeft === 0;
       let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
       if (available) {

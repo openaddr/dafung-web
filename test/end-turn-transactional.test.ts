@@ -16,6 +16,7 @@ import {
 } from "@core/extension-registry";
 import type { ExtensionAuthorityModule } from "@core/extension-contract";
 import type { ChoiceOption } from "@core/choices";
+import { armHero, sweepTestHeroes } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
@@ -64,6 +65,7 @@ afterEach(() => {
     if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
     SKILLS.splice(idx, 1);
   }
+  sweepTestHeroes(); // 麾下布场的合成名将同步清退(#785 armHero 配对)
 });
 
 function armBrokenTurnEndSkill(e: GameEngine): void {
@@ -84,7 +86,7 @@ function armBrokenTurnEndSkill(e: GameEngine): void {
     image: "",
     skillPool: [skill.id],
   };
-  e.players[0].heroes.push(hero);
+  armHero(e, e.players[0], hero); // 合成将登记+入麾下(#785 槽位布场)
 }
 
 // ── 假问询包(排空向量注入:唯一可选项自动执行路,resolve 回调抛错;随机唯一 id 防跨文件冲突)──

@@ -33,8 +33,9 @@
 //                 treasureSold → 卖家出册(银两不在此折:交割价随 treasureTraded、变卖所得
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
 //                 买家-价 卖家+价;treasureStolen → 不折(窃玉偷香转移 = 校准兜底五项之二)
-//   名将族        heroRecruited → 麾下入册 + 招贤池占位;skillFired/heroSkillActivated →
-//                 冷却记账(heroLastFired,键=skillId);主动技按技表(skills.ts)参数落账:
+//   名将族        heroRecruited → 麾下入槽(skillIds=本次授技,建槽不重掷)+ 招贤池占位;
+//                 skillFired/heroSkillActivated → 冷却记账(heroId 定槽,槽内 lastFired,
+//                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、patronage → 委任状+1(目标得银随同批
 //                 cashChanged·skill 折)、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
@@ -114,10 +115,10 @@ import {
   encounterDefOfId,
   eventSeat,
   eventSeatPlayer,
-  heroDefOf,
   type AnnounceCursor,
   type FoldHandledKind,
 } from "@core/event-tiers";
+import { heroSlotOf } from "@core/roster";
 
 /** 声望献计里程碑(#147):值域与穿越口径同 core reputation.ts(向上穿越、仅首次)。 */
 // 常量单源在 core/reputation.ts(REP_MILESTONES),勿在本文件重定义。
@@ -502,16 +503,18 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 名将族 ──
       case "heroRecruited": {
         const p = foldTarget(engine, ev);
-        p.heroes.push(heroDefOf(ev.heroId));
+        // skillIds=本次授技(权威态随事件下行,折叠建槽不重掷,#785)
+        p.heroes.push({ heroId: ev.heroId, skillIds: [...ev.skillIds], lastFired: {} });
         engine.recruitedHeroIds.add(ev.heroId); // 招贤池占位(offeredHeroes 候选 = 招贤校准档)
         break;
       }
       case "skillFired":
-        foldTarget(engine, ev).heroLastFired[ev.skillId] = ev.round; // 冷却记账(键=skill.id)
+        // 冷却记账入槽(heroId 定槽;键=skillId,各槽各账,#785 实例化)
+        heroSlotOf(foldTarget(engine, ev), ev.heroId).lastFired[ev.skillId] = ev.round;
         break;
       case "heroSkillActivated": {
         const user = foldTarget(engine, ev);
-        user.heroLastFired[ev.skillId] = ev.round; // 主动技独立冷却,同键记账
+        heroSlotOf(user, ev.heroId).lastFired[ev.skillId] = ev.round; // 主动技冷却入槽,同键记账
         const skill = activeSkillDefOf(ev.skillId);
         switch (skill.kind) {
           case "warDrum":
@@ -713,7 +716,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         ctx.bankruptSeats.add(seatNo(engine, p));
         p.isBankrupt = true;
         p.capitalIndex = -1; // 善后清都城(资产已随 assetTransferred 逐城折)
-        for (const h of p.heroes) engine.recruitedHeroIds.delete(h.id); // 名将释放回招贤池
+        for (const slot of p.heroes) engine.recruitedHeroIds.delete(slot.heroId); // 整槽释放回招贤池
         p.heroes = [];
         if (p.jinnangHand.length > 0) {
           engine.jinnangDiscard.push(...p.jinnangHand); // 锦囊清手入弃堆(#198)
@@ -733,7 +736,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           const idx = p.properties.findIndex((h) => h.propertyId === ev.asset.id);
           if (idx >= 0) p.properties.splice(idx, 1); // 查无 = 缺口级联略过(文件头;赐城缺口已随 propertyGranted 闭合)
         } else {
-          const idx = p.heroes.findIndex((h) => h.id === ev.asset.id);
+          const idx = p.heroes.findIndex((slot) => slot.heroId === ev.asset.id);
           if (idx < 0) throw new Error(`折叠投影:遣散名将 ${ev.asset.id} 不在副本麾下(契约违反)`);
           p.heroes.splice(idx, 1);
           engine.recruitedHeroIds.delete(ev.asset.id); // 释放回招贤池(引擎 cashHeroBankruptcy)

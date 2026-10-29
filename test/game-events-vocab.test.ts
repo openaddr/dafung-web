@@ -9,7 +9,7 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { loadMap } from "@core/board-loader";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero } from "@core/testing";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
@@ -60,7 +60,11 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
     const t = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    mover.heroes = [HEROES.find((h) => h.id === "zhouyu")!]; // 疾行 jixing(BeforeMarch·moveBonus+1)
+    armHero(
+      e,
+      mover,
+      HEROES.find((h) => h.id === "zhouyu")!,
+    ); // 疾行 jixing(BeforeMarch·moveBonus+1)
     const die = createDice(e.dice.getRngState()).roll().die; // 探针骰,不消耗引擎 rng
     const steps = die + 1; // 疾行加成一并计入路径预言
     const target = MAP.board.tiles.find((tile) => {
@@ -85,7 +89,7 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
       skillId: "jixing",
       moment: "BeforeMarch",
     });
-    expect(mover.heroLastFired["jixing"]).toBe(e.round); // 击发=落账+记冷却
+    expect(mover.heroes[0].lastFired["jixing"]).toBe(e.round); // 击发=落账+记冷却
   });
 });
 
@@ -95,7 +99,11 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     finishSetup(e);
     const user = e.activePlayer;
     const seat = e.players.indexOf(user);
-    user.heroes = [HEROES.find((h) => h.id === "zhangxingcai")!];
+    armHero(
+      e,
+      user,
+      HEROES.find((h) => h.id === "zhangxingcai")!,
+    );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
     e.resolveHeroSkill("leigu");
@@ -119,7 +127,11 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     const otherSeat = userSeat === 0 ? 1 : 0;
     const targetCash0 = e.players[otherSeat].cash;
     const warrants0 = user.warrants;
-    user.heroes = [HEROES.find((h) => h.id === "caopi")!];
+    armHero(
+      e,
+      user,
+      HEROES.find((h) => h.id === "caopi")!,
+    );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
     e.resolveHeroSkill("zhengpi"); // other 域:先入目标段
@@ -152,7 +164,11 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     const userSeat = e.players.indexOf(user);
     user.stamina = 90; // 满 30 上限只回 10:锁「实际增减」口径
     const cash0 = user.cash;
-    user.heroes = [HEROES.find((h) => h.id === "huatuo")!];
+    armHero(
+      e,
+      user,
+      HEROES.find((h) => h.id === "huatuo")!,
+    );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
     e.resolveHeroSkill("zhenji"); // any 域:先入目标段

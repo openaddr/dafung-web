@@ -13,7 +13,7 @@ import { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
-import { setEngine, useGameStore, type GameSnapshot } from "@app/store/gameStore";
+import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
 import { useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
@@ -255,7 +255,7 @@ export class OnlineController extends GameController {
         this._engine = this.makePlaceholderEngine(this.map, snap.players.length);
         setEngine(this._engine);
       }
-      this._engine.restoreFromSnapshot(snap as GameSnapshot);
+      this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
       this.pending = false;
       useNetStore.getState().setPending(false); // UI F3:快照到达即解锁「行军中…」
       // 演出(#385):netStore 暂存的事件批(events 消息先于同 tick 快照到达)经

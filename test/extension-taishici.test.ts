@@ -20,6 +20,7 @@ import {
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
 import { extractBatchEvents } from "@app/fx/event-extract";
+import { armHero } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
@@ -93,7 +94,7 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     const p = e.activePlayer;
     const cashBefore = p.cash;
     e.submitCommand({ type: "resolveHeroPick", index: 0 }); // submitCommand 开独立事件批
-    expect(p.heroes.map((h) => h.id)).toContain("taishici");
+    expect(p.heroes.map((h) => h.heroId)).toContain("taishici");
     expect(p.cash).toBe(cashBefore + 100);
     // 事件序列:招贤宣告 → 技能落账(+100)→ 击发宣告(义从,HeroRecruited 时机)
     const kinds = e.gameEvents.map((ev) => ev.kind);
@@ -118,13 +119,13 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     expect(fired.skillId).toBe("taishici-yicong");
     expect(fired.heroId).toBe("taishici");
     // 冷却记账(键=skill.id)与义从参数表一致
-    expect(p.heroLastFired["taishici-yicong"]).toBe(e.round);
+    expect(p.heroes[0].lastFired["taishici-yicong"]).toBe(e.round);
   });
 
   it("主动技「破阵」:出牌阶段选项可见,发动后本回合步数 +1,heroSkillActivated 随批产出", () => {
     const e = prepared();
     const p = e.activePlayer;
-    p.heroes.push(taishiciDef!);
+    armHero(e, p, taishiciDef!);
     p.jinnangHand = [];
     p.jinnangHandCount = 0;
     e.turnPhase = "AwaitingJinnang";
@@ -134,7 +135,7 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     // 发动(命令通路,独立事件批):warDrum 结算案复用 → 步数加成挂账
     e.submitCommand({ type: "useHeroSkill", skillId: "taishici-pozhen" });
     expect(e.heroDiceBonus).toBe(1);
-    expect(p.heroLastFired["taishici-pozhen"]).toBe(e.round);
+    expect(p.heroes[0].lastFired["taishici-pozhen"]).toBe(e.round);
     const activated = e.gameEvents.find(
       (ev): ev is Extract<typeof ev, { kind: "heroSkillActivated" }> =>
         ev.kind === "heroSkillActivated",

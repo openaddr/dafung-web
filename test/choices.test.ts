@@ -13,7 +13,7 @@ import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
 
@@ -151,7 +151,7 @@ describe("选项集注册表(choices.ts)", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.treasures.push({ id: "t1", name: "宝", level: 1, count: 1, desc: "" });
-    p.heroes.push(HEROES[0]);
+    armHero(e, p, HEROES[0]);
     const { def } = freeProperty(e); // 一座非都城地产(都城不可变卖)
     p.properties.push({
       propertyId: def.id,

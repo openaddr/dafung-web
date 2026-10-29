@@ -14,7 +14,7 @@ import { TREASURES } from "@core/treasures";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { beginGameEventBatch } from "@core/game-events";
-import { testEngine } from "@core/testing";
+import { armHero, testEngine } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
@@ -137,7 +137,13 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
       foldEventBatch(e, [ev(null, { kind: "marchArrived", tileIndex: 3, path: path(3) })]),
     ).toThrow(/无有效座位/);
     expect(() =>
-      foldEventBatch(e, [ev(null, { kind: "heroRecruited", heroId: "zhouyu" })]),
+      foldEventBatch(e, [
+        ev(null, {
+          kind: "heroRecruited",
+          heroId: "zhouyu",
+          skillIds: ["jixing", "huogong", "leigu"],
+        }),
+      ]),
     ).toThrow(/无有效座位/);
   });
 });
@@ -521,17 +527,60 @@ describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
 });
 
 describe("折叠投影器 · 名将族", () => {
-  it("heroRecruited 入麾下 + 占招贤池", () => {
+  it("heroRecruited 入槽 + 占招贤池(skillIds=权威授技,建槽不重掷)", () => {
     const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "heroRecruited", heroId: "zhouyu" })]);
+    foldEventBatch(e, [
+      ev(0, {
+        kind: "heroRecruited",
+        heroId: "zhouyu",
+        skillIds: ["jixing", "huogong", "leigu"],
+      }),
+    ]);
 
-    expect(e.players[0].heroes).toEqual([HEROES.find((h) => h.id === "zhouyu")!]);
+    expect(e.players[0].heroes).toEqual([
+      { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+    ]);
     expect(e.recruitedHeroIds.has("zhouyu")).toBe(true);
   });
 
-  it("skillFired/heroSkillActivated 记冷却(heroLastFired 键=skillId)", () => {
+  it("麾下一致性(#785):快照往返与事件折叠同形(槽位全量=heroId+授技+冷却账,折叠不重掷)", () => {
     const e = makeEngine();
-    e.players[0].heroes.push(HEROES[0]);
+    // 布场=显式授技(同槽异技:非整池)+冷却账有值
+    armHero(
+      e,
+      e.players[0],
+      HEROES.find((h) => h.id === "zhangxingcai")!,
+      ["leigu", "zhijin"],
+    );
+    e.recruitedHeroIds.add("zhangxingcai");
+    e.players[0].heroes[0].lastFired["leigu"] = 1; // 与折叠事件首部 round 对齐
+    // 快照往返:麾下槽位全量保真(授技/冷却账是游戏状态,展示字段另回查表补)
+    const mirror = makeEngine();
+    mirror.restoreFromSnapshot(e.snapshot());
+    expect(mirror.players[0].heroes).toEqual(e.players[0].heroes);
+    expect(mirror.recruitedHeroIds.has("zhangxingcai")).toBe(true);
+    // 事件折叠:heroRecruited 携权威授技建槽,冷却按槽落账——与引擎槽逐字段同形
+    const replica = makeEngine();
+    foldEventBatch(replica, [
+      ev(0, {
+        kind: "heroRecruited",
+        heroId: "zhangxingcai",
+        skillIds: ["leigu", "zhijin"],
+      }),
+      ev(0, {
+        kind: "skillFired",
+        heroId: "zhangxingcai",
+        skillId: "leigu",
+        moment: "BeforeMarch",
+      }),
+    ]);
+    expect(replica.players[0].heroes).toEqual(e.players[0].heroes);
+    expect(replica.recruitedHeroIds.has("zhangxingcai")).toBe(true);
+  });
+
+  it("skillFired/heroSkillActivated 记冷却(heroId 定槽,槽内 lastFired 键=skillId)", () => {
+    const e = makeEngine();
+    armHero(e, e.players[0], HEROES[0]);
     foldEventBatch(e, [
       ev(0, {
         kind: "skillFired",
@@ -541,25 +590,35 @@ describe("折叠投影器 · 名将族", () => {
       }),
       ev(0, {
         kind: "heroSkillActivated",
+        heroId: "zhouyu",
         skillId: "huogong",
         skillKind: "demolish",
         targetSeat: 1,
       }),
     ]);
 
-    expect(e.players[0].heroLastFired["jixing"]).toBe(1);
-    expect(e.players[0].heroLastFired["huogong"]).toBe(1);
+    expect(e.players[0].heroes[0].lastFired["jixing"]).toBe(1);
+    expect(e.players[0].heroes[0].lastFired["huogong"]).toBe(1);
   });
 
   it("主动技四类落账:warDrum 加成(骰时消费)/patronage 委任状/relief 付费/demolish 不折", () => {
     const e = makeEngine();
-    e.players[0].heroes.push(HEROES[2], HEROES[1], HEROES[3]);
+    armHero(e, e.players[0], HEROES[0]); // 周瑜:火攻槽位归属(事件按 heroId 定槽)
+    armHero(e, e.players[0], HEROES[2]);
+    armHero(e, e.players[0], HEROES[1]);
+    armHero(e, e.players[0], HEROES[3]);
     const cash0 = e.players[0].cash;
     const stamina1 = e.players[1].stamina;
     foldEventBatch(e, [
-      ev(0, { kind: "heroSkillActivated", skillId: "leigu", skillKind: "warDrum" }),
       ev(0, {
         kind: "heroSkillActivated",
+        heroId: "zhangxingcai",
+        skillId: "leigu",
+        skillKind: "warDrum",
+      }),
+      ev(0, {
+        kind: "heroSkillActivated",
+        heroId: "caopi",
         skillId: "zhengpi",
         skillKind: "patronage",
         targetSeat: 1,
@@ -568,12 +627,14 @@ describe("折叠投影器 · 名将族", () => {
       ev(1, { kind: "staminaChanged", delta: 30, reason: "heroRelief" }), // 赈济目标体力
       ev(0, {
         kind: "heroSkillActivated",
+        heroId: "huatuo",
         skillId: "zhenji",
         skillKind: "relief",
         targetSeat: 1,
       }),
       ev(0, {
         kind: "heroSkillActivated",
+        heroId: "zhouyu",
         skillId: "huogong",
         skillKind: "demolish",
         targetSeat: 1,
@@ -590,7 +651,7 @@ describe("折叠投影器 · 名将族", () => {
     const e = makeEngine();
     e.players[0].treasures.push({ ...TREASURES[0], id: "edict-0" });
     grantHolding(e, 0, "prop-luoyang", 1);
-    e.players[0].heroes.push(HEROES[0]);
+    armHero(e, e.players[0], HEROES[0]);
     e.recruitedHeroIds.add("zhouyu");
     const cash0 = e.players[0].cash;
 
@@ -843,7 +904,7 @@ describe("折叠投影器 · 破产族", () => {
   it("playerBankrupt 出局善后:isBankrupt/清都城/释放名将/锦囊清手入弃堆", () => {
     const e = makeEngine();
     e.players[0].capitalIndex = LUOYANG;
-    e.players[0].heroes.push(HEROES[0]);
+    armHero(e, e.players[0], HEROES[0]);
     e.recruitedHeroIds.add("zhouyu");
     e.players[0].jinnangHand = ["连环计"];
     e.players[0].jinnangHandCount = 1;
@@ -879,7 +940,11 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
       ev(0, { kind: "reputationChanged", delta: 33, reason: "drift" }),
       ev(0, { kind: "staminaChanged", delta: -40, reason: "drift" }),
       ev(0, { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 0 }),
-      ev(0, { kind: "heroRecruited", heroId: "zhouyu" }),
+      ev(0, {
+        kind: "heroRecruited",
+        heroId: "zhouyu",
+        skillIds: ["jixing", "huogong", "leigu"],
+      }),
       ev(0, { kind: "propertyBought", propertyId: "prop-changan", price: 4000 }),
       ev(0, { kind: "playerBankrupt", creditorSeat: 1 }),
     ]);

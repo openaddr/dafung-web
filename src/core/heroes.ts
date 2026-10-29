@@ -23,6 +23,14 @@ export function passiveDescLineOf(hero: HeroDef): string {
     .join(";");
 }
 
+/** 按将 id 查名将(#785 麾下槽位化后的回查口:槽位只存 heroId,派发战报/遣散文案/快照
+ *  展示字段按 id 现查);查无=数据 bug,炸出(零兜底)。 */
+export function heroById(id: string): HeroDef {
+  const hero = HEROES.find((h) => h.id === id);
+  if (hero == null) throw new Error(`名将目录外 id:${id}(core/heroes.ts HEROES 无此 id)`);
+  return hero;
+}
+
 // 首批共享表(ADR-0036 拍板,零新增数值):疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、
 // 掷金=张星彩↔曹丕,余五条单属主;池大小 = 强度旋钮(三将池 3、华佗池 2,不对称有意)。
 export const HEROES: HeroDef[] = [

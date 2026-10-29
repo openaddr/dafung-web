@@ -13,7 +13,7 @@ import { SKILLS, type TriggerSkill } from "@core/skills";
 import { guidePriceOf } from "@core/treasures";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
-import { testEngine } from "@core/testing";
+import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -89,6 +89,7 @@ afterEach(() => {
     if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
     SKILLS.splice(idx, 1);
   }
+  sweepTestHeroes(); // 麾下布场的合成名将同步清退(#785 armHero 配对)
 });
 
 /** 测试用名将:按需构造技能(先注册进 SKILLS 技表再入池;不入招贤池)。 */
@@ -248,8 +249,8 @@ describe("时机框架:派发点位", () => {
 
   it("TurnStart 触发 +现金技能 → 回合开始现金变化(每人每回合一次)", () => {
     const e = makeEngine(1);
-    e.players[0].heroes.push(heroWith([gain("ts-0", "TurnStart", 100)]));
-    e.players[1].heroes.push(heroWith([gain("ts-1", "TurnStart", 100)]));
+    armHero(e, e.players[0], heroWith([gain("ts-0", "TurnStart", 100)]));
+    armHero(e, e.players[1], heroWith([gain("ts-1", "TurnStart", 100)]));
     finishSetup(e);
     // 开局首回合只触发首位玩家(= roundAnchor)的技能:现金 = 10000 - 建城费 + 100
     const first = e.roundAnchor;
@@ -265,7 +266,9 @@ describe("时机框架:派发点位", () => {
 
   it("RoundEnd/RoundStart 仅在轮次交替时各触发一次,subject=轮次锚点", () => {
     const e = makeEngine(1);
-    e.players[0].heroes.push(
+    armHero(
+      e,
+      e.players[0],
       heroWith([
         gain("re", "RoundEnd", 10, { scope: "any" }),
         gain("rs", "RoundStart", 10, { scope: "any" }),
@@ -320,8 +323,8 @@ describe("时机框架:派发点位", () => {
           },
         ]);
       // 两位玩家都挂(首动者由 seed 决定,capture 技能只在本人行军时留痕)
-      e.players[0].heroes.push(captureHero());
-      e.players[1].heroes.push(captureHero());
+      armHero(e, e.players[0], captureHero());
+      armHero(e, e.players[1], captureHero());
       finishSetup(e);
       const mover = e.activePlayer;
       const from = mover.position;
@@ -349,7 +352,9 @@ describe("时机框架:确定性与 scope", () => {
     const run = (): string[] => {
       const e = makeEngine(7, seats);
       [0, 1, 2].forEach((seat) =>
-        e.players[seat].heroes.push(
+        armHero(
+          e,
+          e.players[seat],
           heroWith([
             gain(`p${seat}-a`, "DieRolled", 1, { scope: "any" }),
             gain(`p${seat}-b`, "DieRolled", 2, { scope: "any" }),
@@ -373,13 +378,63 @@ describe("时机框架:确定性与 scope", () => {
     expect(seq1.slice(0, 6)).toEqual(["p0-a", "p0-b", "p1-a", "p1-b", "p2-a", "p2-b"]);
   });
 
+  it("派发序重钉(#785):座位序 × 麾下槽位序 × 槽内已授技序;同 seed 重放一致", () => {
+    const run = (): string[] => {
+      const e = makeEngine(7);
+      armHero(
+        e,
+        e.players[0],
+        heroWith([
+          gain("s0-a", "DieRolled", 1, { scope: "any" }),
+          gain("s0-b", "DieRolled", 1, { scope: "any" }),
+        ]),
+      );
+      armHero(e, e.players[0], heroWith([gain("s0-c", "DieRolled", 1, { scope: "any" })]));
+      armHero(e, e.players[1], heroWith([gain("s1-a", "DieRolled", 1, { scope: "any" })]));
+      finishSetup(e);
+      e.dispatchMoment("DieRolled", { subject: 0, die: 6 });
+      return e.log
+        .filter((l) => l.category === "skill")
+        .map((l) => l.detail.match(/skill=(\S+)/)![1]);
+    };
+    // 座位 0 的槽 1(s0-a→s0-b)先于槽 2(s0-c),再轮座位 1——槽位序是新的中层序
+    expect(run()).toEqual(["s0-a", "s0-b", "s0-c", "s1-a"]);
+    expect(run()).toEqual(run()); // 同 seed 重放:序列逐字一致
+  });
+
+  it("冷却实例化(#785):同玩家两槽同名技冷却互不影响(各槽各账)", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const p = e.players[0];
+    const skill = gain("cd", "CashLost", 7, { cooldown: 2, scope: "any" });
+    armHero(e, p, heroWith([skill], "twin-a"), ["cd"]);
+    armHero(e, p, heroWith([skill], "twin-b"), ["cd"]); // 两槽同名技(生产形:周瑜+星彩同持擂鼓)
+    p.heroes[0].lastFired["cd"] = e.round; // 布场:槽 A 本轮已击发,槽 B 空账
+    const frozen = p.heroes[0].lastFired["cd"];
+    const cash0 = p.cash;
+    e.dispatchMoment("CashLost", { subject: 0, amount: 100 });
+    expect(p.cash).toBe(cash0 + 7); // 仅槽 B 击发(玩家级旧账会让两槽同哑)
+    expect(p.heroes[0].lastFired["cd"]).toBe(frozen); // 槽 A 账未被本派改写
+    expect(p.heroes[1].lastFired["cd"]).toBe(e.round); // 槽 B 独立记账
+    e.round += 1;
+    const cash1 = p.cash;
+    e.dispatchMoment("CashLost", { subject: 0, amount: 100 });
+    expect(p.cash).toBe(cash1); // 两槽各在各的冷却里:同名技两账互不代偿
+    e.round += 1;
+    const cash2 = p.cash;
+    e.dispatchMoment("CashLost", { subject: 0, amount: 100 });
+    expect(p.cash).toBe(cash2 + 14); // 两槽同时解冻、各击发一次(实例对称复活)
+  });
+
   it("scope 四过滤:self/others/any/actor(缺省=self)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const active = e.activeIndex;
     const holderSeat = 1 - active; // 非当前行动玩家的持有者
     const holder = e.players[holderSeat];
-    holder.heroes.push(
+    armHero(
+      e,
+      holder,
       heroWith([
         gain("sc-self", "CashLost", 11, { scope: "self" }),
         gain("sc-others", "CashLost", 22, { scope: "others" }),
@@ -404,12 +459,12 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.players[0];
-    p.heroes.push(heroWith([gain("cd", "CashLost", 7, { cooldown: 2 })])); // 缺省 scope=self
+    armHero(e, p, heroWith([gain("cd", "CashLost", 7, { cooldown: 2 })])); // 缺省 scope=self
     const cash0 = p.cash;
     e.round = 1;
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(p.cash).toBe(cash0 + 7); // 首次触发
-    expect(p.heroLastFired["cd"]).toBe(1);
+    expect(p.heroes[0].lastFired["cd"]).toBe(1);
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(p.cash).toBe(cash0 + 7); // 同轮再派发:冷却内不触发
     e.round = 2;
@@ -418,7 +473,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     e.round = 3;
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(p.cash).toBe(cash0 + 14); // 3-1=2 ≥ 2:冷却完再触发
-    expect(p.heroLastFired["cd"]).toBe(3);
+    expect(p.heroes[0].lastFired["cd"]).toBe(3);
     e.round = 4;
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(p.cash).toBe(cash0 + 14); // 4-3=1 < 2:又进冷却
@@ -426,13 +481,15 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
 
   it("真实对局中的 cooldown:RoundStart 冷却 2 轮的技能每 2 轮触发一次", () => {
     const e = makeEngine(1);
-    e.players[0].heroes.push(
+    armHero(
+      e,
+      e.players[0],
       heroWith([gain("rc", "RoundStart", 10, { cooldown: 2, scope: "any" })]),
     );
     finishSetup(e);
-    playFullRound(e); // round 1→2:触发(无冷却记录),heroLastFired=2
+    playFullRound(e); // round 1→2:触发(无冷却记录),槽内 lastFired=2
     playFullRound(e); // round 2→3:3-2=1 < 2 不触发
-    playFullRound(e); // round 3→4:4-2=2 ≥ 2 触发,heroLastFired=4
+    playFullRound(e); // round 3→4:4-2=2 ≥ 2 触发,槽内 lastFired=4
     expect(e.round).toBe(4);
     expect(fireCount(e, "rc")).toBe(2);
   });
@@ -443,7 +500,7 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     const p = e.players[0];
     const cash0 = p.cash;
     p.isBankrupt = true;
-    p.heroes.push(heroWith([gain("bk", "CashLost", 99, { scope: "any" })]));
+    armHero(e, p, heroWith([gain("bk", "CashLost", 99, { scope: "any" })]));
     e.dispatchMoment("CashLost", { subject: 1, amount: 100 });
     expect(p.cash).toBe(cash0);
     expect(fireCount(e, "bk")).toBe(0);
@@ -457,7 +514,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     try {
       const e = makeEngine(1);
       finishSetup(e);
-      e.players[0].heroes.push(
+      armHero(
+        e,
+        e.players[0],
         heroWith([
           {
             id: "rec",
@@ -483,7 +542,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
     try {
       const e = makeEngine(1);
       finishSetup(e);
-      e.players[0].heroes.push(
+      armHero(
+        e,
+        e.players[0],
         heroWith([
           {
             id: "nest",
@@ -505,7 +566,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
   it("未知 EffectId 抛错(注册表查不到=数据 bug,零兜底)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(
+    armHero(
+      e,
+      e.players[0],
       heroWith([
         { id: "bad", name: "测试技", desc: "技效", when: "CashLost", effect: "no-such-effect" },
       ]),
@@ -516,7 +579,9 @@ describe("时机框架:冷却 / 破产 / 防护", () => {
   it("效果必填参数缺失抛错(零兜底)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(
+    armHero(
+      e,
+      e.players[0],
       heroWith([
         {
           id: "no-params",
@@ -557,8 +622,8 @@ describe("时机框架:效果注册表(行为等价)", () => {
         },
       ]);
     // 两位玩家都挂(scope=self,首动者由 seed 决定,其本人掷骰时两个技能叠加)
-    e.players[0].heroes.push(withBonus());
-    e.players[1].heroes.push(withBonus());
+    armHero(e, e.players[0], withBonus());
+    armHero(e, e.players[1], withBonus());
     finishSetup(e);
     passJinnang(e).rollAndMove();
     autoResolve(e);
@@ -570,7 +635,9 @@ describe("时机框架:效果注册表(行为等价)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.players[0];
-    p.heroes.push(
+    armHero(
+      e,
+      p,
       heroWith([
         {
           id: "gif",
@@ -586,12 +653,12 @@ describe("时机框架:效果注册表(行为等价)", () => {
     const cash0 = p.cash;
     e.dispatchMoment("DieRolled", { subject: 0, die: 6 });
     expect(p.cash).toBe(cash0 + 20);
-    expect(p.heroLastFired["gif"]).toBe(e.round); // 生效才记冷却
-    delete p.heroLastFired["gif"];
+    expect(p.heroes[0].lastFired["gif"]).toBe(e.round); // 生效才记冷却
+    delete p.heroes[0].lastFired["gif"];
     const cash1 = p.cash;
     e.dispatchMoment("DieRolled", { subject: 0, die: 3 });
     expect(p.cash).toBe(cash1); // 条件不满足:无现金变化
-    expect(p.heroLastFired["gif"]).toBeUndefined(); // 也不记冷却
+    expect(p.heroes[0].lastFired["gif"]).toBeUndefined(); // 也不记冷却
   });
 });
 
@@ -599,7 +666,7 @@ describe("时机框架:生命周期(GameStart/SetupComplete/GameOver)", () => {
   it("SetupComplete→GameStart→TurnStart:主体依次=最后落子者/roundAnchor/roundAnchor,GameStart 可挂技能", () => {
     const e = makeEngine(1);
     const entries = recordMomentCtx(e);
-    e.players[0].heroes.push(heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
+    armHero(e, e.players[0], heroWith([gain("gs", "GameStart", 100, { scope: "any" })]));
     finishSetup(e);
     const lastPicker = e.draftOrder[e.draftOrder.length - 1];
     // #456:起手发牌两派夹在中间,时机主序列不变
@@ -675,8 +742,8 @@ describe("时机框架:掷骰与行军细化(BeforeRoll)", () => {
             scope: "any",
           },
         ]);
-      e.players[0].heroes.push(captureHero());
-      e.players[1].heroes.push(captureHero());
+      armHero(e, e.players[0], captureHero());
+      armHero(e, e.players[1], captureHero());
       finishSetup(e);
       const calls = recordMoments(e);
       passJinnang(e).rollAndMove();
@@ -704,7 +771,9 @@ describe("时机框架:落格与路径(CapitalHalt/LandedOnProperty/PassedPlayer
     const mover = e.activePlayer;
     const n = e.board.count;
     // 都城前 1 格 + 至少 2 步(挂 +1 加成)→ 途经都城必停(落点非都城)
-    mover.heroes.push(
+    armHero(
+      e,
+      mover,
       heroWith([
         {
           id: "mb1",
@@ -838,7 +907,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const hr = entries.filter((x) => x.moment === "HeroRecruited");
     expect(hr).toHaveLength(1);
     expect(hr[0].ctx).toEqual({ subject: e.players.indexOf(mover), heroId: hid });
-    expect(mover.heroes.some((h) => h.id === hid)).toBe(true);
+    expect(mover.heroes.some((h) => h.heroId === hid)).toBe(true);
     const cg = entries.filter((x) => x.moment === "CashGained");
     expect(cg).toHaveLength(1);
     expect(cg[0].ctx).toMatchObject({ subject: e.players.indexOf(mover), amount: supply }); // 落都城补给
@@ -975,7 +1044,11 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const visitorSeat = e.activeIndex;
     const ownerSeat = (visitorSeat + 1) % 3;
     const caopiSeat = (visitorSeat + 2) % 3;
-    e.players[caopiSeat].heroes.push(HEROES.find((h) => h.id === "caopi")!); // 渔利:他人失银 → +50
+    armHero(
+      e,
+      e.players[caopiSeat],
+      HEROES.find((h) => h.id === "caopi")!,
+    ); // 渔利:他人失银 → +50
     const tile = freePropertyTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     e.players[ownerSeat].properties.push({
@@ -1009,7 +1082,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.players[0];
-    p.heroes.push(heroWith([gain("cg-chain", "CashGained", 50, { scope: "any" })]));
+    armHero(e, p, heroWith([gain("cg-chain", "CashGained", 50, { scope: "any" })]));
     const cash0 = p.cash;
     e.dispatchMoment("CashGained", { subject: 1, amount: 100 }); // 模拟经济结算点派发一次
     expect(fireCount(e, "cg-chain")).toBe(1); // 若递归,技能会再次触发(或第 3 层抛错)
@@ -1070,7 +1143,7 @@ describe("时机框架:玩家状态(CashGained 防连锁/PlayerBankrupt/Bankrupt
     finishSetup(e);
     const mover = e.activePlayer;
     mover.cash = 0;
-    mover.heroes.push(heroWith([], "bk-hero")); // 名将换银 200 恰好抵债
+    armHero(e, mover, heroWith([], "bk-hero")); // 名将换银 200 恰好抵债
     const entries = recordMomentCtx(e);
     e.pendingDebt = { amount: 200, creditor: null };
     testEngine(e).forceTurnPhase("AwaitingBankruptcySettle");
@@ -1124,7 +1197,11 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    mover.heroes.push(HEROES.find((h) => h.id === "caopi")!); // 曹丕挂 CashLost scope=others
+    armHero(
+      e,
+      mover,
+      HEROES.find((h) => h.id === "caopi")!,
+    ); // 曹丕挂 CashLost scope=others
     const moverSeat = e.players.indexOf(mover);
     const oppSeat = moverSeat === 0 ? 1 : 0;
     e.players[oppSeat].cash = 500;
@@ -1179,7 +1256,11 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     ]);
     finishSetup(e);
     const user = e.activePlayer;
-    user.heroes.push(HEROES.find((h) => h.id === "caopi")!);
+    armHero(
+      e,
+      user,
+      HEROES.find((h) => h.id === "caopi")!,
+    );
     const userSeat = e.players.indexOf(user);
     const others = [0, 1, 2].filter((s) => s !== userSeat);
     e.players[others[1]].cash = 1000; // 败者赔得起全额 400
@@ -1208,11 +1289,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    mover.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
-      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
-      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
-    );
+    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
     testEngine(e).applyEncounter(mover, enc({ kind: "grantHero", fallbackCash: 200 }));
@@ -1224,11 +1303,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     const e2 = makeEngine(1);
     finishSetup(e2);
     const user = e2.activePlayer;
-    user.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
-      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
-      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
-    );
+    armHero(e2, user, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
+    armHero(e2, user, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
+    armHero(e2, user, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
     const seat2 = e2.players.indexOf(user);
     const entries2 = recordMomentCtx(e2);
     armJinnang(e2, ["求贤令"]);
@@ -1527,7 +1604,11 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     // ③ 火攻主动技:城照样损,时机不派(主动技结算内不派发,既有口径)
     const e3 = makeEngine(1);
     finishSetup(e3);
-    e3.activePlayer.heroes.push(HEROES.find((h) => h.id === "zhouyu")!);
+    armHero(
+      e3,
+      e3.activePlayer,
+      HEROES.find((h) => h.id === "zhouyu")!,
+    );
     const victimSeat3 = 1 - e3.activeIndex;
     const city3 = giveCity(e3, victimSeat3, 2);
     armJinnang(e3, []);

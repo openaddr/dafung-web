@@ -29,7 +29,6 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     properties: [],
     heroes: [],
     treasures: [],
-    heroLastFired: {},
     reputation: 0,
     stamina: STARTING_STAMINA,
     jinnangHand: [], // 锦囊手牌(#122):开局后经抽牌填充

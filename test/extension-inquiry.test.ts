@@ -27,6 +27,7 @@ import {
   registerExtensionClientPackage,
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
+import { armHero } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
@@ -344,7 +345,7 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
     const { inquiryId, heroDefId } = loadTurnStartInquiry();
     const e = prepared();
     // 违约样本名将入麾下(scope any:收口推进到任何座位都触发)
-    e.activePlayer.heroes.push({
+    armHero(e, e.activePlayer, {
       id: heroDefId,
       name: "试探名将",
       title: "收口期",

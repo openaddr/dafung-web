@@ -7,8 +7,8 @@ import type { Board, MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
-import type { HeroDef } from "./heroes";
-import { poolTriggerSkills, type TriggerSkill } from "./skills";
+import { heroById, type HeroDef } from "./heroes";
+import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
@@ -16,6 +16,7 @@ import { computeChoices, type ChoiceOption } from "./choices";
 import { EFFECTS, type EffectCtx } from "./effects";
 import { netWorth } from "./networth";
 import { findHolding } from "./player";
+import type { HeroSlot } from "./roster";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
 import {
@@ -468,7 +469,6 @@ export class GameEngine {
       properties: [],
       heroes: [],
       treasures: [],
-      heroLastFired: {},
       reputation: s.reputation ?? 0,
       stamina: STARTING_STAMINA,
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
@@ -977,15 +977,13 @@ export class GameEngine {
 
   // ──────────────────────────── 时机框架(时机总线) ────────────────────────────
   // dispatchMoment(moment, ctx):在时机点派发全场技能(名将技能/将来的珍宝/地块/全局规则同轨)。
-  // 确定性:座位序(0..n-1,未破产)× 每人 heroes 序 × skills 数组序,同层派发顺序全确定。
-  // 零新增序列化状态:技能从 HEROES 数据派生;冷却复用 heroLastFired(键=skill.id)。
-  // 设计与扩展指南(加时机三步/加技能两步/加效果一步)见 docs/explanation/时机框架.md。
+  // 确定性:座位序(0..n-1,未破产)× 麾下槽位序 × 槽内已授技序;冷却内嵌槽位(键=skill.id),
+  // 槽位=roster.ts 授技单点产出。设计与扩展指南见 docs/explanation/时机框架.md。
 
   /** 派发深度计数(#615 改公开并更名 momentDispatchDepth,原 momentDepth:域模块
    *  inquiry-flow.askInquiry 经 g. 读它判定「派发中与否」决定入队还是直接开窗,ADR-0019
    *  条款 3 内部状态透明):每次进入 dispatchMoment +1,出栈 -1。>2 层直接抛错——
-   *  不变量校验而非兜底:效果内同步再派发时机只能有一层嵌套,递归链是框架 bug,必须崩出来。
-   *  纯运行时态不序列化:恢复后天然 0(不在派发中),延期队列照排不受影响。 */
+   *  不变量校验而非兜底:递归链是框架 bug,必须崩出来。纯运行时态不序列化(恢复后天然 0)。 */
   momentDispatchDepth = 0;
 
   /** 行军加成累计(瞬态,不序列化):BeforeMarch·moveBonus 效果写入,rollAndMove 掷骰后
@@ -1014,10 +1012,9 @@ export class GameEngine {
     emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
   }
 
-  /** 时机派发:遍历所有未破产玩家(座位序)× 麾下将序 × 池序被动技(skills.ts 池序读口);
-   *  scope 过滤 + cooldown 检查后执行效果。ctx(MomentCtx):subject=时机主体座位,其余字段
-   *  (die/amount/passedSeat/ownerSeat/propertyId/treasureId/heroId/buyerSeat/sellerSeat/
-   *  tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
+  /** 时机派发:座位序 × 麾下槽位序 × 槽内已授技序(roster.ts 授技单点保证池序)遍历,
+   *  scope 过滤 + 冷却检查(槽内账)后执行效果。ctx(MomentCtx):subject=时机主体座位,
+   *  其余字段(die/amount/…/tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
   dispatchMoment(moment: GameMoment, ctx: MomentCtx): void {
     this.momentDispatchDepth += 1;
     if (this.momentDispatchDepth > 2)
@@ -1027,11 +1024,14 @@ export class GameEngine {
       for (let ownerSeat = 0; ownerSeat < this.players.length; ownerSeat++) {
         const owner = this.players[ownerSeat];
         if (owner.isBankrupt) continue; // 破产玩家技能不触发
-        for (const hero of owner.heroes) {
-          for (const skill of poolTriggerSkills(hero.skillPool)) {
+        for (const slot of owner.heroes) {
+          const hero = heroById(slot.heroId); // 战报留痕用名将名;查无=麾下引用数据 bug
+          for (const skillId of slot.skillIds) {
+            const skill = skillById(skillId);
+            if (!isTriggerSkill(skill)) continue; // 主动技不经时机派发(出牌阶段手动)
             if (skill.when !== moment) continue;
             if (!this.scopePasses(skill.scope, ctx.subject, ownerSeat)) continue;
-            if (!this.skillReady(owner, skill)) continue;
+            if (!this.skillReady(slot, skill)) continue;
             const effectFn = EFFECTS[skill.effect];
             if (effectFn == null)
               throw new Error(
@@ -1039,18 +1039,18 @@ export class GameEngine {
               );
             const ectx: EffectCtx = { ...ctx, moment, owner: ownerSeat };
             if (!effectFn(this, ectx, skill.params ?? {})) continue; // 条件不满足:静默跳过(不记战报/冷却)
-            owner.heroLastFired[skill.id] = this.round; // 记冷却轮次(无 cooldown 的技能记录无害)
+            slot.lastFired[skill.id] = this.round; // 记冷却轮次入槽(无 cooldown 的技能记录无害)
             emitGameEvent(this, ownerSeat, {
               kind: "skillFired",
-              heroId: hero.id,
+              heroId: slot.heroId,
               skillId: skill.id,
               moment,
-            }); // 事件流(#384):名将被动技击发(seat=技属主)
+            }); // 事件流(#384):名将被动技击发(seat=技属主;heroId=槽定位,折叠按槽记账)
             this.logEvent(
               "skill",
               owner.guohao,
               `${owner.guohao} 名将「${hero.name}」触发时机 ${moment}`,
-              `skillFire owner=${owner.id} hero=${hero.id} skill=${skill.id} moment=${moment} subject=${this.players[ctx.subject].id} die=${ctx.die ?? "-"} amount=${ctx.amount ?? "-"} params=${JSON.stringify(skill.params ?? {})}`,
+              `skillFire owner=${owner.id} hero=${slot.heroId} skill=${skill.id} moment=${moment} subject=${this.players[ctx.subject].id} die=${ctx.die ?? "-"} amount=${ctx.amount ?? "-"} params=${JSON.stringify(skill.params ?? {})}`,
             );
           }
         }
@@ -1081,10 +1081,10 @@ export class GameEngine {
     }
   }
 
-  /** 冷却判定:未设 cooldown → 恒可用;否则距上次触发的轮数 ≥ cooldown 才可用。 */
-  private skillReady(player: Player, skill: TriggerSkill): boolean {
+  /** 冷却判定(槽内账,#785:同名技各槽各账);未设 cooldown → 恒可用。 */
+  private skillReady(slot: HeroSlot, skill: TriggerSkill): boolean {
     if (!skill.cooldown) return true;
-    const last = player.heroLastFired[skill.id] ?? -Infinity;
+    const last = slot.lastFired[skill.id] ?? -Infinity;
     return this.round - last >= skill.cooldown;
   }
 

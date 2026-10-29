@@ -22,6 +22,7 @@ import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
 import type { MovePath } from "./board";
 import { findHolding } from "./player";
+import { heroSlotOf } from "./roster";
 import { netWorth } from "./networth";
 
 // ── 事件公共首部 ──
@@ -172,10 +173,12 @@ export interface AssetTransferredBody {
   propertyId: string;
   toSeat: number | null;
 }
-/** 招贤得将(三选一选定/机遇·锦囊送将;heroId=名将 id)。 */
+/** 招贤得将(三送将路经授技单点入槽;heroId=名将 id,skillIds=本次授技=权威态,
+ *  客户端折叠据此建槽、不得自行重掷——掷骰在权威侧,票 #787)。 */
 export interface HeroRecruitedBody {
   kind: "heroRecruited";
   heroId: string;
+  skillIds: string[];
 }
 /** 玩家破产出局(善后完成:名将已释放、资产已转债主;creditorSeat=债主座位,
  *  null=无债主归银行/销毁——#384 随派发点 finalizeBankruptcy 传参接线)。 */
@@ -192,10 +195,12 @@ export interface SkillFiredBody {
   moment: GameMoment;
 }
 /** 名将主动技发动(#384,#188 档 3 四类:demolish/relief/patronage/warDrum);
- *  seat=发动者,targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
+ *  seat=发动者,heroId=属主槽定位(#785 槽位化:冷却账内嵌槽,折叠按 heroId 定槽记账,
+ *  同名技多槽不串账),targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
  *  技参数由技表 skills.ts 按 skillId 现查。 */
 export interface HeroSkillActivatedBody {
   kind: "heroSkillActivated";
+  heroId: string;
   skillId: string;
   skillKind: "demolish" | "relief" | "patronage" | "warDrum";
   targetSeat?: number;
@@ -479,10 +484,15 @@ const MOMENT_EVENT_FACTORIES: Partial<Record<GameMoment, MomentEventFactory>> = 
     treasureId: requireMomentField(ctx.treasureId, "TreasureSold.treasureId"),
     amount: requireMomentField(ctx.amount, "TreasureSold.amount"),
   }),
-  HeroRecruited: (_g, ctx) => ({
-    kind: "heroRecruited",
-    heroId: requireMomentField(ctx.heroId, "HeroRecruited.heroId"),
-  }),
+  HeroRecruited: (g, ctx) => {
+    const heroId = requireMomentField(ctx.heroId, "HeroRecruited.heroId");
+    // skillIds=本次授技(#785):槽已由授技单点建好,按 heroId 定槽读已授技;查无=数据 bug
+    return {
+      kind: "heroRecruited",
+      heroId,
+      skillIds: [...heroSlotOf(g.players[ctx.subject], heroId).skillIds],
+    };
+  },
   PlayerBankrupt: (_g, ctx) => ({
     kind: "playerBankrupt",
     creditorSeat: requireMomentField(ctx.creditorSeat, "PlayerBankrupt.creditorSeat"),

@@ -65,10 +65,16 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "treasureStolen", victimSeat: 1, treasureId: "golden-seal-1", treasureName: "传国玉玺" },
   { kind: "assetLiquidated", asset: { kind: "treasure", id: "golden-seal-1" }, amount: 800 },
   { kind: "assetTransferred", propertyId: "changangan", toSeat: 2 },
-  { kind: "heroRecruited", heroId: "guanyu" },
+  { kind: "heroRecruited", heroId: "guanyu", skillIds: ["wusheng"] },
   { kind: "playerBankrupt", creditorSeat: 1 },
   { kind: "skillFired", heroId: "guanyu", skillId: "wusheng", moment: "TurnStart" },
-  { kind: "heroSkillActivated", skillId: "warDrumZhangfei", skillKind: "warDrum", targetSeat: 1 },
+  {
+    kind: "heroSkillActivated",
+    heroId: "guanyu",
+    skillId: "warDrumZhangfei",
+    skillKind: "warDrum",
+    targetSeat: 1,
+  },
   { kind: "jinnangDrawn", count: 1, reason: "encounter" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },
   { kind: "repMilestoneCrossed", milestone: 30 }, // #719 声望献计里程碑

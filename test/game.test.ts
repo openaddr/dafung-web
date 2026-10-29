@@ -7,7 +7,7 @@ import { loadMap } from "@core/board-loader";
 import { netWorth } from "@core/networth";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero } from "@core/testing";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
 function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: string | null): void }>(
@@ -222,7 +222,7 @@ describe("名将(英雄)", () => {
   it("周瑜·moveBonus:移动步数 +1", () => {
     const e = makeEngine(7);
     finishSetup(e);
-    e.activePlayer.heroes.push(hero("zhouyu"));
+    armHero(e, e.activePlayer, hero("zhouyu"));
     passJinnang(e).rollAndMove();
     const rollLog = e.log.filter((ev) => ev.category === "roll").pop()!;
     expect(rollLog.detail).toContain("bonus=1");
@@ -232,7 +232,7 @@ describe("名将(英雄)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const holder = e.players[1];
-    holder.heroes.push(hero("zhangxingcai"));
+    armHero(e, holder, hero("zhangxingcai"));
     const cash0 = holder.cash;
     e.dispatchMoment("DieRolled", { subject: 0, die: 6 });
     expect(holder.cash).toBe(cash0 + 20);
@@ -245,7 +245,7 @@ describe("名将(英雄)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const holder = e.players[1];
-    holder.heroes.push(hero("caopi"));
+    armHero(e, holder, hero("caopi"));
     const cash0 = holder.cash;
     e.dispatchMoment("CashLost", { subject: 0 });
     expect(holder.cash).toBe(cash0 + 50);
@@ -264,7 +264,7 @@ describe("名将(英雄)", () => {
     expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
     e.resolveHeroPick(0);
     expect(picker.heroes.length).toBe(1); // resolveHeroPick → endTurn 切了玩家,用 picker 引用
-    expect(picker.heroes[0].skillPool.length).toBeGreaterThan(0); // 池声明(ADR-0036):招得之将必带技能池
+    expect(picker.heroes[0].skillIds.length).toBeGreaterThan(0); // 已授技(#785 槽位):招得之将必带授技
   });
 
   it("回合计数:全员各行动一次后 round +1", () => {
