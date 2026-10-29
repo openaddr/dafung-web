@@ -9,6 +9,8 @@ export const LID = {
   join: "lobby-join",
   // #279:联机服务器地址(未入座可改;默认同源,覆写持久化 localStorage)
   serverBase: "lobby-server-base",
+  // #766:服务器行收进「高级」details 折叠(默认收起,探活点常驻 summary;展开出地址输入)
+  serverToggle: "lobby-server-toggle",
   // #559:探活状态点(挂载定性一次;checking 不渲染;点旁带文字,不只靠颜色)
   serverStatus: "lobby-server-status",
   // 房间区(已入座)
