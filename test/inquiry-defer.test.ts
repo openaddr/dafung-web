@@ -20,7 +20,7 @@ import {
   unregisterExtensionPackage,
 } from "@core/extension-registry";
 import type { ExtensionAuthorityModule, ExtensionInquiry } from "@core/extension-contract";
-import type { HeroDef } from "@core/heroes";
+import { HEROES, type HeroDef } from "@core/heroes";
 import { SKILLS, type TriggerSkill } from "@core/skills";
 import type { ChoiceOption } from "@core/choices";
 import type { GameMoment } from "@core/timing";
@@ -103,12 +103,20 @@ function blindOptions(n: number): ChoiceOption[] {
 
 /** 测试技注册进技表(ADR-0036:池引用必须可解析;afterEach 精确清退)。 */
 const pushedSkills: TriggerSkill[] = [];
+/** 测试名将注册进名将表(#785:麾下槽位引用须可解析,派发战报按 heroId 回查;同款清退)。 */
+const pushedHeroes: HeroDef[] = [];
 afterEach(() => {
   while (pushedSkills.length > 0) {
     const s = pushedSkills.pop()!;
     const idx = SKILLS.indexOf(s);
     if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
     SKILLS.splice(idx, 1);
+  }
+  while (pushedHeroes.length > 0) {
+    const h = pushedHeroes.pop()!;
+    const idx = HEROES.indexOf(h);
+    if (idx < 0) throw new Error(`测试名将 ${h.id} 不在名将表(状态机 bug)`);
+    HEROES.splice(idx, 1);
   }
 });
 
@@ -128,13 +136,16 @@ function momentHero(uid: string, skills: { when: GameMoment; effect: string }[])
     pushedSkills.push(skill);
     return skill.id;
   });
-  return {
+  const hero: HeroDef = {
     id: `test-hero-${uid}`,
     name: "试探名将",
     title: "",
     image: "",
     skillPool: pool,
   };
+  HEROES.push(hero); // 槽位引用可解析(#785:dispatch 战报按 heroId 回查名将表)
+  pushedHeroes.push(hero);
+  return hero;
 }
 
 /** 准备好常规对局(2 bot,开完局清掉开局锦囊卷轴)。 */

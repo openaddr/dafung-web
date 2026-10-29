@@ -10,6 +10,7 @@ import type { TurnPhase } from "@core/authority";
 import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
+import { armHero } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
@@ -400,7 +401,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     const { e, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
     const zxc = HEROES.find((h) => h.id === "zhangxingcai")!;
     // 掷金单技布场:共享池的疾行会改行军步数(拼点/落点断言被互扰)
-    e.players[ownerSeat].heroes = [{ ...zxc, skillPool: ["zhijin"] }]; // 掷金:任意人掷 6 即 +20
+    armHero(e, e.players[ownerSeat], { ...zxc, skillPool: ["zhijin"] }); // 掷金:任意人掷 6 即 +20
     scriptDice(e, { die: 2, rollDies: [6, 2] }); // 行军骰 2;拼点 6 对 2——若误派 DieRolled,掷金必触发
     const ownerCashBefore = e.players[ownerSeat].cash;
     beginGameEventBatch(e); // 批界=行军掷骰 + 反应窗 + 拼点结算全程
@@ -523,7 +524,7 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
     // 火攻单技布场:共享池的擂鼓会在结算后留住出牌窗(收卷相位断言被互扰)
-    user.heroes = [{ ...zhouyu, skillPool: ["huogong"] }];
+    armHero(e, user, { ...zhouyu, skillPool: ["huogong"] });
     e.turnPhase = "AwaitingJinnang";
     e.resolveHeroSkill("huogong"); // 入目标段
     e.resolveHeroSkill("huogong", [victimSeat]);

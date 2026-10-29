@@ -27,13 +27,22 @@ export interface TreasureRow {
   desc?: string;
 }
 
-/** 快照名将行(只存展示字段;技能/cooldown 经池序读口按 id 回查——技能定义单源
- *  skills.ts、池声明在 HEROES,#604/ADR-0036)。 */
+/** 快照招贤候选行(只存展示字段;候选整将待选、无授技差异——授技在选定入槽时落定,
+ *  预掷明牌=票 #787)。 */
 export interface HeroRow {
   id: string;
   name: string;
   title: string;
   image: string;
+}
+
+/** 快照麾下槽位行(#785,ADR-0036:槽位全量=游戏状态——heroId+已授技(池序)+按技冷却
+ *  账;「同一名将不同玩家持不同技」随快照可表达。名/称号/画像是展示字段,消费端按
+ *  heroId 回查名将表补(heroes.ts 单源)。 */
+export interface HeroSlotRow {
+  heroId: string;
+  skillIds: string[];
+  lastFired: Record<string, number>;
 }
 
 /** 快照玩家行(netWorth 为派生列,UI 直读免重算)。 */
@@ -51,9 +60,7 @@ export interface SnapshotPlayer {
   capitalIndex: number;
   skipTurns: number;
   properties: { propertyId: string; level: number; group: string }[];
-  heroes: HeroRow[];
-  /** 名将冷却:skill.id → 上次触发的 round。 */
-  heroLastFired: Record<string, number>;
+  heroes: HeroSlotRow[];
   treasures: TreasureRow[];
   reputation: number; // 声望 -100~+100(#121)
   stamina: number; // 体力 0~100(#130)
@@ -626,14 +633,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           level: h.level,
           group: h.group,
         })),
-        heroes: p.heroes.map((h) => ({
-          id: h.id,
-          name: h.name,
-          title: h.title,
-          image: h.image,
+        // 麾下槽位全量(#785):已授技与冷却账是游戏状态,原样深拷贝(展示字段客户端回查表补)
+        heroes: p.heroes.map((slot) => ({
+          heroId: slot.heroId,
+          skillIds: [...slot.skillIds],
+          lastFired: { ...slot.lastFired },
         })),
-        // 名将冷却记录(跨进程恢复 cooldown 判定)
-        heroLastFired: { ...p.heroLastFired },
         treasures: p.treasures.map((t) => ({
           id: t.id,
           name: t.name,
@@ -658,12 +663,13 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.position = ps.position;
         p.capitalIndex = ps.capitalIndex;
         p.skipTurns = ps.skipTurns;
-        // heroes:查 HEROES 表按 id 回灌整份定义(技能池随之就位;snapshot 故意只存展示字段,
-        //        槽位序列化 = ADR-0036 后续票)
-        p.heroes = ps.heroes
-          .map((h) => HEROES.find((H) => H.id === h.id))
-          .filter((h): h is HeroDef => h != null);
-        p.heroLastFired = { ...ps.heroLastFired };
+        // heroes:槽位全量回灌(#785,直拷不回查——heroId 查无目录属数据 bug,派发时
+        //        经 heroById 当场炸出,不在此静默滤除)
+        p.heroes = ps.heroes.map((row) => ({
+          heroId: row.heroId,
+          skillIds: [...row.skillIds],
+          lastFired: { ...row.lastFired },
+        }));
         p.reputation = ps.reputation;
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];

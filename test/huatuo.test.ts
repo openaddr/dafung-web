@@ -9,7 +9,7 @@ import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { isTriggerSkill, skillById } from "@core/skills";
 import { EFFECTS } from "@core/effects";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -110,24 +110,24 @@ describe("华佗·regenStamina 效果(#133)", () => {
   it("持有者定位:RoundStart 主体=锚点(subject≠owner)时回的是持有者的血,主体不动", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(huatuo());
+    armHero(e, e.players[0], huatuo());
     e.addStamina(0, -40); // 100 → 60
     const s1 = e.players[1].stamina;
     e.dispatchMoment("RoundStart", { subject: 1 }); // 主体=座位 1(锚点),持有者=座位 0
     expect(e.players[0].stamina).toBe(75); // 持有者 +15
     expect(e.players[1].stamina).toBe(s1); // 主体分文未动
-    expect(e.players[0].heroLastFired[SKILL_ID]).toBe(e.round); // 生效记冷却
+    expect(e.players[0].heroes[0].lastFired[SKILL_ID]).toBe(e.round); // 生效记冷却
   });
 
   it("真实轮次驱动 cooldown 3 轮:round 2 回、3/4 不回、5 再回", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(huatuo());
+    armHero(e, e.players[0], huatuo());
     e.addStamina(0, -40); // 60
     playFullRound(e); // round 1→2:轮首 RoundStart 首次触发
     expect(e.round).toBe(2);
     expect(e.players[0].stamina).toBe(75);
-    expect(e.players[0].heroLastFired[SKILL_ID]).toBe(2);
+    expect(e.players[0].heroes[0].lastFired[SKILL_ID]).toBe(2);
     playFullRound(e); // 2→3:3-2=1 < 3 冷却内不触发
     expect(e.players[0].stamina).toBe(75);
     playFullRound(e); // 3→4:4-2=2 < 3 仍冷却
@@ -136,18 +136,18 @@ describe("华佗·regenStamina 效果(#133)", () => {
     playFullRound(e); // 4→5:5-2=3 ≥ 3 再触发
     expect(e.round).toBe(5);
     expect(e.players[0].stamina).toBe(90);
-    expect(e.players[0].heroLastFired[SKILL_ID]).toBe(5);
+    expect(e.players[0].heroes[0].lastFired[SKILL_ID]).toBe(5);
     expect(fireCount(e, SKILL_ID)).toBeGreaterThanOrEqual(2); // 战报行至少两条(seat1 若同招华佗另计)
   });
 
   it("clamp:满 100 回血溢出作废(体力仍 100,技能已击发照记战报/冷却)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(huatuo());
+    armHero(e, e.players[0], huatuo());
     expect(e.players[0].stamina).toBe(100);
     e.dispatchMoment("RoundStart", { subject: 1 });
     expect(e.players[0].stamina).toBe(100); // +15 溢出作废
-    expect(e.players[0].heroLastFired[SKILL_ID]).toBe(e.round); // 击发事实不因 clamp 吞掉
+    expect(e.players[0].heroes[0].lastFired[SKILL_ID]).toBe(e.round); // 击发事实不因 clamp 吞掉
     expect(fireCount(e, SKILL_ID)).toBe(1);
     // 事件语义=宣告实际差(#568 病 A):满体力击发仍产 staminaChanged(delta=0),
     // 「+0 不演出」由表现层折算处单点守卫(event-extract),发射点不各贴守卫
@@ -162,7 +162,7 @@ describe("华佗·regenStamina 效果(#133)", () => {
   it("回血只加不减,不触发耗竭", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.players[0].heroes.push(huatuo());
+    armHero(e, e.players[0], huatuo());
     e.addStamina(0, -100); // 归 0(耗竭线上)
     e.dispatchMoment("RoundStart", { subject: 1 });
     expect(e.players[0].stamina).toBe(15); // 0 + 15

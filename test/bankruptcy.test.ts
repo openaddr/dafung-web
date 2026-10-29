@@ -1,4 +1,4 @@
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
@@ -8,11 +8,14 @@ import { guidePriceOf } from "@core/treasures";
 import { HEROES } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero, sweepTestHeroes } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
 const MAP = loadMap(huanyouData);
+
+// 合成名将(zhugeliang 等)经 armHero 登记进名将表,afterEach 精确清退防泄漏(#785)
+afterEach(() => sweepTestHeroes());
 
 function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {
@@ -119,7 +122,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
-    p.heroes.push(hero("zhouyu", "周瑜"));
+    armHero(e, p, hero("zhouyu", "周瑜"));
     testEngine(e).payOrLiquidate(p, null, 150); // 欠 150,有名将 → 清算
     e.cashHeroBankruptcy("zhouyu"); // +200,释放
     expect(p.cash).toBe(200);
@@ -127,6 +130,32 @@ describe("破产清算", () => {
     e.confirmBankruptcySettle(); // 凑够 → 扣 150
     expect(p.cash).toBe(50);
     expect(p.isBankrupt).toBe(false);
+  });
+
+  it("遣散整槽弃(#785):已授技与槽内冷却账随槽俱弃、回池无孤儿键;再招重置全池新槽", () => {
+    for (let seed = 1; seed <= 20; seed++) {
+      const e = makeEngine(seed);
+      finishSetup(e);
+      const p = e.activePlayer;
+      p.cash = 0;
+      armHero(e, p, hero("zhouyu", "周瑜"), ["jixing"]); // 显式授技布场(非整池,验「随槽俱弃」)
+      e.recruitedHeroIds.add("zhouyu"); // 名将在招贤池台账(与真实招募同态)
+      p.heroes[0].lastFired["jixing"] = 5; // 槽内冷却账残值
+      testEngine(e).payOrLiquidate(p, null, 150);
+      e.cashHeroBankruptcy("zhouyu");
+      expect(p.heroes.length).toBe(0); // 整槽弃
+      expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 回池:台账无孤儿键
+      testEngine(e).tryRecruitHero(p);
+      if (e.turnPhase !== "AwaitingHeroPick") continue;
+      const idx = e.offeredHeroes.findIndex((h) => h.id === "zhouyu");
+      if (idx < 0) continue; // 三选一未含周瑜:换 seed(回池后 3/4 中,20 seed 必中)
+      e.resolveHeroPick(idx);
+      expect(p.heroes).toEqual([
+        { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+      ]); // 再招重置:授技按池声明序重落全槽、冷却账清零(授技掷骰=票 #787)
+      return;
+    }
+    throw new Error("测试场景无效:20 个种子均未让周瑜回到招贤候选");
   });
 
   it("都城不可变卖(清算时 sellPropertyBankruptcy 拒绝)", () => {
@@ -149,7 +178,8 @@ describe("破产清算", () => {
     const p = e.activePlayer;
     p.cash = 0;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
-    p.heroes.push(hero("zhouyu", "周瑜"), hero("zhugeliang", "诸葛亮"));
+    armHero(e, p, hero("zhouyu", "周瑜"));
+    armHero(e, p, hero("zhugeliang", "诸葛亮"));
     const city = giveSellableCity(e, p);
     testEngine(e).payOrLiquidate(p, null, 150); // 欠 150
     expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
@@ -162,7 +192,7 @@ describe("破产清算", () => {
     expect(p.cash).toBe(200);
     expect(p.treasures.map((t) => t.id)).toEqual(["t1"]);
     expect(p.properties.some((h) => h.propertyId === city.propId)).toBe(true);
-    expect(p.heroes.map((h) => h.id)).toEqual(["zhugeliang"]);
+    expect(p.heroes.map((h) => h.heroId)).toEqual(["zhugeliang"]);
     expect(e.log.some((l) => l.brief.includes("已凑足债务,不可再卖"))).toBe(true); // 明确 reason 进日志
     e.confirmBankruptcySettle(); // 确认结算语义不变:照常清偿 150
     expect(p.cash).toBe(50);
@@ -215,7 +245,7 @@ describe("破产清算", () => {
     finishSetup(e);
     const p = e.activePlayer;
     p.cash = 0;
-    p.heroes.push(hero("zhouyu", "周瑜"));
+    armHero(e, p, hero("zhouyu", "周瑜"));
     testEngine(e).payOrLiquidate(p, null, 500); // 欠 500,仅有名将(+200)可卖
     e.cashHeroBankruptcy("zhouyu"); // +200,仍差 300
     e.confirmBankruptcySettle(); // 凑不够 → 破产出局
@@ -238,7 +268,7 @@ describe("变卖金额口径(#60:展示价 === 实际入账)", () => {
     p.treasures.push({ id: "t1", name: "宝", level: 7, count: 1, desc: "" }); // 指导价 = guidePriceOf(7)
     const city = giveSellableCity(e, p);
     const def = e.catalog.get(city.propId)!;
-    p.heroes.push(hero("zhouyu", "周瑜"));
+    armHero(e, p, hero("zhouyu", "周瑜"));
     testEngine(e).payOrLiquidate(p, null, 999999); // 巨债:确保三笔变卖都还被允许
 
     // 珍宝:入账 === 展示(guidePriceOf(level))
@@ -313,7 +343,7 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     finishSetup(e);
     const p = e.activePlayer;
     const caopi = e.players.find((q) => q !== p)!;
-    caopi.heroes.push(CAOPI);
+    armHero(e, caopi, CAOPI);
     const caopiCash0 = caopi.cash;
     p.cash = 100;
     p.treasures.push({ id: "t1", name: "宝", level: 5, count: 1, desc: "" }); // 指导价 600
@@ -331,7 +361,7 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     finishSetup(e);
     const p = e.activePlayer;
     const caopi = e.players.find((q) => q !== p)!;
-    caopi.heroes.push(CAOPI);
+    armHero(e, caopi, CAOPI);
     const caopiCash0 = caopi.cash;
     const levy: EncounterDef = {
       id: "假道征粮",

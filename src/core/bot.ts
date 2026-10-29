@@ -513,7 +513,7 @@ export function botAct(engine: GameEngine): void {
       const cap = engine.board.at(p.capitalIndex)?.propertyId;
       while (p.cash < debt.amount) {
         if (p.heroes.length) {
-          engine.cashHeroBankruptcy(p.heroes[0].id);
+          engine.cashHeroBankruptcy(p.heroes[0].heroId);
           continue;
         }
         if (p.treasures.length) {

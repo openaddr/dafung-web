@@ -523,7 +523,14 @@ describe("事件→动效映射表(合成批)", () => {
       { kind: "reputationChanged", seat: 0, round: 1, turn: 1, delta: 20, reason: "fate" },
       { kind: "jinnangDrawn", seat: 0, round: 1, turn: 1, count: 1, reason: "jinnangTile" },
       { kind: "turnSkipped", seat: 1, round: 1, turn: 1 },
-      { kind: "heroRecruited", seat: 0, round: 1, turn: 1, heroId: "zhouyu" },
+      {
+        kind: "heroRecruited",
+        seat: 0,
+        round: 1,
+        turn: 1,
+        heroId: "zhouyu",
+        skillIds: ["jixing", "huogong", "leigu"],
+      },
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
       "体力 −40",

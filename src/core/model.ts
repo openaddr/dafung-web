@@ -1,7 +1,7 @@
 // 核心领域模型(#326 types.ts 解散,ADR-0019 类型随域走):跨域共用的基础数据形状。
 // 判定标准:谁拥有概念,类型住谁的文件;唯有多域共用、不属于任何单一机制域的
 // 基础记录(Player/PropertyHolding/LogEvent)集中于此。纯数据,无 DOM 依赖。
-import type { HeroDef } from "./heroes";
+import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
 
 /** 玩家持有的地产。Level 0..maxLevel(购入/建都即为 Lv.0);升级免费(到达触发)。
@@ -27,9 +27,8 @@ export interface Player {
   capitalIndex: number;
   skipTurns: number; // 待跳过的回合计数(耗竭善后/缓兵之计)
   properties: PropertyHolding[];
-  heroes: HeroDef[]; // 已招揽的名将(上限 HERO_CAPACITY)
+  heroes: HeroSlot[]; // 麾下槽位(#785,ADR-0036):{heroId, 已授技(池序), 按技冷却账};上限 HERO_CAPACITY
   treasures: TreasureDef[]; // 持有的珍宝
-  heroLastFired: Record<string, number>; // 技能冷却:skill.id → 上次触发的 round(供 cooldown 判定)
   reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 GLOSSARY.md;#121)
   stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 GLOSSARY.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)

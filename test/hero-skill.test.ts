@@ -6,6 +6,7 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
+import { armHero } from "@core/testing";
 import { SKILLS } from "@core/skills";
 import { hasUsableJinnang } from "@core/choices";
 import { botAct } from "@core/bot";
@@ -58,7 +59,7 @@ function armSkill(e: GameEngine, heroId: string, skillId: string) {
   if (hero == null || !hero.skillPool.includes(skillId))
     throw new Error(`测试布场:${heroId} 池内无技 ${skillId}(数据 bug)`);
   const p = e.activePlayer;
-  p.heroes.push({ ...hero, skillPool: [skillId] });
+  armHero(e, p, { ...hero, skillPool: [skillId] });
   p.jinnangHand = [];
   p.jinnangHandCount = 0;
   e.turnPhase = "AwaitingJinnang";
@@ -80,7 +81,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     expect(hasUsableJinnang(e)).toBe(true);
     // 发动:冷却记账 + 无目标域直接结算
     e.resolveHeroSkill("leigu");
-    expect(e.activePlayer.heroLastFired["leigu"]).toBe(e.round);
+    expect(e.activePlayer.heroes[0].lastFired["leigu"]).toBe(e.round);
     expect(e.heroDiceBonus).toBe(2);
     expect(e.turnPhase).toBe("Roll"); // 唯一技进冷却 → 收卷(零可用静默跳过口径)
     // 冷却闸门:重开窗口 → 灰置带剩余轮数;跨过冷却轮 → 复活
@@ -106,7 +107,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     expect(seatOpt(e, 0)?.available).toBe(true); // 自己(any 域)
     e.resolveHeroSkill("zhenji", undefined, true); // 作罢:不记冷却
     expect(e.pendingSkill).toBe(null);
-    expect(e.activePlayer.heroLastFired["zhenji"]).toBeUndefined();
+    expect(e.activePlayer.heroes[0].lastFired["zhenji"]).toBeUndefined();
     e.turnPhase = "AwaitingJinnang";
     armSkill(e, "caopi", "zhengpi");
     e.resolveHeroSkill("zhengpi");
@@ -194,7 +195,7 @@ describe("主动技结算(#188 档 3)", () => {
     e.resolveHeroSkill("huogong", [1]); // 提交目标
     expect(foe.properties.find((h) => h.propertyId === plain)?.level).toBe(0); // 降 1 级
     expect(foe.properties.length).toBe(propCount); // 不失城
-    expect(e.activePlayer.heroLastFired["huogong"]).toBe(e.round);
+    expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBe(e.round);
 
     // 全 0 级 → 失城分支:非都城消失回无主,都城持仓恒在(#226)
     e.round += 5; // 过冷却
@@ -215,12 +216,9 @@ describe("主动技结算(#188 档 3)", () => {
     const snap = e.snapshot();
     const mirror = makeEngine(1);
     mirror.restoreFromSnapshot(snap);
-    // 快照只存名将 id,恢复端按目录整池回灌(麾下槽位序列化 = ADR-0036 后续票);
-    // 行军消费断言只测擂鼓,镜像端把池收窄回受试技(共享池的疾行 +1 非本用例对象)
-    const zxc = HEROES.find((h) => h.id === "zhangxingcai")!;
-    mirror.activePlayer.heroes = [{ ...zxc, skillPool: ["leigu"] }];
+    // 槽位全量随快照走(#785):布场时已收窄到受试技,镜像端原样还原,无需再收窄
     expect(mirror.heroDiceBonus).toBe(2);
-    expect(mirror.activePlayer.heroLastFired["leigu"]).toBe(e.round);
+    expect(mirror.activePlayer.heroes[0].lastFired["leigu"]).toBe(e.round);
     expect(mirror.turnPhase).toBe("Roll");
     // 行军消费:steps = die + 2(与 board.computePath 期望落点一致),加成清零
     // (先抓行军者引用:落点若是税关等自动收尾格,rollAndMove 后回合已推进,activePlayer 易主)

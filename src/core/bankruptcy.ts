@@ -15,6 +15,7 @@ import { settleDebt, sellValueOf } from "./economy";
 import { guidePriceOf } from "./treasures";
 import { formatMoney } from "./money";
 import { emitGameEvent } from "./game-events";
+import { heroById } from "./heroes";
 import type { Player } from "./model";
 
 /** 交割托管:买家付清价款 → 珍宝交货给买家。买家得宝(TreasureGained)/卖家售出(TreasureSold)/
@@ -171,7 +172,7 @@ export function hasMarketableAssets(g: GameEngine, p: Player): boolean {
  *  (#198,设计定稿 §3「破产清空」——不转债主、不变卖、不回流)。
  *  creditor=债主(#384):随 PlayerBankrupt 派发进事件体(creditorSeat,null=归银行)。 */
 export function finalizeBankruptcy(g: GameEngine, p: Player, creditor: Player | null): void {
-  for (const h of p.heroes) g.recruitedHeroIds.delete(h.id);
+  for (const slot of p.heroes) g.recruitedHeroIds.delete(slot.heroId);
   p.heroes = [];
   if (p.jinnangHand.length > 0) {
     g.jinnangDiscard.push(...p.jinnangHand);
@@ -272,18 +273,18 @@ export function cashHeroBankruptcy(g: GameEngine, heroId: string): void {
   if (!g.assertPhase("AwaitingBankruptcySettle", "CashHeroBankruptcy")) return;
   if (!assertStillOwing(g, "CashHeroBankruptcy")) return;
   const p = g.activePlayer;
-  const idx = p.heroes.findIndex((h) => h.id === heroId);
+  const idx = p.heroes.findIndex((slot) => slot.heroId === heroId);
   if (idx < 0) {
     g.warn(`名将 ${heroId} 不在手中`);
     return;
   }
-  const h = p.heroes.splice(idx, 1)[0];
-  g.recruitedHeroIds.delete(heroId);
+  p.heroes.splice(idx, 1); // 整槽弃(#785):已授技与槽内冷却账随槽俱弃,无孤儿键
+  g.recruitedHeroIds.delete(heroId); // 回池:该将再被招 = 重新授技(票 #787 起重掷)
   p.cash += 200; // 名将换银(200 两)
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} 遣散「${h.name}」得 ${formatMoney(200)}`,
+    `${p.guohao} 遣散「${heroById(heroId).name}」得 ${formatMoney(200)}`,
     `bkCashHero player=${p.id} hero=${heroId} +200`,
     200,
   );

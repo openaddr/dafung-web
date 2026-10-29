@@ -10,13 +10,13 @@ import type { GameMoment } from "./timing";
 // ── 技能系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
 // src/core/effects.ts 注册表)+ 纯数据参数(params)」;派发器统一在 authority.ts dispatchMoment。
 export interface TriggerSkill {
-  id: string; // 唯一 id(如 "jixing";同时是 heroLastFired 冷却键)
+  id: string; // 唯一 id(如 "jixing";同时是麾下槽位 lastFired 的冷却键)
   name: string; // 技名(如 "疾行";UI 技名 chips 与规则页用,#358;纯展示,不参与判定)
   desc: string; // 技效说明(玩家可见;招贤浮字/卡面技能区/技能全览弹框消费;#604 每技自带)
   when: GameMoment; // 触发时机(查 src/core/timing.ts)
   effect: string; // EffectId,查 src/core/effects.ts 注册表;未知 id 派发时直接抛错(数据 bug)
   params?: Record<string, number>; // 效果参数(纯数据,可序列化)
-  cooldown?: number; // 冷却(单位:轮,复用 heroLastFired 机制,键=skill.id)
+  cooldown?: number; // 冷却(单位:轮,记于麾下槽位 lastFired,键=skill.id、各槽各账 #785)
   /** 技能属主(owner)与时机主体(subject)/当前行动者的关系;缺省 = "self":
    *  - "self":属主是时机主体(我的骰/我的失财/我的回合…)
    *  - "others":时机主体不是属主(别人失财/别人掷骰…)
@@ -31,7 +31,7 @@ export interface TriggerSkill {
  *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
-  id: string; // 唯一(同时是 heroLastFired 冷却键)
+  id: string; // 唯一(同时是麾下槽位 lastFired 的冷却键)
   name: string; // 火攻(卷轴选项 label 组合为「名将·技名」)
   cooldown: number; // 冷却(轮):发动后过 cooldown 轮才可再发动
   desc: string; // 卷轴文案(效果自证,与结算互证)

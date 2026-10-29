@@ -28,7 +28,7 @@
 import type { GameEngine } from "./authority";
 import type { Player } from "./model";
 import type { GameEvent, GameEventBody } from "./game-events";
-import { HEROES, type HeroDef } from "./heroes";
+import { heroById, type HeroDef } from "./heroes";
 import { activeSkillById, type ActiveSkillDef } from "./skills";
 import { ENCOUNTERS, type EncounterDef } from "./encounters";
 
@@ -164,22 +164,22 @@ export const EVENT_TIERS = {
   heroRecruited: {
     fold: "must-fold",
     fx: "presented",
-    why: "麾下入册+招贤池占位(recruitedHeroIds);表现=来投浮字",
+    why: "麾下入槽(skillIds=本次授技随事件,折叠建槽不重掷)+招贤池占位(recruitedHeroIds);表现=来投浮字",
   },
   playerBankrupt: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "出局善后(isBankrupt/清都城/释放名将/清手入弃堆);现金清零/债主收款/珍宝转债主=破产清算强制全量节点不折;表现=bankrupt 音",
+    why: "出局善后(isBankrupt/清都城/整槽释放回招贤池/清手入弃堆);现金清零/债主收款/珍宝转债主=破产清算强制全量节点不折;表现=bankrupt 音",
   },
   skillFired: {
     fold: "must-fold",
     fx: "silent",
-    why: "被动技冷却记账(heroLastFired 键=skillId);技参数不随事件,由 HEROES 表现查",
+    why: "被动技冷却记账(heroId 定槽,槽内 lastFired 键=skillId,#785 实例化);技参数不随事件,由技表现查",
   },
   heroSkillActivated: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "主动技冷却+三面落账(warDrum 加成/patronage 委任状/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施展浮字",
+    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/patronage 委任状/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施展浮字",
   },
   // ── 锦囊族 ──
   jinnangDrawn: {
@@ -330,11 +330,10 @@ export function eventSeatPlayer(engine: GameEngine, seat: number, label: string)
   return p;
 }
 
-/** 名将静态目录回查:heroId 查无=数据 bug,当场炸出(fold 入册/extract 文案共用)。 */
+/** 名将静态目录回查:heroId 查无=数据 bug,当场炸出(单源 heroes.heroById;
+ *  extract 来投文案共用)。 */
 export function heroDefOf(heroId: string): HeroDef {
-  const hero = HEROES.find((h) => h.id === heroId);
-  if (hero == null) throw new Error(`事件消费:名将 ${heroId} 不在 HEROES 表(数据 bug)`);
-  return hero;
+  return heroById(heroId);
 }
 
 /** 主动技静态回查(技表 skills.ts SKILLS;skillId 同时是冷却键)。查无=数据 bug,炸出。 */

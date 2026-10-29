@@ -10,6 +10,8 @@
 // 直调即可,无需经此口;timing.test.ts 的 dispatchMoment 间谍为类型化测试替身,保留原位。
 import type { GameEngine, TurnPhase } from "./authority";
 import type { EncounterDef } from "./encounters";
+import type { HeroDef } from "./heroes";
+import { HEROES } from "./heroes";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
 
@@ -141,4 +143,32 @@ export class TestEngine {
 /** 测试访问器工厂:包一个引擎作白盒触达(test/ 专用)。 */
 export function testEngine(engine: GameEngine): TestEngine {
   return new TestEngine(engine);
+}
+
+// ──────────────────────────── 麾下槽位布场工厂(#785,一个工厂全测试复用)────────────────────────────
+// 合成名将登记清退(精确清退,不向同进程其他测试文件泄漏全局注册态;时机框架
+// afterEach 先例同款)。armHero 对 id 不在 HEROES 的合成将登记进名将表并占用本局
+// 招贤池(recruitedHeroIds,防漏入招贤候选扰动骰流/候选断言);real-hero 布场不占池、
+// 与旧「p.heroes.push(HEROES[i])」骰流语义逐字同。
+const armedTestHeroes: HeroDef[] = [];
+
+/** 清退 armHero 登记过的合成名将(测试文件 afterEach 调;配对 armHero 使用)。 */
+export function sweepTestHeroes(): void {
+  while (armedTestHeroes.length > 0) {
+    const hero = armedTestHeroes.pop()!;
+    const idx = HEROES.indexOf(hero);
+    if (idx < 0) throw new Error(`测试名将 ${hero.id} 不在名将表(状态机 bug)`);
+    HEROES.splice(idx, 1);
+  }
+}
+
+/** 麾下槽位布场:把名将以槽位入麾下——skillIds 显式给定(缺省=整池原序,即本票授技
+ *  口径;授技掷骰=票 #787)。槽位形状单源 roster.HeroSlot。 */
+export function armHero(e: GameEngine, p: Player, hero: HeroDef, skillIds?: string[]): void {
+  if (!HEROES.some((h) => h.id === hero.id)) {
+    HEROES.push(hero);
+    armedTestHeroes.push(hero);
+    e.recruitedHeroIds.add(hero.id); // 合成将不进招贤候选(骰流与候选断言不受扰)
+  }
+  p.heroes.push({ heroId: hero.id, skillIds: skillIds ?? [...hero.skillPool], lastFired: {} });
 }

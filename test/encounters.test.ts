@@ -2,12 +2,12 @@
 // (开关两端/先于城池结算/驻跸与天命同链/结算四路径与回退/确定性)。随机钉法:enabled
 // 配置 0/1 两端 + landActiveOn 恰落目标格(timing.test 同款技巧),结算路径经
 // testEngine.applyEncounter 指定具体事件绕过抽取。
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
-import { testEngine } from "@core/testing";
+import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
 import { capitalSupplyOf } from "@core/movement-flow";
 import { beginGameEventBatch } from "@core/game-events";
 import type { GameMoment, MomentCtx } from "@core/timing";
@@ -33,6 +33,9 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
 }
 
 const MAP = loadMap(huanyouData);
+
+// 合成名将(h1/h2/h3 等)经 armHero 登记进名将表,afterEach 精确清退防泄漏(#785)
+afterEach(() => sweepTestHeroes());
 
 function makeEngine(
   seed = 7,
@@ -345,11 +348,9 @@ describe("机遇引擎行为", () => {
     expect(e.treasureDeck.length).toBe(deckBefore - 1);
 
     const full = e.activePlayer;
-    full.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
-      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
-      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
-    );
+    armHero(e, full, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
+    armHero(e, full, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
+    armHero(e, full, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
     const cashBefore = full.cash;
     te.applyEncounter(full, {
       id: "义士来投",
@@ -716,7 +717,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     e.resolveEncounterChoice(0);
     expect(mover.treasures.length).toBe(0);
     expect(mover.heroes.length).toBe(1);
-    expect(e.recruitedHeroIds.has(mover.heroes[0].id)).toBe(true); // 名将入招贤池台账
+    expect(e.recruitedHeroIds.has(mover.heroes[0].heroId)).toBe(true); // 名将入招贤池台账
     expect(mover.cash).toBe(cash0);
     expect(mover.reputation).toBe(0);
     expect(e.turnPhase).toBe("Roll");
@@ -750,11 +751,9 @@ describe("抉择机遇(#124):入相与快照", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1"), treasure("t2"));
-    mover.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
-      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
-      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
-    );
+    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
     e.pendingEncounter = byId("以宝换贤");
     testEngine(e).forceTurnPhase("AwaitingEncounter");
     const opts = e.choicesFor();

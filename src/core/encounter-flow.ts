@@ -21,6 +21,7 @@ import {
 } from "./encounters";
 import { findHolding } from "./player";
 import { HEROES, passiveDescLineOf } from "./heroes";
+import { grantHeroSlot } from "./roster";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
@@ -446,16 +447,13 @@ function applyGrantHeroEffect(
     return "settled";
   }
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
-  mover.heroes.push(hero);
-  g.recruitedHeroIds.add(hero.id);
-  // 来投宣告走 HeroRecruited 时机产事件(fx 面文案浮字,#719 死写删除)
   g.logEvent(
     "system",
     mover.guohao,
     `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${passiveDescLineOf(hero)}`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`,
   );
-  g.dispatchMoment("HeroRecruited", { subject: seat, heroId: hero.id });
+  grantHeroSlot(g, mover, hero); // 授技入麾下单点(#785):建槽全池+占池+HeroRecruited(事件体携 skillIds)
   return "settled";
 }
 
