@@ -1,7 +1,10 @@
 /* 大厅局部样式(W2 "活感"):
    - 座位点亮:入座(空→有人)时整行 scale+fade 进场,让"房间是活的"有可感知反馈;
      L8:key 已改为稳定座位号,触发方式是组件按上一帧 taken diff 条件加 .lobby-seat-in,
-     上/下线·托管等状态翻转不再重放动画。 */
+     上/下线·托管等状态翻转不再重放动画。
+   - 底缘让位手势条(#761 ①):.lobby-safe 挂三态根容器,底部 padding 与
+     --safe-bottom 取大(p-6 底档 1.5rem;env 缺省 0px 桌面无感)——建房/入座/大厅
+     三态的按钮排不压进真机手势条。取值口=app.css P0-9 唯一变量。 */
 @keyframes lobby-seat-in {
   from {
     opacity: 0;
@@ -15,4 +18,8 @@
 
 .lobby-seat-in {
   animation: lobby-seat-in var(--dur-med) var(--ease-out) both;
+}
+
+.lobby-safe {
+  padding-bottom: max(1.5rem, var(--safe-bottom));
 }

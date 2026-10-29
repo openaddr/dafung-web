@@ -102,9 +102,10 @@ export function HomeScreen({
       <div className="m-auto flex w-full flex-col items-center">
         {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
           #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏);
-          #707 矮横屏档标题降档给条带让位(收纳档,桌面 6xl 不动) */}
+          #707 矮横屏档标题降档给条带让位(收纳档,桌面 6xl 不动);
+          #761 ⑥:本档再降一档 36→30px(844×360 零滚动三主刀之一) */}
         <h1
-          className={`home-title-in font-title ${isShortLandscape ? "text-4xl" : "text-6xl"} text-ink tracking-widest pl-[0.1em]`}
+          className={`home-title-in font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-ink tracking-widest pl-[0.1em]`}
         >
           群雄逐鹿
         </h1>
@@ -117,10 +118,11 @@ export function HomeScreen({
           texture-lanting 横批 + 压深渐变(home.css .home-band-heart),右端周瑜立绘
           低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款,
           上下金线 = 裱边「矩」。横带是氛围位不是演出位(§4.6/方向 D),静态无动效;
-          #751/H1(#742 判词):矮横屏 72px 档只撤立绘、画心纹理照常 cover 裁带
-          (裁切语言对纹理成立,只对人物不成立,home.css 同名媒体查询)。 */}
+          #751/H1(#742 判词):矮横屏窄带档只撤立绘、画心纹理照常 cover 裁带
+          (裁切语言对纹理成立,只对人物不成立,home.css 同名媒体查询;
+          带高 56px 随 #761 ⑥ 收口)。 */}
         {/* H2(#751/#742):矮横屏档横带与内容列同宽(600px 单源,消 776 vs 600 双栏不齐
-          ——该档横带只有 72px 高,宽出的部分只贡献空带观感);桌面档「装裱横批宽于
+          ——该档横带只有 56px 高,宽出的部分只贡献空带观感);桌面档「装裱横批宽于
           签列」的层次 intentional,维持 880px 不动。 */}
         <div
           className={`home-band-in home-gap-tight relative mb-10 ${

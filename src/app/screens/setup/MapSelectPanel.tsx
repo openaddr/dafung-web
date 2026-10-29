@@ -279,7 +279,8 @@ export function MapSelectPanel({
                   onConfirm(picked, entry ? entry.name : picked);
                 }}
                 disabled={picked === null}
-                className="ink-btn rounded-[5px] px-4 py-2 font-wenkai cursor-pointer disabled:opacity-40"
+                // 主行动触达口径 44(#761 ⑧;次级「取消/重试」维持 40 档不动)
+                className="ink-btn min-h-[44px] rounded-[5px] px-4 py-2 font-wenkai cursor-pointer disabled:opacity-40"
               >
                 确认选择
               </button>

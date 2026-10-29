@@ -195,8 +195,9 @@ export function SoloSetupScreen({
   // 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
   // #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
   // 承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号。
-  // S2(#751):32→36px(w-9 h-9)赎回 #175「首屏可达优先」的换亏(S1 双列重排后
-  // 竖向预算重估);shrink-0/snap-start 服务矮横屏档横滑条带(setup.css),wrap 档无感。
+  // S2(#751):32→36px 赎回 #175「首屏可达优先」的换亏;#761 ⑤:36→40px(w-10 h-10)
+  // 补齐触达口径次级 ≥40(DESIGN §触达);shrink-0/snap-start 服务矮横屏档横滑条带
+  // (setup.css),wrap 档无感。
   const pool = (
     <div
       data-testid={TID.guohaoPool}
@@ -211,7 +212,7 @@ export function SoloSetupScreen({
           aria-pressed={guohao === ch}
           onClick={() => setGuohao(ch)}
           className={
-            "su-pool-btn w-9 h-9 shrink-0 snap-start rounded border font-deco text-base cursor-pointer transition-colors " +
+            "su-pool-btn w-10 h-10 shrink-0 snap-start rounded border font-deco text-base cursor-pointer transition-colors " +
             (guohao === ch
               ? // 选中=钤印:漆金印(印章漆金化,#506;与对局内方印同语言,.seal-gold 在 app.css)
                 "border-gold-deep seal-gold font-bold"
@@ -403,7 +404,7 @@ export function SoloSetupScreen({
                   onChange={(e) =>
                     setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
                   }
-                  className="min-h-[36px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
+                  className="min-h-[40px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
                 />
               </label>
             ))}

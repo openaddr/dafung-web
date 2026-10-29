@@ -97,7 +97,9 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
             aria-pressed={selected}
             onClick={() => onSelect(e.id)}
             className={
-              "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-2 text-left transition-colors cursor-pointer " +
+              // py-1.5(#761 ⑥):条带整块带高压到 62px 档(原 py-2 ≈66-70px,
+              // 844×360 零滚动预算),字级行高不动
+              "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-1.5 text-left transition-colors cursor-pointer " +
               // H3(#751):flex 1 0 160px + max-width 280px(见头注),替换原定宽 160
               "flex-[1_0_160px] max-w-[280px] " +
               // 选中语言与 MapSelectPanel/SegmentedSelect 统一:金框 + gold/25 势档

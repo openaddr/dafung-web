@@ -17,8 +17,10 @@ import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
-/** G-19:数字快捷键(1/2/3)触发选项 —— 挂载绑、卸载解;actions 顺序即角标顺序。
- *  Esc 不做(决策不可关是产品设定)。回调里的 disabled 判断由各卷轴自行收口。 */
+/** G-19:数字快捷键(1/2/3)触发选项 —— 挂载绑、卸载解;actions 顺序即选项序。
+ *  Esc 不做(决策不可关是产品设定)。回调里的 disabled 判断由各卷轴自行收口。
+ *  键位角标已随 #761 ③ 删除(DESIGN「不设键位角标」裁定);监听属存量交互语义
+ *  (DESIGN §4.6「不扩面、不复制」),保留不连坐。 */
 function useNumberShortcuts(actions: Array<() => void>) {
   const ref = useRef(actions);
   ref.current = actions;
@@ -63,7 +65,6 @@ export function EncounterChoiceScroll({
           <BannerButton
             key={o.id}
             primary={i === 0}
-            shortcut={i + 1}
             disabled={!o.available}
             title={o.available ? undefined : o.reason}
             testid={T.encounterOption(i)}
@@ -110,7 +111,6 @@ export function ExhaustionChoiceScroll({
             <BannerButton
               key={o.id}
               primary={i === 0}
-              shortcut={i + 1}
               disabled={!o.available}
               title={o.available ? undefined : o.reason}
               testid={T.exhaustionOption(i)}
@@ -183,14 +183,12 @@ export function BuyDecisionScroll({
             primary
             disabled={!buy.available}
             title={buy.available ? undefined : buy.reason}
-            shortcut={1}
             testid={TESTIDS.actionButton("buy")}
             onClick={() => onCommand({ type: "buyProperty" })}
           >
             购地 {formatMoney(property.purchasePrice)}·1委任
           </BannerButton>
           <BannerButton
-            shortcut={2}
             testid={TESTIDS.actionButton("skip")}
             onClick={() => onCommand({ type: "endDecision" })}
           >
@@ -216,7 +214,10 @@ export function BuyDecisionScroll({
         <button
           type="button"
           onClick={() => setShowValues(true)}
-          className="mx-auto mb-1 block font-deco text-xs text-gold-deep underline cursor-pointer hover:text-ink"
+          // 触达热区垫(#761 ④):视觉字号不动,透明 ::before 上下外扩 12px(命中高
+          // ≈43px ≥40 触达口径,DESIGN「视觉与热区可分离」;topbar tbtn ::after 同惯例,
+          // 绝对定位不占布局、视觉零位移)
+          className="relative mx-auto mb-1 block cursor-pointer font-deco text-xs text-gold-deep underline before:absolute before:inset-x-[-8px] before:inset-y-[-12px] before:content-[''] hover:text-ink"
         >
           查看等级表
         </button>
@@ -281,14 +282,12 @@ export function UpgradeDecisionScroll({
             primary
             disabled={!upgrade.available}
             title={upgrade.available ? undefined : upgrade.reason}
-            shortcut={1}
             testid={TESTIDS.actionButton("upgrade")}
             onClick={() => onCommand({ type: "upgradeProperty" })}
           >
             扩军(免费)
           </BannerButton>
           <BannerButton
-            shortcut={2}
             testid={TESTIDS.actionButton("skip")}
             onClick={() => onCommand({ type: "endDecision" })}
           >

@@ -234,7 +234,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     return (
       <div
         data-testid={LID.screen}
-        className="flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
+        className="lobby-safe flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
       >
         <h1 className="font-title text-3xl text-ink tracking-widest">房主已解散房间</h1>
         <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn font-bold"}>
@@ -251,7 +251,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       // 内容不溢出时视觉与 justify-center 一致,溢出(小屏键盘弹起/横屏)时可滚达
       <div
         data-testid={LID.screen}
-        className="relative flex h-full flex-col overflow-y-auto bg-bg p-6"
+        className="lobby-safe relative flex h-full flex-col overflow-y-auto bg-bg p-6"
       >
         {/* F2 断线横幅:挂在卡片上方(未入座也可能在加入后断线;横幅绝对定位不挤布局) */}
         <ConnectionBanner />
@@ -461,7 +461,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     // E1(#13):同未入座态——根节点滚动容器 + 内层 m-auto(8 座位满员时离开按钮也可滚达)
     <div
       data-testid={LID.screen}
-      className="relative flex h-full flex-col overflow-y-auto bg-bg p-6"
+      className="lobby-safe relative flex h-full flex-col overflow-y-auto bg-bg p-6"
     >
       {/* F2 断线横幅:卡片上方常驻(重连成功自动消失) */}
       <ConnectionBanner />

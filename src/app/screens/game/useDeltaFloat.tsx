@@ -43,10 +43,13 @@ export function useDeltaFloat(value: number | null): DeltaFloat[] {
   return floats;
 }
 
-/** 浮标 span 组(#495 自 DashboardBar 收拢至此,与 hook 同域单源):漆底直出亮档配色
- *  (正=lacquerGold / 负=attr-hero-bright),动画复用 layout.css game-cash-float(#700 自 game-hud.css 并入);
+/** 浮标 span 组(#495 自 DashboardBar 收拢至此,与 hook 同域单源):钱色归一(#761 ②)
+ *  正差=attr-cash(与席位主数/棋盘浮字正档同绿族)、负差=danger(与棋盘浮字负档同
+ *  朱砂)——旧「亮档配色」(正=lacquerGold/负=attr-hero-bright)是漆底仪表条时代的
+ *  孤本,随浮标迁驻席位格归一。动画复用 layout.css game-cash-float(#700 自 game-hud.css 并入);
  *  定位锚=调用方的 relative 容器(右上悬出),数值格式化由调用方给(现金走
- *  formatMoney 带单位,裸数值直出)。 */
+ *  formatMoney 带单位,裸数值直出)。体力浮标同件共用:正绿/负朱与体力轨
+ *  (success/danger)同语言,归一无损。 */
 export function DeltaFloats({
   floats,
   fmt,
@@ -62,7 +65,7 @@ export function DeltaFloats({
           aria-hidden="true"
           className={
             "game-cash-float pointer-events-none absolute -top-2 right-0 font-brush text-sm " +
-            (f.delta > 0 ? "text-lacquer-gold" : "text-attr-hero-bright")
+            (f.delta > 0 ? "text-attr-cash" : "text-danger")
           }
         >
           {fmt(f.delta)}

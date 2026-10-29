@@ -65,8 +65,6 @@ export function BannerButton({
   // 口径与引擎选项集注册表一致,由壳统一观感
   disabled,
   title,
-  // G-19:决策快捷键角标(1/2/3);仅展示用,按键监听在 DecisionScrolls
-  shortcut,
 }: {
   children: ReactNode;
   onClick: () => void;
@@ -74,7 +72,6 @@ export function BannerButton({
   testid?: string;
   disabled?: boolean;
   title?: string;
-  shortcut?: number;
 }) {
   // #90:幽灵退场帧里的按钮一律 disabled——e2e/用户的选择器(如
   // `button[data-testid^="action-"]:not([disabled])`)在 210ms 退场窗口内
@@ -82,6 +79,9 @@ export function BannerButton({
   // #93(R3-C6)决策按钮主次权重:primary 升档为墨钮(漆底金字)+加大字号
   // 与内边距;secondary 降半档只缩字号。并排时主次一眼可辨。disabled 两类口径不变
   // (disabled:opacity-40);次级笺钮在横幅上的描边/衬底收口见 banner.css(.banner-shell .note-btn)。
+  // 键位角标退役(#761 ③):G-19 的 1/2/3 上标随 DESIGN「本作不设键盘快捷键依赖与
+  // 键位角标」裁定删除(桌面触屏同删);数字键监听属存量交互语义(DESIGN §4.6
+  // 快捷键退场条「不扩面、不复制」),仍在 DecisionScrolls,不随展示件连坐。
   const isGhost = useContext(BannerGhostContext);
   return (
     <button
@@ -91,21 +91,12 @@ export function BannerButton({
       disabled={disabled || isGhost}
       title={title}
       className={
-        (primary
+        primary
           ? "ink-btn relative cursor-pointer rounded-[5px] px-5 py-2.5 font-brush text-[17px] transition-colors disabled:cursor-not-allowed disabled:opacity-40"
-          : "note-btn relative cursor-pointer rounded-[5px] px-4 py-2 font-brush text-[15px] transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40") +
-        (shortcut != null ? " pr-5" : "")
+          : "note-btn relative cursor-pointer rounded-[5px] px-4 py-2 font-brush text-[15px] transition-colors hover:bg-panel disabled:cursor-not-allowed disabled:opacity-40"
       }
     >
       {children}
-      {shortcut != null && (
-        <span
-          aria-hidden="true"
-          className="absolute top-0.5 right-1 font-deco text-[10px] leading-none text-ink-dim"
-        >
-          {shortcut}
-        </span>
-      )}
     </button>
   );
 }
