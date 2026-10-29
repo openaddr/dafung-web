@@ -20,7 +20,7 @@ import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupS
 import { EditorScreen } from "@app/screens/editor/EditorScreen";
 import { SoundBoard } from "@app/screens/dev/SoundBoard";
 import { HintBar } from "@app/screens/shared/HintBar";
-// R3-C2(#89) 屏幕切换入场转场:keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
+// R3-C2(#89) 屏间转场(#771 墨韵化:墨晕盖入+内容浮现):keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
 import "./styles/screen-transition.css";
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
@@ -204,9 +204,12 @@ export function App() {
     };
   }, [initialMapId, pushHint]);
 
-  // R3-C2(#89) 屏幕切换入场转场:五屏统一收进 keyed 外壳,key=screen 换屏即重挂,
-  // 挂 .screen-in 播入场(淡入 + 8px 上移落定);对局屏追加 .screen-in-game,
-  // 由 CSS 后代选择器命中棋盘 svg 做首帧缓推。退场不做:保留瞬时卸载。
+  // R3-C2(#89) 屏间转场,#771 墨韵化:五屏统一收进 keyed 外壳,key=screen 换屏即重挂。
+  // 换屏语言 =「墨晕盖入 + 内容浮现」两段串接:重挂先播 .screen-ink 墨晕盖入
+  // (400ms,径向墨团自屏幕中心晕开、盖满后化开),随后 .screen-in 播内容浮现
+  // (淡入 + 8px 上移落定);对局屏追加 .screen-in-game,由 CSS 后代选择器命中
+  // 棋盘 svg 在墨晕之后接续首帧缓推。退场不做:保留瞬时卸载。编排细节与
+  // reduced-motion 口径见 screen-transition.css 头注。
   // ?dev=sound 音效试听台:dev 工具直达,压过一切 store 路由(不进 screen 状态机);
   // SPA 内 URL 不变,挂载时读一次即可。
   const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
@@ -270,12 +273,15 @@ export function App() {
   }
   if (content === null) return null;
   // 外壳夹在 #app(100dvh)与各屏根(均 h-full)之间,高度链不能断,故补 h-full w-full;
+  // relative 为墨晕盖入幕(#771)提供定位上下文;
   // testid 全挂在屏内组件上,多包一层不影响 e2e 选择器。
   return (
     <div
       key={screen}
-      className={`screen-in h-full w-full${screen === "game" ? " screen-in-game" : ""}`}
+      className={`screen-in relative h-full w-full${screen === "game" ? " screen-in-game" : ""}`}
     >
+      {/* 墨晕盖入幕:铺在屏内容之前的纯装饰背景层(pointer-events:none,见 screen-transition.css) */}
+      <div className="screen-ink" aria-hidden="true" />
       {content}
     </div>
   );

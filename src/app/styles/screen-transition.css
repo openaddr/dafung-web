@@ -1,14 +1,58 @@
-/* R3-C2(#89) 屏幕切换入场转场:由 App.tsx 的 keyed 外壳消费(key=screen,换屏即重挂播一次)。
-   退场不做:保留瞬时卸载,避免双屏并存状态机。
-   reduced-motion:app.css 的全局兜层用星号通配把所有动画时长压到 0.01ms,
-   本文件两条规则都是 animation 驱动,天然落入该兜层,无需在此另写兜底块。
+/* 屏间转场:R3-C2(#89)立 keyed 外壳,#771 墨韵化。由 App.tsx 消费(key=screen,
+   换屏即重挂播一次)。换屏语言 =「墨晕盖入 + 内容浮现」两段串接,单端动画:
+   退场不做,旧屏瞬时卸载(避免双屏并存状态机)。
+   编排:0–400ms 墨晕盖入(.screen-ink,径向墨团自屏幕中心晕开、盖满后化开),
+   400ms 起内容浮现(.screen-in 250ms);对局屏棋盘缓推接在墨晕之后串播,不叠加。
+   reduced-motion:墨晕整个退场,浮现直接播——app.css 全局兜层把动画时长压到
+   0.01ms,但不管 animation-delay,延迟归零须在本文件尾部显式处理。
    时长与缓动一律引用 tokens.css 动效 token(唯一源 core/theme.ts Motion)。
-   keyframes 只写 from、不写 to:终态即元素自然状态,动画结束(reduced-motion 下瞬时结束)
-   无样式跳变,也不与 Tailwind 内联样式打架。 */
+   .screen-in/.screen-in-game 两条保留 from-only 写法(终态即元素自然状态,动画
+   结束无样式跳变);.screen-ink 播放中态(可见)≠ 终态(隐身),故显式写满三帧。 */
 
-/* ── 入场外壳:淡入 + 自下方 8px 轻移落定(--dur-med 即「屏幕切换」口径的 250ms)── */
+/* ── 墨晕盖入层:铺在屏内容之前的背景幕,换屏瞬间的空档由晕开的墨团盖住。
+   性能红线:径向渐变一次性静态绘制,动画只走 transform/opacity(合成器),
+   不动 layout;pointer-events:none,转场途中不拦任何点击。
+   墨色吃 --color-bg-deep token,边缘 color-mix 渐隐成晕;尺寸 200vmax 保证
+   最宽视口对角也落在实心段内(844×390 标准档半对角 ≈ 55vmax,实心段半径 60vmax)。── */
+.screen-ink {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 200vmax;
+  height: 200vmax;
+  background: radial-gradient(
+    circle closest-side,
+    var(--color-bg-deep) 0 60%,
+    color-mix(in srgb, var(--color-bg-deep) 55%, transparent) 76%,
+    transparent 92%
+  );
+  transform: translate(-50%, -50%) scale(0);
+  opacity: 0;
+  pointer-events: none;
+  animation: ink-cover var(--dur-slow) var(--ease-out);
+}
+@keyframes ink-cover {
+  0% {
+    transform: translate(-50%, -50%) scale(0.02);
+    opacity: 1;
+  }
+  55% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 0;
+  }
+}
+
+/* ── 内容浮现段:淡入 + 自下方 8px 轻移落定(--dur-med 即「屏幕切换」口径的 250ms)。
+   #771 起延迟一个墨晕拍(--dur-slow)串接在盖入之后;backwards 使延迟期内停在
+   from 帧,不会先闪终态再重播。── */
 .screen-in {
   animation: screen-in var(--dur-med) var(--ease-out);
+  animation-delay: var(--dur-slow);
+  animation-fill-mode: backwards;
 }
 @keyframes screen-in {
   from {
@@ -17,17 +61,32 @@
   }
 }
 
-/* ── 对局屏棋盘缓推:进 game 屏首帧一次性 scale 1.06→1,镜头感落座。
+/* ── 对局屏棋盘缓推:进 game 屏一次性 scale 1.06→1,镜头感落座。
    选择器经 .screen-in-game 后代命中 BoardView 的 svg(id=board):它是 HTML 布局盒
    (transform-origin 默认即中心),只动 CSS transform,与 usePanZoom 的 viewBox
-   平移缩放体系互不触碰;一次性 600ms 后回到 none,不残留任何包含块副作用。
+   平移缩放体系互不触碰;一次性播完回到 none,不残留任何包含块副作用。
+   #771 起与墨晕串接:延迟 --dur-slow,墨晕盖满化开后起推,不叠加。
    时长取 --dur-reveal(600ms 揭晓感长拍,即工单口径的 600ms)。── */
 .screen-in-game #board {
   transform-origin: center;
   animation: board-push-in var(--dur-reveal) var(--ease-sine);
+  animation-delay: var(--dur-slow);
+  animation-fill-mode: backwards;
 }
 @keyframes board-push-in {
   from {
     transform: scale(1.06);
+  }
+}
+
+/* ── reduced-motion:墨晕退场(整个不播,停在自然隐身态),浮现/缓推直接播。
+   全局兜层只压时长,这里补延迟归零(否则减弱动态下内容要白等一个墨晕拍)。── */
+@media (prefers-reduced-motion: reduce) {
+  .screen-ink {
+    animation: none;
+  }
+  .screen-in,
+  .screen-in-game #board {
+    animation-delay: 0ms;
   }
 }
