@@ -212,17 +212,19 @@ export const ENCOUNTERS: EncounterDef[] = [
     ],
   },
   {
-    // 体力抉择(#132):连夜赶路得银耗体力(选项级 staminaDelta −20)/ 安营无事。
+    // 体力抉择(#132;#789 重钉):连夜赶路得银耗体力(选项级 staminaDelta −20)/ 安营无事。
+    // 卖体力价 90/20=4.5 两/点 ≤ 折银锚 5(constants.ts STAMINA_CASH_RATE)——旧值 150(7.5)
+    // 高于温泉买价,机遇必出制下被无限套购(局均 210 次耗竭的元凶)。
     id: "夜行军",
     tier: "中性",
     tags: ["银两", "体力"],
     weight: 0.8,
-    text: "斥候探得邻镇粮价飞涨。连夜赶路可抢先售粮(+150 两),将士疲于奔命(体力 −20);或安营扎寨,从长计议。",
+    text: "斥候探得邻镇粮价飞涨。连夜赶路可抢先售粮(+90 两),将士疲于奔命(体力 −20);或安营扎寨,从长计议。",
     choices: [
       {
-        text: "连夜赶路(+150 两,体力 −20)",
+        text: "连夜赶路(+90 两,体力 −20)",
         repDelta: 0,
-        effect: { kind: "cash", delta: 150 },
+        effect: { kind: "cash", delta: 90 },
         staminaDelta: -20,
       },
       { text: "安营扎寨(无事发生)", repDelta: 0 },
@@ -263,7 +265,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     tags: ["银两", "体力"],
     weight: 1,
     text: "粮道遭山贼劫掠,损失折银 250 两",
-    effect: { kind: "cash", delta: -250, staminaDelta: -25 },
+    effect: { kind: "cash", delta: -250, staminaDelta: -10 }, // #789:体力税 ×0.45(−25→−10,验带迭代终值)
   },
   {
     id: "漕船倾覆",
@@ -271,7 +273,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     tags: ["银两", "体力"],
     weight: 1,
     text: "漕船江心倾覆,白银落水",
-    effect: { kind: "cash", delta: -100, staminaDelta: -20 },
+    effect: { kind: "cash", delta: -100, staminaDelta: -8 }, // #789:−20→−8
   },
   {
     id: "假道征粮",
@@ -279,17 +281,18 @@ export const ENCOUNTERS: EncounterDef[] = [
     tags: ["银两", "玩家", "体力"],
     weight: 0.8,
     text: "邻镇诸侯假道征粮,你被迫输银 50 两",
-    effect: { kind: "levy", amount: 50, staminaDelta: -15 },
+    effect: { kind: "levy", amount: 50, staminaDelta: -7 }, // #789:−15→−7
   },
   {
-    // 银两 vs 体力(#188 档 2):花钱消灾 vs 全军疲敝。
+    // 银两 vs 体力(#188 档 2;#789 重钉):花钱消灾 vs 全军疲敝。
+    // 延医 120/免 25 点体力 = 隐含卖价 4.8 两/点 ≤ 折银锚 5(旧值 200=8,套利 outlier)。
     id: "疫病入营",
     tier: "霉运",
     tags: ["银两", "体力"],
     weight: 0.8,
-    text: "军中疫气蔓延,病倒者日增。延医购药需费 200 两,疫可立止;若硬撑操练,疫情蚀体,全军疲敝。",
+    text: "军中疫气蔓延,病倒者日增。延医购药需费 120 两,疫可立止;若硬撑操练,疫情蚀体,全军疲敝。",
     choices: [
-      { text: "重金延医(费银 200 两)", repDelta: 0, effect: { kind: "cash", delta: -200 } },
+      { text: "延医购药(费银 120 两)", repDelta: 0, effect: { kind: "cash", delta: -120 } },
       { text: "硬撑操练(全军体力 −25)", repDelta: 0, staminaDelta: -25 },
     ],
   },
@@ -368,7 +371,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     tags: ["体力"],
     weight: 0.8,
     text: "千里转进,驿马接连倒毙,全军徒步拖行,人困马乏",
-    effect: { kind: "cash", delta: 0, staminaDelta: -20 },
+    effect: { kind: "cash", delta: 0, staminaDelta: -8 }, // #789:−20→−8
   },
   {
     id: "火烛惊营",
@@ -376,7 +379,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     tags: ["银两", "体力"],
     weight: 0.8,
     text: "夜半营中走水,火借风势,粮草帐幕焚毁过半",
-    effect: { kind: "cash", delta: -150, staminaDelta: -15 },
+    effect: { kind: "cash", delta: -150, staminaDelta: -7 }, // #789:−15→−7
   },
 ];
 
