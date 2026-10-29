@@ -5,8 +5,9 @@
 import type { JinnangTag, JinnangTargetDomain } from "@core/jinnang";
 import { TREASURES } from "@core/treasures";
 
-/** 纹样族:一标签一族(方案 §4 P0-A)——谋=云纹 / 攻=火纹 / 守=盾纹 / 援=枝纹 /
- *  即时=电纹(#281 反应锦囊:电光石火,反应窗一闪即发)。 */
+/** 画心母题族:一标签一族(方案 §4 P0-A 立,#763 起为自绘墨线画心的族通道键)
+ *  ——谋=云 / 攻=火 / 守=盾 / 援=枝 / 即时=电(#281 反应锦囊:电光石火,反应窗
+ *  一闪即发)。墨线 path 单源在 ink-art/jinnang-huaxin.tsx(JINNANG_INK_FAMILY)。 */
 export type JinnangPattern = "cloud" | "fire" | "shield" | "branch" | "bolt";
 
 /** 牌面尺寸档:em 基准 font-size(standard 8px→120×160 / large 16px→240×320)。
@@ -27,9 +28,9 @@ export function jinnangAliasSplit(text: string): { alias: string | null; body: s
   return { alias: text.slice(0, i), body: text.slice(i + 1) };
 }
 
-/** 五族映射:族色 token、纹样、章字、CSS 族色类(jinnang-card.css 的 .f-* ——组件不再
+/** 五族映射:族色 token、画心母题、章字、CSS 族色类(jinnang-card.css 的 .f-* ——组件不再
  *  自备第二份映射,单测钉 CSS 镜像)。牌面族色 = tags[0]
- *  (谋=云纹·黛青 / 攻=火纹·朱砂 / 守=盾纹·赭石 / 援=枝纹·青绿 / 即时=电纹·靛青)。 */
+ *  (谋=云·黛青 / 攻=火·朱砂 / 守=盾·赭石 / 援=枝·青绿 / 即时=电·靛青)。 */
 export const JINNANG_FAMILY: Record<
   JinnangTag,
   { token: string; pattern: JinnangPattern; label: string; faceClass: string }
