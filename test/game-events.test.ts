@@ -333,16 +333,15 @@ describe("事件流(#375):回合推进与轮次", () => {
 describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
   it("机遇触发产出 encounterTriggered(id/tier 随抽取,带档位)", () => {
     const e = makeEngine(9, undefined, {
-      triggerRate: 100,
+      enabled: true,
       baseRates: { good: 1, neutral: 98, bad: 1 },
     });
     finishSetup(e);
     const t = testEngine(e);
     const mover = e.activePlayer;
-    const tile = MAP.board.tiles.find((x) => x.type !== "Fate")!; // 天命格不参与机遇 roll,避开
-    t.place(e.players.indexOf(mover), tile.index);
+    t.place(e.players.indexOf(mover), MAP.board.tiles[0]!.index); // 必出制:任意格都出(ADR-0035)
     beginGameEventBatch(e);
-    t.maybeApplyEncounter(e.activePlayer, e.activePlayer.position); // 触发率 100,必抽中
+    t.maybeApplyEncounter(e.activePlayer); // 开关开,必抽中
     const events = e.snapshot().events;
     expect(events[0]?.kind).toBe("encounterTriggered");
     expect(events[0]).toMatchObject({

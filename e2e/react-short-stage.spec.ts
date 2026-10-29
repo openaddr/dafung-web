@@ -36,7 +36,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
       }),
     );
     await page.getByTestId(SETUP_TID.startGame).click();

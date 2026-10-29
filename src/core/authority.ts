@@ -81,6 +81,7 @@ import {
   buyProperty,
   capitalSupplyOf,
   endDecision,
+  finishCapitalHalt,
   marchTraverse,
   pendingLandDef,
   resolveLanding,
@@ -312,7 +313,7 @@ export class GameEngine {
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
-  // #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 经 g.encounter 直读触发率/档位配比
+  // #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 经 g.encounter 直读开关/档位配比
   encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
@@ -376,6 +377,12 @@ export class GameEngine {
    *  随派生 choices(选项携带 encounterId/encounterText)过网,restoreFromSnapshot 按
    *  id 回链目录重建——与 pendingLand 的「id 句柄 + 目录现查」同一模式。 */
   pendingEncounter: EncounterDef | null = null;
+
+  /** 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断(marchTraverse)在机遇占用本落格
+   *  时置位,settleEncounterChoice 解完据此续跑 finishCapitalHalt(补给+结束回合)而非
+   *  resolveLanding;清算/破产/耗竭接管本落格时作废(人倒下了不领补给)。不变量:
+   *  true ⇔ AwaitingEncounter 相位挂着且落格是驻跸截断。随快照走(SNAPSHOT_FIELDS)。 */
+  pendingEncounterHalt = false;
 
   /** 定制问询挂起载荷(#432 置值/#424 相位化,ADR-0022):非 null ⇔ turnPhase ===
    *  "AwaitingInquiry"(不变量,endTurn 入口挡板+收尾断言守卫);选项集经
@@ -486,8 +493,8 @@ export class GameEngine {
         targetNetWorth: this.targetNetWorth,
         startingCash: this.startingCash,
         startedAt: Date.now(),
-        // 机遇原始配置(#135):触发判定消耗骰流,重放必须复刻同一配置(缺省=null=机遇关,
-        // 与历史日志兼容);重放端 replay-log 原样传回构造 config。
+        // 机遇原始配置(#135/#776):档位抽取消耗骰流,重放必须复刻同一配置(缺省=null=
+        // 机遇关);重放端 replay-log 原样传回构造 config。
         encounter: config.encounter ?? null,
         seats: config.seats.map((s, i) => ({
           seat: i,
@@ -1246,12 +1253,17 @@ export class GameEngine {
     resolveExhaustionChoice(this, index);
   }
 
-  /** 机遇触发与抽取(#123):薄委托 → encounter-flow.maybeApplyEncounter(reaction-window 续结算亦经此)。 */
+  /** 机遇触发与抽取(#123;ADR-0035 机遇必出):薄委托 → encounter-flow.maybeApplyEncounter(reaction-window 续结算亦经此)。 */
   maybeApplyEncounter(
     mover: Player,
-    atTile: number,
   ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-    return maybeApplyEncounter(this, mover, atTile);
+    return maybeApplyEncounter(this, mover);
+  }
+
+  /** 驻跸截断结算尾(ADR-0035):薄委托 → movement-flow.finishCapitalHalt
+   *  (settleEncounterChoice 机遇解完续跑用)。 */
+  finishCapitalHalt(mover: Player): void {
+    finishCapitalHalt(this, mover);
   }
 
   /** 抉择机遇入相(#124):薄委托 → encounter-flow.enterEncounterPhase(#320 去私有化:

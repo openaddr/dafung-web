@@ -133,6 +133,8 @@ export interface GameSnapshot {
   // 待决策落格(决策上下文单点,spec #107 C2):决策命令消费与恢复重建的唯一出处;
   // 只存 kind + propertyId 句柄,定义由 catalog 现查。
   pendingLand: PendingLand | null;
+  // 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断遇抉择机遇占用时置位。
+  pendingEncounterHalt: boolean;
   // 纯派生(log 长度)
   logCount: number;
   // 锦囊牌库/弃牌堆(#122):god-view 含牌序,联机投影只给数量(牌序决定未来抽牌,
@@ -786,6 +788,15 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           `快照 pendingLand.propertyId=${pl.propertyId} 不在 catalog,决策上下文无法重建`,
         );
       e.pendingLand = pl ? { kind: pl.kind, propertyId: pl.propertyId } : null;
+    },
+  },
+  {
+    // 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断遇抉择机遇占用时置位,
+    // 恢复后 settleEncounterChoice 据此续跑驻跸尾而非 resolveLanding(补给+结束回合)。
+    key: "pendingEncounterHalt",
+    read: (e) => e.pendingEncounterHalt,
+    write: (e, s) => {
+      e.pendingEncounterHalt = s.pendingEncounterHalt;
     },
   },
   {

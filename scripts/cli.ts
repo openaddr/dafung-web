@@ -79,12 +79,12 @@ function intFlag(flags: Record<string, string>, key: string): number | undefined
 }
 
 /** --encounter 解析:"jiyu" = 产品默认配置(public/config/jiyu.json);其余按路径读。
- *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇配置是重放要素(触发判定消耗
+ *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇配置是重放要素(档位抽取消耗
  *  骰流),坏配置不许静默降级。 */
 function loadEncounterCfg(spec: string): EncounterConfig {
   const path = spec === "jiyu" ? resolve("public/config/jiyu.json") : resolve(spec);
   const cfg = parseEncounterFile(JSON.parse(readFileSync(path, "utf-8")));
-  if (!cfg) throw new Error(`机遇配置无效(triggerRate/baseRates 结构不齐):${path}`);
+  if (!cfg) throw new Error(`机遇配置无效(enabled/baseRates 结构不齐):${path}`);
   return cfg;
 }
 
@@ -106,7 +106,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   const mapId = flags.map ?? builtinMapCatalog()[0].id;
   const map = loadBuiltinMapById(mapId);
   // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认档(ENCOUNTER_PRODUCT_DEFAULTS,
-  // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 triggerRate=0 恒关,CLI 对局要与
+  // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 enabled=false 恒关,CLI 对局要与
   // 产品同源可触发机遇。
   const encounter =
     flags.encounter !== undefined ? loadEncounterCfg(flags.encounter) : ENCOUNTER_PRODUCT_DEFAULTS;

@@ -1,7 +1,7 @@
-// 机遇主流程+体力耗竭域(#123/#124/#130/#132,ADR-0019 委托式拆分 #320):机遇掷骰
-// 触发与加权抽取、抉择机遇入相(AwaitingEncounter)与选项结算、即时效果结算(八种效果
-// 落账)、机遇体力接线与体力耗竭(AwaitingExhaustion)善后。域逻辑=自由函数,首参接
-// GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
+// 机遇主流程+体力耗竭域(#123/#124/#130/#132,ADR-0019 委托式拆分 #320):机遇必出
+// 触发(ADR-0035)与加权抽取、抉择机遇入相(AwaitingEncounter)与选项结算、即时效果结算
+// (八种效果落账)、机遇体力接线与体力耗竭(AwaitingExhaustion)善后。域逻辑=自由函数,
+// 首参接 GameEngine 直接读写引擎状态;与数据表 encounters.ts 分层(流程≠配置,零依赖纯数据)。
 // GameEngine 侧保留同名方法薄委托(authority.ts):公共入口 maybeApplyEncounter/
 // resolveEncounterChoice/resolveExhaustionChoice/exhaustIfDepleted,入相与即时结算
 // enterEncounterPhase/settleEncounter(#320 去私有化:域内经 g.xxx 往返消费,兼作
@@ -143,27 +143,16 @@ function applyExhaustionAftermath(g: GameEngine, p: Player, note: string): void 
   );
 }
 
-/** 机遇触发与抽取(#123)。返回 none/settled(继续落格结算)/deciding(抉择机遇占用本落格,
- *  #124)/liquidating/bankrupt/exhausted(#132:体力归 0 触发耗竭,相位或自动惩罚占用本落格,
- *  均中断落格结算)。一切随机经 this.dice:触发 roll → 档位 roll → 同档加权抽取,顺序固定保重放。 */
+/** 机遇触发与抽取(#123;ADR-0035 机遇必出,#776)。enabled=false 为系统总开关(引擎
+ *  缺省关=测试隔离):关闭时不出机遇、不耗骰流。开启时凡调用必出一条——档位 roll →
+ *  同档加权抽取,顺序固定保重放。返回 none(仅开关关)/settled(继续落格结算)/
+ *  deciding(抉择机遇占用本落格,#124)/liquidating/bankrupt/exhausted(#132:体力归 0
+ *  触发耗竭,相位或自动惩罚占用本落格,均中断落格结算)。 */
 export function maybeApplyEncounter(
   g: GameEngine,
   mover: Player,
-  atTile: number,
 ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
-  // 天命格是固定声望泉(resolveSpecial +20),不参与机遇 roll(#120 决策 2,评审修正)
-  if (g.board.at(atTile).type === "Fate") return "none";
-  if (g.encounter.triggerRate <= 0) return "none";
-  if (g.dice.nextFloat() * 100 >= g.encounter.triggerRate) {
-    // 规格故事 16:每次 roll 与结果都进对局日志(未中也留机读痕)
-    g.logEvent(
-      "system",
-      mover.guohao,
-      `${mover.guohao} 机遇未降临`,
-      `encounterMiss player=${mover.id} rate=${g.encounter.triggerRate} reputation=${mover.reputation}`,
-    );
-    return "none";
-  }
+  if (!g.encounter.enabled) return "none";
   const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation, g.encounter.shares));
   const def = pickWeighted(
     ENCOUNTERS.filter((c) => c.tier === tier),
@@ -237,8 +226,9 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
 /** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
  *  (银两支出走支付/清算,与购地同规则)→ 选项级 staminaDelta 落账(#132)→ 清载荷 → endTurn。
  *  对局日志记机遇 id + 所选选项;liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;
- *  bankrupt 已在效果内 endTurn;exhausted=耗竭接管本落格(#132),三者均不续跑城池结算;
- *  settled → 继续本落格的城池结算(#120 决策 2,评审修正:原先漏掉购地/过路)。 */
+ *  bankrupt 已在效果内 endTurn;exhausted=耗竭接管本落格(#132),三者均不续跑落格结算
+ *  (pendingEncounterHalt 一并作废);settled → 普通落格继续本落格的城池结算(#120 决策 2),
+ *  驻跸截断(ADR-0035,marchTraverse 置 pendingEncounterHalt)续跑驻跸尾(补给+结束回合)。 */
 function settleEncounterChoice(
   g: GameEngine,
   mover: Player,
@@ -279,11 +269,24 @@ function settleEncounterChoice(
   const r = option.effect
     ? applyEncounterEffect(g, mover, def, option.effect, option.text)
     : "settled";
-  if (r !== "settled") return r; // liquidating=留清算 confirm;bankrupt=效果内已 endTurn(优先级高于体力,#132)
+  if (r !== "settled") {
+    // liquidating=留清算 confirm;bankrupt=效果内已 endTurn(优先级高于体力,#132):
+    // 落格由接管方收尾,驻跸续跑标记一并作废
+    g.pendingEncounterHalt = false;
+    return r;
+  }
   // 选项级体力(#132):repDelta/effect 落账后 staminaDelta 落账;exhausted=耗竭接管本落格
   const s = applyEncounterStamina(g, mover, def, option.staminaDelta ?? 0, option.text);
-  if (s === "exhausted") return "exhausted";
-  // 机遇解完 → 继续本落格的城池结算(#120 决策 2,评审修正:原先直接 endTurn 漏掉购地/过路)
+  if (s === "exhausted") {
+    g.pendingEncounterHalt = false; // 耗竭接管本落格:驻跸尾不再续跑(人倒下了不领补给)
+    return "exhausted";
+  }
+  // 机遇解完续跑(#120 决策 2;ADR-0035):普通落格继续城池结算;驻跸截断续跑驻跸尾
+  if (g.pendingEncounterHalt) {
+    g.pendingEncounterHalt = false;
+    g.finishCapitalHalt(mover);
+    return r;
+  }
   g.turnPhase = "Land";
   g.resolveLanding();
   return r;

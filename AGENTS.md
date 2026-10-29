@@ -76,7 +76,7 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 
 - 选都即迁城:**起点=各人自己的都城**,出生位 tile 0 仅选都期临时落位,勿当共同起点(「起」印已随 #620 退役);选都候选 `offeredCapitals` 随 rngState 序列化,联机/恢复必须一致。
 - `AwaitingCapitalHalt` 相位已删勿复活:都城路过必停、结束回合,无「驻跸/继续」抉择。
-- 机遇档位归一/回退**单源在 `core/encounters.ts`**;引擎缺省 `triggerRate=0`,产品默认来自 jiyu.json。
+- 机遇档位归一/回退**单源在 `core/encounters.ts`**;机遇必出(ADR-0035):引擎缺省 `enabled=false`(测试隔离),产品默认来自 jiyu.json。
 
 ## 验证纪律
 

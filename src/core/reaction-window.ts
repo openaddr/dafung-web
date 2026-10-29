@@ -655,7 +655,7 @@ function settleAmbushStop(
   }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
   g.dispatchMoment("AfterMarch", { subject: payload.moverSeat }); // 时机·AfterMarch:移动完成(拦停止步)、落格结算前
   g.turnPhase = "Land";
-  const enc = g.maybeApplyEncounter(mover, payload.tileIndex);
+  const enc = g.maybeApplyEncounter(mover);
   if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
     return;
   g.resolveLanding();

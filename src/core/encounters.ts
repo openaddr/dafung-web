@@ -387,14 +387,15 @@ export interface EncounterBaseRates {
 }
 
 export interface EncounterConfig {
-  /** 落格触发概率 0~100(引擎缺省 0=纯开关;产品默认 40 在配置文件/设置屏)。 */
-  triggerRate?: number;
+  /** 机遇系统总开关(ADR-0035 机遇必出:出不出不再掷概率,false=不出机遇)。
+   *  引擎缺省 false=测试隔离开关;产品默认 true 来自 jiyu.json/设置屏。 */
+  enabled?: boolean;
   /** 三档基准值,按占比归一(和不必为 100);缺省 30/45/25。 */
   baseRates?: EncounterBaseRates;
 }
 
 export interface EncounterRuntimeConfig {
-  triggerRate: number;
+  enabled: boolean;
   shares: EncounterBaseRates; // 已归一为百分比(和=100)
 }
 
@@ -414,12 +415,12 @@ export function normalizeEncounterBaseRates(base: EncounterBaseRates): Encounter
  *  服务器(#135 联机接线)与单机设置屏(encounterConfig.BUILTIN_ENCOUNTER_DEFAULTS)
  *  共用此回退,三处(文件/两端代码)任一调整须同步。 */
 export const ENCOUNTER_PRODUCT_DEFAULTS: EncounterConfig = {
-  triggerRate: 40,
+  enabled: true,
   baseRates: { good: 30, neutral: 45, bad: 25 },
 };
 
-/** jiyu.json → EncounterConfig(#135):triggerRate 与三档基准齐全且均为有限数才接受,
- *  否则 null(调用方回退 ENCOUNTER_PRODUCT_DEFAULTS)。数值边界(0~100/≥0)不在此夹紧
+/** jiyu.json → EncounterConfig(#135):enabled 与三档基准齐全且类型合法才接受,
+ *  否则 null(调用方回退 ENCOUNTER_PRODUCT_DEFAULTS)。数值边界(≥0)不在此夹紧
  *  ——resolveEncounterConfig 已有同语义回退,此处只做结构门槛。 */
 export function parseEncounterFile(data: unknown): EncounterConfig | null {
   if (typeof data !== "object" || data === null) return null;
@@ -430,18 +431,16 @@ export function parseEncounterFile(data: unknown): EncounterConfig | null {
       : null;
   const num = (v: unknown): number | null =>
     typeof v === "number" && Number.isFinite(v) ? v : null;
-  const triggerRate = num(o.triggerRate);
+  const enabled = typeof o.enabled === "boolean" ? o.enabled : null;
   const good = b ? num(b.good) : null;
   const neutral = b ? num(b.neutral) : null;
   const bad = b ? num(b.bad) : null;
-  if (triggerRate === null || good === null || neutral === null || bad === null) return null;
-  return { triggerRate, baseRates: { good, neutral, bad } };
+  if (enabled === null || good === null || neutral === null || bad === null) return null;
+  return { enabled, baseRates: { good, neutral, bad } };
 }
 
 /** 配置解析:非法值回退默认;三档按占比归一为百分比。 */
 export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeConfig {
-  const raw = Number(cfg?.triggerRate ?? 0);
-  const triggerRate = Number.isFinite(raw) ? clamp(raw, 0, 100) : 0;
   const b = cfg?.baseRates;
   // 0 是合法档位(如"中性 100%"=好运 0);仅在负数/非有限/总和为 0 时回退默认
   const base =
@@ -450,7 +449,7 @@ export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeC
     b.good + b.neutral + b.bad > 0
       ? b
       : { good: 30, neutral: 45, bad: 25 };
-  return { triggerRate, shares: normalizeEncounterBaseRates(base) };
+  return { enabled: cfg?.enabled === true, shares: normalizeEncounterBaseRates(base) };
 }
 
 /** 声望调制(s 已夹紧 ±100):好运 +0.25s、霉运 −0.20s 百分点,各夹紧 [5,95],中性吃剩余。 */

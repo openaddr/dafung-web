@@ -141,31 +141,25 @@ export async function unfreezeClock(page: Page): Promise<void> {
 }
 
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。
- *  机遇归零(#126):存量 spec 的钉死断言不耐受随机机遇,起兵前把触发率与三档全部
- *  归 0(机遇关闭)。归零后复查一轮,抗设置屏默认值 fetch 竞态;机遇冒烟 spec 自行
- *  覆写非零参数。 */
+ *  机遇隔离(#126;ADR-0035 必出制):存量 spec 的钉死断言不耐受随机机遇,起兵前把机遇
+ *  开关关掉。路由拦截 jiyu.json 直接回 enabled:false,设置屏回落「内置默认」分支——隔离
+ *  不与挂载期 fetch 竞态;再等开关落到 aria-checked=false(挂载初值是内置默认「开」,
+ *  fetch 竞态窗口内可能为真,等待收敛而非盲点),机遇冒烟 spec 自行覆写非零参数。 */
 export async function openSoloSetup(page: Page): Promise<void> {
-  // 机遇默认值隔离(#126):路由拦截 jiyu.json 直接回全零,设置屏回落「内置默认」分支——
-  // 归零不再与挂载期 fetch 竞态(全量偶发随机机遇污染钉死断言的根因)。机遇冒烟 spec
-  // 自行覆写非零参数(route 对后续 fill 无影响)。
   await page.route("**/config/jiyu.json", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+      body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
     }),
   );
   await page.getByTestId(HOME_TID.solo).click();
   await page.getByTestId(SETUP_TID.screen).waitFor();
   await page.getByTestId(SETUP_TID.encounterToggle).click();
-  for (const tid of [
-    SETUP_TID.encounterTrigger,
-    SETUP_TID.encounterGood,
-    SETUP_TID.encounterNeutral,
-    SETUP_TID.encounterBad,
-  ]) {
-    await page.getByTestId(tid).fill("0");
-  }
+  await expect(page.getByTestId(SETUP_TID.encounterEnabled)).toHaveAttribute(
+    "aria-checked",
+    "false",
+  );
 }
 
 /** 等局面稳定:连续两次引擎快照一致(防在 bot 行动/动画中途读数)。 */
