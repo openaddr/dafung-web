@@ -31,6 +31,7 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   duelClash: { label: "拼点合击", when: "拼点签面起摇拍(骨牌相击,#751/#746)" },
   verdictChime: { label: "判词磬", when: "拼点判词拍·中缝印落锤同拍(碗磬一记,截 1.6s;#751/#746)" },
   reactionOpen: { label: "开窗轻叩", when: "反应窗开启(木鱼族一记;#751)" },
+  reactionTick: { label: "危急滴答", when: "反应窗末 5 秒每秒一记(短促低音量;#760)" },
 };
 
 function Board() {

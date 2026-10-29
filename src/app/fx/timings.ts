@@ -246,9 +246,11 @@ export const DUEL = {
   get verdictMs() {
     return scStage(520);
   },
-  /** 签面·判词停留 */
+  /** 签面·判词停留(#760 校准 600→900:判词是签面演出的语义焦点,600ms 读不完
+   *  己方加权+金圈先行+败签沉暗三态就读走了;停留下限由
+   *  test/choreography-invariants.test.ts 的可读窗不变量守) */
   get holdMs() {
-    return scStage(600);
+    return scStage(900);
   },
   /** 签面·整幕渐出;与 --dur-med 同源(经 Motion),fx.css .duel-overlay-out 消费同一 token */
   get fadeOutMs() {

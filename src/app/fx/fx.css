@@ -562,7 +562,8 @@
   opacity: 0.45;
   transition:
     translate 80ms var(--ease-out),
-    rotate 80ms var(--ease-out);
+    rotate 80ms var(--ease-out),
+    scale var(--dur-fast) var(--ease-out); /* 判词段己方加权(#760)平滑进出 */
 }
 /* 蓄势(#746 条目 2):--windup-x/--windup-rot 由 DuelSignsOverlay 按排布位注入
    (左签 +8px/+1.5°,右签 −8px/−1.5°,朝中缝轻推内倾);落定拍摘类,transition
@@ -650,6 +651,26 @@
 .duel-sign.duel-sign-dim {
   filter: saturate(0.25) brightness(0.72);
   opacity: 0.8;
+}
+
+/* 判词段己方加权(#760):本机签在签内时判词拍挂 duel-self-weighted(overlay)+
+   duel-sign-self(己签根)——己签放大 1.06、他签缩 0.96,「哪枚是我的」一眼可辨;
+   金光圈/沉暗/平印状态语言本身不变。scale 走独立属性,与落定拍 transform 钤落弧
+   分属性复合不互抹(基类 transition 已含 scale 平滑进出);本机不在签内(联机观
+   他席)类全不挂=全签等权,无特判无兜底。 */
+.duel-overlay.duel-self-weighted .duel-sign {
+  scale: 0.96;
+}
+.duel-overlay.duel-self-weighted .duel-sign.duel-sign-self {
+  scale: 1.06;
+}
+/* 己方胜:金圈先行 ~100ms——「我赢」先于「他输」抵达。先行量 = --dur-fast 的
+   2/3(150×2/3,token 组合表达不裸写 ms),败签沉暗的 filter/opacity 过渡按目标态
+   生效(类挂上即带 transition),延迟半拍起步、--dur-fast 渐入。 */
+.duel-overlay.duel-self-win .duel-sign.duel-sign-dim {
+  transition:
+    filter var(--dur-fast) var(--ease-out) calc(var(--dur-fast) * 2 / 3),
+    opacity var(--dur-fast) var(--ease-out) calc(var(--dur-fast) * 2 / 3);
 }
 
 /* 中缝朱砂「拼」印:随幕启钤立锚对抗关系;平局判词拍钤变金「平」(data-verdict=tie,
@@ -796,7 +817,9 @@
 /* ── S7 演出 reduced-motion 补充登记(app.css 全局兜层压 0.01ms 之外的两处增量):
    ①摇签虚影是 JS 换字面非 CSS 动画,兜层管不到——reduced-motion 下字影隐去,
    只留落定真面(拍数不变,e2e 不受影响);掷骰签面与拼点签面同口径(#637)。
-   ②震屏为 transform 位移,兜层压短后仍会跳一帧 4px——直接停用。 */
+   ②震屏为 transform 位移,兜层压短后仍会跳一帧 4px——直接停用。
+   ③判词段金圈先行的过渡延迟(#760):兜层只压时长不压 delay——reduced-motion 下
+   沉暗/放大一律即时到位(加权是状态不是动效,先行编排退场)。 ── */
 @media (prefers-reduced-motion: reduce) {
   .dice-sign.dice-sign-shaking {
     color: transparent;
@@ -806,5 +829,10 @@
   }
   .fx-desk-shake {
     animation: none;
+  }
+  .duel-overlay.duel-self-win .duel-sign.duel-sign-dim,
+  .duel-overlay.duel-self-weighted .duel-sign {
+    transition-delay: 0ms;
+    transition-duration: 0.01ms;
   }
 }

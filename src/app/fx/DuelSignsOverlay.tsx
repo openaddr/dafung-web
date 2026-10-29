@@ -4,7 +4,8 @@
 // 并行不拉长全程,#746 条目 1)→ 依座位序错拍落定(延续既有拼点 clackGap
 // 节拍)→ 判词拍(胜者金光圈+金描边、败者降饱和沉暗,中缝印落锤重钤脉冲,零「胜/负」
 // 文字章,DESIGN §4.6 状态表达原则;平局双方无圈、中缝朱砂「拼」印钤变金「平」——
-// 「都没圈」与「还没判」不可区分,这是文字该承载的语义例外)→ 停留渐出。点差
+// 「都没圈」与「还没判」不可区分,这是文字该承载的语义例外;本机签在签内时判词段
+// 己方加权——己签 scale 1.06、金圈先行,他签 0.96,#760)→ 停留渐出。点差
 // ≥DUEL.blowoutMargin 判词拍震屏(DESIGN §6 拼点大胜负)。整场固定全速,不随 bot
 // 半速(公共大事件非回合等待)。
 // 签面收场后棋盘后效(止步/续走/银两浮字)才登场:present 串行 await 本组件返回的
@@ -14,6 +15,7 @@
 import { useEffect } from "react";
 import { SIGN_FACES } from "@core/constants";
 import { playerColor, rgba } from "@core/theme";
+import { useNetStore } from "@app/store/netStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { getAudio } from "./audio";
 import { shakeDesk } from "./desk";
@@ -92,8 +94,18 @@ function landSign(sign: SignHandle): void {
  *  (#746 条目 3):中缝印重钤脉冲+印缘金光一闪(.duel-seal-pulse),把判词音的画面锚
  *  给到中缝——verdictMs 原为纯等待空拍,脉冲 120ms 在拍内,总时长零增量。判词音换
  *  磬一记(verdictChime,与印章 stamp 的木石感分家,#746 条目 5);大胜负震屏判定=
- *  isBlowout 单源(点差 ≥blowoutMargin,边界行为单测钉死)。 */
-function applyVerdict(ev: DuelSignsEvent, signs: SignHandle[], seal: HTMLDivElement): void {
+ *  isBlowout 单源(点差 ≥blowoutMargin,边界行为单测钉死)。
+ *
+ *  己方加权(#760):本机签在签内时判词段加视觉权——己签 scale 1.06、他签 0.96,
+ *  己方胜时金圈先行(败签沉暗延后 ~100ms,先行量在 CSS 走 token 组合表达);
+ *  金光圈/沉暗/平印状态语言本身不变。本机不在签内(联机观他席)三类全不挂
+ *  =全签等权,无报错无特判。 */
+function applyVerdict(
+  ev: DuelSignsEvent,
+  signs: SignHandle[],
+  seal: HTMLDivElement,
+  overlay: HTMLDivElement,
+): void {
   if (ev.winnerSeat == null) {
     seal.dataset.verdict = "tie";
     seal.textContent = "平";
@@ -102,6 +114,16 @@ function applyVerdict(ev: DuelSignsEvent, signs: SignHandle[], seal: HTMLDivElem
     for (const s of signs) {
       s.root.classList.add(s.side.seat === ev.winnerSeat ? "duel-sign-win" : "duel-sign-dim");
     }
+  }
+  // 本机 seat 投影与 GameScreen 同式(联机=netStore.mySeat,单机=本屏真人恒座 0);
+  // 不是新通路,是既有「我是谁」投影在本件的同一取式。find 不中=本机不在签内,
+  // 加权整体缺席(全签等权)——缺席是正常业务态,非兜底。
+  const mySeat = useNetStore.getState().roomId !== "" ? useNetStore.getState().mySeat : 0;
+  const self = signs.find((s) => s.side.seat === mySeat);
+  if (self != null) {
+    overlay.classList.add("duel-self-weighted");
+    self.root.classList.add("duel-sign-self");
+    if (ev.winnerSeat === mySeat) overlay.classList.add("duel-self-win");
   }
   seal.classList.remove("duel-seal-slam");
   seal.classList.add("duel-seal-pulse");
@@ -160,9 +182,9 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
       if (i > 0) await delay(DUEL.clackGapMs);
       landSign(sign);
     }
-    // ── 判词拍:金圈/金「平」/震屏判点差 ──
+    // ── 判词拍:金圈/金「平」/震屏判点差(+己方加权,#760)──
     await delay(DUEL.verdictMs);
-    applyVerdict(ev, signs, seal);
+    applyVerdict(ev, signs, seal, overlay);
     // ── 停留 → 整幕渐出 ──
     await delay(DUEL.holdMs);
     overlay.classList.add("duel-overlay-out");

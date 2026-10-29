@@ -170,29 +170,18 @@
   color: var(--color-ink);
 }
 
-/* 朱砂倒计时弧+弧心秒数(#751 A5,阅读序前置):底环墨影弱轨,前弧朱砂随剩余
-   时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),文楷 tabular-nums。
-   ≤5s danger 档:数字转朱砂、前弧亮一档(朱砂光晕),整盒入场脉动一次(类挂上
-   即播,一次性演出不随重渲重播;reduced-motion 由 app.css M-4 兜层压时长)。 */
+/* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校):底环墨影弱轨,前弧
+   随剩余时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),文楷 tabular-nums。
+   #760 重校:常态弧由朱砂退墨金弱轨 inkwash——倒计时是常驻状态不是警报,朱砂
+   只留给危急;≤5s danger 档:弧与秒数转朱砂+朱砂光晕,弧 2Hz 呼吸脉动+秒数
+   scale 1.06 脉冲(周期 calc(var(--dur-med)*2)=500ms,呼吸类常驻动画按 DESIGN §6
+   登记 reduced-motion 兜块),每秒一记 reactionTick 滴答(调度在 TSX 与 rAF 同源);
+   旧一次性 0.45s scale1.28 入场脉动已由持续脉动取代(#760,不留双脉动)。 */
 .reaction-timerbox {
   position: relative;
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
-}
-.reaction-timerbox.danger {
-  animation: reaction-timer-danger 0.45s var(--ease-out);
-}
-@keyframes reaction-timer-danger {
-  0% {
-    transform: scale(1);
-  }
-  40% {
-    transform: scale(1.28);
-  }
-  100% {
-    transform: scale(1);
-  }
 }
 .reaction-timer {
   display: block;
@@ -207,12 +196,23 @@
 }
 .reaction-timer .arc {
   fill: none;
-  stroke: var(--color-danger);
+  stroke: var(--color-inkwash); /* 常态档(#760):墨金弱轨,朱砂留给危急 */
   stroke-width: 3.5;
   stroke-linecap: round;
 }
 .reaction-timerbox.danger .reaction-timer .arc {
+  stroke: var(--color-danger);
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-danger) 65%, transparent));
+  animation: reaction-timer-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
+}
+@keyframes reaction-timer-breathe {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.55;
+  }
 }
 .reaction-timer-num {
   position: absolute;
@@ -227,6 +227,16 @@
 }
 .reaction-timerbox.danger .reaction-timer-num {
   color: var(--color-danger);
+  animation: reaction-timer-num-pulse calc(var(--dur-med) * 2) var(--ease-sine) infinite;
+}
+@keyframes reaction-timer-num-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.06);
+  }
 }
 
 /* 来者锦囊 mini 签面(#751 A6):行首卡面锚点——卡面是既有器物语言,非新增标牌。
@@ -267,9 +277,15 @@
 }
 
 /* reduced-motion:呼吸/入场退场为直接状态变化(静态金边),同 layout.css 显式口径
-   (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。 */
+   (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。
+   #760:危急段 2Hz 脉动/脉冲同退(状态色变与滴答音保留——滴答调度在 TSX,
+   不受媒体查询影响)。 */
 @media (prefers-reduced-motion: reduce) {
   .reaction-banner {
+    animation: none;
+  }
+  .reaction-timerbox.danger .reaction-timer .arc,
+  .reaction-timerbox.danger .reaction-timer-num {
     animation: none;
   }
   .hand-rack-hand > button.reactive .jinnang-card {

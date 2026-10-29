@@ -28,7 +28,8 @@ export type SoundEvent =
   | "haltGong" // 都城停号角(狩猎号角长鸣,#751 与 bankrupt 的 gong-long 分家)
   | "duelClash" // 拼点起摇合击(#746 条目 5:骨牌相击一记,替换合成沙锤——拼点自此有自己的声音)
   | "verdictChime" // 拼点判词磬一记(#746 条目 5:金圈/落锤同拍,与印章 stamp 的木石感分家)
-  | "reactionOpen"; // 反应窗开窗轻叩(#751:木鱼/点击族,窗开即响)
+  | "reactionOpen" // 反应窗开窗轻叩(#751:木鱼/点击族,窗开即响)
+  | "reactionTick"; // 反应窗 ≤5s 危急段每秒滴答(#760:短促低音量 tick,与秒数脉动同拍;纯合成不映射文件——每秒一记的高频事件,采样无增益)
 
 /** 可拔插音效播放器接口。合成 / 文件 / 静音 各自实现。 */
 export interface AudioPlayer {
@@ -167,6 +168,9 @@ export class SynthAudioPlayer implements AudioPlayer {
         break;
       case "reactionOpen":
         this.reactionOpen(ctx);
+        break;
+      case "reactionTick":
+        this.reactionTick(ctx);
         break;
     }
   }
@@ -396,6 +400,13 @@ export class SynthAudioPlayer implements AudioPlayer {
   private reactionOpen(ctx: AudioContext): void {
     this.thump(ctx, 260, 0.1);
     this.noiseBurst(ctx, 0.04, "lowpass", 900, 1, 0.1);
+  }
+
+  // 反应窗危急滴答(#760:≤5s 每秒一记,短促低音量 tick——thump 高频短档,
+  // 频率高过木叩一截示「计时吃紧」,音量压到木叩一半档防每秒连发成噪;纯合成,
+  // 刻意不映射 AUDIO_FILES,禁新增音频二进制)
+  private reactionTick(ctx: AudioContext): void {
+    this.thump(ctx, 620, 0.05, 0.12);
   }
 }
 
