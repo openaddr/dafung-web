@@ -5,9 +5,7 @@
 import { describe, it, expect } from "bun:test";
 import { Motion } from "../src/core/theme";
 import {
-  AUTOPILOT,
   AUTO_MARCH,
-  BOT,
   DICE,
   FX,
   GHOST,
@@ -56,8 +54,7 @@ describe("makeScaler(测试倍率缩放工厂)", () => {
 });
 
 describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)", () => {
-  it("BOT / MARCH", () => {
-    expect(BOT.stepDelayMs).toBe(750);
+  it("MARCH", () => {
     expect(MARCH.minSegMs).toBe(80);
     expect(MARCH.maxSegMs).toBe(460);
     expect(MARCH.speed).toBe(720);
@@ -79,9 +76,8 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(DICE.fadeOutMs).toBe(Motion.dur.med);
   });
 
-  it("GHOST / AUTOPILOT / UI(#117 收编组同样逐位恒等)", () => {
+  it("GHOST / UI(#117 收编组同样逐位恒等)", () => {
     expect(GHOST.frameMs).toBe(210);
-    expect(AUTOPILOT.idleMs).toBe(200);
     expect(UI.hintTtlMs).toBe(1800);
     expect(UI.statusClearMs).toBe(1500);
     expect(UI.victoryButtonMs).toBe(1800);
@@ -93,10 +89,10 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(AUTO_MARCH.qiqianMs).toBe(800);
   });
 
-  it("LAG(#610 落后即校准判据:混合尺阈值+追帧倍率域;ageMs 吃 sc,批数/倍率无量纲)", () => {
-    expect(LAG.gapBatches).toBe(3);
-    expect(LAG.ageMs).toBe(10000);
-    expect(LAG.consecutiveForSnap).toBe(4);
+  it("LAG(#610 落后即校准判据,#730/ADR-0034 再定标:阈值高于配速后正常局水位;ageMs 吃 sc,批数/倍率无量纲)", () => {
+    expect(LAG.gapBatches).toBe(5);
+    expect(LAG.ageMs).toBe(20000);
+    expect(LAG.consecutiveForSnap).toBe(6);
     expect(LAG.scaleMin).toBe(1.5);
     expect(LAG.scaleMax).toBe(3);
     expect(LAG.scaleStep).toBe(0.5);

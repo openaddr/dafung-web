@@ -21,7 +21,8 @@
 // players,再播放,memorySink 逐帧坐标与提取拍预计算完全一致,防提取器内藏
 // 活引用延迟求值(播放期现算即本不变量禁绝的旧病)。
 import { describe, it, expect } from "bun:test";
-import { BOT, CEREMONY, DICE, DUEL, FX, MARCH, TIME_SCALE_FLOOR_MS } from "../src/app/fx/timings";
+import { CEREMONY, DICE, DUEL, FX, MARCH, TIME_SCALE_FLOOR_MS } from "../src/app/fx/timings";
+import { AUTOPILOT_STEP_MS, BOT_STEP_MS } from "../src/core/timings";
 import { Motion } from "../src/core/theme";
 import { GameEngine } from "../src/core/authority";
 import type { EngineConfig } from "../src/core/authority";
@@ -74,8 +75,8 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);
   });
 
-  it("bot 回合节奏真实等待:BOT.stepDelayMs > 0", () => {
-    expect(BOT.stepDelayMs).toBeGreaterThan(0);
+  it("bot 回合配速真实且不快于托管(#730,ADR-0034:bot 是背景演出,可读节奏 ≥ 托管「像人」档)", () => {
+    expect(BOT_STEP_MS).toBeGreaterThanOrEqual(AUTOPILOT_STEP_MS);
   });
 
   it("倍率地板不被悄悄调低:TIME_SCALE_FLOOR_MS >= 100", () => {

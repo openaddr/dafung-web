@@ -18,9 +18,11 @@ type UpdateFn = (room: RoomSession) => void;
 // 除 AwaitingReaction 外各相位 botAct 直驱,AwaitingReaction 由循环头特判停等
 // 人类待应答座位,不走 botAct)
 
-/** 当前决策点座位步进延迟(#399 步进经注入时钟):托管 2s/步(替人玩,节奏像人),
- *  非托管座位为 0。 */
-function stepDelayMs(r: RoomSession, seat: number): number {
+/** 当前决策点座位步进延迟(#399 步进经注入时钟):bot 座位走注入的 botStepMs 配速
+ *  (#730,ADR-0034 产出端配速——bot 连锁逐拍下行,演出队列不再积压;0 = 无配速,
+ *  测试缺省),托管 2s/步(替人玩,节奏像人,#580),真人座位为 0。 */
+function stepDelayMs(r: RoomSession, seat: number, botStepMs: number): number {
+  if (r.engine?.players[seat]?.isBot === true) return botStepMs;
   return r.autoPilot.has(seat) ? AUTOPILOT_STEP_MS : 0;
 }
 
@@ -48,6 +50,9 @@ export interface DriveBotsHost {
   /** #642 驱动链停摆作废窗口(ms);0 = 关闭。联机随 decisionTimeoutMs 同窗,单机
    *  LocalController 显式传 STALL_ABORT_MS(core/timings 单源)。 */
   readonly stallAbortMs: number;
+  /** #730 bot 座位步进配速(ms;0 = 无配速,测试缺省)。生产装配层传 core
+   *  BOT_STEP_MS;e2e 经注册表选项显式注入(含 0=关)。 */
+  readonly botStepMs: number;
   /** #642 响亮终局房间入口:引擎 abortGame + persist + 常规下行广播(三出口共用)。 */
   abortGame(r: RoomSession, reason: string, onUpdate?: UpdateFn): void;
   /** 三组看门狗(链首 clear / 链尾按停点重武装)。 */
@@ -67,7 +72,8 @@ const driving = new WeakSet<RoomSession>();
  *  Setup·PickCapital 期决策点=当前选都座位(currentSetupPlayerIndex,真人等 WS
  *  pickCapital);Playing 期=decisionOwner。关键:冻结的人类座位不被驱动
  *  (seatControlled=false)→ 游戏等其重连或保留窗看门狗代开托管(ADR-0028)。
- *  托管每步间 2s(单节拍,#580),经注入时钟异步步进(步间让出宏任务);
+ *  托管每步间 2s(单节拍,#580),bot 座位按注入 botStepMs 配速(#730 产出端配速),
+ *  经注入时钟异步步进(步间让出宏任务);
  *  每步 persist + onUpdate:客户端能逐步看到动作。
  *  调用方纪律(#529 死锁教训):setAutoPilot 等入口只调度本函数即返回(fire-and-forget),
  *  不得 await 整条链——托管链以 2s/步自续,await 它 = 该命令挂满整条链(生产)/
@@ -151,7 +157,7 @@ export async function driveBots(
           reason = "human-turn";
           break;
         }
-        const delay = stepDelayMs(r, owner);
+        const delay = stepDelayMs(r, owner, host.botStepMs);
         const before = fingerprint(e);
         if (setup) e.aiSetupStepFor(owner);
         else botAct(e); // bot/托管/接管同款裸调(#580 行为单源)
@@ -202,7 +208,7 @@ export async function driveBots(
         () => {
           void driveBots(host, r, onUpdate);
         },
-        stepDelayMs(r, guardOwner),
+        stepDelayMs(r, guardOwner, host.botStepMs),
       );
     }
     // 出口②(#642):no-progress 断链且决策座位属服务器驱动(bot/托管)= 链死无人再拉,

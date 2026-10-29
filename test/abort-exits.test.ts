@@ -290,6 +290,7 @@ describe("出口③ WorkerClock 挂死(#642)", () => {
         ],
         seed: 1,
         mapId: "huanyou",
+        botStepMs: 0, // bun 单测预算按 0ms bot 连锁书写(#730 配速不进既有用例)
       },
       clock,
     );

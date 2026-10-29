@@ -173,6 +173,10 @@ export interface CreateRoomConfig {
  *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
  *  token 重连无缝归座,到期看门狗代开托管(ADR-0028;重连不清托管)。0 = 关闭
  *  (缺省关,单机/测试;server.ts 默认 600000=10 分钟,env RETENTION_WINDOW_MS 可调)。
+ *  botStepMs(#730,ADR-0034):bot 座位步进配速(ms)——产出端配速,bot 连锁逐拍
+ *  下行,与客户端演出队列同量级,普通对局不再积压进追帧/吸附档。0 = 无配速(缺席同,
+ *  测试缺省);生产装配层(local.ts/server.ts)显式传 core BOT_STEP_MS,e2e 经各自
+ *  通道显式注入(含 0=关)。
  *  clock(#399 Worker 时钟):编排定时原语(看门狗/托管步进)。缺省 = 宿主全局
  *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
  *  见 src/app/net/worker-clock.ts)——「失焦照跑」,单机与联机同构的最后一环。 */
@@ -182,6 +186,7 @@ export interface RoomRegistryOptions {
   stallAbortMs?: number;
   reactionWindowMs?: number;
   retentionWindowMs?: number;
+  botStepMs?: number;
   clock?: RoomClock;
 }
 
@@ -213,6 +218,8 @@ export class RoomRegistry {
   private readonly retentionWindowMs: number;
   /** #284 反应窗时长覆盖(0=不覆盖,走 core 常量表):E2E_REACTION_MS 注入通道。 */
   private readonly reactionWindowMsOverride: number;
+  /** #730 bot 座位步进配速(ms;0=无配速,测试缺省):E2E_BOT_STEP_MS/生产常量注入通道。 */
+  private readonly botStepMs: number;
   /** #399 编排定时原语(看门狗/托管步进;缺省全局,浏览器注入 Worker 时钟)。 */
   private readonly clock: RoomClock;
   /** 四组看门狗(#118 停摆/#188 自动起摇/#281 反应窗/#380 掉线保留窗):通用工厂实例,
@@ -242,6 +249,7 @@ export class RoomRegistry {
     this.stallAbortMs = options?.stallAbortMs ?? options?.decisionTimeoutMs ?? 0;
     this.retentionWindowMs = options?.retentionWindowMs ?? 0;
     this.reactionWindowMsOverride = options?.reactionWindowMs ?? 0;
+    this.botStepMs = options?.botStepMs ?? 0;
     this.clock = options?.clock ?? globalClock;
     this.watchdogs = createWatchdogs(this.watchdogHost());
     this.ops = {
@@ -251,6 +259,7 @@ export class RoomRegistry {
       abortGame: (r, reason, onUpdate) => this.abortGame(r.roomId, reason, onUpdate),
       decisionTimeoutMs: this.decisionTimeoutMs,
       stallAbortMs: this.stallAbortMs,
+      botStepMs: this.botStepMs,
       watchdogs: this.watchdogs,
       clock: this.clock,
     };

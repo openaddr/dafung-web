@@ -18,10 +18,10 @@ import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
-import { e2eReactionWindowMs } from "@app/fx/timings";
+import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
-import { STALL_ABORT_MS } from "@core/timings";
+import { BOT_STEP_MS, STALL_ABORT_MS } from "@core/timings";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
 // 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
@@ -51,6 +51,9 @@ export interface SoloRoomConfig {
   mapId?: string;
   /** 机遇配置(#125):设置屏四值原值透传;缺省 = 机遇关(引擎缺省语义,与联机同)。 */
   encounter?: EncounterConfig;
+  /** bot 步进配速覆盖(#730,ADR-0034):生产缺省链 = e2e localStorage 键 → core
+   *  BOT_STEP_MS;bun 单测直接构造时显式传 0(测试预算按 0ms bot 连锁书写)。 */
+  botStepMs?: number;
 }
 
 /** 进程内房间持久化(单机):RoomPersistence 的内存实现。单机无跨进程恢复语义
@@ -113,6 +116,9 @@ export class LocalController extends GameController {
     // 单机经 e2e 注入的 localStorage 键(E2E_REACTION_MS_KEY)→ 同一 registry 选项。
     // 0/未注入 = 走 core REACTION_WINDOW_MS 常量表(配置缺席不是兜底,server.ts 同模式)。
     const reactionWindowMs = e2eReactionWindowMs();
+    // #730 bot 步进配速(单机形态):解析链 = 显式注入(config.botStepMs,bun 单测
+    // 传 0)→ e2e localStorage 键 → core BOT_STEP_MS(ADR-0034 产出端配速)。
+    const botStepMs = config.botStepMs ?? e2eBotStepMs() ?? BOT_STEP_MS;
     this.registry = new RoomRegistry(
       new MemoryRoomPersistence(),
       undefined,
@@ -125,6 +131,7 @@ export class LocalController extends GameController {
         // #642 出口②:驱动链停摆作废窗口(单机 30s,core/timings 单源)。不经
         // decisionTimeoutMs——后者单机保持缺省关,#118 human-turn 既有 stall 零变化。
         stallAbortMs: STALL_ABORT_MS,
+        botStepMs,
         ...(reactionWindowMs > 0 ? { reactionWindowMs } : {}),
       },
     );
