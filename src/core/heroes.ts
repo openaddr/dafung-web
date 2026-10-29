@@ -9,7 +9,8 @@ export interface HeroDef {
   name: string; // 周瑜
   title: string; // 雅量高致(称号,风味)
   /** 技能池(ADR-0036):允许拥有的技 id,按池声明序(派发序/卡面序/浮字拼接序同源);
-   *  主动技每池至多一条、技 id 须在技能表可解析(数据守卫见 test/hero-skill 四钉)。 */
+   *  池内技 id 唯一、须在技能表可解析;池可含多条主动技(逐字拍板表周瑜池即火攻+擂鼓
+   *  双主动),逐技独立冷却(数据守卫见 test/hero-skill 四钉 + extension-registry 装载点)。 */
   skillPool: string[];
   image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
 }

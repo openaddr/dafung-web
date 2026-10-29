@@ -4,7 +4,7 @@
 // 名将经 HeroDef.skillPool 按池声明序引用(池序 = 派发序/卡面序/浮字拼接序,见 src/core/heroes.ts)。
 // 新增技 = 往 SKILLS 加一条纯数据(效果查 src/core/effects.ts 注册表;扩展指南见
 // docs/explanation/时机框架.md);新时机/新效果才需要动 timing.ts / effects.ts,
-// 本文件永远只是纯数据 + 按 id/池序的读口。
+// 本文件永远只是纯数据 + 按 id 的读口(池序契约在麾下槽位 skillIds,见 src/core/roster.ts)。
 import type { GameMoment } from "./timing";
 
 // ── 技能系统:技能即数据(时机框架)。技能 = 「什么时机(when)触发什么效果(effect,查
@@ -150,21 +150,10 @@ export function skillById(id: string): SkillDef {
   return skill;
 }
 
-/** 按技 id 查主动技(skillId 同时是 heroLastFired 冷却键);查无/非主动 = 数据 bug,炸出。 */
+/** 按技 id 查主动技(技 id 同时是麾下槽位 lastFired 的冷却键,与 TriggerSkill.id 同口径);
+ *  查无/非主动 = 数据 bug,炸出。 */
 export function activeSkillById(id: string): ActiveSkillDef {
   const skill = skillById(id);
   if (!isActiveSkill(skill)) throw new Error(`技能 ${id} 不是主动技(数据 bug)`);
   return skill;
-}
-
-/** 池序读口(ADR-0036):池 id 序 → 技能对象数组(派发序/卡面序同源);
- *  池引用缺失 = 数据 bug,炸出(零兜底,不静默跳过)。 */
-export function poolSkills(pool: readonly string[]): SkillDef[] {
-  return pool.map(skillById);
-}
-
-/** 池内主动技(可能多条,逐字拍板表即有双主动池——周瑜{火攻,擂鼓};冷却键=技 id,
- *  各技独立记账,选项集/bot 按 id 逐技消费)。 */
-export function poolActiveSkills(pool: readonly string[]): ActiveSkillDef[] {
-  return poolSkills(pool).filter(isActiveSkill);
 }
