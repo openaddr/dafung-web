@@ -20,8 +20,8 @@ import {
   type EncounterEffect,
 } from "./encounters";
 import { findHolding } from "./player";
-import { HEROES, passiveDescLineOf } from "./heroes";
-import { grantHeroSlot } from "./roster";
+import { HEROES } from "./heroes";
+import { grantHeroSlot, grantedNamesLine, rollGrantedSkills } from "./roster";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
@@ -447,13 +447,16 @@ function applyGrantHeroEffect(
     return "settled";
   }
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
+  // 盲盒路(#787):无候选呈现,将身份落定一刻同掷授技(rollGrantedSkills 单源公式,
+  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)
+  const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」:${passiveDescLineOf(hero)}`,
-    `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id}`,
+    `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」,授${grantedNamesLine(granted)}`,
+    `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id} skills=${granted.join("|")}`,
   );
-  grantHeroSlot(g, mover, hero); // 授技入麾下单点(#785):建槽全池+占池+HeroRecruited(事件体携 skillIds)
+  grantHeroSlot(g, mover, hero, granted); // 授技入麾下单点(#785):建槽+占池+HeroRecruited(事件体携 skillIds)
   return "settled";
 }
 

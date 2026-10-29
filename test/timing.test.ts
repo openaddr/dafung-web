@@ -902,7 +902,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const entries = recordMomentCtx(e);
     landActiveOn(e, mover.capitalIndex); // 恰落自己都城:补给 + 招贤纳士
     expect(e.turnPhase).toBe("AwaitingHeroPick");
-    const hid = e.offeredHeroes[0].id;
+    const hid = e.offeredHeroes[0].def.id;
     e.resolveHeroPick(0);
     const hr = entries.filter((x) => x.moment === "HeroRecruited");
     expect(hr).toHaveLength(1);

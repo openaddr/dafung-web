@@ -70,8 +70,9 @@ export function installDebugHooks(): void {
       const e = getEngine();
       if (e) useGameStore.getState().syncFromEngine(e);
     },
-    /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——快照/事件面只存
-     *  展示字段,直写 offeredHeroes 必须给完整定义(技能/主动技随对象进麾下)。 */
+    /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——候选行 = {def, skillIds
+     *  (预掷授技,#787)},直写 offeredHeroes 必须给候选行形状;预掷结果由种植者定
+     *  (e2e 通常给整池),引擎落定原样入槽不重掷。 */
     heroDefs: () => [...HEROES],
     /** 当前控制器(交互入口)。 */
     controller: () => getController(),

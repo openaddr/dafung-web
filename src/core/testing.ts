@@ -14,6 +14,7 @@ import type { HeroDef } from "./heroes";
 import { HEROES } from "./heroes";
 import type { PendingLandKind } from "./movement-flow";
 import type { Player } from "./model";
+import type { HeroOffer } from "./recruitment";
 
 /** 引擎私有步骤的测试触达面(签名与 authority.ts 私有方法**人工对齐**)。实况:缝经
  *  构造器 `as unknown as` 转型,编译期不校验本接口与引擎私有签名的漂移——漂移在运行时
@@ -162,8 +163,9 @@ export function sweepTestHeroes(): void {
   }
 }
 
-/** 麾下槽位布场:把名将以槽位入麾下——skillIds 显式给定(缺省=整池原序,即本票授技
- *  口径;授技掷骰=票 #787)。槽位形状单源 roster.HeroSlot。 */
+/** 麾下槽位布场:把名将以槽位入麾下——skillIds 显式给定(缺省=整池原序:布场工厂
+ *  不掷骰保测试确定性,真实对局授技=rollGrantedSkills 掷子集,#787)。槽位形状单源
+ *  roster.HeroSlot。 */
 export function armHero(e: GameEngine, p: Player, hero: HeroDef, skillIds?: string[]): void {
   if (!HEROES.some((h) => h.id === hero.id)) {
     HEROES.push(hero);
@@ -171,4 +173,10 @@ export function armHero(e: GameEngine, p: Player, hero: HeroDef, skillIds?: stri
     e.recruitedHeroIds.add(hero.id); // 合成将不进招贤候选(骰流与候选断言不受扰)
   }
   p.heroes.push({ heroId: hero.id, skillIds: skillIds ?? [...hero.skillPool], lastFired: {} });
+}
+
+/** 招贤候选行布场(#787 候选行形状):直写 e.offeredHeroes 用——skillIds 显式给定
+ *  (缺省=整池:种植者定预掷结果,引擎落定原样入槽不重掷)。 */
+export function heroOffer(def: HeroDef, skillIds?: string[]): HeroOffer {
+  return { def, skillIds: skillIds ?? [...def.skillPool] };
 }

@@ -6,7 +6,10 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
-import { armHero } from "@core/testing";
+import { armHero, testEngine } from "@core/testing";
+import { rollGrantedSkills } from "@core/roster";
+import { heroById } from "@core/heroes";
+import { skillById } from "@core/skills";
 import { SKILLS } from "@core/skills";
 import { hasUsableJinnang } from "@core/choices";
 import { botAct } from "@core/bot";
@@ -351,5 +354,73 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
       expect(s.name.length, `${s.id} name 空`).toBeGreaterThan(0);
       expect(s.desc.length, `${s.id} desc 空`).toBeGreaterThan(0);
     }
+  });
+});
+
+describe("授技掷骰(#787,ADR-0036)", () => {
+  it("rollGrantedSkills:池内子集、至少一技、按池声明序存;同 seed 确定性重放", () => {
+    for (const hero of HEROES) {
+      // 同 seed 重放逐字节一致(骰流序固定:基数 1 浮点 + Fisher-Yates 池大小-1 浮点)
+      const a = rollGrantedSkills(hero.skillPool, createDice(7).nextFloat);
+      const b = rollGrantedSkills(hero.skillPool, createDice(7).nextFloat);
+      expect(a).toEqual(b);
+      expect(a.length, `${hero.id} 至少一技`).toBeGreaterThanOrEqual(1);
+      expect(a.length).toBeLessThanOrEqual(hero.skillPool.length);
+      // 子集且按池序:过滤池即还原自身
+      expect(a, `${hero.id} 池序子集`).toEqual(hero.skillPool.filter((id) => a.includes(id)));
+    }
+  });
+
+  it("rollGrantedSkills:基数 1..池大小全档可达(均匀性抽样,零保底但无空洞)", () => {
+    for (const poolSize of [2, 3]) {
+      const pool = Array.from({ length: poolSize }, (_, i) => `k${i}`);
+      const sizes = new Set<number>();
+      for (let seed = 1; seed <= 200; seed++) {
+        sizes.add(rollGrantedSkills(pool, createDice(seed).nextFloat).length);
+      }
+      expect([...sizes].sort(), `池 ${poolSize} 基数全档`).toEqual(
+        Array.from({ length: poolSize }, (_, i) => i + 1),
+      );
+    }
+  });
+
+  it("招贤预掷明牌:候选行各携池序子集(≥1);落定沿用候选行预掷,不重掷", () => {
+    const e = makeEngine(11);
+    finishSetup(e);
+    const picker = e.activePlayer;
+    testEngine(e).tryRecruitHero(picker);
+    expect(e.turnPhase).toBe("AwaitingHeroPick");
+    expect(e.offeredHeroes.length).toBe(3);
+    for (const offer of e.offeredHeroes) {
+      expect(offer.skillIds.length, `${offer.def.id} 预掷非空`).toBeGreaterThanOrEqual(1);
+      expect(offer.skillIds).toEqual(
+        offer.def.skillPool.filter((id) => offer.skillIds.includes(id)),
+      );
+    }
+    const picked = e.offeredHeroes[1]!;
+    const grantedSnapshot = [...picked.skillIds];
+    e.resolveHeroPick(1);
+    const slot = picker.heroes.find((s) => s.heroId === picked.def.id);
+    expect(slot?.skillIds).toEqual(grantedSnapshot); // 卡面亮的=实际入麾下的
+  });
+
+  it("三送将路同一公式单点:盲盒路(求贤令)掷得非空池内子集,战报授已授技名", () => {
+    const e = makeEngine(13);
+    finishSetup(e);
+    const p = e.activePlayer;
+    testEngine(e).forceTurnPhase("AwaitingJinnang");
+    p.jinnangHand = ["求贤令"];
+    p.jinnangHandCount = 1;
+    e.submitCommand({ type: "useJinnang", cardId: "求贤令" });
+    expect(p.heroes.length).toBe(1);
+    const slot = p.heroes[0]!;
+    expect(slot.skillIds.length).toBeGreaterThanOrEqual(1);
+    expect(slot.skillIds).toEqual(
+      heroById(slot.heroId).skillPool.filter((id) => slot.skillIds.includes(id)),
+    );
+    // 战报=已授技口径:授【技名】…,不再拼接全池被动 desc
+    const line = e.log.find((l) => l.detail.includes("heroGrant"));
+    expect(line?.brief).toContain(`得「${heroById(slot.heroId).name}」,授`);
+    for (const id of slot.skillIds) expect(line?.brief).toContain(`【${skillById(id).name}】`);
   });
 });

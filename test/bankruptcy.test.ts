@@ -5,7 +5,7 @@ import { createDice } from "@core/dice";
 import type { Player } from "@core/model";
 import { sellValueOf } from "@core/economy";
 import { guidePriceOf } from "@core/treasures";
-import { HEROES } from "@core/heroes";
+import { HEROES, heroById } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import { testEngine, armHero, sweepTestHeroes } from "@core/testing";
@@ -132,7 +132,7 @@ describe("破产清算", () => {
     expect(p.isBankrupt).toBe(false);
   });
 
-  it("遣散整槽弃(#785):已授技与槽内冷却账随槽俱弃、回池无孤儿键;再招重置全池新槽", () => {
+  it("遣散整槽弃(#785):已授技与槽内冷却账随槽俱弃、回池无孤儿键;再招重掷新槽(#787)", () => {
     for (let seed = 1; seed <= 20; seed++) {
       const e = makeEngine(seed);
       finishSetup(e);
@@ -147,12 +147,14 @@ describe("破产清算", () => {
       expect(e.recruitedHeroIds.has("zhouyu")).toBe(false); // 回池:台账无孤儿键
       testEngine(e).tryRecruitHero(p);
       if (e.turnPhase !== "AwaitingHeroPick") continue;
-      const idx = e.offeredHeroes.findIndex((h) => h.id === "zhouyu");
+      const idx = e.offeredHeroes.findIndex((h) => h.def.id === "zhouyu");
       if (idx < 0) continue; // 三选一未含周瑜:换 seed(回池后 3/4 中,20 seed 必中)
+      const offer = e.offeredHeroes[idx]!;
       e.resolveHeroPick(idx);
-      expect(p.heroes).toEqual([
-        { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
-      ]); // 再招重置:授技按池声明序重落全槽、冷却账清零(授技掷骰=票 #787)
+      // 再招重掷(#787):授技=候选行预掷子集(≥1、池内),冷却账清零;遣散不保留旧授技
+      expect(p.heroes).toEqual([{ heroId: "zhouyu", skillIds: offer.skillIds, lastFired: {} }]);
+      expect(offer.skillIds.length).toBeGreaterThanOrEqual(1);
+      expect(offer.skillIds.every((id) => heroById("zhouyu").skillPool.includes(id))).toBe(true);
       return;
     }
     throw new Error("测试场景无效:20 个种子均未让周瑜回到招贤候选");

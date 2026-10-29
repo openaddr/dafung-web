@@ -100,7 +100,7 @@ describe("华佗在池(#133)", () => {
       testEngine(e).tryRecruitHero(e.activePlayer); // 窄口触达私有招贤步骤(同 game.test.ts)
       expect(e.turnPhase).toBe("AwaitingHeroPick");
       expect(e.offeredHeroes.length).toBe(3); // 池 4 位 → 三选一
-      if (e.offeredHeroes.some((h) => h.id === "huatuo")) seen = true;
+      if (e.offeredHeroes.some((h) => h.def.id === "huatuo")) seen = true;
     }
     expect(seen).toBe(true); // 洗牌以 3/4 概率出华佗,20 个种子必中(确定性,无随机逃逸)
   });

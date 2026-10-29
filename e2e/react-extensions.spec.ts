@@ -11,7 +11,8 @@ import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
 
 /** 种植招贤候选(示例名将居中位)+ 摆 AwaitingHeroPick:候选取 heroDefs 全量定义
- *  (#378 调试钩子;技能/主动技随对象入麾下,引擎直写种植是既有 e2e 口径)。 */
+ *  (#378 调试钩子),按 #787 候选行形状 {def, skillIds(预掷授技)} 直写种植——
+ *  种植者定预掷结果(e2e 给整池),引擎落定原样入槽不重掷。 */
 async function plantHeroPick(page: Page): Promise<void> {
   await force(
     page,
@@ -22,7 +23,8 @@ async function plantHeroPick(page: Page): Promise<void> {
       if (!taishici) throw new Error("扩展包未装载:名将池无 taishici(#378 装载断言)");
       e.phase = "Playing";
       e.activeIndex = 0;
-      e.offeredHeroes = [defs.find((h) => h.id === "zhouyu"), taishici, defs.find((h) => h.id === "huatuo")];
+      const row = (id) => { const d = defs.find((h) => h.id === id); return { def: d, skillIds: [...d.skillPool] }; };
+      e.offeredHeroes = [row("zhouyu"), row("taishici"), row("huatuo")];
       e.turnPhase = "AwaitingHeroPick";
     }
   `,
@@ -149,7 +151,7 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
         if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
         e.phase = "Playing";
         e.activeIndex = 0;
-        e.offeredHeroes = [taishici];
+        e.offeredHeroes = [{ def: taishici, skillIds: [...taishici.skillPool] }];
         e.turnPhase = "AwaitingHeroPick";
         e.players[0].jinnangHand = ["连环计", "缓兵之计"];
         e.players[0].jinnangHandCount = 2;

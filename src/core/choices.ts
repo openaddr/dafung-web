@@ -110,8 +110,8 @@ function treasureOwnerChoices(): ChoiceOption[] {
 /** AwaitingHeroPick(候选三选一,永不自动执行)。 */
 function heroPickChoices(e: GameEngine): ChoiceOption[] {
   return e.offeredHeroes.map((h) => ({
-    id: `hero:${h.id}`,
-    label: h.name,
+    id: `hero:${h.def.id}`,
+    label: h.def.name,
     available: true,
   }));
 }

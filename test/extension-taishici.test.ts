@@ -20,7 +20,7 @@ import {
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
 import { extractBatchEvents } from "@app/fx/event-extract";
-import { armHero } from "@core/testing";
+import { armHero, heroOffer } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
@@ -89,7 +89,7 @@ describe("示例名将包·太史慈(#378 全链)", () => {
   it("招贤三选一可选到太史慈;义从随招揽击发:+100 两(事件序 heroRecruited→cashChanged→skillFired)", () => {
     const e = prepared();
     // 种植候选 = 示例包名将(注册面进 HEROES 后,候选对象即真定义,技能随对象入麾下)
-    e.offeredHeroes = [taishiciDef!];
+    e.offeredHeroes = [heroOffer(taishiciDef!)];
     e.turnPhase = "AwaitingHeroPick";
     const p = e.activePlayer;
     const cashBefore = p.cash;
@@ -204,7 +204,7 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     const p = e.activePlayer;
     p.jinnangHand = ["连环计", "缓兵之计"];
     p.jinnangHandCount = 2;
-    e.offeredHeroes = [taishiciDef!];
+    e.offeredHeroes = [heroOffer(taishiciDef!)];
     e.turnPhase = "AwaitingHeroPick";
     // 招贤得太史慈:义从(+100)先结算,信义盲选随后挂起 → AwaitingInquiry 等应答
     // (endTurn 收口延期:resolveHeroPick 流程原样续跑,收口被引擎挡板接住停在问询上)

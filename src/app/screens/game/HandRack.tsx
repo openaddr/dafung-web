@@ -42,7 +42,7 @@ import {
   JinnangCardDetail,
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
-import { HeroCardFace, skillIdFromClick } from "@app/components/card/HeroCardFace";
+import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
@@ -684,7 +684,12 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
               onSelect={() => select(o.id)}
               onDeselect={() => select(null)}
               onInspect={(chipSkillId) =>
-                setGlossary({ heroId: slot.heroId, skillIds: slot.skillIds, skillId: chipSkillId })
+                setGlossary({
+                  heroId: slot.heroId,
+                  poolSkillIds: heroDefOf(slot.heroId).skillPool,
+                  skillIds: slot.skillIds,
+                  skillId: chipSkillId,
+                })
               }
             />
           );

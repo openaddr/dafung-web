@@ -7,7 +7,7 @@ import type { Board, MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
-import { heroById, type HeroDef } from "./heroes";
+import { heroById } from "./heroes";
 import { isTriggerSkill, skillById, type TriggerSkill } from "./skills";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
@@ -104,7 +104,7 @@ import {
   setGuohao,
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
-import { tryRecruitHero, resolveHeroPick } from "./recruitment";
+import { tryRecruitHero, resolveHeroPick, type HeroOffer } from "./recruitment";
 // 声望域(#121/#147,ADR-0019,#384 自壳迁入):声望落账唯一口+献计里程碑在 reputation.ts。
 import { addReputation } from "./reputation";
 import {
@@ -284,7 +284,7 @@ export class GameEngine {
   // public:供 snapshot/联机序列化(同 takenCapitalIndices 模式)。内部代码读 Set,不直接改字段。
   recruitedHeroIds = new Set<string>(); // 已被招揽的名将(唯一)
   pendingExhaustionSeat: number | null = null; // 耗竭决策座位(#130;恢复时按 activeIndex 重派生)
-  offeredHeroes: HeroDef[] = []; // 当前招贤纳士的候选(三选一)
+  offeredHeroes: HeroOffer[] = []; // 当前招贤纳士的候选(三选一;行携预掷授技,#787)
   treasureDeck: TreasureDef[] = []; // 珍宝牌堆(剩余可抽)
   /** 锦囊牌库/弃牌堆(#122):开局 finishSetup 洗序;抽牌从堆顶(pop)出。
    *  公开字段(重放/快照/CLI 可读),可见性由传输层投影裁剪(ADR-0016)。 */

@@ -22,6 +22,7 @@ import {
 import type { ExtensionAuthorityModule, ExtensionInquiry } from "@core/extension-contract";
 import { HEROES, type HeroDef } from "@core/heroes";
 import { SKILLS, type TriggerSkill } from "@core/skills";
+import { heroOffer } from "@core/testing";
 import type { ChoiceOption } from "@core/choices";
 import type { GameMoment } from "@core/timing";
 import huanyouData from "../public/maps/huanyou.json";
@@ -204,7 +205,7 @@ describe("#615 问询开窗延迟到派发稳定点", () => {
     const e = prepared();
     e.turnPhase = "AwaitingHeroPick";
     e.offeredHeroes = [
-      momentHero(uid, [{ when: "HeroRecruited", effect: `test-defer-effect-${uid}` }]),
+      heroOffer(momentHero(uid, [{ when: "HeroRecruited", effect: `test-defer-effect-${uid}` }])),
     ];
     e.resolveHeroPick(0);
 
@@ -257,10 +258,12 @@ describe("#615 问询开窗延迟到派发稳定点", () => {
     const e = prepared();
     e.turnPhase = "AwaitingHeroPick";
     e.offeredHeroes = [
-      momentHero(uid, [
-        { when: "HeroRecruited", effect: `test-q1-effect-${uid}` },
-        { when: "HeroRecruited", effect: `test-q2-effect-${uid}` },
-      ]),
+      heroOffer(
+        momentHero(uid, [
+          { when: "HeroRecruited", effect: `test-q1-effect-${uid}` },
+          { when: "HeroRecruited", effect: `test-q2-effect-${uid}` },
+        ]),
+      ),
     ];
     e.resolveHeroPick(0);
 
@@ -327,10 +330,12 @@ describe("#615 问询开窗延迟到派发稳定点", () => {
     const askTimeHand = e.activePlayer.jinnangHandCount; // askPlayer 读的就是这个计数
     e.turnPhase = "AwaitingHeroPick";
     e.offeredHeroes = [
-      momentHero(uid, [
-        { when: "HeroRecruited", effect: `test-live-ask-${uid}` },
-        { when: "HeroRecruited", effect: `test-live-draw-${uid}` },
-      ]),
+      heroOffer(
+        momentHero(uid, [
+          { when: "HeroRecruited", effect: `test-live-ask-${uid}` },
+          { when: "HeroRecruited", effect: `test-live-draw-${uid}` },
+        ]),
+      ),
     ];
     e.resolveHeroPick(0);
 

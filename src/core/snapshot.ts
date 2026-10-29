@@ -11,7 +11,6 @@
 import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
-import type { HeroDef } from "./heroes";
 import type { LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
@@ -27,13 +26,15 @@ export interface TreasureRow {
   desc?: string;
 }
 
-/** 快照招贤候选行(只存展示字段;候选整将待选、无授技差异——授技在选定入槽时落定,
- *  预掷明牌=票 #787)。 */
+/** 快照招贤候选行(展示字段 + 预掷授技,#787:候选生成时掷定、卡面亮结果再选将,
+ *  随决策窗校准快照下行;落定沿用,客户端不重掷)。 */
 export interface HeroRow {
   id: string;
   name: string;
   title: string;
   image: string;
+  /** 预掷授技(按池声明序的子集,≥1)。 */
+  skillIds: string[];
 }
 
 /** 快照麾下槽位行(#785,ADR-0036:槽位全量=游戏状态——heroId+已授技(池序)+按技冷却
@@ -695,20 +696,24 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢技能池/冷却;
-    // 技效描述不落快照——客户端按 id 回查技表单源(skills.ts),#604)
+    // offeredHeroes:展示字段 + 预掷授技(#787 随校准快照下行);将定义回查 HEROES 表
+    // (技效描述不落快照——客户端按 id 回查技表单源 skills.ts,#604)
     key: "offeredHeroes",
     read: (e) =>
       e.offeredHeroes.map((h) => ({
-        id: h.id,
-        name: h.name,
-        title: h.title,
-        image: h.image,
+        id: h.def.id,
+        name: h.def.name,
+        title: h.def.title,
+        image: h.def.image,
+        skillIds: [...h.skillIds],
       })),
     write: (e, s) => {
-      e.offeredHeroes = s.offeredHeroes
-        .map((h) => HEROES.find((H) => H.id === h.id))
-        .filter((h): h is HeroDef => h != null);
+      e.offeredHeroes = s.offeredHeroes.map((h) => {
+        const def = HEROES.find((H) => H.id === h.id);
+        if (def == null)
+          throw new Error(`快照招贤候选:${h.id} 不在名将目录(HEROES 无此 id,数据 bug)`);
+        return { def, skillIds: [...h.skillIds] };
+      });
     },
   },
   {

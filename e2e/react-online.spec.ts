@@ -171,6 +171,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
     // 断言决策卷轴不早于骰子+行军动画。只在真正等到起摇窗(Roll 等待态)时计次
     //(决策清理期间的空轮询不算),总时长兜 150s。
     let attempts = 0;
+    let rollerSeat = -1;
     const deadline = Date.now() + 150_000;
     while (attempts < 12 && Date.now() < deadline) {
       let roller: Page | null = null;
@@ -185,6 +186,7 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         };
         if (s.phase === "Playing" && s.turnPhase === "Roll" && s.decisionOwner === seat) {
           roller = p;
+          rollerSeat = seat;
           break;
         }
       }
@@ -215,15 +217,25 @@ test("L42 联机落格决策:快照落地后行军动画播完,购地卷轴才�
         continue;
       }
       attempts++;
+      // 决策绑座位(decisionOwner===seat):落格决策是 god-view 态,两端快照同像——
+      // 不绑座位会捞到别家的决策:roller 自己落格自解(无决策,endTurn 换人)后,下一家
+      // 的 PropertyAvailable 在 roller 页快照上照样为真,而购地卷轴只在决策方端挂载
+      //(decisionOwner≠viewSeat → interactive 恒假),这一捕把关键断言②放到永不出卷轴
+      // 的页面上,20s 必红(2026-10-30 实锤:guest 落格自解→host 落可购地,guest 页干等
+      // 超时;房间留痕 auto-roll seat1 4ms 内 active 归 0 无决策,双端截图=host 页卷轴
+      // 在挂、guest 页「正在抉择(已候 15 秒)」)。绑死后本等待语义=「等 roller 自己落
+      // 可购地」,落点有无可购仍由骰子定、捕不到交还外层重扫,重试语义不变。
       const landed = await roller
         .waitForFunction(
-          () => {
+          (seat) => {
             const s = (window as any).__dafung.snapshot();
             return (
-              s.turnPhase === "AwaitingDecision" && s.lastLandOutcomeKind === "PropertyAvailable"
+              s.turnPhase === "AwaitingDecision" &&
+              s.decisionOwner === seat &&
+              s.lastLandOutcomeKind === "PropertyAvailable"
             );
           },
-          undefined,
+          rollerSeat,
           { timeout: 20_000, polling: 100 },
         )
         .then(
