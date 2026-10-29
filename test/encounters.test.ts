@@ -346,9 +346,9 @@ describe("机遇引擎行为", () => {
 
     const full = e.activePlayer;
     full.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "" },
-      { id: "h2", name: "乙", title: "", image: "" },
-      { id: "h3", name: "丙", title: "", image: "" },
+      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
+      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
+      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
     );
     const cashBefore = full.cash;
     te.applyEncounter(full, {
@@ -751,9 +751,9 @@ describe("抉择机遇(#124):入相与快照", () => {
     const mover = e.activePlayer;
     mover.treasures.push(treasure("t1"), treasure("t2"));
     mover.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "" },
-      { id: "h2", name: "乙", title: "", image: "" },
-      { id: "h3", name: "丙", title: "", image: "" },
+      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
+      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
+      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
     );
     e.pendingEncounter = byId("以宝换贤");
     testEngine(e).forceTurnPhase("AwaitingEncounter");

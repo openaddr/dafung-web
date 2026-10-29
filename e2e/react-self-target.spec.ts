@@ -31,10 +31,8 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
 // 华佗直写(def 形状随 core/heroes.ts 华佗条目;image 空串即可,紧凑档卡面不消费图):
 // 体力 50(满体力自疗无可见落账)、现金 2000(≥cost,排除整技可用性疑虑)。
 const HUATUO = `
-  e.players[0].heroes = [{ id: "huatuo", name: "华佗", title: "神医", image: "", skills: [],
-    active: { id: "huatuo-zhenji", name: "赈济", cooldown: 3,
-      desc: "开仓赈济:付 100 两,为任一诸侯(含自己)恢复 30 体力。",
-      target: "any", kind: "relief", params: { cost: 100, stamina: 30 } } }];
+  e.players[0].heroes = [{ id: "huatuo", name: "华佗", title: "神医", image: "",
+    skillPool: ["qingnang", "zhenji"] }]; // 池声明(ADR-0036);技定义查技表
   e.players[0].cash = 2000;
   e.players[0].stamina = 50;
 `;
@@ -43,7 +41,7 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 63);
     await force(page, HUATUO);
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:huatuo-zhenji"));
+    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhenji"));
     await expect(ji).toBeVisible();
     await ji.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();

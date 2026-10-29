@@ -10,9 +10,11 @@
 // 选中/灰置交互态(sel 上浮金描边 / off 下沉置灰 / .reason 原因印条)复用
 // jinnang-card.css 的牌面交互态单源(选择器同批覆盖 .hface),本文件不另写一份。
 //
-// 数据单源:core/heroes.ts HEROES——组件按 heroId 回查目录(同 JinnangCardFace 的
-// jinnangCardOf 口径);技名渲染走 TriggerSkill.name(#358 T1)+ ActiveSkillDef.name,
-// 主动加「冷却 N 轮」。目录外 id 直接抛错(零兜底:目录外名将不允许存在)。
+// 数据单源:core/heroes.ts HEROES(名将)+ core/skills.ts SKILLS(技表,ADR-0036)——
+// 组件按 heroId 回查目录(同 JinnangCardFace 的 jinnangCardOf 口径),技能经池序读口
+// (poolSkills/poolActiveSkill)解析;技名渲染走 TriggerSkill.name(#358 T1)+
+// ActiveSkillDef.name,主动加「冷却 N 轮」。目录外 id 直接抛错(零兜底:目录外名将
+// 不允许存在)。
 // 画像缺失(image="")或加载失败:显式「姓氏朱印」占位(现行 onError 语言,可感知
 // 不静默;空 src 浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍
 // 翻车教训)。
@@ -22,6 +24,7 @@
 // 经 --hface-base 覆写(手牌架随架体 em 基注入,见 hand-rack.css / layout.css)。
 import { useState, type HTMLAttributes } from "react";
 import { HEROES, type HeroDef } from "@core/heroes";
+import { isActiveSkill, poolSkills, skillById } from "@core/skills";
 import { extensionHeroFlagOf } from "@app/extensions/registry";
 import "./hero-card.css";
 
@@ -32,10 +35,11 @@ export function heroDefOf(heroId: string): HeroDef {
   return def;
 }
 
-/** 按主动技 id 反查名将 id(出牌阶段态技卡消费:choices 选项只带 skillId)。 */
+/** 按主动技 id 反查名将 id(出牌阶段态技卡消费:choices 选项只带 skillId);
+ *  池可含多条主动技,技 id 全局唯一故属主唯一。 */
 export function heroIdByActiveSkillId(skillId: string): string {
-  const hero = HEROES.find((h) => h.active?.id === skillId);
-  if (!hero) throw new Error(`主动技不在名将目录:${skillId}`);
+  const hero = HEROES.find((h) => h.skillPool.includes(skillId));
+  if (!hero || !isActiveSkill(skillById(skillId))) throw new Error(`主动技不在名将目录:${skillId}`);
   return hero.id;
 }
 
@@ -78,60 +82,45 @@ function Lihui({ src, name }: { src: string; name: string }) {
   );
 }
 
-/** 详情档技能区:●被动(TriggerSkill.name + 该技 desc 全文)/ ◆主动(ActiveSkillDef
- *  .name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。#604 desc 挂技自带——多被动将
- *  逐行各印各的,不再共用名将根描述(太史慈双被动重复印字隐患就此修掉)。 */
+/** 详情档技能区(池序单遍,ADR-0036):●被动(TriggerSkill.name + 该技 desc 全文)/
+ *  ◆主动(ActiveSkillDef.name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。#604 desc
+ *  挂技自带——多被动将逐行各印各的,不再共用名将根描述(太史慈双被动重复印字隐患就此修掉)。 */
 function SkillRows({ def }: { def: HeroDef }) {
   return (
     <>
-      {(def.skills ?? []).map((s) => (
+      {poolSkills(def.skillPool).map((s) => (
         <div className="sk" key={s.id}>
           <div className="shead">
-            <i className="fu fu-dot" aria-hidden="true" />
+            <i className={isActiveSkill(s) ? "fu fu-dia" : "fu fu-dot"} aria-hidden="true" />
             <span className="sming">{s.name}</span>
+            {isActiveSkill(s) && <span className="cd">冷却 {s.cooldown} 轮</span>}
           </div>
           <div className="sdesc">{s.desc}</div>
         </div>
       ))}
-      {def.active && (
-        <div className="sk">
-          <div className="shead">
-            <i className="fu fu-dia" aria-hidden="true" />
-            <span className="sming">{def.active.name}</span>
-            <span className="cd">冷却 {def.active.cooldown} 轮</span>
-          </div>
-          <div className="sdesc">{def.active.desc}</div>
-        </div>
-      )}
     </>
   );
 }
 
-/** 紧凑档技能区(#605):●/◆ 技名 chips 一行,描述全撤——技效全文走「点技名→技能
- *  全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免口径,点击
+/** 紧凑档技能区(#605):●/◆ 技名 chips 一行(池序),描述全撤——技效全文走「点技名→
+ *  技能全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免口径,点击
  *  分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
 function SkillChips({ def }: { def: HeroDef }) {
   return (
     <div className="bd-row">
-      {(def.skills ?? []).map((s) => (
+      {poolSkills(def.skillPool).map((s) => (
         <span className="bd" key={s.id} data-skill={s.id}>
-          <i className="fu fu-dot" aria-hidden="true" />
+          <i className={isActiveSkill(s) ? "fu fu-dia" : "fu fu-dot"} aria-hidden="true" />
           {s.name}
         </span>
       ))}
-      {def.active && (
-        <span className="bd" data-skill={def.active.id}>
-          <i className="fu fu-dia" aria-hidden="true" />
-          {def.active.name}
-        </span>
-      )}
     </div>
   );
 }
 
-/** 技数(被动+主动合计;技角标 j-badge 承载,pick 档技能区截断时仍可读)。 */
+/** 技数(池大小;技角标 j-badge 承载,pick 档技能区截断时仍可读)。 */
 function skillCount(def: HeroDef): number {
-  return (def.skills?.length ?? 0) + (def.active != null ? 1 : 0);
+  return poolSkills(def.skillPool).length;
 }
 
 /** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。

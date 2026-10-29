@@ -7,7 +7,8 @@ import type { Board, MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
-import type { HeroDef, TriggerSkill } from "./heroes";
+import type { HeroDef } from "./heroes";
+import { poolTriggerSkills, type TriggerSkill } from "./skills";
 import type { TreasureDef } from "./treasures";
 import type { LandOutcome, PendingLand } from "./movement-flow";
 import type { GameMoment, MomentCtx } from "./timing";
@@ -1013,9 +1014,10 @@ export class GameEngine {
     emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
   }
 
-  /** 时机派发:遍历所有未破产玩家(座位序)× 技能序;scope 过滤 + cooldown 检查后执行效果。
-   *  ctx(MomentCtx):subject=时机主体座位,其余字段(die/amount/passedSeat/ownerSeat/propertyId/
-   *  treasureId/heroId/buyerSeat/sellerSeat/tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
+  /** 时机派发:遍历所有未破产玩家(座位序)× 麾下将序 × 池序被动技(skills.ts 池序读口);
+   *  scope 过滤 + cooldown 检查后执行效果。ctx(MomentCtx):subject=时机主体座位,其余字段
+   *  (die/amount/passedSeat/ownerSeat/propertyId/treasureId/heroId/buyerSeat/sellerSeat/
+   *  tileIndex)按各时机语义携带,原样透传给 EffectCtx。 */
   dispatchMoment(moment: GameMoment, ctx: MomentCtx): void {
     this.momentDispatchDepth += 1;
     if (this.momentDispatchDepth > 2)
@@ -1026,7 +1028,7 @@ export class GameEngine {
         const owner = this.players[ownerSeat];
         if (owner.isBankrupt) continue; // 破产玩家技能不触发
         for (const hero of owner.heroes) {
-          for (const skill of hero.skills ?? []) {
+          for (const skill of poolTriggerSkills(hero.skillPool)) {
             if (skill.when !== moment) continue;
             if (!this.scopePasses(skill.scope, ctx.subject, ownerSeat)) continue;
             if (!this.skillReady(owner, skill)) continue;

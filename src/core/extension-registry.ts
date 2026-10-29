@@ -1,17 +1,20 @@
-// 扩展注册面(#378,ADR-0022):权威侧贡献的**唯一装载入口**——把包内名将/效果注册进
-// 引擎既有注册面(heroes.ts 的 HEROES 名将池 / effects.ts 的 EFFECTS 效果注册表)。
+// 扩展注册面(#378,ADR-0022):权威侧贡献的**唯一装载入口**——把包内技能/名将/效果注册进
+// 引擎既有注册面(skills.ts 的 SKILLS 技表 / heroes.ts 的 HEROES 名将池 / effects.ts 的
+// EFFECTS 效果注册表)。
 // 设计口径:
 //  - **注册进既有表,不另立平行表**:招贤三选一(recruitment)/机遇与锦囊送将
 //    (encounter-flow / jinnang-execution)/快照回链(snapshot)/事件消费面
-//    (event-fold/event-extract)/卡面(HeroCardFace)全部直读 HEROES·EFFECTS——
-//    注册即全链生效,消费方零改动;heroes.ts / effects.ts 本体仍是纯数据/纯注册表。
-//  - **冲突即炸(零兜底)**:包 id、名将 id、效果 id 任一与内置表或已装包冲突,
+//    (event-fold/event-extract)/卡面(HeroCardFace)全部直读 SKILLS·HEROES·EFFECTS——
+//    注册即全链生效,消费方零改动;skills.ts / heroes.ts / effects.ts 本体仍是纯数据/纯注册表。
+//  - **冲突即炸(零兜底)**:包 id、技能 id、名将 id、效果 id 任一与内置表或已装包冲突,
 //    当场抛错——不静默跳过、不覆盖;两包作者撞 id 是包生态 bug,必须炸出来修。
-//  - **装载即校验**:技能 when 必须是登记过的时机(MOMENTS)、effect 必须可解析
-//    (内置 ∪ 本包 ∪ 已装包)——把「对局中途派发才炸」的数据 bug 提前到启动装载点。
+//  - **装载即校验**:被动技 when 必须是登记过的时机(MOMENTS)、effect 必须可解析
+//    (内置 ∪ 本包 ∪ 已装包);名将池(ADR-0036)非空、池引用可解析、主动技每池 ≤1——
+//    把「对局中途派发才炸」的数据 bug 提前到启动装载点。
 //  - 注册是模块级全局态(与 EFFECTS/HEROES 同生命周期):进程内装载一次即全引擎生效
 //    (服务端=全房间,单机=本页);unregisterExtensionPackage 供测试隔离与将来热卸载。
 import { HEROES, type HeroDef } from "./heroes";
+import { SKILLS, isActiveSkill, type SkillDef } from "./skills";
 import { EFFECTS } from "./effects";
 import { MOMENTS } from "./timing";
 import type {
@@ -25,6 +28,7 @@ const installed = new Map<
   string,
   {
     manifest: ExtensionManifest;
+    skills: SkillDef[];
     heroes: HeroDef[];
     effectIds: string[];
     inquiryIds: string[];
@@ -54,13 +58,24 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
       `扩展注册:包 id「${manifest.id}」重复装载(已装版本 ${installed.get(manifest.id)!.manifest.version})`,
     );
 
+  const skills = mod.skills ?? [];
   const heroes = mod.heroes ?? [];
   const effects = mod.effects ?? {};
   const effectIds = Object.keys(effects);
   const inquiries = mod.inquiries ?? [];
 
-  // 冲突检测:名将/效果 id 对注册面全局唯一(已装包的贡献已并入 HEROES/EFFECTS,
-  // 与内置表同表校验,无需另扫台账);包内也不得自撞。
+  // 冲突检测:技能/名将/效果 id 对注册面全局唯一(已装包的贡献已并入 SKILLS/HEROES/
+  // EFFECTS,与内置表同表校验,无需另扫台账);包内也不得自撞。
+  const seenSkillIds = new Set<string>();
+  for (const s of skills) {
+    if (typeof s.id !== "string" || s.id === "")
+      throw new Error(`扩展注册:${manifest.id} 包内存在缺 id 的技能(包数据 bug)`);
+    if (seenSkillIds.has(s.id))
+      throw new Error(`扩展注册:${manifest.id} 包内技能 id 重复:「${s.id}」`);
+    seenSkillIds.add(s.id);
+    if (SKILLS.some((x) => x.id === s.id))
+      throw new Error(`扩展注册:${manifest.id} 技能 id「${s.id}」与技能表冲突(内置或已装包)`);
+  }
   const seenHeroIds = new Set<string>();
   for (const h of heroes) {
     if (typeof h.id !== "string" || h.id === "")
@@ -95,38 +110,51 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
       );
   }
 
-  // 引用校验(把派发期数据 bug 提前到装载点):when 必须是登记时机;effect 必须可解析;
-  // 技效描述必非空(#604 desc 挂技自带,扩展包是裸 JS 类型层守不住,装载点补位)。
-  for (const h of heroes) {
-    if ((h.skills ?? []).length === 0)
-      throw new Error(
-        `扩展注册:${manifest.id} 名将「${h.id}」零技能(招贤浮字/卡面技能区依赖被动技,数据 bug)`,
-      );
-    for (const s of h.skills ?? []) {
+  // 引用校验(把派发期数据 bug 提前到装载点):被动技 when 必须是登记时机、effect 必须可解析
+  // (内置 ∪ 本包 ∪ 已装包);技效描述必非空(#604 desc 挂技自带,扩展包是裸 JS 类型层
+  // 守不住,装载点补位)。
+  for (const s of skills) {
+    if (!isActiveSkill(s)) {
       if (!MOMENTS.includes(s.when))
         throw new Error(
-          `扩展注册:${manifest.id} 名将「${h.id}」技能「${s.id}」挂了未登记时机「${s.when}」(查 core/timing.ts MOMENTS)`,
+          `扩展注册:${manifest.id} 技能「${s.id}」挂了未登记时机「${s.when}」(查 core/timing.ts MOMENTS)`,
         );
       if (!(s.effect in EFFECTS) && !(s.effect in effects))
         throw new Error(
-          `扩展注册:${manifest.id} 名将「${h.id}」技能「${s.id}」引用了不可解析效果「${s.effect}」(内置表与本包均无)`,
+          `扩展注册:${manifest.id} 技能「${s.id}」引用了不可解析效果「${s.effect}」(内置表与本包均无)`,
         );
-      if (s.desc == null || s.desc.length === 0)
-        throw new Error(`扩展注册:${manifest.id} 名将「${h.id}」技能「${s.id}」缺技效描述(desc)`);
     }
-    if (h.active != null && (h.active.desc == null || h.active.desc.length === 0))
-      throw new Error(
-        `扩展注册:${manifest.id} 名将「${h.id}」主动技「${h.active.id}」缺技效描述(desc)`,
-      );
+    if (s.desc == null || s.desc.length === 0)
+      throw new Error(`扩展注册:${manifest.id} 技能「${s.id}」缺技效描述(desc)`);
     // 主动技的 kind 结算案穷尽由 core/jinnang-execution.ts 的 never 守卫在编译期/结算期逼出,
     // 此处不重复登记第二份 kind 清单(单一事实源纪律)。
   }
+  // 名将池校验(ADR-0036):池非空、池内技 id 不自撞且全部可解析(内置 ∪ 本包 ∪ 已装包);
+  // 池可含多条主动技(核心逐字拍板表即有双主动池),冷却键=技 id 各记各账。
+  for (const h of heroes) {
+    if (h.skillPool == null || h.skillPool.length === 0)
+      throw new Error(
+        `扩展注册:${manifest.id} 名将「${h.id}」空技能池(招贤浮字/卡面技能区依赖技能,数据 bug)`,
+      );
+    const seenPoolIds = new Set<string>();
+    for (const id of h.skillPool) {
+      if (seenPoolIds.has(id))
+        throw new Error(`扩展注册:${manifest.id} 名将「${h.id}」池内技能 id 重复:「${id}」`);
+      seenPoolIds.add(id);
+      if (!seenSkillIds.has(id) && !SKILLS.some((x) => x.id === id))
+        throw new Error(
+          `扩展注册:${manifest.id} 名将「${h.id}」池引用了不可解析技能「${id}」(内置表与本包均无)`,
+        );
+    }
+  }
 
   // 提交:并入既有注册面 + 记台账。此后招贤/送将/快照/派发/问询读口全链可见。
+  SKILLS.push(...skills);
   HEROES.push(...heroes);
   Object.assign(EFFECTS, effects);
   installed.set(manifest.id, {
     manifest,
+    skills,
     heroes,
     effectIds,
     inquiryIds: [...seenInquiryIds],
@@ -142,6 +170,11 @@ export function unregisterExtensionPackage(id: string): void {
     const idx = HEROES.indexOf(h);
     if (idx < 0) throw new Error(`扩展卸载:名将「${h.id}」不在注册表(状态机 bug)`);
     HEROES.splice(idx, 1);
+  }
+  for (const s of pkg.skills) {
+    const idx = SKILLS.indexOf(s);
+    if (idx < 0) throw new Error(`扩展卸载:技能「${s.id}」不在注册表(状态机 bug)`);
+    SKILLS.splice(idx, 1);
   }
   for (const eid of pkg.effectIds) delete EFFECTS[eid];
   installed.delete(id);

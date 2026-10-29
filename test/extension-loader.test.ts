@@ -35,7 +35,7 @@ const GOOD_MANIFEST = JSON.stringify({
 // 唯一 id(随机后缀)防同进程重复注册冲突;英雄/效果同理。
 const seq = () => Math.random().toString(36).slice(2, 8);
 const goodEntry = (uid: string) =>
-  `export default { heroes: [{ id: "tmp-hero-${uid}", name: "临时将", title: "", image: "", skills: [{ id: "tmp-skill-${uid}", name: "技", desc: "技效", when: "DieRolled", effect: "gainCash" }] }], effects: {} };`;
+  `export default { skills: [{ id: "tmp-skill-${uid}", name: "技", desc: "技效", when: "DieRolled", effect: "gainCash" }], heroes: [{ id: "tmp-hero-${uid}", name: "临时将", title: "", image: "", skillPool: ["tmp-skill-${uid}"] }], effects: {} };`;
 
 const toUnload: string[] = [];
 afterEach(() => {

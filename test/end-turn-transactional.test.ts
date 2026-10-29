@@ -9,6 +9,7 @@ import type { EngineConfig, SeatConfig, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import type { HeroDef } from "@core/heroes";
+import { SKILLS, type TriggerSkill } from "@core/skills";
 import {
   registerExtensionAuthorityModule,
   unregisterExtensionPackage,
@@ -53,23 +54,35 @@ function prepared(seed?: number, seats?: SeatConfig[]) {
 /** 相位读经函数取值:破除 TS 对 e.turnPhase 的赋值字面量收窄(收窄后 toBe 只收窄字面型)。 */
 const phaseOf = (e: GameEngine): TurnPhase => e.turnPhase;
 
-/** 挂一枚 TurnEnd 时机坏技(效果 id 查无注册,派发时当场炸)的名将给座位 0。 */
+/** 挂一枚 TurnEnd 时机坏技(效果 id 查无注册,派发时当场炸)的名将给座位 0。
+ *  坏技先注册进技表(ADR-0036:池引用必须可解析),afterEach 精确清退。 */
+const injectedSkills: TriggerSkill[] = [];
+afterEach(() => {
+  while (injectedSkills.length > 0) {
+    const s = injectedSkills.pop()!;
+    const idx = SKILLS.indexOf(s);
+    if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
+    SKILLS.splice(idx, 1);
+  }
+});
+
 function armBrokenTurnEndSkill(e: GameEngine): void {
+  const skill: TriggerSkill = {
+    id: "test-shoukou-boom-skill",
+    name: "收口爆",
+    desc: "TurnEnd 派发即炸(未知效果 id,测试注入)",
+    when: "TurnEnd",
+    effect: "no-such-effect",
+    scope: "any",
+  };
+  SKILLS.push(skill);
+  injectedSkills.push(skill);
   const hero: HeroDef = {
     id: "test-shoukou-boom",
     name: "测试·收口爆",
     title: "测试",
     image: "",
-    skills: [
-      {
-        id: "test-shoukou-boom-skill",
-        name: "收口爆",
-        desc: "TurnEnd 派发即炸(未知效果 id,测试注入)",
-        when: "TurnEnd",
-        effect: "no-such-effect",
-        scope: "any",
-      },
-    ],
+    skillPool: [skill.id],
   };
   e.players[0].heroes.push(hero);
 }

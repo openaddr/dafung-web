@@ -34,7 +34,7 @@
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
 //                 买家-价 卖家+价;treasureStolen → 不折(窃玉偷香转移 = 校准兜底五项之二)
 //   名将族        heroRecruited → 麾下入册 + 招贤池占位;skillFired/heroSkillActivated →
-//                 冷却记账(heroLastFired,键=skillId);主动技按 HEROES 参数落账:
+//                 冷却记账(heroLastFired,键=skillId);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、patronage → 委任状+1(目标得银随同批
 //                 cashChanged·skill 折)、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
@@ -103,7 +103,7 @@ import type {
   ReactionPayload,
   ReactionView,
 } from "@core/reaction-window";
-import type { ActiveSkillDef } from "@core/heroes";
+import type { ActiveSkillDef } from "@core/skills";
 import { isCityType } from "@core/board";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";

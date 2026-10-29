@@ -3,6 +3,7 @@
 // 不向同进程其他测试文件泄漏全局注册态。
 import { describe, it, expect, afterEach } from "bun:test";
 import { HEROES } from "@core/heroes";
+import { SKILLS, type SkillDef } from "@core/skills";
 import { EFFECTS } from "@core/effects";
 import {
   registerExtensionAuthorityModule,
@@ -12,7 +13,7 @@ import {
 } from "@core/extension-registry";
 import type { ExtensionAuthorityModule } from "@core/extension-contract";
 
-/** 最小合法贡献工厂:唯一 id 的名将(挂内置 gainCash 效果)+ 唯一 id 的效果。 */
+/** 最小合法贡献工厂:唯一 id 的技能(挂内置 gainCash 效果)+ 池引用它的名将 + 唯一 id 的效果。 */
 function makeModule(overrides?: Partial<ExtensionAuthorityModule>): ExtensionAuthorityModule {
   const seq = Math.random().toString(36).slice(2, 8);
   return {
@@ -22,21 +23,22 @@ function makeModule(overrides?: Partial<ExtensionAuthorityModule>): ExtensionAut
       version: "0.0.1",
       entry: "index.js",
     },
+    skills: [
+      {
+        id: `test-skill-${seq}`,
+        name: "测试技",
+        desc: "单测用技效",
+        when: "DieRolled",
+        effect: "gainCash", // 复用内置效果(引用合法:内置表命中即可,不必包自带)
+      },
+    ],
     heroes: [
       {
         id: `test-hero-${seq}`,
         name: "测试将",
         title: "试验",
         image: "",
-        skills: [
-          {
-            id: `test-skill-${seq}`,
-            name: "测试技",
-            desc: "单测用技效",
-            when: "DieRolled",
-            effect: "gainCash", // 复用内置效果(引用合法:内置表命中即可,不必包自带)
-          },
-        ],
+        skillPool: [`test-skill-${seq}`],
       },
     ],
     effects: {
@@ -57,10 +59,13 @@ afterEach(() => {
 });
 
 describe("扩展注册面(#378)", () => {
-  it("合法贡献注册进既有注册面:名将池/效果表/台账三处可见,卸载精确还原", () => {
+  it("合法贡献注册进既有注册面:技表/名将池/效果表/台账四处可见,卸载精确还原", () => {
+    const skillsBefore = SKILLS.length;
     const heroesBefore = HEROES.length;
     const mod = makeModule();
     track(mod);
+    expect(SKILLS.map((s) => s.id)).toContain(mod.skills![0]!.id);
+    expect(SKILLS.length).toBe(skillsBefore + 1);
     expect(HEROES.map((h) => h.id)).toContain(mod.heroes![0]!.id);
     expect(HEROES.length).toBe(heroesBefore + 1);
     const effectId = Object.keys(mod.effects!)[0]!;
@@ -69,6 +74,7 @@ describe("扩展注册面(#378)", () => {
     // 卸载(afterEach 也会走,这里显式断言还原语义)
     unregisterExtensionPackage(mod.manifest.id);
     loadedIds.pop();
+    expect(SKILLS.length).toBe(skillsBefore);
     expect(HEROES.length).toBe(heroesBefore);
     expect(EFFECTS[effectId]).toBeUndefined();
     expect(registeredExtensionPackages().map((m) => m.id)).not.toContain(mod.manifest.id);
@@ -85,7 +91,7 @@ describe("扩展注册面(#378)", () => {
   it("名将 id 与内置名将池冲突 → 炸", () => {
     const builtinId = HEROES[0]!.id;
     const mod = makeModule({
-      heroes: [{ id: builtinId, name: "撞名", title: "", image: "" }],
+      heroes: [{ id: builtinId, name: "撞名", title: "", image: "", skillPool: [] }],
     });
     expect(() => registerExtensionAuthorityModule(mod)).toThrow(/与名将池冲突/);
   });
@@ -102,7 +108,7 @@ describe("扩展注册面(#378)", () => {
     const effectId = Object.keys(first.effects!)[0]!;
     expect(() =>
       registerExtensionAuthorityModule(
-        makeModule({ heroes: [{ id: heroId, name: "撞", title: "", image: "" }] }),
+        makeModule({ heroes: [{ id: heroId, name: "撞", title: "", image: "", skillPool: [] }] }),
       ),
     ).toThrow(new RegExp(`名将 id「${heroId}」与名将池冲突`));
     expect(() =>
@@ -111,96 +117,149 @@ describe("扩展注册面(#378)", () => {
   });
 
   it("技能挂未登记时机 / 引用不可解析效果 → 炸(装载期提前暴露派发期数据 bug)", () => {
+    const badMoment: SkillDef = {
+      id: "s1",
+      name: "技",
+      desc: "技效",
+      when: "NoSuchMoment" as never,
+      effect: "gainCash",
+    };
     expect(() =>
-      registerExtensionAuthorityModule(
-        makeModule({
-          heroes: [
-            {
-              id: "bad-moment-hero",
-              name: "坏时机",
-              title: "",
-              image: "",
-              skills: [
-                {
-                  id: "s1",
-                  name: "技",
-                  desc: "技效",
-                  when: "NoSuchMoment" as never,
-                  effect: "gainCash",
-                },
-              ],
-            },
-          ],
-        }),
-      ),
+      registerExtensionAuthorityModule(makeModule({ skills: [badMoment], heroes: [] })),
     ).toThrow(/未登记时机/);
+    const badEffect: SkillDef = {
+      id: "s2",
+      name: "技",
+      desc: "技效",
+      when: "DieRolled",
+      effect: "no-such-effect",
+    };
     expect(() =>
-      registerExtensionAuthorityModule(
-        makeModule({
-          heroes: [
-            {
-              id: "bad-effect-hero",
-              name: "坏效果",
-              title: "",
-              image: "",
-              skills: [
-                { id: "s2", name: "技", desc: "技效", when: "DieRolled", effect: "no-such-effect" },
-              ],
-            },
-          ],
-        }),
-      ),
+      registerExtensionAuthorityModule(makeModule({ skills: [badEffect], heroes: [] })),
     ).toThrow(/不可解析效果/);
   });
 
-  it("零技能名将 / 技缺描述 / 主动技缺描述 → 炸(#604:浮字/卡面数据依赖,装载点提前暴露)", () => {
+  it("技缺描述 / 主动技缺描述 → 炸(#604:浮字/卡面数据依赖,装载点提前暴露)", () => {
     expect(() =>
       registerExtensionAuthorityModule(
         makeModule({
-          heroes: [{ id: "no-skill-hero", name: "无技将", title: "", image: "", skills: [] }],
-        }),
-      ),
-    ).toThrow(/零技能/);
-    expect(() =>
-      registerExtensionAuthorityModule(
-        makeModule({
-          heroes: [
-            {
-              id: "no-desc-hero",
-              name: "缺描述",
-              title: "",
-              image: "",
-              skills: [{ id: "s3", name: "技", desc: "", when: "DieRolled", effect: "gainCash" }],
-            },
-          ],
+          skills: [{ id: "s3", name: "技", desc: "", when: "DieRolled", effect: "gainCash" }],
+          heroes: [],
         }),
       ),
     ).toThrow(/缺技效描述/);
     expect(() =>
       registerExtensionAuthorityModule(
         makeModule({
+          skills: [
+            {
+              id: "a1",
+              name: "主动",
+              cooldown: 1,
+              desc: "",
+              target: "none" as const,
+              kind: "warDrum" as const,
+            },
+          ],
+          heroes: [],
+        }),
+      ),
+    ).toThrow(/缺技效描述/);
+  });
+
+  it("空技能池 / 池引用不可解析 → 炸(ADR-0036 池声明装载校验)", () => {
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          heroes: [{ id: "no-pool-hero", name: "空池将", title: "", image: "", skillPool: [] }],
+        }),
+      ),
+    ).toThrow(/空技能池/);
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
           heroes: [
             {
-              id: "bad-active-hero",
-              name: "主动缺描述",
+              id: "dangling-pool-hero",
+              name: "悬空池",
               title: "",
               image: "",
-              skills: [
-                { id: "s4", name: "技", desc: "技效", when: "DieRolled", effect: "gainCash" },
-              ],
-              active: {
-                id: "a1",
-                name: "主动",
-                cooldown: 1,
-                desc: "",
-                target: "none" as const,
-                kind: "warDrum" as const,
-              },
+              skillPool: ["no-such-skill"],
             },
           ],
         }),
       ),
-    ).toThrow(/主动技「a1」缺技效描述/);
+    ).toThrow(/不可解析技能/);
+  });
+
+  it("池内技 id 重复 → 炸(ADR-0036 池完整性;多主动池合法——冷却键=技 id 各记各账)", () => {
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          heroes: [
+            {
+              id: "dup-pool-hero",
+              name: "重池",
+              title: "",
+              image: "",
+              skillPool: ["jixing", "jixing"],
+            },
+          ],
+        }),
+      ),
+    ).toThrow(/池内技能 id 重复/);
+  });
+
+  it("池含多条主动技 = 合法(核心逐字表周瑜池{火攻,擂鼓}同构;注册后读口可见)", () => {
+    const act: SkillDef = {
+      id: "act-1",
+      name: "主动",
+      cooldown: 1,
+      desc: "技效",
+      target: "none" as const,
+      kind: "warDrum" as const,
+    };
+    const mod = makeModule({
+      skills: [act, { ...act, id: "act-2" }],
+      heroes: [
+        {
+          id: "two-active-hero",
+          name: "双主动",
+          title: "",
+          image: "",
+          skillPool: ["act-1", "act-2"],
+        },
+      ],
+    });
+    track(mod);
+    expect(SKILLS.map((s) => s.id)).toContain("act-1");
+    expect(SKILLS.map((s) => s.id)).toContain("act-2");
+  });
+
+  it("技能 id 与内置表冲突 / 与已装包冲突 → 炸(注册面全局唯一)", () => {
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          skills: [
+            { id: "jixing", name: "撞疾行", desc: "技效", when: "DieRolled", effect: "gainCash" },
+          ],
+          heroes: [],
+        }),
+      ),
+    ).toThrow(/与技能表冲突/);
+    const first = makeModule();
+    track(first);
+    const skillId = first.skills![0]!.id;
+    expect(() =>
+      registerExtensionAuthorityModule(
+        makeModule({
+          skills: [
+            { id: skillId, name: "撞技", desc: "技效", when: "DieRolled", effect: "gainCash" },
+          ],
+          heroes: [],
+        }),
+      ),
+    ).toThrow(new RegExp(`技能 id「${skillId}」与技能表冲突`));
   });
 
   it("卸载未装载的包 → 炸", () => {

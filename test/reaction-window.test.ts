@@ -398,7 +398,9 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
 
   it("拼点全程不派 DieRolled、不触发张星彩掷金(既有边界,#636 事件面钉死)", () => {
     const { e, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
-    e.players[ownerSeat].heroes = [HEROES.find((h) => h.id === "zhangxingcai")!]; // 掷金:任意人掷 6 即 +20
+    const zxc = HEROES.find((h) => h.id === "zhangxingcai")!;
+    // 掷金单技布场:共享池的疾行会改行军步数(拼点/落点断言被互扰)
+    e.players[ownerSeat].heroes = [{ ...zxc, skillPool: ["zhijin"] }]; // 掷金:任意人掷 6 即 +20
     scriptDice(e, { die: 2, rollDies: [6, 2] }); // 行军骰 2;拼点 6 对 2——若误派 DieRolled,掷金必触发
     const ownerCashBefore = e.players[ownerSeat].cash;
     beginGameEventBatch(e); // 批界=行军掷骰 + 反应窗 + 拼点结算全程
@@ -520,10 +522,11 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     victim.properties = [{ propertyId: capId!, group: "a", level: 2, maxLevel: 3 }];
     const zhouyu = HEROES.find((h) => h.id === "zhouyu");
     if (!zhouyu) throw new Error("HEROES 表缺 zhouyu(数据 bug)");
-    user.heroes = [zhouyu];
+    // 火攻单技布场:共享池的擂鼓会在结算后留住出牌窗(收卷相位断言被互扰)
+    user.heroes = [{ ...zhouyu, skillPool: ["huogong"] }];
     e.turnPhase = "AwaitingJinnang";
-    e.resolveHeroSkill("zhouyu-huogong"); // 入目标段
-    e.resolveHeroSkill("zhouyu-huogong", [victimSeat]);
+    e.resolveHeroSkill("huogong"); // 入目标段
+    e.resolveHeroSkill("huogong", [victimSeat]);
     expect(e.pendingReaction).toBeNull(); // 不开窗
     const phaseAfter = e.turnPhase as TurnPhase; // 断言收窄:结算收卷相位
     expect(phaseAfter).toBe("Roll");

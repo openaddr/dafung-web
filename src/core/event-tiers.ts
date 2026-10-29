@@ -28,7 +28,8 @@
 import type { GameEngine } from "./authority";
 import type { Player } from "./model";
 import type { GameEvent, GameEventBody } from "./game-events";
-import { HEROES, type ActiveSkillDef, type HeroDef } from "./heroes";
+import { HEROES, type HeroDef } from "./heroes";
+import { activeSkillById, type ActiveSkillDef } from "./skills";
 import { ENCOUNTERS, type EncounterDef } from "./encounters";
 
 // ─────────────────────── 档位与条目型 ───────────────────────
@@ -336,11 +337,9 @@ export function heroDefOf(heroId: string): HeroDef {
   return hero;
 }
 
-/** 主动技静态回查(HEROES.active;skillId 同时是冷却键)。查无=数据 bug,炸出。 */
+/** 主动技静态回查(技表 skills.ts SKILLS;skillId 同时是冷却键)。查无=数据 bug,炸出。 */
 export function activeSkillDefOf(skillId: string): ActiveSkillDef {
-  const skill = HEROES.flatMap((h) => (h.active ? [h.active] : [])).find((s) => s.id === skillId);
-  if (skill == null) throw new Error(`事件消费:主动技 ${skillId} 不在 HEROES 表(数据 bug)`);
-  return skill;
+  return activeSkillById(skillId);
 }
 
 /** 机遇目录条目按 id 查:缺目录=数据 bug,炸出(fold 相位判定/extract 选项文案共用)。 */

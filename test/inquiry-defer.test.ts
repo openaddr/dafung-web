@@ -21,6 +21,7 @@ import {
 } from "@core/extension-registry";
 import type { ExtensionAuthorityModule, ExtensionInquiry } from "@core/extension-contract";
 import type { HeroDef } from "@core/heroes";
+import { SKILLS, type TriggerSkill } from "@core/skills";
 import type { ChoiceOption } from "@core/choices";
 import type { GameMoment } from "@core/timing";
 import huanyouData from "../public/maps/huanyou.json";
@@ -100,21 +101,39 @@ function blindOptions(n: number): ChoiceOption[] {
   }));
 }
 
-/** 带若干 HeroRecruited 触发技的名将 def(直接塞 offeredHeroes 驱动 resolveHeroPick)。 */
+/** 测试技注册进技表(ADR-0036:池引用必须可解析;afterEach 精确清退)。 */
+const pushedSkills: TriggerSkill[] = [];
+afterEach(() => {
+  while (pushedSkills.length > 0) {
+    const s = pushedSkills.pop()!;
+    const idx = SKILLS.indexOf(s);
+    if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
+    SKILLS.splice(idx, 1);
+  }
+});
+
+/** 带若干 HeroRecruited 触发技的名将 def(先注册进技表再入池;直接塞 offeredHeroes
+ *  驱动 resolveHeroPick)。 */
 function momentHero(uid: string, skills: { when: GameMoment; effect: string }[]): HeroDef {
-  return {
-    id: `test-hero-${uid}`,
-    name: "试探名将",
-    title: "",
-    image: "",
-    skills: skills.map((s, i) => ({
+  const pool = skills.map((s, i) => {
+    const skill: TriggerSkill = {
       id: `test-skill-${uid}-${i}`,
       name: `技${i}`,
       desc: "测试用",
       when: s.when,
       effect: s.effect,
       scope: "self",
-    })),
+    };
+    SKILLS.push(skill);
+    pushedSkills.push(skill);
+    return skill.id;
+  });
+  return {
+    id: `test-hero-${uid}`,
+    name: "试探名将",
+    title: "",
+    image: "",
+    skillPool: pool,
   };
 }
 

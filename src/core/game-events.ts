@@ -184,7 +184,7 @@ export interface PlayerBankruptBody {
   creditorSeat: number | null;
 }
 /** 名将被动技击发(#384):时机技能经 scope/冷却/条件过滤后效果落账成功的瞬间;
- *  seat=技属主,技参数(步数/金额等)由 HEROES 表按 skillId 现查,不入事件。 */
+ *  seat=技属主,技参数(步数/金额等)由技表 skills.ts 按 skillId 现查,不入事件。 */
 export interface SkillFiredBody {
   kind: "skillFired";
   heroId: string;
@@ -193,7 +193,7 @@ export interface SkillFiredBody {
 }
 /** 名将主动技发动(#384,#188 档 3 四类:demolish/relief/patronage/warDrum);
  *  seat=发动者,targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
- *  技参数由 HEROES 表按 skillId 现查。 */
+ *  技参数由技表 skills.ts 按 skillId 现查。 */
 export interface HeroSkillActivatedBody {
   kind: "heroSkillActivated";
   skillId: string;
