@@ -127,22 +127,14 @@ export function DecisionScrollLayer({
       return (
         <TileDetailScroll
           tileIndex={tileIndex}
+          tile={tile}
           tileName={tile.name}
           tileType={tile.type}
           regionLabel={regionLineLabel(def?.group, tile.region)}
-          property={
-            def
-              ? {
-                  id: def.id,
-                  purchasePrice: def.purchasePrice,
-                  maxLevel: def.maxLevel,
-                  valueByLevel: def.valueByLevel,
-                  tradeMult: def.tradeMult,
-                  tradeAdd: def.tradeAdd,
-                  resupply: def.resupply,
-                }
-              : null
-          }
+          // 城表定义直传(TileThumb 缩略图与 ValueTable 同源消费,不再手工收窄成子集)
+          property={def}
+          players={players}
+          cash={players[viewSeat].cash}
           ownerGuohao={ownerEntry?.guohao ?? null}
           ownerLevel={owned?.level ?? 0}
           isCapital={ownerEntry?.capitalIndex === tileIndex}

@@ -22,6 +22,7 @@ import type { GameSnapshot } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
+import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { STAMINA_LOW } from "./SeatPopModal";
 import { TESTIDS } from "./testids";
 import "./warlords-overview.css";
@@ -166,6 +167,10 @@ export function WarlordsOverview({
   // board:registry 静态上下文单源(同 CityLedgerModal;本弹层只在 GameScreenLive
   // 门卫后可达,缺上下文 = 接线 bug,断言炸出,零兜底)。
   const { board } = getControllerContext()!;
+  // 退场动画(#767 底件族⑤):×/Esc/点外走「播完再移除」(zl-out 淡出下沉 8px +
+  // 遮罩 dialog-overlay-out,210ms 出口卸载);城池列钻入走消费方直卸(GameTopBar
+  // 单层互斥先关再开),不经本协议,卸载清理收计时器零残影。
+  const { closing, requestClose } = useDialogExit(onClose);
   const cityNames = snapshot.players.map((p) =>
     p.properties
       .map((h) => {
@@ -182,7 +187,7 @@ export function WarlordsOverview({
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) requestClose();
       }}
     >
       <DialogContent
@@ -190,7 +195,9 @@ export function WarlordsOverview({
         aria-label="诸侯详情"
         /* 挂载不夺焦(PileShell 同款):焦点留在触发钮,Esc/点外两路关闭白拿 */
         initialFocus={false}
-        className="zl"
+        /* 收起中:壳体/遮罩挂退场类(动画播完由协议卸载,重复出口由协议守卫挡掉) */
+        overlayProps={closing ? { className: "dialog-overlay-out" } : undefined}
+        className={"zl" + (closing ? " zl-out" : "")}
       >
         {/* 题名行兼拖动把手(#674/ADR-0031);✕ 钮自带拖动豁免 */}
         <DialogDragHandle className="zl-head" testid={TESTIDS.modalDragHandle}>
@@ -201,7 +208,7 @@ export function WarlordsOverview({
             type="button"
             data-testid={TESTIDS.modalClose}
             aria-label="关闭"
-            onClick={onClose}
+            onClick={requestClose}
             className="zl-close"
           >
             ✕

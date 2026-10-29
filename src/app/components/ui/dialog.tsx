@@ -16,8 +16,10 @@ import {
   DialogDragProvider,
   OVERLAY_TINT,
   OVERLAY_TINT_DIMMED,
+  OVERLAY_TINT_STACKED,
   useDialogDrag,
 } from "@app/hooks/use-dialog-drag";
+import { useDialogStackSlot } from "@app/hooks/dialog-stack";
 
 const Dialog = DialogPrimitive.Root;
 const DialogTrigger = DialogPrimitive.Trigger;
@@ -27,17 +29,28 @@ const DialogClose = DialogPrimitive.Close;
 function DialogOverlay({
   className,
   dimmed,
+  stacked,
   style,
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Backdrop> & {
   /** 拖离中心减淡态(#674;useDialogDrag 的 dimmed,色值单源在 hook 文件)。 */
   dimmed?: boolean;
+  /** 叠层减淡态(#767;开栈栈深>1 且本层为上层,计数单源 hooks/dialog-stack)。 */
+  stacked?: boolean;
 }) {
   return (
     <DialogPrimitive.Backdrop
       data-slot="dialog-overlay"
       className={cn("fixed inset-0 z-50", className)}
-      style={{ backgroundColor: dimmed ? OVERLAY_TINT_DIMMED : OVERLAY_TINT, ...style }}
+      style={{
+        // 两档减淡取强不叠加:拖离(0.15)强于叠层(0.28)
+        backgroundColor: dimmed
+          ? OVERLAY_TINT_DIMMED
+          : stacked
+            ? OVERLAY_TINT_STACKED
+            : OVERLAY_TINT,
+        ...style,
+      }}
       {...props}
     />
   );
@@ -59,9 +72,12 @@ function DialogContent({
   // ConfirmDialog 的 popupRef)与本件内部 ref 组合,不覆盖。
   const popupRef = React.useRef<HTMLDivElement | null>(null);
   const drag = useDialogDrag({ popupRef });
+  // 叠层开栈(#767):本件挂载即活弹层入栈(Portal 随 open 挂载,卸载=关闭出栈),
+  // 栈深>1 且本层为上层 → 遮罩消费减淡档 --mask-dim-stacked。
+  const stacked = useDialogStackSlot(true);
   return (
     <DialogPrimitive.Portal>
-      <DialogOverlay {...overlayProps} dimmed={drag.dimmed} />
+      <DialogOverlay {...overlayProps} dimmed={drag.dimmed} stacked={stacked} />
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         ref={(node: HTMLDivElement | null) => {

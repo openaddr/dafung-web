@@ -24,6 +24,18 @@
   border-color: rgba(217, 185, 92, 0.4);
 }
 
+/* ── 退场(#767 底件族⑤):淡出+下沉 8px(--dur-fast),「播完再移除」协议单源
+   hooks/use-dialog-exit;口径同 pile-modal-out(pile-modal.css)。 ── */
+@keyframes zl-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.zl.zl-out {
+  animation: zl-out var(--dur-fast) var(--ease-in) forwards;
+}
+
 /* ── 题名行(兼拖动把手):题名金字疏排 + 轮次 + 关闭(原型 .shead 制式)── */
 .zl .zl-head {
   display: flex;

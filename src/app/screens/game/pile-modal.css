@@ -55,6 +55,20 @@
   }
 }
 
+/* ── 退场(#767 底件族⑤):淡出+下沉 8px(--dur-fast),「播完再移除」协议单源
+   hooks/use-dialog-exit(210ms 出口 = 150 动画 + 60 余量);双类特异性压过入场
+   pile-modal-in。transform 关键帧与 translate 属性(拖动变量消费位)分属两条
+   通道,叠加合成不互抹。 ── */
+@keyframes pile-modal-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.pile-modal.pile-modal-out {
+  animation: pile-modal-out var(--dur-fast) var(--ease-in) forwards;
+}
+
 /* ── 钉住的头部 / 底部操作行(#708):flex:none 恒在场,不随体部滚动 ── */
 .pile-modal .pile-head {
   flex: none;

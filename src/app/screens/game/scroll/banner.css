@@ -5,8 +5,9 @@
 
    裸色豁免登记(沿 reaction-banner.css 同款口径):rgba(43,35,23,·)=墨影族(阴影,
    非描边);rgba(217,185,92,·)=--color-lacquer-gold/--color-gold 通道、
-   rgba(30,23,12,·)=全应用遮罩墨纱族(ui/dialog|sheet 同值;底件系两档色值自 #674
-   起单源 hooks/use-dialog-drag 的 OVERLAY_TINT*)——皆既有 token 的
+   rgba(30,23,12,·)=全应用遮罩墨纱族(ui/dialog|sheet 同值;三档色值 rgb 三元组
+   单源 hooks/use-dialog-drag 的 OVERLAY_TINT*(常态 0.42/拖离 0.15/叠层档 alpha
+   单源 app.css --mask-dim-stacked))——皆既有 token 的
    rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。 */
 
 /* ── 遮罩:沿用旧 #scroll-layer 定位栈语义(挂载容器 pointer-events-none,
@@ -106,11 +107,38 @@
   animation: banner-fade-out var(--dur-fast) var(--ease-in) forwards;
 }
 
+/* ── 城池详情缩略图(#767 弹窗详情族②):TileThumb 规范类(city-ledger-thumb,
+   组件单源)的横幅域尺寸档——清单弹层域的尺寸在 pile-modal.css(.pile-modal 作用域),
+   两域各管各档不跨引。基准高 96px 上限(宽随 viewBox 比例自适应),矮横屏档 48px
+   随密度降档(见文件尾媒询块)。 ── */
+.banner-body .city-ledger-thumb {
+  height: 96px;
+  width: auto;
+}
+
+/* ── 底件系小卡退场(#767 弹窗详情族⑤):ConfirmDialog 收起的壳体档——淡出+下沉
+   8px,与 pile-modal-out/zl-out 同语言(横幅系本体退场是 banner-lift 上浮,小卡随
+   底件族口径下沉);「播完再移除」协议单源 hooks/use-dialog-exit。双类特异性压过
+   入场 banner-drop。 ── */
+@keyframes dialog-card-out {
+  to {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+.banner-card.dialog-card-out {
+  animation: dialog-card-out var(--dur-fast) var(--ease-in) forwards;
+}
+
 /* ── 短横屏遮罩升格(#239 T4 收口,沿旧 scroll-anim-overlay 同款):板区被手牌架
    压到 ~240px 时 absolute 遮罩随板区裁切,决策瞬间模态优先级高于牌架,升格 fixed
    盖全屏;桌面/竖屏维持 absolute 随板区居中。无层级规则天然压过 Tailwind utilities ── */
 @media (orientation: landscape) and (max-height: 500px) {
   .banner-overlay {
     position: fixed;
+  }
+  /* 详情缩略图矮横屏降档(#767):96 → 48px 随密度收半,详情层首帧不挤爆 310px 预算 */
+  .banner-body .city-ledger-thumb {
+    height: 48px;
   }
 }

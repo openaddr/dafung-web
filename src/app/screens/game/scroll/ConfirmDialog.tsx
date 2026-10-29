@@ -12,6 +12,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import "./banner.css";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
+import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
@@ -41,6 +42,10 @@ export function ConfirmDialog({
   testid,
 }: ConfirmDialogProps) {
   const popupRef = useRef<HTMLDivElement>(null);
+  // 退场动画(#767 底件族⑤):Esc 出口走「播完再移除」(小卡 dialog-card-out 淡出
+  // 下沉 8px + 遮罩 banner-overlay-out,210ms 出口再 onCancel 卸载);确认/取消两钮
+  // 是拍板,决策即时生效不走动画(横幅系 footer 钮同口径)。
+  const { closing, requestClose } = useDialogExit(onCancel);
 
   // 关闭还焦(硬卸载路径的兜底):本组件由调用方条件挂载、按钮点击后整树卸载,
   // 不走 Base UI open→false 的收起流程(其 returnFocus 挂在关闭事件上)。若焦点
@@ -102,16 +107,17 @@ export function ConfirmDialog({
       modal={backdropBlocks ? true : "trap-focus"}
       // 旧口径:点遮罩空白不关闭(出口只有 Esc 与两按钮);disablePointerDismissal
       // 在非模态下同时关掉「焦点移出即关」——点城换选择时焦点必然移出弹层。
+      // Esc 出口走退场协议(#767):收起中重复出口由协议守卫挡掉。
       disablePointerDismissal
       onOpenChange={(next) => {
-        if (!next) onCancel();
+        if (!next) requestClose();
       }}
     >
       <DialogContent
         ref={popupRef}
         data-testid={testid ?? T.confirmDialog}
         overlayProps={{
-          className: "banner-overlay",
+          className: closing ? "banner-overlay banner-overlay-out" : "banner-overlay",
           // 非模态遮罩只保留暗纱视觉、放行点击。必须内联 style:banner-overlay
           // 自带 pointer-events:auto(未分层 CSS 恒压过 utilities 层的 none 类)。
           style: backdropBlocks ? undefined : { pointerEvents: "none" },
@@ -125,7 +131,8 @@ export function ConfirmDialog({
         // 次级笺钮描边收口的作用域钩子。
         className={
           "banner-card banner-shell inset-0 m-auto h-max w-max translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] max-w-[400px] px-7 py-5" +
-          (backdropBlocks ? "" : " pointer-events-auto")
+          (backdropBlocks ? "" : " pointer-events-auto") +
+          (closing ? " dialog-card-out" : "")
         }
       >
         <DialogTitle data-testid={T.scrollTitle} className="mb-2 text-center text-xl">

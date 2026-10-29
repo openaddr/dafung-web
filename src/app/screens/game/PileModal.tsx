@@ -19,6 +19,7 @@ import type { ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
+import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
@@ -71,7 +72,10 @@ export interface PileShellProps {
 /** 弹层壳(fuku 漆金内环形制,r5 节二/节三同款):题名(朱印小章)+副题 + 右上 X,
  *  内容(children)= 陈列网格。题名即 DialogTitle(可达名单源)。
  *  矮屏规范(#708):头部钉住 + 体部 pile-body 内滚(ui/scroll-area)+ footer 钉底;
- *  壳自身不滚(夹高细则在 pile-modal.css 规范块)。 */
+ *  壳自身不滚(夹高细则在 pile-modal.css 规范块)。
+ *  退场动画(#767 底件族⑤):×/Esc/点外三路关闭统一走 useDialogExit 的「播完再移除」
+ *  (壳体 pile-modal-out 淡出下沉 8px + 遮罩 dialog-overlay-out 淡出,210ms 出口卸载,
+ *  与横幅系 banner-lift 协议同刻);挂载不夺焦口径不变。 */
 export function PileShell({
   title,
   seal,
@@ -83,11 +87,12 @@ export function PileShell({
   onClose,
   children,
 }: PileShellProps) {
+  const { closing, requestClose } = useDialogExit(onClose);
   return (
     <Dialog
       open
       onOpenChange={(open) => {
-        if (!open) onClose();
+        if (!open) requestClose();
       }}
     >
       <DialogContent
@@ -96,7 +101,12 @@ export function PileShell({
         /* 挂载不夺焦(JinnangDetailSheet 同款):只读浮层,焦点留在触发入口上,
             Esc/点遮罩/X 三路关闭全由底件与壳承担 */
         initialFocus={false}
-        className={className ? `pile-modal ${className}` : "pile-modal"}
+        /* 收起中:壳体/遮罩挂退场类(动画播完由协议卸载,重复出口由协议守卫挡掉) */
+        overlayProps={closing ? { className: "dialog-overlay-out" } : undefined}
+        className={
+          (className ? `pile-modal ${className}` : "pile-modal") +
+          (closing ? " pile-modal-out" : "")
+        }
       >
         {/* 题名行兼拖动把手(#674):把手原语由 DialogContent 下发,行内 X 钮自带
             豁免(起点命中按钮不启动拖)——五个藏品弹层共用本壳,自动获得同一手势 */}
@@ -115,7 +125,7 @@ export function PileShell({
             type="button"
             data-testid={TESTIDS.modalClose}
             aria-label="关闭"
-            onClick={onClose}
+            onClick={requestClose}
             className="pile-close"
           >
             ×

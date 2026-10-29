@@ -13,6 +13,7 @@ import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
 import { formatMoney } from "@core/money";
 import { BannerShell, BannerButton } from "./BannerShell";
+import { AffordRow } from "./AffordRow";
 import { ValueTable } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
@@ -168,10 +169,7 @@ export function BuyDecisionScroll({
     },
     () => onCommand({ type: "endDecision" }),
   ]);
-  // G-20:资产行 —— 一眼看清持有/需付/差额(付得起记「余」,缺口记「差」红字;
-  // formatMoney 只收非负数,缺口取绝对值,负值会被钳成「0 两」)
-  const diff = cash - property.purchasePrice;
-  // #729:拍板两钮钉底(壳 footer 槽)——说明文段/差额行/等级表/不可购原因留正文井,
+  // #729:拍板两钮钉底(壳 footer 槽)——说明文段/主数值行/等级表/不可购原因留正文井,
   // 正文内滚浏览,「购地/不取」恒在场不随内容滚走(矮横屏实测钮曾被表压出视口)。
   return (
     <BannerShell
@@ -197,15 +195,13 @@ export function BuyDecisionScroll({
         </div>
       }
     >
-      <p className="m-1 text-center text-sm text-ink-dim">
+      <p className="m-1 mb-2 text-center text-xs text-ink-dim">
         「{tileName}」{regionLabel ? ` · ${regionLabel}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
-      <p className="m-1 mb-2.5 text-center text-sm text-ink">
-        持有 {formatMoney(cash)} · 需 {formatMoney(property.purchasePrice)} ·{" "}
-        {diff >= 0 ? "余" : "差"}{" "}
-        <span className={diff < 0 ? "text-danger" : undefined}>{formatMoney(Math.abs(diff))}</span>
-      </p>
+      {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
+          买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}
+      <AffordRow cash={cash} need={property.purchasePrice} />
       {/* 复用城池详情的等级表:买地的权衡核心是这座城往后怎么生钱——交易加成(未来
           坐地卖珍宝的定价参数)与逐级变卖价(破产跑道)。#92:买入即落 Lv.0,高亮购入档 */}
       {showValues ? (

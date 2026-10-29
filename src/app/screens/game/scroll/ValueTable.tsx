@@ -30,7 +30,7 @@ export function ValueTable({
   highlight?: { level: number; label: string };
 }) {
   return (
-    <div className="mx-auto mb-3 max-w-[400px] overflow-hidden rounded-[3px] border border-gold/25 text-sm">
+    <div className="mx-auto mb-3 max-w-[560px] overflow-hidden rounded-[3px] border border-gold/25 text-sm">
       <div className="flex bg-panel-hi/60 font-brush text-ink">
         <span className="flex-1 px-2 py-1">等级</span>
         <span className="flex-1 px-2 py-1 text-right">交易加成</span>
