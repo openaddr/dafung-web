@@ -121,7 +121,6 @@ export function InquiryScroll({
             <BannerButton
               key={o.id}
               primary={i === 0}
-              shortcut={i + 1}
               disabled={!o.available}
               title={o.available ? undefined : o.reason}
               testid={TESTIDS.inquiryOption(i)}

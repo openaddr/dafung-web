@@ -183,13 +183,19 @@
 }
 
 /* ── 城池列(真按钮,容器=chips 排布面):黛青 chips,超 3 折叠「+N」(原型
-   .citynames/.cityslot/.more)── */
+   .citynames/.cityslot/.more)──
+   触达热区垫(#761 ⑧):视觉 chips 不动,钮身 padding 上下外探 5px + 负 margin
+   抵消排版占位(seat 格 .ai 命中区同惯例;overflow:hidden 只裁内容不裁钮身盒,
+   tbtn 式 ::after 内衬在此会被裁故不用)——垫量按 10px 行缝(行 padding 3+行
+   margin 2)取,相邻行热区贴界不重叠。 */
 .zl .zl-cities {
   min-width: 0;
   display: flex;
+  align-items: center;
   gap: 4px;
   overflow: hidden;
-  padding: 0;
+  padding: 5px 4px;
+  margin: -5px -4px;
   background: none;
   border: none;
   cursor: pointer;

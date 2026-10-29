@@ -114,9 +114,10 @@
   .su-guohao-input {
     min-height: 40px;
   }
-  /* 字盘横滑条带(S1 竖向预算解:26 字 @36px 网格在任何单列都装不下,
+  /* 字盘横滑条带(S1 竖向预算解:26 字 @40px 网格在任何单列都装不下,
      单行横滑 = home MapStrip 同语言,边缘裁半字即「还有字」的滑动暗示 §4.6;
-     常用字居 GUOHAO_POOL 前段,首屏即达)。桌面档 wrap 网格不动。 */
+     常用字居 GUOHAO_POOL 前段,首屏即达)。桌面档 wrap 网格不动。
+     #761 ⑤:钮 36→40px 补齐触达口径次级 ≥40,横滑条带形态不变。 */
   .su-pool {
     flex-wrap: nowrap;
     gap: 0.25rem;
@@ -135,7 +136,9 @@
   }
   .su-actions {
     position: sticky;
-    bottom: 0;
+    /* 底距让位手势条(#761 ①):sticky 锚点并入 --safe-bottom(env 缺省 0px,
+       桌面无感;真机横屏拍板钮不压进手势条)。 */
+    bottom: var(--safe-bottom);
     padding-top: 0.375rem;
     background: linear-gradient(180deg, transparent, var(--color-panel) 35%);
   }
