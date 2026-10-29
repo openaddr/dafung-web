@@ -13,7 +13,7 @@ import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
-import { testEngine, armHero } from "@core/testing";
+import { testEngine, armHero, heroOffer } from "@core/testing";
 
 const MAP = loadMap(huanyouData);
 
@@ -138,7 +138,7 @@ describe("选项集注册表(choices.ts)", () => {
   it("招贤:每位候选名将一选项(三选一)", () => {
     const e = makeEngine(1);
     finishSetup(e);
-    e.offeredHeroes = HEROES.slice(0, 3);
+    e.offeredHeroes = HEROES.slice(0, 3).map((d) => heroOffer(d));
     testEngine(e).forceTurnPhase("AwaitingHeroPick");
     const opts = e.choicesFor();
     expect(opts).toHaveLength(3);

@@ -8,6 +8,7 @@
 // offeredCapitals 候选随 rngState 序列化,国号占用冲突处理与 AI 选都的骰流消耗
 // 顺序不得改动,e2e 种子演算与联机恢复都依赖它。
 import type { GameEngine } from "./authority";
+import { shuffle } from "./dice"; // Fisher-Yates 单源(#787 起随授技掷骰落骰子域,叶子模块)
 import { GUOHAO_POOL } from "./theme";
 import { JINNANG_STARTING_HAND, buildJinnangDeck } from "./jinnang";
 import { enterJinnangPhase } from "./jinnang-execution"; // 跨模块直调自由函数(#319 预案,同 #320 抽牌直调)
@@ -16,17 +17,6 @@ import { isSingleCjk } from "./constants";
 import { formatMoney } from "./money";
 import { beginGameEventBatch, emitGameEvent } from "./game-events";
 import type { TileDef } from "./board";
-
-/** Fisher-Yates 洗牌(rng 注入,确定性):开局点将的国号分配与招贤三选一
- *  (recruitment.tryRecruitHero,#326 迁出壳后域侧反向 import)共用。 */
-export function shuffle<T>(arr: T[], rng: () => number): T[] {
-  const a = [...arr];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
 
 /** 设置某座位的国号(单汉字);非法/冲突清空拒绝。 */
 export function setGuohao(g: GameEngine, seatIndex: number, char: string): boolean {

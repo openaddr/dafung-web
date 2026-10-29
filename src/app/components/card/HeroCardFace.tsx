@@ -13,9 +13,9 @@
 // 数据单源:core/heroes.ts HEROES(名将)+ core/skills.ts SKILLS(技表,ADR-0036)——
 // 组件按 heroId 回查目录(同 JinnangCardFace 的 jinnangCardOf 口径)。双输入 contract
 // (#786):heroId(将定义:立绘/名带/称号)+ skillIds(已授技 id 列表,槽位 skillIds /
-// 招贤候选的全池)——技能区只渲染实授技,技对象与技效文案按 id 读技表单源(skills.ts,
-// 池序由上游保证:槽位 skillIds 按池声明序存,候选=全池原序)。技 id 查无=数据 bug
-// 直接抛错(零兜底:目录外名将/技表外技不允许存在)。
+// 招贤候选的预掷授技,#787)——技能区只渲染实授技,技对象与技效文案按 id 读技表单源
+// (skills.ts,池序由上游保证:槽位与候选行的 skillIds 都按池声明序存)。技 id 查无=
+// 数据 bug 直接抛错(零兜底:目录外名将/技表外技不允许存在)。
 // 画像缺失(image="")或加载失败:显式「姓氏朱印」占位(现行 onError 语言,可感知
 // 不静默;空 src 浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍
 // 翻车教训)。
@@ -52,8 +52,8 @@ export function skillIdFromClick(e: { target: EventTarget | null }): string | nu
 export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   heroId: string;
   /** 已授技 id 列表(双输入第二输入,#786):技能区只渲染这份——槽位原生读
-   *  (SnapshotPlayer.heroes[].skillIds)或招贤候选的全池;顺序即渲染序(池序由
-   *  上游保证)。技对象按 id 读技表单源,查无当场炸(零兜底)。 */
+   *  (SnapshotPlayer.heroes[].skillIds)或招贤候选行的预掷授技(#787);顺序即渲染序
+   *  (池序由上游保证)。技对象按 id 读技表单源,查无当场炸(零兜底)。 */
   skillIds: string[];
   size?: HeroCardFaceSize;
 }
@@ -117,7 +117,7 @@ function SkillChips({ skillIds }: { skillIds: string[] }) {
 
 /** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。
  *  双输入(#786):heroId 出将定义(立绘/名带/称号),skillIds 出实授技(技能区与
- *  技角标)——本票授技=全池,画面与拆读口前逐字节一致。
+ *  技角标;招贤候选=预掷授技,#787)。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">,
  *  样式见 jinnang-card.css)由消费方这样挂入(同 JinnangCardFace 口径)。 */
 export function HeroCardFace({

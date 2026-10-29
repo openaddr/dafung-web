@@ -1,9 +1,8 @@
 // 名将(英雄)池:技与将解耦(ADR-0036)。名将只声明技能池(skillPool,按池声明序引用技 id),
-// 技能定义单源 src/core/skills.ts(被动+主动同表;一条技可入多池,重叠是特性)。
-// 招贤授全池(授技掷子集为后续票,ADR-0036 路线图)。新增名将 = 往这里加一条 HeroDef;
+// 技能定义单源 src/core/skills.ts(被动+主动同表;一条技可入多个名将的池,重叠是特性)。
+// 招募授技掷子集(rollGrantedSkills 单源 roster.ts,#787);新增名将 = 往这里加一条 HeroDef;
 // 新增技改 skills.ts——两表都永远只是纯数据 + 读口(时机框架扩展指南见
 // docs/explanation/时机框架.md;名将/技能定义随域走,#326 types.ts 解散,ADR-0019)。
-import { poolTriggerSkills } from "./skills";
 
 export interface HeroDef {
   id: string;
@@ -13,14 +12,6 @@ export interface HeroDef {
    *  主动技每池至多一条、技 id 须在技能表可解析(数据守卫见 test/hero-skill 四钉)。 */
   skillPool: string[];
   image: string; // 画像路径(public 下,如 /assets/heroes/hero-zhouyu-sgs.png;3:4 竖版)
-}
-
-/** 池序被动技 desc 拼接(#604 单源读口,语义保持):招贤/机遇/送将浮字与
- *  卡面 title 浮签共用;多被动将逐技拼接。 */
-export function passiveDescLineOf(hero: HeroDef): string {
-  return poolTriggerSkills(hero.skillPool)
-    .map((s) => s.desc)
-    .join(";");
 }
 
 /** 按将 id 查名将(#785 麾下槽位化后的回查口:槽位只存 heroId,派发战报/遣散文案/快照

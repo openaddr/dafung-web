@@ -20,7 +20,9 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-test("招贤卷轴:三选一,点技名先看全览不选将,选后关闭并清空候选", async ({ page }) => {
+test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点技名先看全览不选将,选后关闭并清空候选", async ({
+  page,
+}) => {
   await quickStart(page);
   // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
   // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
@@ -28,11 +30,31 @@ test("招贤卷轴:三选一,点技名先看全览不选将,选后关闭并清�
   const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
   await expect(scroll).toBeVisible();
   await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
-  // 先看后选(#605/#606):点候选将技名 chip=开技能全览弹框,不触发选将(候选不清空、
-  // 招贤层仍在);关弹框后照常点卡选将。
+  // 预掷明牌(#787):卡面 chips = 候选行预掷授技子集(≥1;tryRecruitHero 真掷,不钉具体技)
+  const rows: { id: string; skillIds: string[] }[] = (await snap(page)).offeredHeroes;
+  expect(rows).toHaveLength(3);
+  for (let i = 0; i < rows.length; i++) {
+    expect(rows[i]!.skillIds.length).toBeGreaterThanOrEqual(1); // 至少一技
+    await expect(
+      scroll.getByTestId(SCROLL_TESTIDS.heroPickOption(i)).locator(TESTIDS.skillChipAny),
+    ).toHaveCount(rows[i]!.skillIds.length);
+  }
+  // 先看后选(#605/#606)+ 池全貌对照(#787):点候选将技名 chip=开技能全览弹框,
+  // 弹框陈列池全技(未授者 .is-off 灰置),不触发选将(候选不清空、招贤层仍在);
+  // 关弹框后照常点卡选将。
   await scroll.getByRole("button").nth(1).locator(TESTIDS.skillChipAny).first().click();
   const glossary = page.getByTestId(TESTIDS.skillGlossary);
   await expect(glossary).toBeVisible();
+  const mid = rows[1]!;
+  const pool: string[] = await engineState(
+    page,
+    `window.__dafung.heroDefs().find((h) => h.id === ${JSON.stringify(mid.id)}).skillPool`,
+  );
+  for (const id of pool) {
+    await expect(glossary.getByTestId(TESTIDS.skillGlossaryRow(id))).toHaveCount(1); // 池全貌逐技在列
+  }
+  const offCount = pool.length - mid.skillIds.length;
+  await expect(glossary.locator(".skg-row.is-off")).toHaveCount(offCount); // 未授灰置
   await expect(scroll).toBeVisible();
   expect((await snap(page)).offeredHeroes).toHaveLength(3); // 看将不发命令
   await page.getByTestId(TESTIDS.modalClose).click();

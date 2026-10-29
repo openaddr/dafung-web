@@ -9,8 +9,14 @@ import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
 import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES, passiveDescLineOf } from "./heroes";
-import { grantHeroSlot, readySkillSlot, type HeroSlot } from "./roster";
+import { HEROES } from "./heroes";
+import {
+  grantHeroSlot,
+  grantedNamesLine,
+  readySkillSlot,
+  rollGrantedSkills,
+  type HeroSlot,
+} from "./roster";
 import type { ActiveSkillDef } from "./skills";
 import {
   openReactionWindow,
@@ -837,11 +843,14 @@ function grantHeroToPlayer(
     return;
   }
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
+  // 盲盒路(#787):无候选呈现,将身份落定一刻同掷授技(rollGrantedSkills 单源公式,
+  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)
+  const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
   g.logEvent(
     "system",
     p.guohao,
-    `${p.guohao} ${prefix},得「${hero.name}」:${passiveDescLineOf(hero)}`,
-    `heroGrant ${auditTag} player=${p.id} hero=${hero.id}`,
+    `${p.guohao} ${prefix},得「${hero.name}」,授${grantedNamesLine(granted)}`,
+    `heroGrant ${auditTag} player=${p.id} hero=${hero.id} skills=${granted.join("|")}`,
   );
-  grantHeroSlot(g, p, hero); // 授技入麾下单点(#785):建槽全池+占池+HeroRecruited(事件体携 skillIds)
+  grantHeroSlot(g, p, hero, granted); // 授技入麾下单点(#785):建槽+占池+HeroRecruited(事件体携 skillIds)
 }

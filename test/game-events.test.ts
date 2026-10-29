@@ -375,7 +375,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     t.land(); // 己都城:补给 + 三选一
     expect(phaseOf(e)).toBe("AwaitingHeroPick");
     beginGameEventBatch(e);
-    const expectedHeroId = e.offeredHeroes[0].id;
+    const expectedHeroId = e.offeredHeroes[0].def.id;
     e.resolveHeroPick(0);
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["heroRecruited", "turnEnded", "turnStarted"]);

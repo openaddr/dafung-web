@@ -163,11 +163,6 @@ export function poolSkills(pool: readonly string[]): SkillDef[] {
   return pool.map(skillById);
 }
 
-/** 池序被动技(时机驱动;派发序即此序)。 */
-export function poolTriggerSkills(pool: readonly string[]): TriggerSkill[] {
-  return poolSkills(pool).filter(isTriggerSkill);
-}
-
 /** 池内主动技(可能多条,逐字拍板表即有双主动池——周瑜{火攻,擂鼓};冷却键=技 id,
  *  各技独立记账,选项集/bot 按 id 逐技消费)。 */
 export function poolActiveSkills(pool: readonly string[]): ActiveSkillDef[] {

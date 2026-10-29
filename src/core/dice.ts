@@ -52,3 +52,15 @@ export function createDice(seed?: number): Dice {
     setRngState: rng.setState,
   };
 }
+
+/** Fisher-Yates 洗牌(rng 注入,确定性,不改入参——返回打乱副本):开局点将国号分配
+ *  (setup-flow)/招贤候选序(recruitment)/授技子集抽取(roster.rollGrantedSkills)
+ *  共用单源。放骰子域:消费方(roster)与其上游(锦囊域)有环,叶子模块承接共用件。 */
+export function shuffle<T>(arr: readonly T[], rng: () => number): T[] {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}

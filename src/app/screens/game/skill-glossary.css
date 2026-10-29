@@ -1,6 +1,6 @@
 /* 技能全览弹框(#605):经 Portal 渲染在 body,.game-layout 罩不到——skg- 前缀防串扰
    (pile-* 同先例)。行制式沿卡面技能区(●/◆ 符+技名+desc 全文,主动带冷却),被点技
-   漆金框高亮(§4.6 状态表达,不加文字标牌)。 */
+   漆金框高亮、池内未授技灰置降透明(§4.6 状态表达,不加文字标牌;#787 池全貌对照)。 */
 .skg-list {
   display: flex;
   flex-direction: column;
@@ -17,6 +17,10 @@
 .skg-row.is-hl {
   border-color: var(--color-lacquer-gold);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold) 45%, transparent);
+}
+/* 池全貌对照(#787):未授技灰置降透明——状态表达承载「未入麾下」,不加文字标牌 */
+.skg-row.is-off {
+  opacity: 0.45;
 }
 .skg-shead {
   display: flex;
