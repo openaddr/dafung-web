@@ -874,3 +874,85 @@
     transition-duration: 0.01ms;
   }
 }
+
+/* ── 出牌窗聚光(#764):窗态选中牌放大 1.6× 时的全屏 radial 压暗层——骰子/拼点
+   overlay 同族 radial 语言(墨褐压暗,中心透明→边缘暗),锚点偏向下缘放大牌驻留带
+   (50% 72%,手牌区放大 1.6× 的占中位)。经 FxLayer 的 body portal 渲染(常驻
+   DOM 开关态 .on),z 序=根层叠 z-3:压盘面(board-area z-auto)、让位席位格(z-4)/
+   手牌区(z-5)/顶栏(z-6)/动作条与圆钮(z-7)——放大牌与动作条不被压暗。
+   出现/消失 opacity 过渡 --dur-med;reduced-motion 由 app.css M-4 兜层压瞬时=直切。
+   颜色与 .dice-overlay 同值(墨褐 30,23,12 档),投影黑保留字面量同规。 ── */
+.fx-spotlight {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+  background: radial-gradient(ellipse at 50% 72%, rgba(30, 23, 12, 0), rgba(18, 13, 6, 0.62));
+  opacity: 0;
+  transition: opacity var(--dur-med) var(--ease-out);
+}
+.fx-spotlight.on {
+  opacity: 1;
+}
+
+/* ── 金钱飞行归账铜钱(#764):进账一枚「泉」字金币沿贝塞尔弧飞向收账席位格
+   (铜钱雨同款素材语言,色吃 token;黑描边 rgba 同 .fx-svg-coin 规)。路径由
+   FlyCoin 起飞拍经 offset-path 内联注入,时长 FX.cashFlyMs 同拍内联(keyframe
+   只管形不时刻度);offset-rotate 钉 0deg 保「泉」字可读,翻滚由独立 rotate 属性
+   承担(与 offset-distance 同 keyframe 双属性推进,fx-svg-coin-rain 同法)。
+   z-8:压席位格(4)/手牌区(5)/顶栏(6)/动作条与圆钮(7),让位决策卷轴(30);
+   body portal 直挂,position:fixed 即视口坐标。reduced-motion:M-4 兜层压 0.01ms
+   =瞬时抵达(动画照常结束,animationend 照发,bump 不丢)。 ── */
+.fx-cash-fly {
+  position: fixed;
+  left: 0;
+  top: 0;
+  z-index: 8;
+  pointer-events: none;
+  offset-rotate: 0deg;
+  animation: fx-cash-fly-arc var(--ease-out);
+}
+.fx-cash-fly circle {
+  fill: var(--color-gold-bright);
+  stroke: rgba(40, 28, 10, 0.7);
+  stroke-width: 1.5;
+  filter: drop-shadow(0 0 4px var(--color-gold-bright));
+}
+.fx-cash-fly text {
+  font-family: var(--font-brush);
+  font-size: 13px;
+  font-weight: 700;
+  fill: var(--color-ink);
+}
+@keyframes fx-cash-fly-arc {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+    rotate: 0deg;
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 1;
+    rotate: 360deg;
+  }
+}
+
+/* ── 席位现金数字归账 bump(#764):铜钱抵达拍 scale 1.15→1 一拍(--dur-fast
+   token,--ease-out)。类由 seat-cash.ts 挂摘到席位现金 testid span(该 span 无
+   className 属性,React 不覆写);span 是 inline,补 display:inline-block 使
+   transform 生效(tabular-nums 已由 layout.css .seat .cash 提供,滚动不抖)。 ── */
+.fx-cash-bump {
+  display: inline-block;
+  animation: fx-cash-bump var(--dur-fast) var(--ease-out);
+}
+@keyframes fx-cash-bump {
+  0% {
+    transform: scale(1.15);
+  }
+  100% {
+    transform: scale(1);
+  }
+}

@@ -6,9 +6,20 @@
 // #732:屏幕级知会(回合横幅/都城停条带)迁顶中知会横幅槽(screens/game/NoticeBanner),
 // 本件只剩拼点签面演出桥(DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi
 // 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。
-import { useFxStore } from "./fxStore";
+// #764:屏幕级再添两件(经 body portal 出 .board-area 的 overflow 裁切与几何让位,
+// 坐标换算只在起飞拍做一次——飞行全程 450ms 级,pan/zoom 中途脱锚不作对抗):
+//   ① 出牌窗聚光(开关态 fxStore.spotlight,HandRack 窗态选中挂摘);
+//   ② 金钱飞行归账(fxStore.cashFlies,进账铜钱从来源棋子格飞向席位格,抵达 bump)。
+// 席位现金 count-up 订阅(seat-cash.ts)也随本件挂载/卸载。
+import { useEffect, useLayoutEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useGameStore } from "@app/store/gameStore";
+import { TESTIDS } from "@app/screens/game/testids";
+import { useFxStore, type CashFlyFx } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
+import { bumpSeatCash, startSeatCashCount } from "./seat-cash";
+import { FX } from "./timings";
 import "./fx.css";
 
 /** 浮字基准字号(SVG 逻辑单位;总览(1 unit≈0.4px)下约等于旧版 26px 屏幕字的观感)。 */
@@ -188,14 +199,106 @@ export function BoardFxLayer() {
   );
 }
 
+/** 棋盘逻辑坐标 → 屏幕像素(起飞拍一次性换算,旧 getScreenCTM 方案#764 复用):
+ *  矩阵换算自带 preserveAspectRatio letterboxing 与现行取景,比手拆 viewBox 稳。 */
+function boardToScreen(x: number, y: number): { x: number; y: number } {
+  const svg = document.getElementById("board") as SVGSVGElement | null;
+  if (!svg) throw new Error("cash-fly:#board 不在文档(对局屏接线 bug)");
+  const ctm = svg.getScreenCTM();
+  if (!ctm) throw new Error("cash-fly:#board getScreenCTM 不可用");
+  const p = new DOMPoint(x, y).matrixTransform(ctm);
+  return { x: p.x, y: p.y };
+}
+
+/** 归账铜钱一枚(#764):起飞拍换算「来源格中心 → 席位现金数字中心」屏幕几何,
+ *  沿上抛二次贝塞尔弧飞(FX.cashFlyMs 内联注入时长,DuelSignsOverlay 同法);
+ *  抵达拍(animationend)席位现金数字 bump 一拍 + 自摘。渲染走 store→React,
+ *  零直改 DOM(铜钱本体);bump 是对既有 testid span 的类挂摘,见 seat-cash.ts。 */
+function FlyCoin({ fly }: { fly: CashFlyFx }) {
+  const snap = useGameStore((s) => s.snapshot);
+  // 快照缺位 = 对局屏接线 bug(本件只在对局屏挂载),炸出不兜底(零兜底)。
+  if (snap == null) throw new Error("cash-fly:快照缺位(接线 bug)");
+  const seat = snap.players.findIndex((p) => p.id === fly.playerId);
+  // 收账玩家不在快照 = 提取/投影接线 bug,炸出不兜底(零兜底)。
+  if (seat < 0) throw new Error(`cash-fly:收账玩家 ${fly.playerId} 不在快照(接线 bug)`);
+  const [geo, setGeo] = useState<{ path: string; ms: number } | null>(null);
+  useLayoutEffect(() => {
+    const from = boardToScreen(fly.x, fly.y);
+    const el = document.querySelector(`[data-testid="${TESTIDS.seatCash(seat)}"]`);
+    if (!el) throw new Error(`cash-fly:席位 #${seat} 的现金数字元素不存在(接线 bug)`);
+    const r = el.getBoundingClientRect();
+    const x1 = r.left + r.width / 2;
+    const y1 = r.top + r.height / 2;
+    // 控制点 = 线段中点沿法线上抛:弧顶朝上(法线取 y 分量向上的一支),抬升量随
+    // 距离收窄(近飞浅弧、远飞高抛,上限 90px 不出屏)。棋盘格与席位格几何上恒不
+    // 重合,长度为零无防御分支(零兜底:真到了就是布局 bug,NaN 会当场炸出)。
+    const dx = x1 - from.x;
+    const dy = y1 - from.y;
+    const len = Math.hypot(dx, dy);
+    const lift = Math.min(90, 40 + len * 0.18);
+    let nx = -dy / len;
+    let ny = dx / len;
+    if (ny > 0) {
+      nx = -nx;
+      ny = -ny;
+    }
+    const cx = (from.x + x1) / 2 + nx * lift;
+    const cy = (from.y + y1) / 2 + ny * lift;
+    setGeo({
+      path: `path('M ${from.x} ${from.y} Q ${cx} ${cy} ${x1} ${y1}')`,
+      ms: FX.cashFlyMs,
+    });
+  }, [fly.id, fly.x, fly.y, seat]);
+  if (!geo) return null;
+  return (
+    <svg
+      className="fx-cash-fly"
+      data-fx-cash-fly=""
+      viewBox="-12 -12 24 24"
+      width={24}
+      height={24}
+      aria-hidden="true"
+      style={{ offsetPath: geo.path, animationDuration: `${geo.ms}ms` }}
+      onAnimationEnd={() => {
+        bumpSeatCash(seat);
+        useFxStore.getState().removeCashFly(fly.id);
+      }}
+    >
+      {/* 铜钱雨同款素材语言:泉字金币(金圆底+墨字,#764 复用,色吃 token) */}
+      <circle r={11} />
+      <text y={4} textAnchor="middle">
+        泉
+      </text>
+    </svg>
+  );
+}
+
 /** 屏幕级特效覆盖层(GameScreen 挂在 board-wrap 内):拼点签面演出桥
  *  (DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi 模块桥——签面
  *  overlay 自行 append 到 body,ADR-0030)。#732 起回合横幅/都城停条带已迁
- *  顶中知会横幅槽(NoticeBanner),本层不再渲染知会件。 */
+ *  顶中知会横幅槽(NoticeBanner),本层不再渲染知会件。
+ *  #764:聚光层 + 金钱飞行归账经 body portal 出 .board-area(overflow:hidden
+ *  裁切与右缘 104px 让位都会剪掉飞往席位格的铜钱;z 序:聚光 z-3 压盘面、让位
+ *  席位/手牌/动作条,铜钱 z-8 全程可见)。席位现金 count-up 订阅随挂载起、随卸载收。 */
 export function FxLayer() {
+  const cashFlies = useFxStore((s) => s.cashFlies);
+  const spotlight = useFxStore((s) => s.spotlight);
+  // 席位现金 count-up(#764):订阅随本件挂载起、随卸载收(与对局屏同生命周期)。
+  useEffect(() => startSeatCashCount(), []);
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden" data-fx-layer>
       <DuelSignsOverlay />
+      {createPortal(
+        <>
+          {/* 出牌窗聚光(#764):常驻 DOM 开关态(fx-spotlight.on),opacity 过渡
+              --dur-med;reduced-motion 由 app.css M-4 兜层压瞬时=直切。 */}
+          <div className={"fx-spotlight" + (spotlight ? " on" : "")} data-fx-spotlight="" />
+          {cashFlies.map((f) => (
+            <FlyCoin key={f.id} fly={f} />
+          ))}
+        </>,
+        document.body,
+      )}
     </div>
   );
 }

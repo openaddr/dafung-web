@@ -1256,7 +1256,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     });
   });
 
-  it("supplyRain → coins=true;sound 事件直通", async () => {
+  it("supplyRain → coins=true;进账起飞一枚归账铜钱;sound 事件直通", async () => {
     const sink = createMemorySink();
     await present(
       [
@@ -1267,7 +1267,56 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     );
     expect(sink.calls).toEqual([
       { op: "floater", x: 1, y: 2, amount: 300, coins: true },
+      // 飞行归账(#764):进账一枚铜钱,在下一个非进账事件(sound)前冲账起飞
+      { op: "cashFly", playerId: "p2", amount: 300, x: 1, y: 2 },
       { op: "sound", event: "treasure" },
+    ]);
+  });
+
+  it("金钱飞行合帧(#764):连续进账并一枚总差额;他事件隔开即分飞;出账不飞", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        // 连续进账(合并批常态):成交 +300 与补给 +200 紧邻并一枚,出账 −100 不进账本
+        { kind: "cashDelta", playerId: "p1", amount: 300, x: 1, y: 1, atTile: 0 },
+        { kind: "supplyRain", playerId: "p1", amount: 200, x: 3, y: 4, atTile: 1 },
+        { kind: "cashDelta", playerId: "p1", amount: -100, x: 5, y: 6, atTile: 2 },
+      ],
+      sink,
+    );
+    expect(sink.calls.filter((c) => c.op === "cashFly")).toEqual([
+      // 批尾冲账:一枚总差额 500,来源锚点=最后一笔进账现场(3,4)
+      { op: "cashFly", playerId: "p1", amount: 500, x: 3, y: 4 },
+    ]);
+
+    // 任何非进账事件(同步印章也算)隔开即分飞:前账在印章前冲账起飞,不吞后账
+    const sink2 = createMemorySink();
+    await present(
+      [
+        { kind: "cashDelta", playerId: "p1", amount: 300, x: 1, y: 1, atTile: 0 },
+        { kind: "sealStamped", tileIndex: 0, x: 1, y: 1, char: "得" },
+        { kind: "supplyRain", playerId: "p1", amount: 200, x: 3, y: 4, atTile: 1 },
+      ],
+      sink2,
+    );
+    expect(sink2.calls.filter((c) => c.op === "cashFly")).toEqual([
+      { op: "cashFly", playerId: "p1", amount: 300, x: 1, y: 1 },
+      { op: "cashFly", playerId: "p1", amount: 200, x: 3, y: 4 },
+    ]);
+
+    // 隔了占编排时长的演出(骰子)同理分帧各飞
+    const sink3 = createMemorySink();
+    await present(
+      [
+        { kind: "cashDelta", playerId: "p1", amount: 300, x: 1, y: 1, atTile: 0 },
+        { kind: "diceRolled", die: 4 },
+        { kind: "cashDelta", playerId: "p1", amount: 200, x: 3, y: 4, atTile: 1 },
+      ],
+      sink3,
+    );
+    expect(sink3.calls.filter((c) => c.op === "cashFly")).toEqual([
+      { op: "cashFly", playerId: "p1", amount: 300, x: 1, y: 1 },
+      { op: "cashFly", playerId: "p1", amount: 200, x: 3, y: 4 },
     ]);
   });
 

@@ -97,6 +97,20 @@ export interface CoinBurstFx {
   count: number;
 }
 
+/** 金钱飞行归账(#764):进账从来源棋子格飞一枚铜钱至收账者席位格。一条记录 =
+ *  一枚在途铜钱(present 侧已按「同席位同帧合并总差额」收敛,sink 只收合并后的)。
+ *  存活期 = CSS 飞行全程,animationend 即移除(抵达拍自摘,无第二套超时清理)。 */
+export interface CashFlyFx {
+  id: number;
+  /** 收账玩家 id(座位号渲染期经快照解析;快照缺人 = 接线 bug,炸出不兜底)。 */
+  playerId: string;
+  /** 归账总额(恒 >0:出账方向不飞,#764 出账反向后置)。 */
+  amount: number;
+  /** 来源锚点(棋盘逻辑坐标,cashDelta/supplyRain 事件自带,提取拍烤定)。 */
+  x: number;
+  y: number;
+}
+
 /** 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线的两个端点
  *  (棋盘逻辑坐标,提取期已按当时牌局状态解析)。 */
 export interface JinnangLineFx {
@@ -182,6 +196,12 @@ interface FxState {
   inkBlots: InkBlotFx[];
   /** 破产仪式撒币(S7)。 */
   coinBursts: CoinBurstFx[];
+  /** 金钱飞行归账(#764):在途铜钱集(进账方向,present 合帧后单枚下发)。 */
+  cashFlies: CashFlyFx[];
+  /** 出牌窗聚光(#764):窗态选中牌放大 1.6× 时的全屏 radial 压暗层开关——
+   *  HandRack 卡牌段选中/取消即挂摘,FxLayer 经 body portal 渲染(opacity 过渡
+   *  走 --dur-med;开关是本机窗态,非表现事件,不进 present 管线)。 */
+  spotlight: boolean;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string): void;
@@ -204,6 +224,12 @@ interface FxState {
   spawnInkBlot(x: number, y: number): void;
   /** 破产仪式铜钱撒落(S7)。 */
   spawnCoinBurst(x: number, y: number, count: number): void;
+  /** 金钱飞行归账(#764):下发一枚在途铜钱(进账;合并已在 present 侧完成)。 */
+  spawnCashFly(playerId: string, amount: number, x: number, y: number): void;
+  /** 铜钱抵达即摘(animationend 拍,FlyCoin 回调;id 不在场 = 已被 resetFx 清,静默)。 */
+  removeCashFly(id: number): void;
+  /** 出牌窗聚光(#764):开关态(HandRack 窗态选中挂摘;unmount 兜摘由调用方负责)。 */
+  setSpotlight(on: boolean): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -233,6 +259,8 @@ export const useFxStore = create<FxState>()(
     pulses: [],
     inkBlots: [],
     coinBursts: [],
+    cashFlies: [],
+    spotlight: false,
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
@@ -314,6 +342,21 @@ export const useFxStore = create<FxState>()(
       );
     },
 
+    spawnCashFly(playerId, amount, x, y) {
+      const id = nextId++;
+      set((s) => ({ cashFlies: [...s.cashFlies, { id, playerId, amount, x, y }] }));
+      // 无超时自清:存活期 = CSS 飞行全程,animationend 拍走 removeCashFly
+      //(时长单源 FX.cashFlyMs,内联注入动画——超时账本是第二事实源,不设)。
+    },
+
+    removeCashFly(id) {
+      set((s) => ({ cashFlies: s.cashFlies.filter((f) => f.id !== id) }));
+    },
+
+    setSpotlight(on) {
+      set({ spotlight: on });
+    },
+
     spawnJinnangLine(x1, y1, x2, y2) {
       const id = nextId++;
       set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
@@ -379,6 +422,8 @@ export const useFxStore = create<FxState>()(
         pulses: [],
         inkBlots: [],
         coinBursts: [],
+        cashFlies: [],
+        spotlight: false,
       });
     },
   })),

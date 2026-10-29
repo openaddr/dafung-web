@@ -53,6 +53,7 @@ import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
+import { useFxStore } from "@app/fx/fxStore";
 import { jinnangCardOf } from "@core/jinnang";
 import type { HeroSlotRow } from "@core/snapshot";
 import type { ChoiceOption } from "@core/choices";
@@ -499,6 +500,16 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
   const targeting =
     junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
+
+  // 出牌窗聚光(#764):卡牌段有选中牌(放大 1.6× 的 .sel 态)即全屏 radial 压暗
+  // (骰子 overlay 同族语言,z 序压盘面、让位放大牌与动作条),取消选中/出牌/进
+  // 目标段即撤。开关态走 fxStore.spotlight(渲染在 FxLayer 的 body portal,本件
+  // 只挂摘);effect 卸载兜摘,防架体带着选中态下屏时聚光滞留。
+  const spotlightOn = junshi != null && !targeting && junshi.selectedId != null;
+  useEffect(() => {
+    useFxStore.getState().setSpotlight(spotlightOn);
+    return () => useFxStore.getState().setSpotlight(false);
+  }, [spotlightOn]);
 
   // 金圈脉冲一拍(#751 B1):nudgePulse 计数变更即亮 700ms(动画 --dur-med 级)后熄,
   // 类摘除再挂可重播;点按连发时重置计时,不叠影。

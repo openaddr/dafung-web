@@ -173,6 +173,18 @@ export type PresentationEvent =
 /** propertyChanged 事件的独立类型(FxSink.announceTileChange 的窄签名用)。 */
 export type PropertyChangedEvent = Extract<PresentationEvent, { kind: "propertyChanged" }>;
 
+/** 金钱飞行归账事件(#764)的独立类型(FxSink.cashFly 的窄签名用):cashDelta/
+ *  supplyRain 进账的直译载荷,present 侧已按「同席位同帧合并总差额」收敛——
+ *  sink 只收合并后的单枚(坐标随事件烤定,不变量①同族)。 */
+export interface CashFlyEvent {
+  playerId: string;
+  /** 归账总额(恒 >0:出账方向不飞,#764 出账反向后置)。 */
+  amount: number;
+  /** 来源锚点(棋盘逻辑坐标,提取拍烤定)。 */
+  x: number;
+  y: number;
+}
+
 /** 拼点签面事件的独立类型(FxSink.showDuelSigns 的窄签名用)。 */
 export type DuelSignsEvent = Extract<PresentationEvent, { kind: "duelSigns" }>;
 
@@ -241,4 +253,8 @@ export interface FxSink {
   /** 城池宣告(ADR-0015):扩军/易主时驱动 Tile 重播宣告动画。生产实现经 fxStore
    *  下发 nonce(Tile 订阅,nonce 变化即重挂重播);测试实现录制供断言序列。 */
   announceTileChange(ev: PropertyChangedEvent): void;
+  /** 金钱飞行归账(#764):进账从来源棋子格飞一枚铜钱至收账者席位格,抵达拍席位
+   *  现金数字 bump。同步下发(无编排时长,飞行动画 CSS 自走、内联注入时长);
+   *  同批同席位合并在 present 侧完成,sink 只收合并后的单枚。 */
+  cashFly(ev: CashFlyEvent): void;
 }
