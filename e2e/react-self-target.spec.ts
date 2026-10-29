@@ -28,11 +28,10 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
-// 华佗直写(def 形状随 core/heroes.ts 华佗条目;image 空串即可,紧凑档卡面不消费图):
+// 华佗直写(槽位行 #785:skillIds=全池原序随 core/heroes.ts 华佗条目;技定义查技表):
 // 体力 50(满体力自疗无可见落账)、现金 2000(≥cost,排除整技可用性疑虑)。
 const HUATUO = `
-  e.players[0].heroes = [{ id: "huatuo", name: "华佗", title: "神医", image: "",
-    skillPool: ["qingnang", "zhenji"] }]; // 池声明(ADR-0036);技定义查技表
+  e.players[0].heroes = [{ heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} }];
   e.players[0].cash = 2000;
   e.players[0].stamina = 50;
 `;

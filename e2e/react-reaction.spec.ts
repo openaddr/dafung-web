@@ -17,7 +17,8 @@
 // draftOrder=[0,3,2,1] 人类先手不变;选都三候选 [长沙,剑阁,许昌] 取 DOM 首格=11 长沙
 // (bot 都:黔=23 虎牢关、荆=44 会稽、宋=25 咸阳);起手牌=识破诡计(唯反应,不入可用集)
 // → 自动起摇掷「五」落 16 江州(无主城)——开局停靠点=购地抉择卷轴(soloAtBuyAsk 等卷轴
-// 升起)。续局=force 直授周瑜(heroDefs #378 调试面给完整定义;招贤卷轴在本图种子下
+// 升起)。续局=force 直授周瑜(heroDefs #378 调试面取定义,槽位行(heroId+全池授技)
+// 进麾下;招贤卷轴在本图种子下
 // 开局不再可达。疾行=人类行军步数恒 +1,行程骰队列已计入;火攻=回合 2+ 出牌阶段停靠点
 // 来源)+「不取」放行购地卷轴交 bot 链。种植后人类无再手动的回合:窗由 bot 链带到
 // (火烧例=bot1 回合开始即出;拦检例=bot1 自首都前一格(10 零陵)掷骰途经长沙)。
@@ -62,12 +63,13 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
 }
 
 /** 停靠点续局:force 直授周瑜(疾行=行军 +1、火攻=出牌阶段停靠点来源,多条编排依赖,
- *  勿换将;招贤卷轴开局不可达后改走 heroDefs 调试面,完整 HeroDef 随对象进麾下),
- *  再「不取」放行购地卷轴——落格结算收尾,回合随即交 bot 链。 */
+ *  勿换将;招贤卷轴开局不可达后改走 heroDefs 调试面,槽位行(heroId+全池授技+空冷却账)
+ *  进麾下),再「不取」放行购地卷轴——落格结算收尾,回合随即交 bot 链。 */
 async function grantZhouyuAndPass(page: Page): Promise<void> {
   await force(
     page,
-    `e.players[0].heroes.push(__dafung.heroDefs().find((h) => h.id === "zhouyu"));`,
+    `{ const d = __dafung.heroDefs().find((h) => h.id === "zhouyu");
+       e.players[0].heroes.push({ heroId: d.id, skillIds: [...d.skillPool], lastFired: {} }); }`,
   );
   await page.getByTestId(TESTIDS.actionButton("skip")).click();
 }

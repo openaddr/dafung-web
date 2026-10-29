@@ -30,7 +30,7 @@ test.describe("弹层族矮屏规范(#708)", () => {
       const bridge = (window as any).__dafung;
       const def = bridge.heroDefs()[0];
       bridge.getEngine().players[0].heroes = [
-        { id: def.id, name: def.name, title: def.title, image: def.image },
+        { heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }, // 槽位行(#785)
       ];
       bridge.controller().sync();
     });

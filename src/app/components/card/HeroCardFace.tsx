@@ -11,10 +11,11 @@
 // jinnang-card.css 的牌面交互态单源(选择器同批覆盖 .hface),本文件不另写一份。
 //
 // 数据单源:core/heroes.ts HEROES(名将)+ core/skills.ts SKILLS(技表,ADR-0036)——
-// 组件按 heroId 回查目录(同 JinnangCardFace 的 jinnangCardOf 口径),技能经池序读口
-// (poolSkills/poolActiveSkill)解析;技名渲染走 TriggerSkill.name(#358 T1)+
-// ActiveSkillDef.name,主动加「冷却 N 轮」。目录外 id 直接抛错(零兜底:目录外名将
-// 不允许存在)。
+// 组件按 heroId 回查目录(同 JinnangCardFace 的 jinnangCardOf 口径)。双输入 contract
+// (#786):heroId(将定义:立绘/名带/称号)+ skillIds(已授技 id 列表,槽位 skillIds /
+// 招贤候选的全池)——技能区只渲染实授技,技对象与技效文案按 id 读技表单源(skills.ts,
+// 池序由上游保证:槽位 skillIds 按池声明序存,候选=全池原序)。技 id 查无=数据 bug
+// 直接抛错(零兜底:目录外名将/技表外技不允许存在)。
 // 画像缺失(image="")或加载失败:显式「姓氏朱印」占位(现行 onError 语言,可感知
 // 不静默;空 src 浏览器不发请求、不触发 onError,必须一并判——华佗 image:"" 实拍
 // 翻车教训)。
@@ -24,7 +25,7 @@
 // 经 --hface-base 覆写(手牌架随架体 em 基注入,见 hand-rack.css / layout.css)。
 import { useState, type HTMLAttributes } from "react";
 import { HEROES, type HeroDef } from "@core/heroes";
-import { isActiveSkill, poolSkills, skillById } from "@core/skills";
+import { isActiveSkill, skillById } from "@core/skills";
 import { extensionHeroFlagOf } from "@app/extensions/registry";
 import "./hero-card.css";
 
@@ -33,14 +34,6 @@ export function heroDefOf(heroId: string): HeroDef {
   const def = HEROES.find((h) => h.id === heroId);
   if (!def) throw new Error(`名将目录外 id:${heroId}(core/heroes.ts HEROES 无此 id)`);
   return def;
-}
-
-/** 按主动技 id 反查名将 id(出牌阶段态技卡消费:choices 选项只带 skillId);
- *  池可含多条主动技,技 id 全局唯一故属主唯一。 */
-export function heroIdByActiveSkillId(skillId: string): string {
-  const hero = HEROES.find((h) => h.skillPool.includes(skillId));
-  if (!hero || !isActiveSkill(skillById(skillId))) throw new Error(`主动技不在名将目录:${skillId}`);
-  return hero.id;
 }
 
 /** 装配/尺寸档(r4 节三两档 + 招贤同槽位档):
@@ -58,6 +51,10 @@ export function skillIdFromClick(e: { target: EventTarget | null }): string | nu
 
 export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   heroId: string;
+  /** 已授技 id 列表(双输入第二输入,#786):技能区只渲染这份——槽位原生读
+   *  (SnapshotPlayer.heroes[].skillIds)或招贤候选的全池;顺序即渲染序(池序由
+   *  上游保证)。技对象按 id 读技表单源,查无当场炸(零兜底)。 */
+  skillIds: string[];
   size?: HeroCardFaceSize;
 }
 
@@ -82,13 +79,13 @@ function Lihui({ src, name }: { src: string; name: string }) {
   );
 }
 
-/** 详情档技能区(池序单遍,ADR-0036):●被动(TriggerSkill.name + 该技 desc 全文)/
+/** 详情档技能区(实授技逐条,#786 双输入):●被动(TriggerSkill.name + 该技 desc 全文)/
  *  ◆主动(ActiveSkillDef.name + 「冷却 N 轮」+ desc 全文),行间虚线分隔。#604 desc
  *  挂技自带——多被动将逐行各印各的,不再共用名将根描述(太史慈双被动重复印字隐患就此修掉)。 */
-function SkillRows({ def }: { def: HeroDef }) {
+function SkillRows({ skillIds }: { skillIds: string[] }) {
   return (
     <>
-      {poolSkills(def.skillPool).map((s) => (
+      {skillIds.map(skillById).map((s) => (
         <div className="sk" key={s.id}>
           <div className="shead">
             <i className={isActiveSkill(s) ? "fu fu-dia" : "fu fu-dot"} aria-hidden="true" />
@@ -102,13 +99,13 @@ function SkillRows({ def }: { def: HeroDef }) {
   );
 }
 
-/** 紧凑档技能区(#605):●/◆ 技名 chips 一行(池序),描述全撤——技效全文走「点技名→
- *  技能全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免口径,点击
- *  分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
-function SkillChips({ def }: { def: HeroDef }) {
+/** 紧凑档技能区(#605):●/◆ 技名 chips 一行(实授技,#786),描述全撤——技效全文走
+ *  「点技名→技能全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免
+ *  口径,点击分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
+function SkillChips({ skillIds }: { skillIds: string[] }) {
   return (
     <div className="bd-row">
-      {poolSkills(def.skillPool).map((s) => (
+      {skillIds.map(skillById).map((s) => (
         <span className="bd" key={s.id} data-skill={s.id}>
           <i className={isActiveSkill(s) ? "fu fu-dia" : "fu fu-dot"} aria-hidden="true" />
           {s.name}
@@ -118,16 +115,14 @@ function SkillChips({ def }: { def: HeroDef }) {
   );
 }
 
-/** 技数(池大小;技角标 j-badge 承载,pick 档技能区截断时仍可读)。 */
-function skillCount(def: HeroDef): number {
-  return poolSkills(def.skillPool).length;
-}
-
 /** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。
+ *  双输入(#786):heroId 出将定义(立绘/名带/称号),skillIds 出实授技(技能区与
+ *  技角标)——本票授技=全池,画面与拆读口前逐字节一致。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">,
  *  样式见 jinnang-card.css)由消费方这样挂入(同 JinnangCardFace 口径)。 */
 export function HeroCardFace({
   heroId,
+  skillIds,
   size = "detail",
   className,
   children,
@@ -135,7 +130,7 @@ export function HeroCardFace({
 }: HeroCardFaceProps) {
   const def = heroDefOf(heroId);
   const flag = extensionHeroFlagOf(heroId); // 扩展将旗(#378 渲染 hook):null = 无旗,卡面维持现状
-  const ji = skillCount(def);
+  const ji = skillIds.length;
   const classes = [
     "hface",
     size !== "detail" ? "compact" : "",
@@ -172,7 +167,7 @@ export function HeroCardFace({
         />
       )}
       <div className="skz">
-        {size === "detail" ? <SkillRows def={def} /> : <SkillChips def={def} />}
+        {size === "detail" ? <SkillRows skillIds={skillIds} /> : <SkillChips skillIds={skillIds} />}
       </div>
       {children}
     </div>

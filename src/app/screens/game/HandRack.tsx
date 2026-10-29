@@ -42,11 +42,7 @@ import {
   JinnangCardDetail,
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
-import {
-  HeroCardFace,
-  heroIdByActiveSkillId,
-  skillIdFromClick,
-} from "@app/components/card/HeroCardFace";
+import { HeroCardFace, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
@@ -58,6 +54,7 @@ import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
 import { jinnangCardOf } from "@core/jinnang";
+import type { HeroSlotRow } from "@core/snapshot";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "./SkillGlossaryDialog";
@@ -65,6 +62,17 @@ import { TESTIDS } from "./testids";
 import "./hand-rack.css";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
+
+/** 技→槽反查(#786 槽位原生读):choices 技选项只带 skillId,出牌技卡的将定位走本地
+ *  玩家槽位(槽位序首命中,同 roster.readySkillSlot 口径)——共享技(一技入多池,
+ *  ADR-0036)后目录反查不再唯一,按目录猜属主会张冠李戴。查无=接线 bug(choices 出了
+ *  本地玩家麾下没有的技),炸出零兜底。 */
+function heroSlotBySkillId(heroes: HeroSlotRow[], skillId: string): HeroSlotRow {
+  const slot = heroes.find((s) => s.skillIds.includes(skillId));
+  if (slot == null)
+    throw new Error(`出牌技卡:本地玩家麾下无技 ${skillId}(choices 与麾下槽位不符,数据 bug)`);
+  return slot;
+}
 
 /** 出牌阶段态载荷(#256;GameScreen 派生,null=常态架)。 */
 export interface JunshiWindow {
@@ -345,14 +353,15 @@ function RackCard({
   );
 }
 
-/** 出牌阶段态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同一张
- *  名将卡面):手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务
- *  「取消选中」);无发牌音(技不是新入手的牌)。卡面本体按 skillId 反查名将目录
- *  (heroIdByActiveSkillId,同锦囊牌面回查目录口径);choices 载荷只承担可用性/
- *  原因/aria-label。testid 沿 jinnang-card-* 族(option.id = skill:<id>)。 */
+/** 出牌阶段态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同卡面):
+ *  手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务「取消选中」);
+ *  无发牌音(技不是新入手的牌)。卡面双输入(#786):heroId+实授技都由调用侧从本地
+ *  玩家槽位反查(heroSlotBySkillId,技→将定位走槽;choices 载荷只承担可用性/原因/
+ *  aria-label)。testid 沿 jinnang-card-* 族(option.id = skill:<id>)。 */
 function JunshiSkillCard({
   option,
-  skillId,
+  heroId,
+  skillIds,
   index,
   selected,
   onSelect,
@@ -360,16 +369,17 @@ function JunshiSkillCard({
   onInspect,
 }: {
   option: ChoiceOption;
-  /** 主动技 id(调用侧已判 o.skillId != null 才走本件;类型收窄单点在此收口)。 */
-  skillId: string;
+  /** 技→槽反查出的属主将 + 该槽实授技(#786 双输入,卡面/全览同源;技 id 收窄与
+   *  反查都在调用侧完成,本件不再吃裸 skillId)。 */
+  heroId: string;
+  skillIds: string[];
   index: number;
   selected: boolean;
   onSelect: () => void;
   onDeselect: () => void;
-  /** 点技名 chip 开技能全览(#605):参数=(名将 id, 被点技 id)。 */
-  onInspect: (heroId: string, skillId: string) => void;
+  /** 点技名 chip 开技能全览(#605):参数=被点技 id(全览目标由调用侧用本卡槽位装配)。 */
+  onInspect: (chipSkillId: string) => void;
 }) {
-  const heroId = heroIdByActiveSkillId(skillId);
   const tap = useTapOrLongPress({
     onTap: () => {
       if (selected) onDeselect();
@@ -388,7 +398,7 @@ function JunshiSkillCard({
     }
     const chipSkillId = skillIdFromClick(e);
     if (chipSkillId != null) {
-      onInspect(heroId, chipSkillId);
+      onInspect(chipSkillId);
       return;
     }
     if (selected) onDeselect();
@@ -408,6 +418,7 @@ function JunshiSkillCard({
     >
       <HeroCardFace
         heroId={heroId}
+        skillIds={skillIds}
         size="compact"
         className={option.available ? (selected ? "sel" : "") : "off"}
         style={tiltVars(`${option.id}#${index}`)}
@@ -647,18 +658,23 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
     }
     if (junshi != null) {
       // 卡牌段:choices 原序(手牌序在前、技卡殿后);手牌 key 与常态一致。
+      // 技卡先槽位反查属主(#786:技→将定位走本地玩家槽位),卡面/全览吃同一槽实授技。
       return cardOptions.map((o, i) => {
         if (o.skillId != null) {
+          const slot = heroSlotBySkillId(player.heroes, o.skillId);
           return (
             <JunshiSkillCard
               key={o.id}
               option={o}
-              skillId={o.skillId}
+              heroId={slot.heroId}
+              skillIds={slot.skillIds}
               index={i}
               selected={junshi.selectedId === o.id && o.available}
               onSelect={() => select(o.id)}
               onDeselect={() => select(null)}
-              onInspect={(heroId, chipSkillId) => setGlossary({ heroId, skillId: chipSkillId })}
+              onInspect={(chipSkillId) =>
+                setGlossary({ heroId: slot.heroId, skillIds: slot.skillIds, skillId: chipSkillId })
+              }
             />
           );
         }

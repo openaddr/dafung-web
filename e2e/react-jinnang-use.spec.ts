@@ -234,8 +234,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
       `
       e.players[0].jinnangHand = ["缓兵之计", "求贤令"];
       e.jinnangUsedTags = ["谋", "攻"];
-      e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", image: "",
-        skillPool: ["zhijin", "leigu", "jixing"] }]; // 池声明(ADR-0036);技定义查技表
+      e.players[0].heroes = [{ heroId: "zhangxingcai", skillIds: ["zhijin", "leigu", "jixing"],
+        lastFired: {} }]; // 槽位行(#785):已授技=全池原序;技定义查技表
     `,
     );
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)

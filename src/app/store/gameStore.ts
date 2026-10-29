@@ -8,51 +8,26 @@ import type {
   GameSnapshot as CoreGameSnapshot,
   SnapshotPlayer as CoreSnapshotPlayer,
 } from "@core/snapshot";
-import type { HeroSlotRow } from "@core/snapshot";
-import { heroById } from "@core/heroes";
 // #117 收编:提示 TTL 统一收口 fx/timings.ts(与 netStore 同一常量,不再双处 1800)。
 import { UI } from "@app/fx/timings";
 
 /** 引擎快照类型(serializeGame 的返回结构;联机 snapshot 消息同构,可直灌 store)。
- *  store 里存放的是 UI 视图快照(见 SnapshotPlayer 派生读口),引擎字段面同构。 */
+ *  store 直存 core 快照本体(#786 拆派生读口:麾下行=槽位全量,展示字段按 heroId
+ *  回查名将表的活由各消费面自做,装配层不再有 UI 视图派生)。 */
 export type GameSnapshotCore = CoreGameSnapshot;
 
-/** UI 旧形状麾下行(#785 派生读口):快照麾下行已改槽位全量(heroId+已授技+冷却账),
- *  展示字段按 heroId 回查名将表派生成 {id,name,title,image}——UI 组件零改动继续工作;
- *  「同槽不同技」的表达面(已授技 chips 等)归票 #786 收窄时直读槽位拆除本读口。 */
-export interface HeroViewRow {
-  id: string;
-  name: string;
-  title: string;
-  image: string;
-}
-
-/** 快照里的玩家行(含派生 netWorth;heroes 为槽位派生的旧形状视图行,其余字段同 core)。 */
-export type SnapshotPlayer = Omit<CoreSnapshotPlayer, "heroes"> & { heroes: HeroViewRow[] };
+/** 快照里的玩家行(core 原形直存:heroes=麾下槽位全量(heroId+已授技+冷却账),
+ *  UI 槽位原生读,#786)。 */
+export type SnapshotPlayer = CoreSnapshotPlayer;
 
 /** 快照里的珍宝行(serializeGame 只序列化 id/name/level/desc,不含价字段——价格由
  *  展示层 guidePriceOf(level) 等推导)。卷轴组件的 props 按此声明,避免把快照珍宝
  *  断言成含价字段的完整 TreasureDef。 */
 export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
 
-/** store 持有的 UI 视图快照:core 快照 + players.heroes 槽位→旧形状派生(装配单点
- *  toUiSnapshot)。联机 snapshot 消息(core 形状)同样经此派生后进 store。 */
-export type GameSnapshot = Omit<CoreGameSnapshot, "players"> & { players: SnapshotPlayer[] };
-
-/** 槽位 → UI 旧形状麾下行(展示字段回查名将表;heroId 查无=数据 bug,炸出,零兜底)。 */
-function heroViewRow(slot: HeroSlotRow): HeroViewRow {
-  const def = heroById(slot.heroId);
-  return { id: def.id, name: def.name, title: def.title, image: def.image };
-}
-
-/** 数据装配单点(#785):core 快照 → UI 视图快照(players.heroes 槽位派生旧行,
- *  其余字段原样——浅拷贝共享,快照本就不可变消费)。 */
-function toUiSnapshot(s: CoreGameSnapshot): GameSnapshot {
-  return {
-    ...s,
-    players: s.players.map((p) => ({ ...p, heroes: p.heroes.map(heroViewRow) })),
-  };
-}
+/** store 持有的快照 = core 快照本体(零派生):单机 syncFromEngine 直灌,联机
+ *  snapshot 消息同构直灌。 */
+export type GameSnapshot = CoreGameSnapshot;
 
 // ──────────────────────────── engine 引用管理 ────────────────────────────
 // engine 是带方法/循环引用的可变实例,不属于响应式数据:
@@ -125,10 +100,9 @@ export const useGameStore = create<GameStoreState>((set) => ({
   thinking: false,
 
   syncFromEngine: (engine) => {
-    // 数据装配单点(#785):core 快照 → UI 视图(heroes 槽位派生旧行)再进 store。
-    // 全量替换快照:引擎每次动作都是新的序列化对象,浅比较引用即触发订阅组件重渲。
-    const snapshot = toUiSnapshot(engine.snapshot());
-    set({ snapshot });
+    // core 快照直灌(#786 拆派生读口)。全量替换快照:引擎每次动作都是新的序列化
+    // 对象,浅比较引用即触发订阅组件重渲。
+    set({ snapshot: engine.snapshot() });
   },
   setViewSeat: (seat) => set({ viewSeat: seat }),
   setInteractive: (interactive) => set({ interactive }),

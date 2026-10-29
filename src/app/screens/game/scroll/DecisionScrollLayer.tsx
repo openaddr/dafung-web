@@ -11,6 +11,7 @@ import { Fragment } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
+import { heroById } from "@core/heroes";
 import { Theme } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
@@ -185,7 +186,8 @@ export function DecisionScrollLayer({
                 level: h.level,
               };
             })}
-          heroes={me.heroes.map((h) => ({ id: h.id, name: h.name }))}
+          // 麾下槽位原生读(#786):名按 heroId 回查名将表单源,送将清单形状不变
+          heroes={me.heroes.map((slot) => ({ id: slot.heroId, name: heroById(slot.heroId).name }))}
           onCommand={dispatch}
         />
       );
