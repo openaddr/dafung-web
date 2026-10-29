@@ -1,4 +1,4 @@
 {
-  "triggerRate": 0,
+  "enabled": false,
   "baseRates": { "good": 30, "neutral": 45, "bad": 25 }
 }

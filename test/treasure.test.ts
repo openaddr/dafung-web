@@ -12,7 +12,7 @@ const MAP = loadMap(huanyouData);
 
 function makeEngine(
   seed = 1,
-  encounter?: { triggerRate: number; good?: number; neutral?: number; bad?: number },
+  encounter?: { good?: number; neutral?: number; bad?: number },
   seats?: SeatConfig[],
 ): GameEngine {
   const cfg: EngineConfig = {
@@ -24,7 +24,7 @@ function makeEngine(
     ...(encounter
       ? {
           encounter: {
-            triggerRate: encounter.triggerRate,
+            enabled: true,
             baseRates: {
               good: encounter.good ?? 34,
               neutral: encounter.neutral ?? 33,
@@ -278,7 +278,7 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
 
   /** 全中性机遇池钓种子:钓「携民渡江」(抉择机遇)恰好落在宝物城的种子。
    *  必须走真掷骰(landActiveOn):机遇挂点在 settleMarchLanding,白盒 land() 不经过。 */
-  const ENC_NEUTRAL = { triggerRate: 100, neutral: 100 };
+  const ENC_NEUTRAL = { neutral: 100 };
   function seedEncounterOnTreasureCity(): { seed: number; tileIndex: number } {
     for (let seed = 1; seed <= 80; seed++) {
       const probe = makeEngine(seed, ENC_NEUTRAL);

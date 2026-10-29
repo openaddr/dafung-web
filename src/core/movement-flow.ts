@@ -107,8 +107,8 @@ export function rollAndMove(g: GameEngine): void {
 
 /** 途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
  *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——颁发委任状,
- *  落点不在都城则必停截断(放弃剩余步数,补给+结束回合);③ 他人城主城池(城主存活)
- *  ——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
+ *  落点不在都城则必停截断(放弃剩余步数,机遇→补给→结束回合,ADR-0035);③ 他人城主城池
+ *  (城主存活)——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
  *  respondReaction 续走),拦停成功即止、后续城不再问。
  *  返回:"suspended"=拦检窗挂起、"halted"=必停都城已结算(调用方直接返回)、
  *  "landed"=走完无停,由调用方 settleMarchLanding 落格。 */
@@ -151,16 +151,21 @@ export function marchTraverse(
         const walkedCount = totalLen - remaining.length;
         g.lastMove = g.board.computePath(fromPos, walkedCount + 1, mover.capitalIndex);
         mover.position = mover.capitalIndex;
-        g.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、驻跸补给结算前
+        g.dispatchMoment("AfterMarch", { subject: moverSeat }); // 时机·AfterMarch:移动完成(必停都城)、落格结算前
         g.dispatchMoment("CapitalHalt", {
           subject: moverSeat,
           tileIndex: mover.capitalIndex,
-        }); // 时机·CapitalHalt:必停都城(AfterMarch 后、驻跸补给结算处)
-        const supply = applyResupply(g, mover, "halt");
-        g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
+        }); // 时机·CapitalHalt:必停都城(AfterMarch 后、落格结算处)
+        // 机遇必出(ADR-0035,#776):驻跸截断同走「机遇先于落格结算」单链,零豁免;
+        // 抉择机遇占用本落格时置 pendingEncounterHalt,解完由 settleEncounterChoice 续跑
+        // finishCapitalHalt;清算/破产/耗竭接管本落格,驻跸尾不再续跑(人倒下了不领补给)。
         g.turnPhase = "Land";
-        g.endTurn();
-        return "halted"; // 必停已完整结算:调用方不得再走落格收尾
+        g.pendingEncounterHalt = true;
+        const enc = g.maybeApplyEncounter(mover);
+        if (enc === "deciding") return "halted"; // 抉择机遇解完续跑驻跸尾(标记保持)
+        g.pendingEncounterHalt = false; // 直落/中断占用:标记作废
+        if (enc === "none" || enc === "settled") finishCapitalHalt(g, mover);
+        return "halted"; // 必停已完整结算或已移交接管方:调用方不得再走落格收尾
       }
     }
     // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
@@ -201,6 +206,15 @@ export function marchTraverse(
   return "landed";
 }
 
+/** 驻跸截断结算尾(ADR-0035):补给(cause=halt 战报)+ 结束回合。直落(marchTraverse)
+ *  与机遇解完续跑(settleEncounterChoice 经壳上 g.finishCapitalHalt 委托)两路共用。 */
+export function finishCapitalHalt(g: GameEngine, mover: Player): void {
+  const supply = applyResupply(g, mover, "halt");
+  g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
+  g.turnPhase = "Land";
+  g.endTurn();
+}
+
 /** 落格收尾(走完遍历无拦停):落位、AfterMarch、落格结算(机遇/城池)。 */
 export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: number): void {
   mover.position = landIndex;
@@ -211,13 +225,13 @@ export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: numb
   }); // 事件流(#375):行军落格
   g.dispatchMoment("AfterMarch", { subject: g.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(落位)、落格结算(resolveLanding)前
   g.turnPhase = "Land";
-  // 机遇(#123):早于城池结算;天命格是固定声望泉不参与 roll;清算/破产则中断落格结算
-  // (必停都城不触发:必停是驻跸补给特化流)。
+  // 机遇必出(ADR-0035,#776):早于落格结算,零豁免(天命格/驻跸截断同链);清算/破产
+  // 则中断落格结算。enabled=false 为系统总开关(引擎缺省关,测试隔离)。
   // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
   // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
   // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
   // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
-  const enc = g.maybeApplyEncounter(mover, landIndex);
+  const enc = g.maybeApplyEncounter(mover);
   if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
     return;
   resolveLanding(g);
@@ -313,8 +327,8 @@ export function endDecision(g: GameEngine): void {
 /** 落格结算:按落格类型分流——己都城(补给+招贤)/ 卧龙岗(招贤)/ 特殊格(天命/
  *  锦囊/税关/商市)/ 城池(购地/扩军/珍宝交涉)。宝物城与普通城池同权走城池分流
  *  (resolveProperty),其探宝固定挂交易链尾(ADR-0024 落格结算顺序正典:
- *  **机遇 roll → 城池交易链(购地/扩军/按兵不动/珍宝交涉,含自动拒绝;一次落格
- *  至多一段)→ 探宝**;链中途转入清算/破产则探宝不触发)。 */
+ *  **机遇必出(ADR-0035,先于本表)→ 城池交易链(购地/扩军/按兵不动/珍宝交涉,
+ *  含自动拒绝;一次落格至多一段)→ 探宝**;链中途转入清算/破产则探宝不触发)。 */
 export function resolveLanding(g: GameEngine): void {
   const mover = g.activePlayer;
   // 落点恰为自己都城:补给 + 招贤纳士(都城特化先于城池结算:宝物城化的都城走驻跸,不探宝)
@@ -364,7 +378,7 @@ function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
     return;
   }
   // 锦囊格(#147,旧机会格语义复活):落格必抽一张锦囊(T1 的 drawJinnang;
-  // 牌库空落空语义同起手)。与机遇格区分:必得 vs 概率。
+  // 牌库空落空语义同起手)。与机遇区分:必得一张 vs 必出一条事件(皆确定,ADR-0035)。
   if (tile.type === "Chance") {
     g.lastLandOutcome = { kind: "Noop" };
     g.turnPhase = "Land";

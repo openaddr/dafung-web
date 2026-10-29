@@ -1,7 +1,7 @@
-// 机遇系统冒烟(#126):声望渲染 + 机遇卷轴弹出与结算。
-// 配置:触发率 100%、中性 100%(三档全中性;中性 4 条里 3 条带抉择卷轴、
+// 机遇系统冒烟(#126;ADR-0035 必出制):声望渲染 + 机遇卷轴弹出与结算。
+// 配置:开关开 + 中性 100%(三档全中性;中性 4 条里 3 条带抉择卷轴、
 // 结盟互市单选项自动执行)→ 每次落格必遇机遇,≤6 掷内必见抉择卷轴(同档 78%)。
-// 既有 spec 的机遇隔离在 openSoloSetup 内统一归零,本 spec 自行覆写非零参数。
+// 既有 spec 的机遇隔离在 openSoloSetup 内统一关开关,本 spec 自行覆写非零参数。
 import { test, expect } from "./fixtures";
 import { actIfCan, openSoloSetup, pickCapital, waitSettled, waitMyRollDone } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -16,8 +16,7 @@ test.describe("机遇系统冒烟", () => {
     test.slow();
     await page.goto("/");
     await openSoloSetup(page);
-    await page.getByTestId(SETUP_TID.encounterToggle).click();
-    await page.getByTestId(SETUP_TID.encounterTrigger).fill("100");
+    await page.getByTestId(SETUP_TID.encounterEnabled).click(); // 开关打开(机遇必出)
     await page.getByTestId(SETUP_TID.encounterGood).fill("0");
     await page.getByTestId(SETUP_TID.encounterNeutral).fill("100");
     await page.getByTestId(SETUP_TID.encounterBad).fill("0");
@@ -34,7 +33,7 @@ test.describe("机遇系统冒烟", () => {
       JSON.stringify((window as any).__dafung.getEngine().encounter),
     );
     expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({
-      triggerRate: 100,
+      enabled: true,
       shares: { good: 0, neutral: 100, bad: 0 },
     });
 

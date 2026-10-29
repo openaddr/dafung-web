@@ -1037,18 +1037,18 @@ describe("RoomRegistry · 联机机遇接线(#135)", () => {
   function encounterOf(
     reg: RoomRegistry,
     roomId: string,
-  ): { triggerRate: number; shares: { good: number; neutral: number; bad: number } } {
+  ): { enabled: boolean; shares: { good: number; neutral: number; bad: number } } {
     return (
       reg.get(roomId)!.engine as unknown as {
-        encounter: { triggerRate: number; shares: { good: number; neutral: number; bad: number } };
+        encounter: { enabled: boolean; shares: { good: number; neutral: number; bad: number } };
       }
     ).encounter;
   }
 
-  it("注入 encounter → startGame 透传引擎(触发率/归一档位)", async () => {
+  it("注入 encounter → startGame 透传引擎(开关/归一档位)", async () => {
     const persistence = new InMemoryPersistence();
     const reg = new RoomRegistry(persistence, undefined, undefined, {
-      encounter: { triggerRate: 100, baseRates: { good: 0, neutral: 100, bad: 0 } },
+      encounter: { enabled: true, baseRates: { good: 0, neutral: 100, bad: 0 } },
     });
     const created = reg.createRoom({
       seatCount: 2,
@@ -1059,20 +1059,20 @@ describe("RoomRegistry · 联机机遇接线(#135)", () => {
     await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     // 引擎侧已归一(baseRates → shares);中性 100% 原样
     expect(encounterOf(reg, created.room.roomId)).toEqual({
-      triggerRate: 100,
+      enabled: true,
       shares: { good: 0, neutral: 100, bad: 0 },
     });
   });
 
-  it("未注入(缺省)→ 机遇关(引擎缺省 triggerRate 0,历史行为)", async () => {
+  it("未注入(缺省)→ 机遇关(引擎缺省 enabled=false,测试隔离口径)", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 2, bot: [1] });
-    expect(encounterOf(reg, roomId).triggerRate).toBe(0);
+    expect(encounterOf(reg, roomId).enabled).toBe(false);
   });
 
   it("机遇配置随房间持久化:重启 restoreAll 后引擎复刻同一配置", async () => {
     const persistence = new InMemoryPersistence();
     const reg1 = new RoomRegistry(persistence, undefined, undefined, {
-      encounter: { triggerRate: 40, baseRates: { good: 30, neutral: 45, bad: 25 } },
+      encounter: { enabled: true, baseRates: { good: 30, neutral: 45, bad: 25 } },
     });
     const created = reg1.createRoom({
       seatCount: 2,
@@ -1084,7 +1084,7 @@ describe("RoomRegistry · 联机机遇接线(#135)", () => {
     const reg2 = new RoomRegistry(persistence);
     reg2.restoreAll(testMapProvider);
     expect(encounterOf(reg2, created.room.roomId)).toEqual({
-      triggerRate: 40,
+      enabled: true,
       shares: { good: 30, neutral: 45, bad: 25 },
     });
   });

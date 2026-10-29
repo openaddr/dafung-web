@@ -5,7 +5,7 @@
 // - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
 // - 目标身价:速战 15000 / 标准 30000 / 鏖战 60000;起始银两固定 10000(经济 v2)
-// - 机遇(#125):触发概率 % + 三档基准四值,默认档位读 public/config/jiyu.json
+// - 机遇(#125;ADR-0035 必出制):机遇开关 + 三档基准,默认档位读 public/config/jiyu.json
 //   (fetch 失败回退内置默认同值),单局覆盖经 SetupConfig.encounter 透传引擎
 import { useEffect, useState } from "react";
 import type { SeatConfig } from "@core/authority";
@@ -30,6 +30,8 @@ import { Stepper } from "@app/screens/shared/Stepper";
 import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 // W2-包A:details 折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3)
 import { Sym } from "@app/screens/shared/Sym";
+// 机遇开关(ADR-0035):Base UI Switch 原语套水墨皮(红线 6 表单控件收口,SettingsDialog 同款)
+import { Switch } from "@app/components/ui/switch";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
 // #497:本屏局部样式(起兵 busy 呼吸 + 矮横屏双列档),同 home.css 口径(screen 目录内自持)
@@ -147,7 +149,7 @@ export function SoloSetupScreen({
         targetNetWorth: target,
         startingCash: STARTING_CASH,
         mapId: currentMap,
-        // 机遇四值原值透传(设置屏不归一;引擎 resolveEncounterConfig 负责夹紧/归一/回退)
+        // 机遇开关+三档原值透传(设置屏不归一;引擎 resolveEncounterConfig 负责归一/回退)
         encounter: toEncounterConfig(encounter),
       });
       // 起兵成功:记住本次国号,下次进入默认带入
@@ -362,8 +364,9 @@ export function SoloSetupScreen({
         />
       </div>
 
-      {/* 机遇(#125):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json(说明写此处文案,
-        JSON 无注释);数值只做边界校验(触发 0~100 / 三档 ≥0),归一在引擎,和≠100 合法 */}
+      {/* 机遇(#125;ADR-0035 必出制):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json
+        (说明写此处文案,JSON 无注释);开关直传,三档数值只做边界校验(≥0),归一在引擎,
+        和≠100 合法 */}
       <details
         data-testid={TID.encounterToggle}
         className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
@@ -380,15 +383,25 @@ export function SoloSetupScreen({
           机遇(落格触发事件)
         </summary>
         <div className="flex flex-col gap-2 px-2 pb-2">
-          <div className="grid grid-cols-2 gap-2">
+          <label className="flex cursor-pointer items-center gap-2 font-wenkai text-sm text-ink">
+            <Switch
+              data-testid={TID.encounterEnabled}
+              size="sm"
+              checked={encounter.enabled}
+              onCheckedChange={(checked) =>
+                setEncounter((prev) => ({ ...prev, enabled: checked === true }))
+              }
+            />
+            机遇必出(每次落格触发一条)
+          </label>
+          <div className="grid grid-cols-3 gap-2">
             {(
               [
-                ["触发概率 %", TID.encounterTrigger, "triggerRate", 0, 100],
-                ["好运基准", TID.encounterGood, "good", 0, Infinity],
-                ["中性基准", TID.encounterNeutral, "neutral", 0, Infinity],
-                ["霉运基准", TID.encounterBad, "bad", 0, Infinity],
+                ["好运基准", TID.encounterGood, "good"],
+                ["中性基准", TID.encounterNeutral, "neutral"],
+                ["霉运基准", TID.encounterBad, "bad"],
               ] as const
-            ).map(([label, testid, key, min, max]) => (
+            ).map(([label, testid, key]) => (
               <label
                 key={testid}
                 className="flex flex-col gap-0.5 font-wenkai text-xs text-ink-dim"
@@ -397,8 +410,7 @@ export function SoloSetupScreen({
                 <input
                   data-testid={testid}
                   type="number"
-                  min={min}
-                  max={Number.isFinite(max) ? max : undefined}
+                  min={0}
                   step="any"
                   value={encounter[key]}
                   onChange={(e) =>
@@ -410,7 +422,7 @@ export function SoloSetupScreen({
             ))}
           </div>
           <p className="font-wenkai text-xs text-ink-dim">
-            {`默认档位读自 config/jiyu.json(触发 ${encounterDefaults.triggerRate}%,三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。触发概率为每次落格触发机遇的百分比;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
+            {`默认档位读自 config/jiyu.json(${encounterDefaults.enabled ? "机遇开" : "机遇关"},三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。机遇必出:开启后每次落格结算先出一条机遇;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
           </p>
         </div>
       </details>

@@ -148,7 +148,7 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
       }),
     );
     await page.getByTestId(SETUP_TID.startGame).click();

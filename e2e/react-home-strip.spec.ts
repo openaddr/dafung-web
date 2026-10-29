@@ -22,7 +22,7 @@ test.describe("矮横屏 844×390(条带档)", () => {
       route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({ triggerRate: 0, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
       }),
     );
     await page.goto("/?seed=42");

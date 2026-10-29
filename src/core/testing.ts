@@ -31,7 +31,6 @@ interface EngineTestInternals {
   ): "settled" | "liquidating" | "bankrupt" | "exhausted";
   maybeApplyEncounter(
     mover: Player,
-    atTile: number,
   ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt";
   enterEncounterPhase(
     mover: Player,
@@ -104,12 +103,11 @@ export class TestEngine {
     return this.engine.log.map((l) => `${l.brief} ${l.detail}`).join("\n");
   }
 
-  /** 触达机遇触发+抽取全流程(验格型排除/触发率;#123 评审修正)。 */
+  /** 触达机遇触发+抽取全流程(验开关与必出抽取;#123,ADR-0035)。 */
   maybeApplyEncounter(
     mover: Player,
-    atTile: number,
   ): "none" | "settled" | "deciding" | "exhausted" | "liquidating" | "bankrupt" {
-    return this.internals.maybeApplyEncounter(mover, atTile);
+    return this.internals.maybeApplyEncounter(mover);
   }
 
   /** 触达机遇结算(指定具体事件,绕过触发/抽取随机;#123)。返回联合与

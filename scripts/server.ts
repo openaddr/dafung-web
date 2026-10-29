@@ -773,7 +773,7 @@ console.log(
   `[server] 对局日志:${LOGS_DIR}(TTL ${LOG_TTL_DAYS} 天,启动清扫删除 ${removedOldLogs} 个过期文件)`,
 );
 console.log(
-  `[server] 机遇(#135):触发率 ${ENCOUNTER.triggerRate}% 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"};bot 配速(#730):${BOT_STEP_MS_EFFECTIVE > 0 ? `${BOT_STEP_MS_EFFECTIVE}ms/步` : "关"}`,
+  `[server] 机遇(#135;ADR-0035 必出制):${ENCOUNTER.enabled ? "开" : "关"} 三档 ${JSON.stringify(ENCOUNTER.baseRates)}(配置:${JIYU_CONFIG});停摆看门狗(#118):${DECISION_TIMEOUT_MS > 0 ? `${DECISION_TIMEOUT_MS}ms` : "关"};反应窗(#284):${REACTION_WINDOW_MS_OVERRIDE > 0 ? `覆盖 ${REACTION_WINDOW_MS_OVERRIDE}ms` : "常量表默认"};掉线保留窗(#380):${RETENTION_WINDOW_MS > 0 ? `${RETENTION_WINDOW_MS / 1000} 秒` : "关"};bot 配速(#730):${BOT_STEP_MS_EFFECTIVE > 0 ? `${BOT_STEP_MS_EFFECTIVE}ms/步` : "关"}`,
 );
 console.log(
   "[server] 大厅 /room/new|join|start|dismiss;掉线冻结+房主解散出口(ADR-0002/0028);WS /ws",

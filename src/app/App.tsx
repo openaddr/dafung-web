@@ -170,7 +170,7 @@ export function App() {
           ],
           seed: urlSeed(),
           mapId: "",
-          // 试玩机遇走产品默认档(#458):引擎缺省 triggerRate=0 恒关,试玩须与正式局同源可触发
+          // 试玩机遇走产品默认档(#458):引擎缺省 enabled=false 恒关,试玩须与正式局同源可触发
           encounter: ENCOUNTER_PRODUCT_DEFAULTS,
         });
         setController(controller, data);

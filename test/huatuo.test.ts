@@ -1,7 +1,8 @@
 // 华佗·回血技能(#133):regenStamina 效果落账给技能持有者(ctx.owner,而非 RoundStart 的
 // subject=轮次锚点)/ 池 3→4 招贤洗牌可抽 / 真实轮次驱动 cooldown 3 轮节奏(参照
 // timing.test.ts 的 RoundStart 冷却先例)/ clamp 溢出作废 / 回血只加不减、不触发耗竭。
-// 机遇缺省关闭(EngineConfig.encounter 缺省 triggerRate=0),真实轮次驱动无随机扣体力干扰。
+// 机遇缺省关闭(EngineConfig.encounter 缺省 enabled=false,ADR-0035 隔离口径),
+// 真实轮次驱动无随机扣体力干扰。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
