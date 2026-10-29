@@ -97,6 +97,29 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     expect(skillOpt(e, "leigu")?.available).toBe(true);
   });
 
+  it("同名技多槽:选项集按技 id 去重恰一条(#782);首槽冷却中选项仍可用,发动落次槽(#785 实例账)", () => {
+    const e = prepared();
+    const p = e.activePlayer;
+    armSkill(e, "zhouyu", "leigu");
+    armSkill(e, "zhangxingcai", "leigu"); // 同玩家两槽同名技(生产形:周瑜+星彩同授擂鼓)
+    const opts = e.choicesFor().filter((o) => o.id === "skill:leigu");
+    expect(opts).toHaveLength(1); // 一技一选项(UI 单卡,React key 不撞)
+    expect(opts[0].available).toBe(true);
+    expect(opts[0].skillHero).toBe("周瑜"); // 卡面属主=首持有槽(与 HandRack 反查同源)
+    // 首槽冷却中(实例账本各槽各记,#785):次槽就绪 → 选项仍可用
+    p.heroes[0].lastFired["leigu"] = e.round;
+    expect(skillOpt(e, "leigu")?.available).toBe(true);
+    e.resolveHeroSkill("leigu");
+    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round); // 首槽账未被改写
+    expect(p.heroes[1].lastFired["leigu"]).toBe(e.round); // 发动落次槽(readySkillSlot 首就绪槽)
+    // 双槽全冷却:一选项灰置,reason=最近解冻槽的剩余轮数
+    e.turnPhase = "AwaitingJinnang";
+    const cd = skillOpt(e, "leigu");
+    expect(cd?.available).toBe(false);
+    expect(cd?.reason).toContain("冷却");
+    expect(hasUsableJinnang(e)).toBe(false);
+  });
+
   it("费用技(赈济)银两不足灰置「银两不足」;目标域 other 自取灰置「不能指定自己」", () => {
     const e = prepared();
     const p = armSkill(e, "huatuo", "zhenji");
@@ -323,7 +346,7 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
     }
   });
 
-  it("钉3:每池内技 id 互不重复(冷却键=技 id 同池不得相撞;多主动池合法——逐字拍板表周瑜池含火攻+擂鼓双主动,ADR-0036「主动每池至多一条」与表相抵,以表为准,见票 #784 报告)", () => {
+  it("钉3:每池内技 id 互不重复(冷却键=技 id 同池不得相撞;多主动池合法——逐字拍板表周瑜池含火攻+擂鼓双主动,ADR-0036 旧文「主动每池至多一条」已按表勘误,#782)", () => {
     for (const h of HEROES) {
       expect(new Set(h.skillPool).size, `${h.id} 池内 id 重复`).toBe(h.skillPool.length);
     }

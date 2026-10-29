@@ -388,20 +388,29 @@ export function skillCooldownLeft(e: GameEngine, slot: HeroSlot, skill: ActiveSk
   return Math.max(0, skill.cooldown - (e.round - last));
 }
 
-/** 出牌阶段主动技选项段(#188 档 3):遍历麾下槽位序×槽内已授技序(=池序),冷却就绪 +
- *  可执行才 available;不可用带 reason(冷却优先报,其次费用/目标门槛)。同名技多槽各出
- *  各项(冷却账独立,命中判定取首个可用项,槽定位单源 roster.readySkillSlot);与锦囊
- *  选项同窗并列,UI 以 skillId 区分「技」章。 */
+/** 出牌阶段主动技选项段(#188 档 3):遍历麾下槽位序×槽内已授技序(=池序),**按技 id 去重**
+ *  ——同名技多槽(如周瑜+张星彩同授擂鼓)一技恰一选项(#782:不再出两张同脸卡,React key
+ *  亦不撞);可用性=任一持有槽冷却就绪(实例账本仍在各槽各记,#785;全槽冷却时 reason 报
+ *  最近解冻槽的剩余轮数),费用/目标门槛技级一验;发动定位单源 roster.readySkillSlot 首就绪
+ *  槽(#785/#795 拍板,选项面归一与之配套)。与锦囊选项同窗并列,UI 以 skillId 区分「技」章。 */
 function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
   const userSeat = e.players.indexOf(p);
   const out: ChoiceOption[] = [];
+  const seen = new Set<string>();
   for (const slot of p.heroes) {
     const hero = heroById(slot.heroId);
     for (const skillId of slot.skillIds) {
       const skill = skillById(skillId);
       if (!isActiveSkill(skill)) continue; // 槽可含多条主动技(ADR-0036 逐字表)
-      const cdLeft = skillCooldownLeft(e, slot, skill);
+      if (seen.has(skillId)) continue; // 同名技多槽:一技一选项,卡面属主=首持有槽
+      seen.add(skillId);
+      // 冷却各槽各读(#785):任一持有槽就绪即可用;全冷却时取最小剩余(最近解冻)报因
+      const cdLeft = Math.min(
+        ...p.heroes
+          .filter((s) => s.skillIds.includes(skillId))
+          .map((s) => skillCooldownLeft(e, s, skill)),
+      );
       let available = cdLeft === 0;
       let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
       if (available) {

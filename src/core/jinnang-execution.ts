@@ -366,7 +366,8 @@ export function resolveHeroSkill(
     g.warn(`${p.guohao} 无此主动技:${skillId}`);
     return;
   }
-  // 可用性按技 id 取「任一持有槽就绪」(#785 冷却实例化:同名技各槽各账,命中判定不取首个)
+  // 可用性随选项集归一(#782 选项集按技 id 去重:一技恰一选项,available=任一持有槽就绪);
+  // 冷却实例账本仍在各槽各记(#785),发动落 readySkillSlot 首就绪槽(locateReadySlot)
   const sameId = computeChoices(g, "AwaitingJinnang").filter((o) => o.id === `skill:${skillId}`);
   const option = sameId.find((o) => o.available);
   if (!option) {

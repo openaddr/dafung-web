@@ -66,8 +66,9 @@ import "./hand-rack.css";
 
 /** 技→槽反查(#786 槽位原生读):choices 技选项只带 skillId,出牌技卡的将定位走本地
  *  玩家槽位(槽位序首命中,同 roster.readySkillSlot 口径)——共享技(一技入多池,
- *  ADR-0036)后目录反查不再唯一,按目录猜属主会张冠李戴。查无=接线 bug(choices 出了
- *  本地玩家麾下没有的技),炸出零兜底。 */
+ *  ADR-0036)后目录反查不再唯一,按目录猜属主会张冠李戴;同名技多槽时选项面已按技 id
+ *  归一(#782 一技一卡),卡面属主=首持有槽,与选项 label/skillHero 同源。查无=接线 bug
+ *  (choices 出了本地玩家麾下没有的技),炸出零兜底。 */
 function heroSlotBySkillId(heroes: HeroSlotRow[], skillId: string): HeroSlotRow {
   const slot = heroes.find((s) => s.skillIds.includes(skillId));
   if (slot == null)
