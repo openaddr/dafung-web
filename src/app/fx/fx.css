@@ -252,15 +252,18 @@
   }
 }
 
-/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题):
+/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题;#732 入槽):
    深墨漆匾 + 漆金双环描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+
-   玩家色光晕承身份(--player-color 由 FxLayer 注入;原「玩家色底+白字」对部分
+   玩家色光晕承身份(--player-color 由 NoticeBanner 注入;原「玩家色底+白字」对部分
    玩家色对比 1.9-2.9 不可读,#509 残留必修同源收口)。
-   编排零改动:时长/缓动/关键帧仍归 --dur-banner + fx-banner-fly(1800ms 硬同步点)。 */
+   #732:渲染宿主迁顶中知会横幅槽(.notice-slot,锚定 top+8 safe-aware)——本类只
+   负责「槽内居中锚点」(absolute 于槽,槽中心即锚点),fly 动画的 translate(-50%,-50%)
+   语义随之从「视口 16% 落点」改为「槽位落点」,编排零改动:时长/缓动/关键帧仍归
+   --dur-banner + fx-banner-fly(1800ms 硬同步点)。 */
 .fx-turn-banner {
   position: absolute;
-  top: 16%;
   left: 50%;
+  top: 50%;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -284,7 +287,6 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
   letter-spacing: 8px;
   pointer-events: none;
-  z-index: 25;
   white-space: nowrap;
   /* 时长归 --dur-banner(1800ms,唯一源 core/theme.ts Motion,#117 同源化):
      JS 编排窗 FX.bannerMs = 本值 + 100ms 清理余量,在 fx/timings.ts 单点换算,
@@ -690,74 +692,49 @@
   }
 }
 
-/* ── 都城停全屏宣告(S7 #513):漆金横幅级,与回合横幅(.fx-turn-banner)同语感
-   更高强度——深墨漆匾+漆金双环描边+玩家色光晕承身份,标题「驻 跸」大字居中,
-   副题报国号/都城。全长 2.2s(与 fx/timings.ts FX.haltBannerMs=2400 硬同步),
-   编排停拍 FX.haltHoldMs=1400(同 bannerHoldMs 口径)。 */
+/* ── 都城停条带(#732 降格,原 S7 #513 全屏宣告):与回合横幅(.fx-turn-banner)
+   同形同槽——深墨漆匾+漆金描边+玩家色光晕同族,降为单行条带(「驻跸」引题+副题报
+   国号/都城/补给),槽内居中锚点同 .fx-turn-banner。演出整体随条带级校准:动画复用
+   fx-banner-fly(--dur-banner 单源,旧专用 keyframe fx-halt-banner-fly 随全屏形态
+   退役),号角音保留(sink 侧),震屏撤销+编排占用窗缩至 FX.haltHoldMs=1000
+   (timings.ts,与 bannerHoldMs 同口径)。 */
 .fx-halt-banner {
   position: absolute;
-  top: 18%;
   left: 50%;
+  top: 50%;
   display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 12px;
   background: linear-gradient(
     180deg,
     var(--color-panel-hi),
     var(--color-lacquer) 58%,
     var(--color-bg-deep)
   );
-  padding: 12px 56px 16px;
-  border-radius: 6px;
-  border: 2.5px solid var(--color-lacquer-gold);
+  color: var(--color-lacquer-gold);
+  font-family: var(--font-title);
+  font-size: 15px;
+  padding: 5px 24px;
+  border-radius: 4px;
+  border: 2px solid var(--color-lacquer-gold);
   box-shadow:
-    inset 0 0 0 2px color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent),
-    0 0 48px color-mix(in srgb, var(--player-color, var(--color-gold)) 45%, transparent),
-    0 14px 40px rgba(0, 0, 0, 0.55);
+    inset 0 0 0 1.5px color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent),
+    0 0 30px color-mix(in srgb, var(--player-color, var(--color-gold)) 40%, transparent),
+    0 8px 22px rgba(0, 0, 0, 0.5);
   opacity: 0;
   pointer-events: none;
-  z-index: 26;
   white-space: nowrap;
-  animation: fx-halt-banner-fly 2.2s var(--ease-out) forwards;
+  animation: fx-banner-fly var(--dur-banner) var(--ease-out) forwards;
 }
 .fx-halt-title {
-  font-family: var(--font-title);
-  font-size: 46px;
-  line-height: 1.2;
-  color: var(--color-lacquer-gold);
-  letter-spacing: 22px;
-  text-indent: 22px; /* 抵消末字间距,视觉居中 */
-  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
-}
-.fx-halt-sub {
-  font-family: var(--font-title);
-  font-size: 17px;
-  color: color-mix(in srgb, var(--color-lacquer-gold) 82%, var(--color-ink));
-  letter-spacing: 4px;
+  font-size: 19px;
+  letter-spacing: 8px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
-@keyframes fx-halt-banner-fly {
-  0% {
-    transform: translate(-50%, -46%) scale(0.5);
-    opacity: 0;
-  }
-  16% {
-    transform: translate(-50%, -50%) scale(1.04);
-    opacity: 0.94;
-  }
-  24% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.94;
-  }
-  78% {
-    transform: translate(-50%, -50%) scale(1);
-    opacity: 0.94;
-  }
-  100% {
-    transform: translate(-50%, -50%) scale(1.12);
-    opacity: 0;
-  }
+.fx-halt-sub {
+  color: color-mix(in srgb, var(--color-lacquer-gold) 82%, var(--color-ink));
+  letter-spacing: 2px;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 
 /* ── S7 演出 reduced-motion 补充登记(app.css 全局兜层压 0.01ms 之外的两处增量):

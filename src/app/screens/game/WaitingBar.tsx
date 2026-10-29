@@ -7,8 +7,9 @@
 // X8 #27 交接:文案主体按决策归属座位取——快照直排 decisionOwner(engine.decisionOwner
 // 的透出:珍宝交涉=城主,其余=activeIndex;spec #107 C1 单源化,UI 不再手抄推导)——
 // 访客关闭交涉卷轴后等待条接管「等待城主抉择」的反馈。
-// 本组件只读 props 不读 store(GameScreen 接线时传),样式为细条,绝对定位在
-// HintBar(top-3)下方(top-12),互不叠位。
+// #732:渲染宿主迁顶中知会横幅槽(NoticeBanner)——等待条是常驻级知会,瞬态横幅
+// (回合/都城停)展示期由槽负责让位、播完回归;本件只管「等待文案派生 + 药丸形态」,
+// 自身不再定位(槽容器承载落位),waiting-bar testid 保留零漂移(联机多张 spec 消费)。
 import { useEffect, useState } from "react";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { TurnPhase } from "@core/authority";
@@ -85,7 +86,7 @@ export function WaitingBar({
   return (
     <div
       data-testid={TESTIDS.waitingBar}
-      className="waiting-bar pointer-events-none absolute top-[calc(var(--safe-top)+48px)] left-1/2 -translate-x-1/2 rounded-full border border-gold/50 bg-panel/95 px-3 py-0.5 font-title text-sm text-ink shadow"
+      className="waiting-pill pointer-events-none rounded-full border border-gold/50 bg-panel/95 px-3 py-0.5 font-title text-sm text-ink shadow"
     >
       {/* X7 #26:thinking testid 迁到文案 span(原 GameScreen 底部角标,单机 bot 用例仍走此断言) */}
       <span data-testid={TESTIDS.thinking}>

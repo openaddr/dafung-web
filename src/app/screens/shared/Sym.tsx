@@ -51,7 +51,7 @@ const PATHS: Record<SymName, ReactNode> = {
   close: <path d="M4 4 L16 14 M16 4 L4 14" fill="none" />,
   // 展开/下拉 ▾
   expand: <path d="M4 6 L10 11.5 L16 6" fill="none" />,
-  // 总览 ☰(三横册页,诸侯总览弹窗入口,#700 顶钮左移)
+  // 总览 ☰(三横册页,诸侯详情弹窗入口,#700 顶钮左移;#732 正名前称「诸侯总览」)
   overview: (
     <>
       <path d="M4.5 4.5 H17.5" fill="none" />

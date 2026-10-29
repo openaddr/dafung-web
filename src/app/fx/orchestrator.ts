@@ -89,8 +89,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.showDuelSigns(ev);
         break;
       case "haltBanner":
-        // 都城停全屏宣告(S7):号角+震屏同拍,等横幅读过峰值段再接驻章
-        // (同 turnBanner 的 C3 口径;生产 sink 返回 void,不收签名)。
+        // 都城停条带(#732 降格,原 S7 全屏宣告):号角同拍,等条带读过峰值段再接驻章
+        // (同 turnBanner 的 C3 口径;生产 sink 返回 void,不收签名;占用窗按条带级
+        // 校准 = haltHoldMs)。
         sink.showHaltBanner(ev);
         await delay(FX.haltHoldMs);
         break;

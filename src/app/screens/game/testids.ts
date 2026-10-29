@@ -21,12 +21,13 @@
 // 接替形态=顶左两钮(topbar-overview/settings-button)+ 右下三圆钮(pile-buttons 族)
 // + 设置弹层(settings-* 族)+ 手牌区(hand-zone)。
 export const TESTIDS = {
-  // ── 全浮层骨架(#700):顶部条(顶左两钮 + 顶中 N 轮 chip)/ 席位格列(#698 重形)
-  // / 手牌区 / 右下三圆钮 ──
+  // ── 全浮层骨架(#700;#732 顶左行序:设置→详情→N 轮 chip,顶中让给知会槽):
+  //  顶部条 / 席位格列 / 手牌区 / 右下三圆钮 ──
   topBar: "top-bar",
-  /** 顶中「N 轮」浮置 chip(textContent = 「N 轮」;#700 起不含印章与目标身价)。 */
+  /** 顶左「N 轮」浮置 chip(#732 自顶中迁左,与钮行同排;textContent = 「N 轮」;
+   *  #700 起不含印章与目标身价)。 */
   topbarRound: "topbar-round",
-  /** 顶左总览钮(诸侯总览弹窗入口;#702 点开十列分板弹层)。 */
+  /** 顶左详情钮(诸侯详情弹窗入口,#732 正名;#702 点开十列分板弹层)。 */
   topbarOverview: "topbar-overview",
   /** 顶左设置钮(开设置弹层)。 */
   settingsButton: "settings-button",
@@ -184,7 +185,10 @@ export const TESTIDS = {
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
   thinking: "thinking",
-  waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx)
+  waitingBar: "waiting-bar", // G-3/16/21 统一等待状态条(WaitingBar.tsx;#732 起渲染宿主在知会槽)
+  /** 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条共用的一条带容器——
+   *  可排队、同槽互斥,瞬态知会优先于等待条(NoticeBanner.tsx)。 */
+  noticeBanner: "notice-banner",
   /** 竖屏手机「请横屏」提示层(#276 纠偏:移动端只做横屏形态;显隐全在 layout.css
    *  媒询,常驻 DOM——桌面窄窗口 pointer:fine 不触发)。 */
   rotateHint: "rotate-hint",
@@ -223,7 +227,7 @@ export const TESTIDS = {
   /** 声望明细里程碑章(m = 门槛值 30|60|90;已献=金章 .claimed,未献=素章)。 */
   seatRepMilestone: (m: number) => `seat-rep-milestone-${m}` as const,
 
-  // ── 诸侯总览弹窗(#702,spec #697 ⑥):顶左 ☰ 点开的十列名录直读分板 ──
+  // ── 诸侯详情弹窗(#702,spec #697 ⑥,#732 正名):顶左 ☰ 点开的十列名录直读分板 ──
   /** 弹层容器(ui/dialog 底件,题名可拖;打开不暂停对局,行随快照实时重渲)。 */
   warlordsOverview: "warlords-overview",
   /** 总览行(seat = 座位号,座序即行序;十列 grid 一人一行)。状态类挂点:

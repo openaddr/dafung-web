@@ -30,21 +30,28 @@ export interface SealFx {
   tone?: "gold";
 }
 
-export interface BannerFx {
+/** 顶中知会横幅槽演出件(#732):回合横幅与都城停条带统一为槽内知会——同形同槽,
+ *  由槽组件(NoticeBanner)渲染;瞬态知会优先于等待条(槽组件负责让位/回归)。 */
+export interface TurnNoticeFx {
+  kind: "turn";
   id: number;
   guohao: string;
   /** 玩家色 rgba 字符串(--player-color)。 */
   color: string;
 }
 
-/** 都城停全屏宣告横幅(S7 #513):漆金横幅级宣告(FxLayer 屏幕层渲染)。 */
-export interface HaltBannerFx {
+/** 都城停条带(#732 降格):原全屏漆金宣告(S7 #513)降为条带级横幅,与回合横幅
+ *  同槽互斥排队。 */
+export interface HaltNoticeFx {
+  kind: "halt";
   id: number;
   guohao: string;
   /** 玩家色 rgba 字符串(--player-color)。 */
   color: string;
   cityName: string;
 }
+
+export type NoticeFx = TurnNoticeFx | HaltNoticeFx;
 
 /** 落格定音金圈(S7 #513):落点格一拍即散。 */
 export interface PulseFx {
@@ -106,12 +113,30 @@ export interface TileAnnounce {
 
 let nextId = 1;
 
+/** 知会槽泵(#732):槽空且队列非空即取队首开播,时长到自清再泵下一条——
+ *  同槽互斥(同一时刻 notice 至多一条)+ 先进先出排队,全在这里结构性成立。
+ *  时长与槽内 CSS 动画全长硬同步(turn=FX.bannerMs 同 --dur-banner;halt 同 calibre,
+ *  见 timings.ts),id 守卫防 resetFx 后迟到回调复活旧知会。 */
+const pumpNotice = () => {
+  const s = useFxStore.getState();
+  if (s.notice != null || s.noticeQueue.length === 0) return;
+  const next = s.noticeQueue[0];
+  useFxStore.setState({ notice: next, noticeQueue: s.noticeQueue.slice(1) });
+  const ms = next.kind === "turn" ? FX.bannerMs : FX.haltBannerMs;
+  setTimeout(() => {
+    const cur = useFxStore.getState();
+    if (cur.notice?.id === next.id) useFxStore.setState({ notice: null });
+    pumpNotice();
+  }, ms);
+};
+
 interface FxState {
   floaters: FloaterFx[];
   seals: SealFx[];
-  banner: BannerFx | null;
-  /** 都城停全屏宣告(S7)。 */
-  halt: HaltBannerFx | null;
+  /** 顶中知会横幅槽(#732):当前展示的知会件(null=槽空,等待条可回归)。 */
+  notice: NoticeFx | null;
+  /** 知会排队(#732):同槽互斥——展示中的知会播完(时长到)才从队首取下一条。 */
+  noticeQueue: NoticeFx[];
   /** 出牌指示线(#281 P2-E)。 */
   jinnangLines: JinnangLineFx[];
   /** 窥探弹层(#575):null=关闭(关闭即清,无任何残留)。 */
@@ -132,6 +157,7 @@ interface FxState {
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string): void;
+  /** 回合横幅入槽(#732):入知会队列,槽空即播。 */
   showBanner(guohao: string, color: string): void;
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
@@ -139,7 +165,7 @@ interface FxState {
   revealPeek(viewerSeat: number, targetSeat: number, guohao: string, hand: string[]): void;
   /** 关闭窥探弹层(#575):关闭即清,无任何残留。 */
   closePeek(): void;
-  /** 都城停全屏宣告(S7):横幅随 CSS 全长自清。 */
+  /** 都城停条带(#732 降格):入知会队列,槽空即播;号角/震屏校准在 sink 侧。 */
   showHaltBanner(guohao: string, color: string, cityName: string): void;
   /** 落格定音金圈一拍(S7)。 */
   spawnPulse(x: number, y: number): void;
@@ -165,8 +191,8 @@ export const useFxStore = create<FxState>()(
   subscribeWithSelector((set) => ({
     floaters: [],
     seals: [],
-    banner: null,
-    halt: null,
+    notice: null,
+    noticeQueue: [],
     jinnangLines: [],
     peek: null,
     marching: new Set<string>(),
@@ -196,8 +222,8 @@ export const useFxStore = create<FxState>()(
 
     showBanner(guohao, color) {
       const id = nextId++;
-      set({ banner: { id, guohao, color } });
-      setTimeout(() => set((s) => (s.banner?.id === id ? { banner: null } : {})), FX.bannerMs);
+      set((s) => ({ noticeQueue: [...s.noticeQueue, { kind: "turn", id, guohao, color }] }));
+      pumpNotice();
     },
 
     stampSeal(x, y, char, tone) {
@@ -208,8 +234,10 @@ export const useFxStore = create<FxState>()(
 
     showHaltBanner(guohao, color, cityName) {
       const id = nextId++;
-      set({ halt: { id, guohao, color, cityName } });
-      setTimeout(() => set((s) => (s.halt?.id === id ? { halt: null } : {})), FX.haltBannerMs);
+      set((s) => ({
+        noticeQueue: [...s.noticeQueue, { kind: "halt", id, guohao, color, cityName }],
+      }));
+      pumpNotice();
     },
 
     spawnPulse(x, y) {
@@ -293,8 +321,8 @@ export const useFxStore = create<FxState>()(
       set({
         floaters: [],
         seals: [],
-        banner: null,
-        halt: null,
+        notice: null,
+        noticeQueue: [],
         jinnangLines: [],
         peek: null,
         marching: new Set<string>(),
