@@ -27,7 +27,9 @@ export type SoundEvent =
   | "rain" // 雨声铺底(S7 破产仪式开锣,音量压档 FILE_GAIN)
   | "haltGong" // 都城停号角(狩猎号角长鸣,#751 与 bankrupt 的 gong-long 分家)
   | "duelClash" // 拼点起摇合击(#746 条目 5:骨牌相击一记,替换合成沙锤——拼点自此有自己的声音)
-  | "verdictChime" // 拼点判词磬一记(#746 条目 5:金圈/落锤同拍,与印章 stamp 的木石感分家)
+  | "verdictChime" // 拼点判词磬一记(#746 条目 5:金圈/落锤同拍,与印章 stamp 的木石感分家;#769 双音高分家后=中性单音:旁观局与平局)
+  | "verdictChimeWin" // 判词磬·己胜(#769 双音高:本机在签内且己方胜,上行高音双磬;纯合成不映射文件——reactionTick 先例 #773,视角变体零新二进制)
+  | "verdictChimeLose" // 判词磬·己败(#769 双音高:本机在签内且己方败,下行低音双磬;纯合成同上)
   | "reactionOpen" // 反应窗开窗轻叩(#751:木鱼/点击族,窗开即响)
   | "reactionTick"; // 反应窗 ≤5s 危急段每秒滴答(#760:短促低音量 tick,与秒数脉动同拍;纯合成不映射文件——每秒一记的高频事件,采样无增益)
 
@@ -165,6 +167,12 @@ export class SynthAudioPlayer implements AudioPlayer {
         break;
       case "verdictChime":
         this.verdictChime(ctx);
+        break;
+      case "verdictChimeWin":
+        this.verdictChimeWin(ctx);
+        break;
+      case "verdictChimeLose":
+        this.verdictChimeLose(ctx);
         break;
       case "reactionOpen":
         this.reactionOpen(ctx);
@@ -396,6 +404,21 @@ export class SynthAudioPlayer implements AudioPlayer {
     this.tone(ctx, 1980, 0.7, "sine", 0.1);
   }
 
+  // 判词磬·己胜(#769 双音高):上行高音——基磬 1320 先落,高磬 1980 错拍 120ms
+  // 接引(纯五度上行,「我赢」读作扬起),尾磬余韵比中性单音拖长半档。纯合成不映射
+  // AUDIO_FILES(#773 reactionTick 先例:视角变体每局至多一记,采样无增益,零新二进制)
+  private verdictChimeWin(ctx: AudioContext): void {
+    this.tone(ctx, 1320, 0.35, "sine", 0.2);
+    setTimeout(() => this.tone(ctx, 1980, 0.65, "sine", 0.16), 120);
+  }
+
+  // 判词磬·己败(#769 双音高):下行低音——880 落 620(下行五度档),音量压半档、
+  // 尾音拖长示沉坠;与己胜双磬对称错拍。纯合成同上
+  private verdictChimeLose(ctx: AudioContext): void {
+    this.tone(ctx, 880, 0.4, "sine", 0.18);
+    setTimeout(() => this.tone(ctx, 620, 0.7, "sine", 0.14), 140);
+  }
+
   // 反应窗开窗轻叩(#751:木鱼族一记,窗开即响;合成回退同 jinnangDraw 木叩工艺)
   private reactionOpen(ctx: AudioContext): void {
     this.thump(ctx, 260, 0.1);
@@ -450,7 +473,7 @@ export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // CREDITS 已登记)——拼点合击起手、判词磬、反应窗开窗轻叩(木鱼族,woodblock
   // 一采多用的第 4 用途:开窗轻叩与落骰/扩军/落架同「叩」的语言,截断同 diceLand 档):
   duelClash: "/assets/audio/audio-duel-clash.ogg",
-  verdictChime: "/assets/audio/audio-verdict-chime.ogg",
+  verdictChime: "/assets/audio/audio-verdict-chime.ogg", // #769 双音高分家后=中性单音通路(旁观/平局);胜/败视角变体纯合成不映射(见 SynthAudioPlayer)
   reactionOpen: "/assets/audio/woodblock-hit.ogg",
 };
 

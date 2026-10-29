@@ -8,6 +8,9 @@
 // 己方加权——己签 scale 1.06、金圈先行,他签 0.96,#760)→ 停留渐出。点差
 // ≥DUEL.blowoutMargin 判词拍震屏(DESIGN §6 拼点大胜负)。整场固定全速,不随 bot
 // 半速(公共大事件非回合等待)。
+// #769 判词段再分级:点差大胜档(同 isBlowout 判据)胜方点数 outBack 弹至 1.15、
+// 败方字面泼墨溅;判词磬按己方视角拆胜/败双音高(旁观/平局中性单音);摇签段空签身
+// 加旋转墨旋;签排 gap 随视口收紧、折行时中缝印随首行避让(构建拍量锚)。
 // 签面收场后棋盘后效(止步/续走/银两浮字)才登场:present 串行 await 本组件返回的
 // Promise 天然保证(orchestrator duelSigns case → sink.showDuelSigns)。
 // 模块桥模式同 DiceOverlay:mount/unmount 归 React(挂 Game 屏一次),触发走
@@ -43,7 +46,10 @@ interface SignHandle {
 }
 
 /** 骨牌大字签面(签头=玩家色底+国号,签身=毛笔大字虚位)。字面内容摇签期由
- *  轮换句柄驱动,此处留空。 */
+ *  轮换句柄驱动,此处留空;空签身底纹=自绘墨旋 SVG(#769,摇签段旋转、落定即撤
+ *  ——显隐门纯 CSS(.duel-sign-shaking),DOM 常驻不增删)。DOM 序在 face 之后
+ *  =墨旋浮在轮换虚影字上(虚影字净透明度 ~0.3,墨旋衬其上才读得出转);轮换句柄
+ *  写 face.textContent 不触墨旋。 */
 function buildSign(side: DuelSide): SignHandle {
   const root = document.createElement("div");
   root.className = "duel-sign"; // 幕启虚位基态(半透立起、字面缺席,fx.css)
@@ -52,10 +58,20 @@ function buildSign(side: DuelSide): SignHandle {
   const head = document.createElement("div");
   head.className = "duel-sign-head";
   head.textContent = side.guohao;
+  const swirl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  swirl.setAttribute("viewBox", "0 0 72 72");
+  swirl.classList.add("duel-sign-swirl");
+  swirl.setAttribute("aria-hidden", "true");
+  // 墨旋本体:交替半圆旋出三匝墨涡(零位图,stroke 吃 --color-ink,fx.css)
+  swirl.innerHTML =
+    '<path d="M 36 36 a 4 4 0 0 1 -8 0 a 6 6 0 0 1 12 0 a 8 8 0 0 1 -16 0 ' +
+    'a 10 10 0 0 1 20 0 a 12 12 0 0 1 -24 0" fill="none" stroke-width="5" ' +
+    'stroke-linecap="round"/>';
   const face = document.createElement("div");
   face.className = "duel-sign-face";
   root.appendChild(head);
   root.appendChild(face);
+  root.appendChild(swirl);
   return { root, face, side };
 }
 
@@ -99,7 +115,14 @@ function landSign(sign: SignHandle): void {
  *  己方加权(#760):本机签在签内时判词段加视觉权——己签 scale 1.06、他签 0.96,
  *  己方胜时金圈先行(败签沉暗延后 ~100ms,先行量在 CSS 走 token 组合表达);
  *  金光圈/沉暗/平印状态语言本身不变。本机不在签内(联机观他席)三类全不挂
- *  =全签等权,无报错无特判。 */
+ *  =全签等权,无报错无特判。
+ *
+ *  点差分级(#769):判据单源 isBlowout(与震屏同一处常量 DUEL.blowoutMargin,
+ *  分级判据写死一处不另立档)——大胜档挂 overlay.duel-blowout,CSS 承接胜方点数
+ *  outBack 弹至 1.15 + 败方字面泼墨溅(一次性);平局(点差 0)与点差 1-2 不挂类
+ *  =维持现制。判词音双音高(#769):己方视角拆声——本机在签内且分出胜负时,己胜
+ *  播上行高音 verdictChimeWin、己败播下行低音 verdictChimeLose;本机不在签内
+ *  (旁观)或平局=中性单音 verdictChime(#746 原制)。 */
 function applyVerdict(
   ev: DuelSignsEvent,
   signs: SignHandle[],
@@ -125,9 +148,19 @@ function applyVerdict(
     self.root.classList.add("duel-sign-self");
     if (ev.winnerSeat === mySeat) overlay.classList.add("duel-self-win");
   }
+  // 点差分级(#769):判定读事件里既有的两签点数(禁新兜底通道),单源 isBlowout。
+  // 点差≥3 必有胜者(平局点差恒 0),不另设 winnerSeat 前置判。
+  if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) overlay.classList.add("duel-blowout");
   seal.classList.remove("duel-seal-slam");
   seal.classList.add("duel-seal-pulse");
-  getAudio().play("verdictChime");
+  // 判词音(#769 双音高):己方视角拆胜/败两音高,旁观局与平局保持中性单音。
+  getAudio().play(
+    self == null || ev.winnerSeat == null
+      ? "verdictChime"
+      : ev.winnerSeat === mySeat
+        ? "verdictChimeWin"
+        : "verdictChimeLose",
+  );
   if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) shakeDesk();
 }
 
@@ -153,6 +186,15 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
   overlay.appendChild(row);
   overlay.appendChild(seal);
   document.body.appendChild(overlay);
+  // 中缝印随首行定位(#769 折行避让):构建拍量首行签卡中点注入 top——单行时行即
+  // 首行,与旧 CSS top:50% 恒等;折行(N 签窄视口成两行)时印锚在首行中点,不再
+  // absolute 居中压两行之间。横向恒 left:50%:首行 justify-content:center 居中
+  // 排布,双签(拼点恒二签,resolveDuel 二元)与四签 2+2 折行的中缝 gap 都恰落
+  // 视口中线;3+1 折行形态 50% 落首行中签上——预留通路(ADR-0030 N>2)今天的
+  // 引擎不可达,注释钉死不改口。构建拍量一次,演出期布局不动(幕启动画只走 opacity)。
+  const overlayBox = overlay.getBoundingClientRect();
+  const firstBox = signs[0].root.getBoundingClientRect();
+  seal.style.top = `${firstBox.top - overlayBox.top + firstBox.height / 2}px`;
   activeOverlay = overlay;
   let stopShakers: (() => void)[] = [];
   try {

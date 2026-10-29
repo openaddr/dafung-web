@@ -29,7 +29,18 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   rain: { label: "雨声铺底", when: "S7 破产仪式开锣(压档衬底,播放侧截 3s;#513)" },
   haltGong: { label: "都城停号角", when: "都城路过必停条带开拍(狩猎号角,#751 与破产长锣分家)" },
   duelClash: { label: "拼点合击", when: "拼点签面起摇拍(骨牌相击,#751/#746)" },
-  verdictChime: { label: "判词磬", when: "拼点判词拍·中缝印落锤同拍(碗磬一记,截 1.6s;#751/#746)" },
+  verdictChime: {
+    label: "判词磬·中性",
+    when: "拼点判词拍·中缝印落锤同拍(碗磬一记,截 1.6s;旁观局与平局,#769 分家后保留);#751/#746",
+  },
+  verdictChimeWin: {
+    label: "判词磬·己胜",
+    when: "拼点判词拍·本机在签内且己方胜(上行高音双磬,纯合成;#769)",
+  },
+  verdictChimeLose: {
+    label: "判词磬·己败",
+    when: "拼点判词拍·本机在签内且己方败(下行低音双磬,纯合成;#769)",
+  },
   reactionOpen: { label: "开窗轻叩", when: "反应窗开启(木鱼族一记;#751)" },
   reactionTick: { label: "危急滴答", when: "反应窗末 5 秒每秒一记(短促低音量;#760)" },
 };
