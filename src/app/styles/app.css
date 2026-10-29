@@ -62,6 +62,30 @@
   --hairline-strong: color-mix(in srgb, var(--color-ink) 30%, transparent);
 }
 
+/* ── 叠层遮罩减淡档(#767 弹窗详情族④):同帧开了两个及以上弹层(开栈栈深>1,
+   判定单源 hooks/dialog-stack.ts 的模块级计数,活弹层挂载入栈/卸载出栈)时,
+   **上层**遮罩消费本档——上层是玩家正在操作的焦点,下层全档(0.42)已足够压暗
+   盘面,上层再压全档会「双重墨纱」闷掉弹层内容。栈深=1(常态单屏)不消费。
+   消费点:hooks/use-dialog-drag 的 OVERLAY_TINT_STACKED(BannerShell/ui-dialog
+   两系遮罩同一常量);色系与常态/拖离两档同族(rgba(30,23,12,α))。 ── */
+:root {
+  --mask-dim-stacked: 0.28;
+}
+
+/* ── 底件系弹层遮罩退场(#767 弹窗详情族⑤):「播完再移除」——壳挂退场类的同时
+   遮罩淡出(--dur-fast),210ms 出口整树卸载(协议单源 hooks/use-dialog-exit)。
+   横幅系同款出口在 banner.css(.banner-overlay-out),两系互不引用;横幅系遮罩
+   已有 pointer-events:auto 的未分层规则,本档只挂底件系遮罩(utilities 层,无冲突)。 ── */
+@keyframes dialog-overlay-out {
+  to {
+    opacity: 0;
+  }
+}
+.dialog-overlay-out {
+  pointer-events: none;
+  animation: dialog-overlay-out var(--dur-fast) var(--ease-in) forwards;
+}
+
 /* ── #559 深色原生控件与占位符 ──
    color-scheme:dark:原生控件(number spinner/autofill/系统滚动条等)按深色模式
    渲染,不再按浅色反白突兀;全站无浅色模式,html 声明一次全生效。

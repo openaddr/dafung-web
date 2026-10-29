@@ -30,7 +30,14 @@ import "./banner.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
 // 题名拖动(#674,ADR-0031):原语单源与遮罩色值单源都在 hook 文件
-import { OVERLAY_TINT, OVERLAY_TINT_DIMMED, useDialogDrag } from "@app/hooks/use-dialog-drag";
+import {
+  OVERLAY_TINT,
+  OVERLAY_TINT_DIMMED,
+  OVERLAY_TINT_STACKED,
+  useDialogDrag,
+} from "@app/hooks/use-dialog-drag";
+// 叠层开栈(#767):同帧多弹层时上层遮罩减淡,计数器单源在 hook 文件
+import { useDialogStackSlot } from "@app/hooks/dialog-stack";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -164,12 +171,18 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
   // 位置随 resetKey 回中心。
   const shellRef = useRef<HTMLDivElement | null>(null);
   const drag = useDialogDrag({ popupRef: shellRef, resetKey: title });
+  // 叠层开栈(#767):活横幅入栈、幽灵帧不入栈(纯视觉重放);栈深>1 且本层为上层时
+  // 遮罩消费减淡档 --mask-dim-stacked(alpha 单源 app.css,rgb 三元组与两档同族)。
+  const stacked = useDialogStackSlot(!isGhost);
 
   // 壳体本体(横幅带 + 金印题行 + 正文井):活横幅与退场帧两条渲染路径共用同一份 JSX。
   // role=dialog/aria-modal 挂壳体(可达名称用 aria-label=题名);退场帧的父层已
   // aria-hidden+inert,壳上的 role 对辅助技术不可见,无需按路径分支。
   // translate 消费 --drag-x/--drag-y(缺省 0px = 原居中;banner-drop/lift 写 transform,
   // 与 translate 属性叠加合成——入场动画进行中拖动照录变量,动画结束位移生效)。
+  // 宽自适应(#767 弹窗详情族③):clamp(480px,72vw,640px)——844 标准档 607px,
+  // 价值表升到 560 后两侧死带消除;窄横屏(≥667)随 72vw 收窄,480 下限保住拍板钮行;
+  // 上限 640 维持大屏既有制式。
   const shellBody = (
     <div
       ref={shellRef}
@@ -177,7 +190,7 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
       aria-modal="true"
       aria-label={title}
       data-testid={testid ?? T.scrollShell}
-      className={`banner-card banner-shell relative flex max-h-[86dvh] w-[min(92vw,640px)] translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
+      className={`banner-card banner-shell relative flex max-h-[86dvh] w-[clamp(480px,72vw,640px)] translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
         exiting ? "banner-anim-out" : ""
       }`}
     >
@@ -275,8 +288,15 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
   return (
     <div
       className="banner-overlay absolute inset-0 z-30 flex items-center justify-center"
-      // 遮罩随拖离中心减淡(#674):非零位移且超出吸附半径时转淡档,色值单源在 hook 文件
-      style={{ backgroundColor: drag.dimmed ? OVERLAY_TINT_DIMMED : OVERLAY_TINT }}
+      // 遮罩两档减淡(#674 拖离 + #767 叠层):拖离减淡(0.15)强于叠层减淡(0.28),
+      // 两者同时命中取更强;色值单源在 hook 文件
+      style={{
+        backgroundColor: drag.dimmed
+          ? OVERLAY_TINT_DIMMED
+          : stacked
+            ? OVERLAY_TINT_STACKED
+            : OVERLAY_TINT,
+      }}
       // 点遮罩空白处关闭(仅可关弹层);收起中放行点击,重复出口由 requestClose 挡掉
       onClick={(e) => {
         if (e.target === e.currentTarget) requestClose();

@@ -32,6 +32,10 @@ import {
 /** 遮罩墨纱两档(色值单源):常态 0.42 / 拖离中心减淡 0.15。 */
 export const OVERLAY_TINT = "rgba(30,23,12,0.42)";
 export const OVERLAY_TINT_DIMMED = "rgba(30,23,12,0.15)";
+/** 叠层减淡档(#767 弹窗详情族④):同帧两弹层以上(开栈栈深>1)时**上层**遮罩色。
+ *  alpha 单源 = app.css 的 --mask-dim-stacked(0.28,消费条件见该 token 注释),
+ *  rgb 三元组与两档同族;拖离减淡(0.15)强于叠层减淡,壳侧取强不叠加。 */
+export const OVERLAY_TINT_STACKED = "rgba(30, 23, 12, var(--mask-dim-stacked))";
 
 /** 拖动生效的最小位移(px):不足即松手不算拖。 */
 const DRAG_THRESHOLD_PX = 10;

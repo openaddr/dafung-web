@@ -4,10 +4,17 @@
 //   - S10(#43):保留右上 ×(壳 44px 热区),关闭 = ×/遮罩/Esc;
 //     hideClose 只留给必须决策的卷轴(详情卷轴均放弃性,不占用)。
 //   - #35:选都模式下详情内嵌「定都于此 / 再想想」,确认才落子(整合旧 pendingCapital 确认框)。
+//   - #767 弹窗详情族①②:城名下补真实格缩略图(TileThumb,与名下清单/CityLedgerModal
+//     同源同件,置摘要上方、纯展示不抢焦点);「持有/需/余差」主数值行升格(AffordRow,
+//     与购地抉择同一行——详情里先看一眼买不买得起,再翻等级表),元信息退居次要行。
 import { formatMoney } from "@core/money";
-import type { TileType } from "@core/board";
+import type { TileDef, TileType } from "@core/board";
+import type { PropertyDef } from "@core/economy";
+import type { SnapshotPlayer } from "@app/store/gameStore";
 import { BannerShell, BannerButton } from "./BannerShell";
+import { AffordRow } from "./AffordRow";
 import { ValueTable } from "./ValueTable";
+import { TileThumb } from "../TileThumb";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -24,21 +31,19 @@ const SPECIAL_TILE_DESC: Record<Exclude<TileType, "Property">, string> = {
 export interface TileDetailScrollProps {
   /** 格索引(仅展示用,引擎定位由主线完成)。 */
   tileIndex: number;
+  /** 棋盘格定义(board.at(tileIndex),TileThumb 缩略图渲染源)。 */
+  tile: TileDef;
   tileName: string;
   /** 格类型:非 Property 走特殊地点说明分支。 */
   tileType: TileType;
   /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer;特殊地点不显示)。 */
   regionLabel: string;
-  /** 城池定义(价/等级/交易加成/变卖价/补给);特殊地点为 null。 */
-  property: {
-    id: string;
-    purchasePrice: number;
-    maxLevel: number;
-    valueByLevel: number[];
-    tradeMult: number[];
-    tradeAdd: number[];
-    resupply: number;
-  } | null;
+  /** 城表定义(价/等级/交易加成/变卖价/补给);特殊地点为 null。 */
+  property: PropertyDef | null;
+  /** 全体玩家快照(TileThumb 归属/都城推导源,与名下清单同口径)。 */
+  players: SnapshotPlayer[];
+  /** 屏前玩家现金(主数值行「持有」,#453 视角契约:viewSeat 即屏前真人)。 */
+  cash: number;
   /** 持有者国号;null = 无主。 */
   ownerGuohao: string | null;
   /** 持有者当前城等级(0 起);无主时忽略。 */
@@ -52,10 +57,13 @@ export interface TileDetailScrollProps {
 
 export function TileDetailScroll({
   tileIndex,
+  tile,
   tileName,
   tileType,
   regionLabel,
   property,
+  players,
+  cash,
   ownerGuohao,
   ownerLevel,
   isCapital,
@@ -85,11 +93,19 @@ export function TileDetailScroll({
       <span hidden data-tile-index={tileIndex} />
       {property ? (
         <>
-          <p className="m-1 mb-3 text-center text-sm text-ink-dim">
+          {/* 真实格缩略图(#767 ②):与棋盘/名下清单逐像素同源,置摘要上方纯展示;
+              尺寸档(96px/矮横屏 48px)单源 banner.css 的横幅域 city-ledger-thumb 规则 */}
+          <div className="mb-1 flex justify-center">
+            <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
+          </div>
+          <p className="m-1 mb-2 text-center text-xs text-ink-dim">
             {regionLabel} · {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
             {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入{" "}
             {formatMoney(property.purchasePrice)}
           </p>
+          {/* 主数值行(#767 ①):屏前现金 vs 购入价,余绿/差红——详情里先答
+              「买不买得起」,再看等级表 */}
+          <AffordRow cash={cash} need={property.purchasePrice} />
           {/* 等级表:抽成共用 ValueTable(购地/扩军卷轴复用同一张表,避免三处漂移)。
               #671:主列=交易加成;第二列按城型——都城与选都候选显示补给(变卖价对都城
               是死信息:都城永不可变卖),普通城显示变卖价。
