@@ -6,12 +6,13 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 ## 版本协作(jj;硬纪律:先开工作区,再改任何东西)
 
-jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。四条铁律;配方与命令速查唯一事实源=[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节:
+jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。五条铁律;配方与命令速查唯一事实源=[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节:
 
 1. **任何写盘改动(不分体量)开工前先 `jj workspace add ../dafung-web-ws-<代号>`**;主树 @ 只读停靠、永不留活(唯一例外:`pr-merge.ts` 收口尾步前移主树空 @);@ 有别人的活=让出走 workspace。
 2. **交付**=`jj describe` → 书签 → `jj git push --bookmark` + PR;master 受保护(禁直推/禁 merge commit,一律 PR+squash);workspace 谁建谁清。
 3. **文件集自查两拍**:落盘后立即一拍、push 前一拍(`jj diff --stat` 对账,多出=折入先拆);收口走 `pr-merge.ts --expect <路径>` 硬闸。
 4. **收账**由 pr-merge 尾步自动做(fetch+move+空 @ 前移);手动通路见 how-to 同节。
+5. **里程碑快照**:写盘改动每里程碑 `jj st` 落一次快照——jj 只在命令时快照,未快照写盘随 workspace 被清不可恢复(2026-10-29 实锤);恢复配方与清扫验活见 how-to 同节。
 
 ## 事实源地图
 
