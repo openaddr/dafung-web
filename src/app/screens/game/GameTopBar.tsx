@@ -22,10 +22,13 @@ import "./layout.css";
 
 export interface GameTopBarProps {
   snapshot: GameSnapshot;
+  /** 战报未读条数(#768,GameScreen 本地已读游标对比 warEntriesOf):>0 时 ⚙ 钮
+   *  右上挂 6px 呼吸金点(战报入口的未读表达;打开抽屉即清账)。 */
+  warUnread: number;
   onOpenSettings: () => void;
 }
 
-export function GameTopBar({ snapshot, onOpenSettings }: GameTopBarProps) {
+export function GameTopBar({ snapshot, warUnread, onOpenSettings }: GameTopBarProps) {
   // 详情弹层/名下城池清单(#622)开合态(#702):清单目标持座位号不持玩家对象
   // (GameScreen cityLedgerSeat 同口径)——弹层开着随快照实时重渲。
   const [overviewOpen, setOverviewOpen] = useState(false);
@@ -44,12 +47,21 @@ export function GameTopBar({ snapshot, onOpenSettings }: GameTopBarProps) {
           type="button"
           data-testid={TESTIDS.settingsButton}
           title="设置"
-          aria-label="设置"
+          aria-label={warUnread > 0 ? "设置,战报有新条目" : "设置"}
           aria-haspopup="dialog"
           onClick={onOpenSettings}
           className="tbtn"
         >
           <Sym name="settings" size={15} />
+          {/* 战报未读金点(#768):绝对定位挂件不进钮盒(32×32 几何断言不动);
+              可达语义并入 aria-label(§4.6 状态用视觉,读屏走名)。 */}
+          {warUnread > 0 && (
+            <i
+              data-testid={TESTIDS.settingsUnreadDot}
+              className="war-unread-dot"
+              aria-hidden="true"
+            />
+          )}
         </button>
         <button
           type="button"

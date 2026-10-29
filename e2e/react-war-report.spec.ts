@@ -82,3 +82,25 @@ test("战报抽屉窗口化:长日志只渲一窗,截断态追加不涨行数,�
   await expect(page.getByTestId(TESTIDS.logEarlier)).toHaveCount(0);
   expect(await page.locator(".war-item").count()).toBeGreaterThan(WAR_WINDOW * 2);
 });
+
+test("战报未读金点(#768):存量即未读,打开抽屉清账,增量再点亮", async ({ page }) => {
+  await quickStart(page, 48);
+  const dot = page.getByTestId(TESTIDS.settingsUnreadDot);
+  // ① 开局存量(setup 等白名单条目)在已读游标(0)之前 = 全量未读,⚙ 钮金点即亮
+  await expect(dot).toBeVisible({ timeout: 10_000 });
+  // ② 打开抽屉即清账:金点随抽屉在场撤下
+  await openDrawerRobustly(page);
+  await expect(dot).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId(TESTIDS.logDrawer)).toHaveCount(0);
+  // ③ 关抽屉后的增量(log 只增)再点亮;再开再清(决策卷轴可能已遮钮:
+  //    走 openDrawerRobustly 同款「清决策+重试」通路,不裸点)。
+  await force(
+    page,
+    `e.log.push({ ts: Date.now(), round: e.round, turn: e.turnNumber, player: "魏",
+      brief: "合成战报未读号事件", detail: "act=synth unread", category: "roll" });`,
+  );
+  await expect(dot).toBeVisible();
+  await openDrawerRobustly(page);
+  await expect(dot).toHaveCount(0);
+});

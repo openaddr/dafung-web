@@ -11,9 +11,11 @@
 // 「加载更早」每次放开一窗,放到见底后锁定全量(此后新增条目照常入列,不再回收,
 // 也不重新出现按钮:用户已表态要读全史,不悄悄缩窗)。关抽屉即重置回一窗。
 //
-// 未读角标(#495)随把手退役(角标无承载;入口降级口径见设置弹层)。条目玩家色
-// (#495):条目首 6px 竖条取行动方玩家色(LogEvent.player 国号 → 快照席位
-// colorIndex,国号局内唯一由 setup-flow 保证;无主行为/开局空国号不出条,不造假)。
+// 未读角标(#495)随把手退役,未读表达由 #768 接棒:⚙ 设置钮右上金点,账本=
+// GameScreen 本地已读游标(打开抽屉即清账,不进快照),条目总数经本件
+// warEntriesOf 单源过滤。条目玩家色(#495):条目首 6px 竖条取行动方玩家色
+// (LogEvent.player 国号 → 快照席位 colorIndex,国号局内唯一由 setup-flow 保证;
+// 无主行为/开局空国号不出条,不造假)。
 import { useState } from "react";
 import type { LogEvent } from "@core/model";
 import { playerColor, rgba } from "@core/theme";
@@ -43,6 +45,12 @@ const WAR_CATEGORIES: ReadonlySet<LogEvent["category"]> = new Set([
   "victory",
 ]);
 
+/** 战报条目过滤单源(#768):抽屉本体与未读金点(GameScreen 已读游标对比)共用
+ *  同一白名单口径,防两处各写一份 filter 漂移。 */
+export function warEntriesOf(snapshot: GameSnapshot): LogEvent[] {
+  return snapshot.log.filter((e) => WAR_CATEGORIES.has(e.category));
+}
+
 /** 战报默认渲染窗口(条);e2e/react-war-report.spec.ts 有对齐副本。 */
 export const WAR_WINDOW = 100;
 
@@ -57,7 +65,8 @@ export function WarReportDrawer({
   const [expandedAll, setExpandedAll] = useState(false);
 
   // 开着才算条目(旧→新);窗口化见头注(挂载即开,常收零占位由调用方条件挂载承担)。
-  const filtered = snapshot.log.filter((e) => WAR_CATEGORIES.has(e.category));
+  // 过滤单源 warEntriesOf(未读金点同口径,#768)。
+  const filtered = warEntriesOf(snapshot);
   const total = filtered.length;
   const windowSize = (extraWindows + 1) * WAR_WINDOW;
   const visibleCount = expandedAll ? total : Math.min(total, windowSize);
@@ -96,26 +105,36 @@ export function WarReportDrawer({
           <SheetTitle>战报</SheetTitle>
           <SheetDescription>对局事件史,新在上。</SheetDescription>
         </SheetHeader>
-        <ul className="war-list">
-          {entries.map((e, i) => {
-            const actorColor = e.player ? colorByGuohao.get(e.player) : undefined;
-            // 回合分组锚(#556):倒序呈现下组首=该轮最新一条。仅组首显轮签,
-            // 其余条目轮签位留空(列宽不塌);组首与上条的轮界由 .war-head
-            // 上缘加重 hairline 承担(layout.css),首条无上界。
-            const roundHead = i === 0 || entries[i - 1].round !== e.round;
-            return (
-              // key 用过滤序的稳定下标(log 只增,下标不漂);倒序后同刻条目相对次序稳定
-              <li
-                key={total - visibleCount + i}
-                className={"war-item" + (roundHead && i > 0 ? " war-head" : "")}
-              >
-                {actorColor && <i className="war-color" style={{ background: actorColor }} />}
-                <span className="war-round">{roundHead ? `轮${e.round}` : ""}</span>
-                <span className="war-brief">{e.brief}</span>
-              </li>
-            );
-          })}
-        </ul>
+        {entries.length === 0 ? (
+          // 空态(#768 空态器物化):空白笺+虚线格——「一行小字」退役,一张待墨的
+          // 空笺(三道虚线空行)表达「尚无战况」;语义走 role=status,视觉零文字。
+          <div className="war-blank" role="status" aria-label="战报尚无条目">
+            <i />
+            <i />
+            <i />
+          </div>
+        ) : (
+          <ul className="war-list">
+            {entries.map((e, i) => {
+              const actorColor = e.player ? colorByGuohao.get(e.player) : undefined;
+              // 回合分组锚(#556):倒序呈现下组首=该轮最新一条。仅组首显轮签,
+              // 其余条目轮签位留空(列宽不塌);组首与上条的轮界由 .war-head
+              // 上缘加重 hairline 承担(layout.css),首条无上界。
+              const roundHead = i === 0 || entries[i - 1].round !== e.round;
+              return (
+                // key 用过滤序的稳定下标(log 只增,下标不漂);倒序后同刻条目相对次序稳定
+                <li
+                  key={total - visibleCount + i}
+                  className={"war-item" + (roundHead && i > 0 ? " war-head" : "")}
+                >
+                  {actorColor && <i className="war-color" style={{ background: actorColor }} />}
+                  <span className="war-round">{roundHead ? `轮${e.round}` : ""}</span>
+                  <span className="war-brief">{e.brief}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
         {hasMore && (
           <button
             type="button"

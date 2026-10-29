@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import { formatMoney } from "@core/money";
+import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { HOME_TID } from "./testids";
 
 export interface MapStripProps {
@@ -65,17 +66,21 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
     );
   }
   if (!entries) {
+    // 加载态(#768 空态器物化):「载入地图清单…」一行小字退役,换墨滴呼吸三点
+    //(语义走 role=status aria-label,视觉纯器物零文字)。
     return (
-      <p data-testid={HOME_TID.mapStrip} className="font-wenkai text-ink-dim py-2">
-        载入地图清单…
-      </p>
+      <div data-testid={HOME_TID.mapStrip} className="flex items-center py-2">
+        <InkBreathe title="载入地图清单" />
+      </div>
     );
   }
   if (entries.length === 0) {
+    // 空态(#768 空态器物化):斜放朱印+短注(「暂无可用地图。」纯文字行退役;
+    // 清单空是正常业务态,可达名保留直陈语义)。
     return (
-      <p data-testid={HOME_TID.mapStrip} className="font-wenkai text-ink-dim py-2">
-        暂无可用地图。
-      </p>
+      <div data-testid={HOME_TID.mapStrip} className="flex items-center py-2">
+        <SealEmpty char="空" note="尚无图志" title="暂无可用地图" />
+      </div>
     );
   }
 

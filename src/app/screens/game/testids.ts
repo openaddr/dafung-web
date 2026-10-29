@@ -31,6 +31,9 @@ export const TESTIDS = {
   topbarOverview: "topbar-overview",
   /** 顶左设置钮(开设置弹层)。 */
   settingsButton: "settings-button",
+  /** 战报未读金点挂件(#768):⚙ 设置钮右上 6px 金点,有未读战报时在、打开抽屉
+   *  即清(GameScreen 本地已读游标,不进快照);纯视觉表达,断言只论在场与否。 */
+  settingsUnreadDot: "settings-unread-dot",
   /** 席位格列容器(#698 重形:右缘单列 96×38 双行八项格,一人一格)。 */
   seatRail: "seat-rail",
   /** 席位格(seat = 绝对座位号),挂对手席;自机格挂 seatSelf(不占本族——

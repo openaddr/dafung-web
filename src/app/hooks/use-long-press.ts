@@ -24,6 +24,10 @@ export function useLongPress() {
     /** 长按已触发标志(ref):onClick 首行读取,为真则吞掉本次 click 并清零。 */
     fired,
     cancel,
+    /** 长按计时是否仍在进行(#768):未起按/已触发/位移超容差取消后均 false。
+     *  长按进度类反馈(牌面微光)据此对齐取消时机——容差口径留在本件,消费方
+     *  只读状态不抄数字。 */
+    armed: () => timer.current !== null,
     /** 起按。onFire 在按满 ms 后回调(仅主指;位移超容差自动取消)。 */
     start(e: ReactPointerEvent, onFire: () => void, ms = 500) {
       if (!e.isPrimary) return;

@@ -209,7 +209,8 @@ function tiltVars(key: string): CSSProperties {
 
 /** 单张手牌:真 <button> 包住牌面(键盘可达;不用裸 role——红线:交互语义不自写)。
  *  常态:点击与长按(useLongPress 单源,500ms)同效开详情,长按触发后置 fired
- *  抑制随后的合成 click,同一动作绝不弹两次。
+ *  抑制随后的合成 click,同一动作绝不弹两次;按住 300ms 起牌面长按微光(#768,
+ *  上浮+金晕渐显,达成保持/松手即撤, PRESS_GLOW_MS 单源本文件)。
  *  窗态(junshi 槽在场):点牌=选中(音效 jinnangSelect),再点同牌/右键/长按取消;
  *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 JunshiSkillCard/Tip 同形
  *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌可看不可出(#715,#676 定案):
@@ -221,21 +222,49 @@ function tiltVars(key: string): CSSProperties {
  *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),长按开
  *  详情弹层(#751 A1);呼吸金边归 .reactive 类(reaction-banner.css);非反应牌仍走
  *  常态详情。
- *  index:发牌入场级联的错峰序(--i)。 */
+ *  openKey:本卡稳定键(与手牌行 key 同式)——详情开合态/微光达成态按键对位(#768),
+ *  同名双牌只点亮被开那张。index:发牌入场级联的错峰序(--i)。 */
 function RackCard({
   cardId,
   index,
   junshi,
   reaction,
+  openKey,
+  glowHeld,
   onOpen,
 }: {
   cardId: string;
   index: number;
   junshi: RackCardJunshi | null;
   reaction?: { selected: boolean; onSelect: () => void } | null;
-  onOpen: (id: string) => void;
+  /** 本卡的稳定键(`${id}-${同名序}`,与手牌行 key 同式):详情开合态按键对位
+   *  (#768)——同名双牌只点亮被开的那张,不按 cardId 误伤同名兄弟。 */
+  openKey: string;
+  /** 详情正开着且是经「本卡」打开(#768 长按微光的达成保持态)。 */
+  glowHeld: boolean;
+  onOpen: (key: string, cardId: string) => void;
 }) {
   const press = useLongPress();
+  // 长按微光(#768):按住 PRESS_GLOW_MS 起给牌面上浮+金晕渐显——长按进度的体感
+  // 提示,零文字。charging=按住中已过起辉点;held=长按达成详情开(经长按打开才
+  // 保持,点选开的详情不挂光)。取消对齐:指针抬起/按消/位移超容差(hook armed()
+  // 单源读口,不抄容差数字)即撤。
+  const [glowCharging, setGlowCharging] = useState(false);
+  const [glowArmed, setGlowArmed] = useState(false);
+  const chargeTimer = useRef(0);
+  const disarmGlow = () => {
+    window.clearTimeout(chargeTimer.current);
+    setGlowCharging(false);
+  };
+  useEffect(() => () => window.clearTimeout(chargeTimer.current), []);
+  // 详情关停即撤「达成保持」(下一次长按重新起辉)
+  useEffect(() => {
+    if (!glowHeld) setGlowArmed(false);
+  }, [glowHeld]);
+  const armGlow = () => {
+    disarmGlow();
+    chargeTimer.current = window.setTimeout(() => setGlowCharging(true), PRESS_GLOW_MS);
+  };
   // 窗态复合手势(hooks 规则:配置随分支,调用不随分支);常态分支用原语直连。
   // #715 自门控:非 available 的点/长按=开详情(可看),不触选中/取消通路(不可出)
   // ——门控在语义层,不在指针层;长按吞补发 click 由 props.onClick 内置(同动作不弹两次)。
@@ -244,14 +273,14 @@ function RackCard({
       ? {
           onTap: () => {
             if (!junshi.available) {
-              onOpen(cardId);
+              onOpen(openKey, cardId);
               return;
             }
             if (junshi.selected) junshi.onDeselect?.();
             else junshi.onSelect?.();
           },
           onLongPress: !junshi.available
-            ? () => onOpen(cardId)
+            ? () => onOpen(openKey, cardId)
             : junshi.selected
               ? () => junshi.onDeselect?.()
               : null,
@@ -267,7 +296,7 @@ function RackCard({
     reaction
       ? {
           onTap: () => reaction.onSelect(),
-          onLongPress: () => onOpen(cardId),
+          onLongPress: () => onOpen(openKey, cardId),
         }
       : {},
   );
@@ -334,20 +363,39 @@ function RackCard({
       type="button"
       data-testid={TESTIDS.jinnangCard(cardId)}
       aria-label={cardId}
-      onPointerDown={(e) => press.start(e, () => onOpen(cardId))}
-      onPointerMove={(e) => press.move(e)}
-      onPointerUp={press.cancel}
-      onPointerCancel={press.cancel}
+      onPointerDown={(e) => {
+        press.start(e, () => {
+          disarmGlow();
+          setGlowArmed(true); // 长按达成:微光转「详情开保持」(#768)
+          onOpen(openKey, cardId);
+        });
+        armGlow();
+      }}
+      onPointerMove={(e) => {
+        press.move(e);
+        if (!press.armed()) disarmGlow(); // 位移超容差=拖动,微光与长按同撤
+      }}
+      onPointerUp={() => {
+        press.cancel();
+        disarmGlow();
+      }}
+      onPointerCancel={() => {
+        press.cancel();
+        disarmGlow();
+      }}
       onContextMenu={(e) => e.preventDefault()} // 长按不出系统菜单,右键无动作
       onClick={() => {
         if (press.fired.current) {
           press.fired.current = false; // 长按刚开过详情,这次的 click 吃掉
           return;
         }
-        onOpen(cardId);
+        onOpen(openKey, cardId);
       }}
       style={{ ["--i" as string]: index }}
-      className="block cursor-pointer border-0 bg-transparent p-0 outline-offset-2"
+      className={
+        "block cursor-pointer border-0 bg-transparent p-0 outline-offset-2" +
+        (glowCharging || glowArmed ? " press-glow" : "")
+      }
     >
       <JinnangCardFace cardId={cardId} />
     </button>
@@ -457,6 +505,14 @@ export interface HandRackProps {
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
 const CARD_WIDTH_EM = 15;
 
+/** 临时全展自动回落时长(#768,计数章点按 #751 C2):JS 定时与回落进度线动画
+ *  共用单源——进度线经 --spread-dur 内联注入消费本常量,禁两处各写一个数。 */
+export const SPREAD_ALL_MS = 2500;
+
+/** 长按微光起辉点(#768):长按判定窗 500ms 单源 use-long-press;300ms(判定窗的
+ *  60% 拍)起给牌面上浮+金晕渐显,长按达成保持、提前松手即撤。 */
+const PRESS_GLOW_MS = 300;
+
 /** 架体可用几何(content box 宽 + 牌面像素宽 + em 基),ResizeObserver 实时跟随窗口/降档。 */
 interface RackBox {
   avail: number;
@@ -480,7 +536,9 @@ interface StackVars {
  *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
 export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackProps) {
-  const [detailId, setDetailId] = useState<string | null>(null);
+  // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
+  // 被开的那张(长按微光的达成保持态按键判,不按 cardId 误伤同名兄弟);cardId 供详情面板。
+  const [detail, setDetail] = useState<{ key: string; cardId: string } | null>(null);
   // 技能全览弹框开合态(#605):null=收;点技卡技名 chip 开,Esc/点外/X 关。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   // 触屏临时全展(#751 C2,#744 判词):.many 态下架尾计数章点按=临时全展 2.5s
@@ -539,10 +597,26 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
   }, [spreadAll]);
   useEffect(() => () => window.clearTimeout(spreadTimer.current), []);
 
+  // 临时全展的中断收口(#768):新的长按/点选(开详情、窗态选牌、反应选牌)即收——
+  // 回落进度线随 spreadAll 同撤,检视态不与新动作叠着跑。
+  const collapseSpread = () => {
+    window.clearTimeout(spreadTimer.current);
+    setSpreadAll(false);
+  };
+
   // 窗态选中(音效在此收口:选中是动作,取消是撤销不出声——一期口径)。
   const select = (id: string | null) => {
-    if (id != null) getAudio().play("jinnangSelect");
+    if (id != null) {
+      getAudio().play("jinnangSelect");
+      collapseSpread(); // 选牌打断临时全展(#768)
+    }
     junshi?.onSelect(id);
+  };
+
+  // 开详情(#768):临时全展被新的长按/点选打断即收(进度线随 spreadAll 同撤)。
+  const openDetail = (key: string, cardId: string) => {
+    collapseSpread();
+    setDetail({ key, cardId });
   };
 
   // 数字键 1..n 选中第 n 个可用选项(useDigitKeyPick 单源,G-19;灰置跳过计数)+ Enter
@@ -651,9 +725,10 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
       // N 张各印一条同文案是噪音;「为什么不能动」由目标段窗态本身表达。
       return hand.map((id, i) => {
         const played = junshi.pendingCardId === id;
+        const openKey = `${id}-${nthSame(hand, i, id)}`;
         return (
           <RackCard
-            key={`${id}-${nthSame(hand, i, id)}`}
+            key={openKey}
             cardId={id}
             index={i}
             junshi={{
@@ -662,7 +737,9 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
               played,
               reason: played ? "已出牌 · 待择目标" : undefined,
             }}
-            onOpen={setDetailId}
+            openKey={openKey}
+            glowHeld={detail?.key === openKey}
+            onOpen={openDetail}
           />
         );
       });
@@ -706,7 +783,9 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
               onSelect: () => select(o.id),
               onDeselect: () => select(null),
             }}
-            onOpen={setDetailId}
+            openKey={`${o.id}-${nthSame(hand, i, o.id)}`}
+            glowHeld={detail?.key === `${o.id}-${nthSame(hand, i, o.id)}`}
+            onOpen={openDetail}
           />
         );
       });
@@ -715,21 +794,28 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
     //(呼吸金边,确认在横幅落印钮),其余牌仍开详情。
     return hand.map((id, i) => {
       const reactive = reaction != null && reaction.reactiveIds.includes(id);
+      const openKey = `${id}-${nthSame(hand, i, id)}`;
       return (
         <RackCard
-          key={`${id}-${nthSame(hand, i, id)}`}
+          key={openKey}
           cardId={id}
           index={i}
           junshi={null}
+          openKey={openKey}
+          glowHeld={detail?.key === openKey}
           reaction={
             reactive
               ? {
                   selected: reaction!.selectedId === id,
-                  onSelect: () => reaction!.onSelect(id),
+                  // 反应选牌打断临时全展(#768),再交 GameScreen 侧选中通路
+                  onSelect: () => {
+                    collapseSpread();
+                    reaction!.onSelect(id);
+                  },
                 }
               : null
           }
-          onOpen={setDetailId}
+          onOpen={openDetail}
         />
       );
     });
@@ -766,7 +852,7 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
       )}
       {/* 架尾计数章(#751 C2):.many 压缩态常驻,点按=临时全展(触屏无 hover 的
           全显通路;pointer:coarse 档才显示,桌面 hover 通路保留);章上数字=信息
-          (§4.6 例外),全展中金边点亮 = 状态表达。 */}
+          (§4.6 例外),全展中金边点亮(.on)= 状态表达。回落时长单源 SPREAD_ALL_MS。 */}
       {stack != null && (
         <button
           ref={badgeRef}
@@ -775,19 +861,32 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
           aria-label={`手牌 ${renderCount} 张,点按临时全展`}
           aria-pressed={spreadAll}
           onClick={() => {
-            setSpreadAll((v) => {
-              window.clearTimeout(spreadTimer.current);
-              if (!v) spreadTimer.current = window.setTimeout(() => setSpreadAll(false), 2500);
-              return !v;
-            });
+            window.clearTimeout(spreadTimer.current);
+            if (spreadAll) {
+              setSpreadAll(false);
+            } else {
+              setSpreadAll(true);
+              spreadTimer.current = window.setTimeout(() => setSpreadAll(false), SPREAD_ALL_MS);
+            }
           }}
-          className="rack-spread-badge"
+          className={"rack-spread-badge" + (spreadAll ? " on" : "")}
         >
           {renderCount}
         </button>
       )}
-      {detailId !== null && (
-        <JinnangDetailSheet cardId={detailId} onClose={() => setDetailId(null)} />
+      {/* 全展回落进度线(#768):临时全展期间架底缘 2px 金线 scaleX 收缩——剩余
+          全展时长由线长表达(§4.6 状态表达,零文字);时长与上方 JS 定时同源
+          (--spread-dur 内联注入 SPREAD_ALL_MS,禁两处各写一个数)。点外/长按/
+          选牌打断即随 spreadAll 摘除卸载,线即撤。纯装饰,aria-hidden。 */}
+      {spreadAll && (
+        <i
+          aria-hidden="true"
+          className="rack-spread-line"
+          style={{ ["--spread-dur" as string]: `${SPREAD_ALL_MS}ms` }}
+        />
+      )}
+      {detail !== null && (
+        <JinnangDetailSheet cardId={detail.cardId} onClose={() => setDetail(null)} />
       )}
       {/* 技能全览弹框(#605):点技卡技名 chip 开,只读,关闭即清 */}
       <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
