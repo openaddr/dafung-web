@@ -10,7 +10,7 @@
 import { useEffect, useState } from "react";
 import type { SeatConfig } from "@core/authority";
 import type { EncounterConfig } from "@core/encounters";
-import { GUOHAO_POOL, playerColor, rgba } from "@core/theme";
+import { GUOHAO_POOL, playerColor, playerSealText, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
 import type { MapSource } from "@core/map-source";
@@ -188,7 +188,7 @@ export function SoloSetupScreen({
       // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
       // A7(#54):国号输入位用龙藏行书点缀(font-hand)
       className={
-        "su-guohao-input w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
+        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
         (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
       }
     />
@@ -197,16 +197,11 @@ export function SoloSetupScreen({
   // 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
   // #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
   // 承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号。
-  // S2(#751):32→36px 赎回 #175「首屏可达优先」的换亏;#761 ⑤:36→40px(w-10 h-10)
-  // 补齐触达口径次级 ≥40(DESIGN §触达);shrink-0/snap-start 服务矮横屏档横滑条带
-  // (setup.css),wrap 档无感。
+  // #765:横滑条带退役,26 字落 2×13 网格(su-pool,格随列宽均分 ~32-38px 方格);
+  // 视觉格 <40 的触达缺口由伪元素热区垫足(setup.css,DESIGN §触达「视觉与热区
+  // 可分离」);选中=钤漆金印语言保持(seal-gold,#506,与对局内方印同语言)。
   const pool = (
-    <div
-      data-testid={TID.guohaoPool}
-      role="group"
-      aria-label="字盘快选国号"
-      className="su-pool flex flex-wrap gap-1"
-    >
+    <div data-testid={TID.guohaoPool} role="group" aria-label="字盘快选国号" className="su-pool">
       {GUOHAO_POOL.slice(0, 26).map((ch) => (
         <button
           key={ch}
@@ -214,10 +209,9 @@ export function SoloSetupScreen({
           aria-pressed={guohao === ch}
           onClick={() => setGuohao(ch)}
           className={
-            "su-pool-btn w-10 h-10 shrink-0 snap-start rounded border font-deco text-base cursor-pointer transition-colors " +
+            "su-pool-btn font-deco cursor-pointer transition-colors " +
             (guohao === ch
-              ? // 选中=钤印:漆金印(印章漆金化,#506;与对局内方印同语言,.seal-gold 在 app.css)
-                "border-gold-deep seal-gold font-bold"
+              ? "border-gold-deep seal-gold font-bold"
               : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
           }
         >
@@ -228,50 +222,52 @@ export function SoloSetupScreen({
   );
 
   // 座位表:首行真人,其余 bot(国号引擎分配,国号列显示「待分配」)。
-  // S3(#751/#742):行宽收至内容贴合——类型列 56→32px 改短签印表达(真人=漆金小印
-  // 「你」,bot=淡纸墨印「机」,§4.6 属性图标化;「待分配」语义必须文字,例外条款维持);
-  // 矮横屏档真人国号编辑升入左列配置块(withInput=false),座位行只回显,行高一律齐平。
+  // #765 席位行卡面化:行升格迷你席位卡——复用对局席位格行1 制式(paper-lo 卡底 +
+  // ink 界线,layout.css .seat 同语言;玩家色经行内 --pc/--pc-seal 注入,SeatRail
+  // 同通路):座次色印(28px,座位色字 on 26% 混底)+ brush 国号字(font-hand,真人
+  // 行随输入即动)/「待分配」+ 类型印。行高 ≥44(触达口径);真人行金印「你」、
+  // bot 行淡墨印「机」保持;矮横屏档真人国号编辑在左列,座位行只回显,行高齐平。
   const seatsTable = (withInput: boolean) => (
-    <div className="su-seats flex flex-col gap-1.5">
-      {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
-      <div className="grid grid-cols-[26px_1fr_32px] gap-2 font-deco text-xs text-ink-dim border-b border-ink/25 pb-1">
+    <div className="su-seats flex flex-col">
+      {/* 表头列位随卡面网格对齐(28px 色印 / 1fr 国号 / 32px 类型;类型列留 32px
+        防 12px 双字标签折行——22px 列实测把表头撑出 +16px,#765 量测实锤) */}
+      <div className="su-seats-head grid grid-cols-[28px_1fr_32px] gap-2 border-b border-ink/25 pb-1 font-deco text-xs text-ink-dim">
         <span />
         <span>国号</span>
         <span>类型</span>
       </div>
       {Array.from({ length: seatCount }, (_, i) => {
         const isBot = i >= 1;
-        const color = rgba(playerColor(i));
         return (
           <div
             key={i}
             data-testid={TID.seatRow(i)}
-            className="su-seat-row grid grid-cols-[26px_1fr_32px] items-center gap-2 py-1"
+            className="su-seat-card grid grid-cols-[28px_1fr_32px] items-center gap-2 px-2"
+            style={{
+              ["--pc" as string]: rgba(playerColor(i)),
+              ["--pc-seal" as string]: rgba(playerSealText(i)),
+            }}
           >
-            <span
-              className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base font-bold text-[color:var(--color-bg-deep)]"
-              style={{ background: color }}
-            >
-              {i + 1}
-            </span>
+            {/* 座次色印:座位色系小方印(字吃 --pc-seal 亮档,印边吃 --pc 本体) */}
+            <span className="su-seat-pseal">{i + 1}</span>
             {isBot ? (
               // bot 行不可编:国号列显示「待分配」,国号在对局 Guohao 阶段由引擎分配
               // (R3-A4(#67):原占位「电脑」与类型列重复,类型列独占该语义;S-7 title 保留)
               <span
                 data-testid={TID.seatGuohaoInput(i)}
                 title="开局由引擎分配国号"
-                className="font-deco text-ink-dim px-2 py-1 border border-transparent"
+                className="font-deco text-ink-dim"
               >
                 待分配
               </span>
             ) : withInput ? (
-              <div className="flex flex-col gap-0.5">
+              <div className="flex flex-col gap-0.5 py-1">
                 {guohaoInput}
                 {guohaoHelp}
               </div>
             ) : (
-              // 矮横屏档:编辑位在左列,此处回显当前国号(同输入位 font-hand)
-              <span className="font-hand text-lg text-ink px-2">{guohao}</span>
+              // 矮横屏档:编辑位在左列,此处回显当前国号(brush 行书,同输入位字族)
+              <span className="font-hand text-lg text-ink">{guohao}</span>
             )}
             <span
               data-testid={TID.seatType(i)}
@@ -290,15 +286,18 @@ export function SoloSetupScreen({
     </div>
   );
 
-  // 操作区:返回首页 / 起兵(#559:mt-4 → mt-3 折叠线微调)
+  // 操作区:#765 主次钮重排——返回降 ghost 图标钮(40px 方命中,置左缘,icon-only
+  // 补 aria-label),起兵升满宽主钮(flex-1 吃剩余宽,≥44px,busy 金环呼吸保持)。
   const actions = (
-    <div className="su-actions flex items-center gap-2.5 mt-3">
+    <div className="su-actions flex items-center gap-2 mt-3">
       <button
+        type="button"
         data-testid="solo-setup-back"
         onClick={onBack}
-        className={btnBase + " note-btn min-h-[40px]"}
+        aria-label="返回首页"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] text-ink-dim hover:bg-ink/10 hover:text-ink cursor-pointer transition-colors"
       >
-        返回
+        <Sym name="back" size={14} />
       </button>
       <button
         data-testid={TID.startGame}
@@ -309,7 +308,7 @@ export function SoloSetupScreen({
         className={
           btnBase +
           // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按;S2 主行动 ≥44px
-          " ink-btn font-bold py-2.5 px-8 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
+          " ink-btn font-bold flex-1 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
           // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
           (busy ? " su-busy" : "")
         }
@@ -466,10 +465,10 @@ export function SoloSetupScreen({
         </div>
 
         {isShortLandscape ? (
-          /* ── 矮横屏档(#751/S1 双列重排,#742 判词 A+B):卡宽 780 居中消两侧死白;
-            左列 ≈300px 配置(地图行/诸侯数/目标身价/机遇折叠/国号字盘),
-            右列座位表+操作;起兵 sticky 钉底恒在场(4 诸侯零滚动,8 诸侯右列内滚)。
-            副标题/笺头在本档收纳退役(座次预算让位给字盘与座位表,home #707 降档同款)。 ── */
+          /* ── 矮横屏档(#751/S1 双列重排,#742 判词 A+B;#765 字盘归右列):卡宽 780
+            居中消两侧死白;左列 ≈300px 配置(地图行/诸侯数/目标身价/机遇折叠/国号
+            编辑位),右列「你的国号」区(2×13 字盘网格)+座位表+操作;起兵 sticky
+            钉底恒在场。副标题/笺头在本档收纳退役(座次预算让位,home #707 降档同款)。 ── */
           <div className="su-card scroll-anim-unroll note-card w-[min(780px,94vw)] rounded-[8px] px-5 py-4 mt-3">
             <div className="su-grid">
               <div className="su-col su-col-left">
@@ -491,19 +490,23 @@ export function SoloSetupScreen({
                 {/* 诸侯数 / 目标身价 / 机遇折叠(块与桌面档同一份);矮横屏档间距收紧走 setup.css */}
                 {controls}
 
-                {/* 国号配置块(本档独有归位):真人国号编辑+帮助句+字盘升入左列,
-                  座位表右列只留回显——行高齐平、右列竖向预算全给座位行与 CTA。
-                  字盘 26 字以横滑条带呈现(竖向预算解,见 pool 注释/setup.css)。 */}
+                {/* 国号编辑位(本档归位):标签+输入框+帮助句,字盘已升右列(#765)
+                  ——编辑与回显分置两列,输入即动(座位行/字盘钤印同步)。 */}
                 <div className="su-guohao-block flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <span className="font-deco text-sm text-ink shrink-0">你的国号</span>
                     {guohaoInput}
                   </div>
                   {guohaoHelp}
-                  {pool}
                 </div>
               </div>
               <div className="su-col su-col-right">
+                {/* 「你的国号」区(#765 右列顶部):2×13 字盘网格,选中态钤漆金印即回显;
+                  横滑容器随网格化退役(竖向预算 26 格两行解,桌面档同构) */}
+                <div className="su-pool-block flex flex-col gap-0.5">
+                  <div className="font-deco text-xs leading-none text-ink-dim">你的国号</div>
+                  {pool}
+                </div>
                 {seatsTable(false)}
                 {actions}
                 {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
@@ -548,7 +551,7 @@ export function SoloSetupScreen({
 
             {seatsTable(true)}
 
-            {/* 字盘快选国号(仅作用于真人行) */}
+            {/* 字盘快选国号(仅作用于真人行;#765 网格化 2×13,桌面档位置不变) */}
             <div className="su-pool-label font-deco text-xs text-ink-dim mt-3 mb-1">
               字盘快选国号:
             </div>
