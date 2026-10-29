@@ -776,7 +776,14 @@ export function extractBatchEvents(
         if (i === lastTurnStartIdx) {
           const seat = eventSeat(engine, ev);
           const p = engine.players[seat];
-          events_.push({ kind: "turnBanner", guohao: p.guohao, colorIndex: p.colorIndex });
+          // #762:isBot/round 提取拍烤定(槽泵合并判别的元数据,播放期零读引擎)
+          events_.push({
+            kind: "turnBanner",
+            guohao: p.guohao,
+            colorIndex: p.colorIndex,
+            isBot: p.isBot,
+            round: engine.round,
+          });
         }
         break;
       }

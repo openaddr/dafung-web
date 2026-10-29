@@ -134,9 +134,9 @@ export const MARCH = {
 
 /** 瞬时特效存活时长(演出编排族,吃 scStage;与 fx.css 的 keyframe 时长保持一致;
  *  超时自清防 store 积压)。CSS 侧时长/缓动唯一源 core/theme.ts Motion(经 gen:theme 产出 tokens.css):
- *  floaterMs/bannerMs 与 --dur-fx/--dur-banner 同源(经 Motion);bannerMs 的
- *  +100 清理余量保留字面量。coinMs/sealMs/roadFlowMs 不等于任何 token,是编排窗口,
- *  保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
+ *  floaterMs 与 --dur-fx 同源(经 Motion);bannerMs 自 #762 起是两段式组合
+ *  (--dur-banner/2 + --dur-slow + 清理余量)。coinMs/sealMs/roadFlowMs 不等于任何
+ *  token,是编排窗口,保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
 export const FX = {
   get floaterMs() {
     return scStage(Motion.dur.fx);
@@ -145,10 +145,13 @@ export const FX = {
     return scStage(1500);
   },
   get bannerMs() {
-    return scStage(Motion.dur.banner + 100);
-  }, // fx-banner-fly 全长同源(--dur-banner,经 Motion)+ 100 清理余量(#117 同源化,余量保留字面量)
-  /** C3 回合横幅占用编排时长:等横幅走到峰值停留段(1.8s 动画的 20%-75% 区间),
-   *  取 1.0s——下一演出(骰子)不再与横幅入场重叠,又不把回合节奏拖满全长。 */
+    return scStage(Motion.dur.banner / 2 + Motion.dur.slow + 100);
+  }, // #762 两段式亮相全长(亮相段 = --dur-banner 之半 900ms,收编段 = --dur-slow 400ms,
+  // 见 fx.css fx-banner-appear/fx-banner-capsulate)+ 100 清理余量(余量保留字面量);
+  // 都城停条带仍走旧单段全长(haltBannerMs,语义独立)
+  /** C3 回合横幅占用编排时长(#762 口径):等横幅走完亮相段(calc(--dur-banner/2)
+   *  = 900ms)再让下一演出(骰子)接续——收编段(--dur-slow)是背景动画,可与之重叠,
+   *  不把回合节奏拖满全长。合并回合(胶囊更新)present 侧直接跳过本停留窗。 */
   get bannerHoldMs() {
     return scStage(1000);
   },
@@ -170,8 +173,9 @@ export const FX = {
     return scStage(750);
   },
   /** 都城停条带存活(#732 降格,原 S7 #513 全屏宣告 2400):条带复用回合横幅的
-   *  fx-banner-fly 全长(--dur-banner 单源)+ 清理余量,与 fx.css 同步(公式同
-   *  bannerMs,语义独立——两族知会各自的清理窗)。 */
+   *  单段全长 fx-banner-fly(--dur-banner 单源)+ 清理余量,与 fx.css 同步
+   *  (#762 起回合横幅自身改两段式亮相,bannerMs 组合公式翻面;条带不两段化,
+   *  本值保持旧公式,语义独立——两族知会各自的清理窗)。 */
   get haltBannerMs() {
     return scStage(Motion.dur.banner + 100);
   },

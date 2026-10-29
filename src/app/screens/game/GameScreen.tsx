@@ -5,7 +5,8 @@
 // 角标/复位·缩放·静音钮 → 席位格与设置弹层承接;现金/属性徽章/体力/「你」印 →
 // 席位格(#698 起一人一格全字段,自机金样式);签面 → 手牌区左端;托管钮 → #701
 // tap 弹层(过渡期不可达可接受);战报把手 → 设置弹层「战报›」(数据照记)。
-// WaitingBar 保留为全局兜底,席位格活跃金圈呼吸承担「谁在行动」指名(操作不限时,
+// WaitingBar(常驻级知会,宿主在知会槽,#762 起与常驻回合胶囊同槽融合)+ 席位格
+// 活跃金圈呼吸 + 当前回合方棋子金呼吸环(#762)共同承担「谁在打」指名(操作不限时,
 // 无倒计时条)。
 // 出牌阶段态(#256):旧弹窗退役(DecisionScrollLayer 不再路由该相位),出牌面
 // 上架手牌架——本件从快照派生窗态载荷(turnPhase=AwaitingJinnang + interactive
@@ -440,10 +441,15 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             activeTileIndex={
               snapshot.phase === "Playing" ? players[snapshot.activeIndex].position : null
             }
+            /* #762 当前回合方:活跃棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
+            activePlayerId={
+              snapshot.phase === "Playing" ? players[snapshot.activeIndex].id : undefined
+            }
             isSetupPhase={snapshot.phase === "Setup"}
             skipTokenIds={marching}
           />
-          {/* 阶段 6:浮字/铜钱雨/回合横幅/印章(store 驱动的瞬时表现) */}
+          {/* 阶段 6:浮字/铜钱雨/印章(store 驱动的瞬时表现;回合/都城停知会件
+              已随 #732 迁顶中知会横幅槽 NoticeBanner,不归本层) */}
           <FxLayer />
           {setupHint && (
             // S8(#41);#732 评审修复重立几何契约:选都期知会槽恒空(等待条
@@ -457,11 +463,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             </div>
           )}
           {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致;#732 评审修复:
-              顶中 +8 行归知会槽,game 屏 hint 落 +48 第二行,不再与等待条同轴叠字) */}
+              顶中 +8 行归知会槽,game 屏 hint 落第二行;#762 几何修正:+48→+56——
+              回合横幅两段式亮相仍占槽区(渲染高 ~40px,槽内居中下缘至 +44),
+              hint 再让 8px 保净距 ≥8px,不遮 hint 行) */}
           <HintBar
             hint={hint}
             level={hintLevel}
-            overlayTopClass="top-[calc(var(--safe-top)+48px)]"
+            overlayTopClass="top-[calc(var(--safe-top)+56px)]"
           />
           {/* 决策卷轴路由(阶段 6 接线):按相位弹招贤/珍宝/破产/胜利/城池详情。
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。

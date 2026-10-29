@@ -64,7 +64,7 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
   it("FX", () => {
     expect(FX.floaterMs).toBe(Motion.dur.fx);
     expect(FX.coinMs).toBe(1500);
-    expect(FX.bannerMs).toBe(1900);
+    expect(FX.bannerMs).toBe(1400); // #762 两段式全长:--dur-banner/2(900)+--dur-slow(400)+100 余量
     expect(FX.bannerHoldMs).toBe(1000);
     expect(FX.sealMs).toBe(900);
     expect(FX.roadFlowMs).toBe(700);

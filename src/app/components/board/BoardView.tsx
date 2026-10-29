@@ -63,6 +63,8 @@ export interface BoardViewProps {
   skipTokenIds?: ReadonlySet<string>;
   /** #256 目标段:候选呼吸的棋子 id 集(available 候选席位;透传 TokenLayer)。 */
   targetedPlayerIds?: ReadonlySet<string>;
+  /** #762 当前回合方玩家 id(棋子金呼吸环,「谁在打」的棋盘锚;透传 TokenLayer)。 */
+  activePlayerId?: string;
   /** 暴露棋子层 <g>(阶段 6 动画挂点)。 */
   tokenLayerRef?: React.Ref<SVGGElement>;
   className?: string;
@@ -115,6 +117,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     isSetupPhase = false,
     skipTokenIds,
     targetedPlayerIds,
+    activePlayerId,
     tokenLayerRef,
     className,
   },
@@ -235,6 +238,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         mineId={viewSeat}
         /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
         targetedIds={targetedPlayerIds}
+        /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
+        activeId={activePlayerId}
         layerRef={tokenLayerRef}
       />
       {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。

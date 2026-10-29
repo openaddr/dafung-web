@@ -252,15 +252,19 @@
   }
 }
 
-/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题;#732 入槽):深墨漆匾 + 漆金双环
-   描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+ 玩家色光晕承身份
-   (--player-color 由 NoticeBanner 注入;原「玩家色底+白字」对部分玩家色对比
-   1.9-2.9 不可读,#509 残留必修同源收口)。峰值 opacity 0.94+退场 scale 1.15
-   (#746 条目 7 同族化:与都城停条带同读作「漆匾」,不透棋盘;退场收敛不向镜头冲)。
+/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题;#732 入槽;#762 两段式亮相):
+   深墨漆匾 + 漆金双环描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+
+   玩家色光晕承身份(--player-color 由 NoticeBanner 注入;原「玩家色底+白字」对部分
+   玩家色对比 1.9-2.9 不可读,#509 残留必修同源收口)。峰值 opacity 0.94(#746 条目 7
+   同族化:与都城停条带同读作「漆匾」,不透棋盘)。
    #732:渲染宿主迁顶中知会横幅槽(.notice-slot,锚定 top+8 safe-aware)——本类只
-   负责「槽内居中锚点」(absolute 于槽,槽中心即锚点),fly 动画的 translate(-50%,-50%)
-   语义随之从「视口 16% 落点」改为「槽位落点」,编排零改动:时长/缓动/关键帧仍归
-   --dur-banner + fx-banner-fly(1800ms 硬同步点)。 */
+   负责「槽内居中锚点」(absolute 于槽,槽中心即锚点)。
+   #762 两段式亮相:前段大字亮相(fx-banner-appear,--dur-banner 之半 900ms——入场
+   40% ≈ 360ms 与旧单段 20%/1800ms 同拍,现状入场保留)+ 后段收编(fx-banner-capsulate,
+   --dur-slow 400ms 缩位淡出),终态落给槽内的常驻回合胶囊(.turn-capsule,z 序在其
+   之下,收编淡出即露出)。几何(#762 修正):字号 28→24、纵向 padding 6→4、行高钉
+   1.15——渲染高 ≈46px→≈40px,槽内居中后下缘距第二行 hint(+56,#762 同步下移)
+   净距 ≥8px,844×390 / 844×360 两档均不溢出、不遮 hint。 */
 .fx-turn-banner {
   position: absolute;
   left: 50%;
@@ -276,8 +280,9 @@
   );
   color: var(--color-lacquer-gold);
   font-family: var(--font-title);
-  font-size: 28px;
-  padding: 6px 28px;
+  font-size: 24px;
+  line-height: 1.15;
+  padding: 4px 26px;
   border-radius: 4px;
   opacity: 0;
   border: 2px solid var(--color-lacquer-gold);
@@ -286,14 +291,16 @@
     0 0 36px color-mix(in srgb, var(--player-color, var(--color-gold)) 40%, transparent),
     0 10px 30px rgba(0, 0, 0, 0.5);
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
-  letter-spacing: 8px;
+  letter-spacing: 5px;
   pointer-events: none;
   white-space: nowrap;
-  /* 时长归 --dur-banner(1800ms,唯一源 core/theme.ts Motion,#117 同源化):
-     JS 编排窗 FX.bannerMs = 本值 + 100ms 清理余量,在 fx/timings.ts 单点换算,
-     改横幅节奏只改 Motion.dur.banner 一处。缓动取 --ease-out:主读感是 0-20% 的
-     入场展开,退场段由透明度遮蔽。 */
-  animation: fx-banner-fly var(--dur-banner) var(--ease-out) forwards;
+  /* 时长(#762 两段式,token 组合唯一源 core/theme.ts Motion):亮相段 = calc
+     (--dur-banner / 2)(900ms),收编段 = --dur-slow(400ms),收编在亮相段结束后
+     接续。JS 编排窗 FX.bannerMs = 两段全长 + 100ms 清理余量,在 fx/timings.ts 单点
+     换算;缓动取 --ease-out:主读感是亮相段的入场展开,收编段由淡出遮蔽。 */
+  animation:
+    fx-banner-appear calc(var(--dur-banner) / 2) var(--ease-out) both,
+    fx-banner-capsulate var(--dur-slow) var(--ease-out) calc(var(--dur-banner) / 2) forwards;
 }
 /* 朱印题:横幅两侧朱砂小方(漆金环衬;装饰印,不含文字) */
 .fx-turn-banner::before,
@@ -308,21 +315,31 @@
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
   box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
-@keyframes fx-banner-fly {
+/* 亮相段:入场(0-40% ≈ 360ms,与旧单段 20%/1800ms 同拍)+ 槽位停持(40-100%)。
+   100% 停在 scale(1) opacity 0.94,both 定格到收编段接续。 */
+@keyframes fx-banner-appear {
   0% {
     transform: translate(-50%, -50%) scale(0.3) rotate(-8deg);
     opacity: 0;
   }
-  20% {
+  40% {
     transform: translate(-50%, -50%) scale(1.05) rotate(0deg);
     opacity: 0.94;
   }
-  75% {
+  100% {
     transform: translate(-50%, -50%) scale(1) rotate(0deg);
     opacity: 0.94;
   }
-  100% {
-    transform: translate(-50%, -50%) scale(1.15) rotate(0deg);
+}
+/* 收编段(#762):大字横幅缩位淡出,让位给 z 序之下的常驻回合胶囊——
+   scale 收到 ~0.4(胶囊量级)+ 淡出,读作「横幅收进槽里变成胶囊」。 */
+@keyframes fx-banner-capsulate {
+  from {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 0.94;
+  }
+  to {
+    transform: translate(-50%, -50%) scale(0.4) rotate(0deg);
     opacity: 0;
   }
 }
@@ -773,8 +790,29 @@
    同形同槽——深墨漆匾+漆金描边+玩家色光晕同族,降为单行条带(「驻跸」引题+副题报
    国号/都城/补给),槽内居中锚点同 .fx-turn-banner。演出整体随条带级校准:动画复用
    fx-banner-fly(--dur-banner 单源,旧专用 keyframe fx-halt-banner-fly 随全屏形态
-   退役),号角音保留(sink 侧),震屏撤销+编排占用窗缩至 FX.haltHoldMs=1000
-   (timings.ts,与 bannerHoldMs 同口径)。 */
+   退役;#762 起本 keyframe 为条带独占——回合横幅自身改两段式亮相,见上),号角音
+   保留(sink 侧),震屏撤销+编排占用窗缩至 FX.haltHoldMs=1000(timings.ts)。
+   行为不变(#762 口径:合并语义只对回合宣告族生效,条带照旧单段全长)。 */
+/* 单段飞入-停持-飞出(#732 旧回合横幅全长形态,现都城停条带独占):
+   0-20% 入场展开、20-75% 槽位停持、75-100% 收敛淡出。 */
+@keyframes fx-banner-fly {
+  0% {
+    transform: translate(-50%, -50%) scale(0.3) rotate(-8deg);
+    opacity: 0;
+  }
+  20% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(0deg);
+    opacity: 0.94;
+  }
+  75% {
+    transform: translate(-50%, -50%) scale(1) rotate(0deg);
+    opacity: 0.94;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1.15) rotate(0deg);
+    opacity: 0;
+  }
+}
 .fx-halt-banner {
   position: absolute;
   left: 50%;

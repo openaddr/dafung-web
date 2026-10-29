@@ -192,6 +192,9 @@ export const TESTIDS = {
   /** 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条共用的一条带容器——
    *  可排队、同槽互斥,瞬态知会优先于等待条(NoticeBanner.tsx)。 */
   noticeBanner: "notice-banner",
+  /** 常驻回合胶囊(#762 两段式亮相的收编终态):当前回合方(国号印+名号+轮次),
+   *  横幅消散后常驻于知会槽(NoticeBanner.tsx;融合的等待附加信息仍走 waiting-bar)。 */
+  turnCapsule: "turn-capsule",
   /** 竖屏手机「请横屏」提示层(#276 纠偏:移动端只做横屏形态;显隐全在 layout.css
    *  媒询,常驻 DOM——桌面窄窗口 pointer:fine 不触发)。 */
   rotateHint: "rotate-hint",
