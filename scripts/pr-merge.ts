@@ -14,9 +14,11 @@
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
 //   --expect <路径>(可重复,**必带,缺省拒收**)= 预期文件集硬闸(S3):change diff 与
-//   声明集精确对账,多出(并行写入折入,先 split)与少了(编辑被并行抹掉/声明笔误)都
-//   红即停——两案同根(2026-10-17 档位珠批折入远端书签、骰签批主树编辑被活会话抹盘且
-//   门禁全绿假 assurance)。清单生成=jj diff --from master@origin --to <书签> --name-only。
+//   声明集精确对账(声明侧引号与「\」分隔符自动归一,调用方零心智;2026-10-29 #751
+//   retro:shell 拼参的引号与 Windows 反斜杠曾致双向对账全红),多出(并行写入折入,先
+//   split)与少了(编辑被并行抹掉/声明笔误)都红即停——两案同根(2026-10-17 档位珠批
+//   折入远端书签、骰签批主树编辑被活会话抹盘且门禁全绿假 assurance)。清单生成=
+//   jj diff --from master@origin --to <书签> --name-only。
 //   多提交书签(集成链)自动等效 squash 归拢为单提交再对账(链底须在 master@origin 上,
 //   否则红即停先重定基;2026-10-28 七波 retro)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
@@ -65,6 +67,9 @@ const bookmark = args.find((a) => !a.startsWith("--"));
 const createOnly = args.includes("--create-only");
 const expectPaths = args
   .flatMap((a, i) => (a === "--expect" ? [args[i + 1] ?? ""] : []))
+  // 声明侧归一(#751 retro:调用方从 shell 变量拼参,bash 不剥变量内引号,jj 输出带
+  // 「\」——引号与分隔符在此统一处理,调用方零心智)。
+  .map((p) => p.replaceAll('"', "").replaceAll("\\", "/"))
   .filter((p) => p && !p.startsWith("--"));
 if (!bookmark || bookmark.startsWith("-")) {
   console.error(
@@ -245,20 +250,25 @@ if (!prNumber) {
     console.log(`[pr-merge] 文件集对账通过(${actual.length} 个):${actual.join(" ")}`);
   }
 
-  // 1.5) push 前新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
+  // 1.5) push(幂等:已推过=exit 0)——先推后验新鲜度(#751 retro 实锤:归拢 squash
+  //      后本地书签与远端旧链尖必然 divergence,此时验新鲜度=「落后自己的 upstream」
+  //      假红,红文案还误导成 master 被推进;先推平再验,红就只剩真并行推进一种)。
+  //      推了才发现红=远端留一条待重定基的分支,无实害,下次收口自然覆盖。
+  jj("git", "push", "--bookmark", bookmark);
+  console.log(`[pr-merge] 书签已推:${bookmark}`);
+
+  // 1.6) 新鲜度门(2026-10-18 retro:并行落票期 DIRTY 拖到合并才被 GitHub 告知,
   // 回溯重定基冤枉半小时;红即停,刻意带旧基线收口走手动链 + check:freshness --allow-behind)
   const freshness = Bun.spawnSync(["bun", "scripts/check-freshness.ts"], {
     stdout: "inherit",
     stderr: "inherit",
   });
   if (freshness.exitCode !== 0) {
-    console.error("[pr-merge] check:freshness 红——master 已被并行会话推进,先重定基再收口。");
+    console.error(
+      "[pr-merge] check:freshness 红——基线落后(多半是 master 已被并行会话推进),先重定基再收口。",
+    );
     process.exit(1);
   }
-
-  // 2) push(幂等:已推过=exit 0)
-  jj("git", "push", "--bookmark", bookmark);
-  console.log(`[pr-merge] 书签已推:${bookmark}`);
 
   // 3) 开 PR(已存在则复用开着的)
   let url = "";
