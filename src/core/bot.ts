@@ -5,7 +5,7 @@ import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
-import { heroSkillTargetOk } from "./choices";
+import { activeSkillOf, heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf } from "./treasures";
 import { beginGameEventBatch } from "./game-events";
@@ -284,7 +284,7 @@ export function heroSkillIntent(engine: GameEngine, skillId: string): JinnangInt
     .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt);
   const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
     [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
-  const skill = engine.players[mySeat].heroes.find((h) => h.active?.id === skillId)?.active;
+  const skill = activeSkillOf(engine.players[mySeat], skillId);
   if (!skill) throw new Error(`未知主动技:${skillId}(决策者麾下无此技,数据 bug)`); // 同 jinnangCardOf 口径:查不到就炸
   switch (skill.kind) {
     case "demolish": {

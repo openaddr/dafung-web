@@ -6,9 +6,11 @@
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
 import type { GameEngine, TurnPhase } from "./authority";
 import { canUpgrade } from "./economy";
-import type { ActiveSkillDef } from "./heroes";
+import type { ActiveSkillDef } from "./skills";
+import { isActiveSkill, poolActiveSkills, skillById } from "./skills";
 import { findHolding } from "./player";
 import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
+import type { HeroDef } from "./heroes";
 import { HEROES } from "./heroes";
 import type { EncounterChoiceOption } from "./encounters";
 import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
@@ -366,13 +368,13 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];
 }
 
-/** 按 id 查玩家麾下主动技(#188 档 3);查无返回 null(命令与麾下不符时由调用方处置)。 */
-export function activeSkillOf(
-  p: { heroes: { active?: ActiveSkillDef }[] },
-  skillId: string,
-): ActiveSkillDef | null {
+/** 按 id 查玩家麾下主动技(#188 档 3;麾下池含该技且其为主动技才命中,池引用经装配点
+ *  校验可解析):查无返回 null(命令与麾下不符时由调用方处置)。 */
+export function activeSkillOf(p: { heroes: HeroDef[] }, skillId: string): ActiveSkillDef | null {
   for (const h of p.heroes) {
-    if (h.active?.id === skillId) return h.active;
+    if (!h.skillPool.includes(skillId)) continue;
+    const def = skillById(skillId);
+    if (isActiveSkill(def)) return def;
   }
   return null;
 }
@@ -395,36 +397,37 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   const userSeat = e.players.indexOf(p);
   const out: ChoiceOption[] = [];
   for (const hero of p.heroes) {
-    const skill = hero.active;
-    if (!skill) continue;
-    const cdLeft = skillCooldownLeft(e, p, skill);
-    let available = cdLeft === 0;
-    let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
-    if (available) {
-      // 冷却就绪后再验执行门槛:费用 → 目标候选存在
-      const cost = skill.params?.cost ?? 0;
-      if (cost > 0 && p.cash < cost) {
-        available = false;
-        reason = "银两不足";
-      } else if (skill.target !== "none") {
-        const anyTarget = e.players.some(
-          (_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok,
-        );
-        if (!anyTarget) {
+    for (const skill of poolActiveSkills(hero.skillPool)) {
+      // 池可含多条主动技(ADR-0036 逐字表)
+      const cdLeft = skillCooldownLeft(e, p, skill);
+      let available = cdLeft === 0;
+      let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
+      if (available) {
+        // 冷却就绪后再验执行门槛:费用 → 目标候选存在
+        const cost = skill.params?.cost ?? 0;
+        if (cost > 0 && p.cash < cost) {
           available = false;
-          reason = "无可指定目标";
+          reason = "银两不足";
+        } else if (skill.target !== "none") {
+          const anyTarget = e.players.some(
+            (_, seat) => heroSkillTargetOk(e, userSeat, seat, skill).ok,
+          );
+          if (!anyTarget) {
+            available = false;
+            reason = "无可指定目标";
+          }
         }
       }
+      out.push({
+        id: `skill:${skill.id}`,
+        label: `${hero.name}·${skill.name}`,
+        available,
+        reason,
+        skillId: skill.id,
+        skillText: skill.desc,
+        skillHero: hero.name,
+      });
     }
-    out.push({
-      id: `skill:${skill.id}`,
-      label: `${hero.name}·${skill.name}`,
-      available,
-      reason,
-      skillId: skill.id,
-      skillText: skill.desc,
-      skillHero: hero.name,
-    });
   }
   return out;
 }

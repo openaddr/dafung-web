@@ -156,22 +156,23 @@ function loadTurnStartInquiry(): { inquiryId: string; heroDefId: string } {
   const heroDefId = `test-ts-hero-${Math.random().toString(36).slice(2, 8)}`;
   registerExtensionAuthorityModule({
     manifest: { id: pkgId, name: "假收口问询包", version: "0.0.1", entry: "index.js" },
+    skills: [
+      {
+        id: `${heroDefId}-skill`,
+        name: "收口发问",
+        desc: "测试用:TurnStart 时机发起定制问询(违约样本)",
+        when: "TurnStart",
+        effect: `${heroDefId}-effect`,
+        scope: "any",
+      },
+    ],
     heroes: [
       {
         id: heroDefId,
         name: "试探名将",
         title: "收口期",
         image: "",
-        skills: [
-          {
-            id: `${heroDefId}-skill`,
-            name: "收口发问",
-            desc: "测试用:TurnStart 时机发起定制问询(违约样本)",
-            when: "TurnStart",
-            effect: `${heroDefId}-effect`,
-            scope: "any",
-          },
-        ],
+        skillPool: [`${heroDefId}-skill`],
       },
     ],
     effects: {
@@ -348,16 +349,7 @@ describe("定制问询相位化消费与命令路由(#424)", () => {
       name: "试探名将",
       title: "收口期",
       image: "",
-      skills: [
-        {
-          id: `${heroDefId}-skill`,
-          name: "收口发问",
-          desc: "测试用",
-          when: "TurnStart",
-          effect: `${heroDefId}-effect`,
-          scope: "any",
-        },
-      ],
+      skillPool: [`${heroDefId}-skill`], // 技已随包注册进技表,池按 id 引用(ADR-0036)
     });
     expect(() => e.endTurn()).toThrow(/收口过程中被挂起/);
     void inquiryId;

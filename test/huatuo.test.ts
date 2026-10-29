@@ -7,6 +7,7 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
+import { isTriggerSkill, skillById } from "@core/skills";
 import { EFFECTS } from "@core/effects";
 import { testEngine } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
@@ -69,7 +70,7 @@ function playFullRound(e: GameEngine) {
 }
 
 const huatuo = () => HEROES.find((h) => h.id === "huatuo")!;
-const SKILL_ID = "huatuo-regen-stamina";
+const SKILL_ID = "qingnang"; // 技 id 去将名前缀(ADR-0036:技名拼音)
 
 /** 某技能的击发次数(按战报 skill 行统计)。 */
 const fireCount = (e: GameEngine, skillId: string) =>
@@ -80,14 +81,14 @@ describe("华佗在池(#133)", () => {
     const h = huatuo();
     expect(h).toBeDefined();
     expect(h.name).toBe("华佗");
-    expect(h.skills).toHaveLength(1);
-    const s = h.skills![0];
-    expect(s.id).toBe(SKILL_ID);
-    expect(s.when).toBe("RoundStart");
-    expect(s.effect).toBe("regenStamina");
-    expect(s.params).toEqual({ amount: 15 });
-    expect(s.cooldown).toBe(3);
-    expect(s.scope).toBe("any"); // 缺省 self 会让非锚点持有者永不触发
+    expect(h.skillPool).toEqual([SKILL_ID, "zhenji"]); // 池{青囊,赈济}(ADR-0036 首批共享表)
+    const def = skillById(SKILL_ID);
+    if (!isTriggerSkill(def)) throw new Error("青囊应为被动技(数据 bug)");
+    expect(def.when).toBe("RoundStart");
+    expect(def.effect).toBe("regenStamina");
+    expect(def.params).toEqual({ amount: 15 });
+    expect(def.cooldown).toBe(3);
+    expect(def.scope).toBe("any"); // 缺省 self 会让非锚点持有者永不触发
     expect(EFFECTS["regenStamina"]).toBeTypeOf("function"); // 效果已注册
   });
 

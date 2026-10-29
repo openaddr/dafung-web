@@ -536,19 +536,19 @@ describe("折叠投影器 · 名将族", () => {
       ev(0, {
         kind: "skillFired",
         heroId: "zhouyu",
-        skillId: "zhouyu-move+1",
+        skillId: "jixing",
         moment: "BeforeMarch",
       }),
       ev(0, {
         kind: "heroSkillActivated",
-        skillId: "zhouyu-huogong",
+        skillId: "huogong",
         skillKind: "demolish",
         targetSeat: 1,
       }),
     ]);
 
-    expect(e.players[0].heroLastFired["zhouyu-move+1"]).toBe(1);
-    expect(e.players[0].heroLastFired["zhouyu-huogong"]).toBe(1);
+    expect(e.players[0].heroLastFired["jixing"]).toBe(1);
+    expect(e.players[0].heroLastFired["huogong"]).toBe(1);
   });
 
   it("主动技四类落账:warDrum 加成(骰时消费)/patronage 委任状/relief 付费/demolish 不折", () => {
@@ -557,10 +557,10 @@ describe("折叠投影器 · 名将族", () => {
     const cash0 = e.players[0].cash;
     const stamina1 = e.players[1].stamina;
     foldEventBatch(e, [
-      ev(0, { kind: "heroSkillActivated", skillId: "zhangxingcai-leigu", skillKind: "warDrum" }),
+      ev(0, { kind: "heroSkillActivated", skillId: "leigu", skillKind: "warDrum" }),
       ev(0, {
         kind: "heroSkillActivated",
-        skillId: "caopi-zhengpi",
+        skillId: "zhengpi",
         skillKind: "patronage",
         targetSeat: 1,
       }),
@@ -568,13 +568,13 @@ describe("折叠投影器 · 名将族", () => {
       ev(1, { kind: "staminaChanged", delta: 30, reason: "heroRelief" }), // 赈济目标体力
       ev(0, {
         kind: "heroSkillActivated",
-        skillId: "huatuo-zhenji",
+        skillId: "zhenji",
         skillKind: "relief",
         targetSeat: 1,
       }),
       ev(0, {
         kind: "heroSkillActivated",
-        skillId: "zhouyu-huogong",
+        skillId: "huogong",
         skillKind: "demolish",
         targetSeat: 1,
       }),

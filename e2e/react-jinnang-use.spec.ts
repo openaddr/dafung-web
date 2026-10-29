@@ -234,10 +234,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
       `
       e.players[0].jinnangHand = ["缓兵之计", "求贤令"];
       e.jinnangUsedTags = ["谋", "攻"];
-      e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", image: "", skills: [],
-        active: { id: "zhangxingcai-leigu", name: "擂鼓", cooldown: 4,
-          desc: "擂鼓进军:本回合你的下一次掷骰步数 +2(签面不变)。",
-          target: "none", kind: "warDrum", params: { bonus: 2 } } }];
+      e.players[0].heroes = [{ id: "zhangxingcai", name: "张星彩", title: "", image: "",
+        skillPool: ["zhijin", "leigu", "jixing"] }]; // 池声明(ADR-0036);技定义查技表
     `,
     );
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)
@@ -251,21 +249,21 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(page.getByTestId(TESTIDS.jinnangCard("求贤令"))).toBeEnabled();
     // 名将技卡(#360 换 HeroCardFace 紧凑档):技名 chips(◆擂鼓+●掷金=被动技名,T1
     // 数据)/名将名上卡面;点选=选中(.sel 挂卡面根),出牌点亮→发技(useHeroSkill)
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai-leigu"));
+    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:leigu"));
     await expect(ji).toBeVisible();
     await expect(ji.locator(".hface")).toContainText("擂鼓");
     await expect(ji.locator(".hface")).toContainText("掷金"); // 被动技名(TriggerSkill.name)
     await expect(ji.locator(".hface")).toContainText("张星彩");
     // 技能全览(#605):点技名 chip=开全览弹框(不选中)——被点技高亮行、全部技与描述
     // 全文在场;关闭后卡面照常可选中(chip 点击不触发选将/选中)
-    await ji.locator(TESTIDS.skillChip("zhangxingcai-leigu")).click();
+    await ji.locator(TESTIDS.skillChip("leigu")).click();
     const glossary = page.getByTestId(TESTIDS.skillGlossary);
     await expect(glossary).toBeVisible();
     await expect(
-      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("zhangxingcai-leigu")}"]`),
+      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("leigu")}"]`),
     ).toHaveClass(/is-hl/);
     await expect(
-      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("zhangxingcai-gain-on-six")}"]`),
+      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("zhijin")}"]`),
     ).toContainText("场上任意人掷出 6");
     await expect(glossary).toContainText("擂鼓进军"); // 主动技描述全文(卡面上无描述,#605)
     await page.getByTestId(TESTIDS.modalClose).click();

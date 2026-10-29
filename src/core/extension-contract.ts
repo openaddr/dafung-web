@@ -18,7 +18,8 @@
 //       src/                     TS 源(分发 = 编译后 JS;源码供作者维护类型/工具链)
 //
 // ── 接口位总登记(ADR-0022 决策 2;实现状态 2026-10-05)──
-//   ✅ 技能/效果注册     core:名将进 HEROES 池、效果进 EFFECTS 注册表(extension-registry)
+//   ✅ 技能/效果注册     core:技能进 SKILLS 表、名将进 HEROES 池、效果进 EFFECTS
+//                       注册表(extension-registry;名将池按技 id 引用,ADR-0036)
 //   ✅ 动画 handler      app:吃引擎事件批补演出(src/app/extensions,消费点 fx/event-extract)
 //   ✅ 渲染 hook         app:名将专属将旗(HeroCardFace 消费;assets/ 资源走 URL)
 //   ✅ 交互 handler      定制问询(choices 之外问询,ADR-0022 与 ADR-0020 咬合):
@@ -36,6 +37,7 @@ import type { ChoiceOption } from "./choices";
 import type { EffectFn } from "./effects";
 import type { GameEngine } from "./authority";
 import type { HeroDef } from "./heroes";
+import type { SkillDef } from "./skills";
 
 /** 扩展包清单(manifest.json 的解析后形状)。id 是全局唯一键(与已装包/注册冲突即炸);
  *  entry/client 为包根下的**平铺文件名**(不含路径分隔符——装载器按目录拼路径,子目录
@@ -53,12 +55,14 @@ export interface ExtensionManifest {
   client?: string;
 }
 
-/** 权威侧贡献(包入口模块的默认导出):名将/效果/定制问询,经 extension-registry
- *  注册进引擎既有注册面(HEROES 名将池 / EFFECTS 效果注册表 / 问询注册面)。效果函数
- *  与内置效果同签名(EffectFn:纯逻辑、禁 DOM/React、经引擎公共方法改状态),信任
+/** 权威侧贡献(包入口模块的默认导出):技能/名将/效果/定制问询,经 extension-registry
+ *  注册进引擎既有注册面(SKILLS 技表 / HEROES 名将池 / EFFECTS 效果注册表 / 问询注册面)。
+ *  效果函数与内置效果同签名(EffectFn:纯逻辑、禁 DOM/React、经引擎公共方法改状态),信任
  *  作者、无沙箱(ADR-0022 信任模型);无随机数/时钟纪律(ADR-0021)。 */
 export interface ExtensionAuthorityContribution {
-  /** 追加进名将池的名将(招贤/机遇送将/快照回链全走 HEROES 单表)。 */
+  /** 追加进技能表的技能(被动+主动同表,ADR-0036;扩展名将的池可引用核心技)。 */
+  skills?: SkillDef[];
+  /** 追加进名将池的名将(招贤/机遇送将/快照回链全走 HEROES 单表;skillPool 声明池)。 */
   heroes?: HeroDef[];
   /** 追加进效果注册表的效果(TriggerSkill.effect 按 id 查用)。 */
   effects?: Record<string, EffectFn>;

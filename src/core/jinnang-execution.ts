@@ -9,7 +9,8 @@ import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
 import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES, passiveDescLineOf, type ActiveSkillDef } from "./heroes";
+import { HEROES, passiveDescLineOf } from "./heroes";
+import type { ActiveSkillDef } from "./skills";
 import {
   openReactionWindow,
   resolveDuel,

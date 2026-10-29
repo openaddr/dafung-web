@@ -2,15 +2,15 @@
 // 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 39 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
-import { describe, it, expect } from "bun:test";
+import { describe, it, expect, afterEach } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
 import { WARRANTS_PER_PASS } from "@core/constants";
-import { HEROES } from "@core/heroes";
+import { HEROES, type HeroDef } from "@core/heroes";
+import { SKILLS, type TriggerSkill } from "@core/skills";
 import { guidePriceOf } from "@core/treasures";
-import type { HeroDef, TriggerSkill } from "@core/heroes";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { testEngine } from "@core/testing";
@@ -79,13 +79,29 @@ function playFullRound(e: GameEngine) {
   }
 }
 
-/** 测试用名将:按需构造技能(与 HEROES 同形状,不入招贤池)。 */
+/** 测试技注册进技表(ADR-0036:池引用必须可解析;afterEach 精确清退,不向同进程其他
+ *  测试文件泄漏全局注册态)。 */
+const pushedSkills: TriggerSkill[] = [];
+afterEach(() => {
+  while (pushedSkills.length > 0) {
+    const s = pushedSkills.pop()!;
+    const idx = SKILLS.indexOf(s);
+    if (idx < 0) throw new Error(`测试技 ${s.id} 不在注册表(状态机 bug)`);
+    SKILLS.splice(idx, 1);
+  }
+});
+
+/** 测试用名将:按需构造技能(先注册进 SKILLS 技表再入池;不入招贤池)。 */
 function heroWith(skills: TriggerSkill[], id = "test-hero"): HeroDef {
+  for (const s of skills) {
+    SKILLS.push(s);
+    pushedSkills.push(s);
+  }
   return {
     id,
     name: "测试名将",
     title: "",
-    skills,
+    skillPool: skills.map((s) => s.id),
     image: "/assets/heroes/hero-zhouyu-sgs.png",
   };
 }
@@ -1193,9 +1209,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e);
     const mover = e.activePlayer;
     mover.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "" },
-      { id: "h2", name: "乙", title: "", image: "" },
-      { id: "h3", name: "丙", title: "", image: "" },
+      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
+      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
+      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
     );
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
@@ -1209,9 +1225,9 @@ describe("时机框架:派发缺口补齐(#299)", () => {
     finishSetup(e2);
     const user = e2.activePlayer;
     user.heroes.push(
-      { id: "h1", name: "甲", title: "", image: "" },
-      { id: "h2", name: "乙", title: "", image: "" },
-      { id: "h3", name: "丙", title: "", image: "" },
+      { id: "h1", name: "甲", title: "", image: "", skillPool: [] },
+      { id: "h2", name: "乙", title: "", image: "", skillPool: [] },
+      { id: "h3", name: "丙", title: "", image: "", skillPool: [] },
     );
     const seat2 = e2.players.indexOf(user);
     const entries2 = recordMomentCtx(e2);
@@ -1516,8 +1532,8 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const city3 = giveCity(e3, victimSeat3, 2);
     armJinnang(e3, []);
     const entries3 = recordMomentCtx(e3);
-    e3.resolveHeroSkill("zhouyu-huogong");
-    e3.resolveHeroSkill("zhouyu-huogong", [victimSeat3]);
+    e3.resolveHeroSkill("huogong");
+    e3.resolveHeroSkill("huogong", [victimSeat3]);
     expect(
       e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level,
     ).toBe(1);

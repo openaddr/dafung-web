@@ -1,48 +1,49 @@
 const contribution = {
+  // 技能注册(ADR-0036:技能升一等公民):三条技先入技能表,名将池按 id 引用。
+  skills: [
+    {
+      id: "taishici-yicong",
+      name: "义从",
+      // desc 必填(#604 每技自带,typecheck 纳入 extensions 面后暴露的包漂移,随修)
+      desc: "被招揽时义从归心:立得 +100 两来投之礼",
+      when: "HeroRecruited",
+      // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
+      effect: "joinGift",
+      params: { amount: 100 },
+      scope: "self",
+    },
+    {
+      // 「信义盲选」触发技(#424 对局可玩):招贤即问询发起。空手牌无可盲选,
+      // 效果条件不满足静默跳过(EffectFn 语义,非兜底);1 张=唯一选项自动执行
+      // (ADR-0013,引擎分流);≥2 张=弹问询卷轴(客户端按呈现意图画牌背)。
+      id: "taishici-blindpick",
+      name: "信义盲选",
+      desc: "被招揽时行信义试炼:从手牌中盲选一张,弃旧换新",
+      when: "HeroRecruited",
+      effect: "blindPickRitual",
+      scope: "self",
+    },
+    {
+      id: "taishici-pozhen",
+      name: "破阵",
+      cooldown: 3,
+      desc: "擂鼓突阵:本回合你的下一次掷骰步数 +1(签面不变)。",
+      target: "none",
+      kind: "warDrum",
+      // 复用既有结算案(jinnang-execution warDrum 路径),扩展零新增 kind
+      params: { bonus: 1 },
+    },
+  ],
   heroes: [
     {
       id: "taishici",
       name: "太史慈",
       title: "信义笃行",
-      // (名将级 desc 已随 #604 下沉为每技自带,下方 skills 各带 desc;typecheck
-      //  纳入 extensions 面后暴露的包漂移,随修)
-      // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
+      // 技能池(ADR-0036):按池声明序引用上方注册的技(核心技亦可入池,如 "jixing")。
+      // 立绘(#751 画像统一收官):sgs 经典形象直取(curid=8974,素材映射.md);
       // 专属将旗仍由客户端渲染 hook 提供
-      image: "/assets/heroes/hero-taishici-noname.webp",
-      skills: [
-        {
-          id: "taishici-yicong",
-          name: "义从",
-          // desc 必填(#604 每技自带,typecheck 纳入 extensions 面后暴露的包漂移,随修)
-          desc: "被招揽时义从归心:立得 +100 两来投之礼",
-          when: "HeroRecruited",
-          // 招贤得将时机(subject=招揽者;scope self=属主即招揽者本人招到)
-          effect: "joinGift",
-          params: { amount: 100 },
-          scope: "self",
-        },
-        {
-          // 「信义盲选」触发技(#424 对局可玩):招贤即问询发起。空手牌无可盲选,
-          // 效果条件不满足静默跳过(EffectFn 语义,非兜底);1 张=唯一选项自动执行
-          // (ADR-0013,引擎分流);≥2 张=弹问询卷轴(客户端按呈现意图画牌背)。
-          id: "taishici-blindpick",
-          name: "信义盲选",
-          desc: "被招揽时行信义试炼:从手牌中盲选一张,弃旧换新",
-          when: "HeroRecruited",
-          effect: "blindPickRitual",
-          scope: "self",
-        },
-      ],
-      active: {
-        id: "taishici-pozhen",
-        name: "破阵",
-        cooldown: 3,
-        desc: "擂鼓突阵:本回合你的下一次掷骰步数 +1(签面不变)。",
-        target: "none",
-        kind: "warDrum",
-        // 复用既有结算案(jinnang-execution warDrum 路径),扩展零新增 kind
-        params: { bonus: 1 },
-      },
+      image: "/assets/heroes/hero-taishici-sgs.png",
+      skillPool: ["taishici-yicong", "taishici-blindpick", "taishici-pozhen"],
     },
   ],
   effects: {

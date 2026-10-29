@@ -264,7 +264,7 @@ describe("名将(英雄)", () => {
     expect(e.offeredHeroes.length).toBe(3); // 池有 3 位 → 三选一
     e.resolveHeroPick(0);
     expect(picker.heroes.length).toBe(1); // resolveHeroPick → endTurn 切了玩家,用 picker 引用
-    expect(picker.heroes[0].skills).toBeDefined();
+    expect(picker.heroes[0].skillPool.length).toBeGreaterThan(0); // 池声明(ADR-0036):招得之将必带技能池
   });
 
   it("回合计数:全员各行动一次后 round +1", () => {

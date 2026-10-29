@@ -47,21 +47,12 @@ function finishSetup(e: GameEngine) {
 }
 
 function hero(id: string, name: string) {
+  // 换银布场:名将只作 200 两资产计价,技能从不派发(无行军/时机)→ 空池即可
   return {
     id,
     name,
     title: "",
-    skills: [
-      {
-        id: `${id}-move+1`,
-        name: "测试技",
-        desc: "测试技效",
-        when: "BeforeMarch" as const,
-        effect: "moveBonus",
-        params: { steps: 1 },
-        scope: "self" as const,
-      },
-    ],
+    skillPool: [] as string[],
     image: "/assets/heroes/hero-zhouyu-sgs.png",
   };
 }

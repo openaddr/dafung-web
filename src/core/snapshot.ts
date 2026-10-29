@@ -27,7 +27,8 @@ export interface TreasureRow {
   desc?: string;
 }
 
-/** 快照名将行(只存展示字段;skill/cooldown/技效描述由 HEROES 表按 id 回查,#604)。 */
+/** 快照名将行(只存展示字段;技能/cooldown 经池序读口按 id 回查——技能定义单源
+ *  skills.ts、池声明在 HEROES,#604/ADR-0036)。 */
 export interface HeroRow {
   id: string;
   name: string;
@@ -657,7 +658,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.position = ps.position;
         p.capitalIndex = ps.capitalIndex;
         p.skipTurns = ps.skipTurns;
-        // heroes:查 HEROES 表补 skill/cooldown(snapshot 故意只存展示字段)
+        // heroes:查 HEROES 表按 id 回灌整份定义(技能池随之就位;snapshot 故意只存展示字段,
+        //        槽位序列化 = ADR-0036 后续票)
         p.heroes = ps.heroes
           .map((h) => HEROES.find((H) => H.id === h.id))
           .filter((h): h is HeroDef => h != null);
@@ -687,8 +689,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     },
   },
   {
-    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢 skill/cooldown;
-    // 技效描述不落快照——客户端按 id 回查目录单源,#604)
+    // offeredHeroes:从 HEROES 表查完整 HeroDef(snapshot 只存展示字段,丢技能池/冷却;
+    // 技效描述不落快照——客户端按 id 回查技表单源(skills.ts),#604)
     key: "offeredHeroes",
     read: (e) =>
       e.offeredHeroes.map((h) => ({
