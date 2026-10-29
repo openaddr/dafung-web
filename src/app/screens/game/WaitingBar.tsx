@@ -10,6 +10,10 @@
 // #732:渲染宿主迁顶中知会横幅槽(NoticeBanner)——等待条是常驻级知会,瞬态横幅
 // (回合/都城停)展示期由槽负责让位、播完回归;本件只管「等待文案派生 + 药丸形态」,
 // 自身不再定位(槽容器承载落位),waiting-bar testid 保留零漂移(联机多张 spec 消费)。
+// #762:与常驻回合胶囊同槽融合——胶囊在场时本件以 bare 变体落胶囊右侧(剥药丸壳,
+// waitingBar/thinking testid 原样随迁,消费方按 testid 查询不认位置);派生加
+// hideOwnerName 档:等待对象=当前回合方时省名号(胶囊主体已指名,不重复),
+// 等待对象≠回合方(珍宝交涉=城主)时名号保留。
 import { useEffect, useState } from "react";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { TurnPhase } from "@core/authority";
@@ -28,6 +32,11 @@ export interface WaitingBarProps {
   viewSeat: number;
   /** 是否联机对局(单机时除本地外只有 bot,不出现「静候远端人类」分支)。 */
   online: boolean;
+  /** #762 胶囊融合档:bare 变体(剥药丸壳,落回合胶囊右侧)。 */
+  variant?: "pill" | "bare";
+  /** #762 免重名:等待对象=当前回合方(decisionOwner===activeIndex)时省名号——
+   *  胶囊主体已指名。缺省 false(独立药丸态名号照旧)。 */
+  hideOwnerName?: boolean;
 }
 
 /** 决策类相位:轮到该玩家做选择(掷骰 Roll 不在其中——那是「落子」不是「抉择」)。
@@ -38,20 +47,24 @@ const DECISION_PHASES: ReadonlySet<TurnPhase> = new Set(Object.keys(PHASE_CHOICE
 /** 超时安抚阈值(秒):同一句等待文案持续超过该秒数才追加已候计时。 */
 const WAIT_ANNOUNCE_S = 8;
 
-/** 推导等待文案(null = 本地可交互/无人在前,不渲染)。 */
+/** 推导等待文案(null = 本地可交互/无人在前,不渲染)。hideOwnerName(#762):
+ *  等待对象=当前回合方时省名号——胶囊主体已指名,不重复。 */
 function waitingText(
   snapshot: GameSnapshot,
   interactive: boolean,
   selfPresenting: boolean,
   viewSeat: number,
   online: boolean,
+  hideOwnerName = false,
 ): string | null {
   if (interactive || snapshot.phase !== "Playing") return null;
   // 决策归属座位(单源:engine.decisionOwner 经快照透出——珍宝交涉=城主(可能 ≠ 访客),
   // 其余相位 = activeIndex;UI 不再复读推导,spec #107 C1)。
   const owner = snapshot.players[snapshot.decisionOwner];
   if (!owner) return null;
-  const name = `「${owner.guohao}」`;
+  // #762 免重名只对「等待对象=回合方」生效:交涉城主≠回合方时名号必须保留。
+  const name =
+    hideOwnerName && snapshot.decisionOwner === snapshot.activeIndex ? "" : `「${owner.guohao}」`;
   if (owner.isBot) return "运筹中…";
   if (online && snapshot.decisionOwner !== viewSeat) {
     // 联机远端人类:掷骰阶段=静候落子;决策相位=正在抉择(破产清算单独措辞)。
@@ -72,8 +85,10 @@ export function WaitingBar({
   selfPresenting,
   viewSeat,
   online,
+  variant = "pill",
+  hideOwnerName = false,
 }: WaitingBarProps) {
-  const text = waitingText(snapshot, interactive, selfPresenting, viewSeat, online);
+  const text = waitingText(snapshot, interactive, selfPresenting, viewSeat, online, hideOwnerName);
   // 已候秒数:按连续等待会话计时,text 变化(等待对象换了)即归零重计;条卸载即清表。
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
@@ -83,6 +98,19 @@ export function WaitingBar({
     return () => clearInterval(timer);
   }, [text]);
   if (!text) return null;
+  // #762 bare 变体(胶囊融合):剥药丸壳,只留文案骨架——testid 原样随迁(waitingBar
+  // 外壳 + thinking 文案,消费方按 testid 查询不认位置),壳样式由宿主(.waiting-bare)承担。
+  if (variant === "bare") {
+    return (
+      <span data-testid={TESTIDS.waitingBar} className="waiting-bare">
+        <span data-testid={TESTIDS.thinking}>
+          {text}
+          {elapsed > WAIT_ANNOUNCE_S ? `(已候 ${elapsed} 秒)` : ""}
+        </span>
+        <span className="waiting-dots" aria-hidden />
+      </span>
+    );
+  }
   return (
     <div
       data-testid={TESTIDS.waitingBar}

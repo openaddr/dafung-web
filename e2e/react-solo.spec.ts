@@ -220,7 +220,8 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 });
 
 // X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
-// bot 回合同屏仅等待条一处反馈(等待条同时是唯一挂载点,断言双锚定防回退)。
+// bot 回合的等待反馈以 WaitingBar 挂载为断言锚(#732 起宿主在知会槽,#762 起与常驻
+// 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   await quickStart(page);
   await force(

@@ -13,7 +13,8 @@ export interface HintBarProps {
    *  inline = 文档流内(大厅卡片内的提示行,原 lobby 口径)。 */
   variant?: "overlay" | "inline";
   /** overlay 变体的纵距类(#732 评审修复):默认 +12px(lobby/App 无知会槽,
-   *  维持原几何);game 屏顶中 +8px 行被知会横幅槽占用,传 +48px 落第二行——
+   *  维持原几何);game 屏顶中 +8px 行被知会横幅槽占用,传 +56px 落第二行
+   *  (#762 几何修正 +48→+56:给两段式回合横幅的槽区渲染让净距 ≥8px)——
    *  重立旧「hint/等待条上下错开互不叠位」几何契约。整串类名透传(Tailwind
    *  arbitrary value 须静态字面量,不收数字插值)。 */
   overlayTopClass?: string;

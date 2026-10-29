@@ -35,6 +35,9 @@ export interface TokenSlot {
   mine: boolean;
   /** #256 目标段:出牌阶段候选棋子(金虚线环呼吸,与席位格金圈同步,双锚点)。 */
   targeted: boolean;
+  /** #762 当前回合方棋子(金呼吸环,复用席位活跃呼吸语言——「谁在打」的棋盘锚,
+   *  与常驻回合胶囊双锚点;同时至多一枚有环)。 */
+  active: boolean;
   /** #557 同格拥挤档:同格 >4 子(旗面 scale 0.85,给 8 槽圆周让位)。 */
   crowded: boolean;
 }
@@ -50,6 +53,8 @@ interface TokenLayerProps {
   mineId?: string;
   /** #256 目标段:候选呼吸的棋子 id 集(available 候选席位;样式 layout.css)。 */
   targetedIds?: ReadonlySet<string>;
+  /** #762 当前回合方玩家 id(棋子金呼吸环;GameScreen 按快照 activeIndex 传)。 */
+  activeId?: string;
   /** 暴露棋子层 <g>(阶段 6 动画挂点 3)。 */
   layerRef?: React.Ref<SVGGElement>;
 }
@@ -111,7 +116,7 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
 }
 
 const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
-  const { player: p, x, y, opacity, marching, mine, targeted, crowded } = slot;
+  const { player: p, x, y, opacity, marching, mine, targeted, active, crowded } = slot;
   const c = playerColor(p.colorIndex);
   return (
     <g
@@ -163,6 +168,18 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
             strokeDasharray="5 4"
           />
         )}
+        {/* #762 当前回合方金呼吸环:细实线金环 opacity 0.35→1 呼吸(样式 layout.css,
+            复用席位活跃呼吸语言 --dur-ambient);z 序在旗面图形之下(渲染序在
+            TokenFlag 之前);reduced-motion 退化为静态细环。 */}
+        {active && (
+          <circle
+            className="bv-token-active-ring"
+            r={18}
+            fill="none"
+            stroke={rgba(Theme.goldBright, 0.9)}
+            strokeWidth={1.5}
+          />
+        )}
         <TokenFlag p={p} />
       </g>
     </g>
@@ -176,6 +193,7 @@ export const TokenLayer = memo(function TokenLayer({
   skipTokenIds,
   mineId,
   targetedIds,
+  activeId,
   layerRef,
 }: TokenLayerProps) {
   // 同格错位:分组/偏移公式单源 tokenSlots.ts(与提取拍烤 keyframes 的落格偏移同源,
@@ -186,6 +204,7 @@ export const TokenLayer = memo(function TokenLayer({
   for (const p of players) {
     const mine = p.id === mineId;
     const targeted = targetedIds?.has(p.id) ?? false;
+    const active = p.id === activeId;
     if (setupUnselected && p.capitalIndex < 0) {
       slots.push({
         player: p,
@@ -195,6 +214,7 @@ export const TokenLayer = memo(function TokenLayer({
         marching: false,
         mine,
         targeted,
+        active,
         crowded: false,
       });
       continue;
@@ -215,6 +235,7 @@ export const TokenLayer = memo(function TokenLayer({
         marching: true,
         mine,
         targeted,
+        active,
         crowded: false, // 行军中在路径上、不占同格槽位语义
       });
       continue;
@@ -230,6 +251,7 @@ export const TokenLayer = memo(function TokenLayer({
       marching: false,
       mine,
       targeted,
+      active,
       crowded: mates.length > TOKEN_SLOT_OFFSETS.length / 2,
     });
   }

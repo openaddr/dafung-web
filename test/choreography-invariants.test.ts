@@ -3,8 +3,9 @@
 // CSS 侧时长唯一源 core/theme.ts Motion
 // (经 gen:theme 产出 tokens.css)。本测试钉死常量「之间」的编排关系,防止调参或后续
 // 收编时悄悄破坏演出语义:
-//   横幅 — FX.bannerMs 必须大于 CSS 演出全长 Motion.dur.banner(余量为正,播完有余再清),
-//          FX.bannerHoldMs 必须小于 FX.bannerMs(停留窗是编排窗的子区间);
+//   横幅 — #762 两段式亮相:FX.bannerMs 必须大于 CSS 两段全长(--dur-banner/2 亮相段
+//          + --dur-slow 收编段,余量为正,播完有余再清),FX.bannerHoldMs 须盖过亮相段
+//          (下一演出不与入场重叠)且小于 FX.bannerMs(停留窗是编排窗的子区间);
 //   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
 //          (含 bot)结束后都有 ≥300ms 可读结果;终局封场豁免:胜利屏挂载即封场
 //          (orchestrator.finishPresentation),终局局的骰子可在事件边界被整体截断,
@@ -37,11 +38,13 @@ import { createMemorySink } from "../src/app/fx/sinks";
 import type { MarchSegmentFrames, PresentationEvent } from "../src/app/fx/presentation";
 
 describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系)", () => {
-  it("横幅余量为正:FX.bannerMs > Motion.dur.banner(CSS 演出播完有余再清)", () => {
-    expect(FX.bannerMs).toBeGreaterThan(Motion.dur.banner);
+  it("横幅余量为正(#762 两段式):FX.bannerMs > 亮相段+收编段(CSS 演出播完有余再清)", () => {
+    const cssTotal = Motion.dur.banner / 2 + Motion.dur.slow;
+    expect(FX.bannerMs).toBeGreaterThan(cssTotal);
   });
 
-  it("横幅停留窗是编排窗的子区间:FX.bannerHoldMs < FX.bannerMs", () => {
+  it("横幅停留窗(#762):盖过亮相段(下一演出不与入场重叠)且是编排窗的子区间", () => {
+    expect(FX.bannerHoldMs).toBeGreaterThanOrEqual(Motion.dur.banner / 2);
     expect(FX.bannerHoldMs).toBeLessThan(FX.bannerMs);
   });
 

@@ -12,6 +12,7 @@
 import type { BoardPos } from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
 import type { SoundEvent } from "./audio";
+import type { TurnAnnounceMeta } from "./fxStore";
 import { DUEL } from "./timings";
 
 /** 行军逐帧段(不变量①提取即定格,ADR-0029/#608):一段行走 = 「起点中心 → 弧线
@@ -85,7 +86,9 @@ export type PresentationEvent =
        *  漆金化口径(#492:金印留给得/平语义,朱砂保留给危险/破产)。 */
       tone?: "gold";
     }
-  | { kind: "turnBanner"; guohao: string; colorIndex: number }
+  /** 回合宣告(#762 元数据随事件烤定,ADR-0029 不变量①同族:isBot/round 提取拍
+   *  从引擎读定,播放期与槽泵合并判别零读引擎)。 */
+  | { kind: "turnBanner"; guohao: string; colorIndex: number; isBot: boolean; round: number }
   /** 落格定音(S7 #513,BRIEF 台账 #9 翻案件):行军落在事件/机遇格(税/仓/锦囊/
    *  天命/卧龙)的金圈一拍——零新引擎事件,提取期按落点格型直译并烤坐标,同步下发
    *  CSS 自走。 */
@@ -213,8 +216,10 @@ export interface FxSink {
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   /** 文案浮字(无金额的小字提示,风格对齐浮动金额)。 */
   spawnTextFloater(x: number, y: number, text: string): void;
-  /** 回合横幅(含 whoosh 音)。 */
-  showBanner(guohao: string, colorIndex: number): void;
+  /** 回合宣告(#732 入槽;#762 两段式亮相+合并规则):fxStore 槽泵判别 bot→bot
+   *  同轮连续(返回 false=只更新常驻胶囊),true=全幅播出(含 whoosh 音,由实现侧
+   *  发声);播放器只对 true 让编排停留窗。 */
+  showBanner(guohao: string, colorIndex: number, meta: TurnAnnounceMeta): boolean;
   /** 朱砂印章(含 stamp 音);坐标提取拍已烤进事件(qiqian 在到达同步点换算)。
    *  tone="gold"=漆金印(S7 探宝「得」印)。 */
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;

@@ -4,7 +4,11 @@
    槽体锚定顶中 top+8(safe-aware,与顶栏行同排);同槽互斥+排队由 fxStore 知会槽泵
    结构性保证(同一时刻 notice 至多一条),槽内带件(.fx-turn-banner/.fx-halt-banner,
    样式族在 fx.css)绝对定位于本槽居中。色一律 var(--color-*),裸色豁免登记见
-   layout.css 文件头(本文件零新增裸色)。 */
+   layout.css 文件头(本文件零新增裸色)。
+   #762:槽内增常驻回合胶囊(.turn-capsule)——两段式亮相的收编终态,横幅播完即常驻
+   显示当前回合方;胶囊是 flex 常驻件、带件是 absolute 覆盖件(DOM 序在后=z 序在上,
+   收编淡出即露出胶囊);等待条的「已候 N 秒」附加信息并入胶囊右侧(组件内融合,
+   见 NoticeBanner/WaitingBar)。 */
 
 .game-layout .notice-slot {
   position: absolute;
@@ -14,9 +18,73 @@
   height: 32px; /* 与顶栏钮行同高:槽空时等待条药丸在此行内垂直居中 */
   z-index: 6;
   pointer-events: none; /* 容器不挡棋盘拖拽;知会件纯播报零点击,全槽无放行件 */
-  /* 槽空件(等待条药丸)行内居中;带件(.fx-turn-banner/.fx-halt-banner)absolute
-     定位于本槽,不吃 flex 布局 */
+  /* 槽空件(等待条药丸/回合胶囊)行内居中;带件(.fx-turn-banner/.fx-halt-banner)
+     absolute 定位于本槽,不吃 flex 布局 */
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* ── 常驻回合胶囊(#762):国号印 + 名号 + 「第 N 轮」(+融合的等待附加信息)。
+   形态承等待条药丸的槽位(高 ~24px 居中于 32px 槽行),身份制式承席位格国号印
+   (座位色印面,--player-color 由 NoticeBanner 注入)。key=capsule.id(每次回合
+   宣告刷新),重挂即播 150ms 入场过渡(--dur-fast)——全幅横幅收编露出的与合并
+   回合的内容换装,同一拍过渡,消灭瞬跳。 */
+.game-layout .turn-capsule {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 24px;
+  padding: 1px 12px 1px 5px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-gold) 50%, transparent);
+  background: color-mix(in srgb, var(--color-panel) 95%, transparent);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  font-family: var(--font-title);
+  font-size: 14px;
+  color: var(--color-ink);
+  animation: turn-capsule-in var(--dur-fast) var(--ease-out);
+}
+@keyframes turn-capsule-in {
+  from {
+    opacity: 0;
+    scale: 0.92;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+/* 国号印(座位色制式,同席位格 .pseal 家族):座位色描边 + 印字亮档(--pc-seal)
+   on 26% 座色混底;--pc/--pc-seal 由 NoticeBanner 行内注入(core/theme 单源)。 */
+.game-layout .turn-capsule .tc-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 3px;
+  font-size: 12px;
+  line-height: 1;
+  color: var(--pc-seal);
+  background: color-mix(in srgb, var(--player-color) 26%, var(--color-bg-deep));
+  border: 1px solid var(--player-color);
+}
+.game-layout .turn-capsule .tc-name {
+  letter-spacing: 1px;
+}
+/* 「第 N 轮」:附加信息档(弱化,不与名号争读) */
+.game-layout .turn-capsule .tc-round {
+  color: color-mix(in srgb, var(--color-ink) 62%, var(--color-bg-deep));
+  font-size: 12px;
+  letter-spacing: 0.5px;
+}
+/* 融合的等待附加信息(#762):等待条 bare 变体落胶囊右侧,以点隔与主体分节 */
+.game-layout .turn-capsule .waiting-bare {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
 }

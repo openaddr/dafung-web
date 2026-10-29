@@ -492,14 +492,26 @@ describe("事件→动效映射表(合成批)", () => {
     const e = E();
     const one = synth(e, [{ kind: "turnStarted", seat: 1, round: 1, turn: 2 }]);
     expect(one).toEqual([
-      { kind: "turnBanner", guohao: e.players[1].guohao, colorIndex: e.players[1].colorIndex },
+      {
+        kind: "turnBanner",
+        guohao: e.players[1].guohao,
+        colorIndex: e.players[1].colorIndex,
+        isBot: e.players[1].isBot,
+        round: e.round,
+      },
     ]);
     const merged = synth(e, [
       { kind: "turnStarted", seat: 0, round: 1, turn: 2 },
       { kind: "turnStarted", seat: 1, round: 1, turn: 3 },
     ]);
     expect(merged).toEqual([
-      { kind: "turnBanner", guohao: e.players[1].guohao, colorIndex: e.players[1].colorIndex },
+      {
+        kind: "turnBanner",
+        guohao: e.players[1].guohao,
+        colorIndex: e.players[1].colorIndex,
+        isBot: e.players[1].isBot,
+        round: e.round,
+      },
     ]);
   });
 
@@ -1208,7 +1220,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
           ],
         },
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
-        { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
+        { kind: "turnBanner", guohao: "蜀", colorIndex: 1, isBot: false, round: 1 },
       ],
       sink,
     );
@@ -1228,7 +1240,13 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
       ],
     });
     expect(sink.calls[2]).toEqual({ op: "floater", x: 10, y: 20, amount: -120, coins: false });
-    expect(sink.calls[3]).toEqual({ op: "banner", guohao: "蜀", colorIndex: 1 });
+    expect(sink.calls[3]).toEqual({
+      op: "banner",
+      guohao: "蜀",
+      colorIndex: 1,
+      isBot: false,
+      round: 1,
+    });
   });
 
   it("supplyRain → coins=true;sound 事件直通", async () => {
@@ -1370,7 +1388,7 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
       { kind: "diceRolled", die: 3 },
       { kind: "tokenMoved", playerId: "p1", keyframes: kfOf(2) },
       { kind: "tokenMoved", playerId: "p2", keyframes: kfOf(5) },
-      { kind: "turnBanner", guohao: "蜀", colorIndex: 1 },
+      { kind: "turnBanner", guohao: "蜀", colorIndex: 1, isBot: false, round: 1 },
     ];
     const done = present(events, sinkGate);
     await tick(); // 骰子已播,p1 行军挂起中

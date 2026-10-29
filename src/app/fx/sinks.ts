@@ -38,9 +38,14 @@ export function createEngineSink(): FxSink {
     spawnTextFloater(x, y, text) {
       useFxStore.getState().spawnTextFloater(x, y, text);
     },
-    showBanner(guohao, colorIndex) {
-      getAudio().play("banner");
-      useFxStore.getState().showBanner(guohao, rgba(playerColor(colorIndex)));
+    showBanner(guohao, colorIndex, meta) {
+      // #762:槽泵判别先行(bot→bot 同轮连续=只更新胶囊)——全幅才配 whoosh 音;
+      // 判定结果透传播放器(全幅才让编排停留窗)。
+      const full = useFxStore
+        .getState()
+        .showBanner(guohao, rgba(playerColor(colorIndex)), meta, colorIndex);
+      if (full) getAudio().play("banner");
+      return full;
     },
     stampSeal(x, y, char, tone) {
       getAudio().play("stamp");
@@ -102,7 +107,7 @@ export type FxSinkCall =
   | { op: "march"; playerId: string; keyframes: MarchSegmentFrames[] }
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
   | { op: "textFloater"; x: number; y: number; text: string }
-  | { op: "banner"; guohao: string; colorIndex: number }
+  | { op: "banner"; guohao: string; colorIndex: number; isBot: boolean; round: number }
   | { op: "seal"; x: number; y: number; char: string; tone?: "gold" }
   | { op: "landPulse"; x: number; y: number }
   | { op: "duelSigns"; sides: DuelSide[]; winnerSeat: number | null }
@@ -148,8 +153,11 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     spawnTextFloater(x, y, text) {
       calls.push({ op: "textFloater", x, y, text });
     },
-    showBanner(guohao, colorIndex) {
-      calls.push({ op: "banner", guohao, colorIndex });
+    showBanner(guohao, colorIndex, meta) {
+      // memorySink 恒按全幅语义回 true(present 据此走编排停留窗;合并判别是
+      // fxStore 槽泵的职责,录制 sink 不经 store)。
+      calls.push({ op: "banner", guohao, colorIndex, ...meta });
+      return true;
     },
     stampSeal(x, y, char, tone) {
       calls.push({ op: "seal", x, y, char, ...(tone == null ? {} : { tone }) });
