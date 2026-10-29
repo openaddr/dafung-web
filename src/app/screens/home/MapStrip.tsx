@@ -20,9 +20,10 @@ export interface MapStripProps {
   onSelect: (mapId: string) => void;
 }
 
-/** 条目定宽:窄签制式,首屏 844px 宽容器约露出 3 张半——边缘裁半卡即「还有图」的
+/** 条目弹性宽度(#751/H3,#742 判词):`flex:1 0 160px; max-width:280px`——
+ *  160px 基准保窄签制式,图少(内置 2 图)时均分填满行(消「没排满」的未完成感),
+ *  图 ≥3 时回落 160px 基准、280px 封顶——边缘裁半卡即「还有图」的
  *  滑动暗示(§4.6:可达性由裁切状态本身表达,不加箭头/文字提示)。 */
-const CARD_W = 160;
 
 export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) {
   const [entries, setEntries] = useState<MapEntry[] | null>(null);
@@ -95,9 +96,10 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
             data-testid={HOME_TID.mapStripItem(e.id)}
             aria-pressed={selected}
             onClick={() => onSelect(e.id)}
-            style={{ width: CARD_W }}
             className={
-              "shrink-0 snap-start rounded-[3px] border px-2.5 py-2 text-left transition-colors cursor-pointer " +
+              "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-2 text-left transition-colors cursor-pointer " +
+              // H3(#751):flex 1 0 160px + max-width 280px(见头注),替换原定宽 160
+              "flex-[1_0_160px] max-w-[280px] " +
               // 选中语言与 MapSelectPanel/SegmentedSelect 统一:金框 + gold/25 势档
               (selected ? "border-gold bg-gold/25" : "border-ink/25 bg-bg/60 hover:border-gold/60")
             }

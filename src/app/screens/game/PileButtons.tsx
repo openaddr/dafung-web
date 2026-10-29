@@ -1,8 +1,11 @@
 // 右下三圆钮(#700 全浮层骨架,原型 tmp/席位侧列原型.html ①gembtns 判决移植):
-// 锦囊 / 珍宝 / 名将,44px 圆 + 朱砂计数角标(名将含上限 x/3,HERO_CAPACITY)。
+// 锦囊 / 珍宝 / 名将,44px 圆 + 朱砂计数角标(名将含上限 x/3,HERO_CAPACITY;
+// 零值角标隐藏 #743 G——0 挂警示色是全程噪声,非零维持现状)。
 // 锦囊钮 = 手牌区显隐开关(亮=显示,.on 金描边亮态;收起时战斗区最大化)——开关
 // 状态对局内记忆、重进恢复(localStorage,GameScreen 持账本,本件只呈现与回传);
 // 出牌阶段/反应窗等窗态下手牌区被强制显示(GameScreen 口径),钮亮随有效显隐走。
+// 锦囊钮角标(#751 C3,#744 判词:三钮中唯一没有 .cnt 的;收起后新牌入手只剩地图
+// 浮字 transient,错过即不可知):非零常驻计数,单源=快照 jinnangHand.length。
 // 珍宝/名将钮 = 藏品弹层入口(#361 牌架双入口的接替者:点谁开谁的层,PileModal
 // 壳与陈列原样)——计数单源快照,与牌架旧入口同一读数。
 import { useState } from "react";
@@ -26,6 +29,8 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
   // 藏品弹层开合态(null=全收;一次一层,点钮开、Esc/点外/X 关)——从牌架迁来
   // (#361 双入口退役):收起手牌后藏品弹层必须仍可达,账本随钮不随架。
   const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
+  // 锦囊计数角标非零显示(#751 C3):0 张不挂(空手是常态非事件;「有牌」才值得常驻)。
+  const handCount = player.jinnangHand.length;
 
   return (
     <>
@@ -40,6 +45,11 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
         >
           锦
           <br />囊
+          {handCount > 0 && (
+            <i className="cnt" aria-hidden="true">
+              {handCount}
+            </i>
+          )}
         </button>
         <button
           type="button"
@@ -51,9 +61,13 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
         >
           珍
           <br />宝
-          <i className="cnt" aria-hidden="true">
-            {player.treasures.length}
-          </i>
+          {/* 零值角标隐藏(#743 G):0 挂朱砂=警示色零信息常驻,稀释真警示;
+              非零维持现状(名将 3/3 满员仍朱砂=「满仓」警示)。 */}
+          {player.treasures.length > 0 && (
+            <i className="cnt" aria-hidden="true">
+              {player.treasures.length}
+            </i>
+          )}
         </button>
         <button
           type="button"
@@ -65,9 +79,11 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
         >
           名
           <br />将
-          <i className="cnt" aria-hidden="true">
-            {player.heroes.length}/{HERO_CAPACITY}
-          </i>
+          {player.heroes.length > 0 && (
+            <i className="cnt" aria-hidden="true">
+              {player.heroes.length}/{HERO_CAPACITY}
+            </i>
+          )}
         </button>
       </div>
       {/* 藏品弹层(#361 接替):壳与陈列归 PileModal,标题随入口 */}

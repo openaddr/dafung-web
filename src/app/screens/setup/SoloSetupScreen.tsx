@@ -32,8 +32,10 @@ import { SegmentedSelect } from "@app/screens/shared/SegmentedSelect";
 import { Sym } from "@app/screens/shared/Sym";
 // S1(#34):配置卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
-// #497:本屏局部样式(起兵 busy 呼吸 + 短横屏密度档),同 home.css 口径(screen 目录内自持)
+// #497:本屏局部样式(起兵 busy 呼吸 + 矮横屏双列档),同 home.css 口径(screen 目录内自持)
 import "./setup.css";
+// #751/S1:矮横屏档 JS 结构分支(双列重排),与 setup.css 同串媒体查询同步(home #707 同款)
+import { useMediaQuery } from "@app/hooks/use-media-query";
 
 /** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
  *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
@@ -73,6 +75,10 @@ const STARTING_CASH = 10000;
 /** 国号预设持久化 key(起兵成功后写入;下次进入默认带入;联机加入也读同一份)。 */
 export const GUOHAO_PREF_KEY = "dafung.guohao";
 
+/** 矮横屏档媒体查询(#751/S1:形态分档断点单源=对局屏 layout.css A 档/home 同一查询串,
+ *  setup.css 矮横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
+const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
+
 export function SoloSetupScreen({
   onStart,
   onBack,
@@ -94,6 +100,8 @@ export function SoloSetupScreen({
   const guohaoInvalid = !isSingleCjk(guohao.trim());
   // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, currentMap);
+  // #751/S1:矮横屏档双列重排开关(左列配置/右列座位表+操作;桌面档信息架构零变化)
+  const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
 
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
@@ -151,288 +159,398 @@ export function SoloSetupScreen({
   };
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/起兵共用基类,只改尺寸)
+  // S2(#751/#742):返回/起兵触达提档——次级钮 ≥40、主行动墨钮 ≥44(DESIGN §4.7 口径)
   const btnBase = "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors";
+
+  // ── 构块化 JSX(两档共用件;#751/S1 矮横屏双列重排把同一批块重排进两列,
+  //    testid 契约零变化:座位行/输入/字盘/起兵全部原样)──
+
+  // 国号帮助/错误行(S4:#28 说明缩一行,语义保全)
+  const guohaoHelp = guohaoInvalid ? (
+    <span data-testid="setup-guohao-error" className="text-xs text-danger">
+      国号需为单个汉字
+    </span>
+  ) : (
+    <span className="text-xs text-ink-dim">起兵后默认带入 · 联机同用</span>
+  );
+
+  // 真人国号输入框(桌面档在座位表首行内;矮横屏档升入左列配置块,testid 不变)
+  const guohaoInput = (
+    <input
+      data-testid={TID.seatGuohaoInput(0)}
+      type="text"
+      maxLength={1}
+      value={guohao}
+      placeholder="?"
+      onChange={(e) => setGuohao(e.target.value)}
+      // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
+      // A7(#54):国号输入位用龙藏行书点缀(font-hand)
+      className={
+        "su-guohao-input w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
+        (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
+      }
+    />
+  );
+
+  // 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
+  // #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
+  // 承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号。
+  // S2(#751):32→36px(w-9 h-9)赎回 #175「首屏可达优先」的换亏(S1 双列重排后
+  // 竖向预算重估);shrink-0/snap-start 服务矮横屏档横滑条带(setup.css),wrap 档无感。
+  const pool = (
+    <div
+      data-testid={TID.guohaoPool}
+      role="group"
+      aria-label="字盘快选国号"
+      className="su-pool flex flex-wrap gap-1"
+    >
+      {GUOHAO_POOL.slice(0, 26).map((ch) => (
+        <button
+          key={ch}
+          data-testid={TID.guohaoChar(ch)}
+          aria-pressed={guohao === ch}
+          onClick={() => setGuohao(ch)}
+          className={
+            "su-pool-btn w-9 h-9 shrink-0 snap-start rounded border font-deco text-base cursor-pointer transition-colors " +
+            (guohao === ch
+              ? // 选中=钤印:漆金印(印章漆金化,#506;与对局内方印同语言,.seal-gold 在 app.css)
+                "border-gold-deep seal-gold font-bold"
+              : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
+          }
+        >
+          {ch}
+        </button>
+      ))}
+    </div>
+  );
+
+  // 座位表:首行真人,其余 bot(国号引擎分配,国号列显示「待分配」)。
+  // S3(#751/#742):行宽收至内容贴合——类型列 56→32px 改短签印表达(真人=漆金小印
+  // 「你」,bot=淡纸墨印「机」,§4.6 属性图标化;「待分配」语义必须文字,例外条款维持);
+  // 矮横屏档真人国号编辑升入左列配置块(withInput=false),座位行只回显,行高一律齐平。
+  const seatsTable = (withInput: boolean) => (
+    <div className="su-seats flex flex-col gap-1.5">
+      {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
+      <div className="grid grid-cols-[26px_1fr_32px] gap-2 font-deco text-xs text-ink-dim border-b border-ink/25 pb-1">
+        <span />
+        <span>国号</span>
+        <span>类型</span>
+      </div>
+      {Array.from({ length: seatCount }, (_, i) => {
+        const isBot = i >= 1;
+        const color = rgba(playerColor(i));
+        return (
+          <div
+            key={i}
+            data-testid={TID.seatRow(i)}
+            className="su-seat-row grid grid-cols-[26px_1fr_32px] items-center gap-2 py-1"
+          >
+            <span
+              className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base font-bold text-[color:var(--color-bg-deep)]"
+              style={{ background: color }}
+            >
+              {i + 1}
+            </span>
+            {isBot ? (
+              // bot 行不可编:国号列显示「待分配」,国号在对局 Guohao 阶段由引擎分配
+              // (R3-A4(#67):原占位「电脑」与类型列重复,类型列独占该语义;S-7 title 保留)
+              <span
+                data-testid={TID.seatGuohaoInput(i)}
+                title="开局由引擎分配国号"
+                className="font-deco text-ink-dim px-2 py-1 border border-transparent"
+              >
+                待分配
+              </span>
+            ) : withInput ? (
+              <div className="flex flex-col gap-0.5">
+                {guohaoInput}
+                {guohaoHelp}
+              </div>
+            ) : (
+              // 矮横屏档:编辑位在左列,此处回显当前国号(同输入位 font-hand)
+              <span className="font-hand text-lg text-ink px-2">{guohao}</span>
+            )}
+            <span
+              data-testid={TID.seatType(i)}
+              className={
+                "inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] font-title text-[13px] leading-none " +
+                (isBot
+                  ? "border border-ink/30 text-ink-dim" // 淡纸墨印
+                  : "seal-gold font-bold") // 漆金小印(= 全屏唯一真人标记,金=势)
+              }
+            >
+              {isBot ? "机" : "你"}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // 操作区:返回首页 / 起兵(#559:mt-4 → mt-3 折叠线微调)
+  const actions = (
+    <div className="su-actions flex items-center gap-2.5 mt-3">
+      <button
+        data-testid="solo-setup-back"
+        onClick={onBack}
+        className={btnBase + " note-btn min-h-[40px]"}
+      >
+        返回
+      </button>
+      <button
+        data-testid={TID.startGame}
+        onClick={() => void start()}
+        // S-2:国号非法即禁点(title 说明原因);P0-1:busy 期防连点
+        disabled={guohaoInvalid || busy}
+        title={guohaoInvalid ? "国号需为单个汉字" : undefined}
+        className={
+          btnBase +
+          // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按;S2 主行动 ≥44px
+          " ink-btn font-bold py-2.5 px-8 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
+          // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
+          (busy ? " su-busy" : "")
+        }
+      >
+        {busy ? "调兵遣将中…" : "起兵"}
+      </button>
+    </div>
+  );
+
+  // 诸侯数 / 目标身价 / 机遇折叠:X10(#29)原生 select 全退场——小范围数值走 stepper,
+  // 受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式)。
+  // #559:诸侯数与 AI 难度(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高,
+  // 「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读。
+  // #751/S1:矮横屏档三档签改单行(横排名+金额)省 12px 级块高,语义零增减。
+  const controls = (
+    <div className="su-controls flex flex-col gap-2 font-deco text-sm text-ink mb-3">
+      {/* #751/S1:矮横屏档标签与步进器同行(左列竖向预算紧,省一个标签行;桌面档堆叠不动) */}
+      <div className={isShortLandscape ? "flex items-center gap-3" : "flex flex-col gap-1"}>
+        <span className="shrink-0">诸侯数</span>
+        <Stepper
+          testid={TID.seatCount}
+          ariaLabel="诸侯数"
+          value={seatCount}
+          min={2}
+          max={8}
+          onChange={setSeatCount}
+        />
+      </div>
+      <div className="flex flex-col gap-1">
+        <span>目标身价</span>
+        <SegmentedSelect
+          testid={TID.target}
+          ariaLabel="目标身价"
+          value={target}
+          onChange={setTarget}
+          options={TARGET_OPTIONS.map((t) => ({
+            value: t,
+            // #751/S1:矮横屏档单行签(排名+金额同流,金额 11px)——双行签在 300px
+            // 左列装不下会折行(量测:折行=块高 +46px,字盘被挤出首屏);桌面档双行不动。
+            label: isShortLandscape ? (
+              <span className="whitespace-nowrap">
+                {TARGET_LABEL[t]}
+                <span className="text-[11px] font-normal opacity-80"> {formatMoney(t)}</span>
+              </span>
+            ) : (
+              <span className="flex flex-col items-center leading-tight">
+                <span>{TARGET_LABEL[t]}</span>
+                <span className="text-xs font-normal opacity-80">{formatMoney(t)}</span>
+              </span>
+            ),
+          }))}
+        />
+      </div>
+
+      {/* 机遇(#125):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json(说明写此处文案,
+        JSON 无注释);数值只做边界校验(触发 0~100 / 三档 ≥0),归一在引擎,和≠100 合法 */}
+      <details
+        data-testid={TID.encounterToggle}
+        className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
+      >
+        {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
+          group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
+          字族落 wenkai(XiaoWei 空芯字形风险,新文案禁用) */}
+        <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-ink [&::-webkit-details-marker]:hidden">
+          <Sym
+            name="expand"
+            size={12}
+            className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
+          />
+          机遇(落格触发事件)
+        </summary>
+        <div className="flex flex-col gap-2 px-2 pb-2">
+          <div className="grid grid-cols-2 gap-2">
+            {(
+              [
+                ["触发概率 %", TID.encounterTrigger, "triggerRate", 0, 100],
+                ["好运基准", TID.encounterGood, "good", 0, Infinity],
+                ["中性基准", TID.encounterNeutral, "neutral", 0, Infinity],
+                ["霉运基准", TID.encounterBad, "bad", 0, Infinity],
+              ] as const
+            ).map(([label, testid, key, min, max]) => (
+              <label
+                key={testid}
+                className="flex flex-col gap-0.5 font-wenkai text-xs text-ink-dim"
+              >
+                <span>{label}</span>
+                <input
+                  data-testid={testid}
+                  type="number"
+                  min={min}
+                  max={Number.isFinite(max) ? max : undefined}
+                  step="any"
+                  value={encounter[key]}
+                  onChange={(e) =>
+                    setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
+                  }
+                  className="min-h-[36px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
+                />
+              </label>
+            ))}
+          </div>
+          <p className="font-wenkai text-xs text-ink-dim">
+            {`默认档位读自 config/jiyu.json(触发 ${encounterDefaults.triggerRate}%,三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。触发概率为每次落格触发机遇的百分比;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
+          </p>
+        </div>
+      </details>
+    </div>
+  );
 
   return (
     // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
-    // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断
+    // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断。
+    // 矮横屏档(#751/S1)不靠根滚:su-wrap 撑满滚动埠、卡片吃剩余高,起兵钉底恒在场。
+    // G1(#751):左右 safe-area 由 setup.css .su-root 复合消费(刘海/圆角不贴边裸奔)。
     <div
       data-testid={TID.screen}
       className="su-root flex h-full flex-col overflow-y-auto bg-bg p-6"
     >
-      <div className="m-auto flex w-full flex-col items-center">
+      <div
+        className={`m-auto flex w-full flex-col items-center ${isShortLandscape ? "su-wrap" : ""}`}
+      >
         {/* #497 ①/#559:顶部返回位 —— Sym 左指箭头小笺钮放标题左侧(惯例位;原右端
           与箭头朝向矛盾),复用 onBack,8 诸侯 + 机遇展开时不必滚到卡底即可退;
-          h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿) */}
+          h1 补 pl 与 tracking 尾部空白同量(home 同款居中补偿)。
+          S2:返回钮命中 32→40px;.su-back 偏移随 safe-left(setup.css)。
+          #751/S1:矮横屏档标题降档(30px)给双列让位(home #707 同款收纳)。 */}
         <div className="relative w-full flex justify-center">
           <button
             type="button"
             data-testid={TID.backTop}
             onClick={onBack}
             aria-label="返回首页"
-            className="note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[32px] text-ink cursor-pointer transition-colors"
+            className="su-back note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[40px] min-w-[40px] text-ink cursor-pointer transition-colors"
           >
             <Sym name="back" size={14} />
           </button>
-          <h1 className="font-title text-4xl text-ink tracking-widest pl-[0.1em]">单机模式</h1>
-        </div>
-
-        {/* S1(#34):卡片入场复用 scroll-anim-unroll(0.35s 一次;reduced-motion 瞬时)
-          #559:p-5 → px-5 py-4 压纵向呼吸,「起兵」CTA 入 1280×800 折叠线;
-          mt-4 → mt-3(实测 px-5 py-4 + 并排后仍差 7px,追加 4px 级间距微调补足) */}
-        <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
-          {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-          <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
-            <span>当前地图:</span>
-            <span data-testid={TID.currentMapName} className="text-ink">
-              {mapName}
-            </span>
-            <button
-              type="button"
-              onClick={() => setShowMapSelect(true)}
-              className="note-btn rounded-[3px] px-2.5 min-h-[32px] font-wenkai text-xs cursor-pointer transition-colors"
-            >
-              更换
-            </button>
-          </div>
-          {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-          <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-ink/20 pb-3">
-            立国号、定诸侯,起兵逐鹿天下。
-          </p>
-
-          {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar)
-            #559:mb-3 → mb-2 折叠线微调 */}
-          <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
-            <i>阵</i>
-            <span>开局布阵</span>
-          </h3>
-
-          {/* 诸侯数 / 目标身价 / AI 难度:X10(#29)原生 select 全退场——小范围数值走 stepper,
-            受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式)。
-            #559:诸侯数与 AI 难度(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高,
-            「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读 */}
-          <div className="su-controls flex flex-col gap-2 font-deco text-sm text-ink mb-3">
-            <div className="flex flex-col gap-1">
-              <span>诸侯数</span>
-              <Stepper
-                testid={TID.seatCount}
-                ariaLabel="诸侯数"
-                value={seatCount}
-                min={2}
-                max={8}
-                onChange={setSeatCount}
-              />
-            </div>
-            <div className="flex flex-col gap-1">
-              <span>目标身价</span>
-              <SegmentedSelect
-                testid={TID.target}
-                ariaLabel="目标身价"
-                value={target}
-                onChange={setTarget}
-                options={TARGET_OPTIONS.map((t) => ({
-                  value: t,
-                  label: (
-                    <span className="flex flex-col items-center leading-tight">
-                      <span>{TARGET_LABEL[t]}</span>
-                      <span className="text-xs font-normal opacity-80">{formatMoney(t)}</span>
-                    </span>
-                  ),
-                }))}
-              />
-            </div>
-
-            {/* 机遇(#125):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json(说明写此处文案,
-              JSON 无注释);数值只做边界校验(触发 0~100 / 三档 ≥0),归一在引擎,和≠100 合法 */}
-            <details
-              data-testid={TID.encounterToggle}
-              className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
-            >
-              {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
-                group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
-                字族落 wenkai(XiaoWei 空芯字形风险,新文案禁用) */}
-              <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-ink [&::-webkit-details-marker]:hidden">
-                <Sym
-                  name="expand"
-                  size={12}
-                  className="mr-1.5 inline-block transition-transform duration-[var(--dur-fast)] ease-[var(--ease-out)] group-open:rotate-180"
-                />
-                机遇(落格触发事件)
-              </summary>
-              <div className="flex flex-col gap-2 px-2 pb-2">
-                <div className="grid grid-cols-2 gap-2">
-                  {(
-                    [
-                      ["触发概率 %", TID.encounterTrigger, "triggerRate", 0, 100],
-                      ["好运基准", TID.encounterGood, "good", 0, Infinity],
-                      ["中性基准", TID.encounterNeutral, "neutral", 0, Infinity],
-                      ["霉运基准", TID.encounterBad, "bad", 0, Infinity],
-                    ] as const
-                  ).map(([label, testid, key, min, max]) => (
-                    <label
-                      key={testid}
-                      className="flex flex-col gap-0.5 font-wenkai text-xs text-ink-dim"
-                    >
-                      <span>{label}</span>
-                      <input
-                        data-testid={testid}
-                        type="number"
-                        min={min}
-                        max={Number.isFinite(max) ? max : undefined}
-                        step="any"
-                        value={encounter[key]}
-                        onChange={(e) =>
-                          setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
-                        }
-                        className="min-h-[36px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
-                      />
-                    </label>
-                  ))}
-                </div>
-                <p className="font-wenkai text-xs text-ink-dim">
-                  {`默认档位读自 config/jiyu.json(触发 ${encounterDefaults.triggerRate}%,三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。触发概率为每次落格触发机遇的百分比;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
-                </p>
-              </div>
-            </details>
-          </div>
-
-          {/* 座位表:首行真人(国号可编),其余 bot(国号引擎分配,国号列显示「待分配」) */}
-          <div className="su-seats flex flex-col gap-1.5">
-            {/* R3-A4(#67):表头补 gap-2,与数据行(同列宽带 gap-2)对齐,消除 8px 错位 */}
-            <div className="grid grid-cols-[32px_1fr_56px] gap-2 font-deco text-xs text-ink-dim border-b border-ink/25 pb-1">
-              <span />
-              <span>国号</span>
-              <span>类型</span>
-            </div>
-            {Array.from({ length: seatCount }, (_, i) => {
-              const isBot = i >= 1;
-              const color = rgba(playerColor(i));
-              return (
-                <div
-                  key={i}
-                  data-testid={TID.seatRow(i)}
-                  className="su-seat-row grid grid-cols-[32px_1fr_56px] items-center gap-2 py-1"
-                >
-                  <span
-                    className="w-[26px] h-[26px] rounded-[2px] flex items-center justify-center font-title text-base font-bold text-[color:var(--color-bg-deep)]"
-                    style={{ background: color }}
-                  >
-                    {i + 1}
-                  </span>
-                  {isBot ? (
-                    // bot 行不可编:国号列显示「待分配」,国号在对局 Guohao 阶段由引擎分配
-                    // (R3-A4(#67):原占位「电脑」与类型列重复,类型列独占该语义;S-7 title 保留)
-                    <span
-                      data-testid={TID.seatGuohaoInput(i)}
-                      title="开局由引擎分配国号"
-                      className="font-deco text-ink-dim px-2 py-1 border border-transparent"
-                    >
-                      待分配
-                    </span>
-                  ) : (
-                    <div className="flex flex-col gap-0.5">
-                      <input
-                        data-testid={TID.seatGuohaoInput(i)}
-                        type="text"
-                        maxLength={1}
-                        value={guohao}
-                        placeholder="?"
-                        onChange={(e) => setGuohao(e.target.value)}
-                        // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
-                        // A7(#54):国号输入位用龙藏行书点缀(font-hand)
-                        className={
-                          "su-guohao-input w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
-                          (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
-                        }
-                      />
-                      {guohaoInvalid ? (
-                        // S8:框下即时 xs 红字(替代提交后 hint 里才出现文案)
-                        <span data-testid="setup-guohao-error" className="text-xs text-danger">
-                          国号需为单个汉字
-                        </span>
-                      ) : (
-                        // #28 UI:国号预设的可感知说明 —— 告知起兵后会记住并默认带入(含联机)
-                        <span className="text-xs text-ink-dim">
-                          起兵后记住此国号,下次默认带入,联机加入时也自动使用
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  <span data-testid={TID.seatType(i)} className="font-deco text-sm text-ink-dim">
-                    {isBot ? "电脑" : "你"}
-                  </span>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* 字盘快选国号(仅作用于真人行;对照旧 GUOHAO_POOL 前 26 字)。
-            #175:容器 role=group+aria-label(口径同 SegmentedSelect),每钮 aria-pressed
-            承载选中态——「钤印」高亮不再只靠视觉,读屏可感知当前国号 */}
-          <div className="su-pool-label font-deco text-xs text-ink-dim mt-3 mb-1">
-            字盘快选国号:
-          </div>
-          <div
-            data-testid={TID.guohaoPool}
-            role="group"
-            aria-label="字盘快选国号"
-            className="su-pool flex flex-wrap gap-1"
+          <h1
+            className={`font-title text-ink tracking-widest pl-[0.1em] ${
+              isShortLandscape ? "text-3xl leading-none" : "text-4xl"
+            }`}
           >
-            {GUOHAO_POOL.slice(0, 26).map((ch) => (
-              <button
-                key={ch}
-                data-testid={TID.guohaoChar(ch)}
-                aria-pressed={guohao === ch}
-                onClick={() => setGuohao(ch)}
-                className={
-                  // W2-包A:字盘钮 36px→32px(w-8 h-8)压卡片纵向高度,「起兵」CTA 更易入首屏
-                  // (审计裁决:首屏可达优先;触屏 32px 仍可用)
-                  "w-8 h-8 rounded border font-deco text-base cursor-pointer transition-colors " +
-                  (guohao === ch
-                    ? // 选中=钤印:漆金印(印章漆金化,#506;与对局内方印同语言,.seal-gold 在 app.css)
-                      "border-gold-deep seal-gold font-bold"
-                    : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
-                }
-              >
-                {ch}
-              </button>
-            ))}
-          </div>
-
-          {/* 操作区:返回首页 / 起兵(#559:mt-4 → mt-3 折叠线微调) */}
-          <div className="su-actions flex items-center gap-2.5 mt-3">
-            <button
-              data-testid="solo-setup-back"
-              onClick={onBack}
-              className={btnBase + " note-btn"}
-            >
-              返回
-            </button>
-            <button
-              data-testid={TID.startGame}
-              onClick={() => void start()}
-              // S-2:国号非法即禁点(title 说明原因);P0-1:busy 期防连点
-              disabled={guohaoInvalid || busy}
-              title={guohaoInvalid ? "国号需为单个汉字" : undefined}
-              className={
-                btnBase +
-                // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按
-                " ink-btn font-bold py-2.5 px-8 disabled:opacity-40 disabled:cursor-not-allowed" +
-                // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
-                (busy ? " su-busy" : "")
-              }
-            >
-              {busy ? "调兵遣将中…" : "起兵"}
-            </button>
-          </div>
-
-          {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
-          {hint != null && (
-            <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-3">
-              {hint}
-            </div>
-          )}
+            单机模式
+          </h1>
         </div>
+
+        {isShortLandscape ? (
+          /* ── 矮横屏档(#751/S1 双列重排,#742 判词 A+B):卡宽 780 居中消两侧死白;
+            左列 ≈300px 配置(地图行/诸侯数/目标身价/机遇折叠/国号字盘),
+            右列座位表+操作;起兵 sticky 钉底恒在场(4 诸侯零滚动,8 诸侯右列内滚)。
+            副标题/笺头在本档收纳退役(座次预算让位给字盘与座位表,home #707 降档同款)。 ── */
+          <div className="su-card scroll-anim-unroll note-card w-[min(780px,94vw)] rounded-[8px] px-5 py-4 mt-3">
+            <div className="su-grid">
+              <div className="su-col su-col-left">
+                {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
+                <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
+                  <span>当前地图:</span>
+                  <span data-testid={TID.currentMapName} className="text-ink">
+                    {mapName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowMapSelect(true)}
+                    className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
+                  >
+                    更换
+                  </button>
+                </div>
+
+                {/* 诸侯数 / 目标身价 / 机遇折叠(块与桌面档同一份);矮横屏档间距收紧走 setup.css */}
+                {controls}
+
+                {/* 国号配置块(本档独有归位):真人国号编辑+帮助句+字盘升入左列,
+                  座位表右列只留回显——行高齐平、右列竖向预算全给座位行与 CTA。
+                  字盘 26 字以横滑条带呈现(竖向预算解,见 pool 注释/setup.css)。 */}
+                <div className="su-guohao-block flex flex-col gap-1">
+                  <div className="flex items-center gap-2">
+                    <span className="font-deco text-sm text-ink shrink-0">你的国号</span>
+                    {guohaoInput}
+                  </div>
+                  {guohaoHelp}
+                  {pool}
+                </div>
+              </div>
+              <div className="su-col su-col-right">
+                {seatsTable(false)}
+                {actions}
+                {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
+                {hint != null && (
+                  <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-2">
+                    {hint}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          /* ── 桌面档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
+          <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
+            {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
+            <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
+              <span>当前地图:</span>
+              <span data-testid={TID.currentMapName} className="text-ink">
+                {mapName}
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowMapSelect(true)}
+                className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
+              >
+                更换
+              </button>
+            </div>
+            {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
+            <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-ink/20 pb-3">
+              立国号、定诸侯,起兵逐鹿天下。
+            </p>
+
+            {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar)
+              #559:mb-3 → mb-2 折叠线微调 */}
+            <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+              <i>阵</i>
+              <span>开局布阵</span>
+            </h3>
+
+            {controls}
+
+            {seatsTable(true)}
+
+            {/* 字盘快选国号(仅作用于真人行) */}
+            <div className="su-pool-label font-deco text-xs text-ink-dim mt-3 mb-1">
+              字盘快选国号:
+            </div>
+            {pool}
+
+            {actions}
+
+            {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
+            {hint != null && (
+              <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-3">
+                {hint}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* S-3:内嵌选图二级屏(复用首页同款面板;确认后本地回显 + onMapChange 通知接线方) */}
         {showMapSelect && (

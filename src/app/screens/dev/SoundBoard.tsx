@@ -27,7 +27,10 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   jinnangSelect: { label: "选牌轻嗒", when: "出牌阶段/反应窗点选牌面(极轻瞬态)" },
   coinsBox: { label: "铜钱入匣", when: "S7 破产仪式撒币拍(#513)" },
   rain: { label: "雨声铺底", when: "S7 破产仪式开锣(压档衬底,播放侧截 3s;#513)" },
-  haltGong: { label: "都城停锣", when: "S7 都城路过必停全屏宣告开拍(复用长锣;#513)" },
+  haltGong: { label: "都城停号角", when: "都城路过必停条带开拍(狩猎号角,#751 与破产长锣分家)" },
+  duelClash: { label: "拼点合击", when: "拼点签面起摇拍(骨牌相击,#751/#746)" },
+  verdictChime: { label: "判词磬", when: "拼点判词拍·中缝印落锤同拍(碗磬一记,截 1.6s;#751/#746)" },
+  reactionOpen: { label: "开窗轻叩", when: "反应窗开启(木鱼族一记;#751)" },
 };
 
 function Board() {

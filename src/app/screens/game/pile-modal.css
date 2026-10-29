@@ -137,8 +137,11 @@
   font-size: 12px;
   color: var(--color-ink-dim);
 }
-/* 右上 X:圆框关闭钮(关闭语义由 aria-label 承担,字形 × 即通用关闭符) */
+/* 右上 X:圆框关闭钮(关闭语义由 aria-label 承担,字形 × 即通用关闭符)。
+   触达制式(#745 高2):视觉 26px 环不动,透明命中垫扩到 44×44(inset −9)——
+   伪元素属按钮本体,拖动把手的「起点命中按钮不启动拖」豁免照常生效。 */
 .pile-modal .pile-close {
+  position: relative;
   flex: none;
   margin-left: auto;
   width: 26px;
@@ -156,6 +159,11 @@
     transform var(--dur-fast) var(--ease-out),
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out);
+}
+.pile-modal .pile-close::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
 }
 .pile-modal .pile-close:hover {
   color: var(--color-ink);
@@ -194,10 +202,11 @@
 }
 
 /* ── 珍宝陈列网格:装裱卡大格(r5 .fuku-grid/.fuku-cell/.price-tag 移植);
-   卡面吃陈列档 7.6px em 基(=114×152,与 r5 .cellsize 同值,题签/角标直接可读)── */
+   卡面吃陈列档 7.6px em 基(=114×152,与 r5 .cellsize 同值,题签/角标直接可读)。
+   auto-fit(#745 中6):空轨坍缩,末行孤件/不满行自动居中(满行与 auto-fill 零差异)── */
 .pile-modal .pile-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 128px);
+  grid-template-columns: repeat(auto-fit, 128px);
   justify-content: center;
   gap: 18px 16px;
   padding: 6px 0 2px;

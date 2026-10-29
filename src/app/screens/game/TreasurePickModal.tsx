@@ -121,7 +121,7 @@ export function TreasurePickModal({
       {context}
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        待选 · {treasures.length} 件<small>(点选=金描边上浮,价签转成交;底部两段确认)</small>
+        待选 · {treasures.length} 件
       </div>
       <div className="pile-grid">
         {treasures.map((t) => {

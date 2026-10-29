@@ -184,12 +184,15 @@ test.describe("全浮层骨架", () => {
             }),
             { gem: TESTIDS.pileTreasures, hero: TESTIDS.pileHeroes },
           );
+          // 零值角标隐藏(#743 G):计数 0 时 .cnt 不渲染,期望值=undefined 与 DOM 对齐
+          const gem = s.players[0].treasures.length;
+          const heroes = s.players[0].heroes.length;
           return (
-            dom.gem === String(s.players[0].treasures.length) &&
-            dom.hero === `${s.players[0].heroes.length}/3`
+            dom.gem === (gem > 0 ? String(gem) : undefined) &&
+            dom.hero === (heroes > 0 ? `${heroes}/3` : undefined)
           );
         },
-        { message: "三圆钮朱砂角标计数与快照一致" },
+        { message: "三圆钮计数角标与快照一致(零值隐藏 #743 G)" },
       )
       .toBe(true);
     // 点「珍宝」圆钮 → 珍宝弹层:标题随入口(单次 evaluate 原子采样:DOM 与快照同拍)

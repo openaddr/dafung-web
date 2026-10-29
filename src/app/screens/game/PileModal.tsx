@@ -35,13 +35,13 @@ const KIND_META = {
   treasures: {
     title: "珍宝",
     seal: "宝",
-    sub: "珍宝收藏册 · 装裱陈列+品级角标",
+    sub: "珍宝收藏册",
     testid: TESTIDS.treasureModal,
   },
   heroes: {
     title: "名将",
     seal: "将",
-    sub: "麾下名将 · 武将卡群",
+    sub: "麾下名将",
     testid: TESTIDS.heroModal,
   },
 } as const;
@@ -141,7 +141,7 @@ function TreasureGrid({ player }: { player: SnapshotPlayer }) {
     <>
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        已持有 · {player.treasures.length} 件<small>(右上角标=品级,底色随品级;名牌=指导价)</small>
+        已持有 · {player.treasures.length} 件<small>(名牌=指导价)</small>
       </div>
       <div className="pile-grid">
         {player.treasures.map((t) => {
@@ -172,7 +172,7 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
     <>
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {player.heroes.length} 席<small>(卡面=技能全文)</small>
+        麾下名将 · {player.heroes.length} 席
       </div>
       <div className="pile-hero-grid">
         {player.heroes.map((h) => (

@@ -264,6 +264,70 @@
   margin: 0 auto 14px;
 }
 
+/* ── 架尾计数章(#751 C2,触屏全显通路):.many 压缩态常驻,点按=临时全展 2.5s
+   (再点/点外即收,逻辑在 HandRack.tsx);hover 挥出仍是桌面全显通路,章只入
+   pointer:coarse 档(#744 判词口径)。锚位:架右缘、抬出三圆钮区——pilebtns 在
+   两档各探进手牌区右缘 ~48/72px,贴地绝对定位会被锦囊钮盖住点不到(实拍取证);
+   bottom 8.5em 两档(6.4/9.6px 基)均越过钮区上界。章=漆木小圆章 + 文楷计数
+   (数字=信息,§4.6 例外);全展中(.on)金边点亮=状态表达。热区 36px 级
+   (频次低,无 44 硬门)。 ── */
+.rack-spread-badge {
+  display: none;
+}
+@media (pointer: coarse) {
+  .rack-spread-badge {
+    position: absolute;
+    right: 0.5em;
+    bottom: 8.5em;
+    z-index: 9;
+    width: 36px;
+    height: 36px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--color-lacquer) 88%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
+    color: var(--color-lacquer-gold);
+    font-family: var(--font-wenkai);
+    font-size: 14px;
+    line-height: 1;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+    transition:
+      border-color var(--dur-fast) var(--ease-out),
+      box-shadow var(--dur-fast) var(--ease-out);
+  }
+  .rack-spread-badge.on {
+    border-color: var(--color-gold-bright);
+    box-shadow:
+      0 0 0 1.5px var(--color-gold),
+      0 0 10px color-mix(in srgb, var(--color-gold) 40%, transparent);
+  }
+  .rack-spread-badge:focus-visible {
+    outline: 2px dashed var(--color-gold);
+    outline-offset: 2px;
+  }
+}
+
+/* ── 出牌窗可用牌金圈脉冲一拍(#751 B1):未选牌点按「出牌」时,架上可用牌金圈
+   亮一拍回落(seat-selglow 同族状态语言,一次性不呼吸;.nudge 类由 HandRack 按
+   nudgePulse 计数挂摘)。usable 常驻 hairline 是落点,脉冲从 hairline 起伏。 ── */
+.hand-rack.junshi .hand-rack-hand.nudge > button.usable .jinnang-card {
+  animation: usable-ring-once var(--dur-med) var(--ease-out);
+}
+@keyframes usable-ring-once {
+  0%,
+  100% {
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
+  }
+  45% {
+    box-shadow:
+      0 0 0 3px var(--color-gold-bright),
+      0 0 14px rgba(200, 161, 58, 0.55);
+  }
+}
+
 /* ── 名将技卡(#360):出牌阶段态技卡换 HeroCardFace 紧凑档(与招贤/府库同一张
    名将卡面,样式单源 card/hero-card.css,旧 .jn-lingjian 令笺差量随退役);
    卡基经 --hface-base 随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点),

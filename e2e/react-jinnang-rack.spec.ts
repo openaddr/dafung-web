@@ -93,6 +93,10 @@ const NINE_CARDS = [
  *  UI 无遮罩),牌架无限期稳定可 hover。测试全程不发命令,引擎不会被推进。 */
 async function rackStandstill(page: Page, cards: string[]): Promise<void> {
   await quickStart(page);
+  // quickStart 末次点击落点随随机种子可能残留在 .many 行上,hover spread 会污染
+  // settledRackGeometry 基线(#751 集成定性:9 张等距 3.64px/hover 基线 409.36 两例同根,
+  // 裸 master 复现)——指针先行离场,后续 waitMyPause 的等待窗足够回落过渡播完。
+  await page.mouse.move(0, 0);
   // 90s:quickStart 收尾可能停在 bot 回合(waitMyRollDone 见 decisionOwner 换人即收),
   // 等一整轮 bot 走回人类停靠点——W2 全量负载下实测一轮可超 30s(2026-09-28 全量 flake,
   // #308 同族「标 slow 防超时,非删」口径)。
@@ -341,12 +345,13 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
     await expect(card.locator(".jinnang-card")).toHaveClass(/off/);
     await expect(card.locator(".reason")).toHaveText("唯反应(反应窗打出)");
 
-    // 点击=只开详情(不选中):动作条「出牌」钮不亮
+    // 点击=只开详情(不选中):动作条「出牌」钮不亮(#751 B1:卡牌段弃原生 disabled,
+    // aria-disabled+自门控,断言随行)
     await card.click({ force: true });
     const detail = page.getByTestId(TESTIDS.jinnangDetail);
     await expect(detail).toBeVisible();
     await expect(detail).toContainText(LOCKED);
-    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toBeDisabled();
+    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toHaveAttribute("aria-disabled", "true");
     await page.keyboard.press("Escape");
     await expect(detail).toHaveCount(0);
 
@@ -368,7 +373,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
     const detail = page.getByTestId(TESTIDS.jinnangDetail);
     await expect(detail).toBeVisible();
     await expect(detail).toHaveCount(1); // 长按吞补发 click,同一动作不弹两次
-    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toBeDisabled();
+    await expect(page.getByTestId(TESTIDS.actionbarPlay)).toHaveAttribute("aria-disabled", "true");
   });
 
   test("available 对照零回归:点牌选中出牌点亮、长按取消;灰置牌开详情不动选中", async ({ page }) => {
@@ -399,7 +404,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
     await page.waitForTimeout(700);
     await page.mouse.up();
     await expect(usable.locator(".jinnang-card")).not.toHaveClass(/sel/);
-    await expect(play).toBeDisabled();
+    await expect(play).toHaveAttribute("aria-disabled", "true");
   });
 });
 

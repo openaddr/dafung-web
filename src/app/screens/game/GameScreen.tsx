@@ -343,6 +343,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     if (use) getAudio().play("stamp"); // 落印音随一期口径
     dispatchCommand({ type: "respondReaction", seat: selfSeat, use, cardId, shareSeat });
   };
+  // 未选牌点按「出牌」计数(#751 B1):动作条自门控回执 → HandRack 可用牌金圈脉冲一拍。
+  const [playNudge, setPlayNudge] = useState(0);
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
       <ReactionBanner
@@ -361,6 +363,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               : `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
             : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
         }
+        // 来者锦囊 mini 签面(#751 A6):jinnang 窗带本窗牌面锚点;march 窗无牌不挂。
+        cardId={reaction.kind === "jinnang" ? reaction.cardId : undefined}
         // 时长单源(#284):读快照 windowMs 过缩放包装,不再按窗种引常量表——
         // 单机=引擎常量 3000(缩放后行为不变);联机=权威侧配置,两端同长。
         durationMs={scaleReactionMs(reaction.windowMs)}
@@ -527,6 +531,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               迁右下三圆钮,架体只承载牌面与窗态)。 */
               <HandRack
                 player={selfPlayer}
+                nudgePulse={playNudge}
                 junshi={
                   junshiUp
                     ? {
@@ -573,7 +578,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           />
         )}
         {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=出(选中席
-          点亮,#417)/作罢;选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。 */}
+          点亮,#417)/作罢;选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。
+          onBlockedAttempt(#751 B1):卡牌段未选牌点「出牌」→ 架上可用牌金圈脉冲一次。 */}
         {junshiUp && (
           <ActionBar
             segment={junshiTargeting ? "target" : "card"}
@@ -581,6 +587,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             onPlay={junshiConfirm}
             onPass={junshiPass}
             rightShift={!junshiTargeting && junshiSelected != null}
+            onBlockedAttempt={() => setPlayNudge((n) => n + 1)}
           />
         )}
         {/* 战报抽屉(#255;#700 入口降级设置弹层):条件挂载,常收零占位。 */}

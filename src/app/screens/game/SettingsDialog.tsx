@@ -7,14 +7,18 @@
 //     现役音频系统只有音效一个通道、无配乐,原型「音乐」行无真实承载,不落假开关);
 //   - 战报把手 → 战报› 行(抽屉本体保留,数据照记,入口降级);
 //   - 版本角标 → 版本行(构建戳直读 VERSION);
-//   - 回到主页行:弃局离屏(销毁控制器释放 WS/时钟,回 setup)——本行是新增出口。
+//   - 回到主页行:弃局离屏(销毁控制器释放 WS/时钟,回 setup)——本行是新增出口;
+//     #745 高1 起接现成 ConfirmDialog 二次确认(danger 着色,文案写明弃局/退房后果)。
 //   - 演出加速行:信息展示「标准」(原型原样;演出提速目前只有追帧自动档,无用户
 //     档位基建,不落假切换钮)。
-import { Switch as SwitchPrimitive } from "@base-ui/react/switch";
+import { useState } from "react";
 import { Dialog, DialogContent, DialogClose, DialogTitle } from "@app/components/ui/dialog";
+import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useAudio } from "@app/fx/AudioProvider";
+import { useNetStore } from "@app/store/netStore";
 import { Sym } from "@app/screens/shared/Sym";
+import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { VERSION } from "../../../version";
 import { TESTIDS } from "./testids";
 import "./layout.css";
@@ -29,6 +33,10 @@ export interface SettingsDialogProps {
 
 export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsDialogProps) {
   const audio = useAudio();
+  // 回到主页弃局确认(#745 高1):弹层内唯一不可逆动作,裸奔退役——点行先落确认框,
+  // 确认文案写明后果(单机=对局进度丢弃;联机=并退出房间);取消则设置弹层原样保留。
+  const roomId = useNetStore((s) => s.roomId);
+  const [confirmHome, setConfirmHome] = useState(false);
   return (
     <Dialog
       open
@@ -50,19 +58,18 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
           testid={TESTIDS.modalDragHandle}
         />
         <DialogTitle className="mb-1 font-title text-[15px] tracking-[2px]">设置</DialogTitle>
-        {/* 音效开关:开=有声(接 AudioProvider 单通道静音账本,原静音钮的接替者) */}
+        {/* 音效开关:开=有声(接 AudioProvider 单通道静音账本,原静音钮的接替者)。
+            开关皮单源回 ui/switch 底件桥接(#745 高4:.setsw 手写皮退役,on 态吃
+            --primary=漆金,success 语义错位收口)。 */}
         {audio && (
           <div className="setrow">
             音效
-            <SwitchPrimitive.Root
+            <Switch
               data-testid={TESTIDS.settingsSfx}
               aria-label={audio.muted ? "开音效" : "静音音效"}
               checked={!audio.muted}
               onCheckedChange={() => audio.toggleMuted()}
-              className="setsw"
-            >
-              <SwitchPrimitive.Thumb className="setsw-thumb" />
-            </SwitchPrimitive.Root>
+            />
           </div>
         )}
         {/* 演出加速:信息展示(原型原样「标准」;用户档位切换无基建,不落假钮) */}
@@ -88,19 +95,36 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
           版本
           <i className="setval">{VERSION}</i>
         </div>
-        {/* 回到主页:弃局离屏(控制器销毁;联机即退出房间) */}
+        {/* 回到主页:弃局离屏(控制器销毁;联机即退出房间)——行先落确认框(#745 高1),
+            行文字/chevron 转 danger 朱砂,与「战报」普通行一眼区分(danger 语义已
+            有承担,不新造色)。 */}
         <button
           type="button"
           data-testid={TESTIDS.settingsHome}
-          className="setrow setrow-btn"
-          onClick={() => {
-            onClose();
-            onGoHome();
-          }}
+          className="setrow setrow-btn setrow-danger"
+          onClick={() => setConfirmHome(true)}
         >
           回到主页
-          <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
+          <Sym name="expand" size={11} className="rotate-[-90deg] text-danger" />
         </button>
+        {/* 弃局确认(#745 高1):现成 ConfirmDialog 接力(禁新造组件),按钮全称,
+            文案写明后果——单机=进度丢弃,联机=并退出房间。 */}
+        {confirmHome && (
+          <ConfirmDialog
+            title="弃局回到主页?"
+            confirmLabel="弃局回主页"
+            cancelLabel="继续对局"
+            onConfirm={() => {
+              setConfirmHome(false);
+              onClose();
+              onGoHome();
+            }}
+            onCancel={() => setConfirmHome(false)}
+          >
+            对局进度将丢弃,不可找回
+            {roomId !== "" ? ",并退出房间" : ""}。
+          </ConfirmDialog>
+        )}
         {/* 可达名兜底出口:× 关闭钮(原型无,模态弹层出口口径同城池详情/锦囊详情)。
             DialogClose 承载交互语义,制式 44px 热区漆金圆钮(HandRack JinnangDetailSheet
             同族)。 */}

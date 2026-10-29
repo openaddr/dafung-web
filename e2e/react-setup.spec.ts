@@ -23,12 +23,13 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
     timeout: 10_000,
   });
 
-  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号列占位「待分配」,R3-A4 #67 去重)
+  // 默认 4 座:0 真人(国号可编、默认「魏」),1-3 电脑(国号列占位「待分配」,R3-A4 #67 去重;
+  // #751/S3:类型列改短签印,bot=「机」/真人=「你」)
   await expect(page.getByTestId(SETUP_TID.seatGuohaoInput(0))).toBeEditable();
   await expect(page.getByTestId(SETUP_TID.seatGuohaoInput(0))).toHaveValue("魏");
   for (let i = 1; i < 4; i++) {
     await expect(page.getByTestId(`setup-seat-${i}-guohao`)).toHaveText("待分配");
-    await expect(page.getByTestId(`setup-seat-${i}-type`)).toHaveText("电脑");
+    await expect(page.getByTestId(`setup-seat-${i}-type`)).toHaveText("机");
   }
   await expect(page.getByTestId(SETUP_TID.seatType(0))).toHaveText("你");
 

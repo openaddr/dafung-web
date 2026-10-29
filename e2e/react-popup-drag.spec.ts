@@ -19,19 +19,22 @@ async function waitAnimationsSettled(locator: Locator): Promise<void> {
   await locator.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
 }
 
-/** 把手当前包围盒(随弹窗位移,每段拖拽前重取)。 */
-async function handleBox(page: Page) {
-  return page.evaluate<{ x: number; y: number; width: number; height: number }>((tid) => {
-    const el = document.querySelector<HTMLElement>(`[data-testid="${tid}"]`);
-    if (el == null) throw new Error("拖动把手不在场(#674 接线 bug)");
+/** 把手当前包围盒(随弹窗位移,每段拖拽前重取)。scope=弹层容器:叠层卷轴
+ *  (决策 scroll 同挂 modal-drag-handle,#751 集成实锤——全局 querySelector 取到
+ *  DOM 序在前的卷轴把手,拖在不透明弹层后面白动)必须容器作用域区分,testids 注钦定口径。 */
+async function handleBox(page: Page, scope?: Locator) {
+  const handle = scope
+    ? scope.getByTestId(TESTIDS.modalDragHandle)
+    : page.getByTestId(TESTIDS.modalDragHandle);
+  return handle.evaluate((el) => {
     const r = el.getBoundingClientRect();
     return { x: r.x, y: r.y, width: r.width, height: r.height };
-  }, TESTIDS.modalDragHandle);
+  });
 }
 
 /** 把手中心的 pointer 拖拽:按下 → 分步位移(过 10px 阈值)→ 松手。 */
-async function dragHandle(page: Page, dx: number, dy: number): Promise<void> {
-  const box = await handleBox(page);
+async function dragHandle(page: Page, dx: number, dy: number, scope?: Locator): Promise<void> {
+  const box = await handleBox(page, scope);
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   await page.mouse.move(cx, cy);
@@ -55,14 +58,14 @@ test("底件系弹窗题名拖动:拖离减淡、拖回吸附复原(#674)", asyn
 
     // 拖离(右 150 / 下 60):位置随动 + 遮罩减淡
     const before = (await modal.boundingBox())!;
-    await dragHandle(page, 150, 60);
+    await dragHandle(page, 150, 60, modal);
     const after = (await modal.boundingBox())!;
     expect(Math.abs(after.x - before.x - 150)).toBeLessThanOrEqual(2);
     expect(Math.abs(after.y - before.y - 60)).toBeLessThanOrEqual(2);
     await expect(overlay).toHaveCSS("background-color", TINT_DIM);
 
     // 拖回(过冲 5px,落点偏移 -5/-5 在 ±24px 吸附带内)松手:吸附回正 + 遮罩复原
-    await dragHandle(page, -155, -65);
+    await dragHandle(page, -155, -65, modal);
     await expect(overlay).toHaveCSS("background-color", TINT_BASE);
     const snapped = (await modal.boundingBox())!;
     expect(Math.abs(snapped.x - before.x)).toBeLessThanOrEqual(1);
@@ -97,14 +100,14 @@ test("横幅系弹窗题名拖动:拖离减淡、拖回吸附复原(#674)", asyn
 
     // 拖离(左 150 / 上 40):位置随动 + 遮罩减淡
     const before = (await shell.boundingBox())!;
-    await dragHandle(page, -150, -40);
+    await dragHandle(page, -150, -40, shell);
     const after = (await shell.boundingBox())!;
     expect(Math.abs(after.x - before.x + 150)).toBeLessThanOrEqual(2);
     expect(Math.abs(after.y - before.y + 40)).toBeLessThanOrEqual(2);
     await expect(overlay).toHaveCSS("background-color", TINT_DIM);
 
     // 拖回(过冲 6px,落点偏移 6/0 在吸附带内)松手:吸附回正 + 遮罩复原
-    await dragHandle(page, 156, 40);
+    await dragHandle(page, 156, 40, shell);
     await expect(overlay).toHaveCSS("background-color", TINT_BASE);
     const snapped = (await shell.boundingBox())!;
     expect(Math.abs(snapped.x - before.x)).toBeLessThanOrEqual(1);

@@ -1,10 +1,12 @@
 // 拼点签面(#637,ADR-0030):玩家对拼的全屏骰面演出——掷骰签面(DiceOverlay)的
 // 多签变体。玄墨幕渐入,每名参与者一枚骨牌大字签面并排立起(签头=玩家色底+国号),
-// 并行起摇(虚影轮换,悬念并行不拉长全程)→ 依座位序错拍落定(延续既有拼点 clackGap
-// 节拍)→ 判词拍(胜者金光圈+金描边、败者降饱和沉暗,零「胜/负」文字章,DESIGN §4.6
-// 状态表达原则;平局双方无圈、中缝朱砂「拼」印钤变金「平」——「都没圈」与「还没判」
-// 不可区分,这是文字该承载的语义例外)→ 停留渐出。点差 ≥DUEL.blowoutMargin 判词拍
-// 震屏(DESIGN §6 拼点大胜负)。整场固定全速,不随 bot 半速(公共大事件非回合等待)。
+// 蓄势预动作(两签向中缝轻推内倾,#746 条目 2)→ 并行起摇(虚影轮换逐签错相,悬念
+// 并行不拉长全程,#746 条目 1)→ 依座位序错拍落定(延续既有拼点 clackGap
+// 节拍)→ 判词拍(胜者金光圈+金描边、败者降饱和沉暗,中缝印落锤重钤脉冲,零「胜/负」
+// 文字章,DESIGN §4.6 状态表达原则;平局双方无圈、中缝朱砂「拼」印钤变金「平」——
+// 「都没圈」与「还没判」不可区分,这是文字该承载的语义例外)→ 停留渐出。点差
+// ≥DUEL.blowoutMargin 判词拍震屏(DESIGN §6 拼点大胜负)。整场固定全速,不随 bot
+// 半速(公共大事件非回合等待)。
 // 签面收场后棋盘后效(止步/续走/银两浮字)才登场:present 串行 await 本组件返回的
 // Promise 天然保证(orchestrator duelSigns case → sink.showDuelSigns)。
 // 模块桥模式同 DiceOverlay:mount/unmount 归 React(挂 Game 屏一次),触发走
@@ -56,14 +58,16 @@ function buildSign(side: DuelSide): SignHandle {
 }
 
 /** 起摇:签面入虚影态,墨字虚影按 DUEL.shakeMs/10 周期轮换+微旋(字面不落定=悬念;
- *  全段恰 10 次换签,同 DiceOverlay 摇签口径)。返回停摇句柄(落定拍调用)。 */
+ *  全段恰 10 次换签,同 DiceOverlay 摇签口径)。逐签错相(#746 条目 1):字面序列按
+ *  座位偏移((swaps + seat*2 + 1) mod 6),两签同拍轮换但序列错开,读作「各自掷签」
+ *  而非镜像同步;时长与周期不变(600ms 恰 10 换)。返回停摇句柄(落定拍调用)。 */
 function startShaking(sign: SignHandle): () => void {
   sign.root.classList.add("duel-sign-shaking");
   let swaps = 0;
   const shuffler = window.setInterval(
     () => {
       swaps += 1;
-      sign.face.textContent = SIGN_FACES[swaps % SIGN_FACES.length];
+      sign.face.textContent = SIGN_FACES[(swaps + sign.side.seat * 2 + 1) % SIGN_FACES.length];
       sign.face.style.rotate = `${(Math.random() - 0.5) * 12}deg`;
     },
     Math.max(1, Math.round(DUEL.shakeMs / 10)),
@@ -74,32 +78,34 @@ function startShaking(sign: SignHandle): () => void {
   };
 }
 
-/** 落定:真面 outBack 钤落 + diceLand 音(音画同拍,同掷骰签面落定口径)。 */
+/** 落定:真面 outBack 钤落 + diceLand 音(音画同拍,同掷骰签面落定口径);蓄势位移
+ *  (#746 条目 2)同拍松开,transition 80ms 回中与钤落弹跳叠合——落锤把蓄势吃掉。 */
 function landSign(sign: SignHandle): void {
-  sign.root.classList.remove("duel-sign-shaking");
+  sign.root.classList.remove("duel-sign-shaking", "duel-sign-windup");
   sign.root.classList.add("duel-sign-land");
   sign.face.textContent = SIGN_FACES[sign.side.roll - 1];
   getAudio().play("diceLand");
 }
 
 /** 判词拍:胜负全靠状态语言——胜者金光圈+金描边(.duel-sign-win)、败者降饱和沉暗
- *  (.duel-sign-dim),零「胜/负」文字章;平局双方无圈、中缝印钤变金「平」(重播钤落)。
- *  合印 stamp 音同拍(ADR-0030 判词拍);大胜负震屏判定=isBlowout 单源
- *  (点差 ≥blowoutMargin,边界行为单测钉死)。 */
+ *  (.duel-sign-dim),零「胜/负」文字章;平局双方无圈、中缝印钤变金「平」。判词落锤
+ *  (#746 条目 3):中缝印重钤脉冲+印缘金光一闪(.duel-seal-pulse),把判词音的画面锚
+ *  给到中缝——verdictMs 原为纯等待空拍,脉冲 120ms 在拍内,总时长零增量。判词音换
+ *  磬一记(verdictChime,与印章 stamp 的木石感分家,#746 条目 5);大胜负震屏判定=
+ *  isBlowout 单源(点差 ≥blowoutMargin,边界行为单测钉死)。 */
 function applyVerdict(ev: DuelSignsEvent, signs: SignHandle[], seal: HTMLDivElement): void {
   if (ev.winnerSeat == null) {
     seal.dataset.verdict = "tie";
     seal.textContent = "平";
-    seal.classList.remove("duel-seal-slam");
-    void seal.offsetWidth; // 强制 reflow:钤落弧重播(平印重钤)
-    seal.classList.add("duel-seal-slam");
   } else {
     seal.dataset.verdict = "win";
     for (const s of signs) {
       s.root.classList.add(s.side.seat === ev.winnerSeat ? "duel-sign-win" : "duel-sign-dim");
     }
   }
-  getAudio().play("stamp");
+  seal.classList.remove("duel-seal-slam");
+  seal.classList.add("duel-seal-pulse");
+  getAudio().play("verdictChime");
   if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) shakeDesk();
 }
 
@@ -132,9 +138,21 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
     // 摇签不在此段起跑(#639 评审必修,ADR-0030 节拍「幕启→并行起摇」):幕启期间
     // 两签保持虚位(字面缺席),起摇等幕启落定。
     await delay(DUEL.curtainMs);
-    // ── 并行起摇:沙锤音起手,虚影轮换(全速恒定)──
+    // ── 蓄势预动作(#746 条目 2):幕启落定→起摇之间的一拍——两签向中缝轻推 8px
+    // 并朝内倾 1.5°(--ease-out,80ms),「蓄势-接触-定格」链条补第一节。位移/内倾
+    // 走独立 translate/rotate 属性(不碰落定拍 transform 钤落弧);排布序=座位升序,
+    // 偶数位签在左(向右推 +8px),奇数位在右(向左推 −8px)。到拍即起摇。 ──
+    for (const [i, sign] of signs.entries()) {
+      const inward = i % 2 === 0 ? 1 : -1;
+      sign.root.style.setProperty("--windup-x", `${inward * 8}px`);
+      sign.root.style.setProperty("--windup-rot", `${inward * 1.5}deg`);
+      sign.root.classList.add("duel-sign-windup");
+    }
+    await delay(DUEL.windupMs);
+    // ── 并行起摇:骨牌合击音起手(duelClash,#746 条目 5:替换合成沙锤,拼点自此
+    // 有自己的声音),虚影轮换逐签错相(全速恒定)──
     stopShakers = signs.map((s) => startShaking(s));
-    getAudio().play("diceRoll");
+    getAudio().play("duelClash");
     await delay(DUEL.shakeMs);
     // ── 依座位序错拍落定(数组序=座位升序,提取期已排;间隙=clackGap):每拍 diceLand 音 ──
     for (const [i, sign] of signs.entries()) {

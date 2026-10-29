@@ -167,13 +167,15 @@
 .game-layout .topbtns {
   /* inline-flex 收宽度=内容(display:flex 是块级盒会撑满 topbar 全行,pointer-events
      auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复);
-     #732 起行内三件(设置/详情/chip)基线对齐:钮 32 高、chip 22 高,居中互齐。 */
+     #732 起行内三件(设置/详情/chip)基线对齐:钮 32 高、chip 22 高,居中互齐。
+     间隙 6→10px(#743 F):两钮命中垫扩到 44 后防热区互贴误触。 */
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
   pointer-events: auto;
 }
 .game-layout .tbtn {
+  position: relative;
   width: 32px;
   height: 32px;
   border-radius: 6px;
@@ -189,6 +191,12 @@
     border-color var(--dur-fast) var(--ease-out),
     color var(--dur-fast) var(--ease-out),
     box-shadow var(--dur-fast) var(--ease-out);
+}
+/* 触达命中垫(#743 F):视觉 32 不动,透明命中垫扩到 44×44 制式(inset −6)。 */
+.game-layout .tbtn::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
 }
 .game-layout .tbtn:hover:not(:disabled) {
   color: var(--color-ink);
@@ -226,10 +234,17 @@
    原型 tmp/席位侧列原型.html ①②③ 判决移植:几何/字号/间距以原型为准,色一律现役
    token(原型 --g* 对射:gbg→bg、gink→ink、ginkdim→ink-dim、ggold→gold、gsuccess→
    success、gdanger→danger、gcash/gcity/gem/rep→attr-*;格底 rgba(36,29,19,.92)=
-   paper-lo)。列层全幅铺底(自身透明不吃事件),格/浮签触发元自持 pointer-events。 */
+   paper-lo)。列层几何=视觉列(#743 判词 H:#751 C 批收成与 .seatcol 同几何,自身
+   透明不吃事件),格/浮签触发元自持 pointer-events。 */
+/* 列层几何=视觉列(#743 判词 H/#751 C 批):原 inset:0 全视口包围盒是工程卫生
+   缺口(e2e/取证管线按元素 bbox 裁切会得全屏帧)——收成与 .seatcol 同几何,
+   testid/z-index/事件通路全不变,弹层经 Portal 出 body 不受连坐。 */
 .game-layout .seat-rail {
   position: absolute;
-  inset: 0;
+  top: calc(var(--safe-top) + 8px);
+  right: calc(var(--safe-right) + 8px);
+  bottom: 54px;
+  width: 96px;
   z-index: 4;
   pointer-events: none;
 }
@@ -238,13 +253,11 @@
 }
 /* 列:宽 96 固定、格间距 2px、y8 起排(安全区让位沿用 --safe-*);列区可用高=
    视口高−顶距 8−钮区预算(基准档 54 = 44 钮高 + 10 底距;桌面档舒展 52+10=62,
-   断点覆写见文件尾桌面档块)。 */
+   断点覆写见文件尾桌面档块)。#751 C 批:列层收成同几何后本层改 inset:0 填满
+   列层——偏移只在列层记一次,双层各记会二倍扣减(e2e 满编 8 席格高断言实锤)。 */
 .game-layout .seatcol {
   position: absolute;
-  top: calc(var(--safe-top) + 8px);
-  right: calc(var(--safe-right) + 8px);
-  bottom: 54px;
-  width: 96px;
+  inset: 0;
   z-index: 4;
   display: flex;
   flex-direction: column;
@@ -273,8 +286,13 @@
   gap: 4px;
 }
 /* 国号印(座位色制式,原型 .pseal):玩家色经 --pc 注入,印面=座位色字 on 26% 混底;
-   字符居中=line-height 钉死。 */
+   字符居中=line-height 钉死。印字吃 --pc-seal 亮档(#743 判词 B/#751 C 批:座位色
+   本体作 8.5px 小字 6/8 色 <4.5:1,松绿/玄茶 3.28——座色受 #557 近色链不可动,
+   印字单走亮变体,单源 core/theme.ts playerSealTexts,八色逐一 ≥5.3 实测);印边框
+   仍吃 --pc 本体(身份锚)。 */
 .game-layout .seat .pseal {
+  position: relative; /* 行2 图标命中垫上探入行1(#751 C 批):定位抬起保住
+                         印/现金带=单人格弹层的格面 tap 通路(现金 span 已 relative) */
   width: 14px;
   height: 14px;
   flex: none;
@@ -287,10 +305,10 @@
   line-height: 1;
   background: color-mix(in srgb, var(--pc) 26%, var(--color-bg));
   border: 1px solid var(--pc);
-  color: var(--pc);
+  color: var(--pc-seal);
 }
-/* 现金主数:中文习惯无千分位、省「两」(格上口径,原型 .cash-s;千分位全称在
-   后续明细弹层)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
+/* 现金主数:裸数、省「两」(格上口径,原型 .cash-s;全称带「两」在单人格弹层,
+   #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
 .game-layout .seat .cash {
   font-size: 10.5px;
   line-height: 1;
@@ -298,18 +316,24 @@
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
-/* 体力色条:3px 细轨吃行1剩余宽度;濒耗竭(低于三成)转朱砂。格上无刻度数(原型
-   口径,数值归弹层);浮签触发元拉满剩余宽,细轨不缩瘪。 */
+/* 体力色条:4px 细轨吃行1剩余宽度(#743 判词 C/#751 C 批:3→4px,行1 纵向余量
+   内,濒耗竭读数是全格最需要精度的位);濒耗竭(低于三成)转朱砂。格上无刻度数
+   (原型口径,数值归弹层);浮签触发元拉满剩余宽,细轨不缩瘪。空轨底色 ink 40%
+   (#743 判词 C:原 14% 对格底 1.48:1 近隐形,短红条后「轨道到哪」无参考系——
+   提到 40% 实测 3.40:1 过 WCAG 图形线,仍弱于填充 success 5.27 主从不变)。 */
 .game-layout .seat .strack-tip {
   flex: 1 1 auto;
   min-width: 0;
   margin-left: 2px;
+  /* 行2 图标命中区(#751 C 批)纵向垫进本行上空,细轨触发元自身 3-4px 高、
+     叠不过垫面——定位抬到静置垫之上保住体力浮签的唯一点位。 */
+  position: relative;
 }
 .game-layout .seat .strack {
   display: block;
-  height: 3px;
+  height: 4px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
   overflow: hidden;
 }
 .game-layout .seat .strack i {
@@ -320,8 +344,11 @@
 .game-layout .seat .strack.low i {
   background: var(--color-danger);
 }
-/* 行2:城楼/牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分(几何上不可能
-   溢出,拍板口径);图标 9×9 逐路径复刻 AttrIcon 资产,卷轴/牌背随原型吃淡纸。 */
+/* 行2:城楼/牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分。#743 判词 A
+   实证「几何上不可能溢出」前提不成立(96×38 格扣除边框内衬内宽仅 84px,六项全
+   单位数 85.6px 恒溢出;#751 C 批重排):图标 9→8px、计数 8.5→10px(数字是信息、
+   图标是标识,预算向数字倾斜;手牌 ≥10 封顶「9+」见 SeatRail),tabular-nums 保持。
+   卷轴/牌背随原型吃淡纸。 */
 .game-layout .seat .l2 {
   display: flex;
   align-items: center;
@@ -330,16 +357,24 @@
 .game-layout .seat .ai {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
-  font-size: 8.5px;
+  gap: 0; /* #751 C 批量测收口:10px tabular 数字实宽 6px(判词估算 5px 不实),
+              1px 气口保留会把 12 张封顶态顶到 87>84——气口归零后 82≤84 达标 */
+  font-size: 10px;
   line-height: 1;
   color: var(--color-ink-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
+  /* 命中区满格高(#743 判词 A:六图标是浮签触发元,原 ≈15×9px 远低于触达下限,
+     且玉璧明细唯一直达路在此):align-self 吃满 l2 截轴,纵向 padding 上探入行1、
+     下探到格底,配负 margin 抵消排版占位——视觉零位移,命中 ≈15×31px。上探段与
+     体力触发元重叠带由 .strack-tip 抬层保位(见上)。 */
+  align-self: stretch;
+  padding: 16px 0 6px;
+  margin: -16px 0 -6px;
 }
 .game-layout .seat .ai svg {
-  width: 9px;
-  height: 9px;
+  width: 8px;
+  height: 8px;
   flex: 0 0 auto;
 }
 .game-layout .seat .ai.ai-city {
@@ -417,6 +452,27 @@
 .game-layout .seat.bankrupt .pseal {
   filter: grayscale(1);
 }
+/* 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席点按的一次性反馈(位移即状态,
+   §4.6 零文字),~240ms 横向 ±2px;类随 animationEnd 自清(SeatRail)。仅不可选
+   格挂 .shake,与 .candidate 呼吸(互斥态)/.active 盒影(不同属性)无动画争用。 */
+.game-layout .seat.shake {
+  animation: seat-shake 240ms var(--ease-sine) 1;
+}
+@keyframes seat-shake {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-2px);
+  }
+  55% {
+    transform: translateX(2px);
+  }
+  80% {
+    transform: translateX(-1px);
+  }
+}
 /* 自机:金描边+左金条+金渐变,无「你」字(§4.6;rgba(217,185,92,·) 裸色豁免见文件头) */
 .game-layout .seat.self {
   border-color: rgba(217, 185, 92, 0.6);
@@ -426,6 +482,17 @@
     color-mix(in srgb, var(--color-paper-lo) 92%, transparent) 46%
   );
   box-shadow: inset 3px 0 0 var(--color-gold);
+}
+/* 自机×活跃复合态(#743 判词 D/#751 C 批):.self 声明在后,同特异性下盒影把
+   .active 的静环吃掉——静态帧/reduced-motion 下自机活跃格(0.6 透明边+左条)反而
+   弱于他人活跃格(全金边+1.5px 静环+外晕),注意力层级倒挂。补复合态一条:左条
+   身份+静环指名两全,呼吸外圈照旧(::after 不受盒影影响)。 */
+.game-layout .seat.self.active {
+  border-color: var(--color-gold);
+  box-shadow:
+    inset 3px 0 0 var(--color-gold),
+    0 0 0 1.5px var(--color-gold),
+    0 0 12px rgba(217, 185, 92, 0.35);
 }
 /* 终局胜者:金色双环(DESIGN §4.6——撤掉文字状态仍可辨则不加文字:胜者身份由
    金环+终局横幅承载,无「胜」字章;终局时活跃光效已停,两态不并立)。 */
@@ -608,8 +675,10 @@
 .setrow:last-of-type {
   border-bottom: none;
 }
-/* 行级按钮(战报›/回到主页):真按钮语义,悬停微反馈(#490 微档) */
+/* 行级按钮(战报›/回到主页):真按钮语义,悬停微反馈(#490 微档);
+   制式触达 ≥40(#745 高2:行 padding 9px 之外给拍板行垫 min-height)。 */
 .setrow-btn {
+  min-height: 40px;
   cursor: pointer;
   transition:
     color var(--dur-fast) var(--ease-out),
@@ -623,6 +692,12 @@
   outline: 2px dashed var(--color-gold);
   outline-offset: -2px;
 }
+/* 回到主页行(#745 高1):唯一不可逆动作,danger 朱砂着色与「战报」普通行一眼区分
+   (danger 语义已有承担,不新造色)。 */
+.setrow-danger,
+.setrow-danger:hover {
+  color: var(--color-danger);
+}
 /* 值位淡字(演出加速档/版本戳) */
 .setval {
   font-style: normal;
@@ -630,41 +705,8 @@
   color: var(--color-ink-dim);
   font-variant-numeric: tabular-nums;
 }
-/* 音效开关(Base UI Switch 原语,原型 .switch 制式):轨 34×19 圆角,knob 15px;
-   on=轨转 success、knob 推右转纸白。交互语义(键盘/aria)归底件,本件只出皮。 */
-.setsw {
-  position: relative;
-  width: 34px;
-  height: 19px;
-  flex: none;
-  border-radius: 10px;
-  border: 0;
-  padding: 0;
-  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
-  cursor: pointer;
-  transition: background var(--dur-fast) var(--ease-out);
-}
-.setsw[data-checked] {
-  background: var(--color-success);
-}
-.setsw:focus-visible {
-  outline: 2px dashed var(--color-gold);
-  outline-offset: 2px;
-}
-.setsw-thumb {
-  position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  background: var(--color-ink-dim);
-  transition: left var(--dur-fast) var(--ease-out);
-}
-.setsw[data-checked] .setsw-thumb {
-  left: 17px;
-  background: var(--color-ink);
-}
+/* 音效开关(#745 高4):手写 .setsw 皮退役,单源回 ui/switch 底件(桥接
+   --primary=漆金,shadcn 收口红线闭合);尺寸档走底件缺省。 */
 
 /* ── 动作条(#256 出牌阶段态):斗地主式两段动作条,浮于手牌区上缘(底 176px=
    桌面牌高 160px + 区底距 8px + 8px 气口)——选中放大牌占中时整条右让
@@ -718,21 +760,26 @@
     inset 0 0 0 1px rgba(217, 185, 92, 0.6),
     0 3px 10px rgba(0, 0, 0, 0.55);
 }
-.game-layout .actionbar .actionbar-btn.mo:disabled {
-  /* #528 0.45→0.6:入场未选牌时「出牌」恒 disabled,原值深底上整钮近隐形
+.game-layout .actionbar .actionbar-btn.mo:disabled,
+.game-layout .actionbar .actionbar-btn.mo[aria-disabled="true"] {
+  /* #528 0.45→0.6:入场未选牌时「出牌」恒禁用,原值深底上整钮近隐形
      (「出钮尤甚」主因);0.6 下 hairline 仍可辨(2.3:1)、字对混底 3.6:1
-     (禁用字无 WCAG 门槛),禁用感不丢 */
+     (禁用字无 WCAG 门槛),禁用感不丢。
+     aria-disabled 档(#751 B1):卡牌段弃原生 disabled(吞点击=禁用点按零反馈),
+     改 aria-disabled+自门控(#715 灰置牌同款),视觉禁用态与原生档同形。 */
   opacity: 0.6;
   cursor: not-allowed;
 }
-.game-layout .actionbar .actionbar-btn.mo:not(:disabled) {
+/* 墨钮启用态金内环(#751 B1 起排除 aria-disabled 档:卡牌段禁用走 aria-disabled,
+   不得吃启用金环/光晕,与禁用态视觉拉开)。 */
+.game-layout .actionbar .actionbar-btn.mo:not(:disabled):not([aria-disabled="true"]) {
   border-color: var(--color-gold);
   box-shadow:
     inset 0 0 0 1.5px var(--color-gold),
     0 0 10px rgba(200, 161, 58, 0.35),
     0 3px 10px rgba(0, 0, 0, 0.55);
 }
-.game-layout .actionbar .actionbar-btn.mo:not(:disabled):hover {
+.game-layout .actionbar .actionbar-btn.mo:not(:disabled):not([aria-disabled="true"]):hover {
   transform: scale(1.02);
   border-color: var(--color-gold-bright);
   box-shadow:
@@ -757,6 +804,26 @@
 .game-layout .actionbar .actionbar-btn:focus-visible {
   outline: 2px dashed var(--color-gold);
   outline-offset: 3px;
+}
+/* 未选牌点按「出牌」轻晃一拍(#751 B1):自门控回执的钮层反馈——横向微晃一次,
+   「点到了但它没答应」可感;一次性动画(.bump 类挂摘归组件 onAnimationEnd)。 */
+.game-layout .actionbar .actionbar-btn.mo.bump {
+  animation: actionbar-bump 0.4s var(--ease-out);
+}
+@keyframes actionbar-bump {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-3px);
+  }
+  50% {
+    transform: translateX(3px);
+  }
+  75% {
+    transform: translateX(-2px);
+  }
 }
 
 /* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
@@ -890,8 +957,8 @@
     height: 52px;
     font-size: 12px;
   }
-  .game-layout .seatcol {
-    bottom: 62px;
+  .game-layout .seat-rail {
+    bottom: 62px; /* 列层已同几何,列本体 inset:0 跟随,偏移只此一处 */
   }
 }
 

@@ -209,6 +209,30 @@ test.describe("反应窗(#281 单机)", () => {
     await pollReactionSettled(page, baseline, { countered: true });
   });
 
+  test("反应窗长按开牌面详情(#751 A1):既有弹层纯接线,窗内不双弹", async ({ page }) => {
+    await plantCounterScenario(page);
+    await awaitReactionWindow(page);
+    const banner = page.getByTestId(TESTIDS.reactionBanner);
+    await expect(banner).toBeVisible();
+    const card = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
+    await expect(card).toHaveClass(/reactive/);
+    // 长按(裸 mouse 序列,越过 500ms 判定窗;坐标输入无 actionability,同 #715 长按例)
+    const box = await card.boundingBox();
+    if (!box) throw new Error("反应牌无几何盒:反应窗未升起");
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.waitForTimeout(700); // 越过长按判定窗(全套件唯一保留硬等待同款)
+    await page.mouse.up();
+    const detail = page.getByTestId(TESTIDS.jinnangDetail);
+    await expect(detail).toBeVisible();
+    await expect(detail).toContainText("识破诡计");
+    await expect(detail).toHaveCount(1); // 长按吞补发 click,同一动作不弹两次
+    // 长按不改选中:点=选中的既有语义不因详情通路偏移(选中态维持既有上浮表达)
+    await expect(card).not.toHaveClass(/sel/);
+    await page.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+  });
+
   test("不用路径:点「不用」立即应答→窗收留痕(城失结算下沉单测)", async ({ page }) => {
     await plantCounterScenario(page);
     const baseline = await awaitReactionWindow(page);

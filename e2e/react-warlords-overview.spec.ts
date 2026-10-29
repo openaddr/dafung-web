@@ -31,10 +31,10 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 /** 清决策卷轴到「演出排空且无可用动作」(react-seat-pop settleForTap 同法)。 */
 async function settleForOverview(page: Page) {
   for (let i = 0; i < 10; i++) {
-    await waitFxIdle(page);
+    await waitFxIdle(page, 45_000);
     if (!(await actIfCan(page))) break;
   }
-  await waitFxIdle(page);
+  await waitFxIdle(page, 45_000);
 }
 
 /** 冻结停靠:清卷轴→冻结→补一刀(挡不住的挂载窗口在此排空)。 */

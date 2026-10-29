@@ -28,6 +28,30 @@
   --radius: 0.1875rem; /* 3px,与卷轴/纸面圆角一致 */
 }
 
+/* 桥的第二跳(#745 高4 实锤补线):Tailwind v4 的 bg-primary/bg-input 等 utility
+   只认 @theme 命名空间的 --color-* token——上面 :root 别名本身进不了 utility 解析,
+   ui/ 底件( 消费 bg-primary/bg-input/ring-ring 等)此前全部落空(开关皮双轨的手写皮
+   恰好盖住了这件事)。@theme inline 把桥接别名登记进 Tailwind 色板命名空间,utility
+   内联展开为 var(--primary) 等,单源仍是 core/theme.ts。 */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+}
+
 /* ── 玄墨鎏金(#514/S8)深底发丝线:主题 ink(纸白)按透明度稀释,
    经 color-mix 从 var(--color-ink) 派生——不引入第二个颜色事实源。
    旧浅底时代的 rgba(43,35,23,*) 墨线在深底上隐形,全项目发丝线一律消费这两档

@@ -145,6 +145,9 @@ export const TESTIDS = {
   jinnangRack: "jinnang-rack",
   /** #238/T3:点牌详情弹层容器(ui/dialog 底件,桌面底部面板/窄屏抽屉双皮)。 */
   jinnangDetail: "jinnang-detail",
+  /** 架尾计数章(#751 C2):.many 压缩态常驻(pointer:coarse 档显示),点按=临时
+   *  全展 2.5s;textContent = 手牌张数。 */
+  jinnangSpreadBadge: "jinnang-spread-badge",
   diceFace: "dice-face",
   /** 决策按钮(交互重构后按钮本体住在各决策卷轴里,testid 命名不变,减少 e2e 震荡)。 */
   actionButton: (action: string) => `action-${action}` as const, // action-buy / action-skip / …
@@ -209,8 +212,11 @@ export const TESTIDS = {
   // ── 席位格交互(#701,spec #697 ④):格 tap 单人格弹层 + 格上图标直达明细 ──
   /** 单人格弹层容器(seat = 座位号;tap 格面开,点外/Esc 关,挂载不夺焦)。 */
   seatPop: (seat: number) => `seat-pop-${seat}` as const,
-  /** 弹层头现金章(千分位全称带「两」,与格上裸数口径区隔)。 */
+  /** 弹层头现金章(全称裸数带「两」,与格上裸数口径区隔;千分位已退役)。 */
   seatPopCash: (seat: number) => `seat-pop-cash-${seat}` as const,
+  /** 弹层 reason 印条(#743 判词 E/#751 C 批:目标段不可选席点按放行到弹层时
+   *  禁用原因上屏;仅死区点按的弹层渲染)。 */
+  seatPopNotice: (seat: number) => `seat-pop-notice-${seat}` as const,
   /** 弹层体力/声望/委任数值本体(纯数文本,e2e 与投影逐字对照)。 */
   seatPopStamina: (seat: number) => `seat-pop-stamina-${seat}` as const,
   seatPopRep: (seat: number) => `seat-pop-rep-${seat}` as const,

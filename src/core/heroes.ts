@@ -146,7 +146,7 @@ export const HEROES: HeroDef[] = [
   },
   {
     id: "huatuo",
-    image: "/assets/heroes/hero-huatuo-noname.webp", // 画像已落地(#507 素材批/#511 卡面接入;noname 源补缺,sgs 缺此将)
+    image: "/assets/heroes/hero-huatuo-sgs.png", // sgs 经典形象(#751 画像统一收官,curid=7870;noname 版已退役留档)
     name: "华佗",
     title: "神医",
     // scope="any":RoundStart 的 subject 是轮次锚点,缺省 self 会让非锚点持有者永不触发——
