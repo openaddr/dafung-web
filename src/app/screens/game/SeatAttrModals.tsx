@@ -37,8 +37,13 @@ function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void 
         麾下名将 · {p.heroes.length} 席
       </div>
       <div className="pile-hero-grid">
-        {p.heroes.map((h) => (
-          <HeroCardFace key={h.id} heroId={h.id} size="detail" />
+        {p.heroes.map((slot) => (
+          <HeroCardFace
+            key={slot.heroId}
+            heroId={slot.heroId}
+            skillIds={slot.skillIds}
+            size="detail"
+          />
         ))}
       </div>
     </PileShell>

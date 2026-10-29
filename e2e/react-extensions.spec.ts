@@ -81,7 +81,9 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     await expect
       .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
       .toBe(cashBefore + 100);
-    expect(await engineState(page, "e.players[0].heroes.map((h) => h.id)")).toContain("taishici");
+    expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
+      "taishici",
+    );
     // 动画 handler(#378 三能力之二):「义」字印 + 扩展文案浮字(瞬态采样)
     expect(await samplePromise).toEqual({ seal: true, floater: true });
     await waitSettled(page);
@@ -99,7 +101,8 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
         if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
         e.phase = "Playing";
         e.activeIndex = 0;
-        e.players[0].heroes.push(taishici);
+        // 麾下槽位行(#785):def 入槽 = {heroId, 已授技(全池), 冷却账},引擎直写种植是既有 e2e 口径
+        e.players[0].heroes.push({ heroId: taishici.id, skillIds: [...taishici.skillPool], lastFired: {} });
         e.players[0].jinnangHand = [];
         e.players[0].jinnangHandCount = 0;
         e.turnPhase = "AwaitingJinnang";

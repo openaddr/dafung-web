@@ -32,12 +32,18 @@ export interface HeroPickScrollProps {
 export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   // 技能全览(#605):点候选将技名 chip=先看后选,chip 点击不触发选将(closest 判定
   // 分流,出牌技卡同款);弹框浮于招贤层上,关闭再从容点卡选将。
+  // 候选=目录将、授技=全池(#786 双输入):卡面与全览的实授技=全池(skillPool 原序),
+  // 预掷明牌=票 #787 落地后此处换候选自带的授技结果。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   if (!offered.length) return null; // 与旧 showHeroPickScroll 一致:无候选不弹
   const pick = (e: ReactMouseEvent<HTMLButtonElement>, i: number) => {
     const chipSkillId = skillIdFromClick(e);
     if (chipSkillId != null) {
-      setGlossary({ heroId: offered[i]!.id, skillId: chipSkillId });
+      setGlossary({
+        heroId: offered[i]!.id,
+        skillIds: heroDefOf(offered[i]!.id).skillPool,
+        skillId: chipSkillId,
+      });
       return;
     }
     onCommand({ type: "resolveHeroPick", index: i });
@@ -55,7 +61,7 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
               onClick={(e) => pick(e, i)}
               className="block cursor-pointer rounded-[7px] border-0 bg-transparent p-0 outline-offset-2 transition hover:shadow-[0_0_0_2px_var(--color-gold)]"
             >
-              <HeroCardFace heroId={h.id} size="pick" />
+              <HeroCardFace heroId={h.id} skillIds={heroDefOf(h.id).skillPool} size="pick" />
             </button>
           ))}
         </div>

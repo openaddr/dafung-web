@@ -80,7 +80,8 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   async function grantZhouyuAndPass(page: Page): Promise<void> {
     await force(
       page,
-      `e.players[0].heroes.push(__dafung.heroDefs().find((h) => h.id === "zhouyu"));`,
+      `{ const d = __dafung.heroDefs().find((h) => h.id === "zhouyu");
+         e.players[0].heroes.push({ heroId: d.id, skillIds: [...d.skillPool], lastFired: {} }); }`,
     );
     await page.getByTestId(TESTIDS.actionButton("skip")).click();
   }

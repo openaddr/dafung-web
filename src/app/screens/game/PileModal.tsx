@@ -185,8 +185,13 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
         麾下名将 · {player.heroes.length} 席
       </div>
       <div className="pile-hero-grid">
-        {player.heroes.map((h) => (
-          <HeroCardFace key={h.id} heroId={h.id} size="detail" />
+        {player.heroes.map((slot) => (
+          <HeroCardFace
+            key={slot.heroId}
+            heroId={slot.heroId}
+            skillIds={slot.skillIds}
+            size="detail"
+          />
         ))}
       </div>
     </>

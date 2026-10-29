@@ -179,7 +179,7 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
     const me = e.activePlayer;
     me.treasures.push({ id: "seal", name: "传国玉玺", level: 3, desc: "x" });
     me.treasures.push({ id: "hat", name: "草帽", level: 1, desc: "x" });
-    me.heroes.push({ id: "zhouyu", name: "周瑜", title: "火烧赤壁", desc: "x" });
+    me.heroes.push({ heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} }); // 槽位行(#785)
     const tile = e.board.tiles.find((t) => t.propertyId && e.board.tiles.indexOf(t) !== me.capitalIndex);
     me.properties.push({ propertyId: tile.propertyId, level: 1, group: "a" });
     e.pendingDebt = { amount: 99999, creditor: null };

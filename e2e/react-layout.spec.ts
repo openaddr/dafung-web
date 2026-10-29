@@ -156,15 +156,16 @@ test.describe("全浮层骨架", () => {
     await expect(page.getByTestId("rack-treasures")).toHaveCount(0); // testids:allow 退役 testid 零残留断言——常量已随 #361/#700 核销删除,无单源可引
     await expect(page.getByTestId("rack-heroes")).toHaveCount(0); // testids:allow 同上(牌架双入口退役核销)
     // 种珍宝×2 + 名将×2:珍宝走牌库直写(真 TreasureDef);名将走快照 restore 通路
-    //(快照行只写 id,引擎 restore 按 HEROES 表回填全量 def——联机恢复同一条产线路径)
+    //(快照麾下行=槽位全量(#785):heroId+已授技(全池)+冷却账,restore 原样回灌——
+    //联机恢复同一条产线路径)
     await force(
       page,
       `
       e.players[0].treasures.push(e.treasureDeck[0], e.treasureDeck[1]);
       const s = e.snapshot();
       s.players[0].heroes.push(
-        { id: "zhouyu", name: "周瑜", title: "雅量高致", desc: "", image: "" },
-        { id: "huatuo", name: "华佗", title: "神医", desc: "", image: "" },
+        { heroId: "zhouyu", skillIds: ["jixing", "huogong", "leigu"], lastFired: {} },
+        { heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} },
       );
       s.recruitedHeroIds.push("zhouyu", "huatuo");
       e.restoreFromSnapshot(s);

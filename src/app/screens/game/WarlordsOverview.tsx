@@ -17,6 +17,7 @@
 // 样式在 warlords-overview.css(经 Portal 渲染在 body,.game-layout 罩不到,zl- 前缀
 // 防串扰)。
 import { HERO_CAPACITY } from "@core/constants";
+import { heroById } from "@core/heroes";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
@@ -107,17 +108,21 @@ function OverviewRow({
         )}
       </button>
       {/* 名将列:麾下名将名 chips 朱砂(信息公开),空槽画空格(HERO_CAPACITY 单源
-          core/constants,上限恒 3 槽不折叠)。全名进 title 浮签防截断失读。 */}
+          core/constants,上限恒 3 槽不折叠)。槽位原生读(#786):名按 heroId 回查
+          名将表单源;全名进 title 浮签防截断失读。 */}
       <span className="zl-heroes" data-testid={TESTIDS.warlordsHeroes(seat)}>
         {Array.from({ length: HERO_CAPACITY }, (_, i) => {
-          const h = p.heroes[i];
-          return h ? (
-            <span key={h.id} className="zl-hnslot" title={h.name}>
-              {h.name}
-            </span>
-          ) : (
-            <span key={i} className="zl-hnslot zl-empty" aria-hidden="true">
-              ·
+          const slot = p.heroes[i];
+          if (slot == null)
+            return (
+              <span key={i} className="zl-hnslot zl-empty" aria-hidden="true">
+                ·
+              </span>
+            );
+          const name = heroById(slot.heroId).name;
+          return (
+            <span key={slot.heroId} className="zl-hnslot" title={name}>
+              {name}
             </span>
           );
         })}

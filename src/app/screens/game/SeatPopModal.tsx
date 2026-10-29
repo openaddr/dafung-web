@@ -14,6 +14,7 @@
 // ADR-0031)——原型 .pop 无题名行无 X,题名=国号(D 称可达名同节点),关闭唯点外/Esc。
 // 样式在 seat-pop.css(经 Portal 渲染在 body,spop-* 前缀防串扰)。
 import { formatMoney } from "@core/money";
+import { heroById } from "@core/heroes";
 import { playerColor, rgba } from "@core/theme";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { useAutopilotOn } from "@app/store/netStore";
@@ -55,9 +56,9 @@ export function SeatPopModal({
   const controller = getController();
   // 托管态单源回读(useAutopilotOn:联机=座位广播,单机=控制器本地标记)。
   const autopilotOn = useAutopilotOn(controller);
-  // 名将徽章值:麾下名将名(公开信息,原型 ⑤「张辽」口径);多将「·」连排一行
-  // 省略,全名进 title 浮签;空麾下如实报 0。
-  const heroNames = p.heroes.map((h) => h.name).join("·");
+  // 名将徽章值:麾下名将名(公开信息,原型 ⑤「张辽」口径);槽位原生读(#786):
+  // 名按 heroId 回查名将表单源;多将「·」连排一行省略,全名进 title 浮签;空麾下如实报 0。
+  const heroNames = p.heroes.map((slot) => heroById(slot.heroId).name).join("·");
   return (
     <Dialog
       open

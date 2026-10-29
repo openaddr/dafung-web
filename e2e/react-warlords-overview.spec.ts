@@ -67,7 +67,7 @@ async function plantSeat1Roster(page: Page) {
       p1.properties.push({ propertyId: t.propertyId, level: 0, group: t.group ?? "a", maxLevel: 3 });
     }
     const def = window.__dafung.heroDefs()[0];
-    p1.heroes = [{ id: def.id, name: def.name, title: def.title, image: def.image }];
+    p1.heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
     const deck = window.__dafung.snapshot().treasureDeck;
     p1.treasures = deck.slice(0, 2).map((r) => ({ id: r.id, name: r.name, level: r.level }));
   `,
@@ -83,11 +83,13 @@ async function plantSeat1Roster(page: Page) {
       })
       .sort((a: any, b: any) => a.i - b.i)
       .map((r: any) => r.name);
+    // 名将名:槽位行(#785)只携 heroId,名按目录回查(与 UI 同源)
+    const def = (window as any).__dafung.heroDefs().find((d: any) => d.id === p1.heroes[0].heroId);
     return {
       guohao: p1.guohao as string,
       names: names as string[],
       plantedIds: p1.plantedIds as string[],
-      hero: p1.heroes[0].name as string,
+      hero: def.name as string,
     };
   });
 }

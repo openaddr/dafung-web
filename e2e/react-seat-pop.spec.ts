@@ -94,9 +94,15 @@ test.describe("格 tap 单人格弹层(#701 ①)", () => {
       await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hand"))).toHaveText(
         `${s.players[0].jinnangHandCount}手牌`,
       );
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hero"))).toHaveText(
-        `${s.players[0].heroes.length === 0 ? 0 : s.players[0].heroes.map((h: any) => h.name).join("·")}名将`,
-      );
+      // 名将徽章文本:名按槽位 heroId 回查名将目录单源(#785 槽位行不携展示字段);
+      // 空麾下如实报 0(quickStart 开局 0 席)。期望串页内一次求值,与 UI 同源同拍。
+      const heroBadge = await page.evaluate(() => {
+        const dafung = (window as any).__dafung;
+        const heroes = dafung.snapshot().players[0].heroes;
+        const defs = dafung.heroDefs();
+        return `${heroes.length === 0 ? 0 : heroes.map((h: any) => defs.find((d: any) => d.id === h.heroId).name).join("·")}名将`;
+      });
+      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hero"))).toHaveText(heroBadge);
       await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "gem"))).toHaveText(
         `${s.players[0].treasures.length}珍宝`,
       );
@@ -153,7 +159,7 @@ test.describe("格上图标直达五路(#701 ②)", () => {
         `
         const row = window.__dafung.snapshot().treasureDeck[0];
         const def = window.__dafung.heroDefs()[0];
-        e.players[1].heroes = [{ id: def.id, name: def.name, title: def.title, image: def.image }];
+        e.players[1].heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
         e.players[1].treasures = [{ id: row.id, name: row.name, level: row.level }];
         e.players[1].warrants = 4;
         e.addReputation(1, 45);
@@ -237,7 +243,7 @@ test.describe("弹层徽章视觉挂点与钻入(#701 ③④)", () => {
         page,
         `
         const def = window.__dafung.heroDefs()[0];
-        e.players[0].heroes = [{ id: def.id, name: def.name, title: def.title, image: def.image }];
+        e.players[0].heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
       `,
       );
 
