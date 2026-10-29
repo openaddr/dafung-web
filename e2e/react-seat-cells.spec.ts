@@ -3,8 +3,9 @@
 // ② 五状态挂点:活跃金圈呼吸(.active)/目标段候选呼吸(.candidate)与选中停持
 //    (.picked)/濒耗竭色条朱砂(.low)/破产降透明印灰(.bankrupt)+ 自机金样式挂点
 //    (seat-self .self,无「你」字);③ 旧席位卡形态退役核销(左右两列/顶行缩微/
-//    属性两行格/「运筹中」微标/血条刻度零残留)。断言走 testid 单源 + 调试钩子
-//    直写(react-layout/react-jinnang-use 同款通路),几何断言收进单次 evaluate。
+//    属性两行格/「运筹中」微标/血条刻度零残留);④ 托管常驻微标(#770):开=国号印
+//    右齿轮挂点、关=撤,bot 席恒无。断言走 testid 单源 + 调试钩子直写(react-layout/
+//    react-jinnang-use 同款通路),几何断言收进单次 evaluate。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -105,6 +106,32 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     // 破产:直写 isBankrupt → 整格降透明印灰挂点
     await force(page, `e.players[2].isBankrupt = true;`);
     await expect(page.getByTestId(TESTIDS.seat(2))).toHaveClass(/bankrupt/);
+  });
+
+  test("托管常驻微标(#770):开=自机格齿轮挂点、关=撤,对手 bot 席恒无", async ({ page }) => {
+    await quickStart(page);
+    const badge = page.getByTestId(TESTIDS.seatHosted(0));
+    await expect(badge).toHaveCount(0);
+    // 开托管(react-online-autopilot setAutopilot 同款通路:格 tap(DOM 直派)→
+    // 拨开关 → Esc 关层;开关态=aria-checked 广播回读)
+    await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
+    const sw = page.getByTestId(TESTIDS.seatPopAutopilot(0));
+    await expect(sw).toBeVisible({ timeout: 10_000 });
+    await sw.click();
+    await expect(sw).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId(TESTIDS.seatPop(0))).toBeHidden({ timeout: 5_000 });
+    // 常驻微标现于自机格(纯展示,开关交互仍唯弹层);对手 bot 席非托管恒无
+    await expect(badge).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.seatHosted(1))).toHaveCount(0);
+    // 关托管 → 微标撤(状态随开关往返,§4.6 无文字章)
+    await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
+    const swOff = page.getByTestId(TESTIDS.seatPopAutopilot(0));
+    await expect(swOff).toBeVisible({ timeout: 10_000 });
+    await swOff.click();
+    await expect(swOff).toHaveAttribute("aria-checked", "false", { timeout: 15_000 });
+    await page.keyboard.press("Escape");
+    await expect(badge).toHaveCount(0);
   });
 
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {

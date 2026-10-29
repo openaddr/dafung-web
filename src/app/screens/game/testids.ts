@@ -41,6 +41,9 @@ export const TESTIDS = {
   seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
   /** 属性计数(attr ∈ warrant|city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
   seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
+  /** 托管常驻微标(seat = 座位号,#770):托管(AI 代打)开启的席位格,国号印右 8px
+   *  齿轮,纯展示挂点——开关交互唯一通路=单人格弹层 seatPopAutopilot(ADR-0028)。 */
+  seatHosted: (seat: number) => `seat-hosted-${seat}` as const,
   /** 自机格根(#698:金描边+左金条+金渐变;纯展示无点击层,目标段候选层随 targets 在场)。 */
   seatSelf: "seat-self",
 
