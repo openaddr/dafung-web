@@ -287,7 +287,8 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(duelWin.getByTestId(TESTIDS.duelSign(mover1))).toBeVisible();
     // 签面排布锚(#709):双签并排整排落视口内(排高 ≤200=单签档;收缩适配误折行
     // 的纵叠 ≈472 即此炸)——桌面/矮横屏同形,矮横屏专项在 react-short-stage.spec。
-    // 读数须在渐出收场前(整场 ~600ms @0.25 倍率),故紧贴挂载拍取盒。
+    // 读数须在渐出收场前(整场 ~675ms @0.25 倍率;判词停留 900ms 随 #760 校准,
+    // 全场 2700ms@1x),故紧贴挂载拍取盒。
     const signRow = await page.evaluate(() => {
       const r = document.querySelector(".duel-signs")?.getBoundingClientRect();
       return r ? { h: r.height, y: r.y, bottom: r.bottom, vh: innerHeight } : null;
