@@ -307,6 +307,15 @@
   border: 1px solid var(--pc);
   color: var(--pc-seal);
 }
+/* 托管常驻微标(#770):托管(AI 代打)开启的席位,国号印右 8px 齿轮,--color-inkwash
+   墨金弱色(状态在而不抢戏;§4.6 撤文字可辨,role=img 读屏名在 SeatRail)。纯展示
+   不设点击层——开关交互唯单人格弹层(ADR-0028 单一开关),点击冒泡进格根 tap。 */
+.game-layout .seat .hosted {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  color: var(--color-inkwash);
+}
 /* 现金主数:裸数、省「两」(格上口径,原型 .cash-s;全称带「两」在单人格弹层,
    #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
 .game-layout .seat .cash {
@@ -344,15 +353,47 @@
 .game-layout .seat .strack.low i {
   background: var(--color-danger);
 }
-/* 行2:城楼/牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分。#743 判词 A
-   实证「几何上不可能溢出」前提不成立(96×38 格扣除边框内衬内宽仅 84px,六项全
-   单位数 85.6px 恒溢出;#751 C 批重排):图标 9→8px、计数 8.5→10px(数字是信息、
-   图标是标识,预算向数字倾斜;手牌 ≥10 封顶「9+」见 SeatRail),tabular-nums 保持。
-   卷轴/牌背随原型吃淡纸。 */
+/* 行2(#770 分组制):高频组「城+牌」+ 发丝线组分隔 + 低频组四项,space-between
+   把行2 余量分到发丝线两侧成组间隙(旧六项等权均分退役)。#743 判词 A 实证
+   「几何上不可能溢出」前提不成立;#751 C 批 itemSum≤84 判据随分组制更新为全宽
+   出血判据:l2 两侧各吃满 5px 内衬直达边框内沿(可用宽 84→94),量测口径 10px
+   tabular 数字 6px、11px 6.6(实测 #770 探针):
+     hi(城 10 图标+6.6=16.6;牌 3 背组 14+6.6=20.6)≤37.2 + 发丝线 1
+   + lo(四项 8+6=14,声望 -12 档 23.5)≤65.5。
+   典型档 84.2(余 9.8 归组间隙)、9 背封顶档 94.2 贴边容下、负声望档 93.7 容下;
+   「9 背手牌×负声望」同席极端 103.7 越界 9.7——旧等权排布同席即越界 10.5(出
+   边框),本制收敛不加剧,判据按此极端如实登记。卷轴/牌背随原型吃淡纸。 */
 .game-layout .seat .l2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  margin: 0 -5px;
+}
+/* 组壳(#770):行2 的两个分组容器(Claim display:contents 不改排版,.ai 是
+   组内直接 flex 项);组内零间隙——项距全归组间隙(space-between),组内凝。 */
+.game-layout .seat .l2hi,
+.game-layout .seat .l2lo {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+/* 高频组(城+牌,#770):图标 8→10px、计数 10→11px——开城/看手牌是行2 最高频
+   读数,预算向其倾斜(数字是信息、图标是标识口径不变,#751 C 批)。 */
+.game-layout .seat .l2hi .ai {
+  font-size: 11px;
+}
+.game-layout .seat .l2hi .ai svg {
+  width: 10px;
+  height: 10px;
+}
+/* 发丝线组分隔(#770):1px --hairline 竖线标组界(高频读数|低频藏品),上下
+   各让 2px 不触格顶底。 */
+.game-layout .seat .l2sep {
+  flex: none;
+  width: 1px;
+  align-self: stretch;
+  margin: 2px 0;
+  background: var(--hairline);
 }
 .game-layout .seat .ai {
   display: inline-flex;
@@ -420,7 +461,9 @@
   border: 0.8px dashed color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
 }
 /* 活跃方:金圈呼吸(状态全视觉,§4.6;旧「运筹中」文字微标随席位卡形态退役)——
-   静态=金边+1.5px 金圈+外晕,呼吸=外圈 opacity 往复(reduced-motion 退场留静圈)。 */
+   静态=金边+1.5px 金圈+外晕,呼吸=外圈 opacity 往复(reduced-motion 退场留静圈)。
+   外圈 inset -2.5(#770 收口:-4 时 8 席连排(格间距 2px)外圈咬进邻格 2px,
+   -2.5 后最外_paint 距格缘 2.5px、越界 0.5px 为亚像素,不再侵入邻格)。 */
 .game-layout .seat.active {
   border-color: var(--color-gold);
   box-shadow:
@@ -430,9 +473,9 @@
 .game-layout .seat.active::after {
   content: "";
   position: absolute;
-  inset: -4px;
+  inset: -2.5px;
   border: 1.5px solid rgba(217, 185, 92, 0.6);
-  border-radius: 7px;
+  border-radius: 5.5px;
   animation: seat-glow var(--dur-ambient) var(--ease-sine) infinite;
   pointer-events: none;
 }
