@@ -175,18 +175,31 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await expect(overlay.getByTestId(TESTIDS.duelVerdict)).toHaveAttribute("data-verdict", "win", {
       timeout: 10_000,
     });
+    // 大胜分级(#769):[6,1] 点差 5 ≥ blowoutMargin → overlay 挂 duel-blowout
+    // (胜方点数弹跳+败方泼墨溅的 CSS 载体类;判据单源 isBlowout,此处守
+    // 「事件数据→分级类」接线,弹跳/泼墨形归视觉不在此断言)。
+    await expect(overlay).toHaveClass(/duel-blowout/);
     // 几何:双签并排(排高 ≤200,纵叠 would be 2×181+gap≈472)且整排落视口内;
-    // 签面落定有 1.5× 钤落弹跳(toPass 吸收动画中的瞬时盒)。
+    // 签面落定有 1.5× 钤落弹跳(toPass 吸收动画中的瞬时盒)。中缝印随首行定位
+    // (#769):单行时印垂直中点=首签中点(构建拍量锚注入 top,回归守「印压两行」)。
     await expect(async () => {
       const geo = await page.evaluate(() => {
         const row = document.querySelector(".duel-signs");
         if (row == null) return null;
         const rr = row.getBoundingClientRect();
+        const seal = document.querySelector(".duel-seal")?.getBoundingClientRect();
         const signs = [...document.querySelectorAll(".duel-sign")].map((el) => {
           const r = el.getBoundingClientRect();
-          return { y: r.y, bottom: r.bottom };
+          return { y: r.y, bottom: r.bottom, cy: r.y + r.height / 2 };
         });
-        return { rowY: rr.y, rowBottom: rr.bottom, rowH: rr.height, signs, vh: innerHeight };
+        return {
+          rowY: rr.y,
+          rowBottom: rr.bottom,
+          rowH: rr.height,
+          sealCy: seal == null ? null : seal.y + seal.height / 2,
+          signs,
+          vh: innerHeight,
+        };
       });
       expect(geo).not.toBeNull();
       expect(geo!.signs.length).toBe(2);
@@ -197,6 +210,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
         expect(s.y).toBeGreaterThanOrEqual(-1);
         expect(s.bottom).toBeLessThanOrEqual(geo!.vh + 1);
       }
+      // 印随首行(#769):构建拍注入 top=首签中点,单行形态印心与首签心同高(≤2px)
+      expect(geo!.sealCy, "中缝印读数缺失(印未挂)").not.toBeNull();
+      expect(Math.abs(geo!.sealCy! - geo!.signs[0]!.cy)).toBeLessThanOrEqual(2);
     }).toPass({ timeout: 5_000 });
   });
 });

@@ -543,7 +543,12 @@
 /* 签面横排(N=2 并排,中缝让位「拼」印;N>2 横排列开不炸)。width:max-content
    (#709):旧收缩适配只看得见 left:50% 右侧的半幅可用宽,视口 <844 即误触发
    flex-wrap 折成纵叠——魏签顶/滇签底双出屏;max-content 保双签并排居中,真比
-   视口宽才折行(max-width:100% 兜住折行边界;portrait 本就不在形态档内)。 */
+   视口宽才折行(max-width:100% 兜住折行边界;portrait 本就不在形态档内)。
+   gap clamp(#769 四人折行):110→clamp(48px,4vw,110px)——4 签最坏情形
+   4×150+3×48=744 收进 844(旧 110 gap 最坏 930 出屏);大屏(≥2750)回到 110。
+   48px 窄缝下「拼」印(72px)压两签框缘各 ~12px:印章钤盖语义本就钤在物上,
+   不另设档;折行时印的避让归 DuelSignsOverlay 构建拍量锚(随首行定位,见
+   .duel-seal 注)。 */
 .duel-signs {
   position: absolute;
   left: 50%;
@@ -553,7 +558,7 @@
   align-items: center;
   justify-content: center;
   flex-wrap: wrap;
-  gap: 110px;
+  gap: clamp(48px, 4vw, 110px);
   width: max-content;
   max-width: 100%;
   pointer-events: none;
@@ -599,6 +604,7 @@
   background: var(--player-color, var(--color-gold));
 }
 .duel-sign-face {
+  position: relative; /* 大胜档败方泼墨溅 ::after 的锚(#769) */
   font-family: var(--font-brush);
   font-size: 96px;
   line-height: 1.25;
@@ -611,6 +617,37 @@
 }
 .duel-sign.duel-sign-shaking .duel-sign-face {
   opacity: 0.55; /* 墨字虚影(轮换由 JS 驱动,同 .dice-sign-shaking 口径) */
+}
+/* 摇签墨旋(#769):空签身底纹——自绘墨涡 SVG(交替半圆三匝,零位图)浮在虚影字上
+   旋转(虚影字净透明度 ~0.3,墨旋 DOM 序在其后=衬其上,才读得出转)。周期 =
+   --dur-ambient 之半(1300ms,token 半频特例),--ease-sine 每圈呼吸一拍;显隐门
+   纯 CSS:基态 opacity 0,挂 .duel-sign-shaking 才显——落定拍摘类即撤(DuelSigns
+   Overlay 摇签句柄照旧),DOM 常驻不增删。墨色吃 --color-ink。reduced-motion:
+   M-4 兜层把动画压到瞬时单次,落回类基态 = 静态淡印(不打转)。 */
+.duel-sign-swirl {
+  position: absolute;
+  left: 50%;
+  top: calc(50% + 14px); /* 签身中点:整体中线右移半签头(签头 ~35px 高) */
+  width: 92px;
+  height: 92px;
+  translate: -50% -50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.duel-sign-swirl path {
+  stroke: var(--color-ink);
+}
+.duel-sign.duel-sign-shaking .duel-sign-swirl {
+  opacity: 0.45;
+  animation: duel-swirl-spin calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
+}
+@keyframes duel-swirl-spin {
+  from {
+    rotate: 0deg;
+  }
+  to {
+    rotate: 360deg;
+  }
 }
 /* 落定拍:0.26s 保留字面量——outBack 钤落须落在 clackGap 间隙预算内(同 .dice-sign-land)。 */
 .duel-sign.duel-sign-land {
@@ -670,6 +707,67 @@
   opacity: 0.8;
 }
 
+/* 大胜分级(#769):overlay 挂 duel-blowout(判定单源 isBlowout,与震屏同一处
+   常量 DUEL.blowoutMargin,分级判据写死一处)时——胜方 96px 点数 outBack 弹至
+   1.15 一次性驻留(fill both,判词停留窗 900ms 内读得住 --dur-slow 全程);
+   败方字面叠加泼墨溅一次 spawn:自绘多层径向渐变墨渍(零位图,吃 --color-ink),
+   缩放+微旋钤上后驻留成印。点差 1-2 与平局不挂类 = 维持现制。reduced-motion:
+   M-4 兜层压瞬时,两者各落终态(墨渍=静态印,弹跳=定格 1.15),不加专项退场。 */
+.duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-face {
+  animation: duel-blowout-pop var(--dur-slow) var(--ease-out-back) both;
+}
+@keyframes duel-blowout-pop {
+  from {
+    transform: scale(1);
+  }
+  to {
+    transform: scale(1.15);
+  }
+}
+.duel-overlay.duel-blowout .duel-sign.duel-sign-dim .duel-sign-face::after {
+  content: "";
+  position: absolute;
+  inset: -6% -2%;
+  pointer-events: none;
+  background:
+    radial-gradient(
+      closest-side at 32% 40%,
+      color-mix(in srgb, var(--color-ink) 82%, transparent) 0%,
+      transparent 64%
+    ),
+    radial-gradient(
+      closest-side at 66% 58%,
+      color-mix(in srgb, var(--color-ink) 92%, transparent) 0%,
+      transparent 46%
+    ),
+    radial-gradient(
+      closest-side at 54% 78%,
+      color-mix(in srgb, var(--color-ink) 70%, transparent) 0%,
+      transparent 38%
+    ),
+    radial-gradient(
+      closest-side at 46% 16%,
+      color-mix(in srgb, var(--color-ink) 55%, transparent) 0%,
+      transparent 28%
+    );
+  animation: duel-ink-splat var(--dur-slow) var(--ease-out) both;
+}
+@keyframes duel-ink-splat {
+  from {
+    opacity: 0;
+    scale: 0.3;
+    rotate: -14deg;
+  }
+  70% {
+    opacity: 0.9;
+  }
+  to {
+    opacity: 0.8;
+    scale: 1;
+    rotate: 0deg;
+  }
+}
+
 /* 判词段己方加权(#760):本机签在签内时判词拍挂 duel-self-weighted(overlay)+
    duel-sign-self(己签根)——己签放大 1.06、他签缩 0.96,「哪枚是我的」一眼可辨;
    金光圈/沉暗/平印状态语言本身不变。scale 走独立属性,与落定拍 transform 钤落弧
@@ -691,11 +789,13 @@
 }
 
 /* 中缝朱砂「拼」印:随幕启钤立锚对抗关系;平局判词拍钤变金「平」(data-verdict=tie,
-   重播钤落弧),胜局保持朱砂「拼」不动。落章弧复用共享 fx-seal-slam(钤定驻留 -8°)。 */
+   重播钤落弧),胜局保持朱砂「拼」不动。落章弧复用共享 fx-seal-slam(钤定驻留 -8°)。
+   垂直位(#769 折行避让)不在此定:top 由 DuelSignsOverlay 构建拍量首行签卡中点
+   注入(随首行定位——单行与旧 top:50% 恒等,折行时印不再压两行之间);横向仍
+   left:50% 落中缝 gap(首行居中排布,双签与 2+2 折行的缝都恰在视口中线)。 */
 .duel-seal {
   position: absolute;
   left: 50%;
-  top: 50%;
   z-index: 1;
   width: 72px;
   height: 72px;
