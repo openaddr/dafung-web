@@ -192,6 +192,12 @@ export const FX = {
   get coinBurstMs() {
     return scStage(1400);
   },
+  /** 金钱飞行归账全程(#764):进账铜钱贝塞尔弧飞至席位格(450ms 档)。演出编排族,
+   *  吃 scStage;时长经内联注入 CSS 动画(DuelSignsOverlay 同法:keyframe 只管形
+   *  不时刻度),抵达拍 animationend 即摘——本值是飞行时长的唯一事实源。 */
+  get cashFlyMs() {
+    return scStage(450);
+  },
 } as const;
 
 /** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;演出编排族,吃 scStage;时长集中调参)。
@@ -339,6 +345,14 @@ export const UI = {
   /** 大厅国号复制成功反馈的自动熄灭(L-7:ref 计时防重复点击提前熄灭)。 */
   get copyFeedbackMs() {
     return sc(1000);
+  },
+  /** 席位现金 count-up(#764):滚动补间时长两档——小额(差额 < 大额阈值)500ms、
+   *  大额 900ms;rAF 补间消费(seat-cash.ts),阈值常量在同文件(金额语义不属时间表)。 */
+  get cashCountSmallMs() {
+    return sc(500);
+  },
+  get cashCountLargeMs() {
+    return sc(900);
   },
 } as const;
 

@@ -12,7 +12,13 @@ import { fallTokenFlag, shakeDesk } from "./desk";
 import { useFxStore } from "./fxStore";
 import { animateDice, animateMove, beginMarch } from "./orchestrator";
 import { CEREMONY, delay } from "./timings";
-import type { DuelSide, FxSink, MarchSegmentFrames, PropertyChangedEvent } from "./presentation";
+import type {
+  CashFlyEvent,
+  DuelSide,
+  FxSink,
+  MarchSegmentFrames,
+  PropertyChangedEvent,
+} from "./presentation";
 
 /** 印章视觉上抬(格中心 → 印面锚点的静态偏移):表现几何常量,非引擎态。 */
 const SEAL_LIFT_PX = 20;
@@ -96,6 +102,11 @@ export function createEngineSink(): FxSink {
         .getState()
         .announceTileChange(ev.tileIndex, ev.levelChanged, ev.ownerChanged, ev.ownerColorIndex);
     },
+    cashFly(ev: CashFlyEvent) {
+      // 金钱飞行归账(#764):铜钱经 store 下发,FxLayer 的 body portal 渲染,
+      // 抵达拍 bump 席位现金数字(渲染组件回调,此处零 DOM)。
+      useFxStore.getState().spawnCashFly(ev.playerId, ev.amount, ev.x, ev.y);
+    },
   };
 }
 
@@ -128,7 +139,8 @@ export type FxSinkCall =
       ownerColorIndex: number | null;
       levelChanged: boolean;
       ownerChanged: boolean;
-    };
+    }
+  | { op: "cashFly"; playerId: string; amount: number; x: number; y: number };
 
 /** 测试 sink:录制所有调用;march/dice/签面/仪式立即 resolve(不测 DOM 细节,只测事件语义与时序)。 */
 export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
@@ -200,6 +212,9 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
         levelChanged: ev.levelChanged,
         ownerChanged: ev.ownerChanged,
       });
+    },
+    cashFly(ev: CashFlyEvent) {
+      calls.push({ op: "cashFly", playerId: ev.playerId, amount: ev.amount, x: ev.x, y: ev.y });
     },
   };
 }

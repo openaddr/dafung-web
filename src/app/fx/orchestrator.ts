@@ -46,15 +46,27 @@ export function finishPresentation(): void {
 
 // ─────────────────────── 播放器 ───────────────────────
 /** 播放一组表现事件:串行 await,顺序 = 数组顺序。所有外设经 FxSink 驱动
- *  (生产 = createEngineSink 单例组装;测试 = createMemorySink 录制)。 */
+ *  (生产 = createEngineSink 单例组装;测试 = createMemorySink 录制)。
+ *  金钱飞行归账(#764)在此合帧:进账(cashDelta/supplyRain 且 amount>0)先记入
+ *  待飞账本,紧邻的连续进账并一枚,遇第一个非进账事件(同步印章也算)或批尾才
+ *  cashFly 冲账——同席位合并成「一枚总差额」防粒子雨,来源锚点取最后一笔现场;
+ *  被任何演出隔开(骰子/行军/签面等占时长的,或印章等同步件)即分帧各飞。出账
+ *  (amount<0)不飞(反向可后置,#764 票面只硬性要求进账方向)。 */
 export async function present(events: PresentationEvent[], sink: FxSink): Promise<void> {
+  const flyPend = new Map<string, { amount: number; x: number; y: number }>();
+  const flushFlies = () => {
+    if (flyPend.size === 0) return;
+    for (const [playerId, f] of flyPend) sink.cashFly({ playerId, ...f });
+    flyPend.clear();
+  };
   for (const [i, ev] of events.entries()) {
     if (sealed) {
       for (const rest of events.slice(i)) {
         if (rest.kind === "tokenMoved") abandonMarch(rest.playerId);
       }
-      return;
+      return; // 终局封场收队:待飞账本一并弃(对局已结束,无归账可言)
     }
+    if (ev.kind !== "cashDelta" && ev.kind !== "supplyRain") flushFlies();
     switch (ev.kind) {
       case "diceRolled":
         // C1:bot 掷骰半速——速度开关在掷前设置(roll 内即消费复位);
@@ -69,9 +81,25 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
       case "cashDelta":
         // 铜钱雨扩容(S7):纳税付银带 coins 档,随雨落币
         sink.spawnFloater(ev.x, ev.y, ev.amount, ev.coins === true);
+        if (ev.amount > 0) {
+          const pend = flyPend.get(ev.playerId);
+          flyPend.set(ev.playerId, {
+            amount: (pend?.amount ?? 0) + ev.amount,
+            x: ev.x, // 来源锚点取该席位最后一笔进账的(合并枚从最后现场起飞)
+            y: ev.y,
+          });
+        }
         break;
       case "supplyRain":
         sink.spawnFloater(ev.x, ev.y, ev.amount, true);
+        if (ev.amount > 0) {
+          const pend = flyPend.get(ev.playerId);
+          flyPend.set(ev.playerId, {
+            amount: (pend?.amount ?? 0) + ev.amount,
+            x: ev.x,
+            y: ev.y,
+          });
+        }
         break;
       case "textFloat":
         sink.spawnTextFloater(ev.x, ev.y, ev.text);
@@ -130,6 +158,7 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         break;
     }
   }
+  flushFlies(); // 批尾冲账:纯进账批(无后继演出可隔)的合并枚在此起飞
 }
 
 // ─────────────────────── 骰子动画 ───────────────────────
