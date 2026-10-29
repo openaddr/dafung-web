@@ -42,7 +42,7 @@ import { PileButtons } from "./PileButtons";
 import { SettingsDialog } from "./SettingsDialog";
 import { ActionBar } from "./ActionBar";
 import { NoticeBanner } from "./NoticeBanner";
-import { WarReportDrawer } from "./WarReportDrawer";
+import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import { CityLedgerModal } from "./CityLedgerModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
@@ -169,6 +169,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 设置弹层/战报抽屉开合态(#700:战报入口降级设置弹层,两态都在本件收口)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [warReportOpen, setWarReportOpen] = useState(false);
+  // 战报未读账(#768):本地已读游标=打开抽屉那一刻的战报条数,不进快照——联机/
+  // 恢复场景由既有日志通路自然重建(对局屏重挂=游标归零,存量全量记未读,金点即亮)。
+  const [warReadCount, setWarReadCount] = useState(0);
+  const warTotal = warEntriesOf(snapshot).length;
+  // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
+  // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
+  const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
   // 锦囊手牌显隐开关(#700):对局内记忆、重进恢复(localStorage,键名风格照地图
   // 偏好键 dafung.mapId);缺键=显示(首局默认亮,原型 ① 锦囊钮亮态)。出牌阶段态
   // 与反应窗(牌架即窗)强制显示——决策面不能被视野偏好收走。
@@ -487,7 +494,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           </div>
         </div>
         {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮 + 「N 轮」chip 同排,顶中让给知会槽 */}
-        <GameTopBar snapshot={snapshot} onOpenSettings={() => setSettingsOpen(true)} />
+        <GameTopBar
+          snapshot={snapshot}
+          warUnread={warUnread}
+          onOpenSettings={() => setSettingsOpen(true)}
+        />
         {/* 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条(宿主迁槽,文案派生
             口径不变)共用一条带——排队互斥在 fxStore 知会槽泵,瞬态知会优先于等待条。 */}
         <NoticeBanner
@@ -581,7 +592,10 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {settingsOpen && (
           <SettingsDialog
             onClose={() => setSettingsOpen(false)}
-            onOpenWarReport={() => setWarReportOpen(true)}
+            onOpenWarReport={() => {
+              setWarReadCount(warEntriesOf(snapshot).length); // 打开抽屉即清账(#768)
+              setWarReportOpen(true);
+            }}
             onGoHome={goHome}
           />
         )}

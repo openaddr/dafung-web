@@ -128,6 +128,46 @@
   outline-offset: 3px;
 }
 
+/* ── 长按微光(#768):按住 300ms(判定窗 500ms 的 60% 拍,时长单源 HandRack
+   PRESS_GLOW_MS)起牌面微上浮 2px+金晕渐显(color-mix 60% = opacity 0.6 档)——
+   长按进度的体感提示,零文字。类由 RackCard 按 charging/held 挂摘;渐显渐撤的
+   transition 由 jinnang-card.css 基座既有 box-shadow/transform --dur-med 承担,
+   此处只写目标态。仅常态架挂(窗态长按语义是取消选中,不挂进度光);
+   落影黑沿用本文件裸色豁免登记(中性黑影)。 ── */
+.hand-rack:not(.junshi) .hand-rack-hand > button.press-glow .jinnang-card {
+  transform: translateY(-2px);
+  box-shadow:
+    0 0.35em 0.9em rgba(0, 0, 0, 0.4),
+    0 0 0 1px color-mix(in srgb, var(--color-gold) 60%, transparent),
+    0 0 1.4em color-mix(in srgb, var(--color-gold) 60%, transparent);
+}
+
+/* ── 全展回落进度线(#768):临时全展(SPREAD_ALL_MS=2500ms)期间架底缘 2px 金线
+   scaleX 收缩——剩余全展时长由线长表达(§4.6,零文字);时长经 --spread-dur 由
+   HandRack 内联注入(单源 SPREAD_ALL_MS,此处不写数),origin left=从右往左耗尽。
+   挂载即播、摘除即撤(中断:点外/长按开详情/选牌,组件侧 collapseSpread)。
+   left/right 2.5em 对齐架体呼吸位(padding 0 2.5em)。 ── */
+.rack-spread-line {
+  position: absolute;
+  left: 2.5em;
+  right: 2.5em;
+  bottom: 0;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--color-gold);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-gold) 45%, transparent);
+  transform-origin: left center;
+  animation: rack-spread-countdown var(--spread-dur) linear forwards;
+}
+@keyframes rack-spread-countdown {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
 /* ── 叠加压缩(#254,手牌无上限 #250):≥4 张挂 .many,负 margin 叠牌——每张露
    --jn-step 窥条、末张全宽。三个 inline 变量由 HandRack.tsx 测量计算(拍板公式
    spacing = min(卡宽,(可用宽−卡宽)/(n−1)),可用宽=架 content box,卡宽=15×em 基),

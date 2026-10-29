@@ -13,6 +13,8 @@ import { Dialog, DialogContent } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { TID } from "./testids";
 import { TESTIDS } from "../game/testids";
+// 空态器物件(#768):清单加载=墨滴呼吸三点 / 清单空=斜放朱印+短注(制式单源 shared)
+import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
 import "@app/screens/game/scroll/scroll.css";
@@ -200,7 +202,13 @@ export function MapSelectPanel({
           <span>选择地图</span>
         </DialogDragHandle>
 
-        {!entries && !error && <p className="font-wenkai text-ink-dim py-6">载入地图清单…</p>}
+        {/* 加载/空态(#768 空态器物化):「载入地图清单…」「暂无可用地图。」一行
+            小字退役——加载=墨滴呼吸三点(语义走 role=status),空=斜放朱印+短注。 */}
+        {!entries && !error && (
+          <div className="flex justify-center py-6">
+            <InkBreathe title="载入地图清单" />
+          </div>
+        )}
         {error && (
           <div className="flex items-center gap-3 py-2">
             <p className="text-danger text-sm">加载失败:{error}</p>
@@ -214,7 +222,9 @@ export function MapSelectPanel({
           </div>
         )}
         {entries && entries.length === 0 && (
-          <p className="font-wenkai text-ink-dim py-6">暂无可用地图。</p>
+          <div className="flex justify-center py-6">
+            <SealEmpty char="空" note="尚无图志" title="暂无可用地图" />
+          </div>
         )}
 
         {entries && entries.length > 0 && (

@@ -1,0 +1,75 @@
+/* 空态器物件(#768)制式:斜放朱印 + 短注 / 墨滴呼吸三点。
+   语言对齐手牌空态「斜放牌背」先例(DESIGN §5 器物物理,零插画依赖);
+   沉朱印的纸字色与朱砂渐变沿用 app.css note-head 同款手筋(印面制式单源在彼,
+   此处只放大尺度、加深斜度)。动效时长/缓动走 --dur-* 与 --ease-* token
+   (tokens.css 单源,reduced-motion 由 app.css M-4 全局兜层瞬时化)。
+
+   裸色豁免:#ffead9(沉朱印纸字,note-head 同款);
+   rgba(0,0,0,·) 印面落影(中性黑影,非墨影语义)。 */
+
+/* ── 斜放朱印空态:印 30px 方章斜放 + 文楷短注 ── */
+.seal-empty {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+.seal-empty-mark {
+  font-style: normal;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  font-family: var(--font-title);
+  font-size: 17px;
+  line-height: 1;
+  color: #ffead9;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-danger) 82%, black),
+    color-mix(in srgb, var(--color-danger) 55%, black)
+  );
+  border-radius: 3px;
+  /* 斜放:对齐手牌空态牌背 -9deg 语(note-head 印 -4deg,器物空态斜得更明确) */
+  rotate: -8deg;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
+}
+.seal-empty-note {
+  font-family: var(--font-wenkai);
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--color-ink-dim);
+}
+
+/* ── 墨滴呼吸三点:--dur-ambient 半频(board.css 候选金圈同拍),负 delay 各错
+   1/3 周期(错相不起步,首帧即在呼吸中);墨滴=上窄下宽水滴形,呼吸=微升+浓淡。 ── */
+.ink-breathe {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.ink-breathe > i {
+  width: 7px;
+  height: 9px;
+  border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
+  background: var(--color-ink);
+  animation: ink-breathe calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
+}
+.ink-breathe > i:nth-child(2) {
+  animation-delay: calc(var(--dur-ambient) / -6);
+}
+.ink-breathe > i:nth-child(3) {
+  animation-delay: calc(var(--dur-ambient) / -3);
+}
+@keyframes ink-breathe {
+  0%,
+  100% {
+    opacity: 0.25;
+    transform: translateY(1px) scale(0.85);
+  }
+  50% {
+    opacity: 0.9;
+    transform: translateY(-1px) scale(1);
+  }
+}

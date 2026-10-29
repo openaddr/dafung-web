@@ -141,6 +141,52 @@
   transform: scale(1.02);
 }
 
+/* ── 空态空白笺(#768 空态器物化):无条目时一张待墨的空笺+三道虚线格空行——
+   「一行小字」式空态退役,器物语言零文字(语义走组件侧 role=status aria-label);
+   笺纸取 paper-lo 淡入,格线沿用漆金虚线语(.war-earlier 边框同族)。 ── */
+.war-blank {
+  margin: 0.5rem 1rem 1rem;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 22%, transparent);
+  border-radius: 3px;
+  background: color-mix(in srgb, var(--color-paper-lo) 60%, transparent);
+}
+.war-blank > i {
+  height: 0;
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 25%, transparent);
+}
+
+/* ── 战报未读金点(#768):有未读条目时 ⚙ 设置钮右上 6px 金点,呼吸 --dur-ambient
+   (呼吸类统一 token)。挂件绝对定位不进钮盒——react-float-skeleton 对 .tbtn
+   32×32 有几何断言,不许撑动。清账口径:打开战报抽屉即清(GameScreen 本地已读
+   游标对比 warEntriesOf,不进快照);样式寄战报段:金点是战报的未读表达,
+   非设置钮自身的状态。 ── */
+.game-layout .tbtn .war-unread-dot {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--color-gold);
+  box-shadow: 0 0 4px color-mix(in srgb, var(--color-gold) 60%, transparent);
+  animation: war-dot-breathe var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes war-dot-breathe {
+  0%,
+  100% {
+    opacity: 0.55;
+    transform: scale(0.9);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.15);
+  }
+}
+
 /* ── 棋盘区:全幅垫底(仪表条退役,下缘不再让位;手牌区/浮层全透明压在棋盘上)── */
 .game-layout .board-area {
   position: absolute;
