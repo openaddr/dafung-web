@@ -262,6 +262,14 @@
 
 - 一切时长/缓动走 `--dur-*`/`--ease-*`(唯一源 Motion,经 gen:theme);
   与 JS 编排窗口的硬同步点(timings.ts 注释)一律不碰。
+- **屏间转场(#771 墨韵化;2026-10-29 移动端审计拍板)**:换屏语言 =
+  「墨晕盖入 400ms + 内容浮现 250ms」两段串接,单端动画、退场不做(旧屏瞬时卸载)。
+  新屏挂载先播墨晕盖入(--dur-slow+--ease-out:径向墨团自屏幕中心晕开、盖满后化开,
+  墨色吃 `--color-bg-deep`;层静态绘制 + transform/opacity 合成器动画,不动 layout,
+  pointer-events:none),随后既有内容浮现(.screen-in 淡入+8px 落定,--dur-med);
+  对局屏棋盘缓推(--dur-reveal)接在墨晕之后串播,不叠加。reduced-motion:
+  墨晕退场,浮现直接播。屏间转场是下一条「CSS 只承担呼吸/状态」的既存例外
+  (R3-C2 keyed 外壳,#89),实现收口 `src/app/styles/screen-transition.css` 单文件。
 - 一次性演出只走表现事件管线(ADR-0010/0015);CSS 只承担
   (a) 常驻呼吸 (b) 状态样式。新增动效前先问「事件从哪来」。
 - 震屏仅限全场级大事件(破产仪式/拼点大胜负/都城停);常规回合动作(掷骰落定)
@@ -271,7 +279,8 @@
   席位现金 count-up 滚动补间(rAF,小额 500ms/大额 900ms 两档)——与浮标 delta
   共存不互代。出牌窗聚光=窗态选中放大态的全屏 radial 压暗(骰子 overlay 同族
   语言,z 序压盘面、让位放大牌与动作条)。
-- reduced-motion:全局兜层已有,新增 infinite 动画必须登记进对应兜底列表。
+- reduced-motion:全局兜层已有,新增 infinite 动画必须登记进对应兜底列表
+  (屏间转场无 infinite,其延迟归零口径见 screen-transition.css 尾部媒体查询)。
 
 ## 7. 前后对比(改造前 = master 基线,改造后 = 施工分支;截图经 __dafung 钩子构造同等局面)
 
