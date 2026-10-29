@@ -76,7 +76,12 @@ if (!bookmark || bookmark.startsWith("-")) {
 // 0) 恢复预检:head=本书签的 PR 若已 MERGED,即上次收口已过合并、断在清理/收账——
 //    跳过描述检查/新鲜度门/push/开 PR/合并(1-4 步)直达删分支+收账。各步本就容忍
 //    已做过的状态(书签被手工删走→删分支步 warn 后照走)。
-const mergedPrUrl = (() => {
+//    撞名守卫(#753 实锤:书签名与历史已合 PR 撞头名——retro-gates 撞 #594——预检
+//    命中旧 PR 误入恢复模式,删头分支=自动关掉在途 PR):命中多条、或唯一命中合入
+//    时间超过 1 天(真恢复=收口刚断在清理/收账,重跑就在当下),一律响亮中止不进
+//    恢复模式,按提示换名书签重开(惯例 <票号>-<名>,how-to「版本协作」)。
+const RECOVERY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+const mergedMatches = (() => {
   const probe = Bun.spawnSync(
     [
       "gh",
@@ -88,9 +93,7 @@ const mergedPrUrl = (() => {
       "--state",
       "merged",
       "--json",
-      "url",
-      "-q",
-      ".[0].url",
+      "url,mergedAt",
     ],
     { stdout: "pipe", stderr: "pipe" },
   );
@@ -103,8 +106,35 @@ const mergedPrUrl = (() => {
     );
     process.exit(1);
   }
-  return new TextDecoder().decode(probe.stdout).trim();
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(probe.stdout) || "[]");
+    if (!Array.isArray(parsed)) throw new Error("非数组");
+    return parsed as Array<{ url: string; mergedAt: string }>;
+  } catch (err) {
+    console.error(
+      `[pr-merge] 恢复预检返回解析失败——停,稍后重跑:${err instanceof Error ? err.message : String(err)}`,
+    );
+    process.exit(1);
+  }
 })();
+if (mergedMatches.length > 1) {
+  console.error(
+    `[pr-merge] 恢复预检撞名:书签 ${bookmark} 名下有 ${mergedMatches.length} 个已合 PR(${mergedMatches.map((m) => m.url).join(", ")})——歧义,不进恢复模式。换名书签重开(惯例 <票号>-<名>,how-to「版本协作」)。`,
+  );
+  process.exit(1);
+}
+let mergedPrUrl = "";
+if (mergedMatches.length === 1) {
+  const only = mergedMatches[0]!;
+  const ageMs = Date.now() - Date.parse(only.mergedAt);
+  if (!Number.isFinite(ageMs) || ageMs < 0 || ageMs > RECOVERY_MAX_AGE_MS) {
+    console.error(
+      `[pr-merge] 恢复预检命中陈旧已合 PR:${only.url}(合入于 ${only.mergedAt})——疑与历史分支撞名(#594 实锤),不进恢复模式。换名书签重开(惯例 <票号>-<名>);确属本票恢复态走手动清理+收账链(how-to「版本协作」)。`,
+    );
+    process.exit(1);
+  }
+  mergedPrUrl = only.url;
+}
 
 let prNumber = "";
 if (mergedPrUrl) {
