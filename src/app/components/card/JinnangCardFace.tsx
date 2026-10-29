@@ -19,66 +19,26 @@ import {
   JINNANG_TARGET_LABEL,
   treasureFrameTone,
   type FrameTone,
-  type JinnangPattern,
   type JinnangFaceSize,
 } from "./jinnang-face-data";
+import { jinnangInkArtOf } from "./ink-art/jinnang-huaxin";
 import "./jinnang-card.css";
 
 /** 标签 → 族色类已收口进 jinnang-face-data.ts 的 JINNANG_FAMILY.faceClass
  *  (组件不再自备第二份映射——评审 Standards 轴的三重镜像收敛)。 */
-
-/** 四族纹样线稿:path 自 tmp/prototype-jinnang-ui.html 原样移植(viewBox 0 0 100 70),
- *  stroke 色/线宽在 jinnang-card.css 按 .f-* 族类与尺寸档给。 */
-const PATTERN_PATHS: Record<JinnangPattern, ReactNode> = {
-  cloud: (
-    <>
-      <path d="M14 52 q6-16 22-12 q4-14 20-10 q16-4 22 10 q12 2 10 12" />
-      <path d="M30 40 a9 9 0 1 1 9 9 M52 30 a7 7 0 1 0-7 7" />
-      <path d="M22 58 q14 6 28 0 q14-6 28 0" />
-    </>
-  ),
-  fire: (
-    <>
-      <path d="M50 8 c-4 12 6 16 2 26 c12-6 10-14 20-16 c-4 10 8 16 4 28 c8-4 8-10 12-12" />
-      <path d="M28 62 c-6-12 4-18 4-30 c8 8 6 16 12 22 c0-8 6-12 10-14 c-2 10 6 14 4 24" />
-      <path d="M18 64 q32 8 64 0" />
-    </>
-  ),
-  shield: (
-    <>
-      <path d="M50 6 L84 16 V38 c0 16-15 24-34 30 C31 62 16 54 16 38 V16 Z" />
-      <path d="M36 30 h20 v18 h-14 v-10 h8" />
-      <path d="M50 6 v-2 M16 16 l-3-3 M84 16 l3-3" />
-    </>
-  ),
-  branch: (
-    <>
-      <path d="M10 60 C30 48 44 40 62 20 M62 20 q10-8 24-8" />
-      <path d="M34 44 q-2-10 6-14 M46 36 q0-10 8-12 M54 28 q2-8 10-10" />
-      <path d="M28 50 q-8 2-12 8" />
-    </>
-  ),
-  // 电纹(#281 即时族):主形闪电 + 两道疾风短线——反应窗一闪即发
-  bolt: (
-    <>
-      <path d="M54 4 L28 38 L44 38 L34 66 L74 26 L54 26 Z" />
-      <path d="M12 22 h14 M74 50 h14" />
-    </>
-  ),
-};
 
 export interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   cardId: string;
   size?: JinnangFaceSize;
   frameTone?: FrameTone;
   /** 画心立绘通道(#511 B 案):传入节点即渲染(容器裁剪,位图 cover 铺满画心);
-   *  缺省=族色纹样线稿回退(P0-A 纹样窗降级为缺图回退——立绘只进金框画心,
-   *  牌名/标签章/笺脚文字恒在纸底,可读性红线)。 */
+   *  缺省=族母题墨线画心(#763 自绘,名牌专属母题优先,见 ink-art/jinnang-huaxin
+   *  ——立绘只进金框画心,牌名/标签章/笺脚文字恒在纸底,可读性红线)。 */
   art?: ReactNode;
 }
 
 /** 锦囊牌面:笺头(界格线+牌名)/ 标签章(右上竖排)/ 金框画心(art 立绘,缺省
- *  纹样线稿回退)/ 笺脚(别称已剥离,2 行截断;large 4 行)。children 透传到牌面
+ *  族母题墨线,#763)/ 笺脚(别称已剥离,2 行截断;large 4 行)。children 透传到牌面
  *  末尾——不可用态的原因印条(<span className="reason">,样式见 jinnang-card.css)
  *  由消费方这样挂入。 */
 export function JinnangCardFace({
@@ -118,7 +78,7 @@ export function JinnangCardFace({
       <div className="yang">
         {art == null ? (
           <svg viewBox="0 0 100 70" aria-hidden="true">
-            {PATTERN_PATHS[fam.pattern]}
+            {jinnangInkArtOf(def.id, fam.pattern)}
           </svg>
         ) : (
           <div className="art">{art}</div>

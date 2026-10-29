@@ -2,7 +2,7 @@
    忠实移植(2026-09-24 用户已验收的视觉基线):类名、形制、色值不做自由发挥。
    选择器统一收口在 .jinnang-card / .jinnang-detail 作用域下(原型是裸类名,入库改为
    组件前缀防全局串扰);#511 卡面 B 案「墨面金框」改制:纸底+金框画心+立绘 img 通道
-   (纹样线稿降级为缺图回退)——用户判词「纸底保证文字可读,立绘只进金框画心」,
+   (缺省画心=#763 自绘族母题墨线,立绘通道在上)——用户判词「纸底保证文字可读,立绘只进金框画心」,
    牌名/标签章/笺脚文字恒在纸底。动效时长/缓动走 --dur-* 与 --ease-* token
    (tokens.css 单源,reduced-motion 由 app.css 全局兜层承担)。
 
@@ -97,7 +97,7 @@
 }
 
 /* ── 标签章:右上竖排(多标签逐枚下挂),朱砂方章 2.5deg 微旋(章恒朱砂,
-   DESIGN §4.2 朱=权险;族色只入界格线与纹样窗)。印文用 font-title(#508 标题字族;
+   DESIGN §4.2 朱=权险;族色只入界格线与画心墨线)。印文用 font-title(#508 标题字族;
    小薇离线镜像有空芯字形,禁用 font-deco,BRIEF §2,note-head 同先例)。── */
 .jinnang-card .zhang {
   position: absolute;
@@ -126,14 +126,32 @@
     inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
 }
 
-/* ── 画心窗(#511 B 案,原纹样窗改制):白纸画心 + 漆金双线框(外框+内衬);
-   族色退场——只留界格线(.jie)与缺图回退线稿的描边(立绘通道见下)。 ── */
+/* ── 画心窗(#511 B 案,原纹样窗改制;#763 画心换装自绘墨线):白纸画心 +
+   漆金双线框(外框+内衬);族色退场——只留界格线(.jie)与画心墨线的描边。
+   #763 宣纸质感:画材色上的帘纹(两向细密 repeating 线,--card-ink 低透明,
+   零位图零图片)+ 边缘淡墨晕(径向),纯 CSS 渐变,豁免随 --card-* 画材口径。 ── */
 .jinnang-card .yang {
   flex: 1;
   margin: 0.9em 0;
   border: 0.16em solid color-mix(in srgb, var(--color-lacquer-gold) 62%, transparent);
   border-radius: 0.5em;
-  background: var(--card-xin);
+  background:
+    repeating-linear-gradient(
+      93deg,
+      color-mix(in srgb, var(--card-ink) 2.5%, transparent) 0 0.14em,
+      transparent 0.14em 0.62em
+    ),
+    repeating-linear-gradient(
+      2deg,
+      color-mix(in srgb, var(--card-ink) 1.8%, transparent) 0 0.14em,
+      transparent 0.14em 0.78em
+    ),
+    radial-gradient(
+      120% 96% at 50% 42%,
+      transparent 62%,
+      color-mix(in srgb, var(--card-ink) 4%, transparent) 100%
+    ),
+    var(--card-xin);
   box-shadow: inset 0 0 0 0.14em color-mix(in srgb, var(--color-lacquer-gold) 26%, transparent);
   display: grid;
   place-items: center;
@@ -141,8 +159,7 @@
   min-height: 4.5em; /* 4.5em(#556):为笺脚 1.32em 字级让位(原 6em) */
 }
 /* 画心·立绘通道(#511):art 传入节点即渲染(容器裁剪,位图 cover 铺满画心);
-   纹样线稿降级为缺图回退(锦囊目录暂无立绘资产,现走线稿,通道先行为 S1 后续
-   珍宝式画心接入留好插槽)。 */
+   缺省=族母题墨线画心(#763 自绘,见 ink-art/jinnang-huaxin)。 */
 .jinnang-card .yang .art {
   width: 100%;
   height: 100%;
@@ -154,18 +171,17 @@
   object-fit: cover;
   display: block;
 }
-/* 画心·缺图回退:族色纹样线稿(原 P0-A 纹样窗,线稿描边是族色仅存处之一) */
+/* 画心·墨线(#763):族色描边(描边是族色仅存处之一);path 级 stroke-width
+   覆盖基调线宽(毛笔宽窄对,随 viewBox 缩放,.lg 档不再另收细) */
 .jinnang-card .yang svg {
   width: 82%;
   height: 82%;
-  opacity: 0.8;
+  opacity: 0.85;
   stroke: var(--fam, var(--color-danger)); /* 族 token 色(经 .f-* 类注入的 --fam) */
   stroke-width: 2.2;
   fill: none;
   stroke-linecap: round;
-}
-.jinnang-card.lg .yang svg {
-  stroke-width: 1.6; /* 详情档线稿收细(原型同值) */
+  stroke-linejoin: round;
 }
 
 /* ── 笺脚:效果正文(别称已剥离,jinnangAliasSplit),2 行截断;large 详情档 4 行 ── */
@@ -185,7 +201,7 @@
   -webkit-line-clamp: 4;
 }
 
-/* ── 五族色类(--fam 供给界格线/纹样窗描边):与 jinnang-face-data.ts
+/* ── 五族色类(--fam 供给界格线/画心墨线描边):与 jinnang-face-data.ts
    JINNANG_FAMILY 的 token 一一对应(测试核对),类名沿原型 ── */
 .jinnang-card.f-mou {
   --fam: var(--color-seal-qing); /* 谋·黛青 */
@@ -452,7 +468,7 @@
   z-index: 6;
 }
 /* 选中=详情态(spec US4「放大至全文可读」):笺脚放开 4 行(与 lg 详情档同),
-   纹样窗同步让位(min-height 4.5em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
+   画心窗同步让位(min-height 4.5em→3.5em;41 字最长正文 4 行可容,评审 Spec 轴发现) */
 .jinnang-card.sel .jiao {
   -webkit-line-clamp: 4;
 }
