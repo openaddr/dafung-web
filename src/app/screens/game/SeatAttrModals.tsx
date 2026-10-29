@@ -27,14 +27,14 @@ function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void 
     <PileShell
       title="名将"
       seal="将"
-      sub={`${p.guohao} · 麾下名将 · 武将卡群`}
+      sub={`${p.guohao} · 麾下名将`}
       testid={TESTIDS.seatHeroModal}
       ariaLabel={`名将 · ${p.guohao}`}
       onClose={onClose}
     >
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {p.heroes.length} 席<small>(卡面=技能全文)</small>
+        麾下名将 · {p.heroes.length} 席
       </div>
       <div className="pile-hero-grid">
         {p.heroes.map((h) => (
@@ -51,14 +51,14 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
     <PileShell
       title="珍宝"
       seal="宝"
-      sub={`${p.guohao} · 珍宝收藏册 · 装裱陈列+品级角标`}
+      sub={`${p.guohao} · 珍宝收藏册`}
       testid={TESTIDS.seatGemModal}
       ariaLabel={`珍宝 · ${p.guohao}`}
       onClose={onClose}
     >
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
-        已持有 · {p.treasures.length} 件<small>(右上角标=品级,底色随品级;名牌=指导价)</small>
+        已持有 · {p.treasures.length} 件<small>(名牌=指导价)</small>
       </div>
       <div className="pile-grid">
         {p.treasures.map((t) => {

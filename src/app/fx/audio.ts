@@ -25,7 +25,10 @@ export type SoundEvent =
   | "jinnangSelect" // 出牌阶段点选牌面(选中瞬间的极轻嗒,#239 T4)
   | "coinsBox" // 铜钱入匣(S7 破产仪式撒币拍)
   | "rain" // 雨声铺底(S7 破产仪式开锣,音量压档 FILE_GAIN)
-  | "haltGong"; // 都城停号角(S7 全屏宣告开拍;复用 gong-long 素材)
+  | "haltGong" // 都城停号角(狩猎号角长鸣,#751 与 bankrupt 的 gong-long 分家)
+  | "duelClash" // 拼点起摇合击(#746 条目 5:骨牌相击一记,替换合成沙锤——拼点自此有自己的声音)
+  | "verdictChime" // 拼点判词磬一记(#746 条目 5:金圈/落锤同拍,与印章 stamp 的木石感分家)
+  | "reactionOpen"; // 反应窗开窗轻叩(#751:木鱼/点击族,窗开即响)
 
 /** 可拔插音效播放器接口。合成 / 文件 / 静音 各自实现。 */
 export interface AudioPlayer {
@@ -153,8 +156,17 @@ export class SynthAudioPlayer implements AudioPlayer {
         this.rain(ctx);
         break;
       case "haltGong":
-        // 合成回退:与 bankrupt 同族低沉降调(文件通路见 AUDIO_FILES——复用 gong-long)
+        // 合成回退:与 bankrupt 同族低沉降调(文件通路见 AUDIO_FILES——狩猎号角)
         this.bankrupt(ctx);
+        break;
+      case "duelClash":
+        this.duelClash(ctx);
+        break;
+      case "verdictChime":
+        this.verdictChime(ctx);
+        break;
+      case "reactionOpen":
+        this.reactionOpen(ctx);
         break;
     }
   }
@@ -365,6 +377,26 @@ export class SynthAudioPlayer implements AudioPlayer {
   private rain(ctx: AudioContext): void {
     this.noiseBurst(ctx, 2.4, "lowpass", 1400, 0.4, 0.12, 900, 400);
   }
+
+  // 拼点合击(#751,#746 条目 5:两签起摇拍骨牌相击;合成回退=木石撞击,thump 起
+  // 头+低通噪声蹭一记,比 stamp 更高频更「碰」)
+  private duelClash(ctx: AudioContext): void {
+    this.thump(ctx, 300, 0.1);
+    this.noiseBurst(ctx, 0.07, "lowpass", 2000, 1, 0.2);
+  }
+
+  // 判词磬(#751,#746 条目 5:判词拍碗磬一记;合成回退=双正弦金属余韵,文件通路
+  // 真磬采样带长尾,FILE_TRIM 截到 1.6s)
+  private verdictChime(ctx: AudioContext): void {
+    this.tone(ctx, 1320, 0.5, "sine", 0.22);
+    this.tone(ctx, 1980, 0.7, "sine", 0.1);
+  }
+
+  // 反应窗开窗轻叩(#751:木鱼族一记,窗开即响;合成回退同 jinnangDraw 木叩工艺)
+  private reactionOpen(ctx: AudioContext): void {
+    this.thump(ctx, 260, 0.1);
+    this.noiseBurst(ctx, 0.04, "lowpass", 900, 1, 0.1);
+  }
 }
 
 // ─────────────────────── 混合播放器:真实音效文件优先,回退合成 ───────────────────────
@@ -399,7 +431,16 @@ export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
   // 同批 tile-clack 骨牌叩已随拼点双印退役 #638,manifest/CREDITS 留档):
   coinsBox: "/assets/audio/audio-coins-box.ogg", // 破产撒币入匣
   rain: "/assets/audio/audio-rain.ogg", // 破产雨床(FILE_GAIN 压档)
-  haltGong: "/assets/audio/gong-long.ogg", // 都城停号角(与 bankrupt 同素材复用)
+  // 都城停号角分家(#751,#746 音效盘点:haltGong 与 bankrupt 同素材语义混同,
+  // 闭眼分不清「到了都城」还是「完蛋了」——haltGong 换 CC0 狩猎号角长鸣,
+  // bankrupt 保 gong-long):
+  haltGong: "/assets/audio/audio-halt-horn.ogg",
+  // 演出音收尾三件(#751,#746 条目 5:CC0 走 fetch-asset --freesound,manifest/
+  // CREDITS 已登记)——拼点合击起手、判词磬、反应窗开窗轻叩(木鱼族,woodblock
+  // 一采多用的第 4 用途:开窗轻叩与落骰/扩军/落架同「叩」的语言,截断同 diceLand 档):
+  duelClash: "/assets/audio/audio-duel-clash.ogg",
+  verdictChime: "/assets/audio/audio-verdict-chime.ogg",
+  reactionOpen: "/assets/audio/woodblock-hit.ogg",
 };
 
 /** 文件通路分事件音量(S7 #513「音量克制」):缺省 0.6(既有档),雨床压至 0.3
@@ -422,6 +463,10 @@ export const FILE_TRIM: Partial<Record<SoundEvent, { stopAt: number; releaseMs: 
   scrollOpen: { stopAt: 1.8, releaseMs: 300 },
   // S7:雨床是长录音( field recording),仪式只借开头一段萧索,3s 收尾渐隐
   rain: { stopAt: 3, releaseMs: 600 },
+  // #751:判词磬采样带 9s 碗磬长尾,判词拍只借敲击+一记余韵,1.6s 渐隐收尾;
+  // 开窗轻叩同 diceLand 族截断(woodblock 4 连击,强击 0.5s 后收)
+  verdictChime: { stopAt: 1.6, releaseMs: 400 },
+  reactionOpen: { stopAt: 0.65, releaseMs: 200 },
 };
 
 /**

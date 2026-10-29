@@ -17,9 +17,9 @@ const contribution: ExtensionAuthorityContribution = {
       title: "信义笃行",
       // (名将级 desc 已随 #604 下沉为每技自带,下方 skills 各带 desc;typecheck
       //  纳入 extensions 面后暴露的包漂移,随修)
-      // 立绘回填(#511 卡面 B 案):S1 noname 资产(素材映射 docs/design/素材映射.md);
+      // 立绘(#751 画像统一收官):sgs 经典形象直取(curid=8974,素材映射.md);
       // 专属将旗仍由客户端渲染 hook 提供
-      image: "/assets/heroes/hero-taishici-noname.webp",
+      image: "/assets/heroes/hero-taishici-sgs.png",
       skills: [
         {
           id: "taishici-yicong",

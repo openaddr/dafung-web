@@ -205,10 +205,10 @@ export async function waitForEngine(page: Page): Promise<void> {
   });
 }
 
-/** 货币格式化(与 core/money.formatMoney 同口径:唯一单位「两」,千分位;≤0 → 「0 两」)。 */
+/** 货币格式化(与 core/money.formatMoney 同口径:唯一单位「两」,裸数 #745 千分位退役;≤0 → 「0 两」)。 */
 export function fmtMoney(cash: number): string {
   if (cash <= 0) return "0 两";
-  return `${String(cash).replace(/\B(?=(\d{3})+(?!\d))/g, ",")} 两`;
+  return `${cash} 两`;
 }
 
 /** 推进一步可用动作(卷轴内决策按钮);无可用动作返回 false。

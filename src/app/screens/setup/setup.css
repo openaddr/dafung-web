@@ -32,31 +32,99 @@
   }
 }
 
-/* ── 短横屏密度档(#497 ③):666×360 等 max-height:480px 视口压纵向呼吸,
-   让「起兵」CTA 尽量上移可达。只压 padding/间距/座位行高(含真人国号输入行),
-   字级与材质不动、不重排 —— home 同款思路(观感不变,空间让位)。
-   桌面大屏(>480px 高)完全不进此档;类名无条件挂载、规则只在此档生效。 ── */
-@media (max-height: 480px) {
+/* ── G1(#751/#742):safe-area 消费 ──
+   根容器左右 padding 与刘海/圆角 inset 取 max(桌面 env()=0 无感,真机横屏不贴边裸奔);
+   未分层规则压过 utilities 层的 p-6,复合写法一行取大。四变量唯一取值口=app.css P0-9,
+   对齐 GameTopBar/首页 .home-safe 现役用法。 */
+.su-root {
+  padding-left: max(1.5rem, var(--safe-left));
+  padding-right: max(1.5rem, var(--safe-right));
+}
+/* 左上返回钮贴屏左缘:偏移随 safe-left 内移(left-0 的未分层覆盖)。 */
+.su-back {
+  left: max(0px, var(--safe-left));
+}
+
+/* ── 矮横屏档(#751/#742 S1;断点与 home.css/对局屏 game/layout.css A 档同串:
+   orientation: landscape + max-height: 500px,844×390 一类)──
+   旧 max-height:480px 密度档(#497 ③/#559)并入本档(home #707 同款并法;
+   该档只承诺过 1280×800 折叠线,移动横屏从未达标;竖屏走根容器既有滚动,E1 #13)。
+   双列重排:卡宽 780 居中消两侧死白——左列配置(地图行/诸侯数/目标身价/机遇折叠/
+   国号字盘)≈300px,右列座位表+操作 ≈440px;座位表行位与列宽收至内容贴合。
+   撑满式高度:wrap 吃满根滚动埠、卡片弹性吃剩余高,两列各自内滚
+   (左列机遇展开/右列 8 诸侯时不撑破根容器,4 诸侯根恒零滚动)。
+   S1-B(#729 钉底纪律在主屏的延伸):操作区 sticky 钉右列可视底,
+   8 诸侯内滚时「起兵/返回」恒在场,墨纱渐隐衬垫承接滚过内容。 ── */
+@media (orientation: landscape) and (max-height: 500px) {
   .su-root {
-    padding: 0.75rem;
+    padding-top: 0.375rem;
+    padding-bottom: 0.375rem;
+    padding-left: max(0.75rem, var(--safe-left));
+    padding-right: max(0.75rem, var(--safe-right));
+  }
+  .su-wrap {
+    height: 100%;
   }
   .su-card {
-    margin-top: 0.5rem;
-    padding: 0.75rem;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    margin-top: 0.375rem;
+    padding: 0.5rem 0.75rem;
+  }
+  .su-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 300px) minmax(0, 1fr);
+    column-gap: 0.75rem;
+    flex: 1;
+    min-height: 0;
+  }
+  .su-col {
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  .su-col-left {
+    gap: 0.25rem;
   }
   .su-map-row {
-    margin-bottom: 0.125rem;
-  }
-  .su-subtitle {
-    margin-bottom: 0.625rem;
-    padding-bottom: 0.5rem;
-  }
-  .su-head {
-    margin-bottom: 0.5rem;
+    margin-bottom: 0;
   }
   .su-controls {
-    gap: 0.375rem;
-    margin-bottom: 0.5rem;
+    gap: 0.25rem;
+    margin-bottom: 0;
+  }
+  /* 左列竖向预算微收紧(量测驱动:标签行/机遇摘要行高压一档,字级不动) */
+  .su-controls > div > span {
+    line-height: 1.15;
+  }
+  .su-controls details > summary {
+    padding-top: 0.25rem;
+    padding-bottom: 0.25rem;
+  }
+  /* 目标身价三档签在 300px 左列防折行(px-3→px-1.5;折行=块高 +46px,字盘被挤出首屏;
+     0.5rem 档实测仍超 0.8px 折行,故直接落 0.375rem) */
+  .su-controls [role="group"] > button {
+    padding-left: 0.375rem;
+    padding-right: 0.375rem;
+  }
+  /* 国号输入 JSX 位本就 40px(触达口径 S2),撤旧档 32px 压高覆盖。 */
+  .su-guohao-input {
+    min-height: 40px;
+  }
+  /* 字盘横滑条带(S1 竖向预算解:26 字 @36px 网格在任何单列都装不下,
+     单行横滑 = home MapStrip 同语言,边缘裁半字即「还有字」的滑动暗示 §4.6;
+     常用字居 GUOHAO_POOL 前段,首屏即达)。桌面档 wrap 网格不动。 */
+  .su-pool {
+    flex-wrap: nowrap;
+    gap: 0.25rem;
+    overflow-x: auto;
+    scroll-snap-type: x proximity;
+  }
+  .su-pool-btn {
+    scroll-snap-align: start;
   }
   .su-seats {
     gap: 0.25rem;
@@ -65,18 +133,10 @@
     padding-top: 0.125rem;
     padding-bottom: 0.125rem;
   }
-  .su-guohao-input {
-    min-height: 32px;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
-  }
-  .su-pool-label {
-    margin-top: 0.375rem;
-  }
-  .su-pool {
-    gap: 0.25rem;
-  }
   .su-actions {
-    margin-top: 0.5rem;
+    position: sticky;
+    bottom: 0;
+    padding-top: 0.375rem;
+    background: linear-gradient(180deg, transparent, var(--color-panel) 35%);
   }
 }

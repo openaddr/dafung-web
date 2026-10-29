@@ -47,6 +47,7 @@
   font-variant-numeric: tabular-nums;
 }
 .zl .zl-close {
+  position: relative;
   flex: none;
   width: 26px;
   height: 26px;
@@ -60,6 +61,12 @@
   line-height: 1;
   color: var(--color-ink-dim);
   cursor: pointer;
+}
+/* 触达制式(#745 高2):视觉 26px 环不动,透明命中垫扩到 44×44(inset −9)。 */
+.zl .zl-close::after {
+  content: "";
+  position: absolute;
+  inset: -9px;
 }
 .zl .zl-close:hover {
   color: var(--color-ink);

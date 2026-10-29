@@ -252,10 +252,11 @@
   }
 }
 
-/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题;#732 入槽):
-   深墨漆匾 + 漆金双环描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+
-   玩家色光晕承身份(--player-color 由 NoticeBanner 注入;原「玩家色底+白字」对部分
-   玩家色对比 1.9-2.9 不可读,#509 残留必修同源收口)。
+/* 回合旌旗横幅(#510 玄墨鎏金重形:漆金横幅+朱印题;#732 入槽):深墨漆匾 + 漆金双环
+   描边 + 两侧朱印小方(纯装饰 ::before/::after,零新文案)+ 玩家色光晕承身份
+   (--player-color 由 NoticeBanner 注入;原「玩家色底+白字」对部分玩家色对比
+   1.9-2.9 不可读,#509 残留必修同源收口)。峰值 opacity 0.94+退场 scale 1.15
+   (#746 条目 7 同族化:与都城停条带同读作「漆匾」,不透棋盘;退场收敛不向镜头冲)。
    #732:渲染宿主迁顶中知会横幅槽(.notice-slot,锚定 top+8 safe-aware)——本类只
    负责「槽内居中锚点」(absolute 于槽,槽中心即锚点),fly 动画的 translate(-50%,-50%)
    语义随之从「视口 16% 落点」改为「槽位落点」,编排零改动:时长/缓动/关键帧仍归
@@ -314,14 +315,14 @@
   }
   20% {
     transform: translate(-50%, -50%) scale(1.05) rotate(0deg);
-    opacity: 0.82;
+    opacity: 0.94;
   }
   75% {
     transform: translate(-50%, -50%) scale(1) rotate(0deg);
-    opacity: 0.82;
+    opacity: 0.94;
   }
   100% {
-    transform: translate(-50%, -50%) scale(1.4) rotate(0deg);
+    transform: translate(-50%, -50%) scale(1.15) rotate(0deg);
     opacity: 0;
   }
 }
@@ -496,8 +497,10 @@
   inset: 0;
   z-index: 45;
   pointer-events: none;
-  /* 玄墨幕:比掷骰签面遮罩更沉一档(整场多签全屏演出,压住棋盘保判词可读) */
-  background: radial-gradient(ellipse at center, rgba(24, 18, 9, 0.66), rgba(10, 7, 3, 0.84));
+  /* 玄墨幕:比掷骰签面遮罩更沉一档(整场多签全屏演出,压住棋盘保判词可读);
+     中心档 0.76(#746 条目 6 幕布穿缝:双签中缝下方出牌窗亮卡脸不再透出,外缘不动
+     保棋盘语境) */
+  background: radial-gradient(ellipse at center, rgba(24, 18, 9, 0.76), rgba(10, 7, 3, 0.84));
   animation: duel-overlay-in var(--dur-med) var(--ease-out);
 }
 @keyframes duel-overlay-in {
@@ -540,7 +543,10 @@
 }
 
 /* 单枚签卡:签头(玩家色底+国号)+ 签身(骨牌底毛笔大字)。
-   幕启虚位基态 = 半透立起、字面缺席;摇签态整卡虚影、字面轮换;落定态真面 outBack。 */
+   幕启虚位基态 = 半透立起、字面缺席;蓄势态向中缝轻推内倾(#746 条目 2);摇签态
+   整卡虚影、字面轮换;落定态真面 outBack。蓄势位移/内倾走独立 translate/rotate
+   属性,与落定拍 transform 钤落弧(duel-sign-land)分属性复合不互抹;transition
+   时长与 fx/timings.ts DUEL.windupMs(80ms)硬同步,改任一侧须两处同改。 */
 .duel-sign {
   position: relative;
   min-width: 150px;
@@ -554,6 +560,16 @@
   overflow: hidden; /* 签头色底吃满上缘圆角 */
   pointer-events: none;
   opacity: 0.45;
+  transition:
+    translate 80ms var(--ease-out),
+    rotate 80ms var(--ease-out);
+}
+/* 蓄势(#746 条目 2):--windup-x/--windup-rot 由 DuelSignsOverlay 按排布位注入
+   (左签 +8px/+1.5°,右签 −8px/−1.5°,朝中缝轻推内倾);落定拍摘类,transition
+   80ms 回中与钤落弹跳叠合。 */
+.duel-sign.duel-sign-windup {
+  translate: var(--windup-x, 0px) 0;
+  rotate: var(--windup-rot, 0deg);
 }
 .duel-sign-head {
   font-family: var(--font-title);
@@ -598,7 +614,9 @@
 }
 
 /* 判词状态语言(DESIGN §4.6,零文字章):胜者金描边+金光圈(::after 绽放驻留),
-   败者降饱和沉暗;平局双方无圈(缺席即语义,由中缝金「平」补文字例外)。 */
+   败者降饱和沉暗;平局双方无圈(缺席即语义,由中缝金「平」补文字例外)。
+   金圈双层(#746 条目 3):金环辉光 22→32px 提存在感,外层加玩家色晕(承
+   --player-color 已注入)——「胜者=我」的身份色随金圈同现。 */
 .duel-sign.duel-sign-win {
   border-color: var(--color-gold-bright);
   outline-color: var(--color-gold-bright);
@@ -610,8 +628,9 @@
   border-radius: 14px;
   border: 3px solid var(--color-gold-bright);
   box-shadow:
-    0 0 22px color-mix(in srgb, var(--color-gold-bright) 70%, transparent),
-    inset 0 0 14px color-mix(in srgb, var(--color-gold-bright) 45%, transparent);
+    inset 0 0 14px color-mix(in srgb, var(--color-gold-bright) 45%, transparent),
+    0 0 32px color-mix(in srgb, var(--color-gold-bright) 70%, transparent),
+    0 0 48px color-mix(in srgb, var(--player-color, var(--color-gold)) 45%, transparent);
   pointer-events: none;
   animation: duel-win-ring 0.5s var(--ease-out) both;
 }
@@ -657,6 +676,43 @@
 }
 .duel-seal.duel-seal-slam {
   animation: fx-seal-slam 0.16s var(--ease-out) both;
+}
+/* 判词落锤(#746 条目 3):判词拍中缝印重钤脉冲+印缘金光一闪——verdictMs 原为
+   纯等待空拍,脉冲 120ms 在拍内,总时长零增量。scale 走独立属性(复合基态
+   transform 的 translate/rotate 不互抹,同 fx-seal-slam 口径);钤定态由基类样式
+   承接(基态=slam 终态),pulse 不带 fill 动完即回基态。金光一闪 0.2s 即散。 */
+.duel-seal.duel-seal-pulse {
+  animation:
+    duel-seal-pulse 0.12s var(--ease-out-back),
+    duel-seal-flash 0.2s var(--ease-out);
+}
+@keyframes duel-seal-pulse {
+  0% {
+    scale: 1;
+  }
+  45% {
+    scale: 1.16;
+  }
+  100% {
+    scale: 1;
+  }
+}
+@keyframes duel-seal-flash {
+  0% {
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--color-gold-bright) 75%, transparent),
+      0 10px 26px rgba(0, 0, 0, 0.5);
+  }
+  40% {
+    box-shadow:
+      0 0 22px 4px color-mix(in srgb, var(--color-gold-bright) 75%, transparent),
+      0 10px 26px rgba(0, 0, 0, 0.5);
+  }
+  100% {
+    box-shadow:
+      0 0 0 0 transparent,
+      0 10px 26px rgba(0, 0, 0, 0.5);
+  }
 }
 /* 平局:钤变金「平」(#492 漆金化口径:金印留给得/平语义)。 */
 .duel-seal[data-verdict="tie"] {

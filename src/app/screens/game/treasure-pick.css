@@ -125,6 +125,8 @@
   background: var(--color-paper-hi);
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 5px;
+  /* 触达制式(#745 高2):footer 三钮(返回/成交)min-height ≥40,矮横屏档 36 下限。 */
+  min-height: 40px;
   padding: 6px 22px;
   cursor: pointer;
   transition:
@@ -166,5 +168,13 @@
 @keyframes treasure-pick-armed-in {
   from {
     transform: scale(0.96);
+  }
+}
+
+/* ── 矮横屏档(断点=对局屏 A 档同一查询串,pile-modal.css 同款):footer 钮触达
+   下限随档收 40→36(#745 高2)── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .treasure-pick .treasure-pick-btn {
+    min-height: 36px;
   }
 }

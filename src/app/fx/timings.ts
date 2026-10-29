@@ -227,6 +227,13 @@ export const DUEL = {
   get curtainMs() {
     return scStage(200);
   },
+  /** 签面·蓄势预动作(#746 条目 2):幕启落定→起摇之间的推签一拍——两签向中缝轻推
+   *  8px+内倾 1.5°(--ease-out)。「蓄势-接触-定格」打击感链条补第一节,全段总长
+   *  +80ms(#746 判词口径);CSS transition 时长与本值硬同步(fx.css .duel-sign 注),
+   *  改任一侧须两处同改。 */
+  get windupMs() {
+    return scStage(80);
+  },
   /** 签面·并行起摇:虚影轮换段(与 DICE.shakeMs 同值,语义独立——全速恒定) */
   get shakeMs() {
     return scStage(600);

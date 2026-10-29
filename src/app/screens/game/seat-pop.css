@@ -57,7 +57,8 @@
   letter-spacing: normal;
   color: var(--color-ink);
 }
-/* 现金章:千分位全称带「两」(与格上裸数口径区隔),原型 .chip 制式 */
+/* 现金章:裸数全称带「两」(与格上省「两」口径区隔;#745 高3 起全链无千分位),
+   原型 .chip 制式 */
 .spop .spop-cash {
   margin-left: auto;
   padding: 2px 7px;
@@ -65,6 +66,20 @@
   white-space: nowrap;
   border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
   border-radius: 4px;
+  color: var(--color-ink);
+}
+/* reason 印条(#743 判词 E/#751 C 批):目标段不可选席点按放行到弹层时,禁用原因
+   上屏(§4.6 文字例外=禁用原因;触屏无 hover,title 浮签不可达的替代通路)。
+   墨底纸字制式:漆墨底+漆金发丝边+纸色小字,题行下满宽一行,非长驻角标。 */
+.spop .spop-notice {
+  margin-bottom: 8px;
+  padding: 5px 9px;
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--color-lacquer) 80%, var(--color-bg-deep));
+  font-family: var(--font-wenkai);
+  font-size: 11px;
+  line-height: 1.5;
   color: var(--color-ink);
 }
 .spop .spop-row {
@@ -176,28 +191,8 @@
   font-size: 12px;
   color: var(--color-ink-dim);
 }
-/* 开关皮:原型 .switch 制式(34×19,off=淡纸底 dim 钮,on=success 白钮)覆 shadcn
-   缺省(32×18.4 primary/input);双类特异性压过组件内 data-[size] utilities。 */
-.spop .spop-switch.spop-switch {
-  width: 34px;
-  height: 19px;
-  padding: 2px;
-}
-.spop .spop-switch.spop-switch[data-unchecked] {
-  background: color-mix(in srgb, var(--color-ink) 18%, transparent);
-}
-.spop .spop-switch.spop-switch[data-checked] {
-  background: var(--color-success);
-}
-.spop .spop-switch [data-slot="switch-thumb"] {
-  width: 15px;
-  height: 15px;
-  background: var(--color-ink-dim);
-}
-.spop .spop-switch[data-checked] [data-slot="switch-thumb"] {
-  transform: translateX(100%);
-  background: #fff;
-}
+/* 开关(#745 高4):spop-switch 双类覆写皮退役——单源回 ui/switch 底件(桥接
+   --primary=漆金,shadcn 收口红线闭合);尺寸档走底件缺省,不再此处重皮。 */
 
 /* ── 明细弹层轻量补皮(声望/委任数值明细;名录/列表用现役 pile-* 全套不另起)──
    作用域类 .spop-detail 经 PileShell className 挂上 DialogContent(缺省不挂,忘挂

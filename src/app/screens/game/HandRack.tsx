@@ -209,8 +209,9 @@ function tiltVars(key: string): CSSProperties {
  *  语义层,不在指针层);屏读语义不降级(aria-disabled 仍宣告禁用)。目标段(played
  *  字段在场)整架退出交互(#256),原生禁用保持。两态共用同一组件与 key:进/出窗态
  *  不重挂、不重播发牌音/入场级联。
- *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),呼吸金边
- *  归 .reactive 类(reaction-banner.css);非反应牌仍走常态详情。
+ *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),长按开
+ *  详情弹层(#751 A1);呼吸金边归 .reactive 类(reaction-banner.css);非反应牌仍走
+ *  常态详情。
  *  index:发牌入场级联的错峰序(--i)。 */
 function RackCard({
   cardId,
@@ -246,6 +247,18 @@ function RackCard({
               ? () => junshi.onDeselect?.()
               : null,
           onContextMenu: junshi.selected ? () => junshi.onDeselect?.() : undefined,
+        }
+      : {},
+  );
+  // 反应窗槽手势(#751 A1,#744 判词):点牌=选中/再点取消(既有语义不变,选中态
+  // 维持既有上浮表达),长按=开既有卡面详情弹层——15s 竞速窗内读不全笺脚的解法
+  // 是补通路不是新造交互:手势收 useTapOrLongPress 既有单源,详情走 JinnangDetailSheet
+  // 既有弹层(#530 × 出口/#708 夹高内滚),零新组件零新语义。
+  const reactTap = useTapOrLongPress(
+    reaction
+      ? {
+          onTap: () => reaction.onSelect(),
+          onLongPress: () => onOpen(cardId),
         }
       : {},
   );
@@ -289,15 +302,16 @@ function RackCard({
   }
 
   if (reaction) {
-    // 反应窗槽(#281):点牌=选中/再点取消(音效随 GameScreen 侧 onSelect);
-    // 呼吸金边/选中实金在 .reactive/.sel(reaction-banner.css)。
+    // 反应窗槽(#281):点牌=选中/再点取消(音效随 GameScreen 侧 onSelect);长按开
+    // 详情弹层(#751 A1,reactTap 单源);呼吸金边/选中实金在 .reactive/.sel
+    //(reaction-banner.css)。
     return (
       <button
         type="button"
+        {...reactTap.props}
         data-testid={TESTIDS.jinnangCard(cardId)}
         aria-label={cardId}
         aria-pressed={reaction.selected}
-        onClick={reaction.onSelect}
         className={"reactive" + (reaction.selected ? " sel" : "")}
         style={{ ["--i" as string]: index }}
       >
@@ -423,15 +437,20 @@ export interface HandRackProps {
   junshi?: JunshiWindow;
   /** 反应窗态(#281);缺省 = 常态架。与 junshi 互斥(AwaitingReaction ≠ AwaitingJinnang)。 */
   reaction?: RackReaction;
+  /** 未选牌点按「出牌」的计数(#751 B1,GameScreen 持账本):变更一次=架上可用牌
+   *  金圈脉冲一次(自门控 #715 同款状态语言)。 */
+  nudgePulse?: number;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
 const CARD_WIDTH_EM = 15;
 
-/** 架体可用几何(content box 宽 + 牌面像素宽),ResizeObserver 实时跟随窗口/降档。 */
+/** 架体可用几何(content box 宽 + 牌面像素宽 + em 基),ResizeObserver 实时跟随窗口/降档。 */
 interface RackBox {
   avail: number;
   cardWidth: number;
+  /** 容器 em 基像素(= computed font-size):呼吸档 gap「3em」的折算依据(#751 C1)。 */
+  em: number;
 }
 
 /** 叠加压缩的三个 inline 变量(#254):步距 = 每张露出的窥条宽;hover 挥出的邻牌
@@ -448,10 +467,20 @@ interface StackVars {
  *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
  *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
-export function HandRack({ player, junshi, reaction }: HandRackProps) {
+export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackProps) {
   const [detailId, setDetailId] = useState<string | null>(null);
   // 技能全览弹框开合态(#605):null=收;点技卡技名 chip 开,Esc/点外/X 关。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
+  // 触屏临时全展(#751 C2,#744 判词):.many 态下架尾计数章点按=临时全展 2.5s
+  // 回落,再点/点外即收——hover 挥出是桌面通路,触屏没有 hover;手势=点按,零新语义。
+  const [spreadAll, setSpreadAll] = useState(false);
+  const spreadTimer = useRef(0);
+  const handRowRef = useRef<HTMLDivElement | null>(null);
+  const badgeRef = useRef<HTMLButtonElement | null>(null);
+  // 禁用「出牌」点按反馈(#751 B1,#744 判词):动作条自门控发来的未选牌点按计数,
+  // 变更一次=架上可用牌金圈脉冲一次(seat-selglow 同族状态语言,不加文字)。
+  const [usablePulse, setUsablePulse] = useState(false);
+  const pulseTimer = useRef(0);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
   const mounted = player != null;
@@ -459,6 +488,34 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
   const targeting =
     junshi != null && (junshi.pendingCardId != null || junshi.pendingSkillId != null);
+
+  // 金圈脉冲一拍(#751 B1):nudgePulse 计数变更即亮 700ms(动画 --dur-med 级)后熄,
+  // 类摘除再挂可重播;点按连发时重置计时,不叠影。
+  const lastNudge = useRef(nudgePulse);
+  useEffect(() => {
+    if (nudgePulse === lastNudge.current) return;
+    lastNudge.current = nudgePulse;
+    window.clearTimeout(pulseTimer.current);
+    setUsablePulse(true);
+    pulseTimer.current = window.setTimeout(() => setUsablePulse(false), 700);
+  }, [nudgePulse]);
+  useEffect(() => () => window.clearTimeout(pulseTimer.current), []);
+
+  // 临时全展的自动回落与点外收回(#751 C2):2.5s 计时器 + spreadAll 期间 document
+  // pointerdown 落在手牌行/计数章外即收(点外=检视结束,同 hover 移出口径)。
+  useEffect(() => {
+    if (!spreadAll) return;
+    const onDocDown = (e: PointerEvent) => {
+      const t = e.target;
+      if (t instanceof Node && (handRowRef.current?.contains(t) || badgeRef.current?.contains(t)))
+        return;
+      window.clearTimeout(spreadTimer.current);
+      setSpreadAll(false);
+    };
+    document.addEventListener("pointerdown", onDocDown);
+    return () => document.removeEventListener("pointerdown", onDocDown);
+  }, [spreadAll]);
+  useEffect(() => () => window.clearTimeout(spreadTimer.current), []);
 
   // 窗态选中(音效在此收口:选中是动作,取消是撤销不出声——一期口径)。
   const select = (id: string | null) => {
@@ -511,6 +568,7 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
       setBox({
         avail: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
         cardWidth: CARD_WIDTH_EM * parseFloat(cs.fontSize),
+        em: parseFloat(cs.fontSize),
       });
     };
     read();
@@ -524,22 +582,40 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
   // 张数算,窗态下照常工作(#254 口径)。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
   const renderCount = junshi != null ? (targeting ? hand.length : cardOptions.length) : hand.length;
-  // 叠加压缩(#254,手牌无上限 #250):拍板公式 spacing = min(卡宽,(可用宽−卡宽)/(n−1))
-  // ——无「超过 N 张才叠」的阈值常量;n≤3 时公式自然落在全展档,但与一期形态(gap 3em)
-  // 的归属不同,故 ≤3 仍走旧 flex gap,≥4 才挂 .many 消费下方变量。
+  // 叠加压缩(#254,手牌无上限 #250):拍板公式(#751 C1 修,#744 判词)
+  // spacing = min(卡宽+3em,(可用宽−卡宽)/(n−1))——原式 min(卡宽,…) 在 n=4 时
+  // step 恰落卡宽 → gap 收拢为 0,4-7 张「贴死带」;上限抬一档呼吸位后,n=4-6 自然
+  // 落「卡宽+≤19px gap」档(与 ≤3 张的 3em 同语),可用宽吃紧时才贴死/真叠。
+  // spread=Math.max(0,…) 兜住 step>卡宽 的负值,hover 挥出不受影响。
   const stack: StackVars | null =
     box != null && renderCount > 3
       ? (() => {
-          const step = Math.min(box.cardWidth, (box.avail - box.cardWidth) / (renderCount - 1));
+          const step = Math.min(
+            box.cardWidth + 3 * box.em,
+            (box.avail - box.cardWidth) / (renderCount - 1),
+          );
           const spread = Math.max(0, box.cardWidth - step); // hover 挥出要邻牌让出的总幅
           return { step, spreadLeft: spread * 0.2, spreadRight: spread };
         })()
       : null;
-  const handStyle: CSSProperties | undefined = stack
+  // 触屏临时全展态(#751 C2):步距抬到「卡宽 + 余量摊派 gap(≤3em)」——每张全宽
+  // 无重叠一字排开(可用宽不足摊满 3em 时先收 gap 再贴排;8+ 张短窗的溢出属临时
+  // 检视态,2.5s 自动回落);让位变量归零(无叠可挥)。
+  const stackNow: StackVars | null =
+    stack != null && spreadAll && box != null
+      ? (() => {
+          const gapEach = Math.max(
+            0,
+            Math.min(3 * box.em, (box.avail - box.cardWidth * renderCount) / (renderCount - 1)),
+          );
+          return { step: box.cardWidth + gapEach, spreadLeft: 0, spreadRight: 0 };
+        })()
+      : stack;
+  const handStyle: CSSProperties | undefined = stackNow
     ? {
-        ["--jn-step" as string]: `${Math.round(stack.step)}px`,
-        ["--jn-spread-left" as string]: `${Math.round(stack.spreadLeft)}px`,
-        ["--jn-spread-right" as string]: `${Math.round(stack.spreadRight)}px`,
+        ["--jn-step" as string]: `${Math.round(stackNow.step)}px`,
+        ["--jn-spread-left" as string]: `${Math.round(stackNow.spreadLeft)}px`,
+        ["--jn-spread-right" as string]: `${Math.round(stackNow.spreadRight)}px`,
       }
     : undefined;
 
@@ -549,6 +625,8 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
     if (junshi != null && targeting) {
       // 目标段:整架退出交互——pendingCardId 即已出计牌(金描边上浮),其余灰置;
       // 牌钮恒 disabled,不传 onSelect/onDeselect(交互语义已随窗态退场)。
+      // 印条只留已出计牌(#751 B3,#744 判词):§4.6 判据——撤掉文字,off 置灰已可辨,
+      // N 张各印一条同文案是噪音;「为什么不能动」由目标段窗态本身表达。
       return hand.map((id, i) => {
         const played = junshi.pendingCardId === id;
         return (
@@ -560,7 +638,7 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
               available: false,
               selected: false,
               played,
-              reason: played ? "已出牌 · 待择目标" : "目标段不可换牌",
+              reason: played ? "已出牌 · 待择目标" : undefined,
             }}
             onOpen={setDetailId}
           />
@@ -637,10 +715,14 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
       {reaction?.banner}
       {renderCount > 0 ? (
         /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
-            ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。 */
+            ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。usablePulse=
+            未选牌点按「出牌」的架上金圈脉冲一拍(#751 B1)。 */
         <div
+          ref={handRowRef}
           data-testid={TESTIDS.jinnangHand}
-          className={stack ? "hand-rack-hand many" : "hand-rack-hand"}
+          className={
+            (stack ? "hand-rack-hand many" : "hand-rack-hand") + (usablePulse ? " nudge" : "")
+          }
           style={handStyle}
         >
           {handItems}
@@ -649,6 +731,28 @@ export function HandRack({ player, junshi, reaction }: HandRackProps) {
         /* 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;窗态下不可能到这
             ——hasUsableJinnang 才进 AwaitingJinnang 相位,架上必有选项) */
         <JinnangCardBack aria-hidden="true" className="hand-rack-back" />
+      )}
+      {/* 架尾计数章(#751 C2):.many 压缩态常驻,点按=临时全展(触屏无 hover 的
+          全显通路;pointer:coarse 档才显示,桌面 hover 通路保留);章上数字=信息
+          (§4.6 例外),全展中金边点亮 = 状态表达。 */}
+      {stack != null && (
+        <button
+          ref={badgeRef}
+          type="button"
+          data-testid={TESTIDS.jinnangSpreadBadge}
+          aria-label={`手牌 ${renderCount} 张,点按临时全展`}
+          aria-pressed={spreadAll}
+          onClick={() => {
+            setSpreadAll((v) => {
+              window.clearTimeout(spreadTimer.current);
+              if (!v) spreadTimer.current = window.setTimeout(() => setSpreadAll(false), 2500);
+              return !v;
+            });
+          }}
+          className="rack-spread-badge"
+        >
+          {renderCount}
+        </button>
       )}
       {detailId !== null && (
         <JinnangDetailSheet cardId={detailId} onClose={() => setDetailId(null)} />

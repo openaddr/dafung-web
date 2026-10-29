@@ -160,7 +160,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-29",
+    "retired_reason": "#751 画像统一收官:sgs 经典形象在且同规格(hero:huatuo:sgs,curid=7870),noname 版退役;文件已下架,本条目留档"
   },
   "hero:caopi:noname": {
     "path": "assets/heroes/hero-caopi-noname.webp",
@@ -205,7 +208,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-29",
+    "retired_reason": "#751 画像统一收官:sgs 经典形象在且同规格(hero:taishici:sgs,curid=8974),noname 版退役;文件已下架,本条目留档"
   },
   "texture:zhulin": {
     "path": "assets/textures/texture-zhulin.webp",
@@ -280,6 +286,46 @@
     "license": "Public domain",
     "author": "Wang, Bing",
     "fetched_at": "2026-10-15",
+    "review_required": false
+  },
+  "hero:huatuo:sgs": {
+    "path": "assets/heroes/hero-huatuo-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=7870",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)华佗-经典形象 · wiki 上传者 359366122",
+    "fetched_at": "2026-10-29",
+    "review_required": true
+  },
+  "hero:taishici:sgs": {
+    "path": "assets/heroes/hero-taishici-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=8974",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)太史慈-经典形象 · wiki 上传者 359366122",
+    "fetched_at": "2026-10-29",
+    "review_required": true
+  },
+  "audio:duel-clash": {
+    "path": "assets/audio/audio-duel-clash.ogg",
+    "source": "https://freesound.org/s/692818/",
+    "license": "CC0",
+    "author": "hollandm (Freesound,「Woodblock-hard.wav」lq ogg 预览直链)",
+    "fetched_at": "2026-10-29",
+    "review_required": false
+  },
+  "audio:verdict-chime": {
+    "path": "assets/audio/audio-verdict-chime.ogg",
+    "source": "https://freesound.org/s/851382/",
+    "license": "CC0",
+    "author": "R0teroktober (Freesound,「Sound bowl / Singing bowl」lq ogg 预览直链)",
+    "fetched_at": "2026-10-29",
+    "review_required": false
+  },
+  "audio:halt-horn": {
+    "path": "assets/audio/audio-halt-horn.ogg",
+    "source": "https://freesound.org/s/148645/",
+    "license": "CC0",
+    "author": "nanoPlink (Freesound,「hunting-horn-bass.wav」lq ogg 预览直链)",
+    "fetched_at": "2026-10-29",
     "review_required": false
   }
 }

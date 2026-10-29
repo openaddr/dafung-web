@@ -60,12 +60,14 @@ function rollSign(die: number): Promise<void> {
   document.body.appendChild(overlay);
   activeOverlay = overlay;
   // 第一段 摇签:虚影轮换(全段恰 10 次换签,周期随 e2e 倍率缩放)+ 每拍微旋,
-  // 字面不落定=悬念;落定拍才亮真面。
+  // 字面不落定=悬念;落定拍才亮真面。轮换序列绕开真面(#746 条目 1 顺手:旧
+  // (die-1+swaps) 序列第 6 换恰落真面=提前剧透,命中即 +1 错开,永不闪真面)。
   let swaps = 0;
   const shuffler = window.setInterval(
     () => {
       swaps += 1;
-      sign.textContent = SIGN_FACES[(die - 1 + swaps) % SIGN_FACES.length];
+      const idx = (die - 1 + swaps) % SIGN_FACES.length;
+      sign.textContent = SIGN_FACES[idx === die - 1 ? (idx + 1) % SIGN_FACES.length : idx];
       sign.style.rotate = `${(Math.random() - 0.5) * 12}deg`;
     },
     Math.max(1, Math.round(shakeMs / 10)),

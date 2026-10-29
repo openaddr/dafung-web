@@ -2,7 +2,9 @@
 // 右缘单列一人一格(自机入列),原型 tmp/席位侧列原型.html
 // ①全屏语境/②席位格解剖/③状态一览 三节判决移植——行1=国号印(座位色,字符居中)
 // +现金主数(无千分位省「两」)+体力色条(吃行1剩余宽度,濒耗竭转朱砂);行2=城楼/
-// 牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分(几何上不可能溢出)。图标
+// 牌背/战盔/玉璧/墨竹/卷轴六图标计数 space-between 均分(#751 C 批容量重排:原
+// 「几何上不可能溢出」前提经 #743 判词实证已废——内宽仅 84px,图标 8px/计数
+// 10px/手牌「9+」封顶后量测判据 itemSum≤84)。图标
 // 逐路径复刻 AttrIcon.tsx 现役资产(战盔/玉璧走 ATTR_ENTRY_D,牌背=MiniBacks),零新画。
 // 状态全视觉不用文字(DESIGN §4.6):活跃=金圈呼吸(.active)、目标候选=金圈呼吸
 // (.candidate)+选中实金停持(.picked,#417 统一口径)、破产=降透明印灰(.bankrupt)、
@@ -24,7 +26,7 @@
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
 import { useState, type ReactNode } from "react";
 import { formatMoney } from "@core/money";
-import { playerColor, rgba } from "@core/theme";
+import { playerColor, playerSealText, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
 import { AttrIcon, MiniBacks } from "./AttrIcon";
@@ -47,8 +49,8 @@ function Claim({ children }: { children: ReactNode }) {
 }
 
 /** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
- *  selected=已选中(实金停持,再点取消);不可用席位照列不动,reason 进浮签
- *  (title,DESIGN §4.6 禁文字章)。 */
+ *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃+弹层
+ *  reason 印条(见 SeatCell 目标段注)。 */
 export interface SeatTargetSlot {
   available: boolean;
   selected?: boolean;
@@ -62,6 +64,13 @@ export interface CityLedgerWiring {
   openSeat: number | null;
   onOpen: (seat: number) => void;
 }
+
+/** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽 84px 预算向数字倾斜后仍容不下
+ *  两位数——≥10 显示「9+」(全数在单人格弹层;MiniBacks「至多示意 3 张」同款示意
+ *  口径,数值例外条款允许,非文字角标);负声望保留真实负值不在封顶族。 */
+const HAND_COUNT_CAP = 9;
+const handCountText = (count: number): string =>
+  count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
 
 /** 单张席位格(96×38 双行八项格)。self=自机格(金描边+左金条+金渐变,纯展示)。
  *  #701 交互接线:onOpenPop=格面 tap(非按钮区)开单人格弹层;onOpenDetail=格上
@@ -84,9 +93,12 @@ function SeatCell({
   winner: boolean;
   target?: SeatTargetSlot;
   cityLedger: CityLedgerWiring;
-  onOpenPop: (seat: number) => void;
+  onOpenPop: (seat: number, reason?: string) => void;
   onOpenDetail: (seat: number, kind: SeatDetailKind) => void;
 }) {
+  // 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席位点按→格身一次轻晃(视觉反馈,
+  // §4.6 色变/位移即状态,不加文字章),随 animationEnd 自清——一次性演出不驻类。
+  const [shake, setShake] = useState(false);
   // 手牌浮签恒纯「暗置」口径(#575:窥探即时一次性,窥见放行随 jinnangPeeks 账本退役)
   const handTip: TipText = {
     name: ATTR_TIPS.hand.name,
@@ -100,6 +112,7 @@ function SeatCell({
     <div
       data-testid={self ? TESTIDS.seatSelf : TESTIDS.seat(seat)}
       onClick={() => onOpenPop(seat)}
+      onAnimationEnd={() => setShake(false)}
       className={
         "seat" +
         (self ? " self" : "") +
@@ -107,9 +120,13 @@ function SeatCell({
         (winner ? " won" : "") +
         (p.isBankrupt ? " bankrupt" : "") +
         (target?.available ? " candidate" : "") +
-        (target?.selected ? " picked" : "")
+        (target?.selected ? " picked" : "") +
+        (shake ? " shake" : "")
       }
-      style={{ ["--pc" as string]: rgba(playerColor(p.colorIndex)) }}
+      style={{
+        ["--pc" as string]: rgba(playerColor(p.colorIndex)),
+        ["--pc-seal" as string]: rgba(playerSealText(p.colorIndex)),
+      }}
     >
       {/* 格面 tap(#701)=单人格弹层:格根接点击;七个按钮(六图标+体力条)经
           Claim 壳止泡各走己路,目标层按钮自带止泡——落到这里的只剩非按钮区 */}
@@ -161,8 +178,16 @@ function SeatCell({
             testId={TESTIDS.seatAttr(seat, "hand")}
             ariaLabel={`锦囊手牌 ${p.jinnangHandCount}`}
           >
-            <MiniBacks count={p.jinnangHandCount} />
-            {p.jinnangHandCount}
+            {p.jinnangHandCount > HAND_COUNT_CAP ? (
+              /* 封顶态(#743 判词 A):≥10 只出「9+」不带牌背示意——行 2 内宽 84px
+                 容不下背组+双字(量测判据 itemSum≤84);全数在浮签/单人格弹层 */
+              handCountText(p.jinnangHandCount)
+            ) : (
+              <>
+                <MiniBacks count={p.jinnangHandCount} />
+                {p.jinnangHandCount}
+              </>
+            )}
           </Tip>
         </Claim>
         <Claim>
@@ -218,22 +243,29 @@ function SeatCell({
       </div>
       {/* 目标段点击层(#256/#417):真按钮覆盖格面(键盘可达,不自写交互语义);
           点格=选中/再点取消(选中实金停持 .picked,样式 seat-target.css),打出走
-          动作条「出」确认钮。格本体仍是展示件,候选态=金圈呼吸(.candidate)。 */}
+          动作条「出」确认钮。格本体仍是展示件,候选态=金圈呼吸(.candidate)。
+          不可选席(#743 判词 E/#751 C 批):disabled 会吞点击形成死区(title 浮签
+          触屏不可达)——改 aria-disabled 挂点,点按=格身轻晃+单人格弹层放行,
+          reason 印条上屏(禁用原因=§4.6 文字例外,移动端唯一可达通路)。 */}
       {target && (
         <button
           type="button"
           data-testid={TESTIDS.seatTarget(seat)}
           className={"seat-target" + (target.selected ? " picked" : "")}
-          disabled={!target.available}
+          aria-disabled={!target.available || undefined}
           aria-pressed={target.available ? Boolean(target.selected) : undefined}
           aria-label={
             target.available
               ? `指定 ${p.guohao || p.name} 为目标`
               : `不可指定:${target.reason ?? ""}`
           }
-          title={target.available ? undefined : target.reason}
           onClick={(e) => {
             e.stopPropagation(); // 目标段点击不冒泡进格 tap 弹层通路(#701)
+            if (!target.available) {
+              setShake(true);
+              onOpenPop(seat, target.reason);
+              return;
+            }
             target.onPick();
           }}
         />
@@ -264,13 +296,14 @@ export interface SeatRailProps {
 export function SeatRail({ snapshot, selfSeat, targets, cityLedger }: SeatRailProps) {
   // 单人格弹层/明细弹层开合态(#701):归席位列子树自洽(不进 GameScreen 装配)。
   // 开合态持座位号不持玩家对象——弹层开着随快照实时重渲(CityLedgerModal 同口径);
-  // 钻入=关单人格层开明细,居中模态单层互斥。
-  const [popSeat, setPopSeat] = useState<number | null>(null);
+  // 钻入=关单人格层开明细,居中模态单层互斥。reason(#743 判词 E)只在死区点按
+  // (目标段不可选席)传入,弹层题行下出印条;常规格面 tap 不带。
+  const [popSeat, setPopSeat] = useState<{ seat: number; reason?: string } | null>(null);
   const [detail, setDetail] = useState<{
     kind: SeatDetailKind;
     seat: number;
   } | null>(null);
-  const openPop = (seat: number) => setPopSeat(seat);
+  const openPop = (seat: number, reason?: string) => setPopSeat({ seat, reason });
   const openDetail = (seat: number, kind: SeatDetailKind) => {
     setPopSeat(null);
     setDetail({ kind, seat });
@@ -309,9 +342,10 @@ export function SeatRail({ snapshot, selfSeat, targets, cityLedger }: SeatRailPr
           门卫)。popSeat 只由席位格点击写入,恒为有效座号,players 直取不设兜底。 */}
       {popSeat != null && (
         <SeatPopModal
-          p={snapshot.players[popSeat]}
-          seat={popSeat}
-          self={popSeat === selfSeat}
+          p={snapshot.players[popSeat.seat]}
+          seat={popSeat.seat}
+          self={popSeat.seat === selfSeat}
+          notice={popSeat.reason}
           cityLedger={cityLedger}
           onOpenDetail={openDetail}
           onClose={() => setPopSeat(null)}

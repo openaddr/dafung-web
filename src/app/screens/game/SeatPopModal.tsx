@@ -1,6 +1,7 @@
 // 席位格 tap 单人格弹层(#701,spec #697 ④):格面 tap 开的单人纵深弹层,原型
-// tmp/席位侧列原型.html ⑤节判决原样移植——头=国号印(座位色)+国号+现金章(千分位
-// 全称带「两」,与格上裸数口径区隔);体力数值条(0-100,濒耗竭转朱砂与格上同口径);
+// tmp/席位侧列原型.html ⑤节判决原样移植——头=国号印(座位色)+国号+现金章(裸数
+// 全称带「两」,与格上省「两」口径区隔;#745 高3 起全链无千分位);体力数值条
+// (0-100,濒耗竭转朱砂与格上同口径);
 // 声望/委任行;城池/手牌/名将/珍宝四徽章,可点项(城池/名将)金描边+微亮底+尾「›」,
 // 不可点项(手牌/珍宝)素底淡字,一眼可辨;自机格加托管开关行、对手格无(开关接现役
 // 托管引擎通路:useAutopilotOn 回读 + controller.setAutoPilot,行为=旧托管钮)。
@@ -31,6 +32,7 @@ export function SeatPopModal({
   p,
   seat,
   self,
+  notice,
   cityLedger,
   onOpenDetail,
   onClose,
@@ -39,6 +41,10 @@ export function SeatPopModal({
   seat: number;
   /** 自机口径:托管开关行仅此渲染(对手格无,原型 ⑤ 判词)。 */
   self: boolean;
+  /** 死区 reason 印条(#743 判词 E/#751 C 批):目标段不可选席点按放行到本层时
+   *  传入——题行下一行墨底纸字,禁用原因=§4.6 文字例外(触屏无 hover 的唯一
+   *  可达通路);常规格面 tap 不传不出。 */
+  notice?: string;
   cityLedger: CityLedgerWiring;
   /** 徽章钻入(名将名录;弹层关、明细开)。 */
   onOpenDetail: (seat: number, kind: "hero") => void;
@@ -81,6 +87,11 @@ export function SeatPopModal({
             现金 {formatMoney(p.cash)}
           </span>
         </DialogDragHandle>
+        {notice != null && (
+          <div className="spop-notice" data-testid={TESTIDS.seatPopNotice(seat)}>
+            {notice}
+          </div>
+        )}
         <div className="spop-row">
           体力
           <b className="spop-num" data-testid={TESTIDS.seatPopStamina(seat)}>
@@ -154,12 +165,13 @@ export function SeatPopModal({
             珍宝
           </span>
         </div>
-        {/* 托管开关行(仅自机格;autopilotSupported 门卫与旧托管钮同款:联机/单机有) */}
+        {/* 托管开关行(仅自机格;autopilotSupported 门卫与旧托管钮同款:联机/单机有)。
+            开关皮单源回 ui/switch 底件桥接(#745 高4:spop-switch 双类覆写退役,
+            on 态吃 --primary=漆金,success 语义错位收口)。 */}
         {self && controller?.autopilotSupported && (
           <div className="spop-switch-row">
             托管
             <Switch
-              className="spop-switch"
               data-testid={TESTIDS.seatPopAutopilot(seat)}
               aria-label="托管"
               checked={autopilotOn}

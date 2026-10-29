@@ -12,8 +12,8 @@
    悬停微反馈统一(#490 微档):可点件 hover 亮金描边+微缩放,--dur-fast。 */
 
 /* ── 横幅:浮置于架体(.hand-rack 为定位上下文)上缘带(#709 下移浮置:从挤压
-   膨胀的板中区落回架上缘浮置带,矮横屏不再上探盖板/触席位条);深墨面板 + 漆金
-   描边 + 朱砂倒计时弧(#510 玄墨鎏金,同 HUD 面板语言)。
+   膨胀的板中区落回架上缘浮置带,矮横屏不再上探盖/触席位条);深墨面板 + 漆金
+   描边 + 朱砂倒计时弧嵌秒数前置(#510 玄墨鎏金,#751 A5,同 HUD 面板语言)。
    宽度自适应(#709):left/right 双锚 + margin auto + max-content——旧 left:50% +
    translateX 的收缩适配把可用宽饿成架体右半幅,矮横屏下横幅被挤成竖排字气球
    (按钮一字一行、面板 142px 高直探板中区);架体自身已带席位条 104px 让位
@@ -60,15 +60,16 @@
 }
 
 /* AOE 选份候选笺行(全体域:点笺=定被保护份;含自己)。§4.6:选中=金边+金圈,
-   不加文字标牌;笺上只留座位国号一字。 */
+   不加文字标牌;笺上只留座位国号一字。热区 30→40px(#751 A3,#744 判词:竞速窗
+   小目标=漏触误触直接来源;字阶不动)。 */
 .reaction-shares {
   display: flex;
   align-items: center;
   gap: 6px;
 }
 .reaction-seat-chip {
-  width: 30px;
-  height: 30px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
   font-family: var(--font-brush);
@@ -95,8 +96,13 @@
 }
 
 /* 落印(墨钮,DESIGN §4.2 主行动)与不用(次级漆钮):同 ActionBar 按钮种参数。
-   nowrap(#709):折行容器里钮字恒横排,不吃行内挤压。 */
+   nowrap(#709):折行容器里钮字恒横排,不吃行内挤压。热区垫到 ≥44px(#751 A3,
+   #744 判词:原高 ≈29px 全面低于触达标;min-height+inline-flex 居中,字阶与横排
+   不动)。 */
 .reaction-btn {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   white-space: nowrap;
   font-family: var(--font-brush);
   font-size: 14px;
@@ -140,8 +146,15 @@
 }
 
 /* 降噪口(静默是状态不是主行动:弱化文字钮,不抢落印/不用)。nowrap(#709):
-   横幅折行时整钮挪行,不再被行内挤压成一字一列的竖排。 */
+   横幅折行时整钮挪行,不再被行内挤压成一字一列的竖排。
+   #751 A4(防误触):居按钮行末位并与「不用」拉开一档(margin 垫出总间隔 ≥12px),
+   透明 padding 把热区垫到 ≥44px(视觉弱化小字不变)。 */
 .reaction-mute {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  margin-inline-start: 6px;
+  padding: 0 8px;
   white-space: nowrap;
   font-family: var(--font-wenkai);
   font-size: 12px;
@@ -157,11 +170,34 @@
   color: var(--color-ink);
 }
 
-/* 朱砂倒计时弧(右段):底环墨影弱轨,前弧朱砂随剩余时间收敛(rAF 驱动 dashoffset) */
-.reaction-timer {
+/* 朱砂倒计时弧+弧心秒数(#751 A5,阅读序前置):底环墨影弱轨,前弧朱砂随剩余
+   时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),文楷 tabular-nums。
+   ≤5s danger 档:数字转朱砂、前弧亮一档(朱砂光晕),整盒入场脉动一次(类挂上
+   即播,一次性演出不随重渲重播;reduced-motion 由 app.css M-4 兜层压时长)。 */
+.reaction-timerbox {
+  position: relative;
   flex: 0 0 auto;
   width: 30px;
   height: 30px;
+}
+.reaction-timerbox.danger {
+  animation: reaction-timer-danger 0.45s var(--ease-out);
+}
+@keyframes reaction-timer-danger {
+  0% {
+    transform: scale(1);
+  }
+  40% {
+    transform: scale(1.28);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+.reaction-timer {
+  display: block;
+  width: 100%;
+  height: 100%;
   transform: rotate(-90deg); /* 起点正上,顺时针收敛 */
 }
 .reaction-timer .track {
@@ -174,6 +210,31 @@
   stroke: var(--color-danger);
   stroke-width: 3.5;
   stroke-linecap: round;
+}
+.reaction-timerbox.danger .reaction-timer .arc {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-danger) 65%, transparent));
+}
+.reaction-timer-num {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-wenkai);
+  font-size: 10px;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-ink);
+}
+.reaction-timerbox.danger .reaction-timer-num {
+  color: var(--color-danger);
+}
+
+/* 来者锦囊 mini 签面(#751 A6):行首卡面锚点——卡面是既有器物语言,非新增标牌。
+   高 26px(em 基 1.3px,15em×20em 随缩),纯装饰(aria-hidden,牌名在文案里)。 */
+.reaction-mini {
+  flex: 0 0 auto;
+  align-self: center;
+  font-size: 1.3px;
 }
 
 /* ── 架上反应牌呼吸金边(P1-D:牌只有一份、就在架上亮):可打的反应锦囊金描边

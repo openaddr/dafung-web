@@ -219,7 +219,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await page.getByTestId(TESTIDS.actionbarCancel).click();
     const play = page.getByTestId(TESTIDS.actionbarPlay);
     await expect(play).toBeVisible();
-    await expect(play).toBeDisabled(); // 选中已清空(进/出目标段即清空重选)
+    // 选中已清空(进/出目标段即清空重选);#751 B1:卡牌段禁用=aria-disabled 自门控
+    await expect(play).toHaveAttribute("aria-disabled", "true");
     await expect(opt).toBeVisible(); // 牌回卡牌段(作罢语义的 UI 面)
   });
 
@@ -309,10 +310,13 @@ test.describe("出牌指示线(#281 P2-E)", () => {
     // 点牌选中 → 出牌进目标段 → 席位点层点候选目标选中 → 动作条「出」确认打出(#417 两步)
     await page.getByTestId(TESTIDS.jinnangCard("火烧连营")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 目标段按 seats 全量装配(#417 口径:不可指定席也列槽,reason 进浮签)——
-    // seat-target-0=自机槽恒 disabled(不能指定自己),裸 `.first()` 命中它空转到
-    // 超时(W4 实锤);候选=enabled 槽,首个即可(种植保证 bot 1 有可拆城)。
-    const targetBtn = page.locator('[data-testid^="seat-target-"]:not([disabled])').first();
+    // 目标段按 seats 全量装配(#417 口径:不可指定席也列槽)——#751 C 批起不可选槽
+    // 不再 disabled(死区点按=轻晃+弹层 reason 印条),改 aria-disabled 挂点:
+    // seat-target-0=自机槽恒不可选(不能指定自己),裸 `.first()` 命中它空转到
+    // 超时(W4 实锤);候选=可选槽,首个即可(种植保证 bot 1 有可拆城)。
+    const targetBtn = page
+      .locator('[data-testid^="seat-target-"]:not([aria-disabled="true"])')
+      .first();
     await expect(targetBtn).toBeVisible({ timeout: 15_000 });
     const targetTestid = await targetBtn.getAttribute("data-testid");
     const targetSeat = Number(targetTestid?.replace("seat-target-", ""));

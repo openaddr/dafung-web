@@ -146,6 +146,14 @@
 /* 按压态已收编全局:R3-C10(#97) 起 app.css 的 button:active scale(0.98) 统一承担
    按压反馈(此处旧 0.97 规则特异度更低已实际失效,删除留注释防回加) */
 
+/* ── G1(#751/#742):safe-area 消费 ──
+   根容器左右 padding 与刘海/圆角 inset 取 max(桌面 env()=0 无感,真机横屏不贴边裸奔);
+   未分层规则压过 utilities 层的 px-6/p-6,复合写法一行取大。四变量唯一取值口=app.css P0-9。 */
+.home-safe {
+  padding-left: max(1.5rem, var(--safe-left));
+  padding-right: max(1.5rem, var(--safe-right));
+}
+
 /* ── 矮横屏档(#707;形态分档断点与对局屏 game/layout.css A 档同口径:
    orientation: landscape + max-height: 500px,Android 844×390 一类)──
    本档收纳目标:选图+开局一屏完成、零页面滚动。选图器 = 内联横排条带
@@ -154,12 +162,14 @@
    旧 max-height:480px 档(原 dogfood ISSUE-002 的纵向收紧)并入本档——
    桌面大屏与竖屏不进此档,竖屏走根容器既有滚动(E1 #13)。 ── */
 @media (orientation: landscape) and (max-height: 500px) {
-  /* #558:短横屏 72px 档撤素材——过窄裁不出画心,横带回纯渐变占位
-     (微光 ::after 不在此撤,两档通用);立绘整体 display:none。
-     72px 档维持:#707 收纳已由标题降档+间距收紧承担,品牌横带与「逐鹿」印位不动。 */
+  /* H1(#751/#742 判词):画心纹理恢复——72px cover 裁带对「纹理」完全成立,
+     「裁不出画心」只对人物立绘成立,两件不再一并撤:本档只撤立绘(display:none),
+     画心 = .home-band-heart 原材质(lanting + 压深渐变 + 微光 ::after)原样生效,
+     横带在矮横屏仍是「深色古画横批」而非近黑空带(玄墨鎏金「立绘为魂」的最低成本回魂);
+     素材若随 #749 三联样张换新,本档自动同吃,零额外工作。
+     72px 档其余维持:#707 收纳已由标题降档+间距收紧承担,「逐鹿」印位不动。 */
   .home-band-h {
     height: 72px;
-    background: linear-gradient(180deg, var(--color-panel), var(--color-bg-deep));
   }
   .home-band-hero {
     display: none;

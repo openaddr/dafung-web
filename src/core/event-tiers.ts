@@ -203,8 +203,8 @@ export const EVENT_TIERS = {
   },
   reactionOpened: {
     fold: "must-fold",
-    fx: "silent",
-    why: "置窗(view/seq/windowMs 派生)+ AwaitingReaction;表现面=卷轴/横幅 UI 直读副本 pendingReaction,不经提取器",
+    fx: "presented",
+    why: "置窗(view/seq/windowMs 派生)+ AwaitingReaction;表现面=窗体 UI 直读副本 pendingReaction(窗体本身不经提取器)+ 开窗轻叩音(sound=reactionOpen,#751 窎开音,窗开即响单机/联机同见)",
     declaredGaps: [
       "march 窗 payload:在途续走载荷无词汇,副本侧零值占位仅类型完备、零消费面(UI 读 view/answers;payload 唯一消费方=权威侧 room.ts 超时判据,不经折叠)——#430 票项 4 判定:不补词汇,表中声明",
     ],

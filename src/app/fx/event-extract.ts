@@ -631,6 +631,12 @@ export function extractBatchEvents(
         events_.push(textFloater(engine, seat, ev.label));
         break;
       }
+      case "reactionOpened": {
+        // 开窗轻叩(#751 窎开音):反应窗开即响(木鱼族),窗体 UI 本身直读副本
+        // pendingReaction 不经本提取器;声音走通用 sound 档,单机/联机同见。
+        events_.push({ kind: "sound", event: "reactionOpen" });
+        break;
+      }
       case "reactionAnswered": {
         // 拦检出牌(半路杀出,use=true):线=城主 → 行人(本批随后的 marchArrived 即行人落格)。
         if (ev.use && ev.cardId != null) {
@@ -782,7 +788,7 @@ export function extractBatchEvents(
       }
       // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
       // 走到这里的已登记 kind 必须是 fx=silent 档(回合/胜负生命周期、treasureSold、
-      // skillFired、encounterTriggered、reactionOpened、exhaustionChoice 等:状态折叠
+      // skillFired、encounterTriggered、exhaustionChoice 等:状态折叠
       // 与卷轴/反应窗 UI 的输入,不产演出)——presented 档漏 case = 下面赋值编译期红
       //(FxPresentedKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
       // 落此跳过:ADR-0020 既定口径,非吞错。

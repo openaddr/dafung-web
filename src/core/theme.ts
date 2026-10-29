@@ -100,6 +100,25 @@ export const Theme = {
     hex("c8a95a"), // 鎏金
     hex("9a8262"), // 玄茶(#557:b59d7c 压暗,离鎏金 1.62:1)
   ],
+
+  // 国号印印字亮档(#743 判词 B/#751 C 批):座位色小字(格上印 8.5px)直接作印字时
+  // 8 色中 6 色对印底(26% 座色混玄墨底)<4.5:1(松绿/玄茶 3.28 最低)——座位色本体
+  // 受 #557 近色链约束不可动,故印字单走一档亮变体(座色 60%+纸色 40%,attr-*-bright
+  // 同族先例):印边框仍吃座位色本体(身份锚不变),唯字提线。八色对各自印底逐一
+  // 实测 ≥4.5(WCAG 2.1 正文线;contrast-calc 通路复跑,2026-10-29):
+  //   石青 5.81 / 朱砂 5.36 / 青绿 6.13 / 紫 5.76 / 赭橙 5.62 / 松绿 5.38 / 鎏金 6.02 / 玄茶 5.42
+  // 消费通路:SeatRail 经 playerSealText() 以 --pc-seal 行内注入(同 --pc 注入先例),
+  // 不进 gen:theme token 面——印字随格走、无全局消费方。
+  playerSealTexts: [
+    hex("a5c1cc"), // 石青·印字
+    hex("e99a85"), // 朱砂·印字
+    hex("bdd3a0"), // 青绿·印字
+    hex("d6b2cb"), // 紫·印字
+    hex("dcad7d"), // 赭橙·印字
+    hex("8fb5a4"), // 松绿·印字
+    hex("dac48c"), // 鎏金·印字
+    hex("beac91"), // 玄茶·印字
+  ],
 } as const;
 
 // ── 动效 token(R3-C1 #88):时长 + 缓动唯一源,CSS 一律 var() 消费 ──
@@ -143,6 +162,11 @@ export const Motion = {
 
 export const playerColor = (index: number): Rgb =>
   Theme.playerColors[index % Theme.playerColors.length];
+
+/** 国号印印字(#743 B/#751 C 批):座位色亮档,配 playerColors 同序取用——格上小印
+ *  字色单源;边框/旗面等身份锚仍走 playerColor 本体(见 playerSealTexts 注记)。 */
+export const playerSealText = (index: number): Rgb =>
+  Theme.playerSealTexts[index % Theme.playerSealTexts.length];
 
 /** 玩家可选国号字池(装饰用)。 */
 export const GUOHAO_POOL = [

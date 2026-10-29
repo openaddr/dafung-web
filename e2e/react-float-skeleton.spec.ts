@@ -15,6 +15,7 @@ import {
   actIfCan,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
@@ -184,9 +185,22 @@ test.describe("设置弹层(#700 ⑥)", () => {
     await expect(page.getByTestId(TESTIDS.logDrawer)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(page.getByTestId(TESTIDS.logDrawer)).toHaveCount(0);
-    // 回到主页:弃局离屏(控制器销毁),回 setup 首页
+    // 回到主页:弃局确认(#745 高1)→ 确认后弃局离屏(控制器销毁),回 setup 首页。
+    // 先清决策点(对局自走,落格购地卷轴会拦顶栏命中——载机慢拍实锤):卷轴放行后
+    // 顶栏钮才可点。
+    await dismissJinnangIfUp(page);
+    await actIfCan(page).catch(() => false);
     await page.getByTestId(TESTIDS.settingsButton).click();
     await page.getByTestId(TESTIDS.settingsHome).click();
+    // 先落确认框(写明弃局后果);取消一次验证设置弹层原样保留,再确认真正离屏
+    const confirm = page.getByTestId(SCROLL_TESTIDS.confirmDialog);
+    await expect(confirm).toBeVisible();
+    await expect(confirm).toContainText("对局进度将丢弃");
+    await page.getByTestId(SCROLL_TESTIDS.confirmCancel).click();
+    await expect(confirm).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeVisible();
+    await page.getByTestId(TESTIDS.settingsHome).click();
+    await page.getByTestId(SCROLL_TESTIDS.confirmOk).click();
     await expect(page.getByTestId(HOME_TID.solo)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.seatRail)).toHaveCount(0);
   });

@@ -95,7 +95,9 @@ export function HomeScreen({
     // #707 矮横屏档:条带收纳后内容须零滚动,e2e 断言根容器 scrollHeight==clientHeight。
     <div
       data-testid={HOME_TID.screen}
-      className={`flex h-full flex-col overflow-y-auto bg-bg ${isShortLandscape ? "px-6 py-4" : "p-6"}`}
+      // G1(#751/#742):home-safe = 左右 padding 与 safe-area inset 取 max(刘海/圆角横屏
+      // 不贴边裸奔;桌面 env()=0 无感),同 GameTopBar 现役 --safe-* 用法
+      className={`home-safe flex h-full flex-col overflow-y-auto bg-bg ${isShortLandscape ? "px-6 py-4" : "p-6"}`}
     >
       <div className="m-auto flex w-full flex-col items-center">
         {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
@@ -115,8 +117,16 @@ export function HomeScreen({
           texture-lanting 横批 + 压深渐变(home.css .home-band-heart),右端周瑜立绘
           低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款,
           上下金线 = 裱边「矩」。横带是氛围位不是演出位(§4.6/方向 D),静态无动效;
-          短横屏 72px 档素材与立绘都撤(过窄裁不出画心,home.css 媒体查询)。 */}
-        <div className="home-band-in home-gap-tight relative mb-10 w-[min(880px,92vw)]">
+          #751/H1(#742 判词):矮横屏 72px 档只撤立绘、画心纹理照常 cover 裁带
+          (裁切语言对纹理成立,只对人物不成立,home.css 同名媒体查询)。 */}
+        {/* H2(#751/#742):矮横屏档横带与内容列同宽(600px 单源,消 776 vs 600 双栏不齐
+          ——该档横带只有 72px 高,宽出的部分只贡献空带观感);桌面档「装裱横批宽于
+          签列」的层次 intentional,维持 880px 不动。 */}
+        <div
+          className={`home-band-in home-gap-tight relative mb-10 ${
+            isShortLandscape ? "w-[min(600px,92vw)]" : "w-[min(880px,92vw)]"
+          }`}
+        >
           <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
             {/* 画心:lanting 纹理+压深渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
             <div className="home-band-h home-band-heart w-full select-none" aria-hidden="true" />

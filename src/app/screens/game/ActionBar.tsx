@@ -2,13 +2,20 @@
 // 仪表条上缘(原型 tmp/prototype-layout.html .actionbar 移植,bottom 184px)。
 // **锚条不锚牌**——空手牌时按钮仍在;选中放大牌占中时整条右让(margin-left:240px,
 // 原型口径)不遮牌面。两段拍板口径:
-//   卡牌段 =「出牌 / 不出」:出牌=选中项确认(未选中禁用),不出=今不用(牌不消耗);
-//   目标段 =「出 / 作罢」(#417):出=选中席打出(未选中禁用,示「选择目标」引导),
-//   作罢=收回此计牌(不消耗、不记冷却)。席位点选/数字键只选中,打出归本条——
-//   首点选中、再点取消、确认钮执行的统一目标选择口径。
+//   卡牌段 =「出牌 / 不出」:出牌=选中项确认,不出=今不用(牌不消耗);
+//   目标段 =「出 / 作罢」(#417):出=选中席打出,作罢=收回此计牌(不消耗、不记冷却)。
+//   席位点选/数字键只选中,打出归本条——首点选中、再点取消、确认钮执行的统一目标
+//   选择口径。
+// 卡牌段「出牌」禁用形态(#751 B1,#744 判词:原生 disabled 吞点击,触屏点按零反馈、
+// 「为什么不能出」无表达):弃原生 disabled,改 aria-disabled+自门控(#715 灰置牌
+// 现役同款)——未选中点按=轻晃一次(钮层)并经 onBlockedAttempt 通知 GameScreen
+// 点亮架上可用牌金圈脉冲一次,零文字标牌(§4.6);出牌命令通路仍只对选中开
+//(GameScreen junshiConfirm 的选中过滤既有口径,不放宽)。目标段「出」保持原生
+// disabled:原因出口已有(「选择目标」引导 label-swap),候选金圈呼吸在席位格。
 // 按钮种(DESIGN §4.2):出牌/出=墨钮(lacquer 实底+lacquerGold 字,启用态金内环即
 // 原型 .armed);不出/作罢=原型 .qian 同底漆钮。字体按 §4.3 新文案红线落 font-brush
 // (原型的小薇禁新用);样式在 layout.css(.game-layout 作用域)。
+import { useState } from "react";
 import { TESTIDS } from "./testids";
 
 export type ActionBarSegment = "card" | "target";
@@ -23,9 +30,22 @@ export interface ActionBarProps {
   onPass: () => void;
   /** 选中放大牌占中 → 整条右让(实测 400px,见 layout.css 注);目标段不右让。 */
   rightShift: boolean;
+  /** 卡牌段未选中点按「出牌」的回执(#751 B1):GameScreen 计数+1,点亮架上可用牌
+   *  金圈脉冲一次。 */
+  onBlockedAttempt?: () => void;
 }
 
-export function ActionBar({ segment, playEnabled, onPlay, onPass, rightShift }: ActionBarProps) {
+export function ActionBar({
+  segment,
+  playEnabled,
+  onPlay,
+  onPass,
+  rightShift,
+  onBlockedAttempt,
+}: ActionBarProps) {
+  // 卡牌段「出牌」轻晃一拍(#751 B1):未选中点按置位,onAnimationEnd 摘除——
+  // 类摘挂循环让连点可重播;.bump 动画在 layout.css。
+  const [bump, setBump] = useState(false);
   return (
     <div
       data-testid={TESTIDS.actionbar}
@@ -36,9 +56,17 @@ export function ActionBar({ segment, playEnabled, onPlay, onPass, rightShift }: 
           <button
             type="button"
             data-testid={TESTIDS.actionbarPlay}
-            className="actionbar-btn mo"
-            disabled={!playEnabled}
-            onClick={onPlay}
+            className={"actionbar-btn mo" + (bump ? " bump" : "")}
+            aria-disabled={!playEnabled || undefined}
+            onAnimationEnd={() => setBump(false)}
+            onClick={() => {
+              if (!playEnabled) {
+                setBump(true);
+                onBlockedAttempt?.();
+                return;
+              }
+              onPlay();
+            }}
           >
             出牌
           </button>
