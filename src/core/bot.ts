@@ -9,6 +9,7 @@ import { activeSkillOf, heroSkillTargetOk } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf } from "./treasures";
 import { beginGameEventBatch } from "./game-events";
+import { STAMINA_CASH_RATE } from "./constants";
 
 /** bot 可驱动的回合相位正典(bot-driver/replay-log 等消费方 import 此常量,禁再各自抄副本)。
  *  契约:除 AwaitingReaction 外各相位 botAct switch 直驱;AwaitingReaction 特判——bot
@@ -454,7 +455,9 @@ export function botAct(engine: GameEngine): void {
 
     case "AwaitingEncounter": {
       // 抉择机遇(#124):立即净值贪心——score = 选项 effect 银两影响 + repDelta × 声望折银
-      // 系数(repCoefficient(decisionOwner),不同 bot 性格不同)。确定性:不掷骰,同分取
+      // 系数(repCoefficient(decisionOwner),不同 bot 性格不同)− 体力增量×体力折银率
+      // (#789 数值平衡:体力按 STAMINA_CASH_RATE 计价后,「体力换银」类选项只有在
+      // 卖价高于折银锚时才值得接)。确定性:不掷骰,同分取
       // 目录序在前者。选项集先经
       // choicesFor 过滤(ADR-0013 同一口径,不可用选项不参评)。
       const enc = engine.pendingEncounter;
@@ -468,7 +471,11 @@ export function botAct(engine: GameEngine): void {
         if (!o.available) return;
         const c = choices[i];
         if (!c) throw new Error(`机遇「${enc.id}」选项 ${i} 越界:选项注册表与目录不一致`); // 零兜底
-        const score = encounterCashImpact(c.effect) + c.repDelta * coef;
+        // 体力计价 = 选项级与效果级 staminaDelta 合计 × 折银率(staminaDelta 为负值即扣分;
+        // 与结算两路一致,#789)
+        const staminaDelta = (c.staminaDelta ?? 0) + (c.effect?.staminaDelta ?? 0);
+        const score =
+          encounterCashImpact(c.effect) + c.repDelta * coef + staminaDelta * STAMINA_CASH_RATE;
         if (score > bestScore) {
           bestScore = score;
           bestIdx = i;

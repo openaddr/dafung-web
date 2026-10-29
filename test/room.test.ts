@@ -1344,6 +1344,8 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
   // 自足)在本面以「流文法恒定 + 事件批折叠收敛到终局」承载,见断言①③。
 
   it("托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)", async () => {
+    // 整局实骑 ~50s 量级:#789 数值平衡后该种子局时长贴近 bun 默认 60s 预算,冷跑偶发超时——
+    // 预算放宽到 120s(非慢化,只给满载首跑留余量)。
     const clock = new ManualClock();
     const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
     const { roomId, token, guestToken } = await playingRoom(reg);
@@ -1446,5 +1448,5 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
     expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
     expect(replica.phase).toBe("GameOver");
     expect(replica.winner?.id ?? null, "折叠胜者与投影胜者一致").toBe(winners[0]);
-  }, 60_000);
+  }, 120_000);
 });

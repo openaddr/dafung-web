@@ -892,7 +892,7 @@ describe("#188 档 2 新抉择:选项效果结算", () => {
     expect(mover2.reputation).toBe(-8);
   });
 
-  it("两害相权:疫病入营(−200 / 体力 −25)、河堤告急(−80+体力 −15 组合)、盟镇勒币(levy 资敌)", () => {
+  it("两害相权:疫病入营(−120 / 体力 −25)、河堤告急(−80+体力 −15 组合)、盟镇勒币(levy 资敌)", () => {
     // 疫病入营:硬撑操练——无 effect、纯选项级 staminaDelta −25
     const e = makeEngine(7);
     finishSetup(e);
@@ -1070,6 +1070,36 @@ describe("bot 抉择策略:立即净值贪心 + 声望折银系数", () => {
     expect(testEngine(e2).logText().includes("抉择:焚田清野(声望 −15)")).toBe(true);
     expect(e2.turnPhase).toBe("Roll");
   });
+
+  it("体力折银入分(#789):卖价 90 < 20×5 → 夜行军拒(安营);折银同分 → 温泉照单全收(目录序先)", () => {
+    // 夜行军:连夜赶路 90 − 20×STAMINA_CASH_RATE(5) = −10 < 安营 0 → bot 婉拒。
+    // 符号守卫:staminaDelta 为负值直接乘折银率(曾写反成「扣体力反而加分」,模拟器归因抓出)。
+    const e = makeEngine(7, undefined, botSeats);
+    finishSetup(e);
+    testEngine(e).placeActive(benignTile(e));
+    const mover = e.activePlayer;
+    const cash0 = mover.cash;
+    const stamina0 = mover.stamina;
+    e.pendingEncounter = byId("夜行军");
+    testEngine(e).forceTurnPhase("AwaitingEncounter");
+    botAct(e);
+    expect(mover.cash).toBe(cash0); // 没卖体力
+    expect(mover.stamina).toBe(stamina0);
+    expect(testEngine(e).logText().includes("抉择:安营扎寨(无事发生)")).toBe(true);
+
+    // 温泉疗养:付 150 = −30×5 折银同分(0 vs 不去 0)→ 同分取目录序先 = 照价购买
+    const e2 = makeEngine(7, undefined, botSeats);
+    finishSetup(e2);
+    testEngine(e2).placeActive(benignTile(e2));
+    const mover2 = e2.activePlayer;
+    const cash02 = mover2.cash;
+    mover2.stamina = 50; // 留出回血空间(满体力买温泉=纯浪费,但打分同分,行为不变)
+    e2.pendingEncounter = byId("温泉疗养");
+    testEngine(e2).forceTurnPhase("AwaitingEncounter");
+    botAct(e2);
+    expect(mover2.cash).toBe(cash02 - 150);
+    expect(mover2.stamina).toBe(80);
+  });
 });
 
 // ═════════════════════ 机遇体力接线(#132)═════════════════════
@@ -1122,57 +1152,57 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     throw new Error(`无种子抽中 ${id}`);
   }
 
-  it("目录调重生效:粮道被劫 −250 两/体力 −25;漕船倾覆 −100 两/体力 −20;假道征粮 levy 50/体力 −15", () => {
+  it("目录调重生效(#789):粮道被劫 −250 两/体力 −10;漕船倾覆 −100 两/体力 −8;假道征粮 levy 50/体力 −7", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const te = testEngine(e);
     const mover = e.activePlayer;
-    mover.stamina = 70; // 三连扣 25+20+15=60,不归 0(耗竭路径另有专测)
+    mover.stamina = 40; // 三连扣 10+8+7=25,不归 0(耗竭路径另有专测)
     const cash0 = mover.cash;
     te.applyEncounter(mover, byId("粮道被劫"));
     expect(mover.cash).toBe(cash0 - 250);
-    expect(mover.stamina).toBe(45);
+    expect(mover.stamina).toBe(30);
 
     te.applyEncounter(mover, byId("漕船倾覆"));
     expect(mover.cash).toBe(cash0 - 350);
-    expect(mover.stamina).toBe(25);
+    expect(mover.stamina).toBe(22);
 
     te.applyEncounter(mover, byId("假道征粮"));
     expect(mover.cash).toBe(cash0 - 400);
-    expect(mover.stamina).toBe(10);
+    expect(mover.stamina).toBe(15);
   });
 
-  it("霉运机遇扣体力:浮字「体力 −25」+ 对局日志 detail 补 stamina=落账值", () => {
+  it("霉运机遇扣体力:浮字「体力 −10」+ 对局日志 detail 补 stamina=落账值", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
     mover.stamina = 60;
     const r = testEngine(e).applyEncounter(mover, byId("粮道被劫"));
     expect(r).toBe("settled");
-    expect(mover.stamina).toBe(35);
+    expect(mover.stamina).toBe(50);
     // 浮字由 fx 消费 staminaChanged 派生(见 presentation.test):锚事件的实际差
     expect(
       e
         .snapshot()
         .events.some(
-          (ev) => ev.kind === "staminaChanged" && ev.reason === "encounter" && ev.delta === -25,
+          (ev) => ev.kind === "staminaChanged" && ev.reason === "encounter" && ev.delta === -10,
         ),
     ).toBe(true);
     const text = testEngine(e).logText();
-    expect(text.includes("机遇「粮道被劫」:粮道遭山贼劫掠,损失折银 250 两,体力 −25")).toBe(true);
+    expect(text.includes("机遇「粮道被劫」:粮道遭山贼劫掠,损失折银 250 两,体力 −10")).toBe(true);
     expect(text.includes("encounterStamina")).toBe(true);
-    expect(text.includes("stamina=35")).toBe(true);
+    expect(text.includes("stamina=50")).toBe(true);
   });
 
-  it("体力不足扣到负:战报增量记实际差(#568 病 B)——体力 20 吃 −25 记「体力 −20」", () => {
+  it("体力不足扣到负:战报增量记实际差(#568 病 B)——体力 6 吃 −10 记「体力 −6」", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
-    mover.stamina = 20;
+    mover.stamina = 6;
     testEngine(e).applyEncounter(mover, byId("粮道被劫"));
     const text = testEngine(e).logText();
-    expect(text.includes("体力 −20")).toBe(true); // 实际差 0−20=−20,非请求数 −25
-    expect(text.includes("体力 −25")).toBe(false);
+    expect(text.includes("体力 −6")).toBe(true); // 实际差 0−6=−6,非请求数 −10
+    expect(text.includes("体力 −10")).toBe(false);
   });
 
   it("体力不足归 0 → 耗竭相位接管本落格:rollAndMove 门线跳过购地,房产降级可 resolve", () => {
@@ -1182,8 +1212,8 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     const mover = e.activePlayer;
     giveProperty(e, seat, 2);
     giveProperty(e, seat, 1); // 两座有级房产:耗竭可用选项 ≥2 → 进相位而非自动执行
-    mover.stamina = 20;
-    landOnFreeTile(e); // 真实抽取路径:抽中粮道被劫 → 体力 20−25 → 0
+    mover.stamina = 6; // #789 后粮道被劫体力 −10:垫 6 保归 0
+    landOnFreeTile(e); // 真实抽取路径:抽中粮道被劫 → 体力 6−10 → 0
     expect(e.turnPhase).toBe("AwaitingExhaustion"); // 门线:耗竭占用落格,不进购地决策
     expect(e.pendingLand).toBeNull(); // 购地决策未弹出
     expect(mover.stamina).toBe(0);
@@ -1253,7 +1283,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     expect(text.includes("stamina=75")).toBe(true);
   });
 
-  it("抉择扣体力归 0:夜行军连夜赶路 → +150 两,耗竭自动结算收尾回合、不续跑落格", () => {
+  it("抉择扣体力归 0:夜行军连夜赶路 → +90 两,耗竭自动结算收尾回合、不续跑落格", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -1263,8 +1293,8 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     testEngine(e).placeActive(benignTile(e));
     testEngine(e).enterEncounter(byId("夜行军"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
-    e.resolveEncounterChoice(0); // 连夜赶路(+150 两,体力 −20)
-    expect(mover.cash).toBe(cash0 + 150);
+    e.resolveEncounterChoice(0); // 连夜赶路(+90 两,体力 −20)
+    expect(mover.cash).toBe(cash0 + 90);
     expect(e.turnPhase).toBe("Roll"); // 耗竭 auto 内已 endTurn 收尾
     expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:耗竭占用落格,未续跑落格结算
     expect(mover.skipTurns).toBe(1);
