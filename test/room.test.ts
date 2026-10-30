@@ -1,6 +1,11 @@
 // Room 模块单测(ADR-0007):房间逻辑首次可不开 socket / 不碰磁盘单测。
 // 覆盖 ADR-0002 掉线/解散与 ADR-0028 托管(接管即自动托管)语义 —— 这些 e2e 不覆盖
 // (e2e 只走建房/加入/开局/掷骰)。用 InMemory 持久化注入 RoomRegistry,零 fs / 零 WS。
+// 慢例池(测试管线提速批):五条整局托管骑局例按「单例实测 ≥3s」判据入慢例池
+// (口径见 docs/how-to/开发与测试.md「把测试跑起来」),DAFUNG_SLOW=1 才跑
+// (bun run test:slow),默认池 skip(skip 行可见)——托管全程骑局到终局 7.5s /
+// 观测事件开局托管 7.4s / 托管可撤销 7.3s / 托管单节拍不瞬通 7.2s / 托管单节拍节奏
+// 3.0s(实测 2026-10-30);其余 68 例轻,常驻默认池。
 import { describe, it, expect } from "bun:test";
 import { RoomRegistry, RoomError } from "../scripts/room";
 import type { RoomClock, SeatEndpoint } from "../scripts/room";
@@ -22,6 +27,9 @@ import type { RoomPersistence } from "../scripts/room-persistence";
 import type { RoomRecord } from "../scripts/room-record";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
+
+// 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
+const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 class InMemoryPersistence implements RoomPersistence {
   private readonly m = new Map<string, RoomRecord>();
@@ -615,43 +623,47 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     return { reg, events };
   }
 
-  it("开局 + host 托管 seat0 → start/autopilot/bot-step 序列 + 终局 bot-stop(game-over)", async () => {
-    const events: { roomId: string; event: Record<string, unknown> }[] = [];
-    const clock = new ManualClock();
-    const reg = new RoomRegistry(
-      new InMemoryPersistence(),
-      (roomId, event) => events.push({ roomId, event: event as Record<string, unknown> }),
-      undefined,
-      { clock },
-    );
-    const { room, token } = reg.createRoom({
-      seatCount: 2,
-      botIdx: new Set([1]),
-      hostConfig: { seed: 1 },
-    });
-    reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
-    await reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0=host 人类 → 停在 human-turn
-    expect(events.find((e) => e.event.ev === "start")).toBeTruthy();
-    const stops = events.filter((e) => e.event.ev === "bot-stop");
-    expect(stops[0].event.reason).toBe("human-turn");
-    // host 开启托管 seat0 → 全座位服务器驱动,自行终局(#580:fire-and-forget,链经时钟自续)
-    await reg.setAutoPilot(room.roomId, 0, true);
-    expect(events.find((e) => e.event.ev === "autopilot")?.event).toMatchObject({
-      seat: 0,
-      on: true,
-      by: "self",
-    });
-    // 泵送:托管链 2s/步经注入时钟,fireAll 逐拍放行直到终局(bot 座位 0 延迟随链同走)
-    for (let i = 0; i < 20_000 && events.at(-1)?.event.reason !== "game-over"; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(events.at(-1)?.event.ev).toBe("bot-stop");
-    expect(events.at(-1)?.event.reason).toBe("game-over");
-    expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
-    // 所有事件都带正确的 roomId
-    expect(events.every((e) => e.roomId === room.roomId)).toBe(true);
-  }, 60_000);
+  itSlow(
+    "开局 + host 托管 seat0 → start/autopilot/bot-step 序列 + 终局 bot-stop(game-over)",
+    async () => {
+      const events: { roomId: string; event: Record<string, unknown> }[] = [];
+      const clock = new ManualClock();
+      const reg = new RoomRegistry(
+        new InMemoryPersistence(),
+        (roomId, event) => events.push({ roomId, event: event as Record<string, unknown> }),
+        undefined,
+        { clock },
+      );
+      const { room, token } = reg.createRoom({
+        seatCount: 2,
+        botIdx: new Set([1]),
+        hostConfig: { seed: 1 },
+      });
+      reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
+      await reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0=host 人类 → 停在 human-turn
+      expect(events.find((e) => e.event.ev === "start")).toBeTruthy();
+      const stops = events.filter((e) => e.event.ev === "bot-stop");
+      expect(stops[0].event.reason).toBe("human-turn");
+      // host 开启托管 seat0 → 全座位服务器驱动,自行终局(#580:fire-and-forget,链经时钟自续)
+      await reg.setAutoPilot(room.roomId, 0, true);
+      expect(events.find((e) => e.event.ev === "autopilot")?.event).toMatchObject({
+        seat: 0,
+        on: true,
+        by: "self",
+      });
+      // 泵送:托管链 2s/步经注入时钟,fireAll 逐拍放行直到终局(bot 座位 0 延迟随链同走)
+      for (let i = 0; i < 20_000 && events.at(-1)?.event.reason !== "game-over"; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(events.at(-1)?.event.ev).toBe("bot-stop");
+      expect(events.at(-1)?.event.reason).toBe("game-over");
+      expect(events.filter((e) => e.event.ev === "bot-step").length).toBeGreaterThan(0);
+      // 所有事件都带正确的 roomId
+      expect(events.every((e) => e.roomId === room.roomId)).toBe(true);
+    },
+    60_000,
+  );
 
   it("人类座位在线 → bot-stop reason=human-turn(正常等待)", async () => {
     const { reg, events } = observed();
@@ -688,52 +700,60 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
 });
 
 describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
-  it("托管单节拍不瞬通(#580):fire-and-forget 单拍只进一步,泵送才续链,guard 续链跑到终局", async () => {
-    const clock = new ManualClock();
-    const { reg, roomId } = await playingRoomWithClock(clock);
-    const e = reg.get(roomId)!.engine!;
-    await reg.setAutoPilot(roomId, 0, true);
-    await reg.setAutoPilot(roomId, 1, true);
-    // 零泵送:fire-and-forget 链至多同步走第一拍即挂时钟等下一拍(零延迟实现在此
-    // 已整局瞬通直落终局)——步进延迟 = 对局不可能在单个宏任务里打完
-    expect(e.isOver).toBe(false);
-    // 泵送:链经注入时钟逐步自续(guard 续链同走时钟)直到终局
-    for (let i = 0; i < 20_000 && !e.isOver; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(e.phase).toBe("GameOver");
-  }, 60_000);
+  itSlow(
+    "托管单节拍不瞬通(#580):fire-and-forget 单拍只进一步,泵送才续链,guard 续链跑到终局",
+    async () => {
+      const clock = new ManualClock();
+      const { reg, roomId } = await playingRoomWithClock(clock);
+      const e = reg.get(roomId)!.engine!;
+      await reg.setAutoPilot(roomId, 0, true);
+      await reg.setAutoPilot(roomId, 1, true);
+      // 零泵送:fire-and-forget 链至多同步走第一拍即挂时钟等下一拍(零延迟实现在此
+      // 已整局瞬通直落终局)——步进延迟 = 对局不可能在单个宏任务里打完
+      expect(e.isOver).toBe(false);
+      // 泵送:链经注入时钟逐步自续(guard 续链同走时钟)直到终局
+      for (let i = 0; i < 20_000 && !e.isOver; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(e.phase).toBe("GameOver");
+    },
+    60_000,
+  );
 
-  it("托管可撤销(#580):收回后泵到时钟排空即停在真人决策点,重开续跑终局", async () => {
-    const clock = new ManualClock();
-    const { reg, roomId } = await playingRoomWithClock(clock);
-    const e = reg.get(roomId)!.engine!;
-    await reg.setAutoPilot(roomId, 0, true);
-    await reg.setAutoPilot(roomId, 1, true);
-    for (let i = 0; i < 5; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(e.phase).toBe("Playing"); // 推进几拍仍在对局中(步进保证)
-    // 收回 seat0(误触切回)→ 泵到时钟排空:链在 seat0 的决策点停(human-turn 出口,
-    // decisionTimeoutMs=0 无看门狗定时),对局不直落终局
-    await reg.setAutoPilot(roomId, 0, false);
-    for (let i = 0; i < 20_000 && clock.size > 0; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(clock.size).toBe(0); // 时钟排空 = 链与看门狗全部停摆,无后台续跑
-    expect(e.isOver).toBe(false);
-    expect(e.decisionOwner).toBe(0); // 停在收回座位的真人决策门
-    // 重开托管 → 续跑到终局(可恢复)
-    await reg.setAutoPilot(roomId, 0, true);
-    for (let i = 0; i < 20_000 && !e.isOver; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(e.phase).toBe("GameOver");
-  }, 60_000);
+  itSlow(
+    "托管可撤销(#580):收回后泵到时钟排空即停在真人决策点,重开续跑终局",
+    async () => {
+      const clock = new ManualClock();
+      const { reg, roomId } = await playingRoomWithClock(clock);
+      const e = reg.get(roomId)!.engine!;
+      await reg.setAutoPilot(roomId, 0, true);
+      await reg.setAutoPilot(roomId, 1, true);
+      for (let i = 0; i < 5; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(e.phase).toBe("Playing"); // 推进几拍仍在对局中(步进保证)
+      // 收回 seat0(误触切回)→ 泵到时钟排空:链在 seat0 的决策点停(human-turn 出口,
+      // decisionTimeoutMs=0 无看门狗定时),对局不直落终局
+      await reg.setAutoPilot(roomId, 0, false);
+      for (let i = 0; i < 20_000 && clock.size > 0; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(clock.size).toBe(0); // 时钟排空 = 链与看门狗全部停摆,无后台续跑
+      expect(e.isOver).toBe(false);
+      expect(e.decisionOwner).toBe(0); // 停在收回座位的真人决策门
+      // 重开托管 → 续跑到终局(可恢复)
+      await reg.setAutoPilot(roomId, 0, true);
+      for (let i = 0; i < 20_000 && !e.isOver; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(e.phase).toBe("GameOver");
+    },
+    60_000,
+  );
 
   it("部分托管:seat0 托管,推进到 seat1(真人)决策点停", async () => {
     const { reg, roomId } = await setupStartedRoom({ seats: 3, bot: [] }); // 三真人
@@ -768,23 +788,31 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
     void hostToken;
   });
 
-  it("托管单节拍节奏:3 秒窗口内该座位步数 ≤2(2s/步)", async () => {
-    const events: Record<string, unknown>[] = [];
-    const reg = new RoomRegistry(new InMemoryPersistence(), (_roomId, event) =>
-      events.push(event as Record<string, unknown>),
-    );
-    const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 3 } });
-    reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
-    await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
-    // 托管 seat0,不 await:链在后台走(整链到终局会花数分钟,测试只观察窗口)
-    void reg.setAutoPilot(created.room.roomId, 0, true);
-    await new Promise((r) => setTimeout(r, 3000));
-    const mine = events.filter((e) => e.ev === "bot-step" && e.seat === 0).length;
-    expect(mine).toBeGreaterThanOrEqual(1); // 至少迈出第一步(0 延迟首步)
-    expect(mine).toBeLessThanOrEqual(2); // 2s/步 → 3s 窗口内至多 2 步
-    // 收尾:收回托管,后台链将在下一个检查点停
-    await reg.setAutoPilot(created.room.roomId, 0, false);
-  }, 15000);
+  itSlow(
+    "托管单节拍节奏:3 秒窗口内该座位步数 ≤2(2s/步)",
+    async () => {
+      const events: Record<string, unknown>[] = [];
+      const reg = new RoomRegistry(new InMemoryPersistence(), (_roomId, event) =>
+        events.push(event as Record<string, unknown>),
+      );
+      const created = reg.createRoom({
+        seatCount: 2,
+        botIdx: new Set([1]),
+        hostConfig: { seed: 3 },
+      });
+      reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+      await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
+      // 托管 seat0,不 await:链在后台走(整链到终局会花数分钟,测试只观察窗口)
+      void reg.setAutoPilot(created.room.roomId, 0, true);
+      await new Promise((r) => setTimeout(r, 3000));
+      const mine = events.filter((e) => e.ev === "bot-step" && e.seat === 0).length;
+      expect(mine).toBeGreaterThanOrEqual(1); // 至少迈出第一步(0 延迟首步)
+      expect(mine).toBeLessThanOrEqual(2); // 2s/步 → 3s 窗口内至多 2 步
+      // 收尾:收回托管,后台链将在下一个检查点停
+      await reg.setAutoPilot(created.room.roomId, 0, false);
+    },
+    15000,
+  );
 
   it("托管事件进观测流水(autopilot 事件带座位/开关)", async () => {
     const events: Record<string, unknown>[] = [];
@@ -1343,110 +1371,114 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
   // WS 面「逐步快照为零」判据在本面不可满足;同一不变量(状态下行不只靠快照、事件批
   // 自足)在本面以「流文法恒定 + 事件批折叠收敛到终局」承载,见断言①③。
 
-  it("托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)", async () => {
-    // 整局实骑 ~50s 量级:#789 数值平衡后该种子局时长贴近 bun 默认 60s 预算,冷跑偶发超时——
-    // 预算放宽到 120s(非慢化,只给满载首跑留余量)。
-    const clock = new ManualClock();
-    const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
-    const { roomId, token, guestToken } = await playingRoom(reg);
+  itSlow(
+    "托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)",
+    async () => {
+      // 整局实骑 ~50s 量级:#789 数值平衡后该种子局时长贴近 bun 默认 60s 预算,冷跑偶发超时——
+      // 预算放宽到 120s(非慢化,只给满载首跑留余量)。
+      const clock = new ManualClock();
+      const reg = new RoomRegistry(new InMemoryPersistence(), undefined, undefined, { clock });
+      const { roomId, token, guestToken } = await playingRoom(reg);
 
-    // 双端收集端点(connectSeat 即发首连整房摘要;此后每 flush 拍 events 先行、快照随后)
-    const feeds = [
-      { seat: 0, msgs: [] as Record<string, unknown>[] },
-      { seat: 1, msgs: [] as Record<string, unknown>[] },
-    ];
-    for (const f of feeds) {
-      const ep: SeatEndpoint = {
-        seat: f.seat,
-        open: true,
-        send: (data) => f.msgs.push(JSON.parse(data) as Record<string, unknown>),
-      };
-      reg.connectSeat(roomId, f.seat, f.seat === 0 ? token : guestToken, ep);
-    }
-    // 首连整房摘要恰一份(每端点 connectSeat 同步首发,未开局广播不掺行)
-    expect(
-      feeds.every((f) => f.msgs.length === 1 && f.msgs[0]!.type === "snapshot"),
-      "首连整房摘要恰一份",
-    ).toBe(true);
-
-    // 双端托管(onUpdate 接传输面广播:下行拍由此驱动)
-    const broadcast = () => reg.transportBroadcast(roomId);
-    await reg.setAutoPilot(roomId, 0, true, broadcast);
-    await reg.setAutoPilot(roomId, 1, true, broadcast);
-
-    // 手泵骑到终局(零墙钟;预算与既有泵送终局用例同款),随后排空在途 flush 残拍
-    // (flush 定时器是真 setTimeout(0),循环出口处末批可能尚未下行)
-    const e = reg.get(roomId)!.engine!;
-    for (let i = 0; i < 20_000 && !e.isOver; i++) {
-      clock.fireAll();
-      await macroTick();
-    }
-    expect(e.phase).toBe("GameOver");
-    for (let i = 0; i < 5; i++) await macroTick();
-
-    // ③ 的折叠收敛副本:首连摘要水合,seat0 端全量事件批逐折(#387 折叠面)
-    const firstSnap = feeds[0]!.msgs[0] as unknown as Record<string, unknown>;
-    const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
-      seats: [
-        { name: "座 1", isBot: false },
-        { name: "座 2", isBot: false },
-      ],
-    });
-    replica.restoreFromSnapshot(firstSnap as never);
-
-    const winners: (string | null)[] = [];
-    for (const f of feeds) {
-      const snaps = f.msgs.filter((m) => m.type === "snapshot");
-      const batches = f.msgs.filter((m) => m.type === "events") as {
-        events: { kind: EventKind }[];
-      }[];
-      // ① 下行形状(本面不变量):消息只有 snapshot|events 两族;flush 单体恒
-      // events 先行、快照随后——events 相邻出现 = 快照半边丢失;校准面(决策窗
-      // 相位快照 / 校准节点批 playerBankrupt 等)随全程骑局在场。
-      expect(
-        f.msgs.every((m) => m.type === "snapshot" || m.type === "events"),
-        "下行只含 snapshot|events 两族",
-      ).toBe(true);
-      let grammarBreak = false;
-      for (let i = 1; i < f.msgs.length; i++) {
-        if (f.msgs[i]!.type === "events" && f.msgs[i - 1]!.type === "events") grammarBreak = true;
+      // 双端收集端点(connectSeat 即发首连整房摘要;此后每 flush 拍 events 先行、快照随后)
+      const feeds = [
+        { seat: 0, msgs: [] as Record<string, unknown>[] },
+        { seat: 1, msgs: [] as Record<string, unknown>[] },
+      ];
+      for (const f of feeds) {
+        const ep: SeatEndpoint = {
+          seat: f.seat,
+          open: true,
+          send: (data) => f.msgs.push(JSON.parse(data) as Record<string, unknown>),
+        };
+        reg.connectSeat(roomId, f.seat, f.seat === 0 ? token : guestToken, ep);
       }
-      expect(grammarBreak, "events 必须逐拍伴随快照下行(flush 单体形状)").toBe(false);
+      // 首连整房摘要恰一份(每端点 connectSeat 同步首发,未开局广播不掺行)
       expect(
-        snaps.some((m) => CALIBRATION_WINDOWS.has((m as { turnPhase: TurnPhase }).turnPhase)),
-        "决策窗校准相位快照在场",
+        feeds.every((f) => f.msgs.length === 1 && f.msgs[0]!.type === "snapshot"),
+        "首连整房摘要恰一份",
       ).toBe(true);
-      expect(
-        batches.some((b) => b.events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind))),
-        "校准节点批(playerBankrupt 等)在场",
-      ).toBe(true);
-      // ② 事件批流含 gameOver(终局事件经批通路到达本座位)
-      expect(
-        batches.some((b) => b.events.some((ev) => ev.kind === "gameOver")),
-        "终局事件到达",
-      ).toBe(true);
-      // ③ 终局快照收敛:末拍 phase=GameOver 且 winner 已定;胜者经座位投影取
-      // (传输面下行的快照消息逐座位 redact,不读引擎 god-view 直取)
-      const last = snaps[snaps.length - 1] as { phase: string; winner: string | null };
-      expect(last.phase, "终局快照收敛到 GameOver").toBe("GameOver");
-      expect(last.winner, "终局快照已定胜者").not.toBeNull();
-      const { type: _t, ...snap } = last as unknown as Record<string, unknown>;
-      winners.push(redactSnapshotForSeat(snap as never, f.seat).winner);
-    }
-    // 双端胜者一致(各端各自投影,不经引擎直取对齐)
-    expect(winners[0], "两端座位投影的胜者一致").toBe(winners[1]);
 
-    // ③ 终局折叠收敛(胜负族,声明性精确折):自首连摘要水合的副本只吃事件批——
-    // 不经任何后续快照水合——即收敛到同一终局(isOver/phase/winner)。折叠精确族之外的
-    // 现金/资产细目不在断言面:fold+calibration 档(#430 档位表)的漂移窗本就由校准
-    // 快照兜,全 run 纯折叠对账超出架构承诺(实测破产清算拍 +200 漂移)。
-    for (const b of feeds[0]!.msgs.filter((m) => m.type === "events") as unknown as {
-      events: Parameters<typeof foldEventBatch>[1];
-    }[]) {
-      foldEventBatch(replica, b.events);
-    }
-    expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
-    expect(replica.phase).toBe("GameOver");
-    expect(replica.winner?.id ?? null, "折叠胜者与投影胜者一致").toBe(winners[0]);
-  }, 120_000);
+      // 双端托管(onUpdate 接传输面广播:下行拍由此驱动)
+      const broadcast = () => reg.transportBroadcast(roomId);
+      await reg.setAutoPilot(roomId, 0, true, broadcast);
+      await reg.setAutoPilot(roomId, 1, true, broadcast);
+
+      // 手泵骑到终局(零墙钟;预算与既有泵送终局用例同款),随后排空在途 flush 残拍
+      // (flush 定时器是真 setTimeout(0),循环出口处末批可能尚未下行)
+      const e = reg.get(roomId)!.engine!;
+      for (let i = 0; i < 20_000 && !e.isOver; i++) {
+        clock.fireAll();
+        await macroTick();
+      }
+      expect(e.phase).toBe("GameOver");
+      for (let i = 0; i < 5; i++) await macroTick();
+
+      // ③ 的折叠收敛副本:首连摘要水合,seat0 端全量事件批逐折(#387 折叠面)
+      const firstSnap = feeds[0]!.msgs[0] as unknown as Record<string, unknown>;
+      const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
+        seats: [
+          { name: "座 1", isBot: false },
+          { name: "座 2", isBot: false },
+        ],
+      });
+      replica.restoreFromSnapshot(firstSnap as never);
+
+      const winners: (string | null)[] = [];
+      for (const f of feeds) {
+        const snaps = f.msgs.filter((m) => m.type === "snapshot");
+        const batches = f.msgs.filter((m) => m.type === "events") as {
+          events: { kind: EventKind }[];
+        }[];
+        // ① 下行形状(本面不变量):消息只有 snapshot|events 两族;flush 单体恒
+        // events 先行、快照随后——events 相邻出现 = 快照半边丢失;校准面(决策窗
+        // 相位快照 / 校准节点批 playerBankrupt 等)随全程骑局在场。
+        expect(
+          f.msgs.every((m) => m.type === "snapshot" || m.type === "events"),
+          "下行只含 snapshot|events 两族",
+        ).toBe(true);
+        let grammarBreak = false;
+        for (let i = 1; i < f.msgs.length; i++) {
+          if (f.msgs[i]!.type === "events" && f.msgs[i - 1]!.type === "events") grammarBreak = true;
+        }
+        expect(grammarBreak, "events 必须逐拍伴随快照下行(flush 单体形状)").toBe(false);
+        expect(
+          snaps.some((m) => CALIBRATION_WINDOWS.has((m as { turnPhase: TurnPhase }).turnPhase)),
+          "决策窗校准相位快照在场",
+        ).toBe(true);
+        expect(
+          batches.some((b) => b.events.some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind))),
+          "校准节点批(playerBankrupt 等)在场",
+        ).toBe(true);
+        // ② 事件批流含 gameOver(终局事件经批通路到达本座位)
+        expect(
+          batches.some((b) => b.events.some((ev) => ev.kind === "gameOver")),
+          "终局事件到达",
+        ).toBe(true);
+        // ③ 终局快照收敛:末拍 phase=GameOver 且 winner 已定;胜者经座位投影取
+        // (传输面下行的快照消息逐座位 redact,不读引擎 god-view 直取)
+        const last = snaps[snaps.length - 1] as { phase: string; winner: string | null };
+        expect(last.phase, "终局快照收敛到 GameOver").toBe("GameOver");
+        expect(last.winner, "终局快照已定胜者").not.toBeNull();
+        const { type: _t, ...snap } = last as unknown as Record<string, unknown>;
+        winners.push(redactSnapshotForSeat(snap as never, f.seat).winner);
+      }
+      // 双端胜者一致(各端各自投影,不经引擎直取对齐)
+      expect(winners[0], "两端座位投影的胜者一致").toBe(winners[1]);
+
+      // ③ 终局折叠收敛(胜负族,声明性精确折):自首连摘要水合的副本只吃事件批——
+      // 不经任何后续快照水合——即收敛到同一终局(isOver/phase/winner)。折叠精确族之外的
+      // 现金/资产细目不在断言面:fold+calibration 档(#430 档位表)的漂移窗本就由校准
+      // 快照兜,全 run 纯折叠对账超出架构承诺(实测破产清算拍 +200 漂移)。
+      for (const b of feeds[0]!.msgs.filter((m) => m.type === "events") as unknown as {
+        events: Parameters<typeof foldEventBatch>[1];
+      }[]) {
+        foldEventBatch(replica, b.events);
+      }
+      expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
+      expect(replica.phase).toBe("GameOver");
+      expect(replica.winner?.id ?? null, "折叠胜者与投影胜者一致").toBe(winners[0]);
+    },
+    120_000,
+  );
 });

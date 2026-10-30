@@ -8,53 +8,26 @@
 // 真 WS 真 HTTP(子进程起 scripts/server.ts,同 playwright.config webServer 口径);
 // spawn 前预检端口无残孤占位(#594 同主题的 bun:test 版,2026-10-19 实锤:
 // 残孤占 4280 → 健康检查打旧进程、新进程 EADDRINUSE 暴毙 → exitCode 假失败)。
+// 慢例池(测试管线提速批):真进程真 WS 整例实测 3.4s(2026-10-30)——按「单例实测 ≥3s」
+// 判据入慢例池(口径见 docs/how-to/开发与测试.md「把测试跑起来」),DAFUNG_SLOW=1 才跑
+// (bun run test:slow),默认池 skip(skip 行可见)。用 describe 级 skipIf:探针实测
+// bun:test 下 it 全跳时文件级 beforeAll 照跑(白起一次服务器),describe 级才连钩子
+// 一起跳;房间临时目录随之挪进 beforeAll(全跳时不再创建,不泄漏),清理在 afterAll 配对。
 import { describe, it, expect, afterAll, beforeAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
+// 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
+const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
+
 const PORT = "4280"; // 本票专用测试端口(避开 e2e 的 3021/4184 与默认 3000)
 const BASE = `http://127.0.0.1:${PORT}`;
-const ROOMS_DIR = mkdtempSync(join(tmpdir(), "dafung-428-"));
 
 let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
-
-beforeAll(async () => {
-  let stale = false;
-  try {
-    stale = (await fetch(`${BASE}/health`)).ok;
-  } catch {
-    /* 连接失败 = 端口空闲,正常路径 */
-  }
-  if (stale) {
-    throw new Error(
-      `端口 ${PORT} 已有 /health 应答:疑似残孤测试服占位(新进程将 EADDRINUSE 假失败)。` +
-        `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
-    );
-  }
-  proc = Bun.spawn(["bun", "scripts/server.ts"], {
-    cwd: join(import.meta.dir, ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
-    env: {
-      ...process.env,
-      PORT,
-      HOST: "127.0.0.1",
-      ROOMS_DIR,
-      LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
-      STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
-    },
-    stdout: "pipe",
-    stderr: "pipe",
-  });
-  await waitHealthy(proc);
-});
-
-afterAll(() => {
-  // proc 可能未 spawn(beforeAll 残孤预检已显式抛出完整处置诊断)——此处只清理
-  // 已存在的资源;旧写法 proc.kill() 炸 TypeError 反把预检诊断埋成两团噪音,
-  // 且抛点在 rmSync 之前,每次预检失败还泄漏一个 tmp 房间目录(#632 实锤)。
-  proc?.kill();
-  rmSync(ROOMS_DIR, { recursive: true, force: true });
-});
+// 房间临时目录在 beforeAll 里创建(describe 级 skip 时钩子不跑,模块级 mkdtemp 会
+// 每轮默认池白漏一个临时目录);清理在 describe 内 afterAll 配对。
+let ROOMS_DIR: string;
 
 async function waitHealthy(
   server: Bun.Subprocess<"ignore", "pipe", "pipe">,
@@ -127,7 +100,45 @@ function openWs(url: string): Promise<WebSocket> {
   });
 }
 
-describe("server cmd 分支错误回报(#428)", () => {
+describeSlow("server cmd 分支错误回报(#428)", () => {
+  beforeAll(async () => {
+    ROOMS_DIR = mkdtempSync(join(tmpdir(), "dafung-428-"));
+    let stale = false;
+    try {
+      stale = (await fetch(`${BASE}/health`)).ok;
+    } catch {
+      /* 连接失败 = 端口空闲,正常路径 */
+    }
+    if (stale) {
+      throw new Error(
+        `端口 ${PORT} 已有 /health 应答:疑似残孤测试服占位(新进程将 EADDRINUSE 假失败)。` +
+          `处置:netstat -ano | grep :${PORT} 查 PID → tasklist 验名为 bun.exe → taskkill //PID <pid> //F`,
+      );
+    }
+    proc = Bun.spawn(["bun", "scripts/server.ts"], {
+      cwd: join(import.meta.dir, ".."), // 仓库根:地图清单 ./public/maps 相对 cwd 解析(缺失即抛)
+      env: {
+        ...process.env,
+        PORT,
+        HOST: "127.0.0.1",
+        ROOMS_DIR,
+        LOGS_DIR: ROOMS_DIR, // 对局日志一并落临时目录,不污染仓库 data/
+        STATIC_DIR: ROOMS_DIR, // 无静态托管需求(静态只按请求读,目录缺失本就 404)
+      },
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    await waitHealthy(proc);
+  });
+
+  afterAll(() => {
+    // proc 可能未 spawn(beforeAll 残孤预检已显式抛出完整处置诊断)——此处只清理
+    // 已存在的资源;旧写法 proc.kill() 炸 TypeError 反把预检诊断埋成两团噪音,
+    // 且抛点在 rmSync 之前,每次预检失败还泄漏一个 tmp 房间目录(#632 实锤)。
+    proc?.kill();
+    rmSync(ROOMS_DIR, { recursive: true, force: true });
+  });
+
   it("非法命令注入:该客户端收到 error 下行,服务器进程存活且服务继续", async () => {
     // 建房(2 座,座位 1 bot)→ 选图 → 开局(停在选都三选一)
     const created = await post("/room/new", { seats: 2, bot: "1", seed: 42 });

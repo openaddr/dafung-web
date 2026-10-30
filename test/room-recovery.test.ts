@@ -4,6 +4,10 @@
 // room 层 hydrate 抛错→跳过并移除)。另有 #388 恢复播种(seenBatches/settledTurnPhase)
 // 与恢复路径的咬合测试。全程 FileRoomPersistence 真落盘(worktree tmp/ 下,用后即清),
 // 定时一律注入 ManualClock,零真实等待。
+// 慢例池(测试管线提速批):两条整局续跑恢复例——进行中对局恢复实测 14.8s / 已终局恢复
+// 实测 8.0s(2026-10-30)——按「单例实测 ≥3s」判据入慢例池(口径见 docs/how-to/开发与测试.md
+// 「把测试跑起来」),DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);
+// 其余两例轻,常驻默认池。
 import { describe, it, expect, spyOn } from "bun:test";
 import { rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,6 +20,9 @@ import type { GameEvent } from "../src/core/game-events";
 import type { GameSnapshot } from "../src/core/snapshot";
 import { MAP } from "../scripts/engine-helpers";
 import type { LoadedMap } from "../src/core/board-loader";
+
+// 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
+const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 const testMapProvider = (_id: string): LoadedMap => MAP;
@@ -114,74 +121,84 @@ function comparable(snap: GameSnapshot): string {
 }
 
 describe("RoomRegistry · 崩溃恢复(#380 三形态 + #388 播种咬合)", () => {
-  it("进行中对局:落盘 → 新 registry 恢复保真 → 双路续跑到终局,终态一致", async () => {
-    const dir1 = tmpDir("mid");
-    let dir2: string | null = null;
-    try {
-      const clock1 = new ManualClock();
-      const reg1 = new RoomRegistry(new FileRoomPersistence(dir1), undefined, undefined, {
-        clock: clock1,
-      });
-      const roomId = await playingRoom(reg1);
-      const e1 = () => reg1.get(roomId)!.engine!;
-      // 推进半局:托管当前决策归属座位,链在另一真人的决策点停——真实「进行中」存档点
-      const firstOwner = e1().decisionOwner;
-      await reg1.setAutoPilot(roomId, firstOwner, true);
-      const other = 1 - firstOwner;
-      expect(e1().phase).toBe("Playing");
-      expect(e1().isOver).toBe(false);
+  itSlow(
+    "进行中对局:落盘 → 新 registry 恢复保真 → 双路续跑到终局,终态一致",
+    async () => {
+      const dir1 = tmpDir("mid");
+      let dir2: string | null = null;
+      try {
+        const clock1 = new ManualClock();
+        const reg1 = new RoomRegistry(new FileRoomPersistence(dir1), undefined, undefined, {
+          clock: clock1,
+        });
+        const roomId = await playingRoom(reg1);
+        const e1 = () => reg1.get(roomId)!.engine!;
+        // 推进半局:托管当前决策归属座位,链在另一真人的决策点停——真实「进行中」存档点
+        const firstOwner = e1().decisionOwner;
+        await reg1.setAutoPilot(roomId, firstOwner, true);
+        const other = 1 - firstOwner;
+        expect(e1().phase).toBe("Playing");
+        expect(e1().isOver).toBe(false);
 
-      // 「进程崩溃」:此刻落盘记录拷入新目录,新 registry 恢复
-      const rec = new FileRoomPersistence(dir1).load(roomId)!;
-      dir2 = tmpDir("restored");
-      const persistence2 = new FileRoomPersistence(dir2);
-      persistence2.save(rec);
-      const clock2 = new ManualClock();
-      const reg2 = new RoomRegistry(persistence2, undefined, undefined, {
-        clock: clock2,
-      });
-      expect(reg2.restoreAll(testMapProvider)).toBe(1);
-      const restored = reg2.get(roomId)!;
-      expect(restored.engine).not.toBeNull();
-      // 恢复保真:恢复引擎快照 === 崩溃时落盘快照(逐字段,含 rngState/日志)
-      expect(JSON.stringify(restored.engine!.snapshot())).toBe(JSON.stringify(e1().snapshot()));
+        // 「进程崩溃」:此刻落盘记录拷入新目录,新 registry 恢复
+        const rec = new FileRoomPersistence(dir1).load(roomId)!;
+        dir2 = tmpDir("restored");
+        const persistence2 = new FileRoomPersistence(dir2);
+        persistence2.save(rec);
+        const clock2 = new ManualClock();
+        const reg2 = new RoomRegistry(persistence2, undefined, undefined, {
+          clock: clock2,
+        });
+        expect(reg2.restoreAll(testMapProvider)).toBe(1);
+        const restored = reg2.get(roomId)!;
+        expect(restored.engine).not.toBeNull();
+        // 恢复保真:恢复引擎快照 === 崩溃时落盘快照(逐字段,含 rngState/日志)
+        expect(JSON.stringify(restored.engine!.snapshot())).toBe(JSON.stringify(e1().snapshot()));
 
-      // 双路续跑:A=原进程继续,B=恢复进程继续——同一存档点出发,终态一致
-      await reg1.setAutoPilot(roomId, other, true);
-      await reg2.setAutoPilot(roomId, other, true);
-      await pumpToGameOver(reg1, roomId, clock1);
-      await pumpToGameOver(reg2, roomId, clock2);
-      expect(comparable(restored.engine!.snapshot())).toBe(comparable(e1().snapshot()));
-      // 终局行(ADR-0014)两侧都在
-      expect(e1().log.some((l) => l.category === "final")).toBe(true);
-      expect(restored.engine!.log.some((l) => l.category === "final")).toBe(true);
-    } finally {
-      rmSync(dir1, { recursive: true, force: true });
-      if (dir2) rmSync(dir2, { recursive: true, force: true });
-    }
-  }, 120_000);
+        // 双路续跑:A=原进程继续,B=恢复进程继续——同一存档点出发,终态一致
+        await reg1.setAutoPilot(roomId, other, true);
+        await reg2.setAutoPilot(roomId, other, true);
+        await pumpToGameOver(reg1, roomId, clock1);
+        await pumpToGameOver(reg2, roomId, clock2);
+        expect(comparable(restored.engine!.snapshot())).toBe(comparable(e1().snapshot()));
+        // 终局行(ADR-0014)两侧都在
+        expect(e1().log.some((l) => l.category === "final")).toBe(true);
+        expect(restored.engine!.log.some((l) => l.category === "final")).toBe(true);
+      } finally {
+        rmSync(dir1, { recursive: true, force: true });
+        if (dir2) rmSync(dir2, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
 
-  it("已终局:恢复后相位/快照原样保留", async () => {
-    const dir = tmpDir("final");
-    try {
-      const clock = new ManualClock();
-      const reg1 = new RoomRegistry(new FileRoomPersistence(dir), undefined, undefined, { clock });
-      const roomId = await playingRoom(reg1);
-      await reg1.setAutoPilot(roomId, 0, true);
-      await reg1.setAutoPilot(roomId, 1, true);
-      await pumpToGameOver(reg1, roomId, clock);
-      const finalSnap = reg1.get(roomId)!.engine!.snapshot();
+  itSlow(
+    "已终局:恢复后相位/快照原样保留",
+    async () => {
+      const dir = tmpDir("final");
+      try {
+        const clock = new ManualClock();
+        const reg1 = new RoomRegistry(new FileRoomPersistence(dir), undefined, undefined, {
+          clock,
+        });
+        const roomId = await playingRoom(reg1);
+        await reg1.setAutoPilot(roomId, 0, true);
+        await reg1.setAutoPilot(roomId, 1, true);
+        await pumpToGameOver(reg1, roomId, clock);
+        const finalSnap = reg1.get(roomId)!.engine!.snapshot();
 
-      const reg2 = new RoomRegistry(new FileRoomPersistence(dir));
-      expect(reg2.restoreAll(testMapProvider)).toBe(1);
-      const restored = reg2.get(roomId)!;
-      expect(restored.engine!.phase).toBe("GameOver");
-      expect(restored.engine!.isOver).toBe(true);
-      expect(JSON.stringify(restored.engine!.snapshot())).toBe(JSON.stringify(finalSnap));
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }, 120_000);
+        const reg2 = new RoomRegistry(new FileRoomPersistence(dir));
+        expect(reg2.restoreAll(testMapProvider)).toBe(1);
+        const restored = reg2.get(roomId)!;
+        expect(restored.engine!.phase).toBe("GameOver");
+        expect(restored.engine!.isOver).toBe(true);
+        expect(JSON.stringify(restored.engine!.snapshot())).toBe(JSON.stringify(finalSnap));
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    },
+    120_000,
+  );
 
   it("损坏文件跳过:坏 JSON 走 persistence 跳过通道;结构损坏跳过并移除;好房间照常恢复", async () => {
     const warn = spyOn(console, "warn").mockImplementation(() => {});
