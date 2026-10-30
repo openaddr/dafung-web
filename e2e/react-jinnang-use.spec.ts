@@ -10,7 +10,7 @@
 // 本 spec 只留交互接线,断言全走可见 UI 态(选中/禁用/印条/窗收/牌离架)。
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
 // 多标签牌(缓兵之计)双章、名将技能卡(主动技,#818 起 SkillCardFace 单技装配:载体+
-// 主技名大字,同将双技双卡可辨)、作罢路径、出牌墨线端点对准。
+// 主技名大字,同将双技双卡可辨、异将同名技载体可辨)、作罢路径、出牌墨线端点对准。
 // 种子复算(ADR-0027 换图重钉;seed 63 × 新环游图,真浏览器探针复算):人类先手
 // (draftOrder=[0,1,3,2] 不变),选都三候选 [长沙(11),汉中(26),许昌(39)] 取 DOM 首格
 // =11 长沙(bot 都:黔=23 虎牢关、荆=44 会稽、宋=25 咸阳),起手横征暴敛(全体域恒可用)
@@ -292,6 +292,48 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(lei.locator(".hface")).toHaveClass(/off/);
     await expect(lei.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
     await expect(huo.locator(".hface")).not.toHaveClass(/off/);
+  });
+
+  test("异将同名技载体可辨:周瑜/张星彩各持擂鼓,两张擂鼓卡同名同技、载体各归各将", async ({
+    page,
+  }) => {
+    await startJunshi(page, 63);
+    // 引擎直写:两槽各持擂鼓(同名技跨将互为独立实例,#817 选项 id=skill:<heroId>:
+    // <skillId> → 两张卡不合并);张星彩槽的掷金是被动(DieRolled,无牌形)只作池填充,
+    // 出牌窗即「横征暴敛 + 周瑜火攻 + 两张擂鼓」的混排架。
+    await force(
+      page,
+      `
+      e.players[0].heroes = [
+        { heroId: "zhouyu", skillIds: ["huogong", "leigu"], lastFired: {} },
+        { heroId: "zhangxingcai", skillIds: ["zhijin", "leigu"], lastFired: {} },
+      ]; // 槽位行(#785)布场;技定义查技表
+      e.turnPhase = "AwaitingJinnang";
+    `,
+    );
+    // 实例 id 各归各槽(#817),同名技 = 两张独立卡
+    const leiZy = page.getByTestId(TESTIDS.jinnangCard("skill:zhouyu:leigu"));
+    const leiZx = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));
+    await expect(leiZy).toBeVisible();
+    await expect(leiZx).toBeVisible();
+    // 主技名同为「擂鼓」:同名半边——卡面文字层面两卡不可凭技名区分
+    await expect(leiZy.locator(".zhang-ming")).toHaveText("擂鼓");
+    await expect(leiZx.locator(".zhang-ming")).toHaveText("擂鼓");
+    // 载体可辨半边:全将通有的载体件(画心立绘/名带/称号签)各显各将,异将同名技凭
+    // 载体一眼分账。注:heroFlag 是扩展将旗渲染 hook(#378,现仅太史慈扩展包),
+    // 核心将无旗不渲染——本钉断言的是与扩展无关的载体件口径。
+    await expect(leiZy.locator(".lihui img")).toHaveAttribute(
+      "src",
+      "/assets/heroes/hero-zhouyu-sgs.png",
+    );
+    await expect(leiZx.locator(".lihui img")).toHaveAttribute(
+      "src",
+      "/assets/heroes/hero-zhangxingcai-sgs.png",
+    );
+    await expect(leiZy.locator(".m-name")).toHaveText("周瑜");
+    await expect(leiZx.locator(".m-name")).toHaveText("张星彩");
+    await expect(leiZy.locator(".hface")).not.toContainText("张星彩"); // 他将不上卡
+    await expect(leiZx.locator(".hface")).not.toContainText("周瑜");
   });
 });
 

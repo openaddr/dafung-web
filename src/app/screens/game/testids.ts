@@ -103,7 +103,7 @@ export const TESTIDS = {
   peekCard: (cardId: string) => `peek-card-${cardId}` as const,
   /** 空手牌空态(「囊中空空」浅印;目标有效性对手牌数无守卫,真业务态)。 */
   peekEmpty: "peek-empty",
-  /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
+  /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace/SkillCardFace;heroId=名将 id,无旗不渲染)。 */
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
   // ── 技能全览弹框(#605,规格 #603 T2;#818 起技能卡主技名同为入口)──
