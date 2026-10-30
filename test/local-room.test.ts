@@ -10,11 +10,17 @@
 // 演出链(DOM/音频)在 bun 内缺席:生产 sink 的 DOM 触点全在 present 异步段,
 // 由 SnapshotEffects 捕获报错;IndexedDB 缺席由 gameLogArchive 队列捕获报错——
 // 状态断言不受影响(慢机/负载下真定时器用例吃 CPU,故显式放宽单测预算)。
+// 慢例池(测试管线提速批):托管走内存双工例整局托管骑局,实测 4.2s(2026-10-30)——
+// 按「单例实测 ≥3s」判据入慢例池(口径见 docs/how-to/开发与测试.md「把测试跑起来」),
+// DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);其余四例轻,常驻默认池。
 import { describe, it, expect } from "bun:test";
 import { MAP } from "../scripts/engine-helpers";
 import { LocalController } from "../src/app/controllers/local";
 import { useGameStore } from "../src/app/store/gameStore";
 import { useNetStore } from "../src/app/store/netStore";
+
+// 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
+const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
@@ -75,27 +81,31 @@ describe("单机通路(#398):进程内房间编排 + 内存双工", () => {
     }
   }, 20_000);
 
-  it("托管走内存双工:setAutoPilot 上行,房间 driveBots 代打推进对局", async () => {
-    const c = makeController();
-    try {
-      c.setupPickCapital(c.engine.offeredCapitals[0]!);
-      await sleep(100);
-      expect(c.autoPilotOn).toBe(false);
-      c.setAutoPilot(true);
-      await sleep(100);
-      expect(c.autoPilotOn).toBe(true);
-      // 代打推进:setAutoPilot 即接 driveBots(座位受控,无看门狗等待),轮次前进
-      const turn0 = c.engine.turnNumber;
-      let advanced = false;
-      for (let i = 0; i < 100 && !advanced; i++) {
+  itSlow(
+    "托管走内存双工:setAutoPilot 上行,房间 driveBots 代打推进对局",
+    async () => {
+      const c = makeController();
+      try {
+        c.setupPickCapital(c.engine.offeredCapitals[0]!);
         await sleep(100);
-        advanced = c.engine.turnNumber > turn0 || c.engine.isOver;
+        expect(c.autoPilotOn).toBe(false);
+        c.setAutoPilot(true);
+        await sleep(100);
+        expect(c.autoPilotOn).toBe(true);
+        // 代打推进:setAutoPilot 即接 driveBots(座位受控,无看门狗等待),轮次前进
+        const turn0 = c.engine.turnNumber;
+        let advanced = false;
+        for (let i = 0; i < 100 && !advanced; i++) {
+          await sleep(100);
+          advanced = c.engine.turnNumber > turn0 || c.engine.isOver;
+        }
+        expect(advanced).toBe(true);
+      } finally {
+        c.destroy();
       }
-      expect(advanced).toBe(true);
-    } finally {
-      c.destroy();
-    }
-  }, 30_000);
+    },
+    30_000,
+  );
 
   it("单机不启用联机读口:netStore 房间字段恒空(大厅/断线横幅/联机选都分支不被激活)", async () => {
     const c = makeController();
