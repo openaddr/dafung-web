@@ -7,6 +7,10 @@
 // vite preview 按字节回吐,正常路径下集合逐字相等。
 // 隔离协议(三件套 env)见 playwright.config.ts 头注。
 //
+// 端口空串堵漏(#807,2026-10-29 UI 审计波 retro):后台壳吞 `E2E_STATIC_PORT=4180 …`
+// 行内赋值时,变量以空串传进子进程——config 侧 `||` 兜回默认端口,静默与他会话互踩。
+// 这里显式炸出并指路 scripts/e2e-full.ts(env 在 TS 内构造的正规通路)。
+//
 // 环境水位探针(2026-10-29 retro):开跑与收尾各打一行 CPU/进程水位进日志。背景:
 // #734 会话全量 7 挂烧掉 ~35min 归因,才定位 CPU 97% 满载(21 个非本会话进程)——
 // 「墙钟超 2 倍判废」判据的输入靠事后取证太贵,现在首行即判:开跑高载=预期挂例
@@ -27,8 +31,14 @@ function envProbe(): string {
 }
 
 export default async function globalSetup() {
+  const staticPortEnv = process.env.E2E_STATIC_PORT;
+  if (staticPortEnv === "") {
+    throw new Error(
+      "[e2e-port] E2E_STATIC_PORT 为空串=后台壳吞了行内赋值;把 env 写进脚本文件再跑(参照 scripts/e2e-full.ts)",
+    );
+  }
   console.log(`[e2e-env] 开跑水位:${envProbe()}`);
-  const port = process.env.E2E_STATIC_PORT ?? "4173";
+  const port = staticPortEnv ?? "4173";
   const local = readFileSync("dist/index.html", "utf8");
   const refs = (html: string) =>
     new Set(html.match(/(?:bundles|assets)\/[A-Za-z0-9._-]+\.(?:js|css)/g) ?? []);

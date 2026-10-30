@@ -14,8 +14,10 @@ import { defineConfig, devices } from "@playwright/test";
 // 不设这些 env = 行为与历史完全一致(共享默认端口与目录)。
 // 隔离的必要性:webServer 虽 reuseExistingServer,但"谁 spawn 谁杀"——B 复用 A 的
 // server,A 跑完即杀,B 后续用例全部 connection refused;固定 ROOMS_DIR 则跨 run 互踩。
-const STATIC_PORT = process.env.E2E_STATIC_PORT ?? "4173";
-const GAME_PORT = process.env.E2E_GAME_PORT ?? "3010";
+// 端口空串兜默认(#807):`||` 而非 `??`——空串(后台壳吞行内赋值的产物)与未设同回
+// 默认;空串的教育由 e2e/global-setup.ts 的响亮错误负责,config 不重复红。
+const STATIC_PORT = process.env.E2E_STATIC_PORT || "4173";
+const GAME_PORT = process.env.E2E_GAME_PORT || "3010";
 const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms";
 
 export default defineConfig({
