@@ -22,6 +22,7 @@
 import type { HTMLAttributes } from "react";
 import { heroDefOf, Lihui } from "@app/components/card/HeroCardFace";
 import { extensionHeroFlagOf } from "@app/extensions/registry";
+import { TESTIDS } from "@app/screens/game/testids";
 import { isActiveSkill, skillById } from "@core/skills";
 
 export interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -65,7 +66,7 @@ export function SkillCardFace({
       {flag && (
         <img
           className="x-flag"
-          data-testid={`hero-flag-${heroId}`}
+          data-testid={TESTIDS.heroFlag(heroId)}
           src={flag.url}
           alt={flag.alt ?? "将旗"}
           draggable={false}
