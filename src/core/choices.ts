@@ -50,9 +50,12 @@ export interface ChoiceOption {
   cardTags?: string[];
   /** 目标段选项(#122/T3):候选座位(id=`t${seat}`,label=国号)。 */
   targetSeat?: number;
-  /** 名将主动技选项专属(#188 档 3):id=`skill:${skillId}`;出牌阶段文案随选项派生透出
-   *  (同 encounterId 通道口径);skillHero=属主名将名(卷轴组合显示)。 */
+  /** 名将主动技选项专属(#188 档 3;#817 选项携实例):id=`skill:<heroId>:<skillId>`
+   *  (拼接单源 skillOptionId);出牌阶段文案随选项派生透出(同 encounterId 通道口径);
+   *  skillId+skillHeroId=麾下实例定位对(判定单源 isSkillOption),skillHero=名将名
+   *  (卷轴组合显示)。 */
   skillId?: string;
+  skillHeroId?: string;
   skillText?: string;
   skillHero?: string;
   /** 定制问询选项专属(#432,ADR-0022):问询 id 随选项经 snapshot.choices 派生透出
@@ -304,7 +307,7 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const pendingSkill = e.pendingSkill;
   if (pendingSkill) {
     // 技能目标段(#188 档 3):候选按技能目标域逐一校验(守卫单源 heroSkillTargetOk)
-    const skill = activeSkillOf(p, pendingSkill.skillId);
+    const skill = activeSkillOf(p, pendingSkill.heroId, pendingSkill.skillId);
     const userSeat = e.players.indexOf(p);
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
       const verdict = skill
@@ -369,15 +372,33 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];
 }
 
-/** 按 id 查玩家麾下主动技(#188 档 3;槽内已授技含该技且其为主动技才命中,技引用经
- *  授技单点校验可解析):查无返回 null(命令与麾下不符时由调用方处置)。 */
-export function activeSkillOf(p: { heroes: HeroSlot[] }, skillId: string): ActiveSkillDef | null {
-  for (const slot of p.heroes) {
-    if (!slot.skillIds.includes(skillId)) continue;
-    const def = skillById(skillId);
-    if (isActiveSkill(def)) return def;
-  }
-  return null;
+/** 技卡实例定位对判定(#817 实例化):skillId+skillHeroId 双章齐备即技实例选项——UI/bot
+ *  分流「技卡/锦囊卡」与读实例定位都走本口,别再各自摸字段造第二套解析。 */
+export function isSkillOption(
+  o: ChoiceOption,
+): o is ChoiceOption & { skillId: string; skillHeroId: string } {
+  return o.skillId != null && o.skillHeroId != null;
+}
+
+/** 技卡选项 id 拼接单源(#817):`skill:<heroId>:<skillId>`——选项 id/testid、useHeroSkill
+ *  命令、快照 pendingSkill 四处同一形状,唯此一处拼。同一将池内技 id 唯一,故
+ *  heroId+skillId 唯一定位一个麾下实例(技能卡实例卡不合并,#815 拍板)。 */
+export function skillOptionId(heroId: string, skillId: string): string {
+  return `skill:${heroId}:${skillId}`;
+}
+
+/** 按实例定位麾下主动技(#188 档 3;#817 实例定位对 heroId+skillId):指定槽已授技含该技
+ *  且其为主动技才命中,技引用经授技单点校验可解析。查无返回 null(命令与麾下不符时
+ *  由调用方处置)。 */
+export function activeSkillOf(
+  p: { heroes: HeroSlot[] },
+  heroId: string,
+  skillId: string,
+): ActiveSkillDef | null {
+  const slot = p.heroes.find((s) => s.heroId === heroId);
+  if (slot == null || !slot.skillIds.includes(skillId)) return null;
+  const def = skillById(skillId);
+  return isActiveSkill(def) ? def : null;
 }
 
 /** 冷却剩余轮数(#188 档 3;#785 槽内账:>0 = 仍在冷却,键=active.id,同槽各技/同名技
@@ -388,33 +409,28 @@ export function skillCooldownLeft(e: GameEngine, slot: HeroSlot, skill: ActiveSk
   return Math.max(0, skill.cooldown - (e.round - last));
 }
 
-/** 出牌阶段主动技选项段(#188 档 3):遍历麾下槽位序×槽内已授技序(=池序),**按技 id 去重**
- *  ——同名技多槽(如周瑜+张星彩同授擂鼓)一技恰一选项(#782:不再出两张同脸卡,React key
- *  亦不撞);可用性=任一持有槽冷却就绪(实例账本仍在各槽各记,#785;全槽冷却时 reason 报
- *  最近解冻槽的剩余轮数),费用/目标门槛技级一验;发动定位单源 roster.readySkillSlot 首就绪
- *  槽(#785/#795 拍板,选项面归一与之配套)。与锦囊选项同窗并列,UI 以 skillId 区分「技」章。 */
+/** 出牌阶段主动技选项段(#188 档 3;#817 实例化——#815 拍板翻案 #806 去重权宜,技能卡
+ *  实例卡不合并):遍历麾下槽位序×槽内已授技序(=池序),**每实例一选项**——同名技多槽
+ *  (如周瑜+张星彩同授擂鼓)各出一条、各携实例(id=skill:<heroId>:<skillId>,拼接单源
+ *  skillOptionId;同一将池内技 id 唯一,该对唯一定位一个实例),发动直落本实例槽内账
+ *  (#785),「首就绪槽」代寻退役。可用性=本实例冷却就绪(冷却中 reason 报本实例剩余
+ *  轮数),费用/目标门槛技级一验;label 带「名将·技名」照旧。与锦囊选项同窗并列,
+ *  UI 以 skillId 区分「技」章。 */
 function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   const p = e.activePlayer;
   const userSeat = e.players.indexOf(p);
   const out: ChoiceOption[] = [];
-  const seen = new Set<string>();
   for (const slot of p.heroes) {
     const hero = heroById(slot.heroId);
     for (const skillId of slot.skillIds) {
       const skill = skillById(skillId);
       if (!isActiveSkill(skill)) continue; // 槽可含多条主动技(ADR-0036 逐字表)
-      if (seen.has(skillId)) continue; // 同名技多槽:一技一选项,卡面属主=首持有槽
-      seen.add(skillId);
-      // 冷却各槽各读(#785):任一持有槽就绪即可用;全冷却时取最小剩余(最近解冻)报因
-      const cdLeft = Math.min(
-        ...p.heroes
-          .filter((s) => s.skillIds.includes(skillId))
-          .map((s) => skillCooldownLeft(e, s, skill)),
-      );
+      // 本实例冷却自读(#785 槽内账):冷却中报本实例剩余轮数
+      const cdLeft = skillCooldownLeft(e, slot, skill);
       let available = cdLeft === 0;
       let reason = cdLeft > 0 ? `冷却中(还差 ${cdLeft} 轮)` : undefined;
       if (available) {
-        // 冷却就绪后再验执行门槛:费用 → 目标候选存在
+        // 冷却就绪后再验执行门槛:费用 → 目标候选存在(技级一验,同技实例共用)
         const cost = skill.params?.cost ?? 0;
         if (cost > 0 && p.cash < cost) {
           available = false;
@@ -430,11 +446,12 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
         }
       }
       out.push({
-        id: `skill:${skill.id}`,
+        id: skillOptionId(slot.heroId, skill.id),
         label: `${hero.name}·${skill.name}`,
         available,
         reason,
         skillId: skill.id,
+        skillHeroId: slot.heroId,
         skillText: skill.desc,
         skillHero: hero.name,
       });
@@ -448,7 +465,7 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
  *  「唯反应」灰置 available=false,天然不计入:持唯反应牌不进「出牌阶段」。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
   return computeChoices(e, "AwaitingJinnang").some(
-    (o) => o.available && (o.cardTags != null || o.skillId != null),
+    (o) => o.available && (o.cardTags != null || isSkillOption(o)),
   );
 }
 

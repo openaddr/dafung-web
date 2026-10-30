@@ -11,7 +11,7 @@ import { rollGrantedSkills } from "@core/roster";
 import { heroById } from "@core/heroes";
 import { skillById } from "@core/skills";
 import { SKILLS } from "@core/skills";
-import { hasUsableJinnang } from "@core/choices";
+import { hasUsableJinnang, isSkillOption, skillOptionId } from "@core/choices";
 import { botAct } from "@core/bot";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
@@ -69,54 +69,67 @@ function armSkill(e: GameEngine, heroId: string, skillId: string) {
   return p;
 }
 
-const skillOpt = (e: GameEngine, skillId: string) =>
-  e.choicesFor().find((o) => o.id === `skill:${skillId}`);
+/** 技实例选项(#817 实例形状):id 拼接走 choices.skillOptionId 单源,勿手写 `skill:` 字面量。 */
+const skillOpt = (e: GameEngine, heroId: string, skillId: string) =>
+  e.choicesFor().find((o) => o.id === skillOptionId(heroId, skillId));
 
 const seatOpt = (e: GameEngine, seat: number) => e.choicesFor().find((o) => o.id === `t${seat}`);
 
 describe("出牌阶段:主动技选项集(#188 档 3)", () => {
-  it("无目标技就绪 → 窗口选项就绪(id=skill:*,技文案随选项);发动后冷却中灰置,过冷却轮复活", () => {
+  it("无目标技就绪 → 实例选项就绪(id=skill:<heroId>:<skillId>,携实例定位),发动后冷却中灰置,过冷却轮复活", () => {
     const e = prepared();
     armSkill(e, "zhangxingcai", "leigu");
-    const opt = skillOpt(e, "leigu");
+    const opt = skillOpt(e, "zhangxingcai", "leigu");
+    expect(opt?.id).toBe("skill:zhangxingcai:leigu");
+    expect(opt?.skillHeroId).toBe("zhangxingcai");
+    expect(opt?.skillHero).toBe("张星彩");
     expect(opt?.available).toBe(true);
     expect(opt?.skillText).toContain("擂鼓");
     expect(hasUsableJinnang(e)).toBe(true);
-    // 发动:冷却记账 + 无目标域直接结算
-    e.resolveHeroSkill("leigu");
+    // 发动:冷却记账 + 无目标域直接结算(直落本实例槽内账)
+    e.resolveHeroSkill("zhangxingcai", "leigu");
     expect(e.activePlayer.heroes[0].lastFired["leigu"]).toBe(e.round);
     expect(e.heroDiceBonus).toBe(2);
     expect(e.turnPhase).toBe("Roll"); // 唯一技进冷却 → 收卷(零可用静默跳过口径)
     // 冷却闸门:重开窗口 → 灰置带剩余轮数;跨过冷却轮 → 复活
     e.turnPhase = "AwaitingJinnang";
-    const cd = skillOpt(e, "leigu");
+    const cd = skillOpt(e, "zhangxingcai", "leigu");
     expect(cd?.available).toBe(false);
     expect(cd?.reason).toContain("冷却");
     expect(hasUsableJinnang(e)).toBe(false);
     e.round += 4;
-    expect(skillOpt(e, "leigu")?.available).toBe(true);
+    expect(skillOpt(e, "zhangxingcai", "leigu")?.available).toBe(true);
   });
 
-  it("同名技多槽:选项集按技 id 去重恰一条(#782);首槽冷却中选项仍可用,发动落次槽(#785 实例账)", () => {
+  it("同名技多槽:每实例一选项各携实例(#817 翻案 #806 去重权宜,#815 拍板);各自发动各落各自实例冷却,互不串账", () => {
     const e = prepared();
     const p = e.activePlayer;
     armSkill(e, "zhouyu", "leigu");
     armSkill(e, "zhangxingcai", "leigu"); // 同玩家两槽同名技(生产形:周瑜+星彩同授擂鼓)
-    const opts = e.choicesFor().filter((o) => o.id === "skill:leigu");
-    expect(opts).toHaveLength(1); // 一技一选项(UI 单卡,React key 不撞)
-    expect(opts[0].available).toBe(true);
-    expect(opts[0].skillHero).toBe("周瑜"); // 卡面属主=首持有槽(与 HandRack 反查同源)
-    // 首槽冷却中(实例账本各槽各记,#785):次槽就绪 → 选项仍可用
-    p.heroes[0].lastFired["leigu"] = e.round;
-    expect(skillOpt(e, "leigu")?.available).toBe(true);
-    e.resolveHeroSkill("leigu");
-    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round); // 首槽账未被改写
-    expect(p.heroes[1].lastFired["leigu"]).toBe(e.round); // 发动落次槽(readySkillSlot 首就绪槽)
-    // 双槽全冷却:一选项灰置,reason=最近解冻槽的剩余轮数
+    const opts = e.choicesFor().filter((o) => isSkillOption(o) && o.skillId === "leigu");
+    expect(opts).toHaveLength(2); // 一实例一选项:不合并,卡面属主各随各槽
+    expect(opts.map((o) => o.id)).toEqual(["skill:zhouyu:leigu", "skill:zhangxingcai:leigu"]); // 选项 id 携实例(拼接单源 skillOptionId,此处对拍字面量钉形状)
+    expect(opts.map((o) => o.skillHero)).toEqual(["周瑜", "张星彩"]);
+    expect(opts.every((o) => o.available)).toBe(true);
+    // 实例一(周瑜)发动:直落周瑜槽,张星彩实例不受扰(互不串账)
+    e.resolveHeroSkill("zhouyu", "leigu");
+    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round);
+    expect(p.heroes[1].lastFired["leigu"]).toBeUndefined();
+    // 冷却中的实例灰置报本槽剩余轮数;就绪实例仍可用
     e.turnPhase = "AwaitingJinnang";
-    const cd = skillOpt(e, "leigu");
-    expect(cd?.available).toBe(false);
-    expect(cd?.reason).toContain("冷却");
+    const zy = skillOpt(e, "zhouyu", "leigu");
+    const zxc = skillOpt(e, "zhangxingcai", "leigu");
+    expect(zy?.available).toBe(false);
+    expect(zy?.reason).toContain("冷却");
+    expect(zxc?.available).toBe(true);
+    // 实例二(张星彩)发动:落张星彩槽,周瑜冷却账未被改写
+    e.resolveHeroSkill("zhangxingcai", "leigu");
+    expect(p.heroes[0].lastFired["leigu"]).toBe(e.round);
+    expect(p.heroes[1].lastFired["leigu"]).toBe(e.round);
+    // 双实例全冷却:两选项各自灰置
+    e.turnPhase = "AwaitingJinnang";
+    expect(skillOpt(e, "zhouyu", "leigu")?.available).toBe(false);
+    expect(skillOpt(e, "zhangxingcai", "leigu")?.available).toBe(false);
     expect(hasUsableJinnang(e)).toBe(false);
   });
 
@@ -124,20 +137,20 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     const e = prepared();
     const p = armSkill(e, "huatuo", "zhenji");
     p.cash = 50; // 付不起 100
-    expect(skillOpt(e, "zhenji")?.available).toBe(false);
-    expect(skillOpt(e, "zhenji")?.reason).toBe("银两不足");
+    expect(skillOpt(e, "huatuo", "zhenji")?.available).toBe(false);
+    expect(skillOpt(e, "huatuo", "zhenji")?.reason).toBe("银两不足");
     // 付得起 → 入目标段;any 域含自己,other 域(征辟)排除自己
     p.cash = 5000;
-    e.resolveHeroSkill("zhenji");
-    expect(e.pendingSkill?.skillId).toBe("zhenji");
+    e.resolveHeroSkill("huatuo", "zhenji");
+    expect(e.pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
     expect(seatOpt(e, 0)?.available).toBe(true); // 自己(any 域)
-    e.resolveHeroSkill("zhenji", undefined, true); // 作罢:不记冷却
+    e.resolveHeroSkill("huatuo", "zhenji", undefined, true); // 作罢:不记冷却
     expect(e.pendingSkill).toBe(null);
     expect(e.activePlayer.heroes[0].lastFired["zhenji"]).toBeUndefined();
     e.turnPhase = "AwaitingJinnang";
     armSkill(e, "caopi", "zhengpi");
-    e.resolveHeroSkill("zhengpi");
-    expect(e.pendingSkill?.skillId).toBe("zhengpi");
+    e.resolveHeroSkill("caopi", "zhengpi");
+    expect(e.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" });
     expect(seatOpt(e, 0)?.available).toBe(false);
     expect(seatOpt(e, 0)?.reason).toBe("不能指定自己");
     expect(seatOpt(e, 1)?.available).toBe(true);
@@ -167,8 +180,8 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
         maxLevel: 3,
       },
     ];
-    e.resolveHeroSkill("huogong");
-    expect(e.pendingSkill?.skillId).toBe("huogong");
+    e.resolveHeroSkill("zhouyu", "huogong");
+    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
     expect(seatOpt(e, me)?.available).toBe(false);
     expect(seatOpt(e, me)?.reason).toBe("不能指定自己");
     expect(seatOpt(e, blocked)?.available).toBe(false);
@@ -183,8 +196,8 @@ describe("主动技结算(#188 档 3)", () => {
     const e = prepared();
     armSkill(e, "caopi", "zhengpi");
     const warrantsBefore = e.activePlayer.warrants;
-    e.resolveHeroSkill("zhengpi"); // 入目标段
-    e.resolveHeroSkill("zhengpi", [1]); // 提交目标
+    e.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
+    e.resolveHeroSkill("caopi", "zhengpi", [1]); // 提交目标
     expect(e.activePlayer.warrants).toBe(warrantsBefore + 1);
     expect(e.players[1].cash).toBe(e.players[1].cash); // 已在断言前落账,占位防误读
     expect(e.turnPhase).toBe("Roll"); // 技进冷却,收卷
@@ -196,8 +209,8 @@ describe("主动技结算(#188 档 3)", () => {
     const hua = armSkill(e, "huatuo", "zhenji");
     hua.cash = 1000;
     e.players[1].stamina = 90;
-    e.resolveHeroSkill("zhenji"); // 入目标段
-    e.resolveHeroSkill("zhenji", [1]); // 提交目标
+    e.resolveHeroSkill("huatuo", "zhenji"); // 入目标段
+    e.resolveHeroSkill("huatuo", "zhenji", [1]); // 提交目标
     expect(hua.cash).toBe(900); // 付 100
     expect(e.players[1].stamina).toBe(100); // 90 + 30 → clamp 100
   });
@@ -217,8 +230,8 @@ describe("主动技结算(#188 档 3)", () => {
       maxLevel: 3,
     });
     const propCount = foe.properties.length;
-    e.resolveHeroSkill("huogong"); // 入目标段
-    e.resolveHeroSkill("huogong", [1]); // 提交目标
+    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
+    e.resolveHeroSkill("zhouyu", "huogong", [1]); // 提交目标
     expect(foe.properties.find((h) => h.propertyId === plain)?.level).toBe(0); // 降 1 级
     expect(foe.properties.length).toBe(propCount); // 不失城
     expect(e.activePlayer.heroes[0].lastFired["huogong"]).toBe(e.round);
@@ -226,8 +239,8 @@ describe("主动技结算(#188 档 3)", () => {
     // 全 0 级 → 失城分支:非都城消失回无主,都城持仓恒在(#226)
     e.round += 5; // 过冷却
     e.turnPhase = "AwaitingJinnang";
-    e.resolveHeroSkill("huogong"); // 入目标段(守卫复验:全 0 级但有非都城可失)
-    e.resolveHeroSkill("huogong", [1]); // 提交目标
+    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段(守卫复验:全 0 级但有非都城可失)
+    e.resolveHeroSkill("zhouyu", "huogong", [1]); // 提交目标
     expect(foe.properties.some((h) => h.propertyId === plain)).toBe(false);
     expect(foe.properties.some((h) => h.propertyId === capPropId)).toBe(true);
     expect(e.findOwner(plain)).toBe(null);
@@ -236,7 +249,7 @@ describe("主动技结算(#188 档 3)", () => {
   it("擂鼓:本回合掷骰步数 +2(骰面不变),行军后清零;快照往返:冷却/目标段/加成保真", () => {
     const e = prepared();
     const p = armSkill(e, "zhangxingcai", "leigu");
-    e.resolveHeroSkill("leigu");
+    e.resolveHeroSkill("zhangxingcai", "leigu");
     expect(e.heroDiceBonus).toBe(2);
     // 快照往返(发动与掷骰之间被广播/落盘的场 面)
     const snap = e.snapshot();
@@ -265,18 +278,18 @@ describe("主动技结算(#188 档 3)", () => {
     void p;
   });
 
-  it("快照往返:技能目标段载荷随快照走,镜像端可继续选人结算", () => {
+  it("快照往返:技能目标段载荷(携实例定位)随快照走,镜像端可继续选人结算", () => {
     const e = prepared();
     armSkill(e, "caopi", "zhengpi");
-    e.resolveHeroSkill("zhengpi"); // 入目标段
-    expect(e.pendingSkill).toEqual({ skillId: "zhengpi" });
+    e.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
+    expect(e.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" });
     const mirror = makeEngine(1);
     mirror.restoreFromSnapshot(e.snapshot());
-    expect(mirror.pendingSkill).toEqual({ skillId: "zhengpi" });
+    expect(mirror.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" }); // 实例定位往返保真(#817)
     expect(JSON.stringify(mirror.choicesFor())).toBe(JSON.stringify(e.choicesFor()));
     // 镜像端续推:目标段提交照常结算(载荷已在快照里,无需再入段)
     const warrantsBefore = mirror.activePlayer.warrants;
-    mirror.resolveHeroSkill("zhengpi", [1]);
+    mirror.resolveHeroSkill("caopi", "zhengpi", [1]);
     expect(mirror.activePlayer.warrants).toBe(warrantsBefore + 1);
     expect(mirror.pendingSkill).toBe(null);
   });
@@ -328,7 +341,7 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
     // 中途停在技能目标段(#580 后同款裸调入口):续推完成目标段结算,不卡死
     const e2 = prepared();
     armSkill(e2, "caopi", "zhengpi");
-    e2.resolveHeroSkill("zhengpi"); // 入目标段
+    e2.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
     botAct(e2);
     expect(e2.pendingSkill).toBe(null);
     expect(e2.turnPhase).toBe("Roll");

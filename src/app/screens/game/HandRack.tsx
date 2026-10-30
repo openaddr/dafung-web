@@ -55,6 +55,7 @@ import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
 import { useFxStore } from "@app/fx/fxStore";
 import { jinnangCardOf } from "@core/jinnang";
+import { isSkillOption } from "@core/choices";
 import type { HeroSlotRow } from "@core/snapshot";
 import type { ChoiceOption } from "@core/choices";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -64,15 +65,13 @@ import "./hand-rack.css";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
-/** 技→槽反查(#786 槽位原生读):choices 技选项只带 skillId,出牌技卡的将定位走本地
- *  玩家槽位(槽位序首命中,同 roster.readySkillSlot 口径)——共享技(一技入多池,
- *  ADR-0036)后目录反查不再唯一,按目录猜属主会张冠李戴;同名技多槽时选项面已按技 id
- *  归一(#782 一技一卡),卡面属主=首持有槽,与选项 label/skillHero 同源。查无=接线 bug
- *  (choices 出了本地玩家麾下没有的技),炸出零兜底。 */
-function heroSlotBySkillId(heroes: HeroSlotRow[], skillId: string): HeroSlotRow {
-  const slot = heroes.find((s) => s.skillIds.includes(skillId));
+/** 技选项→槽反查(#817 实例化:技选项携 skillHeroId,出牌技卡的将定位走本地玩家槽位):
+ *  heroId 唯一定位麾下槽(同将不可重招,招贤池占位保证),卡面/全览吃同一槽实授技。
+ *  查无=接线 bug(choices 出了本地玩家麾下没有的将),炸出零兜底。 */
+function heroSlotByHeroId(heroes: HeroSlotRow[], heroId: string): HeroSlotRow {
+  const slot = heroes.find((s) => s.heroId === heroId);
   if (slot == null)
-    throw new Error(`出牌技卡:本地玩家麾下无技 ${skillId}(choices 与麾下槽位不符,数据 bug)`);
+    throw new Error(`出牌技卡:本地玩家麾下无将 ${heroId}(choices 与麾下槽位不符,数据 bug)`);
   return slot;
 }
 
@@ -80,7 +79,8 @@ function heroSlotBySkillId(heroes: HeroSlotRow[], skillId: string): HeroSlotRow 
 export interface JunshiWindow {
   /** 卡牌段选项(锦囊+技卡,choices 原序,含灰置;目标段传空数组)。 */
   options: ChoiceOption[];
-  /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId;卡牌段恒 null。 */
+  /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId(目标段判定只问在场与否,
+   *  技实例定位已随选项 id 形状进命令通路,本架不消费);卡牌段恒 null。 */
   pendingCardId: string | null;
   pendingSkillId: string | null;
   /** 当前选中选项 id(卡牌段;选中可逆)。 */
@@ -405,9 +405,10 @@ function RackCard({
 
 /** 出牌阶段态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同卡面):
  *  手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务「取消选中」);
- *  无发牌音(技不是新入手的牌)。卡面双输入(#786):heroId+实授技都由调用侧从本地
- *  玩家槽位反查(heroSlotBySkillId,技→将定位走槽;choices 载荷只承担可用性/原因/
- *  aria-label)。testid 沿 jinnang-card-* 族(option.id = skill:<id>)。 */
+ *  无发牌音(技不是新入手的牌)。卡面双输入(#786):heroId+实授技都由调用侧从本地玩家
+ *  槽位反查(heroSlotByHeroId,选项携 skillHeroId 实例定位;choices 载荷只承担可用性/
+ *  原因/aria-label)。testid 沿 jinnang-card-* 族(option.id = skill:<heroId>:<skillId>,
+ *  #817 实例形状)。 */
 function JunshiSkillCard({
   option,
   heroId,
@@ -419,8 +420,8 @@ function JunshiSkillCard({
   onInspect,
 }: {
   option: ChoiceOption;
-  /** 技→槽反查出的属主将 + 该槽实授技(#786 双输入,卡面/全览同源;技 id 收窄与
-   *  反查都在调用侧完成,本件不再吃裸 skillId)。 */
+  /** 选项→槽反查出的属主将 + 该槽实授技(#786 双输入,卡面/全览同源;实例定位收窄与
+   *  反查都在调用侧完成,本件不解析选项 id)。 */
   heroId: string;
   skillIds: string[];
   index: number;
@@ -747,10 +748,11 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
     }
     if (junshi != null) {
       // 卡牌段:choices 原序(手牌序在前、技卡殿后);手牌 key 与常态一致。
-      // 技卡先槽位反查属主(#786:技→将定位走本地玩家槽位),卡面/全览吃同一槽实授技。
+      // 技卡先按选项携的实例定位反查属主槽(#817:heroId 随选项走,每实例一卡),
+      // 卡面/全览吃同一槽实授技。
       return cardOptions.map((o, i) => {
-        if (o.skillId != null) {
-          const slot = heroSlotBySkillId(player.heroes, o.skillId);
+        if (isSkillOption(o)) {
+          const slot = heroSlotByHeroId(player.heroes, o.skillHeroId);
           return (
             <JunshiSkillCard
               key={o.id}

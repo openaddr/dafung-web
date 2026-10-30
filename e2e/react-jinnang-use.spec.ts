@@ -249,7 +249,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(page.getByTestId(TESTIDS.jinnangCard("求贤令"))).toBeEnabled();
     // 名将技卡(#360 换 HeroCardFace 紧凑档):技名 chips(◆擂鼓+●掷金=被动技名,T1
     // 数据)/名将名上卡面;点选=选中(.sel 挂卡面根),出牌点亮→发技(useHeroSkill)
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:leigu"));
+    // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817;布场属主张星彩)
+    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));
     await expect(ji).toBeVisible();
     await expect(ji.locator(".hface")).toContainText("擂鼓");
     await expect(ji.locator(".hface")).toContainText("掷金"); // 被动技名(TriggerSkill.name)

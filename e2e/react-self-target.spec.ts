@@ -40,7 +40,8 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 63);
     await force(page, HUATUO);
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhenji"));
+    // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817;布场属主华佗)
+    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:huatuo:zhenji"));
     await expect(ji).toBeVisible();
     await ji.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();

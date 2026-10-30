@@ -111,7 +111,8 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
       }
     `,
     );
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici-pozhen"));
+    // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
+    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici:taishici-pozhen"));
     await expect(ji).toBeVisible();
     // 渲染 hook 第二卡面:出牌阶段技卡(compact 档)同样挂将旗
     await expect(ji.getByTestId(TESTIDS.heroFlag("taishici"))).toHaveAttribute(

@@ -235,7 +235,7 @@ function main(): void {
               AwaitingExhaustion:
                 '{"type":"resolveExhaustionChoice","index":0}(下标见 status.choices)',
               AwaitingJinnang:
-                '{"type":"useJinnang","cardId":"<id>"} / {"type":"useJinnang","cardId":null}(今不用);待发动技 {"type":"useHeroSkill","skillId":"<id>"}',
+                '{"type":"useJinnang","cardId":"<id>"} / {"type":"useJinnang","cardId":null}(今不用);待发动技 {"type":"useHeroSkill","heroId":"<heroId>","skillId":"<skillId>"}',
               AwaitingReaction:
                 '{"type":"respondReaction","seat":1,"use":false}(待应答座位见 status.reaction)',
             },

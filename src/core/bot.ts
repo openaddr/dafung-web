@@ -5,7 +5,7 @@ import type { Player } from "./model";
 import type { EncounterEffect } from "./encounters";
 import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
-import { activeSkillOf, heroSkillTargetOk } from "./choices";
+import { activeSkillOf, heroSkillTargetOk, isSkillOption, skillOptionId } from "./choices";
 import { netWorth } from "./networth";
 import { guidePriceOf } from "./treasures";
 import { beginGameEventBatch } from "./game-events";
@@ -271,13 +271,18 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
     : { use: true, cardId };
 }
 
-/** 主动技意图(#188 档 3):策略表对单个技能的「用/不用 + 偏好目标序」。净值贪心、
- *  确定性(不掷骰,并列取座位序小者);exported 供单测。可发性仍以技能目标段
- *  choicesFor 的 available 为准(ADR-0013 同口径)。
+/** 主动技意图(#188 档 3;#817 实例定位对):策略表对单个技能实例的「用/不用 + 偏好目标
+ *  序」。净值贪心、确定性(不掷骰,并列取座位序小者);exported 供单测。可发性仍以技能
+ *  目标段 choicesFor 的 available 为准(ADR-0013 同口径)。意图按技评估(同技实例策略
+ *  相同),实例定位对只为查技表与发动落点。
  *  火攻=城最多者(与火烧连营同则);赈济=自身体力 <70 且付得起时自疗;
  *  征辟=可用即用(委任状稀缺,50 两补偿出自国库稳赚),补偿给现金最少的诸侯(买弱不买强);
  *  擂鼓=可用即用(免费步数 +2,过都城补给/委任状更频繁)。 */
-export function heroSkillIntent(engine: GameEngine, skillId: string): JinnangIntent {
+export function heroSkillIntent(
+  engine: GameEngine,
+  heroId: string,
+  skillId: string,
+): JinnangIntent {
   const me = engine.activePlayer;
   const mySeat = engine.players.indexOf(me);
   const others = engine.players
@@ -285,8 +290,8 @@ export function heroSkillIntent(engine: GameEngine, skillId: string): JinnangInt
     .filter(({ t, seat }) => seat !== mySeat && !t.isBankrupt);
   const byKeyDesc = (key: (x: { t: Player; seat: number }) => number) =>
     [...others].sort((a, b) => key(b) - key(a)); // 稳定排序:并列保持座位序(序小在前)
-  const skill = activeSkillOf(engine.players[mySeat], skillId);
-  if (!skill) throw new Error(`未知主动技:${skillId}(决策者麾下无此技,数据 bug)`); // 同 jinnangCardOf 口径:查不到就炸
+  const skill = activeSkillOf(engine.players[mySeat], heroId, skillId);
+  if (!skill) throw new Error(`未知主动技:${heroId}·${skillId}(决策者麾下无此实例,数据 bug)`); // 同 jinnangCardOf 口径:查不到就炸
   switch (skill.kind) {
     case "demolish": {
       // 火攻:城最多者,且须过 demolish 守卫(有可降/可失之城)——守卫镜像只筛「用不用 +
@@ -334,26 +339,26 @@ function commitJinnangTargets(engine: GameEngine, cardId: string): boolean {
   return true;
 }
 
-/** 技能目标段提交(#188 档 3):按意图偏好序对着引擎技能目标段选项集选第一个可用者;
- *  偏好全不可发 → 作罢(不记冷却)返回 false。 */
-function commitHeroSkillTargets(engine: GameEngine, skillId: string): boolean {
-  const prefs = heroSkillIntent(engine, skillId).targets ?? [];
+/** 技能目标段提交(#188 档 3;#817 实例定位对):按意图偏好序对着引擎技能目标段选项集
+ *  选第一个可用者;偏好全不可发 → 作罢(不记冷却)返回 false。 */
+function commitHeroSkillTargets(engine: GameEngine, heroId: string, skillId: string): boolean {
+  const prefs = heroSkillIntent(engine, heroId, skillId).targets ?? [];
   const opt = engine
     .choicesFor()
     .find((o) => o.available && o.targetSeat != null && prefs.includes(o.targetSeat));
   if (opt?.targetSeat != null) {
-    engine.resolveHeroSkill(skillId, [opt.targetSeat]);
+    engine.resolveHeroSkill(heroId, skillId, [opt.targetSeat]);
     return true;
   }
-  engine.resolveHeroSkill(skillId, undefined, true); // 作罢
+  engine.resolveHeroSkill(heroId, skillId, undefined, true); // 作罢
   return false;
 }
 
 /** 出牌阶段决策(#148 锦囊 → #188 档 3 扩义):可用项(经 choicesFor 同口径,ADR-0013)
- *  = 可用锦囊 + 就绪主动技,按窗口顺序逐项过策略表,取第一张「值得用」的;锦囊指向域
- *  提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能目标段同构。用一项后引擎
- *  可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;tried 挡作罢-重选死循环,
- *  guard 兜底。 */
+ *  = 可用锦囊 + 就绪主动技实例,按窗口顺序逐项过策略表,取第一张「值得用」的;锦囊指向域
+ *  提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能目标段同构(#817 意图/发动
+ *  都携实例定位对)。用一项后引擎可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;
+ *  tried 挡作罢-重选死循环,guard 兜底。 */
 function driveJinnang(engine: GameEngine): void {
   const tried = new Set<string>();
   if (engine.pendingJinnang) {
@@ -363,21 +368,20 @@ function driveJinnang(engine: GameEngine): void {
     commitJinnangTargets(engine, cardId);
   }
   if (engine.pendingSkill) {
-    // 中途接管:停在技能目标段,续推这一技
-    const skillId = engine.pendingSkill.skillId;
-    tried.add(`skill:${skillId}`);
-    commitHeroSkillTargets(engine, skillId);
+    // 中途接管:停在技能目标段,续推这一实例(#817 载荷携实例定位对)
+    const { heroId, skillId } = engine.pendingSkill;
+    tried.add(skillOptionId(heroId, skillId));
+    commitHeroSkillTargets(engine, heroId, skillId);
   }
-  const skillEligible = (o: { skillId?: string }) => o.skillId != null;
   let guard = 0;
   while (engine.turnPhase === "AwaitingJinnang" && guard++ < 12) {
     const chosen = engine
       .choicesFor()
-      .filter((o) => o.available && (o.cardTags != null || skillEligible(o)))
+      .filter((o) => o.available && (o.cardTags != null || isSkillOption(o)))
       .find((o) => {
         if (tried.has(o.id)) return false;
-        return o.skillId != null
-          ? heroSkillIntent(engine, o.skillId).use
+        return isSkillOption(o)
+          ? heroSkillIntent(engine, o.skillHeroId, o.skillId).use
           : jinnangIntent(engine, o.id).use;
       });
     if (!chosen) {
@@ -385,9 +389,9 @@ function driveJinnang(engine: GameEngine): void {
       break;
     }
     tried.add(chosen.id);
-    if (chosen.skillId != null) {
-      engine.resolveHeroSkill(chosen.skillId); // other/any 域 → 入目标段;none 域 → 直接执行
-      if (engine.pendingSkill) commitHeroSkillTargets(engine, chosen.skillId);
+    if (isSkillOption(chosen)) {
+      engine.resolveHeroSkill(chosen.skillHeroId, chosen.skillId); // other/any 域 → 入目标段;none 域 → 直接执行
+      if (engine.pendingSkill) commitHeroSkillTargets(engine, chosen.skillHeroId, chosen.skillId);
     } else {
       engine.resolveJinnang(chosen.id); // one/two-others → 入目标段;self/all-others → 直接执行
       if (engine.pendingJinnang) commitJinnangTargets(engine, chosen.id);
