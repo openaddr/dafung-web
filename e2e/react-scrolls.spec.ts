@@ -152,6 +152,12 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await expect(confirm).toHaveText("确认成交");
   await expect(pick).toBeVisible();
   expect((await snap(page)).turnPhase).toBe("AwaitingTreasureOwner");
+  // 结算留痕基线(#799):留痕断言只扫「基线后追加段」——对局自走里 bot 间交涉(如
+  // p2 售 p0 青囊)可能在种植前已入账,整局 find 首条会吃自然线(种子走位漂移的实锤
+  // 红因:票上三轮实跑吃到的自然是 buyer=p0/seller=p2/qingnang-9/600);种植交涉停在
+  // 人类决策点,基线到提交间无任何他线可插,切片内首条恒为本例结算线(结算路径内
+  // 同步写入,也先于任何后续自然线)。
+  const logLenBefore = (await snap(page)).log.length;
   // 第二段=确认提交
   await confirm.click();
   // 结算留痕断言(#413):交涉成交后对局自走续跑,且 bot 链零步延(stepDelayMs=0)——
@@ -164,10 +170,11 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await expect
     .poll(
       async () =>
-        page.evaluate(() => {
+        page.evaluate((base) => {
           const s = (window as any).__dafung.snapshot();
+          const lines = s.log.slice(base); // #799:只扫基线后追加段(见上)
           const line = (cat: string, key: string) =>
-            s.log.find(
+            lines.find(
               (l: { category: string; detail: string }) =>
                 l.category === cat && l.detail.includes(key),
             );
@@ -178,7 +185,7 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
             trade: line("trade", "treasureFair")?.detail ?? null,
             deliver: line("trade", "escrowDeliver")?.detail ?? null,
           };
-        }),
+        }, logLenBefore),
       { timeout: 30_000, message: "珍宝交涉结算留痕:cmd/fairUpgrade/treasureFair/escrowDeliver" },
     )
     .toEqual({
@@ -193,6 +200,12 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
 
 test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算", async ({ page }) => {
   await quickStart(page);
+  // 冻结推进再动刀(#421 冻结→种植→断言;#799):quickStart 停靠点可能残留已到点的
+  // 看门狗回调,种植后到变卖提交前的 firing 会动 p0 现金/相位——「现金实涨=指导价」
+  // 是活态等式断言,吃不起对局自走竞速。冻结后引擎钉死在停靠态;变卖命令链与 UI 收层
+  // 不经时钟照常结算(react-jinnang-peek/react-seat-cells 冻结消漂移同款,页面随例
+  // 终结,无需显式 resume)。
+  await freezeClock(page);
   await force(
     page,
     `

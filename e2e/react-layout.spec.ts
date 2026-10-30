@@ -202,18 +202,35 @@ test.describe("全浮层骨架", () => {
       await actIfCan(page).catch(() => false);
       await page.getByTestId(TESTIDS.pileTreasures).click({ timeout: 3_000 });
     }).toPass({ timeout: 15_000 });
-    const gemModal = await page.evaluate((sel) => {
-      const s = (window as any).__dafung.snapshot();
-      const m = document.querySelector(`[data-testid="${sel}"]`);
-      return {
-        treasures: s.players[0].treasures.length,
-        up: m != null,
-        title: m?.querySelector(".pile-title")?.textContent ?? "",
-      };
-    }, TESTIDS.treasureModal);
-    expect(gemModal.up).toBe(true);
-    expect(gemModal.title).toContain("珍宝");
-    expect(gemModal.treasures).toBeGreaterThanOrEqual(2);
+    // 点「珍宝」圆钮 → 珍宝弹层:陈列忠实镜像同拍快照(单次 evaluate 原子采样:DOM 与
+    // 快照同拍)。#799:退役「≥2 件」下限——种植件在对局自走中可被 bot 锦囊【窃玉偷香】
+    // 合法窃走(stealTreasure 随机选受害方随机取件,何时发生随种子走位),锚件数=锚走位
+    // 偶然;本例不变量=「点开即弹、弹层=快照」:网格件数与「已持有 · N 件」计数行逐拍
+    // 对齐快照,零件空态照常可开(PileModal 业务空态)。
+    await expect
+      .poll(
+        async () => {
+          const m = await page.evaluate((sel) => {
+            const s = (window as any).__dafung.snapshot();
+            const el = document.querySelector(`[data-testid="${sel}"]`);
+            return {
+              up: el != null,
+              title: el?.querySelector(".pile-title")?.textContent ?? "",
+              snapCount: s.players[0].treasures.length,
+              cells: el?.querySelectorAll(".pile-cell").length ?? -1,
+              zone: el?.querySelector(".pile-zone")?.textContent ?? "",
+            };
+          }, TESTIDS.treasureModal);
+          return (
+            m.up &&
+            m.title.includes("珍宝") &&
+            m.cells === m.snapCount &&
+            m.zone.includes(`已持有 · ${m.snapCount} 件`)
+          );
+        },
+        { message: "珍宝弹层忠实镜像同拍快照(点开即弹+陈列件数/计数行随快照,#799)" },
+      )
+      .toBe(true);
     // 右上 X 关闭,卸载零残留
     await page.getByTestId(TESTIDS.modalClose).click();
     await expect(page.getByTestId(TESTIDS.treasureModal)).toHaveCount(0);
