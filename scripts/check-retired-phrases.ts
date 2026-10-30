@@ -46,6 +46,10 @@ const RETIRED: { phrase: string; note: string }[] = [
     phrase: "诸侯总览",
     note: "#732 正名「诸侯详情」(钮 aria/弹层题名/GLOSSARY 全链;ADR-0032 存档节行内已废标记豁免,#731)",
   },
+  {
+    phrase: "技卡",
+    note: "#818 术语收官:「技能卡」正典(GLOSSARY Avoid 登记; Avoid 行本身带已废标记豁免)",
+  },
 ];
 
 // 行内翻面标记:命中即视为历史叙事/退役记录,合法保留

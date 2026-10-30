@@ -9,12 +9,13 @@
 // (test/jinnang.test.ts、test/reaction-window.test.ts、test/hero-skill.test.ts),
 // 本 spec 只留交互接线,断言全走可见 UI 态(选中/禁用/印条/窗收/牌离架)。
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
-// 多标签牌(缓兵之计)双章、名将技卡(主动技,#360 起 HeroCardFace 紧凑档)、作罢路径、出牌墨线端点对准。
+// 多标签牌(缓兵之计)双章、名将技能卡(主动技,#818 起 SkillCardFace 单技装配:载体+
+// 主技名大字,同将双技双卡可辨)、作罢路径、出牌墨线端点对准。
 // 种子复算(ADR-0027 换图重钉;seed 63 × 新环游图,真浏览器探针复算):人类先手
 // (draftOrder=[0,1,3,2] 不变),选都三候选 [长沙(11),汉中(26),许昌(39)] 取 DOM 首格
 // =11 长沙(bot 都:黔=23 虎牢关、荆=44 会稽、宋=25 咸阳),起手横征暴敛(全体域恒可用)
 // → **开局出牌阶段=稳定停靠点保留**。不走 pickCapital 共享助手(其收尾会自动「不出」),
-// 本 spec 自行点城+确认以保留窗态。灰置/技卡局面走 force 引擎直写(#237 无天然种子同时
+// 本 spec 自行点城+确认以保留窗态。灰置/技能卡局面走 force 引擎直写(#237 无天然种子同时
 // 凑齐)。
 // 自然骰钉死(棒 2 口径:Bun 与浏览器 sort 比较器调用数不同,自然骰不可信):识破例放行后
 // 人类自动行军以 marchSteps 钉「二」落 13 交州=plantDemolishableCity 的自家种植城(无落格
@@ -224,18 +225,23 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toBeVisible(); // 牌回卡牌段(作罢语义的 UI 面)
   });
 
-  test("灰置牌印条/多标签双章/技卡:双标签占额灰置、技卡选中→出牌发技转灰置", async ({ page }) => {
+  test("灰置牌印条/多标签双章/技能卡:双标签占额灰置、同将双技双卡可辨、发技转灰置", async ({
+    page,
+  }) => {
     await startJunshi(page, 63);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
-    // 灰置带原因印条;麾下给真实主动技(张星彩·擂鼓,target=none,无冷却)→ 技卡可用可发;
-    // 求贤令(援,标签未占)= 可用对照组。
+    // 灰置带原因印条;麾下给周瑜双主动技(火攻+擂鼓,#818 同将双技=双卡各显各技)→
+    // 实授只给主动技,池内被动疾行不授(全览弹框池对照的灰置行对照组);诸 bot 城防
+    // 拉到 Lv1(火攻有可毁目标,卡面金边可用);求贤令(援,标签未占)= 可用对照组。
     await force(
       page,
       `
       e.players[0].jinnangHand = ["缓兵之计", "求贤令"];
       e.jinnangUsedTags = ["谋", "攻"];
-      e.players[0].heroes = [{ heroId: "zhangxingcai", skillIds: ["zhijin", "leigu", "jixing"],
-        lastFired: {} }]; // 槽位行(#785)布场给整池;技定义查技表
+      e.players[0].heroes = [{ heroId: "zhouyu", skillIds: ["huogong", "leigu"],
+        lastFired: {} }]; // 槽位行(#785)布场;技定义查技表
+      for (let i = 1; i < e.players.length; i++)
+        for (const h of e.players[i].properties) h.level = Math.max(h.level, 1);
     `,
     );
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)
@@ -247,35 +253,45 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(huan.locator(".reason")).toHaveText("本回合已用过〔谋〕〔攻〕");
     // 可用牌照常
     await expect(page.getByTestId(TESTIDS.jinnangCard("求贤令"))).toBeEnabled();
-    // 名将技卡(#360 换 HeroCardFace 紧凑档):技名 chips(◆擂鼓+●掷金=被动技名,T1
-    // 数据)/名将名上卡面;点选=选中(.sel 挂卡面根),出牌点亮→发技(useHeroSkill)
-    // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817;布场属主张星彩)
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));
-    await expect(ji).toBeVisible();
-    await expect(ji.locator(".hface")).toContainText("擂鼓");
-    await expect(ji.locator(".hface")).toContainText("掷金"); // 被动技名(TriggerSkill.name)
-    await expect(ji.locator(".hface")).toContainText("张星彩");
-    // 技能全览(#605):点技名 chip=开全览弹框(不选中)——被点技高亮行、全部技与描述
-    // 全文在场;关闭后卡面照常可选中(chip 点击不触发选将/选中)
-    await ji.locator(TESTIDS.skillChip("leigu")).click();
+    // 名将技能卡(#818 新形制:技能为维度、名将为载体):同将双主动技 = 双卡,卡面 =
+    // 载体(立绘+将名)+ 主技名大字——双卡凭主技名一眼可辨;每张卡只显本卡代表的技
+    // (他卡技名/未授被动技名不上卡);冷却注读技表(冷却周期)。testid=选项 id 实例
+    // 形状 skill:<heroId>:<skillId>(#817;布场属主周瑜)
+    const huo = page.getByTestId(TESTIDS.jinnangCard("skill:zhouyu:huogong"));
+    const lei = page.getByTestId(TESTIDS.jinnangCard("skill:zhouyu:leigu"));
+    await expect(huo).toBeVisible();
+    await expect(lei).toBeVisible();
+    await expect(huo.locator(".hface")).toContainText("火攻");
+    await expect(huo.locator(".hface")).toContainText("周瑜"); // 载体将名
+    await expect(huo.locator(".hface .cd")).toHaveText("冷却 5 轮"); // 冷却注(技表单源)
+    await expect(huo.locator(".hface")).not.toContainText("擂鼓"); // 兄弟技不上卡
+    await expect(huo.locator(".hface")).not.toContainText("疾行"); // 未授被动不上卡
+    await expect(lei.locator(".hface")).toContainText("擂鼓");
+    await expect(lei.locator(".hface")).not.toContainText("火攻");
+    // 技能全览(#605):点主技名=开全览弹框(不选中)——被点技高亮行、池全貌与已授
+    // 对照(未授的疾行灰置行)、技效描述全文在场;关闭后卡体照常可选中(主技名点击
+    // 不触发选中)
+    await huo.locator(TESTIDS.skillChip("huogong")).click();
     const glossary = page.getByTestId(TESTIDS.skillGlossary);
     await expect(glossary).toBeVisible();
     await expect(
-      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("leigu")}"]`),
+      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("huogong")}"]`),
     ).toHaveClass(/is-hl/);
     await expect(
-      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("zhijin")}"]`),
-    ).toContainText("场上任意人掷出 6");
+      glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("jixing")}"]`),
+    ).toHaveClass(/is-off/); // 池内未授:灰置行(池+已授对照)
     await expect(glossary).toContainText("擂鼓进军"); // 主动技描述全文(卡面上无描述,#605)
     await page.getByTestId(TESTIDS.modalClose).click();
     await expect(glossary).toHaveCount(0);
-    await ji.click();
-    await expect(ji.locator(".hface")).toHaveClass(/sel/);
+    await lei.click(); // 点卡体(中靶画心,避开主技名章)= 选中
+    await expect(lei.locator(".hface")).toHaveClass(/sel/);
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 发技 → 技卡转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,UI 只读
-    // choices 展示;求贤令仍可用 → 相位留在出牌阶段态,settleJinnangExit 口径)
-    await expect(ji.locator(".hface")).toHaveClass(/off/);
-    await expect(ji.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
+    // 发技 → 本实例卡转灰置并亮引擎原因(#305:冷却记账归 test/hero-skill.test.ts,
+    // UI 只读 choices 展示;同将兄弟卡火攻不连坐,求贤令仍可用 → 相位留在出牌阶段态,
+    // settleJinnangExit 口径)
+    await expect(lei.locator(".hface")).toHaveClass(/off/);
+    await expect(lei.locator(".reason")).toHaveText("冷却中(还差 4 轮)");
+    await expect(huo.locator(".hface")).not.toHaveClass(/off/);
   });
 });
 

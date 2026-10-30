@@ -368,6 +368,79 @@
   right: calc(3.9 * var(--u));
 }
 
+/* ── 技能卡装配档(skill,#818):出牌窗主动技的牌形态——技能为维度、名将为载体。
+   载体五件(画心立绘/名带/称号签/将章/将旗)沿用家族制式不裁;主技名大字竖章叠
+   画心左缘(本卡代表的技,一眼定身份,与右缘将名带「左技右将」对读);技能区 =
+   ◆ 冷却注+该技 desc 一句话。技数角标与技名 chips 行不再上卡(每张牌只显示本卡
+   代表的技,同将多技就绪即多卡各显各技;全技对照归点主技名开的技能全览弹框,
+   #605 池+已授)。形制双方案比选(tmp/ui-shots/skillcard-a|b/,shot.mjs 844×390
+   实拍)定案 B 案:竖章胜出——双卡远看可辨、desc 常态 4 行不截、左技右将正合
+   维度/载体分野;A 案(主技名横章入技能区)废弃。 ── */
+.hface.skill .m-name {
+  font-size: 1.9em;
+}
+.hface.skill .m-title {
+  font-size: 0.85em;
+  letter-spacing: 0.14em;
+  right: calc(3.8 * var(--u));
+}
+.hface.skill .skz {
+  margin: 0.4em 0.55em 0.5em;
+  padding: 0.4em 0.55em;
+  gap: 0.28em;
+}
+/* 主技名大字(方案 B):竖章叠立绘左缘——writing-mode 竖排,漆底金字金边
+   (m-name 名带同语镜像:带自承底色不依赖画,文字可读红线不破);锚画心内
+   左下(将章/将旗占左上,竖章自下缘起排,两不相扰),与右缘将名带构成
+   「左技右将」双维对读。data-skill=全览入口(#605/#818),热区沿章 padding
+   (触屏可点);hover 金框提亮表达可点(§4.6 状态表达,无文字标牌);
+   点击分流归消费方(data-skill 判定)。 */
+.hface.skill .zhang-ming {
+  position: absolute;
+  left: calc(0.55 * var(--u));
+  bottom: calc(0.55 * var(--u));
+  z-index: 3;
+  writing-mode: vertical-rl;
+  font-family: var(--font-brush);
+  font-size: 2em;
+  line-height: 1;
+  letter-spacing: 0.14em;
+  color: var(--color-lacquer-gold);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--color-panel-hi) 94%, transparent),
+    color-mix(in srgb, var(--color-lacquer) 92%, transparent)
+  );
+  border: 1px solid rgba(217, 185, 92, 0.55);
+  border-radius: 0.22em;
+  padding: 0.5em 0.18em;
+  box-shadow:
+    0 0.2em 0.5em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
+  cursor: inherit;
+}
+.hface.skill .zhang-ming:hover {
+  border-color: var(--color-gold-bright);
+  box-shadow:
+    0 0.2em 0.5em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 1px var(--color-gold-bright),
+    0 0 0 1px color-mix(in srgb, var(--color-gold) 35%, transparent);
+}
+.hface.skill .shead .cd {
+  margin-left: 0.42em;
+}
+.hface.skill .sdesc {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 4;
+  overflow: hidden;
+}
+/* 灰置:desc/冷却注让位原因印条(desc 藏身是 .hface.off 既有口径;冷却注同让——
+   实例剩余轮数由 .reason 单源携带,双数同屏互斥);主技名/载体仍可辨(身份不失) */
+.hface.skill.off .cd {
+  visibility: hidden;
+}
+
 /* ── 微旋(reduced-motion 退场,.jinnang-card 同款兜层)── */
 @media (prefers-reduced-motion: reduce) {
   .hface {

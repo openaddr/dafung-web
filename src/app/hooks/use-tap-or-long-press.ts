@@ -1,4 +1,4 @@
-// 轻点/长按复合手势(2026-09-25 评审 smell 去重:HandRack 窗态牌、JunshiSkillCard、Tip
+// 轻点/长按复合手势(2026-09-25 评审 smell 去重:HandRack 窗态牌、SkillCard、Tip
 // 三处同形接线——onPointer 族 + contextMenu 拦菜单 + fired 抑制补发 click——收拢为一,
 // 均消费本件;基于 use-long-press.ts 原语扩展)。
 // 口径:轻点 = click 且长按未触发 → onTap;长按 = 按满判定窗触发 onLongPress,触发后
