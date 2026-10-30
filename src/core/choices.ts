@@ -372,15 +372,15 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   return [...cards, ...activeSkillChoices(e), { id: "pass", label: "今不用", available: true }];
 }
 
-/** 技卡实例定位对判定(#817 实例化):skillId+skillHeroId 双章齐备即技实例选项——UI/bot
- *  分流「技卡/锦囊卡」与读实例定位都走本口,别再各自摸字段造第二套解析。 */
+/** 技能卡实例定位对判定(#817 实例化):skillId+skillHeroId 双章齐备即技实例选项——
+ *  UI/bot 分流「技能卡/锦囊卡」与读实例定位都走本口,别再各自摸字段造第二套解析。 */
 export function isSkillOption(
   o: ChoiceOption,
 ): o is ChoiceOption & { skillId: string; skillHeroId: string } {
   return o.skillId != null && o.skillHeroId != null;
 }
 
-/** 技卡选项 id 拼接单源(#817):`skill:<heroId>:<skillId>`——选项 id/testid、useHeroSkill
+/** 技能卡选项 id 拼接单源(#817):`skill:<heroId>:<skillId>`——选项 id/testid、useHeroSkill
  *  命令、快照 pendingSkill 四处同一形状,唯此一处拼。同一将池内技 id 唯一,故
  *  heroId+skillId 唯一定位一个麾下实例(技能卡实例卡不合并,#815 拍板)。 */
 export function skillOptionId(heroId: string, skillId: string): string {

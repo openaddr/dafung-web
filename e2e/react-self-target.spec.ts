@@ -65,7 +65,7 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
     await expect(confirm).toBeDisabled();
     await selfBtn.click();
     await confirm.click();
-    // 打出:目标段收、技卡转灰置(冷却);自疗落账走可见 UI——自机格体力条 50%→80%、
+    // 打出:目标段收、技能卡转灰置(冷却);自疗落账走可见 UI——自机格体力条 50%→80%、
     // 现金裸数 2000→1900(格上无千分位省「两」;结算细则归 test/hero-skill.test.ts)
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeHidden();
     await expect(ji.locator(".hface")).toHaveClass(/off/);

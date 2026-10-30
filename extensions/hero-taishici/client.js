@@ -36,7 +36,7 @@ const contribution = {
     },
   ],
   render: {
-    /** 名将专属将旗:太史慈卡面(招贤三选一/出牌阶段技卡/府库详情)挂旗。 */
+    /** 名将专属将旗:太史慈卡面(招贤三选一/出牌阶段技能卡/府库详情)挂旗。 */
     heroFlag: (heroId) => (heroId === "taishici" ? { url: FLAG_URL, alt: "太史慈将旗" } : null),
   },
   interactions: {

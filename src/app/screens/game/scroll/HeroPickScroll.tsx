@@ -35,7 +35,7 @@ export interface HeroPickScrollProps {
 
 export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   // 技能全览(#605):点候选将技名 chip=先看后选,chip 点击不触发选将(closest 判定
-  // 分流,出牌技卡同款);弹框浮于招贤层上,关闭再从容点卡选将。
+  // 分流,出牌技能卡主技名同款);弹框浮于招贤层上,关闭再从容点卡选将。
   // 池全貌与已授对照(#787):全览入参带池(heroDefOf 回查)与已授(候选行预掷)两集,
   // 池内未授者灰置——先看全貌再决定收不收。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);

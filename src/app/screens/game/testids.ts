@@ -106,13 +106,13 @@ export const TESTIDS = {
   /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace;heroId=名将 id,无旗不渲染)。 */
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
-  // ── 技能全览弹框(#605,规格 #603 T2:卡面技名 chips 的唯一详情出口)──
-  /** 弹层容器(PileShell 壳;点卡面任一技名 chip 弹出,只读无命令钮)。 */
+  // ── 技能全览弹框(#605,规格 #603 T2;#818 起技能卡主技名同为入口)──
+  /** 弹层容器(PileShell 壳;点招贤卡技名 chip / 技能卡主技名弹出,只读无命令钮)。 */
   skillGlossary: "skill-glossary",
   /** 技能行(skillId=技 id;被点技挂 is-hl 高亮类)。 */
   skillGlossaryRow: (skillId: string) => `skill-glossary-row-${skillId}` as const,
-  /** 卡面技名 chip 定位选择器(chip 挂 data-skill=技 id,渲染单源在 HeroCardFace;
-   *  e2e 点 chip 走此选择器,勿裸写属性串)。 */
+  /** 卡面技名定位选择器(挂 data-skill=技 id,渲染单源在 HeroCardFace chips 与
+   *  SkillCardFace 主技名;e2e 点技名走此选择器,勿裸写属性串)。 */
   skillChip: (skillId: string) => `[data-skill="${skillId}"]` as const,
   skillChipAny: "[data-skill]" as const,
 

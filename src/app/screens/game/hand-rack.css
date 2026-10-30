@@ -20,8 +20,8 @@
    「剩余实现层微调」):media query 里把容器 em 基降到 6.4px → 牌面 96×128,
    一处变量全架缩放。 */
 
-/* 名将技卡(#360):出牌阶段态技卡换 HeroCardFace 紧凑档,卡面样式单源
-   card/hero-card.css(旧 JinnangLingjian/.jn-lingjian 令笺随 #360 退役);
+/* 名将技能卡(#818):出牌阶段态技能卡用 SkillCardFace 单技装配(#360 起的
+   HeroCardFace 紧凑档旧形随 #818 退役),卡面样式单源 card/hero-card.css;
    卡基经 --hface-base 随架体 em 基走,声明见下方 .hand-rack 与短横屏断点。 */
 
 .hand-rack {
@@ -374,7 +374,8 @@
   }
 }
 
-/* ── 名将技卡(#360):出牌阶段态技卡换 HeroCardFace 紧凑档(与招贤/府库同一张
-   名将卡面,样式单源 card/hero-card.css,旧 .jn-lingjian 令笺差量随退役);
-   卡基经 --hface-base 随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点),
-   15u×20u 恰好满槽位与锦囊牌面同格。 ── */
+/* ── 名将技能卡(#818):出牌阶段态技能卡用 SkillCardFace 单技装配(技能为维度、
+   名将为载体:立绘与将名是载体,主技名大字+该技 desc+冷却注是本卡身份;#360 起
+   的紧凑档混排旧形随 #818 退役),样式单源 card/hero-card.css;卡基经 --hface-base
+   随架体 em 基走(声明在 .hand-rack 基础档/短横屏断点),15u×20u 恰好满槽位与
+   锦囊牌面同格。 ── */

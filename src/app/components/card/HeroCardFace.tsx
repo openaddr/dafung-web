@@ -59,8 +59,8 @@ export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 /** 金框画心立绘位(#511 B 案):object-cover 裁满画心;空路径/加载失败显「姓氏朱印」
- *  占位(#511 票面口径,显式不静默)。 */
-function Lihui({ src, name }: { src: string; name: string }) {
+ *  占位(#511 票面口径,显式不静默)。技能卡卡面(SkillCardFace)的载体立绘同源复用。 */
+export function Lihui({ src, name }: { src: string; name: string }) {
   const [failed, setFailed] = useState(false);
   if (failed || !src) {
     return (
@@ -101,7 +101,7 @@ function SkillRows({ skillIds }: { skillIds: string[] }) {
 
 /** 紧凑档技能区(#605):●/◆ 技名 chips 一行(实授技,#786),描述全撤——技效全文走
  *  「点技名→技能全览弹框」。chip 挂 data-skill(技 id):卡面组件维持纯展示零交互豁免
- *  口径,点击分流归消费方(event target closest([data-skill]) 判定,出牌技卡/招贤卡同款)。 */
+ *  口径,点击分流归消费方(event target closest([data-skill]) 判定,技能卡主技名/招贤卡同款)。 */
 function SkillChips({ skillIds }: { skillIds: string[] }) {
   return (
     <div className="bd-row">
@@ -117,7 +117,8 @@ function SkillChips({ skillIds }: { skillIds: string[] }) {
 
 /** 名将卡面:画心立绘/名带/称号签/将章/技角标/技能区六件套,两档同源换装配。
  *  双输入(#786):heroId 出将定义(立绘/名带/称号),skillIds 出实授技(技能区与
- *  技角标;招贤候选=预掷授技,#787)。
+ *  技角标;招贤候选=预掷授技,#787)。出牌阶段的主动技牌已自立门户为技能卡
+ *  (SkillCardFace,#818:技能为维度、名将为载体),不再复用本卡面紧凑档。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">,
  *  样式见 jinnang-card.css)由消费方这样挂入(同 JinnangCardFace 口径)。 */
 export function HeroCardFace({

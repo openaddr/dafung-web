@@ -19,7 +19,8 @@
 //   单源 jinnang-card.css,笺脚放开 4 行);点它牌换选、再点同牌/右键/长按取消;
 //   数字键 1..n 选中(灰置跳过计数)、Enter 确认(G-19 口径与一期手感一致)。
 //   灰置牌可看不可出(#715):点/长按开详情,不进选中/出牌通路(aria-disabled+自门控)。
-//   名将技卡(#188 档 3):HeroCardFace 紧凑档混排架中(#360,与招贤/府库同卡面)。
+//   名将技能卡(#188 档 3):SkillCardFace 单技装配混排架中(#818,技能为维度、
+//   名将为载体;点主技名开技能全览)。
 //   目标段(pendingJinnang/pendingSkill 在场):整架退出交互——已出计牌金描边上浮
 //   印「已出牌 · 待择目标」,其余牌灰置印「目标段不可换牌」;
 //   选目标在席位格(SeatRail targets),本架不再接手势。
@@ -42,7 +43,8 @@ import {
   JinnangCardDetail,
   JinnangCardFace,
 } from "@app/components/card/JinnangCardFace";
-import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
+import { heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
+import { SkillCardFace } from "@app/components/card/SkillCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
 import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
@@ -65,19 +67,19 @@ import "./hand-rack.css";
 
 /** 长按判定窗与位移容差口径已收口 use-long-press.ts(单源)。 */
 
-/** 技选项→槽反查(#817 实例化:技选项携 skillHeroId,出牌技卡的将定位走本地玩家槽位):
- *  heroId 唯一定位麾下槽(同将不可重招,招贤池占位保证),卡面/全览吃同一槽实授技。
- *  查无=接线 bug(choices 出了本地玩家麾下没有的将),炸出零兜底。 */
+/** 技选项→槽反查(#817 实例化:技选项携 skillHeroId,出牌技能卡的将定位走本地玩家
+ *  槽位):heroId 唯一定位麾下槽(同将不可重招,招贤池占位保证),卡面/全览吃同一槽
+ *  实授技。查无=接线 bug(choices 出了本地玩家麾下没有的将),炸出零兜底。 */
 function heroSlotByHeroId(heroes: HeroSlotRow[], heroId: string): HeroSlotRow {
   const slot = heroes.find((s) => s.heroId === heroId);
   if (slot == null)
-    throw new Error(`出牌技卡:本地玩家麾下无将 ${heroId}(choices 与麾下槽位不符,数据 bug)`);
+    throw new Error(`出牌技能卡:本地玩家麾下无将 ${heroId}(choices 与麾下槽位不符,数据 bug)`);
   return slot;
 }
 
 /** 出牌阶段态载荷(#256;GameScreen 派生,null=常态架)。 */
 export interface JunshiWindow {
-  /** 卡牌段选项(锦囊+技卡,choices 原序,含灰置;目标段传空数组)。 */
+  /** 卡牌段选项(锦囊+技能卡,choices 原序,含灰置;目标段传空数组)。 */
   options: ChoiceOption[];
   /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId(目标段判定只问在场与否,
    *  技实例定位已随选项 id 形状进命令通路,本架不消费);卡牌段恒 null。 */
@@ -213,7 +215,7 @@ function tiltVars(key: string): CSSProperties {
  *  抑制随后的合成 click,同一动作绝不弹两次;按住 300ms 起牌面长按微光(#768,
  *  上浮+金晕渐显,达成保持/松手即撤, PRESS_GLOW_MS 单源本文件)。
  *  窗态(junshi 槽在场):点牌=选中(音效 jinnangSelect),再点同牌/右键/长按取消;
- *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 JunshiSkillCard/Tip 同形
+ *  手势接线走 useTapOrLongPress 复合手势单源(评审去重:与 SkillCard/Tip 同形
  *  收拢),长按只服务「取消选中」(未选中不武装)。灰置牌可看不可出(#715,#676 定案):
  *  弃原生 disabled(浏览器禁用契约吞全部 pointer→不可查看),改 aria-disabled+自门控
  *  ——点/长按开详情(现役详情通路),选中/出牌命令通路仍只对 available 开(门控在
@@ -403,33 +405,36 @@ function RackCard({
   );
 }
 
-/** 出牌阶段态名将技卡(#188 档 3;#360 起换 HeroCardFace 紧凑档,与招贤/府库同卡面):
- *  手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务「取消选中」);
- *  无发牌音(技不是新入手的牌)。卡面双输入(#786):heroId+实授技都由调用侧从本地玩家
- *  槽位反查(heroSlotByHeroId,选项携 skillHeroId 实例定位;choices 载荷只承担可用性/
- *  原因/aria-label)。testid 沿 jinnang-card-* 族(option.id = skill:<heroId>:<skillId>,
- *  #817 实例形状)。 */
-function JunshiSkillCard({
+/** 出牌阶段态技能卡(#818 新形制,spec #815:技能为维度、名将为载体——一张卡 =
+ *  「某将的某条主动技」):卡面 = 名将立绘与将名(载体)+ 主技名大字 + 该技 desc +
+ *  冷却注(SkillCardFace 单技装配),不复用名将卡面紧凑档(技名 chips 列全技的
+ *  #360 旧形退役:每张牌只显示本卡代表的技,同将多技就绪即多卡各显各技,#817 每实例
+ *  一选项)。手势与 RackCard 窗态分支同款(useTapOrLongPress 单源,长按/右键只服务
+ *  「取消选中」);无发牌音(技不是新入手的牌)。将定位(#817):选项携 skillHeroId,
+ *  调用侧经 heroSlotByHeroId 反查属主槽传 heroId(choices 载荷只承担可用性/原因/
+ *  aria-label;卡面只吃 heroId+skillId,全览对照的实授技集同样归调用侧装配)。
+ *  testid 沿 jinnang-card-* 族(option.id = skill:<heroId>:<skillId>,#817 实例形状)。
+ *  点击分流:点主技名(卡面唯一 data-skill 区)= 开技能全览(#605 池+已授对照,
+ *  不选中);点卡体其余处 = 选中/取消出牌。不做长按开全览——分流只在 click 一处。 */
+function SkillCard({
   option,
   heroId,
-  skillIds,
   index,
   selected,
   onSelect,
   onDeselect,
   onInspect,
 }: {
-  option: ChoiceOption;
-  /** 选项→槽反查出的属主将 + 该槽实授技(#786 双输入,卡面/全览同源;实例定位收窄与
-   *  反查都在调用侧完成,本件不解析选项 id)。 */
+  option: ChoiceOption & { skillId: string; skillHeroId: string };
+  /** 选项→槽反查出的属主将(#817 实例定位:heroId 随选项走,反查在调用侧完成,
+   *  本件不解析选项 id;卡面只吃 heroId+skillId,全览对照的实授技集同样归调用侧)。 */
   heroId: string;
-  skillIds: string[];
   index: number;
   selected: boolean;
   onSelect: () => void;
   onDeselect: () => void;
-  /** 点技名 chip 开技能全览(#605):参数=被点技 id(全览目标由调用侧用本卡槽位装配)。 */
-  onInspect: (chipSkillId: string) => void;
+  /** 点主技名开技能全览(#605):参数=被点技 id(全览目标由调用侧用本卡槽位装配)。 */
+  onInspect: (skillId: string) => void;
 }) {
   const tap = useTapOrLongPress({
     onTap: () => {
@@ -439,7 +444,7 @@ function JunshiSkillCard({
     onLongPress: selected ? onDeselect : null,
     onContextMenu: selected ? onDeselect : undefined,
   });
-  // 点技名 chip=开全览(不选中),点卡面其余处=选中/取消:skillIdFromClick 判定分流。
+  // 点主技名=开全览(不选中),点卡体其余处=选中/取消:skillIdFromClick 判定分流。
   // tap.props.onClick 在此被覆写,长按吞补发 click 按 hook 钦定口径手读 fired(fired
   // 读后即清);长按/右键取消选中的语义不受影响(pointer 族原样生效)。
   const onCardClick = (e: ReactMouseEvent<HTMLButtonElement>) => {
@@ -447,9 +452,9 @@ function JunshiSkillCard({
       tap.fired.current = false;
       return;
     }
-    const chipSkillId = skillIdFromClick(e);
-    if (chipSkillId != null) {
-      onInspect(chipSkillId);
+    const mainSkillId = skillIdFromClick(e);
+    if (mainSkillId != null) {
+      onInspect(mainSkillId);
       return;
     }
     if (selected) onDeselect();
@@ -467,15 +472,14 @@ function JunshiSkillCard({
       className={selected ? "sel" : option.available ? "usable" : "off"}
       style={{ ["--i" as string]: index }}
     >
-      <HeroCardFace
+      <SkillCardFace
         heroId={heroId}
-        skillIds={skillIds}
-        size="compact"
+        skillId={option.skillId}
         className={option.available ? (selected ? "sel" : "") : "off"}
         style={tiltVars(`${option.id}#${index}`)}
       >
         {!option.available && option.reason && <span className="reason">{option.reason}</span>}
-      </HeroCardFace>
+      </SkillCardFace>
     </button>
   );
 }
@@ -541,7 +545,7 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
   // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
   // 被开的那张(长按微光的达成保持态按键判,不按 cardId 误伤同名兄弟);cardId 供详情面板。
   const [detail, setDetail] = useState<{ key: string; cardId: string } | null>(null);
-  // 技能全览弹框开合态(#605):null=收;点技卡技名 chip 开,Esc/点外/X 关。
+  // 技能全览弹框开合态(#605):null=收;点技能卡主技名开,Esc/点外/X 关。
   const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
   // 触屏临时全展(#751 C2,#744 判词):.many 态下架尾计数章点按=临时全展 2.5s
   // 回落,再点/点外即收——hover 挥出是桌面通路,触屏没有 hover;手势=点按,零新语义。
@@ -676,7 +680,7 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
   }, [mounted]);
 
   const hand = player.jinnangHand;
-  // 渲染张数:卡牌段=options(手牌 + 技卡混排);常态/目标段=手牌。叠加压缩按渲染
+  // 渲染张数:卡牌段=options(手牌 + 技能卡混排);常态/目标段=手牌。叠加压缩按渲染
   // 张数算,窗态下照常工作(#254 口径)。
   const cardOptions = junshi != null && !targeting ? junshi.options : [];
   const renderCount = junshi != null ? (targeting ? hand.length : cardOptions.length) : hand.length;
@@ -747,18 +751,17 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
       });
     }
     if (junshi != null) {
-      // 卡牌段:choices 原序(手牌序在前、技卡殿后);手牌 key 与常态一致。
-      // 技卡先按选项携的实例定位反查属主槽(#817:heroId 随选项走,每实例一卡),
+      // 卡牌段:choices 原序(手牌序在前、技能卡殿后);手牌 key 与常态一致。
+      // 技能卡先按选项携的实例定位反查属主槽(#817:heroId 随选项走,每实例一卡),
       // 卡面/全览吃同一槽实授技。
       return cardOptions.map((o, i) => {
         if (isSkillOption(o)) {
           const slot = heroSlotByHeroId(player.heroes, o.skillHeroId);
           return (
-            <JunshiSkillCard
+            <SkillCard
               key={o.id}
               option={o}
               heroId={slot.heroId}
-              skillIds={slot.skillIds}
               index={i}
               selected={junshi.selectedId === o.id && o.available}
               onSelect={() => select(o.id)}
@@ -891,7 +894,7 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
       {detail !== null && (
         <JinnangDetailSheet cardId={detail.cardId} onClose={() => setDetail(null)} />
       )}
-      {/* 技能全览弹框(#605):点技卡技名 chip 开,只读,关闭即清 */}
+      {/* 技能全览弹框(#605):点技能卡主技名开,只读,关闭即清 */}
       <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
     </section>
   );
