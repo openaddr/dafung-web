@@ -156,8 +156,8 @@ export function statusOf(e: GameEngine) {
       activePlayer?.isBot,
       // 城主视角(AwaitingTreasureOwner):提示该谁抉择
       s.turnPhase === "AwaitingTreasureOwner" ? decisionOwnerGuohao(e) : undefined,
-      // 出牌阶段(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill
-      e.pendingSkill?.skillId,
+      // 出牌阶段(AwaitingJinnang):技能目标段残留时一并提示 useHeroSkill(实例定位对,#817)
+      e.pendingSkill,
     ),
   };
 }
@@ -176,7 +176,7 @@ function promptFor(
   guohao: string | undefined,
   isBot: boolean | undefined,
   decisionOwner?: string,
-  pendingSkillId?: string,
+  pendingSkill?: { heroId: string; skillId: string } | null,
 ): string {
   if (!guohao) return "";
   const who = `${guohao}${isBot ? "(bot)" : ""}`;
@@ -200,8 +200,8 @@ function promptFor(
     case "AwaitingExhaustion":
       return `${who} 体力耗竭(cmd {"type":"resolveExhaustionChoice","index":<下标>},见 status.choices)`;
     case "AwaitingJinnang": {
-      const skill = pendingSkillId
-        ? `;待发动技:cmd {"type":"useHeroSkill","skillId":"${pendingSkillId}"}(或其目标段/cancel 作罢)`
+      const skill = pendingSkill
+        ? `;待发动技:cmd {"type":"useHeroSkill","heroId":"${pendingSkill.heroId}","skillId":"${pendingSkill.skillId}"}(或其目标段/cancel 作罢)`
         : "";
       return `${who} 出牌阶段:用锦囊(cmd {"type":"useJinnang","cardId":"<id>"};今不用 {"type":"useJinnang","cardId":null},牌 id 见 status.choices)${skill}`;
     }

@@ -129,11 +129,11 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     p.jinnangHand = [];
     p.jinnangHandCount = 0;
     e.turnPhase = "AwaitingJinnang";
-    // 选项面:扩展开注册面进 choices(选项 id=skill:<主动技 id>)
-    const opt = e.choicesFor().find((o) => o.id === "skill:taishici-pozhen");
+    // 选项面:扩展开注册面进 choices(选项 id=skill:<heroId>:<主动技 id>,#817 实例形状)
+    const opt = e.choicesFor().find((o) => o.id === "skill:taishici:taishici-pozhen");
     expect(opt?.available).toBe(true);
-    // 发动(命令通路,独立事件批):warDrum 结算案复用 → 步数加成挂账
-    e.submitCommand({ type: "useHeroSkill", skillId: "taishici-pozhen" });
+    // 发动(命令通路,携实例定位对;独立事件批):warDrum 结算案复用 → 步数加成挂账
+    e.submitCommand({ type: "useHeroSkill", heroId: "taishici", skillId: "taishici-pozhen" });
     expect(e.heroDiceBonus).toBe(1);
     expect(p.heroes[0].lastFired["taishici-pozhen"]).toBe(e.round);
     const activated = e.gameEvents.find(

@@ -187,7 +187,7 @@ export type GameCommand =
   | { type: "cashHeroBankruptcy"; heroId: string }
   | { type: "confirmBankruptcySettle" }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
-  | { type: "useHeroSkill"; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3):出牌阶段内发动;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  | { type: "useHeroSkill"; heroId: string; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3;#817 携实例):heroId+skillId=麾下实例定位对(选项 id 拼接单源 choices.skillOptionId),发动直落本实例;targets=目标座位(目标段);cancel=作罢(回卡牌段)
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
@@ -969,7 +969,7 @@ export class GameEngine {
       case "useJinnang":
         return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
       case "useHeroSkill":
-        return this.resolveHeroSkill(cmd.skillId, cmd.targets, cmd.cancel);
+        return this.resolveHeroSkill(cmd.heroId, cmd.skillId, cmd.targets, cmd.cancel);
       case "resolveInquiry":
         return this.resolveInquiry(cmd.optionId);
     }
@@ -1210,9 +1210,9 @@ export class GameEngine {
     resolveJinnang(this, cardId, targets, cancel);
   }
 
-  /** 发动主动技(#188 档 3):薄委托 → jinnang-execution.resolveHeroSkill。 */
-  resolveHeroSkill(skillId: string, targets?: number[], cancel?: boolean): void {
-    resolveHeroSkill(this, skillId, targets, cancel);
+  /** 发动主动技(#188 档 3;#817 实例定位):薄委托 → jinnang-execution.resolveHeroSkill。 */
+  resolveHeroSkill(heroId: string, skillId: string, targets?: number[], cancel?: boolean): void {
+    resolveHeroSkill(this, heroId, skillId, targets, cancel);
   }
 
   /** 用牌收尾(#122/T3):薄委托 → jinnang-execution.settleJinnangExit(反应窗续结算亦经此)。 */

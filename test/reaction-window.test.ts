@@ -526,8 +526,8 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
     // 火攻单技布场:共享池的擂鼓会在结算后留住出牌窗(收卷相位断言被互扰)
     armHero(e, user, { ...zhouyu, skillPool: ["huogong"] });
     e.turnPhase = "AwaitingJinnang";
-    e.resolveHeroSkill("huogong"); // 入目标段
-    e.resolveHeroSkill("huogong", [victimSeat]);
+    e.resolveHeroSkill("zhouyu", "huogong"); // 入目标段
+    e.resolveHeroSkill("zhouyu", "huogong", [victimSeat]);
     expect(e.pendingReaction).toBeNull(); // 不开窗
     const phaseAfter = e.turnPhase as TurnPhase; // 断言收窄:结算收卷相位
     expect(phaseAfter).toBe("Roll");

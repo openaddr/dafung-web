@@ -1613,8 +1613,8 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const city3 = giveCity(e3, victimSeat3, 2);
     armJinnang(e3, []);
     const entries3 = recordMomentCtx(e3);
-    e3.resolveHeroSkill("huogong");
-    e3.resolveHeroSkill("huogong", [victimSeat3]);
+    e3.resolveHeroSkill("zhouyu", "huogong");
+    e3.resolveHeroSkill("zhouyu", "huogong", [victimSeat3]);
     expect(
       e3.players[victimSeat3].properties.find((h) => h.propertyId === city3.propertyId)!.level,
     ).toBe(1);

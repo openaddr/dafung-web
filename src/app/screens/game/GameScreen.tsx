@@ -24,6 +24,7 @@ import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/game
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap, setController } from "@app/controllers/registry";
 import type { GameCommand } from "@core/authority";
+import { isSkillOption } from "@core/choices";
 import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
 import { getAudio } from "@app/fx/audio";
@@ -256,8 +257,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     if (junshiSelected == null) return;
     getAudio().play("stamp");
     dispatchCommand(
-      junshiSelected.skillId != null
-        ? { type: "useHeroSkill", skillId: junshiSelected.skillId }
+      isSkillOption(junshiSelected)
+        ? {
+            type: "useHeroSkill",
+            heroId: junshiSelected.skillHeroId,
+            skillId: junshiSelected.skillId,
+          }
         : { type: "useJinnang", cardId: junshiSelected.id },
     );
   };
@@ -266,7 +271,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     if (junshiTargeting) {
       dispatchCommand(
         junshiPendingSkill != null
-          ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, cancel: true }
+          ? {
+              type: "useHeroSkill",
+              heroId: junshiPendingSkill.heroId,
+              skillId: junshiPendingSkill.skillId,
+              cancel: true,
+            }
           : { type: "useJinnang", cardId: junshiPendingCard!.cardId, cancel: true },
       );
     } else {
@@ -279,7 +289,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     setJunshiTargetSeat((cur) => (cur === targetSeat ? null : targetSeat));
   const junshiSeatCmd = (targetSeat: number): GameCommand =>
     junshiPendingSkill != null
-      ? { type: "useHeroSkill", skillId: junshiPendingSkill.skillId, targets: [targetSeat] }
+      ? {
+          type: "useHeroSkill",
+          heroId: junshiPendingSkill.heroId,
+          skillId: junshiPendingSkill.skillId,
+          targets: [targetSeat],
+        }
       : { type: "useJinnang", cardId: junshiPendingCard!.cardId, targets: [targetSeat] };
 
   // 目标段数字键 1..n 选中可用席位(#417 与点选同口径:只选中,不打出;

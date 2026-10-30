@@ -7,7 +7,7 @@ import type { GameEngine } from "./authority";
 import type { Player } from "./model";
 import type { HeroDef } from "./heroes";
 import { shuffle } from "./dice";
-import { activeSkillById, skillById } from "./skills";
+import { skillById } from "./skills";
 
 /** 麾下槽位:一名诸侯持有的一名名将实例。skillIds=已授技(#787 授技掷骰的实掷子集,
  *  按池声明序存;落槽后终身不改——无补技通道);lastFired 键=技 id、作用域限本槽
@@ -58,15 +58,4 @@ export function heroSlotOf(player: Player, heroId: string): HeroSlot {
   const slot = player.heroes.find((s) => s.heroId === heroId);
   if (slot == null) throw new Error(`麾下槽位:玩家 ${player.id} 无将 ${heroId}(数据 bug)`);
   return slot;
-}
-
-/** 首个「持有该技且冷却就绪」的槽(槽位序;同名技多槽时的发动定位单源,冷却账各槽各读):
- *  查无返回 null(命令与麾下不符/全槽冷却中,由调用方处置;冷却口径与 choices.ts
- *  skillCooldownLeft 同式:距上次发动 ≥ cooldown 轮)。 */
-export function readySkillSlot(player: Player, skillId: string, round: number): HeroSlot | null {
-  const cooldown = activeSkillById(skillId).cooldown;
-  const last = (slot: HeroSlot) => slot.lastFired[skillId] ?? -Infinity;
-  return (
-    player.heroes.find((s) => s.skillIds.includes(skillId) && round - last(s) >= cooldown) ?? null
-  );
 }

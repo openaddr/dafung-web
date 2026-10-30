@@ -5,7 +5,7 @@
 // 公共方法薄委托(authority.ts);反应窗域(reaction-window.ts)续结算经 g.executeJinnang/
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
-import { activeSkillOf, computeChoices, hasUsableJinnang } from "./choices";
+import { activeSkillOf, computeChoices, hasUsableJinnang, skillOptionId } from "./choices";
 import { diceShuffle, jinnangCardOf } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
@@ -13,7 +13,7 @@ import { HEROES } from "./heroes";
 import {
   grantHeroSlot,
   grantedNamesLine,
-  readySkillSlot,
+  heroSlotOf,
   rollGrantedSkills,
   type HeroSlot,
 } from "./roster";
@@ -37,9 +37,12 @@ export interface PendingJinnang {
   picked: number[];
 }
 
-/** 技能目标段载荷(#188 档 3):选技后进入选人子状态(AwaitingJinnang 相位内重算选项集);
- *  随快照走(目标段中途断线可恢复)。与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。 */
+/** 技能目标段载荷(#188 档 3;#817 携实例定位):选技后进入选人子状态(AwaitingJinnang
+ *  相位内重算选项集);heroId+skillId=麾下实例定位对(与选项 id/命令同形状,拼接单源
+ *  choices.skillOptionId),发动直落本实例。随快照走(目标段中途断线可恢复)。
+ *  与锦囊 pendingJinnang 互斥(同一时刻至多一个子状态)。 */
 export interface PendingHeroSkill {
+  heroId: string;
   skillId: string;
 }
 
@@ -319,18 +322,19 @@ function settleJinnangPlay(
 // 结算复用既有路径(火攻=demolishOnVictim),不新造 effect kind;结算内不派发时机
 // (防技能链级联,与 grantSkillCash 不派发 CashGained 同口径)。
 
-/** 发动主动技:skillId 须为决策者麾下主动技且选项集可用(冷却/费用/目标门槛);
- *  无目标域发动即结算,other/any 域入目标段(pendingSkill,选项集重算为候选名单);
- *  cancel=作罢(回卡牌段或收卷,不记冷却)。 */
+/** 发动主动技(#817 实例定位):heroId+skillId 须定位到决策者麾下主动技实例且选项集
+ *  可用(冷却/费用/目标门槛);无目标域发动即结算(直落本实例槽内账),other/any 域入
+ *  目标段(pendingSkill,选项集重算为候选名单);cancel=作罢(回卡牌段或收卷,不记冷却)。 */
 export function resolveHeroSkill(
   g: GameEngine,
+  heroId: string,
   skillId: string,
   targets?: number[],
   cancel?: boolean,
 ): void {
   if (!g.assertPhase("AwaitingJinnang", "resolveHeroSkill")) return;
   if (g.pendingJinnang) {
-    g.warn(`锦囊目标段内收到技能命令:${skillId}`);
+    g.warn(`锦囊目标段内收到技能命令:${heroId}·${skillId}`);
     return;
   }
   const p = g.activePlayer;
@@ -339,14 +343,22 @@ export function resolveHeroSkill(
   // ── 目标段:提交目标 / 作罢 ──
   const pending = g.pendingSkill;
   if (pending) {
-    const skill = activeSkillOf(p, pending.skillId);
-    if (!skill) throw new Error(`技能目标段载荷失效:${pending.skillId}(麾下无此技,状态机 bug)`); // 零兜底
+    const skill = activeSkillOf(p, pending.heroId, pending.skillId);
+    if (!skill)
+      throw new Error(
+        `技能目标段载荷失效:${pending.heroId}·${pending.skillId}(麾下无此实例,状态机 bug)`,
+      ); // 零兜底
     if (cancel) {
       cancelPendingSkill(g);
       return;
     }
-    if (skillId !== pending.skillId || !targets || targets.length !== 1) {
-      g.warn(`技能目标段命令与载荷不符:${skillId}`);
+    if (
+      heroId !== pending.heroId ||
+      skillId !== pending.skillId ||
+      !targets ||
+      targets.length !== 1
+    ) {
+      g.warn(`技能目标段命令与载荷不符:${heroId}·${skillId}`);
       return;
     }
     const [target] = targets;
@@ -355,46 +367,39 @@ export function resolveHeroSkill(
       return;
     }
     g.pendingSkill = null;
-    fireHeroSkill(g, userSeat, locateReadySlot(g, p, skillId), skill, targets);
+    fireHeroSkill(g, userSeat, heroSlotOf(p, pending.heroId), skill, targets);
     settleJinnangExit(g);
     return;
   }
 
   // ── 卡牌段:发动 ──
-  const skill = activeSkillOf(p, skillId);
+  const skill = activeSkillOf(p, heroId, skillId);
   if (!skill) {
-    g.warn(`${p.guohao} 无此主动技:${skillId}`);
+    g.warn(`${p.guohao} 无此主动技:${heroId}·${skillId}`);
     return;
   }
-  // 可用性随选项集归一(#782 选项集按技 id 去重:一技恰一选项,available=任一持有槽就绪);
-  // 冷却实例账本仍在各槽各记(#785),发动落 readySkillSlot 首就绪槽(locateReadySlot)
-  const sameId = computeChoices(g, "AwaitingJinnang").filter((o) => o.id === `skill:${skillId}`);
-  const option = sameId.find((o) => o.available);
-  if (!option) {
-    g.warn(`${p.guohao} 主动技【${skill.name}】不可用:${sameId[0].reason ?? "未知原因"}`);
+  // 可用性随选项集归一(#817 实例化:每实例一选项,available=本实例冷却就绪);
+  // 冷却账本在槽内各记(#785),发动直落命令指定的本实例槽,「首就绪槽」代寻退役
+  const option = computeChoices(g, "AwaitingJinnang").find(
+    (o) => o.id === skillOptionId(heroId, skillId),
+  );
+  if (!option?.available) {
+    g.warn(`${p.guohao} 主动技【${skill.name}】不可用:${option?.reason ?? "未知原因"}`);
     return;
   }
   if (skill.target !== "none") {
-    g.pendingSkill = { skillId };
+    g.pendingSkill = { heroId, skillId };
     return; // 留在相位,选项集重算为候选名单
   }
-  fireHeroSkill(g, userSeat, locateReadySlot(g, p, skillId), skill, []);
+  fireHeroSkill(g, userSeat, heroSlotOf(p, heroId), skill, []);
   settleJinnangExit(g);
-}
-
-/** 发动定位(槽位序):首个持有该技且冷却就绪的槽。可用性已过选项集闸门(含冷却门),
- *  槽必存在——查无=状态机 bug,当场炸出(零兜底)。 */
-function locateReadySlot(g: GameEngine, p: Player, skillId: string): HeroSlot {
-  const slot = readySkillSlot(p, skillId, g.round);
-  if (slot == null)
-    throw new Error(`主动技发动定位失败:${skillId}(选项集已放行而槽位查无,状态机 bug)`);
-  return slot;
 }
 
 /** 作罢技能目标段(#188 档 3):清载荷回卡牌段或收卷,技未发动不记冷却。 */
 function cancelPendingSkill(g: GameEngine): void {
   const p = g.activePlayer;
-  const skill = g.pendingSkill ? activeSkillOf(p, g.pendingSkill.skillId) : null;
+  const pending = g.pendingSkill;
+  const skill = pending ? activeSkillOf(p, pending.heroId, pending.skillId) : null;
   g.pendingSkill = null;
   if (skill) {
     g.logEvent(

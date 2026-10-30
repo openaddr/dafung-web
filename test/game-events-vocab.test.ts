@@ -106,12 +106,13 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
-    e.resolveHeroSkill("leigu");
+    e.resolveHeroSkill("zhangxingcai", "leigu");
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["heroSkillActivated"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat,
+      heroId: "zhangxingcai",
       skillId: "leigu",
       skillKind: "warDrum",
     });
@@ -134,8 +135,8 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
-    e.resolveHeroSkill("zhengpi"); // other 域:先入目标段
-    e.resolveHeroSkill("zhengpi", [otherSeat]); // 选定目标,发动
+    e.resolveHeroSkill("caopi", "zhengpi"); // other 域:先入目标段
+    e.resolveHeroSkill("caopi", "zhengpi", [otherSeat]); // 选定目标,发动
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["heroSkillActivated", "cashChanged"]);
     expect(events[0]).toMatchObject({
@@ -171,8 +172,8 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
     );
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
-    e.resolveHeroSkill("zhenji"); // any 域:先入目标段
-    e.resolveHeroSkill("zhenji", [userSeat]); // 选定自己,发动
+    e.resolveHeroSkill("huatuo", "zhenji"); // any 域:先入目标段
+    e.resolveHeroSkill("huatuo", "zhenji", [userSeat]); // 选定自己,发动
     const events = e.snapshot().events;
     expect(kinds(events)).toEqual(["heroSkillActivated", "staminaChanged"]);
     expect(events[0]).toMatchObject({
