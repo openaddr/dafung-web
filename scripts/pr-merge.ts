@@ -10,6 +10,9 @@
 //     合并验证后自动收账:move master 书签 + 主树空停靠的 @ 前移(有活不动)。
 //   - 断网断在合并后(#628 实锤):重跑即恢复——0 步预检 head 书签的 PR 已 MERGED 就跳过
 //     push/合并直达清理+收账(gh pr merge 对已合入 PR 非零报错,不预检则恢复态死循环)。
+//   - body 文件断在开 PR 步=已 push 未开 PR 的裸奔窗(#807)——副作用前校验存在且非空。
+//   - 基线过期先撞 expect 清单墙,被误读成「并行写入折入」错走 split(#807,本波六度)
+//     ——S3 对账前先比 range diff 与 change 自身 diff,不一致红出 rebase 指向。
 // 用法:bun scripts/pr-merge.ts <书签名> [--title "<标题>"] [--body-file <路径>] [--create-only]
 //   <书签名> 须已在本地存在且已 `jj describe`(空描述直接红,交付纪律=描述即标题);
 //   --create-only 只 push+开 PR,不合并不删分支(派单代理交付用,主线 QC 后再全链收口)。
@@ -18,10 +21,12 @@
 //   retro:shell 拼参的引号与 Windows 反斜杠曾致双向对账全红),多出(并行写入折入,先
 //   split)与少了(编辑被并行抹掉/声明笔误)都红即停——两案同根(2026-10-17 档位珠批
 //   折入远端书签、骰签批主树编辑被活会话抹盘且门禁全绿假 assurance)。清单生成=
-//   jj diff --from master@origin --to <书签> --name-only。
+//   jj diff -r <书签> --name-only(change 对父;#807 前用 --from master@origin --to
+//   <书签> 的 range 口径,书签基线落后时会把并行票的文件反向混进清单,六度误判)。
 //   多提交书签(集成链)自动等效 squash 归拢为单提交再对账(链底须在 master@origin 上,
 //   否则红即停先重定基;2026-10-28 七波 retro)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
+import { existsSync, statSync } from "node:fs";
 import * as path from "node:path";
 
 function jj(...args: string[]): string {
@@ -214,12 +219,64 @@ if (!prNumber) {
   }
 
   // 1.15) --expect 必带(2026-10-28 retro:缺省=文件集闸静默跳过,带病合入实锤——
-  //       事后全树对比才补验)。清单生成=jj diff --from master@origin --to <书签> --name-only。
+  //       事后全树对比才补验)。清单生成=jj diff -r <书签> --name-only(change 对父)。
   if (expectPaths.length === 0) {
-    console.error(
-      "[pr-merge] 缺 --expect——文件集闸不许跳过(清单=jj diff --from master@origin --to <书签> --name-only)。",
-    );
+    console.error("[pr-merge] 缺 --expect——文件集闸不许跳过(清单=jj diff -r <书签> --name-only)。");
     process.exit(1);
+  }
+
+  // 1.16) --body-file 前置校验(#807):不存在/为空即红,断点必须在一切副作用
+  //       (1.1 归拢 squash、1.5 push、3 开 PR)之前——拖到开 PR 步才炸,远端分支已推
+  //       而 PR 未开,留下裸奔窗。
+  const bodyFileArg = flag("--body-file");
+  if (bodyFileArg !== undefined) {
+    if (!existsSync(bodyFileArg)) {
+      console.error(
+        `[pr-merge] body 文件不存在:${bodyFileArg}(先写 body 再收口,断在开 PR 步会留已推未开的裸奔窗)`,
+      );
+      process.exit(1);
+    }
+    if (statSync(bodyFileArg).size === 0) {
+      console.error(
+        `[pr-merge] body 文件为空:${bodyFileArg}(先写 body 再收口,断在开 PR 步会留已推未开的裸奔窗)`,
+      );
+      process.exit(1);
+    }
+  }
+
+  // 1.17) 书签基线过期显式预检(#807):range diff(master@origin→书签)与 change 自身
+  //       diff 不一致 = 书签踩着旧基线(master@origin 已被并行票推进),继续走只会先
+  //       撞 1.2 的 expect 清单墙,被误读成「并行写入折入」错走 split(本波六度实锤)
+  //       ——这里直接红出 rebase 指向。1.1 已把多提交链归拢到 master@origin 上,故
+  //       此处两份 diff 不一致只剩基线落后一种成因,检测无歧义。
+  {
+    const norm = (p: string) => p.replaceAll("\\", "/");
+    const toSortedFiles = (out: string) =>
+      out
+        .split("\n")
+        .map((s) => norm(s.trim()))
+        .filter(Boolean)
+        .sort();
+    const rangeFiles = toSortedFiles(
+      jj("diff", "--from", "master@origin", "--to", bookmark, "--name-only"),
+    );
+    const changeFiles = toSortedFiles(jj("diff", "-r", bookmark, "--name-only"));
+    const differs =
+      rangeFiles.length !== changeFiles.length || rangeFiles.some((f, i) => f !== changeFiles[i]);
+    if (differs) {
+      const onlyInRange = rangeFiles.filter((f) => !changeFiles.includes(f));
+      const onlyInChange = changeFiles.filter((f) => !rangeFiles.includes(f));
+      console.error(
+        "[pr-merge] 书签基线落后 master@origin(并行合入折入检测):先 jj rebase -d master@origin 再重跑",
+      );
+      if (onlyInRange.length > 0) {
+        console.error(`[pr-merge] 仅 range 侧有(并行票折入的文件):\n  ${onlyInRange.join("\n  ")}`);
+      }
+      if (onlyInChange.length > 0) {
+        console.error(`[pr-merge] 仅 change 侧有:\n  ${onlyInChange.join("\n  ")}`);
+      }
+      process.exit(1);
+    }
   }
 
   // 1.2) 预期文件集对账(--expect 可重复声明;S3 闸,见头注)。对账对象=change diff
