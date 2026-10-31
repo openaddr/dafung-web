@@ -202,6 +202,11 @@ interface FxState {
    *  HandRack 卡牌段选中/取消即挂摘,FxLayer 经 body portal 渲染(opacity 过渡
    *  走 --dur-med;开关是本机窗态,非表现事件,不进 present 管线)。 */
   spotlight: boolean;
+  /** 全屏签面 overlay 活动中(#849 棒2):掷骰签面(DiceOverlay)或拼点签面
+   *  (DuelSignsOverlay)在场的真值窗——编排器(present)在两张 overlay 的挂→摘
+   *  区间置位/复位。消费见 orchestrator:批内同步件遇 overlay 活动延后到收场补发
+   *  (同步件画在 z-45 幕下不可见);store 只装状态,互斥判据(批内前视)在编排侧。 */
+  overlayActive: boolean;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string): void;
@@ -230,6 +235,9 @@ interface FxState {
   removeCashFly(id: number): void;
   /** 出牌窗聚光(#764):开关态(HandRack 窗态选中挂摘;unmount 兜摘由调用方负责)。 */
   setSpotlight(on: boolean): void;
+  /** 全屏签面 overlay 活动标志(#849 棒2):present 在两张签面 overlay 的挂→摘区间
+   *  调用(挂 true / 摘 false),resetFx 一并复位。 */
+  setOverlayActive(on: boolean): void;
   addMarching(id: string): void;
   removeMarching(id: string): void;
   /** 城池宣告(ADR-0015):由 FxSink.announceTileChange 调用(触发源是播放器/sink,
@@ -261,6 +269,7 @@ export const useFxStore = create<FxState>()(
     coinBursts: [],
     cashFlies: [],
     spotlight: false,
+    overlayActive: false,
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
@@ -357,6 +366,10 @@ export const useFxStore = create<FxState>()(
       set({ spotlight: on });
     },
 
+    setOverlayActive(on) {
+      set({ overlayActive: on });
+    },
+
     spawnJinnangLine(x1, y1, x2, y2) {
       const id = nextId++;
       set((s) => ({ jinnangLines: [...s.jinnangLines, { id, x1, y1, x2, y2 }] }));
@@ -424,6 +437,7 @@ export const useFxStore = create<FxState>()(
         coinBursts: [],
         cashFlies: [],
         spotlight: false,
+        overlayActive: false,
       });
     },
   })),
