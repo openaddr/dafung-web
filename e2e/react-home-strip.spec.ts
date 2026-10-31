@@ -73,6 +73,20 @@ test.describe("矮横屏 844×390(条带档)", () => {
       .toBe(true);
     expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
 
+    // 双图右缘对齐(#843/P2-1):2×168(flex 基准 160+gap 8)≤ 容器宽 → 解除 max-w,
+    // 条目填满容器——末项右缘与条带容器右缘对齐(条带容器与按钮列同为
+    // w-[min(600px,92vw)],填满即对齐),且零横向溢出;px-0.5 内衬 2px 入容差。
+    const stripBox = (await strip.boundingBox())!;
+    const lastBox = (await next.boundingBox())!;
+    expect(
+      stripBox.x + stripBox.width - (lastBox.x + lastBox.width),
+      "末项右缘距条带容器右缘",
+    ).toBeLessThanOrEqual(3);
+    expect(
+      await strip.evaluate((el) => el.scrollWidth - el.clientWidth),
+      "条带横向溢出量",
+    ).toBeLessThanOrEqual(1);
+
     // 换图开局全流程可达(旧况此路被裁半弹层堵死):选图 → 单机 → 起兵 → 8 城小环
     await page.getByTestId(HOME_TID.solo).click();
     await expect(page.getByTestId(SETUP_TID.screen)).toBeVisible();

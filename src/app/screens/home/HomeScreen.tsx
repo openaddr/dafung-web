@@ -115,12 +115,13 @@ export function HomeScreen({
         </div>
 
         {/* 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位):
-          texture-lanting 横批 + 压深渐变(home.css .home-band-heart),右端周瑜立绘
-          低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款,
-          上下金线 = 裱边「矩」。横带是氛围位不是演出位(§4.6/方向 D),静态无动效;
-          #751/H1(#742 判词):矮横屏窄带档只撤立绘、画心纹理照常 cover 裁带
-          (裁切语言对纹理成立,只对人物不成立,home.css 同名媒体查询;
-          带高 56px 随 #761 ⑥ 收口)。 */}
+          平复帖画心 + 压深渐变(home.css .home-band-heart,#843 换血:兰亭序亮米色
+          短档裁切读作字帖切片,改实拍麻纸褐经压深与玄墨底融合),右端周瑜立绘
+          低透明亮相(mask 渐隐入深底,纯装饰),右下钤「逐鹿」漆金印落款
+          (#843:15→18px 落款提亮),上下金线 = 裱边「矩」。横带是氛围位不是演出位
+          (§4.6/方向 D),静态无动效;#751/H1(#742 判词):矮横屏窄带档只撤立绘、
+          画心纹理照常裁带(裁切语言对纹理成立,只对人物不成立,home.css 同名媒体
+          查询;带高 56px 随 #761 ⑥ 收口)。 */}
         {/* H2(#751/#742):矮横屏档横带与内容列同宽(600px 单源,消 776 vs 600 双栏不齐
           ——该档横带只有 56px 高,宽出的部分只贡献空带观感);桌面档「装裱横批宽于
           签列」的层次 intentional,维持 880px 不动。 */}
@@ -130,7 +131,7 @@ export function HomeScreen({
           }`}
         >
           <div className="home-scroll-band relative overflow-hidden rounded-[3px]">
-            {/* 画心:lanting 纹理+压深渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
+            {/* 画心:平复帖纹理+压深渐变(home.css 持材质),高度沿用 home-band-h 短横屏档 */}
             <div className="home-band-h home-band-heart w-full select-none" aria-hidden="true" />
             {/* 周瑜立绘:右端低透明亮相——aria-hidden + 空 alt 不进可访问名,
                 pointer-events-none 纯装饰;先于印章入 DOM,「逐鹿」印保持最高亮层 */}
@@ -140,10 +141,13 @@ export function HomeScreen({
               aria-hidden="true"
               className="home-band-hero pointer-events-none absolute top-0 right-0 h-full w-auto select-none"
             />
-            {/* 落款漆金印:右端钤「逐鹿」竖读小印(#506 印章漆金化) */}
+            {/* 落款漆金印:右端钤「逐鹿」竖读小印(#506 印章漆金化;#843 15→18px 落款提亮)。
+                竖排两字禁折行(whitespace-nowrap):18px×2 字 + 竖排行高在 56px 短档带
+                已贴满 bottom 锚位的可用高,一旦折行即出第二竖列,竖读「逐鹿」变横排
+                「鹿逐」(#843 实拍实锤);leading-none + py-1 + bottom-2 给短档留 3px 余量。 */}
             <span
               aria-hidden="true"
-              className="seal-gold absolute bottom-3 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] px-1.5 py-1.5 font-title text-[15px] leading-[1.15]"
+              className="seal-gold absolute bottom-2 right-5 inline-flex rotate-[-6deg] flex-col items-center justify-center rounded-[2px] px-1.5 py-1 whitespace-nowrap font-title text-[18px] leading-none"
               style={{ writingMode: "vertical-rl" }}
             >
               逐鹿

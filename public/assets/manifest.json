@@ -327,5 +327,13 @@
     "author": "nanoPlink (Freesound,「hunting-horn-bass.wav」lq ogg 预览直链)",
     "fetched_at": "2026-10-29",
     "review_required": false
+  },
+  "texture:pingfutie": {
+    "path": "assets/textures/texture-pingfutie.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png",
+    "license": "Public domain",
+    "author": "Lu Ji",
+    "fetched_at": "2026-10-31",
+    "review_required": false
   }
 }

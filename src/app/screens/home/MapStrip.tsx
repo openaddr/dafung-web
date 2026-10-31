@@ -6,7 +6,7 @@
 // 交互语义口径:滑动 = 原生 overflow-x + scroll-snap(平台滚动行为,非手搓 swipe);
 // 条目 = 裸钮 aria-pressed 切换语义(同 MapSelectPanel S-9 / SegmentedSelect 先例,
 // 组件收口附表「保留现实现」同族:非弹层/下拉/确认框,不涉 shadcn 底件)。
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import { formatMoney } from "@core/money";
 import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
@@ -21,16 +21,35 @@ export interface MapStripProps {
   onSelect: (mapId: string) => void;
 }
 
-/** 条目弹性宽度(#751/H3,#742 判词):`flex:1 0 160px; max-width:280px`——
- *  160px 基准保窄签制式,图少(内置 2 图)时均分填满行(消「没排满」的未完成感),
- *  图 ≥3 时回落 160px 基准、280px 封顶——边缘裁半卡即「还有图」的
- *  滑动暗示(§4.6:可达性由裁切状态本身表达,不加箭头/文字提示)。 */
+/** 条目弹性宽度(#751/H3,#742 判词):`flex:1 0 160px`——160px 基准保窄签制式,
+ *  图少时均分填满行(消「没排满」的未完成感);图多时 280px 封顶——边缘裁半卡
+ *  即「还有图」的滑动暗示(§4.6:可达性由裁切状态本身表达,不加箭头/文字提示)。
+ *  max-w 解除条件(#843/P2-1):条目数×168(基准 160 + gap 8)≤ 容器宽——
+ *  即全部条目按基准排也填得满一行时,均分拉伸到右缘(与按钮列容器对齐,
+ *  条带容器与按钮列同为 w-[min(600px,92vw)],右缘对齐 = 条目填满容器);
+ *  反之(基准排就溢出)维持 280px 封顶。 */
 
 export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) {
   const [entries, setEntries] = useState<MapEntry[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   // S-4 同口径:清单拉取失败给「重试」(显式向用户报错,非静默兜底)
   const [reloadKey, setReloadKey] = useState(0);
+
+  // 条带容器宽实测(#843):max-w 解除判据(条目数×168≤容器宽)的宽度侧,不复制
+  // min(600px,92vw) 算式——safe-area/未来布局调整自动跟随。元素经 callback ref 进
+  // state(条带只在 entries 就绪的分支渲染,加载/空态挂载时先拿 null,拿元素后
+  // 效果重跑补测);useLayoutEffect 同步首测(首帧就对,不闪 max-w 态),
+  // RO 管后续视口变化(HandRack 同款先例)。
+  const [stripEl, setStripEl] = useState<HTMLDivElement | null>(null);
+  const [stripWidth, setStripWidth] = useState(0);
+  useLayoutEffect(() => {
+    if (!stripEl) return;
+    const read = () => setStripWidth(stripEl.clientWidth);
+    read();
+    const ro = new ResizeObserver(read);
+    ro.observe(stripEl);
+    return () => ro.disconnect();
+  }, [stripEl]);
 
   useEffect(() => {
     let alive = true;
@@ -84,11 +103,16 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
     );
   }
 
+  // max-w 解除判据(#843,见头注):168 = 条目基准 160px + gap 8px(类名字面量,
+  // 与 flex-[1_0_160px]/gap-2 同源,改条目制式时同改)。
+  const fitByBasis = entries.length * 168 <= stripWidth;
+
   return (
     <div
       role="group"
       aria-label="选择地图"
       data-testid={HOME_TID.mapStrip}
+      ref={setStripEl}
       className="flex snap-x snap-mandatory gap-2 overflow-x-auto px-0.5 py-1"
     >
       {entries.map((e) => {
@@ -105,8 +129,8 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
               // py-1.5(#761 ⑥):条带整块带高压到 62px 档(原 py-2 ≈66-70px,
               // 844×360 零滚动预算),字级行高不动
               "min-w-0 shrink-0 snap-start rounded-[3px] border px-2.5 py-1.5 text-left transition-colors cursor-pointer " +
-              // H3(#751):flex 1 0 160px + max-width 280px(见头注),替换原定宽 160
-              "flex-[1_0_160px] max-w-[280px] " +
+              // H3(#751):flex 1 0 160px;max-w 280 仅在基准排溢出时保留(#843,见头注)
+              (fitByBasis ? "flex-[1_0_160px] " : "flex-[1_0_160px] max-w-[280px] ") +
               // 选中语言与 MapSelectPanel/SegmentedSelect 统一:金框 + gold/25 势档
               (selected ? "border-gold bg-gold/25" : "border-ink/25 bg-bg/60 hover:border-gold/60")
             }
