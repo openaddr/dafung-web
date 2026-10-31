@@ -279,3 +279,11 @@
   color: var(--color-attr-gem);
   background: color-mix(in srgb, var(--color-attr-gem) 14%, transparent);
 }
+/* 空槽语言统一(#851):名将空槽画「·」(zl-hnslot.zl-empty)与珍宝空方框并排
+   双语言 → 珍宝空槽同补「·」,空槽一律「·」(与名将列同色同字级)。伪元素承印
+   不改 DOM 文本——槽位 aria-hidden、计数语义在容器 aria-label,warlordsHeroes
+   的「···」种植断言不受扰。 */
+.zl .zl-slot:not(.zl-full)::before {
+  content: "·";
+  color: var(--color-ink-dim);
+}
