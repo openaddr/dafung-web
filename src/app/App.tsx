@@ -204,12 +204,12 @@ export function App() {
     };
   }, [initialMapId, pushHint]);
 
-  // R3-C2(#89) 屏间转场,#771 墨韵化:五屏统一收进 keyed 外壳,key=screen 换屏即重挂。
-  // 换屏语言 =「墨晕盖入 + 内容浮现」两段串接:重挂先播 .screen-ink 墨晕盖入
-  // (400ms,径向墨团自屏幕中心晕开、盖满后化开),随后 .screen-in 播内容浮现
-  // (淡入 + 8px 上移落定);对局屏追加 .screen-in-game,由 CSS 后代选择器命中
-  // 棋盘 svg 在墨晕之后接续首帧缓推。退场不做:保留瞬时卸载。编排细节与
-  // reduced-motion 口径见 screen-transition.css 头注。
+  // R3-C2(#89) 屏间转场,#771 墨韵化+#835 as-built:五屏统一收进 keyed 外壳,
+  // key=screen 换屏即重挂。换屏语言 =「墨晕成形 + 内容浮现搭接 + 棋盘缓推」:
+  // .screen-ink 墨幕 t=0 独立成幕(三团偏移墨泡+金缘,不随壳淡入),内容浮现
+  // delay 240ms 搭接(砍黑窗);对局屏棋盘 720ms 缓推(scale 1.12→1)。退场不做:
+  // 保留瞬时卸载。编排细节与 reduced-motion 口径见 screen-transition.css 头注
+  // (单源)。
   // ?dev=sound 音效试听台:dev 工具直达,压过一切 store 路由(不进 screen 状态机);
   // SPA 内 URL 不变,挂载时读一次即可。
   const [devSound] = useState(() => new URLSearchParams(location.search).get("dev") === "sound");
