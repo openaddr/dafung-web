@@ -180,20 +180,35 @@ export function BoardFxLayer() {
           />
         )),
       )}
-      {/* 出牌指示线(#281 P2-E):「使用者→目标」水墨墨线,坐标即逻辑坐标。
-          data-fx-jinnang-line 供 e2e 单次 evaluate 采样(fx 层内部 data 属性不进
-          TESTIDS 单源,同层 data-fx-layer 先例);pathLength=1 归一化供生长动画。 */}
+      {/* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者→目标」水墨墨线 +
+          起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,StaticLayers ROAD_ARROW_D 同形)。
+          组管生死(opacity+金晕 drop-shadow)、线管生长(dashoffset),锚点/箭羽随组同寿、
+          箭羽于生长段末张羽——双 keyframes 同长 0.7s,与 FX.jinnangLineMs 清理窗硬同步
+          (fx.css 同注)。端点错位/零长线不设防(零兜底):坐标提取拍已烤定,错位是
+          提取侧 bug 该当场露形。data-fx-jinnang-line 供 e2e 单次 evaluate 采样,仍在
+          <line> 上(契约不变);fx 层内部 data 属性不进 TESTIDS 单源,同层 data-fx-layer
+          先例;pathLength=1 归一化供生长动画。 */}
       {jinnangLines.map((l) => (
-        <line
-          key={l.id}
-          className="fx-svg-jline"
-          data-fx-jinnang-line=""
-          x1={l.x1}
-          y1={l.y1}
-          x2={l.x2}
-          y2={l.y2}
-          pathLength={1}
-        />
+        <g key={l.id} className="fx-svg-jline">
+          <line
+            className="fx-svg-jline-stroke"
+            data-fx-jinnang-line=""
+            x1={l.x1}
+            y1={l.y1}
+            x2={l.x2}
+            y2={l.y2}
+            pathLength={1}
+          />
+          <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={5} />
+          <path
+            className="fx-svg-jline-feather"
+            d="M -9,-7 L 5,0 L -9,7"
+            fill="none"
+            transform={`translate(${l.x2} ${l.y2}) rotate(${
+              (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI
+            })`}
+          />
+        </g>
       ))}
     </>
   );

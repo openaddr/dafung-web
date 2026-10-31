@@ -1409,6 +1409,68 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     await present([], sink);
     expect(sink.calls).toEqual([]);
   });
+
+  // ── overlay 互斥与横幅错位(#849 棒2):同步件(jline/floater/cashFly)的下发时序 ──
+  it("overlay 互斥(#849 棒2):拦检线与拼点签面同批时,线延后到签面收场补发", async () => {
+    const sink = createMemorySink();
+    // 拦检真形:reactionAnswered 线(jinnangPlayed)与 duelResolved(duelSigns)同批,
+    // 线原制即发即忘被 z-45 签面幕整个盖住——补发拍=签面收场后。
+    await present(
+      [
+        {
+          kind: "jinnangPlayed",
+          playerId: "p0",
+          cardId: "半路杀出",
+          lines: [{ x1: 1, y1: 2, x2: 3, y2: 4 }],
+        },
+        {
+          kind: "duelSigns",
+          sides: [
+            { seat: 0, playerId: "p0", guohao: "魏", colorIndex: 0, roll: 6 },
+            { seat: 1, playerId: "p1", guohao: "蜀", colorIndex: 1, roll: 1 },
+          ],
+          winnerSeat: 0,
+        },
+      ],
+      sink,
+    );
+    const ops = sink.calls.map((c) => c.op);
+    expect(ops).toContain("jinnangLine");
+    expect(ops.indexOf("jinnangLine")).toBeGreaterThan(ops.indexOf("duelSigns"));
+  });
+
+  it("overlay 互斥(#849 棒2):浮字后随掷骰签面时,浮字延后到收场补发", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        { kind: "textFloat", playerId: "p1", text: "中【缓兵之计】", x: 5, y: 6, atTile: null },
+        { kind: "diceRolled", die: 4 },
+      ],
+      sink,
+    );
+    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "textFloater"]);
+  });
+
+  it("横幅错位(#849 棒2):cast 批内随 reactionOpen 的指示线不在即拍落线,错位窗后补发", async () => {
+    const sink = createMemorySink();
+    // cast 批真形:宣布线(浮字略)+ reactionOpen 音(识破窗挂点)——线错位到横幅
+    // 亮相后 ~250ms,横幅入场铺开段不再吞线。
+    await present(
+      [
+        {
+          kind: "jinnangPlayed",
+          playerId: "p1",
+          cardId: "火烧连营",
+          lines: [{ x1: 0, y1: 0, x2: 8, y2: 8 }],
+        },
+        { kind: "sound", event: "reactionOpen" },
+      ],
+      sink,
+    );
+    expect(sink.calls.some((c) => c.op === "jinnangLine")).toBe(false); // 不即发
+    await new Promise((r) => setTimeout(r, 450)); // 错位窗 scStage(250) + 余量
+    expect(sink.calls.filter((c) => c.op === "jinnangLine").length).toBe(1); // 错位窗后补发
+  });
 });
 
 // ─────────────── 终局封场(present 事件边界收队,orchestrator.finishPresentation)───────────────

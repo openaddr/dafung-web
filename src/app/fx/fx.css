@@ -477,40 +477,77 @@
   }
 }
 
-/* 出牌指示线(#281 P2-E):「使用者 token → 目标 token」水墨墨线(FreeKill
-   IndicatorLine 同参数):生长 200ms → 停 200ms → 淡出 300ms,三段编进单条
-   keyframes 的百分比刻度(全长 0.7s 与 fx/timings.ts FX.jinnangLineMs 清理硬同步,
-   改任一侧须两处同改)。pathLength=1 归一化,生长段 dashoffset 1→0「笔锋引出」;
-   墨色取正文焦墨 token,reduced-motion 由 app.css 全局兜层压成 0.01ms(线瞬息
-   全隐,不做静态常驻——指示线本就是一次性演出)。 */
+/* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者 token → 目标 token」水墨
+   墨线 + 起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,#73)。生长 200ms → 停 200ms
+   → 淡出 300ms,三段编进单条 keyframes 的百分比刻度(全长 0.7s 与 fx/timings.ts
+   FX.jinnangLineMs 清理硬同步,改任一侧须两处同改;棒2 不动时刻度,0.7s 字面量归
+   棒3 统一)。pathLength=1 归一化,生长段 dashoffset 1→0「笔锋引出」。
+   #849 棒2(P1-B4 发丝线翻案):stroke 4→10(总览缩放 ≈0.4px/unit 下屏显 ≈4px)
+   + 组级 drop-shadow 金晕(驿道流光同 token 语言);生死在组(opacity)、生长在线
+   (dashoffset),锚点/箭羽随组同寿,箭羽于生长段末张羽(fx-jline-feather-in:
+   线到,羽才张)。墨色取正文焦墨 token,reduced-motion 由 app.css 全局兜层压成
+   0.01ms(线瞬息全隐,不做静态常驻——指示线本就是一次性演出)。 */
 .fx-svg-jline {
-  stroke: var(--color-ink);
-  stroke-width: 4;
-  stroke-linecap: round;
-  stroke-dasharray: 1;
   opacity: 0;
   pointer-events: none;
-  animation: fx-jline-grow-hold-fade 0.7s var(--ease-out) forwards;
+  filter: drop-shadow(0 0 6px var(--color-gold-bright));
+  animation: fx-jline-life 0.7s var(--ease-out) forwards;
 }
-@keyframes fx-jline-grow-hold-fade {
+@keyframes fx-jline-life {
   0% {
-    stroke-dashoffset: 1;
-    opacity: 0.9;
-  }
-  /* 200ms 生长完(200/700) */
-  28.5% {
-    stroke-dashoffset: 0;
     opacity: 0.9;
   }
   /* 200ms 停持(400/700) */
   57% {
-    stroke-dashoffset: 0;
     opacity: 0.9;
   }
   /* 300ms 淡出 */
   100% {
-    stroke-dashoffset: 0;
     opacity: 0;
+  }
+}
+.fx-svg-jline-stroke {
+  stroke: var(--color-ink);
+  stroke-width: 10;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  animation: fx-jline-grow 0.7s var(--ease-out) forwards;
+}
+@keyframes fx-jline-grow {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  /* 200ms 生长完(200/700) */
+  28.5% {
+    stroke-dashoffset: 0;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+/* 起点小圆锚点(r=5 逻辑单位,#849 棒2):随组同寿,落点即出发锚。 */
+.fx-svg-jline-anchor {
+  fill: var(--color-ink);
+}
+/* 终点箭羽(#849 棒2):棋盘驿道人字羽同形(StaticLayers ROAD_ARROW_D),旋向
+   行进向(旋转矩阵在 FxLayer 渲染拍算好);生长段末张羽,随组淡出。 */
+.fx-svg-jline-feather {
+  stroke: var(--color-ink);
+  stroke-width: 5;
+  stroke-linecap: round;
+  opacity: 0;
+  animation: fx-jline-feather-in 0.7s var(--ease-out) forwards;
+}
+@keyframes fx-jline-feather-in {
+  0%,
+  28.5% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 1;
   }
 }
 
