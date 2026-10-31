@@ -667,18 +667,29 @@ export function HandRack({
     return () => window.removeEventListener("keydown", onKey);
   }, [kbOn]);
 
-  // 可用宽测量:架体 content box(去 em 起架 padding)即手牌行的可用宽;em 基随
-  // layout.css 槽位档(7.6px)/短横屏降档(6.4px)走,卡面像素宽从 computed font-size
-  // 折算,测量与渲染永远同一口径。useLayoutEffect 同步首测(首帧就叠,不闪全展),
-  // RO 管后续窗口缩放/降档。
+  // 可用宽测量:测宿主行(.handzone,绝对定位、宽与内容无关)减签面与 gap,再去
+  // 架体起架 padding——#869 hug 归组后架体宽=内容宽,再用自身 clientWidth 当可用
+  // 宽会进「内容缩→宽缩→偏移归零」的双向反馈,9 张叠排塌成完全重叠(收官仲裁
+  // 实锤)。宿主口径与 flex:1 时代的 clientWidth 同值。em 基随 layout.css 槽位档
+  // (7.6px)/短横屏降档(6.4px)走,卡面像素宽从 computed font-size 折算,测量与
+  // 渲染永远同一口径。useLayoutEffect 同步首测(首帧就叠,不闪全展),RO 管后续
+  // 窗口缩放/降档。
   useLayoutEffect(() => {
     if (!mounted) return;
     const el = rackRef.current;
     if (!el) return;
     const read = () => {
       const cs = getComputedStyle(el);
+      const host = el.parentElement!;
+      const sign = host.querySelector<HTMLElement>(".diceseal");
+      const gap = parseFloat(getComputedStyle(host).columnGap) || 0;
       setBox({
-        avail: el.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight),
+        avail:
+          host.clientWidth -
+          (sign?.getBoundingClientRect().width ?? 0) -
+          gap -
+          parseFloat(cs.paddingLeft) -
+          parseFloat(cs.paddingRight),
         cardWidth: CARD_WIDTH_EM * parseFloat(cs.fontSize),
         em: parseFloat(cs.fontSize),
       });
