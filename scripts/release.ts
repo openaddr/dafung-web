@@ -7,11 +7,11 @@
 //   ④gh 已登录(未登录 create 步自行红)。
 // 版本单源 package.json(CalVer):发版前先 bump version 走 PR 合入 master(AGENTS.md 规约)。
 // 签名现状:debug 签名包可装、同机可覆盖升级(签名=本机 debug.keystore);正式签名未配,
-//   配好后再切 --release。出包配方与产物路径见 docs/how-to/开发与测试.md「安卓出包」。
+//   配好后再切 --release。出包配方见 docs/how-to/开发与测试.md「安卓出包」。
 import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import * as path from "node:path";
 
-const APK_DIR = "src-tauri/gen/android/app/build/outputs/apk/aarch64/debug";
-const APK_PATH = `${APK_DIR}/app-aarch64-debug.apk`;
+const APK_OUT = "src-tauri/gen/android/app/build/outputs/apk";
 const ASSET_DIR = "tmp/release";
 
 function run(cmd: string[], inherit = false): { ok: boolean; out: string } {
@@ -79,11 +79,18 @@ console.log(
 );
 if (dryRun) process.exit(0);
 
-// 4) 出包 + 版本对账。
+// 4) 出包 + 对账。产物目录名随 CLI 布局走(#894 实测 2.11.4 落 universal/ 而非目标名),
+//    按「唯一 APK」定位不写死布局;包内 ABI 由 --target 过滤,断言纯度防 jniLibs 残挂混包。
 const build = run(["bunx", "tauri", "android", "build", "--debug", "--target", "aarch64"], true);
 if (!build.ok) red("tauri android build 失败——环境四件套/上游报错看上方输出。");
-if (!existsSync(APK_PATH)) red(`产物不在预期位置:${APK_PATH}`);
-const meta = JSON.parse(readFileSync(`${APK_DIR}/output-metadata.json`, "utf8")) as {
+const found = [...new Bun.Glob("*/debug/*.apk").scanSync({ cwd: APK_OUT, onlyFiles: true })];
+if (found.length !== 1) {
+  red(
+    `产物应恰有一个 APK,实得 ${found.length} 个:${found.join(" ") || "(无)"}——布局切换期的陈旧产物先清掉再发。`,
+  );
+}
+const apk = `${APK_OUT}/${found[0]}`;
+const meta = JSON.parse(readFileSync(`${path.dirname(apk)}/output-metadata.json`, "utf8")) as {
   elements?: { versionName?: string }[];
 };
 const apkVersion = meta.elements?.[0]?.versionName;
@@ -91,6 +98,14 @@ if (apkVersion !== version) {
   red(
     `版本对账失败:APK versionName=${apkVersion} ≠ package.json ${version}——产物陈旧或 tauri.conf 引用链断,先排查。`,
   );
+}
+const libEntries = run(["unzip", "-l", apk])
+  .out.split("\n")
+  .map((l) => l.trim().split(/\s+/).pop() ?? "")
+  .filter((p) => p.startsWith("lib/"));
+if (libEntries.length === 0 || !libEntries.every((p) => p.startsWith("lib/arm64-v8a/"))) {
+  const abis = [...new Set(libEntries.map((p) => p.split("/")[1]))].join(" ");
+  red(`包内 native 库非 arm64 单架构(${abis || "无 native 库"})——jniLibs 残挂陈旧 ABI,清掉重发。`);
 }
 
 // 5) tag + 推远端(幂等:同指已存在跳过;异指红出人工核对)。
@@ -108,7 +123,7 @@ if (!run(["git", "push", "origin", `refs/tags/${tag}`], true).ok) {
 // 6) 发 Release(资产改名带版本号;--generate-notes 按提交史生成 body)。
 mkdirSync(ASSET_DIR, { recursive: true });
 const asset = `${ASSET_DIR}/${tag}-aarch64.apk`;
-copyFileSync(APK_PATH, asset);
+copyFileSync(apk, asset);
 const ghArgs = [
   "gh",
   "release",
