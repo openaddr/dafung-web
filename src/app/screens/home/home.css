@@ -78,14 +78,21 @@
   outline-offset: 2px;
 }
 
-/* ── 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位)──
+/* ── 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位;
+   #843 画心换血:兰亭序→《平复帖》)──
    .home-scroll-band:漆金裱边 = 上下近黑漆边(漆)+ 内侧金线(金,裱工的「矩」);
-   画心(#558):texture-lanting 接位(center 35% 裁中上段行气)+ 压深渐变——
-   压深取值锚点:横带读作深色古画横批而非黑洞(中段留出纸纹),且其上
-   文字/「逐鹿」印仍是最高亮层;radial 鎏金微光层经 ::after 保持画心最上层。
-   矮横屏窄带档(现 56px,#761 ⑥)只撤立绘不撤画心纹理(见底部媒体查询 H1 判词)。
+   画心:texture-pingfutie 接位(西晋陆机《平复帖》故宫博物院本,PD;实拍纸面为
+   深沉麻纸褐,#843 压深锚点:纸面均值 ~rgb(175,148,115),叠 70% 档 bg-deep 后
+   ~rgb(68,56,43) = 比页底(#1f1a13)亮一档的「深色古画横批」,纸纹/沉墨字可读
+   而不再做全屏唯一亮块(#558 兰亭米色亮块断层退役)。压深两层:
+   ① 纵向拢边(上下缘向玄墨底收边,中段放纸纹);② 横向梯度(主体 70%,
+   右端立绘段减一档到 56%,立绘以画心为底不叠灰)。radial 鎏金微光层经 ::after
+   保持画心最上层(#843:8%→12%,画心变深后微光同步提亮)。
+   矮横屏窄带档(现 56px,#761 ⑥)只撤立绘不撤画心纹理,另定「完整一行字」裁切
+   (见底部媒体查询 H1 判词)。
    .home-band-hero:周瑜立绘右端低透明亮相——纯装饰,mask 向左渐隐入深底,
-   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位)。
+   静态无动效(§4.6 与方向 D:横带是氛围位不是演出位);#843 桌面档存在感提档:
+   opacity 0.3→0.42、mask 全实点 42%→30%(立绘段宽一档)。
    .home-band-in:入场——画心自横向微舒展 + 淡入(与标题先行、按钮 stagger 的
    节奏衔接:标题 0ms → 横带 120ms → 按钮 300ms 起)。 */
 .home-scroll-band {
@@ -102,11 +109,18 @@
   background:
     linear-gradient(
       180deg,
-      color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
-      color-mix(in srgb, var(--color-bg-deep) 55%, transparent) 50%,
-      color-mix(in srgb, var(--color-bg-deep) 70%, transparent)
+      color-mix(in srgb, var(--color-bg-deep) 55%, transparent),
+      transparent 40%,
+      transparent 60%,
+      color-mix(in srgb, var(--color-bg-deep) 55%, transparent)
     ),
-    url(/assets/textures/texture-lanting.webp) center 35% / cover no-repeat;
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
+      color-mix(in srgb, var(--color-bg-deep) 70%, transparent) 55%,
+      color-mix(in srgb, var(--color-bg-deep) 56%, transparent)
+    ),
+    url(/assets/textures/texture-pingfutie.webp) center 32% / cover no-repeat;
 }
 /* 鎏金微光 ::after 承载:绘制序 = 元素背景(纹理压深)< 伪元素(微光)< 后续 DOM
    (立绘/印章),微光仍居画心最上;短横屏档只换元素背景,微光两档通用。 */
@@ -116,18 +130,19 @@
   inset: 0;
   background: radial-gradient(
     ellipse 55% 130% at 50% 50%,
-    color-mix(in srgb, var(--color-gold) 8%, transparent),
+    color-mix(in srgb, var(--color-gold) 12%, transparent),
     transparent 72%
   );
 }
 /* 立绘贴右:h-full + w-auto 锁纵横比(不写 inset-y,防绝对定位 replaced 元素
-   按内在尺寸解算);mask 左缘全透→42% 处全实,向左渐隐入深底;opacity 0.3 =
-   鎏金调压暗档,文字/印章保持最高亮层。 */
+   按内在尺寸解算);mask 左缘全透→30% 处全实(#843:42%→30%,立绘段宽一档),
+   向左渐隐入深底;opacity 0.42(#843:0.3→0.42)= 鎏金调压暗档,
+   文字/印章保持最高亮层。 */
 .home-band-hero {
   object-fit: contain;
-  opacity: 0.3;
-  mask-image: linear-gradient(90deg, transparent, #000 42%);
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 42%);
+  opacity: 0.42;
+  mask-image: linear-gradient(90deg, transparent, #000 30%);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%);
 }
 .home-band-in {
   animation: home-band-in var(--dur-slow) var(--ease-out) 0.12s both;
@@ -168,14 +183,37 @@
   .home-safe {
     padding-bottom: max(1rem, var(--safe-bottom));
   }
-  /* H1(#751/#742 判词):画心纹理恢复——窄带 cover 裁带对「纹理」完全成立,
+  /* H1(#751/#742 判词,#843 修订):画心纹理恢复——窄带裁切对「纹理」完全成立,
      「裁不出画心」只对人物立绘成立,两件不再一并撤:本档只撤立绘(display:none),
-     画心 = .home-band-heart 原材质(lanting + 压深渐变 + 微光 ::after)原样生效,
-     横带在矮横屏仍是「深色古画横批」而非近黑空带(玄墨鎏金「立绘为魂」的最低成本回魂);
-     素材若随 #749 三联样张换新,本档自动同吃,零额外工作。
+     画心 = .home-band-heart 材质(平复帖 + 压深渐变 + 微光 ::after)照常生效,
+     横带在矮横屏仍是「深色古画横批」而非近黑空带(玄墨鎏金「立绘为魂」的最低成本回魂)。
+     #843 裁切口径:56px cover 对兰亭序长卷曾读作「字帖切片」(P1-A2),对平复帖
+     同病——短档改「完整一段卷面」窗口:cover 会把整卷三段裱边一并塞进 56px 高,
+     字形全被上下切半;改 auto 810%(56px 带上 = 约放卷面 62% 宽、12% 高的窗口,
+     949px 实宽 ≥ 600px 带宽,不露空边;票面参考值 auto 220% 是兰亭序长卷口径,
+     对 2.11:1 的平复帖会缩成 260px 窄条露空边,按「实拍调」授权改用同判据的
+     窗口值),49% 32% 取卷心主体(九行字)中上段行气——窗口内是成段的完整字群,
+     窗口边界切到的个别字在 70% 档压深下与深褐纸面同沉,不再读作切片。
      56px 档(#761 ⑥,原 #707 收纳定 72):360 高零滚动预算的三主刀之一。 */
   .home-band-h {
     height: 56px;
+  }
+  .home-band-heart {
+    background:
+      linear-gradient(
+        180deg,
+        color-mix(in srgb, var(--color-bg-deep) 55%, transparent),
+        transparent 40%,
+        transparent 60%,
+        color-mix(in srgb, var(--color-bg-deep) 55%, transparent)
+      ),
+      linear-gradient(
+        90deg,
+        color-mix(in srgb, var(--color-bg-deep) 70%, transparent),
+        color-mix(in srgb, var(--color-bg-deep) 70%, transparent) 55%,
+        color-mix(in srgb, var(--color-bg-deep) 70%, transparent)
+      ),
+      url(/assets/textures/texture-pingfutie.webp) 49% 32% / auto 810% no-repeat;
   }
   .home-band-hero {
     display: none;

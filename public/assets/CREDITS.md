@@ -52,3 +52,4 @@
 - **audio:duel-clash** — CC0 / hollandm (Freesound) — 7148B (ogg;「Woodblock-hard.wav」lq 预览) — [source](https://freesound.org/s/692818/) — 2026-10-29
 - **audio:verdict-chime** — CC0 / R0teroktober (Freesound) — 33139B (ogg;「Sound bowl / Singing bowl」lq 预览) — [source](https://freesound.org/s/851382/) — 2026-10-29
 - **audio:halt-horn** — CC0 / nanoPlink (Freesound) — 39135B (ogg;「hunting-horn-bass.wav」lq 预览) — [source](https://freesound.org/s/148645/) — 2026-10-29
+- **texture:pingfutie** — Public domain / Lu Ji — 287244B (1920×909, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png) — 2026-10-31
