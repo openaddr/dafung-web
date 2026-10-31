@@ -493,6 +493,23 @@
 }
 .jinnang-card.sel .yang {
   min-height: 3.5em;
+  /* #884(#854 留档 画心窗矮盒治理):窗高唯一来源是 flex 自由空间——min-height
+     提档只会反削 4 行笺脚(实测提 6em 时笺脚盒被 flex 压到 2.9 行,中行截断),
+     故窗高从 sel 态头带(3.4→2.4em)与窗距(0.9→0.45em)让位:窗 3.6→5.4em。
+     彻底填平需窗高 ≈8.6em(viewBox 100:70 满幅),与 4 行笺脚不可兼得,取
+     不破 US4 钳制的满窗上限。 */
+  margin: 0.45em 0;
+}
+/* #884 sel 详情态头带压缩给画心窗让位(题名 2.3em 容于 2.4em;标签章绝对定位
+   占 y[0.9,3.2em],窗顶 4.05em 仍净空 0.85em 不入窗) */
+.jinnang-card.sel .tou {
+  min-height: 2.4em;
+}
+/* #884 sel 详情态母题满窗:svg 放开 82%→100%(基档 82% 是 #763 三轮眼定稿,
+   只动详情档),母题横占 36%→58% */
+.jinnang-card.sel .yang svg {
+  width: 100%;
+  height: 100%;
 }
 .jinnang-card.off,
 .hface.off {
