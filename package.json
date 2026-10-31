@@ -1,6 +1,6 @@
 {
   "name": "dafung-web",
-  "version": "2026.10.1",
+  "version": "2026.11.0",
   "private": true,
   "description": "群雄逐鹿 — 三国古风水墨大富翁(React + Bun,安卓 APK 为正式交付形态,网页构建仅作开发与 AI 自动化测试通道)",
   "type": "module",

@@ -34,8 +34,8 @@ ADR-0039 已把常驻装饰迁出 SVG,但**逐帧写 SVG 的还有两户**:棋�
 ## 验收
 
 - 844×390 截图与单板版逐像素一致(选都定格帧,四旗/活跃环/光晕/微光全对位);
-- 探针复跑(6x→4x 节流,seed 2026 托管整局):活动期 4x fps 中位 **38(27~44)**——ADR-0039 时 16~33、最初 12~23,DoD ≥30 达成;基线主线程占用 43%→29%;
-- gesture 族 e2e 7/7 全绿(且各例耗时 16~19s → 10~15s,卡顿减少的副作用信号);board/seat-cells/setup/short-stage/warlords 全绿;bun test 926 pass 0 fail。
+- 探针复跑(6x→4x 节流,seed 2026 托管整局):活动期 4x fps 中位 **38(27~44)**——ADR-0039 时 16~~33、最初 12~~23,DoD ≥30 达成;基线主线程占用 43%→29%;
+- gesture 族 e2e 7/7 全绿(且各例耗时 16~~19s → 10~~15s,卡顿减少的副作用信号);board/seat-cells/setup/short-stage/warlords 全绿;bun test 926 pass 0 fail。
 
 ## 后果
 
