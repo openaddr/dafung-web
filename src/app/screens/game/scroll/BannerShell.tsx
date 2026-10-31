@@ -26,6 +26,10 @@ import {
 } from "react";
 // #174:焦点陷阱收编为 shared/DialogFocusScope(2026-09-12 起为自研实现,无第三方依赖)
 import { DialogFocusScope } from "@app/screens/shared/DialogFocusScope";
+// #846 正文井内滚换 ui/scroll-area 底件(#708 现成件):keepMounted 漆金轨道 +
+// 溢出门控常显,与 PileShell 同语言;渐隐带在 banner.css 沿底件下发的
+// data-overflow-y-* 门控(壳只管结构,滚动提示观感单源在 css)。
+import { ScrollArea } from "@app/components/ui/scroll-area";
 import "./banner.css";
 import { getAudio } from "@app/fx/audio";
 import { Sym } from "@app/screens/shared/Sym";
@@ -241,12 +245,16 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
       </div>
       {/* 正文井:深墨实底(bg-deep)收口深底可读性——纸色正文 ≈16:1、淡纸 ≈9:1、
           朱砂警示 ≈5.5:1,全部 ≥4.5(漆金带上直接排小字对 danger 仅 ≈4.1,井底加深
-          是对比度核查的收口手段,#509 残留 2 在此了结)。min-h-0 保住限高内滚链
-          (壳体 max-h 86dvh → 内容区 min-h-0 overflow-y-auto),长内容(破产清单等)
-          横屏也不溢出。 */}
-      <div className="banner-body min-h-0 overflow-y-auto px-3 py-3">{children}</div>
+          是对比度核查的收口手段,#509 残留 2 在此了结)。#846:井本体 = ui/scroll-area
+          根(PileShell 同款底件,keepMounted 轨道首帧可见滚动提示),min-h-0 保住
+          限高内滚链(壳体 max-h 86dvh → 井 min-h-0 → viewport flex-1 内滚),
+          长内容(破产清单等)横屏也不溢出;内衬 px-3/py-3 随内容走(挂井内包裹层,
+          视口缘的渐隐带才贴得住内容断头处,观感口径同 pile-body 内容 margin)。 */}
+      <ScrollArea className="banner-body min-h-0">
+        <div className="px-3 py-3">{children}</div>
+      </ScrollArea>
       {/* #729 footer 槽:正文井之后的钉底段。shrink-0 + 壳体 flex-col 限高链
-          (max-h-86dvh → body min-h-0 overflow-y-auto)让 footer 在场时正文井自然被
+          (max-h-86dvh → 井 min-h-0 → viewport 内滚)让 footer 在场时正文井自然被
           压缩内滚,钮组不随内容滚走;发丝分隔线与题行 border-b 同色对称(#729 拍板),
           水平内衬 px-3 与正文井对齐。活横幅与退场帧共用 shellBody,footer 两路同构。 */}
       {footer != null && (
