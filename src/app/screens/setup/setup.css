@@ -115,7 +115,10 @@
    8 诸侯内滚时「起兵/返回」恒在场,墨纱渐隐衬垫承接滚过内容。 ── */
 @media (orientation: landscape) and (max-height: 500px) {
   .su-root {
-    padding-top: 0.25rem;
+    /* 顶垫 ≥5px(#839 刀②):返回钮 top-1/2 居中于 30px 标题行,40px 命中盒上溢
+       5px——padding-top 0.25rem 时 backBtn.y≈-0.9,顶缘被视口裁发丝;0.5rem 起垫
+       到 y≈+3。 */
+    padding-top: 0.5rem;
     padding-bottom: 0.25rem;
     padding-left: max(0.75rem, var(--safe-left));
     padding-right: max(0.75rem, var(--safe-right));
@@ -151,6 +154,15 @@
   }
   .su-col-right {
     gap: 2px;
+  }
+  /* 左列内滚暗示(#839 刀①):机遇展开态左列在 390 档内滚(量测 84px),说明段
+     被列底缘拦腰截断而无「下面还有」的暗示——列底 24px 墨纱渐隐。mask 挂滚动
+     容器本体(钉在元素盒上,不随内容滚走,overlay 伪元素做不到);折叠收起时
+     列不溢出,不挂渐隐免误导。常显口径同 pile-modal 渐隐带(溢出侧门控需
+     ui/scroll-area,列是裸 overflow)。 */
+  .su-col-left:has(details[open]) {
+    -webkit-mask-image: linear-gradient(180deg, #000 calc(100% - 24px), transparent);
+    mask-image: linear-gradient(180deg, #000 calc(100% - 24px), transparent);
   }
   .su-map-row {
     margin-bottom: 0;
@@ -204,7 +216,9 @@
    40 命中),块距/表头/卡衬各收一档,合计找回 ~31px。375/360 命中,390 不进档。 ── */
 @media (orientation: landscape) and (max-height: 384px) {
   .su-root {
-    padding-top: 2px;
+    /* 顶垫 6px(#839 刀②):极矮档同裁(backBtn.y≈-1.9),≥5px 起垫到 y≈+2;
+       右列 360 档余量 ~10px(#765 量测),吃 4px 不破「两档零裁切」。 */
+    padding-top: 6px;
     padding-bottom: 2px;
   }
   .su-card {

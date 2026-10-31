@@ -141,4 +141,26 @@
   .banner-body .city-ledger-thumb {
     height: 48px;
   }
+  /* 定都确认卷轴正文井渐隐(#839 刀③):矮横屏档价值表超出井视口(量测 155px),
+     末行被井底缘裁半行而无「下面还有」的暗示——井上下缘 20px 墨纱渐隐。mask 挂
+     井本体(overlay 伪元素钉不住井缘,会随内容滚走;mask 钉元素盒不随滚动位移),
+     常显口径同 pile-modal 渐隐带(溢出侧门控待 P1-C1 井换 ui/scroll-area 时收)。
+     testid 作用域限定城池详情/定都确认卷轴(壳无逐实例类钩子,TileDetailScroll
+     本体不在本票落点),其余决策卷轴不受。 */
+  .banner-card[data-testid="scroll-tile-detail"] .banner-body {
+    -webkit-mask-image: linear-gradient(
+      180deg,
+      transparent 0,
+      #000 20px,
+      #000 calc(100% - 20px),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      180deg,
+      transparent 0,
+      #000 20px,
+      #000 calc(100% - 20px),
+      transparent 100%
+    );
+  }
 }
