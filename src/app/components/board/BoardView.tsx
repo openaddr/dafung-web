@@ -125,6 +125,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   ref,
 ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
+  // 顶板(动态层,ADR-0040):viewBox 与底板同拍驱动。
+  const tokensSvgRef = useRef<SVGSVGElement | null>(null);
   // 地图 → Board/catalog(地图引用不变则不重建;道路避城弧线计算在 RoadsLayer 内做)
   const loaded = useMemo(() => loadMap(map), [map]);
   // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),
@@ -132,7 +134,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   // svg 的 viewBox prop 只下发一次初始总览值,此后 React 不改写。
   const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
-  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit);
+  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit, tokensSvgRef);
   useImperativeHandle(ref, () => ({ zoomBy }), [zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
@@ -226,6 +228,10 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
 
   return (
     <>
+      {/* 底板(静态层):纸面/地形/驿道/城池——对局中只吃事件驱动的低频变化
+          (归属/档位/宣告),行军/特效逐帧失效不再波及,弱 GPU 栅格欠债时
+          合成器棋盘格(整板闪成背景色)的源头就此拔除(ADR-0040)。
+          手势与落格点击全在本板:顶板 pointer-events none,触摸穿透落到此处。 */}
       <svg
         id="board"
         ref={svgRef}
@@ -241,6 +247,18 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         <TerrainLayer fit={fit} />
         <RoadsLayer board={loaded.board} />
         <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
+      </svg>
+      {/* 顶板(动态层):棋子/特效/流光——行军逐帧 transform、fx 挂载卸载的全部
+          逐帧失效收敛于此(板内仅数个元素,重绘代价几个量级小于整板)。
+          viewBox 与底板同拍驱动(usePanZoom 双写),盒同随 board-area,两板像素对齐。 */}
+      <svg
+        id="board-tokens"
+        ref={tokensSvgRef}
+        viewBox={fitBox}
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 block h-full w-full select-none"
+      >
         <TokenLayer
           board={loaded.board}
           players={players}
@@ -261,7 +279,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         </g>
         <g id="bv-flow" data-flow-layer="" />
       </svg>
-      {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居 svg 上(pointer-events
+      {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居两板之上(pointer-events
           none);矩阵同步自持(RO/viewBox MutationObserver/字体就绪,见 AmbientLayer)。 */}
       <AmbientLayer
         board={loaded.board}
