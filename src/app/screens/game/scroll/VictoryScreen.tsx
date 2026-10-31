@@ -66,7 +66,7 @@ const FW_COLORS = [
 ];
 
 // 信息文字色:庆祝屏专属氛围色(暗金墨晕),不进 theme 语义色板,集中常量。
-// 底色(含 A6 千里江山图山水带的多层背景)统一在 victory.css 的 .victory-anim-overlay。
+// 底色(竹林深景多层背景)统一在 victory.css 的 .victory-anim-overlay。
 const INFO_TEXT = "rgba(255, 240, 200, 0.85)";
 
 /** E3 烟花尺度基准宽:以 1280px 视口为 1.0,大屏放大/小屏缩到 0.7~1.8。 */
@@ -83,16 +83,21 @@ interface Particle {
   dy: number;
   color: string;
   dur: number;
+  /** #837:是否本波「大雨滴」主星(12px 金色大粒,挂 .firework-particle-main)。
+   *  必填——逐粒构造点显式给值,不留可选字段让「漏传静默回落普通粒」漂过。 */
+  main: boolean;
 }
 
-/** 一波烟花:围绕随机圆心生成 16~26 个粒子(对照旧 spawnFireworkBurst)。
+/** 一波烟花:围绕随机圆心生成 28~40 个粒子(#837 终局亮化:旧 16~26 粒+4px 在飞
+ *  只见微尘,提密度提粒径才撑得起终局「哇」时刻)。3% 概率额外一枚「大雨滴」主星:
+ *  12px 金色,自圆心小幅横漂+下坠(重物坠落收势),时长略长于本波碎星压轴。
  *  圆心用容器百分比(水平 15%-85%、垂直 12%-60%),任意窗口尺寸都不贴边/不挤中。
  *  E3:飞散距离(60-140px 基准)与时长按视口宽缩放——大屏不再显小,小屏不再爆开。
  *  返回本波粒子与最长滞留时长(ms,供清理定时器跟随缩放,不提前掐灭)。 */
 function spawnBurst(keyPrefix: number): { burst: Particle[]; lingerMs: number } {
   const cxPct = 15 + Math.random() * 70;
   const cyPct = 12 + Math.random() * 48;
-  const count = 16 + Math.floor(Math.random() * 10);
+  const count = 28 + Math.floor(Math.random() * 13);
   const scale = Math.min(FW_SCALE_MAX, Math.max(FW_SCALE_MIN, window.innerWidth / FW_BASE_VW));
   const out: Particle[] = [];
   for (let i = 0; i < count; i++) {
@@ -106,10 +111,25 @@ function spawnBurst(keyPrefix: number): { burst: Particle[]; lingerMs: number } 
       dy: Math.sin(angle) * dist,
       color: FW_COLORS[Math.floor(Math.random() * FW_COLORS.length)],
       dur: (1.2 + Math.random() * 0.6) * Math.sqrt(scale),
+      main: false,
     });
   }
-  // 最长 dur = 1.8 × sqrt(scale),粒子飞完再清,留 200ms 余量。
-  return { burst: out, lingerMs: 1.8 * Math.sqrt(scale) * 1000 + 200 };
+  if (Math.random() < 0.03) {
+    out.push({
+      key: `${keyPrefix}-main`,
+      cxPct,
+      cyPct,
+      dx: (Math.random() * 24 - 12) * scale,
+      dy: (30 + Math.random() * 40) * scale,
+      color: "var(--color-gold-bright)",
+      dur: (1.5 + Math.random() * 0.4) * Math.sqrt(scale),
+      main: true,
+    });
+  }
+  // 最长 dur(碎星上限 1.8、主星上限 1.9 × sqrt(scale))取本波实测最大,粒子飞完
+  // 再清,留 200ms 余量——清理定时器跟着本波真实组成走,主星在场不被提前掐灭。
+  const lingerMs = Math.max(...out.map((p) => p.dur)) * 1000 + 200;
+  return { burst: out, lingerMs };
 }
 
 export function VictoryScreen(props: VictoryScreenProps) {
@@ -230,14 +250,17 @@ export function VictoryScreen(props: VictoryScreenProps) {
         aria-label="终局"
         className="victory-anim-overlay fixed inset-0 z-40 flex flex-col items-center justify-center"
       >
+        {/* #837:color 与 background 同源注入——辉光 box-shadow 走 currentColor,
+            逐粒色随碎星配色变,不另造第二份色表。 */}
         {particles.map((p) => (
           <span
             key={p.key}
-            className="firework-particle"
+            className={p.main ? "firework-particle firework-particle-main" : "firework-particle"}
             style={{
               left: `${p.cxPct}%`,
               top: `${p.cyPct}%`,
               background: p.color,
+              color: p.color,
               ["--dx" as string]: `${p.dx}px`,
               ["--dy" as string]: `${p.dy}px`,
               ["--fw-dur" as string]: `${p.dur}s`,

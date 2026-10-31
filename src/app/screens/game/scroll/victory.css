@@ -11,7 +11,15 @@
    层次增强不抢金字。渐变/径向基色取 core/theme.ts 的 bg(#1f1a13)/bgDeep(#16110c)
    的 rgba alpha 写法(CSS 无法对 hex var 直接调 alpha),非新色。
    多层背景都在元素自身 background 上,天然压在全部子元素之下,无叠层次序问题。
-   遮罩淡入(--dur-reveal 胜利拍)+ pointer-events:auto(压住棋盘)同规则合并。── */
+   遮罩淡入(--dur-reveal 胜利拍)+ pointer-events:auto(压住棋盘)同规则合并。
+   #837 终局亮化:竹林横带真露脸、金字/朱印层级不被背景吃掉。实拍口径——
+   ①底档 alpha 0.5→0.38:只亮底部竹林带(to top 语义下 alpha 线以上不动,文字区
+   渐变零变化);②竹影层对下层径向基色做 screen 混合,暗部整体抬亮一档。票面曾拟
+   「0.84 档 26%→18%」,实测(to top 下 26→18 是把 0.84 线往屏底压)反而压暗竹林带、
+   与 screen 提亮对冲净持平(像素对比 38.0→37.8),不取;金字/朱印是元素子节点,
+   仍在全部背景层之上,层级不受影响。层是 background layer 不是独立元素,
+   mix-blend-mode 只作用于元素整体(会连渐变层一起与棋盘混合,语义错),故逐层
+   指定 background-blend-mode:渐变 normal / 竹影 screen / 径向 normal。── */
 @keyframes victory-overlay-in {
   from {
     opacity: 0;
@@ -26,34 +34,56 @@
   background:
     linear-gradient(
       to top,
-      rgba(22, 17, 12, 0.5) 0%,
+      rgba(22, 17, 12, 0.38) 0%,
       rgba(22, 17, 12, 0.84) 26%,
       rgba(22, 17, 12, 0.96) 42%
     ),
     url("/assets/textures/texture-zhulin.webp") center bottom / 100% auto no-repeat,
     radial-gradient(circle, rgba(31, 26, 19, 0.78), rgba(22, 17, 12, 0.94));
+  background-blend-mode: normal, screen, normal;
 }
 
-/* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)── */
+/* ── 烟花粒子:沿 --dx/--dy 飞散并消隐(对照旧 firework-burst)。
+   #837 终局亮化:旧 4px 无辉光在飞只见微尘(DOM 25 粒肉眼几不可辨)——
+   粒径 4→7px + currentColor 辉光(组件注入 color 与 background 同源);
+   70% 帧钉住近满尺寸/近满亮(transform 的位移分量取 0.7 倍,与 0→100 线性
+   插值同位,不改变飞行路径),飞行中段即是一颗颗可数的亮头;末端才收缩
+   (scale 0.2→0.4)消隐,辉光沿路径拖出尾迹。── */
 @keyframes firework-burst {
   0% {
     transform: translate(0, 0) scale(1);
     opacity: 1;
   }
+  70% {
+    transform: translate(calc(var(--dx, 0) * 0.7), calc(var(--dy, 0) * 0.7)) scale(0.9);
+    opacity: 0.9;
+  }
   100% {
-    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.2);
+    transform: translate(var(--dx, 0), var(--dy, 0)) scale(0.4);
     opacity: 0;
   }
 }
 .firework-particle {
   position: absolute;
-  width: 4px;
-  height: 4px;
+  width: 7px;
+  height: 7px;
   border-radius: 9999px;
   pointer-events: none;
+  box-shadow: 0 0 8px 2px currentColor;
   /* 逐粒时长由唯一消费方 VictoryScreen.tsx 注入 --fw-dur(烟花随机化,不归档);
      不写回退值——零兜底,漏注入即炸出来。 */
   animation: firework-burst var(--fw-dur) var(--ease-out) forwards;
+}
+
+/* #837 「大雨滴」主星:每波 3% 概率一枚(概率与落位在 spawnBurst),12px 金色、
+   双圈辉光压过满天碎星;同一 firework-burst keyframe(--fw-dur 照注),只分级
+   尺寸与辉光,组件挂本类即生效。 */
+.firework-particle-main {
+  width: 12px;
+  height: 12px;
+  box-shadow:
+    0 0 12px 4px currentColor,
+    0 0 28px 10px currentColor;
 }
 
 /* ── 胜利标题:金色辉光呼吸 + 弹跳入场 ── */
