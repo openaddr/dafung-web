@@ -1,5 +1,5 @@
 // Game 屏(#700 全浮层骨架;#732 顶左行序重排):棋盘全幅垫底 + 顶部浮层(顶左
-// 设置/详情/N 轮 chip 一行)+ 顶中知会横幅槽(NoticeBanner)+ 席位格列(#698 重形)
+// 设置/详情两钮)+ 顶中知会横幅槽(NoticeBanner)+ 席位格列(#698 重形)
 // + 底缘透明手牌区 + 右下三圆钮。
 // 旧顶栏/底部仪表条(DashboardBar)已退役并核销(#700):目标身价/回合方字条/牌库
 // 角标/复位·缩放·静音钮 → 席位格与设置弹层承接;现金/属性徽章/体力/「你」印 →
@@ -50,7 +50,11 @@ import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { InquiryLayer } from "./InquiryScroll";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
-import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
+import {
+  ConnectionBanner,
+  CONN_BANNER_BODY_H,
+  useConnDown,
+} from "@app/screens/shared/ConnectionBanner";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 
@@ -150,6 +154,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const hintLevel = useGameStore((s) => s.hintLevel);
   const localPlayer = useLocalPlayer();
   const net = useNetStore();
+  // 断线在场(#853):横幅(z-20)踞顶中,知会槽/hint 行/选都提示 chip 同踞顶中,
+  // 不让位则上半互压(审计 R6 P2-8 实拍)——--conn-h 让位偏移由本层下发给全列。
+  const connDown = useConnDown();
   // 自局座位(稳定身份,勿用 viewSeat):单机热座下 viewSeat 跟随决策方轮转(bot 回合
   // 时指到 bot 席),席位格自机格识别/仪表条身份/手牌架都需要的是固定的「人」。
   // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
@@ -432,7 +439,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           生命周期=一局;#188 第 1 步:掷骰由控制器定时自动发起(起签后起摇),演出期间
           控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />
-      <div className="game-layout relative h-full w-full overflow-hidden bg-bg text-ink">
+      <div
+        className="game-layout relative h-full w-full overflow-hidden bg-bg text-ink"
+        /* #853 断线让位:--conn-h = 断线横幅体高(在场)/0(不在场),知会槽
+            (notice-banner.css)与下方 +8/+56 hint 行按同一变量整列下移。恒置
+            (0px 也在)——消费方无兜底回退,变量缺失即布局坏出来。 */
+        style={{ ["--conn-h" as string]: connDown ? `${CONN_BANNER_BODY_H}px` : "0px" }}
+      >
         {/* 棋盘区全幅垫底(id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点)。
           棋盘初始取景 = computeFitView 按图推导的总览 viewBox + preserveAspectRatio
           meet——容器变矮
@@ -477,9 +490,10 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             // S8(#41);#732 评审修复重立几何契约:选都期知会槽恒空(等待条
             // phase≠Playing 直接 null),选都引导上移驻槽行(+8)——纯播报即知会,
             // 与槽内件同几何;统一 hint 退第二行(+48),与槽内等待条/横幅上下错开。
+            // #853:断线在场随 --conn-h 整列下移(与知会槽同拍,见 game-layout)。
             <div
               data-testid={TESTIDS.hint}
-              className="pointer-events-none absolute top-[calc(var(--safe-top)+8px)] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
+              className="pointer-events-none absolute top-[calc(var(--safe-top)+8px+var(--conn-h))] left-1/2 -translate-x-1/2 rounded-[3px] border border-lacquer-gold/30 bg-panel/95 px-4 py-1 font-title text-lg shadow-sm"
             >
               {setupHint}
             </div>
@@ -487,11 +501,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* F4:统一 hint 组件(样式与过期口径与 lobby/App 一致;#732 评审修复:
               顶中 +8 行归知会槽,game 屏 hint 落第二行;#762 几何修正:+48→+56——
               回合横幅两段式亮相仍占槽区(渲染高 ~40px,槽内居中下缘至 +44),
-              hint 再让 8px 保净距 ≥8px,不遮 hint 行) */}
+              hint 再让 8px 保净距 ≥8px,不遮 hint 行);#853 断线在场随 --conn-h
+              整列下移,与槽内件保持同距 */}
           <HintBar
             hint={hint}
             level={hintLevel}
-            overlayTopClass="top-[calc(var(--safe-top)+56px)]"
+            overlayTopClass="top-[calc(var(--safe-top)+56px+var(--conn-h))]"
           />
           {/* 决策卷轴路由(阶段 6 接线):按相位弹招贤/珍宝/破产/胜利/城池详情。
             容器 pointer-events-none:无弹层时不挡棋盘;各弹层自带遮罩(z-30)接管交互。
@@ -508,7 +523,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             <InquiryLayer snapshot={snapshot} interactive={interactive} />
           </div>
         </div>
-        {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮 + 「N 轮」chip 同排,顶中让给知会槽 */}
+        {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮同排,顶中让给知会槽;
+            「N 轮」chip 已退役(#853,轮次唯一落回合胶囊) */}
         <GameTopBar
           snapshot={snapshot}
           warUnread={warUnread}

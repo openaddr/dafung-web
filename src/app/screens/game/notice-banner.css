@@ -8,11 +8,19 @@
    #762:槽内增常驻回合胶囊(.turn-capsule)——两段式亮相的收编终态,横幅播完即常驻
    显示当前回合方;胶囊是 flex 常驻件、带件是 absolute 覆盖件(DOM 序在后=z 序在上,
    收编淡出即露出胶囊);等待条的「已候 N 秒」附加信息并入胶囊右侧(组件内融合,
-   见 NoticeBanner/WaitingBar)。 */
+   见 NoticeBanner/WaitingBar)。
+   #853:①断线让位——断线横幅(z-20)在场时槽随 --conn-h(GameScreen 恒置于
+   .game-layout,值 = 横幅体高/0)整列下移,横幅底缘下保持常态 8px 净距,
+   不再与顶中知会件上半互压;同变量消费方还有 game 屏选都提示 chip 与 +56 hint 行
+   (GameScreen)。②回合横幅亮相净空——槽内大字横幅(~40px,槽内居中下缘 ≈+44)
+   与行 0 城池铭牌顶(≈+44.5)只余 ~1px,亮相段贴压行 0 三格铭牌(审计 R2 P2-6
+   实拍):横幅整体上提 4px,给铭牌留 ~5-6px 净空(胶囊/药丸不动,槽行与顶栏行
+   同排几何不破)。上提落在本文件而非 fx.css:fx-banner-appear 动画体在 fx.css
+   (冻结中 #849),此处的 translate 独立属性与动画的 transform 合成,不冲突。 */
 
 .game-layout .notice-slot {
   position: absolute;
-  top: calc(var(--safe-top) + 8px);
+  top: calc(var(--safe-top) + 8px + var(--conn-h));
   left: calc(var(--safe-left) + 8px);
   right: calc(var(--safe-right) + 8px);
   height: 32px; /* 与顶栏钮行同高:槽空时等待条药丸在此行内垂直居中 */
@@ -23,6 +31,14 @@
   display: flex;
   align-items: center;
   justify-content: center;
+}
+
+/* 回合横幅亮相净空(#853,审计 R2 P2-6):槽内大字横幅上提 4px——translate 独立
+   属性先于 transform 合成,fx-banner-appear/fx-banner-capsulate(两段动画本体在
+   fx.css)的 transform 照常运作。横幅元素只在播报窗内存在,生命周期=亮相+收编,
+   无「非亮相态」需要区分。 */
+.game-layout .notice-slot .fx-turn-banner {
+  translate: 0 -4px;
 }
 
 /* ── 常驻回合胶囊(#762):国号印 + 名号 + 「第 N 轮」(+融合的等待附加信息)。

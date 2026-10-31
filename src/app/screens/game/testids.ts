@@ -12,21 +12,20 @@
 // 2026-10-17 退役核销:topbar-discard 随顶栏弃牌 chip 退役(18−牌库−Σ席位手牌可推导),
 // 接替形态=锦囊牌库小件(topbar-deck 落朱砂角标)。
 // #700 退役核销:topbar-active(回合方字条)/topbar-target(目标身价)/topbar-deck(牌库
-// 角标)随旧顶栏退役——顶中只留「N 轮」浮置 chip;dashboard-bar 系(dashCash/dashAttr/
+// 角标)随旧顶栏退役;dashboard-bar 系(dashCash/dashAttr/
 // dashStamina/dashTreasures/dashHeroes/dashYou)随仪表条本体退役(资产数值归席位格,
 // 签面迁手牌区左端,testid dice-face 不变);log-tab(战报把手)退役,入口降级设置弹层
 // (log-drawer 抽屉本体保留);autopilot-button(托管钮)随仪表条退役,#701 tap 弹层
 // 接管(过渡期托管不可达可接受,同一集成分支收口);mute-button/reset-view(音乐钮/
 // 总览复位钮)退役——音效开关降级入设置弹层,复位能力随 usePanZoom reset 一并退役。
+// #853 退役核销:topbar-round(「N 轮」浮置 chip)随 chip 退役——轮次唯一落回合
+// 胶囊(turn-capsule,#732 拍板在先、#762 胶囊诞生后的双通道冗余,复裁退役)。
 // 接替形态=顶左两钮(topbar-overview/settings-button)+ 右下三圆钮(pile-buttons 族)
 // + 设置弹层(settings-* 族)+ 手牌区(hand-zone)。
 export const TESTIDS = {
-  // ── 全浮层骨架(#700;#732 顶左行序:设置→详情→N 轮 chip,顶中让给知会槽):
+  // ── 全浮层骨架(#700;#732 顶左行序:设置→详情两钮,顶中让给知会槽):
   //  顶部条 / 席位格列 / 手牌区 / 右下三圆钮 ──
   topBar: "top-bar",
-  /** 顶左「N 轮」浮置 chip(#732 自顶中迁左,与钮行同排;textContent = 「N 轮」;
-   *  #700 起不含印章与目标身价)。 */
-  topbarRound: "topbar-round",
   /** 顶左详情钮(诸侯详情弹窗入口,#732 正名;#702 点开十列分板弹层)。 */
   topbarOverview: "topbar-overview",
   /** 顶左设置钮(开设置弹层)。 */

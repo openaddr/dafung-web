@@ -1,5 +1,6 @@
 /* 对局屏全浮层布局(#700 骨架)——从原型 tmp/席位侧列原型.html ①全屏语境/④顶钮
-   左移对账/⑥设置弹层 三节判决忠实移植:顶部浮层(顶左两钮 + 顶中「N 轮」chip)/
+   左移对账/⑥设置弹层 三节判决忠实移植:顶部浮层(顶左两钮;「N 轮」chip 已退役
+   #853,轮次归回合胶囊)/
    右缘席位格列(#698 重形:96×38 双行八项格)/ 底缘透明手牌区(签面驻左端)/
    右下三圆钮;旧顶部条与底部仪表条(.dash)退役。
    所有规则作用域在 .game-layout 下防全局串扰(设置弹层经 Portal 挂 body,
@@ -218,19 +219,20 @@
 }
 
 /* ── 顶部浮层(#700 顶钮左移;#732 顶左行序重排):顶左一行 = 设置/详情两钮
-   (32×32 避 safe-area)+「N 轮」浮置 chip,顶中让给知会横幅槽(NoticeBanner)── */
+   (32×32 避 safe-area),顶中让给知会横幅槽(NoticeBanner);「N 轮」chip 已
+   退役(#853,轮次唯一落回合胶囊)── */
 .game-layout .topbar {
   position: absolute;
   top: calc(var(--safe-top) + 8px);
   left: calc(var(--safe-left) + 8px);
   right: calc(var(--safe-right) + 8px);
   z-index: 6;
-  pointer-events: none; /* 容器不挡棋盘拖拽,钮/chip 自身放行 */
+  pointer-events: none; /* 容器不挡棋盘拖拽,钮自身放行 */
 }
 .game-layout .topbtns {
   /* inline-flex 收宽度=内容(display:flex 是块级盒会撑满 topbar 全行,pointer-events
      auto 的全宽条带吞掉右上自机格点击层——react-self-target e2e 实锤,#700 修复);
-     #732 起行内三件(设置/详情/chip)基线对齐:钮 32 高、chip 22 高,居中互齐。
+     #853 起行内两件(设置/详情),居中互齐。
      间隙 6→10px(#743 F):两钮命中垫扩到 44 后防热区互贴误触。 */
   display: inline-flex;
   align-items: center;
@@ -275,23 +277,8 @@
   outline: 2px dashed var(--color-gold);
   outline-offset: 2px;
 }
-/* 「N 轮」chip(#732 自顶中迁左):浮置 chip 形态原样(panel 混底+细边框+文肯小字),
-   只挪位——行内静置于详情钮后,与钮行基线对齐(行 align-items:center 承担) */
-.game-layout .turnchip {
-  background: color-mix(in srgb, var(--color-panel) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
-  border-radius: 5px;
-  padding: 3px 10px;
-  font-size: 12px;
-  color: var(--color-ink-dim);
-  font-family: var(--font-wenkai);
-  pointer-events: auto;
-}
-.game-layout .turnchip b {
-  color: var(--color-ink);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
-}
+/* 「N 轮」chip 样式已随元素退役(#853):#731 拍板时 #762 回合胶囊尚未诞生,
+   胶囊上线后双通道同屏说一件事——轮次唯一落 .turn-capsule(notice-banner.css)。 */
 
 /* ── 席位格列(#698 席位条重形):右缘单列 96×38 双行八项格,一人一格(自机入列)──
    原型 tmp/席位侧列原型.html ①②③ 判决移植:几何/字号/间距以原型为准,色一律现役

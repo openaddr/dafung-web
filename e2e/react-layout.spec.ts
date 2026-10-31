@@ -47,12 +47,18 @@ test.describe("全浮层骨架", () => {
     }
   });
 
-  test("顶部浮层:顶中「N 轮」chip 与快照一致;总览钮点开总览弹窗,设置钮可用", async ({ page }) => {
+  test("顶部浮层:回合胶囊轮次与快照一致(#853 chip 退役后轮次唯一落胶囊);总览钮点开总览弹窗,设置钮可用", async ({
+    page,
+  }) => {
     await quickStart(page);
     await expect
       .poll(async () => {
         const s = await snap(page);
-        return (await page.getByTestId(TESTIDS.topbarRound).textContent()) === `${s.round} 轮`;
+        // 胶囊内「第 N 轮」档(.tc-round,NoticeBanner 单源)与快照回合一致
+        return (
+          (await page.getByTestId(TESTIDS.turnCapsule).locator(".tc-round").textContent()) ===
+          `第${s.round}轮`
+        );
       })
       .toBe(true);
     // 详情钮 #702 点亮(#732 正名「详情」):可用,点开诸侯详情弹窗(内容与投影归

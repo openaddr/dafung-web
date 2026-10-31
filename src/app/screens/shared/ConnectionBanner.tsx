@@ -5,7 +5,21 @@
 // #494:重连中附「(第 n/N 次)」真实进度(计数透传自 ReconnectingSocket,经
 // netStore.reconnect;非重连态为 null,缺计数时只显示基础文案,不造假进度)。
 // W2 包E(审计 A5):断线话术是动态文案,字族迁 wenkai(新文案不落小薇)。
+// #853 让位:横幅在场时顶中知会槽/hint 行/game 屏选都提示 chip 整列下移让位
+// (--conn-h,GameScreen 消费)——掉线横幅(z-20)与知会横幅槽(z-6)同踞顶中,
+// 不让位则上半互压(审计 R6 P2-8 实拍)。在场判定与让位高度由本件单源吐出。
 import { useNetStore } from "@app/store/netStore";
+
+/** 断线在场判定(横幅渲染条件与 --conn-h 让位偏移的共同单源):closed = 重连中、
+ *  gaveUp = 退避耗尽,两者出横幅;idle/open 不出。 */
+export function useConnDown(): boolean {
+  const connection = useNetStore((s) => s.connection);
+  return connection === "closed" || connection === "gaveUp";
+}
+
+/** 横幅体高(px,不含 safe-top):6 上内距 + 20(text-sm 行高)+ 6 下内距。
+ *  让位方(GameScreen --conn-h)按此偏移,槽位落横幅底缘下 8px(与常态同距)。 */
+export const CONN_BANNER_BODY_H = 32;
 
 export function ConnectionBanner() {
   const connection = useNetStore((s) => s.connection);
