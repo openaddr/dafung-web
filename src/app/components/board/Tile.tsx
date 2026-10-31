@@ -4,6 +4,9 @@
 // 玄墨鎏金深底化(#512,#500 决议方案一「重调色保留」):铭牌=深卡浅字(漆金细边深卡
 // lacquer 系+纸色字);事件格外轮廓三族(天命云纹圆龛/锦囊幡旗形/税关城垛缺口形,
 // 毛笔大字保留);都城金匾是深卡唯一例外(金底墨字)。
+// #842 归属色墨化:格底=color-mix(ownerRgb 22%, bgDeep) 墨渍染,饱和归属色收敛到
+// 铭牌底染 shade(owner,0.5)+全饱和描边两通道(糖果色整格平涂退役,一格一语言);
+// 归属国号角标收回格内左上压角;铭牌字随名长自适应不截断。
 // 本文件不再散落色值字面量:语义色吃 Theme token,棋盘专属装饰色收敛到文件头常量块。
 // 宣告动效(ADR-0015):扩军(新珠落位)与易主(流光)的「何时播」归表现事件流——
 // 播放器经 sink 在 fxStore 下发宣告 nonce,本组件订阅重播;组件内不做 props diff 自触发
@@ -19,6 +22,21 @@ import { Building } from "./tile-building";
  *  缺乏层次,统一乘暗系数得到同色相的深卡(zoom-out 后"色块=地盘"仍按色相可辨)。 */
 function shade(c: { r: number; g: number; b: number }, f: number) {
   return { r: Math.round(c.r * f), g: Math.round(c.g * f), b: Math.round(c.b * f) };
+}
+
+/** 双色 srgb 加权混色:`color-mix(in srgb, c f%, base)` 的等价算式(逐通道线性插值,
+ *  双方 alpha 恒 1,#842)。归属只在格底留墨渍级痕迹(玩家色 22% 混进玄墨底),
+ *  饱和色收敛到铭牌底染+描边两通道,不再整格平涂(DESIGN §5.2 一格一语言)。 */
+function mix(
+  base: { r: number; g: number; b: number },
+  c: { r: number; g: number; b: number },
+  f: number,
+) {
+  return {
+    r: Math.round(base.r + (c.r - base.r) * f),
+    g: Math.round(base.g + (c.g - base.g) * f),
+    b: Math.round(base.b + (c.b - base.b) * f),
+  };
 }
 
 export interface TileVisualState {
@@ -61,8 +79,8 @@ interface TileProps {
 export const TILE_SCALE = 2.2;
 
 // ── 竖排木匾城名 ──
-// 局部常量(#512 深卡浅字):匾身=漆木深卡、边/铆钉/流苏=漆金细边、字=纸色;
-// 都城金匾是深卡唯一例外(金底墨字)。集中在此便于整体调色。
+// 局部常量(#512 深卡浅字):匾身=漆木深卡(有主=深玩家色底染,#842)、边/铆钉/流苏=
+// 漆金细边、字=纸色;都城金匾是深卡唯一例外(金底墨字)。集中在此便于整体调色。
 const PLAQUE_FILL = rgba(Theme.paperLo, 0.98); // 匾身深卡(比铭牌 lacquer 卡再沉一档)
 const PLAQUE_EDGE = rgba(Theme.lacquerGold, 0.9); // 漆金细边/铆钉/流苏
 const PLAQUE_TEXT = rgba(Theme.ink, 0.96); // 纸色匾字
@@ -70,8 +88,14 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
 
 /**
  * 竖排木匾(挂建筑右侧):漆木深卡 + 1px 漆金细边 + 顶部两枚铆钉;都城匾加宽 + 金底墨字
- * (深卡唯一例外)+ 底部两缕流苏。
+ * (深卡唯一例外)+ 底部两缕流苏。有主(非都城)匾身换深玩家色底染 shade(owner,0.5)
+ * (#842):饱和归属色从整格平涂收敛到铭牌(一格一语言,DESIGN §5.2 定稿口径),
+ * zoom-out 后「铭牌色块/旗形=归属」的形状层辨认不变。
  * 方案取舍:选"逐字纵排"而非 SVG writing-mode(后者 Firefox/Safari 对 tb 支持参差,逐字定位最稳)。
+ *
+ * 长名不截断(#842):全字入匾、匾高随字数自适应;≥3 字字号降档 0.85×(17≈20×0.85,
+ * 字距同步收紧),自定义图 4 字以上城名完整可读,匾身在建筑右侧向下延展(悬挂匾,
+ * 本就允许探出格底)。内置两张图城名最长 3 字,截断史实为自定义图专属路径。
  *
  * 两级可读设计(B1):总览(computeFitView 按图推导,3400 宽级 → ~1000px 容器,缩放系数 ≈0.3-0.45)下
  * 任何城名字都只有 ~6-8px——总览不指望读字,靠「铭牌色块/旗形=归属」的形状层辨认
@@ -79,15 +103,28 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
  * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;规模三档视觉通道已随经济 v2 退役)。
  */
-function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
-  const chars = [...name].slice(0, 3); // 城名 2-3 字
+function NamePlaque({
+  name,
+  capital,
+  ownerRgb,
+}: {
+  name: string;
+  capital: boolean;
+  ownerRgb: { r: number; g: number; b: number } | null;
+}) {
+  const chars = [...name]; // 长名不截断(#842):全字入匾
   const w = capital ? 34 : 26;
-  const fs = 20;
-  const step = fs + 3; // B5:字距留缝(20→23),三字匾整体高度随之 +6
+  const fs = chars.length >= 3 ? 17 : 20; // ≥3 字降档 0.85×(#842)
+  const step = fs + 3; // B5:字距留缝,随字号同步缩放
   const h = chars.length * step + 12;
   const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与王旗/小旌旗重叠
   const y0 = -22;
   const rivet = capital ? rgba(Theme.bgDeep, 0.6) : PLAQUE_EDGE; // 金匾钉帽换深色,金钉钉金匾不可见
+  const body = capital
+    ? rgba(Theme.goldBright, 0.95)
+    : ownerRgb
+      ? rgba(shade(ownerRgb, 0.5), 0.98) // 归属底染(#842):饱和色收敛到铭牌
+      : PLAQUE_FILL;
   return (
     <g className="bv-tile-plaque">
       <rect
@@ -96,7 +133,7 @@ function NamePlaque({ name, capital }: { name: string; capital: boolean }) {
         width={w}
         height={h}
         rx={3}
-        fill={capital ? rgba(Theme.goldBright, 0.95) : PLAQUE_FILL}
+        fill={body}
         stroke={PLAQUE_EDGE}
         strokeWidth={1}
       />
@@ -373,8 +410,10 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
         />
       ) : null}
 
-      {/* 铭牌底(#512 深卡浅字):无主=漆木深卡+漆金细边(低显著);有主(含都城)=深玩家色
-          整块染底 ≥90% 不透明——zoom-out 扫描时"色块=地盘"按色相即读,不依赖细节。
+      {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
+          color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色
+          收敛到铭牌底染(NamePlaque)+全饱和描边 3px 两通道,色弱通道仍靠城旗国号
+          (DESIGN §5.2 一格一语言;城旗/档位珠/都城光晕全不动)。
           天命/锦囊/税关三族事件格由族形组件自带外轮廓,不画通用圆角方牌。 */}
       {familyShape ? (
         tile.type === "Fate" ? (
@@ -392,8 +431,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
           width={104}
           height={88}
           rx={10}
-          fill={ownerRgb ? rgba(shade(ownerRgb, 0.52), 0.94) : rgba(Theme.lacquer, 0.92)}
-          fillOpacity={ownerRgb ? 0.94 : 1}
+          fill={ownerRgb ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22)) : rgba(Theme.lacquer, 0.92)}
           stroke={
             state.isActive
               ? rgba(Theme.goldBright)
@@ -402,7 +440,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
                 : rgba(Theme.lacquerGold, 0.5)
           }
           strokeOpacity={ownerRgb ? 0.95 : 0.9}
-          strokeWidth={ownerRgb ? 4 : state.isActive ? 3 : 1.5}
+          strokeWidth={ownerRgb ? 3 : state.isActive ? 3 : 1.5}
         />
       )}
 
@@ -528,8 +566,9 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
               strokeWidth={8}
             />
           ) : null}
-          {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
-          <NamePlaque name={tile.name} capital={isCapital} />
+          {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏;有主=深玩家色底染(#842
+              归属主通道),无主深木底金字 */}
+          <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
           {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
               无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
               重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
@@ -630,26 +669,29 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
           ) : null}
           {/* B2 三旗语法分化:持有者城旗改「燕尾旗」(矩形 + 飞端 V 形缺口)——
               与棋子的三角旗(人)、王旗的双层大三角(都)三形互斥,远看旗形即分类;
-              深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。 */}
+              深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。
+              #842:旗组从格框外路面(原 x 40..62 越框压箭羽)收回格内左上角压角——
+              框缘内缩 6px(旗顶 -38=上缘内缩 6、旗杆 -46=左缘内缩 6),杆脚落在檐角
+              线上(下檐尖 ±40,-21),不压箭羽/档位珠(左下)/宝印(右上)/木匾(右侧)。 */}
           {!isCapital && ownerRgb ? (
             <g className="bv-tile-owner-flag">
               <line
-                x1={40}
-                y1={-28}
-                x2={40}
-                y2={-50}
+                x1={-46}
+                y1={-24}
+                x2={-46}
+                y2={-38}
                 stroke={rgba(Theme.inkwash, 0.8)}
                 strokeWidth={1.5}
               />
               <polygon
-                points="40,-50 62,-50 55,-45 62,-40 40,-40"
+                points="-46,-38 -24,-38 -31,-33 -24,-28 -46,-28"
                 fill={rgba(ownerRgb)}
                 stroke={rgba(Theme.bgDeep, 0.7)}
                 strokeWidth={1}
               />
               <text
-                x={50}
-                y={-41.5}
+                x={-36}
+                y={-29.5}
                 textAnchor="middle"
                 fontFamily="var(--font-brush)"
                 fontSize={10.5}
