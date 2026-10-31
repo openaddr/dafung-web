@@ -54,8 +54,6 @@ export type PresentationEvent =
       kind: "cashDelta";
       playerId: string;
       amount: number;
-      /** 铜钱雨扩容(S7 #513):纳税付银随雨落币(补给走独立 supplyRain,不带本档)。 */
-      coins?: boolean;
       /** 棋盘逻辑坐标(SVG 系,提取期已按 旧优先级 锚定)。 */
       x: number;
       y: number;
@@ -98,9 +96,9 @@ export type PresentationEvent =
   /** 回合宣告(#762 元数据随事件烤定,ADR-0029 不变量①同族:isBot/round 提取拍
    *  从引擎读定,播放期与槽泵合并判别零读引擎)。 */
   | { kind: "turnBanner"; guohao: string; colorIndex: number; isBot: boolean; round: number }
-  /** 落格定音(S7 #513,BRIEF 台账 #9 翻案件):行军落在事件/机遇格(税/仓/锦囊/
-   *  天命/卧龙)的金圈一拍——零新引擎事件,提取期按落点格型直译并烤坐标,同步下发
-   *  CSS 自走。 */
+  /** 落格金圈一拍(#850 技能施展定音):heroSkillActivated 施法者 token 金圈一拍——
+   *  原「行军落事件/机遇格定音」生产者(按落点格型直译)已随功能格五型退役(#826)
+   *  整体删除,本事件现仅技能施展单一生产者,提取期烤坐标同步下发 CSS 自走。 */
   | { kind: "landPulse"; tileIndex: number; x: number; y: number }
   /** 拼点签面(#637,ADR-0030):duelResolved 直译的全屏多签演出——每名参与者一枚
    *  骨牌大字签面(签头=玩家色底+国号),并行起摇、依座位序错拍落定;判词=胜者金光圈
@@ -245,7 +243,7 @@ export interface FxSink {
   /** 朱砂印章(含 stamp 音);坐标提取拍已烤进事件(qiqian 在到达同步点换算)。
    *  tone="gold"=漆金印(S7 探宝「得」印)。 */
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
-  /** 落格定音(S7):落点格金圈一拍,同步下发 CSS 自走(坐标提取烤好)。 */
+  /** 落格金圈一拍(#850 技能施展定音):同步下发 CSS 自走(坐标提取烤好)。 */
   landPulse(x: number, y: number): void;
   /** 拼点签面(#637,ADR-0030):全屏多签演出整场(幕启→摇→落→判词→渐出),
    *  await 到整幕收口——串行编排保证签面收场后棋盘后效才登场。 */

@@ -72,10 +72,10 @@ import {
   sellPropertyBankruptcy,
   sellTreasureBankruptcy,
 } from "./bankruptcy";
-// 珍宝+城主交涉域(#322,ADR-0019):宝物城落格结算、抽宝拼点、
+// 珍宝+城主交涉域(#322,ADR-0019):抽宝拼点(珍宝城落格固定事件位,#825)、
 // 城主交涉(escrow 托管)在 treasure-flow.ts,壳内同名方法薄委托转发;与数据表
 // treasures.ts 分层(流程≠数据)。
-import { finishTradeChain, resolveTreasureOwner } from "./treasure-flow";
+import { drawTreasureAt, resolveTreasureOwner } from "./treasure-flow";
 // 移动结算域(#323,ADR-0019):行军三件/地产决策/落格结算/都城补给在
 // movement-flow.ts,壳内同名公共方法薄委托转发;reaction-window 续走经壳上
 // marchTraverse/settleMarchLanding 回调,开拦检窗由域模块直调 openReactionWindow。
@@ -386,6 +386,12 @@ export class GameEngine {
    *  true ⇔ AwaitingEncounter 相位挂着且落格是驻跸截断。随快照走(SNAPSHOT_FIELDS)。 */
   pendingEncounterHalt = false;
 
+  /** 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位,续跑 resolveLanding
+   *  (直入交易链、不再触发固定事件);招贤(AwaitingHeroPick)跨命令持有,同步类
+   *  (锦囊/天命/商市/探宝)同命令内消费即清。
+   *  随快照走(SNAPSHOT_FIELDS)。 */
+  pendingCityEvent = false;
+
   /** 定制问询挂起载荷(#432 置值/#424 相位化,ADR-0022):非 null ⇔ turnPhase ===
    *  "AwaitingInquiry"(不变量,endTurn 入口挡板+收尾断言守卫);选项集经
    *  PHASE_CHOICES.AwaitingInquiry 注册的 inquiryChoices 按 id 回调扩展出快照(选项盖
@@ -609,13 +615,13 @@ export class GameEngine {
   // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
   // settleMarchLanding,含伏兵挂点/驻跸必停)、
   // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
-  // endDecision)、落格结算(resolveLanding;resolveSpecial/resolveProperty/
+  // endDecision)、落格结算(resolveLanding;resolveCityEvent/resolveProperty/
   // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
   // 域内自洽不留壳)均为自由函数,在 movement-flow.ts,首参接引擎实例。
   // 壳内仅留同名公共方法薄委托(外部 importer 无感):命令口经 submitCommand 分发、
   // bot 直调、testing.ts 白盒窄面触达 resolveLanding。跨域往返与既有票一致走壳上
   // 薄委托:reaction-window 续走经 g.marchTraverse/g.settleMarchLanding 回调;机遇/
-  // 宝物城/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
+  // 探宝(珍宝城固定事件位)/escrow/锦囊抽牌/招贤经各自壳上方法消费;开拦检窗由域模块直调
   // reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
   // 迁出而删,见反应窗区段)。
 
@@ -684,7 +690,7 @@ export class GameEngine {
 
   // ──────────────────────────── 落格处理 ────────────────────────────
 
-  /** 落格结算(己都城/卧龙岗/宝物城/特殊格/城池分流):薄委托 → movement-flow.resolveLanding
+  /** 落格结算(己都城/城池三分/事件城固定事件,#826 全城池制):薄委托 → movement-flow.resolveLanding
    *  (testing.ts 白盒窄面、reaction-window 拦停止步与 encounter-flow 机遇解毕续结算经此)。 */
   resolveLanding(): void {
     resolveLanding(this);
@@ -827,20 +833,18 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 珍宝交涉(公道买卖/坐地起价) ────────────────────────────
-  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):交易链收尾
-  // (finishTradeChain,含宝物城链尾探宝挂件 ADR-0024)、抽宝拼点(drawTreasureAt)
+  // 域逻辑在 treasure-flow.ts(#322,ADR-0019 委托式拆分):抽宝拼点(drawTreasureAt)
   // 与城主交涉(resolveTreasureOwner)均为自由函数,首参接引擎实例;
   // 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步经 bankruptcy.ts 的壳上薄委托
   // g.deliverEscrow/g.returnEscrowToSeller 往返消费。壳内仅留同名方法薄委托:公共入口
-  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 交易链收尾(落格结算
-  // movement-flow 消费,ADR-0024 后宝物城落格走城池分流、探宝挂交易链尾);
-  // drawTreasureAt 域内自洽(finishTradeChain 域内直调),不留壳。
+  // resolveTreasureOwner(UI/bot/联机经 submitCommand 分发)+ 抽宝拼点(落格固定事件位,
+  // movement-flow resolveCityEvent 消费,#825);交易链终端一律 endTurn,链尾探宝钩子
+  // 已随 #825 迁移拆除(finishTradeChain 退役)。
 
-  /** 交易链收尾:普通城结束回合;宝物城链尾接一次探宝(自带 endTurn)。
-   *  薄委托 → treasure-flow.finishTradeChain(ADR-0024 落格结算顺序正典:
-   *  机遇 roll → 交易链 → 探宝;清算/破产中断路径不经此)。 */
-  finishTradeChain(mover: Player): void {
-    finishTradeChain(this, mover);
+  /** 抽宝拼点(珍宝城落格固定事件位,#825):结算留痕即返,不收口回合——续跑交易链
+   *  归 movement-flow resolveCityEvent。薄委托 → treasure-flow.drawTreasureAt。 */
+  drawTreasureAt(mover: Player, sourceName: string): void {
+    drawTreasureAt(this, mover, sourceName);
   }
 
   /** 城主抉择:公道买卖/坐地起价/跳过(escrow 托管语义见 treasure-flow.resolveTreasureOwner)。薄委托。 */
@@ -1089,11 +1093,12 @@ export class GameEngine {
   }
 
   // ──────────────────────────── 招贤纳士(#326,ADR-0019)────────────────────────────
-  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。满额/无货→直接 endTurn。
+  /** 招贤纳士:从剩余名将池随机抽 3 张(三选一)。返回 "silent"=满额/无货事件沉默
+   *  (收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
    *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
    *  testing.ts 白盒窄面照旧。#326 域本体迁 recruitment.ts,薄委托 → recruitment.tryRecruitHero。 */
-  tryRecruitHero(mover: Player): void {
-    tryRecruitHero(this, mover);
+  tryRecruitHero(mover: Player): "offered" | "silent" {
+    return tryRecruitHero(this, mover);
   }
 
   /** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用);薄委托 → recruitment.resolveHeroPick。 */

@@ -25,7 +25,7 @@ function soloEngine(seed: number): GameEngine {
 }
 
 describe("种子哨兵(solo 形状 setup 签名,seed 50)", () => {
-  it("定都江州/起手唯反应识破诡计/首摇三落凉州购地卷轴(soloAtBuyAsk·startBuyScroll·startShort 同款)", () => {
+  it("定都长沙/起手唯反应半路杀出/首摇一落零陵购地卷轴(soloAtBuyAsk·startBuyScroll·startShort 同款;#827 36 城 9×4 重排,骰流重钓)", () => {
     const e = soloEngine(50);
     e.doDraftRoll();
     let guard = 0;
@@ -40,14 +40,14 @@ describe("种子哨兵(solo 形状 setup 签名,seed 50)", () => {
       }
     }
     expect(e.phase).toBe("Playing");
-    expect(e.players[0].capitalIndex).toBe(16); // 江州
-    expect(e.players[0].jinnangHand).toEqual(["识破诡计"]); // 唯反应 → 出牌阶段自动放行
+    expect(e.players[0].capitalIndex).toBe(12); // 长沙(#827 环位 P12)
+    expect(e.players[0].jinnangHand).toEqual(["半路杀出"]); // 唯反应牌:开局无窗可驻,自动起摇
     let guard2 = 0;
     while (e.turnPhase === "AwaitingJinnang" && guard2++ < 5) e.resolveJinnang(null);
     expect(e.turnPhase).toBe("Roll");
     e.rollAndMove();
-    expect(e.presentation.lastRoll?.die).toBe(3); // 首摇三
-    expect(e.players[0].position).toBe(19); // 凉州(无主城)
+    expect(e.presentation.lastRoll?.die).toBe(1); // 首摇一
+    expect(e.players[0].position).toBe(13); // 零陵(无主城,#827 环位 P13)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 购地卷轴停靠点
   });
 });

@@ -299,42 +299,58 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
   await expect(detail.getByText(detailIsCapital ? "都城补给" : "变卖价")).toBeVisible();
 });
 
-test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝留痕(ADR-0024)", async ({ page }) => {
+test("珍宝城购地:落格先探宝后交易链,买成收口零探宝(#825 链序)", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page); // 钉死看门狗:强制行军/落格不与自动起摇、停摆代驾赛跑
   try {
-    // 摆位到无主宝物城邻格,直走 rollAndMove 掷定 1 步后的同一段引擎路径:
-    // 途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;机遇已被 fixtures 归零)。
-    // 落无主宝物城 → 交易链:可购决策挂起(同权,ADR-0024;不再直探)。
-    const tcIndex = await page.evaluate(() => {
+    // 摆位到无主珍宝城邻格,直走 rollAndMove 掷定 1 步后的同一段引擎路径:
+    // 途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;机遇已被 fixtures 归零,
+    // 珍宝城=event 城本就免掷)。落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:
+    // 可购决策挂起(同权,ADR-0024)。
+    const tc = await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       e.phase = "Playing";
       e.activeIndex = 0;
       const me = e.players[0];
-      const tc = e.board.tiles.find(
-        (t: { type: string; propertyId: string | null }) =>
-          t.type === "TreasureCity" && !e.findOwner(t.propertyId),
+      const target = e.board.tiles.find(
+        (t: { event?: string; propertyId: string | null }) =>
+          t.event === "treasure" && !e.findOwner(t.propertyId),
       );
-      if (tc == null) throw new Error("盘面无无主宝物城(数据 bug)");
-      const from = (tc.index + e.board.count - 1) % e.board.count;
+      if (target == null) throw new Error("盘面无无主珍宝城(数据 bug)");
+      const from = (target.index + e.board.count - 1) % e.board.count;
       me.position = from;
-      const walked = e.marchTraverse(me, [tc.index], 1, tc.index, from, 1);
+      const walked = e.marchTraverse(me, [target.index], 1, target.index, from, 1);
       if (walked !== "landed") throw new Error(`marchTraverse=${walked}(单格无拦检,契约违反)`);
       e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
-      e.settleMarchLanding(me, tc.index);
+      // 结算留痕基线(#799 配方):留痕断言只扫「基线后追加段」——探宝/可购两行都在
+      // settleMarchLanding 内同步写入,基线取 settle 前一拍;quickStart 人类落格自走线
+      // (available 行,#827 改图后停靠点漂移恒产)留在基线前,全账 findIndex 的哨兵
+      // 病灶(首批 available 撞自走线)不复发。
+      const logBase = e.log.length;
+      e.settleMarchLanding(me, target.index);
       (window as any).__dafung.sync();
-      return tc.index;
+      return { index: target.index, logBase };
     });
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
+    // 链序正典(#825):探宝已在落格先行——gain/miss 任一留痕,且先于可购留痕(交易链)。
+    await expect
+      .poll(async () => {
+        const lines: { detail: string }[] = (await snap(page)).log.slice(tc.logBase);
+        const treasureAt = lines.findIndex(
+          (l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"),
+        );
+        const availAt = lines.findIndex((l) => l.detail.includes("available"));
+        return { treasure: treasureAt >= 0, order: treasureAt >= 0 && treasureAt < availAt };
+      })
+      .toEqual({ treasure: true, order: true });
     // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toContainText("余");
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).not.toContainText("差");
-    const pid = await engineState(page, `e.board.at(${tcIndex}).propertyId`);
+    const pid = await engineState(page, `e.board.at(${tc.index}).propertyId`);
     await waitFxIdle(page);
     const logLenBefore = (await snap(page)).log.length;
     await page.getByTestId(TESTIDS.actionButton("buy")).click();
-    // 结算留痕零放宽:买城入册 + 交易链尾探宝(gain/miss 任一),且探宝行后于买城行
-    // (ADR-0024 顺序正典:机遇 → 交易链 → 探宝;探宝自带 endTurn)。
+    // 收口零探宝(#825 语义位移):窗口内只有买城行——探宝不再接链尾(旧链序断言反转重钉)。
     await expect
       .poll(
         async () => {
@@ -344,11 +360,11 @@ test("宝物城购地→链尾探宝:落无主宝物城买成,交易链尾探宝
           const treasureAt = lines.findIndex(
             (l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"),
           );
-          return { buy: buyAt >= 0, treasure: treasureAt >= 0, order: treasureAt > buyAt };
+          return { buy: buyAt >= 0, treasure: treasureAt >= 0 };
         },
-        { timeout: 15_000, message: "宝物城买城→链尾探宝留痕(顺序正典)" },
+        { timeout: 15_000, message: "珍宝城买城收口:链尾零探宝(#825 链序正典)" },
       )
-      .toEqual({ buy: true, treasure: true, order: true });
+      .toEqual({ buy: true, treasure: false });
   } finally {
     await unfreezeClock(page);
   }

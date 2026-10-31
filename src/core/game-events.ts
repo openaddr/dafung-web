@@ -207,7 +207,7 @@ export interface HeroSkillActivatedBody {
 }
 /** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
  *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
- *  现金/体力同口径);游戏时进手(献计/机遇/锦囊格)经 drawJinnangTraced 产出,
+ *  现金/体力同口径);游戏时进手(献计/机遇/锦囊城)经 drawJinnangTraced 产出,
  *  count=实际入手张数(牌库空落空无转移,不产事件)。 */
 export interface JinnangDrawnBody {
   kind: "jinnangDrawn";
@@ -229,7 +229,7 @@ export interface JinnangExhaustedBody {
   kind: "jinnangExhausted";
 }
 /** 声望变更(#384):delta=夹紧 ±100 后的实际增减,reason=领域词 slug(机遇抉择=
- *  encounter/天命格=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
+ *  encounter/天命城=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
  *  (reason=repMilestone)。 */
 export interface ReputationChangedBody {
   kind: "reputationChanged";

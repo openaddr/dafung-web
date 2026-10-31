@@ -50,6 +50,30 @@ const RETIRED: { phrase: string; note: string }[] = [
     phrase: "技卡",
     note: "#818 术语收官:「技能卡」正典(GLOSSARY Avoid 登记; Avoid 行本身带已废标记豁免)",
   },
+  {
+    phrase: "锦囊格",
+    note: '#826 全城池制:正典承载「锦囊城」(event:"jinnang";GLOSSARY 词条已废标记豁免)',
+  },
+  {
+    phrase: "宝物城",
+    note: "#825 定名:「珍宝城」正典(GLOSSARY Avoid 行已带已废标记;ADR/dogfood 档案行行级豁免)",
+  },
+  {
+    phrase: "天命格",
+    note: '#826 全城池制:正典承载「天命城」(event:"fate")',
+  },
+  {
+    phrase: "商市格",
+    note: '#826 全城池制:正典承载「商市城」(event:"market")',
+  },
+  {
+    phrase: "功能格",
+    note: "#826 全城池制:正典是「特殊城池」/「全城池制」(GLOSSARY 词条已废标记豁免)",
+  },
+  {
+    phrase: "税关格",
+    note: "#826 税关机制退役:格型不再存在(「税关」作为环游图城名存活,不入清单)",
+  },
 ];
 
 // 行内翻面标记:命中即视为历史叙事/退役记录,合法保留

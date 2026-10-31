@@ -11,7 +11,7 @@ test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览",
   await page.getByTestId(HOME_TID.selectMap).click();
   const panel = page.getByTestId(SETUP_TID.mapPanel);
   await expect(panel).toBeVisible();
-  await expect(page.getByTestId(SETUP_TID.mapItem("huanyou"))).toContainText("38 城");
+  await expect(page.getByTestId(SETUP_TID.mapItem("huanyou"))).toContainText("36 城"); // #827 36 城 9×4 重排(全城池制:tileCount=城数)
   await expect(page.getByTestId(SETUP_TID.mapItem("zhongyuan"))).toContainText("8 城");
   // 点 zhongyuan → 异步加载 + 简版预览 SVG
   await page.getByTestId(SETUP_TID.mapItem("zhongyuan")).click();

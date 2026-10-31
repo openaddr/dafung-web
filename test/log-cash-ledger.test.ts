@@ -92,14 +92,14 @@ describe("对局日志现金对账(#617)", () => {
     const mark = e.log.length;
     const cash0 = e.players.map((p) => p.cash);
 
-    // S1(魏回):落无主宝物城,无委任状 → 自动不购 → 链尾探宝,Lv1 拼点恒成得宝(无现金流)
+    // S1(魏回):落无主珍宝城,无委任状 → 落格探宝先行(#825)Lv1 拼点恒成得宝(无现金流),自动不购收口
     wei.warrants = 0;
     e.treasureDeck = [tr("probe-t", 1)];
     const tTile = e.board.tiles.find(
-      (t) => t.type === "TreasureCity" && !e.takenCapitalIndices.has(t.index),
+      (t) => t.event === "treasure" && !e.takenCapitalIndices.has(t.index),
     )!;
     testEngine(e).landActiveAt(tTile.index);
-    passJinnang(e); // 探宝自带 endTurn → 蜀
+    passJinnang(e); // 探宝毕+自动不购收口 endTurn → 蜀
     expect(wei.treasures.map((t) => t.id)).toEqual(["probe-t"]);
     const gain = rowOf(e, "treasureGain", "probe-t");
     expect(gain.amount).toBeUndefined(); // 得宝=资产入册,估价不入现金账

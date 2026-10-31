@@ -230,7 +230,6 @@ export function boardOf(e: GameEngine) {
       id: t.propertyId,
       name: t.name,
       type: t.type,
-      region: t.region,
       group: def?.group,
       owner: owner?.guohao ?? null,
       level: holding?.level ?? 0,

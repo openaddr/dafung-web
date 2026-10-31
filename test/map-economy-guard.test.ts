@@ -11,9 +11,9 @@ import { TREASURE_PRICE } from "@core/treasures";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import huanyouData from "../public/maps/huanyou.json";
 
-/** 四档标准表(购价百两速记:县城 18 档/郡城·奇城 30 档/名城 48 档)。
+/** 中原图标准表(ADR-0034 v3 原表,未动;购价百两速记:县城 18 档/郡城·奇城 30 档/名城 48 档)。
  *  变卖价 = 购价 × [60%, 90%, 120%, 150%];建城费 = 购价 50%。 */
-const TIERS = {
+const ZY_STANDARD = {
   县城: {
     price: 1800,
     buildCost: 900,
@@ -44,8 +44,50 @@ const TIERS = {
   },
 };
 
-/** 环游图逐城城档(38 城:名城4/奇城5/郡城12/县城17);zhongyuan 各自映射。 */
-const HUANYOU_TIER: Record<string, keyof typeof TIERS> = {
+/** 环游图标准表(#827 第二棒再平衡,生成器 make-huanyou-map.ts TIERS 同源同值)。
+ *  圈长 45→36 实锤补给吞吐 +25%、局长 −39%/−31%(超 ADR-0034 ±20% 判据),故:
+ *  ①价格 ×1.5(圈长比 1.25 × 冻结节拍残差 1.2)回补每圈水槽——城池购置是系统唯一
+ *  真水槽(租值是玩家间转移,模拟实测调加值/倍率局长零响应);变卖系数 60/90/120/150%
+ *  与建城费 50% 口径保持(购价百两速记:县城 27 档/郡城·奇城 45 档/名城 72 档)。
+ *  ②奇城 Lv2 倍率 5→4:移交清单「双奇城租值」实锤大单 78% 出在奇城,驯化后局均大单
+ *  −27%;满级 ×7、青囊书 600 分水岭(奇/名满级同售 4200)与斩杀线 21000 全保。
+ *  targetNetWorth 30000 / startingCash 10000 / resupply 1000 / maxLevel 3 冻结不动。 */
+const HUANYOU_STANDARD = {
+  县城: {
+    price: 2700,
+    buildCost: 1350,
+    tradeMult: [1, 1, 1, 1],
+    tradeAdd: [100, 200, 400, 800],
+    valueByLevel: [1620, 2430, 3240, 4050],
+  },
+  郡城: {
+    price: 4500,
+    buildCost: 2250,
+    tradeMult: [1, 1, 1, 1],
+    tradeAdd: [200, 400, 800, 1600],
+    valueByLevel: [2700, 4050, 5400, 6750],
+  },
+  奇城: {
+    price: 4500,
+    buildCost: 2250,
+    tradeMult: [2, 3, 4, 7],
+    tradeAdd: [0, 0, 0, 0],
+    valueByLevel: [2700, 4050, 5400, 6750],
+  },
+  名城: {
+    price: 7200,
+    buildCost: 3600,
+    tradeMult: [2, 3, 4, 5],
+    tradeAdd: [200, 400, 600, 1200],
+    valueByLevel: [4320, 6480, 8640, 10800],
+  },
+};
+type TierKey = keyof typeof ZY_STANDARD;
+
+/** 环游图逐城城档(36 城,#827 重排:名城4/奇城5/郡城11/县城16——县城含 5 座
+ *  #827 派生名城[商市城/锦囊城×2/卧龙城/天命城],与旧功能格转城同款县城档);
+ *  zhongyuan 各自映射。 */
+const HUANYOU_TIER: Record<string, TierKey> = {
   // 名城(魏蜀吴都城 + 汉室西京)
   "prop-changan": "名城",
   "prop-luoyang": "名城",
@@ -57,9 +99,8 @@ const HUANYOU_TIER: Record<string, keyof typeof TIERS> = {
   "prop-huarong": "奇城",
   "prop-hefei": "奇城",
   "prop-chibi": "奇城",
-  // 郡城
+  // 郡城(旧 12 城去虎牢关/江陵/弘农,升凉州[州治]/江州[巴郡治])
   "prop-wujun": "郡城",
-  "prop-hulao": "郡城",
   "prop-xianyang": "郡城",
   "prop-xiangyang": "郡城",
   "prop-xuchang": "郡城",
@@ -67,29 +108,29 @@ const HUANYOU_TIER: Record<string, keyof typeof TIERS> = {
   "prop-ye": "郡城",
   "prop-xuzhou": "郡城",
   "prop-hanzhong": "郡城",
-  "prop-jiangling": "郡城",
   "prop-xiapi": "郡城",
-  "prop-hongnong": "郡城",
+  "prop-liangzhou": "郡城",
+  "prop-jiangzhou": "郡城",
   // 县城
   "prop-jiange": "县城",
   "prop-jinyang": "县城",
   "prop-wuchang": "县城",
   "prop-linzi": "县城",
-  "prop-shouchun": "县城",
-  "prop-wan": "县城",
-  "prop-jiangzhou": "县城",
-  "prop-shangyong": "县城",
   "prop-jiangxia": "县城",
   "prop-youzhou": "县城",
   "prop-changsha": "县城",
   "prop-hangu": "县城",
-  "prop-yongzhou": "县城",
   "prop-liaodong": "县城",
   "prop-lingling": "县城",
   "prop-jiaozhou": "县城",
-  "prop-liangzhou": "县城",
+  // #827 派生名城(商市城/锦囊城×2/卧龙城/天命城,统一按县城档入表)
+  "prop-shangshi": "县城",
+  "prop-jinnang-1": "县城",
+  "prop-jinnang-2": "县城",
+  "prop-wolong": "县城",
+  "prop-tianming": "县城",
 };
-const ZY_TIER: Record<string, keyof typeof TIERS> = {
+const ZY_TIER: Record<string, TierKey> = {
   "prop-luoyang": "名城",
   "prop-hulaoguan": "奇城",
   "prop-wancheng": "奇城",
@@ -100,15 +141,16 @@ const ZY_TIER: Record<string, keyof typeof TIERS> = {
   "prop-henei": "县城",
 };
 
-/** 各图各档数量分布(ADR-0034 拍板的分配盘子,防逐城微调悄悄改盘子)。 */
-const HUANYOU_COUNTS: Record<keyof typeof TIERS, number> = { 名城: 4, 奇城: 5, 郡城: 12, 县城: 17 };
-const ZY_COUNTS: Record<keyof typeof TIERS, number> = { 名城: 1, 奇城: 2, 郡城: 2, 县城: 3 };
+/** 各图各档数量分布(ADR-0034 拍板的分配盘子,#827 重排 36 城盘子,防逐城微调悄悄改盘子)。 */
+const HUANYOU_COUNTS: Record<TierKey, number> = { 名城: 4, 奇城: 5, 郡城: 11, 县城: 16 };
+const ZY_COUNTS: Record<TierKey, number> = { 名城: 1, 奇城: 2, 郡城: 2, 县城: 3 };
 
 function checkMap(
   name: string,
   data: unknown,
-  tierOf: Record<string, keyof typeof TIERS>,
-  counts: Record<keyof typeof TIERS, number>,
+  tierOf: Record<string, TierKey>,
+  counts: Record<TierKey, number>,
+  standard: typeof ZY_STANDARD,
 ) {
   const m = loadMap(data);
   it(`${name}:全局数值(目标 30000 / 起手 10000 / 补给 1000)`, () => {
@@ -122,12 +164,12 @@ function checkMap(
     for (const p of m.properties) {
       const tier = tierOf[p.id];
       expect(tier, `${p.id} 缺城档分配`).toBeDefined();
-      const standard = TIERS[tier];
-      expect(p.purchasePrice, `${p.id} price`).toBe(standard.price);
-      expect(p.buildCost, `${p.id} buildCost`).toBe(standard.buildCost);
-      expect(p.tradeAdd, `${p.id} tradeAdd`).toEqual(standard.tradeAdd);
-      expect(p.tradeMult, `${p.id} tradeMult`).toEqual(standard.tradeMult);
-      expect(p.valueByLevel, `${p.id} valueByLevel`).toEqual(standard.valueByLevel);
+      const std = standard[tier];
+      expect(p.purchasePrice, `${p.id} price`).toBe(std.price);
+      expect(p.buildCost, `${p.id} buildCost`).toBe(std.buildCost);
+      expect(p.tradeAdd, `${p.id} tradeAdd`).toEqual(std.tradeAdd);
+      expect(p.tradeMult, `${p.id} tradeMult`).toEqual(std.tradeMult);
+      expect(p.valueByLevel, `${p.id} valueByLevel`).toEqual(std.valueByLevel);
       seen[tier] = (seen[tier] ?? 0) + 1;
     }
     expect(seen, `${name} 各档数量盘子`).toEqual(counts);
@@ -135,8 +177,8 @@ function checkMap(
 }
 
 describe("经济数值 v3 守卫(四档城制,ADR-0034)", () => {
-  checkMap("huanyou", huanyouData, HUANYOU_TIER, HUANYOU_COUNTS);
-  checkMap("zhongyuan", zhongyuanData, ZY_TIER, ZY_COUNTS);
+  checkMap("huanyou", huanyouData, HUANYOU_TIER, HUANYOU_COUNTS, HUANYOU_STANDARD);
+  checkMap("zhongyuan", zhongyuanData, ZY_TIER, ZY_COUNTS, ZY_STANDARD);
 
   it("珍宝指导价表(v2 沿用):Lv1-10 = 1/2/3/4/6/8/12/16/22/30 两", () => {
     expect(TREASURE_PRICE).toEqual({

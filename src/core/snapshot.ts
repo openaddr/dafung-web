@@ -144,6 +144,8 @@ export interface GameSnapshot {
   pendingLand: PendingLand | null;
   // 机遇解完续跑驻跸尾(ADR-0035,#776):必停都城截断遇抉择机遇占用时置位。
   pendingEncounterHalt: boolean;
+  // 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位,招贤跨命令持有。
+  pendingCityEvent: boolean;
   // 纯派生(log 长度)
   logCount: number;
   // 锦囊牌库/弃牌堆(#122):god-view 含牌序,联机投影只给数量(牌序决定未来抽牌,
@@ -810,6 +812,15 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
     read: (e) => e.pendingEncounterHalt,
     write: (e, s) => {
       e.pendingEncounterHalt = s.pendingEncounterHalt;
+    },
+  },
+  {
+    // 特殊城池固定事件待续跑(#824,ADR-0037):五类固定事件统一置位(招贤跨命令持有),
+    // 恢复后据此续跑 resolveLanding(直入交易链、不再触发固定事件)。
+    key: "pendingCityEvent",
+    read: (e) => e.pendingCityEvent,
+    write: (e, s) => {
+      e.pendingCityEvent = s.pendingCityEvent;
     },
   },
   {

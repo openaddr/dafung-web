@@ -17,7 +17,7 @@
 //   以红圈覆盖层高亮(SVG 根追加 circle 节点,React 不管的外来节点)。
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapData, MapTile } from "@core/board-loader";
-import type { TileType } from "@core/board";
+import type { TileEvent, TileType } from "@core/board";
 import { loadMap } from "@core/board-loader";
 import { MIN_TILE_DIST } from "@core/constants";
 import { findTooClosePairs } from "@core/geometry";
@@ -50,15 +50,21 @@ const HISTORY_MAX = 50;
  *  没有它,点城查看属性也会把城心搬到点击点并污染 undo 栈。 */
 const DRAG_THRESHOLD_PX = 6;
 
-/** 格子类型选项(中文标签对照旧棋盘渲染配色语义)。 */
+/** 格子类型选项(#826 收口):全城池制下唯一类型「城池」——下拉只此一项,契约即文档
+ *  (装载器对其他值响亮报错)。特殊城池行为改由下方「固定事件」下拉承载。 */
 const TILE_TYPES: ReadonlyArray<{ value: TileType; label: string }> = [
   { value: "Property", label: "城池(地产)" },
-  { value: "Chance", label: "锦囊格" },
-  { value: "Fate", label: "天命" },
-  { value: "Tax", label: "赋税" },
-  { value: "Stock", label: "市易(股票)" },
-  { value: "Wolong", label: "卧龙" },
-  { value: "TreasureCity", label: "宝物城" },
+];
+
+/** 特殊城池固定事件选项(#823 ADR-0037):空值=普通城(落格掷机遇);五值=TILE_EVENTS
+ *  白名单(装载校验同源)。 */
+const TILE_EVENT_OPTIONS: ReadonlyArray<{ value: TileEvent | ""; label: string }> = [
+  { value: "", label: "无(普通城)" },
+  { value: "hero", label: "招贤(名将三选一)" },
+  { value: "jinnang", label: "锦囊(落格抽一张)" },
+  { value: "fate", label: "天命(声望 +20)" },
+  { value: "market", label: "商市(行情波动)" },
+  { value: "treasure", label: "珍宝(拼点探宝)" },
 ];
 
 /** 文本/数字字段定义(旧版 renderPanel 的 strFields + numFields,外加 type 下拉)。 */
@@ -72,7 +78,6 @@ const FIELDS: ReadonlyArray<FieldDef> = [
   { key: "name", label: "城名", kind: "text" },
   { key: "id", label: "id", kind: "text" },
   { key: "group", label: "分组(a-h)", kind: "text" },
-  { key: "region", label: "区域", kind: "text" },
   { key: "price", label: "价格", kind: "number" },
   { key: "buildCost", label: "筑城费", kind: "number" },
 ];
@@ -647,6 +652,34 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                 {TILE_TYPES.map((t) => (
                   <option key={t.value} value={t.value}>
                     {t.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label className="flex items-center gap-2">
+              <span className="w-24 shrink-0">固定事件</span>
+              <select
+                data-testid={TID.field("event")}
+                className={selectCls}
+                value={tile.event ?? ""}
+                onChange={(e) => {
+                  const v = e.target.value as TileEvent | "";
+                  setMap((cur) => {
+                    const next = clone(cur);
+                    const t = next.tiles[selected];
+                    if (!t) return cur;
+                    // 空值=摘除 event 字段(普通城),不写空串(装载器白名单会拒);
+                    // 显式 undefined 经 clone(JSON 往返)落盘时自然消失
+                    next.tiles[selected] =
+                      v === "" ? { ...t, event: undefined } : ({ ...t, event: v } as MapTile);
+                    return next;
+                  });
+                }}
+              >
+                {TILE_EVENT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
                   </option>
                 ))}
               </select>

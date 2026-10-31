@@ -1,9 +1,8 @@
-// 珍宝+城主交涉域(#322,ADR-0019 委托式拆分):交易链收尾(finishTradeChain,含
-// 宝物城链尾探宝挂件 ADR-0024)、抽宝拼点(drawTreasureAt)与城主交涉
-// (resolveTreasureOwner)。域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;
-// 与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步(deliverEscrow/
-// returnEscrowToSeller)在 bankruptcy.ts(#321),本域经 g. 壳上薄委托往返消费,
-// 不在本模块重复实现。
+// 珍宝+城主交涉域(#322,ADR-0019 委托式拆分):抽宝拼点(drawTreasureAt,珍宝城落格
+// 固定事件位本体,#825)与城主交涉(resolveTreasureOwner)。域逻辑=自由函数,首参接
+// GameEngine 直接读写引擎状态;与数据表 treasures.ts 分层(流程≠数据)。escrow 托管两步
+// (deliverEscrow/returnEscrowToSeller)在 bankruptcy.ts(#321),本域经 g. 壳上薄委托
+// 往返消费,不在本模块重复实现。
 import type { GameEngine } from "./authority";
 import { guidePriceOf, premiumPriceOf } from "./treasures";
 import { findHolding } from "./player";
@@ -11,26 +10,11 @@ import { formatMoney } from "./money";
 import { canUpgrade } from "./economy";
 import type { Player } from "./model";
 
-/** 交易链收尾(ADR-0024 落格结算顺序正典:机遇 roll → 城池交易链 → 探宝):
- *  普通城直接结束回合;落点是宝物城则链尾必接一次探宝(抽宝拼点,自带 endTurn)。
- *  交易链的全部时机(PropertyBought/PropertyUpgraded/CashLost 等)已由各命令在
- *  调用本函数前派发完毕——TreasureGained 恒后于交易结算点,不进决策挂起期。
- *  链中途转入清算(AwaitingBankruptcySettle 挂起)或付款破产的路径不经本函数,
- *  由调用方直接 endTurn(探宝不触发)。movement-flow 各终端与 resolveTreasureOwner
- *  经壳上 g.finishTradeChain 薄委托消费。 */
-export function finishTradeChain(g: GameEngine, mover: Player): void {
-  const tile = g.board.at(mover.position);
-  if (tile.type === "TreasureCity") {
-    drawTreasureAt(g, mover, tile.name);
-    return;
-  }
-  g.endTurn();
-}
-
-/** 抽珍宝并拼点判定(宝物城落格)。sourceName=来源名(城名)。 */
+/** 抽珍宝并拼点判定(珍宝城落格固定事件位,#825 自 ADR-0024 链尾挂件迁来:探宝先于
+ *  交易链,链中清算/破产不再抑制探宝——本函数结算完即返,回合收口与交易链续跑归调用方
+ *  (movement-flow `resolveCityEvent` 经壳上 g.drawTreasureAt 薄委托消费,解毕续跑交易链)。
+ *  sourceName=来源名(城名)。牌堆空:宣告「已被搜刮一空」即返(事件沉默,交易链照常)。 */
 export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string): void {
-  g.lastLandOutcome = { kind: "Noop" };
-  g.turnPhase = "Land";
   if (g.treasureDeck.length === 0) {
     g.logEvent(
       "system",
@@ -38,7 +22,6 @@ export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string)
       `${mover.guohao} 至「${sourceName}」,珍宝已被搜刮一空`,
       `treasureEmpty player=${mover.id}`,
     );
-    g.endTurn();
     return;
   }
   // 随机抽 1 件
@@ -74,7 +57,6 @@ export function drawTreasureAt(g: GameEngine, mover: Player, sourceName: string)
       `treasureMiss player=${mover.id} treasure=${treasure.id} level=${treasure.level} roll=${roll} d1=${d1} d2=${d2}`,
     );
   }
-  g.endTurn();
 }
 
 /** 城主抉择:公道买卖(指导价,玩家间付银)/ 坐地起价(加价出售,玩家间付银)/ 跳过。
@@ -97,8 +79,8 @@ export function resolveTreasureOwner(
   if (action.type === "skip") {
     g.logEvent("system", owner.guohao, `${owner.guohao} 不交易`, `treasureSkip owner=${owner.id}`);
     g.treasureVisitor = null;
-    // 不交易也是交涉终端 → 宝物城链尾探宝(普通城 endTurn,ADR-0024)
-    finishTradeChain(g, mover);
+    // 不交易也是交涉终端:收口结束回合(探宝已在落格固定事件位先行,#825)
+    g.endTurn();
     return;
   }
 
@@ -188,11 +170,7 @@ export function resolveTreasureOwner(
     cashMoved > 0 ? -cashMoved : undefined,
   );
   g.treasureVisitor = null;
-  if (bankrupt) {
-    // 付款破产:交易链中断,探宝不触发(ADR-0024),直接收回合
-    g.endTurn();
-  } else {
-    // 交涉成交终端(CashLost 已派发)→ 宝物城链尾探宝(普通城 endTurn)
-    finishTradeChain(g, mover);
-  }
+  // 两个终端同一收口:付款破产与交涉成交都直接结束回合(探宝已在落格固定事件位先行,
+  // #825 迁移:链中清算/破产不再抑制探宝——它先于本交涉已结算;链尾探宝钩子已拆除)
+  g.endTurn();
 }

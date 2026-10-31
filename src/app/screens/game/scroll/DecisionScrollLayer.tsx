@@ -40,12 +40,11 @@ export interface DecisionScrollLayerProps {
   tileDetail: TileDetailRequest | null;
 }
 
-// 地域行标签单源:分组名恒显作地域行锚点,州名与分组异名时追加(「幽燕 · 并州」)。
-// 自定义地图未知分组(z)无分组名,只显州名。
-function regionLineLabel(group: string | undefined, region: string | null): string {
-  const groupName = group != null ? Theme.groupNames[group] : undefined;
-  if (!groupName) return region ?? "";
-  return !region || region === groupName ? groupName : `${groupName} · ${region}`;
+// 地域行标签单源(#828 区域单源化):区名=分组名,唯一源 Theme.groupNames——
+// 自由文本 region 字段已随 schema 退役(#823),详情/购地卷轴的地域行都经此一行。
+// 未知分组字母(自定义图)无分组名,落空串(纯 UI 空态,调用方按空省略该段)。
+function groupLineLabel(group: string | undefined): string {
+  return group != null ? (Theme.groupNames[group] ?? "") : "";
 }
 
 export function DecisionScrollLayer({
@@ -120,7 +119,9 @@ export function DecisionScrollLayer({
     if (tileDetail !== null) {
       const tileIndex = tileDetail.tileIndex;
       const tile = board.at(tileIndex);
-      const def = tile.propertyId ? catalog.get(tile.propertyId) : null;
+      // #826 全城池制:每格必有 propertyId 且必在 catalog(loader 同口径入册)
+      const def = catalog.get(tile.propertyId!);
+      if (def == null) throw new Error(`详情卷轴:城 ${tile.propertyId} 不在 catalog(数据 bug)`);
       const ownerEntry = def
         ? players.find((p) => p.properties.some((h) => h.propertyId === tile.propertyId))
         : undefined;
@@ -130,8 +131,7 @@ export function DecisionScrollLayer({
           tileIndex={tileIndex}
           tile={tile}
           tileName={tile.name}
-          tileType={tile.type}
-          regionLabel={regionLineLabel(def?.group, tile.region)}
+          groupLabel={groupLineLabel(def.group)}
           // 城表定义直传(TileThumb 缩略图与 ValueTable 同源消费,不再手工收窄成子集)
           property={def}
           players={players}
@@ -246,7 +246,7 @@ export function DecisionScrollLayer({
             return (
               <BuyDecisionScroll
                 tileName={tile?.name ?? def.id}
-                regionLabel={regionLineLabel(def.group, tile?.region ?? null)}
+                groupLabel={groupLineLabel(def.group)}
                 property={{
                   purchasePrice: def.purchasePrice,
                   maxLevel: def.maxLevel,

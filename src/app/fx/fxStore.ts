@@ -79,7 +79,7 @@ export interface HaltNoticeFx {
 
 export type NoticeFx = TurnNoticeFx | HaltNoticeFx;
 
-/** 落格定音金圈(S7 #513):落点格一拍即散。 */
+/** 金圈一拍(#850 技能施展定音;S7 落格定音原产者已随 #826 退役,通道转正给施法):一拍即散。 */
 export interface PulseFx {
   id: number;
   x: number;
@@ -194,7 +194,7 @@ interface FxState {
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
-  /** 落格定音金圈(S7)。 */
+  /** 金圈一拍(技能施展定音,#850)。 */
   pulses: PulseFx[];
   /** 破产仪式墨渍(S7)。 */
   inkBlots: InkBlotFx[];
@@ -227,7 +227,7 @@ interface FxState {
   closePeek(): void;
   /** 都城停条带(#732 降格):入知会队列,槽空即播;号角/震屏校准在 sink 侧。 */
   showHaltBanner(guohao: string, color: string, cityName: string): void;
-  /** 落格定音金圈一拍(S7)。 */
+  /** 金圈一拍(技能施展定音,#850)。 */
   spawnPulse(x: number, y: number): void;
   /** 破产仪式墨渍晕开(S7)。 */
   spawnInkBlot(x: number, y: number): void;

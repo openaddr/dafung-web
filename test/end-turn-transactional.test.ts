@@ -120,7 +120,7 @@ describe("endTurn 收口边界事务性(#649)", () => {
     const e = prepared();
     armBrokenTurnEndSkill(e);
     const mover = e.activePlayer;
-    const plain = e.board.tiles.findIndex((t) => t.type !== "TreasureCity"); // 落普通格:交涉终端=直 endTurn
+    const plain = e.board.tiles.findIndex((t) => t.event !== "treasure"); // 落普通城:交涉终端=直 endTurn(#825 移交清单:T2 起旧判定已空转,T3 改读 event)
     mover.position = plain;
     e.treasureVisitor = { def: MAP.properties[0]!, ownerIdx: e.activeIndex };
     e.turnPhase = "AwaitingTreasureOwner";

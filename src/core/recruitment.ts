@@ -1,6 +1,6 @@
 // 招贤纳士域(#326,ADR-0019 委托式拆分):名将三选一的候选生成(tryRecruitHero)与
-// 选定(resolveHeroPick)。触发方是落格结算——己都城补给后与卧龙岗落格经壳上
-// g.tryRecruitHero 消费(movement-flow.resolveLanding);候选池洗牌消耗引擎骰
+// 选定(resolveHeroPick)。触发方是落格结算——己都城补给后与招贤城固定事件(event:"hero",
+// #824/#826,ADR-0037)经壳上 g.tryRecruitHero 消费;候选池洗牌消耗引擎骰
 // (dice.shuffle 注入 dice.nextFloat),骰流顺序敏感,逐字保留。
 // 独立 mini 机制自成模块的先例与机遇域同构:落格触发(maybeApplyEncounter)+ 玩家命令
 // (resolveEncounterChoice)两段式,相位 AwaitingHeroPick、时机 HeroRecruited 归本域。
@@ -22,19 +22,18 @@ export interface HeroOffer {
 }
 
 /** 招贤纳士:从剩余名将池随机抽 3 张(三选一),逐候选预掷授技明牌(#787)。满额/无货
- *  → 直接 endTurn。#323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding
- *  经 g. 直调;testing.ts 白盒窄面照旧。#326 迁出壳内至此域模块。
+ *  → 返回 "silent"(事件沉默,收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
+ *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
+ *  testing.ts 白盒窄面照旧。#326 迁出壳内至此域模块。
  *  骰流契约:先整池洗牌定候选序(dice.shuffle),再按候选序逐将 rollGrantedSkills
- *  (基数 + 池内抽取)——顺序固定,同 seed 重放一致。 */
-export function tryRecruitHero(g: GameEngine, mover: Player): void {
+ *  (基数 + 池内抽取)——顺序固定,同 seed 重放一致;沉默路不耗骰。 */
+export function tryRecruitHero(g: GameEngine, mover: Player): "offered" | "silent" {
   if (mover.heroes.length >= HERO_CAPACITY) {
-    g.endTurn();
-    return;
+    return "silent";
   }
   const available = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
   if (available.length === 0) {
-    g.endTurn();
-    return;
+    return "silent";
   }
   g.offeredHeroes = shuffle(available, g.dice.nextFloat)
     .slice(0, 3)
@@ -49,9 +48,12 @@ export function tryRecruitHero(g: GameEngine, mover: Player): void {
     `${mover.guohao} 招贤纳士:三选一`,
     `offerHeroes player=${mover.id} count=${g.offeredHeroes.length} heroes=${g.offeredHeroes.map((h) => h.def.id).join("|")}`,
   );
+  return "offered";
 }
 
-/** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用)。 */
+/** 玩家从招贤纳士候选中选一位(或跳过)。公开(供 UI/bot 调用)。
+ *  招贤城固定事件(#824,ADR-0037):pendingCityEvent 挂起时解完续跑落格结算
+ *  (直入交易链、不再触发固定事件),否则照旧收回合。 */
 export function resolveHeroPick(g: GameEngine, index: number): void {
   if (!g.assertPhase("AwaitingHeroPick", "ResolveHeroPick")) return;
   const offer = g.offeredHeroes[index];
@@ -67,5 +69,10 @@ export function resolveHeroPick(g: GameEngine, index: number): void {
     grantHeroSlot(g, g.activePlayer, offer.def, offer.skillIds);
   }
   g.offeredHeroes = [];
+  if (g.pendingCityEvent) {
+    g.turnPhase = "Land";
+    g.resolveLanding(); // 固定事件解毕续跑交易链(标记由 resolveLanding 消费即清)
+    return;
+  }
   g.endTurn();
 }

@@ -28,7 +28,7 @@
 //                 降级 -1 级/失城回无主(处置对象随事件点名,可精确折);assetTransferred →
 //                 破产逐城易主(承让方入册/无债主回无主)
 //   金钱族        cashChanged → 现金逐条累加(delta 带符号)+ 落格表现态相邻回填
-//                 (reason=supply 回填补给金额;tax/stock 置 TaxPaid/Noop + 批内破产标记)
+//                 (reason=supply 回填补给金额;stock(商市行情)置 Noop + 批内破产标记)
 //   珍宝族        treasureGained → 得宝入册(流水号实例 id 按静态表回溯定义);
 //                 treasureSold → 卖家出册(银两不在此折:交割价随 treasureTraded、变卖所得
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
@@ -105,7 +105,6 @@ import type {
   ReactionView,
 } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
-import { isCityType } from "@core/board";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REP_MILESTONES } from "@core/reputation";
@@ -193,7 +192,7 @@ interface FoldCtx {
   /** 开局批旗标:gameStarted 与开局首个 turnStarted 同批(finishSetup),此时 turnNumber
    *  取事件首部本值(引擎开局即置 1,非「派发后 +1」路径)。 */
   sawGameStart: boolean;
-  /** 批内已破产座位:落格表现态 causedBankruptcy 相邻判定(税关/商市)。 */
+  /** 批内已破产座位:落格表现态 causedBankruptcy 相邻判定(商市行情/机遇付款)。 */
   bankruptSeats: Set<number>;
   /** 批内锦囊宣布锚点(后写覆盖):reactionOpened 的 targetSeats 同源回溯(宣布与开窗
    *  同一结算)。游标形状单源 core/event-tiers(AnnounceCursor,与 fx 提取器跨批游标
@@ -208,9 +207,9 @@ interface FoldCtx {
 
 /** 主路落格推演(settleMarchLanding → resolveLanding 的事件面镜像):相位 + 待决策落格 +
  *  落格表现态 + 珍宝交涉到来(判定表 treasureVisitor「到来=marchArrived 相邻」半边)。
- *  宝物城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演;探宝挂交易链尾
- *  且 outcome=Noop 不产折叠相位(引擎 drawTreasureAt 置 Noop 后 endTurn,同批
- *  turnStarted 收场)。 */
+ *  珍宝城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演;探宝为落格固定
+ *  事件位先行(#825:先探宝后交易链,链尾挂件与 outcome=Noop 收场已退役)。
+ */
 function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): void {
   engine.pendingLand = null;
   const tile = engine.board.at(tileIndex);
@@ -220,13 +219,10 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
     engine.lastLandOutcome = { kind: "OwnProperty" };
     return;
   }
-  // 宝物城与普通城池同权(ADR-0024):有 propertyId 即走城池三分推演(无主/己城/他人城);
-  // 无 propertyId = 卧龙岗/特殊格:引擎先置 Noop 再各自结算(税/商市金额由相邻 cashChanged 回填)
-  if (tile.propertyId == null || !isCityType(tile.type)) {
-    engine.turnPhase = "Land";
-    engine.lastLandOutcome = { kind: "Noop" };
-    return;
-  }
+  // 全城池制(#826):一切格子都是城池,三分推演(无主/己城/他人城)对每格适用;
+  // propertyId 缺失 = 引擎/loader 失步,炸出来(与 resolveProperty 同一口径,零兜底)。
+  if (tile.propertyId == null)
+    throw new Error(`foldMainLanding:格 ${tileIndex} 无 propertyId(全城池制下不可能,契约违反)`);
   const def = propertyDefOf(engine, tile.propertyId);
   const owner = holdingOwnerOf(engine, tile.propertyId);
   if (owner == null) {
@@ -465,7 +461,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "cashChanged": {
         const p = foldTarget(engine, ev);
         // 破产扫账平记对齐(#652):引擎破产支路先经 settleDebt 把现金整扫归零,随后
-        // 税关/商市/机遇结算仍平记整额负 delta(浮字同口径,movement-flow/encounter-flow
+        // 商市/机遇结算仍平记整额负 delta(浮字同口径,movement-flow/encounter-flow
         // 破产支路)——该 delta 是表现宣告,非状态转移(引擎不再动账;PlayerBankrupt
         // 时机技能只动属主且破产者不触发,该点引擎真值恒为 0)。批序恒 playerBankrupt
         // 先于平记(finalizeBankruptcy 派发时机同步产事件,先于调用方的 cashChanged),
@@ -487,12 +483,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const outcome = engine.lastLandOutcome;
         if (ev.reason === "supply" && outcome?.kind === "OwnProperty" && outcome.resupply == null)
           outcome.resupply = ev.delta; // 都城补给金额(驻跸/落都城两路)
-        if (ev.reason === "tax")
-          engine.lastLandOutcome = {
-            kind: "TaxPaid",
-            amount: -ev.delta,
-            causedBankruptcy: ctx.bankruptSeats.has(seatNo(engine, p)),
-          };
         if (ev.reason === "stock")
           engine.lastLandOutcome = {
             kind: "Noop",

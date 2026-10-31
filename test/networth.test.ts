@@ -30,9 +30,9 @@ describe("身价计算", () => {
       isBot: false,
       startingCash: 10000,
     });
-    buy(p, changan); // -4800
+    buy(p, changan); // -7200(#827 再平衡:名城 72 档)
     upgrade(p, changan); // 免费(到达升级,无升级费)
-    expect(netWorth(p)).toBe(5200);
+    expect(netWorth(p)).toBe(2800);
   });
 
   it("都城建成后不计账面", () => {
@@ -51,6 +51,6 @@ describe("身价计算", () => {
       level: 1,
       maxLevel: changan.maxLevel,
     });
-    expect(netWorth(p)).toBe(7600); // 仅剩现金(建城费 2400)
+    expect(netWorth(p)).toBe(6400); // 仅剩现金(建城费 3600)
   });
 });

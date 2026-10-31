@@ -3,8 +3,8 @@
     "id": "huanyou",
     "name": "环游图",
     "file": "huanyou.json",
-    "desc": "9×5 满格螺旋环:先环边境一周再盘旋入中原,会稽与长安对角相邻、一格闭环边可见闭合",
-    "tileCount": 38,
+    "desc": "9×4 满格螺旋环:先环边境一周再盘旋入中原,洛阳与长安相邻闭环、全环纯正交零对角",
+    "tileCount": 36,
     "targetNetWorth": 30000
   },
   {

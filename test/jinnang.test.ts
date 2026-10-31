@@ -429,12 +429,12 @@ import { testEngine } from "@core/testing";
 import { ENCOUNTERS } from "@core/encounters";
 
 describe("锦囊渠道(T5)", () => {
-  it("落锦囊格必抽一张(tile-chance-1 锦囊格)", () => {
+  it("落锦囊城必抽一张(prop-jinnang-1 锦囊城)", () => {
     const e = makeEngine(42);
     finishSetup(e);
     const handBefore = e.players[0].jinnangHand.length;
-    const chance = MAP.board.tiles.find((t) => t.name === "锦囊")!.index;
-    testEngine(e).landActiveAt(chance); // tile-chance-1(ADR-0027 环位 P41)
+    const chance = MAP.board.tiles.find((t) => t.event === "jinnang")!.index;
+    testEngine(e).landActiveAt(chance); // prop-jinnang-1(#827 环位 P11)
     expect(e.players[0].jinnangHand.length).toBe(handBefore + 1);
     expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
   });
@@ -549,7 +549,7 @@ describe("锦囊目标段(T3)", () => {
     // 失城池排除都城(#226「都城可降不可失」):给目标添一座 0 级非都城,烧失的必须是非都城。
     victim.properties[0].level = 0;
     const freeId = e.board.tiles.find(
-      (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+      (t) => t.event == null && t.propertyId && e.findOwner(t.propertyId) == null,
     )!.propertyId!;
     victim.properties.push({
       propertyId: freeId,
@@ -587,7 +587,7 @@ describe("锦囊目标段(T3)", () => {
     // 第三席挂一座 Lv1 城(卡级预检 #477:存在他法有效目标,牌可用,目标段灰置才可达)
     const thirdSeat = [0, 1, 2].find((i) => i !== victimSeat && e.players[i] !== user)!;
     const freeSeedId = e.board.tiles.find(
-      (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+      (t) => t.event == null && t.propertyId && e.findOwner(t.propertyId) == null,
     )!.propertyId!;
     e.players[thirdSeat].properties.push({
       propertyId: freeSeedId,

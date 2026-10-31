@@ -8,7 +8,6 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { ENCOUNTERS } from "@core/encounters";
-import { isCityType } from "@core/board";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
@@ -338,10 +337,10 @@ function synth(e: GameEngine, events: GameEvent[]): PresentationEvent[] {
 describe("事件→动效映射表(合成批)", () => {
   const E = () => makeEngine(7);
 
-  it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨;纳税随雨落币(S7)", () => {
+  it("cashChanged:负向=金额浮字;正向=浮字且批内先缀一声铜钱;supply=铜钱雨(#826 起纳税随雨落币随税关退役)", () => {
     const e = E();
     const out = synth(e, [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "tax" },
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "stock" },
       { kind: "cashChanged", seat: 1, round: 1, turn: 1, delta: 300, reason: "supply" },
     ]);
     const pos0 = e.board.positionOf(e.players[0].position);
@@ -353,7 +352,6 @@ describe("事件→动效映射表(合成批)", () => {
         kind: "cashDelta",
         playerId: e.players[0].id,
         amount: -200,
-        coins: true, // S7 铜钱雨扩容:纳税付银随雨落币(#513)
         x: pos0.x,
         y: pos0.y,
         atTile: e.players[0].position,
@@ -369,10 +367,10 @@ describe("事件→动效映射表(合成批)", () => {
     ]);
   });
 
-  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位);非税负向不带 coins", () => {
+  it("cashChanged 纯负向批:pay 前缀、无铜钱声(收叮付闷,反馈对位)", () => {
     const e = E();
     const out = synth(e, [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "tax" },
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -200, reason: "stock" },
     ]);
     expect(out[0]).toEqual({ kind: "sound", event: "pay" });
     expect(out.some((ev) => ev.kind === "sound" && ev.event === "coin")).toBe(false);
@@ -380,7 +378,7 @@ describe("事件→动效映射表(合成批)", () => {
       { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -50, reason: "encounter" },
     ]);
     const floater = plain.find((ev) => ev.kind === "cashDelta");
-    expect(floater).toMatchObject({ amount: -50, coins: false });
+    expect(floater).toMatchObject({ amount: -50 });
   });
 
   it("treasureGained:漆金「得」印钤宝物城 + treasure 音(S7 探宝拼点得半);traded/bankrupt/gameOver 直通", () => {
@@ -559,7 +557,9 @@ describe("事件→动效映射表(合成批)", () => {
   it("座位契约校验:座位型事件缺有效座位当场炸出(零兜底)", () => {
     const e = E();
     expect(() =>
-      synth(e, [{ kind: "cashChanged", seat: null, round: 1, turn: 1, delta: -1, reason: "tax" }]),
+      synth(e, [
+        { kind: "cashChanged", seat: null, round: 1, turn: 1, delta: -1, reason: "stock" },
+      ]),
     ).toThrow();
   });
 });
@@ -819,18 +819,9 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     expect(out.map((ev) => ev.kind)).toEqual(["sound", "cashDelta"]); // 正收入缀铜钱声
   });
 
-  it("落格定音(S7 #513):事件/机遇格落点 landPulse 一拍;城池格不拍(据章即定音)", () => {
+  it("落格定音(S7 #513→#826):全城池制下落格不拍 landPulse(据章即定音;生产点随功能格退役而删)", () => {
     const e = E();
-    const special = e.board.tiles.find((t) => !isCityType(t.type))!;
-    const city = e.board.tiles.find((t) => isCityType(t.type))!;
-    const path = e.board.computePath(e.players[0].position, 1, e.players[0].capitalIndex);
-    testEngine(e).place(0, special.index); // 快照终态:已落特殊格
-    const atSpecial = extractBatchEvents(
-      e,
-      [{ kind: "marchArrived", seat: 0, round: 1, turn: 1, tileIndex: special.index, path }],
-      [e.players[0].position],
-    );
-    expect(atSpecial.some((ev) => ev.kind === "landPulse")).toBe(true);
+    const city = e.board.tiles[0];
     // 城池格:落格不拍(购地据章/宣告承担定音)
     testEngine(e).place(0, city.index);
     const atCity = extractBatchEvents(
@@ -1563,7 +1554,7 @@ describe("SnapshotEffects 事件批消费游标(#385 联机通路)", () => {
     finishSetup(e);
     const fx = new SnapshotEffects(() => e);
     const batch: GameEvent[] = [
-      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -5, reason: "tax" },
+      { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -5, reason: "stock" },
     ];
     useNetStore.getState().pushEventBatch(batch);
     fx.play(e.players.map((p) => p.position));
@@ -1586,7 +1577,7 @@ describe("SnapshotEffects 事件批消费游标(#385 联机通路)", () => {
     useNetStore
       .getState()
       .pushEventBatch([
-        { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -5, reason: "tax" },
+        { kind: "cashChanged", seat: 0, round: 1, turn: 1, delta: -5, reason: "stock" },
       ]);
     fx.dropStalledBatch(); // 断线:当前到达序标记已消费
     fx.play(e.players.map((p) => p.position));

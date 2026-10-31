@@ -15,8 +15,6 @@ const ALLOWED: [fragment: string, reason: string][] = [
     'const type = (t.type ?? "Property") as TileDef["type"]',
     "schema 默认:格 type 缺省按 Property(schema 注释明示)",
   ],
-  ["region: t.region ?? null", "可空字段:region 本就允许缺省(落 null)"],
-  ['const type = t.type ?? "Property";', "schema 默认:properties 段同款口径"],
   ["const arr = m.get(p.group) ?? []", "catalog 构建:分组挂链的查表习惯"],
   ["return id ? (byId.get(id) ?? null) : null;", "catalog.get 契约:查无返回 null(UI 空态消费)"],
   ["return byGroup.get(group) ?? [];", "catalog 构建:空分组返回空表的查表习惯"],

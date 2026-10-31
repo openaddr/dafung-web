@@ -8,22 +8,33 @@ export interface BoardPos {
   y: number;
 }
 
-/** 格子类型。v2.0 棋盘 Property/TreasureCity/Wolong/Tax/Stock/Chance/Fate 均有落格处理。 */
-export type TileType = "Property" | "Tax" | "Chance" | "Fate" | "Stock" | "Wolong" | "TreasureCity"; // 宝物城:可购买城池(与普通城同权,ADR-0024);落格(交易链后)拼点探宝
+/** 格子类型(#826 收口):全仓唯一合法值「城池」——特殊城池制的落格行为全部由可选
+ *  event 字段承载(#823/#824,ADR-0037),旧功能格五型(Tax/Chance/Fate/Stock/Wolong)
+ *  与珍宝城独立格型(TreasureCity,#825 数据面先行退役)一并删除;装载器对其他值响亮报错。 */
+export type TileType = "Property";
 
-/** 城池格谓词:Property 与 TreasureCity 同权(ADR-0024)——购地/拦检/天赐等一切城池语义统一走此判定。 */
-export const isCityType = (type: TileType): boolean =>
-  type === "Property" || type === "TreasureCity";
+/** 特殊城池固定事件(#823/#824,ADR-0037):城池格的可选 event 字段值。treasure=珍宝城
+ *  (#825 迁移接线:落格固定事件位探宝,先于交易链)。 */
+export const TILE_EVENTS = ["hero", "jinnang", "fate", "market", "treasure"] as const;
+export type TileEvent = (typeof TILE_EVENTS)[number];
 
-/** 单个格子定义。IsCapitalEligible=可作都城;Region=区域分组(美术配色)。 */
+/** 特殊城池谓词(#823/#824,ADR-0037):落格分流「普通城掷机遇 / 特殊城走固定事件」的
+ *  唯一判断——普通城无 event 是合法态(可选字段语义=「这块地有没有固定事件」)。 */
+export const isEventCity = (tile: TileDef): boolean => tile.event != null;
+
+/** 单个格子定义。一切格子都是城池(#826 全城池制):propertyId 恒为其 id,
+ *  isCapitalEligible 恒真;「普通城 vs 特殊城」的差别只在可选 event 字段。 */
 export interface TileDef {
   index: number;
   type: TileType;
   name: string;
   position: BoardPos;
+  /** 城池目录句柄 = tile id(全城池制下恒非空;类型上保留 null 是编辑器半成品图的过渡态)。 */
   propertyId: string | null;
   isCapitalEligible: boolean;
-  region: string | null;
+  /** 特殊城池固定事件(可选,城池格限定):落格走「固定事件 → 交易链」、不掷随机机遇
+   *  (ADR-0037);无 event 的城池=普通城,机遇必出照旧。 */
+  event?: TileEvent;
   waypoints?: BoardPos[]; // 可选:主路该 tile 入边手配途经点(预留,默认自动避城)
 }
 

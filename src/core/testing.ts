@@ -22,7 +22,7 @@ import type { HeroOffer } from "./recruitment";
  *  对齐两处,applyEncounter/enterEncounter 的返回联合)。 */
 interface EngineTestInternals {
   resolveLanding(): void;
-  tryRecruitHero(mover: Player): void;
+  tryRecruitHero(mover: Player): "offered" | "silent";
   payOrLiquidate(
     mover: Player,
     creditor: Player | null,
@@ -96,9 +96,9 @@ export class TestEngine {
     this.land();
   }
 
-  /** 触达私有招贤纳士(三选一候选生成)。 */
-  tryRecruitHero(mover: Player): void {
-    this.internals.tryRecruitHero(mover);
+  /** 触达私有招贤纳士(三选一候选生成)。返回 "silent"=池空/满员事件沉默(#824)。 */
+  tryRecruitHero(mover: Player): "offered" | "silent" {
+    return this.internals.tryRecruitHero(mover);
   }
 
   /** 对局日志扁平文本(机遇顺序断言用;#123)。 */

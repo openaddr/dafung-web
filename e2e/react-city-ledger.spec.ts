@@ -1,7 +1,7 @@
 // 名下城池清单弹层(#622+#623,规格 #621):席位卡/仪表条城池徽章点开的只读
 // 清单(行首真实格缩略图 + 五列)。
 // 一条链(宁缺毋滥):仪表条徽章(自看)开弹层 → 五列字段与引擎数据抽查一致
-// (都城/普通城/宝物城三种入列,#622 AC)→ 行序 = 棋盘 index 序(种 index 更大
+// (都城/普通城/珍宝城三种入列,#622 AC)→ 行序 = 棋盘 index 序(种 index 更大
 // 的城验证排序)→ X 关闭;席位卡徽章(对手)标题带国号;开着弹层清空名下 →
 // 空态浮现(顺带证「随 store 实时重渲」)。
 // 种植式断言(冻结→种植→点击→断言→恢复,react-solo #421 同口径):字段期望值
@@ -56,7 +56,7 @@ test("城池徽章点开名下城池清单:自看五列字段/行序、对手国
   await freezeClock(page);
   try {
     // 种两座城(首座=都城):①一枚棋盘 index 大于都城格的无主普通城,验证行序=
-    // 棋盘 index 序;②一枚无主宝物城,验证同权入列(#622 AC;开局确定性地图必有,
+    // 棋盘 index 序;②一枚无主珍宝城,验证同权入列(#622 AC;开局确定性地图必有,
     // 缺失=地图/开局变了,当场炸出改种植策略)。字段期望值当场读自引擎 catalog
     // (冻结期数值稳定,不与自走竞速)。
     const planted = await page.evaluate<Planted>(
@@ -70,12 +70,12 @@ test("城池徽章点开名下城池清单:自看五列字段/行序、对手国
         const capTile = e.board.tiles.find((t: any) => t.propertyId === cap.propertyId);
         const trTile = e.board.tiles.find(
           (t: any) =>
-            t.type === "TreasureCity" &&
+            t.event === "treasure" && // #825:珍宝城由 event:"treasure" 承载
             t.propertyId &&
             e.findOwner(t.propertyId) == null &&
             t.index !== capTile.index,
         );
-        if (!trTile) throw new Error("种植失败:无无主宝物城(地图/开局变了)");
+        if (!trTile) throw new Error("种植失败:无无主珍宝城(地图/开局变了)");
         const trDef = e.catalog.get(trTile.propertyId);
         const tile = e.board.tiles.find(
           (t: any) =>

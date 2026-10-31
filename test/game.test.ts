@@ -383,9 +383,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find(
-      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
-    )!;
+    const tile = e.board.tiles.find((t) => t.event == null && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     mover.warrants = 1;
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
@@ -398,9 +396,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find(
-      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
-    )!;
+    const tile = e.board.tiles.find((t) => t.event == null && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
@@ -421,9 +417,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const e = makeEngine(5);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find(
-      (t) => t.type === "Property" && e.findOwner(t.propertyId!) == null,
-    )!;
+    const tile = e.board.tiles.find((t) => t.event == null && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     const owner = e.players.find((p) => p !== mover)!;
     owner.properties.push({
@@ -464,8 +458,7 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
     const tile = e.board.tiles.find(
-      (t) =>
-        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+      (t) => t.event == null && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({

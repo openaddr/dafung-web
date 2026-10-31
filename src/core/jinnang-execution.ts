@@ -53,7 +53,7 @@ export interface PendingHeroSkill {
  *  返回实际入手张数(#384:落空=无转移,调用方据此不产转移类事件)。
  *  日志只记「抽了一张锦囊」不记牌名——暗牌内容不过对局日志(ADR-0016,日志随快照全网可见)。
  *  时机·JinnangGained(#456):物理单点内部派发(入手张数>0 时按次派一次),四路同覆盖
- *  ——起手发牌/锦囊格/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
+ *  ——起手发牌/锦囊城/机遇授书/声望献计;暗牌不带牌 id(ADR-0016)。 */
 export function drawJinnang(g: GameEngine, seat: number, count = 1): number {
   const p = g.players[seat];
   if (!p || p.isBankrupt) return 0;
@@ -111,7 +111,7 @@ function reshuffleDiscardIntoDeck(g: GameEngine, seat: number): void {
 /** 抽锦囊进手并产事件(#384):drawJinnang 之上带 reason 产出 jinnangDrawn(count=
  *  实际入手;0=牌库空落空,无转移即无事件)。开局发牌(setup-flow)直走 drawJinnang
  *  不发——起手属开局校准点覆盖,与初始现金/体力同口径;游戏时进手(声望献计/机遇/
- *  锦囊格)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
+ *  锦囊城)一律经本口。隐私口径:不写牌名(ADR-0016,与对局日志同)。 */
 export function drawJinnangTraced(
   g: GameEngine,
   seat: number,

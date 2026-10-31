@@ -49,7 +49,6 @@ describe("棋盘路径(单环)", () => {
       position: { x, y: 0 },
       propertyId: `p${i}`,
       isCapitalEligible: false,
-      region: null,
     });
     expect(createBoard([tile(0, 0), tile(1, 200)]).edgeWaypoints(0, 1)).toHaveLength(0);
     expect(createBoard([tile(0, 0), tile(1, 400)]).edgeWaypoints(0, 1)).toHaveLength(2);

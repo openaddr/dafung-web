@@ -111,9 +111,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.marchToken(ev.playerId, ev.keyframes);
         break;
       case "cashDelta": {
-        // 铜钱雨扩容(S7):纳税付银带 coins 档,随雨落币;③ 批内仍将开场 overlay
-        // 时浮字延后到收场补发(现画在幕下不可见),飞行账本照常累积。
-        const spawn = () => sink.spawnFloater(ev.x, ev.y, ev.amount, ev.coins === true);
+        // 金额浮字不带铜钱雨(coins 档随税关退役清退 #828,雨唯一通路=supplyRain);
+        // ③ 批内仍将开场 overlay 时浮字延后到收场补发(现画在幕下不可见),飞行账本照常累积。
+        const spawn = () => sink.spawnFloater(ev.x, ev.y, ev.amount, false);
         if (deferSync) deferred.push(spawn);
         else spawn();
         if (ev.amount > 0) {

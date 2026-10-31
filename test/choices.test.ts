@@ -57,7 +57,7 @@ function armDecision(e: GameEngine, kind: "PropertyAvailable" | "OwnProperty", p
 /** 找一座无主普通城(规避 finishSetup 选都占位的不确定性)。 */
 function freeProperty(e: GameEngine) {
   const tile = e.board.tiles.find(
-    (t) => t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null,
+    (t) => t.event == null && t.propertyId && e.findOwner(t.propertyId) == null,
   )!;
   return { tile, def: e.catalog.get(tile.propertyId)! };
 }
@@ -245,8 +245,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
     const tile = e.board.tiles.find(
-      (t) =>
-        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+      (t) => t.event == null && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
@@ -286,8 +285,7 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const me = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(me.capitalIndex).propertyId)!;
     const tile = e.board.tiles.find(
-      (t) =>
-        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+      (t) => t.event == null && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     me.properties.push({
@@ -328,8 +326,7 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     const p = e.activePlayer;
     const capDef = e.catalog.get(e.board.at(p.capitalIndex).propertyId)!;
     const tile = e.board.tiles.find(
-      (t) =>
-        t.type === "Property" && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
+      (t) => t.event == null && t.propertyId !== capDef.id && e.findOwner(t.propertyId!) == null,
     )!;
     const def = e.catalog.get(tile.propertyId)!;
     p.properties.push({
