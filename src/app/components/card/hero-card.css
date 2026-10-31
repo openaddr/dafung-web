@@ -20,9 +20,16 @@
 
    尺寸:卡基 --u 为几何单位——absolute 定位元素的 em 会解析到自身字号(--u 变量
    锚定卡基,r4 原型同法,前车之鉴);根 font-size = var(--u),15u×20u 即 3:4 竖卡。
-   档默认:detail 13px(195×260)/ compact 10px(150×200)/ pick 7.6px(114×152,
+   档默认:detail 16px(240×320)/ compact 10px(150×200)/ pick 7.6px(114×152,
    手牌槽位同档);消费方经 --hface-base 覆写任意档(手牌架随架体 em 基 8/7.6/6.4px
-   注入,见 hand-rack.css / layout.css)。 */
+   注入,见 hand-rack.css / layout.css;藏品网格矮横屏档 8px 基见 pile-modal.css)。
+
+   #851 detail 档画心露脸改制:满技将(周瑜型 3 技全文)把技能区撑到 ~75% 卡高,
+   画心只剩衣领横带(招贤时爱上的立绘入库后不可辨)。技能区排版整档收匀
+   (.sk 0.88→0.82em 半档+行距/衬距收细),画心随 flex 拿回 ~30% 卡高——配
+   object-position: top(立绘只露上部)恰出「头位」;40% 带高与 3 技全文在 3:4
+   卡内不可兼得(全文需 ~13em,40% 带高只留 ~10em),取可辨下限,案语见票 #851。
+   卡基 detail 13→16px:藏品网格两卡居中时大留白收敛(同票)。 */
 
 /* ── 基座:宣纸纸底 + 漆金描边(em 制;isolation 让交互态描边不越邻牌,
    与 .jinnang-card 同口径;rotate 消费 --tilt 微旋通道,jinnang-card.css 同款)── */
@@ -38,7 +45,7 @@
   isolation: isolate;
   width: 15em;
   height: 20em;
-  --u: var(--hface-base, 13px); /* 几何单位=卡基;消费方可经 --hface-base 整档覆写 */
+  --u: var(--hface-base, 16px); /* 几何单位=卡基;消费方可经 --hface-base 整档覆写 */
   font-size: var(--u);
   flex: 0 0 auto;
   border-radius: 0.9em;
@@ -68,7 +75,9 @@
 }
 
 /* ── 金框画心(#511 B 案,原满幅立绘区改制):占卡上部,漆金双线框(外框+内衬)
-   圈住立绘,白纸空底(像未至时姓氏朱印落此);上/左/右让出卡基衬里,下缘接技能区 ── */
+   圈住立绘,白纸空底(像未至时姓氏朱印落此);上/左/右让出卡基衬里,下缘接技能区。
+   带高=flex 剩余全给画心(flex-grow),#851 起技能区收匀后 detail 档 ~30% 卡高起
+   (满技将下限,少技将更大),立绘 object-position: top 露「头位」── */
 .hface .stage {
   position: relative;
   flex: 1 1 auto;
@@ -235,11 +244,12 @@
 }
 
 /* ── 底部技能区:墨面漆金横条(#510 深底适配定稿制式;#511 B 案下改为画心下缘
-   独立题跋带——不再上叠画心,金框画心四边完整可见,左右与画心边距对齐 0.55em)── */
+   独立题跋带——不再上叠画心,金框画心四边完整可见,左右与画心边距对齐 0.55em;
+   #851 排版收匀让位画心:边距对齐 0.5em,衬距/行距/隙距收细,见文件头 #851 段)── */
 .hface .skz {
   position: relative;
   z-index: 2;
-  margin: 0.45em 0.55em 0.55em;
+  margin: 0.4em 0.5em 0.5em;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--color-panel-hi) 96%, transparent),
@@ -247,20 +257,20 @@
   );
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 0.45em;
-  padding: 0.45em 0.55em;
+  padding: 0.34em 0.46em;
   display: flex;
   flex-direction: column;
-  gap: 0.3em;
+  gap: 0.22em;
   box-shadow: 0 0.25em 0.6em rgba(0, 0, 0, 0.45);
 }
 .hface .skz .sk {
-  font-size: 0.88em;
-  line-height: 1.45;
+  font-size: 0.82em;
+  line-height: 1.34;
   color: var(--color-ink);
 }
 .hface .skz .sk + .sk {
   border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 28%, transparent);
-  padding-top: 0.32em;
+  padding-top: 0.26em;
 }
 .hface .skz .shead {
   display: flex;
@@ -287,7 +297,7 @@
   display: inline-flex;
   align-items: center;
   font-family: var(--font-brush);
-  font-size: 1.06em;
+  font-size: 0.98em;
   line-height: 1.3;
   border-radius: 0.25em;
   padding: 0.04em 0.5em;
@@ -297,13 +307,13 @@
   white-space: nowrap;
 }
 .hface .skz .cd {
-  font-size: 0.82em;
+  font-size: 0.78em;
   color: var(--color-ink-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .hface .skz .sdesc {
-  margin-top: 0.12em;
+  margin-top: 0.1em;
   color: var(--color-ink);
 }
 

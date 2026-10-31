@@ -9,7 +9,8 @@
 // 画心双通道:快照珍宝行不带画心数据,展示层经 treasureImagePath 按 id 回查
 // TREASURES 目录(#521 画心批),目录行缺 image 时仍走缺省回退(远山肌理);
 // 无「曾持有」区——UI 只显示当前状态(DESIGN §4.6)。
-// 空陈列照常可开:计数角标如实报 0、网格自然为空(业务空态,非兜底)。
+// 空陈列照常可开:计数角标如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,
+// 单源 screens/shared/ArtifactEmpty,#851 接入)。
 // 样式在 pile-modal.css(经 Portal 渲染在 body,.game-layout 罩不到——pile-* 前缀
 // 防串扰,war-* 同先例)。
 // 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
@@ -23,6 +24,7 @@ import { useDialogExit } from "@app/hooks/use-dialog-exit";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
 import type { SnapshotPlayer } from "@app/store/gameStore";
@@ -145,7 +147,9 @@ export function PileShell({
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
  *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心 = 目录
  *  image(#521 画心批,快照行按 id 回查 TREASURES),目录行缺 image 时走缺省回退
- *  (远山肌理);指导价同时进 title 浮签(名称/品级/风味文一行看全)。 */
+ *  (远山肌理);指导价同时进 title 浮签(名称/品级/风味文一行看全)。
+ *  空网格(#851 空态器物化):裸网格空洞退役,接 #768 斜放朱印制式(单源
+ *  ArtifactEmpty,MapStrip 先例);计数行如实报 0 口径不变。 */
 function TreasureGrid({ player }: { player: SnapshotPlayer }) {
   return (
     <>
@@ -153,30 +157,37 @@ function TreasureGrid({ player }: { player: SnapshotPlayer }) {
         <span className="pile-zdot" aria-hidden="true" />
         已持有 · {player.treasures.length} 件<small>(名牌=指导价)</small>
       </div>
-      <div className="pile-grid">
-        {player.treasures.map((t) => {
-          const image = treasureImagePath(t.id);
-          return (
-            <div className="pile-cell" key={t.id}>
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-                className="pile-cell-card"
-                title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
-              />
-              <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-            </div>
-          );
-        })}
-      </div>
+      {player.treasures.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />
+        </div>
+      ) : (
+        <div className="pile-grid">
+          {player.treasures.map((t) => {
+            const image = treasureImagePath(t.id);
+            return (
+              <div className="pile-cell" key={t.id}>
+                <TreasureCardFace
+                  name={t.name}
+                  level={t.level}
+                  desc={t.desc}
+                  art={image != null ? <img src={image} alt="" /> : undefined}
+                  className="pile-cell-card"
+                  title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
+                />
+                <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </>
   );
 }
 
-/** 名将弹层内容:麾下全部名将的 HeroCardFace 详情档网格(技能全文档,13px 基);
- *  画像缺失(image="")或加载失败由卡面显「像」占位(组件内既有语义)。 */
+/** 名将弹层内容:麾下全部名将的 HeroCardFace 详情档网格(技能全文档,16px 基,
+ *  矮横屏档 8px 基见 pile-modal.css);画像缺失(image="")或加载失败由卡面显「像」
+ *  占位(组件内既有语义)。空席(#851 空态器物化)接 #768 斜放朱印制式。 */
 function HeroGrid({ player }: { player: SnapshotPlayer }) {
   return (
     <>
@@ -184,16 +195,22 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
         <span className="pile-zdot" aria-hidden="true" />
         麾下名将 · {player.heroes.length} 席
       </div>
-      <div className="pile-hero-grid">
-        {player.heroes.map((slot) => (
-          <HeroCardFace
-            key={slot.heroId}
-            heroId={slot.heroId}
-            skillIds={slot.skillIds}
-            size="detail"
-          />
-        ))}
-      </div>
+      {player.heroes.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <SealEmpty char="将" note="虚位以待" title="暂无名将" />
+        </div>
+      ) : (
+        <div className="pile-hero-grid">
+          {player.heroes.map((slot) => (
+            <HeroCardFace
+              key={slot.heroId}
+              heroId={slot.heroId}
+              skillIds={slot.skillIds}
+              size="detail"
+            />
+          ))}
+        </div>
+      )}
     </>
   );
 }
