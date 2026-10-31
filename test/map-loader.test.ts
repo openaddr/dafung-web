@@ -10,7 +10,7 @@ describe("地图加载器(合法)", () => {
     expect(m.board.count).toBe(m.tiles.length);
     expect(m.targetNetWorth).toBe(30000);
     expect(m.startingCash).toBe(10000);
-    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(4800); // 经济 v3:长安=名城 48 档
+    expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(7200); // #827 再平衡:长安=名城 72 档
   });
 
   it("主路按 tiles 数组顺序闭合", () => {

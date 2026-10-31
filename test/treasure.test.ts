@@ -57,26 +57,6 @@ function passJinnang(e: GameEngine): GameEngine {
   return e;
 }
 
-function peekDie(e: GameEngine): number {
-  const probe = createDice(0);
-  probe.setRngState(e.dice.getRngState());
-  return probe.roll().die;
-}
-
-/** 挪位后掷骰,恰好落在 targetTile(路径不得途经都城)。真掷骰路径:过 settleMarchLanding(机遇挂点)。 */
-function landActiveOn(e: GameEngine, targetTile: number): void {
-  const p = e.activePlayer;
-  const die = peekDie(e);
-  const n = e.board.count;
-  const from = (((targetTile - die) % n) + n) % n;
-  const passesCapital = Array.from({ length: die }, (_, i) => (from + 1 + i) % n).some(
-    (t) => t === p.capitalIndex && t !== targetTile,
-  );
-  if (passesCapital) throw new Error(`场景无效:途经都城`);
-  testEngine(e).placeActive(from);
-  passJinnang(e).rollAndMove();
-}
-
 const TID = "test-treasure";
 const TLEVEL = 1; // 指导价 100,交易不会触发破产
 
@@ -122,7 +102,7 @@ describe("珍宝系统", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const def = e.catalog.get("prop-jieting")!;
-    expect(def.tradeMult).toEqual([2, 3, 5, 7]); // 奇城逐级(Lv0-3),下标 = 等级
+    expect(def.tradeMult).toEqual([2, 3, 4, 7]); // 奇城逐级(Lv0-3;#827 再平衡 Lv2 5→4),下标 = 等级
     const { owner, mover, guide } = setupOwnerChoice(e, "prop-jieting");
     const moverCash0 = mover.cash;
     const ownerCash0 = owner.cash;
@@ -244,77 +224,43 @@ describe("珍宝系统", () => {
   });
 });
 
-describe("宝物城并权与落格顺序(ADR-0024)", () => {
-  /** huanyou 首座未作都城的宝物城(ADR-0024 后宝物城可选都,须避开 taken)。 */
+describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
+  /** huanyou 珍宝城(#825 后由 event:"treasure" 承载,旧格型已退役;须避开已占都城)。 */
   function treasureTile(e: GameEngine) {
     return e.board.tiles.find(
-      (t) => t.type === "TreasureCity" && !e.takenCapitalIndices.has(t.index),
+      (t) => t.event === "treasure" && !e.takenCapitalIndices.has(t.index),
     )!;
   }
-  /** 宝物城链尾探宝的战报行(treasureGain 得宝 / treasureMiss 失之交臂)。 */
+  /** 探宝拼点战报行(treasureGain 得宝 / treasureMiss 失之交臂)。 */
   const treasureTrail = (e: GameEngine) =>
     e.log.some((l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"));
 
-  it("落无主宝物城 → 可购决策 → 买成后链尾探宝(buy+探宝留痕),探宝自带 endTurn", () => {
+  it("落无主珍宝城:落格即探宝(先于可购决策),买成收口零探宝(#825 链序)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
+    e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }]; // Lv1 拼点恒成
     testEngine(e).landActiveAt(tile.index);
-    expect(e.turnPhase).toBe("AwaitingDecision"); // 同权:进购地决策(不再直探)
-    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: def.id });
-    beginGameEventBatch(e); // 批界=购地+链尾探宝(#636 探宝拼点事件面断言)
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 探宝毕直进购地决策(交易链)
+    expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝已在落格发生
+    const gainIdx = e.log.findIndex((l) => l.detail.includes("treasureGain"));
+    const availIdx = e.log.findIndex((l) => l.detail.includes("available"));
+    expect(gainIdx).toBeGreaterThanOrEqual(0);
+    expect(availIdx).toBeGreaterThan(gainIdx); // 探宝先于交易链(可购留痕在后)
+    beginGameEventBatch(e); // 批界=购地收口(#636 探宝拼点事件面断言)
     e.buyProperty();
     expect(mover.properties.some((h) => h.propertyId === def.id)).toBe(true); // 得地
     expect(e.log.some((l) => l.detail.includes(`buy player=${mover.id} prop=${def.id}`))).toBe(
       true,
     );
-    expect(treasureTrail(e)).toBe(true); // 交易链尾探宝留痕
+    expect(e.log.some((l) => l.detail.includes("treasureEmpty"))).toBe(false); // 收口零补抽(堆已空,补抽必留痕)
     expect(e.snapshot().events.some((ev) => ev.kind === "duelResolved")).toBe(false); // 探宝拼点=单人判定不走 resolveDuel,不派(#636)
-    expect(passJinnang(e).turnPhase).toBe("Roll"); // 探宝自带 endTurn
-    expect(e.treasureDeck.length).toBe(13); // 牌堆 14 → 抽 1(失败也回堆底,此处不计成败只计抽动)
+    expect(passJinnang(e).turnPhase).toBe("Roll"); // 收口结束回合
   });
 
-  /** 全中性机遇池钓种子:钓「携民渡江」(抉择机遇)恰好落在宝物城的种子。
-   *  必须走真掷骰(landActiveOn):机遇挂点在 settleMarchLanding,白盒 land() 不经过。 */
-  const ENC_NEUTRAL = { neutral: 100 };
-  function seedEncounterOnTreasureCity(): { seed: number; tileIndex: number } {
-    for (let seed = 1; seed <= 80; seed++) {
-      const probe = makeEngine(seed, ENC_NEUTRAL);
-      finishSetup(probe);
-      const tiles = probe.board.tiles.filter(
-        (x) => x.type === "TreasureCity" && !probe.takenCapitalIndices.has(x.index),
-      );
-      for (const tile of tiles) {
-        const e = makeEngine(seed, ENC_NEUTRAL);
-        finishSetup(e);
-        try {
-          landActiveOn(e, tile.index);
-        } catch {
-          continue; // 途经都城的场景换下一座
-        }
-        if (e.turnPhase === "AwaitingEncounter" && e.pendingEncounter?.id === "携民渡江")
-          return { seed, tileIndex: tile.index };
-      }
-    }
-    throw new Error("80 种子内未抽中 携民渡江@宝物城");
-  }
-
-  it("机遇先于交易链:机遇解完才进购地决策,链尾照旧探宝(ADR-0024 顺序正典)", () => {
-    const { seed, tileIndex } = seedEncounterOnTreasureCity();
-    const e = makeEngine(seed, ENC_NEUTRAL);
-    finishSetup(e);
-    landActiveOn(e, tileIndex);
-    expect(e.turnPhase).toBe("AwaitingEncounter"); // 机遇占用落格,交易链未启动
-    e.submitCommand({ type: "resolveEncounterChoice", index: 0 }); // 携民渡江(费银 150)
-    expect(e.turnPhase).toBe("AwaitingDecision"); // 机遇解完,才进购地决策
-    e.buyProperty();
-    expect(treasureTrail(e)).toBe(true); // 交易链尾探宝
-    expect(passJinnang(e).turnPhase).toBe("Roll");
-  });
-
-  it("落己方宝物城 → 扩军成功 → 链尾探宝", () => {
+  it("落己方珍宝城:探宝先行,扩军收口零探宝", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -326,20 +272,21 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
       level: 0,
       maxLevel: def.maxLevel,
     });
+    e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝先行于扩军决策
     e.upgradeProperty();
     expect(mover.properties.find((h) => h.propertyId === def.id)!.level).toBe(1);
-    expect(treasureTrail(e)).toBe(true); // PropertyUpgraded 派发后才探宝
-    expect(passJinnang(e).turnPhase).toBe("Roll");
+    expect(treasureTrail(e)).toBe(true); // 全程恰落格一次探宝
+    expect(passJinnang(e).turnPhase).toBe("Roll"); // 收口结束回合(链尾零探宝)
   });
 
-  it("落他人宝物城:城主有宝 → 交涉 skip 终端接探宝;城主无宝 → 无事发生终端直探", () => {
-    // 有宝:skip 后接链尾探宝(牌堆清空 → treasureEmpty 终端,隔离拼点结果)
+  it("落他人珍宝城:探宝先于交涉窗口,skip 收口零补探;城主无宝同链序", () => {
+    // 有宝:落格探宝(堆空 → treasureEmpty 沉默留痕)后进交涉;skip → endTurn 零补探
     const e = makeEngine(1);
     finishSetup(e);
-    const mover = e.activePlayer;
-    const owner = e.players.find((p) => p !== mover)!;
+    const owner = e.players.find((p) => p !== e.activePlayer)!;
     const tile = treasureTile(e);
     const def = e.catalog.get(tile.propertyId!)!;
     owner.properties.push({
@@ -351,12 +298,13 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
     e.treasureDeck = [];
     testEngine(e).landActiveAt(tile.index);
-    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
+    expect(e.turnPhase).toBe("AwaitingTreasureOwner"); // 探宝毕进交涉窗口
+    expect(e.log.filter((l) => l.detail.includes("treasureEmpty")).length).toBe(1); // 探宝事件位已走(堆空沉默)
     e.resolveTreasureOwner({ type: "skip" });
-    expect(passJinnang(e).turnPhase).toBe("Roll"); // skip → 链尾探宝(空堆)→ endTurn
-    expect(e.log.some((l) => l.detail.includes("treasureEmpty"))).toBe(true);
+    expect(passJinnang(e).turnPhase).toBe("Roll"); // skip 收口结束回合
+    expect(e.log.filter((l) => l.detail.includes("treasureEmpty")).length).toBe(1); // 零补探
 
-    // 无宝:无事发生终端直接探宝(Lv1 拼点恒成),无决策相位
+    // 无宝:探宝先行(拼点必得),随后 noTreasure 终端收口,无交涉窗口
     const e2 = makeEngine(1);
     finishSetup(e2);
     const mover2 = e2.activePlayer;
@@ -371,12 +319,15 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
     });
     e2.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e2).landActiveAt(tile2.index);
-    expect(passJinnang(e2).turnPhase).toBe("Roll"); // 无交涉窗口:探宝一步收口
+    expect(passJinnang(e2).turnPhase).toBe("Roll"); // 探宝+无事发生一步收口
     expect(e2.log.some((l) => l.detail.includes("noTreasure"))).toBe(true);
-    expect(mover2.treasures.map((t) => t.id)).toEqual(["probe-t"]);
+    expect(mover2.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝已发生
+    const gainIdx2 = e2.log.findIndex((l) => l.detail.includes("treasureGain"));
+    const noTreasureIdx = e2.log.findIndex((l) => l.detail.includes("noTreasure"));
+    expect(gainIdx2).toBeLessThan(noTreasureIdx); // 探宝先于城池结算终端
   });
 
-  it("自动拒绝(无委任状)仍探宝:自动执行终端接链尾探宝", () => {
+  it("自动拒绝(无委任状):探宝已在落格先行,收口零补探", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -384,13 +335,13 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
     const tile = treasureTile(e);
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e).landActiveAt(tile.index);
-    expect(passJinnang(e).turnPhase).toBe("Roll"); // 自动拒绝 → 探宝一步收口
+    expect(passJinnang(e).turnPhase).toBe("Roll"); // 探宝+自动拒绝一步收口
     expect(e.log.some((l) => l.detail.includes("skipAvailable"))).toBe(true); // 自动不取留痕
     expect(mover.properties.some((h) => h.propertyId === tile.propertyId)).toBe(false); // 未购
-    expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 仍探宝
+    expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝照常(先于拒绝已结算)
   });
 
-  it("交涉 premium 付款进清算:探宝不触发(链中断),清算交割后仍不触发", () => {
+  it("交涉 premium 付款进清算:探宝已先行发生(位移语义,清算不再抑制、链尾零补抽)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -404,20 +355,54 @@ describe("宝物城并权与落格顺序(ADR-0024)", () => {
       maxLevel: def.maxLevel,
     });
     owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
-    // 宝物城 Lv0 premium = 指导价×城乘数+城加价(随落点城而异,按 def 推导);
-    // 付不起但有可变卖资产 → 清算自救挂起
+    // 落格探宝先成(probe Lv1 恒得),再交涉:premium 价付不起 → 清算自救挂起
+    e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     const price = premiumPriceOf(TREASURE_PRICE[TLEVEL], def, 0);
     mover.cash = price - 1;
-    mover.treasures.push({ id: "old-t", name: "旧藏", level: 5, count: 1, desc: "" }); // 变卖 600 足额自救
     testEngine(e).landActiveAt(tile.index);
-    expect(e.turnPhase).toBe("AwaitingTreasureOwner");
+    expect(mover.treasures.map((t) => t.id)).toEqual(["probe-t"]); // 探宝已先行发生(付银之前)
+    const gainIdx = e.log.findIndex((l) => l.detail.includes("treasureGain"));
+    const awaitIdx = e.log.findIndex((l) => l.detail.includes("treasureAwait"));
+    expect(gainIdx).toBeLessThan(awaitIdx); // 探宝先于交涉窗口
     e.resolveTreasureOwner({ type: "premium", treasureId: TID });
-    expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 链中途清算:探宝不触发
-    expect(treasureTrail(e)).toBe(false);
-    e.sellTreasureBankruptcy("old-t");
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle"); // 链中途清算
+    e.sellTreasureBankruptcy("probe-t"); // 变卖落格探得之宝(Lv1=100 ≥ 欠差)自救
     e.confirmBankruptcySettle();
     expect(passJinnang(e).turnPhase).toBe("Roll"); // 交割完成收回合
     expect(mover.treasures.map((t) => t.id)).toEqual([TID]); // 付清交割(escrow 语义)
-    expect(treasureTrail(e)).toBe(false); // 清算路全程不补探宝
+    const treasureLines = e.log.filter(
+      (l) =>
+        l.detail.includes("treasureGain") ||
+        l.detail.includes("treasureMiss") ||
+        l.detail.includes("treasureEmpty"),
+    );
+    expect(treasureLines.length).toBe(1); // 全程恰落格一次探宝(清算不抑制、链尾零补抽)
+  });
+
+  it("交涉付款直破产:探宝已先行发生(堆空沉默留痕),破产收口零补抽", () => {
+    const e = makeEngine(1);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const owner = e.players.find((p) => p !== mover)!;
+    const tile = treasureTile(e);
+    const def = e.catalog.get(tile.propertyId!)!;
+    owner.properties.push({
+      propertyId: def.id,
+      group: def.group,
+      level: 0,
+      maxLevel: def.maxLevel,
+    });
+    owner.treasures.push({ id: TID, name: "测试珍宝", level: TLEVEL, count: 1, desc: "" });
+    e.treasureDeck = []; // 堆空:探宝事件位沉默留痕(treasureEmpty),不产可变卖资产
+    mover.cash = 0; // 无银无资产 → premium 付款直破产
+    testEngine(e).landActiveAt(tile.index);
+    const emptyIdx = e.log.findIndex((l) => l.detail.includes("treasureEmpty"));
+    const awaitIdx = e.log.findIndex((l) => l.detail.includes("treasureAwait"));
+    expect(emptyIdx).toBeGreaterThanOrEqual(0);
+    expect(emptyIdx).toBeLessThan(awaitIdx); // 探宝事件位已结算(先于交涉)
+    e.resolveTreasureOwner({ type: "premium", treasureId: TID });
+    expect(mover.isBankrupt).toBe(true); // 付款破产(位移语义:探宝不被抑制,已先行)
+    expect(e.log.filter((l) => l.detail.includes("treasureEmpty")).length).toBe(1); // 破产收口零补抽
+    expect(passJinnang(e).turnPhase).toBe("GameOver"); // 2 人局:破产即终局(引擎真终端)
   });
 });

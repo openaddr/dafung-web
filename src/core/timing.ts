@@ -82,7 +82,7 @@ export type GameMoment =
    *  ctx.buyerSeat/ctx.sellerSeat/ctx.amount = 成交价。subject = 城主(= 卖家)。 */
   | "TradeSettled"
   /** 得锦囊进手(#456):drawJinnang 物理单点内部派发(每张入手后按次数派一次),
-   *  四路同覆盖——起手发牌/锦囊格/机遇授书/声望献计。
+   *  四路同覆盖——起手发牌/锦囊城/机遇授书/声望献计。
    *  ctx.count = 本次实际入手张数(牌库空落空不派,与 jinnangDrawn 事件「无转移不产」同口径)。
    *  暗牌不带牌 id(ADR-0016 保密口径)。subject = 得牌者。 */
   | "JinnangGained"
@@ -104,7 +104,7 @@ export type GameMoment =
    *  结算处)。耗竭重置(系统复位非收益)与华佗赈济(主动技「结算内不派时机」既有口径)不派。
    *  ctx.delta = 夹紧 0~100 后的实际增减(带符号)。subject = 体力变动者。 */
   | "StaminaChanged"
-  /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命格与机遇
+  /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇
    *  repDelta 两路天然全覆盖;事件流的 before/after 差值模式在调用点,与新时机并存不冲突。
    *  ctx.delta = 夹紧 ±100 后的实际增减(带符号)。subject = 声望变动者。 */
   | "ReputationChanged"

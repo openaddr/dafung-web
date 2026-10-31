@@ -186,7 +186,7 @@ function landActiveOn(e: GameEngine, targetTile: number): void {
 function freePropertyTile(e: GameEngine) {
   return e.board.tiles.find(
     (t) =>
-      t.type === "Property" &&
+      t.event == null &&
       t.propertyId != null &&
       e.findOwner(t.propertyId) == null &&
       e.capitalOwnerOf(t.index) == null &&
@@ -218,8 +218,9 @@ describe("时机框架:派发点位", () => {
     passJinnang(e).rollAndMove();
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
-    // seed=1(ADR-0034 重钉):AI 选都改补给性价比(便宜城占优)后两家分选凉州/江州,
-    // 首位玩家落宝物城拼点得宝(TreasureGained)且途经棋子/城池,第二位途经棋子——如实钉住
+    // seed=1(#827 重钉:36 城 9×4 环序重排,选都/行军骰流重钓):两家分选交州/长沙,
+    // 两回合落点均为无主普通城(落格族时机由「39 时机各挂点一例」的场景构造覆盖),
+    // 途经棋子/城池如实钉住——本例主旨是框架派发顺序本身
     expect(calls).toEqual([
       "SetupComplete",
       "JinnangGained", // #456:起手发牌每座位一派(drawJinnang 单点)
@@ -232,8 +233,7 @@ describe("时机框架:派发点位", () => {
       "PassedPlayer", // 途经棋子
       "MarchPassedCity", // 途经城池
       "AfterMarch",
-      "TreasureGained", // 落宝物城拼点得宝
-      "TurnEnd", // 第一位玩家(落宝物城,探宝自带收尾)
+      "TurnEnd", // 第一位玩家(落无主城,按兵不动收场)
       "TurnStart", // 第二位玩家回合开始
       "BeforeMarch",
       "BeforeRoll",
@@ -913,11 +913,11 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     expect(cg[0].ctx).toMatchObject({ subject: e.players.indexOf(mover), amount: supply }); // 落都城补给
   });
 
-  it("TreasureGained:宝物城拼点得宝派发(subject=得宝者,ctx.treasureId)", () => {
+  it("TreasureGained:珍宝城拼点得宝派发(subject=得宝者,ctx.treasureId)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.type === "TreasureCity" && landPathClear(e, t.index))!;
+    const tile = e.board.tiles.find((t) => t.event === "treasure" && landPathClear(e, t.index))!; // #825:珍宝城由 event:"treasure" 承载
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1 }]; // Lv1:双骰 2-12 恒 ≥ 1
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
@@ -1426,12 +1426,12 @@ describe("时机框架:事件化第二批(#456)", () => {
     ]);
   });
 
-  it("ReputationChanged:addReputation 唯一写口单点广播——天命格 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {
+  it("ReputationChanged:addReputation 唯一写口单点广播——天命城 +20 派发(事件流 before/after 差值在调用点,并存不冲突)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    const fateTile = e.board.tiles.find((t) => t.type === "Fate")!;
+    const fateTile = e.board.tiles.find((t) => t.event === "fate")!;
     const entries = recordMomentCtx(e);
     landActiveOn(e, fateTile.index);
     expect(mover.reputation).toBe(20);
@@ -1723,7 +1723,7 @@ describe("时机框架:事件化第一批(#455)", () => {
   }
 
   it("商市看涨(A1):得银侧补派 CashGained(与看跌侧 CashLost 对称),金额=实得", () => {
-    const stockTile = MAP.board.tiles.findIndex((t) => t.type === "Stock");
+    const stockTile = MAP.board.tiles.findIndex((t) => t.event === "market");
     expect(stockTile).toBeGreaterThanOrEqual(0);
 
     // 看涨:nextFloat→0 → gain=true、amt=100(+100)

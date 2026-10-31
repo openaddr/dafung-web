@@ -2,7 +2,7 @@
 // 主路 = tiles 数组顺序闭合环。校验失败抛可读错误。
 // 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
-import { createBoard, isCityType } from "./board";
+import { createBoard, TILE_EVENTS } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
 import type { PropertyDef } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
@@ -24,9 +24,8 @@ export interface MapTile {
   id: string;
   name: string;
   pos: number[]; // [x, y]
-  type?: TileType; // 默认 Property;Chance/Fate 等非地产格用
+  type?: TileType; // 唯一合法值 "Property"(缺省同值,#826 全城池制;其他值装载即拒)
   group?: string; // 区域分组字母(Theme.groupNames a–h):城池格必配,loadMap 校验
-  region?: string;
   price?: number; // 购价(两):城池格必配,免费城显式写 0
   buildCost?: number; // 建城费(两):城池格必配
   /** 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级。 */
@@ -35,6 +34,9 @@ export interface MapTile {
   tradeAdd: number[];
   /** 坐地起价乘数(per-level):与 PropertyDef 同义。城池格必配,长度 = maxLevel+1。 */
   tradeMult: number[];
+  /** 特殊城池固定事件(#823/#824,ADR-0037,可选):缺省=普通城(机遇必出照旧);
+   *  配了即特殊城池(招贤/锦囊/天命/商市/珍宝五城,#826 起盘面唯一的事件承载)。 */
+  event?: string;
 }
 
 const SUPPORTED_VERSION = 1;
@@ -95,17 +97,27 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     const pos: BoardPos = { x: t.pos[0], y: t.pos[1] };
     positions.push(pos);
     const type = (t.type ?? "Property") as TileDef["type"];
-    // 宝物城与普通城池同权(ADR-0024):propertyId / 都城候选同口径,
-    // catalog 入册与校验同一路径(见下方 properties 段)。
-    const isCity = isCityType(type);
+    // 全城池制(#826):格型收口到唯一值,旧功能格五型与珍宝城独立格型的数据一律响亮拒绝
+    // (不点名旧值——退役字面量在全仓 sweep 后零残留,错误信息也不给它留户口)。
+    if (type !== "Property") {
+      fail(`第 ${i + 1} 格 type 值非法(唯一合法格型 "Property";特殊城池行为改由 event 字段承载)`);
+    }
+    // 特殊城池 event 字段(#824,ADR-0037):值合法性响亮校验。
+    let event: TileDef["event"];
+    if (t.event != null) {
+      if (!(TILE_EVENTS as readonly string[]).includes(t.event)) {
+        fail(`第 ${i + 1} 格 event 非法值「${t.event}」(合法:${TILE_EVENTS.join("/")})`);
+      }
+      event = t.event as TileDef["event"]; // 合法性已由上方白名单校验,此处收窄为联合
+    }
     return {
       index: i,
       type,
       name: t.name,
       position: pos,
-      propertyId: isCity ? t.id : null,
-      isCapitalEligible: isCity,
-      region: t.region ?? null,
+      propertyId: t.id, // 全城池制(#826):一切格子都是城池,id 即目录句柄
+      isCapitalEligible: true,
+      ...(event != null ? { event } : {}),
     };
   });
 
@@ -119,11 +131,9 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     }
   }
 
-  // properties(城池格进 catalog:Property 与 TreasureCity 同口径,ADR-0024;特殊格跳过)
+  // properties(全城池制 #826:每格都是城池、全部入册;普城/事件城同口径,ADR-0024/#825)
   const properties: PropertyDef[] = [];
   d.tiles.forEach((t, i) => {
-    const type = t.type ?? "Property";
-    if (!isCityType(type)) return;
     const values = t.valueByLevel;
     if (!Array.isArray(values) || values.length !== maxLevel + 1) {
       fail(`第 ${i + 1} 城 valueByLevel 长度必须等于等级数 ${maxLevel + 1}(Lv0..Lv${maxLevel})`);

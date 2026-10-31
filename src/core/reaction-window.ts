@@ -4,6 +4,7 @@
 // resolveDuel)的同名薄委托,src/core/authority.ts 反应窗区段。
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
+import { isEventCity } from "./board";
 import { jinnangCardOf } from "./jinnang";
 import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
@@ -655,7 +656,9 @@ function settleAmbushStop(
   }); // 事件流(#375):行军落格(拦停止步;截断路径随事件走)
   g.dispatchMoment("AfterMarch", { subject: payload.moverSeat }); // 时机·AfterMarch:移动完成(拦停止步)、落格结算前
   g.turnPhase = "Land";
-  const enc = g.maybeApplyEncounter(mover);
+  // 特殊城池免掷(#824,ADR-0037):拦停止步同落格门——落点是事件城不掷随机机遇,
+  // 照常走落格结算(固定事件 → 交易链)。
+  const enc = isEventCity(g.board.at(mover.position)) ? "none" : g.maybeApplyEncounter(mover);
   if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
     return;
   g.resolveLanding();

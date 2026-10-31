@@ -15,11 +15,11 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
 const MAP = loadMap(huanyouData);
-// 半路杀出走廊(ADR-0027 环位):起点赤壁 P30 → 途经武昌 P31(城主城)→ 落点江夏 P32
+// 半路杀出走廊(#827 环位):起点江夏 P28 → 途经武昌 P29(城主城)→ 落点合肥 P30
 const AT = (pid: string) => MAP.board.tiles.find((t) => t.propertyId === pid)!.index;
-const START = AT("prop-chibi");
+const START = AT("prop-jiangxia");
 const PASSED = AT("prop-wuchang");
-const LAND = AT("prop-jiangxia");
+const LAND = AT("prop-hefei");
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -116,7 +116,7 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   const moverSeat = e.players.indexOf(mover);
   const ownerSeat = moverSeat === 0 ? 1 : 0;
   const owner = e.players[ownerSeat];
-  const pathProps = ["prop-jiangxia", "prop-wuchang", "prop-chibi"];
+  const pathProps = ["prop-jiangxia", "prop-wuchang", "prop-hefei"];
   for (const p of e.players) {
     p.properties = p.properties.filter((h) => !pathProps.includes(h.propertyId));
   }
@@ -124,7 +124,7 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   mover.capitalIndex = AT("prop-changan"); // 都城挪出路径
   owner.capitalIndex = AT("prop-liaodong");
   if (opts.ownerBot) owner.isBot = true; // bot 城主:开窗即席代答(ADR-0017 §3)
-  grantCity(e, ownerSeat, "prop-wuchang"); // 格 10 武昌,城主城
+  grantCity(e, ownerSeat, "prop-wuchang"); // 格 29 武昌,城主城
   setHand(e, ownerSeat, opts.ownerCards);
   if (opts.ownerTreasure) owner.treasures.push({ id: "t1", name: "和氏璧", level: 3 });
   e.turnPhase = "Roll";
@@ -361,7 +361,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     beginGameEventBatch(e);
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
-    expect(mover.position).toBe(LAND); // 落原点(江夏)
+    expect(mover.position).toBe(LAND); // 落原点(合肥)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 平局牌白耗
     const duel = duelEventsOf(e); // 平局支:winnerSeat=null(#636)
@@ -383,7 +383,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
     beginGameEventBatch(e);
     e.respondReaction(ownerSeat, true, "半路杀出");
     expect(e.pendingReaction).toBeNull();
-    expect(mover.position).toBe(LAND); // 落原点(江夏)
+    expect(mover.position).toBe(LAND); // 落原点(合肥)
     expect(e.turnPhase).toBe("AwaitingDecision"); // 照常落格:无主可购卷轴
     expect(e.jinnangDiscard).toContain("半路杀出"); // 落败牌白耗
     const duel = duelEventsOf(e); // 落败支:胜者=行人(#636)
@@ -434,7 +434,7 @@ describe("半路杀出(MarchPassedCity 反应窗)", () => {
 
   it("拦停成功即止:同程多座己城,拦停后后续城不再问(窗只开一次)", () => {
     const { e, mover, ownerSeat } = marchUp({ ownerCards: ["半路杀出"] });
-    grantCity(e, ownerSeat, "prop-jiangxia"); // 落点也是城主城
+    grantCity(e, ownerSeat, "prop-hefei"); // 落点也是城主城
     e.rollAndMove();
     expect(e.turnPhase).toBe("AwaitingReaction");
     scriptDice(e, { rollDies: [5, 3] });

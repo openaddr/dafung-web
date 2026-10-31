@@ -21,9 +21,9 @@ import { foldEventBatch } from "@app/net/event-fold";
 
 const MAP = loadMap(huanyouData);
 
-// huanyou 地图锚点:长安=tile 0(购价 4000)、洛阳=tile 22。
+// huanyou 地图锚点(#827 环位):长安=P0 蛇头(tile 0)、洛阳=P35(tile 35)。
 const CHANGAN = 0;
-const LUOYANG = 22;
+const LUOYANG = MAP.board.tiles.find((t) => t.propertyId === "prop-luoyang")!.index;
 
 function makeEngine(): GameEngine {
   const seats: SeatConfig[] = [
@@ -70,7 +70,7 @@ describe("折叠投影器 foldEventBatch · #386 两族基线", () => {
 
     foldEventBatch(e, [
       ev(0, { kind: "cashChanged", delta: 500, reason: "supply" }),
-      ev(1, { kind: "cashChanged", delta: -200, reason: "tax" }),
+      ev(1, { kind: "cashChanged", delta: -200, reason: "stock" }),
       ev(0, { kind: "cashChanged", delta: -100, reason: "encounter" }),
     ]);
 
@@ -432,34 +432,29 @@ describe("折叠投影器 · 珍宝族", () => {
 });
 
 describe("折叠投影器 · 金钱族相邻回填", () => {
-  it("tax 落格表现态 TaxPaid;批内先破产 → causedBankruptcy 相邻标记", () => {
+  it("stock(商市行情)落格表现态 Noop;批内先破产 → causedBankruptcy 相邻标记", () => {
     const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -200, reason: "tax" })]);
-    expect(e.lastLandOutcome).toEqual({ kind: "TaxPaid", amount: 200, causedBankruptcy: false });
+    foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -150, reason: "stock" })]);
+    expect(e.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: false });
 
     const e2 = makeEngine();
     e2.players[0].heroes = [];
     foldEventBatch(e2, [
       ev(0, { kind: "playerBankrupt", creditorSeat: null }),
-      ev(0, { kind: "cashChanged", delta: -200, reason: "tax" }),
+      ev(0, { kind: "cashChanged", delta: -150, reason: "stock" }),
     ]);
-    expect(e2.lastLandOutcome).toEqual({ kind: "TaxPaid", amount: 200, causedBankruptcy: true });
-  });
-
-  it("stock 落格表现态 Noop + 破产标记", () => {
-    const e = makeEngine();
-    foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -150, reason: "stock" })]);
-    expect(e.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: false });
+    expect(e2.lastLandOutcome).toEqual({ kind: "Noop", causedBankruptcy: true });
   });
 });
 
 describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
-  // #652 真实批序构造:现金 < 税且无可变卖资产(仅剩都城)落税关 → payOrLiquidate 破产
-  // 支路:引擎 settleDebt 先整扫现金归零,批内先产 playerBankrupt(finalizeBankruptcy
-  // 派发时机同步产事件),随后 movement-flow 仍平记整额负 delta(浮字同口径,非状态
-  // 转移)。副本锁步折叠该平记会穿零成负现金 —— 渲染端 formatMoney 负数契约被折叠
-  // 中间态击穿(soak 5 次渲染期崩溃的崩点);折叠器以批内破产锚对齐引擎真值(落 0)。
-  function taxBankruptEngine(seed = 5): GameEngine {
+  // #652 真实批序构造(#826 起场景改商市城):现金 < 行情损失且无可变卖资产(仅剩都城)
+  // 落商市城 → payOrLiquidate 破产支路:引擎 settleDebt 先整扫现金归零,批内先产
+  // playerBankrupt(finalizeBankruptcy 派发时机同步产事件),随后 movement-flow 仍平记
+  // 整额负 delta(浮字同口径,非状态转移)。副本锁步折叠该平记会穿零成负现金 ——
+  // 渲染端 formatMoney 负数契约被折叠中间态击穿(soak 5 次渲染期崩溃的崩点);
+  // 折叠器以批内破产锚对齐引擎真值(落 0)。
+  function marketBankruptEngine(seed = 5): GameEngine {
     const seats: SeatConfig[] = [
       { name: "A", isBot: false, guohao: "魏" },
       { name: "B", isBot: false, guohao: "蜀" },
@@ -489,31 +484,39 @@ describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
     return e;
   }
 
-  it("税关破产批序折叠:平记 delta 不穿零,副本落 0 = 引擎真值(崩溃批序回归)", () => {
-    const e = taxBankruptEngine();
+  // 商市行情骰固定看跌(nextFloat 恒 0.9 → −190):现金 150 < 190 必走破产支路。
+  // 只替换 nextFloat(快照序列化仍读真骰的 rngState,不可整骰换掉)
+  function stubMarketDown(e: GameEngine): void {
+    (e.dice as unknown as { nextFloat: () => number }).nextFloat = () => 0.9;
+  }
+
+  it("商市城破产批序折叠:平记 delta 不穿零,副本落 0 = 引擎真值(崩溃批序回归)", () => {
+    const e = marketBankruptEngine();
     const t = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    mover.cash = 150; // < 税 200;无可变卖资产(仅剩都城)→ 破产支路
+    mover.cash = 150; // < 行情损失 190;无可变卖资产(仅剩都城)→ 破产支路
     mover.properties = [];
     mover.heroes = [];
     mover.treasures = [];
-    const taxTile = MAP.board.tiles.find((tile) => tile.type === "Tax")!;
+    const marketTile = MAP.board.tiles.find((tile) => tile.event === "market")!;
+    stubMarketDown(e);
 
-    t.placeActive(taxTile.index);
+    t.placeActive(marketTile.index);
     const preSnap = e.snapshot(); // 联机时序:上一校准快照先到(现金 150)
     beginGameEventBatch(e);
     t.land();
     const events = e.snapshot().events;
     const kinds = events.map((x) => x.kind);
     expect(kinds.slice(0, 2)).toEqual(["playerBankrupt", "cashChanged"]); // 折叠锚的批序前提:破产宣告恒先于平记
-    expect(events[1]).toMatchObject({ kind: "cashChanged", delta: -200, reason: "tax" });
+    expect(events[1]).toMatchObject({ kind: "cashChanged", delta: -190, reason: "stock" });
     expect(mover.cash).toBe(0); // 引擎真值:整扫归零
 
-    const replica = taxBankruptEngine();
+    const replica = marketBankruptEngine();
     replica.restoreFromSnapshot(preSnap);
+    stubMarketDown(replica);
     foldEventBatch(replica, events);
-    expect(replica.players[seat].cash).toBe(0); // 修复前:-50(平记穿零)= formatMoney 崩点
+    expect(replica.players[seat].cash).toBe(0); // 修复前:-40(平记穿零)= formatMoney 崩点
     expect(replica.players[seat].isBankrupt).toBe(true);
   });
 
@@ -521,7 +524,7 @@ describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
     const e = makeEngine();
     e.players[0].cash = 150;
     expect(() =>
-      foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -200, reason: "tax" })]),
+      foldEventBatch(e, [ev(0, { kind: "cashChanged", delta: -200, reason: "stock" })]),
     ).toThrow(/穿零且本批无破产锚/);
   });
 });

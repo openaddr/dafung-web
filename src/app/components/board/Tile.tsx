@@ -2,8 +2,8 @@
 // React.memo 保证仅状态变化的城池重渲。建筑为程序化精绘(Building:飞檐青瓦/城台/朱柱,
 // 按区域分形制变体)。
 // 玄墨鎏金深底化(#512,#500 决议方案一「重调色保留」):铭牌=深卡浅字(漆金细边深卡
-// lacquer 系+纸色字);事件格外轮廓三族(天命云纹圆龛/锦囊幡旗形/税关城垛缺口形,
-// 毛笔大字保留);都城金匾是深卡唯一例外(金底墨字)。
+// lacquer 系+纸色字);都城金匾是深卡唯一例外(金底墨字)。事件格大字/外轮廓三族随
+// 功能格五型退役整体删除(#826 全城池制:一切格子都走城池渲染分支)。
 // #842 归属色墨化:格底=color-mix(ownerRgb 22%, bgDeep) 墨渍染,饱和归属色收敛到
 // 铭牌底染 shade(owner,0.5)+全饱和描边两通道(糖果色整格平涂退役,一格一语言);
 // 归属国号角标收回格内左上压角;铭牌字随名长自适应不截断。
@@ -13,7 +13,7 @@
 // (R3 的 key={level} 重挂 / useOwnerChangeFlash 上一值钩子已删)。动画 keyframes 本体
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
-import type { TileDef } from "@core/board";
+import type { TileDef, TileEvent } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
@@ -250,101 +250,56 @@ function CandidateSeal({ order }: { order: number }) {
   );
 }
 
-/** 非城池格(锦囊/天命/税关/商市/卧龙岗)的大字 icon 配色。 */
-const ICON_THEME: Partial<Record<TileDef["type"], { color: string; icon: string }>> = {
-  Wolong: { color: "goldBright", icon: "龙" },
-  Chance: { color: "goldBright", icon: "囊" },
-  Fate: { color: "danger", icon: "凶" },
-  Tax: { color: "danger", icon: "税" },
-  Stock: { color: "money", icon: "市" },
-  // 宝物城不入此表(ADR-0024):它是有 propertyId 的可购买城池,走下方城池渲染分支
-  // (建筑/归属/等级/价签俱全),「宝」身份由城池分支内的宝印承担——若入表,
-  // isIconTile 分流会把它画成无归属的大字格,丢掉归属/等级渲染。
+// ── #823/#828 特殊城池两字徽标:右上角方印按 event 字段渲染奖励域 ──
+// 五类词表(奖励域,非城名):珍宝(拼点探宝)/名将(招贤三选一)/锦囊(落格抽签)/
+// 声望(天命 +20)/商市(行情赌局)。旧「宝」单字印升级两字印;印底金族统一
+// (goldBright 底+玄墨字,#842 饱和色收敛两通道——区分靠两字文本,不上五色);
+// 保留 -6° 手钤角与「印=特殊标记」的读法(与选都候选印同族,配色对偶:
+// 候选印玄墨底金字、事件印金底玄墨字)。
+// 尺寸:两字印 32×20/单字 11 号(逻辑单位,TILE_SCALE 2.2 屏上单字 ~24px,
+// 844×390 实测可读)。锚点 (49,-34):-6° 旋转后底左角 (34,-22.4) 让开右侧木匾
+// 顶缘(-22),顶右角 (64,-45.6) 出格顶一线=悬挂印旧观感;旗组 #842 已收回左上,
+// 右上角唯此一印不撞木匾(右侧)/王旗(上方)/档位珠(左下)。
+// #665/#828 收编导出:印文词表与徽标组件供 test/tile-badge.test.tsx 同源断言
+// (词表漂移/普通城无徽标在组件级钉住,不靠 e2e)。
+export const TILE_EVENT_BADGES: Record<TileEvent, string> = {
+  treasure: "珍宝",
+  hero: "名将",
+  jinnang: "锦囊",
+  fate: "声望",
+  market: "商市",
 };
 
-// ── 事件格外轮廓三族(#500 决议,#512 深底化)──
-// 天命=云纹圆龛(金边圆龛+肩部双云卷)/ 锦囊=幡旗形(悬杆横旗+燕尾旗脚)/
-// 税关=城垛缺口形(垛口锯齿顶)。三族均:漆木深卡身 + 漆金描边,替换通用圆角方牌;
-// 毛笔大字与格名保留(版位随族形微调,见 EVENT_LAYOUT)。商市/卧龙岗不入族——
-// 保留圆角深卡,大字即族色信号。
-const SHRINE_FILL = rgba(Theme.lacquer, 0.92); // 族形卡身(漆木深卡)
-const SHRINE_EDGE = rgba(Theme.goldDeep, 0.9); // 漆金描边
-
-/** 天命·云纹圆龛:金边圆龛 + 内衬细金环 + 肩部双云卷(左右镜像一支笔)。 */
-function FateShrine() {
-  const cloud = (
-    <path d="M 0,0 q -2,-9 -11,-9 q -10,0 -10,9 q 0,8 9,8 q 7,0 7,-5 q 0,-5 -5,-5 q -3,0 -3,3" />
-  );
+export function EventSeal({ event }: { event: TileEvent }) {
   return (
-    <g className="bv-tile-border bv-tile-shrine">
-      <circle cx={0} cy={2} r={40} fill={SHRINE_FILL} stroke={SHRINE_EDGE} strokeWidth={2.2} />
-      <circle
-        cx={0}
-        cy={2}
-        r={34.5}
-        fill="none"
-        stroke={rgba(Theme.lacquerGold, 0.35)}
-        strokeWidth={1}
+    <g className="bv-event-seal" transform="translate(49 -34) rotate(-6)">
+      <rect
+        x={-16}
+        y={-10}
+        width={32}
+        height={20}
+        rx={2}
+        fill={rgba(Theme.goldBright)}
+        stroke={rgba(Theme.bgDeep, 0.7)}
+        strokeWidth={1.4}
       />
-      <g fill="none" stroke={rgba(Theme.goldDeep, 0.75)} strokeWidth={1.6} strokeLinecap="round">
-        <g transform="translate(-30 -36)">{cloud}</g>
-        <g transform="translate(30 -36) scale(-1 1)">{cloud}</g>
-      </g>
+      {[...TILE_EVENT_BADGES[event]].map((c, i) => (
+        <text
+          key={i}
+          x={i === 0 ? -6.5 : 6.5}
+          y={4}
+          textAnchor="middle"
+          fontFamily="var(--font-title)"
+          fontSize={11}
+          fontWeight={700}
+          fill={rgba(Theme.bgDeep)}
+        >
+          {c}
+        </text>
+      ))}
     </g>
   );
 }
-
-/** 锦囊·幡旗形:左悬杆(杆顶金珠)+ 横旗,旗脚燕尾双岔(底缘 V 缺口)。 */
-function ChanceBanner() {
-  return (
-    <g className="bv-tile-border bv-tile-banner">
-      <line
-        x1={-40}
-        y1={-44}
-        x2={-40}
-        y2={44}
-        stroke={rgba(Theme.inkwash, 0.85)}
-        strokeWidth={2.5}
-      />
-      <circle cx={-40} cy={-46} r={2.4} fill={rgba(Theme.goldBright)} />
-      <path
-        d="M -36,-30 L 44,-30 L 44,26 L 24,38 L 4,26 L -16,38 L -36,26 Z"
-        fill={SHRINE_FILL}
-        stroke={SHRINE_EDGE}
-        strokeWidth={2.2}
-        strokeLinejoin="round"
-      />
-    </g>
-  );
-}
-
-/** 税关·城垛缺口形:垛口锯齿顶(五垛四缺)+ 直壁深卡。 */
-function TaxBattlement() {
-  return (
-    <g className="bv-tile-border bv-tile-battlement">
-      <path
-        d={
-          "M -46,44 L -46,-44 L -34,-44 L -34,-32 L -26,-32 L -26,-44 L -14,-44 " +
-          "L -14,-32 L -6,-32 L -6,-44 L 6,-44 L 6,-32 L 14,-32 L 14,-44 L 26,-44 " +
-          "L 26,-32 L 34,-32 L 34,-44 L 46,-44 L 46,44 Z"
-        }
-        fill={SHRINE_FILL}
-        stroke={SHRINE_EDGE}
-        strokeWidth={2.2}
-        strokeLinejoin="round"
-      />
-    </g>
-  );
-}
-
-/** 三族事件格的版位微调(大字/格名基线与字号随族形内域收紧)。 */
-const EVENT_LAYOUT: Partial<
-  Record<TileDef["type"], { nameY: number; charY: number; charSize: number }>
-> = {
-  Fate: { nameY: -10, charY: 30, charSize: 42 },
-  Chance: { nameY: -10, charY: 22, charSize: 36 },
-  Tax: { nameY: -8, charY: 28, charSize: 44 },
-};
 
 // ── #96 易主检测已收编(ADR-0015)──
 // 旧 useOwnerChangeFlash(props diff 上一值快照)删除:易主宣告由引擎结算留痕 →
@@ -360,10 +315,6 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
   // 易主流光仅在有过易主宣告后渲染(开局铺盘不闪);key=nonce 每次易主重挂重播。
   const ownFlash = announce != null && announce.owner > 0 ? announce : null;
   const isCapital = state.capitalColorIndex != null;
-  const isIconTile = tile.type in ICON_THEME;
-  // 事件格外轮廓三族(#500):天命/锦囊/税关换族形,不再画通用圆角方牌
-  const familyShape =
-    isIconTile && (tile.type === "Fate" || tile.type === "Chance" || tile.type === "Tax");
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
 
   const cls = [
@@ -375,7 +326,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
     state.capitalCandidateOrder != null ? "bv-candidate" : "",
     state.isSelectable ? "bv-selectable" : "",
     // 需求2·无主档:整城 0.92 安静感(城池格专属;isTaken 的 40% 灰阶更强,让位不叠加)
-    !ownerRgb && !state.isTaken && !isIconTile ? "bv-unowned" : "",
+    !ownerRgb && !state.isTaken ? "bv-unowned" : "",
   ]
     .filter(Boolean)
     .join(" ");
@@ -413,299 +364,181 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
       {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
           color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色
           收敛到铭牌底染(NamePlaque)+全饱和描边 3px 两通道,色弱通道仍靠城旗国号
-          (DESIGN §5.2 一格一语言;城旗/档位珠/都城光晕全不动)。
-          天命/锦囊/税关三族事件格由族形组件自带外轮廓,不画通用圆角方牌。 */}
-      {familyShape ? (
-        tile.type === "Fate" ? (
-          <FateShrine />
-        ) : tile.type === "Chance" ? (
-          <ChanceBanner />
-        ) : (
-          <TaxBattlement />
-        )
-      ) : (
-        <rect
-          className="bv-tile-border"
-          x={-52}
-          y={-44}
-          width={104}
-          height={88}
-          rx={10}
-          fill={ownerRgb ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22)) : rgba(Theme.lacquer, 0.92)}
-          stroke={
-            state.isActive
-              ? rgba(Theme.goldBright)
-              : ownerRgb
-                ? rgba(ownerRgb)
-                : rgba(Theme.lacquerGold, 0.5)
-          }
-          strokeOpacity={ownerRgb ? 0.95 : 0.9}
-          strokeWidth={ownerRgb ? 3 : state.isActive ? 3 : 1.5}
-        />
-      )}
+          (DESIGN §5.2 一格一语言;城旗/档位珠/都城光晕全不动)。#826:天命/锦囊/税关
+          三族族形分支随功能格五型退役整体删除,一切格子走通用圆角方牌。 */}
+      <rect
+        className="bv-tile-border"
+        x={-52}
+        y={-44}
+        width={104}
+        height={88}
+        rx={10}
+        fill={ownerRgb ? rgba(mix(Theme.bgDeep, ownerRgb, 0.22)) : rgba(Theme.lacquer, 0.92)}
+        fillOpacity={ownerRgb ? 0.94 : 1}
+        stroke={
+          state.isActive
+            ? rgba(Theme.goldBright)
+            : ownerRgb
+              ? rgba(ownerRgb)
+              : rgba(Theme.lacquerGold, 0.5)
+        }
+        strokeOpacity={ownerRgb ? 0.95 : 0.9}
+        strokeWidth={ownerRgb ? 3 : state.isActive ? 3 : 1.5}
+      />
 
-      {isIconTile ? (
-        <>
-          {/* 类型点缀物(静态 path,无动画):每种格一两笔剪影,克制不喧宾。
-              天命云纹/锦囊卷轴已升格为外轮廓三族(FateShrine/ChanceBanner),不再重复画。 */}
-          {tile.type === "Stock"
-            ? // 商市:大字两侧挂一对红灯笼(圆 + 穗),暖色点缀商业氛围(深底上即灯火感)
-              [-34, 34].map((lx) => (
-                <g key={lx}>
-                  <line
-                    x1={lx}
-                    y1={-36}
-                    x2={lx}
-                    y2={-4}
-                    stroke={rgba(Theme.inkwash, 0.55)}
-                    strokeWidth={1}
-                  />
-                  <ellipse
-                    cx={lx}
-                    cy={4}
-                    rx={6}
-                    ry={8}
-                    fill={rgba(Theme.danger, 0.92)}
-                    stroke={rgba(Theme.bgDeep, 0.7)}
-                    strokeWidth={1}
-                  />
-                  <line
-                    x1={lx}
-                    y1={12}
-                    x2={lx}
-                    y2={18}
-                    stroke={rgba(Theme.danger, 0.8)}
-                    strokeWidth={1}
-                  />
-                  <line
-                    x1={lx - 2}
-                    y1={12}
-                    x2={lx - 3}
-                    y2={17}
-                    stroke={rgba(Theme.danger, 0.6)}
-                    strokeWidth={0.8}
-                  />
-                  <line
-                    x1={lx + 2}
-                    y1={12}
-                    x2={lx + 3}
-                    y2={17}
-                    stroke={rgba(Theme.danger, 0.6)}
-                    strokeWidth={0.8}
-                  />
-                </g>
-              ))
-            : null}
+      {/* 需求2·都城① 金色城台底座:建筑脚下两层 rect(暗金座身+亮金座面,模拟上下渐变)。
+            不用 linearGradient:defs 在 StaticLayers(独占勿动),每城内联 defs 会产生重复 id 冲突。
+            #512 深底适配:座身压暗(goldDeep)、描边换玄墨勾线,金面读作「金台」不炫目。 */}
+      {isCapital ? (
+        <g className="bv-capital-pedestal">
+          <rect
+            x={-62}
+            y={9}
+            width={124}
+            height={12}
+            rx={2}
+            fill={rgba(Theme.goldDeep, 0.55)}
+            stroke={rgba(Theme.bgDeep, 0.8)}
+            strokeWidth={1.5}
+          />
+          <rect x={-62} y={9} width={124} height={5.5} rx={2} fill={rgba(Theme.gold, 0.85)} />
+        </g>
+      ) : null}
+      {/* 建筑整体 scale 1.08(都城):以城脚(y=12)为锚,只向上长高="微抬升",
+            不踩进底座;无主/领地保持原尺度。 */}
+      <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
+        {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
+              归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格×地域风味)。 */}
+        <Building group={group} />
+      </g>
+      {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
+            时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
+            语言)。宣告 nonce 经事件流下发;key=nonce 每次易主重挂重播,动画播完停在
+            基态 opacity 0,平时(开局铺盘/快照恢复,nonce=0)不渲染。 */}
+      {ownFlash ? (
+        <line
+          key={ownFlash.owner}
+          className="bv-own-flash"
+          x1={-46}
+          y1={-39}
+          x2={46}
+          y2={-39}
+          stroke={
+            ownFlash.ownerColorIndex != null
+              ? rgba(playerColor(ownFlash.ownerColorIndex))
+              : rgba(Theme.gold)
+          }
+          strokeWidth={8}
+        />
+      ) : null}
+      {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
+      <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
+      {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
+            无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
+            重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
+      {state.level > 0 ? (
+        <LevelPips key={growNonce} level={state.level} maxLevel={maxLevel} replay={growNonce > 0} />
+      ) : null}
+      {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
+            Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
+            (仪式感是全座的,可点只在本地)。 */}
+      {state.capitalCandidateOrder != null ? (
+        <CandidateSeal order={state.capitalCandidateOrder} />
+      ) : null}
+      {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
+            需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
+            仍可辨的形状级王权信号,不依赖文字/描边细节。
+            旗杆基点固定 -40:恰接大档城楼屋脊(城头立旗),旗面高度不变,
+            不加重与邻城铭牌的既有避让余量(环游图存在同列 196 的近距上下邻城)。 */}
+      {isCapital && state.capitalColorIndex != null ? (
+        <g className="bv-tile-flag">
+          <line
+            x1={0}
+            y1={-40}
+            x2={0}
+            y2={-88}
+            stroke={rgba(Theme.inkwash, 0.85)}
+            strokeWidth={2}
+          />
+          {/* 旗杆顶缨:金珠 + 三笔红缨,静态点缀 */}
+          <circle cx={0} cy={-89} r={2.2} fill={rgba(Theme.goldBright)} />
+          <g stroke={rgba(Theme.danger, 0.8)} strokeWidth={1}>
+            <line x1={0} y1={-87} x2={-3} y2={-84} />
+            <line x1={0} y1={-87} x2={0} y2={-83} />
+            <line x1={0} y1={-87} x2={3} y2={-84} />
+          </g>
+          {/* 后层深色衬:略大略低一笔,让前层旗面在任何底色上都"浮"出来(玄墨底取 bgDeep) */}
+          <polygon points="0,-90 47,-77.5 0,-65" fill={rgba(Theme.bgDeep, 0.65)} />
+          <polygon
+            points="0,-88 45,-76.5 0,-65"
+            fill={rgba(playerColor(state.capitalColorIndex))}
+            stroke={rgba(Theme.goldBright)}
+            strokeWidth={1.5}
+          />
+          {/* B3:三角尖端窄,文字锚点从 x=15 右移到形心偏内 x=19,避免国号挤向尖端溢出。
+                #512 深底适配:纸色字 + 玄墨描边衬底(paint-order),任意玩家色旗面上都可读 */}
           <text
-            x={0}
-            y={EVENT_LAYOUT[tile.type]?.charY ?? 22}
+            x={19}
+            y={-74}
             textAnchor="middle"
             fontFamily="var(--font-brush)"
-            fontSize={EVENT_LAYOUT[tile.type]?.charSize ?? 48}
-            fontWeight={700}
-            fill={rgba(Theme[ICON_THEME[tile.type]!.color as "goldBright" | "danger" | "money"])}
+            fontSize={17}
+            fill={rgba(Theme.ink)}
+            stroke={rgba(Theme.bgDeep, 0.85)}
+            strokeWidth={2.5}
+            paintOrder="stroke"
           >
-            {ICON_THEME[tile.type]!.icon}
+            {state.capitalGuohao}
           </text>
+        </g>
+      ) : null}
+      {/* 特殊城池两字徽标(#823/#828,EventSeal):右上角方印按 event 字段渲染奖励域
+            五类词表(珍宝/名将/锦囊/声望/商市,印底金族统一)——旧「宝」单字印
+            (ADR-0024 时代,#825 改读 event)升级两字印,普通城(无 event)无徽标。
+            旧「都城化让位」条件(都印优先)已随都印退役删除——都城身份现由光晕+王旗
+            承担,与本印不同锚不撞,都城化的特殊城仍可辨「此城有固定事件」。
+            「起」印(#73 所植,同锚旧邻)已随 2026-10-19 拷问退役:游戏无共同
+            起点——选都后各人行军自都城始(各不相同),tileIndex 0 仅选都期全员
+            落位;「起点有标识」前提不成立,环路方向语义由首段双羽独挑。
+            #512:金底印字用玄墨底色(ink=纸色,金底上须配深字才可读)。 */}
+      {tile.event ? <EventSeal event={tile.event} /> : null}
+      {/* B2 三旗语法分化:持有者城旗改「燕尾旗」(矩形 + 飞端 V 形缺口)——
+            与棋子的三角旗(人)、王旗的双层大三角(都)三形互斥,远看旗形即分类;
+            深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。
+            #842:旗组从格框外路面(原 x 40..62 越框压箭羽)收回格内左上角压角——
+            框缘内缩 6px(旗顶 -38=上缘内缩 6、旗杆 -46=左缘内缩 6),杆脚落在檐角
+            线上(下檐尖 ±40,-21),不压箭羽/档位珠(左下)/宝印(右上)/木匾(右侧)。 */}
+      {!isCapital && ownerRgb ? (
+        <g className="bv-tile-owner-flag">
+          <line
+            x1={-46}
+            y1={-24}
+            x2={-46}
+            y2={-38}
+            stroke={rgba(Theme.inkwash, 0.8)}
+            strokeWidth={1.5}
+          />
+          <polygon
+            points="-46,-38 -24,-38 -31,-33 -24,-28 -46,-28"
+            fill={rgba(ownerRgb)}
+            stroke={rgba(Theme.bgDeep, 0.7)}
+            strokeWidth={1}
+          />
           <text
-            className="bv-tile-name"
-            x={0}
-            y={EVENT_LAYOUT[tile.type]?.nameY ?? -16}
+            x={-36}
+            y={-29.5}
             textAnchor="middle"
-            fontFamily="var(--font-deco)"
-            fontSize={16}
-            fill={rgba(Theme.inkDim)}
+            fontFamily="var(--font-brush)"
+            fontSize={10.5}
+            fill={rgba(Theme.ink)}
+            stroke={rgba(Theme.bgDeep, 0.8)}
+            strokeWidth={2}
+            paintOrder="stroke"
           >
-            {tile.name}
+            {state.ownerGuohao}
           </text>
-        </>
-      ) : (
-        <>
-          {/* 需求2·都城① 金色城台底座:建筑脚下两层 rect(暗金座身+亮金座面,模拟上下渐变)。
-              不用 linearGradient:defs 在 StaticLayers(独占勿动),每城内联 defs 会产生重复 id 冲突。
-              #512 深底适配:座身压暗(goldDeep)、描边换玄墨勾线,金面读作「金台」不炫目。 */}
-          {isCapital ? (
-            <g className="bv-capital-pedestal">
-              <rect
-                x={-62}
-                y={9}
-                width={124}
-                height={12}
-                rx={2}
-                fill={rgba(Theme.goldDeep, 0.55)}
-                stroke={rgba(Theme.bgDeep, 0.8)}
-                strokeWidth={1.5}
-              />
-              <rect x={-62} y={9} width={124} height={5.5} rx={2} fill={rgba(Theme.gold, 0.85)} />
-            </g>
-          ) : null}
-          {/* 建筑整体 scale 1.08(都城):以城脚(y=12)为锚,只向上长高="微抬升",
-              不踩进底座;无主/领地保持原尺度。 */}
-          <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
-            {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
-                归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格×地域风味)。 */}
-            <Building group={group} />
-          </g>
-          {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
-              时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
-              语言)。宣告 nonce 经事件流下发;key=nonce 每次易主重挂重播,动画播完停在
-              基态 opacity 0,平时(开局铺盘/快照恢复,nonce=0)不渲染。 */}
-          {ownFlash ? (
-            <line
-              key={ownFlash.owner}
-              className="bv-own-flash"
-              x1={-46}
-              y1={-39}
-              x2={46}
-              y2={-39}
-              stroke={
-                ownFlash.ownerColorIndex != null
-                  ? rgba(playerColor(ownFlash.ownerColorIndex))
-                  : rgba(Theme.gold)
-              }
-              strokeWidth={8}
-            />
-          ) : null}
-          {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏;有主=深玩家色底染(#842
-              归属主通道),无主深木底金字 */}
-          <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
-          {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
-              无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
-              重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
-          {state.level > 0 ? (
-            <LevelPips
-              key={growNonce}
-              level={state.level}
-              maxLevel={maxLevel}
-              replay={growNonce > 0}
-            />
-          ) : null}
-          {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
-              Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
-              (仪式感是全座的,可点只在本地)。 */}
-          {state.capitalCandidateOrder != null ? (
-            <CandidateSeal order={state.capitalCandidateOrder} />
-          ) : null}
-          {/* 王旗(都城):旗杆 + 旗顶缨 + 玩家色三角(描金边)+ 国号。
-              需求2·都城② 旗面加宽至 1.4 倍 + 双层(后层深色衬底)——大旗是 zoom-out 后
-              仍可辨的形状级王权信号,不依赖文字/描边细节。
-              旗杆基点固定 -40:恰接大档城楼屋脊(城头立旗),旗面高度不变,
-              不加重与邻城铭牌的既有避让余量(环游图存在同列 196 的近距上下邻城)。 */}
-          {isCapital && state.capitalColorIndex != null ? (
-            <g className="bv-tile-flag">
-              <line
-                x1={0}
-                y1={-40}
-                x2={0}
-                y2={-88}
-                stroke={rgba(Theme.inkwash, 0.85)}
-                strokeWidth={2}
-              />
-              {/* 旗杆顶缨:金珠 + 三笔红缨,静态点缀 */}
-              <circle cx={0} cy={-89} r={2.2} fill={rgba(Theme.goldBright)} />
-              <g stroke={rgba(Theme.danger, 0.8)} strokeWidth={1}>
-                <line x1={0} y1={-87} x2={-3} y2={-84} />
-                <line x1={0} y1={-87} x2={0} y2={-83} />
-                <line x1={0} y1={-87} x2={3} y2={-84} />
-              </g>
-              {/* 后层深色衬:略大略低一笔,让前层旗面在任何底色上都"浮"出来(玄墨底取 bgDeep) */}
-              <polygon points="0,-90 47,-77.5 0,-65" fill={rgba(Theme.bgDeep, 0.65)} />
-              <polygon
-                points="0,-88 45,-76.5 0,-65"
-                fill={rgba(playerColor(state.capitalColorIndex))}
-                stroke={rgba(Theme.goldBright)}
-                strokeWidth={1.5}
-              />
-              {/* B3:三角尖端窄,文字锚点从 x=15 右移到形心偏内 x=19,避免国号挤向尖端溢出。
-                  #512 深底适配:纸色字 + 玄墨描边衬底(paint-order),任意玩家色旗面上都可读 */}
-              <text
-                x={19}
-                y={-74}
-                textAnchor="middle"
-                fontFamily="var(--font-brush)"
-                fontSize={17}
-                fill={rgba(Theme.ink)}
-                stroke={rgba(Theme.bgDeep, 0.85)}
-                strokeWidth={2.5}
-                paintOrder="stroke"
-              >
-                {state.capitalGuohao}
-              </text>
-            </g>
-          ) : null}
-          {/* 宝物城宝印(ADR-0024):「宝」身份独立标识——金底墨字方印(20×20
-              圆角方 + -6° 手钤),锚点(49,-33)。旧「都城化让位」条件(都印优先)
-              随都印退役删除——都城身份现由光晕+王旗承担,与本印不同锚不撞,
-              都城化的宝物城仍可辨「此城会探宝」。
-              「起」印(#73 所植,同锚旧邻)已随 2026-10-19 拷问退役:游戏无共同
-              起点——选都后各人行军自都城始(各不相同),tileIndex 0 仅选都期全员
-              落位;「起点有标识」前提不成立,环路方向语义由首段双羽独挑。
-              墨字取金字的对偶:金=既有事件强调语言,一粒金方点总览即辨。
-              #512:墨字用玄墨底色(S3 换血后 ink=纸色,金底上须配深字才可读)。 */}
-          {tile.type === "TreasureCity" ? (
-            <g className="bv-treasure-seal" transform="translate(49 -33) rotate(-6)">
-              <rect
-                x={-10}
-                y={-10}
-                width={20}
-                height={20}
-                rx={2}
-                fill={rgba(Theme.goldBright)}
-                stroke={rgba(Theme.bgDeep, 0.7)}
-                strokeWidth={1.4}
-              />
-              <text
-                x={0}
-                y={5}
-                textAnchor="middle"
-                fontFamily="var(--font-title)"
-                fontSize={14}
-                fontWeight={700}
-                fill={rgba(Theme.bgDeep)}
-              >
-                宝
-              </text>
-            </g>
-          ) : null}
-          {/* B2 三旗语法分化:持有者城旗改「燕尾旗」(矩形 + 飞端 V 形缺口)——
-              与棋子的三角旗(人)、王旗的双层大三角(都)三形互斥,远看旗形即分类;
-              深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。
-              #842:旗组从格框外路面(原 x 40..62 越框压箭羽)收回格内左上角压角——
-              框缘内缩 6px(旗顶 -38=上缘内缩 6、旗杆 -46=左缘内缩 6),杆脚落在檐角
-              线上(下檐尖 ±40,-21),不压箭羽/档位珠(左下)/宝印(右上)/木匾(右侧)。 */}
-          {!isCapital && ownerRgb ? (
-            <g className="bv-tile-owner-flag">
-              <line
-                x1={-46}
-                y1={-24}
-                x2={-46}
-                y2={-38}
-                stroke={rgba(Theme.inkwash, 0.8)}
-                strokeWidth={1.5}
-              />
-              <polygon
-                points="-46,-38 -24,-38 -31,-33 -24,-28 -46,-28"
-                fill={rgba(ownerRgb)}
-                stroke={rgba(Theme.bgDeep, 0.7)}
-                strokeWidth={1}
-              />
-              <text
-                x={-36}
-                y={-29.5}
-                textAnchor="middle"
-                fontFamily="var(--font-brush)"
-                fontSize={10.5}
-                fill={rgba(Theme.ink)}
-                stroke={rgba(Theme.bgDeep, 0.8)}
-                strokeWidth={2}
-                paintOrder="stroke"
-              >
-                {state.ownerGuohao}
-              </text>
-            </g>
-          ) : null}
-        </>
-      )}
+        </g>
+      ) : null}
       {/* X4+:选都可点指示——描边金环叠于卡面之上。原仅垫底金盘(hilite r=62),
           被卡片遮挡只露边缘光晕,脉冲谷底 0.18 近乎不可见(用户实测「看不出来
           哪些能选」)。selectable=呼吸描边(与底盘同拍);候选(他席)=静态细环。 */}

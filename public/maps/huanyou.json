@@ -8,1212 +8,407 @@
     {
       "id": "prop-changan",
       "name": "长安",
-      "pos": [
-        -760,
-        -640
-      ],
+      "pos": [-760, -480],
       "group": "a",
-      "region": "中原",
-      "price": 4800,
-      "buildCost": 2400,
-      "tradeMult": [
-        2,
-        3,
-        4,
-        5
-      ],
-      "valueByLevel": [
-        2880,
-        4320,
-        5760,
-        7200
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        600,
-        1200
-      ]
+      "price": 7200,
+      "buildCost": 3600,
+      "tradeMult": [2, 3, 4, 5],
+      "valueByLevel": [4320, 6480, 8640, 10800],
+      "tradeAdd": [200, 400, 600, 1200]
     },
     {
       "id": "prop-jinyang",
       "name": "晋阳",
-      "pos": [
-        -380,
-        -640
-      ],
+      "pos": [-380, -480],
       "group": "f",
-      "region": "并州",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
     },
     {
       "id": "prop-youzhou",
       "name": "幽州",
-      "pos": [
-        0,
-        -640
-      ],
+      "pos": [0, -480],
       "group": "f",
-      "region": "幽燕",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
     },
     {
       "id": "prop-liaodong",
       "name": "辽东",
-      "pos": [
-        380,
-        -640
-      ],
+      "pos": [380, -480],
       "group": "f",
-      "region": "幽燕",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "treasure"
     },
     {
-      "id": "prop-wan",
-      "name": "宛城",
-      "pos": [
-        760,
-        -640
-      ],
-      "type": "TreasureCity",
+      "id": "prop-shangshi",
+      "name": "商市城",
+      "pos": [760, -480],
       "group": "f",
-      "region": "幽燕",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ]
-    },
-    {
-      "id": "prop-ye",
-      "name": "邺城",
-      "pos": [
-        1140,
-        -640
-      ],
-      "group": "a",
-      "region": "中原",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ]
-    },
-    {
-      "id": "tile-stock-1",
-      "name": "商市",
-      "pos": [
-        1520,
-        -640
-      ],
-      "type": "Stock"
-    },
-    {
-      "id": "prop-xuzhou",
-      "name": "徐州",
-      "pos": [
-        1520,
-        -320
-      ],
-      "group": "g",
-      "region": "青徐",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "tile-tax-1",
-      "name": "税关",
-      "pos": [
-        1520,
-        0
-      ],
-      "type": "Tax"
-    },
-    {
-      "id": "prop-jianye",
-      "name": "建业",
-      "pos": [
-        1520,
-        320
-      ],
-      "group": "h",
-      "region": "江东",
-      "price": 4800,
-      "buildCost": 2400,
-      "tradeMult": [
-        2,
-        3,
-        4,
-        5
-      ],
-      "valueByLevel": [
-        2880,
-        4320,
-        5760,
-        7200
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        600,
-        1200
-      ]
-    },
-    {
-      "id": "prop-wujun",
-      "name": "吴郡",
-      "pos": [
-        1520,
-        640
-      ],
-      "group": "h",
-      "region": "江东",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-changsha",
-      "name": "长沙",
-      "pos": [
-        1140,
-        640
-      ],
-      "group": "c",
-      "region": "岭南",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-lingling",
-      "name": "零陵",
-      "pos": [
-        760,
-        640
-      ],
-      "group": "c",
-      "region": "岭南",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-jiaozhou",
-      "name": "交州",
-      "pos": [
-        380,
-        640
-      ],
-      "group": "c",
-      "region": "岭南",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-huarong",
-      "name": "华容道",
-      "pos": [
-        0,
-        640
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        2,
-        3,
-        5,
-        7
-      ]
-    },
-    {
-      "id": "tile-ferry-fuling",
-      "name": "涪陵渡",
-      "type": "Chance",
-      "pos": [
-        -380,
-        640
-      ]
-    },
-    {
-      "id": "prop-jiangzhou",
-      "name": "江州",
-      "pos": [
-        -760,
-        640
-      ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-chengdu",
-      "name": "成都",
-      "pos": [
-        -1140,
-        640
-      ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 4800,
-      "buildCost": 2400,
-      "tradeMult": [
-        2,
-        3,
-        4,
-        5
-      ],
-      "valueByLevel": [
-        2880,
-        4320,
-        5760,
-        7200
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        600,
-        1200
-      ]
-    },
-    {
-      "id": "prop-jiange",
-      "name": "剑阁",
-      "pos": [
-        -1520,
-        640
-      ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-liangzhou",
-      "name": "凉州",
-      "pos": [
-        -1520,
-        320
-      ],
-      "group": "e",
-      "region": "西凉",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-jieting",
-      "name": "街亭",
-      "pos": [
-        -1520,
-        0
-      ],
-      "group": "e",
-      "region": "西凉",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        2,
-        3,
-        5,
-        7
-      ]
-    },
-    {
-      "id": "prop-hangu",
-      "name": "函谷关",
-      "pos": [
-        -1520,
-        -320
-      ],
-      "type": "TreasureCity",
-      "group": "e",
-      "region": "西凉",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ]
-    },
-    {
-      "id": "prop-luoyang",
-      "name": "洛阳",
-      "pos": [
-        -1520,
-        -640
-      ],
-      "group": "a",
-      "region": "中原",
-      "price": 4800,
-      "buildCost": 2400,
-      "tradeMult": [
-        2,
-        3,
-        4,
-        5
-      ],
-      "valueByLevel": [
-        2880,
-        4320,
-        5760,
-        7200
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        600,
-        1200
-      ]
-    },
-    {
-      "id": "prop-hulao",
-      "name": "虎牢关",
-      "pos": [
-        -1140,
-        -640
-      ],
-      "type": "TreasureCity",
-      "group": "a",
-      "region": "中原",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ]
-    },
-    {
-      "id": "prop-xianyang",
-      "name": "咸阳",
-      "pos": [
-        -1140,
-        -320
-      ],
-      "type": "TreasureCity",
-      "group": "a",
-      "region": "中原",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ]
-    },
-    {
-      "id": "prop-ziwu",
-      "name": "子午谷",
-      "pos": [
-        -1140,
-        0
-      ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        2,
-        3,
-        5,
-        7
-      ]
-    },
-    {
-      "id": "prop-hanzhong",
-      "name": "汉中",
-      "pos": [
-        -1140,
-        320
-      ],
-      "group": "d",
-      "region": "巴蜀",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-xiangyang",
-      "name": "襄阳",
-      "pos": [
-        -760,
-        320
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-shangyong",
-      "name": "上庸",
-      "pos": [
-        -380,
-        320
-      ],
-      "type": "TreasureCity",
-      "group": "b",
-      "region": "荆楚",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ]
-    },
-    {
-      "id": "prop-jiangling",
-      "name": "江陵",
-      "pos": [
-        0,
-        320
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-chibi",
-      "name": "赤壁",
-      "pos": [
-        380,
-        320
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        2,
-        3,
-        5,
-        7
-      ]
-    },
-    {
-      "id": "prop-wuchang",
-      "name": "武昌",
-      "pos": [
-        760,
-        320
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-jiangxia",
-      "name": "江夏",
-      "pos": [
-        1140,
-        320
-      ],
-      "group": "b",
-      "region": "荆楚",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "market"
     },
     {
       "id": "prop-linzi",
       "name": "临淄",
-      "pos": [
-        1140,
-        0
-      ],
+      "pos": [1140, -480],
       "group": "g",
-      "region": "青徐",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-xuzhou",
+      "name": "徐州",
+      "pos": [1520, -480],
+      "group": "g",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
     },
     {
       "id": "prop-xiapi",
       "name": "下邳",
-      "pos": [
-        1140,
-        -320
-      ],
-      "type": "TreasureCity",
+      "pos": [1520, -160],
       "group": "g",
-      "region": "青徐",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ]
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600],
+      "event": "treasure"
     },
     {
-      "id": "prop-hefei",
-      "name": "合肥",
-      "pos": [
-        760,
-        -320
-      ],
-      "group": "g",
-      "region": "淮南",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        0,
-        0,
-        0,
-        0
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        2,
-        3,
-        5,
-        7
-      ]
+      "id": "prop-wujun",
+      "name": "吴郡",
+      "pos": [1520, 160],
+      "group": "h",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
     },
     {
-      "id": "prop-shouchun",
-      "name": "寿春",
-      "pos": [
-        760,
-        0
-      ],
-      "group": "g",
-      "region": "青徐",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "tile-fate-1",
-      "name": "天命",
-      "pos": [
-        380,
-        0
-      ],
-      "type": "Fate"
-    },
-    {
-      "id": "prop-hongnong",
-      "name": "弘农",
-      "pos": [
-        380,
-        -320
-      ],
-      "type": "TreasureCity",
-      "group": "a",
-      "region": "中原",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ]
-    },
-    {
-      "id": "prop-xuchang",
-      "name": "许昌",
-      "pos": [
-        0,
-        -320
-      ],
-      "group": "a",
-      "region": "中原",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "prop-yongzhou",
-      "name": "雍州",
-      "pos": [
-        0,
-        0
-      ],
-      "group": "a",
-      "region": "中原",
-      "price": 1800,
-      "buildCost": 900,
-      "tradeAdd": [
-        100,
-        200,
-        400,
-        800
-      ],
-      "valueByLevel": [
-        1080,
-        1620,
-        2160,
-        2700
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
-    },
-    {
-      "id": "tile-chance-1",
-      "name": "锦囊",
-      "pos": [
-        -380,
-        0
-      ],
-      "type": "Chance"
-    },
-    {
-      "id": "tile-ferry-xinye",
-      "name": "新野驿站",
-      "type": "Chance",
-      "pos": [
-        -760,
-        0
-      ]
-    },
-    {
-      "id": "tile-wolong",
-      "name": "卧龙岗",
-      "pos": [
-        -760,
-        -320
-      ],
-      "type": "Wolong"
+      "id": "prop-jianye",
+      "name": "建业",
+      "pos": [1520, 480],
+      "group": "h",
+      "price": 7200,
+      "buildCost": 3600,
+      "tradeMult": [2, 3, 4, 5],
+      "valueByLevel": [4320, 6480, 8640, 10800],
+      "tradeAdd": [200, 400, 600, 1200]
     },
     {
       "id": "prop-kuiji",
       "name": "会稽",
-      "pos": [
-        -380,
-        -320
-      ],
+      "pos": [1140, 480],
       "group": "h",
-      "region": "江东",
-      "price": 3000,
-      "buildCost": 1500,
-      "tradeAdd": [
-        200,
-        400,
-        800,
-        1600
-      ],
-      "valueByLevel": [
-        1800,
-        2700,
-        3600,
-        4500
-      ],
-      "tradeMult": [
-        1,
-        1,
-        1,
-        1
-      ]
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-jinnang-1",
+      "name": "锦囊城",
+      "pos": [760, 480],
+      "group": "c",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "jinnang"
+    },
+    {
+      "id": "prop-changsha",
+      "name": "长沙",
+      "pos": [380, 480],
+      "group": "c",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-lingling",
+      "name": "零陵",
+      "pos": [0, 480],
+      "group": "c",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-jiaozhou",
+      "name": "交州",
+      "pos": [-380, 480],
+      "group": "c",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "treasure"
+    },
+    {
+      "id": "prop-jiangzhou",
+      "name": "江州",
+      "pos": [-760, 480],
+      "group": "d",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-chengdu",
+      "name": "成都",
+      "pos": [-1140, 480],
+      "group": "d",
+      "price": 7200,
+      "buildCost": 3600,
+      "tradeMult": [2, 3, 4, 5],
+      "valueByLevel": [4320, 6480, 8640, 10800],
+      "tradeAdd": [200, 400, 600, 1200]
+    },
+    {
+      "id": "prop-jiange",
+      "name": "剑阁",
+      "pos": [-1520, 480],
+      "group": "d",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-hanzhong",
+      "name": "汉中",
+      "pos": [-1520, 160],
+      "group": "d",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-jieting",
+      "name": "街亭",
+      "pos": [-1520, -160],
+      "group": "e",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [2, 3, 4, 7],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [0, 0, 0, 0]
+    },
+    {
+      "id": "prop-liangzhou",
+      "name": "凉州",
+      "pos": [-1520, -480],
+      "group": "e",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-xianyang",
+      "name": "咸阳",
+      "pos": [-1140, -480],
+      "group": "e",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-hangu",
+      "name": "函谷关",
+      "pos": [-1140, -160],
+      "group": "e",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "treasure"
+    },
+    {
+      "id": "prop-ziwu",
+      "name": "子午谷",
+      "pos": [-1140, 160],
+      "group": "d",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [2, 3, 4, 7],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [0, 0, 0, 0]
+    },
+    {
+      "id": "prop-xiangyang",
+      "name": "襄阳",
+      "pos": [-760, 160],
+      "group": "b",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-wolong",
+      "name": "卧龙城",
+      "pos": [-380, 160],
+      "group": "b",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "hero"
+    },
+    {
+      "id": "prop-huarong",
+      "name": "华容道",
+      "pos": [0, 160],
+      "group": "b",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [2, 3, 4, 7],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [0, 0, 0, 0]
+    },
+    {
+      "id": "prop-chibi",
+      "name": "赤壁",
+      "pos": [380, 160],
+      "group": "b",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [2, 3, 4, 7],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [0, 0, 0, 0]
+    },
+    {
+      "id": "prop-jiangxia",
+      "name": "江夏",
+      "pos": [760, 160],
+      "group": "b",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-wuchang",
+      "name": "武昌",
+      "pos": [1140, 160],
+      "group": "h",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800]
+    },
+    {
+      "id": "prop-hefei",
+      "name": "合肥",
+      "pos": [1140, -160],
+      "group": "g",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [2, 3, 4, 7],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [0, 0, 0, 0]
+    },
+    {
+      "id": "prop-jinnang-2",
+      "name": "锦囊城",
+      "pos": [760, -160],
+      "group": "g",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "jinnang"
+    },
+    {
+      "id": "prop-tianming",
+      "name": "天命城",
+      "pos": [380, -160],
+      "group": "a",
+      "price": 2700,
+      "buildCost": 1350,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [1620, 2430, 3240, 4050],
+      "tradeAdd": [100, 200, 400, 800],
+      "event": "fate"
+    },
+    {
+      "id": "prop-ye",
+      "name": "邺城",
+      "pos": [0, -160],
+      "group": "a",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-xuchang",
+      "name": "许昌",
+      "pos": [-380, -160],
+      "group": "a",
+      "price": 4500,
+      "buildCost": 2250,
+      "tradeMult": [1, 1, 1, 1],
+      "valueByLevel": [2700, 4050, 5400, 6750],
+      "tradeAdd": [200, 400, 800, 1600]
+    },
+    {
+      "id": "prop-luoyang",
+      "name": "洛阳",
+      "pos": [-760, -160],
+      "group": "a",
+      "price": 7200,
+      "buildCost": 3600,
+      "tradeMult": [2, 3, 4, 5],
+      "valueByLevel": [4320, 6480, 8640, 10800],
+      "tradeAdd": [200, 400, 600, 1200]
     }
   ]
 }

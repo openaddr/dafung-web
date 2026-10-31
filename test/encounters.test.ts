@@ -130,7 +130,7 @@ const def = (id: string, effect: EncounterDef["effect"]): EncounterDef => ({
 /** 找一座无主普通城并掷骰恰落其上(逐候选尝试,跳过途经都城的无效场景)。 */
 function landOnFreeTile(e: GameEngine): void {
   const candidates = e.board.tiles.filter(
-    (t) => t.type === "Property" && t.propertyId != null && e.findOwner(t.propertyId) == null,
+    (t) => t.event == null && t.propertyId != null && e.findOwner(t.propertyId) == null,
   );
   let lastError: unknown = null;
   for (const t of candidates) {
@@ -144,10 +144,28 @@ function landOnFreeTile(e: GameEngine): void {
   throw lastError ?? new Error("无可用无主城场景");
 }
 
-/** 中性床位(#121 退役的锦囊格):机遇解完续跑落格结算时,落此格按普通格空结算。 */
+/** 中性床位(#826 全城池制改用他人无宝城):机遇解完续跑落格结算时,落此格走
+ *  「他人城主无宝 → 无事发生」终端(Noop + 收回合),与旧功能格空结算同观感。
+ *  取无主、无固定事件、避开两都城的城,现场过户给对手(无宝)。 */
 function benignTile(e: GameEngine): number {
-  const t = e.board.tiles.find((x) => x.type === "Chance");
-  if (!t) throw new Error("无中性床位(地图缺退役锦囊格)");
+  const mover = e.activePlayer;
+  const other = e.players.find((p) => p !== mover)!;
+  const t = e.board.tiles.find(
+    (x) =>
+      x.event == null &&
+      x.propertyId != null &&
+      x.index !== mover.capitalIndex &&
+      x.index !== other.capitalIndex &&
+      e.findOwner(x.propertyId) == null,
+  );
+  if (t == null || t.propertyId == null) throw new Error("无中性床位(地图缺无主普城)");
+  const def = e.catalog.get(t.propertyId)!;
+  other.properties.push({
+    propertyId: def.id,
+    group: def.group,
+    level: 0,
+    maxLevel: def.maxLevel,
+  });
   return t.index;
 }
 
@@ -300,34 +318,29 @@ describe("机遇引擎行为", () => {
     expect(buyIdx).toBeGreaterThan(encIdx); // 机遇在前,城池事件在后
   });
 
-  it("天命格零豁免(ADR-0035):必出机遇,解完再落天命 +20(机遇先于本格结算)", () => {
-    // 钉「天命格抽中即时机遇」的种子(抉择机遇会停 AwaitingEncounter,不适用本场景)
+  it("普通城零豁免(ADR-0035):必出机遇,解完再走城池结算(机遇先于本格结算)", () => {
+    // #826 起天命格退役(天命城免掷、例外口径由 city-event 系钉住),本例改钉普通城:
+    // 钉「普通城抽中即时机遇」的种子(抉择机遇会停 AwaitingEncounter,不适用本场景)
     const seed = ((): number => {
       for (let s = 1; s < 200; s++) {
         const e0 = makeEngine(s, { good: 100, neutral: 0, bad: 0 });
         finishSetup(e0);
-        const fate = e0.board.tiles.find((t) => t.type === "Fate");
-        if (!fate) throw new Error("地图无天命格");
         try {
-          landActiveOn(e0, fate.index);
+          landActiveOn(e0, benignTile(e0)); // 他人无宝城:机遇解完空结算收尾(见 benignTile 注)
         } catch {
           continue; // 途经都城等无效场景换下一 seed
         }
         if (e0.turnPhase === "Roll") return s;
       }
-      throw new Error("无天命格即时机遇种子");
+      throw new Error("无普通城即时机遇种子");
     })();
     const e = makeEngine(seed, { good: 100, neutral: 0, bad: 0 });
     finishSetup(e);
-    const mover = e.activePlayer;
-    landActiveOn(e, e.board.tiles.find((t) => t.type === "Fate")!.index);
-    expect(e.turnPhase).toBe("Roll"); // 机遇(即时)+ 天命 +20 各自收尾,回合已过
+    landActiveOn(e, benignTile(e));
+    expect(e.turnPhase).toBe("Roll"); // 机遇(即时)+ 城池结算各自收尾,回合已过
     const text = testEngine(e).logText();
     const encIdx = text.lastIndexOf("机遇「");
-    const fateIdx = text.lastIndexOf("天命眷顾");
     expect(encIdx).toBeGreaterThan(-1);
-    expect(fateIdx).toBeGreaterThan(encIdx); // 机遇在前,天命泉在后
-    expect(mover.reputation).toBe(20); // 天命泉照常落账(即时机遇无声望增减)
   });
 
   it("结算路径:发珍宝(牌堆扣一件)/ 得名将满 3 → 转银两", () => {
@@ -1109,7 +1122,7 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
   function giveProperty(e: GameEngine, seat: number, level: number): string {
     const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
     const tile = MAP.board.tiles.find(
-      (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+      (t) => t.event == null && t.propertyId && !taken.has(t.propertyId),
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({
@@ -1308,7 +1321,7 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
   function giveOneProperty(e: GameEngine, seat: number, level: number): void {
     const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
     const tile = MAP.board.tiles.find(
-      (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+      (t) => t.event == null && t.propertyId && !taken.has(t.propertyId),
     )!;
     const d = MAP.catalog.get(tile.propertyId)!;
     e.players[seat].properties.push({

@@ -173,7 +173,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     const capV = e.board.at(e.players[valid].capitalIndex)?.propertyId;
     e.players[valid].properties = [
       {
-        propertyId: e.board.tiles.find((t) => t.type === "Property" && t.propertyId !== capV)!
+        propertyId: e.board.tiles.find((t) => t.event == null && t.propertyId !== capV)!
           .propertyId!,
         group: "a",
         level: 2,
@@ -221,7 +221,7 @@ describe("主动技结算(#188 档 3)", () => {
     const foe = e.players[1];
     const capPropId = e.board.at(foe.capitalIndex)?.propertyId;
     const plain = e.board.tiles.find(
-      (t) => t.type === "Property" && t.propertyId !== capPropId,
+      (t) => t.event == null && t.propertyId !== capPropId,
     )!.propertyId!;
     foe.properties.push({
       propertyId: plain,
@@ -318,8 +318,7 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
     const capOf = (seat: number) => e.board.at(e.players[seat].capitalIndex)?.propertyId;
     const plains = e.board.tiles
       .filter(
-        (t) =>
-          t.type === "Property" && t.propertyId !== capOf(rich) && t.propertyId !== capOf(poor),
+        (t) => t.event == null && t.propertyId !== capOf(rich) && t.propertyId !== capOf(poor),
       )
       .map((t) => t.propertyId!);
     e.players[rich].properties.push(

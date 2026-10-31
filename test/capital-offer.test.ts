@@ -65,8 +65,8 @@ describe("选都三选一:候选生成", () => {
   });
 
   it("地理分散:三候选两两间距足够远(固定 seed 断言)", () => {
-    // 生成算法本就是纯几何选点(距离排名,setup-flow rollOfferedCapitals),region 只是
-    // 地理 proxy——雍州归入中原后中原横跨西北-中央-东北,同 region 的三候选(seed 4
+    // 生成算法本就是纯几何选点(距离排名,setup-flow rollOfferedCapitals),group 只是
+    // 地理 proxy——雍州归入中原后中原横跨西北-中央-东北,同分组的三候选(seed 4
     // 雍/邺/洛)恰是分散的。按真不变量断言:阈值 800 ≈ 两格步距,观测 seed 1-8 最小
     // 两两间距 1032,聚到邻格(≈500)即炸。
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
@@ -113,7 +113,12 @@ describe("选都三选一:pickCapital 校验与 bot", () => {
         !e.offeredCapitals.includes(t.index),
     )!;
     expect(e.pickCapital(idx, outsider.index)).toEqual({ ok: false, reason: "非本轮候选城" });
-    const nonCity = e.board.tiles.find((t) => !t.isCapitalEligible)!;
+    // #826 全城池制:装载图无「不可作都城」的格(loader 恒置 eligible),改夹具直改一格
+    // 布防,钉住守卫的拒绝 reason 映射本身
+    const nonCity = e.board.tiles.find(
+      (t) => !e.takenCapitalIndices.has(t.index) && !e.offeredCapitals.includes(t.index),
+    )!;
+    (nonCity as { isCapitalEligible: boolean }).isCapitalEligible = false;
     expect(e.pickCapital(idx, nonCity.index)).toEqual({ ok: false, reason: "该城不可作都城" });
     // 选定候选成功,候选滚换给下一位
     expect(e.pickCapital(idx, e.offeredCapitals[1]).ok).toBe(true);

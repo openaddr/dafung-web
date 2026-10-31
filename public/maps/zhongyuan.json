@@ -13,7 +13,6 @@
         -560
       ],
       "group": "a",
-      "region": "中原",
       "price": 4800,
       "buildCost": 2400,
       "tradeMult": [
@@ -43,7 +42,6 @@
         -380
       ],
       "group": "b",
-      "region": "中原",
       "price": 3000,
       "buildCost": 1500,
       "valueByLevel": [
@@ -73,7 +71,6 @@
         100
       ],
       "group": "b",
-      "region": "中原",
       "price": 3000,
       "buildCost": 1500,
       "valueByLevel": [
@@ -103,7 +100,6 @@
         510
       ],
       "group": "c",
-      "region": "中原",
       "price": 1800,
       "buildCost": 900,
       "valueByLevel": [
@@ -133,7 +129,6 @@
         600
       ],
       "group": "c",
-      "region": "中原",
       "price": 3000,
       "buildCost": 1500,
       "valueByLevel": [
@@ -163,7 +158,6 @@
         510
       ],
       "group": "d",
-      "region": "中原",
       "price": 1800,
       "buildCost": 900,
       "valueByLevel": [
@@ -193,7 +187,6 @@
         100
       ],
       "group": "d",
-      "region": "中原",
       "price": 1800,
       "buildCost": 900,
       "valueByLevel": [
@@ -223,7 +216,6 @@
         -380
       ],
       "group": "a",
-      "region": "中原",
       "price": 3000,
       "buildCost": 1500,
       "tradeMult": [

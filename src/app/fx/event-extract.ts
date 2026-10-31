@@ -14,7 +14,6 @@
 import type { GameEngine } from "@core/authority";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
-import { isCityType } from "@core/board";
 import type { Player } from "@core/model";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
@@ -146,19 +145,19 @@ function tileNameOfProperty(engine: GameEngine, propertyId: string): string {
 
 // 机遇目录条目按 id 查:单源 core/event-tiers(encounterDefOfId)。
 
-/** 金钱浮字(供应=铜钱雨,余=金额浮字;纳税(S7 铜钱雨扩容)随雨落币——
- *  付税读作钱币离手,与补给同视觉语汇、异方向文案)。 */
+/** 金钱浮字(供应=铜钱雨,余=金额浮字)。纳税铜钱雨档(reason="tax" 随雨落币)
+ *  已随税关格退役整体清退(#826/#828):cashDelta 不再带 coins,铜钱雨唯一通路
+ *  是 supplyRain(都城补给)。 */
 function cashFloater(
   engine: GameEngine,
   seat: number,
   delta: number,
   supply: boolean,
-  coins = false,
 ): PresentationEvent {
   const anchor = playerAnchor(engine, seat);
   return supply
     ? { kind: "supplyRain", playerId: engine.players[seat].id, amount: delta, ...anchor }
-    : { kind: "cashDelta", playerId: engine.players[seat].id, amount: delta, coins, ...anchor };
+    : { kind: "cashDelta", playerId: engine.players[seat].id, amount: delta, ...anchor };
 }
 
 /** 都城停全屏宣告事件(S7 #513):国号/座色/都城名按提取时刻引擎态解析。 */
@@ -265,13 +264,8 @@ function arrivalPresentation(
   const march = marchEvent(engine, seat, ev, prePosition);
   if (march) out.push(march);
   if (announce) out.push(announce);
-  // 落格定音(S7 #513,BRIEF #9 翻案):落在事件/机遇格(非城池格:税/仓/锦囊/
-  // 天命/卧龙)金圈一拍,恰落己都城(驻章即定音)与驻跸(横幅+驻章)不加拍。
-  const tile = engine.board.at(ev.tileIndex);
-  if (!halted && !isCityType(tile.type) && ev.tileIndex !== engine.players[seat].capitalIndex) {
-    const pos = engine.board.positionOf(ev.tileIndex);
-    out.push({ kind: "landPulse", tileIndex: ev.tileIndex, x: pos.x, y: pos.y });
-  }
+  // 落格定音(#826 全城池制):旧「非城池格金圈一拍」随功能格退役而删;恰落己都城
+  // (驻章即定音)与驻跸(横幅+驻章)走驻跸线。
   if (halted || ev.tileIndex === engine.players[seat].capitalIndex) {
     out.push(sealEvent(engine, ev.tileIndex, "驻"));
     out.push(textFloater(engine, seat, "驻跸补给"));
@@ -460,20 +454,11 @@ export function extractBatchEvents(
         break;
       }
       case "cashChanged": {
-        // 纳税(reason="tax")铜钱雨扩容(S7 #513):负向付税随雨落币
-        events_.push(
-          cashFloater(
-            engine,
-            eventSeat(engine, ev),
-            ev.delta,
-            ev.reason === "supply",
-            ev.reason === "tax" && ev.delta < 0,
-          ),
-        );
+        events_.push(cashFloater(engine, eventSeat(engine, ev), ev.delta, ev.reason === "supply"));
         break;
       }
       case "treasureGained": {
-        // 探宝拼点胜(S7):漆金「得」印钤在宝物城落点 + treasure 音(拼点胜半场的
+        // 探宝拼点胜(S7):漆金「得」印钤在珍宝城落点 + treasure 音(拼点胜半场的
         // 印章语义)。探宝拼点是单人 2d6 判定、不走 resolveDuel,无 duelResolved(#636/ADR-0030:
         // 玩家对拼的点数已入事件流,探宝判定不入)。
         const seat = eventSeat(engine, ev);
@@ -567,10 +552,10 @@ export function extractBatchEvents(
         break;
       }
       case "heroSkillActivated": {
-        // 技能施展演出(#850 升档):施法者 token 金圈一拍(与落格定音同一 fx-svg-pulse
-        // 通道,坐标提取拍烤定——锚施法者当下所在格,落格「城池格不拍」的例外语义
-        // 由本 case 自持:施展定音不看格型)+ 文案浮字升档(cast 档:1.0× brush 字 +
-        // 玩家色细描边,色提取烤定;文案与旧口径同串)。
+        // 技能施展演出(#850 升档):施法者 token 金圈一拍(fx-svg-pulse 通道,坐标
+        // 提取拍烤定,锚施法者当下所在格——landPulse 通道现仅本单一生产者,旧
+        // 「行军落事件格定音」生产者已随功能格五型退役,#826/#828)+ 文案浮字升档
+        // (cast 档:1.0× brush 字 + 玩家色细描边,色提取烤定;文案与旧口径同串)。
         const seat = eventSeat(engine, ev);
         const anchor = playerAnchor(engine, seat);
         events_.push({ kind: "landPulse", tileIndex: anchor.atTile, x: anchor.x, y: anchor.y });

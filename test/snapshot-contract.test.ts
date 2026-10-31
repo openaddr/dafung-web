@@ -4,9 +4,8 @@
 // 另一台每步都从对方的 snapshot 恢复出来再独立续跑(联机路径),
 // 断言任意步、以及终局,两者的完整快照逐字段一致。
 // 序列化丢字段 / RNG 状态不同步 / 恢复后行为分叉,都会在此第一时间炸出。
-// 慢例池(测试管线提速批):每步恢复 round-trip 例整局骑局,实测 4.3s(2026-10-30)——
-// 按「单例实测 ≥3s」判据入慢例池(口径见 docs/how-to/开发与测试.md「把测试跑起来」),
-// DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);其余四例轻,常驻默认池。
+// 五例全在默认池(2026-10-31 #830:#827 再平衡拉长整局墙钟后,每步恢复 round-trip
+// 例的回放视野收短为固定步窗,实测 0.3s,退出慢例池;收短理由与窗口口径见用例内注)。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
@@ -16,9 +15,6 @@ import { SNAPSHOT_FIELDS, type GameSnapshot } from "@core/snapshot";
 import { testEngine } from "@core/testing";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
-
-// 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);判据与实测耗时见文件头注。
-const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 const MAP = loadMap(huanyouData);
 
@@ -64,7 +60,7 @@ function comparableLog(log: GameEngine["log"]) {
 function armBuyDecision(e: GameEngine): { tilePropertyId: string } {
   const t = testEngine(e);
   const tile = e.board.tiles.find(
-    (x) => x.type === "Property" && x.propertyId != null && e.findOwner(x.propertyId) == null,
+    (x) => x.event == null && x.propertyId != null && e.findOwner(x.propertyId) == null,
   )!;
   const tilePropertyId = tile.propertyId!; // 谓词已保证非空
   e.activePlayer.cash = 99999; // 买得起 + 起手 3 委任状 → 购地/不取两真选,必进决策相位
@@ -75,30 +71,28 @@ function armBuyDecision(e: GameEngine): { tilePropertyId: string } {
 }
 
 describe("快照契约:本地直跑 vs 恢复续跑(单机↔联机同轨)", () => {
-  // 超时放宽到 30s:每步「新引擎+restore+双份全量快照 stringify」成本随步数平方增长,
-  // 锦囊发牌(#122)使骰流偏移、本 seed 对局步数变长——契约语义不变,只给足墙钟。
-  itSlow(
-    "每步恢复 round-trip 后快照逐字段一致(联机每帧走的就是这条路)",
-    () => {
-      const a = makeEngine(7);
-      finishSetup(a);
-      let steps = 0;
-      let guard = 0;
-      while (!a.isOver && guard++ < 30000) {
-        // 经济 v2 目标 30000:终局步数远超旧 500 上限
-        if (stepPlaying(a)) {
-          steps++;
-          // 联机路径:全新引擎 + restoreFromSnapshot(与 online.ts hydrate 同款)
-          const mirror = makeEngine(7); // 种子无关紧要:恢复会覆盖 rngState
-          mirror.restoreFromSnapshot(a.snapshot());
-          expect(JSON.stringify(mirror.snapshot())).toBe(JSON.stringify(a.snapshot()));
-        }
+  // 回放视野收短(#830 守门):#827 再平衡拉长整局步数/墙钟后,「整局骑局+每步全量
+  // 快照 stringify」成本随步数平方增长、超 30s 预算。本例不变量本体=「每步恢复一致性」
+  // (联机每帧 restore 路径逐字段对齐),收短为「开局至中盘固定步窗」——窗口覆盖购地/
+  // 扩军/锦囊/交涉等状态面;整局终态一致性由「中点恢复独立续跑」例专守,本例不重复骑局。
+  const ROUND_TRIP_WINDOW = 300;
+  it("每步恢复 round-trip 后快照逐字段一致(联机每帧走的就是这条路)", () => {
+    const a = makeEngine(7);
+    finishSetup(a);
+    let steps = 0;
+    let guard = 0;
+    while (!a.isOver && steps < ROUND_TRIP_WINDOW && guard++ < 30000) {
+      if (stepPlaying(a)) {
+        steps++;
+        // 联机路径:全新引擎 + restoreFromSnapshot(与 online.ts hydrate 同款)
+        const mirror = makeEngine(7); // 种子无关紧要:恢复会覆盖 rngState
+        mirror.restoreFromSnapshot(a.snapshot());
+        expect(JSON.stringify(mirror.snapshot())).toBe(JSON.stringify(a.snapshot()));
       }
-      expect(a.isOver).toBe(true);
-      expect(steps).toBeGreaterThan(20); // 确保真的跑了对局,而非空转即结束
-    },
-    30_000,
-  );
+    }
+    // 窗口必须跑满(seed 7 整局步数 ≫ 窗口,提前终局=对局时长口径漂移,当场炸出)
+    expect(steps).toBe(ROUND_TRIP_WINDOW);
+  });
 
   it("序列化单点清单:serializeGame 产出键集 = SNAPSHOT_FIELDS 清单键集(双向)", () => {
     const e = makeEngine(7);

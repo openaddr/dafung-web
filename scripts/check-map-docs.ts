@@ -1,13 +1,13 @@
-// 地图数值的文档对账门禁(#480 收官 retro):改地图(删辅路/+宝物城/移除整图)
+// 地图数值的文档对账门禁(#480 收官 retro):改地图(删辅路/+珍宝城/移除整图)
 // 后,docs 里残留的「N 格 / N 城」旧数值是历史性漏网——code-review 抓过一次
 // (rules/03「42 格 30 城」、GLOSSARY「主环 42 格」),本检查把它机器化。
 //
 // 规则:
-// 1. index.json 每张图的 tileCount 必须等于实际城池数(Property/TreasureCity)。
+// 1. index.json 每张图的 tileCount 必须等于实际城池数(#826 全城池制:每格都是城池)。
 // 2. GLOSSARY.md 与 docs/reference/rules/*.md 中出现的「N 格」「N 城」数值
 //    (两位数以上,过滤「一格」类噪声)必须与某张现存地图的实际值一致——
 //    改了图没改文档,这里红。
-// 口径:index.json 的 tileCount = 城池数(#476 起,宝物城并入城池)。
+// 口径:index.json 的 tileCount = 城池数(#476 起;#826 全城池制后恒等于格数)。
 // 已知局限:一位数(如中原图「8 城」)不在扫描范围;新地图加位数后此处同步。
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
@@ -29,9 +29,7 @@ for (const entry of index) {
     tiles: { type?: string }[];
   };
   const grid = data.tiles.length;
-  const cities = data.tiles.filter(
-    (t) => !t.type || t.type === "Property" || t.type === "TreasureCity",
-  ).length;
+  const cities = data.tiles.filter((t) => !t.type || t.type === "Property").length;
   actualGrids.add(grid);
   actualCities.add(cities);
   if (entry.tileCount !== cities) {

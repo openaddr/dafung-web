@@ -23,7 +23,7 @@ function makeEngine(seed = 7): GameEngine {
 function giveProperty(e: GameEngine, seat: number, level: number): string {
   const taken = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
   const tile = MAP.board.tiles.find(
-    (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+    (t) => t.event == null && t.propertyId && !taken.has(t.propertyId),
   )!;
   const def = MAP.catalog.get(tile.propertyId)!;
   e.players[seat].properties.push({

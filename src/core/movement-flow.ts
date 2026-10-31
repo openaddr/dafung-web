@@ -1,13 +1,13 @@
 // 移动结算域(#323,ADR-0019 委托式拆分):行军三件(rollAndMove/marchTraverse/
 // settleMarchLanding,含伏兵挂点/驻跸必停)、
 // 待决策落格定义(pendingLandDef)、地产决策命令(buyProperty/upgradeProperty/
-// endDecision)、落格结算(resolveLanding;resolveSpecial/resolveProperty/
+// endDecision)、落格结算(resolveLanding;resolveCityEvent/resolveProperty/
 // enterDecisionPhase 域内自洽不留壳)与都城补给(capitalSupplyOf;applyResupply
 // 域内自洽不留壳)。
 // 域逻辑=自由函数,首参接 GameEngine 直接读写引擎状态;GameEngine 侧保留同名公共
 // 方法薄委托(外部 importer 无感),src/core/authority.ts「回合状态机」区段。
-// 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、交易链收尾
-// g.finishTradeChain(普通城 endTurn;宝物城链尾探宝,ADR-0024)、escrow 清算
+// 跨域往返统一经壳上薄委托(与既有票一致):机遇 g.maybeApplyEncounter、抽宝拼点
+// g.drawTreasureAt(珍宝城落格固定事件位,#825)、escrow 清算
 // g.payOrLiquidate、锦囊抽牌 g.drawJinnang、招贤 g.tryRecruitHero;唯一例外是开拦检窗
 // 直调 reaction-window.openReactionWindow(已导出自由函数,#318 预留的私有壳委托随本域
 // 迁出而删);reaction-window 续走则经壳上 g.marchTraverse/g.settleMarchLanding 回调。
@@ -22,23 +22,18 @@ import { emitGameEvent, requireMovePath } from "./game-events";
 import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
-import { isCityType } from "./board";
+import { isEventCity } from "./board";
 import type { TileDef } from "./board";
 
 // ── 落格结果类型(#326 types.ts 解散,ADR-0019 类型随域走)──
 /** 落格结果。 */
-export type LandOutcomeKind =
-  | "Noop"
-  | "PropertyAvailable"
-  | "OwnProperty"
-  | "TreasureTrade"
-  | "TaxPaid";
+export type LandOutcomeKind = "Noop" | "PropertyAvailable" | "OwnProperty" | "TreasureTrade";
 
 export interface LandOutcome {
   kind: LandOutcomeKind;
   property?: PropertyDef;
   owner?: Player;
-  amount?: number; // 珍宝成交价/税额
+  amount?: number; // 珍宝成交价
   resupply?: number; // 都城补给
   causedBankruptcy?: boolean;
 }
@@ -170,7 +165,7 @@ export function marchTraverse(
     }
     // ③ 他人城主城池(城主存活):MarchPassedCity 挂点 → 半路杀出拦检窗
     const tile = g.board.at(tIdx);
-    if (isCityType(tile.type) && tile.propertyId != null) {
+    if (tile.propertyId != null) {
       const owner = g.findOwner(tile.propertyId);
       if (owner != null && owner !== mover && !owner.isBankrupt) {
         const ownerSeat = g.players.indexOf(owner);
@@ -225,13 +220,15 @@ export function settleMarchLanding(g: GameEngine, mover: Player, landIndex: numb
   }); // 事件流(#375):行军落格
   g.dispatchMoment("AfterMarch", { subject: g.players.indexOf(mover) }); // 时机·AfterMarch:移动完成(落位)、落格结算(resolveLanding)前
   g.turnPhase = "Land";
-  // 机遇必出(ADR-0035,#776):早于落格结算,零豁免(天命格/驻跸截断同链);清算/破产
+  // 机遇必出(ADR-0035,#776):早于落格结算,零豁免(驻跸截断同链);清算/破产
   // 则中断落格结算。enabled=false 为系统总开关(引擎缺省关,测试隔离)。
+  // 特殊城池免掷(#823/#824,ADR-0037):落点是事件城 → 固定事件即此地固定机遇,随机
+  // 机遇不掷(驻跸截断不落格、不走此门,机遇必出零豁免照旧)。
   // 抉择机遇(#124)返回 deciding:机遇占用本落格——含 ≤1 可用选项自动执行已收尾的场合,
   // 机遇早于城池结算:即时机遇 settled → 继续本落格结算;抉择机遇 deciding → 待解,
   // 解完在 settleEncounterChoice 内继续落格结算(#120 决策 2);清算/破产已中断;
   // 耗竭 exhausted(#132):体力归 0 → 耗竭相位/自动惩罚占用本落格——人倒下了不买地。
-  const enc = g.maybeApplyEncounter(mover);
+  const enc = isEventCity(g.board.at(mover.position)) ? "none" : g.maybeApplyEncounter(mover);
   if (enc === "deciding" || enc === "liquidating" || enc === "bankrupt" || enc === "exhausted")
     return;
   resolveLanding(g);
@@ -256,7 +253,7 @@ export function buyProperty(g: GameEngine): void {
   // 进驻(买)新城需要委任状;不足则拒绝(NoWarrant),UI 会禁用购买按钮
   if (buyer.warrants < BUY_WARRANT_COST) {
     g.lastTransaction = { status: "NoWarrant" };
-    g.finishTradeChain(buyer); // 自动拒绝也是交易链终端 → 宝物城链尾探宝(ADR-0024)
+    g.endTurn(); // 自动拒绝也是交易链终端:收口结束回合(探宝已在落格先行,#825)
     return;
   }
   const r = buy(buyer, def);
@@ -280,9 +277,9 @@ export function buyProperty(g: GameEngine): void {
     );
     g.dispatchMoment("PropertyBought", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
   }
-  // 交易链终端(买成/拒买):先收尾交易链全部时机派发,再走宝物城链尾探宝(ADR-0024
-  // 落格顺序正典:机遇 roll → 交易链 → 探宝;TreasureGained 不进决策挂起期)。
-  g.finishTradeChain(buyer);
+  // 交易链终端(买成/拒买):先收尾交易链全部时机派发,再结束回合(链序随 #825 迁移:
+  // 探宝已在落格固定事件位先行,链尾零探宝)。
+  g.endTurn();
 }
 
 /** 扩军(决策命令):免费升一级,留痕(ADR-0015,等级维度)+ 战报。 */
@@ -308,11 +305,11 @@ export function upgradeProperty(g: GameEngine): void {
     );
     g.dispatchMoment("PropertyUpgraded", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyUpgraded:扩军成功(两挂点之一,另一处在公道买卖成交)
   }
-  // 交易链终端(升成):PropertyUpgraded 派发完后接宝物城链尾探宝(ADR-0024)
-  g.finishTradeChain(g.activePlayer);
+  // 交易链终端(升成):PropertyUpgraded 派发完后结束回合(探宝已在落格先行,#825)
+  g.endTurn();
 }
 
-/** 按兵不动(决策命令):放弃购地/扩军,交易链终端收尾(宝物城接链尾探宝)。 */
+/** 按兵不动(决策命令):放弃购地/扩军,交易链终端收口结束回合(探宝已在落格先行,#825)。 */
 export function endDecision(g: GameEngine): void {
   if (!g.assertPhase("AwaitingDecision", "EndDecision")) return;
   g.logEvent(
@@ -321,139 +318,164 @@ export function endDecision(g: GameEngine): void {
     `${g.activePlayer.guohao} 按兵不动`,
     `skip player=${g.activePlayer.id}`,
   );
-  g.finishTradeChain(g.activePlayer);
+  g.endTurn();
 }
 
-/** 落格结算:按落格类型分流——己都城(补给+招贤)/ 卧龙岗(招贤)/ 特殊格(天命/
- *  锦囊/税关/商市)/ 城池(购地/扩军/珍宝交涉)。宝物城与普通城池同权走城池分流
- *  (resolveProperty),其探宝固定挂交易链尾(ADR-0024 落格结算顺序正典:
- *  **机遇必出(ADR-0035,先于本表)→ 城池交易链(购地/扩军/按兵不动/珍宝交涉,
- *  含自动拒绝;一次落格至多一段)→ 探宝**;链中途转入清算/破产则探宝不触发)。 */
+/** 落格结算(#826 全城池制):己都城(补给+招贤)/ 普通城掷机遇后的城池交易链 /
+ *  特殊城池(固定事件 → 交易链,#824 ADR-0037)。落格结算顺序正典(ADR-0024 链序随
+ *  #825 迁移):**机遇必出(事件城免掷,ADR-0035/0037)→ [固定事件 →] 城池交易链
+ *  (购地/扩军/按兵不动/珍宝交涉,含自动拒绝;一次落格至多一段)→ 结束回合**。珍宝城的
+ *  探宝是固定事件本身(movement-flow resolveCityEvent 经壳上 g.drawTreasureAt 消费),
+ *  **先于交易链**:链中清算/破产不再抑制探宝(已结算),交易链收口零探宝(链尾钩子已拆)。 */
 export function resolveLanding(g: GameEngine): void {
   const mover = g.activePlayer;
-  // 落点恰为自己都城:补给 + 招贤纳士(都城特化先于城池结算:宝物城化的都城走驻跸,不探宝)
+  // 落点恰为自己都城:补给 + 招贤纳士(都城特化先于固定事件与城池结算:事件化的
+  // 都城落格补给+招贤、不触发其他固定事件,途经必停照旧驻跸)
   if (mover.capitalIndex === mover.position) {
     const supply = applyResupply(g, mover);
     g.lastLandOutcome = { kind: "OwnProperty", resupply: supply };
     g.turnPhase = "Land";
-    g.tryRecruitHero(mover); // 招贤纳士:三选一(或无货→直接 endTurn)
+    if (g.tryRecruitHero(mover) === "silent") g.endTurn(); // 招贤纳士:三选一(或无货→直接 endTurn)
     return;
   }
   const tile = g.board.at(mover.position);
-  // 卧龙岗:招贤纳士(不可进驻)
-  if (tile.type === "Wolong") {
-    g.lastLandOutcome = { kind: "Noop" };
-    g.turnPhase = "Land";
-    g.tryRecruitHero(mover);
-    return;
-  }
-  if (!isCityType(tile.type)) {
-    resolveSpecial(g, mover, tile);
+  // 特殊城池固定事件(#823/#824,ADR-0037;珍宝城随 #825 迁移入列):落格分流「普通城
+  // 掷机遇 / 特殊城走固定事件」的结算半边——固定事件先于交易链(链序对镜普通城的
+  // 「机遇必出 → 交易链」)。pendingCityEvent=固定事件已解(招贤经 AwaitingHeroPick、
+  // 探宝/锦囊/天命/商市解毕直置)续跑至此:消费即清、直入交易链不再触发。
+  if (g.pendingCityEvent) {
+    g.pendingCityEvent = false;
+  } else if (isEventCity(tile)) {
+    resolveCityEvent(g, mover, tile);
     return;
   }
   resolveProperty(g, mover, tile);
 }
 
-/** 特殊格结算:天命(Fate)/ 锦囊(Chance)/ 税关(Tax)/ 商市(Stock),余者 Noop。 */
-function resolveSpecial(g: GameEngine, mover: Player, tile: TileDef): void {
-  // 锦囊(Chance)/天命(Fate):随机抽事件,温和 ±100~250
-  // 天命(Fate):声望泉(#121)——落格固定 +20 声望,取代原随机坏事表(吸收进机遇目录)。
-  if (tile.type === "Fate") {
-    const repBefore = mover.reputation;
-    g.addReputation(g.players.indexOf(mover), 20);
-    emitGameEvent(g, g.players.indexOf(mover), {
-      kind: "reputationChanged",
-      delta: mover.reputation - repBefore,
-      reason: "fate",
-    }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
-    g.lastLandOutcome = { kind: "Noop" };
-    g.logEvent(
-      "system",
-      mover.guohao,
-      `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`,
-      `fate player=${mover.id} reputation=${mover.reputation}`,
-      0,
-    );
-    g.endTurn();
-    return;
-  }
-  // 锦囊格(#147,旧机会格语义复活):落格必抽一张锦囊(T1 的 drawJinnang;
-  // 牌库空落空语义同起手)。与机遇区分:必得一张 vs 必出一条事件(皆确定,ADR-0035)。
-  if (tile.type === "Chance") {
-    g.lastLandOutcome = { kind: "Noop" };
-    g.turnPhase = "Land";
-    // 抽牌宣告由 jinnangDrawn(reason=jinnangTile)/jinnangExhausted 事件在 fx 面派生
-    g.logEvent(
-      "system",
-      mover.guohao,
-      `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
-      `jinnangTile player=${mover.id} tile=#${tile.index}`,
-    );
-    const drawn = g.drawJinnang(g.players.indexOf(mover), 1);
-    if (drawn > 0)
-      emitGameEvent(g, g.players.indexOf(mover), {
-        kind: "jinnangDrawn",
-        count: drawn,
-        reason: "jinnangTile",
-      }); // 事件流(#384):抽锦囊进手(牌库空落空=无转移,不产)
-    g.endTurn();
-    return;
-  }
-  // 税关(Tax):固定缴税 200 两
-  if (tile.type === "Tax") {
-    const r = g.payOrLiquidate(mover, null, 200);
-    if (r === "liquidating") return;
-    const bankrupt = r === "bankrupt";
-    emitGameEvent(g, g.players.indexOf(mover), { kind: "cashChanged", delta: -200, reason: "tax" }); // 事件流(#375):金钱变更(铜钱雨浮字由 fx 面按 reason=tax 派生,S7)
-    g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: 200 }); // 时机·CashLost:被动失银(税)
-    g.lastLandOutcome = { kind: "TaxPaid", amount: 200, causedBankruptcy: bankrupt };
-    g.logEvent(
-      "tax",
-      mover.guohao,
-      `${mover.guohao} 落 ${tile.name} 缴税 ${formatMoney(200)}${bankrupt ? " → 破产" : ""}`,
-      `tax player=${mover.id} tile=#${tile.index} cash=${mover.cash}`,
-      -200,
-    );
-    g.endTurn();
-    return;
-  }
-  // 商市(Stock):随机行情波动 ±100~200(简化版;完整买/卖/持股系统留后续)
-  if (tile.type === "Stock") {
-    const gain = g.dice.nextFloat() < 0.5;
-    const amt = 100 + Math.floor(g.dice.nextFloat() * 100);
-    const delta = gain ? amt : -amt;
-    let bankrupt = false;
-    if (delta >= 0) mover.cash += delta;
-    else {
-      const r = g.payOrLiquidate(mover, null, amt);
-      if (r === "liquidating") return;
-      bankrupt = r === "bankrupt";
+/** 特殊城池固定事件结算(#823/#824/#825,ADR-0037;#826 起盘面唯一事件承载):
+ *  招贤/锦囊/天命/商市四体 + 探宝抽宝拼点(treasure-flow drawTreasureAt 域),解毕续跑
+ *  交易链(continueCityEvent)。招贤池空或麾下满员、牌堆空事件沉默、交易链照常;商市行情
+ *  致清算/破产则中断落格(与机遇同规则,人倒下了不买地);探宝已先行结算,交易链中
+ *  清算/破产不再抑制它(#825 语义位移)。 */
+function resolveCityEvent(g: GameEngine, mover: Player, tile: TileDef): void {
+  switch (tile.event) {
+    case "hero": {
+      g.lastLandOutcome = { kind: "Noop" };
+      g.turnPhase = "Land";
+      if (g.tryRecruitHero(mover) === "silent") {
+        continueCityEvent(g); // 池空/满员:事件沉默,交易链照常
+      } else {
+        g.pendingCityEvent = true; // 三选一解完(resolveHeroPick)续跑交易链
+      }
+      return;
     }
-    emitGameEvent(g, g.players.indexOf(mover), {
-      kind: "cashChanged",
-      delta: gain ? delta : -amt,
-      reason: "stock",
-    }); // 事件流(#375):金钱变更(浮字由 fx 面消费派生)
-    if (gain) g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: delta }); // 时机·CashGained:被动得银(商市行情看涨,#455 A1 补派,与看跌侧对称)
-    else g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
-    g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
-    g.logEvent(
-      "system",
-      mover.guohao,
-      `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`,
-      `stock player=${mover.id} delta=${delta} cash=${mover.cash}`,
-      delta,
-    );
-    g.endTurn();
-    return;
+    case "jinnang":
+      applyJinnangDraw(g, mover, tile);
+      continueCityEvent(g);
+      return;
+    case "fate":
+      applyFateReputation(g, mover, tile);
+      continueCityEvent(g);
+      return;
+    case "market":
+      if (applyMarketSwing(g, mover, tile) !== "settled") return; // 清算/破产中断落格
+      continueCityEvent(g);
+      return;
+    case "treasure":
+      g.drawTreasureAt(mover, tile.name); // 探宝=珍宝城固定事件本体(#825,不收口回合)
+      continueCityEvent(g); // 探宝毕续跑交易链
+      return;
   }
-  g.lastLandOutcome = { kind: "Noop" };
-  g.endTurn();
 }
 
-/** 城池落格结算(含宝物城,ADR-0024 同权):无主 → 可购决策;己城 → 可扩军决策;
- *  他人城 → 珍宝交涉(城主有宝)或无事发生。各终端收口统一走 finishTradeChain
- *  (普通城 endTurn;宝物城链尾接一次探宝,自带 endTurn)。 */
+/** 固定事件解毕续跑交易链(#824):置待续跑标记 → resolveLanding 重入(标记消费即清、
+ *  跳过固定事件直入城池结算)。与 pendingEncounterHalt 的「机遇解完续跑」同构。 */
+function continueCityEvent(g: GameEngine): void {
+  g.pendingCityEvent = true;
+  g.turnPhase = "Land";
+  g.resolveLanding();
+}
+
+/** 天命城固定事件体(#824/#826):落格固定 +20 声望(声望泉,#121;±100 夹紧在
+ *  addReputation),落账 + 事件宣告 + 战报;解毕由调用方续跑交易链。 */
+function applyFateReputation(g: GameEngine, mover: Player, tile: TileDef): void {
+  const repBefore = mover.reputation;
+  g.addReputation(g.players.indexOf(mover), 20);
+  emitGameEvent(g, g.players.indexOf(mover), {
+    kind: "reputationChanged",
+    delta: mover.reputation - repBefore,
+    reason: "fate",
+  }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
+  g.lastLandOutcome = { kind: "Noop" };
+  g.logEvent(
+    "system",
+    mover.guohao,
+    `${mover.guohao} 落 ${tile.name}:天命眷顾,声望 +20`,
+    `fate player=${mover.id} reputation=${mover.reputation}`,
+    0,
+  );
+}
+
+/** 锦囊城固定事件体(#824/#826):落格必抽一张锦囊(#147 的 drawJinnang;牌库空落空
+ *  语义同起手),宣告 + 抽牌 + 进手事件;解毕由调用方续跑交易链。 */
+function applyJinnangDraw(g: GameEngine, mover: Player, tile: TileDef): void {
+  g.lastLandOutcome = { kind: "Noop" };
+  g.turnPhase = "Land";
+  // 抽牌宣告由 jinnangDrawn(reason=jinnangTile)/jinnangExhausted 事件在 fx 面派生
+  g.logEvent(
+    "system",
+    mover.guohao,
+    `${mover.guohao} 落 ${tile.name}:抽一张锦囊`,
+    `jinnangTile player=${mover.id} tile=#${tile.index}`,
+  );
+  const drawn = g.drawJinnang(g.players.indexOf(mover), 1);
+  if (drawn > 0)
+    emitGameEvent(g, g.players.indexOf(mover), {
+      kind: "jinnangDrawn",
+      count: drawn,
+      reason: "jinnangTile",
+    }); // 事件流(#384):抽锦囊进手(牌库空落空=无转移,不产)
+}
+
+/** 商市城固定事件体(#824/#826):随机行情波动 ±100~200(简化版;完整买/卖/持股系统留
+ *  后续),落账 + 事件宣告 + 战报;返回走向——liquidating=清算挂起 / bankrupt=已收回合
+ *  (两者均中断落格,调用方不再续跑),settled=续交易链。 */
+function applyMarketSwing(
+  g: GameEngine,
+  mover: Player,
+  tile: TileDef,
+): "settled" | "liquidating" | "bankrupt" {
+  const gain = g.dice.nextFloat() < 0.5;
+  const amt = 100 + Math.floor(g.dice.nextFloat() * 100);
+  const delta = gain ? amt : -amt;
+  let bankrupt = false;
+  if (delta >= 0) mover.cash += delta;
+  else {
+    const r = g.payOrLiquidate(mover, null, amt);
+    if (r === "liquidating") return "liquidating";
+    bankrupt = r === "bankrupt";
+  }
+  emitGameEvent(g, g.players.indexOf(mover), {
+    kind: "cashChanged",
+    delta: gain ? delta : -amt,
+    reason: "stock",
+  }); // 事件流(#375):金钱变更(浮字由 fx 面消费派生)
+  if (gain) g.dispatchMoment("CashGained", { subject: g.players.indexOf(mover), amount: delta }); // 时机·CashGained:被动得银(商市行情看涨,#455 A1 补派,与看跌侧对称)
+  else g.dispatchMoment("CashLost", { subject: g.players.indexOf(mover), amount: amt }); // 时机·CashLost:被动失银(商市行情下跌)
+  g.lastLandOutcome = { kind: "Noop", causedBankruptcy: bankrupt };
+  g.logEvent(
+    "system",
+    mover.guohao,
+    `${mover.guohao} 落 ${tile.name}(商市):${gain ? "行情看涨" : "行情看跌"} ${gain ? "+" : "−"}${formatMoney(amt)}${bankrupt ? " → 破产" : ""}`,
+    `stock player=${mover.id} delta=${delta} cash=${mover.cash}`,
+    delta,
+  );
+  return bankrupt ? "bankrupt" : "settled";
+}
+
+/** 城池落格结算(含珍宝城 event:"treasure",ADR-0024 同权):无主 → 可购决策;
+ *  己城 → 可扩军决策;他人城 → 珍宝交涉(城主有宝)或无事发生。各终端收口统一
+ *  endTurn(探宝已在落格固定事件位先行,链尾零探宝,#825)。 */
 function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
   const def = g.catalog.get(tile.propertyId);
   if (!def) {
@@ -511,7 +533,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
       `treasureAwait owner=${owner.id} visitor=${mover.id} treasures=${owner.treasures.length}`,
     );
   } else {
-    // 城主无珍宝:无事发生(他人城终端 → 宝物城接链尾探宝)
+    // 城主无珍宝:无事发生(他人城终端 → 收口结束回合,探宝已在落格先行 #825)
     g.lastLandOutcome = { kind: "Noop" };
     g.logEvent(
       "system",
@@ -519,7 +541,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
       `${mover.guohao} 落「${tile.name}」(${owner.guohao} 无珍宝),无事发生`,
       `noTreasure owner=${owner.id} visitor=${mover.id}`,
     );
-    g.finishTradeChain(mover);
+    g.endTurn();
   }
 }
 
@@ -569,8 +591,8 @@ function enterDecisionPhase(g: GameEngine): boolean {
     // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
     g.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
   }
-  // 自动拒绝终端(买不起/无委任状/城满级):宝物城同样接链尾探宝(ADR-0024)
-  g.finishTradeChain(p);
+  // 自动拒绝终端(买不起/无委任状/城满级):交易链收口结束回合(探宝已在落格先行 #825)
+  g.endTurn();
   return false;
 }
 

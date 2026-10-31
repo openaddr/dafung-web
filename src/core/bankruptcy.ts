@@ -341,8 +341,8 @@ export function confirmBankruptcySettle(g: GameEngine): void {
     }
   } else {
     // #617:破产扫账——settleDebt 破产支路把买家余现金整扫给债主(无债主则现金销毁)。
-    // 买家侧 bkBankrupt 挂 amount=-swept(现金离开买家是一方收付,无债主的税/机遇债扫账
-    // 同样挂,与税关单边行同理),swept=0 不挂;有债主(珍宝托管债)补卖家收款行——与
+    // 买家侧 bkBankrupt 挂 amount=-swept(现金离开买家是一方收付,无债主的机遇债扫账
+    // 同样挂,单边行同理),swept=0 不挂;有债主(珍宝托管债)补卖家收款行——与
     // 直付成交卖家行同形(fair/premium 以价款对指导价判定,同款启发式),amount=扫账实收
     // 而非成交价,detail price 仍是谈定价。
     const swept = p.cash;

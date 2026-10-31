@@ -188,12 +188,12 @@ export const FX = {
   get jinnangLineMs() {
     return scStage(700);
   },
-  /** 落格定音金圈一拍动画全长(#849 棒3):fx.css fx-pulse-ring 时长经本值由
+  /** 金圈一拍动画全长(技能施展定音,#849 棒3):fx.css fx-pulse-ring 时长经本值由
    *  FxLayer 消费点内联注入(keyframe 只管形不时刻度)。 */
   get pulseRingMs() {
     return scStage(650);
   },
-  /** 落格定音清理窗(S7 #513):pulseRingMs 全长 + 清理余量,单侧窗口不再与
+  /** 金圈清理窗(landPulseMs,#828 翻面为技能施展定音清理窗):pulseRingMs 全长 + 清理余量,单侧窗口不再与
    *  fx.css 字面量两头同步(#849 棒3 同 sealMs 口径)。 */
   get landPulseMs() {
     return scStage(750);

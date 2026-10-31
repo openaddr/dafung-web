@@ -146,9 +146,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
       const path = MAP.board.computePath(tile.index, die, mover.capitalIndex);
       if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
-      return (
-        land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
-      );
+      return land.event == null && land.propertyId != null && e.findOwner(land.propertyId) == null;
     });
     expect(target).toBeDefined(); // huanyou 必有无主城可达(数据不变量)
     t.place(seat, target!.index);
@@ -167,7 +165,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
     const t = testEngine(e);
     const buyer = e.activePlayer;
     const tile = MAP.board.tiles.find(
-      (x) => x.type === "Property" && x.propertyId != null && e.findOwner(x.propertyId) == null,
+      (x) => x.event == null && x.propertyId != null && e.findOwner(x.propertyId) == null,
     )!;
     buyer.cash = e.catalog.get(tile.propertyId!)!.purchasePrice + 100; // 买得起且低于目标身价(不触发终局)
     t.landActiveAt(tile.index);
@@ -188,20 +186,6 @@ describe("事件流(#375):掷骰行军与购地", () => {
 });
 
 describe("事件流(#375):金钱变更", () => {
-  it("税关缴税产出 cashChanged(delta=-200,reason=tax),随后回合收尾", () => {
-    const e = makeEngine(5);
-    finishSetup(e);
-    const t = testEngine(e);
-    const taxTile = MAP.board.tiles.find((tile) => tile.type === "Tax");
-    expect(taxTile).toBeDefined(); // huanyou 设税关(数据不变量)
-    t.placeActive(taxTile!.index);
-    beginGameEventBatch(e);
-    t.land();
-    const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["cashChanged", "turnEnded", "turnStarted"]);
-    expect(events[0]).toMatchObject({ kind: "cashChanged", delta: -200, reason: "tax" });
-  });
-
   it("落己都城补给产出 cashChanged(reason=supply),招贤相位挂起不收尾", () => {
     const e = makeEngine(5);
     finishSetup(e);
@@ -393,7 +377,7 @@ describe("事件流(#375):机遇、破产、招贤、珍宝交割", () => {
     const visitor = e.activePlayer; // 访客 = 当前活跃座位
     const owner = e.players[e.players.indexOf(visitor) === 0 ? 1 : 0]; // 城主 = 对座
     const tile = MAP.board.tiles.find(
-      (x) => x.type === "Property" && x.propertyId != null && x.index !== visitor.capitalIndex,
+      (x) => x.event == null && x.propertyId != null && x.index !== visitor.capitalIndex,
     )!;
     owner.properties.push({
       propertyId: tile.propertyId!,

@@ -109,7 +109,7 @@ function floaterLook(
 const SUPPLY_COINS = 6;
 
 /** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂/漆金印章 +
- *  出牌指示线 + 落格定音金圈 + 破产墨渍/撒币(S7)。拼点演出归全屏签面
+ *  出牌指示线 + 技能施展金圈(landPulse 通道)+ 破产墨渍/撒币(S7)。拼点演出归全屏签面
  *  (DuelSignsOverlay,ADR-0030 单通道)。 */
 export function BoardFxLayer() {
   const floaters = useFxStore((s) => s.floaters);
@@ -169,7 +169,8 @@ export function BoardFxLayer() {
           </g>
         );
       })}
-      {/* 落格定音(S7):事件/机遇格落点金圈一拍。#849 棒3:keyframe 只管形,
+      {/* 技能施展金圈(#850,landPulse 通道唯一生产者;S7 落格定音原产者随 #826 退役)。
+          #849 棒3:keyframe 只管形,
           全长 FX.pulseRingMs 内联注入(随 e2e/追帧通道缩放,清理窗 landPulseMs 同源) */}
       {pulses.map((p) => (
         <circle

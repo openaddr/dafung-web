@@ -72,9 +72,7 @@ describe("事件流(#384):名将被动技击发 skillFired", () => {
       const path = MAP.board.computePath(tile.index, steps, mover.capitalIndex);
       if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
-      return (
-        land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
-      );
+      return land.event == null && land.propertyId != null && e.findOwner(land.propertyId) == null;
     });
     expect(target).toBeDefined();
     t.place(seat, target!.index);
@@ -217,18 +215,20 @@ describe("事件流(#384):体力变更 staminaChanged", () => {
 });
 
 describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinnangDrawn", () => {
-  it("天命格:[reputationChanged, turnEnded, turnStarted],delta=+20,reason=fate", () => {
+  it("天命城:[reputationChanged, …交易链续跑],delta=+20,reason=fate", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const t = testEngine(e);
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
-    const fate = MAP.board.tiles.find((tile) => tile.type === "Fate");
-    expect(fate).toBeDefined(); // huanyou 设天命格(数据不变量)
+    const fate = MAP.board.tiles.find((tile) => tile.event === "fate");
+    expect(fate).toBeDefined(); // huanyou 设天命城(数据不变量,#826 全城池制)
     beginGameEventBatch(e);
     t.landActiveAt(fate!.index);
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["reputationChanged", "turnEnded", "turnStarted"]);
+    // 固定事件解毕续跑交易链(#824 ADR-0037):无主城 → 停 AwaitingDecision,不再当回合收尾
+    expect(kinds(events)).toEqual(["reputationChanged"]);
+    expect(e.turnPhase).toBe("AwaitingDecision");
     expect(events[0]).toMatchObject({
       kind: "reputationChanged",
       seat,
@@ -237,14 +237,14 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     });
   });
 
-  it("天命格夹紧:声望 95 再 +20,delta=+5(实际增减,非名义增量)", () => {
+  it("天命城夹紧:声望 95 再 +20,delta=+5(实际增减,非名义增量)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const t = testEngine(e);
     const mover = e.activePlayer;
     mover.reputation = 95;
     beginGameEventBatch(e);
-    t.landActiveAt(MAP.board.tiles.find((tile) => tile.type === "Fate")!.index);
+    t.landActiveAt(MAP.board.tiles.find((tile) => tile.event === "fate")!.index);
     const events = e.snapshot().events;
     expect(events[0]).toMatchObject({ kind: "reputationChanged", delta: 5, reason: "fate" });
     expect(mover.reputation).toBe(100);
@@ -436,9 +436,7 @@ describe("事件流(#385 缺口 3):行军路径随事件 marchArrived.path", () 
       const path = MAP.board.computePath(tile.index, die, mover.capitalIndex);
       if (path.passedCapital) return false;
       const land = MAP.board.at(path.landIndex);
-      return (
-        land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
-      );
+      return land.event == null && land.propertyId != null && e.findOwner(land.propertyId) == null;
     });
     expect(target).toBeDefined();
     t.place(seat, target!.index);
@@ -482,11 +480,11 @@ describe("事件流(#385 缺口 5):拦检失败/中招/窃宝/技得银", () => 
     const ownerSeat = moverSeat === 0 ? 1 : 0;
     const owner = e.players[ownerSeat];
     const tile = MAP.board.tiles.find((x) => {
-      if (x.type !== "Property" || x.propertyId == null) return false;
+      if (x.event != null || x.propertyId == null) return false; // 普通城(#826 全城池制)
       if (x.index === mover.capitalIndex || x.index === owner.capitalIndex) return false;
       const prev = MAP.board.at((x.index - 1 + MAP.board.count) % MAP.board.count);
       return (
-        prev.type !== "Fate" && (prev.propertyId == null || e.findOwner(prev.propertyId) == null)
+        prev.event == null && (prev.propertyId == null || e.findOwner(prev.propertyId) == null)
       );
     });
     expect(tile).toBeDefined();

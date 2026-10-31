@@ -47,7 +47,7 @@ function eaveShadow(w: number, tipY: number): string {
   return `M ${-l},${tipY + 4.5} Q 0,${tipY + 8} ${l},${tipY + 4.5}`;
 }
 
-/** 檐下红灯笼:吊线 + 朱红灯身 + 灯穗,呼应商市格的灯笼语言(静态点缀)。 */
+/** 檐下红灯笼:吊线 + 朱红灯身 + 灯穗,地域形制点缀(静态,不挂任何格型语义)。 */
 function Lantern({ x }: { x: number }) {
   return (
     <g>

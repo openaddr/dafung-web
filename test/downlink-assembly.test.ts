@@ -187,7 +187,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
   { kind: "propertyRejected", propertyId: "xuchang", reason: "no-warrant" },
   { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
-  { kind: "cashChanged", delta: -200, reason: "tax", counterpartSeat: 1 },
+  { kind: "cashChanged", delta: -200, reason: "stock", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },
   { kind: "treasureSold", treasureId: "golden-seal-1", amount: 800 },
   { kind: "treasureTraded", buyerSeat: 0, sellerSeat: 1, treasureId: "golden-seal-1", price: 900 },

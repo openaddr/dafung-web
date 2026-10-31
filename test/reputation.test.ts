@@ -1,5 +1,6 @@
-// 声望贯通单测(#121):初值恒 0 / ±100 夹紧 / 天命格落格 +20 / 锦囊格退役按普通格。
+// 声望贯通单测(#121):初值恒 0 / ±100 夹紧 / 天命城落格 +20 / 锦囊城抽牌不动声望。
 // 落格经 testEngine.landActiveAt 直摆直结算,与随机流无关,种子不影响断言。
+// (#826 全城池制:天命/锦囊都是 event 城池,固定事件解毕续跑交易链。)
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
@@ -8,9 +9,9 @@ import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 
 const MAP = loadMap(huanyouData);
-const byName = (name: string) => MAP.board.tiles.find((t) => t.name === name)!.index;
-const FATE_TILE = byName("天命"); // tile-fate-1(ADR-0027 环位 P37)
-const CHANCE_TILE = byName("锦囊"); // tile-chance-1(ADR-0027 环位 P41)
+const byEvent = (event: string) => MAP.board.tiles.find((t) => t.event === event)!.index;
+const FATE_TILE = byEvent("fate"); // tile-fate-1 天命城(ADR-0027 环位 P37)
+const CHANCE_TILE = byEvent("jinnang"); // tile-chance-1 锦囊城(ADR-0027 环位 P41)
 
 function makeEngine(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
@@ -41,7 +42,7 @@ describe("声望字段贯通(#121)", () => {
     expect(e.players[0].reputation).toBe(-100);
   });
 
-  it("落天命格 +20 声望(固定事件,不抽随机)", () => {
+  it("落天命城 +20 声望(固定事件,不抽随机)", () => {
     const e = makeEngine();
     const te = testEngine(e);
     const seat = e.activeIndex;
@@ -50,13 +51,14 @@ describe("声望字段贯通(#121)", () => {
     expect(e.players[seat].reputation).toBe(20);
   });
 
-  it("落锦囊格:抽牌不改声望,照常交回合", () => {
+  it("落锦囊城:抽牌不改声望,续进交易链", () => {
     const e = makeEngine();
     const te = testEngine(e);
     const seat = e.activeIndex;
     te.placeActive(CHANCE_TILE);
     te.land();
     expect(e.players[seat].reputation).toBe(0);
-    expect(e.activeIndex).not.toBe(seat); // 落空后照常交回合
+    expect(e.activeIndex).toBe(seat); // 固定事件解毕续交易链(无主城停可购决策),不交回合
+    expect(e.turnPhase).toBe("AwaitingDecision");
   });
 });

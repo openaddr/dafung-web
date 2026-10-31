@@ -8,7 +8,6 @@
 // testing.ts 白盒窄面 EngineTestInternals 的触达点);reaction-window 续结算经壳上
 // g.maybeApplyEncounter 委托回调(#318 预案),锦囊抽牌按 #319 预案跨模块直调自由函数。
 import type { GameEngine } from "./authority";
-import { isCityType } from "./board";
 import { computeChoices, ENCOUNTER_HERO_TREASURE_COST } from "./choices";
 import {
   ENCOUNTERS,
@@ -492,7 +491,7 @@ function applyGrantCityEffect(
   const seat = g.players.indexOf(mover);
   // 无主城从棋盘 tile 收集(MapCatalog 只暴露 get/groupMembers,不可枚举)
   const unownedCities = g.board.tiles
-    .filter((t) => isCityType(t.type) && t.propertyId && g.findOwner(t.propertyId) == null)
+    .filter((t) => t.propertyId != null && g.findOwner(t.propertyId) == null)
     .map((t) => ({ tileIndex: t.index, tileName: t.name, def: g.catalog.get(t.propertyId) }))
     .filter((c): c is { tileIndex: number; tileName: string; def: PropertyDef } => c.def != null);
   if (unownedCities.length === 0) {

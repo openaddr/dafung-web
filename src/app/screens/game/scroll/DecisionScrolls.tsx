@@ -163,15 +163,15 @@ export function ExhaustionChoiceScroll({
 // ── 购地抉择(AwaitingDecision + PropertyAvailable)──
 export function BuyDecisionScroll({
   tileName,
-  regionLabel,
+  groupLabel,
   property,
   cash,
   choices,
   onCommand,
 }: {
   tileName: string;
-  /** 地域行标签(分组名恒显+异名追加州名,单源在 DecisionScrollLayer)。 */
-  regionLabel: string;
+  /** 地域行区名(=分组名,Theme.groupNames 单源经 DecisionScrollLayer;空=未知分组省略段)。 */
+  groupLabel: string;
   property: {
     purchasePrice: number;
     maxLevel: number;
@@ -226,7 +226,7 @@ export function BuyDecisionScroll({
       }
     >
       <p className="m-1 mb-2 text-center text-xs text-ink-dim">
-        「{tileName}」{regionLabel ? ` · ${regionLabel}` : ""} · 无主 · 购入{" "}
+        「{tileName}」{groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
       {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
