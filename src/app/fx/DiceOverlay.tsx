@@ -1,13 +1,15 @@
 // 掷骰签面演出(#483:three.js 3D 骰退役,签面转正为唯一掷骰表现):
 // S7 两段式(#513/#492 拍板:标准档摇签 0.6s)——
-//   第一段 摇签:墨字虚影 60ms 级轮换(全段恰 10 次换签)带微旋,签卡隐去只余字影;
-//   第二段 落定:大字 outBack 钤落(签卡随之现身)+ 落点金圈同拍(不上震屏——
-//   震屏仅限全场级大事件,DESIGN §6)。
+//   第一段 摇签:墨字浅金虚影 60ms 级轮换(全段恰 10 次换签)带微旋,签卡淡轮廓
+//   蓄势(#849 棒1:摇签段可读,fx.css .dice-sign-shaking);
+//   第二段 落定:大字 outBack 钤落(签卡随之现身)+ 落点金圈延迟起爆(#849 棒1:
+//   等 outBack 钤落成形再炸,不上震屏——震屏仅限全场级大事件,DESIGN §6)。
 // 之后停留(holdMs;bot 走半速档:摇签/停留都压半)→ 渐隐退场。
 // 样式与时长见 fx.css .dice-sign/.dice-sign-shaking/.dice-sign-land/.fx-dice-ring 与
 // fx/timings.ts DICE。mount/unmount 归 React;触发走 diceApi 模块桥——控制器(非
 // React 世界)直接调 diceApi.roll(die),不必把实例塞进 store(非可序列化数据,同
-// engine 的理由)。
+// engine 的理由)。落定拍广播 onDiceSignLand(HUD 骰面芯片的揭示锚,#849 棒1:芯片
+// 在摇签段不得剧透,HandZone 订阅)。
 import { useEffect } from "react";
 import { SIGN_FACES } from "@core/constants";
 import { getAudio } from "./audio";
@@ -32,6 +34,21 @@ function consumeDiceFast(): boolean {
 // 在场 overlay 引用(D2 终局提前收场用;present() 串行 await,同时至多一张)。
 let activeOverlay: HTMLElement | null = null;
 
+// 落定拍订阅(HUD 骰面芯片的揭示锚,#849 棒1):landListeners 仅 HandZone 一类
+// React 消费方挂册,Set 语义=StrictMode 双挂载下退订句柄成对增删不重复。
+const landListeners = new Set<(die: number) => void>();
+
+/** 订阅签面落定拍(参数=本次落定的点数):骰面芯片在摇签段不得剧透,HandZone
+ *  据此把 lastRoll 的新值压到落定拍才揭示。演出块被吸附/断线作废丢弃时落定拍
+ *  不发生——揭示顺延到下一掷的落定拍(跳切语境下芯片少显示一枚已作废演出,
+ *  下一掷落定自愈;快照本身照常入库,权威态无损)。返回退订句柄。 */
+export function onDiceSignLand(cb: (die: number) => void): () => void {
+  landListeners.add(cb);
+  return () => {
+    landListeners.delete(cb);
+  };
+}
+
 /** D2:骰子演出提前收场(生产调用口 = orchestrator.finishPresentation,胜利屏
  *  挂载封场整个表现层时连带调用;本函数只管在场这一张)。
  *  这是生命周期规则而非兜底:对局结束 = 骰子表现层使命终结——立即移除在场
@@ -53,6 +70,7 @@ function rollSign(die: number): Promise<void> {
   overlay.className = "dice-overlay";
   const ring = document.createElement("div");
   ring.className = "fx-dice-ring"; // 落点金圈:落定拍才入 DOM(与大字落定同拍绽放)
+  ring.style.animationDelay = `${DICE.landRingDelayMs}ms`; // #849 棒1:等 outBack 钤落成形再炸
   const sign = document.createElement("div");
   sign.className = "dice-sign dice-sign-shaking"; // 第一段:签卡隐去,只余墨字虚影
   sign.textContent = SIGN_FACES[die - 1];
@@ -83,6 +101,7 @@ function rollSign(die: number): Promise<void> {
       sign.classList.add("dice-sign-land");
       overlay.insertBefore(ring, sign);
       getAudio().play("diceLand");
+      for (const cb of landListeners) cb(die); // 落定拍广播:芯片揭示本次点数(#849 棒1)
       window.setTimeout(
         () => {
           if (activeOverlay === overlay) activeOverlay = null;

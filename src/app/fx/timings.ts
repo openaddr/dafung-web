@@ -226,6 +226,12 @@ export const DICE = {
   get fadeOutMs() {
     return scStage(Motion.dur.med);
   }, // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
+  /** 落点金圈起爆延迟(#849 棒1):落定拍插环后等 outBack 钤落成形(0.26s 钤落弧
+   *  的前段)再炸,环不被签面吞。DiceOverlay 经 animationDelay 内联注入 fx.css
+   *  .fx-dice-ring(消费点内联,随 e2e 倍率缩放);环全长 0.5s 字面量归棒3 统一。 */
+  get landRingDelayMs() {
+    return scStage(80);
+  },
 } as const;
 
 /** 拼点演出节拍(#637,ADR-0030,全屏签面 DuelSignsOverlay 消费):错拍/判词两拍
@@ -269,6 +275,21 @@ export const DUEL = {
   /** 拼点大胜负点差(S7 #492 震屏大事件档):|a−b|≥本值判词拍震屏(DESIGN §6)。
    *  时间表里只此一个非时长字段,签面判词拍同源取数。 */
   blowoutMargin: 3,
+  /** 大胜峰值·金圈二次冲击波全长(#849 棒1,P1-B3):胜方金环 scale 1→1.55 涨散。
+   *  DuelSignsOverlay 经 --duel-wave-ms 内联注入 fx.css(keyframe 只管形不时刻度)。 */
+  get blowoutWaveMs() {
+    return scStage(500);
+  },
+  /** 大胜峰值·冲击波延迟(#849 棒1「延迟约两拍」):拍长取拼点节拍 clackGapMs,
+   *  两拍 ≈ 300ms——等 #769 胜方点数弹跳读完再炸。经 --duel-wave-delay 注入。 */
+  get blowoutWaveDelayMs() {
+    return scStage(300);
+  },
+  /** 大胜峰值·金色洗幕一闪(#849 棒1):胜方玩家色 radial 0.35→0 全屏一闪。
+   *  经 --duel-wash-ms 注入。 */
+  get blowoutWashMs() {
+    return scStage(240);
+  },
 } as const;
 
 /** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币;演出编排族,吃 scStage):累计毫秒锚点,
