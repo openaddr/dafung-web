@@ -1,9 +1,14 @@
 // 地图选择面板(首页内嵌二级屏):列出全部可选地图(内置 + 自建),
-// 点击条目展开简化 SVG 预览(主路折线 + 城池圆点),确认后回传 mapId。
+// 点击条目展开简化 SVG 预览(主路双层描折线 + 城池方形小印),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,
 // 而是直接基于 MapData 的 pos 坐标画简版(延迟加载:点选时才 loadMapData)。
 // #173:弹层壳(遮罩/居中/焦点陷阱/Esc/点外关/还焦手柄)收口到 ui/dialog
 // (Base UI 底件),面板本体(内容/testid/水墨皮)原样保留。
+// #832:矮横屏(844×390)首帧可视两刀——①确认/取消行 sticky 钉弹层可视底
+// (配方抄 setup.css .su-actions:sticky+渐隐墨底,负 margin 出血到弹层左右缘,
+// 桌面档无外滚时自然收尾不表态),②预览收幅 40vh→20vh;MiniMap 换玄墨制式
+// (深纹底+主路双层描+城点方形小印,质感对齐 DESIGN §5.4 印盘/界格语言)。
+// 矮档密度收放(清单/预览段间距)单源 ./MapSelectPanel.css。
 import { useEffect, useState } from "react";
 import type { MapEntry, MapSource } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
@@ -18,6 +23,8 @@ import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 // S1(#34):面板入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)。
 // 本面板被首页/配置页/大厅三处复用,css 在此引入保证每个宿主屏都带动画定义。
 import "@app/screens/game/scroll/scroll.css";
+// #832:矮横屏档密度收放(清单 34vh/预览段 8px),本面板专属不进共享文件。
+import "./MapSelectPanel.css";
 
 export interface MapSelectPanelProps {
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
@@ -28,33 +35,36 @@ export interface MapSelectPanelProps {
   onCancel: () => void;
 }
 
-/** 预览图固定 viewBox 尺寸(等比缩放,SVG 自动适配容器宽)。
- *  旧地图 pos 坐标量级约在几百,取 800×600 画布,边界留白 40。 */
-const VIEW_W = 800;
-const VIEW_H = 600;
+/** 预览画布归一目标(数据较大的一维映射到该值;画布紧贴数据外沿,#832)。
+ *  旧固定 800×600 画布在非 4:3 地图上两侧吃死留白,同一收幅内路网渲染缩水;
+ *  改贴外沿后 viewBox 纵横比随地图,20vh 条幅内画得更大。留白 PAD 同旧档。 */
+const NORM_MAX = 720;
 const PAD = 40;
 
-/** 由 MapData 生成简化 SVG 预览节点:主路折线(按 tiles 顺序)+ 城池点。
- *  简版预览按数组顺序连线,视觉近似即可,精确棋盘留给对局渲染。 */
+/** 由 MapData 生成简化 SVG 预览节点:主路双层描折线(按 tiles 顺序)+ 城池方形小印。
+ *  简版预览按数组顺序连线,视觉近似即可,精确棋盘留给对局渲染。
+ *  #832 玄墨制式:深纹底(bg-deep + 界格淡线网纹,§5.4 手札界格语言)+ 主路
+ *  双层描(晕宽底带 + 提亮面线)+ 城点方形小印(paper 印面 + 文楷单字,§5.4
+ *  印盘语言)。深纹底以越界大矩形铺满元素视口:SVG 只裁元素盒不裁 viewBox,
+ *  条幅 letterbox 区同底色,预览读作一条完整「地图横卷」。 */
 function MiniMap({ data }: { data: MapData }) {
   const pts = data.tiles.map((t) => ({ x: t.pos[0], y: t.pos[1], name: t.name }));
   if (!pts.length) return null;
-  // 坐标归一化到 viewBox:平移 + 等比缩放(保持纵横比,避免形变)
+  // 坐标归一化:平移 + 等比缩放(保持纵横比,避免形变),画布贴数据外沿
   const xs = pts.map((p) => p.x);
   const ys = pts.map((p) => p.y);
   const minX = Math.min(...xs);
   const maxX = Math.max(...xs);
   const minY = Math.min(...ys);
   const maxY = Math.max(...ys);
-  const scale = Math.min(
-    (VIEW_W - PAD * 2) / Math.max(1, maxX - minX),
-    (VIEW_H - PAD * 2) / Math.max(1, maxY - minY),
-  );
-  const offX = (VIEW_W - (maxX - minX) * scale) / 2;
-  const offY = (VIEW_H - (maxY - minY) * scale) / 2;
+  const dataW = Math.max(1, maxX - minX);
+  const dataH = Math.max(1, maxY - minY);
+  const scale = Math.min(NORM_MAX / dataW, NORM_MAX / dataH);
+  const vbW = dataW * scale + PAD * 2;
+  const vbH = dataH * scale + PAD * 2;
   const map = (p: { x: number; y: number }) => ({
-    x: (p.x - minX) * scale + offX,
-    y: (p.y - minY) * scale + offY,
+    x: (p.x - minX) * scale + PAD,
+    y: (p.y - minY) * scale + PAD,
   });
   const path = pts
     .map((p, i) => {
@@ -66,31 +76,67 @@ function MiniMap({ data }: { data: MapData }) {
   return (
     <svg
       data-testid={TID.mapPreview}
-      viewBox={`0 0 ${VIEW_W} ${VIEW_H}`}
-      className="w-full max-h-[40vh] rounded-[3px] bg-bg border border-ink/20"
+      viewBox={`0 0 ${vbW.toFixed(0)} ${vbH.toFixed(0)}`}
+      className="w-full max-h-[20vh] rounded-[3px] border border-gold/25 bg-[var(--color-bg-deep)]"
       role="img"
       aria-label="地图预览"
     >
-      {/* 主路:水墨棕折线 */}
+      <defs>
+        {/* 界格淡线网纹:每格上/左缘发丝金线,opacity 压到 0.1 只留「纹」感
+            (0.06 实拍不可辨,#832 定位截图) */}
+        <pattern id="msp-weave" width={44} height={44} patternUnits="userSpaceOnUse">
+          <path
+            d="M44 0H0V44"
+            fill="none"
+            stroke="var(--color-gold)"
+            strokeOpacity={0.1}
+            strokeWidth={1}
+          />
+        </pattern>
+      </defs>
+      {/* 深纹底:越界大矩形铺满元素视口(letterbox 区同底色) */}
+      <rect x={-200000} y={-200000} width={400000} height={400000} fill="var(--color-bg-deep)" />
+      <rect x={-200000} y={-200000} width={400000} height={400000} fill="url(#msp-weave)" />
+      {/* 主路双层描:底层晕宽墨带 + 面层提亮主描。strokeWidth 走 CSS px
+          (non-scaling-stroke,#832):画布单位随地图纵横伸缩,固定单位描边在
+          环游图(≈0.18 缩放)上细若发丝、小图上更细——双描制式必须屏尺寸恒定
+          才在任何地图上可读。 */}
       <path
         d={path}
         fill="none"
         stroke="var(--color-road-main)"
         strokeWidth={4}
         strokeLinejoin="round"
-        opacity={0.85}
+        strokeLinecap="round"
+        opacity={0.3}
+        vectorEffect="non-scaling-stroke"
+      />
+      <path
+        d={path}
+        fill="none"
+        stroke="var(--color-road-main)"
+        strokeWidth={1.5}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+        opacity={0.95}
+        vectorEffect="non-scaling-stroke"
       />
       {pts.map((p, i) => {
         const q = map(p);
         return (
           <g key={i}>
-            <circle
-              cx={q.x}
-              cy={q.y}
-              r={7}
-              fill="var(--color-panel)"
+            {/* 城点=方形小印(§5.4 印盘语言):paper 印面 + 墨发丝边(屏尺寸恒定)
+                + 文楷单字印文(随图缩放,近距可辨即可) */}
+            <rect
+              x={q.x - 6.5}
+              y={q.y - 6.5}
+              width={13}
+              height={13}
+              rx={2}
+              fill="var(--color-paper-hi)"
               stroke="var(--color-ink-dim)"
-              strokeWidth={2}
+              strokeWidth={1}
+              vectorEffect="non-scaling-stroke"
             />
             <text
               x={q.x}
@@ -189,13 +235,13 @@ export function MapSelectPanel({
         // 分层 utilities,故加 ! 钉住 lg)。宽度/内滚不动;定位改由底件接管。
         // block 抵消底件 Popup 的 flex 档,保持原块级布局(内滚滚动语义不变);
         // note-card(非分层)自压底件的纸底/发丝边 utilities,水墨皮不变。
-        className="scroll-anim-unroll note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
+        className="map-select-panel scroll-anim-unroll note-card block w-[min(680px,92vw)] max-h-[86dvh] overflow-y-auto rounded-[8px] p-5 shadow-[var(--ink-shadow-lg)]!"
       >
         {/* 笺头制式(视觉重做 v2):「图」字朱印 + 标签 + 发丝线(用法同 game/StatusBar);
             兼拖动把手(#674,DialogDragHandle 消费 DialogContent 下发的原语) */}
         <DialogDragHandle
           as="h3"
-          className="note-head mb-3 text-xs tracking-[0.25em] text-ink-dim"
+          className="msp-head note-head mb-3 text-xs tracking-[0.25em] text-ink-dim"
           testid={TESTIDS.modalDragHandle}
         >
           <i>图</i>
@@ -229,7 +275,8 @@ export function MapSelectPanel({
 
         {entries && entries.length > 0 && (
           <>
-            <div className="flex flex-col gap-2 max-h-[38vh] overflow-y-auto pr-1">
+            {/* msp-list:矮横屏档密度收放锚点(MapSelectPanel.css 34vh,桌面档 38vh) */}
+            <div className="msp-list flex flex-col gap-2 max-h-[38vh] overflow-y-auto pr-1">
               {entries.map((e) => {
                 const selected = e.id === picked;
                 return (
@@ -263,9 +310,10 @@ export function MapSelectPanel({
               })}
             </div>
 
-            {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽 */}
+            {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽。
+                msp-preview:矮横屏档间距收放锚点(MapSelectPanel.css mt/pt 8px)。 */}
             {(previewLoading || preview) && (
-              <div className="mt-3 border-t border-dashed border-ink/25 pt-3">
+              <div className="msp-preview mt-3 border-t border-dashed border-ink/25 pt-3">
                 {previewLoading && (
                   <p className="font-wenkai text-xs text-ink-dim py-2">预览加载中…</p>
                 )}
@@ -273,7 +321,11 @@ export function MapSelectPanel({
               </div>
             )}
 
-            <div className="mt-4 flex justify-end gap-2.5">
+            {/* #832 主行动钉底:配方抄 setup.css .su-actions(sticky 锚 bottom=
+                --safe-bottom + 渐隐墨底),内容外滚时确认/取消恒钉弹层可视底;
+                负 margin 出血到弹层左右缘(px-5 补回内容对齐),滚动清单从渐隐带
+                下穿过;桌面档无外滚时 sticky 不表态,自然收尾同旧。 */}
+            <div className="msp-actions mt-4 sticky bottom-[var(--safe-bottom)] -mx-5 flex justify-end gap-2.5 bg-[linear-gradient(180deg,transparent,var(--color-panel)_35%)] px-5 pt-0.5">
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
