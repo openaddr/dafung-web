@@ -173,13 +173,13 @@ export const EVENT_TIERS = {
   },
   skillFired: {
     fold: "must-fold",
-    fx: "silent",
-    why: "被动技冷却记账(heroId 定槽,槽内 lastFired 键=skillId,#785 实例化);技参数不随事件,由技表现查",
+    fx: "presented",
+    why: "被动技冷却记账(heroId 定槽,槽内 lastFired 键=skillId,#785 实例化);技参数不随事件,由技表现查;表现=token 侧技名小签浮现(#850,同 floater 通道,渲染档 skill=tag)",
   },
   heroSkillActivated: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/patronage 委任状/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施展浮字",
+    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/patronage 委任状/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
   },
   // ── 锦囊族 ──
   jinnangDrawn: {

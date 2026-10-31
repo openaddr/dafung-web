@@ -1223,3 +1223,110 @@
     transform: scale(1);
   }
 }
+
+/* ══ 技能演出补课(#850,UI二轮19):施展浮字升档/被动技名小签/招贤授技钤落/入麾金印。
+   事件源全在现管线(heroSkillActivated/skillFired,档位表 core/event-tiers 已翻面),
+   本段只添新规则,不碰 jline/dice/duel 既有段(#849 三棒地盘)。 ══ */
+
+/* 主动技施展浮字升档(#850):1.0×(字号由 FxLayer 不折不缩)焦墨 brush 字,
+   玩家色细描边承身份(--player-color 恒由 FxLayer 随事件内联,色缺=提取侧 bug 露形,
+   CSS 不设回退值)。上浮轨迹复用基类 fx-svg-float-up。 */
+.fx-svg-floater.skill {
+  fill: var(--color-ink);
+  stroke: var(--player-color);
+  stroke-width: 1;
+  stroke-opacity: 0.85;
+  paint-order: stroke fill;
+}
+
+/* 被动技名小签(#850):token 侧技名小签浮现 800ms(浮现→短停→上飘淡出,同
+   floater 通道不新造层;ink-dim 0.7×,FxLayer 消费点内联注入全长 FX.skillTagMs,
+   keyframe 只管形不时刻度,棒3 时长收口同法)。 */
+.fx-svg-floater.tag {
+  fill: var(--color-ink-dim);
+  animation: fx-svg-float-tag var(--ease-out) forwards;
+}
+@keyframes fx-svg-float-tag {
+  0% {
+    transform: translateY(8) scale(0.6);
+    opacity: 0;
+  }
+  18% {
+    transform: translateY(-6) scale(1);
+    opacity: 1;
+  }
+  68% {
+    transform: translateY(-14) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-36) scale(1);
+    opacity: 0;
+  }
+}
+
+/* 招贤授技 chips 钤落(#850):候选卡入场(壳体 banner-drop = --dur-slow)后,
+   实授技 chips 沿落章弧逐个钤落(rotate -12°→-8° 同 fx-seal-slam 落章弧,缩 0.6→1
+   为 chip 量级,票面口径),120ms 错拍逐个落定并驻留 -8° 钤定角(both)。
+   错拍账本:--chip-skip = 本卡之前所有候选的授技数(HeroPickScroll 逐卡内联),
+   --chip-n = 卡内位次(nth-child 派生);钤落段时长归 --dur-fast token(150ms,
+   与 fx-seal-slam 钤定段同拍);120ms 错拍 = UI 入场错拍节拍字面量,无 JS 消费面。
+   作用域 .hface.pick = 招贤档专属(pick 档全仓唯一消费方是 HeroPickScroll),compact
+   chips(手牌技卡)与府库 detail 不参与。reduced-motion 由 app.css 全局兜层压瞬时
+   (both 定格终态,chips 恒可见不回退)。 */
+.hface.pick .bd {
+  animation: fx-chip-slam var(--dur-fast) var(--ease-out) both;
+  animation-delay: calc(var(--dur-slow) + (var(--chip-skip, 0) + var(--chip-n, 0)) * 120ms);
+}
+.hface.pick .bd:nth-child(2) {
+  --chip-n: 1;
+}
+.hface.pick .bd:nth-child(3) {
+  --chip-n: 2;
+}
+@keyframes fx-chip-slam {
+  from {
+    rotate: -12deg;
+    scale: 0.6;
+    opacity: 0;
+  }
+  55% {
+    opacity: 1;
+  }
+  to {
+    rotate: -8deg;
+    scale: 1;
+    opacity: 1;
+  }
+}
+
+/* 入麾下金印(#850):招贤确认拍卡面钤金「将」小印一拍——落章弧(fx-seal-slam)+linger
+   (fx-svg-seal-linger)双动画零改动复用,漆金制式同 .fx-svg-seal-gold(金印留给
+   得/麾语义);时长两段由 HeroPickScroll 消费点内联注入(FX.sealSlamMs / UI.pickSealMs,
+   消隐拍=命令发出卷轴收场,keyframe 只管形)。居中定位走 margin(transform 属性归
+   动画,不与定位混写);挂卡面中心,盖住画心一拍即收。 */
+.pick-seal-gold {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
+  border: 2px solid var(--color-gold-bright);
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 24px;
+  line-height: 1;
+  color: var(--color-bg-deep);
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  opacity: 0;
+  animation:
+    fx-seal-slam var(--ease-out) both,
+    fx-svg-seal-linger var(--ease-out) forwards;
+}

@@ -18,6 +18,7 @@ import { isCityType } from "@core/board";
 import type { Player } from "@core/model";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
+import { skillById } from "@core/skills";
 import {
   activeSkillDefOf,
   encounterDefOfId,
@@ -566,14 +567,35 @@ export function extractBatchEvents(
         break;
       }
       case "heroSkillActivated": {
+        // 技能施展演出(#850 升档):施法者 token 金圈一拍(与落格定音同一 fx-svg-pulse
+        // 通道,坐标提取拍烤定——锚施法者当下所在格,落格「城池格不拍」的例外语义
+        // 由本 case 自持:施展定音不看格型)+ 文案浮字升档(cast 档:1.0× brush 字 +
+        // 玩家色细描边,色提取烤定;文案与旧口径同串)。
         const seat = eventSeat(engine, ev);
-        events_.push(
-          textFloater(
-            engine,
-            seat,
-            `${guohaoOf(engine, seat)} 施展【${activeSkillDefOf(ev.skillId).name}】`,
-          ),
-        );
+        const anchor = playerAnchor(engine, seat);
+        events_.push({ kind: "landPulse", tileIndex: anchor.atTile, x: anchor.x, y: anchor.y });
+        events_.push({
+          kind: "textFloat",
+          playerId: engine.players[seat].id,
+          text: `${guohaoOf(engine, seat)} 施展【${activeSkillDefOf(ev.skillId).name}】`,
+          skill: { kind: "cast", colorIndex: engine.players[seat].colorIndex },
+          ...anchor,
+        });
+        break;
+      }
+      case "skillFired": {
+        // 被动技击发小签(#850):token 侧技名小签浮现(同 floater 通道渲染档 tag,
+        // 不新造层;技名查技表单源,文案不带国号——小签是「技」的宣告,不是「谁」的);
+        // 冷却账属 fold 面,本处只产演出。批内若随行掷骰/拼点 overlay,浮字按既有
+        // overlay 互斥补发窗延后(orchestrator 同步件判据),小签不在幕下白播。
+        const seat = eventSeat(engine, ev);
+        events_.push({
+          kind: "textFloat",
+          playerId: engine.players[seat].id,
+          text: skillById(ev.skillId).name,
+          skill: { kind: "tag" },
+          ...playerAnchor(engine, seat),
+        });
         break;
       }
       case "jinnangVoided": {
@@ -795,7 +817,7 @@ export function extractBatchEvents(
       }
       // ── 无表现档(default 守卫,档位单源 core/event-tiers)──
       // 走到这里的已登记 kind 必须是 fx=silent 档(回合/胜负生命周期、treasureSold、
-      // skillFired、encounterTriggered、exhaustionChoice 等:状态折叠
+      // encounterTriggered、exhaustionChoice 等:状态折叠
       // 与卷轴/反应窗 UI 的输入,不产演出)——presented 档漏 case = 下面赋值编译期红
       //(FxPresentedKind 派生集,#430 防遗漏机器)。线上未知 kind 不在联合内,运行时
       // 落此跳过:ADR-0020 既定口径,非吞错。

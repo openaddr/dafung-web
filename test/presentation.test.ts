@@ -22,7 +22,8 @@ import {
   type MarchSegmentFrames,
   type PresentationEvent,
 } from "../src/app/fx/presentation";
-import { testEngine } from "@core/testing";
+import { testEngine, armHero } from "@core/testing";
+import { HEROES } from "@core/heroes";
 
 const MAP = loadMap(huanyouData);
 
@@ -1743,5 +1744,106 @@ describe("remainingMarchPath(反应窗余段行军截短,#281 拦停/续走)", (
   it("无余段(挂起点即落点)返回 null;挂起点不在路径上=状态 bug 抛错", () => {
     expect(remainingMarchPath(fullPath, 7, 7)).toBeNull();
     expect(() => remainingMarchPath(fullPath, 99, 7)).toThrow();
+  });
+});
+
+// ─────────────── 技能演出直译(#850:UI二轮19)───────────────
+describe("技能演出补课(#850):施展金圈+升档浮字/被动技名小签", () => {
+  it("heroSkillActivated:施法者 token 金圈一拍(landPulse 通道,锚当下格)在前 + 施展浮字升档(cast 档,玩家色提取烤定)", () => {
+    const e = makeEngine(3);
+    finishSetup(e);
+    const user = e.activePlayer;
+    const seat = e.players.indexOf(user);
+    armHero(
+      e,
+      user,
+      HEROES.find((h) => h.id === "zhangxingcai")!,
+    );
+    e.turnPhase = "AwaitingJinnang";
+    beginGameEventBatch(e); // 开新批:直译只吃本转移(vocab 测试同款批界)
+    const out = stepEvents(e, () => e.resolveHeroSkill("zhangxingcai", "leigu"));
+    expect(out.map((ev) => ev.kind)).toEqual(["landPulse", "textFloat"]);
+    const pulse = out[0]!;
+    if (pulse.kind !== "landPulse") throw new Error("金圈事件缺位");
+    expect(pulse.tileIndex).toBe(user.position); // 锚施法者当下所在格(提取拍烤定)
+    const float = out[1]!;
+    if (float.kind !== "textFloat") throw new Error("施展浮字缺位");
+    expect(float.text).toBe(`${user.guohao} 施展【擂鼓】`); // 文案与旧口径同串
+    expect(float.skill).toEqual({ kind: "cast", colorIndex: user.colorIndex });
+    expect(float.atTile).toBe(user.position);
+    expect(seat).toBeGreaterThanOrEqual(0); // 座位契约由 eventSeat 自守,此处防哑批
+  });
+
+  it("skillFired:token 侧技名小签(tag 档)先行——疾行随 rollAndMove 批产出,提取序=小签→骰子(播放侧 overlay 互斥延后归 orchestrator,提取不摆)", () => {
+    const e = makeEngine(11);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    armHero(
+      e,
+      mover,
+      HEROES.find((h) => h.id === "zhouyu")!,
+    ); // 疾行(BeforeMarch·moveBonus+1)
+    // 摆位到不拦检、落无主地产城的合法路径(game-events-vocab 同款预言,批面保持小)
+    const die = createDice(e.dice.getRngState()).roll().die;
+    const steps = die + 1;
+    const target = MAP.board.tiles.find((tile) => {
+      if (tile.propertyId == null) return false;
+      const path = MAP.board.computePath(tile.index, steps, mover.capitalIndex);
+      if (path.passedCapital) return false;
+      const land = MAP.board.at(path.landIndex);
+      return (
+        land.type === "Property" && land.propertyId != null && e.findOwner(land.propertyId) == null
+      );
+    });
+    expect(target).toBeDefined();
+    const seat = e.players.indexOf(mover);
+    const t = testEngine(e);
+    t.place(seat, target!.index);
+    beginGameEventBatch(e); // 开新批:直译只吃本转移(vocab 测试同款批界)
+    const out = stepEvents(e, () => e.rollAndMove());
+    expect(out.slice(0, 2).map((ev) => ev.kind)).toEqual(["textFloat", "diceRolled"]);
+    const tag = out[0]!;
+    if (tag.kind !== "textFloat") throw new Error("小签缺位");
+    expect(tag.text).toBe("疾行"); // 小签=技名宣告,不带国号
+    expect(tag.skill).toEqual({ kind: "tag" });
+    // 浮字锚=提取时刻玩家位置(文件头坐标口径):提取在推进后跑,锚终落位
+    expect(tag.atTile).toBe(mover.position);
+  });
+
+  it("present 直译:skill 浮字档随 sink 原样下传(cast/tag),memorySink 录制带档位、普通文案不带键", async () => {
+    const sink = createMemorySink();
+    await present(
+      [
+        {
+          kind: "textFloat",
+          playerId: "p0",
+          text: "魏 施展【擂鼓】",
+          x: 5,
+          y: 6,
+          atTile: null,
+          skill: { kind: "cast", colorIndex: 2 },
+        },
+        {
+          kind: "textFloat",
+          playerId: "p0",
+          text: "疾行",
+          x: 5,
+          y: 6,
+          atTile: null,
+          skill: { kind: "tag" },
+        },
+      ],
+      sink,
+    );
+    expect(sink.calls).toEqual([
+      {
+        op: "textFloater",
+        x: 5,
+        y: 6,
+        text: "魏 施展【擂鼓】",
+        skill: { kind: "cast", colorIndex: 2 },
+      },
+      { op: "textFloater", x: 5, y: 6, text: "疾行", skill: { kind: "tag" } },
+    ]);
   });
 });

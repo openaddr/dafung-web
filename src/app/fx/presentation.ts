@@ -27,6 +27,11 @@ export interface MarchSegmentFrames {
   flow: BoardPos[];
 }
 
+/** 技能浮字档(#850 技能演出补课):cast=主动技施展(浮字升档,玩家色随件烤定);
+ *  tag=被动技名小签。嵌套联合让「cast 缺色」在类型层面不可表达(零兜底:
+ *  描边色缺失是提取侧 bug,不该靠渲染侧回退)。 */
+export type SkillFloatTone = { kind: "cast"; colorIndex: number } | { kind: "tag" };
+
 /** 表现事件:数组顺序 = 播放顺序(present 串行 await)。宁可少而精,按两侧现有
  *  调用收口;新增表现 = 加判别分支,而不是在控制器里另起内联链。 */
 export type PresentationEvent =
@@ -73,6 +78,10 @@ export type PresentationEvent =
       x: number;
       y: number;
       atTile: number | null;
+      /** 技能演出档(#850,sealStamped.tone 同款判别联合——缺省档是正经档位,非兜底):
+       *  cast=主动技施展浮字升档(1.0× brush 字+玩家色细描边,colorIndex 提取拍烤定);
+       *  tag=被动技名小签(短签浮现)。缺省=普通文案浮字(0.8× ink-dim)。 */
+      skill?: SkillFloatTone;
     }
   | {
       kind: "sealStamped";
@@ -226,8 +235,9 @@ export interface FxSink {
   marchToken(playerId: string, keyframes: readonly MarchSegmentFrames[]): Promise<void>;
   /** 浮动金额(coins=true 时附带补给铜钱雨)。 */
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
-  /** 文案浮字(无金额的小字提示,风格对齐浮动金额)。 */
-  spawnTextFloater(x: number, y: number, text: string): void;
+  /** 文案浮字(无金额的小字提示,风格对齐浮动金额);skill=#850 技能演出档
+   *  (cast=施展升档/tag=被动小签,缺省=普通文案)。 */
+  spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
   /** 回合宣告(#732 入槽;#762 两段式亮相+合并规则):fxStore 槽泵判别 bot→bot
    *  同轮连续(返回 false=只更新常驻胶囊),true=全幅播出(含 whoosh 音,由实现侧
    *  发声);播放器只对 true 让编排停留窗。 */

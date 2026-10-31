@@ -141,7 +141,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         break;
       }
       case "textFloat": {
-        const spawn = () => sink.spawnTextFloater(ev.x, ev.y, ev.text);
+        // skill=#850 技能演出档(cast=施展升档/tag=被动小签),与普通文案浮字同通路
+        // 同步件(deferSync 判据共享:overlay 在场/将开场时一并延后补发)。
+        const spawn = () => sink.spawnTextFloater(ev.x, ev.y, ev.text, ev.skill);
         if (deferSync) deferred.push(spawn);
         else spawn();
         break;
