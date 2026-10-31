@@ -575,7 +575,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         aria-label={`房间码 ${roomId}，点击复制`}
         // R3-B13(#85):hover 用底色反馈不动字色;玄墨版(#514):房码签上下改金线裱边
         //(金=势,房码是开局第一步的「势」件),hover 金晕同语言
-        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-brush text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
+        // #838:房码是拉丁字母(A-Z),font-brush 花笔钩连转述字形自证性差,改 font-deco
+        //(囗部四空芯码位已剔出其 unicode-range,拉丁字母不涉);金裱边与 0.4em 字距保留
+        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
       >
         {roomId}
       </button>
@@ -588,7 +590,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             ? needMore
               ? // #494:实质进度前置(已入座 n/m),发码指引次之,趣味句降为末位补充
                 `已入座 ${takenCount}/${seats.length}；${hostInviteLine}；${waitLines[waitIdx]}` // A4:全角分号
-              : "坐席已满，可开局；点开局后未入座自动 bot 填充。" // A4:标点全角统一
+              : "坐席已满，可开局；点开局后未入座自动电脑填充。" // A4:标点全角;L-5(#838):bot→电脑,全中文不混排
             : waitLines[waitIdx] /* 非 host:轮换等待文案 */
         }
       </div>
