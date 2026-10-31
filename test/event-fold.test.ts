@@ -30,7 +30,7 @@ function makeEngine(): GameEngine {
     { name: "A", isBot: false, guohao: "魏" },
     { name: "B", isBot: false, guohao: "蜀" },
   ];
-  const cfg: EngineConfig = { seats, targetNetWorth: 30000 };
+  const cfg: EngineConfig = { seats, targetNetWorth: 30000, startingCash: 10000 };
   return new GameEngine(MAP.board, MAP.catalog, createDice(7), cfg);
 }
 
@@ -462,6 +462,7 @@ describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
     const e = new GameEngine(MAP.board, MAP.catalog, createDice(seed), {
       seats,
       targetNetWorth: 30000,
+      startingCash: 10000,
     });
     e.doDraftRoll();
     let guard = 0;

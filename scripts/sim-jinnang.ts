@@ -34,7 +34,11 @@ const seats: SeatConfig[] = Array.from({ length: seatCount }, (_, i) => ({
   isBot: i !== 0,
   ...(i === 0 ? { guohao: GUOHAO[0] } : {}),
 }));
-const cfg: EngineConfig = { seats, targetNetWorth: 30000 };
+const cfg: EngineConfig = {
+  seats,
+  targetNetWorth: MAP.targetNetWorth,
+  startingCash: MAP.startingCash,
+};
 const e = new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 
 e.doDraftRoll();

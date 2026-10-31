@@ -252,6 +252,7 @@ function makeEngine(): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(7), {
     seats,
     targetNetWorth: 30000,
+    startingCash: 10000,
   });
 }
 

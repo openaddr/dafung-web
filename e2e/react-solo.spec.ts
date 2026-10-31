@@ -109,6 +109,9 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
       e.activeIndex = 0;
       const me = e.activePlayer;
       const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null);
+      // 种够现金:本例测购地机制不测购地门槛——起手 5000 选都扣建城费后未必买得起
+      // 首个无主城(ADR-0041),价格随地图走,别让数值再平衡打真本例。
+      me.cash = e.catalog.get(tile.propertyId).purchasePrice + 1000;
       e.lastLandOutcome = { kind: "PropertyAvailable", property: e.catalog.get(tile.propertyId) };
       e.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
     `,

@@ -59,6 +59,14 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
   await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
   await page.getByTestId(SETUP_TID.startGame).click();
+  // 种植现金(ADR-0041 重钉):谱前提=开局自动起摇的**第一停**必弹购地卷轴(世界停在
+  // 人类回合 1,bot 链不先跑)。起手 5000 扣建业建城费 2400 后净剩不足会稽 3000,
+  // 第一停变自动不取,卷轴迟到第二轮——人类多跑一整圈还探宝得珍宝,分支一「止步首都」
+  // 随即触发交涉把引擎停进 AwaitingTreasureOwner,helper 无钮可点(实证 FAIL-DUMP:
+  // trade:treasureAwait owner=p0)。种植大额现金让卷轴与地图价格解耦,停靠点回第一停。
+  // force 前等调试桥 controller 就位(起局瞬间尚为 null,竞态实锤)。
+  await page.waitForFunction(() => window.__dafung?.controller() != null);
+  await force(page, `e.players[0].cash = 20000;`);
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId(TESTIDS.confirmCapitalOk).click();
   await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
@@ -415,14 +423,16 @@ test.describe("反应窗(#281 单机)", () => {
     // 同分支二。
     // #830 守门:bot 行程前提不再赌前两支走完后的散布推演(#882→T4b 调价两度漂移实锤
     // ——价位改 bot 购地/交涉决策,链式挪动后续 bot 的站位,窗前提静默失效)——
-    // 行程前 force 首位 bot(黔,座 1)贴到首都格前一格、骰 1 必过首都开窗,前提
-    // 自锚;其余 bot 骰 6 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
+    // 行程前 force 首位 bot(黔,座 1)贴到首都格前一格、骰 2 第一步即过首都开窗,前提
+    // 自锚;放行后续走 1 步落首都之外(away)——不赌 bot 自带疾行等加成(bot 招募/技能
+    // 是现金决策,ADR-0041 调价后 p1 裸骰 1 恰落都城格,away 恒假实锤);其余 bot 骰 6
+    // 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
     await waitMyPause(page, 0);
     await force(
       page,
       "e.players[1].position = (e.players[0].capitalIndex + e.board.count - 1) % e.board.count;",
     );
-    await plantAmbush(page, { withSecondCity: false, marchSteps: [2, 1, 6, 6] });
+    await plantAmbush(page, { withSecondCity: false, marchSteps: [2, 2, 6, 6] });
     await skipUntilNextSeat(page, 0);
     const mover3 = await answerMarchCounter(page, "decline");
     await expect

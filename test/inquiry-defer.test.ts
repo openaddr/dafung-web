@@ -50,6 +50,7 @@ function makeAllBotEngine(seed: number, seatCount = 4): GameEngine {
   const cfg: EngineConfig = {
     seats,
     targetNetWorth: 30000, // 产品默认(targetNetWorth 缺省),与票面复现配方同口径
+    startingCash: 10000,
     encounter: ENCOUNTER_PRODUCT_DEFAULTS,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
@@ -155,7 +156,7 @@ function prepared(seed = 7): GameEngine {
     { name: "A", isBot: true },
     { name: "B", isBot: true },
   ];
-  const cfg: EngineConfig = { seats, targetNetWorth: 30000 };
+  const cfg: EngineConfig = { seats, targetNetWorth: 30000, startingCash: 10000 };
   const e = new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
   driveSetup(e);
   if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
@@ -386,6 +387,7 @@ describe("#615 问询开窗延迟到派发稳定点", () => {
     const e2 = new GameEngine(MAP.board, MAP.catalog, createDice(7), {
       seats,
       targetNetWorth: 30000,
+      startingCash: 10000,
     } satisfies EngineConfig);
     e2.restoreFromSnapshot(snap);
     expect(e2.deferredInquiries).toEqual([{ id: inquiryId, params: { n: 2 } }]);

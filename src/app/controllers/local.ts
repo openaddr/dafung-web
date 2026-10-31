@@ -41,7 +41,7 @@ import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
  *  isBot 布点与首座(=host 真人)的预设国号——名字/起手银两不进房间通路
- *  (引擎座位名恒「座 N」;经济 v2 起手恒 10000=引擎缺省,单源 core)。 */
+ *  (引擎座位名恒「座 N」;起手现金/目标线地图顶层必配,room.startGame 解析,单源 map)。 */
 export interface SoloRoomConfig {
   seats: SeatConfig[];
   targetNetWorth?: number;

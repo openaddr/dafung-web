@@ -85,6 +85,12 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     fail("缺顶层 resupply(都城补给,两/次,固定值)");
   }
   const resupply = d.resupply;
+  if (typeof d.targetNetWorth !== "number") {
+    fail("缺顶层 targetNetWorth(胜利线,纯现金口径)");
+  }
+  if (typeof d.startingCash !== "number") {
+    fail("缺顶层 startingCash(起手现金)");
+  }
 
   // tiles + 坐标
   const idToIdx = new Map<string, number>();

@@ -26,7 +26,7 @@ const BOT_SEATS: SeatConfig[] = [
 ];
 
 function makeEngine(seed: number): GameEngine {
-  const cfg: EngineConfig = { seats: BOT_SEATS, targetNetWorth: 30000 };
+  const cfg: EngineConfig = { seats: BOT_SEATS, targetNetWorth: 30000, startingCash: 10000 };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
 

@@ -83,13 +83,16 @@ export class OnlineController extends GameController {
     return s.seats[s.mySeat]?.autoPilot ?? false;
   }
 
-  /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。 */
+  /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。
+   *  只读字段随地图就位(ADR-0041 起手/目标地图必配,引擎无缺省)。 */
   private makePlaceholderEngine(map: LoadedMap, seatCount = 2): GameEngine {
     return new GameEngine(map.board, map.catalog, createDice(), {
       seats: Array.from({ length: seatCount }, (_, i) => ({
         name: `诸侯 ${i + 1}`,
         isBot: i > 0,
       })),
+      targetNetWorth: map.targetNetWorth,
+      startingCash: map.startingCash,
     });
   }
 

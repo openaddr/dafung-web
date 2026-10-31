@@ -65,6 +65,7 @@ function makeEngine(
   const cfg: EngineConfig = {
     seats: SEATS,
     targetNetWorth: 30000,
+    startingCash: 10000,
     ...(encounter
       ? {
           encounter: {

@@ -31,6 +31,7 @@ function makeEngine(seed: number, seatCount: number): GameEngine {
   const cfg: EngineConfig = {
     seats,
     targetNetWorth: TARGET,
+    startingCash: 10000,
     encounter: ENCOUNTER_PRODUCT_DEFAULTS, // 产品默认 40%:机遇抉择/银两转移路径纳入巡检
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);

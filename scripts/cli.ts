@@ -120,12 +120,13 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
     });
   }
   // config 即落盘构造参数(mapId 为重放要素必带,ADR-0014;encounter 恒存(缺省=产品
-  // 默认档)/reactionWindowMs 有则存,反应窗缺省查 core 常量表,与 EngineConfig 对齐)
+  // 默认档)/reactionWindowMs 有则存,反应窗缺省查 core 常量表,与 EngineConfig 对齐;
+  // 目标线/起手现金无旗标时按地图顶层解析落盘——ADR-0041 起引擎无缺省,地图必配)
   const config: GameConfig = {
     seats,
-    targetNetWorth: target,
+    targetNetWorth: target ?? map.targetNetWorth,
     ...(seed !== undefined && { seed }),
-    ...(startingCash !== undefined && { startingCash }),
+    startingCash: startingCash ?? map.startingCash,
     mapId,
     encounter,
     ...(reactionWindowMs !== undefined && { reactionWindowMs }),
