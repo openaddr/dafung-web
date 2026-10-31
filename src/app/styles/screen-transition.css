@@ -1,31 +1,74 @@
-/* 屏间转场:R3-C2(#89)立 keyed 外壳,#771 墨韵化。由 App.tsx 消费(key=screen,
-   换屏即重挂播一次)。换屏语言 =「墨晕盖入 + 内容浮现」两段串接,单端动画:
-   退场不做,旧屏瞬时卸载(避免双屏并存状态机)。
-   编排:0–400ms 墨晕盖入(.screen-ink,径向墨团自屏幕中心晕开、盖满后化开),
-   400ms 起内容浮现(.screen-in 250ms);对局屏棋盘缓推接在墨晕之后串播,不叠加。
+/* 屏间转场:R3-C2(#89)立 keyed 外壳,#771 墨韵化,#835 墨韵落地(给墨以形)。
+   由 App.tsx 消费(key=screen,换屏即重挂播一次)。换屏语言 =「墨晕盖入 +
+   内容浮现」两段搭接,单端动画:退场不做,旧屏瞬时卸载(避免双屏并存状态机)。
+   #835 根因修正:#771 的墨幕一直包在 .screen-in 壳里,而壳的浮现动画带
+   delay+backwards——延迟期内整壳 opacity:0,墨幕从未真正渲染过,所谓「空窗」
+   实为这个零透明壳(审计「纯黑空窗」的真正机制;墨色同族只是次要因素)。
+   现浮现重定界到内容子代、壳不再自淡:墨幕 t=0 即独立成幕,内容 240ms 后在
+   化开的墨下浮现(见 .screen-in > :not(.screen-ink) 处详注)。
+   编排(#835 拍板节奏):0ms 起墨晕盖入(.screen-ink,400ms:三团偏移墨泡自
+   屏幕中心晕开、盖满后化开,泡缘掺 gold 微光给「晕」可读边缘);240ms 起内容
+   浮现(.screen-in 内容子代 250ms)——浮现与墨晕搭接(空窗 400→240ms 减半);
+   对局屏棋盘缓推(720ms)接在墨晕之后串播,不叠加。
    reduced-motion:墨晕整个退场,浮现直接播——app.css 全局兜层把动画时长压到
    0.01ms,但不管 animation-delay,延迟归零须在本文件尾部显式处理。
-   时长与缓动一律引用 tokens.css 动效 token(唯一源 core/theme.ts Motion)。
-   .screen-in/.screen-in-game 两条保留 from-only 写法(终态即元素自然状态,动画
-   结束无样式跳变);.screen-ink 播放中态(可见)≠ 终态(隐身),故显式写满三帧。 */
+   时长与缓动一律引用 tokens.css 动效 token(唯一源 core/theme.ts Motion);
+   例外:浮现延迟 240ms 与缓推时长 720ms 是 #835 票面写死的节奏字面量
+   (token 表无对应档,屏间转场单文件既存例外,DESIGN §6 已登记)。
+   浮现/缓推两条保留 from-only 写法(终态即元素自然状态,动画结束无样式跳变);
+   .screen-ink 播放中态(可见)≠ 终态(隐身),故显式写满三帧。 */
 
 /* ── 墨晕盖入层:铺在屏内容之前的背景幕,换屏瞬间的空档由晕开的墨团盖住。
-   性能红线:径向渐变一次性静态绘制,动画只走 transform/opacity(合成器),
+   性能红线:背景与 mask 全部一次性静态绘制,动画只走 transform/opacity(合成器),
    不动 layout;pointer-events:none,转场途中不拦任何点击。
-   墨色吃 --color-bg-deep token,边缘 color-mix 渐隐成晕;尺寸 200vmax 保证
-   最宽视口对角也落在实心段内(844×390 标准档半对角 ≈ 55vmax,实心段半径 60vmax)。── */
+   #835 给墨以形:mask 三团径向墨泡合成(mask-image 默认 add 并集——主团居中 +
+   两团偏移浓泡),背景按同几何铺墨体:主团掺 5% gold(纯 --color-bg-deep 与页底
+   同族、ΔRGB≈9/255 看不见),浓泡用纯 bg-deep 深一档给墨面凹凸,三团各骑一圈
+   gold-bright 宽软描金(10% 微光)——描金环落在 844×390 视口内随 scale 扫过,
+   墨晕边缘全程可辨(冻结帧逐点验证过:纯 6% gold 平铺会被均匀墨面淹没)。
+   几何以 vmax 计(元素 200vmax 见方、屏居中):主团实心半径 25vmax、渐隐止于
+   44vmax,844×390 半对角 ≈55vmax 的角部落带外(页底自然收边,浓泡补中景)——
+   不再追求全视口实心(换屏空档由内容层 240ms 前的透明兜住,墨幕纯美学,
+   无需遮蔽保证)。── */
 .screen-ink {
+  --ink-body: color-mix(in srgb, var(--color-bg-deep) 95%, var(--color-gold));
+  --ink-dark: var(--color-bg-deep);
+  --ink-rim: color-mix(in srgb, var(--color-gold-bright) 10%, transparent);
   position: absolute;
   left: 50%;
   top: 50%;
   width: 200vmax;
   height: 200vmax;
-  background: radial-gradient(
-    circle closest-side,
-    var(--color-bg-deep) 0 60%,
-    color-mix(in srgb, var(--color-bg-deep) 55%, transparent) 76%,
-    transparent 92%
-  );
+  background:
+    radial-gradient(
+      48vmax circle at 50% 50%,
+      transparent 0 34%,
+      var(--ink-rim) 46%,
+      transparent 62%
+    ),
+    radial-gradient(
+      30vmax circle at 36% 40%,
+      transparent 0 22%,
+      var(--ink-rim) 34%,
+      transparent 52%
+    ),
+    radial-gradient(
+      34vmax circle at 64% 62%,
+      transparent 0 24%,
+      var(--ink-rim) 36%,
+      transparent 54%
+    ),
+    radial-gradient(30vmax circle at 36% 40%, var(--ink-dark) 0 30%, transparent 62%),
+    radial-gradient(34vmax circle at 64% 62%, var(--ink-dark) 0 32%, transparent 64%),
+    radial-gradient(48vmax circle at 50% 50%, var(--ink-body) 0 52%, transparent 92%);
+  -webkit-mask-image:
+    radial-gradient(30vmax circle at 36% 40%, #000 0 34%, transparent 62%),
+    radial-gradient(34vmax circle at 64% 62%, #000 0 36%, transparent 64%),
+    radial-gradient(48vmax circle at 50% 50%, #000 0 52%, transparent 92%);
+  mask-image:
+    radial-gradient(30vmax circle at 36% 40%, #000 0 34%, transparent 62%),
+    radial-gradient(34vmax circle at 64% 62%, #000 0 36%, transparent 64%),
+    radial-gradient(48vmax circle at 50% 50%, #000 0 52%, transparent 92%);
   transform: translate(-50%, -50%) scale(0);
   opacity: 0;
   pointer-events: none;
@@ -33,12 +76,14 @@
 }
 @keyframes ink-cover {
   0% {
-    transform: translate(-50%, -50%) scale(0.02);
+    transform: translate(-50%, -50%) scale(0.12);
     opacity: 1;
   }
   55% {
-    transform: translate(-50%, -50%) scale(1);
+    transform: translate(-50%, -50%) scale(0.86);
     opacity: 1;
+    /* 化开段走线性:--ease-out 前载会在内容浮现(t+240ms)前就把墨耗尽,搭接变空窗 */
+    animation-timing-function: linear;
   }
   100% {
     transform: translate(-50%, -50%) scale(1);
@@ -47,11 +92,17 @@
 }
 
 /* ── 内容浮现段:淡入 + 自下方 8px 轻移落定(--dur-med 即「屏幕切换」口径的 250ms)。
-   #771 起延迟一个墨晕拍(--dur-slow)串接在盖入之后;backwards 使延迟期内停在
-   from 帧,不会先闪终态再重播。── */
-.screen-in {
+   #835 起延迟 240ms(原 --dur-slow 400ms 空窗减半):浮现与墨晕后半段搭接,
+   不再让等墨的时间全黑;backwards 使延迟期内停在 from 帧,不会先闪终态再重播。
+   #835 根因修正:浮现动画原挂在 .screen-in 壳上——壳带 delay+backwards,延迟期
+   整个壳(连同壳内 .screen-ink 墨幕)被 from 帧压在 opacity:0,墨幕自 #771 以来
+   从未真正渲染过(冻结帧 ink-on/off 逐像素全等实锤),「空窗」实为这个零透明壳。
+   故浮现重定界到内容子代(:not(.screen-ink) 排除墨幕),壳不再自淡:墨幕 t=0
+   即独立成幕,内容 240ms 后在化开的墨下浮现。ink 是壳首个子节点且 position:
+   absolute,静态屏根之下/定位屏根之上皆可,不需要 z-index 仲裁。── */
+.screen-in > :not(.screen-ink) {
   animation: screen-in var(--dur-med) var(--ease-out);
-  animation-delay: var(--dur-slow);
+  animation-delay: 240ms;
   animation-fill-mode: backwards;
 }
 @keyframes screen-in {
@@ -61,31 +112,37 @@
   }
 }
 
-/* ── 对局屏棋盘缓推:进 game 屏一次性 scale 1.06→1,镜头感落座。
+/* ── 对局屏棋盘缓推:进 game 屏一次性 scale 1.12→1,镜头感落座。
+   #835:推幅 1.06→1.12 + 缓动换 --ease-out(快推慢收,逐帧可辨,原 --ease-sine
+   中段匀速无感),from 帧叠 brightness(0.94) 微压暗、推近中提亮(可选项采纳);
+   一次性播完回到 none,transform/filter 均不残留包含块副作用。
    选择器经 .screen-in-game 后代命中 BoardView 的 svg(id=board):它是 HTML 布局盒
-   (transform-origin 默认即中心),只动 CSS transform,与 usePanZoom 的 viewBox
-   平移缩放体系互不触碰;一次性播完回到 none,不残留任何包含块副作用。
+   (transform-origin 默认即中心),只动 CSS transform/filter,与 usePanZoom 的
+   viewBox 平移缩放体系互不触碰。
    #771 起与墨晕串接:延迟 --dur-slow,墨晕盖满化开后起推,不叠加。
-   时长取 --dur-reveal(600ms 揭晓感长拍,即工单口径的 600ms)。── */
+   时长 720ms 为 #835 拍板节奏(「240ms 墨起→内容入→720ms 镜头缓推」),token
+   表无对应档(见头注例外)。── */
 .screen-in-game #board {
   transform-origin: center;
-  animation: board-push-in var(--dur-reveal) var(--ease-sine);
+  animation: board-push-in 720ms var(--ease-out);
   animation-delay: var(--dur-slow);
   animation-fill-mode: backwards;
 }
 @keyframes board-push-in {
   from {
-    transform: scale(1.06);
+    transform: scale(1.12);
+    filter: brightness(0.94);
   }
 }
 
 /* ── reduced-motion:墨晕退场(整个不播,停在自然隐身态),浮现/缓推直接播。
-   全局兜层只压时长,这里补延迟归零(否则减弱动态下内容要白等一个墨晕拍)。── */
+   全局兜层只压时长,这里补延迟归零(否则减弱动态下内容要白等一个墨晕拍)。
+   #835 墨泡/gold 全在 .screen-ink 内,随其退场一并静止,无新增 infinite。── */
 @media (prefers-reduced-motion: reduce) {
   .screen-ink {
     animation: none;
   }
-  .screen-in,
+  .screen-in > :not(.screen-ink),
   .screen-in-game #board {
     animation-delay: 0ms;
   }
