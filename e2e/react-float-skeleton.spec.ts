@@ -1,5 +1,6 @@
-// 全浮层骨架(#700)专项:① 顶部浮层几何(#732 顶左行序:设置→详情→「N 轮」chip
-// 同排避 safe-area,顶中让给知会横幅槽);② 核心几何不变量(满编 8 席 @844×390 矮横屏:
+// 全浮层骨架(#700)专项:① 顶部浮层几何(#732 顶左行序:设置→详情两钮
+// 避 safe-area,顶中让给知会横幅槽;#853 起「N 轮」chip 退役,顶中常驻件=回合
+// 胶囊);② 核心几何不变量(满编 8 席 @844×390 矮横屏:
 // 第 8 格下缘 ≤ 右下三圆钮上缘,全列零滚动——spec #697 ③ 的交付判据);③ 锦囊手牌开关
 // (收起/展开 + localStorage 对局内记忆、重进恢复);④ 设置弹层(音效开关接
 // AudioProvider、战报›入口降级、版本戳、回到主页弃局离屏)。断言全走 testid 单源 +
@@ -24,13 +25,13 @@ import { HOME_TID } from "../src/app/screens/home/testids";
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  test("顶左行序 设置→详情→「N 轮」:两钮 32×32 避 safe-area、chip 与钮行同排;三圆钮 44px 贴右下,锦囊默认亮", async ({
+  test("顶左行序 设置→详情:两钮 32×32 避 safe-area;回合胶囊顶中与钮行同排(#853 chip 退役);三圆钮 44px 贴右下,锦囊默认亮", async ({
     page,
   }) => {
     test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
     await quickStart(page);
     const geo = await page.evaluate(
-      ({ overview, settings, round, buttons, toggle }) => {
+      ({ overview, settings, capsule, buttons, toggle }) => {
         const rect = (id: string) => {
           const el = document.querySelector(`[data-testid="${id}"]`);
           if (el == null) return null;
@@ -49,7 +50,7 @@ test.describe("顶部浮层几何(#700 ①)", () => {
         return {
           overview: rect(overview),
           settingsBtn: rect(settings),
-          round: rect(round),
+          capsule: rect(capsule),
           buttons: rect(buttons),
           toggleOn: on,
           vw,
@@ -58,7 +59,7 @@ test.describe("顶部浮层几何(#700 ①)", () => {
       {
         overview: TESTIDS.topbarOverview,
         settings: TESTIDS.settingsButton,
-        round: TESTIDS.topbarRound,
+        capsule: TESTIDS.turnCapsule,
         buttons: TESTIDS.pileButtons,
         toggle: TESTIDS.jinnangToggle,
       },
@@ -75,11 +76,14 @@ test.describe("顶部浮层几何(#700 ①)", () => {
     expect(Math.abs(geo.overview!.h - 32)).toBeLessThanOrEqual(0.5);
     expect(geo.overview!.x).toBeGreaterThan(geo.settingsBtn!.x + geo.settingsBtn!.w);
     expect(Math.abs(geo.overview!.y - geo.settingsBtn!.y)).toBeLessThanOrEqual(1);
-    // 「N 轮」chip:行内第三件(详情钮之后),与钮行垂直居中互齐;顶左半场,
-    // 不再浮置视口中线(旧断言 |cx − vw/2| ≤ 1 随 #732 翻面)
-    expect(geo.round!.x).toBeGreaterThan(geo.overview!.x + geo.overview!.w);
-    expect(Math.abs(geo.round!.cy - geo.settingsBtn!.cy)).toBeLessThanOrEqual(3);
-    expect(geo.round!.cx).toBeLessThan(geo.vw / 2);
+    // 回合胶囊(#853 chip 退役,轮次唯一落胶囊):顶中知会槽行,与钮行垂直居中
+    // 互齐(槽 32px 行内 24px 胶囊居中,槽/钮行同锚 +8);cx 在顶中半场(胶囊
+    // 可融合等待附加信息,宽度随内容,只守「中段、不与顶左两钮相侵」)
+    expect(geo.capsule).not.toBeNull();
+    expect(geo.capsule!.x).toBeGreaterThan(geo.overview!.x + geo.overview!.w);
+    expect(Math.abs(geo.capsule!.cy - geo.settingsBtn!.cy)).toBeLessThanOrEqual(3);
+    expect(geo.capsule!.cx).toBeGreaterThan(geo.vw / 4);
+    expect(geo.capsule!.cx).toBeLessThan(geo.vw * 0.75);
     // 三圆钮:贴右下(44 + 8 右距 + 10 底距),锦囊钮默认亮(=显示)
     expect(Math.abs(geo.buttons!.h - 44)).toBeLessThanOrEqual(0.5);
     expect(geo.buttons!.y + geo.buttons!.h).toBeGreaterThanOrEqual(390 - 55);
