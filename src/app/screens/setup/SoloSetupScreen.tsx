@@ -421,7 +421,7 @@ export function SoloSetupScreen({
             ))}
           </div>
           <p className="font-wenkai text-xs text-ink-dim">
-            {`默认档位读自 config/jiyu.json(${encounterDefaults.enabled ? "机遇开" : "机遇关"},三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad})。机遇必出:开启后每次落格结算先出一条机遇;三档基准按占比归一,和不必为 100(非法值由引擎回退默认)。仅对本局生效。`}
+            {`默认:机遇${encounterDefaults.enabled ? "开" : "关"},三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad}。机遇必出:开启后每次落格先出一条机遇;三档占比自动归一,不必凑满 100。仅对本局生效。`}
           </p>
         </div>
       </details>
