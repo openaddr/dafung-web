@@ -10,6 +10,10 @@ import { scStage } from "./timings";
  *  烤定常量会漏掉追帧倍率的播放期变化)。 */
 const deskShakeMs = (): number => scStage(400);
 
+/** 震屏·大胜档全长(#849 棒1:拼点大胜负判词拍专用,fx.css
+ *  fx-desk-shake-blowout 0.45s 硬同步,特例字面量同上口径)。 */
+const deskBlowoutMs = (): number => scStage(450);
+
 /** 桌面微震(#492 拍板 4px 档,大事件限定;适用事件清单与「常规回合动作不上震屏」
  *  原则单源在 DESIGN §6 动效规范,此处只指路不枚举)。
  *  对 #board-wrap 挂 .fx-desk-shake 播一次 keyframe;重复触发先摘类再强制 reflow
@@ -17,13 +21,25 @@ const deskShakeMs = (): number => scStage(400);
  *  0.01ms(位移不可见,与浮字/横幅同兜底通路)。
  *  节点缺席 = 对局屏已卸载(D2 同款生命周期规则,见 DiceOverlay.finishDiceOverlay):
  *  终局切胜利屏时演出链可能仍在途,摘除目标是无害操作,不抛错不补播。 */
-export function shakeDesk(): void {
+function applyDeskShake(shakeClass: string, totalMs: () => number): void {
   const desk = document.getElementById("board-wrap");
   if (!desk) return;
-  desk.classList.remove("fx-desk-shake");
+  desk.classList.remove("fx-desk-shake", "fx-desk-shake-blowout");
   void desk.offsetWidth; // 强制 reflow:同类连触时重启 animation
-  desk.classList.add("fx-desk-shake");
-  window.setTimeout(() => desk.classList.remove("fx-desk-shake"), deskShakeMs());
+  desk.classList.add(shakeClass);
+  window.setTimeout(() => desk.classList.remove(shakeClass), totalMs());
+}
+
+/** 普通档震屏(4px/0.4s,#492 定档)。 */
+export function shakeDesk(): void {
+  applyDeskShake("fx-desk-shake", deskShakeMs);
+}
+
+/** 大胜档震屏(#849 棒1,DESIGN §6 拼点大胜负档位加压:6px/0.45s 分档,普通档
+ *  口径不动;样式单源 fx.css .fx-desk-shake-blowout)。消费口 = DuelSignsOverlay
+ *  判词拍(isBlowout 同源判定)。 */
+export function shakeDeskBlowout(): void {
+  applyDeskShake("fx-desk-shake-blowout", deskBlowoutMs);
 }
 
 /** 旌旗缓倒(破产仪式第一拍):给破产玩家棋子的旗面挂 .fx-token-fall,播

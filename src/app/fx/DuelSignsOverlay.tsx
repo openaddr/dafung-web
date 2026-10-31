@@ -11,6 +11,11 @@
 // #769 判词段再分级:点差大胜档(同 isBlowout 判据)胜方点数 outBack 弹至 1.15、
 // 败方字面泼墨溅;判词磬按己方视角拆胜/败双音高(旁观/平局中性单音);摇签段空签身
 // 加旋转墨旋;签排 gap 随视口收紧、折行时中缝印随首行避让(构建拍量锚)。
+// #849 棒1 大胜峰值三件(P1-B3「大胜档没有哇」):判词拍金圈二次冲击波
+// (--duel-wave-delay 延迟约两拍起爆,--duel-wave-ms 涨散)+金色洗幕一闪(胜方玩家色
+// radial,--duel-wash-ms,色随 duel-blowout 注入 --duel-wash-color)+震屏升大胜档
+// (shakeDeskBlowout,6px/0.45s,普通档口径不动);泼墨溅挪卡角+中央挖孔(败方点数
+// 可读,fx.css);时长经 overlay 内联注入(随 e2e 倍率同步,keyframe 只管形)。
 // 签面收场后棋盘后效(止步/续走/银两浮字)才登场:present 串行 await 本组件返回的
 // Promise 天然保证(orchestrator duelSigns case → sink.showDuelSigns)。
 // 模块桥模式同 DiceOverlay:mount/unmount 归 React(挂 Game 屏一次),触发走
@@ -21,7 +26,7 @@ import { playerColor, rgba } from "@core/theme";
 import { useNetStore } from "@app/store/netStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { getAudio } from "./audio";
-import { shakeDesk } from "./desk";
+import { shakeDeskBlowout } from "./desk";
 import { isBlowout, type DuelSignsEvent, type DuelSide } from "./presentation";
 import { DUEL, delay } from "./timings";
 
@@ -135,7 +140,15 @@ function applyVerdict(
   } else {
     seal.dataset.verdict = "win";
     for (const s of signs) {
-      s.root.classList.add(s.side.seat === ev.winnerSeat ? "duel-sign-win" : "duel-sign-dim");
+      if (s.side.seat === ev.winnerSeat) {
+        s.root.classList.add("duel-sign-win");
+        // 大胜峰值洗幕色(#849 棒1):胜方玩家色。CSS 仅在 .duel-blowout 下消费
+        // --duel-wash-color(小胜/平局挂了无人读),赋值点与胜者判定同分支=单源;
+        // 时长三件(--duel-wave-ms/--duel-wave-delay/--duel-wash-ms)由构建拍注入。
+        overlay.style.setProperty("--duel-wash-color", rgba(playerColor(s.side.colorIndex)));
+      } else {
+        s.root.classList.add("duel-sign-dim");
+      }
     }
   }
   // 本机 seat 投影与 GameScreen 同式(联机=netStore.mySeat,单机=本屏真人恒座 0);
@@ -150,7 +163,9 @@ function applyVerdict(
   }
   // 点差分级(#769):判定读事件里既有的两签点数(禁新兜底通道),单源 isBlowout。
   // 点差≥3 必有胜者(平局点差恒 0),不另设 winnerSeat 前置判。
-  if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) overlay.classList.add("duel-blowout");
+  // #849 棒1:大胜档判词拍升大胜震屏(shakeDeskBlowout 6px/0.45s,普通档口径不动)。
+  const blowout = isBlowout(ev.sides[0].roll, ev.sides[1].roll);
+  if (blowout) overlay.classList.add("duel-blowout");
   seal.classList.remove("duel-seal-slam");
   seal.classList.add("duel-seal-pulse");
   // 判词音(#769 双音高):己方视角拆胜/败两音高,旁观局与平局保持中性单音。
@@ -161,7 +176,7 @@ function applyVerdict(
         ? "verdictChimeWin"
         : "verdictChimeLose",
   );
-  if (isBlowout(ev.sides[0].roll, ev.sides[1].roll)) shakeDesk();
+  if (blowout) shakeDeskBlowout();
 }
 
 /** 整场演出:幕启→并行摇→座位序错拍落→判词→停留→渐出,节拍全走 DUEL 组
@@ -171,6 +186,12 @@ async function playDuelSigns(ev: DuelSignsEvent): Promise<void> {
   overlay.className = "duel-overlay";
   overlay.setAttribute("data-testid", TESTIDS.duelOverlay);
   overlay.style.animationDuration = `${DUEL.curtainMs}ms`; // 幕启渐入与编排同拍(含 e2e 倍率)
+  // 大胜峰值三件时长(#849 棒1):CSS var 内联注入(消费点=.duel-blowout 的冲击波/
+  // 洗幕,keyframe 只管形不时刻度,随 e2e 倍率同步,同幕启渐入口径);洗幕色由判词拍
+  // 随胜者注入(--duel-wash-color)。
+  overlay.style.setProperty("--duel-wave-ms", `${DUEL.blowoutWaveMs}ms`);
+  overlay.style.setProperty("--duel-wave-delay", `${DUEL.blowoutWaveDelayMs}ms`);
+  overlay.style.setProperty("--duel-wash-ms", `${DUEL.blowoutWashMs}ms`);
   const row = document.createElement("div");
   row.className = "duel-signs";
   const seal = document.createElement("div");

@@ -71,6 +71,11 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(DUEL.fadeOutMs).toBeGreaterThan(0); // 整幕渐出
   });
 
+  it("大胜峰值冲击波在判词停留窗内放完(#849 棒1):blowoutWaveDelayMs + blowoutWaveMs <= holdMs", () => {
+    // 峰值件(延迟约两拍起爆 + 500ms 涨散)是判词拍的一次性演出,读不到尾=白炸
+    expect(DUEL.blowoutWaveDelayMs + DUEL.blowoutWaveMs).toBeLessThanOrEqual(DUEL.holdMs);
+  });
+
   // 大胜负点差档(blowoutMargin)的行为断言归位 test/presentation.test.ts isBlowout
   // 边界两支(#639)——此处原「>= 1」近恒真断言已删(测试宁缺毋滥)。
 

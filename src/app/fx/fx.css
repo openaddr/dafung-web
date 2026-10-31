@@ -49,7 +49,7 @@
    这些字面量是「骰面材质」而非色板色,故不引 token;
    黑色阴影属投影,保留字面量。
    两段状态由 DiceOverlay 切类:
-   - .dice-sign-shaking(第一段 摇签):签卡隐去只余墨字虚影(透明度 0.5),
+   - .dice-sign-shaking(第一段 摇签):签卡淡轮廓+墨字浅金虚影(#849 棒1,蓄势可读),
      字面轮换与微旋由 JS 按拍驱动(DICE.shakeMs/10 周期);
    - .dice-sign-land(第二段 落定):大字 outBack 钤落(过冲回弹),签卡随之现身。 */
 .dice-sign {
@@ -73,11 +73,17 @@
   pointer-events: none;
 }
 .dice-sign.dice-sign-shaking {
-  background: transparent;
-  border-color: transparent;
-  outline-color: transparent;
+  /* 摇签蓄势(#849 棒1,P1-B2:旧全透明+墨字虚影整体 0.5,压玄墨幕净对比≈无
+     =600ms 死黑,「蓄势」第一节空拍):字影转浅金(骰面米金字族的半透档)+
+     签卡淡轮廓(border 收 2px、底 5% 米金)——蓄势拍读得出「一枚签在摇」,
+     落定拍真面仍靠 outBack 钤落反差。米金 236,220,176 字面量同 .dice-sign
+     骰面材质口径(非色板色)。 */
+  background: rgba(236, 220, 176, 0.05);
+  border-width: 2px;
+  border-color: rgba(236, 220, 176, 0.16);
+  outline-color: rgba(236, 220, 176, 0.16);
   box-shadow: none;
-  opacity: 0.5;
+  color: rgba(236, 220, 176, 0.35);
 }
 /* 落定拍:0.26s 保留字面量——outBack 钤落须落在 DICE.holdMs(600ms)预算内;
    back 类缓动统一 --ease-out-back(签面/标题弹跳专用 token)。 */
@@ -99,14 +105,18 @@
 }
 
 /* 落点金圈(S7):大字落定同拍绽放(签面落点处一圈金环扩散即散),
-   与签面同位(50%/64%)且在其下层(z 序=DOM 序,ring 先插)。 */
+   与签面同位(50%/64%)且在其下层(z 序=DOM 序,ring 先插)。
+   #849 棒1(P2「金圈被签面吞」):基环 190→260px+终态 scale 1.15→1.5——
+   环径吃满签面外缘才读得出「落点炸开」;animation-delay 由 DiceOverlay 落定拍
+   经内联注入(DICE.landRingDelayMs,等 outBack 钤落成形再炸、随 e2e 倍率缩放),
+   CSS 侧不写 delay(基态 opacity 0 + forwards,延迟期不可见)。 */
 .fx-dice-ring {
   position: absolute;
   left: 50%;
   top: 64%;
-  width: 190px;
-  height: 190px;
-  margin: -95px 0 0 -95px;
+  width: 260px;
+  height: 260px;
+  margin: -130px 0 0 -130px;
   border-radius: 50%;
   border: 3px solid var(--color-gold-bright);
   box-shadow: 0 0 18px color-mix(in srgb, var(--color-gold-bright) 70%, transparent);
@@ -115,12 +125,22 @@
   animation: fx-dice-ring 0.5s var(--ease-out) forwards;
 }
 @keyframes fx-dice-ring {
+  /* 两段形(#849 棒1):--ease-out 前载极陡(tokens.css cubic-bezier(0.22,1,0.36,1)),
+     单段 0.95→0 会让可见窗塌进前 ~25%(暗幕上环没读出就散)——中停点把「炸到
+     全径」与「驻散」拆开:0→45% eased 冲径(环径先到 1.4,opacity 仍 0.6 驻留),
+     45→100% 线性散尽。 */
   0% {
     transform: scale(0.35);
     opacity: 0.95;
+    animation-timing-function: var(--ease-out);
+  }
+  45% {
+    transform: scale(1.4);
+    opacity: 0.6;
+    animation-timing-function: linear;
   }
   100% {
-    transform: scale(1.15);
+    transform: scale(1.5);
     opacity: 0;
   }
 }
@@ -148,6 +168,33 @@
   }
   80% {
     translate: 2px 2px;
+  }
+}
+
+/* 震屏·大胜档(#849 棒1,P1-B3:拼点大胜判词拍与普通 4px 档同权=没有「哇」):
+   振幅分档 4→6px(DESIGN §6 拼点大胜负档位加压,普通档口径不动),节拍同形
+   1.5× 放大;时长 0.45s 与 fx/timings.ts desk.ts deskBlowoutMs 硬同步(特例
+   字面量同 deskShakeMs 口径,改任一侧须两处同改)。挂类/重启配方同 .fx-desk-shake
+   (desk.ts shakeDeskBlowout 注入,0.45s 后自摘)。 */
+.fx-desk-shake-blowout {
+  animation: fx-desk-shake-blowout 0.45s var(--ease-sine);
+}
+@keyframes fx-desk-shake-blowout {
+  0%,
+  100% {
+    translate: 0 0;
+  }
+  20% {
+    translate: -6px 3px;
+  }
+  40% {
+    translate: 5px -5px;
+  }
+  60% {
+    translate: -5px -3px;
+  }
+  80% {
+    translate: 4px 4px;
   }
 }
 
@@ -579,13 +626,15 @@
   background: linear-gradient(135deg, #ecdcb0, #c9b27a);
   box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
   text-align: center;
-  overflow: hidden; /* 签头色底吃满上缘圆角 */
   pointer-events: none;
   opacity: 0.45;
   transition:
     translate 80ms var(--ease-out),
     rotate 80ms var(--ease-out),
     scale var(--dur-fast) var(--ease-out); /* 判词段己方加权(#760)平滑进出 */
+  /* 不设 overflow:hidden(#849 棒1):旧值把判词金圈/大胜冲击波等 ::before/::after
+     子盒裁死在 padding box 内(inset 负值整环被吃=金圈只有内衬晕)。「签头色底吃满
+     上缘圆角」的原来职责移交给 .duel-sign-head 自带圆角(见下)。 */
 }
 /* 蓄势(#746 条目 2):--windup-x/--windup-rot 由 DuelSignsOverlay 按排布位注入
    (左签 +8px/+1.5°,右签 −8px/−1.5°,朝中缝轻推内倾);落定拍摘类,transition
@@ -602,6 +651,9 @@
   text-indent: 8px; /* 抵消末字间距,视觉居中 */
   color: #2b2317; /* 玄墨深字(签头可读性口径见本节头注) */
   background: var(--player-color, var(--color-gold));
+  /* 签头色底吃满上缘圆角(原 .duel-sign overflow:hidden 的职责,#849 棒1 摘
+     overflow 后移交给本圆角):内缘半径 = 签卡外径 10px − 边框 4px = 6px。 */
+  border-radius: 6px 6px 0 0;
 }
 .duel-sign-face {
   position: relative; /* 大胜档败方泼墨溅 ::after 的锚(#769) */
@@ -712,7 +764,14 @@
    1.15 一次性驻留(fill both,判词停留窗 900ms 内读得住 --dur-slow 全程);
    败方字面叠加泼墨溅一次 spawn:自绘多层径向渐变墨渍(零位图,吃 --color-ink),
    缩放+微旋钤上后驻留成印。点差 1-2 与平局不挂类 = 维持现制。reduced-motion:
-   M-4 兜层压瞬时,两者各落终态(墨渍=静态印,弹跳=定格 1.15),不加专项退场。 */
+   M-4 兜层压瞬时,两者各落终态(墨渍=静态印,弹跳=定格 1.15),不加专项退场。
+   #849 棒1 峰值三件(P1-B3「大胜档没有哇」,判据同 isBlowout 单源):
+   ①胜方金圈二次冲击波(.duel-sign-win::before 金环 scale 1→1.55 涨散即逝,延迟
+   约两拍=2×clackGap 拍长,等 #769 弹跳读完再炸);②金色洗幕一闪(overlay::after,
+   胜方玩家色 radial 0.35→0 一闪即散,色由 DuelSignsOverlay 判词拍随 duel-blowout
+   注入 --duel-wash-color)。三件时长经 overlay 内联注入 --duel-wave-ms /
+   --duel-wave-delay / --duel-wash-ms(随 e2e 倍率缩放,keyframe 只管形不时刻度,
+   同幕启渐入口径);M-4 兜层压瞬时后冲击波/洗幕各落终态(opacity 0=不可见)。 */
 .duel-overlay.duel-blowout .duel-sign.duel-sign-win .duel-sign-face {
   animation: duel-blowout-pop var(--dur-slow) var(--ease-out-back) both;
 }
@@ -724,32 +783,85 @@
     transform: scale(1.15);
   }
 }
+.duel-overlay.duel-blowout .duel-sign.duel-sign-win::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+  border-radius: 14px;
+  border: 3px solid var(--color-gold-bright);
+  pointer-events: none;
+  opacity: 0;
+  animation: duel-blowout-wave var(--duel-wave-ms) var(--ease-out) var(--duel-wave-delay) both;
+}
+@keyframes duel-blowout-wave {
+  0% {
+    opacity: 0;
+    transform: scale(1);
+  }
+  18% {
+    opacity: 0.9;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.55);
+  }
+}
+.duel-overlay.duel-blowout::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center, var(--duel-wash-color) 0%, transparent 62%);
+  opacity: 0;
+  animation: duel-blowout-wash var(--duel-wash-ms) var(--ease-out) both;
+}
+@keyframes duel-blowout-wash {
+  0% {
+    opacity: 0.35;
+  }
+  100% {
+    opacity: 0;
+  }
+}
 .duel-overlay.duel-blowout .duel-sign.duel-sign-dim .duel-sign-face::after {
   content: "";
   position: absolute;
   inset: -6% -2%;
   pointer-events: none;
+  /* 墨渍四角锚定(#849 棒1,P2:旧四渍聚中糊住败方点数)——自卡角钤入。圆径取
+     px 字面量(卡角处 closest-side 会塌到 12-15% 卡宽,渍缩成点);实芯平顶到
+     55% 再收 88% 短缘(径向渐变长羽化会在卡面融成一片晕,读不出「渍」;
+     实芯短缘才是钤上去的墨),四渍互不相连,卡心字面由 mask 挖孔双保险。
+     墨色=#2b2317 字面量(.duel-sign-face 墨字同款「骰面材质」,非色板色):
+     旧引用 --color-ink 经 #509 换血后是深底纸色(#f4ecd8),泼墨溅沿它渲成
+     米白洗版——正是 P2「糊住点数」观感的根因之一,本批随挪角一并纠正。 */
   background:
     radial-gradient(
-      closest-side at 32% 40%,
-      color-mix(in srgb, var(--color-ink) 82%, transparent) 0%,
-      transparent 64%
+      circle 52px at 12% 18%,
+      color-mix(in srgb, #2b2317 82%, transparent) 0%,
+      color-mix(in srgb, #2b2317 82%, transparent) 55%,
+      transparent 88%
     ),
     radial-gradient(
-      closest-side at 66% 58%,
-      color-mix(in srgb, var(--color-ink) 92%, transparent) 0%,
-      transparent 46%
+      circle 48px at 88% 22%,
+      color-mix(in srgb, #2b2317 92%, transparent) 0%,
+      color-mix(in srgb, #2b2317 92%, transparent) 55%,
+      transparent 88%
     ),
     radial-gradient(
-      closest-side at 54% 78%,
-      color-mix(in srgb, var(--color-ink) 70%, transparent) 0%,
-      transparent 38%
+      circle 50px at 15% 85%,
+      color-mix(in srgb, #2b2317 70%, transparent) 0%,
+      color-mix(in srgb, #2b2317 70%, transparent) 55%,
+      transparent 88%
     ),
     radial-gradient(
-      closest-side at 46% 16%,
-      color-mix(in srgb, var(--color-ink) 55%, transparent) 0%,
-      transparent 28%
+      circle 45px at 85% 82%,
+      color-mix(in srgb, #2b2317 55%, transparent) 0%,
+      color-mix(in srgb, #2b2317 55%, transparent) 55%,
+      transparent 88%
     );
+  /* 中央挖孔 mask(#849 棒1:败方点数要可读):渍只在卡缘带驻墨,中心字面镂空。 */
+  mask: radial-gradient(closest-side at 50% 50%, transparent 0 38%, #000 68%);
   animation: duel-ink-splat var(--dur-slow) var(--ease-out) both;
 }
 @keyframes duel-ink-splat {
@@ -759,10 +871,10 @@
     rotate: -14deg;
   }
   70% {
-    opacity: 0.9;
+    opacity: 0.62;
   }
   to {
-    opacity: 0.8;
+    opacity: 0.55;
     scale: 1;
     rotate: 0deg;
   }
@@ -961,11 +1073,17 @@
 @media (prefers-reduced-motion: reduce) {
   .dice-sign.dice-sign-shaking {
     color: transparent;
+    /* 淡轮廓一并隐去(#849 棒1:摇签段的浅金签卡是蓄势动效的一部分,reduced
+       motion 下维持「字影隐去只留落定真面」原口径,不落静态卡)。 */
+    background: transparent;
+    border-color: transparent;
+    outline-color: transparent;
   }
   .duel-sign.duel-sign-shaking .duel-sign-face {
     color: transparent;
   }
-  .fx-desk-shake {
+  .fx-desk-shake,
+  .fx-desk-shake-blowout {
     animation: none;
   }
   .duel-overlay.duel-self-win .duel-sign.duel-sign-dim,
