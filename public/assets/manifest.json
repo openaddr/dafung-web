@@ -335,5 +335,13 @@
     "author": "Lu Ji",
     "fetched_at": "2026-10-31",
     "review_required": false
+  },
+  "texture:gongxian-shanshui": {
+    "path": "assets/textures/texture-gongxian-shanshui.webp",
+    "source": "https://commons.wikimedia.org/wiki/File%3A%E9%BE%9A%E8%B4%A4%E5%B1%B1%E6%B0%B4%E5%9B%BE%E5%8D%B7.jpg",
+    "license": "Public domain",
+    "author": "龚贤(Gong Xian,清);Commons 全卷扫描 35195×1987 中段裁带 x8700-24300(弃左题跋尾、纵向弃底部印区)→ 2880×359 webp q80",
+    "fetched_at": "2026-10-31",
+    "review_required": false
   }
 }
