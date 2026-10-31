@@ -9,7 +9,9 @@
    (卡面 transform/box-shadow 过渡由 jinnang-card.css 基座 token 化承担),
    reduced-motion 由 app.css M-4 全局兜层压瞬时,本文件无需另写兜层。 */
 
-/* ── 语境区:交涉报价口径句 / 破产已凑进度(backpack .trade-mode/.bkr-owe+.prog 移植)── */
+/* ── 语境区:交涉报价口径句 / 破产已凑进度(backpack .trade-mode/.bkr-owe+.prog 移植)
+   —— #833 起按档换位(高档=体部顶 / 矮档=footer 槽,分档渲染见 TreasurePickModal
+   useShortStage),两处副本共用本节同一套样式 ── */
 .treasure-pick .treasure-pick-context {
   margin: 14px 2px 0;
   font-family: var(--font-wenkai);
@@ -18,12 +20,24 @@
   text-align: center;
   letter-spacing: 0.04em;
 }
+/* 「已选 坐地起价」模式名:金示选中态(选择模式非权险,#506 朱砂只归权险语义,#833);
+   尚欠红的权险语义在 .treasure-pick-owe b 另行保留(下方) */
 .treasure-pick .treasure-pick-context b {
   font-weight: 400;
-  color: var(--color-danger);
+  color: var(--color-gold);
 }
 .treasure-pick .treasure-pick-progress {
-  margin: 14px 2px 0;
+  /* ④变卖进度区 sticky 钉体部视口顶(#833):点选/武装滚卡时恒在场——原病:进度区
+     平铺体部顶,恰在选中卡时随滚离场(还欠多少不可见)。margin 让位 padding:
+     盒随钉驻带底色,滚过的卡不从盒上缘缝隙穿帮 */
+  position: sticky;
+  top: 0;
+  /* z 2 > 价签 1(pile-modal.css #833 抬签出渐隐带):滚过的卡签从钉驻盒下穿过,
+     不许盖到进度行上 */
+  z-index: 2;
+  margin: 0 2px;
+  padding: 12px 2px 8px;
+  background: var(--color-panel);
   font-family: var(--font-wenkai);
   font-size: 12.5px;
   color: var(--color-ink-dim);
@@ -101,7 +115,8 @@
   font-weight: 400;
 }
 
-/* ── 底部条:返回 + 结算预览 + 二段式成交(backpack .trade-foot 制式)── */
+/* ── 底部条:返回 + [矮档语境行] + 结算预览 + 二段式成交(backpack .trade-foot 制式)
+   footer 槽恒钉壳内下缘(#708)——#833 矮档语境行副本落此,高档不渲染该副本 ── */
 .treasure-pick .treasure-pick-foot {
   display: flex;
   align-items: center;
@@ -110,6 +125,25 @@
   margin-top: 18px;
   padding-top: 14px;
   border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
+}
+/* 矮档语境行容器(#833):交涉=口径句并入钮行(行内 flex 件);变卖=进度整行垫在
+   钮行上(flex-basis 100% 折行)。样式随 .treasure-pick-context/.treasure-pick-progress
+   基座,此处只管容器行为与让位覆写(进度基座的 sticky/底色/上下内衬是「钉体部顶」
+   专用,footer 里原样会长高穿帮,归零) */
+.treasure-pick .treasure-pick-foot-context {
+  margin: 0;
+}
+.treasure-pick .treasure-pick-foot-context:has(.treasure-pick-progress) {
+  flex: 0 0 100%;
+}
+.treasure-pick .treasure-pick-foot-context .treasure-pick-context {
+  margin: 0 2px;
+}
+.treasure-pick .treasure-pick-foot-context .treasure-pick-progress {
+  position: static;
+  margin: 0 2px;
+  padding: 0;
+  background: none;
 }
 .treasure-pick .treasure-pick-sum {
   font-family: var(--font-wenkai);
@@ -125,7 +159,8 @@
   background: var(--color-paper-hi);
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 5px;
-  /* 触达制式(#745 高2):footer 三钮(返回/成交)min-height ≥40,矮横屏档 36 下限。 */
+  /* 触达制式(#745 高2):footer 钮 min-height ≥40 恒适用——#751 触屏下限口径收口后
+     矮横屏档不再收 36(#833),基座值即下限。 */
   min-height: 40px;
   padding: 6px 22px;
   cursor: pointer;
@@ -171,10 +206,42 @@
   }
 }
 
-/* ── 矮横屏档(断点=对局屏 A 档同一查询串,pile-modal.css 同款):footer 钮触达
-   下限随档收 40→36(#745 高2)── */
+/* ── 矮横屏档(断点=对局屏 A 档同一查询串,pile-modal.css 同款)──
+   #833 首帧几何预算:壳夹高 326px(100dvh−64)扣头部/footer 后,体部视口须容下
+   首排「装裱卡+价签」——坐地双行价签格 162px(卡 116@5.8px 基+隙 4+签 42)、变卖
+   单行价签格 142px。语境行已随档并入 footer(分档渲染),本块只做让位收档:
+   钮行衬距/区签边距/网格顶衬收档,拍板钮触达 ≥40 不再收 36(#751)。 */
 @media (orientation: landscape) and (max-height: 500px) {
-  .treasure-pick .treasure-pick-btn {
-    min-height: 36px;
+  .treasure-pick .treasure-pick-foot {
+    margin-top: 2px;
+    padding-top: 4px;
+    gap: 4px 14px;
+    flex-wrap: wrap;
+  }
+  /* 让位收档四件:壳头下衬/副题上距/区签边距/网格顶衬——.pile-modal.treasure-pick
+     前缀(0-3-0)确定性压过 pile-modal.css 基座与矮档块的同族 0-2-0 规则 */
+  .pile-modal.treasure-pick .pile-head {
+    padding-bottom: 6px;
+  }
+  .pile-modal.treasure-pick .pile-sub {
+    margin-top: 2px;
+  }
+  .pile-modal.treasure-pick .pile-zone {
+    margin: 2px 2px 2px;
+  }
+  .pile-modal.treasure-pick .pile-grid {
+    padding-top: 0;
+  }
+  .pile-modal.treasure-pick .treasure-pick-cell {
+    gap: 4px;
+  }
+  .treasure-pick .treasure-pick-bar {
+    margin-top: 2px;
+    height: 4px;
+  }
+  /* ②卡基 6.4→5.8px(96×128→87×116):保首帧整排卡+价签的必要降档
+     (特异性 0-4-0 压过 pile-modal.css 矮档 6.4px 基,只收选宝弹层,藏品族不动) */
+  .pile-modal.treasure-pick .pile-grid .pile-cell-card {
+    font-size: 5.8px;
   }
 }

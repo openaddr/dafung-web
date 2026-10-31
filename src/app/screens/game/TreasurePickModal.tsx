@@ -7,7 +7,12 @@
 // 协议零改:treasureId 原样进 resolveTreasureOwner / sellTreasureBankruptcy;拾取器
 // 是本地 UI 态,不是 ADR-0013 选项集(交涉三选仍在卷轴,两者不混)。
 // 卡格=真 <button> 包牌面(HandRack RackCard 同口径,交互语义不裸写 role)。
-import { useState, type ReactNode } from "react";
+// 矮横屏档语境行并入 footer(#833):844×390 首帧必须完整呈现一排「装裱卡+价签」,
+// 语境区按档换位——高档在体部顶(变卖进度 sticky 钉体部视口顶,点选/武装过程恒在),
+// 矮档并入 footer 槽(恒钉壳内下缘),体部让位 ~30-45px。分档走 JS 渲染而非 CSS
+// 双副本:context 由调用方注入且自带 testid(scroll-bankruptcy-pick-progress),
+// 双副本 = 重复 testid(strict mode 定位炸),故任一档只在场一份。
+import { useState, useSyncExternalStore, type ReactNode } from "react";
 import { PileShell } from "./PileModal";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
@@ -25,6 +30,19 @@ export interface TreasurePickTestids {
   confirm: string;
   /** 底部返回钮(交涉=回模式选择步);不传=不渲染(变卖用右上 X/Esc 关层)。 */
   back?: string;
+}
+
+/** 矮横屏档判定(断点=对局屏 A 档同一查询串,pile-modal.css 矮档规范块同款):
+ *  #833 语境区分档换位用。JS 渲染分档而非 CSS 双副本的理由见文件头注。 */
+const SHORT_STAGE_QUERY = "(orientation: landscape) and (max-height: 500px)";
+
+function useShortStage(): boolean {
+  const subscribe = (onChange: () => void) => {
+    const mq = window.matchMedia(SHORT_STAGE_QUERY);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  };
+  return useSyncExternalStore(subscribe, () => window.matchMedia(SHORT_STAGE_QUERY).matches);
 }
 
 export interface TreasurePickModalProps {
@@ -71,6 +89,7 @@ export function TreasurePickModal({
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const picked = treasures.find((t) => t.id === pickedId);
+  const shortStage = useShortStage();
 
   return (
     <PileShell
@@ -93,6 +112,12 @@ export function TreasurePickModal({
             >
               返回
             </button>
+          )}
+          {/* ①矮横屏档语境行并入 footer(#833):交涉口径句并入钮行、变卖进度整行垫在
+              钮行上(footer 恒钉壳内下缘,点选/武装过程恒在);高档不渲染(体部顶副本
+              在场,变卖进度走 sticky 钉体部视口顶) */}
+          {shortStage && context != null && (
+            <div className="treasure-pick-foot-context">{context}</div>
           )}
           {/* aria-live:预选/结算预览随点选播报(点选语言的状态反馈,不加文字标牌) */}
           <span className="treasure-pick-sum" aria-live="polite">
@@ -118,7 +143,9 @@ export function TreasurePickModal({
         </div>
       }
     >
-      {context}
+      {/* 语境区分档在场(#833):高档在体部顶(变卖进度 sticky 钉视口顶,点选滚卡
+          恒在场);矮档不渲染(footer 副本接管),体部首帧让位给整排卡+价签 */}
+      {!shortStage && context}
       <div className="pile-zone">
         <span className="pile-zdot" aria-hidden="true" />
         待选 · {treasures.length} 件
