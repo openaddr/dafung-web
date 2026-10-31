@@ -32,6 +32,7 @@
     "tauri:desktop": "tauri dev",
     "tauri:android:dev": "tauri android dev",
     "tauri:android:build": "tauri android build",
+    "release": "bun scripts/release.ts",
     "gen:theme": "bun scripts/generate-theme-tokens.ts"
   },
   "dependencies": {
