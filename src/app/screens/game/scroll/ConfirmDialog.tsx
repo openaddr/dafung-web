@@ -29,6 +29,10 @@ export interface ConfirmDialogProps {
   backdropBlocks?: boolean;
   /** 容器 testid 覆盖(默认 scroll-confirm;选都确认框传专用 testid 便于 e2e 定位)。 */
   testid?: string;
+  /** 危险确认变体(#836,DESIGN §4.2「朱=权险」):confirm 钮转破产卷轴「认破产」
+   *  同款朱砂描边警示钮,主行动墨钮让位给 cancel 侧(「继续对局」这类安全动作)——
+   *  不可逆动作不再吃 primary。文案/testid/DOM 序零变化,纯视觉权重。 */
+  danger?: boolean;
 }
 
 export function ConfirmDialog({
@@ -40,6 +44,7 @@ export function ConfirmDialog({
   onCancel,
   backdropBlocks = true,
   testid,
+  danger,
 }: ConfirmDialogProps) {
   const popupRef = useRef<HTMLDivElement>(null);
   // 退场动画(#767 底件族⑤):Esc 出口走「播完再移除」(小卡 dialog-card-out 淡出
@@ -151,17 +156,45 @@ export function ConfirmDialog({
           </DialogDescription>
           <div className="flex flex-wrap justify-center gap-3">
             {/* 传了专用 testid 时按钮随容器命名(<tid>-ok / <tid>-cancel),
-                e2e 无需知道通用/专用两套名字 */}
-            <BannerButton
-              primary
-              testid={testid ? `${testid}-ok` : T.confirmOk}
-              onClick={onConfirm}
-            >
-              {confirmLabel}
-            </BannerButton>
-            <BannerButton testid={testid ? `${testid}-cancel` : T.confirmCancel} onClick={onCancel}>
-              {cancelLabel}
-            </BannerButton>
+                e2e 无需知道通用/专用两套名字。danger 变体(#836):confirm 转
+                「认破产」同款朱砂警示钮(BankruptcyScroll footer 破产拍正例,
+                border-danger/70 + 透明底 + hover 淡朱),cancel 升墨钮主行动——
+                权重对调但 DOM 序与 testid 不动。 */}
+            {danger ? (
+              <>
+                <button
+                  type="button"
+                  data-testid={testid ? `${testid}-ok` : T.confirmOk}
+                  onClick={onConfirm}
+                  className="cursor-pointer rounded border border-danger/70 bg-transparent px-4 py-2 font-brush text-base text-danger transition-colors hover:bg-danger/10"
+                >
+                  {confirmLabel}
+                </button>
+                <BannerButton
+                  primary
+                  testid={testid ? `${testid}-cancel` : T.confirmCancel}
+                  onClick={onCancel}
+                >
+                  {cancelLabel}
+                </BannerButton>
+              </>
+            ) : (
+              <>
+                <BannerButton
+                  primary
+                  testid={testid ? `${testid}-ok` : T.confirmOk}
+                  onClick={onConfirm}
+                >
+                  {confirmLabel}
+                </BannerButton>
+                <BannerButton
+                  testid={testid ? `${testid}-cancel` : T.confirmCancel}
+                  onClick={onCancel}
+                >
+                  {cancelLabel}
+                </BannerButton>
+              </>
+            )}
           </div>
         </div>
       </DialogContent>

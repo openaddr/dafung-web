@@ -8,7 +8,8 @@
 //   - 战报把手 → 战报› 行(抽屉本体保留,数据照记,入口降级);
 //   - 版本角标 → 版本行(构建戳直读 VERSION);
 //   - 回到主页行:弃局离屏(销毁控制器释放 WS/时钟,回 setup)——本行是新增出口;
-//     #745 高1 起接现成 ConfirmDialog 二次确认(danger 着色,文案写明弃局/退房后果)。
+//     #745 高1 起接现成 ConfirmDialog 二次确认(文案写明弃局/退房后果;#836 起
+//     确认框走 danger 变体,不可逆侧不再吃墨钮主行动)。
 //   - 演出加速行:信息展示「标准」(原型原样;演出提速目前只有追帧自动档,无用户
 //     档位基建,不落假切换钮)。
 import { useState } from "react";
@@ -57,7 +58,21 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
           className="absolute inset-x-0 top-0 z-0 h-[40px]"
           testid={TESTIDS.modalDragHandle}
         />
-        <DialogTitle className="mb-1 font-title text-[15px] tracking-[2px]">设置</DialogTitle>
+        {/* 题名行(#836 制式归家,与 BannerShell 家族同语):漆金小章(题印漆金化
+            #492 决议①同材质——漆底金字渐变,这里按 270px 紧凑壳缩到 20px 档)+
+            题名升 font-title 18px(家族 26/27px 的紧凑方言,退役 15px 素面板档);
+            章影 rgba(43,35,23,·) 为墨影族阴影豁免,同 BannerShell 题印登记。 */}
+        {/* 刻意不定位(不挂 relative):题名行保持 static,压在上方透明把手条
+            (absolute z-0)之下,题行一带的拖拽命中归把手(ADR-0031)。 */}
+        <div className="mb-1 flex items-center gap-2">
+          <span
+            aria-hidden="true"
+            className="flex h-[20px] w-[20px] flex-none rotate-[-4deg] items-center justify-center rounded-[3px] bg-gradient-to-b from-gold-bright to-gold-deep font-title text-[13px] leading-none text-lacquer shadow-[0_1px_3px_rgba(43,35,23,0.5)]"
+          >
+            设
+          </span>
+          <DialogTitle className="font-title text-[18px] tracking-[2px]">设置</DialogTitle>
+        </div>
         {/* 音效开关:开=有声(接 AudioProvider 单通道静音账本,原静音钮的接替者)。
             开关皮单源回 ui/switch 底件桥接(#745 高4:.setsw 手写皮退役,on 态吃
             --primary=漆金,success 语义错位收口)。 */}
@@ -107,13 +122,16 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
           回到主页
           <Sym name="expand" size={11} className="rotate-[-90deg] text-danger" />
         </button>
-        {/* 弃局确认(#745 高1):现成 ConfirmDialog 接力(禁新造组件),按钮全称,
-            文案写明后果——单机=进度丢弃,联机=并退出房间。 */}
+        {/* 弃局确认(#745 高1,#836 danger 归位):现成 ConfirmDialog 接力(禁新造
+            组件),按钮全称,文案写明后果——单机=进度丢弃,联机=并退出房间。
+            #836:danger 变体——「弃局回主页」(不可逆)转朱砂警示钮,不再吃墨钮
+            主行动;「继续对局」升墨钮主行动(DESIGN §4.2 朱=权险)。 */}
         {confirmHome && (
           <ConfirmDialog
             title="弃局回到主页?"
             confirmLabel="弃局回主页"
             cancelLabel="继续对局"
+            danger
             onConfirm={() => {
               setConfirmHome(false);
               onClose();

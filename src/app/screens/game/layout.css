@@ -741,10 +741,16 @@
 }
 
 /* ── 设置弹层(#700,原型 ⑥pop/setrow 判决移植;经 Portal 挂 body,选择器裸排,
-   set-* 前缀防串扰):壳尺寸/圆角/衬垫随原型 pop 270px;行=13px 文肯淡纸分隔。 ── */
+   set-* 前缀防串扰):壳尺寸/圆角/衬垫随原型 pop 270px;行=13px 文肯淡纸分隔。
+   #836 制式归家:壳加漆金内衬环,双 inset 层同 pile-modal 制式(壳色衬带垫底、
+   1px 漆金发丝环浮起),外坠沿用底件 --ink-shadow-lg 不加档。 ── */
 .settings-dialog {
   background: linear-gradient(180deg, var(--color-panel-hi), var(--color-paper-lo));
   border-color: color-mix(in srgb, var(--color-lacquer-gold) 45%, transparent);
+  box-shadow:
+    inset 0 0 0 3px var(--color-panel),
+    inset 0 0 0 4px rgba(200, 161, 58, 0.55),
+    var(--ink-shadow-lg);
 }
 .setrow {
   display: flex;
