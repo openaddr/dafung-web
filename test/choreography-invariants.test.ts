@@ -85,8 +85,9 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(DUEL.blowoutWaveDelayMs + DUEL.blowoutWaveMs).toBeLessThanOrEqual(DUEL.holdMs);
   });
 
-  it("追帧全域无中途掐断(#849 棒3):六处内联动画全长 ≤ 各自清理/编排窗(1→3 顶速逐档)", () => {
-    // 六处 fx.css 字面量已收口「keyframe 只管形、消费点内联 scStage」——动画全长与
+  it("追帧全域无中途掐断(#849 棒3 + #885 四族):内联动画全长 ≤ 各自清理/编排窗(1→3 顶速逐档)", () => {
+    // fx.css 编排类 keyframe 已全量收口「keyframe 只管形、消费点内联 scStage」
+    // (棒3 票面六处 + #885 desk 震屏/旌旗缓倒/墨渍/浮字铜钱四族)——动画全长与
     // 清理/编排窗同通道缩放,「追帧 3x 清理掐断在途动画」的失配自除。e2e 无法驱动
     // 追帧判档(生产 = 联机积压出队点,SnapshotEffects 专有),判据在此机械化:
     // 逐档断言全长 ≤ 窗,含 bot 档(hold 压半)停留仍盖过落定钤落弧(票面失配消除)。
@@ -104,6 +105,17 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
         `${at}:落点金圈(delay+全长)超签面停留窗`,
       ).toBeLessThanOrEqual(DICE.holdMs);
       expect(DUEL.landMs, `${at}:签面钤落弧超判词拍`).toBeLessThanOrEqual(DUEL.verdictMs);
+      // #885 四族:震屏无独立窗账(desk.ts 注入与自摘读同一 getter,构造上同值);
+      // 旗倒无窗(类不摘除),钉的是「墨渍尾段开晕不脱拍」的时间轴关系;
+      // 墨渍/撒币与棒3 同式「全长 ≤ 清理窗」,撒币含错拍三步(delay 入通道同向)。
+      expect(CEREMONY.blotAtMs, `${at}:墨渍开晕拍超旗倒全长(尾段开晕脱拍)`).toBeLessThanOrEqual(
+        CEREMONY.fallMs,
+      );
+      expect(FX.inkBloomMs, `${at}:墨渍晕开超清理窗`).toBeLessThanOrEqual(FX.inkBlotMs);
+      expect(
+        FX.coinStaggerMs * 3 + FX.coinRainMs,
+        `${at}:撒币最迟错拍 + 全长超清理窗`,
+      ).toBeLessThanOrEqual(FX.coinBurstMs);
     }
     setCatchupScale(1); // 全局态复原,防跨用例泄漏
   });

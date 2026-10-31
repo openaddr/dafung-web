@@ -341,6 +341,15 @@ test.describe("反应窗(#281 单机)", () => {
       .first()
       .evaluate((el) => getComputedStyle(el).animationDuration);
     expect(landDur, "钤落弧时长未走消费点内联注入(#849 棒3)").toBe("0.13s");
+    // 大胜档震屏时长追帧通道探针(#885):判词拍 shakeDeskBlowout 向 #board-wrap
+    // 内联注入 DESK.blowoutMs(scStage),fx.css 不再持 0.45s 字面量——本例 0.5 倍率
+    // (useHalfScale)下 sc(450)=225ms。字面量回潮(时长失通道)读数恒 0.45s,
+    // 注入断裂读 0s,均此红;内联时长随类驻留(类自摘不清 style),判词拍后读数
+    // 稳定无竞态。
+    const shakeDur = await page
+      .locator("#board-wrap")
+      .evaluate((el) => getComputedStyle(el).animationDuration);
+    expect(shakeDur, "大胜档震屏时长未走消费点内联注入(#885)").toBe("0.225s");
     // 拦胜止步:位置落首都格且此后不挪(后续分支不再轮到该 bot),无窗竞态
     await expect
       .poll(

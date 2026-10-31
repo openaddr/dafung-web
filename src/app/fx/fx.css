@@ -4,12 +4,13 @@
    不再写死同值——改色只需改 theme.ts 后 bun run gen:theme。
    时长/缓动同理引用 var(--dur-*)/var(--ease-*)(唯一源 core/theme.ts Motion)。
    #849 棒3 追帧时长统一:演出编排类 keyframe 一律「keyframe 只管形不时刻度」——
-   眼下 animation 时长缺省 0s,由消费点(DiceOverlay/DuelSignsOverlay/FxLayer)
-   内联注入 fx/timings.ts 的 scStage getter(随 e2e 键与追帧倍率缩放,清理窗与
-   动画全长同源),类与内联注入在同一消费点成对出现。票面六处(dice-sign-land/
-   fx-dice-ring/fx-svg-seal/fx-svg-pulse/jline 三条/duel-sign-land)已收口;
-   同病类残留字面量(desk 震屏 0.4s/0.45s、旌旗缓倒 1.1s、墨渍 1s,与 desk.ts/
-   CEREMONY 硬同步)不在本票清单,追帧压缩下仍会被清理窗掐断,归后续统一。
+   眼下 animation 时长缺省 0s,由消费点(DiceOverlay/DuelSignsOverlay/FxLayer/
+   desk.ts)内联注入 fx/timings.ts 的 scStage getter(随 e2e 键与追帧倍率缩放,
+   清理窗与动画全长同源),类与内联注入在同一消费点成对出现。票面六处(dice-
+   sign-land/fx-dice-ring/fx-svg-seal/fx-svg-pulse/jline 三条/duel-sign-land)棒3
+   收口;#885 补收同病类四族(desk 震屏 0.4s/0.45s→DESK 表、旌旗缓倒 1.1s→
+   CEREMONY.fallMs、墨渍 1s→FX.inkBloomMs、浮字/铜钱 --dur-fx 系→FX.floaterMs/
+   coinRainMs),编排类 keyframe 至此全量入通道,零字面量时长残留。
    例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
 
 /* ── 掷骰签面全屏覆盖层(DiceOverlay 掷骰时 append 到 body,样式必须在此定义)──
@@ -154,10 +155,12 @@
 
 /* ── 桌面微震(S7 #492 拍板 4px 档,大事件限定;适用事件清单与原则单源
    在 DESIGN §6 动效规范,此处只指路不枚举)──
-   挂 #board-wrap(desk.shakeDesk 注入类,0.4s 后自摘);走独立 translate 属性,
-   不碰容器既有 transform。时长与 fx/timings.ts desk.ts DESK_SHAKE_MS=400 硬同步。 */
+   挂 #board-wrap(desk.ts shakeDesk 注入类);走独立 translate 属性,
+   不碰容器既有 transform。#885 时长收口:keyframe 只管形,全长 DESK.shakeMs
+   (fx/timings.ts)由 desk.ts applyDeskShake 挂类拍内联注入,类自摘 timeout
+   同一 getter——全长与清理窗同源单值,追帧压缩天然同步。 */
 .fx-desk-shake {
-  animation: fx-desk-shake 0.4s var(--ease-sine);
+  animation: fx-desk-shake var(--ease-sine);
 }
 @keyframes fx-desk-shake {
   0%,
@@ -180,11 +183,10 @@
 
 /* 震屏·大胜档(#849 棒1,P1-B3:拼点大胜判词拍与普通 4px 档同权=没有「哇」):
    振幅分档 4→6px(DESIGN §6 拼点大胜负档位加压,普通档口径不动),节拍同形
-   1.5× 放大;时长 0.45s 与 fx/timings.ts desk.ts deskBlowoutMs 硬同步(特例
-   字面量同 deskShakeMs 口径,改任一侧须两处同改)。挂类/重启配方同 .fx-desk-shake
-   (desk.ts shakeDeskBlowout 注入,0.45s 后自摘)。 */
+   1.5× 放大;#885 时长收口同 .fx-desk-shake:keyframe 只管形,全长 DESK.blowoutMs
+   由 desk.ts shakeDeskBlowout 挂类拍内联注入。挂类/重启配方同 .fx-desk-shake。 */
 .fx-desk-shake-blowout {
-  animation: fx-desk-shake-blowout 0.45s var(--ease-sine);
+  animation: fx-desk-shake-blowout var(--ease-sine);
 }
 @keyframes fx-desk-shake-blowout {
   0%,
@@ -208,10 +210,11 @@
 /* ── 旌旗缓倒(S7 破产仪式第一拍):破产玩家棋子旗面绕旗杆底座倒下+回弹驻倒。
    双类选择器压过 .bv-token-flag 的常驻摇曳(bv-flag-sway);transform-origin: 0 0
    (旗杆底)承自 board.css 基类;forwards 定格倒姿=「旗倒人不撤」静态叙事,
-   破产态棋子本体由 React 降至 0.15 透明度。时长与 fx/timings.ts CEREMONY.fallMs
-   (1.1s)硬同步。 */
+   破产态棋子本体由 React 降至 0.15 透明度。#885 时长收口:keyframe 只管形,
+   全长 CEREMONY.fallMs 由 desk.ts fallTokenFlag 挂类拍内联注入(墨渍起始拍
+   blotAtMs 落在其尾段,不脱拍由 choreography-invariants 钉)。 */
 .bv-token-flag.fx-token-fall {
-  animation: fx-flag-fall 1.1s var(--ease-sine) forwards;
+  animation: fx-flag-fall var(--ease-sine) forwards;
 }
 @keyframes fx-flag-fall {
   0% {
@@ -238,8 +241,10 @@
   /* SVG 元素 CSS transform 默认参考 viewBox 原点,必须锚到自身包围盒 */
   transform-box: fill-box;
   transform-origin: center;
-  /* --dur-fx(1300ms)的标定来源:浮字口径以本规则为准,fx/timings.ts FX.floaterMs 同步 */
-  animation: fx-svg-float-up var(--dur-fx) var(--ease-out) forwards;
+  /* #885 时长收口:keyframe 只管形,全长 FX.floaterMs(与 --dur-fx 同源经 Motion)
+     由 FxLayer 消费点内联注入,清理窗=同一 getter(单值同源);被动小签(#850)
+     换 FX.skillTagMs 短全长,注入同在消费点。 */
+  animation: fx-svg-float-up var(--ease-out) forwards;
 }
 .fx-svg-floater.pos {
   fill: var(--color-money);
@@ -268,15 +273,18 @@
 }
 
 /* 铜钱雨:「泉」字金币(金色圆底 + 墨字),逻辑单位平移下落。
-   时长归 --dur-fx(1.4s→1.3s,fx/timings.ts FX.coinMs=1500 仍作清理余量);
-   下落加速离场,退场缓动 --ease-in。落点 dy 走 --dy(补给雨恒落 90px 档;
-   S7 破产撒币经同一 keyframe 径向抛散,FxLayer 喂随机 --dy)。 */
+   #885 时长收口:keyframe 只管形,全长 FX.coinRainMs(与 --dur-fx 同源经 Motion,
+   1.4s→1.3s 归 token)由 FxLayer Coin 消费点内联注入;撒币档错拍步长
+   FX.coinStaggerMs 同点注入 animationDelay,最迟一拍 + 全长 ≤ coinBurstMs
+   清理窗(choreography-invariants 钉)。下落加速离场,退场缓动 --ease-in。
+   落点 dy 走 --dy(补给雨恒落 90px 档;S7 破产撒币经同一 keyframe 径向抛散,
+   FxLayer 喂随机 --dy)。 */
 .fx-svg-coin {
   pointer-events: none;
   transform-box: fill-box;
   transform-origin: center;
   /* both 而非 forwards:撒币档(animationDelay 错拍)入场前保持 0% 帧隐形 */
-  animation: fx-svg-coin-rain var(--dur-fx) var(--ease-in) both;
+  animation: fx-svg-coin-rain var(--ease-in) both;
 }
 .fx-svg-coin circle {
   fill: var(--color-gold-bright);
@@ -1024,13 +1032,14 @@
 }
 
 /* ── 破产仪式(S7 #513)第二拍:铭牌墨渍晕开(radial)。径向渐变 fill 引
-   BoardFxLayer 单例 defs(#fx-ink-grad),scale 晕开+消散(1s),时长与
-   fx/timings.ts FX.inkBlotMs=1100 硬同步。 */
+   BoardFxLayer 单例 defs(#fx-ink-grad),scale 晕开+消散。#885 时长收口:
+   keyframe 只管形,全长 FX.inkBloomMs 由 FxLayer 消费点内联注入,清理窗
+   inkBlotMs = 全长 + 余量(单侧窗口,同通道缩放)。 */
 .fx-svg-inkblot {
   pointer-events: none;
   transform-box: fill-box;
   transform-origin: center;
-  animation: fx-inkblot-bloom 1s var(--ease-out) forwards;
+  animation: fx-inkblot-bloom var(--ease-out) forwards;
 }
 @keyframes fx-inkblot-bloom {
   0% {
