@@ -90,3 +90,16 @@ test("城池档位珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 �
   // Lv0=无珠:无主城不出珠组(有珠才看,升级过的城天然突出)
   await expect(page.locator(`[data-tile="${empty}"] .bv-level-pips`)).toHaveCount(0);
 });
+
+test("棋盘景深静态件:纸纤维 pattern 一次生成+远山带双幅+路肩随驿道(#844)", async ({ page }) => {
+  // 静态件全部确定性存在(StaticLayers memo,无时序竞速):结构断言守住
+  // 「深 zoom 肌理/远景衬/路肩」三件套不被后续重构静默摘除。
+  await quickStart(page);
+  // 纸纤维:SVG pattern(feTurbulence 一次生成,零图片资产)
+  await expect(page.locator("#board pattern#bv-fiber")).toHaveCount(1);
+  // 远山衬:龚贤横带上/下缘各一幅(素材 texture:gongxian-shanshui)
+  await expect(page.locator('#board image[href*="texture-gongxian-shanshui"]')).toHaveCount(2);
+  // 路肩:单环闭合,每段驿道垫一条肩线(数 = 格数)
+  const n = await engineState(page, "e.board.count");
+  await expect(page.locator("#board .bv-road-shoulder")).toHaveCount(n);
+});

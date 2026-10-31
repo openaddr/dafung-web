@@ -1,10 +1,12 @@
-// 静态层:玄墨地形底(feTurbulence 暗纹+四角晕影)、驿道(主路漆金细线+箭羽)。
+// 静态层:玄墨地形底(feTurbulence 暗纹+纸纤维噪点+龚贤远山带+四角晕影)、
+// 驿道(主路漆金细线+路肩细线+箭羽)。
 // 驿道忠实移植自旧 src/render/board.ts 的 drawRoads / defs 段,
 // 地图不变即不变 → 整个组件 React.memo,players 变化不会重渲这里。
-// #512 玄墨深底化(方案一「重调色保留」):地形底从宣纸浅底换玄墨深底(bg 系 token),
-// 溪山清远远景横带本票先摘除(S10 换新素材,挂点见 TerrainLayer TODO)。
+// #512 玄墨深底化(方案一「重调色保留」):地形底从宣纸浅底换玄墨深底(bg 系 token)。
 // 2026-10-24 拷问:装饰性江河双线与区域底色晕染双双退役——江河被用户判「没啥用」,
 // 晕染实拍 A/B 近零感知;区域视觉待机制化时重新设计(分组色板随之退役)。
+// #844 景深与肌理:纸纤维噪点 pattern(零图片资产)+ 龚贤《山水图卷》远山横带
+// (素材管线入库,叠 10% 做远景衬)+ 路肩 0.8px 平行细线——深 zoom 不再纯平涂。
 import { memo } from "react";
 import type { Board } from "@core/board";
 import type { ViewBox } from "./usePanZoom";
@@ -29,6 +31,20 @@ const canvasOf = (fit: ViewBox) => ({
   h: fit.h + EDGE_PAD * 2,
 });
 
+// #844 纸纤维噪点 pattern 的 tile 边长(user units):256 档在总览读作细密纤维、
+// 深 zoom 放大后仍连续不断纹;feTurbulence stitchTiles 缝合 tile 边界,平铺无缝。
+const FIBER_TILE = 256;
+
+// #844 远景带几何:上/下缘各铺一条,高 = 总览视口的 18%(旧溪山清远档位,
+// #100/#516 在役期验收过的比例),透明度 10%(票面 8-12% 档中值)。
+const SCENE_BAND_RATIO = 0.18;
+const SCENE_BAND_OPACITY = 0.1;
+const GONGXIAN_BAND_HREF = "/assets/textures/texture-gongxian-shanshui.webp";
+
+// #844 路肩:.bv-road-main 路身宽 10,肩线以同弧线加宽 2×0.8 垫底实现,
+// 两侧各露 0.8px 平行细线(user units,随 zoom 同步缩放)。
+const ROAD_SHOULDER_W = 11.6;
+
 // #512 深底装饰色(无对应 token 的阴影向色,收敛此块;金/墨/纸语义色一律走 Theme)
 const VIGNETTE_EDGE = "rgba(6,4,2,0.55)"; // 四角晕影(比 bgDeep 更沉的纯阴影,不读色相)
 
@@ -40,6 +56,7 @@ function poly(pts: { x: number; y: number }[]): string {
 // ── defs:玄墨噪点滤镜 + 晕影渐变 ──
 export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
   const O = canvasOf(fit);
+  const sceneBandH = Math.round(fit.h * SCENE_BAND_RATIO);
   return (
     <defs>
       {/* 玄墨暗纹(#512):feTurbulence 出墨金细纹(inkwash 色相,低 alpha),压在深底上
@@ -110,24 +127,106 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
         <stop offset="0" stopColor="#b59c74" />
         <stop offset="1" stopColor="#8a714c" />
       </linearGradient>
+      {/* #844 纸纤维噪点:fractalNoise 高频灰阶磨砂,feTurbulence stitchTiles=stitch
+          让 256 tile 边界噪声缝合、pattern 平铺无缝——SVG 一次生成零图片资产,
+          深 zoom 的格间空白不再是纯平涂。fractalNoise 原始输出对比度天然压缩
+          (±0.2 上下),不扩直接叠会被 0.05 音量彻底埋没(实测穿帮):灰阶去饱和后
+          feComponentTransfer 双向扩幅——RGB 绕均值 0.5 ×3.5 扩幅、alpha 抬到近满幅
+          (turbulence 自带 alpha 噪声均值 ≈0.5,不抬则音量再砍半);对比度在 filter
+          内做满,音量由消费 rect 的 opacity(0.05)统一压住,两处职责分开。 */}
+      <filter id="bv-fiber-noise" x="0" y="0" width="100%" height="100%">
+        <feTurbulence
+          type="fractalNoise"
+          baseFrequency="0.9"
+          numOctaves={2}
+          seed={11}
+          stitchTiles="stitch"
+          result="n"
+        />
+        <feColorMatrix in="n" type="saturate" values="0" result="g" />
+        <feComponentTransfer in="g">
+          <feFuncR type="linear" slope={3.5} intercept={-1.25} />
+          <feFuncG type="linear" slope={3.5} intercept={-1.25} />
+          <feFuncB type="linear" slope={3.5} intercept={-1.25} />
+          <feFuncA type="linear" slope={3} intercept={-0.5} />
+        </feComponentTransfer>
+      </filter>
+      <pattern id="bv-fiber" width={FIBER_TILE} height={FIBER_TILE} patternUnits="userSpaceOnUse">
+        <rect width={FIBER_TILE} height={FIBER_TILE} filter="url(#bv-fiber-noise)" />
+      </pattern>
+      {/* #844 远景带内容渐隐 mask(旧 #100 结构随素材复活):带外缘贴 fit 边界
+          (pan 出界的渐隐由外层 bv-edge-mask 统一负责),内缘朝棋盘中心渐隐——
+          外缘 55% 全显、余下 45% 线性淡出到 0,避免带底留一条硬切线。 */}
+      <linearGradient id="bv-scene-fade-t" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" />
+        <stop offset="0.55" stopColor="#fff" />
+        <stop offset="1" stopColor="#fff" stopOpacity={0} />
+      </linearGradient>
+      <linearGradient id="bv-scene-fade-b" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#fff" stopOpacity={0} />
+        <stop offset="0.55" stopColor="#fff" />
+        <stop offset="1" stopColor="#fff" />
+      </linearGradient>
+      <mask
+        id="bv-scene-mask"
+        maskUnits="userSpaceOnUse"
+        x={fit.x}
+        y={fit.y}
+        width={fit.w}
+        height={fit.h}
+      >
+        <rect x={fit.x} y={fit.y} width={fit.w} height={sceneBandH} fill="url(#bv-scene-fade-t)" />
+        <rect
+          x={fit.x}
+          y={fit.y + fit.h - sceneBandH}
+          width={fit.w}
+          height={sceneBandH}
+          fill="url(#bv-scene-fade-b)"
+        />
+      </mask>
     </defs>
   );
 });
 
-// ── 背景:玄墨底 + 噪点暗纹 + 四角晕影 ──
+// ── 背景:玄墨底 + 噪点暗纹 + 纸纤维 + 龚贤远山带 + 四角晕影 ──
 export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }) {
   const O = canvasOf(fit);
+  const sceneBandH = Math.round(fit.h * SCENE_BAND_RATIO);
   return (
-    // #24:整组地形(底色/噪点/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
+    // #24:整组地形(底色/噪点/纤维/远山带/晕影)套边缘渐隐 mask——画布从 VB 扩到 O,
     // mask 让外围平滑淡出至页面背景,消除外缘硬切。
     <g mask="url(#bv-edge-mask)">
       {/* 玄墨地形底(#512):bg token 铺底(与页面深底同族,边缘渐隐后无缝),
           暗纹 = feTurbulence 墨金细纹,低音量。 */}
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill={rgba(Theme.bg)} />
       <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-paper)" opacity={0.55} />
-      {/* TODO(S10 古画退役+新素材):旧溪山清远远景横带已随玄墨深底化摘除(#512,
-          浅底真迹在漆黑上发灰争辉);远景山意象待 S10 换新素材后在此挂点重铺
-          (层级:暗纹之上,内缘渐隐 mask 一并恢复)。 */}
+      {/* #844 纸纤维噪点:高频灰阶 pattern 平铺,opacity 0.05——「漆为纸」的磨砂纤维,
+          深 zoom 下格间空白读得出肌理;铺在暗纹之上、远山带之下。 */}
+      <rect x={O.x} y={O.y} width={O.w} height={O.h} fill="url(#bv-fiber)" opacity={0.05} />
+      {/* #844 远景衬(旧 #100 挂点随素材复活,#516 退役口径反转):龚贤《山水图卷》
+          (清,PD,浓墨长卷最贴「漆黑为纸」)中段横带铺棋盘上/下缘,高 18%、
+          group opacity 0.10,压在城池/驿道之下不抢棋盘。下带水平镜像,避免总览时
+          上下两带同构;内缘渐隐由 bv-scene-mask 负责。素材管线记账见
+          public/assets/manifest.json texture:gongxian-shanshui。 */}
+      <g mask="url(#bv-scene-mask)" opacity={SCENE_BAND_OPACITY}>
+        <image
+          href={GONGXIAN_BAND_HREF}
+          x={fit.x}
+          y={fit.y}
+          width={fit.w}
+          height={sceneBandH}
+          preserveAspectRatio="xMidYMid slice"
+        />
+        <image
+          href={GONGXIAN_BAND_HREF}
+          x={fit.x}
+          y={fit.y + fit.h - sceneBandH}
+          width={fit.w}
+          height={sceneBandH}
+          preserveAspectRatio="xMidYMid slice"
+          transform={`translate(${2 * (fit.x + fit.w / 2)} 0) scale(-1 1)`}
+        />
+      </g>
       {/* 装饰性江河双线(两条贝塞尔蓝灰波浪,旧画布坐标手绘)已随 2026-10-24 拷问
           退役——用户判词「没啥用」;重铺须连 DESIGN.md 江河条一并重议。 */}
       {/* 四角晕影铺满延展画布 O(不再裁在 VB 上——#38:VB 边界的晕影矩形切线就是用户看到的硬边),
@@ -155,6 +254,19 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     const pts = [a, ...board.edgeWaypoints(i, to), b];
     const d = poly(pts);
     segments.push(
+      // #844 路肩:同弧线加宽一档垫底(宽 11.6 vs 路身 10),两侧各露 0.8px 平行细线,
+      // 色 = roadMain 40%(rgba(Theme.roadMain, 0.4),单源 token,等价票面
+      // color-mix(roadMain 40%));深 zoom 下驿道两侧不再直接切在玄墨底上。
+      <path
+        key={`shoulder-${i}`}
+        className="bv-road-shoulder"
+        d={d}
+        fill="none"
+        stroke={rgba(Theme.roadMain, 0.4)}
+        strokeWidth={ROAD_SHOULDER_W}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />,
       <path
         key={`seg-${i}`}
         className="bv-road-main stroke-road-main"
