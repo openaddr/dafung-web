@@ -16,6 +16,7 @@ import {
 import { flushSync } from "react-dom";
 import type { MapData } from "@core/board-loader";
 import { loadMap } from "@core/board-loader";
+import { AmbientLayer } from "./AmbientLayer";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
@@ -205,6 +206,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
               maxLevel={def?.maxLevel ?? 0}
               state={tileStates.get(tile.index)!}
               onClick={handleTileClick ?? undefined}
+              showGlow={false}
             />
           );
         })}
@@ -213,41 +215,65 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     [orderedTiles, loaded.catalog, tileStates, handleTileClick],
   );
 
+  // 有主都城格序(氛围层光晕落点;tileStates 单源派生,与 Tile 的 isCapital 同口径)
+  const capitalTileIndexes = useMemo(
+    () =>
+      loaded.board.tiles
+        .filter((t) => tileStates.get(t.index)?.capitalColorIndex != null)
+        .map((t) => t.index),
+    [loaded.board.tiles, tileStates],
+  );
+
   return (
-    <svg
-      id="board"
-      ref={svgRef}
-      viewBox={fitBox}
-      preserveAspectRatio="xMidYMid meet"
-      /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管 viewBox 平移缩放打架);
+    <>
+      <svg
+        id="board"
+        ref={svgRef}
+        viewBox={fitBox}
+        preserveAspectRatio="xMidYMid meet"
+        /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管 viewBox 平移缩放打架);
          overscroll contain 防拖到边缘时滚动整个页面。 */
-      style={{ touchAction: "none", overscrollBehavior: "contain" }}
-      className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
-      {...handlers}
-    >
-      <BoardDefs fit={fit} />
-      <TerrainLayer fit={fit} />
-      <RoadsLayer board={loaded.board} />
-      <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
-      <TokenLayer
+        style={{ touchAction: "none", overscrollBehavior: "contain" }}
+        className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
+        {...handlers}
+      >
+        <BoardDefs fit={fit} />
+        <TerrainLayer fit={fit} />
+        <RoadsLayer board={loaded.board} />
+        <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
+        <TokenLayer
+          board={loaded.board}
+          players={players}
+          setupUnselected={isSetupPhase}
+          skipTokenIds={skipTokenIds}
+          /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
+          mineId={viewSeat}
+          /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
+          targetedIds={targetedPlayerIds}
+          /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
+          activeId={activePlayerId}
+          layerRef={tokenLayerRef}
+        />
+        {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。
+          D1:浮字/印章直接画进 SVG(坐标系与棋盘一致,pan/zoom 不脱锚)。 */}
+        <g id="bv-fx" data-fx-layer="">
+          <BoardFxLayer />
+        </g>
+        <g id="bv-flow" data-flow-layer="" />
+      </svg>
+      {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居 svg 上(pointer-events
+          none);矩阵同步自持(RO/viewBox MutationObserver/字体就绪,见 AmbientLayer)。 */}
+      <AmbientLayer
         board={loaded.board}
         players={players}
-        setupUnselected={isSetupPhase}
-        skipTokenIds={skipTokenIds}
-        /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
+        capitalTileIndexes={capitalTileIndexes}
+        activeTileIndex={activeTileIndex}
+        activePlayerId={activePlayerId}
         mineId={viewSeat}
-        /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
-        targetedIds={targetedPlayerIds}
-        /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
-        activeId={activePlayerId}
-        layerRef={tokenLayerRef}
+        skipTokenIds={skipTokenIds}
+        setupUnselected={isSetupPhase}
+        svgRef={svgRef}
       />
-      {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。
-          D1:浮字/印章直接画进 SVG(坐标系与棋盘一致,pan/zoom 不脱锚)。 */}
-      <g id="bv-fx" data-fx-layer="">
-        <BoardFxLayer />
-      </g>
-      <g id="bv-flow" data-flow-layer="" />
-    </svg>
+    </>
   );
 });

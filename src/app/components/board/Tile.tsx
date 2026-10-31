@@ -67,6 +67,9 @@ interface TileProps {
   maxLevel: number;
   state: TileVisualState;
   onClick?: (index: number) => void;
+  /** 都城静态光晕开关(ADR-0039):棋盘侧 false(脉动光晕由氛围层承担,避免
+      SVG 静态晕与氛围层动晕叠加);TileThumb 缩略图缺省 true(静态晕入盒)。 */
+  showGlow?: boolean;
 }
 
 // ── #25/#39/#58 城池全局放大比例 ──
@@ -307,7 +310,14 @@ export function EventSeal({ event }: { event: TileEvent }) {
 // 触发源是播放器/sink 而非组件自 diff(易主在破产清算/变卖等结算点发生,props diff
 // 无法区分「易主」与「终态加载」)。
 
-export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }: TileProps) {
+export const Tile = memo(function Tile({
+  tile,
+  group,
+  maxLevel,
+  state,
+  onClick,
+  showGlow = true,
+}: TileProps) {
   // ADR-0015 城池宣告信号:selector 按本城 tileIndex 取记录,他城宣告不触发本城重渲。
   // nonce 单调递增、播完自然过期(无清理定时器);0 = 该维从未宣告,静置。
   const announce = useFxStore((s) => s.announces.get(tile.index));
@@ -342,24 +352,15 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
       <circle className="bv-tile-hilite" r={62} fill={rgba(Theme.gold)} />
-      {/* F2:光晕改 radialGradient 圆(BoardDefs 定义,中心亮→边缘 0),去掉常驻 blur(9px)
-          滤镜——滤镜在 zoom 时每帧重算,渐变只是普通填充;脉动仍由 board.css 的 opacity
-          keyframe 驱动(bv-pulse-glow),视觉节奏不变。 */}
-      <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
-      {/* #75 活跃格虚线环:独立于都城金晕——虚线环=「轮到谁」(回合所属),
-          金晕=「哪是都城」,两语义一眼可分。r=80×2.2≈176 逻辑半径 < 310 行距,
-          不碰邻格;虚线沿圆周行进(board.css 用 dashoffset 而非 rotate,
-          旋转会改变 AABB 令点选稳定性检查超时)。 */}
-      {state.isActive ? (
-        <circle
-          className="bv-active-ring"
-          r={80}
-          fill="none"
-          stroke={rgba(Theme.goldBright, 0.85)}
-          strokeWidth={3}
-          strokeDasharray="12 9"
-        />
+      {/* F2:光晕 radialGradient 圆(BoardDefs 定义,中心亮→边缘 0)。棋盘侧的常驻
+          脉动已迁氛围层(ADR-0039,showGlow=false 由 BoardView 关闭);本件只剩
+          TileThumb 缩略图用的静态光晕(board.css 钉呼吸中程,无动画)。 */}
+      {showGlow && isCapital ? (
+        <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
       ) : null}
+      {/* 「轮到谁」活跃虚线环已迁氛围层(ADR-0039;dashoffset 改整环 rotate 等效,
+          且环出 tile <g> 后不再污染点击包围盒);归属金描边仍由下方 bv-tile-border
+          的 isActive 态承担。 */}
 
       {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
           color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色

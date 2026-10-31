@@ -1,0 +1,139 @@
+/* 棋盘氛围层样式(ADR-0039):状态驱动常驻装饰的 HTML 合成层。
+   铁律:本层动画只许 transform/opacity(Blink 对 HTML 元素的可合成属性走合成器
+   线程,主线程零逐帧参与)——棋盘 SVG 内禁新增常驻动画,`check:board` 机械闸把守。
+   时长/缓动一律 dur/ease 系 token(单源 core/theme.ts),零字面量时长;
+   例外:活跃环整圈 31.12s 为几何换算值(虚线周期 21 单位/1.3s × r=80 周长
+   502.7 单位,复刻原 dashoffset 推进速度),注释为证,非拍脑袋数。 */
+
+.bv-ambient {
+  /* 棋盘 svg 的 HTML 兄弟层(DOM 序居上),铺满 board-area(absolute 定位上下文);
+     容器 transform = 世界→客户端矩阵(ambientMatrix 单写者:usePanZoom.apply
+     同拍 + 挂载/ResizeObserver 补拍),子元素一律世界坐标定位。 */
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  transform-origin: 0 0;
+}
+
+/* 锚点容器(0×0 落在世界坐标点上,子盒负 margin 回中) */
+.bv-amb-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+/* 定形盒:原尺寸盒负 margin 对锚 + scale 放大(TOKEN_SCALE/TILE_SCALE 内联注入,
+   缩放绕锚点:居中件盒心=锚点,旗面件显式 origin=旗杆底) */
+.bv-amb-fit {
+  position: absolute;
+  left: 0;
+  top: 0;
+}
+
+/* 跨 svg 引用的 defs 载体(光晕挖孔 mask;渐变引用 BoardDefs 单源) */
+.bv-amb-defs {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.bv-amb-capital-glow,
+.bv-amb-tile-ring,
+.bv-amb-mine-halo,
+.bv-amb-token-ring,
+.bv-amb-flag {
+  display: block;
+  overflow: visible; /* 摇曳/呼吸摆幅出盒不裁切 */
+}
+
+/* 都城光晕(原 Tile 内 bv-pulse-glow 脉动原样):渐变亮心被城台形 mask 挖孔,
+   观感=原「亮心被城台遮挡、只露外圈」。 */
+.bv-amb-capital-glow {
+  animation: bv-pulse-glow var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes bv-pulse-glow {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* 活跃格虚线环(原 dashoffset 推进改整环匀速旋转,同速同向):
+   31.12s = 周长 2π×80 ÷ 虚线周期 21 单位 × 1.3s(几何换算,见 AmbientLayer 注)。 */
+.bv-amb-tile-ring {
+  animation: bv-ring-orbit 31.12s linear infinite;
+}
+@keyframes bv-ring-orbit {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 自机微光呼吸(原 board.css bv-mine-halo 原样) */
+.bv-amb-mine-halo {
+  animation: bv-mine-halo var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes bv-mine-halo {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+/* 旌旗摇曳(原 board.css bv-flag-sway 原样;origin=旗杆底,锚盒内 (10,40)) */
+.bv-amb-flag {
+  transform-origin: 10px 40px;
+  animation: bv-flag-sway var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes bv-flag-sway {
+  0%,
+  100% {
+    transform: rotate(-1.5deg);
+  }
+  50% {
+    transform: rotate(1.5deg);
+  }
+}
+
+/* 回合方金呼吸环(原 layout.css bv-token-active-breath,#762/#840 形体化参数原样:
+   scale 0.92→1.08 + opacity 0.55→1,谷值段不隐形) */
+.bv-amb-token-ring {
+  animation: bv-token-active-breath var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes bv-token-active-breath {
+  0%,
+  100% {
+    transform: scale(0.92);
+    opacity: 0.55;
+  }
+  50% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+/* ── M-9 降耗:reduced-motion 全量静止(语义与原 SVG 版一致,选择器随层更新):
+   旗停摇/环停转;呼吸类钉呼吸中程,静态可辨不停摆。 ── */
+@media (prefers-reduced-motion: reduce) {
+  .bv-amb-capital-glow,
+  .bv-amb-mine-halo {
+    animation: none;
+    opacity: 0.6;
+  }
+  .bv-amb-token-ring {
+    animation: none;
+    opacity: 0.78; /* 呼吸中程((0.55+1)/2),#840 ① 同口径 */
+  }
+  .bv-amb-tile-ring,
+  .bv-amb-flag {
+    animation: none;
+  }
+}
