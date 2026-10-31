@@ -704,6 +704,13 @@
   z-index: 7;
   display: flex;
   gap: 6px;
+  /* 容器不吃事件(#882 收官仲裁实锤:选都候选城砖落在钮区之下时,容器盒拦指针
+     令选城不可点,quickStart 族竞速假挂同根)——同 handzone #700 先例:容器
+     none,钮自持放行。 */
+  pointer-events: none;
+}
+.game-layout .pilebtns .gbtn {
+  pointer-events: auto;
 }
 .game-layout .gbtn {
   position: relative;
