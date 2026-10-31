@@ -84,16 +84,18 @@
   min-height: 0;
 }
 
-/* 滚动提示渐隐带(#708 首帧可见滚动提示的第二重保证):体部上/下缘 18px 渐隐,
-   各边只在还有同向内容时浮现(溢出侧状态由 ui/scroll-area 的 data-overflow-y-*
-   下发,:has() 沿体部查询),滚到头即收——渐隐收边替代「内容被壳缘硬切」的断头观感 */
+/* 滚动提示渐隐带(#708 首帧可见滚动提示的第二重保证;#833 加深 28px):体部上/下缘
+   28px 渐隐,各边只在还有同向内容时浮现(溢出侧状态由 ui/scroll-area 的
+   data-overflow-y-* 下发,:has() 沿体部查询,首帧即常显——实测 scrollTop=0 时
+   data-overflow-y-end 已就位),滚到头即收——渐隐收边替代「内容被壳缘硬切」的断头
+   观感;#833 前 18px 对首帧折叠下的「下面还有一张卡+价签」提示过弱 */
 .pile-modal .pile-body::before,
 .pile-modal .pile-body::after {
   content: "";
   position: absolute;
   left: 0;
   right: 0;
-  height: 18px;
+  height: 28px;
   pointer-events: none;
   opacity: 0;
   transition: opacity var(--dur-fast) var(--ease-out);
@@ -235,6 +237,10 @@
   font-size: 7.6px;
 }
 .pile-modal .pile-price {
+  /* 价签抬出渐隐带(#833):折叠下签面是决策关键数字,不被 28px 折叠提示带罩纱
+     (带仍在签周提示「下面还有」,断头观感收边职责不损失) */
+  position: relative;
+  z-index: 1;
   font-family: var(--font-wenkai);
   font-size: 12px;
   line-height: 1.5;
