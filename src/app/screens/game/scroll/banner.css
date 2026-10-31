@@ -48,11 +48,47 @@
 }
 
 /* ── 正文井:深墨实底(bg-deep)收口深底可读性(小字 ≥4.5:1)——漆金带上直接排
-   小字对 danger 仅 ≈4.1,井底加深后纸色正文 ≈16:1、淡纸 ≈9:1、朱砂警示 ≈5.5:1 ── */
+   小字对 danger 仅 ≈4.1,井底加深后纸色正文 ≈16:1、淡纸 ≈9:1、朱砂警示 ≈5.5:1。
+   井本体 = ui/scroll-area 根(#846,PileShell 同款底件):keepMounted 漆金轨道 +
+   溢出门控常显(首帧可见滚动提示),内滚归 viewport,井缘/井底恒整 ── */
 .banner-body {
   background: var(--color-bg-deep);
   border: 1px solid rgba(217, 185, 92, 0.2);
   border-radius: 4px;
+}
+
+/* ── 滚动提示渐隐带(#846,抄 pile-modal 渐隐带口径——同族两壳同语言):井上缘
+   18px / 井底 24px 墨罩渐隐,替代「内容被井缘硬切」的断头观感(城池详情价值表、
+   破产城/贤两段、选都等级表三处实锤)。各边只在还有同向内容时浮现:溢出侧状态由
+   scroll-area viewport 的 data-overflow-y-* 下发,:has() 沿井本体查询,滚到头即收
+   (井底墨罩滚到底自动撤)。带色 = 井底色(bg-deep),与井实底无缝衔接;井本体
+   position:relative 由底件 Root 自带,伪元素钉井盒不随内容滚动。#839 刀③曾按
+   scroll-tile-detail testid 落单点 mask 补丁,本块全族落地后收编退役(见文件尾)。 ── */
+.banner-shell .banner-body::before,
+.banner-shell .banner-body::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease-out);
+}
+.banner-shell .banner-body::before {
+  top: 0;
+  height: 18px;
+  background: linear-gradient(180deg, var(--color-bg-deep), transparent);
+}
+.banner-shell .banner-body::after {
+  bottom: 0;
+  height: 24px;
+  background: linear-gradient(0deg, var(--color-bg-deep), transparent);
+}
+.banner-shell .banner-body:has([data-overflow-y-start])::before {
+  opacity: 1;
+}
+.banner-shell .banner-body:has([data-overflow-y-end])::after {
+  opacity: 1;
 }
 
 /* ── 次级笺钮在横幅上的收口:note-btn 的墨发丝边(rgba(43,35,23,·))在深墨带上
@@ -141,26 +177,6 @@
   .banner-body .city-ledger-thumb {
     height: 48px;
   }
-  /* 定都确认卷轴正文井渐隐(#839 刀③):矮横屏档价值表超出井视口(量测 155px),
-     末行被井底缘裁半行而无「下面还有」的暗示——井上下缘 20px 墨纱渐隐。mask 挂
-     井本体(overlay 伪元素钉不住井缘,会随内容滚走;mask 钉元素盒不随滚动位移),
-     常显口径同 pile-modal 渐隐带(溢出侧门控待 P1-C1 井换 ui/scroll-area 时收)。
-     testid 作用域限定城池详情/定都确认卷轴(壳无逐实例类钩子,TileDetailScroll
-     本体不在本票落点),其余决策卷轴不受。 */
-  .banner-card[data-testid="scroll-tile-detail"] .banner-body {
-    -webkit-mask-image: linear-gradient(
-      180deg,
-      transparent 0,
-      #000 20px,
-      #000 calc(100% - 20px),
-      transparent 100%
-    );
-    mask-image: linear-gradient(
-      180deg,
-      transparent 0,
-      #000 20px,
-      #000 calc(100% - 20px),
-      transparent 100%
-    );
-  }
+  /* #839 刀③的 scroll-tile-detail 单点 mask 渐隐块已收编进上方通案渐隐带(#846):
+     不再按 testid 逐实例打补丁,全族卷轴同拍——单点块退役,勿复活两套系统。 */
 }
