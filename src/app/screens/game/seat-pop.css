@@ -196,7 +196,13 @@
 
 /* ── 明细弹层轻量补皮(声望/委任数值明细;名录/列表用现役 pile-* 全套不另起)──
    作用域类 .spop-detail 经 PileShell className 挂上 DialogContent(缺省不挂,忘挂
-   即裸排——#701 截图自证实录)。 */
+   即裸排——#701 截图自证实录)。壳宽收敛(#848):基壳 min(940px, 94vw) 是为陈列
+   网格设的,轻量数值明细只装一个数字——844×390 下 793px 壳装一字,收敛到
+   min(420px, 86vw);同特异性靠本文件后入包胜出(pile-modal.css 经
+   SeatAttrModals→PileModal 先入包,SeatRail.tsx 43→46 行导入序定死)。 */
+.spop-detail {
+  width: min(420px, 86vw);
+}
 .spop-detail .spop-numrow {
   display: flex;
   align-items: baseline;
@@ -220,7 +226,10 @@
   color: var(--color-ink-dim);
   padding: 0 8px 6px;
 }
-/* 声望献计里程碑章:已献=金章(色变即状态,§4.6 不加「已献」字标),未献=素章 */
+/* 声望献计里程碑章(#848,二轮审计 P1-C7):已献=漆金实底章、未献=虚线素章+
+   淡字(色变即状态,§4.6 不加「已献」字标)。旧制已献金边 50% vs 未献纸边 16%
+   在 22px 小章上肉眼同色,实/虚边+实底/透明底双通道分档;章高 22→26px 给虚线
+   周长一个可辨的最小尺度(实拍判据:三档 +30/+60/+90 已献/未献一眼可辨)。 */
 .spop-detail .spop-milestones {
   display: flex;
   justify-content: center;
@@ -228,17 +237,21 @@
   padding: 2px 0 8px;
 }
 .spop-detail .spop-milestone {
+  display: inline-flex;
+  align-items: center;
+  height: 26px;
+  padding: 0 7px;
   font-size: 10px;
-  padding: 1px 5px;
   border-radius: 3px;
   white-space: nowrap;
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--color-ink) 16%, transparent);
   background: color-mix(in srgb, var(--color-ink) 5%, transparent);
-  color: var(--color-ink-dim);
+  color: color-mix(in srgb, var(--color-ink-dim) 45%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .spop-detail .spop-milestone.claimed {
-  border-color: rgba(217, 185, 92, 0.5);
-  background: rgba(217, 185, 92, 0.14);
-  color: var(--color-gold);
+  border-style: solid;
+  border-color: var(--color-lacquer-gold);
+  background: var(--color-lacquer-gold);
+  color: var(--color-lacquer);
 }
