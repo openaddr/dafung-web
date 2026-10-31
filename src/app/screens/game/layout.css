@@ -121,6 +121,7 @@
 .war-earlier {
   margin: 0 1rem 0.75rem;
   padding: 6px 14px;
+  position: relative; /* ::after 命中垫定位上下文(#840 ③) */
   align-self: center;
   border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
   border-radius: 3px;
@@ -140,46 +141,62 @@
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
 }
+/* 触达命中垫(#840 ③,审计 P1-C4:触达欠账两处之一,视觉 ~30px 掉队):视觉不动,
+   上下外扩 10px → 触高 ~50px 过主行动 ≥44 口径(#751;::after 垫先例 .tbtn/.actionbar-btn);
+   横向不垫——抽屉内横宽本就富余,垫了反吞左右空白条带的点击。 */
+.war-earlier::after {
+  content: "";
+  position: absolute;
+  inset: -10px 0;
+}
 
 /* ── 空态空白笺(#768 空态器物化):无条目时一张待墨的空笺+三道虚线格空行——
    「一行小字」式空态退役,器物语言零文字(语义走组件侧 role=status aria-label);
-   笺纸取 paper-lo 淡入,格线沿用漆金虚线语(.war-earlier 边框同族)。 ── */
+   #840 ⑦(审计 R6 P2-10「空笺态对比不足」)提对比三拍:笺底 paper-lo 60% 透底 →
+   paper-hi 实色+微投影(ink-shadow-sm,笺从抽屉底上浮成「一件物」)、边框漆金
+   22%→35%、格虚线 25%→30%(笺纸实色后格线吃底变实,同步抬档防回退)。 ── */
 .war-blank {
   margin: 0.5rem 1rem 1rem;
   padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 14px;
-  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 22%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 3px;
-  background: color-mix(in srgb, var(--color-paper-lo) 60%, transparent);
+  background: var(--color-paper-hi);
+  box-shadow: var(--ink-shadow-sm);
 }
 .war-blank > i {
   height: 0;
-  border-bottom: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 25%, transparent);
+  border-bottom: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 30%, transparent);
 }
 
-/* ── 战报未读金点(#768):有未读条目时 ⚙ 设置钮右上 6px 金点,呼吸 --dur-ambient
+/* ── 战报未读金点(#768):有未读条目时 ⚙ 设置钮右上金点,呼吸 --dur-ambient
    (呼吸类统一 token)。挂件绝对定位不进钮盒——react-float-skeleton 对 .tbtn
    32×32 有几何断言,不许撑动。清账口径:打开战报抽屉即清(GameScreen 本地已读
    游标对比 warEntriesOf,不进快照);样式寄战报段:金点是战报的未读表达,
-   非设置钮自身的状态。 ── */
+   非设置钮自身的状态。
+   #840 ⑥(审计 R6「未读金点 6px 存在感弱」)提存在感三拍:点 6→8px、外圈
+   1px 漆金描边圈(box-shadow 0 0 0 1px,总观感 10px 且深底上有了轮廓)、呼吸
+   谷值加深(opacity 0.55→0.4 / scale 0.9→0.7,峰值不动——摆幅加大,呼吸更可感)。 ── */
 .game-layout .tbtn .war-unread-dot {
   position: absolute;
-  top: -1px;
-  right: -1px;
-  width: 6px;
-  height: 6px;
+  top: -2px;
+  right: -2px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
   background: var(--color-gold);
-  box-shadow: 0 0 4px color-mix(in srgb, var(--color-gold) 60%, transparent);
+  box-shadow:
+    0 0 0 1px var(--color-lacquer-gold),
+    0 0 4px color-mix(in srgb, var(--color-gold) 60%, transparent);
   animation: war-dot-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 @keyframes war-dot-breathe {
   0%,
   100% {
-    opacity: 0.55;
-    transform: scale(0.9);
+    opacity: 0.4;
+    transform: scale(0.7);
   }
   50% {
     opacity: 1;
@@ -408,11 +425,17 @@
    + lo(四项 8+6=14,声望 -12 档 23.5)≤65.5。
    典型档 84.2(余 9.8 归组间隙)、9 背封顶档 94.2 贴边容下、负声望档 93.7 容下;
    「9 背手牌×负声望」同席极端 103.7 越界 9.7——旧等权排布同席即越界 10.5(出
-   边框),本制收敛不加剧,判据按此极端如实登记。卷轴/牌背随原型吃淡纸。 */
+   边框),本制收敛不加剧,判据按此极端如实登记。
+   #840 ⑤(审计 R2 P2-3「低频四图标 8px 形不可辨」,提档 A 案):低频四图标
+   8→9px(见下 .ai svg),行 gap 2px 兜组间隙下限(松档由 space-between 余量
+   吸收、不可见,紧档保 hi|sep|lo 不贴死)。上记 #770 量测预算未重测,口径平移:
+   lo 四项各 +1px、紧档 gap 计入 +4px,极端档越界随口径放大,仍按登记、不另设防。
+   卷轴/牌背随原型吃淡纸。 */
 .game-layout .seat .l2 {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 2px;
   margin: 0 -5px;
 }
 /* 组壳(#770):行2 的两个分组容器(Claim display:contents 不改排版,.ai 是
@@ -459,9 +482,11 @@
   padding: 16px 0 6px;
   margin: -16px 0 -6px;
 }
+/* 低频四图标(svg 尺寸,#840 ⑤ 提档 8→9px,与 SeatRail size=9 对齐——原先 CSS
+   钉 8px 压过组件属性;形不可辨是审计 R2 P2-3 主诉,命中区满格高通路不变)。 */
 .game-layout .seat .ai svg {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   flex: 0 0 auto;
 }
 .game-layout .seat .ai.ai-city {
@@ -615,16 +640,32 @@
    空手牌态(选都期)的架体盒子(牌高 160px+ 级)整片压进棋盘下缘——选都候选城
    落点在架下时 Playwright hit-target 永不过(e2e/react-war-report seed49 实锤),
    真人也点不到候选城。架体容器降 none,真交互件(牌卡钮/反应窗横幅)自持放行;
-   签面 Tip 与弹层(挂 body portal)不在本块管辖。 */
+   签面 Tip 与弹层(挂 body portal)不在本块管辖。
+   签面归组(#840 ④,审计 R2 P2-1「签面孤儿位贴视口左缘,与手牌架断联」):架体
+   弃 hand-rack.css 的 flex:1 1 auto 全宽吃满(3 类特异度压过),改 hug 内容
+   flex:0 1 auto——牌行 ≤3 张全展时架体收拢到牌行实宽,签面与牌行合成一组随
+   handzone justify-content:center 居中;≥4 张叠加压缩态本就近乎吃满,hug 后
+   架宽=压缩行实宽,HandRack 的可用宽测量(RO 量架 content box)随之收敛:
+   step 由全宽算出 → 负 margin 行实宽 ≤ 全宽 → 架体收拢到行宽 → 重测 step 不变,
+   不振荡。 */
 .game-layout .handzone .hand-rack {
   pointer-events: none;
+  flex: 0 1 auto;
+}
+/* 反应窗横幅在场时回全宽(#840 ④ 例外档):横幅 left/right:0 + max-width:100%
+   锚架体盒(reaction-banner.css,#860 已合文件本票禁碰)——hug 窄架会把长文案
+   横幅挤到折行;窗开瞬间横幅本身是焦点,签面归组让位。 */
+.game-layout .handzone .hand-rack:has(> .reaction-banner) {
+  flex: 1 1 auto;
 }
 .game-layout .handzone .hand-rack :is(button, .reaction-banner) {
   pointer-events: auto;
 }
 /* 签面(原仪表条「签」徽章平移,testid dice-face 不变;原型 .diceseal 制式):
-   驻左端(align-self flex-end + 原型 margin);待起摇(#530)转「待」浅印 + 呼吸
-   金边(.await,自 game-hud.css 并入)——UI 状态变化承载(DESIGN §4.6)。 */
+   驻手牌区左端组内(与架体的组距 = handzone gap 10 + 自身 margin 4;#840 ④ 起
+   架体 hug 内容,签面与牌行同组居中,不再孤儿位贴视口左缘);待起摇(#530)转
+   「待」浅印 + 呼吸金边(.await,自 game-hud.css 并入)——UI 状态变化承载
+   (DESIGN §4.6)。 */
 .game-layout .diceseal {
   flex: none;
   align-self: flex-end;
@@ -989,12 +1030,15 @@
 
 /* ── 棋盘 token 活跃呼吸环(#762):当前回合方棋子脚下的细实线金环——「谁在打」的
    棋盘锚,与常驻回合胶囊双锚点(席位是身份,棋盘是地理,同 #256 双锚点口径)。
-   复用席位活跃呼吸语言(.seat.active 金圈,layout.css 上文):金 opacity 0.35→1、
-   --dur-ambient + --ease-sine 常驻呼吸;同时至多一枚有环(GameScreen 按快照
-   activeIndex 单源下发 activePlayerId)。与候选呼吸(.bv-token-target-ring,出牌段
-   才在)/行军金环(接管期才在)/自机微光(常驻身份)分属不同语义环,属性不冲突:
+   复用席位活跃呼吸语言(.seat.active 金圈,layout.css 上文);#840 ①(审计 P1-B6
+   「谷值断讯」:opacity 单参数呼吸谷值段 ~1s 环消失)形体化——keyframes 并入
+   scale 0.92→1.08(环有胀缩形),谷值 opacity 0.35→0.55(谷值段不再隐形);
+   transform-box: fill-box 已具备,SVG 环缩放绕自体中心。--dur-ambient +
+   --ease-sine 常驻呼吸;同时至多一枚有环(GameScreen 按快照 activeIndex 单源
+   下发 activePlayerId)。与候选呼吸(.bv-token-target-ring,出牌段才在)/行军金环
+   (接管期才在)/自机微光(常驻身份)分属不同语义环,属性不冲突:
    环画在旗面图形之下(TokenLayer 渲染序),reduced-motion 退化为静态细环
-   (opacity 钉呼吸中程 0.65,环仍在、状态可辨)。 ── */
+   (opacity 钉呼吸中程 0.78,环仍在、状态可辨)。 ── */
 .game-layout .bv-token-active-ring {
   animation: bv-token-active-breath var(--dur-ambient) var(--ease-sine) infinite;
   transform-box: fill-box;
@@ -1003,9 +1047,11 @@
 @keyframes bv-token-active-breath {
   0%,
   100% {
-    opacity: 0.35;
+    transform: scale(0.92);
+    opacity: 0.55;
   }
   50% {
+    transform: scale(1.08);
     opacity: 1;
   }
 }
@@ -1021,7 +1067,7 @@
     animation: none;
   }
   .game-layout .bv-token-active-ring {
-    opacity: 0.65;
+    opacity: 0.78; /* 呼吸中程((0.55+1)/2,#840 ① 谷值抬档后随动) */
   }
 }
 
@@ -1055,6 +1101,17 @@
     font-size: 15px;
     line-height: 1.2;
     padding: 5px 16px;
+    position: relative; /* ::after 命中垫定位上下文(#840 ②) */
+  }
+  /* 触达命中垫(#840 ②,审计 P1-C4:触达欠账两处之一):本档钮视觉高
+     15×1.2+2×5+2 边 ≈30px,::after inset:-7px 上下左右各垫 7px → 触达 44px
+     过主行动 ≥44 口径(#751/#742;::after 垫先例 .tbtn inset:-6)。仅矮横屏档——
+     桌面档存量钮 36px 级且非触屏主面,存量桌面档控件不回改(DESIGN 触达口径);
+     两钮 gap 14px,垫各 7px 恰好相接不互叠。 */
+  .game-layout .actionbar .actionbar-btn::after {
+    content: "";
+    position: absolute;
+    inset: -7px;
   }
 }
 

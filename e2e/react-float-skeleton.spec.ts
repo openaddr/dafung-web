@@ -13,6 +13,8 @@ import {
   waitSettled,
   dismissJinnangIfUp,
   actIfCan,
+  force,
+  freezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
@@ -152,6 +154,73 @@ test.describe("锦囊手牌开关(#700 ③)", () => {
     await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangToggle)).toHaveClass(/on/);
     expect(await page.evaluate(() => localStorage.getItem("dafung.handVisible"))).toBe("1");
+  });
+});
+
+test.describe("签面归组(#840 ④)", () => {
+  test.use({ viewport: { width: 844, height: 390 } });
+
+  test("签面与手牌架同组居中:签面贴牌行、组中线≈手牌区中线、架体收拢到内容实宽", async ({
+    page,
+  }) => {
+    test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
+    await quickStart(page);
+    // 冻结时钟再钉单张手牌(bot 链与偶发反应横幅不与几何读数赛跑,react-seat-cells
+    // 挂点断言同款前提);单张把 hug 与旧全宽档的差异放到最大——叠加压缩态架体
+    // 本就近乎吃满,断言无分辨力。
+    await freezeClock(page);
+    await force(page, `e.players[0].jinnangHand = ["军情密探"];`);
+    type Geo = {
+      gapSealToCard: number;
+      groupCenterOffset: number;
+      rackHugs: boolean;
+      ok: boolean;
+    } | null;
+    let geo: Geo = null;
+    // 反应横幅在场(:has 例外档回全宽,layout.css)或窗态拦顶时整块重试(状态轮询)
+    await expect(async () => {
+      await dismissJinnangIfUp(page);
+      geo = await page.evaluate(
+        ({ zone, seal }) => {
+          const q = (t: string) => document.querySelector(`[data-testid="${t}"]`);
+          const zoneEl = q(zone);
+          const sealEl = q(seal);
+          const rackEl = document.querySelector(".handzone .hand-rack");
+          const cardEl = document.querySelector(".handzone .hand-rack button");
+          if (!zoneEl || !sealEl || !rackEl || !cardEl) return null;
+          const rect = (el: Element) => {
+            const r = el.getBoundingClientRect();
+            return { left: r.x, right: r.x + r.width, cx: r.x + r.width / 2, w: r.width };
+          };
+          const z = rect(zoneEl);
+          const s = rect(sealEl);
+          const rk = rect(rackEl);
+          const c = rect(cardEl);
+          const gapSealToCard = c.left - s.right; // 签面右缘 → 首张牌左缘(组内贴邻)
+          const groupCenterOffset = Math.abs((s.left + rk.right) / 2 - z.cx);
+          const rackHugs = rk.w < z.w - 50; // hug 内容实宽(旧 flex:1 全宽吃满档不满足)
+          return {
+            gapSealToCard,
+            groupCenterOffset,
+            rackHugs,
+            ok:
+              !document.querySelector(".handzone .reaction-banner") &&
+              rackHugs &&
+              gapSealToCard >= 0 &&
+              gapSealToCard <= 45 &&
+              groupCenterOffset <= 3,
+          };
+        },
+        { zone: TESTIDS.handZone, seal: TESTIDS.diceFace },
+      );
+      expect(geo).not.toBeNull();
+      expect(geo!.ok).toBe(true);
+    }).toPass({ timeout: 15_000 });
+    // 终值逐项复述(失败信息直读几何差量)
+    expect(geo!.gapSealToCard).toBeGreaterThanOrEqual(0);
+    expect(geo!.gapSealToCard).toBeLessThanOrEqual(45);
+    expect(geo!.groupCenterOffset).toBeLessThanOrEqual(3);
+    expect(geo!.rackHugs).toBe(true);
   });
 });
 
