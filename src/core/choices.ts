@@ -13,7 +13,7 @@ import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import type { HeroSlot } from "./roster";
-import type { EncounterChoiceOption } from "./encounters";
+import type { EncounterChoiceOption, EncounterTier } from "./encounters";
 import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
 import { extensionInquiries } from "./extension-registry";
 
@@ -41,6 +41,10 @@ export interface ChoiceOption {
    *  过网的唯一通道(UI 卷轴渲染文段、restoreFromSnapshot 按 id 回链目录);其余相位不携带。 */
   encounterId?: string;
   encounterText?: string;
+  /** 抉择机遇选项专属(#847):机遇档位随选项出快照(单通道透出 def.tier,纯表现数据,
+   *  引擎裁决零改动)——UI 三档视觉分档(机遇卷轴题印/题名侧饰条色)唯一数据源;
+   *  消费方查无此章 = 注册表盖章缺失,当场炸出不静默回退。其余相位不携带。 */
+  encounterTier?: EncounterTier;
   /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
   holdingPropertyId?: string;
   exhaustionKind?: "downgrade" | "lose";
@@ -142,7 +146,8 @@ function encounterOptionGate(
 }
 
 /** AwaitingEncounter(抉择机遇,#124):目录选项逐一映射,顺序与 def.choices 一致
- *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText 随选项出快照。 */
+ *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText/encounterTier
+ *  随选项出快照(#847:tier 单通道透出,机遇卷轴按档分色的唯一数据源)。 */
 function encounterChoices(e: GameEngine): ChoiceOption[] {
   const def = e.pendingEncounter;
   if (!def?.choices) return [];
@@ -155,6 +160,7 @@ function encounterChoices(e: GameEngine): ChoiceOption[] {
       reason: gate.reason,
       encounterId: def.id,
       encounterText: def.text,
+      encounterTier: def.tier,
     };
   });
 }

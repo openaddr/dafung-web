@@ -11,6 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
+import type { EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { AffordRow } from "./AffordRow";
@@ -39,6 +40,23 @@ function useNumberShortcuts(actions: Array<() => void>) {
 // 数据单源快照 choices(choices.ts 注册表产出):encounterId/encounterText 随选项携带,
 // label=选项原文,available/reason=引擎口径(如以宝换贤的「珍宝不足」),UI 不自行判定。
 // 选项下标 = snapshot.choices 数组下标 = def.choices 下标(resolveEncounterChoice 按此结算)。
+// 三档视觉分档(#847,报告 P1-C2「机遇三档零视觉分档,霉运穿金戴银」):题印底色与
+// 题名 4px 侧饰条按档换色——好运=亮金(壳默认金渐变原样)/中性=黛青/霉运=朱砂;
+// 色变即状态(DESIGN §4.6),不加文字标牌。霉运档首选项从金色 primary 降笺钮——
+// 两害相权的损失不上金、不以庆祝相呈现;其余两档首选项仍 primary(目录序即推荐序)。
+// 实现注:题印 span 与题名 h2 是 BannerShell 题行的内置结构,壳件本票禁碰(#846 在跑),
+// 皮肤经 display:contents 包裹层 + 任意变体后代选择器下探,全部类名落字面量(Tailwind
+// 静态抽取)。选择器契约 = 壳体(.banner-shell)首子为题行、题行首子为题印 span、次子为
+// 题名 h2——壳题行结构若有变,此处皮肤随之失明(改壳时同步本表)。
+const TIER_SKIN: Record<EncounterTier, string> = {
+  好运: "[&_.banner-shell>div:first-child>h2]:border-gold-bright",
+  中性: "[&_.banner-shell>div:first-child>span:first-child]:bg-none [&_.banner-shell>div:first-child>span:first-child]:bg-seal-qing [&_.banner-shell>div:first-child>h2]:border-seal-qing",
+  霉运: "[&_.banner-shell>div:first-child>span:first-child]:bg-none [&_.banner-shell>div:first-child>span:first-child]:bg-danger [&_.banner-shell>div:first-child>h2]:border-danger",
+};
+// 侧饰条宽度/留白三档共用(只换 border 色,见上表)。
+const TITLE_BAR_SHAPE =
+  "[&_.banner-shell>div:first-child>h2]:border-l-4 [&_.banner-shell>div:first-child>h2]:pl-2";
+
 export function EncounterChoiceScroll({
   encounterId,
   encounterText,
@@ -51,6 +69,14 @@ export function EncounterChoiceScroll({
   choices: ChoiceOption[];
   onCommand: (cmd: GameCommand) => void;
 }) {
+  // 三档皮肤:encounterTier 由注册表随选项盖章(choices.ts 单通道透出 def.tier),
+  // 本层不再查目录回链——章缺失或表缺档 = 数据 bug,当场炸出不静默回退(零兜底)。
+  const skin = TIER_SKIN[choices[0]!.encounterTier!];
+  if (skin == null)
+    throw new Error(
+      `机遇卷轴:档位「${String(choices[0]!.encounterTier)}」查无分档皮肤(choices 章 encounterTier 与 TIER_SKIN 不同步)`,
+    );
+  const isBadTier = choices[0]!.encounterTier === "霉运";
   // G-19 同口径:数字键 1..n 直选(不可选的选项按键无效)
   useNumberShortcuts(
     choices.map((o, i) => () => {
@@ -58,29 +84,33 @@ export function EncounterChoiceScroll({
     }),
   );
   return (
-    <BannerShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
-      {/* 机遇文段:事件描述正文用霞鹜文楷 */}
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
-      <div className="flex flex-col gap-2.5">
-        {choices.map((o, i) => (
-          <BannerButton
-            key={o.id}
-            primary={i === 0}
-            disabled={!o.available}
-            title={o.available ? undefined : o.reason}
-            testid={T.encounterOption(i)}
-            onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
-          >
-            {o.label}
-          </BannerButton>
-        ))}
-      </div>
-      {choices.some((o) => !o.available) && (
-        <p className="mt-2 text-center text-xs text-ink-dim">
-          {choices.find((o) => !o.available)?.reason}
-        </p>
-      )}
-    </BannerShell>
+    // display:contents 包裹层只作皮肤选择器宿主,不改排版(SeatRail 同法先例);
+    // 横幅 overlay 的 absolute 定位仍解析到原包含块,布局零位移。
+    <div className={`contents ${TITLE_BAR_SHAPE} ${skin}`}>
+      <BannerShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
+        {/* 机遇文段:事件描述正文用霞鹜文楷 */}
+        <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
+        <div className="flex flex-col gap-2.5">
+          {choices.map((o, i) => (
+            <BannerButton
+              key={o.id}
+              primary={i === 0 && !isBadTier}
+              disabled={!o.available}
+              title={o.available ? undefined : o.reason}
+              testid={T.encounterOption(i)}
+              onClick={() => onCommand({ type: "resolveEncounterChoice", index: i })}
+            >
+              {o.label}
+            </BannerButton>
+          ))}
+        </div>
+        {choices.some((o) => !o.available) && (
+          <p className="mt-2 text-center text-xs text-ink-dim">
+            {choices.find((o) => !o.available)?.reason}
+          </p>
+        )}
+      </BannerShell>
+    </div>
   );
 }
 

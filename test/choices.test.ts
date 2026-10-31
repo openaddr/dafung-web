@@ -11,6 +11,7 @@ import { createDice } from "@core/dice";
 import huanyouData from "../public/maps/huanyou.json";
 import { loadMap } from "@core/board-loader";
 import { EXCLUDED_FROM_AUTO, type ChoiceOption } from "@core/choices";
+import { ENCOUNTERS, type EncounterTier } from "@core/encounters";
 import { HEROES } from "@core/heroes";
 import { botAct } from "@core/bot";
 import { testEngine, armHero, heroOffer } from "@core/testing";
@@ -361,5 +362,34 @@ describe("快照 choices 派生字段", () => {
     const e2 = makeEngine(2);
     e2.restoreFromSnapshot(s1);
     expect(e2.snapshot().choices).toEqual(s1.choices);
+  });
+
+  it("机遇选项章:encounterTier 三档镜像 def.tier 随选项出快照(#847)", () => {
+    // 三档各取一条抉择机遇,经 testEngine.enterEncounter 确定性入相(绕过抽取随机),
+    // 钉「注册表给机遇选项盖章 encounterTier=def.tier」的镜像关系——UI 三档视觉分档
+    // (DecisionScrolls 题印/侧饰条色)唯一数据源在此,章缺失即 UI 分档失明。
+    const byId = (id: string) => ENCOUNTERS.find((c) => c.id === id)!;
+    const pins: Array<[string, EncounterTier]> = [
+      ["奉迎天子", "好运"],
+      ["携民渡江", "中性"],
+      ["疫病入营", "霉运"],
+    ];
+    for (const [id, tier] of pins) {
+      expect(byId(id).tier, `${id} 目录档位`).toBe(tier); // 钉值先对目录自证
+      const e = makeEngine(1);
+      finishSetup(e);
+      testEngine(e).enterEncounter(byId(id));
+      expect(e.turnPhase, `${id} 入抉择相位`).toBe("AwaitingEncounter");
+      const opts = e.choicesFor();
+      expect(opts.length, `${id} 真两难(≥2 选项)`).toBeGreaterThanOrEqual(2);
+      expect(
+        opts.every((o) => o.encounterTier === tier),
+        `${id} tier 过网`,
+      ).toBe(true);
+      expect(
+        opts.every((o) => o.encounterId === id),
+        `${id} id 过网(对照既有章)`,
+      ).toBe(true);
+    }
   });
 });
