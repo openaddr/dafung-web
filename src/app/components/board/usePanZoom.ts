@@ -164,15 +164,23 @@ export interface PanZoom {
   getView: () => ViewBox;
 }
 
-export function usePanZoom(svgRef: React.RefObject<SVGSVGElement | null>, fit: ViewBox): PanZoom {
+export function usePanZoom(
+  svgRef: React.RefObject<SVGSVGElement | null>,
+  fit: ViewBox,
+  /** 顶板(动态层,ADR-0040):viewBox 与主板同拍双写——棋子/特效/流光所在 svg,
+   *  pointer-events none 不吃事件,只有 viewBox 需要跟随。 */
+  tokensSvgRef?: React.RefObject<SVGSVGElement | null>,
+): PanZoom {
   // 真源:ref 里的当前 viewBox(命令式更新,不触发 React 渲染)。
   const view = useRef<ViewBox>({ ...fit });
   const apply = useCallback(() => {
     const el = svgRef.current;
     if (!el) return;
     const v = view.current;
-    el.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
-  }, [svgRef]);
+    const box = `${v.x} ${v.y} ${v.w} ${v.h}`;
+    el.setAttribute("viewBox", box);
+    tokensSvgRef?.current?.setAttribute("viewBox", box);
+  }, [svgRef, tokensSvgRef]);
   const setView = useCallback(
     (next: ViewBox) => {
       view.current = clampViewBox(next, fit);
