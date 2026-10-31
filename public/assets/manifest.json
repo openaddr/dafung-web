@@ -227,7 +227,10 @@
     "license": "noname(开源三国杀)内置素材,源头为三国杀官方原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
     "author": "noname 项目(libccy/noname)打包;原画游卡桌游",
     "fetched_at": "2026-10-14",
-    "review_required": true
+    "review_required": true,
+    "retired": true,
+    "retired_at": "2026-10-31",
+    "retired_reason": "#886 死资产退役:#843 首页横带换血《平复帖》后全仓消费点归零;文件已下架,本条目留档"
   },
   "audio:tile-clack": {
     "path": "assets/audio/audio-tile-clack.ogg",
