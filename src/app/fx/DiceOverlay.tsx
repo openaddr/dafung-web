@@ -71,6 +71,7 @@ function rollSign(die: number): Promise<void> {
   const ring = document.createElement("div");
   ring.className = "fx-dice-ring"; // 落点金圈:落定拍才入 DOM(与大字落定同拍绽放)
   ring.style.animationDelay = `${DICE.landRingDelayMs}ms`; // #849 棒1:等 outBack 钤落成形再炸
+  ring.style.animationDuration = `${DICE.landRingMs}ms`; // #849 棒3:keyframe 只管形,时长随通道缩放
   const sign = document.createElement("div");
   sign.className = "dice-sign dice-sign-shaking"; // 第一段:签卡隐去,只余墨字虚影
   sign.textContent = SIGN_FACES[die - 1];
@@ -99,6 +100,7 @@ function rollSign(die: number): Promise<void> {
       sign.style.rotate = "";
       sign.classList.remove("dice-sign-shaking");
       sign.classList.add("dice-sign-land");
+      sign.style.animationDuration = `${DICE.landMs}ms`; // #849 棒3:钤落弧时长随通道缩放(类与注入同拍成对)
       overlay.insertBefore(ring, sign);
       getAudio().play("diceLand");
       for (const cb of landListeners) cb(die); // 落定拍广播:芯片揭示本次点数(#849 棒1)

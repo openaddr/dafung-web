@@ -333,6 +333,14 @@ test.describe("反应窗(#281 单机)", () => {
     });
     await expect(duelWin.getByTestId(TESTIDS.duelSign(0))).toHaveClass(/duel-sign-win/);
     await expect(duelWin.getByTestId(TESTIDS.duelSign(mover1))).toHaveClass(/duel-sign-dim/);
+    // 钤落弧时长追帧通道探针(#849 棒3):duel-sign-land 时长由消费点内联注入
+    // DUEL.landMs(scStage),不再是 fx.css 字面量——本例 0.5 倍率(useHalfScale)下
+    // sc(260)=130ms;字面量回潮(时长失通道)读数恒 260ms,即此红。
+    const landDur = await duelWin
+      .locator(".duel-sign.duel-sign-land")
+      .first()
+      .evaluate((el) => getComputedStyle(el).animationDuration);
+    expect(landDur, "钤落弧时长未走消费点内联注入(#849 棒3)").toBe("0.13s");
     // 拦胜止步:位置落首都格且此后不挪(后续分支不再轮到该 bot),无窗竞态
     await expect
       .poll(

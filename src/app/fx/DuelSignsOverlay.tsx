@@ -106,6 +106,7 @@ function startShaking(sign: SignHandle): () => void {
 function landSign(sign: SignHandle): void {
   sign.root.classList.remove("duel-sign-shaking", "duel-sign-windup");
   sign.root.classList.add("duel-sign-land");
+  sign.root.style.animationDuration = `${DUEL.landMs}ms`; // #849 棒3:keyframe 只管形,钤落弧时长随通道缩放
   sign.face.textContent = SIGN_FACES[sign.side.roll - 1];
   getAudio().play("diceLand");
 }
