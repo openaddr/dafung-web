@@ -10,8 +10,14 @@
 //     style 里,重渲染只 diff 它自己的键,命令式写入不会被抹。
 //   - 位置零记忆:每次打开回中心。底件系弹层关闭即整树卸载,变量随元素离场;同实例
 //     内容更替(BannerShell 题名 A→B,#90 同身份协议)走 resetKey 复位。
-//   - clamp:窗体允许大面积出屏,题名行任一部分不得完全出视口(拖动起点测一次题名
-//     包围盒,与视口求交非空;全程用这份测量,不逐帧读 DOM)。
+//   - clamp(#845 视口钳制,取代 #674 的「题名行不出视口」):锚 = 弹层本体盒(拖动
+//     起点测一次,全程用这份测量,不逐帧读 DOM)。× 关钮居弹层右上(top/right 12px),
+//     钳制保证 × 所在的右/顶带恒在屏内:
+//       横向:弹层右缘留在 [48, 视口宽-48](× 右缘 ≤ 弹层右缘,恒可点;左拖允许
+//             大面积出屏,唯 × 所在右带不沉);
+//       纵向:顶缘不出视口上缘;下拉至顶带剩 48px 为止(× 不沉底)。
+//     起始位已越界者(94vw 宽壳右缘先天过界)只拦继续出界、不往回推:出界方向上界
+//     取 max(0, ·)。模态语义零变化(ADR-0031:遮罩拦指针/焦点陷阱/Esc/点外关闭)。
 //   - 吸附与遮罩联动:落点在默认中心 ±SNAP_RADIUS_PX 内松手 → 吸附回正(变量归零)+
 //     遮罩复原;非零位移且超出吸附半径 → dimmed=true,遮罩减淡至 OVERLAY_TINT_DIMMED。
 //     两档色值单源 = 下面两个常量,ui/dialog 遮罩与 banner-overlay 都从这里取色。
@@ -29,18 +35,23 @@ import {
   type RefObject,
 } from "react";
 
-/** 遮罩墨纱两档(色值单源):常态 0.42 / 拖离中心减淡 0.15。 */
-export const OVERLAY_TINT = "rgba(30,23,12,0.42)";
-export const OVERLAY_TINT_DIMMED = "rgba(30,23,12,0.15)";
+/** 遮罩墨纱两档(色值单源):深底重定标(#845 审计 P1-C3——浅底时代参数
+ *  rgba(30,23,12,·) 在玄墨深底上 ΔRGB≈7 不可感,#674 拖离减淡形同不存在)。
+ *  常态 0.55 / 拖离中心减淡 0.25,墨纱转近黑(5,4,2)= bg-deep 同族。 */
+export const OVERLAY_TINT = "rgba(5,4,2,0.55)";
+export const OVERLAY_TINT_DIMMED = "rgba(5,4,2,0.25)";
 /** 叠层减淡档(#767 弹窗详情族④):同帧两弹层以上(开栈栈深>1)时**上层**遮罩色。
  *  alpha 单源 = app.css 的 --mask-dim-stacked(0.28,消费条件见该 token 注释),
- *  rgb 三元组与两档同族;拖离减淡(0.15)强于叠层减淡,壳侧取强不叠加。 */
-export const OVERLAY_TINT_STACKED = "rgba(30, 23, 12, var(--mask-dim-stacked))";
+ *  rgb 三元组与两档同族;拖离减淡(0.25)强于叠层减淡,壳侧取强不叠加。 */
+export const OVERLAY_TINT_STACKED = "rgba(5, 4, 2, var(--mask-dim-stacked))";
 
 /** 拖动生效的最小位移(px):不足即松手不算拖。 */
 const DRAG_THRESHOLD_PX = 10;
 /** 吸附半径(px):松手落点在默认中心 ±R 内吸附回正;非零位移且超出即减淡遮罩。 */
 const SNAP_RADIUS_PX = 24;
+/** 视口钳制保留带(#845):弹层右缘距视口左/右缘 ≥48px(× 所在右带恒在屏);
+ *  下拉时弹层顶带 ≥48px 不沉底(× 居顶带)。 */
+const EDGE_RESERVE_PX = 48;
 
 interface DragPoint {
   x: number;
@@ -53,8 +64,8 @@ interface DragSession {
   start: DragPoint;
   /** 拖动起点时的既有偏移:已在拖离位上的再次拖动从原位续算,不归零重算。 */
   base: DragPoint;
-  /** 题名行包围盒(拖动起点测量,viewport 坐标;clamp 全程用这份)。 */
-  titleRect: DOMRect;
+  /** 弹层本体包围盒(拖动起点测量,viewport 坐标;clamp 全程用这份,#845 钳制锚)。 */
+  popupRect: DOMRect;
   viewport: { w: number; h: number };
   /** 位移已过阈值(过了才算拖,变量才开始动)。 */
   moved: boolean;
@@ -117,14 +128,25 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
 
   const apply = useCallback(
     (s: DragSession, client: DragPoint) => {
-      // clamp 加在原始位移上:titleRect 已含 base 偏移,新题名位 = titleRect + raw,
-      // 「任一部分不出视口」= 求交非空(right+raw > 0 且 left+raw < 视口宽,纵同)。
+      // clamp 加在原始位移上(#845,锚 = popupRect,已含 base 偏移):新弹层位 =
+      // popupRect + raw。右向钳 newRight ≤ 视口宽-48、左向钳 newRight ≥ 48(× 所在
+      // 右带恒在屏);纵向下钳 newTop ≤ 视口高-48(顶带不沉底)、上钳 newTop ≥ 0
+      // (顶缘不出上缘)。出界方向的上界取 max(0, ·):起始位已越界(94vw 壳)只拦
+      // 继续出界,不往回推。
       const rawX = client.x - s.start.x;
       const rawY = client.y - s.start.y;
       const x =
-        s.base.x + Math.max(-s.titleRect.right, Math.min(s.viewport.w - s.titleRect.left, rawX));
+        s.base.x +
+        Math.max(
+          EDGE_RESERVE_PX - s.popupRect.right,
+          Math.min(Math.max(0, s.viewport.w - EDGE_RESERVE_PX - s.popupRect.right), rawX),
+        );
       const y =
-        s.base.y + Math.max(-s.titleRect.bottom, Math.min(s.viewport.h - s.titleRect.top, rawY));
+        s.base.y +
+        Math.max(
+          -s.popupRect.top,
+          Math.min(Math.max(0, s.viewport.h - EDGE_RESERVE_PX - s.popupRect.top), rawY),
+        );
       offsetRef.current = { x, y };
       writeVars(offsetRef.current);
       // 减淡沿:非零位移且落点超出吸附半径(同一把 ±SNAP_RADIUS_PX 方域,吸附判定同源)
@@ -135,22 +157,27 @@ export function useDialogDrag({ popupRef, resetKey }: DialogDragOptions): Dialog
     [writeVars],
   );
 
-  const onPointerDown = useCallback((e: ReactPointerEvent<HTMLElement>) => {
-    // 起点在按钮上(X 钮/决策钮)不启动拖动;已有指针在拖,第二指不接管
-    if ((e.target as Element).closest("button") != null || sessionRef.current != null) return;
-    const title = handleRef.current;
-    if (title == null) throw new Error("useDialogDrag:题名行 ref 为空(接线 bug)");
-    sessionRef.current = {
-      pointerId: e.pointerId,
-      start: { x: e.clientX, y: e.clientY },
-      base: offsetRef.current,
-      titleRect: title.getBoundingClientRect(),
-      viewport: { w: window.innerWidth, h: window.innerHeight },
-      moved: false,
-    };
-    e.currentTarget.setPointerCapture(e.pointerId);
-    setDragging(true);
-  }, []);
+  const onPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLElement>) => {
+      // 起点在按钮上(X 钮/决策钮)不启动拖动;已有指针在拖,第二指不接管
+      if ((e.target as Element).closest("button") != null || sessionRef.current != null) return;
+      const title = handleRef.current;
+      if (title == null) throw new Error("useDialogDrag:题名行 ref 为空(接线 bug)");
+      const popup = popupRef.current;
+      if (popup == null) throw new Error("useDialogDrag:弹窗本体 ref 为空(接线 bug)");
+      sessionRef.current = {
+        pointerId: e.pointerId,
+        start: { x: e.clientX, y: e.clientY },
+        base: offsetRef.current,
+        popupRect: popup.getBoundingClientRect(),
+        viewport: { w: window.innerWidth, h: window.innerHeight },
+        moved: false,
+      };
+      e.currentTarget.setPointerCapture(e.pointerId);
+      setDragging(true);
+    },
+    [popupRef],
+  );
 
   const onPointerMove = useCallback(
     (e: ReactPointerEvent<HTMLElement>) => {

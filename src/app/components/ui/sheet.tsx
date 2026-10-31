@@ -9,6 +9,7 @@
 import * as React from "react";
 import { Dialog as SheetPrimitive } from "@base-ui/react/dialog";
 import { cn } from "@app/utils/cn";
+import { OVERLAY_TINT } from "@app/hooks/use-dialog-drag";
 
 const Sheet = SheetPrimitive.Root;
 const SheetTrigger = SheetPrimitive.Trigger;
@@ -17,13 +18,16 @@ const SheetPortal = SheetPrimitive.Portal;
 
 function SheetOverlay({
   className,
+  style,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Backdrop>) {
   return (
     <SheetPrimitive.Backdrop
       data-slot="sheet-overlay"
-      // 遮罩同 ui/dialog 水墨墨影(不沿用 shadcn 的 bg-black/10+毛玻璃,纸卷世界无玻璃)
-      className={cn("fixed inset-0 z-50 bg-[rgba(30,23,12,0.42)]", className)}
+      // 遮罩同 ui/dialog 水墨墨影(不沿用 shadcn 的 bg-black/10+毛玻璃,纸卷世界无玻璃);
+      // 色值单源 = use-dialog-drag 的 OVERLAY_TINT(#845 深底重定标后两系仍同值同拍)
+      className={cn("fixed inset-0 z-50", className)}
+      style={{ backgroundColor: OVERLAY_TINT, ...style }}
       {...props}
     />
   );
@@ -57,7 +61,8 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-ink text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
+          // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影
+          "paper-skin fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-ink text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
           SIDE_CLASSES[side],
           className,
         )}
