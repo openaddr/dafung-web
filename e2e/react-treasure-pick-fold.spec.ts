@@ -13,6 +13,15 @@ import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 /** 首个价签格完整在视口内的几何断言:rect 全落在标准档视口内,且底缘不越过体部
  *  视口下缘(防「在屏内但被渐隐带/钉底行罩住」的假绿)。 */
 async function expectFirstTagInViewport(page: Page): Promise<void> {
+  // 入场动画(translate/scale ~250ms)落定后再量几何——采样落进动画相位窗会
+  // 误报折切(#879 图像字节改变首帧绘制时机后暴露);600ms 兜底防 infinite 挂死。
+  await page.locator(".pile-modal").evaluate(async (root) => {
+    const running = root
+      .getAnimations({ subtree: true })
+      .filter((a) => a.playState === "running")
+      .map((a) => a.finished.catch(() => undefined));
+    await Promise.race([Promise.allSettled(running), new Promise((r) => setTimeout(r, 600))]);
+  });
   const box = (await page.locator(".pile-price").first().boundingBox())!;
   const vh = page.viewportSize()!.height;
   expect(box.y).toBeGreaterThanOrEqual(0);
