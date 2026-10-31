@@ -206,6 +206,35 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText("使用【火烧连营】");
     await expect(banner.getByTestId(TESTIDS.reactionTimer)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveClass(/reactive/);
+    // mini 签面回正尺寸锚(#834 P0-3,特异性回归哨):hand-rack.css
+    // `.hand-rack .jinnang-card{font-size:inherit}`(0-2-0)曾打穿裸 `.reaction-mini`
+    // (0-1-0)的 1.3px em 基,签面被撑成 96×128、横幅膨胀 145-200px 高;reaction-banner.css
+    // 侧提级 0-3-0 后签面回 19.5×26、横幅回落 ~60px 浮置带。读数页内一次取齐
+    // (50ms 轮询自旋),不与短展示窗赛跑。断言上限给足余量:签面 26→32、横幅
+    // ~61→80(钮热区 44+padding 主导),特异性回退的 128/145+ 必红。
+    const geo = await page.evaluate(
+      ({ bannerTid }) =>
+        new Promise<{ bannerH: number; miniH: number; miniW: number }>((resolve, reject) => {
+          const deadline = Date.now() + 3000;
+          const read = () => {
+            const b = document
+              .querySelector(`[data-testid="${bannerTid}"]`)
+              ?.getBoundingClientRect();
+            const m = document.querySelector(".reaction-mini")?.getBoundingClientRect();
+            if (b == null || b.height <= 0) {
+              if (Date.now() > deadline) reject(new Error("横幅几何不可读:窗已收"));
+              else setTimeout(read, 50);
+              return;
+            }
+            resolve({ bannerH: b.height, miniH: m?.height ?? 0, miniW: m?.width ?? 0 });
+          };
+          read();
+        }),
+      { bannerTid: TESTIDS.reactionBanner },
+    );
+    expect(geo.miniH, "mini 签面 em 基被特异性打回大卡(#834 回归)").toBeLessThanOrEqual(32);
+    expect(geo.miniW, "jinnang 窗 mini 签面缺席(#751 A6 回归)").toBeGreaterThan(0);
+    expect(geo.bannerH, "横幅未回落 ~60px 浮置带(#834 回归)").toBeLessThanOrEqual(80);
     // 点牌落印确认,识破留痕 + 窗收(双牌皆耗/城不降级等结算细节由单测守)
     await answerReactionWindow(page, { mode: "counter", card: "识破诡计" });
     await pollReactionSettled(page, baseline, { countered: true });

@@ -36,6 +36,9 @@
   gap: 10px;
   padding: 7px 12px;
   border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
+  /* border 色过渡(#834危急档):danger 翻面时描边漆金→朱砂走 --dur-fast 同拍过渡
+     (弧/秒数/timerbox 同一翻面拍),常态档不感知。 */
+  transition: border-color var(--dur-fast) var(--ease-out);
   border-radius: 5px;
   background: linear-gradient(180deg, var(--color-panel-hi), var(--color-panel));
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
@@ -47,6 +50,12 @@
     opacity: 0;
     transform: translateY(0.5em) scaleY(0.7);
   }
+}
+/* 危急档横幅描边(#834 P1-B5):danger 类挂在 timerbox(弧的宿主)上,横幅级
+   响应用 :has() 沿结构上查——TSX 不为描边另设横幅级状态类;Chromium/以
+   board.css #board:has(...) 为先例的既有用法。 */
+.reaction-banner:has(.reaction-timerbox.danger) {
+  border-color: color-mix(in srgb, var(--color-danger) 55%, transparent);
 }
 
 /* 左段事件文案:「X 使用【火烧连营】」/「X 行军将过你的城池」(横幅标题字,#508 起 font-title) */
@@ -170,12 +179,17 @@
   color: var(--color-ink);
 }
 
-/* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校):底环墨影弱轨,前弧
-   随剩余时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),文楷 tabular-nums。
+/* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校;#834 危急档全横幅可感):
+   底环墨影弱轨,前弧随剩余时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),
+   文楷 tabular-nums。
    #760 重校:常态弧由朱砂退墨金弱轨 inkwash——倒计时是常驻状态不是警报,朱砂
-   只留给危急;≤5s danger 档:弧与秒数转朱砂+朱砂光晕,弧 2Hz 呼吸脉动+秒数
-   scale 1.06 脉冲(周期 calc(var(--dur-med)*2)=500ms,呼吸类常驻动画按 DESIGN §6
-   登记 reduced-motion 兜块),每秒一记 reactionTick 滴答(调度在 TSX 与 rAF 同源);
+   只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在 30px 圆里,横幅其余
+   600px 毫无变化,紧迫感只剩滴答音单通道——现危急信号出盒):timerbox scale 1.33
+   (transform 不参与布局,横幅高度稳定)、秒数 10→13px、横幅 border 经 :has()
+   同拍过渡朱砂 55%;呼吸由「负向变暗」改「亮度正向脉冲」——box-shadow 朱砂
+   0→6px 环形辉光(谷值不暗于常态基线,周期 calc(var(--dur-med)*2)=500ms,呼吸类
+   常驻动画按 DESIGN §6 登记 reduced-motion 兜块),弧本体保留静态朱砂+drop-shadow;
+   秒数 scale 1.06 脉冲保留;每秒一记 reactionTick 滴答(调度在 TSX 与 rAF 同源);
    旧一次性 0.45s scale1.28 入场脉动已由持续脉动取代(#760,不留双脉动)。 */
 .reaction-timerbox {
   position: relative;
@@ -200,19 +214,24 @@
   stroke-width: 3.5;
   stroke-linecap: round;
 }
+.reaction-timerbox.danger {
+  /* 危急档出盒(#834):放大 1.33 + 朱砂辉光正向脉冲(0→6px,亮度只升不降);
+     transform 不吃布局,横幅几何不变。 */
+  transform: scale(1.33);
+  animation: reaction-timer-glow calc(var(--dur-med) * 2) var(--ease-sine) infinite;
+}
+@keyframes reaction-timer-glow {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 65%, transparent);
+  }
+}
 .reaction-timerbox.danger .reaction-timer .arc {
   stroke: var(--color-danger);
   filter: drop-shadow(0 0 3px color-mix(in srgb, var(--color-danger) 65%, transparent));
-  animation: reaction-timer-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
-}
-@keyframes reaction-timer-breathe {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.55;
-  }
 }
 .reaction-timer-num {
   position: absolute;
@@ -227,6 +246,7 @@
 }
 .reaction-timerbox.danger .reaction-timer-num {
   color: var(--color-danger);
+  font-size: 13px; /* 危急档秒数 10→13px(#834):第三通道,与弧/border 同拍 */
   animation: reaction-timer-num-pulse calc(var(--dur-med) * 2) var(--ease-sine) infinite;
 }
 @keyframes reaction-timer-num-pulse {
@@ -240,21 +260,29 @@
 }
 
 /* 来者锦囊 mini 签面(#751 A6):行首卡面锚点——卡面是既有器物语言,非新增标牌。
-   高 26px(em 基 1.3px,15em×20em 随缩),纯装饰(aria-hidden,牌名在文案里)。 */
-.reaction-mini {
+   高 26px(em 基 1.3px,15em×20em 随缩),纯装饰(aria-hidden,牌名在文案里)。
+   选择器提级(#834 P0-3):hand-rack.css `.hand-rack .jinnang-card{font-size:inherit}`
+   (0-2-0)会打穿裸 `.reaction-mini`(0-1-0)的 em 基,签面被撑成 96×128(短横屏
+   6.4px 架基),横幅膨胀 145-200px 高、盖 40-50% 棋盘中带——提级 0-3-0 压回 1.3px
+   em 基(横幅只在 .hand-rack 内挂载,HandRack 单点,前提恒成立)。 */
+.hand-rack .reaction-banner .reaction-mini {
   flex: 0 0 auto;
   align-self: center;
   font-size: 1.3px;
 }
 
 /* ── 架上反应牌呼吸金边(P1-D:牌只有一份、就在架上亮):可打的反应锦囊金描边
-   呼吸(--dur-ambient 半频拍),选中(.sel)转实金上浮。作用域锁手牌行钮层。 ── */
+   呼吸(--dur-ambient 半频拍),选中(.sel)转实金上浮。作用域锁手牌行钮层。
+   #834(P1-B5 伴生):呼吸低相位 30%→55%(原谷值outline≈隐形,「这牌能打」
+   断讯),另加常驻微光晕(filter drop-shadow,不覆基座 box-shadow 双源;
+   filter 过渡基座已有,静态属状态非动效,reduced-motion 不退)。 ── */
 .hand-rack-hand > button.reactive {
   cursor: pointer;
 }
 .hand-rack-hand > button.reactive .jinnang-card {
   outline: 0.22em solid color-mix(in srgb, var(--color-gold) 40%, transparent);
   outline-offset: 0.12em;
+  filter: drop-shadow(0 0 0.9em color-mix(in srgb, var(--color-gold) 38%, transparent));
   animation: reaction-edge-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 .hand-rack-hand > button.reactive.sel {
@@ -269,7 +297,7 @@
 @keyframes reaction-edge-breathe {
   0%,
   100% {
-    outline-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    outline-color: color-mix(in srgb, var(--color-gold) 55%, transparent);
   }
   50% {
     outline-color: var(--color-gold-bright);
@@ -284,9 +312,9 @@
   .reaction-banner {
     animation: none;
   }
-  .reaction-timerbox.danger .reaction-timer .arc,
+  .reaction-timerbox.danger,
   .reaction-timerbox.danger .reaction-timer-num {
-    animation: none;
+    animation: none; /* #834:朱砂辉光脉冲宿主=timerbox(原弧 opacity 呼吸已退役) */
   }
   .hand-rack-hand > button.reactive .jinnang-card {
     animation: none;
