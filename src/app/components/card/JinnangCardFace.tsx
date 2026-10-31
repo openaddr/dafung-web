@@ -68,7 +68,9 @@ export function JinnangCardFace({
         {/* 牌名 = 目录 id(中文自带因果);≥4 字降档防溢出(原型 .ming.long) */}
         <span className={def.id.length > 3 ? "ming long" : "ming"}>{def.id}</span>
       </div>
-      <div className="zhang">
+      {/* 章数注入(#841 刀③):--zhang-n 供 jinnang-card.css 次枚缩档让位
+          (多章下挂不再整枚压进画心金框);单章缺省路径同值 1,零分支 */}
+      <div className="zhang" style={{ ["--zhang-n" as string]: def.tags.length }}>
         {def.tags.map((t) => (
           <span key={t} className="seal">
             {JINNANG_FAMILY[t].label}

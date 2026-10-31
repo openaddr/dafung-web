@@ -566,6 +566,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               <HandRack
                 player={selfPlayer}
                 nudgePulse={playNudge}
+                capitalPick={snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"}
                 junshi={
                   junshiUp
                     ? {

@@ -62,7 +62,20 @@
 /* ── 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;原型 .slash)── */
 .hand-rack-back {
   transform: rotate(-9deg);
+  /* 选都期降档(#841 刀⑥)淡入淡出;transform 过渡由 .jinnang-card 基座既有
+     transition 承担,此处只补 opacity 一轴 */
+  transition: opacity var(--dur-med) var(--ease-out);
   /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
+}
+/* ── 选都相位大牌背降档(#841 刀⑥):Setup PickCapital 期手牌恒空(起手牌在
+     finishSetup 才发),斜牌背横在盘心下缘抢视线(审计 P2「选都期锦囊大牌背」,
+     与空态压盘心同件);相位判据走引擎快照(setupPhase==="PickCapital",
+     GameScreen 与 setupHint 同一口径派生传入)——定都收尾相位离开即复原,
+     零本地状态零「理论上」判断。transform 连 rotate 一起写(基态 -9deg 会被
+     覆盖)。 ── */
+.hand-rack.capital-pick .hand-rack-back {
+  opacity: 0.45;
+  transform: rotate(-9deg) scale(0.85);
 }
 
 /* ── 常态牌悬停微反馈(#490 微档,#510 统一悬停语言):≤3 张全展态的牌悬停
@@ -87,6 +100,13 @@
   .hand-rack {
     font-size: 6.4px;
     --hface-base: 6.4px;
+  }
+  /* 笺脚提档(#841 刀①):矮横屏档笺脚 1.32em×6.4px≈8.4px 踩可读红线(牌面唯一
+     效果正文),本档单独提至 1.5em≈9.6px(#556 定稿预期 10px 的可读下限兑现)。
+     作用域锁手牌行——架内还挂着反应横幅 mini 签面(1.3px em 基,#860 提级选择器
+     守着),架级字号变化不得波及;画心 min-height 让位吸收,2 行截断口径不变。 */
+  .hand-rack .hand-rack-hand .jiao {
+    font-size: 1.5em;
   }
 }
 
@@ -208,7 +228,8 @@
 
 /* ── 出牌阶段态(#256:旧弹窗退役,架即出牌面;原型 .playable 口径)──
    .junshi 挂架体(HandRack junshi 载荷在场)。状态语义:
-   - 可出=.usable 微上浮+亮金 hairline 金边(#556,静态常驻),hover 升满幅;
+   - 可出=.usable 上浮+实金 hairline 金边+微光晕(#556 静态常驻,#841 刀②提显著),
+     hover 再升满幅;
    - 选中=.sel 放大 1.6× 金描边(牌面层交互态单源 jinnang-card.css,笺脚放开 4 行;
      钮层只管层叠 z-index 与消隐自身 transform,避免与 .many hover 挥出叠加);
    - 不可用=.off 下沉置灰(disabled,原因印条 .reason 由牌面 children 承担,文案
@@ -221,14 +242,17 @@
   transition: transform var(--dur-fast) var(--ease-out);
 }
 .hand-rack.junshi .hand-rack-hand > button.usable {
-  transform: translateY(-0.6em);
-  /* 可出金边(#556 兑现 HandRack.tsx「金边上浮」承诺):亮金 hairline 静态常驻
-     (§4.6 状态用边/色表达,不加标牌、不呼吸),同 :hover hairline 语
-     (本文件常态牌悬停块同款 color-mix 60%);钮层 p-0 贴牌缘,圈即牌廓 */
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
+  transform: translateY(-0.9em);
+  /* 可出金边(#556 兑现 HandRack.tsx「金边上浮」承诺;#841 刀②提显著):实金
+     hairline 100%+微光晕静态常驻——原 color-mix 60% 弱档与灰置 .off 显著性倒挂
+     (审计 R3 P2-3),上浮 -0.6em 加深至 -0.9em(§4.6 状态用边/色/位移表达,
+     不加标牌、不呼吸);钮层 p-0 贴牌缘,圈即牌廓 */
+  box-shadow:
+    0 0 0 1px var(--color-gold-bright),
+    0 0 0.9em color-mix(in srgb, var(--color-gold-bright) 40%, transparent);
 }
 .hand-rack.junshi .hand-rack-hand > button.usable:hover {
-  transform: translateY(-1em);
+  transform: translateY(-1.3em);
   z-index: 9;
 }
 .hand-rack.junshi .hand-rack-hand > button.sel,
@@ -358,14 +382,15 @@
 
 /* ── 出牌窗可用牌金圈脉冲一拍(#751 B1):未选牌点按「出牌」时,架上可用牌金圈
    亮一拍回落(seat-selglow 同族状态语言,一次性不呼吸;.nudge 类由 HandRack 按
-   nudgePulse 计数挂摘)。usable 常驻 hairline 是落点,脉冲从 hairline 起伏。 ── */
+   nudgePulse 计数挂摘)。usable 常驻金边是落点,脉冲从金边起伏(0%/100% 随
+   #841 刀②的 100% 实金基线同步,脉冲首末帧不塌回弱档)。 ── */
 .hand-rack.junshi .hand-rack-hand.nudge > button.usable .jinnang-card {
   animation: usable-ring-once var(--dur-med) var(--ease-out);
 }
 @keyframes usable-ring-once {
   0%,
   100% {
-    box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
+    box-shadow: 0 0 0 1px var(--color-gold-bright);
   }
   45% {
     box-shadow:

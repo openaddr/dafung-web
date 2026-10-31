@@ -506,6 +506,10 @@ export interface HandRackProps {
   /** 未选牌点按「出牌」的计数(#751 B1,GameScreen 持账本):变更一次=架上可用牌
    *  金圈脉冲一次(自门控 #715 同款状态语言)。 */
   nudgePulse?: number;
+  /** 选都相位(#841 刀⑥,GameScreen 按引擎快照派生:phase==="Setup" &&
+   *  setupPhase==="PickCapital",与 setupHint 同口径):空态大牌背降档
+   *  (opacity 0.45+scale 0.85,样式在 hand-rack.css),定都收尾相位离开即复原。 */
+  capitalPick?: boolean;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
@@ -541,7 +545,13 @@ interface StackVars {
  *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
  *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
-export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackProps) {
+export function HandRack({
+  player,
+  junshi,
+  reaction,
+  nudgePulse = 0,
+  capitalPick = false,
+}: HandRackProps) {
   // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
   // 被开的那张(长按微光的达成保持态按键判,不按 cardId 误伤同名兄弟);cardId 供详情面板。
   const [detail, setDetail] = useState<{ key: string; cardId: string } | null>(null);
@@ -700,15 +710,16 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
           return { step, spreadLeft: spread * 0.2, spreadRight: spread };
         })()
       : null;
-  // 触屏临时全展态(#751 C2):步距抬到「卡宽 + 余量摊派 gap(≤3em)」——每张全宽
-  // 无重叠一字排开(可用宽不足摊满 3em 时先收 gap 再贴排;8+ 张短窗的溢出属临时
-  // 检视态,2.5s 自动回落);让位变量归零(无叠可挥)。
+  // 触屏临时全展态(#751 C2):步距上限「卡宽 + 余量摊派 gap(≤3em)」,下限收到
+  // 保首末完整——行总宽 ≤ 可用宽,8+ 张装不下时步距收进轻微叠(首末牌完整优先,
+  // #841 刀④;原 max(0,…) 夹逼在装不下时强抬回卡宽 → 行溢出视口、首末牌恰被
+  // 裁掉,审计 R3 P2-4 实拍)。让位变量归零(触屏无 hover,无叠可挥)。
   const stackNow: StackVars | null =
     stack != null && spreadAll && box != null
       ? (() => {
-          const gapEach = Math.max(
-            0,
-            Math.min(3 * box.em, (box.avail - box.cardWidth * renderCount) / (renderCount - 1)),
+          const gapEach = Math.min(
+            3 * box.em,
+            (box.avail - box.cardWidth * renderCount) / (renderCount - 1),
           );
           return { step: box.cardWidth + gapEach, spreadLeft: 0, spreadRight: 0 };
         })()
@@ -832,7 +843,9 @@ export function HandRack({ player, junshi, reaction, nudgePulse = 0 }: HandRackP
       ref={rackRef}
       data-testid={TESTIDS.jinnangRack}
       aria-label="锦囊手牌"
-      className={"hand-rack" + (junshi != null ? " junshi" : "")}
+      className={
+        "hand-rack" + (junshi != null ? " junshi" : "") + (capitalPick ? " capital-pick" : "")
+      }
     >
       {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
           (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。 */}

@@ -240,6 +240,14 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
     const last = cards[8];
     expect(Math.abs(last.width - CARD_W)).toBeLessThanOrEqual(1);
     expect(last.x + last.width).toBeLessThanOrEqual(rack.x + rack.width + 1);
+    // 笺脚可读红线(#841 刀①):矮横屏档(本套件默认 844×390 即该档)笺脚单独提档
+    // 1.5em×6.4px=9.6px——8.4px 时代踩可读红线(笺脚是牌面唯一效果正文),实测钉下限
+    const jiaoPx = await page.evaluate((sel) => {
+      const el = document.querySelector(`[data-testid="${sel}"] .jiao`);
+      if (!el) throw new Error("笺脚不在 DOM:牌面结构漂移");
+      return parseFloat(getComputedStyle(el).fontSize);
+    }, TESTIDS.jinnangHand);
+    expect(jiaoPx).toBeGreaterThanOrEqual(9.5);
     // 每张牌名条 peek 布局下可辨:牌名未被邻牌完全盖住(至少一个字身位可见)
     const mingBoxes = await page.evaluate(
       (sel) =>

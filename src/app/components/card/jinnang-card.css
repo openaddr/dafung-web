@@ -98,15 +98,27 @@
 
 /* ── 标签章:右上竖排(多标签逐枚下挂),朱砂方章 2.5deg 微旋(章恒朱砂,
    DESIGN §4.2 朱=权险;族色只入界格线与画心墨线)。印文用 font-title(#508 标题字族;
-   小薇离线镜像有空芯字形,禁用 font-deco,BRIEF §2,note-head 同先例)。── */
+   小薇离线镜像有空芯字形,禁用 font-deco,BRIEF §2,note-head 同先例)。
+   章数经 --zhang-n 注入(JinnangCardFace 单点,缺省 1):次枚缩档反旋压前枚下缘
+   成钤印簇——两枚全尺寸竖排会把第二枚整枚压进画心金框(缓兵之计〔谋+攻〕实拍,
+   #841 刀③);簇读作「钤印成串」(鉴藏印压画心角同语,mount 段 .jian-yin 先例),
+   画心金框只让角不穿洞。── */
 .jinnang-card .zhang {
+  --zhang-n: 1;
   position: absolute;
-  top: 0.9em;
+  top: calc(0.9em - (var(--zhang-n) - 1) * 0.3em); /* 多章整列微上提让出下挂位 */
   right: 0.9em;
   display: flex;
   flex-direction: column;
   gap: 0.5em;
   z-index: 2;
+}
+.jinnang-card .zhang .seal + .seal {
+  /* 次枚缩档:章盒 2.3em×次枚字基(1.22em)≈22px@8基(首枚 27.6px);margin-top
+     的 em 随次枚字基解析(-1.5em≈-14.6px@8基),与 gap 合成压叠 = 印章簇 */
+  font-size: 1.22em;
+  margin-top: calc((var(--zhang-n) - 1) * -1.5em);
+  transform: rotate(-4deg); /* 反向微旋:双章错落(首枚 2.5deg) */
 }
 .jinnang-card .seal,
 .jinnang-detail .seal {
@@ -186,8 +198,9 @@
 
 /* ── 笺脚:效果正文(别称已剥离,jinnangAliasSplit),2 行截断;large 详情档 4 行 ── */
 .jinnang-card .jiao {
-  /* 1.32em(#556):7.6px 架档 em 基下 ≈10px,出牌决策面描述可读;字级放大由
-     画心 min-height 让位(6em→4.5em)吸收,2 行截断口径不变 */
+  /* 1.32em(#556):standard 8px 基 ≈10.6px;矮横屏档(6.4px 架基)由 hand-rack.css
+     断点单独提 1.5em≈9.6px(#841 刀①,8.4px 踩可读红线)。字级放大由
+     画心 min-height 让位吸收,2 行截断口径不变 */
   font-size: 1.32em;
   line-height: 1.62;
   color: var(--card-ink); /* 纸上墨字(可读性红线:#511 文字恒在纸底) */
@@ -516,10 +529,11 @@
 
 /* ── 牌背(暗置语义):漆木底 + 「锦囊」朱印 + 回纹双环 ── */
 .jinnang-card.back {
-  /* 漆木三段(#510 收口字面量,同 hand-rack.css 架体) */
+  /* 漆木三段(#510 收口字面量,同 hand-rack.css 架体;#841 刀⑤空态提对比:
+     亮端掺漆金提档——panel-hi 对深底板面近同色,空态牌背沉底不可辨) */
   background: linear-gradient(
     160deg,
-    var(--color-panel-hi),
+    color-mix(in srgb, var(--color-panel-hi) 78%, var(--color-lacquer-gold)),
     var(--color-lacquer) 55%,
     var(--color-paper-lo)
   );
@@ -530,7 +544,7 @@
   content: "";
   position: absolute;
   inset: 1em;
-  border: 0.14em solid rgba(217, 185, 92, 0.55); /* 漆金外环 */
+  border: 0.14em solid rgba(217, 185, 92, 0.75); /* 漆金外环(#841 刀⑤:.55→.75) */
   border-radius: 0.5em;
   box-shadow:
     inset 0 0 0 0.22em rgba(51, 42, 30, 0.9),
