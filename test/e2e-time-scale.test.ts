@@ -6,6 +6,8 @@ import { describe, it, expect } from "bun:test";
 import { Motion } from "../src/core/theme";
 import {
   AUTO_MARCH,
+  CEREMONY,
+  DESK,
   DICE,
   DUEL,
   FX,
@@ -73,6 +75,23 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(FX.sealSlamMs).toBe(150);
     expect(FX.sealLingerMs).toBe(850);
     expect(FX.pulseRingMs).toBe(650);
+    // #885:同病类四族补收的动画全长 getter(消费点内联注入)+ 撒币清理窗补缺
+    expect(FX.inkBloomMs).toBe(1000);
+    expect(FX.coinRainMs).toBe(Motion.dur.fx);
+    expect(FX.coinStaggerMs).toBe(45);
+    expect(FX.coinBurstMs).toBe(1450);
+  });
+
+  it("DESK(#885:震屏两档入通道,desk.ts 挂类拍内联注入)", () => {
+    expect(DESK.shakeMs).toBe(400);
+    expect(DESK.blowoutMs).toBe(450);
+  });
+
+  it("CEREMONY(#885:旌旗缓倒全长兼作 fx-flag-fall 注入源;三拍锚点逐位恒等)", () => {
+    expect(CEREMONY.fallMs).toBe(1100);
+    expect(CEREMONY.blotAtMs).toBe(1000);
+    expect(CEREMONY.coinsAtMs).toBe(1500);
+    expect(CEREMONY.settleMs).toBe(2600);
   });
 
   it("DICE", () => {

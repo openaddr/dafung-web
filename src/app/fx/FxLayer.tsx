@@ -54,7 +54,8 @@ function floaterFontSize(): number {
 
 /** 铜钱一枚(泉字金币):补给雨与撒币共用同一视觉件(金圆底+墨字)。
  *  x/y=锚点(SVG 逻辑单位,transform attribute 定位),dx/dy=随机落点
- *  (CSS 变量喂 fx-svg-coin-rain keyframe),delayMs=错拍入场。 */
+ *  (CSS 变量喂 fx-svg-coin-rain keyframe),delayMs=错拍入场(#885:撒币档由
+ *  消费点喂 FX.coinStaggerMs 步进,与全长 coinRainMs 同通道缩放)。 */
 function Coin({
   x,
   y,
@@ -76,6 +77,7 @@ function Coin({
         ["--dx" as string]: `${dx}px`,
         ["--dy" as string]: `${dy}px`,
         animationDelay: `${delayMs}ms`,
+        animationDuration: `${FX.coinRainMs}ms`, // #885:keyframe 只管形,全长随通道缩放
       }}
     >
       {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
@@ -146,11 +148,10 @@ export function BoardFxLayer() {
                 ...(look.playerColorVar != null && {
                   ["--player-color" as string]: look.playerColorVar,
                 }),
-                ...(f.skill?.kind === "tag" && {
-                  // #850 小签:keyframe 只管形,全长 FX.skillTagMs 消费点内联注入
-                  //(棒3 时长收口同法,随 e2e/追帧通道缩放)
-                  animationDuration: `${FX.skillTagMs}ms`,
-                }),
+                // #885 时长收口:keyframe 只管形,全长随通道缩放——普通/施展/文案
+                // 浮字 FX.floaterMs(清理窗=同一 getter);被动小签(#850)换
+                // FX.skillTagMs 短全长,注入同在消费点
+                animationDuration: `${f.skill?.kind === "tag" ? FX.skillTagMs : FX.floaterMs}ms`,
               }}
             >
               {f.text ?? formatFloater(f.amount)}
@@ -195,7 +196,9 @@ export function BoardFxLayer() {
           </text>
         </g>
       ))}
-      {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散) */}
+      {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散)。
+          #885 时长收口:墨渍全长 FX.inkBloomMs 内联注入(清理窗 inkBlotMs 同通道);
+          撒币错拍步长 FX.coinStaggerMs(c%4 三步封顶,随通道缩放)。 */}
       {inkBlots.map((b) => (
         <circle
           key={b.id}
@@ -204,6 +207,7 @@ export function BoardFxLayer() {
           cy={b.y}
           r={34}
           fill="url(#fx-ink-grad)"
+          style={{ animationDuration: `${FX.inkBloomMs}ms` }}
         />
       ))}
       {coinBursts.map((b) =>
@@ -214,7 +218,7 @@ export function BoardFxLayer() {
             y={b.y}
             dx={Math.round((Math.random() - 0.5) * 150)}
             dy={Math.round(Math.random() * 130) - 20}
-            delayMs={(c % 4) * 45}
+            delayMs={(c % 4) * FX.coinStaggerMs}
           />
         )),
       )}

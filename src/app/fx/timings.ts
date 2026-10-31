@@ -4,8 +4,8 @@
 // 本文件数值恰等于某 --dur-* 的字段直接引用 Motion(app→core 单向依赖,theme.ts 零依赖无环),
 // 改 Motion 一处 CSS/JS 同步;不等的字段是编排窗口(非 token 节拍),保留字面量单独调参。
 // #610 起分两条缩放通道,下方时长表全是各自通道的活投影(getter),取数时求值:
-//   演出编排时长(MARCH/FX/DICE/DUEL/CEREMONY 五族 + desk 震屏)吃 scStage =
-//   e2e 键 × 追帧除法(ADR-0029 ③ 正典方向:积压越深播得越快,1.5~3x 压缩);
+//   演出编排时长(MARCH/FX/DICE/DUEL/CEREMONY/DESK 六族,#885 起 desk 震屏入表)
+//   吃 scStage = e2e 键 × 追帧除法(ADR-0029 ③ 正典方向:积压越深播得越快,1.5~3x 压缩);
 //   界面/节拍类(UI.*、GHOST、AUTO_*、BOT、反应窗倒计时弧、判据时距)只吃 sc
 //   (e2e 键)——它们不是棋盘演出,压缩治不了积压、只会与权威节拍失配。
 // 追帧速度倍率变化即时作用于播放期取数,无键无追帧时逐位恒等(直通不落地板)。
@@ -137,13 +137,18 @@ export const MARCH = {
  *  bannerMs 自 #762 起是两段式组合(--dur-banner/2 + --dur-slow + 清理余量)。
  *  #849 棒3 起,fx.css 编排类 keyframe 的时长一律「keyframe 只管形、消费点内联
  *  animationDuration=本表 getter」(DiceOverlay/DuelSignsOverlay/FxLayer 同法),
- *  清理窗取「动画全长 + 余量」退居单侧,无两头同步账;例外残留(desk 震屏/旌旗
- *  缓倒/墨渍等字面量,票面六处之外)见 fx.css 各自注记。coinMs/roadFlowMs 不等于
- *  任何 token,是编排窗口,保留字面量。 */
+ *  清理窗取「动画全长 + 余量」退居单侧,无两头同步账;#885 补收同病类残留
+ *  (desk 震屏两档→DESK 表、旌旗缓倒→CEREMONY.fallMs、墨渍/浮字/铜钱 --dur-fx
+ *  系→下方 inkBloomMs/coinRainMs),票面六处+四族全量入通道。coinMs/roadFlowMs
+ *  不等于任何 token,是编排窗口,保留字面量。 */
 export const FX = {
+  /** 浮字动画全长 + 清理窗(同源单值,#885 口径同 jinnangLineMs):fx.css
+   *  fx-svg-float-up 时长经本值由 FxLayer 消费点内联注入(keyframe 只管形),
+   *  fxStore 超时自清取同一 getter——全长与清理窗同通道缩放;被动小签(#850)
+   *  全长 skillTagMs 短于本值,同窗清理无截断竞态。 */
   get floaterMs() {
     return scStage(Motion.dur.fx);
-  }, // 与 --dur-fx 同源(经 Motion)
+  },
   get coinMs() {
     return scStage(1500);
   },
@@ -205,13 +210,34 @@ export const FX = {
   get haltHoldMs() {
     return scStage(1000);
   },
-  /** 破产仪式墨渍晕开全程(S7):fx-inkblot-bloom 1s + 清理余量,fx.css 硬同步。 */
+  /** 破产墨渍晕开动画全长(#885):fx.css fx-inkblot-bloom 时长经本值由 FxLayer
+   *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放)。 */
+  get inkBloomMs() {
+    return scStage(1000);
+  },
+  /** 破产墨渍清理窗(S7,#885 同 landPulse 口径):inkBloomMs 全长 + 清理余量,
+   *  单侧窗口不再与 fx.css 字面量两头同步。 */
   get inkBlotMs() {
     return scStage(1100);
   },
-  /** 破产仪式撒币全程(S7):fx-coin-burst 1.3s + 清理余量,fx.css 硬同步。 */
+  /** 破产撒币清理窗(S7,#885 起单侧窗口):coinRainMs 全长 + 清理余量。余量
+   *  基准 1400→1450:撒币错拍三步(3×45=135)此前未入账,原 1400 在 1x 就差
+   *  35ms 掐掉最迟一枚的尾段——入通道时补齐既有缺口,编排语义不变。 */
   get coinBurstMs() {
-    return scStage(1400);
+    return scStage(1450);
+  },
+  /** 铜钱雨/撒币动画全长(#885):fx.css fx-svg-coin-rain 时长,与 --dur-fx 同源
+   *  (经 Motion,1.4s→1.3s 归 token),由 FxLayer Coin 消费点内联注入(keyframe
+   *  只管形不时刻度)。清理窗:补给雨随浮字组 floaterMs;撒币窗 coinBurstMs
+   *  (余量含错拍三步)。 */
+  get coinRainMs() {
+    return scStage(Motion.dur.fx);
+  },
+  /** 撒币错拍步长(#885):Coin 撒币档 animationDelay 按 (c%4) 步进错拍,随通道
+   *  缩放(同 DICE.landRingDelayMs 口径:delay 也入通道,窗账才全同向);最迟一拍
+   *  3×本值 + coinRainMs ≤ coinBurstMs(choreography-invariants 钉)。 */
+  get coinStaggerMs() {
+    return scStage(45);
   },
   /** 被动技名小签动画全长(#850):fx.css fx-svg-float-tag 时长经本值由 FxLayer
    *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放);清理窗沿用
@@ -339,12 +365,16 @@ export const DUEL = {
 } as const;
 
 /** 破产仪式时间轴(S7 #513,三拍:倒旗→墨渍→撒币;演出编排族,吃 scStage):累计毫秒锚点,
- *  sinks.bankruptCeremony 串行消费。与 fx.css fx-flag-fall(1.1s)/fx-inkblot-bloom
- *  (1s)/fx-coin-burst(1.3s)硬同步,改任一侧须两处同改。 */
+ *  sinks.bankruptCeremony 串行消费。#885 起三段动画全长不再与 fx.css 字面量两头同步:
+ *  旗倒全长=本表 fallMs(desk.ts fallTokenFlag 内联注入 fx.css fx-flag-fall)、墨渍全长=
+ *  FX.inkBloomMs、撒币全长=FX.coinRainMs(FxLayer 内联),各清理窗单侧同通道。 */
 export const CEREMONY = {
+  /** 旌旗缓倒全长(S7):既是仪式时间轴锚点(#885 起兼作 fx.css fx-flag-fall 的
+   *  动画全长注入源,keyframe 只管形),墨渍在其尾段 blotAtMs 拍开晕(不脱拍由
+   *  choreography-invariants 钉)。 */
   get fallMs() {
     return scStage(1100);
-  }, // 旌旗缓倒全长(墨渍在其尾段 1.0s 拍开晕)
+  },
   get blotAtMs() {
     return scStage(1000);
   }, // 铭牌墨渍晕开起始拍
@@ -355,6 +385,25 @@ export const CEREMONY = {
     return scStage(2600);
   }, // 仪式收口(撒币看完再交还编排链)
   coinCount: 10, // 撒币枚数(8–12 档中值,#492 决议)
+} as const;
+
+/** 桌面级震屏全长(desk.ts 消费,挂 #board-wrap 整体位移)两档:普通 4px/0.4s
+ *  (#492 定档,大事件限定)、大胜 6px/0.45s(#849 棒1 拼点大胜负档位加压,
+ *  节拍同形 1.5× 放大,DESIGN §6)。演出编排族(吃 scStage,F4 作用域拆分;
+ *  原 desk.ts 模块内私函数,#885 入表与五族同席——identity 快照与不变量测试
+ *  才有公共锚)。#885 起 fx.css .fx-desk-shake(-blowout) keyframe 只管形:
+ *  desk.ts applyDeskShake 挂类拍内联注入 animationDuration=本表 getter,类自摘
+ *  timeout 同值——全长与清理窗同源单值,追帧压缩天然同步。 */
+export const DESK = {
+  /** 普通档震屏全长(4px/0.4s;唯一生产触发口 = 破产仪式开锣拍,sinks.ts)。 */
+  get shakeMs() {
+    return scStage(400);
+  },
+  /** 大胜档震屏全长(6px/0.45s;唯一生产触发口 = 拼点大胜判词拍,
+   *  DuelSignsOverlay.isBlowout 同源判定)。 */
+  get blowoutMs() {
+    return scStage(450);
+  },
 } as const;
 
 export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
