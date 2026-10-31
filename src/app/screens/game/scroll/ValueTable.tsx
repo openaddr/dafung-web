@@ -31,7 +31,7 @@ export function ValueTable({
 }) {
   return (
     <div className="mx-auto mb-3 max-w-[560px] overflow-hidden rounded-[3px] border border-gold/25 text-sm">
-      <div className="flex bg-panel-hi/60 font-brush text-ink">
+      <div className="flex bg-panel-hi/60 font-brush text-paper">
         <span className="flex-1 px-2 py-1">等级</span>
         <span className="flex-1 px-2 py-1 text-right">交易加成</span>
         <span className="flex-1 px-2 py-1 text-right">
@@ -44,15 +44,15 @@ export function ValueTable({
           <div
             key={i}
             className={
-              "flex border-t border-gold/15 text-ink-dim" +
-              (hit ? " bg-[rgba(200,161,58,0.14)] border-l-2 border-l-gold text-ink" : "")
+              "flex border-t border-gold/15 text-paper-dim" +
+              (hit ? " bg-[rgba(200,161,58,0.14)] border-l-2 border-l-gold text-paper" : "")
             }
           >
             <span className="flex-1 px-2 py-1">Lv.{i}</span>
-            <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">
+            <span className="flex-1 px-2 py-1 text-right text-paper tabular-nums">
               ×{property.tradeMult[i]} +{formatMoney(property.tradeAdd[i])}
             </span>
-            <span className="flex-1 px-2 py-1 text-right text-ink tabular-nums">
+            <span className="flex-1 px-2 py-1 text-right text-paper tabular-nums">
               {second === "supply" ? formatMoney(property.resupply) : formatMoney(value)}
             </span>
             {hit && (
@@ -64,7 +64,7 @@ export function ValueTable({
         );
       })}
       {/* 口径小字:主列两参数是坐地要价公式的可变部分(对齐名下城池清单的列底注) */}
-      <div className="border-t border-gold/15 px-2 py-1 text-center font-wenkai text-[11.5px] text-ink-dim">
+      <div className="border-t border-gold/15 px-2 py-1 text-center font-wenkai text-[11.5px] text-paper-dim">
         坐地要价 = 指导价 × 系数 + 加成
       </div>
     </div>

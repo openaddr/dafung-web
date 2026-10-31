@@ -125,9 +125,9 @@ export function BoardFxLayer() {
       {/* 墨渍径向渐变(破产仪式第二拍):单例 defs,实例经 fill=url(#) 引用 */}
       <defs>
         <radialGradient id="fx-ink-grad">
-          <stop offset="0%" stopColor="var(--color-ink)" stopOpacity="0.85" />
-          <stop offset="55%" stopColor="var(--color-ink)" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="var(--color-ink)" stopOpacity="0" />
+          <stop offset="0%" stopColor="var(--color-paper)" stopOpacity="0.85" />
+          <stop offset="55%" stopColor="var(--color-paper)" stopOpacity="0.55" />
+          <stop offset="100%" stopColor="var(--color-paper)" stopOpacity="0" />
         </radialGradient>
       </defs>
       {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013)+ 技能浮字两档(#850):逻辑坐标

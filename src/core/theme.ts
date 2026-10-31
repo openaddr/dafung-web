@@ -24,15 +24,15 @@ export const rgba = (c: Rgb, a = 1): string => `rgba(${c.r},${c.g},${c.b},${a})`
 
 export const Theme = {
   // 玄墨鎏金核心配色(方向 D #489/ADR-0026,值换血 #509:漆黑为纸,鎏金为骨——
-  // 纸系=玄墨深底阶,墨系=反转的纸色文字阶,金系=漆金阶;详见 docs/design/DESIGN.md §3 方向 D)
+  // 纸系=玄墨深底阶,纸色文字阶(原 ink 系,ADR-0038 改名对齐值),金系=漆金阶;详见 docs/design/DESIGN.md §3 方向 D)
   bg: hex("1f1a13"), // 玄墨底(全局底·案头漆黑)
   bgDeep: hex("16110c"), // 玄墨底之深(远山/阴影衬,比底更沉)
   panel: hex("2b2317"), // 墨面板(笺纸面→墨面)
   panelHi: hex("3d3325"), // 墨面板衬里/hover
   paperHi: hex("3b3222"), // 卷轴体渐变亮端(ScrollShell/ConfirmDialog 深纸面)
   paperLo: hex("241d13"), // 卷轴体渐变暗端
-  ink: hex("f4ecd8"), // 纸色(正文/标题;墨系反转:深底上的纸色字)
-  inkDim: hex("c6b491"), // 淡纸(次级文字,对 panelHi 仍 ≥4.5:1)
+  paper: hex("f4ecd8"), // 纸色(正文/标题;深底上的纸色字,ADR-0038 由 ink 改名对齐值)
+  paperDim: hex("c6b491"), // 淡纸(次级文字,对 panelHi 仍 ≥4.5:1;ADR-0038 由 inkDim 改名)
   lacquer: hex("332a1e"), // 浓墨漆木(主按钮底/卷轴杆)——墨=落子无悔,主行动色
   lacquerGold: hex("d9b95c"), // 漆底金字(墨钮文字/杆箍线)
   gold: hex("d9b95c"), // 鎏金(轮次/能量/金印/描边,不再作按钮底)
@@ -52,8 +52,8 @@ export const Theme = {
   roadMain: hex("8a6c44"), // 主路褐(深底提亮一档,S6 棋盘深底化可再调)
   roadSide: hex("c07f47"), // 支路赭石(深底提亮一档)
 
-  // 墨色深浅(远山/书法;深底下即暗金/暗纸装饰线)
-  inkwash: hex("9c8a5e"),
+  // 暗金饰线(远山/书法;ADR-0038 由 inkwash 改名 goldWash:色相归金族、低亮度装饰线)
+  goldWash: hex("9c8a5e"),
 
   groupNames: {
     a: "中原",

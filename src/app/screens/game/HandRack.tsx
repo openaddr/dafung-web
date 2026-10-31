@@ -152,7 +152,7 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
         >
           <span
             aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-ink-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-ink"
+            className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-paper"
           >
             <Sym name="close" size={13} />
           </span>

@@ -238,20 +238,20 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/加入/建房共用基类,只改尺寸)
   const btnBase =
-    "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
+    "rounded border px-4 py-2 font-deco text-paper cursor-pointer transition-colors disabled:opacity-40 disabled:cursor-not-allowed";
   // A5:「返回首页」含「回」——XiaoWei 离线镜像缺字形已剔出 fonts.css(回退楷体),deco 下即混排;
   // 返回类按钮字族落 wenkai(混排红线)。btnBase 单源替换,免抄两份基类。
   const backBase = btnBase.replace("font-deco", "font-wenkai");
   // R3-B11(#83):输入框与 Stepper(h-10)/按钮等高——建房排三控件同高,「诸侯数/目标身价」不再错位
-  const inputBase = "h-10 rounded border border-ink/30 bg-bg px-2 py-2 font-deco text-ink";
+  const inputBase = "h-10 rounded border border-paper/30 bg-bg px-2 py-2 font-deco text-paper";
 
   // ── 构块化 JSX(#766,手筋同 SoloSetupScreen #751):两档共用件,矮横屏档双列重排
   //    把同一批块重排进两列,testid 契约零变化(建房/加入/重进/座位行/开局全部原样)──
 
   // 建房块:建房者 = Seat0(host)。A4:分段头入 note-head 制式(印「建」+ wenkai 标签 + 发丝线)
   const createBlock = (
-    <div className="font-deco text-sm text-ink">
-      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+    <div className="font-deco text-sm text-paper">
+      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
         <i>建</i>
         <span>建房</span>
       </h3>
@@ -323,9 +323,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const advancedFold = (
     <details
       data-testid={LID.serverToggle}
-      className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
+      className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
     >
-      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-2 py-1.5 font-wenkai text-sm text-ink [&::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
         <span className="shrink-0">
           <Sym
             name="expand"
@@ -353,7 +353,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         )}
       </summary>
       <div className="flex items-center gap-2 px-2 pb-2 text-sm">
-        <label htmlFor={LID.serverBase} className="shrink-0 text-ink-dim">
+        <label htmlFor={LID.serverBase} className="shrink-0 text-paper-dim">
           服务器
         </label>
         <input
@@ -380,7 +380,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const joinBlock = (
     <form
       className={
-        "font-deco text-sm text-ink" + (isShortLandscape ? "" : " border-t border-ink/20 pt-4")
+        "font-deco text-sm text-paper" + (isShortLandscape ? "" : " border-t border-paper/20 pt-4")
       }
       onSubmit={(e) => {
         e.preventDefault();
@@ -396,7 +396,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
       }}
     >
       {/* A4:分段头 note-head 制式,印文取「入」(加入) */}
-      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+      <h3 className="note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
         <i>入</i>
         <span>加入</span>
       </h3>
@@ -425,7 +425,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           照「需先选择地图」既有内联范式,不再依赖 hover;busy 期钮面文案已直陈
           「处理中…」,不另设行重复。 */}
       {!busy && !joinCode.trim() && (
-        <div className="mt-1 font-deco text-xs text-ink-dim">请输入房间码</div>
+        <div className="mt-1 font-deco text-xs text-paper-dim">请输入房间码</div>
       )}
     </form>
   );
@@ -467,7 +467,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         data-testid={LID.screen}
         className="lobby-safe flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
       >
-        <h1 className="font-title text-3xl text-ink tracking-widest">房主已解散房间</h1>
+        <h1 className="font-title text-3xl text-paper tracking-widest">房主已解散房间</h1>
         <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn font-bold"}>
           返回首页
         </button>
@@ -494,7 +494,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             满高 wrap 只服务已入座的 fill/sticky 形态 */}
         <div className="m-auto flex w-full flex-col items-center">
           <h1
-            className={`font-title text-ink tracking-widest pl-[0.1em] mb-1 ${
+            className={`font-title text-paper tracking-widest pl-[0.1em] mb-1 ${
               isShortLandscape ? "text-3xl leading-none" : "text-4xl"
             }`}
           >
@@ -503,7 +503,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           {/* R3-A7(#70):破折号首尾对称,无法抵消 letter-spacing 尾空白,仍补 pl(同 HomeScreen「— 三国大富翁 —」);
               #766:矮横屏档副标题收纳退役(座次竖向预算让位双列,setup/home 降档同款) */}
           {!isShortLandscape && (
-            <div className="font-deco text-ink-dim mb-6 tracking-[0.4em] pl-[0.4em]">
+            <div className="font-deco text-paper-dim mb-6 tracking-[0.4em] pl-[0.4em]">
               — 群雄逐鹿 —
             </div>
           )}
@@ -564,7 +564,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   const roomBlock = (
     <div className="flex flex-col gap-1">
       {/* R3-A7(#70):0.3em 字距令居中文本尾侧多一格空白,pl 同量补偿视觉居中(同 HomeScreen 副标题先例) */}
-      <h1 className="font-title text-2xl text-ink tracking-[0.3em] pl-[0.3em] text-center">大厅</h1>
+      <h1 className="font-title text-2xl text-paper tracking-[0.3em] pl-[0.3em] text-center">
+        大厅
+      </h1>
       {/* 房间码:大字 + 字距;W2 点击复制 + xs 提示(testid 不变,e2e 只读文本)
         R3-A7(#70):0.4em 字距尾空白以 pl 同量补偿(同 HomeScreen 先例) */}
       <button
@@ -577,14 +579,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         //(金=势,房码是开局第一步的「势」件),hover 金晕同语言
         // #838:房码是拉丁字母(A-Z),font-brush 花笔钩连转述字形自证性差,改 font-deco
         //(囗部四空芯码位已剔出其 unicode-range,拉丁字母不涉);金裱边与 0.4em 字距保留
-        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-ink cursor-pointer hover:bg-gold/10"
+        className="block w-full rounded-[3px] border-y-2 border-gold/40 py-1 text-center font-deco text-4xl tracking-[0.4em] pl-[0.4em] text-paper cursor-pointer hover:bg-gold/10"
       >
         {roomId}
       </button>
-      <div className="text-center font-deco text-xs text-ink-dim">
+      <div className="text-center font-deco text-xs text-paper-dim">
         {copied ? "已复制" : "点击复制，发给好友凭码入座"}
       </div>
-      <div className="text-center font-deco text-xs text-ink-dim">
+      <div className="text-center font-deco text-xs text-paper-dim">
         {
           isHost
             ? needMore
@@ -612,26 +614,26 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 (seatEntered.has(s.seat) ? "lobby-seat-in " : "") +
                 "flex items-center gap-2 rounded border px-2 py-1 font-deco text-sm " +
                 (s.seat === mySeat
-                  ? "border-gold bg-gold/10 text-ink"
-                  : "border-ink/20 text-ink-dim")
+                  ? "border-gold bg-gold/10 text-paper"
+                  : "border-paper/20 text-paper-dim")
               }
             >
               <span
                 className={
                   "w-2.5 h-2.5 rounded-full " +
                   (s.kind === "bot"
-                    ? "bg-ink/40"
+                    ? "bg-paper/40"
                     : !s.taken
-                      ? "bg-transparent border border-ink/30"
+                      ? "bg-transparent border border-paper/30"
                       : s.online
                         ? "bg-success"
-                        : "bg-ink/30")
+                        : "bg-paper/30")
                 }
                 data-testid={LID.seatOnline(s.seat)}
               />
               {/* S7:在线状态不能只靠颜色点传达(色弱不可辨)——点旁加文字标签 */}
               {s.taken && s.kind !== "bot" && (
-                <span className={"text-xs " + (s.online ? "text-success" : "text-ink-dim")}>
+                <span className={"text-xs " + (s.online ? "text-success" : "text-paper-dim")}>
                   {s.online ? "在线" : "离线"}
                 </span>
               )}
@@ -648,15 +650,15 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   {s.guohao}
                 </span>
               )}
-              <span className="text-ink">诸侯 {s.seat + 1}</span>
+              <span className="text-paper">诸侯 {s.seat + 1}</span>
               {/* A4:空座位浅印——「空」字位改一枚浅墨小方章「虚」(虚位以待,归墨不归金);
                 空座位仅 host 离席理论态才带「房主」后缀,保留不吞信息;testid 零变化 */}
               {!s.taken ? (
                 <>
                   <span
                     title="虚位以待"
-                    // #559:text-ink-dim/70 → 全值 ink-dim(4.18:1 → 7.6:1,panel 上达 AA)
-                    className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-ink/25 font-title text-[11px] leading-none text-ink-dim"
+                    // #559:text-paper-dim/70 → 全值 ink-dim(4.18:1 → 7.6:1,panel 上达 AA)
+                    className="inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] border border-paper/25 font-title text-[11px] leading-none text-paper-dim"
                   >
                     虚
                   </span>
@@ -672,10 +674,10 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                 // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调。
                 // dogfood ISSUE-011:原文「开局将改为『东』」无主语,与「虚/离线」混排
                 // 读不懂谁的国号要变——补「其国号」主语,一句话说清因果
-                className="mt-0.5 px-2 font-deco text-xs text-ink-dim"
+                className="mt-0.5 px-2 font-deco text-xs text-paper-dim"
               >
                 此席国号重名,开局将改为『
-                <span className="text-ink font-bold">{finalGh}</span>』
+                <span className="text-paper font-bold">{finalGh}</span>』
               </div>
             )}
           </div>
@@ -686,9 +688,9 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
 
   // 当前地图行(host 可换,选图钮随开局排;非 host 只读)
   const mapLine = (
-    <div className="text-center font-deco text-sm text-ink-dim">
+    <div className="text-center font-deco text-sm text-paper-dim">
       当前地图:
-      <span data-testid={LID.mapName} className="text-ink ml-1">
+      <span data-testid={LID.mapName} className="text-paper ml-1">
         {mapName ?? "未选择"}
       </span>
     </div>
@@ -744,7 +746,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         </button>
       </div>
       {/* F1:按钮下方 xs 原因行(title 之外的无障碍旁注,不依赖 hover) */}
-      {!mapId && !busy && <div className="font-deco text-xs text-ink-dim">需先选择地图</div>}
+      {!mapId && !busy && <div className="font-deco text-xs text-paper-dim">需先选择地图</div>}
     </div>
   ) : null;
 
@@ -820,7 +822,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               文案为动态状态字,字族走 wenkai(混排红线,同横幅)。 */}
           {starting && (
             <div className="scroll-anim-unroll absolute inset-0 z-10 flex items-center justify-center rounded-[8px] bg-bg/85">
-              <span className="font-wenkai text-lg font-bold text-ink">正在开局…</span>
+              <span className="font-wenkai text-lg font-bold text-paper">正在开局…</span>
             </div>
           )}
         </div>

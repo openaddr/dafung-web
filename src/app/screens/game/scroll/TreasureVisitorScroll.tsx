@@ -77,7 +77,7 @@ export function TreasureVisitorScroll({
         testid={T.treasureScroll}
         onClose={() => setVisitorDismissed(true)}
       >
-        <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
+        <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
           {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
           件珍宝,正在权衡是否出售…
         </p>
@@ -90,7 +90,7 @@ export function TreasureVisitorScroll({
       <BannerShell title={title} testid={T.treasureScroll}>
         {!mode ? (
           <>
-            <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
+            <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
               {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length} 件珍宝。
             </p>
             <div className="flex flex-wrap justify-center gap-3">
@@ -123,7 +123,7 @@ export function TreasureVisitorScroll({
           </>
         ) : (
           /* Step 2 本体在选宝弹层;卷轴只留语境(弹层盖住它,关层即回 Step 1)。 */
-          <p className="m-1 mb-3.5 text-center text-sm text-ink-dim">
+          <p className="m-1 mb-3.5 text-center text-sm text-paper-dim">
             {visitorGuohao} 落「{tileName}」。{ownerGuohao} 有 {treasures.length}{" "}
             件珍宝,在弹层中点选要出售的。
           </p>

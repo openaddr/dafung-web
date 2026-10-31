@@ -70,8 +70,8 @@ export function GameScreen() {
     return (
       <div className="flex h-full w-full items-center justify-center bg-bg p-6">
         <div className="rounded-lg border-2 border-gold/60 bg-panel px-10 py-8 text-center shadow">
-          <div className="font-title text-3xl text-ink tracking-widest">尚未开局</div>
-          <div className="mt-2 font-deco text-sm text-ink-dim">对局数据不存在或已丢失</div>
+          <div className="font-title text-3xl text-paper tracking-widest">尚未开局</div>
+          <div className="mt-2 font-deco text-sm text-paper-dim">对局数据不存在或已丢失</div>
           <button
             type="button"
             data-testid={TESTIDS.notStartedBack}
@@ -440,7 +440,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           控制器 busy 锁 interactive,决策卷轴在演出结束后才呈现。 */}
       <DiceOverlay />
       <div
-        className="game-layout relative h-full w-full overflow-hidden bg-bg text-ink"
+        className="game-layout relative h-full w-full overflow-hidden bg-bg text-paper"
         /* #853 断线让位:--conn-h = 断线横幅体高(在场)/0(不在场),知会槽
             (notice-banner.css)与下方 +8/+56 hint 行按同一变量整列下移。恒置
             (0px 也在)——消费方无兜底回退,变量缺失即布局坏出来。 */

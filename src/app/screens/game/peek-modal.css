@@ -61,7 +61,7 @@
   padding: 20px 32px;
   border: 2px solid color-mix(in srgb, var(--color-lacquer-gold) 35%, transparent);
   border-radius: 6px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   font-family: var(--font-brush);
   font-size: 26px;
   letter-spacing: 0.3em;

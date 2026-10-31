@@ -134,7 +134,7 @@ function MiniMap({ data }: { data: MapData }) {
               height={13}
               rx={2}
               fill="var(--color-paper-hi)"
-              stroke="var(--color-ink-dim)"
+              stroke="var(--color-paper-dim)"
               strokeWidth={1}
               vectorEffect="non-scaling-stroke"
             />
@@ -143,7 +143,7 @@ function MiniMap({ data }: { data: MapData }) {
               y={q.y + 4}
               textAnchor="middle"
               fontSize={11}
-              fill="var(--color-ink)"
+              fill="var(--color-paper)"
               fontFamily="var(--font-wenkai)"
             >
               {p.name.slice(0, 1)}
@@ -241,7 +241,7 @@ export function MapSelectPanel({
             兼拖动把手(#674,DialogDragHandle 消费 DialogContent 下发的原语) */}
         <DialogDragHandle
           as="h3"
-          className="msp-head note-head mb-3 text-xs tracking-[0.25em] text-ink-dim"
+          className="msp-head note-head mb-3 text-xs tracking-[0.25em] text-paper-dim"
           testid={TESTIDS.modalDragHandle}
         >
           <i>图</i>
@@ -261,7 +261,7 @@ export function MapSelectPanel({
             {/* S-4:失败态提供重试(重新 listMaps) */}
             <button
               onClick={() => setReloadKey((k) => k + 1)}
-              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-ink cursor-pointer"
+              className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-paper cursor-pointer"
             >
               重试
             </button>
@@ -292,19 +292,21 @@ export function MapSelectPanel({
                       (selected
                         ? // #497 ④:选中金色档与 SegmentedSelect 统一 gold/25(漂移收敛)
                           "border-gold bg-gold/25"
-                        : "border-ink/25 bg-bg/60 hover:border-gold/60")
+                        : "border-paper/25 bg-bg/60 hover:border-gold/60")
                     }
                   >
                     <div className="flex justify-between items-baseline gap-2">
-                      <span className="font-wenkai text-[15px] font-bold text-ink">
+                      <span className="font-wenkai text-[15px] font-bold text-paper">
                         {e.name}
-                        {e.custom ? <span className="ml-2 text-xs text-ink-dim">自建</span> : null}
+                        {e.custom ? (
+                          <span className="ml-2 text-xs text-paper-dim">自建</span>
+                        ) : null}
                       </span>
-                      <span className="text-xs text-ink-dim shrink-0">
+                      <span className="text-xs text-paper-dim shrink-0">
                         {e.tileCount} 城 · 目标 {formatMoney(e.targetNetWorth)}
                       </span>
                     </div>
-                    <div className="text-xs text-ink-dim mt-1">{e.desc}</div>
+                    <div className="text-xs text-paper-dim mt-1">{e.desc}</div>
                   </button>
                 );
               })}
@@ -313,9 +315,9 @@ export function MapSelectPanel({
             {/* R3-A3(#66):条件渲染——未加载(无预选且未点选)时不渲染死虚线空槽。
                 msp-preview:矮横屏档间距收放锚点(MapSelectPanel.css mt/pt 8px)。 */}
             {(previewLoading || preview) && (
-              <div className="msp-preview mt-3 border-t border-dashed border-ink/25 pt-3">
+              <div className="msp-preview mt-3 border-t border-dashed border-paper/25 pt-3">
                 {previewLoading && (
-                  <p className="font-wenkai text-xs text-ink-dim py-2">预览加载中…</p>
+                  <p className="font-wenkai text-xs text-paper-dim py-2">预览加载中…</p>
                 )}
                 {preview && !previewLoading && <MiniMap data={preview.data} />}
               </div>
@@ -329,7 +331,7 @@ export function MapSelectPanel({
               <button
                 data-testid={TID.mapCancel}
                 onClick={onCancel}
-                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-ink cursor-pointer"
+                className="note-btn rounded-[3px] px-4 py-2 font-wenkai text-paper cursor-pointer"
               >
                 取消
               </button>

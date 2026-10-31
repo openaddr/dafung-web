@@ -84,7 +84,7 @@ export function TileDetailScroll({
         <div className="mb-1 flex justify-center">
           <TileThumb tile={tile} def={property} tileIndex={tileIndex} players={players} />
         </div>
-        <p className="m-1 mb-2 text-center text-xs text-ink-dim">
+        <p className="m-1 mb-2 text-center text-xs text-paper-dim">
           {groupLabel ? `${groupLabel} · ` : ""}
           {ownerGuohao ? `持有:${ownerGuohao}` : "无主"}
           {isCapital ? ` · 都城 Lv.${ownerLevel}` : ""} · 购入 {formatMoney(property.purchasePrice)}

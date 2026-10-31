@@ -55,7 +55,7 @@
 .zl .zl-round {
   margin-left: auto;
   font-size: 12px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
 .zl .zl-close {
@@ -71,7 +71,7 @@
   padding: 0;
   font-size: 12px;
   line-height: 1;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   cursor: pointer;
 }
 /* 触达制式(#745 高2):视觉 26px 环不动,透明命中垫扩到 44×44(inset −9)。 */
@@ -81,7 +81,7 @@
   inset: -9px;
 }
 .zl .zl-close:hover {
-  color: var(--color-ink);
+  color: var(--color-paper);
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
 }
@@ -98,7 +98,7 @@
   min-width: 0;
   padding: 3px 10px;
   margin: 2px 0;
-  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 4%, transparent);
   border: 1px solid transparent;
   border-radius: 6px;
   font-family: var(--font-wenkai);
@@ -138,7 +138,7 @@
 /* 国号单名(原型 .nm) */
 .zl .zl-nm {
   font-size: 12px;
-  color: var(--color-ink);
+  color: var(--color-paper);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -154,7 +154,7 @@
 .zl .zl-cash i {
   font-style: normal;
   font-size: 9px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 /* 体力条+值(原型 .sstamp:细轨 26px 定宽 + 裸值;濒耗竭转朱砂同格上口径) */
 .zl .zl-stamp {
@@ -162,7 +162,7 @@
   align-items: center;
   gap: 5px;
   font-size: 10px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
 .zl .zl-track {
@@ -170,7 +170,7 @@
   flex: none;
   height: 3px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 14%, transparent);
   overflow: hidden;
 }
 .zl .zl-track i {
@@ -184,12 +184,12 @@
 /* 牌/声/委数值列(原型 .sattr) */
 .zl .zl-attr {
   font-size: 11px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   white-space: nowrap;
   text-align: center;
 }
 .zl .zl-attr b {
-  color: var(--color-ink);
+  color: var(--color-paper);
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
@@ -225,9 +225,9 @@
   background: color-mix(in srgb, var(--color-attr-city) 12%, transparent);
 }
 .zl .zl-cityslot.zl-more {
-  border-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
-  color: var(--color-ink-dim);
-  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  border-color: color-mix(in srgb, var(--color-paper) 16%, transparent);
+  color: var(--color-paper-dim);
+  background: color-mix(in srgb, var(--color-paper) 5%, transparent);
 }
 .zl .zl-cities:hover .zl-cityslot {
   border-color: var(--color-attr-city-bright);
@@ -254,9 +254,9 @@
   min-width: 17px;
   padding: 1px 0;
   text-align: center;
-  border-color: color-mix(in srgb, var(--color-ink) 16%, transparent);
-  color: var(--color-ink-dim);
-  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  border-color: color-mix(in srgb, var(--color-paper) 16%, transparent);
+  color: var(--color-paper-dim);
+  background: color-mix(in srgb, var(--color-paper) 5%, transparent);
 }
 
 /* ── 珍宝计数槽:17×17 方槽,满槽「玉」(原型 .gemsq/.slot/.full;gem→attr-gem)── */
@@ -268,8 +268,8 @@
   width: 17px;
   height: 17px;
   border-radius: 3px;
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
-  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 5%, transparent);
   display: grid;
   place-items: center;
   font-size: 10px;
@@ -285,5 +285,5 @@
    的「···」种植断言不受扰。 */
 .zl .zl-slot:not(.zl-full)::before {
   content: "·";
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }

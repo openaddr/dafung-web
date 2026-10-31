@@ -59,7 +59,7 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
   const sceneBandH = Math.round(fit.h * SCENE_BAND_RATIO);
   return (
     <defs>
-      {/* 玄墨暗纹(#512):feTurbulence 出墨金细纹(inkwash 色相,低 alpha),压在深底上
+      {/* 玄墨暗纹(#512):feTurbulence 出墨金细纹(goldWash 色相,低 alpha),压在深底上
           读作「漆面的磨砂暗纹」而非纸纹;旧宣纸暖噪点(0.55/0.45/0.28)随浅底退役。 */}
       <filter id="bv-paper" x="-5%" y="-5%" width="110%" height="110%">
         <feTurbulence

@@ -91,7 +91,7 @@ function DialogContent({
           // 居中位移消费 --drag-x/--drag-y(#674,变量由题名拖动命令式写入,缺省 0px =
           // 原居中);消费方以同组 translate-x/y-* 类经 twMerge 改写(贴底抽屉/宏中距)。
           // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影。
-          "paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-ink shadow-[var(--ink-shadow-lg)]",
+          "paper-skin fixed top-1/2 left-1/2 z-50 flex max-h-[86dvh] translate-x-[calc(-50%_+_var(--drag-x,0px))] translate-y-[calc(-50%_+_var(--drag-y,0px))] flex-col rounded-[3px] border border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo px-6 py-5 text-paper shadow-[var(--ink-shadow-lg)]",
           className,
         )}
         {...props}
@@ -106,7 +106,7 @@ function DialogTitle({ className, ...props }: React.ComponentProps<typeof Dialog
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("m-0 font-title text-[22px] tracking-[3px] text-ink", className)}
+      className={cn("m-0 font-title text-[22px] tracking-[3px] text-paper", className)}
       {...props}
     />
   );
@@ -119,7 +119,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-sm text-ink-dim", className)}
+      className={cn("text-sm text-paper-dim", className)}
       {...props}
     />
   );

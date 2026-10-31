@@ -255,7 +255,7 @@
 /* 文案浮字(ADR-0013 唯一选项自动执行轻提示):墨色小字,字号由 FxLayer 缩至 0.8×,
    复用同一上浮动画(reduced-motion 由 app.css 全局兜层瞬时完成) */
 .fx-svg-floater.msg {
-  fill: var(--color-ink-dim);
+  fill: var(--color-paper-dim);
 }
 @keyframes fx-svg-float-up {
   0% {
@@ -296,7 +296,7 @@
   font-family: var(--font-brush);
   font-size: 13;
   font-weight: 700;
-  fill: var(--color-ink);
+  fill: var(--color-paper);
 }
 @keyframes fx-svg-coin-rain {
   0% {
@@ -375,7 +375,7 @@
   transform: rotate(45deg);
   /* 朱印深底(#510 残留必修口径,约定见 screens/game/layout.css 文件头) */
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-ink) 55%, transparent);
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--color-paper) 55%, transparent);
 }
 /* 亮相段:入场(0-40% ≈ 360ms,与旧单段 20%/1800ms 同拍)+ 槽位停持(40-100%)。
    100% 停在 scale(1) opacity 0.94,both 定格到收编段接续。 */
@@ -441,15 +441,15 @@
 }
 .fx-svg-seal rect {
   /* 朱印深底(#510 残留必修口径,约定见 screens/game/layout.css 文件头;原引用
-     --color-paper 已随 #509 token 换血消失,借机收口 --color-ink) */
+     --color-paper 已随 #509 token 换血消失,借机收口 --color-paper) */
   fill: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  stroke: var(--color-ink);
+  stroke: var(--color-paper);
   stroke-width: 3;
 }
 .fx-svg-seal text {
   font-family: var(--font-title);
   font-weight: 700;
-  fill: var(--color-ink);
+  fill: var(--color-paper);
 }
 @keyframes fx-svg-seal-linger {
   0% {
@@ -525,7 +525,7 @@
   }
 }
 .fx-svg-jline-stroke {
-  stroke: var(--color-ink);
+  stroke: var(--color-paper);
   stroke-width: 10;
   stroke-linecap: round;
   stroke-dasharray: 1;
@@ -545,12 +545,12 @@
 }
 /* 起点小圆锚点(r=5 逻辑单位,#849 棒2):随组同寿,落点即出发锚。 */
 .fx-svg-jline-anchor {
-  fill: var(--color-ink);
+  fill: var(--color-paper);
 }
 /* 终点箭羽(#849 棒2):棋盘驿道人字羽同形(StaticLayers ROAD_ARROW_D),旋向
    行进向(旋转矩阵在 FxLayer 渲染拍算好);生长段末张羽,随组淡出。 */
 .fx-svg-jline-feather {
-  stroke: var(--color-ink);
+  stroke: var(--color-paper);
   stroke-width: 5;
   stroke-linecap: round;
   opacity: 0;
@@ -730,7 +730,7 @@
    旋转(虚影字净透明度 ~0.3,墨旋 DOM 序在其后=衬其上,才读得出转)。周期 =
    --dur-ambient 之半(1300ms,token 半频特例),--ease-sine 每圈呼吸一拍;显隐门
    纯 CSS:基态 opacity 0,挂 .duel-sign-shaking 才显——落定拍摘类即撤(DuelSigns
-   Overlay 摇签句柄照旧),DOM 常驻不增删。墨色吃 --color-ink。reduced-motion:
+   Overlay 摇签句柄照旧),DOM 常驻不增删。墨色吃 --color-paper。reduced-motion:
    M-4 兜层把动画压到瞬时单次,落回类基态 = 静态淡印(不打转)。 */
 .duel-sign-swirl {
   position: absolute;
@@ -743,7 +743,7 @@
   pointer-events: none;
 }
 .duel-sign-swirl path {
-  stroke: var(--color-ink);
+  stroke: var(--color-paper);
 }
 .duel-sign.duel-sign-shaking .duel-sign-swirl {
   opacity: 0.45;
@@ -819,7 +819,7 @@
 /* 大胜分级(#769):overlay 挂 duel-blowout(判定单源 isBlowout,与震屏同一处
    常量 DUEL.blowoutMargin,分级判据写死一处)时——胜方 96px 点数 outBack 弹至
    1.15 一次性驻留(fill both,判词停留窗 900ms 内读得住 --dur-slow 全程);
-   败方字面叠加泼墨溅一次 spawn:自绘多层径向渐变墨渍(零位图,吃 --color-ink),
+   败方字面叠加泼墨溅一次 spawn:自绘多层径向渐变墨渍(零位图,吃 --color-paper),
    缩放+微旋钤上后驻留成印。点差 1-2 与平局不挂类 = 维持现制。reduced-motion:
    M-4 兜层压瞬时,两者各落终态(墨渍=静态印,弹跳=定格 1.15),不加专项退场。
    #849 棒1 峰值三件(P1-B3「大胜档没有哇」,判据同 isBlowout 单源):
@@ -890,7 +890,7 @@
      55% 再收 88% 短缘(径向渐变长羽化会在卡面融成一片晕,读不出「渍」;
      实芯短缘才是钤上去的墨),四渍互不相连,卡心字面由 mask 挖孔双保险。
      墨色=#2b2317 字面量(.duel-sign-face 墨字同款「骰面材质」,非色板色):
-     旧引用 --color-ink 经 #509 换血后是深底纸色(#f4ecd8),泼墨溅沿它渲成
+     旧引用 --color-paper 经 #509 换血后是深底纸色(#f4ecd8),泼墨溅沿它渲成
      米白洗版——正是 P2「糊住点数」观感的根因之一,本批随挪角一并纠正。 */
   background:
     radial-gradient(
@@ -975,9 +975,9 @@
   font-size: 44px;
   font-weight: 700;
   transform: translate(-50%, -50%) rotate(-8deg);
-  color: var(--color-ink);
+  color: var(--color-paper);
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  border: 3px solid var(--color-ink);
+  border: 3px solid var(--color-paper);
   box-shadow: 0 10px 26px rgba(0, 0, 0, 0.5);
   pointer-events: none;
 }
@@ -1117,7 +1117,7 @@
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
 .fx-halt-sub {
-  color: color-mix(in srgb, var(--color-lacquer-gold) 82%, var(--color-ink));
+  color: color-mix(in srgb, var(--color-lacquer-gold) 82%, var(--color-paper));
   letter-spacing: 2px;
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
 }
@@ -1198,7 +1198,7 @@
   font-family: var(--font-brush);
   font-size: 13px;
   font-weight: 700;
-  fill: var(--color-ink);
+  fill: var(--color-paper);
 }
 @keyframes fx-cash-fly-arc {
   0% {
@@ -1241,7 +1241,7 @@
    玩家色细描边承身份(--player-color 恒由 FxLayer 随事件内联,色缺=提取侧 bug 露形,
    CSS 不设回退值)。上浮轨迹复用基类 fx-svg-float-up。 */
 .fx-svg-floater.skill {
-  fill: var(--color-ink);
+  fill: var(--color-paper);
   stroke: var(--player-color);
   stroke-width: 1;
   stroke-opacity: 0.85;
@@ -1252,7 +1252,7 @@
    floater 通道不新造层;ink-dim 0.7×,FxLayer 消费点内联注入全长 FX.skillTagMs,
    keyframe 只管形不时刻度,棒3 时长收口同法)。 */
 .fx-svg-floater.tag {
-  fill: var(--color-ink-dim);
+  fill: var(--color-paper-dim);
   animation: fx-svg-float-tag var(--ease-out) forwards;
 }
 @keyframes fx-svg-float-tag {

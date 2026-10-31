@@ -162,7 +162,7 @@ export function SoloSetupScreen({
 
   // M-3 按钮触达 ≥40px:py-1.5 → py-2(返回/起兵共用基类,只改尺寸)
   // S2(#751/#742):返回/起兵触达提档——次级钮 ≥40、主行动墨钮 ≥44(DESIGN §4.7 口径)
-  const btnBase = "rounded border px-4 py-2 font-deco text-ink cursor-pointer transition-colors";
+  const btnBase = "rounded border px-4 py-2 font-deco text-paper cursor-pointer transition-colors";
 
   // ── 构块化 JSX(两档共用件;#751/S1 矮横屏双列重排把同一批块重排进两列,
   //    testid 契约零变化:座位行/输入/字盘/起兵全部原样)──
@@ -173,7 +173,7 @@ export function SoloSetupScreen({
       国号需为单个汉字
     </span>
   ) : (
-    <span className="text-xs text-ink-dim">起兵后默认带入 · 联机同用</span>
+    <span className="text-xs text-paper-dim">起兵后默认带入 · 联机同用</span>
   );
 
   // 真人国号输入框(桌面档在座位表首行内;矮横屏档升入左列配置块,testid 不变)
@@ -189,7 +189,7 @@ export function SoloSetupScreen({
       // A7(#54):国号输入位用龙藏行书点缀(font-hand)
       className={
         "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
-        (guohaoInvalid ? "border-danger text-danger" : "border-ink/30 text-ink")
+        (guohaoInvalid ? "border-danger text-danger" : "border-paper/30 text-paper")
       }
     />
   );
@@ -212,7 +212,7 @@ export function SoloSetupScreen({
             "su-pool-btn font-deco cursor-pointer transition-colors " +
             (guohao === ch
               ? "border-gold-deep seal-gold font-bold"
-              : "border-ink/25 bg-bg/60 text-ink-dim hover:border-gold/60 hover:text-ink")
+              : "border-paper/25 bg-bg/60 text-paper-dim hover:border-gold/60 hover:text-paper")
           }
         >
           {ch}
@@ -231,7 +231,7 @@ export function SoloSetupScreen({
     <div className="su-seats flex flex-col">
       {/* 表头列位随卡面网格对齐(28px 色印 / 1fr 国号 / 32px 类型;类型列留 32px
         防 12px 双字标签折行——22px 列实测把表头撑出 +16px,#765 量测实锤) */}
-      <div className="su-seats-head grid grid-cols-[28px_1fr_32px] gap-2 border-b border-ink/25 pb-1 font-deco text-xs text-ink-dim">
+      <div className="su-seats-head grid grid-cols-[28px_1fr_32px] gap-2 border-b border-paper/25 pb-1 font-deco text-xs text-paper-dim">
         <span />
         <span>国号</span>
         <span>类型</span>
@@ -256,7 +256,7 @@ export function SoloSetupScreen({
               <span
                 data-testid={TID.seatGuohaoInput(i)}
                 title="开局由引擎分配国号"
-                className="font-deco text-ink-dim"
+                className="font-deco text-paper-dim"
               >
                 待分配
               </span>
@@ -267,14 +267,14 @@ export function SoloSetupScreen({
               </div>
             ) : (
               // 矮横屏档:编辑位在左列,此处回显当前国号(brush 行书,同输入位字族)
-              <span className="font-hand text-lg text-ink">{guohao}</span>
+              <span className="font-hand text-lg text-paper">{guohao}</span>
             )}
             <span
               data-testid={TID.seatType(i)}
               className={
                 "inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] font-title text-[13px] leading-none " +
                 (isBot
-                  ? "border border-ink/30 text-ink-dim" // 淡纸墨印
+                  ? "border border-paper/30 text-paper-dim" // 淡纸墨印
                   : "seal-gold font-bold") // 漆金小印(= 全屏唯一真人标记,金=势)
               }
             >
@@ -295,7 +295,7 @@ export function SoloSetupScreen({
         data-testid="solo-setup-back"
         onClick={onBack}
         aria-label="返回首页"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] text-ink-dim hover:bg-ink/10 hover:text-ink cursor-pointer transition-colors"
+        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[3px] text-paper-dim hover:bg-paper/10 hover:text-paper cursor-pointer transition-colors"
       >
         <Sym name="back" size={14} />
       </button>
@@ -324,7 +324,7 @@ export function SoloSetupScreen({
   // 「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读。
   // #751/S1:矮横屏档三档签改单行(横排名+金额)省 12px 级块高,语义零增减。
   const controls = (
-    <div className="su-controls flex flex-col gap-2 font-deco text-sm text-ink mb-3">
+    <div className="su-controls flex flex-col gap-2 font-deco text-sm text-paper mb-3">
       {/* #751/S1:矮横屏档标签与步进器同行(左列竖向预算紧,省一个标签行;桌面档堆叠不动) */}
       <div className={isShortLandscape ? "flex items-center gap-3" : "flex flex-col gap-1"}>
         <span className="shrink-0">诸侯数</span>
@@ -368,12 +368,12 @@ export function SoloSetupScreen({
         和≠100 合法 */}
       <details
         data-testid={TID.encounterToggle}
-        className="group rounded border border-ink/25 bg-bg/40 open:bg-panel-hi/40"
+        className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
       >
         {/* W2-包A:原生 marker 重置(list-none + ::-webkit-details-marker);箭头用 Sym,
           group-open 旋转半圈,时长走 --dur token(红线3);机遇区是 #125 新文案,
           字族落 wenkai(XiaoWei 空芯字形风险,新文案禁用) */}
-        <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-ink [&::-webkit-details-marker]:hidden">
+        <summary className="list-none cursor-pointer select-none px-2 py-1.5 font-wenkai text-sm text-paper [&::-webkit-details-marker]:hidden">
           <Sym
             name="expand"
             size={12}
@@ -382,7 +382,7 @@ export function SoloSetupScreen({
           机遇(落格触发事件)
         </summary>
         <div className="flex flex-col gap-2 px-2 pb-2">
-          <label className="flex cursor-pointer items-center gap-2 font-wenkai text-sm text-ink">
+          <label className="flex cursor-pointer items-center gap-2 font-wenkai text-sm text-paper">
             <Switch
               data-testid={TID.encounterEnabled}
               size="sm"
@@ -403,7 +403,7 @@ export function SoloSetupScreen({
             ).map(([label, testid, key]) => (
               <label
                 key={testid}
-                className="flex flex-col gap-0.5 font-wenkai text-xs text-ink-dim"
+                className="flex flex-col gap-0.5 font-wenkai text-xs text-paper-dim"
               >
                 <span>{label}</span>
                 <input
@@ -415,12 +415,12 @@ export function SoloSetupScreen({
                   onChange={(e) =>
                     setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
                   }
-                  className="min-h-[40px] rounded-[3px] border border-ink/30 bg-bg px-2 font-wenkai text-sm text-ink tabular-nums"
+                  className="min-h-[40px] rounded-[3px] border border-paper/30 bg-bg px-2 font-wenkai text-sm text-paper tabular-nums"
                 />
               </label>
             ))}
           </div>
-          <p className="font-wenkai text-xs text-ink-dim">
+          <p className="font-wenkai text-xs text-paper-dim">
             {`默认:机遇${encounterDefaults.enabled ? "开" : "关"},三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad}。机遇必出:开启后每次落格先出一条机遇;三档占比自动归一,不必凑满 100。仅对本局生效。`}
           </p>
         </div>
@@ -451,12 +451,12 @@ export function SoloSetupScreen({
             data-testid={TID.backTop}
             onClick={onBack}
             aria-label="返回首页"
-            className="su-back note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[40px] min-w-[40px] text-ink cursor-pointer transition-colors"
+            className="su-back note-btn absolute left-0 top-1/2 -translate-y-1/2 flex items-center justify-center rounded-[3px] px-2 min-h-[40px] min-w-[40px] text-paper cursor-pointer transition-colors"
           >
             <Sym name="back" size={14} />
           </button>
           <h1
-            className={`font-title text-ink tracking-widest pl-[0.1em] ${
+            className={`font-title text-paper tracking-widest pl-[0.1em] ${
               isShortLandscape ? "text-3xl leading-none" : "text-4xl"
             }`}
           >
@@ -473,9 +473,9 @@ export function SoloSetupScreen({
             <div className="su-grid">
               <div className="su-col su-col-left">
                 {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-                <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
+                <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
                   <span>当前地图:</span>
-                  <span data-testid={TID.currentMapName} className="text-ink">
+                  <span data-testid={TID.currentMapName} className="text-paper">
                     {mapName}
                   </span>
                   <button
@@ -494,7 +494,7 @@ export function SoloSetupScreen({
                   ——编辑与回显分置两列,输入即动(座位行/字盘钤印同步)。 */}
                 <div className="su-guohao-block flex flex-col gap-1">
                   <div className="flex items-center gap-2">
-                    <span className="font-deco text-sm text-ink shrink-0">你的国号</span>
+                    <span className="font-deco text-sm text-paper shrink-0">你的国号</span>
                     {guohaoInput}
                   </div>
                   {guohaoHelp}
@@ -504,7 +504,7 @@ export function SoloSetupScreen({
                 {/* 「你的国号」区(#765 右列顶部):2×13 字盘网格,选中态钤漆金印即回显;
                   横滑容器随网格化退役(竖向预算 26 格两行解,桌面档同构) */}
                 <div className="su-pool-block flex flex-col gap-0.5">
-                  <div className="font-deco text-xs leading-none text-ink-dim">你的国号</div>
+                  <div className="font-deco text-xs leading-none text-paper-dim">你的国号</div>
                   {pool}
                 </div>
                 {seatsTable(false)}
@@ -522,9 +522,9 @@ export function SoloSetupScreen({
           /* ── 桌面档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
           <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
             {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-            <div className="su-map-row font-wenkai text-sm text-ink-dim mb-1 flex items-center gap-2">
+            <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
               <span>当前地图:</span>
-              <span data-testid={TID.currentMapName} className="text-ink">
+              <span data-testid={TID.currentMapName} className="text-paper">
                 {mapName}
               </span>
               <button
@@ -536,13 +536,13 @@ export function SoloSetupScreen({
               </button>
             </div>
             {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
-            <p className="su-subtitle font-wenkai text-xs text-ink-dim mb-4 border-b border-ink/20 pb-3">
+            <p className="su-subtitle font-wenkai text-xs text-paper-dim mb-4 border-b border-paper/20 pb-3">
               立国号、定诸侯,起兵逐鹿天下。
             </p>
 
             {/* 笺头制式(视觉重做 v2):「阵」字朱印 + 标签 + 发丝线(用法同 game/StatusBar)
               #559:mb-3 → mb-2 折叠线微调 */}
-            <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-ink-dim">
+            <h3 className="su-head note-head mb-2 text-xs tracking-[0.25em] text-paper-dim">
               <i>阵</i>
               <span>开局布阵</span>
             </h3>
@@ -552,7 +552,7 @@ export function SoloSetupScreen({
             {seatsTable(true)}
 
             {/* 字盘快选国号(仅作用于真人行;#765 网格化 2×13,桌面档位置不变) */}
-            <div className="su-pool-label font-deco text-xs text-ink-dim mt-3 mb-1">
+            <div className="su-pool-label font-deco text-xs text-paper-dim mt-3 mb-1">
               字盘快选国号:
             </div>
             {pool}

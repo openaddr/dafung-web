@@ -62,7 +62,7 @@ function SheetContent({
         data-side={side}
         className={cn(
           // paper-skin(#845/P1-A4):Portal 挂 body 罩不到 #app 材质膜,纸面自带颗粒+晕影
-          "paper-skin fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-ink text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
+          "paper-skin fixed z-50 flex flex-col overflow-hidden border-gold/30 bg-gradient-to-b from-paper-hi to-paper-lo text-paper text-sm shadow-[var(--ink-shadow-lg)] transition-transform duration-200 ease-out",
           SIDE_CLASSES[side],
           className,
         )}
@@ -75,7 +75,7 @@ function SheetContent({
           <SheetPrimitive.Close
             data-slot="sheet-close"
             aria-label="关闭"
-            className="absolute top-3 right-3 flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-ink-dim hover:text-ink focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
+            className="absolute top-3 right-3 flex size-8 cursor-pointer items-center justify-center rounded-[3px] border border-gold/30 bg-panel text-paper-dim hover:text-paper focus-visible:outline-2 focus-visible:outline-dashed focus-visible:outline-gold"
           >
             {/* × 符号走内联 SVG(Sym 同款口径:箭头/符号类不在字体栈内裸排,离线字体零 tofu) */}
             <svg viewBox="0 0 16 16" width={14} height={14} aria-hidden="true" focusable="false">
@@ -118,7 +118,7 @@ function SheetTitle({ className, ...props }: React.ComponentProps<typeof SheetPr
   return (
     <SheetPrimitive.Title
       data-slot="sheet-title"
-      className={cn("m-0 font-title text-[20px] tracking-[3px] text-ink", className)}
+      className={cn("m-0 font-title text-[20px] tracking-[3px] text-paper", className)}
       {...props}
     />
   );
@@ -131,7 +131,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-xs leading-5 text-ink-dim", className)}
+      className={cn("text-xs leading-5 text-paper-dim", className)}
       {...props}
     />
   );

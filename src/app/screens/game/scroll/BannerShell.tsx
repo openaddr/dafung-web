@@ -236,7 +236,7 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
           >
             <span
               aria-hidden="true"
-              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.35)] text-ink-dim transition-colors group-hover:bg-[rgba(217,185,92,0.12)] group-hover:text-gold-bright"
+              className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.35)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.12)] group-hover:text-gold-bright"
             >
               <Sym name="close" size={13} />
             </span>

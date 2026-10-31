@@ -83,7 +83,7 @@ export const TILE_SCALE = 2.2;
 // 漆金细边、字=纸色;都城金匾是深卡唯一例外(金底墨字)。集中在此便于整体调色。
 const PLAQUE_FILL = rgba(Theme.paperLo, 0.98); // 匾身深卡(比铭牌 lacquer 卡再沉一档)
 const PLAQUE_EDGE = rgba(Theme.lacquerGold, 0.9); // 漆金细边/铆钉/流苏
-const PLAQUE_TEXT = rgba(Theme.ink, 0.96); // 纸色匾字
+const PLAQUE_TEXT = rgba(Theme.paper, 0.96); // 纸色匾字
 const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例外)
 
 /**
@@ -457,7 +457,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             y1={-40}
             x2={0}
             y2={-88}
-            stroke={rgba(Theme.inkwash, 0.85)}
+            stroke={rgba(Theme.goldWash, 0.85)}
             strokeWidth={2}
           />
           {/* 旗杆顶缨:金珠 + 三笔红缨,静态点缀 */}
@@ -483,7 +483,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             textAnchor="middle"
             fontFamily="var(--font-brush)"
             fontSize={17}
-            fill={rgba(Theme.ink)}
+            fill={rgba(Theme.paper)}
             stroke={rgba(Theme.bgDeep, 0.85)}
             strokeWidth={2.5}
             paintOrder="stroke"
@@ -515,7 +515,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             y1={-24}
             x2={-46}
             y2={-38}
-            stroke={rgba(Theme.inkwash, 0.8)}
+            stroke={rgba(Theme.goldWash, 0.8)}
             strokeWidth={1.5}
           />
           <polygon
@@ -530,7 +530,7 @@ export const Tile = memo(function Tile({ tile, group, maxLevel, state, onClick }
             textAnchor="middle"
             fontFamily="var(--font-brush)"
             fontSize={10.5}
-            fill={rgba(Theme.ink)}
+            fill={rgba(Theme.paper)}
             stroke={rgba(Theme.bgDeep, 0.8)}
             strokeWidth={2}
             paintOrder="stroke"

@@ -39,7 +39,7 @@
   font-family: var(--font-wenkai);
   font-size: 12px;
   letter-spacing: 0.1em;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 
 /* ── 墨滴呼吸三点:--dur-ambient 半频(board.css 候选金圈同拍),负 delay 各错
@@ -53,7 +53,7 @@
   width: 7px;
   height: 9px;
   border-radius: 50% 50% 50% 50% / 62% 62% 38% 38%;
-  background: var(--color-ink);
+  background: var(--color-paper);
   animation: ink-breathe calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
 }
 .ink-breathe > i:nth-child(2) {

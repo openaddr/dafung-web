@@ -64,7 +64,7 @@
   font-size: 17px;
   line-height: 1.3;
   letter-spacing: 0.06em;
-  color: var(--color-ink);
+  color: var(--color-paper);
   white-space: nowrap;
 }
 
@@ -83,7 +83,7 @@
   place-items: center;
   font-family: var(--font-brush);
   font-size: 16px;
-  color: var(--color-ink);
+  color: var(--color-paper);
   background: var(--color-panel);
   border: 1.5px solid color-mix(in srgb, var(--color-lacquer-gold) 40%, transparent);
   border-radius: 50%;
@@ -168,21 +168,21 @@
   font-family: var(--font-wenkai);
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   background: none;
   border: 0;
   cursor: pointer;
-  text-decoration: underline color-mix(in srgb, var(--color-ink-dim) 40%, transparent);
+  text-decoration: underline color-mix(in srgb, var(--color-paper-dim) 40%, transparent);
   text-underline-offset: 3px;
 }
 .reaction-mute:hover {
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 
 /* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校;#834 危急档全横幅可感):
    底环墨影弱轨,前弧随剩余时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),
    文楷 tabular-nums。
-   #760 重校:常态弧由朱砂退墨金弱轨 inkwash——倒计时是常驻状态不是警报,朱砂
+   #760 重校:常态弧由朱砂退墨金弱轨 goldWash——倒计时是常驻状态不是警报,朱砂
    只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在 30px 圆里,横幅其余
    600px 毫无变化,紧迫感只剩滴答音单通道——现危急信号出盒):timerbox scale 1.33
    (transform 不参与布局,横幅高度稳定)、秒数 10→13px、横幅 border 经 :has()
@@ -210,7 +210,7 @@
 }
 .reaction-timer .arc {
   fill: none;
-  stroke: var(--color-inkwash); /* 常态档(#760):墨金弱轨,朱砂留给危急 */
+  stroke: var(--color-gold-wash); /* 常态档(#760):墨金弱轨,朱砂留给危急 */
   stroke-width: 3.5;
   stroke-linecap: round;
 }
@@ -242,7 +242,7 @@
   font-size: 10px;
   line-height: 1;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 .reaction-timerbox.danger .reaction-timer-num {
   color: var(--color-danger);

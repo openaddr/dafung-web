@@ -51,7 +51,7 @@ function eaveShadow(w: number, tipY: number): string {
 function Lantern({ x }: { x: number }) {
   return (
     <g>
-      <line x1={x} y1={-14} x2={x} y2={-10} stroke={rgba(Theme.inkwash, 0.55)} strokeWidth={1} />
+      <line x1={x} y1={-14} x2={x} y2={-10} stroke={rgba(Theme.goldWash, 0.55)} strokeWidth={1} />
       <ellipse
         cx={x}
         cy={-6.5}

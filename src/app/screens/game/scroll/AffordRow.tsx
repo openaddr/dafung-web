@@ -11,13 +11,13 @@ export function AffordRow({ cash, need }: { cash: number; need: number }) {
   const diff = cash - need;
   return (
     <div className="m-1 mb-2.5 flex items-baseline justify-center gap-x-6 font-wenkai">
-      <span className="text-xs text-ink-dim">
-        持有 <b className="font-normal text-[20px] text-ink tabular-nums">{formatMoney(cash)}</b>
+      <span className="text-xs text-paper-dim">
+        持有 <b className="font-normal text-[20px] text-paper tabular-nums">{formatMoney(cash)}</b>
       </span>
-      <span className="text-xs text-ink-dim">
-        需 <b className="font-normal text-[20px] text-ink tabular-nums">{formatMoney(need)}</b>
+      <span className="text-xs text-paper-dim">
+        需 <b className="font-normal text-[20px] text-paper tabular-nums">{formatMoney(need)}</b>
       </span>
-      <span className="text-xs text-ink-dim">
+      <span className="text-xs text-paper-dim">
         {diff >= 0 ? "余" : "差"}{" "}
         <b
           className={

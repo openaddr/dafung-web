@@ -89,7 +89,7 @@ export function EncounterChoiceScroll({
     <div className={`contents ${TITLE_BAR_SHAPE} ${skin}`}>
       <BannerShell title={`机遇 · ${encounterId}`} testid={T.encounterScroll}>
         {/* 机遇文段:事件描述正文用霞鹜文楷 */}
-        <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">{encounterText}</p>
+        <p className="m-1 mb-3.5 text-center text-sm text-paper-dim font-wenkai">{encounterText}</p>
         <div className="flex flex-col gap-2.5">
           {choices.map((o, i) => (
             <BannerButton
@@ -105,7 +105,7 @@ export function EncounterChoiceScroll({
           ))}
         </div>
         {choices.some((o) => !o.available) && (
-          <p className="mt-2 text-center text-xs text-ink-dim">
+          <p className="mt-2 text-center text-xs text-paper-dim">
             {choices.find((o) => !o.available)?.reason}
           </p>
         )}
@@ -153,7 +153,7 @@ export function ExhaustionChoiceScroll({
         </div>
       }
     >
-      <p className="m-1 mb-3.5 text-center text-sm text-ink-dim font-wenkai">
+      <p className="m-1 mb-3.5 text-center text-sm text-paper-dim font-wenkai">
         体力耗竭,倒地不起!择一座城池弃之苟活:降 1 级,或失去整座。歇罢这阵,体力自会回满。
       </p>
     </BannerShell>
@@ -225,7 +225,7 @@ export function BuyDecisionScroll({
         </div>
       }
     >
-      <p className="m-1 mb-2 text-center text-xs text-ink-dim">
+      <p className="m-1 mb-2 text-center text-xs text-paper-dim">
         「{tileName}」{groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入{" "}
         {formatMoney(property.purchasePrice)} · 耗 1 委任状
       </p>
@@ -243,12 +243,12 @@ export function BuyDecisionScroll({
           // 触达热区垫(#761 ④):视觉字号不动,透明 ::before 上下外扩 12px(命中高
           // ≈43px ≥40 触达口径,DESIGN「视觉与热区可分离」;topbar tbtn ::after 同惯例,
           // 绝对定位不占布局、视觉零位移)
-          className="relative mx-auto mb-1 block cursor-pointer font-deco text-xs text-gold-deep underline before:absolute before:inset-x-[-8px] before:inset-y-[-12px] before:content-[''] hover:text-ink"
+          className="relative mx-auto mb-1 block cursor-pointer font-deco text-xs text-gold-deep underline before:absolute before:inset-x-[-8px] before:inset-y-[-12px] before:content-[''] hover:text-paper"
         >
           查看等级表
         </button>
       )}
-      {!buy.available && <p className="mt-2 text-center text-xs text-ink-dim">{buy.reason}</p>}
+      {!buy.available && <p className="mt-2 text-center text-xs text-paper-dim">{buy.reason}</p>}
     </BannerShell>
   );
 }
@@ -322,20 +322,20 @@ export function UpgradeDecisionScroll({
         </div>
       }
     >
-      <p className="m-1 text-center text-sm text-ink-dim">
+      <p className="m-1 text-center text-sm text-paper-dim">
         「{tileName}」当前 Lv.{level} · 扩军免费
       </p>
       {upgrade.available ? (
         <>
-          <p className="m-1 text-center text-sm text-ink-dim">
+          <p className="m-1 text-center text-sm text-paper-dim">
             交易加成 ×{multNow} +{formatMoney(addNow)} → ×{multNext} +{formatMoney(addNext)}
           </p>
-          <p className="m-1 text-center text-sm text-ink-dim">
+          <p className="m-1 text-center text-sm text-paper-dim">
             变卖价 {formatMoney(valueNow)} → {formatMoney(valueNext)}
           </p>
         </>
       ) : (
-        <p className="m-1 mb-3 text-center text-sm text-ink-dim">({upgrade.reason})</p>
+        <p className="m-1 mb-3 text-center text-sm text-paper-dim">({upgrade.reason})</p>
       )}
       {/* #92:扩军权衡也上同一张表,高亮「扩军后」档(当前级+1;满级时下标越界,自然无命中行);
           #671:都城第二列显示补给 */}
@@ -345,7 +345,7 @@ export function UpgradeDecisionScroll({
         highlight={{ level: level + 1, label: "扩军后" }}
       />
       {!upgrade.available && (
-        <p className="mt-2 text-center text-xs text-ink-dim">{upgrade.reason}</p>
+        <p className="mt-2 text-center text-xs text-paper-dim">{upgrade.reason}</p>
       )}
     </BannerShell>
   );

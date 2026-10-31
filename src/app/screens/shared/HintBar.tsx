@@ -35,7 +35,8 @@ export function HintBar({
       <div
         data-testid={TESTIDS.hint}
         className={
-          "text-center font-wenkai text-xs " + (level === "error" ? "text-danger" : "text-ink-dim")
+          "text-center font-wenkai text-xs " +
+          (level === "error" ? "text-danger" : "text-paper-dim")
         }
       >
         {hint}
@@ -53,7 +54,7 @@ export function HintBar({
         " " +
         (level === "error"
           ? "bg-danger/95 text-white font-wenkai"
-          : "bg-panel/95 text-ink font-wenkai")
+          : "bg-panel/95 text-paper font-wenkai")
       }
     >
       {hint}
