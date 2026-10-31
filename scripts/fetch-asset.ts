@@ -13,7 +13,7 @@
 //
 //   # noname 模式(#507:开源杀 jsdelivr 镜像;拼音→武将映射人工核对,见 docs/design/素材映射.md):
 //   bun scripts/fetch-asset.ts --id hero:huatuo:noname --noname huatuo --webp 82 --avatar 200
-//   bun scripts/fetch-asset.ts --id texture:lanting --noname lanting_bg --noname-dir background --category textures --webp 80 --max-height 1200
+//   bun scripts/fetch-asset.ts --id texture:zhulin --noname zhulin_bg --noname-dir background --category textures --webp 80 --max-height 1200
 //
 //   # 本地克隆模式(FreeKill 等本地仓库素材;授权需显式 --license,否则记 unknown 并 review_required):
 //   bun scripts/fetch-asset.ts --id hero:x:fk --local /path/to/FreeKill/asset/hero/x.png --webp 82
