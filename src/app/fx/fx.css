@@ -208,12 +208,13 @@
 }
 
 /* ── 旌旗缓倒(S7 破产仪式第一拍):破产玩家棋子旗面绕旗杆底座倒下+回弹驻倒。
-   双类选择器压过 .bv-token-flag 的常驻摇曳(bv-flag-sway);transform-origin: 0 0
-   (旗杆底)承自 board.css 基类;forwards 定格倒姿=「旗倒人不撤」静态叙事,
-   破产态棋子本体由 React 降至 0.15 透明度。#885 时长收口:keyframe 只管形,
+   目标节点 = 氛围层常驻旗(ADR-0039,.bv-amb-flag 摇曳动画所在);双类选择器压过
+   常驻摇曳(bv-flag-sway);transform-origin 承自 ambient.css 旗面基类(旗杆底,
+   锚盒内 10px 40px);forwards 定格倒姿=「旗倒人不撤」静态叙事,破产态棋子本体由
+   React 降至 0.15 透明度(氛围层旗锚同透明度随动)。#885 时长收口:keyframe 只管形,
    全长 CEREMONY.fallMs 由 desk.ts fallTokenFlag 挂类拍内联注入(墨渍起始拍
    blotAtMs 落在其尾段,不脱拍由 choreography-invariants 钉)。 */
-.bv-token-flag.fx-token-fall {
+.bv-amb-flag.fx-token-fall {
   animation: fx-flag-fall var(--ease-sine) forwards;
 }
 @keyframes fx-flag-fall {

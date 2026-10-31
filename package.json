@@ -14,6 +14,7 @@
     "preview": "bun run --bun vite preview --port 4173",
     "typecheck": "bun run --bun tsc --noEmit",
     "check:core": "bun scripts/check-core-purity.ts",
+    "check:board": "bun scripts/check-board-anim.ts",
     "check:core:baseline:update": "bun scripts/check-core-purity.ts baseline:update",
     "check:freshness": "bun scripts/check-freshness.ts",
     "check:fmt": "oxfmt --check",

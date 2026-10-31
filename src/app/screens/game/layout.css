@@ -1022,46 +1022,18 @@
   }
 }
 
-/* ── 棋盘 token 活跃呼吸环(#762):当前回合方棋子脚下的细实线金环——「谁在打」的
-   棋盘锚,与常驻回合胶囊双锚点(席位是身份,棋盘是地理,同 #256 双锚点口径)。
-   复用席位活跃呼吸语言(.seat.active 金圈,layout.css 上文);#840 ①(审计 P1-B6
-   「谷值断讯」:opacity 单参数呼吸谷值段 ~1s 环消失)形体化——keyframes 并入
-   scale 0.92→1.08(环有胀缩形),谷值 opacity 0.35→0.55(谷值段不再隐形);
-   transform-box: fill-box 已具备,SVG 环缩放绕自体中心。--dur-ambient +
-   --ease-sine 常驻呼吸;同时至多一枚有环(GameScreen 按快照 activeIndex 单源
-   下发 activePlayerId)。与候选呼吸(.bv-token-target-ring,出牌段才在)/行军金环
-   (接管期才在)/自机微光(常驻身份)分属不同语义环,属性不冲突:
-   环画在旗面图形之下(TokenLayer 渲染序),reduced-motion 退化为静态细环
-   (opacity 钉呼吸中程 0.78,环仍在、状态可辨)。 ── */
-.game-layout .bv-token-active-ring {
-  animation: bv-token-active-breath var(--dur-ambient) var(--ease-sine) infinite;
-  transform-box: fill-box;
-  transform-origin: center;
-}
-@keyframes bv-token-active-breath {
-  0%,
-  100% {
-    transform: scale(0.92);
-    opacity: 0.55;
-  }
-  50% {
-    transform: scale(1.08);
-    opacity: 1;
-  }
-}
+/* ── 棋盘 token 活跃呼吸环(#762)已迁氛围层(ADR-0039):常驻呼吸在棋盘 SVG 内
+   是逐帧主线程污染源(layout+restyle 整板失效),改 .bv-amb-token-ring 合成器
+   动画。layout.css 对棋盘 SVG 只余候选呼吸 .bv-token-target-ring——出牌段阶段性
+   动画,相位窗内存活、静止期零贡献,不在迁出范围。 ── */
 
 /* ── reduced-motion:呼吸/光效类动画退场(app.css M-4 全局兜层之外的本文件显式口径,
-     同原型 @media 尾行)。#256:候选呼吸/棋盘呼吸退场为直接状态变化(静态金圈/金环
-     仍在);活跃光效退场后金圈边框仍在,状态可辨。#762:活跃呼吸环退化静态细环。 ── */
+     同原型 @media 尾行)。#256:候选呼吸退场为直接状态变化(静态金圈仍在)。 ── */
 @media (prefers-reduced-motion: reduce) {
   .game-layout .seat.active::after,
   .game-layout .seat.candidate,
-  .game-layout .bv-token-target-ring,
-  .game-layout .bv-token-active-ring {
+  .game-layout .bv-token-target-ring {
     animation: none;
-  }
-  .game-layout .bv-token-active-ring {
-    opacity: 0.78; /* 呼吸中程((0.55+1)/2,#840 ① 谷值抬档后随动) */
   }
 }
 

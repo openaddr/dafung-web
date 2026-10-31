@@ -69,40 +69,15 @@
 .bv-tile {
   transition: opacity var(--dur-med) var(--ease-out);
 }
+/* 都城光晕(ADR-0039):棋盘侧常驻脉动已迁氛围层(.bv-amb-capital-glow,合成器
+   动画);本件只剩 TileThumb 缩略图渲染的静态晕(showGlow=true 缺省),钉原呼吸
+   中程 0.6——缩略图小件不脉冲,reduced-motion 语义天然满足。 */
 .bv-capital-glow {
-  opacity: 0;
-  transition: opacity var(--dur-med) var(--ease-out);
+  opacity: 0.6;
 }
-/* 都城光晕放慢到 3.5s:王旗+金匾流苏本身已是持续强调,光晕放缓一拍更"沉稳"不抢操作焦点。
-   #75 金晕自此专属都城(哪是都城);「轮到谁」改由下方旋转虚线环承担,两语义分读。
-   特例:3.5s 刻意慢于 --dur-ambient(2.6s)半拍,沉稳感是注释明言的设计意图,保留字面量。 */
-.bv-tile.bv-capital .bv-capital-glow {
-  animation: bv-pulse-glow 3.5s var(--ease-sine) infinite;
-}
-@keyframes bv-pulse-glow {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
-/* #75 活跃格虚线环(Tile 内 .bv-active-ring 圆):金色虚线沿圆周持续行进 =
-   「轮到谁」,与都城金晕的呼吸脉动在动势上也可区分。
-   实现用 stroke-dashoffset 行进而非 rotate:圆的 fill-box 是方框,rotate 时
-   AABB 随角度变化,父级 <g> 的 bbox 每帧都变,Playwright 稳定性检查等不到
-   稳定 → 点选活跃格超时(e2e 实测);dashoffset 行进几何完全不动,视觉同自旋。
-   周期 12+9=21(负向=顺时针),--dur-ambient 半频(1.3s)一个虚线周期——与候选金圈
-   呼吸同拍,两个「轮到谁」指示共一节奏。linear 保留:匀速行进不能用缓动曲线。 */
-.bv-active-ring {
-  animation: bv-ring-march calc(var(--dur-ambient) / 2) linear infinite;
-}
-@keyframes bv-ring-march {
-  to {
-    stroke-dashoffset: -21;
-  }
-}
+/* #75 「轮到谁」活跃虚线环已迁氛围层(.bv-amb-tile-ring,dashoffset 推进改整环
+   rotate 等效);环出 tile <g> 后不再污染点击包围盒(旧「dashoffset 而非 rotate
+   防 Playwright 稳定性检查超时」的前提随之消解)。 */
 
 /* ── 驿道(#512 漆金细线)──
    主路=路身(roadMain token,窄档)+ 细线芯(roadSide token)双层同弧线:
@@ -132,23 +107,9 @@
   pointer-events: none;
 }
 .bv-token-flag {
-  /* #512 阴影向字面量收口:阴影色 = bgDeep token 的透明档(color-mix),不再散落黑值 */
+  /* #512 阴影向字面量收口:阴影色 = bgDeep token 的透明档(color-mix),不再散落黑值。
+     本件只在行军换装期渲染(ADR-0039,静止期旗面归氛围层),静态零动画。 */
   filter: drop-shadow(0 2px 2px color-mix(in srgb, var(--color-bg-deep) 45%, transparent));
-}
-/* 旌旗轻微"呼吸"(旗面摇曳感);行军动画(阶段 6)可直接覆盖 transform 过渡。
-   摇曳周期归 --dur-ambient(2.8s→2.6s 就近),缓动用 easeInOutSine 同款 token */
-.bv-token-flag {
-  animation: bv-flag-sway var(--dur-ambient) var(--ease-sine) infinite;
-  transform-origin: 0 0;
-}
-@keyframes bv-flag-sway {
-  0%,
-  100% {
-    transform: rotate(-1.5deg);
-  }
-  50% {
-    transform: rotate(1.5deg);
-  }
 }
 
 /* ── #30 行军中棋子强调 ──
@@ -195,23 +156,8 @@
   }
 }
 
-/* ── L47 自己的棋子:玩家色微光圈 ──
-   TokenLayer 内 .bv-token-mine-halo 圆(玩家色实线,stroke 色随玩家注入):
-   缓慢呼吸表「这是你的棋子」,与行军金虚线环(正在动)语义分离;
-   只做透明度脉动不加旋转/缩放——身份是常驻暗示,不抢行军强调的戏。 */
-.bv-token-mine-halo {
-  /* 常驻呼吸正拍:2.6s 与 --dur-ambient 基准同值(此 token 的标定来源之一) */
-  animation: bv-mine-halo var(--dur-ambient) var(--ease-sine) infinite;
-}
-@keyframes bv-mine-halo {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
-  }
-}
+/* ── L47 自机微光圈已迁氛围层(.bv-amb-mine-halo,ADR-0039):常驻呼吸动画随之,
+   此处无残留;行军接管期微光随换装暂隐,行军金环强调接管。 */
 
 /* ── #96 城池升级与易主的可读瞬间(ADR-0015 宣告动效:一次性出场动画,播完即静,非 infinite)──
    触发源 = 表现事件流:引擎结算留痕 → propertyChanged 事件 → present → FxSink.
@@ -263,17 +209,14 @@
   }
 }
 
-/* ── M-9 降耗:用户偏好减弱动态时,停用全部装饰动画
-   (常驻 infinite:旗面摇曳 / 都城光晕脉动 / 活跃格虚线环自旋 / 候选金圈脉冲;
-     #96 一次性出场:档位珠落位 / 易主流光),
-   保留静态视觉;候选脉冲停用后回落为静态 0.28 金圈(可辨但不闪);
-   易主流光停用后由基态 opacity 0 保持隐形,档位珠以默认 scale 1 全形静置。 */
+/* ── M-9 降耗:用户偏好减弱动态时,停用本文件的装饰动画。
+   常驻 infinite 已全数迁氛围层(ADR-0039:旗摇/都城晕/活跃环/自机微光/回合金环,
+   ambient.css 有自己的 M-9 段);此处只余阶段性动画:
+   行军金环(接管期)/候选金圈脉冲(选都期)/#96 一次性出场(档位珠/易主流光)。
+   候选脉冲停用后回落为静态金圈(可辨但不闪);易主流光停用后由基态 opacity 0
+   保持隐形,档位珠以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
-  .bv-token-flag,
   .bv-token.bv-token-marching .bv-token-march-ring,
-  .bv-token-mine-halo,
-  .bv-tile.bv-capital .bv-capital-glow,
-  .bv-active-ring,
   .bv-tile.bv-selectable .bv-tile-hilite,
   .bv-pip-grow,
   .bv-own-flash {
