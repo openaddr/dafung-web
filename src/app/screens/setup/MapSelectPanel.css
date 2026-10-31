@@ -1,0 +1,26 @@
+/* 选图弹层(MapSelectPanel)专属样式:本文件只持矮横屏档密度收放,钉底配方
+   (sticky + 渐隐墨底,抄 setup.css .su-actions 制)与玄墨预览制式都在组件 JSX
+   内联,这里不重复。三宿主(首页/单机配置/大厅)共用,经组件 import 带入。 */
+
+/* ── 矮横屏档(#832):844×390 标准档首帧预算——弹层壳 86dvh≈335px,壳衬+头行+
+   清单+预览段+拍板行须同屏。实测定位于 ws-ui2-01(首帧实数:预览底 309.9 vs
+   钉底带顶 295.7,压缘 14px),本档合计找回 ~26px 让首帧零外滚:壳衬 20→10
+   (setup.css 卡衬收档同语言)、笺头 mb 12→4、清单 38→34vh(两张内置图自然高
+   ≈132px 恰容,不切行)、预览段 mt/pt 12→8→本档 4。360 级极矮档属 #765/#708
+   家族口径,本票不另调。仅动密度不改结构;桌面档(竖屏/高视口)不进本档。 ── */
+@media (orientation: landscape) and (max-height: 500px) {
+  .map-select-panel {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
+  .map-select-panel .msp-head {
+    margin-bottom: 4px;
+  }
+  .map-select-panel .msp-list {
+    max-height: 34vh;
+  }
+  .map-select-panel .msp-preview {
+    margin-top: 4px;
+    padding-top: 4px;
+  }
+}
