@@ -184,13 +184,15 @@
   display: block;
 }
 /* 画心·墨线(#763):族色描边(描边是族色仅存处之一);path 级 stroke-width
-   覆盖基调线宽(毛笔宽窄对,随 viewBox 缩放,.lg 档不再另收细) */
+   覆盖基调线宽(毛笔宽窄对,随 viewBox 缩放,.lg 档不再另收细)。
+   #854 画心密度补课:母题占画心 82%→96%、基调 2.2→2.8(票面口径),
+   配合 ink-art/jinnang-huaxin 的族色衬景层(透明 .08-.12)填密画心。 */
 .jinnang-card .yang svg {
-  width: 82%;
-  height: 82%;
+  width: 96%;
+  height: 96%;
   opacity: 0.85;
   stroke: var(--fam, var(--color-danger)); /* 族 token 色(经 .f-* 类注入的 --fam) */
-  stroke-width: 2.2;
+  stroke-width: 2.8;
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
