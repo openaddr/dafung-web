@@ -25,18 +25,18 @@
   },
   "treasure:edict": {
     "path": "assets/treasures/treasure-edict.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3A%E7%A4%BE%E4%BC%9A%E5%BE%81%E9%9B%86-%E5%85%89%E7%BB%AA%E5%9C%A3%E6%97%A8-%E6%B8%85%E4%BB%A3-%E5%A4%A7%E7%90%86%E5%B7%9E%E5%8D%9A%E7%89%A9%E9%A6%86_2025-02-11_01.jpg",
-    "license": "CC BY-SA 4.0",
-    "author": "Kcx36",
-    "fetched_at": "2026-10-15",
+    "source": "https://www.metmuseum.org/art/collection/search/61012",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品 Imperial Decree,清 1806,金;acc. 06.1025)→ 500×454 webp q82",
+    "fetched_at": "2026-10-31",
     "review_required": false
   },
   "treasure:hu": {
     "path": "assets/treasures/treasure-hu.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3A%E5%95%86%E9%9E%85%E6%96%B9%E5%8D%87_164037.jpg",
-    "license": "CC BY-SA 4.0",
-    "author": "Hpppp0527",
-    "fetched_at": "2026-10-15",
+    "source": "https://www.metmuseum.org/art/collection/search/49495",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品 Ritual grain serving vessel (Dou),战国 5 世纪 BCE,青铜盛粮器;acc. 16.89a, b)→ 500×375 webp q82",
+    "fetched_at": "2026-10-31",
     "review_required": false
   },
   "audio:coin": {
@@ -258,18 +258,18 @@
   },
   "treasure:seal": {
     "path": "assets/treasures/treasure-seal.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3AQing_Jade_Seal%2C_Qianlong_Reign_01.jpg",
-    "license": "CC0",
-    "author": "Gary Lee Todd, Ph.D.",
-    "fetched_at": "2026-10-15",
+    "source": "https://www.metmuseum.org/art/collection/search/39853",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品 Seal,清 18 世纪,田黄型冻石兽钮印;acc. 2015.500.6.17)→ 375×500 webp q82",
+    "fetched_at": "2026-10-31",
     "review_required": false
   },
   "treasure:lychee": {
     "path": "assets/treasures/treasure-lychee.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3APlate_of_peeled_lychee_fruit_2019_10-32-11_PM.jpeg",
-    "license": "CC BY-SA 4.0",
-    "author": "Duluthkid",
-    "fetched_at": "2026-10-15",
+    "source": "https://www.metmuseum.org/art/collection/search/40232",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品 Box with lychees,明 16 世纪,剔红荔枝纹漆盒;acc. 2015.500.1.46a, b)→ 500×375 webp q82",
+    "fetched_at": "2026-10-31",
     "review_required": false
   },
   "treasure:hat": {
@@ -282,10 +282,10 @@
   },
   "treasure:qingnang": {
     "path": "assets/treasures/treasure-qingnang.webp",
-    "source": "https://commons.wikimedia.org/wiki/File%3ANew_Edition_with_Supplemental_Annotations_of_The_Inner_Canon_of_the_Yellow_Emperor._Su_wen_WDL11409.jpg",
-    "license": "Public domain",
-    "author": "Wang, Bing",
-    "fetched_at": "2026-10-15",
+    "source": "https://www.metmuseum.org/art/collection/search/63182",
+    "license": "CC0 1.0 (Met Open Access)",
+    "author": "The Metropolitan Museum of Art(藏品《大慈大悲救苦观世音菩萨》木刻印画,五代 947 敦煌;acc. CP5;弃左侧校色条)→ 337×500 webp q82",
+    "fetched_at": "2026-10-31",
     "review_required": false
   },
   "hero:huatuo:sgs": {
