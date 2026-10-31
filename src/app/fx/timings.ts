@@ -132,11 +132,14 @@ export const MARCH = {
   segSlackMs: 0,
 } as const;
 
-/** 瞬时特效存活时长(演出编排族,吃 scStage;与 fx.css 的 keyframe 时长保持一致;
- *  超时自清防 store 积压)。CSS 侧时长/缓动唯一源 core/theme.ts Motion(经 gen:theme 产出 tokens.css):
- *  floaterMs 与 --dur-fx 同源(经 Motion);bannerMs 自 #762 起是两段式组合
- *  (--dur-banner/2 + --dur-slow + 清理余量)。coinMs/sealMs/roadFlowMs 不等于任何
- *  token,是编排窗口,保留字面量,与编排类 keyframe 硬同步,改任一侧须两处同改。 */
+/** 瞬时特效存活时长(演出编排族,吃 scStage)。CSS 侧时长/缓动唯一源 core/theme.ts
+ *  Motion(经 gen:theme 产出 tokens.css):floaterMs 与 --dur-fx 同源(经 Motion);
+ *  bannerMs 自 #762 起是两段式组合(--dur-banner/2 + --dur-slow + 清理余量)。
+ *  #849 棒3 起,fx.css 编排类 keyframe 的时长一律「keyframe 只管形、消费点内联
+ *  animationDuration=本表 getter」(DiceOverlay/DuelSignsOverlay/FxLayer 同法),
+ *  清理窗取「动画全长 + 余量」退居单侧,无两头同步账;例外残留(desk 震屏/旌旗
+ *  缓倒/墨渍等字面量,票面六处之外)见 fx.css 各自注记。coinMs/roadFlowMs 不等于
+ *  任何 token,是编排窗口,保留字面量。 */
 export const FX = {
   get floaterMs() {
     return scStage(Motion.dur.fx);
@@ -155,20 +158,38 @@ export const FX = {
   get bannerHoldMs() {
     return scStage(1000);
   },
+  /** 朱砂/漆金印落章弧钤定段(#849 棒3):fx.css fx-seal-slam 时长经本值由 FxLayer
+   *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放)。 */
+  get sealSlamMs() {
+    return scStage(150);
+  },
+  /** 朱砂/漆金印钤定停持+消隐全长(#849 棒3):fx.css fx-svg-seal-linger 时长,
+   *  内联注入同 sealSlamMs;linger 全长 ≤ sealMs 清理窗(choreography-invariants 钉)。 */
+  get sealLingerMs() {
+    return scStage(850);
+  },
   get sealMs() {
     return scStage(900);
-  },
+  }, // 印章清理窗(原与 fx.css 0.85s 字面量硬同步,#849 棒3 起动画全长走
+  // sealLingerMs 内联,本值退居单侧清理窗,余量 50ms 不再两头同步)
   get roadFlowMs() {
     return scStage(700);
   }, // 驿道流光高亮存留
   /** 出牌指示线全程存活(#281 P2-E):生长 200ms → 停 200ms → 淡出 300ms(FreeKill
-   *  IndicatorLine 同参数),三段编排进 fx.css 的单条 keyframes(百分比刻度),本值
-   *  只作 store 清理窗口与动画全长硬同步,改任一侧须两处同改。 */
+   *  IndicatorLine 同参数),三段编排进 fx.css 三条同长 keyframes 的百分比刻度
+   *  (fx-jline-life/grow/feather-in,棒2 拆条)。#849 棒3 起本值是全长唯一事实源:
+   *  FxLayer 消费点把同一 getter 内联注入三条 keyframes 的 animationDuration——
+   *  清理窗与动画全长同源单值,追帧压缩天然同步,无两头同步账。 */
   get jinnangLineMs() {
     return scStage(700);
   },
-  /** 落格定音金圈一拍(S7 #513):fx-svg-pulse 全长 0.65s + 清理余量,fx.css 同名
-   *  keyframe 硬同步,改任一侧须两处同改。 */
+  /** 落格定音金圈一拍动画全长(#849 棒3):fx.css fx-pulse-ring 时长经本值由
+   *  FxLayer 消费点内联注入(keyframe 只管形不时刻度)。 */
+  get pulseRingMs() {
+    return scStage(650);
+  },
+  /** 落格定音清理窗(S7 #513):pulseRingMs 全长 + 清理余量,单侧窗口不再与
+   *  fx.css 字面量两头同步(#849 棒3 同 sealMs 口径)。 */
   get landPulseMs() {
     return scStage(750);
   },
@@ -226,11 +247,23 @@ export const DICE = {
   get fadeOutMs() {
     return scStage(Motion.dur.med);
   }, // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
-  /** 落点金圈起爆延迟(#849 棒1):落定拍插环后等 outBack 钤落成形(0.26s 钤落弧
+  /** 落定钤落弧全长(#849 棒3):fx.css dice-sign-land 的 outBack 钤落时长,落定拍
+   *  由 DiceOverlay 消费点内联注入(keyframe 只管形不时刻度)。须落在 holdMs
+   *  (600ms)预算内(choreography-invariants 钉);0.26s 原字面量同此基准。 */
+  get landMs() {
+    return scStage(260);
+  },
+  /** 落点金圈起爆延迟(#849 棒1):落定拍插环后等 outBack 钤落成形(landMs 钤落弧
    *  的前段)再炸,环不被签面吞。DiceOverlay 经 animationDelay 内联注入 fx.css
-   *  .fx-dice-ring(消费点内联,随 e2e 倍率缩放);环全长 0.5s 字面量归棒3 统一。 */
+   *  .fx-dice-ring(消费点内联,随 e2e 倍率缩放)。 */
   get landRingDelayMs() {
     return scStage(80);
+  },
+  /** 落点金圈全长(#849 棒3):fx.css fx-dice-ring 时长,与 landRingDelayMs 同拍
+   *  由 DiceOverlay 内联注入(delay+全长都随通道缩放);delay+全长 ≤ holdMs
+   *  预算(choreography-invariants 钉);0.5s 原字面量同此基准。 */
+  get landRingMs() {
+    return scStage(500);
   },
 } as const;
 
@@ -257,6 +290,13 @@ export const DUEL = {
   /** 签面·座位序错拍落定间隙(第二签延迟落定的空拍;各拍落定自发声) */
   get clackGapMs() {
     return scStage(150);
+  },
+  /** 签面·落定钤落弧全长(#849 棒3):fx.css duel-sign-land 的 outBack 钤落时长,
+   *  落定拍由 DuelSignsOverlay 消费点内联注入(keyframe 只管形不时刻度,同
+   *  DICE.landMs 口径);须落在 verdictMs 判词拍预算内(choreography-invariants 钉);
+   *  0.26s 原字面量同此基准。 */
+  get landMs() {
+    return scStage(260);
   },
   /** 签面·末签落定→判词拍:金圈/沉暗/金「平」钤落(stamp 音,大胜负同拍震屏) */
   get verdictMs() {

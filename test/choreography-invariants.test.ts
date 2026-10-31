@@ -22,7 +22,16 @@
 // players,再播放,memorySink 逐帧坐标与提取拍预计算完全一致,防提取器内藏
 // 活引用延迟求值(播放期现算即本不变量禁绝的旧病)。
 import { describe, it, expect } from "bun:test";
-import { CEREMONY, DICE, DUEL, FX, MARCH, TIME_SCALE_FLOOR_MS } from "../src/app/fx/timings";
+import {
+  CEREMONY,
+  DICE,
+  DUEL,
+  FX,
+  LAG,
+  MARCH,
+  TIME_SCALE_FLOOR_MS,
+  setCatchupScale,
+} from "../src/app/fx/timings";
 import { AUTOPILOT_STEP_MS, BOT_STEP_MS } from "../src/core/timings";
 import { Motion } from "../src/core/theme";
 import { GameEngine } from "../src/core/authority";
@@ -74,6 +83,29 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
   it("大胜峰值冲击波在判词停留窗内放完(#849 棒1):blowoutWaveDelayMs + blowoutWaveMs <= holdMs", () => {
     // 峰值件(延迟约两拍起爆 + 500ms 涨散)是判词拍的一次性演出,读不到尾=白炸
     expect(DUEL.blowoutWaveDelayMs + DUEL.blowoutWaveMs).toBeLessThanOrEqual(DUEL.holdMs);
+  });
+
+  it("追帧全域无中途掐断(#849 棒3):六处内联动画全长 ≤ 各自清理/编排窗(1→3 顶速逐档)", () => {
+    // 六处 fx.css 字面量已收口「keyframe 只管形、消费点内联 scStage」——动画全长与
+    // 清理/编排窗同通道缩放,「追帧 3x 清理掐断在途动画」的失配自除。e2e 无法驱动
+    // 追帧判档(生产 = 联机积压出队点,SnapshotEffects 专有),判据在此机械化:
+    // 逐档断言全长 ≤ 窗,含 bot 档(hold 压半)停留仍盖过落定钤落弧(票面失配消除)。
+    // 通道本身的除法行为见 test/e2e-time-scale.test.ts。
+    for (const scale of [1, LAG.scaleMin, 2, 2.5, LAG.scaleMax]) {
+      setCatchupScale(scale);
+      const at = `catchup×${scale}`;
+      expect(FX.sealLingerMs, `${at}:印停持消隐超清理窗`).toBeLessThanOrEqual(FX.sealMs);
+      expect(FX.pulseRingMs, `${at}:落格金圈超清理窗`).toBeLessThanOrEqual(FX.landPulseMs);
+      expect(DICE.landMs, `${at}:bot 档停留盖不住落定钤落弧(票面失配)`).toBeLessThanOrEqual(
+        DICE.botHoldMs,
+      );
+      expect(
+        DICE.landRingDelayMs + DICE.landRingMs,
+        `${at}:落点金圈(delay+全长)超签面停留窗`,
+      ).toBeLessThanOrEqual(DICE.holdMs);
+      expect(DUEL.landMs, `${at}:签面钤落弧超判词拍`).toBeLessThanOrEqual(DUEL.verdictMs);
+    }
+    setCatchupScale(1); // 全局态复原,防跨用例泄漏
   });
 
   // 大胜负点差档(blowoutMargin)的行为断言归位 test/presentation.test.ts isBlowout

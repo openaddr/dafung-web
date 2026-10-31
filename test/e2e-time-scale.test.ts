@@ -7,6 +7,7 @@ import { Motion } from "../src/core/theme";
 import {
   AUTO_MARCH,
   DICE,
+  DUEL,
   FX,
   GHOST,
   LAG,
@@ -68,12 +69,23 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(FX.bannerHoldMs).toBe(1000);
     expect(FX.sealMs).toBe(900);
     expect(FX.roadFlowMs).toBe(700);
+    // #849 棒3:fx.css 编排类 keyframe 的动画全长 getter(消费点内联注入)
+    expect(FX.sealSlamMs).toBe(150);
+    expect(FX.sealLingerMs).toBe(850);
+    expect(FX.pulseRingMs).toBe(650);
   });
 
   it("DICE", () => {
     expect(DICE.holdMs).toBe(Motion.dur.reveal);
     expect(DICE.botHoldMs).toBe(Motion.dur.slow);
     expect(DICE.fadeOutMs).toBe(Motion.dur.med);
+    // #849 棒3:落定钤落弧/落点金圈全长(消费点内联注入)
+    expect(DICE.landMs).toBe(260);
+    expect(DICE.landRingMs).toBe(500);
+  });
+
+  it("DUEL(#849 棒3:拼点签面落定钤落弧入通道)", () => {
+    expect(DUEL.landMs).toBe(260);
   });
 
   it("GHOST / UI(#117 收编组同样逐位恒等)", () => {

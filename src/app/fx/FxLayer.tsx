@@ -140,16 +140,26 @@ export function BoardFxLayer() {
           </g>
         );
       })}
-      {/* 落格定音(S7):事件/机遇格落点金圈一拍 */}
+      {/* 落格定音(S7):事件/机遇格落点金圈一拍。#849 棒3:keyframe 只管形,
+          全长 FX.pulseRingMs 内联注入(随 e2e/追帧通道缩放,清理窗 landPulseMs 同源) */}
       {pulses.map((p) => (
-        <circle key={p.id} className="fx-svg-pulse" cx={p.x} cy={p.y} r={26} />
+        <circle
+          key={p.id}
+          className="fx-svg-pulse"
+          cx={p.x}
+          cy={p.y}
+          r={26}
+          style={{ animationDuration: `${FX.pulseRingMs}ms` }}
+        />
       ))}
-      {/* 朱砂印章(漆金档见 .fx-svg-seal-gold):坐标即逻辑坐标 */}
+      {/* 朱砂印章(漆金档见 .fx-svg-seal-gold):坐标即逻辑坐标。#849 棒3:双动画
+          各自时长(FX.sealSlamMs/sealLingerMs)按列表序逗号内联注入 */}
       {seals.map((s) => (
         <g
           key={s.id}
           className={`fx-svg-seal${s.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
           transform={`translate(${s.x} ${s.y})`}
+          style={{ animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms` }}
         >
           <rect x={-29} y={-29} width={58} height={58} rx={9} />
           <text y={11} textAnchor="middle" fontSize={32}>
@@ -183,13 +193,18 @@ export function BoardFxLayer() {
       {/* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者→目标」水墨墨线 +
           起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,StaticLayers ROAD_ARROW_D 同形)。
           组管生死(opacity+金晕 drop-shadow)、线管生长(dashoffset),锚点/箭羽随组同寿、
-          箭羽于生长段末张羽——双 keyframes 同长 0.7s,与 FX.jinnangLineMs 清理窗硬同步
-          (fx.css 同注)。端点错位/零长线不设防(零兜底):坐标提取拍已烤定,错位是
+          箭羽于生长段末张羽——三条 keyframes 同长,全长单源 FX.jinnangLineMs,#849 棒3
+          起由本消费点内联注入三条 animationDuration(清理窗=同一 getter,追帧压缩
+          天然同步)。端点错位/零长线不设防(零兜底):坐标提取拍已烤定,错位是
           提取侧 bug 该当场露形。data-fx-jinnang-line 供 e2e 单次 evaluate 采样,仍在
           <line> 上(契约不变);fx 层内部 data 属性不进 TESTIDS 单源,同层 data-fx-layer
           先例;pathLength=1 归一化供生长动画。 */}
       {jinnangLines.map((l) => (
-        <g key={l.id} className="fx-svg-jline">
+        <g
+          key={l.id}
+          className="fx-svg-jline"
+          style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+        >
           <line
             className="fx-svg-jline-stroke"
             data-fx-jinnang-line=""
@@ -198,6 +213,7 @@ export function BoardFxLayer() {
             x2={l.x2}
             y2={l.y2}
             pathLength={1}
+            style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
           />
           <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={5} />
           <path
@@ -207,6 +223,7 @@ export function BoardFxLayer() {
             transform={`translate(${l.x2} ${l.y2}) rotate(${
               (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI
             })`}
+            style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
           />
         </g>
       ))}
