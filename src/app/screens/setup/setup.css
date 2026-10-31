@@ -78,7 +78,7 @@
 .su-seat-card {
   min-height: 44px;
   background: color-mix(in srgb, var(--color-paper-lo) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
   border-radius: 5px;
 }
 .su-seat-pseal {

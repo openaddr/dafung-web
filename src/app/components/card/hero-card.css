@@ -119,12 +119,12 @@
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
+  color: var(--color-paper);
   border-radius: 0.28em;
   transform: rotate(3deg);
   box-shadow:
     0 0.15em 0.3em rgba(0, 0, 0, 0.35),
-    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-paper) 55%, transparent);
 }
 .hface .stage .lihui.is-ph .ph-hint {
   font-size: 0.8em;
@@ -144,7 +144,7 @@
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
+  color: var(--color-paper);
   border-radius: 0.28em;
   font-family: var(--font-title);
   font-size: 1.4em;
@@ -152,7 +152,7 @@
   transform: rotate(4deg);
   box-shadow:
     0 0.15em 0.3em rgba(0, 0, 0, 0.4),
-    inset 0 0 0 0.14em color-mix(in srgb, var(--color-ink) 55%, transparent);
+    inset 0 0 0 0.14em color-mix(in srgb, var(--color-paper) 55%, transparent);
 }
 
 /* ── 扩展将旗(#378 渲染 hook):扩展包 assets 的旗图,「将」章下方同侧(挂卡根
@@ -231,7 +231,7 @@
   font-size: 2.3em;
   line-height: 1;
   letter-spacing: 0.1em;
-  color: var(--color-ink); /* 印文纸色(#510 收口字面量) */
+  color: var(--color-paper); /* 印文纸色(#510 收口字面量) */
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--color-panel-hi) 94%, transparent),
@@ -266,7 +266,7 @@
 .hface .skz .sk {
   font-size: 0.82em;
   line-height: 1.34;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 .hface .skz .sk + .sk {
   border-top: 1px dashed color-mix(in srgb, var(--color-lacquer-gold) 28%, transparent);
@@ -308,13 +308,13 @@
 }
 .hface .skz .cd {
   font-size: 0.78em;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
 }
 .hface .skz .sdesc {
   margin-top: 0.1em;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 
 /* ── 紧凑档装配:同骨架换装配——技能区从「技名牌+全文」换成「技名 chips 行 +
@@ -349,7 +349,7 @@
   border-radius: 0.25em;
   padding: 0.18em 0.5em; /* 热区补足:chip 即全览弹框入口(#605),触屏可点 */
   white-space: nowrap;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* 技名 chip = 全览弹框入口(#605):热区沿 chip padding(触屏可点);hover 金框提亮
    表达可点(§4.6 状态表达,无文字标牌);点击分流归消费方(data-skill 判定)。 */

@@ -74,7 +74,7 @@
 
 /* H-4 键盘 focus-visible 轮廓:虚线墨圈(与笔触下划线并存,鼠标路径不受影响) */
 .home-btn-brush:focus-visible {
-  outline: 2px dashed var(--color-ink);
+  outline: 2px dashed var(--color-paper);
   outline-offset: 2px;
 }
 

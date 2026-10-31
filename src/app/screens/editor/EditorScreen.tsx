@@ -132,13 +132,13 @@ function InputScroll({
   return (
     <BannerShell title={title} onClose={onCancel} testid="editor-input-scroll">
       {/* S3:label 说明文字用既有 ink-dim token,错误态不用(此处仅输入) */}
-      <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-ink">
+      <label className="mb-4 flex flex-col gap-2 font-wenkai text-base text-paper">
         {label}
         <input
           // 自动聚焦:prompt 的默认行为是直接可输入,卷轴版保持等价手感
           autoFocus
           data-testid="editor-name-input"
-          className="rounded border border-ink/30 bg-bg px-2 py-1.5 font-wenkai text-base text-ink"
+          className="rounded border border-paper/30 bg-bg px-2 py-1.5 font-wenkai text-base text-paper"
           value={value}
           onChange={(e) => setValue(e.target.value)}
           onKeyDown={(e) => {
@@ -493,8 +493,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
   const primaryBtn =
     "ink-btn inline-flex min-h-10 cursor-pointer items-center justify-center gap-1 rounded-[5px] px-3 py-2 font-wenkai text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-40";
 
-  // #555:墨线 rgba(43,35,23,*) 在深底上隐形,输入框边线收编 border-ink/30(:136/:680 同款)
-  const inputCls = "rounded-[3px] border border-ink/30 bg-bg px-2 py-1 w-full";
+  // #555:墨线 rgba(43,35,23,*) 在深底上隐形,输入框边线收编 border-paper/30(:136/:680 同款)
+  const inputCls = "rounded-[3px] border border-paper/30 bg-bg px-2 py-1 w-full";
   // 原生 select 的主题皮肤(选项列表本身是浏览器绘制,接受)
   const selectCls = "note-select px-2 py-1 w-full text-sm";
   // #555:校验/重叠警告条——text-danger 叠 bg-danger/10 压 panel 只有 3.98:1,底色
@@ -536,7 +536,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
         {ghost && (
           <div
             data-testid={TID.dragGhost}
-            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-ink/40 bg-panel/95 px-2 py-0.5 font-wenkai text-sm text-ink shadow-sm"
+            className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-1/2 rounded-[3px] border border-paper/40 bg-panel/95 px-2 py-0.5 font-wenkai text-sm text-paper shadow-sm"
             style={{ left: ghost.x, top: ghost.y }}
           >
             {ghost.name}
@@ -547,10 +547,10 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
       {/* 侧栏:工具条 + 属性面板 + 试玩(宽度/配色对照旧 editor-sidebar)。
           S5:w-[min(380px,60vw)] —— 窄屏下侧栏可压到 60vw,不再把棋盘挤没(工具条 flex-wrap 兜住换行)
           S13(#46):渐变收编 paper token(原为硬编码 hex 渐变,与 ScrollShell 同源)
-          #555:panel 画 panel 分界丢失——边线收编 border-ink/30(app.css --hairline-strong
+          #555:panel 画 panel 分界丢失——边线收编 border-paper/30(app.css --hairline-strong
           的同源等价,见 app.css 发丝线注),inset 阴影换 ink-shadow-lg 的黑基
           (暖墨褐阴影在近黑底上不可读,app.css「深底投影:黑基」同口径)。 */}
-      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-ink/30 bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(0,0,0,0.6)]">
+      <aside className="w-[min(380px,60vw)] shrink-0 overflow-y-auto border-l border-paper/30 bg-panel p-4 shadow-[inset_6px_0_14px_-10px_rgba(0,0,0,0.6)]">
         <div className="flex flex-wrap gap-1.5">
           <button data-testid={TID.exit} className={btn} onClick={onExit}>
             <Sym name="back" size={13} />
@@ -608,8 +608,8 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           onChange={onImportFile}
         />
 
-        <h3 className="font-title mb-1 mt-3 text-xl text-ink">编辑地图</h3>
-        <p className="mb-3 text-xs text-ink-dim">
+        <h3 className="font-title mb-1 mt-3 text-xl text-paper">编辑地图</h3>
+        <p className="mb-3 text-xs text-paper-dim">
           拖拽城池改位置(松手后自动连线);点击城池编辑属性。
         </p>
 
@@ -633,7 +633,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             tileForm 容器 testid 契约保留(e2e 选择器零漂移)。 */}
         <div data-testid={TID.tileForm}>
           <div
-            className="flex flex-col gap-1.5 text-sm text-ink"
+            className="flex flex-col gap-1.5 text-sm text-paper"
             onFocus={onFieldFocus}
             onBlur={onFieldBlur}
           >
@@ -706,15 +706,15 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
             {/* 变卖价表(#671 正名,旧称城池价值):逐级数字输入(Lv0..maxLevel;严格校验要求长度 = maxLevel+1)。
                 W2 审计:cols-4 一行收齐 Lv0~Lv3(原 cols-3 的 Lv3 孤行);窄侧栏挤压由
                 输入框 min-w-0 兜住(grid 轨道 minmax(0,1fr) 可缩,px-1 保数字可读) */}
-            <div className="mt-1 border-t border-ink/20 pt-2">
-              <div className="mb-1 text-xs text-ink-dim">变卖价表(Lv0~Lv{maxLevel})</div>
+            <div className="mt-1 border-t border-paper/20 pt-2">
+              <div className="mb-1 text-xs text-paper-dim">变卖价表(Lv0~Lv{maxLevel})</div>
               <div className="grid grid-cols-4 gap-1">
                 {Array.from({ length: maxLevel + 1 }, (_, lvl) => (
                   <label key={lvl} className="flex flex-col gap-0.5">
-                    <span className="text-[10px] text-ink-dim">Lv{lvl}</span>
+                    <span className="text-[10px] text-paper-dim">Lv{lvl}</span>
                     <input
                       data-testid={TID.rentLevel(lvl)}
-                      className="min-w-0 rounded border border-ink/30 bg-bg px-1 py-0.5 text-xs"
+                      className="min-w-0 rounded border border-paper/30 bg-bg px-1 py-0.5 text-xs"
                       type="number"
                       value={String(tile.valueByLevel?.[lvl] ?? 0)}
                       onChange={(e) => {
@@ -730,13 +730,13 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
               </div>
             </div>
 
-            <div className="mt-2 text-xs text-ink-dim">
+            <div className="mt-2 text-xs text-paper-dim">
               坐标:[{tile.pos[0]}, {tile.pos[1]}](拖拽城池改)
             </div>
           </div>
         </div>
 
-        <p className="mt-3 border-t border-ink/20 pt-2 text-xs text-ink-dim">{stats}</p>
+        <p className="mt-3 border-t border-paper/20 pt-2 text-xs text-paper-dim">{stats}</p>
 
         {onStart && (
           <button

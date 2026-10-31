@@ -67,7 +67,7 @@ function buildSign(side: DuelSide): SignHandle {
   swirl.setAttribute("viewBox", "0 0 72 72");
   swirl.classList.add("duel-sign-swirl");
   swirl.setAttribute("aria-hidden", "true");
-  // 墨旋本体:交替半圆旋出三匝墨涡(零位图,stroke 吃 --color-ink,fx.css)
+  // 墨旋本体:交替半圆旋出三匝墨涡(零位图,stroke 吃 --color-paper,fx.css)
   swirl.innerHTML =
     '<path d="M 36 36 a 4 4 0 0 1 -8 0 a 6 6 0 0 1 12 0 a 8 8 0 0 1 -16 0 ' +
     'a 10 10 0 0 1 20 0 a 12 12 0 0 1 -24 0" fill="none" stroke-width="5" ' +

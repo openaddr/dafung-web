@@ -234,7 +234,7 @@ export function App() {
     // 首页/配置页的地图名与编辑器起编图都以它为入参,无值比给假默认更诚实。
     content = (
       <div className="relative h-full">
-        <p className="p-8 font-deco text-ink-dim">地图清单加载中…</p>
+        <p className="p-8 font-deco text-paper-dim">地图清单加载中…</p>
         <HintBar hint={hint} level={hintLevel} />
       </div>
     );

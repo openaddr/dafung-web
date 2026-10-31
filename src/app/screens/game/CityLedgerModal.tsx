@@ -70,7 +70,7 @@ export function CityLedgerModal({
           </div>
           <div
             className={
-              GRID_COLS + " city-ledger-head border-b border-gold/25 pb-1.5 font-brush text-ink"
+              GRID_COLS + " city-ledger-head border-b border-gold/25 pb-1.5 font-brush text-paper"
             }
           >
             {/* 行首列:缩略图列头(图形列,无文字头) */}
@@ -93,24 +93,24 @@ export function CityLedgerModal({
               >
                 {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}
                 <TileThumb tile={tile} def={def} tileIndex={tileIndex} players={snapshot.players} />
-                <span className="font-wenkai text-ink">{tile.name}</span>
-                <span className="text-ink-dim tabular-nums">
+                <span className="font-wenkai text-paper">{tile.name}</span>
+                <span className="text-paper-dim tabular-nums">
                   Lv.{h.level}/{def.maxLevel}
                 </span>
-                <span className="text-right text-ink tabular-nums">
+                <span className="text-right text-paper tabular-nums">
                   {formatMoney(def.purchasePrice)}
                 </span>
-                <span className="text-right text-ink tabular-nums">
+                <span className="text-right text-paper tabular-nums">
                   {formatMoney(sellValueOf(def, h.level))}
                 </span>
-                <span className="text-right text-ink tabular-nums">
+                <span className="text-right text-paper tabular-nums">
                   ×{def.tradeMult[h.level]} +{formatMoney(def.tradeAdd[h.level])}
                 </span>
               </div>
             );
           })}
           {/* 口径小字(#621):交易加成列是坐地要价公式的两项现值参数 */}
-          <div className="mt-3 text-right font-wenkai text-[11.5px] text-ink-dim">
+          <div className="mt-3 text-right font-wenkai text-[11.5px] text-paper-dim">
             坐地要价 = 指导价 × 系数 + 加成
           </div>
         </>
@@ -118,7 +118,7 @@ export function CityLedgerModal({
         <div className="flex justify-center py-10">
           <span
             data-testid={TESTIDS.cityLedgerEmpty}
-            className="inline-block -rotate-3 rounded-md border-2 border-lacquer-gold/35 px-8 py-5 font-brush text-[26px] tracking-[0.3em] text-ink-dim opacity-75"
+            className="inline-block -rotate-3 rounded-md border-2 border-lacquer-gold/35 px-8 py-5 font-brush text-[26px] tracking-[0.3em] text-paper-dim opacity-75"
           >
             名下暂无城池
           </span>

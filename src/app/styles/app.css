@@ -10,17 +10,17 @@
    本块只是别名映射,不引入第二个颜色事实源。 */
 :root {
   --background: var(--color-bg);
-  --foreground: var(--color-ink);
+  --foreground: var(--color-paper);
   --card: var(--color-panel);
-  --card-foreground: var(--color-ink);
+  --card-foreground: var(--color-paper);
   --primary: var(--color-gold);
-  --primary-foreground: var(--color-ink);
+  --primary-foreground: var(--color-paper);
   --secondary: var(--color-panel-hi);
-  --secondary-foreground: var(--color-ink);
+  --secondary-foreground: var(--color-paper);
   --muted: var(--color-panel-hi);
-  --muted-foreground: var(--color-ink-dim);
+  --muted-foreground: var(--color-paper-dim);
   --accent: var(--color-panel-hi);
-  --accent-foreground: var(--color-ink);
+  --accent-foreground: var(--color-paper);
   --destructive: var(--color-danger);
   --border: var(--hairline-strong);
   --input: var(--hairline-strong);
@@ -53,13 +53,13 @@
 }
 
 /* ── 玄墨鎏金(#514/S8)深底发丝线:主题 ink(纸白)按透明度稀释,
-   经 color-mix 从 var(--color-ink) 派生——不引入第二个颜色事实源。
+   经 color-mix 从 var(--color-paper) 派生——不引入第二个颜色事实源。
    旧浅底时代的 rgba(43,35,23,*) 墨线在深底上隐形,全项目发丝线一律消费这两档
    (常规档=species 群边线,加强档=shadcn --border/--input 桥);
-   TSX 内的边框则走 Tailwind 的 border-ink/NN(同一 color-mix 数学,同源等价)。── */
+   TSX 内的边框则走 Tailwind 的 border-paper/NN(同一 color-mix 数学,同源等价)。── */
 :root {
-  --hairline: color-mix(in srgb, var(--color-ink) 16%, transparent);
-  --hairline-strong: color-mix(in srgb, var(--color-ink) 30%, transparent);
+  --hairline: color-mix(in srgb, var(--color-paper) 16%, transparent);
+  --hairline-strong: color-mix(in srgb, var(--color-paper) 30%, transparent);
 }
 
 /* ── 叠层遮罩减淡档(#767 弹窗详情族④):同帧开了两个及以上弹层(开栈栈深>1,
@@ -97,7 +97,7 @@ html {
   color-scheme: dark;
 }
 ::placeholder {
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 
 html,
@@ -145,7 +145,7 @@ body {
    :where() 零特异度:组件想要别的焦点样式可无 specificity 代价地覆盖;
    只有 :focus-visible 命中(键盘 Tab 导航),鼠标/触屏点击不出圈。 */
 :where(button, a, input, select, textarea, summary, [role="button"], [tabindex]):focus-visible {
-  outline: 2px dashed var(--color-ink);
+  outline: 2px dashed var(--color-paper);
   outline-offset: 2px;
 }
 
@@ -279,7 +279,7 @@ body[data-screen="game"] #app::after {
 /* 笺钮:暗笺底 + 发丝边,次级动作/工具;hover 底升一档 + 边缘晕金(金=势的预告)。 */
 .note-btn {
   background: var(--color-panel);
-  color: var(--color-ink);
+  color: var(--color-paper);
   border: 1px solid var(--hairline);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
 }
@@ -298,7 +298,7 @@ body[data-screen="game"] #app::after {
     url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%23c6b491' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
       no-repeat right 6px center / 12px auto,
     var(--color-panel);
-  color: var(--color-ink);
+  color: var(--color-paper);
   border: 1px solid var(--hairline);
   border-radius: 3px;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);

@@ -71,14 +71,14 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
   const c = playerColor(p.colorIndex);
   return (
     <g className="bv-token-flag">
-      {/* 旗杆(#512 深底适配:暗金装饰线 inkwash,深色杆在玄墨底上不可见) */}
-      <line x1={0} y1={0} x2={0} y2={-34} stroke={rgba(Theme.inkwash, 0.85)} strokeWidth={2.5} />
+      {/* 旗杆(#512 深底适配:暗金装饰线 goldWash,深色杆在玄墨底上不可见) */}
+      <line x1={0} y1={0} x2={0} y2={-34} stroke={rgba(Theme.goldWash, 0.85)} strokeWidth={2.5} />
       {/* 三角旌旗(玩家色)。B2:纸色描边一圈——棋子是"人",要在城旗(燕尾)/王旗(双层大三角)
           之外第一眼可辨,纸色边在任何底色上勾出旗形轮廓;内侧玄墨细线再压一层层次。 */}
       <polygon
         points="0,-34 26,-26 0,-16"
         fill={rgba(c)}
-        stroke={rgba(Theme.ink, 0.95)}
+        stroke={rgba(Theme.paper, 0.95)}
         strokeWidth={1.6}
       />
       <polygon
@@ -95,7 +95,7 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
         fontFamily="var(--font-brush)"
         fontSize={13}
         fontWeight={700}
-        fill={rgba(Theme.ink)}
+        fill={rgba(Theme.paper)}
         stroke={rgba(Theme.bgDeep, 0.85)}
         strokeWidth={2}
         paintOrder="stroke"

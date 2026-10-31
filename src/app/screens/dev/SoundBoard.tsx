@@ -55,7 +55,7 @@ function Board() {
   return (
     <div className="m-auto flex w-[min(680px,94vw)] flex-col gap-y-3 p-6">
       <div className="flex items-baseline justify-between">
-        <h1 className="font-wenkai text-2xl text-ink">音效试听台</h1>
+        <h1 className="font-wenkai text-2xl text-paper">音效试听台</h1>
         <button
           type="button"
           title={audio.muted ? "开音" : "静音"}
@@ -66,7 +66,7 @@ function Board() {
           <Sym name={audio.muted ? "muted" : "sound"} size={15} />
         </button>
       </div>
-      <p className="text-sm text-ink-dim">
+      <p className="text-sm text-paper-dim">
         标注读运行时映射表(素材文件/合成/播放侧裁剪);首次点击即解锁声音。仅 dev 工具,?dev=sound
         直达。
       </p>
@@ -78,7 +78,7 @@ function Board() {
             return (
               <li
                 key={event}
-                className="flex items-center gap-x-3 border-t border-ink/15 py-2 first:border-t-0"
+                className="flex items-center gap-x-3 border-t border-paper/15 py-2 first:border-t-0"
               >
                 <button
                   type="button"
@@ -89,8 +89,8 @@ function Board() {
                   <Sym name="play" size={11} />
                   {row.label}
                 </button>
-                <span className="min-w-0 flex-1 text-sm text-ink-dim">{row.when}</span>
-                <span className="shrink-0 text-xs text-ink-dim">
+                <span className="min-w-0 flex-1 text-sm text-paper-dim">{row.when}</span>
+                <span className="shrink-0 text-xs text-paper-dim">
                   {file ? (
                     <>
                       素材 {file.split("/").pop()}

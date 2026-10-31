@@ -105,12 +105,12 @@ export function HomeScreen({
           #707 矮横屏档标题降档给条带让位(收纳档,桌面 6xl 不动);
           #761 ⑥:本档再降一档 36→30px(844×360 零滚动三主刀之一) */}
         <h1
-          className={`home-title-in font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-ink tracking-widest pl-[0.1em]`}
+          className={`home-title-in font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-paper tracking-widest pl-[0.1em]`}
         >
           群雄逐鹿
         </h1>
         {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
-        <div className="home-title-in-sub home-sub-tight font-deco text-ink-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
+        <div className="home-title-in-sub home-sub-tight font-deco text-paper-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
           — 三国大富翁 —
         </div>
 
@@ -192,19 +192,19 @@ export function HomeScreen({
           </div>
         ) : (
           /* 当前选中地图回显;H-5:整行可点唤起选图二级屏。#558:13px→14px(选图入口
-            第二载体不该是全屏最小字),「当前地图:」与图名同用 text-ink,仅箭头 ink-dim。
+            第二载体不该是全屏最小字),「当前地图:」与图名同用 text-paper,仅箭头 ink-dim。
             W2 包E(审计 A3):升级为小签材质(note-btn 小控件档 3px),文案落 wenkai
             (动态地图名禁落小薇);裸排 ▾ 换 Sym expand(SVG,无 tofu 风险)。 */
           <button
             type="button"
             onClick={() => setShowMapSelect(true)}
-            className="note-btn rounded-[3px] font-wenkai text-[14px] text-ink mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
+            className="note-btn rounded-[3px] font-wenkai text-[14px] text-paper mt-6 flex items-center gap-2 cursor-pointer px-2.5 py-1 transition-colors"
           >
-            <span className="text-ink">当前地图:</span>
-            <span data-testid={TID.currentMapName} className="text-ink">
+            <span className="text-paper">当前地图:</span>
+            <span data-testid={TID.currentMapName} className="text-paper">
               {mapName}
             </span>
-            <Sym name="expand" size={11} className="text-ink-dim" />
+            <Sym name="expand" size={11} className="text-paper-dim" />
           </button>
         )}
 

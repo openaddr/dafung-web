@@ -306,7 +306,7 @@ export function VictoryScreen(props: VictoryScreenProps) {
           className="victory-step victory-step-standings mt-2 flex max-w-[92vw] flex-wrap items-baseline justify-center gap-x-3 font-deco text-sm"
           style={{ color: INFO_TEXT }}
         >
-          <span className="text-ink-dim">终榜</span>
+          <span className="text-paper-dim">终榜</span>
           {standings.map((s, i) => (
             <span key={`${s.guohao}-${i}`} className="whitespace-nowrap">
               <span style={{ color: rgba(playerColor(s.colorIndex)) }}>{s.guohao}</span>{" "}

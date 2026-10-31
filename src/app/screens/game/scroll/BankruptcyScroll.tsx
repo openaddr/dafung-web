@@ -87,7 +87,7 @@ export function BankruptcyScroll({
               (backpack .bkr-owe 句式),与变卖钮上的「+」金额互为对照。 */}
             <div
               data-testid={T.bankruptcyProgress}
-              className="text-right text-xs text-ink-dim tabular-nums"
+              className="text-right text-xs text-paper-dim tabular-nums"
             >
               已凑 {formatMoney(cash)} / 债务 {formatMoney(debtAmount)} · 尚欠 {formatMoney(owe)}
             </div>
@@ -137,14 +137,14 @@ export function BankruptcyScroll({
           </div>
         }
       >
-        <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-ink-dim">
+        <p data-testid={T.bankruptcyDebt} className="m-1 mb-3 text-center text-sm text-paper-dim">
           {settled
             ? "现金已凑足债务!点「结算」清偿,转危为安。"
             : `现金不足,尚欠 ${formatMoney(owe)}。变卖资产凑够即免破产(珍宝按指导价、城按当前等级变卖价、名将每名 200 两)。`}
         </p>
         <div className="flex flex-col gap-2">
           <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
+            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
               <i>宝</i>
               <span>珍宝</span>
             </h4>
@@ -159,12 +159,12 @@ export function BankruptcyScroll({
                   变卖珍宝 · {treasures.length} 件
                 </BannerButton>
               ) : (
-                <span className="text-xs text-ink-dim">无</span>
+                <span className="text-xs text-paper-dim">无</span>
               )}
             </div>
           </section>
           <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
+            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
               <i>城</i>
               <span>城池</span>
             </h4>
@@ -182,18 +182,20 @@ export function BankruptcyScroll({
                     {/* #60:标价与购入价有落差时不静默——小字说明折价原因(Lv 越低折越多,
                       经济 v2:valueByLevel = 购价×[40/60/85/120]% 按等级),玩家可理解。 */}
                     {p.sellPrice < p.purchasePrice && (
-                      <span className="font-deco text-[10px] leading-none text-ink-dim">
+                      <span className="font-deco text-[10px] leading-none text-paper-dim">
                         购入{formatMoney(p.purchasePrice)}·Lv.{p.level} 变卖折价
                       </span>
                     )}
                   </span>
                 </BannerButton>
               ))}
-              {sellableProperties.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+              {sellableProperties.length === 0 && (
+                <span className="text-xs text-paper-dim">无</span>
+              )}
             </div>
           </section>
           <section>
-            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-ink-dim">
+            <h4 className="note-head mb-1.5 text-xs tracking-[0.25em] text-paper-dim">
               <i>贤</i>
               <span>名将</span>
             </h4>
@@ -207,7 +209,7 @@ export function BankruptcyScroll({
                   遣·{h.name} +{formatMoney(200)}
                 </BannerButton>
               ))}
-              {heroes.length === 0 && <span className="text-xs text-ink-dim">无</span>}
+              {heroes.length === 0 && <span className="text-xs text-paper-dim">无</span>}
             </div>
           </section>
         </div>

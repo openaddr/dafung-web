@@ -151,7 +151,7 @@ export function ConfirmDialog({
         <div>
           {/* W2 包E(审计 A5):正文是动态 children(地图名/城名等),字族迁 wenkai 不落小薇。
               底件 DialogTitle/DialogDescription 白拿 aria-labelledby/aria-describedby 口径。 */}
-          <DialogDescription className="mb-3.5 font-wenkai text-[17px] text-ink">
+          <DialogDescription className="mb-3.5 font-wenkai text-[17px] text-paper">
             {children}
           </DialogDescription>
           <div className="flex flex-wrap justify-center gap-3">

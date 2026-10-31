@@ -133,7 +133,7 @@ export function Tip({
       </TooltipTrigger>
       <TooltipContent side={side} sideOffset={8} data-testid={TESTIDS.attrTip}>
         <TooltipTitle>{tip.name}</TooltipTitle>
-        {tip.detail !== "" && <span className="block text-ink/85">{tip.detail}</span>}
+        {tip.detail !== "" && <span className="block text-paper/85">{tip.detail}</span>}
       </TooltipContent>
     </Tooltip>
   );

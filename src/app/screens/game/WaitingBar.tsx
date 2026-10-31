@@ -114,7 +114,7 @@ export function WaitingBar({
   return (
     <div
       data-testid={TESTIDS.waitingBar}
-      className="waiting-pill pointer-events-none rounded-full border border-gold/50 bg-panel/95 px-3 py-0.5 font-title text-sm text-ink shadow"
+      className="waiting-pill pointer-events-none rounded-full border border-gold/50 bg-panel/95 px-3 py-0.5 font-title text-sm text-paper shadow"
     >
       {/* X7 #26:thinking testid 迁到文案 span(原 GameScreen 底部角标,单机 bot 用例仍走此断言) */}
       <span data-testid={TESTIDS.thinking}>

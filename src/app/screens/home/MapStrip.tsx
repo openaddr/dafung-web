@@ -77,7 +77,7 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
         <p className="font-wenkai text-danger text-sm">加载失败:{error}</p>
         <button
           onClick={() => setReloadKey((k) => k + 1)}
-          className="note-btn min-h-[40px] cursor-pointer rounded-[3px] px-4 font-wenkai text-ink"
+          className="note-btn min-h-[40px] cursor-pointer rounded-[3px] px-4 font-wenkai text-paper"
         >
           重试
         </button>
@@ -132,14 +132,16 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
               // H3(#751):flex 1 0 160px;max-w 280 仅在基准排溢出时保留(#843,见头注)
               (fitByBasis ? "flex-[1_0_160px] " : "flex-[1_0_160px] max-w-[280px] ") +
               // 选中语言与 MapSelectPanel/SegmentedSelect 统一:金框 + gold/25 势档
-              (selected ? "border-gold bg-gold/25" : "border-ink/25 bg-bg/60 hover:border-gold/60")
+              (selected
+                ? "border-gold bg-gold/25"
+                : "border-paper/25 bg-bg/60 hover:border-gold/60")
             }
           >
             <div className="flex items-baseline justify-between gap-1">
-              <span className="font-wenkai text-[14px] font-bold text-ink">{e.name}</span>
-              {e.custom ? <span className="text-[10px] text-ink-dim">自建</span> : null}
+              <span className="font-wenkai text-[14px] font-bold text-paper">{e.name}</span>
+              {e.custom ? <span className="text-[10px] text-paper-dim">自建</span> : null}
             </div>
-            <div className="mt-0.5 text-[11px] whitespace-nowrap text-ink-dim">
+            <div className="mt-0.5 text-[11px] whitespace-nowrap text-paper-dim">
               {e.tileCount} 城 · 目标 {formatMoney(e.targetNetWorth)}
             </div>
           </button>

@@ -58,7 +58,7 @@
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
   font-family: var(--font-title);
   font-size: 14px;
-  color: var(--color-ink);
+  color: var(--color-paper);
   animation: turn-capsule-in var(--dur-fast) var(--ease-out);
 }
 @keyframes turn-capsule-in {
@@ -91,7 +91,7 @@
 }
 /* 「第 N 轮」:附加信息档(弱化,不与名号争读) */
 .game-layout .turn-capsule .tc-round {
-  color: color-mix(in srgb, var(--color-ink) 62%, var(--color-bg-deep));
+  color: color-mix(in srgb, var(--color-paper) 62%, var(--color-bg-deep));
   font-size: 12px;
   letter-spacing: 0.5px;
 }

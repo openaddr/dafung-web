@@ -109,7 +109,7 @@ export function InquiryScroll({
                   {i + 1}
                 </span>
               </JinnangCardBack>
-              <span className="mt-1.5 block text-center font-wenkai text-xs text-ink-dim">
+              <span className="mt-1.5 block text-center font-wenkai text-xs text-paper-dim">
                 {o.label}
               </span>
             </button>
@@ -132,7 +132,7 @@ export function InquiryScroll({
         </div>
       )}
       {choices.some((o) => !o.available) && (
-        <p className="mt-2 text-center text-xs text-ink-dim">
+        <p className="mt-2 text-center text-xs text-paper-dim">
           {choices.find((o) => !o.available)?.reason}
         </p>
       )}

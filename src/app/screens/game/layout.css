@@ -103,7 +103,7 @@
   padding-top: 1px;
   font-size: 11px;
   letter-spacing: 0.08em;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
 .war-brief {
@@ -130,7 +130,7 @@
   font-family: var(--font-wenkai);
   font-size: 12px;
   letter-spacing: 0.08em;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   cursor: pointer;
   transition:
     transform var(--dur-fast) var(--ease-out),
@@ -138,7 +138,7 @@
     color var(--dur-fast) var(--ease-out);
 }
 .war-earlier:hover {
-  color: var(--color-ink);
+  color: var(--color-paper);
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
 }
@@ -247,8 +247,8 @@
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--color-panel) 88%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
-  color: var(--color-ink-dim);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
+  color: var(--color-paper-dim);
   cursor: pointer;
   padding: 0;
   transition:
@@ -264,7 +264,7 @@
   inset: -6px;
 }
 .game-layout .tbtn:hover:not(:disabled) {
-  color: var(--color-ink);
+  color: var(--color-paper);
   border-color: var(--color-gold-bright);
   transform: scale(1.02);
   box-shadow: 0 0 8px rgba(138, 106, 28, 0.45);
@@ -321,7 +321,7 @@
   flex: 0 0 auto;
   height: clamp(30px, calc((100% - 14px) / 8), 38px);
   background: color-mix(in srgb, var(--color-paper-lo) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
   border-radius: 5px;
   padding: 3px 5px 2px;
   display: flex;
@@ -357,14 +357,14 @@
   border: 1px solid var(--pc);
   color: var(--pc-seal);
 }
-/* 托管常驻微标(#770):托管(AI 代打)开启的席位,国号印右 8px 齿轮,--color-inkwash
+/* 托管常驻微标(#770):托管(AI 代打)开启的席位,国号印右 8px 齿轮,--color-gold-wash
    墨金弱色(状态在而不抢戏;§4.6 撤文字可辨,role=img 读屏名在 SeatRail)。纯展示
    不设点击层——开关交互唯单人格弹层(ADR-0028 单一开关),点击冒泡进格根 tap。 */
 .game-layout .seat .hosted {
   flex: none;
   display: inline-flex;
   align-items: center;
-  color: var(--color-inkwash);
+  color: var(--color-gold-wash);
 }
 /* 现金主数:裸数、省「两」(格上口径,原型 .cash-s;全称带「两」在单人格弹层,
    #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
@@ -392,7 +392,7 @@
   display: block;
   height: 4px;
   border-radius: 2px;
-  background: color-mix(in srgb, var(--color-ink) 40%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 40%, transparent);
   overflow: hidden;
 }
 .game-layout .seat .strack i {
@@ -458,7 +458,7 @@
               1px 气口保留会把 12 张封顶态顶到 87>84——气口归零后 82≤84 达标 */
   font-size: 10px;
   line-height: 1;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
   /* 命中区满格高(#743 判词 A:六图标是浮签触发元,原 ≈15×9px 远低于触达下限,
@@ -677,11 +677,11 @@
   0%,
   100% {
     border-color: color-mix(in srgb, var(--color-gold) 30%, transparent);
-    color: color-mix(in srgb, var(--color-ink-dim) 72%, transparent);
+    color: color-mix(in srgb, var(--color-paper-dim) 72%, transparent);
   }
   50% {
     border-color: var(--color-gold-bright);
-    color: var(--color-ink);
+    color: var(--color-paper);
   }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -689,7 +689,7 @@
   .game-layout .diceseal.await {
     animation: none;
     border-color: color-mix(in srgb, var(--color-gold-bright) 60%, transparent);
-    color: var(--color-ink);
+    color: var(--color-paper);
   }
 }
 
@@ -720,11 +720,11 @@
   display: grid;
   place-items: center;
   background: color-mix(in srgb, var(--color-panel) 92%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 18%, transparent);
   font-family: var(--font-wenkai);
   font-size: 11px;
   line-height: 1.1;
-  color: var(--color-ink);
+  color: var(--color-paper);
   text-align: center;
   cursor: pointer;
   padding: 0;
@@ -762,7 +762,7 @@
   padding: 0 3.5px;
   border-radius: 7px;
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
-  color: var(--color-ink);
+  color: var(--color-paper);
   font-style: normal;
   font-family: var(--font-wenkai);
   font-size: 10px;
@@ -770,7 +770,7 @@
   font-variant-numeric: tabular-nums;
   box-shadow:
     0 1px 3px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 1px color-mix(in srgb, var(--color-ink) 55%, transparent);
+    inset 0 0 0 1px color-mix(in srgb, var(--color-paper) 55%, transparent);
   display: grid;
   place-items: center;
 }
@@ -795,11 +795,11 @@
   width: 100%;
   padding: 9px 2px;
   border: 0;
-  border-bottom: 1px solid color-mix(in srgb, var(--color-ink) 9%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--color-paper) 9%, transparent);
   background: none;
   font-family: var(--font-wenkai);
   font-size: 13px;
-  color: var(--color-ink);
+  color: var(--color-paper);
   text-align: left;
 }
 .setrow:last-of-type {
@@ -832,7 +832,7 @@
 .setval {
   font-style: normal;
   font-size: 11px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   font-variant-numeric: tabular-nums;
 }
 /* 音效开关(#745 高4):手写 .setsw 皮退役,单源回 ui/switch 底件(桥接

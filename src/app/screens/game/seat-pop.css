@@ -55,7 +55,7 @@
   font-family: inherit;
   font-size: 16px;
   letter-spacing: normal;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* 现金章:裸数全称带「两」(与格上省「两」口径区隔;#745 高3 起全链无千分位),
    原型 .chip 制式 */
@@ -64,9 +64,9 @@
   padding: 2px 7px;
   font-size: 10px;
   white-space: nowrap;
-  border: 1px solid color-mix(in srgb, var(--color-ink) 16%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 16%, transparent);
   border-radius: 4px;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* reason 印条(#743 判词 E/#751 C 批):目标段不可选席点按放行到弹层时,禁用原因
    上屏(§4.6 文字例外=禁用原因;触屏无 hover,title 浮签不可达的替代通路)。
@@ -80,7 +80,7 @@
   font-family: var(--font-wenkai);
   font-size: 11px;
   line-height: 1.5;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 .spop .spop-row {
   display: flex;
@@ -88,7 +88,7 @@
   gap: 10px;
   margin: 8px 0;
   font-size: 12px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 /* 声望/委任行:原型 ⑤ 内联 space-between(两端对齐,行2 制式) */
 .spop .spop-row.between {
@@ -98,14 +98,14 @@
 .spop .spop-num {
   font-size: 13px;
   font-weight: 700;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* 体力数值条:原型 pop-row 内 strack 5px 高吃剩余宽;濒耗竭转朱砂(格上 .low 同口径) */
 .spop .spop-track {
   flex: 1;
   height: 5px;
   border-radius: 3px;
-  background: color-mix(in srgb, var(--color-ink) 14%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 14%, transparent);
   overflow: hidden;
 }
 .spop .spop-track i {
@@ -130,18 +130,18 @@
   flex-direction: column;
   align-items: center;
   gap: 3px;
-  background: color-mix(in srgb, var(--color-ink) 4%, transparent);
-  border: 1px solid color-mix(in srgb, var(--color-ink) 10%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 4%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-paper) 10%, transparent);
   border-radius: 6px;
   padding: 7px 2px;
   font-family: inherit;
   font-size: 10px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 .spop .spop-b.spop-click {
   border-color: rgba(217, 185, 92, 0.5);
   background: rgba(217, 185, 92, 0.08);
-  color: var(--color-ink);
+  color: var(--color-paper);
   cursor: pointer;
 }
 .spop .spop-b.spop-click::after {
@@ -171,7 +171,7 @@
 }
 /* 手牌徽章值:原型 ⑤ 内联 ink(素底徽章标淡字、值仍亮色,与珍宝 gold 同构) */
 .spop .spop-bv.spop-hand {
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* 名将徽章值=麾下名将名(信息公开,原型 ⑤「张辽」口径);多将一行省略,全名进
    title 浮签。span 承担 ellipsis(b 是 flex,截断要落在内层文本盒)。 */
@@ -187,9 +187,9 @@
   justify-content: space-between;
   margin-top: 10px;
   padding-top: 10px;
-  border-top: 1px solid color-mix(in srgb, var(--color-ink) 9%, transparent);
+  border-top: 1px solid color-mix(in srgb, var(--color-paper) 9%, transparent);
   font-size: 12px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
 }
 /* 开关(#745 高4):spop-switch 双类覆写皮退役——单源回 ui/switch 底件(桥接
    --primary=漆金,shadcn 收口红线闭合);尺寸档走底件缺省,不再此处重皮。 */
@@ -214,7 +214,7 @@
   font-size: 21px;
   font-weight: 500;
   font-variant-numeric: tabular-nums;
-  color: var(--color-ink);
+  color: var(--color-paper);
 }
 /* 负声望值色改朱砂(#556 数值即信息同口径) */
 .spop-detail .spop-bignum.neg {
@@ -223,7 +223,7 @@
 .spop-detail .spop-terms {
   text-align: center;
   font-size: 11.5px;
-  color: var(--color-ink-dim);
+  color: var(--color-paper-dim);
   padding: 0 8px 6px;
 }
 /* 声望献计里程碑章(#848,二轮审计 P1-C7):已献=漆金实底章、未献=虚线素章+
@@ -244,9 +244,9 @@
   font-size: 10px;
   border-radius: 3px;
   white-space: nowrap;
-  border: 1px dashed color-mix(in srgb, var(--color-ink) 16%, transparent);
-  background: color-mix(in srgb, var(--color-ink) 5%, transparent);
-  color: color-mix(in srgb, var(--color-ink-dim) 45%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--color-paper) 16%, transparent);
+  background: color-mix(in srgb, var(--color-paper) 5%, transparent);
+  color: color-mix(in srgb, var(--color-paper-dim) 45%, transparent);
   font-variant-numeric: tabular-nums;
 }
 .spop-detail .spop-milestone.claimed {
