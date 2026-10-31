@@ -214,6 +214,22 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(warrantModal).toBeHidden();
 
+      // 空陈列接 #768 器物空态(#884,#851 尾):清空麾下/库房重开——斜放朱印+短注
+      // (PileModal 同制式单源),计数如实报 0、网格不挂
+      await force(page, `e.players[1].heroes = []; e.players[1].treasures = [];`);
+      await page.getByTestId(TESTIDS.seatAttr(1, "hero")).click();
+      await expect(heroModal).toBeVisible();
+      await expect(heroModal.getByText("麾下名将 · 0 席")).toBeVisible();
+      await expect(heroModal.locator(".seal-empty")).toHaveAttribute("aria-label", "暂无名将");
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(heroModal).toBeHidden();
+      await page.getByTestId(TESTIDS.seatAttr(1, "gem")).click();
+      await expect(gemModal).toBeVisible();
+      await expect(gemModal.getByText("已持有 · 0 件")).toBeVisible();
+      await expect(gemModal.locator(".seal-empty")).toHaveAttribute("aria-label", "暂无珍宝");
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(gemModal).toBeHidden();
+
       // 牌背=暗牌不可点(ADR-0016):点击不开任何弹层(浮签触发元 claim 止泡),
       // 四明细容器与单人格弹层零浮现
       await page.getByTestId(TESTIDS.seatAttr(1, "hand")).click();

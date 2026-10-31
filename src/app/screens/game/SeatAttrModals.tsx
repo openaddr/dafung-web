@@ -3,7 +3,8 @@
 // HeroCardFace/TreasureCardFace 公开件;名将/珍宝是投影全员公开信息,逐件可陈),
 // 声望/委任为轻量数值明细(大数+口径;声望带献计里程碑章,门槛单源
 // core/reputation REP_MILESTONES,已领集=快照 repMilestones)。空陈列照常可开:
-// 计数如实报 0、网格自然为空(业务空态,#361 口径);投影没有的数据不造(零兜底)。
+// 计数如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,单源
+// screens/shared/ArtifactEmpty,PileModal #851 同款);投影没有的数据不造(零兜底)。
 // 壳全收口 shadcn(PileShell→ui/dialog 底件):可拖(ADR-0031)/点外/Esc/不夺焦
 // 全由壳白拿,本件零自写交互语义。轻量明细样式在 seat-pop.css(spop-detail)。
 import type { ReactNode } from "react";
@@ -15,6 +16,7 @@ import { PileShell } from "./PileModal";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { ATTR_TIPS } from "./Tip";
 import { TESTIDS } from "./testids";
 
@@ -36,16 +38,22 @@ function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void 
         <span className="pile-zdot" aria-hidden="true" />
         麾下名将 · {p.heroes.length} 席
       </div>
-      <div className="pile-hero-grid">
-        {p.heroes.map((slot) => (
-          <HeroCardFace
-            key={slot.heroId}
-            heroId={slot.heroId}
-            skillIds={slot.skillIds}
-            size="detail"
-          />
-        ))}
-      </div>
+      {p.heroes.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <SealEmpty char="将" note="虚位以待" title="暂无名将" />
+        </div>
+      ) : (
+        <div className="pile-hero-grid">
+          {p.heroes.map((slot) => (
+            <HeroCardFace
+              key={slot.heroId}
+              heroId={slot.heroId}
+              skillIds={slot.skillIds}
+              size="detail"
+            />
+          ))}
+        </div>
+      )}
     </PileShell>
   );
 }
@@ -65,24 +73,30 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
         <span className="pile-zdot" aria-hidden="true" />
         已持有 · {p.treasures.length} 件<small>(名牌=指导价)</small>
       </div>
-      <div className="pile-grid">
-        {p.treasures.map((t) => {
-          const image = treasureImagePath(t.id);
-          return (
-            <div className="pile-cell" key={t.id}>
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-                className="pile-cell-card"
-                title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
-              />
-              <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-            </div>
-          );
-        })}
-      </div>
+      {p.treasures.length === 0 ? (
+        <div className="flex justify-center py-6">
+          <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />
+        </div>
+      ) : (
+        <div className="pile-grid">
+          {p.treasures.map((t) => {
+            const image = treasureImagePath(t.id);
+            return (
+              <div className="pile-cell" key={t.id}>
+                <TreasureCardFace
+                  name={t.name}
+                  level={t.level}
+                  desc={t.desc}
+                  art={image != null ? <img src={image} alt="" /> : undefined}
+                  className="pile-cell-card"
+                  title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
+                />
+                <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </PileShell>
   );
 }
