@@ -384,3 +384,49 @@ body[data-screen="game"] #app::after {
   rotate: -4deg;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4);
 }
+
+/* ── .paper-skin(#845 UI 二轮 14,审计 P1-A4):Portal 弹层族自挂纸面材质。
+   纸纹/晕影原是 #app::before/::after 两层全局膜,弹层走 Base UI Portal 挂到 body,
+   罩不到这层膜——战报抽屉/确认框读作无材质网页面板。本类把同一套双层材质收口成
+   可复用类,弹层纸面容器自挂,pseudo 挂膜:
+   ::before = 案头晕影(#app::before 同参,树序在内容之下,内容不被压暗);
+   ::after  = 鎏金噪点(#app::after 同参,树序在内容之上,与全局膜一样是罩面)。
+   消费约定:宿主必须是定位元素(ui/dialog、ui/sheet 的 Popup 均 fixed),absolute
+   pseudo 才有锚;圆角随宿主 border-radius:inherit;膜随宿主盒走、Portal 内自洽。
+   色值与透明度零新源:渐变/噪点 URI 逐字同 #app 两膜,颗粒透明度消费同一组
+   --texture-opacity-* token(对局屏降档同拍,见下方 game 覆盖)。── */
+.paper-skin::before,
+.paper-skin::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.paper-skin::before {
+  background:
+    radial-gradient(
+      ellipse 90% 70% at 50% 30%,
+      color-mix(in srgb, var(--color-gold) 5%, transparent),
+      transparent 62%
+    ),
+    radial-gradient(
+      ellipse 120% 105% at 50% 46%,
+      transparent 55%,
+      rgba(0, 0, 0, 0.24) 78%,
+      rgba(0, 0, 0, 0.5) 100%
+    );
+}
+.paper-skin::after {
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.73 0 0 0 0 0.36 0 0 0 0.5 0'/%3E%3C/filter%3E%3Crect width='240' height='240' filter='url(%23n)'/%3E%3C/svg%3E"),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='700' height='700'%3E%3Cfilter id='m'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.012 0.016' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.85 0 0 0 0 0.73 0 0 0 0 0.36 0 0 0 0.3 0'/%3E%3C/filter%3E%3Crect width='700' height='700' filter='url(%23m)'/%3E%3C/svg%3E");
+  background-size:
+    240px 240px,
+    700px 700px;
+  opacity: var(--texture-opacity-menu);
+}
+/* 对局屏同拍 #app::after(#87):格线优先,纹理退后。 */
+body[data-screen="game"] .paper-skin::after {
+  opacity: var(--texture-opacity-game);
+}
