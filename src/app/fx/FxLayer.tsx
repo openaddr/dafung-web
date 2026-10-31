@@ -1,4 +1,4 @@
-// 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章。
+// 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章、技能浮字两档(#850 施展升档/被动小签)。
 // D1/D4 改造:浮字/印章/铜钱不再走 HTML 覆盖层 + getScreenCTM 一次性换算
 // (拖拽/缩放后即脱锚),而是直接渲染进棋盘 SVG 的 #bv-fx 层(BoardFxLayer,
 // 由 BoardView 挂载)——坐标系与棋盘天然一致,pan/zoom 时随视图一起变换,
@@ -13,9 +13,10 @@
 // 席位现金 count-up 订阅(seat-cash.ts)也随本件挂载/卸载。
 import { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
+import { playerColor, rgba } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
-import { useFxStore, type CashFlyFx } from "./fxStore";
+import { useFxStore, type CashFlyFx, type FloaterFx } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
 import { bumpSeatCash, startSeatCashCount } from "./seat-cash";
@@ -86,6 +87,22 @@ function Coin({
   );
 }
 
+/** 浮字渲染档(#850 技能演出补课):class/字号/玩家色变量三件随 skill 档分派——
+ *  cast=施展升档(1.0× 焦墨 brush 字+玩家色细描边,--player-color 恒随件内联,
+ *  CSS 侧零回退值);tag=被动技名小签(0.7× ink-dim);缺省=金额(pos/neg)或
+ *  普通文案小字(msg,0.8×)。 */
+function floaterLook(
+  f: FloaterFx,
+  fontSize: number,
+): { cls: string; size: number; playerColorVar: string | null } {
+  if (f.skill?.kind === "cast")
+    return { cls: "skill", size: fontSize, playerColorVar: rgba(playerColor(f.skill.colorIndex)) };
+  if (f.skill?.kind === "tag")
+    return { cls: "tag", size: Math.round(fontSize * 0.7), playerColorVar: null };
+  if (f.text) return { cls: "msg", size: Math.round(fontSize * 0.8), playerColorVar: null };
+  return { cls: f.amount >= 0 ? "pos" : "neg", size: fontSize, playerColorVar: null };
+}
+
 /** 补给铜钱雨落点(定数 6 枚,横向散布)。 */
 const SUPPLY_COINS = 6;
 
@@ -111,19 +128,30 @@ export function BoardFxLayer() {
           <stop offset="100%" stopColor="var(--color-ink)" stopOpacity="0" />
         </radialGradient>
       </defs>
-      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013):逻辑坐标直接使用,无需换算。
-          X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
+      {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013)+ 技能浮字两档(#850):逻辑坐标
+          直接使用,无需换算。X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
       {floaters.map((f, i) => {
         const overlapIdx = floaters.slice(0, i).filter((g) => g.x === f.x && g.y === f.y).length;
         const y = f.y - overlapIdx * FLOATER_STAGGER_UNITS;
+        const look = floaterLook(f, fontSize);
         return (
           <g key={f.id}>
             <text
-              className={`fx-svg-floater ${f.text ? "msg" : f.amount >= 0 ? "pos" : "neg"}`}
+              className={`fx-svg-floater ${look.cls}`}
               x={f.x}
               y={y}
-              fontSize={f.text ? Math.round(fontSize * 0.8) : fontSize}
+              fontSize={look.size}
               textAnchor="middle"
+              style={{
+                ...(look.playerColorVar != null && {
+                  ["--player-color" as string]: look.playerColorVar,
+                }),
+                ...(f.skill?.kind === "tag" && {
+                  // #850 小签:keyframe 只管形,全长 FX.skillTagMs 消费点内联注入
+                  //(棒3 时长收口同法,随 e2e/追帧通道缩放)
+                  animationDuration: `${FX.skillTagMs}ms`,
+                }),
+              }}
             >
               {f.text ?? formatFloater(f.amount)}
             </text>

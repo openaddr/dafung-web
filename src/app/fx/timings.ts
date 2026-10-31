@@ -213,6 +213,12 @@ export const FX = {
   get coinBurstMs() {
     return scStage(1400);
   },
+  /** 被动技名小签动画全长(#850):fx.css fx-svg-float-tag 时长经本值由 FxLayer
+   *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放);清理窗沿用
+   *  floaterMs(小签全长 < 普通浮字,同窗清理无截断竞态)。 */
+  get skillTagMs() {
+    return scStage(800);
+  },
   /** 金钱飞行归账全程(#764):进账铜钱贝塞尔弧飞至席位格(450ms 档)。演出编排族,
    *  吃 scStage;时长经内联注入 CSS 动画(DuelSignsOverlay 同法:keyframe 只管形
    *  不时刻度),抵达拍 animationend 即摘——本值是飞行时长的唯一事实源。 */
@@ -414,6 +420,13 @@ export const UI = {
   },
   get cashCountLargeMs() {
     return sc(900);
+  },
+  /** 招贤确认节拍(#850):点将入麾拍——卡面钤金「将」小印一拍(钤落段同拍
+   *  FX.sealSlamMs,驻留+消隐全长=本值,fx.css .pick-seal-gold 的 linger 段时长经
+   *  本值内联注入,keyframe 只管形)后再发 resolveHeroPick,卷轴随相位收场。
+   *  UI 反馈节拍只吃 sc 不吃追帧(F4 作用域拆分)。 */
+  get pickSealMs() {
+    return sc(700);
   },
 } as const;
 

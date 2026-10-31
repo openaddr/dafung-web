@@ -7,6 +7,7 @@
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { FX } from "./timings";
+import type { SkillFloatTone } from "./presentation";
 
 export interface FloaterFx {
   id: number;
@@ -19,6 +20,9 @@ export interface FloaterFx {
   coins: boolean;
   /** 文案浮字(ADR-0013 唯一选项自动执行轻提示):非空时替代金额渲染。 */
   text?: string;
+  /** 技能演出档(#850):cast=主动技施展浮字升档(1.0×/玩家色细描边,色随件烤定);
+   *  tag=被动技名小签(短签全长 FX.skillTagMs)。缺省=普通文案浮字。 */
+  skill?: SkillFloatTone;
 }
 
 export interface SealFx {
@@ -209,7 +213,7 @@ interface FxState {
   overlayActive: boolean;
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
-  spawnTextFloater(x: number, y: number, text: string): void;
+  spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
   /** 回合宣告入槽(#732 入槽;#762 合并规则):入知会队列,槽空即播;无论全幅与否
    *  都刷新常驻回合胶囊。返回「是否全幅播出」——bot→bot 同轮连续回合折叠为胶囊
    *  更新(false),sink 据此跳过横幅音效、播放器据此跳过编排停留窗。
@@ -281,9 +285,13 @@ export const useFxStore = create<FxState>()(
       );
     },
 
-    spawnTextFloater(x, y, text) {
+    spawnTextFloater(x, y, text, skill) {
       const id = nextId++;
-      set((s) => ({ floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text }] }));
+      set((s) => ({
+        floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text, skill }],
+      }));
+      // 超时自清:普通/施展浮字按 floaterMs(--dur-fx 同源);被动小签(#850)全长
+      // FX.skillTagMs 短于普通浮字,同窗清理无截断竞态,不再单设第二清理账本。
       setTimeout(
         () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
         FX.floaterMs,

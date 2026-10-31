@@ -18,6 +18,7 @@ import type {
   FxSink,
   MarchSegmentFrames,
   PropertyChangedEvent,
+  SkillFloatTone,
 } from "./presentation";
 
 /** 印章视觉上抬(格中心 → 印面锚点的静态偏移):表现几何常量,非引擎态。 */
@@ -41,8 +42,8 @@ export function createEngineSink(): FxSink {
     spawnFloater(x, y, amount, coins) {
       useFxStore.getState().spawnFloater(x, y, amount, coins);
     },
-    spawnTextFloater(x, y, text) {
-      useFxStore.getState().spawnTextFloater(x, y, text);
+    spawnTextFloater(x, y, text, skill) {
+      useFxStore.getState().spawnTextFloater(x, y, text, skill);
     },
     showBanner(guohao, colorIndex, meta) {
       // #762:槽泵判别先行(bot→bot 同轮连续=只更新胶囊)——全幅才配 whoosh 音;
@@ -117,7 +118,7 @@ export type FxSinkCall =
   | { op: "marchBegin"; playerId: string; keyframes: MarchSegmentFrames[] }
   | { op: "march"; playerId: string; keyframes: MarchSegmentFrames[] }
   | { op: "floater"; x: number; y: number; amount: number; coins: boolean }
-  | { op: "textFloater"; x: number; y: number; text: string }
+  | { op: "textFloater"; x: number; y: number; text: string; skill?: SkillFloatTone }
   | { op: "banner"; guohao: string; colorIndex: number; isBot: boolean; round: number }
   | { op: "seal"; x: number; y: number; char: string; tone?: "gold" }
   | { op: "landPulse"; x: number; y: number }
@@ -162,8 +163,8 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
     spawnFloater(x, y, amount, coins) {
       calls.push({ op: "floater", x, y, amount, coins });
     },
-    spawnTextFloater(x, y, text) {
-      calls.push({ op: "textFloater", x, y, text });
+    spawnTextFloater(x, y, text, skill) {
+      calls.push({ op: "textFloater", x, y, text, ...(skill == null ? {} : { skill }) });
     },
     showBanner(guohao, colorIndex, meta) {
       // memorySink 恒按全幅语义回 true(present 据此走编排停留窗;合并判别是
