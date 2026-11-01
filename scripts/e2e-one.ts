@@ -5,12 +5,16 @@
 // 用法(package.json 单源):bun scripts/e2e-one.ts [playwright 参数透传]
 //   例:bun run test:e2e:one e2e/react-board.spec.ts
 // 全量入口(test:e2e)经 test-lock 包本脚本,E2E_WORKERS 等环境变量自然流入。
+// 入口水位前置闸(#1003,#958 会话复盘):开跑 CPU≥80% 红字警告负载竞速风险
+// (advisory 不拦跑)——负载期盲跑挂例谱漂移,2 轮纯浪费才想起 A/B 定性,判读机械闸化。
 import { spawn } from "node:child_process";
 import { mkdirSync, createWriteStream } from "node:fs";
 import { distFreshness, stampDistBuild } from "./dist-freshness";
+import { warnIfLoaded } from "./e2e-watermark";
 
 const LOG = "tmp/e2e-one-last.log";
 mkdirSync("tmp", { recursive: true });
+warnIfLoaded("e2e-one");
 const log = createWriteStream(LOG, { flags: "w" });
 const tee = (chunk: Buffer | string): void => {
   const text = typeof chunk === "string" ? chunk : chunk.toString();

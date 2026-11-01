@@ -323,6 +323,38 @@ if (!prNumber) {
     console.log(`[pr-merge] 文件集对账通过(${actual.length} 个):${actual.join(" ")}`);
   }
 
+  // 1.19) 慢池 canary(#1003,#958 会话复盘拍板):慢例池只在收口/批次跑,快票合并
+  //       不触达 → 慢例破损静默入库(march-stop-fx-drain 在 master 破损数日无人知,
+  //       #971 A/B+探针定罪)。本次 change 触及 test/*.test.ts 且文件含 DAFUNG_SLOW
+  //       标记即定向跑(单例 3-30s 级,DAFUNG_SLOW=1),红即停;未触及零成本跳过。
+  //       裸 bun test 不经全量锁(定向豁免,how-to「把测试跑起来」节)。
+  {
+    const touched = jj("diff", "-r", bookmark, "--name-only")
+      .split("\n")
+      .map((s) => s.trim().replaceAll("\\", "/"))
+      .filter((f) => /^test\/.+\.test\.ts$/.test(f) && existsSync(f));
+    const slowFiles = touched.filter((f) => readFileSync(f, "utf8").includes("DAFUNG_SLOW"));
+    if (slowFiles.length > 0) {
+      console.log(
+        `[pr-merge] 慢池 canary:本票触及慢例 ${slowFiles.length} 个(${slowFiles.join(" ")}),DAFUNG_SLOW=1 定向跑…`,
+      );
+      const canary = Bun.spawnSync(["bun", "test", ...slowFiles], {
+        stdout: "inherit",
+        stderr: "inherit",
+        env: { ...process.env, DAFUNG_SLOW: "1" },
+      });
+      if (canary.exitCode !== 0) {
+        console.error(
+          "[pr-merge] 慢池 canary 红——慢例在当前树即挂(存量大破损或本票回归),先归因再收口(存量化配方参照 #971:master A/B 基线定性)。",
+        );
+        process.exit(1);
+      }
+      console.log("[pr-merge] 慢池 canary 绿。");
+    } else if (touched.length > 0) {
+      console.log("[pr-merge] 慢池 canary:触及 test 文件无 DAFUNG_SLOW 标记,跳过。");
+    }
+  }
+
   // 1.5) push(幂等:已推过=exit 0)——先推后验新鲜度(#751 retro 实锤:归拢 squash
   //      后本地书签与远端旧链尖必然 divergence,此时验新鲜度=「落后自己的 upstream」
   //      假红,红文案还误导成 master 被推进;先推平再验,红就只剩真并行推进一种)。

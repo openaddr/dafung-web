@@ -15,20 +15,9 @@
 // #734 会话全量 7 挂烧掉 ~35min 归因,才定位 CPU 97% 满载(21 个非本会话进程)——
 // 「墙钟超 2 倍判废」判据的输入靠事后取证太贵,现在首行即判:开跑高载=预期挂例
 // 散布无关 spec,直接按过载轮处置(等窗口/串行复验),别进逐例排查。
-import { execSync } from "node:child_process";
+// 探针本体共源化至 scripts/e2e-watermark.ts(#1003,与 e2e-one 入口前置闸同源)。
 import { readFileSync } from "node:fs";
-
-/** win32 专用一行水位(cpu% + node/bun/msedge 进程计数);其余平台打印跳过说明。 */
-function envProbe(): string {
-  if (process.platform !== "win32") return "非 win32,探针跳过";
-  const ps =
-    "$cpu=(Get-CimInstance Win32_Processor | Select-Object -First 1).LoadPercentage; " +
-    "$p=(Get-Process node,bun,msedge -ErrorAction SilentlyContinue | Group-Object ProcessName | " +
-    'ForEach-Object { "$($_.Name)=$($_.Count)" }) -join " "; "cpu=$cpu% $p"';
-  return execSync(`powershell -NoProfile -Command "${ps.replace(/"/g, '\\"')}"`)
-    .toString()
-    .trim();
-}
+import { probeWatermark } from "../scripts/e2e-watermark";
 
 export default async function globalSetup() {
   const staticPortEnv = process.env.E2E_STATIC_PORT;
@@ -37,7 +26,7 @@ export default async function globalSetup() {
       "[e2e-port] E2E_STATIC_PORT 为空串=后台壳吞了行内赋值;把 env 写进脚本文件再跑(参照 scripts/e2e-full.ts)",
     );
   }
-  console.log(`[e2e-env] 开跑水位:${envProbe()}`);
+  console.log(`[e2e-env] 开跑水位:${probeWatermark().text}`);
   const port = staticPortEnv ?? "4173";
   const local = readFileSync("dist/index.html", "utf8");
   const refs = (html: string) =>
@@ -61,5 +50,5 @@ export default async function globalSetup() {
   }
   console.log(`[e2e-server] 服务器 dist 与本地一致(${localRefs.size} 个 bundle 引用)。`);
   // 收尾水位:归因失败集时与开跑行对照——收尾仍高载,挂例谱按过载族读;平载仍挂才谈真回归。
-  return () => console.log(`[e2e-env] 收尾水位:${envProbe()}`);
+  return () => console.log(`[e2e-env] 收尾水位:${probeWatermark().text}`);
 }
