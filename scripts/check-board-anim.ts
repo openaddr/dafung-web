@@ -14,7 +14,9 @@
 const RULES: Array<{ file: string; allow: RegExp[] }> = [
   {
     file: "src/app/components/board/board.css",
-    allow: [/^bv-march-ring$/, /^bv-select-pulse$/],
+    // bv-march-ring-rotor/breathe(架构体检 B 批):行军金环原单 keyframes 拆成
+    // HTML 转子双动画(rotate+opacity),同一阶段性环、合成器通路,取舍同 ADR-0039。
+    allow: [/^bv-march-ring-rotor$/, /^bv-march-ring-breathe$/, /^bv-select-pulse$/],
   },
   {
     file: "src/app/components/board/ambient.css",
@@ -43,13 +45,49 @@ const violations: Violation[] = [];
 for (const { file, allow } of RULES) {
   const content = await Bun.file(`${import.meta.dir}/../${file}`).text();
   // 先剥块注释再扫描(同 check-core-purity 口径):红线禁的是「使用」,注释提及不算;
-  // 剥完逐行行号已不可对齐原文——违规行号按剥前原文回查(此处只报文件+行文本,足够归因)。
+  // 违规行号按剥前原文回查(此处只报文件+行文本,足够归因)。
   const code = content.replace(/\/\*[\s\S]*?\*\//g, "");
-  code.split("\n").forEach((text) => {
+  // 多行声明并一行(oxfmt 对超宽值的两种规范折行都要吃):「属性冒号后换行」与
+  // 「尾随逗号后换行」各并一拍,否则逗号多动画声明的名字段脱检
+  // (架构体检 B 批行军金环拆双动画实踩,两种形态都出过)。
+  const joined = code.replace(/([a-zA-Z-]+\s*:\s*)\n\s+/g, "$1 ").replace(/,\s*\n\s+/g, ", ");
+  joined.split("\n").forEach((text) => {
     if (!text.includes("infinite")) return;
-    const m = text.match(/animation\s*:\s*([a-zA-Z-]+)/);
-    const name = m?.[1] ?? "";
-    if (!allow.some((re) => re.test(name))) {
+    const decl = text.match(/animation[^{;:]*:\s*([^;]+);/);
+    // 名单口径 = 声明里每个动画段的名字都须在白名单(逐段验证,不看首名——
+    // 首名合法掩护后续段回潮的洞要堵死)。时长可写裸数/calc()/var() 三种形态,
+    // 先剥函数与关键字再认标识符;认不出名(陌生形态)保守报红。
+    const keywords = new Set([
+      "infinite",
+      "linear",
+      "ease",
+      "ease-in",
+      "ease-out",
+      "ease-in-out",
+      "alternate",
+      "alternate-reverse",
+      "reverse",
+      "normal",
+      "both",
+      "forwards",
+      "backwards",
+      "none",
+      "running",
+      "paused",
+      "step-start",
+      "step-end",
+    ]);
+    const names: string[] = [];
+    if (decl != null) {
+      const flat = decl[1].replace(/var\([^)]*\)/g, " ").replace(/calc\([^)]*\)/g, " ");
+      for (const seg of flat.split(",")) {
+        for (const tok of seg.trim().split(/\s+/)) {
+          if (!tok || keywords.has(tok) || /^[\d.]+m?s$/.test(tok)) continue;
+          if (/^[a-zA-Z-]+$/.test(tok)) names.push(tok);
+        }
+      }
+    }
+    if (names.length === 0 || !names.every((n) => allow.some((re) => re.test(n)))) {
       violations.push({ file, text: text.trim().slice(0, 90) });
     }
   });
