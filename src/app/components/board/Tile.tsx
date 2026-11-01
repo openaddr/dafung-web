@@ -328,8 +328,6 @@ export const Tile = memo(function Tile({
   // nonce 单调递增、播完自然过期(无清理定时器);0 = 该维从未宣告,静置。
   const announce = useFxStore((s) => s.announces.get(tile.index));
   const growNonce = announce?.level ?? 0;
-  // 易主流光仅在有过易主宣告后渲染(开局铺盘不闪);key=nonce 每次易主重挂重播。
-  const ownFlash = announce != null && announce.owner > 0 ? announce : null;
   const isCapital = state.capitalColorIndex != null;
   const ownerRgb = state.ownerColorIndex != null ? playerColor(state.ownerColorIndex) : null;
 
@@ -417,26 +415,9 @@ export const Tile = memo(function Tile({
               归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格)。 */}
         <Building tier={tier} />
       </g>
-      {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
-            时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
-            语言)。宣告 nonce 经事件流下发;key=nonce 每次易主重挂重播,动画播完停在
-            基态 opacity 0,平时(开局铺盘/快照恢复,nonce=0)不渲染。 */}
-      {ownFlash ? (
-        <line
-          key={ownFlash.owner}
-          className="bv-own-flash"
-          x1={-46}
-          y1={-39}
-          x2={46}
-          y2={-39}
-          stroke={
-            ownFlash.ownerColorIndex != null
-              ? rgba(playerColor(ownFlash.ownerColorIndex))
-              : rgba(Theme.gold)
-          }
-          strokeWidth={8}
-        />
-      ) : null}
+      {/* #96/ADR-0015 易主流光已迁 fx 宿主(架构体检 B 批):SVG 内逐帧流光在底板
+            栅格空间重绘城区,现经 FxSink→fxStore.ownFlashes→FxLayer mini-svg 出底板,
+            几何(铭牌顶缘 ±46/-39 线)与流光语义原样平移;Tile 只余扩军珠 nonce。 */}
       {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
       <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
       {/* 等级珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
@@ -546,22 +527,10 @@ export const Tile = memo(function Tile({
           </text>
         </g>
       ) : null}
-      {/* X4+:选都可点指示——描边金环叠于卡面之上。原仅垫底金盘(hilite r=62),
-          被卡片遮挡只露边缘光晕,脉冲谷底 0.18 近乎不可见(用户实测「看不出来
-          哪些能选」)。selectable=呼吸描边(与底盘同拍);候选(他席)=静态细环。 */}
-      {state.isSelectable ? (
-        <rect
-          className="bv-pick-ring"
-          x={-52}
-          y={-44}
-          width={104}
-          height={88}
-          rx={10}
-          fill="none"
-          stroke={rgba(Theme.goldBright)}
-          strokeWidth={3.5}
-        />
-      ) : state.capitalCandidateOrder != null ? (
+      {/* X4+:选都可点指示已迁氛围层(架构体检 B 批:金盘+描边金环呼吸出底板,
+          AmbientLayer 按 selectableTiles 挂 bv-amb-select-crown,形体参数原样平移);
+          本件只剩候选(他席)静态细环。 */}
+      {state.capitalCandidateOrder != null ? (
         <rect
           className="bv-pick-ring-static"
           x={-51}

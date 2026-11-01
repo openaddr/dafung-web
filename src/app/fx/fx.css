@@ -333,6 +333,29 @@
   }
 }
 
+/* 易主流光(架构体检 B 批出底板,原 board.css bv-own-flash 原样迁层):铭牌顶缘
+   横穿一道玩家色流光一次(回无主转金)。几何/虚线在 FxLayer 按 TILE_SCALE 世界化
+   内联,扫掠偏移走 --of-from/--of-to 变量(同一换算单源);时长取半 --dur-fx 拍
+   缓动 --ease-out,基态 opacity 0:reduced-motion 停用后不残留实线条。 */
+.fx-ownflash-line {
+  opacity: 0;
+  stroke-linecap: butt;
+  animation: fx-ownflash calc(var(--dur-fx) / 2) var(--ease-out) forwards;
+}
+@keyframes fx-ownflash {
+  from {
+    stroke-dashoffset: var(--of-from);
+    opacity: 0.95;
+  }
+  70% {
+    opacity: 0.95;
+  }
+  to {
+    stroke-dashoffset: var(--of-to);
+    opacity: 0;
+  }
+}
+
 /* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者 token → 目标 token」水墨
    墨线 + 起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,#73)。生长 200ms → 停 200ms
    → 淡出 300ms,三段编进三条同长 keyframes 的百分比刻度(fx-jline-life/grow/

@@ -13,10 +13,11 @@
 // 席位现金 count-up 订阅(seat-cash.ts)也随本件挂载/卸载。
 import { useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { playerColor, rgba } from "@core/theme";
+import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
 import { BoardHost } from "@app/components/board/boardHost";
+import { TILE_SCALE } from "@app/components/board/Tile";
 import { useFxStore, type CashFlyFx, type FloaterFx } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
@@ -116,13 +117,21 @@ const SUPPLY_COINS = 6;
  *  是低端 WebView 掉帧主源;现迁 HTML 宿主(BoardHost,#bv-fx 保号),每件特效独立
  *  mini-svg(.bv-fx-svg:0 尺寸 overflow visible,世界坐标原绘原类,美术/CSS 动画/
  *  DOM 契约零改动),逐帧失效收敛到各件自身小盒。 */
-export function BoardFxLayer({ svgRef }: { svgRef: React.RefObject<SVGSVGElement | null> }) {
+export function BoardFxLayer({
+  svgRef,
+  board,
+}: {
+  svgRef: React.RefObject<SVGSVGElement | null>;
+  /** 底板数据(易主流光按 tileIndex 查世界落位;架构体检 B 批出底板)。 */
+  board: import("@core/board").Board;
+}) {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
   const jinnangLines = useFxStore((s) => s.jinnangLines);
   const pulses = useFxStore((s) => s.pulses);
   const inkBlots = useFxStore((s) => s.inkBlots);
   const coinBursts = useFxStore((s) => s.coinBursts);
+  const ownFlashes = useFxStore((s) => s.ownFlashes);
   const fontSize = floaterFontSize();
 
   return (
@@ -207,6 +216,32 @@ export function BoardFxLayer({ svgRef }: { svgRef: React.RefObject<SVGSVGElement
           </g>
         </svg>
       ))}
+      {/* 易主流光(架构体检 B 批出底板):铭牌顶缘横穿流光一次——原 Tile 内 SVG 线的
+          逐帧动画在底板栅格空间重绘城区,现 mini-svg 挂 fx 宿主(合成层隔离)。
+          几何/虚线/描边=Tile 局部值 × TILE_SCALE 世界化(单源不落死值),流光色随件
+          内联(null=回无主转金),动画时长走 fx.css --dur-fx/2 token,TTL=ownFlashMs。 */}
+      {ownFlashes.map((f) => {
+        // 严格 loadMap 下 tileIndex 必在册(#826 全城池制),查无=上游 bug,直接炸
+        const t = board.tiles[f.tileIndex]!;
+        return (
+          <svg key={f.id} className="bv-fx-svg" width={0} height={0}>
+            <line
+              className="fx-ownflash-line"
+              x1={t.position.x - 46 * TILE_SCALE}
+              y1={t.position.y - 39 * TILE_SCALE}
+              x2={t.position.x + 46 * TILE_SCALE}
+              y2={t.position.y - 39 * TILE_SCALE}
+              stroke={f.colorIndex != null ? rgba(playerColor(f.colorIndex)) : rgba(Theme.gold)}
+              strokeWidth={8 * TILE_SCALE}
+              strokeDasharray={`${30 * TILE_SCALE} ${138 * TILE_SCALE}`}
+              style={{
+                ["--of-from" as string]: `${30 * TILE_SCALE}`,
+                ["--of-to" as string]: `${-92 * TILE_SCALE}`,
+              }}
+            />
+          </svg>
+        );
+      })}
       {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散)。
           #885 时长收口:墨渍全长 FX.inkBloomMs 内联注入(清理窗 inkBlotMs 同通道);
           撒币错拍步长 FX.coinStaggerMs(c%4 三步封顶,随通道缩放)。 */}

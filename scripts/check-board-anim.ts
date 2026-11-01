@@ -16,11 +16,19 @@ const RULES: Array<{ file: string; allow: RegExp[] }> = [
     file: "src/app/components/board/board.css",
     // bv-march-ring-rotor/breathe(架构体检 B 批):行军金环原单 keyframes 拆成
     // HTML 转子双动画(rotate+opacity),同一阶段性环、合成器通路,取舍同 ADR-0039。
-    allow: [/^bv-march-ring-rotor$/, /^bv-march-ring-breathe$/, /^bv-select-pulse$/],
+    allow: [/^bv-march-ring-rotor$/, /^bv-march-ring-breathe$/],
   },
   {
     file: "src/app/components/board/ambient.css",
-    allow: [/^bv-pulse-glow$/, /^bv-mine-halo$/, /^bv-flag-sway$/, /^bv-token-active-breath$/],
+    // bv-select-pulse(架构体检 B 批):选都候选脉冲自 board.css 迁层(金盘+描边
+    // 金环双通道呼吸出底板进合成层),同一阶段性口径(选都期存活),取舍同 ADR-0039。
+    allow: [
+      /^bv-pulse-glow$/,
+      /^bv-mine-halo$/,
+      /^bv-flag-sway$/,
+      /^bv-token-active-breath$/,
+      /^bv-select-pulse$/,
+    ],
   },
   {
     file: "src/app/screens/game/layout.css",

@@ -169,6 +169,11 @@ export const FX = {
   get roadFlowMs() {
     return scStage(700);
   }, // 驿道流光高亮存留
+  /** 易主流光清理窗(架构体检 B 批):动画全长走 fx.css --dur-fx/2 token,本值只作
+   *  store TTL(sealMs 同口径,余量对齐 roadFlowMs)。 */
+  get ownFlashMs() {
+    return scStage(700);
+  },
   /** 出牌指示线全程存活(#281 P2-E):生长 200ms → 停 200ms → 淡出 300ms(FreeKill
    *  IndicatorLine 同参数),三段编排进 fx.css 三条同长 keyframes 的百分比刻度
    *  (fx-jline-life/grow/feather-in,棒2 拆条)。#849 棒3 起本值是全长唯一事实源:

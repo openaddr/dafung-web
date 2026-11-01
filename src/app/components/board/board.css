@@ -34,30 +34,14 @@
 /* X4(#23) 选都候选金圈两档:
    .bv-candidate  候选集全座位可见——非决策席静态低透明金圈(不可点、不脉冲),
                   远看即知「当前轮到谁在从这三城里挑」;
-   .bv-selectable 轮到本地选——金圈呼吸脉冲(动画驱动 opacity,hover/active 的
-                  0.5 反馈在候选上让位:动画优先级高于声明值),仪式感聚焦。 */
+   .bv-selectable 轮到本地选——金圈呼吸脉冲已迁氛围层(架构体检 B 批出底板:
+                  AmbientLayer 按 selectableTiles 挂 bv-amb-select-crown,SVG 内
+                  逐帧动画清零;本类只剩点击态/e2e 选择器契约)。 */
 .bv-tile.bv-candidate .bv-tile-hilite {
   opacity: 0.15;
 }
-.bv-tile.bv-selectable .bv-tile-hilite {
-  /* 呼吸挂 --dur-ambient 半频(1.3s):选都仪式拍,与下方活跃环同节奏 */
-  animation: bv-select-pulse calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
-}
-/* X4+:描边金环叠卡面( Tile 尾部 .bv-pick-ring),与底盘同一呼吸——双通道强调 */
-.bv-tile.bv-selectable .bv-pick-ring {
-  animation: bv-select-pulse calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
-}
 .bv-tile .bv-pick-ring-static {
   opacity: 0.5;
-}
-@keyframes bv-select-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.95;
-  }
 }
 
 /* X4+:选都聚焦场——本地可选时,非候选城一律压暗(:has 免 TS 改动;选中即移除类自动还原)。
@@ -221,7 +205,7 @@
 /* ── L47 自机微光圈已迁氛围层(.bv-amb-mine-halo,ADR-0039):常驻呼吸动画随之,
    此处无残留;行军接管期微光随换装暂隐,行军金环强调接管。 */
 
-/* ── #96 城池升级与易主的可读瞬间(ADR-0015 宣告动效:一次性出场动画,播完即静,非 infinite)──
+/* ── #96 城池升级可读瞬间(ADR-0015 宣告动效:一次性出场动画,播完即静,非 infinite)──
    触发源 = 表现事件流:引擎结算留痕 → propertyChanged 事件 → present → FxSink.
    announceTileChange → fxStore.announces 宣告 nonce → Tile 以 nonce 为 React key 重挂
    重播一次。Tile 自身不做 props diff 自触发(R3 的 key={level}/上一值钩子已删);
@@ -230,12 +214,9 @@
       --dur-med + --ease-out-back,transform-origin 取 fill-box 中心,珠原地长大落位。
       Tile 以宣告 nonce 为 key 只重挂珠组、动画类只挂末珠,其余珠原地复用静置。
       (旧「等级印 pop 落章弧 + 城楼顶层生长」双通道随 2026-10-17 档位珠批退役。)
-   2. 易主流光(.bv-own-flash):归属变更(破产清算回无主/转玩家 B/变卖给银行)时铭牌带
-      闪一道玩家色流光一次。仿 bv-side-flow 的 dashoffset 行进思路换成横穿铭牌顶缘的单节虚线:
-      线长 92,dasharray 30+138 周期 168,offset 自 30(节整段在起点之前,不可见)扫到
-      -92(节完全越出终点),70% 前保持峰值亮度、收尾淡出;时长取半 --dur-fx 拍
-      (工单约 0.5s 单拍以最近的 token 合法值承担,不落字面量),缓动 --ease-out。
-      基态 opacity 0:reduced-motion 停用动画后不残留实线条。 */
+   2. 易主流光已迁 fx 宿主(架构体检 B 批):SVG 内逐帧流光在底板栅格空间重绘城区,
+      现经 fxStore.ownFlashes→FxLayer mini-svg 出底板(fx.css fx-ownflash-line,
+      几何/虚线扫掠参数原样平移,world 化 ×TILE_SCALE);Tile 只余扩军珠 nonce。 */
 .bv-pip-grow {
   transform-box: fill-box;
   transform-origin: center;
@@ -251,43 +232,16 @@
     opacity: 1;
   }
 }
-.bv-own-flash {
-  opacity: 0;
-  stroke-linecap: butt;
-  stroke-dasharray: 30 138;
-  animation: bv-own-flash calc(var(--dur-fx) / 2) var(--ease-out) forwards;
-}
-@keyframes bv-own-flash {
-  from {
-    stroke-dashoffset: 30;
-    opacity: 0.95;
-  }
-  70% {
-    opacity: 0.95;
-  }
-  to {
-    stroke-dashoffset: -92;
-    opacity: 0;
-  }
-}
 
 /* ── M-9 降耗:用户偏好减弱动态时,停用本文件的装饰动画。
    常驻 infinite 已全数迁氛围层(ADR-0039:旗摇/都城晕/活跃环/自机微光/回合金环,
    ambient.css 有自己的 M-9 段);此处只余阶段性动画:
-   行军金环(接管期)/候选金圈脉冲(选都期)/#96 一次性出场(等级珠/易主流光)。
-   候选脉冲停用后回落为静态金圈(可辨但不闪);易主流光停用后由基态 opacity 0
-   保持隐形,等级珠以默认 scale 1 全形静置。 */
+   行军金环(接管期,HTML 转子)/#96 一次性出场(等级珠;易主流光已随迁层出本文件)。
+   选都候选脉冲已迁氛围层(架构体检 B 批,RM 静态口径随迁 ambient.css);
+   等级珠以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token-ring-rotor,
-  .bv-tile.bv-selectable .bv-tile-hilite,
-  .bv-pip-grow,
-  .bv-own-flash {
+  .bv-pip-grow {
     animation: none;
-  }
-  .bv-tile.bv-selectable .bv-tile-hilite {
-    opacity: 0.5;
-  }
-  .bv-tile.bv-selectable .bv-pick-ring {
-    opacity: 0.9;
   }
 }

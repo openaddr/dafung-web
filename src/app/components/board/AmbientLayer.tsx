@@ -70,6 +70,8 @@ export interface AmbientLayerProps {
   mineId?: string;
   /** 行军动画接管中的玩家 id(换装:该棋子的旗/微光/金环暂隐)。 */
   skipTokenIds?: ReadonlySet<string>;
+  /** 选都期本地可选集(架构体检 B 批:候选脉冲出底板,金盘+描边金环呼吸挂本层)。 */
+  selectableTiles?: ReadonlySet<number>;
   /** setup 阶段未选都不显示棋子装饰。 */
   setupUnselected: boolean;
   /** 棋盘 svg 根(矩阵同步的 viewBox/尺寸真源)。 */
@@ -83,6 +85,7 @@ export const AmbientLayer = memo(function AmbientLayer({
   activePlayerId,
   mineId,
   skipTokenIds,
+  selectableTiles,
   setupUnselected,
   svgRef,
 }: AmbientLayerProps) {
@@ -122,6 +125,56 @@ export const AmbientLayer = memo(function AmbientLayer({
           </mask>
         </defs>
       </svg>
+      {/* 选都候选脉冲(架构体检 B 批出底板):可选城金盘+描边金环双通道呼吸。
+          金盘复用 capital 同款挖孔 mask(复刻原「金盘垫在卡面之下、只露边缘」
+          的 z 序观感),环叠卡面之上同原位;形体参数与原 Tile 件逐值相同。 */}
+      {[...(selectableTiles ?? [])].map((idx) => {
+        const t = board.tiles[idx];
+        if (!t) return null;
+        return (
+          <div
+            key={`sel-${idx}`}
+            className="bv-amb-anchor"
+            style={{ left: t.position.x, top: t.position.y }}
+          >
+            <div
+              className="bv-amb-fit"
+              style={{
+                width: 140,
+                height: 140,
+                marginLeft: -70,
+                marginTop: -70,
+                transform: `scale(${TILE_SCALE})`,
+              }}
+            >
+              <svg
+                className="bv-amb-select-crown"
+                width={140}
+                height={140}
+                viewBox="-70 -70 140 140"
+              >
+                <circle
+                  className="bv-amb-select-disc"
+                  r={62}
+                  fill={rgba(Theme.gold)}
+                  mask="url(#bv-amb-capital-hole)"
+                />
+                <rect
+                  className="bv-amb-select-ring"
+                  x={-52}
+                  y={-44}
+                  width={104}
+                  height={88}
+                  rx={10}
+                  fill="none"
+                  stroke={rgba(Theme.goldBright)}
+                  strokeWidth={3.5}
+                />
+              </svg>
+            </div>
+          </div>
+        );
+      })}
       {/* 都城光晕(原 Tile 内 bv-capital-glow,脉动随层) */}
       {capitalTileIndexes.map((idx) => {
         const t = board.tiles[idx];

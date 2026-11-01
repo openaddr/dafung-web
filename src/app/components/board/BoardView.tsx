@@ -292,7 +292,7 @@ export function BoardView({
       {/* 特效层挂点(HTML 宿主,ADR-0042):浮字/印章/铜钱各自 mini-svg,置于棋子上;
           世界坐标直铺,随宿主矩阵跟随。D1 注释沿革:曾直画进 SVG(坐标系与棋盘一致,
           恒总览取景不脱锚)——HTML 宿主矩阵同步承接同一保证。 */}
-      <BoardFxLayer svgRef={svgRef} />
+      <BoardFxLayer svgRef={svgRef} board={loaded.board} />
       {/* 驿道流光宿主(#bv-flow 保号):useMarch.highlightSegment 命令式追加 mini-svg。 */}
       <BoardHost id="bv-flow" svgRef={svgRef} />
       {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居最上(pointer-events
@@ -304,6 +304,7 @@ export function BoardView({
         activePlayerId={activePlayerId}
         mineId={viewSeat}
         skipTokenIds={skipTokenIds}
+        selectableTiles={selectableTiles}
         setupUnselected={isSetupPhase}
         svgRef={svgRef}
       />
