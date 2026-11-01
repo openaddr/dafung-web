@@ -309,7 +309,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             });
           }}
           // R3-B11(#83):py-0 与输入框对齐;#766:墨钮=主行动触达提档 min-h-44(DESIGN §4.7)
-          className={btnBase + " ink-btn font-bold h-10 min-h-[44px] py-0"}
+          className={btnBase + " ink-btn h-10 min-h-[44px] py-0"}
         >
           {busy ? "处理中…" : "建房"}
         </button>
@@ -444,7 +444,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
           await controller!.joinRoom(lastRoom, localStorage.getItem(GUOHAO_PREF_KEY) ?? undefined);
         });
       }}
-      className={backBase + " ink-btn font-bold min-h-[44px] w-full"}
+      className={backBase + " ink-btn min-h-[44px] w-full"}
     >
       {busy ? "处理中…" : `上次房间 ${lastRoom} · 一键重进`}
     </button>
@@ -468,7 +468,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
         className="lobby-safe flex min-h-full flex-col items-center justify-center gap-4 bg-bg p-6"
       >
         <h1 className="font-title text-3xl text-paper tracking-widest">房主已解散房间</h1>
-        <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn font-bold"}>
+        <button data-testid={LID.back} onClick={onExit} className={backBase + " ink-btn"}>
           返回首页
         </button>
       </div>
@@ -645,7 +645,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
                   data-testid={LID.seatGuohao(s.seat)}
                   title={`预设国号「${s.guohao}」`}
                   // 玄墨版(#514):国号章漆金化(.seal-gold,#506 印章漆金化)
-                  className="seal-gold inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] font-title text-[13px] leading-none font-bold"
+                  className="seal-gold inline-flex h-5 w-5 shrink-0 rotate-[-3deg] items-center justify-center rounded-[2px] font-title text-[13px] leading-none"
                 >
                   {s.guohao}
                 </span>
@@ -671,13 +671,14 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             {renamed && (
               <div
                 data-testid={LID.guohaoPreview(s.seat)}
-                // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字 ink 加粗强调。
+                // R3-B13(#85):整行降为 ink-dim(约 5.3:1),被改的单字提亮强调
+                //(原 ink 加粗,#955 伪加粗清尾拔除)。
                 // dogfood ISSUE-011:原文「开局将改为『东』」无主语,与「虚/离线」混排
                 // 读不懂谁的国号要变——补「其国号」主语,一句话说清因果
                 className="mt-0.5 px-2 font-deco text-xs text-paper-dim"
               >
                 此席国号重名,开局将改为『
-                <span className="text-paper font-bold">{finalGh}</span>』
+                <span className="text-paper">{finalGh}</span>』
               </div>
             )}
           </div>
@@ -740,7 +741,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
             });
           }}
           // #766:墨钮=主行动触达提档 min-h-44(DESIGN §4.7,与建房钮同口径)
-          className={btnBase + " ink-btn font-bold min-h-[44px]"}
+          className={btnBase + " ink-btn min-h-[44px]"}
         >
           {busy ? "处理中…" : "开局"}
         </button>
@@ -822,7 +823,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
               文案为动态状态字,字族走 wenkai(混排红线,同横幅)。 */}
           {starting && (
             <div className="scroll-anim-unroll absolute inset-0 z-10 flex items-center justify-center rounded-[8px] bg-bg/85">
-              <span className="font-wenkai text-lg font-bold text-paper">正在开局…</span>
+              <span className="font-wenkai text-lg text-paper">正在开局…</span>
             </div>
           )}
         </div>

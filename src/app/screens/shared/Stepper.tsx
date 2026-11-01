@@ -33,10 +33,7 @@ export function Stepper({
       >
         −
       </button>
-      <span
-        data-testid={testid}
-        className="min-w-10 text-center font-deco text-base font-bold text-paper"
-      >
+      <span data-testid={testid} className="min-w-10 text-center font-deco text-base text-paper">
         {value}
       </span>
       <button

@@ -296,7 +296,7 @@ export function MapSelectPanel({
                     }
                   >
                     <div className="flex justify-between items-baseline gap-2">
-                      <span className="font-wenkai text-[15px] font-bold text-paper">
+                      <span className="font-wenkai text-[15px] text-paper">
                         {e.name}
                         {e.custom ? (
                           <span className="ml-2 text-xs text-paper-dim">自建</span>
