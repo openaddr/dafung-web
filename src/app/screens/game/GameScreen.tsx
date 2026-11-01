@@ -150,11 +150,6 @@ function RotateHintOverlay() {
   );
 }
 
-// 锦囊手牌显隐偏好键(#700;键名风格照地图偏好键 MAP_PREF_KEY 的 dafung.* 族)。
-const HAND_VISIBLE_KEY = "dafung.handVisible";
-/** 读偏好:缺键=显示(首局默认亮);仅「0」算收起,其余一律显示。 */
-const readHandPref = (): boolean => localStorage.getItem(HAND_VISIBLE_KEY) !== "0";
-
 /** 已开局主体:棋盘全幅 + 全浮层(顶部条/席位格列/手牌区/三圆钮);hooks 全在此,
  *  snapshot/map 由 GameScreen 门卫。 */
 function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapData }) {
@@ -199,15 +194,13 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
   // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
-  // 锦囊手牌显隐开关(#700):对局内记忆、重进恢复(localStorage,键名风格照地图
-  // 偏好键 dafung.mapId);缺键=显示(首局默认亮,原型 ① 锦囊钮亮态)。出牌阶段态
-  // 与反应窗(牌架即窗)强制显示——决策面不能被视野偏好收走。
-  const [handPref, setHandPref] = useState(readHandPref);
-  const toggleHandPref = () =>
-    setHandPref((v) => {
-      localStorage.setItem(HAND_VISIBLE_KEY, v ? "0" : "1");
-      return !v;
-    });
+  // 锦囊架显隐(#1006 改模,#700 开关位沿用):会话内临时态 rackHidden,默认亮。
+  // 旧 localStorage 持久偏好整线退役,不留兼容读取;「收起」
+  // 只活在本态上,唯一写点=锦囊钮 toggle 回传(点击取反)。唯二复位点=下方两枚
+  // 上升沿 effect(自回合开始/窗态开场,开场必亮);复位点之间持续收着——出牌窗
+  // 里收起后跨掷骰/行军/bot 回合全程收着,全图畅看。
+  const [rackHidden, setRackHidden] = useState(false);
+  const toggleRackHidden = () => setRackHidden((v) => !v);
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
@@ -443,6 +436,23 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       />
     ) : null;
 
+  // ── 显隐复位(#1006 唯二复位点,rackHidden 只被这两枚上升沿弹回)──
+  // ①自回合开始上升沿(快照 activeSeat 变为 selfSeat 那一拍):下次轮到你即弹回;
+  // ②窗态开场上升沿(出牌窗 junshiUp / 反应窗 reactBanner 由无到有):任何窗态
+  //   开场必亮——「决策通路不被收走」由通路本身保证(出牌窗=动作条、反应窗=横幅),
+  //   复位只管「看得见架」。上升沿用 dep-array effect(清空重选同款手法)。
+  const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
+  const windowUp = junshiUp || reactBanner != null;
+  useEffect(() => {
+    if (myTurnUp) setRackHidden(false);
+  }, [myTurnUp]);
+  useEffect(() => {
+    if (windowUp) setRackHidden(false);
+  }, [windowUp]);
+  // 窗态+收起的两处派生(呼吸金光/banner-only 形态,消费点见下渲染段):一次推导。
+  const rackBreathe = rackHidden && windowUp;
+  const rackBannerOnly = rackHidden && reactBanner != null;
+
   // 选都阶段的引导文案(三选一:引擎按价格分层+地理分散滚出 3 候选)。
   // 按「谁的 turn」分化(dogfood 2026-09-28:bot 定都 40s+ 期间画面只有淡金圈,
   // 玩家不知在等谁、也不知金圈是何物;轮到自己时也要明示「点哪」):
@@ -599,20 +609,25 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           }
         />
         {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架。
-          显隐=锦囊圆钮偏好 ∥ 窗态强制(出牌阶段/反应窗的决策面不被视野偏好收走);
-          收起=条件挂载(卸载零占位,战斗区最大化)。 */}
-        {(handPref || junshiUp || reactBanner != null) && (
+          显隐=#1006 会话临时态(默认亮,锦囊钮收起,唯二复位点弹回);窗态不再强制
+          显示。挂载条件 `!rackHidden || reactBanner != null`:纯收起整区卸载(签面
+          随之,卸载零占位,战斗区最大化);收起时若反应窗在场,区壳仍挂载以宿主
+          横幅(banner-only 形态,签面/牌行不挂,横幅失去架体依托后贴底下移)。 */}
+        {(!rackHidden || reactBanner != null) && (
           <HandZone
             snapshot={snapshot}
             player={selfPlayer}
             autopilotOn={autopilotOn}
+            bannerOnly={rackBannerOnly}
             children={
               /* #238/T3 手牌架(player 用稳定自局玩家——热座 viewSeat 轮到 bot 时架
               不该换出 bot 的牌。#256:出牌阶段态载荷随快照派生;#700:藏品入口
-              迁右下三圆钮,架体只承载牌面与窗态)。 */
+              迁右下三圆钮,架体只承载牌面与窗态;#1006:收起而反应窗在场时
+              banner-only——只渲横幅,不渲牌行与签面)。 */
               <HandRack
                 player={selfPlayer}
                 nudgePulse={playNudge}
+                bannerOnly={rackBannerOnly}
                 capitalPick={snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"}
                 junshi={
                   junshiUp
@@ -644,12 +659,15 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             }
           />
         )}
-        {/* 右下三圆钮(#700):锦囊=手牌显隐开关(亮=显示)/ 珍宝 / 名将(藏品弹层
-          入口,#361 双入口接替);坐姿渲染。 */}
+        {/* 右下三圆钮(#700):锦囊=牌架显隐开关(亮=架显示中;窗态在场且架收起时
+          挂呼吸金光——「有活决策被收起了」,#1006)/ 珍宝 / 名将(藏品弹层入口,
+          #361 双入口接替);坐姿渲染。 */}
         <PileButtons
           player={selfPlayer}
-          handVisible={handPref || junshiUp || reactBanner != null}
-          onToggleHand={toggleHandPref}
+          rackVisible={!rackHidden}
+          breathe={rackBreathe}
+          nudgePulse={rackHidden ? playNudge : undefined}
+          onToggleRack={toggleRackHidden}
         />
         {/* 设置弹层(#700):音效/演出加速/战报›/版本/回到主页(入口降级收口件) */}
         {settingsOpen && (
@@ -664,7 +682,9 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         )}
         {/* 动作条(#256):锚仪表条上缘不锚牌;卡牌段=出牌/不出,目标段=出(选中席
           点亮,#417)/作罢;选中放大牌占中时右让不遮牌面(原型 margin-left:240px 口径)。
-          onBlockedAttempt(#751 B1):卡牌段未选牌点「出牌」→ 架上可用牌金圈脉冲一次。 */}
+          onBlockedAttempt(#751 B1):卡牌段未选牌点「出牌」→ 架上可用牌金圈脉冲一次;
+          架收起时脉冲目标在暗处,改锦囊钮闪一拍(#1006 脉冲重定向,接线在 PileButtons
+          的 nudgePulse)。架与动作条相互独立——收起不断决策通路(「不出」随时可点)。 */}
         {junshiUp && (
           <ActionBar
             segment={junshiTargeting ? "target" : "card"}

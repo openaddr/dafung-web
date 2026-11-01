@@ -6,8 +6,10 @@
 // 契约不是视觉基线,delay/时长/不透明度只能从 getComputedStyle 取证。
 // #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
 // 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
+// 另载:出牌窗灰置牌(#715)、锦囊架临时收起重钉四条(#1006,会话临时态/banner-only/
+// 选中态跨收起/呼吸钮;窗态可收起后本 spec 既有用例的「架可见」前提仍恒真——默认亮)。
 import { test, expect } from "./fixtures";
-import { force, quickStart, snap, waitMyPause } from "./react-helpers";
+import { force, pollReactionSettled, quickStart, snap, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -140,6 +142,24 @@ async function pinRackIdle(page: Page): Promise<void> {
     e.turnPhase = "AwaitingDecision";
   `,
   );
+}
+
+/** 出牌窗停车坪(pinRackIdle 同款钉法 + 窗态变体,#715 立配方,#1006 重钉组共用):
+ *  quickStart 等人类停稳,把相位钉进 AwaitingJinnang + 直写手牌——唯反应手牌恒灰置
+ *  不影响窗升起(choices 恒含 pass);引擎直写不经发牌,回合不推进,窗无限期稳定。 */
+async function pinJunshiWindow(page: Page, cards: string[]): Promise<void> {
+  await quickStart(page);
+  await waitMyPause(page, 0, 90_000);
+  await force(
+    page,
+    `
+    e.players[0].jinnangHand = ${JSON.stringify(cards)};
+    e.lastLandOutcome = null;
+    e.pendingLand = null;
+    e.turnPhase = "AwaitingJinnang";
+  `,
+  );
+  await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
 test.describe("锦囊 T3:底部手牌架", () => {
@@ -324,24 +344,6 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   const LOCKED = "识破诡计"; // 唯反应(反应窗打出),出牌窗恒灰置
   const USABLE = "求贤令"; // self 域,出牌窗恒可用(对照组)
 
-  /** 出牌窗停车坪(pinRackIdle 同款钉法 + 窗态变体):quickStart 等人类停稳,把相位
-   *  钉进 AwaitingJinnang + 直写手牌——唯反应手牌恒灰置不影响窗升起(choices 恒含
-   *  pass);引擎直写不经发牌,回合不推进,窗无限期稳定。 */
-  async function pinJunshiWindow(page: Page, cards: string[]): Promise<void> {
-    await quickStart(page);
-    await waitMyPause(page, 0, 90_000);
-    await force(
-      page,
-      `
-      e.players[0].jinnangHand = ${JSON.stringify(cards)};
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-      e.turnPhase = "AwaitingJinnang";
-    `,
-    );
-    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-  }
-
   test("唯反应灰置牌:点击开详情(aria-disabled 语义保持),选中与出牌零通路", async ({ page }) => {
     await pinJunshiWindow(page, [LOCKED]);
     const card = page.getByTestId(TESTIDS.jinnangCard(LOCKED));
@@ -413,6 +415,118 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
     await page.mouse.up();
     await expect(usable.locator(".jinnang-card")).not.toHaveClass(/sel/);
     await expect(play).toHaveAttribute("aria-disabled", "true");
+  });
+});
+
+// ── 锦囊架临时收起重钉(#1006;spec=#1006,T1 集成尖)──
+// 会话内临时态 rackHidden(GameScreen 持有,默认亮):窗态不再强制亮架;收起不断
+// 决策通路(出牌窗=动作条、反应窗=横幅贴底下移);选中态跨收起保留;唯二复位点
+// (自回合开始/窗态开场弹回)钉在 react-float-skeleton #1006 例,本组钉收起态的
+// 四个面。新钉四条三问自答:守住什么=T1 改模后「窗内可收、收而不断、选中不丢、
+// 呼吸只挂窗态+收起」四契约(各例头注分答);墙钟≈每例 40-60s(共用两条停车坪
+// 配方,③ 的直种窗免 bot 链长跑);替代=无旧例(全新语义,原 #700 ③ 开关例在
+// react-float-skeleton 已按同 spec 重写,不在此重复)。
+test.describe("锦囊架临时收起重钉(#1006)", () => {
+  const PLAYABLE = "求贤令"; // self 域可用牌(出牌窗选中态载体,#715 USABLE 同款口径)
+
+  test("①出牌窗收起生效:架消失、动作条仍在场、「不出」可点过相位", async ({ page }) => {
+    await pinJunshiWindow(page, [PLAYABLE]);
+    await page.getByTestId(TESTIDS.jinnangToggle).click();
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    // 决策通路不断:架与动作条相互独立,「不出」随时可点
+    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+    await page.getByTestId(TESTIDS.actionbarPass).click();
+    await expect(page.getByTestId(TESTIDS.actionbar)).toHaveCount(0);
+    const s = await snap(page);
+    expect(s.turnPhase).not.toBe("AwaitingJinnang");
+  });
+
+  test("②出牌窗收起→重开:卡牌段选中态还原续选(选中态跨收起保留)", async ({ page }) => {
+    await pinJunshiWindow(page, [PLAYABLE]);
+    const card = page.getByTestId(TESTIDS.jinnangCard(PLAYABLE));
+    const play = page.getByTestId(TESTIDS.actionbarPlay);
+    await card.click();
+    await expect(card.locator(".jinnang-card")).toHaveClass(/sel/);
+    await expect(play).toBeEnabled();
+    // 收起:架整区卸载,选中留在 GameScreen 会话态(不随架卸载丢失)
+    await page.getByTestId(TESTIDS.jinnangToggle).click();
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    // 重开:选中态原样还原,「出牌」仍点亮(续选无断)
+    await page.getByTestId(TESTIDS.jinnangToggle).click();
+    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
+    await expect(card.locator(".jinnang-card")).toHaveClass(/sel/);
+    await expect(play).toBeEnabled();
+  });
+
+  test("③反应窗收起:横幅保留贴底下移;点呼吸钮重开,选牌落印走通", async ({ page }) => {
+    await pinRackIdle(page);
+    // 直种反应窗(openReactionWindow 挂起态同构,字段一一对应):view.windowMs 直写
+    // 30s——横幅展示(倍率缩放)与权威看门狗同读此值(#284 单源),收起→断言→重开
+    // →应答的点击链不再与默认窗的 2.5s 展示档赛跑;火烧连营根窗 + 人手持识破诡计,
+    // 结算走真引擎通路(不经 bot 链,配方参照 react-reaction.spec plantCounterScenario
+    // 的窗形状,省其开局/种植长链)。
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["识破诡计"];
+      e.jinnangSeq += 1;
+      e.pendingReaction = {
+        seq: e.jinnangSeq,
+        view: { kind: "jinnang", cardId: "火烧连营", userSeat: 1, targetSeats: [0], queriedBySeat: [0], windowMs: 30000 },
+        answers: [],
+        payload: { kind: "jinnang", userSeat: 1, cardId: "火烧连营", targets: [0] },
+      };
+      e.turnPhase = "AwaitingReaction";
+    `,
+    );
+    const banner = page.getByTestId(TESTIDS.reactionBanner);
+    await expect(banner).toBeVisible();
+    // 收起:banner-only 形态——牌行卸载,横幅保留(倒计时弧/不用全可达),架体盒
+    // 失去牌行依托随零高贴底下移(下缘锚零高架体 ≈ 视口底 −18;架亮档 ≈ 视口底 −170)
+    await page.getByTestId(TESTIDS.jinnangToggle).click();
+    await expect(page.getByTestId(TESTIDS.jinnangHand)).toHaveCount(0);
+    await expect(banner).toBeVisible();
+    await expect(banner.getByTestId(TESTIDS.reactionTimer)).toBeVisible();
+    await expect(banner.getByTestId(TESTIDS.reactionDecline)).toBeVisible();
+    const geo = await banner.evaluate((el) => ({
+      bottom: el.getBoundingClientRect().bottom,
+      vh: document.documentElement.clientHeight,
+    }));
+    expect(geo.bottom).toBeGreaterThanOrEqual(geo.vh - 40); // 贴底下移(视口相对,横幅入场动画只会更低)
+    // 点呼吸钮重开:牌行回场,选牌→落印应答,窗收结算(识破落空,reactionCounter 留痕)
+    await page.getByTestId(TESTIDS.jinnangToggle).click();
+    const card = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
+    await expect(card).toBeVisible();
+    await card.click();
+    await expect(page.getByTestId(TESTIDS.reactionConfirm)).toBeEnabled();
+    const baseline = await snap(page).then((s) => ({ cash: s.players.map((p: any) => p.cash) }));
+    await page.getByTestId(TESTIDS.reactionConfirm).click();
+    await pollReactionSettled(page, baseline, { countered: true });
+  });
+
+  test("④呼吸钮:窗态+收起才挂 .breathe;非窗态收起与窗态亮架均无该 class", async ({ page }) => {
+    await pinRackIdle(page);
+    const toggle = page.getByTestId(TESTIDS.jinnangToggle);
+    const breathe = page.locator(".game-layout .gbtn.breathe");
+    // 非窗态收起:无呼吸(「有活决策被收起来」只在窗态成立)
+    await toggle.click();
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    await expect(breathe).toHaveCount(0);
+    // 窗态开场上升沿先弹回(复位点②,弹回语义归 react-float-skeleton #1006 例);
+    // 窗态亮架不呼吸——呼吸=窗态∧收起,非「窗态」单条件
+    await toggle.click();
+    await force(page, `e.turnPhase = "AwaitingJinnang";`);
+    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
+    await expect(breathe).toHaveCount(0);
+    // 窗内收起:呼吸金光挂上(状态表达 §4.6,零文字)
+    await toggle.click();
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    await expect(breathe).toHaveCount(1);
+    await expect(toggle).toHaveClass(/breathe/);
+    // 窗落(无上升沿,收起保持):呼吸随窗态退场
+    await force(page, `e.turnPhase = "AwaitingDecision";`);
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    await expect(breathe).toHaveCount(0);
   });
 });
 

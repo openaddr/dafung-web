@@ -37,6 +37,7 @@ const RULES: Array<{ file: string; allow: RegExp[] }> = [
       /^war-dot-breathe$/,
       /^seat-glow$/,
       /^sign-await-breathe$/,
+      /^gbtn-breathe$/, // 锦囊钮呼吸金光(#1006):窗态+架收起态的常驻呼吸,HTML 层按钮小面积辉光
       /^seat-selglow$/,
       /^rotate-hint-turn$/, // 竖屏「请横屏」提示层(全屏 HTML 元素,自失效小件)
       /^bv-token-target-pulse$/,

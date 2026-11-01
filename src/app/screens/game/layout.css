@@ -747,6 +747,56 @@
     0 0 0 1px color-mix(in srgb, var(--color-gold) 40%, transparent),
     0 0 10px color-mix(in srgb, var(--color-gold) 30%, transparent);
 }
+/* ── 锦囊钮呼吸金光(.breathe,#1006):窗态在场且架已收起——「有活决策被收起来
+   了」的状态表达(§4.6 状态语言,零文字)。节奏与横幅危急档 2Hz 呼吸脉动同拍
+   (calc(var(--dur-med)*2)=500ms 周期,--ease-sine,动效 token 单源 tokens.css);
+   亮度正向脉冲(谷值不暗于基线,同 #834 危急档出盒口径),墨金系辉光走
+   --color-gold 通道。非窗态不挂本类;与 .on 互斥(收起态无亮描边,呼吸即状态)。 ── */
+.game-layout .gbtn.breathe {
+  animation: gbtn-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
+}
+@keyframes gbtn-breathe {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-gold) 0%, transparent);
+  }
+  50% {
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--color-gold) 55%, transparent),
+      0 0 12px color-mix(in srgb, var(--color-gold) 45%, transparent);
+  }
+}
+/* ── 锦囊钮一次性脉冲(.nudge,#1006 脉冲重定向,#751 B1 事件):收起态点「出牌」
+   未选牌——原架牌金圈脉冲(usable-ring-once)的目标在暗处,改落本钮闪一拍。
+   .nudge 由 PileButtons 按 nudgePulse 计数挂摘(700ms 后摘,动画完即净,连点重置
+   不叠影);架在场时 GameScreen 不接线,架牌脉冲照旧。节奏同 usable-ring-once
+   (45% 峰值金环 + 辉光)。 ── */
+.game-layout .pilebtns .gbtn.nudge {
+  animation: gbtn-nudge-once var(--dur-med) var(--ease-out);
+}
+@keyframes gbtn-nudge-once {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-gold-bright) 0%, transparent);
+  }
+  45% {
+    box-shadow:
+      0 0 0 3px var(--color-gold-bright),
+      0 0 14px color-mix(in srgb, var(--color-gold) 55%, transparent);
+  }
+}
+/* 呼吸降级(reduced-motion):退动效但状态保留——静态金晕取呼吸中间拍,
+   同 diceseal.await / reaction-banner 显式口径(app.css M-4 全局兜层压时长对
+   infinite 呼吸会高频闪,须显式关)。一次性脉冲无需登记:有限次动画吃 M-4
+   兜层即净。 */
+@media (prefers-reduced-motion: reduce) {
+  .game-layout .gbtn.breathe {
+    animation: none;
+    box-shadow:
+      0 0 0 2px color-mix(in srgb, var(--color-gold) 45%, transparent),
+      0 0 10px color-mix(in srgb, var(--color-gold) 35%, transparent);
+  }
+}
 .game-layout .gbtn:focus-visible {
   outline: 2px dashed var(--color-gold);
   outline-offset: 2px;
