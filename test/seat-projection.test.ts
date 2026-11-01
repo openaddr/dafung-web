@@ -56,7 +56,7 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "capitalSelected", tileIndex: 2, propertyId: "chengdu", cost: 1000 },
   { kind: "propertyBought", propertyId: "changangan", price: 4000 },
   { kind: "propertyUpgraded", propertyId: "luoyang", newLevel: 2 },
-  { kind: "propertyRejected", propertyId: "xuchang", reason: "no-warrant" },
+  { kind: "propertyRejected", propertyId: "xuchang", reason: "insufficient-cash" },
   { kind: "propertyGranted", propertyId: "xuchang" }, // #719 机遇赐城
   { kind: "cashChanged", delta: -200, reason: "stock", counterpartSeat: 1 },
   { kind: "treasureGained", treasureId: "golden-seal-1" },

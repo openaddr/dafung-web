@@ -41,7 +41,7 @@ export const TESTIDS = {
   seatCash: (seat: number) => `seat-cash-${seat}` as const,
   /** 体力色条(#698:3px 细轨无刻度数;濒耗竭 low 类转朱砂,数值归仪表条/弹层)。 */
   seatStamina: (seat: number) => `seat-stamina-${seat}` as const,
-  /** 属性计数(attr ∈ warrant|city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
+  /** 属性计数(attr ∈ city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
   seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
   /** 托管常驻微标(seat = 座位号,#770):托管(AI 代打)开启的席位格,国号印右 8px
    *  齿轮,纯展示挂点——开关交互唯一通路=单人格弹层 seatPopAutopilot(ADR-0028)。 */
@@ -231,19 +231,17 @@ export const TESTIDS = {
   /** 弹层 reason 印条(#743 判词 E/#751 C 批:目标段不可选席点按放行到弹层时
    *  禁用原因上屏;仅死区点按的弹层渲染)。 */
   seatPopNotice: (seat: number) => `seat-pop-notice-${seat}` as const,
-  /** 弹层体力/声望/委任数值本体(纯数文本,e2e 与投影逐字对照)。 */
+  /** 弹层体力/声望数值本体(纯数文本,e2e 与投影逐字对照)。 */
   seatPopStamina: (seat: number) => `seat-pop-stamina-${seat}` as const,
   seatPopRep: (seat: number) => `seat-pop-rep-${seat}` as const,
-  seatPopWarrant: (seat: number) => `seat-pop-warrant-${seat}` as const,
   /** 弹层四徽章(attr ∈ city|hand|hero|gem;可点项挂 .click 金描边+尾「›」)。 */
   seatPopBadge: (seat: number, attr: string) => `seat-pop-badge-${attr}-${seat}` as const,
   /** 自机弹层托管开关(接现役托管引擎通路,行为=旧托管钮;仅自机格弹层渲染)。 */
   seatPopAutopilot: (seat: number) => `seat-pop-autopilot-${seat}` as const,
-  /** 格上图标直达四明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望 / 卷轴→委任)。 */
+  /** 格上图标直达三明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望)。 */
   seatHeroModal: "seat-hero-modal",
   seatGemModal: "seat-gem-modal",
   seatRepModal: "seat-rep-modal",
-  seatWarrantModal: "seat-warrant-modal",
   /** 声望明细里程碑章(m = 门槛值 30|60|90;已献=金章 .claimed,未献=素章)。 */
   seatRepMilestone: (m: number) => `seat-rep-milestone-${m}` as const,
 
@@ -253,12 +251,11 @@ export const TESTIDS = {
   /** 总览行(seat = 座位号,座序即行序;十列 grid 一人一行)。状态类挂点:
    *  自机行 .self 金描边 / 破产行 .dead 灰化 / 活跃方 .is-active(印金圈)。 */
   warlordsRow: (seat: number) => `warlords-row-${seat}` as const,
-  /** 行内数值本体(cash/stamina/hand/rep/warrant;纯数文本,e2e 与投影逐字对照)。 */
+  /** 行内数值本体(cash/stamina/hand/rep;纯数文本,e2e 与投影逐字对照)。 */
   warlordsCash: (seat: number) => `warlords-cash-${seat}` as const,
   warlordsStamina: (seat: number) => `warlords-stamina-${seat}` as const,
   warlordsHand: (seat: number) => `warlords-hand-${seat}` as const,
   warlordsRep: (seat: number) => `warlords-rep-${seat}` as const,
-  warlordsWarrant: (seat: number) => `warlords-warrant-${seat}` as const,
   /** 城池列(真按钮):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 名下城池清单。 */
   warlordsCities: (seat: number) => `warlords-cities-${seat}` as const,
   /** 名将列:麾下名将名 chips 朱砂 + 空槽(信息公开,纯展示)。 */

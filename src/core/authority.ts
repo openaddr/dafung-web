@@ -115,7 +115,7 @@ import {
   type GameEvent,
 } from "./game-events";
 import { formatMoney } from "./money";
-import { STARTING_WARRANTS, STAMINA_MAX, STARTING_STAMINA } from "./constants";
+import { STAMINA_MAX, STARTING_STAMINA } from "./constants";
 
 type Catalog = MapCatalog;
 
@@ -466,7 +466,6 @@ export class GameEngine {
       colorIndex: i,
       isBot: s.isBot,
       cash: this.startingCash,
-      warrants: STARTING_WARRANTS,
       isBankrupt: false,
       position: 0,
       capitalIndex: -1,
@@ -1012,7 +1011,7 @@ export class GameEngine {
   grantSkillCash(seat: number, amount: number): void {
     const p = this.players[seat];
     p.cash += amount;
-    emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发/征辟补偿同口;不派发 CashGained 的防连锁口径不变)
+    emitGameEvent(this, seat, { kind: "cashChanged", delta: amount, reason: "skill" }); // 事件流(#385):技能得银(被动技击发口;不派发 CashGained 的防连锁口径不变)
   }
 
   /** 时机派发:座位序 × 麾下槽位序 × 槽内已授技序(roster.ts 授技单点保证池序)遍历,

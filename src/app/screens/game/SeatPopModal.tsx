@@ -2,7 +2,7 @@
 // tmp/席位侧列原型.html ⑤节判决原样移植——头=国号印(座位色)+国号+现金章(裸数
 // 全称带「两」,与格上省「两」口径区隔;#745 高3 起全链无千分位);体力数值条
 // (0-100,濒耗竭转朱砂与格上同口径);
-// 声望/委任行;城池/手牌/名将/珍宝四徽章,可点项(城池/名将)金描边+微亮底+尾「›」,
+// 声望行;城池/手牌/名将/珍宝四徽章,可点项(城池/名将)金描边+微亮底+尾「›」,
 // 不可点项(手牌/珍宝)素底淡字,一眼可辨;自机格加托管开关行、对手格无(开关接现役
 // 托管引擎通路:useAutopilotOn 回读 + controller.setAutoPilot,行为=旧托管钮)。
 // 徽章钻入=关本层开明细(SeatRail 持开合态):居中模态不叠两层——双遮罩互夺 Esc/点外、
@@ -110,11 +110,6 @@ export function SeatPopModal({
           声望
           <b className="spop-num" data-testid={TESTIDS.seatPopRep(seat)}>
             {p.reputation}
-          </b>
-          <span aria-hidden="true">·</span>
-          委任状
-          <b className="spop-num" data-testid={TESTIDS.seatPopWarrant(seat)}>
-            {p.warrants}
           </b>
         </div>
         <div className="spop-badges">

@@ -328,11 +328,11 @@ describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
     expect(gainIdx2).toBeLessThan(noTreasureIdx); // 探宝先于城池结算终端
   });
 
-  it("自动拒绝(无委任状):探宝已在落格先行,收口零补探", () => {
+  it("自动拒绝(买不起):探宝已在落格先行,收口零补探", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    mover.warrants = 0; // 无委任状 → 购地选项不可用 → 仅剩默认行为,自动不取
+    mover.cash = 0; // 银两不足 → 购地选项不可用 → 仅剩默认行为,自动不取
     const tile = treasureTile(e);
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
     testEngine(e).landActiveAt(tile.index);

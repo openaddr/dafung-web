@@ -434,11 +434,7 @@ export function extractBatchEvents(
           textFloater(
             engine,
             eventSeat(engine, ev),
-            ev.reason === "no-warrant"
-              ? "无委任状,不可购"
-              : ev.reason === "insufficient-cash"
-                ? "银两不足,未能购城"
-                : "城已满级,按兵不动",
+            ev.reason === "insufficient-cash" ? "银两不足,未能购城" : "城已满级,按兵不动",
           ),
         );
         break;

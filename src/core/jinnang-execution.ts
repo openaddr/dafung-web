@@ -477,22 +477,6 @@ function fireHeroSkill(
       );
       break;
     }
-    case "patronage": {
-      const cash = skill.params?.cash;
-      if (cash === undefined)
-        throw new Error(`征辟参数缺失:params=${JSON.stringify(skill.params ?? {})}(数据 bug)`); // 零兜底
-      user.warrants += 1;
-      const target = g.players[targets[0]];
-      g.grantSkillCash(targets[0], cash); // 国库补偿:+现金(浮字由 cashChanged·skill 事件在 fx 面派生;不派发 CashGained,防连锁)
-      g.logEvent(
-        "system",
-        user.guohao,
-        `${user.guohao} 【${skill.name}】:委任状 +1,${target.guohao} 获 ${formatMoney(cash)} 补偿`,
-        `heroPatronage owner=${user.id} skill=${skill.id} target=${target.id} cash=${cash} warrants=${user.warrants}`,
-        cash,
-      );
-      break;
-    }
     case "warDrum": {
       const bonus = skill.params?.bonus;
       if (bonus === undefined)

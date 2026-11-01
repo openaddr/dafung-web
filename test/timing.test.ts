@@ -7,7 +7,6 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { EFFECTS } from "@core/effects";
-import { WARRANTS_PER_PASS } from "@core/constants";
 import { HEROES, type HeroDef } from "@core/heroes";
 import { SKILLS, type TriggerSkill } from "@core/skills";
 import { guidePriceOf } from "@core/treasures";
@@ -866,7 +865,7 @@ describe("时机框架:资产与交易(PropertyBought/PropertyUpgraded/HeroRecru
     const def = e.catalog.get(tile.propertyId!)!;
     const entries = recordMomentCtx(e);
     landActiveOn(e, tile.index);
-    expect(e.turnPhase).toBe("AwaitingDecision"); // 买得起 + 有委任状 → 真实抉择
+    expect(e.turnPhase).toBe("AwaitingDecision"); // 买得起 → 真实抉择
     e.buyProperty();
     const pb = entries.filter((x) => x.moment === "PropertyBought");
     expect(pb).toHaveLength(1);
@@ -1439,21 +1438,6 @@ describe("时机框架:事件化第二批(#456)", () => {
     expect(entries.filter((x) => x.moment === "ReputationChanged").map((x) => x.ctx)).toEqual([
       { subject: seat, delta: 20 },
     ]);
-  });
-
-  it("WarrantGained:途经己都城巡幸得委任状后派发(subject=行者,tileIndex=都城)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const mover = e.activePlayer;
-    const n = e.board.count;
-    const warrants0 = mover.warrants;
-    const entries = recordMomentCtx(e);
-    testEngine(e).placeActive((mover.capitalIndex - 1 + n) % n);
-    passJinnang(e).rollAndMove(); // 掷 1-6 必途经/落己都城
-    expect(entries.filter((x) => x.moment === "WarrantGained").map((x) => x.ctx)).toEqual([
-      { subject: e.players.indexOf(mover), tileIndex: mover.capitalIndex },
-    ]);
-    expect(mover.warrants).toBe(warrants0 + WARRANTS_PER_PASS);
   });
 });
 

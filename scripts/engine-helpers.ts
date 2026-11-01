@@ -143,7 +143,6 @@ export function statusOf(e: GameEngine) {
       isBot: p.isBot,
       cash: p.cash,
       netWorth: p.netWorth,
-      warrants: p.warrants,
       position: p.position,
       capitalIndex: p.capitalIndex,
       isBankrupt: p.isBankrupt,

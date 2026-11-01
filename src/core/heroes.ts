@@ -38,7 +38,7 @@ export const HEROES: HeroDef[] = [
     image: "/assets/heroes/hero-caopi-sgs.png",
     name: "曹丕",
     title: "承继大统",
-    skillPool: ["yuli", "zhengpi", "zhijin"], // {渔利,征辟,掷金}
+    skillPool: ["yuli", "zhijin"], // {渔利,掷金}
   },
   {
     id: "zhangxingcai",

@@ -1,7 +1,7 @@
-// 席位格交互(#701,spec #697 ④):①格 tap 单人格弹层——头/体力/声望委任/四徽章
+// 席位格交互(#701,spec #697 ④):①格 tap 单人格弹层——头/体力/声望/四徽章
 // 内容与投影逐字一致,自机格带托管开关行、对手格无,Esc/点外关闭;②格上图标直达
-// 五路各通(城楼→#622 清单、战盔→名将名录、玉璧→珍宝列表、墨竹→声望明细、卷轴→
-// 委任明细),牌背=暗牌不可点;③弹层徽章可点/不可点视觉挂点(.click 金描边 vs 素底)
+// 四路各通(城楼→#622 清单、战盔→名将名录、玉璧→珍宝列表、墨竹→声望明细),
+// 牌背=暗牌不可点;③弹层徽章可点/不可点视觉挂点(.click 金描边 vs 素底)
 // 与徽章钻入;④托管开关接现役引擎通路(controller.autoPilotOn 回读)。
 // 种植式断言(冻结→种植→点击→断言→恢复,react-city-ledger 同口径):字段期望值
 // 读自引擎快照/单源函数,不落第二事实源;选择器一律 TESTIDS 单源。
@@ -69,7 +69,7 @@ test.describe("格 tap 单人格弹层(#701 ①)", () => {
     try {
       const s = await snap(page);
 
-      // ── 自机格弹层:头/体力/声望委任/徽章与投影逐字一致 ──
+      // ── 自机格弹层:头/体力/声望/徽章与投影逐字一致 ──
       await tapCell(page, TESTIDS.seatSelf, true);
       const pop0 = page.getByTestId(TESTIDS.seatPop(0));
       await expect(pop0).toBeVisible();
@@ -83,9 +83,6 @@ test.describe("格 tap 单人格弹层(#701 ①)", () => {
       );
       await expect(page.getByTestId(TESTIDS.seatPopRep(0))).toHaveText(
         String(s.players[0].reputation),
-      );
-      await expect(page.getByTestId(TESTIDS.seatPopWarrant(0))).toHaveText(
-        String(s.players[0].warrants),
       );
       // 徽章文本 = 数值 + 名词标(图标无文字);空麾下如实报 0(quickStart 开局 0 席)
       await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "city"))).toHaveText(
@@ -137,14 +134,14 @@ test.describe("格 tap 单人格弹层(#701 ①)", () => {
   });
 });
 
-test.describe("格上图标直达五路(#701 ②)", () => {
-  test("城楼→清单/战盔→名录/玉璧→列表/墨竹→声望/卷轴→委任;牌背不可点", async ({ page }) => {
+test.describe("格上图标直达四路(#701 ②)", () => {
+  test("城楼→清单/战盔→名录/玉璧→列表/墨竹→声望;牌背不可点", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 49);
     await freezeForTap(page);
     try {
       // 种植:对手席挂一名将(取自引擎名将目录单源)+一珍宝(取自牌堆真实行——
-      // 陈列弹层按 id 回查 TREASURES 目录,假 id 当场炸,种植必须用真身份)+委任 4
+      // 陈列弹层按 id 回查 TREASURES 目录,假 id 当场炸,种植必须用真身份)
       // +声望 45(addReputation 走引擎唯一写口,30 档里程碑顺带成立)
       const hero = await page.evaluate(() => {
         const def = (window as any).__dafung.heroDefs()[0];
@@ -161,7 +158,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
         const def = window.__dafung.heroDefs()[0];
         e.players[1].heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
         e.players[1].treasures = [{ id: row.id, name: row.name, level: row.level }];
-        e.players[1].warrants = 4;
         e.addReputation(1, 45);
       `,
       );
@@ -205,15 +201,6 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(repModal).toBeHidden();
 
-      // 卷轴→委任明细(现值大数 + 口径一句)
-      await page.getByTestId(TESTIDS.seatAttr(1, "warrant")).click();
-      const warrantModal = page.getByTestId(TESTIDS.seatWarrantModal);
-      await expect(warrantModal).toBeVisible();
-      await expect(warrantModal.locator(".spop-bignum")).toHaveText("4");
-      await expect(warrantModal.getByText("进驻城池时消耗;每过都城 +2")).toBeVisible();
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(warrantModal).toBeHidden();
-
       // 空陈列接 #768 器物空态(#884,#851 尾):清空麾下/库房重开——斜放朱印+短注
       // (PileModal 同制式单源),计数如实报 0、网格不挂
       await force(page, `e.players[1].heroes = []; e.players[1].treasures = [];`);
@@ -231,13 +218,12 @@ test.describe("格上图标直达五路(#701 ②)", () => {
       await expect(gemModal).toBeHidden();
 
       // 牌背=暗牌不可点(ADR-0016):点击不开任何弹层(浮签触发元 claim 止泡),
-      // 四明细容器与单人格弹层零浮现
+      // 明细容器与单人格弹层零浮现
       await page.getByTestId(TESTIDS.seatAttr(1, "hand")).click();
       await expect(page.getByTestId(TESTIDS.seatPop(1))).toHaveCount(0);
       await expect(page.getByTestId(TESTIDS.seatHeroModal)).toHaveCount(0);
       await expect(page.getByTestId(TESTIDS.seatGemModal)).toHaveCount(0);
       await expect(page.getByTestId(TESTIDS.seatRepModal)).toHaveCount(0);
-      await expect(page.getByTestId(TESTIDS.seatWarrantModal)).toHaveCount(0);
       await expect(page.getByTestId(TESTIDS.cityLedger)).toHaveCount(0);
     } finally {
       await unfreezeClock(page);

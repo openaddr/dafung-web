@@ -1,6 +1,6 @@
 // 玩家构造与查询 helper。
 import type { Player, PropertyHolding } from "./model";
-import { STARTING_STAMINA, STARTING_WARRANTS } from "./constants";
+import { STARTING_STAMINA } from "./constants";
 
 export interface CreatePlayerOpts {
   id: string;
@@ -21,7 +21,6 @@ export function createPlayer(opts: CreatePlayerOpts): Player {
     colorIndex: opts.colorIndex,
     isBot: opts.isBot,
     cash: opts.startingCash,
-    warrants: STARTING_WARRANTS,
     isBankrupt: false,
     position: 0,
     capitalIndex: -1,

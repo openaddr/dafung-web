@@ -43,9 +43,7 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
   expect(s.isOver).toBe(false);
 });
 
-test("席位格同步:自机格现金/委任与引擎快照停靠态同步(#253 迁移;#700 仪表条退役)", async ({
-  page,
-}) => {
+test("席位格同步:自机格现金与引擎快照停靠态同步(#253 迁移;#700 仪表条退役)", async ({ page }) => {
   await quickStart(page);
   // 比对只在活跃方=人类的停靠态可满足:单机热座 viewSeat 跟随决策方,bot 回合
   // 自机格现金随 viewSeat 走 bot 的账(开局全员同现金时采样碰巧全真——正是本用例
@@ -58,25 +56,21 @@ test("席位格同步:自机格现金/委任与引擎快照停靠态同步(#253 
   // 谓词采样必须单次 evaluate 原子完成,禁用裸 locator 读:①多往返在自走对局里跨状态
   // 采样;②locator 读缺失元素会挂等到测试超时而非立刻抛——.catch 接不到,轮询必烧穿
   // (CI #269 两挂的真根因:开局全员同现金时 bot 回合采样可碰巧全真、快机器抢先过关;
-  // 现金一分化只剩人类窗口可真,而窗口内恰挂死)。#698 自机入列后自机格恒在场,
-  // 委任徽章谓词随之收紧(旧 null 宽松分支随「活跃席无卡」形态退役)。
+  // 现金一分化只剩人类窗口可真,而窗口内恰挂死)。#698 自机入列后自机格恒在场。
   await expect
     .poll(
       async () => {
         const r = await page.evaluate(() => {
           const s = (window as any).__dafung.snapshot();
           const q = (id: string) => document.querySelector(`[data-testid="${id}"]`);
-          const active = s.players[s.activeIndex];
           return {
             meCash: s.players[0].cash,
-            activeWarrants: active.warrants,
             cash: q("seat-cash-0")?.textContent ?? "",
-            warrant: q(`seat-attr-warrant-${s.activeIndex}`)?.getAttribute("aria-label") ?? null,
           };
         });
-        return r.cash === String(r.meCash) && r.warrant === `委任状 ${r.activeWarrants}`;
+        return r.cash === String(r.meCash);
       },
-      { timeout: 15_000, message: "自机格现金/委任与引擎快照同步" },
+      { timeout: 15_000, message: "自机格现金与引擎快照同步" },
     )
     .toBe(true);
   // 席位格列就位,自机格在列(结构性,不随推进变化;#253:treasury/others 容器退役;
@@ -92,7 +86,7 @@ test("席位格同步:自机格现金/委任与引擎快照停靠态同步(#253 
 // freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
 // 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
 
-test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async ({ page }) => {
+test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
   try {
@@ -121,7 +115,7 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
     const before = (await snap(page)).players[0];
     const logLenBefore = (await snap(page)).log.length;
     await page.getByTestId(TESTIDS.actionButton("buy")).click();
-    // 扣银两/耗委任状以 buy 留痕为凭(detail 的 price/cash/warrants= 结算瞬间值):
+    // 扣银两以 buy 留痕为凭(detail 的 price/cash= 结算瞬间值):
     // 购地收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金(横征暴敛等)、
     // 也可正当拆掉本方城(火烧连营/火攻)——#421 冻结只钉看门狗节拍、钉不住命令自带
     // 的同步连锁,点击后再读快照属与连锁的竞速读数。
@@ -147,15 +141,6 @@ test("购地决策:卷轴购地扣银两 + 耗委任状 + 获得地产", async (
         { timeout: 15_000, message: "buy 留痕现金=结算瞬间值,必低于种前现金(扣价)" },
       )
       .toBeLessThan(before.cash);
-    await expect
-      .poll(
-        async () => {
-          const line = await buyLine();
-          return line == null ? null : Number(/warrants=(\d+)/.exec(line.detail)![1]);
-        },
-        { timeout: 15_000, message: "buy 留痕委任状=结算瞬间值,须较种前少一张(耗状)" },
-      )
-      .toBe(before.warrants - 1);
   } finally {
     await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
   }
@@ -185,7 +170,7 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
     await page.getByTestId(TESTIDS.actionButton("upgrade")).click();
     // 升级免费:等级 +1,现金不变——两者都以 upgrade 留痕为凭(detail 的 level=/cash=
     // 结算瞬间值):升级收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金
-    // (横征暴敛/征辟补偿等)、也可正当拆掉本方刚升级的城(火烧连营/周瑜火攻专烧城多
+    // (横征暴敛等)、也可正当拆掉本方刚升级的城(火烧连营/周瑜火攻专烧城多
     // 者)——#421 冻结只钉看门狗节拍、钉不住命令自带的同步连锁,点击后再读快照属与
     // 连锁的竞速读数(失败实录:升级落地同拍被火攻拆回 Lv.0,快照断言永不达)。
     await expect

@@ -119,40 +119,38 @@ describe("事件流(#384):名将主动技发动 heroSkillActivated", () => {
     expect(e.heroDiceBonus).toBe(2);
   });
 
-  it("征辟(other 域):targetSeat 随事件;目标得银随 grantSkillCash 产 cashChanged(reason=skill,#385)", () => {
+  it("火攻(other 域):targetSeat 随事件;结算内不派发时机(demolish 落账无事件,#457 口径)", () => {
     const e = makeEngine(3);
     finishSetup(e);
     const user = e.activePlayer;
     const userSeat = e.players.indexOf(user);
     const otherSeat = userSeat === 0 ? 1 : 0;
-    const targetCash0 = e.players[otherSeat].cash;
-    const warrants0 = user.warrants;
     armHero(
       e,
       user,
-      HEROES.find((h) => h.id === "caopi")!,
+      HEROES.find((h) => h.id === "zhouyu")!,
     );
+    // 守卫布场:目标须过 demolish 守卫(有非都城可失才可指定)
+    const victim = e.players[otherSeat];
+    const capProp = e.board.at(victim.capitalIndex)?.propertyId;
+    const spare = e.board.tiles.find(
+      (t) => t.event == null && t.propertyId !== capProp,
+    )!.propertyId!;
+    victim.properties.push({ propertyId: spare, group: "a", level: 1, maxLevel: 3 });
     e.turnPhase = "AwaitingJinnang";
     beginGameEventBatch(e);
-    e.resolveHeroSkill("caopi", "zhengpi"); // other 域:先入目标段
-    e.resolveHeroSkill("caopi", "zhengpi", [otherSeat]); // 选定目标,发动
+    e.resolveHeroSkill("zhouyu", "huogong"); // other 域:先入目标段
+    e.resolveHeroSkill("zhouyu", "huogong", [otherSeat]); // 选定目标,发动
     const events = e.snapshot().events;
-    expect(kinds(events)).toEqual(["heroSkillActivated", "cashChanged"]);
+    expect(kinds(events)).toEqual(["heroSkillActivated"]);
     expect(events[0]).toMatchObject({
       kind: "heroSkillActivated",
       seat: userSeat,
-      skillId: "zhengpi",
-      skillKind: "patronage",
+      skillId: "huogong",
+      skillKind: "demolish",
       targetSeat: otherSeat,
     });
-    expect(events[1]).toMatchObject({
-      kind: "cashChanged",
-      seat: otherSeat,
-      delta: 50,
-      reason: "skill",
-    });
-    expect(user.warrants).toBe(warrants0 + 1);
-    expect(e.players[otherSeat].cash).toBe(targetCash0 + 50); // 国库补偿落账
+    expect(victim.properties.find((h) => h.propertyId === spare)?.level).toBe(0); // 降 1 级落账
   });
 });
 
@@ -342,8 +340,7 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
       (x) => x.propertyId != null && e.findOwner(x.propertyId) == null,
     )!;
     const def = e.catalog.get(tile.propertyId)!;
-    p.cash = def.purchasePrice - 1; // 银两不足(委任状足额)
-    p.warrants = 3;
+    p.cash = def.purchasePrice - 1; // 银两不足
     beginGameEventBatch(e);
     t.landActiveAt(tile.index);
     const events = e.snapshot().events;
@@ -353,26 +350,6 @@ describe("事件流(#385 缺口 1):购地被拒/按兵不动 propertyRejected", 
       seat: e.players.indexOf(p),
       propertyId: def.id,
       reason: "insufficient-cash",
-    });
-  });
-
-  it("委任状不足:reason=no-warrant(文案浮字由 fx 按 reason 派生)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const t = testEngine(e);
-    const p = e.activePlayer;
-    const tile = MAP.board.tiles.find(
-      (x) => x.propertyId != null && e.findOwner(x.propertyId) == null,
-    )!;
-    const def = e.catalog.get(tile.propertyId)!;
-    p.cash = def.purchasePrice + 500;
-    p.warrants = 0;
-    beginGameEventBatch(e);
-    t.landActiveAt(tile.index);
-    expect(e.snapshot().events[0]).toMatchObject({
-      kind: "propertyRejected",
-      propertyId: def.id,
-      reason: "no-warrant",
     });
   });
 

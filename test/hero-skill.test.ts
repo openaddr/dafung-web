@@ -1,5 +1,5 @@
 // 名将主动技 + 出牌阶段合并窗单测(#188 档 3):冷却闸门、目标校验(复用 #226 守卫)、
-// 四技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
+// 三技结算、快照往返、bot 决策(策略/看门狗/托管)。缝约定同 test/bot-jinnang.test.ts
 // (makeEngine/finishSetup/armJinnang 模式复制,不 import 测试文件;只测引擎公共面)。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
@@ -139,7 +139,7 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     p.cash = 50; // 付不起 100
     expect(skillOpt(e, "huatuo", "zhenji")?.available).toBe(false);
     expect(skillOpt(e, "huatuo", "zhenji")?.reason).toBe("银两不足");
-    // 付得起 → 入目标段;any 域含自己,other 域(征辟)排除自己
+    // 付得起 → 入目标段;any 域含自己
     p.cash = 5000;
     e.resolveHeroSkill("huatuo", "zhenji");
     expect(e.pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
@@ -148,9 +148,16 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
     expect(e.pendingSkill).toBe(null);
     expect(e.activePlayer.heroes[0].lastFired["zhenji"]).toBeUndefined();
     e.turnPhase = "AwaitingJinnang";
-    armSkill(e, "caopi", "zhengpi");
-    e.resolveHeroSkill("caopi", "zhengpi");
-    expect(e.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" });
+    // other 域(火攻)排除自己;他人须过 demolish 守卫(有非都城可失才可指定)
+    armSkill(e, "zhouyu", "huogong");
+    const victim = e.players[1];
+    const capProp = e.board.at(victim.capitalIndex)?.propertyId;
+    const spare = e.board.tiles.find(
+      (t) => t.event == null && t.propertyId !== capProp,
+    )!.propertyId!;
+    victim.properties.push({ propertyId: spare, group: "a", level: 0, maxLevel: 3 });
+    e.resolveHeroSkill("zhouyu", "huogong");
+    expect(e.pendingSkill).toEqual({ heroId: "zhouyu", skillId: "huogong" });
     expect(seatOpt(e, 0)?.available).toBe(false);
     expect(seatOpt(e, 0)?.reason).toBe("不能指定自己");
     expect(seatOpt(e, 1)?.available).toBe(true);
@@ -192,19 +199,8 @@ describe("出牌阶段:主动技选项集(#188 档 3)", () => {
 });
 
 describe("主动技结算(#188 档 3)", () => {
-  it("征辟:自得 1 委任状、目标得 50(国库出);赈济:付 100 为目标 +30 体力(clamp 上限)", () => {
+  it("赈济:付 100 为目标 +30 体力(clamp 上限)", () => {
     const e = prepared();
-    armSkill(e, "caopi", "zhengpi");
-    const warrantsBefore = e.activePlayer.warrants;
-    e.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
-    e.resolveHeroSkill("caopi", "zhengpi", [1]); // 提交目标
-    expect(e.activePlayer.warrants).toBe(warrantsBefore + 1);
-    expect(e.players[1].cash).toBe(e.players[1].cash); // 已在断言前落账,占位防误读
-    expect(e.turnPhase).toBe("Roll"); // 技进冷却,收卷
-    expect(e.log.some((l) => l.brief.includes("征辟") && l.detail.includes("target=p1"))).toBe(
-      true,
-    );
-
     e.turnPhase = "AwaitingJinnang";
     const hua = armSkill(e, "huatuo", "zhenji");
     hua.cash = 1000;
@@ -280,17 +276,17 @@ describe("主动技结算(#188 档 3)", () => {
 
   it("快照往返:技能目标段载荷(携实例定位)随快照走,镜像端可继续选人结算", () => {
     const e = prepared();
-    armSkill(e, "caopi", "zhengpi");
-    e.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
-    expect(e.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" });
+    armSkill(e, "huatuo", "zhenji");
+    e.resolveHeroSkill("huatuo", "zhenji"); // 入目标段
+    expect(e.pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" });
     const mirror = makeEngine(1);
     mirror.restoreFromSnapshot(e.snapshot());
-    expect(mirror.pendingSkill).toEqual({ heroId: "caopi", skillId: "zhengpi" }); // 实例定位往返保真(#817)
+    expect(mirror.pendingSkill).toEqual({ heroId: "huatuo", skillId: "zhenji" }); // 实例定位往返保真(#817)
     expect(JSON.stringify(mirror.choicesFor())).toBe(JSON.stringify(e.choicesFor()));
     // 镜像端续推:目标段提交照常结算(载荷已在快照里,无需再入段)
-    const warrantsBefore = mirror.activePlayer.warrants;
-    mirror.resolveHeroSkill("caopi", "zhengpi", [1]);
-    expect(mirror.activePlayer.warrants).toBe(warrantsBefore + 1);
+    const staminaBefore = mirror.players[1].stamina;
+    mirror.resolveHeroSkill("huatuo", "zhenji", [1]);
+    expect(mirror.players[1].stamina).toBe(Math.min(100, staminaBefore + 30));
     expect(mirror.pendingSkill).toBe(null);
   });
 });
@@ -339,8 +335,8 @@ describe("出牌阶段 bot 决策(#188 档 3)", () => {
     expect(e.players[poor].properties.find((h) => h.propertyId === plains[2])?.level).toBe(1); // 未被波及
     // 中途停在技能目标段(#580 后同款裸调入口):续推完成目标段结算,不卡死
     const e2 = prepared();
-    armSkill(e2, "caopi", "zhengpi");
-    e2.resolveHeroSkill("caopi", "zhengpi"); // 入目标段
+    armSkill(e2, "huatuo", "zhenji");
+    e2.resolveHeroSkill("huatuo", "zhenji"); // 入目标段
     botAct(e2);
     expect(e2.pendingSkill).toBe(null);
     expect(e2.turnPhase).toBe("Roll");
@@ -367,11 +363,11 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
   it("钉4:首批共享表与 ADR-0036 逐字一致(池序 + 技属主集)", () => {
     expect(HEROES.map((h) => [h.id, h.skillPool])).toEqual([
       ["zhouyu", ["jixing", "huogong", "leigu"]], // 周瑜{疾行,火攻,擂鼓}
-      ["caopi", ["yuli", "zhengpi", "zhijin"]], // 曹丕{渔利,征辟,掷金}
+      ["caopi", ["yuli", "zhijin"]], // 曹丕{渔利,掷金}
       ["zhangxingcai", ["zhijin", "leigu", "jixing"]], // 张星彩{掷金,擂鼓,疾行}
       ["huatuo", ["qingnang", "zhenji"]], // 华佗{青囊,赈济}
     ]);
-    // 共享三条:疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、掷金=张星彩↔曹丕;余五条单属主
+    // 共享三条:疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、掷金=张星彩↔曹丕;余四条单属主
     const owners = (id: string) =>
       HEROES.filter((h) => h.skillPool.includes(id))
         .map((h) => h.id)
@@ -379,7 +375,7 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
     expect(owners("jixing")).toEqual(["zhangxingcai", "zhouyu"]);
     expect(owners("leigu")).toEqual(["zhangxingcai", "zhouyu"]);
     expect(owners("zhijin")).toEqual(["caopi", "zhangxingcai"]);
-    for (const single of ["yuli", "qingnang", "huogong", "zhengpi", "zhenji"]) {
+    for (const single of ["yuli", "qingnang", "huogong", "zhenji"]) {
       expect(owners(single), `${single} 应单属主`).toHaveLength(1);
     }
   });

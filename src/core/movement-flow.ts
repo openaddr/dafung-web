@@ -19,7 +19,7 @@ import { jinnangCardOf } from "./jinnang";
 import { openReactionWindow } from "./reaction-window";
 import { formatMoney } from "./money";
 import { emitGameEvent, requireMovePath } from "./game-events";
-import { SIGN_FACES, WARRANTS_PER_PASS, BUY_WARRANT_COST } from "./constants";
+import { SIGN_FACES } from "./constants";
 import type { Player } from "./model";
 import type { PropertyDef } from "./economy";
 import { isEventCity } from "./board";
@@ -101,8 +101,8 @@ export function rollAndMove(g: GameEngine): void {
 }
 
 /** 途经遍历(#281):逐格走 remaining(原 traversed 的未走切片,不含起点含落点),
- *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——颁发委任状,
- *  落点不在都城则必停截断(放弃剩余步数,机遇→补给→结束回合,ADR-0035);③ 他人城主城池
+ *  每格依次:① PassedPlayer(途经非破产他人棋子,座位序);② 己都城——落点不在都城则
+ *  必停截断(放弃剩余步数,机遇→补给→结束回合,ADR-0035);③ 他人城主城池
  *  (城主存活)——派发 MarchPassedCity,城主持半路杀出则开拦检窗(挂停返回 "suspended",
  *  respondReaction 续走),拦停成功即止、后续城不再问。
  *  返回:"suspended"=拦检窗挂起、"halted"=必停都城已结算(调用方直接返回)、
@@ -129,19 +129,8 @@ export function marchTraverse(
         tileIndex: tIdx,
       });
     }
-    // ② 己都城:巡幸委任状;若落点不在都城 → 必停截断(lastMove 只走到都城)
+    // ② 己都城:若落点不在都城 → 必停截断(lastMove 只走到都城)
     if (tIdx === mover.capitalIndex) {
-      mover.warrants += WARRANTS_PER_PASS;
-      g.dispatchMoment("WarrantGained", {
-        subject: moverSeat,
-        tileIndex: tIdx,
-      }); // 时机·WarrantGained:途经己都城巡幸得委任状(#456,必停截断/恰落都城两路同挂)
-      g.logEvent(
-        "supply",
-        mover.guohao,
-        `${mover.guohao} 巡幸都城,获 ${WARRANTS_PER_PASS} 委任状`,
-        `warrantGrant player=${mover.id} +${WARRANTS_PER_PASS} warrants=${mover.warrants}`,
-      );
       if (landIndex !== mover.capitalIndex) {
         const walkedCount = totalLen - remaining.length;
         g.lastMove = g.board.computePath(fromPos, walkedCount + 1, mover.capitalIndex);
@@ -245,21 +234,14 @@ export function pendingLandDef(g: GameEngine): PropertyDef {
   return def;
 }
 
-/** 购地(决策命令):委任状不足拒绝(NoWarrant);购入消耗委任状 + 留痕(ADR-0015)+ 战报。 */
+/** 购地(决策命令):购入 + 留痕(ADR-0015)+ 战报。 */
 export function buyProperty(g: GameEngine): void {
   if (!g.assertPhase("AwaitingDecision", "BuyProperty")) return;
   const def = pendingLandDef(g);
   const buyer = g.activePlayer;
-  // 进驻(买)新城需要委任状;不足则拒绝(NoWarrant),UI 会禁用购买按钮
-  if (buyer.warrants < BUY_WARRANT_COST) {
-    g.lastTransaction = { status: "NoWarrant" };
-    g.endTurn(); // 自动拒绝也是交易链终端:收口结束回合(探宝已在落格先行,#825)
-    return;
-  }
   const r = buy(buyer, def);
   g.lastTransaction = r;
   if (r.status === "Ok") {
-    buyer.warrants -= BUY_WARRANT_COST; // 消耗委任状
     // 城池变更留痕(ADR-0015):购入即易主(无主 → 买家),等级维度不变(购入为 Lv.0)
     g.propertyChanges.push({
       tileIndex: buyer.position,
@@ -271,8 +253,8 @@ export function buyProperty(g: GameEngine): void {
     g.logEvent(
       "buy",
       buyer.guohao,
-      `${buyer.guohao} 购「${g.tileName(def)}」(${BUY_WARRANT_COST}委任 + ${formatMoney(def.purchasePrice)})`,
-      `buy player=${buyer.id} prop=${def.id} price=${def.purchasePrice} warrant-${BUY_WARRANT_COST} warrants=${buyer.warrants} cash=${buyer.cash}`,
+      `${buyer.guohao} 购「${g.tileName(def)}」(${formatMoney(def.purchasePrice)})`,
+      `buy player=${buyer.id} prop=${def.id} price=${def.purchasePrice} cash=${buyer.cash}`,
       -def.purchasePrice,
     );
     g.dispatchMoment("PropertyBought", { subject: g.activeIndex, propertyId: def.id }); // 时机·PropertyBought:购城成功尾
@@ -484,7 +466,7 @@ function resolveProperty(g: GameEngine, mover: Player, tile: TileDef): void {
   }
   const owner = g.findOwner(def.id);
   if (owner == null) {
-    // 无主城(含分歧点城)。ADR-0013:选项集经注册表计算;买不起/无委任状时仅剩默认
+    // 无主城(含分歧点城)。ADR-0013:选项集经注册表计算;买不起时仅剩默认
     // 行为「不取」→ 自动执行(战报+浮字),不进决策相位(原 L51 内联预检迁入注册表)。
     // 决策上下文置 pendingLand(决策命令消费);lastLandOutcome 仅表现态(UI 卷轴字段)。
     g.pendingLand = { kind: "PropertyAvailable", propertyId: def.id };
@@ -561,18 +543,17 @@ function enterDecisionPhase(g: GameEngine): boolean {
   const def = g.pendingLand != null ? pendingLandDef(g) : null;
   g.lastLandOutcome = { kind: "Noop" };
   if (def != null && options.some((o) => o.id === "buy")) {
-    // 购地不可行(银两/委任状不足):默认行为=不取(文案口径见 ADR-0013 决议 2,浮字由 fx 按 reason 派生)
-    const noWarrant = p.warrants < BUY_WARRANT_COST;
+    // 购地不可行(银两不足):默认行为=不取(文案口径见 ADR-0013 决议 2,浮字由 fx 按 reason 派生)
     emitGameEvent(g, g.players.indexOf(p), {
       kind: "propertyRejected",
       propertyId: def.id,
-      reason: noWarrant ? "no-warrant" : "insufficient-cash",
+      reason: "insufficient-cash",
     }); // 事件流(#385):购地被拒(文案浮字由 fx 按 reason 派生)
     g.logEvent(
       "buy",
       p.guohao,
-      `${p.guohao} 至 ${tile.name},${noWarrant ? "无委任状" : "银两不足"},不可购`,
-      `skipAvailable player=${p.id} prop=${def.id} price=${def.purchasePrice} cash=${p.cash} warrants=${p.warrants}`,
+      `${p.guohao} 至 ${tile.name},银两不足,不可购`,
+      `skipAvailable player=${p.id} prop=${def.id} price=${def.purchasePrice} cash=${p.cash}`,
     );
   } else if (def != null) {
     // 扩军不可行(城已满级):默认行为=按兵不动
@@ -591,7 +572,7 @@ function enterDecisionPhase(g: GameEngine): boolean {
     // 无待决策地产:默认行为=按兵不动(与 endDecision 同款战报)
     g.logEvent("system", p.guohao, `${p.guohao} 按兵不动`, `skip player=${p.id}`);
   }
-  // 自动拒绝终端(买不起/无委任状/城满级):交易链收口结束回合(探宝已在落格先行 #825)
+  // 自动拒绝终端(买不起/城满级):交易链收口结束回合(探宝已在落格先行 #825)
   g.endTurn();
   return false;
 }

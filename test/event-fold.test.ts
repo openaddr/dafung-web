@@ -243,7 +243,6 @@ describe("折叠投影器 · 掷骰/行军族", () => {
   it("marchArrived 无主城购不起:引擎自动按兵不动路,无决策载荷(相位由同批 turnStarted 收场)", () => {
     const e = makeEngine();
     e.players[0].cash = 0;
-    e.players[0].warrants = 0;
     foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: CHANGAN, path: path(CHANGAN) })]);
 
     expect(e.pendingLand).toBeNull();
@@ -312,7 +311,7 @@ describe("折叠投影器 · 城池族", () => {
     expect(e.players[0].cash).toBe(cash0); // Setup 期现金由开局校准覆盖
   });
 
-  it("propertyBought 扣价扣委任状入册;propertyUpgraded 对齐等级(副本无持有按事件补册)", () => {
+  it("propertyBought 扣价入册;propertyUpgraded 对齐等级(副本无持有按事件补册)", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
     foldEventBatch(e, [
@@ -321,7 +320,6 @@ describe("折叠投影器 · 城池族", () => {
     ]);
 
     expect(e.players[0].cash).toBe(cash0 - 4000);
-    expect(e.players[0].warrants).toBe(makeEngine().players[0].warrants - 1);
     expect(e.players[0].properties[0]?.level).toBe(2);
 
     const e2 = makeEngine(); // 赐城缺口级联:副本无持有,按事件面补册
@@ -343,7 +341,7 @@ describe("折叠投影器 · 城池族", () => {
     const e = makeEngine();
     const cash0 = e.players[0].cash;
     foldEventBatch(e, [
-      ev(0, { kind: "propertyRejected", propertyId: "prop-changan", reason: "no-warrant" }),
+      ev(0, { kind: "propertyRejected", propertyId: "prop-changan", reason: "insufficient-cash" }),
     ]);
     expect(e.players[0].cash).toBe(cash0);
     expect(e.players[0].properties).toEqual([]);
@@ -605,11 +603,10 @@ describe("折叠投影器 · 名将族", () => {
     expect(e.players[0].heroes[0].lastFired["huogong"]).toBe(1);
   });
 
-  it("主动技四类落账:warDrum 加成(骰时消费)/patronage 委任状/relief 付费/demolish 不折", () => {
+  it("主动技三类落账:warDrum 加成(骰时消费)/relief 付费/demolish 不折", () => {
     const e = makeEngine();
     armHero(e, e.players[0], HEROES[0]); // 周瑜:火攻槽位归属(事件按 heroId 定槽)
     armHero(e, e.players[0], HEROES[2]);
-    armHero(e, e.players[0], HEROES[1]);
     armHero(e, e.players[0], HEROES[3]);
     const cash0 = e.players[0].cash;
     const stamina1 = e.players[1].stamina;
@@ -620,14 +617,6 @@ describe("折叠投影器 · 名将族", () => {
         skillId: "leigu",
         skillKind: "warDrum",
       }),
-      ev(0, {
-        kind: "heroSkillActivated",
-        heroId: "caopi",
-        skillId: "zhengpi",
-        skillKind: "patronage",
-        targetSeat: 1,
-      }),
-      ev(0, { kind: "cashChanged", delta: 50, reason: "skill" }), // 征辟目标补偿(grantSkillCash)
       ev(1, { kind: "staminaChanged", delta: 30, reason: "heroRelief" }), // 赈济目标体力
       ev(0, {
         kind: "heroSkillActivated",
@@ -646,8 +635,7 @@ describe("折叠投影器 · 名将族", () => {
     ]);
 
     expect(e.heroDiceBonus).toBe(2); // 擂鼓 +2(掷骰事件另行消费)
-    expect(e.players[0].warrants).toBe(makeEngine().players[0].warrants + 1);
-    expect(e.players[0].cash).toBe(cash0 + 50 - 100); // 征辟补偿入目标账,赈济付 100
+    expect(e.players[0].cash).toBe(cash0 - 100); // 赈济付 100
     expect(e.players[1].stamina).toBe(stamina1 + 30);
   });
 

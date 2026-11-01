@@ -189,9 +189,8 @@ export function BuyDecisionScroll({
   onCommand: (cmd: GameCommand) => void;
 }) {
   // 选项集单源(spec #107 C1 / ADR-0013):可购与否与原因只读引擎注册表产出
-  // (「无委任状」/「银两不足」,委任优先报),UI 不再重推 cash/warrants 判定——
-  // 旧手抄「委任状不足」与引擎「无委任状」的文案漂移在此绝根。选项缺失 = 相位与
-  // 注册表不符(数据 bug),非空断言让其抛(零兜底)。
+  // (「银两不足」),UI 不再重推 cash 判定——旧手抄文案与引擎 reason 的漂移在此
+  // 绝根。选项缺失 = 相位与注册表不符(数据 bug),非空断言让其抛(零兜底)。
   const buy = choices.find((o) => o.id === "buy")!;
   // G-20:买不起时价值表默认折叠(决策已不可行,全表只是噪音);可点开查看
   const [showValues, setShowValues] = useState(buy.available);
@@ -217,7 +216,7 @@ export function BuyDecisionScroll({
             testid={TESTIDS.actionButton("buy")}
             onClick={() => onCommand({ type: "buyProperty" })}
           >
-            购地 {formatMoney(property.purchasePrice)}·1委任
+            购地 {formatMoney(property.purchasePrice)}
           </BannerButton>
           <BannerButton
             testid={TESTIDS.actionButton("skip")}
@@ -230,8 +229,7 @@ export function BuyDecisionScroll({
     >
       <p className="m-1 mb-2 text-center text-xs text-paper-dim">
         「{tileName}」{tierLabel}
-        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)} ·
-        耗 1 委任状
+        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)}
       </p>
       {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
           买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}

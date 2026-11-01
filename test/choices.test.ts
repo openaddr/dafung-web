@@ -71,7 +71,6 @@ describe("选项集注册表(choices.ts)", () => {
     const p = e.activePlayer;
     const { def } = freeProperty(e);
     p.cash = def.purchasePrice;
-    p.warrants = 1;
     armDecision(e, "PropertyAvailable", def.id);
     const opts = e.choicesFor();
     expect(opts.map((o) => o.id)).toEqual(["buy", "skip"]);
@@ -85,24 +84,10 @@ describe("选项集注册表(choices.ts)", () => {
     const p = e.activePlayer;
     const { def } = freeProperty(e);
     p.cash = def.purchasePrice - 1;
-    p.warrants = 3;
     armDecision(e, "PropertyAvailable", def.id);
     const buy = opt(e.choicesFor(), "buy")!;
     expect(buy.available).toBe(false);
     expect(buy.reason).toBe("银两不足");
-  });
-
-  it("购地:无委任状 → reason 无委任状(现金也不足时委任优先报)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const { def } = freeProperty(e);
-    p.cash = 0;
-    p.warrants = 0;
-    armDecision(e, "PropertyAvailable", def.id);
-    const buy = opt(e.choicesFor(), "buy")!;
-    expect(buy.available).toBe(false);
-    expect(buy.reason).toBe("无委任状");
   });
 
   it("扩军:未满级可用;满级 → 不可用 reason 已满级,只剩 skip", () => {
@@ -207,7 +192,6 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const { tile, def } = freeProperty(e);
     const turn0 = e.turnNumber;
     p.cash = def.purchasePrice - 1;
-    p.warrants = 3;
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     expect(e.turnPhase).not.toBe("AwaitingDecision");
     expect(e.turnNumber).toBe(turn0 + 1); // 直接结束回合
@@ -219,25 +203,6 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
         .snapshot()
         .events.some((ev) => ev.kind === "propertyRejected" && ev.reason === "insufficient-cash"),
     ).toBe(true); // 文案浮字由 fx 按 reason 派生(见 presentation.test)
-  });
-
-  it("无委任状落无主城:不进 AwaitingDecision + 战报 + 宣告事件(reason=no-warrant)", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const { tile, def } = freeProperty(e);
-    p.cash = 10000;
-    p.warrants = 0;
-    testEngine(e).landActiveAt(tile.index);
-    expect(e.turnPhase).not.toBe("AwaitingDecision");
-    expect(e.log.some((ev) => ev.brief.includes("无委任状") && ev.detail.includes(def.id))).toBe(
-      true,
-    );
-    expect(
-      e
-        .snapshot()
-        .events.some((ev) => ev.kind === "propertyRejected" && ev.reason === "no-warrant"),
-    ).toBe(true);
   });
 
   it("满级己城:自动按兵不动 + 战报「城已满级,按兵不动」+ 宣告事件(reason=maxed,不再弹假选择)", () => {
@@ -274,7 +239,6 @@ describe("唯一选项自动执行(≤1 真实选项 → 默认行为 + 浮字)"
     const p = e.activePlayer;
     const { tile, def } = freeProperty(e);
     p.cash = def.purchasePrice;
-    p.warrants = 1;
     testEngine(e).landActiveAt(tile.index);
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     expect(e.snapshot().events.some((ev) => ev.kind === "propertyRejected")).toBe(false); // 真两难不自动执行,无宣告(浮字随之无)
@@ -313,7 +277,6 @@ describe("bot 对齐:决策经选项集过滤后行为不回归", () => {
     const p = e.activePlayer;
     const { def } = freeProperty(e);
     p.cash = def.purchasePrice * 2;
-    p.warrants = 3;
     armDecision(e, "PropertyAvailable", def.id);
     const props0 = p.properties.length;
     botAct(e);
@@ -351,7 +314,6 @@ describe("快照 choices 派生字段", () => {
     const p = e1.activePlayer;
     const { def } = freeProperty(e1);
     p.cash = def.purchasePrice - 1; // 买不起 → buy 不可用带 reason
-    p.warrants = 3;
     armDecision(e1, "PropertyAvailable", def.id);
     const s1 = e1.snapshot();
     expect(s1.choices).toEqual(e1.choicesFor());

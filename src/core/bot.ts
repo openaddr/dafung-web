@@ -276,8 +276,7 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
  *  目标段 choicesFor 的 available 为准(ADR-0013 同口径)。意图按技评估(同技实例策略
  *  相同),实例定位对只为查技表与发动落点。
  *  火攻=城最多者(与火烧连营同则);赈济=自身体力 <70 且付得起时自疗;
- *  征辟=可用即用(委任状稀缺,50 两补偿出自国库稳赚),补偿给现金最少的诸侯(买弱不买强);
- *  擂鼓=可用即用(免费步数 +2,过都城补给/委任状更频繁)。 */
+ *  擂鼓=可用即用(免费步数 +2,过都城补给更频繁)。 */
 export function heroSkillIntent(
   engine: GameEngine,
   heroId: string,
@@ -304,11 +303,6 @@ export function heroSkillIntent(
     case "relief": {
       const cost = skill.params?.cost ?? 0;
       return { use: me.stamina < 70 && me.cash >= cost, targets: [mySeat] };
-    }
-    case "patronage": {
-      // 征辟:可用即用;补偿给现金最少者(-cash 降序 = 现金升序,并列座位序小在前)
-      const poorest = byKeyDesc(({ t }) => -t.cash);
-      return { use: poorest.length > 0, targets: poorest.map(({ seat }) => seat) };
     }
     case "warDrum":
       return { use: true };
