@@ -37,7 +37,7 @@ export function SegmentedSelect<T extends string | number>({
             className={
               "min-h-[40px] rounded border px-3 font-deco text-sm cursor-pointer transition-colors " +
               (selected
-                ? "border-gold bg-gold/25 font-bold text-paper"
+                ? "border-gold bg-gold/25 text-paper"
                 : "border-paper/25 bg-bg/60 text-paper-dim hover:border-gold/60 hover:text-paper")
             }
           >

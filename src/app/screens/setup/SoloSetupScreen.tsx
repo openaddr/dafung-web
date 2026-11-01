@@ -186,9 +186,9 @@ export function SoloSetupScreen({
       placeholder="?"
       onChange={(e) => setGuohao(e.target.value)}
       // S8:非法国号即时红边(border-danger),校验随 onChange 每次渲染重算
-      // A7(#54):国号输入位用龙藏行书点缀(font-hand)
+      // #955:国号输入位 font-brush(马善政手书;龙藏整族退役,原 font-hand #54)
       className={
-        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-hand text-center " +
+        "w-16 min-h-[40px] rounded border bg-bg px-2 py-2 font-brush text-center " +
         (guohaoInvalid ? "border-danger text-danger" : "border-paper/30 text-paper")
       }
     />
@@ -211,7 +211,7 @@ export function SoloSetupScreen({
           className={
             "su-pool-btn font-deco cursor-pointer transition-colors " +
             (guohao === ch
-              ? "border-gold-deep seal-gold font-bold"
+              ? "border-gold-deep seal-gold"
               : "border-paper/25 bg-bg/60 text-paper-dim hover:border-gold/60 hover:text-paper")
           }
         >
@@ -224,7 +224,7 @@ export function SoloSetupScreen({
   // 座位表:首行真人,其余 bot(国号引擎分配,国号列显示「待分配」)。
   // #765 席位行卡面化:行升格迷你席位卡——复用对局席位格行1 制式(paper-lo 卡底 +
   // ink 界线,layout.css .seat 同语言;玩家色经行内 --pc/--pc-seal 注入,SeatRail
-  // 同通路):座次色印(28px,座位色字 on 26% 混底)+ brush 国号字(font-hand,真人
+  // 同通路):座次色印(28px,座位色字 on 26% 混底)+ brush 国号字(font-brush,真人
   // 行随输入即动)/「待分配」+ 类型印。行高 ≥44(触达口径);真人行金印「你」、
   // bot 行淡墨印「机」保持;矮横屏档真人国号编辑在左列,座位行只回显,行高齐平。
   const seatsTable = (withInput: boolean) => (
@@ -267,7 +267,7 @@ export function SoloSetupScreen({
               </div>
             ) : (
               // 矮横屏档:编辑位在左列,此处回显当前国号(brush 行书,同输入位字族)
-              <span className="font-hand text-lg text-paper">{guohao}</span>
+              <span className="font-brush text-lg text-paper">{guohao}</span>
             )}
             <span
               data-testid={TID.seatType(i)}
@@ -275,7 +275,7 @@ export function SoloSetupScreen({
                 "inline-flex h-[22px] w-[22px] items-center justify-center rounded-[2px] font-title text-[13px] leading-none " +
                 (isBot
                   ? "border border-paper/30 text-paper-dim" // 淡纸墨印
-                  : "seal-gold font-bold") // 漆金小印(= 全屏唯一真人标记,金=势)
+                  : "seal-gold") // 漆金小印(= 全屏唯一真人标记,金=势)
               }
             >
               {isBot ? "机" : "你"}
@@ -308,7 +308,7 @@ export function SoloSetupScreen({
         className={
           btnBase +
           // 起兵=墨钮(主行动):漆底漆金字,「落子无悔」的一按;S2 主行动 ≥44px
-          " ink-btn font-bold flex-1 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
+          " ink-btn flex-1 min-h-[44px] disabled:opacity-40 disabled:cursor-not-allowed" +
           // #497 ②:busy 期金环呼吸(setup.css;--dur-ambient 半频)——大图加载的活反馈
           (busy ? " su-busy" : "")
         }

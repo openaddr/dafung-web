@@ -6,8 +6,8 @@
    注意挂在按钮的「包裹层」而非按钮本身:animation fill 会永久锁定 transform,
    若同元素再写 :active scale 会被动画终态覆盖而失效,分层则互不干扰。
    只在首挂载播一次(both 保持终态,页面内返回首页会重挂载再播,符合"仪式感"预期)。 */
-/* H-2 入场动效断层修补:标题/副标题先行淡入(0.3s),按钮 stagger(300ms 起)跟进,
-   总节奏 = 标题先现 → 副标题微迟(120ms)→ 按钮逐个入场(组件内联 delay 300+i*80)。
+/* H-2 入场动效断层修补:标题先行淡入(0.3s),横带(120ms)与按钮(300ms 起)
+   stagger 跟进(组件内联 delay 300+i*80);#955 副标题退役后标题单独先行。
    只动 transform/opacity,与按钮包裹层动画同策略(GPU 合成,不触发布局)。 */
 @keyframes home-title-in {
   from {
@@ -22,12 +22,6 @@
 .home-title-in {
   animation: home-title-in var(--dur-med) var(--ease-out) both;
 }
-/* 副标题比标题晚 120ms,衔接自然(避免三块同时出现又同时断掉);
-   特例:0.12s 是 stagger 节拍非时长档,保留字面量(组件侧 300+i*80ms 同理)。 */
-.home-title-in-sub {
-  animation: home-title-in var(--dur-med) var(--ease-out) 0.12s both;
-}
-
 @keyframes home-btn-in {
   from {
     opacity: 0;
@@ -224,8 +218,8 @@
   .home-pad-tight {
     padding: 0.625rem 0;
   }
-  .home-sub-tight {
-    margin-top: 0.125rem;
-    margin-bottom: 0.375rem;
+  /* #955:副标题退役,标题下间距在矮横屏档收到 0.5rem(原 sub-tight mt+mb 合计 8px) */
+  .home-title-tight {
+    margin-bottom: 0.5rem;
   }
 }

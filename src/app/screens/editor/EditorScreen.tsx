@@ -637,7 +637,7 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
           </div>
         )}
         {/* S3:成功态文字用 --color-money token(原硬编码 text-green-800) */}
-        {status && <div className="mb-3 text-xs font-medium text-money">{status}</div>}
+        {status && <div className="mb-3 text-xs text-money">{status}</div>}
 
         {/* 属性面板(对照旧版 renderPanel)。W2 审计:selected 初始/重置恒 0,切换只在
             有效城池索引间发生,「未选中城池」空态不可达 → 不留死分支(零兜底原则);

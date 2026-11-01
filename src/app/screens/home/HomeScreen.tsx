@@ -75,8 +75,9 @@ export function HomeScreen({
     label: "单机模式",
     onClick: onSolo,
     // #497 ④:home-btn-gold(金底变体遗物)退役 —— 主入口现为墨钮,与次级笺钮
-    // 共用同一条金色笔触 hover 线(home-btn-brush),hover 语言全屏统一
-    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn font-bold`,
+    // 共用同一条金色笔触 hover 线(home-btn-brush),hover 语言全屏统一;
+    // #955:font-bold 拔除(伪加粗清尾,#936 零特例口径;层级=墨钮材质+字号)
+    cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn`,
   };
   // #707:矮横屏档「选择地图」入口退役——选图由内联横排条带承担(点选即选,
   // 弹层路径在该档裁切不可达),次级行剩两口改双列;桌面档三口零变化。
@@ -100,19 +101,19 @@ export function HomeScreen({
       className={`home-safe flex h-full flex-col overflow-y-auto bg-bg ${isShortLandscape ? "px-6 py-4" : "p-6"}`}
     >
       <div className="m-auto flex w-full flex-col items-center">
-        {/* H-2 标题/副标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
+        {/* H-2 标题先行淡入(home.css 0.3s),按钮 stagger 从 300ms 起跟进;
           #497 ④:h1 补 pl 与 tracking-widest 尾部空白同量(副标题/按钮都补了,唯独 h1 漏);
           #707 矮横屏档标题降档给条带让位(收纳档,桌面 6xl 不动);
-          #761 ⑥:本档再降一档 36→30px(844×360 零滚动三主刀之一) */}
+          #761 ⑥:本档再降一档 36→30px(844×360 零滚动三主刀之一);
+          #955:副标题「— 三国大富翁 —」退役(首页字体收敛三族:酷黑=标题印文/
+          马善政=按钮/文楷=其余),标题→横带间距由 h1 自身承担——桌面 mb-10=原副标题
+          mt-2+mb-8 合计 40px,矮横屏档 home-title-tight 收 0.5rem=原 sub-tight 合计
+          8px,节奏不变 */}
         <h1
-          className={`home-title-in font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-paper tracking-widest pl-[0.1em]`}
+          className={`home-title-in home-title-tight font-title ${isShortLandscape ? "text-3xl" : "text-6xl"} text-paper tracking-widest pl-[0.1em] mb-10`}
         >
           群雄逐鹿
         </h1>
-        {/* H-3 副标题 0.5em 字距,pl 同量补偿尾部空白使视觉居中;home-sub-tight=短横屏档收间距 */}
-        <div className="home-title-in-sub home-sub-tight font-deco text-paper-dim mt-2 mb-8 tracking-[0.5em] pl-[0.5em]">
-          — 三国大富翁 —
-        </div>
 
         {/* 视觉重做 v2 签名件:玄墨鎏金装裱横带(#514/S8 立框;#558 画心接位):
           平复帖画心 + 压深渐变(home.css .home-band-heart,#843 换血:兰亭序亮米色
