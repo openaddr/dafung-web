@@ -20,7 +20,7 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点技名先看全览不选将,选后关闭并清空候选", async ({
+test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将", async ({
   page,
 }) => {
   await quickStart(page);
@@ -39,9 +39,9 @@ test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点技名先看�
       scroll.getByTestId(SCROLL_TESTIDS.heroPickOption(i)).locator(TESTIDS.skillChipAny),
     ).toHaveCount(rows[i]!.skillIds.length);
   }
-  // 先看后选(#605/#606)+ 池全貌对照(#787):点候选将技名 chip=开技能全览弹框,
-  // 弹框陈列池全技(未授者 .is-off 灰置),不触发选将(候选不清空、招贤层仍在);
-  // 关弹框后照常点卡选将。
+  // 先看后选(2026-11-01 拍板:点卡不再直选)+ 池全貌对照(#787):点候选将技名
+  // chip=开技能全览弹框,弹框陈列池全技(未授者 .is-off 灰置),不触发选将(候选
+  // 不清空、招贤层仍在);招贤语境弹框带「收为麾下」拍板钮。
   await scroll.getByRole("button").nth(1).locator(TESTIDS.skillChipAny).first().click();
   const glossary = page.getByTestId(TESTIDS.skillGlossary);
   await expect(glossary).toBeVisible();
@@ -59,7 +59,13 @@ test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点技名先看�
   expect((await snap(page)).offeredHeroes).toHaveLength(3); // 看将不发命令
   await page.getByTestId(TESTIDS.modalClose).click();
   await expect(glossary).toHaveCount(0);
+  // 点卡体同开详情弹框(拍板唯一入口,2026-11-01 拍板):拍板钮在场 → 「收为麾下」
+  // → 钤印节拍后卷轴收场、候选清空
   await scroll.getByRole("button").nth(1).click();
+  await expect(glossary).toBeVisible();
+  const pick = glossary.getByTestId(TESTIDS.skillGlossaryPick);
+  await expect(pick).toBeVisible();
+  await pick.click();
   await expect(scroll).toBeHidden();
   // 选中的名将入手(战报或手牌区可见名字);快照候选清空
   // e2e 编译上下文看不到 src/app 的全局声明,evaluate 内以 any 访问调试钩子

@@ -108,8 +108,10 @@ export const TESTIDS = {
   heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
   // ── 技能全览弹框(#605,规格 #603 T2;#818 起技能卡主技名同为入口)──
-  /** 弹层容器(PileShell 壳;点招贤卡技名 chip / 技能卡主技名弹出,只读无命令钮)。 */
+  /** 弹层容器(PileShell 壳;招贤点卡/点技名 chip、技能卡主技名、麾下将点技名弹出)。 */
   skillGlossary: "skill-glossary",
+  /** 招贤拍板钮(footer「收为麾下」;仅招贤消费方传 onPick 时在场,浏览语境无钮)。 */
+  skillGlossaryPick: "skill-glossary-pick",
   /** 技能行(skillId=技 id;被点技挂 is-hl 高亮类)。 */
   skillGlossaryRow: (skillId: string) => `skill-glossary-row-${skillId}` as const,
   /** 卡面技名定位选择器(挂 data-skill=技 id,渲染单源在 HeroCardFace chips 与
