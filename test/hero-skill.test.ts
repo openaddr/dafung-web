@@ -406,17 +406,23 @@ describe("授技掷骰(#787,ADR-0036)", () => {
     }
   });
 
-  it("rollGrantedSkills:基数 1..池大小全档可达(均匀性抽样,零保底但无空洞)", () => {
-    for (const poolSize of [2, 3]) {
-      const pool = Array.from({ length: poolSize }, (_, i) => `k${i}`);
-      const sizes = new Set<number>();
-      for (let seed = 1; seed <= 200; seed++) {
-        sizes.add(rollGrantedSkills(pool, createDice(seed).nextFloat).length);
-      }
-      expect([...sizes].sort(), `池 ${poolSize} 基数全档`).toEqual(
-        Array.from({ length: poolSize }, (_, i) => i + 1),
-      );
+  it("rollGrantedSkills:基数几何衰减——全档可达无空洞,频次单调递减且落宽护栏(#969,ADR-0046)", () => {
+    const pool = Array.from({ length: 3 }, (_, i) => `k${i}`);
+    const SEEDS = 4000;
+    const counts = [0, 0, 0];
+    for (let seed = 1; seed <= SEEDS; seed++) {
+      counts[rollGrantedSkills(pool, createDice(seed).nextFloat).length - 1]++;
     }
+    const freq = counts.map((c) => c / SEEDS);
+    // 真值 25/31≈80.6%、5/31≈16.1%、1/31≈3.2%;护栏放宽到 ±3σ 之外,防采样抖动 flake
+    expect(freq[0]).toBeGreaterThan(0.75);
+    expect(freq[0]).toBeLessThan(0.86);
+    expect(freq[1]).toBeGreaterThan(0.12);
+    expect(freq[1]).toBeLessThan(0.2);
+    expect(freq[2]).toBeGreaterThan(0.01);
+    expect(freq[2]).toBeLessThan(0.06);
+    expect(freq[0]).toBeGreaterThan(freq[1]);
+    expect(freq[1]).toBeGreaterThan(freq[2]);
   });
 
   it("招贤预掷明牌:候选行各携池序子集(≥1);落定沿用候选行预掷,不重掷", () => {

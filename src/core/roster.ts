@@ -18,13 +18,26 @@ export interface HeroSlot {
   lastFired: Record<string, number>;
 }
 
-/** 授技掷骰(#787,ADR-0036,三送将路同一公式唯一单源):先掷基数 k = 1+⌊rng×池大小⌋
- *  (1..池大小均匀),再对池 Fisher-Yates 洗牌(注入 rng,骰流序固定)取前 k 定「谁入麾下」
- *  ——「至少一技」天然成立,零保底;返回子集按池声明序重排(槽位 skillIds 池序契约,
- *  洗牌只定成员、池序定存储序)。掷骰只走调用方注入的 rng(引擎= g.dice.nextFloat,
- *  联机各端一致,严禁 Math.random)。 */
+/** 授技衰减基数(#969,ADR-0046):每多一技,授得概率 ÷5。三技将 1 技 25/31(80.6%)、
+ *  2 技 5/31(16.1%)、3 技 1/31(3.2%);二技将 5/6、1/6。池大小不再线性调期望,改调
+ *  多技尾部(满池存在感)。 */
+const SKILL_DECAY_BASE = 5;
+
+/** 授技掷骰(#787,ADR-0036/ADR-0046,三送将路同一公式唯一单源):基数 k 服从几何衰减
+ *  (P(k) ∝ SKILL_DECAY_BASE^(k-1),大概率一技、小概率两技、极小概率满池,#969)——整数
+ *  权重 5^(池大小-k) 求和,单掷反变换落档定 k(「至少一技」天然成立,零保底);再对池
+ *  Fisher-Yates 洗牌(注入 rng,骰流序固定)取前 k 定「谁入麾下」;返回子集按池声明序
+ *  重排(槽位 skillIds 池序契约,洗牌只定成员、池序定存储序)。掷骰只走调用方注入的
+ *  rng(引擎= g.dice.nextFloat,联机各端一致,严禁 Math.random)。 */
 export function rollGrantedSkills(skillPool: string[], rng: () => number): string[] {
-  const k = 1 + Math.floor(rng() * skillPool.length);
+  const n = skillPool.length;
+  const total = (SKILL_DECAY_BASE ** n - 1) / (SKILL_DECAY_BASE - 1); // Σ 5^(n-k),整数
+  let rest = Math.floor(rng() * total);
+  let k = 1;
+  for (let w = SKILL_DECAY_BASE ** (n - 1); rest >= w && k < n; w /= SKILL_DECAY_BASE) {
+    rest -= w;
+    k += 1;
+  }
   const picked = new Set(shuffle(skillPool, rng).slice(0, k));
   return skillPool.filter((id) => picked.has(id));
 }
