@@ -1,7 +1,8 @@
-// 底部常驻手牌架(#238 一期 T3,方案 §4 P1-C):锦囊手牌从侧栏纸签迁到屏幕下缘
+// 底部手牌架(#238 一期 T3,方案 §4 P1-C):锦囊手牌从侧栏纸签迁到屏幕下缘
 // 漆木架——横排大牌面(手牌无上限,#250 删满手作废;>3 张叠加压缩 + hover 挥出
-// 全显,#254)、空手牌斜放一张牌背占位(器物空态,无文案)、他人回合同样
-// 可见(常驻不收拢:反应窗二期落地前,架先站住「牌始终在线」的位置)。
+// 全显,#254)、空手牌斜放一张牌背占位(器物空态,无文案)。显隐随 GameScreen 的
+// 会话内临时态(#1006:默认亮、唯二复位点弹回;窗态可收起,banner-only 形态只宿
+// 横幅)。
 //
 // 视觉基线:tmp/prototype-jinnang-ui.html 其四(.rack / .jia-zhang / .slash),
 // 样式在 hand-rack.css;牌面器物件(JinnangCardFace/Back,card/ 目录只读消费)。
@@ -53,6 +54,7 @@ import { Sym } from "@app/screens/shared/Sym";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
+import { usePulseOnce } from "@app/hooks/use-pulse-once";
 import { useIsNarrow } from "@app/hooks/use-media-query";
 import { getAudio } from "@app/fx/audio";
 import { useFxStore } from "@app/fx/fxStore";
@@ -510,6 +512,10 @@ export interface HandRackProps {
    *  setupPhase==="PickCapital",与 setupHint 同口径):空态大牌背降档
    *  (opacity 0.45+scale 0.85,样式在 hand-rack.css),定都收尾相位离开即复原。 */
   capitalPick?: boolean;
+  /** banner-only 形态(#1006):架收起而反应窗在场——只渲横幅,不渲牌行/牌背/
+   *  计数章(零中间形态:牌要么整架亮、要么随收起消失);架体盒保留作横幅锚
+   *  (ADR-0032「响应件落架缘」,横幅贴底下移后仍是架缘语义)。 */
+  bannerOnly?: boolean;
 }
 
 /** 牌面宽 = 15em(jinnang-card.css 基座,与 JINNANG_FACE_SIZE_EM 互为镜像的只读常量)。 */
@@ -543,7 +549,8 @@ interface StackVars {
  *  手牌横排(空态斜放牌背占位)——漆木条底/架首竖排章随仪表条一并退役(原型
  *  席位侧列原型.html ①handzone:透明居中浮置,签面驻左端归 HandZone),藏品双入口
  *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
- *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边。
+ *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边;banner-only 形态
+ *  (#1006)架收起而反应窗在场,只渲横幅贴底。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
 export function HandRack({
   player,
@@ -551,6 +558,7 @@ export function HandRack({
   reaction,
   nudgePulse = 0,
   capitalPick = false,
+  bannerOnly = false,
 }: HandRackProps) {
   // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
   // 被开的那张(长按微光的达成保持态按键判,不按 cardId 误伤同名兄弟);cardId 供详情面板。
@@ -565,8 +573,7 @@ export function HandRack({
   const badgeRef = useRef<HTMLButtonElement | null>(null);
   // 禁用「出牌」点按反馈(#751 B1,#744 判词):动作条自门控发来的未选牌点按计数,
   // 变更一次=架上可用牌金圈脉冲一次(seat-selglow 同族状态语言,不加文字)。
-  const [usablePulse, setUsablePulse] = useState(false);
-  const pulseTimer = useRef(0);
+  const usablePulse = usePulseOnce(nudgePulse);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
   const mounted = player != null;
@@ -584,18 +591,6 @@ export function HandRack({
     useFxStore.getState().setSpotlight(spotlightOn);
     return () => useFxStore.getState().setSpotlight(false);
   }, [spotlightOn]);
-
-  // 金圈脉冲一拍(#751 B1):nudgePulse 计数变更即亮 700ms(动画 --dur-med 级)后熄,
-  // 类摘除再挂可重播;点按连发时重置计时,不叠影。
-  const lastNudge = useRef(nudgePulse);
-  useEffect(() => {
-    if (nudgePulse === lastNudge.current) return;
-    lastNudge.current = nudgePulse;
-    window.clearTimeout(pulseTimer.current);
-    setUsablePulse(true);
-    pulseTimer.current = window.setTimeout(() => setUsablePulse(false), 700);
-  }, [nudgePulse]);
-  useEffect(() => () => window.clearTimeout(pulseTimer.current), []);
 
   // 临时全展的自动回落与点外收回(#751 C2):2.5s 计时器 + spreadAll 期间 document
   // pointerdown 落在手牌行/计数章外即收(点外=检视结束,同 hover 移出口径)。
@@ -859,31 +854,35 @@ export function HandRack({
       }
     >
       {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
-          (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。 */}
+          (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。
+          banner-only(#1006):架收起时横幅是本盒唯一内容,失去牌行依托后随零高
+          架体盒贴底下移,决策通路不断(倒计时弧/落印/不用/降噪口全可达)。 */}
       {reaction?.banner}
-      {renderCount > 0 ? (
-        /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
-            ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。usablePulse=
-            未选牌点按「出牌」的架上金圈脉冲一拍(#751 B1)。 */
-        <div
-          ref={handRowRef}
-          data-testid={TESTIDS.jinnangHand}
-          className={
-            (stack ? "hand-rack-hand many" : "hand-rack-hand") + (usablePulse ? " nudge" : "")
-          }
-          style={handStyle}
-        >
-          {handItems}
-        </div>
-      ) : (
-        /* 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;窗态下不可能到这
-            ——hasUsableJinnang 才进 AwaitingJinnang 相位,架上必有选项) */
-        <JinnangCardBack aria-hidden="true" className="hand-rack-back" />
-      )}
+      {!bannerOnly &&
+        (renderCount > 0 ? (
+          /* 手牌行:testid 沿用 jinnang-hand(契约零漂移;三态同一容器)。无上限(#250):
+              ≤3 张全展,≥4 张叠加压缩(.many,样式在 hand-rack.css)。usablePulse=
+              未选牌点按「出牌」的架上金圈脉冲一拍(#751 B1)。 */
+          <div
+            ref={handRowRef}
+            data-testid={TESTIDS.jinnangHand}
+            className={
+              (stack ? "hand-rack-hand many" : "hand-rack-hand") + (usablePulse ? " nudge" : "")
+            }
+            style={handStyle}
+          >
+            {handItems}
+          </div>
+        ) : (
+          /* 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;窗态下不可能到这
+              ——hasUsableJinnang 才进 AwaitingJinnang 相位,架上必有选项) */
+          <JinnangCardBack aria-hidden="true" className="hand-rack-back" />
+        ))}
       {/* 架尾计数章(#751 C2):.many 压缩态常驻,点按=临时全展(触屏无 hover 的
           全显通路;pointer:coarse 档才显示,桌面 hover 通路保留);章上数字=信息
-          (§4.6 例外),全展中金边点亮(.on)= 状态表达。回落时长单源 SPREAD_ALL_MS。 */}
-      {stack != null && (
+          (§4.6 例外),全展中金边点亮(.on)= 状态表达。回落时长单源 SPREAD_ALL_MS。
+          banner-only(#1006)不挂:章是牌行的伴随件,牌行不渲章随之。 */}
+      {!bannerOnly && stack != null && (
         <button
           ref={badgeRef}
           type="button"

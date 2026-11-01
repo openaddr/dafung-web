@@ -1,6 +1,8 @@
 // 手牌区(#700 全浮层骨架,原型 tmp/席位侧列原型.html ①handzone 判决移植):
 // 底缘透明浮置容器,签面驻左端 + 锦囊手牌架(漆木条随仪表条退役,架体透明化)。
-// 显隐账本在 GameScreen(锦囊圆钮开关 + 窗态强制),本件只呈现。
+// 显隐账本在 GameScreen(#1006 会话内临时态 rackHidden:默认亮、唯二复位点弹回,
+// 唯一写点=锦囊钮 toggle),本件只呈现。banner-only 形态(#1006):架收起而反应窗
+// 在场时区壳仍挂载,只宿横幅(横幅失去架体依托后贴底下移),签面不挂。
 // 签面(原仪表条「签」徽章平移,testid dice-face 不变):驻留上轮点数;待起摇
 // (#530)转「待」浅印 + 呼吸金边——UI 状态变化承载(DESIGN §4.6,不加文字标牌)。
 // 芯片提前剧透防线(审计 P2,#849 棒1 存续):lastRoll 在结算拍随快照入库,而掷骰
@@ -24,11 +26,20 @@ export interface HandZoneProps {
   player: SnapshotPlayer;
   /** 托管态(useAutopilotOn 单源;待起摇判定免误报)。 */
   autopilotOn: boolean;
+  /** banner-only 形态(#1006):架收起而反应窗在场——只渲 children(宿横幅的架),
+   *  签面不挂(签面归「架亮」形态,零中间形态)。 */
+  bannerOnly?: boolean;
   children: ReactNode;
 }
 
 /** 底缘透明手牌区:签面(左端)+ 手牌架。 */
-export function HandZone({ snapshot, player, autopilotOn, children }: HandZoneProps) {
+export function HandZone({
+  snapshot,
+  player,
+  autopilotOn,
+  bannerOnly = false,
+  children,
+}: HandZoneProps) {
   // 待起摇(#530):本端座位轮到且停在 Roll 等待态(自动起摇在途,~1.8s)——签面
   // 驻留的是上轮点数,静置即误导。托管中由 bot 代打(Roll 不经等待态),不提示。
   const awaitingMyRoll =
@@ -46,13 +57,16 @@ export function HandZone({ snapshot, player, autopilotOn, children }: HandZonePr
   useEffect(() => onDiceSignReveal((die) => setRevealedRoll({ die })), []);
   return (
     <div className="handzone" data-testid={TESTIDS.handZone}>
-      <Tip
-        tip={ATTR_TIPS.sign}
-        testId={TESTIDS.diceFace}
-        className={"diceseal" + (awaitingMyRoll ? " await" : "")}
-      >
-        {awaitingMyRoll ? "待" : revealedRoll ? DIE_FACE[revealedRoll.die - 1] : "签"}
-      </Tip>
+      {/* banner-only(#1006)不挂签面:签面表达「架亮」,收起态只宿横幅 */}
+      {!bannerOnly && (
+        <Tip
+          tip={ATTR_TIPS.sign}
+          testId={TESTIDS.diceFace}
+          className={"diceseal" + (awaitingMyRoll ? " await" : "")}
+        >
+          {awaitingMyRoll ? "待" : revealedRoll ? DIE_FACE[revealedRoll.die - 1] : "签"}
+        </Tip>
+      )}
       {children}
     </div>
   );

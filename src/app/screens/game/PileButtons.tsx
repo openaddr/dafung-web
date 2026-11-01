@@ -1,9 +1,15 @@
 // 右下三圆钮(#700 全浮层骨架,原型 tmp/席位侧列原型.html ①gembtns 判决移植):
 // 锦囊 / 珍宝 / 名将,44px 圆 + 朱砂计数角标(名将含上限 x/3,HERO_CAPACITY;
 // 零值角标隐藏 #743 G——0 挂警示色是全程噪声,非零维持现状)。
-// 锦囊钮 = 手牌区显隐开关(亮=显示,.on 金描边亮态;收起时战斗区最大化)——开关
-// 状态对局内记忆、重进恢复(localStorage,GameScreen 持账本,本件只呈现与回传);
-// 出牌阶段/反应窗等窗态下手牌区被强制显示(GameScreen 口径),钮亮随有效显隐走。
+// 锦囊钮 = 牌架显隐开关(亮=架显示中,.on 金描边亮态;收起时战斗区最大化)——
+// #1006 改模:会话内临时态(GameScreen 持 rackHidden,默认亮、唯二复位点弹回,
+// 不落盘),本件只呈现与回传;窗态不再压住收起,钮亮随 rackHidden 走。
+// 呼吸金光(#1006):窗态在场且架收起时挂 .breathe——「有活决策被收起来了」
+// (墨金系呼吸光晕,节奏同 reaction-banner 危急档 2Hz 脉冲;reduced-motion 退动效
+// 留静态金晕);非窗态不呼吸。aria-pressed/aria-label 跟有效显隐(rackVisible)。
+// 收起态点「出牌」未选牌(#751 B1 脉冲重定向,#1006):原架牌金圈脉冲的目标在暗处,
+// GameScreen 只在架收起时把 playNudge 计数接到本件——变更一次=钮闪一拍(.nudge
+// 一次性脉冲,动画完即净);架在场时不接线,架牌脉冲(HandRack usablePulse)照旧。
 // 锦囊钮角标(#751 C3,#744 判词:三钮中唯一没有 .cnt 的;收起后新牌入手只剩地图
 // 浮字 transient,错过即不可知):非零常驻计数,单源=快照 jinnangHand.length。
 // 珍宝/名将钮 = 藏品弹层入口(#361 牌架双入口的接替者:点谁开谁的层,PileModal
@@ -11,6 +17,7 @@
 import { useState } from "react";
 import { HERO_CAPACITY } from "@core/constants";
 import type { SnapshotPlayer } from "@app/store/gameStore";
+import { usePulseOnce } from "@app/hooks/use-pulse-once";
 import { PileModal, type PileModalKind } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./layout.css";
@@ -18,17 +25,31 @@ import "./layout.css";
 export interface PileButtonsProps {
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
-  /** 手牌区当前有效显隐(亮=显示;GameScreen 计算:偏好 ∥ 窗态强制)。 */
-  handVisible: boolean;
-  /** 锦囊开关回传(GameScreen 写 localStorage 账本)。 */
-  onToggleHand: () => void;
+  /** 牌架当前有效显隐(亮=显示;GameScreen 计算:!rackHidden——窗态不再强制)。 */
+  rackVisible: boolean;
+  /** 呼吸金光(#1006):窗态在场且架收起(GameScreen 计算,本件只挂 class)。 */
+  breathe?: boolean;
+  /** 收起态「出牌」未选牌的脉冲计数(#751 B1 重定向,#1006):架收起时才由
+   *  GameScreen 接线,变更一次=钮闪一拍;架在场时缺省(不闪,架牌脉冲照旧)。 */
+  nudgePulse?: number;
+  /** 锦囊开关回传(GameScreen 写会话内临时态 rackHidden,不落盘,#1006)。 */
+  onToggleRack: () => void;
 }
 
 /** 三圆钮(锦囊开关 + 藏品双入口)。 */
-export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsProps) {
+export function PileButtons({
+  player,
+  rackVisible,
+  breathe = false,
+  nudgePulse,
+  onToggleRack,
+}: PileButtonsProps) {
   // 藏品弹层开合态(null=全收;一次一层,点钮开、Esc/点外/X 关)——从牌架迁来
   // (#361 双入口退役):收起手牌后藏品弹层必须仍可达,账本随钮不随架。
   const [pileModal, setPileModal] = useState<PileModalKind | null>(null);
+  // 脉冲重定向闪拍(#1006,#751 B1 族单源 usePulseOnce):计数变更一次=钮闪一拍;
+  // 只在架收起时由 GameScreen 接线,首次接线拍只对账不闪(收起动作本身不触发)。
+  const nudge = usePulseOnce(nudgePulse);
   // 锦囊计数角标非零显示(#751 C3):0 张不挂(空手是常态非事件;「有牌」才值得常驻)。
   const handCount = player.jinnangHand.length;
 
@@ -38,10 +59,15 @@ export function PileButtons({ player, handVisible, onToggleHand }: PileButtonsPr
         <button
           type="button"
           data-testid={TESTIDS.jinnangToggle}
-          aria-label={handVisible ? "收起锦囊手牌" : "显示锦囊手牌"}
-          aria-pressed={handVisible}
-          onClick={onToggleHand}
-          className={"gbtn" + (handVisible ? " on" : "")}
+          aria-label={rackVisible ? "收起锦囊手牌" : "显示锦囊手牌"}
+          aria-pressed={rackVisible}
+          onClick={onToggleRack}
+          className={
+            "gbtn" +
+            (rackVisible ? " on" : "") +
+            (breathe ? " breathe" : "") +
+            (nudge ? " nudge" : "")
+          }
         >
           锦
           <br />囊
