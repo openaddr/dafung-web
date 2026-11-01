@@ -58,6 +58,20 @@ import {
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
 import { TESTIDS } from "./testids";
 
+/** 反应窗横幅目标括注(#921):目标域单源=core/jinnang 目录——单/双目标列名「(对 蜀、吴)」,
+ *  全体域「(全场)」、自身域「(自身)」。被询问者凭目标判「要不要识破」:目标是自己才拆,
+ *  别人的份可以省。反识破链环的争夺份括注「(保 X)」在装配点另列(份≠目标名单)。 */
+function jinnangTargetNote(
+  cardId: string,
+  targetSeats: number[],
+  nameOf: (seat: number) => string,
+): string {
+  const domain = jinnangCardOf(cardId).targetDomain;
+  if (domain === "all-others") return "(全场)";
+  if (domain === "self") return "(自身)";
+  return `(对 ${targetSeats.map(nameOf).join("、")})`;
+}
+
 export function GameScreen() {
   const snapshot = useGameStore((s) => s.snapshot);
   const map = getControllerMap();
@@ -375,6 +389,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   };
   // 未选牌点按「出牌」计数(#751 B1):动作条自门控回执 → HandRack 可用牌金圈脉冲一拍。
   const [playNudge, setPlayNudge] = useState(0);
+  const seatLabelOf = (seat: number) => snapshot.players[seat].guohao;
   const reactBanner =
     reactionUp && reaction != null && !reactMuted ? (
       <ReactionBanner
@@ -384,13 +399,19 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         text={
           reaction.kind === "jinnang"
             ? snapshot.pendingReaction?.payload.kind === "counter"
-              ? // 反识破链环(#571):公告的是一张识破,文案带链根与争夺份
+              ? // 反识破链环(#571):公告的是一张识破,文案带链根与争夺份;整计链
+                // (连环计被识破)无份可保,改列根计目标(#921,目标域读目录)
                 `${snapshot.players[reaction.userSeat].guohao} 识破【${snapshot.pendingReaction.payload.root.cardId}】${
                   snapshot.pendingReaction.payload.shareSeat != null
                     ? `(保 ${snapshot.players[snapshot.pendingReaction.payload.shareSeat].guohao})`
-                    : ""
+                    : jinnangTargetNote(
+                        snapshot.pendingReaction.payload.root.cardId,
+                        snapshot.pendingReaction.payload.root.targets,
+                        seatLabelOf,
+                      )
                 },可反识破`
-              : `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】`
+              : // 根窗(#921):目标括注随目录目标域——被询问者凭此判「要不要识破」
+                `${snapshot.players[reaction.userSeat].guohao} 使用【${reaction.cardId}】${jinnangTargetNote(reaction.cardId, reaction.targetSeats, seatLabelOf)}`
             : `${snapshot.players[reaction.userSeat].guohao} 行军将过你的城池`
         }
         // 来者锦囊 mini 签面(#751 A6):jinnang 窗带本窗牌面锚点;march 窗无牌不挂。
@@ -401,7 +422,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         shareSeats={reactShareSeats}
         shareSeat={reactShare}
         onPickShare={(seat) => setReactShare((cur) => (cur === seat ? null : seat))} // #417 首点选中/再点取消
-        seatLabel={(seat) => snapshot.players[seat].guohao}
+        seatLabel={seatLabelOf}
         confirmEnabled={reactCardId != null && (reactShareSeats.length === 0 || reactShare != null)}
         onConfirm={() => {
           if (reactCardId == null) return;

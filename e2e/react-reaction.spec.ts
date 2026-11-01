@@ -211,10 +211,14 @@ async function waitJinnangStop(page: Page): Promise<void> {
 test.describe("反应窗(#281 单机)", () => {
   test("识破自保:横幅+倒计时弧+架上金边→点牌落印→识破留痕窗收(结算下沉单测)", async ({ page }) => {
     await plantCounterScenario(page);
-    // 反应窗横幅:事件文案 + 朱砂倒计时弧;架上识破诡计呼吸金边(.reactive)——视觉锚
+    // 反应窗横幅:事件文案(带目标括注 #921,火烧连营=one 域,目标=城最多者人类)+ 朱砂
+    // 倒计时弧;架上识破诡计呼吸金边(.reactive)——视觉锚
     const baseline = await awaitReactionWindow(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
-    await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText("使用【火烧连营】");
+    const snap0 = await snap(page);
+    await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText(
+      `使用【火烧连营】(对 ${snap0.players[0].guohao})`,
+    );
     await expect(banner.getByTestId(TESTIDS.reactionTimer)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveClass(/reactive/);
     // mini 签面回正尺寸锚(#834 P0-3,特异性回归哨):hand-rack.css

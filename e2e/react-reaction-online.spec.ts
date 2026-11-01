@@ -183,10 +183,10 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
         () => (window as any).__dafung.snapshot().reaction?.queriedBySeat,
       );
       expect(queried).toEqual([1]);
-      // 事件文案报进攻方牌(点笺接线的一半:窗开即报牌)
+      // 事件文案报进攻方牌+目标括注(#921:横征暴敛=all-others 域 →「(全场)」)
       await expect(
         guest.getByTestId(TESTIDS.reactionBanner).getByTestId(TESTIDS.reactionText),
-      ).toContainText("使用【横征暴敛】");
+      ).toContainText("使用【横征暴敛】(全场)");
       // 选牌 → 点 host 座笺 → 落印(点笺接线住 helper)
       await answerReactionWindow(guest, { mode: "counter", card: "识破诡计", seat: 0 });
       // 联机出牌线(#385):服务端事件批直读——jinnangAnnounced/jinnangVoided/
