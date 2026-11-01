@@ -107,6 +107,11 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
  * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
  * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;建筑规模/档位通道现归 Building 的 tier 形制,ADR-0042)。
+ *
+ * 匾字字体(2026-11-01 拷问):font-title(站酷酷黑)退役改 font-deco(站酷小薇,魏碑)——
+ * 酷黑镜像仅 18 子集,临淄/下邳/吴郡/襄阳/邺城/颍川各缺一字逐字回退毛笔体(同匾混两族);
+ * 且酷黑无 700 字重,原 fontWeight=700 是浏览器伪加粗,小字号笔画糊死(可读性红线)。
+ * 小薇 92 子集全城名覆盖;印文(EventSeal/CandidateSeal)留在 font-title 但同样去伪加粗。
  */
 function NamePlaque({
   name,
@@ -120,7 +125,7 @@ function NamePlaque({
   const chars = [...name]; // 长名不截断(#842):全字入匾
   const w = capital ? 34 : 26;
   const fs = chars.length >= 3 ? 17 : 20; // ≥3 字降档 0.85×(#842)
-  const step = fs + 3; // B5:字距留缝,随字号同步缩放
+  const step = fs + 5; // B5:字距留缝,随字号同步缩放(2026-11-01 拷问 +3→+5:竖排留白 15%→25%,小字号粘连主犯之一)
   const h = chars.length * step + 12;
   const x = 40 - w / 2; // 匾中心 x=40(建筑右侧、铭牌内),不与王旗/小旌旗重叠
   const y0 = -22;
@@ -151,9 +156,8 @@ function NamePlaque({
           x={40}
           y={y0 + 15 + i * step}
           textAnchor="middle"
-          fontFamily="var(--font-title)"
+          fontFamily="var(--font-deco)"
           fontSize={fs}
-          fontWeight={700}
           fill={capital ? CAPITAL_PLAQUE_TEXT : PLAQUE_TEXT}
         >
           {c}
@@ -247,7 +251,6 @@ function CandidateSeal({ order }: { order: number }) {
         textAnchor="middle"
         fontFamily="var(--font-title)"
         fontSize={12}
-        fontWeight={700}
         fill={rgba(Theme.goldBright)}
       >
         {CANDIDATE_SEAL_CHARS[order]}
@@ -297,7 +300,6 @@ export function EventSeal({ event }: { event: TileEvent }) {
           textAnchor="middle"
           fontFamily="var(--font-title)"
           fontSize={11}
-          fontWeight={700}
           fill={rgba(Theme.bgDeep)}
         >
           {c}
