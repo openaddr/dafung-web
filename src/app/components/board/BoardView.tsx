@@ -151,8 +151,26 @@ export function BoardView({
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
-  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)
-  const holdings = useMemo(() => holdingsOf(players), [players]);
+  // 城池输入键(架构体检 P1):players/selectableTiles 逐 sync 换身份(快照每拍新建
+  // 数组/集合),内容绝大多数拍不变——渲染相关字段扁平成键,键不变则 holdings/
+  // candidateOrder/tileStates 身份稳定,36 城 Tile.memo 不被逐拍击穿(原 memo 依赖
+  // players 数组身份,每个 sync 全城重渲一遍,弱机 CPU 直接受罪)。键覆盖 Tile 状态
+  // 的全部输入面:座位五项+持城清单+活跃格+布阵档+可选集+候选序。
+  const boardInputsKey =
+    players
+      .map(
+        (p) =>
+          `${p.id}:${p.position}:${p.colorIndex}:${p.isBankrupt ? 1 : 0}:${p.capitalIndex}:` +
+          p.properties
+            .map((t) => `${t.propertyId}.${t.level}`)
+            .sort()
+            .join(","),
+      )
+      .join("|") +
+    `#${activeTileIndex ?? "-"}#${isSetupPhase ? 1 : 0}#${selectableTiles ? [...selectableTiles].sort((a, b) => a - b).join(",") : ""}#${candidateTiles ? candidateTiles.join(",") : ""}`;
+
+  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts;键稳定则不重算)
+  const holdings = useMemo(() => holdingsOf(players), [boardInputsKey]); // 键依赖:见 boardInputsKey 注
 
   const handleTileClick = useMemo(
     () => (onTileClick ? (i: number) => onTileClick(i) : undefined),
@@ -174,11 +192,12 @@ export function BoardView({
     const m = new Map<number, number>();
     candidateTiles?.forEach((idx, i) => m.set(idx, i + 1));
     return m;
-  }, [candidateTiles]);
+    // eslint 键依赖:candidateTiles 内容已入 boardInputsKey,键不变即不重建
+  }, [boardInputsKey]);
 
   // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
-  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
-  // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
+  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有城池输入键变化才重建
+  // (state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
   const tileStates = useMemo(() => {
     const m = new Map<number, TileVisualState>();
     for (const tile of loaded.board.tiles) {
@@ -197,15 +216,8 @@ export function BoardView({
       });
     }
     return m;
-  }, [
-    loaded.board.tiles,
-    holdings,
-    players,
-    activeTileIndex,
-    isSetupPhase,
-    selectableTiles,
-    candidateOrder,
-  ]);
+    // eslint 键依赖:players/activeTileIndex/isSetupPhase/selectableTiles 内容均已入键
+  }, [loaded.board.tiles, holdings, candidateOrder, boardInputsKey]);
 
   // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
   const tiles = useMemo(

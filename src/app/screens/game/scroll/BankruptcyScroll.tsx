@@ -228,7 +228,12 @@ export function BankruptcyScroll({
                 <b>{formatMoney(owe)}</b>
               </div>
               <div className="treasure-pick-bar" aria-hidden="true">
-                <i style={{ width: `${((debtAmount - owe) / debtAmount) * 100}%` }} />
+                {/* scaleX 比例承进度(transform 走合成器,transition 见 treasure-pick.css) */}
+                <i
+                  style={{
+                    transform: `scaleX(${Math.max(0, Math.min(1, (debtAmount - owe) / debtAmount))})`,
+                  }}
+                />
               </div>
             </div>
           }

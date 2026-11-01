@@ -958,25 +958,36 @@
 
 /* ── 目标段候选席位(#256):金圈呼吸(原型 .selglow 移植;DESIGN §4.6 候选=金圈
    呼吸,禁文字章),点击层 .seat-target 真按钮覆盖格面(键盘可达,不自写交互语义);
-   非候选(免战庇护/无效目标)格不动,原因在点击层 title 浮签。 ── */
+   非候选(免战庇护/无效目标)格不动,原因在点击层 title 浮签。
+   架构体检 A 批:呼吸由 box-shadow 逐帧插值(主线程逐帧重绘整格)改为谷值影钉
+   基态 + 峰值影叠 ::after 只动 opacity(.seat.active::after 同款先例,合成器插值);
+   峰值叠层 alpha 按合成后≈原 50% 帧取值。 ── */
 .game-layout .seat.candidate {
   border-color: var(--color-gold);
   box-shadow:
-    0 0 0 2.5px rgba(212, 175, 55, 0.8),
-    0 2px 8px rgba(138, 106, 28, 0.45);
+    0 0 0 2px rgba(212, 175, 55, 0.55),
+    0 2px 8px rgba(138, 106, 28, 0.35);
+}
+.game-layout .seat.candidate::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border: none;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow:
+    0 0 0 1.5px rgba(212, 175, 55, 0.95),
+    0 2px 10px rgba(138, 106, 28, 0.3);
+  opacity: 0;
   animation: seat-selglow 2.4s ease-in-out infinite;
 }
 @keyframes seat-selglow {
   0%,
   100% {
-    box-shadow:
-      0 0 0 2px rgba(212, 175, 55, 0.55),
-      0 2px 8px rgba(138, 106, 28, 0.35);
+    opacity: 0;
   }
   50% {
-    box-shadow:
-      0 0 0 3.5px rgba(212, 175, 55, 0.95),
-      0 2px 10px rgba(138, 106, 28, 0.5);
+    opacity: 1;
   }
 }
 .game-layout .seat.candidate:hover {
@@ -1031,7 +1042,7 @@
      同原型 @media 尾行)。#256:候选呼吸退场为直接状态变化(静态金圈仍在)。 ── */
 @media (prefers-reduced-motion: reduce) {
   .game-layout .seat.active::after,
-  .game-layout .seat.candidate,
+  .game-layout .seat.candidate::after,
   .game-layout .bv-token-target-ring {
     animation: none;
   }

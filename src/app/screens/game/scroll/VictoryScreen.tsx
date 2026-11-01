@@ -252,9 +252,13 @@ export function VictoryScreen(props: VictoryScreenProps) {
             }}
           />
         ))}
-        {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读) */}
+        {/* E4(#16):窄屏标题 clamp——80px/20px 字距在窄屏溢出,按视口宽缩放(下限保证单行可读)。
+            data-text 供 ::after 复制题字承载峰值辉光叠层(victory.css,架构体检 A 批);
+            aria-label 显式给名,复制字不进读屏名。 */}
         <h1
           data-testid={T.victoryTitle}
+          data-text="天下归一"
+          aria-label="天下归一"
           className="victory-anim-title m-0 font-title text-gold-bright"
           style={{ fontSize: "clamp(40px, 11vw, 80px)", letterSpacing: "clamp(6px, 2.5vw, 20px)" }}
         >

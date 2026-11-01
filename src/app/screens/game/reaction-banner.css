@@ -275,32 +275,48 @@
    呼吸(--dur-ambient 半频拍),选中(.sel)转实金上浮。作用域锁手牌行钮层。
    #834(P1-B5 伴生):呼吸低相位 30%→55%(原谷值outline≈隐形,「这牌能打」
    断讯),另加常驻微光晕(filter drop-shadow,不覆基座 box-shadow 双源;
-   filter 过渡基座已有,静态属状态非动效,reduced-motion 不退)。 ── */
+   filter 过渡基座已有,静态属状态非动效,reduced-motion 不退)。
+   架构体检 A 批:呼吸由 outline-color 逐帧插值(主线程逐帧重绘整卡外扩带)改为
+   谷值 outline 钉基态 + 亮金 ::after 叠环只动 opacity(layout.css .seat.active::after
+   同款先例,合成器插值);叠环几何 = outline 外缘(-0.12em-0.22em),角部半径
+   取 inherit 与卡同弧。front 卡 ::after 空闲(.back 变体才占用,伪元素查证)。 ── */
 .hand-rack-hand > button.reactive {
   cursor: pointer;
 }
 .hand-rack-hand > button.reactive .jinnang-card {
-  outline: 0.22em solid color-mix(in srgb, var(--color-gold) 40%, transparent);
+  outline: 0.22em solid color-mix(in srgb, var(--color-gold) 55%, transparent);
   outline-offset: 0.12em;
   filter: drop-shadow(0 0 0.9em color-mix(in srgb, var(--color-gold) 38%, transparent));
+  position: relative;
+}
+.hand-rack-hand > button.reactive .jinnang-card::after {
+  content: "";
+  position: absolute;
+  inset: -0.34em;
+  border: 0.22em solid var(--color-gold-bright);
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
   animation: reaction-edge-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 .hand-rack-hand > button.reactive.sel {
   z-index: 8;
 }
 .hand-rack-hand > button.reactive.sel .jinnang-card {
-  animation: none;
   outline-color: var(--color-gold-bright);
   outline-offset: 0.2em;
   transform: translateY(-0.6em);
 }
+.hand-rack-hand > button.reactive.sel .jinnang-card::after {
+  display: none;
+}
 @keyframes reaction-edge-breathe {
   0%,
   100% {
-    outline-color: color-mix(in srgb, var(--color-gold) 55%, transparent);
+    opacity: 0;
   }
   50% {
-    outline-color: var(--color-gold-bright);
+    opacity: 1;
   }
 }
 
@@ -319,5 +335,8 @@
   .hand-rack-hand > button.reactive .jinnang-card {
     animation: none;
     outline-color: var(--color-gold);
+  }
+  .hand-rack-hand > button.reactive .jinnang-card::after {
+    display: none; /* 呼吸叠环随动效退场,静态金边落在基态 outline */
   }
 }
