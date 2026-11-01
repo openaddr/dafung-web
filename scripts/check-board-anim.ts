@@ -7,7 +7,7 @@
 // 命中本文件白名单。白名单 = 阶段性动画(只在相位窗内存活,静止期零贡献):
 //   board.css   行军金环(接管期)/ 选都候选脉冲(选都期)
 //   layout.css  HUD 类 HTML 元素(席位/骰签/等待点,自失效小件)+ 候选呼吸(出牌段)
-//   ambient.css 五件氛围装饰(H 层即豁免理由,逐名列出防夹带)
+//   ambient.css 四件氛围装饰(H 层即豁免理由,逐名列出防夹带)
 // 新增白名单条目 = 新增阶段性动画,须先在 ADR-0039「承认的取舍」登记再动此处。
 // 注:keyframes 体不含 infinite,块选择器与 animation 声明的跨行形态(项目惯例是
 // animation 单行声明)不适用——声明行自含 name,dur,ease,infinite 全在一行。
@@ -18,13 +18,7 @@ const RULES: Array<{ file: string; allow: RegExp[] }> = [
   },
   {
     file: "src/app/components/board/ambient.css",
-    allow: [
-      /^bv-pulse-glow$/,
-      /^bv-ring-orbit$/,
-      /^bv-mine-halo$/,
-      /^bv-flag-sway$/,
-      /^bv-token-active-breath$/,
-    ],
+    allow: [/^bv-pulse-glow$/, /^bv-mine-halo$/, /^bv-flag-sway$/, /^bv-token-active-breath$/],
   },
   {
     file: "src/app/screens/game/layout.css",
