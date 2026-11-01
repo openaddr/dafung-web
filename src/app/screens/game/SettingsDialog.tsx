@@ -1,5 +1,5 @@
 // 设置弹层(#700 全浮层骨架,原型 tmp/席位侧列原型.html ⑥设置弹层 判决移植):
-// 顶左齿轮点开的降级入口收口件——音效 / 演出加速 / 战报› / 版本 / 回到主页。
+// 顶左齿轮点开的降级入口收口件——音效 / 演出加速 / 战报› / 性能诊断 / 版本 / 回到主页。
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭白拿,不自写交互语义)+
 // ADR-0031 题名拖动(DialogDragHandle 把手);挂载不夺焦(ScrollShell 先例)。
 // 入口降级对账(旧顶栏/仪表条退役 → 本弹层承接):
@@ -21,6 +21,8 @@ import { useNetStore } from "@app/store/netStore";
 import { Sym } from "@app/screens/shared/Sym";
 import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { VERSION } from "../../../version";
+import { frameDiagJankCount } from "@app/frameDiag";
+import { exportDiagnostics } from "@app/diagExport";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 
@@ -104,6 +106,20 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
         >
           战报
           <Sym name="expand" size={11} className="rotate-[-90deg] text-gold" />
+        </button>
+        {/* 性能诊断(帧诊通道,ADR-0047):一键导出诊断包(历史对局日志全量+帧诊+设备
+            画像,真机卡顿取证)。局中随时可导、不需打完(导出走下载通路,弹层不收);
+            行尾实时卡顿计数(>50ms 帧距次数),0 次也可见——入口常驻不藏。 */}
+        <button
+          type="button"
+          data-testid={TESTIDS.settingsDiagExport}
+          className="setrow setrow-btn"
+          onClick={() => {
+            void exportDiagnostics();
+          }}
+        >
+          性能诊断
+          <i className="setval">{frameDiagJankCount()}</i>
         </button>
         {/* 版本:构建戳(原右下角版本角标的接替位) */}
         <div className="setrow">
