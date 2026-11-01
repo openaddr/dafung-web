@@ -56,7 +56,7 @@
     },
     {
       "id": "prop-shangshi",
-      "name": "商市城",
+      "name": "襄平",
       "pos": [1140, -480],
       "group": "f",
       "tier": "县",
@@ -118,7 +118,7 @@
     },
     {
       "id": "prop-jinnang-1",
-      "name": "锦囊城",
+      "name": "泸水",
       "pos": [380, 480],
       "group": "c",
       "tier": "县",
@@ -252,7 +252,7 @@
     },
     {
       "id": "prop-wolong",
-      "name": "卧龙城",
+      "name": "卧龙岗",
       "pos": [-380, 160],
       "group": "b",
       "tier": "县",
@@ -289,7 +289,7 @@
     },
     {
       "id": "prop-jinnang-2",
-      "name": "锦囊城",
+      "name": "南徐",
       "pos": [760, 160],
       "group": "g",
       "tier": "县",
@@ -302,7 +302,7 @@
     },
     {
       "id": "prop-tianming",
-      "name": "天命城",
+      "name": "受禅台",
       "pos": [760, -160],
       "group": "a",
       "tier": "县",
