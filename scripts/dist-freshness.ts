@@ -8,8 +8,8 @@
 // stamp 落 dist/ 内(vite 的 emptyOutDir 每次构建先清空 dist):构建中断/失败
 // 即 stamp 消失,下次必然重建——中断残骸不会骗过判新。jj rebase/换书签刷新
 // 文件 mtime,天然判旧重建,不需特判。
-// 消费方:scripts/e2e-one.ts(唯一 build 点;test:e2e:one / test:e2e /
-// e2e-full.ts 全经它,单源成立)。
+// 消费方:scripts/e2e-one.ts(唯一 build 点;test:e2e:one / test:e2e 全经它,
+// 单源成立;#1014 全量旧口径退役,e2e-full.ts 随删)。
 import { existsSync, readdirSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 

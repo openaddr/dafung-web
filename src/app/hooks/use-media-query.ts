@@ -23,6 +23,3 @@ export const IS_NARROW_QUERY = "(max-width: 767px), (pointer: coarse) and (max-h
 
 /** 窄屏:见 IS_NARROW_QUERY。 */
 export const useIsNarrow = () => useMediaQuery(IS_NARROW_QUERY);
-
-/** 横屏:后续棋盘/弹层横竖适配共用。 */
-export const useIsLandscape = () => useMediaQuery("(orientation: landscape)");
