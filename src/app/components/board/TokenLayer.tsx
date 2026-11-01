@@ -183,8 +183,8 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
       data-token-player={p.id}
       style={{ transform: `translate(${x}px, ${y}px)`, opacity }}
     >
-      {/* 旗面/双环原绘(类名与 SVG 版逐字一致,CSS 动画/选择器契约不变):环动画
-          (行军金环/候选呼吸)只失效本棋子 mini-svg 小盒,不再波及整张顶板。 */}
+      {/* 旗面/双环原绘(类名与 SVG 版逐字一致):候选呼吸环仍在 mini-svg 内(阶段性
+          动画,出牌段才在);行军金环已迁下方 HTML 转子(架构体检 B 批,合成器化)。 */}
       <svg
         className="bv-token-art"
         width={TOKEN_ART_BOX.w}
@@ -192,16 +192,6 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
         viewBox={`${TOKEN_ART_BOX.x} ${TOKEN_ART_BOX.y} ${TOKEN_ART_BOX.w} ${TOKEN_ART_BOX.h}`}
       >
         <g transform={`scale(${TOKEN_SCALE * (crowded ? TOKEN_CROWD_SCALE : 1)})`}>
-          {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
-              金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
-          <circle
-            className="bv-token-march-ring"
-            r={17}
-            fill="none"
-            stroke={rgba(Theme.goldBright, 0.9)}
-            strokeWidth={2}
-            strokeDasharray="6 5"
-          />
           {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位格金圈同步呼吸
               ——席位是身份,棋盘是地理,双锚点)。非候选(无效目标)不挂。
               阶段性动画(出牌段才在),不在氛围层迁出范围(ADR-0039)。 */}
@@ -218,6 +208,34 @@ const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
           {marching && <TokenFlag p={p} />}
         </g>
       </svg>
+      {/* #30 落脚指示环(架构体检 B 批合成器化):原为 mini-svg 内圆的 CSS 旋转——SVG
+          子元素进不了合成器,行军全程逐帧重绘环盒(最大持续主线程Paint源);现转子
+          div 持同款环绘(viewBox -21..21×TOKEN_SCALE=109.2px,虚线/描边逐像素复刻),
+          rotate+opacity 双动画全走合成器(HTML transform/opacity 自动提升),主线程
+          行军期零逐帧参与。锚点=包装盒内 (49,93)(TOKEN_ART_BOX 取反),几何由
+          TOKEN_SCALE 单源推导,不落死值。 */}
+      {marching && (
+        <div
+          className="bv-token-ring-rotor"
+          aria-hidden="true"
+          style={{
+            width: 42 * TOKEN_SCALE,
+            height: 42 * TOKEN_SCALE,
+            left: -TOKEN_ART_BOX.x - 21 * TOKEN_SCALE,
+            top: -TOKEN_ART_BOX.y - 21 * TOKEN_SCALE,
+          }}
+        >
+          <svg className="bv-token-ring-art" viewBox="-21 -21 42 42">
+            <circle
+              r={17}
+              fill="none"
+              stroke={rgba(Theme.goldBright, 0.9)}
+              strokeWidth={2}
+              strokeDasharray="6 5"
+            />
+          </svg>
+        </div>
+      )}
     </div>
   );
 });

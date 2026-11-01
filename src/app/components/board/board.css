@@ -169,19 +169,33 @@
    行军接管(skipTokenIds / marchPos 路径)期间:
    - 旗子金边拖影:drop-shadow 金晕(金 = --color-gold token 的表现色,样式内收口,
      不散落硬编码);
-   - 落脚指示环(TokenLayer 内 .bv-token-march-ring 圆):旋转 + 呼吸,
+   - 落脚指示环(TokenLayer 挂 .bv-token-ring-rotor HTML 转子):旋转 + 呼吸,
      圆心即棋子当前段坐标,行进中随棋子平移,读作「正在动」。
    S6(#39) 行军缓动:逐段 linear 的接缝顿挫改 easeInOutSine(--ease-sine)——段内两端缓、
    中段快,段尾速度趋零,与 segSlackMs 归零(timings.MARCH)配合后段间无缝衔接,终点仍有
-   落定感;非行军的声明式定位(落格/槽位微调)保持 .bv-token 的 linear 短过渡。 */
+   落定感;非行军的声明式定位(落格/槽位微调)保持 .bv-token 的 linear 短过渡。
+   架构体检 B 批合成器化:转子原为 mini-svg 内圆的 CSS 旋转——SVG 子元素进不了
+   合成器,行军全程逐帧重绘环盒(最大持续主线程 paint 源);现环绘住在转子 div
+   (HTML transform/opacity 自动提升),rotate+opacity 双动画全合成器插值,主线程
+   行军期零逐帧参与。转子挂载由 React 随 marching 增删(TokenLayer),CSS 不再管显隐。 */
 .bv-token.bv-token-marching {
   transition-timing-function: var(--ease-sine);
 }
-.bv-token-march-ring {
-  opacity: 0;
-  /* 旋转以圆自身中心为轴(SVG 元素 CSS transform 默认以视口原点为轴,必须显式指定) */
-  transform-box: fill-box;
-  transform-origin: center;
+.bv-token-ring-rotor {
+  position: absolute;
+  pointer-events: none;
+  /* 旋转以环自身中心为轴(rotor 几何由 TokenLayer 按 TOKEN_SCALE 推导,锚点=棋子锚);
+     特例:0.9s 刻意快于 --dur-ambient 系——行军强调要「正在动」的急迫感,落进任何
+     --dur-* 档都会读成常驻呼吸;linear 保留(连续旋转,与原单 keyframes 同口径)。 */
+  animation:
+    bv-march-ring-rotor 0.9s linear infinite,
+    bv-march-ring-breathe 0.9s linear infinite;
+}
+.bv-token-ring-art {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible; /* 描边出 viewBox 不裁切,同 .bv-token-art 口径 */
 }
 .bv-token.bv-token-marching .bv-token-flag {
   /* 金边拖影(#512 收口 token):金 = --color-gold 的表现色,集中此处一条注释说明;
@@ -189,23 +203,18 @@
   filter: drop-shadow(0 0 5px color-mix(in srgb, var(--color-gold) 95%, transparent))
     drop-shadow(0 2px 2px color-mix(in srgb, var(--color-bg-deep) 45%, transparent));
 }
-.bv-token.bv-token-marching .bv-token-march-ring {
-  opacity: 1;
-  /* 特例:0.9s 刻意快于 --dur-ambient 系——行军强调要「正在动」的急迫感,
-     落进任何 --dur-* 档都会读成常驻呼吸;linear 保留(连续旋转)。 */
-  animation: bv-march-ring 0.9s linear infinite;
+@keyframes bv-march-ring-rotor {
+  to {
+    transform: rotate(360deg);
+  }
 }
-@keyframes bv-march-ring {
-  0% {
-    transform: rotate(0deg) scale(1);
+@keyframes bv-march-ring-breathe {
+  0%,
+  100% {
     opacity: 0.95;
   }
   50% {
     opacity: 0.55;
-  }
-  100% {
-    transform: rotate(360deg) scale(1);
-    opacity: 0.95;
   }
 }
 
@@ -269,7 +278,7 @@
    候选脉冲停用后回落为静态金圈(可辨但不闪);易主流光停用后由基态 opacity 0
    保持隐形,等级珠以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
-  .bv-token.bv-token-marching .bv-token-march-ring,
+  .bv-token-ring-rotor,
   .bv-tile.bv-selectable .bv-tile-hilite,
   .bv-pip-grow,
   .bv-own-flash {
