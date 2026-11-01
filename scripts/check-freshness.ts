@@ -64,6 +64,18 @@ if (!Number.isInteger(maxBehind) || maxBehind < 0) {
 const doFetch = !args.includes("--no-fetch");
 const allowBehind = args.includes("--allow-behind");
 
+// 工作区环境探测(#1003,#958 会话复盘拍板):node_modules 不继承(工作区配方
+// 「bun install 必做」,how-to「jj workspace 通道」)——缺失时 fmt/lint/build 等
+// 依赖 node_modules 二进制的门禁会 command not found 假红(#997 实锤:假红被误判
+// 内容问题带病合入,补 #998 修复)。freshness 是开工三件套第一棒,这里红出 remedy,
+// 新工作区漏装首跑即被拦。
+if (!existsSync("node_modules")) {
+  console.error(
+    "[freshness] node_modules 缺失——新工作区未 bun install(node_modules 不继承);先装依赖再开工,否则 fmt/lint/build 等门禁 command not found 假红。",
+  );
+  process.exit(2);
+}
+
 function jj(...jjArgs: string[]): string {
   const proc = Bun.spawnSync(["jj", ...jjArgs], { stdout: "pipe", stderr: "pipe" });
   if (proc.exitCode !== 0) {
