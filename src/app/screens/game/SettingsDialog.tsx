@@ -6,7 +6,7 @@
 //   - 静音钮 → 音效开关(Base UI Switch 原语,接 AudioProvider 单通道静音账本;
 //     现役音频系统只有音效一个通道、无配乐,原型「音乐」行无真实承载,不落假开关);
 //   - 战报把手 → 战报› 行(抽屉本体保留,数据照记,入口降级);
-//   - 版本角标 → 版本行(构建戳直读 VERSION);
+//   - 版本角标 → 版本行(发版号直读 VERSION);
 //   - 回到主页行:弃局离屏(销毁控制器释放 WS/时钟,回 setup)——本行是新增出口;
 //     #745 高1 起接现成 ConfirmDialog 二次确认(文案写明弃局/退房后果;#836 起
 //     确认框走 danger 变体,不可逆侧不再吃墨钮主行动)。
@@ -121,7 +121,7 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
           性能诊断
           <i className="setval">{frameDiagJankCount()}</i>
         </button>
-        {/* 版本:构建戳(原右下角版本角标的接替位) */}
+        {/* 版本:发版号(单源 package.json 构建期注入) */}
         <div className="setrow">
           版本
           <i className="setval">{VERSION}</i>

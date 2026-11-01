@@ -240,11 +240,11 @@ test.describe("设置弹层(#700 ⑥)", () => {
       await page.getByTestId(TESTIDS.settingsButton).click({ timeout: 3_000 });
       await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeVisible();
     }).toPass({ timeout: 15_000 });
-    // 降级入口齐:演出加速(信息行「标准」)/ 版本戳(v年.月.日)
+    // 降级入口齐:演出加速(信息行「标准」)/ 版本行(发版号,#952 起裸 CalVer 无 v 前缀)
     const dialog = page.getByTestId(TESTIDS.settingsDialog);
     await expect(dialog).toContainText("演出加速");
     await expect(dialog).toContainText("标准");
-    await expect(dialog).toContainText(/v\d{4}\.\d+\.\d+/);
+    await expect(dialog).toContainText(/\d{4}\.\d+\.\d+/);
     // 音效开关:开=有声(Base UI Switch data-checked 翻转 = AudioProvider 静音账本翻转)
     const sfx = page.getByTestId(TESTIDS.settingsSfx);
     const before = (await sfx.getAttribute("data-checked")) != null;

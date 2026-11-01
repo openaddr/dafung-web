@@ -223,3 +223,17 @@
     margin-bottom: 0.5rem;
   }
 }
+
+/* ── 发版号小字(#952):主页右下角 v+发版号(package.json CalVer,与 Release tag 同款)──
+   fixed 锚定视口、不入滚动流(保 #707 矮横屏档零滚动预算);z-index 取 10,低于
+   全屏演出层(fx z-45)与浮层家族(ui/dialog z-50 起),任何浮层弹出时压住它属正常层序。 */
+.home-version {
+  position: fixed;
+  right: 12px;
+  bottom: 8px;
+  z-index: 10;
+  font-family: var(--font-deco);
+  font-size: 10px;
+  color: var(--color-paper-dim);
+  pointer-events: none;
+}

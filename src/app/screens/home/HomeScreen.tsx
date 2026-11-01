@@ -16,6 +16,7 @@ import { useMapName } from "@app/screens/setup/useMapName";
 import { Sym } from "@app/screens/shared/Sym";
 import { HOME_TID } from "./testids";
 import { MapStrip } from "./MapStrip";
+import { VERSION } from "../../../version";
 import "./home.css";
 
 /** 矮横屏档媒体查询(形态分档断点单源=对局屏 game/layout.css A 档同一查询串,
@@ -225,6 +226,9 @@ export function HomeScreen({
           />
         )}
       </div>
+      {/* 发版号(#952):主页角落小字,v 前缀与 Release tag 同款;fixed 锚定视口不入
+          滚动流(保 #707 矮横屏零滚动预算),样式单源 home.css .home-version。 */}
+      <div className="home-version">v{VERSION}</div>
     </div>
   );
 }

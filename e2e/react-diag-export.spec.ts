@@ -23,12 +23,11 @@ test("局中导出诊断包:历史日志全量+帧诊+设备画像,不需打完(
   const btn = page.getByTestId(TESTIDS.settingsDiagExport);
   await btn.waitFor({ timeout: 5_000 });
   const [download] = await Promise.all([page.waitForEvent("download"), btn.click()]);
-  expect(download.suggestedFilename()).toMatch(/^dafung-diag-v[\d.]+\.(json)$/);
+  expect(download.suggestedFilename()).toMatch(/^dafung-diag-\d{4}\.\d{1,2}\.\d+\.json$/);
   const bundle = JSON.parse(readFileSync((await download.path())!, "utf-8"));
   expect(bundle.kind).toBe("dafung-diag");
   expect(bundle.schemaVersion).toBe(1);
-  expect(String(bundle.appVersion)).toMatch(/^\d{4}\.\d{1,2}\.\d+$/); // CalVer
-  expect(String(bundle.build)).toMatch(/^v\d{4}\./); // 构建戳(归因两把尺)
+  expect(String(bundle.appVersion)).toMatch(/^\d{4}\.\d{1,2}\.\d+$/); // CalVer 发版号(#952 起 build 字段退役)
   expect(bundle.ua).toContain("Chrome"); // WebView/Chromium 画像
   // 帧诊块:对局屏挂载即采,此刻必有会话;LoAF 能力位如实(桌面 Chromium=true)
   expect(bundle.perf).not.toBeNull();
