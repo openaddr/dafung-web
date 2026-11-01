@@ -7,6 +7,7 @@
 // 全量入口(test:e2e)经 test-lock 包本脚本,E2E_WORKERS 等环境变量自然流入。
 import { spawn } from "node:child_process";
 import { mkdirSync, createWriteStream } from "node:fs";
+import { distFreshness, stampDistBuild } from "./dist-freshness";
 
 const LOG = "tmp/e2e-one-last.log";
 mkdirSync("tmp", { recursive: true });
@@ -30,12 +31,20 @@ const exitCode = await new Promise<number>((resolve) => {
     });
 
   (async () => {
-    // 段 1:前端构建(失败即止,输出同样留档)
-    const buildCode = await run("bun", ["run", "--bun", "vite", "build"]);
-    if (buildCode !== 0) {
-      tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
-      resolve(buildCode);
-      return;
+    // 段 1:前端构建——dist 新鲜即跳(#986,scripts/dist-freshness.ts 保守判新,
+    // 存疑必 build):同树重复定向跑不再付重复 build 的墙钟。
+    const freshness = distFreshness();
+    if (freshness.fresh) {
+      tee("\n[e2e] dist 新鲜,跳过构建\n");
+    } else {
+      tee(`\n[e2e-one] ${freshness.reason},执行构建…\n`);
+      const buildCode = await run("bun", ["run", "--bun", "vite", "build"]);
+      if (buildCode !== 0) {
+        tee(`\n[e2e-one] build 失败(exit ${buildCode}),跳过 playwright。\n`);
+        resolve(buildCode);
+        return;
+      }
+      stampDistBuild();
     }
     // 段 2:playwright,参数透传。注意必须走 node 通道(不带 --bun:
     // bun 跑 playwright launch() 挂起,how-to「截图/探针通路」节在案)。
