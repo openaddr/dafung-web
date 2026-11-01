@@ -210,19 +210,18 @@ function frozenMarchScene(seed = 7): {
 }
 
 describe("不变量①提取即定格(ADR-0029 #608)", () => {
-  it("提取拍烤 keyframes:段序列=起点中心→弧线途经→终点,末帧=批终落位中心+槽位偏移(与声明式分组同源规格)", () => {
+  it("提取拍烤 keyframes:段序列=起点中心→终点恒直线(#928/ADR-0044),末帧=批终落位中心+槽位偏移(与声明式分组同源规格)", () => {
     const { e, march, startTile } = frozenMarchScene();
     const board = e.board;
     const path = board.computePath(startTile, 4, e.players[1].capitalIndex);
     // 段数 = 实走格数;首帧 = 起点中心
     expect(march.keyframes.length).toBe(path.traversed.length);
     expect(march.keyframes[0].points[0]).toEqual(board.positionOf(path.from));
-    // 逐段:流光折线两端=格中心(不含槽位偏移),途经数与行走点一致
+    // 逐段:流光折线两端=格中心(不含槽位偏移),恒直线无途经点(每段两点)
     let prev = path.from;
     for (const [i, seg] of march.keyframes.entries()) {
       const tile = path.traversed[i];
-      const wps = board.edgeWaypoints(prev, tile);
-      expect(seg.flow.length).toBe(wps.length + 2);
+      expect(seg.flow.length).toBe(2);
       expect(seg.flow[0]).toEqual(board.positionOf(prev));
       expect(seg.flow[seg.flow.length - 1]).toEqual(board.positionOf(tile));
       expect(seg.points.length).toBe(seg.flow.length);
@@ -237,7 +236,7 @@ describe("不变量①提取即定格(ADR-0029 #608)", () => {
       x: board.positionOf(path.landIndex).x + off.x,
       y: board.positionOf(path.landIndex).y + off.y,
     });
-    // 末段流光终点仍是格中心(落格槽位偏移不污染驿道流光弧线)
+    // 末段流光终点仍是格中心(落格槽位偏移不污染驿道流光折线)
     expect(last.flow[last.flow.length - 1]).toEqual(board.positionOf(path.landIndex));
   });
 

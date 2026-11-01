@@ -188,8 +188,8 @@ function sealEvent(
 
 // ─────────────────────── 行军路径解析 ───────────────────────
 /** 提取拍烤制行军逐帧坐标(不变量①提取即定格,ADR-0029/#608):整条行走序列在此
- *  算死——每段「起点中心 → 弧线途经点(edgeWaypoints)→ 终点」的坐标数组 + 驿道
- *  流光折线,播放器纯哑渲染、零读引擎。槽位偏移按批终占用算,公式与 TokenLayer
+ *  算死——每段「起点中心 → 终点」的坐标数组(#928/ADR-0044 驿道恒直线,无途经点)
+ *  + 驿道流光折线,播放器纯哑渲染、零读引擎。槽位偏移按批终占用算,公式与 TokenLayer
  *  声明式分组同源(tokenSlots 单源)。只烤几何不烤时长——段时长由 useMarch 按
  *  timings.MARCH 现算(保 scStage 缩放)。isLast 以批终落位为准(批内近似,ADR-0029
  *  §1 绊线:同座位批内多段位移机制化时须重审)——中间段不止槽,相邻段起终点严丝合缝。 */
@@ -204,12 +204,11 @@ function bakeMarchKeyframes(
   let prev = remainder.from;
   for (const tile of remainder.traversed) {
     const isLast = tile === player.position;
-    const wps = board.edgeWaypoints(prev, tile);
     const center = board.positionOf(tile);
     const end = isLast ? { x: center.x + slot.x, y: center.y + slot.y } : center;
     segments.push({
-      points: [board.positionOf(prev), ...wps, end],
-      flow: [board.positionOf(prev), ...wps, center],
+      points: [board.positionOf(prev), end],
+      flow: [board.positionOf(prev), center],
     });
     prev = tile;
     if (isLast) break;

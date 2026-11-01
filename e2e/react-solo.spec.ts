@@ -227,18 +227,26 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 // 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   await quickStart(page);
-  await force(
-    page,
-    `
-    const botIdx = e.players.findIndex((p) => p.isBot);
-    e.activeIndex = botIdx;
-    // WaitingBar 按 interactive 门控(旧角标不读它):debug sync 只灌快照不刷派生量,
-    // 须走控制器 sync 才能把「决策方=bot → interactive=false」落进 store。
-    window.__dafung.controller().sync();
-  `,
-  );
-  await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
-  await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
+  // #421 冻结闸:quickStart 稳后局面仍自走,force 改 activeIndex 与自推进竞速——
+  // #928 行军提速后 force 落点撞进人类决策窗(interactive 被决策方压回,WaitingBar
+  // 永不开),钉住世界再动刀(同文件升级用例同款先例)。
+  await freezeClock(page);
+  try {
+    await force(
+      page,
+      `
+      const botIdx = e.players.findIndex((p) => p.isBot);
+      e.activeIndex = botIdx;
+      // WaitingBar 按 interactive 门控(旧角标不读它):debug sync 只灌快照不刷派生量,
+      // 须走控制器 sync 才能把「决策方=bot → interactive=false」落进 store。
+      window.__dafung.controller().sync();
+    `,
+    );
+    await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
+  } finally {
+    await unfreezeClock(page);
+  }
 });
 
 test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)", async ({ page }) => {

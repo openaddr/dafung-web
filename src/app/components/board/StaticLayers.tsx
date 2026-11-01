@@ -41,7 +41,7 @@ const SCENE_BAND_RATIO = 0.18;
 const SCENE_BAND_OPACITY = 0.1;
 const GONGXIAN_BAND_HREF = "/assets/textures/texture-gongxian-shanshui.webp";
 
-// #844 路肩:.bv-road-main 路身宽 10,肩线以同弧线加宽 2×0.8 垫底实现,
+// #844 路肩:.bv-road-main 路身宽 10,肩线以同一路径加宽 2×0.8 垫底实现,
 // 两侧各露 0.8px 平行细线(user units,随 zoom 同步缩放)。
 const ROAD_SHOULDER_W = 11.6;
 
@@ -242,7 +242,7 @@ export const TerrainLayer = memo(function TerrainLayer({ fit }: { fit: ViewBox }
   );
 });
 
-// ── 驿道:主路(漆木路身+漆金细线芯,逐段带避城弧线途经点)+ 箭羽行进向 ──
+// ── 驿道:主路(漆木路身+漆金细线芯,恒直线 #928/ADR-0044)+ 箭羽行进向 ──
 // #512:主路从「宽墨褐带」改「漆金细线」——roadMain 路身压底(窄档),其上 roadSide
 // 细线芯走亮赭(S3 备好的两枚 token 同框);箭羽换熟金(goldDeep),深底上读作鎏金行进向。
 
@@ -257,10 +257,9 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
     const to = (i + 1) % n;
     const a = board.positionOf(i);
     const b = board.positionOf(to);
-    const pts = [a, ...board.edgeWaypoints(i, to), b];
-    const d = poly(pts);
+    const d = poly([a, b]);
     segments.push(
-      // #844 路肩:同弧线加宽一档垫底(宽 11.6 vs 路身 10),两侧各露 0.8px 平行细线,
+      // #844 路肩:同一路径加宽一档垫底(宽 11.6 vs 路身 10),两侧各露 0.8px 平行细线,
       // 色 = roadMain 40%(rgba(Theme.roadMain, 0.4),单源 token,等价票面
       // color-mix(roadMain 40%));深 zoom 下驿道两侧不再直接切在玄墨底上。
       <path
@@ -279,19 +278,15 @@ export const RoadsLayer = memo(function RoadsLayer({ board }: { board: Board }) 
         d={d}
         data-segment={`${i}-${to}`}
       />,
-      // 漆金细线芯:叠在路身同弧线上,#512 深底化口径(stroke 色在 board.css 消费 token)
+      // 漆金细线芯:叠在路身同一路径上,#512 深底化口径(stroke 色在 board.css 消费 token)
       <path key={`core-${i}`} className="bv-road-core" d={d} />,
     );
-    // #73 主路箭羽:取途经点列正中两点的中点为锚(U 弯=edgeWaypoints 两点中点,
-    // 直段=a/b 中点),连线方向即该处行进向——总览下箭羽成节奏点列,U 弯方向可读;
+    // #73 主路箭羽:锚=边中点,方向=行进向——总览下箭羽成节奏点列;
     // 首段画双羽,环路行进方向自首段起读(旧起点「起」印已随 2026-10-19 拷问退役:
     // 游戏无共同起点,选都后各人行军自都城始)。
-    const mi = Math.floor((pts.length - 1) / 2);
-    const m0 = pts[mi];
-    const m1 = pts[mi + 1];
-    const mx = (m0.x + m1.x) / 2;
-    const my = (m0.y + m1.y) / 2;
-    const ang = (Math.atan2(m1.y - m0.y, m1.x - m0.x) * 180) / Math.PI;
+    const mx = (a.x + b.x) / 2;
+    const my = (a.y + b.y) / 2;
+    const ang = (Math.atan2(b.y - a.y, b.x - a.x) * 180) / Math.PI;
     for (const off of i === 0 ? [-8, 8] : [0]) {
       feathers.push(
         <path

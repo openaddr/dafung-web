@@ -40,8 +40,8 @@ describe("棋盘路径(单环)", () => {
     expect(p2.landIndex).toBe(p2.capitalIndex);
   });
 
-  it("避城弧线阈值:短边直线、长边蜿蜒;闭环对角边照常走弧(ADR-0027)", () => {
-    // 新环游图全边 ≥ 行距 320,天然全弧,阈值语义改用合成双城板钉死
+  it("驿道恒直线(#928/ADR-0044):行走序列只含城心,短长边一视同仁", () => {
+    // 双城合成板:任意边长的行走序列都只装落位中心,无避城弧线途经点
     const tile = (i: number, x: number): TileDef => ({
       index: i,
       type: "Property",
@@ -50,9 +50,16 @@ describe("棋盘路径(单环)", () => {
       propertyId: `p${i}`,
       isCapitalEligible: false,
     });
-    expect(createBoard([tile(0, 0), tile(1, 200)]).edgeWaypoints(0, 1)).toHaveLength(0);
-    expect(createBoard([tile(0, 0), tile(1, 400)]).edgeWaypoints(0, 1)).toHaveLength(2);
-    // 闭环边 会稽⇗长安(对角 ≈497)是全图唯一非正交边,与其他边同走避城弧
-    expect(board.edgeWaypoints(idx("会稽"), idx("长安"))).toHaveLength(2);
+    const short = createBoard([tile(0, 0), tile(1, 200)]);
+    const long = createBoard([tile(0, 0), tile(1, 400)]);
+    for (const b of [short, long]) {
+      const p = b.computePath(0, 1, -1);
+      expect(p.waypoints).toEqual([b.positionOf(1)]);
+    }
+    // 在役环游图同样恒直线:整条路径只含 tile 中心(环游图全边 ≥320,旧弧线时代全弯);
+    // 期望锚取 tiles 数组序后继(独立于引擎 next/normalize 推进,防半同义反复)
+    const huiji = idx("会稽");
+    const p = board.computePath(huiji, 1, -1);
+    expect(p.waypoints).toEqual([board.tiles[huiji + 1].position]);
   });
 });
