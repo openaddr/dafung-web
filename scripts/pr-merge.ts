@@ -490,4 +490,63 @@ if (fetched.exitCode !== 0) {
     }
   }
 }
+// 7) 本 workspace @ 停靠(2026-11-01 retro 实锤):收口常从 workspace 跑,而上面第 6 步
+//    收账只前移主树——本 workspace 的 @ 仍骑在刚合并的 head change 上,直接改活会把新
+//    内容 amend 进已推已合 change(#926 前 bump 混入字体 diff 实锤,how-to「push 后该
+//    change 视为只读」规则在也照踩)。守卫:@ 空停靠且父已非 master → jj new master
+//    (jj 自动遗弃空工作副本 change,零残留);@ 有活且树与 master@origin 全等(squash
+//    后同内容,零折写风险)→ jj new master 起空位,原 change 留痕可溯;有活且树上另有
+//    内容一律不动,只提示手动通路(改活先 jj new;骑占拆内容 jj rebase -d master)。
+//    仅警告不退出,与收账步同口径:合并已验证,停靠残留不碍收口。
+{
+  const probe = (rev: string, template: string) =>
+    Bun.spawnSync(["jj", "log", "-r", rev, "--no-graph", "-T", template], {
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+  const out = (p: { exitCode: number; stdout: Uint8Array }) =>
+    new TextDecoder().decode(p.stdout).trim();
+  const at = probe("@", 'if(empty, "EMPTY", "OCCUPIED")');
+  const masterId = probe("master", "change_id.short()");
+  if (at.exitCode !== 0 || masterId.exitCode !== 0) {
+    console.warn(
+      `[pr-merge] 本 workspace @ 状态探测失败(手动 jj new master):${out(at) || out(masterId)}`,
+    );
+  } else {
+    const dock = () =>
+      Bun.spawnSync(["jj", "new", "master"], { stdout: "inherit", stderr: "inherit" });
+    if (out(at) !== "OCCUPIED") {
+      const parentId = probe("@-", "change_id.short()");
+      if (parentId.exitCode === 0 && out(parentId) === out(masterId)) {
+        console.log("[pr-merge] 本 workspace @ 已停靠新 master,免动");
+      } else {
+        const done = dock();
+        console.log(
+          done.exitCode === 0
+            ? "[pr-merge] 本 workspace @ 已前移停靠新 master(空 @ 自动遗弃重起)"
+            : "[pr-merge] 本 workspace 停靠失败(可手动 jj new master)",
+        );
+      }
+    } else {
+      const treeDiff = Bun.spawnSync(
+        ["jj", "diff", "--from", "@", "--to", "master@origin", "--name-only"],
+        { stdout: "pipe", stderr: "pipe" },
+      );
+      const sameTree = treeDiff.exitCode === 0 && out(treeDiff) === "";
+      if (!sameTree) {
+        console.warn(
+          "[pr-merge] 本 workspace @ 有活且与 master@origin 内容不同——不动。继续改活先 jj new;骑在已合 change 上时先 jj rebase -d master 拆内容(how-to「版本协作」)",
+        );
+      } else {
+        const done = dock();
+        console.log(
+          done.exitCode === 0
+            ? "[pr-merge] 本 workspace @ 骑占已合 change,已停靠新 master 起空位(原 change 留痕可溯)"
+            : "[pr-merge] 本 workspace 停靠失败(可手动 jj new master)",
+        );
+      }
+    }
+  }
+}
+console.log(`[pr-merge] #${prNumber} 收口完成。`);
 console.log(`[pr-merge] #${prNumber} 收口完成。`);
