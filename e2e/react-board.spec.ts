@@ -55,7 +55,7 @@ test("拖拽空白处平移棋盘(viewBox 变化)", async ({ page }) => {
     .not.toBe(vb0);
 });
 
-test("城池档位珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠", async ({ page }) => {
+test("城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠", async ({ page }) => {
   await quickStart(page);
   // 种植式零竞速:持有直接入册后断 DOM,不走真实升级路径——升级 endTurn 会同步放
   // bot 链,火烧连营可同拍拆城,升级后的活状态断言必 flake(实录见 react-solo 扩军用例注)。

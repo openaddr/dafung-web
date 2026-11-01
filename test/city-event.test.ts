@@ -18,6 +18,7 @@ function cityTile(i: number, name: string, extra: Record<string, unknown> = {}) 
     name,
     pos: [i * 200, 0],
     group: "a",
+    tier: "县", // ADR-0042:档位逐城必配(fixture 图数值非守卫标准档,统一县档占位)
     price: 1200,
     buildCost: 600,
     valueByLevel: [720, 1080, 1440, 1800],

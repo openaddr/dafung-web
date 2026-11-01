@@ -164,6 +164,7 @@ export function ExhaustionChoiceScroll({
 export function BuyDecisionScroll({
   tileName,
   groupLabel,
+  tierLabel,
   property,
   cash,
   choices,
@@ -172,6 +173,8 @@ export function BuyDecisionScroll({
   tileName: string;
   /** 地域行区名(=分组名,Theme.groupNames 单源经 DecisionScrollLayer;空=未知分组省略段)。 */
   groupLabel: string;
+  /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
+  tierLabel: string;
   property: {
     purchasePrice: number;
     maxLevel: number;
@@ -226,8 +229,9 @@ export function BuyDecisionScroll({
       }
     >
       <p className="m-1 mb-2 text-center text-xs text-paper-dim">
-        「{tileName}」{groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入{" "}
-        {formatMoney(property.purchasePrice)} · 耗 1 委任状
+        「{tileName}」{tierLabel}
+        {groupLabel ? ` · ${groupLabel}` : ""} · 无主 · 购入 {formatMoney(property.purchasePrice)} ·
+        耗 1 委任状
       </p>
       {/* 主数值行(#767 弹窗详情族①):持有/需/余差从摘要行升格的独立主行,
           买不买得起 0.5 秒可读(余绿/差红);#566 符号语义照旧(付得起记「余」) */}
@@ -256,6 +260,7 @@ export function BuyDecisionScroll({
 // ── 扩军抉择(AwaitingDecision + OwnProperty;升级免费,由到达己城触发)──
 export function UpgradeDecisionScroll({
   tileName,
+  tierLabel,
   level,
   property,
   isCapital,
@@ -263,6 +268,8 @@ export function UpgradeDecisionScroll({
   onCommand,
 }: {
   tileName: string;
+  /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
+  tierLabel: string;
   level: number;
   property: {
     maxLevel: number;
@@ -323,7 +330,7 @@ export function UpgradeDecisionScroll({
       }
     >
       <p className="m-1 text-center text-sm text-paper-dim">
-        「{tileName}」当前 Lv.{level} · 扩军免费
+        「{tileName}」<span className="text-xs">{tierLabel}</span> 当前 Lv.{level} · 扩军免费
       </p>
       {upgrade.available ? (
         <>

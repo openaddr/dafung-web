@@ -1,7 +1,8 @@
 // 名下城池清单弹层(#622,规格 #621):席位格/仪表条城池图标点开的只读清单——
 // 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),行首真实格缩略图
 // (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级 / 购入价 / 变卖价 /
-// 交易加成。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
+// 交易加成;城池档位两字名(ADR-0042 决策 6,读数场合口径)小字缀在城名格内,
+// 不设第六列。壳复用 PileShell(朱印「城」,题名「○○名下城池」/自看
 // 「本方名下城池」;挂载不夺焦、Esc/点外/X 三路关闭全由底件白拿),零操作项;
 // 弹层开着随快照实时重渲(数据每渲染现查 snapshot + board/catalog,不冻结不快照)。
 // 珍宝城与都城同权入列(ADR-0024,无特判外壳)。数据口径(与引擎同一函数):
@@ -11,6 +12,7 @@
 // 未购地/破产清场均可达)。
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
+import { Theme } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
 import { PileShell } from "./PileModal";
@@ -93,7 +95,15 @@ export function CityLedgerModal({
               >
                 {/* 行首缩略图(#623):真实格渲染与棋盘同源,状态推导在 TileThumb */}
                 <TileThumb tile={tile} def={def} tileIndex={tileIndex} players={snapshot.players} />
-                <span className="font-wenkai text-paper">{tile.name}</span>
+                {/* 城池档位两字名(ADR-0042 决策 6 + DESIGN §4.8):小字缀在城名格内,
+                    不加第六列(844×390 挤);唯一源 Theme.cityTierNames,零兜底直查
+                    (tier 逐城必配)。 */}
+                <span className="font-wenkai text-paper">
+                  {tile.name}
+                  <span className="ml-1 text-[11.5px] text-paper-dim">
+                    {Theme.cityTierNames[def.tier]}
+                  </span>
+                </span>
                 <span className="text-paper-dim tabular-nums">
                   Lv.{h.level}/{def.maxLevel}
                 </span>

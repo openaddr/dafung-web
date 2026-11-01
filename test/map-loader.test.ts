@@ -11,6 +11,7 @@ describe("地图加载器(合法)", () => {
     expect(m.targetNetWorth).toBe(30000);
     expect(m.startingCash).toBe(5000);
     expect(m.catalog.get("prop-changan")?.purchasePrice).toBe(4800); // ADR-0041 回调:长安=名城 48 档
+    expect(m.catalog.get("prop-changan")?.tier).toBe("名"); // ADR-0042:tier 显式注入 PropertyDef
   });
 
   it("主路按 tiles 数组顺序闭合", () => {
@@ -84,6 +85,16 @@ describe("地图校验(非法应抛可读错误)", () => {
     const d = base();
     delete d.tiles[0].group;
     expect(() => loadMap(d)).toThrow(/group/);
+  });
+  it("城缺 tier(城池档位逐城必配,ADR-0042 显式化,零兜底)", () => {
+    const d = base();
+    delete d.tiles[0].tier;
+    expect(() => loadMap(d)).toThrow(/tier/);
+  });
+  it("城 tier 非法值(白名单县/郡/奇/名,不按数值形状反推档位)", () => {
+    const d = base();
+    d.tiles[0].tier = "都";
+    expect(() => loadMap(d)).toThrow(/tier/);
   });
 });
 

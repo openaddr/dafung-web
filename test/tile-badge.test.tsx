@@ -48,12 +48,12 @@ describe("特殊城池两字徽标(#828)", () => {
 
   it("特殊城渲染徽标、普通城(无 event)无徽标(全 Tile SSR 口径)", () => {
     const special = renderToStaticMarkup(
-      <Tile tile={tile("fate")} group="a" maxLevel={3} state={IDLE_STATE} />,
+      <Tile tile={tile("fate")} tier="县" maxLevel={3} state={IDLE_STATE} />,
     );
     expect(special).toContain("bv-event-seal");
     expect(special).toContain(">声<");
     const normal = renderToStaticMarkup(
-      <Tile tile={tile()} group="a" maxLevel={3} state={IDLE_STATE} />,
+      <Tile tile={tile()} tier="县" maxLevel={3} state={IDLE_STATE} />,
     );
     expect(normal).not.toContain("bv-event-seal");
   });

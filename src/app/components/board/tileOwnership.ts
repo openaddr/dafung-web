@@ -14,7 +14,7 @@ export interface OwnershipPlayer {
   properties: { propertyId: string; level: number }[];
 }
 
-/** 单城持有信息(铭牌底染/旌旗/档位珠的推导源)。 */
+/** 单城持有信息(铭牌底染/旌旗/等级珠的推导源)。 */
 export interface TileHolding {
   colorIndex: number;
   guohao: string;

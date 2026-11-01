@@ -127,6 +127,12 @@ export const BoardDefs = memo(function BoardDefs({ fit }: { fit: ViewBox }) {
         <stop offset="0" stopColor="#b59c74" />
         <stop offset="1" stopColor="#8a714c" />
       </linearGradient>
+      {/* 名城琉璃瓦面(ADR-0042 形制阶梯):翠琉璃两档,与墨青灰瓦拉开色相——总览下
+          名城瓦面「发绿发亮」,放大后是琉璃釉色;几何与郡城同源,只换瓦面与描金档。 */}
+      <linearGradient id="bv-glazed-roof-grad" x1="0" y1="0" x2="0" y2="1">
+        <stop offset="0" stopColor="#7f9f66" />
+        <stop offset="1" stopColor="#556f3e" />
+      </linearGradient>
       {/* #844 纸纤维噪点:fractalNoise 高频灰阶磨砂,feTurbulence stitchTiles=stitch
           让 256 tile 边界噪声缝合、pattern 平铺无缝——SVG 一次生成零图片资产,
           深 zoom 的格间空白不再是纯平涂。fractalNoise 原始输出对比度天然压缩

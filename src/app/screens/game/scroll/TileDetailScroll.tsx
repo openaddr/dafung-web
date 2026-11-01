@@ -26,6 +26,8 @@ export interface TileDetailScrollProps {
   tileName: string;
   /** 地域行区名(=分组名,Theme.groupNames 单源经 DecisionScrollLayer;空=未知分组省略段)。 */
   groupLabel: string;
+  /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
+  tierLabel: string;
   /** 城表定义(价/等级/交易加成/变卖价/补给;#826 全城池制:每格必有)。 */
   property: PropertyDef;
   /** 全体玩家快照(TileThumb 归属/都城推导源,与名下清单同口径)。 */
@@ -48,6 +50,7 @@ export function TileDetailScroll({
   tile,
   tileName,
   groupLabel,
+  tierLabel,
   property,
   players,
   cash,
@@ -79,6 +82,11 @@ export function TileDetailScroll({
     >
       <span hidden data-tile-index={tileIndex} />
       <>
+        {/* 城池档位两字名(ADR-0042 决策 6 + DESIGN §4.8 名词纪律):题名下小字弱化
+            直缀档位名,不加前缀/定位语/解释。壳题名是 string 单源(BannerShell 的
+            aria-label/题印取字/内容身份/拖拽 resetKey 四职),档位名不入题名串
+            (否则吃题名 26px 金字制式,违背小字弱化),落正文首行紧贴城名。 */}
+        <p className="m-0 mb-1 text-center text-xs text-paper-dim">{tierLabel}</p>
         {/* 真实格缩略图(#767 ②):与棋盘/名下清单逐像素同源,置摘要上方纯展示;
             尺寸档(96px/矮横屏 48px)单源 banner.css 的横幅域 city-ledger-thumb 规则 */}
         <div className="mb-1 flex justify-center">

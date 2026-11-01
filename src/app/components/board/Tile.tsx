@@ -1,6 +1,6 @@
 // 单座城池。静态结构(建筑/文字)按 tile 数据声明;状态(归属/都城/等级/焦点)由 props 驱动,
-// React.memo 保证仅状态变化的城池重渲。建筑为程序化精绘(Building:飞檐青瓦/城台/朱柱,
-// 按区域分形制变体)。
+// React.memo 保证仅状态变化的城池重渲。建筑为程序化精绘(Building:飞檐城台/朱柱,
+// 按城池档位分形制,ADR-0042)。
 // 玄墨鎏金深底化(#512,#500 决议方案一「重调色保留」):铭牌=深卡浅字(漆金细边深卡
 // lacquer 系+纸色字);都城金匾是深卡唯一例外(金底墨字)。事件格大字/外轮廓三族随
 // 功能格五型退役整体删除(#826 全城池制:一切格子都走城池渲染分支)。
@@ -14,6 +14,7 @@
 // 仍在 board.css/fx.css,CSS 只承担「怎么播」。
 import { memo } from "react";
 import type { TileDef, TileEvent } from "@core/board";
+import type { CityTier } from "@core/economy";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { useFxStore } from "@app/fx/fxStore";
 import { Building } from "./tile-building";
@@ -62,7 +63,8 @@ export interface TileVisualState {
 
 interface TileProps {
   tile: TileDef;
-  group: string; // 地产分组(catalog.get(propertyId).group),建筑地域形制变体用
+  /** 城池档位(catalog.get(propertyId).tier):建筑形制的唯一通道(ADR-0042 决策 1)。 */
+  tier: CityTier;
   /** 满级档(catalog.get(propertyId).maxLevel),满贯金框判据;非地产格无珠不读。 */
   maxLevel: number;
   state: TileVisualState;
@@ -104,7 +106,7 @@ const CAPITAL_PLAQUE_TEXT = rgba(Theme.bgDeep); // 金匾墨字(深卡唯一例�
  * 任何城名字都只有 ~6-8px——总览不指望读字,靠「铭牌色块/旗形=归属」的形状层辨认
  * (viewBox 是命令式更新、不触发 React 渲染,Tile 感知不到 zoom,做不了真 LOD 切换);
  * 放大后才进入「读字」层级,此时满字号应 ≥13px 等效红线:
- * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;规模三档视觉通道已随经济 v2 退役)。
+ * fs=20(城池统一 2.2x 放大,#58 后 ≈+15%;建筑规模/档位通道现归 Building 的 tier 形制,ADR-0042)。
  */
 function NamePlaque({
   name,
@@ -168,10 +170,11 @@ function NamePlaque({
   );
 }
 
-// ── 档位珠(铭牌左下小金珠):城池等级的唯一视觉通道(2026-10-17 拷问定案)──
+// ── 等级珠(铭牌左下小金珠):城池等级的唯一视觉通道(2026-10-17 拷问定案;旧名「档位珠」
+// 与「城池档位」撞词根,2026-11-01 随 ADR-0042 改名,#916)──
 // 珠数=等级,Lv0 无珠,满级珠外加金框加冕——变卖价/都城补给/坐地起价全挂在等级上,
 // 珠数是离散计数、总览可数不依赖识字。旧双通道(城楼加层+壹贰叁小印)总览双双不可辨
-// (加层每级高差 5px 竖向预算顶死、16px 暗印只是一粒点),随本批退役(GLOSSARY「档位珠」)。
+// (加层每级高差 5px 竖向预算顶死、16px 暗印只是一粒点),随本批退役(GLOSSARY「等级珠」,旧名「档位珠」已入墓碑)。
 // #96/ADR-0015 出场落位:bv-pip-grow(board.css,scale 0.6→1)只挂最末一颗新珠——扩军
 // 宣告 nonce(replay=growNonce>0)经 key 重挂时末珠生长、其余珠静置;快照恢复(nonce=0)
 // 全组静置不播。
@@ -222,7 +225,7 @@ function LevelPips({
 
 // ── X4(#23) 选都候选序号印:壹/贰/叁(引擎滚出顺序=第几候选)──
 // 16×16 圆角方 + 笔书大字,描金变体:玄墨底金框金字——与「宝」印同读作
-// 「印=特殊标记」;候选期无主无等级,与档位珠同锚点(-41 31)而时段互斥(Setup 期
+// 「印=特殊标记」;候选期无主无等级,与等级珠同锚点(-41 31)而时段互斥(Setup 期
 // Lv 恒 0),不叠印;总览下是一粒金边方点,与脉冲金圈构成「三城仪式组」,放大后读序号
 // (「我选叁号城」)。
 const CANDIDATE_SEAL_CHARS = ["", "壹", "贰", "叁"] as const;
@@ -262,7 +265,7 @@ function CandidateSeal({ order }: { order: number }) {
 // 尺寸:两字印 32×20/单字 11 号(逻辑单位,TILE_SCALE 2.2 屏上单字 ~24px,
 // 844×390 实测可读)。锚点 (49,-34):-6° 旋转后底左角 (34,-22.4) 让开右侧木匾
 // 顶缘(-22),顶右角 (64,-45.6) 出格顶一线=悬挂印旧观感;旗组 #842 已收回左上,
-// 右上角唯此一印不撞木匾(右侧)/王旗(上方)/档位珠(左下)。
+// 右上角唯此一印不撞木匾(右侧)/王旗(上方)/等级珠(左下)。
 // #665/#828 收编导出:印文词表与徽标组件供 test/tile-badge.test.tsx 同源断言
 // (词表漂移/普通城无徽标在组件级钉住,不靠 e2e)。
 export const TILE_EVENT_BADGES: Record<TileEvent, string> = {
@@ -312,7 +315,7 @@ export function EventSeal({ event }: { event: TileEvent }) {
 
 export const Tile = memo(function Tile({
   tile,
-  group,
+  tier,
   maxLevel,
   state,
   onClick,
@@ -365,7 +368,7 @@ export const Tile = memo(function Tile({
       {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
           color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色
           收敛到铭牌底染(NamePlaque)+全饱和描边 3px 两通道,色弱通道仍靠城旗国号
-          (DESIGN §5.2 一格一语言;城旗/档位珠/都城光晕全不动)。#826:天命/锦囊/税关
+          (DESIGN §5.2 一格一语言;城旗/等级珠/都城光晕全不动)。#826:天命/锦囊/税关
           三族族形分支随功能格五型退役整体删除,一切格子走通用圆角方牌。 */}
       <rect
         className="bv-tile-border"
@@ -408,9 +411,9 @@ export const Tile = memo(function Tile({
       {/* 建筑整体 scale 1.08(都城):以城脚(y=12)为锚,只向上长高="微抬升",
             不踩进底座;无主/领地保持原尺度。 */}
       <g transform={isCapital ? "translate(0 12) scale(1.08) translate(0 -12)" : undefined}>
-        {/* 程序化建筑(规格/地域形制变体):等级与归属都不上楼——等级归档位珠、
-              归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格×地域风味)。 */}
-        <Building group={group} />
+        {/* 程序化建筑(档位形制,ADR-0042):等级与归属都不上楼——等级归等级珠、
+              归属归铭牌底染(2026-10-17 拷问:重复表达裁单一,楼回归纯规格)。 */}
+        <Building tier={tier} />
       </g>
       {/* #96/ADR-0015 易主流光:归属变更(A 破产清算回无主 / 转玩家 B / 变卖给银行)
             时铭牌带闪一道玩家色流光一次(回无主一档无玩家色,用金色——金=既有事件强调
@@ -434,14 +437,14 @@ export const Tile = memo(function Tile({
       ) : null}
       {/* 城名竖排木匾(挂建筑右侧):都城金底墨字 + 流苏,普通城深木底金字 */}
       <NamePlaque name={tile.name} capital={isCapital} ownerRgb={ownerRgb} />
-      {/* 档位珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
+      {/* 等级珠(等级唯一通道,Lv0 无珠)+ 选都候选序号印:同锚不同期——候选期
             无主无等级(Setup 期 Lv 恒 0),两标记互斥不叠印;扩军宣告 nonce 为 key,
             重挂时末珠生长(ADR-0015),平时/快照恢复静置。 */}
       {state.level > 0 ? (
         <LevelPips key={growNonce} level={state.level} maxLevel={maxLevel} replay={growNonce > 0} />
       ) : null}
       {/* X4(#23) 选都候选序号印(铭牌左下,壹/贰/叁):16×16 方章描金变体,
-            Setup 期与档位珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
+            Setup 期与等级珠时段互斥(候选期无主恒 Lv0 无珠);非决策席位同见
             (仪式感是全座的,可点只在本地)。 */}
       {state.capitalCandidateOrder != null ? (
         <CandidateSeal order={state.capitalCandidateOrder} />
@@ -508,7 +511,7 @@ export const Tile = memo(function Tile({
             深描边压住轮廓,保证浅色玩家色旗面在漆木深卡上也可辨。
             #842:旗组从格框外路面(原 x 40..62 越框压箭羽)收回格内左上角压角——
             框缘内缩 6px(旗顶 -38=上缘内缩 6、旗杆 -46=左缘内缩 6),杆脚落在檐角
-            线上(下檐尖 ±40,-21),不压箭羽/档位珠(左下)/宝印(右上)/木匾(右侧)。 */}
+            线上(下檐尖 ±40,-21),不压箭羽/等级珠(左下)/宝印(右上)/木匾(右侧)。 */}
       {!isCapital && ownerRgb ? (
         <g className="bv-tile-owner-flag">
           <line

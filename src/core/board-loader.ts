@@ -4,7 +4,8 @@
 // (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
 import { createBoard, TILE_EVENTS } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
-import type { PropertyDef } from "./economy";
+import type { CityTier, PropertyDef } from "./economy";
+import { CITY_TIERS } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
 
@@ -26,6 +27,9 @@ export interface MapTile {
   pos: number[]; // [x, y]
   type?: TileType; // 唯一合法值 "Property"(缺省同值,#826 全城池制;其他值装载即拒)
   group?: string; // 区域分组字母(Theme.groupNames a–h):城池格必配,loadMap 校验
+  /** 城池档位(县/郡/奇/名,单字中文,ADR-0034 四档城制;ADR-0042 决策 3 数据面显式化):
+   *  城池格必配,loadMap 白名单校验;两字显示名见 Theme.cityTierNames。 */
+  tier: CityTier;
   price?: number; // 购价(两):城池格必配,免费城显式写 0
   buildCost?: number; // 建城费(两):城池格必配
   /** 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级。 */
@@ -159,9 +163,15 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     if (!t.group) {
       fail(`第 ${i + 1} 城 group 必配(区域分组字母,Theme.groupNames a–h)`);
     }
+    // 城池档位(ADR-0042 决策 3):逐城必配 + 白名单校验,零兜底——
+    // 配置即唯一事实源,不搞「按数值形状反推档位」的分类函数(第二事实源)。
+    if (!(CITY_TIERS as readonly string[]).includes(t.tier)) {
+      fail(`第 ${i + 1} 城 tier 必配且须为 ${CITY_TIERS.join("/")}(当前:${String(t.tier)})`);
+    }
     properties.push({
       id: t.id,
       group: t.group,
+      tier: t.tier,
       purchasePrice: t.price,
       maxLevel,
       valueByLevel: values,
