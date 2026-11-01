@@ -279,8 +279,3 @@ export function collectFrameDiag(): FrameDiagDump | null {
   }
   return lastDump;
 }
-
-/** 实时读数:卡顿次数(局中=当前局;退出对局后=最近一局;从未玩过 0)。 */
-export function frameDiagJankCount(): number {
-  return session?.jank.length ?? lastDump?.jank.length ?? 0;
-}
