@@ -6,9 +6,10 @@
 // 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
 // (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
 // 条带承担,选择+开局一屏完成零滚动;桌面档信息架构零变化。
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
+import { startWarmup } from "@app/warmup";
 import { useMediaQuery } from "@app/hooks/use-media-query";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
@@ -53,6 +54,12 @@ export function HomeScreen({
   const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
   // 与单机配置页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, selectedMapId);
+
+  // 资产预热(warmup.ts 文件头有全案):主页挂载后 idle 期全量拉字体+图片,
+  // 对局内视觉组件首现零加载税;失败零兜底(原生按需加载路径接管)。
+  useEffect(() => {
+    startWarmup();
+  }, []);
 
   // 条带点选 = 弹层确认路径的等价短路:回写选中 + 交接线方持久化(localStorage)。
   const pickMap = (mapId: string) => {
