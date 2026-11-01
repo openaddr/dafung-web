@@ -68,8 +68,10 @@ interface TokenLayerProps {
 }
 
 /** #30/#39/#58 棋子放大比例:旗/字/印玺等比 scale。屏幕净大小 = TOKEN_SCALE /
- *  TILE_SCALE(城池 2.2):2.6/2.2≈净 1.18x(#557 总览可辨性:较原 2.24 净放大
- *  ≈16%,旗面/国号字在总览缩放下更大更可辨)。scale 落在独立 <g transform> 属性上,
+ *  TILE_SCALE(城池,单源见 Tile.tsx)。#557 曾以 2.6/2.2≈净 1.18x 提升总览可辨性;
+ *  #938 城池同提 2.6 后两者同刻度(净 1.0x)——棋子绝对尺寸不变,总览可辨性由
+ *  7 列图幅的 fit 增益(≈0.21→0.27)承接,槽位圆周(r=26 局部,core/constants)不动。
+ *  scale 落在独立 <g transform> 属性上,
  *  与 .bv-token 的 CSS style.transform(行军命令式写入 translate)互不覆盖。
  *  氛围层旗/光环同用此比例(AmbientLayer,ADR-0039)。 */
 export const TOKEN_SCALE = 2.6;

@@ -1,5 +1,13 @@
 [
   {
+    "id": "guanzhong",
+    "name": "关中图",
+    "file": "guanzhong.json",
+    "desc": "4×7 满格螺旋小盘:28 城缩域快局,城距疏朗城池更大,长安洛阳相邻闭环、全环纯正交零对角",
+    "tileCount": 28,
+    "targetNetWorth": 30000
+  },
+  {
     "id": "huanyou",
     "name": "环游图",
     "file": "huanyou.json",

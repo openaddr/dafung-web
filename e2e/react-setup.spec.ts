@@ -7,6 +7,8 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", async ({ page }) => {
+  // #938:本用例验「默认图语义」——解钉 fixtures 的图谱固定(removeItem 回落清单首项单源)
+  await page.addInitScript(() => localStorage.removeItem("dafung.mapId"));
   await page.goto("/");
   await openSoloSetup(page);
   const screen = page.getByTestId(SETUP_TID.screen);
@@ -18,8 +20,8 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
     "aria-pressed",
     "true",
   );
-  // #249:默认图换「环游图」(index.json 首项),断言跟默认名单源
-  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("环游图", {
+  // #938:默认图换「关中图」(index.json 首项),断言跟默认名单源(#249 同口径)
+  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("关中图", {
     timeout: 10_000,
   });
 
