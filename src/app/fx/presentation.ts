@@ -12,7 +12,6 @@
 import type { BoardPos } from "@core/board";
 import type { PropertyChangeTrace } from "@core/authority";
 import type { SoundEvent } from "./audio";
-import type { TurnAnnounceMeta } from "./fxStore";
 import { DUEL } from "./timings";
 
 /** 行军逐帧段(不变量①提取即定格,ADR-0029/#608):一段行走 = 「起点中心 → 终点」
@@ -232,10 +231,9 @@ export interface FxSink {
   /** 文案浮字(无金额的小字提示,风格对齐浮动金额);skill=#850 技能演出档
    *  (cast=施展升档/tag=被动小签,缺省=普通文案)。 */
   spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
-  /** 回合宣告(#732 入槽;#762 两段式亮相+合并规则):fxStore 槽泵判别 bot→bot
-   *  同轮连续(返回 false=只更新常驻胶囊),true=全幅播出(含 whoosh 音,由实现侧
-   *  发声);播放器只对 true 让编排停留窗。 */
-  showBanner(guohao: string, colorIndex: number, meta: TurnAnnounceMeta): boolean;
+  /** 回合宣告:刷新常驻回合胶囊(重挂重播入场过渡)。全幅横幅已退役(#958),
+   *  无停留窗、无音效——回合切换信号=胶囊重挂+席位金圈。 */
+  announceTurn(guohao: string, colorIndex: number, round: number): void;
   /** 朱砂印章(含 stamp 音);坐标提取拍已烤进事件(qiqian 在到达同步点换算)。
    *  tone="gold"=漆金印(S7 探宝「得」印)。 */
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;

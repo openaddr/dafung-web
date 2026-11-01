@@ -133,14 +133,14 @@ export const MARCH = {
 } as const;
 
 /** 瞬时特效存活时长(演出编排族,吃 scStage)。CSS 侧时长/缓动唯一源 core/theme.ts
- *  Motion(经 gen:theme 产出 tokens.css):floaterMs 与 --dur-fx 同源(经 Motion);
- *  bannerMs 自 #762 起是两段式组合(--dur-banner/2 + --dur-slow + 清理余量)。
+ *  Motion(经 gen:theme 产出 tokens.css):floaterMs 与 --dur-fx 同源(经 Motion)。
  *  #849 棒3 起,fx.css 编排类 keyframe 的时长一律「keyframe 只管形、消费点内联
  *  animationDuration=本表 getter」(DiceOverlay/DuelSignsOverlay/FxLayer 同法),
  *  清理窗取「动画全长 + 余量」退居单侧,无两头同步账;#885 补收同病类残留
  *  (desk 震屏两档→DESK 表、旌旗缓倒→CEREMONY.fallMs、墨渍/浮字/铜钱 --dur-fx
  *  系→下方 inkBloomMs/coinRainMs),票面六处+四族全量入通道。coinMs/roadFlowMs
- *  不等于任何 token,是编排窗口,保留字面量。 */
+ *  不等于任何 token,是编排窗口,保留字面量。回合横幅族(bannerMs/bannerHoldMs)
+ *  已随 #958 全幅横幅退役删除,回合宣告无编排窗。 */
 export const FX = {
   /** 浮字动画全长 + 清理窗(同源单值,#885 口径同 jinnangLineMs):fx.css
    *  fx-svg-float-up 时长经本值由 FxLayer 消费点内联注入(keyframe 只管形),
@@ -151,17 +151,6 @@ export const FX = {
   },
   get coinMs() {
     return scStage(1500);
-  },
-  get bannerMs() {
-    return scStage(Motion.dur.banner / 2 + Motion.dur.slow + 100);
-  }, // #762 两段式亮相全长(亮相段 = --dur-banner 之半 900ms,收编段 = --dur-slow 400ms,
-  // 见 fx.css fx-banner-appear/fx-banner-capsulate)+ 100 清理余量(余量保留字面量);
-  // 都城停条带仍走旧单段全长(haltBannerMs,语义独立)
-  /** C3 回合横幅占用编排时长(#762 口径):等横幅走完亮相段(calc(--dur-banner/2)
-   *  = 900ms)再让下一演出(骰子)接续——收编段(--dur-slow)是背景动画,可与之重叠,
-   *  不把回合节奏拖满全长。合并回合(胶囊更新)present 侧直接跳过本停留窗。 */
-  get bannerHoldMs() {
-    return scStage(1000);
   },
   /** 朱砂/漆金印落章弧钤定段(#849 棒3):fx.css fx-seal-slam 时长经本值由 FxLayer
    *  消费点内联注入(keyframe 只管形不时刻度,随 e2e/追帧通道缩放)。 */
@@ -198,15 +187,14 @@ export const FX = {
   get landPulseMs() {
     return scStage(750);
   },
-  /** 都城停条带存活(#732 降格,原 S7 #513 全屏宣告 2400):条带复用回合横幅的
-   *  单段全长 fx-banner-fly(--dur-banner 单源)+ 清理余量,与 fx.css 同步
-   *  (#762 起回合横幅自身改两段式亮相,bannerMs 组合公式翻面;条带不两段化,
-   *  本值保持旧公式,语义独立——两族知会各自的清理窗)。 */
+  /** 都城停条带存活(#732 降格,原 S7 #513 全屏宣告 2400):单段全长 fx-banner-fly
+   *  (--dur-banner 单源)+ 清理余量,与 fx.css 同步(回合横幅退役后 #958,条带是
+   *  本 keyframe 唯一消费者)。 */
   get haltBannerMs() {
     return scStage(Motion.dur.banner + 100);
   },
-  /** 都城停条带占用编排时长(#732 条带级校准,同 bannerHoldMs 口径):等条带入场
-   *  展开读过一拍,驻章与补给铜钱雨在其后接续(原全屏仪式 1400 随降格退役)。 */
+  /** 都城停条带占用编排时长(#732 条带级校准):等条带入场展开读过一拍,驻章与
+   *  补给铜钱雨在其后接续(原全屏仪式 1400 随降格退役)。 */
   get haltHoldMs() {
     return scStage(1000);
   },

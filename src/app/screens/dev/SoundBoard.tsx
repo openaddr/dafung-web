@@ -14,7 +14,6 @@ const ROWS: Record<SoundEvent, { label: string; when: string }> = {
   coin: { label: "收入叮", when: "批内有正收入浮字(每批一次,缀首个浮字前)" },
   pay: { label: "支出闷响", when: "批内有负向浮字且非购地批(收叮付闷对位)" },
   stamp: { label: "印章", when: "定都/据城/驻跸/出牌确认/终局落印" },
-  banner: { label: "回合横幅", when: "每次换手(合成 whoosh;鼓滚奏已撤,审计元凶)" },
   buy: { label: "购地成交", when: "买城成功(摇钱袋,播放侧截 1.6s)" },
   upgrade: { label: "扩军", when: "城池升级(木叩,播放侧截 0.65s)" },
   treasure: { label: "得珍宝", when: "珍宝事件(古琴双弹乐句,不截)" },

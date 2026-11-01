@@ -263,45 +263,34 @@ test.describe("全浮层骨架", () => {
   });
 });
 
-test.describe("顶中知会横幅槽(#732)", () => {
-  // 时间线采样观测(零固定 sleep):标准档(0.25)单条横幅 ~475ms,采样拍 ~100-200ms
-  // 必多拍命中;槽互斥/让位/回归全在同一份时间线上断言,不靠散点轮询赛跑。
-  // 采样拍内随手放行人类决策(dismissJinnangIfUp/actIfCan):对局自走不停摆——
-  // 半速档实锤教训:bot 产批快于实播时追帧/吸附会按 ADR-0029 ③ 丢弃待播知会,
-  // 标准档播放快于产出无积压;人类决策停摆则无回合变化可观测。
-  // 用例含 quickStart 全链 + 采样窗,60s 默认档偏紧,组级放宽(同族口径)。
-  test.setTimeout(240_000);
-  const SAMPLE_MS = 20_000;
+test.describe("顶中知会槽·常驻回合胶囊(#732/#958)", () => {
+  // 时间线采样观测(零固定 sleep):胶囊常驻(开局首宣告即立),采样拍 ~100-200ms
+  // 必多拍命中;回合宣告只刷胶囊(#958 全幅横幅退役),断言=胶囊随回合轮换换装+
+  // 全幅件零出现。采样拍内随手放行人类决策(dismissJinnangIfUp/actIfCan):对局自走
+  // 不停摆——人类决策停摆则无回合变化可观测。
+  test.setTimeout(120_000);
+  const SAMPLE_MS = 12_000;
 
-  /** 单拍采样:槽内带件数/文本/落点 + 等待条在场(读数收进单次 evaluate)。 */
+  /** 单拍采样:胶囊读数/全幅件在否/等待条在场(读数收进单次 evaluate)。 */
   function sampleOnce(page: Page) {
     return page.evaluate(
-      ({ slot, waiting }) => {
+      ({ slot, capsule, waiting }) => {
         const slotEl = document.querySelector(`[data-testid="${slot}"]`);
-        const bandEls = slotEl
-          ? [...slotEl.querySelectorAll<HTMLElement>(".fx-turn-banner,.fx-halt-banner")]
-          : [];
-        const first = bandEls[0]?.getBoundingClientRect();
+        const capsuleEl = slotEl?.querySelector(`[data-testid="${capsule}"]`);
         return {
-          bands: bandEls.length,
-          top: first ? first.top : null,
-          turn: bandEls[0]?.textContent ?? null,
+          capsuleText: capsuleEl?.textContent ?? null,
+          turnBands: slotEl ? slotEl.querySelectorAll(".fx-turn-banner").length : 0,
           waiting: document.querySelector(`[data-testid="${waiting}"]`) != null,
         };
       },
-      { slot: TESTIDS.noticeBanner, waiting: TESTIDS.waitingBar },
+      { slot: TESTIDS.noticeBanner, capsule: TESTIDS.turnCapsule, waiting: TESTIDS.waitingBar },
     );
   }
 
-  // 排队(≥2 条依次播)与都城停条带形态(高度≤条带级)不走 e2e:#732 三遍实证
-  // ADR-0029 落后即校准的吸附档在 bot 热链期系统性丢弃批末位知会,窗内计数类断言
-  // 与演出治理竞速(观测性竞速,非产品回归;现象与三方案见 #734 留观票)。此二者
-  // 改走机制论证(fxStore 知会槽泵=排队/互斥结构单源)+截图自证
-  // (tmp/ui-shots/hengfu/2-turn-banner-in-slot.png、3-halt-band-in-slot.png)。
-  test("回合横幅入槽:展示期落槽位且等待条让位,播完回归;同刻槽内仅一条", async ({ page }) => {
+  test("回合宣告只刷常驻胶囊:随轮换换装,全幅横幅永不出现", async ({ page }) => {
     test.slow();
     await quickStart(page);
-    // 时间线采样:每拍先放行人类决策(保对局自走)再读槽,窗口 20s
+    // 时间线采样:每拍先放行人类决策(保对局自走)再读槽,窗口 12s
     const t0 = Date.now();
     const samples: Awaited<ReturnType<typeof sampleOnce>>[] = [];
     while (Date.now() - t0 < SAMPLE_MS) {
@@ -309,24 +298,16 @@ test.describe("顶中知会横幅槽(#732)", () => {
       await actIfCan(page).catch(() => false);
       samples.push(await sampleOnce(page));
     }
-    // ① 回合横幅经槽展示(读数取自槽容器内部查询 = 在槽位),落点在槽位行
-    //   (844×390 槽区 top ≤ 20;旧 16% 落点 ~36+ 必挂)
-    const withTurn = samples.filter((s) => s.turn?.includes("之回合"));
-    expect(withTurn.length, "采样窗内未观测到回合横幅").toBeGreaterThan(0);
-    for (const s of withTurn) expect(s.top!, "回合横幅未落槽位").toBeLessThanOrEqual(20);
-    // ② 同槽互斥:任何采样时刻槽内至多一条带(排队语义由 fxStore 槽泵结构单源,
-    //    不做窗内计数断言——见本 describe 头注)
+    // ① 胶囊常驻在槽(采样窗内必命中)
+    const withCapsule = samples.filter((s) => s.capsuleText != null);
+    expect(withCapsule.length, "采样窗内未观测到回合胶囊").toBeGreaterThan(0);
+    // ② 胶囊随回合轮换换装(不同回合方/轮次=读数变化;quickStart 局人类+bot 多回合)
+    const readings = new Set(withCapsule.map((s) => s.capsuleText));
+    expect(readings.size, "胶囊读数无变化(回合宣告未刷新)").toBeGreaterThan(1);
+    // ③ 全幅横幅退役钉(#958):任何采样时刻零 .fx-turn-banner
     expect(
-      samples.every((s) => s.bands <= 1),
-      "同一时刻槽内出现多条带",
-    ).toBe(true);
-    // ③ 等待条让位:横幅展示期与等待条零并存。「播完回归」不做窗内断言——若窗内
-    //    末条横幅是本地玩家自己的回合横幅,其后是人类决策期,等待条按语义本就不在
-    //    (W4 全量实锤一例);回归由槽组件结构保证(notice==null 分支即渲染
-    //    WaitingBar)+截图自证(4-waiting-bar-back.png)。
-    expect(
-      samples.every((s) => !(s.turn != null && s.waiting)),
-      "瞬态横幅与等待条同刻并存(让位失效)",
+      samples.every((s) => s.turnBands === 0),
+      "全幅回合横幅仍在出场",
     ).toBe(true);
   });
 });

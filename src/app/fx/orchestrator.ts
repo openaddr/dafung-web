@@ -172,14 +172,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
         await sink.bankruptCeremony(ev);
         break;
       case "turnBanner":
-        // C3:横幅占用编排时长——showBanner 置 store 即返回(音画由 CSS 动画自走),
-        // 全幅播出时此处显式等峰值停留段(FX.bannerHoldMs),下一演出(骰子)不再与
-        // 横幅入场重叠。#762:槽泵判 bot→bot 同轮连续折叠为胶囊更新(false)——无横幅
-        // 可读即无停留窗,bot 链节奏不被拖满;不改 FxSink.showBanner 为 Promise:
-        // 生产实现(sinks.ts)同步判定,签名收 boolean 即可。
-        if (sink.showBanner(ev.guohao, ev.colorIndex, { isBot: ev.isBot, round: ev.round })) {
-          await delay(FX.bannerHoldMs);
-        }
+        // 回合宣告=只刷新常驻胶囊(#958 全幅横幅退役):无停留窗、无音效,即发即忘,
+        // 下一演出(骰子)直落——掷骰签摇签起手自带开场拍,回合节奏不拖账。
+        sink.announceTurn(ev.guohao, ev.colorIndex, ev.round);
         break;
       case "sound":
         sink.playSound(ev.event);
