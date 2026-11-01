@@ -8,7 +8,7 @@ TypeScript + Vite + React 的三国主题大富翁:**权威引擎**(`src/core/`,
 
 jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。五条铁律;配方与命令速查唯一事实源=[开发与测试](./docs/how-to/开发与测试.md)「版本协作」节:
 
-1. **任何写盘改动(不分体量)开工前先 `jj workspace add ../dafung-web-ws-<代号>`**;主树 @ 只读停靠、永不留活(唯一例外:`pr-merge.ts` 收口尾步前移主树空 @);@ 有别人的活=让出走 workspace。
+1. **任何写盘改动(不分体量)开工前先 `jj workspace add ../dafung-web-ws-<代号>`**;写盘工具与命令同规:落盘路径一律 workspace 绝对路径(shell cwd 每命令重置,编辑工具不吃 cwd,第一刀前自查路径前缀);主树 @ 只读停靠、永不留活(唯一例外:`pr-merge.ts` 收口尾步前移主树空 @);@ 有别人的活=让出走 workspace。
 2. **交付**=`jj describe` → 书签 → `jj git push --bookmark` + PR;master 受保护(禁直推/禁 merge commit,一律 PR+squash);workspace 谁建谁清。
 3. **文件集自查两拍**:落盘后立即一拍、push 前一拍(`jj diff --stat` 对账,多出=折入先拆);收口走 `pr-merge.ts --expect <路径>` 硬闸。
 4. **收账**由 pr-merge 尾步自动做(fetch+move+空 @ 前移);手动通路见 how-to 同节。

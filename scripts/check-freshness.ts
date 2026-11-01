@@ -26,13 +26,17 @@
 //     被抓到——特性不是噪音(零兜底)。
 //
 // 判定规则:
-//   0) 主树占用:当前工作区是主树(colocated 有 .git)且 @ 非空 = 有并行会话留活——
-//      此时开工或收口都会把别人的活卷进自己的操作(2026-10-17 书签三度污染 +
-//      2026-10-18 收口在主树 jj new master 切走并行工作副本两次)。红 = 一切修改走
-//      workspace(AGENTS.md 版本协作);在 jj workspace 里跑则跳过(已隔离,主树
-//      占用与己无关)。空停靠另有两条:带描述 = 有会话误写话头(2026-10-19 #620
-//      实锤:cwd 重置后 describe 误跑主树,空树带描述恰好穿过「非空」判据),红;
-//      停靠基线落后 origin/master = 只警告点名(修复一条 jj new master,见下)。
+//   0) 主树占用:主树(default 工作区)@ 非空 = 有并行会话留活——此时开工或收口都会
+//      把别人的活卷进自己的操作(2026-10-17 书签三度污染 + 2026-10-18 收口在主树
+//      jj new master 切走并行工作副本两次)。红 = 一切修改走 workspace(AGENTS.md
+//      版本协作)。2026-11-01 #984 retro 跨 workspace 化:原版仅主树里跑生效,而铁律
+//      让会话开工即进 workspace——写盘工具落主树绝对路径的污染(workspace add 不改
+//      写盘落点,#620「cwd 重置」教训的工具通道版)对后续所有新鲜度检查全程隐身;
+//      主树 @ 经共享 store 跨 workspace 可查(workspace list 的 default 行),守卫
+//      改为无论调用方在哪都查。空停靠两条不变:带描述 = 有会话误写话头(2026-10-19
+//      #620 实锤:cwd 重置后 describe 误跑主树,空树带描述恰好穿过「非空」判据),红;
+//      停靠基线落后 origin/master = 只警告点名(修复一条 jj new master,见下;仅
+//      主树内报——那是主树 build/游玩的及时性问题,workspace 会话无关)。
 //   1) fetch 失败 → 失败:网络不通时结论不可信;修网络,或显式 --no-fetch 用本地引用
 //      (离线 deliberately,会打提示)。
 //   2) 落后锚点书签自己的 @origin(任何数量)→ 失败:先 jj git fetch,再
@@ -126,35 +130,51 @@ if (doFetch) {
 
 const failures: string[] = [];
 
-// rule 0:主树占用(见判定规则 0;workspace 内无 .git 天然跳过)
-if (existsSync(".git")) {
-  if (jj("log", "-r", "@", "--no-graph", "-T", "empty") === "false") {
-    const statLines = jj("diff", "--stat").split("\n").filter(Boolean);
-    failures.push(
-      `主树 @ 非空(${statLines[statLines.length - 1]})——有并行会话留活,一切修改走 ` +
-        `workspace:jj workspace add ../dafung-web-ws-<代号>(AGENTS.md 版本协作);` +
-        `收账/收口的 jj new master 也到自己 workspace 跑`,
-    );
-  } else {
-    // 停靠位描述残留检查(2026-10-19 #620 实锤:AI 会话 shell cwd 重置后 jj describe
-    // 误跑主树,空树带描述恰好穿过上面的「非空」判据)。停靠口径 = 空+无描述;带描述
-    // = 有会话在此落过话头,红(还原一条命令,但先核实是不是在场会话的在途标记)。
-    const desc = jj("log", "-r", "@", "--no-graph", "-T", "description");
-    if (desc !== "") {
+// rule 0:主树停靠位占用(见判定规则 0;#984 retro 起无论调用方在哪都查——主树内
+// 直查 @,workspace 内解析 workspace list 的 default 行按 commit 回查,共享 store
+// 任何位置可查)
+{
+  const inMainTree = existsSync(".git");
+  const mainAt = inMainTree
+    ? "@"
+    : (jj("workspace", "list")
+        .split("\n")
+        .find((line) => line.startsWith("default:"))
+        ?.match(/^default:\s+\S+\s+(\S+)/)?.[1] ?? null);
+  if (mainAt != null) {
+    if (jj("log", "-r", mainAt, "--no-graph", "-T", "empty") === "false") {
+      const statLines = jj("diff", "-r", mainAt, "--stat").split("\n").filter(Boolean);
       failures.push(
-        `主树 @ 空但带描述「${desc.split("\n")[0]}」——停靠位口径是空+无描述,有会话误写;` +
-          `核实归属后 jj describe -m "" 还原(自己误写直接还原,他人的先报告)`,
+        `主树 @ 非空(${statLines[statLines.length - 1]})——有并行会话留活,或写盘工具误落主树` +
+          `路径(workspace add 不改写盘落点,编辑工具不吃 shell cwd,#984 实锤):内容属自己=` +
+          `workspace 内 jj restore --from <主树@change> 搬入、主树 jj restore 清空;` +
+          `他人的=让出主树勿动(AGENTS.md 版本协作);收账/收口的 jj new master 也到自己 ` +
+          `workspace 跑`,
       );
-    }
-    // 空停靠基线滞后检查(2026-10-19:pr-merge 收口尾步常态自愈;网页合并/脚本外收口
-    // 会漂)。只警告不失败:空 @ 修复 = 一条 jj new master,快查语境失败过重;但滞后
-    // 会让主树 build/游玩拿到旧代码(2026-10-19 实锤),必须点名。
-    const behindMaster = countRev(`::(master@origin) & ~::@`);
-    if (behindMaster > 0) {
-      console.warn(
-        `[freshness] ⚠ 主树空停靠在落后 origin/master ${behindMaster} 个提交的基线上——` +
-          `主树 build/游玩会拿到旧代码;回主树 jj new master 前移(pr-merge 收口尾步会自动做)`,
-      );
+    } else {
+      // 停靠位描述残留检查(2026-10-19 #620 实锤:AI 会话 shell cwd 重置后 jj describe
+      // 误跑主树,空树带描述恰好穿过上面的「非空」判据)。停靠口径 = 空+无描述;带描述
+      // = 有会话在此落过话头,红(还原一条命令,但先核实是不是在场会话的在途标记)。
+      const desc = jj("log", "-r", mainAt, "--no-graph", "-T", "description");
+      if (desc !== "") {
+        failures.push(
+          `主树 @ 空但带描述「${desc.split("\n")[0]}」——停靠位口径是空+无描述,有会话误写;` +
+            `核实归属后 jj describe -m "" 还原(自己误写直接还原,他人的先报告)`,
+        );
+      }
+      // 空停靠基线滞后检查(2026-10-19:pr-merge 收口尾步常态自愈;网页合并/脚本外收口
+      // 会漂)。只警告不失败:空 @ 修复 = 一条 jj new master,快查语境失败过重;但滞后
+      // 会让主树 build/游玩拿到旧代码(2026-10-19 实锤),必须点名。仅主树内报(workspace
+      // 会话无关此及时性)。
+      if (inMainTree) {
+        const behindMaster = countRev(`::(master@origin) & ~::@`);
+        if (behindMaster > 0) {
+          console.warn(
+            `[freshness] ⚠ 主树空停靠在落后 origin/master ${behindMaster} 个提交的基线上——` +
+              `主树 build/游玩会拿到旧代码;回主树 jj new master 前移(pr-merge 收口尾步会自动做)`,
+          );
+        }
+      }
     }
   }
 }
