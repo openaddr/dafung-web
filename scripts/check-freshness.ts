@@ -201,7 +201,16 @@ if (behindMain > maxBehind) {
   }
 }
 
-// rule 5:冲突标记扫描(只查外对 `<<<<<<< `/`>>>>>>> `,行首+空格,规避 md setext
+// rule 5:冲突态——jj 原生 conflict 旗是权威判据(@ 树含未解冲突即 yes;rebase 留冲突
+// 不报错、一等公民只挡 push,#990 会话实锤:三文件冲突漏检直跑门禁,fmt/typecheck 红
+// 才兜出)。旗查完再扫标记兜文件面(材料化标记随 jj 版本可变,旗不依赖形态)。
+const conflictedFlag = jj("log", "-r", "@", "--no-graph", "-T", 'if(conflict, "yes", "no")');
+if (conflictedFlag === "yes") {
+  failures.push(
+    "@ 提交含未解冲突(jj rebase 不报错,只挡 push)——消解冲突文件后重跑;冲突树上跑门禁=假绿风险",
+  );
+}
+// rule 5 附:冲突标记扫描(只查外对 `<<<<<<< `/`>>>>>>> `,行首+空格,规避 md setext
 // `======` 误报);二进制文件(内容含 NUL)跳过
 const conflicted: string[] = [];
 for (const file of jj("file", "list").split("\n").filter(Boolean)) {

@@ -32,9 +32,17 @@ import { join } from "node:path";
 const LOCK_PATH = process.env.DAFUNG_TEST_LOCK_PATH ?? join(tmpdir(), "dafung-web-test.lock");
 const POLL_MS = 2000;
 
-const cmd = process.argv.slice(2);
+// --entry <名>(可选):把外层 package.json 入口名记进 holder 四元组——command 字段是
+// 内层命令串,与定向入口(scripts/e2e-one.ts 同串)无法区分,#990 会话据此误读
+// 「定向 e2e:one 也进锁」一次;入口名消歧。
+const argv = process.argv.slice(2);
+const entryFlag = argv.indexOf("--entry");
+const entry = entryFlag >= 0 ? argv[entryFlag + 1] : undefined;
+const cmd = entryFlag >= 0 ? argv.filter((_, i) => i !== entryFlag && i !== entryFlag + 1) : argv;
 if (cmd.length === 0) {
-  console.error("用法:bun scripts/test-lock.ts <命令...>(抢全量测试锁后执行命令,退出释放)");
+  console.error(
+    "用法:bun scripts/test-lock.ts [--entry <入口名>] <命令...>(抢全量测试锁后执行命令,退出释放)",
+  );
   process.exit(2);
 }
 
@@ -42,6 +50,8 @@ if (cmd.length === 0) {
 interface LockBody {
   pid: number;
   command: string;
+  /** 外层 package.json 入口名(--entry 传入;直调=“(直调)”),消歧内层命令串。 */
+  entry?: string;
   startedAt: string;
   cwd: string;
 }
@@ -95,6 +105,7 @@ function tryAcquire(): boolean {
     JSON.stringify({
       pid: process.pid,
       command: cmd.join(" "),
+      entry: entry ?? "(直调)",
       startedAt: new Date().toISOString(),
       cwd: process.cwd(),
     }),
