@@ -6,9 +6,11 @@
 //   (树上内容=发布内容);③Android 环境四件套在位(缺了 tauri build 自行响亮报错,不兜底);
 //   ④gh 已登录(未登录 create 步自行红)。
 // 版本单源 package.json(CalVer):发版前先 bump version 走 PR 合入 master(AGENTS.md 规约)。
+// 防挤兑(2026-11-01 拍板,多会话并行):①tag 查重重号即红;②tmp/release.lock 原子锁,
+//   撞锁红字让位、持锁超 1h 视为被杀残锁可接管——触发时机与三闸全量口径见 how-to「发版时机」。
 // 签名现状:debug 签名包可装、同机可覆盖升级(签名=本机 debug.keystore);正式签名未配,
 //   配好后再切 --release。出包配方见 docs/how-to/开发与测试.md「安卓出包」。
-import { copyFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 
 const APK_OUT = "src-tauri/gen/android/app/build/outputs/apk";
@@ -78,6 +80,40 @@ console.log(
   `[release] 发布目标 master@origin=${masterId.slice(0, 9)} tag=${tag}${draft ? " (draft)" : ""}${dryRun ? " (dry-run,到此为止)" : ""}`,
 );
 if (dryRun) process.exit(0);
+
+// 3.5) 发版锁(防并行会话挤兑出包):tmp/release.lock mkdir 原子锁(Git Bash 无 flock 的
+//    既有替代)。持锁超 1h 视为被杀残锁可接管——started-at 缺失/不可读同判,接管正是残锁
+//    的归宿而非吞错;exit handler 统一解锁(正常/失败路径都清,kill -9 才留残锁交给接管)。
+const LOCK_DIR = "tmp/release.lock";
+const STALE_MS = 60 * 60 * 1000;
+if (existsSync(LOCK_DIR)) {
+  let startedAt = 0;
+  try {
+    startedAt = Number(readFileSync(path.join(LOCK_DIR, "started-at"), "utf8"));
+  } catch {
+    startedAt = 0;
+  }
+  if (Date.now() - startedAt < STALE_MS) {
+    red(
+      `发版锁被占用(tmp/release.lock${startedAt ? `,起始 ${new Date(startedAt).toISOString()}` : ""})——另一会话发版进行中,本次变更滚入下一版勿抢;锁超 1h 视为残锁,删 tmp/release.lock 接管。`,
+    );
+  }
+  console.log("[release] 发版锁超 1h 视为被杀残锁,接管。");
+}
+mkdirSync(LOCK_DIR, { recursive: true });
+writeFileSync(path.join(LOCK_DIR, "started-at"), String(Date.now()));
+process.on("exit", () => {
+  try {
+    rmSync(LOCK_DIR, { recursive: true, force: true });
+  } catch {
+    // exit handler 内不可抛(会吞退出码):解锁失败留残锁,1h 后自动可接管
+  }
+});
+// 锁内重查 tag(拿锁前的查重结论会过期:并行发版可能刚把它发掉)
+const remoteTagRe = run(["git", "ls-remote", "origin", `refs/tags/${tag}`]);
+if (!remoteTagRe.ok) red(`git ls-remote 失败:${remoteTagRe.out}`);
+if (remoteTagRe.out)
+  red(`远端已有 ${tag}(拿锁前查重后被并行会话发掉)——bump package.json version 再发。`);
 
 // 4) 出包 + 对账。产物目录名随 CLI 布局走(#894 实测 2.11.4 落 universal/ 而非目标名),
 //    按「唯一 APK」定位不写死布局;包内 ABI 由 --target 过滤,断言纯度防 jniLibs 残挂混包。
