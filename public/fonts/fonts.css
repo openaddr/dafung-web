@@ -353,9 +353,10 @@
    字形扫描(全量 cmap 轮廓级判定,检测器以小薇已知坏字 回圃囄圊 校准 4/4):零实心/空心
    方块,无剔除码位;语料中字体缺字 91 字(「」、《》、帧 等罕用符)不设码位,消费位经
    下方字栈回退 Ma Shan Zheng/KaiTi 承接(同龙藏先例)。扫描报告:tmp/font-scan-report.json。
-   消费:标题位(屏标题/城名/横幅/印文)用 .font-title 或 var(--font-title);
-   font-brush(马善政)保留给非标题笔书位。── */
-:root{--font-title:"ZCOOL KuHei","Ma Shan Zheng","KaiTi","STKaiti",serif;}
+   消费:标题位(屏标题/横幅/印文)用 .font-title 或 var(--font-title),城名已退役迁
+   font-deco(#925);font-brush(马善政)保留给非标题笔书位。── */
+/* --font-title 变量单源已收编 src/app/styles/tokens.css(gen:theme 产出,#931),
+   本文件只留 .font-title 消费类;重生成镜像时勿把变量行搬回来。 */
 .font-title{font-family:var(--font-title);}
 @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/zcool-kuhei/1.woff2') format('woff2');unicode-range:U+3002, U+4e00, U+4e0a-4e0b, U+4e0d-4e0e, U+4e24, U+4e2d, U+4e3a-4e3b, U+4e8b, U+4ea4, U+4ea7, U+4ef6, U+4f4d, U+4f53, U+5165, U+5168, U+5185, U+51fa, U+524d, U+52a8, U+5355, U+5373, U+539f, U+53d1, U+53d8, U+53e3, U+53ea, U+53ef, U+5408, U+540c-540e, U+5668, U+56de, U+56fe, U+5728, U+5730, U+57ce, U+5b57, U+5b9a, U+5b9d, U+5bf9, U+5c40, U+5c42, U+5df2, U+5e95, U+5ea7, U+5f00, U+5f0f, U+5f15, U+5f84, U+6001, U+624b, U+6302, U+6309, U+63a5, U+64ce, U+6536, U+6570, U+6587, U+65e0, U+65f6, U+662f, U+6709, U+672c, U+673a, U+6807, U+683c, U+6863, U+6bb5, U+6d88, U+6e05, U+70b9, U+7167, U+724c, U+73b0, U+7528, U+7531, U+7684, U+76ee, U+7a97, U+7b49, U+7b97, U+7ea7, U+7ebf, U+7ed3, U+81ea, U+843d, U+884c, U+8868, U+8d77, U+8fdb, U+9009, U+90fd, U+91cd, U+91d1, U+968f, U+9762;}
 @font-face{font-family:'ZCOOL KuHei';font-style:normal;font-weight:400;font-display:swap;src:url('/fonts/zcool-kuhei/2.woff2') format('woff2');unicode-range:U+4e09, U+4e49, U+4ef7, U+4fa7, U+4fdd, U+503c, U+518d, U+5199, U+519b, U+51b3, U+5206, U+5217, U+5230, U+5236, U+52a0, U+5316, U+5361, U+5370, U+53cd, U+53d6, U+53f7, U+547d, U+56ca, U+573a, U+57df, U+5904, U+590d, U+5931, U+5b50, U+5b9e, U+5bb6, U+5c06, U+5c4f, U+5e26, U+5e8f, U+5e94, U+5f52, U+5feb, U+6210, U+6279, U+6280, U+636e, U+653e, U+6548, U+65b0, U+65b9, U+65e7, U+672a, U+6761, U+67d3, U+6b21, U+6b64-6b65, U+6c60, U+6ce8, U+6d41, U+6d6e, U+6e90, U+72b6, U+73a9, U+73cd, U+751f, U+753b, U+7559, U+76f4, U+7834, U+79fb, U+7a7a, U+7aef, U+7b56, U+7c7b, U+7ecf, U+7f6e, U+8005, U+8054, U+8272, U+88ab, U+89c1, U+89e6, U+8ba1, U+8ba4, U+8bed, U+8bfb, U+8c03, U+8d39, U+8d70, U+8def, U+8f7d, U+8fc7, U+8fde, U+9000, U+9047, U+90e8, U+91cf, U+94ae, U+9526, U+957f, U+975e, U+9879, U+9996;}

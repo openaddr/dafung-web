@@ -44,6 +44,10 @@ for (const [key, curve] of Object.entries(Motion.ease)) {
 }
 
 lines.push(
+  // S2 #508 方向 D 标题字;2026-11-01 #931 收编单源:原先独在 public/fonts/fonts.css
+  // 的 :root 行迁入本块与四族同列(fonts.css 只留 .font-title 类与指针,重生成镜像
+  // 勿整表覆盖的雷区在 @font-face,勿碰)。
+  '  --font-title: "ZCOOL KuHei", "Ma Shan Zheng", "KaiTi", "STKaiti", serif;',
   '  --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;',
   '  --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;',
   // A4(#51):霞鹜文楷——规则/事件说明正文用(public/fonts/wenkai/ 分片自托管,OFL)。

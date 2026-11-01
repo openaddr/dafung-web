@@ -47,6 +47,7 @@
   --ease-in: cubic-bezier(0.4, 0, 1, 1);
   --ease-out-back: cubic-bezier(0.34, 1.56, 0.64, 1);
   --ease-sine: cubic-bezier(0.45, 0, 0.55, 1);
+  --font-title: "ZCOOL KuHei", "Ma Shan Zheng", "KaiTi", "STKaiti", serif;
   --font-brush: "Ma Shan Zheng", "ZCOOL XiaoWei", "KaiTi", "STKaiti", serif;
   --font-deco: "ZCOOL XiaoWei", "KaiTi", serif;
   --font-wenkai: "LXGW WenKai", "KaiTi", "STKaiti", serif;
