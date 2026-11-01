@@ -23,10 +23,9 @@ test("棋盘栈+fx/flow 宿主合成层提升契约(#1013)", async ({ page }) =>
       token: pick("[data-token-player]"),
     };
   });
-  expect(wc).not.toBeNull();
-  expect(wc!.stack).toBe("transform");
-  expect(wc!.fx).toBe("transform");
-  expect(wc!.flow).toBe("transform");
-  expect(wc!.tokensHost).toBe("auto");
-  expect(wc!.token).toBe("transform");
+  expect(wc.stack).toBe("transform");
+  expect(wc.fx).toBe("transform");
+  expect(wc.flow).toBe("transform");
+  expect(wc.tokensHost).toBe("auto");
+  expect(wc.token).toBe("transform");
 });
