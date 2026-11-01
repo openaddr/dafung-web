@@ -61,8 +61,9 @@ describe("特殊城池两字徽标(#828)", () => {
   it("印随 TILE_SCALE 整体缩放(旧宝印独立系已收编)", () => {
     // EventSeal 挂在 Tile 的 translate/scale(TILE_SCALE) 组内,自身不再带比例——
     // 钉住「屏上尺寸 = 逻辑尺寸 × TILE_SCALE」的单源口径,防未来私自加 scale。
+    // #938 拷问拍板:城池视觉放大 2.2→2.6,本钉随单源走(改比例须过本测试=有意为之)。
     const markup = renderToStaticMarkup(<EventSeal event="treasure" />);
     expect(markup).not.toContain("scale");
-    expect(TILE_SCALE).toBe(2.2);
+    expect(TILE_SCALE).toBe(2.6);
   });
 });

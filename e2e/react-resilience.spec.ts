@@ -11,7 +11,12 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 // 零兜底原则:图库数据损坏 = 启动时解析默认地图即抛,首页被拦在「地图清单加载中…」
 // 并显式报错(HintBar 显示失败原因)——损坏可见,不静默清空、不静默忽略。
 test("图库 localStorage 垃圾数据:首页显式报错(损坏可见,不静默清空)", async ({ page }) => {
-  await page.addInitScript(() => localStorage.setItem("dafung-custom-maps", "not-json{{{"));
+  // #938:本用例验「无记忆 id 时启动走清单单源」——解钉 fixtures 的图谱固定,
+  // 否则 mapId 直连内建图绕开清单解析,垃圾图库不再拦启动(用例前提失效)。
+  await page.addInitScript(() => {
+    localStorage.removeItem("dafung.mapId");
+    localStorage.setItem("dafung-custom-maps", "not-json{{{");
+  });
   await page.goto("/");
   await expect(page.getByText("地图清单加载中…")).toBeVisible({ timeout: 10_000 });
   await expect(page.getByText(/地图清单加载失败/)).toBeVisible({ timeout: 10_000 });

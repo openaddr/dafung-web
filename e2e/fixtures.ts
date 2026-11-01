@@ -31,6 +31,13 @@ const reactionMs = process.env.E2E_REACTION_MS ?? "5000";
 // (演出可读),e2e 对局节奏仍走 0ms 连锁保墙钟;要验配速行为的用例经 env 显式开启。
 // 单机经 E2E_BOT_STEP_MS_KEY → registry 选项 botStepMs(与 server env 同一通道)。
 const botStepMs = process.env.E2E_BOT_STEP_MS ?? "0";
+// 图谱钉死(#938):默认图已换「关中图」,但大批 spec 的种子链按图格序复算钉死
+// (seed 63/50 × 环游图的行军/反应/锦囊链)——图谱是数据不是被测物,统一钉回
+// huanyou 保种子谱零重钉;验「默认图语义」的用例(默认图名/选图清单)自行解钉
+// (removeItem 本键,见 react-setup / react-map-selection)。键名与 App.tsx
+// MAP_PREF_KEY 同字面量(src 侧常量不导出,勿引模块防 timings 型解析外溢)。
+const e2eMapId = process.env.E2E_MAP_ID ?? "huanyou";
+const MAP_PREF_KEY = "dafung.mapId";
 
 /** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速;并开调试桥门禁
  *  (registry.installDebugHooks 双门禁:生产构建不注册 window.__dafung,dev 或
@@ -38,11 +45,22 @@ const botStepMs = process.env.E2E_BOT_STEP_MS ?? "0";
 export const test = base.extend({
   page: async ({ page }, use) => {
     await page.addInitScript(
-      ({ key, value, bridge, reactionKey, reactionValue, botStepKey, botStepValue }) => {
+      ({
+        key,
+        value,
+        bridge,
+        reactionKey,
+        reactionValue,
+        botStepKey,
+        botStepValue,
+        mapKey,
+        mapValue,
+      }) => {
         localStorage.setItem(key, value);
         localStorage.setItem(bridge, "1");
         localStorage.setItem(reactionKey, reactionValue);
         localStorage.setItem(botStepKey, botStepValue);
+        localStorage.setItem(mapKey, mapValue);
       },
       {
         key: E2E_TIME_SCALE_KEY,
@@ -52,6 +70,8 @@ export const test = base.extend({
         reactionValue: reactionMs,
         botStepKey: E2E_BOT_STEP_MS_KEY,
         botStepValue: botStepMs,
+        mapKey: MAP_PREF_KEY,
+        mapValue: e2eMapId,
       },
     );
     await use(page);
@@ -61,12 +81,17 @@ export const test = base.extend({
 /** 联机/韧性 spec 免注入(#116 评审实证):对局节奏由服务端驱动,客户端编排加速
  *  只会造出快照洪流——实测 0.25 倍率下服务端 2.5s 冲 109 轮,guest 代打页被卡死
  *  不落子,服务端无决策超时永久等待(市面无此保护)。联机用例提速归零收益,维持全速;
- *  但调试桥门禁键仍要注入(coreState/force 读 window.__dafung,生产构建下无键不注册)。 */
+ *  但调试桥门禁键仍要注入(coreState/force 读 window.__dafung,生产构建下无键不注册),
+ *  图谱钉死同批(#938,联机房间图同样跟随默认单源)。 */
 export const testUnscaled = base.extend({
   page: async ({ page }, use) => {
-    await page.addInitScript(({ bridge }) => localStorage.setItem(bridge, "1"), {
-      bridge: E2E_DEBUG_BRIDGE_KEY,
-    });
+    await page.addInitScript(
+      ({ bridge, mapKey, mapValue }) => {
+        localStorage.setItem(bridge, "1");
+        localStorage.setItem(mapKey, mapValue);
+      },
+      { bridge: E2E_DEBUG_BRIDGE_KEY, mapKey: MAP_PREF_KEY, mapValue: e2eMapId },
+    );
     await use(page);
   },
 });

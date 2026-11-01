@@ -23,9 +23,11 @@ import type { CityTier } from "@core/economy";
 import { TREASURE_PRICE } from "@core/treasures";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 
-/** 两图共用标准表(ADR-0041;环游图侧生成器 make-huanyou-map.ts TIERS 同源同值),
- *  键 = 城池档位单字口径(economy.CityTier,两图逐城 tier 字段)。购价百两速记:
+/** 三图共用标准表(ADR-0041 两图统一,关中图 #938 入编;环游图侧生成器
+ *  make-huanyou-map.ts / 关中图侧 make-guanzhong-map.ts TIERS 同源同值),
+ *  键 = 城池档位单字口径(economy.CityTier,逐城 tier 字段)。购价百两速记:
  *  县 18 档/郡·奇 30 档/名 48 档;变卖价 = 购价 × [60%, 90%, 120%, 150%];建城费 = 购价 50%。 */
 const STANDARD: Record<
   CityTier,
@@ -68,9 +70,11 @@ const STANDARD: Record<
 };
 
 /** 各图各档数量盘子(ADR-0034 拍板的分配盘子,防逐城微调悄悄改盘子;
- *  环游图 36 城:县城含 5 座 #827 派生名城[商市城/锦囊城×2/卧龙城/天命城])。 */
+ *  环游图 36 城:县城含 5 座 #827 派生名城[商市城/锦囊城×2/卧龙城/天命城];
+ *  关中图 28 城(#938):环游图盘子按 7/9 等比缩,县城同样含 5 座派生名城)。 */
 const HUANYOU_COUNTS: Record<CityTier, number> = { 县: 16, 郡: 11, 奇: 5, 名: 4 };
 const ZY_COUNTS: Record<CityTier, number> = { 县: 3, 郡: 2, 奇: 2, 名: 1 };
+const GUANZHONG_COUNTS: Record<CityTier, number> = { 县: 12, 郡: 9, 奇: 4, 名: 3 };
 
 function checkMap(name: string, data: unknown, counts: Record<CityTier, number>) {
   const m = loadMap(data);
@@ -95,7 +99,8 @@ function checkMap(name: string, data: unknown, counts: Record<CityTier, number>)
   });
 }
 
-describe("经济数值守卫(四档城制,ADR-0034;两图同表,ADR-0041;tier 显式对账,ADR-0042)", () => {
+describe("经济数值守卫(四档城制,ADR-0034;三图同表,ADR-0041+#938;tier 显式对账,ADR-0042)", () => {
+  checkMap("guanzhong", guanzhongData, GUANZHONG_COUNTS);
   checkMap("huanyou", huanyouData, HUANYOU_COUNTS);
   checkMap("zhongyuan", zhongyuanData, ZY_COUNTS);
 
