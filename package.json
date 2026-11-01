@@ -20,6 +20,7 @@
     "check:fmt": "oxfmt --check",
     "check:links": "bun scripts/check-doc-links.ts",
     "check:retired": "bun scripts/check-retired-phrases.ts",
+    "check:fake-bold": "bun scripts/check-fake-bold.ts",
     "check:map-docs": "bun scripts/check-map-docs.ts",
     "check:e2e-testids": "bun scripts/check-e2e-testids.ts",
     "test": "bun scripts/test-lock.ts bun test",
