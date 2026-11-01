@@ -1,18 +1,16 @@
 import { defineConfig } from "vite";
+import pkg from "./package.json";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
-import pkg from "./package.json";
 
-// 构建戳(用户拍板 2026-09-26:版本角标直接用年月日时分,如 v2026.09.26.0102)。
-// 取构建发生的本地时刻——页面角标一眼可辨「这是哪次构建」,serve 常驻时端旧 dist 立现。
-const pad = (n: number) => String(n).padStart(2, "0");
-const now = new Date();
-const BUILD_STAMP = `v${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.getDate())}.${pad(now.getHours())}${pad(now.getMinutes())}`;
-
+// 发版号(用户拍板 2026-11-01 #952:构建戳全链退役——同日 #981「两把尺」口径随之
+// 翻面,诊断包 build 字段与文件名戳一并退役,ADR-0047 已修订)。
+// 单源 package.json 的 CalVer version,构建期注入 __APP_VERSION__:设置弹层「版本」行、
+// 主页角落小字、诊断包三方消费;与 Release tag(v 前缀)、APK versionName 同值
+// (release.ts 对账闸兜真)。
 export default defineConfig({
   define: {
-    __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
     __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [react(), tailwindcss()],

@@ -2,16 +2,16 @@
 // 对局日志(IndexedDB 归档,局中增量写,不挑终局;30 天保底内的都在)+ 当前帧诊缓冲。
 // 与对局日志导出(gameLogExport.ts)分文件:LogEvent 是 ADR-0014 类型化事件流,
 // 性能数据不混入 core schema;两把钥匙同挂设置弹窗。
-// 文件名 `dafung-diag-<构建戳>.json`(构建戳=版本角标单源,收包即知对方跑的哪次构建)。
+// 文件名 `dafung-diag-<发版号>.json`(发版号=版本单源,收包即知对方跑的哪个 release;
+// #981 原用构建戳,随 #952 拍板构建戳全链退役改用发版号,build 字段同步退役)。
 import { loadAllArchive } from "./gameLogArchive";
 import { collectFrameDiag, type FrameDiagDump } from "./frameDiag";
-import { APP_VERSION, VERSION } from "../version";
+import { VERSION } from "../version";
 
 export interface DiagBundle {
   kind: "dafung-diag";
   schemaVersion: 1;
   appVersion: string;
-  build: string;
   /** 导出墙钟(epoch ms;帧诊内部时间戳是 performance.now 相对值,锚在此)。 */
   exportedAt: number;
   /** 设备画像:UA(WebView 版本可读)/DPR/视口。 */
@@ -28,8 +28,7 @@ export async function buildDiagBundle(): Promise<DiagBundle> {
   return {
     kind: "dafung-diag",
     schemaVersion: 1,
-    appVersion: APP_VERSION,
-    build: VERSION,
+    appVersion: VERSION,
     exportedAt: Date.now(),
     ua: navigator.userAgent,
     dpr: window.devicePixelRatio,
