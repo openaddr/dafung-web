@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { startWarmup } from "@app/warmup";
+import { exportDiagnostics } from "@app/diagExport";
 import { useMediaQuery } from "@app/hooks/use-media-query";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
@@ -216,6 +217,18 @@ export function HomeScreen({
             <Sym name="expand" size={11} className="text-paper-dim" />
           </button>
         )}
+
+        {/* 性能诊断导出(帧诊通道 ADR-0047):诊断包=设备画像+全部历史对局日志(含未
+            打完的局)+最近一局帧诊。入口在主页——用户测试常不打完就退出,不绑对局屏;
+            小字入口贴地图行下方(诊断是工具位不是玩法入口,不入按钮列)。 */}
+        <button
+          type="button"
+          data-testid={HOME_TID.diagExport}
+          onClick={() => void exportDiagnostics()}
+          className="mt-4 cursor-pointer font-wenkai text-[13px] text-paper-dim transition-colors hover:text-paper"
+        >
+          性能诊断
+        </button>
 
         {/* 地图选择二级屏:复用原面板,确认后回写选中 id(取消保留原选择;fixed 弹层,滚动容器内无关)。
             #707:矮横屏档不挂弹层(该档选择器=条带;桌面开着的弹层旋到矮横屏时随档卸载,

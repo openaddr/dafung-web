@@ -72,8 +72,6 @@ export const TESTIDS = {
   settingsWarReport: "settings-war-report",
   /** 回到主页行(弃局离屏:销毁控制器回 setup)。 */
   settingsHome: "settings-home",
-  /** 性能诊断导出行(诊断包:历史对局日志全量+帧诊+设备画像;局中随时可导,ADR-0047)。 */
-  settingsDiagExport: "settings-diag-export",
   /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
   attrTip: "attr-tip",
 

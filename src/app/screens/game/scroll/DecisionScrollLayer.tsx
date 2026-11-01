@@ -28,7 +28,6 @@ import {
 } from "./index";
 import { BannerGhostContext } from "./BannerShell";
 import { useGhostChild } from "./useGhostChild";
-import { exportGameLog } from "../gameLogExport";
 import type { TileDetailRequest } from "../useCapitalPick";
 
 export interface DecisionScrollLayerProps {
@@ -84,7 +83,6 @@ export function DecisionScrollLayer({
           winReason="aborted"
           turnNumber={snapshot.round}
           onRestart={() => location.reload()}
-          onExportLog={() => void exportGameLog(snapshot)}
         />
       );
     }
@@ -116,8 +114,6 @@ export function DecisionScrollLayer({
               }))}
             // 重开:最朴素可靠的方式是整页重载回设置屏(旧版亦无局内重开)
             onRestart={() => location.reload()}
-            // ADR-0014:对局日志导出入口(终局落完整 jsonl 文件,含局头)
-            onExportLog={() => void exportGameLog(snapshot)}
           />
         );
       }
