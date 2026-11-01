@@ -278,6 +278,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await huo.locator(TESTIDS.skillChip("huogong")).click();
     const glossary = page.getByTestId(TESTIDS.skillGlossary);
     await expect(glossary).toBeVisible();
+    // 浏览语境(麾下将/技能卡)只读无拍板钮——「收为麾下」仅招贤消费方传 onPick 在场
+    await expect(glossary.getByTestId(TESTIDS.skillGlossaryPick)).toHaveCount(0);
     await expect(
       glossary.locator(`[data-testid="${TESTIDS.skillGlossaryRow("huogong")}"]`),
     ).toHaveClass(/is-hl/);

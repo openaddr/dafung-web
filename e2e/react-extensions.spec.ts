@@ -78,7 +78,11 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     const before = await snap(page);
     const cashBefore = before.players[0].cash;
     const samplePromise = sampleFx(page, "义从归心", "义");
+    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
     await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
+    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
+    await expect(pick).toBeVisible();
+    await pick.click();
     await expect(scroll).toBeHidden();
     await expect
       .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
@@ -159,7 +163,11 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
       }
     `,
     );
+    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
     await page.getByTestId(T.heroPickScroll).getByTestId(T.heroPickOption(0)).click();
+    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
+    await expect(pick).toBeVisible();
+    await pick.click();
 
     // 问询弹层(#424 InquiryLayer):题名随呈现意图(信义盲选),牌背盲选——
     // 选项 label 是序号,牌面(连环计/缓兵之计)不得在任何可见文本里泄露

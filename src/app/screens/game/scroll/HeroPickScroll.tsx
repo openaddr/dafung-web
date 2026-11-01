@@ -5,8 +5,8 @@
 // 替换旧横排列表——归一后招贤/出牌阶段确认/府库同一张名将卡面(「选将是收将的第一
 // 眼」= 日后在府库摩挲的同一张);候选 Hover=金描边光圈(§4.6 状态变化承载)。
 // r5 裁定②快捷键退场:1/2/3 键位角标与监听一并撤除,选择交互=点选(本作不重视
-// 快捷键,DESIGN §4.6 邻域);卡 title 带全文(#605 起=技名 chips,全文走点技名
-// 弹技能全览,先看后选)。
+// 快捷键,DESIGN §4.6 邻域);卡 title 带全文(#605 起=技名 chips,全文走全览弹框,
+// 点卡/点技名都开弹框、弹框内拍板——先看后选)。
 // #787 预掷明牌(ADR-0036):候选行自带生成时掷定的授技子集(快照 offeredHeroes
 // 随行),卡面只亮预掷结果——招贤瞬间看到的授技,就是日后在府库摩挲的同一份。
 // #850 技能演出补课:①实授技 chips 入场后逐个钤落(fx.css fx-chip-slam,120ms 错拍,
@@ -39,14 +39,16 @@ export interface HeroPickScrollProps {
 }
 
 export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
-  // 技能全览(#605):点候选将技名 chip=先看后选,chip 点击不触发选将(closest 判定
-  // 分流,出牌技能卡主技名同款);弹框浮于招贤层上,关闭再从容点卡选将。
-  // 池全貌与已授对照(#787):全览入参带池(heroDefOf 回查)与已授(候选行预掷)两集,
-  // 池内未授者灰置——先看全貌再决定收不收。
-  const [glossary, setGlossary] = useState<SkillGlossaryTarget | null>(null);
-  // 确认节拍(#850):点将后先钤金「将」印一拍(UI.pickSealMs 全长,消隐拍=发命令),
+  // 先看后选(2026-11-01 用户拍板:点卡不再直选):点卡与点技名 chip 都开技能全览
+  // 详情弹框,弹框内「收为麾下」拍板——技名不知道是啥、想点开看看却直接定将的误选
+  // 通路就此断掉。#605 chip 分流保留:点技名仍弹框,只是额外高亮被点技;弹框记候选
+  // 位次,拍板回调先关弹框(卡面回台前)再走钤印节拍。
+  // #850 确认节拍:拍板后先钤金「将」印一拍(UI.pickSealMs 全长,消隐拍=发命令),
   // 在途期间重复点击一律忽略(交互守卫,非兜底);卸载(整屏切换类)随 effect 清场
   // 收计时器——命令未发则相位原封,卷轴随快照重开,选择权回到玩家。
+  const [glossary, setGlossary] = useState<{ index: number; target: SkillGlossaryTarget } | null>(
+    null,
+  );
   const [confirming, setConfirming] = useState<number | null>(null);
   const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
@@ -58,16 +60,18 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
   if (!offered.length) return null; // 与旧 showHeroPickScroll 一致:无候选不弹
   const pick = (e: ReactMouseEvent<HTMLButtonElement>, i: number) => {
     if (confirming != null) return; // 钤印节拍在途,吞掉重复点击
-    const chipSkillId = skillIdFromClick(e);
-    if (chipSkillId != null) {
-      setGlossary({
+    setGlossary({
+      index: i,
+      target: {
         heroId: offered[i]!.id,
         poolSkillIds: heroDefOf(offered[i]!.id).skillPool,
         skillIds: offered[i]!.skillIds,
-        skillId: chipSkillId,
-      });
-      return;
-    }
+        skillId: skillIdFromClick(e),
+      },
+    });
+  };
+  const confirmPick = (i: number) => {
+    setGlossary(null); // 弹框收场,卡面回台前接钤金印
     setConfirming(i);
     confirmTimerRef.current = setTimeout(() => {
       confirmTimerRef.current = null;
@@ -111,7 +115,11 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
           })}
         </div>
       </BannerShell>
-      <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
+      <SkillGlossaryDialog
+        target={glossary?.target ?? null}
+        onPick={glossary != null ? () => confirmPick(glossary.index) : undefined}
+        onClose={() => setGlossary(null)}
+      />
     </>
   );
 }

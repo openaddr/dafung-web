@@ -50,8 +50,12 @@ test("招贤城落格抉择流:三选一选将 → 续跑交易链 → 购地买
     const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
     await expect(scroll).toBeVisible();
     await expect(scroll.getByRole("button")).toHaveCount(3); // 三选一(无「不取」)
-    // 选将 → 固定事件解毕续跑交易链(pendingCityEvent 消费):可购决策卷轴出现
+    // 选将(先看后选:点卡开全览弹框,「收为麾下」拍板)→ 固定事件解毕续跑交易链
+    // (pendingCityEvent 消费):可购决策卷轴出现
     await scroll.getByTestId(SCROLL_TESTIDS.heroPickOption(0)).click();
+    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
+    await expect(pick).toBeVisible();
+    await pick.click();
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
     const pid = await engineState(page, `e.board.at(${heroIdx.idx}).propertyId`);
     await waitFxIdle(page);
