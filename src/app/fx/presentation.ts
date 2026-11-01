@@ -15,8 +15,8 @@ import type { SoundEvent } from "./audio";
 import type { TurnAnnounceMeta } from "./fxStore";
 import { DUEL } from "./timings";
 
-/** 行军逐帧段(不变量①提取即定格,ADR-0029/#608):一段行走 = 「起点中心 → 弧线
- *  途经点(edgeWaypoints)→ 终点」的坐标数组,提取拍算死、播放期零读引擎。只烤
+/** 行军逐帧段(不变量①提取即定格,ADR-0029/#608):一段行走 = 「起点中心 → 终点」
+ *  的坐标数组(驿道恒直线 #928/ADR-0044,无途经点),提取拍算死、播放期零读引擎。只烤
  *  几何不烤时长——段时长由 useMarch 按 timings.MARCH 现算(保 scStage 缩放:e2e 键×追帧除法)。 */
 export interface MarchSegmentFrames {
   /** 逐帧行走点:首点=本段起点(上一段终点),播放器从下标 1 起逐帧写 transform;
@@ -42,8 +42,8 @@ export type PresentationEvent =
   | {
       kind: "tokenMoved";
       playerId: string;
-      /** 整条行走序列(提取拍烤死,ADR-0029 不变量①):每段起点中心→弧线途经→终点
-       *  (末段含落格槽位偏移)。播放器纯哑渲染,连棋盘对象都不摸。 */
+      /** 整条行走序列(提取拍烤死,ADR-0029 不变量①):每段起点中心→终点(驿道恒直线
+       *  #928/ADR-0044,无途经点;末段含落格槽位偏移)。播放器纯哑渲染,连棋盘对象都不摸。 */
       keyframes: MarchSegmentFrames[];
     }
   | {

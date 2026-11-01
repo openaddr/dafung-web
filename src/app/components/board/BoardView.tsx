@@ -127,7 +127,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   const svgRef = useRef<SVGSVGElement | null>(null);
   // 顶板(动态层,ADR-0040):viewBox 与底板同拍驱动。
   const tokensSvgRef = useRef<SVGSVGElement | null>(null);
-  // 地图 → Board/catalog(地图引用不变则不重建;道路避城弧线计算在 RoadsLayer 内做)
+  // 地图 → Board/catalog(地图引用不变则不重建;驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const loaded = useMemo(() => loadMap(map), [map]);
   // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),
   // 地图引用不变则视口不变;F1:viewBox 由 hook 命令式 setAttribute 更新,

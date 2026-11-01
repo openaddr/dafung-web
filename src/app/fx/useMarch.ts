@@ -1,5 +1,6 @@
 // 令牌行军播放(哑渲染,ADR-0029 不变量①「提取即定格」/#608):keyframes 已在提取
-// 拍烤死整条行走序列(起点中心→弧线途经→终点含落格槽位偏移+驿道流光折线),本模块
+// 拍烤死整条行走序列(起点中心→终点含落格槽位偏移+驿道流光折线,驿道恒直线
+// #928/ADR-0044),本模块
 // 只做逐帧消费——按 timings.MARCH 现算段时长(匀速 ∝ 距离,保 scStage 缩放)写
 // transform,连棋盘对象都不摸(FxSink 签名已编译期禁引擎)。
 // 单写者(ADR-0029 不变量②/#609):每枚棋子的视觉位置同一时刻只有一个写入者,归属
@@ -123,7 +124,7 @@ export function beginMarch(moverId: string, keyframes: readonly MarchSegmentFram
   useFxStore.getState().addMarching(moverId);
 }
 
-/** 驿道流光:行军每跨一格,沿该段烤好的弧线(flow 折线)叠加一条金色流光
+/** 驿道流光:行军每跨一格,沿该段烤好的折线(flow,恒直线)叠加一条金色流光
  *  (旧 highlightSegment;坐标提取拍已烤进事件,不再读棋盘)。 */
 function highlightSegment(flow: readonly BoardPos[]): void {
   const layer = document.querySelector<SVGGElement>("#bv-flow");

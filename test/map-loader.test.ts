@@ -1,6 +1,5 @@
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
-import { sideArc } from "@core/board";
 import huanyouData from "../public/maps/huanyou.json";
 
 describe("地图加载器(合法)", () => {
@@ -95,17 +94,5 @@ describe("地图校验(非法应抛可读错误)", () => {
     const d = base();
     d.tiles[0].tier = "都";
     expect(() => loadMap(d)).toThrow(/tier/);
-  });
-});
-
-describe("避城算法 sideArc", () => {
-  it("中间有城时弧线绕开(y 偏移)", () => {
-    const wps = sideArc({ x: 0, y: 0 }, { x: 1000, y: 0 }, [{ x: 500, y: 0 }]);
-    expect(wps.length).toBeGreaterThan(0);
-    expect(wps.some((w) => w.y !== 0)).toBe(true);
-  });
-  it("无其他城时返回两点途经", () => {
-    const wps = sideArc({ x: 0, y: 0 }, { x: 1000, y: 0 }, []);
-    expect(wps.length).toBe(2);
   });
 });

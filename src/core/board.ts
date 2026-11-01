@@ -35,10 +35,10 @@ export interface TileDef {
   /** 特殊城池固定事件(可选,城池格限定):落格走「固定事件 → 交易链」、不掷随机机遇
    *  (ADR-0037);无 event 的城池=普通城,机遇必出照旧。 */
   event?: TileEvent;
-  waypoints?: BoardPos[]; // 可选:主路该 tile 入边手配途经点(预留,默认自动避城)
 }
 
-/** 移动路径。Traversed=真实 tile 索引;Waypoints=动画途经位置(避城弧线)。 */
+/** 移动路径。Traversed=真实 tile 索引;Waypoints=行走序列(起点中心+逐格落位中心,
+ *  驿道恒直线 #928/ADR-0044,快照 lastMove 随行序列化)。 */
 export interface MovePath {
   from: number;
   traversed: number[];
@@ -55,44 +55,6 @@ export interface Board {
   positionOf(index: number): BoardPos;
   next(current: number): number;
   computePath(fromIndex: number, steps: number, capitalIndex: number): MovePath;
-  edgeWaypoints(from: number, to: number, threshold?: number): BoardPos[];
-}
-
-/** 避城弧线:在 a→b 的两个法向量方向中,选离其他城池更远的弧线途经点。 */
-export function sideArc(a: BoardPos, b: BoardPos, others: BoardPos[]): BoardPos[] {
-  const dx = b.x - a.x;
-  const dy = b.y - a.y;
-  const len = Math.hypot(dx, dy);
-  if (len < 1) return [{ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }];
-  const nx = -dy / len;
-  const ny = dx / len;
-  const sameP = (p: BoardPos, q: BoardPos) => p.x === q.x && p.y === q.y;
-  const pts = others.filter((op) => !sameP(op, a) && !sameP(op, b));
-  const make = (off: number, sign: number): BoardPos[] => [
-    { x: a.x + dx * 0.33 + nx * off * sign, y: a.y + dy * 0.33 + ny * off * sign },
-    { x: a.x + dx * 0.66 + nx * off * sign, y: a.y + dy * 0.66 + ny * off * sign },
-  ];
-  const minClear = (wps: BoardPos[]): number => {
-    let m = Infinity;
-    for (const wp of wps)
-      for (const op of pts) m = Math.min(m, Math.hypot(wp.x - op.x, wp.y - op.y));
-    return m;
-  };
-  let best = make(90, +1);
-  let bestClear = -1;
-  for (const off of [90, 125, 160]) {
-    const pos = make(off, +1);
-    const neg = make(off, -1);
-    const cp = minClear(pos),
-      cn = minClear(neg);
-    const [cand, clear] = cp >= cn ? [pos, cp] : [neg, cn];
-    if (clear > bestClear) {
-      bestClear = clear;
-      best = cand;
-    }
-    if (clear >= 75) return cand;
-  }
-  return best;
 }
 
 export function createBoard(tiles: TileDef[]): Board {
@@ -107,25 +69,15 @@ export function createBoard(tiles: TileDef[]): Board {
 
   const next = (current: number): number => normalize(current + 1);
 
-  const edgeWaypoints = (from: number, to: number, threshold = 300): BoardPos[] => {
-    const a = positionOf(from);
-    const b = positionOf(to);
-    if (Math.hypot(b.x - a.x, b.y - a.y) < threshold) return [];
-    const others = ordered.filter((_, i) => i !== from && i !== to).map((t) => t.position);
-    return sideArc(a, b, others);
-  };
-
-  /** 行军:逐格 +1,长边带蜿蜒途经点。 */
+  /** 行军:逐格 +1;驿道恒直线(#928/ADR-0044),行走序列=起点中心+逐格落位中心。 */
   const computePath = (fromIndex: number, steps: number, capitalIndex: number): MovePath => {
     if (steps < 0) throw new RangeError("steps must be >= 0");
     const traversed: number[] = [];
     const waypoints: BoardPos[] = [];
     let current = fromIndex;
     for (let i = 0; i < steps; i++) {
-      const prev = current;
       current = normalize(current + 1);
       traversed.push(current);
-      for (const bp of edgeWaypoints(prev, current)) waypoints.push(bp);
       waypoints.push(positionOf(current));
     }
     const landIndex = steps === 0 ? normalize(fromIndex) : traversed[traversed.length - 1];
@@ -147,6 +99,5 @@ export function createBoard(tiles: TileDef[]): Board {
     positionOf,
     next,
     computePath,
-    edgeWaypoints,
   };
 }
