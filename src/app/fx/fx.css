@@ -26,7 +26,7 @@
   z-index: 45;
   pointer-events: none;
   transform: translateY(-50%); /* top=胶囊竖直中线,签卡半高上提对齐 */
-  animation: dice-overlay-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 虚位段,DiceOverlay 内联注入 */
+  animation: dice-overlay-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 入场渐显,DiceOverlay 内联注入 */
 }
 @keyframes dice-overlay-in {
   from {
@@ -55,10 +55,8 @@
    退役):底色、双线框、墨字为旧 3D 骰面材质的同款字面量(「骰面」视觉身份的存续)——
    这些字面量是「骰面材质」而非色板色,故不引 token;
    黑色阴影属投影,保留字面量。
-   两段状态由 DiceOverlay 切类:
-   - .dice-sign-ready(第一段 虚位):签卡淡轮廓+淡「签」字静态现身一拍(旧摇签换字
-     轮换退役后的静态化,#849 棒1 蓄势可读口径的存续);
-   - .dice-sign-land(第二段 落定):真字 outBack 钤落(过冲回弹)。 */
+   单段式(ADR-0043 修订,2026-11-01 拍板):真字签卡直接随 overlay 渐显现身,
+   无虚位/钤落两段(原两段的段间整卡瞬隐读作「点数闪两下」,已实报拍板简化)。 */
 .dice-sign {
   min-width: 90px;
   padding: 2px 14px 10px;
@@ -75,39 +73,10 @@
   box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
-.dice-sign.dice-sign-ready {
-  /* 虚位(旧摇签态的静态化,#927):字影浅金(骰面米金字族的半透档)+签卡淡轮廓
-     (border 收 2px、底 5% 米金)——读得出「一枚签在酝酿」,落定拍真面仍靠 outBack
-     钤落反差。米金 236,220,176 字面量同 .dice-sign 骰面材质口径(非色板色)。 */
-  background: rgba(236, 220, 176, 0.05);
-  border-width: 2px;
-  border-color: rgba(236, 220, 176, 0.16);
-  outline-color: rgba(236, 220, 176, 0.16);
-  box-shadow: none;
-  color: rgba(236, 220, 176, 0.35);
-}
-/* 落定拍:#849 棒3 时长收口——outBack 钤落须落在 DICE.holdMs 预算内,
-   时长由 DiceOverlay 落定拍内联注入 DICE.landMs(随通道缩放,预算关系由
-   choreography-invariants 钉);back 类缓动统一 --ease-out-back(签面/标题弹跳专用 token)。 */
-.dice-sign.dice-sign-land {
-  animation: dice-sign-land var(--ease-out-back) both;
-}
-@keyframes dice-sign-land {
-  from {
-    transform: scale(1.6);
-    opacity: 0;
-  }
-  60% {
-    opacity: 1;
-  }
-  to {
-    transform: scale(1);
-    opacity: 1;
-  }
-}
 
 /* 落点金圈已随 #927 整体退役(ADR-0043):「落点炸开」的语义属于旧桌面中央制式,
-   顶中胶囊侧旁的一次性小签卡无需落点演出,落定感由钤落弧+骰落声+签面芯片揭示承担。 */
+   顶中胶囊侧旁的一次性小签卡无需落点演出,落定感由骰落声+签面芯片揭示承担
+   (钤落弧亦随 2026-11-01 单段式修订一并退役)。 */
 
 /* ── 桌面微震(S7 #492 拍板 4px 档,大事件限定;适用事件清单与原则单源
    在 DESIGN §6 动效规范,此处只指路不枚举)──
@@ -720,7 +689,8 @@
     rotate: 360deg;
   }
 }
-/* 落定拍:#849 棒3 时长收口(同 .dice-sign-land)——outBack 钤落须落在 clackGap
+/* 落定拍:#849 棒3 时长收口(拼点侧保留钤落弧;掷骰签同款弧已随 2026-11-01
+   单段式修订退役)——outBack 钤落须落在 clackGap
    间隙预算内,时长由 DuelSignsOverlay 落定拍内联注入 DUEL.landMs(随通道缩放)。 */
 .duel-sign.duel-sign-land {
   opacity: 1;

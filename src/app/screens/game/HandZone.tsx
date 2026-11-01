@@ -4,13 +4,13 @@
 // 签面(原仪表条「签」徽章平移,testid dice-face 不变):驻留上轮点数;待起摇
 // (#530)转「待」浅印 + 呼吸金边——UI 状态变化承载(DESIGN §4.6,不加文字标牌)。
 // 芯片提前剧透防线(审计 P2,#849 棒1 存续):lastRoll 在结算拍随快照入库,而掷骰
-// 签演出(#927,顶中胶囊侧旁)还在途——芯片订阅掷骰签落定拍(DiceOverlay.onDiceSignLand)
-// 才揭示新值,演出在途驻留上一掷点数。演出块被吸附/断线作废丢弃时落定拍不发生,
-// 揭示顺延到下一掷落定(跳切语境,权威快照本身无损)。
+// 签演出(#927,顶中胶囊侧旁)还在途——芯片订阅掷骰签揭示拍(DiceOverlay.onDiceSignReveal)
+// 才揭示新值,演出在途驻留上一掷点数。演出块被吸附/断线作废丢弃时揭示拍不发生,
+// 揭示顺延到下一掷现身(跳切语境,权威快照本身无损)。
 import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
-import { onDiceSignLand } from "@app/fx/DiceOverlay";
+import { onDiceSignReveal } from "@app/fx/DiceOverlay";
 import { ATTR_TIPS, Tip } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
@@ -36,14 +36,14 @@ export function HandZone({ snapshot, player, autopilotOn, children }: HandZonePr
     snapshot.turnPhase === "Roll" &&
     snapshot.players[snapshot.activeIndex]?.id === player.id;
   // 已揭示点数(#849 棒1):挂载初值取快照现值(整局恢复/重连水合场景,无演出
-  // 在途);此后只在落定拍推进(回调携带本次落定的点数,积压串播下各掷各揭,
-  // 不会把在摇的新签提前亮出)。
+  // 在途);此后只在揭示拍推进(回调携带本次点数,积压串播下各掷各揭,
+  // 不会把在途的新签提前亮出)。
   const [revealedRoll, setRevealedRoll] = useState(snapshot.lastRoll);
   const latestRollRef = useRef(snapshot.lastRoll);
   useEffect(() => {
     latestRollRef.current = snapshot.lastRoll;
   }, [snapshot.lastRoll]);
-  useEffect(() => onDiceSignLand((die) => setRevealedRoll({ die })), []);
+  useEffect(() => onDiceSignReveal((die) => setRevealedRoll({ die })), []);
   return (
     <div className="handzone" data-testid={TESTIDS.handZone}>
       <Tip

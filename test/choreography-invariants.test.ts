@@ -9,8 +9,8 @@
 //   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
 //          结束后都有 ≥300ms 可读结果;终局封场豁免:胜利屏挂载即封场
 //          (orchestrator.finishPresentation),终局局的骰子可在事件边界被整体截断,
-//          是生命周期规则不是回归);掷骰签单节拍(#927:钤落弧 ≤ 停留预算,
-//          diceFast 半速分档已退役);
+//          是生命周期规则不是回归);掷骰签单段式(2026-11-01 拍板:虚位/钤落弧
+//          退役,入场渐显在场,diceFast 半速分档已退役);
 //   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点签面节拍有序
 //          (幕启 < 摇、错拍落 < 判词);
 //   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
@@ -61,9 +61,8 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(DICE.holdMs + DICE.fadeOutMs).toBeGreaterThanOrEqual(300);
   });
 
-  it("掷骰签单节拍(#927,统一原则):钤落弧落在停留预算内,分档字段不再存在", () => {
-    expect(DICE.landMs).toBeLessThanOrEqual(DICE.holdMs);
-    expect(DICE.readyMs).toBeGreaterThan(0); // 虚位拍在(「有一点延迟」的酝酿拍)
+  it("掷骰签单段式(2026-11-01 拍板):入场渐显在场,分档/钤落字段不再存在", () => {
+    expect(DICE.readyMs).toBeGreaterThan(0); // 现身拍在(「有一点延迟,但不要再有乱七八糟的动画」)
   });
 
   it("破产仪式三拍时间轴递增(S7):墨渍拍 < 撒币拍 < 收口,倒旗全长落在收口窗内", () => {
@@ -90,16 +89,13 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     // (棒3 票面六处 + #885 desk 震屏/旌旗缓倒/墨渍/浮字铜钱四族)——动画全长与
     // 清理/编排窗同通道缩放,「追帧 3x 清理掐断在途动画」的失配自除。e2e 无法驱动
     // 追帧判档(生产 = 联机积压出队点,SnapshotEffects 专有),判据在此机械化:
-    // 逐档断言全长 ≤ 窗,掷骰签钤落弧不溢出停留预算(#927 单节拍)。
+    // 逐档断言全长 ≤ 窗(掷骰签已单段式,签卡随 overlay 渐显,无独立弧长窗账)。
     // 通道本身的除法行为见 test/e2e-time-scale.test.ts。
     for (const scale of [1, LAG.scaleMin, 2, 2.5, LAG.scaleMax]) {
       setCatchupScale(scale);
       const at = `catchup×${scale}`;
       expect(FX.sealLingerMs, `${at}:印停持消隐超清理窗`).toBeLessThanOrEqual(FX.sealMs);
       expect(FX.pulseRingMs, `${at}:落格金圈超清理窗`).toBeLessThanOrEqual(FX.landPulseMs);
-      expect(DICE.landMs, `${at}:停留窗盖不住落定钤落弧(预算失配)`).toBeLessThanOrEqual(
-        DICE.holdMs,
-      );
       expect(DUEL.landMs, `${at}:签面钤落弧超判词拍`).toBeLessThanOrEqual(DUEL.verdictMs);
       // #885 四族:震屏无独立窗账(desk.ts 注入与自摘读同一 getter,构造上同值);
       // 旗倒无窗(类不摘除),钉的是「墨渍尾段开晕不脱拍」的时间轴关系;
