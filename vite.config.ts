@@ -2,6 +2,7 @@ import { defineConfig } from "vite";
 import { resolve } from "node:path";
 import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
+import pkg from "./package.json";
 
 // 构建戳(用户拍板 2026-09-26:版本角标直接用年月日时分,如 v2026.09.26.0102)。
 // 取构建发生的本地时刻——页面角标一眼可辨「这是哪次构建」,serve 常驻时端旧 dist 立现。
@@ -12,6 +13,7 @@ const BUILD_STAMP = `v${now.getFullYear()}.${pad(now.getMonth() + 1)}.${pad(now.
 export default defineConfig({
   define: {
     __BUILD_STAMP__: JSON.stringify(BUILD_STAMP),
+    __APP_VERSION__: JSON.stringify(pkg.version),
   },
   plugins: [react(), tailwindcss()],
   resolve: {

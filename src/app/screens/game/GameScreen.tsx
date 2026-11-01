@@ -34,6 +34,7 @@ import { AudioProvider } from "@app/fx/AudioProvider";
 import { DiceOverlay } from "@app/fx/DiceOverlay";
 import { FxLayer } from "@app/fx/FxLayer";
 import { useFxStore } from "@app/fx/fxStore";
+import { startFrameDiag, stopFrameDiag } from "@app/frameDiag";
 import { HandRack } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
@@ -239,6 +240,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
     setJunshiSelectedId(null);
     setJunshiTargetSeat(null);
   }, [junshiTargeting, junshiUp]);
+  // 帧诊采样器(ADR-0047):采样生命周期=对局屏生命周期——挂载开采/卸载停采,
+  // 设置「性能诊断」行随时导诊断包(真机卡顿取证;桌面探针测不到真机体感)。
+  useEffect(() => {
+    startFrameDiag();
+    return () => stopFrameDiag();
+  }, []);
   const junshiOptions =
     junshiUp && !junshiTargeting
       ? snapshot.choices.filter((o) => o.id !== "pass" && o.id !== "cancel")

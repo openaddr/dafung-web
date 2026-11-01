@@ -54,6 +54,14 @@ export async function loadArchive(gameId: string): Promise<ArchivedGame | null> 
   return (rec as ArchivedGame | undefined) ?? null;
 }
 
+/** 全量读归档(诊断包导出用:30 天保底内的全部历史局,含未打完的局——
+ *  归档是局中增量写,不挑终局;按 key(gameId)升序返回)。 */
+export async function loadAllArchive(): Promise<ArchivedGame[]> {
+  const db = await openDb();
+  const recs = await reqAsPromise(db.transaction(STORE).objectStore(STORE).getAll());
+  return recs as ArchivedGame[];
+}
+
 /** 新局顺手清理:删除 updatedAt 超过 30 天的局(ADR-0014 保底清理,单机侧)。 */
 async function cleanExpired(): Promise<void> {
   const db = await openDb();
