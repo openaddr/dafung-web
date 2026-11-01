@@ -273,7 +273,8 @@ if (!prNumber) {
       const onlyInRange = rangeFiles.filter((f) => !changeFiles.includes(f));
       const onlyInChange = changeFiles.filter((f) => !rangeFiles.includes(f));
       console.error(
-        "[pr-merge] 书签基线落后 master@origin(并行合入折入检测):先 jj rebase -d master@origin 再重跑",
+        "[pr-merge] 书签基线落后 master@origin(并行合入折入检测):先在书签所在 workspace 内 " +
+          "jj rebase -d master@origin 再重跑(主树空停靠上跑=空转不生效,#984 实锤)",
       );
       if (onlyInRange.length > 0) {
         console.error(`[pr-merge] 仅 range 侧有(并行票折入的文件):\n  ${onlyInRange.join("\n  ")}`);
