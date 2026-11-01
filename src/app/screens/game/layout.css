@@ -367,8 +367,12 @@
   color: var(--color-gold-wash);
 }
 /* 现金主数:裸数、省「两」(格上口径,原型 .cash-s;全称带「两」在单人格弹层,
-   #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。 */
+   #745 高3 起全链无千分位)。relative 容器锚 #495 浮标,testid 数值本体保持纯文本。
+   锁宽(#1022 渲染税):tabular-nums 定宽数字 + min-width 按最大位数(6 位,起手
+   5000 且现金无上限)预留——seat-cash.ts 的 rAF count-up 逐帧 textContent 直写
+   不再牵动席位行 layout(位数增减被预留宽吸收,l1 行内体力轨起点恒定)。 */
 .game-layout .seat .cash {
+  min-width: 6ch;
   font-size: 10.5px;
   line-height: 1;
   color: var(--color-attr-cash);

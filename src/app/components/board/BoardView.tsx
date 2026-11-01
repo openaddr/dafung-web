@@ -15,7 +15,7 @@ import { BoardDefs, RoadsLayer, TerrainLayer, type ViewBox } from "./StaticLayer
 import { BoardHost } from "./boardHost";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
-import { capitalHolderOf, holdingsOf } from "./tileOwnership";
+import { capitalHolderOf, holdingsOf, type TileHolding } from "./tileOwnership";
 import { TokenLayer } from "./TokenLayer";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
@@ -101,9 +101,11 @@ export interface BoardViewProps {
 const TileLayer = memo(function TileLayerInner({
   children,
   onHover,
+  onTileClick,
 }: {
   children: React.ReactNode;
   onHover: (index: number | null) => void;
+  onTileClick?: (index: number) => void;
 }) {
   // 城池接近重叠时:悬停哪个提到最上层(SVG 无 z-index,后渲染=上层)。
   // 仅在未按下按键(buttons===0)时重排 —— 按下期间的重排会把 pointerdown 目标节点
@@ -120,12 +122,57 @@ const TileLayer = memo(function TileLayerInner({
     },
     [onHover],
   );
+  // #1023 链 B:落格点击事件委托——onClick 挂本层 <g>,closest(".bv-tile")+
+  // data-tile 取目标(与 handleOver 同款现成模式)。原先 per-tile onClick prop
+  // 经 BoardView 派生、源头是 useCapitalPick 每渲染新建的裸函数,每次 sync 都换
+  // 引用,44 城 Tile 的 React.memo 被逐个击穿;委托化后 Tile 不再持有回调 prop。
+  // 点在城池之外 closest 为 null 不调,与 per-tile onClick 等价;#699 拖拽吞点击
+  // 拦在 svg 捕获相位、先于本 handler,行为不变。
+  const handleClick = useCallback(
+    (ev: React.MouseEvent<SVGGElement>) => {
+      if (!onTileClick) return;
+      const t = (ev.target as Element).closest(".bv-tile");
+      if (t === null) return;
+      onTileClick(Number(t.getAttribute("data-tile")));
+    },
+    [onTileClick],
+  );
   return (
-    <g id="bv-tiles" onPointerOver={handleOver}>
+    <g id="bv-tiles" onPointerOver={handleOver} onClick={handleClick}>
       {children}
     </g>
   );
 });
+
+/** TileVisualState 值等(#1023 链 A):键循环浅等,全字段皆原始值——引擎每次 sync
+ *  产出新 players 数组,按引用算必然 44 城全新对象、逐城击穿 Tile 的 React.memo;
+ *  值等判定让「内容没变的城」复用上一份对象引用,memo 不再被击穿。键循环而非手抄
+ *  字段表:类型增字段自动纳入比较,手抄会在类型增长时静默漏比(评审修复)。 */
+function tileStateEqual(a: TileVisualState, b: TileVisualState): boolean {
+  for (const key in a) {
+    if (a[key as keyof TileVisualState] !== b[key as keyof TileVisualState]) {
+      return false;
+    }
+  }
+  return true;
+}
+
+/** holdings 逐城浅等(#1023 链 A):内容键不含 position(行军只改 position,归属/
+ *  等级才是 holdings 的输入),players 换引用而归属没变时复用上一份 Map。 */
+function holdingsEqual(a: Map<string, TileHolding>, b: Map<string, TileHolding>): boolean {
+  if (a.size !== b.size) return false;
+  for (const [key, hb] of b) {
+    const ha = a.get(key);
+    if (
+      ha === undefined ||
+      ha.colorIndex !== hb.colorIndex ||
+      ha.guohao !== hb.guohao ||
+      ha.level !== hb.level
+    )
+      return false;
+  }
+  return true;
+}
 
 export function BoardView({
   map,
@@ -151,31 +198,21 @@ export function BoardView({
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
-  // 城池输入键(架构体检 P1):players/selectableTiles 逐 sync 换身份(快照每拍新建
-  // 数组/集合),内容绝大多数拍不变——渲染相关字段扁平成键,键不变则 holdings/
-  // candidateOrder/tileStates 身份稳定,36 城 Tile.memo 不被逐拍击穿(原 memo 依赖
-  // players 数组身份,每个 sync 全城重渲一遍,弱机 CPU 直接受罪)。键覆盖 Tile 状态
-  // 的全部输入面:座位五项+持城清单+活跃格+布阵档+可选集+候选序。
-  const boardInputsKey =
-    players
-      .map(
-        (p) =>
-          `${p.id}:${p.position}:${p.colorIndex}:${p.isBankrupt ? 1 : 0}:${p.capitalIndex}:` +
-          p.properties
-            .map((t) => `${t.propertyId}.${t.level}`)
-            .sort()
-            .join(","),
-      )
-      .join("|") +
-    `#${activeTileIndex ?? "-"}#${isSetupPhase ? 1 : 0}#${selectableTiles ? [...selectableTiles].sort((a, b) => a - b).join(",") : ""}#${candidateTiles ? candidateTiles.join(",") : ""}`;
+  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)。
+  // #1023 链 A:每次照算但与上一份逐城浅等,内容不变复用上一份 Map 引用——
+  // 归属没变(行军/换回合)时不给下游派生链制造新身份。
+  const prevHoldingsRef = useRef<Map<string, TileHolding> | null>(null);
+  const holdings = useMemo(() => {
+    const next = holdingsOf(players);
+    const prev = prevHoldingsRef.current;
+    if (prev !== null && holdingsEqual(prev, next)) return prev;
+    prevHoldingsRef.current = next;
+    return next;
+  }, [players]);
 
-  // propertyId → 首见持有者(归属判定单源 tileOwnership.ts;键稳定则不重算)
-  const holdings = useMemo(() => holdingsOf(players), [boardInputsKey]); // 键依赖:见 boardInputsKey 注
-
-  const handleTileClick = useMemo(
-    () => (onTileClick ? (i: number) => onTileClick(i) : undefined),
-    [onTileClick],
-  );
+  // #1023 链 B:onTileClick 不再派生 per-tile onClick(handleTileClick 派生随
+  // useCapitalPick 裸函数每渲染换新,形同虚设已删),点击收编 TileLayer 的 <g>
+  // 事件委托,Tile 的 props 从此不随回调身份抖动。
 
   // 悬停的城排到最后(=最上层),其余保持索引序,避免 hover 时整层乱序跳动
   const orderedTiles = useMemo(() => {
@@ -192,18 +229,24 @@ export function BoardView({
     const m = new Map<number, number>();
     candidateTiles?.forEach((idx, i) => m.set(idx, i + 1));
     return m;
-    // eslint 键依赖:candidateTiles 内容已入 boardInputsKey,键不变即不重建
-  }, [boardInputsKey]);
+  }, [candidateTiles]);
 
   // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
-  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有城池输入键变化才重建
-  // (state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
+  // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
+  // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
+  // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
+  // #1023 链 A:players 每 sync 换新引用,memo 依赖拦不住——照算之后逐城与上一份
+  // 浅等,内容不变复用上一份对象引用;全部复用时整表返回上一份(下游 tiles/
+  // capitalTileIndexes 派生链连重建都不必)。上一份存本组件 ref,复杂度不出 BoardView。
+  const prevStatesRef = useRef<Map<number, TileVisualState> | null>(null);
   const tileStates = useMemo(() => {
+    const prev = prevStatesRef.current;
     const m = new Map<number, TileVisualState>();
+    let allReused = prev !== null && prev.size === loaded.board.tiles.length;
     for (const tile of loaded.board.tiles) {
       const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
       const capitalP = capitalHolderOf(players, tile.index);
-      m.set(tile.index, {
+      const next: TileVisualState = {
         ownerColorIndex: holding ? holding.colorIndex : null,
         ownerGuohao: holding ? holding.guohao : null,
         level: holding?.level ?? 0,
@@ -213,11 +256,30 @@ export function BoardView({
         isTaken: !!(isSetupPhase && capitalP),
         isSelectable: selectableTiles?.has(tile.index) ?? false,
         capitalCandidateOrder: candidateOrder.get(tile.index) ?? null,
-      });
+      };
+      const stable = prev?.get(tile.index);
+      if (stable !== undefined && tileStateEqual(stable, next)) {
+        m.set(tile.index, stable);
+      } else {
+        m.set(tile.index, next);
+        allReused = false;
+      }
     }
+    if (allReused && prev !== null) {
+      prevStatesRef.current = prev;
+      return prev;
+    }
+    prevStatesRef.current = m;
     return m;
-    // eslint 键依赖:players/activeTileIndex/isSetupPhase/selectableTiles 内容均已入键
-  }, [loaded.board.tiles, holdings, candidateOrder, boardInputsKey]);
+  }, [
+    loaded.board.tiles,
+    holdings,
+    players,
+    activeTileIndex,
+    isSetupPhase,
+    selectableTiles,
+    candidateOrder,
+  ]);
 
   // F1:城池 JSX 整体 memo(依赖都是身份稳定的派生值),hover 等无关重渲不再重建 40 城 vnode。
   const tiles = useMemo(
@@ -234,14 +296,13 @@ export function BoardView({
               tier={def.tier}
               maxLevel={def.maxLevel}
               state={tileStates.get(tile.index)!}
-              onClick={handleTileClick ?? undefined}
               showGlow={false}
             />
           );
         })}
       </>
     ),
-    [orderedTiles, loaded.catalog, tileStates, handleTileClick],
+    [orderedTiles, loaded.catalog, tileStates],
   );
 
   // 有主都城格序(氛围层光晕落点;tileStates 单源派生,与 Tile 的 isCapital 同口径)
@@ -272,7 +333,9 @@ export function BoardView({
         <BoardDefs fit={fit} />
         <TerrainLayer fit={fit} />
         <RoadsLayer board={loaded.board} />
-        <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
+        <TileLayer onHover={setHoverTile} onTileClick={onTileClick}>
+          {tiles}
+        </TileLayer>
       </svg>
       {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}

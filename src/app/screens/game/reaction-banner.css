@@ -180,8 +180,11 @@
 }
 
 /* 倒计时弧+弧心秒数(#751 A5,阅读序前置;#760 信号重校;#834 危急档全横幅可感):
-   底环墨影弱轨,前弧随剩余时间收敛(rAF 驱动 dashoffset);秒数=信息(§4.6 例外),
-   文楷 tabular-nums。
+   底环墨影弱轨,前弧随剩余时间收敛(CSS 动画扛 dashoffset,#1022:rAF 逐帧 setState
+   退役,时长经 TSX 内联 --reaction-dur 直供 animation-duration——durationMs 已过
+   scaleReactionMs 缩放单源,缩放通道天然保住;周长 2π·15 ≈ 94.2478 作 dasharray 与
+   收敛终点,几何单源在此,TSX 只留 r=15);秒数=信息(§4.6 例外),文楷
+   tabular-nums,1Hz 拍 ref 直写(调度在 TSX,不走 React 状态)。
    #760 重校:常态弧由朱砂退墨金弱轨 goldWash——倒计时是常驻状态不是警报,朱砂
    只留给危急;≤5s danger 档(#834 P1-B5:朱砂+呼吸曾全困在 30px 圆里,横幅其余
    600px 毫无变化,紧迫感只剩滴答音单通道——现危急信号出盒):timerbox scale 1.33
@@ -189,7 +192,7 @@
    同拍过渡朱砂 55%;呼吸由「负向变暗」改「亮度正向脉冲」——box-shadow 朱砂
    0→6px 环形辉光(谷值不暗于常态基线,周期 calc(var(--dur-med)*2)=500ms,呼吸类
    常驻动画按 DESIGN §6 登记 reduced-motion 兜块),弧本体保留静态朱砂+drop-shadow;
-   秒数 scale 1.06 脉冲保留;每秒一记 reactionTick 滴答(调度在 TSX 与 rAF 同源);
+   秒数 scale 1.06 脉冲保留;每秒一记 reactionTick 滴答(调度在 TSX 1Hz 拍);
    旧一次性 0.45s scale1.28 入场脉动已由持续脉动取代(#760,不留双脉动)。 */
 .reaction-timerbox {
   position: relative;
@@ -213,6 +216,19 @@
   stroke: var(--color-gold-wash); /* 常态档(#760):墨金弱轨,朱砂留给危急 */
   stroke-width: 3.5;
   stroke-linecap: round;
+  /* 弧收敛动画(#1022):dasharray=周长 2π·15(单源在此);dashoffset 0(满弧,
+     挂载首帧=满弧不跳变)线性收敛到 94.2478(空弧),forwards 定格到收回拍。
+     时长 var(--reaction-dur) 由 TSX 内联直供(=durationMs)。 */
+  stroke-dasharray: 94.2478;
+  animation: reaction-arc-drain var(--reaction-dur) linear forwards;
+}
+@keyframes reaction-arc-drain {
+  from {
+    stroke-dashoffset: 0;
+  }
+  to {
+    stroke-dashoffset: 94.2478;
+  }
 }
 .reaction-timerbox.danger {
   /* 危急档出盒(#834):放大 1.33 + 朱砂辉光正向脉冲(0→6px,亮度只升不降);
@@ -322,11 +338,18 @@
 
 /* reduced-motion:呼吸/入场退场为直接状态变化(静态金边),同 layout.css 显式口径
    (app.css M-4 全局兜层压时长对 infinite 呼吸会高频闪,须显式关)。
-   #760:危急段 2Hz 脉动/脉冲同退(状态色变与滴答音保留——滴答调度在 TSX,
-   不受媒体查询影响)。 */
+   #760:危急段 2Hz 脉动/脉冲同退(状态色变与滴答音保留——滴答调度在 TSX 1Hz 拍,
+   不受媒体查询影响)。
+   #1022 翻面:弧收敛是信息载体(§4.6 同「数字=信息」例外口径),不在退场之列——
+   M-4 全局兜层(* 的 animation-duration !important)会把弧压成瞬时到终态(空弧=
+   剩余时长信息丢失),此处以更高特异性反制,弧照常走满时长(--reaction-dur 内联
+   变量直供);只退装饰性呼吸/入场。 */
 @media (prefers-reduced-motion: reduce) {
   .reaction-banner {
     animation: none;
+  }
+  .reaction-timer .arc {
+    animation-duration: var(--reaction-dur) !important; /* 反制 M-4,弧=信息载体 */
   }
   .reaction-timerbox.danger,
   .reaction-timerbox.danger .reaction-timer-num {

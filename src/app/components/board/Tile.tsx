@@ -68,10 +68,12 @@ interface TileProps {
   /** 满级档(catalog.get(propertyId).maxLevel),满贯金框判据;非地产格无珠不读。 */
   maxLevel: number;
   state: TileVisualState;
-  onClick?: (index: number) => void;
   /** 都城静态光晕开关(ADR-0039):棋盘侧 false(脉动光晕由氛围层承担,避免
       SVG 静态晕与氛围层动晕叠加);TileThumb 缩略图缺省 true(静态晕入盒)。 */
   showGlow?: boolean;
+  // 落格点击不挂本组件(#1023 链 B):onClick prop 已删,点击由 TileLayer 的 <g>
+  // 事件委托(closest(".bv-tile") + data-tile)承接——per-tile 回调 prop 随上游
+  // 每渲染换新引用,逐城击穿 React.memo;缩略图本就不传,接口收敛零消费点受损。
 }
 
 // ── #25/#39/#58 城池全局放大比例 ──
@@ -321,7 +323,6 @@ export const Tile = memo(function Tile({
   tier,
   maxLevel,
   state,
-  onClick,
   showGlow = true,
 }: TileProps) {
   // ADR-0015 城池宣告信号:selector 按本城 tileIndex 取记录,他城宣告不触发本城重渲。
@@ -351,7 +352,6 @@ export const Tile = memo(function Tile({
       data-tile={tile.index}
       data-name={tile.name}
       transform={`translate(${tile.position.x} ${tile.position.y}) scale(${TILE_SCALE})`}
-      onClick={onClick ? () => onClick(tile.index) : undefined}
     >
       {/* 命中高亮底 + 都城/焦点光晕 */}
       <circle className="bv-tile-hilite" r={62} fill={rgba(Theme.gold)} />

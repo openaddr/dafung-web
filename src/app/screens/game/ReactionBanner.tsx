@@ -39,9 +39,9 @@ export interface ReactionBannerProps {
   onMute: () => void;
 }
 
-/** 倒计时弧几何:SVG 圆周dasharray 收敛(viewBox 36,半径 15,周长 2π·15)。 */
+/** 倒计时弧几何:SVG 圆周收敛(viewBox 36,半径 15);周长 2π·15 ≈ 94.2478 作
+ *  dasharray 与收敛终点,单源在 reaction-banner.css(.reaction-timer .arc)。 */
 const ARC_R = 15;
-const ARC_C = 2 * Math.PI * ARC_R;
 
 /** 结算事件横幅(定位/挂载归 HandRack:架即反应窗,横幅从架上缘长出)。 */
 export function ReactionBanner({
@@ -57,73 +57,77 @@ export function ReactionBanner({
   onDecline,
   onMute,
 }: ReactionBannerProps) {
-  // 剩余时间(rAF 直写 DOM,架构体检 A 批):起点=挂载(窗开);到点本件收回——「不用」
-  // 的代发归权威侧(LocalController 定时器/联机 room 循环),时长同源见文件头注释
-  // (#284 windowMs 单源)。旧实现逐帧 setFrac 触发整条横幅(含锦囊签面)60fps 重渲
-  // 长达 15s——现弧长/秒数由 rAF 直写 ref 节点,React 只承担两个低频状态:危急档
-  // 翻转(secs≤5 一次)与收场(left≤0 一次)。
-  // 危急滴答(#760):同一 rAF 拍内判秒——≤5s 段每跨一秒(秒数变化且 ≥1)播一记
-  // reactionTick,调度与倒计时同源不另起定时器;reduced-motion 只退动效,滴答音保留。
+  // 倒计时三通路(#1022 渲染税收口,rAF 逐帧 setState 驱动整条横幅退役):
+  // ① 弧=CSS 动画扛(挂载拍声明 reaction-arc-drain,时长经 --reaction-dur 内联直供
+  //    animation-duration——durationMs 已过 scaleReactionMs 缩放单源,缩放通道天然
+  //    保住),逐帧工作归浏览器渲染管线;
+  // ② 秒数/危险档/危急滴答=1Hz interval 一拍管三事:秒数 ref 直写 textContent(不进
+  //    React 状态)、危险档 ≤5s 翻面每窗至多一次 setState(已翻即 bailout)、滴答音
+  //    每秒一记挪 1Hz 拍(秒界判定与 rAF 版逐帧判等价);
+  // ③ 到点收回=精确 setTimeout(durationMs 拍)补位,不靠 1Hz 粗粒度——本件先于权威
+  //    侧收回时视觉收回,「不用」代发仍归权威侧(LocalController 定时器/联机 room
+  //    循环),先后语义与 rAF 版一致(#284 windowMs 单源)。
+  // 后台标签页 interval/timeout 节流,回前台按挂载墙钟(start)重算追平——与 rAF 版
+  // 「回前台下一拍按墙钟重算」语义等价。
   const start = useRef<number>(0);
   const tickedSecs = useRef<number | null>(null);
-  const arcRef = useRef<SVGCircleElement | null>(null);
   const numRef = useRef<HTMLSpanElement | null>(null);
-  const [danger, setDanger] = useState(false);
-  const [gone, setGone] = useState(false);
+  // 首拍即真值(挂载渲染):初始秒数/危险档由 durationMs 直算,不占 setState 预算
+  //(短窗 ≤5s 挂载即危险档,与 rAF 版首帧即翻一致)。
+  const [expired, setExpired] = useState(false);
+  const [danger, setDanger] = useState(() => Math.ceil(durationMs / 1000) <= 5);
   useEffect(() => {
     start.current = performance.now();
     tickedSecs.current = null;
-    setDanger(false);
-    let raf = 0;
-    const tick = () => {
-      const left = Math.max(0, 1 - (performance.now() - start.current) / durationMs);
-      const secs = Math.max(0, Math.ceil((left * durationMs) / 1000));
-      if (secs <= 5 && secs >= 1 && tickedSecs.current !== secs) {
-        tickedSecs.current = secs;
-        getAudio().play("reactionTick");
+    const beat = () => {
+      const remain = durationMs - (performance.now() - start.current);
+      if (remain <= 0) return; // 到点即停:秒数不下探 0,收回拍归 setTimeout(rAF 版断链同语义)
+      const secs = Math.ceil(remain / 1000);
+      if (numRef.current) numRef.current.textContent = String(secs);
+      if (secs <= 5) {
+        setDanger(true); // 危险档翻面(已翻即 bailout,Object.is)
+        if (secs >= 1 && tickedSecs.current !== secs) {
+          tickedSecs.current = secs;
+          getAudio().play("reactionTick"); // 危急滴答(#760):每秒一记,挪 1Hz 拍
+        }
       }
-      if (arcRef.current) arcRef.current.style.strokeDashoffset = `${ARC_C * (1 - left)}`;
-      if (numRef.current) numRef.current.textContent = `${secs}`;
-      setDanger((prev) => (prev === secs <= 5 ? prev : secs <= 5));
-      if (left <= 0) {
-        setGone(true); // 到点自动收回(视为不用;权威侧随后同步真态)
-        return;
-      }
-      raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
+    const iv = setInterval(beat, 1000);
+    const to = setTimeout(() => {
+      clearInterval(iv); // 收回拍接管,1Hz 拍即停(过期后本件仍挂载、返回 null)
+      setExpired(true);
+    }, durationMs);
+    return () => {
+      clearInterval(iv);
+      clearTimeout(to);
+    };
   }, [durationMs]);
-  if (gone) return null;
+  if (expired) return null; // 到点自动收回(视为不用;权威侧随后同步真态)
 
   // 剩余秒数(#751 A5):弧心嵌数,数字=信息属 §4.6 例外;≤5s 转 danger 档
   //(数字转朱砂、弧转朱砂亮档,#760 重校:常态弧退墨金弱轨 goldWash,朱砂留给危急;
-  // 危急段弧与秒数 2Hz 呼吸脉动+每秒滴答,旧一次性入场脉动已由持续脉动取代)。
-  // 弧/秒数初值=窗开拍(满弧+总秒数),此后 rAF 直写,不再走 props/state。
-  const dangerNow = danger;
+  // 危急段弧与秒数 2Hz 呼吸脉动+每秒滴答)。秒数只在此处定初值,之后 1Hz 拍 ref
+  // 直写,不走 React 状态(danger 翻面重渲不回写,textContent 保持现状)。
+  const secs0 = Math.ceil(durationMs / 1000);
 
   return (
     <div className="reaction-banner" data-testid={TESTIDS.reactionBanner}>
       {/* 弧+秒数(#751 A5):阅读序前置——「还剩多久」先于「发生了什么」;testid 挂
-          盒子(svg 在内,e2e 可见性断言零漂移);秒数是真信息,不 aria-hidden。 */}
+          盒子(svg 在内,e2e 可见性断言零漂移);秒数是真信息,不 aria-hidden。
+          弧收敛=CSS 动画(#1022):时长经 --reaction-dur 内联直供 animation-duration,
+          文件内 reduced-motion 兜块以同变量反制 app.css M-4 全局兜层(弧=信息载体,
+          保留走满时长),见 reaction-banner.css。 */}
       <span
-        className={"reaction-timerbox" + (dangerNow ? " danger" : "")}
+        className={"reaction-timerbox" + (danger ? " danger" : "")}
         data-testid={TESTIDS.reactionTimer}
+        style={{ ["--reaction-dur" as string]: `${durationMs}ms` }}
       >
         <svg className="reaction-timer" viewBox="0 0 36 36" aria-hidden="true" focusable="false">
           <circle className="track" cx="18" cy="18" r={ARC_R} />
-          <circle
-            ref={arcRef}
-            className="arc"
-            cx="18"
-            cy="18"
-            r={ARC_R}
-            strokeDasharray={ARC_C}
-            strokeDashoffset={0}
-          />
+          <circle className="arc" cx="18" cy="18" r={ARC_R} />
         </svg>
-        <span className="reaction-timer-num" ref={numRef}>
-          {Math.ceil(durationMs / 1000)}
+        <span ref={numRef} className="reaction-timer-num">
+          {secs0}
         </span>
       </span>
       {/* 来者锦囊 mini 签面(#751 A6):卡面是既有器物语言非新增标牌;纯装饰锚点
