@@ -26,7 +26,8 @@
 //   多提交书签(集成链)自动等效 squash 归拢为单提交再对账(链底须在 master@origin 上,
 //   否则红即停先重定基;2026-10-28 七波 retro)。
 // 仓库定位:主树与书签分支内 gh 自动识别;jj workspace 无 .git,自动补 `-R openaddr/dafung-web`。
-import { existsSync, statSync } from "node:fs";
+import { existsSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 
 function jj(...args: string[]): string {
@@ -227,9 +228,14 @@ if (!prNumber) {
 
   // 1.16) --body-file 前置校验(#807):不存在/为空即红,断点必须在一切副作用
   //       (1.1 归拢 squash、1.5 push、3 开 PR)之前——拖到开 PR 步才炸,远端分支已推
-  //       而 PR 未开,留下裸奔窗。
+  //       而 PR 未开,留下裸奔窗。`-` = stdin 直灌(落系统临时文件,#990 会话被预检
+  //       拦过一次;gh 稍后按路径消费,残留无害)。
   const bodyFileArg = flag("--body-file");
-  if (bodyFileArg !== undefined) {
+  if (bodyFileArg === "-") {
+    const tmpBody = path.join(os.tmpdir(), `pr-merge-body-${Date.now()}.md`);
+    writeFileSync(tmpBody, readFileSync(0, "utf8"));
+    args[args.indexOf("--body-file") + 1] = tmpBody;
+  } else if (bodyFileArg !== undefined) {
     if (!existsSync(bodyFileArg)) {
       console.error(
         `[pr-merge] body 文件不存在:${bodyFileArg}(先写 body 再收口,断在开 PR 步会留已推未开的裸奔窗)`,
@@ -277,6 +283,15 @@ if (!prNumber) {
       }
       process.exit(1);
     }
+  }
+
+  // 1.18) 冲突态预检(#990 会话实锤:jj rebase 留冲突不报错、一等公民只挡 push——
+  //       push 处的拒收迟到且不含文件名;提前红 = 重定基后忘消解的场景一句话定位)。
+  if (jj("log", "-r", bookmark, "--no-graph", "-T", 'if(conflict, "yes", "no")') === "yes") {
+    console.error(
+      `[pr-merge] ${bookmark} 提交含未解冲突——消解冲突文件后(进该 workspace 跑一条 jj 命令触发快照)再重跑`,
+    );
+    process.exit(1);
   }
 
   // 1.2) 预期文件集对账(--expect 可重复声明;S3 闸,见头注)。对账对象=change diff
