@@ -75,9 +75,9 @@
 .bv-capital-glow {
   opacity: 0.6;
 }
-/* #75 「轮到谁」活跃虚线环已迁氛围层(.bv-amb-tile-ring,dashoffset 推进改整环
-   rotate 等效);环出 tile <g> 后不再污染点击包围盒(旧「dashoffset 而非 rotate
-   防 Playwright 稳定性检查超时」的前提随之消解)。 */
+/* 「轮到谁」活跃虚线环已退役(2026-11-01 #966:曾由 #75 迁氛围层
+   .bv-amb-tile-ring,后整体移除);轮到谁的棋盘态表达只剩 Tile bv-tile-border
+   金描边 + 氛围层回合方金呼吸环。 */
 
 /* ── 驿道(#512 漆金细线)──
    主路=路身(roadMain token,窄档)+ 细线芯(roadSide token)双层同弧线:

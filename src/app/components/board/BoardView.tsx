@@ -58,7 +58,7 @@ export interface BoardViewProps {
   /** X4(#23) 选都候选集(引擎 offeredCapitals,滚出顺序):全座位可见——
    *  静态低透明金圈 + 壹贰叁序号印是全座档;「轮到本地可点脉冲」由 selectableTiles 升档。 */
   candidateTiles?: readonly number[];
-  /** 当前回合玩家所在城池索引(脉动金环)。 */
+  /** 当前回合玩家所在城池索引(金描边高亮:Tile bv-tile-border 的 isActive 态)。 */
   activeTileIndex?: number | null;
   /** 选都阶段标记(已选城标灰、未选都玩家隐藏棋子)。 */
   isSetupPhase?: boolean;
@@ -280,7 +280,6 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         board={loaded.board}
         players={players}
         capitalTileIndexes={capitalTileIndexes}
-        activeTileIndex={activeTileIndex}
         activePlayerId={activePlayerId}
         mineId={viewSeat}
         skipTokenIds={skipTokenIds}

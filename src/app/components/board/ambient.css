@@ -1,9 +1,7 @@
 /* 棋盘氛围层样式(ADR-0039):状态驱动常驻装饰的 HTML 合成层。
    铁律:本层动画只许 transform/opacity(Blink 对 HTML 元素的可合成属性走合成器
    线程,主线程零逐帧参与)——棋盘 SVG 内禁新增常驻动画,`check:board` 机械闸把守。
-   时长/缓动一律 dur/ease 系 token(单源 core/theme.ts),零字面量时长;
-   例外:活跃环整圈 31.12s 为几何换算值(虚线周期 21 单位/1.3s × r=80 周长
-   502.7 单位,复刻原 dashoffset 推进速度),注释为证,非拍脑袋数。
+   时长/缓动一律 dur/ease 系 token(单源 core/theme.ts),零字面量时长。
    层容器布局规则(.bv-ambient 与 .bv-bhost 共用)收口 board.css(ADR-0042 起
    棋子/特效宿主同款,单源不复制)。 */
 
@@ -32,7 +30,6 @@
 }
 
 .bv-amb-capital-glow,
-.bv-amb-tile-ring,
 .bv-amb-mine-halo,
 .bv-amb-token-ring,
 .bv-amb-flag {
@@ -52,17 +49,6 @@
   }
   50% {
     opacity: 0.85;
-  }
-}
-
-/* 活跃格虚线环(原 dashoffset 推进改整环匀速旋转,同速同向):
-   31.12s = 周长 2π×80 ÷ 虚线周期 21 单位 × 1.3s(几何换算,见 AmbientLayer 注)。 */
-.bv-amb-tile-ring {
-  animation: bv-ring-orbit 31.12s linear infinite;
-}
-@keyframes bv-ring-orbit {
-  to {
-    transform: rotate(360deg);
   }
 }
 
@@ -124,7 +110,6 @@
     animation: none;
     opacity: 0.78; /* 呼吸中程((0.55+1)/2),#840 ① 同口径 */
   }
-  .bv-amb-tile-ring,
   .bv-amb-flag {
     animation: none;
   }

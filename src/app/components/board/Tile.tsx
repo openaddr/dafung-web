@@ -50,7 +50,7 @@ export interface TileVisualState {
   /** 是否某玩家都城 + 都城主 colorIndex(王旗)。 */
   capitalColorIndex: number | null;
   capitalGuohao: string | null;
-  /** 当前回合玩家所在城(脉动金环)。 */
+  /** 当前回合玩家所在城(bv-tile-border 金描边高亮)。 */
   isActive: boolean;
   /** 选都阶段已被选(标灰禁用)。 */
   isTaken: boolean;
@@ -335,7 +335,6 @@ export const Tile = memo(function Tile({
   const cls = [
     "bv-tile",
     isCapital ? "bv-capital" : "",
-    state.isActive ? "bv-active" : "",
     state.isTaken ? "opacity-40 grayscale" : "",
     // X4(#23) 候选集全座位可见:静态低透明金圈;本地可点(bv-selectable)脉冲升级
     state.capitalCandidateOrder != null ? "bv-candidate" : "",
@@ -363,9 +362,9 @@ export const Tile = memo(function Tile({
       {showGlow && isCapital ? (
         <circle className="bv-capital-glow" r={70} fill="url(#bv-capital-glow-grad)" />
       ) : null}
-      {/* 「轮到谁」活跃虚线环已迁氛围层(ADR-0039;dashoffset 改整环 rotate 等效,
-          且环出 tile <g> 后不再污染点击包围盒);归属金描边仍由下方 bv-tile-border
-          的 isActive 态承担。 */}
+      {/* 「轮到谁」活跃虚线环已退役(2026-11-01 #966:原 Tile 内 bv-active-ring 曾迁
+          氛围层 .bv-amb-tile-ring,随环一线裁撤);轮到谁的金描边仍由下方
+          bv-tile-border 的 isActive 态承担。 */}
 
       {/* 格底(#842 归属色墨化):无主=漆木深卡+漆金细边(低显著);有主(含都城)=
           color-mix(ownerRgb 22%, bgDeep) 墨渍级深染——糖果色整格平涂退役,饱和归属色

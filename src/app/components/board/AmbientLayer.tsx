@@ -1,5 +1,5 @@
-// 棋盘氛围层(ADR-0039):状态驱动常驻装饰的 HTML 合成层——都城光晕/活跃格虚线环/
-// 旌旗/自机微光/回合方金环。动画只走 transform/opacity(Blink 对 HTML 元素的可合成
+// 棋盘氛围层(ADR-0039):状态驱动常驻装饰的 HTML 合成层——都城光晕/旌旗/
+// 自机微光/回合方金环。动画只走 transform/opacity(Blink 对 HTML 元素的可合成
 // 属性走合成器线程,主线程零逐帧参与),与棋盘 SVG 分野——SVG 子元素逐帧变动令整张
 // SVG 每帧重算(layout+restyle),是低端 WebView 掉帧根因(ADR-0039 归因)。
 //
@@ -10,7 +10,7 @@
 // 落点 = TokenLayer 同源槽位公式(computeTokenSlots,单源不复制 #608);层容器
 // transform 由 boardHost.useBoardMatrixSync 自持同步(ADR-0042 起:RO/viewBox
 // MutationObserver/fonts.ready,pan/zoom/resize/手势提交拍全随动)。
-// 层内 z 序(DOM 序,复刻原 SVG 绘制序):光晕 → 活跃格环 → 自机微光 → 回合金环 → 旌旗。
+// 层内 z 序(DOM 序,复刻原 SVG 绘制序):光晕 → 自机微光 → 回合金环 → 旌旗。
 import { memo, useRef } from "react";
 import type { Board } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
@@ -63,8 +63,6 @@ export interface AmbientLayerProps {
   players: BoardPlayer[];
   /** 有主都城的格索引集(BoardView 从 tileStates 单源派生)。 */
   capitalTileIndexes: readonly number[];
-  /** 活跃格(「轮到谁」虚线环所在格)。 */
-  activeTileIndex?: number | null;
   /** #762 当前回合方玩家 id(棋子金呼吸环)。 */
   activePlayerId?: string;
   /** L47:本地视角玩家 id(自己棋子玩家色微光圈)。 */
@@ -81,7 +79,6 @@ export const AmbientLayer = memo(function AmbientLayer({
   board,
   players,
   capitalTileIndexes,
-  activeTileIndex,
   activePlayerId,
   mineId,
   skipTokenIds,
@@ -102,7 +99,6 @@ export const AmbientLayer = memo(function AmbientLayer({
   // 行军换装:接管中的棋子装饰暂隐(#30 行军强调补位);未选都(opacity 0)不渲染。
   const resting = slots.filter((s) => !s.marching && s.opacity > 0);
   const activeSlot = resting.find((s) => s.player.id === activePlayerId);
-  const activeTile = activeTileIndex != null ? board.tiles[activeTileIndex] : undefined;
 
   return (
     <div className="bv-ambient" ref={rootRef} aria-hidden="true">
@@ -157,35 +153,6 @@ export const AmbientLayer = memo(function AmbientLayer({
           </div>
         );
       })}
-      {/* 活跃格虚线环(原 Tile 内 bv-active-ring;dashoffset 改整环 rotate 等效,
-          时长换算:虚线周期 21 单位/1.3s → r=80 周长 502.7 单位 → 31.12s/圈,同向顺时) */}
-      {activeTile && (
-        <div
-          className="bv-amb-anchor"
-          style={{ left: activeTile.position.x, top: activeTile.position.y }}
-        >
-          <div
-            className="bv-amb-fit"
-            style={{
-              width: 172,
-              height: 172,
-              marginLeft: -86,
-              marginTop: -86,
-              transform: `scale(${TILE_SCALE})`,
-            }}
-          >
-            <svg className="bv-amb-tile-ring" width={172} height={172} viewBox="-86 -86 172 172">
-              <circle
-                r={80}
-                fill="none"
-                stroke={rgba(Theme.goldBright, 0.85)}
-                strokeWidth={3}
-                strokeDasharray="12 9"
-              />
-            </svg>
-          </div>
-        </div>
-      )}
       {/* 自机微光(L47,#557 主环加粗 + 同色细外圈) */}
       {resting.map((s) => {
         if (!s.mine) return null;
