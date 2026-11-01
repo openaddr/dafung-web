@@ -86,19 +86,18 @@
     0 0 28px 10px currentColor;
 }
 
-/* ── 胜利标题:金色辉光呼吸 + 弹跳入场 ── */
+/* ── 胜利标题:金色辉光呼吸 + 弹跳入场 ──
+   架构体检 A 批:辉光呼吸原为 text-shadow 逐帧插值——大字号大光斑(60/100px)
+   主线程逐帧重绘整题字带;改为基态谷值影钉死 + 峰值影叠 ::after 复制题字
+   (content: attr(data-text),字号/字距/颜色全继承,几何逐字重合)只动 opacity
+   (合成器插值)。aria-label 显式给名,::after 复制字不进读屏名。 ── */
 @keyframes victory-glow {
   0%,
   100% {
-    text-shadow:
-      0 0 30px var(--color-gold-bright),
-      0 4px 10px rgba(0, 0, 0, 0.6);
+    opacity: 0;
   }
   50% {
-    text-shadow:
-      0 0 60px var(--color-gold-bright),
-      0 0 100px var(--color-gold),
-      0 4px 10px rgba(0, 0, 0, 0.6);
+    opacity: 1;
   }
 }
 @keyframes victory-bounce-in {
@@ -116,11 +115,23 @@
   }
 }
 .victory-anim-title {
-  animation:
-    /* 辉光呼吸归 --dur-ambient(2s→2.6s 就近);弹跳入场归 --dur-reveal 胜利拍,
-       back 类统一 --ease-out-back(原 bezier 与 token 同值) */
-    victory-glow var(--dur-ambient) var(--ease-sine) infinite,
-    victory-bounce-in var(--dur-reveal) var(--ease-out-back);
+  position: relative;
+  text-shadow:
+    0 0 30px var(--color-gold-bright),
+    0 4px 10px rgb(0 0 0 / 0.6);
+  animation: victory-bounce-in var(--dur-reveal) var(--ease-out-back);
+}
+.victory-anim-title::after {
+  content: attr(data-text);
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  text-shadow:
+    0 0 60px var(--color-gold-bright),
+    0 0 100px var(--color-gold),
+    0 4px 10px rgb(0 0 0 / 0.6);
+  opacity: 0;
+  animation: victory-glow var(--dur-ambient) var(--ease-sine) infinite;
 }
 
 /* reduced-motion:辉光呼吸是 infinite 环境动效,与 stamp-seal 同粒度就地登记——
@@ -129,6 +140,11 @@
 @media (prefers-reduced-motion: reduce) {
   .victory-anim-title {
     animation: none;
+    text-shadow: none;
+  }
+  .victory-anim-title::after {
+    animation: none;
+    display: none;
   }
 }
 

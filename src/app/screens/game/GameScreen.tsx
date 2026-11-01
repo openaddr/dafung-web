@@ -510,6 +510,10 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
             isSetupPhase={snapshot.phase === "Setup"}
             skipTokenIds={marching}
           />
+          {/* 进屏压暗叠罩(架构体检 A 批,样式 screen-transition.css):接替原
+              board-push-in from 帧的 brightness 滤镜——SVG filter 动画逐帧整板重栅,
+              罩子纯 opacity 走合成器,与缓推同拍串接,一次性播完即静。 */}
+          <div className="board-dim-in" aria-hidden="true" />
           {/* 阶段 6:浮字/铜钱雨/印章(store 驱动的瞬时表现;回合/都城停知会件
               已随 #732 迁顶中知会横幅槽 NoticeBanner,不归本层) */}
           <FxLayer />
