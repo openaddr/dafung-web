@@ -49,7 +49,6 @@
   font-family: inherit;
   font-size: 12px;
   letter-spacing: 0.2em;
-  font-weight: 500;
   color: var(--color-gold);
 }
 .zl .zl-round {
@@ -190,7 +189,6 @@
 }
 .zl .zl-attr b {
   color: var(--color-paper);
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
 

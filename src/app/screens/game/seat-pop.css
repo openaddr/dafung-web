@@ -97,7 +97,6 @@
 /* 数值本体:原型 pop-row b 内联口径(13px ink;现金章另制) */
 .spop .spop-num {
   font-size: 13px;
-  font-weight: 700;
   color: var(--color-paper);
 }
 /* 体力数值条:原型 pop-row 内 strack 5px 高吃剩余宽;濒耗竭转朱砂(格上 .low 同口径) */
@@ -158,7 +157,6 @@
   justify-content: center;
   gap: 2px;
   font-size: 14px;
-  font-weight: 500;
 }
 .spop .spop-bv.spop-city {
   color: var(--color-attr-city);
@@ -212,7 +210,6 @@
 }
 .spop-detail .spop-bignum {
   font-size: 21px;
-  font-weight: 500;
   font-variant-numeric: tabular-nums;
   color: var(--color-paper);
 }

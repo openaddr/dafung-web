@@ -193,7 +193,6 @@
 /* 浮动金额(SVG <text>,x/y 属性定位,动画只做上浮+透明) */
 .fx-svg-floater {
   font-family: var(--font-brush);
-  font-weight: 700;
   pointer-events: none;
   /* SVG 元素 CSS transform 默认参考 viewBox 原点,必须锚到自身包围盒 */
   transform-box: fill-box;
@@ -252,7 +251,6 @@
 .fx-svg-coin text {
   font-family: var(--font-brush);
   font-size: 13;
-  font-weight: 700;
   fill: var(--color-paper);
 }
 @keyframes fx-svg-coin-rain {
@@ -405,7 +403,6 @@
 }
 .fx-svg-seal text {
   font-family: var(--font-title);
-  font-weight: 700;
   fill: var(--color-paper);
 }
 @keyframes fx-svg-seal-linger {
@@ -930,7 +927,6 @@
   border-radius: 8px;
   font-family: var(--font-title);
   font-size: 44px;
-  font-weight: 700;
   transform: translate(-50%, -50%) rotate(-8deg);
   color: var(--color-paper);
   background: color-mix(in srgb, var(--color-danger) 62%, var(--color-bg-deep));
@@ -1146,7 +1142,6 @@
 .fx-cash-fly text {
   font-family: var(--font-brush);
   font-size: 13px;
-  font-weight: 700;
   fill: var(--color-paper);
 }
 @keyframes fx-cash-fly-arc {
@@ -1277,7 +1272,6 @@
   background: color-mix(in srgb, var(--color-lacquer-gold) 72%, var(--color-lacquer));
   border: 2px solid var(--color-gold-bright);
   font-family: var(--font-title);
-  font-weight: 700;
   font-size: 24px;
   line-height: 1;
   color: var(--color-bg-deep);

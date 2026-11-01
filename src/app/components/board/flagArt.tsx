@@ -26,14 +26,14 @@ export function FlagShapes({ p }: { p: BoardPlayer }) {
         stroke={rgba(Theme.bgDeep, 0.6)}
         strokeWidth={0.6}
       />
-      {/* 国号字(#512:纸色字 + 玄墨衬底描边,任意玩家色旗面上可读) */}
+      {/* 国号字(#512:纸色字 + 玄墨衬底描边,任意玩家色旗面上可读;brush 无 700 字重,
+          原 700 是伪加粗糊字,#930 走查退役) */}
       <text
         x={9}
         y={-23}
         textAnchor="middle"
         fontFamily="var(--font-brush)"
         fontSize={13}
-        fontWeight={700}
         fill={rgba(Theme.paper)}
         stroke={rgba(Theme.bgDeep, 0.85)}
         strokeWidth={2}
