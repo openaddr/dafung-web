@@ -549,4 +549,3 @@ if (fetched.exitCode !== 0) {
   }
 }
 console.log(`[pr-merge] #${prNumber} 收口完成。`);
-console.log(`[pr-merge] #${prNumber} 收口完成。`);
