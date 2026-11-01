@@ -98,13 +98,51 @@
   opacity: 0.65;
 }
 
-/* ── 棋子(旌旗)──
-   用 CSS transform 定位 + transition 平滑过渡(与旧 board.ts setTokenPosition 同机制:
-   SVG transform 属性不吃 CSS transition,必须走 style.transform)。 */
-.bv-token {
-  /* 声明式定位的短过渡:时长归 --dur-med;linear 保留(位移匀速,见下行军缓动注释) */
-  transition: transform var(--dur-med) linear;
+/* ── 手势栈与宿主容器(ADR-0042)──
+   .bv-stack:全部棋盘层的公共 transform 宿主——手势进行中取景增量写在这里
+   (合成器插值,棋盘栅格缓存零重绘),提交拍写回 #board viewBox 后清空;
+   提交拍同时是各宿主矩阵(viewBox MutationObserver)的唯一 resync 拍。 */
+.bv-stack {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-origin: 0 0;
+}
+/* 世界坐标宿主(氛围层 .bv-ambient 与棋子/特效 .bv-bhost 同款,单源不复制):
+   铺满手势栈(DOM 序即层序),容器 transform = 世界→客户端矩阵
+   (boardHost.syncHostMatrix 单写者:viewBox MutationObserver/RO/fonts.ready
+   各自触发),子元素一律世界坐标(逻辑单位=px)直铺。 */
+.bv-bhost,
+.bv-ambient {
+  position: absolute;
+  inset: 0;
   pointer-events: none;
+  transform-origin: 0 0;
+}
+
+/* ── 棋子(旌旗,ADR-0042 HTML 版)──
+   每棋子一个合成器提升的包装 div:CSS transform 定位 + transition 平滑过渡
+   (useMarch 命令式 style.transform 逐段行军,机制同旧 board.ts setTokenPosition,
+   宿主从 SVG <g> 迁 div——HTML transform 过渡由合成器插值,主线程只在段边界参与)。
+   盒尺寸/负 margin = TokenLayer TOKEN_ART_BOX(旗面+双环缩放后并集+2 安全边)同源
+   单值,盒中心即棋子锚点;氛围层对位 spec 量的就是本盒。 */
+.bv-token {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 121px;
+  height: 142px;
+  margin-left: -49px;
+  margin-top: -93px;
+  /* 声明式定位的短过渡:时长归 --dur-med;linear 保留(位移匀速,见下行军缓动注释);
+     will-change 把每枚棋子提升为独立合成层——行军过渡零主线程逐帧参与。 */
+  transition: transform var(--dur-med) linear;
+  will-change: transform;
+  pointer-events: none;
+}
+.bv-token-art {
+  display: block;
+  overflow: visible; /* 描边/旗面出 viewBox 不裁切 */
 }
 .bv-token-flag {
   /* #512 阴影向字面量收口:阴影色 = bgDeep token 的透明档(color-mix),不再散落黑值。

@@ -1,8 +1,8 @@
 // 瞬时表现层:浮动金额(+/− 与铜钱雨)、朱砂印章、技能浮字两档(#850 施展升档/被动小签)。
-// D1/D4 改造:浮字/印章/铜钱不再走 HTML 覆盖层 + getScreenCTM 一次性换算
-// (拖拽/缩放后即脱锚),而是直接渲染进棋盘 SVG 的 #bv-fx 层(BoardFxLayer,
-// 由 BoardView 挂载)——坐标系与棋盘天然一致,pan/zoom 时随视图一起变换,
-// 字号随视图缩放、按当前缩放设 12px 等效下限。
+// D1/D4 改造沿革:浮字/印章/铜钱曾从 HTML 覆盖层 + getScreenCTM 换算迁入棋盘 SVG 的
+// #bv-fx 层;ADR-0045 起再迁 HTML 宿主(BoardFxLayer,BoardView 挂载,逐件 mini-svg)
+// ——坐标系与棋盘天然一致,pan/zoom 随宿主矩阵跟随,字号随视图缩放、按当前缩放设
+// 12px 等效下限。
 // #732:屏幕级知会(回合横幅/都城停条带)迁顶中知会横幅槽(screens/game/NoticeBanner),
 // 本件只剩拼点签面演出桥(DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi
 // 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。
@@ -16,6 +16,7 @@ import { createPortal } from "react-dom";
 import { playerColor, rgba } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
+import { BoardHost } from "@app/components/board/boardHost";
 import { useFxStore, type CashFlyFx, type FloaterFx } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
 import { formatFloater } from "./orchestrator";
@@ -108,10 +109,14 @@ function floaterLook(
 /** 补给铜钱雨落点(定数 6 枚,横向散布)。 */
 const SUPPLY_COINS = 6;
 
-/** 棋盘内 SVG 特效层(BoardView 挂在 #bv-fx 内):浮字 + 铜钱雨 + 朱砂/漆金印章 +
- *  出牌指示线 + 技能施展金圈(landPulse 通道)+ 破产墨渍/撒币(S7)。拼点演出归全屏签面
- *  (DuelSignsOverlay,ADR-0030 单通道)。 */
-export function BoardFxLayer() {
+/** 棋盘特效层(ADR-0042 第三波 HTML 版,BoardView 挂载):浮字 + 铜钱雨 + 朱砂/漆金
+ *  印章 + 出牌指示线 + 技能施展金圈(landPulse 通道)+ 破产墨渍/撒币(S7)。拼点演出
+ *  归全屏签面(DuelSignsOverlay,ADR-0030 单通道)。
+ *  前身直接渲染进顶板 SVG 的 g#bv-fx——SVG 子元素逐帧动画令整张顶板每帧失效重绘,
+ *  是低端 WebView 掉帧主源;现迁 HTML 宿主(BoardHost,#bv-fx 保号),每件特效独立
+ *  mini-svg(.bv-fx-svg:0 尺寸 overflow visible,世界坐标原绘原类,美术/CSS 动画/
+ *  DOM 契约零改动),逐帧失效收敛到各件自身小盒。 */
+export function BoardFxLayer({ svgRef }: { svgRef: React.RefObject<SVGSVGElement | null> }) {
   const floaters = useFxStore((s) => s.floaters);
   const seals = useFxStore((s) => s.seals);
   const jinnangLines = useFxStore((s) => s.jinnangLines);
@@ -121,15 +126,18 @@ export function BoardFxLayer() {
   const fontSize = floaterFontSize();
 
   return (
-    <>
-      {/* 墨渍径向渐变(破产仪式第二拍):单例 defs,实例经 fill=url(#) 引用 */}
-      <defs>
-        <radialGradient id="fx-ink-grad">
-          <stop offset="0%" stopColor="var(--color-paper)" stopOpacity="0.85" />
-          <stop offset="55%" stopColor="var(--color-paper)" stopOpacity="0.55" />
-          <stop offset="100%" stopColor="var(--color-paper)" stopOpacity="0" />
-        </radialGradient>
-      </defs>
+    <BoardHost id="bv-fx" svgRef={svgRef}>
+      {/* 墨渍径向渐变(破产仪式第二拍):单例 defs,实例经 fill=url(#) 跨 svg 同文档
+          引用(氛围层 capital-glow 同法先例) */}
+      <svg className="bv-fx-svg" width={0} height={0} aria-hidden="true">
+        <defs>
+          <radialGradient id="fx-ink-grad">
+            <stop offset="0%" stopColor="var(--color-paper)" stopOpacity="0.85" />
+            <stop offset="55%" stopColor="var(--color-paper)" stopOpacity="0.55" />
+            <stop offset="100%" stopColor="var(--color-paper)" stopOpacity="0" />
+          </radialGradient>
+        </defs>
+      </svg>
       {/* 浮动金额 + 铜钱雨 + 文案小字(ADR-0013)+ 技能浮字两档(#850):逻辑坐标
           直接使用,无需换算。X3:同锚点按存活序 y−idx*36 上移错位(store 追加序 = spawn 序) */}
       {floaters.map((f, i) => {
@@ -137,7 +145,7 @@ export function BoardFxLayer() {
         const y = f.y - overlapIdx * FLOATER_STAGGER_UNITS;
         const look = floaterLook(f, fontSize);
         return (
-          <g key={f.id}>
+          <svg key={f.id} className="bv-fx-svg" width={0} height={0}>
             <text
               className={`fx-svg-floater ${look.cls}`}
               x={f.x}
@@ -166,63 +174,68 @@ export function BoardFxLayer() {
                   dy={90 + Math.round(Math.random() * 30)}
                 />
               ))}
-          </g>
+          </svg>
         );
       })}
       {/* 技能施展金圈(#850,landPulse 通道唯一生产者;S7 落格定音原产者随 #826 退役)。
           #849 棒3:keyframe 只管形,
           全长 FX.pulseRingMs 内联注入(随 e2e/追帧通道缩放,清理窗 landPulseMs 同源) */}
       {pulses.map((p) => (
-        <circle
-          key={p.id}
-          className="fx-svg-pulse"
-          cx={p.x}
-          cy={p.y}
-          r={26}
-          style={{ animationDuration: `${FX.pulseRingMs}ms` }}
-        />
+        <svg key={p.id} className="bv-fx-svg" width={0} height={0}>
+          <circle
+            className="fx-svg-pulse"
+            cx={p.x}
+            cy={p.y}
+            r={26}
+            style={{ animationDuration: `${FX.pulseRingMs}ms` }}
+          />
+        </svg>
       ))}
       {/* 朱砂印章(漆金档见 .fx-svg-seal-gold):坐标即逻辑坐标。#849 棒3:双动画
           各自时长(FX.sealSlamMs/sealLingerMs)按列表序逗号内联注入 */}
       {seals.map((s) => (
-        <g
-          key={s.id}
-          className={`fx-svg-seal${s.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
-          transform={`translate(${s.x} ${s.y})`}
-          style={{ animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms` }}
-        >
-          <rect x={-29} y={-29} width={58} height={58} rx={9} />
-          <text y={11} textAnchor="middle" fontSize={32}>
-            {s.char}
-          </text>
-        </g>
+        <svg key={s.id} className="bv-fx-svg" width={0} height={0}>
+          <g
+            className={`fx-svg-seal${s.tone === "gold" ? " fx-svg-seal-gold" : ""}`}
+            transform={`translate(${s.x} ${s.y})`}
+            style={{ animationDuration: `${FX.sealSlamMs}ms, ${FX.sealLingerMs}ms` }}
+          >
+            <rect x={-29} y={-29} width={58} height={58} rx={9} />
+            <text y={11} textAnchor="middle" fontSize={32}>
+              {s.char}
+            </text>
+          </g>
+        </svg>
       ))}
       {/* 破产仪式(S7):铭牌墨渍晕开 + 铜钱撒落(8–12 枚一次性径向抛散)。
           #885 时长收口:墨渍全长 FX.inkBloomMs 内联注入(清理窗 inkBlotMs 同通道);
           撒币错拍步长 FX.coinStaggerMs(c%4 三步封顶,随通道缩放)。 */}
       {inkBlots.map((b) => (
-        <circle
-          key={b.id}
-          className="fx-svg-inkblot"
-          cx={b.x}
-          cy={b.y}
-          r={34}
-          fill="url(#fx-ink-grad)"
-          style={{ animationDuration: `${FX.inkBloomMs}ms` }}
-        />
-      ))}
-      {coinBursts.map((b) =>
-        Array.from({ length: Math.min(b.count, COIN_BURST_MAX) }, (_, c) => (
-          <Coin
-            key={`${b.id}-${c}`}
-            x={b.x}
-            y={b.y}
-            dx={Math.round((Math.random() - 0.5) * 150)}
-            dy={Math.round(Math.random() * 130) - 20}
-            delayMs={(c % 4) * FX.coinStaggerMs}
+        <svg key={b.id} className="bv-fx-svg" width={0} height={0}>
+          <circle
+            className="fx-svg-inkblot"
+            cx={b.x}
+            cy={b.y}
+            r={34}
+            fill="url(#fx-ink-grad)"
+            style={{ animationDuration: `${FX.inkBloomMs}ms` }}
           />
-        )),
-      )}
+        </svg>
+      ))}
+      {coinBursts.map((b) => (
+        <svg key={b.id} className="bv-fx-svg" width={0} height={0}>
+          {Array.from({ length: Math.min(b.count, COIN_BURST_MAX) }, (_, c) => (
+            <Coin
+              key={`${b.id}-${c}`}
+              x={b.x}
+              y={b.y}
+              dx={Math.round((Math.random() - 0.5) * 150)}
+              dy={Math.round(Math.random() * 130) - 20}
+              delayMs={(c % 4) * FX.coinStaggerMs}
+            />
+          ))}
+        </svg>
+      ))}
       {/* 出牌指示线(#281 P2-E;#849 棒2 提粗三件套):「使用者→目标」水墨墨线 +
           起点小圆锚点 + 终点箭羽(棋盘驿道人字羽同语,StaticLayers ROAD_ARROW_D 同形)。
           组管生死(opacity+金晕 drop-shadow)、线管生长(dashoffset),锚点/箭羽随组同寿、
@@ -233,34 +246,32 @@ export function BoardFxLayer() {
           <line> 上(契约不变);fx 层内部 data 属性不进 TESTIDS 单源,同层 data-fx-layer
           先例;pathLength=1 归一化供生长动画。 */}
       {jinnangLines.map((l) => (
-        <g
-          key={l.id}
-          className="fx-svg-jline"
-          style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
-        >
-          <line
-            className="fx-svg-jline-stroke"
-            data-fx-jinnang-line=""
-            x1={l.x1}
-            y1={l.y1}
-            x2={l.x2}
-            y2={l.y2}
-            pathLength={1}
-            style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
-          />
-          <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={5} />
-          <path
-            className="fx-svg-jline-feather"
-            d="M -9,-7 L 5,0 L -9,7"
-            fill="none"
-            transform={`translate(${l.x2} ${l.y2}) rotate(${
-              (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI
-            })`}
-            style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
-          />
-        </g>
+        <svg key={l.id} className="bv-fx-svg" width={0} height={0}>
+          <g className="fx-svg-jline" style={{ animationDuration: `${FX.jinnangLineMs}ms` }}>
+            <line
+              className="fx-svg-jline-stroke"
+              data-fx-jinnang-line=""
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              pathLength={1}
+              style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+            />
+            <circle className="fx-svg-jline-anchor" cx={l.x1} cy={l.y1} r={5} />
+            <path
+              className="fx-svg-jline-feather"
+              d="M -9,-7 L 5,0 L -9,7"
+              fill="none"
+              transform={`translate(${l.x2} ${l.y2}) rotate(${
+                (Math.atan2(l.y2 - l.y1, l.x2 - l.x1) * 180) / Math.PI
+              })`}
+              style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+            />
+          </g>
+        </svg>
       ))}
-    </>
+    </BoardHost>
   );
 }
 

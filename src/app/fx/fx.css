@@ -424,6 +424,15 @@
   }
 }
 
+/* 特效 mini-svg 载体(ADR-0042):每件特效/流光独立 svg,0 尺寸 + overflow visible,
+   世界坐标原绘——子内容逐帧动画只失效本件小盒,不再波及整层
+   (React 件见 FxLayer,命令式件见 useMarch.highlightSegment,宿主=boardHost)。 */
+.bv-fx-svg {
+  width: 0;
+  height: 0;
+  overflow: visible;
+}
+
 /* 驿道流光(行军逐段高亮,由 useMarch 命令式追加到 #bv-flow) */
 .road-flow {
   fill: none;

@@ -10,15 +10,16 @@
 //   - 跨批新锚 = 顶替:旧会话令牌随 Map 覆写作废,旧动画在段边界因身份比对失败
 //     自终止,新会话从自己的 keyframes 首帧直切到位(禁 glide);
 //   - 边界(abandonMarch/abandonAllMarches/resetFx)按 id 作废会话。
-// 介质与接管机制(与旧版一致):React 版棋子由 TokenLayer 声明式渲染,行军期间通过
-// 两条机制"接管":
+// 介质与接管机制(与旧版一致):React 版棋子由 TokenLayer 声明式渲染(ADR-0042 起
+// 为 HTML 包装 div,mini-svg 旗面/环原绘),行军期间通过两条机制"接管":
 //   ① fxStore.marching(id) → GameScreen 传 BoardView.skipTokenIds → TokenLayer 不再
 //      对该棋子做声明式定位(等价旧 updateTokens(engine, skipPlayerId));
 //   ② marchPos 模块 Map(棋子 id → 当前帧坐标):TokenLayer 对"被接管但仍有坐标"的
 //      棋子照常渲染(transform 取 marchPos)——行军中任何 store 同步触发的重渲都会
 //      把 transform 设为「当前帧目标」,与命令式写入值一致,棋子不会被拽回起点/终点。
-// 动画本体命令式:直接改 data-token-player 节点的 style.transform + transitionDuration
-// (CSS transition 见 board.css .bv-token)。
+// 动画本体命令式:直接改 data-token-player 包装节点的 style.transform +
+// transitionDuration(CSS transition 见 board.css .bv-token);HTML transform 过渡由
+// 合成器插值,主线程只在段边界参与(ADR-0042 迁层动机)。
 import type { BoardPos } from "@core/board";
 import { useFxStore } from "./fxStore";
 import { getAudio } from "./audio";
@@ -81,7 +82,7 @@ function segDuration(a: { x: number; y: number }, b: { x: number; y: number }): 
  *  (锚定先于 React 渲染接管态)= 无可直写,首渲自会按 marchPos 落位,无过渡可言。 */
 function cutTokenTo(moverId: string, start: { x: number; y: number }): void {
   if (typeof document === "undefined") return; // 无 DOM 运行时(bun 单测)无渲染面,同 timings 的环境判定口径
-  const token = document.querySelector<SVGGElement>(`#bv-tokens [data-token-player="${moverId}"]`);
+  const token = document.querySelector<HTMLElement>(`#bv-tokens [data-token-player="${moverId}"]`);
   if (token == null) return;
   token.style.transition = "none";
   token.style.transform = `translate(${start.x}px, ${start.y}px)`;
@@ -98,7 +99,7 @@ function cutTokenTo(moverId: string, start: { x: number; y: number }): void {
  *  过渡。无 DOM 运行时(bun 单测)无渲染面,同本文件既有 typeof document 判定口径。 */
 function releaseTokenCut(moverId: string): void {
   if (typeof document === "undefined") return;
-  const token = document.querySelector<SVGGElement>(`#bv-tokens [data-token-player="${moverId}"]`);
+  const token = document.querySelector<HTMLElement>(`#bv-tokens [data-token-player="${moverId}"]`);
   if (token == null) return;
   token.style.transitionDuration = "";
   token.style.transition = "none";
@@ -125,16 +126,24 @@ export function beginMarch(moverId: string, keyframes: readonly MarchSegmentFram
 }
 
 /** 驿道流光:行军每跨一格,沿该段烤好的折线(flow,恒直线)叠加一条金色流光
- *  (旧 highlightSegment;坐标提取拍已烤进事件,不再读棋盘)。 */
+ *  (旧 highlightSegment;坐标提取拍已烤进事件,不再读棋盘)。
+ *  ADR-0042:每条流光独立 mini-svg(.bv-fx-svg,0 尺寸 overflow visible)追加进
+ *  #bv-fx 同款 HTML 宿主 #bv-flow——路径 d 仍写世界坐标原值,逐帧渐隐失效只重绘
+ *  本条线自身小盒,不再波及整层(旧 g#bv-flow 直 append path 的整幅失效通路随之退役)。 */
 function highlightSegment(flow: readonly BoardPos[]): void {
-  const layer = document.querySelector<SVGGElement>("#bv-flow");
-  if (!layer) return;
+  const host = document.getElementById("bv-flow");
+  if (!host) return;
   const d = flow.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("class", "bv-fx-svg");
+  svg.setAttribute("width", "0");
+  svg.setAttribute("height", "0");
   const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
   p.setAttribute("class", "road-flow active");
   p.setAttribute("d", d);
-  layer.appendChild(p);
-  setTimeout(() => p.remove(), FX.roadFlowMs);
+  svg.appendChild(p);
+  host.appendChild(svg);
+  setTimeout(() => svg.remove(), FX.roadFlowMs);
 }
 
 /**
@@ -164,7 +173,7 @@ export async function animateMove(
   }
   // 等 React 把「跳过声明式定位 + marchPos 起点」渲染出来,再拿节点开始动画。
   await nextFrame();
-  const token = document.querySelector<SVGGElement>(`#bv-tokens [data-token-player="${moverId}"]`);
+  const token = document.querySelector<HTMLElement>(`#bv-tokens [data-token-player="${moverId}"]`);
   if (!token || !token.isConnected || !alive()) {
     endMarch(moverId, session); // 节点失联=无接管可交接,收会话;会话已死则幂等空转
     return;
