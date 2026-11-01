@@ -15,7 +15,7 @@
 // 品类配比(#823 拍板):9 特殊(珍宝×4=辽东/下邳/交州/函谷关 + 锦囊城×2 +
 // 卧龙城 + 天命城 + 商市城)+ 27 普通;八区 a–h 各 4–5 城
 // (中原5/荆楚5/岭南4/巴蜀5/西凉4/幽燕4/青徐5/江东4),无单城区。
-// 城档(#827 第二棒再平衡定档:名4/奇5/郡11/县16,数值见 TIERS 表头注)
+// 城档(#827 定档盘子:名4/奇5/郡11/县16,数值见 TIERS 表;ADR-0042 起 tier 显式入 JSON)
 //
 // 数据源:huanyou.json 自身(**自再生**)——几何/环序/分组/事件/经济全部由本脚本
 // 的声明表(RING + SPECIAL + TIER_OF)确定性产出,逐城经济 = 城档标准档
@@ -32,6 +32,7 @@ import { fileURLToPath } from "node:url";
 import { loadMap } from "../src/core/board-loader";
 import { MIN_TILE_DIST } from "../src/core/constants";
 import type { MapData, MapTile } from "../src/core/board-loader";
+import type { CityTier } from "../src/core/economy";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, "..");
@@ -111,48 +112,49 @@ const SPECIAL: Record<string, string> = {
   "prop-shangshi": "market",
 };
 
-// ── 逐城城档(#827 过渡档盘子:名4/奇5/郡11/县16;口径与守卫测试一致)──
-const TIER_OF: Record<string, keyof typeof TIERS> = {
+// ── 逐城城档(#827 定档盘子:名4/奇5/郡11/县16;ADR-0042 决策 3 起单字 tier 随本表
+//    显式写入 JSON,loadMap 白名单校验;口径与守卫测试一致)──
+const TIER_OF: Record<string, CityTier> = {
   // 名城(魏蜀吴都城 + 汉室西京)
-  "prop-changan": "名城",
-  "prop-luoyang": "名城",
-  "prop-chengdu": "名城",
-  "prop-jianye": "名城",
+  "prop-changan": "名",
+  "prop-luoyang": "名",
+  "prop-chengdu": "名",
+  "prop-jianye": "名",
   // 奇城
-  "prop-jieting": "奇城",
-  "prop-ziwu": "奇城",
-  "prop-huarong": "奇城",
-  "prop-hefei": "奇城",
-  "prop-chibi": "奇城",
+  "prop-jieting": "奇",
+  "prop-ziwu": "奇",
+  "prop-huarong": "奇",
+  "prop-hefei": "奇",
+  "prop-chibi": "奇",
   // 郡城(旧 12 城去虎牢关/江陵/弘农,升凉州[州治]/江州[巴郡治])
-  "prop-wujun": "郡城",
-  "prop-xianyang": "郡城",
-  "prop-xiangyang": "郡城",
-  "prop-xuchang": "郡城",
-  "prop-kuiji": "郡城",
-  "prop-ye": "郡城",
-  "prop-xuzhou": "郡城",
-  "prop-hanzhong": "郡城",
-  "prop-xiapi": "郡城",
-  "prop-liangzhou": "郡城",
-  "prop-jiangzhou": "郡城",
+  "prop-wujun": "郡",
+  "prop-xianyang": "郡",
+  "prop-xiangyang": "郡",
+  "prop-xuchang": "郡",
+  "prop-kuiji": "郡",
+  "prop-ye": "郡",
+  "prop-xuzhou": "郡",
+  "prop-hanzhong": "郡",
+  "prop-xiapi": "郡",
+  "prop-liangzhou": "郡",
+  "prop-jiangzhou": "郡",
   // 县城(11 座实名 + 5 座派生名城)
-  "prop-jiange": "县城",
-  "prop-jinyang": "县城",
-  "prop-wuchang": "县城",
-  "prop-linzi": "县城",
-  "prop-jiangxia": "县城",
-  "prop-youzhou": "县城",
-  "prop-changsha": "县城",
-  "prop-hangu": "县城",
-  "prop-liaodong": "县城",
-  "prop-lingling": "县城",
-  "prop-jiaozhou": "县城",
-  "prop-shangshi": "县城",
-  "prop-jinnang-1": "县城",
-  "prop-jinnang-2": "县城",
-  "prop-wolong": "县城",
-  "prop-tianming": "县城",
+  "prop-jiange": "县",
+  "prop-jinyang": "县",
+  "prop-wuchang": "县",
+  "prop-linzi": "县",
+  "prop-jiangxia": "县",
+  "prop-youzhou": "县",
+  "prop-changsha": "县",
+  "prop-hangu": "县",
+  "prop-liaodong": "县",
+  "prop-lingling": "县",
+  "prop-jiaozhou": "县",
+  "prop-shangshi": "县",
+  "prop-jinnang-1": "县",
+  "prop-jinnang-2": "县",
+  "prop-wolong": "县",
+  "prop-tianming": "县",
 };
 
 // ── 派生名新城(#827 城名派生自固定事件,现役 38 城名之外)──
@@ -196,29 +198,38 @@ const DROPPED = [
 // ③奇城 Lv2 倍率 5→4 驯化保留(#827 独立于 ×1.5 的实测修复:大单 78% 出在奇城,
 //   驯化后大单局均 −27%;满级 ×7、青囊书 600 分水岭同售 4200 与斩杀线 21000 不变),
 //   并推广到中原图(虎牢关/宛城同为双奇城相邻)。
-const TIERS = {
-  县城: {
+const TIERS: Record<
+  CityTier,
+  {
+    price: number;
+    buildCost: number;
+    tradeMult: number[];
+    tradeAdd: number[];
+    valueByLevel: number[];
+  }
+> = {
+  县: {
     price: 1800,
     buildCost: 900,
     tradeMult: [1, 1, 1, 1],
     tradeAdd: [100, 200, 400, 800],
     valueByLevel: [1080, 1620, 2160, 2700],
   },
-  郡城: {
+  郡: {
     price: 3000,
     buildCost: 1500,
     tradeMult: [1, 1, 1, 1],
     tradeAdd: [200, 400, 800, 1600],
     valueByLevel: [1800, 2700, 3600, 4500],
   },
-  奇城: {
+  奇: {
     price: 3000,
     buildCost: 1500,
     tradeMult: [2, 3, 4, 7],
     tradeAdd: [0, 0, 0, 0],
     valueByLevel: [1800, 2700, 3600, 4500],
   },
-  名城: {
+  名: {
     price: 4800,
     buildCost: 2400,
     tradeMult: [2, 3, 4, 5],
@@ -242,6 +253,7 @@ const tiles: MapTile[] = RING.map(({ id, c, r, group }) => {
     name,
     pos: [gx(c), gy(r)],
     group,
+    tier, // ADR-0042:城池档位随声明表显式入 JSON
     price: std.price,
     buildCost: std.buildCost,
     tradeMult: [...std.tradeMult],

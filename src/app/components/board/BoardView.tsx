@@ -199,13 +199,15 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     () => (
       <>
         {orderedTiles.map((tile) => {
-          const def = loaded.catalog.get(tile.propertyId);
+          // 严格 loadMap 下每格 propertyId 必入册(#826 全城池制),def 必非空——
+          // 空值是 loader bug,直接炸出来(零兜底;tier 管道顺手收编旧 `??` 档)。
+          const def = loaded.catalog.get(tile.propertyId)!;
           return (
             <Tile
               key={tile.index}
               tile={tile}
-              group={def?.group ?? ""}
-              maxLevel={def?.maxLevel ?? 0}
+              tier={def.tier}
+              maxLevel={def.maxLevel}
               state={tileStates.get(tile.index)!}
               onClick={handleTileClick ?? undefined}
               showGlow={false}

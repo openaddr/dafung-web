@@ -10,7 +10,7 @@
 import { Fragment } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
-import { sellValueOf } from "@core/economy";
+import { sellValueOf, type CityTier } from "@core/economy";
 import { heroById } from "@core/heroes";
 import { Theme } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -45,6 +45,14 @@ export interface DecisionScrollLayerProps {
 // 未知分组字母(自定义图)无分组名,落空串(纯 UI 空态,调用方按空省略该段)。
 function groupLineLabel(group: string | undefined): string {
   return group != null ? (Theme.groupNames[group] ?? "") : "";
+}
+
+// 城池档位行名(ADR-0042 决策 6 + DESIGN §4.8 名词纪律):详情/购地/扩军三卷轴
+// 城名旁缀两字档位名(「名城」式,不加前缀/定位语/解释),唯一源 Theme.cityTierNames
+// (#828 同款单源化:显示名在本层算成成品,卷轴只收字符串);tier 逐城必配且
+// loadMap 白名单校验,查表必中,无未知值分支。板上不立文字牌(棋盘呈现归 T2 票)。
+function tierLineLabel(tier: CityTier): string {
+  return Theme.cityTierNames[tier];
 }
 
 export function DecisionScrollLayer({
@@ -132,6 +140,7 @@ export function DecisionScrollLayer({
           tile={tile}
           tileName={tile.name}
           groupLabel={groupLineLabel(def.group)}
+          tierLabel={tierLineLabel(def.tier)}
           // 城表定义直传(TileThumb 缩略图与 ValueTable 同源消费,不再手工收窄成子集)
           property={def}
           players={players}
@@ -247,6 +256,7 @@ export function DecisionScrollLayer({
               <BuyDecisionScroll
                 tileName={tile?.name ?? def.id}
                 groupLabel={groupLineLabel(def.group)}
+                tierLabel={tierLineLabel(def.tier)}
                 property={{
                   purchasePrice: def.purchasePrice,
                   maxLevel: def.maxLevel,
@@ -265,6 +275,7 @@ export function DecisionScrollLayer({
             return (
               <UpgradeDecisionScroll
                 tileName={tile?.name ?? def.id}
+                tierLabel={tierLineLabel(def.tier)}
                 level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
                 property={{
                   maxLevel: def.maxLevel,

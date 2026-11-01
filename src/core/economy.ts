@@ -4,12 +4,21 @@
 import type { Player, PropertyHolding } from "./model";
 import { findHolding } from "./player";
 
+/** 城池档位(ADR-0034 四档城制;ADR-0042 决策 3 数据面显式化):单字中文口径,
+ *  地图 JSON 逐城必配(`"tier": "名"`),loadMap 白名单校验,零兜底。
+ *  两字显示名(县城/郡城/奇城/名城)唯一源 = theme.ts cityTierNames。 */
+export type CityTier = "县" | "郡" | "奇" | "名";
+
+/** CityTier 全集(loadMap 合法值白名单的唯一事实源)。 */
+export const CITY_TIERS = ["县", "郡", "奇", "名"] as const;
+
 /** 地产定义。BuildCost=选都建城费;Resupply=都城补给(固定值,不随等级)。
  *  本作无过路费/升级费:自己到达己城可选免费扩军;他人落城不升级,
  *  仅当城主对该访客的珍宝交涉选择公道买卖且成交时 +1 级(满级封顶)。 */
 export interface PropertyDef {
   id: string;
   group: string; // 'a'..'h'
+  tier: CityTier; // 城池档位(县/郡/奇/名):逐城必配,loadMap 校验;购价与坐地起价曲线形状随档走
   purchasePrice: number;
   maxLevel: number; // 最高等级(地图逐图必配,loadMap 校验;持有等级 0..maxLevel,购入/建都即 Lv.0)
   valueByLevel: number[]; // 各等级变卖价(#671 正名,旧称「城池价值」),长度 = maxLevel+1,下标 = 等级

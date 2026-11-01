@@ -4,6 +4,7 @@
 // 配色与动效唯一源:本文件 Theme / Motion 对象。Tailwind token 由
 // scripts/generate-theme-tokens.ts 自动生成 src/app/styles/tokens.css(bun run gen:theme),
 // 改色改节奏只改这里——旧「与 style.css 双源人工同步」的约定已随 React/Tailwind 迁移作废。
+import type { CityTier } from "./economy";
 
 export interface Rgb {
   r: number;
@@ -65,6 +66,15 @@ export const Theme = {
     g: "青徐",
     h: "江东",
   } as Record<string, string>,
+
+  // 城池档位两字名(ADR-0042 决策 6/7:读数场合缀「名城」式两字名,板上不立文字牌)。
+  // 单字 tier 唯一源 = economy.CityTier;上游 UI 直接取用,不各写各的对照。
+  cityTierNames: {
+    县: "县城",
+    郡: "郡城",
+    奇: "奇城",
+    名: "名城",
+  } as Record<CityTier, string>,
 
   // ── 属性色变体(#253 布局骨架)──
   // 一属性一色;每属性两档:无后缀 = 墨面档(#509 换血后宣纸面已是深底,此档按

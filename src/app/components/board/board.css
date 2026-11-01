@@ -164,7 +164,7 @@
    announceTileChange → fxStore.announces 宣告 nonce → Tile 以 nonce 为 React key 重挂
    重播一次。Tile 自身不做 props diff 自触发(R3 的 key={level}/上一值钩子已删);
    「何时播」归播放器,CSS 只承担「怎么播」(keyframes 本体在此)。
-   1. 档位珠落位(.bv-pip-grow):扩军宣告时最末一颗新珠 scale 0.6→1 + opacity 0→1,
+   1. 等级珠落位(.bv-pip-grow):扩军宣告时最末一颗新珠 scale 0.6→1 + opacity 0→1,
       --dur-med + --ease-out-back,transform-origin 取 fill-box 中心,珠原地长大落位。
       Tile 以宣告 nonce 为 key 只重挂珠组、动画类只挂末珠,其余珠原地复用静置。
       (旧「等级印 pop 落章弧 + 城楼顶层生长」双通道随 2026-10-17 档位珠批退役。)
@@ -212,9 +212,9 @@
 /* ── M-9 降耗:用户偏好减弱动态时,停用本文件的装饰动画。
    常驻 infinite 已全数迁氛围层(ADR-0039:旗摇/都城晕/活跃环/自机微光/回合金环,
    ambient.css 有自己的 M-9 段);此处只余阶段性动画:
-   行军金环(接管期)/候选金圈脉冲(选都期)/#96 一次性出场(档位珠/易主流光)。
+   行军金环(接管期)/候选金圈脉冲(选都期)/#96 一次性出场(等级珠/易主流光)。
    候选脉冲停用后回落为静态金圈(可辨但不闪);易主流光停用后由基态 opacity 0
-   保持隐形,档位珠以默认 scale 1 全形静置。 */
+   保持隐形,等级珠以默认 scale 1 全形静置。 */
 @media (prefers-reduced-motion: reduce) {
   .bv-token.bv-token-marching .bv-token-march-ring,
   .bv-tile.bv-selectable .bv-tile-hilite,

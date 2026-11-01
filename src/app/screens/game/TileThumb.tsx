@@ -1,5 +1,5 @@
 // 名下城池清单行首缩略图(#623,规格 #621):非交互真实格缩略图——独立 <svg> 壳
-// 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级档位珠(满级金框)、
+// 原样复用棋盘 <Tile>,与棋盘逐像素同源:竖排城名木匾、等级珠(满级金框)、
 // 都城金台座+王旗、特殊城池两字徽标、持有者燕尾旗全是 Tile 自带渲染,本件零特判。
 // 三条同源口径:
 // ① 状态推导与 BoardView 同一实现(board 族单源 tileOwnership.ts,#665 收编):
@@ -39,7 +39,7 @@ export function TileThumb({
 }: {
   /** 棋盘格定义(board.at(tileIndex),含格心 position)。 */
   tile: TileDef;
-  /** 城表定义(catalog.get(propertyId)):group 选建筑形制、maxLevel 判满级金框。 */
+  /** 城表定义(catalog.get(propertyId)):tier 选建筑形制(ADR-0042)、maxLevel 判满级金框。 */
   def: PropertyDef;
   /** 棋盘格 index(都城判定 + Tile 内部 id/data-tile)。 */
   tileIndex: number;
@@ -76,7 +76,7 @@ export function TileThumb({
       ].join(" ")}
       className="city-ledger-thumb pointer-events-none block"
     >
-      <Tile tile={tile} group={def.group} maxLevel={def.maxLevel} state={state} />
+      <Tile tile={tile} tier={def.tier} maxLevel={def.maxLevel} state={state} />
     </svg>
   );
 }

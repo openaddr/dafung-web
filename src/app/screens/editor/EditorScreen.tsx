@@ -18,8 +18,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MapData, MapTile } from "@core/board-loader";
 import type { TileEvent, TileType } from "@core/board";
+import type { CityTier } from "@core/economy";
+import { CITY_TIERS } from "@core/economy";
 import { loadMap } from "@core/board-loader";
 import { MIN_TILE_DIST } from "@core/constants";
+import { Theme } from "@core/theme";
 import { findTooClosePairs } from "@core/geometry";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
@@ -66,6 +69,14 @@ const TILE_EVENT_OPTIONS: ReadonlyArray<{ value: TileEvent | ""; label: string }
   { value: "market", label: "商市(行情波动)" },
   { value: "treasure", label: "珍宝(拼点探宝)" },
 ];
+
+/** 城池档位选项(ADR-0042 决策 3:编辑器档位选择):值 = 单字 tier(与 economy.CITY_TIERS
+ *  白名单/loadMap 校验同源),标签 = Theme.cityTierNames 两字名(唯一源,§4.8 名词纪律
+ *  不缀解释);tier 逐城必配(loadMap 校验),故无空值项。 */
+const TIER_OPTIONS: ReadonlyArray<{ value: CityTier; label: string }> = CITY_TIERS.map((t) => ({
+  value: t,
+  label: Theme.cityTierNames[t],
+}));
 
 /** 文本/数字字段定义(旧版 renderPanel 的 strFields + numFields,外加 type 下拉)。 */
 interface FieldDef {
@@ -678,6 +689,24 @@ export function EditorScreen({ initialMap, onSave, onExit, onStart }: EditorScre
                 }}
               >
                 {TILE_EVENT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            {/* 档位(ADR-0042 决策 3):选中城已有 tier 必配恒有值(零兜底,无空值项);
+                改选即时写回 MapTile.tier,undo 走表单容器的焦点会话快照(与其他字段同栈) */}
+            <label className="flex items-center gap-2">
+              <span className="w-24 shrink-0">档位</span>
+              <select
+                data-testid={TID.field("tier")}
+                className={selectCls}
+                value={tile.tier}
+                onChange={(e) => setTileField("tier", e.target.value as CityTier)}
+              >
+                {TIER_OPTIONS.map((o) => (
                   <option key={o.value} value={o.value}>
                     {o.label}
                   </option>
