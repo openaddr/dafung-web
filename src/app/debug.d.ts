@@ -4,10 +4,13 @@ import type { GameEngine } from "@core/authority";
 import type { HeroDef } from "@core/heroes";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { GameController } from "@app/controllers/controller";
+import type { FrameDiagDump } from "@app/frameDiag";
 
 declare global {
   interface Window {
     __dafung?: {
+      /** 帧诊读取口(ADR-0047 消费面;scripts/frame-probe.ts 消费,只读不启停)。 */
+      frameDiag: () => FrameDiagDump | null;
       /** 当前引擎实例(null = 未开局)。 */
       getEngine: () => GameEngine | null;
       /** 绑定/解绑引擎(调试恢复用)。 */
