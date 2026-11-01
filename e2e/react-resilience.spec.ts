@@ -8,18 +8,18 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { LID } from "../src/app/screens/lobby/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
-// 零兜底原则:图库数据损坏 = 启动时解析默认地图即抛,首页被拦在「地图清单加载中…」
-// 并显式报错(HintBar 显示失败原因)——损坏可见,不静默清空、不静默忽略。
-test("图库 localStorage 垃圾数据:首页显式报错(损坏可见,不静默清空)", async ({ page }) => {
-  // #938:本用例验「无记忆 id 时启动走清单单源」——解钉 fixtures 的图谱固定,
-  // 否则 mapId 直连内建图绕开清单解析,垃圾图库不再拦启动(用例前提失效)。
+// 零兜底原则:记忆地图 id(残余 localStorage 面,#947 自建图库退役后仅剩此键)损坏
+// = 原样回显可见、启动不卡死、记忆不被静默改写——损坏可见,不静默清空、不静默兜底。
+test("记忆地图 id 为垃圾串:首页原样回显不卡死,记忆不被静默清空", async ({ page }) => {
   await page.addInitScript(() => {
-    localStorage.removeItem("dafung.mapId");
-    localStorage.setItem("dafung-custom-maps", "not-json{{{");
+    localStorage.setItem("dafung.mapId", "not-json{{{");
   });
   await page.goto("/");
-  await expect(page.getByText("地图清单加载中…")).toBeVisible({ timeout: 10_000 });
-  await expect(page.getByText(/地图清单加载失败/)).toBeVisible({ timeout: 10_000 });
+  // 垃圾串也是合法记忆值:不走「清单加载中」闸,首页直接渲染,id 原样回显(待数据非兜底)
+  await expect(page.getByText("地图清单加载中…")).toHaveCount(0);
+  await expect(page.getByTestId(SETUP_TID.currentMapName)).toHaveText("not-json{{{");
+  // 不静默清空:垃圾记忆原样保留(损坏对后续开局可见,见下一条「失效 id」用例)
+  expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("not-json{{{");
 });
 
 test("记忆的地图 id 失效:起兵被拦,停留设置屏(降级不崩溃)", async ({ page }) => {
@@ -50,7 +50,7 @@ test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ brow
   await guest.goto(`${ONLINE}/?room=${roomId}`);
   await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId(LID.selectMap).click();
-  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await host.getByTestId(SETUP_TID.mapConfirm).click();
   await host.getByTestId(LID.start).click();
   for (const p of [host, guest]) {

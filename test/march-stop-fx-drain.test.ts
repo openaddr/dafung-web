@@ -7,9 +7,9 @@
 // #882 定性结论(证据链见票):e2e 三分支走查挂起根因是场景前提破缺(后续 bot 自然骰
 // 买走停靠格,人类行军批与 bot 链合并单块,块播时长超过横幅展示寿命,应答交集变空),
 // 表现层收支闭合无泄漏——本例即无泄漏侧的常驻单测证词。
-// 流程(seed 50 × huanyou,与 react-reaction 三分支走查同款开局):选都 9 建业 →
-// 自动起摇落 10 会稽(购地停靠)→ 种植(持半路杀出/bot 挪都城前一格/拼点骰 [6,1])→
-// endDecision 放行 → bot1 途经建业开拦检窗 → respondReaction(use=true)→ 拦停截断。
+// 流程(seed 59 × 关中,与 react-reaction 三分支走查同款开局):选都 4 襄平 →
+// 自动起摇落 10 长沙(购地停靠)→ 种植(持半路杀出/bot 挪 3 辽东=都城前一格/拼点骰 [6,1])→
+// endDecision 放行 → bot1 自辽东途经襄平开拦检窗 → respondReaction(use=true)→ 拦停截断。
 // bun 无 DOM:present 的 DOM/音频触点由 SnapshotEffects 捕获报错(响亮 console.error,
 // local-room 同款口径),排空语义照走——队列/状态断言不受影响。
 import { describe, it, expect } from "bun:test";
@@ -43,8 +43,8 @@ function makeController(): LocalController {
       { name: "诸侯3", isBot: true },
       { name: "诸侯4", isBot: true },
     ],
-    seed: 50,
-    mapId: "huanyou",
+    seed: 59,
+    mapId: "guanzhong",
     botStepMs: 0, // 单测预算按 0ms bot 连锁书写(#730 配速不进既有用例)
     encounter: { enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } },
   });
@@ -57,12 +57,12 @@ describe("拦停截断 × 表现队列排空(#882 回归钉)", () => {
       const c = makeController();
       try {
         const e = c.engine;
-        // 开局:进程内房间编排把对局驱动到人类选都;选盘面序最小候选(seed 50 = 9 建业,
-        // 与 react-reaction 三分支走查的 DOM 首格同格)。
+        // 开局:进程内房间编排把对局驱动到人类选都;选盘面序最小候选(seed 59 = 4 襄平,
+        // 引擎首候选=环序最小,与 e2e DOM 首格同格)。
         expect(e.phase).toBe("Setup");
         c.setupPickCapital(Math.min(...e.offeredCapitals));
-        expect(e.players[0].capitalIndex).toBe(9);
-        // 等购地停靠(自动起摇看门狗 1s 固定拍 → 掷骰落 10 会稽 → 可购决策)。
+        expect(e.players[0].capitalIndex).toBe(4);
+        // 等购地停靠(自动起摇看门狗 1s 固定拍 → 掷骰落 10 长沙 → 可购决策)。
         await waitFor(
           "开局购地停靠",
           () =>
@@ -81,7 +81,7 @@ describe("拦停截断 × 表现队列排空(#882 回归钉)", () => {
           if (queue.length === 0) e.dice.rollDie = origRollDie;
           return v ?? origRollDie();
         };
-        // 放行购地卷轴 → bot 链:bot1 自 8 途经 9 建业开拦检窗(挂停,等真人应答)。
+        // 放行购地卷轴 → bot 链:bot1 自 3 辽东途经 4 襄平开拦检窗(挂停,等真人应答)。
         c.dispatchCommand({ type: "endDecision" });
         await waitFor(
           "拦检窗开启",

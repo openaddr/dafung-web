@@ -1,12 +1,10 @@
-// 根组件:按 store.screen 路由(setup 首页 / solo-setup 单机配置 / lobby / game / editor)。
+// 根组件:按 store.screen 路由(setup 首页 / solo-setup 单机配置 / lobby / game)。
 // 正式开局流程:首页「单机模式」→ SoloSetupScreen.onStart → loadMapById → LocalController → GameScreen。
 // 联机流程(阶段 8):首页「联机模式」或 ?online=1 → 占位图 + OnlineController
 // → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
-import type { MapData } from "@core/board-loader";
-import { ENCOUNTER_PRODUCT_DEFAULTS } from "@core/encounters";
 import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
@@ -17,7 +15,6 @@ import { GameScreen } from "@app/screens/game/GameScreen";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
-import { EditorScreen } from "@app/screens/editor/EditorScreen";
 import { SoundBoard } from "@app/screens/dev/SoundBoard";
 import { HintBar } from "@app/screens/shared/HintBar";
 // R3-C2(#89) 屏间转场(#771 墨韵化:墨晕盖入+内容浮现):keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
@@ -60,15 +57,13 @@ export function App() {
   const handleStart = useCallback(
     async (config: SetupConfig) => {
       try {
-        // 组合源:custom- 前缀走自建图库,内置图走 fetch(单用 FetchMapSource 会抛
-        // 「内置图清单中无此 id」——e2e react-editor 巡检发现)
         const source = getMapSource();
         const map = await loadMapById(source, config.mapId);
         const controller = new LocalController(map, {
           seats: config.seats,
           targetNetWorth: config.targetNetWorth,
           seed: config.seed ?? urlSeed(),
-          // ADR-0014 对局日志局头要素(编辑器试玩不经此口,无地图 id 如实留空)
+          // ADR-0014 对局日志局头要素
           mapId: config.mapId,
           encounter: config.encounter, // 机遇配置(#125):设置屏默认读 jiyu.json,单局覆盖
         });
@@ -128,61 +123,6 @@ export function App() {
     setScreen("setup");
   }, [setScreen]);
 
-  // ── 编辑器(阶段 9):首页「编辑地图」→ EditorScreen。
-  // 起编地图:旧实现忽略传入 id 固定加载默认图,此处从选中图起编更直观(行为增强,注释存档)。
-  const [editorMap, setEditorMap] = useState<MapData | null>(null);
-  const handleEdit = useCallback(
-    async (mapId: string) => {
-      try {
-        const source = new FetchMapSource();
-        setEditorMap(await source.loadMapData(mapId));
-        setScreen("editor");
-      } catch (err) {
-        pushHint(`进入编辑器失败:${(err as Error).message}`);
-      }
-    },
-    [pushHint, setScreen],
-  );
-
-  // 保存:写入自建图库(localStorage 渠道,与旧编辑器一致);另存新图由 EditorScreen 自理
-  const handleEditorSave = useCallback(
-    (data: MapData) => {
-      // MapData 无名字段,用首格名兜底命名(图库列表展示用,允许重名)
-      getMapSource().saveCustomMap(data.tiles[0]?.name ?? "未命名地图", data);
-      pushHint("已存入自建图库", "info");
-    },
-    [pushHint],
-  );
-
-  // 试玩:直接以编辑中的数据开局(不经图库,对照旧「试玩」语义);#398 起同走
-  // 进程内房间编排(mapId 如实空串,局头留空)。
-  const handleEditorStart = useCallback(
-    async (data: MapData) => {
-      try {
-        const { loadMap } = await import("@core/board-loader");
-        const map = loadMap(data);
-        const controller = new LocalController(map, {
-          seats: [
-            { name: "玩家一", isBot: false, guohao: "魏" },
-            { name: "bot二", isBot: true },
-            { name: "bot三", isBot: true },
-            { name: "bot四", isBot: true },
-          ],
-          seed: urlSeed(),
-          mapId: "",
-          // 试玩机遇走产品默认档(#458):引擎缺省 enabled=false 恒关,试玩须与正式局同源可触发
-          encounter: ENCOUNTER_PRODUCT_DEFAULTS,
-        });
-        setController(controller, data);
-        useGameStore.getState().syncFromEngine(controller.engine);
-        setScreen("game");
-      } catch (err) {
-        pushHint(`试玩开局失败:${(err as Error).message}`);
-      }
-    },
-    [pushHint, setScreen],
-  );
-
   const handleMapChange = useCallback((mapId: string) => {
     localStorage.setItem(MAP_PREF_KEY, mapId);
     // state 与 localStorage 同步(后续渲染读 state;两处永远一致)
@@ -220,18 +160,9 @@ export function App() {
     content = <GameScreen />;
   } else if (screen === "lobby") {
     content = <LobbyScreen onExit={handleExitLobby} />;
-  } else if (screen === "editor" && editorMap) {
-    content = (
-      <EditorScreen
-        initialMap={editorMap}
-        onSave={handleEditorSave}
-        onExit={() => setScreen("setup")}
-        onStart={(data) => void handleEditorStart(data)}
-      />
-    );
   } else if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {
     // 地图 id 未解析出(localStorage 无记忆且清单未回/失败)时不进依赖地图的屏:
-    // 首页/配置页的地图名与编辑器起编图都以它为入参,无值比给假默认更诚实。
+    // 首页/配置页的地图名都以它为入参,无值比给假默认更诚实。
     content = (
       <div className="relative h-full">
         <p className="p-8 font-deco text-paper-dim">地图清单加载中…</p>
@@ -254,13 +185,12 @@ export function App() {
       </div>
     );
   } else if (screen === "setup" && initialMapId) {
-    // 首页:四个模式入口(单机 / 联机 / 选图 / 编辑),对局配置在 solo-setup 次级页
+    // 首页:三个模式入口(单机 / 联机 / 选图),对局配置在 solo-setup 次级页
     content = (
       <div className="relative h-full">
         <HomeScreen
           onSolo={() => setScreen("solo-setup")}
           onOnline={() => void handleOnline()}
-          onEdit={(mapId) => void handleEdit(mapId)}
           initialMapId={initialMapId}
           onMapChange={handleMapChange}
           mapSource={getMapSource()}

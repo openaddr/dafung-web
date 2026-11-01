@@ -1,4 +1,4 @@
-// 地图选择面板(首页内嵌二级屏):列出全部可选地图(内置 + 自建),
+// 地图选择面板(首页内嵌二级屏):列出全部可选地图(内置图,PR+JSON 扩展),
 // 点击条目展开简化 SVG 预览(主路双层描折线 + 城池方形小印),确认后回传 mapId。
 // 对照旧实现 src/render/ui.ts createMapSelectionScreen;预览不复用重型 createBoardSvg,
 // 而是直接基于 MapData 的 pos 坐标画简版(延迟加载:点选时才 loadMapData)。
@@ -169,7 +169,7 @@ export function MapSelectPanel({
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  // 挂载时拉清单一次(fetch 内置清单 + localStorage 自建图,均可能失败需兜底提示);
+  // 挂载时拉清单一次(fetch 内置清单,可能失败需兜底提示);
   // S-4:清单拉取收敛为 reload,失败态可点「重试」重新拉取
   const [reloadKey, setReloadKey] = useState(0);
   useEffect(() => {
@@ -296,12 +296,7 @@ export function MapSelectPanel({
                     }
                   >
                     <div className="flex justify-between items-baseline gap-2">
-                      <span className="font-wenkai text-[15px] text-paper">
-                        {e.name}
-                        {e.custom ? (
-                          <span className="ml-2 text-xs text-paper-dim">自建</span>
-                        ) : null}
-                      </span>
+                      <span className="font-wenkai text-[15px] text-paper">{e.name}</span>
                       <span className="text-xs text-paper-dim shrink-0">
                         {e.tileCount} 城 · 目标 {formatMoney(e.targetNetWorth)}
                       </span>

@@ -3,14 +3,12 @@ import {
   loadMapById,
   parseCatalog,
   entryFromFile,
-  isCustomId,
-  CUSTOM_ID_PREFIX,
   type MapSource,
   type MapEntry,
   type CatalogFileEntry,
 } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 
 /** 内存 MapSource(单测用):不依赖 fetch/localStorage。 */
@@ -27,48 +25,31 @@ function makeMemorySource(entries: MapEntry[], data: Record<string, MapData>): M
 describe("loadMapById(统一加载入口)", () => {
   it("按 id 从源加载并构建 LoadedMap", async () => {
     const src = makeMemorySource(
-      [{ id: "huanyou", name: "环游图", desc: "", tileCount: 38, targetNetWorth: 8000 }],
-      { huanyou: huanyouData as MapData },
+      [{ id: "guanzhong", name: "关中图", desc: "", tileCount: 28, targetNetWorth: 30000 }],
+      { guanzhong: guanzhongData as MapData },
     );
-    const m = await loadMapById(src, "huanyou");
-    expect(m.tiles.length).toBeGreaterThanOrEqual(30);
+    const m = await loadMapById(src, "guanzhong");
+    expect(m.tiles.length).toBe(28);
     expect(m.targetNetWorth).toBe(30000); // 经济 v2
   });
 
   it("不同 id 加载到不同地图", async () => {
     const src = makeMemorySource(
       [
-        { id: "huanyou", name: "环游图", desc: "", tileCount: 38, targetNetWorth: 8000 },
+        { id: "guanzhong", name: "关中图", desc: "", tileCount: 28, targetNetWorth: 30000 },
         { id: "zhongyuan", name: "中原争霸", desc: "", tileCount: 8, targetNetWorth: 5000 },
       ],
       {
-        huanyou: huanyouData as MapData,
+        guanzhong: guanzhongData as MapData,
         zhongyuan: zhongyuanData as MapData,
       },
     );
-    const [a, b] = await Promise.all([loadMapById(src, "huanyou"), loadMapById(src, "zhongyuan")]);
+    const [a, b] = await Promise.all([
+      loadMapById(src, "guanzhong"),
+      loadMapById(src, "zhongyuan"),
+    ]);
     expect(a.tiles.length).not.toBe(b.tiles.length);
     expect(a.properties.length).not.toBe(b.properties.length); // 经济 v2:全局目标统一,以城数区分
-  });
-
-  it("自建图 id(custom- 前缀)与内置 id 走同一加载路径", async () => {
-    const customData = JSON.parse(JSON.stringify(zhongyuanData)) as MapData;
-    customData.targetNetWorth = 3000; // 改个值区分
-    const src = makeMemorySource(
-      [
-        {
-          id: "custom-1",
-          name: "我的图",
-          desc: "",
-          tileCount: 8,
-          targetNetWorth: 3000,
-          custom: true,
-        },
-      ],
-      { "custom-1": customData },
-    );
-    const m = await loadMapById(src, "custom-1");
-    expect(m.targetNetWorth).toBe(3000);
   });
 
   it("源里找不到 id 时抛错", async () => {
@@ -90,9 +71,9 @@ describe("parseCatalog(清单解析)", () => {
   it("合法清单解析成功", () => {
     const catalog: CatalogFileEntry[] = [
       {
-        id: "huanyou",
-        name: "环游图",
-        file: "huanyou.json",
+        id: "guanzhong",
+        name: "关中图",
+        file: "guanzhong.json",
         desc: "...",
         tileCount: 30,
         targetNetWorth: 8000,
@@ -146,26 +127,19 @@ describe("parseCatalog(清单解析)", () => {
   });
 });
 
-describe("entryFromFile / isCustomId", () => {
+describe("entryFromFile", () => {
   it("entryFromFile 去掉 file 字段", () => {
     const e: CatalogFileEntry = {
-      id: "huanyou",
-      name: "环游图",
-      file: "huanyou.json",
+      id: "guanzhong",
+      name: "关中图",
+      file: "guanzhong.json",
       desc: "...",
       tileCount: 30,
       targetNetWorth: 8000,
     };
     const m = entryFromFile(e);
-    expect(m.id).toBe("huanyou");
-    expect(m.name).toBe("环游图");
+    expect(m.id).toBe("guanzhong");
+    expect(m.name).toBe("关中图");
     expect((m as unknown as Record<string, unknown>).file).toBeUndefined();
-    expect(m.custom).toBeUndefined(); // 内置图无 custom 标记
-  });
-
-  it("isCustomId 识别 custom- 前缀", () => {
-    expect(isCustomId("custom-123")).toBe(true);
-    expect(isCustomId("huanyou")).toBe(false);
-    expect(isCustomId(CUSTOM_ID_PREFIX)).toBe(true); // 仅前缀也算(边界)
   });
 });

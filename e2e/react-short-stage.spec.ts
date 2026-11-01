@@ -8,8 +8,8 @@
 //    误触发 flex-wrap,魏签顶/滇签底双出屏);
 // ③ 动作条矮横屏压高——条高 ≤36px(43.5→~30)且不压牌面决策区(下缘 ≤ 牌顶 −2),
 //    上缘 ≥195 还棋盘底行可视高度;「不出」放行冒烟 = 功能零回归锚。
-// 种植配方照抄 react-reaction.spec(seed 7 × huanyou 拦检链)/react-jinnang-use.spec
-// (seed 63 起手横征暴敛 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
+// 种植配方照抄 react-reaction.spec(seed 1010 × 关中 拦检链)/react-jinnang-use.spec
+// (seed 67 起手求贤令恒可用 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
 // (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
 import { test, expect } from "./fixtures";
 import { answerMarchCounter, force, useHalfScale } from "./react-helpers";
@@ -28,7 +28,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   async function startShort(page: Page, seed: number, waitScroll: boolean): Promise<void> {
     await useHalfScale(page);
     await page.goto(`/?seed=${seed}`);
-    await page.getByTestId(HOME_TID.mapStripItem("huanyou")).click();
+    await page.getByTestId(HOME_TID.mapStripItem("guanzhong")).click();
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();
     // 机遇归零(#126 同口径):防随机机遇卷轴污染停靠点
@@ -87,7 +87,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   }
 
   test("动作条压高:条高 ≤36 不压牌面,上缘 ≥195 还棋盘底行;不出放行零回归", async ({ page }) => {
-    await startShort(page, 63, false);
+    await startShort(page, 67, false);
     const geo = await page.evaluate(
       ({ bar, cards }) => {
         const rect = (sel: string) => {
@@ -117,7 +117,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     page,
   }) => {
     test.slow(); // 拦检链:授将放行后等 bot 行军至都城前格开窗
-    await startShort(page, 50, true); // seed 50(ADR-0034 重钉,原 7 拦检链随选都评分变更作废):定都江州、起手唯反应自动起摇落凉州购地卷轴
+    await startShort(page, 1010, true); // seed 1010(#949 关中重钓,原 50 链随换图作废):定都剑阁、起手唯反应自动起摇落汉中购地卷轴
     await plantAmbush(page);
     await grantZhouyuAndPass(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
@@ -164,7 +164,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
 
   test("拼点签面入视口:双签并排整排落视口内,魏签顶/滇签底双出屏清零", async ({ page }) => {
     test.slow(); // 同拦检链 + 拼点演出全程
-    await startShort(page, 50, true); // seed 50(ADR-0034 重钉,原 7 拦检链随选都评分变更作废):定都江州、起手唯反应自动起摇落凉州购地卷轴
+    await startShort(page, 1010, true); // seed 1010(#949 关中重钓,原 50 链随换图作废):定都剑阁、起手唯反应自动起摇落汉中购地卷轴
     await plantAmbush(page, [6, 1]);
     await grantZhouyuAndPass(page);
     // 页面内原子应答(react-helpers 单源:滤 march 窗/等 fx 排空/点牌落印防互踩)——

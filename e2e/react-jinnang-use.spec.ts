@@ -11,16 +11,16 @@
 // 断言覆盖拍板口径:反应窗出牌回路、再点同牌取消选中、出牌钮禁用/启用、灰置牌原因印条、
 // 多标签牌(缓兵之计)双章、名将技能卡(主动技,#818 起 SkillCardFace 单技装配:载体+
 // 主技名大字,同将双技双卡可辨、异将同名技载体可辨)、作罢路径、出牌墨线端点对准。
-// 种子复算(ADR-0027 换图重钉;seed 63 × 新环游图,真浏览器探针复算):人类先手
-// (draftOrder=[0,1,3,2] 不变),选都三候选 [长沙(11),汉中(26),许昌(39)] 取 DOM 首格
-// =11 长沙(bot 都:黔=23 虎牢关、荆=44 会稽、宋=25 咸阳),起手横征暴敛(全体域恒可用)
+// 种子复算(#949 换图重钉;seed 67 × 关中图,进程内直扫复算):人类先手
+// (draftOrder=[0,3,2,1]),选都候选取 DOM 首格=0 长安(bot 都:诸侯2=10 长沙、
+// 诸侯3=20 卧龙岗、诸侯4=3 辽东),起手求贤令(自身域恒可用)
 // → **开局出牌阶段=稳定停靠点保留**。不走 pickCapital 共享助手(其收尾会自动「不出」),
 // 本 spec 自行点城+确认以保留窗态。灰置/技能卡局面走 force 引擎直写(#237 无天然种子同时
 // 凑齐)。
 // 自然骰钉死(棒 2 口径:Bun 与浏览器 sort 比较器调用数不同,自然骰不可信):识破例放行后
-// 人类自动行军以 marchSteps 钉「二」落 13 交州=plantDemolishableCity 的自家种植城(无落格
-// 抉择,直通 bot 链;钉「一」会落 12 零陵无主城弹购地卷轴,skipUntilNextSeat 只认
-// action-*/actionbar-pass,会空转到超时)。
+// 人类自动行军以 marchSteps 钉「二」落 2 幽州无主城(plantDemolishableCity 的种植城=
+// +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
+// 升级决策同样可清)。
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
 // 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 import { test, expect } from "./fixtures";
@@ -43,13 +43,13 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
   await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
   await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId(TESTIDS.confirmCapitalOk).click();
-  // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手横征暴敛恒可用,窗必升起)
+  // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
@@ -95,11 +95,11 @@ async function plantBotCity(page: Page): Promise<void> {
 }
 
 test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)", () => {
-  test("seed63 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
-    await startJunshi(page, 63);
-    // 种植:人类改持识破诡计 + 一座可失之城(都城 11 长沙 +2=13 交州,0 级);bot 全持
+  test("seed67 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
+    await startJunshi(page, 67);
+    // 种植:人类改持识破诡计 + 一座可失之城(plantDemolishableCity 挪 +1 晋阳@1,0 级);bot 全持
     // 火烧连营(首个行动 bot 回合开始即出,城最多者=人类);行程骰钉「二」:放行后自动
-    // 行军落自家种植城,无落格抉择直通 bot 链(钉「一」会落零陵弹购地卷轴,无人能清)。
+    // 行军落 2 幽州无主城弹购地卷轴(钉「一」落 +1 晋阳自家种植城,升级决策同可清)。
     await plantDemolishableCity(page);
     await force(
       page,
@@ -137,10 +137,10 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveCount(0);
   });
 
-  test("seed63 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
-    await startJunshi(page, 63);
+  test("seed67 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
+    await startJunshi(page, 67);
     // 直写钉牌(开局起手是横征暴敛,与本例无关——钉火烧连营验「任意手牌放行后留架」);
-    // 行程骰钉「一」:放行后自动行军落 12 零陵(11 长沙 +1,无主城=购地抉择停靠),
+    // 行程骰钉「一」:放行后自动行军落 1 晋阳(0 长安 +1,自家种植城=升级决策停靠),
     // 断言全程不赌自然骰。(#188 自动起摇由通行链路全程走通——waitMyRollDone 家族全依赖它)
     await force(
       page,
@@ -157,7 +157,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     await force(page, `e.players[0].jinnangHand = ["求贤令"];`);
     const opt = page.getByTestId(TESTIDS.jinnangCard("求贤令"));
     await expect(opt).toBeVisible();
@@ -170,7 +170,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   test("军情密探:出牌进目标段,点席位选中/再点取消,#417 「出」钮确认打出", async ({ page }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     // 先停稳在开局出牌阶段态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
     await force(
@@ -208,7 +208,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     await force(
       page,
       `
@@ -232,7 +232,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   test("灰置牌印条/多标签双章/技能卡:双标签占额灰置、同将双技双卡可辨、发技转灰置", async ({
     page,
   }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
     // 灰置带原因印条;麾下给周瑜双主动技(火攻+擂鼓,#818 同将双技=双卡各显各技)→
     // 实授只给主动技,池内被动疾行不授(全览弹框池对照的灰置行对照组);诸 bot 城防
@@ -303,7 +303,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   test("异将同名技载体可辨:周瑜/张星彩各持擂鼓,两张擂鼓卡同名同技、载体各归各将", async ({
     page,
   }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     // 引擎直写:两槽各持擂鼓(同名技跨将互为独立实例,#817 选项 id=skill:<heroId>:
     // <skillId> → 两张卡不合并);张星彩槽的掷金是被动(DieRolled,无牌形)只作池填充,
     // 出牌窗即「横征暴敛 + 周瑜火攻 + 两张擂鼓」的混排架。
@@ -353,8 +353,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
 // jinnangPlayed 表现事件);反应窗出牌(识破/拦停)的联机端同款线归 react-reaction-online。
 test.describe("出牌指示线(#281 P2-E)", () => {
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
-    await startJunshi(page, 63);
-    // 种植:人类持火烧连营 + bot 1 有一座可拆城(都城 11 长沙 +2=13 交州,挪入 level 1);
+    await startJunshi(page, 67);
+    // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1);
     // 清他座反应牌(不开反应窗,线在宣告点即出)
     await plantBotCity(page);
     await force(

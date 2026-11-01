@@ -4,14 +4,14 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import zhongyuanData from "../public/maps/zhongyuan.json";
 import { loadMap } from "@core/board-loader";
 
-const HUANYOU = loadMap(huanyouData);
+const GUANZHONG = loadMap(guanzhongData);
 const ZHONGYUAN = loadMap(zhongyuanData);
 
-function makeEngine(seed: number, seats: SeatConfig[], map = HUANYOU): GameEngine {
+function makeEngine(seed: number, seats: SeatConfig[], map = GUANZHONG): GameEngine {
   const cfg: EngineConfig = { seats, targetNetWorth: 30000, startingCash: 10000 };
   return new GameEngine(map.board, map.catalog, createDice(seed), cfg);
 }
@@ -66,9 +66,8 @@ describe("选都三选一:候选生成", () => {
 
   it("地理分散:三候选两两间距足够远(固定 seed 断言)", () => {
     // 生成算法本就是纯几何选点(距离排名,setup-flow rollOfferedCapitals),group 只是
-    // 地理 proxy——雍州归入中原后中原横跨西北-中央-东北,同分组的三候选(seed 4
-    // 雍/邺/洛)恰是分散的。按真不变量断言:阈值 800 ≈ 两格步距,观测 seed 1-8 最小
-    // 两两间距 1032,聚到邻格(≈500)即炸。
+    // 地理 proxy。按真不变量断言:阈值 640 ≈ 关中两格步距(步距 320/380),观测
+    // seed 1-8 最小两两间距 760,聚到邻格(≤380)即炸。
     for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
       const e = makeEngine(seed, humans(2));
       e.doDraftRoll();
@@ -79,7 +78,7 @@ describe("选都三选一:候选生成", () => {
             ts[a].position.x - ts[b].position.x,
             ts[a].position.y - ts[b].position.y,
           );
-          expect(d).toBeGreaterThanOrEqual(800);
+          expect(d).toBeGreaterThanOrEqual(640);
         }
       }
     }
@@ -154,7 +153,7 @@ describe("选都三选一:快照与极端地图", () => {
     expect(b.snapshot()).toEqual(snap);
   });
 
-  it("8 人局(huanyou 38 城)候选不耗尽,全员有都城", () => {
+  it("8 人局(关中 28 城)候选不耗尽,全员有都城", () => {
     const e = makeEngine(
       11,
       Array.from({ length: 8 }, (_, i) => ({ name: `B${i}`, isBot: true })),

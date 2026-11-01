@@ -4,7 +4,7 @@
 // 选中实金停持挂按钮,testid 复用 seatTarget(seat) 族)。引擎侧 any 域放行自己已由
 // test/hero-skill.test.ts 锁定;本 spec 只验交互接线,断言全走可见 UI 态(#305 口径,
 // 含自疗落账=自机格体力色条/现金裸数);结算细则归 test/hero-skill.test.ts。
-// 种局同 react-jinnang-use.spec.ts 口径:seed 63 × 环游图,开局出牌阶段态=稳定停靠点,
+// 种局同 react-jinnang-use.spec.ts 口径:seed 67 × 关中图,开局出牌阶段态=稳定停靠点,
 // 技/牌走 force 引擎直写;两例均在出牌阶段内收束,不推进回合、不赌自然骰。
 import { test, expect } from "./fixtures";
 import { force, openSoloSetup, useHalfScale } from "./react-helpers";
@@ -18,13 +18,13 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await page.goto(`/?seed=${seed}`);
   // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变发牌序列
   await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
   await page.getByTestId(SETUP_TID.startGame).click();
   await page.locator(".bv-tile.bv-selectable").first().click();
   await page.getByTestId(TESTIDS.confirmCapitalOk).click();
-  // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 63 起手横征暴敛恒可用)
+  // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
@@ -38,7 +38,7 @@ const HUATUO = `
 
 test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     await force(page, HUATUO);
     // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817;布场属主华佗)
     const ji = page.getByTestId(TESTIDS.jinnangCard("skill:huatuo:zhenji"));
@@ -76,7 +76,7 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   test("军情密探(one 域):你印恒在但不可选,点按轻晃+弹层 reason 印条「不能指定自己」", async ({
     page,
   }) => {
-    await startJunshi(page, 63);
+    await startJunshi(page, 67);
     await force(
       page,
       `

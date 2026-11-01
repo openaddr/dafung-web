@@ -10,7 +10,7 @@ import { HEROES } from "@core/heroes";
 import { isTriggerSkill, skillById } from "@core/skills";
 import { EFFECTS } from "@core/effects";
 import { testEngine, armHero } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
@@ -21,7 +21,7 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
   return e;
 }
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {

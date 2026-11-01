@@ -5,19 +5,18 @@
 //
 //   间距比不变量:任取两枚棋子,其氛围层旗锚的屏幕间距 ÷ 棋子包围盒角点屏幕间距 ≈ 1。
 //   (两点同受一个世界→屏幕映射,比值恒 1;矩阵系数错时比值=错误系数,与几何无关。)
-//   滚轮缩放后再断一次:两板 viewBox 同拍驱动的跟随不变量同被覆盖。
+//   #946 取景恒总览定格后,矩阵只在挂载/容器尺寸/换图/字体就绪重算、对局中恒量——
+//   本例守静止态这一唯一形态的正确性(旧「滚轮缩放后再断一次」随平移缩放退役)。
 //
 // 对位走 data-amb-flag / data-token-player(非 testid 单源管辖:二者是引擎/动画层
 // 的 DOM 契约钩子,非断言用 testid,check:e2e-testids 三类 flag 不覆盖此形态)。
 import { test, expect } from "./fixtures";
 import { freezeClock, quickStart, unfreezeClock } from "./react-helpers";
-import { TESTIDS } from "../src/app/screens/game/testids";
 
 interface Measure {
   ratio: number | null; // 旗锚间距 ÷ 棋子间距(取相距最远的一对;null=旗锚不足两枚)
   pairDist: number; // 该对棋子角点间距(px)
   outside: string[]; // 旗锚落在自棋扩盒(×1.3)外的棋子 id(纯平移错位比值法抓不到,靠此条)
-  vb: string;
 }
 
 async function measure(page: import("@playwright/test").Page): Promise<Measure> {
@@ -44,13 +43,7 @@ async function measure(page: import("@playwright/test").Page): Promise<Measure> 
       }
     }
     const withFlag = tokens.filter((t) => flags.has(t.id));
-    if (withFlag.length < 2)
-      return {
-        ratio: null,
-        pairDist: 0,
-        outside,
-        vb: document.querySelector("#board")!.getAttribute("viewBox")!,
-      };
+    if (withFlag.length < 2) return { ratio: null, pairDist: 0, outside };
     // 取相距最远的一对(角点距离最大,抗小间距舍入噪声)
     let best = { a: withFlag[0], b: withFlag[0], dist: -1 };
     for (let i = 0; i < withFlag.length; i++) {
@@ -66,7 +59,6 @@ async function measure(page: import("@playwright/test").Page): Promise<Measure> 
       ratio: best.dist > 0 ? +(flagDist / best.dist).toFixed(4) : null,
       pairDist: Math.round(best.dist),
       outside,
-      vb: document.querySelector("#board")!.getAttribute("viewBox")!,
     };
   });
 }
@@ -84,18 +76,10 @@ async function waitSettledFlags(page: import("@playwright/test").Page) {
 }
 
 test("氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)", async ({ page }) => {
-  test.slow(); // quickStart+冻结收敛+缩放后收敛,多次等待的预算余量(gesture 族同款)
+  test.slow(); // quickStart+冻结收敛,多次等待的预算余量(gesture 族同款)
   await quickStart(page);
-  // 开自机托管把局面打成无人值守(卷轴/落格抉择自动放行):随机种子下 quickStart
-  // 可能停在决策卷轴,模态会挡滚轮缩放(react-online-autopilot 同款通路)。
-  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-  const sw = page.getByTestId(TESTIDS.seatPopAutopilot(0));
-  await sw.waitFor({ timeout: 10_000 });
-  if ((await sw.getAttribute("aria-checked")) !== "true") await sw.click();
-  await page.keyboard.press("Escape");
   // 静止测量钉时钟:冻结后行军在途段走 rAF 自终,装饰收敛到全量在位再量
-  // (不钉则 bot 行军换装期旗锚暂隐,量到半换装态=假挂;city-event 同款口径);
-  // 滚轮缩放不吃时钟,冻结期照常驱动两板。
+  // (不钉则 bot 行军换装期旗锚暂隐,量到半换装态=假挂;city-event 同款口径)。
   await freezeClock(page);
   await waitSettledFlags(page);
 
@@ -105,15 +89,5 @@ test("氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)
   expect(rest.pairDist).toBeGreaterThan(50); // 取到的对必须真有间距,防全零坐标假绿
   expect(Math.abs(rest.ratio! - 1)).toBeLessThan(0.03);
   expect(rest.outside, `旗锚挤出自棋扩盒的棋子:${rest.outside.join(",")}`).toEqual([]);
-
-  // 滚轮缩放后:比值仍 ≈1(两板 viewBox 同拍双写的跟随不变量)
-  const box = (await page.locator("#board").boundingBox())!;
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-  await page.mouse.wheel(0, -360);
-  await expect.poll(async () => (await measure(page)).vb, { timeout: 5_000 }).not.toBe(rest.vb); // 缩放必须真的发生,防滚轮失效假绿
-  await waitSettledFlags(page); // 缩放后同样等收敛(冻结态下必然达成)
-  const zoomed = await measure(page);
-  expect(Math.abs(zoomed.ratio! - 1)).toBeLessThan(0.03);
-  expect(zoomed.outside).toEqual([]);
   await unfreezeClock(page);
 });

@@ -31,12 +31,11 @@ const reactionMs = process.env.E2E_REACTION_MS ?? "5000";
 // (演出可读),e2e 对局节奏仍走 0ms 连锁保墙钟;要验配速行为的用例经 env 显式开启。
 // 单机经 E2E_BOT_STEP_MS_KEY → registry 选项 botStepMs(与 server env 同一通道)。
 const botStepMs = process.env.E2E_BOT_STEP_MS ?? "0";
-// 图谱钉死(#938):默认图已换「关中图」,但大批 spec 的种子链按图格序复算钉死
-// (seed 63/50 × 环游图的行军/反应/锦囊链)——图谱是数据不是被测物,统一钉回
-// huanyou 保种子谱零重钉;验「默认图语义」的用例(默认图名/选图清单)自行解钉
-// (removeItem 本键,见 react-setup / react-map-selection)。键名与 App.tsx
+// 图谱默认(#948):环游图已删,默认随清单首项钉「关中图」;#938 的「统一钉回
+// huanyou 保种子谱零重钉」随之退役——spec 种子链按关中图重钉归 #949,验「默认图
+// 语义」的用例(默认图名/选图清单)同批对齐。键名与 App.tsx
 // MAP_PREF_KEY 同字面量(src 侧常量不导出,勿引模块防 timings 型解析外溢)。
-const e2eMapId = process.env.E2E_MAP_ID ?? "huanyou";
+const e2eMapId = process.env.E2E_MAP_ID ?? "guanzhong";
 const MAP_PREF_KEY = "dafung.mapId";
 
 /** 单机 spec(棋盘/卷轴/侧栏/开局/solo):注入倍率,编排加速;并开调试桥门禁

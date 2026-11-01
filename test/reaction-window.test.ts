@@ -11,15 +11,15 @@ import { HEROES } from "@core/heroes";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import { botReactionDecision } from "@core/bot";
 import { armHero } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
-// 半路杀出走廊(#827 环位):起点江夏 P28 → 途经武昌 P29(城主城)→ 落点合肥 P30
+const MAP = loadMap(guanzhongData);
+// 半路杀出走廊(关中环位):起点街亭 P14 → 途经咸阳 P15(城主城)→ 落点凉州 P16
 const AT = (pid: string) => MAP.board.tiles.find((t) => t.propertyId === pid)!.index;
-const START = AT("prop-jiangxia");
-const PASSED = AT("prop-wuchang");
-const LAND = AT("prop-hefei");
+const START = AT("prop-jieting");
+const PASSED = AT("prop-xianyang");
+const LAND = AT("prop-liangzhou");
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -116,7 +116,7 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   const moverSeat = e.players.indexOf(mover);
   const ownerSeat = moverSeat === 0 ? 1 : 0;
   const owner = e.players[ownerSeat];
-  const pathProps = ["prop-jiangxia", "prop-wuchang", "prop-hefei"];
+  const pathProps = ["prop-jieting", "prop-xianyang", "prop-liangzhou"];
   for (const p of e.players) {
     p.properties = p.properties.filter((h) => !pathProps.includes(h.propertyId));
   }
@@ -124,7 +124,7 @@ function marchUp(opts: { ownerCards: string[]; ownerTreasure?: boolean; ownerBot
   mover.capitalIndex = AT("prop-changan"); // 都城挪出路径
   owner.capitalIndex = AT("prop-liaodong");
   if (opts.ownerBot) owner.isBot = true; // bot 城主:开窗即席代答(ADR-0017 §3)
-  grantCity(e, ownerSeat, "prop-wuchang"); // 格 29 武昌,城主城
+  grantCity(e, ownerSeat, "prop-xianyang"); // 格 15 咸阳,城主城
   setHand(e, ownerSeat, opts.ownerCards);
   if (opts.ownerTreasure) owner.treasures.push({ id: "t1", name: "和氏璧", level: 3 });
   e.turnPhase = "Roll";

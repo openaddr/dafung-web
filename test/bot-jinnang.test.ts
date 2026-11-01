@@ -8,12 +8,12 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { botAct, jinnangIntent } from "@core/bot";
 import { jinnangCardOf } from "@core/jinnang";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },

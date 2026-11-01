@@ -28,10 +28,10 @@ import {
   unregisterExtensionClientPackage,
 } from "@app/extensions/registry";
 import { armHero } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },

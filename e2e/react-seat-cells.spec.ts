@@ -134,12 +134,12 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   });
 
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {
-    // seed63 环游图开局链停在出牌阶段态(react-jinnang-use startJunshi 同款通路,
-    // 链路内联本 spec:helpers 帮手非本票所有物;seed 63 起手横征暴敛恒可用,窗必升)。
+    // seed67 关中图开局链停在出牌阶段态(react-jinnang-use startJunshi 同款通路,
+    // 链路内联本 spec:helpers 帮手非本票所有物;seed 67 起手求贤令恒可用,窗必升)。
     // 军情密探目标段同款:给 seat1 挂珍宝凑目标门槛,直写替换手牌。
-    await page.goto("/?seed=63");
+    await page.goto("/?seed=67");
     await page.getByTestId(HOME_TID.selectMap).click();
-    await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+    await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
     await page.getByTestId(SETUP_TID.mapConfirm).click();
     await openSoloSetup(page);
     await page.getByTestId(SETUP_TID.startGame).click();

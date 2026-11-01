@@ -100,7 +100,7 @@ async function twoClientsSetup(pages: [Page, Page]): Promise<void> {
   await guest.goto(`${ONLINE}/?room=${roomId}`);
   await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId(LID.selectMap).click();
-  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await host.getByTestId(SETUP_TID.mapConfirm).click();
   await host.getByTestId(LID.start).click();
   for (const p of pages) {
@@ -165,7 +165,7 @@ test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
     await guest.goto(`${ONLINE}/?room=${roomId}`);
     await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
     await host.getByTestId(LID.selectMap).click();
-    await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+    await host.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
     await host.getByTestId(SETUP_TID.mapConfirm).click();
     await host.getByTestId(LID.start).click();
     for (const p of [host, guest]) {

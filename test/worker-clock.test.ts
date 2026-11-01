@@ -130,7 +130,7 @@ describe("RoomRegistry clock 注入(#399:编排节拍经注入时钟)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 7 }, // 人类先手(react-helpers 离线核算同源)
     });
-    reg.setMap(created.room.roomId, "huanyou", created.token, new Set(["huanyou"]));
+    reg.setMap(created.room.roomId, "guanzhong", created.token, new Set(["guanzhong"]));
     await reg.startGame(created.room.roomId, created.token, undefined, () => MAP);
     const e = created.room.engine!;
     // 人类选都(三选一首项)→ 房间驱动余下 bot + 过渡进 Playing,停在人类 Roll 等待态:

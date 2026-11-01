@@ -13,7 +13,7 @@ import { guidePriceOf } from "@core/treasures";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import type { EncounterDef } from "@core/encounters";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
  *  pass 不掷骰,骰流与断言不受扰。 */
@@ -24,7 +24,7 @@ function passJinnang<T extends { turnPhase: string; resolveJinnang(cardId: strin
   return e;
 }
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {
@@ -92,11 +92,17 @@ afterEach(() => {
   sweepTestHeroes(); // 麾下布场的合成名将同步清退(#785 armHero 配对)
 });
 
-/** 测试用名将:按需构造技能(先注册进 SKILLS 技表再入池;不入招贤池)。 */
-function heroWith(skills: TriggerSkill[], id = "test-hero"): HeroDef {
+/** 测试用名将:按需构造技能(先注册进 SKILLS 技表再入池;不入招贤池)。
+ *  sink 缺省落文件级 pushedSkills(afterEach 统一清退);it 内多局各自清退时传局部
+ *  sink(派发确定性测试「两局同构」用,见该用例内注)。 */
+function heroWith(
+  skills: TriggerSkill[],
+  id = "test-hero",
+  sink: TriggerSkill[] = pushedSkills,
+): HeroDef {
   for (const s of skills) {
     SKILLS.push(s);
-    pushedSkills.push(s);
+    sink.push(s);
   }
   return {
     id,
@@ -350,25 +356,48 @@ describe("时机框架:确定性与 scope", () => {
       { name: "C", isBot: false, guohao: "吴" },
     ];
     const run = (): string[] => {
-      const e = makeEngine(7, seats);
-      [0, 1, 2].forEach((seat) =>
-        armHero(
-          e,
-          e.players[seat],
-          heroWith([
-            gain(`p${seat}-a`, "DieRolled", 1, { scope: "any" }),
-            gain(`p${seat}-b`, "DieRolled", 2, { scope: "any" }),
-          ]),
-        ),
-      );
-      finishSetup(e);
-      for (let t = 0; t < 6 && !e.isOver; t++) {
-        passJinnang(e).rollAndMove();
-        autoResolve(e);
+      // 两局必须同构:合成技/合成将不清退,第二局的 SKILLS 留重复项、HEROES 留已登记
+      // test-hero(armHero 只在首推时写 recruitedHeroIds)——招贤候选池变 5 候选,骰流
+      // 分叉 = 假漂移(关中 6 回合窗口踩到卧龙岗实锤)。每局收尾按 afterEach 同款清退
+      // (清退异常记录到 finally 外抛,lint no-unsafe-finally)。
+      const pushed: TriggerSkill[] = [];
+      let leaked: string | null = null;
+      let seq: string[] = [];
+      try {
+        const e = makeEngine(7, seats);
+        [0, 1, 2].forEach((seat) =>
+          armHero(
+            e,
+            e.players[seat],
+            heroWith(
+              [
+                gain(`p${seat}-a`, "DieRolled", 1, { scope: "any" }),
+                gain(`p${seat}-b`, "DieRolled", 2, { scope: "any" }),
+              ],
+              "test-hero",
+              pushed,
+            ),
+          ),
+        );
+        finishSetup(e);
+        for (let t = 0; t < 6 && !e.isOver; t++) {
+          passJinnang(e).rollAndMove();
+          autoResolve(e);
+        }
+        seq = e.log
+          .filter((l) => l.category === "skill")
+          .map((l) => l.detail.match(/skill=(\S+)/)![1]);
+      } finally {
+        while (pushed.length > 0) {
+          const s = pushed.pop()!;
+          const idx = SKILLS.indexOf(s);
+          if (idx < 0) leaked = s.id;
+          else SKILLS.splice(idx, 1);
+        }
+        sweepTestHeroes();
       }
-      return e.log
-        .filter((l) => l.category === "skill")
-        .map((l) => l.detail.match(/skill=(\S+)/)![1]);
+      if (leaked) throw new Error(`测试技 ${leaked} 不在注册表(状态机 bug)`);
+      return seq;
     };
     const seq1 = run();
     const seq2 = run();
@@ -1535,7 +1564,7 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
     const entries = recordMomentCtx(e);
     testEngine(e).applyEncounter(mover, enc({ kind: "grantCity", fallbackCash: 200 }));
     const gained = mover.properties.find((h) => !owned.has(h.propertyId));
-    expect(gained).toBeDefined(); // huanyou 恒有无主城 → 走赐城路不折现
+    expect(gained).toBeDefined(); // 关中恒有无主城 → 走赐城路不折现
     expect(entries.filter((x) => x.moment === "PropertyGained").map((x) => x.ctx)).toEqual([
       { subject: seat, propertyId: gained!.propertyId },
     ]);

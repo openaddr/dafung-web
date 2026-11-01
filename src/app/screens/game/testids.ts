@@ -17,7 +17,8 @@
 // 签面迁手牌区左端,testid dice-face 不变);log-tab(战报把手)退役,入口降级设置弹层
 // (log-drawer 抽屉本体保留);autopilot-button(托管钮)随仪表条退役,#701 tap 弹层
 // 接管(过渡期托管不可达可接受,同一集成分支收口);mute-button/reset-view(音乐钮/
-// 总览复位钮)退役——音效开关降级入设置弹层,复位能力随 usePanZoom reset 一并退役。
+// 总览复位钮)退役——音效开关降级入设置弹层;复位能力随 #700 退役,取景恒
+// computeFitView 总览定格(usePanZoom 已随 #946 平移缩放退役整删,复位语义不复存在)。
 // #853 退役核销:topbar-round(「N 轮」浮置 chip)随 chip 退役——轮次唯一落回合
 // 胶囊(turn-capsule,#732 拍板在先、#762 胶囊诞生后的双通道冗余,复裁退役)。
 // 接替形态=顶左两钮(topbar-overview/settings-button)+ 右下三圆钮(pile-buttons 族)
@@ -212,7 +213,8 @@ export const TESTIDS = {
 
   // ── 棋盘区小组件 ──
   // #700 退役核销:mute-button(音乐钮,音效开关降级入设置弹层 settings-sfx)、
-  // reset-view(总览复位钮,usePanZoom reset 一并退役)随旧顶栏退役,常量删除。
+  // reset-view(总览复位钮)随旧顶栏退役,常量删除;取景恒 computeFitView 总览定格
+  // (#946 平移缩放退役,usePanZoom 整删,复位语义不复存在)。
 
   // ── 选都确认(#35:按钮搬进城池详情卷轴,testid 不变,e2e 选择器零震荡)──
   /** 详情卷轴选都模式的「定都于此」按钮(旧独立确认框容器 testid 已退役)。 */

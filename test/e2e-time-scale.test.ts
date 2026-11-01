@@ -105,7 +105,6 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
   it("GHOST / UI(#117 收编组同样逐位恒等)", () => {
     expect(GHOST.frameMs).toBe(210);
     expect(UI.hintTtlMs).toBe(1800);
-    expect(UI.statusClearMs).toBe(1500);
     expect(UI.victoryButtonMs).toBe(1800);
     expect(UI.copyFeedbackMs).toBe(1000);
   });

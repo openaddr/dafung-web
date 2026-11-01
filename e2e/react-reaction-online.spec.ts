@@ -1,8 +1,9 @@
 // 反应窗联机双端(#281,ADR-0017 per-seat 非阻塞;testUnscaled 全速;#291 决议/#302 整治):
 // 标准双端 UI 流程(react-online 同款)建 3 座房 [host 页=seat0 / guest 页=seat1 /
 // seat2 不入座→开局自动 bot 填充],种子 419 经路由拦截注入建房请求(联机 UI 无种子入口;
-// 种子是确定性前提)。种子离线核算(同配置引擎演算):draftOrder=[2,1,0] bot 先动且起手
-// 横征暴敛,guest 起手识破诡计,host 起手缓兵之计——选都一结束 bot 即出横征暴敛
+// 种子是确定性前提)。种子离线核算(同配置引擎演算,#949 关中图复验仍成立):
+// draftOrder=[2,1,0] bot 先动且起手横征暴敛,guest 起手识破诡计,host 起手火烧连营
+// (非识破,不进询问集)——选都一结束 bot 即出横征暴敛
 // (全体域,targetSeats=[0,1]),guest 被询问(持识破者=guest;#284 拍板「不狩双人
 // 各持识破种子」,双端时序例以在场询问端/观察端承担 host/guest 角色):
 //   · 替第三席拆招(点 host 座笺)→ host 份失效不缴,guest 照缴;
@@ -107,7 +108,7 @@ async function twoClientsWithSeed(
   await guest.goto(`${ONLINE}/?room=${roomId}`);
   await expect(guest.getByTestId(LID.roomCode)).toHaveText(roomId, { timeout: 30_000 });
   await host.getByTestId(LID.selectMap).click();
-  await host.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await host.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await host.getByTestId(SETUP_TID.mapConfirm).click();
   await host.getByTestId(LID.start).click();
   for (const p of [host, guest]) {
@@ -325,11 +326,11 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   test("已应答座位横幅即收、不可重复应答(#453/B2):host 应答后横幅消失,权威侧应答齐窗收续结算", async ({
     browser,
   }) => {
-    // 种子 837(bun in-process 房间演算直扫,权威同源零偏差;ADR-0034 重钓——AI 选都
-    // 评分变更后原 125 链作废):双人类起手识破诡计、bot 首回合即宣告连环计开出 [0,1]
-    // 双窗。draftOrder 客先动——驱动器沿途回答单人窗、
-    // 清决策点,直至 bot 宣告开出 [0,1] 双窗(场景机制见 driveToDualWindow 注)。
-    const { host, guest, roomId } = await twoClientsWithSeed(browser, 837);
+    // 种子 2849(bun in-process 房间演算直扫,权威同源零偏差;#949 关中重钓——换图后
+    // 原 837 × huanyou 链作废):双人类起手识破诡计、bot 起手连环计,选都一结束
+    // bot(draftOrder=[2,1,0] 先动)即宣告连环计开出 [0,1] 双窗——驱动器首查即命中
+    // (场景机制见 driveToDualWindow 注)。
+    const { host, guest, roomId } = await twoClientsWithSeed(browser, 2849);
     try {
       const announcedCard = await driveToDualWindow(host, guest);
       // 询问集 per-seat 投影(#461 起=身份匿名、数量保留,与脱敏批同口径):自己座位
@@ -386,11 +387,11 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
   test("非应答端可应答(#461):host 应答后 guest 应答入口健在、过网入账,应答齐权威即收窗", async ({
     browser,
   }) => {
-    // 同种子 837 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
+    // 同种子 2849 双人类识破窗(场景见上例;驱动等窗见 driveToDualWindow 注)。
     // #461 根因:出牌阶段开窗拍必带校准全量快照,其 per-seat 投影把查询集覆盖成长度 1,
     // 折叠器闭窗算术(answers 数 ≥ 查询数)被污染——host 首个应答即触发 guest 本地误闭窗:
     // 横幅提前消失、丧失应答入口,权威侧窗实际仍开满窗寿,玩家被超时代发兜底。
-    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 837);
+    const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 2849);
     try {
       await driveToDualWindow(host, guest);
       const before = await awaitReactionWindow(guest);

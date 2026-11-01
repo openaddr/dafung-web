@@ -13,9 +13,9 @@ import { testEngine, armHero } from "@core/testing";
 import { HEROES } from "@core/heroes";
 import { ENCOUNTERS } from "@core/encounters";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]) {
   const cfg: EngineConfig = {
@@ -221,7 +221,7 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     const mover = e.activePlayer;
     const seat = e.players.indexOf(mover);
     const fate = MAP.board.tiles.find((tile) => tile.event === "fate");
-    expect(fate).toBeDefined(); // huanyou 设天命城(数据不变量,#826 全城池制)
+    expect(fate).toBeDefined(); // 关中设受禅台(数据不变量,#826 全城池制)
     beginGameEventBatch(e);
     t.landActiveAt(fate!.index);
     const events = e.snapshot().events;

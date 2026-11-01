@@ -1,6 +1,6 @@
 // 离线海选 e2e 场景编排的停靠点(#476 换图重钉两棒的工具,入库防丢)。
 //
-// 给定 seed × 环游图 × 座位配置,复算开局链:draftOrder / 选都三候选 / 起手牌 /
+// 给定 seed × 关中图 × 座位配置,复算开局链:draftOrder / 选都三候选 / 起手牌 /
 // 首个行动者与首骰自然落点。e2e 的场景编排(停靠点/种植/骰队列)据此海选种子。
 //
 // **已知偏差(诚实口径)**:draftOrder / 首骰点数 / 人类起手牌与浏览器实测一致
@@ -14,8 +14,8 @@
 // 显式钉死。
 //
 // 用法:bun scripts/sim-jinnang.ts [seed=63] [--seats 4]
-// 口径与 e2e startSolo 一致:seat 0 人类先手视角,其余 bot;地图=环游图。
-import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
+// 口径与 e2e startSolo 一致:seat 0 人类先手视角,其余 bot;地图=关中图。
+import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
 import { loadMap } from "../src/core/board-loader";
 import { GameEngine } from "../src/core/authority";
 import type { SeatConfig, EngineConfig } from "../src/core/authority";
@@ -26,7 +26,7 @@ const seatsIdx = process.argv.indexOf("--seats");
 const seatCount = seatsIdx > 0 ? Number(process.argv[seatsIdx + 1]) : 4;
 const GUOHAO = ["魏", "蜀", "吴", "燕"];
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 // 口径对齐 e2e startSolo:seat 0 人类(选定国号),其余 bot「待分配」——
 // 引擎开局为待分配席分配国号会消耗 rng,预分配国号会让整条骰流分叉。
 const seats: SeatConfig[] = Array.from({ length: seatCount }, (_, i) => ({

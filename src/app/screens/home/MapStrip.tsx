@@ -139,7 +139,6 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
           >
             <div className="flex items-baseline justify-between gap-1">
               <span className="font-wenkai text-[14px] text-paper">{e.name}</span>
-              {e.custom ? <span className="text-[10px] text-paper-dim">自建</span> : null}
             </div>
             <div className="mt-0.5 text-[11px] whitespace-nowrap text-paper-dim">
               {e.tileCount} 城 · 目标 {formatMoney(e.targetNetWorth)}

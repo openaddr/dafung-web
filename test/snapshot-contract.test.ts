@@ -13,10 +13,10 @@ import { createDice } from "@core/dice";
 import { botAct } from "@core/bot";
 import { SNAPSHOT_FIELDS, type GameSnapshot } from "@core/snapshot";
 import { testEngine } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 /** 全 bot 座位:驱动完全确定(种子固定),无需人类命令注入。 */
 const BOT_SEATS: SeatConfig[] = [

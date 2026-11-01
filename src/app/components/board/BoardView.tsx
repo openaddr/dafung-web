@@ -1,32 +1,59 @@
-// React 版棋盘(阶段 4):整体结构对照 src/render/board.ts 的 createBoardSvg。
+// React 版棋盘(阶段 4):整体结构对照旧 src/render/board.ts 的 createBoardSvg(对照件已删)。
 //   defs 滤镜/远山河川/驿道 → 静态 memo 子组件(地图不变即不重渲)
 //   40 城池 → Tile(状态 props 驱动,React.memo 逐城重渲)
 //   棋子/特效 → HTML 宿主层(ADR-0042,合成器通路;棋子 transform 过渡/环动画不再
 //   令整张 SVG 每帧失效)
-//   pan/zoom → usePanZoom(手势期栈 transform + 提交拍写回 viewBox,不触发 React 重渲)
-// 旧 src/render/board.ts 保留作视觉对照,勿删。
-import {
-  forwardRef,
-  memo,
-  useCallback,
-  useImperativeHandle,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+//   取景 → 恒 computeFitView 总览定格(#946 平移缩放整退役:拖动/滚轮/捏合全形态删,
+//     viewBox 由 React 声明式下发,地图不变则视口不变,无手势无命令式句柄)
+import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { MapData } from "@core/board-loader";
 import { loadMap } from "@core/board-loader";
+import type { BoardPos } from "@core/board";
 import { AmbientLayer } from "./AmbientLayer";
-import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
+import { BoardDefs, RoadsLayer, TerrainLayer, type ViewBox } from "./StaticLayers";
 import { BoardHost } from "./boardHost";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
 import { capitalHolderOf, holdingsOf } from "./tileOwnership";
 import { TokenLayer } from "./TokenLayer";
-import { computeFitView, panCursorClass, usePanZoom } from "./usePanZoom";
 import { BoardFxLayer } from "@app/fx/FxLayer";
 import "./board.css";
+
+/** 总览内容外扩口径(与 Tile 层实际占面对齐,单位 = 世界坐标):
+ *  - 两侧:城台半宽 104×2.2/2 ≈ 115(驿道恒直线 #928/ADR-0044,无弧线外凸余量)
+ *  - 上方:王旗顶约 −91×2.2 ≈ −200(旗高于城台)
+ *  - 下方:铭牌底约 44×2.2 ≈ 97
+ *  PAD 取值仍含弧线时代余量(sideArc 外凸 ≤160 退役后未收敛,一次只改一个变量):
+ *  侧向 180−115=65、下缘 180−97=83 的差值视作额外呼吸量,另票收敛。
+ *  再加 4% 呼吸边距。宽高比随内容(不钉 5/3——容器失配交给
+ *  preserveAspectRatio meet,地形层 EDGE_PAD 渐隐带负责补边)。 */
+const PAD_SIDE = 180;
+const PAD_TOP = 220;
+const PAD_BOTTOM = 180;
+const BREATH = 1.04;
+
+/** 按当图城池包围盒推导总览 viewBox(纯函数;ADR-0027)。
+ *  #946 起这是唯一的取景通路:棋盘恒定格于本函数的输出,无平移缩放。 */
+export function computeFitView(tiles: readonly { position: BoardPos }[]): ViewBox {
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
+  for (const { position: p } of tiles) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const x0 = minX - PAD_SIDE,
+    y0 = minY - PAD_TOP,
+    x1 = maxX + PAD_SIDE,
+    y1 = maxY + PAD_BOTTOM;
+  const w = (x1 - x0) * BREATH,
+    h = (y1 - y0) * BREATH;
+  return { x: (x0 + x1) / 2 - w / 2, y: (y0 + y1) / 2 - h / 2, w, h };
+}
 
 /** BoardView/TokenLayer 真正消费的玩家最小结构(棋盘渲染只需这些字段):
  *  快照玩家 SnapshotPlayer 是本接口的结构子集,可直接透传——原先 GameScreen 用双重断言
@@ -71,12 +98,6 @@ export interface BoardViewProps {
   className?: string;
 }
 
-/** ref 命令式句柄(#700:reset 随顶栏复位钮退役,只剩缩放)。 */
-export interface BoardViewHandle {
-  /** #98 按钮缩放:以当前视口中心为锚按倍率缩放(factor>1 放大,如 1.25/0.8)。 */
-  zoomBy: (factor: number) => void;
-}
-
 const TileLayer = memo(function TileLayerInner({
   children,
   onHover,
@@ -106,36 +127,28 @@ const TileLayer = memo(function TileLayerInner({
   );
 });
 
-export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function BoardView(
-  {
-    map,
-    players,
-    viewSeat,
-    onTileClick,
-    selectableTiles,
-    candidateTiles,
-    activeTileIndex,
-    isSetupPhase = false,
-    skipTokenIds,
-    targetedPlayerIds,
-    activePlayerId,
-    className,
-  },
-  ref,
-) {
+export function BoardView({
+  map,
+  players,
+  viewSeat,
+  onTileClick,
+  selectableTiles,
+  candidateTiles,
+  activeTileIndex,
+  isSetupPhase = false,
+  skipTokenIds,
+  targetedPlayerIds,
+  activePlayerId,
+  className,
+}: BoardViewProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // 手势栈(ADR-0042):包住全部棋盘层;手势进行中取景走栈 transform(合成器驱动,
-  // 棋盘栅格零重绘),静默/收尾提交拍才写回 viewBox(usePanZoom 内管)。
-  const stackRef = useRef<HTMLDivElement | null>(null);
   // 地图 → Board/catalog(地图引用不变则不重建;驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const loaded = useMemo(() => loadMap(map), [map]);
-  // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),
-  // 地图引用不变则视口不变;F1:viewBox 由 hook 命令式 setAttribute 更新,
-  // svg 的 viewBox prop 只下发一次初始总览值,此后 React 不改写。
+  // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),地图引用不变
+  // 则视口不变;#946 取景恒定格于此——viewBox 由 React 声明式下发(底板 svg 同一
+  // fitBox 落 DOM,宿主矩阵同源见 boardHost),拖动/滚轮/捏合全形态删,无第二写入者。
   const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
-  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit, stackRef);
-  useImperativeHandle(ref, () => ({ zoomBy }), [zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
   // propertyId → 首见持有者(归属判定单源 tileOwnership.ts,players 变化才重算)
@@ -229,24 +242,20 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   );
 
   return (
-    <div className={`bv-stack ${className ?? ""}`} ref={stackRef}>
-      {/* 手势栈(ADR-0042):全部棋盘层的公共 transform 宿主。手势进行中取景增量写在
-          本 div(合成器插值,棋盘栅格缓存零重绘),提交拍写回 #board 的 viewBox——
-          底板/宿主矩阵的唯一 resync 拍,平时(非手势期)transform 恒空。 */}
+    <div className={`bv-stack ${className ?? ""}`}>
       {/* 底板(静态层):纸面/地形/驿道/城池——对局中只吃事件驱动的低频变化
           (归属/档位/宣告),行军/特效逐帧失效不再波及,弱 GPU 栅格欠债时
           合成器棋盘格(整板闪成背景色)的源头就此拔除(ADR-0040)。
-          手势与落格点击全在本板:动态层 pointer-events none,触摸穿透落到此处。 */}
+          落格点击全在本板:动态层 pointer-events none,触摸穿透落到此处。 */}
       <svg
         id="board"
         ref={svgRef}
         viewBox={fitBox}
         preserveAspectRatio="xMidYMid meet"
-        /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管取景状态打架);
-            overscroll contain 防拖到边缘时滚动整个页面。 */
+        /* 触屏:禁 WebView 原生手势(双击缩放/拖拽滚动)接管棋盘触摸——棋盘自身
+         无手势(#946),触摸只服务落格点击;overscroll contain 防拖动外溢滚动页面。 */
         style={{ touchAction: "none", overscrollBehavior: "contain" }}
-        className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
-        {...handlers}
+        className={`block h-full w-full select-none ${className ?? ""}`}
       >
         <BoardDefs fit={fit} />
         <TerrainLayer fit={fit} />
@@ -269,8 +278,8 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         svgRef={svgRef}
       />
       {/* 特效层挂点(HTML 宿主,ADR-0042):浮字/印章/铜钱各自 mini-svg,置于棋子上;
-          世界坐标直铺,pan/zoom 随宿主矩阵跟随。D1 注释沿革:曾直画进 SVG(坐标系与
-          棋盘一致,pan/zoom 不脱锚)——HTML 宿主矩阵同步承接同一保证。 */}
+          世界坐标直铺,随宿主矩阵跟随。D1 注释沿革:曾直画进 SVG(坐标系与棋盘一致,
+          恒总览取景不脱锚)——HTML 宿主矩阵同步承接同一保证。 */}
       <BoardFxLayer svgRef={svgRef} />
       {/* 驿道流光宿主(#bv-flow 保号):useMarch.highlightSegment 命令式追加 mini-svg。 */}
       <BoardHost id="bv-flow" svgRef={svgRef} />
@@ -288,4 +297,4 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
       />
     </div>
   );
-});
+}

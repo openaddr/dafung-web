@@ -25,11 +25,11 @@ import { SKILLS, type TriggerSkill } from "@core/skills";
 import { heroOffer } from "@core/testing";
 import type { ChoiceOption } from "@core/choices";
 import type { GameMoment } from "@core/timing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 /** 相位读经函数取值:破除 TS 对 e.turnPhase 的赋值字面量收窄(收窄后 toBe 只收窄字面型)。 */
 const phaseOf = (e: GameEngine): TurnPhase => e.turnPhase;

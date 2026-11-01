@@ -5,7 +5,7 @@ import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice, type Dice } from "@core/dice";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import {
   JINNANG_CARDS,
@@ -15,7 +15,7 @@ import {
   jinnangCardOf,
 } from "@core/jinnang";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]) {
   const cfg: EngineConfig = {

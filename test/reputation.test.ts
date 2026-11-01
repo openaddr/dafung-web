@@ -5,12 +5,12 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import { testEngine } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 const byEvent = (event: string) => MAP.board.tiles.find((t) => t.event === event)!.index;
-const FATE_TILE = byEvent("fate"); // tile-fate-1 天命城(ADR-0027 环位 P37)
+const FATE_TILE = byEvent("fate"); // tile-fate-1 受禅台(ADR-0027 环位 P37)
 const CHANCE_TILE = byEvent("jinnang"); // tile-chance-1 锦囊城(ADR-0027 环位 P41)
 
 function makeEngine(seed = 7): GameEngine {
