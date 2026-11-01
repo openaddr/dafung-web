@@ -31,6 +31,7 @@ import {
   skipUntilNextSeat,
   useHalfScale,
   plantDemolishableCity,
+  snap,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
@@ -111,10 +112,13 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await page.getByTestId(TESTIDS.actionbarPass).click();
     await waitMyRollDone(page, 0);
     await skipUntilNextSeat(page, 0);
-    // 反应窗:架上识破诡计呼吸金边(.reactive);横幅就位
+    // 反应窗:架上识破诡计呼吸金边(.reactive);横幅就位(带目标括注 #921,火烧=one 域)
     const banner = page.getByTestId(TESTIDS.reactionBanner);
     await expect(banner).toBeVisible();
-    await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText("使用【火烧连营】");
+    const snap0 = await snap(page);
+    await expect(banner.getByTestId(TESTIDS.reactionText)).toContainText(
+      `使用【火烧连营】(对 ${snap0.players[0].guohao})`,
+    );
     const card = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
     await expect(card).toHaveClass(/reactive/);
     const confirm = banner.getByTestId(TESTIDS.reactionConfirm);
