@@ -12,6 +12,7 @@
     "fmt": "oxfmt",
     "build": "bun run --bun tsc --noEmit && bun run --bun vite build",
     "preview": "bun run --bun vite preview --port 4173",
+    "probe:frames": "node scripts/frame-probe.ts",
     "typecheck": "bun run --bun tsc --noEmit",
     "check:core": "bun scripts/check-core-purity.ts",
     "check:board": "bun scripts/check-board-anim.ts",

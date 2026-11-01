@@ -50,6 +50,7 @@ import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 import { catchupCounters } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
+import { collectFrameDiag } from "@app/frameDiag";
 import { HEROES } from "@core/heroes";
 
 /** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
@@ -94,5 +95,8 @@ export function installDebugHooks(): void {
     },
     // ── 落后即校准诊断面(#610,ADR-0029 ③;只读快照,实体见 fx/catchup.ts)──
     fxCatchup: () => ({ ...catchupCounters }),
+    // ── 帧诊读取口(ADR-0047 消费面):scripts/frame-probe.ts(日常帧率薄弱点检测)
+    //  经此读活动会话/lastDump,免再开导出下载通路。只读,不启停采样。 ──
+    frameDiag: () => collectFrameDiag(),
   };
 }
