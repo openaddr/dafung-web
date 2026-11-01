@@ -29,8 +29,7 @@ import { closeSync, openSync, readFileSync, rmSync, writeSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const LOCK_PATH =
-  process.env.DAFUNG_TEST_LOCK_PATH ?? join(tmpdir(), "dafung-web-test.lock");
+const LOCK_PATH = process.env.DAFUNG_TEST_LOCK_PATH ?? join(tmpdir(), "dafung-web-test.lock");
 const POLL_MS = 2000;
 
 const cmd = process.argv.slice(2);
