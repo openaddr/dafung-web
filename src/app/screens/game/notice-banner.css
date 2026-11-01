@@ -1,22 +1,19 @@
-/* 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条共用的唯一一条带。
+/* 顶中知会横幅槽(#732):都城停条带/等待条/常驻回合胶囊共用的唯一一条带
+   (回合全幅横幅已退役 #958,单源归胶囊)。
    分流铁律(ADR-0032,#731):知会件入槽、响应件(ReactionBanner)不入槽留手牌架上缘、
    决策弹层(BannerShell 族)全屏另论——本槽只收纯播报。
    槽体锚定顶中 top+8(safe-aware,与顶栏行同排);同槽互斥+排队由 fxStore 知会槽泵
-   结构性保证(同一时刻 notice 至多一条),槽内带件(.fx-turn-banner/.fx-halt-banner,
-   样式族在 fx.css)绝对定位于本槽居中。色一律 var(--color-*),裸色豁免登记见
+   结构性保证(同一时刻 notice 至多一条),槽内带件(.fx-halt-banner,样式族在 fx.css)
+   绝对定位于本槽居中。色一律 var(--color-*),裸色豁免登记见
    layout.css 文件头(本文件零新增裸色)。
-   #762:槽内增常驻回合胶囊(.turn-capsule)——两段式亮相的收编终态,横幅播完即常驻
-   显示当前回合方;胶囊是 flex 常驻件、带件是 absolute 覆盖件(DOM 序在后=z 序在上,
-   收编淡出即露出胶囊);等待条的「已候 N 秒」附加信息并入胶囊右侧(组件内融合,
+   #762:槽内增常驻回合胶囊(.turn-capsule)——回合宣告唯一形制(#958 起,原两段式
+   亮相的收编终态),常驻显示当前回合方;胶囊是 flex 常驻件、带件是 absolute 覆盖件
+   (DOM 序在后=z 序在上);等待条的「已候 N 秒」附加信息并入胶囊右侧(组件内融合,
    见 NoticeBanner/WaitingBar)。
-   #853:①断线让位——断线横幅(z-20)在场时槽随 --conn-h(GameScreen 恒置于
+   #853:断线让位——断线横幅(z-20)在场时槽随 --conn-h(GameScreen 恒置于
    .game-layout,值 = 横幅体高/0)整列下移,横幅底缘下保持常态 8px 净距,
    不再与顶中知会件上半互压;同变量消费方还有 game 屏选都提示 chip 与 +56 hint 行
-   (GameScreen)。②回合横幅亮相净空——槽内大字横幅(~40px,槽内居中下缘 ≈+44)
-   与行 0 城池铭牌顶(≈+44.5)只余 ~1px,亮相段贴压行 0 三格铭牌(审计 R2 P2-6
-   实拍):横幅整体上提 4px,给铭牌留 ~5-6px 净空(胶囊/药丸不动,槽行与顶栏行
-   同排几何不破)。上提落在本文件而非 fx.css:fx-banner-appear 动画体在 fx.css
-   (冻结中 #849),此处的 translate 独立属性与动画的 transform 合成,不冲突。 */
+   (GameScreen)。②亮相净空上提 4px 随回合横幅退役(#958)同删。 */
 
 .game-layout .notice-slot {
   position: absolute;
@@ -26,26 +23,18 @@
   height: 32px; /* 与顶栏钮行同高:槽空时等待条药丸在此行内垂直居中 */
   z-index: 6;
   pointer-events: none; /* 容器不挡棋盘拖拽;知会件纯播报零点击,全槽无放行件 */
-  /* 槽空件(等待条药丸/回合胶囊)行内居中;带件(.fx-turn-banner/.fx-halt-banner)
+  /* 槽空件(等待条药丸/回合胶囊)行内居中;带件(.fx-halt-banner)
      absolute 定位于本槽,不吃 flex 布局 */
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* 回合横幅亮相净空(#853,审计 R2 P2-6):槽内大字横幅上提 4px——translate 独立
-   属性先于 transform 合成,fx-banner-appear/fx-banner-capsulate(两段动画本体在
-   fx.css)的 transform 照常运作。横幅元素只在播报窗内存在,生命周期=亮相+收编,
-   无「非亮相态」需要区分。 */
-.game-layout .notice-slot .fx-turn-banner {
-  translate: 0 -4px;
-}
-
 /* ── 常驻回合胶囊(#762):国号印 + 名号 + 「第 N 轮」(+融合的等待附加信息)。
    形态承等待条药丸的槽位(高 ~24px 居中于 32px 槽行),身份制式承席位格国号印
    (座位色印面,--player-color 由 NoticeBanner 注入)。key=capsule.id(每次回合
-   宣告刷新),重挂即播 150ms 入场过渡(--dur-fast)——全幅横幅收编露出的与合并
-   回合的内容换装,同一拍过渡,消灭瞬跳。 */
+   宣告刷新),重挂即播 150ms 入场过渡(--dur-fast)——宣告间内容换装同一拍过渡,
+   消灭瞬跳。 */
 .game-layout .turn-capsule {
   display: flex;
   align-items: center;

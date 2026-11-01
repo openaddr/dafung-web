@@ -1201,7 +1201,7 @@ describe("跨批宣布游标生命周期(#430 票项 3)", () => {
 
 // ─────────────── 播放器 present + memorySink(顺序=事件数组顺序)───────────────
 describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
-  it("串行播放:骰子 → 行军 → 浮字 → 横幅,顺序与事件数组一致", async () => {
+  it("串行播放:骰子 → 行军 → 浮字 → 回合宣告,顺序与事件数组一致", async () => {
     const sink = createMemorySink();
     await present(
       [
@@ -1224,7 +1224,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
       ],
       sink,
     );
-    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "march", "floater", "banner"]);
+    expect(sink.calls.map((c) => c.op)).toEqual(["dice", "march", "floater", "announceTurn"]);
     expect(sink.calls[0]).toEqual({ op: "dice", die: 5 });
     expect(sink.calls[1]).toEqual({
       op: "march",
@@ -1241,10 +1241,9 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
     });
     expect(sink.calls[2]).toEqual({ op: "floater", x: 10, y: 20, amount: -120, coins: false });
     expect(sink.calls[3]).toEqual({
-      op: "banner",
+      op: "announceTurn",
       guohao: "蜀",
       colorIndex: 1,
-      isBot: false,
       round: 1,
     });
   });

@@ -18,8 +18,8 @@ import { LocalController } from "../src/app/controllers/local";
 import { REACTION_WINDOW_MS } from "../src/core/constants";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);
-// 判据:单例实测 3.1s(2026-10-31)≥3s 且墙钟即用例本体——开局自动起摇看门狗 1s 固定拍
-// + 合并结算块的回合横幅停留窗(FX.bannerHoldMs 1000ms @sc=1)皆生产节拍,不可压缩。
+// 判据:单例实测 ≥3s 且墙钟即用例本体——开局自动起摇看门狗 1s 固定拍 + 完整 bot 链
+// 行军/演出皆生产节拍,不可压缩(回合横幅停留窗已随 #958 退役,实测见文件尾注)。
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));

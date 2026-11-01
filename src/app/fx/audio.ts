@@ -12,13 +12,12 @@ export type SoundEvent =
   | "coin" // 铜钱(收入)
   | "pay" // 支出(负浮字步的「付钱」闷响,与 coin 上行叮声成对)
   | "stamp" // 印章(建都/据城)
-  | "banner" // 横幅(回合/事件;合成 whoosh,不映射文件——见 AUDIO_FILES 注)
   | "buy" // 购买成功
   | "upgrade" // 扩军
   | "treasure" // 得珍宝
   | "bankrupt" // 破产
   | "victory" // 胜利
-  | "victoryDrum" // 胜利入场鼓点(仅终局屏 0ms;与 banner 分家,鼓滚奏只留给终局)
+  | "victoryDrum" // 胜利入场鼓点(仅终局屏 0ms;文件缺失回退合成 whoosh,鼓滚奏只留给终局)
   | "scrollOpen" // 卷轴展开(ScrollShell 挂载即播,与 scroll-unroll 动画 0ms 同帧)
   | "jinnangDraw" // 锦囊发牌/入手(手牌架新牌挂载即播,#239 T4)
   | "jinnangSelect" // 出牌阶段点选牌面(选中瞬间的极轻嗒,#239 T4)
@@ -50,10 +49,10 @@ export class SynthAudioPlayer implements AudioPlayer {
   protected master: GainNode | null = null;
   protected muted = false;
   protected readonly volume = 0.5;
-  /** 噪声缓存(2 秒):banner/stamp 共用同一份白噪声,
+  /** 噪声缓存(2 秒):whoosh/stamp 共用同一份白噪声,
    *  各合成单元用随机 offset 取不同片段,免去每次 play 重新生成随机样本(消除 GC 抖动)。 */
   private noiseCache: AudioBuffer | null = null;
-  private static readonly NOISE_CACHE_DUR = 2; // 秒(横幅 whoosh / 印章噪声的最长片段 × 余量)
+  private static readonly NOISE_CACHE_DUR = 2; // 秒(whoosh / 印章噪声的最长片段 × 余量)
   /** marchStart 限流游标:上次触发时间 / 600ms 窗口内连发计数(见 play() 防吵注释)。 */
   private lastMarchStart: number | null = null;
   private marchRapidCount = 0;
@@ -119,9 +118,6 @@ export class SynthAudioPlayer implements AudioPlayer {
       case "stamp":
         this.stamp(ctx);
         break;
-      case "banner":
-        this.banner(ctx);
-        break;
       case "buy":
         this.buy(ctx);
         break;
@@ -138,7 +134,7 @@ export class SynthAudioPlayer implements AudioPlayer {
         this.victory(ctx);
         break;
       case "victoryDrum":
-        // 文件通路挂了才走到这里:退化为 banner 同款 whoosh(鼓滚奏缺失不阻断终局)
+        // 文件通路挂了才走到这里:退化为 whoosh(鼓滚奏缺失不阻断终局)
         this.banner(ctx);
         break;
       case "jinnangDraw":
@@ -332,7 +328,8 @@ export class SynthAudioPlayer implements AudioPlayer {
     setTimeout(() => this.tone(ctx, 990, 0.2, "square", 0.1), 80);
   }
 
-  // 横幅 whoosh(噪声 400→1600Hz 扫频 + 120ms attack ramp)
+  // whoosh(噪声 400→1600Hz 扫频 + 120ms attack ramp):victoryDrum 文件缺失时的
+  // 合成回退(原回合横幅音,#958 随横幅退役后仅存此用途)
   private banner(ctx: AudioContext): void {
     this.noiseBurst(ctx, 0.35, "bandpass", 400, 0.6, 0.22, 1600, 120);
   }
@@ -425,10 +422,11 @@ export class SynthAudioPlayer implements AudioPlayer {
 /** SoundEvent → 音频文件 URL 映射。缺失的 event 走合成回退。 */
 // 导出给一致性守卫测试与音效试听 dev 页(映射表是运行时配置,消费方按需读)。
 export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
-  // banner 不映射文件(2026-10 音效审计):回合横幅是每一次换手的固定触发,3.8s 渐强
+  // banner 曾不映射文件(2026-10 音效审计):回合横幅是每一次换手的固定触发,3.8s 渐强
   // 鼓滚恰好铺满整个「掷骰+行军」过程,bot 连手时与骰子/木鱼/落币叠成噪声墙——
-  // 撤文件映射,回合横幅回归合成 whoosh(0.35s,见 SynthAudioPlayer.banner);
-  // 鼓滚奏只留给终局:新设 victoryDrum 单独映射(VictoryScreen 入场起势)。
+  // 撤文件映射回归合成 whoosh;回合横幅音已随 #958 横幅退役删除,whoosh 合成仅存
+  // victoryDrum 文件缺失回退一途。鼓滚奏只留给终局:victoryDrum 单独映射
+  // (VictoryScreen 入场起势)。
   // A5(#52):stamp 换 Freesound 759526 真实印章采样(CC0,lq ogg 直链),
   // 文件通路 gain 0.6 × master 0.5 = 0.3,与既有音量档对齐;sinks.ts 调用点零改动。
   diceLand: "/assets/audio/woodblock-hit.ogg",

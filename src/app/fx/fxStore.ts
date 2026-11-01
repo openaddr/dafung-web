@@ -34,20 +34,9 @@ export interface SealFx {
   tone?: "gold";
 }
 
-/** 顶中知会横幅槽演出件(#732):回合横幅与都城停条带统一为槽内知会——同形同槽,
- *  由槽组件(NoticeBanner)渲染;瞬态知会优先于等待条(槽组件负责让位/回归)。 */
-export interface TurnNoticeFx {
-  kind: "turn";
-  id: number;
-  guohao: string;
-  /** 玩家色 rgba 字符串(--player-color)。 */
-  color: string;
-}
-
-/** 常驻回合胶囊(#762 两段式亮相的第二段终态):全幅横幅读完(亮相段)即收编为
- *  顶中槽内的小药丸,此后常驻显示当前回合方——「谁在打」永有答案。内容 = 国号印 +
- *  名号 + 「第 N 轮」;每次回合宣告(全幅或合并)都刷新,横幅消散不带走它
- *  (resetFx 换局才清)。 */
+/** 常驻回合胶囊(回合宣告唯一形制;#762 立,#958 全幅横幅退役后单源):顶中槽内的
+ *  小药丸,常驻显示当前回合方——「谁在打」永有答案。内容 = 国号印 + 名号 +
+ *  「第 N 轮」;每次回合宣告都刷新重挂(入场过渡重播),resetFx 换局才清。 */
 export interface TurnCapsuleFx {
   id: number;
   guohao: string;
@@ -59,15 +48,8 @@ export interface TurnCapsuleFx {
   round: number;
 }
 
-/** 回合宣告的判别元数据(#762 知会槽合并规则):提取拍从引擎烤定(ADR-0029 不变量①
- *  同族——播放期零读引擎),槽泵据此判「bot→bot 同轮连续」并折叠全幅串播。 */
-export interface TurnAnnounceMeta {
-  isBot: boolean;
-  round: number;
-}
-
-/** 都城停条带(#732 降格):原全屏漆金宣告(S7 #513)降为条带级横幅,与回合横幅
- *  同槽互斥排队。 */
+/** 都城停条带(#732 降格,原全屏漆金宣告 S7 #513):槽内唯一的瞬态知会——回合全幅
+ *  横幅已退役(#958,单源归常驻回合胶囊),知会槽瞬态位归它独占。 */
 export interface HaltNoticeFx {
   kind: "halt";
   id: number;
@@ -77,7 +59,7 @@ export interface HaltNoticeFx {
   cityName: string;
 }
 
-export type NoticeFx = TurnNoticeFx | HaltNoticeFx;
+export type NoticeFx = HaltNoticeFx;
 
 /** 金圈一拍(#850 技能施展定音;S7 落格定音原产者已随 #826 退役,通道转正给施法):一拍即散。 */
 export interface PulseFx {
@@ -155,14 +137,14 @@ let nextId = 1;
 
 /** 知会槽泵(#732):槽空且队列非空即取队首开播,时长到自清再泵下一条——
  *  同槽互斥(同一时刻 notice 至多一条)+ 先进先出排队,全在这里结构性成立。
- *  时长与槽内 CSS 动画全长硬同步(turn=FX.bannerMs 同两段式亮相全长;halt 同 calibre,
- *  见 timings.ts),id 守卫防 resetFx 后迟到回调复活旧知会。 */
+ *  时长与槽内 CSS 动画全长硬同步(halt=FX.haltBannerMs,见 timings.ts),id 守卫防
+ *  resetFx 后迟到回调复活旧知会。 */
 const pumpNotice = () => {
   const s = useFxStore.getState();
   if (s.notice != null || s.noticeQueue.length === 0) return;
   const next = s.noticeQueue[0];
   useFxStore.setState({ notice: next, noticeQueue: s.noticeQueue.slice(1) });
-  const ms = next.kind === "turn" ? FX.bannerMs : FX.haltBannerMs;
+  const ms = FX.haltBannerMs;
   setTimeout(() => {
     const cur = useFxStore.getState();
     if (cur.notice?.id === next.id) useFxStore.setState({ notice: null });
@@ -177,12 +159,9 @@ interface FxState {
   notice: NoticeFx | null;
   /** 知会排队(#732):同槽互斥——展示中的知会播完(时长到)才从队首取下一条。 */
   noticeQueue: NoticeFx[];
-  /** 常驻回合胶囊(#762):当前回合方(国号印+名号+轮次),每次回合宣告刷新,
-   *  不随横幅/知会消散——「谁在打」的永在答案,等待条附加信息与它同槽融合。 */
+  /** 常驻回合胶囊(#762 立,#958 起为回合宣告唯一形制):当前回合方(国号印+名号+
+   *  轮次),每次回合宣告刷新重挂——「谁在打」的永在答案,等待条附加信息与它同槽融合。 */
   turnCapsule: TurnCapsuleFx | null;
-  /** 最近一次回合宣告的判别元数据(#762):合并规则的游标——上一个宣告是否 bot、
-   *  属哪一轮;resetFx 清零(新局首个宣告恒全幅)。 */
-  lastTurnMeta: TurnAnnounceMeta | null;
   /** 出牌指示线(#281 P2-E)。 */
   jinnangLines: JinnangLineFx[];
   /** 窥探弹层(#575):null=关闭(关闭即清,无任何残留)。 */
@@ -214,11 +193,10 @@ interface FxState {
 
   spawnFloater(x: number, y: number, amount: number, coins: boolean): void;
   spawnTextFloater(x: number, y: number, text: string, skill?: SkillFloatTone): void;
-  /** 回合宣告入槽(#732 入槽;#762 合并规则):入知会队列,槽空即播;无论全幅与否
-   *  都刷新常驻回合胶囊。返回「是否全幅播出」——bot→bot 同轮连续回合折叠为胶囊
-   *  更新(false),sink 据此跳过横幅音效、播放器据此跳过编排停留窗。
-   *  colorIndex 供胶囊印字亮档换算(单源 core/theme playerSealText)。 */
-  showBanner(guohao: string, color: string, meta: TurnAnnounceMeta, colorIndex: number): boolean;
+  /** 回合宣告:只刷新常驻回合胶囊(重挂重播入场过渡),不入知会队列——全幅横幅
+   *  已退役(#958),回合切换信号=胶囊重挂+席位金圈。colorIndex 供胶囊印字亮档
+   *  换算(单源 core/theme playerSealText)。 */
+  announceTurn(guohao: string, color: string, round: number, colorIndex: number): void;
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
   /** 窥探弹层(#575):置开关态(同拍再窥=替换,id 单调供弹层重挂重播入场)。 */
@@ -263,7 +241,6 @@ export const useFxStore = create<FxState>()(
     notice: null,
     noticeQueue: [],
     turnCapsule: null,
-    lastTurnMeta: null,
     jinnangLines: [],
     peek: null,
     marching: new Set<string>(),
@@ -298,24 +275,9 @@ export const useFxStore = create<FxState>()(
       );
     },
 
-    showBanner(guohao, color, meta, colorIndex) {
+    announceTurn(guohao, color, round, colorIndex) {
       const id = nextId++;
-      // 知会槽合并规则(#762,判别写死不留开放配置):bot→bot 同轮连续回合不再串播
-      // 全幅大字段,只更新常驻胶囊;真人回合、每轮首个回合宣告(跨轮/首宣告)仍全幅。
-      // lastTurnMeta 追踪的是「上一次宣告」而非「上一次全幅」——bot 链中途换人才
-      // 不会把后续 bot 回合误判成连续。
-      const prev = useFxStore.getState().lastTurnMeta;
-      const merged = meta.isBot && prev != null && prev.isBot && prev.round === meta.round;
-      useFxStore.setState({
-        lastTurnMeta: meta,
-        turnCapsule: { id, guohao, color, colorIndex, round: meta.round },
-      });
-      if (merged) return false;
-      useFxStore.setState((s) => ({
-        noticeQueue: [...s.noticeQueue, { kind: "turn", id, guohao, color }],
-      }));
-      pumpNotice();
-      return true;
+      useFxStore.setState({ turnCapsule: { id, guohao, color, colorIndex, round } });
     },
 
     stampSeal(x, y, char, tone) {
@@ -435,7 +397,6 @@ export const useFxStore = create<FxState>()(
         notice: null,
         noticeQueue: [],
         turnCapsule: null,
-        lastTurnMeta: null,
         jinnangLines: [],
         peek: null,
         marching: new Set<string>(),
