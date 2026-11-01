@@ -9,8 +9,7 @@ import { Sym } from "@app/screens/shared/Sym";
 
 /** 每个音效事件的试听行:label = 界面名,when = 真实触发时机(听感必须挂在因果上才有意义)。 */
 const ROWS: Record<SoundEvent, { label: string; when: string }> = {
-  diceRoll: { label: "掷骰", when: "每次掷骰起手(合成沙锤瞬态;旧鼓滚奏 #26 已撤)" },
-  diceLand: { label: "落骰", when: "S7 两段式签面落定拍(木叩,与大字钤落/金圈/微震同拍;#513)" },
+  diceLand: { label: "落骰", when: "掷骰签真字钤落拍(木叩,与钤落同拍;#927)" },
   marchStart: { label: "行军启动", when: "棋子起步(轻嗒;50ms 去重+连发衰减)" },
   coin: { label: "收入叮", when: "批内有正收入浮字(每批一次,缀首个浮字前)" },
   pay: { label: "支出闷响", when: "批内有负向浮字且非购地批(收叮付闷对位)" },

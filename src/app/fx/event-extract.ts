@@ -375,8 +375,8 @@ export function extractBatchEvents(
     const ev = events[i];
     switch (ev.kind) {
       case "diceRolled": {
-        const seat = eventSeat(engine, ev);
-        events_.push({ kind: "diceRolled", die: ev.die, fast: engine.players[seat].isBot });
+        // 掷骰签单节拍(#927,统一原则):不再区分 bot/人类速度档,点数直译。
+        events_.push({ kind: "diceRolled", die: ev.die });
         break;
       }
       case "marchArrived": {

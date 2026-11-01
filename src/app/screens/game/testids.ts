@@ -200,6 +200,10 @@ export const TESTIDS = {
   /** 常驻回合胶囊(#762 两段式亮相的收编终态):当前回合方(国号印+名号+轮次),
    *  横幅消散后常驻于知会槽(NoticeBanner.tsx;融合的等待附加信息仍走 waiting-bar)。 */
   turnCapsule: "turn-capsule",
+  /** 掷骰签锚点(#927,ADR-0043):知会槽内的常驻零宽件,几何=回合胶囊右缘——
+   *  掷骰签钤落定位读它。不读胶囊节点本身:bot 配速关 0 的批洪流下,横幅演出可能
+   *  作为过时批被吸附作废(ADR-0029),胶囊节点合法地不物化,瞬态节点不可为锚。 */
+  diceSignAnchor: "dice-sign-anchor",
   /** 竖屏手机「请横屏」提示层(#276 纠偏:移动端只做横屏形态;显隐全在 layout.css
    *  媒询,常驻 DOM——桌面窄窗口 pointer:fine 不触发)。 */
   rotateHint: "rotate-hint",

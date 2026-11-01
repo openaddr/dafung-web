@@ -15,8 +15,7 @@
 // 产线零消费,浮字宣告一律走事件 presented 档 + event-extract 派生。
 import type { MovePath } from "@core/board";
 import { formatMoney } from "@core/money";
-import { getAudio } from "./audio";
-import { diceApi, finishDiceOverlay, setDiceFast } from "./DiceOverlay";
+import { diceApi, finishDiceOverlay } from "./DiceOverlay";
 import { finishDuelSigns } from "./DuelSignsOverlay";
 import { useFxStore } from "./fxStore";
 import { abandonMarch, animateMove, beginMarch } from "./useMarch";
@@ -96,11 +95,8 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
     if (ev.kind !== "cashDelta" && ev.kind !== "supplyRain") flushFlies(deferSync);
     switch (ev.kind) {
       case "diceRolled":
-        // C1:bot 掷骰半速——速度开关在掷前设置(roll 内即消费复位);
-        // 不走 FxSink 参数是因生产 sink(sinks.ts)不透传附加参数。
-        setDiceFast(ev.fast === true);
         // ③ overlay 挂摘置位:roll() 的 Promise 在 overlay 移除后才 resolve,
-        // 置位窗恰 = 签面在场的挂→摘全程(fxStore.overlayActive)。
+        // 置位窗恰 = 掷骰签在场的挂→摘全程(fxStore.overlayActive)。
         useFxStore.getState().setOverlayActive(true);
         await sink.rollDice(ev.die);
         useFxStore.getState().setOverlayActive(false);
@@ -232,12 +228,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
   flushFlies(false); // 批尾冲账:纯进账批(无后继演出可隔)的合并枚在此起飞(批内已无 overlay,不延)
 }
 
-// ─────────────────────── 骰子动画 ───────────────────────
-/** 掷骰表现:全屏签面(diceApi → DiceOverlay:摇签→落定→停留→渐隐),单机/联机共用。
- *  起手沙锤在此(落骰声已挪到签面落定拍,DiceOverlay 内音画同拍)。
- *  生产 sink 的 rollDice 落点(sinks.ts)。 */
+// ─────────────────────── 掷骰签 ───────────────────────
+/** 掷骰表现:顶中回合胶囊侧旁的一次性小签卡(diceApi → DiceOverlay:虚位→落定→
+ *  停留→渐隐),单机/联机共用。起手沙锤已随摇签段退役(#927,ADR-0043),落定骰声
+ *  在签内音画同拍(DiceOverlay)。生产 sink 的 rollDice 落点(sinks.ts)。 */
 export async function animateDice(die: number): Promise<void> {
-  getAudio().play("diceRoll");
   await diceApi.roll(die);
 }
 

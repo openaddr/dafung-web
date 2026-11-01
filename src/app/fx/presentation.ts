@@ -38,10 +38,6 @@ export type PresentationEvent =
   | {
       kind: "diceRolled";
       die: number;
-      /** C1:bot 驱动的掷骰走半速(提取期按推进前活跃玩家 isBot 判定)。
-       *  速度不进 FxSink.rollDice 签名——生产实现(sinks.ts)不透传附加参数,
-       *  由 present() 在掷前设置签面演出的模块级速度开关(见 orchestrator)。 */
-      fast?: boolean;
     }
   | {
       kind: "tokenMoved";
@@ -224,7 +220,7 @@ export function isBlowout(aRoll: number, bRoll: number): boolean {
 export interface FxSink {
   /** 播一条语义音效(带声音的事件本身如骰子/印章/横幅由对应方法内发声)。 */
   playSound(event: SoundEvent): void;
-  /** 掷骰动画(含 diceRoll/diceLand 音与 fallback 停顿),await 到落面。 */
+  /** 掷骰签演出(虚位→钤落→停留→渐隐;骰落声在签内音画同拍,#927),await 到收场。 */
   rollDice(die: number): Promise<void>;
   /** 行军锚定(同步):把棋子放进接管集并锚回 keyframes 首帧(不变量①:提取烤好
    *  的逐帧坐标随事件走),必须先于 React 渲染终态。 */
