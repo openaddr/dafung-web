@@ -101,12 +101,17 @@
 /* ── 手势栈与宿主容器(ADR-0042)──
    .bv-stack:全部棋盘层的公共 transform 宿主——手势进行中取景增量写在这里
    (合成器插值,棋盘栅格缓存零重绘),提交拍写回 #board viewBox 后清空;
-   提交拍同时是各宿主矩阵(viewBox MutationObserver)的唯一 resync 拍。 */
+   提交拍同时是各宿主矩阵(viewBox MutationObserver)的唯一 resync 拍。
+   #1013 合成层提升:栈不提升时,栈外兄弟(决策弹层/知会横幅/HUD)的脏矩形
+   与城池共用同一块栅格缓存,重栅连城池像素一起画——弱 GPU 栅格欠债时合成器
+   把没栅完的城池区域闪成背景色(真机「决策收口→行军启动」城池闪现的根);
+   提升后栈外失效与棋盘彻底隔离,手势 transform 亦成纯合成器操作。 */
 .bv-stack {
   position: relative;
   width: 100%;
   height: 100%;
   transform-origin: 0 0;
+  will-change: transform;
 }
 /* 世界坐标宿主(氛围层 .bv-ambient 与棋子/特效 .bv-bhost 同款,单源不复制):
    铺满手势栈(DOM 序即层序),容器 transform = 世界→客户端矩阵
@@ -118,6 +123,16 @@
   inset: 0;
   pointer-events: none;
   transform-origin: 0 0;
+}
+/* #1013 fx/flow 宿主提升(ADR-0045 修订段):特效逐帧失效源(驿道流光 fade/
+   印章/浮字/墨渍,SVG 子元素永不为合成层动画)各自重栅时只落在宿主自身小层,
+   不再连底板城池一起重画。tokens 宿主不提升:其内容是逐个自提升的棋子包装
+   (board.css .bv-token will-change),宿主自身零直接绘制,提升=白费一层;
+   氛围层子件动画只许 transform/opacity(ambient.css 铁律),Blink 对活跃
+   transform/opacity 动画的 HTML 子件自动提升,根容器无需常驻层。 */
+#bv-fx,
+#bv-flow {
+  will-change: transform;
 }
 
 /* ── 棋子(旌旗,ADR-0042 HTML 版)──
