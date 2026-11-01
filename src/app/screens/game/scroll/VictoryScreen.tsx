@@ -33,8 +33,6 @@ export type VictoryScreenProps = {
   /** 用时(回合数)。 */
   turnNumber: number;
   onRestart: () => void;
-  /** ADR-0014:导出对局日志(该局完整 jsonl 落文件,复盘/重放用);不传则不渲染该按钮。 */
-  onExportLog?: () => void;
 } & (
   | {
       /** E4(#16):胜因透传引擎 VictoryReason 快照真值(No 长度硬编码"NetWorth"——引擎值为 TargetNetWorth)。 */
@@ -212,11 +210,6 @@ export function VictoryScreen(props: VictoryScreenProps) {
                 <BannerButton primary testid={T.victoryRestart} onClick={props.onRestart}>
                   再战一局
                 </BannerButton>
-                {props.onExportLog && (
-                  <BannerButton testid={T.logExport} onClick={props.onExportLog}>
-                    导出日志
-                  </BannerButton>
-                )}
               </div>
             )}
           </div>
@@ -226,16 +219,8 @@ export function VictoryScreen(props: VictoryScreenProps) {
   }
 
   // 胜局(非 aborted:winReason 已收窄,胜者演出数据齐备)。
-  const {
-    guohao,
-    colorIndex,
-    finalNetWorthLabel,
-    turnNumber,
-    winReason,
-    standings,
-    onRestart,
-    onExportLog,
-  } = props;
+  const { guohao, colorIndex, finalNetWorthLabel, turnNumber, winReason, standings, onRestart } =
+    props;
   // W2-包D(审计 A2):absolute→fixed——终局必须盖过侧栏(absolute 只盖棋盘区,
   // 侧栏仍露出半截与「天下归一」分庭);fixed 脱离布局流压满视口,testid/逻辑零变化。
   // #174:壳上 role=dialog/aria-modal 全屏模态语义(可达名称 aria-label=「终局」,
@@ -323,11 +308,6 @@ export function VictoryScreen(props: VictoryScreenProps) {
               <BannerButton primary testid={T.victoryRestart} onClick={onRestart}>
                 再战一局
               </BannerButton>
-              {onExportLog && (
-                <BannerButton testid={T.logExport} onClick={onExportLog}>
-                  导出日志
-                </BannerButton>
-              )}
             </div>
           )}
         </div>

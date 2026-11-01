@@ -63,10 +63,8 @@ export const SCROLL_TESTIDS = {
   /** E4(#16):终榜一行(身价降序 + 破产标注)。 */
   victoryStandings: "victory-standings",
   victoryRestart: "victory-restart",
-  /** ADR-0014:胜利屏「导出日志」(该局完整 jsonl 落文件,含局头行)。 */
-  logExport: "log-export",
   /** #642 异常终局(对局作废):作废标题 + 说明文案(壳体沿用 victory-screen,
-   *  出口按钮组复用 victory-restart / log-export,零新增)。 */
+   *  出口按钮复用 victory-restart,零新增)。 */
   victoryAbortedTitle: "victory-aborted-title",
   victoryAbortedNote: "victory-aborted-note",
 } as const;

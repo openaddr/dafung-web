@@ -5,7 +5,6 @@
 //   (GameEngine 直驱多 seed soak,#293 Q1/#304 去浏览器化);UI 显示层由「加速到胜利」
 //   例驱动途中顺带巡检承接
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
-import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -308,23 +307,4 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
   expect(s.winReason).toBe("TargetNetWorth");
   await expect(page.getByTestId(SCROLL_TESTIDS.victoryInfo)).toContainText("富甲天下");
   await expect(page.getByTestId(SCROLL_TESTIDS.victoryStandings)).toContainText("终榜");
-  // ADR-0014:胜利屏「导出日志」落完整 jsonl(局头 header 行 + 命令/事件流 + 终局 final 行)
-  const [download] = await Promise.all([
-    page.waitForEvent("download"),
-    page.getByTestId(SCROLL_TESTIDS.logExport).click(),
-  ]);
-  expect(download.suggestedFilename()).toMatch(/^dafung-log-[0-9a-z-]+\.jsonl$/);
-  const lines = readFileSync((await download.path())!, "utf-8")
-    .split("\n")
-    .filter((l) => l.trim() !== "")
-    .map((l) => JSON.parse(l));
-  expect(lines[0].category).toBe("header"); // 局头是首行(重放要素:gameId/mapId/seed/座位表)
-  const header = JSON.parse(lines[0].detail);
-  expect(header.mapId).toBeTruthy();
-  expect(header.seats.length).toBe(s.players.length);
-  expect(lines.some((l: any) => l.category === "cmd")).toBe(true); // 命令流(掷骰/选都经 submitCommand/pickCapital)
-  expect(lines[lines.length - 1].category).toBe("final"); // 终局行收尾
-  const final = JSON.parse(lines[lines.length - 1].detail);
-  expect(final.winner).toBe(s.winner);
-  expect(final.round).toBe(s.round);
 });

@@ -47,13 +47,6 @@ async function writeRecord(rec: ArchivedGame): Promise<void> {
   await reqAsPromise(db.transaction(STORE, "readwrite").objectStore(STORE).put(rec, rec.gameId));
 }
 
-/** 读一局归档(无记录返回 null,导出层据此回退内存 log)。 */
-export async function loadArchive(gameId: string): Promise<ArchivedGame | null> {
-  const db = await openDb();
-  const rec = await reqAsPromise(db.transaction(STORE).objectStore(STORE).get(gameId));
-  return (rec as ArchivedGame | undefined) ?? null;
-}
-
 /** 全量读归档(诊断包导出用:30 天保底内的全部历史局,含未打完的局——
  *  归档是局中增量写,不挑终局;按 key(gameId)升序返回)。 */
 export async function loadAllArchive(): Promise<ArchivedGame[]> {
