@@ -98,6 +98,8 @@ export function createEngineSink(): FxSink {
       useFxStore
         .getState()
         .announceTileChange(ev.tileIndex, ev.levelChanged, ev.ownerChanged, ev.ownerColorIndex);
+      // 易主流光(架构体检 B 批出底板):ownerChanged 一并下发流光件,fx 宿主渲染
+      if (ev.ownerChanged) useFxStore.getState().pushOwnFlash(ev.tileIndex, ev.ownerColorIndex);
     },
     cashFly(ev: CashFlyEvent) {
       // 金钱飞行归账(#764):铜钱经 store 下发,FxLayer 的 body portal 渲染,

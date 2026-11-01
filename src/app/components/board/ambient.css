@@ -98,6 +98,30 @@
   }
 }
 
+/* 选都候选脉冲(架构体检 B 批出底板,原 board.css bv-select-pulse 原样迁层):
+   可选城=金盘+描边金环双通道呼吸(与席位格金圈同拍)。金盘带 capital 同款挖孔
+   mask(复刻原「金盘垫在卡面之下、只露边缘」的 z 序观感),环叠卡面之上同原位;
+   SVG 动画出 #board 进合成层。RM 静态钉中程(hilite 0.5 / ring 0.9 原口径)。 */
+.bv-amb-select-crown,
+.bv-amb-select-disc,
+.bv-amb-select-ring {
+  display: block;
+  overflow: visible;
+}
+.bv-amb-select-disc,
+.bv-amb-select-ring {
+  animation: bv-select-pulse var(--dur-ambient) var(--ease-sine) infinite;
+}
+@keyframes bv-select-pulse {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
 /* ── M-9 降耗:reduced-motion 全量静止(语义与原 SVG 版一致,选择器随层更新):
    旗停摇/环停转;呼吸类钉呼吸中程,静态可辨不停摆。 ── */
 @media (prefers-reduced-motion: reduce) {
@@ -109,6 +133,14 @@
   .bv-amb-token-ring {
     animation: none;
     opacity: 0.78; /* 呼吸中程((0.55+1)/2),#840 ① 同口径 */
+  }
+  .bv-amb-select-disc {
+    animation: none;
+    opacity: 0.5; /* 原选都脉冲 RM 静态口径(hilite 中程) */
+  }
+  .bv-amb-select-ring {
+    animation: none;
+    opacity: 0.9; /* 原选都脉冲 RM 静态口径(pick-ring) */
   }
   .bv-amb-flag {
     animation: none;

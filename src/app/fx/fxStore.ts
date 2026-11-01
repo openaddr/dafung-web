@@ -133,6 +133,15 @@ export interface TileAnnounce {
   ownerColorIndex: number | null;
 }
 
+/** 易主流光件(架构体检 B 批出底板):铭牌顶缘横穿流光,世界坐标在 FxLayer 按
+ *  board.tiles 查表落位(tileIndex 单源,流光几何走 fx.css 类,stroke 色随件内联)。 */
+export interface OwnFlashFx {
+  id: number;
+  tileIndex: number;
+  /** 新归属座位色(null=回无主,流光转金色)。 */
+  colorIndex: number | null;
+}
+
 let nextId = 1;
 
 /** 知会槽泵(#732):槽空且队列非空即取队首开播,时长到自清再泵下一条——
@@ -173,6 +182,9 @@ interface FxState {
   marching: ReadonlySet<string>;
   /** 城池宣告记录(ADR-0015),key = tileIndex。 */
   announces: ReadonlyMap<number, TileAnnounce>;
+  /** 易主流光(架构体检 B 批出底板):铭牌顶缘一次性流光,mini-svg 世界坐标挂在
+   *  fx 宿主(SVG 动画出 #board——底板内逐帧重绘随迁层拔除,ADR-0045 同法)。 */
+  ownFlashes: OwnFlashFx[];
   /** 金圈一拍(技能施展定音,#850)。 */
   pulses: PulseFx[];
   /** 破产仪式墨渍(S7)。 */
@@ -230,6 +242,9 @@ interface FxState {
     ownerChanged: boolean,
     ownerColorIndex: number | null,
   ): void;
+  /** 易主流光(架构体检 B 批出底板):ownerChanged 时由 FxSink.announceTileChange
+   *  一并下发,FxLayer 在 fx 宿主渲染 mini-svg 流光,TTL=FX.ownFlashMs 自清。 */
+  pushOwnFlash(tileIndex: number, colorIndex: number | null): void;
   /** 清空全部(重开局/切屏时防陈旧特效滞留)。 */
   resetFx(): void;
 }
@@ -245,6 +260,7 @@ export const useFxStore = create<FxState>()(
     peek: null,
     marching: new Set<string>(),
     announces: new Map<number, TileAnnounce>(),
+    ownFlashes: [],
     pulses: [],
     inkBlots: [],
     coinBursts: [],
@@ -390,6 +406,14 @@ export const useFxStore = create<FxState>()(
       });
     },
 
+    pushOwnFlash(tileIndex, colorIndex) {
+      const id = nextId++;
+      set((s) => ({ ownFlashes: [...s.ownFlashes, { id, tileIndex, colorIndex }] }));
+      setTimeout(() => {
+        set((s) => ({ ownFlashes: s.ownFlashes.filter((f) => f.id !== id) }));
+      }, FX.ownFlashMs);
+    },
+
     resetFx() {
       set({
         floaters: [],
@@ -401,6 +425,7 @@ export const useFxStore = create<FxState>()(
         peek: null,
         marching: new Set<string>(),
         announces: new Map(),
+        ownFlashes: [],
         pulses: [],
         inkBlots: [],
         coinBursts: [],
