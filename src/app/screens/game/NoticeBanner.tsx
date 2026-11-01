@@ -72,7 +72,7 @@ export function NoticeBanner(props: WaitingBarProps) {
         </div>
       )}
       {/* 掷骰签锚点(#927,ADR-0043):常驻零宽件,几何恰在回合胶囊右缘(flex 顺位
-          紧随胶囊之后)——掷骰签钤落定位读它,不读胶囊节点(bot 配速关 0 的批洪流下
+          紧随胶囊之后)——掷骰签定位读它,不读胶囊节点(bot 配速关 0 的批洪流下
           横幅演出可能作为过时批被吸附作废,胶囊节点合法地不物化,瞬态节点不可为锚;
           本件随槽挂载、永不重挂,与槽同寿)。 */}
       <div className="dice-sign-anchor" data-testid={TESTIDS.diceSignAnchor} />

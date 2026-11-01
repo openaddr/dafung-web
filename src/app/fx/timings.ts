@@ -254,34 +254,29 @@ export const FX = {
 } as const;
 
 /** 掷骰签节奏(#927,ADR-0043:掷骰签替代全屏签面,摇签换字/压暗幕/落点金圈退役;
- *  演出编排族,吃 scStage;时长集中调参)。两段式:先虚位拍(淡签静态现身一拍,
- *  无换字无旋转——旧 600ms 换字轮换是晃眼/卡顿源,整段退役)→ 真字 outBack 钤落
- *  (落定骰声同拍)→ 停留 → 渐隐。钤于顶中回合胶囊侧旁,锚定与形制见 DiceOverlay 头注。
+ *  演出编排族,吃 scStage;时长集中调参)。单段式(ADR-0043 修订,2026-11-01 拍板:
+ *  原「虚位淡签→真字 outBack 钤落」两段式退役——钤落弧 from 帧 opacity:0 让整卡在
+ *  段间全隐一拍,实读「点数闪两下」):真字签卡直接淡入(readyMs)→ 停留 → 渐隐,
+ *  骰落声与芯片揭示同现身拍。钤于顶中回合胶囊侧旁,锚定与形制见 DiceOverlay 头注。
  *  单节拍:人类/bot 同参数(diceFast 半速分档整条退役——统一原则,AGENTS.md;
  *  同向先例=托管单节拍 ADR-0028)。任何掷骰结束后都有 ≥300ms 可读结果
  *  (holdMs+fadeOutMs,由 test/choreography-invariants.test.ts 钉住;非终局局的承诺
  *  ——终局封场(orchestrator.finishPresentation)后骰子演出可在事件边界被整体截断,
  *  是生命周期规则不是回归)。与 token 同值者(holdMs=--dur-slow / fadeOutMs=--dur-med)
- *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。虚位/钤落无 token 对应,保留字面量。 */
+ *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。readyMs 无 token 对应,保留字面量。 */
 export const DICE = {
-  /** 虚位拍(淡签现身):签卡淡轮廓+淡「签」字静态现身一拍(「有一点延迟,但不要再有
-   *  乱七八糟的动画」的酝酿拍);入场渐显同段(fx.css .dice-overlay-in 时长经本值
-   *  由 DiceOverlay 内联注入,#849 棒3 口径:keyframe 只管形,时长消费点内联)。 */
+  /** 入场渐显(真字签卡现身拍):「有一点延迟,但不要再有乱七八糟的动画」;
+   *  fx.css .dice-overlay-in 时长经本值由 DiceOverlay 内联注入,#849 棒3 口径:
+   *  keyframe 只管形,时长消费点内联。 */
   get readyMs() {
     return scStage(250);
   },
   get holdMs() {
     return scStage(Motion.dur.slow);
-  }, // 签面停留;与 --dur-slow 同源(经 Motion);钤落弧须落在预算内(invariants 钉)
+  }, // 签面停留;与 --dur-slow 同源(经 Motion)
   get fadeOutMs() {
     return scStage(Motion.dur.med);
   }, // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
-  /** 落定钤落弧全长(outBack 过冲回弹):fx.css dice-sign-land 的时长,落定拍由
-   *  DiceOverlay 消费点内联注入(keyframe 只管形不时刻度,#849 棒3 同口径)。须落在
-   *  holdMs 预算内(choreography-invariants 钉);0.26s 原字面量同此基准。 */
-  get landMs() {
-    return scStage(260);
-  },
 } as const;
 
 /** 拼点演出节拍(#637,ADR-0030,全屏签面 DuelSignsOverlay 消费):错拍/判词两拍

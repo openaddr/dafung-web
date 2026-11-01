@@ -229,9 +229,9 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
 }
 
 // ─────────────────────── 掷骰签 ───────────────────────
-/** 掷骰表现:顶中回合胶囊侧旁的一次性小签卡(diceApi → DiceOverlay:虚位→落定→
- *  停留→渐隐),单机/联机共用。起手沙锤已随摇签段退役(#927,ADR-0043),落定骰声
- *  在签内音画同拍(DiceOverlay)。生产 sink 的 rollDice 落点(sinks.ts)。 */
+/** 掷骰表现:顶中回合胶囊侧旁的一次性小签卡(diceApi → DiceOverlay:现身→
+ *  停留→渐隐),单机/联机共用。起手沙锤已随摇签段退役(#927,ADR-0043),骰落声
+ *  在签内现身拍音画同拍(DiceOverlay)。生产 sink 的 rollDice 落点(sinks.ts)。 */
 export async function animateDice(die: number): Promise<void> {
   await diceApi.roll(die);
 }
