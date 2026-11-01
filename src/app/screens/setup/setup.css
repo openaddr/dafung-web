@@ -89,7 +89,6 @@
   justify-content: center;
   border-radius: 3px;
   font-family: var(--font-title);
-  font-weight: 700;
   font-size: 15px;
   line-height: 1;
   background: color-mix(in srgb, var(--pc) 26%, var(--color-bg));
