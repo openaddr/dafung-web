@@ -71,7 +71,8 @@ const STANDARD: Record<
 
 /** 各图各档数量盘子(ADR-0034 拍板的分配盘子,防逐城微调悄悄改盘子;
  *  环游图 36 城:县城含 5 座 #827 派生名城[商市城/锦囊城×2/卧龙城/天命城];
- *  关中图 28 城(#938):环游图盘子按 7/9 等比缩,县城同样含 5 座派生名城)。 */
+ *  关中图 28 城(#938):环游图盘子按 7/9 等比缩,县城同样含 5 座(#960 专名改定
+ *  [襄平/泸水/卧龙岗/南徐/受禅台])。 */
 const HUANYOU_COUNTS: Record<CityTier, number> = { 县: 16, 郡: 11, 奇: 5, 名: 4 };
 const ZY_COUNTS: Record<CityTier, number> = { 县: 3, 郡: 2, 奇: 2, 名: 1 };
 const GUANZHONG_COUNTS: Record<CityTier, number> = { 县: 12, 郡: 9, 奇: 4, 名: 3 };

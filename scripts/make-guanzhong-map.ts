@@ -13,14 +13,14 @@
 // 零对角边。
 //
 // 走法(见 RING 表):北境东行(晋幽辽→北境互市)→ 青徐(临淄→下邳)
-// → 江东南下(吴郡→会稽)→ 岭南西行(锦囊城→长沙)
+// → 江东南下(吴郡→会稽)→ 岭南西行(泸水→长沙)
 // → 巴蜀(成都→剑阁→汉中)→ 西凉北上(街亭→咸阳→凉州→函谷关)
-// → 腹地盘旋(子午谷折入,襄阳→卧龙城→赤壁→合肥→锦囊城)
-// → 中原收束(天命城→邺城→许昌→洛阳闭环)。
+// → 腹地盘旋(子午谷折入,襄阳→卧龙岗→赤壁→合肥→南徐)
+// → 中原收束(受禅台→邺城→许昌→洛阳闭环)。
 //
 // 品类配比(#938 拍板:事件城 9→8,锦囊保 2):8 特殊(珍宝×3=辽东/下邳/函谷关 +
-// 锦囊城×2 + 卧龙城 + 天命城 + 商市城)+ 20 普通;八区盘子 a5/b3/c2/d4/e4/f4/g4/h2
-// = 28,无单城区(最小盘 c2/h2 恰为下限)。
+// 锦囊×2=泸水/南徐、名将=卧龙岗、声望=受禅台、商市=襄平)+ 20 普通;
+// 八区盘子 a5/b3/c2/d4/e4/f4/g4/h2 = 28,无单城区(最小盘 c2/h2 恰为下限)。
 // 城档(#938 拍板:36 城盘子 16/11/5/4 按 7/9 等比缩 12/9/4/3,数值见 TIERS 表)
 //
 // 退役 8 城(36→28):建业(名)/华容道(奇)/江州·徐州(郡)/交州(县·珍宝)/
@@ -62,15 +62,15 @@ const RING: Array<{ id: string; c: number; r: number; group: string }> = [
   { id: "prop-jinyang", c: 3, r: 0, group: "f" }, // P1  晋阳
   { id: "prop-youzhou", c: 4, r: 0, group: "f" }, // P2  幽州
   { id: "prop-liaodong", c: 5, r: 0, group: "f" }, // P3  辽东(珍宝城:貂裘名马)
-  { id: "prop-shangshi", c: 6, r: 0, group: "f" }, // P4  商市城:北境互市
+  { id: "prop-shangshi", c: 6, r: 0, group: "f" }, // P4  襄平:北境互市
   // 青徐(c6 南段):临淄→下邳(徐州退役)
   { id: "prop-linzi", c: 6, r: 1, group: "g" }, // P5  临淄
   { id: "prop-xiapi", c: 6, r: 2, group: "g" }, // P6  下邳(珍宝城)
   // 江东南下(c6 底→r3 西行):吴郡→会稽(建业退役)
   { id: "prop-wujun", c: 6, r: 3, group: "h" }, // P7  吴郡
   { id: "prop-kuiji", c: 5, r: 3, group: "h" }, // P8  会稽
-  // 岭南西行(r3):锦囊城→长沙(零陵/交州退役)
-  { id: "prop-jinnang-1", c: 4, r: 3, group: "c" }, // P9  锦囊城(南海商埠位)
+  // 岭南西行(r3):泸水→长沙(零陵/交州退役)
+  { id: "prop-jinnang-1", c: 4, r: 3, group: "c" }, // P9  泸水(南海商埠位)
   { id: "prop-changsha", c: 3, r: 3, group: "c" }, // P10 长沙
   // 巴蜀(r3 西段→c0 北上):成都→剑阁→汉中(江州退役)
   { id: "prop-chengdu", c: 2, r: 3, group: "d" }, // P11 成都
@@ -81,16 +81,16 @@ const RING: Array<{ id: string; c: number; r: number; group: string }> = [
   { id: "prop-xianyang", c: 0, r: 1, group: "e" }, // P15 咸阳
   { id: "prop-liangzhou", c: 0, r: 0, group: "e" }, // P16 凉州:西北角
   { id: "prop-hangu", c: 1, r: 0, group: "e" }, // P17 函谷关(珍宝城):顶缘东大门
-  // 腹地盘旋:函谷关折入,荆楚东行(子午谷/襄阳/卧龙城/赤壁;华容道退役)
+  // 腹地盘旋:函谷关折入,荆楚东行(子午谷/襄阳/卧龙岗/赤壁;华容道退役)
   { id: "prop-ziwu", c: 1, r: 1, group: "d" }, // P18 子午谷:咸阳东南秦岭道
   { id: "prop-xiangyang", c: 1, r: 2, group: "b" }, // P19 襄阳:子午谷折入
-  { id: "prop-wolong", c: 2, r: 2, group: "b" }, // P20 卧龙城:躬耕南阳位
+  { id: "prop-wolong", c: 2, r: 2, group: "b" }, // P20 卧龙岗:躬耕南阳位
   { id: "prop-chibi", c: 3, r: 2, group: "b" }, // P21 赤壁
-  // 淮南折北:合肥→锦囊城(江夏/武昌退役)
+  // 淮南折北:合肥→南徐(江夏/武昌退役)
   { id: "prop-hefei", c: 4, r: 2, group: "g" }, // P22 合肥
-  { id: "prop-jinnang-2", c: 5, r: 2, group: "g" }, // P23 锦囊城:圯上授书地望
-  // 中原收束:天命城→邺城→许昌→洛阳闭环
-  { id: "prop-tianming", c: 5, r: 1, group: "a" }, // P24 天命城:中原逐鹿
+  { id: "prop-jinnang-2", c: 5, r: 2, group: "g" }, // P23 南徐:三道锦囊招亲地
+  // 中原收束:受禅台→邺城→许昌→洛阳闭环
+  { id: "prop-tianming", c: 5, r: 1, group: "a" }, // P24 受禅台:中原逐鹿
   { id: "prop-ye", c: 4, r: 1, group: "a" }, // P25 邺城
   { id: "prop-xuchang", c: 3, r: 1, group: "a" }, // P26 许昌
   { id: "prop-luoyang", c: 2, r: 1, group: "a" }, // P27 洛阳:蛇尾,与长安相邻闭环
@@ -147,13 +147,13 @@ const TIER_OF: Record<string, CityTier> = {
   "prop-tianming": "县",
 };
 
-// ── 派生名新城(城名派生自固定事件;与环游图同表)──
+// ── 专名改定(三国典故,拷问拍板;环游图同名五座不在本批)──
 const DERIVED: Record<string, { name: string }> = {
-  "prop-shangshi": { name: "商市城" },
-  "prop-jinnang-1": { name: "锦囊城" },
-  "prop-jinnang-2": { name: "锦囊城" },
-  "prop-wolong": { name: "卧龙城" },
-  "prop-tianming": { name: "天命城" },
+  "prop-shangshi": { name: "襄平" }, // 公孙氏辽东郡治,胡汉互市、名马貂皮集散
+  "prop-jinnang-1": { name: "泸水" }, // 五月渡泸,攻心为上——南征锦囊策
+  "prop-jinnang-2": { name: "南徐" }, // 三道锦囊护主南徐招亲(演义 55 回)——锦囊妙计正典地
+  "prop-wolong": { name: "卧龙岗" }, // 卧龙躬耕三顾出山;紧邻襄阳=躬耕地之争彩蛋
+  "prop-tianming": { name: "受禅台" }, // 曹丕受禅代汉天命更易,故地近许昌
 };
 
 // ── 随 #938 退役的环游图城 id(36→28 = 退役 8)──
