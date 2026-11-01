@@ -2,7 +2,8 @@
 // D1/D4 改造沿革:浮字/印章/铜钱曾从 HTML 覆盖层 + getScreenCTM 换算迁入棋盘 SVG 的
 // #bv-fx 层;ADR-0045 起再迁 HTML 宿主(BoardFxLayer,BoardView 挂载,逐件 mini-svg)
 // ——坐标系与棋盘天然一致,pan/zoom 随宿主矩阵跟随,字号随视图缩放、按当前缩放设
-// 12px 等效下限。
+// 12px 等效下限。#1024:字号缩放读数并入 boardHost 单源缓存(失效拍共用同一套),
+// 渲染期不再 gBCR 强制同步布局;首挂由 commit 拍取真值修正,svg 缺席炸出不回退。
 // #732:屏幕级知会(回合横幅/都城停条带)迁顶中知会横幅槽(screens/game/NoticeBanner),
 // 本件只剩拼点签面演出桥(DuelSignsOverlay 渲染 null,仅在挂载期绑定 duelSignsApi
 // 模块桥——签面 overlay 自行 append 到 body,ADR-0030)。
@@ -16,7 +17,7 @@ import { createPortal } from "react-dom";
 import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
 import { TESTIDS } from "@app/screens/game/testids";
-import { BoardHost } from "@app/components/board/boardHost";
+import { BoardHost, boardPxPerUnit, ensureBoardPxPerUnit } from "@app/components/board/boardHost";
 import { TILE_SCALE } from "@app/components/board/Tile";
 import { useFxStore, type CashFlyFx, type FloaterFx } from "./fxStore";
 import { DuelSignsOverlay } from "./DuelSignsOverlay";
@@ -35,21 +36,12 @@ const FLOATER_STAGGER_UNITS = 36;
 /** 破产撒币枚数上限(每枚随机落点;超过不再加密度)。 */
 const COIN_BURST_MAX = 12;
 
-/** 当前缩放下 1 逻辑单位 = 多少屏幕像素(读 <svg#board> 客户宽与现行 viewBox)。 */
-function pxPerUnit(): number | null {
-  const svg = document.getElementById("board") as SVGSVGElement | null;
-  if (!svg) return null;
-  const vb = svg.getAttribute("viewBox");
-  if (!vb) return null;
-  const w = Number(vb.split(" ")[2]);
-  const rect = svg.getBoundingClientRect();
-  if (!(w > 0) || !(rect.width > 0)) return null;
-  return rect.width / w;
-}
-
-/** 浮字字号(逻辑单位):基准 26,但保证屏幕等效 ≥12px。 */
+/** 浮字字号(逻辑单位):基准 26,但保证屏幕等效 ≥12px。缩放读 boardHost 单源缓存
+ *  (#1024):渲染期零 DOM 触碰(gBCR 在刚写过 DOM 后布局必脏,强制整页同步布局);
+ *  null = 缓存未烤定,只出现在首挂渲染期(底板 svg 尚未入 DOM 的正常时序)——取
+ *  基准字号作初始渲染,commit 拍(BoardFxLayer 的 useLayoutEffect)取真值修正。 */
 function floaterFontSize(): number {
-  const s = pxPerUnit();
+  const s = boardPxPerUnit();
   if (s == null) return FLOATER_BASE_UNITS;
   return Math.max(FLOATER_BASE_UNITS, FLOATER_MIN_PX / s);
 }
@@ -133,6 +125,16 @@ export function BoardFxLayer({
   const coinBursts = useFxStore((s) => s.coinBursts);
   const ownFlashes = useFxStore((s) => s.ownFlashes);
   const fontSize = floaterFontSize();
+  // 首挂 commit 拍修正(#1024):首挂渲染期底板 svg 未入 DOM(正常时序),上面的
+  // fontSize 是基准字号初始值;此处 useLayoutEffect 在 paint 前经缓存单源取真值并
+  // 触发一次修正重渲,无闪烁。svg 缺席/几何不可用在此炸出(接线 bug,零兜底);
+  // 此拍之后缓存恒已烤定,后续每次重渲(特效 spawn/cleanup)读缓存即真值,缩放
+  // 失效拍(RO/viewBox MO/fonts.ready)提交后的演出自动跟随新缩放。
+  const [, retune] = useState(0);
+  useLayoutEffect(() => {
+    ensureBoardPxPerUnit(svgRef.current);
+    retune((t) => t + 1);
+  }, [svgRef]);
 
   return (
     <BoardHost id="bv-fx" svgRef={svgRef}>

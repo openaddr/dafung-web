@@ -18,7 +18,7 @@
 // 棋盘取景恒总览定格(#946 平移缩放退役);TokenLayer/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
 import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
@@ -163,14 +163,17 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const hint = useGameStore((s) => s.hint);
   const hintLevel = useGameStore((s) => s.hintLevel);
   const localPlayer = useLocalPlayer();
-  const net = useNetStore();
+  // 联机态最小订阅(#1022 渲染税):对局屏消费面仅「是否联机」——selector 收窄成
+  // 布尔(zustand 按 Object.is 比对),联机每条事件批(座位广播/重连进度/
+  // eventBatchSeq 递增)不再触发整屏重渲。
+  const online = useNetStore((s) => s.roomId !== "");
   // 断线在场(#853):横幅(z-20)踞顶中,知会槽/hint 行/选都提示 chip 同踞顶中,
   // 不让位则上半互压(审计 R6 P2-8 实拍)——--conn-h 让位偏移由本层下发给全列。
   const connDown = useConnDown();
   // 自局座位(稳定身份,勿用 viewSeat):单机热座下 viewSeat 跟随决策方轮转(bot 回合
   // 时指到 bot 席),席位格自机格识别/仪表条身份/手牌架都需要的是固定的「人」。
   // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
-  const selfSeat = net.roomId !== "" ? viewSeat : 0;
+  const selfSeat = online ? viewSeat : 0;
   // 自局玩家(#284 零兜底审视):对局屏挂载即已入座(selfSeat 恒 ≥0;观战预留分支
   // 已随 #690 退役)——座位缺位 = 快照与座位表不一致(接线 bug),undefined 直通
   // 下游崩出来,不做 `?? null` 静默兜底。
@@ -190,7 +193,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 战报未读账(#768):本地已读游标=打开抽屉那一刻的战报条数,不进快照——联机/
   // 恢复场景由既有日志通路自然重建(对局屏重挂=游标归零,存量全量记未读,金点即亮)。
   const [warReadCount, setWarReadCount] = useState(0);
-  const warTotal = warEntriesOf(snapshot).length;
+  // 战报条数 memo 化(#1022 渲染税):对只增不减的完整 log 全量 filter 不随任意
+  // sync 重跑——挂 log 引用(比挂 snapshot 引用更省:同 sync 不动 log 的批次也不
+  // 重算);过滤口径仍是 warEntriesOf 单源(WarReportDrawer 内)。依赖挂 log 的
+  // 前提 = warEntriesOf 纯读 log:其消费面若扩到其他快照字段,依赖须同步改。
+  const warTotal = useMemo(() => warEntriesOf(snapshot).length, [snapshot.log]);
   // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
   // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
@@ -578,7 +585,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           interactive={interactive}
           selfPresenting={selfPresenting}
           viewSeat={viewSeat}
-          online={net.roomId !== ""}
+          online={online}
         />
         {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列),
           活跃方金圈呼吸指名。
