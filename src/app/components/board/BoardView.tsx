@@ -1,8 +1,9 @@
 // React 版棋盘(阶段 4):整体结构对照 src/render/board.ts 的 createBoardSvg。
 //   defs 滤镜/远山河川/驿道 → 静态 memo 子组件(地图不变即不重渲)
 //   40 城池 → Tile(状态 props 驱动,React.memo 逐城重渲)
-//   棋子 → TokenLayer(CSS transform + transition 平滑过渡)
-//   pan/zoom → usePanZoom(命令式 setAttribute viewBox,不触发 React 重渲)
+//   棋子/特效 → HTML 宿主层(ADR-0042,合成器通路;棋子 transform 过渡/环动画不再
+//   令整张 SVG 每帧失效)
+//   pan/zoom → usePanZoom(手势期栈 transform + 提交拍写回 viewBox,不触发 React 重渲)
 // 旧 src/render/board.ts 保留作视觉对照,勿删。
 import {
   forwardRef,
@@ -18,6 +19,7 @@ import type { MapData } from "@core/board-loader";
 import { loadMap } from "@core/board-loader";
 import { AmbientLayer } from "./AmbientLayer";
 import { BoardDefs, RoadsLayer, TerrainLayer } from "./StaticLayers";
+import { BoardHost } from "./boardHost";
 import { Tile } from "./Tile";
 import type { TileVisualState } from "./Tile";
 import { capitalHolderOf, holdingsOf } from "./tileOwnership";
@@ -66,8 +68,6 @@ export interface BoardViewProps {
   targetedPlayerIds?: ReadonlySet<string>;
   /** #762 当前回合方玩家 id(棋子金呼吸环,「谁在打」的棋盘锚;透传 TokenLayer)。 */
   activePlayerId?: string;
-  /** 暴露棋子层 <g>(阶段 6 动画挂点)。 */
-  tokenLayerRef?: React.Ref<SVGGElement>;
   className?: string;
 }
 
@@ -119,14 +119,14 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
     skipTokenIds,
     targetedPlayerIds,
     activePlayerId,
-    tokenLayerRef,
     className,
   },
   ref,
 ) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // 顶板(动态层,ADR-0040):viewBox 与底板同拍驱动。
-  const tokensSvgRef = useRef<SVGSVGElement | null>(null);
+  // 手势栈(ADR-0042):包住全部棋盘层;手势进行中取景走栈 transform(合成器驱动,
+  // 棋盘栅格零重绘),静默/收尾提交拍才写回 viewBox(usePanZoom 内管)。
+  const stackRef = useRef<HTMLDivElement | null>(null);
   // 地图 → Board/catalog(地图引用不变则不重建;驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
   const loaded = useMemo(() => loadMap(map), [map]);
   // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),
@@ -134,7 +134,7 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   // svg 的 viewBox prop 只下发一次初始总览值,此后 React 不改写。
   const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
-  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit, tokensSvgRef);
+  const { handlers, grabbing, zoomBy } = usePanZoom(svgRef, fit, stackRef);
   useImperativeHandle(ref, () => ({ zoomBy }), [zoomBy]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
@@ -229,18 +229,21 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
   );
 
   return (
-    <>
+    <div className={`bv-stack ${className ?? ""}`} ref={stackRef}>
+      {/* 手势栈(ADR-0042):全部棋盘层的公共 transform 宿主。手势进行中取景增量写在
+          本 div(合成器插值,棋盘栅格缓存零重绘),提交拍写回 #board 的 viewBox——
+          底板/宿主矩阵的唯一 resync 拍,平时(非手势期)transform 恒空。 */}
       {/* 底板(静态层):纸面/地形/驿道/城池——对局中只吃事件驱动的低频变化
           (归属/档位/宣告),行军/特效逐帧失效不再波及,弱 GPU 栅格欠债时
           合成器棋盘格(整板闪成背景色)的源头就此拔除(ADR-0040)。
-          手势与落格点击全在本板:顶板 pointer-events none,触摸穿透落到此处。 */}
+          手势与落格点击全在本板:动态层 pointer-events none,触摸穿透落到此处。 */}
       <svg
         id="board"
         ref={svgRef}
         viewBox={fitBox}
         preserveAspectRatio="xMidYMid meet"
-        /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管 viewBox 平移缩放打架);
-         overscroll contain 防拖到边缘时滚动整个页面。 */
+        /* P0-6 触屏:禁用浏览器原生 pan/pinch 手势(与自管取景状态打架);
+            overscroll contain 防拖到边缘时滚动整个页面。 */
         style={{ touchAction: "none", overscrollBehavior: "contain" }}
         className={`${panCursorClass(grabbing)} block h-full w-full select-none ${className ?? ""}`}
         {...handlers}
@@ -250,38 +253,28 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         <RoadsLayer board={loaded.board} />
         <TileLayer onHover={setHoverTile}>{tiles}</TileLayer>
       </svg>
-      {/* 顶板(动态层):棋子/特效/流光——行军逐帧 transform、fx 挂载卸载的全部
-          逐帧失效收敛于此(板内仅数个元素,重绘代价几个量级小于整板)。
-          viewBox 与底板同拍驱动(usePanZoom 双写),盒同随 board-area,两板像素对齐。 */}
-      <svg
-        id="board-tokens"
-        ref={tokensSvgRef}
-        viewBox={fitBox}
-        preserveAspectRatio="xMidYMid meet"
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 block h-full w-full select-none"
-      >
-        <TokenLayer
-          board={loaded.board}
-          players={players}
-          setupUnselected={isSetupPhase}
-          skipTokenIds={skipTokenIds}
-          /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
-          mineId={viewSeat}
-          /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
-          targetedIds={targetedPlayerIds}
-          /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
-          activeId={activePlayerId}
-          layerRef={tokenLayerRef}
-        />
-        {/* 特效层挂点(阶段 5/6:浮字/印章/铜钱与道路流光),保持与旧版同顺序置于最上。
-          D1:浮字/印章直接画进 SVG(坐标系与棋盘一致,pan/zoom 不脱锚)。 */}
-        <g id="bv-fx" data-fx-layer="">
-          <BoardFxLayer />
-        </g>
-        <g id="bv-flow" data-flow-layer="" />
-      </svg>
-      {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居两板之上(pointer-events
+      {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
+          过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}
+      <TokenLayer
+        board={loaded.board}
+        players={players}
+        setupUnselected={isSetupPhase}
+        skipTokenIds={skipTokenIds}
+        /* L47:视角玩家 id → 自己棋子玩家色微光圈 */
+        mineId={viewSeat}
+        /* #256 目标段:候选棋子金虚线环呼吸(与席位格金圈同步) */
+        targetedIds={targetedPlayerIds}
+        /* #762 当前回合方:棋子金呼吸环(与常驻回合胶囊双锚点「谁在打」) */
+        activeId={activePlayerId}
+        svgRef={svgRef}
+      />
+      {/* 特效层挂点(HTML 宿主,ADR-0042):浮字/印章/铜钱各自 mini-svg,置于棋子上;
+          世界坐标直铺,pan/zoom 随宿主矩阵跟随。D1 注释沿革:曾直画进 SVG(坐标系与
+          棋盘一致,pan/zoom 不脱锚)——HTML 宿主矩阵同步承接同一保证。 */}
+      <BoardFxLayer svgRef={svgRef} />
+      {/* 驿道流光宿主(#bv-flow 保号):useMarch.highlightSegment 命令式追加 mini-svg。 */}
+      <BoardHost id="bv-flow" svgRef={svgRef} />
+      {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居最上(pointer-events
           none);矩阵同步自持(RO/viewBox MutationObserver/字体就绪,见 AmbientLayer)。 */}
       <AmbientLayer
         board={loaded.board}
@@ -294,6 +287,6 @@ export const BoardView = forwardRef<BoardViewHandle, BoardViewProps>(function Bo
         setupUnselected={isSetupPhase}
         svgRef={svgRef}
       />
-    </>
+    </div>
   );
 });

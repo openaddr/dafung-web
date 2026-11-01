@@ -1,20 +1,26 @@
-// 棋子层(旌旗):props 驱动声明式定位 + CSS transform 过渡。
-// 移植自 src/render/board.ts 的 buildToken / updateTokens / setTokenPosition。
+// 棋子层(旌旗,ADR-0042 第三波 HTML 版):props 驱动声明式定位 + CSS transform 过渡。
+// 前身是顶板 SVG 里的 <g> 层(移植自 src/render/board.ts 的 buildToken/updateTokens)
+// ——SVG 子元素拿不到合成器层,行军 transform 过渡与环动画令整张顶板 SVG 每帧失效
+// 重绘,是低端 WebView 掉帧主源;现迁 HTML:每棋子一个合成器提升的包装 div
+// (transform 锚)+ 内嵌 mini-svg(旗面/双环原绘原类,美术与 CSS 动画零改动),
+// 逐帧失效收敛到棋子自身小盒。宿主矩阵同步见 boardHost.tsx;氛围层(ADR-0039)
+// 行军换装消费同一槽位公式。
 //
-// ── 阶段 6 动画挂点 ──
-// 1) 每个棋子 <g data-token-player={playerId}>:动画层可用
-//      svgRef.current.querySelector('[data-token-player="p1"]')
-//    拿到原生节点,直接改 style.transform(transition 已由 .bv-token 提供)做逐段行军。
-// 2) props.skipTokenIds:行军动画接管中的玩家从此层的声明式定位中剔除
-//    (等价旧 updateTokens(engine, skipPlayerId)),避免 React 重渲把棋子拽回终点;
-//    动画结束后从集合移除该 id,React 会以终态坐标接管。
-// 3) props.layerRef:暴露棋子层 <g> 本体,便于批量查(如遍历所有棋子 z 序重排)。
+// ── 动画挂点(useMarch,选择器契约保号)──
+// 1) 每个棋子 <div data-token-player={playerId}>:useMarch 以
+//      document.querySelector('#bv-tokens [data-token-player="p1"]')
+//    拿到包装节点,直接改 style.transform(transition 已由 .bv-token 提供)做逐段行军
+//    ——HTML transform 过渡由合成器插值,主线程只在段边界参与。
+// 2) props.skipTokenIds:行军动画接管中的玩家从声明式定位中剔除(等价旧
+//    updateTokens(engine, skipPlayerId)),避免 React 重渲把棋子拽回终点。
+// 3) marchPos(模块 Map):接管中棋子的声明式 transform 取「当前段坐标」——任何
+//    store 同步触发的重渲与命令式写入值一致,棋子不会被拽回起点/终点(单写者,
+//    ADR-0029 不变量②)。
 //
 // ── 氛围层拆分(ADR-0039,行军换装)──
-// 静止期的旗面/自机微光/回合方金环常驻装饰迁 HTML 氛围层(AmbientLayer,合成器
-// 动画,主线程零逐帧参与);本层只留阶段性环(行军金环/候选呼吸)。旗面组即棋子
-// 本体,行军接管期由本层 TokenFlag 渲染静态旗(摇曳归氛围层,拖影照挂),落定换装
-// 回氛围层动效旗。旗面缓倒仪式(desk.ts fallTokenFlag)随常驻旗迁层,改查
+// 静止期的旗面/自机微光/回合方金环常驻装饰归氛围层(AmbientLayer,合成器动画);
+// 本层只留阶段性环(行军金环/候选呼吸)与行军接管期的静态旗(摇曳归氛围层,拖影照挂),
+// 落定换装回氛围层动效旗。旗面缓倒仪式(desk.ts fallTokenFlag)随常驻旗迁层,改查
 // [data-amb-flag];旗面形制单源 flagArt.tsx 两侧共用。槽位公式抽为 computeTokenSlots
 // 导出,氛围层与本层各取所需(单源不复制,#608)。
 import { memo } from "react";
@@ -24,6 +30,7 @@ import { Theme, rgba } from "@core/theme";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 import { marchPos } from "@app/fx/useMarch";
 import { FlagShapes } from "./flagArt";
+import { BoardHost } from "./boardHost";
 import { playerSlotKey, tokenSlotGroups, tokenSlotOffset } from "./tokenSlots";
 import type { BoardPlayer } from "./BoardView";
 
@@ -63,23 +70,29 @@ interface TokenLayerProps {
   targetedIds?: ReadonlySet<string>;
   /** #762 当前回合方玩家 id(棋子金呼吸环;GameScreen 按快照 activeIndex 传)。 */
   activeId?: string;
-  /** 暴露棋子层 <g>(阶段 6 动画挂点 3)。 */
-  layerRef?: React.Ref<SVGGElement>;
+  /** 棋盘 svg 根(宿主矩阵同步真源)。 */
+  svgRef: React.RefObject<SVGSVGElement | null>;
 }
 
 /** #30/#39/#58 棋子放大比例:旗/字/印玺等比 scale。屏幕净大小 = TOKEN_SCALE /
  *  TILE_SCALE(城池,单源见 Tile.tsx)。#557 曾以 2.6/2.2≈净 1.18x 提升总览可辨性;
  *  #938 城池同提 2.6 后两者同刻度(净 1.0x)——棋子绝对尺寸不变,总览可辨性由
  *  7 列图幅的 fit 增益(≈0.21→0.27)承接,槽位圆周(r=26 局部,core/constants)不动。
- *  scale 落在独立 <g transform> 属性上,
- *  与 .bv-token 的 CSS style.transform(行军命令式写入 translate)互不覆盖。
- *  氛围层旗/光环同用此比例(AmbientLayer,ADR-0039)。 */
+ *  scale 落在 mini-svg 内独立 <g transform> 属性上,与包装 div 的 CSS style.transform
+ *  (声明式定位 + 行军命令式写入 translate)互不覆盖。氛围层旗/光环同用此比例
+ *  (AmbientLayer,ADR-0039)。 */
 export const TOKEN_SCALE = 2.6;
 /** #557 同格拥挤档:同格 >4 子时旗面整体再乘 0.85,给 8 槽圆周留出彼此轮廓。 */
 export const TOKEN_CROWD_SCALE = 0.85;
 
-/** 槽位推导单源(ADR-0039 抽取):TokenLayer 声明式定位与氛围层装饰落点共用的
- *  同一公式体——分组/偏移走 tokenSlots 单源,行军接管读 marchPos 当前段坐标。 */
+/** 棋子美术盒(局部坐标):双环(r17+描边)与旗面(杆顶 -34.8/旗尖 26.8/印底 8.75)
+ *  经 TOKEN_SCALE 缩放后的并集外扩 2 单位安全边。viewBox 与包装 div 尺寸/负 margin
+ *  同源单值(board.css .bv-token 同数);氛围层对位 spec 量的就是包装盒,本盒即其语义
+ *  (盒⊃旗锚落点,扩盒 ×1.3 判定语义不变)。 */
+export const TOKEN_ART_BOX = { x: -49, y: -93, w: 121, h: 142 } as const;
+
+/** 槽位推导单源(ADR-0039 抽取):本层声明式定位与氛围层装饰落点共用的同一公式体
+ *  ——分组/偏移走 tokenSlots 单源,行军接管读 marchPos 当前段坐标。 */
 export function computeTokenSlots(
   board: Board,
   players: BoardPlayer[],
@@ -165,38 +178,47 @@ function TokenFlag({ p }: { p: BoardPlayer }) {
 const Token = memo(function Token({ slot }: { slot: TokenSlot }) {
   const { player: p, x, y, opacity, marching, targeted, crowded } = slot;
   return (
-    <g
+    <div
       className={marching ? "bv-token bv-token-marching" : "bv-token"}
       data-token-player={p.id}
       style={{ transform: `translate(${x}px, ${y}px)`, opacity }}
     >
-      <g transform={`scale(${TOKEN_SCALE * (crowded ? TOKEN_CROWD_SCALE : 1)})`}>
-        {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
-            金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
-        <circle
-          className="bv-token-march-ring"
-          r={17}
-          fill="none"
-          stroke={rgba(Theme.goldBright, 0.9)}
-          strokeWidth={2}
-          strokeDasharray="6 5"
-        />
-        {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位格金圈同步呼吸
-            ——席位是身份,棋盘是地理,双锚点)。非候选(无效目标)不挂。
-            阶段性动画(出牌段才在),不在氛围层迁出范围(ADR-0039)。 */}
-        {targeted && (
+      {/* 旗面/双环原绘(类名与 SVG 版逐字一致,CSS 动画/选择器契约不变):环动画
+          (行军金环/候选呼吸)只失效本棋子 mini-svg 小盒,不再波及整张顶板。 */}
+      <svg
+        className="bv-token-art"
+        width={TOKEN_ART_BOX.w}
+        height={TOKEN_ART_BOX.h}
+        viewBox={`${TOKEN_ART_BOX.x} ${TOKEN_ART_BOX.y} ${TOKEN_ART_BOX.w} ${TOKEN_ART_BOX.h}`}
+      >
+        <g transform={`scale(${TOKEN_SCALE * (crowded ? TOKEN_CROWD_SCALE : 1)})`}>
+          {/* #30 落脚指示环:行军接管中由 board.css 显示(默认 opacity 0);
+              金色虚线环 + 旋转/呼吸,读作「这枚棋子正在动、在这里」。 */}
           <circle
-            className="bv-token-target-ring"
+            className="bv-token-march-ring"
             r={17}
             fill="none"
-            stroke={rgba(Theme.goldBright, 0.95)}
-            strokeWidth={2.5}
-            strokeDasharray="5 4"
+            stroke={rgba(Theme.goldBright, 0.9)}
+            strokeWidth={2}
+            strokeDasharray="6 5"
           />
-        )}
-        {marching && <TokenFlag p={p} />}
-      </g>
-    </g>
+          {/* #256 目标段候选呼吸:金虚线环 pulse(样式 layout.css;席位格金圈同步呼吸
+              ——席位是身份,棋盘是地理,双锚点)。非候选(无效目标)不挂。
+              阶段性动画(出牌段才在),不在氛围层迁出范围(ADR-0039)。 */}
+          {targeted && (
+            <circle
+              className="bv-token-target-ring"
+              r={17}
+              fill="none"
+              stroke={rgba(Theme.goldBright, 0.95)}
+              strokeWidth={2.5}
+              strokeDasharray="5 4"
+            />
+          )}
+          {marching && <TokenFlag p={p} />}
+        </g>
+      </svg>
+    </div>
   );
 });
 
@@ -208,7 +230,7 @@ export const TokenLayer = memo(function TokenLayer({
   mineId,
   targetedIds,
   activeId,
-  layerRef,
+  svgRef,
 }: TokenLayerProps) {
   const slots = computeTokenSlots(board, players, {
     setupUnselected,
@@ -219,10 +241,10 @@ export const TokenLayer = memo(function TokenLayer({
   });
 
   return (
-    <g id="bv-tokens" ref={layerRef}>
+    <BoardHost id="bv-tokens" svgRef={svgRef}>
       {slots.map((s) => (
         <Token key={s.player.id} slot={s} />
       ))}
-    </g>
+    </BoardHost>
   );
 });

@@ -1,10 +1,9 @@
 // pan/zoom hook:移植自 src/render/board.ts 的 viewBox 缩放平移段(滚轮锚点缩放 + 拖拽空白平移)。
-// 作用于 SVG 根的 viewBox(与旧实现同机制,便于逐步对照)。
 //
 // F1 性能改造:viewBox 不再走 React state——每次 pointermove setState 会导致
 // BoardView 全量 reconciliation(40 城 + 棋子层)。现改为把当前 viewBox 存 ref,
-// 直接对 <svg> setAttribute("viewBox") 命令式更新;React 侧只在挂载时写入一次
-// 初始总览值(BoardView 传常量 prop,此后 React 不再触碰该属性)。
+// 命令式更新;React 侧只在挂载时写入一次初始总览值(BoardView 传常量 prop,
+// 此后 React 不再触碰该属性)。
 //
 // ADR-0027:总览视口不再硬编码(FIT_VIEW 常量随 #58 老布局漂移,东西延伸列
 // 加入后左右各空 ~12%),改由 computeFitView 按当图城池包围盒动态推导——
@@ -20,6 +19,16 @@
 //   < DRAG_THRESHOLD_PX)→ 取景回装载时 computeFitView 初值(带现役 clamp,
 //   即时无过渡)。判别纯函数 beyondTwoFingerTap 与单指拖拽共用同一阈值;任一
 //   几何条件不满足即落入既有捏合/拖拽/点击判定,互斥不叠加。
+//
+// ADR-0042 手势合成器化:手势进行中(滚轮连发/拖拽/捏合)不再逐帧 setAttribute
+// viewBox——那会让整张棋盘 SVG 每帧重栅(4x 降速实测 60→33fps);改为把手势增量
+// 写到手势栈(.bv-stack)的 CSS transform(合成器驱动,棋盘栅格缓存零重绘),
+// 静默 GESTURE_COMMIT_MS 或指针收尾才「提交拍」:一次性写回 viewBox 并清 transform。
+// 代价 = 手势进行中画面按栈栅格拉伸变糊(松手即回脆),承认的取舍见 ADR。
+// 提交拍同时是宿主矩阵(氛围层/棋子/特效 HTML 层)的唯一 resync 拍——
+// MutationObserver 监 viewBox 属性,手势期宿主随栈 transform 整体跟随,不脱锚。
+// 手势期 gBCR 变成含 transform 的视觉盒(被 k 缩放/平移),锚点与拖拽映射一律经
+// gestureRef 系数折算回布局盒后再走既有数学——精确,不引第二套近似。
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { BoardPos } from "@core/board";
 
@@ -28,6 +37,8 @@ const MAX_ZOOM = 8;
 // 视口恰好落在地形渐隐带中段,能看到"纸面平滑淡出到页面背景"的效果(旧值 140
 // 根本平移不到渐隐区,是 #38"看不到效果"的根因之一)。
 const OVER = 350;
+/** 手势静默提交窗(ADR-0042):最后一次取景变更后等这么久没新手势才写回 viewBox。 */
+const GESTURE_COMMIT_MS = 140;
 
 /** 总览内容外扩口径(与 Tile 层实际占面对齐,单位 = 世界坐标):
  *  - 两侧:城台半宽 104×2.2/2 ≈ 115(驿道恒直线 #928/ADR-0044,无弧线外凸余量)
@@ -166,30 +177,90 @@ export interface PanZoom {
   getView: () => ViewBox;
 }
 
+/** 手势栈活动系数(gestureRef):当前栈 transform 的平移/缩放,无手势 = null。
+ *  gBCR(视觉盒)→ 布局盒的折算真源,锚点/拖拽数学据此保持精确。 */
+interface GestureXform {
+  tx: number;
+  ty: number;
+  k: number;
+}
+
 export function usePanZoom(
   svgRef: React.RefObject<SVGSVGElement | null>,
   fit: ViewBox,
-  /** 顶板(动态层,ADR-0040):viewBox 与主板同拍双写——棋子/特效/流光所在 svg,
-   *  pointer-events none 不吃事件,只有 viewBox 需要跟随。 */
-  tokensSvgRef?: React.RefObject<SVGSVGElement | null>,
+  /** 手势栈(.bv-stack,ADR-0042):手势期 transform 宿主;提交拍写回 viewBox 后清零。 */
+  stackRef?: React.RefObject<HTMLDivElement | null>,
 ): PanZoom {
   // 真源:ref 里的当前 viewBox(命令式更新,不触发 React 渲染)。
   const view = useRef<ViewBox>({ ...fit });
-  const apply = useCallback(() => {
+  // 手势栈活动系数(见 GestureXform 注)。
+  const gestureRef = useRef<GestureXform | null>(null);
+  const commitTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** 手势帧(ADR-0042):把 view 相对 fit 的取景差写成栈 transform——
+   *  严格复刻 preserveAspectRatio=meet 的屏映(base/cur 各自 s+居中偏移,
+   *  k=s2/s1,t 按恒等式解出),合成器插值,零重栅。 */
+  const gestureTransform = useCallback(() => {
+    const el = svgRef.current;
+    const st = stackRef?.current;
+    if (!el || !st) return;
+    const v = view.current;
+    const W = el.clientWidth;
+    const H = el.clientHeight;
+    if (W <= 0 || H <= 0) return;
+    const s1 = Math.min(W / fit.w, H / fit.h);
+    const o1x = (W - fit.w * s1) / 2;
+    const o1y = (H - fit.h * s1) / 2;
+    const s2 = Math.min(W / v.w, H / v.h);
+    const o2x = (W - v.w * s2) / 2;
+    const o2y = (H - v.h * s2) / 2;
+    const k = s2 / s1;
+    const tx = k * s1 * (fit.x - v.x) + (o2x - k * o1x);
+    const ty = k * s1 * (fit.y - v.y) + (o2y - k * o1y);
+    gestureRef.current = { tx, ty, k };
+    st.style.transform = `translate(${tx}px, ${ty}px) scale(${k})`;
+  }, [svgRef, stackRef, fit]);
+
+  /** 提交拍(ADR-0042):viewBox 一次性写回(宿主矩阵经 MutationObserver 同拍 resync)
+   *  + 清栈 transform 与手势系数。棋盘在此拍重栅一次,回到清晰栅格。 */
+  const commitView = useCallback(() => {
+    if (commitTimer.current != null) {
+      clearTimeout(commitTimer.current);
+      commitTimer.current = null;
+    }
+    gestureRef.current = null;
     const el = svgRef.current;
     if (!el) return;
     const v = view.current;
-    const box = `${v.x} ${v.y} ${v.w} ${v.h}`;
-    el.setAttribute("viewBox", box);
-    tokensSvgRef?.current?.setAttribute("viewBox", box);
-  }, [svgRef, tokensSvgRef]);
+    el.setAttribute("viewBox", `${v.x} ${v.y} ${v.w} ${v.h}`);
+    if (stackRef?.current) stackRef.current.style.transform = "";
+  }, [svgRef, stackRef]);
+
+  const scheduleCommit = useCallback(() => {
+    if (commitTimer.current != null) clearTimeout(commitTimer.current);
+    commitTimer.current = setTimeout(commitView, GESTURE_COMMIT_MS);
+  }, [commitView]);
+
   const setView = useCallback(
     (next: ViewBox) => {
       view.current = clampViewBox(next, fit);
-      apply();
+      gestureTransform();
+      scheduleCommit();
     },
-    [apply, fit],
+    [gestureTransform, scheduleCommit, fit],
   );
+
+  /** gBCR(含手势 transform 的视觉盒)→ 布局盒折算:锚点/拖拽映射的手势期修正。 */
+  const layoutRect = useCallback((rect: ScreenRect): ScreenRect => {
+    const g = gestureRef.current;
+    if (!g) return rect;
+    return {
+      left: rect.left - g.tx,
+      top: rect.top - g.ty,
+      width: rect.width / g.k,
+      height: rect.height / g.k,
+    };
+  }, []);
 
   // 多指追踪(P0-5 + #699):单指=拖拽平移(8px 阈值判拖);双指=按两指距离比缩放、
   // 以中点为锚(与 wheel 同源算法)。每指记按下点 (sx,sy) 供阈值判定。
@@ -208,14 +279,14 @@ export function usePanZoom(
     if (!el) return;
     const onWheel = (ev: WheelEvent) => {
       ev.preventDefault();
-      const rect = el.getBoundingClientRect();
+      const rect = layoutRect(el.getBoundingClientRect());
       const { ax, ay } = normAnchor(rect, ev.clientX, ev.clientY);
       const factor = Math.exp(ev.deltaY * 0.0015);
       setView(zoomAt(view.current, ax, ay, factor));
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
-  }, [svgRef, setView]);
+  }, [svgRef, setView, layoutRect]);
 
   // 双指几何快照:上一次两指距离(pinch 每帧与上一帧比,增量式缩放)。
   const pinchDist = useRef(0);
@@ -263,7 +334,7 @@ export function usePanZoom(
     (ev: React.PointerEvent<SVGSVGElement>) => {
       const p = pointers.current.get(ev.pointerId);
       if (!p) return; // 未按下(或目标在按钮上)的悬停移动忽略
-      const rect = ev.currentTarget.getBoundingClientRect();
+      const rect = layoutRect(ev.currentTarget.getBoundingClientRect());
       // 先取上一帧位置再写入新位置——顺序颠倒会让 dx/dy 恒为 0(平移失效,波3实踩)
       const dx = ev.clientX - p.x;
       const dy = ev.clientY - p.y;
@@ -303,11 +374,12 @@ export function usePanZoom(
         // onClick 从根上不再收到本次手势的收尾(拖拽全程不触发落格点击)。
         ev.currentTarget.setPointerCapture(ev.pointerId);
       }
-      // 拖拽平移(与 pinch 抬指回落后的行为一致:以剩余指位置为锚,不跳变)
+      // 拖拽平移(与 pinch 抬指回落后的行为一致:以剩余指位置为锚,不跳变);
+      // 折算盒 = 布局盒(gBCR 已被手势 transform 缩放,直接用会引入 k² 误差)
       const vb = view.current;
       setView({ ...vb, x: vb.x - dx * (vb.w / rect.width), y: vb.y - dy * (vb.h / rect.height) });
     },
-    [setView],
+    [setView, layoutRect],
   );
 
   const endPan = useCallback(
@@ -322,12 +394,14 @@ export function usePanZoom(
         const tap = tapRef.current;
         tapRef.current = null;
         if (tap && ev.type === "pointerup") setView({ ...fit });
+        // 指针收尾 = 提交拍(ADR-0042):手势结束即写回 viewBox,不等静默窗。
+        commitView();
       } else if (pointers.current.size === 1) {
         // pinch 中抬一指:回落为单指拖拽(锚点即剩余指最新位置,天然不跳变)
         pinchDist.current = 0;
       }
     },
-    [fit, setView],
+    [fit, setView, commitView],
   );
 
   // 拖拽/捏合收尾的 click 一律吞(capture 相位拦在城池 onClick 之前)。

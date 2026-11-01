@@ -3,17 +3,9 @@
    线程,主线程零逐帧参与)——棋盘 SVG 内禁新增常驻动画,`check:board` 机械闸把守。
    时长/缓动一律 dur/ease 系 token(单源 core/theme.ts),零字面量时长;
    例外:活跃环整圈 31.12s 为几何换算值(虚线周期 21 单位/1.3s × r=80 周长
-   502.7 单位,复刻原 dashoffset 推进速度),注释为证,非拍脑袋数。 */
-
-.bv-ambient {
-  /* 棋盘 svg 的 HTML 兄弟层(DOM 序居上),铺满 board-area(absolute 定位上下文);
-     容器 transform = 世界→客户端矩阵(ambientMatrix 单写者:usePanZoom.apply
-     同拍 + 挂载/ResizeObserver 补拍),子元素一律世界坐标定位。 */
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  transform-origin: 0 0;
-}
+   502.7 单位,复刻原 dashoffset 推进速度),注释为证,非拍脑袋数。
+   层容器布局规则(.bv-ambient 与 .bv-bhost 共用)收口 board.css(ADR-0042 起
+   棋子/特效宿主同款,单源不复制)。 */
 
 /* 锚点容器(0×0 落在世界坐标点上,子盒负 margin 回中) */
 .bv-amb-anchor {

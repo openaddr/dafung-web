@@ -8,14 +8,15 @@
 // 旌旗缓倒仪式(desk.ts fallTokenFlag)改查 [data-amb-flag],一次性动画照挂本层节点。
 //
 // 落点 = TokenLayer 同源槽位公式(computeTokenSlots,单源不复制 #608);层容器
-// transform 由 usePanZoom.apply() 同拍写入(ambientMatrix),pan/zoom/resize 全随动。
+// transform 由 boardHost.useBoardMatrixSync 自持同步(ADR-0042 起:RO/viewBox
+// MutationObserver/fonts.ready,pan/zoom/resize/手势提交拍全随动)。
 // 层内 z 序(DOM 序,复刻原 SVG 绘制序):光晕 → 活跃格环 → 自机微光 → 回合金环 → 旌旗。
-import { memo, useEffect, useRef } from "react";
+import { memo, useRef } from "react";
 import type { Board } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { TILE_SCALE } from "./Tile";
 import { FlagShapes } from "./flagArt";
-import { syncAmbientMatrix } from "./ambientMatrix";
+import { useBoardMatrixSync } from "./boardHost";
 import { TOKEN_CROWD_SCALE, TOKEN_SCALE, computeTokenSlots, type TokenSlot } from "./TokenLayer";
 import type { BoardPlayer } from "./BoardView";
 import "./ambient.css";
@@ -88,30 +89,9 @@ export const AmbientLayer = memo(function AmbientLayer({
   svgRef,
 }: AmbientLayerProps) {
   const rootRef = useRef<HTMLDivElement | null>(null);
-  // 矩阵同步自持(ADR-0039):层容器 transform 不走 React——svg 尺寸变化(RO)、
-  // viewBox 变化(pan/zoom/复位/换图全走 setAttribute,MutationObserver 一网打尽)、
-  // 字体就绪与挂载头两帧(布局沉降竞态)各自触发重算;每拍一次「读盒+写容器」,
-  // 仅在这些事件发生时发生,无常驻逐帧开销。
-  useEffect(() => {
-    const svg = svgRef.current;
-    const el = rootRef.current;
-    if (!svg || !el) return;
-    const sync = () => syncAmbientMatrix(svg, el);
-    sync();
-    let raf = requestAnimationFrame(() => {
-      raf = requestAnimationFrame(sync);
-    });
-    const ro = new ResizeObserver(sync);
-    ro.observe(svg);
-    const mo = new MutationObserver(sync);
-    mo.observe(svg, { attributes: true, attributeFilter: ["viewBox"] });
-    document.fonts.ready.then(sync);
-    return () => {
-      cancelAnimationFrame(raf);
-      ro.disconnect();
-      mo.disconnect();
-    };
-  }, [svgRef]);
+  // 矩阵同步自持(boardHost 共享钩子,棋子/特效宿主同款):每拍一次「读盒+写容器」,
+  // 仅在事件拍发生,无常驻逐帧开销。
+  useBoardMatrixSync(svgRef, rootRef);
 
   const slots = computeTokenSlots(board, players, {
     setupUnselected,
