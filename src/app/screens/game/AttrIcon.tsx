@@ -1,10 +1,10 @@
-// 属性图标(#253 布局骨架):程序化 SVG——圣旨卷轴=委任 / 城楼=城 / 墨竹=声望 /
+// 属性图标(#253 布局骨架):程序化 SVG——城楼=城 / 墨竹=声望 /
 // 玉璧=珍宝 / 战盔=名将(2026-10-19 中式化改版:勋章/宝石/令旗退役),自绘路径零
 // 素材依赖,currentColor 吃属性色(--color-attr-* token)。
 // 纸色细节线走 --color-paper-hi(SVG 表现属性不吃 var(),经 style 注入)。
 // 手牌徽章不是单图标:迷你牌背组(MiniBacks,漆木底+漆金描边,同锦囊牌背语言;
 // 0 张时出一张虚线空牌背占位,图标恒在)。
-export type AttrIconKind = "warrant" | "city" | "rep" | "gem" | "hero";
+export type AttrIconKind = "city" | "rep" | "gem" | "hero";
 
 const PAPER = "var(--color-paper-hi)";
 
@@ -27,15 +27,6 @@ export const ATTR_ENTRY_D: Record<"gem" | "hero", string[]> = {
 export function AttrIcon({ kind, size = 14 }: { kind: AttrIconKind; size?: number }) {
   return (
     <svg viewBox="0 0 16 16" width={size} height={size} aria-hidden="true" focusable="false">
-      {kind === "warrant" && (
-        /* 圣旨卷轴:双轴 + 展开的旨文 */
-        <>
-          <rect x="2" y="3.5" width="2.8" height="9" rx="1.4" fill="currentColor" />
-          <rect x="11.2" y="3.5" width="2.8" height="9" rx="1.4" fill="currentColor" />
-          <rect x="4.4" y="5.2" width="7.2" height="5.6" fill="currentColor" opacity=".72" />
-          <path d="M5.6 6.6h4.8M5.6 9.2h4.8" style={{ stroke: PAPER }} strokeWidth=".9" />
-        </>
-      )}
       {kind === "city" && (
         /* 城楼:雉堞墙线 + 门洞 */
         <>

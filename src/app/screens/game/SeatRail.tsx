@@ -20,7 +20,8 @@
 // 矮横屏 390/375/320 三档高全部零滚动——式样落 layout.css,组件零断点分支。
 // 交互:格面 tap=单人格弹层(#701,原型 ⑤ 移植,SeatPopModal/seat-pop.css,开合态
 // 归本列)、格上图标直达(#701):城楼=名下城池清单(#622 原样,开合态仍归
-// GameScreen)、战盔=名将名录/玉璧=珍宝列表/墨竹=声望明细/卷轴=委任明细
+// 归
+// GameScreen)、战盔=名将名录/玉璧=珍宝列表/墨竹=声望明细
 // (SeatAttrModals,钻入式单层互斥);牌背=暗牌不可点(ADR-0016,浮签照旧)。格根
 // 点击层=目标段选席(#256/#417 原样等价保留);弹层可 tap 的通路=格上非按钮区
 // (印/现金/图标间隙——七个浮签触发元与目标层按钮各自 claim 点击,冒泡止于
@@ -185,10 +186,10 @@ function SeatCell({
         />
       </div>
       {/* 行2(#770 分组):高频组「城+牌」(图标 10px/计数 11px)+ 发丝线组分隔 +
-          低频组四项(名将/珍宝/声望/委任,维持 8px/10px 旧规格);space-between 把
-          行2 余量分到发丝线两侧成组间隙。#701 直达:战盔/玉璧/墨竹/卷轴轻点开明细
+          低频组三项(名将/珍宝/声望,维持 8px/10px 旧规格);space-between 把
+          行2 余量分到发丝线两侧成组间隙。#701 直达:战盔/玉璧/墨竹轻点开明细
           弹层,城楼走 #622 清单(原样),牌背=暗牌不可点(ADR-0016,浮签照旧);
-          六图标全部 Claim 止泡,不夺格 tap。 */}
+          五图标全部 Claim 止泡,不夺格 tap。 */}
       <div className="l2">
         <div className="l2hi">
           <Claim>
@@ -262,18 +263,6 @@ function SeatCell({
             >
               <AttrIcon kind="rep" size={9} />
               {p.reputation}
-            </Tip>
-          </Claim>
-          <Claim>
-            <Tip
-              tip={ATTR_TIPS.warrant}
-              className="ai ai-warrant"
-              testId={TESTIDS.seatAttr(seat, "warrant")}
-              ariaLabel={`委任状 ${p.warrants}`}
-              onTap={() => onOpenDetail(seat, "warrant")}
-            >
-              <AttrIcon kind="warrant" size={9} />
-              {p.warrants}
             </Tip>
           </Claim>
         </div>

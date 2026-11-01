@@ -96,7 +96,7 @@ export interface CapitalSelectedBody {
   propertyId: string;
   cost: number;
 }
-/** 购地(决策命令成交;price=购入价,委任状消耗见战报)。 */
+/** 购地(决策命令成交;price=购入价)。 */
 export interface PropertyBoughtBody {
   kind: "propertyBought";
   propertyId: string;
@@ -109,12 +109,12 @@ export interface PropertyUpgradedBody {
   newLevel: number;
 }
 /** 购地被拒/按兵不动(#385 缺口 1):ADR-0013 唯一默认行为自动执行的宣告——
- *  reason=no-warrant(委任状不足)/insufficient-cash(银两不足)/maxed(城已满级),
+ *  reason=insufficient-cash(银两不足)/maxed(城已满级),
  *  文案由 fx 按 reason 派生(与引擎浮字同口径)。 */
 export interface PropertyRejectedBody {
   kind: "propertyRejected";
   propertyId: string;
-  reason: "no-warrant" | "insufficient-cash" | "maxed";
+  reason: "insufficient-cash" | "maxed";
 }
 /** 机遇赐城(#719,传檄而定):无主城随机赐予的易主宣告——PropertyGained 时机派发点
  *  同步产出(与 PropertyBought 同表模式);效果名与「购」语义区分(#457)。折面=得城者
@@ -194,7 +194,7 @@ export interface SkillFiredBody {
   skillId: string;
   moment: GameMoment;
 }
-/** 名将主动技发动(#384,#188 档 3 四类:demolish/relief/patronage/warDrum);
+/** 名将主动技发动(#384,#188 档 3 三类:demolish/relief/warDrum);
  *  seat=发动者,heroId=属主槽定位(#785 槽位化:冷却账内嵌槽,折叠按 heroId 定槽记账,
  *  同名技多槽不串账),targetSeat=目标座位(none 域=擂鼓无目标,字段缺席);费用/加成等
  *  技参数由技表 skills.ts 按 skillId 现查。 */
@@ -202,7 +202,7 @@ export interface HeroSkillActivatedBody {
   kind: "heroSkillActivated";
   heroId: string;
   skillId: string;
-  skillKind: "demolish" | "relief" | "patronage" | "warDrum";
+  skillKind: "demolish" | "relief" | "warDrum";
   targetSeat?: number;
 }
 /** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志

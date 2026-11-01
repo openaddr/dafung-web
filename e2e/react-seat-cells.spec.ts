@@ -20,7 +20,7 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-/** 行1 现金 + 行2 六计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
+/** 行1 现金 + 行2 五计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
  *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。 */
 function cellsMatchSnapshot(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
@@ -34,14 +34,13 @@ function cellsMatchSnapshot(page: import("@playwright/test").Page) {
         q(`seat-attr-hand-${seat}`) === handShown(p.jinnangHandCount) &&
         q(`seat-attr-hero-${seat}`) === String(p.heroes.length) &&
         q(`seat-attr-gem-${seat}`) === String(p.treasures.length) &&
-        q(`seat-attr-rep-${seat}`) === String(p.reputation) &&
-        q(`seat-attr-warrant-${seat}`) === String(p.warrants),
+        q(`seat-attr-rep-${seat}`) === String(p.reputation),
     );
   });
 }
 
 test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
-  test("4 席局:现金主数(裸数无千分位)+ 六图标计数逐席一致", async ({ page }) => {
+  test("4 席局:现金主数(裸数无千分位)+ 五图标计数逐席一致", async ({ page }) => {
     await quickStart(page);
     await expect.poll(() => cellsMatchSnapshot(page)).toBe(true);
     // 一人一格(自机入列):4 席局 = 4 张格,全部在单一 seatcol 内

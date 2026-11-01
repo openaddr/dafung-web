@@ -90,7 +90,7 @@
   font-size: 12px;
   color: var(--color-paper-dim);
 }
-/* 声望/委任行:原型 ⑤ 内联 space-between(两端对齐,行2 制式) */
+/* 声望行:原型 ⑤ 内联 space-between(两端对齐,行2 制式) */
 .spop .spop-row.between {
   justify-content: space-between;
 }
@@ -192,7 +192,7 @@
 /* 开关(#745 高4):spop-switch 双类覆写皮退役——单源回 ui/switch 底件(桥接
    --primary=漆金,shadcn 收口红线闭合);尺寸档走底件缺省,不再此处重皮。 */
 
-/* ── 明细弹层轻量补皮(声望/委任数值明细;名录/列表用现役 pile-* 全套不另起)──
+/* ── 明细弹层轻量补皮(声望数值明细;名录/列表用现役 pile-* 全套不另起)──
    作用域类 .spop-detail 经 PileShell className 挂上 DialogContent(缺省不挂,忘挂
    即裸排——#701 截图自证实录)。壳宽收敛(#848):基壳 min(940px, 94vw) 是为陈列
    网格设的,轻量数值明细只装一个数字——844×390 下 793px 壳装一字,收敛到

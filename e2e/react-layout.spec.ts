@@ -85,10 +85,7 @@ test.describe("全浮层骨架", () => {
           const p = s.players[seat];
           const cash = await page.getByTestId(`seat-cash-${seat}`).textContent();
           const stam = await page.getByTestId(`seat-stamina-${seat}`).getAttribute("aria-label");
-          const warrant = await page
-            .getByTestId(`seat-attr-warrant-${seat}`)
-            .getAttribute("aria-label");
-          ok.push(cash === String(p.cash) && stam != null && warrant === `委任状 ${p.warrants}`);
+          ok.push(cash === String(p.cash) && stam != null);
         }
         return ok.every(Boolean);
       })
@@ -100,7 +97,7 @@ test.describe("全浮层骨架", () => {
     // 60s 默认档偏紧是超时 flake 家族——标 slow 防超时,非删例。
     test.slow();
     await quickStart(page);
-    const badge = page.getByTestId(TESTIDS.seatAttr(1, "warrant"));
+    const badge = page.getByTestId(TESTIDS.seatAttr(1, "rep"));
     const tip = page.getByTestId(TESTIDS.attrTip);
     // 对局自走会随时弹决策卷轴/骰子 overlay 抢走悬停——每步动作都带「清卷轴 + 重试」
     //(断言只依赖图标浮签机制本身,不依赖数值,推进无妨)。
@@ -113,7 +110,7 @@ test.describe("全浮层骨架", () => {
       await clear();
       await badge.hover({ timeout: 3_000 });
       await expect(tip).toBeVisible();
-      await expect(tip).toContainText("委任状");
+      await expect(tip).toContainText("声望");
     }).toPass({ timeout: 30_000 });
     await page.mouse.move(400, 400);
     await expect(tip).toBeHidden();
@@ -126,10 +123,10 @@ test.describe("全浮层骨架", () => {
     }).toPass({ timeout: 30_000 });
     await page.mouse.up();
     await expect(tip).toBeHidden();
-    // #701 起卷轴徽章轻点=委任明细直达:长按的 down+up 落幕即成点击,明细弹层(z-50
+    // #701 起徽章轻点=明细直达:长按的 down+up 落幕即成点击,声望明细弹层(z-50
     // 遮罩)必然在挂——Esc 收净再走贴缘翻面段,不然遮罩吞掉后续全部 hover。
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId(TESTIDS.seatWarrantModal)).toBeHidden();
+    await expect(page.getByTestId(TESTIDS.seatRepModal)).toBeHidden();
     // 贴右缘翻面:席位卡列在视口右缘,浮签整体翻到徽章左侧(不溢出视口)
     await expect(async () => {
       await clear();

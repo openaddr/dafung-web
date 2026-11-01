@@ -143,12 +143,9 @@ function OverviewRow({
           </span>
         ))}
       </span>
-      {/* 声 / 委(收尾两数值列) */}
+      {/* 声(收尾数值列) */}
       <span className="zl-attr">
         声 <b data-testid={TESTIDS.warlordsRep(seat)}>{p.reputation}</b>
-      </span>
-      <span className="zl-attr">
-        委 <b data-testid={TESTIDS.warlordsWarrant(seat)}>{p.warrants}</b>
       </span>
     </div>
   );

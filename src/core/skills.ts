@@ -27,7 +27,7 @@ export interface TriggerSkill {
 }
 
 /** 名将主动技(#188 档 3):数据声明,与被动技(TriggerSkill·时机驱动)同表并存。
- *  结算复用既有路径(火攻=demolish 语义、征辟=转移+委任状),不新造 effect kind;
+ *  结算复用既有路径(火攻=demolish 语义),不新造 effect kind;
  *  技能结算内不派发时机(与 grantSkillCash 的防连锁口径一致)。
  *  目标校验单源在 choices.ts(引擎命令提交时复核,UI/bot 永不裁决,ADR-0013)。 */
 export interface ActiveSkillDef {
@@ -38,12 +38,12 @@ export interface ActiveSkillDef {
   /** 目标域:none=无目标(发动即结算);other=一名其他存活玩家;any=任一存活玩家(含自己)。 */
   target: "none" | "other" | "any";
   /** 结算路径(游戏内唯一定义处):demolish=降 1 级/失城(火烧连营同款);relief=付费回体力;
-   *  patronage=自得委任状、目标得银;warDrum=本回合下一次掷骰步数加成。 */
-  kind: "demolish" | "relief" | "patronage" | "warDrum";
+   *  warDrum=本回合下一次掷骰步数加成。 */
+  kind: "demolish" | "relief" | "warDrum";
   /** 目标附加守卫(demolish 专属):有 Lv>0 城可降、或有非都城可失,二者居一才可指定
    *  (#226 口径:都城可降不可失)。 */
   targetGuard?: "demolish";
-  /** 技能参数(纯数据,可序列化):relief={cost,stamina};patronage={cash};warDrum={bonus}。 */
+  /** 技能参数(纯数据,可序列化):relief={cost,stamina};warDrum={bonus}。 */
   params?: Record<string, number>;
 }
 
@@ -110,16 +110,6 @@ export const SKILLS: SkillDef[] = [
     target: "other",
     targetGuard: "demolish",
     kind: "demolish",
-  },
-  {
-    id: "zhengpi",
-    name: "征辟",
-    cooldown: 4,
-    // 买官鬻爵——朝廷发你委任状,国库补偿目标(等价交换,银两出自国库非自家)
-    desc: "征辟就任:你 +1 委任状,并指定一名诸侯获 50 两补偿(出自国库)。",
-    target: "other",
-    kind: "patronage",
-    params: { cash: 50 },
   },
   {
     id: "leigu",

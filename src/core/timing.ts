@@ -46,9 +46,6 @@ export type GameMoment =
   /** 途经他人棋子:rollAndMove path 计算后,遍历 traversed(不含起点,含落点)上非破产他人逐个派发。
    *  ctx.passedSeat = 被途经者,ctx.tileIndex = 途经格。subject = 行军者。 */
   | "PassedPlayer"
-  /** 途经己都城得委任状:marchTraverse 巡幸写点(warrants += WARRANTS_PER_PASS)后,
-   *  必停截断与恰落都城两路同挂。ctx.tileIndex = 都城。subject = 行军者。 */
-  | "WarrantGained"
   // ── 资产与交易 ──
   /** 购城后:buyProperty 成功尾。ctx.propertyId = 购入城。subject = 买家。 */
   | "PropertyBought"
@@ -192,7 +189,6 @@ export const MOMENTS: readonly GameMoment[] = [
   "CapitalHalt",
   "LandedOnProperty",
   "PassedPlayer",
-  "WarrantGained",
   // 资产与交易
   "PropertyBought",
   "PropertyGained",

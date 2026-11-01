@@ -106,7 +106,7 @@ export const EVENT_TIERS = {
   propertyBought: {
     fold: "must-fold",
     fx: "presented",
-    why: "现金-价/委任状-常量/地产入册,主动支出随领域事件不产 cashChanged",
+    why: "现金-价/地产入册,主动支出随领域事件不产 cashChanged",
   },
   propertyUpgraded: {
     fold: "fold+calibration",
@@ -179,7 +179,7 @@ export const EVENT_TIERS = {
   heroSkillActivated: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/patronage 委任状/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
+    why: "主动技冷却(heroId 定槽,槽内 lastFired 键=skillId)+三面落账(warDrum 加成/relief 付费);demolish 随机降级目标不可知=校准兜底五项之一;表现=施法者 token 金圈一拍(fx-svg-pulse,landPulse 通道)+施展浮字升档(1.0× brush 字/玩家色细描边,#850)",
   },
   // ── 锦囊族 ──
   jinnangDrawn: {

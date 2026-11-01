@@ -187,12 +187,11 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     expect(events.some((ev) => ev.kind === "sound" && ev.event === "pay")).toBe(false);
   });
 
-  it("决策被拒(委任状不足):无据章/buy 音/宣告(零兜底:无成交事件不播出)", () => {
+  it("决策被拒(银两不足):无据章/buy 音/宣告(零兜底:无成交事件不播出)", () => {
     const e = makeEngine(7, undefined, 999999);
     finishSetup(e);
     const p = e.activePlayer;
-    p.cash = 99999; // 现金充足,决策照常给出
-    p.warrants = 0; // 委任状不足 → buyProperty 被拒(NoWarrant)
+    p.cash = 0; // 银两不足 → buy() 拒(InsufficientFunds),无成交事件
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     testEngine(e).landActiveAt(tile.index);
     if (e.turnPhase !== "AwaitingDecision") return; // 引擎未给决策(理论不可达)才空转
@@ -295,7 +294,6 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
     p.cash = def.purchasePrice - 1;
-    p.warrants = 3;
     const pre = e.players.map((pl) => pl.position as number | null);
     beginGameEventBatch(e);
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
@@ -306,22 +304,6 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
       expect(text.text).toBe("银两不足,未能购城");
       expect(text.playerId).toBe(p.id);
     }
-  });
-
-  it("购地被拒(委任状不足,#385):文案浮字「无委任状,不可购」", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const p = e.activePlayer;
-    const tile = e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)!;
-    p.cash = 99999;
-    p.warrants = 0;
-    const pre = e.players.map((pl) => pl.position as number | null);
-    beginGameEventBatch(e);
-    testEngine(e).landActiveAt(tile.index);
-    const events = extractBatchEvents(e, e.gameEvents, pre);
-    const text = events.find((ev) => ev.kind === "textFloat");
-    expect(text).toBeDefined();
-    if (text?.kind === "textFloat") expect(text.text).toBe("无委任状,不可购");
   });
 });
 
@@ -569,17 +551,9 @@ describe("事件→动效映射表(合成批)", () => {
 describe("事件→动效映射表(#385 缺口闭合)", () => {
   const E = () => makeEngine(7);
 
-  it("propertyRejected:三种 reason → 引擎同口径文案浮字(缺口 1)", () => {
+  it("propertyRejected:两种 reason → 引擎同口径文案浮字(缺口 1)", () => {
     const e = E();
     const out = synth(e, [
-      {
-        kind: "propertyRejected",
-        seat: 0,
-        round: 1,
-        turn: 1,
-        propertyId: "x",
-        reason: "no-warrant",
-      },
       {
         kind: "propertyRejected",
         seat: 0,
@@ -591,7 +565,6 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
       { kind: "propertyRejected", seat: 0, round: 1, turn: 1, propertyId: "x", reason: "maxed" },
     ]);
     expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual([
-      "无委任状,不可购",
       "银两不足,未能购城",
       "城已满级,按兵不动",
     ]);

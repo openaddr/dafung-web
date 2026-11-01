@@ -92,13 +92,15 @@ describe("对局日志现金对账(#617)", () => {
     const mark = e.log.length;
     const cash0 = e.players.map((p) => p.cash);
 
-    // S1(魏回):落无主珍宝城,无委任状 → 落格探宝先行(#825)Lv1 拼点恒成得宝(无现金流),自动不购收口
-    wei.warrants = 0;
+    // S1(魏回):落无主珍宝城,买不起 → 落格探宝先行(#825)Lv1 拼点恒成得宝(无现金流),自动不购收口
+    // (现金临时压 0 触发自动不购,落格后即还原——账外对冲,S4/S7 的现金编排不受扰)
+    wei.cash = 0;
     e.treasureDeck = [tr("probe-t", 1)];
     const tTile = e.board.tiles.find(
       (t) => t.event === "treasure" && !e.takenCapitalIndices.has(t.index),
     )!;
     testEngine(e).landActiveAt(tTile.index);
+    wei.cash = START_CASH;
     passJinnang(e); // 探宝毕+自动不购收口 endTurn → 蜀
     expect(wei.treasures.map((t) => t.id)).toEqual(["probe-t"]);
     const gain = rowOf(e, "treasureGain", "probe-t");

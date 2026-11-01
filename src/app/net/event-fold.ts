@@ -20,7 +20,7 @@
 //                 lastLandOutcome + treasureVisitor 到来)
 //   城池族        capitalSelected → takenCapitalIndices/capitalIndex/position/地产 Lv0 入册
 //                 (Setup 期现金不入折叠,#386 注记保持);propertyBought → 现金-价/
-//                 委任状-常量/地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
+//                 地产入册;propertyUpgraded → 持有等级对齐 newLevel(副本无
 //                 持有则按事件补册,历史赐城缺口级联已随 propertyGranted 闭合,见下);
 //                 propertyRejected → 无状态转移
 //                 (声明性;自动按兵不动由同批 turnStarted 收场);propertyGranted →
@@ -36,8 +36,7 @@
 //   名将族        heroRecruited → 麾下入槽(skillIds=本次授技,建槽不重掷)+ 招贤池占位;
 //                 skillFired/heroSkillActivated → 冷却记账(heroId 定槽,槽内 lastFired,
 //                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
-//                 warDrum → heroDiceBonus、patronage → 委任状+1(目标得银随同批
-//                 cashChanged·skill 折)、relief → 现金-费(目标体力随 staminaChanged 折)、
+//                 warDrum → heroDiceBonus、relief → 现金-费(目标体力随 staminaChanged 折)、
 //                 demolish → 不折(随机降级目标不可知 = 校准兜底五项之一)
 //   锦囊族        jinnangDrawn → 手牌数+count/牌库数-count(内容=暗牌与牌序不折,
 //                 ADR-0016);jinnangReshuffled → 牌库数+count/弃堆清零(洗后牌序不折);
@@ -81,7 +80,7 @@
 //     开局/破产清算/洗牌类强制全量节点覆盖,折叠器不碰。
 //
 // ── 已知无事件转移的级联口径(移除类折叠查无目标 = 略过,非吞错)──
-//   判定表之外存在无事件的转移:巡幸都城委任状+2(仅 log 行)、
+//   判定表之外存在无事件的转移:
 //   行军窗拦停成功时的拦检牌扣账(本器折于闭窗应答点,批序等效)。「机遇天赐城池入册」
 //   已随 propertyGranted(#719)迁入词汇表闭合。剩余无事件转移使副本在批窗口内
 //   与引擎分歧,后续「移除类」折叠(出册/降级)可能查无目标——这是已接受缺口的级联,
@@ -108,7 +107,7 @@ import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REP_MILESTONES } from "@core/reputation";
-import { BUY_WARRANT_COST, REACTION_WINDOW_MS } from "@core/constants";
+import { REACTION_WINDOW_MS } from "@core/constants";
 import {
   activeSkillDefOf,
   encounterDefOfId,
@@ -226,10 +225,10 @@ function foldMainLanding(engine: GameEngine, mover: Player, tileIndex: number): 
   const def = propertyDefOf(engine, tile.propertyId);
   const owner = holdingOwnerOf(engine, tile.propertyId);
   if (owner == null) {
-    // 无主城:银两+委任状足额 → 决策相位挂起;不足 → 引擎自动按兵不动收场(同批
+    // 无主城:银两足额 → 决策相位挂起;不足 → 引擎自动按兵不动收场(同批
     // turnStarted 覆盖相位;propertyRejected 为声明性事件,无状态转移)
     engine.lastLandOutcome = { kind: "PropertyAvailable", property: def };
-    if (mover.cash >= def.purchasePrice && mover.warrants >= BUY_WARRANT_COST) {
+    if (mover.cash >= def.purchasePrice) {
       engine.pendingLand = { kind: "PropertyAvailable", propertyId: tile.propertyId };
       engine.turnPhase = "AwaitingDecision";
     } else {
@@ -366,7 +365,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         const buyer = foldTarget(engine, ev);
         const def = propertyDefOf(engine, ev.propertyId);
         buyer.cash -= ev.price; // 主动支出随领域事件(判定表 cash 行)
-        buyer.warrants -= BUY_WARRANT_COST; // 进驻新城耗委任状(常量单源 core/constants)
         buyer.properties.push({
           propertyId: def.id,
           group: def.group,
@@ -509,9 +507,6 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         switch (skill.kind) {
           case "warDrum":
             engine.heroDiceBonus = requireSkillParam(skill, "bonus");
-            break;
-          case "patronage":
-            user.warrants += 1; // 目标得银随 grantSkillCash 的 cashChanged(reason=skill)折
             break;
           case "relief":
             user.cash -= requireSkillParam(skill, "cost"); // 目标体力随 staminaChanged(heroRelief)折

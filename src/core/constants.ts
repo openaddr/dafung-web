@@ -19,11 +19,6 @@ export const MIN_TILE_DIST = 80;
 // 城池"轻点"判定:按下→松手位移超过此值(像素)视为拖动,不触发点击
 export const TAP_MAX_MOVE = 24;
 
-// 委任状:进驻(买)新城的额度,防止运气好的玩家一圈跑下来把城全占光。
-export const STARTING_WARRANTS = 3; // 开局每人 3 张(都城颁发)
-export const WARRANTS_PER_PASS = 2; // 经过自己都城(起点)+2 张(Monopoly 式过起点)
-export const BUY_WARRANT_COST = 1; // 进驻一座城消耗的委任状数(扩军不耗)
-
 // 名将(英雄):每人最多持有的数量
 export const HERO_CAPACITY = 3;
 

@@ -137,7 +137,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
 
 // ──────────────────────────── auto 驱动(LLM 演练线)────────────────────────────
 // 进展指纹单源 = seat-projection.fingerprint(联机侧正典,含 turnNumber/position/
-// skipTurns/warrants 全量字段)。勿在 CLI 手抄缩水副本:缩水版看不见「破产位被跳 +
+// skipTurns 全量字段)。勿在 CLI 手抄缩水副本:缩水版看不见「破产位被跳 +
 // 跳过回合绕一圈回到原 active」这类零计数变化但真实前进的循环,会误判 idle(#442 dogfood 实锤)。
 
 /** 当前决策点是否 bot 受控。被询问座位公式单源 = bot-driver.reactionQueriedSeats

@@ -72,7 +72,7 @@ export function BannerButton({
   onClick,
   primary,
   testid,
-  // UI F1:决策类按钮可能不可选(银两/委任不足、满级)——disabled + title 原因,
+  // UI F1:决策类按钮可能不可选(银两不足、满级)——disabled + title 原因,
   // 口径与引擎选项集注册表一致,由壳统一观感
   disabled,
   title,

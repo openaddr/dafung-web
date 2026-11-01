@@ -353,7 +353,7 @@ export function fingerprint(e: GameEngine): string {
     e.players
       .map(
         (p) =>
-          `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}:${p.warrants}`,
+          `${p.cash}:${p.treasures.length}:${p.properties.length}:${p.heroes.length}:${p.position}:${p.skipTurns}`,
       )
       .join(","),
   ].join("|");

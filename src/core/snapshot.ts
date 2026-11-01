@@ -54,7 +54,6 @@ export interface SnapshotPlayer {
   colorIndex: number;
   isBot: boolean;
   cash: number;
-  warrants: number;
   netWorth: number;
   isBankrupt: boolean;
   position: number;
@@ -625,7 +624,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         colorIndex: p.colorIndex,
         isBot: p.isBot,
         cash: p.cash,
-        warrants: p.warrants,
         netWorth: netWorth(p),
         isBankrupt: p.isBankrupt,
         position: p.position,
@@ -661,7 +659,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.guohao = ps.guohao;
         p.isBot = ps.isBot; // 恢复 isBot(联机客户端的占位引擎可能与服务器不一致)
         p.cash = ps.cash;
-        p.warrants = ps.warrants;
         p.isBankrupt = ps.isBankrupt;
         p.position = ps.position;
         p.capitalIndex = ps.capitalIndex;

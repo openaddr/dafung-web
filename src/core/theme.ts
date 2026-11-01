@@ -80,12 +80,10 @@ export const Theme = {
   // 一属性一色;每属性两档:无后缀 = 墨面档(#509 换血后宣纸面已是深底,此档按
   // panel/panelHi 深底调亮,小字 ≥4.5:1),Bright = 漆木深底(仪表条)亮变体(值沿用)。
   // 徽章/数值一律吃 --color-attr-* token,组件零硬编码色值。
-  // 生成器(gen:theme)只认顶层 Rgb,故平铺为 attr* 键;其中三处与既有 token 同值
-  // (委任=goldDeep / 城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
+  // 生成器(gen:theme)只认顶层 Rgb,故平铺为 attr* 键;其中两处与既有 token 同值
+  // (城=sealQing / 名将=danger),语义同源由本注释锚定,改色时同步。
   attrCash: hex("7cab66"), // 现金 = 青绿(重要数字最高优先,brush 加大)
   attrCashBright: hex("8fbf77"), // 现金·漆底亮档
-  attrWarrant: hex("c8a13a"), // 委任 = 熟金(与 goldDeep 同值互证,语义同源)
-  attrWarrantBright: hex("e0c06a"), // 委任·漆底亮档
   attrCity: hex("76aaa5"), // 城池 = 黛青(同 sealQing)
   attrCityBright: hex("7fb0ad"), // 城池·漆底亮档(黛青提亮,原型无此件,按同族推导)
   attrRep: hex("b58cc5"), // 声望 = 蓝紫(2026-10-19 由紫 c28cc2 偏蓝 ~17°,与名将朱砂拉开色相;声望专用 token 单动,不涉 danger 同值)

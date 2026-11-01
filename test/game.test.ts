@@ -184,39 +184,6 @@ describe("回合与胜负", () => {
   });
 });
 
-describe("委任状", () => {
-  it("开局每人 3 张委任状", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    expect(e.players.every((p) => p.warrants === 3)).toBe(true);
-    expect(e.snapshot().players.every((p) => p.warrants === 3)).toBe(true);
-  });
-
-  it("买城消耗 1 委任状并获得地产", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const buyer = e.activePlayer;
-    testEngine(e).armDecision("PropertyAvailable", "prop-luoyang"); // 决策上下文经窄口置 pendingLand
-    const w0 = buyer.warrants;
-    const props0 = buyer.properties.length;
-    e.buyProperty();
-    expect(buyer.warrants).toBe(w0 - 1); // 消耗 1 委任状
-    expect(buyer.properties.length).toBe(props0 + 1); // 获得地产
-  });
-
-  it("0 委任状时买城被拒(NoWarrant),不消耗、不获得", () => {
-    const e = makeEngine(1);
-    finishSetup(e);
-    const buyer = e.activePlayer;
-    buyer.warrants = 0;
-    const props0 = buyer.properties.length;
-    testEngine(e).armDecision("PropertyAvailable", "prop-luoyang");
-    e.buyProperty();
-    expect(buyer.warrants).toBe(0); // 未消耗
-    expect(buyer.properties.length).toBe(props0); // 未获得
-  });
-});
-
 describe("名将(英雄)", () => {
   const hero = (id: string) => HEROES.find((h) => h.id === id)!;
 
@@ -281,19 +248,17 @@ describe("名将(英雄)", () => {
 });
 
 describe("经过都城必停(无驻跸/继续抉择)", () => {
-  it("路过自己都城(落点非都城):无论剩几步都停在都城,补给+巡幸委任,回合结束", () => {
+  it("路过自己都城(落点非都城):无论剩几步都停在都城,补给,回合结束", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
     // 放到都城前一格:任意掷骰(die>=1)必经都城;die=1 恰落都城,其余必停
     testEngine(e).placeActive((p.capitalIndex - 1 + e.board.count) % e.board.count);
     const cash0 = p.cash;
-    const w0 = p.warrants;
     const nextIdx = e.players.findIndex((x) => x !== p);
     passJinnang(e).rollAndMove();
     const die = e.presentation.lastRoll!.die;
     expect(p.position).toBe(p.capitalIndex); // 停在都城(必停或恰落,都不前进)
-    expect(p.warrants).toBe(w0 + 2); // 巡幸都城 +2 委任(两种情形都发)
     expect(p.cash).toBe(cash0 + e.capitalSupplyOf(p).supply); // 驻跸/落都城补给
     if (die > 1) {
       // 必停路径:回合直接结束(无任何等待相位),战报「军至都城…驻跸补给」
@@ -386,7 +351,6 @@ describe("地产规则(等级 Lv0-3 共 4 级 / 购入即 Lv0 / 无过路费升�
     const mover = e.activePlayer;
     const tile = e.board.tiles.find((t) => t.event == null && e.findOwner(t.propertyId!) == null)!;
     const def = e.catalog.get(tile.propertyId)!;
-    mover.warrants = 1;
     testEngine(e).landActiveAt(tile.index); // 窄口:摆位 + Land + 私有落格结算
     expect(e.turnPhase as string).toBe("AwaitingDecision");
     e.buyProperty();

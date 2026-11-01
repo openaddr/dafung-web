@@ -1,7 +1,7 @@
-// 席位格图标直达明细弹层族(#701,spec #697 ④):格上战盔/玉璧/墨竹/卷轴点开的
-// 四路只读明细——名将名录与珍宝列表照现役 PileModal 名录/卡面同构装配(PileShell +
+// 席位格图标直达明细弹层族(#701,spec #697 ④):格上战盔/玉璧/墨竹点开的
+// 三路只读明细——名将名录与珍宝列表照现役 PileModal 名录/卡面同构装配(PileShell +
 // HeroCardFace/TreasureCardFace 公开件;名将/珍宝是投影全员公开信息,逐件可陈),
-// 声望/委任为轻量数值明细(大数+口径;声望带献计里程碑章,门槛单源
+// 声望为轻量数值明细(大数+口径;声望带献计里程碑章,门槛单源
 // core/reputation REP_MILESTONES,已领集=快照 repMilestones)。空陈列照常可开:
 // 计数如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,单源
 // screens/shared/ArtifactEmpty,PileModal #851 同款);投影没有的数据不造(零兜底)。
@@ -21,7 +21,7 @@ import { ATTR_TIPS } from "./Tip";
 import { TESTIDS } from "./testids";
 
 /** 格上图标直达的明细种类(城池走现役 #622 CityLedgerModal,不在本族)。 */
-export type SeatDetailKind = "hero" | "gem" | "rep" | "warrant";
+export type SeatDetailKind = "hero" | "gem" | "rep";
 
 /** 名将名录(战盔→):现役名将弹层同构(题名/朱印/陈列网格逐字对齐),数据按席。 */
 function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
@@ -158,24 +158,6 @@ function SeatRepModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
   );
 }
 
-/** 委任明细(卷轴→):现值大数 + 口径(委任无逐张数据,投影只有计数——明细到此为
- *  止,不造第二事实源)。 */
-function SeatWarrantModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
-  return (
-    <PileShell
-      title="委任状"
-      seal="委"
-      sub={`${p.guohao} · 委任明细`}
-      testid={TESTIDS.seatWarrantModal}
-      ariaLabel={`委任状 · ${p.guohao}`}
-      className="spop-detail"
-      onClose={onClose}
-    >
-      <NumDetail value={p.warrants} terms={ATTR_TIPS.warrant.detail} />
-    </PileShell>
-  );
-}
-
 /** 明细弹层路由入口(SeatRail 持 {kind, seat} 开合态,钻入时单层互斥)。 */
 export function SeatDetailModal({
   kind,
@@ -188,6 +170,5 @@ export function SeatDetailModal({
 }) {
   if (kind === "hero") return <SeatHeroModal p={p} onClose={onClose} />;
   if (kind === "gem") return <SeatGemModal p={p} onClose={onClose} />;
-  if (kind === "rep") return <SeatRepModal p={p} onClose={onClose} />;
-  return <SeatWarrantModal p={p} onClose={onClose} />;
+  return <SeatRepModal p={p} onClose={onClose} />;
 }

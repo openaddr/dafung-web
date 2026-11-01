@@ -120,9 +120,6 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
         await expect(page.getByTestId(TESTIDS.warlordsRep(seat))).toHaveText(
           String(s.players[seat].reputation),
         );
-        await expect(page.getByTestId(TESTIDS.warlordsWarrant(seat))).toHaveText(
-          String(s.players[seat].warrants),
-        );
       }
 
       // 空槽画空格:自机麾下 0 将 = 三空槽(HERO_CAPACITY 制式)

@@ -2,14 +2,14 @@
 // 每个决策相位一个计算器,选项带 available/reason——引擎在进入决策相位前先计算选项集,
 // 除默认行为外可用选项为 0 时直接自动执行默认行为(战报+浮字),不弹卷轴;
 // UI/bot/联机只消费结果(snapshot.choices 透出),禁止在 UI 层私自增删选项。
-// 扩展口:未来技能(免委任状购城/低价买城)经时机框架在选项计算前修改玩家状态,
+// 扩展口:未来技能(低价买城)经时机框架在选项计算前修改玩家状态,
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
 import type { GameEngine, TurnPhase } from "./authority";
 import { canUpgrade } from "./economy";
 import type { ActiveSkillDef } from "./skills";
 import { isActiveSkill, skillById } from "./skills";
 import { findHolding } from "./player";
-import { BUY_WARRANT_COST, HERO_CAPACITY } from "./constants";
+import { HERO_CAPACITY } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import type { HeroSlot } from "./roster";
@@ -31,7 +31,7 @@ export const JINNANG_LIVE_EFFECTS: ReadonlySet<JinnangEffect["kind"]> = new Set(
   "peek", // T4:军情密探
 ]);
 
-/** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「无委任状」「已满级」)。 */
+/** 单个选项:available=false 时 reason 说明不可用原因(「银两不足」「已满级」)。 */
 export interface ChoiceOption {
   id: string; // 如 "buy" / "upgrade" / "skip" / "fair" / "premium" / "decline"
   label: string; // 玩家可读
@@ -76,14 +76,12 @@ function decisionChoices(e: GameEngine): ChoiceOption[] {
   if (pending?.kind === "PropertyAvailable") {
     const def = e.pendingLandDef();
     const affordable = p.cash >= def.purchasePrice;
-    const hasWarrant = p.warrants >= BUY_WARRANT_COST;
     return [
       {
         id: "buy",
         label: `购地`,
-        available: affordable && hasWarrant,
-        // 委任优先报(与购地卷轴 F1 口径一致)
-        reason: !hasWarrant ? "无委任状" : !affordable ? "银两不足" : undefined,
+        available: affordable,
+        reason: !affordable ? "银两不足" : undefined,
       },
       { id: "skip", label: "不取", available: true },
     ];

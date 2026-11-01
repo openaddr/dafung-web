@@ -36,8 +36,7 @@ export type TransactionResult =
   | { status: "Ok"; newLevel: number }
   | { status: "InsufficientFunds" }
   | { status: "NotOwned" }
-  | { status: "AlreadyMaxLevel"; newLevel: number }
-  | { status: "NoWarrant" };
+  | { status: "AlreadyMaxLevel"; newLevel: number };
 
 export const canUpgrade = (h: PropertyHolding): boolean => h.level < h.maxLevel;
 
