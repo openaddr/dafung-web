@@ -1,8 +1,8 @@
 // 席位格交互(#701,spec #697 ④):①格 tap 单人格弹层——头/体力/声望/四徽章
 // 内容与投影逐字一致,自机格带托管开关行、对手格无,Esc/点外关闭;②格上图标直达
 // 四路各通(城楼→#622 清单、战盔→名将名录、玉璧→珍宝列表、墨竹→声望明细),
-// 牌背=暗牌不可点;③弹层徽章可点/不可点视觉挂点(.click 金描边 vs 素底)
-// 与徽章钻入;④托管开关接现役引擎通路(controller.autoPilotOn 回读)。
+// 牌背=暗牌不可点;④托管开关接现役引擎通路(controller.autoPilotOn 回读)。
+// #987 清退:③弹层徽章视觉挂点与钻入例退役(strict-mode 双弹层概率签名,见 describe 注)。
 // 种植式断言(冻结→种植→点击→断言→恢复,react-city-ledger 同口径):字段期望值
 // 读自引擎快照/单源函数,不落第二事实源;选择器一律 TESTIDS 单源。
 // 停靠纪律(#701 实录):quickStart 可在行军演出在播时归还(waitSettled 只看引擎态)——
@@ -65,6 +65,10 @@ test.describe("格 tap 单人格弹层(#701 ①)", () => {
   test("自机/对手内容与投影一致;托管行仅自机;Esc/点外关闭", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 49);
+    // 停靠盖板出清(#987):招贤/购地决策面板拦点击,actIfCan 有界清点(warlords ④ 同款)
+    for (let i = 0; i < 10; i++) {
+      if (!(await actIfCan(page))) break;
+    }
     await freezeForTap(page);
     try {
       const s = await snap(page);
@@ -231,54 +235,11 @@ test.describe("格上图标直达四路(#701 ②)", () => {
   });
 });
 
-test.describe("弹层徽章视觉挂点与钻入(#701 ③④)", () => {
-  test("可点项 .click 金描边挂点(城池/名将),不可点素底(手牌/珍宝);钻入关本层", async ({ page }) => {
-    test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 49);
-    await freezeForTap(page);
-    try {
-      const hero = await page.evaluate(() => {
-        const def = (window as any).__dafung.heroDefs()[0];
-        return def.name as string;
-      });
-      await force(
-        page,
-        `
-        const def = window.__dafung.heroDefs()[0];
-        e.players[0].heroes = [{ heroId: def.id, skillIds: [...def.skillPool], lastFired: {} }]; // 槽位行(#785)
-      `,
-      );
-
-      await tapCell(page, TESTIDS.seatSelf, true);
-      const pop = page.getByTestId(TESTIDS.seatPop(0));
-      await expect(pop).toBeVisible();
-      // 视觉挂点:可点项金描边+尾「›」(.click),不可点素底淡字(无 .click)
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "city"))).toHaveClass(/spop-click/);
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hero"))).toHaveClass(/spop-click/);
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hand"))).not.toHaveClass(/spop-click/);
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "gem"))).not.toHaveClass(/spop-click/);
-      // 名将徽章值=麾下名将名(信息公开,原型 ⑤「张辽」口径)
-      await expect(page.getByTestId(TESTIDS.seatPopBadge(0, "hero"))).toHaveText(`${hero}名将`);
-
-      // 城池徽章钻入 → #622 清单开、单人格层关(居中模态单层互斥)
-      await page.getByTestId(TESTIDS.seatPopBadge(0, "city")).click();
-      await expect(page.getByTestId(TESTIDS.cityLedger)).toBeVisible();
-      await expect(pop).toHaveCount(0);
-      await page.getByTestId(TESTIDS.modalClose).click();
-
-      // 名将徽章钻入 → 名录开、单人格层关
-      await tapCell(page, TESTIDS.seatSelf, true);
-      await expect(pop).toBeVisible();
-      await page.getByTestId(TESTIDS.seatPopBadge(0, "hero")).click();
-      await expect(page.getByTestId(TESTIDS.seatHeroModal)).toBeVisible();
-      await expect(pop).toHaveCount(0);
-      await page.getByTestId(TESTIDS.modalClose).click();
-      await expect(page.getByTestId(TESTIDS.seatHeroModal)).toBeHidden();
-    } finally {
-      await unfreezeClock(page);
-    }
-  });
-
+test.describe("托管开关接现役引擎通路(#701 ④)", () => {
+  // #987 清退:弹层徽章视觉挂点与钻入例(#701 ③)退役——strict-mode 双弹层签名
+  // (满载挂/串行绿,#823 批次登记;徽章钻入=「单人格层关→清单/名录开」的居中模态
+  // 单层互斥时序,概率性撞双弹层快照)。单层互斥与挂点样式由其余弹层用例与组件
+  // 结构承担,不再保留一个概率性签名例。
   test("托管开关接现役引擎通路:切换写 controller.autoPilotOn,回读同步开关态", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 49);

@@ -104,10 +104,9 @@ test.describe("弹层族矮屏规范(#708)", () => {
       // 滚动提示首帧常显(#708 AC②):keepMounted 轨道 + 溢出门控,拇指当场可见
       await expect(body.locator('[data-slot="scroll-area-thumb"]')).toBeVisible();
 
-      // 头部钉住:滚到底后题名行相对壳顶的位置不动(钉住=随壳不随滚;壳入场
-      // 动画只整体平移,相对量免疫,实测绝对坐标会吃 1-2px 动画尾差)
-      const head = modal.getByTestId(TESTIDS.modalDragHandle);
-      const headRel = (await head.boundingBox())!.y - box.y;
+      // #987 清退:头部钉住几何例退役(#779)——壳入场动画是 CSS 合成层驱动,不吃
+      // 游戏时钟,题名行相对壳顶的 Y 在动画尾差/subpixel 下 ≥1px 漂移(基线复现,
+      // 采样竞速无一两行确定性改造);钉住语义归 PileShell 组件结构与滚动容器分层。
 
       await viewport.evaluate((el) => {
         el.scrollTop = el.scrollHeight;
@@ -118,8 +117,6 @@ test.describe("弹层族矮屏规范(#708)", () => {
           timeout: 5_000,
         })
         .toBe("1");
-      const headAfter = (await head.boundingBox())!.y - box.y;
-      expect(Math.abs(headAfter - headRel)).toBeLessThan(1);
 
       // 内滚可达:滚到底后末行完整落在壳盒内(行不再被壳缘切半)
       const lastRow = (await modal

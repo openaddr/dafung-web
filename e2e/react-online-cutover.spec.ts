@@ -191,7 +191,8 @@ async function setAutopilot(page: Page, seat: number, on: boolean) {
   await expect(page.getByTestId(`seat-pop-${seat}`)).toBeHidden({ timeout: 5_000 });
 }
 
-test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", () => {
+test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", { tag: "@slow" }, () => {
+  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
   // 全文件统一预算(reaction-online 家族同款 describe 级):建房/选都全程 + 断线重连
   // 窗口 + 双端驱动,满载下墙钟抖动大。
   test.setTimeout(240_000);

@@ -215,6 +215,18 @@ export function fmtMoney(cash: number): string {
  *  行军自动化后对局自走,调用方的步进循环依赖本助手清决策点;无决策点返回 false 时
  *  局面仍在自动推进,循环侧按「快照变化即不算停滞」计预算(勿空转烧步数)。 */
 export async function actIfCan(p: Page): Promise<boolean> {
+  // 招贤拍板收尾(#984 先看后选 → #987 根修):上一拍点候选卡开出的技能全览弹框,
+  // 「收为麾下」是拍板唯一入口,不在任何既有分支的选择器集里——不补这条,清点循环
+  // 点卡只反复开弹框、决策永不清(warlords ④ 打开不暂停实测挂点:actIfCan×10 后
+  // 仍停 AwaitingHeroPick)。置顶:在途拍板先落锤,再谈开新决策。拍板钮只在招贤
+  // 语境渲染(浏览语境不传 onPick 无钮),可见即招贤在途,命中无歧义。
+  const glossaryPick = p.getByTestId(TESTIDS.skillGlossaryPick);
+  if (await glossaryPick.isVisible().catch(() => false)) {
+    return glossaryPick.click({ timeout: 10_000 }).then(
+      () => true,
+      () => false,
+    );
+  }
   // 出牌阶段态(#256,原 scroll-jinnang-pass 放行点迁动作条):回合开始自动起摇前可能
   // 停在窗态——默认「不出」放行,绝不替测试用牌。必须先于通配 scroll 分支
   // (会误点第一张牌)。

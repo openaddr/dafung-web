@@ -20,58 +20,67 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将", async ({
-  page,
-}) => {
-  await quickStart(page);
-  // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
-  // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
-  await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
-  const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
-  await expect(scroll).toBeVisible();
-  await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
-  // 预掷明牌(#787):卡面 chips = 候选行预掷授技子集(≥1;tryRecruitHero 真掷,不钉具体技)
-  const rows: { id: string; skillIds: string[] }[] = (await snap(page)).offeredHeroes;
-  expect(rows).toHaveLength(3);
-  for (let i = 0; i < rows.length; i++) {
-    expect(rows[i]!.skillIds.length).toBeGreaterThanOrEqual(1); // 至少一技
-    await expect(
-      scroll.getByTestId(SCROLL_TESTIDS.heroPickOption(i)).locator(TESTIDS.skillChipAny),
-    ).toHaveCount(rows[i]!.skillIds.length);
-  }
-  // 先看后选(2026-11-01 拍板:点卡不再直选)+ 池全貌对照(#787):点候选将技名
-  // chip=开技能全览弹框,弹框陈列池全技(未授者 .is-off 灰置),不触发选将(候选
-  // 不清空、招贤层仍在);招贤语境弹框带「收为麾下」拍板钮。
-  await scroll.getByRole("button").nth(1).locator(TESTIDS.skillChipAny).first().click();
-  const glossary = page.getByTestId(TESTIDS.skillGlossary);
-  await expect(glossary).toBeVisible();
-  const mid = rows[1]!;
-  const pool: string[] = await engineState(
-    page,
-    `window.__dafung.heroDefs().find((h) => h.id === ${JSON.stringify(mid.id)}).skillPool`,
-  );
-  for (const id of pool) {
-    await expect(glossary.getByTestId(TESTIDS.skillGlossaryRow(id))).toHaveCount(1); // 池全貌逐技在列
-  }
-  const offCount = pool.length - mid.skillIds.length;
-  await expect(glossary.locator(".skg-row.is-off")).toHaveCount(offCount); // 未授灰置
-  await expect(scroll).toBeVisible();
-  expect((await snap(page)).offeredHeroes).toHaveLength(3); // 看将不发命令
-  await page.getByTestId(TESTIDS.modalClose).click();
-  await expect(glossary).toHaveCount(0);
-  // 点卡体同开详情弹框(拍板唯一入口,2026-11-01 拍板):拍板钮在场 → 「收为麾下」
-  // → 钤印节拍后卷轴收场、候选清空
-  await scroll.getByRole("button").nth(1).click();
-  await expect(glossary).toBeVisible();
-  const pick = glossary.getByTestId(TESTIDS.skillGlossaryPick);
-  await expect(pick).toBeVisible();
-  await pick.click();
-  await expect(scroll).toBeHidden();
-  // 选中的名将入手(战报或手牌区可见名字);快照候选清空
-  // e2e 编译上下文看不到 src/app 的全局声明,evaluate 内以 any 访问调试钩子
-  const after = await page.evaluate(() => (window as any).__dafung.snapshot());
-  expect(after.offeredHeroes).toHaveLength(0);
-});
+test(
+  "招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将",
+  {
+    tag: "@slow", // 慢池(#1026):单例实测 >30s(30.9s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
+  },
+  async ({ page }) => {
+    await quickStart(page);
+    // #987 冻结闸(#943 竞速点清偿):停靠点可能有已到点未投递的看门狗回调(bot 链
+    // 步进/自动起摇),直写种植的 AwaitingHeroPick 会被迟到链步进覆盖、卷轴中途收场——
+    // 先排空演出再冻结(冻结挂起时钟驱动收幕,fx 在途时冻结=waitFxIdle 死等)。
+    await waitFxIdle(page);
+    await freezeClock(page);
+    // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
+    // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
+    await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
+    const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
+    await expect(scroll).toBeVisible();
+    await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
+    // 预掷明牌(#787):卡面 chips = 候选行预掷授技子集(≥1;tryRecruitHero 真掷,不钉具体技)
+    const rows: { id: string; skillIds: string[] }[] = (await snap(page)).offeredHeroes;
+    expect(rows).toHaveLength(3);
+    for (let i = 0; i < rows.length; i++) {
+      expect(rows[i]!.skillIds.length).toBeGreaterThanOrEqual(1); // 至少一技
+      await expect(
+        scroll.getByTestId(SCROLL_TESTIDS.heroPickOption(i)).locator(TESTIDS.skillChipAny),
+      ).toHaveCount(rows[i]!.skillIds.length);
+    }
+    // 先看后选(2026-11-01 拍板:点卡不再直选)+ 池全貌对照(#787):点候选将技名
+    // chip=开技能全览弹框,弹框陈列池全技(未授者 .is-off 灰置),不触发选将(候选
+    // 不清空、招贤层仍在);招贤语境弹框带「收为麾下」拍板钮。
+    await scroll.getByRole("button").nth(1).locator(TESTIDS.skillChipAny).first().click();
+    const glossary = page.getByTestId(TESTIDS.skillGlossary);
+    await expect(glossary).toBeVisible();
+    const mid = rows[1]!;
+    const pool: string[] = await engineState(
+      page,
+      `window.__dafung.heroDefs().find((h) => h.id === ${JSON.stringify(mid.id)}).skillPool`,
+    );
+    for (const id of pool) {
+      await expect(glossary.getByTestId(TESTIDS.skillGlossaryRow(id))).toHaveCount(1); // 池全貌逐技在列
+    }
+    const offCount = pool.length - mid.skillIds.length;
+    await expect(glossary.locator(".skg-row.is-off")).toHaveCount(offCount); // 未授灰置
+    await expect(scroll).toBeVisible();
+    expect((await snap(page)).offeredHeroes).toHaveLength(3); // 看将不发命令
+    await page.getByTestId(TESTIDS.modalClose).click();
+    await expect(glossary).toHaveCount(0);
+    // 点卡体同开详情弹框(拍板唯一入口,2026-11-01 拍板):拍板钮在场 → 「收为麾下」
+    // → 钤印节拍后卷轴收场、候选清空
+    await scroll.getByRole("button").nth(1).click();
+    await expect(glossary).toBeVisible();
+    const pick = glossary.getByTestId(TESTIDS.skillGlossaryPick);
+    await expect(pick).toBeVisible();
+    await pick.click();
+    await expect(scroll).toBeHidden();
+    // 选中的名将入手(战报或手牌区可见名字);快照候选清空
+    // e2e 编译上下文看不到 src/app 的全局声明,evaluate 内以 any 访问调试钩子
+    const after = await page.evaluate(() => (window as any).__dafung.snapshot());
+    expect(after.offeredHeroes).toHaveLength(0);
+  },
+);
 
 /** 交涉现场种植(城主=人类座位 0,访客=bot 座位 1):给城主塞珍宝 + 一座被访的城。
  *  #188:先钉人类座位为决策方(AwaitingTreasureOwner 的 decisionOwner=城主,天然成立)。
@@ -81,6 +90,10 @@ test("招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开
  *  「+1 级」永不成立。findOwner 单源引擎查询。 */
 async function plantTrade(page: Page): Promise<void> {
   await quickStart(page);
+  // #987 冻结闸(#943 竞速点清偿,同招贤卷轴例):排空演出→冻结,种植的
+  // AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
+  await waitFxIdle(page);
+  await freezeClock(page);
   await force(
     page,
     `

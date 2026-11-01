@@ -9,7 +9,14 @@
 // 另载:出牌窗灰置牌(#715)、锦囊架临时收起重钉四条(#1006,会话临时态/banner-only/
 // 选中态跨收起/呼吸钮;窗态可收起后本 spec 既有用例的「架可见」前提仍恒真——默认亮)。
 import { test, expect } from "./fixtures";
-import { force, pollReactionSettled, quickStart, snap, waitMyPause } from "./react-helpers";
+import {
+  force,
+  freezeClock,
+  pollReactionSettled,
+  quickStart,
+  snap,
+  waitMyPause,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
 import type { Page } from "@playwright/test";
@@ -42,9 +49,12 @@ async function rackGeometry(page: Page): Promise<{ cards: Box[]; row: Box; rack:
 }
 
 /** 几何落定轮询(#305 替代固定硬等待):单次 evaluate 内反复采样同一份盒模型,两拍
- *  (150ms)全同即视为动画/过渡落定并返回该样本;行缺失先等出现,deadline 内仍未落定
- *  即抛错(零兜底:落不下来是 bug,让它炸)。错峰 60ms 拍的入场级联任意时刻都有牌在动
- *  (duration > 错峰),级联间的静止窗小于采样间隔——两拍全同只可能出现在全体落定后。 */
+ *  (150ms)全同且行子树有限动画全部 finished 才视为落定并返回该样本;行缺失先等
+ *  出现,deadline 内仍未落定即抛错(零兜底:落不下来是 bug,让它炸)。
+ *  「动画全 finished」门槛(#987 接力定性):入场级联 rack-card-in 带 backwards
+ *  填充,延迟期卡片按 from 帧 translateY(14px) 持住——矩形静止,两拍全同采样会把
+ *  级联延迟期误判为落定(rest−before 恒 14px 竖移正是该 from 帧;headless 合帧稀疏
+ *  时延迟期可远超自然时长,输入注入才续走),故采样之外显式等行子树动画收尾。 */
 async function settledRackGeometry(
   page: Page,
   timeoutMs = 8_000,
@@ -64,12 +74,17 @@ async function settledRackGeometry(
         row: rect(row), rack: rect(rack),
       });
     };
+    const animsSettled = () => {
+      const row = document.querySelector('[data-testid="${TESTIDS.jinnangHand}"]');
+      if (!row) return false;
+      return row.getAnimations({ subtree: true }).every((a) => a.playState === "finished");
+    };
     let prev = read();
     const deadline = performance.now() + ${timeoutMs};
     for (;;) {
       await new Promise((r) => setTimeout(r, prev === null ? 100 : 150));
       const cur = read();
-      if (cur !== null && cur === prev) return cur;
+      if (cur !== null && cur === prev && animsSettled()) return cur;
       prev = cur;
       if (performance.now() > deadline) throw new Error("手牌几何未落定:行缺失或持续变化超时");
     }
@@ -115,6 +130,14 @@ async function rackStandstill(page: Page, cards: string[]): Promise<void> {
   // 发牌入场级联(错峰 60ms 拍 + 本体动画)以几何落定为准(#305 替代固定 1200ms):
   // 两拍全同 = 级联播完,后续几何断言不再吃动画 transform 污染
   await settledRackGeometry(page);
+  // 停车坪封板(#987 接力定性):基线采样前冻结房间时钟。只钉 turnPhase 钉不住
+  // 在途队列——复跑取证(失败窗内签面揭示芯片换字、「行军中」留痕)证明引擎在
+  // 测量窗内仍步进,是几何基线的次生扰动源;冻结后三例量在真静态页上。本组零
+  // 发令,同步 bot 链不存在(冻结边界见 react-helpers「时钟缝」节);CSS 挥出
+  // 过渡与几何落定轮询走真实时钟不受影响。页随测试灭、冻结随上下文销毁,无需
+  // 解冻对称。级联延迟期误判落定(主因,rest−before 恒 14px)由 settledRackGeometry
+  // 的动画收尾门槛根治,见该函数注。
+  await freezeClock(page);
 }
 
 /** 读本端起手牌名(单机座位 0;quickStart 后手牌恒 ≥1:起手 1 张且无人替你用牌)。 */
@@ -205,6 +228,11 @@ test.describe("锦囊 T3:底部手牌架", () => {
 
   test("他人回合:架常驻可见(不收拢)", async ({ page }) => {
     await quickStart(page);
+    // 停车坪封板(#421 时钟缝;#987):quickStart 出清落格决策后交还点在对局动途中
+    // (放行后的 Roll 相位挂着起摇倒计时)——不冻结则 1.8s 后 rollAndMove 到点回调
+    // 掀翻下面直写钉的 activeIndex(decisionOwner 弹回本端,断言连挂)。冻结钉住全部
+    // 到点回调,钉住的权威态真静止;页随测试灭,冻结随上下文销毁,无需解冻对称。
+    await freezeClock(page);
     // #413 调试钩子种植(react-layout「活跃光效」同款口径):#398 单机统一后对局态只在
     // 人类停点下行,「决策方=bot」只是自走瞬态——负载下等瞬态的 30s 观察窗与 quickStart
     // 相加烧穿 60s 测试预算,断言根本没跑到(89/91 轮换实证:poll 30s 超时 + 重试 60s 超时)。
@@ -499,7 +527,9 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     await expect(card).toBeVisible();
     await card.click();
     await expect(page.getByTestId(TESTIDS.reactionConfirm)).toBeEnabled();
-    const baseline = await snap(page).then((s) => ({ cash: s.players.map((p: any) => p.cash) }));
+    const baseline = await snap(page).then((s) => ({
+      cash: s.players.map((p: any) => p.cash),
+    }));
     await page.getByTestId(TESTIDS.reactionConfirm).click();
     await pollReactionSettled(page, baseline, { countered: true });
   });

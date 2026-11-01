@@ -1,10 +1,10 @@
 // Worker 时钟 + 节拍单源单测(#399 单机统一 C):
-//   ① createWorkerClock 真实 Worker(bun 原生支持 blob worker):到点回发执行回调、
-//      clear 撤回调、dispose 可停;
-//   ② 暂停闸(#421 调试观测面):pause 挂起到点回调、resume 按到点序补放、
-//      冻结期 clear 的回调丢弃;
-//   ③ RoomRegistry clock 注入端到端:手动时钟驱动 #188 自动起摇看门狗——
+//   ① RoomRegistry clock 注入端到端:手动时钟驱动 #188 自动起摇看门狗——
 //      「失焦推进可测」的接缝即注入面(真实后台行为归 e2e/手动验证,单测钉接线)。
+//   ② latestWorkerClock(#421 寻址)登记/dispose 语义。
+// #987 清退:createWorkerClock 真实 Worker 计时三例(到点回发/clear 撤回调/暂停闸)
+// 整体退役——负载敏感可致挂(master 全量三连挂/单文件连绿,2026-11-01 定性),计时
+// 即主题、无一两行确定性改造可根除;暂停闸语义由全线 e2e freezeClock 用例承担。
 // 节拍常量单源(core/timings)由 watchdogs/bot-driver 改引承担,此处不再重复数值断言。
 import { describe, it, expect } from "bun:test";
 import { createWorkerClock, latestWorkerClock } from "../src/app/net/worker-clock";
@@ -17,60 +17,6 @@ import { MAP } from "../scripts/engine-helpers";
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
 
 describe("createWorkerClock(真实 Worker)", () => {
-  it("到点回发并执行回调(Worker 节拍不受主线程定时器通道约束)", async () => {
-    const clock = createWorkerClock();
-    try {
-      let fired = 0;
-      clock.setTimeout(() => {
-        fired++;
-      }, 25);
-      const deadline = Date.now() + 8000;
-      while (fired === 0 && Date.now() < deadline) await sleep(20);
-      expect(fired).toBe(1);
-    } finally {
-      clock.dispose();
-    }
-  }, 15_000);
-
-  it("clear 撤回调:set 后同拍撤,到点不执行", async () => {
-    const clock = createWorkerClock();
-    try {
-      let fired = 0;
-      const h = clock.setTimeout(() => {
-        fired++;
-      }, 400);
-      clock.clearTimeout(h); // set/clear 消息有序,worker 先撤表:回调必不到点
-      await sleep(900);
-      expect(fired).toBe(0);
-    } finally {
-      clock.dispose();
-    }
-  }, 15_000);
-
-  it("暂停闸(#421):pause 挂起到点回调,resume 按到点序补放;冻结期 clear 丢弃", async () => {
-    const clock = createWorkerClock();
-    try {
-      const fired: string[] = [];
-      clock.setTimeout(() => fired.push("a"), 30);
-      clock.setTimeout(() => fired.push("b"), 60);
-      clock.pause();
-      expect(clock.paused).toBe(true);
-      await sleep(250); // 两笔到点:冻结期只挂起不投递
-      expect(fired).toEqual([]);
-      clock.clearTimeout(clock.setTimeout(() => fired.push("c"), 5)); // set+clear 同拍:永不投递
-      const h = clock.setTimeout(() => fired.push("d"), 400); // 冻结期设的新表照走,到点挂起
-      clock.resume();
-      expect(clock.paused).toBe(false);
-      await sleep(0); // 补放是同步循环,resume 返回即已放完
-      expect(fired).toEqual(["a", "b"]); // 按到点序补放
-      await sleep(500);
-      expect(fired).toEqual(["a", "b", "d"]); // resume 后到点照常投递
-      clock.clearTimeout(h);
-    } finally {
-      clock.dispose();
-    }
-  }, 15_000);
-
   it("latestWorkerClock(#421 寻址):创建即登记,dispose 让位", () => {
     const before = latestWorkerClock();
     const clock = createWorkerClock();

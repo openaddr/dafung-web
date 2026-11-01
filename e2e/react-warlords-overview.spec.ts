@@ -203,8 +203,9 @@ test.describe("状态挂点(#702 ③)", () => {
   });
 });
 
-test.describe("打开不暂停(#702 ④)", () => {
+test.describe("打开不暂停(#702 ④)", { tag: "@slow" }, () => {
   test("冻时钟外弹层开着对局照走(快照推进留痕),弹层恒开", async ({ page }) => {
+    // 慢池(#1026):单例实测 >30s(40.6s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
     // seed 1010 起手唯反应「半路杀出」+ 自由流动会踩招贤/购地停靠:清手牌(拦检窗

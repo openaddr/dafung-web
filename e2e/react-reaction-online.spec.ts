@@ -167,7 +167,8 @@ async function driveToDualWindow(host: Page, guest: Page, timeout = 110_000): Pr
   }
 }
 
-test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", () => {
+test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: "@slow" }, () => {
+  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
   // 六例超时统一 120s(#291):describe 级生效——建房/选都/Before Hooks/重试全程同预算,
   // 不靠用例体内逐例声明。
   test.setTimeout(120_000);

@@ -78,69 +78,75 @@ async function setAutopilot(page: Page, seat: number, on: boolean) {
   await expect(page.getByTestId(TESTIDS.seatPop(seat))).toBeHidden({ timeout: 5_000 });
 }
 
-test("双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有界断言,#580)", async ({ browser }) => {
-  // #580 单节拍 2s/步:整局分钟级,本例**不骑终局**——有界断言:双端开托管 → 等推进 →
-  // host 中途收回(按钮复位 + 推进停驻)→ 重开 → 推进恢复。「两端胜者一致」由 bun 层
-  // 全 bot/托管局泵送对拍覆盖(test/room-recovery 终态一致用例),不在 UI 层重复。
-  test.setTimeout(240_000);
-  const [host, guest] = await twoClients(browser);
-  try {
-    // 两端都开托管:Setup 由托管代选
-    await setAutopilot(host, 0, true);
-    await setAutopilot(guest, 1, true);
-    // 轮询等推进:进 Playing(选都 2 步 ≈ 4s;超时按步数×2s 富余给)
-    await expect
-      .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
-        timeout: 60_000,
-        message: "托管代选完 Setup 进 Playing",
-      })
-      .toBe("Playing");
-    // 确信「推进中」而非「恰停」:turnNumber 再前进(每回合数步,2s/步)
-    const turnAtPlaying = (await coreState(host)).turnNumber;
-    await expect
-      .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
-        timeout: 60_000,
-        message: "托管推进中(turnNumber 前进)",
-      })
-      .toBeGreaterThan(turnAtPlaying);
-    // 中途收回 host 托管:生效广播回读开关复位(aria-checked=false)
-    await setAutopilot(host, 0, false);
-    // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点;
-    // guest 仍托管,其当前回合收尾后才轮到 host——轮询窗按步数×2s 富余给)
-    await expect
-      .poll(
-        async () => {
-          const s = await coreState(host).catch(() => null);
-          if (s == null) return "";
-          return s.decisionOwner === 0 &&
-            s.turnPhase !== "Roll" &&
-            s.turnPhase !== "AwaitingReaction"
-            ? (s.turnPhase ?? "")
-            : "";
-        },
-        { timeout: 90_000, message: "收回后链在 host 决策点停" },
-      )
-      .not.toBe("");
-    // 冻结断言:停点后 3s 状态零变化且仍在对局(决策门在 host,guest 托管也推不动)
-    const frozen = await coreState(host);
-    expect(frozen.phase).toBe("Playing");
-    await host.waitForTimeout(3_000);
-    expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
-    // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)。停点决策卷轴在挂不碍事:
-    // 格 tap 直派穿遮罩,托管接管后已挂决策由托管代发(与旧钮同通路)。
-    await setAutopilot(host, 0, true);
-    await expect
-      .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
-        timeout: 60_000,
-        message: "重开托管后推进恢复(turnNumber 前进)",
-      })
-      .toBeGreaterThan(frozen.turnNumber);
-  } finally {
-    for (const c of [host, guest]) await c.context().close();
-  }
-});
+test(
+  "双端托管:推进,host 中途收回即停(冻结),重开推进恢复(有界断言,#580)",
+  { tag: "@slow" },
+  async ({ browser }) => {
+    // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
+    // #580 单节拍 2s/步:整局分钟级,本例**不骑终局**——有界断言:双端开托管 → 等推进 →
+    // host 中途收回(按钮复位 + 推进停驻)→ 重开 → 推进恢复。「两端胜者一致」由 bun 层
+    // 全 bot/托管局泵送对拍覆盖(test/room-recovery 终态一致用例),不在 UI 层重复。
+    test.setTimeout(240_000);
+    const [host, guest] = await twoClients(browser);
+    try {
+      // 两端都开托管:Setup 由托管代选
+      await setAutopilot(host, 0, true);
+      await setAutopilot(guest, 1, true);
+      // 轮询等推进:进 Playing(选都 2 步 ≈ 4s;超时按步数×2s 富余给)
+      await expect
+        .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
+          timeout: 60_000,
+          message: "托管代选完 Setup 进 Playing",
+        })
+        .toBe("Playing");
+      // 确信「推进中」而非「恰停」:turnNumber 再前进(每回合数步,2s/步)
+      const turnAtPlaying = (await coreState(host)).turnNumber;
+      await expect
+        .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
+          timeout: 60_000,
+          message: "托管推进中(turnNumber 前进)",
+        })
+        .toBeGreaterThan(turnAtPlaying);
+      // 中途收回 host 托管:生效广播回读开关复位(aria-checked=false)
+      await setAutopilot(host, 0, false);
+      // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点;
+      // guest 仍托管,其当前回合收尾后才轮到 host——轮询窗按步数×2s 富余给)
+      await expect
+        .poll(
+          async () => {
+            const s = await coreState(host).catch(() => null);
+            if (s == null) return "";
+            return s.decisionOwner === 0 &&
+              s.turnPhase !== "Roll" &&
+              s.turnPhase !== "AwaitingReaction"
+              ? (s.turnPhase ?? "")
+              : "";
+          },
+          { timeout: 90_000, message: "收回后链在 host 决策点停" },
+        )
+        .not.toBe("");
+      // 冻结断言:停点后 3s 状态零变化且仍在对局(决策门在 host,guest 托管也推不动)
+      const frozen = await coreState(host);
+      expect(frozen.phase).toBe("Playing");
+      await host.waitForTimeout(3_000);
+      expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
+      // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)。停点决策卷轴在挂不碍事:
+      // 格 tap 直派穿遮罩,托管接管后已挂决策由托管代发(与旧钮同通路)。
+      await setAutopilot(host, 0, true);
+      await expect
+        .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
+          timeout: 60_000,
+          message: "重开托管后推进恢复(turnNumber 前进)",
+        })
+        .toBeGreaterThan(frozen.turnNumber);
+    } finally {
+      for (const c of [host, guest]) await c.context().close();
+    }
+  },
+);
 
-test("托管收回:开关复位,轮到自己时行军恢复可用", async ({ browser }) => {
+test("托管收回:开关复位,轮到自己时行军恢复可用", { tag: "@slow" }, async ({ browser }) => {
+  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
   // #580 单节拍后本例定式保留:guest 开托管(2s/步爬行,对局绝无跑飞之虞),host 开
   // 托管后**立即**收回(仍在 Setup);收回后 host=真人决策门,对局必停在 human-turn。
   test.setTimeout(150_000);
