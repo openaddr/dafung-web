@@ -234,7 +234,7 @@ export const FX = {
     return scStage(Motion.dur.fx);
   },
   /** 撒币错拍步长(#885):Coin 撒币档 animationDelay 按 (c%4) 步进错拍,随通道
-   *  缩放(同 DICE.landRingDelayMs 口径:delay 也入通道,窗账才全同向);最迟一拍
+   *  缩放(同 #849 棒3 口径:delay 也入通道,窗账才全同向);最迟一拍
    *  3×本值 + coinRainMs ≤ coinBurstMs(choreography-invariants 钉)。 */
   get coinStaggerMs() {
     return scStage(45);
@@ -253,49 +253,34 @@ export const FX = {
   },
 } as const;
 
-/** 掷骰签面节奏(#483 3D 骰退役,签面转正为唯一掷骰演出;演出编排族,吃 scStage;时长集中调参)。
- *  S7 两段式(#513/#492 拍板:标准档摇签 0.6s):先摇签段(墨字虚影 60ms 级轮换,
- *  全段恰 10 次换签,DiceOverlay 按 shakeMs/10 求轮换周期)→ 大字 outBack 落定
- *  (金圈同拍+桌面微震 4px,desk.ts)→ 停留 → 渐隐。
- *  C1 bot 掷骰半速:bot 摇签/停留都压半,回合节奏优先。任何掷骰(含 bot)结束后
- *  都有 ≥300ms 可读结果(holdMs+fadeOutMs,由 test/choreography-invariants.test.ts
- *  钉住;非终局局的承诺——终局封场(orchestrator.finishPresentation)后骰子演出
- *  可在事件边界被整体截断,是生命周期规则不是回归)。
- *  与 token 同值者(holdMs=--dur-reveal / botHoldMs=--dur-slow / fadeOutMs=--dur-med)
- *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。摇签段无 token 对应,保留字面量。 */
+/** 掷骰签节奏(#927,ADR-0043:掷骰签替代全屏签面,摇签换字/压暗幕/落点金圈退役;
+ *  演出编排族,吃 scStage;时长集中调参)。两段式:先虚位拍(淡签静态现身一拍,
+ *  无换字无旋转——旧 600ms 换字轮换是晃眼/卡顿源,整段退役)→ 真字 outBack 钤落
+ *  (落定骰声同拍)→ 停留 → 渐隐。钤于顶中回合胶囊侧旁,锚定与形制见 DiceOverlay 头注。
+ *  单节拍:人类/bot 同参数(diceFast 半速分档整条退役——统一原则,AGENTS.md;
+ *  同向先例=托管单节拍 ADR-0028)。任何掷骰结束后都有 ≥300ms 可读结果
+ *  (holdMs+fadeOutMs,由 test/choreography-invariants.test.ts 钉住;非终局局的承诺
+ *  ——终局封场(orchestrator.finishPresentation)后骰子演出可在事件边界被整体截断,
+ *  是生命周期规则不是回归)。与 token 同值者(holdMs=--dur-slow / fadeOutMs=--dur-med)
+ *  经 Motion 取数;改 Motion 一处 CSS/JS 同步。虚位/钤落无 token 对应,保留字面量。 */
 export const DICE = {
-  get shakeMs() {
-    return scStage(600);
-  }, // 摇签段(人类标准档 0.6s,#492);fx.css .dice-sign-shaking 虚影态同段硬同步
-  get botShakeMs() {
-    return scStage(300);
-  }, // 摇签段(bot 半速档)
+  /** 虚位拍(淡签现身):签卡淡轮廓+淡「签」字静态现身一拍(「有一点延迟,但不要再有
+   *  乱七八糟的动画」的酝酿拍);入场渐显同段(fx.css .dice-overlay-in 时长经本值
+   *  由 DiceOverlay 内联注入,#849 棒3 口径:keyframe 只管形,时长消费点内联)。 */
+  get readyMs() {
+    return scStage(250);
+  },
   get holdMs() {
-    return scStage(Motion.dur.reveal);
-  }, // 签面停留(人类);与 --dur-reveal 同源(经 Motion)
-  get botHoldMs() {
     return scStage(Motion.dur.slow);
-  }, // 签面停留(bot 半速档);与 --dur-slow 同源(经 Motion)
+  }, // 签面停留;与 --dur-slow 同源(经 Motion);钤落弧须落在预算内(invariants 钉)
   get fadeOutMs() {
     return scStage(Motion.dur.med);
   }, // overlay 渐隐退场;与 --dur-med 同源(经 Motion),fx.css .dice-overlay-out 消费同一 token
-  /** 落定钤落弧全长(#849 棒3):fx.css dice-sign-land 的 outBack 钤落时长,落定拍
-   *  由 DiceOverlay 消费点内联注入(keyframe 只管形不时刻度)。须落在 holdMs
-   *  (600ms)预算内(choreography-invariants 钉);0.26s 原字面量同此基准。 */
+  /** 落定钤落弧全长(outBack 过冲回弹):fx.css dice-sign-land 的时长,落定拍由
+   *  DiceOverlay 消费点内联注入(keyframe 只管形不时刻度,#849 棒3 同口径)。须落在
+   *  holdMs 预算内(choreography-invariants 钉);0.26s 原字面量同此基准。 */
   get landMs() {
     return scStage(260);
-  },
-  /** 落点金圈起爆延迟(#849 棒1):落定拍插环后等 outBack 钤落成形(landMs 钤落弧
-   *  的前段)再炸,环不被签面吞。DiceOverlay 经 animationDelay 内联注入 fx.css
-   *  .fx-dice-ring(消费点内联,随 e2e 倍率缩放)。 */
-  get landRingDelayMs() {
-    return scStage(80);
-  },
-  /** 落点金圈全长(#849 棒3):fx.css fx-dice-ring 时长,与 landRingDelayMs 同拍
-   *  由 DiceOverlay 内联注入(delay+全长都随通道缩放);delay+全长 ≤ holdMs
-   *  预算(choreography-invariants 钉);0.5s 原字面量同此基准。 */
-  get landRingMs() {
-    return scStage(500);
   },
 } as const;
 
@@ -315,7 +300,8 @@ export const DUEL = {
   get windupMs() {
     return scStage(80);
   },
-  /** 签面·并行起摇:虚影轮换段(与 DICE.shakeMs 同值,语义独立——全速恒定) */
+  /** 签面·并行起摇:虚影轮换段(旧与行军摇签同值;#927 行军侧摇签退役,拼点侧
+   *  保留本段全速恒定——公共大事件非回合等待,#637 口径) */
   get shakeMs() {
     return scStage(600);
   },

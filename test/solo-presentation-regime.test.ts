@@ -18,11 +18,8 @@ import type { MarchSegmentFrames } from "../src/app/fx/presentation";
 const itSlow = it.skipIf(!process.env.DAFUNG_SLOW);
 
 // ── 时长忠实 mock(播放时长对齐生产 sink;DOM 触点全部 stub)──
-let diceFast = false;
-const diceTotalMs = (fast: boolean): number =>
-  fast
-    ? DICE.botShakeMs + DICE.botHoldMs + DICE.fadeOutMs
-    : DICE.shakeMs + DICE.holdMs + DICE.fadeOutMs;
+// 掷骰签单节拍(#927):虚位+停留+渐隐,人类/bot 同参数(diceFast 分档退役)。
+const diceTotalMs = (): number => DICE.readyMs + DICE.holdMs + DICE.fadeOutMs;
 const duelTotalMs = (): number =>
   DUEL.curtainMs + DUEL.shakeMs + DUEL.clackGapMs + DUEL.verdictMs + DUEL.holdMs + DUEL.fadeOutMs;
 const segDuration = (a: { x: number; y: number }, b: { x: number; y: number }): number => {
@@ -38,13 +35,10 @@ mock.module("../src/app/fx/audio", () => ({
   FILE_TRIM: {},
 }));
 mock.module("../src/app/fx/DiceOverlay", () => ({
-  setDiceFast: (f: boolean) => {
-    diceFast = f;
-  },
   finishDiceOverlay: () => {},
   diceApi: {
     roll: async () => {
-      await delay(diceTotalMs(diceFast));
+      await delay(diceTotalMs());
     },
   },
   DiceOverlay: () => null,

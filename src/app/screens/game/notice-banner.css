@@ -104,3 +104,12 @@
   padding-left: 8px;
   border-left: 1px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
 }
+
+/* 掷骰签锚点(#927,ADR-0043):常驻零宽件,flex 顺位紧随回合胶囊之后——几何=
+   胶囊右缘(槽行竖直中线),掷骰签钤落定位读它的矩形(DiceOverlay)。本体不可见
+   不占布局;随槽挂载与槽同寿,不随回合宣告重挂(瞬态节点不可为锚,见 testids 注)。 */
+.game-layout .notice-slot .dice-sign-anchor {
+  width: 0;
+  height: 0;
+  flex: 0 0 0px;
+}

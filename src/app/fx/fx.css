@@ -8,24 +8,25 @@
    desk.ts)内联注入 fx/timings.ts 的 scStage getter(随 e2e 键与追帧倍率缩放,
    清理窗与动画全长同源),类与内联注入在同一消费点成对出现。票面六处(dice-
    sign-land/fx-dice-ring/fx-svg-seal/fx-svg-pulse/jline 三条/duel-sign-land)棒3
-   收口;#885 补收同病类四族(desk 震屏 0.4s/0.45s→DESK 表、旌旗缓倒 1.1s→
+   收口(fx-dice-ring 已随 #927 退役,其注入消费点随之消失;清单系历史存档);
+   #885 补收同病类四族(desk 震屏 0.4s/0.45s→DESK 表、旌旗缓倒 1.1s→
    CEREMONY.fallMs、墨渍 1s→FX.inkBloomMs、浮字/铜钱 --dur-fx 系→FX.floaterMs/
    coinRainMs),编排类 keyframe 至此全量入通道,零字面量时长残留。
    例外:黑色阴影 rgba(0,0,0,*) 属投影而非色板,保留字面量。 */
 
-/* ── 掷骰签面全屏覆盖层(DiceOverlay 掷骰时 append 到 body,样式必须在此定义)──
+/* ── 掷骰签(DiceOverlay 掷骰时 append 到 body,样式必须在此定义)──
    ⚠ 教训(2026-08-16):本规则原住旧 style.css,阶段 10 删旧层时被误删——
    overlay 没有 fixed 定位就瘫在文档流末尾被 overflow:hidden 吃掉,骰子动画
    自此隐形而 e2e(swiftshader)不验视觉,一路全绿未察觉。body 上挂载的元素
-   其样式必须随迁,不能只依赖组件内样式。 */
+   其样式必须随迁,不能只依赖组件内样式。
+   #927(ADR-0043):全屏压暗幕退役——掷骰签钤于顶中回合胶囊侧旁,坐标(left/top)
+   由 DiceOverlay 内联注入,不再 inset:0、不再带 radial 压暗背景。 */
 .dice-overlay {
   position: fixed;
-  inset: 0;
   z-index: 45;
   pointer-events: none;
-  /* 视觉重做 v2:压暗口径与卷轴遮罩同族(墨褐 30,23,12),四角更深——与全局案头晕影同语 */
-  background: radial-gradient(ellipse at center, rgba(30, 23, 12, 0.38), rgba(18, 13, 6, 0.62));
-  animation: dice-overlay-in var(--dur-med) var(--ease-out);
+  transform: translateY(-50%); /* top=胶囊竖直中线,签卡半高上提对齐 */
+  animation: dice-overlay-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 虚位段,DiceOverlay 内联注入 */
 }
 @keyframes dice-overlay-in {
   from {
@@ -36,8 +37,8 @@
   }
 }
 
-/* 渐隐退场:覆盖入场动画(display:none 硬切的替代;--dur-med=250ms 与 DICE.fadeOutMs 同步,
-   改时长须两处同改)。退场缓动归 --ease-in。 */
+/* 渐隐退场:覆盖入场动画(display:none 硬切的替代);时长=DICE.fadeOutMs,
+   DiceOverlay 内联注入(随通道缩放,清理窗与动画全长同源单值)。退场缓动归 --ease-in。 */
 .dice-overlay.dice-overlay-out {
   animation: dice-overlay-out var(--dur-med) var(--ease-in) forwards;
 }
@@ -50,40 +51,34 @@
   }
 }
 
-/* 掷骰大字签面(S7 两段式,#513/#492:摇签→落定):
-   底色、双线框、墨字为旧 3D 骰面材质的同款字面量(「骰面」视觉身份的存续)——
+/* 掷骰小签卡(#927,ADR-0043 缩小制式:64px 字/90px 卡,旧全屏签面 96px 字/132px 卡
+   退役):底色、双线框、墨字为旧 3D 骰面材质的同款字面量(「骰面」视觉身份的存续)——
    这些字面量是「骰面材质」而非色板色,故不引 token;
    黑色阴影属投影,保留字面量。
    两段状态由 DiceOverlay 切类:
-   - .dice-sign-shaking(第一段 摇签):签卡淡轮廓+墨字浅金虚影(#849 棒1,蓄势可读),
-     字面轮换与微旋由 JS 按拍驱动(DICE.shakeMs/10 周期);
-   - .dice-sign-land(第二段 落定):大字 outBack 钤落(过冲回弹),签卡随之现身。 */
+   - .dice-sign-ready(第一段 虚位):签卡淡轮廓+淡「签」字静态现身一拍(旧摇签换字
+     轮换退役后的静态化,#849 棒1 蓄势可读口径的存续);
+   - .dice-sign-land(第二段 落定):真字 outBack 钤落(过冲回弹)。 */
 .dice-sign {
-  position: absolute;
-  left: 50%;
-  top: 64%;
-  min-width: 132px;
-  padding: 4px 22px 14px;
-  transform: translate(-50%, -50%);
+  min-width: 90px;
+  padding: 2px 14px 10px;
   background: linear-gradient(135deg, #ecdcb0, #c9b27a);
-  border: 4px solid #6e5a2c;
-  border-radius: 10px;
-  outline: 1.5px solid #6e5a2c; /* 内圈细线:骰面双线框的 CSS 对应 */
-  outline-offset: -10px;
+  border: 3px solid #6e5a2c;
+  border-radius: 8px;
+  outline: 1px solid #6e5a2c; /* 内圈细线:骰面双线框的 CSS 对应 */
+  outline-offset: -7px;
   font-family: var(--font-brush);
-  font-size: 96px;
+  font-size: 64px;
   line-height: 1.25;
   text-align: center;
   color: #2b2317;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.45);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.4);
   pointer-events: none;
 }
-.dice-sign.dice-sign-shaking {
-  /* 摇签蓄势(#849 棒1,P1-B2:旧全透明+墨字虚影整体 0.5,压玄墨幕净对比≈无
-     =600ms 死黑,「蓄势」第一节空拍):字影转浅金(骰面米金字族的半透档)+
-     签卡淡轮廓(border 收 2px、底 5% 米金)——蓄势拍读得出「一枚签在摇」,
-     落定拍真面仍靠 outBack 钤落反差。米金 236,220,176 字面量同 .dice-sign
-     骰面材质口径(非色板色)。 */
+.dice-sign.dice-sign-ready {
+  /* 虚位(旧摇签态的静态化,#927):字影浅金(骰面米金字族的半透档)+签卡淡轮廓
+     (border 收 2px、底 5% 米金)——读得出「一枚签在酝酿」,落定拍真面仍靠 outBack
+     钤落反差。米金 236,220,176 字面量同 .dice-sign 骰面材质口径(非色板色)。 */
   background: rgba(236, 220, 176, 0.05);
   border-width: 2px;
   border-color: rgba(236, 220, 176, 0.16);
@@ -91,7 +86,7 @@
   box-shadow: none;
   color: rgba(236, 220, 176, 0.35);
 }
-/* 落定拍:#849 棒3 时长收口——outBack 钤落须落在 DICE.holdMs(600ms)预算内,
+/* 落定拍:#849 棒3 时长收口——outBack 钤落须落在 DICE.holdMs 预算内,
    时长由 DiceOverlay 落定拍内联注入 DICE.landMs(随通道缩放,预算关系由
    choreography-invariants 钉);back 类缓动统一 --ease-out-back(签面/标题弹跳专用 token)。 */
 .dice-sign.dice-sign-land {
@@ -99,59 +94,20 @@
 }
 @keyframes dice-sign-land {
   from {
-    transform: translate(-50%, -50%) scale(1.6);
+    transform: scale(1.6);
     opacity: 0;
   }
   60% {
     opacity: 1;
   }
   to {
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
     opacity: 1;
   }
 }
 
-/* 落点金圈(S7):大字落定同拍绽放(签面落点处一圈金环扩散即散),
-   与签面同位(50%/64%)且在其下层(z 序=DOM 序,ring 先插)。
-   #849 棒1(P2「金圈被签面吞」):基环 190→260px+终态 scale 1.15→1.5——
-   环径吃满签面外缘才读得出「落点炸开」;animation-delay/时长(#849 棒3,
-   DICE.landRingDelayMs/DICE.landRingMs)均由 DiceOverlay 落定拍经内联注入
-   (等 outBack 钤落成形再炸、随通道缩放),CSS 侧不写 delay(基态 opacity 0 +
-   forwards,延迟期不可见)。 */
-.fx-dice-ring {
-  position: absolute;
-  left: 50%;
-  top: 64%;
-  width: 260px;
-  height: 260px;
-  margin: -130px 0 0 -130px;
-  border-radius: 50%;
-  border: 3px solid var(--color-gold-bright);
-  box-shadow: 0 0 18px color-mix(in srgb, var(--color-gold-bright) 70%, transparent);
-  pointer-events: none;
-  opacity: 0;
-  animation: fx-dice-ring var(--ease-out) forwards;
-}
-@keyframes fx-dice-ring {
-  /* 两段形(#849 棒1):--ease-out 前载极陡(tokens.css cubic-bezier(0.22,1,0.36,1)),
-     单段 0.95→0 会让可见窗塌进前 ~25%(暗幕上环没读出就散)——中停点把「炸到
-     全径」与「驻散」拆开:0→45% eased 冲径(环径先到 1.4,opacity 仍 0.6 驻留),
-     45→100% 线性散尽。 */
-  0% {
-    transform: scale(0.35);
-    opacity: 0.95;
-    animation-timing-function: var(--ease-out);
-  }
-  45% {
-    transform: scale(1.4);
-    opacity: 0.6;
-    animation-timing-function: linear;
-  }
-  100% {
-    transform: scale(1.5);
-    opacity: 0;
-  }
-}
+/* 落点金圈已随 #927 整体退役(ADR-0043):「落点炸开」的语义属于旧桌面中央制式,
+   顶中胶囊侧旁的一次性小签卡无需落点演出,落定感由钤落弧+骰落声+签面芯片揭示承担。 */
 
 /* ── 桌面微震(S7 #492 拍板 4px 档,大事件限定;适用事件清单与原则单源
    在 DESIGN §6 动效规范,此处只指路不枚举)──
@@ -725,7 +681,7 @@
   box-shadow: none;
 }
 .duel-sign.duel-sign-shaking .duel-sign-face {
-  opacity: 0.55; /* 墨字虚影(轮换由 JS 驱动,同 .dice-sign-shaking 口径) */
+  opacity: 0.55; /* 墨字虚影(轮换由 JS 驱动;掷骰签侧同机制已随 #927 静态化退役,拼点侧保留) */
 }
 /* 摇签墨旋(#769):空签身底纹——自绘墨涡 SVG(交替半圆三匝,零位图)浮在虚影字上
    旋转(虚影字净透明度 ~0.3,墨旋 DOM 序在其后=衬其上,才读得出转)。周期 =
@@ -1124,20 +1080,12 @@
 }
 
 /* ── S7 演出 reduced-motion 补充登记(app.css 全局兜层压 0.01ms 之外的两处增量):
-   ①摇签虚影是 JS 换字面非 CSS 动画,兜层管不到——reduced-motion 下字影隐去,
-   只留落定真面(拍数不变,e2e 不受影响);掷骰签面与拼点签面同口径(#637)。
-   ②震屏为 transform 位移,兜层压短后仍会跳一帧 4px——直接停用。
-   ③判词段金圈先行的过渡延迟(#760):兜层只压时长不压 delay——reduced-motion 下
-   沉暗/放大一律即时到位(加权是状态不是动效,先行编排退场)。 ── */
+   ①拼点摇签虚影是 JS 换字面非 CSS 动画,兜层管不到——reduced-motion 下字影隐去,
+   只留落定真面(拍数不变,e2e 不受影响);掷骰签的虚位是静态淡印非动效,#927 起
+   无需登记(#637 口径的拼点侧保留)。②震屏为 transform 位移,兜层压短后仍会跳
+   一帧 4px——直接停用。③判词段金圈先行的过渡延迟(#760):兜层只压时长不压
+   delay——reduced-motion 下沉暗/放大一律即时到位(加权是状态不是动效,先行编排退场)。 ── */
 @media (prefers-reduced-motion: reduce) {
-  .dice-sign.dice-sign-shaking {
-    color: transparent;
-    /* 淡轮廓一并隐去(#849 棒1:摇签段的浅金签卡是蓄势动效的一部分,reduced
-       motion 下维持「字影隐去只留落定真面」原口径,不落静态卡)。 */
-    background: transparent;
-    border-color: transparent;
-    outline-color: transparent;
-  }
   .duel-sign.duel-sign-shaking .duel-sign-face {
     color: transparent;
   }

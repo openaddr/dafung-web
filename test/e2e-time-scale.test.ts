@@ -94,13 +94,12 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(CEREMONY.settleMs).toBe(2600);
   });
 
-  it("DICE", () => {
-    expect(DICE.holdMs).toBe(Motion.dur.reveal);
-    expect(DICE.botHoldMs).toBe(Motion.dur.slow);
+  it("DICE(#927 掷骰签单节拍:虚位/停留/渐隐/钤落,分档与金圈字段退役)", () => {
+    expect(DICE.readyMs).toBe(250);
+    expect(DICE.holdMs).toBe(Motion.dur.slow);
     expect(DICE.fadeOutMs).toBe(Motion.dur.med);
-    // #849 棒3:落定钤落弧/落点金圈全长(消费点内联注入)
+    // #849 棒3:落定钤落弧全长(消费点内联注入)
     expect(DICE.landMs).toBe(260);
-    expect(DICE.landRingMs).toBe(500);
   });
 
   it("DUEL(#849 棒3:拼点签面落定钤落弧入通道)", () => {

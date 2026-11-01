@@ -82,7 +82,7 @@ describe("事件批直译 extractBatchEvents(引擎真实转移)", () => {
     finishSetup(e);
     const events = stepEvents(e, () => e.submitCommand({ type: "rollAndMove" }));
     const die = e.presentation.lastRoll!.die;
-    expect(events[0]).toEqual({ kind: "diceRolled", die, fast: false });
+    expect(events[0]).toEqual({ kind: "diceRolled", die });
     if (e.presentation.lastMove) {
       expect(events[1].kind).toBe("tokenMoved");
       if (events[1].kind === "tokenMoved") {

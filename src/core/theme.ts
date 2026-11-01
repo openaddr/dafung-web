@@ -147,7 +147,7 @@ export const Motion = {
     med: 250,
     /** 大件入场单拍(400ms;对齐旧 slow 0.4s 口径)。 */
     slow: 400,
-    /** 胜利阶梯、镜头等揭晓感长拍(600ms);骰子落定停留 DICE.holdMs 同源(经 Motion)。 */
+    /** 胜利阶梯、镜头等揭晓感长拍(600ms)。 */
     reveal: 600,
     /** 浮字类瞬时演出(1300ms)。fx/timings.ts FX.floaterMs 与 --dur-fx 同源(经 Motion)。 */
     fx: 1300,

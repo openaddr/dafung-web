@@ -39,6 +39,10 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 - 禁止「理论上到不了」式防御分支与极端场景静默保护;真到了就是求解逻辑有 bug,应该崩出来。
 - 例外:①显式向用户报错的 catch(UI setError/pushHint);②纯 UI 空态展示(如「暂无可用地图」)——正常业务态,不是兜底。
 
+## 统一原则(全项目贯穿,#927 拍板)
+
+**能一套就不做两套**:玩家可见的演出、节奏与机制,对人类/bot、单机/联机一律同一套参数与形制;只有语义不同(事件种类不同,如拼点≠行军)才允许形制不同,禁止按玩家身份或运行模式分参数档。首例执行:骰子演出 diceFast 半速分档退役(#927);同向先例:托管单节拍三路代打归一([ADR-0028](./docs/adr/0028-takeover-is-autopilot.md))。
+
 ## 架构红线(所有代码改动必须遵守)
 
 1. **`src/core/` 零 DOM 依赖**:不 import 任何 `app/`(React 层)或 DOM API——引擎将来上服务器,任何耦合都阻断联机化。✅ `import type { Player } from "./types"`;❌ `import { useGameStore } from "../app/store/gameStore"`。

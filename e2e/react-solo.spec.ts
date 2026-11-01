@@ -291,7 +291,7 @@ test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动�
   }
   await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({ timeout: 60_000 });
   // 终局封场(orchestrator.finishPresentation):真终局批先于胜利屏入队,封场后
-  // 骰子 overlay(z-45,压胜利屏)不得残留——在场一张随封场摘除,后续掷骰不再播。
+  // 掷骰签 overlay(z-45)不得残留——在场一张随封场摘除,后续掷骰不再播。
   await expect(page.locator(".dice-overlay")).toHaveCount(0, { timeout: 2_000 });
   const s = await snap(page);
   expect(s.isOver).toBe(true);
