@@ -53,6 +53,8 @@ function huanyouRoomSnapshot(): { msg: Record<string, unknown>; botCapitalIndex:
     ],
     seed: 430,
     mapId: "huanyou",
+    targetNetWorth: HUANYOU.map.targetNetWorth,
+    startingCash: HUANYOU.map.startingCash,
   });
   engine.doDraftRoll();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {

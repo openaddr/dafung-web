@@ -21,6 +21,7 @@ function soloEngine(seed: number): GameEngine {
       { name: "宋", isBot: true },
     ],
     targetNetWorth: 30000,
+    startingCash: 10000,
   });
 }
 

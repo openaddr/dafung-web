@@ -21,6 +21,7 @@ function makeEngine(
       { name: "B", isBot: false, guohao: "蜀" },
     ],
     targetNetWorth: 30000,
+    startingCash: 10000,
     ...(encounter
       ? {
           encounter: {

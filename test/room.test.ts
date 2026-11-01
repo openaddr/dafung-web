@@ -1421,6 +1421,8 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
           { name: "座 1", isBot: false },
           { name: "座 2", isBot: false },
         ],
+        targetNetWorth: MAP.targetNetWorth,
+        startingCash: MAP.startingCash,
       });
       replica.restoreFromSnapshot(firstSnap as never);
 

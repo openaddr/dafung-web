@@ -468,7 +468,10 @@ export class RoomRegistry {
       {
         seats: seatsCfg,
         seed: room.hostConfig.seed,
-        targetNetWorth: room.hostConfig.target,
+        // 房主未定制 target 时按地图顶层解析(与 room-record 恢复路径同语义);
+        // 起手现金产品面无旋钮,恒随地图顶层(ADR-0041 引擎无缺省)
+        targetNetWorth: room.hostConfig.target ?? map.targetNetWorth,
+        startingCash: map.startingCash,
         mapId: room.mapId!,
         // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
         // 引擎侧归一/回退单源 resolveEncounterConfig;undefined = 机遇关(缺省注入)。

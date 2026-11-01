@@ -146,6 +146,7 @@ function choreoEngine(seed = 7): GameEngine {
       { name: "B", isBot: false, guohao: "蜀" },
     ],
     targetNetWorth: 8000,
+    startingCash: 10000,
   };
   return new GameEngine(CHOREO_MAP.board, CHOREO_MAP.catalog, createDice(seed), cfg);
 }

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "targetNetWorth": 30000,
-  "startingCash": 10000,
+  "startingCash": 5000,
   "maxLevel": 3,
   "resupply": 1000,
   "tiles": [
@@ -10,10 +10,10 @@
       "name": "长安",
       "pos": [-760, -480],
       "group": "a",
-      "price": 7200,
-      "buildCost": 3600,
+      "price": 4800,
+      "buildCost": 2400,
       "tradeMult": [2, 3, 4, 5],
-      "valueByLevel": [4320, 6480, 8640, 10800],
+      "valueByLevel": [2880, 4320, 5760, 7200],
       "tradeAdd": [200, 400, 600, 1200]
     },
     {
@@ -21,10 +21,10 @@
       "name": "晋阳",
       "pos": [-380, -480],
       "group": "f",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -32,10 +32,10 @@
       "name": "幽州",
       "pos": [0, -480],
       "group": "f",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -43,10 +43,10 @@
       "name": "辽东",
       "pos": [380, -480],
       "group": "f",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "treasure"
     },
@@ -55,10 +55,10 @@
       "name": "商市城",
       "pos": [760, -480],
       "group": "f",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "market"
     },
@@ -67,10 +67,10 @@
       "name": "临淄",
       "pos": [1140, -480],
       "group": "g",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -78,10 +78,10 @@
       "name": "徐州",
       "pos": [1520, -480],
       "group": "g",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -89,10 +89,10 @@
       "name": "下邳",
       "pos": [1520, -160],
       "group": "g",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600],
       "event": "treasure"
     },
@@ -101,10 +101,10 @@
       "name": "吴郡",
       "pos": [1520, 160],
       "group": "h",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -112,10 +112,10 @@
       "name": "建业",
       "pos": [1520, 480],
       "group": "h",
-      "price": 7200,
-      "buildCost": 3600,
+      "price": 4800,
+      "buildCost": 2400,
       "tradeMult": [2, 3, 4, 5],
-      "valueByLevel": [4320, 6480, 8640, 10800],
+      "valueByLevel": [2880, 4320, 5760, 7200],
       "tradeAdd": [200, 400, 600, 1200]
     },
     {
@@ -123,10 +123,10 @@
       "name": "会稽",
       "pos": [1140, 480],
       "group": "h",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -134,10 +134,10 @@
       "name": "锦囊城",
       "pos": [760, 480],
       "group": "c",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "jinnang"
     },
@@ -146,10 +146,10 @@
       "name": "长沙",
       "pos": [380, 480],
       "group": "c",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -157,10 +157,10 @@
       "name": "零陵",
       "pos": [0, 480],
       "group": "c",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -168,10 +168,10 @@
       "name": "交州",
       "pos": [-380, 480],
       "group": "c",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "treasure"
     },
@@ -180,10 +180,10 @@
       "name": "江州",
       "pos": [-760, 480],
       "group": "d",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -191,10 +191,10 @@
       "name": "成都",
       "pos": [-1140, 480],
       "group": "d",
-      "price": 7200,
-      "buildCost": 3600,
+      "price": 4800,
+      "buildCost": 2400,
       "tradeMult": [2, 3, 4, 5],
-      "valueByLevel": [4320, 6480, 8640, 10800],
+      "valueByLevel": [2880, 4320, 5760, 7200],
       "tradeAdd": [200, 400, 600, 1200]
     },
     {
@@ -202,10 +202,10 @@
       "name": "剑阁",
       "pos": [-1520, 480],
       "group": "d",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -213,10 +213,10 @@
       "name": "汉中",
       "pos": [-1520, 160],
       "group": "d",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -224,10 +224,10 @@
       "name": "街亭",
       "pos": [-1520, -160],
       "group": "e",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [2, 3, 4, 7],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [0, 0, 0, 0]
     },
     {
@@ -235,10 +235,10 @@
       "name": "凉州",
       "pos": [-1520, -480],
       "group": "e",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -246,10 +246,10 @@
       "name": "咸阳",
       "pos": [-1140, -480],
       "group": "e",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -257,10 +257,10 @@
       "name": "函谷关",
       "pos": [-1140, -160],
       "group": "e",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "treasure"
     },
@@ -269,10 +269,10 @@
       "name": "子午谷",
       "pos": [-1140, 160],
       "group": "d",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [2, 3, 4, 7],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [0, 0, 0, 0]
     },
     {
@@ -280,10 +280,10 @@
       "name": "襄阳",
       "pos": [-760, 160],
       "group": "b",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -291,10 +291,10 @@
       "name": "卧龙城",
       "pos": [-380, 160],
       "group": "b",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "hero"
     },
@@ -303,10 +303,10 @@
       "name": "华容道",
       "pos": [0, 160],
       "group": "b",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [2, 3, 4, 7],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [0, 0, 0, 0]
     },
     {
@@ -314,10 +314,10 @@
       "name": "赤壁",
       "pos": [380, 160],
       "group": "b",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [2, 3, 4, 7],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [0, 0, 0, 0]
     },
     {
@@ -325,10 +325,10 @@
       "name": "江夏",
       "pos": [760, 160],
       "group": "b",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -336,10 +336,10 @@
       "name": "武昌",
       "pos": [1140, 160],
       "group": "h",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800]
     },
     {
@@ -347,10 +347,10 @@
       "name": "合肥",
       "pos": [1140, -160],
       "group": "g",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [2, 3, 4, 7],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [0, 0, 0, 0]
     },
     {
@@ -358,10 +358,10 @@
       "name": "锦囊城",
       "pos": [760, -160],
       "group": "g",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "jinnang"
     },
@@ -370,10 +370,10 @@
       "name": "天命城",
       "pos": [380, -160],
       "group": "a",
-      "price": 2700,
-      "buildCost": 1350,
+      "price": 1800,
+      "buildCost": 900,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [1620, 2430, 3240, 4050],
+      "valueByLevel": [1080, 1620, 2160, 2700],
       "tradeAdd": [100, 200, 400, 800],
       "event": "fate"
     },
@@ -382,10 +382,10 @@
       "name": "邺城",
       "pos": [0, -160],
       "group": "a",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -393,10 +393,10 @@
       "name": "许昌",
       "pos": [-380, -160],
       "group": "a",
-      "price": 4500,
-      "buildCost": 2250,
+      "price": 3000,
+      "buildCost": 1500,
       "tradeMult": [1, 1, 1, 1],
-      "valueByLevel": [2700, 4050, 5400, 6750],
+      "valueByLevel": [1800, 2700, 3600, 4500],
       "tradeAdd": [200, 400, 800, 1600]
     },
     {
@@ -404,10 +404,10 @@
       "name": "洛阳",
       "pos": [-760, -160],
       "group": "a",
-      "price": 7200,
-      "buildCost": 3600,
+      "price": 4800,
+      "buildCost": 2400,
       "tradeMult": [2, 3, 4, 5],
-      "valueByLevel": [4320, 6480, 8640, 10800],
+      "valueByLevel": [2880, 4320, 5760, 7200],
       "tradeAdd": [200, 400, 600, 1200]
     }
   ]

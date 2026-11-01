@@ -12,7 +12,7 @@ const HUANYOU = loadMap(huanyouData);
 const ZHONGYUAN = loadMap(zhongyuanData);
 
 function makeEngine(seed: number, seats: SeatConfig[], map = HUANYOU): GameEngine {
-  const cfg: EngineConfig = { seats, targetNetWorth: 30000 };
+  const cfg: EngineConfig = { seats, targetNetWorth: 30000, startingCash: 10000 };
   return new GameEngine(map.board, map.catalog, createDice(seed), cfg);
 }
 

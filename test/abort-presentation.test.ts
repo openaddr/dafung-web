@@ -18,6 +18,7 @@ function makeEngine(): GameEngine {
       { name: "B", isBot: false, guohao: "蜀" },
     ],
     targetNetWorth: 8000,
+    startingCash: 10000,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(1), cfg);
 }

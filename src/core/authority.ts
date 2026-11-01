@@ -128,8 +128,10 @@ export interface SeatConfig {
 
 export interface EngineConfig {
   seats: SeatConfig[];
-  targetNetWorth?: number; // 默认 30000
-  startingCash?: number; // 默认 10000
+  /** 胜利线(纯现金口径,netWorth):地图顶层必配(loadMap 校验),装配层旗标可显式覆盖 */
+  targetNetWorth: number;
+  /** 起手现金:地图顶层必配(loadMap 校验),装配层旗标可显式覆盖(ADR-0041 删引擎缺省) */
+  startingCash: number;
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
@@ -199,9 +201,6 @@ export type GameCommand =
   // optionId=选项 id(snapshot.choices 的 inquiryId 章选项)。应答回灌扩展 resolve 结算后
   // 补完被延期的回合收口(见 endTurn 问询挡板)。
   | { type: "resolveInquiry"; optionId: string };
-
-const DEFAULT_TARGET = 30000;
-const DEFAULT_CASH = 10000;
 
 /** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
 const CMD_BRIEF: Record<GameCommand["type"], string> = {
@@ -449,8 +448,8 @@ export class GameEngine {
     this.board = board;
     this.catalog = cat;
     this.dice = dice;
-    this.targetNetWorth = config.targetNetWorth ?? DEFAULT_TARGET;
-    this.startingCash = config.startingCash ?? DEFAULT_CASH;
+    this.targetNetWorth = config.targetNetWorth;
+    this.startingCash = config.startingCash;
     this.mapId = config.mapId ?? "";
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = resolveEncounterConfig(config.encounter);
