@@ -34,7 +34,7 @@ function makeController(): LocalController {
       { name: "诸侯3", isBot: true },
     ],
     seed: 1,
-    mapId: "huanyou",
+    mapId: "guanzhong",
     botStepMs: 0, // bun 单测预算按 0ms bot 连锁书写(#730 配速不进既有用例)
   });
 }

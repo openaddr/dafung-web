@@ -1,6 +1,6 @@
-// 首屏(信息架构重构):只放四个模式入口——单机 / 联机 / 选图 / 编辑。
+// 首屏(信息架构重构):只放三个模式入口——单机 / 联机 / 选图(#947 编辑器退役)。
 // 国号、诸侯数等对局配置移到「单机模式」次级页(SoloSetupScreen),让首页回归
-// 纯导航(用户要求:菜单只显示四个按钮入口)。选图仍是二级面板(MapSelectPanel
+// 纯导航(用户要求:菜单只显示按钮入口)。选图仍是二级面板(MapSelectPanel
 // 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
 // #707 矮横屏档(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
 // 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
@@ -30,8 +30,6 @@ export interface HomeScreenProps {
   onSolo: () => void;
   /** 「联机模式」→ 大厅(现有 handleOnline,流程零变化)。 */
   onOnline: () => void;
-  /** 「编辑地图」入口;从当前选中图起编(undefined = 默认内置图)。 */
-  onEdit: (mapId: string) => void;
   /** 初始选中的地图 id(localStorage 记忆,或 App 解析的清单首项;必传,无兜底)。 */
   initialMapId: string;
   /** 选中地图变更回调(接线方持久化到 localStorage;对照旧 onMapChange)。 */
@@ -43,7 +41,6 @@ export interface HomeScreenProps {
 export function HomeScreen({
   onSolo,
   onOnline,
-  onEdit,
   initialMapId,
   onMapChange,
   mapSource = getMapSource(),
@@ -75,7 +72,7 @@ export function HomeScreen({
   // 视觉重做 v2:主入口(单机)走墨钮 ink-btn 种,其余笺纸 note-btn——墨=落子无悔。
   // W2 包E(审计 A3):圆角归主控件档 5px。
   // 层级修订(用户反馈「四钮样式大小不一致」):原 2×2 等宽栅格里「同行异材质+上下两档」
-  // 读作不一致而非层级。改为诚实层级——主入口(单机)通栏墨钮,三个次级入口同行同档同材质:
+  // 读作不一致而非层级。改为诚实层级——主入口(单机)通栏墨钮,次级入口同行同档同材质:
   // 层级由「通栏占位 + 墨/笺材质」表达,不再由同行内的样式差表达。
   const btnBase =
     "home-btn-brush rounded-[5px] border pr-8 pl-[calc(2rem+0.3em)] font-brush tracking-[0.3em] cursor-pointer transition-colors";
@@ -89,19 +86,19 @@ export function HomeScreen({
     cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn`,
   };
   // #707:矮横屏档「选择地图」入口退役——选图由内联横排条带承担(点选即选,
-  // 弹层路径在该档裁切不可达),次级行剩两口改双列;桌面档三口零变化。
+  // 弹层路径在该档裁切不可达);#947 编辑器退役后次级入口剩联机/选图两口,
+  // 两档一律双列(矮横屏档该行只剩联机一口,占半列)。
   const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
     ...(!isShortLandscape
       ? [{ tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) }]
       : []),
-    { tid: HOME_TID.editMap, label: "编辑地图", onClick: () => onEdit(selectedMapId) },
   ];
 
   return (
     // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
     // flexbox「居中+可滚」标准解:内容不溢出时视觉与 justify-center 一致,
-    // 666×360 横屏等小视口下四入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
+    // 666×360 横屏等小视口下三入口+地图行全量可滚达,不再被 #app overflow:hidden 截断。
     // #707 矮横屏档:条带收纳后内容须零滚动,e2e 断言根容器 scrollHeight==clientHeight。
     <div
       data-testid={HOME_TID.screen}
@@ -165,15 +162,15 @@ export function HomeScreen({
           </div>
         </div>
 
-        {/* 主入口通栏(墨钮),次级三口同行同档;stagger 延时延续 300ms 起 80ms/个。
-            home-pad-tight=短横屏档收按钮纵向 padding(430px 高首屏四入口免滚动)。 */}
+        {/* 主入口通栏(墨钮),次级两口同行同档;stagger 延时延续 300ms 起 80ms/个。
+            home-pad-tight=短横屏档收按钮纵向 padding(430px 高首屏免滚动)。 */}
         <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
           <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
             <button data-testid={primary.tid} onClick={primary.onClick} className={primary.cls}>
               {primary.label}
             </button>
           </div>
-          <div className={`grid gap-x-3 ${isShortLandscape ? "grid-cols-2" : "grid-cols-3"}`}>
+          <div className="grid grid-cols-2 gap-x-3">
             {secondary.map((e, i) => (
               // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
               <div

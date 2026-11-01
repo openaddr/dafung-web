@@ -4,12 +4,12 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine, type EngineConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { extractBatchEvents } from "../src/app/fx/event-extract";
 import type { PresentationEvent } from "../src/app/fx/presentation";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(): GameEngine {
   const cfg: EngineConfig = {

@@ -9,20 +9,28 @@
 // (素材管线入库,叠 10% 做远景衬)+ 路肩 0.8px 平行细线——深 zoom 不再纯平涂。
 import { memo } from "react";
 import type { Board } from "@core/board";
-import type { ViewBox } from "./usePanZoom";
 import { Theme, rgba } from "@core/theme";
+
+/** 棋盘总览视口盒(世界坐标;x/y = 左上角,w/h = 宽高)。
+ *  #946 平移缩放退役后棋盘恒总览定格,本类型是静态层对取景盒的全部消费面
+ *  (类型来源原挂 usePanZoom,随其删除就地定义)。 */
+export interface ViewBox {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
 
 // 地形画布随图走(ADR-0027):不再钉死 viewBox 常量,由 BoardView 把
 // computeFitView 推导的总览视口传进来,延展画布 = 总览 + EDGE_PAD 渐隐带。
 
 // #24/#38 边缘连续性:地形宣纸向外延展的画布(比总览大一圈),配 mask 四边线性渐隐——
 // 纸面在总览边界之外 EDGE_PAD 带宽内渐隐为透明,透出页面背景,消除边界的硬切。
-// #38 根因教训:旧实现用单个椭圆 radial 渐隐,渐隐带起点超出了 pan 钳制可达范围
-// (OVER=140),用户永远平移不到渐变区 → 效果完全不可感知;
-// 且暗角 rect 裁在总览上,平移到边缘时反而是它制造了新的硬切线。
-// 现:①渐隐带从总览边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD);
-// ②OVER(usePanZoom)放宽到带宽的一半,pan 到极限时正处渐变中段;
-// ③暗角 rect 一并扩到 O,不再有总览边界的裁切线。
+// #38 根因教训(平移缩放在役期的机制史,该通路已随 #946 整退役):旧实现用单个椭圆
+// radial 渐隐,渐隐带起点超出了 pan 钳制可达范围(OVER=140),用户永远平移不到渐变区
+// → 效果完全不可感知;且暗角 rect 裁在总览上,平移到边缘时反而是它制造了新的硬切线。
+// 现:①渐隐带从总览边界**起算**(四边独立线性渐变,带宽即 EDGE_PAD),定格总览的
+// 四边补边即全部职责;②暗角 rect 一并扩到 O,不再有总览边界的裁切线。
 const EDGE_PAD = 700;
 const canvasOf = (fit: ViewBox) => ({
   x: fit.x - EDGE_PAD,

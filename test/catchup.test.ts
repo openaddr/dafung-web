@@ -13,7 +13,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
 import type { GameEvent } from "@core/game-events";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { testEngine } from "@core/testing";
 import { LAG, setCatchupScale } from "../src/app/fx/timings";
@@ -23,7 +23,7 @@ import { useFxStore } from "../src/app/fx/fxStore";
 import { useNetStore } from "../src/app/store/netStore";
 import { resetFxOrchestration } from "../src/app/fx/orchestrator";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {

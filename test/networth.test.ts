@@ -2,9 +2,9 @@ import { describe, it, expect } from "bun:test";
 import { netWorth } from "@core/networth";
 import { buy, upgrade } from "@core/economy";
 import { createPlayer } from "@core/player";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
-const catalog = loadMap(huanyouData).catalog;
+const catalog = loadMap(guanzhongData).catalog;
 
 const changan = catalog.get("prop-changan")!; // 经济 v3 购入 4,800 两(名城 48 档),升级免费
 

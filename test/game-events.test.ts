@@ -13,9 +13,9 @@ import { HEROES } from "@core/heroes";
 import { jinnangCardOf } from "@core/jinnang";
 import { beginGameEventBatch, type GameEvent } from "@core/game-events";
 import type { TurnPhase } from "@core/authority";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 1, seats?: SeatConfig[], encounter?: EngineConfig["encounter"]) {
   const cfg: EngineConfig = {
@@ -149,7 +149,7 @@ describe("事件流(#375):掷骰行军与购地", () => {
       const land = MAP.board.at(path.landIndex);
       return land.event == null && land.propertyId != null && e.findOwner(land.propertyId) == null;
     });
-    expect(target).toBeDefined(); // huanyou 必有无主城可达(数据不变量)
+    expect(target).toBeDefined(); // 关中必有无主城可达(数据不变量)
     t.place(seat, target!.index);
     beginGameEventBatch(e);
     e.rollAndMove();

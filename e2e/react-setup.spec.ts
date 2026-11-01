@@ -86,6 +86,6 @@ test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号�
   const gh = s.players.map((p: any) => p.guohao);
   expect(gh.every((g: string) => g.length > 0)).toBe(true);
   expect(new Set(gh).size).toBe(3);
-  // 默认 huanyou 图 45 格
-  expect(await page.locator("[data-tile]").count()).toBeGreaterThanOrEqual(30);
+  // 默认关中图 28 城(4×7 满格螺旋)
+  expect(await page.locator("[data-tile]").count()).toBe(28);
 });

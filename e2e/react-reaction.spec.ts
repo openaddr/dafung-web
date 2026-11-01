@@ -13,17 +13,17 @@
 // 终局 e2e:3s 窗与「断言+读数+应答」点击链在 4 worker 负载下赛跑,误窗应答);横幅
 // 展示时长=scaleReactionMs(windowMs)(0.5 倍 → 2500ms 先收回),timeout 例预算按展示
 // 时长给、结算按权威窗长等。
-// 地图重钉(#827 36 城 9×4 满格螺旋,seed 50 × 新环序 tmp 引擎探针复算):
-// draftOrder=[0,3,2,1] 人类先手不变;选都 DOM 首格=盘面序最小候选=9 建业(名城,
-// 引擎侧候选序=长沙/凉州/建业,DOM 按环序渲染取建业——与引擎探针的候选首格不同格!)
-// (bot 都:黔=3 辽东、荆=1 晋阳、宋=25 卧龙城;bot 起手:黔/荆=求贤令、宋=连环计);
+// 地图重钉(#949 关中图 28 城 4×7 满格螺旋,seed 1010 × 关中 进程内直扫复算):
+// draftOrder=[0,3,1,2] 人类先手;选都 DOM 首格=盘面序最小候选=12 剑阁(引擎候选
+// 首格=环序最小,双链同格)(bot 都:黔=2 幽州、荆=10 长沙、宋=3 辽东;bot 起手
+// 全唯反应:黔=窃玉偷香、荆=识破诡计、宋=火烧连营——回合开始无 inline 出牌窗痕);
 // 起手牌=半路杀出(唯反应,不入可用集)
-// → 自动起摇落 10 会稽(无主城)——开局停靠点=购地抉择卷轴(soloAtBuyAsk 等卷轴
+// → 自动起摇落 13 汉中(无主城)——开局停靠点=购地抉择卷轴(soloAtBuyAsk 等卷轴
 // 升起)。续局=force 直授周瑜(heroDefs #378 调试面取定义,槽位行(heroId+全池授技)
-// 进麾下;招贤卷轴在本图种子下
-// 开局不再可达。疾行=人类行军步数恒 +1,行程骰队列已计入;火攻=回合 2+ 出牌阶段停靠点
-// 来源)+「不取」放行购地卷轴交 bot 链。种植后人类无再手动的回合:窗由 bot 链带到
-// (火烧例=bot1 回合开始即出;拦检例=bot 自首都前一格(8 吴郡)掷骰途经建业)。
+// 进麾下;招贤卷轴(卧龙岗@20)在本图种子下开局不再可达。疾行=人类行军步数恒 +1,
+// 行程骰队列已计入;火攻=回合 2+ 出牌阶段停靠点来源)+「不取」放行购地卷轴交 bot 链。
+// 种植后人类无再手动的回合:窗由 bot 链带到
+// (火烧例=bot1 回合开始即出;拦检例=bot 自首都前一格(11 锦囊城)掷骰途经剑阁)。
 // bot 手牌/位置/骰队列按用例直写。
 import { test, expect } from "./fixtures";
 import {
@@ -47,23 +47,22 @@ import type { Page } from "@playwright/test";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-/** 开局收口(seed 50 × huanyou #827 重钉,tmp 引擎探针复算):36 城重排后
- *  bot 选都/骰流全变——新链:定都建业(9,DOM 首格)、起手唯反应「半路杀出」
- *  自动起摇落会稽(10,无主城)弹购地抉择卷轴。种植类用例的稳定停靠点
+/** 开局收口(seed 1010 × 关中 #949 重钉,进程内直扫复算):换图后
+ *  bot 选都/骰流全变——新链:定都剑阁(12,DOM 首格)、起手唯反应「半路杀出」
+ *  自动起摇落汉中(13,无主城)弹购地抉择卷轴。种植类用例的稳定停靠点
  *  (force 在任何相位可用;此停靠点 engine 停在 AwaitingDecision 等输入)。 */
 async function soloAtBuyAsk(page: Page): Promise<void> {
   await useHalfScale(page);
-  await page.goto("/?seed=50");
+  await page.goto("/?seed=1010");
   await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
   await page.getByTestId(SETUP_TID.startGame).click();
-  // 种植现金(ADR-0041 重钉):谱前提=开局自动起摇的**第一停**必弹购地卷轴(世界停在
-  // 人类回合 1,bot 链不先跑)。起手 5000 扣建业建城费 2400 后净剩不足会稽 3000,
-  // 第一停变自动不取,卷轴迟到第二轮——人类多跑一整圈还探宝得珍宝,分支一「止步首都」
-  // 随即触发交涉把引擎停进 AwaitingTreasureOwner,helper 无钮可点(实证 FAIL-DUMP:
-  // trade:treasureAwait owner=p0)。种植大额现金让卷轴与地图价格解耦,停靠点回第一停。
+  // 种植现金(谱前提):开局自动起摇的**第一停**必弹购地卷轴(世界停在
+  // 人类回合 1,bot 链不先跑)。起手 5000 扣剑阁建城费 2400 后净剩 2600 不足汉中 3000,
+  // 不种则第一停变自动不取,卷轴迟到第二轮——种植大额现金让卷轴与地图价格解耦,
+  // 停靠点回第一停。
   // force 前等调试桥 controller 就位(起局瞬间尚为 null,竞态实锤)。
   await page.waitForFunction(() => window.__dafung?.controller() != null);
   await force(page, `e.players[0].cash = 20000;`);
@@ -103,9 +102,10 @@ const diceQueue = (...values: number[]) => `
 /** 行军骰队列(行程):接下来数次 rollAndMove 的行程骰依序取给定值,耗尽自还原。
  *  与 diceQueue(拼点 rollDie 属性)分属两个注入口互不串队;patch 命中时不消耗
  *  种子 rng(还原后种子流无缝续走)。三分支走查用 [2,5,6,6]:人类骰 2(周瑜疾行
- *  +1 → 止于 13 零陵可购决策,fx 排空停靠),bot1 骰 5(拦检途经建业,自带疾行/
- *  擂鼓加成续走必迈过 13 落远格,away 断言不赌落点;#827 环位),bot2/3 骰 6
- *  (自 8 只可能落 ≥14,13 零陵保持无主——后续分支的停靠前提,#882)。 */
+ *  +1 → 自 13 止于 16 凉州可购决策,fx 排空停靠),bot1 骰 5(分支一被拦停剑阁,
+ *  续走自 12 迈过 13-16 落 17 函谷关,away 断言不赌落点;bot 未招募零加成),
+ *  bot2/3 骰 6(自 11 落 17 函谷关=珍宝城,探宝拼点走 nextFloat,不吃本骰队列;
+ *  16/19 两停靠格永不落地——后续分支的停靠前提)。 */
 const marchQueue = (...values: number[]) => `
   (() => {
     const o = e.dice.roll.bind(e.dice);
@@ -118,13 +118,12 @@ const marchQueue = (...values: number[]) => `
   })();`;
 
 /** 拦检窗就绪种植:人类持半路杀出;三 bot 全部落位人类都城前一格(掷 ≥1 即途经,
- *  建业前一格=8 吴郡);
+ *  剑阁前一格=11 锦囊城);
  *  duelDice=拼点骰(开窗前一次种足,拼点是唯一 rollDie 消费者→各取一粒);
  *  withSecondCity=真时(降噪口例):人类在都城 +2..+4 内首个「有城非都」格挪为第二座
- *  城(huanyou 建业 +2=11 锦囊城(#827 起无主城)无宝,同一份行程的第二道询问);
- *  clearBotHands=真时(降噪口例):清 bot 手牌——p2 起手持求贤令(可用即用),其回合
- *  开始的 inline 反应窗(queried=p3)会在「两份应答」计数里插第三条 use=0 痕,把
- *  resp==2 的采样窗压到毫秒级,故清场保窗序纯净;
+ *  城(关中剑阁 +2=14 街亭,无主奇城无宝,同一份行程的第二道询问);
+ *  clearBotHands=真时(降噪口例):清 bot 手牌——seed 1010 bot 起手全唯反应无 inline
+ *  窗痕,清场保窗序纯净(守预算余量,无副作用);
  *  marchSteps=行程骰队列(见 marchQueue;分支三专用)。
  *  #398 快速链 + 权威 3s 反应窗:骰必须在开窗前种足、窗内零 force——force 等 fx 排空
  *  吃掉秒级预算,看门狗到点代发「不用」后,紧随的应答会落到下一个 bot 的窗上(实测:
@@ -177,8 +176,8 @@ async function plantAmbush(
 }
 
 /** 火烧连营窗种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
- *  demolishOnVictim 排除;都城 +1=10 会稽,relative 扫描自择)+ 全员改持目标/识破牌;
- *  授周瑜「不取」续局后首个行动 bot(bot3 宋)在其回合开始即出火烧(城最多者=人类)。 */
+ *  demolishOnVictim 排除;都城 +1=13 汉中,relative 扫描自择)+ 全员改持目标/识破牌;
+ *  授周瑜「不取」续局后首个行动 bot(bot1 黔)在其回合开始即出火烧(城最多者=人类)。 */
 async function plantCounterScenario(page: Page): Promise<void> {
   await soloAtBuyAsk(page);
   await plantDemolishableCity(page);
@@ -192,7 +191,7 @@ async function plantCounterScenario(page: Page): Promise<void> {
   await grantZhouyuAndPass(page);
 }
 
-/** 等人类出牌阶段窗态升起(seed 50 × huanyou 开局无窗:起手唯反应牌;回合 2 起由可选项带到
+/** 等人类出牌阶段窗态升起(seed 1010 × 关中 开局无窗:起手唯反应牌;回合 2 起由可选项带到
  *  ——混排例=手牌火烧连营本就可用,唯反应例=火攻引窗,p1 都城升 Lv.1 变「可降级」
  *  使火攻可指定)。poll 带 decisionOwner 守卫:bot 链步进途中的 AwaitingJinnang 瞬拍
  *  (decisionOwner=bot)不误配。 */
@@ -318,16 +317,16 @@ test.describe("反应窗(#281 单机)", () => {
     // 会撞看门狗代发,应答落到下一个 bot 的窗上);mover 读取与应答合并为页面内原子
     // 操作(answerMarchCounter)——读与答同一窗,无 CDP 往返竞速。
     // 购地卷轴停靠点种植后授周瑜「不取」续局:回合随即收尾,座位序首位 bot(黔)自
-    // 8(吴郡)掷骰途经建业开窗。
+    // 11(锦囊城)掷骰途经剑阁开窗。
     // marchSteps [2,6,6](#882):三个 bot 的行程骰全钉——不只为分支一本身(拦检窗在
-    // 途经首格 9 开,骰面无关),更为「后续 bot 链不得买走 13 零陵」:分支二/三的人类
-    // 停靠点=13 可购决策,是「停靠让 fx 排空」的前提;自然骰下后续 bot 恰落 13 购地,
-    // 人类分支二续局掷 2(+疾行)落 13 变交租,行军不停——人类自己的行军与 bot 链合并
-    // 成单批,表现块播放(实测 ~3.6s)超过横幅展示寿命(sc(windowMs)=2.5s),
+    // 途经首格 12 开,骰面无关),更为「后续 bot 链不得买走 16/19 停靠格」:分支二/三的
+    // 人类停靠点=16/19 可购决策,是「停靠让 fx 排空」的前提;自然骰下后续 bot 若恰落
+    // 停靠格购地,人类续局掷 2(+疾行)落格变交租,行军不停——人类自己的行军与 bot 链
+    // 合并成单批,表现块播放超过横幅展示寿命(sc(windowMs)=2.5s),
     // answerMarchCounter 的「fx 排空 ∧ 横幅在场」应答交集变空,5s 权威窗内答不进去,
-    // 看门狗逐窗代发不用(45s 超时,挂起实锤见票 #882 定性)。钉骰:bot1=2(途经 9
-    // 开窗即可);bot2/3=6(自 8 步 ≥6,只可能落 ≥14——13 在第 5 步,永不落地;加成
-    // 只会更远。14 交州=珍宝城,探宝拼点走 nextFloat,不吃本骰队列)。
+    // 看门狗逐窗代发不用(45s 超时,挂起实锤见票 #882 定性)。钉骰:bot1=2(途经 12
+    // 开窗即可,落 13 买走汉中无碍——人类分支二自 13 起步);bot2/3=6(自 11 落 17
+    // 函谷关=珍宝城,探宝拼点走 nextFloat,不吃本骰队列)。
     await plantAmbush(page, { duelDice: [6, 1], withSecondCity: false, marchSteps: [2, 6, 6] });
     await grantZhouyuAndPass(page);
     // 每分支以文案过滤(火烧连营窗与拦检窗同形不同文,answerMarchCounter 页面内只认
@@ -385,13 +384,12 @@ test.describe("反应窗(#281 单机)", () => {
     // #398 快速链适配:分支 1 应答后房间编排一拍跑完整条 bot 链(合并连锁,联机同构),
     // 「链中补牌」不再可达——重布场挪到人类停点(等停靠 → plantAmbush 重种手牌/布位/
     // 骰队 → 放行)。停靠=回合开始出牌阶段(火攻钉子)。行程骰队列 [2,5,6,6]:人类骰 2
-    // (+疾行自 10 止于 13 零陵可购决策——**停靠让 fx 排空**,且保住「人类行军批与 bot 链
+    // (+疾行自 13 止于 16 凉州可购决策——**停靠让 fx 排空**,且保住「人类行军批与 bot 链
     // 批分离」:人类停在可购决策,行军批先播完、fx 排空在停靠点上,answerMarchCounter
     // 的 fx 门在 5s 权威窗内有空档可答(#882:人类不停则两批合并单块,横幅先于 fx 排空
-    // 收回,应答交集变空挂死);#827 重钉:原 [1,5] 落 18=bot 都城剑阁,停靠形态随选都
-    // 地理失效);
-    // bot1 骰 5(+自带的疾行/擂鼓加成,自 9 续走必迈过 13 落远格,13 不被买回)、
-    // bot2/3 骰 6(同分支一:只落 ≥14,13 零陵保持无主到分支三),away 不赌自然骰。
+    // 收回,应答交集变空挂死));
+    // bot1 骰 5(分支一被拦停剑阁,自 12 续走必迈过 16 落 17 函谷关,16 不被买回)、
+    // bot2/3 骰 6(同分支一:自 11 落 17,16/19 停靠格保持无主到分支三),away 不赌自然骰。
     await waitMyPause(page, 0);
     await plantAmbush(page, { duelDice: [3, 3], withSecondCity: false, marchSteps: [2, 5, 6, 6] });
     await skipUntilNextSeat(page, 0);
@@ -428,8 +426,8 @@ test.describe("反应窗(#281 单机)", () => {
     // #830 守门:bot 行程前提不再赌前两支走完后的散布推演(#882→T4b 调价两度漂移实锤
     // ——价位改 bot 购地/交涉决策,链式挪动后续 bot 的站位,窗前提静默失效)——
     // 行程前 force 首位 bot(黔,座 1)贴到首都格前一格、骰 2 第一步即过首都开窗,前提
-    // 自锚;放行后续走 1 步落首都之外(away)——不赌 bot 自带疾行等加成(bot 招募/技能
-    // 是现金决策,ADR-0041 调价后 p1 裸骰 1 恰落都城格,away 恒假实锤);其余 bot 骰 6
+    // 自锚;放行后续走 2 步落 13(bot1 自家汉中,升级决策 bot 链自清,away=13≠12 恒真)
+    // ——不赌 bot 自带疾行等加成(bot 招募/技能是现金决策,加成会挪落格);其余 bot 骰 6
     // 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
     await waitMyPause(page, 0);
     await force(
@@ -483,8 +481,8 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(banlu.locator(".reason")).toHaveText("唯反应(反应窗打出)");
     // 行程骰钉子(放行前种足):放行后唯反应手牌驻留窗壳等「不出」,而唯反应+火攻
     // 未发使每个回合开始都重开窗——waitMyRollDone 的完成判定(离开 Roll/出牌阶段)会把
-    // 采样全打在人类回合内,赌自然落格必挂。骰 1(+疾行自 10 → 12 邺城可购决策)把「一手
-    // 走完」钉成确定性停靠(#827 环位)。
+    // 采样全打在人类回合内,赌自然落格必挂。骰 1(+疾行自 13 → 15 咸阳可购决策)把「一手
+    // 走完」钉成确定性停靠。
     await force(page, marchQueue(1));
     // 放行后照常自动起摇:人类当前一手自动走完(#188)
     await page.getByTestId(TESTIDS.actionbarPass).click();
@@ -493,8 +491,16 @@ test.describe("反应窗(#281 单机)", () => {
 
   test("出牌阶段混排:反应牌灰置印「唯反应」,可用牌照常可出", async ({ page }) => {
     await soloAtBuyAsk(page); // 停稳购地卷轴
-    // 购地停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 出牌阶段窗态升起
-    await force(page, `e.players[0].jinnangHand = ["火烧连营", "识破诡计"];`);
+    // 购地停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 出牌阶段窗态升起。
+    // seed 1010 关中:回合 2 时 bot 尚无第二座城(都城 Lv0 不算可毁),唯反应例同款
+    // 把 p1 都城升 Lv.1 立起「可降级」目标,火烧连营方入可用集。
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = ["火烧连营", "识破诡计"];
+      e.players[1].properties[0].level = 1;
+    `,
+    );
     await grantZhouyuAndPass(page);
     await waitJinnangStop(page);
     // 灰置即重算完成的信号(10s 预算,理由同唯反应例);视觉锚:灰置印「唯反应」,
@@ -511,10 +517,11 @@ test.describe("反应窗(#281 单机)", () => {
 
   test("降噪口:点「本回合不再询问」后同回合后续询问不弹横幅、下回合恢复", async ({ page }) => {
     await soloAtBuyAsk(page);
-    // 第二城=都城 +2(11 锦囊城):同一 mover 连开两道拦检窗。
-    // clearBotHands:杀 bot 起手求贤令/连环计的 inline 反应窗痕,保「两份应答」计数纯净(见
-    // plantAmbush 注)。行程骰钉子 [5]:购地停靠点种植后续局,首个行程骰=bot3 的——
-    // 骰 5 必连穿 9(窗1=建业)与 11(窗2=锦囊城),w2 的到达不赌自然骰。授周瑜「不取」续局。
+    // 第二城=都城 +2(14 街亭):同一 mover 连开两道拦检窗。
+    // clearBotHands:清 bot 手牌保「两份应答」计数纯净(seed 1010 bot 起手全唯反应,
+    // 本无 inline 窗痕,守余量;见 plantAmbush 注)。行程骰钉子 [5]:购地停靠点种植后
+    // 续局,首个行程骰=bot1(座 1)的——骰 5 自 11 必连穿 12(窗1=剑阁)与 14
+    // (窗2=街亭),w2 的到达不赌自然骰。授周瑜「不取」续局。
     await plantAmbush(page, { clearBotHands: true, marchSteps: [5] });
     await grantZhouyuAndPass(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);

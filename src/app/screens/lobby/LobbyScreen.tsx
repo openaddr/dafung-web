@@ -13,7 +13,6 @@
 // 真机联机在大厅改指 LAN 主机/部署服务器;网页用户不碰零影响。
 // 房间状态来自 netStore(OnlineController 把 REST 回包与 WS 广播灌进去),本屏无本地真源。
 import { useEffect, useMemo, useRef, useState } from "react";
-import { isCustomId } from "@core/map-source";
 import { resolveGuohaoClash } from "@core/guohao";
 import { getMapSource } from "@app/map-sources";
 import { getServerBase, setServerBase } from "@app/net/server-base";
@@ -50,15 +49,6 @@ export const LAST_ROOM_KEY = "dafung.lastRoomCode";
 /** 矮横屏档媒体查询(#766:断点串单源口径=对局屏 layout.css A 档/home/setup 同一查询串,
  *  lobby.css 矮横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
 const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
-
-/** 仅内置图的地图源(联机只支持内置图;对照旧 lobby.ts 的 builtinMapSource)。 */
-function builtinMapSource() {
-  const src = getMapSource();
-  return {
-    listMaps: async () => (await src.listMaps()).filter((e) => !isCustomId(e.id)),
-    loadMapData: (id: string) => src.loadMapData(id),
-  };
-}
 
 /** 座位行的状态标签(对照旧 renderSeats:你/人/电脑/空 + 房主 + 离线)。L-5:统一全中文,不混排「bot」。 */
 function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {
@@ -122,7 +112,8 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // W2:等待文案轮换下标(3s 一换,制造"大厅还活着"的心跳感)
   const [waitIdx, setWaitIdx] = useState(0);
   // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)
-  const mapSource = useMemo(builtinMapSource, []);
+  // 联机只支持内置图;#947 自建图通路退役后全仓只剩内置图源,直取进程级单例。
+  const mapSource = useMemo(() => getMapSource(), []);
   // #559:服务器探活状态(checking=定性中,不渲染状态点)。挂载时探活一次
   // (GET {base}/health,3s 超时,AbortController 掐断;不重试不轮询,一次定性)。
   // 应答非 {ok:true}(网络死/非引擎服务)一律「未连通」——只给预期,不禁任何操作

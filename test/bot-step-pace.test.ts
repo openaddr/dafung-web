@@ -36,7 +36,7 @@ function makeController(clock: RecordingClock, botStepMs: number): LocalControll
         { name: "诸侯3", isBot: true },
       ],
       seed: 1,
-      mapId: "huanyou",
+      mapId: "guanzhong",
       botStepMs,
     },
     clock,

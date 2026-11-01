@@ -145,7 +145,7 @@ describeSlow("server cmd 分支错误回报(#428)", () => {
     const roomId = created.roomId as string;
     const token = created.seatToken as string;
     expect(created.ok).toBe(true);
-    await post("/room/map", { roomId, seatToken: token, mapId: "huanyou" });
+    await post("/room/map", { roomId, seatToken: token, mapId: "guanzhong" });
     const started = await post("/room/start", { roomId, seatToken: token });
     expect(started.ok).toBe(true);
 

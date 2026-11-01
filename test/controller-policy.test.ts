@@ -18,11 +18,11 @@ import { GameController } from "@app/controllers/controller";
 import { OnlineController } from "@app/controllers/online";
 import { abandonAllMarches, abandonMarch, beginMarch } from "../src/app/fx/useMarch";
 import type { MarchSegmentFrames } from "../src/app/fx/presentation";
-import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
+import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
 
-const HUANYOU: { map: LoadedMap; data: MapData } = {
-  map: loadMap(huanyouData),
-  data: huanyouData as unknown as MapData,
+const GUANZHONG: { map: LoadedMap; data: MapData } = {
+  map: loadMap(guanzhongData),
+  data: guanzhongData as unknown as MapData,
 };
 
 /** 策略探针:基类公式的一切子类输入(座位/热座/锁)显式注入,直读 interactive 断言。
@@ -308,7 +308,7 @@ describe("控制器交互策略公式(#433 canAct 单源)", () => {
 
 describe("OnlineController 参数面(#433 薄测:参数怎么取)", () => {
   it("未入座(mySeat=-1)+ 占位壳 Setup:不可操作;策略公式消费联机参数(热座=false、座位=入座分配)", () => {
-    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
     expect(c.viewSeat).toBe(-1);
     expect(c.interactive).toBe(false);
     c.destroy();

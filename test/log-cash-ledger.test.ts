@@ -10,11 +10,11 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { TREASURE_PRICE } from "@core/treasures";
 import type { TreasureDef } from "@core/treasures";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { testEngine } from "@core/testing";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 const START_CASH = 300; // 压低起手金:让清算/破产路径在无直写 cash 的情况下自然触发
 
 function makeEngine(): GameEngine {

@@ -12,7 +12,7 @@ import { loadMap, type LoadedMap, type MapData } from "@core/board-loader";
 import type { GameSnapshot } from "@core/snapshot";
 import { OnlineController } from "@app/controllers/online";
 import { beginMarch, isMarching } from "@app/fx/useMarch";
-import huanyouData from "../public/maps/huanyou.json" with { type: "json" };
+import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
 import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
 
 interface Bundle {
@@ -20,7 +20,10 @@ interface Bundle {
   data: MapData;
 }
 
-const HUANYOU: Bundle = { map: loadMap(huanyouData), data: huanyouData as unknown as MapData };
+const GUANZHONG: Bundle = {
+  map: loadMap(guanzhongData),
+  data: guanzhongData as unknown as MapData,
+};
 const ZHONGYUAN: Bundle = {
   map: loadMap(zhongyuanData),
   data: zhongyuanData as unknown as MapData,
@@ -103,7 +106,7 @@ function zhongyuanRoomSnapshot(): RoomSnapshotPayload {
 
 describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
   it("对局已水合后取图才落地:换板不换局——对局态保全、棋盘换到新图", async () => {
-    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     // 大厅选图广播 → 换图重建起步(取图 await 在途)
@@ -130,7 +133,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
   });
 
   it("更新换图在途:过期取图落地丢弃,不回退旧图", async () => {
-    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     // 大厅先后两次切 zhongyuan(同图重切:首次落地前 mapId 未动,第二次照样起步
@@ -138,7 +141,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
     // board 对象身份可区分先后)
     x.onMessage(lobbyMsg("zhongyuan"));
     x.onMessage(lobbyMsg("zhongyuan"));
-    expect(x.mapId).toBe("huanyou"); // 两次取图都在途,mapId 未动
+    expect(x.mapId).toBe("guanzhong"); // 两次取图都在途,mapId 未动
     const LATEST: Bundle = {
       map: loadMap(zhongyuanData),
       data: zhongyuanData as unknown as MapData,
@@ -155,7 +158,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
   });
 
   it("开局前落地(既有语义):整换新图占位壳,等快照水合", async () => {
-    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     x.onMessage(lobbyMsg("zhongyuan"));
@@ -168,7 +171,7 @@ describe("OnlineController.rebuildForMap · 落地竞速(#415)", () => {
   });
 
   it("换图边界清演出会话(复审 F5,ADR-0029 §2 边界作废同族):落地拍在途行军会话统一作废", async () => {
-    const c = new OnlineController(HUANYOU.map, "huanyou");
+    const c = new OnlineController(GUANZHONG.map, "guanzhong");
     const gates = stubLoader(c);
     const x = c as unknown as TestAccess;
     x.onMessage(lobbyMsg("zhongyuan"));

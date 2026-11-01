@@ -9,7 +9,8 @@
 //
 // 落点 = TokenLayer 同源槽位公式(computeTokenSlots,单源不复制 #608);层容器
 // transform 由 boardHost.useBoardMatrixSync 自持同步(ADR-0042 起:RO/viewBox
-// MutationObserver/fonts.ready,pan/zoom/resize/手势提交拍全随动)。
+// MutationObserver/fonts.ready;#946 平移缩放退役后 viewBox 恒 computeFitView
+// 总览定格、仅换图变化,同步只剩挂载/容器尺寸/换图/字体就绪几个事件拍)。
 // 层内 z 序(DOM 序,复刻原 SVG 绘制序):光晕 → 自机微光 → 回合金环 → 旌旗。
 import { memo, useRef } from "react";
 import type { Board } from "@core/board";

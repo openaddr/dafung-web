@@ -90,13 +90,13 @@ async function expectRoomError(
   expect((caught as RoomError).status).toBe(status);
 }
 
-/** 测试用最小地图清单:huanyou(真实内置图)。setMap 校验用。 */
-const VALID_MAP_IDS = new Set(["huanyou", "zhongyuan"]);
-/** 测试用 mapProvider:所有 id 都返回同一张 huanyou 图(避免读 fs)。 */
+/** 测试用最小地图清单:guanzhong(真实内置图)。setMap 校验用。 */
+const VALID_MAP_IDS = new Set(["guanzhong", "zhongyuan"]);
+/** 测试用 mapProvider:所有 id 都返回同一张 guanzhong 图(避免读 fs)。 */
 const testMapProvider = (_id: string): LoadedMap => MAP;
 
 /** 建一个已开局的房间(不代选都):seat0=host(human),其余非 bot 座位都 join(人类),bot 座位 bot。
- *  默认 host 先 setMap("huanyou") 再 startGame(startGame 要求已选图)。
+ *  默认 host 先 setMap("guanzhong") 再 startGame(startGame 要求已选图)。
  *  L41 起 startGame 停在 Setup·PickCapital(真人各自三选一),本助手到「开局」为止。 */
 async function startRoom(
   opts: { seats?: number; bot?: number[]; seed?: number; mapId?: string } = {},
@@ -115,7 +115,7 @@ async function startRoom(
   for (let i = 1; i < seats; i++) {
     if (!botIdx.has(i)) guestTokens.push(reg.joinSeat(roomId).token);
   }
-  reg.setMap(roomId, opts.mapId ?? "huanyou", hostToken, VALID_MAP_IDS);
+  reg.setMap(roomId, opts.mapId ?? "guanzhong", hostToken, VALID_MAP_IDS);
   await reg.startGame(roomId, hostToken, undefined, testMapProvider);
   return { reg, roomId, hostToken, guestTokens };
 }
@@ -160,7 +160,7 @@ async function playingRoom(
   });
   const roomId = created.room.roomId;
   const guestToken = reg.joinSeat(roomId).token;
-  reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+  reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
   await reg.startGame(roomId, created.token, undefined, testMapProvider);
   const e = () => reg.get(roomId)!.engine!;
   for (let i = 0; i < 20 && e().phase === "Setup"; i++)
@@ -396,7 +396,7 @@ describe("RoomRegistry · 联机国号预设与重名前缀(autos 28)", () => {
     reg.joinSeat(roomId, "宁");
     reg.joinSeat(roomId, "宁");
     reg.joinSeat(roomId, "宁");
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
     const guohao = room.engine!.players.map((p) => p.guohao);
     // seat0 未预设(引擎分配,不与已用冲突);seat1-3 依次 宁/东宁/西宁
@@ -413,7 +413,7 @@ describe("RoomRegistry · 联机国号预设与重名前缀(autos 28)", () => {
     const created = reg.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: { seed: 7 } });
     const roomId = created.room.roomId;
     reg.joinSeat(roomId, "燕");
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
     const guohao = room.engine!.players.map((p) => p.guohao);
     expect(guohao[1]).toBe("燕");
@@ -438,7 +438,7 @@ describe("RoomRegistry · 联机国号预设与重名前缀(autos 28)", () => {
     // 客户端预告 = 同一纯函数(core/guohao)按座位序演算;开局定稿必须与预告一致
     const preview = resolveGuohaoClash(view.seats.map((s) => s.guohao));
     expect(preview).toEqual([null, "魏", "东魏"]);
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     const room = await reg.startGame(roomId, created.token, undefined, testMapProvider);
     const finalGuohao = room.engine!.players.map((p) => p.guohao);
     preview.forEach((pv, i) => {
@@ -506,17 +506,20 @@ describe("RoomRegistry · 选图(mapId / setMap)", () => {
   it("host setMap 后 mapId 更新 + lobbyView 含 mapId", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
     const { room, token } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
-    reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
-    expect(reg.get(room.roomId)!.mapId).toBe("huanyou");
+    reg.setMap(room.roomId, "guanzhong", token, VALID_MAP_IDS);
+    expect(reg.get(room.roomId)!.mapId).toBe("guanzhong");
     // lobbyView 应返回 mapId 字段
     const view = lobbyView(reg.get(room.roomId)!, new Set([0]));
-    expect(view.mapId).toBe("huanyou");
+    expect(view.mapId).toBe("guanzhong");
   });
 
   it("非 host setMap → 403", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
     const { room } = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: {} });
-    await expectRoomError(() => reg.setMap(room.roomId, "huanyou", "not-host", VALID_MAP_IDS), 403);
+    await expectRoomError(
+      () => reg.setMap(room.roomId, "guanzhong", "not-host", VALID_MAP_IDS),
+      403,
+    );
     // mapId 不变
     expect(reg.get(room.roomId)!.mapId).toBeNull();
   });
@@ -530,7 +533,7 @@ describe("RoomRegistry · 选图(mapId / setMap)", () => {
 
   it("setMap 房间不存在 → 404", async () => {
     const reg = new RoomRegistry(new InMemoryPersistence());
-    await expectRoomError(() => reg.setMap("NOPE", "huanyou", "tok", VALID_MAP_IDS), 404);
+    await expectRoomError(() => reg.setMap("NOPE", "guanzhong", "tok", VALID_MAP_IDS), 404);
   });
 
   it("未选图(startGame 前 mapId=null)→ 报错'请先选择地图'", async () => {
@@ -589,7 +592,7 @@ describe("RoomRegistry · 行军自动化(#188)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 42 },
     });
-    reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     await pickAllHumanCapitals(reg, created.room.roomId);
     const e = reg.get(created.room.roomId)!.engine!;
@@ -639,7 +642,7 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
         botIdx: new Set([1]),
         hostConfig: { seed: 1 },
       });
-      reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
+      reg.setMap(room.roomId, "guanzhong", token, VALID_MAP_IDS);
       await reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0=host 人类 → 停在 human-turn
       expect(events.find((e) => e.event.ev === "start")).toBeTruthy();
       const stops = events.filter((e) => e.event.ev === "bot-stop");
@@ -672,7 +675,7 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
       botIdx: new Set([1]),
       hostConfig: { seed: 42 },
     });
-    reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
+    reg.setMap(room.roomId, "guanzhong", token, VALID_MAP_IDS);
     await reg.startGame(room.roomId, token, undefined, testMapProvider); // seat0 人类(host 已领 token)
     const stops = events.filter((e) => e.event.ev === "bot-stop");
     expect(stops.length).toBeGreaterThan(0);
@@ -683,7 +686,7 @@ describe("RoomRegistry · 观测事件(RoomObserver,可观测性基建)", () => 
     const { reg, events } = observed();
     const { room, token } = reg.createRoom({ seatCount: 3, botIdx: new Set([2]), hostConfig: {} });
     reg.joinSeat(room.roomId);
-    reg.setMap(room.roomId, "huanyou", token, VALID_MAP_IDS);
+    reg.setMap(room.roomId, "guanzhong", token, VALID_MAP_IDS);
     await reg.startGame(room.roomId, token, undefined, testMapProvider);
     await reg.markSeatOffline(room.roomId, 1, new Set([0]));
     const off = events.find((e) => e.event.ev === "offline");
@@ -800,7 +803,7 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
         botIdx: new Set([1]),
         hostConfig: { seed: 3 },
       });
-      reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+      reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
       await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
       // 托管 seat0,不 await:链在后台走(整链到终局会花数分钟,测试只观察窗口)
       void reg.setAutoPilot(created.room.roomId, 0, true);
@@ -820,7 +823,7 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
       events.push(event as Record<string, unknown>),
     );
     const created = reg.createRoom({ seatCount: 2, botIdx: new Set([1]), hostConfig: { seed: 5 } });
-    reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     await reg.setAutoPilot(created.room.roomId, 0, true);
     const ev = events.find((e) => e.ev === "autopilot");
@@ -837,7 +840,7 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 11 },
     });
-    reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     const engine = reg.get(created.room.roomId)!.engine!;
     const roomRows = () => engine.log.filter((l) => l.category === "room");
@@ -875,7 +878,7 @@ describe("RoomRegistry · 自助托管 setAutoPilot(spec: autopilot)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 9 },
     });
-    reg1.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg1.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     await reg1.setAutoPilot(created.room.roomId, 0, true);
     const reg2 = new RoomRegistry(persistence);
@@ -1039,7 +1042,7 @@ describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
       hostConfig: { seed: 7 },
     });
     reg1.joinSeat(created.room.roomId);
-    reg1.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg1.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     const before = reg1.get(created.room.roomId)!;
     const beforeTurn = before.engine!.turnNumber;
@@ -1056,7 +1059,7 @@ describe("RoomRegistry · 持久化恢复(restoreAll)", () => {
     expect(restored.engine!.turnNumber).toBe(beforeTurn);
     expect(restored.hostSeat).toBe(before.hostSeat);
     expect(restored.seats.length).toBe(3);
-    expect(restored.mapId).toBe("huanyou");
+    expect(restored.mapId).toBe("guanzhong");
   });
 });
 
@@ -1083,7 +1086,7 @@ describe("RoomRegistry · 联机机遇接线(#135)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 42 },
     });
-    reg.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     // 引擎侧已归一(baseRates → shares);中性 100% 原样
     expect(encounterOf(reg, created.room.roomId)).toEqual({
@@ -1107,7 +1110,7 @@ describe("RoomRegistry · 联机机遇接线(#135)", () => {
       botIdx: new Set([1]),
       hostConfig: { seed: 9 },
     });
-    reg1.setMap(created.room.roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg1.setMap(created.room.roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg1.startGame(created.room.roomId, created.token, undefined, testMapProvider);
     const reg2 = new RoomRegistry(persistence);
     reg2.restoreAll(testMapProvider);
@@ -1149,7 +1152,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
     });
     const roomId = created.room.roomId;
     reg.joinSeat(roomId); // seat1 人类(guest)
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(roomId, created.token, undefined, testMapProvider); // 停在 seat0(Roll)
     const e = reg.get(roomId)!.engine!;
     expect(e.phase).toBe("Setup"); // 选都阶段即停 seat0(human)
@@ -1186,7 +1189,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
       hostConfig: { seed: 42 },
     });
     const roomId = created.room.roomId;
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(roomId, created.token, undefined, testMapProvider);
     await sleep(120);
     expect(events.some((ev) => ev.ev === "autopilot")).toBe(false);
@@ -1201,7 +1204,7 @@ describe("RoomRegistry · 决策停摆看门狗(#118)", () => {
       hostConfig: { seed: 42 },
     });
     const roomId = created.room.roomId;
-    reg.setMap(roomId, "huanyou", created.token, VALID_MAP_IDS);
+    reg.setMap(roomId, "guanzhong", created.token, VALID_MAP_IDS);
     await reg.startGame(roomId, created.token, undefined, testMapProvider); // 武装(400ms 窗口)
     reg.dismissRoom(roomId, created.token); // 窗口内解散 → clearStall
     await sleep(500);

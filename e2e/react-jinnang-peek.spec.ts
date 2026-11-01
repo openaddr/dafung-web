@@ -3,8 +3,8 @@
 // 点击任意处/X 关闭,关闭即逝、无任何残留;被识破则无弹层(窥探从未发生)。
 // 结算/留痕/隐私归引擎与投影层单测(test/jinnang.test.ts、test/room.test.ts),
 // 本 spec 只守呈现层接线(弹层出现/牌名可见/关闭无残留/识破不弹)。
-// 种子离线核算(react-jinnang-use 同源,seed 63 × huanyou):人类先手,选都候选 DOM
-// 首格=12 江陵,起手求贤令(自身域恒可用)→ 开局出牌阶段=稳定停靠点;军情密探进
+// 种子离线核算(react-jinnang-use 同源,seed 67 × 关中):人类先手,选都候选 DOM
+// 首格=0 长安,起手求贤令(自身域恒可用)→ 开局出牌阶段=稳定停靠点;军情密探进
 // 目标段无附加门槛(#477 起卡级才查存活对手,恒可用),手牌内容全走 force 引擎直写。
 import { test, expect } from "./fixtures";
 import { force, snap, freezeClock, openSoloSetup, useHalfScale } from "./react-helpers";
@@ -13,13 +13,13 @@ import type { Page } from "@playwright/test";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-/** 开局收口(seed 63 × huanyou,react-jinnang-use 同款):选图/起兵/定都(候选 DOM
+/** 开局收口(seed 67 × 关中,react-jinnang-use 同款):选图/起兵/定都(候选 DOM
  *  首格)后停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点。 */
 async function startPeekStop(page: Page): Promise<void> {
   await useHalfScale(page);
-  await page.goto("/?seed=63");
+  await page.goto("/?seed=67");
   await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("huanyou")).click();
+  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();
   await openSoloSetup(page);
   await page.getByTestId(SETUP_TID.startGame).click();

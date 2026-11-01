@@ -1,9 +1,9 @@
 import { describe, it, expect } from "bun:test";
 import { buy, upgrade, settleDebt, sellValueOf } from "@core/economy";
 import { createPlayer } from "@core/player";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
-const catalog = loadMap(huanyouData).catalog;
+const catalog = loadMap(guanzhongData).catalog;
 
 const changan = catalog.get("prop-changan")!; // a 组,购入 4800 两(名城 48 档),变卖价 [2880,4320,5760,7200]
 

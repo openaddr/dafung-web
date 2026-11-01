@@ -120,7 +120,7 @@ describe("单机演出自洽稳态(#730,ADR-0034)", () => {
           { name: "诸侯3", isBot: true },
         ],
         seed: 1,
-        mapId: "huanyou",
+        mapId: "guanzhong",
         botStepMs: BOT_STEP_MS, // 显式钉配速开启(不依赖解析链缺省)
       });
       let lastSeq = 0;

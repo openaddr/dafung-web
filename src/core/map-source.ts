@@ -1,24 +1,21 @@
 // 地图源:统一加载入口。core 层只定义接口与编排(loadMapById),
-// 实际 fetch / localStorage 实现在 core 之外(架构红线 1:core 零 DOM/浏览器 API)。
-// 自建地图的 id 约定:`custom-` 前缀(见 render 层 LocalStorageMapSource)。
+// 实际 fetch 实现在 core 之外(架构红线 1:core 零 DOM/浏览器 API)。
 import { loadMap, type LoadedMap, type MapData } from "./board-loader";
 
-/** 清单条目:描述一张可选地图的展示信息。内置图含 file;自建图由源自行推导。 */
+/** 清单条目:描述一张可选地图的展示信息。 */
 export interface MapEntry {
   id: string;
   name: string;
   desc: string;
   tileCount: number;
   targetNetWorth: number;
-  /** 自建图标记(内置图无此字段)。用于 UI 区分来源样式,不影响加载逻辑。 */
-  custom?: boolean;
 }
 
-/** 地图源:抽象"从哪里拿地图数据"。可注入,单测用内存实现。
- *  两个实现:FetchMapSource(内置图,fetch 清单 + JSON)、
- *  LocalStorageMapSource(自建图,localStorage 图库)。组合用 CompositeMapSource。 */
+/** 地图源:抽象"从哪里拿地图数据"。可注入,单测用内存实现;
+ *  生产实现唯一:FetchMapSource(render 层,fetch 清单 + JSON)。
+ *  地图扩展通路 = 内置图 PR 一个 JSON + index.json 清单登记。 */
 export interface MapSource {
-  /** 列出所有可选地图(内置 + 自建,由实现决定范围)。内置图需 async fetch 清单。 */
+  /** 列出所有可选地图。需 async fetch 清单。 */
   listMaps(): Promise<MapEntry[]>;
   /** 按 id 加载地图原始数据。找不到抛错。 */
   loadMapData(id: string): Promise<MapData>;
@@ -60,7 +57,7 @@ export function parseCatalog(data: unknown): CatalogFileEntry[] {
   });
 }
 
-/** CatalogFileEntry → MapEntry(去 file,加 custom 标记)。 */
+/** CatalogFileEntry → MapEntry(去 file 字段)。 */
 export function entryFromFile(e: CatalogFileEntry): MapEntry {
   return {
     id: e.id,
@@ -69,12 +66,4 @@ export function entryFromFile(e: CatalogFileEntry): MapEntry {
     tileCount: e.tileCount,
     targetNetWorth: e.targetNetWorth,
   };
-}
-
-/** 自建图 id 前缀约定。 */
-export const CUSTOM_ID_PREFIX = "custom-";
-
-/** 判断 id 是否为自建图(约定:`custom-` 前缀)。 */
-export function isCustomId(id: string): boolean {
-  return id.startsWith(CUSTOM_ID_PREFIX);
 }

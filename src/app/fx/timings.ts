@@ -419,10 +419,6 @@ export const UI = {
   get hintTtlMs() {
     return sc(1800);
   },
-  /** 编辑器状态条反馈自动清除(EditorScreen 保存/另存/重置/导入四处 setStatus)。 */
-  get statusClearMs() {
-    return sc(1500);
-  },
   /** 胜利屏「再战」按钮延后挂载(E2:入场演出高潮期防误触重开)。 */
   get victoryButtonMs() {
     return sc(1800);

@@ -4,8 +4,8 @@
 // 活跃方 .is-active 印金圈);④打开不暂停(冻时钟外对局推进留痕,弹层恒开);
 // ⑤满编 8 行 @844×390 零滚动零截断。
 // 停靠纪律(react-seat-pop 同款):quickStart 可能在行军演出在播时归还——清卷轴必须
-// 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 49(实测停靠干净,
-// react-seat-pop 同款确定性)。总览行无浮签触发元(title 静态浮签除外),无 #704
+// 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 1010(#949 关中重钓:
+// 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
 // 残影风险;关闭走 Esc/点外/X 三路(ui/dialog 底件白拿)。
 import { test, expect, type Page } from "./fixtures";
 import {
@@ -97,7 +97,7 @@ async function plantSeat1Roster(page: Page) {
 test.describe("总览行数据与投影一致(#702 ①)", () => {
   test("十列数值逐字对照;城池/名将名录直读,超 3 折叠 +N,空槽画空格", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 49);
+    await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
       const planted = await plantSeat1Roster(page);
@@ -157,7 +157,7 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
 test.describe("城池列点击开对应诸侯清单(#702 ②)", () => {
   test("总览先关、#622 清单开到对应诸侯(国号题名+种植行),X 收清单", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 49);
+    await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
       const planted = await plantSeat1Roster(page);
@@ -183,7 +183,7 @@ test.describe("城池列点击开对应诸侯清单(#702 ②)", () => {
 test.describe("状态挂点(#702 ③)", () => {
   test("自机行 .self 金描边;破产行 .dead 灰化;活跃方 .is-active 印金圈", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 49);
+    await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
       // 种植破产(对手席;照排灰化=行仍在,非性质抹除)
@@ -206,7 +206,17 @@ test.describe("状态挂点(#702 ③)", () => {
 test.describe("打开不暂停(#702 ④)", () => {
   test("冻时钟外弹层开着对局照走(快照推进留痕),弹层恒开", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 49);
+    await quickStart(page, 1010);
+    // seed 1010 起手唯反应「半路杀出」+ 自由流动会踩招贤/购地停靠:清手牌(拦检窗
+    // 源)+ 种 3 回合跳过(缓兵同款机制)——人类连续让位,bot 链自由推进,快照必动
+    // (本例意图=弹层不暂停对局,不赌散布推演)。
+    await force(
+      page,
+      `
+      e.players[0].jinnangHand = []; e.players[0].jinnangHandCount = 0;
+      e.players[0].skipTurns = 3;
+    `,
+    );
     // 清掉人类当前一手,让 bot 接棒(否则停在我方决策点,快照不动是对局在等人,
     // 不是弹层暂停);清完立即开层读基线。
     for (let i = 0; i < 10 && (await actIfCan(page)); i++);

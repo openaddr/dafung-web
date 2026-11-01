@@ -1,9 +1,9 @@
 import { describe, it, expect } from "bun:test";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { createBoard, type TileDef } from "@core/board";
 
-const loaded = loadMap(huanyouData);
+const loaded = loadMap(guanzhongData);
 const board = loaded.board;
 // 用名字查 index,避免 boards.json 增删格后 index 位移导致单测脆弱
 const idx = (name: string) => board.tiles.find((t) => t.name === name)!.index;

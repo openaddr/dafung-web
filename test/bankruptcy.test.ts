@@ -9,10 +9,10 @@ import { HEROES, heroById } from "@core/heroes";
 import type { EncounterDef } from "@core/encounters";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import { testEngine, armHero, sweepTestHeroes } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 // 合成名将(zhugeliang 等)经 armHero 登记进名将表,afterEach 精确清退防泄漏(#785)
 afterEach(() => sweepTestHeroes());

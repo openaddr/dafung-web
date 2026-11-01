@@ -15,7 +15,7 @@
 // 零改动,只换呈现层;零可用自动过口径不变(引擎侧已自动)。
 // #255/#361 收口:战报抽屉(右缘把手,WarReportDrawer)在本件持有开合态;珍宝/名将
 // 明细走牌架双入口+藏品弹层(HandRack 内自持,expandPile 徽章机制已退役)。
-// usePanZoom/TokenLayer 其余/FxLayer 不动。
+// 棋盘取景恒总览定格(#946 平移缩放退役);TokenLayer/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
 import { useEffect, useState } from "react";
@@ -475,9 +475,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         style={{ ["--conn-h" as string]: connDown ? `${CONN_BANNER_BODY_H}px` : "0px" }}
       >
         {/* 棋盘区全幅垫底(id="board-wrap":FxLayer 的逻辑坐标→容器像素换算锚点)。
-          棋盘初始取景 = computeFitView 按图推导的总览 viewBox + preserveAspectRatio
-          meet——容器变矮
-          整盘等比缩小,无需 pan/zoom 补偿。 */}
+          棋盘取景恒 = computeFitView 按图推导的总览 viewBox(#946 平移缩放退役,
+          无 pan/zoom 补偿通路)+ preserveAspectRatio meet——容器变矮整盘等比缩小。 */}
         <div id="board-wrap" className="board-area">
           {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
           <ConnectionBanner />

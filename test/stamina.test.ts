@@ -4,10 +4,10 @@
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import { createDice } from "@core/dice";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(seed = 7): GameEngine {
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), {

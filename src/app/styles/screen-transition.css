@@ -117,8 +117,8 @@
    中段匀速无感),from 帧叠 brightness(0.94) 微压暗、推近中提亮(可选项采纳);
    一次性播完回到 none,transform/filter 均不残留包含块副作用。
    选择器经 .screen-in-game 后代命中 BoardView 的 svg(id=board):它是 HTML 布局盒
-   (transform-origin 默认即中心),只动 CSS transform/filter,与 usePanZoom 的
-   viewBox 平移缩放体系互不触碰。
+   (transform-origin 默认即中心),只动 CSS transform/filter,与棋盘 viewBox 取景
+   体系互不触碰(取景恒 computeFitView 总览定格,#946 平移缩放退役)。
    #771 起与墨晕串接:延迟 --dur-slow,墨晕盖满化开后起推,不叠加。
    时长 720ms 为 #835 拍板节奏(「240ms 墨起→内容入→720ms 镜头缓推」),token
    表无对应档(见头注例外)。── */

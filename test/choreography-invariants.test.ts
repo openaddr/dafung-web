@@ -34,7 +34,7 @@ import { GameEngine } from "../src/core/authority";
 import type { EngineConfig } from "../src/core/authority";
 import { createDice } from "../src/core/dice";
 import { TOKEN_SLOT_OFFSETS } from "../src/core/constants";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "../src/core/board-loader";
 import { testEngine } from "../src/core/testing";
 import { anchorMarches, extractBatchEvents } from "../src/app/fx/event-extract";
@@ -115,7 +115,7 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
 });
 
 // ─────────────── 不变量①提取即定格(ADR-0029,#608)───────────────
-const CHOREO_MAP = loadMap(huanyouData);
+const CHOREO_MAP = loadMap(guanzhongData);
 
 function choreoEngine(seed = 7): GameEngine {
   const cfg: EngineConfig = {

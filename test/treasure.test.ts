@@ -2,13 +2,13 @@ import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { TREASURE_PRICE, TREASURES, createTreasureDeck, premiumPriceOf } from "@core/treasures";
 import { beginGameEventBatch } from "@core/game-events";
 import { testEngine } from "@core/testing";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 function makeEngine(
   seed = 1,
@@ -226,7 +226,7 @@ describe("珍宝系统", () => {
 });
 
 describe("珍宝城落格固定事件与链序(#825;ADR-0024 同权)", () => {
-  /** huanyou 珍宝城(#825 后由 event:"treasure" 承载,旧格型已退役;须避开已占都城)。 */
+  /** 关中珍宝城(辽东/下邳/函谷关,#825 后由 event:"treasure" 承载,旧格型已退役;须避开已占都城)。 */
   function treasureTile(e: GameEngine) {
     return e.board.tiles.find(
       (t) => t.event === "treasure" && !e.takenCapitalIndices.has(t.index),

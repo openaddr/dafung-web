@@ -21,12 +21,12 @@ import {
 } from "@app/extensions/registry";
 import { extractBatchEvents } from "@app/fx/event-extract";
 import { armHero, heroOffer } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },

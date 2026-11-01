@@ -25,10 +25,10 @@ import { MAP } from "../scripts/engine-helpers";
 import { LocalController } from "../src/app/controllers/local";
 import { WORKER_SOURCE } from "../src/app/net/worker-clock";
 import type { WorkerClock } from "../src/app/net/worker-clock";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 
-const LOCAL_MAP = loadMap(huanyouData);
+const LOCAL_MAP = loadMap(guanzhongData);
 
 const SEATS2: SeatConfig[] = [
   { name: "A", isBot: false, guohao: "魏" },
@@ -162,7 +162,7 @@ async function autoPilotRoom(options?: { stallAbortMs?: number }) {
     hostConfig: { seed: 42 },
   });
   const roomId = created.room.roomId;
-  reg.setMap(roomId, "huanyou", created.token, new Set(["huanyou"]));
+  reg.setMap(roomId, "guanzhong", created.token, new Set(["guanzhong"]));
   await reg.startGame(roomId, created.token, undefined, () => MAP);
   const e = created.room.engine!;
   expect(e.phase).toBe("Setup");
@@ -289,7 +289,7 @@ describe("出口③ WorkerClock 挂死(#642)", () => {
           { name: "诸侯3", isBot: true },
         ],
         seed: 1,
-        mapId: "huanyou",
+        mapId: "guanzhong",
         botStepMs: 0, // bun 单测预算按 0ms bot 连锁书写(#730 配速不进既有用例)
       },
       clock,

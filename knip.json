@@ -4,7 +4,6 @@
     "index.html",
     "scripts/cli.ts",
     "scripts/fetch-asset.ts",
-    "scripts/make-huanyou-map.ts",
     "scripts/pr-merge.ts",
     "scripts/shot.mjs",
     "scripts/sim-jinnang.ts",

@@ -68,15 +68,15 @@ test.describe("弹层族矮屏规范(#708)", () => {
           const capTile = e.board.tiles.find(
             (t: any) => t.propertyId === e.board.at(me.capitalIndex).propertyId,
           );
-          const tiles = e.board.tiles
-            .filter(
-              (t: any) =>
-                t.type === "Property" &&
-                t.propertyId &&
-                t.index > capTile.index &&
-                e.findOwner(t.propertyId) == null,
-            )
-            .slice(0, 6);
+          // 都城之后环序取 6 座(#949 关中 28 城小盘:都城 index 靠近盘尾时线性
+          // 过滤会不足 6,按环回卷;跳过他人都城由 findOwner 覆盖——都城已领)
+          const tiles = [];
+          for (let k = 1; k < e.board.count && tiles.length < 6; k++) {
+            const t = e.board.tiles[(capTile.index + k) % e.board.count];
+            if (t.type === "Property" && t.propertyId && e.findOwner(t.propertyId) == null) {
+              tiles.push(t);
+            }
+          }
           if (tiles.length < 6) throw new Error("种植失败:无主普通城不足 6(地图/开局变了)");
           for (const t of tiles) {
             const def = e.catalog.get(t.propertyId);
@@ -135,13 +135,13 @@ test.describe("弹层族矮屏规范(#708)", () => {
 test.describe("决策卷轴拍板钮钉底(#729)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  /** seed 50 拦检链到购地卷轴(ADR-0034 重钓:AI 选都评分变更后原 seed 7 链作废,
-   *  react-short-stage startShort 同源配方:huanyou 条带选图 + 机遇归零 + 选都,
+  /** seed 1010 拦检链到购地卷轴(#949 关中重钓:换图后原 50 链作废,
+   *  react-short-stage startShort 同源配方:关中条带选图 + 机遇归零 + 选都,
    *  人类首个落格即购地抉择)。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
-    await page.goto(`/?seed=50`);
-    await page.getByTestId(HOME_TID.mapStripItem("huanyou")).click();
+    await page.goto(`/?seed=1010`);
+    await page.getByTestId(HOME_TID.mapStripItem("guanzhong")).click();
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();
     await page.route("**/config/jiyu.json", (route) =>

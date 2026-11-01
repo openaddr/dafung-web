@@ -15,13 +15,13 @@ import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { beginGameEventBatch } from "@core/game-events";
 import { armHero, testEngine } from "@core/testing";
-import huanyouData from "../public/maps/huanyou.json";
+import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
 
-const MAP = loadMap(huanyouData);
+const MAP = loadMap(guanzhongData);
 
-// huanyou 地图锚点(#827 环位):长安=P0 蛇头(tile 0)、洛阳=P35(tile 35)。
+// 关中地图锚点(4×7 满格螺旋):长安=P0 蛇头(tile 0)、洛阳=P27 腹地收尾(tile 27)。
 const CHANGAN = 0;
 const LUOYANG = MAP.board.tiles.find((t) => t.propertyId === "prop-luoyang")!.index;
 
@@ -446,8 +446,8 @@ describe("折叠投影器 · 金钱族相邻回填", () => {
 });
 
 describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
-  // #652 真实批序构造(#826 起场景改商市城):现金 < 行情损失且无可变卖资产(仅剩都城)
-  // 落商市城 → payOrLiquidate 破产支路:引擎 settleDebt 先整扫现金归零,批内先产
+  // #652 真实批序构造(#826 起场景改商市城(襄平)):现金 < 行情损失且无可变卖资产(仅剩都城)
+  // 落襄平(关中商市城)→ payOrLiquidate 破产支路:引擎 settleDebt 先整扫现金归零,批内先产
   // playerBankrupt(finalizeBankruptcy 派发时机同步产事件),随后 movement-flow 仍平记
   // 整额负 delta(浮字同口径,非状态转移)。副本锁步折叠该平记会穿零成负现金 ——
   // 渲染端 formatMoney 负数契约被折叠中间态击穿(soak 5 次渲染期崩溃的崩点);
@@ -489,7 +489,7 @@ describe("折叠投影器 · 破产扫账平记对齐(#652)", () => {
     (e.dice as unknown as { nextFloat: () => number }).nextFloat = () => 0.9;
   }
 
-  it("商市城破产批序折叠:平记 delta 不穿零,副本落 0 = 引擎真值(崩溃批序回归)", () => {
+  it("襄平(商市城)破产批序折叠:平记 delta 不穿零,副本落 0 = 引擎真值(崩溃批序回归)", () => {
     const e = marketBankruptEngine();
     const t = testEngine(e);
     const mover = e.activePlayer;
@@ -961,34 +961,30 @@ describe("折叠对账:快照=校准锚(#386,ADR-0020 决策 3)", () => {
 });
 
 describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
-  // huanyou 咸阳 = 宝物城(ADR-0027 环位 P24;并权后带 propertyId,走城池三分折叠路径)。
-  const XIANGLAND = MAP.board.tiles.find((t) => t.propertyId === "prop-xianyang")!.index;
+  // 关中辽东 = 宝物城(tile 3,#825 后由 event:"treasure" 承载;并权后带 propertyId,走城池三分折叠路径)。
+  const LIAODONG = MAP.board.tiles.find((t) => t.propertyId === "prop-liaodong")!.index;
 
   it("无主宝物城:足额 → AwaitingDecision + pendingLand(与普通城同路径)", () => {
     const e = makeEngine();
-    foldEventBatch(e, [
-      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
-    ]);
-    expect(e.players[0].position).toBe(XIANGLAND);
+    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
+    expect(e.players[0].position).toBe(LIAODONG);
     expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-xianyang" });
+    expect(e.pendingLand).toEqual({ kind: "PropertyAvailable", propertyId: "prop-liaodong" });
     expect(e.lastLandOutcome?.kind).toBe("PropertyAvailable");
   });
 
   it("己方宝物城:未满级 → AwaitingDecision(OwnProperty);满级 → Land 收场", () => {
     const e = makeEngine();
-    grantHolding(e, 0, "prop-xianyang", 0);
-    foldEventBatch(e, [
-      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
-    ]);
+    grantHolding(e, 0, "prop-liaodong", 0);
+    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
     expect(e.turnPhase).toBe("AwaitingDecision");
-    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: "prop-xianyang" });
+    expect(e.pendingLand).toEqual({ kind: "OwnProperty", propertyId: "prop-liaodong" });
     expect(e.lastLandOutcome?.kind).toBe("OwnProperty");
 
     const e2 = makeEngine();
-    grantHolding(e2, 0, "prop-xianyang", 3); // 满级:自动按兵不动(相位由同批 turnStarted 收场)
+    grantHolding(e2, 0, "prop-liaodong", 3); // 满级:自动按兵不动(相位由同批 turnStarted 收场)
     foldEventBatch(e2, [
-      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+      ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) }),
     ]);
     expect(e2.turnPhase).toBe("Land");
     expect(e2.pendingLand).toBeNull();
@@ -996,20 +992,18 @@ describe("折叠投影器 · 宝物城并权(ADR-0024 落格镜像)", () => {
 
   it("他人宝物城:城主有宝 → AwaitingTreasureOwner 到来;无宝 → Land 收场", () => {
     const e = makeEngine();
-    grantHolding(e, 1, "prop-xianyang", 0);
+    grantHolding(e, 1, "prop-liaodong", 0);
     e.players[1].treasures.push({ ...TREASURES[0]!, id: "fold-probe" });
-    foldEventBatch(e, [
-      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
-    ]);
+    foldEventBatch(e, [ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) })]);
     expect(e.turnPhase).toBe("AwaitingTreasureOwner");
     expect(e.treasureVisitor?.ownerIdx).toBe(1);
-    expect(e.treasureVisitor?.def.id).toBe("prop-xianyang");
+    expect(e.treasureVisitor?.def.id).toBe("prop-liaodong");
     expect(e.lastLandOutcome?.kind).toBe("TreasureTrade");
 
     const e2 = makeEngine();
-    grantHolding(e2, 1, "prop-xianyang", 0); // 无宝:无事发生
+    grantHolding(e2, 1, "prop-liaodong", 0); // 无宝:无事发生
     foldEventBatch(e2, [
-      ev(0, { kind: "marchArrived", tileIndex: XIANGLAND, path: path(XIANGLAND) }),
+      ev(0, { kind: "marchArrived", tileIndex: LIAODONG, path: path(LIAODONG) }),
     ]);
     expect(e2.turnPhase).toBe("Land");
     expect(e2.treasureVisitor).toBeNull();
