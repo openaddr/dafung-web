@@ -38,10 +38,36 @@ export async function buildDiagBundle(): Promise<DiagBundle> {
   };
 }
 
-/** 导出诊断包(浏览器下载通路,与 gameLogExport 同机制)。 */
+/** 诊断包 JSON 文本(导出面板的复制/下载两通路共用同一序列化)。 */
+export async function buildDiagText(): Promise<string> {
+  return JSON.stringify(await buildDiagBundle());
+}
+
+/** 复制诊断包文本到剪贴板。异步 Clipboard API 为主通路;WebView 未授权时(Android
+ *  WebView 常见)回退 textarea+execCommand——两条通路都失败如实返回 false,调用方
+ *  给可见失败反馈(不许静默)。 */
+export async function copyDiagText(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    ta.remove();
+    return ok;
+  }
+}
+
+/** 导出诊断包(浏览器文件下载通路;APK WebView 没接 DownloadListener,锚点下载
+ *  不触发——Tauri 内走导出面板的剪贴板通路,本函数只在浏览器面出现)。 */
 export async function exportDiagnostics(): Promise<void> {
-  const bundle = await buildDiagBundle();
-  const blob = new Blob([JSON.stringify(bundle)], { type: "application/json" });
+  const text = await buildDiagText();
+  const blob = new Blob([text], { type: "application/json" });
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
   a.download = `dafung-diag-${VERSION}.json`;
