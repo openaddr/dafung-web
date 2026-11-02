@@ -34,7 +34,8 @@ test("记忆的地图 id 失效:起兵被拦,停留设置屏(降级不崩溃)", 
   await expect(page.evaluate(() => !!(window as any).__dafung?.getEngine?.())).resolves.toBe(false);
 });
 
-test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", async ({ browser }) => {
+test("联机刷新 ?room= 直链:重新走加入流程,不崩溃", { tag: "@slow" }, async ({ browser }) => {
+  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
   const ONLINE = `http://localhost:${process.env.E2E_GAME_PORT ?? "3010"}`;
   const host = await (await newBridgeContext(browser)).newPage();
   const guest = await (await newBridgeContext(browser)).newPage();

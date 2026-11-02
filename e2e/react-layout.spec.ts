@@ -23,6 +23,10 @@ test.use({ viewport: { width: 844, height: 390 } });
 test.describe("全浮层骨架", () => {
   test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
     await quickStart(page);
+    // 停靠盖板出清(#987):招贤/购地决策面板拦点击,actIfCan 有界清点(warlords ④ 同款)
+    for (let i = 0; i < 10; i++) {
+      if (!(await actIfCan(page))) break;
+    }
     await expect(page.getByTestId(TESTIDS.topBar)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.seatRail)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();

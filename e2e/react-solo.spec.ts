@@ -16,6 +16,7 @@ import {
   pickCapital,
   waitMyRollDone,
   waitMyPause,
+  waitFxIdle,
   freezeClock,
   unfreezeClock,
 } from "./react-helpers";
@@ -210,10 +211,15 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 // bot 回合的等待反馈以 WaitingBar 挂载为断言锚(#732 起宿主在知会槽,#762 起与常驻
 // 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
-  await quickStart(page);
+  // #987 定 seed 49(react-seat-pop 同款:实测停靠干净无演出在播)——随机 seed 下
+  // quickStart 归还时可能有签面幕在收(收幕走房间时钟),先冻结会把玄墨幕钉死屏上、
+  // force 内的 waitFxIdle 永不排空(2026-11-02 W4 挂串行绿的负载敏感根因)。
+  await quickStart(page, 49);
   // #421 冻结闸:quickStart 稳后局面仍自走,force 改 activeIndex 与自推进竞速——
   // #928 行军提速后 force 落点撞进人类决策窗(interactive 被决策方压回,WaitingBar
-  // 永不开),钉住世界再动刀(同文件升级用例同款先例)。
+  // 永不开),钉住世界再动刀(同文件升级用例同款先例)。冻结前先排空演出:
+  // 冻结会挂起时钟驱动的收幕回调,fx 在途时冻结=waitFxIdle 死等(#987)。
+  await waitFxIdle(page);
   await freezeClock(page);
   try {
     await force(
@@ -233,63 +239,70 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
   }
 });
 
-test("加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)", async ({ page }) => {
-  // 锁种子:不锁时随机骰路偶发决策链超长(交涉连环)超出等待窗——TODO 记账的抖动家族,
-  // 锁定后本用例确定性通过;骰路覆盖广度由 test/invariant-soak.test.ts 的多 seed 引擎
-  // soak 承担(#293 Q1:全程驱动去浏览器化,本例只承接 UI 显示层巡检)。
-  await quickStart(page, 7);
-  // 身价=现金+地产:直接把现金推过目标身价,任一次 endTurn 收尾即触发 checkVictory。
-  // #188:quickStart 不再保证「正轮到人类」(行军自动化后局面自走),改锁人类座位本尊——
-  // checkVictory 先看主动玩家、再看全场达标者中身价最高者,开局数回合内 bot 身价远低,
-  // 人类 3× 目标恒为最高达标者,胜者确定性不变。
-  await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
-  // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
-  // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定;
-  // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
-  // #398 单机统一后 viewSeat 恒跟 decisionOwner(引擎 getter:珍宝交涉相位=城主),
-  // UI 只渲染访客只读视角,owner 为 bot 时也无驱动方代打),同样以调试钩子按 owner
-  // 身份「不交易」绕过。
-  // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
-  // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
-  // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中
-  // 顺手盯 UI 数据源——快照喂给仪表条/席位卡的玩家态不越界(现金/身价非负、位置合法、
-  // 破产无残留);引擎态全量口径(含都城位/锦囊残留)在 test/invariant-soak.test.ts。
-  const tileCount = await page.evaluate(() => (window as any).__dafung.getEngine().board.count);
-  for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
-    const s = await snap(page);
-    for (const p of s.players) {
-      if (p.cash < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
-      if (p.netWorth < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} nw=${p.netWorth}<0`);
-      if (p.position < 0 || p.position >= tileCount)
-        throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
-      if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
-        throw new Error(`破产残留:${p.guohao}`);
-    }
-    if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
-      await force(
-        page,
-        `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
-      );
-      continue;
-    }
-    const before = JSON.stringify(s);
-    if (!(await actIfCan(page))) {
+test(
+  "加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)",
+  { tag: "@slow" },
+  async ({ page }) => {
+    // 慢池(#1026):全程不变量巡检族(整局全程驱动)——快池门禁 --grep-invert @slow 跳过,
+    // 慢池批次收口跑。单例实测 30.3s(#1026 标定)。
+    // 锁种子:不锁时随机骰路偶发决策链超长(交涉连环)超出等待窗——TODO 记账的抖动家族,
+    // 锁定后本用例确定性通过;骰路覆盖广度由 test/invariant-soak.test.ts 的多 seed 引擎
+    // soak 承担(#293 Q1:全程驱动去浏览器化,本例只承接 UI 显示层巡检)。
+    await quickStart(page, 7);
+    // 身价=现金+地产:直接把现金推过目标身价,任一次 endTurn 收尾即触发 checkVictory。
+    // #188:quickStart 不再保证「正轮到人类」(行军自动化后局面自走),改锁人类座位本尊——
+    // checkVictory 先看主动玩家、再看全场达标者中身价最高者,开局数回合内 bot 身价远低,
+    // 人类 3× 目标恒为最高达标者,胜者确定性不变。
+    await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
+    // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
+    // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定;
+    // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
+    // #398 单机统一后 viewSeat 恒跟 decisionOwner(引擎 getter:珍宝交涉相位=城主),
+    // UI 只渲染访客只读视角,owner 为 bot 时也无驱动方代打),同样以调试钩子按 owner
+    // 身份「不交易」绕过。
+    // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
+    // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
+    // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中
+    // 顺手盯 UI 数据源——快照喂给仪表条/席位卡的玩家态不越界(现金/身价非负、位置合法、
+    // 破产无残留);引擎态全量口径(含都城位/锦囊残留)在 test/invariant-soak.test.ts。
+    const tileCount = await page.evaluate(() => (window as any).__dafung.getEngine().board.count);
+    for (let i = 0; i < 30 && !(await snap(page)).isOver; i++) {
+      const s = await snap(page);
+      for (const p of s.players) {
+        if (p.cash < 0) throw new Error(`不变量违规:T${s.round} ${p.guohao} cash=${p.cash}<0`);
+        if (p.netWorth < 0)
+          throw new Error(`不变量违规:T${s.round} ${p.guohao} nw=${p.netWorth}<0`);
+        if (p.position < 0 || p.position >= tileCount)
+          throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
+        if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
+          throw new Error(`破产残留:${p.guohao}`);
+      }
+      if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
+        await force(
+          page,
+          `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
+        );
+        continue;
+      }
+      const before = JSON.stringify(s);
+      if (!(await actIfCan(page))) {
+        await waitForSnapChanged(page, before).catch(() => {});
+        continue;
+      }
+      // TODO #13:原固定 200ms 在全量负载下不等决策链推进完就读快照,循环提前 break;
+      // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
       await waitForSnapChanged(page, before).catch(() => {});
-      continue;
     }
-    // TODO #13:原固定 200ms 在全量负载下不等决策链推进完就读快照,循环提前 break;
-    // 改为轮询"快照真的变了"(8s 余量),动作不改变局面时容忍(不阻塞循环)
-    await waitForSnapChanged(page, before).catch(() => {});
-  }
-  await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({ timeout: 60_000 });
-  // 终局封场(orchestrator.finishPresentation):真终局批先于胜利屏入队,封场后
-  // 掷骰签 overlay(z-45)不得残留——在场一张随封场摘除,后续掷骰不再播。
-  await expect(page.locator(".dice-overlay")).toHaveCount(0, { timeout: 2_000 });
-  const s = await snap(page);
-  expect(s.isOver).toBe(true);
-  expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
-  // E4(#16):胜因与终榜随快照——本局走 TargetNetWorth(富甲天下),终榜列出全员
-  expect(s.winReason).toBe("TargetNetWorth");
-  await expect(page.getByTestId(SCROLL_TESTIDS.victoryInfo)).toContainText("富甲天下");
-  await expect(page.getByTestId(SCROLL_TESTIDS.victoryStandings)).toContainText("终榜");
-});
+    await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible({ timeout: 60_000 });
+    // 终局封场(orchestrator.finishPresentation):真终局批先于胜利屏入队,封场后
+    // 掷骰签 overlay(z-45)不得残留——在场一张随封场摘除,后续掷骰不再播。
+    await expect(page.locator(".dice-overlay")).toHaveCount(0, { timeout: 2_000 });
+    const s = await snap(page);
+    expect(s.isOver).toBe(true);
+    expect(s.players.find((p: any) => p.id === s.winner).isBot).toBe(false);
+    // E4(#16):胜因与终榜随快照——本局走 TargetNetWorth(富甲天下),终榜列出全员
+    expect(s.winReason).toBe("TargetNetWorth");
+    await expect(page.getByTestId(SCROLL_TESTIDS.victoryInfo)).toContainText("富甲天下");
+    await expect(page.getByTestId(SCROLL_TESTIDS.victoryStandings)).toContainText("终榜");
+  },
+);

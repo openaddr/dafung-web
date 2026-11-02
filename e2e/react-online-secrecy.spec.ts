@@ -109,7 +109,8 @@ async function twoClientsSetup(pages: [Page, Page]): Promise<void> {
   await onlinePickCapitals(pages);
 }
 
-test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", () => {
+test.describe("联机保密下行(#381,ADR-0020 决策 2 兑现)", { tag: "@slow" }, () => {
+  // 慢池(#1026):联机真链路族——快池门禁 --grep-invert @slow 跳过,慢池批次收口跑。
   test.setTimeout(180_000);
 
   test("guest 视角:摘要/校准快照无他人手牌、无牌库序;事件批询问集只含自己或匿名占位", async ({

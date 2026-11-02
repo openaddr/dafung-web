@@ -5,7 +5,16 @@
 // 断言口径:状态断言走引擎 god view(与既有 spec 同款);动效是瞬态元素,单次 evaluate
 // 内 rAF 轮询原子采样(react-jinnang-use 指示线先例)。
 import { test, expect } from "./fixtures";
-import { quickStart, force, snap, engineState, waitSettled, useHalfScale } from "./react-helpers";
+import {
+  quickStart,
+  force,
+  snap,
+  engineState,
+  waitSettled,
+  useHalfScale,
+  waitFxIdle,
+  freezeClock,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
@@ -14,6 +23,10 @@ import type { Page } from "@playwright/test";
  *  (#378 调试钩子),按 #787 候选行形状 {def, skillIds(预掷授技)} 直写种植——
  *  种植者定预掷结果(e2e 给整池),引擎落定原样入槽不重掷。 */
 async function plantHeroPick(page: Page): Promise<void> {
+  // #987 冻结闸(#943 竞速点清偿):排空演出→冻结,种植的 AwaitingHeroPick 假相位
+  // 不被停靠点残留的已到点链步进覆盖(冻结挂起时钟驱动收幕,fx 在途时冻结=死等)。
+  await waitFxIdle(page);
+  await freezeClock(page);
   await force(
     page,
     `
@@ -64,44 +77,56 @@ function sampleFx(
 }
 
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
-  test("装包→装载→招贤可选→渲染 hook 将旗→选定结算+动画 handler", async ({ page }) => {
-    await quickStart(page, 7);
-    await plantHeroPick(page);
+  test(
+    "装包→装载→招贤可选→渲染 hook 将旗→选定结算+动画 handler",
+    { tag: "@slow" },
+    async ({ page }) => {
+      // 慢池(#1026):单例实测 >30s(45.4s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
+      await quickStart(page, 7);
+      await plantHeroPick(page);
 
-    // 渲染 hook(#378 三能力之三):招贤卡面挂示例包专属将旗(assets URL)
-    const scroll = page.getByTestId(T.heroPickScroll);
-    await expect(scroll).toBeVisible();
-    const flag = scroll.getByTestId(TESTIDS.heroFlag("taishici"));
-    await expect(flag).toHaveAttribute("src", "/extensions/hero-taishici/assets/flag.svg");
+      // 渲染 hook(#378 三能力之三):招贤卡面挂示例包专属将旗(assets URL)
+      const scroll = page.getByTestId(T.heroPickScroll);
+      await expect(scroll).toBeVisible();
+      const flag = scroll.getByTestId(TESTIDS.heroFlag("taishici"));
+      await expect(flag).toHaveAttribute("src", "/extensions/hero-taishici/assets/flag.svg");
 
-    // 选定太史慈(候选中位):被动技「义从」权威结算 +100 两
-    const before = await snap(page);
-    const cashBefore = before.players[0].cash;
-    const samplePromise = sampleFx(page, "义从归心", "义");
-    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
-    await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
-    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
-    await expect(pick).toBeVisible();
-    await pick.click();
-    await expect(scroll).toBeHidden();
-    await expect
-      .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
-      .toBe(cashBefore + 100);
-    expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
-      "taishici",
-    );
-    // 动画 handler(#378 三能力之二):「义」字印 + 扩展文案浮字(瞬态采样)
-    expect(await samplePromise).toEqual({ seal: true, floater: true });
-    await waitSettled(page);
-  });
+      // 选定太史慈(候选中位):被动技「义从」权威结算 +100 两
+      const before = await snap(page);
+      const cashBefore = before.players[0].cash;
+      const samplePromise = sampleFx(page, "义从归心", "义");
+      // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
+      await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
+      const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
+      await expect(pick).toBeVisible();
+      await pick.click();
+      await expect(scroll).toBeHidden();
+      await expect
+        .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
+        .toBe(cashBefore + 100);
+      expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
+        "taishici",
+      );
+      // 动画 handler(#378 三能力之二):「义」字印 + 扩展文案浮字(瞬态采样)
+      expect(await samplePromise).toEqual({ seal: true, floater: true });
+      await waitSettled(page);
+    },
+  );
 
-  test("主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1,扩展浮字播报", async ({ page }) => {
-    await useHalfScale(page); // 放缓演出:发技后自动起摇前留足断言窗(heroDiceBonus 消费前)
-    await quickStart(page, 7);
-    // 种植:人类麾下带示例名将,停出牌阶段(技能卡承载 SkillCardFace 单技装配,#818;将旗同挂)
-    await force(
-      page,
-      `
+  test(
+    "主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1,扩展浮字播报",
+    { tag: "@slow" },
+    async ({ page }) => {
+      // 慢池(#1026):单例实测 >30s(47.5s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
+      await useHalfScale(page); // 放缓演出:发技后自动起摇前留足断言窗(heroDiceBonus 消费前)
+      await quickStart(page, 7);
+      // #987 冻结闸(同 plantHeroPick):排空演出→冻结,种植的出牌窗不被迟到链步进覆盖
+      await waitFxIdle(page);
+      await freezeClock(page);
+      // 种植:人类麾下带示例名将,停出牌阶段(技能卡承载 SkillCardFace 单技装配,#818;将旗同挂)
+      await force(
+        page,
+        `
       {
         const taishici = window.__dafung.heroDefs().find((h) => h.id === "taishici");
         if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
@@ -114,38 +139,42 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
         e.turnPhase = "AwaitingJinnang";
       }
     `,
-    );
-    // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
-    const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici:taishici-pozhen"));
-    await expect(ji).toBeVisible();
-    // 渲染 hook 第二卡面:出牌阶段技能卡(SkillCardFace)同样挂将旗
-    await expect(ji.getByTestId(TESTIDS.heroFlag("taishici"))).toHaveAttribute(
-      "src",
-      "/extensions/hero-taishici/assets/flag.svg",
-    );
-    const samplePromise = sampleFx(page, "破阵!擂鼓进军");
-    await ji.click();
-    await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 权威结算复用 warDrum 案:本回合步数加成挂账;发技事件随同批产出
-    // (自动起摇开启新批前的事件窗内采样,0.5 倍率下窗口充裕)
-    await expect
-      .poll(
-        () =>
-          engineState(
-            page,
-            "({ bonus: e.heroDiceBonus, fired: e.gameEvents.some((x) => x.kind === 'heroSkillActivated') })",
-          ),
-        { timeout: 10_000, intervals: [50] },
-      )
-      .toEqual({ bonus: 1, fired: true });
-    // 动画 handler:破阵扩展浮字
-    expect(await samplePromise).toEqual({ seal: null, floater: true });
-  });
+      );
+      // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
+      const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici:taishici-pozhen"));
+      await expect(ji).toBeVisible();
+      // 渲染 hook 第二卡面:出牌阶段技能卡(SkillCardFace)同样挂将旗
+      await expect(ji.getByTestId(TESTIDS.heroFlag("taishici"))).toHaveAttribute(
+        "src",
+        "/extensions/hero-taishici/assets/flag.svg",
+      );
+      const samplePromise = sampleFx(page, "破阵!擂鼓进军");
+      await ji.click();
+      await page.getByTestId(TESTIDS.actionbarPlay).click();
+      // 权威结算复用 warDrum 案:本回合步数加成挂账;发技事件随同批产出
+      // (自动起摇开启新批前的事件窗内采样,0.5 倍率下窗口充裕)
+      await expect
+        .poll(
+          () =>
+            engineState(
+              page,
+              "({ bonus: e.heroDiceBonus, fired: e.gameEvents.some((x) => x.kind === 'heroSkillActivated') })",
+            ),
+          { timeout: 10_000, intervals: [50] },
+        )
+        .toEqual({ bonus: 1, fired: true });
+      // 动画 handler:破阵扩展浮字
+      expect(await samplePromise).toEqual({ seal: null, floater: true });
+    },
+  );
 
   test("定制问询「信义盲选」全链(#424):招贤触发→问询弹层牌背盲选→应答弃 1 摸 1 生效", async ({
     page,
   }) => {
     await quickStart(page, 7);
+    // #987 冻结闸(同 plantHeroPick):排空演出→冻结,种植的招贤/问询相位不被迟到链步进覆盖
+    await waitFxIdle(page);
+    await freezeClock(page);
     // 种植:候选只放太史慈 + 手牌 2 张(≥2 可用才进问询相位;起手 1 张走引擎自动执行不弹)
     await force(
       page,
