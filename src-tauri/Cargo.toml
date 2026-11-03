@@ -24,3 +24,7 @@ serde = { version = "1.0", features = ["derive"] }
 log = "0.4"
 tauri = { version = "2.11.3", features = [] }
 tauri-plugin-log = "2"
+# 诊断包落盘(#1056):系统保存对话框(ACTION_CREATE_DOCUMENT)+内容 URI 写入——
+# 剪贴板通路对全量大包不可达(限长+冻结),用户在文件管理器自行取件
+tauri-plugin-dialog = "2"
+tauri-plugin-fs = "2"
