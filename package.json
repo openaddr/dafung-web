@@ -42,7 +42,7 @@
   "dependencies": {
     "@base-ui/react": "^1.8.0",
     "@tauri-apps/plugin-dialog": "^2.8.4",
-    "@tauri-apps/plugin-fs": "^2.7.1",
+    "@tauri-apps/plugin-fs": "2.6.0",
     "clsx": "^2.1.1",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
