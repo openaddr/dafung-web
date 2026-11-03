@@ -1,22 +1,18 @@
-// 诊断包导出冒烟(帧诊通道 ADR-0047,#1053 双包版):入口在主页,不绑对局屏——
-// 进一局、弃局回主页、主页点「性能诊断」开导出面板。面板三通路分平台:
-//   复制帧诊(小包,帧诊+画像+省略局数)= Tauri/APK 主通路——全量包在安卓剪贴板
-//   限长拒收+textarea 回退冻结主线程(真机「点了没反应+弹层关不掉」#1053 实锤);
-//   复制全量 = 桌面剪贴板(大串走 Clipboard API);
-//   下载文件 = 浏览器通路(Tauri 内不出现该钮)。
-// 守住什么:三导出通路 + 载荷 schema(小包 gamesOmitted 语义/全量 games 真值)+
-// 停采定格语义(弃局退出后 perf 仍非空)+ 显式关闭钮。对局日志本体完整性由
-// react-solo 终局断言守,此处不重复。
+// 诊断包导出冒烟(帧诊通道 ADR-0047,#1056 落盘版):入口在主页,不绑对局屏——
+// 进一局、弃局回主页、主页点「性能诊断」开导出面板。浏览器面三断言:
+//   复制帧诊(小包,帧诊+画像+省略局数)= Tauri/APK 快速粘贴主通路——全量包在
+//   安卓剪贴板限长拒收+textarea 回退冻结主线程(#1053 真机实锤),拆包见 #1054;
+//   下载文件 = 浏览器全量通路(Tauri 内不出现该钮;Tauri 的「保存文件」走系统
+//   存储对话框,只能真机验,本 spec 不覆盖)。
+// 守住什么:导出通路 + 载荷 schema(小包 gamesOmitted 语义)+ 停采定格语义
+// (弃局退出后 perf 仍非空)+ 显式关闭钮。对局日志本体完整性由 react-solo 守。
 import { readFileSync } from "node:fs";
 import { test, expect } from "./fixtures";
 import { quickStart } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-test("退出对局后主页导出诊断包:帧诊小包+全量复制+文件下载三通路(#973/#1053)", async ({
-  page,
-  context,
-}) => {
+test("退出对局后主页导出诊断包:帧诊小包复制+文件下载(#973/#1053)", async ({ page, context }) => {
   test.slow();
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
   await quickStart(page);
@@ -55,19 +51,7 @@ test("退出对局后主页导出诊断包:帧诊小包+全量复制+文件下�
   await page.getByTestId(HOME_TID.diagClose).click();
   await expect(page.getByTestId(HOME_TID.diagSheet)).toBeHidden();
 
-  // 通路二:全量复制(桌面剪贴板;games 真值,无省略字段)
-  await page.getByTestId(HOME_TID.diagExport).click();
-  await page.getByTestId(HOME_TID.diagCopyFull).click();
-  await page.getByTestId(HOME_TID.diagSheet).getByText("已复制").waitFor();
-  const full = JSON.parse(await page.evaluate(() => navigator.clipboard.readText()));
-  expect(Array.isArray(full.games)).toBe(true);
-  expect(full.games.length).toBeGreaterThanOrEqual(1);
-  expect(full.games[0].gameId).toBeTruthy();
-  expect(full.gamesOmitted).toBeUndefined(); // 全量包未省略
-  await page.getByTestId(HOME_TID.diagClose).click();
-  await expect(page.getByTestId(HOME_TID.diagSheet)).toBeHidden();
-
-  // 通路三:文件下载(浏览器面;Tauri 内无此钮——面板按 __TAURI_INTERNALS__ 分派)
+  // 通路二:文件下载(浏览器面全量;Tauri 内无此钮——面板按 __TAURI_INTERNALS__ 分派)
   await page.getByTestId(HOME_TID.diagExport).click();
   const [download] = await Promise.all([
     page.waitForEvent("download"),
@@ -76,5 +60,6 @@ test("退出对局后主页导出诊断包:帧诊小包+全量复制+文件下�
   expect(download.suggestedFilename()).toMatch(/^dafung-diag-\d{4}\.\d{1,2}\.\d+\.json$/);
   const file = JSON.parse(readFileSync((await download.path())!, "utf-8"));
   expect(file.kind).toBe("dafung-diag");
-  expect(file.games.length).toBe(full.games.length); // 同一归档,两通路一致
+  expect(file.games.length).toBeGreaterThanOrEqual(1); // 全量:弃局的本局在内
+  expect(file.gamesOmitted).toBeUndefined(); // 全量包未省略
 });
