@@ -8,11 +8,16 @@ export const HOME_TID = {
   mapStrip: "home-map-strip",
   // 性能诊断导出(帧诊通道 ADR-0047:诊断包=历史对局日志全量+最近一局帧诊+设备画像;
   // 入口在主页——用户测试常不打完就退出,不绑对局屏;#1047 起点开导出面板,
-  // 复制=Tauri 侧主通路(APK WebView 无下载),下载只在浏览器面出现)
+  // 复制=Tauri 侧主通路(APK WebView 无下载),下载只在浏览器面出现;
+  // #1053 拆双包:帧诊小包(推荐,剪贴板稳定)/全量包(大串限长,失败明示))
   diagExport: "home-diag-export",
   diagSheet: "home-diag-sheet",
   diagCopy: "home-diag-copy",
+  diagCopyFull: "home-diag-copy-full",
+  diagPerfFail: "home-diag-perf-fail",
+  diagFullFail: "home-diag-full-fail",
   diagDownload: "home-diag-download",
+  diagClose: "home-diag-close",
   diagError: "home-diag-error",
   mapStripItem: (id: string) => `home-map-strip-item-${id}`,
 } as const;
