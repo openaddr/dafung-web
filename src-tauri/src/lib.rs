@@ -6,13 +6,13 @@ pub fn run() {
     .plugin(tauri_plugin_dialog::init())
     .plugin(tauri_plugin_fs::init())
     .setup(|app| {
-      if cfg!(debug_assertions) {
-        app.handle().plugin(
-          tauri_plugin_log::Builder::default()
-            .level(log::LevelFilter::Info)
-            .build(),
-        )?;
-      }
+      // 日志插件两档都挂(#1060):构建档位切 release 后不再丢 logcat 排查通道
+      // (原 cfg!(debug_assertions) 门控使 release 包原生日志静默);级别仍 Info。
+      app.handle().plugin(
+        tauri_plugin_log::Builder::default()
+          .level(log::LevelFilter::Info)
+          .build(),
+      )?;
       Ok(())
     })
     .run(tauri::generate_context!())
