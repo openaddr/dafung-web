@@ -8,9 +8,10 @@
 // 版本单源 package.json(CalVer):发版前先 bump version 走 PR 合入 master(AGENTS.md 规约)。
 // 防挤兑(2026-11-01 拍板,多会话并行):①tag 查重重号即红;②tmp/release.lock 原子锁,
 //   撞锁红字让位、持锁超 1h 视为被杀残锁可接管——触发时机与三闸全量口径见 how-to「发版时机」。
-// 签名现状:debug 签名包可装、同机可覆盖升级(签名=本机 debug.keystore);正式签名未配,
-//   配好后再切 --release。出包配方见 docs/how-to/开发与测试.md「安卓出包」。
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+// 签名现状(#1060 起):构建档位=release 优化档(.so 140→23.7MB,APK 154→27.6MB 实测),
+// 签名仍 debug keystore(zipalign+apksigner 已固化进本脚本)——同签名可装、同机可覆盖
+// 升级;正式签名未配,配好再换 keystore。出包配方见 docs/how-to/开发与测试.md「安卓出包」。
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import * as path from "node:path";
 
 const APK_OUT = "src-tauri/gen/android/app/build/outputs/apk";
@@ -115,18 +116,27 @@ if (!remoteTagRe.ok) red(`git ls-remote 失败:${remoteTagRe.out}`);
 if (remoteTagRe.out)
   red(`远端已有 ${tag}(拿锁前查重后被并行会话发掉)——bump package.json version 再发。`);
 
-// 4) 出包 + 对账。产物目录名随 CLI 布局走(#894 实测 2.11.4 落 universal/ 而非目标名),
-//    按「唯一 APK」定位不写死布局;包内 ABI 由 --target 过滤,断言纯度防 jniLibs 残挂混包。
-const build = run(["bunx", "tauri", "android", "build", "--debug", "--target", "aarch64"], true);
+// 4) 出包(release 优化档,#1060 发版政策切换:debug 档 .so 140MB→release 23.7MB,
+//    APK 154→27.6MB 实测)。产物目录名随 CLI 布局走(#894 实测 2.11.4 落 universal/
+//    而非目标名),按「唯一未签名 APK」定位不写死布局;包内 ABI 由 --target 过滤,
+//    断言纯度防 jniLibs 残挂混包。
+const build = run(["bunx", "tauri", "android", "build", "--target", "aarch64"], true);
 if (!build.ok) red("tauri android build 失败——环境四件套/上游报错看上方输出。");
-const found = [...new Bun.Glob("*/debug/*.apk").scanSync({ cwd: APK_OUT, onlyFiles: true })];
+const found = [
+  ...new Bun.Glob("*/release/app-universal-release-unsigned.apk").scanSync({
+    cwd: APK_OUT,
+    onlyFiles: true,
+  }),
+];
 if (found.length !== 1) {
   red(
-    `产物应恰有一个 APK,实得 ${found.length} 个:${found.join(" ") || "(无)"}——布局切换期的陈旧产物先清掉再发。`,
+    `产物应恰有一个未签名 APK,实得 ${found.length} 个:${found.join(" ") || "(无)"}——布局切换期的陈旧产物先清掉再发。`,
   );
 }
-const apk = `${APK_OUT}/${found[0]}`;
-const meta = JSON.parse(readFileSync(`${path.dirname(apk)}/output-metadata.json`, "utf8")) as {
+const unsignedApk = `${APK_OUT}/${found[0]}`;
+const meta = JSON.parse(
+  readFileSync(`${path.dirname(unsignedApk)}/output-metadata.json`, "utf8"),
+) as {
   elements?: { versionName?: string }[];
 };
 const apkVersion = meta.elements?.[0]?.versionName;
@@ -135,6 +145,51 @@ if (apkVersion !== version) {
     `版本对账失败:APK versionName=${apkVersion} ≠ package.json ${version}——产物陈旧或 tauri.conf 引用链断,先排查。`,
   );
 }
+
+// 4.5) 签名(release 档 gradle 不自动签):debug keystore 与历史装机件同源——
+//    同签名可装、同机可覆盖升级;zipalign→apksigner 固化进脚本,失败响亮红出。
+const buildTools = path.join(process.env.ANDROID_HOME ?? "", "build-tools");
+if (!existsSync(buildTools))
+  red(`ANDROID_HOME 未设或缺 build-tools(${buildTools})——签名工具不可达。`);
+const tool = (name: string): string => {
+  const candidates = readdirSync(buildTools)
+    .filter((d) => existsSync(path.join(buildTools, d, name)))
+    .sort((a, b) => {
+      const pa = a.split(".").map(Number);
+      const pb = b.split(".").map(Number);
+      return (
+        (pb[0] ?? 0) - (pa[0] ?? 0) || (pb[1] ?? 0) - (pa[1] ?? 0) || (pb[2] ?? 0) - (pa[2] ?? 0)
+      );
+    });
+  if (candidates[0] == null) red(`build-tools 下找不到 ${name}——SDK 安装不完整。`);
+  return path.join(buildTools, candidates[0], name);
+};
+const keystore = path.join(process.env.USERPROFILE ?? "", ".android", "debug.keystore");
+if (!existsSync(keystore)) red(`debug.keystore 不在(${keystore})——签名通路不可达。`);
+mkdirSync(ASSET_DIR, { recursive: true });
+const aligned = `${ASSET_DIR}/${tag}-aligned.apk`;
+if (!run([tool("zipalign.exe"), "-f", "4", unsignedApk, aligned]).ok) red("zipalign 失败。");
+const apksigner = tool("apksigner.bat");
+const apk = `${ASSET_DIR}/${tag}-aarch64.apk`;
+const signed = run([
+  "cmd",
+  "/c",
+  apksigner,
+  "sign",
+  "--ks",
+  keystore,
+  "--ks-key-alias",
+  "androiddebugkey",
+  "--ks-pass",
+  "pass:android",
+  "--key-pass",
+  "pass:android",
+  "--out",
+  apk,
+  aligned,
+]);
+if (!signed.ok) red(`apksigner 签名失败:${signed.out}`);
+rmSync(aligned); // 中间产物(对齐未签)不留盘
 const libEntries = run(["unzip", "-l", apk])
   .out.split("\n")
   .map((l) => l.trim().split(/\s+/).pop() ?? "")
@@ -156,10 +211,9 @@ if (!run(["git", "push", "origin", `refs/tags/${tag}`], true).ok) {
   red("推 tag 失败——修好网络/权限重跑(已做步骤幂等跳过)。");
 }
 
-// 6) 发 Release(资产改名带版本号;--generate-notes 按提交史生成 body)。
+// 6) 发 Release(签名产物已在资产位;--generate-notes 按提交史生成 body)。
 mkdirSync(ASSET_DIR, { recursive: true });
-const asset = `${ASSET_DIR}/${tag}-aarch64.apk`;
-copyFileSync(apk, asset);
+const asset = apk;
 const ghArgs = [
   "gh",
   "release",
@@ -178,5 +232,5 @@ if (!created.ok)
     `gh release create 失败——若 Release 已存在,gh release view ${tag} 核对后手动补资产或删了重跑。`,
   );
 console.log(
-  `[release] 完成:${tag} 已发布,资产 ${asset}(debug 签名,可装机);标题/notes 可 gh release edit 润色。`,
+  `[release] 完成:${tag} 已发布,资产 ${asset}(release 优化档,debug keystore 签名可装机);标题/notes 可 gh release edit 润色。`,
 );
