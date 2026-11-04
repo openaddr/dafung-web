@@ -799,13 +799,15 @@ describe("军情密探·窥探(#575 即时一次性)", () => {
     const targetHand = [...e.players[1].jinnangHand];
     e.resolveJinnang("军情密探");
     e.resolveJinnang("军情密探", [1]);
-    // 事件=窥探的唯一载体(viewer 凭事件得一次阅览权):真生效才产出,手牌快照随行
+    // 事件=窥探的唯一载体(viewer 凭事件得一次阅览权):真生效才产出,手牌快照随行;
+    // cardId=所因锦囊(#1067:UI 题名按目录回查,载荷带牌 id)
     const ev = e.gameEvents.find((x) => x.kind === "peekApplied");
     expect(ev).toMatchObject({
       kind: "peekApplied",
       seat: 0,
       viewerSeat: 0,
       targetSeat: 1,
+      cardId: "军情密探",
       hand: targetHand,
     });
     // 即时一次性:窥探无任何客户端/快照状态(引擎账本已删,快照零字段)

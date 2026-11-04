@@ -104,7 +104,7 @@ import type {
   ReactionView,
 } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
-import { jinnangCardOf, JINNANG_CARDS } from "@core/jinnang";
+import { jinnangCardOf } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REP_MILESTONES } from "@core/reputation";
 import { REACTION_WINDOW_MS } from "@core/constants";
@@ -120,13 +120,6 @@ import { heroSlotOf } from "@core/roster";
 
 /** 声望献计里程碑(#147):值域与穿越口径同 core reputation.ts(向上穿越、仅首次)。 */
 // 常量单源在 core/reputation.ts(REP_MILESTONES),勿在本文件重定义。
-
-/** 拦检反应牌(#281):行军窗唯一可打反应牌——按效果域查静态目录,不硬抄牌名字符串。 */
-const AMBUSH_CARD = (() => {
-  const card = JINNANG_CARDS.find((c) => c.effect.kind === "ambush");
-  if (card == null) throw new Error("折叠投影:静态目录无拦检反应牌(数据 bug)");
-  return card;
-})();
 
 /** 主动技参数必存校验:HEROES 声明的技参数在折叠落账时缺失 = 数据 bug,当场炸出。 */
 function requireSkillParam(skill: ActiveSkillDef, key: string): number {
@@ -639,14 +632,18 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           engine.pendingReaction = null;
           if (pr.view.kind === "march") {
             // 行军窗结算恒消耗拦检牌(胜负两路 consumeReactionCard 皆先于拼点),折于
-            // 闭窗应答点(批序与引擎结算点等效)
+            // 闭窗应答点(批序与引擎结算点等效);牌 id=应答载荷自带(#1067「按载荷取牌」,
+            // 不再按 kind 猜静态目录)
             const ambush = pr.answers.find((a) => a.use);
-            if (ambush != null)
+            if (ambush != null) {
+              if (ambush.cardId == null)
+                throw new Error("折叠投影:行军窗应答缺牌 id(事件产出契约违反)");
               consumeCard(
                 engine,
                 eventSeatPlayer(engine, ambush.seat, "行军窗应答"),
-                AMBUSH_CARD.id,
+                ambush.cardId,
               );
+            }
           }
         }
         break;

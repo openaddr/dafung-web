@@ -145,6 +145,8 @@ export type PresentationEvent =
       viewerSeat: number;
       /** 被窥者座位。 */
       targetSeat: number;
+      /** 所因锦囊 id(提取期透传,弹层题名按目录回查——UI 不硬编码牌名,#1067)。 */
+      cardId: string;
       /** 被窥者国号(提取期解析,弹层副题「窥 {国号} 营锦囊」)。 */
       guohao: string;
       /** 被窥者锦囊手牌内容(非 viewer 座位恒空——redactEvents 逐座位裁,ADR-0016)。 */

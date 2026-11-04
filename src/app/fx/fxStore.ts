@@ -114,6 +114,8 @@ export interface PeekFx {
   id: number;
   viewerSeat: number;
   targetSeat: number;
+  /** 所因锦囊 id(弹层题名按锦囊目录回查——UI 不硬编码牌名,#1067)。 */
+  cardId: string;
   /** 被窥者国号(弹层副题「窥 {国号} 营锦囊」)。 */
   guohao: string;
   /** 被窥者锦囊手牌内容(viewer 之外恒空——redactEvents 逐座位裁,ADR-0016)。 */
@@ -211,8 +213,9 @@ interface FxState {
   announceTurn(guohao: string, color: string, round: number, colorIndex: number): void;
   stampSeal(x: number, y: number, char: string, tone?: "gold"): void;
   spawnJinnangLine(x1: number, y1: number, x2: number, y2: number): void;
-  /** 窥探弹层(#575):置开关态(同拍再窥=替换,id 单调供弹层重挂重播入场)。 */
-  revealPeek(viewerSeat: number, targetSeat: number, guohao: string, hand: string[]): void;
+  /** 窥探弹层(#575):置开关态(同拍再窥=替换,id 单调供弹层重挂重播入场)。
+   *  入参=表现事件减 id(整件透传,含 cardId 题名锚,#1067)。 */
+  revealPeek(ev: Omit<PeekFx, "id">): void;
   /** 关闭窥探弹层(#575):关闭即清,无任何残留。 */
   closePeek(): void;
   /** 都城停条带(#732 降格):入知会队列,槽空即播;号角/震屏校准在 sink 侧。 */
@@ -366,8 +369,8 @@ export const useFxStore = create<FxState>()(
       );
     },
 
-    revealPeek(viewerSeat, targetSeat, guohao, hand) {
-      set({ peek: { id: nextId++, viewerSeat, targetSeat, guohao, hand: [...hand] } });
+    revealPeek(ev) {
+      set({ peek: { id: nextId++, ...ev, hand: [...ev.hand] } });
     },
 
     closePeek() {

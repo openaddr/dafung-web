@@ -13,6 +13,7 @@ import { beginGameEventBatch } from "@core/game-events";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
+  assertGrantHeroCostDeclared,
   normalizeEncounterBaseRates,
   resolveEncounterConfig,
   tierShares,
@@ -773,6 +774,20 @@ describe("抉择机遇(#124):入相与快照", () => {
     const opts = e.choicesFor();
     expect(opts[0].available).toBe(false);
     expect(opts[0].reason).toBe("麾下已满");
+  });
+
+  it("grantHero 选项缺 treasureCost → 换贤代价声明守卫当场抛错(含条目 id,#1067)", () => {
+    const bad: EncounterDef = {
+      id: "欠声明条目",
+      tier: "中性",
+      tags: ["名将"],
+      weight: 1,
+      text: "未声明 treasureCost 的数据 bug 条目",
+      choices: [{ text: "换将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } }],
+    };
+    expect(() => assertGrantHeroCostDeclared([bad])).toThrow(/欠声明条目.*treasureCost/);
+    // 生产目录已过同守卫(模块初始化即验):此处复验不抛 = 表内 grantHero 选项全声明
+    expect(() => assertGrantHeroCostDeclared(ENCOUNTERS)).not.toThrow();
   });
 
   it("结盟互市:单选项自动执行(≤1 可用,ADR-0013),双方各 +100 两、不弹相位", () => {

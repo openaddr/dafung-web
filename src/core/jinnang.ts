@@ -14,9 +14,26 @@
  *  在反应窗打出——名额账本(jinnangUsedTags)只记活跃玩家的出牌阶段额度,反应牌不入账。 */
 export type JinnangTag = "谋" | "攻" | "守" | "援" | "即时";
 
-/** 目标域:由牌面固定(GLOSSARY.md 锦囊条)。two-others 仅连环计(二虎竞食);
+/** 目标域:由牌面固定(GLOSSARY.md 锦囊条)。two-others=两步目标段(语义见下
+ *  TARGET_DOMAIN_STAGES 声明表——新 two-others 牌自动获得两步流,#1067);
  *  reaction(#281)= 纯反应牌:无手动目标段,不经出牌阶段目标校验,只在反应窗打出。 */
 export type JinnangTargetDomain = "self" | "one" | "two-others" | "all-others" | "reaction";
+
+/** 目标域 → 目标段流声明表(#1067 语义声明化单源):「两步目标段、第二步排除首目标」
+ *  不再内联在 resolveJinnang/choices——两消费点按 targetDomain 查此表。
+ *  stages=目标段步数(0=无目标段:self 自指/all-others 全体/reaction 唯反应,出牌即执行;
+ *  1=单段单选;2=两步,段名 two-a→two-b);excludeFirstFromSecond=末段候选排除首段
+ *  已定目标(两步流语义:两名目标互异)。 */
+export const TARGET_DOMAIN_STAGES: Record<
+  JinnangTargetDomain,
+  { stages: 0 | 1 | 2; excludeFirstFromSecond: boolean }
+> = {
+  self: { stages: 0, excludeFirstFromSecond: false },
+  one: { stages: 1, excludeFirstFromSecond: false },
+  "two-others": { stages: 2, excludeFirstFromSecond: true },
+  "all-others": { stages: 0, excludeFirstFromSecond: false },
+  reaction: { stages: 0, excludeFirstFromSecond: false },
+};
 
 /** 效果数据(T1 只携带不执行;执行在 T2 自身域/T3 指向他人/T4 拼点窥探逐票落地;
  *  #281 反应牌(counter/ambush)在反应窗结算,不经 executeJinnang 常规通道)。 */
