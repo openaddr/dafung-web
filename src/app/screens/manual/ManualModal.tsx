@@ -4,8 +4,8 @@
 //   顶带 44px + 底距 20px → 壳高 ≤ 100dvh − 64px(844×390 上 ≤326px),
 //   纵向锚 = 让位区 [44px, 100dvh−20px] 的中点(translate-y(-50%) 居中于该区),
 //   高顶满时顶边恰 44px、底边距视口底 20px。
-// 壳 = ui/dialog 底件自组(禁 import screens/game/PileModal 的 PileShell——组件层
-// 依赖 screens 层方向禁止),形制照 PileShell:题名行兼拖动把手(#674)、挂载不夺焦
+// 壳 = ui/dialog 底件自组(T1 交付形制保留;本件已归位 screens/manual 层,#1069
+// 收口时 T2/T3 的详情叠层归 PileShell 复用),形制照 PileShell:题名行兼拖动把手(#674)、挂载不夺焦
 // (initialFocus=false)、点外/Esc/X 三路关、退场「播完再移除」(useDialogExit 同款
 // 210ms 出口;壳体淡出下沉 8px 走 transition 等效 pile-modal-out——本票文件集无 CSS
 // 文件位,不自造 keyframes,遮罩退场复用全局 dialog-overlay-out)。内容区 ui/scroll-area

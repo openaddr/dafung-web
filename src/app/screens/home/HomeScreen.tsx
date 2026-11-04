@@ -3,7 +3,7 @@
 // 纯导航(用户要求:菜单只显示按钮入口)。选图仍是二级面板(MapSelectPanel
 // 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
 // #1069 spec T1:次级行补「手册」笺钮(#1070)——点开玩法手册大弹层
-// (components/manual/ManualModal,五类内容总览,ADR-0049 弹层形态)。
+// (screens/manual/ManualModal,五类内容总览,ADR-0049 弹层形态)。
 // #707 矮横屏档(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
 // 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
 // (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
@@ -13,7 +13,7 @@ import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { startWarmup } from "@app/warmup";
 import { useMediaQuery } from "@app/hooks/use-media-query";
-import { ManualModal } from "@app/components/manual/ManualModal";
+import { ManualModal } from "@app/screens/manual/ManualModal";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
