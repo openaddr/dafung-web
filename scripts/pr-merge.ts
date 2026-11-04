@@ -320,7 +320,9 @@ if (!prNumber) {
       }
       process.exit(1);
     }
-    console.log(`[pr-merge] 文件集对账通过(${actual.length} 个):${actual.join(" ")}`);
+    console.log(
+      `[pr-merge] 文件集对账通过(声明 ${declared.length} = 实际 ${actual.length} 个):${actual.join(" ")}`,
+    );
   }
 
   // 1.19) 慢池 canary(#1003,#958 会话复盘拍板):慢例池只在收口/批次跑,快票合并
