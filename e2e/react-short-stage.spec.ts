@@ -12,7 +12,7 @@
 // (seed 67 起手求贤令恒可用 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
 // (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
 import { test, expect } from "./fixtures";
-import { answerMarchCounter, force, useHalfScale } from "./react-helpers";
+import { answerMarchCounter, disableEncounters, force, useHalfScale } from "./react-helpers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
@@ -32,13 +32,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();
     // 机遇归零(#126 同口径):防随机机遇卷轴污染停靠点
-    await page.route("**/config/jiyu.json", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
-      }),
-    );
+    await disableEncounters(page);
     await page.getByTestId(SETUP_TID.startGame).click();
     await page.locator(".bv-tile.bv-selectable").first().click();
     await page.getByTestId(TESTIDS.confirmCapitalOk).click();

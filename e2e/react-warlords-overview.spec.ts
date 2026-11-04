@@ -1,8 +1,10 @@
 // 诸侯详情弹窗(#702,#732 正名,spec #697 ⑥):①行数据与投影逐字一致(城池名/名将名直读,
 // 种植式断言,react-city-ledger 同口径);②城池列点击开对应诸侯 #622 名下城池清单
 // (单层互斥:总览先关清单再开);③状态挂点(自机行 .self 金描边/破产行 .dead 灰化/
-// 活跃方 .is-active 印金圈);④打开不暂停(冻时钟外对局推进留痕,弹层恒开);
-// ⑤满编 8 行 @844×390 零滚动零截断。
+// 活跃方 .is-active 印金圈);
+// ⑤满编 8 行 @844×390 零滚动零截断。(原④「打开不暂停」例已按 #987 零容忍删除
+// 2026-11-05:一日四挂两绿两种签名——点击拦截层修通后快照推进层又挂,时序竞速族;
+// 「弹层开着对局照走」是架构事实(引擎不知弹层),不可靠守卫按纪律删不留台账,#1042 有案。)
 // 停靠纪律(react-seat-pop 同款):quickStart 可能在行军演出在播时归还——清卷轴必须
 // 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 1010(#949 关中重钓:
 // 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
@@ -13,14 +15,12 @@ import {
   openSoloSetup,
   pickCapital,
   waitMyPause,
-  waitMyRollDone,
   snap,
   actIfCan,
   waitFxIdle,
   force,
   freezeClock,
   unfreezeClock,
-  waitForSnapChanged,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -200,48 +200,6 @@ test.describe("状态挂点(#702 ③)", () => {
     } finally {
       await unfreezeClock(page);
     }
-  });
-});
-
-test.describe("打开不暂停(#702 ④)", { tag: "@slow" }, () => {
-  test("冻时钟外弹层开着对局照走(快照推进留痕),弹层恒开", async ({ page }) => {
-    // 慢池(#1026):单例实测 >30s(40.6s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
-    test.setTimeout(180_000); // 重例放宽(见文件头注)
-    await quickStart(page, 1010);
-    // seed 1010 起手唯反应「半路杀出」+ 自由流动会踩招贤/购地停靠:清手牌(拦检窗
-    // 源)+ 种 3 回合跳过(缓兵同款机制)——人类连续让位,bot 链自由推进,快照必动
-    // (本例意图=弹层不暂停对局,不赌散布推演)。
-    await force(
-      page,
-      `
-      e.players[0].jinnangHand = []; e.players[0].jinnangHandCount = 0;
-      e.players[0].skipTurns = 3;
-    `,
-    );
-    // 清掉人类当前一手,让 bot 接棒(否则停在我方决策点,快照不动是对局在等人,
-    // 不是弹层暂停);清完立即开层读基线。
-    for (let i = 0; i < 10 && (await actIfCan(page)); i++);
-    await waitMyRollDone(page, 0);
-    const modal = page.getByTestId(TESTIDS.warlordsOverview);
-    // 三次尝试窗口:读基线恰逢轮次交接到人类停摆时,收层清一手换停靠点再来
-    let advanced = false;
-    for (let attempt = 0; attempt < 3 && !advanced; attempt++) {
-      await page.getByTestId(TESTIDS.topbarOverview).click({ timeout: 5_000 });
-      await expect(modal).toBeVisible();
-      const before = JSON.stringify(await snap(page));
-      try {
-        await waitForSnapChanged(page, before, 9_000);
-        advanced = true;
-      } catch {
-        await page.keyboard.press("Escape");
-        await expect(modal).toHaveCount(0);
-        for (let i = 0; i < 6 && (await actIfCan(page)); i++);
-        await waitMyRollDone(page, 0);
-      }
-    }
-    expect(advanced).toBe(true);
-    // 推进留痕成立时弹层仍开(全窗口无 clockPause,bot 行动即「未暂停」的人证)
-    await expect(modal).toBeVisible();
   });
 });
 
