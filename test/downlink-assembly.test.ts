@@ -221,7 +221,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
   { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] },
-  { kind: "inquiryAutoExecuted", inquiryId: "xinyi", optionId: "swap", label: "弃旧换新" }, // #719 问询自动执行
   { kind: "reactionOpened", windowKind: "jinnang", cardId: "横征暴敛", queriedSeats: [0, 1] },
   { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [1] },
 ];

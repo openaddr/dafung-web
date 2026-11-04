@@ -612,22 +612,6 @@ describe("事件→动效映射表(#385 缺口闭合)", () => {
     ]);
   });
 
-  it("inquiryAutoExecuted:问询自动执行 → 选项文案浮字,label 随事件走(#719 迁 fx 面)", () => {
-    const e = E();
-    const out = synth(e, [
-      {
-        kind: "inquiryAutoExecuted",
-        seat: 0,
-        round: 1,
-        turn: 1,
-        inquiryId: "xinyi",
-        optionId: "swap",
-        label: "弃旧换新",
-      },
-    ]);
-    expect(out.map((ev) => (ev.kind === "textFloat" ? ev.text : ev.kind))).toEqual(["弃旧换新"]);
-  });
-
   it("assetTransferred:逐城易主宣告(缺口 2)——承让方持有时归属色随提取时刻态,回无主=null", () => {
     const e = E();
     const tile = e.board.tiles.find(

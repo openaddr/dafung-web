@@ -26,8 +26,6 @@
 import { useState, type HTMLAttributes } from "react";
 import { HEROES, type HeroDef } from "@core/heroes";
 import { isActiveSkill, skillById } from "@core/skills";
-import { extensionHeroFlagOf } from "@app/extensions/registry";
-import { TESTIDS } from "@app/screens/game/testids";
 import "./hero-card.css";
 
 /** 按名将 id 查目录(目录外 id = 数据 bug,抛错不兜底)。 */
@@ -131,7 +129,6 @@ export function HeroCardFace({
   ...rest
 }: HeroCardFaceProps) {
   const def = heroDefOf(heroId);
-  const flag = extensionHeroFlagOf(heroId); // 扩展将旗(#378 渲染 hook):null = 无旗,卡面维持现状
   const ji = skillIds.length;
   const classes = [
     "hface",
@@ -159,15 +156,6 @@ export function HeroCardFace({
       </span>
       <span className="m-title">{def.title}</span>
       <span className="m-name">{def.name}</span>
-      {flag && (
-        <img
-          className="x-flag"
-          data-testid={TESTIDS.heroFlag(heroId)}
-          src={flag.url}
-          alt={flag.alt ?? "将旗"}
-          draggable={false}
-        />
-      )}
       <div className="skz">
         {size === "detail" ? <SkillRows skillIds={skillIds} /> : <SkillChips skillIds={skillIds} />}
       </div>

@@ -103,8 +103,6 @@ export const TESTIDS = {
   peekCard: (cardId: string) => `peek-card-${cardId}` as const,
   /** 空手牌空态(「囊中空空」浅印;目标有效性对手牌数无守卫,真业务态)。 */
   peekEmpty: "peek-empty",
-  /** 扩展将旗(#378 渲染 hook,挂 HeroCardFace/SkillCardFace;heroId=名将 id,无旗不渲染)。 */
-  heroFlag: (heroId: string) => `hero-flag-${heroId}` as const,
 
   // ── 技能全览弹框(#605,规格 #603 T2;#818 起技能卡主技名同为入口)──
   /** 弹层容器(PileShell 壳;招贤点卡/点技名 chip、技能卡主技名、麾下将点技名弹出)。 */
@@ -167,12 +165,6 @@ export const TESTIDS = {
   duelSign: (seat: number) => `duel-sign-${seat}` as const,
   /** 中缝朱砂「拼」印(data-verdict = pending|win|tie 判词态;tie 钤变金「平」)。 */
   duelVerdict: "duel-verdict",
-
-  // ── 定制问询弹层(#424,ADR-0022 交互 handler 客户端半边;scroll-* 前缀族)──
-  /** 问询弹层容器(横幅制式;题名随呈现意图,缺省「问询」)。 */
-  inquiryScroll: "scroll-inquiry",
-  /** 问询选项(下标 = snapshot.choices 序):blindCards 意图下=牌背钮,通用意图下=笺钮。 */
-  inquiryOption: (index: number) => `scroll-inquiry-option-${index}` as const,
 
   // ── 反应窗(#281,#234 P1-D 牌架即反应窗)──
   /** 结算事件横幅(从手牌架上缘长出;仅被询问座位渲染)。 */

@@ -14,7 +14,7 @@
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
 //  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
 //     触发/选都建城/三变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
-//     抽锦囊进手/声望变更/体力变更/跳过回合、#719 的声望献计里程碑/问询自动执行)在各域
+//     抽锦囊进手/声望变更/体力变更/跳过回合、#719 的声望献计里程碑)在各域
 //     模块结算点直呼,reason 用领域词
 //     短横 slug(供应/税/行情/机遇/横征/连环/献计/天命/耗竭……开放词表,新来源即新 slug)。
 import type { GameEngine, VictoryReason } from "./authority";
@@ -343,18 +343,6 @@ export interface PeekAppliedBody {
   targetSeat: number;
   hand: string[];
 }
-/** 定制问询自动执行(#719,#424):可用选项 ≤1 的 ADR-0013 自动执行轻提示宣告——
- *  零相位进出(挂起载荷即刻清账,相位保持原值),折面声明性;label 随事件走
- *  (扩展问询选项非静态目录,fx 无表可查——成品字段随事件,与 treasureStolen
- *  的 treasureName 同理);label 本就公开(问询选项走 snapshot.choices 单通道)。
- *  表现=选项文案浮字(fx 面派生,单机/联机同见,#719 自引擎浮字死通道迁事件面);
- *  命令应答路(卷轴点选)不产本事件——选项文案已由卷轴 UI 呈现。 */
-export interface InquiryAutoExecutedBody {
-  kind: "inquiryAutoExecuted";
-  inquiryId: string;
-  optionId: string;
-  label: string;
-}
 
 /** 事件体联合(产出 API 的入参形状)。 */
 export type GameEventBody =
@@ -401,8 +389,7 @@ export type GameEventBody =
   | DuelResolvedBody
   | JinnangVoidedBody
   | JinnangInflictedBody
-  | PeekAppliedBody
-  | InquiryAutoExecutedBody;
+  | PeekAppliedBody;
 
 /** 事件 = 事件体 + 公共首部(快照 `events` 字段与将来联机流式下发的线上形状)。 */
 export type GameEvent = GameEventBody & GameEventBase;

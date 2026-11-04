@@ -326,8 +326,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(leiZy.locator(".zhang-ming")).toHaveText("擂鼓");
     await expect(leiZx.locator(".zhang-ming")).toHaveText("擂鼓");
     // 载体可辨半边:全将通有的载体件(画心立绘/名带/称号签)各显各将,异将同名技凭
-    // 载体一眼分账。注:heroFlag 是扩展将旗渲染 hook(#378,现仅太史慈扩展包),
-    // 核心将无旗不渲染——本钉断言的是与扩展无关的载体件口径。
+    // 载体一眼分账。
     await expect(leiZy.locator(".lihui img")).toHaveAttribute(
       "src",
       "/assets/heroes/hero-zhouyu-sgs.png",

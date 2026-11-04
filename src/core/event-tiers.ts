@@ -240,11 +240,6 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "窥探生效宣告(#575 即时一次性):窥探零客户端状态(账本已删,弹层纯演出、关闭即逝),fold 面零转移;表现=viewer-only 窥探弹层(hand 随事件走,redact 逐座位裁)",
   },
-  inquiryAutoExecuted: {
-    fold: "declarative",
-    fx: "presented",
-    why: "定制问询自动执行轻提示(#719,ADR-0013):可用选项 ≤1 自动执行零相位进出(载荷即刻清账,相位保持原值),效果侧转移经扩展 resolve 走引擎公共方法自产事件;label 随事件走(扩展选项非静态目录,fx 无表可查)且本就公开(choices 单通道);表现=选项文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
-  },
   // ── 声望/体力/跳过族 ──
   reputationChanged: {
     fold: "must-fold",

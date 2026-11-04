@@ -18,11 +18,7 @@ import { HEROES, type HeroDef } from "./heroes";
 import { SKILLS, isActiveSkill, type SkillDef } from "./skills";
 import { EFFECTS } from "./effects";
 import { MOMENTS } from "./timing";
-import type {
-  ExtensionAuthorityModule,
-  ExtensionInquiry,
-  ExtensionManifest,
-} from "./extension-contract";
+import type { ExtensionAuthorityModule, ExtensionManifest } from "./extension-contract";
 
 /** 已装包台账:包 id → 其贡献(精确卸载/冲突检测用)。 */
 const installed = new Map<
@@ -32,21 +28,12 @@ const installed = new Map<
     skills: SkillDef[];
     heroes: HeroDef[];
     effectIds: string[];
-    inquiryIds: string[];
-    inquiries: ExtensionInquiry[];
   }
 >();
 
 /** 已装包清单(装载完成后的诊断/日志读口;数组序 = 装载序)。 */
 export function registeredExtensionPackages(): readonly ExtensionManifest[] {
   return [...installed.values()].map((p) => p.manifest);
-}
-
-/** 全部定制问询(#410,装载序):choices 之外的扩展问询生产者;引擎相位化消费已落
- *  (#424:AwaitingInquiry 相位 + PHASE_CHOICES 注册条目按挂起 id 回调 askPlayer +
- *  resolveInquiry 命令回灌 resolve,本读口即该挂点的唯一取数口)。 */
-export function extensionInquiries(): readonly ExtensionInquiry[] {
-  return [...installed.values()].flatMap((p) => p.inquiries);
 }
 
 /** 权威侧注册入口(零兜底:形状/冲突/引用任一不合法即抛,装载中止)。 */
@@ -63,7 +50,6 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
   const heroes = mod.heroes ?? [];
   const effects = mod.effects ?? {};
   const effectIds = Object.keys(effects);
-  const inquiries = mod.inquiries ?? [];
 
   // 冲突检测:技能/名将/效果 id 对注册面全局唯一(已装包的贡献已并入 SKILLS/HEROES/
   // EFFECTS,与内置表同表校验,无需另扫台账);包内也不得自撞。
@@ -95,20 +81,6 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
     seenEffectIds.add(id);
     if (id in EFFECTS)
       throw new Error(`扩展注册:${manifest.id} 效果 id「${id}」与效果注册表冲突(内置或已装包)`);
-  }
-  // 问询 id 无内置表(扩展独有注册面),全局唯一性对已装包台账校验;包内不得自撞。
-  const seenInquiryIds = new Set<string>();
-  for (const q of inquiries) {
-    if (typeof q.id !== "string" || q.id === "")
-      throw new Error(`扩展注册:${manifest.id} 包内存在缺 id 的问询(包数据 bug)`);
-    if (seenInquiryIds.has(q.id))
-      throw new Error(`扩展注册:${manifest.id} 包内问询 id 重复:「${q.id}」`);
-    seenInquiryIds.add(q.id);
-    const owner = [...installed.values()].find((p) => p.inquiryIds.includes(q.id));
-    if (owner != null)
-      throw new Error(
-        `扩展注册:${manifest.id} 问询 id「${q.id}」与已装包「${owner.manifest.id}」冲突`,
-      );
   }
 
   // 引用校验(把派发期数据 bug 提前到装载点):被动技 when 必须是登记时机、effect 必须可解析
@@ -149,7 +121,7 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
     }
   }
 
-  // 提交:并入既有注册面 + 记台账。此后招贤/送将/快照/派发/问询读口全链可见。
+  // 提交:并入既有注册面 + 记台账。此后招贤/送将/快照/派发全链可见。
   SKILLS.push(...skills);
   HEROES.push(...heroes);
   Object.assign(EFFECTS, effects);
@@ -158,8 +130,6 @@ export function registerExtensionAuthorityModule(mod: ExtensionAuthorityModule):
     skills,
     heroes,
     effectIds,
-    inquiryIds: [...seenInquiryIds],
-    inquiries,
   });
 }
 
