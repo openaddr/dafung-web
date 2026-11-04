@@ -2,6 +2,8 @@
 // 国号、诸侯数等对局配置移到「单机模式」次级页(SoloSetupScreen),让首页回归
 // 纯导航(用户要求:菜单只显示按钮入口)。选图仍是二级面板(MapSelectPanel
 // 复用不重写),确认后回显当前地图名并照旧记忆到 localStorage。
+// #1069 spec T1:次级行补「手册」笺钮(#1070)——点开手册大弹层
+// (screens/manual/ManualModal,五类内容总览,ADR-0049 弹层形态)。
 // #707 矮横屏档(landscape + max-height:500px,与对局屏 layout.css A 档同口径):
 // 二级选图弹层在 844×390 一类视口被裁切、换图开局不可达——选图改内联横排条带
 // (MapStrip,左右滑动全部可达,点选即选中),「选择地图」入口与地图回显行由
@@ -11,6 +13,7 @@ import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { startWarmup } from "@app/warmup";
 import { useMediaQuery } from "@app/hooks/use-media-query";
+import { ManualModal } from "@app/screens/manual/ManualModal";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
 import { useMapName } from "@app/screens/setup/useMapName";
@@ -48,6 +51,8 @@ export function HomeScreen({
   const [selectedMapId, setSelectedMapId] = useState(initialMapId);
   const [showMapSelect, setShowMapSelect] = useState(false);
   const [diagOpen, setDiagOpen] = useState(false);
+  // 手册(#1069 spec T1/#1070):大弹层纯受控开合,本地 state(ADR-0049)。
+  const [manualOpen, setManualOpen] = useState(false);
   // #707:矮横屏档开关(JS 结构分支:条带 ↔ 地图行+弹层入口;间距收紧仍走 home.css
   // 同串媒体查询,JS 与 CSS 各管各的不重复)。桌面档恒 false,信息架构零变化。
   const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
@@ -87,13 +92,15 @@ export function HomeScreen({
     cls: `${btnBase} home-pad-tight w-full py-5 text-2xl ink-btn`,
   };
   // #707:矮横屏档「选择地图」入口退役——选图由内联横排条带承担(点选即选,
-  // 弹层路径在该档裁切不可达);#947 编辑器退役后次级入口剩联机/选图两口,
-  // 两档一律双列(矮横屏档该行只剩联机一口,占半列)。
+  // 弹层路径在该档裁切不可达)。#1069 spec 决议②:次级行补「手册」笺钮——
+  // 矮横屏档 secondary=[联机模式,手册] 仍双列(手册补「选择地图」#707 退役后的
+  // 空半列);桌面档 [联机模式,选择地图,手册] 三口并列(grid 随行改三列)。
   const secondary: Array<{ tid: string; label: string; onClick: () => void }> = [
     { tid: HOME_TID.online, label: "联机模式", onClick: onOnline },
     ...(!isShortLandscape
       ? [{ tid: HOME_TID.selectMap, label: "选择地图", onClick: () => setShowMapSelect(true) }]
       : []),
+    { tid: HOME_TID.manual, label: "手册", onClick: () => setManualOpen(true) },
   ];
 
   return (
@@ -163,7 +170,8 @@ export function HomeScreen({
           </div>
         </div>
 
-        {/* 主入口通栏(墨钮),次级两口同行同档;stagger 延时延续 300ms 起 80ms/个。
+        {/* 主入口通栏(墨钮),次级入口同行同档(#1069:矮横屏档两口/桌面档三口,
+            grid 列数随行);stagger 延时延续 300ms 起 80ms/个。
             home-pad-tight=短横屏档收按钮纵向 padding(430px 高首屏免滚动)。 */}
         <div className="flex w-[min(600px,92vw)] flex-col gap-y-4">
           <div className="home-btn-in" style={{ animationDelay: "300ms" }}>
@@ -171,7 +179,7 @@ export function HomeScreen({
               {primary.label}
             </button>
           </div>
-          <div className="grid grid-cols-2 gap-x-3">
+          <div className={`grid gap-x-3 ${isShortLandscape ? "grid-cols-2" : "grid-cols-3"}`}>
             {secondary.map((e, i) => (
               // 包裹层承载入场动画(见 home.css 注释:动画 fill 锁 transform,与按压态分层)
               <div
@@ -246,6 +254,10 @@ export function HomeScreen({
             onCancel={() => setShowMapSelect(false)}
           />
         )}
+
+        {/* 手册(#1069 spec T1/#1070):纯受控大弹层,本地 state 开合;五签内容
+            T2/T3 装配,壳与入口几何见组件文件头(顶带 ≥44px 让位,ADR-0049)。 */}
+        <ManualModal open={manualOpen} onClose={() => setManualOpen(false)} />
       </div>
       {/* 发版号(#952):主页角落小字,v 前缀与 Release tag 同款;fixed 锚定视口不入
           滚动流(保 #707 矮横屏零滚动预算),样式单源 home.css .home-version。 */}

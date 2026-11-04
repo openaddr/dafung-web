@@ -319,7 +319,10 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
 });
 
 test("珍宝城购地:落格先探宝后交易链,买成收口零探宝(#825 链序)", async ({ page }) => {
-  await quickStart(page);
+  // 定 seed(#987 处置序③:无 seed 对局下本例买城收口窗内偶发 treasure 留痕,同树
+  // 红/绿复现(集成线 4 红 1 绿 vs master 1 绿),概率性不可靠;覆盖不可替代故定 seed
+  // 确定性化,#1069 集流收口实测双绿。种子漂移按 how-to 种子重钓配方重钓。
+  await quickStart(page, 20261105);
   await freezeClock(page); // 钉死看门狗:强制行军/落格不与自动起摇、停摆代驾赛跑
   try {
     // 摆位到无主珍宝城邻格,直走 rollAndMove 掷定 1 步后的同一段引擎路径:
