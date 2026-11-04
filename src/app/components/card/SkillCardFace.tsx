@@ -21,8 +21,6 @@
 // 无牌形态,永不入架)。
 import type { HTMLAttributes } from "react";
 import { heroDefOf, Lihui } from "@app/components/card/HeroCardFace";
-import { extensionHeroFlagOf } from "@app/extensions/registry";
-import { TESTIDS } from "@app/screens/game/testids";
 import { isActiveSkill, skillById } from "@core/skills";
 
 export interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
@@ -32,8 +30,8 @@ export interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   skillId: string;
 }
 
-/** 技能卡卡面(#818,双方案比选定案 B 案):载体五件 = 画心立绘/名带/称号签/将章/
- *  将旗(沿用家族制式不裁);主技名 = 竖章叠画心左缘(zhang-ming,与右缘将名带构成
+/** 技能卡卡面(#818,双方案比选定案 B 案):载体四件 = 画心立绘/名带/称号签/将章
+ *  (沿用家族制式不裁);主技名 = 竖章叠画心左缘(zhang-ming,与右缘将名带构成
  *  「左技右将」双维对读,data-skill=全览入口);技能区 = ◆ 冷却注+该技 desc 一句话。
  *  children 透传到卡面末尾——不可用态的原因印条(<span className="reason">)由消费方
  *  挂入(同家族口径)。 */
@@ -48,7 +46,6 @@ export function SkillCardFace({
   const skill = skillById(skillId);
   if (!isActiveSkill(skill))
     throw new Error(`技能卡承载了非主动技:${skillId}(被动技无牌形态,数据 bug)`);
-  const flag = extensionHeroFlagOf(heroId); // 扩展将旗(#378 渲染 hook):null = 无旗
   const classes = ["hface", "skill", className ?? ""].filter(Boolean).join(" ");
   return (
     <div className={classes} {...rest}>
@@ -63,15 +60,6 @@ export function SkillCardFace({
       </span>
       <span className="m-title">{def.title}</span>
       <span className="m-name">{def.name}</span>
-      {flag && (
-        <img
-          className="x-flag"
-          data-testid={TESTIDS.heroFlag(heroId)}
-          src={flag.url}
-          alt={flag.alt ?? "将旗"}
-          draggable={false}
-        />
-      )}
       <div className="skz">
         <div className="shead">
           <i className="fu fu-dia" aria-hidden="true" />

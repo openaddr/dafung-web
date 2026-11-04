@@ -83,7 +83,6 @@ const PASSTHROUGH_BODIES: GameEventBody[] = [
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },
   { kind: "encounterChoice", encounterId: "shibei", choiceIndex: 0 },
   { kind: "exhaustionChoice", propertyId: "luoyang", exhaustionKind: "downgrade" },
-  { kind: "inquiryAutoExecuted", inquiryId: "xinyi", optionId: "swap", label: "弃旧换新" }, // #719 问询自动执行
   { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [1, 2] },
   { kind: "reactionAnswered", use: false },
   { kind: "reactionFailed", windowKind: "march", tileIndex: 3, aRoll: 2, bRoll: 5 },

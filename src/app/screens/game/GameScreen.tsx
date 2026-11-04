@@ -48,7 +48,6 @@ import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
 import { CityLedgerModal } from "./CityLedgerModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
-import { InquiryLayer } from "./InquiryScroll";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
 import {
@@ -566,9 +565,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
               interactive={interactive}
               tileDetail={tileDetail}
             />
-            {/* 定制问询弹层路由(#424,ADR-0022 交互 handler 客户端半边):与决策卷轴
-              平级同槽(AwaitingInquiry 与各决策相位互斥,无同帧双弹层),呈现意图定制。 */}
-            <InquiryLayer snapshot={snapshot} interactive={interactive} />
           </div>
         </div>
         {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮同排,顶中让给知会槽;

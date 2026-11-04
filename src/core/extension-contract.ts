@@ -1,46 +1,41 @@
 // 扩展包契约(#378,ADR-0022「TS 双跑+一次搭全的骨架」):扩展 = 磁盘上的包目录
-// (manifest + 编译后 JS 入口),权威侧加载做裁决、客户端动态 import 做表现。
+// (manifest + 编译后 JS 入口),权威侧加载做裁决、注册进引擎既有注册面。
 // 本文件是包格式的**类型契约 + 接口位总登记**,不含任何运行时逻辑:
 //   - 包目录布局与 manifest 语义(extensions/<包目录>/manifest.json);
 //   - 权威侧贡献形状(名将/效果,注册进 heroes.ts HEROES / effects.ts EFFECTS);
 //   - 第一版不实现能力的接口位清单(ADR-0022 决策 2:架子一次搭全,长位不挖坑)。
 // 运行时注册面在 extension-registry.ts;bun/node 文件装载器在 extension-loader.ts;
-// 浏览器装载器与客户端贡献类型在 src/app/extensions/(表现类型 PresentationEvent
-// 属 app 层,core 不 import——分层红线 1)。
+// 浏览器装载器在 src/app/extensions/loader.ts(只做权威侧注册;客户端半边已退役,
+// #1064——表现类型属 app 层,core 不 import,分层红线 1)。
 //
 // ── 包目录契约 ──
 //   extensions/
 //     <包目录>/                  目录名建议与 manifest.id 一致(不强制,装载按目录扫描)
 //       manifest.json            包清单(下 ExtensionManifest;缺文件/坏 JSON = 装载炸出)
 //       index.js                 权威侧入口(manifest.entry;默认导出 AuthorityContribution)
-//       client.js                客户端入口(manifest.client;默认导出 app 侧 ClientPackage)
-//       assets/                  静态资源(将旗/牌面图等;客户端 hook 读站点根相对 URL)
+//       assets/                  静态资源(立绘图等;数据字段读站点根相对 URL,如 HeroDef.image)
 //       src/                     TS 源(分发 = 编译后 JS;源码供作者维护类型/工具链)
 //
-// ── 接口位总登记(ADR-0022 决策 2;实现状态 2026-10-05)──
+// ── 接口位总登记(ADR-0022 决策 2;实现状态 2026-11-04)──
 //   ✅ 技能/效果注册     core:技能进 SKILLS 表、名将进 HEROES 池、效果进 EFFECTS
 //                       注册表(extension-registry;名将池按技 id 引用,ADR-0036)
-//   ✅ 动画 handler      app:吃引擎事件批补演出(src/app/extensions,消费点 fx/event-extract)
-//   ✅ 渲染 hook         app:名将专属将旗(HeroCardFace 消费;assets/ 资源走 URL)
-//   ✅ 交互 handler      定制问询(choices 之外问询,ADR-0022 与 ADR-0020 咬合):
-//                       权威侧 askPlayer/resolve 经 extension-registry 注册(本文件
-//                       ExtensionInquiry,#410/#424);引擎相位化消费(#424:AwaitingInquiry
-//                       相位+PHASE_CHOICES 注册条目+resolveInquiry 命令回灌 resolve,
-//                       选项盖 inquiryId 章);客户端问询弹层按呈现意图渲染(同票落地)
-//   ◻ 新牌类型          锦囊/珍宝牌新种类(数据表+结算案+卡面),后续票
-//   ◻ 新格子类型        棋盘格新种类(board.ts 格判别+落格结算),后续票
-//   ◻ 自定义面板        扩展自有 UI 面板/弹层挂点,后续票
-//   ◻ 音效              扩展自定义音效资源挂点(现 animation handler 只能复用既有
-//                       SoundEvent 词表),后续票
-//   ◻ 文案              扩展文案资源表(现文案直接写在包代码内),后续票
-import type { ChoiceOption } from "./choices";
+//   ⚰ 动画 handler      已退役(#1064):演出归 ADR-0029 演出中心策展,扩展侧零真实消费
+//   ⚰ 渲染 hook         已退役(#1064):将旗零真实消费,随客户端扩展面整体下线
+//   ⚰ 交互 handler      已退役(#1065):定制问询线整线拆除,choices 通路(ADR-0013)已
+//                       覆盖全部问询形制且零真实用例,问询一律走各相位注册计算器
+//   ⚰ 新牌类型          已否决:结算 switch 在引擎(单一事实源),扩展只能注册数据;
+//                       新牌种类一律 core 正常开发
+//   ⚰ 新格子类型        已否决:#826 全城池制方向已定,非城格=重开该级决策,不设挂点
+//   ⚰ 自定义面板        已否决:客户端扩展面已退役(#1064),UI 挂点无承载层
+//   ⚰ 音效              已否决:音效归 ADR-0029 演出中心策展(与动画 handler 同口径)
+//   ⚰ 文案              已否决:文案直接写在包代码内即终态,不设资源表挂点
+//   终态:包能力 = skills + effects + heroes + 图片,新机制一律 core 正常开发。
 import type { EffectFn } from "./effects";
-import type { GameEngine } from "./authority";
 import type { HeroDef } from "./heroes";
 import type { SkillDef } from "./skills";
 
 /** 扩展包清单(manifest.json 的解析后形状)。id 是全局唯一键(与已装包/注册冲突即炸);
- *  entry/client 为包根下的**平铺文件名**(不含路径分隔符——装载器按目录拼路径,子目录
+ *  entry 为包根下的**平铺文件名**(不含路径分隔符——装载器按目录拼路径,子目录
  *  入口留待后续票)。 */
 export interface ExtensionManifest {
   /** 包 id:全局唯一(重复装载同名包 = 数据 bug,当场炸)。 */
@@ -51,12 +46,10 @@ export interface ExtensionManifest {
   version: string;
   /** 权威侧入口:包根下平铺 JS 文件名(默认导出 ExtensionAuthorityContribution)。 */
   entry: string;
-  /** 客户端入口:包根下平铺 JS 文件名(默认导出客户端贡献包;缺省 = 纯权威侧包)。 */
-  client?: string;
 }
 
-/** 权威侧贡献(包入口模块的默认导出):技能/名将/效果/定制问询,经 extension-registry
- *  注册进引擎既有注册面(SKILLS 技表 / HEROES 名将池 / EFFECTS 效果注册表 / 问询注册面)。
+/** 权威侧贡献(包入口模块的默认导出):技能/名将/效果,经 extension-registry
+ *  注册进引擎既有注册面(SKILLS 技表 / HEROES 名将池 / EFFECTS 效果注册表)。
  *  效果函数与内置效果同签名(EffectFn:纯逻辑、禁 DOM/React、经引擎公共方法改状态),信任
  *  作者、无沙箱(ADR-0022 信任模型);无随机数/时钟纪律(ADR-0021)。 */
 export interface ExtensionAuthorityContribution {
@@ -66,43 +59,6 @@ export interface ExtensionAuthorityContribution {
   heroes?: HeroDef[];
   /** 追加进效果注册表的效果(TriggerSkill.effect 按 id 查用)。 */
   effects?: Record<string, EffectFn>;
-  /** 定制问询(#410):choices 决策选项集(ADR-0013)无法自然表达的扩展问询,
-   *  经 extension-registry 注册、引擎按 id 回调(extensionInquiries 读口)。 */
-  inquiries?: ExtensionInquiry[];
-}
-
-// ── 交互 handler(#410/#424,#378 遗留概念位落型)──
-// 与 choices 通路(ADR-0013)的咬合口径:**handler 是选项集的上游生产者之一,不是
-// 旁路**——choices 已能表达的问询仍走各相位注册的计算器;handler 只接管 choices 无法
-// 自然表达的定制问询(如「从两张暗牌中盲选」:通用卷轴按 label 渲染会泄露牌面)。
-// 引擎相位化消费(#424):askInquiry 置挂起载荷并按选项集分流(≥2 可用进 AwaitingInquiry
-// 相位),选项集经 PHASE_CHOICES.AwaitingInquiry 注册条目按 id 回调 askPlayer 产出,
-// **仍用 ChoiceOption 词汇**经 snapshot.choices 单通道透出——UI/bot/联机零新消费通路;
-// 玩家应答经 resolveInquiry 命令回灌本接口的 resolve 结算;定制呈现意图(牌背等)
-// 由客户端交互 hook 声明(src/app/extensions/registry.ts),弹层行为收口 shadcn。
-/** 定制问询上下文:askPlayer 侧 engine=只读语义(产选项不改状态);resolve 侧 engine=
- *  结算语义(应答生效走引擎公共方法,同 EffectFn 纪律);seat=被询问者座位(决策归属,
- *  联机侧据此投影私密问询);params=发起方透传参数(包作者自定义词汇,与 EffectFn 的
- *  params 同纪律:缺项由 handler 自己炸出)。 */
-export interface ExtensionInquiryCtx {
-  engine: GameEngine;
-  seat: number;
-  params: Record<string, number>;
-}
-
-/** 单条定制问询:id 全局唯一(与已装包冲突即炸,extension-registry 校验);两侧均纯函数
- *  (core 纪律同 EffectFn:禁 DOM/React、无随机数/时钟)——askPlayer 产选项集(选项 id
- *  是应答句柄);resolve 收应答结算(optionId 之外的选择=调用方 bug,handler 自己炸出;
- *  引擎已先行校验选项存在且可用)。 */
-export interface ExtensionInquiry {
-  id: string;
-  /** 显示名(战报等玩家可见文案用,如「信义盲选」);缺省战报退回 id(扩展 id 多为
-   *  包词汇 ASCII,给了名字就别让玩家读内部标识——展示缺省,非错误兜底)。 */
-  name?: string;
-  askPlayer(ctx: ExtensionInquiryCtx): ChoiceOption[];
-  /** 应答结算(#424):玩家/命令路(resolveInquiry)与引擎自动执行(选项集 ≤1 可用,
-   *  ADR-0013)共用此口回灌。结算完毕由引擎清挂起载荷并续回合收口,handler 不管流程。 */
-  resolve(ctx: ExtensionInquiryCtx, optionId: string): void;
 }
 
 /** 权威侧装载单元:manifest(来自 manifest.json)+ 贡献(来自入口模块)——
@@ -138,6 +94,5 @@ export function assertExtensionManifest(m: unknown, pkgDir: string): ExtensionMa
     version: raw.version as string,
     entry,
   };
-  if (raw.client != null) manifest.client = assertPlainFilename(raw.client, "client", pkgDir);
   return manifest;
 }

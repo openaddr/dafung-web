@@ -2,9 +2,8 @@
 //  1. 经真实装载通路(loadExtensionPackages)注册后,招贤三选一可选到太史慈;
 //  2. 事件序列断言:resolveHeroPick 一批内 heroRecruited → cashChanged(skill 落账)
 //     → skillFired(义从击发)——自定义效果 joinGift 经引擎公共方法结算(+100 两);
-//  3. 主动技「破阵」:出牌阶段选项可见、发动后 heroDiceBonus=1、heroSkillActivated 随批产出;
-//  4. 交互问询「信义盲选」(#410):权威半边经注册面读口触发产脱敏选项集;客户端半边
-//     经真实 client 入口注册后呈现意图读口命中(blindCards)。
+//  3. 主动技「破阵」:出牌阶段选项可见、发动后 heroDiceBonus=1、heroSkillActivated 随批产出。
+//  (交互问询「信义盲选」已随问询线退役,#1065——太史慈两技形制:义从+破阵。)
 // 引擎布场模式复制 test/hero-skill.test.ts(makeEngine/finishSetup,不 import 测试文件);
 // 装载的全局注册态在 afterAll 精确卸载,不向同进程其他测试文件泄漏。
 import { describe, it, expect, afterAll } from "bun:test";
@@ -13,18 +12,11 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { HEROES } from "@core/heroes";
 import { loadExtensionPackages } from "@core/extension-loader";
-import { extensionInquiries, unregisterExtensionPackage } from "@core/extension-registry";
-import {
-  extensionInquiryPresentationOf,
-  registerExtensionClientPackage,
-  unregisterExtensionClientPackage,
-} from "@app/extensions/registry";
-import { extractBatchEvents } from "@app/fx/event-extract";
+import { unregisterExtensionPackage } from "@core/extension-registry";
 import { armHero, heroOffer } from "@core/testing";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { resolve } from "node:path";
-import { pathToFileURL } from "node:url";
 
 const MAP = loadMap(guanzhongData);
 
@@ -68,22 +60,10 @@ const loaded = await loadExtensionPackages(resolve(import.meta.dir, "../extensio
 expect(loaded.map((m) => m.id)).toContain("hero-taishici");
 afterAll(() => {
   unregisterExtensionPackage("hero-taishici");
-  unregisterExtensionClientPackage("hero-taishici");
 });
 
 const taishiciDef = HEROES.find((h) => h.id === "taishici");
 if (taishiciDef == null) throw new Error("示例包装载后名将池无 taishici(装载 bug)");
-
-// 客户端入口(编译产物,类型 import 已擦除、自包含)随注册面走一遍真实注册;
-// 编译产物经 URL 动态 import(extension-loader.test 同口径),形状显式收窄。
-const taishiciManifest = loaded.find((m) => m.id === "hero-taishici")!;
-const clientHref = pathToFileURL(
-  resolve(import.meta.dir, "../extensions/hero-taishici/client.js"),
-).href;
-const clientPkg = ((await import(clientHref)) as { default: unknown }).default;
-if (clientPkg == null || typeof clientPkg !== "object")
-  throw new Error("示例包客户端入口缺默认导出贡献对象(client.js)");
-registerExtensionClientPackage(taishiciManifest, clientPkg as never);
 
 describe("示例名将包·太史慈(#378 全链)", () => {
   it("招贤三选一可选到太史慈;义从随招揽击发:+100 两(事件序 heroRecruited→cashChanged→skillFired)", () => {
@@ -142,93 +122,5 @@ describe("示例名将包·太史慈(#378 全链)", () => {
     );
     expect(activated?.skillId).toBe("taishici-pozhen");
     expect(activated?.skillKind).toBe("warDrum");
-  });
-
-  it("义从印坐标契约(#608 全坐标化,复审 F2 钉子):client.js 编译产物产的 sealStamped 自带有限 x/y", () => {
-    // 编译产物运行时加载(浏览器 glob 装载 client.js 而非 src/client.ts),tsconfig
-    // 面封不住——本钉子经真实注册的编译产物走提取链;旧形状 {tileIndex,char} 在此
-    // 即红(soak 实锤 translate(undefined NaN)),提取尾坐标 belt 为其护栏。
-    const e = prepared();
-    const pos = e.board.positionOf(e.players[0].position);
-    const out = extractBatchEvents(e, [
-      {
-        kind: "skillFired",
-        seat: 0,
-        round: 1,
-        turn: 1,
-        heroId: "taishici",
-        skillId: "taishici-yicong",
-        moment: "HeroRecruited",
-      },
-    ]);
-    const seal = out.find(
-      (ev): ev is Extract<typeof ev, { kind: "sealStamped" }> => ev.kind === "sealStamped",
-    );
-    if (seal == null) throw new Error("义从印未随 skillFired 产出(包动画 handler 失效)");
-    expect(seal.char).toBe("义");
-    expect(seal.x).toBe(pos.x);
-    expect(seal.y).toBe(pos.y);
-  });
-
-  it("交互问询「信义盲选」(#410):读口触发产脱敏选项集(张数随手牌);客户端呈现意图=牌背", () => {
-    // 权威半边:经注册面读口取问询,真实引擎触发
-    const inquiry = extensionInquiries().find((q) => q.id === "taishici-blind-pick");
-    if (inquiry == null) throw new Error("示例包装载后问询读口无 taishici-blind-pick(装载 bug)");
-    const e = prepared();
-    const p = e.activePlayer;
-    p.jinnangHand = ["连环计", "缓兵之计"];
-    p.jinnangHandCount = 2;
-    const seat = e.players.indexOf(p);
-    const opts = inquiry.askPlayer({ engine: e, seat, params: {} });
-    // 选项张数=手牌数;label 是序号不是牌面(盲选脱敏:选项集不泄露「连环计/缓兵之计」)
-    expect(opts).toEqual([
-      { id: "blind:0", label: "暗牌·第1张", available: true },
-      { id: "blind:1", label: "暗牌·第2张", available: true },
-    ]);
-    expect(JSON.stringify(opts)).not.toContain("连环计");
-    // 空手牌 = 无可盲选(选项集为空,零选项按 ADR-0013 语义走默认行为)
-    p.jinnangHand = [];
-    p.jinnangHandCount = 0;
-    expect(inquiry.askPlayer({ engine: e, seat, params: {} })).toEqual([]);
-
-    // 客户端半边:呈现意图读口命中牌背+题名(#424 InquiryScroll 消费);未注册问询无定制(null = 通用卷轴)
-    expect(extensionInquiryPresentationOf("taishici-blind-pick")).toEqual({
-      title: "信义盲选",
-      blindCards: true,
-    });
-    expect(extensionInquiryPresentationOf("no-such-inquiry")).toBeNull();
-  });
-
-  it("信义盲选对局可玩(#424):招贤触发问询(≥2 手牌弹层)→ resolveInquiry 应答弃 1 摸 1 生效", () => {
-    const e = prepared();
-    const p = e.activePlayer;
-    p.jinnangHand = ["连环计", "缓兵之计"];
-    p.jinnangHandCount = 2;
-    e.offeredHeroes = [heroOffer(taishiciDef!)];
-    e.turnPhase = "AwaitingHeroPick";
-    // 招贤得太史慈:义从(+100)先结算,信义盲选随后挂起 → AwaitingInquiry 等应答
-    // (endTurn 收口延期:resolveHeroPick 流程原样续跑,收口被引擎挡板接住停在问询上)
-    const cashBefore = p.cash;
-    e.submitCommand({ type: "resolveHeroPick", index: 0 });
-    expect(p.cash).toBe(cashBefore + 100);
-    // (TS 对可变属性的赋值收窄:显式放宽断言字面量类型)
-    expect<string>(e.turnPhase).toBe("AwaitingInquiry");
-    expect(e.pendingInquiry).toEqual({ id: "taishici-blind-pick", params: {} });
-    // 选项集脱敏:序号 label,不泄露牌面
-    expect(e.choicesFor().map((o) => o.id)).toEqual(["blind:0", "blind:1"]);
-    expect(JSON.stringify(e.choicesFor())).not.toContain("连环计");
-    // 应答:盲中的第 2 张(缓兵之计)弃掉、摸 1 张补位,回合收口补完(轮转推进)
-    e.submitCommand({ type: "resolveInquiry", optionId: "blind:1" });
-    expect(e.pendingInquiry).toBeNull();
-    expect(e.turnPhase).not.toBe("AwaitingInquiry");
-    expect(p.jinnangHand).toHaveLength(2);
-    expect(p.jinnangHand).not.toContain("缓兵之计");
-    expect(e.jinnangDiscard).toContain("缓兵之计");
-    expect(e.activeIndex).not.toBe(0);
-    // 战报双留痕:发起 + 应答
-    expect(e.log.some((l) => l.detail.includes("inquiryAwait"))).toBe(true);
-    expect(
-      e.log.some((l) => l.detail.includes("inquiryResolve") && l.detail.includes("blind:1")),
-    ).toBe(true);
   });
 });

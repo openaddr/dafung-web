@@ -27,7 +27,6 @@ import {
   type AnnounceCursor,
   type FxPresentedKind,
 } from "@core/event-tiers";
-import { extensionAnimationHandlers } from "@app/extensions/registry";
 import { tokenSlotOffset } from "@app/components/board/tokenSlots";
 import { openMarchBatch } from "./useMarch";
 import { remainingMarchPath } from "./orchestrator";
@@ -306,45 +305,6 @@ function exhaustionTextOf(
     }
   }
   return "体力耗竭,跳过一回合";
-}
-
-// ─────────────────────── 扩展演出坐标 belt(#608 契约运行时面)───────────────────────
-/** 各表现事件在 FxSink 坐标面上的必备顶层字段(与 present → sink 的实参一一对应;
- *  jinnangPlayed 的线段端点是嵌套结构,单独验)。 */
-const EXTENSION_COORD_FIELDS: Partial<Record<PresentationEvent["kind"], readonly string[]>> = {
-  cashDelta: ["x", "y"],
-  supplyRain: ["x", "y"],
-  textFloat: ["x", "y"],
-  sealStamped: ["x", "y"],
-  landPulse: ["x", "y"],
-  bankruptCeremony: ["x", "y"],
-};
-
-/** 扩展产出表现事件的坐标有限性断言(缺失/undefined/NaN/∞ 一律炸,非静默跳过):
- *  坐标缺失走不到 typeof number 的有限性判断,必须先挡存在性——旧形状事件在此
- *  当场炸出(扩展包数据 bug),不带病进播放队列。 */
-function assertExtensionCoords(ev: PresentationEvent): void {
-  const fields = EXTENSION_COORD_FIELDS[ev.kind];
-  if (fields != null) {
-    const rec = ev as unknown as Record<string, unknown>;
-    for (const f of fields) {
-      const v = rec[f];
-      if (typeof v !== "number" || !Number.isFinite(v))
-        throw new Error(
-          `扩展演出坐标契约:事件 ${ev.kind} 的 ${f} 非有限数(${String(v)})——扩展包产出了未烤坐标的旧形状事件(编译产物越过类型面,数据 bug)`,
-        );
-    }
-  }
-  if (ev.kind === "jinnangPlayed") {
-    for (const [li, l] of ev.lines.entries()) {
-      for (const f of ["x1", "y1", "x2", "y2"] as const) {
-        if (!Number.isFinite(l[f]))
-          throw new Error(
-            `扩展演出坐标契约:jinnangPlayed lines[${li}].${f} 非有限数(${String(l[f])})——扩展包产出了未烤坐标的指示线(数据 bug)`,
-          );
-      }
-    }
-  }
 }
 
 // ─────────────────────── 主提取 ───────────────────────
@@ -626,13 +586,6 @@ export function extractBatchEvents(
         });
         break;
       }
-      case "inquiryAutoExecuted": {
-        // 定制问询自动执行轻提示(#719,迁 fx 面):label 随事件走(扩展选项非静态目录),
-        // 文案浮字锚决策者位置;命令应答路不产本事件(卷轴 UI 已呈现)
-        const seat = eventSeat(engine, ev);
-        events_.push(textFloater(engine, seat, ev.label));
-        break;
-      }
       case "reactionOpened": {
         // 开窗轻叩(#751 窎开音):反应窗开即响(木鱼族),窗体 UI 本身直读副本
         // pendingReaction 不经本提取器;声音走通用 sound 档,单机/联机同见。
@@ -806,20 +759,6 @@ export function extractBatchEvents(
         void silentKind;
         break;
       }
-    }
-  }
-
-  // 扩展动画 handler(#378,ADR-0022 三能力之二):主提取完成后让已装包吃同一批事件
-  // 补演出(追加在批尾——扩展演出是本转移因果链的下游)。零包时读口为空数组,行为不变。
-  // 坐标 belt(#608 全坐标化契约的运行时面):客户端包以编译后 JS 分发(包根
-  // client.js,tsconfig 面封不住编译产物),包产出带坐标事件若烤漏坐标 = 播放期
-  // NaN transform(soak 实锤:旧形状 sealStamped {tileIndex,char} → translate
-  // (undefined NaN))。提取尾逐个验有限性,当场炸出不静默跳过(零兜底);主提取器
-  // 同契约但受编译期红 + 定向测试双守卫,本 belt 只拦扩展口。
-  for (const handler of extensionAnimationHandlers()) {
-    for (const ev of handler({ engine, events })) {
-      assertExtensionCoords(ev);
-      events_.push(ev);
     }
   }
 

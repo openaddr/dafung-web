@@ -15,7 +15,6 @@ import { HEROES } from "./heroes";
 import type { HeroSlot } from "./roster";
 import type { EncounterChoiceOption, EncounterTier } from "./encounters";
 import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
-import { extensionInquiries } from "./extension-registry";
 
 /** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
  *  同属已接入)。新增 effect.kind 而未接结算案时:灰置路径仍在(此计暂未启用)。 */
@@ -62,10 +61,6 @@ export interface ChoiceOption {
   skillHeroId?: string;
   skillText?: string;
   skillHero?: string;
-  /** 定制问询选项专属(#432,ADR-0022):问询 id 随选项经 snapshot.choices 派生透出
-   *  (同 encounterId 通道口径)——客户端据此查呈现意图(extensionInquiryPresentationOf,
-   *  如盲选画牌背);引擎盖章单源,其余相位不携带。 */
-  inquiryId?: string;
 }
 
 /** AwaitingDecision(购地/扩军,按 pendingLand 分流;spec #107 C2 决策载荷分离)。
@@ -482,31 +477,14 @@ export const PHASE_CHOICES: Partial<Record<TurnPhase, (e: GameEngine) => ChoiceO
   AwaitingJinnang: jinnangChoices,
   AwaitingExhaustion: exhaustionChoices,
   AwaitingBankruptcySettle: bankruptcyChoices,
-  AwaitingInquiry: inquiryChoices, // 定制问询(#424,ADR-0022):与内置相位同表单通道
 };
 
 /** 自动执行例外名单(ADR-0013 决议 3):这些相位即使唯一选项也照常弹卷轴。 */
 export const EXCLUDED_FROM_AUTO: ReadonlySet<TurnPhase> = new Set(["AwaitingBankruptcySettle"]);
 
-/** 按相位查注册表计算选项集(引擎 choicesFor / 进入相位前的预检共用)。定制问询(#424)
- *  与内置相位同表:AwaitingInquiry 注册 inquiryChoices,#432 的「无匹配相位 fallthrough
- *  改道问询」退役——挂起问询 ⇔ AwaitingInquiry 是状态机不变量(askInquiry 置相位/
- *  endTurn 收口延期守卫),非问询相位不回调 handler,注册表查无计算器即空集。 */
+/** 按相位查注册表计算选项集(引擎 choicesFor / 进入相位前的预检共用)。
+ *  注册表查无计算器即空集(choices 通路(ADR-0013)是唯一问询通路;定制问询线
+ *  已整线退役,#1065)。 */
 export function computeChoices(e: GameEngine, phase: TurnPhase): ChoiceOption[] {
   return PHASE_CHOICES[phase]?.(e) ?? [];
-}
-
-/** 定制问询选项计算器(#424 注册为 AwaitingInquiry 条目,ADR-0022 交互 handler):
- *  按挂起 id 回调 extensionInquiries 出选项集——handler 是选项集的上游生产者之一,不是
- *  旁路;产出仍用 ChoiceOption 词汇,统一盖 inquiryId 章(客户端查呈现意图的唯一线索)。
- *  零兜底:挂起 id 查无注册问询(如对局中途卸包)= 状态机 bug,当场炸出不静默跳过。 */
-function inquiryChoices(e: GameEngine): ChoiceOption[] {
-  const pending = e.pendingInquiry;
-  if (pending == null) return [];
-  const inquiry = extensionInquiries().find((q) => q.id === pending.id);
-  if (inquiry == null)
-    throw new Error(`定制问询:挂起 id「${pending.id}」查无注册问询(已卸载或注册面 bug)`);
-  return inquiry
-    .askPlayer({ engine: e, seat: e.decisionOwner, params: pending.params })
-    .map((o) => ({ ...o, inquiryId: pending.id }));
 }

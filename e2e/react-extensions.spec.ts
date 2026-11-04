@@ -1,9 +1,8 @@
-// 扩展系统骨架 e2e(#378,ADR-0022):示例名将包(extensions/hero-taishici)全链路——
-// 启动装载(权威贡献进名将池)→ 对局招贤可选到示例名将(渲染 hook:专属将旗上卡面)
-// → 选定后被动技「义从」权威结算(+100 两)+ 动画 handler 播「义」字印与扩展文案浮字
-// → 主动技「破阵」复用 warDrum 结算(步数 +1)+ 扩展浮字。
-// 断言口径:状态断言走引擎 god view(与既有 spec 同款);动效是瞬态元素,单次 evaluate
-// 内 rAF 轮询原子采样(react-jinnang-use 指示线先例)。
+// 扩展系统骨架 e2e(#378,ADR-0022):示例名将包(extensions/hero-taishici)权威侧
+// 全链路——启动装载(贡献进名将池)→ 对局招贤可选到示例名将 → 选定后被动技「义从」
+// 权威结算(+100 两)→ 主动技「破阵」复用 warDrum 结算(步数 +1)。客户端半边断言
+// (动画/将旗/呈现意图)已随客户端扩展面退役删除(#1064);定制问询「信义盲选」
+// 对局断言已随问询线退役删除(#1065)。断言口径:状态断言走引擎 god view(与既有 spec 同款)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -44,86 +43,46 @@ async function plantHeroPick(page: Page): Promise<void> {
   );
 }
 
-/** 单次 evaluate 原子采样:rAF 轮询等扩展动效现身(浮字文案必查;印章字可选查),
- *  现身即在同一样本里回报;15s 封顶防死等。瞬态元素禁 locator 读(缺元素会挂到
- *  超时),仓库既有口径。 */
-function sampleFx(
-  page: Page,
-  floaterText: string,
-  sealChar?: string,
-): Promise<{ seal: boolean | null; floater: boolean }> {
-  return page.evaluate(
-    `(async () => {
-      const deadline = performance.now() + 15000;
-      const wantSeal = ${JSON.stringify(sealChar ?? null)} != null;
-      const needle = ${JSON.stringify(floaterText)};
-      let seal = false;
-      let floater = false;
-      while (performance.now() < deadline) {
-        floater = [...document.querySelectorAll(".fx-svg-floater")].some(
-          (el) => (el.textContent ?? "").includes(needle),
-        );
-        seal = wantSeal
-          ? [...document.querySelectorAll(".fx-svg-seal")].some(
-              (el) => (el.textContent ?? "").includes(${JSON.stringify(sealChar ?? "")}),
-            )
-          : false;
-        if (floater && (!wantSeal || seal)) break;
-        await new Promise((r) => requestAnimationFrame(r));
-      }
-      return { seal: wantSeal ? seal : null, floater };
-    })()`,
-  );
-}
-
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
-  test(
-    "装包→装载→招贤可选→渲染 hook 将旗→选定结算+动画 handler",
-    { tag: "@slow" },
-    async ({ page }) => {
-      // 慢池(#1026):单例实测 >30s(45.4s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
-      await quickStart(page, 7);
-      await plantHeroPick(page);
+  test("装包→装载→招贤可选→选定权威结算(义从 +100)", { tag: "@slow" }, async ({ page }) => {
+    // 慢池(#1026):单例实测 >30s——快池门禁 --grep-invert @slow 跳过。
+    await quickStart(page, 7);
+    await plantHeroPick(page);
 
-      // 渲染 hook(#378 三能力之三):招贤卡面挂示例包专属将旗(assets URL)
-      const scroll = page.getByTestId(T.heroPickScroll);
-      await expect(scroll).toBeVisible();
-      const flag = scroll.getByTestId(TESTIDS.heroFlag("taishici"));
-      await expect(flag).toHaveAttribute("src", "/extensions/hero-taishici/assets/flag.svg");
+    // 装载断言:招贤卷轴候选含示例名将(权威贡献进名将池的消费面)
+    const scroll = page.getByTestId(T.heroPickScroll);
+    await expect(scroll).toBeVisible();
+    await expect(scroll.getByTestId(T.heroPickOption(1))).toContainText("太史慈");
 
-      // 选定太史慈(候选中位):被动技「义从」权威结算 +100 两
-      const before = await snap(page);
-      const cashBefore = before.players[0].cash;
-      const samplePromise = sampleFx(page, "义从归心", "义");
-      // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
-      await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
-      const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
-      await expect(pick).toBeVisible();
-      await pick.click();
-      await expect(scroll).toBeHidden();
-      await expect
-        .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
-        .toBe(cashBefore + 100);
-      expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
-        "taishici",
-      );
-      // 动画 handler(#378 三能力之二):「义」字印 + 扩展文案浮字(瞬态采样)
-      expect(await samplePromise).toEqual({ seal: true, floater: true });
-      await waitSettled(page);
-    },
-  );
+    // 选定太史慈(候选中位):被动技「义从」权威结算 +100 两
+    const before = await snap(page);
+    const cashBefore = before.players[0].cash;
+    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
+    await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
+    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
+    await expect(pick).toBeVisible();
+    await pick.click();
+    await expect(scroll).toBeHidden();
+    await expect
+      .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
+      .toBe(cashBefore + 100);
+    expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
+      "taishici",
+    );
+    await waitSettled(page);
+  });
 
   test(
-    "主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1,扩展浮字播报",
+    "主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1",
     { tag: "@slow" },
     async ({ page }) => {
-      // 慢池(#1026):单例实测 >30s(47.5s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
+      // 慢池(#1026):单例实测 >30s——快池门禁 --grep-invert @slow 跳过。
       await useHalfScale(page); // 放缓演出:发技后自动起摇前留足断言窗(heroDiceBonus 消费前)
       await quickStart(page, 7);
       // #987 冻结闸(同 plantHeroPick):排空演出→冻结,种植的出牌窗不被迟到链步进覆盖
       await waitFxIdle(page);
       await freezeClock(page);
-      // 种植:人类麾下带示例名将,停出牌阶段(技能卡承载 SkillCardFace 单技装配,#818;将旗同挂)
+      // 种植:人类麾下带示例名将,停出牌阶段(技能卡承载 SkillCardFace 单技装配,#818)
       await force(
         page,
         `
@@ -143,12 +102,6 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
       // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
       const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici:taishici-pozhen"));
       await expect(ji).toBeVisible();
-      // 渲染 hook 第二卡面:出牌阶段技能卡(SkillCardFace)同样挂将旗
-      await expect(ji.getByTestId(TESTIDS.heroFlag("taishici"))).toHaveAttribute(
-        "src",
-        "/extensions/hero-taishici/assets/flag.svg",
-      );
-      const samplePromise = sampleFx(page, "破阵!擂鼓进军");
       await ji.click();
       await page.getByTestId(TESTIDS.actionbarPlay).click();
       // 权威结算复用 warDrum 案:本回合步数加成挂账;发技事件随同批产出
@@ -163,70 +116,6 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
           { timeout: 10_000, intervals: [50] },
         )
         .toEqual({ bonus: 1, fired: true });
-      // 动画 handler:破阵扩展浮字
-      expect(await samplePromise).toEqual({ seal: null, floater: true });
     },
   );
-
-  test("定制问询「信义盲选」全链(#424):招贤触发→问询弹层牌背盲选→应答弃 1 摸 1 生效", async ({
-    page,
-  }) => {
-    await quickStart(page, 7);
-    // #987 冻结闸(同 plantHeroPick):排空演出→冻结,种植的招贤/问询相位不被迟到链步进覆盖
-    await waitFxIdle(page);
-    await freezeClock(page);
-    // 种植:候选只放太史慈 + 手牌 2 张(≥2 可用才进问询相位;起手 1 张走引擎自动执行不弹)
-    await force(
-      page,
-      `
-      {
-        const defs = window.__dafung.heroDefs();
-        const taishici = defs.find((h) => h.id === "taishici");
-        if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
-        e.phase = "Playing";
-        e.activeIndex = 0;
-        e.offeredHeroes = [{ def: taishici, skillIds: [...taishici.skillPool] }];
-        e.turnPhase = "AwaitingHeroPick";
-        e.players[0].jinnangHand = ["连环计", "缓兵之计"];
-        e.players[0].jinnangHandCount = 2;
-      }
-    `,
-    );
-    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
-    await page.getByTestId(T.heroPickScroll).getByTestId(T.heroPickOption(0)).click();
-    const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
-    await expect(pick).toBeVisible();
-    await pick.click();
-
-    // 问询弹层(#424 InquiryLayer):题名随呈现意图(信义盲选),牌背盲选——
-    // 选项 label 是序号,牌面(连环计/缓兵之计)不得在任何可见文本里泄露
-    const inquiry = page.getByTestId(TESTIDS.inquiryScroll);
-    await expect(inquiry).toBeVisible();
-    await expect(inquiry.getByTestId(T.scrollTitle)).toHaveText("信义盲选");
-    const inquiryText = await inquiry.innerText();
-    expect(inquiryText).not.toContain("连环计");
-    expect(inquiryText).not.toContain("缓兵之计");
-    expect(await engineState(page, "e.turnPhase")).toBe("AwaitingInquiry");
-
-    // 应答:点第 1 张暗牌 → 引擎回灌扩展 resolve(弃「连环计」摸 1 张补位)→ 收口补完
-    await inquiry.getByTestId(TESTIDS.inquiryOption(0)).click();
-    await expect(inquiry).toBeHidden();
-    await expect
-      .poll(
-        () =>
-          engineState(
-            page,
-            "({ pending: e.pendingInquiry, handLen: e.players[0].jinnangHand.length, first: e.players[0].jinnangHand[0], recycled: e.jinnangDiscard.includes('连环计') })",
-          ),
-        { timeout: 10_000, intervals: [50] },
-      )
-      .toEqual({ pending: null, handLen: 2, first: "缓兵之计", recycled: true });
-    // 战报双留痕(发起 + 应答)
-    expect(
-      await engineState(
-        page,
-        "e.log.some((l) => l.detail.includes('inquiryAwait')) && e.log.some((l) => l.detail.includes('inquiryResolve'))",
-      ),
-    ).toBe(true);
-  });
 });

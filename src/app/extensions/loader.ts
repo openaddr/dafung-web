@@ -1,9 +1,9 @@
-// 扩展包装载器(#378,ADR-0022 双端加载器·客户端侧):浏览器从仓库 extensions/ 布局
-// 装载已安装包——import.meta.glob 构建期锁定包清单与入口(dev 直出、build 切懒 chunk),
-// 逐包动态 import() 后**双注册**:权威贡献进 core 注册面(单机本地引擎做裁决 + 事件
-// 消费面按 HEROES 回链),客户端贡献进本层扩展面(动画/渲染)。
-// 单机与联机走同一装载路径(联机客户端也注册权威贡献:折叠/快照回链要按 HEROES 解析
-// 扩展名将;裁决仍在服务端,客户端注册的效果不会被调用)。
+// 扩展包装载器(#378,ADR-0022):浏览器从仓库 extensions/ 布局装载已安装包——
+// import.meta.glob 构建期锁定包清单与入口(dev 直出、build 切懒 chunk),逐包动态
+// import() 后做**权威侧注册**(单机本地引擎做裁决 + 事件消费面按 HEROES 回链)。
+// 客户端半边(动画/渲染/呈现 hook)已退役(#1064):扩展包无 client 入口,装载器
+// 只做权威侧注册;单机与联机走同一装载路径(联机客户端也注册权威贡献:折叠/快照
+// 回链要按 HEROES 解析扩展名将;裁决仍在服务端,客户端注册的效果不会被调用)。
 //
 // 口径:
 //  - 「已安装」= 仓库 extensions/ 下存在的包目录;本票不建安装/分发通路(后续票)。
@@ -16,16 +16,14 @@ import {
   type ExtensionManifest,
 } from "@core/extension-contract";
 import { registerExtensionAuthorityModule } from "@core/extension-registry";
-import { registerExtensionClientPackage, type ExtensionClientPackage } from "./registry";
 
-// 构建期扫描:manifest 全量(eager,小对象),两个入口位按 glob 懒加载。
+// 构建期扫描:manifest 全量(eager,小对象),入口按 glob 懒加载。
 // 平铺文件名契约(core/extension-contract.ts)保证「/extensions/<目录>/<entry>」拼得出 glob 键。
 const manifestModules = import.meta.glob("/extensions/*/manifest.json", {
   eager: true,
   import: "default",
 }) as Record<string, unknown>;
 const authorityEntries = import.meta.glob("/extensions/*/*.js");
-const clientEntries = import.meta.glob("/extensions/*/*.js");
 
 /** 装载扩展目录全部包(重复调用 = bug:注册面冲突当场炸,main.tsx 顶层只调一次)。 */
 export async function loadInstalledExtensionPackages(): Promise<ExtensionManifest[]> {
@@ -44,19 +42,6 @@ export async function loadInstalledExtensionPackages(): Promise<ExtensionManifes
     if (authority.default == null || typeof authority.default !== "object")
       throw new Error(`扩展装载:${manifest.id} 权威入口缺默认导出贡献对象(${manifest.entry})`);
     registerExtensionAuthorityModule({ manifest, ...authority.default });
-
-    if (manifest.client != null) {
-      const clientKey = `/extensions/${dirName}/${manifest.client}`;
-      const clientImport = clientEntries[clientKey];
-      if (clientImport == null)
-        throw new Error(
-          `扩展装载:${manifest.id} 客户端入口不在构建扫描面:${clientKey}(检查包根平铺布局)`,
-        );
-      const client = (await clientImport()) as { default?: ExtensionClientPackage };
-      if (client.default == null || typeof client.default !== "object")
-        throw new Error(`扩展装载:${manifest.id} 客户端入口缺默认导出贡献对象(${manifest.client})`);
-      registerExtensionClientPackage(manifest, client.default);
-    }
     loaded.push(manifest);
   }
   return loaded;
