@@ -194,10 +194,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 恢复场景由既有日志通路自然重建(对局屏重挂=游标归零,存量全量记未读,金点即亮)。
   const [warReadCount, setWarReadCount] = useState(0);
   // 战报条数 memo 化(#1022 渲染税):对只增不减的完整 log 全量 filter 不随任意
-  // sync 重跑——挂 log 引用(比挂 snapshot 引用更省:同 sync 不动 log 的批次也不
-  // 重算);过滤口径仍是 warEntriesOf 单源(WarReportDrawer 内)。依赖挂 log 的
-  // 前提 = warEntriesOf 纯读 log:其消费面若扩到其他快照字段,依赖须同步改。
-  const warTotal = useMemo(() => warEntriesOf(snapshot).length, [snapshot.log]);
+  // sync 重跑。依赖契约(#1081):快照 log 字段是引擎活引用透传——serialize read
+  // 不拷贝(snapshot.ts read:(e)=>e.log,仅 write 侧 [...s.log] 重灌)、引擎唯一
+  // 写点原地 push,引用恒定不换;挂引用本身 = memo 永不重算(warTotal 冻结在
+  // 首渲值 → 金点永亮,本票回归根因)。故依赖必须挂值语义的 logCount(纯派生
+  // = log 长度):log 只增(唯一写点 push)前提下长度变化 ⇔ 内容变化;换局/
+  // 恢复走 write 换引用重灌,logCount 重算照常触发。过滤口径仍是 warEntriesOf
+  // 单源(WarReportDrawer 内):其消费面若扩到其他快照字段,依赖须同步改。
+  const warTotal = useMemo(() => warEntriesOf(snapshot).length, [snapshot.logCount]);
   // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
   // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
