@@ -17,6 +17,9 @@
 //   (虎牢关/宛城同为双奇城);满级 ×7、青囊书 600 分水岭(奇/名满级同售 4200)与
 //   斩杀线 21000 不变。
 // 局长随之回短:模拟对账留档于 ADR-0041,玩家拍板「短了就短了」认账。
+//
+// ④变卖系数削弱(#1077,2026-11-05):[60,90,120,150]% → [50,70,90,110]%——破产自救
+//   回收变紧;满级 110% 仍高于购价,「可增值」语义保留但变薄。
 import { describe, it, expect } from "bun:test";
 import { loadMap } from "@core/board-loader";
 import type { CityTier } from "@core/economy";
@@ -26,7 +29,7 @@ import guanzhongData from "../public/maps/guanzhong.json";
 
 /** 两图共用标准表(ADR-0041 两图统一;关中图侧 make-guanzhong-map.ts TIERS 同源同值),
  *  键 = 城池档位单字口径(economy.CityTier,逐城 tier 字段)。购价百两速记:
- *  县 18 档/郡·奇 30 档/名 48 档;变卖价 = 购价 × [60%, 90%, 120%, 150%];建城费 = 购价 50%。 */
+ *  县 18 档/郡·奇 30 档/名 48 档;变卖价 = 购价 × [50%, 70%, 90%, 110%](#1077);建城费 = 购价 50%。 */
 const STANDARD: Record<
   CityTier,
   {
@@ -42,28 +45,28 @@ const STANDARD: Record<
     buildCost: 900,
     tradeMult: [1, 1, 1, 1],
     tradeAdd: [100, 200, 400, 800],
-    valueByLevel: [1080, 1620, 2160, 2700],
+    valueByLevel: [900, 1260, 1620, 1980],
   },
   郡: {
     price: 3000,
     buildCost: 1500,
     tradeMult: [1, 1, 1, 1],
     tradeAdd: [200, 400, 800, 1600],
-    valueByLevel: [1800, 2700, 3600, 4500],
+    valueByLevel: [1500, 2100, 2700, 3300],
   },
   奇: {
     price: 3000,
     buildCost: 1500,
     tradeMult: [2, 3, 4, 7],
     tradeAdd: [0, 0, 0, 0],
-    valueByLevel: [1800, 2700, 3600, 4500],
+    valueByLevel: [1500, 2100, 2700, 3300],
   },
   名: {
     price: 4800,
     buildCost: 2400,
     tradeMult: [2, 3, 4, 5],
     tradeAdd: [200, 400, 600, 1200],
-    valueByLevel: [2880, 4320, 5760, 7200],
+    valueByLevel: [2400, 3360, 4320, 5280],
   },
 };
 

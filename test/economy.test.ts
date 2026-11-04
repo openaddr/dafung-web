@@ -5,7 +5,7 @@ import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 const catalog = loadMap(guanzhongData).catalog;
 
-const changan = catalog.get("prop-changan")!; // a 组,购入 4800 两(名城 48 档),变卖价 [2880,4320,5760,7200]
+const changan = catalog.get("prop-changan")!; // a 组,购入 4800 两(名城 48 档),变卖价 [2400,3360,4320,5280]
 
 function mk(cash = 10000) {
   return createPlayer({
@@ -58,10 +58,10 @@ describe("地产交易", () => {
   it("变卖价 = valueByLevel 逐档显式定义(#671 正名,旧称城池价值)", () => {
     const p = mk(100000);
     buy(p, changan);
-    expect(sellValueOf(changan, 0)).toBe(2880);
-    expect(sellValueOf(changan, 1)).toBe(4320);
-    expect(sellValueOf(changan, 2)).toBe(5760);
-    expect(sellValueOf(changan, 3)).toBe(7200);
+    expect(sellValueOf(changan, 0)).toBe(2400);
+    expect(sellValueOf(changan, 1)).toBe(3360);
+    expect(sellValueOf(changan, 2)).toBe(4320);
+    expect(sellValueOf(changan, 3)).toBe(5280);
   });
 });
 
