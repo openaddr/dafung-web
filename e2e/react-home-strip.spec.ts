@@ -10,7 +10,7 @@
 // 几何断言收进 toPass:首页入场 stagger/screen-in 播动画期间量盒有瞬时位移
 // (react-narrow 同法),落定后重试即稳。
 import { test, expect } from "./fixtures";
-import { waitForEngine } from "./react-helpers";
+import { disableEncounters, waitForEngine } from "./react-helpers";
 import { HOME_TID } from "../src/app/screens/home/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
@@ -18,13 +18,7 @@ test.describe("矮横屏 844×390(条带档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
   test("选图+开局全流程:零页面滚动、控件零裁半、换图起兵可达", async ({ page }) => {
-    await page.route("**/config/jiyu.json", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
-      }),
-    );
+    await disableEncounters(page);
     await page.goto("/?seed=42");
 
     // 条带档结构:内联条带在,弹层入口(选择地图钮/地图回显行)退役

@@ -9,7 +9,14 @@
 // 钉底 footer 槽)——「购地/不取」恒在视口内(Playwright 点击自动滚入视口,点击型
 // 断言测不出滚出视口,须几何断言钉住)。
 import { test, expect, type Page } from "./fixtures";
-import { quickStart, actIfCan, freezeClock, unfreezeClock, useHalfScale } from "./react-helpers";
+import {
+  quickStart,
+  actIfCan,
+  freezeClock,
+  unfreezeClock,
+  useHalfScale,
+  disableEncounters,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
@@ -141,13 +148,7 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
     await page.getByTestId(HOME_TID.mapStripItem("guanzhong")).click();
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();
-    await page.route("**/config/jiyu.json", (route) =>
-      route.fulfill({
-        status: 200,
-        contentType: "application/json",
-        body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
-      }),
-    );
+    await disableEncounters(page);
     await page.getByTestId(SETUP_TID.startGame).click();
     await page.locator(".bv-tile.bv-selectable").first().click();
     await page.getByTestId(TESTIDS.confirmCapitalOk).click();

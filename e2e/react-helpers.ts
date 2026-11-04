@@ -140,6 +140,20 @@ export async function unfreezeClock(page: Page): Promise<void> {
   await page.evaluate(() => (window as any).__dafung.clockResume());
 }
 
+/** 机遇隔离 route 收编(#1010 家族一;#126 纪律):注册 jiyu.json 路由拦截回
+ *  enabled:false——供不走 openSoloSetup 通路的 spec 调用(时机语义同其「先 route
+ *  后进屏」:开局加载到的机遇配置即被归零,注册点留在调用方原位)。机遇冒烟 spec
+ *  自行覆写非零参数,不经此口。 */
+export async function disableEncounters(page: Page): Promise<void> {
+  await page.route("**/config/jiyu.json", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+    }),
+  );
+}
+
 /** 首页 → 单机配置页(信息架构重构:起兵入口在次级页,所有开局链路先走这一步)。
  *  机遇隔离(#126;ADR-0035 必出制):存量 spec 的钉死断言不耐受随机机遇,起兵前把机遇
  *  开关关掉。路由拦截 jiyu.json 直接回 enabled:false,设置屏回落「内置默认」分支——隔离

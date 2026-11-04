@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { basename } from "node:path";
 
 // ⚠️ runner 必须跑在 Node 上,不要迁 Bun(2026-09 实测 bun 1.4.0):①裸跑
 // `bun run --bun playwright test` 会静默 exit 0 且 0 条用例执行(pw 的
@@ -6,19 +7,44 @@ import { defineConfig, devices } from "@playwright/test";
 // ②能跑后全量 4.5m(node 1.9m),联机重型用例单跑 45s(node 12s)且并行必超时。
 // runner 是纯开发工具,与产品运行时性能无关,node 只为此保留。
 
-// 多 agent 并行跑 e2e 的隔离协议(全局把控者按 agent 分配互不相同的值):
-//   E2E_STATIC_PORT  静态 preview 端口(默认 4173)
-//   E2E_GAME_PORT    游戏服务器端口(默认 3010)
-//   E2E_ROOMS_DIR    联机房间落盘目录(默认 ./tmp/e2e-rooms)
+// 多 agent 并行跑 e2e 的隔离协议:
+//   E2E_STATIC_PORT  静态 preview 端口
+//   E2E_GAME_PORT    游戏服务器端口
+//   E2E_ROOMS_DIR    联机房间落盘目录
 //   E2E_WORKERS      本 run 的 worker 数(默认不设,playwright 自决)
-// 不设这些 env = 行为与历史完全一致(共享默认端口与目录)。
+// 三旋钮默认已按 workspace 派生,显式 env 仍可覆盖(#658):缺省值从 workspace 身份
+// (basename(process.cwd()))派生——同名恒同端口(hash 是确定性函数,无随机,
+// 同一 workspace 名每次解析同值),多 workspace 并行天然互不撞端口、互不抢 rooms
+// 目录;单 workspace/CI 同样解析出确定值。派生值同时发布回进程 env(见下),
+// globalSetup 与联机 spec 的直读口据此拿到与 webServer 一致的解析结果。
+// 显式 env 最高优先,语义不变;端口空串兜派生默认(#807):`||` 而非 `??`——空串
+// (后台壳吞行内赋值的产物)与未设同回默认;空串的教育由 e2e/global-setup.ts 的
+// 响亮错误负责,config 不重复红。
 // 隔离的必要性:webServer 虽 reuseExistingServer,但"谁 spawn 谁杀"——B 复用 A 的
 // server,A 跑完即杀,B 后续用例全部 connection refused;固定 ROOMS_DIR 则跨 run 互踩。
-// 端口空串兜默认(#807):`||` 而非 `??`——空串(后台壳吞行内赋值的产物)与未设同回
-// 默认;空串的教育由 e2e/global-setup.ts 的响亮错误负责,config 不重复红。
-const STATIC_PORT = process.env.E2E_STATIC_PORT || "4173";
-const GAME_PORT = process.env.E2E_GAME_PORT || "3010";
-const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? "./tmp/e2e-rooms";
+const WS = basename(process.cwd());
+// FNV-1a 32 位:确定性哈希选型只求稳定性(同名恒同输出),无新依赖;不追求均匀性,
+// 异名撞同 offset 概率 1/60,撞了走显式 env(隔离协议本意)。
+function hashWs(name: string): number {
+  let h = 0x811c9dc5;
+  for (let i = 0; i < name.length; i++) {
+    h ^= name.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return h >>> 0;
+}
+const WS_PORT = hashWs(WS) % 60;
+const STATIC_PORT = process.env.E2E_STATIC_PORT || String(4100 + WS_PORT);
+const GAME_PORT = process.env.E2E_GAME_PORT || String(3510 + WS_PORT);
+const ROOMS_DIR = process.env.E2E_ROOMS_DIR ?? `./tmp/e2e-rooms-${WS}`;
+// 派生值发布回进程 env(#658):config 之外另有直读 env 的消费口——globalSetup 的
+// 陈旧服务器守门(E2E_STATIC_PORT,同进程)与联机 spec 的 ONLINE/rooms 观测口
+// (E2E_GAME_PORT/E2E_ROOMS_DIR,worker 继承)——不发布则 env 未设时它们各自落到
+// 旧硬编码默认,与 webServer 实际端口错位。??=:只补未设,显式 env(含空串)原样
+// 保留,空串教育仍在 global-setup。
+if (process.env.E2E_STATIC_PORT == null) process.env.E2E_STATIC_PORT = STATIC_PORT;
+if (process.env.E2E_GAME_PORT == null) process.env.E2E_GAME_PORT = GAME_PORT;
+if (process.env.E2E_ROOMS_DIR == null) process.env.E2E_ROOMS_DIR = ROOMS_DIR;
 
 export default defineConfig({
   testDir: "./e2e",
