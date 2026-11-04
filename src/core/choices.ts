@@ -14,7 +14,7 @@ import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
 import type { HeroSlot } from "./roster";
 import type { EncounterChoiceOption, EncounterTier } from "./encounters";
-import { jinnangCardOf, isReactionCard, type JinnangEffect } from "./jinnang";
+import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
 
 /** 已接入结算的锦囊效果种类(#122/T2 起逐票点亮;#281 反应牌 counter/ambush 经反应窗结算,
  *  同属已接入)。新增 effect.kind 而未接结算案时:灰置路径仍在(此计暂未启用)。 */
@@ -116,21 +116,18 @@ function heroPickChoices(e: GameEngine): ChoiceOption[] {
   }));
 }
 
-/** 以宝换贤的换贤代价(目录约定:2 件珍宝换 1 名将,见 ENCOUNTERS 以宝换贤文段)。 */
-export const ENCOUNTER_HERO_TREASURE_COST = 2;
-
-/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥2 且麾下未满、名将池
- *  未尽——任一不满足则换贤必落空(effect 的 fallbackCash=0,白损两件珍宝),选项必须
- *  拦下并报原因。其余选项恒可用:目录约定每条抉择机遇都自带一个无门槛的「不作」型
- *  选项,保证 ≤1 可用时自动执行永不死锁。 */
+/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥ 换贤代价(条目数据
+ *  treasureCost,#1067;模块初始化守卫保证 grantHero 选项必声明,此处直读不兜底)且
+ *  麾下未满、名将池未尽——任一不满足则换贤必落空(effect 的 fallbackCash=0,白损
+ *  珍宝),选项必须拦下并报原因。其余选项恒可用:目录约定每条抉择机遇都自带一个
+ *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁。 */
 function encounterOptionGate(
   e: GameEngine,
   c: EncounterChoiceOption,
 ): { available: boolean; reason?: string } {
   if (c.effect?.kind === "grantHero") {
     const p = e.activePlayer;
-    if (p.treasures.length < ENCOUNTER_HERO_TREASURE_COST)
-      return { available: false, reason: "珍宝不足" };
+    if (p.treasures.length < c.treasureCost!) return { available: false, reason: "珍宝不足" };
     if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
     if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id)))
       return { available: false, reason: "名将已尽" };
@@ -288,7 +285,12 @@ function jinnangChoices(e: GameEngine): ChoiceOption[] {
   const pending = e.pendingJinnang;
   if (pending) {
     const def = jinnangCardOf(pending.cardId);
-    const exclude = pending.stage === "two-b" ? pending.picked : [];
+    // 末段候选排除首段已定目标(声明单源 jinnang.TARGET_DOMAIN_STAGES.excludeFirstFromSecond,
+    // #1067;两步域段名 two-b 由载荷形状承载)
+    const exclude =
+      TARGET_DOMAIN_STAGES[def.targetDomain].excludeFirstFromSecond && pending.stage === "two-b"
+        ? pending.picked
+        : [];
     const targets: ChoiceOption[] = e.players.map((t, seat): ChoiceOption => {
       const excluded = exclude.includes(seat);
       const verdict = jinnangTargetOk(e, e.players.indexOf(p), seat, def.effect.kind);

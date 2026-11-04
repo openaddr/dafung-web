@@ -91,7 +91,7 @@ export function createEngineSink(): FxSink {
       useFxStore.getState().spawnJinnangLine(x1, y1, x2, y2);
     },
     revealPeek(ev) {
-      useFxStore.getState().revealPeek(ev.viewerSeat, ev.targetSeat, ev.guohao, ev.hand);
+      useFxStore.getState().revealPeek(ev);
     },
     announceTileChange(ev: PropertyChangedEvent) {
       // 城池宣告(ADR-0015):经 store 下发 nonce,Tile 订阅重播(何时播归播放器)
@@ -128,6 +128,7 @@ export type FxSinkCall =
       op: "peekRevealed";
       viewerSeat: number;
       targetSeat: number;
+      cardId: string;
       guohao: string;
       hand: string[];
     }
@@ -195,6 +196,7 @@ export function createMemorySink(): FxSink & { calls: FxSinkCall[] } {
         op: "peekRevealed",
         viewerSeat: ev.viewerSeat,
         targetSeat: ev.targetSeat,
+        cardId: ev.cardId,
         guohao: ev.guohao,
         hand: [...ev.hand],
       });

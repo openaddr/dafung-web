@@ -16,7 +16,7 @@ import { computeChoices } from "./choices";
 import { buy, upgrade } from "./economy";
 import { findHolding } from "./player";
 import { jinnangCardOf } from "./jinnang";
-import { openReactionWindow } from "./reaction-window";
+import { openReactionWindow, REACTION_EXPECT } from "./reaction-window";
 import { formatMoney } from "./money";
 import { emitGameEvent, requireMovePath } from "./game-events";
 import { SIGN_FACES } from "./constants";
@@ -163,7 +163,9 @@ export function marchTraverse(
           ownerSeat,
           tileIndex: tIdx,
         }); // 时机·MarchPassedCity:途经他人城主城池(反应窗挂点)
-        const ambushId = owner.jinnangHand.find((id) => jinnangCardOf(id).effect.kind === "ambush");
+        const ambushId = owner.jinnangHand.find(
+          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT.march,
+        );
         if (ambushId != null) {
           const walkedCount = totalLen - remaining.length;
           openReactionWindow(

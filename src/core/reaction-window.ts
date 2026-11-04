@@ -5,7 +5,7 @@
 import type { GameEngine } from "./authority";
 import { botReactionDecision } from "./bot";
 import { isEventCity } from "./board";
-import { jinnangCardOf } from "./jinnang";
+import { jinnangCardOf, type JinnangEffect } from "./jinnang";
 import { emitGameEvent } from "./game-events";
 import { REACTION_WINDOW_MS } from "./constants";
 
@@ -134,6 +134,16 @@ export interface PendingReaction {
 }
 
 // ──────────────────────────── 反应窗(#281,ADR-0017)────────────────────────────
+
+/** 窗种 → 本窗可打的反应牌 effect kind(#1067 声明式映射,单源):识破窗恒 counter、
+ *  行军窗恒 ambush。引擎校验(respondReaction expect)、被询问集筛选(settleJinnangPlay/
+ *  announceCounterLink/marchTraverse)与 UI 镜像(GameScreen reactPlayable)同读此表,
+ *  「识破窗恒 counter/行军窗恒 ambush」的字面量三元全数退役。 */
+export const REACTION_EXPECT: Record<ReactionView["kind"], JinnangEffect["kind"]> = {
+  jinnang: "counter",
+  march: "ambush",
+};
+
 // 结算中段停相位先例:AwaitingTreasureOwner(落他人城→城主三选)。挂起点存 pendingReaction
 // (公告+应答+续结算载荷,全序列化)→ AwaitingReaction → 应答齐 → 续结算。被询问的
 // isBot 座位在开窗同一调用内即席代答(botReactionDecision,纯策略不掷骰,重放确定性);
@@ -262,7 +272,7 @@ export function respondReaction(
       g.warn(`respondReaction:座位 ${seat} 手中无牌 ${cardId ?? "-"}`);
       return;
     }
-    const expect = pr.view.kind === "jinnang" ? "counter" : "ambush";
+    const expect = REACTION_EXPECT[pr.view.kind]; // 窗种→反应 kind 单源(#1067)
     if (jinnangCardOf(cardId).effect.kind !== expect) {
       g.warn(`respondReaction:【${cardId}】非本窗可打的反应牌`);
       return;
@@ -367,7 +377,9 @@ function announceCounterLink(
     .filter(
       (s) =>
         s !== seat &&
-        g.players[s].jinnangHand.some((id) => jinnangCardOf(id).effect.kind === "counter"),
+        g.players[s].jinnangHand.some(
+          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT.jinnang,
+        ),
     );
   if (queried.length === 0) {
     settleCounterStands(g, payload);

@@ -21,12 +21,16 @@ export type EncounterEffect =
 
 /** 抉择选项(#124):repDelta 结算后立即落账并夹紧;effect 缺省=无事发生。
  *  staminaDelta(#132):选项级体力增减,在 effect/repDelta 落账后结算——正值回血/
- *  负值耗体力,0/缺省=不变;归 0 触发耗竭(#130)。 */
+ *  负值耗体力,0/缺省=不变;归 0 触发耗竭(#130)。
+ *  treasureCost(#1067):grantHero 型选项的换贤代价(先扣 N 件珍宝再得将)——代价随
+ *  条目声明,不再有全局常数;模块初始化守卫 assertGrantHeroCostDeclared 保证 grantHero
+ *  选项必声明,消费点(门槛/结算)直读不兜底。 */
 export interface EncounterChoiceOption {
   text: string;
   repDelta: number;
   effect?: EncounterEffect;
   staminaDelta?: number;
+  treasureCost?: number;
 }
 
 export interface EncounterDef {
@@ -175,7 +179,12 @@ export const ENCOUNTERS: EncounterDef[] = [
     weight: 0.8,
     text: "名将遣使密告:愿以两件随身珍宝相赠,只求帐下效力。收下珍宝,名将即刻来投。",
     choices: [
-      { text: "以两件珍宝换 1 名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+      {
+        text: "以两件珍宝换 1 名将",
+        repDelta: 0,
+        effect: { kind: "grantHero", fallbackCash: 0 },
+        treasureCost: 2,
+      },
       { text: "婉言相拒(无事发生)", repDelta: 0 },
     ],
   },
@@ -383,6 +392,19 @@ export const ENCOUNTERS: EncounterDef[] = [
   },
 ];
 
+/** 换贤代价声明守卫(#1067):grantHero 型抉择选项必须显式声明 treasureCost——代价是
+ *  条目数据,不再有全局常数兜底;未声明 = 目录数据 bug,模块加载时当场抛错定位。
+ *  导出供单测复验(生产侧由下方模块初始化调用,同一函数单源)。 */
+export function assertGrantHeroCostDeclared(defs: readonly EncounterDef[]): void {
+  for (const def of defs) {
+    for (const c of def.choices ?? []) {
+      if (c.effect?.kind === "grantHero" && c.treasureCost == null)
+        throw new Error(`机遇「${def.id}」grantHero 选项未声明 treasureCost:${c.text}(数据 bug)`);
+    }
+  }
+}
+assertGrantHeroCostDeclared(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
+
 export interface EncounterBaseRates {
   good: number;
   neutral: number;
@@ -414,12 +436,21 @@ export function normalizeEncounterBaseRates(base: EncounterBaseRates): Encounter
   };
 }
 
+/** 产品默认三档基准(#135;#1067 收口内联字面量):产品默认档与 resolveEncounterConfig
+ *  的非法值回退同读此表,不再手工重抄 30/45/25。public/config/jiyu.json 为显式产品
+ *  配置(调档直接改文件),不在单源链上。 */
+export const ENCOUNTER_PRODUCT_BASE_RATES: EncounterBaseRates = {
+  good: 30,
+  neutral: 45,
+  bad: 25,
+};
+
 /** 产品默认档(#135):与 public/config/jiyu.json 同值。配置文件缺失/损坏时,
  *  服务器(#135 联机接线)与单机设置屏(encounterConfig.BUILTIN_ENCOUNTER_DEFAULTS)
- *  共用此回退,三处(文件/两端代码)任一调整须同步。 */
+ *  共用此回退(单源 import,app 侧零值拷贝,#1067)。 */
 export const ENCOUNTER_PRODUCT_DEFAULTS: EncounterConfig = {
   enabled: true,
-  baseRates: { good: 30, neutral: 45, bad: 25 },
+  baseRates: ENCOUNTER_PRODUCT_BASE_RATES,
 };
 
 /** jiyu.json → EncounterConfig(#135):enabled 与三档基准齐全且类型合法才接受,
@@ -442,7 +473,8 @@ export function parseEncounterFile(data: unknown): EncounterConfig | null {
   return { enabled, baseRates: { good, neutral, bad } };
 }
 
-/** 配置解析:非法值回退默认;三档按占比归一为百分比。 */
+/** 配置解析:非法值回退产品默认(单源 ENCOUNTER_PRODUCT_BASE_RATES,#1067);
+ *  三档按占比归一为百分比。 */
 export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeConfig {
   const b = cfg?.baseRates;
   // 0 是合法档位(如"中性 100%"=好运 0);仅在负数/非有限/总和为 0 时回退默认
@@ -451,7 +483,7 @@ export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeC
     [b.good, b.neutral, b.bad].every((v) => Number.isFinite(v) && v >= 0) &&
     b.good + b.neutral + b.bad > 0
       ? b
-      : { good: 30, neutral: 45, bad: 25 };
+      : ENCOUNTER_PRODUCT_BASE_RATES;
   return { enabled: cfg?.enabled === true, shares: normalizeEncounterBaseRates(base) };
 }
 

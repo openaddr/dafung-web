@@ -573,14 +573,15 @@ export function extractBatchEvents(
       case "peekApplied": {
         // 窥探弹层(#575,军情密探即时窥探):viewer-only 演出——座位契约校验后按事件
         // 直译(手牌内容随事件走,redactEvents 已逐座位裁、非 viewer 恒空,ADR-0016);
-        // 目标国号提取期解析进事件(弹层副题用),无净表现档(hand 空)也照发,弹层
-        // 组件按 viewerSeat===本座自门(他座客户端零渲染)。
+        // 目标国号与所因牌 id 提取期解析进事件(弹层副题/题名用,#1067),无净表现档
+        //(hand 空)也照发,弹层组件按 viewerSeat===本座自门(他座客户端零渲染)。
         const viewerSeat = eventSeat(engine, ev);
         eventSeatPlayer(engine, ev.targetSeat, "peekApplied.targetSeat");
         events_.push({
           kind: "peekRevealed",
           viewerSeat,
           targetSeat: ev.targetSeat,
+          cardId: ev.cardId,
           guohao: guohaoOf(engine, ev.targetSeat),
           hand: [...ev.hand],
         });

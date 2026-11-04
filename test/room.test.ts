@@ -1304,7 +1304,12 @@ describe("窥探投影(ADR-0016 · #575 即时窥探)", () => {
     // 事件=窥探的唯一载体:viewer 手牌内容随行,redact 逐座位裁(ADR-0016)
     const batch = e.gameEvents;
     const ev = batch.find((x) => x.kind === "peekApplied");
-    expect(ev).toMatchObject({ kind: "peekApplied", viewerSeat: 0, targetSeat: 1 });
+    expect(ev).toMatchObject({
+      kind: "peekApplied",
+      viewerSeat: 0,
+      targetSeat: 1,
+      cardId: "军情密探",
+    });
     const hand = ev!.kind === "peekApplied" ? ev!.hand : [];
     expect(hand).toEqual(["连环计"]);
     const forViewer = redactEvents(batch, 0).find((x) => x.kind === "peekApplied");

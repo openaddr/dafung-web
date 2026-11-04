@@ -27,6 +27,7 @@ import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
 import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
+import { REACTION_EXPECT } from "@core/reaction-window";
 import { getAudio } from "@app/fx/audio";
 import { scaleReactionMs } from "@app/fx/timings";
 import { reactionQueriesSeat } from "@app/controllers/reaction";
@@ -385,8 +386,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const reactPlayable =
     reactionUp && reaction != null
       ? selfPlayer.jinnangHand.filter(
-          (id) =>
-            jinnangCardOf(id).effect.kind === (reaction.kind === "jinnang" ? "counter" : "ambush"),
+          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT[reaction.kind], // 窗种→反应 kind 单源(#1067)
         )
       : [];
   const reactRespond = (use: boolean, cardId?: string, shareSeat?: number) => {

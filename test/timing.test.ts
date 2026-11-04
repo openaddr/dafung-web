@@ -1526,7 +1526,12 @@ describe("时机框架:事件化第二批·资产域(#457)", () => {
       weight: 1,
       text: "t",
       choices: [
-        { text: "献两件珍宝换名将", repDelta: 0, effect: { kind: "grantHero", fallbackCash: 0 } },
+        {
+          text: "献两件珍宝换名将",
+          repDelta: 0,
+          effect: { kind: "grantHero", fallbackCash: 0 },
+          treasureCost: 2, // #1067 代价入条目数据:手工夹具同契约(结算读声明,不再有全局常数)
+        },
         { text: "婉言相拒", repDelta: 0 },
       ],
     });

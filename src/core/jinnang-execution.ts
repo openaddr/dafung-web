@@ -6,7 +6,7 @@
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
 import { activeSkillOf, computeChoices, hasUsableJinnang, skillOptionId } from "./choices";
-import { diceShuffle, jinnangCardOf } from "./jinnang";
+import { diceShuffle, jinnangCardOf, TARGET_DOMAIN_STAGES } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
 import { HEROES } from "./heroes";
@@ -21,6 +21,7 @@ import type { ActiveSkillDef } from "./skills";
 import {
   openReactionWindow,
   resolveDuel,
+  REACTION_EXPECT,
   type ReactionPayload,
   type ReactionViewSeed,
 } from "./reaction-window";
@@ -29,7 +30,8 @@ import type { Player } from "./model";
 
 // ── 锦囊/出牌阶段引擎态载荷(#122/#188 档 3;#326 types.ts 解散,ADR-0019 类型随域走)──
 /** 锦囊目标段载荷(#122/T3):选牌后进入选人子状态(同相位内重算选项集);
- *  stage:one=单选立即执行;two-a/two-b=连环计两步(第二步排除第一步)。
+ *  stage:one=单选立即执行;two-a/two-b=两步流首/末段(段数与排除语义声明单源
+ *  jinnang.TARGET_DOMAIN_STAGES,#1067;末段候选排除首段已定目标)。
  *  picked 为已定座位;随快照走(目标段中途断线可恢复)。 */
 export interface PendingJinnang {
   cardId: string;
@@ -184,7 +186,8 @@ export function resolveJinnang(
       settleJinnangPlay(g, p, userSeat, def, [target]);
       return;
     }
-    // 连环计两步(T4):two-a 存首挑进 two-b;two-b 合并执行
+    // 两步流(stages=2 声明单源 TARGET_DOMAIN_STAGES,#1067;连环计为首例,T4):
+    // two-a 存首挑进 two-b;two-b 合并执行
     if (pending.stage === "two-a") {
       g.pendingJinnang = { cardId: pending.cardId, stage: "two-b", picked: [target] };
       return; // 留在相位,选项集重算为第二段候选
@@ -210,18 +213,15 @@ export function resolveJinnang(
     g.warn(`${p.guohao} 锦囊【${def.id}】不可用:${option?.reason ?? "未知原因"}`);
     return;
   }
-  // 指向域 → 入目标段(牌暂不消耗;作罢可全退)
-  const domain = def.targetDomain;
-  if (domain === "one" || domain === "two-others" || domain === "all-others") {
-    if (domain !== "all-others") {
-      g.pendingJinnang = { cardId, stage: domain === "one" ? "one" : "two-a", picked: [] };
-      return; // 留在相位,选项集重算为候选名单
-    }
-    // 全体域(横征暴敛):无目标段,直接宣布执行
-    settleJinnangPlay(g, p, userSeat, def, []);
-    return;
+  // 目标段分流读声明表 TARGET_DOMAIN_STAGES(#1067):stages 0=无目标段(self 自指/
+  // all-others 全体/reaction 唯反应)直接宣布执行;1=单段单选;2=两步流(第二步排除
+  // 首目标)。入目标段时牌暂不消耗(作罢可全退)。
+  const flow = TARGET_DOMAIN_STAGES[def.targetDomain];
+  if (flow.stages >= 1) {
+    g.pendingJinnang = { cardId, stage: flow.stages === 2 ? "two-a" : "one", picked: [] };
+    return; // 留在相位,选项集重算为候选名单
   }
-  // 自身域:立即宣布执行
+  // 无目标段:立即宣布执行
   settleJinnangPlay(g, p, userSeat, def, []);
 }
 
@@ -273,7 +273,9 @@ function settleJinnangPlay(
     .filter(
       (seat) =>
         seat !== userSeat &&
-        g.players[seat].jinnangHand.some((id) => jinnangCardOf(id).effect.kind === "counter"),
+        g.players[seat].jinnangHand.some(
+          (id) => jinnangCardOf(id).effect.kind === REACTION_EXPECT.jinnang,
+        ),
     );
   if (queried.length === 0) {
     // 无人可识破:不开窗,直接结算
@@ -697,6 +699,7 @@ export function executeJinnang(
         kind: "peekApplied",
         viewerSeat: userSeat,
         targetSeat: target,
+        cardId: def.id, // #1067:题名按目录回查,载荷带牌 id(UI 不硬编码牌名)
         hand: [...g.players[target].jinnangHand],
       });
       g.dispatchMoment("PeekApplied", { subject: userSeat, targetSeat: target }); // 时机·PeekApplied:军情密探窥探生效(#456)

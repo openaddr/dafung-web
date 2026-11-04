@@ -220,7 +220,7 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "duelResolved", aSeat: 0, bSeat: 1, aRoll: 6, bRoll: 2, winnerSeat: 0 },
   { kind: "jinnangVoided", cardId: "横征暴敛", shareSeat: 1 },
   { kind: "jinnangInflicted", cardId: "缓兵之计", targetSeat: 1 },
-  { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] },
+  { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, cardId: "军情密探", hand: ["连环计"] },
   { kind: "reactionOpened", windowKind: "jinnang", cardId: "横征暴敛", queriedSeats: [0, 1] },
   { kind: "reactionOpened", windowKind: "march", cardId: "半路杀出", queriedSeats: [1] },
 ];

@@ -335,12 +335,14 @@ export interface JinnangInflictedBody {
 }
 /** 窥探生效(#575,军情密探即时窥探):引擎真生效时点(executeJinnang peek 分支)
  *  产出,被识破不产出(窥探从未发生)。seat=窥方(viewer),targetSeat=被窥者;
+ *  cardId=被窥所因的锦囊 id(#1067:UI 题名按目录回查,不硬编码牌名;redact 透传);
  *  hand=被窥者锦囊手牌快照——阅览权随事件走:viewer 凭本事件看一次(redactEvents
  *  逐座位裁 hand,非 viewer 恒空,ADR-0016),窥探零客户端状态、关闭即逝。 */
 export interface PeekAppliedBody {
   kind: "peekApplied";
   viewerSeat: number;
   targetSeat: number;
+  cardId: string;
   hand: string[];
 }
 

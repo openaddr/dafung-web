@@ -693,7 +693,13 @@ describe("折叠投影器 · 锦囊族", () => {
     e.players[0].jinnangHandCount = 1;
     e.turnPhase = "Roll";
     foldEventBatch(e, [
-      ev(0, { kind: "peekApplied", viewerSeat: 0, targetSeat: 1, hand: ["连环计"] }),
+      ev(0, {
+        kind: "peekApplied",
+        viewerSeat: 0,
+        targetSeat: 1,
+        cardId: "军情密探",
+        hand: ["连环计"],
+      }),
     ]);
     // 零折:窥探不落任何副本字段(手牌数/相位等一概不动;弹层纯演出归表现面)
     expect(e.players[0].jinnangHandCount).toBe(1);

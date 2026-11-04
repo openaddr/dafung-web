@@ -8,7 +8,7 @@
 // testing.ts 白盒窄面 EngineTestInternals 的触达点);reaction-window 续结算经壳上
 // g.maybeApplyEncounter 委托回调(#318 预案),锦囊抽牌按 #319 预案跨模块直调自由函数。
 import type { GameEngine } from "./authority";
-import { computeChoices, ENCOUNTER_HERO_TREASURE_COST } from "./choices";
+import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
   pickTier,
@@ -242,11 +242,12 @@ function settleEncounterChoice(
     encounterId: def.id,
     choiceIndex: index,
   }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
-  // 换贤代价(#124 目录约定):grantHero 型选项先扣 2 件珍宝再得将——代价侧没有对应
-  // EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
+  // 换贤代价(#124 目录约定,#1067 代价入条目数据):grantHero 型选项先扣 treasureCost
+  // 件珍宝再得将——代价随条目声明(模块初始化守卫保证已声明,直读不兜底),代价侧
+  // 没有对应 EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
   let costDetail = "";
   if (option.effect?.kind === "grantHero") {
-    const cost = mover.treasures.splice(0, ENCOUNTER_HERO_TREASURE_COST);
+    const cost = mover.treasures.splice(0, option.treasureCost!);
     for (const t of cost) g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
   }
