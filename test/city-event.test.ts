@@ -59,26 +59,12 @@ const SEATS: SeatConfig[] = [
   { name: "B", isBot: false, guohao: "蜀" },
 ];
 
-function makeEngine(
-  seed = 7,
-  encounter?: { good?: number; neutral?: number; bad?: number },
-): GameEngine {
+function makeEngine(seed = 7, encounter?: { enabled?: boolean }): GameEngine {
   const cfg: EngineConfig = {
     seats: SEATS,
     targetNetWorth: 30000,
     startingCash: 10000,
-    ...(encounter
-      ? {
-          encounter: {
-            enabled: true,
-            baseRates: {
-              good: encounter.good ?? 34,
-              neutral: encounter.neutral ?? 33,
-              bad: encounter.bad ?? 33,
-            },
-          },
-        }
-      : {}),
+    ...(encounter ? { encounter: { enabled: true } } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -168,13 +154,12 @@ describe("装载器 event 字段(#824)", () => {
 // ──────────────── 落格链缝:机遇门 + 触发语义(#824 AC2/AC3)────────────────
 describe("事件城落格链(#824)", () => {
   it("机遇总开关开:普通城掷出机遇,事件城不掷(固定事件照常触发)", () => {
-    const rates = { good: 34, neutral: 33, bad: 33 };
-    const a = makeEngine(11, rates);
+    const a = makeEngine(11, { enabled: true });
     finishSetup(a);
     landActiveOn(a, 0); // 普通城:机遇必出照旧
     expect(testEngine(a).logText()).toMatch(/机遇/);
 
-    const b = makeEngine(11, rates);
+    const b = makeEngine(11, { enabled: true });
     finishSetup(b);
     landActiveOn(b, 1); // 招贤城:免掷随机机遇,固定事件接管
     expect(testEngine(b).logText()).not.toMatch(/机遇/);
@@ -245,7 +230,7 @@ describe("事件城落格链(#824)", () => {
   });
 
   it("event:'treasure' 珍宝城(#825 接线):免掷机遇、探宝先行、续进交易链", () => {
-    const e = makeEngine(47, { good: 34, neutral: 33, bad: 33 });
+    const e = makeEngine(47, { enabled: true });
     finishSetup(e);
     const mover = e.activePlayer;
     e.treasureDeck = [{ id: "probe-t", name: "拼点必得宝", level: 1, count: 1, desc: "" }];
@@ -304,7 +289,7 @@ describe("四类固定事件各自结算(#826)", () => {
     expect(testEngine(j).logText()).toMatch(/抽一张锦囊/);
   });
 
-  it("天命城:+20 声望,±100 夹紧沿用", () => {
+  it("天命城:+20 声望,无夹紧越界累加(#1090)", () => {
     const f2 = makeEngine(31);
     finishSetup(f2);
     const m2 = f2.activePlayer;
@@ -315,7 +300,7 @@ describe("四类固定事件各自结算(#826)", () => {
     const m3 = f3.activePlayer;
     m3.reputation = 95;
     landActiveOn(f3, 3);
-    expect(m3.reputation).toBe(100); // 夹紧 +100
+    expect(m3.reputation).toBe(115); // 95+20=115,越界继续
   });
 
   it("商市城:随机行情 ±100–200,行情落账后续进交易链", () => {

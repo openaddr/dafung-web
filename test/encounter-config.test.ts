@@ -1,5 +1,5 @@
-// 机遇配置(#125;ADR-0035 必出制):默认文件 public/config/jiyu.json 完整性 + 设置屏纯函数
-// (结构校验/单字段边界校验/EngineConfig.encounter 透传/fetch 回退)。
+// 机遇配置(#125;#1090 三档基准退役):默认文件 public/config/jiyu.json 完整性 + 设置屏纯函数
+// (结构校验/EngineConfig.encounter 透传/fetch 回退)。
 // jiyu.json 按 encounters.test.ts 读 public/maps/guanzhong.json 同款范式直接 import
 // (bun 解析失败即 import 报错 = 测试红),fetch 路径用注入 stub 验证。
 import { describe, it, expect, afterEach } from "bun:test";
@@ -9,11 +9,9 @@ import {
   ENCOUNTER_CONFIG_URL,
   fetchEncounterDefaults,
   parseEncounterDefaults,
-  sanitizeEncounterForm,
   toEncounterConfig,
-  updateEncounterForm,
 } from "@app/screens/setup/encounterConfig";
-import { resolveEncounterConfig } from "@core/encounters";
+import { parseEncounterFile } from "@core/encounters";
 
 const realFetch = globalThis.fetch;
 afterEach(() => {
@@ -33,104 +31,32 @@ function stubFetch(body: string | null, status = 200, reject = false): number[] 
 }
 
 describe("默认配置文件 public/config/jiyu.json(#125)", () => {
-  it("可被解析(bun import 即解析)且四值字段齐全", () => {
-    expect(jiyuConfig).toEqual({
-      enabled: true,
-      baseRates: { good: 30, neutral: 45, bad: 25 },
-    });
+  it("可被解析(bun import 即解析)且只剩开关(#1090 三档基准退役)", () => {
+    expect(jiyuConfig).toEqual({ enabled: true });
   });
 
-  it("数值口径合法:enabled 为布尔、三档为正数", () => {
+  it("开关为布尔且为产品默认(机遇必出=开)", () => {
     expect(typeof jiyuConfig.enabled).toBe("boolean");
-    for (const v of [
-      jiyuConfig.baseRates.good,
-      jiyuConfig.baseRates.neutral,
-      jiyuConfig.baseRates.bad,
-    ]) {
-      expect(v).toBeGreaterThan(0); // 任一档 ≤0 引擎会整体回退,文件必须给出真档位
-      expect(Number.isFinite(v)).toBe(true);
-    }
+    expect(jiyuConfig.enabled).toBe(BUILTIN_ENCOUNTER_DEFAULTS);
   });
 
-  it("文件值过引擎解析口径:开关开、三档归一后仍 30/45/25(和=100 原值直通)", () => {
-    const r = resolveEncounterConfig(
-      toEncounterConfig({
-        enabled: jiyuConfig.enabled,
-        good: jiyuConfig.baseRates.good,
-        neutral: jiyuConfig.baseRates.neutral,
-        bad: jiyuConfig.baseRates.bad,
-      }),
-    );
-    expect(r.enabled).toBe(true);
-    expect(r.shares).toEqual({ good: 30, neutral: 45, bad: 25 });
+  it("文件值过引擎装载口径:parseEncounterFile 接受,开关开", () => {
+    const cfg = parseEncounterFile(jiyuConfig);
+    expect(cfg).toEqual({ enabled: true });
   });
 });
 
-describe("设置屏纯函数(#125:表单 → EngineConfig.encounter)", () => {
-  it("toEncounterConfig 原值透传,不归一(三档和≠100 合法)", () => {
-    expect(toEncounterConfig({ enabled: true, good: 30, neutral: 45, bad: 25 })).toEqual({
-      enabled: true,
-      baseRates: { good: 30, neutral: 45, bad: 25 },
-    });
-    // 归一单源在引擎:10/10/10 原样交给 EngineConfig,各 1/3 由 resolveEncounterConfig 算出
-    const raw = toEncounterConfig({ enabled: false, good: 10, neutral: 10, bad: 10 });
-    expect(raw.baseRates).toEqual({ good: 10, neutral: 10, bad: 10 });
-    expect(resolveEncounterConfig(raw).shares.good).toBeCloseTo(100 / 3, 9);
+describe("设置屏纯函数(#125:开关 → EngineConfig.encounter)", () => {
+  it("toEncounterConfig 布尔透传", () => {
+    expect(toEncounterConfig(true)).toEqual({ enabled: true });
+    expect(toEncounterConfig(false)).toEqual({ enabled: false });
   });
 
-  it("sanitizeEncounterForm:开关布尔直传、三档夹紧 ≥0、非数记下界 0", () => {
-    expect(sanitizeEncounterForm({ enabled: true, good: -3, neutral: 0, bad: Number.NaN })).toEqual(
-      {
-        enabled: true,
-        good: 0,
-        neutral: 0,
-        bad: 0,
-      },
-    );
-    expect(sanitizeEncounterForm({ enabled: false, good: 12.5, neutral: 45, bad: 25 })).toEqual({
-      enabled: false,
-      good: 12.5,
-      neutral: 45,
-      bad: 25,
-    });
-  });
-
-  it("updateEncounterForm:单字段更新后全量校验,其余字段(含开关)原样保留", () => {
-    const prev = { enabled: true, good: 30, neutral: 45, bad: 25 };
-    expect(updateEncounterForm(prev, "bad", "-1")).toEqual({
-      enabled: true,
-      good: 30,
-      neutral: 45,
-      bad: 0,
-    });
-    expect(updateEncounterForm(prev, "good", "")).toEqual({
-      enabled: true,
-      good: 0,
-      neutral: 45,
-      bad: 25,
-    }); // 清空输入(Number("")=0)→ 夹到下界,不产生 NaN
-  });
-
-  it("parseEncounterDefaults:enabled 与三档齐全且类型合法才接受,缺字段/类型错 → null", () => {
-    expect(
-      parseEncounterDefaults({ enabled: true, baseRates: { good: 1, neutral: 2, bad: 3 } }),
-    ).toEqual({ enabled: true, good: 1, neutral: 2, bad: 3 });
-    expect(
-      parseEncounterDefaults({ enabled: false, baseRates: { good: 1, neutral: 2, bad: 3 } }),
-    ).toEqual({ enabled: false, good: 1, neutral: 2, bad: 3 });
-    expect(
-      parseEncounterDefaults({ enabled: "true", baseRates: { good: 1, neutral: 2, bad: 3 } }),
-    ).toBeNull();
-    expect(
-      parseEncounterDefaults({ triggerRate: 40, baseRates: { good: 1, neutral: 2, bad: 3 } }),
-    ).toBeNull(); // 旧 triggerRate 形已退役:缺 enabled 即拒
-    expect(parseEncounterDefaults({ baseRates: { good: 1, neutral: 2, bad: 3 } })).toBeNull();
-    expect(
-      parseEncounterDefaults({ enabled: true, baseRates: { good: 1, neutral: 2 } }),
-    ).toBeNull();
-    expect(
-      parseEncounterDefaults({ enabled: true, baseRates: { good: 1, neutral: 2, bad: Infinity } }),
-    ).toBeNull();
+  it("parseEncounterDefaults:enabled 布尔才接受,缺字段/类型错 → null", () => {
+    expect(parseEncounterDefaults({ enabled: true })).toBe(true);
+    expect(parseEncounterDefaults({ enabled: false })).toBe(false);
+    expect(parseEncounterDefaults({ enabled: "true" })).toBeNull();
+    expect(parseEncounterDefaults({})).toBeNull(); // 缺 enabled 即拒
     expect(parseEncounterDefaults(null)).toBeNull();
     expect(parseEncounterDefaults("junk")).toBeNull();
   });
@@ -139,22 +65,17 @@ describe("设置屏纯函数(#125:表单 → EngineConfig.encounter)", () => {
 describe("设置屏默认值来源(#125:fetch jiyu.json,失败回退内置默认)", () => {
   it("fetch 成功 → 以文件值为准", async () => {
     stubFetch(JSON.stringify(jiyuConfig));
-    expect(await fetchEncounterDefaults()).toEqual({
-      enabled: true,
-      good: 30,
-      neutral: 45,
-      bad: 25,
-    });
+    expect(await fetchEncounterDefaults()).toBe(true);
   });
 
   it("HTTP 失败 / 网络异常 / 结构不符 → 回退内置默认(与文件同值)", async () => {
     stubFetch("{}", 404);
-    expect(await fetchEncounterDefaults()).toEqual(BUILTIN_ENCOUNTER_DEFAULTS);
+    expect(await fetchEncounterDefaults()).toBe(BUILTIN_ENCOUNTER_DEFAULTS);
 
     stubFetch(null, 200, true); // fetch reject(网络失败)
-    expect(await fetchEncounterDefaults()).toEqual(BUILTIN_ENCOUNTER_DEFAULTS);
+    expect(await fetchEncounterDefaults()).toBe(BUILTIN_ENCOUNTER_DEFAULTS);
 
     stubFetch('{"enabled":"broken"}'); // 200 但结构不符
-    expect(await fetchEncounterDefaults()).toEqual(BUILTIN_ENCOUNTER_DEFAULTS);
+    expect(await fetchEncounterDefaults()).toBe(BUILTIN_ENCOUNTER_DEFAULTS);
   });
 });

@@ -50,7 +50,7 @@
 //                 应答同批);reactionFailed → 无状态转移(声明性);
 //                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
 //                 后果由调用点既有事件折——拦停=marchArrived、银两=cashChanged·duel)
-//   声望/体力族   reputationChanged → 声望 += 夹紧后实际增减 + 献计里程碑穿越重算;
+//   声望/体力族   reputationChanged → 声望 += 实际增减(无界直加,#1090)+ 献计里程碑穿越重算;
 //                 staminaChanged → 体力 += 夹紧后实际增减;reason=exhaustion 相邻 →
 //                 skipTurns+1(耗竭善后标记侧)
 //   破产族        playerBankrupt → isBankrupt/capitalIndex=-1/名将释放回池/锦囊清手入弃堆
@@ -652,7 +652,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "reputationChanged": {
         const p = foldTarget(engine, ev);
         const before = p.reputation;
-        const after = before + ev.delta; // delta=夹紧后实际增减,直加不二次夹紧
+        const after = before + ev.delta; // delta=实际增减(声望无界直加)
         p.reputation = after;
         for (const m of REP_MILESTONES) {
           // 献计里程碑穿越重算(进手随同批 jinnangDrawn·repMilestone 折)

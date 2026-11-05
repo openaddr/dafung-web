@@ -14,7 +14,7 @@
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
 import type { GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
-import type { EncounterConfig } from "../src/core/encounters";
+import type { EncounterSwitch } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
 import { resolveGuohaoClash } from "../src/core/guohao";
 import type { LoadedMap } from "../src/core/board-loader";
@@ -126,7 +126,7 @@ export interface RoomSession {
   mapId: string | null;
   /** 本局机遇配置(#135):开局时由 registry 注入项定(服务器读 jiyu.json);
    *  null=机遇关。随房间持久化——服务器重启重建引擎时复刻,否则联机局机遇静默丢失。 */
-  encounter: EncounterConfig | null;
+  encounter: EncounterSwitch | null;
   engine: GameEngine | null; // null = Lobby
 }
 
@@ -181,7 +181,7 @@ export interface CreateRoomConfig {
  *  setTimeout(服务器语义);浏览器进程内单机通路注入 Worker 时钟(后台节流免疫,
  *  见 src/app/net/worker-clock.ts)——「失焦照跑」,单机与联机同构的最后一环。 */
 export interface RoomRegistryOptions {
-  encounter?: EncounterConfig;
+  encounter?: EncounterSwitch;
   decisionTimeoutMs?: number;
   stallAbortMs?: number;
   reactionWindowMs?: number;
@@ -210,7 +210,7 @@ export class RoomRegistry {
   private readonly persistence: RoomPersistence;
   private readonly observer: RoomObserver | null;
   private readonly logSink: RoomLogSink | null;
-  private readonly encounter?: EncounterConfig;
+  private readonly encounter?: EncounterSwitch;
   private readonly decisionTimeoutMs: number;
   /** #642 驱动链停摆作废窗口(ms;缺省随 decisionTimeoutMs 同窗,见选项注)。 */
   private readonly stallAbortMs: number;
@@ -474,7 +474,7 @@ export class RoomRegistry {
         startingCash: map.startingCash,
         mapId: room.mapId!,
         // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
-        // 引擎侧归一/回退单源 resolveEncounterConfig;undefined = 机遇关(缺省注入)。
+        // 开关直传引擎(#1090 起无归一/回退);undefined = 机遇关(缺省注入)。
         encounter: this.encounter,
         // 反应窗时长接线(#284):registry env 覆盖注入引擎,开窗写入 view.windowMs
         // 随快照下发——客户端横幅投影与权威侧定时器同读一份,两端同长自动成立。

@@ -1,4 +1,4 @@
-// 机遇引擎单测(#123;ADR-0035 机遇必出):纯函数(归一/调制/加权抽取) + 引擎行为
+// 机遇引擎单测(#123;ADR-0035 机遇必出):纯函数(softmax 调制/加权抽取) + 引擎行为
 // (开关两端/先于城池结算/驻跸与天命同链/结算四路径与回退/确定性)。随机钉法:enabled
 // 配置 0/1 两端 + landActiveOn 恰落目标格(timing.test 同款技巧),结算路径经
 // testEngine.applyEncounter 指定具体事件绕过抽取。
@@ -14,13 +14,12 @@ import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
   assertGrantHeroCostDeclared,
-  normalizeEncounterBaseRates,
-  resolveEncounterConfig,
   tierShares,
   pickTier,
   pickWeighted,
   type EncounterChoiceOption,
   type EncounterDef,
+  type EncounterSwitch,
 } from "@core/encounters";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
@@ -38,11 +37,7 @@ const MAP = loadMap(guanzhongData);
 // 合成名将(h1/h2/h3 等)经 armHero 登记进名将表,afterEach 精确清退防泄漏(#785)
 afterEach(() => sweepTestHeroes());
 
-function makeEngine(
-  seed = 7,
-  encounter?: { good?: number; neutral?: number; bad?: number },
-  seats?: SeatConfig[],
-): GameEngine {
+function makeEngine(seed = 7, encounter?: EncounterSwitch, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
@@ -50,18 +45,7 @@ function makeEngine(
     ],
     targetNetWorth: 30000,
     startingCash: 10000,
-    ...(encounter
-      ? {
-          encounter: {
-            enabled: true,
-            baseRates: {
-              good: encounter.good ?? 34,
-              neutral: encounter.neutral ?? 33,
-              bad: encounter.bad ?? 33,
-            },
-          },
-        }
-      : {}),
+    ...(encounter ? { encounter } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }
@@ -179,66 +163,75 @@ function scrubSnapshot(text: string): string {
   return JSON.stringify(o);
 }
 
-describe("机遇配置:归一与回退(#120 归一口径)", () => {
-  it("开关布尔直传:enabled 缺省=false(引擎隔离开关),显式 true/false 原样", () => {
-    expect(resolveEncounterConfig().enabled).toBe(false);
-    expect(resolveEncounterConfig({ baseRates: { good: 30, neutral: 45, bad: 25 } }).enabled).toBe(
-      false,
-    );
-    expect(
-      resolveEncounterConfig({ enabled: true, baseRates: { good: 30, neutral: 45, bad: 25 } })
-        .enabled,
-    ).toBe(true);
-    expect(resolveEncounterConfig({ enabled: false }).enabled).toBe(false);
+describe("档位调制:softmax 三元拉锯(#1090 纯函数)", () => {
+  it("s=0 → 三档各 1/3;和恒=100", () => {
+    const r = tierShares(0);
+    expect(r.good).toBeCloseTo(100 / 3, 9);
+    expect(r.neutral).toBeCloseTo(100 / 3, 9);
+    expect(r.bad).toBeCloseTo(100 / 3, 9);
+    expect(r.good + r.neutral + r.bad).toBeCloseTo(100, 9);
   });
 
-  it("三档和=100 → 原值直通", () => {
-    const r = resolveEncounterConfig({
-      enabled: true,
-      baseRates: { good: 30, neutral: 45, bad: 25 },
-    });
-    expect(r.shares).toEqual({ good: 30, neutral: 45, bad: 25 });
+  it("锚点:s=+100 → 57.14/28.57/14.29;s=+300 → 87.67/10.96/1.37", () => {
+    const r = tierShares(100);
+    expect(r.good).toBeCloseTo(57.14, 2);
+    expect(r.neutral).toBeCloseTo(28.57, 2);
+    expect(r.bad).toBeCloseTo(14.29, 2);
+    const r3 = tierShares(300);
+    expect(r3.good).toBeCloseTo(87.67, 2);
+    expect(r3.neutral).toBeCloseTo(10.96, 2);
+    expect(r3.bad).toBeCloseTo(1.37, 2);
   });
 
-  it("和≠100 → 按占比归一(10/10/10 各 1/3;1/1/98 → 1/98% 刻度)", () => {
-    const even = normalizeEncounterBaseRates({ good: 10, neutral: 10, bad: 10 });
-    expect(even.good).toBeCloseTo(100 / 3, 9);
-    expect(even.neutral).toBeCloseTo(100 / 3, 9);
-    expect(even.bad).toBeCloseTo(100 / 3, 9);
-    const r = normalizeEncounterBaseRates({ good: 1, neutral: 1, bad: 98 });
-    expect(r.good).toBeCloseTo(1, 6);
-    expect(r.neutral).toBeCloseTo(1, 6);
-    expect(r.bad).toBeCloseTo(98, 6);
+  it("和恒=100(代表点正负扫描)", () => {
+    for (const s of [0, 1, -1, 10, -10, 30, 60, 90, 100, -100, 300, -300, 1000, -1000]) {
+      const r = tierShares(s);
+      expect(r.good + r.neutral + r.bad).toBeCloseTo(100, 6);
+    }
   });
 
-  it("0 是合法档位(中性 100% 口径),不再触发回退;非法三档回退默认 30/45/25", () => {
-    const r = resolveEncounterConfig({ baseRates: { good: 0, neutral: 100, bad: 0 } });
-    expect(r.shares).toEqual({ good: 0, neutral: 100, bad: 0 });
-    const bad = resolveEncounterConfig({ baseRates: { good: -1, neutral: Number.NaN, bad: 25 } });
-    expect(bad.shares).toEqual({ good: 30, neutral: 45, bad: 25 });
-  });
-});
-
-describe("档位调制与抽取(纯函数)", () => {
-  it("s=0 → 基准原样;s=+100 → 55/40/5;s=-100 → 5/50/45(修正拷问示意表,以公式为准)", () => {
-    const base = { good: 30, neutral: 45, bad: 25 };
-    expect(tierShares(0, base)).toEqual({ good: 30, neutral: 45, bad: 25 });
-    expect(tierShares(100, base)).toEqual({ good: 55, neutral: 40, bad: 5 });
-    expect(tierShares(-100, base)).toEqual({ good: 5, neutral: 50, bad: 45 });
+  it("镜像性:tierShares(−s) 与 tierShares(s) 好运霉运互换,中性不变", () => {
+    for (const s of [1, 10, 37, 100, 300]) {
+      const pos = tierShares(s);
+      const neg = tierShares(-s);
+      expect(neg.good).toBeCloseTo(pos.bad, 9);
+      expect(neg.bad).toBeCloseTo(pos.good, 9);
+      expect(neg.neutral).toBeCloseTo(pos.neutral, 9);
+    }
   });
 
-  it("夹紧 [5,95]:极端声望 + 偏置基准也不出 0/100 档", () => {
-    const r = tierShares(-100, { good: 90, neutral: 5, bad: 5 });
-    expect(r.good).toBeGreaterThanOrEqual(5);
-    expect(r.bad).toBeGreaterThanOrEqual(5);
-    const r2 = tierShares(100, { good: 90, neutral: 5, bad: 5 });
-    expect(r2.good).toBeLessThanOrEqual(95);
+  it("量程:任意有限声望无溢出——极端处精确落 100/0/0 极限(softmax 平移归一,#1090 评审必修)", () => {
+    const hi = tierShares(1e6);
+    expect(hi.good).toBe(100);
+    expect(hi.neutral).toBe(0);
+    expect(hi.bad).toBe(0);
+    const lo = tierShares(-1e6);
+    expect(lo.good).toBe(0);
+    expect(lo.neutral).toBe(0);
+    expect(lo.bad).toBe(100);
+  });
+
+  it("单调性:s≥0 好运单调不减、霉运单调不增;三档恒 >0 且 <100(代表点扫描)", () => {
+    let prevGood = -1;
+    let prevBad = 101;
+    for (const s of [0, 5, 10, 20, 40, 60, 90, 120, 200, 500, 1000]) {
+      const r = tierShares(s);
+      expect(r.good).toBeGreaterThanOrEqual(prevGood); // 好运单调不减
+      expect(r.bad).toBeLessThanOrEqual(prevBad); // 霉运单调不增
+      for (const v of [r.good, r.neutral, r.bad]) {
+        expect(v).toBeGreaterThan(0); // 两端极限永不可达
+        expect(v).toBeLessThan(100);
+      }
+      prevGood = r.good;
+      prevBad = r.bad;
+    }
   });
 
   it("pickTier 按累计占比;pickWeighted 按权重", () => {
-    expect(pickTier(0.29, { good: 30, neutral: 45, bad: 25 })).toBe("好运");
-    expect(pickTier(0.31, { good: 30, neutral: 45, bad: 25 })).toBe("中性");
-    expect(pickTier(0.8, { good: 30, neutral: 45, bad: 25 })).toBe("霉运");
+    const even = tierShares(0); // 各 1/3
+    expect(pickTier(0.3, even)).toBe("好运"); // 30 < 33.33
+    expect(pickTier(0.4, even)).toBe("中性");
+    expect(pickTier(0.8, even)).toBe("霉运");
     const heavy = { id: "重", weight: 9 };
     const light = { id: "轻", weight: 1 };
     expect(pickWeighted([heavy, light], 0.5)).toBe(heavy);
@@ -295,10 +288,11 @@ describe("机遇引擎行为", () => {
   });
 
   it("开关开(必出)→ 机遇先于城池结算:日志先机遇后可购,停在购地决策", () => {
-    // 钉「落无主城抽中即时机遇」的种子:好运重仓下即时条目占多数,AwaitingDecision=已解完
+    // 钉「落无主城抽中即时机遇」的种子:声望 0 三档均衡,约半数条目为即时型,
+    // AwaitingDecision=已解完(抉择型停 AwaitingEncounter,换下一 seed)
     const seed = ((): number => {
       for (let s = 1; s < 200; s++) {
-        const e0 = makeEngine(s, { good: 100, neutral: 0, bad: 0 });
+        const e0 = makeEngine(s, { enabled: true });
         finishSetup(e0);
         try {
           landOnFreeTile(e0);
@@ -309,7 +303,7 @@ describe("机遇引擎行为", () => {
       }
       throw new Error("无即时机遇落格种子");
     })();
-    const e = makeEngine(seed, { good: 100, neutral: 0, bad: 0 });
+    const e = makeEngine(seed, { enabled: true });
     finishSetup(e);
     landOnFreeTile(e);
     expect(e.turnPhase).toBe("AwaitingDecision"); // 机遇后照常进入购地决策
@@ -325,7 +319,7 @@ describe("机遇引擎行为", () => {
     // 钉「普通城抽中即时机遇」的种子(抉择机遇会停 AwaitingEncounter,不适用本场景)
     const seed = ((): number => {
       for (let s = 1; s < 200; s++) {
-        const e0 = makeEngine(s, { good: 100, neutral: 0, bad: 0 });
+        const e0 = makeEngine(s, { enabled: true });
         finishSetup(e0);
         try {
           landActiveOn(e0, benignTile(e0)); // 他人无宝城:机遇解完空结算收尾(见 benignTile 注)
@@ -336,7 +330,7 @@ describe("机遇引擎行为", () => {
       }
       throw new Error("无普通城即时机遇种子");
     })();
-    const e = makeEngine(seed, { good: 100, neutral: 0, bad: 0 });
+    const e = makeEngine(seed, { enabled: true });
     finishSetup(e);
     landActiveOn(e, benignTile(e));
     expect(e.turnPhase).toBe("Roll"); // 机遇(即时)+ 城池结算各自收尾,回合已过
@@ -488,7 +482,7 @@ describe("机遇引擎行为", () => {
 
   it("确定性:同 seed 同配置两局,完整一轮后快照逐位一致(机遇 roll 全走引擎 dice)", () => {
     const snap = (seed: number) => {
-      const e = makeEngine(seed, {});
+      const e = makeEngine(seed, { enabled: true });
       finishSetup(e);
       for (let i = 0; i < e.players.length && !e.isOver; i++) {
         passJinnang(e).rollAndMove();
@@ -516,21 +510,18 @@ describe("机遇引擎行为", () => {
 
 // ═════════════════════ 驻跸截断 × 机遇必出(ADR-0035,#776)═════════════════════
 describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁免", () => {
-  /** 好运重仓:98/1/1 经调制夹紧 → 好运 95。 */
-  const GOOD_HEAVY = { good: 98, neutral: 1, bad: 1 };
-  /** 中性重仓(同抉择机遇组口径):1/98/1 → 中性 98。 */
-  const NEUTRAL = { good: 1, neutral: 98, bad: 1 };
+  /** 档位偏置声望(#1090 softmax 档位偏置):+300 → 好运 87.7%;
+   *  中性在声望 0 处占比最大(三档各 1/3), BiasRep 0 即中性偏置。 */
+  const GOOD_BIAS_REP = 300;
+  const NEUTRAL_BIAS_REP = 0;
 
-  /** 探针:复刻引擎抽取消耗序(行军骰 → 档位 → 同档加权),不消费引擎骰。 */
-  function probeNextEncounter(e: GameEngine, cfg: { good: number; neutral: number; bad: number }) {
+  /** 探针:复刻引擎抽取消耗序(行军骰 → 档位 → 同档加权),不消费引擎骰。
+   *  档位概率由行者声望现算(tierShares),调用前先把声望钉到偏置值。 */
+  function probeNextEncounter(e: GameEngine) {
     const probe = createDice(0);
     probe.setRngState(e.dice.getRngState());
     probe.roll(); // 行军骰
-    const shares = tierShares(
-      e.activePlayer.reputation,
-      resolveEncounterConfig({ enabled: true, ...cfg }).shares,
-    );
-    const tier = pickTier(probe.nextFloat(), shares);
+    const tier = pickTier(probe.nextFloat(), tierShares(e.activePlayer.reputation));
     return pickWeighted(
       ENCOUNTERS.filter((c) => c.tier === tier),
       probe.nextFloat(),
@@ -538,12 +529,13 @@ describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁�
   }
 
   /** 钉一个「掷骰 ≥2 步(能越过都城)且驻跸截断必抽中指定机遇」的种子。 */
-  function haltSeed(id: string, cfg: { good: number; neutral: number; bad: number }): number {
+  function haltSeed(id: string, rep: number): number {
     for (let seed = 1; seed < 500; seed++) {
-      const e = makeEngine(seed, cfg);
+      const e = makeEngine(seed, { enabled: true });
       finishSetup(e);
+      e.activePlayer.reputation = rep;
       if (peekDie(e) < 2) continue;
-      if (probeNextEncounter(e, cfg).id === id) return seed;
+      if (probeNextEncounter(e).id === id) return seed;
     }
     throw new Error(`无驻跸种子抽中 ${id}`);
   }
@@ -557,9 +549,10 @@ describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁�
   }
 
   it("开关开:驻跸截断必出机遇,先机遇后补给,补给落账、回合收尾", () => {
-    const e = makeEngine(haltSeed("屯粮居奇", GOOD_HEAVY), GOOD_HEAVY);
+    const e = makeEngine(haltSeed("屯粮居奇", GOOD_BIAS_REP), { enabled: true });
     finishSetup(e);
     const mover = e.activePlayer;
+    mover.reputation = GOOD_BIAS_REP; // 与钉种探针同偏置:好运重仓
     const { supply } = capitalSupplyOf(e, mover);
     const cash0 = mover.cash;
     marchToHalt(e);
@@ -573,7 +566,7 @@ describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁�
   });
 
   it("开关关:驻跸截断无机遇,补给照旧(旧行为守卫)", () => {
-    const e = makeEngine(haltSeed("屯粮居奇", GOOD_HEAVY)); // 同种子,但不传 encounter = 关
+    const e = makeEngine(haltSeed("屯粮居奇", GOOD_BIAS_REP)); // 同种子,但不传 encounter = 关
     finishSetup(e);
     const mover = e.activePlayer;
     const { supply } = capitalSupplyOf(e, mover);
@@ -586,7 +579,7 @@ describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁�
   });
 
   it("驻跸截断遇抉择机遇:占用落格置续跑标记,解完续跑驻跸尾(补给+结束回合)", () => {
-    const e = makeEngine(haltSeed("携民渡江", NEUTRAL), NEUTRAL);
+    const e = makeEngine(haltSeed("携民渡江", NEUTRAL_BIAS_REP), { enabled: true }); // 声望 0:三档均衡,中性占比最大
     finishSetup(e);
     const mover = e.activePlayer;
     const { supply } = capitalSupplyOf(e, mover);
@@ -604,7 +597,7 @@ describe("必停都城接机遇(ADR-0035):机遇→补给→结束回合,零豁�
   });
 
   it("驻跸截断 × 抉择机遇快照 round-trip:恢复后续跑标记与机遇回链俱在,解完照常补给收尾", () => {
-    const e = makeEngine(haltSeed("携民渡江", NEUTRAL), NEUTRAL);
+    const e = makeEngine(haltSeed("携民渡江", NEUTRAL_BIAS_REP), { enabled: true });
     finishSetup(e);
     const mover = e.activePlayer;
     const moverSeat = e.players.indexOf(mover);
@@ -631,20 +624,13 @@ describe("抉择机遇(#124):入相与快照", () => {
   const treasure = (id: string) => ({ id, name: `宝${id}`, level: 1, desc: "" });
 
   /** 探针:复刻引擎抽取消耗序(行军骰 → 档位 → 同档加权,ADR-0035 必出制无触发 roll),
-   *  按当前 rng 状态算出下一次落格会抽中的机遇,不消费引擎骰。开关开 + 中性基准拉满
-   *  (三档须 >0,否则 resolveEncounterConfig 回退默认 30/45/25——#120 口径),档位调制
-   *  夹紧 [5,95] 后中性占 90。 */
-  const NEUTRAL_HEAVY = { good: 1, neutral: 98, bad: 1 };
-
+   *  按当前 rng 状态与行者声望(#1090 softmax)算出下一次落格会抽中的机遇,不消费引擎骰。
+   *  中性偏置 = 声望 0(三档各 1/3,中性占比最大点)。 */
   function probeNextEncounter(e: GameEngine): EncounterDef {
     const probe = createDice(0);
     probe.setRngState(e.dice.getRngState());
     probe.roll(); // 行军骰
-    const shares = tierShares(
-      e.activePlayer.reputation,
-      resolveEncounterConfig({ enabled: true, ...NEUTRAL_HEAVY }).shares,
-    );
-    const tier = pickTier(probe.nextFloat(), shares);
+    const tier = pickTier(probe.nextFloat(), tierShares(e.activePlayer.reputation));
     return pickWeighted(
       ENCOUNTERS.filter((c) => c.tier === tier),
       probe.nextFloat(),
@@ -654,7 +640,7 @@ describe("抉择机遇(#124):入相与快照", () => {
   /** 找一个「落格必抽中指定机遇」的种子(确定性扫描,setup 后的骰流决定抽取)。 */
   function seedDrawing(id: string): number {
     for (let seed = 1; seed < 500; seed++) {
-      const e = makeEngine(seed, NEUTRAL_HEAVY);
+      const e = makeEngine(seed, { enabled: true });
       finishSetup(e);
       if (probeNextEncounter(e).id === id) return seed;
     }
@@ -662,7 +648,7 @@ describe("抉择机遇(#124):入相与快照", () => {
   }
 
   it("抽中抉择机遇(真实抽取路径)→ 进 AwaitingEncounter,快照携带机遇 id/文段/选项", () => {
-    const e = makeEngine(seedDrawing("携民渡江"), NEUTRAL_HEAVY);
+    const e = makeEngine(seedDrawing("携民渡江"), { enabled: true });
     finishSetup(e);
     landOnFreeTile(e);
     const def = byId("携民渡江");
@@ -677,7 +663,7 @@ describe("抉择机遇(#124):入相与快照", () => {
   });
 
   it("抉择机遇先行:抽中后进机遇相位,城池结算等解完再继续", () => {
-    const e = makeEngine(seedDrawing("携民渡江"), NEUTRAL_HEAVY);
+    const e = makeEngine(seedDrawing("携民渡江"), { enabled: true });
     finishSetup(e);
     landOnFreeTile(e); // 落点是无主城:先机遇相位,解完才进购地决策
     expect(e.turnPhase).toBe("AwaitingEncounter");
@@ -687,7 +673,7 @@ describe("抉择机遇(#124):入相与快照", () => {
   });
 
   it("resolve:携民渡江选「携民渡江」→ 银两 −150 走支付、repDelta +10 落账、回合收尾", () => {
-    const e = makeEngine(seedDrawing("携民渡江"), NEUTRAL_HEAVY);
+    const e = makeEngine(seedDrawing("携民渡江"), { enabled: true });
     finishSetup(e);
     landOnFreeTile(e);
     const mover = e.activePlayer;
@@ -708,7 +694,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     expect(text.includes("−150") || text.includes("-150")).toBe(true);
   });
 
-  it("repDelta 夹紧:声望 95 选「携民渡江」(+10)→ 100(±100 钳位)", () => {
+  it("repDelta 无夹紧(#1090):声望 95 选「携民渡江」(+10)→ 105(越界累加)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const mover = e.activePlayer;
@@ -716,7 +702,7 @@ describe("抉择机遇(#124):入相与快照", () => {
     testEngine(e).enterEncounter(byId("携民渡江"));
     expect(e.turnPhase).toBe("AwaitingEncounter");
     e.resolveEncounterChoice(0);
-    expect(mover.reputation).toBe(100);
+    expect(mover.reputation).toBe(105);
   });
 
   it("以宝换贤:2 珍宝换 1 名将(珍宝扣光、名将入帐、rep/银两不动)", () => {
@@ -817,7 +803,7 @@ describe("抉择机遇(#124):入相与快照", () => {
   });
 
   it("抽中结盟互市(真实抽取路径)→ 单选项自动执行,机遇解完继续购地决策", () => {
-    const e = makeEngine(seedDrawing("结盟互市"), NEUTRAL_HEAVY);
+    const e = makeEngine(seedDrawing("结盟互市"), { enabled: true });
     finishSetup(e);
     landOnFreeTile(e);
     expect(e.turnPhase).toBe("AwaitingDecision"); // 自动执行完 → 继续本落格的购地决策
@@ -1150,20 +1136,17 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
     return d.id;
   }
 
-  /** 霉运重仓配置:三档 1/1/98 经声望夹紧 [5,95] → 好运 5/中性 0/霉运 95。 */
-  const BAD_HEAVY = { good: 1, neutral: 1, bad: 98 };
+  /** 霉运偏置声望(#1090 softmax 档位偏置):−300 → 霉运 87.7%。 */
+  const BAD_BIAS_REP = -300;
 
   /** 探针:复刻引擎抽取消耗序(行军骰 → 档位 → 同档加权,ADR-0035 必出制无触发 roll),
-   *  按当前 rng 状态算出下一次落格会抽中的机遇,不消费引擎骰(#124 抉择测试同款技巧)。 */
+   *  按当前 rng 状态与行者声望算出下一次落格会抽中的机遇,不消费引擎骰
+   *  (#124 抉择测试同款技巧;调用前先把声望钉到 BAD_BIAS_REP)。 */
   function probeNextEncounter(e: GameEngine): EncounterDef {
     const probe = createDice(0);
     probe.setRngState(e.dice.getRngState());
     probe.roll(); // 行军骰
-    const shares = tierShares(
-      e.activePlayer.reputation,
-      resolveEncounterConfig({ enabled: true, ...BAD_HEAVY }).shares,
-    );
-    const tier = pickTier(probe.nextFloat(), shares);
+    const tier = pickTier(probe.nextFloat(), tierShares(e.activePlayer.reputation));
     return pickWeighted(
       ENCOUNTERS.filter((c) => c.tier === tier),
       probe.nextFloat(),
@@ -1173,8 +1156,9 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
   /** 找一个「落格必抽中指定机遇」的种子(确定性扫描,setup 后的骰流决定抽取)。 */
   function seedDrawing(id: string): number {
     for (let seed = 1; seed < 500; seed++) {
-      const e = makeEngine(seed, BAD_HEAVY);
+      const e = makeEngine(seed, { enabled: true });
       finishSetup(e);
+      e.activePlayer.reputation = BAD_BIAS_REP;
       if (probeNextEncounter(e).id === id) return seed;
     }
     throw new Error(`无种子抽中 ${id}`);
@@ -1234,10 +1218,11 @@ describe("机遇体力(#132):staminaDelta 落账与耗竭接线", () => {
   });
 
   it("体力不足归 0 → 耗竭相位接管本落格:rollAndMove 门线跳过购地,房产降级可 resolve", () => {
-    const e = makeEngine(seedDrawing("粮道被劫"), BAD_HEAVY);
+    const e = makeEngine(seedDrawing("粮道被劫"), { enabled: true });
     finishSetup(e);
     const seat = e.activeIndex;
     const mover = e.activePlayer;
+    mover.reputation = BAD_BIAS_REP; // 与钉种探针同偏置:霉运重仓
     giveProperty(e, seat, 2);
     giveProperty(e, seat, 1); // 两座有级房产:耗竭可用选项 ≥2 → 进相位而非自动执行
     mover.stamina = 6; // #789 后粮道被劫体力 −10:垫 6 保归 0

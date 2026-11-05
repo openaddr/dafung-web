@@ -1,6 +1,7 @@
 // 机遇系统(#123):落格触发的事件目录与档位抽取。
-// 本模块纯数据 + 纯函数:归一/声望调制/加权抽取全部可独立单测;引擎消费时一切随机经
-// this.dice(种子化,保命令流重放,ADR-0014)。id 用中文且必须自带因果(名字与效果互证)。
+// 本模块纯数据 + 纯函数:声望 softmax 调制(#1090)/加权抽取全部可独立单测;引擎消费时
+// 一切随机经 this.dice(种子化,保命令流重放,ADR-0014)。id 用中文且必须自带因果
+// (名字与效果互证)。
 
 export type EncounterTier = "好运" | "中性" | "霉运";
 export type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力" | "锦囊";
@@ -19,7 +20,7 @@ export type EncounterEffect =
   | { kind: "levy"; amount: number; staminaDelta?: number }
   | { kind: "trade"; amount: number; staminaDelta?: number }; // 你与随机对手各 +amount(国库出,正和)
 
-/** 抉择选项(#124):repDelta 结算后立即落账并夹紧;effect 缺省=无事发生。
+/** 抉择选项(#124):repDelta 结算后立即落账(直接累加,#1090 去夹紧);effect 缺省=无事发生。
  *  staminaDelta(#132):选项级体力增减,在 effect/repDelta 落账后结算——正值回血/
  *  负值耗体力,0/缺省=不变;归 0 触发耗竭(#130)。
  *  treasureCost(#1067):grantHero 型选项的换贤代价(先扣 N 件珍宝再得将)——代价随
@@ -405,99 +406,56 @@ export function assertGrantHeroCostDeclared(defs: readonly EncounterDef[]): void
 }
 assertGrantHeroCostDeclared(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
 
-export interface EncounterBaseRates {
+/** 机遇开关(#123;ADR-0035 机遇必出:出不出不再掷概率,false=不出机遇)。
+ *  引擎缺省 false=测试隔离开关;产品默认 true 来自 jiyu.json/设置屏。
+ *  #1090 起配置面只剩这一个开关:三档概率=声望 softmax 三元拉锯(见 tierShares)。 */
+export interface EncounterSwitch {
+  enabled: boolean;
+}
+
+/** 产品默认开关(#135):与 public/config/jiyu.json 同值(机遇必出=开)。配置文件缺失/
+ *  损坏时,服务器(#135 联机接线)与单机设置屏(encounterConfig.BUILTIN_ENCOUNTER_DEFAULTS)
+ *  共用此回退(单源 import,app 侧零值拷贝,#1067)。 */
+export const ENCOUNTER_PRODUCT_DEFAULTS: EncounterSwitch = { enabled: true };
+
+/** jiyu.json → EncounterSwitch(#135;#1090 三档基准退役):enabled 布尔才接受,
+ *  否则 null(调用方回退 ENCOUNTER_PRODUCT_DEFAULTS)。 */
+export function parseEncounterFile(data: unknown): EncounterSwitch | null {
+  if (typeof data !== "object" || data === null) return null;
+  const enabled = (data as Record<string, unknown>).enabled;
+  return typeof enabled === "boolean" ? { enabled } : null;
+}
+
+/** 三档概率(好运/中性/霉运,百分比;三元 softmax 归一,和恒=100)。 */
+export interface TierShares {
   good: number;
   neutral: number;
   bad: number;
 }
 
-export interface EncounterConfig {
-  /** 机遇系统总开关(ADR-0035 机遇必出:出不出不再掷概率,false=不出机遇)。
-   *  引擎缺省 false=测试隔离开关;产品默认 true 来自 jiyu.json/设置屏。 */
-  enabled?: boolean;
-  /** 三档基准值,按占比归一(和不必为 100);缺省 30/45/25。 */
-  baseRates?: EncounterBaseRates;
-}
+/** softmax 唯一旋钮(#1090):声望 s 折算为权重 2^(s/K),K=100。代码常量,与
+ *  REP_MILESTONES 同待遇,不进配置。 */
+export const TIER_SOFTMAX_K = 100;
 
-export interface EncounterRuntimeConfig {
-  enabled: boolean;
-  shares: EncounterBaseRates; // 已归一为百分比(和=100)
-}
-
-const clamp = (v: number, lo: number, hi: number): number => Math.max(lo, Math.min(hi, v));
-
-/** 三档归一(#120 口径):配置值和不必为 100,按占比得百分比。 */
-export function normalizeEncounterBaseRates(base: EncounterBaseRates): EncounterBaseRates {
-  const total = base.good + base.neutral + base.bad;
-  return {
-    good: (base.good / total) * 100,
-    neutral: (base.neutral / total) * 100,
-    bad: (base.bad / total) * 100,
-  };
-}
-
-/** 产品默认三档基准(#135;#1067 收口内联字面量):产品默认档与 resolveEncounterConfig
- *  的非法值回退同读此表,不再手工重抄 30/45/25。public/config/jiyu.json 为显式产品
- *  配置(调档直接改文件),不在单源链上。 */
-export const ENCOUNTER_PRODUCT_BASE_RATES: EncounterBaseRates = {
-  good: 30,
-  neutral: 45,
-  bad: 25,
-};
-
-/** 产品默认档(#135):与 public/config/jiyu.json 同值。配置文件缺失/损坏时,
- *  服务器(#135 联机接线)与单机设置屏(encounterConfig.BUILTIN_ENCOUNTER_DEFAULTS)
- *  共用此回退(单源 import,app 侧零值拷贝,#1067)。 */
-export const ENCOUNTER_PRODUCT_DEFAULTS: EncounterConfig = {
-  enabled: true,
-  baseRates: ENCOUNTER_PRODUCT_BASE_RATES,
-};
-
-/** jiyu.json → EncounterConfig(#135):enabled 与三档基准齐全且类型合法才接受,
- *  否则 null(调用方回退 ENCOUNTER_PRODUCT_DEFAULTS)。数值边界(≥0)不在此夹紧
- *  ——resolveEncounterConfig 已有同语义回退,此处只做结构门槛。 */
-export function parseEncounterFile(data: unknown): EncounterConfig | null {
-  if (typeof data !== "object" || data === null) return null;
-  const o = data as Record<string, unknown>;
-  const b =
-    typeof o.baseRates === "object" && o.baseRates !== null
-      ? (o.baseRates as Record<string, unknown>)
-      : null;
-  const num = (v: unknown): number | null =>
-    typeof v === "number" && Number.isFinite(v) ? v : null;
-  const enabled = typeof o.enabled === "boolean" ? o.enabled : null;
-  const good = b ? num(b.good) : null;
-  const neutral = b ? num(b.neutral) : null;
-  const bad = b ? num(b.bad) : null;
-  if (enabled === null || good === null || neutral === null || bad === null) return null;
-  return { enabled, baseRates: { good, neutral, bad } };
-}
-
-/** 配置解析:非法值回退产品默认(单源 ENCOUNTER_PRODUCT_BASE_RATES,#1067);
- *  三档按占比归一为百分比。 */
-export function resolveEncounterConfig(cfg?: EncounterConfig): EncounterRuntimeConfig {
-  const b = cfg?.baseRates;
-  // 0 是合法档位(如"中性 100%"=好运 0);仅在负数/非有限/总和为 0 时回退默认
-  const base =
-    b &&
-    [b.good, b.neutral, b.bad].every((v) => Number.isFinite(v) && v >= 0) &&
-    b.good + b.neutral + b.bad > 0
-      ? b
-      : ENCOUNTER_PRODUCT_BASE_RATES;
-  return { enabled: cfg?.enabled === true, shares: normalizeEncounterBaseRates(base) };
-}
-
-/** 声望调制(s 已夹紧 ±100):好运 +0.25s、霉运 −0.20s 百分点,各夹紧 [5,95],中性吃剩余。 */
-export function tierShares(reputation: number, base: EncounterBaseRates): EncounterBaseRates {
-  const s = clamp(reputation, -100, 100);
-  const good = clamp(base.good + 0.25 * s, 5, 95);
-  const bad = clamp(base.bad - 0.2 * s, 5, 95);
-  const neutral = Math.max(0, 100 - good - bad);
-  return { good, neutral, bad };
+/** 声望调制(#1090 softmax 三元拉锯):三档权重 2^(s/K) : 1 : 2^(−s/K),归一为百分比。
+ *  声望无界(可负,开局 0):好运随 s 单调不减、霉运单调不增;负向完美镜像
+ *  (tierShares(−s) 与 tierShares(s) 好运霉运互换);两端极限 100/0/0 与 0/100/0,
+ *  数学上渐近不可达,浮点下溢后精确等于极限值(见实现注)。
+ *  实现走 softmax 最大值平移:三支指数同减 |s|/K,概率逐点不变——裸 2^(s/K) 在
+ *  |s|≳102400 溢出 Infinity 得 NaN 静默判霉运(#1090 双轴评审必修),平移后任意
+ *  有限声望无溢出。 */
+export function tierShares(reputation: number): TierShares {
+  const u = reputation / TIER_SOFTMAX_K;
+  const m = Math.abs(u); // 平移量:三支指数同减 m,归一后概率不变
+  const g = 2 ** (u - m); // 好运支(s≥0 恒 1;s<0 随深度下溢趋 0)
+  const n = 2 ** -m; // 中性支
+  const b = 2 ** (-u - m); // 霉运支(好运的镜像)
+  const total = g + n + b;
+  return { good: (g / total) * 100, neutral: (n / total) * 100, bad: (b / total) * 100 };
 }
 
 /** 按调制后占比抽档(f ∈ [0,1))。 */
-export function pickTier(f: number, shares: EncounterBaseRates): EncounterTier {
+export function pickTier(f: number, shares: TierShares): EncounterTier {
   const p = f * 100;
   if (p < shares.good) return "好运";
   if (p < shares.good + shares.neutral) return "中性";

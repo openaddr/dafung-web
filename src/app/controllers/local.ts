@@ -13,7 +13,7 @@
 import type { LoadedMap } from "@core/board-loader";
 import type { GameEngine } from "@core/authority";
 import type { GameCommand, SeatConfig } from "@core/authority";
-import type { EncounterConfig } from "@core/encounters";
+import type { EncounterSwitch } from "@core/encounters";
 import { setEngine, useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
@@ -49,8 +49,8 @@ export interface SoloRoomConfig {
   seed?: number;
   /** 地图 id(ADR-0014 局头要素;编辑器试玩不经图库,如实空串)。 */
   mapId?: string;
-  /** 机遇配置(#125):设置屏四值原值透传;缺省 = 机遇关(引擎缺省语义,与联机同)。 */
-  encounter?: EncounterConfig;
+  /** 机遇开关(#125;#1090 只剩开关):设置屏透传;缺省 = 机遇关(引擎缺省语义,与联机同)。 */
+  encounter?: EncounterSwitch;
   /** bot 步进配速覆盖(#730,ADR-0034):生产缺省链 = e2e localStorage 键 → core
    *  BOT_STEP_MS;bun 单测直接构造时显式传 0(测试预算按 0ms bot 连锁书写)。 */
   botStepMs?: number;

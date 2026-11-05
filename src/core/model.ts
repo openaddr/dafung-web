@@ -28,7 +28,7 @@ export interface Player {
   properties: PropertyHolding[];
   heroes: HeroSlot[]; // 麾下槽位(#785,ADR-0036):{heroId, 已授技(池序), 按技冷却账};上限 HERO_CAPACITY
   treasures: TreasureDef[]; // 持有的珍宝
-  reputation: number; // 声望 -100~+100:机遇档位调制的唯一输入(见 GLOSSARY.md;#121)
+  reputation: number; // 声望无界,开局 0(#1090 去夹紧):机遇档位 softmax 调制的唯一输入(见 GLOSSARY.md;#121)
   stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 GLOSSARY.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
   /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */

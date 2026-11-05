@@ -244,7 +244,7 @@ export const EVENT_TIERS = {
   reputationChanged: {
     fold: "must-fold",
     fx: "presented",
-    why: "声望直加实际增减(delta=夹紧后值)+献计里程碑向上穿越重算",
+    why: "声望直加实际增减(delta=实际值)+献计里程碑向上穿越重算",
   },
   repMilestoneCrossed: {
     fold: "declarative",

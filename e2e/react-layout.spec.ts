@@ -65,6 +65,12 @@ test.describe("全浮层骨架", () => {
         );
       })
       .toBe(true);
+    // 决策盖板出清(#987 定性):购地/招贤横幅(banner-overlay)拦点击,actIfCan 有界
+    // 清点后再点总览钮(本文件首例同款;随机 seed 下人类恰在点击窗口落进购地决策
+    // 曾致 60s×2 假挂,#1093)
+    for (let i = 0; i < 10; i++) {
+      if (!(await actIfCan(page))) break;
+    }
     // 详情钮 #702 点亮(#732 正名「详情」):可用,点开诸侯详情弹窗(内容与投影归
     // react-warlords-overview,此处只守「开得了、Esc 收得净」)
     await expect(page.getByTestId(TESTIDS.topbarOverview)).toBeEnabled();
