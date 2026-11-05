@@ -7,7 +7,7 @@
 // room-persistence.ts,房间编排归 room.ts,两者同源消费本模块。
 import { GameEngine } from "../src/core/authority";
 import type { EngineConfig, SeatConfig } from "../src/core/authority";
-import type { EncounterConfig } from "../src/core/encounters";
+import type { EncounterSwitch } from "../src/core/encounters";
 import type { LoadedMap } from "../src/core/board-loader";
 import { createDice } from "../src/core/dice";
 
@@ -36,7 +36,7 @@ export interface RoomRecord {
   /** 房间所选地图 id;null=未选图。恢复时据此重新加载对应地图。 */
   mapId: string | null;
   /** 本局机遇配置(#135);null/缺省(旧记录)=机遇关。恢复引擎时传回构造 config。 */
-  encounter?: EncounterConfig | null;
+  encounter?: EncounterSwitch | null;
   snapshot: ReturnType<GameEngine["snapshot"]> | null;
 }
 

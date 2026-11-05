@@ -11,7 +11,7 @@ import type { GameCommand } from "../src/core/authority";
 import {
   ENCOUNTER_PRODUCT_DEFAULTS,
   parseEncounterFile,
-  type EncounterConfig,
+  type EncounterSwitch,
 } from "../src/core/encounters";
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { reactionQueriedSeats } from "./bot-driver";
@@ -79,12 +79,12 @@ function intFlag(flags: Record<string, string>, key: string): number | undefined
 }
 
 /** --encounter 解析:"jiyu" = 产品默认配置(public/config/jiyu.json);其余按路径读。
- *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇配置是重放要素(档位抽取消耗
+ *  parseEncounterFile 返回 null(结构不齐)即抛错——机遇开关是重放要素(档位抽取消耗
  *  骰流),坏配置不许静默降级。 */
-function loadEncounterCfg(spec: string): EncounterConfig {
+function loadEncounterCfg(spec: string): EncounterSwitch {
   const path = spec === "jiyu" ? resolve("public/config/jiyu.json") : resolve(spec);
   const cfg = parseEncounterFile(JSON.parse(readFileSync(path, "utf-8")));
-  if (!cfg) throw new Error(`机遇配置无效(enabled/baseRates 结构不齐):${path}`);
+  if (!cfg) throw new Error(`机遇配置无效(enabled 布尔缺失):${path}`);
   return cfg;
 }
 
@@ -105,7 +105,7 @@ function cmdNew(flags: Record<string, string>): { engine: GameEngine; config: Ga
   // 地图:--map <id>,缺省 = 内置清单首项;未知 id 由 loadBuiltinMapById 抛错
   const mapId = flags.map ?? builtinMapCatalog()[0].id;
   const map = loadBuiltinMapById(mapId);
-  // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认档(ENCOUNTER_PRODUCT_DEFAULTS,
+  // 机遇(#458):--encounter 显式给定则按其值;缺省 = 产品默认开关(ENCOUNTER_PRODUCT_DEFAULTS,
   // 唯一事实源在 core,不重新解析 jiyu.json)——引擎缺省 enabled=false 恒关,CLI 对局要与
   // 产品同源可触发机遇。
   const encounter =

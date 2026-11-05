@@ -153,7 +153,7 @@ export function maybeApplyEncounter(
   mover: Player,
 ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
   if (!g.encounter.enabled) return "none";
-  const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation, g.encounter.shares));
+  const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation));
   const def = pickWeighted(
     ENCOUNTERS.filter((c) => c.tier === tier),
     g.dice.nextFloat(),
@@ -223,8 +223,9 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
   settleEncounterChoice(g, g.activePlayer, def, option, index);
 }
 
-/** 抉择选项结算(#124):repDelta 经 addReputation 落账并夹紧 → effect 复用即时机遇结算
- *  (银两支出走支付/清算,与购地同规则)→ 选项级 staminaDelta 落账(#132)→ 清载荷 → endTurn。
+/** 抉择选项结算(#124):repDelta 经 addReputation 落账(直接累加,#1090 去夹紧)→ effect
+ *  复用即时机遇结算(银两支出走支付/清算,与购地同规则)→ 选项级 staminaDelta 落账(#132)
+ *  → 清载荷 → endTurn。
  *  对局日志记机遇 id + 所选选项;liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;
  *  bankrupt 已在效果内 endTurn;exhausted=耗竭接管本落格(#132),三者均不续跑落格结算
  *  (pendingEncounterHalt 一并作废);settled → 普通落格继续本落格的城池结算(#120 决策 2),
@@ -258,7 +259,7 @@ function settleEncounterChoice(
       kind: "reputationChanged",
       delta: mover.reputation - repBefore,
       reason: "encounter",
-    }); // 事件流(#384):声望变更(夹紧后实际增减,浮字由 fx 面派生;献计进手已随落账自产 jinnangDrawn)
+    }); // 事件流(#384):声望变更(实际增减,浮字由 fx 面派生;献计进手已随落账自产 jinnangDrawn)
   }
   g.logEvent(
     "system",

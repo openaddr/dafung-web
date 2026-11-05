@@ -380,8 +380,8 @@ function continueCityEvent(g: GameEngine): void {
   g.resolveLanding();
 }
 
-/** 天命城固定事件体(#824/#826):落格固定 +20 声望(声望泉,#121;±100 夹紧在
- *  addReputation),落账 + 事件宣告 + 战报;解毕由调用方续跑交易链。 */
+/** 天命城固定事件体(#824/#826):落格固定 +20 声望(声望泉,#121;无界直加
+ *  经 addReputation),落账 + 事件宣告 + 战报;解毕由调用方续跑交易链。 */
 function applyFateReputation(g: GameEngine, mover: Player, tile: TileDef): void {
   const repBefore = mover.reputation;
   g.addReputation(g.players.indexOf(mover), 20);
@@ -389,7 +389,7 @@ function applyFateReputation(g: GameEngine, mover: Player, tile: TileDef): void 
     kind: "reputationChanged",
     delta: mover.reputation - repBefore,
     reason: "fate",
-  }); // 事件流(#384):声望变更(天命泉,夹紧后实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
+  }); // 事件流(#384):声望变更(天命泉,实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
   g.lastLandOutcome = { kind: "Noop" };
   g.logEvent(
     "system",

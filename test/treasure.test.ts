@@ -10,11 +10,7 @@ import { testEngine } from "@core/testing";
 
 const MAP = loadMap(guanzhongData);
 
-function makeEngine(
-  seed = 1,
-  encounter?: { good?: number; neutral?: number; bad?: number },
-  seats?: SeatConfig[],
-): GameEngine {
+function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
   const cfg: EngineConfig = {
     seats: seats ?? [
       { name: "A", isBot: false, guohao: "魏" },
@@ -22,18 +18,6 @@ function makeEngine(
     ],
     targetNetWorth: 30000,
     startingCash: 10000,
-    ...(encounter
-      ? {
-          encounter: {
-            enabled: true,
-            baseRates: {
-              good: encounter.good ?? 34,
-              neutral: encounter.neutral ?? 33,
-              bad: encounter.bad ?? 33,
-            },
-          },
-        }
-      : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }

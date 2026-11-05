@@ -19,13 +19,7 @@ import { findHolding } from "./player";
 import type { HeroSlot } from "./roster";
 import { serializeGame, restoreGameSnapshot, type GameSnapshot } from "./snapshot";
 import type { MapCatalog } from "./board-loader";
-import {
-  ENCOUNTERS,
-  resolveEncounterConfig,
-  type EncounterConfig,
-  type EncounterDef,
-  type EncounterRuntimeConfig,
-} from "./encounters";
+import { ENCOUNTERS, type EncounterDef, type EncounterSwitch } from "./encounters";
 import { jinnangCardOf } from "./jinnang";
 // 反应窗域(#318,ADR-0019):开窗/应答/结算逻辑在 reaction-window.ts,壳内薄委托转发。
 // bot 即席应答策略(botReactionDecision)由域模块直接消费——bot 对 game 仅 type 依赖,无运行时环。
@@ -131,8 +125,9 @@ export interface EngineConfig {
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
-  /** 机遇系统(#123):缺省=关闭(产品默认 40% 在配置文件/设置屏,经此传入) */
-  encounter?: EncounterConfig;
+  /** 机遇系统(#123;#1090 只剩开关):缺省=关闭(测试隔离;产品默认 true 来自
+   *  jiyu.json/设置屏,经此传入) */
+  encounter?: EncounterSwitch;
   /** 反应窗时长覆盖(#284):联机权威侧 env E2E_REACTION_MS 经 registry 传入;缺省=查
    *  REACTION_WINDOW_MS 常量表。开窗时写入 view.windowMs 随快照下发,客户端横幅投影与
    *  权威侧定时器同读一份(两端同长自动成立)。 */
@@ -304,8 +299,9 @@ export class GameEngine {
   /** 反应窗时长覆盖(#284):EngineConfig.reactionWindowMs(联机权威侧 env 注入);
    *  0 = 无覆盖,开窗时按窗种类查 REACTION_WINDOW_MS 常量表。 */
   readonly reactionWindowMsOverride: number;
-  // #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 经 g.encounter 直读开关/档位配比
-  encounter: EncounterRuntimeConfig = resolveEncounterConfig(); // 缺省=关闭
+  // #320 去私有化(ADR-0019 条款 3):机遇域 encounter-flow.ts 经 g.encounter 直读开关
+  // (#1090 档位配比退役,概率改由 tierShares 声望 softmax 现算)
+  encounter: EncounterSwitch = { enabled: false }; // 缺省=关闭(测试隔离开关,ADR-0035)
   treasureVisitor: { def: PropertyDef; ownerIdx: number } | null = null; // 公道买卖/坐地起价:当前城主视角
   pendingDebt: { amount: number; creditor: Player | null } | null = null; // 破产清算:待清偿债务(凑够自救,凑不够破产)
   // 珍宝交涉交割托管:成交后买家付清价款前,珍宝暂存于此(序列化友好纯数据;买家不可变卖托管物抵债)。
@@ -428,7 +424,7 @@ export class GameEngine {
     this.startingCash = config.startingCash;
     this.mapId = config.mapId ?? "";
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
-    this.encounter = resolveEncounterConfig(config.encounter);
+    this.encounter = { enabled: config.encounter?.enabled === true };
     this.seed = this.dice.getRngState(); // mulberry32 未滚前 getState = 种子本身
     // 对局 id(ADR-0014):毫秒时间戳 + 随机后缀的简版 uuid,作 data/logs/<gameId>.jsonl 文件名
     // 与 IndexedDB key;不走引擎 rng(不影响确定性,不随快照漂移)。内联于构造器
@@ -1121,7 +1117,7 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121,clamp ±100)+ 声望献计里程碑(#147):薄委托 → reputation.addReputation。
+  /** 声望增减(#121;#1090 去夹紧,无界累加)+ 声望献计里程碑(#147):薄委托 → reputation.addReputation。
    *  事件流(#384):里程碑献计进手(jinnangDrawn·reason=repMilestone)在域内产出;
    *  声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
   addReputation(seat: number, delta: number): void {

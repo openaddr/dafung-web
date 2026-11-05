@@ -90,9 +90,9 @@ test.describe("准备页矮横屏 844×390(双列档)", () => {
       expect(m.dx, "左列无溢出(渐隐前提失守)").toBeGreaterThan(1);
       expect(m.mask, "左列底缘渐隐 mask 未挂").not.toBe("none");
     }).toPass({ timeout: 15_000 });
-    // 说明段玩家语(#839):「三档占比自动归一,不必凑满 100」口径在场
+    // 说明段玩家语(#839;#1090 三档手工基准退役,现文案=开关+声望 softmax 拉锯口径)
     await expect(page.getByTestId(SETUP_TID.encounterToggle).locator("p").last()).toContainText(
-      "不必凑满 100",
+      "三档概率随声望拉锯",
     );
   });
 

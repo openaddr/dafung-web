@@ -14,12 +14,9 @@ export const TID = {
   guohaoChar: (ch: string) => `guohao-char-${ch}`,
   /** 国号校验错误行(内联即时提示;#664 补登,SoloSetupScreen 渲染)。 */
   guohaoError: "setup-guohao-error",
-  // 机遇折叠区(#125;ADR-0035 必出制):details 开合杆 + 开关 + 三档基准输入
+  // 机遇折叠区(#125;ADR-0035 必出制):details 开合杆 + 开关(#1090 三档基准退役)
   encounterToggle: "setup-encounter-toggle",
   encounterEnabled: "setup-encounter-enabled",
-  encounterGood: "setup-encounter-good",
-  encounterNeutral: "setup-encounter-neutral",
-  encounterBad: "setup-encounter-bad",
   hint: "setup-hint",
   startGame: "start-game",
   currentMapName: "current-map-name",

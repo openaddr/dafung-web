@@ -1,7 +1,8 @@
-// 机遇系统冒烟(#126;ADR-0035 必出制):声望渲染 + 机遇卷轴弹出与结算。
-// 配置:开关开 + 中性 100%(三档全中性;中性 4 条里 3 条带抉择卷轴、
-// 结盟互市单选项自动执行)→ 每次落格必遇机遇,≤6 掷内必见抉择卷轴(同档 78%)。
-// 既有 spec 的机遇隔离在 openSoloSetup 内统一关开关,本 spec 自行覆写非零参数。
+// 机遇系统冒烟(#126;ADR-0035 必出制):开关配置 + 声望渲染 + 机遇卷轴弹出与结算。
+// 配置:开关开(#1090 配置面只剩这一个开关,三档手工基准退役;三档概率=声望 softmax
+// 三元拉锯,无手工配置)→ 每次落格必遇机遇。seed=67 钉死确定性对局(#987 零容忍:
+// 概率性「赌 N 秒内必见卷轴」评审必修改造)——卷轴出现时点固定,预算只是负载余量。
+// 既有 spec 的机遇隔离在 openSoloSetup 内统一关开关,本 spec 开局前把开关拨回「开」。
 import { test, expect } from "./fixtures";
 import { actIfCan, openSoloSetup, pickCapital, waitSettled, waitMyRollDone } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -9,17 +10,14 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
 test.describe("机遇系统冒烟", () => {
-  test("声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
+  test("开关开局 + 声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
     // 内部预算 90s/120s(waitMyRollDone/抉择循环)本就超过测试级 60s 默认——
     // 全量并行负载下阶段耗时一涨就被外层掐死(#217① 同族,#240 收口实测复现),
     // 标 slow 对齐外层超时至 120s,让内部预算真正生效。
     test.slow();
-    await page.goto("/");
+    await page.goto("/?seed=67"); // 钉 seed(#987 评审必修):确定性对局,卷轴时点固定
     await openSoloSetup(page);
     await page.getByTestId(SETUP_TID.encounterEnabled).click(); // 开关打开(机遇必出)
-    await page.getByTestId(SETUP_TID.encounterGood).fill("0");
-    await page.getByTestId(SETUP_TID.encounterNeutral).fill("100");
-    await page.getByTestId(SETUP_TID.encounterBad).fill("0");
     await page.getByTestId(SETUP_TID.startGame).click();
     await pickCapital(page);
     // 负载下 30s 窗可爆(#217①,与 #191 同族):等人类的当前一手自动走完,预算 90s。
@@ -28,14 +26,12 @@ test.describe("机遇系统冒烟", () => {
     await waitMyRollDone(page, 0, 90_000);
     await waitSettled(page);
 
-    // 引擎配置 fail-fast:机遇参数没进引擎时,后续断言全是废话
+    // 引擎配置 fail-fast:机遇参数没进引擎时,后续断言全是废话(#1090 起只剩布尔开关,
+    // 三档基准不再入引擎——档位概率由声望 softmax 现算,单源 core/encounters.ts)
     const engCfg = await page.evaluate(() =>
       JSON.stringify((window as any).__dafung.getEngine().encounter),
     );
-    expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({
-      enabled: true,
-      shares: { good: 0, neutral: 100, bad: 0 },
-    });
+    expect(JSON.parse(engCfg), `引擎机遇配置=${engCfg}`).toEqual({ enabled: true });
 
     // 声望渲染:席位格声望徽章(#700 仪表条退役,aria 即名词+值),初值 0
     await expect(page.getByTestId(TESTIDS.seatAttr(0, "rep"))).toHaveAttribute(
@@ -44,10 +40,11 @@ test.describe("机遇系统冒烟", () => {
     );
 
     const scroll = page.getByTestId(SCROLL_TESTIDS.encounterScroll);
-    // 中性 100% → 每次落格必遇机遇,同档抉择型 78%/次。#188 行军自动化后 bot 回合/
-    // 自动起摇期间 actIfCan 恒 false,按步计数会空转烧预算——原「while + 300ms 固定
-    // 采样」换 expect.poll 状态轮询:每拍机遇卷轴不在场就经 actIfCan 清决策点推进,
-    // 出现即收(120s 时间预算不变,人类落格采样 ~10 次以上)。
+    // 机遇必出 → 每次落格必遇机遇;档位=声望 softmax(初盘近均分,seeded 对局分布
+    // 可漂移=预期),抉择型占比 15/30。#188 行军自动化后 bot 回合/自动起摇期间
+    // actIfCan 恒 false,按步计数会空转烧预算——原「while + 300ms 固定采样」换
+    // expect.poll 状态轮询:每拍机遇卷轴不在场就经 actIfCan 清决策点推进,出现即收
+    //(120s 时间预算不变)。
     await expect
       .poll(
         async () => {
@@ -67,8 +64,7 @@ test.describe("机遇系统冒烟", () => {
         .catch(() => {});
       await expect(scroll).toBeHidden({ timeout: 2_000 });
     }).toPass({ timeout: 20_000 });
-    // 声望渲染:结算后声望可为负——tierShares 档位下限夹紧 [5,95](encounters.ts),
-    // 三档即便归零,好运/霉运仍各保底 5%:奉迎天子首选项 −10、霉运首选项 −18/−15
+    // 声望渲染:结算后声望可为负(无界,±不夹紧)——好运/霉运选项常带 ±声望增减,
     // 都可能被抽中并经「点第一选项收卷」落账。负号是合法终态,断言只锁「徽章渲染整数」。
     await expect(page.getByTestId(TESTIDS.seatAttr(0, "rep"))).toHaveAttribute(
       "aria-label",

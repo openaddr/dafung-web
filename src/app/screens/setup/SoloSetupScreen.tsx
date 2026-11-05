@@ -5,11 +5,11 @@
 // - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
 // - 真人国号必须为单个汉字(isSingleCjk 校验)
 // - 目标身价:速战 15000 / 标准 30000 / 鏖战 60000;起始银两固定 10000(经济 v2)
-// - 机遇(#125;ADR-0035 必出制):机遇开关 + 三档基准,默认档位读 public/config/jiyu.json
+// - 机遇(#125;#1090 三档基准退役):只剩机遇开关,默认值读 public/config/jiyu.json
 //   (fetch 失败回退内置默认同值),单局覆盖经 SetupConfig.encounter 透传引擎
 import { useEffect, useState } from "react";
 import type { SeatConfig } from "@core/authority";
-import type { EncounterConfig } from "@core/encounters";
+import type { EncounterSwitch } from "@core/encounters";
 import { GUOHAO_POOL, playerColor, playerSealText, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
@@ -20,8 +20,6 @@ import {
   BUILTIN_ENCOUNTER_DEFAULTS,
   fetchEncounterDefaults,
   toEncounterConfig,
-  updateEncounterForm,
-  type EncounterFormValues,
 } from "./encounterConfig";
 import { TID } from "./testids";
 import { useMapName } from "./useMapName";
@@ -50,8 +48,8 @@ export interface SetupConfig {
   mapId: string;
   /** 骰子种子(可选,注入 EngineConfig)。 */
   seed?: number;
-  /** 机遇配置(#125):设置屏四值原值透传(不归一,和≠100 合法),开局注入 EngineConfig.encounter。 */
-  encounter: EncounterConfig;
+  /** 机遇开关(#125;#1090 只剩开关):设置屏透传,开局注入 EngineConfig.encounter。 */
+  encounter: EncounterSwitch;
 }
 
 export interface SoloSetupScreenProps {
@@ -108,14 +106,12 @@ export function SoloSetupScreen({
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
 
-  // 机遇(#125):默认档位 = public/config/jiyu.json(挂载后 fetch;首帧先显内置默认同值,
-  // fetch 成功以文件值为准,失败维持内置默认——回退语义见 encounterConfig.ts)。
-  const [encounter, setEncounter] = useState<EncounterFormValues>(BUILTIN_ENCOUNTER_DEFAULTS);
-  // #497 ⑤:折叠区说明文案的数值单独钉住配置加载结果 —— 表单编辑只动 encounter,
-  // 说明里的「默认档位」恒显配置值,不再手抄字面量(免与 jiyu.json 漂移成第二事实源)。
-  const [encounterDefaults, setEncounterDefaults] = useState<EncounterFormValues>(
-    BUILTIN_ENCOUNTER_DEFAULTS,
-  );
+  // 机遇(#125;#1090 只剩开关):默认值 = public/config/jiyu.json(挂载后 fetch;首帧先显
+  // 内置默认同值,fetch 成功以文件值为准,失败维持内置默认——回退语义见 encounterConfig.ts)。
+  const [encounter, setEncounter] = useState<boolean>(BUILTIN_ENCOUNTER_DEFAULTS);
+  // #497 ⑤:折叠区说明文案的开关单独钉住配置加载结果 —— 表单编辑只动 encounter,
+  // 说明里的「默认」恒显配置值,不再手抄字面量(免与 jiyu.json 漂移成第二事实源)。
+  const [encounterDefaults, setEncounterDefaults] = useState<boolean>(BUILTIN_ENCOUNTER_DEFAULTS);
   useEffect(() => {
     let alive = true;
     fetchEncounterDefaults().then((v) => {
@@ -149,7 +145,7 @@ export function SoloSetupScreen({
         targetNetWorth: target,
         startingCash: STARTING_CASH,
         mapId: currentMap,
-        // 机遇开关+三档原值透传(设置屏不归一;引擎 resolveEncounterConfig 负责归一/回退)
+        // 机遇开关透传(#1090 起三档概率为引擎 softmax 常量,配置面无归一/回退)
         encounter: toEncounterConfig(encounter),
       });
       // 起兵成功:记住本次国号,下次进入默认带入
@@ -363,9 +359,8 @@ export function SoloSetupScreen({
         />
       </div>
 
-      {/* 机遇(#125;ADR-0035 必出制):折叠区单局覆盖 —— 默认档位读 public/config/jiyu.json
-        (说明写此处文案,JSON 无注释);开关直传,三档数值只做边界校验(≥0),归一在引擎,
-        和≠100 合法 */}
+      {/* 机遇(#125;ADR-0035 必出制):折叠区单局覆盖 —— 默认开关读 public/config/jiyu.json
+        (说明写此处文案,JSON 无注释);开关直传,#1090 起三档概率为引擎 softmax 常量 */}
       <details
         data-testid={TID.encounterToggle}
         className="group rounded border border-paper/25 bg-bg/40 open:bg-panel-hi/40"
@@ -386,42 +381,13 @@ export function SoloSetupScreen({
             <Switch
               data-testid={TID.encounterEnabled}
               size="sm"
-              checked={encounter.enabled}
-              onCheckedChange={(checked) =>
-                setEncounter((prev) => ({ ...prev, enabled: checked === true }))
-              }
+              checked={encounter}
+              onCheckedChange={(checked) => setEncounter(checked === true)}
             />
             机遇必出(每次落格触发一条)
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {(
-              [
-                ["好运基准", TID.encounterGood, "good"],
-                ["中性基准", TID.encounterNeutral, "neutral"],
-                ["霉运基准", TID.encounterBad, "bad"],
-              ] as const
-            ).map(([label, testid, key]) => (
-              <label
-                key={testid}
-                className="flex flex-col gap-0.5 font-wenkai text-xs text-paper-dim"
-              >
-                <span>{label}</span>
-                <input
-                  data-testid={testid}
-                  type="number"
-                  min={0}
-                  step="any"
-                  value={encounter[key]}
-                  onChange={(e) =>
-                    setEncounter((prev) => updateEncounterForm(prev, key, e.target.value))
-                  }
-                  className="min-h-[40px] rounded-[3px] border border-paper/30 bg-bg px-2 font-wenkai text-sm text-paper tabular-nums"
-                />
-              </label>
-            ))}
-          </div>
           <p className="font-wenkai text-xs text-paper-dim">
-            {`默认:机遇${encounterDefaults.enabled ? "开" : "关"},三档 ${encounterDefaults.good}/${encounterDefaults.neutral}/${encounterDefaults.bad}。机遇必出:开启后每次落格先出一条机遇;三档占比自动归一,不必凑满 100。仅对本局生效。`}
+            {`默认:机遇${encounterDefaults ? "开" : "关"}。机遇必出:开启后每次落格先出一条机遇;好运/中性/霉运三档概率随声望拉锯(softmax),不做手工配置。仅对本局生效。`}
           </p>
         </div>
       </details>

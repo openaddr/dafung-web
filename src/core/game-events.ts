@@ -228,7 +228,7 @@ export interface JinnangReshuffledBody {
 export interface JinnangExhaustedBody {
   kind: "jinnangExhausted";
 }
-/** 声望变更(#384):delta=夹紧 ±100 后的实际增减,reason=领域词 slug(机遇抉择=
+/** 声望变更(#384):delta=实际增减(无界直加,#1090),reason=领域词 slug(机遇抉择=
  *  encounter/天命城=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
  *  (reason=repMilestone)。 */
 export interface ReputationChangedBody {

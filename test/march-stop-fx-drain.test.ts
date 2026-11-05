@@ -46,7 +46,7 @@ function makeController(): LocalController {
     seed: 59,
     mapId: "guanzhong",
     botStepMs: 0, // 单测预算按 0ms bot 连锁书写(#730 配速不进既有用例)
-    encounter: { enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } },
+    encounter: { enabled: false },
   });
 }
 

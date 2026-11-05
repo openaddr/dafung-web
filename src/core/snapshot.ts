@@ -62,7 +62,7 @@ export interface SnapshotPlayer {
   properties: { propertyId: string; level: number; group: string }[];
   heroes: HeroSlotRow[];
   treasures: TreasureRow[];
-  reputation: number; // 声望 -100~+100(#121)
+  reputation: number; // 声望无界,开局 0(#121;#1090 去夹紧)
   stamina: number; // 体力 0~100(#130)
   /** 锦囊手牌(#122):暗置牌 id。god-view 快照含全员,可见性由传输层投影裁剪(ADR-0016):
    *  联机经 clientView 后,非本人座位此字段恒为空数组,数量走 jinnangHandCount。 */

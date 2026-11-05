@@ -1,4 +1,3 @@
 {
-  "enabled": true,
-  "baseRates": { "good": 30, "neutral": 45, "bad": 25 }
+  "enabled": true
 }

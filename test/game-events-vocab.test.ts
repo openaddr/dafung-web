@@ -236,7 +236,7 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     });
   });
 
-  it("天命城夹紧:声望 95 再 +20,delta=+5(实际增减,非名义增量)", () => {
+  it("天命城无夹紧(#1090):声望 95 再 +20,delta=+20(实际增减=名义增量)", () => {
     const e = makeEngine(5);
     finishSetup(e);
     const t = testEngine(e);
@@ -245,8 +245,8 @@ describe("事件流(#384):声望变更 reputationChanged 与抽锦囊进手 jinn
     beginGameEventBatch(e);
     t.landActiveAt(MAP.board.tiles.find((tile) => tile.event === "fate")!.index);
     const events = e.snapshot().events;
-    expect(events[0]).toMatchObject({ kind: "reputationChanged", delta: 5, reason: "fate" });
-    expect(mover.reputation).toBe(100);
+    expect(events[0]).toMatchObject({ kind: "reputationChanged", delta: 20, reason: "fate" });
+    expect(mover.reputation).toBe(115);
   });
 
   it("声望献计里程碑:跨 30 产出 [repMilestoneCrossed, jinnangDrawn],进手 count=实际入手,不写牌名(ADR-0016)", () => {

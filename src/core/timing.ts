@@ -104,7 +104,7 @@ export type GameMoment =
   | "StaminaChanged"
   /** 声望变更(#456):挂 addReputation 唯一写口(reputation.ts)单点广播,天命城与机遇
    *  repDelta 两路天然全覆盖;事件流的 before/after 差值模式在调用点,与新时机并存不冲突。
-   *  ctx.delta = 夹紧 ±100 后的实际增减(带符号)。subject = 声望变动者。 */
+   *  ctx.delta = 实际增减(带符号,无界直加)。subject = 声望变动者。 */
   | "ReputationChanged"
   // ── 破产与终局结算 ──
   /** 玩家破产出局:finalizeBankruptcy 尾(名将已释放、资产已转债主)。subject = 破产者。 */
@@ -162,7 +162,7 @@ export interface MomentCtx {
   count?: number;
   /** 单一目标座位(PeekApplied 被窥者)。 */
   targetSeat?: number;
-  /** 变更量(带符号,夹紧后实际值;StaminaChanged/ReputationChanged)。 */
+  /** 变更量(带符号,落账实际值;StaminaChanged/ReputationChanged)。 */
   delta?: number;
   /** 被收走的城 id 列表(AssetsSeized:破产终局资产转移)。 */
   cities?: string[];

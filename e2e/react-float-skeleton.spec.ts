@@ -14,14 +14,11 @@ import {
   waitMyPause,
   waitSettled,
   dismissJinnangIfUp,
-  actIfCan,
   force,
   freezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
-import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
 
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
@@ -252,53 +249,7 @@ test.describe("签面归组(#840 ④)", () => {
   });
 });
 
-test.describe("设置弹层(#700 ⑥)", () => {
-  test.use({ viewport: { width: 844, height: 390 } });
-
-  test("音效开关接静音账本;战报›开抽屉;版本戳在;回到主页弃局离屏", async ({ page }) => {
-    test.slow();
-    await quickStart(page);
-    await expect(async () => {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-      await page.getByTestId(TESTIDS.settingsButton).click({ timeout: 3_000 });
-      await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeVisible();
-    }).toPass({ timeout: 15_000 });
-    // 降级入口齐:演出加速(信息行「标准」)/ 版本行(发版号,#952 起裸 CalVer 无 v 前缀)
-    const dialog = page.getByTestId(TESTIDS.settingsDialog);
-    await expect(dialog).toContainText("演出加速");
-    await expect(dialog).toContainText("标准");
-    await expect(dialog).toContainText(/\d{4}\.\d+\.\d+/);
-    // 音效开关:开=有声(Base UI Switch data-checked 翻转 = AudioProvider 静音账本翻转)
-    const sfx = page.getByTestId(TESTIDS.settingsSfx);
-    const before = (await sfx.getAttribute("data-checked")) != null;
-    await sfx.click();
-    await expect
-      .poll(async () => ((await sfx.getAttribute("data-checked")) != null) !== before)
-      .toBe(true);
-    // 战报›:本弹层先收,抽屉开(数据照记,入口降级);Esc 收抽屉
-    await page.getByTestId(TESTIDS.settingsWarReport).click();
-    await expect(page.getByTestId(TESTIDS.settingsDialog)).toHaveCount(0);
-    await expect(page.getByTestId(TESTIDS.logDrawer)).toBeVisible();
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId(TESTIDS.logDrawer)).toHaveCount(0);
-    // 回到主页:弃局确认(#745 高1)→ 确认后弃局离屏(控制器销毁),回 setup 首页。
-    // 先清决策点(对局自走,落格购地卷轴会拦顶栏命中——载机慢拍实锤):卷轴放行后
-    // 顶栏钮才可点。
-    await dismissJinnangIfUp(page);
-    await actIfCan(page).catch(() => false);
-    await page.getByTestId(TESTIDS.settingsButton).click();
-    await page.getByTestId(TESTIDS.settingsHome).click();
-    // 先落确认框(写明弃局后果);取消一次验证设置弹层原样保留,再确认真正离屏
-    const confirm = page.getByTestId(SCROLL_TESTIDS.confirmDialog);
-    await expect(confirm).toBeVisible();
-    await expect(confirm).toContainText("对局进度将丢弃");
-    await page.getByTestId(SCROLL_TESTIDS.confirmCancel).click();
-    await expect(confirm).toHaveCount(0);
-    await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeVisible();
-    await page.getByTestId(TESTIDS.settingsHome).click();
-    await page.getByTestId(SCROLL_TESTIDS.confirmOk).click();
-    await expect(page.getByTestId(HOME_TID.solo)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.seatRail)).toHaveCount(0);
-  });
-});
+// 「设置弹层」复合例(音效/战报抽屉/版本戳/弃局离屏)已按 #987 删除:并行挂一次、
+// 串行复验全绿 = 概率性不可靠,无一行确定性改造可根治(快照被同批慢池清场,无失败
+// 签名可治)。注意:演出加速/版本行的 e2e 断言随例退场,此后无自动化覆盖(版本行
+// 是静态发版号文本,#951/#952 交付时人工验讫)。

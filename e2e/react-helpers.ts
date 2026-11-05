@@ -149,7 +149,7 @@ export async function disableEncounters(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+      body: JSON.stringify({ enabled: false }),
     }),
   );
 }
@@ -164,7 +164,7 @@ export async function openSoloSetup(page: Page): Promise<void> {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ enabled: false, baseRates: { good: 0, neutral: 0, bad: 0 } }),
+      body: JSON.stringify({ enabled: false }),
     }),
   );
   await page.getByTestId(HOME_TID.solo).click();
