@@ -139,13 +139,18 @@ export function ManualModal({ open, onClose }: ManualModalProps) {
               );
             })}
           </div>
-          {/* 体部内滚(#708):头部/签行之外的全部内容 */}
+          {/* 体部内滚(#708):头部/签行之外的全部内容。收口起手(closing)即净空体部:
+              详情叠层(PileShell 嵌套 Dialog)不得活过壳的退场窗口——真机实锤(用户
+              v2026.11.33 截图):详情开着时壳的题名行+X 露在叠层上方仍可点,点壳 X
+              进退场(壳淡出+遮罩淡出)而叠层毫不知情,裸弹层悬在首页上 210ms+(WebView
+              计时器节流下更长),先前的拖拽位移也原样保留,读作「手册坏了」。净空后
+              叠层随签内容在自己独立提交里卸载,壳的退场/卸载提交里不再有嵌套弹层。 */}
           <ScrollArea data-testid={MANUAL_TID.body} className="mt-3 min-h-0 flex-1">
-            {tab === "heroes" && <ManualHeroesTab />}
-            {tab === "skills" && <ManualSkillsTab />}
-            {tab === "jinnang" && <ManualJinnangTab />}
-            {tab === "treasures" && <ManualTreasuresTab />}
-            {tab === "encounters" && <ManualEncountersTab />}
+            {!closing && tab === "heroes" && <ManualHeroesTab />}
+            {!closing && tab === "skills" && <ManualSkillsTab />}
+            {!closing && tab === "jinnang" && <ManualJinnangTab />}
+            {!closing && tab === "treasures" && <ManualTreasuresTab />}
+            {!closing && tab === "encounters" && <ManualEncountersTab />}
           </ScrollArea>
         </div>
       </DialogContent>

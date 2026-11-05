@@ -136,4 +136,20 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await page.getByTestId(TESTIDS.modalClose).click();
     await expect(detail).toHaveCount(0);
   });
+
+  test("收口净空:详情开着点壳 X,叠层随壳同卸不留孤儿(真机裸弹层复)", async ({ page }) => {
+    await openManual(page);
+    await page.getByTestId(MANUAL_TID.tabEncounters).click();
+    await page.getByTestId(MANUAL_TID.card("义士来投")).click();
+    const detail = page.getByTestId(MANUAL_TID.detail("义士来投"));
+    await expect(detail).toBeVisible();
+    // 壳的题名行+X 露在叠层上方,真机可点(裸弹层复的触发钮):点壳 X 而非叠层 X
+    await page.getByTestId(MANUAL_TID.close).click();
+    // 净空语义:叠层先于壳退场消失(closing 起手即卸载,壳 210ms 协议随后收场)
+    await expect(detail).toHaveCount(0);
+    await expect(page.getByTestId(MANUAL_TID.modal)).toHaveCount(0);
+    // 不留孤儿:body 上无任何活弹层,人回首页
+    expect(await page.locator('[data-slot="dialog-content"]').count()).toBe(0);
+    await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
+  });
 });
