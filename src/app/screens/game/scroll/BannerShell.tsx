@@ -63,6 +63,13 @@ export interface BannerShellProps {
   onClose?: () => void;
   /** 外层容器上的 data-testid(各决策弹层用自己的 id;e2e 契约:scroll-* 前缀保留)。 */
   testid?: string;
+  /** 奇遇宽卷(#1155 奇遇演出):比常规决策横幅宽一号——奇遇身份全靠形制传达,
+   *  不立文字牌(ADR-0051);消费方=EncounterChoiceScroll(按 ONCE id 集合派生)。 */
+  wide?: boolean;
+  /** 题行侧饰槽(#1155):纯视觉纹饰宿主(奇遇金穗一对),绝对定位不占排版、
+   *  pointer-events 归宿主自管;渲染在题行末位,章印 span:first-child/题名 h2 的
+   *  结构选择器契约(TIER_SKIN 皮肤下探口径)两位不变。 */
+  sideOrnament?: ReactNode;
 }
 
 /** 决策弹层共用按钮(旧 .btn .btn-primary → ink-btn/note-btn 种,app.css 材质单源)。
@@ -112,7 +119,15 @@ export function BannerButton({
   );
 }
 
-export function BannerShell({ title, children, footer, onClose, testid }: BannerShellProps) {
+export function BannerShell({
+  title,
+  children,
+  footer,
+  onClose,
+  testid,
+  wide,
+  sideOrnament,
+}: BannerShellProps) {
   // #90(R3-C3)收起:×/遮罩/Esc 统一走 requestClose——先置 closing(壳体挂退场类、
   // 遮罩淡出并放行点击、aria-hidden),210ms 后(退场动画 var(--dur-fast) =150ms 已走完)
   // 再调真 onClose 卸载。「播完再移除」模式照抄 useDeltaFloat 的定时出列;
@@ -186,7 +201,8 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
   // 与 translate 属性叠加合成——入场动画进行中拖动照录变量,动画结束位移生效)。
   // 宽自适应(#767 弹窗详情族③):clamp(480px,72vw,640px)——844 标准档 607px,
   // 价值表升到 560 后两侧死带消除;窄横屏(≥667)随 72vw 收窄,480 下限保住拍板钮行;
-  // 上限 640 维持大屏既有制式。
+  // 上限 640 维持大屏既有制式。奇遇宽卷(#1155):wide 档宽一号 clamp(540px,80vw,700px)
+  // ——844 标准档 675px,金穗侧饰与「宽一号」形制共同承载奇遇身份(纯视觉,无文字牌)。
   const shellBody = (
     <div
       ref={shellRef}
@@ -194,7 +210,9 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
       aria-modal="true"
       aria-label={title}
       data-testid={testid ?? T.scrollShell}
-      className={`banner-card banner-shell relative flex max-h-[86dvh] w-[clamp(480px,72vw,640px)] translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
+      className={`banner-card banner-shell relative flex max-h-[86dvh] ${
+        wide ? "w-[clamp(540px,80vw,700px)]" : "w-[clamp(480px,72vw,640px)]"
+      } translate-x-[var(--drag-x,0px)] translate-y-[var(--drag-y,0px)] flex-col px-6 py-4 ${
         exiting ? "banner-anim-out" : ""
       }`}
     >
@@ -242,6 +260,9 @@ export function BannerShell({ title, children, footer, onClose, testid }: Banner
             </span>
           </button>
         )}
+        {/* 题行侧饰槽(#1155 奇遇金穗):末位渲染保住「首子题印 span/次子题名 h2」
+            的皮肤选择器契约;纹饰自带绝对定位与 pointer-events-none(见 EncounterSpray)。 */}
+        {sideOrnament}
       </div>
       {/* 正文井:深墨实底(bg-deep)收口深底可读性——纸色正文 ≈16:1、淡纸 ≈9:1、
           朱砂警示 ≈5.5:1,全部 ≥4.5(漆金带上直接排小字对 danger 仅 ≈4.1,井底加深

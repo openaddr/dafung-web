@@ -20,6 +20,7 @@ import {
   type EncounterChoiceOption,
   type EncounterDef,
   type EncounterEffect,
+  type EncounterFlagId,
 } from "./encounters";
 import { findHolding } from "./player";
 import { HEROES, heroById } from "./heroes";
@@ -235,6 +236,34 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
   settleEncounterChoice(g, g.activePlayer, def, option, index);
 }
 
+/** 盖章战报句(#1155 链式盖章反馈):结算写章时按「实际新落章」产一句「获『X』」。
+ *  去重口径与章写点 grantEncounterFlags 的 includes 去重同一条语义——已持章不报,
+ *  重复结算静默;复数顿号连接。只产战报 brief 文本(narr 既有通道,零新 UI 件),
+ *  章本体照旧由 grantEncounterFlags 落册,本函数不碰章册(调用方先取句后落章)。 */
+function freshStamps(
+  mover: Player,
+  flags: readonly EncounterFlagId[] | undefined,
+): EncounterFlagId[] {
+  if (flags == null) return [];
+  return flags.filter((f) => !mover.encounterFlags.includes(f));
+}
+
+/** 盖章句落笔(#1155):brief=「某公 获『元直荐书』、『怀玺』」,detail 机读章名
+ *  (对局日志既有通道;category/形制对齐机遇族既有 logEvent 口径)。 */
+function logStampSentence(
+  g: GameEngine,
+  mover: Player,
+  defId: string,
+  stamps: EncounterFlagId[],
+): void {
+  g.logEvent(
+    "system",
+    mover.guohao,
+    `${mover.guohao} 获${stamps.map((f) => `『${f}』`).join("、")}`,
+    `encounterFlags player=${mover.id} id=${defId} flags=${stamps.join("+")}`,
+  );
+}
+
 /** 抉择选项结算(#124):repDelta 经 addReputation 落账(直接累加,#1090 去夹紧)→ effect
  *  复用即时机遇结算(cash 负值与 levy 同款封顶以其现有银两为限,#1153 不送清算)
  *  → 选项级 staminaDelta 落账(#132)→ 清载荷 → endTurn。
@@ -257,7 +286,10 @@ function settleEncounterChoice(
   }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
   // 选项路章写点(#1153):option.setsFlags 去重落章,与 encounterChoice 事件同位——
   // 中断路(liquidating/bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
+  // 盖章战报句(#1155):实际新落章才报一句「获『X』」,已持章/重复结算静默
+  const stamps = freshStamps(mover, option.setsFlags);
   grantEncounterFlags(mover, option.setsFlags);
+  if (stamps.length > 0) logStampSentence(g, mover, def.id, stamps);
   // 换贤代价(#124 目录约定,#1067 代价入条目数据):grantHero 型选项先扣 treasureCost
   // 件珍宝再得将——代价随条目声明(模块初始化守卫保证已声明,直读不兜底),代价侧
   // 没有对应 EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
@@ -331,7 +363,10 @@ export function settleEncounter(
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
   // 即时路章写点(#1153):def.setsFlags 去重落章,先于效果结算——中断路(liquidating/
   // bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
+  // 盖章战报句(#1155):实际新落章才报一句「获『X』」,已持章/重复结算静默
+  const stamps = freshStamps(mover, def.setsFlags);
   grantEncounterFlags(mover, def.setsFlags);
+  if (stamps.length > 0) logStampSentence(g, mover, def.id, stamps);
   if (!def.effect) return "settled";
   return applyEncounterEffect(g, mover, def, def.effect, def.text);
 }
