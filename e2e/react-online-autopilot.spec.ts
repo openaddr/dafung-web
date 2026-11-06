@@ -4,9 +4,10 @@
 // lobbyView 即 /room/new·join 响应体,UI 层不再重复守传输契约;本文件只守托管行为 UI。
 // #580 托管归一:单节拍 2s/步(权威节奏不吃 E2E_TIME_SCALE),无速度分档可切;
 // 轮询超时一律按「步数×2s」富余给。
-// #700/#701 通路改写:托管钮(autopilot-button)随仪表条退役,开关迁自机格 tap 单人
-// 格弹层(SeatPopModal 托管行,Base UI Switch,态=aria-checked);行为语义=ADR-0028
-// 单一托管开关(接管=自动托管),断言意图原样平移。
+// #700/#701 通路改写→#1097 再改写:托管钮(autopilot-button)随仪表条退役后曾迁
+// 自机格 tap 单人格弹层,#1096 决议2 起收编设置弹层「托管」开关(settings-autopilot,
+// Base UI Switch,态=aria-checked);行为语义=ADR-0028 单一托管开关(接管=自动托管),
+// 断言意图原样平移。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -62,20 +63,20 @@ async function coreState(p: Page) {
   });
 }
 
-/** 开/关本端托管(#701 通路):tap 自机格开单人格弹层 → 拨托管开关 → Esc 关层。
- *  格 tap 一律 DOM 直派 click(react-seat-pop 列首遮挡同款:决策卷轴 z-30 全屏遮罩
- *  在挂时真点击会被吞,直派照进真实 React onClick;弹层 z-50 恒在卷轴上,开关真点击
- *  可达)。开关态=aria-checked(useAutopilotOn 广播回读,与引擎 autoPilotOn 同源):
- *  点前读态、点后轮询确认生效——旧钮「未生效则补点」结构随状态可读而退役,迟到广播
- *  不再有双击翻转窗口(TODO #13 同因)。 */
-async function setAutopilot(page: Page, seat: number, on: boolean) {
-  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-  const sw = page.getByTestId(TESTIDS.seatPopAutopilot(seat));
+/** 开/关本端托管(#1097 通路):开设置弹层 → 拨「托管」开关 → Esc 关层。
+ *  设置钮一律 DOM 直派 click(决策卷轴 z-30 全屏遮罩在挂时真点击会被吞,直派照进
+ *  真实 React onClick;弹层 z-50 恒在卷轴上,开关真点击可达)。开关态=aria-checked
+ *  (useAutopilotOn 广播回读,与引擎 autoPilotOn 同源):点前读态、点后轮询确认生效
+ *  ——旧钮「未生效则补点」结构随状态可读而退役,迟到广播不再有双击翻转窗口
+ *  (TODO #13 同因)。本端开关只属屏前真人(seat 语义并入「本端」)。 */
+async function setAutopilot(page: Page, on: boolean) {
+  await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+  const sw = page.getByTestId(TESTIDS.settingsAutopilot);
   await expect(sw).toBeVisible({ timeout: 10_000 });
   if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 15_000 });
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId(TESTIDS.seatPop(seat))).toBeHidden({ timeout: 5_000 });
+  await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
 }
 
 test(
@@ -90,8 +91,8 @@ test(
     const [host, guest] = await twoClients(browser);
     try {
       // 两端都开托管:Setup 由托管代选
-      await setAutopilot(host, 0, true);
-      await setAutopilot(guest, 1, true);
+      await setAutopilot(host, true);
+      await setAutopilot(guest, true);
       // 轮询等推进:进 Playing(选都 2 步 ≈ 4s;超时按步数×2s 富余给)
       await expect
         .poll(async () => (await coreState(host).catch(() => null))?.phase ?? "", {
@@ -108,7 +109,7 @@ test(
         })
         .toBeGreaterThan(turnAtPlaying);
       // 中途收回 host 托管:生效广播回读开关复位(aria-checked=false)
-      await setAutopilot(host, 0, false);
+      await setAutopilot(host, false);
       // 停点 = host 的真人决策门(Roll 有自动起摇、AwaitingReaction 有窗计时,均非停点;
       // guest 仍托管,其当前回合收尾后才轮到 host——轮询窗按步数×2s 富余给)
       await expect
@@ -132,7 +133,7 @@ test(
       expect(await coreState(host), "收回后对局冻结(切回即停)").toEqual(frozen);
       // 重开托管 → 推进恢复(turnNumber 再前进;不骑到终局)。停点决策卷轴在挂不碍事:
       // 格 tap 直派穿遮罩,托管接管后已挂决策由托管代发(与旧钮同通路)。
-      await setAutopilot(host, 0, true);
+      await setAutopilot(host, true);
       await expect
         .poll(async () => (await coreState(host).catch(() => null))?.turnNumber ?? -1, {
           timeout: 60_000,
@@ -153,13 +154,13 @@ test("托管收回:开关复位,轮到自己时行军恢复可用", { tag: "@slo
   const [host, guest] = await twoClients(browser);
   try {
     // guest 开托管(对局发动机;单节拍 2s/步,保收回窗口与后继行军观察的从容)
-    await setAutopilot(guest, 1, true);
+    await setAutopilot(guest, true);
     // host 开托管 → 随即收回(TODO #13:生效广播可迟到——开关点前读态 + 点后生效
     // 轮询把翻转窗口压到一次读取内,旧「补点」结构随旧钮退役;guest 2s/步爬行兜底:
     // 即便生效迟到十余秒,对局也只前进数步)
-    await setAutopilot(host, 0, true);
+    await setAutopilot(host, true);
     // 收回(setAutopilot 内已轮询确认开关复位 aria-checked=false)
-    await setAutopilot(host, 0, false);
+    await setAutopilot(host, false);
     // L41:收回 = 自己决策,选都也不例外——host 在自己选都前收回,服务器停在 Setup 等
     // host 手选(guest 仍托管,由服务器代选)。轮询体内代 host 点候选城 + 确认。
     // (若收回前 host 的托管恰好已代选完,phase 直达 Playing,循环体一次不进,同样成立。)

@@ -80,7 +80,7 @@ export type GameMoment =
    *  ctx.buyerSeat/ctx.sellerSeat/ctx.amount = 成交价。subject = 城主(= 卖家)。 */
   | "TradeSettled"
   /** 得锦囊进手(#456):drawJinnang 物理单点内部派发(每张入手后按次数派一次),
-   *  四路同覆盖——起手发牌/锦囊城/机遇授书/声望献计。
+   *  三路同覆盖——起手发牌/锦囊城/机遇授书。
    *  ctx.count = 本次实际入手张数(牌库空落空不派,与 jinnangDrawn 事件「无转移不产」同口径)。
    *  暗牌不带牌 id(ADR-0016 保密口径)。subject = 得牌者。 */
   | "JinnangGained"

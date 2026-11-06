@@ -3,8 +3,9 @@
 // + 底缘透明手牌区 + 右下三圆钮。
 // 旧顶栏/底部仪表条(DashboardBar)已退役并核销(#700):目标身价/回合方字条/牌库
 // 角标/复位·缩放·静音钮 → 席位格与设置弹层承接;现金/属性徽章/体力/「你」印 →
-// 席位格(#698 起一人一格全字段,自机金样式);签面 → 手牌区左端;托管钮 → #701
-// tap 弹层(过渡期不可达可接受);战报把手 → 设置弹层「战报›」(数据照记)。
+// 席位格(#698 起一人一格全字段,自机金样式);签面 → 手牌区左端;托管钮 → 设置
+// 弹层「托管」行(#1097 收编,ADR-0028 同一引擎通路;原 #701 tap 弹层通路随 #1096
+// 决议1 退役);战报把手 → 设置弹层「战报›」(数据照记)。
 // WaitingBar(常驻级知会,宿主在知会槽,#762 起与常驻回合胶囊同槽融合)+ 席位格
 // 活跃金圈呼吸 + 当前回合方棋子金呼吸环(#762)共同承担「谁在打」指名(操作不限时,
 // 无倒计时条)。
@@ -47,7 +48,6 @@ import { ActionBar } from "./ActionBar";
 import { NoticeBanner } from "./NoticeBanner";
 import { WarReportDrawer, warEntriesOf } from "./WarReportDrawer";
 import { PeekModal } from "./PeekModal";
-import { CityLedgerModal } from "./CityLedgerModal";
 import { DecisionScrollLayer } from "./scroll/DecisionScrollLayer";
 import { useCapitalPick } from "./useCapitalPick";
 import { HintBar } from "@app/screens/shared/HintBar";
@@ -184,9 +184,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 行军接管的棋子(阶段 6):fxStore.marching → BoardView.skipTokenIds,
   // 行军期间 React 声明式定位让位给 useMarch 的逐段命令式动画。
   const marching = useFxStore((s) => s.marching);
-  // 名下城池清单弹层(#622)开合态(同 SkillGlossaryDialog 先例:交互语义归消费方)。
-  // 目标持座位号不持玩家对象——弹层开着随快照实时重渲;selfSeat 命中即自看口径。
-  const [cityLedgerSeat, setCityLedgerSeat] = useState<number | null>(null);
   // 设置弹层/战报抽屉开合态(#700:战报入口降级设置弹层,两态都在本件收口)
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [warReportOpen, setWarReportOpen] = useState(false);
@@ -587,7 +584,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           viewSeat={viewSeat}
           online={online}
         />
-        {/* 席位格列(#698 重形:96×38 双行八项格):全员一人一格(自机入列),
+        {/* 席位格列(#698 重形:96×38 双行八项格;#1097 起纯展示,查档/托管入口
+          分别收编诸侯详情四钻入与设置弹层):全员一人一格(自机入列),
           活跃方金圈呼吸指名。
           消费的是稳定自局座位(selfSeat):自机格识别要「人」而非决策视角——热座
           viewSeat 随决策方轮转(#453/B1 契约,prop 名已收口 selfSeat)。
@@ -596,7 +594,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         <SeatRail
           snapshot={snapshot}
           selfSeat={selfSeat}
-          cityLedger={{ openSeat: cityLedgerSeat, onOpen: setCityLedgerSeat }}
           targets={
             junshiTargeting
               ? {
@@ -709,16 +706,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 窥探弹层(#575):军情密探即时窥探的 viewer-only 演出——开关态单源 fxStore
           (peekApplied 表现事件驱动,关闭即清),组件按 viewerSeat===本座自门。 */}
         <PeekModal selfSeat={selfSeat} />
-        {/* 名下城池清单弹层(#622):席位格/仪表条城池图标点开,只读五列清单;
-          开合态在本件(上),目标持座位号——弹层开着随快照实时重渲。 */}
-        {cityLedgerSeat != null && (
-          <CityLedgerModal
-            snapshot={snapshot}
-            seat={cityLedgerSeat}
-            self={cityLedgerSeat === selfSeat}
-            onClose={() => setCityLedgerSeat(null)}
-          />
-        )}
+        {/* 名下城池清单弹层(#622)归 GameTopBar(#1097 查档收编诸侯详情:城池 chips
+            钻入是唯一入口,开合态随四钻入同住顶栏子树) */}
         {/* 竖屏手机「请横屏」提示层(#276 纠偏):常驻 DOM,显隐在 layout.css 媒询。 */}
         <RotateHintOverlay />
       </div>

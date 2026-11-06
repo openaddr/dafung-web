@@ -50,7 +50,7 @@
 //                 应答同批);reactionFailed → 无状态转移(声明性);
 //                 duelResolved → 无状态转移(声明性 #636/ADR-0030:拼点结算宣告,胜负
 //                 后果由调用点既有事件折——拦停=marchArrived、银两=cashChanged·duel)
-//   声望/体力族   reputationChanged → 声望 += 实际增减(无界直加,#1090)+ 献计里程碑穿越重算;
+//   声望/体力族   reputationChanged → 声望 += 实际增减(无界直加,#1090);
 //                 staminaChanged → 体力 += 夹紧后实际增减;reason=exhaustion 相邻 →
 //                 skipTurns+1(耗竭善后标记侧)
 //   破产族        playerBankrupt → isBankrupt/capitalIndex=-1/名将释放回池/锦囊清手入弃堆
@@ -106,7 +106,6 @@ import type {
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
 import { TREASURES, type TreasureDef } from "@core/treasures";
-import { REP_MILESTONES } from "@core/reputation";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import {
   activeSkillDefOf,
@@ -117,9 +116,6 @@ import {
   type FoldHandledKind,
 } from "@core/event-tiers";
 import { heroSlotOf } from "@core/roster";
-
-/** 声望献计里程碑(#147):值域与穿越口径同 core reputation.ts(向上穿越、仅首次)。 */
-// 常量单源在 core/reputation.ts(REP_MILESTONES),勿在本文件重定义。
 
 /** 主动技参数必存校验:HEROES 声明的技参数在折叠落账时缺失 = 数据 bug,当场炸出。 */
 function requireSkillParam(skill: ActiveSkillDef, key: string): number {
@@ -651,13 +647,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       // ── 声望/体力族 ──
       case "reputationChanged": {
         const p = foldTarget(engine, ev);
-        const before = p.reputation;
-        const after = before + ev.delta; // delta=实际增减(声望无界直加)
-        p.reputation = after;
-        for (const m of REP_MILESTONES) {
-          // 献计里程碑穿越重算(进手随同批 jinnangDrawn·repMilestone 折)
-          if (before < m && after >= m && !p.repMilestones.includes(m)) p.repMilestones.push(m);
-        }
+        p.reputation += ev.delta; // delta=实际增减(声望无界直加)
         break;
       }
       case "staminaChanged": {

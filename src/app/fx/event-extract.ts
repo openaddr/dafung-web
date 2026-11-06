@@ -681,13 +681,6 @@ export function extractBatchEvents(
         );
         break;
       }
-      case "repMilestoneCrossed": {
-        // 声望献计里程碑宣告(#719,迁 fx 面):文案浮字锚玩家位置;献计进手另有相邻
-        // jinnangDrawn(reason=repMilestone)的「获锦囊一封」
-        const seat = eventSeat(engine, ev);
-        events_.push(textFloater(engine, seat, `民心所向(声望 ${ev.milestone}),名将献计`));
-        break;
-      }
       case "jinnangDrawn": {
         const seat = eventSeat(engine, ev);
         events_.push(

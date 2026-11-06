@@ -1,9 +1,10 @@
-// 声望贯通单测(#121;#1090 去夹紧):初值恒 0 / 无界累加 / 里程碑三碑不续送 /
-// 天命城落格 +20 / 锦囊城抽牌不动声望。
+// 声望贯通单测(#121;#1090 去夹紧):初值恒 0 / 无界累加 / 跨档不献牌(#1098 里程碑
+// 机制退役,加声望只剩无界累加)/ 天命城落格 +20 / 锦囊城抽牌不动声望。
 // 落格经 testEngine.landActiveAt 直摆直结算,与随机流无关,种子不影响断言。
 // (#826 全城池制:天命/锦囊都是 event 城池,固定事件解毕续跑交易链。)
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
+import { beginGameEventBatch } from "@core/game-events";
 import { createDice } from "@core/dice";
 import { testEngine } from "@core/testing";
 import guanzhongData from "../public/maps/guanzhong.json";
@@ -52,10 +53,9 @@ describe("声望字段贯通(#121)", () => {
     expect(e.players[0].reputation).toBe(120);
   });
 
-  it("里程碑 30/60/90 仅首次向上穿越各献一张(#147);向下穿越与回穿不重发", () => {
+  it("跨档不献牌(#1098 否定断言):越过 +30/+60/+90 手牌不增、无 repMilestoneCrossed/jinnangDrawn 产出", () => {
     const e = makeEngine();
-    // 先走完开局(锦囊牌库在 GameStart 洗序建立):献计进手断言依赖真实牌库
-    e.doDraftRoll();
+    e.doDraftRoll(); // 先走完开局(事件批在开局驱动时开):跨档断言按真实牌库计
     let guard = 0;
     while (e.phase === "Setup" && guard++ < 50) {
       const idx = e.currentSetupPlayerIndex;
@@ -65,28 +65,14 @@ describe("声望字段贯通(#121)", () => {
       e.pickCapital(idx, capIdx);
     }
     const seat = 0;
-    const hand = () => e.players[seat].jinnangHandCount;
-    const baseHand = hand(); // 开局发牌已有底牌:里程碑断言按增量计
-    e.addReputation(seat, 30); // 跨 30
-    expect(e.players[seat].repMilestones).toEqual([30]);
-    expect(hand()).toBe(baseHand + 1);
-    e.addReputation(seat, 30); // 跨 60
-    expect(e.players[seat].repMilestones).toEqual([30, 60]);
-    expect(hand()).toBe(baseHand + 2);
-    e.addReputation(seat, 30); // 跨 90
-    expect(e.players[seat].repMilestones).toEqual([30, 60, 90]);
-    expect(hand()).toBe(baseHand + 3);
-    e.addReputation(seat, 30); // 120:无新碑
-    expect(e.players[seat].reputation).toBe(120);
-    expect(e.players[seat].repMilestones).toEqual([30, 60, 90]);
-    expect(hand()).toBe(baseHand + 3);
-    e.addReputation(seat, -200); // −80:向下穿越不算
-    expect(e.players[seat].reputation).toBe(-80);
-    expect(hand()).toBe(baseHand + 3);
-    e.addReputation(seat, 200); // 120:上穿 30/60/90 均已领,不续送
-    expect(e.players[seat].reputation).toBe(120);
-    expect(e.players[seat].repMilestones).toEqual([30, 60, 90]);
-    expect(hand()).toBe(baseHand + 3);
+    const baseHand = e.players[seat].jinnangHandCount;
+    beginGameEventBatch(e);
+    e.addReputation(seat, 100); // 一口气跨 30/60/90
+    expect(e.players[seat].reputation).toBe(100);
+    expect(e.players[seat].jinnangHandCount).toBe(baseHand); // 手牌不增
+    const kinds = e.snapshot().events.map((ev) => ev.kind);
+    expect(kinds).not.toContain("repMilestoneCrossed");
+    expect(kinds).not.toContain("jinnangDrawn");
   });
 
   it("落天命城 +20 声望(固定事件,不抽随机)", () => {

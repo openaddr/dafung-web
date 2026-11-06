@@ -14,9 +14,9 @@
 //     不产出;新增事件种类优先在此表加一行(加时机三步的最后一步顺带落地)。
 //  2. 显式产出(emitGameEvent):无时机挂点的转移(行军落格/反应窗开合与识破/机遇
 //     触发/选都建城/三变卖/交割/金钱结算,以及 #384 的名将被动技击发/主动技发动/
-//     抽锦囊进手/声望变更/体力变更/跳过回合、#719 的声望献计里程碑)在各域
+//     抽锦囊进手/声望变更/体力变更/跳过回合)在各域
 //     模块结算点直呼,reason 用领域词
-//     短横 slug(供应/税/行情/机遇/横征/连环/献计/天命/耗竭……开放词表,新来源即新 slug)。
+//     短横 slug(供应/税/行情/机遇/横征/连环/天命/耗竭……开放词表,新来源即新 slug)。
 import type { GameEngine, VictoryReason } from "./authority";
 import type { GameMoment, MomentCtx } from "./timing";
 import type { EncounterTier } from "./encounters";
@@ -207,7 +207,7 @@ export interface HeroSkillActivatedBody {
 }
 /** 抽锦囊进手(#384):座位+张数口径,不写牌名——暗牌内容不过事件,与对局日志
  *  「抽了一张锦囊」同隐私口径(ADR-0016)。开局发牌不发(开局校准点覆盖,与初始
- *  现金/体力同口径);游戏时进手(献计/机遇/锦囊城)经 drawJinnangTraced 产出,
+ *  现金/体力同口径);游戏时进手(机遇/锦囊城)经 drawJinnangTraced 产出,
  *  count=实际入手张数(牌库空落空无转移,不产事件)。 */
 export interface JinnangDrawnBody {
   kind: "jinnangDrawn";
@@ -229,20 +229,11 @@ export interface JinnangExhaustedBody {
   kind: "jinnangExhausted";
 }
 /** 声望变更(#384):delta=实际增减(无界直加,#1090),reason=领域词 slug(机遇抉择=
- *  encounter/天命城=fate,开放词表);里程碑献计的进手随后自产 jinnangDrawn
- *  (reason=repMilestone)。 */
+ *  encounter/天命城=fate,开放词表)。 */
 export interface ReputationChangedBody {
   kind: "reputationChanged";
   delta: number;
   reason: string;
-}
-/** 声望献计里程碑穿越(#719):首次向上越过 +30/+60/+90 的宣告——零新增转移的纯宣告
- *  (repMilestones 记账由折面按 reputationChanged 穿越重算对齐,献计进手随 jinnangDrawn
- *  折),折面声明性;表现=「民心所向,名将献计」文案浮字(fx 面派生,单机/联机同见,
- *  #719 自引擎浮字死通道迁事件面)。 */
-export interface RepMilestoneCrossedBody {
-  kind: "repMilestoneCrossed";
-  milestone: number;
 }
 /** 体力变更(#384):delta=夹紧 0~100 后的实际增减,reason=领域词 slug(机遇=
  *  encounter/被动技=skill/主动技赈济=heroRelief/耗竭重置=exhaustion,开放词表)。 */
@@ -378,7 +369,6 @@ export type GameEventBody =
   | JinnangReshuffledBody
   | JinnangExhaustedBody
   | ReputationChangedBody
-  | RepMilestoneCrossedBody
   | StaminaChangedBody
   | TurnSkippedBody
   | EncounterTriggeredBody

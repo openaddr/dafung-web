@@ -389,7 +389,7 @@ function applyFateReputation(g: GameEngine, mover: Player, tile: TileDef): void 
     kind: "reputationChanged",
     delta: mover.reputation - repBefore,
     reason: "fate",
-  }); // 事件流(#384):声望变更(天命泉,实际增减;献计进手已随落账自产 jinnangDrawn;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
+  }); // 事件流(#384):声望变更(天命泉,实际增减;浮字由 fx 面按 reason=fate 派生「天命眷顾」)
   g.lastLandOutcome = { kind: "Noop" };
   g.logEvent(
     "system",

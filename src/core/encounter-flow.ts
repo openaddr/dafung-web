@@ -259,7 +259,7 @@ function settleEncounterChoice(
       kind: "reputationChanged",
       delta: mover.reputation - repBefore,
       reason: "encounter",
-    }); // 事件流(#384):声望变更(实际增减,浮字由 fx 面派生;献计进手已随落账自产 jinnangDrawn)
+    }); // 事件流(#384):声望变更(实际增减,浮字由 fx 面派生)
   }
   g.logEvent(
     "system",

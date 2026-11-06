@@ -244,12 +244,7 @@ export const EVENT_TIERS = {
   reputationChanged: {
     fold: "must-fold",
     fx: "presented",
-    why: "声望直加实际增减(delta=实际值)+献计里程碑向上穿越重算",
-  },
-  repMilestoneCrossed: {
-    fold: "declarative",
-    fx: "presented",
-    why: "声望献计里程碑穿越宣告(#719):零新增转移(repMilestones 记账已由 reputationChanged 穿越重算折、进手随 jinnangDrawn 折);表现=「民心所向,名将献计」文案浮字(自引擎浮字死通道迁 fx 面,单机/联机同见)",
+    why: "声望直加实际增减(delta=实际值)",
   },
   staminaChanged: {
     fold: "must-fold",

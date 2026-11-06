@@ -69,8 +69,6 @@ export interface SnapshotPlayer {
   jinnangHand: string[];
   /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
   jinnangHandCount: number;
-  /** 已领取的声望献计里程碑(#147)。 */
-  repMilestones: number[];
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -622,7 +620,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
-        repMilestones: [...p.repMilestones],
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -646,7 +643,6 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
-        p.repMilestones = [...ps.repMilestones];
         p.treasures = ps.treasures.map((t) => ({
           id: t.id,
           name: t.name,

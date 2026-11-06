@@ -3,15 +3,18 @@
 // 手游记分板式),原型 tmp/席位侧列原型.html ⑦ 诸侯总览弹窗一节判决原样移植(原型
 // 时代的旧称,定名见 GLOSSARY「诸侯详情」)——
 // 十列 grid 行行对齐:印/国号单名/现金(两)/体力条+值/牌数/城池名 chips/名将名
-// chips/珍宝计数槽/声/委。名录直读口径(可见性拍板):城池=具体城池名 chips(黛青,
-// 超 3 折叠「+N」;点击开现役 #622 名下城池清单,钻入式单层互斥——本层先关清单再开,
-// #701 单人格弹层城池徽章同法);名将=麾下名将名 chips(朱砂,空槽画空格,信息公开
-// 同 #701 名将徽章口径);珍宝=计数槽(名录公开与否另议,维持计数);手牌=暗牌计数
-// (ADR-0016)。状态全视觉不用文字(DESIGN §4.6):自己行金描边(.self)、破产行照排
+// chips/珍宝计数槽/声。名录直读口径(可见性拍板):城池=具体城池名 chips(黛青,
+// 超 3 折叠「+N」);名将=麾下名将名 chips(朱砂,空槽画空格,信息公开);珍宝=
+// 计数槽(名录公开与否另议,维持计数);手牌=暗牌计数(ADR-0016)。
+// 四元素可点钻入(#1096 决议3,工单 #1097):城池 chips→#622 名下城池清单、名将
+// chips→SeatAttrModals 名录、珍宝槽→珍宝列表、声列→声望明细——可点件金描边+微亮
+// 金底+尾「›」(spop-click 同形制,样式 warlords-overview.css .zl-drill/.zl-face),
+// 钻入式单层互斥沿用既有口径:本层先关再开目标弹层(GameTopBar 持开合态)。#1097
+// 起本弹层是查档唯一入口(格面 tap 单人格弹层与格上图标直达随 #1096 决议1 退役)。
+// 状态全视觉不用文字(DESIGN §4.6):自己行金描边(.self)、破产行照排
 // 灰化(.dead)、活跃方印金圈(.is-active 印金圈呼吸)。不设目标列(战报可查,维持
 // 拍板);玩家名=国号单名(示意人名不入 UI)。打开不暂停对局:本弹层纯读快照声明式
 // 渲染,无任何时钟/命令副作用,开着随快照实时重渲(CityLedgerModal 同口径)。
-// 与单人格弹层两级并存:总览=全家福,格 tap=单人纵深(SeatPopModal 已存在,勿动)。
 // 壳收口 shadcn 底件 ui/dialog(Base UI:Esc/点外关闭白拿;挂载不夺焦
 // initialFocus={false},焦点留在触发钮);题名行兼拖动把手(ADR-0031 DialogDragHandle)。
 // 样式在 warlords-overview.css(经 Portal 渲染在 body,.game-layout 罩不到,zl- 前缀
@@ -24,7 +27,9 @@ import { getControllerContext } from "@app/controllers/registry";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useDialogExit } from "@app/hooks/use-dialog-exit";
-import { STAMINA_LOW } from "./SeatPopModal";
+import { STAMINA_LOW } from "./SeatRail";
+import type { SeatDetailKind } from "./SeatAttrModals";
+import { RepProbBar } from "./RepProbBar";
 import { TESTIDS } from "./testids";
 import "./warlords-overview.css";
 
@@ -42,6 +47,7 @@ function OverviewRow({
   self,
   cityNames,
   onOpenLedger,
+  onOpenDetail,
 }: {
   snapshot: GameSnapshot;
   seat: number;
@@ -49,6 +55,7 @@ function OverviewRow({
   /** 城池名按棋盘 index 序(行军顺序,与 #622 清单行序同口径),上游解析。 */
   cityNames: string[];
   onOpenLedger: (seat: number) => void;
+  onOpenDetail: (seat: number, kind: SeatDetailKind) => void;
 }) {
   const p = snapshot.players[seat];
   const active = snapshot.phase === "Playing" && seat === snapshot.activeIndex;
@@ -74,7 +81,7 @@ function OverviewRow({
         <span data-testid={TESTIDS.warlordsCash(seat)}>{p.cash}</span>
         <i> 两</i>
       </span>
-      {/* 体力条+值:细轨 26px + 裸值,濒耗竭转朱砂(格上/单人格层同口径) */}
+      {/* 体力条+值:细轨 26px + 裸值,濒耗竭转朱砂(格上同口径) */}
       <span className="zl-stamp">
         <span className="zl-track" aria-hidden="true">
           <i
@@ -88,65 +95,93 @@ function OverviewRow({
       <span className="zl-attr">
         牌 <b data-testid={TESTIDS.warlordsHand(seat)}>{p.jinnangHandCount}</b>
       </span>
-      {/* 城池列(真按钮):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 清单。
+      {/* 城池列(可点钻入件):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 清单。
           空名下如实空列(清单有空态,非兜底)。 */}
       <button
         type="button"
-        className="zl-cities"
+        className="zl-drill"
         data-testid={TESTIDS.warlordsCities(seat)}
         aria-haspopup="dialog"
         aria-label={`${p.guohao}名下城池 ${p.properties.length} 城,点开清单`}
         onClick={() => onOpenLedger(seat)}
       >
-        {cityNames.slice(0, CITY_CHIPS).map((name) => (
-          <span key={name} className="zl-cityslot">
-            {name}
-          </span>
-        ))}
-        {cityNames.length > CITY_CHIPS && (
-          <span className="zl-cityslot zl-more">+{cityNames.length - CITY_CHIPS}</span>
-        )}
-      </button>
-      {/* 名将列:麾下名将名 chips 朱砂(信息公开),空槽画空格(HERO_CAPACITY 单源
-          core/constants,上限恒 3 槽不折叠)。槽位原生读(#786):名按 heroId 回查
-          名将表单源;全名进 title 浮签防截断失读。 */}
-      <span className="zl-heroes" data-testid={TESTIDS.warlordsHeroes(seat)}>
-        {Array.from({ length: HERO_CAPACITY }, (_, i) => {
-          const slot = p.heroes[i];
-          if (slot == null)
-            return (
-              <span key={i} className="zl-hnslot zl-empty" aria-hidden="true">
-                ·
-              </span>
-            );
-          const name = heroById(slot.heroId).name;
-          return (
-            <span key={slot.heroId} className="zl-hnslot" title={name}>
+        <span className="zl-face">
+          {cityNames.slice(0, CITY_CHIPS).map((name) => (
+            <span key={name} className="zl-cityslot">
               {name}
             </span>
-          );
-        })}
-      </span>
-      {/* 珍宝计数槽:槽位=件数示意,满槽「玉」;维持计数不开名录(原型 ⑦ 判词) */}
-      <span
-        className="zl-gems"
-        data-testid={TESTIDS.warlordsGems(seat)}
-        aria-label={`珍宝 ${p.treasures.length}`}
+          ))}
+          {cityNames.length > CITY_CHIPS && (
+            <span className="zl-cityslot zl-more">+{cityNames.length - CITY_CHIPS}</span>
+          )}
+        </span>
+      </button>
+      {/* 名将列(可点钻入件→名录):麾下名将名 chips 朱砂(信息公开),空槽画空格
+          (HERO_CAPACITY 单源 core/constants,上限恒 3 槽不折叠)。槽位原生读(#786):
+          名按 heroId 回查名将表单源;全名进 title 浮签防截断失读。 */}
+      <button
+        type="button"
+        className="zl-drill"
+        data-testid={TESTIDS.warlordsHeroes(seat)}
+        aria-haspopup="dialog"
+        aria-label={`${p.guohao}麾下名将 ${p.heroes.length},点开名录`}
+        onClick={() => onOpenDetail(seat, "hero")}
       >
-        {Array.from({ length: Math.max(GEM_SLOTS, p.treasures.length) }, (_, i) => (
-          <span
-            key={i}
-            className={"zl-slot" + (i < p.treasures.length ? " zl-full" : "")}
-            aria-hidden="true"
-          >
-            {i < p.treasures.length ? "玉" : ""}
-          </span>
-        ))}
-      </span>
-      {/* 声(收尾数值列) */}
-      <span className="zl-attr">
-        声 <b data-testid={TESTIDS.warlordsRep(seat)}>{p.reputation}</b>
-      </span>
+        <span className="zl-face">
+          {Array.from({ length: HERO_CAPACITY }, (_, i) => {
+            const slot = p.heroes[i];
+            if (slot == null)
+              return (
+                <span key={i} className="zl-hnslot zl-empty" aria-hidden="true">
+                  ·
+                </span>
+              );
+            const name = heroById(slot.heroId).name;
+            return (
+              <span key={slot.heroId} className="zl-hnslot" title={name}>
+                {name}
+              </span>
+            );
+          })}
+        </span>
+      </button>
+      {/* 珍宝计数槽(可点钻入件→列表):槽位=件数示意,满槽「玉」 */}
+      <button
+        type="button"
+        className="zl-drill"
+        data-testid={TESTIDS.warlordsGems(seat)}
+        aria-haspopup="dialog"
+        aria-label={`珍宝 ${p.treasures.length},点开列表`}
+        onClick={() => onOpenDetail(seat, "gem")}
+      >
+        <span className="zl-face">
+          {Array.from({ length: Math.max(GEM_SLOTS, p.treasures.length) }, (_, i) => (
+            <span
+              key={i}
+              className={"zl-slot" + (i < p.treasures.length ? " zl-full" : "")}
+              aria-hidden="true"
+            >
+              {i < p.treasures.length ? "玉" : ""}
+            </span>
+          ))}
+        </span>
+      </button>
+      {/* 声列(可点钻入件→声望明细):数值本体 warlordsRep 单独挂(纯数断言不受
+          「声」字串扰),钻入钮另挂 warlordsRepCell。值旁挂三档概率条(#1096 决议4,
+          形制 A:52×8 行内档,无浮签;条纯视觉 aria-hidden,语义在数值与本钮可及名)。 */}
+      <button
+        type="button"
+        className="zl-drill"
+        data-testid={TESTIDS.warlordsRepCell(seat)}
+        aria-haspopup="dialog"
+        aria-label={`声望 ${p.reputation},点开明细`}
+        onClick={() => onOpenDetail(seat, "rep")}
+      >
+        <span className="zl-face zl-attr">
+          声 <b data-testid={TESTIDS.warlordsRep(seat)}>{p.reputation}</b>
+          <RepProbBar reputation={p.reputation} size="row" />
+        </span>
+      </button>
     </div>
   );
 }
@@ -157,6 +192,7 @@ export function WarlordsOverview({
   snapshot,
   selfSeat,
   onOpenLedger,
+  onOpenDetail,
   onClose,
 }: {
   snapshot: GameSnapshot;
@@ -164,13 +200,16 @@ export function WarlordsOverview({
   selfSeat: number;
   /** 城池列点击:开 #622 名下城池清单(开合态归消费方 GameTopBar,单层互斥)。 */
   onOpenLedger: (seat: number) => void;
+  /** 四钻入之名将/珍宝/声列点击:开 SeatAttrModals 对应明细(消费方先关本层再开,
+   *  居中模态不叠两层——城池钻入同法)。 */
+  onOpenDetail: (seat: number, kind: SeatDetailKind) => void;
   onClose: () => void;
 }) {
   // board:registry 静态上下文单源(同 CityLedgerModal;本弹层只在 GameScreenLive
   // 门卫后可达,缺上下文 = 接线 bug,断言炸出,零兜底)。
   const { board } = getControllerContext()!;
   // 退场动画(#767 底件族⑤):×/Esc/点外走「播完再移除」(zl-out 淡出下沉 8px +
-  // 遮罩 dialog-overlay-out,210ms 出口卸载);城池列钻入走消费方直卸(GameTopBar
+  // 遮罩 dialog-overlay-out,210ms 出口卸载);四元素钻入走消费方直卸(GameTopBar
   // 单层互斥先关再开),不经本协议,卸载清理收计时器零残影。
   const { closing, requestClose } = useDialogExit(onClose);
   const cityNames = snapshot.players.map((p) =>
@@ -224,6 +263,7 @@ export function WarlordsOverview({
             self={seat === selfSeat}
             cityNames={cityNames[seat]}
             onOpenLedger={onOpenLedger}
+            onOpenDetail={onOpenDetail}
           />
         ))}
       </DialogContent>

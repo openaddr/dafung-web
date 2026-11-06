@@ -12,7 +12,8 @@
 // 跑法:先 `flock tmp/build.lock bun run build`(preview 服务 dist),再 `node tmp/<场景>.mjs`。
 // 干净静帧配方(2026-10-24 实锤:单 clockPause 冻不住在途演出,行军落格照样触发
 // 购地卷轴糊进截图;#700 托管钮退役后 autopilot-button 通道失效,2026-10-27 注):
-// 页面内清场(react-seat-pop settleForTap 同法:等 fx 排空→actIfCan 清决策→循环收敛)
+// 页面内清场(等 fx 排空→actIfCan 清决策→循环收敛;settleForTap 原判词出自
+// react-seat-pop,该 spec 已随 #1097 退役)
 // → `window.__dafung.clockPause()` →再补一轮清场(卷轴挂载不吃时钟,冻结挡不住)
 // →留 ~1s 排空在途演出→再拍。
 //

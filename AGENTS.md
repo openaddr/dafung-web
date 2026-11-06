@@ -98,3 +98,4 @@ jj-vcs(colocated),多会话并行是常态、主树工作副本只有一份。�
 
 - Issue tracker:GitHub Issues(`openaddr/dafung-web`),细则见 [docs/agents/issue-tracker.md](./docs/agents/issue-tracker.md) 与 [triage-labels.md](./docs/agents/triage-labels.md);领域文档消费方式见 [docs/agents/domain.md](./docs/agents/domain.md)。
 - **子代理派单前**先读 [docs/agents/派单模板.md](./docs/agents/派单模板.md)(五条纪律+模板+QC 检查单+jj 配方三律);截图自证一律走 `scripts/shot.mjs`。
+- **规格票执行必调 `implement-spec`**:立完规格+实施票、要派工执行时,先显式调用该技能加载流程,再按本项目适配执行(jj workspace 串行替代每票独立 worktree、merger 职责归主线 QC、诊断权归主线)——不许靠上一波的惯性走流程(2026-11-06 拍板)。

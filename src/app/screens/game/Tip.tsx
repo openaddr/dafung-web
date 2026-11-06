@@ -39,7 +39,6 @@ export const ATTR_TIPS = {
   cash: { name: "现金", detail: "身价=仅现金;攒够目标身价即胜" },
   city: { name: "城池", detail: "名下城池数;到达己城可免费扩军" },
   hand: { name: "锦囊手牌", detail: "暗置,只有本人可见" },
-  rep: { name: "声望", detail: "首次越过 +30/+60/+90,各获赠锦囊一张" },
   gem: { name: "珍宝", detail: "可交易变卖;破产时按指导价抵债" },
   hero: { name: "名将", detail: "上限 3 名;被动技能常驻生效" },
   stamina: { name: "体力", detail: "机遇增减;归 0 耗竭,处置城池歇一回合后回满" },

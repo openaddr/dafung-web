@@ -1,0 +1,42 @@
+/* 席位明细弹层轻量补皮(#701 格上明细,#1097 起唯一入口=诸侯详情四钻入):
+   声望数值明细用;名录/列表用现役 pile-* 全套不另起。原 seat-pop.css 明细段
+   随单人格弹层退役迁本文件(前缀 spop-detail→sdtl- 防串扰,zl-/pile-/war- 先例
+   同族;作用域类 .sdtl 经 PileShell className 挂上 DialogContent,缺省不挂,
+   忘挂即裸排——#701 截图自证实录)。壳宽收敛(#848):基壳 min(940px, 94vw)
+   是为陈列网格设的,轻量数值明细只装一个数字——844×390 下 793px 壳装一字,
+   收敛到 min(420px, 86vw);同特异性靠本文件后入包胜出(pile-modal.css 经
+   SeatAttrModals→PileModal 先入包,SeatAttrModals.tsx 导入序定死)。 */
+.sdtl {
+  width: min(420px, 86vw);
+}
+.sdtl .sdtl-numrow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 0 4px;
+}
+.sdtl .sdtl-bignum {
+  font-size: 21px;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-paper);
+}
+/* 负声望值色改朱砂(#556 数值即信息同口径) */
+.sdtl .sdtl-bignum.neg {
+  color: var(--color-danger);
+}
+/* 三档概率条+百分比明文(#1096 决议5,#1099 终态):条 210×10(尺寸在
+   RepProbBar 内联,纯视觉 aria-hidden)+ 明文一行居中;零冗余文案,本块只管排版。 */
+.sdtl .sdtl-prob {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 2px 0 14px;
+}
+.sdtl .sdtl-tiers {
+  display: flex;
+  gap: 14px;
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}

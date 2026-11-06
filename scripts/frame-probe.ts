@@ -96,10 +96,12 @@ try {
   const pass = page.getByTestId("actionbar-pass");
   if (await pass.isVisible().catch(() => false))
     await pass.click({ timeout: 5000 }).catch(() => {});
-  await page.getByTestId("seat-self").dispatchEvent("click");
-  const pop = page.getByTestId("seat-pop-autopilot-0");
-  await pop.waitFor({ timeout: 5000 });
-  await pop.click();
+  // 开托管(#1097 通路:设置弹层「托管」开关;设置钮 DOM 直派防遮罩吞点击,
+  // diag spec 同款前置)
+  await page.getByTestId("settings-button").dispatchEvent("click");
+  const sw = page.getByTestId("settings-autopilot");
+  await sw.waitFor({ timeout: 5000 });
+  await sw.click();
   await page.keyboard.press("Escape");
 
   // 段 3:采样窗(帧诊自 GameScreen 挂载起采,窗口 5s 一档)

@@ -1,5 +1,5 @@
 // 设置弹层(#700 全浮层骨架,原型 tmp/席位侧列原型.html ⑥设置弹层 判决移植):
-// 顶左齿轮点开的降级入口收口件——音效 / 演出加速 / 战报› / 版本 / 回到主页。
+// 顶左齿轮点开的降级入口收口件——音效 / 托管 / 演出加速 / 战报› / 版本 / 回到主页。
 // 壳走 ui/dialog 底件(Base UI:焦点陷阱/Esc/点外关闭白拿,不自写交互语义)+
 // ADR-0031 题名拖动(DialogDragHandle 把手);挂载不夺焦(ScrollShell 先例)。
 // 入口降级对账(旧顶栏/仪表条退役 → 本弹层承接):
@@ -12,12 +12,16 @@
 //     确认框走 danger 变体,不可逆侧不再吃墨钮主行动)。
 //   - 演出加速行:信息展示「标准」(原型原样;演出提速目前只有追帧自动档,无用户
 //     档位基建,不落假切换钮)。
+// #1097 收编(#1096 决议2):托管开关行迁入(音效行同款形制)——原 #701 单人格
+// 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
+// controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
 import { useState } from "react";
 import { Dialog, DialogContent, DialogClose, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useAudio } from "@app/fx/AudioProvider";
-import { useNetStore } from "@app/store/netStore";
+import { useAutopilotOn, useNetStore } from "@app/store/netStore";
+import { getController } from "@app/controllers/registry";
 import { Sym } from "@app/screens/shared/Sym";
 import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { VERSION } from "../../../version";
@@ -34,6 +38,11 @@ export interface SettingsDialogProps {
 
 export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsDialogProps) {
   const audio = useAudio();
+  // 托管开关(#1097 收编):控制器模块级单源(弹层只在 GameScreenLive 门卫后可达,
+  // 缺上下文 = 接线 bug);托管态单源回读 useAutopilotOn(联机=座位广播,单机=
+  // 控制器本地标记),写走 setAutoPilot(ADR-0028 单一开关,与旧托管钮/弹层行同通路)。
+  const controller = getController();
+  const autopilotOn = useAutopilotOn(controller);
   // 回到主页弃局确认(#745 高1):弹层内唯一不可逆动作,裸奔退役——点行先落确认框,
   // 确认文案写明后果(单机=对局进度丢弃;联机=并退出房间);取消则设置弹层原样保留。
   const roomId = useNetStore((s) => s.roomId);
@@ -84,6 +93,20 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
               aria-label={audio.muted ? "开音效" : "静音音效"}
               checked={!audio.muted}
               onCheckedChange={() => audio.toggleMuted()}
+            />
+          </div>
+        )}
+        {/* 托管开关(#1097 收编,#1096 决议2;音效行同款形制):开=AI 代打(接管=
+            自动托管,ADR-0028);autopilotSupported 门卫与旧托管钮/弹层行同款
+            (联机/单机有)。开关皮单源回 ui/switch 底件桥接(#745 高4)。 */}
+        {controller?.autopilotSupported && (
+          <div className="setrow">
+            托管
+            <Switch
+              data-testid={TESTIDS.settingsAutopilot}
+              aria-label="托管"
+              checked={autopilotOn}
+              onCheckedChange={(next) => controller.setAutoPilot(next)}
             />
           </div>
         )}
