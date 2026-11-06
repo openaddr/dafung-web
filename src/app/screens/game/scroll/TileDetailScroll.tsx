@@ -7,6 +7,7 @@
 //   - #767 弹窗详情族①②:城名下补真实格缩略图(TileThumb,与名下清单/CityLedgerModal
 //     同源同件,置摘要上方、纯展示不抢焦点);「持有/需/余差」主数值行升格(AffordRow,
 //     与购地抉择同一行——详情里先看一眼买不买得起,再翻等级表),元信息退居次要行。
+import { memo } from "react";
 import { formatMoney } from "@core/money";
 import type { TileDef } from "@core/board";
 import type { PropertyDef } from "@core/economy";
@@ -45,7 +46,29 @@ export interface TileDetailScrollProps {
   pickCapital?: { onConfirm: () => void };
 }
 
-export function TileDetailScroll({
+/** 值等(#1140 渲染税):数据面全标量/registry 稳定引用/players(值等复用引用);
+ *  onClose 与 pickCapital.onConfirm 不入比较——setState/控制器驱动的关闭与定都
+ *  (行为恒定,身份每渲染抖动);pickCapital 只比「在不在场」(有无 footer 之别)。
+ *  详情是「边看边掂量」件(ADR-0031 诉求本体),bot 定都/演出期间开着时内容没变
+ *  的拍在此 bail out。 */
+function tileDetailScrollEqual(a: TileDetailScrollProps, b: TileDetailScrollProps): boolean {
+  return (
+    a.tileIndex === b.tileIndex &&
+    a.tile === b.tile &&
+    a.tileName === b.tileName &&
+    a.groupLabel === b.groupLabel &&
+    a.tierLabel === b.tierLabel &&
+    a.property === b.property &&
+    a.players === b.players &&
+    a.cash === b.cash &&
+    a.ownerGuohao === b.ownerGuohao &&
+    a.ownerLevel === b.ownerLevel &&
+    a.isCapital === b.isCapital &&
+    (a.pickCapital == null) === (b.pickCapital == null)
+  );
+}
+
+export const TileDetailScroll = memo(function TileDetailScroll({
   tileIndex,
   tile,
   tileName,
@@ -112,4 +135,4 @@ export function TileDetailScroll({
       </>
     </BannerShell>
   );
-}
+}, tileDetailScrollEqual);

@@ -15,7 +15,7 @@
 // #1097 收编(#1096 决议2):托管开关行迁入(音效行同款形制)——原 #701 单人格
 // 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
 // controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
-import { useState } from "react";
+import { memo, useState } from "react";
 import { Dialog, DialogContent, DialogClose, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -36,7 +36,13 @@ export interface SettingsDialogProps {
   onGoHome: () => void;
 }
 
-export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsDialogProps) {
+/** 重渲口径(#1140 渲染税):三回调由 GameScreenLive useCallback 稳定引用,弹层
+ *  自身零快照消费(audio/托管态内订)——演出期开着设置不再随每拍 sync 重渲。 */
+export const SettingsDialog = memo(function SettingsDialog({
+  onClose,
+  onOpenWarReport,
+  onGoHome,
+}: SettingsDialogProps) {
   const audio = useAudio();
   // 托管开关(#1097 收编):控制器模块级单源(弹层只在 GameScreenLive 门卫后可达,
   // 缺上下文 = 接线 bug);托管态单源回读 useAutopilotOn(联机=座位广播,单机=
@@ -183,4 +189,4 @@ export function SettingsDialog({ onClose, onOpenWarReport, onGoHome }: SettingsD
       </DialogContent>
     </Dialog>
   );
-}
+});

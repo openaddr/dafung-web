@@ -16,7 +16,7 @@
 // 标题都需要「屏前真人」的稳定身份。
 // 本件挂在 AudioProvider 内(设置弹层经 GameScreen 挂载,同树消费 useAudio)。
 import { useState } from "react";
-import { useGameStore, type GameSnapshot } from "@app/store/gameStore";
+import { useGameStore, useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
 import { Sym } from "@app/screens/shared/Sym";
 import { TESTIDS } from "./testids";
@@ -53,6 +53,9 @@ export function GameTopBar({ snapshot, warUnread, onOpenSettings }: GameTopBarPr
   const viewSeat = useGameStore((s) => s.viewSeat);
   const roomId = useNetStore((s) => s.roomId);
   const selfSeat = roomId !== "" ? viewSeat : 0;
+  // 玩家行值等复用(#1140 渲染税):三件钻入弹层的 memo 前提——内容不变即引用
+  // 不变,「开着随快照实时重渲」收窄为「开着随内容变化重渲」。
+  const players = useStablePlayers(snapshot.players);
   return (
     <div className="topbar" data-testid={TESTIDS.topBar}>
       {/* 顶左一行(#732 行序):设置(开设置弹层)→ 详情(#702 点开诸侯详情弹窗) */}
@@ -94,27 +97,28 @@ export function GameTopBar({ snapshot, warUnread, onOpenSettings }: GameTopBarPr
       {overviewOpen && (
         <WarlordsOverview
           snapshot={snapshot}
+          players={players}
           selfSeat={selfSeat}
           onOpenLedger={drillToLedger}
           onOpenDetail={drillToDetail}
           onClose={() => setOverviewOpen(false)}
         />
       )}
-      {/* 名下城池清单弹层(#622):详情城池列点开的二级目标;开着随快照实时重渲 */}
+      {/* 名下城池清单弹层(#622):详情城池列点开的二级目标;开着随内容变化重渲(#1140) */}
       {ledgerSeat != null && (
         <CityLedgerModal
-          snapshot={snapshot}
+          players={players}
           seat={ledgerSeat}
           self={ledgerSeat === selfSeat}
           onClose={() => setLedgerSeat(null)}
         />
       )}
       {/* 席位明细弹层族(名将/珍宝/声望,SeatAttrModals):详情名将 chips/珍宝槽/
-          声列点开的二级目标;开着随快照实时重渲 */}
+          声列点开的二级目标;开着随内容变化重渲(#1140) */}
       {detail != null && (
         <SeatDetailModal
           kind={detail.kind}
-          p={snapshot.players[detail.seat]}
+          p={players[detail.seat]}
           onClose={() => setDetail(null)}
         />
       )}

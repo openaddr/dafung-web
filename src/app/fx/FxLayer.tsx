@@ -12,7 +12,7 @@
 //   ① 出牌窗聚光(开关态 fxStore.spotlight,HandRack 窗态选中挂摘);
 //   ② 金钱飞行归账(fxStore.cashFlies,进账铜钱从来源棋子格飞向席位格,抵达 bump)。
 // 席位现金 count-up 订阅(seat-cash.ts)也随本件挂载/卸载。
-import { useEffect, useLayoutEffect, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { playerColor, rgba, Theme } from "@core/theme";
 import { useGameStore } from "@app/store/gameStore";
@@ -47,9 +47,9 @@ function floaterFontSize(): number {
 }
 
 /** 铜钱一枚(泉字金币):补给雨与撒币共用同一视觉件(金圆底+墨字)。
- *  x/y=锚点(SVG 逻辑单位,transform attribute 定位),dx/dy=随机落点
- *  (CSS 变量喂 fx-svg-coin-rain keyframe),delayMs=错拍入场(#885:撒币档由
- *  消费点喂 FX.coinStaggerMs 步进,与全长 coinRainMs 同通道缩放)。 */
+ *  x/y=锚点(SVG 逻辑单位,transform attribute 定位),dx/dy=落点(spawn 拍烤死,
+ *  #1140——渲染期随机现算会随 fx 层重渲重写在飞目标);delayMs=错拍入场(#885:
+ *  撒币档由消费点喂 FX.coinStaggerMs 步进,与全长 coinRainMs 同通道缩放)。 */
 function Coin({
   x,
   y,
@@ -74,8 +74,11 @@ function Coin({
         animationDuration: `${FX.coinRainMs}ms`, // #885:keyframe 只管形,全长随通道缩放
       }}
     >
-      {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji */}
-      <circle r={11} />
+      {/* D3:铜钱雨用「泉」字(金色圆底 + 墨字),替换与水墨语言相斥的 🪙 emoji。
+          金辉烤形(#1140):halo 底圈(宽低透明描边)烤死 drop-shadow——滤镜曾随
+          逐帧平移的 g 每帧重跑,撒币档 N 枚 × 每帧 = 小滤镜栅格雨。 */}
+      <circle className="coin-halo" r={11} />
+      <circle className="coin-core" r={11} />
       <text y={4} textAnchor="middle">
         泉
       </text>
@@ -99,9 +102,6 @@ function floaterLook(
   return { cls: f.amount >= 0 ? "pos" : "neg", size: fontSize, playerColorVar: null };
 }
 
-/** 补给铜钱雨落点(定数 6 枚,横向散布)。 */
-const SUPPLY_COINS = 6;
-
 /** 棋盘特效层(ADR-0042 第三波 HTML 版,BoardView 挂载):浮字 + 铜钱雨 + 朱砂/漆金
  *  印章 + 出牌指示线 + 技能施展金圈(landPulse 通道)+ 破产墨渍/撒币(S7)。拼点演出
  *  归全屏签面(DuelSignsOverlay,ADR-0030 单通道)。
@@ -109,7 +109,7 @@ const SUPPLY_COINS = 6;
  *  是低端 WebView 掉帧主源;现迁 HTML 宿主(BoardHost,#bv-fx 保号),每件特效独立
  *  mini-svg(.bv-fx-svg:0 尺寸 overflow visible,世界坐标原绘原类,美术/CSS 动画/
  *  DOM 契约零改动),逐帧失效收敛到各件自身小盒。 */
-export function BoardFxLayer({
+export const BoardFxLayer = memo(function BoardFxLayer({
   svgRef,
   board,
 }: {
@@ -176,15 +176,7 @@ export function BoardFxLayer({
               {f.text ?? formatFloater(f.amount)}
             </text>
             {f.coins &&
-              Array.from({ length: SUPPLY_COINS }, (_, c) => (
-                <Coin
-                  key={c}
-                  x={f.x}
-                  y={y}
-                  dx={Math.round((Math.random() - 0.5) * 60)}
-                  dy={90 + Math.round(Math.random() * 30)}
-                />
-              ))}
+              f.coinScatter.map((s, c) => <Coin key={c} x={f.x} y={y} dx={s.dx} dy={s.dy} />)}
           </svg>
         );
       })}
@@ -261,13 +253,13 @@ export function BoardFxLayer({
       ))}
       {coinBursts.map((b) => (
         <svg key={b.id} className="bv-fx-svg" width={0} height={0}>
-          {Array.from({ length: Math.min(b.count, COIN_BURST_MAX) }, (_, c) => (
+          {b.scatter.slice(0, COIN_BURST_MAX).map((s, c) => (
             <Coin
               key={`${b.id}-${c}`}
               x={b.x}
               y={b.y}
-              dx={Math.round((Math.random() - 0.5) * 150)}
-              dy={Math.round(Math.random() * 130) - 20}
+              dx={s.dx}
+              dy={s.dy}
               delayMs={(c % 4) * FX.coinStaggerMs}
             />
           ))}
@@ -283,8 +275,26 @@ export function BoardFxLayer({
           <line> 上(契约不变);fx 层内部 data 属性不进 TESTIDS 单源,同层 data-fx-layer
           先例;pathLength=1 归一化供生长动画。 */}
       {jinnangLines.map((l) => (
-        <svg key={l.id} className="bv-fx-svg" width={0} height={0}>
-          <g className="fx-svg-jline" style={{ animationDuration: `${FX.jinnangLineMs}ms` }}>
+        /* #1140:生死淡出(fx-jline-life)上移 svg 根(HTML 盒,opacity 走合成器,
+            停持后的纯淡出段零重绘);金晕 drop-shadow 烤成 halo 底线(宽·低透明,
+            与主线同拍同 keyframes 生长),g 上不再挂滤镜逐帧重跑。 */
+        <svg
+          key={l.id}
+          className="bv-fx-svg fx-jline-fade"
+          width={0}
+          height={0}
+          style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+        >
+          <g className="fx-svg-jline">
+            <line
+              className="fx-svg-jline-halo"
+              x1={l.x1}
+              y1={l.y1}
+              x2={l.x2}
+              y2={l.y2}
+              pathLength={1}
+              style={{ animationDuration: `${FX.jinnangLineMs}ms` }}
+            />
             <line
               className="fx-svg-jline-stroke"
               data-fx-jinnang-line=""
@@ -310,7 +320,7 @@ export function BoardFxLayer({
       ))}
     </BoardHost>
   );
-}
+});
 
 /** 棋盘逻辑坐标 → 屏幕像素(起飞拍一次性换算,旧 getScreenCTM 方案#764 复用):
  *  矩阵换算自带 preserveAspectRatio letterboxing 与现行取景,比手拆 viewBox 稳。 */
@@ -364,12 +374,13 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
   }, [fly.id, fly.x, fly.y, seat]);
   if (!geo) return null;
   return (
+    /* 盒 24→28(#1140):halo 底圈(烤形,同 Coin)外沿 r14 须在 viewBox 内 */
     <svg
       className="fx-cash-fly"
       data-fx-cash-fly=""
-      viewBox="-12 -12 24 24"
-      width={24}
-      height={24}
+      viewBox="-14 -14 28 28"
+      width={28}
+      height={28}
       aria-hidden="true"
       style={{ offsetPath: geo.path, animationDuration: `${geo.ms}ms` }}
       onAnimationEnd={() => {
@@ -377,8 +388,10 @@ function FlyCoin({ fly }: { fly: CashFlyFx }) {
         useFxStore.getState().removeCashFly(fly.id);
       }}
     >
-      {/* 铜钱雨同款素材语言:泉字金币(金圆底+墨字,#764 复用,色吃 token) */}
-      <circle r={11} />
+      {/* 铜钱雨同款素材语言:泉字金币(金圆底+墨字,#764 复用,色吃 token);
+          金辉烤形同 Coin(#1140):halo 底圈替代 drop-shadow(飞行逐帧重跑滤镜)。 */}
+      <circle className="coin-halo" r={11} />
+      <circle className="coin-core" r={11} />
       <text y={4} textAnchor="middle">
         泉
       </text>

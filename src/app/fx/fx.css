@@ -211,11 +211,19 @@
   /* both 而非 forwards:撒币档(animationDelay 错拍)入场前保持 0% 帧隐形 */
   animation: fx-svg-coin-rain var(--ease-in) both;
 }
-.fx-svg-coin circle {
+/* 金辉烤形(#1140):drop-shadow 曾挂在逐帧平移的 circle 上——每帧重绘都要重跑
+   滤镜,撒币档 8-12 枚 × 每帧 = 小滤镜栅格雨;现 halo 底圈(宽描边·低透明,
+   FlyCoin 同款共享)烤死辉光,动态元素零滤镜。 */
+.coin-halo {
+  fill: none;
+  stroke: var(--color-gold-bright);
+  stroke-width: 6;
+  opacity: 0.35;
+}
+.coin-core {
   fill: var(--color-gold-bright);
   stroke: rgba(40, 28, 10, 0.7);
   stroke-width: 1.5;
-  filter: drop-shadow(0 0 4px var(--color-gold-bright));
 }
 .fx-svg-coin text {
   font-family: var(--font-brush);
@@ -310,19 +318,31 @@
   overflow: visible;
 }
 
-/* 驿道流光(行军逐段高亮,由 useMarch 命令式追加到 #bv-flow) */
+/* 驿道流光(行军逐段高亮,由 useMarch 命令式追加到 #bv-flow)。
+   #1140:drop-shadow 曾挂在逐帧渐隐的 path 上(SVG 子件进不了合成器)——行军
+   全程每帧「重绘 path + 重跑滤镜」双税;现金辉烤进 halo 底描边(宽·低透明,
+   静态),渐隐动画上移 mini-svg 根(HTML 盒,opacity 走合成器,halo+主线一起
+   淡出,path 自身零逐帧参与)。 */
+.bv-flow-fade {
+  opacity: 0;
+}
+.bv-flow-fade.active {
+  /* 高亮渐隐是退场:时长归 --dur-slow(0.5s→0.4s),缓动 --ease-in;
+     fx/timings.ts FX.roadFlowMs=700 仍作存留清理,余量更足 */
+  animation: fx-flow-fade var(--dur-slow) var(--ease-in) forwards;
+}
 .road-flow {
   fill: none;
   stroke: var(--color-gold-bright);
   stroke-width: 5;
   stroke-linecap: round;
-  opacity: 0;
-  filter: drop-shadow(0 0 4px var(--color-gold-bright));
 }
-.road-flow.active {
-  /* 高亮渐隐是退场:时长归 --dur-slow(0.5s→0.4s),缓动 --ease-in;
-     fx/timings.ts FX.roadFlowMs=700 仍作存留清理,余量更足 */
-  animation: fx-flow-fade var(--dur-slow) var(--ease-in) forwards;
+.road-flow-halo {
+  fill: none;
+  stroke: var(--color-gold-bright);
+  stroke-width: 11;
+  stroke-linecap: round;
+  opacity: 0.3;
 }
 @keyframes fx-flow-fade {
   0% {
@@ -363,16 +383,19 @@
    FX.jinnangLineMs(清理窗与动画全长同源单值),FxLayer 消费点内联注入三条
    animationDuration(追帧压缩天然同步);keyframe 只管形不时刻度。
    pathLength=1 归一化,生长段 dashoffset 1→0「笔锋引出」。
-   #849 棒2(P1-B4 发丝线翻案):stroke 4→10(总览缩放 ≈0.4px/unit 下屏显 ≈4px)
-   + 组级 drop-shadow 金晕(驿道流光同 token 语言);生死在组(opacity)、生长在线
-   (dashoffset),锚点/箭羽随组同寿,箭羽于生长段末张羽(fx-jline-feather-in:
+   #849 棒2(P1-B4 发丝线翻案):stroke 4→10(总览缩放 ≈0.4px/unit 下屏显 ≈4px);
+   生死在线、生长在线,锚点/箭羽随组同寿,箭羽于生长段末张羽(fx-jline-feather-in:
    线到,羽才张)。墨色取正文焦墨 token,reduced-motion 由 app.css 全局兜层压成
-   0.01ms(线瞬息全隐,不做静态常驻——指示线本就是一次性演出)。 */
-.fx-svg-jline {
+   0.01ms(线瞬息全隐,不做静态常驻——指示线本就是一次性演出)。
+   #1140:组级 drop-shadow 金晕烤成 halo 底线(宽·低透明,与主线同拍同 keyframes
+   生长)——滤镜曾随 dashoffset 逐帧生长每帧重跑;生死淡出(fx-jline-life)上移
+   svg 根(HTML 盒,opacity 走合成器,纯淡出段零重绘)。 */
+.fx-jline-fade {
   opacity: 0;
-  pointer-events: none;
-  filter: drop-shadow(0 0 6px var(--color-gold-bright));
   animation: fx-jline-life var(--ease-out) forwards;
+}
+.fx-svg-jline {
+  pointer-events: none;
 }
 @keyframes fx-jline-life {
   0% {
@@ -405,6 +428,16 @@
   100% {
     stroke-dashoffset: 0;
   }
+}
+/* 金晕底线(#1140):宽·低透明·同拍同 keyframes 生长(烤形替代组级 drop-shadow,
+   主线 10 + 两侧各 3 出晕 ≈ 6px 原滤镜外扩)。 */
+.fx-svg-jline-halo {
+  stroke: var(--color-gold-bright);
+  stroke-width: 16;
+  stroke-linecap: round;
+  stroke-dasharray: 1;
+  opacity: 0.3;
+  animation: fx-jline-grow var(--ease-out) forwards;
 }
 /* 起点小圆锚点(r=5 逻辑单位,#849 棒2):随组同寿,落点即出发锚。 */
 .fx-svg-jline-anchor {
@@ -850,11 +883,21 @@
 /* 判词落锤(#746 条目 3):判词拍中缝印重钤脉冲+印缘金光一闪——verdictMs 原为
    纯等待空拍,脉冲 120ms 在拍内,总时长零增量。scale 走独立属性(复合基态
    transform 的 translate/rotate 不互抹,同 fx-seal-slam 口径);钤定态由基类样式
-   承接(基态=slam 终态),pulse 不带 fill 动完即回基态。金光一闪 0.2s 即散。 */
+   承接(基态=slam 终态),pulse 不带 fill 动完即回基态。金光一闪 0.2s 即散。
+   #1140:金光一闪曾以 box-shadow 插值实现(基座黑影还得逐帧复述三遍),改 ::after
+   叠层烤死静态金晕 + 只动 opacity(合成器插值),基座 box-shadow 不再进 keyframe。 */
 .duel-seal.duel-seal-pulse {
-  animation:
-    duel-seal-pulse 0.12s var(--ease-out-back),
-    duel-seal-flash 0.2s var(--ease-out);
+  animation: duel-seal-pulse 0.12s var(--ease-out-back);
+}
+.duel-seal.duel-seal-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 22px 4px color-mix(in srgb, var(--color-gold-bright) 75%, transparent);
+  opacity: 0;
+  animation: duel-seal-flash 0.2s var(--ease-out);
 }
 @keyframes duel-seal-pulse {
   0% {
@@ -868,20 +911,12 @@
   }
 }
 @keyframes duel-seal-flash {
-  0% {
-    box-shadow:
-      0 0 0 0 color-mix(in srgb, var(--color-gold-bright) 75%, transparent),
-      0 10px 26px rgba(0, 0, 0, 0.5);
+  0%,
+  100% {
+    opacity: 0;
   }
   40% {
-    box-shadow:
-      0 0 22px 4px color-mix(in srgb, var(--color-gold-bright) 75%, transparent),
-      0 10px 26px rgba(0, 0, 0, 0.5);
-  }
-  100% {
-    box-shadow:
-      0 0 0 0 transparent,
-      0 10px 26px rgba(0, 0, 0, 0.5);
+    opacity: 1;
   }
 }
 /* 平局:钤变金「平」(#492 漆金化口径:金印留给得/平语义)。 */
@@ -1042,11 +1077,10 @@
   offset-rotate: 0deg;
   animation: fx-cash-fly-arc var(--ease-out);
 }
-.fx-cash-fly circle {
-  fill: var(--color-gold-bright);
-  stroke: rgba(40, 28, 10, 0.7);
-  stroke-width: 1.5;
-  filter: drop-shadow(0 0 4px var(--color-gold-bright));
+/* 金辉烤形(#1140):circle 上 drop-shadow 随飞行逐帧重跑滤镜,烤成 coin-halo
+   底圈(与铜钱雨共享同一对类);盒 24→28 容 halo 外沿(FxLayer 同步改)。 */
+.fx-cash-fly {
+  overflow: visible;
 }
 .fx-cash-fly text {
   font-family: var(--font-brush);

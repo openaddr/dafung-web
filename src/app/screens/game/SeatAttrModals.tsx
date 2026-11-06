@@ -8,6 +8,7 @@
 // 壳全收口 shadcn(PileShell→ui/dialog 底件):可拖(ADR-0031)/点外/Esc/不夺焦
 // 全由壳白拿,本件零自写交互语义。轻量明细样式在 seat-detail.css(sdtl,#1097 起
 // 唯一入口=诸侯详情四钻入——格上图标直达随单人格弹层退役)。
+import { memo } from "react";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
@@ -139,8 +140,18 @@ function SeatRepModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
   );
 }
 
-/** 明细弹层路由入口(SeatRail 持 {kind, seat} 开合态,钻入时单层互斥)。 */
-export function SeatDetailModal({
+/** 值等(#1140 渲染税):p 引用由 GameTopBar 的 useStablePlayers 保证「内容不变
+ *  即引用不变」;onClose 不入比较(setState 驱动,行为恒定)。 */
+function seatDetailEqual(
+  a: { kind: SeatDetailKind; p: SnapshotPlayer },
+  b: { kind: SeatDetailKind; p: SnapshotPlayer },
+): boolean {
+  return a.kind === b.kind && a.p === b.p;
+}
+
+/** 明细弹层路由入口(SeatRail 持 {kind, seat} 开合态,钻入时单层互斥)。
+ *  重渲口径(#1140):开着随内容变化重渲,演出期不再每拍陪跑。 */
+export const SeatDetailModal = memo(function SeatDetailModal({
   kind,
   p,
   onClose,
@@ -152,4 +163,4 @@ export function SeatDetailModal({
   if (kind === "hero") return <SeatHeroModal p={p} onClose={onClose} />;
   if (kind === "gem") return <SeatGemModal p={p} onClose={onClose} />;
   return <SeatRepModal p={p} onClose={onClose} />;
-}
+}, seatDetailEqual);

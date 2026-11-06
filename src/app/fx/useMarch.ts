@@ -129,18 +129,24 @@ export function beginMarch(moverId: string, keyframes: readonly MarchSegmentFram
  *  (旧 highlightSegment;坐标提取拍已烤进事件,不再读棋盘)。
  *  ADR-0042:每条流光独立 mini-svg(.bv-fx-svg,0 尺寸 overflow visible)追加进
  *  #bv-fx 同款 HTML 宿主 #bv-flow——路径 d 仍写世界坐标原值,逐帧渐隐失效只重绘
- *  本条线自身小盒,不再波及整层(旧 g#bv-flow 直 append path 的整幅失效通路随之退役)。 */
+ *  本条线自身小盒,不再波及整层(旧 g#bv-flow 直 append path 的整幅失效通路随之退役)。
+ *  #1140:金辉烤进 halo 底描边(drop-shadow 曾随渐隐 path 每帧重跑滤镜),渐隐
+ *  动画上移 svg 根(.bv-flow-fade,HTML 盒 opacity 走合成器)——path 零逐帧参与。 */
 function highlightSegment(flow: readonly BoardPos[]): void {
   const host = document.getElementById("bv-flow");
   if (!host) return;
   const d = flow.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-  svg.setAttribute("class", "bv-fx-svg");
+  svg.setAttribute("class", "bv-fx-svg bv-flow-fade active");
   svg.setAttribute("width", "0");
   svg.setAttribute("height", "0");
+  const halo = document.createElementNS("http://www.w3.org/2000/svg", "path");
+  halo.setAttribute("class", "road-flow-halo");
+  halo.setAttribute("d", d);
   const p = document.createElementNS("http://www.w3.org/2000/svg", "path");
-  p.setAttribute("class", "road-flow active");
+  p.setAttribute("class", "road-flow");
   p.setAttribute("d", d);
+  svg.appendChild(halo);
   svg.appendChild(p);
   host.appendChild(svg);
   setTimeout(() => svg.remove(), FX.roadFlowMs);

@@ -2,6 +2,7 @@
 // 这是旧 fullRender() 的新等价物——旧渲染层每次引擎变化后命令式重画 DOM,
 // React 层改为:控制器每次引擎变化后调 syncFromEngine() 把 snapshot 灌进 store,
 // 组件订阅 store 声明式重渲。
+import { useMemo, useRef } from "react";
 import { create } from "zustand";
 import type { GameEngine } from "@core/authority";
 import type {
@@ -137,4 +138,70 @@ export function useActivePlayer(): SnapshotPlayer | null {
  *  避免在 React 层重算导致与引擎/联机端三处口径漂移。 */
 export function playerNetWorth(p: SnapshotPlayer): number {
   return p.netWorth;
+}
+
+/** 玩家行值等(#1140 渲染税):键循环逐字段比,嵌套数组(properties/heroes/
+ *  treasures)逐项两级浅等——嵌套元素皆扁平记录({propertyId,level}/{heroId,…}/
+ *  {id,name,level,desc})或原始值(jinnangHand),两级全覆盖;键循环而非手抄字段表,
+ *  类型增字段自动纳入比较(Tile #1023 链 A tileStateEqual 同法)。 */
+function snapshotPlayerEqual(a: SnapshotPlayer, b: SnapshotPlayer): boolean {
+  for (const key in a) {
+    const av = a[key as keyof SnapshotPlayer];
+    const bv = b[key as keyof SnapshotPlayer];
+    if (av === bv) continue;
+    if (Array.isArray(av) && Array.isArray(bv) && av.length === bv.length) {
+      let same = true;
+      for (let i = 0; i < av.length; i++) {
+        const x = av[i] as unknown;
+        const y = bv[i] as unknown;
+        if (x === y) continue;
+        if (
+          typeof x !== "object" ||
+          typeof y !== "object" ||
+          x === null ||
+          y === null ||
+          Array.isArray(x) ||
+          Array.isArray(y)
+        ) {
+          same = false;
+          break;
+        }
+        const xo = x as Record<string, unknown>;
+        const yo = y as Record<string, unknown>;
+        for (const k in xo) {
+          if (xo[k] !== yo[k]) {
+            same = false;
+            break;
+          }
+        }
+        if (!same) break;
+      }
+      if (same) continue;
+    }
+    return false;
+  }
+  return true;
+}
+
+/** 快照玩家值等复用(#1140 渲染税,Tile #1023 链 A 屏级推广):引擎每 sync 产出
+ *  全新 players 数组与元素对象,引用直传会逐个击穿下游 memo——席位格(每事件全列
+ *  重渲)、手牌架、棋子/氛围双宿主(React.memo 被 players 新引用打穿,slot 派生
+ *  每拍两遍)、随时可开的弹层族(开着随快照实时重渲成了每拍陪跑)。本钩子照算
+ *  之后逐席位浅等,内容不变复用上一份元素引用,全部复用时连数组一起复用——
+ *  「实时重渲」语义不变(内容变了照样新对象),只是内容没变的拍不再制造新身份。
+ *  消费方(GameScreenLive/SeatRail/GameTopBar/DecisionScrollLayer)各自调用,
+ *  各自持有上一份。 */
+export function useStablePlayers(players: SnapshotPlayer[]): SnapshotPlayer[] {
+  const prevRef = useRef<SnapshotPlayer[] | null>(null);
+  return useMemo(() => {
+    const prev = prevRef.current;
+    const next = players.map((p, i) =>
+      prev !== null && prev[i] !== undefined && snapshotPlayerEqual(prev[i], p) ? prev[i] : p,
+    );
+    if (prev !== null && prev.length === next.length && next.every((p, i) => prev[i] === p)) {
+      return prev;
+    }
+    prevRef.current = next;
+    return next;
+  }, [players]);
 }

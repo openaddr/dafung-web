@@ -11,6 +11,14 @@
 // 新增白名单条目 = 新增阶段性动画,须先在 ADR-0039「承认的取舍」登记再动此处。
 // 注:keyframes 体不含 infinite,块选择器与 animation 声明的跨行形态(项目惯例是
 // animation 单行声明)不适用——声明行自含 name,dur,ease,infinite 全在一行。
+//
+// 第二道闸(#1140 ⑤,门禁面扩容):全仓 CSS 的 keyframes 禁插值 box-shadow /
+// filter / text-shadow——这三类属性进 keyframe = 每帧 paint(重绘,滤镜类还要逐帧
+// 重跑),合成器永远接不住。棋盘侧四波已清零(#1035 呼吸盒影 ::after 化),弹窗/
+// 特效侧存量同批清零(reaction-timer-glow / duel-seal-flash / 反应牌常驻 filter,
+// #1140);#834 新件曾在本闸面外重犯旧病,故闸面从三个棋盘文件推到全仓。唯一出路 =
+// 静态影底叠层(::after/::before)只动 opacity。豁免逐条登记(存量在册件,新增
+// 豁免须先给理由再动此处)。
 const RULES: Array<{ file: string; allow: RegExp[] }> = [
   {
     file: "src/app/components/board/board.css",
@@ -110,4 +118,65 @@ if (violations.length > 0) {
   console.error("  阶段性动画白名单新增须先登记 ADR-0039「承认的取舍」;常驻装饰一律走氛围层。");
   process.exit(1);
 }
-console.log("[check:board] OK:常驻动画全数住在氛围层,白名单内阶段性动画无回流");
+
+// ── 第二道闸(#1140 ⑤):全仓 keyframes 禁插值 paint 属性(box-shadow/filter/
+// text-shadow,backdrop-filter 同族入 filter 口径)。配方唯一出路 = 静态影底叠层
+// 只动 opacity。 ──
+const PAINT_ALLOW = new Set([
+  // 锦囊钮呼吸金光(#1006,ADR-0039 白名单在册):窗态+架收起态常驻呼吸,
+  // HTML 层 52px 钮小面积辉光,四波深排查量化 ≈0.04MP/帧——登记豁免。
+  "gbtn-breathe",
+  // 锦囊钮一次性脉冲(#1006/#751 B1):--dur-med 一拍(400ms),动画完即净;
+  // 一次性小件不设闸(逐帧重绘窗有限),按帧测数据再议收敛。
+  "gbtn-nudge-once",
+  // 出牌窗可用牌金圈脉冲一拍(#751 B1):同上,一次性 --dur-med。
+  "usable-ring-once",
+]);
+const paintViolations: Array<{ file: string; name: string; prop: string }> = [];
+const paintPropRes: Array<[string, RegExp]> = [
+  ["box-shadow", /(?:^|[^-\w])box-shadow\s*:/],
+  ["filter", /(?:^|[^-\w])(?:backdrop-)?filter\s*:/],
+  ["text-shadow", /(?:^|[^-\w])text-shadow\s*:/],
+];
+const glob = new Bun.Glob("src/**/*.css");
+for await (const rel of glob.scan({ cwd: `${import.meta.dir}/..` })) {
+  const content = await Bun.file(`${import.meta.dir}/../${rel}`).text();
+  const code = content.replace(/\/\*[\s\S]*?\*\//g, "");
+  const kfRe = /@keyframes\s+([\w-]+)\s*\{/g;
+  let m: RegExpExecArray | null;
+  while ((m = kfRe.exec(code)) !== null) {
+    const name = m[1];
+    if (PAINT_ALLOW.has(name)) continue;
+    // 花括号配平取 keyframes 体(keyframes 内无嵌套块,深度法防选择器串边)
+    let depth = 1;
+    let i = kfRe.lastIndex;
+    while (i < code.length && depth > 0) {
+      if (code[i] === "{") depth++;
+      else if (code[i] === "}") depth--;
+      i++;
+    }
+    const body = code.slice(kfRe.lastIndex, i - 1);
+    for (const [prop, re] of paintPropRes) {
+      if (re.test(body)) {
+        paintViolations.push({ file: rel, name, prop });
+        break;
+      }
+    }
+  }
+}
+
+if (paintViolations.length > 0) {
+  console.error(
+    "[check:board] keyframes 插值 paint 属性回流(#1140 ⑤):box-shadow/filter/text-shadow 进 keyframe = 每帧 paint,合成器接不住",
+  );
+  for (const v of paintViolations) {
+    console.error(`  ${v.file}  @keyframes ${v.name}  插值 ${v.prop}`);
+  }
+  console.error(
+    "  唯一出路 = 静态影底叠层(::after/::before)只动 opacity;豁免须在本闸 PAINT_ALLOW 逐条登记。",
+  );
+  process.exit(1);
+}
+console.log(
+  "[check:board] OK:常驻动画全数住在氛围层,白名单内阶段性动画无回流;全仓 keyframes 无 paint 属性插值",
+);

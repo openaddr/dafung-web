@@ -9,6 +9,25 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { FX } from "./timings";
 import type { SkillFloatTone } from "./presentation";
 
+/** 补给铜钱雨定数枚数(曾驻 FxLayer,#1140 散布烤产线后随迁——数量与散布同源)。 */
+export const SUPPLY_COINS = 6;
+
+/** 补给雨散布:横向 ±30 逻辑像素、纵向 90~120 落差(原 FxLayer 渲染期随机式原样迁移)。 */
+function supplyCoinScatter(): Array<{ dx: number; dy: number }> {
+  return Array.from({ length: SUPPLY_COINS }, () => ({
+    dx: Math.round((Math.random() - 0.5) * 60),
+    dy: 90 + Math.round(Math.random() * 30),
+  }));
+}
+
+/** 撒币散布:径向抛散 ±75 / 上抛 -20~110(原 FxLayer 渲染期随机式原样迁移)。 */
+function burstCoinScatter(count: number): Array<{ dx: number; dy: number }> {
+  return Array.from({ length: count }, () => ({
+    dx: Math.round((Math.random() - 0.5) * 150),
+    dy: Math.round(Math.random() * 130) - 20,
+  }));
+}
+
 export interface FloaterFx {
   id: number;
   /** 棋盘逻辑坐标(SVG 系)。 */
@@ -18,6 +37,10 @@ export interface FloaterFx {
   amount: number;
   /** 补给类再撒一把铜钱雨(旧 kind==="supply")。 */
   coins: boolean;
+  /** 补给雨铜钱落点(spawn 拍烤死,SUPPLY_COINS 枚):曾在 FxLayer 渲染期
+   *  Math.random 现算,fx 层任何 spawn/cleanup 触发的重渲都会重写在飞铜钱的
+   *  keyframe 目标(落点中途瞬移+多付一次失效)——#1140 渲染税,散布归产线单源。 */
+  coinScatter: ReadonlyArray<{ dx: number; dy: number }>;
   /** 文案浮字(ADR-0013 唯一选项自动执行轻提示):非空时替代金额渲染。 */
   text?: string;
   /** 技能演出档(#850):cast=主动技施展浮字升档(1.0×/玩家色细描边,色随件烤定);
@@ -75,12 +98,14 @@ export interface InkBlotFx {
   y: number;
 }
 
-/** 铜钱撒落(S7 破产仪式第三拍):count 枚一次性径向抛撒(≠补给铜钱雨的定数 6)。 */
+/** 铜钱撒落(S7 破产仪式第三拍):count 枚一次性径向抛撒(≠补给铜钱雨的定数 6)。
+ *  scatter = 每枚落点(spawn 拍烤死,理由同 FloaterFx.coinScatter #1140)。 */
 export interface CoinBurstFx {
   id: number;
   x: number;
   y: number;
   count: number;
+  scatter: ReadonlyArray<{ dx: number; dy: number }>;
 }
 
 /** 金钱飞行归账(#764):进账从来源棋子格飞一枚铜钱至收账者席位格。一条记录 =
@@ -273,7 +298,12 @@ export const useFxStore = create<FxState>()(
 
     spawnFloater(x, y, amount, coins) {
       const id = nextId++;
-      set((s) => ({ floaters: [...s.floaters, { id, x, y, amount, coins }] }));
+      set((s) => ({
+        floaters: [
+          ...s.floaters,
+          { id, x, y, amount, coins, coinScatter: coins ? supplyCoinScatter() : [] },
+        ],
+      }));
       // 超时自清:动画 keyframe 是 1.3s/1.5s,到期必移除,防 store 无限增长。
       setTimeout(
         () => set((s) => ({ floaters: s.floaters.filter((f) => f.id !== id) })),
@@ -284,7 +314,10 @@ export const useFxStore = create<FxState>()(
     spawnTextFloater(x, y, text, skill) {
       const id = nextId++;
       set((s) => ({
-        floaters: [...s.floaters, { id, x, y, amount: 0, coins: false, text, skill }],
+        floaters: [
+          ...s.floaters,
+          { id, x, y, amount: 0, coins: false, coinScatter: [], text, skill },
+        ],
       }));
       // 超时自清:普通/施展浮字按 floaterMs(--dur-fx 同源);被动小签(#850)全长
       // FX.skillTagMs 短于普通浮字,同窗清理无截断竞态,不再单设第二清理账本。
@@ -333,7 +366,9 @@ export const useFxStore = create<FxState>()(
 
     spawnCoinBurst(x, y, count) {
       const id = nextId++;
-      set((s) => ({ coinBursts: [...s.coinBursts, { id, x, y, count }] }));
+      set((s) => ({
+        coinBursts: [...s.coinBursts, { id, x, y, count, scatter: burstCoinScatter(count) }],
+      }));
       setTimeout(
         () => set((s) => ({ coinBursts: s.coinBursts.filter((b) => b.id !== id) })),
         FX.coinBurstMs,

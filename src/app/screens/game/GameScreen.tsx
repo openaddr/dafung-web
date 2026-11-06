@@ -19,9 +19,14 @@
 // 棋盘取景恒总览定格(#946 平移缩放退役);TokenLayer/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
-import { useGameStore, useLocalPlayer, type GameSnapshot } from "@app/store/gameStore";
+import {
+  useGameStore,
+  useLocalPlayer,
+  useStablePlayers,
+  type GameSnapshot,
+} from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
 import { getController, getControllerMap, setController } from "@app/controllers/registry";
 import type { GameCommand } from "@core/authority";
@@ -174,10 +179,15 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 时指到 bot 席),席位格自机格识别/仪表条身份/手牌架都需要的是固定的「人」。
   // 单机起手坐姿恒为座位 0(SoloSetup 座位表构造:首座 isBot:false);联机=本座。
   const selfSeat = online ? viewSeat : 0;
+  // 快照玩家值等复用(#1140 渲染税):内容不变复用上一份数组/元素引用——棋子/氛围
+  // 双宿主的 memo 与 HandRack/PileButtons 不再被每拍新引用打穿,演出期全树陪跑就此
+  // 收口。快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):
+  // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
+  const players = useStablePlayers(snapshot.players);
   // 自局玩家(#284 零兜底审视):对局屏挂载即已入座(selfSeat 恒 ≥0;观战预留分支
   // 已随 #690 退役)——座位缺位 = 快照与座位表不一致(接线 bug),undefined 直通
   // 下游崩出来,不做 `?? null` 静默兜底。
-  const selfPlayer = snapshot.players[selfSeat];
+  const selfPlayer = players[selfSeat];
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
   // 标记(托管以在座为前提,未入座恒 false)。
   const autopilotOn = useAutopilotOn(controller);
@@ -208,16 +218,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 上升沿 effect(自回合开始/窗态开场,开场必亮);复位点之间持续收着——出牌窗
   // 里收起后跨掷骰/行军/bot 回合全程收着,全图畅看。
   const [rackHidden, setRackHidden] = useState(false);
-  const toggleRackHidden = () => setRackHidden((v) => !v);
+  // 回调引用稳定化(#1140 渲染税):settings/锦囊钮弹层族 memo 的前提——闭包体内
+  // 经 getState 取当下值,不捕获渲染拍 snapshot,引用恒定。
+  const toggleRackHidden = useCallback(() => setRackHidden((v) => !v), []);
   // 选都/详情流程状态机(useCapitalPick 单文件持有):选都候选派生 +
   // onTileClick 相位路由 + 详情/定都确认时序。
   const { offeredCapitals, selectableTiles, onTileClick, tileDetail } = useCapitalPick({
     snapshot,
   });
-
-  // 快照玩家是 BoardPlayer 的结构超集(heroes/treasures 等展示字段棋盘不消费):
-  // BoardView 的 props 已按真实消费面声明为最小接口,直接透传即可,无需断言。
-  const players = snapshot.players;
 
   // ── 出牌阶段态(#256):AwaitingJinnang 的呈现层状态机(选牌在本件,命令直发引擎)──
   // 门与退役前的卷轴弹窗完全同款:interactive 门控=本地决策(controller 单源),
@@ -269,10 +277,18 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 回到主页(#700 设置弹层):弃局离屏——销毁控制器(LocalController 释放时钟/
   // 行军会话,OnlineController 断 WS),本屏随 screen 切换卸载;新开局由各屏流程
   // 重新 setController(registry 换局销毁契约不变)。
-  const goHome = () => {
+  const goHome = useCallback(() => {
     setController(null);
     useGameStore.getState().setScreen("setup");
-  };
+  }, []);
+  // 设置弹层开合两入口(#700):引用稳定化同上(SettingsDialog memo 前提)。
+  const openSettings = useCallback(() => setSettingsOpen(true), []);
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
+  const openWarReport = useCallback(() => {
+    // 打开抽屉即清账(#768):条数取点击拍当下快照(getState 读,不闭包捕获渲染拍)。
+    setWarReadCount(warEntriesOf(useGameStore.getState().snapshot!).length);
+    setWarReportOpen(true);
+  }, []);
 
   // 卡牌段确认(动作钮「出牌」)与目标段确认(动作钮「出」)共用拍点:选中项/选中席
   // 发命令;落印音效随一期迁移。
@@ -570,11 +586,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         </div>
         {/* 顶部浮层(#700;#732 顶左行序):设置/详情两钮同排,顶中让给知会槽;
             「N 轮」chip 已退役(#853,轮次唯一落回合胶囊) */}
-        <GameTopBar
-          snapshot={snapshot}
-          warUnread={warUnread}
-          onOpenSettings={() => setSettingsOpen(true)}
-        />
+        <GameTopBar snapshot={snapshot} warUnread={warUnread} onOpenSettings={openSettings} />
         {/* 顶中知会横幅槽(#732):回合横幅/都城停条带/等待条(宿主迁槽,文案派生
             口径不变)共用一条带——排队互斥在 fxStore 知会槽泵,瞬态知会优先于等待条。 */}
         <NoticeBanner
@@ -676,11 +688,8 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         {/* 设置弹层(#700):音效/演出加速/战报›/版本/回到主页(入口降级收口件) */}
         {settingsOpen && (
           <SettingsDialog
-            onClose={() => setSettingsOpen(false)}
-            onOpenWarReport={() => {
-              setWarReadCount(warEntriesOf(snapshot).length); // 打开抽屉即清账(#768)
-              setWarReportOpen(true);
-            }}
+            onClose={closeSettings}
+            onOpenWarReport={openWarReport}
             onGoHome={goHome}
           />
         )}

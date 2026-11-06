@@ -7,13 +7,13 @@
 // 让其壳体以退场类收场),决策弹层「收走」不再瞬时消失。
 // #107 C6:该机制(prev 快照/sig 判定/ghost state/定时/让位)整体下沉 useGhostChild,
 // 本层只算 skip(按子节点类型)、就地收场时调 yield(),render 期不再有 state/ref/定时。
-import { Fragment } from "react";
+import { Fragment, useCallback, useMemo } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf, type CityTier } from "@core/economy";
 import { heroById } from "@core/heroes";
 import { Theme } from "@core/theme";
-import type { GameSnapshot } from "@app/store/gameStore";
+import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
 import {
   BankruptcyScroll,
@@ -63,6 +63,24 @@ export function DecisionScrollLayer({
   const controller = getController();
   const map = getControllerMap();
   const ctx = getControllerContext();
+  // 玩家行值等复用(#1140 渲染税):详情卷轴(players 直传 TileThumb/归属推导)与
+  // 胜利屏(终榜)的 memo 前提;players 稳定后,弹层各自的值等比较才有着落。
+  const players = useStablePlayers(snapshot.players);
+  // 终榜一行(身价降序 + 破产标注,数据同源快照 players):挂稳定 players 引用
+  // memo——内容不变不重建数组,VictoryScreen 的 memo 不被每渲染新数组打穿。
+  const standings = useMemo(
+    () =>
+      [...players]
+        .sort((a, b) => b.netWorth - a.netWorth)
+        .map((p) => ({
+          guohao: p.guohao,
+          colorIndex: p.colorIndex,
+          netWorthLabel: formatMoney(p.netWorth),
+          bankrupt: p.isBankrupt,
+        })),
+    [players],
+  );
+  const restartGame = useCallback(() => location.reload(), []);
 
   // 本帧应显示的弹层:原路由逻辑原样收进 IIFE,供幽灵帧机制对比子节点身份。
   // registry 未就绪时旧版整层直接 return null;现统一表达为 child = null——
@@ -70,7 +88,6 @@ export function DecisionScrollLayer({
   const child = (() => {
     if (!map || !ctx) return null;
     const dispatch = (cmd: GameCommand) => controller?.dispatchCommand(cmd);
-    const players = snapshot.players;
     const board = ctx.board;
     const catalog = ctx.catalog;
 
@@ -79,11 +96,7 @@ export function DecisionScrollLayer({
     //    winReason 判别联合渲染);出口按钮组与胜局同款同路由。──
     if (snapshot.phase === "GameOver" && snapshot.winReason === "aborted") {
       return (
-        <VictoryScreen
-          winReason="aborted"
-          turnNumber={snapshot.round}
-          onRestart={() => location.reload()}
-        />
+        <VictoryScreen winReason="aborted" turnNumber={snapshot.round} onRestart={restartGame} />
       );
     }
 
@@ -103,17 +116,10 @@ export function DecisionScrollLayer({
             turnNumber={snapshot.round}
             // E4(#16):胜因透传快照真值(引擎 VictoryReason),不再写死——群雄尽灭局显示群雄尽灭
             winReason={snapshot.winReason}
-            // E4(#16):终榜一行(身价降序 + 破产标注),数据同源快照 players
-            standings={[...players]
-              .sort((a, b) => b.netWorth - a.netWorth)
-              .map((p) => ({
-                guohao: p.guohao,
-                colorIndex: p.colorIndex,
-                netWorthLabel: formatMoney(p.netWorth),
-                bankrupt: p.isBankrupt,
-              }))}
+            // E4(#16):终榜一行,useMemo 挂稳定 players 引用(#1140,见组件头)
+            standings={standings}
             // 重开:最朴素可靠的方式是整页重载回设置屏(旧版亦无局内重开)
-            onRestart={() => location.reload()}
+            onRestart={restartGame}
           />
         );
       }

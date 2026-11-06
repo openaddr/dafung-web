@@ -8,6 +8,10 @@
 //     渲染路径;消费方在本体 transform/translate 上组合变量(各壳自定,见 dialog.tsx /
 //     BannerShell / ConfirmDialog)。React 重渲染安全:变量键不在任何 React 管理的
 //     style 里,重渲染只 diff 它自己的键,命令式写入不会被抹。
+//     #1140 渲染税:两变量经 app.css @property 注册 inherits:false——普通继承式
+//     custom property 每 pointermove 写入都会把弹层全部后代的 computed style 打脏
+//     (拖一下 = 大子树逐帧 style recalc);非继承后写入只脏本体一个元素,位移消费
+//     又全在本体根元素上,行为零改动。
 //   - 位置零记忆:每次打开回中心。底件系弹层关闭即整树卸载,变量随元素离场;同实例
 //     内容更替(BannerShell 题名 A→B,#90 同身份协议)走 resetKey 复位。
 //   - clamp(#845 视口钳制,取代 #674 的「题名行不出视口」):锚 = 弹层本体盒(拖动

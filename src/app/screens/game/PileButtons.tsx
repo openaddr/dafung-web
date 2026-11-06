@@ -14,7 +14,7 @@
 // 浮字 transient,错过即不可知):非零常驻计数,单源=快照 jinnangHand.length。
 // 珍宝/名将钮 = 藏品弹层入口(#361 牌架双入口的接替者:点谁开谁的层,PileModal
 // 壳与陈列原样)——计数单源快照,与牌架旧入口同一读数。
-import { useState } from "react";
+import { memo, useState } from "react";
 import { HERO_CAPACITY } from "@core/constants";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { usePulseOnce } from "@app/hooks/use-pulse-once";
@@ -36,8 +36,11 @@ export interface PileButtonsProps {
   onToggleRack: () => void;
 }
 
-/** 三圆钮(锦囊开关 + 藏品双入口)。 */
-export function PileButtons({
+/** 三圆钮(锦囊开关 + 藏品双入口)。
+ *  重渲口径(#1140 渲染税):player(GameScreenLive 值等复用)+标量 props+
+ *  useCallback 回调——演出期三圆钮区不再随每拍 sync 重渲(呼吸金光是 CSS 动画,
+ *  不吃重渲)。 */
+export const PileButtons = memo(function PileButtons({
   player,
   rackVisible,
   breathe = false,
@@ -118,4 +121,4 @@ export function PileButtons({
       )}
     </>
   );
-}
+});

@@ -1,6 +1,8 @@
 /* 棋盘氛围层样式(ADR-0039):状态驱动常驻装饰的 HTML 合成层。
-   铁律:本层动画只许 transform/opacity(Blink 对 HTML 元素的可合成属性走合成器
-   线程,主线程零逐帧参与)——棋盘 SVG 内禁新增常驻动画,`check:board` 机械闸把守。
+   铁律:本层动画只许 transform/opacity,且动画类只许挂在 HTML 元素或 svg **根**
+   上(Blink 只对 HTML 盒的可合成属性走合成器线程;svg 子元素永远拿不到合成器,
+   逐帧重绘脏矩形落进 .bv-stack 与城池共栅格——#1140 选都脉冲漏网实证)——
+   棋盘 SVG 内禁新增常驻动画,`check:board` 机械闸把守。
    时长/缓动一律 dur/ease 系 token(单源 core/theme.ts),零字面量时长。
    层容器布局规则(.bv-ambient 与 .bv-bhost 共用)收口 board.css(ADR-0042 起
    棋子/特效宿主同款,单源不复制)。 */
@@ -100,16 +102,18 @@
 
 /* 选都候选脉冲(架构体检 B 批出底板,原 board.css bv-select-pulse 原样迁层):
    可选城=金盘+描边金环双通道呼吸(与席位格金圈同拍)。金盘带 capital 同款挖孔
-   mask(复刻原「金盘垫在卡面之下、只露边缘」的 z 序观感),环叠卡面之上同原位;
-   SVG 动画出 #board 进合成层。RM 静态钉中程(hilite 0.5 / ring 0.9 原口径)。 */
+   mask(复刻原「金盘垫在卡面之下、只露边缘」的 z 序观感),环叠卡面之上同原位。
+   动画挂 svg 根(#1140:曾挂 circle/rect 子件,SVG 子件拿不到合成器,呼吸逐帧
+   重绘脏矩形连坐 .bv-stack 城池像素;盘/环同拍同 keyframes,透明度乘法下
+   「根动画+子件不透明」与「子件各自动画」合成逐像素等价)。RM 静态钉中程
+   (hilite 0.5 / ring 0.9 原口径,按子件保留)。 */
 .bv-amb-select-crown,
 .bv-amb-select-disc,
 .bv-amb-select-ring {
   display: block;
   overflow: visible;
 }
-.bv-amb-select-disc,
-.bv-amb-select-ring {
+.bv-amb-select-crown {
   animation: bv-select-pulse var(--dur-ambient) var(--ease-sine) infinite;
 }
 @keyframes bv-select-pulse {
@@ -134,12 +138,13 @@
     animation: none;
     opacity: 0.78; /* 呼吸中程((0.55+1)/2),#840 ① 同口径 */
   }
-  .bv-amb-select-disc {
+  .bv-amb-select-crown {
     animation: none;
+  }
+  .bv-amb-select-disc {
     opacity: 0.5; /* 原选都脉冲 RM 静态口径(hilite 中程) */
   }
   .bv-amb-select-ring {
-    animation: none;
     opacity: 0.9; /* 原选都脉冲 RM 静态口径(pick-ring) */
   }
   .bv-amb-flag {
