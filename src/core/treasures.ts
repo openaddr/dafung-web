@@ -2,15 +2,23 @@
 // 新增珍宝 = 往 TREASURES 加一条 TreasureDef。牌堆自动初始化。
 // 珍宝类型随域走(#326 types.ts 解散,ADR-0019):珍宝定义由本文件拥有。
 import type { PropertyDef } from "./economy";
+import { skillById } from "./skills";
 
 /** 珍宝定义(牌堆实例与玩家持有共用)。 */
 export interface TreasureDef {
-  id: string; // 唯一(牌堆展开后含序号)
+  id: string; // 唯一(牌堆展开后含序号;技能书=skillbook-<skillId>,见 makeSkillBook)
   name: string;
   level: number; // 1-10
   count?: number; // 牌堆中数量(仅 TREASURES 表用)
   desc?: string; // 风味描述
   image?: string; // 装裱卡画心(public 下,如 /assets/treasures/treasure-seal.webp;#521 画心批,同华佗 image 先例:纯数据字段,机制零消费;缺省=装裱卡回退远山肌理)
+  /** 种别(#1146):缺省 "normal"=纯价值物;"book"=技能书——麾下习得器的可交易载体
+   *  (白得零特判:交易/变卖/来访求购/窃玉全套珍宝现通路)。判别严格走本字段
+   *  (isSkillBook 守卫),不靠 skillId 有无;存量珍宝零改。 */
+  kind?: "normal" | "book";
+  /** 技能书专属(#1146):书承载的技 id。技能二元有无(书=「此技习得器」,无等级语义,
+   *  level 只承载珍宝位价值);普通珍宝不带。 */
+  skillId?: string;
 }
 
 export const TREASURES: TreasureDef[] = [
@@ -106,4 +114,35 @@ export function createTreasureDeck(): TreasureDef[] {
     }
   }
   return deck;
+}
+
+// ──────────────────────────── 技能书(#1146)────────────────────────────
+/** 技能书珍宝位档(#1146):低档位走珍宝价表(变卖/交涉价随 guidePriceOf);
+ *  初值 Lv.2(指导价 200 两)——归 D 票校准。 */
+export const SKILL_BOOK_LEVEL = 2;
+
+/** 技能书实例 id 前缀(#1146):`skillbook-<skillId>`。同技多册同 id(锦囊手牌同款:
+ *  同名张多手共存,实例定位恒在持有者列表内,无独立流水号)——快照/折叠按本前缀
+ *  回溯印书单源(makeSkillBook),零静态造表。 */
+export const SKILL_BOOK_ID_PREFIX = "skillbook-";
+
+/** 印一册技能书(#1146,印书单源):name 由技表组合生成(「技能书·技名」,禁逐技
+ *  静态造表);书=「此技习得器」,技能二元有无、无等级语义——level 只承载珍宝位价值。
+ *  机制流程(位满印书入位/用书学技)归 recruitment.ts/roster.ts 域,本文件只管形状。 */
+export function makeSkillBook(skillId: string): TreasureDef {
+  const skill = skillById(skillId); // 查无=数据 bug,炸出(零兜底,同 skillById 口径)
+  return {
+    id: `${SKILL_BOOK_ID_PREFIX}${skillId}`,
+    name: `技能书·${skill.name}`,
+    level: SKILL_BOOK_LEVEL,
+    desc: `研读可令麾下习得【${skill.name}】`,
+    kind: "book",
+    skillId,
+  };
+}
+
+/** 技能书判别(#1146,类型守卫):严格判 kind 字段,skillId 有无不作凭据(存量珍宝
+ *  恒 undefined 不误伤)。收窄后 skillId 非空,消费方免断言。 */
+export function isSkillBook(t: TreasureDef): t is TreasureDef & { kind: "book"; skillId: string } {
+  return t.kind === "book";
 }

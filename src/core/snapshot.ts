@@ -19,12 +19,16 @@ import type { GameEvent } from "./game-events";
 import { HEROES } from "./heroes";
 import { netWorth } from "./networth";
 
-/** 快照珍宝行(只存展示字段;价格由 guidePriceOf(level) 派生,不进协议)。 */
+/** 快照珍宝行(只存展示字段;价格由 guidePriceOf(level) 派生,不进协议)。
+ *  #1146 增量字段:kind/skillId=技能书实例标识(书=习得器,学技后按 id 出册,二者随
+ *  快照走缺一不可);普通珍宝两字段缺席,存量行形状零变。 */
 export interface TreasureRow {
   id: string;
   name: string;
   level: number;
   desc?: string;
+  kind?: "normal" | "book";
+  skillId?: string;
 }
 
 /** 快照招贤候选行(展示字段 + 预掷授技,#787:候选生成时掷定、卡面亮结果再选将,
@@ -547,6 +551,12 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
               name: e.escrowTreasure.treasure.name,
               level: e.escrowTreasure.treasure.level,
               desc: e.escrowTreasure.treasure.desc,
+              ...(e.escrowTreasure.treasure.kind != null
+                ? { kind: e.escrowTreasure.treasure.kind }
+                : {}), // #1146 技能书实例标识(托管中的书可学,保真)
+              ...(e.escrowTreasure.treasure.skillId != null
+                ? { skillId: e.escrowTreasure.treasure.skillId }
+                : {}),
             },
             buyerIdx: e.escrowTreasure.buyerIdx,
             sellerIdx: e.escrowTreasure.sellerIdx,
@@ -562,6 +572,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
               name: esc.treasure.name,
               level: esc.treasure.level,
               desc: esc.treasure.desc,
+              ...(esc.treasure.kind != null ? { kind: esc.treasure.kind } : {}),
+              ...(esc.treasure.skillId != null ? { skillId: esc.treasure.skillId } : {}),
             },
             buyerIdx: esc.buyerIdx,
             sellerIdx: esc.sellerIdx,
@@ -622,6 +634,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           name: t.name,
           level: t.level,
           desc: t.desc,
+          ...(t.kind != null ? { kind: t.kind } : {}), // #1146 技能书实例标识(普通珍宝缺席=存量形状)
+          ...(t.skillId != null ? { skillId: t.skillId } : {}),
         })),
         reputation: p.reputation,
         stamina: p.stamina,
@@ -662,6 +676,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
           name: t.name,
           level: t.level,
           desc: t.desc,
+          ...(t.kind != null ? { kind: t.kind } : {}), // #1146 技能书实例标识回灌(缺=普通珍宝)
+          ...(t.skillId != null ? { skillId: t.skillId } : {}),
         }));
         // properties:从 catalog 补 group/maxLevel(snapshot 只存 propertyId/level/group)
         p.properties = ps.properties.map((h) => {

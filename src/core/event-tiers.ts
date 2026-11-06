@@ -171,10 +171,20 @@ export const EVENT_TIERS = {
     fx: "presented",
     why: "出局善后(isBankrupt/清都城/整槽释放回招贤池/清手入弃堆);现金清零/债主收款/珍宝转债主=破产清算强制全量节点不折;表现=bankrupt 音",
   },
+  heroDismissed: {
+    fold: "must-fold",
+    fx: "presented",
+    why: "遣散(#1147):整槽出麾下(冷却随槽俱弃)+招贤池划名(再招=重掷);已学技折书随同批 treasureGained 逐册折,本事件只出麾下与招贤池两账;表现=遣散浮字(与来投/习得同通路)",
+  },
   skillFired: {
     fold: "must-fold",
     fx: "presented",
     why: "被动技冷却记账(heroId 定槽,槽内 lastFired 键=skillId,#785 实例化);技参数不随事件,由技表现查;表现=token 侧技名小签浮现(#850,同 floater 通道,渲染档 skill=tag)",
+  },
+  skillLearned: {
+    fold: "must-fold",
+    fx: "presented",
+    why: "用书学技(#1146):槽内池序入技(heroId 定槽)+消耗的技能书珍宝位出册(treasureId 随事件,书=习得器用后即耗);习得无冷却负债(lastFired 不落键,照新授技同款);表现=习得文案浮字(与来投/施展同通路)",
   },
   heroSkillActivated: {
     fold: "fold+calibration",

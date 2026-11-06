@@ -354,5 +354,29 @@
     "author": "AI 合成(#1142,2026-11-07,playwright 渲染 574×761)",
     "fetched_at": "2026-11-07",
     "review_required": false
+  },
+  "hero:caoren:sgs": {
+    "path": "assets/heroes/hero-caoren-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=1017",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)曹仁-经典形象 · wiki 上传者 359366122",
+    "fetched_at": "2026-11-06",
+    "review_required": true
+  },
+  "hero:mizhu:sgs": {
+    "path": "assets/heroes/hero-mizhu-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=4069",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)糜竺-经典形象 · wiki 上传者 17981205",
+    "fetched_at": "2026-11-06",
+    "review_required": true
+  },
+  "hero:dengai:sgs": {
+    "path": "assets/heroes/hero-dengai-sgs.png",
+    "source": "https://wiki.biligame.com/sgs/index.php?curid=11648",
+    "license": "三国杀官方武将原画(游卡桌游);本项目仅限学习与朋友间娱乐,不商用",
+    "author": "三国杀(十周年)邓艾-经典形象 · wiki 上传者 359366122",
+    "fetched_at": "2026-11-06",
+    "review_required": true
   }
 }

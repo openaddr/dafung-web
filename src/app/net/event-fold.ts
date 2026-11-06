@@ -34,6 +34,7 @@
 //                 随 assetLiquidated,防双计);treasureTraded → escrow 清/visitor 收口/
 //                 买家-价 卖家+价;treasureStolen → 不折(窃玉偷香转移 = 校准兜底五项之二)
 //   名将族        heroRecruited → 麾下入槽(skillIds=本次授技,建槽不重掷)+ 招贤池占位;
+//                 heroDismissed → 整槽出麾下(冷却随槽俱弃)+ 招贤池划名(#1147);
 //                 skillFired/heroSkillActivated → 冷却记账(heroId 定槽,槽内 lastFired,
 //                 键=skillId,#785 实例化);主动技按技表(skills.ts)参数落账:
 //                 warDrum → heroDiceBonus、relief → 现金-费(目标体力随 staminaChanged 折)、
@@ -108,13 +109,20 @@ import type {
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
 import { grantEncounterFlags, isOncePerGameEncounter, markOnceEncounter } from "@core/encounters";
-import { TREASURES, type TreasureDef } from "@core/treasures";
+import {
+  TREASURES,
+  isSkillBook,
+  makeSkillBook,
+  SKILL_BOOK_ID_PREFIX,
+  type TreasureDef,
+} from "@core/treasures";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import {
   activeSkillDefOf,
   encounterDefOfId,
   eventSeat,
   eventSeatPlayer,
+  heroDefOf,
   type AnnounceCursor,
   type FoldHandledKind,
 } from "@core/event-tiers";
@@ -128,8 +136,12 @@ function requireSkillParam(skill: ActiveSkillDef, key: string): number {
 }
 
 /** 珍宝实例 id 回溯静态定义:牌堆实例 id = `${静态id}-${流水号}`(createTreasureDeck),
- *  事件只带实例 id,名称/等级按静态表回溯(实例其余字段一致)。查无 = 数据 bug,炸出。 */
+ *  事件只带实例 id,名称/等级按静态表回溯(实例其余字段一致)。技能书(#1146)不在
+ *  静态表——`skillbook-<skillId>` 前缀路由印书单源 makeSkillBook 现组(禁逐技静态造表)。
+ *  查无 = 数据 bug,炸出。 */
 function treasureDefOf(instanceId: string): TreasureDef {
+  if (instanceId.startsWith(SKILL_BOOK_ID_PREFIX))
+    return makeSkillBook(instanceId.slice(SKILL_BOOK_ID_PREFIX.length));
   const cut = instanceId.lastIndexOf("-");
   const base = cut > 0 ? instanceId.slice(0, cut) : instanceId;
   const def = TREASURES.find((t) => t.id === base);
@@ -492,6 +504,38 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         // 冷却记账入槽(heroId 定槽;键=skillId,各槽各账,#785 实例化)
         heroSlotOf(foldTarget(engine, ev), ev.heroId).lastFired[ev.skillId] = ev.round;
         break;
+      case "heroDismissed": {
+        // 遣散(#1147):整槽出麾下(冷却随槽俱弃)+招贤池划名(再招=重掷);查无=
+        // 事件序契约违反,炸出(零兜底)。已学技折书随同批 treasureGained 逐册折,
+        // 本事件只出麾下与招贤池两账。
+        const p = foldTarget(engine, ev);
+        const idx = p.heroes.findIndex((s) => s.heroId === ev.heroId);
+        if (idx < 0) throw new Error(`折叠投影:遣散名将 ${ev.heroId} 不在副本麾下(契约违反)`);
+        p.heroes.splice(idx, 1);
+        engine.recruitedHeroIds.delete(ev.heroId);
+        break;
+      }
+      case "skillLearned": {
+        // 用书学技(#1146):槽内池序入技(与引擎 learnSkillInSlot 同构,槽序恒池序)+
+        // 消耗的技能书珍宝位出册。书是明置公开物(珍宝列表不裁,ADR-0016),查无/种别
+        // 不符=事件序契约违反,炸出(零兜底)。
+        const learner = foldTarget(engine, ev);
+        const slot = heroSlotOf(learner, ev.heroId);
+        const pool = heroDefOf(ev.heroId).skillPool;
+        slot.skillIds = pool.filter((id) => id === ev.skillId || slot.skillIds.includes(id));
+        const idx = learner.treasures.findIndex((t) => t.id === ev.treasureId);
+        if (idx < 0)
+          throw new Error(
+            `折叠投影:skillLearned 消耗书 ${ev.treasureId} 不在珍宝位(事件序契约违反)`,
+          );
+        const consumed = learner.treasures[idx]!;
+        if (!isSkillBook(consumed) || consumed.skillId !== ev.skillId)
+          throw new Error(
+            `折叠投影:skillLearned 消耗物 ${ev.treasureId} 与事件技 ${ev.skillId} 不符(契约违反)`,
+          );
+        learner.treasures.splice(idx, 1);
+        break;
+      }
       case "heroSkillActivated": {
         const user = foldTarget(engine, ev);
         heroSlotOf(user, ev.heroId).lastFired[ev.skillId] = ev.round; // 主动技冷却入槽,同键记账

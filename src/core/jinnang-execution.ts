@@ -9,15 +9,18 @@ import { activeSkillOf, computeChoices, hasUsableJinnang, skillOptionId } from "
 import { diceShuffle, jinnangCardOf, TARGET_DOMAIN_STAGES } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
-import { HEROES } from "./heroes";
+import { heroById, HEROES } from "./heroes";
 import {
-  grantHeroSlot,
   grantedNamesLine,
   heroSlotOf,
+  learnSkillInSlot,
   rollGrantedSkills,
+  skillBookLearners,
   type HeroSlot,
 } from "./roster";
-import type { ActiveSkillDef } from "./skills";
+import { grantHeroOrBooks } from "./recruitment";
+import { isSkillBook } from "./treasures";
+import { skillById, type ActiveSkillDef } from "./skills";
 import {
   openReactionWindow,
   resolveDuel,
@@ -486,6 +489,57 @@ export function settleJinnangExit(g: GameEngine): void {
   g.turnPhase = hasUsableJinnang(g) ? "AwaitingJinnang" : "Roll";
 }
 
+// ──────────────────────────── 技能书·用书学技(#1146)────────────────────────────
+/** 用书学技(#1146,出牌阶段第三类决策——与锦囊/主动技同窗的独立命令口):消耗决策者
+ *  珍宝位的一册技能书,令麾下一名「池含此技且未习得」名将习得该书之技。校验单源:
+ *  书在手且为技能书(isSkillBook)、目标在可学者集(skillBookLearners 槽位序)——0 名
+ *  可学=书不可用(纯交易物)引擎拒绝,UI 据同口禁用;学技落账单源 learnSkillInSlot
+ *  (池序入槽、lastFired 不落键)。用后书消耗(珍宝位出册,不回牌堆);skillLearned
+ *  事件随批(fold 面:入槽+书出册);战报 category:"skill"(与击发/施展同族)。
+ *  学技后窗口收口走 settleJinnangExit(仍有可用项停留,与用牌/出技同口径)。
+ *  目标段子状态(pendingJinnang/pendingSkill)在场时=跨子状态误用,警告拒绝。 */
+export function resolveBookSkill(g: GameEngine, treasureId: string, heroId: string): void {
+  if (!g.assertPhase("AwaitingJinnang", "resolveBookSkill")) return;
+  if (g.pendingJinnang || g.pendingSkill) {
+    g.warn(`目标段内收到用书命令:${treasureId}`);
+    return;
+  }
+  const p = g.activePlayer;
+  const book = p.treasures.find((t) => t.id === treasureId);
+  if (book == null || !isSkillBook(book)) {
+    g.warn(`${p.guohao} 手中无此技能书:${treasureId}`);
+    return;
+  }
+  const learners = skillBookLearners(p, book.skillId);
+  if (learners.length === 0) {
+    g.warn(`${p.guohao} 无可学者:麾下无人「池含 ${book.skillId} 且未习得」`);
+    return;
+  }
+  if (!learners.some((slot) => slot.heroId === heroId)) {
+    g.warn(`${p.guohao} 用书目标不可学:${heroId}(可学者单源 skillBookLearners)`);
+    return;
+  }
+  p.treasures.splice(
+    p.treasures.findIndex((t) => t.id === treasureId),
+    1,
+  );
+  const skill = skillById(book.skillId);
+  g.logEvent(
+    "skill",
+    p.guohao,
+    `${p.guohao} 研读「${book.name}」,「${heroById(heroId).name}」习得【${skill.name}】`,
+    `skillLearn player=${p.id} hero=${heroId} skill=${book.skillId} treasure=${treasureId}`,
+  );
+  learnSkillInSlot(p, heroId, book.skillId);
+  emitGameEvent(g, g.players.indexOf(p), {
+    kind: "skillLearned",
+    heroId,
+    skillId: book.skillId,
+    treasureId,
+  }); // 事件流(#1146):用书学技(fold 面:槽入技+书出册)
+  settleJinnangExit(g);
+}
+
 /** 锦囊效果执行(#122):牌已在手牌段扣账(消耗/弃堆/名额);此处只做结算。
  *  targets:one/two-others=被指定座位;all-others=空(自行遍历)。
  *  exempt(#281):识破按份豁免的座位集(横征暴敛 AOE 用;其余计忽略)。
@@ -792,8 +846,8 @@ function demolishOnVictim(
   return { kind: "lost", propertyId: h.propertyId, tileIndex: tileIndexOf(h.propertyId) };
 }
 
-/** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):满编/名将已尽折现,否则骰选一名。
- *  prefix=战报前缀(机遇「id」/锦囊【名】两路同文风)。 */
+/** 招贤入队共享(#122/T2 自机遇 grantHero 抽取):名将已尽折现;位满改印书(#1146 单喉);
+ *  否则骰选一名入麾下。prefix=战报前缀(机遇「id」/锦囊【名】两路同文风)。 */
 function grantHeroToPlayer(
   g: GameEngine,
   p: Player,
@@ -803,14 +857,14 @@ function grantHeroToPlayer(
 ): void {
   const seat = g.players.indexOf(p);
   const candidates = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
-  if (p.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
+  if (candidates.length === 0) {
     p.cash += fallbackCash;
     emitGameEvent(g, seat, { kind: "cashChanged", delta: fallbackCash, reason: "fallback" }); // 事件流(#375):招贤折现(浮字由 fx 面派生)
     g.dispatchMoment("CashGained", { subject: seat, amount: fallbackCash }); // 时机·CashGained:被动得银(招贤折现,#299 派发缺口补齐)
     g.logEvent(
       "system",
       p.guohao,
-      `${p.guohao} ${prefix},麾下已满/名将已尽,转得 ${fallbackCash} 两`,
+      `${p.guohao} ${prefix},名将已尽,转得 ${fallbackCash} 两`,
       `heroGrant ${auditTag} player=${p.id} fallback=${fallbackCash} cash=${p.cash}`,
       fallbackCash,
     );
@@ -818,13 +872,16 @@ function grantHeroToPlayer(
   }
   const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
   // 盲盒路(#787):无候选呈现,将身份落定一刻同掷授技(rollGrantedSkills 单源公式,
-  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)
+  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)。
+  // 位满(#1146):预掷结果改印书——该次预掷照掷(零新随机),战报归单喉逐册自带。
   const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
-  g.logEvent(
-    "system",
-    p.guohao,
-    `${p.guohao} ${prefix},得「${hero.name}」,授${grantedNamesLine(granted)}`,
-    `heroGrant ${auditTag} player=${p.id} hero=${hero.id} skills=${granted.join("|")}`,
-  );
-  grantHeroSlot(g, p, hero, granted); // 授技入麾下单点(#785):建槽+占池+HeroRecruited(事件体携 skillIds)
+  if (p.heroes.length < HERO_CAPACITY) {
+    g.logEvent(
+      "system",
+      p.guohao,
+      `${p.guohao} ${prefix},得「${hero.name}」,授${grantedNamesLine(granted)}`,
+      `heroGrant ${auditTag} player=${p.id} hero=${hero.id} skills=${granted.join("|")}`,
+    );
+  }
+  grantHeroOrBooks(g, p, hero, granted, `${prefix},`); // 位满分叉单喉(#1146)
 }

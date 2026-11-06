@@ -196,6 +196,8 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "assetTransferred", propertyId: "changangan", toSeat: 2 },
   { kind: "heroRecruited", heroId: "guanyu", skillIds: ["wusheng"] },
   { kind: "playerBankrupt", creditorSeat: 1 },
+  { kind: "heroDismissed", heroId: "guanyu", skillIds: ["wusheng"] }, // #1147 遣散
+  { kind: "skillLearned", heroId: "guanyu", skillId: "wusheng", treasureId: "skillbook-wusheng" }, // #1146 用书学技
   { kind: "skillFired", heroId: "guanyu", skillId: "wusheng", moment: "TurnStart" },
   {
     kind: "heroSkillActivated",

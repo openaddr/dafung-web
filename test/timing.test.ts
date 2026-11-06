@@ -1,5 +1,5 @@
 // 时机框架单测:派发点位正确性 / 座位序×技能序确定性 / scope 四过滤 / cooldown /
-// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 39 时机各挂点至少一例
+// 破产玩家不触发 / 递归派发防护 / 未知 EffectId 抛错 / 36 时机各挂点至少一例
 // (18 个新时机的场景构造:peekDie 预读骰面 + landActiveOn 恰落目标格)。
 // 现有 3 名将的行为等价断言(moveBonus+1 / 曹丕+50 / 星彩+20)在 game.test.ts,此处测框架本身。
 import { describe, it, expect, afterEach } from "bun:test";
@@ -225,7 +225,7 @@ describe("时机框架:派发点位", () => {
     autoResolve(e); // 第二位玩家完整回合 → 回到锚点 → 轮次 +1
     expect(e.round).toBe(2);
     // seed=1(#827 重钉:36 城 9×4 环序重排,选都/行军骰流重钓):两家分选交州/长沙,
-    // 两回合落点均为无主普通城(落格族时机由「39 时机各挂点一例」的场景构造覆盖),
+    // 两回合落点均为无主普通城(落格族时机由「36 时机各挂点一例」的场景构造覆盖),
     // 途经棋子/城池如实钉住——本例主旨是框架派发顺序本身
     expect(calls).toEqual([
       "SetupComplete",
@@ -1314,13 +1314,12 @@ describe("时机框架:派发缺口补齐(#299)", () => {
   });
 
   it("grantHero fallbackCash 双路派 CashGained:机遇义士来投折现 200、锦囊求贤令折现 300", () => {
-    // 机遇路径(义士来投):满编 → 折现
+    // 机遇路径(义士来投):名将已尽 → 折现(#1146 起「满编」改印技能书不再折现,
+    // 折现触发收窄为名将已尽;位满印书行为归 test/skill-book.test.ts)
     const e = makeEngine(1);
     finishSetup(e);
     const mover = e.activePlayer;
-    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
-    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    for (const h of HEROES) e.recruitedHeroIds.add(h.id);
     const seat = e.players.indexOf(mover);
     const entries = recordMomentCtx(e);
     testEngine(e).applyEncounter(mover, enc({ kind: "grantHero", fallbackCash: 200 }));
@@ -1328,13 +1327,11 @@ describe("时机框架:派发缺口补齐(#299)", () => {
       { subject: seat, amount: 200 },
     ]);
 
-    // 锦囊路径(求贤令):满编 → 折现
+    // 锦囊路径(求贤令):名将已尽 → 折现
     const e2 = makeEngine(1);
     finishSetup(e2);
     const user = e2.activePlayer;
-    armHero(e2, user, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
-    armHero(e2, user, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
-    armHero(e2, user, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    for (const h of HEROES) e2.recruitedHeroIds.add(h.id);
     const seat2 = e2.players.indexOf(user);
     const entries2 = recordMomentCtx(e2);
     armJinnang(e2, ["求贤令"]);

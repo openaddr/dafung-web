@@ -100,6 +100,128 @@ export const SKILLS: SkillDef[] = [
     // 每次轮首派发都参评,效果内部落账给持有者(ctx.owner);cooldown 3(轮)即「每 3 轮一跳」。
     scope: "any",
   },
+  // ── 被动技·技能扩展内容包(#1145,spec #1144 拆票 A/五):12 条联动技,形制=终稿,
+  // 数值经 #1148 sim A/B 校准定稿(seeds 1000–1049 五判据收敛+注入双通道);
+  // 时机/效果对号 timing.ts MOMENTS 与 effects.ts EFFECTS
+  // 注册表,冷却照疾行/渔利/掷金形制(无冷却)。──
+  {
+    id: "tuntian",
+    name: "屯田",
+    desc: "你购入城池时,声望 +5",
+    when: "PropertyBought",
+    effect: "gainReputation",
+    params: { amount: 5 },
+    scope: "self",
+  },
+  {
+    id: "shengshi",
+    name: "声势",
+    desc: "你的城池升至满级时,声望 +10",
+    when: "PropertyUpgraded",
+    effect: "reputationOnMaxLevelUpgrade",
+    params: { amount: 10 },
+    scope: "self",
+  },
+  {
+    id: "hushi",
+    name: "互市",
+    desc: "你的城池交涉成交时,声望 +4",
+    when: "TradeSettled",
+    effect: "gainReputation",
+    // #1148 校准定稿(初值 8 → 4):+8 按「成交 1~2 次/局」设计,实测卖单 15.09 次/授·局
+    // (书入流通后珍宝成交 90→135/局),超设计一个量级;+8 = 每持技者每局 +121 声望,
+    // softmax K=100 下好运权重单局翻倍还多,复利性偏运。按频率×量级反比降为 4
+    // (≈60/授·局,与声势 46/瓮中 71 同档)。
+    params: { amount: 4 },
+    scope: "self",
+  },
+  {
+    id: "delongwangshu",
+    name: "得陇望蜀",
+    desc: "你获得珍宝时,+100 两",
+    when: "TreasureGained",
+    effect: "gainCash",
+    params: { amount: 100 },
+    scope: "self",
+  },
+  {
+    id: "yusui",
+    name: "玉碎",
+    desc: "你失去珍宝时,+80 两",
+    when: "TreasureLost",
+    effect: "gainCash",
+    params: { amount: 80 },
+    scope: "self",
+  },
+  {
+    id: "wengzhongzhuobie",
+    name: "瓮中捉鳖",
+    desc: "他人落在你城中时,你声望 +2",
+    when: "LandedOnProperty",
+    effect: "reputationOnOwnCityHit",
+    params: { amount: 2 },
+    // scope="any":主体=访客,受益人=城主(ctx.ownerSeat)——属主匹配在效果内判,主体不限。
+    scope: "any",
+  },
+  {
+    id: "shengougolei",
+    name: "深沟高垒",
+    desc: "他人途经你城而不入时,你 +20 两",
+    when: "MarchPassedCity",
+    effect: "cashOnOwnCityPassed",
+    params: { amount: 20 },
+    // scope="any":主体=行人,受益人=城主(ctx.ownerSeat);落点格不派、拦停即止皆框架语义。
+    scope: "any",
+  },
+  {
+    id: "taoguangyanghui",
+    name: "韬光养晦",
+    desc: "你被强加跳回合时,+100 两",
+    when: "TurnSkipImposed",
+    effect: "gainCash",
+    params: { amount: 100 },
+    scope: "self",
+  },
+  {
+    id: "saiwengshima",
+    name: "塞翁失马",
+    desc: "你被动失去银两达 300 两时,声望 +5",
+    when: "CashLost",
+    effect: "reputationOnPassiveCashLoss",
+    params: { threshold: 300, amount: 5 },
+    scope: "self",
+  },
+  {
+    id: "chubianbujing",
+    name: "处变不惊",
+    desc: "他人的锦囊指向你时,你 +10 两",
+    when: "JinnangAnnounced",
+    effect: "cashIfTargetedByJinnang",
+    params: { amount: 10 },
+    // scope="others":主体=用计者,自己用计不触发;「属主 ∈ targetSeats」在效果内判。
+    scope: "others",
+  },
+  {
+    id: "chenhuodajie",
+    name: "趁火打劫",
+    desc: "其他玩家破产出局时,你 +500 两",
+    when: "PlayerBankrupt",
+    effect: "gainCash",
+    params: { amount: 500 },
+    scope: "others",
+  },
+  {
+    id: "suifeng",
+    name: "岁俸",
+    desc: "每个回合开始时,你 +1 两",
+    when: "TurnStart",
+    effect: "gainCash",
+    params: { amount: 1 },
+    // scope="any":TurnStart 的 subject 是新活跃玩家,缺省 self 会让非活跃持有者永不触发——
+    // 每次回合开始派发都参评,效果内部落账给持有者(ctx.owner);同青囊的 any 先例,
+    // 双池共享(司马懿↔邓艾)=首批共享三技之后的新共享先例。
+    scope: "any",
+  },
   // ── 主动技(出牌阶段手动,#188 档 3)──
   {
     id: "huogong",

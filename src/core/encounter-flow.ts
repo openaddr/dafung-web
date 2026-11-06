@@ -25,7 +25,8 @@ import {
 } from "./encounters";
 import { findHolding } from "./player";
 import { HEROES, heroById } from "./heroes";
-import { grantHeroSlot, grantedNamesLine, rollGrantedSkills } from "./roster";
+import { grantedNamesLine, rollGrantedSkills } from "./roster";
+import { grantHeroOrBooks } from "./recruitment";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
 import { emitGameEvent } from "./game-events";
@@ -491,8 +492,9 @@ function applyGrantTreasureEffect(
   return "settled";
 }
 
-/** 效果·招名将(#123):从未被招揽池抽取;麾下已满/名将已尽/指定将已被招揽(#1153
- *  heroId 指定招揽,点名不可得)→ 折现 fallbackCash(#1126 口径,协议零改动)。 */
+/** 效果·招名将(#123):从未被招揽池抽取;名将已尽/指定将已被招揽(#1153 heroId 指定
+ *  招揽,点名不可得)→ 折现 fallbackCash(#1126 口径,协议零改动);位满改印书(#1146
+ *  单喉:该次预掷授技各印一册技能书,零折现)。 */
 function applyGrantHeroEffect(
   g: GameEngine,
   mover: Player,
@@ -503,14 +505,11 @@ function applyGrantHeroEffect(
   const seat = g.players.indexOf(mover);
   const candidates = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
   // 指定招揽(#1153):heroId 点名将(三顾茅庐→诸葛亮);heroId 不在名将表=条目数据 bug,
-  // heroById 当场炸出(零兜底);指定将已被招揽=不可得,与麾下满/名将尽同走折现
+  // heroById 当场炸出(零兜底);指定将已被招揽=不可得,与名将尽同走折现(位满 #1146 起
+  // 不再折现——改印书,归下方单喉)
   const designated = effect.heroId != null ? heroById(effect.heroId) : null;
   const designatedOk = designated != null && !g.recruitedHeroIds.has(designated.id);
-  if (
-    mover.heroes.length >= HERO_CAPACITY ||
-    candidates.length === 0 ||
-    (designated != null && !designatedOk)
-  ) {
+  if (candidates.length === 0 || (designated != null && !designatedOk)) {
     mover.cash += effect.fallbackCash;
     emitGameEvent(g, seat, {
       kind: "cashChanged",
@@ -521,7 +520,7 @@ function applyGrantHeroEffect(
     g.logEvent(
       "system",
       mover.guohao,
-      `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽/指定将不可得,转得 ${effect.fallbackCash} 两`,
+      `${mover.guohao} 机遇「${def.id}」:${narr},名将已尽/指定将不可得,转得 ${effect.fallbackCash} 两`,
       `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`,
       effect.fallbackCash,
     );
@@ -530,15 +529,18 @@ function applyGrantHeroEffect(
   // 指定招揽不掷选将骰(点名必中);盲盒路(#787)同掷授技,将身份落定一刻掷定
   const hero = designated ?? candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
   // 盲盒路(#787):无候选呈现,将身份落定一刻同掷授技(rollGrantedSkills 单源公式,
-  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)
+  // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)。
+  // 位满(#1146):预掷结果改印书——该次预掷照掷(零新随机),战报归单喉逐册自带。
   const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
-  g.logEvent(
-    "system",
-    mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」,授${grantedNamesLine(granted)}`,
-    `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id} skills=${granted.join("|")}`,
-  );
-  grantHeroSlot(g, mover, hero, granted); // 授技入麾下单点(#785):建槽+占池+HeroRecruited(事件体携 skillIds)
+  if (mover.heroes.length < HERO_CAPACITY) {
+    g.logEvent(
+      "system",
+      mover.guohao,
+      `${mover.guohao} 机遇「${def.id}」:${narr},得「${hero.name}」,授${grantedNamesLine(granted)}`,
+      `encounter player=${mover.id} id=${def.id} tier=${def.tier} hero=${hero.id} skills=${granted.join("|")}`,
+    );
+  }
+  grantHeroOrBooks(g, mover, hero, granted, `机遇「${def.id}」:${narr},`); // 位满分叉单喉(#1146)
   return "settled";
 }
 

@@ -7,7 +7,8 @@ import type { PendingReaction } from "./reaction-window";
 import { jinnangCardOf } from "./jinnang";
 import { activeSkillOf, heroSkillTargetOk, isSkillOption, skillOptionId } from "./choices";
 import { netWorth } from "./networth";
-import { guidePriceOf } from "./treasures";
+import { guidePriceOf, isSkillBook } from "./treasures";
+import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
 import { STAMINA_CASH_RATE } from "./constants";
 
@@ -347,11 +348,12 @@ function commitHeroSkillTargets(engine: GameEngine, heroId: string, skillId: str
   return false;
 }
 
-/** 出牌阶段决策(#148 锦囊 → #188 档 3 扩义):可用项(经 choicesFor 同口径,ADR-0013)
- *  = 可用锦囊 + 就绪主动技实例,按窗口顺序逐项过策略表,取第一张「值得用」的;锦囊指向域
- *  提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能目标段同构(#817 意图/发动
- *  都携实例定位对)。用一项后引擎可能停留窗口(异类标签/其他就绪技),循环续推直到收卷;
- *  tried 挡作罢-重选死循环,guard 兜底。 */
+/** 出牌阶段决策(#148 锦囊 → #188 档 3 扩义 → #1146 再扩):每拍先扫珍宝位——可用技能书
+ *  即用(#1146 贪心:可用即用零权衡;多名同池按槽位序取首=skillBookLearners 单源序,
+ *  零新随机;书尽/不可学才让位),再按窗口顺序逐项过锦囊/主动技策略表,取第一张
+ *  「值得用」的;锦囊指向域提交后入目标段按偏好序选人,偏好全不可发作罢换下一张;技能
+ *  目标段同构(#817 意图/发动都携实例定位对)。用一项后引擎可能停留窗口(异类标签/
+ *  其他就绪技/下一册书),循环续推直到收卷;tried 挡作罢-重选死循环,guard 兜底。 */
 function driveJinnang(engine: GameEngine): void {
   const tried = new Set<string>();
   if (engine.pendingJinnang) {
@@ -368,6 +370,19 @@ function driveJinnang(engine: GameEngine): void {
   }
   let guard = 0;
   while (engine.turnPhase === "AwaitingJinnang" && guard++ < 12) {
+    // 技能书扫描(#1146):可用即用、槽位序取首(判定单源 skillBookLearners,与引擎
+    // 校验/UI 三态同口);书是普通珍宝实例,破产变卖路零特判(不卖书权衡)。
+    const me = engine.activePlayer;
+    let used = false;
+    for (const t of me.treasures) {
+      if (!isSkillBook(t)) continue;
+      const learners = skillBookLearners(me, t.skillId);
+      if (learners.length === 0) continue;
+      engine.resolveBookSkill(t.id, learners[0]!.heroId);
+      used = true;
+      break;
+    }
+    if (used) continue;
     const chosen = engine
       .choicesFor()
       .filter((o) => o.available && (o.cardTags != null || isSkillOption(o)))

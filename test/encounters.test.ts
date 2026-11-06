@@ -8,6 +8,7 @@ import type { EngineConfig, SeatConfig } from "@core/authority";
 import { createDice } from "@core/dice";
 import { botAct, encounterCashImpact, repCoefficient } from "@core/bot";
 import { armHero, sweepTestHeroes, testEngine } from "@core/testing";
+import { HEROES } from "@core/heroes";
 import { capitalSupplyOf } from "@core/movement-flow";
 import { beginGameEventBatch } from "@core/game-events";
 import type { GameMoment, MomentCtx } from "@core/timing";
@@ -26,7 +27,6 @@ import {
   type EncounterEffect,
   type EncounterSwitch,
 } from "@core/encounters";
-import { HEROES } from "@core/heroes";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -356,7 +356,7 @@ describe("机遇引擎行为", () => {
     expect(encIdx).toBeGreaterThan(-1);
   });
 
-  it("结算路径:发珍宝(牌堆扣一件)/ 得名将满 3 → 转银两", () => {
+  it("结算路径:发珍宝(牌堆扣一件)/ 得名将满 3 → 改印技能书(#1146)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const te = testEngine(e);
@@ -373,10 +373,10 @@ describe("机遇引擎行为", () => {
     expect(mover.treasures.length).toBe(1);
     expect(e.treasureDeck.length).toBe(deckBefore - 1);
 
+    // 位满(#1146):不再折现——该次预掷授技各印一册技能书按普通珍宝入位(真将占位,
+    // 池非空保预掷非空;合成空池将只证「预掷为空技无书可印」的另一路,见 skill-book.test)
     const full = e.activePlayer;
-    armHero(e, full, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
-    armHero(e, full, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
-    armHero(e, full, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    for (let i = 0; i < 3; i++) armHero(e, full, HEROES[i]!, [HEROES[i]!.skillPool[0]!]);
     const cashBefore = full.cash;
     te.applyEncounter(full, {
       id: "义士来投",
@@ -387,7 +387,8 @@ describe("机遇引擎行为", () => {
       effect: { kind: "grantHero", fallbackCash: 200 },
     });
     expect(full.heroes.length).toBe(3); // 不超容量
-    expect(full.cash).toBe(cashBefore + 200); // 转银两补偿
+    expect(full.cash).toBe(cashBefore); // 位满零折现(折现只归「名将已尽」)
+    expect(full.treasures.filter((t) => t.kind === "book").length).toBeGreaterThanOrEqual(1);
   });
 
   it("授宝遇牌堆空 → 折现 100 两两件套(#455 A2):cashChanged 事件 + CashGained 时机缺一不可", () => {

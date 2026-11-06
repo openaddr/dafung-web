@@ -33,6 +33,7 @@ import {
   drawJinnang,
   enterJinnangPhase,
   executeJinnang,
+  resolveBookSkill,
   resolveHeroSkill,
   resolveJinnang,
   settleJinnangExit,
@@ -95,6 +96,9 @@ import {
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick, type HeroOffer } from "./recruitment";
+// 遣散域(#1147,ADR-0019 委托式拆分):免费主动遣散(槽移除/回池划名/已学技折书)在
+// hero-dismiss.ts,壳内薄委托;与破产变卖 cashHeroBankruptcy 分流(清算换银 ≠ 免费遣散)。
+import { dismissHero } from "./hero-dismiss";
 // 声望域(#121,ADR-0019,#384 自壳迁入):声望落账唯一口在 reputation.ts。
 import { addReputation } from "./reputation";
 import {
@@ -180,6 +184,8 @@ export type GameCommand =
   | { type: "confirmBankruptcySettle" }
   | { type: "useJinnang"; cardId: string | null; targets?: number[]; cancel?: boolean } // 锦囊(#122):null=今不用;targets=目标座位(T3/T4 目标段);cancel=作罢(保留牌)
   | { type: "useHeroSkill"; heroId: string; skillId: string; targets?: number[]; cancel?: boolean } // 名将主动技(#188 档 3;#817 携实例):heroId+skillId=麾下实例定位对(选项 id 拼接单源 choices.skillOptionId),发动直落本实例;targets=目标座位(目标段);cancel=作罢(回卡牌段)
+  | { type: "useBookSkill"; treasureId: string; heroId: string } // 用书学技(#1146):treasureId=珍宝位技能书实例,heroId=可学者(skillBookLearners 槽位序单源);技 id 随书派生不另行携带,书用后消耗
+  | { type: "dismissHero"; heroId: string } // 遣散(#1147):免费主动遣散——槽移除+回池划名+已学技逐册折书;自己回合随时可点(他座决策窗除外),与破产变卖 cashHeroBankruptcy 分流
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
@@ -204,6 +210,8 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
   confirmBankruptcySettle: "清算确认",
   useJinnang: "用锦囊",
   useHeroSkill: "出技",
+  useBookSkill: "用书学技",
+  dismissHero: "遣散",
   respondReaction: "反应窗应答",
 };
 
@@ -915,6 +923,10 @@ export class GameEngine {
         return this.resolveJinnang(cmd.cardId ?? null, cmd.targets, cmd.cancel);
       case "useHeroSkill":
         return this.resolveHeroSkill(cmd.heroId, cmd.skillId, cmd.targets, cmd.cancel);
+      case "useBookSkill":
+        return this.resolveBookSkill(cmd.treasureId, cmd.heroId);
+      case "dismissHero":
+        return this.dismissHero(cmd.heroId);
     }
   }
 
@@ -1150,6 +1162,17 @@ export class GameEngine {
   /** 发动主动技(#188 档 3;#817 实例定位):薄委托 → jinnang-execution.resolveHeroSkill。 */
   resolveHeroSkill(heroId: string, skillId: string, targets?: number[], cancel?: boolean): void {
     resolveHeroSkill(this, heroId, skillId, targets, cancel);
+  }
+
+  /** 用书学技(#1146):薄委托 → jinnang-execution.resolveBookSkill。 */
+  resolveBookSkill(treasureId: string, heroId: string): void {
+    resolveBookSkill(this, treasureId, heroId);
+  }
+
+  /** 遣散名将(#1147,免费主动遣散,区别于破产变卖 cashHeroBankruptcy):薄委托 →
+   *  hero-dismiss.dismissHero(校验/槽移除/回池划名/折书机制详注在该处)。 */
+  dismissHero(heroId: string): void {
+    dismissHero(this, heroId);
   }
 
   /** 用牌收尾(#122/T3):薄委托 → jinnang-execution.settleJinnangExit(反应窗续结算亦经此)。 */

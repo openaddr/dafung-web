@@ -97,6 +97,15 @@ export const TESTIDS = {
   /** 两独立弹层容器(无互切页签;右上 X 关闭,关闭钮 testid 共用)。 */
   treasureModal: "treasure-modal",
   heroModal: "hero-modal",
+  /** 技能书可点格(#1146,treasureId=书实例 id):己方出牌阶段+可学时为真 button;
+   *  不可用态(非出牌阶段/无可学者)同挂点但非交互渲染,禁用原因进 title。 */
+  bookUse: (treasureId: string) => `book-use-${treasureId}` as const,
+  /** 名将遣散钮(#1147,heroId=麾下将 id):己方回合可用;二段式确认(首点武装
+   *  「确认遣散」再点才发命令);非己回合禁用态,原因进 title。 */
+  heroDismiss: (heroId: string) => `hero-dismiss-${heroId}` as const,
+  /** 多名可学弹窗(#1146):容器与可学者钮(heroId=麾下将 id)。 */
+  bookLearnModal: "book-learn-modal",
+  bookLearnItem: (heroId: string) => `book-learn-${heroId}` as const,
   modalClose: "modal-close",
   /** 弹窗题名拖动把手(#674,与 modal-close 同族):两壳(ui/dialog 底件系与
    *  BannerShell 横幅系)的题名行 handle 同挂;叠层时 e2e 用容器作用域区分。 */
