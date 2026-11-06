@@ -40,6 +40,9 @@ export interface Player {
    *  (#1126 拍板①)——链式典故前编凭证,后编条目以 requiresFlags 认章;破产不清章
    *  (拍板⑥:章是经历记录,非资产)。 */
   encounterFlags: EncounterFlagId[];
+  /** 奇遇已遇集(#1154):本局已触发过的奇遇条目 id(ONCE_PER_GAME_ENCOUNTER_IDS 成员,
+   *  #1110 一局一遇按玩家)——抽取过滤消费,触发即记(中断路照记,同 #1126 拍板③口径)。 */
+  onceEncounterIds: string[];
 }
 
 /** 对局日志事件(ADR-0014,原「战报」):每行 = 中文自然语言 brief + 机读 detail(英文键值),

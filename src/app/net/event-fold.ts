@@ -107,7 +107,7 @@ import type {
 } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
-import { grantEncounterFlags } from "@core/encounters";
+import { ONCE_PER_GAME_ENCOUNTER_IDS, grantEncounterFlags } from "@core/encounters";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import {
@@ -670,6 +670,15 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "encounterTriggered": {
         const mover = foldTarget(engine, ev); // 机遇主体=行动者,座位契约校验
         const def = encounterDefOfId(ev.encounterId); // 目录回查单源 core/event-tiers
+        // 奇遇已遇集(#1154):一局一遇按玩家,与引擎 maybeApplyEncounter 写点同位——
+        // 静态目录派生(ONCE 清单单源 encounters.ts),事件本体零改动(#1126 拍板②)
+        if (
+          ONCE_PER_GAME_ENCOUNTER_IDS.includes(
+            ev.encounterId as (typeof ONCE_PER_GAME_ENCOUNTER_IDS)[number],
+          ) &&
+          !mover.onceEncounterIds.includes(ev.encounterId)
+        )
+          mover.onceEncounterIds.push(ev.encounterId);
         if (def.choices != null) {
           // 抉择机遇入相(引擎 enterEncounterPhase):置 Noop + 挂起相位;≤1 可用的自动
           // 执行由同批 encounterChoice/turnStarted 覆盖。即时机遇不碰落格表现态——引擎

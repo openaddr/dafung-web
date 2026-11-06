@@ -117,13 +117,16 @@ function heroPickChoices(e: GameEngine): ChoiceOption[] {
 }
 
 /** 抉择选项现金代价推导(#1153 自动现金闸,kind 推导非逐条数据):负 cash 效果的支出额
- *  与 levy 输币额(输币=定向资敌,疫病入营式「隐忍输币」同受闸);其余效果不计现金
+ *  与 levy 输币额(输币=定向资敌,疫病入营式「隐忍输币」同受闸),加选项级 cashCost
+ *  (#1154 太平要术式「付费+得物分离」代价,语义与负 cash 同款);其余效果不计现金
  *  (grantHero 的珍宝代价 treasureCost 另走珍宝闸)。 */
 function optionCashCost(c: EncounterChoiceOption): number {
-  if (c.effect == null) return 0;
-  if (c.effect.kind === "cash") return c.effect.delta < 0 ? -c.effect.delta : 0;
-  if (c.effect.kind === "levy") return c.effect.amount;
-  return 0;
+  let cost = 0;
+  if (c.effect != null) {
+    if (c.effect.kind === "cash") cost = c.effect.delta < 0 ? -c.effect.delta : 0;
+    else if (c.effect.kind === "levy") cost = c.effect.amount;
+  }
+  return cost + (c.cashCost ?? 0);
 }
 
 /** 抉择选项可用门槛(#124 基线,#1153 泛化):可用性全部由条目声明与效果 kind 自动推导,
@@ -134,8 +137,9 @@ function optionCashCost(c: EncounterChoiceOption): number {
  *     珍宝 < treasureCost「珍宝不足」/ 麾下满「麾下已满」/ 名将池尽「名将已尽」/
  *     指定将已被招揽「指定名将已被招揽」——任一不满足则换贤必落空(结算折现
  *     fallbackCash,白损珍宝),选项必须拦下并报原因;
- *  ③ 现金代价自动闸(#1153 新红线「机遇不送清算」):现金 < 现金代价(负 cash 效果或
- *     levy 输币额)→ 不可用「银两不足」,全目录追溯,引擎规则非逐条数据。
+ *  ③ 现金代价自动闸(#1153 新红线「机遇不送清算」):现金 < 现金代价(负 cash 效果、
+ *     levy 输币额或选项级 cashCost,#1154)→ 不可用「银两不足」,全目录追溯,引擎规则
+ *     非逐条数据。
  *  保底放行(拍板项)在 encounterChoices 门槛过滤后兜;目录约定每条抉择机遇都自带一个
  *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁(章闸条目由 encounters.ts
  *  模块初始化守卫 assertChoicesNotFlagLocked 强制)。 */

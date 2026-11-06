@@ -73,6 +73,9 @@ export interface SnapshotPlayer {
   /** 机遇章册(#1153):跨事件标记的 per-player 经历记录(#1126 拍板①;明置信息,
    *  投影不裁——可用性本就经 choices 公开);破产不清章(拍板⑥)。 */
   encounterFlags: EncounterFlagId[];
+  /** 奇遇已遇集(#1154):一局一遇按玩家(ONCE_PER_GAME_ENCOUNTER_IDS 成员);明置信息,
+   *  投影不裁(抽取可见性同源)。 */
+  onceEncounterIds: string[];
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -625,6 +628,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
         encounterFlags: [...p.encounterFlags], // 机遇章册(#1153):成对清单读写同点
+        onceEncounterIds: [...p.onceEncounterIds], // 奇遇已遇集(#1154):成对清单读写同点
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -651,6 +655,8 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         // 机遇章册(#1153,#1126 拍板④):旧落盘记录缺此键不兜底——undefined 直灌让
         // 问题暴露(项目零兼容口径,同「零兜底」对 ?? 链的审视口径)
         p.encounterFlags = [...ps.encounterFlags];
+        // 奇遇已遇集(#1154,同拍板④):旧落盘记录缺此键不兜底,undefined 直灌让问题暴露
+        p.onceEncounterIds = [...ps.onceEncounterIds];
         p.treasures = ps.treasures.map((t) => ({
           id: t.id,
           name: t.name,

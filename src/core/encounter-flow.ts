@@ -11,6 +11,7 @@ import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
+  ONCE_PER_GAME_ENCOUNTER_IDS,
   drawableEncounters,
   grantEncounterFlags,
   pickTier,
@@ -156,16 +157,19 @@ export function maybeApplyEncounter(
 ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
   if (!g.encounter.enabled) return "none";
   const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation));
-  // 章闸抽取过滤(#1153 P2 触发闸):def 级 requiresFlags 只对持章者可见(#1133 链式后编
-  // 高权重的设计前提);池空=目录 bug,assertFlagGatePoolsDrawable 已在 encounters.ts
-  // 模块初始化拦,此处不兜底
+  // 抽取过滤(#1153 P2 章闸 + #1154 奇遇一局一遇):def 级 requiresFlags 只对持章者可见
+  // (#1133 链式后编高权重的前提);奇遇(ONCE_PER_GAME_ENCOUNTER_IDS 成员)对已触发过的
+  // 玩家除名(#1110 一局一遇按玩家)。池空=目录 bug(守卫+目录账用例双拦),此处不兜底
   const def = pickWeighted(
     drawableEncounters(
       ENCOUNTERS.filter((c) => c.tier === tier),
       mover.encounterFlags,
+      mover.onceEncounterIds,
     ),
     g.dice.nextFloat(),
   );
+  if (ONCE_PER_GAME_ENCOUNTER_IDS.includes(def.id as (typeof ONCE_PER_GAME_ENCOUNTER_IDS)[number]))
+    mover.onceEncounterIds.push(def.id); // 奇遇已遇集(#1154):触发即记,中断路照记(#1126 拍板③口径)
   emitGameEvent(g, g.players.indexOf(mover), {
     kind: "encounterTriggered",
     encounterId: def.id,
@@ -262,6 +266,16 @@ function settleEncounterChoice(
     const cost = mover.treasures.splice(0, option.treasureCost!);
     for (const t of cost) g.dispatchMoment("TreasureLost", { subject: seat, treasureId: t.id }); // 时机·TreasureLost:以宝换贤交出珍宝(非售出流失,#457,每件一派)
     costDetail = ` costTreasures=${cost.map((t) => t.id).join("+")}`;
+  }
+  // 选项现金代价(#1154):付费与得物分离的代价随条目声明——闸门已保证现金充足,唯保底
+  // 放行路可带不足现金进场,实付封顶以其现有银两为限(#1153 红线同款;实付 0=分文未动
+  // 不产事件,与负 cash 封顶同款)
+  if (option.cashCost != null && option.cashCost > 0) {
+    const paid = Math.min(option.cashCost, mover.cash);
+    mover.cash -= paid;
+    if (paid > 0)
+      emitGameEvent(g, seat, { kind: "cashChanged", delta: -paid, reason: "encounter" }); // 事件流(#375):金钱变更(实付,浮字由 fx 面派生)
+    costDetail += ` costCash=${paid}`;
   }
   if (option.repDelta !== 0) {
     const repBefore = mover.reputation;
