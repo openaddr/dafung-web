@@ -9,7 +9,7 @@
 //      与 redactEvents 编译期穷尽 switch 构成双道防遗漏机器。
 //   ④ 节拍形状:空批 events=null;withSnapshot=false snapshot=null(联机非校准
 //      flush 免 O(log) 白序列化);withSnapshot=true 恒有摘要。
-// 发送面接线(消息真实到达客户端)归 e2e/react-online-secrecy.spec.ts。
+// 发送面接线(消息真实到达客户端)归 test/protocol-online.test.ts(ADR-0055)。
 import { describe, it, expect } from "bun:test";
 import { assembleDownlinkShot } from "../scripts/seat-projection";
 import { RoomRegistry } from "../scripts/room";

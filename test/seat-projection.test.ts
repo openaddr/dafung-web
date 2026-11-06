@@ -7,7 +7,7 @@
 //   ③ 过滤 × 折叠咬合:过滤批折叠(god-view 批折叠为对照)在「该座位可见面」等价——
 //      询问集数量/自我成员一致、闭窗时机一致(数量保留的反证:清零会在首条应答误闭窗)、
 //      锦囊数量账在暗牌数组恒空(redacted 水合形态)下仍自洽。
-// 发送面接线(消息真实到达客户端)归 e2e/react-online-secrecy.spec.ts。
+// 发送面接线(消息真实到达客户端)归 test/protocol-online.test.ts(ADR-0055)。
 import { describe, it, expect } from "bun:test";
 import { redactEvents, clientView, redactSnapshotForSeat } from "../scripts/seat-projection";
 import { RoomRegistry } from "../scripts/room";
