@@ -139,14 +139,15 @@ function optionCashCost(c: EncounterChoiceOption): number {
  *     fallbackCash,白损珍宝),选项必须拦下并报原因;
  *  ③ 现金代价自动闸(#1153 新红线「机遇不送清算」):现金 < 现金代价(负 cash 效果、
  *     levy 输币额或选项级 cashCost,#1154)→ 不可用「银两不足」,全目录追溯,引擎规则
- *     非逐条数据。
+ *     非逐条数据;cashBlocked=结构化「仅被现金闸拦」标记(保底放行的判据,#1169 评审
+ *     收口:不拿展示文案 reason 做控制流,文案改字不致保底静默失效)。
  *  保底放行(拍板项)在 encounterChoices 门槛过滤后兜;目录约定每条抉择机遇都自带一个
  *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁(章闸条目由 encounters.ts
  *  模块初始化守卫 assertChoicesNotFlagLocked 强制)。 */
 function encounterOptionGate(
   e: GameEngine,
   c: EncounterChoiceOption,
-): { available: boolean; reason?: string } {
+): { available: boolean; reason?: string; cashBlocked?: boolean } {
   const p = e.activePlayer;
   if (c.requiresFlags != null && !c.requiresFlags.every((f) => p.encounterFlags.includes(f)))
     return { available: false, reason: `需持机遇章〔${c.requiresFlags.join("〕〔")}〕` };
@@ -158,7 +159,8 @@ function encounterOptionGate(
     if (c.effect.heroId != null && e.recruitedHeroIds.has(c.effect.heroId))
       return { available: false, reason: "指定名将已被招揽" };
   }
-  if (p.cash < optionCashCost(c)) return { available: false, reason: "银两不足" };
+  if (p.cash < optionCashCost(c))
+    return { available: false, reason: "银两不足", cashBlocked: true };
   return { available: true };
 }
 
@@ -166,14 +168,14 @@ function encounterOptionGate(
  *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText/encounterTier
  *  随选项出快照(#847:tier 单通道透出,机遇卷轴按档分色的唯一数据源)。
  *  保底放行(#1153 拍板项):门槛过滤后若无任何可用选项,而存在仅被现金闸拦下的选项
- *  (gate.reason 恰为「银两不足」= 章闸/换贤闸均已通过)→ 放行现金代价最低者——卷轴
+ *  (gate.cashBlocked=章闸/换贤闸均已通过的结构化判据)→ 放行现金代价最低者——卷轴
  *  永不全灰;放行后的实付由负现金封顶兜底(最多付光现金,不送清算)。 */
 function encounterChoices(e: GameEngine): ChoiceOption[] {
   const def = e.pendingEncounter;
   if (!def?.choices) return [];
   const gated = def.choices.map((c, i) => ({ index: i, c, gate: encounterOptionGate(e, c) }));
   if (!gated.some((m) => m.gate.available)) {
-    const cashBlocked = gated.filter((m) => m.gate.reason === "银两不足");
+    const cashBlocked = gated.filter((m) => m.gate.cashBlocked === true);
     if (cashBlocked.length > 0) {
       const cheapest = cashBlocked.reduce((a, b) =>
         optionCashCost(b.c) < optionCashCost(a.c) ? b : a,

@@ -6,7 +6,7 @@
 //   名将 = 与 window.__dafung.heroDefs() 对账(heroDefs 单源 react-extensions 同款),
 //          现 6(核心 5 含卧龙 #1142 + 扩展太史慈);技能 = 核心基数下限(主动 3+被动 4)
 //          + 扩展技「义从」在列实证(扩展技入同池,现 9 行)。
-//   锦囊 9 / 珍宝 6 / 机遇 30(好运 11+中性 8+霉运 11)= core 目录死数(spec 判据原数,
+//   锦囊 9 / 珍宝 6 / 机遇 60(好运 21+中性 16+霉运 23)= core 目录死数(#1154 扩容后,
 //   扩展契约只有 skills/heroes/effects,机遇/锦囊/珍宝无扩展通路)。
 // 视口恒 844×390(移动横屏标准档);几何断言在入场动画/过渡在途时量盒有瞬移,
 // 一律 toPass 重试到稳态(react-home-strip 同法)。
@@ -77,13 +77,13 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await page.getByTestId(MANUAL_TID.tabTreasures).click();
     await expect(cards).toHaveCount(6);
 
-    // 机遇签:按档三组陈列,组序=好运/中性/霉运,11/8/11(core 目录死数)
+    // 机遇签:按档三组陈列,组序=好运/中性/霉运,21/16/23(core 目录死数,#1154 扩容后)
     await page.getByTestId(MANUAL_TID.tabEncounters).click();
     const sections = page.getByTestId(MANUAL_TID.body).locator("section");
     await expect(sections).toHaveCount(3);
-    await expect(sections.nth(0).locator('[data-testid^="manual-card-"]')).toHaveCount(11);
-    await expect(sections.nth(1).locator('[data-testid^="manual-card-"]')).toHaveCount(8);
-    await expect(sections.nth(2).locator('[data-testid^="manual-card-"]')).toHaveCount(11);
+    await expect(sections.nth(0).locator('[data-testid^="manual-card-"]')).toHaveCount(21);
+    await expect(sections.nth(1).locator('[data-testid^="manual-card-"]')).toHaveCount(16);
+    await expect(sections.nth(2).locator('[data-testid^="manual-card-"]')).toHaveCount(23);
 
     // 内滚不溢出(AC):最深内容档下溢出收进 body 内滚(壳头/签行钉住),壳不撑破视口
     const modal = page.getByTestId(MANUAL_TID.modal);

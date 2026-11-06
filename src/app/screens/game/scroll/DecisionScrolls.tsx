@@ -11,7 +11,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { GameCommand } from "@core/authority";
 import type { ChoiceOption } from "@core/choices";
-import { ONCE_PER_GAME_ENCOUNTER_IDS, type EncounterTier } from "@core/encounters";
+import { isOncePerGameEncounter, type EncounterTier } from "@core/encounters";
 import { formatMoney } from "@core/money";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { EncounterGoldSprays } from "./EncounterSpray";
@@ -82,9 +82,9 @@ export function EncounterChoiceScroll({
       `机遇卷轴:档位「${String(choices[0]!.encounterTier)}」查无分档皮肤(choices 章 encounterTier 与 TIER_SKIN 不同步)`,
     );
   const isBadTier = choices[0]!.encounterTier === "霉运";
-  // 奇遇身份(#1155):id 集合派生(ONCE_PER_GAME_ENCOUNTER_IDS 单源),与档位正交
+  // 奇遇身份(#1155):id 派生(isOncePerGameEncounter 单源),与档位正交
   //(奇遇三档皆有,分档皮肤照旧);宽卷+金穗只认身份,不认 human/bot。
-  const isOncePerGame = (ONCE_PER_GAME_ENCOUNTER_IDS as readonly string[]).includes(encounterId);
+  const isOncePerGame = isOncePerGameEncounter(encounterId);
   // G-19 同口径:数字键 1..n 直选(不可选的选项按键无效)
   useNumberShortcuts(
     choices.map((o, i) => () => {

@@ -11,9 +11,10 @@ import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
-  ONCE_PER_GAME_ENCOUNTER_IDS,
   drawableEncounters,
   grantEncounterFlags,
+  isOncePerGameEncounter,
+  markOnceEncounter,
   pickTier,
   pickWeighted,
   tierShares,
@@ -169,8 +170,7 @@ export function maybeApplyEncounter(
     ),
     g.dice.nextFloat(),
   );
-  if (ONCE_PER_GAME_ENCOUNTER_IDS.includes(def.id as (typeof ONCE_PER_GAME_ENCOUNTER_IDS)[number]))
-    mover.onceEncounterIds.push(def.id); // 奇遇已遇集(#1154):触发即记,中断路照记(#1126 拍板③口径)
+  if (isOncePerGameEncounter(def.id)) markOnceEncounter(mover, def.id); // 奇遇已遇集(#1154):触发即记,中断路照记(#1126 拍板③口径)
   emitGameEvent(g, g.players.indexOf(mover), {
     kind: "encounterTriggered",
     encounterId: def.id,
@@ -237,16 +237,8 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
 }
 
 /** 盖章战报句(#1155 链式盖章反馈):结算写章时按「实际新落章」产一句「获『X』」。
- *  去重口径与章写点 grantEncounterFlags 的 includes 去重同一条语义——已持章不报,
- *  重复结算静默;复数顿号连接。只产战报 brief 文本(narr 既有通道,零新 UI 件),
- *  章本体照旧由 grantEncounterFlags 落册,本函数不碰章册(调用方先取句后落章)。 */
-function freshStamps(
-  mover: Player,
-  flags: readonly EncounterFlagId[] | undefined,
-): EncounterFlagId[] {
-  if (flags == null) return [];
-  return flags.filter((f) => !mover.encounterFlags.includes(f));
-}
+ *  新落章取数=grantEncounterFlags 返回值(去重语义单源在章写点)——已持章/重复结算
+ *  返回空即静默;复数顿号连接。只产战报 brief 文本(narr 既有通道,零新 UI 件)。 */
 
 /** 盖章句落笔(#1155):brief=「某公 获『元直荐书』、『怀玺』」,detail 机读章名
  *  (对局日志既有通道;category/形制对齐机遇族既有 logEvent 口径)。 */
@@ -287,8 +279,7 @@ function settleEncounterChoice(
   // 选项路章写点(#1153):option.setsFlags 去重落章,与 encounterChoice 事件同位——
   // 中断路(liquidating/bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
   // 盖章战报句(#1155):实际新落章才报一句「获『X』」,已持章/重复结算静默
-  const stamps = freshStamps(mover, option.setsFlags);
-  grantEncounterFlags(mover, option.setsFlags);
+  const stamps = grantEncounterFlags(mover, option.setsFlags);
   if (stamps.length > 0) logStampSentence(g, mover, def.id, stamps);
   // 换贤代价(#124 目录约定,#1067 代价入条目数据):grantHero 型选项先扣 treasureCost
   // 件珍宝再得将——代价随条目声明(模块初始化守卫保证已声明,直读不兜底),代价侧
@@ -364,8 +355,7 @@ export function settleEncounter(
   // 即时路章写点(#1153):def.setsFlags 去重落章,先于效果结算——中断路(liquidating/
   // bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
   // 盖章战报句(#1155):实际新落章才报一句「获『X』」,已持章/重复结算静默
-  const stamps = freshStamps(mover, def.setsFlags);
-  grantEncounterFlags(mover, def.setsFlags);
+  const stamps = grantEncounterFlags(mover, def.setsFlags);
   if (stamps.length > 0) logStampSentence(g, mover, def.id, stamps);
   if (!def.effect) return "settled";
   return applyEncounterEffect(g, mover, def, def.effect, def.text);
