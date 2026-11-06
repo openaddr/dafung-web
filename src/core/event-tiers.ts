@@ -260,12 +260,12 @@ export const EVENT_TIERS = {
   encounterTriggered: {
     fold: "must-fold",
     fx: "silent",
-    why: "抉择型置 Noop+AwaitingEncounter(即时型不动落格表现态,与推演值一致);表现面=机遇卷轴 UI 直读副本态",
+    why: "抉择型置 Noop+AwaitingEncounter(即时型不动落格表现态,与推演值一致);即时路 def.setsFlags 折章(#1153,章名按 encounterId 回查目录派生,事件本体零改动——#1126 拍板②,flags 确定性可折故 must-fold 不变);表现面=机遇卷轴 UI 直读副本态",
   },
   encounterChoice: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "选项结算点相位回 Land(续跑落格由同批后续事件/水合精修);选项效果 liquidating/exhausted 路挂起相位无专属事件=校准档;表现=选项文案浮字",
+    why: "选项结算点相位回 Land(续跑落格由同批后续事件/水合精修);按 encounterId+choiceIndex 回查目录折 option.setsFlags 章册(#1153,flags 覆盖=静态目录派生确定性折,fold 档位不变);选项效果 liquidating/exhausted 路挂起相位无专属事件=校准档;表现=选项文案浮字",
   },
   // ── 破产族 ──
   assetLiquidated: {

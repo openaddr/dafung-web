@@ -116,43 +116,76 @@ function heroPickChoices(e: GameEngine): ChoiceOption[] {
   }));
 }
 
-/** 抉择选项可用门槛(#124):grantHero 型选项(以宝换贤)需珍宝 ≥ 换贤代价(条目数据
- *  treasureCost,#1067;模块初始化守卫保证 grantHero 选项必声明,此处直读不兜底)且
- *  麾下未满、名将池未尽——任一不满足则换贤必落空(effect 的 fallbackCash=0,白损
- *  珍宝),选项必须拦下并报原因。其余选项恒可用:目录约定每条抉择机遇都自带一个
- *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁。 */
+/** 抉择选项现金代价推导(#1153 自动现金闸,kind 推导非逐条数据):负 cash 效果的支出额
+ *  与 levy 输币额(输币=定向资敌,疫病入营式「隐忍输币」同受闸);其余效果不计现金
+ *  (grantHero 的珍宝代价 treasureCost 另走珍宝闸)。 */
+function optionCashCost(c: EncounterChoiceOption): number {
+  if (c.effect == null) return 0;
+  if (c.effect.kind === "cash") return c.effect.delta < 0 ? -c.effect.delta : 0;
+  if (c.effect.kind === "levy") return c.effect.amount;
+  return 0;
+}
+
+/** 抉择选项可用门槛(#124 基线,#1153 泛化):可用性全部由条目声明与效果 kind 自动推导,
+ *  注册表是唯一口径(零兜底):
+ *  ① option 级 requiresFlags(#1153 P2 章闸):未持满所要求的机遇章 → 不可用,reason 写
+ *     持章要求;
+ *  ② grantHero 三连检留 kind 推导(#1067 代价随条目声明,直读不兜底)+ 指定将扩展:
+ *     珍宝 < treasureCost「珍宝不足」/ 麾下满「麾下已满」/ 名将池尽「名将已尽」/
+ *     指定将已被招揽「指定名将已被招揽」——任一不满足则换贤必落空(结算折现
+ *     fallbackCash,白损珍宝),选项必须拦下并报原因;
+ *  ③ 现金代价自动闸(#1153 新红线「机遇不送清算」):现金 < 现金代价(负 cash 效果或
+ *     levy 输币额)→ 不可用「银两不足」,全目录追溯,引擎规则非逐条数据。
+ *  保底放行(拍板项)在 encounterChoices 门槛过滤后兜;目录约定每条抉择机遇都自带一个
+ *  无门槛的「不作」型选项,保证 ≤1 可用时自动执行永不死锁(章闸条目由 encounters.ts
+ *  模块初始化守卫 assertChoicesNotFlagLocked 强制)。 */
 function encounterOptionGate(
   e: GameEngine,
   c: EncounterChoiceOption,
 ): { available: boolean; reason?: string } {
+  const p = e.activePlayer;
+  if (c.requiresFlags != null && !c.requiresFlags.every((f) => p.encounterFlags.includes(f)))
+    return { available: false, reason: `需持机遇章〔${c.requiresFlags.join("〕〔")}〕` };
   if (c.effect?.kind === "grantHero") {
-    const p = e.activePlayer;
     if (p.treasures.length < c.treasureCost!) return { available: false, reason: "珍宝不足" };
     if (p.heroes.length >= HERO_CAPACITY) return { available: false, reason: "麾下已满" };
     if (!HEROES.some((h) => !e.recruitedHeroIds.has(h.id)))
       return { available: false, reason: "名将已尽" };
+    if (c.effect.heroId != null && e.recruitedHeroIds.has(c.effect.heroId))
+      return { available: false, reason: "指定名将已被招揽" };
   }
+  if (p.cash < optionCashCost(c)) return { available: false, reason: "银两不足" };
   return { available: true };
 }
 
 /** AwaitingEncounter(抉择机遇,#124):目录选项逐一映射,顺序与 def.choices 一致
  *  (resolveEncounterChoice 的 index 即此下标)。encounterId/encounterText/encounterTier
- *  随选项出快照(#847:tier 单通道透出,机遇卷轴按档分色的唯一数据源)。 */
+ *  随选项出快照(#847:tier 单通道透出,机遇卷轴按档分色的唯一数据源)。
+ *  保底放行(#1153 拍板项):门槛过滤后若无任何可用选项,而存在仅被现金闸拦下的选项
+ *  (gate.reason 恰为「银两不足」= 章闸/换贤闸均已通过)→ 放行现金代价最低者——卷轴
+ *  永不全灰;放行后的实付由负现金封顶兜底(最多付光现金,不送清算)。 */
 function encounterChoices(e: GameEngine): ChoiceOption[] {
   const def = e.pendingEncounter;
   if (!def?.choices) return [];
-  return def.choices.map((c, i) => {
-    const gate = encounterOptionGate(e, c);
-    return {
-      id: `choice:${i}`,
-      label: c.text,
-      available: gate.available,
-      reason: gate.reason,
-      encounterId: def.id,
-      encounterText: def.text,
-      encounterTier: def.tier,
-    };
-  });
+  const gated = def.choices.map((c, i) => ({ index: i, c, gate: encounterOptionGate(e, c) }));
+  if (!gated.some((m) => m.gate.available)) {
+    const cashBlocked = gated.filter((m) => m.gate.reason === "银两不足");
+    if (cashBlocked.length > 0) {
+      const cheapest = cashBlocked.reduce((a, b) =>
+        optionCashCost(b.c) < optionCashCost(a.c) ? b : a,
+      );
+      cheapest.gate = { available: true };
+    }
+  }
+  return gated.map(({ index, c, gate }) => ({
+    id: `choice:${index}`,
+    label: c.text,
+    available: gate.available,
+    reason: gate.reason,
+    encounterId: def.id,
+    encounterText: def.text,
+    encounterTier: def.tier,
+  }));
 }
 
 /** AwaitingExhaustion(体力耗竭,#130):选项=每座房产「降 1 级」;全部 0 级 →

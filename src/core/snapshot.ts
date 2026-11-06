@@ -11,6 +11,7 @@
 import type { GameEngine, EnginePhase, SetupPhase, TurnPhase, VictoryReason } from "./authority";
 import type { ChoiceOption } from "./choices";
 import type { DiceRoll } from "./dice";
+import type { EncounterFlagId } from "./encounters";
 import type { LogEvent } from "./model";
 import type { MovePath } from "./board";
 import type { LandOutcomeKind, LandOutcomeSnapshot, PendingLand } from "./movement-flow";
@@ -69,6 +70,9 @@ export interface SnapshotPlayer {
   jinnangHand: string[];
   /** 锦囊手牌数(公开信息,引擎态):内容被投影裁掉后,数量经本字段照传。 */
   jinnangHandCount: number;
+  /** 机遇章册(#1153):跨事件标记的 per-player 经历记录(#1126 拍板①;明置信息,
+   *  投影不裁——可用性本就经 choices 公开);破产不清章(拍板⑥)。 */
+  encounterFlags: EncounterFlagId[];
 }
 
 /** 快照对外协议(显式声明):serializeGame 产出、GameEngine.restoreFromSnapshot 消费;
@@ -620,6 +624,7 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         stamina: p.stamina,
         jinnangHand: [...p.jinnangHand], // 锦囊手牌(#122;投影层裁剪,ADR-0016)
         jinnangHandCount: p.jinnangHandCount,
+        encounterFlags: [...p.encounterFlags], // 机遇章册(#1153):成对清单读写同点
       })),
     write: (e, s) => {
       // 玩家状态(覆盖构造时设的初值)
@@ -643,6 +648,9 @@ export const SNAPSHOT_FIELDS: readonly SnapshotFieldEntry[] = [
         p.stamina = ps.stamina;
         p.jinnangHand = [...ps.jinnangHand];
         p.jinnangHandCount = ps.jinnangHandCount;
+        // 机遇章册(#1153,#1126 拍板④):旧落盘记录缺此键不兜底——undefined 直灌让
+        // 问题暴露(项目零兼容口径,同「零兜底」对 ?? 链的审视口径)
+        p.encounterFlags = [...ps.encounterFlags];
         p.treasures = ps.treasures.map((t) => ({
           id: t.id,
           name: t.name,

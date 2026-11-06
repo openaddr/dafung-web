@@ -58,8 +58,10 @@
 //                 assetLiquidated → 现金+amount + 变卖物出册
 //   跳过族        turnSkipped → skipTurns-1(消费侧);jinnangInflicted → 目标 skipTurns+1
 //                 (缓兵之计标记侧)
-//   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter;
-//                 encounterChoice → 无状态转移(声明性;效果经现金/声望/体力/得宝/招贤折)
+//   机遇族        encounterTriggered → lastLandOutcome=Noop + 抉择型置 AwaitingEncounter +
+//                 即时路 def.setsFlags 折章(#1153 静态目录派生);encounterChoice →
+//                 相位回 Land + 按 id+choiceIndex 回查 option.setsFlags 折章(#1153;
+//                 效果本体经现金/声望/体力/得宝/招贤折)
 //   纯派生字段    netWorth(=cash)/choices/decisionOwner/
 //                 lastLandOutcomeKind/lastLandOutcomeProperty/logCount/
 //                 currentSetupPlayerIndex/
@@ -105,6 +107,7 @@ import type {
 } from "@core/reaction-window";
 import type { ActiveSkillDef } from "@core/skills";
 import { jinnangCardOf } from "@core/jinnang";
+import { grantEncounterFlags } from "@core/encounters";
 import { TREASURES, type TreasureDef } from "@core/treasures";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import {
@@ -665,7 +668,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
         break;
       // ── 机遇族 ──
       case "encounterTriggered": {
-        foldTarget(engine, ev); // 机遇主体=行动者,座位契约校验
+        const mover = foldTarget(engine, ev); // 机遇主体=行动者,座位契约校验
         const def = encounterDefOfId(ev.encounterId); // 目录回查单源 core/event-tiers
         if (def.choices != null) {
           // 抉择机遇入相(引擎 enterEncounterPhase):置 Noop + 挂起相位;≤1 可用的自动
@@ -673,15 +676,30 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
           // 即时结算后仍由落格结算置态(与 marchArrived 推演值一致)
           engine.lastLandOutcome = { kind: "Noop" };
           engine.turnPhase = "AwaitingEncounter";
+        } else {
+          // 即时路折章(#1153):def.setsFlags 与引擎 settleEncounter 写点同位(#1126
+          // 拍板② 静态目录派生,事件本体零改动)
+          grantEncounterFlags(mover, def.setsFlags);
         }
         break;
       }
-      case "encounterChoice":
+      case "encounterChoice": {
         // 选项结算点:settleEncounterChoice 效果落账后继续本落格结算(settled 路)——
         // 相位先回 Land,落格推演重跑归同批后续事件/水合(选项效果 liquidating/exhausted
         // 路的挂起相位无专属事件 = 校准档)
         engine.turnPhase = "Land";
+        // 抉择路折章(#1153):按 id+choiceIndex 回查目录取 option.setsFlags——章与文案
+        // 同为静态目录数据,事件不带成品(#385 同源纪律,#1126 拍板②);下标越界/选项
+        // 缺失 = 产出侧契约违反,当场炸出
+        const def = encounterDefOfId(ev.encounterId);
+        const option = def.choices?.[ev.choiceIndex];
+        if (option == null)
+          throw new Error(
+            `折叠投影:机遇 ${ev.encounterId} 选项 ${ev.choiceIndex} 不在目录(契约违反)`,
+          );
+        grantEncounterFlags(foldTarget(engine, ev), option.setsFlags);
         break;
+      }
       // ── 破产族 ──
       case "playerBankrupt": {
         const p = foldTarget(engine, ev);

@@ -11,6 +11,8 @@ import type { GameEngine } from "./authority";
 import { computeChoices } from "./choices";
 import {
   ENCOUNTERS,
+  drawableEncounters,
+  grantEncounterFlags,
   pickTier,
   pickWeighted,
   tierShares,
@@ -19,7 +21,7 @@ import {
   type EncounterEffect,
 } from "./encounters";
 import { findHolding } from "./player";
-import { HEROES } from "./heroes";
+import { HEROES, heroById } from "./heroes";
 import { grantHeroSlot, grantedNamesLine, rollGrantedSkills } from "./roster";
 import { HERO_CAPACITY, STARTING_STAMINA } from "./constants";
 import { drawJinnangTraced } from "./jinnang-execution";
@@ -154,8 +156,14 @@ export function maybeApplyEncounter(
 ): "none" | "settled" | "deciding" | "liquidating" | "bankrupt" | "exhausted" {
   if (!g.encounter.enabled) return "none";
   const tier = pickTier(g.dice.nextFloat(), tierShares(mover.reputation));
+  // 章闸抽取过滤(#1153 P2 触发闸):def 级 requiresFlags 只对持章者可见(#1133 链式后编
+  // 高权重的设计前提);池空=目录 bug,assertFlagGatePoolsDrawable 已在 encounters.ts
+  // 模块初始化拦,此处不兜底
   const def = pickWeighted(
-    ENCOUNTERS.filter((c) => c.tier === tier),
+    drawableEncounters(
+      ENCOUNTERS.filter((c) => c.tier === tier),
+      mover.encounterFlags,
+    ),
     g.dice.nextFloat(),
   );
   emitGameEvent(g, g.players.indexOf(mover), {
@@ -224,8 +232,8 @@ export function resolveEncounterChoice(g: GameEngine, index: number): void {
 }
 
 /** 抉择选项结算(#124):repDelta 经 addReputation 落账(直接累加,#1090 去夹紧)→ effect
- *  复用即时机遇结算(银两支出走支付/清算,与购地同规则)→ 选项级 staminaDelta 落账(#132)
- *  → 清载荷 → endTurn。
+ *  复用即时机遇结算(cash 负值与 levy 同款封顶以其现有银两为限,#1153 不送清算)
+ *  → 选项级 staminaDelta 落账(#132)→ 清载荷 → endTurn。
  *  对局日志记机遇 id + 所选选项;liquidating 留给 AwaitingBankruptcySettle 的 confirm 收尾;
  *  bankrupt 已在效果内 endTurn;exhausted=耗竭接管本落格(#132),三者均不续跑落格结算
  *  (pendingEncounterHalt 一并作废);settled → 普通落格继续本落格的城池结算(#120 决策 2),
@@ -243,6 +251,9 @@ function settleEncounterChoice(
     encounterId: def.id,
     choiceIndex: index,
   }); // 事件流(#385):机遇抉择落定(auto/resolve 两路共用此口;文案 fx 按 id+下标查目录派生)
+  // 选项路章写点(#1153):option.setsFlags 去重落章,与 encounterChoice 事件同位——
+  // 中断路(liquidating/bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
+  grantEncounterFlags(mover, option.setsFlags);
   // 换贤代价(#124 目录约定,#1067 代价入条目数据):grantHero 型选项先扣 treasureCost
   // 件珍宝再得将——代价随条目声明(模块初始化守卫保证已声明,直读不兜底),代价侧
   // 没有对应 EncounterEffect,故在选项结算处收口(可用性门槛已保证足量,此处恒扣满)。
@@ -294,7 +305,8 @@ function settleEncounterChoice(
   return r;
 }
 
-/** 即时机遇结算(#123):效果落账 + 事件宣告(浮字由 fx 面派生)+ 对局日志。机遇自身银两支出走支付/清算(破产与购地同规则)。
+/** 即时机遇结算(#123):效果落账 + 事件宣告(浮字由 fx 面派生)+ 对局日志。cash 负值
+ *  封顶以其现有银两为限(#1153 新红线「机遇不送清算」),levy 输币同款。
  *  玩家间转移(敌营哗变/假道征粮等)为即时动账:上限=付款方现有现金,不触发对方清算
  *  (对方清算会与移动者回合交织——实现取舍,非 #120 豁免,已在 #120 留评说明)。
  *  抉择机遇(#124)无即时效果:结算发生在选项 resolve 阶段(settleEncounterChoice)。 */
@@ -303,6 +315,9 @@ export function settleEncounter(
   mover: Player,
   def: EncounterDef,
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
+  // 即时路章写点(#1153):def.setsFlags 去重落章,先于效果结算——中断路(liquidating/
+  // bankrupt/exhausted)flag 照写(#1126 拍板③),破产不清章(拍板⑥)
+  grantEncounterFlags(mover, def.setsFlags);
   if (!def.effect) return "settled";
   return applyEncounterEffect(g, mover, def, def.effect, def.text);
 }
@@ -320,6 +335,19 @@ function applyEncounterEffect(
   effect: EncounterEffect,
   narr: string,
 ): "settled" | "liquidating" | "bankrupt" | "exhausted" {
+  const seat = g.players.indexOf(mover);
+  // 效果级 repDelta(#1153):即时条目落声望,先于效果落账(与选项级「声望→效果→体力」
+  // 同序);走 addReputation 唯一写口,emit reputationChanged(before/after 差值模式,
+  // 先例=选项级 repDelta 与天命城 applyFateReputation)
+  if (effect.repDelta != null && effect.repDelta !== 0) {
+    const repBefore = mover.reputation;
+    g.addReputation(seat, effect.repDelta);
+    emitGameEvent(g, seat, {
+      kind: "reputationChanged",
+      delta: mover.reputation - repBefore,
+      reason: "encounter",
+    }); // 事件流(#384):声望变更(实际增减,浮字由 fx 面派生)
+  }
   const r = ((): "settled" | "liquidating" | "bankrupt" => {
     switch (effect.kind) {
       case "cash":
@@ -344,8 +372,10 @@ function applyEncounterEffect(
   return applyEncounterStamina(g, mover, def, effect.staminaDelta ?? 0, narr);
 }
 
-/** 效果·现金增减(#123):正=入账派 CashGained;负=走支付/清算(破产与购地同规则),
- *  破产时效果内 endTurn 收尾回合。 */
+/** 效果·现金增减(#123):正=入账派 CashGained;负=#1153 新红线「机遇不送清算」——
+ *  实际损失= min(|delta|, 现有现金)(以其现有银两为限,不送清算:siphon 的 take=min
+ *  同款语义),机遇不再把人逼进变卖/破产。即时与抉择两路经本函数同款封顶;levy 输币
+ *  同款封顶(applyLevyEffect,实付额照付对手)。 */
 function applyCashEffect(
   g: GameEngine,
   mover: Player,
@@ -369,20 +399,22 @@ function applyCashEffect(
     );
     return "settled";
   }
-  const r = g.payOrLiquidate(mover, null, -effect.delta);
-  if (r === "liquidating") return "liquidating";
-  const bankrupt = r === "bankrupt";
-  emitGameEvent(g, seat, { kind: "cashChanged", delta: effect.delta, reason: "encounter" }); // 事件流(#375):金钱变更(浮字由 fx 面派生)
-  g.dispatchMoment("CashLost", { subject: seat, amount: -effect.delta });
+  // 负现金封顶(#1153):实付以现有银两为限,零兜底语义=红线本体(损失封顶后恒 settled,
+  // cash 效果不再产 liquidating/bankrupt;实付 0=分文未动不产事件,与汲取 take>0 守卫同款)
+  const loss = Math.min(-effect.delta, mover.cash);
+  mover.cash -= loss;
+  if (loss > 0) {
+    emitGameEvent(g, seat, { kind: "cashChanged", delta: -loss, reason: "encounter" }); // 事件流(#375):金钱变更(实际损失,浮字由 fx 面派生)
+    g.dispatchMoment("CashLost", { subject: seat, amount: loss });
+  }
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr} ${effect.delta}${bankrupt ? " → 破产" : ""}`,
-    `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} cash=${mover.cash}`,
-    effect.delta,
+    `${mover.guohao} 机遇「${def.id}」:${narr} −${loss}${loss < -effect.delta ? "(银两不敷,以其现有银两为限)" : ""}`,
+    `encounter player=${mover.id} id=${def.id} tier=${def.tier} delta=${effect.delta} paid=${loss} cash=${mover.cash}`,
+    -loss,
   );
-  if (bankrupt) g.endTurn();
-  return bankrupt ? "bankrupt" : "settled";
+  return "settled";
 }
 
 /** 效果·授珍宝(#123):牌堆抽取;牌堆空 → 转 100 两(探宝的"搜刮一空"口径)。 */
@@ -420,7 +452,8 @@ function applyGrantTreasureEffect(
   return "settled";
 }
 
-/** 效果·招名将(#123):从未被招揽池抽取;麾下已满/名将已尽 → 折现 fallbackCash。 */
+/** 效果·招名将(#123):从未被招揽池抽取;麾下已满/名将已尽/指定将已被招揽(#1153
+ *  heroId 指定招揽,点名不可得)→ 折现 fallbackCash(#1126 口径,协议零改动)。 */
 function applyGrantHeroEffect(
   g: GameEngine,
   mover: Player,
@@ -430,7 +463,15 @@ function applyGrantHeroEffect(
 ): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
   const candidates = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
-  if (mover.heroes.length >= HERO_CAPACITY || candidates.length === 0) {
+  // 指定招揽(#1153):heroId 点名将(三顾茅庐→诸葛亮);heroId 不在名将表=条目数据 bug,
+  // heroById 当场炸出(零兜底);指定将已被招揽=不可得,与麾下满/名将尽同走折现
+  const designated = effect.heroId != null ? heroById(effect.heroId) : null;
+  const designatedOk = designated != null && !g.recruitedHeroIds.has(designated.id);
+  if (
+    mover.heroes.length >= HERO_CAPACITY ||
+    candidates.length === 0 ||
+    (designated != null && !designatedOk)
+  ) {
     mover.cash += effect.fallbackCash;
     emitGameEvent(g, seat, {
       kind: "cashChanged",
@@ -441,13 +482,14 @@ function applyGrantHeroEffect(
     g.logEvent(
       "system",
       mover.guohao,
-      `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽,转得 ${effect.fallbackCash} 两`,
+      `${mover.guohao} 机遇「${def.id}」:${narr},麾下已满/名将已尽/指定将不可得,转得 ${effect.fallbackCash} 两`,
       `encounter player=${mover.id} id=${def.id} tier=${def.tier} fallback=${effect.fallbackCash} cash=${mover.cash}`,
       effect.fallbackCash,
     );
     return "settled";
   }
-  const hero = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
+  // 指定招揽不掷选将骰(点名必中);盲盒路(#787)同掷授技,将身份落定一刻掷定
+  const hero = designated ?? candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
   // 盲盒路(#787):无候选呈现,将身份落定一刻同掷授技(rollGrantedSkills 单源公式,
   // 掷骰只走 g.dice.nextFloat);战报=已授技口径(不再拼接全池被动 desc)
   const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
@@ -583,7 +625,8 @@ function applySiphonEffect(
   return "settled";
 }
 
-/** 效果·征粮(#123):向随机对手定向征银;现金不足走支付/清算,破产时效果内 endTurn。 */
+/** 效果·征粮(#123):向随机对手定向征银。#1153 新红线「机遇不送清算」:输币封顶以其
+ *  现有银两为限(与 cash 负值同款,不送支付/清算),实付额照付对手——资敌语义不变。 */
 function applyLevyEffect(
   g: GameEngine,
   mover: Player,
@@ -592,11 +635,9 @@ function applyLevyEffect(
   narr: string,
 ): "settled" | "liquidating" | "bankrupt" {
   const seat = g.players.indexOf(mover);
-  const r = g.payOrLiquidate(mover, null, effect.amount);
-  if (r === "liquidating") return "liquidating";
-  const bankrupt = r === "bankrupt";
+  const paid = Math.min(effect.amount, mover.cash);
+  mover.cash -= paid;
   const target = randomOpponentOf(g, mover);
-  const paid = bankrupt ? 0 : effect.amount;
   if (target && paid > 0) {
     target.cash += paid;
     emitGameEvent(g, g.players.indexOf(target), {
@@ -610,22 +651,22 @@ function applyLevyEffect(
       amount: paid,
     }); // 时机·CashGained:被动得银(得款对手,#299 派发缺口补齐)
   }
-  emitGameEvent(g, seat, {
-    kind: "cashChanged",
-    delta: -paid,
-    reason: "encounter",
-    counterpartSeat: target ? g.players.indexOf(target) : undefined,
-  }); // 事件流(#375):金钱变更(征粮方)
-  if (paid > 0) g.dispatchMoment("CashLost", { subject: seat, amount: paid }); // 时机·CashLost:被动失银(征粮;实付 0=致破不派发,#452 口径,与汲取 take>0 守卫同款)
+  if (paid > 0)
+    emitGameEvent(g, seat, {
+      kind: "cashChanged",
+      delta: -paid,
+      reason: "encounter",
+      counterpartSeat: target ? g.players.indexOf(target) : undefined,
+    }); // 事件流(#375):金钱变更(征粮方;实付 0=分文未动不产事件,与汲取 take>0 守卫同款)
+  if (paid > 0) g.dispatchMoment("CashLost", { subject: seat, amount: paid }); // 时机·CashLost:被动失银(征粮;实付 0=分文未动不派发,与汲取 take>0 守卫同款)
   g.logEvent(
     "system",
     mover.guohao,
-    `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${bankrupt ? " → 破产" : ""}`,
+    `${mover.guohao} 机遇「${def.id}」:${narr} −${paid}${paid < effect.amount ? "(银两不敷,以其现有银两为限)" : ""}`,
     `encounter player=${mover.id} id=${def.id} tier=${def.tier} paid=${paid} target=${target?.id ?? "-"}`,
     -paid,
   );
-  if (bankrupt) g.endTurn();
-  return bankrupt ? "bankrupt" : "settled";
+  return "settled";
 }
 
 /** 效果·互市(#123):国库出银,你与随机对手各得 amount(正和)。 */

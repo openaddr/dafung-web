@@ -359,7 +359,7 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     expect(caopi.cash).toBe(caopiCash0 + 50); // 与现金直付同口径:渔利恰一次
   });
 
-  it("征粮归一:直付派发(渔利 +50);致破实付 0 不派发(曹丕分文不得)", () => {
+  it("征粮归一:直付派发(渔利 +50);封顶实付以现有银两为限,不送清算(#1153)", () => {
     const e = makeEngine(1);
     finishSetup(e);
     const p = e.activePlayer;
@@ -378,13 +378,13 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     testEngine(e).applyEncounter(p, levy);
     const afterDirect = caopi.cash;
     expect(afterDirect).toBe(caopiCash0 + 150 + 50);
-    // 致破腿:现金不足且无产可清算 → paid=0 → 不派发,曹丕分文不得
+    // 封顶腿(#1153 红线「机遇不送清算」):现金不足 → 实付以其现有银两为限,派发实付额
     p.cash = 10;
-    p.properties = [];
     const r = testEngine(e).applyEncounter(p, levy);
-    expect(r).toBe("bankrupt");
-    expect(p.isBankrupt).toBe(true);
-    expect(caopi.cash).toBe(afterDirect); // 0 额不派发:渔利不再白得 50
+    expect(r).toBe("settled");
+    expect(p.cash).toBe(0);
+    expect(p.isBankrupt).toBe(false);
+    expect(caopi.cash).toBe(afterDirect + 10 + 50); // 实付 10 照派转移 + 渔利 50
   });
 });
 
