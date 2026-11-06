@@ -30,10 +30,10 @@
 // 变化反馈(#495):全员现金/体力浮标(useDeltaFloat/DeltaFloats 共享单源),自机格
 // 同锚现金主数/体力条——仪表条已随 #700 退役,自机跳变反馈归席位格(评审 #697 收口;
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
-import { useState } from "react";
+import { memo, useState } from "react";
 import { formatMoney } from "@core/money";
 import { playerColor, playerSealText, rgba } from "@core/theme";
-import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
+import { useStablePlayers, type GameSnapshot, type SnapshotPlayer } from "@app/store/gameStore";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
@@ -63,10 +63,46 @@ const HAND_COUNT_CAP = 9;
 const handCountText = (count: number): string =>
   count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
 
+/** SeatCell 值等(#1140 渲染税,Tile #1023 链 A 同族):p 引用由 SeatRail 的
+ *  useStablePlayers 保证「内容不变即引用不变」;target 槽对象每渲染重建,按字段比
+ *  ——onPick 不入比较:语义=选中态 setState 切换(行为恒定),身份抖动无意义。 */
+function seatCellEqual(
+  a: {
+    p: SnapshotPlayer;
+    seat: number;
+    self: boolean;
+    active: boolean;
+    winner: boolean;
+    hosted: boolean;
+    target?: SeatTargetSlot;
+  },
+  b: {
+    p: SnapshotPlayer;
+    seat: number;
+    self: boolean;
+    active: boolean;
+    winner: boolean;
+    hosted: boolean;
+    target?: SeatTargetSlot;
+  },
+): boolean {
+  return (
+    a.p === b.p &&
+    a.seat === b.seat &&
+    a.self === b.self &&
+    a.active === b.active &&
+    a.winner === b.winner &&
+    a.hosted === b.hosted &&
+    a.target?.available === b.target?.available &&
+    a.target?.selected === b.target?.selected &&
+    a.target?.reason === b.target?.reason
+  );
+}
+
 /** 单张席位格(96×38 双行八项格,纯展示)。self=自机格(金描边+左金条+金渐变,
  *  无点击层)。hosted=托管(AI 代打)开启(#770):国号印右 8px 齿轮常驻微标,
  *  纯展示——开关交互唯一通路在设置弹层(settingsAutopilot,ADR-0028 单一开关)。 */
-function SeatCell({
+const SeatCell = memo(function SeatCell({
   p,
   seat,
   self,
@@ -235,11 +271,12 @@ function SeatCell({
       )}
     </div>
   );
-}
+}, seatCellEqual);
 
 /** 席位格列:全员一人一格(自机入列,座序即列序)。
- *  整列随快照声明式重渲;唯一的组件内状态是格身的死区轻晃(一次性演出,随
- *  animationEnd 自清)。旧三槽位切分(右 3+左 3+顶行缩微)随席位卡形态退役
+ *  重渲口径(#1140 渲染税):列体随快照重渲定位变席,SeatCell 按值等 memo——内容
+ *  没变的席位 bail out,不再每事件 8 席全量 VDOM;唯一的组件内状态是格身的死区
+ *  轻晃(一次性演出,随 animationEnd 自清)。旧三槽位切分(右 3+左 3+顶行缩微)随席位卡形态退役
  *  ——满编 8 席在列高自适应下零滚动(拍板口径,layout.css)。targets(#256/#417
  *  目标段):出牌阶段指向性牌的候选席位(键=座位号),在场时候选格金圈呼吸、点格=
  *  选中/再点同格取消(打出归动作条「出」确认钮,GameScreen 从快照 choices 派生,
@@ -255,6 +292,9 @@ export interface SeatRailProps {
 }
 
 export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
+  // 席位行值等复用(#1140 渲染税):内容不变的席位元素引用稳定,SeatCell 的 memo
+  // 不再被每拍新对象打穿——整列从「随快照声明式重渲」收窄到「变的席才重渲」。
+  const players = useStablePlayers(snapshot.players);
   // 托管常驻微标(#770)每席位取值,与 useAutopilotOn 同一双源分式:
   // 联机 = 座位广播全席位回读(seat-projection autoPilot,ADR-0028 单一开关——
   // 大厅座位列表同源),本座走 selfHosted 同值;单机 = 控制器本地标记(热座唯一
@@ -279,7 +319,7 @@ export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
   return (
     <div data-testid={TESTIDS.seatRail} aria-label="诸侯席位" className="seat-rail">
       <div className="seatcol">
-        {snapshot.players.map((p, seat) => (
+        {players.map((p, seat) => (
           <SeatCell
             key={p.id}
             p={p}

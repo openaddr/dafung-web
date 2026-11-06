@@ -4,7 +4,7 @@
 // 对齐;出口按钮 1800ms 后才挂载防误触。
 // #642 异常终局:winReason="aborted"(无胜者)走显式作废分支——无称帝/排名/烟花/胜利音,
 // 静默亮「对局作废」面板(庆祝语义只属胜局);出口按钮组与胜局同款同路由。
-import { useEffect, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import type { VictoryReason } from "@core/authority";
 import { rgba, playerColor } from "@core/theme";
 import { getAudio } from "@app/fx/audio";
@@ -130,7 +130,11 @@ function spawnBurst(keyPrefix: number): { burst: Particle[]; lingerMs: number } 
   return { burst: out, lingerMs };
 }
 
-export function VictoryScreen(props: VictoryScreenProps) {
+/** 重渲口径(#1140 渲染税):props 全标量+standings(GameScrollLayer 经 useMemo
+ *  挂稳定 players 引用)+ onRestart(useCallback)——终局后路由层因 interactive/
+ *  tileDetail 等无关拍重渲时,本屏 bail out,不陪跑终榜/阶梯树(烟花粒子本件
+ *  自持 state,不受影响)。 */
+export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenProps) {
   // 烟花粒子队列:定时放波,2 秒后清(与旧版 setTimeout remove 等价)。
   // 相比旧版只放 5 波,这里循环放——庆祝屏停留时间由玩家决定,不烟花会冷场。
   // (#642 作废态恒空:effect 不放波,庆祝语义只属胜局。)
@@ -318,4 +322,4 @@ export function VictoryScreen(props: VictoryScreenProps) {
       </div>
     </DialogFocusScope>
   );
-}
+});

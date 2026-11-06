@@ -19,10 +19,11 @@
 // initialFocus={false},焦点留在触发钮);题名行兼拖动把手(ADR-0031 DialogDragHandle)。
 // 样式在 warlords-overview.css(经 Portal 渲染在 body,.game-layout 罩不到,zl- 前缀
 // 防串扰)。
+import { memo } from "react";
 import { HERO_CAPACITY } from "@core/constants";
 import { heroById } from "@core/heroes";
 import { playerColor, rgba } from "@core/theme";
-import type { GameSnapshot } from "@app/store/gameStore";
+import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -186,16 +187,45 @@ function OverviewRow({
   );
 }
 
+/** 值等(#1140 渲染税):消费面=players(引用稳定,GameTopBar 经 useStablePlayers
+ *  下传)+ round/phase/activeIndex/selfSeat 四标量;三回调不入比较——全是 setState
+ *  驱动的钻入/关闭(行为恒定,身份每渲染抖动)。cityNames/行渲染全由这些输入派生。 */
+function warlordsOverviewEqual(
+  a: {
+    snapshot: GameSnapshot;
+    players: SnapshotPlayer[];
+    selfSeat: number;
+  },
+  b: {
+    snapshot: GameSnapshot;
+    players: SnapshotPlayer[];
+    selfSeat: number;
+  },
+): boolean {
+  return (
+    a.players === b.players &&
+    a.selfSeat === b.selfSeat &&
+    a.snapshot.round === b.snapshot.round &&
+    a.snapshot.phase === b.snapshot.phase &&
+    a.snapshot.activeIndex === b.snapshot.activeIndex
+  );
+}
+
 /** 诸侯详情弹窗:座序即行序,全家福一屏(满编 8 行零滚动,样式文件预算)。城池名
- *  解析与 #622 清单同源(board/catalog 单源,缺城=数据 bug 当场炸)。 */
-export function WarlordsOverview({
+ *  解析与 #622 清单同源(board/catalog 单源,缺城=数据 bug 当场炸)。
+ *  重渲口径(#1140):「开着随快照实时重渲」收窄为「随内容变化重渲」——演出期
+ *  开着掂量时,内容没变的拍 bail out,行树不再每拍陪跑。 */
+export const WarlordsOverview = memo(function WarlordsOverview({
   snapshot,
+  players,
   selfSeat,
   onOpenLedger,
   onOpenDetail,
   onClose,
 }: {
   snapshot: GameSnapshot;
+  /** 全体玩家(值等复用引用,#1140;行内容真源)。 */
+  players: SnapshotPlayer[];
   /** 自机口径(#453 契约):自己行金描边。 */
   selfSeat: number;
   /** 城池列点击:开 #622 名下城池清单(开合态归消费方 GameTopBar,单层互斥)。 */
@@ -212,7 +242,7 @@ export function WarlordsOverview({
   // 遮罩 dialog-overlay-out,210ms 出口卸载);四元素钻入走消费方直卸(GameTopBar
   // 单层互斥先关再开),不经本协议,卸载清理收计时器零残影。
   const { closing, requestClose } = useDialogExit(onClose);
-  const cityNames = snapshot.players.map((p) =>
+  const cityNames = players.map((p) =>
     p.properties
       .map((h) => {
         const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
@@ -255,7 +285,7 @@ export function WarlordsOverview({
             ✕
           </button>
         </DialogDragHandle>
-        {snapshot.players.map((p, seat) => (
+        {players.map((p, seat) => (
           <OverviewRow
             key={p.id}
             snapshot={snapshot}
@@ -269,4 +299,4 @@ export function WarlordsOverview({
       </DialogContent>
     </Dialog>
   );
-}
+}, warlordsOverviewEqual);

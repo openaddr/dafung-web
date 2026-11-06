@@ -21,20 +21,24 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
 /** 行1 现金 + 行2 五计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
- *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。 */
+ *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。
+ *  #1130 撞车必修(#1140):行2 五账式后计数与汉字标签同住 testid span
+ *  (「城1」),对照面剥标签字取纯数——#1130 自注「e2e 零改」实测不成立,
+ *  cellsMatchSnapshot 两个计数例在主树恒挂。 */
 function cellsMatchSnapshot(page: import("@playwright/test").Page) {
   return page.evaluate(() => {
     const s = (window as any).__dafung.snapshot();
     const q = (id: string) => document.querySelector(`[data-testid="${id}"]`)?.textContent ?? null;
+    const num = (id: string) => q(id)?.replace(/^[城牌将宝望]/, "") ?? null;
     const handShown = (n: number) => (n > 9 ? "9+" : String(n));
     return s.players.every(
       (p: any, seat: number) =>
         q(`seat-cash-${seat}`) === String(p.cash) &&
-        q(`seat-attr-city-${seat}`) === String(p.properties.length) &&
-        q(`seat-attr-hand-${seat}`) === handShown(p.jinnangHandCount) &&
-        q(`seat-attr-hero-${seat}`) === String(p.heroes.length) &&
-        q(`seat-attr-gem-${seat}`) === String(p.treasures.length) &&
-        q(`seat-attr-rep-${seat}`) === String(p.reputation),
+        num(`seat-attr-city-${seat}`) === String(p.properties.length) &&
+        num(`seat-attr-hand-${seat}`) === handShown(p.jinnangHandCount) &&
+        num(`seat-attr-hero-${seat}`) === String(p.heroes.length) &&
+        num(`seat-attr-gem-${seat}`) === String(p.treasures.length) &&
+        num(`seat-attr-rep-${seat}`) === String(p.reputation),
     );
   });
 }

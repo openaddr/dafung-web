@@ -31,6 +31,7 @@
 // 藏品双入口(#361)随 #700 退役:接替者=右下三圆钮(PileButtons,珍宝/名将圆钮
 // 点开同名藏品弹层,弹层壳与陈列仍在 PileModal.tsx)。
 import {
+  memo,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -552,7 +553,7 @@ interface StackVars {
  *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边;banner-only 形态
  *  (#1006)架收起而反应窗在场,只渲横幅贴底。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
-export function HandRack({
+export const HandRack = memo(function HandRack({
   player,
   junshi,
   reaction,
@@ -921,4 +922,4 @@ export function HandRack({
       <SkillGlossaryDialog target={glossary} onClose={() => setGlossary(null)} />
     </section>
   );
-}
+});

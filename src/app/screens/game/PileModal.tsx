@@ -16,7 +16,7 @@
 // 矮屏规范(#708,五族一处收口):壳最大高=视口高−64px(上下安全边);头部钉住,
 // 体部=ui/scroll-area 内滚(首帧可见滚动提示),底部操作行经 footer 槽钉住不随滚;
 // 矮横屏档行高自适应(卡基/列宽缩档)断头防治,细则全在 pile-modal.css 规范块。
-import type { ReactNode } from "react";
+import { memo, type ReactNode } from "react";
 import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
@@ -215,8 +215,18 @@ function HeroGrid({ player }: { player: SnapshotPlayer }) {
   );
 }
 
+/** 值等(#1140 渲染税):kind+player(值等复用引用);onClose 不入比较(setState
+ *  驱动,行为恒定)。藏品层是全仓最大壳(94vw),演出期开着掂量时内容没变的拍
+ *  在此 bail out。 */
+function pileModalEqual(
+  a: { kind: PileModalKind; player: SnapshotPlayer },
+  b: { kind: PileModalKind; player: SnapshotPlayer },
+): boolean {
+  return a.kind === b.kind && a.player === b.player;
+}
+
 /** 藏品弹层(#361):kind 决定陈列内容与题名(player = 本地视角玩家,数据单源快照)。 */
-export function PileModal({
+export const PileModal = memo(function PileModal({
   kind,
   player,
   onClose,
@@ -237,4 +247,4 @@ export function PileModal({
       {kind === "treasures" ? <TreasureGrid player={player} /> : <HeroGrid player={player} />}
     </PileShell>
   );
-}
+}, pileModalEqual);

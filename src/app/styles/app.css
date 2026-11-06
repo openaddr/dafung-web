@@ -74,6 +74,24 @@
   --mask-dim-stacked: 0.38;
 }
 
+/* ── 拖拽偏移变量非继承注册(#1140 渲染税):--drag-x/--drag-y 曾是普通继承式
+   custom property——题名行拖拽每 pointermove setProperty 都会把弹层**全部后代**
+   的 computed style 打脏(拖一下 = 大子树逐帧 style recalc,藏品/手册 94vw 大壳
+   尤其疼)。@property 注册 inherits:false 后写入只脏弹层本体一个元素;位移本就
+   只在本体 translate 上消费(ui-dialog/BannerShell/ConfirmDialog/锦囊详情/
+   手册五处消费点全在根元素,后代无人读),行为零改动;initial-value 接管
+   「缺省 0px」口径,消费侧 var(--drag-x, 0px) 回退写法原样兼容。 ── */
+@property --drag-x {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --drag-y {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+
 /* ── 底件系弹层遮罩退场(#767 弹窗详情族⑤):「播完再移除」——壳挂退场类的同时
    遮罩淡出(--dur-fast),210ms 出口整树卸载(协议单源 hooks/use-dialog-exit)。
    横幅系同款出口在 banner.css(.banner-overlay-out),两系互不引用;横幅系遮罩

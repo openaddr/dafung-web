@@ -231,18 +231,30 @@
   }
 }
 .reaction-timerbox.danger {
-  /* 危急档出盒(#834):放大 1.33 + 朱砂辉光正向脉冲(0→6px,亮度只升不降);
-     transform 不吃布局,横幅几何不变。 */
+  /* 危急档出盒(#834):放大 1.33 + 朱砂辉光正向脉冲(亮度只升不降);
+     transform 不吃布局,横幅几何不变。
+     #1140:辉光脉冲曾以 box-shadow 插值实现(check:board 门禁面外漏网,#834 新件
+     重犯四波清过的旧病)——危急窗内每帧重绘盒+辉光带;改 ::after 叠层烤死静态影
+     + 只动 opacity(layout.css .seat.active::after 同款先例,合成器插值)。 */
   transform: scale(1.33);
+}
+.reaction-timerbox.danger::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 65%, transparent);
+  opacity: 0;
   animation: reaction-timer-glow calc(var(--dur-med) * 2) var(--ease-sine) infinite;
 }
 @keyframes reaction-timer-glow {
   0%,
   100% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-danger) 0%, transparent);
+    opacity: 0;
   }
   50% {
-    box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 65%, transparent);
+    opacity: 1;
   }
 }
 .reaction-timerbox.danger .reaction-timer .arc {
@@ -302,7 +314,6 @@
 .hand-rack-hand > button.reactive .jinnang-card {
   outline: 0.22em solid color-mix(in srgb, var(--color-gold) 55%, transparent);
   outline-offset: 0.12em;
-  filter: drop-shadow(0 0 0.9em color-mix(in srgb, var(--color-gold) 38%, transparent));
   position: relative;
 }
 .hand-rack-hand > button.reactive .jinnang-card::after {
@@ -310,6 +321,10 @@
   position: absolute;
   inset: -0.34em;
   border: 0.22em solid var(--color-gold-bright);
+  /* 常驻微光晕并进叠层(#1140):drop-shadow 曾常驻卡上,::after 呼吸在滤镜宿主内
+     逐帧触发整卡 filter 重合成——烤成叠层静态影后零滤镜;光晕随呼吸同拍明灭
+     (呼吸谷值瞬间无晕,基座 outline 55% 金边恒在,#834 断讯口径不受影响)。 */
+  box-shadow: 0 0 0.9em color-mix(in srgb, var(--color-gold) 38%, transparent);
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
@@ -322,6 +337,9 @@
   outline-color: var(--color-gold-bright);
   outline-offset: 0.2em;
   transform: translateY(-0.6em);
+  /* 选中态光晕补位(#1140):叠环随 .sel 隐藏,静态 filter 回场——选中卡内无
+     infinite 动画,filter 只在上浮 transition 期间随合成器走,无逐帧重合成。 */
+  filter: drop-shadow(0 0 0.9em color-mix(in srgb, var(--color-gold) 38%, transparent));
 }
 .hand-rack-hand > button.reactive.sel .jinnang-card::after {
   display: none;
@@ -354,6 +372,9 @@
   .reaction-timerbox.danger,
   .reaction-timerbox.danger .reaction-timer-num {
     animation: none; /* #834:朱砂辉光脉冲宿主=timerbox(原弧 opacity 呼吸已退役) */
+  }
+  .reaction-timerbox.danger::after {
+    animation: none; /* #1140:辉光宿主移叠层,基态 opacity 0=不显影,同退 */
   }
   .hand-rack-hand > button.reactive .jinnang-card {
     animation: none;

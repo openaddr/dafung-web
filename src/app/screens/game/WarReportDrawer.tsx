@@ -16,7 +16,7 @@
 // warEntriesOf 单源过滤。条目玩家色(#495):条目首 6px 竖条取行动方玩家色
 // (LogEvent.player 国号 → 快照席位 colorIndex,国号局内唯一由 setup-flow 保证;
 // 无主行为/开局空国号不出条,不造假)。
-import { useState } from "react";
+import { memo, useState } from "react";
 import type { LogEvent } from "@core/model";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot } from "@app/store/gameStore";
@@ -53,7 +53,15 @@ export function warEntriesOf(snapshot: GameSnapshot): LogEvent[] {
 /** 战报默认渲染窗口(条);e2e/react-war-report.spec.ts 有对齐副本。 */
 export const WAR_WINDOW = 100;
 
-export function WarReportDrawer({
+/** 值等(#1140 渲染税):战报条目唯一增长键=logCount(#1081 值语义依赖,log 只增
+ *  前提下长度变化 ⇔ 内容变化)——条目窗/色表全由 log 与 players(值等复用引用)
+ *  派生;onClose 不入比较(setState 驱动,行为恒定)。抽屉开着时演出期的每次 sync
+ *  在此 bail out,不再重渲百行条目树。 */
+function warReportEqual(a: { snapshot: GameSnapshot }, b: { snapshot: GameSnapshot }): boolean {
+  return a.snapshot.logCount === b.snapshot.logCount;
+}
+
+export const WarReportDrawer = memo(function WarReportDrawer({
   snapshot,
   onClose,
 }: {
@@ -147,4 +155,4 @@ export function WarReportDrawer({
       </SheetContent>
     </Sheet>
   );
-}
+}, warReportEqual);
