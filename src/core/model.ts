@@ -1,6 +1,7 @@
 // 核心领域模型(#326 types.ts 解散,ADR-0019 类型随域走):跨域共用的基础数据形状。
 // 判定标准:谁拥有概念,类型住谁的文件;唯有多域共用、不属于任何单一机制域的
 // 基础记录(Player/PropertyHolding/LogEvent)集中于此。纯数据,无 DOM 依赖。
+import type { EncounterFlagId } from "./encounters";
 import type { HeroSlot } from "./roster";
 import type { TreasureDef } from "./treasures";
 
@@ -35,6 +36,10 @@ export interface Player {
    *  (抽牌/打牌)。为什么独立成字段:联机客户端经「restore→重新 snapshot」hydrate,
    *  投影层注入的视图字段会在重生成时丢失——数量是全员可见的游戏状态,必须由引擎持有。 */
   jinnangHandCount: number;
+  /** 机遇章册(#1153):跨事件标记(ENCOUNTER_FLAGS 封闭枚举)的 per-player 经历记录
+   *  (#1126 拍板①)——链式典故前编凭证,后编条目以 requiresFlags 认章;破产不清章
+   *  (拍板⑥:章是经历记录,非资产)。 */
+  encounterFlags: EncounterFlagId[];
 }
 
 /** 对局日志事件(ADR-0014,原「战报」):每行 = 中文自然语言 brief + 机读 detail(英文键值),

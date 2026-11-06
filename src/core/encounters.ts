@@ -6,19 +6,39 @@
 export type EncounterTier = "好运" | "中性" | "霉运";
 export type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力" | "锦囊";
 
-/** 即时效果。银两负值走引擎支付/清算(破产与购地同规则);
- *  siphon/levy 是玩家间银两转移:上限=付款方现有现金,不触发对方清算。
+/** P2 跨事件标记(#1153,即「机遇章」):机遇结算写进玩家章册的封闭枚举——链式典故的
+ *  前编凭证(首两枚「元直荐书」「怀玺」,后编条目以 requiresFlags 认章,#1110 奇遇制)。
+ *  封闭枚举拒自由键值:新章只能在此登记;条目以 setsFlags(写点)/requiresFlags(闸门)
+ *  声明,章册按人记账(Player.encounterFlags,#1126 拍板① per-player、⑥ 破产不清章)。 */
+export const ENCOUNTER_FLAGS = ["元直荐书", "怀玺"] as const;
+export type EncounterFlagId = (typeof ENCOUNTER_FLAGS)[number];
+
+/** 即时效果。cash 负值与 levy 输币同款封顶以其现有银两为限(#1153 新红线「机遇不送
+ *  清算」:实际损失 = min(|delta|, 现有现金),不送支付/清算——机遇不把人逼进变卖
+ *  卖城;levy 实付额照付对手,资敌语义不变)。siphon/levy 是玩家间银两转移:上限=
+ *  付款方现有现金,不触发任何人清算。
  *  staminaDelta(#132):效果附带的体力增减——正值回血/负值耗体力,0/缺省=不变;
- *  经引擎 addStamina 落账,归 0 触发耗竭(#130)。 */
+ *  经引擎 addStamina 落账,归 0 触发耗竭(#130)。
+ *  repDelta(#1153):效果附带的声望增减(即时条目落声望的通道;抉择选项声望仍走选项级
+ *  repDelta)——经 addReputation 唯一写口落账并 emit reputationChanged(先例=选项级
+ *  repDelta 的 before/after 差值模式)。 */
 export type EncounterEffect =
-  | { kind: "cash"; delta: number; staminaDelta?: number }
-  | { kind: "grantTreasure"; staminaDelta?: number }
-  | { kind: "grantHero"; fallbackCash: number; staminaDelta?: number }
-  | { kind: "grantCard"; staminaDelta?: number } // #147:获得一张锦囊(圯上授书)
-  | { kind: "grantCity"; fallbackCash: number; staminaDelta?: number }
-  | { kind: "siphon"; amount: number; staminaDelta?: number }
-  | { kind: "levy"; amount: number; staminaDelta?: number }
-  | { kind: "trade"; amount: number; staminaDelta?: number }; // 你与随机对手各 +amount(国库出,正和)
+  | { kind: "cash"; delta: number; staminaDelta?: number; repDelta?: number }
+  | { kind: "grantTreasure"; staminaDelta?: number; repDelta?: number }
+  | {
+      kind: "grantHero";
+      fallbackCash: number;
+      /** 指定招揽(#1153):点名某将来投(如三顾茅庐→诸葛亮);指定将已被招揽/
+       *  麾下满/名将尽 → fallbackCash 折现(闸门见 choices.ts encounterOptionGate)。 */
+      heroId?: string;
+      staminaDelta?: number;
+      repDelta?: number;
+    }
+  | { kind: "grantCard"; staminaDelta?: number; repDelta?: number } // #147:获得一张锦囊(圯上授书)
+  | { kind: "grantCity"; fallbackCash: number; staminaDelta?: number; repDelta?: number }
+  | { kind: "siphon"; amount: number; staminaDelta?: number; repDelta?: number }
+  | { kind: "levy"; amount: number; staminaDelta?: number; repDelta?: number }
+  | { kind: "trade"; amount: number; staminaDelta?: number; repDelta?: number }; // 你与随机对手各 +amount(国库出,正和)
 
 /** 抉择选项(#124):repDelta 结算后立即落账(直接累加,#1090 去夹紧);effect 缺省=无事发生。
  *  staminaDelta(#132):选项级体力增减,在 effect/repDelta 落账后结算——正值回血/
@@ -32,6 +52,12 @@ export interface EncounterChoiceOption {
   effect?: EncounterEffect;
   staminaDelta?: number;
   treasureCost?: number;
+  /** 选项闸(#1153 P2):要求持有的机遇章——未持满则选项灰显(reason 写持章要求);
+   *  模块初始化守卫保证带章闸条目仍保有一个无章闸选项,选项集永不被章锁死。 */
+  requiresFlags?: EncounterFlagId[];
+  /** 抉择路章写点(#1153):本选项结算时写进抉择者章册(去重落章,grantEncounterFlags 单源);
+   *  联机消费端按 encounterId+choiceIndex 回查目录派生,事件本体零改动(#1126 拍板②)。 */
+  setsFlags?: EncounterFlagId[];
 }
 
 export interface EncounterDef {
@@ -42,6 +68,11 @@ export interface EncounterDef {
   text: string;
   effect?: EncounterEffect;
   choices?: EncounterChoiceOption[];
+  /** 即时路触发闸(#1153 P2):要求持有机遇章——仅持章者可抽中本条(抽取池过滤的消费面,
+   *  字段先于条目数据落位,条目归 T2)。 */
+  requiresFlags?: EncounterFlagId[];
+  /** 即时路章写点(#1153):本条即时结算时写进行动者章册(去重落章,grantEncounterFlags 单源)。 */
+  setsFlags?: EncounterFlagId[];
 }
 
 /** 目录 v3(#188 档 2 决策化扩容):30 条,好运 11/中性 8/霉运 11;玩家侧 7 条。
@@ -405,6 +436,63 @@ export function assertGrantHeroCostDeclared(defs: readonly EncounterDef[]): void
   }
 }
 assertGrantHeroCostDeclared(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
+
+/** 章闸不死锁守卫(#1153):凡 choices 非空且带 requiresFlags(def 级或任一 option 级)的
+ *  条目,必须保有一个无 requiresFlags 的选项——「整条选项集被 flag 锁死」的条目会让
+ *  AwaitingEncounter 零可用(enterEncounterPhase 的零兜底 throw 会从测试炸到生产)。
+ *  导出供单测复验(生产侧由下方模块初始化调用,同一函数单源,仿 assertGrantHeroCostDeclared)。 */
+export function assertChoicesNotFlagLocked(defs: readonly EncounterDef[]): void {
+  for (const def of defs) {
+    const choices = def.choices ?? [];
+    if (choices.length === 0) continue;
+    const gated = def.requiresFlags != null || choices.some((c) => c.requiresFlags != null);
+    if (gated && !choices.some((c) => c.requiresFlags == null))
+      throw new Error(
+        `机遇「${def.id}」选项集被章闸锁死:须保有一个无 requiresFlags 的选项(数据 bug)`,
+      );
+  }
+}
+assertChoicesNotFlagLocked(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
+
+/** 章闸抽取过滤(#1153 P2 触发闸):带 def 级 requiresFlags 的条目只在持章者的抽取池里
+ *  ——链式典故后编高权重(weight 2.5)只对持章者生效的设计前提(#1133:非持章者抽取时
+ *  被过滤)。纯函数单源:抽取路(maybeApplyEncounter)与抽取池守卫共用本口。 */
+export function drawableEncounters(
+  defs: readonly EncounterDef[],
+  flags: readonly EncounterFlagId[],
+): readonly EncounterDef[] {
+  return defs.filter(
+    (d) => d.requiresFlags == null || d.requiresFlags.every((f) => flags.includes(f)),
+  );
+}
+
+/** 章闸抽取池守卫(#1153):每档在「无章玩家」(空章册)视角必须仍有序可抽——档内若被
+ *  def 级章闸全占,无章者抽中该档即空池(pickWeighted 当场炸)。坏数据在模块初始化炸出,
+ *  不活到任何抽取点(与上方选项守卫成对:选项面/抽取面各封一路死锁)。 */
+export function assertFlagGatePoolsDrawable(defs: readonly EncounterDef[]): void {
+  for (const tier of ["好运", "中性", "霉运"] as const) {
+    if (
+      drawableEncounters(
+        defs.filter((d) => d.tier === tier),
+        [],
+      ).length === 0
+    )
+      throw new Error(`机遇档「${tier}」被章闸全占:无章玩家空池(数据 bug)`);
+  }
+}
+assertFlagGatePoolsDrawable(ENCOUNTERS); // 模块初始化即验:坏数据活不到任何消费点
+
+/** 机遇章写点单源(#1153):把结算写点声明的 flags 落进玩家章册——章是经历记录,
+ *  重复结算/事件重放不重章(按章去重);flags 缺省=该写点无章声明,零操作。
+ *  引擎两写点(encounter-flow 抉择路 option.setsFlags/即时路 def.setsFlags)与联机
+ *  折叠两路(event-fold encounterChoice/encounterTriggered)共用本口。 */
+export function grantEncounterFlags(
+  p: { encounterFlags: EncounterFlagId[] },
+  flags: readonly EncounterFlagId[] | undefined,
+): void {
+  if (flags == null) return;
+  for (const f of flags) if (!p.encounterFlags.includes(f)) p.encounterFlags.push(f);
+}
 
 /** 机遇开关(#123;ADR-0035 机遇必出:出不出不再掷概率,false=不出机遇)。
  *  引擎缺省 false=测试隔离开关;产品默认 true 来自 jiyu.json/设置屏。

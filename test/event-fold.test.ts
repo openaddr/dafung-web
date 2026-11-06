@@ -11,6 +11,7 @@ import { createDice } from "@core/dice";
 import type { MovePath } from "@core/board";
 import { HEROES } from "@core/heroes";
 import { TREASURES } from "@core/treasures";
+import { ENCOUNTERS, type EncounterDef } from "@core/encounters";
 import { REACTION_WINDOW_MS } from "@core/constants";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import { beginGameEventBatch } from "@core/game-events";
@@ -894,6 +895,70 @@ describe("折叠投影器 · 机遇族", () => {
     ]);
     expect(e.turnPhase).toBe("Roll"); // 未动相位
     expect(e.players[0].cash).toBe(makeEngine().players[0].cash + 250);
+  });
+
+  it("折章(#1153):即时路 encounterTriggered 按 def.setsFlags 折入章册(静态目录派生)", () => {
+    // 守住:联机副本的即时路落章——事件本体零改动,章由 id 回查目录派生(拍板②),
+    // 与引擎 settleEncounter 写点同源;测试目录条目用后即清,不污染共享表
+    const flagDef: EncounterDef = {
+      id: "章链即时(折叠测试)",
+      tier: "好运",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      setsFlags: ["元直荐书"],
+      effect: { kind: "cash", delta: 0 },
+    };
+    ENCOUNTERS.push(flagDef);
+    try {
+      const e = makeEngine();
+      foldEventBatch(e, [
+        ev(0, { kind: "encounterTriggered", encounterId: "章链即时(折叠测试)", tier: "好运" }),
+      ]);
+      expect(e.players[0].encounterFlags).toEqual(["元直荐书"]);
+    } finally {
+      ENCOUNTERS.splice(
+        ENCOUNTERS.findIndex((c) => c.id === "章链即时(折叠测试)"),
+        1,
+      );
+    }
+  });
+
+  it("折章(#1153):抉择路 encounterChoice 按 id+choiceIndex 回查 option.setsFlags 折章;未选落章选项不折", () => {
+    // 守住:联机副本的抉择路落章——按事件载荷(id+下标)目录派生(#385 同源纪律),
+    // 事件不带成品章名;婉拒路不落章
+    const choiceDef: EncounterDef = {
+      id: "章链抉择(折叠测试)",
+      tier: "中性",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      choices: [
+        { text: "接下荐书", repDelta: 0, setsFlags: ["怀玺"] },
+        { text: "婉拒(无事发生)", repDelta: 0 },
+      ],
+    };
+    ENCOUNTERS.push(choiceDef);
+    try {
+      const e = makeEngine();
+      foldEventBatch(e, [
+        ev(0, { kind: "encounterTriggered", encounterId: "章链抉择(折叠测试)", tier: "中性" }),
+        ev(0, { kind: "encounterChoice", encounterId: "章链抉择(折叠测试)", choiceIndex: 0 }),
+      ]);
+      expect(e.players[0].encounterFlags).toEqual(["怀玺"]);
+      // 婉拒路(choiceIndex 1,无 setsFlags):不落章
+      const e2 = makeEngine();
+      foldEventBatch(e2, [
+        ev(0, { kind: "encounterTriggered", encounterId: "章链抉择(折叠测试)", tier: "中性" }),
+        ev(0, { kind: "encounterChoice", encounterId: "章链抉择(折叠测试)", choiceIndex: 1 }),
+      ]);
+      expect(e2.players[0].encounterFlags).toEqual([]);
+    } finally {
+      ENCOUNTERS.splice(
+        ENCOUNTERS.findIndex((c) => c.id === "章链抉择(折叠测试)"),
+        1,
+      );
+    }
   });
 });
 

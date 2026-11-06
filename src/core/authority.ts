@@ -449,6 +449,7 @@ export class GameEngine {
       stamina: STARTING_STAMINA,
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
       jinnangHandCount: 0,
+      encounterFlags: [], // 机遇章册(#1153):开局无章,结算写点经 grantEncounterFlags 落章
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {

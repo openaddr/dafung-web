@@ -13,14 +13,19 @@ import { beginGameEventBatch } from "@core/game-events";
 import type { GameMoment, MomentCtx } from "@core/timing";
 import {
   ENCOUNTERS,
+  assertChoicesNotFlagLocked,
+  assertFlagGatePoolsDrawable,
   assertGrantHeroCostDeclared,
+  drawableEncounters,
   tierShares,
   pickTier,
   pickWeighted,
   type EncounterChoiceOption,
   type EncounterDef,
+  type EncounterEffect,
   type EncounterSwitch,
 } from "@core/encounters";
+import { HEROES } from "@core/heroes";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 /** 锦囊门垫(#122/T2):回合开始可能停在锦囊卷轴相位,直调 rollAndMove 的测试先「今不用」。
@@ -445,7 +450,7 @@ describe("机遇引擎行为", () => {
     expect(unowned.some((t) => t.propertyId === granted.propertyId)).toBe(true);
   });
 
-  it("结算路径:玩家转移上限=对方现金;levy 破产走 endTurn", () => {
+  it("结算路径:玩家转移上限=对方现金;levy 封顶以其现有银两为限(不送清算)", () => {
     const e = makeEngine(7);
     finishSetup(e);
     const te = testEngine(e);
@@ -463,11 +468,10 @@ describe("机遇引擎行为", () => {
     expect(opponent.cash).toBe(0); // 上限=对方现金,不打垮对方
     expect(mover.cash).toBeGreaterThanOrEqual(50);
 
-    const loser = e.activePlayer;
-    loser.cash = 10;
-    loser.properties = []; // 无产可清算
-    const oppCash = e.players.find((p) => p !== loser)!.cash;
-    const r = te.applyEncounter(loser, {
+    const payer = e.activePlayer;
+    payer.cash = 10;
+    const oppCash = e.players.find((p) => p !== payer)!.cash;
+    const r = te.applyEncounter(payer, {
       id: "假道征粮",
       tier: "霉运",
       tags: ["银两", "玩家"],
@@ -475,9 +479,10 @@ describe("机遇引擎行为", () => {
       text: "t",
       effect: { kind: "levy", amount: 150 },
     });
-    expect(r).toBe("bankrupt");
-    expect(loser.isBankrupt).toBe(true);
-    expect(e.players.find((p) => p !== loser)!.cash).toBe(oppCash); // 破产则对手分文未得
+    expect(r).toBe("settled"); // 红线(#1153):输币封顶以其现有银两为限,不送清算
+    expect(payer.cash).toBe(0); // 实付=min(150, 10)
+    expect(payer.isBankrupt).toBe(false);
+    expect(e.players.find((p) => p !== payer)!.cash).toBe(oppCash + 10); // 实付额照付对手,资敌语义不变
   });
 
   it("确定性:同 seed 同配置两局,完整一轮后快照逐位一致(机遇 roll 全走引擎 dice)", () => {
@@ -1377,5 +1382,375 @@ describe("耗竭自动收口 × 出牌阶段(#452):唯一选项自动路径不�
     expect(e.turnNumber).toBe(turn0 + 1); // 恰一次收尾:自动路径内已 endTurn,不得补第二枪
     expect(e.turnPhase).toBe("AwaitingJinnang"); // 下家出牌阶段开窗
     expect(e.choicesFor().length).toBeGreaterThan(0); // 卷轴有真实选项,可行动
+  });
+});
+
+// ═════════════════════ #1153 新红线「机遇不送清算」与原语微扩 ═════════════════════
+describe("#1153 自动现金闸与保底放行(红线:机遇不送清算)", () => {
+  const byId = (id: string): EncounterDef => ENCOUNTERS.find((c) => c.id === id)!;
+
+  it("现金自动闸:现金 < 负 cash 代价 → 灰显「银两不足」,全目录追溯(携民渡江 −150)", () => {
+    // 守住:现金闸是引擎规则(kind 推导),不是逐条数据——目录既有付费条目自动适用
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.activePlayer.cash = 100;
+    e.pendingEncounter = byId("携民渡江");
+    testEngine(e).forceTurnPhase("AwaitingEncounter");
+    const opts = e.choicesFor();
+    expect(opts[0].available).toBe(false); // 费银 150 > 现金 100
+    expect(opts[0].reason).toBe("银两不足");
+    expect(opts[1].available).toBe(true); // 径自过江无代价
+  });
+
+  it("levy 输币同受现金闸:疫病入营「隐忍输币」现金不足灰显,与 cash 同款引擎规则", () => {
+    // 守住:levy 是定向资敌的现金代价——入自动闸(钱不够选不了),不留逐条豁口
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.activePlayer.cash = 100;
+    e.pendingEncounter = byId("疫病入营");
+    testEngine(e).forceTurnPhase("AwaitingEncounter");
+    const opts = e.choicesFor();
+    expect(opts[0].available).toBe(false); // 隐忍输币 levy 120 > 现金 100
+    expect(opts[0].reason).toBe("银两不足");
+    expect(opts[1].available).toBe(true); // 撕毁盟约无现金代价
+  });
+
+  it("保底放行:双付费选项全灰显(河堤告急 −120/−80)→ 放行现金代价最低者并自动执行,不送清算", () => {
+    // 守住:全灰卷轴的出路拍板——保底放行最便宜付费项(≤1 可用即 ADR-0013 自动执行,
+    // 卷轴不全灰);放行后的实付由负现金封顶兜底(最多付光现金,不送清算)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.cash = 79;
+    const turn0 = e.turnNumber;
+    testEngine(e).placeActive(benignTile(e)); // 中性床位:解完续跑空结算收尾
+    testEngine(e).enterEncounter(byId("河堤告急"));
+    expect(e.turnPhase).toBe("Roll"); // 唯一保底放行项:自动执行,不弹相位
+    expect(e.turnNumber).toBe(turn0 + 1);
+    expect(mover.cash).toBe(0); // 封顶:79 现金付 80 代价 → 实损 79,不送清算
+    expect(mover.isBankrupt).toBe(false);
+    expect(testEngine(e).logText().includes("抉择:听天由命")).toBe(true);
+    // 注册表口径直核(武装相位态):保底放行的 available/reason 形状
+    const e2 = makeEngine(7);
+    finishSetup(e2);
+    e2.activePlayer.cash = 79;
+    e2.pendingEncounter = byId("河堤告急");
+    testEngine(e2).forceTurnPhase("AwaitingEncounter");
+    const opts = e2.choicesFor();
+    expect(opts[0].available).toBe(false); // 征夫抢修 −120:仍灰显
+    expect(opts[0].reason).toBe("银两不足");
+    expect(opts[1].available).toBe(true); // 听天由命 −80:保底放行
+    expect(opts[1].reason).toBeUndefined();
+  });
+
+  it("负现金封顶:粮道被劫 −250 而现金 100 → 实损 100 现金归 0,settled 不清算不破产", () => {
+    // 守住:新红线本体——机遇负现金以其现有银两为限,不再逼清算卖城(旧行为会进清算/破产)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.cash = 100;
+    const r = testEngine(e).applyEncounter(mover, byId("粮道被劫"));
+    expect(r).toBe("settled");
+    expect(mover.cash).toBe(0);
+    expect(mover.isBankrupt).toBe(false);
+    expect(e.pendingDebt).toBeNull();
+  });
+});
+
+describe("#1153 原语:效果级 repDelta 与指定招揽 heroId", () => {
+  it("效果级 repDelta:即时机遇落声望走 addReputation 唯一写口,emit reputationChanged", () => {
+    // 守住:即时条目声望通道——落账走唯一写口、事件面带实际差值(先例=选项级 repDelta)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const seat = e.players.indexOf(mover);
+    beginGameEventBatch(e);
+    const r = testEngine(e).applyEncounter(mover, {
+      id: "流言中伤(测试)",
+      tier: "霉运",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      effect: { kind: "cash", delta: 0, repDelta: -6 },
+    });
+    expect(r).toBe("settled");
+    expect(mover.reputation).toBe(-6);
+    expect(
+      e
+        .snapshot()
+        .events.some((v) => v.kind === "reputationChanged" && v.seat === seat && v.delta === -6),
+    ).toBe(true);
+  });
+
+  it("指定招揽 heroId:点名可得 → 该将入麾下(非随机);已被招揽 → fallbackCash 折现", () => {
+    // 守住:指定招揽的授将与折现两路——点名必中、占池即折现(麾下满/名将尽同口径)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const zhuge = { id: "test-kongming", name: "孔明", title: "", image: "", skillPool: [] };
+    HEROES.push(zhuge);
+    try {
+      const r = testEngine(e).applyEncounter(mover, {
+        id: "三顾茅庐(测试)",
+        tier: "好运",
+        tags: ["名将"],
+        weight: 1,
+        text: "t",
+        effect: { kind: "grantHero", fallbackCash: 200, heroId: "test-kongming" },
+      });
+      expect(r).toBe("settled");
+      expect(mover.heroes.map((s) => s.heroId)).toContain("test-kongming"); // 点名必中
+      expect(e.recruitedHeroIds.has("test-kongming")).toBe(true);
+
+      // 已被招揽(他帐占池)→ 折现 fallbackCash,不入槽
+      const e2 = makeEngine(7);
+      finishSetup(e2);
+      const mover2 = e2.activePlayer;
+      const opp2 = e2.players.find((p) => p !== mover2)!;
+      armHero(e2, opp2, zhuge); // 布场对手槽位(zhuge 已在表,不重复注册)
+      e2.recruitedHeroIds.add("test-kongming"); // 占池:他帐已招揽(zhuge 台账外,显式占)
+      const cash0 = mover2.cash;
+      const r2 = testEngine(e2).applyEncounter(mover2, {
+        id: "三顾茅庐(测试)",
+        tier: "好运",
+        tags: ["名将"],
+        weight: 1,
+        text: "t",
+        effect: { kind: "grantHero", fallbackCash: 200, heroId: "test-kongming" },
+      });
+      expect(r2).toBe("settled");
+      expect(mover2.heroes.map((s) => s.heroId)).not.toContain("test-kongming");
+      expect(mover2.cash).toBe(cash0 + 200); // 折现
+    } finally {
+      HEROES.splice(HEROES.indexOf(zhuge), 1); // 手工入表手工清退(armHero 台账外)
+    }
+  });
+
+  it("指定将不可用闸 + 既有三连检:reason 各报其因(#1153 扩展,#124 口径不变)", () => {
+    // 守住:换贤闸门的完整 reason 词表与优先序——珍宝不足→麾下已满→名将已尽→指定将已被招揽
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const opp = e.players.find((p) => p !== mover)!;
+    const zilong = { id: "test-zilong", name: "子龙", title: "", image: "", skillPool: [] };
+    armHero(e, opp, zilong); // 已被招揽(占池)
+    mover.treasures.push(
+      { id: "t1", name: "宝", level: 1, desc: "" },
+      { id: "t2", name: "宝", level: 1, desc: "" },
+    );
+    const armChoice = (effect: EncounterEffect) => {
+      e.pendingEncounter = {
+        id: "点将(测试)",
+        tier: "好运",
+        tags: ["名将"],
+        weight: 1,
+        text: "t",
+        choices: [
+          { text: "点名", repDelta: 0, effect, treasureCost: 2 },
+          { text: "婉拒(无事发生)", repDelta: 0 },
+        ],
+      };
+      testEngine(e).forceTurnPhase("AwaitingEncounter");
+    };
+    // 指定将已被招揽(珍宝/麾下/池三关全过,只卡指定将)
+    armChoice({ kind: "grantHero", fallbackCash: 0, heroId: "test-zilong" });
+    let opts = e.choicesFor();
+    expect(opts[0].available).toBe(false);
+    expect(opts[0].reason).toBe("指定名将已被招揽");
+    expect(opts[1].available).toBe(true);
+    // 珍宝不足(1 < 2):三连检首位不动
+    mover.treasures.length = 1;
+    armChoice({ kind: "grantHero", fallbackCash: 0 });
+    opts = e.choicesFor();
+    expect(opts[0].available).toBe(false);
+    expect(opts[0].reason).toBe("珍宝不足");
+    // 麾下已满:补足珍宝、填满麾下
+    mover.treasures.push({ id: "t3", name: "宝", level: 1, desc: "" });
+    armHero(e, mover, { id: "h1", name: "甲", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h2", name: "乙", title: "", image: "", skillPool: [] });
+    armHero(e, mover, { id: "h3", name: "丙", title: "", image: "", skillPool: [] });
+    armChoice({ kind: "grantHero", fallbackCash: 0 });
+    opts = e.choicesFor();
+    expect(opts[0].available).toBe(false);
+    expect(opts[0].reason).toBe("麾下已满");
+    // 名将已尽:全池占满(清空麾下隔离麾下满闸)
+    for (const h of HEROES) e.recruitedHeroIds.add(h.id);
+    mover.heroes = [];
+    armChoice({ kind: "grantHero", fallbackCash: 0 });
+    opts = e.choicesFor();
+    expect(opts[0].available).toBe(false);
+    expect(opts[0].reason).toBe("名将已尽");
+  });
+});
+
+describe("#1153 机遇章(P2 跨事件标记):setsFlags 写点与章闸", () => {
+  it("写点两路:即时路 def.setsFlags 与抉择路 option.setsFlags 去重落章", () => {
+    // 守住:章写点与章册本体——两路结算都落章、重复结算不重章(经历记录语义)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    const inst: EncounterDef = {
+      id: "获章即时(测试)",
+      tier: "好运",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      setsFlags: ["元直荐书"],
+      effect: { kind: "cash", delta: 0 },
+    };
+    testEngine(e).applyEncounter(mover, inst);
+    expect(mover.encounterFlags).toEqual(["元直荐书"]);
+    // 抉择路:选项结算写 option.setsFlags
+    const e2 = makeEngine(7);
+    finishSetup(e2);
+    const mover2 = e2.activePlayer;
+    testEngine(e2).placeActive(benignTile(e2)); // 中性床位:解完续跑空结算收尾
+    testEngine(e2).enterEncounter({
+      id: "获章抉择(测试)",
+      tier: "中性",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      choices: [
+        { text: "接下荐书", repDelta: 0, setsFlags: ["元直荐书", "怀玺"] },
+        { text: "婉拒(无事发生)", repDelta: 0 },
+      ],
+    });
+    expect(e2.turnPhase).toBe("AwaitingEncounter");
+    e2.resolveEncounterChoice(0);
+    expect(mover2.encounterFlags).toEqual(["元直荐书", "怀玺"]);
+    // 去重:同章再结算不重章
+    testEngine(e2).applyEncounter(mover2, inst);
+    expect(mover2.encounterFlags).toEqual(["元直荐书", "怀玺"]);
+  });
+
+  it("中断路章照写:耗竭中断仍落章;破产不清章(拍板③⑥)", () => {
+    // 守住:拍板③(中断路章照写——机遇致清算/破产已随红线封顶消失,可及中断向量=体力
+    // 耗竭)与拍板⑥(破产不清章——章是经历记录,破产向量=payOrLiquidate 购地/租金刚性支出)
+    const e = makeEngine(7);
+    finishSetup(e);
+    const mover = e.activePlayer;
+    mover.stamina = 50;
+    const r = testEngine(e).applyEncounter(mover, {
+      id: "耗竭获章(测试)",
+      tier: "霉运",
+      tags: ["银两", "玩家", "体力"],
+      weight: 1,
+      text: "t",
+      setsFlags: ["怀玺"],
+      effect: { kind: "cash", delta: -150, staminaDelta: -1000 },
+    });
+    expect(r).toBe("exhausted");
+    expect(mover.encounterFlags).toContain("怀玺");
+
+    mover.encounterFlags = ["元直荐书"];
+    mover.cash = 10;
+    mover.properties = []; // 无产可清算 → 破产
+    e.payOrLiquidate(mover, null, 150);
+    expect(mover.isBankrupt).toBe(true);
+    expect(mover.encounterFlags).toContain("元直荐书");
+  });
+
+  it("快照成对:章册随 SNAPSHOT_FIELDS 读写往返(旧记录缺键不兜底,拍板④)", () => {
+    // 守住:章册的序列化集成——snapshot 键与 restore 回灌成对(玩家级键集无自动断言,显式钉)
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.activePlayer.encounterFlags = ["元直荐书", "怀玺"];
+    const s = e.snapshot();
+    expect(s.players[0].encounterFlags).toEqual(["元直荐书", "怀玺"]);
+    const e2 = makeEngine(99);
+    finishSetup(e2);
+    e2.restoreFromSnapshot(s);
+    expect(e2.players[0].encounterFlags).toEqual(["元直荐书", "怀玺"]);
+  });
+
+  it("章闸守卫:全选项带 requiresFlags 的条目当场抛错;生产目录过同守卫", () => {
+    // 守住:唯一新护栏——「整条选项集被 flag 锁死」的目录 bug 在模块初始化当场炸出
+    const bad: EncounterDef = {
+      id: "章锁条目(测试)",
+      tier: "中性",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      requiresFlags: ["元直荐书"],
+      choices: [
+        { text: "甲", repDelta: 0, requiresFlags: ["元直荐书"] },
+        { text: "乙", repDelta: 0, requiresFlags: ["元直荐书"] },
+      ],
+    };
+    expect(() => assertChoicesNotFlagLocked([bad])).toThrow(/章闸锁死/);
+    // 生产目录已过同守卫(模块初始化即验):复验不抛 = 表内带章闸条目全保有无章闸选项
+    expect(() => assertChoicesNotFlagLocked(ENCOUNTERS)).not.toThrow();
+  });
+
+  it("选项章闸:未持章不可用 reason 写持章要求;持章解锁;无章闸选项恒可用", () => {
+    // 守住:章闸的闸门语义——reason 指名所缺章,持章即解;守卫保证的无章闸选项不受扰
+    const e = makeEngine(7);
+    finishSetup(e);
+    e.pendingEncounter = {
+      id: "章闸(测试)",
+      tier: "中性",
+      tags: ["声望"],
+      weight: 1,
+      text: "t",
+      choices: [
+        { text: "持章者专属", repDelta: 5, requiresFlags: ["元直荐书"] },
+        { text: "婉拒(无事发生)", repDelta: 0 },
+      ],
+    };
+    testEngine(e).forceTurnPhase("AwaitingEncounter");
+    const opts = e.choicesFor();
+    expect(opts[0].available).toBe(false);
+    expect(opts[0].reason).toContain("元直荐书");
+    expect(opts[1].available).toBe(true);
+    e.activePlayer.encounterFlags.push("元直荐书");
+    expect(e.choicesFor()[0].available).toBe(true);
+  });
+
+  it("章闸抽取过滤:未持章者抽池不见后编,持章者可见(drawableEncounters 单源)", () => {
+    // 守住:def 级 requiresFlags 的抽取闸——链式后编高权重(weight 2.5)只对持章者
+    // 生效的设计前提(#1133:非持章者抽取时被过滤)
+    const gated: EncounterDef = {
+      id: "后编(测试)",
+      tier: "好运",
+      tags: ["名将"],
+      weight: 2.5,
+      text: "t",
+      requiresFlags: ["元直荐书"],
+    };
+    const open: EncounterDef = {
+      id: "无门槛(测试)",
+      tier: "好运",
+      tags: ["名将"],
+      weight: 1,
+      text: "t",
+    };
+    expect(drawableEncounters([gated, open], []).map((d) => d.id)).toEqual(["无门槛(测试)"]);
+    expect(drawableEncounters([gated, open], ["元直荐书"]).length).toBe(2);
+  });
+
+  it("章闸抽取池守卫:档内全被章闸占=当场抛错;生产目录过同守卫", () => {
+    // 守住:每档在无章玩家视角必须有序可抽——否则抽中该档即空池(pickWeighted 炸)
+    const bad: EncounterDef[] = [
+      {
+        id: "甲(测试)",
+        tier: "中性",
+        tags: ["声望"],
+        weight: 1,
+        text: "t",
+        requiresFlags: ["怀玺"],
+      },
+      {
+        id: "乙(测试)",
+        tier: "中性",
+        tags: ["声望"],
+        weight: 1,
+        text: "t",
+        requiresFlags: ["元直荐书"],
+      },
+    ];
+    expect(() => assertFlagGatePoolsDrawable(bad)).toThrow(/空池/);
+    // 生产目录已过同守卫(模块初始化即验):复验不抛 = 每档都有无章闸条目
+    expect(() => assertFlagGatePoolsDrawable(ENCOUNTERS)).not.toThrow();
   });
 });
