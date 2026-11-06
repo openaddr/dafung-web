@@ -2,8 +2,10 @@
 //  ① 遣散主链(己回合可点/免费):名将弹层遣散钮二段式确认(首点武装「确认遣散」,
 //     再点发命令)——槽移除、免费(现金不动)、已学技逐册折书入珍宝位、heroDismissed/
 //     treasureGained 事件随批、回池划名;
-//  ② 非己回合禁用态:遣散钮 disabled,原因进 title(状态表达原则);
-//  ③ 回池再招=全新实例:遣散后该将重进招贤候选,落定后 lastFired 空账、授技重新预掷。
+//  ② 非己回合禁用态:遣散钮 disabled,原因进 title(状态表达原则)。
+// #1165 瘦身:原 ③「回池再招=全新实例」例整删——回池划名/重进候选/预掷重新/lastFired
+// 空账全套引擎语义由 test/hero-dismiss.test.ts「回池后重进招贤候选;再招=全新实例」
+// 例钉死;本例 UI 侧仅有的遣散钮点击通路与 ① 重复,零独占断言面。
 // 种植配方照 react-skill-book 先例(quickStart → freezeClock → force 直写引擎),
 // 断言走快照真值(槽/书/池/事件)+ testid 在场性,零语义放宽。
 import { test, expect } from "./fixtures";
@@ -93,43 +95,5 @@ test.describe("遣散全链(#1147)@844×390", () => {
     const btn = page.getByTestId(TESTIDS.heroDismiss("zhouyu"));
     await expect(btn).toBeDisabled();
     await expect(btn).toHaveAttribute("title", "己方回合可遣散");
-  });
-
-  test("回池再招=全新实例:重进招贤候选,落定后 lastFired 空账、授技重新预掷", async ({ page }) => {
-    await quickStart(page);
-    await freezeClock(page);
-    await force(page, plantOwnTurn(0, true)); // 其余全将占池:回池后候选恰为周瑜(断言确定)
-    await openHeroModal(page);
-    const btn = page.getByTestId(TESTIDS.heroDismiss("zhouyu"));
-    await btn.click();
-    await btn.click(); // 二段确认发命令
-    await expect
-      .poll(async () => {
-        const s = await snap(page);
-        return s.players[0].heroes.length;
-      })
-      .toBe(0);
-
-    // 遣散后招贤(其余七将仍占池 → 候选恰为回池的周瑜),预掷照旧现掷
-    await force(
-      page,
-      `
-      e.tryRecruitHero(e.players[0]);
-      if (e.turnPhase !== "AwaitingHeroPick") throw new Error("候选未挂起(回池划名失效)");
-      if (e.offeredHeroes.length !== 1 || e.offeredHeroes[0].def.id !== "zhouyu")
-        throw new Error("候选不含回池名将: " + e.offeredHeroes.map((o) => o.def.id).join("|"));
-      const rolled = e.offeredHeroes[0].skillIds;
-      if (rolled.length < 1) throw new Error("预掷空授技(违反至少一技)");
-      e.resolveHeroPick(0);
-      const slot = e.players[0].heroes.find((s) => s.heroId === "zhouyu");
-      if (slot == null) throw new Error("落定无槽");
-      if (Object.keys(slot.lastFired).length !== 0) throw new Error("再招遗留冷却账(非全新实例)");
-      if (slot.skillIds.join("|") !== rolled.join("|")) throw new Error("落定未沿用候选预掷");
-      `,
-    );
-    const s = await snap(page);
-    const slot = s.players[0].heroes.find((h: { heroId: string }) => h.heroId === "zhouyu");
-    expect(slot).toBeDefined(); // 全新实例已入麾下
-    expect(s.recruitedHeroIds).toContain("zhouyu"); // 再占池
   });
 });
