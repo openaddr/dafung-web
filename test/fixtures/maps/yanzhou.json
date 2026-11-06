@@ -1,0 +1,153 @@
+{
+  "version": 1,
+  "targetNetWorth": 12000,
+  "startingCash": 4000,
+  "maxLevel": 3,
+  "resupply": 800,
+  "tiles": [
+    {
+      "id": "prop-chenliu",
+      "name": "陈留",
+      "pos": [450, 0],
+      "group": "a",
+      "tier": "郡",
+      "price": 1800,
+      "buildCost": 900,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [200, 400, 600, 1200],
+      "valueByLevel": [900, 1260, 1620, 1980]
+    },
+    {
+      "id": "prop-puyang",
+      "name": "濮阳",
+      "pos": [390, 225],
+      "group": "a",
+      "tier": "县",
+      "price": 800,
+      "buildCost": 400,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [400, 560, 720, 880]
+    },
+    {
+      "id": "prop-juancheng",
+      "name": "鄄城",
+      "pos": [225, 390],
+      "group": "a",
+      "tier": "县",
+      "price": 600,
+      "buildCost": 300,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [300, 420, 540, 660]
+    },
+    {
+      "id": "prop-fanxian",
+      "name": "范县",
+      "pos": [0, 450],
+      "group": "b",
+      "tier": "县",
+      "price": 700,
+      "buildCost": 350,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [350, 490, 630, 770]
+    },
+    {
+      "id": "prop-donge",
+      "name": "东阿",
+      "pos": [-225, 390],
+      "group": "b",
+      "tier": "县",
+      "price": 600,
+      "buildCost": 300,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [300, 420, 540, 660]
+    },
+    {
+      "id": "prop-rencheng",
+      "name": "任城",
+      "pos": [-390, 225],
+      "group": "b",
+      "tier": "郡",
+      "price": 1800,
+      "buildCost": 900,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [200, 400, 600, 1200],
+      "valueByLevel": [900, 1260, 1620, 1980]
+    },
+    {
+      "id": "prop-shanyang",
+      "name": "山阳",
+      "pos": [-450, 0],
+      "group": "c",
+      "tier": "郡",
+      "price": 1500,
+      "buildCost": 750,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [200, 400, 600, 1200],
+      "valueByLevel": [750, 1050, 1350, 1650]
+    },
+    {
+      "id": "prop-gaoping",
+      "name": "高平",
+      "pos": [-390, -225],
+      "group": "c",
+      "tier": "县",
+      "price": 800,
+      "buildCost": 400,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [400, 560, 720, 880]
+    },
+    {
+      "id": "prop-juye",
+      "name": "巨野",
+      "pos": [-225, -390],
+      "group": "c",
+      "tier": "县",
+      "price": 600,
+      "buildCost": 300,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [300, 420, 540, 660]
+    },
+    {
+      "id": "prop-linqiu",
+      "name": "廪丘",
+      "pos": [0, -450],
+      "group": "d",
+      "tier": "县",
+      "price": 700,
+      "buildCost": 350,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [350, 490, 630, 770]
+    },
+    {
+      "id": "prop-baima",
+      "name": "白马",
+      "pos": [225, -390],
+      "group": "d",
+      "tier": "郡",
+      "price": 1500,
+      "buildCost": 750,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [200, 400, 600, 1200],
+      "valueByLevel": [750, 1050, 1350, 1650]
+    },
+    {
+      "id": "prop-yanxian",
+      "name": "燕县",
+      "pos": [390, -225],
+      "group": "d",
+      "tier": "县",
+      "price": 800,
+      "buildCost": 400,
+      "tradeMult": [2, 3, 4, 5],
+      "tradeAdd": [100, 200, 300, 400],
+      "valueByLevel": [400, 560, 720, 880]
+    }
+  ]
+}

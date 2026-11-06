@@ -386,6 +386,55 @@ export type GameEventBody =
 /** 事件 = 事件体 + 公共首部(快照 `events` 字段与将来联机流式下发的线上形状)。 */
 export type GameEvent = GameEventBody & GameEventBase;
 
+/** 事件词表运行时清单(#1161 无头确定性体系消费,如 whole-game 的词表合法不变量):
+ *  与上方 GameEventBody 联合逐字对齐——新增事件体必同步登记;`satisfies` 保证不拼错,
+ *  漏登记则新 kind 在无头巡检处被拒而当场红出来,顺势补齐。 */
+export const GAME_EVENT_KINDS = [
+  "gameStarted",
+  "setupCompleted",
+  "turnEnded",
+  "turnStarted",
+  "roundEnded",
+  "roundStarted",
+  "gameOver",
+  "diceRolled",
+  "marchArrived",
+  "capitalHalt",
+  "capitalSelected",
+  "propertyBought",
+  "propertyUpgraded",
+  "propertyRejected",
+  "propertyGranted",
+  "cashChanged",
+  "treasureGained",
+  "treasureSold",
+  "treasureTraded",
+  "treasureStolen",
+  "assetLiquidated",
+  "assetTransferred",
+  "heroRecruited",
+  "playerBankrupt",
+  "skillFired",
+  "heroSkillActivated",
+  "jinnangDrawn",
+  "jinnangReshuffled",
+  "jinnangExhausted",
+  "reputationChanged",
+  "staminaChanged",
+  "turnSkipped",
+  "encounterTriggered",
+  "encounterChoice",
+  "exhaustionChoice",
+  "jinnangAnnounced",
+  "reactionOpened",
+  "reactionAnswered",
+  "reactionFailed",
+  "duelResolved",
+  "jinnangVoided",
+  "jinnangInflicted",
+  "peekApplied",
+] as const satisfies readonly GameEvent["kind"][];
+
 /** 显式产出(#375 口 2):域模块结算点直呼;seat=行动者(事件语义上的主行动者,
  *  双向事件的对手座走专属字段)。时刻戳在此统一盖章。 */
 export function emitGameEvent(g: GameEngine, seat: number | null, body: GameEventBody): void {
