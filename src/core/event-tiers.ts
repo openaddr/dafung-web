@@ -260,7 +260,7 @@ export const EVENT_TIERS = {
   encounterTriggered: {
     fold: "must-fold",
     fx: "silent",
-    why: "抉择型置 Noop+AwaitingEncounter(即时型不动落格表现态,与推演值一致);即时路 def.setsFlags 折章(#1153,章名按 encounterId 回查目录派生,事件本体零改动——#1126 拍板②,flags 确定性可折故 must-fold 不变);表现面=机遇卷轴 UI 直读副本态",
+    why: "抉择型置 Noop+AwaitingEncounter(即时型不动落格表现态,与推演值一致);即时路 def.setsFlags 折章(#1153,章名按 encounterId 回查目录派生,事件本体零改动——#1126 拍板②,flags 确定性可折故 must-fold 不变);奇遇 id∈ONCE_PER_GAME_ENCOUNTER_IDS 折入已遇集(#1154 一局一遇按玩家,同静态派生确定性折);表现面=机遇卷轴 UI 直读副本态",
   },
   encounterChoice: {
     fold: "fold+calibration",

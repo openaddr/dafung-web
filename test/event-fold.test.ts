@@ -924,6 +924,18 @@ describe("折叠投影器 · 机遇族", () => {
     }
   });
 
+  it("折已遇集(#1154):encounterTriggered 对奇遇条目折入 onceEncounterIds,一局一遇按玩家", () => {
+    // 守住:联机副本的奇遇已遇集落账——与引擎 maybeApplyEncounter 写点同位,静态清单派生
+    const e = makeEngine();
+    foldEventBatch(e, [
+      ev(0, { kind: "encounterTriggered", encounterId: "刮骨", tier: "好运" }),
+      ev(0, { kind: "encounterTriggered", encounterId: "神医行诊", tier: "好运" }),
+      ev(1, { kind: "encounterTriggered", encounterId: "刮骨", tier: "好运" }),
+    ]);
+    expect(e.players[0].onceEncounterIds).toEqual(["刮骨"]); // 非奇遇不记;同条不重记
+    expect(e.players[1].onceEncounterIds).toEqual(["刮骨"]); // 按玩家各自记账
+  });
+
   it("折章(#1153):抉择路 encounterChoice 按 id+choiceIndex 回查 option.setsFlags 折章;未选落章选项不折", () => {
     // 守住:联机副本的抉择路落章——按事件载荷(id+下标)目录派生(#385 同源纪律),
     // 事件不带成品章名;婉拒路不落章

@@ -469,10 +469,14 @@ export function botAct(engine: GameEngine): void {
         const c = choices[i];
         if (!c) throw new Error(`机遇「${enc.id}」选项 ${i} 越界:选项注册表与目录不一致`); // 零兜底
         // 体力计价 = 选项级与效果级 staminaDelta 合计 × 折银率(staminaDelta 为负值即扣分;
-        // 与结算两路一致,#789)
+        // 与结算两路一致,#789)。选项现金代价 cashCost(#1154)按面值扣分——与闸门
+        // optionCashCost 同尺,付费与得物分离的选项不作免费白捡。
         const staminaDelta = (c.staminaDelta ?? 0) + (c.effect?.staminaDelta ?? 0);
         const score =
-          encounterCashImpact(c.effect) + c.repDelta * coef + staminaDelta * STAMINA_CASH_RATE;
+          encounterCashImpact(c.effect) -
+          (c.cashCost ?? 0) +
+          c.repDelta * coef +
+          staminaDelta * STAMINA_CASH_RATE;
         if (score > bestScore) {
           bestScore = score;
           bestIdx = i;

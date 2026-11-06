@@ -41,7 +41,7 @@ test.describe("机遇系统冒烟", () => {
 
     const scroll = page.getByTestId(SCROLL_TESTIDS.encounterScroll);
     // 机遇必出 → 每次落格必遇机遇;档位=声望 softmax(初盘近均分,seeded 对局分布
-    // 可漂移=预期),抉择型占比 15/30。#188 行军自动化后 bot 回合/自动起摇期间
+    // 可漂移=预期),抉择型占比 29/60(#1154 扩容)。#188 行军自动化后 bot 回合/自动起摇期间
     // actIfCan 恒 false,按步计数会空转烧预算——原「while + 300ms 固定采样」换
     // expect.poll 状态轮询:每拍机遇卷轴不在场就经 actIfCan 清决策点推进,出现即收
     //(120s 时间预算不变)。
