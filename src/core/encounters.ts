@@ -900,14 +900,36 @@ assertFlagGatePoolsDrawable(ENCOUNTERS); // 模块初始化即验:坏数据活�
 
 /** 机遇章写点单源(#1153):把结算写点声明的 flags 落进玩家章册——章是经历记录,
  *  重复结算/事件重放不重章(按章去重);flags 缺省=该写点无章声明,零操作。
- *  引擎两写点(encounter-flow 抉择路 option.setsFlags/即时路 def.setsFlags)与联机
- *  折叠两路(event-fold encounterChoice/encounterTriggered)共用本口。 */
+ *  返回**实际新落章**(去重后新写入的章,=#1155 盖章战报句的取数口——「获『X』」只报
+ *  新落章,已持章/重复结算返回空)。引擎两写点(encounter-flow 抉择路 option.setsFlags/
+ *  即时路 def.setsFlags)与联机折叠两路(event-fold encounterChoice/encounterTriggered)
+ *  共用本口。 */
 export function grantEncounterFlags(
   p: { encounterFlags: EncounterFlagId[] },
   flags: readonly EncounterFlagId[] | undefined,
-): void {
-  if (flags == null) return;
-  for (const f of flags) if (!p.encounterFlags.includes(f)) p.encounterFlags.push(f);
+): EncounterFlagId[] {
+  if (flags == null) return [];
+  const fresh: EncounterFlagId[] = [];
+  for (const f of flags) {
+    if (!p.encounterFlags.includes(f)) {
+      p.encounterFlags.push(f);
+      fresh.push(f);
+    }
+  }
+  return fresh;
+}
+
+/** 奇遇判定单源(#1154):id 是否一局一遇条目——抽取过滤/已遇集落账/UI 演出身份共用
+ *  本口,不许各自对 ONCE 元组 includes+类型转型(评审收口:#1169 后三处两种式)。 */
+export function isOncePerGameEncounter(id: string): boolean {
+  return (ONCE_PER_GAME_ENCOUNTER_IDS as readonly string[]).includes(id);
+}
+
+/** 奇遇已遇集落账单源(#1154):触发即记,去重(重复触发/事件重放不重记)。
+ *  引擎触发点(maybeApplyEncounter)与联机折叠(encounterTriggered)共用本口,
+ *  与 grantEncounterFlags 同一口径族。 */
+export function markOnceEncounter(p: { onceEncounterIds: string[] }, id: string): void {
+  if (!p.onceEncounterIds.includes(id)) p.onceEncounterIds.push(id);
 }
 
 /** 机遇开关(#123;ADR-0035 机遇必出:出不出不再掷概率,false=不出机遇)。
