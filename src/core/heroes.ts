@@ -24,7 +24,8 @@ export function heroById(id: string): HeroDef {
 }
 
 // 首批共享表(ADR-0036 拍板,零新增数值):疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、
-// 掷金=张星彩↔曹丕,余五条单属主;池大小 = 强度旋钮(三将池 3、华佗池 2,不对称有意)。
+// 掷金=张星彩↔曹丕;#1142 卧龙入表,火攻=周瑜↔诸葛亮、渔利=曹丕↔诸葛亮再入共享,
+// 余两条单属主(青囊/赈济);池大小 = 强度旋钮(周瑜/张星彩池 3、曹丕/华佗/诸葛亮池 2,不对称有意)。
 export const HEROES: HeroDef[] = [
   {
     id: "zhouyu",
@@ -54,5 +55,14 @@ export const HEROES: HeroDef[] = [
     name: "华佗",
     title: "神医",
     skillPool: ["qingnang", "zhenji"], // {青囊,赈济}
+  },
+  {
+    id: "zhugeliang",
+    // 极简水墨立绘(#1142:图搜无可用水墨素材,走退路自绘——龚贤远山肌理
+    // texture-gongxian-shanshui + 马善政「卧龙」竖题 + 孔明朱印;规格对齐 574×761)
+    image: "/assets/heroes/hero-zhugeliang.png",
+    name: "诸葛亮",
+    title: "卧龙",
+    skillPool: ["huogong", "yuli"], // {火攻,渔利} 池 2 仿华佗非对称(技重叠是特性)
   },
 ];
