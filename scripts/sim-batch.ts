@@ -18,7 +18,8 @@
 // 统计口径:
 //   对局面 = 终局率 / 回合数(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
 //   机遇侧 = 触发合计 / 各档出现次数 / 逐条目出现分布(全目录含 0 次条目)/ 抉择选项选择分布;
-//   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性。
+//   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性;
+//   经济动作计数(#1121 数值校准分母)= 购城/升级/珍宝成交 局均频率。
 //   扩容验收用法:改 ENCOUNTERS 前后各跑一批对比,0 次条目与 0 次选项即死数据;逐局进度走 stderr。
 //
 // 退出码:引擎抛错 = 发现 bug,逐 seed 报告且进程非零;回合上限未终局 = 平衡发现
@@ -127,6 +128,8 @@ interface GameStat {
   recruits: number;
   /** 终局全座位构筑(麾下技能多重集排序拼接;无麾下=「空」)。 */
   builds: string[];
+  /** 经济动作计数(#1121 频率校准分母)。 */
+  econ: { bought: number; upgraded: number; traded: number };
 }
 
 /** 跑一局到终局(或回合上限)。引擎抛错原样上抛 = 发现 bug,由批循环逐 seed 收账。 */
@@ -151,6 +154,7 @@ function runOne(seed: number): GameStat {
     grants: new Map(),
     recruits: 0,
     builds: [],
+    econ: { bought: 0, upgraded: 0, traded: 0 },
   };
   while (!e.isOver) {
     if (e.turnNumber >= TURN_CAP) break; // 未终局(触顶):终局率行响亮上报
@@ -177,6 +181,12 @@ function runOne(seed: number): GameStat {
       } else if (ev.kind === "heroRecruited") {
         stat.recruits += 1;
         for (const sid of ev.skillIds) stat.grants.set(sid, (stat.grants.get(sid) ?? 0) + 1);
+      } else if (ev.kind === "propertyBought") {
+        stat.econ.bought += 1;
+      } else if (ev.kind === "propertyUpgraded") {
+        stat.econ.upgraded += 1;
+      } else if (ev.kind === "treasureTraded") {
+        stat.econ.traded += 1;
       }
     }
     if (e.isOver) break;
@@ -328,6 +338,12 @@ for (const s of stats) {
 }
 const grantSum = [...grantAgg.values()].reduce((a, b) => a + b, 0);
 console.log(`招募 ${recruitTotal} 人次 · 授技 ${grantSum} 枚(局均 ${(grantSum / N).toFixed(1)})`);
+const boughtTotal = stats.reduce((a, s) => a + s.econ.bought, 0);
+const upgradedTotal = stats.reduce((a, s) => a + s.econ.upgraded, 0);
+const tradedTotal = stats.reduce((a, s) => a + s.econ.traded, 0);
+console.log(
+  `经济动作(局均,频率校准分母):购城 ${(boughtTotal / N).toFixed(1)} · 升级 ${(upgradedTotal / N).toFixed(1)} · 珍宝成交 ${(tradedTotal / N).toFixed(1)}`,
+);
 const skillRows = SKILLS.map((d) => {
   const g = grantAgg.get(d.id) ?? 0;
   const f = fireAgg.get(d.id) ?? 0;
