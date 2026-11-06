@@ -11,9 +11,10 @@
 //   起手现金/目标身价 = 地图顶层必配值(ADR-0041:引擎无缺省,loadMap 校验)。
 //   扩展包 = 与 cli/server 同口径装载 ./extensions(真实对局含扩展名将,名将池不残缺)。
 //
-// 驱动与观测:botAct 裸调(bot 行为单源,#580);每步泵后读引擎事件批 e.gameEvents
-// (批界 = botAct 入口,#375)。机遇档位/条目/抉择全是引擎种子化骰流的产出(档位走
-// #1090 声望 softmax),本脚本不另起任何随机源——同 seed 恒同局,统计可复现。
+// 驱动与观测:整局循环单源在 whole-game.ts driveToEnd(#1161 收敛;botAct 裸调仍是
+// bot 行为单源 #580);本脚本经 onStep 钩子逐步读引擎事件批(批界 = botAct 入口,#375)。
+// 机遇档位/条目/抉择全是引擎种子化骰流的产出(档位走 #1090 声望 softmax),本脚本
+// 不另起任何随机源——同 seed 恒同局,统计可复现。
 //
 // 统计口径:
 //   对局面 = 终局率 / 回合数(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
@@ -28,7 +29,7 @@ import { resolve } from "node:path";
 import { loadExtensionPackages } from "../src/core/extension-loader";
 import { ENCOUNTER_PRODUCT_DEFAULTS, ENCOUNTERS, type EncounterTier } from "../src/core/encounters";
 import { SKILLS, isTriggerSkill } from "../src/core/skills";
-import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
+import { driveToEnd } from "./whole-game";
 import { netWorth } from "../src/core/networth";
 import { formatMoney } from "../src/core/money";
 import type { SeatConfig } from "../src/core/authority";
@@ -39,7 +40,6 @@ import {
   loadBuiltinMapById,
   type GameConfig,
 } from "./engine-helpers";
-import { fingerprint } from "./seat-projection";
 
 // 扩展包装载(#412,与 cli.ts/server.ts 同口径):坏包当场炸;空目录 = 合法零包。
 await loadExtensionPackages(resolve(process.env.EXTENSIONS_DIR ?? "./extensions"));
@@ -132,12 +132,11 @@ interface GameStat {
   econ: { bought: number; upgraded: number; traded: number };
 }
 
-/** 跑一局到终局(或回合上限)。引擎抛错原样上抛 = 发现 bug,由批循环逐 seed 收账。 */
+/** 跑一局到终局(或回合上限)。引擎抛错原样上抛 = 发现 bug,由批循环逐 seed 收账;
+ *  相位守卫/无进展/僵死巡检在 driveToEnd 内(整局循环单源,#1161)。 */
 function runOne(seed: number): GameStat {
   const e = newEngine(seed);
   autoSetup(e);
-  if (e.phase !== "Playing")
-    throw new Error(`seed ${seed}:选都后未入局(phase=${e.phase})——状态机 bug`);
   const stat: GameStat = {
     seed,
     finished: false,
@@ -156,44 +155,38 @@ function runOne(seed: number): GameStat {
     builds: [],
     econ: { bought: 0, upgraded: 0, traded: 0 },
   };
-  while (!e.isOver) {
-    if (e.turnNumber >= TURN_CAP) break; // 未终局(触顶):终局率行响亮上报
-    // 全 bot 局的相位守卫(与 cli run-to-end 同判据):反应窗 bot 开窗即席代答(ADR-0017),
-    // 停在窗上/停在任何不可驱动相位 = 状态机 bug,当场炸。
-    if (e.turnPhase === "AwaitingReaction")
-      throw new Error(`seed ${seed}:全 bot 局停在反应窗——bot 座位应已即席代答,状态机 bug`);
-    if (!BOT_ATTENDED_PHASES.has(e.turnPhase))
-      throw new Error(`seed ${seed}:停在场不可驱动相位 ${e.turnPhase}——状态机 bug`);
-    const before = fingerprint(e);
-    botAct(e);
-    // 本步事件批(批界 = botAct 入口,#375):机遇触发/抉择在此,typed 读取零正则
-    for (const ev of e.gameEvents) {
-      if (ev.kind === "encounterTriggered") {
-        stat.tiers[ev.tier] += 1;
-        stat.entries.set(ev.encounterId, (stat.entries.get(ev.encounterId) ?? 0) + 1);
-      } else if (ev.kind === "encounterChoice") {
-        const k = `${ev.encounterId}#${ev.choiceIndex}`;
-        stat.choices.set(k, (stat.choices.get(k) ?? 0) + 1);
-      } else if (ev.kind === "skillFired") {
-        stat.skillFires.set(ev.skillId, (stat.skillFires.get(ev.skillId) ?? 0) + 1);
-      } else if (ev.kind === "heroSkillActivated") {
-        stat.activeFires.set(ev.skillId, (stat.activeFires.get(ev.skillId) ?? 0) + 1);
-      } else if (ev.kind === "heroRecruited") {
-        stat.recruits += 1;
-        for (const sid of ev.skillIds) stat.grants.set(sid, (stat.grants.get(sid) ?? 0) + 1);
-      } else if (ev.kind === "propertyBought") {
-        stat.econ.bought += 1;
-      } else if (ev.kind === "propertyUpgraded") {
-        stat.econ.upgraded += 1;
-      } else if (ev.kind === "treasureTraded") {
-        stat.econ.traded += 1;
-      }
-    }
-    if (e.isOver) break;
-    if (fingerprint(e) === before)
-      throw new Error(`seed ${seed}:bot 步无进展(指纹不变)——状态机 bug`);
-  }
-  stat.finished = e.isOver;
+  const result = driveToEnd(e, {
+    label: `seed ${seed}`,
+    turnCap: TURN_CAP,
+    hooks: {
+      // 本步事件批(批界 = botAct 入口,#375):机遇触发/抉择在此,typed 读取零正则
+      onStep: (events) => {
+        for (const ev of events) {
+          if (ev.kind === "encounterTriggered") {
+            stat.tiers[ev.tier] += 1;
+            stat.entries.set(ev.encounterId, (stat.entries.get(ev.encounterId) ?? 0) + 1);
+          } else if (ev.kind === "encounterChoice") {
+            const k = `${ev.encounterId}#${ev.choiceIndex}`;
+            stat.choices.set(k, (stat.choices.get(k) ?? 0) + 1);
+          } else if (ev.kind === "skillFired") {
+            stat.skillFires.set(ev.skillId, (stat.skillFires.get(ev.skillId) ?? 0) + 1);
+          } else if (ev.kind === "heroSkillActivated") {
+            stat.activeFires.set(ev.skillId, (stat.activeFires.get(ev.skillId) ?? 0) + 1);
+          } else if (ev.kind === "heroRecruited") {
+            stat.recruits += 1;
+            for (const sid of ev.skillIds) stat.grants.set(sid, (stat.grants.get(sid) ?? 0) + 1);
+          } else if (ev.kind === "propertyBought") {
+            stat.econ.bought += 1;
+          } else if (ev.kind === "propertyUpgraded") {
+            stat.econ.upgraded += 1;
+          } else if (ev.kind === "treasureTraded") {
+            stat.econ.traded += 1;
+          }
+        }
+      },
+    },
+  });
+  stat.finished = result.finished;
   stat.rounds = e.round;
   stat.winReason = e.winReason;
   stat.netWorths = e.players.map((p) => netWorth(p));

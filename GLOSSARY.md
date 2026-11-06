@@ -512,3 +512,21 @@ _Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnang
 **消费档位(Consumption Tier,#430)**:
 事件流每个 kind 的双面消费档位登记,单源 `src/core/event-tiers.ts` `EVENT_TIERS`:每个 kind 必声明 fold 面×fx 面两格——fold 面(net/event-fold.ts 折叠消费)四档 must-fold(精确折)/fold+calibration(折+校准双覆盖,已知漂移窗由快照校准纠正)/declarative(声明性无转移)/calibration-only(校准兜底,折叠面刻意不折),fx 面(fx/event-extract.ts 表现消费)两档 presented(有表现)/silent(无表现);词汇表新增 kind 未登记档位 = 编译期红(防遗漏机器,派生集约束两消费器 switch 穷尽)。与机遇「档位(Fortune Tag)」无涉:那是好运/中性/霉运的三分定性,消费档位是事件消费面的机器可查判定数据。
 _Avoid_: 档位(裸用——与机遇 Fortune Tag 混淆,见该词条)、判定表(旧散文注释形态,已升为机器可查数据)
+
+## 测试
+
+**无头整局(Headless Whole Game)**:
+bun 侧不启浏览器直接驱动权威引擎跑完一整局:构造(种子骰流)→ 选都(autoSetup)→ 循环驱动(botAct 裸调,同步泵进)→ 终局或回合上限。驱动单源 `scripts/whole-game.ts` `driveToEnd`/`runWholeGame`;sim-batch(批量统计)与 sim-digest(单局摘要导出)都经它跑局。确定性前提:同 (图, seed, 座位表) 恒同局。
+_Avoid_: 模拟器(那是浏览器 e2e/安卓模拟器)、replay(重放是按对局日志命令流复算,另一通路)、AI 对战模拟(口语)
+
+**状态摘要(State Digest)**:
+逐回合边界的引擎状态指纹 + 可读记录,单源 `scripts/state-digest.ts`:可读概要(轮次/相位/活跃座/骰流游标)+ `stateHash`(SNAPSHOT_FIELDS 全量减身份与战报字段,键排序规范化后 sha256)+ 本回合事件批 + 链式战报哈希(每回合只折新增行,剥墙钟 ts 与 header 行)。摘要定义冻结:口径漂移走「确认 → 评审 → update 台账」,不许静默改。逐位对齐可定位「首个漂移回合」,是黄金差分与确定性两跑门的原料。
+_Avoid_: 快照(快照是全量可序列化状态本体,摘要是其指纹与摘要)、指纹(裸用)、digest(中英混排)
+
+**黄金台账(Golden Ledger)**:
+固定语料(图 × 种子 × 座位表)的逐回合摘要基线文件(票二落 `test/goldens/`,jj 跟踪),`check:goldens` 重跑差分:漂移报「首个漂移回合 + 该回合 diff 摘要」。台账记录引擎事实而非期望——有意变更走「确认漂移符合预期 → update」。
+_Avoid_: 期望值(expected fixtures 之说法)、快照基线(与快照混淆)、baseline(与 check:core 行数基线混淆)
+
+**故障注入代理(Fault Proxy)**:
+联机协议级 e2e 的中间人进程(票四落 scripts/):双无头客户端经它连真实服务器,三个旋钮——延迟 ms / 丢包率 / N 秒杀连接——注入网络故障,断线重连与 catchup 断言下沉到协议层验证。转发的是真实服务器,不是替身。
+_Avoid_: mock 服务器(代理背靠真实服务器,不是替身)、弱网模拟(口语)
