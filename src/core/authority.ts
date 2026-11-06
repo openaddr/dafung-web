@@ -95,7 +95,7 @@ import {
 } from "./setup-flow";
 // 招贤纳士域(#326,ADR-0019 委托式拆分):三选一候选生成与选定在 recruitment.ts,壳内薄委托。
 import { tryRecruitHero, resolveHeroPick, type HeroOffer } from "./recruitment";
-// 声望域(#121/#147,ADR-0019,#384 自壳迁入):声望落账唯一口+献计里程碑在 reputation.ts。
+// 声望域(#121,ADR-0019,#384 自壳迁入):声望落账唯一口在 reputation.ts。
 import { addReputation } from "./reputation";
 import {
   beginGameEventBatch,
@@ -449,7 +449,6 @@ export class GameEngine {
       stamina: STARTING_STAMINA,
       jinnangHand: [], // 锦囊手牌(#122):开局发牌在 finishSetup
       jinnangHandCount: 0,
-      repMilestones: [],
     }));
     // 人类已填的国号加入 usedGuohao,防止 bot 分配时抽到重复国号(两个魏国 bug)
     for (const p of this.players) {
@@ -1117,9 +1116,8 @@ export class GameEngine {
   ): void {
     this.floaters.push({ playerIndex: this.players.indexOf(p), amount, atTile, kind });
   }
-  /** 声望增减(#121;#1090 去夹紧,无界累加)+ 声望献计里程碑(#147):薄委托 → reputation.addReputation。
-   *  事件流(#384):里程碑献计进手(jinnangDrawn·reason=repMilestone)在域内产出;
-   *  声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
+  /** 声望增减(#121;#1090 去夹紧,无界累加):薄委托 → reputation.addReputation。
+   *  事件流(#384):声望变更本体(reputationChanged)由各结算点显式 emit(本签名不带 reason)。 */
   addReputation(seat: number, delta: number): void {
     addReputation(this, seat, delta);
   }

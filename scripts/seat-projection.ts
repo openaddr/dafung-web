@@ -157,7 +157,7 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      无手牌信息,use=true 的牌已面明打出)/reactionFailed/
  *      duelResolved(#636/ADR-0030:拼点本就公开信息,座位/点数/胜者全员同见);
  *    · 机遇族 encounterTriggered/encounterChoice;声望/体力/跳过族 reputationChanged/
- *      repMilestoneCrossed(#719)/staminaChanged/turnSkipped。
+ *      staminaChanged/turnSkipped。
  *  - 裁剪(2 kind):
  *    · reactionOpened 的 jinnang 窗——queriedSeats 是 per-seat private 档(god-view
  *      全集 = 谁持识破诡计,#281/ADR-0016 同案)。裁剪口径=**身份匿名、数量保留**:
@@ -210,7 +210,6 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "jinnangReshuffled":
       case "jinnangExhausted": // #588:双空落空宣告(零转移纯宣告,无座位外隐私字段)
       case "reputationChanged":
-      case "repMilestoneCrossed": // #719:声望献计里程碑宣告(声望本就全桌可见)
       case "staminaChanged":
       case "turnSkipped":
       case "encounterTriggered":

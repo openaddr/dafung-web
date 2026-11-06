@@ -131,7 +131,7 @@ export const ENCOUNTERS: EncounterDef[] = [
     effect: { kind: "siphon", amount: 200 },
   },
   {
-    // 好运抉择(#188 档 2):得利附声望代价——岁赐落袋 vs 僭越之名(声望调档/献计里程碑的长线成本)。
+    // 好运抉择(#188 档 2):得利附声望代价——岁赐落袋 vs 僭越之名(声望调档的长线成本)。
     id: "奉迎天子",
     tier: "好运",
     tags: ["银两", "声望"],
@@ -433,8 +433,7 @@ export interface TierShares {
   bad: number;
 }
 
-/** softmax 唯一旋钮(#1090):声望 s 折算为权重 2^(s/K),K=100。代码常量,与
- *  REP_MILESTONES 同待遇,不进配置。 */
+/** softmax 唯一旋钮(#1090):声望 s 折算为权重 2^(s/K),K=100。代码常量,不进配置。 */
 export const TIER_SOFTMAX_K = 100;
 
 /** 声望调制(#1090 softmax 三元拉锯):三档权重 2^(s/K) : 1 : 2^(−s/K),归一为百分比。

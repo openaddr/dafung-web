@@ -835,7 +835,7 @@ describe("折叠投影器 · 锦囊族", () => {
 });
 
 describe("折叠投影器 · 声望/体力/跳过族", () => {
-  it("reputationChanged 直加实际增减,里程碑向上穿越仅首次", () => {
+  it("reputationChanged 直加实际增减(#1098 起无里程碑重算,纯累加)", () => {
     const e = makeEngine();
     e.players[0].reputation = 25;
     foldEventBatch(e, [
@@ -844,7 +844,6 @@ describe("折叠投影器 · 声望/体力/跳过族", () => {
     ]);
 
     expect(e.players[0].reputation).toBe(45);
-    expect(e.players[0].repMilestones).toEqual([30]); // 仅首次穿越入册
   });
 
   it("staminaChanged 直加实际增减;reason=exhaustion 相邻 skipTurns+1(耗竭善后标记侧)", () => {

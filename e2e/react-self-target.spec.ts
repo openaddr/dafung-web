@@ -73,9 +73,7 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
     await expect(page.getByTestId(TESTIDS.seatCash(0))).toHaveText("1900");
   });
 
-  test("军情密探(one 域):你印恒在但不可选,点按轻晃+弹层 reason 印条「不能指定自己」", async ({
-    page,
-  }) => {
+  test("军情密探(one 域):你印恒在但不可选,点按轻晃(reason 读 aria-label)", async ({ page }) => {
     await startJunshi(page, 67);
     await force(
       page,
@@ -86,22 +84,21 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
     );
     await page.getByTestId(TESTIDS.jinnangCard("军情密探")).click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
-    // 恒在口径(拍板 Q3):非 any 域自己不消失,而是不可选——#751 C 批起禁用原因
-    // 上屏(§4.6 文字例外):点按不再被 disabled 吞掉(触屏无 hover 的死区),
-    // 改 aria-disabled 挂点,点按=格身轻晃(.shake)+单人格弹层放行,reason 印条
-    // 上屏;「不能指定自己」即规则教学
+    // 恒在口径(拍板 Q3):非 any 域自己不消失,而是不可选——#751 C 批起点按不再
+    // 被 disabled 吞掉(触屏无 hover 的死区),改 aria-disabled 挂点;#1097 起原
+    // 「弹层放行+reason 印条」随单人格弹层退役(#1096 决议1),禁用原因读 aria-label,
+    // 点按反馈=格身轻晃(§4.6 位移即状态)
     const selfBtn = page.getByTestId(TESTIDS.seatTarget(0));
     await expect(selfBtn).toBeVisible();
     // aria-disabled 计入 Playwright 禁用判定(toBeDisabled 同判),挂点直查属性
     await expect(selfBtn).toHaveAttribute("aria-disabled", "true");
     await expect(selfBtn).toHaveAttribute("aria-label", "不可指定:不能指定自己");
     await expect(page.getByTestId(TESTIDS.seatSelf)).not.toHaveClass(/candidate/);
-    // 死区点按:弹层放行 + reason 印条上屏 + 格身轻晃类挂点(动画 ~240ms 内可见)
+    // 死区点按:格身轻晃类挂点(动画 ~240ms 内可见)+ 单人格弹层零残留(已退役)
     // (aria-disabled 计入 Playwright 可点性判定,真触屏无此闸——force 直点即用户点按)
     await selfBtn.click({ force: true });
-    await expect(page.getByTestId(TESTIDS.seatPop(0))).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.seatPopNotice(0))).toHaveText("不能指定自己");
     await expect(page.getByTestId(TESTIDS.seatSelf)).toHaveClass(/shake/);
+    await expect(page.getByTestId("seat-pop-0")).toHaveCount(0); // testids:allow 退役 testid 零残留断言——常量已随 #1097 核销删除,无单源可引
     // 未选中(不可选席不吃 .picked,「出」确认钮保持禁用)
     await expect(selfBtn).not.toHaveClass(/picked/);
     await expect(page.getByTestId(TESTIDS.actionbarTarget)).toBeDisabled();

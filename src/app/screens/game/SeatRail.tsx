@@ -3,7 +3,7 @@
 // ①全屏语境/②席位格解剖/③状态一览 三节判决移植——行1=国号印(座位色,字符居中)
 // +托管微标(#770,托管中才有)+现金主数(无千分位省「两」)+体力色条(吃行1剩余
 // 宽度,濒耗竭转朱砂);行2=#770 分组制:高频组「城楼+牌背」(图标 10px/计数 11px)
-// +发丝线组分隔+低频组「战盔/玉璧/墨竹/卷轴」四项(8px/10px 旧规格)——旧六项
+// +发丝线组分隔+低频组「战盔/玉璧/墨竹」三项(8px/10px 旧规格)——旧六项
 // 等权 space-between 均分退役(#751 C 批容量重排后内宽恒贴边,分组给组界结构;
 // 全宽出血预算判据见 layout.css .l2,量测口径:10px tabular 数字 6px/11px 6.6)。
 // 图标逐路径复刻 AttrIcon.tsx 现役资产(战盔/玉璧走 ATTR_ENTRY_D,牌背=MiniBacks),
@@ -12,25 +12,25 @@
 // (.candidate)+选中实金停持(.picked,#417 统一口径)、破产=降透明印灰(.bankrupt)、
 // 终局胜者=金环(.won)、自机=金描边+左金条+金渐变(.self,无「你」字)、托管(AI
 // 代打)开启=国号印右 8px 齿轮微标(.hosted,#770,取值与 useAutopilotOn 同源:
-// 联机=座位广播逐席 autoPilot、单机=控制器本地标记;开关交互唯弹层,ADR-0028)
+// 联机=座位广播逐席 autoPilot、单机=控制器本地标记;开关交互唯设置弹层,ADR-0028)
 // ——旧「自身不出卡」规则与「运筹中」文字微标随席位卡形态一并退役(活跃金圈呼吸
 // 即指名)。
 // 列几何(拍板口径):列宽 96 固定、格间距 2px、列 y8 起排;格高=clamp(30,(可用高−14)/8,38),
 // 可用高=视口高−顶距 8−钮区 54(#700 右下三圆钮上缘;落地前该 54px 仅作格高预算),
 // 矮横屏 390/375/320 三档高全部零滚动——式样落 layout.css,组件零断点分支。
-// 交互:格面 tap=单人格弹层(#701,原型 ⑤ 移植,SeatPopModal/seat-pop.css,开合态
-// 归本列)、格上图标直达(#701):城楼=名下城池清单(#622 原样,开合态仍归
-// 归
-// GameScreen)、战盔=名将名录/玉璧=珍宝列表/墨竹=声望明细
-// (SeatAttrModals,钻入式单层互斥);牌背=暗牌不可点(ADR-0016,浮签照旧)。格根
-// 点击层=目标段选席(#256/#417 原样等价保留);弹层可 tap 的通路=格上非按钮区
-// (印/现金/图标间隙——七个浮签触发元与目标层按钮各自 claim 点击,冒泡止于
-// spop-claim 壳,详 SeatCell)。自机候选面仍在仪表条身份区「你」印(自机格不设
-// 目标点击层——与仪表条双挂同 testid 会炸 e2e strict 模式)。
+// 纯展示(#1096 决议1,工单 #1097):旧 #701 交互通路整体退役——格面 tap 单人格
+// 弹层(SeatPopModal 已删)、五图标直达(城楼/战盔/玉璧/墨竹)、长按浮签(Tip)
+// 一并拆除;查档收编诸侯详情四钻入(城池 chips/名将 chips/珍宝槽/声列,GameTopBar
+// 持开合态),托管开关收编设置弹层 settingsAutopilot(同一 ADR-0028 引擎通路)。
+// 格上保留的只有展示面:金圈呼吸/齿轮微标/双行数字/跳变浮字(fx 面非交互)。
+// 目标段点击层(#256/#417)不受影响:点格=选中/再点同席取消,打出走动作条「出」;
+// 不可选席点按=格身轻晃(§4.6 位移即状态;不可指定原因读 aria-label——旧「弹层
+// reason 印条」通路随单人格弹层退役)。自机候选面:自机格目标段随 targets 在场
+// (自选目标 any 域,候选即自机格点击层;react-self-target 同款)。
 // 变化反馈(#495):全员现金/体力浮标(useDeltaFloat/DeltaFloats 共享单源),自机格
 // 同锚现金主数/体力条——仪表条已随 #700 退役,自机跳变反馈归席位格(评审 #697 收口;
 // 旧「#700 前双挂浮两遍」随仪表条本体不复存在)。
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { formatMoney } from "@core/money";
 import { playerColor, playerSealText, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
@@ -38,27 +38,18 @@ import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
 import { AttrIcon, MiniBacks } from "./AttrIcon";
-import { ATTR_TIPS, Tip, type TipText } from "./Tip";
+import { ATTR_TIPS } from "./Tip";
 import { TESTIDS } from "./testids";
-import { SeatPopModal, STAMINA_LOW } from "./SeatPopModal";
-import { SeatDetailModal, type SeatDetailKind } from "./SeatAttrModals";
 import "./layout.css";
 import "./seat-target.css";
-import "./seat-pop.css";
 
-/** 浮签触发元/目标层按钮的点击 claim 壳(#701):格面 tap=弹层归格根,七个按钮的
- *  点击冒泡止于此壳(display:contents 不改排版)——图标各自走直达/浮签,不夺格 tap。 */
-function Claim({ children }: { children: ReactNode }) {
-  return (
-    <span className="spop-claim" onClick={(e) => e.stopPropagation()}>
-      {children}
-    </span>
-  );
-}
+/** 体力色条转朱砂的濒耗竭线(原 SeatPopModal 单源迁本件,#1097 弹层退役;
+ *  格上血条与诸侯详情体力条同规)。 */
+export const STAMINA_LOW = 30;
 
 /** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
- *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃+弹层
- *  reason 印条(见 SeatCell 目标段注)。 */
+ *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃
+ *  (见 SeatCell 目标段注)。 */
 export interface SeatTargetSlot {
   available: boolean;
   selected?: boolean;
@@ -66,25 +57,16 @@ export interface SeatTargetSlot {
   onPick: () => void;
 }
 
-/** 名下城池清单弹层(#622)的席位侧载荷:openSeat=当前开着的清单目标(null=关),
- *  onOpen=点城池徽章请求开清单;aria-expanded 由 openSeat===seat 派生。 */
-export interface CityLedgerWiring {
-  openSeat: number | null;
-  onOpen: (seat: number) => void;
-}
-
 /** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽 84px 预算向数字倾斜后仍容不下
- *  两位数——≥10 显示「9+」(全数在单人格弹层;MiniBacks「至多示意 3 张」同款示意
- *  口径,数值例外条款允许,非文字角标);负声望保留真实负值不在封顶族。 */
+ *  两位数——≥10 显示「9+」(MiniBacks「至多示意 3 张」同款示意口径,数值例外条款
+ *  允许,非文字角标);负声望保留真实负值不在封顶族。 */
 const HAND_COUNT_CAP = 9;
 const handCountText = (count: number): string =>
   count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
 
-/** 单张席位格(96×38 双行八项格)。self=自机格(金描边+左金条+金渐变,纯展示)。
- *  hosted=托管(AI 代打)开启(#770):国号印右 8px 齿轮常驻微标,纯展示——
- *  开关交互唯一通路在单人格弹层(SeatPopModal 托管开关行,ADR-0028 单一开关)。
- *  #701 交互接线:onOpenPop=格面 tap(非按钮区)开单人格弹层;onOpenDetail=格上
- *  图标直达四明细(城池走 cityLedger 原通路)。 */
+/** 单张席位格(96×38 双行八项格,纯展示)。self=自机格(金描边+左金条+金渐变,
+ *  无点击层)。hosted=托管(AI 代打)开启(#770):国号印右 8px 齿轮常驻微标,
+ *  纯展示——开关交互唯一通路在设置弹层(settingsAutopilot,ADR-0028 单一开关)。 */
 function SeatCell({
   p,
   seat,
@@ -93,9 +75,6 @@ function SeatCell({
   winner,
   hosted,
   target,
-  cityLedger,
-  onOpenPop,
-  onOpenDetail,
 }: {
   p: SnapshotPlayer;
   seat: number;
@@ -104,18 +83,10 @@ function SeatCell({
   winner: boolean;
   hosted: boolean;
   target?: SeatTargetSlot;
-  cityLedger: CityLedgerWiring;
-  onOpenPop: (seat: number, reason?: string) => void;
-  onOpenDetail: (seat: number, kind: SeatDetailKind) => void;
 }) {
   // 死区轻晃(#743 判词 E/#751 C 批):目标段不可选席位点按→格身一次轻晃(视觉反馈,
   // §4.6 色变/位移即状态,不加文字章),随 animationEnd 自清——一次性演出不驻类。
   const [shake, setShake] = useState(false);
-  // 手牌浮签恒纯「暗置」口径(#575:窥探即时一次性,窥见放行随 jinnangPeeks 账本退役)
-  const handTip: TipText = {
-    name: ATTR_TIPS.hand.name,
-    detail: `${ATTR_TIPS.hand.detail}(以牌背示意,数量为准)`,
-  };
   // 变化浮标(#495,全员含自机):首帧只立基准不浮,跨快照跳变才出标。浮标挂行内
   // relative 容器(带 testid 的数值本体保持纯文本,e2e textContent 断言不受浮标串扰)。
   const cashFloats = useDeltaFloat(p.cash);
@@ -123,7 +94,6 @@ function SeatCell({
   return (
     <div
       data-testid={self ? TESTIDS.seatSelf : TESTIDS.seat(seat)}
-      onClick={() => onOpenPop(seat)}
       onAnimationEnd={() => setShake(false)}
       className={
         "seat" +
@@ -140,14 +110,11 @@ function SeatCell({
         ["--pc-seal" as string]: rgba(playerSealText(p.colorIndex)),
       }}
     >
-      {/* 格面 tap(#701)=单人格弹层:格根接点击;七个按钮(六图标+体力条)经
-          Claim 壳止泡各走己路,目标层按钮自带止泡——落到这里的只剩非按钮区 */}
       {/* 行1:国号印(座位色) + 托管微标(#770,托管中才有) + 现金主数 + 体力色条 */}
       <div className="l1">
         <span className="pseal">{p.guohao.charAt(0)}</span>
         {/* 托管常驻微标(#770):AI 代打是持续状态,齿轮=代打隐喻(§4.6 撤文字
-            可辨,role=img 补读屏名;视觉不加文字)。纯展示不设 Claim——点击冒泡
-            进格根 tap 通路,与印/现金同权开弹层。 */}
+            可辨,role=img 补读屏名;视觉不加文字)。纯展示,开关在设置弹层。 */}
         {hosted && (
           <span
             className="hosted"
@@ -164,8 +131,8 @@ function SeatCell({
             </svg>
           </span>
         )}
-        {/* 现金主数:无千分位省「两」(格上口径);千分位全称在单人格弹层。
-            testid 挂内层纯数 span,浮标在外层 relative 容器——textContent 不受串扰 */}
+        {/* 现金主数:无千分位省「两」(格上口径)。testid 挂内层纯数 span,浮标在
+            外层 relative 容器——textContent 不受串扰 */}
         <span className="cash relative">
           <span data-testid={TESTIDS.seatCash(seat)}>{p.cash}</span>
           <DeltaFloats
@@ -173,106 +140,88 @@ function SeatCell({
             fmt={(d) => (d > 0 ? "+" : "−") + formatMoney(Math.abs(d))}
           />
         </span>
-        <Claim>
-          <Tip tip={ATTR_TIPS.stamina} testId={TESTIDS.seatStamina(seat)} className="strack-tip">
-            <span className={"strack" + (p.stamina < STAMINA_LOW ? " low" : "")}>
-              <i style={{ width: `${p.stamina}%` }} />
-            </span>
-          </Tip>
-        </Claim>
-        <DeltaFloats
-          floats={staminaFloats}
-          fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
-        />
+        {/* 体力色条(纯展示,濒耗竭转朱砂):数值不入格(#698 口径),名词在
+            aria-label(原浮签触发元退化为 span,e2e 的 aria-label 契约不变)。 */}
+        <span
+          className="strack-tip relative"
+          data-testid={TESTIDS.seatStamina(seat)}
+          aria-label={ATTR_TIPS.stamina.name}
+        >
+          <span className={"strack" + (p.stamina < STAMINA_LOW ? " low" : "")}>
+            <i style={{ width: `${p.stamina}%` }} />
+          </span>
+          <DeltaFloats
+            floats={staminaFloats}
+            fmt={(d) => (d > 0 ? "+" : "−") + String(Math.abs(d))}
+          />
+        </span>
       </div>
       {/* 行2(#770 分组):高频组「城+牌」(图标 10px/计数 11px)+ 发丝线组分隔 +
           低频组三项(名将/珍宝/声望,维持 8px/10px 旧规格);space-between 把
-          行2 余量分到发丝线两侧成组间隙。#701 直达:战盔/玉璧/墨竹轻点开明细
-          弹层,城楼走 #622 清单(原样),牌背=暗牌不可点(ADR-0016,浮签照旧);
-          五图标全部 Claim 止泡,不夺格 tap。 */}
+          行2 余量分到发丝线两侧成组间隙。#1096 决议1 后五图标纯展示:计数裸排,
+          名词在 aria-label(原浮签触发元退化为 span);查档钻入走诸侯详情四元素。 */}
       <div className="l2">
         <div className="l2hi">
-          <Claim>
-            <Tip
-              tip={ATTR_TIPS.city}
-              className="ai ai-city"
-              testId={TESTIDS.seatAttr(seat, "city")}
-              ariaLabel={`城池 ${p.properties.length}`}
-              onTap={() => cityLedger.onOpen(seat)}
-              ariaExpanded={cityLedger.openSeat === seat}
-            >
-              <AttrIcon kind="city" size={10} />
-              {p.properties.length}
-            </Tip>
-          </Claim>
-          <Claim>
-            <Tip
-              tip={handTip}
-              className="ai ai-hand"
-              testId={TESTIDS.seatAttr(seat, "hand")}
-              ariaLabel={`锦囊手牌 ${p.jinnangHandCount}`}
-            >
-              {p.jinnangHandCount > HAND_COUNT_CAP ? (
-                /* 封顶态(#743 判词 A):≥10 只出「9+」不带牌背示意——行 2 全宽预算
-                   容不下背组+双字(判据见 layout.css .l2);全数在浮签/单人格弹层 */
-                handCountText(p.jinnangHandCount)
-              ) : (
-                <>
-                  <MiniBacks count={p.jinnangHandCount} />
-                  {p.jinnangHandCount}
-                </>
-              )}
-            </Tip>
-          </Claim>
+          <span
+            className="ai ai-city"
+            data-testid={TESTIDS.seatAttr(seat, "city")}
+            aria-label={`城池 ${p.properties.length}`}
+          >
+            <AttrIcon kind="city" size={10} />
+            {p.properties.length}
+          </span>
+          <span
+            className="ai ai-hand"
+            data-testid={TESTIDS.seatAttr(seat, "hand")}
+            aria-label={`锦囊手牌 ${p.jinnangHandCount}`}
+          >
+            {p.jinnangHandCount > HAND_COUNT_CAP ? (
+              /* 封顶态(#743 判词 A):≥10 只出「9+」不带牌背示意——行 2 全宽预算
+                 容不下背组+双字(判据见 layout.css .l2) */
+              handCountText(p.jinnangHandCount)
+            ) : (
+              <>
+                <MiniBacks count={p.jinnangHandCount} />
+                {p.jinnangHandCount}
+              </>
+            )}
+          </span>
         </div>
         <span className="l2sep" aria-hidden="true" />
         <div className="l2lo">
-          <Claim>
-            <Tip
-              tip={ATTR_TIPS.hero}
-              className="ai ai-hero"
-              testId={TESTIDS.seatAttr(seat, "hero")}
-              ariaLabel={`名将 ${p.heroes.length}`}
-              onTap={() => onOpenDetail(seat, "hero")}
-            >
-              <AttrIcon kind="hero" size={9} />
-              {p.heroes.length}
-            </Tip>
-          </Claim>
-          <Claim>
-            <Tip
-              tip={ATTR_TIPS.gem}
-              className="ai ai-gem"
-              testId={TESTIDS.seatAttr(seat, "gem")}
-              ariaLabel={`珍宝 ${p.treasures.length}`}
-              onTap={() => onOpenDetail(seat, "gem")}
-            >
-              <AttrIcon kind="gem" size={9} />
-              {p.treasures.length}
-            </Tip>
-          </Claim>
-          <Claim>
-            <Tip
-              tip={ATTR_TIPS.rep}
-              /* 负声望警示(#556):值 <0 值色改朱砂(数值即信息,色变即状态,§4.6
-                 不加标牌);样式 layout.css .ai.ai-rep.rep-neg。 */
-              className={"ai ai-rep" + (p.reputation < 0 ? " rep-neg" : "")}
-              testId={TESTIDS.seatAttr(seat, "rep")}
-              ariaLabel={`声望 ${p.reputation}`}
-              onTap={() => onOpenDetail(seat, "rep")}
-            >
-              <AttrIcon kind="rep" size={9} />
-              {p.reputation}
-            </Tip>
-          </Claim>
+          <span
+            className="ai ai-hero"
+            data-testid={TESTIDS.seatAttr(seat, "hero")}
+            aria-label={`名将 ${p.heroes.length}`}
+          >
+            <AttrIcon kind="hero" size={9} />
+            {p.heroes.length}
+          </span>
+          <span
+            className="ai ai-gem"
+            data-testid={TESTIDS.seatAttr(seat, "gem")}
+            aria-label={`珍宝 ${p.treasures.length}`}
+          >
+            <AttrIcon kind="gem" size={9} />
+            {p.treasures.length}
+          </span>
+          <span
+            /* 负声望警示(#556):值 <0 值色改朱砂(数值即信息,色变即状态,§4.6
+               不加标牌);样式 layout.css .ai.ai-rep.rep-neg。 */
+            className={"ai ai-rep" + (p.reputation < 0 ? " rep-neg" : "")}
+            data-testid={TESTIDS.seatAttr(seat, "rep")}
+            aria-label={`声望 ${p.reputation}`}
+          >
+            <AttrIcon kind="rep" size={9} />
+            {p.reputation}
+          </span>
         </div>
       </div>
       {/* 目标段点击层(#256/#417):真按钮覆盖格面(键盘可达,不自写交互语义);
           点格=选中/再点取消(选中实金停持 .picked,样式 seat-target.css),打出走
-          动作条「出」确认钮。格本体仍是展示件,候选态=金圈呼吸(.candidate)。
-          不可选席(#743 判词 E/#751 C 批):disabled 会吞点击形成死区(title 浮签
-          触屏不可达)——改 aria-disabled 挂点,点按=格身轻晃+单人格弹层放行,
-          reason 印条上屏(禁用原因=§4.6 文字例外,移动端唯一可达通路)。 */}
+          动作条「出」确认钮。不可选席(#743 判词 E/#751 C 批):disabled 会吞点击
+          形成死区——改 aria-disabled 挂点,点按=格身轻晃(原「弹层放行+reason
+          印条」随 #1096 决议1 退役,原因读 aria-label)。 */}
       {target && (
         <button
           type="button"
@@ -285,11 +234,9 @@ function SeatCell({
               ? `指定 ${p.guohao || p.name} 为目标`
               : `不可指定:${target.reason ?? ""}`
           }
-          onClick={(e) => {
-            e.stopPropagation(); // 目标段点击不冒泡进格 tap 弹层通路(#701)
+          onClick={() => {
             if (!target.available) {
               setShake(true);
-              onOpenPop(seat, target.reason);
               return;
             }
             target.onPick();
@@ -301,8 +248,8 @@ function SeatCell({
 }
 
 /** 席位格列:全员一人一格(自机入列,座序即列序)。
- *  整列随快照声明式重渲;唯一的组件内状态是对手格的现金/体力浮标(#495,useDeltaFloat
- *  自持,随格挂载随值自清)。旧三槽位切分(右 3+左 3+顶行缩微)随席位卡形态退役
+ *  整列随快照声明式重渲;唯一的组件内状态是格身的死区轻晃(一次性演出,随
+ *  animationEnd 自清)。旧三槽位切分(右 3+左 3+顶行缩微)随席位卡形态退役
  *  ——满编 8 席在列高自适应下零滚动(拍板口径,layout.css)。targets(#256/#417
  *  目标段):出牌阶段指向性牌的候选席位(键=座位号),在场时候选格金圈呼吸、点格=
  *  选中/再点同格取消(打出归动作条「出」确认钮,GameScreen 从快照 choices 派生,
@@ -315,26 +262,9 @@ export interface SeatRailProps {
     bySeat: Map<number, { available: boolean; selected?: boolean; reason?: string }>;
     onPick: (seat: number) => void;
   };
-  /** 名下城池清单(#622):城池徽章轻点开弹层,开合态归消费方(GameScreen 持态)。 */
-  cityLedger: CityLedgerWiring;
 }
 
-export function SeatRail({ snapshot, selfSeat, targets, cityLedger }: SeatRailProps) {
-  // 单人格弹层/明细弹层开合态(#701):归席位列子树自洽(不进 GameScreen 装配)。
-  // 开合态持座位号不持玩家对象——弹层开着随快照实时重渲(CityLedgerModal 同口径);
-  // 钻入=关单人格层开明细,居中模态单层互斥。reason(#743 判词 E)只在死区点按
-  // (目标段不可选席)传入,弹层题行下出印条;常规格面 tap 不带。
-  const [popSeat, setPopSeat] = useState<{ seat: number; reason?: string } | null>(null);
-  const [detail, setDetail] = useState<{
-    kind: SeatDetailKind;
-    seat: number;
-  } | null>(null);
-  const openPop = (seat: number, reason?: string) => setPopSeat({ seat, reason });
-  const openDetail = (seat: number, kind: SeatDetailKind) => {
-    setPopSeat(null);
-    setDetail({ kind, seat });
-  };
-
+export function SeatRail({ snapshot, selfSeat, targets }: SeatRailProps) {
   // 托管常驻微标(#770)每席位取值,与 useAutopilotOn 同一双源分式:
   // 联机 = 座位广播全席位回读(seat-projection autoPilot,ADR-0028 单一开关——
   // 大厅座位列表同源),本座走 selfHosted 同值;单机 = 控制器本地标记(热座唯一
@@ -369,33 +299,9 @@ export function SeatRail({ snapshot, selfSeat, targets, cityLedger }: SeatRailPr
             winner={Boolean(snapshot.isOver && snapshot.winner === p.id)}
             hosted={hosted(seat)}
             target={targetSlot(seat)}
-            cityLedger={cityLedger}
-            onOpenPop={openPop}
-            onOpenDetail={openDetail}
           />
         ))}
       </div>
-      {/* 单人格弹层(#701):tap 格开,点外/Esc 关;自机格带托管开关行(SeatPopModal 内
-          门卫)。popSeat 只由席位格点击写入,恒为有效座号,players 直取不设兜底。 */}
-      {popSeat != null && (
-        <SeatPopModal
-          p={snapshot.players[popSeat.seat]}
-          seat={popSeat.seat}
-          self={popSeat.seat === selfSeat}
-          notice={popSeat.reason}
-          cityLedger={cityLedger}
-          onOpenDetail={openDetail}
-          onClose={() => setPopSeat(null)}
-        />
-      )}
-      {/* 明细弹层族(#701):格上战盔/玉璧/墨竹/卷轴与弹层名将徽章钻入的单层出口 */}
-      {detail != null && (
-        <SeatDetailModal
-          kind={detail.kind}
-          p={snapshot.players[detail.seat]}
-          onClose={() => setDetail(null)}
-        />
-      )}
     </div>
   );
 }

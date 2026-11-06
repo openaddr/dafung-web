@@ -266,8 +266,8 @@ _Avoid_: 机遇卡(与锦囊牌面混淆)、事件卡(GameEvent 语境)
 ## 锦囊与暗牌
 
 **锦囊(Jinnang)**:
-暗置手牌卡牌系统,全游戏唯一的隐藏信息,博弈乐趣的核心,对局基本机制(无开关)。经锦囊城/机遇奖励/声望献计/起手发牌获取后暗置于己方;常规牌只在「自己回合开始、掷骰前」的出牌阶段中主动使用,带「即时」标记的反应锦囊改在他人回合的反应窗打出(见「反应锦囊」词条);常规牌的目标域(自身/指定一名玩家/指定两名玩家/全体其他玩家)由牌面固定。id 用中文且自带因果(名字与效果互证)。
-_Avoid_: 技能(那是名将的被动技/主动技,锦囊是牌不是技)、宝物(与珍宝混淆)、事件(现指 GameEvent,见「事件流」)、反应牌(旧称,现名反应锦囊)
+暗置手牌卡牌系统,全游戏唯一的隐藏信息,博弈乐趣的核心,对局基本机制(无开关)。经锦囊城/机遇奖励/起手发牌获取后暗置于己方;常规牌只在「自己回合开始、掷骰前」的出牌阶段中主动使用,带「即时」标记的反应锦囊改在他人回合的反应窗打出(见「反应锦囊」词条);常规牌的目标域(自身/指定一名玩家/指定两名玩家/全体其他玩家)由牌面固定。id 用中文且自带因果(名字与效果互证)。
+_Avoid_: 技能(那是名将的被动技/主动技,锦囊是牌不是技)、宝物(与珍宝混淆)、事件(现指 GameEvent,见「事件流」)、反应牌(旧称,现名反应锦囊)、声望献计(旧第四获取渠道,#1098 整线退役,渠道只剩三条)
 
 **锦囊手牌**:
 某座位暗置的锦囊集合。内容仅本人可见(联机经 per-seat 投影),数量全员可见(牌背计数,本身就是博弈信息)。无上限(#250),抽牌永不作废,理论上限=整副牌库(18 张)。
@@ -380,19 +380,19 @@ _Avoid_: 窥探窗口/窥探时窗(持续窗口旧口径,已退役)、窥见浮�
 _Avoid_: 席位卡列/席位竖卡(旧竖卡形态,#698 退役)、席位栏、侧栏(旧右栏语义,已退役)
 
 **席位格(Seat Cell,#698)**:
-对局屏右缘席位格列里每个诸侯的一张 96×38 双行格(#698 重形,原型 tmp/席位侧列原型.html 判决移植):行1=国号印(座位色)+托管微标(#770,托管中席位国号印右 8px 齿轮,纯展示——开关唯弹层)+现金主数(无千分位省「两」)+体力色条(濒耗竭转朱砂);行2=#770 分组制:高频组「城楼+牌背」(图标 10px/计数 11px)+发丝线组分隔+低频组「战盔/玉璧/墨竹」三项。一人一格(自机入列=金描边+左金条+金渐变);活跃方金圈呼吸指名「谁在行动」(操作不限时,无回合倒计时,2026-09-25 拍板),目标段候选金圈呼吸、首点选中/再点同席取消,打出走动作条「出」(#417);终局胜者格挂金环(DESIGN §4.6,无文字章);破产降透明印灰。交互(#701):格面 tap(印/现金/图标间隙等非按钮区)=**单人格弹层**(见该词条);五图标直达——城楼=名下城池清单(#622)、战盔=名将名录、玉璧=珍宝列表、墨竹=声望明细(轻点直达,长按仍浮签),牌背=暗牌不可点(ADR-0016,浮签照旧);现金/体力跳变浮字全员含自机(#495 通路,自机浮标自 #700 仪表条退役后归格)。格高随视口自适应 clamp(30,(可用高−14)/8,38),满编 8 席零滚动。组件单源 `src/app/screens/game/SeatRail.tsx`。
-_Avoid_: 诸侯列表(旧右栏 OthersPanel 语义,已退役)、玩家卡、席位卡/席位竖卡(旧 96 宽 38 行格列前的竖卡形态,#698 退役;含右列/左列/顶行缩微三槽位制)、仪表条(底部深底信息条,随 #700 全浮层骨架退役——现金/体力/属性计数归席位格、签面归手牌区、托管钮归 #701 自机格 tap 弹层)、「其余图标纯展示」(#701 起四明细图标直达,旧口径作废)
+对局屏右缘席位格列里每个诸侯的一张 96×38 双行格(#698 重形,原型 tmp/席位侧列原型.html 判决移植):行1=国号印(座位色)+托管微标(#770,托管中席位国号印右 8px 齿轮,纯展示——开关唯设置弹层,#1097 起)+现金主数(无千分位省「两」)+体力色条(濒耗竭转朱砂);行2=#770 分组制:高频组「城楼+牌背」(图标 10px/计数 11px)+发丝线组分隔+低频组「战盔/玉璧/墨竹」三项。一人一格(自机入列=金描边+左金条+金渐变);活跃方金圈呼吸指名「谁在行动」(操作不限时,无回合倒计时,2026-09-25 拍板),目标段候选金圈呼吸、首点选中/再点同席取消,打出走动作条「出」(#417);终局胜者格挂金环(DESIGN §4.6,无文字章);破产降透明印灰。**纯展示(#1096 决议1,#1097)**:格面 tap/五图标直达/长按浮签全退役——查档收编「诸侯详情」四钻入(城池/名将/珍宝/声望),托管开关收编设置弹层(同一 ADR-0028 引擎通路);格上保留的只有展示面:金圈呼吸/齿轮微标/双行数字/跳变浮字(现金/体力,全员含自机,#495 通路,自机浮标自 #700 仪表条退役后归格)。格高随视口自适应 clamp(30,(可用高−14)/8,38),满编 8 席零滚动。组件单源 `src/app/screens/game/SeatRail.tsx`。
+_Avoid_: 诸侯列表(旧右栏 OthersPanel 语义,已退役)、玩家卡、席位卡/席位竖卡(旧 96 宽 38 行格列前的竖卡形态,#698 退役;含右列/左列/顶行缩微三槽位制)、仪表条(底部深底信息条,随 #700 全浮层骨架退役——现金/体力/属性计数归席位格、签面归手牌区、托管钮归 #701 弹层行,后者又随 #1097 迁设置弹层)、格面 tap/图标直达(交互通路随 #1096 决议1 整体退役,查档唯诸侯详情)
 
-**单人格弹层(Seat Pop,#701)**:
-席位格 tap 开的单人纵深弹层(壳收口 shadcn/Base UI ui/dialog,题名行兼拖动把手,挂载不夺焦,点外/Esc 关,组件单源 `src/app/screens/game/SeatPopModal.tsx`):头=国号印+国号+现金章(裸数全称带「两」),体力/声望数值行,城池/手牌/名将/珍宝四徽章(城池→#622 清单、名将→名录钻入,关本层单层互斥;手牌/珍宝素底不可点);仅自机格带**托管开关行**(ADR-0028 单一托管开关:接管=自动托管,接现役引擎通路,行为=旧托管钮)。与「诸侯详情」两级并存:详情=全家福,格 tap=单人纵深。
-_Avoid_: 席位详情窗、个人面板(旧右栏语义)、托管钮(旧仪表条按钮形态,已退役——开关只有弹层这一处)
+**单人格弹层(Seat Pop,#701;#1097 退役)**:
+席位格 tap 开的单人纵深弹层,已随 #1096 决议1 整体退役(组件 SeatPopModal 与 seat-pop.css 删除)——格面纯展示化后此层不复存在。生前形制(存档):ui/dialog 壳,头=国号印+国号+现金章,体力/声望数值行,城池/手牌/名将/珍宝四徽章(城池/名将可钻入),仅自机格带托管开关行。接替去向:**查档**=诸侯详情四钻入(城池 chips/名将 chips/珍宝槽/声列,金描边+尾「›」),**托管开关**=设置弹层「托管」行(同一 ADR-0028 引擎通路)。
+_Avoid_: 席位详情窗、个人面板(旧右栏语义)、托管钮(旧仪表条按钮形态,已退役——开关只在设置弹层)、格 tap 开详情(旧通路,随本词条退役)
 
 **诸侯详情(Warlords Details,#702/#732)**:
-顶左「☰」点开的近全屏九列名录直读分板(LoL 手游记分板式):印/国号/现金/体力/牌数/城池名 chips(超 3 折叠「+N」,点击钻入「名下城池」清单)/名将名 chips/珍宝计数槽/声望,行行对齐全家福直读;自己行金描边、活跃方印金圈呼吸、破产行灰化——状态全视觉(DESIGN §4.6)。打开不暂停对局:纯读快照声明式渲染,开着随快照实时重渲。入口钮可达名与弹层题名定名「详情/诸侯详情」(#732 正名:名字贴合「看诸侯们的详情」心智;组件符号名 WarlordsOverview 维持不改)。与席位格 tap 单人格弹层两级并存:详情=全家福,格 tap=单人纵深。与「城池详情」(棋盘格点开的单城卷轴)并存互不混淆。
+顶左「☰」点开的近全屏九列名录直读分板(LoL 手游记分板式):印/国号/现金/体力/牌数/城池名 chips(超 3 折叠「+N」)/名将名 chips/珍宝计数槽/声望,行行对齐全家福直读;自己行金描边、活跃方印金圈呼吸、破产行灰化——状态全视觉(DESIGN §4.6)。**查档唯一入口(#1096 决议3,#1097)**:四元素可点钻入——城池 chips→「名下城池」清单(#622)、名将 chips→名将名录、珍宝槽→珍宝列表、声列→声望明细,可点件金描边+尾「›」微标,钻入式单层互斥(本层先关再开目标弹层)。打开不暂停对局:纯读快照声明式渲染,开着随快照实时重渲。入口钮可达名与弹层题名定名「详情/诸侯详情」(#732 正名:名字贴合「看诸侯们的详情」心智;组件符号名 WarlordsOverview 维持不改)。与「城池详情」(棋盘格点开的单城卷轴)并存互不混淆。
 _Avoid_: 诸侯总览(弃用名,已由 #732「诸侯详情」取代)、总览钮/总览弹窗(同上,已废)、全家福(口语)、战况面板、计分板(别家游戏语)
 
 **名下城池(City Ledger,#622)**:
-玩家持有的全部城池(含都城与珍宝城,同权入列无特判;数据单源快照 `players[].properties`,全员公开明置无保密边界)。对局屏经席位格的城池图标轻点开(#700 起图标只在席位格)**名下城池清单**弹层(壳复用 PileShell 朱印「城」,组件单源 `src/app/screens/game/CityLedgerModal.tsx`):一城一行按棋盘 index 序(行军顺序),行首=真实格缩略图(#623,复用棋盘 `<Tile>` 的非交互 svg 壳,组件单源 `src/app/screens/game/TileThumb.tsx`,与棋盘逐像素同源方便合窗后按图案定位),五列=城名/等级/购入价/变卖价/交易加成(见该词条),名下无城呈「名下暂无城池」空态;纯只读零操作项,开着随快照实时重渲。单城详情不走此清单——点棋盘格的城池详情卷轴照旧。
+玩家持有的全部城池(含都城与珍宝城,同权入列无特判;数据单源快照 `players[].properties`,全员公开明置无保密边界)。对局屏经**诸侯详情的城池名 chips 钻入**开(#1097 起唯一入口,#1096 决议3;原席位格城池图标直达随格面纯展示化退役)**名下城池清单**弹层(壳复用 PileShell 朱印「城」,组件单源 `src/app/screens/game/CityLedgerModal.tsx`):一城一行按棋盘 index 序(行军顺序),行首=真实格缩略图(#623,复用棋盘 `<Tile>` 的非交互 svg 壳,组件单源 `src/app/screens/game/TileThumb.tsx`,与棋盘逐像素同源方便合窗后按图案定位),五列=城名/等级/购入价/变卖价/交易加成(见该词条),名下无城呈「名下暂无城池」空态;纯只读零操作项,开着随快照实时重渲。单城详情不走此清单——点棋盘格的城池详情卷轴照旧。
 _Avoid_: 城池列表(泛称,不指此弹层)、资产清单(珍宝/名将不入列,别扩义)
 
 **动作条(Action Bar,#256)**:
@@ -452,7 +452,7 @@ _Avoid_: 武将栏(别家游戏语)、卡组(同前)
 _Avoid_: 跳过(裸用——事件流的 turnSkipped 是事件,这是时机)、眩晕/禁手(别家游戏语)
 
 **得锦囊进手(JinnangGained)**:
-锦囊入手的时机:抽牌物理单点(`jinnang-execution.ts` `drawJinnang`)内部派发,四条获取渠道全覆盖(起手发牌/锦囊城/机遇「圯上授书」/声望献计);`ctx.count`=本次实际入手张数,牌库与弃堆双空落空不派;暗牌不带牌 id(ADR-0016 保密口径)。
+锦囊入手的时机:抽牌物理单点(`jinnang-execution.ts` `drawJinnang`)内部派发,三条获取渠道全覆盖(起手发牌/锦囊城/机遇「圯上授书」);`ctx.count`=本次实际入手张数,牌库与弃堆双空落空不派;暗牌不带牌 id(ADR-0016 保密口径)。
 _Avoid_: 抽卡(口语,落空不派)、摸牌
 
 **窥探生效(PeekApplied)**:
@@ -498,7 +498,7 @@ _Avoid_: 抄家(口语)、没收(归银行时不派——本时机只认债主)
 _Avoid_: 机遇(那是玩法机制,见「机遇」)、日志事件(LogEvent,对局日志行)、表现事件(app 层投影出的动效原语,消费事件流的下游产物)
 
 **事件流(Event Stream)**:
-ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/propertyGranted/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangReshuffled/jinnangExhausted/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/duelResolved/jinnangVoided/jinnangInflicted/peekApplied)、声望/体力(reputationChanged/repMilestoneCrossed/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
+ADR-0020 定型、折叠切换①-⑦(#390/#384–#388)落地的同步模型:引擎每次状态转移产出事件(批界 = 编排入口开批,命令/bot 步/开局驱动各算一次转移,快照 `events` 字段非破坏性透出当前批),服务端随 flush 节奏以 `{type:"events"}` 消息明传全体在线座位(逐座位下行只经装配单口 `scripts/seat-projection.ts` `assembleDownlinkShot`:viewerSeat 传座位即裁剪流、null 即单机显式 god-view,口径细节见 docs/explanation/联机架构.md §5)——折叠切换⑥起为**联机对局唯一状态通路**(正常对局零逐步快照);快照降频为全量下行三类:首连/重连**整房摘要**、关键节点**校准**(开局/破产清算/决策窗五相位等折叠不可推导处,水合无条件覆盖全部字段)、房间**元数据**(lobby 指纹变化才发)。客户端折叠事件为本地状态(`net/event-fold.ts`)、动效照读因果(`fx/event-extract.ts`);断线即丢(无 seq/ack 不补发),重连 = 整房摘要灌状态 + 事件面清批;漂移纯信任,靠校准点纠偏。词汇按族概括(逐 kind 单源 `src/core/game-events.ts`):回合/胜负(gameStarted/turnStarted/turnEnded/roundStarted/roundEnded/gameOver/setupCompleted)、掷骰/行军(diceRolled/marchArrived/capitalHalt)、城池(capitalSelected/propertyBought/propertyUpgraded/propertyRejected/propertyGranted/exhaustionChoice/assetTransferred)、金钱(cashChanged)、珍宝(treasureGained/treasureSold/treasureTraded/treasureStolen/assetLiquidated)、破产(playerBankrupt)、名将(heroRecruited/skillFired/heroSkillActivated)、锦囊与反应窗(jinnangDrawn/jinnangReshuffled/jinnangExhausted/jinnangAnnounced/reactionOpened/reactionAnswered/reactionFailed/duelResolved/jinnangVoided/jinnangInflicted/peekApplied)、声望/体力(reputationChanged/staminaChanged)、跳过(turnSkipped)、机遇(encounterTriggered/encounterChoice)。
 _Avoid_: 事件通道(旧快照 diff 时代的旁路口子语境,如 lastJinnangPlay.seq)、事件总线(那是时机总线 dispatchMoment——技能挂点框架,事件流借其宣告点产出,二者不是一物)
 
 **消费档位(Consumption Tier,#430)**:

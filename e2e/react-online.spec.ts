@@ -162,12 +162,12 @@ test(
     await Promise.all([waitSettled(host), waitSettled(guest)]);
     expect(await coreState(guest)).toEqual(await coreState(host));
 
-    // ── 托管入口存在(联机专属;spec: autopilot;#701 起入口=自机格 tap 弹层托管
-    // 开关,格 tap DOM 直派穿决策卷轴遮罩,react-online-autopilot setAutopilot 同配方)──
-    await guest.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-    await expect(guest.getByTestId(TESTIDS.seatPopAutopilot(1))).toBeVisible();
+    // ── 托管入口存在(联机专属;spec: autopilot;#1097 起入口=设置弹层「托管」
+    // 开关,设置钮 DOM 直派穿决策卷轴遮罩,react-online-autopilot setAutopilot 同配方)──
+    await guest.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+    await expect(guest.getByTestId(TESTIDS.settingsAutopilot)).toBeVisible();
     await guest.keyboard.press("Escape");
-    await expect(guest.getByTestId(TESTIDS.seatPop(1))).toBeHidden();
+    await expect(guest.getByTestId(TESTIDS.settingsDialog)).toBeHidden();
 
     await host.context().close();
     await guest.context().close();

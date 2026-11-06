@@ -102,53 +102,6 @@ test.describe("全浮层骨架", () => {
       .toBe(true);
   });
 
-  test("浮签:hover 显名词释义,离签即隐;长按 400ms 同效;贴右缘席位向左翻面", async ({ page }) => {
-    // 两大户之一(#294 决议):三个 toPass 各自与「对局自走弹卷轴抢悬停」竞速,负载下
-    // 60s 默认档偏紧是超时 flake 家族——标 slow 防超时,非删例。
-    test.slow();
-    await quickStart(page);
-    const badge = page.getByTestId(TESTIDS.seatAttr(1, "rep"));
-    const tip = page.getByTestId(TESTIDS.attrTip);
-    // 对局自走会随时弹决策卷轴/骰子 overlay 抢走悬停——每步动作都带「清卷轴 + 重试」
-    //(断言只依赖图标浮签机制本身,不依赖数值,推进无妨)。
-    const clear = async () => {
-      await dismissJinnangIfUp(page);
-      await actIfCan(page).catch(() => false);
-    };
-    // hover:名词 + 一句话释义
-    await expect(async () => {
-      await clear();
-      await badge.hover({ timeout: 3_000 });
-      await expect(tip).toBeVisible();
-      await expect(tip).toContainText("声望");
-    }).toPass({ timeout: 30_000 });
-    await page.mouse.move(400, 400);
-    await expect(tip).toBeHidden();
-    // 长按(压住 ≥400ms)同效
-    await expect(async () => {
-      await clear();
-      await badge.hover({ timeout: 3_000 });
-      await page.mouse.down();
-      await expect(tip).toBeVisible();
-    }).toPass({ timeout: 30_000 });
-    await page.mouse.up();
-    await expect(tip).toBeHidden();
-    // #701 起徽章轻点=明细直达:长按的 down+up 落幕即成点击,声望明细弹层(z-50
-    // 遮罩)必然在挂——Esc 收净再走贴缘翻面段,不然遮罩吞掉后续全部 hover。
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId(TESTIDS.seatRepModal)).toBeHidden();
-    // 贴右缘翻面:席位卡列在视口右缘,浮签整体翻到徽章左侧(不溢出视口)
-    await expect(async () => {
-      await clear();
-      await badge.hover({ timeout: 3_000 });
-      await expect(tip).toBeVisible();
-    }).toPass({ timeout: 30_000 });
-    const bb = (await badge.boundingBox())!;
-    const tb = (await tip.boundingBox())!;
-    expect(tb.x + tb.width).toBeLessThanOrEqual(bb.x + 4); // 浮签右缘不越过徽章左缘(留 4px 容差)
-    expect(tb.x).toBeGreaterThanOrEqual(0);
-  });
-
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
     const zone = page.getByTestId(TESTIDS.handZone);

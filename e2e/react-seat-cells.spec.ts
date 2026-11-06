@@ -111,21 +111,22 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await quickStart(page);
     const badge = page.getByTestId(TESTIDS.seatHosted(0));
     await expect(badge).toHaveCount(0);
-    // 开托管(react-online-autopilot setAutopilot 同款通路:格 tap(DOM 直派)→
-    // 拨开关 → Esc 关层;开关态=aria-checked 广播回读)
-    await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-    const sw = page.getByTestId(TESTIDS.seatPopAutopilot(0));
+    // 开托管(#1097 通路:设置弹层「托管」开关,ADR-0028 同一引擎通路;设置钮 DOM
+    // 直派 click——决策卷轴 z-30 遮罩在挂时真点击会被吞,直派照进真实 React onClick;
+    // 开关态=aria-checked 广播回读)
+    await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+    const sw = page.getByTestId(TESTIDS.settingsAutopilot);
     await expect(sw).toBeVisible({ timeout: 10_000 });
     await sw.click();
     await expect(sw).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
     await page.keyboard.press("Escape");
-    await expect(page.getByTestId(TESTIDS.seatPop(0))).toBeHidden({ timeout: 5_000 });
-    // 常驻微标现于自机格(纯展示,开关交互仍唯弹层);对手 bot 席非托管恒无
+    await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
+    // 常驻微标现于自机格(纯展示,开关交互唯设置弹层);对手 bot 席非托管恒无
     await expect(badge).toBeVisible();
     await expect(page.getByTestId(TESTIDS.seatHosted(1))).toHaveCount(0);
     // 关托管 → 微标撤(状态随开关往返,§4.6 无文字章)
-    await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-    const swOff = page.getByTestId(TESTIDS.seatPopAutopilot(0));
+    await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+    const swOff = page.getByTestId(TESTIDS.settingsAutopilot);
     await expect(swOff).toBeVisible({ timeout: 10_000 });
     await swOff.click();
     await expect(swOff).toHaveAttribute("aria-checked", "false", { timeout: 15_000 });

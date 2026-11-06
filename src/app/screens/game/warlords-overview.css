@@ -1,19 +1,28 @@
 /* 诸侯详情弹窗样式(#702,spec #697 ⑥):原型 tmp/席位侧列原型.html ⑦ 「诸侯总览弹窗」节(原型时代旧称,定名「诸侯详情」)
-   一节判决原样移植——十列 grid 行行对齐(列序:印/国号单名/现金/体力/牌数/城池 chips/
-   名将 chips/珍宝计数槽/声/委),黛青 cityslot/朱砂 hnslot/gemsq 计数槽/破产行灰化
-   (.dead)/自己行金描边(.self)/活跃方印金圈(.is-active)全按原型制式。弹层经
-   Portal 渲染在 body,.game-layout 罩不到——zl- 前缀防串扰(spop-/pile-/war- 先例
-   同款);色值几何以原型为准,原型 --g* 对射现役 token(对射表见 layout.css 头注):
-   gink→ink、ginkdim→ink-dim、ggold→gold、gcity→attr-city、gdanger→danger、gem→
-   attr-gem;ink/city/danger/gem 系 alpha 一律 color-mix(seat-pop.css 同款),
-   rgba(217,185,92,·) 金系裸色豁免沿 layout.css 文件头判词。
+   一节判决原样移植——九列 grid 行行对齐(列序:印/国号单名/现金/体力/牌数/城池 chips/
+   名将 chips/珍宝计数槽/声;原「委」空尾轨随 #1097 列宽调整退役),黛青 cityslot/
+   朱砂 hnslot/gemsq 计数槽/破产行灰化(.dead)/自己行金描边(.self)/活跃方印金圈
+   (.is-active)全按原型制式。四元素可点钻入(#1096 决议3,#1097):城池/名将/珍宝/
+   声列金描边+微亮金底+尾「›」(.zl-drill/.zl-face,spop-click 同形制;原 spop 徽章
+   制式单源在退役的 seat-pop.css,制式判词存档本文件)。弹层经 Portal 渲染在 body,
+   .game-layout 罩不到——zl- 前缀防串扰(sdtl-/pile-/war- 先例同款);色值几何以原型
+   为准,原型 --g* 对射现役 token(对射表见 layout.css 头注):gink→ink、ginkdim→
+   ink-dim、ggold→gold、gcity→attr-city、gdanger→danger、gem→attr-gem;ink/city/
+   danger/gem 系 alpha 一律 color-mix,rgba(217,185,92,·) 金系裸色豁免沿 layout.css
+   文件头判词。
    实装级偏差(功能/规则要求,非视觉自由发挥):
    - 行距行高压缩(原型 .srow padding 6px 10px / margin 4px 0 → 3px 10px / 2px 0):
      近全屏窗体受底件 max-h 86dvh 约束,矮横屏 390 高下满编 8 行必须零滚动零截断
      (#702 AC),原型行距是独立网页面板排版、无此预算;
    - 文案字体走 font-wenkai(chips 新文案,DESIGN §4.3 字体安全规约,原型的小薇禁新用);
    - 名将槽=HERO_CAPACITY 单源(上限恒 3,空槽画空格);珍宝槽=max(3, 件数)——
-     原型 3 槽为示意,持有超过时槽位随之增多,计数槽不折断(零兜底:静默截断=谎报)。
+     原型 3 槽为示意,持有超过时槽位随之增多,计数槽不折断(零兜底:静默截断=谎报);
+   - 珍宝/声列轨加宽(56/26 → 76/48px)容钻入件描边与「›」尾标(#1097);城池/名将
+     两 fr 轨 minmax 下限不变,余量照吃。
+   - 声列概率条再平衡(#1096 决议4,#1099):声列 56 → 118px 容「声 ±NN」+52×8 行内
+     概率条(值旁横排,行高不动——满编 8 行零滚动预算不破);加宽从最肥的单字列找补:
+     国号恒单汉字(单字 12px),84 → 48px。城池/名将 chips 三枚三字的最坏面
+     (146px)在 fr 轨余量(约 158px)内,不生裁切。
    【注意:注释内禁写「星号紧跟斜杠」的字符组合——等于提前闭合注释。】 */
 
 /* ── 壳:近全屏分板(原型 .score 制式:漆金边 .4 / 10px 圆角;纸面渐变底件自带)── */
@@ -85,13 +94,10 @@
   transform: scale(1.02);
 }
 
-/* ── 十列行(原型 .srow 制式;列模板原样,行距压缩见文件头偏差注)── */
+/* ── 十列行(原型 .srow 制式;#1097 起九列实排+钻入件轨加宽,见文件头偏差注)── */
 .zl .zl-row {
   display: grid;
-  grid-template-columns: 22px 84px 64px 48px 30px minmax(110px, 1fr) minmax(
-      92px,
-      1fr
-    ) 56px 26px 26px;
+  grid-template-columns: 22px 48px 64px 48px 30px minmax(110px, 1fr) minmax(92px, 1fr) 76px 118px;
   gap: 8px;
   align-items: center;
   min-width: 0;
@@ -192,17 +198,16 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* ── 城池列(真按钮,容器=chips 排布面):黛青 chips,超 3 折叠「+N」(原型
-   .citynames/.cityslot/.more)──
-   触达热区垫(#761 ⑧):视觉 chips 不动,钮身 padding 上下外探 5px + 负 margin
-   抵消排版占位(seat 格 .ai 命中区同惯例;overflow:hidden 只裁内容不裁钮身盒,
-   tbtn 式 ::after 内衬在此会被裁故不用)——垫量按 10px 行缝(行 padding 3+行
-   margin 2)取,相邻行热区贴界不重叠。 */
-.zl .zl-cities {
+/* ── 可点钻入件(#1096 决议3,#1097):四元素(城池 chips/名将 chips/珍宝槽/声列)
+   同一形制——金描边+微亮金底+尾「›」(退役单人格弹层 spop-click 徽章制式移植,
+   制式判词存档本文件头)。钮身承触达热区垫(#761 ⑧):视觉 chips 不动,钮身
+   padding 上下外探 5px + 负 margin 抵消排版占位(seat 格 .ai 命中区同惯例;
+   overflow:hidden 只裁内容不裁钮身盒,tbtn 式 ::after 内衬在此会被裁故不用)
+   ——垫量按 10px 行缝(行 padding 3+行 margin 2)取,相邻行热区贴界不重叠。 */
+.zl .zl-drill {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 4px;
   overflow: hidden;
   padding: 5px 4px;
   margin: -5px -4px;
@@ -210,8 +215,37 @@
   border: none;
   cursor: pointer;
   font: inherit;
+  color: inherit;
   text-align: left;
 }
+/* 钻入件可视面:描边包 chips 排布面,gap 4 同原 chips 面;「›」承印伪元素不改
+   DOM 文本(warlordsHeroes 的「···」种植断言不受扰,zl-slot 空槽同法)。 */
+.zl .zl-face {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 1px 5px;
+  border: 1px solid rgba(217, 185, 92, 0.5);
+  border-radius: 6px;
+  background: rgba(217, 185, 92, 0.06);
+}
+.zl .zl-face::after {
+  content: "›";
+  flex: none;
+  color: var(--color-gold);
+  font-size: 10px;
+  line-height: 0.6;
+}
+.zl .zl-drill:hover .zl-face {
+  border-color: rgba(217, 185, 92, 0.85);
+}
+.zl .zl-drill:hover .zl-cityslot {
+  border-color: var(--color-attr-city-bright);
+}
+
+/* 城池 chips:黛青,超 3 折叠「+N」(原型 .citynames/.cityslot/.more)── */
 .zl .zl-cityslot {
   flex: none;
   font-size: 10px;
@@ -227,17 +261,8 @@
   color: var(--color-paper-dim);
   background: color-mix(in srgb, var(--color-paper) 5%, transparent);
 }
-.zl .zl-cities:hover .zl-cityslot {
-  border-color: var(--color-attr-city-bright);
-}
 
-/* ── 名将列:朱砂名 chips + 空槽画空格(原型 .heronames/.hnslot/.empty)── */
-.zl .zl-heroes {
-  min-width: 0;
-  display: flex;
-  gap: 4px;
-  overflow: hidden;
-}
+/* ── 名将名 chips:朱砂 + 空槽画空格(原型 .heronames/.hnslot/.empty)── */
 .zl .zl-hnslot {
   flex: none;
   font-size: 10px;
@@ -258,10 +283,6 @@
 }
 
 /* ── 珍宝计数槽:17×17 方槽,满槽「玉」(原型 .gemsq/.slot/.full;gem→attr-gem)── */
-.zl .zl-gems {
-  display: flex;
-  gap: 3px;
-}
 .zl .zl-slot {
   width: 17px;
   height: 17px;

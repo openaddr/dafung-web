@@ -208,7 +208,6 @@ const ALL_KIND_BODIES: GameEventBody[] = [
   { kind: "jinnangReshuffled", count: 3 },
   { kind: "jinnangExhausted" },
   { kind: "reputationChanged", delta: 10, reason: "encounter" },
-  { kind: "repMilestoneCrossed", milestone: 30 }, // #719 声望献计里程碑
   { kind: "staminaChanged", delta: -15, reason: "encounter" },
   { kind: "turnSkipped" },
   { kind: "encounterTriggered", encounterId: "shibei", tier: "中性" },

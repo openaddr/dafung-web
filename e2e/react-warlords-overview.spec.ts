@@ -1,11 +1,15 @@
 // 诸侯详情弹窗(#702,#732 正名,spec #697 ⑥):①行数据与投影逐字一致(城池名/名将名直读,
-// 种植式断言,react-city-ledger 同口径);②城池列点击开对应诸侯 #622 名下城池清单
-// (单层互斥:总览先关清单再开);③状态挂点(自机行 .self 金描边/破产行 .dead 灰化/
+// 种植式断言,react-city-ledger 同口径);②四元素钻入(#1096 决议3,#1097):城池 chips→
+// #622 清单/名将 chips→名录/珍宝槽→列表/声列→声望明细,钻入式单层互斥(总览先关
+// 再开目标弹层);③状态挂点(自机行 .self 金描边/破产行 .dead 灰化/
 // 活跃方 .is-active 印金圈);
+// ⑥声列三档概率条与声望明细终态(#1096 决议4/5,#1099):行内条结构性断言(高声望
+// 好运段占优/零声望三等分,宽度比断言勿钉像素)、明细条+三档百分比明文逐字(吃
+// core tierShares 同源现算)+零冗余负向断言(不含『献计』『里程碑』)。
 // ⑤满编 8 行 @844×390 零滚动零截断。(原④「打开不暂停」例已按 #987 零容忍删除
 // 2026-11-05:一日四挂两绿两种签名——点击拦截层修通后快照推进层又挂,时序竞速族;
 // 「弹层开着对局照走」是架构事实(引擎不知弹层),不可靠守卫按纪律删不留台账,#1042 有案。)
-// 停靠纪律(react-seat-pop 同款):quickStart 可能在行军演出在播时归还——清卷轴必须
+// 停靠纪律:quickStart 可能在行军演出在播时归还——清卷轴必须
 // 「等 fx 排空→再探→无动作」循环收敛,冻结后再补一刀;钉 seed 1010(#949 关中重钓:
 // 原 49 × huanyou 停靠随换图作废,1010 实测开局停在购地决策、无招贤岔路)。总览行无浮签触发元(title 静态浮签除外),无 #704
 // 残影风险;关闭走 Esc/点外/X 三路(ui/dialog 底件白拿)。
@@ -23,12 +27,13 @@ import {
   unfreezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { tierShares } from "../src/core/encounters";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
-// 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例(react-seat-pop 同因):60s 缺省
+// 本 spec 各例都是「整局 boot + 种植 + 弹层链」重例:60s 缺省
 // 超时装不下,显式放宽——放宽语句必须落在测试体首行(文件顶层调用不生效)。
 
-/** 清决策卷轴到「演出排空且无可用动作」(react-seat-pop settleForTap 同法)。 */
+/** 清决策卷轴到「演出排空且无可用动作」(等 fx 排空→再探→无动作循环收敛)。 */
 async function settleForOverview(page: Page) {
   for (let i = 0; i < 10; i++) {
     await waitFxIdle(page, 45_000);
@@ -52,13 +57,24 @@ async function openOverview(page: Page) {
   return modal;
 }
 
-/** 种植对手席(座位 1)名录载荷:三座无主城 + 一名将 + 两珍宝(真身份,react-seat-pop
- *  同规——陈列按 id 回查目录,假 id 当场炸)。返回逐字期望值(读自引擎 board/hero)。 */
+/** 声列概率条三段布局宽(#1099 结构断言原料;勿钉像素,断言一律吃宽度比)。 */
+function repBarWidths(page: Page, testid: string) {
+  return page
+    .getByTestId(testid)
+    .locator(".rep-prob-bar > i")
+    .evaluateAll((els) => els.map((el) => (el as HTMLElement).getBoundingClientRect().width));
+}
+
+/** 种植对手席(座位 1)名录载荷:三座无主城 + 一名将 + 两珍宝 + 高声望 +210(#1099
+ *  概率条好运段占优断言的种植面;真身份,陈列按 id 回查目录,假 id 当场炸)。
+ *  返回逐字期望值(读自引擎 board/hero)。 */
 async function plantSeat1Roster(page: Page) {
   await force(
     page,
     `
     const p1 = e.players[1];
+    p1.reputation = 210;
+    e.players[0].reputation = 0; // 自机钉零:softmax 零点三段等宽断言的种植面
     const owned = new Set(e.players.flatMap((p) => p.properties.map((h) => h.propertyId)));
     const free = e.board.tiles.filter((t) => t.propertyId && !owned.has(t.propertyId));
     if (free.length < 3) throw new Error("种植失败:无主城不足 3 座(地图/开局变了)");
@@ -142,6 +158,16 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
         `+${planted.names.length - 3}`,
       );
 
+      // 声列三档概率条(#1099):宽度比结构断言,勿钉像素——种植席 +210 好运段
+      // 结构性占优(softmax 单调,>半条);自机钉零声望,softmax 零点三段等宽。
+      const w1 = await repBarWidths(page, TESTIDS.warlordsRepCell(1));
+      expect(w1).toHaveLength(3);
+      expect(w1[0] / w1.reduce((a, b) => a + b, 0)).toBeGreaterThan(0.5);
+      const w0 = await repBarWidths(page, TESTIDS.warlordsRepCell(0));
+      expect(w0).toHaveLength(3);
+      expect(Math.abs(w0[0] - w0[1])).toBeLessThan(0.5);
+      expect(Math.abs(w0[1] - w0[2])).toBeLessThan(0.5);
+
       // 题名行:轮次与快照一致
       await expect(modal.locator(".zl-round")).toHaveText(`${s.round} 轮`);
 
@@ -154,17 +180,18 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
   });
 });
 
-test.describe("城池列点击开对应诸侯清单(#702 ②)", () => {
-  test("总览先关、#622 清单开到对应诸侯(国号题名+种植行),X 收清单", async ({ page }) => {
+test.describe("四元素钻入(#1096 决议3,#1097)", () => {
+  test("城池 chips→清单/名将 chips→名录/珍宝槽→列表/声列→明细;单层互斥", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
       const planted = await plantSeat1Roster(page);
-      await openOverview(page);
+      const s = await snap(page);
 
+      // 城池 chips → #622 清单(单层互斥:总览先关,清单开到对应诸侯)
+      await openOverview(page);
       await page.getByTestId(TESTIDS.warlordsCities(1)).click();
-      // 单层互斥:总览先关,清单开到对应诸侯(react-seat-pop 城池徽章钻入同法)
       await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
       const ledger = page.getByTestId(TESTIDS.cityLedger);
       await expect(ledger).toBeVisible();
@@ -174,6 +201,47 @@ test.describe("城池列点击开对应诸侯清单(#702 ②)", () => {
       }
       await page.getByTestId(TESTIDS.modalClose).click();
       await expect(ledger).toHaveCount(0);
+
+      // 名将 chips → 名将名录(PileShell 名录,麾下 1 席,卡面出将名)
+      await openOverview(page);
+      await page.getByTestId(TESTIDS.warlordsHeroes(1)).click();
+      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
+      const heroModal = page.getByTestId(TESTIDS.seatHeroModal);
+      await expect(heroModal).toBeVisible();
+      await expect(heroModal.getByText("麾下名将 · 1 席")).toBeVisible();
+      await expect(heroModal.getByText(planted.hero)).toBeVisible();
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(heroModal).toHaveCount(0);
+
+      // 珍宝槽 → 珍宝列表(种植 2 件,陈列 2 卡)
+      await openOverview(page);
+      await page.getByTestId(TESTIDS.warlordsGems(1)).click();
+      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
+      const gemModal = page.getByTestId(TESTIDS.seatGemModal);
+      await expect(gemModal).toBeVisible();
+      await expect(gemModal.getByText("已持有 · 2 件")).toBeVisible();
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(gemModal).toHaveCount(0);
+
+      // 声列 → 声望明细终态(#1099):大数+三段概率条+三档百分比明文(逐字吃
+      // tierShares 同源现算,勿钉像素);零冗余负向断言:不含『献计』『里程碑』字样。
+      await openOverview(page);
+      await page.getByTestId(TESTIDS.warlordsRepCell(1)).click();
+      await expect(page.getByTestId(TESTIDS.warlordsOverview)).toHaveCount(0);
+      const repModal = page.getByTestId(TESTIDS.seatRepModal);
+      await expect(repModal).toBeVisible();
+      await expect(repModal.locator(".sdtl-bignum")).toHaveText(String(s.players[1].reputation));
+      await expect(repModal.locator(".rep-prob-bar > i")).toHaveCount(3);
+      const shares = tierShares(s.players[1].reputation);
+      await expect(repModal.locator(".sdtl-tiers > span")).toHaveText([
+        `好运 ${Math.round(shares.good)}%`,
+        `中性 ${Math.round(shares.neutral)}%`,
+        `霉运 ${Math.round(shares.bad)}%`,
+      ]);
+      await expect(repModal).not.toContainText("献计");
+      await expect(repModal).not.toContainText("里程碑");
+      await page.getByTestId(TESTIDS.modalClose).click();
+      await expect(repModal).toHaveCount(0);
     } finally {
       await unfreezeClock(page);
     }

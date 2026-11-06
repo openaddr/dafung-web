@@ -23,6 +23,11 @@
 // 胶囊(turn-capsule,#732 拍板在先、#762 胶囊诞生后的双通道冗余,复裁退役)。
 // 接替形态=顶左两钮(topbar-overview/settings-button)+ 右下三圆钮(pile-buttons 族)
 // + 设置弹层(settings-* 族)+ 手牌区(hand-zone)。
+// #1097 退役核销(#1096 决议1/2):seat-pop 系单源常量(seatPop/seatPopCash/
+// seatPopNotice/seatPopStamina/seatPopRep/seatPopBadge/seatPopAutopilot)随单人格
+// 弹层(SeatPopModal)退役——查档收编诸侯详情四钻入(warlords* 族),托管开关
+// 收编设置弹层(settings-autopilot);席位格五图标退化为纯展示挂点(seatAttr 族
+// 不变,名词在 aria-label)。
 export const TESTIDS = {
   // ── 全浮层骨架(#700;#732 顶左行序:设置→详情两钮,顶中让给知会槽):
   //  顶部条 / 席位格列 / 手牌区 / 右下三圆钮 ──
@@ -45,7 +50,8 @@ export const TESTIDS = {
   /** 属性计数(attr ∈ city|hand|rep|gem|hero;值裸排,名词在 aria-label)。 */
   seatAttr: (seat: number, attr: string) => `seat-attr-${attr}-${seat}` as const,
   /** 托管常驻微标(seat = 座位号,#770):托管(AI 代打)开启的席位格,国号印右 8px
-   *  齿轮,纯展示挂点——开关交互唯一通路=单人格弹层 seatPopAutopilot(ADR-0028)。 */
+   *  齿轮,纯展示挂点——开关交互唯一通路=设置弹层 settingsAutopilot(ADR-0028,
+   *  #1097 起原单人格弹层开关随格 tap 退役)。 */
   seatHosted: (seat: number) => `seat-hosted-${seat}` as const,
   /** 自机格根(#698:金描边+左金条+金渐变;纯展示无点击层,目标段候选层随 targets 在场)。 */
   seatSelf: "seat-self",
@@ -73,6 +79,9 @@ export const TESTIDS = {
   settingsWarReport: "settings-war-report",
   /** 回到主页行(弃局离屏:销毁控制器回 setup)。 */
   settingsHome: "settings-home",
+  /** 托管开关(#1097 收编,#1096 决议2):Base UI Switch,接 ADR-0028 现役引擎通路
+   *  (useAutopilotOn 回读 + controller.setAutoPilot);仅自机语义(本弹层只属屏前真人)。 */
+  settingsAutopilot: "settings-autopilot",
   /** 属性浮签内容件(Tip 组件的 Popup;hover/长按/聚焦三通路同签)。 */
   attrTip: "attr-tip",
 
@@ -182,8 +191,8 @@ export const TESTIDS = {
   /** AOE 选份候选笺(横征暴敛等全体域:点笺=定被保护份;seat=被保护座位,含自己)。 */
   reactionSeat: (seat: number) => `reaction-seat-${seat}` as const,
 
-  // ── 托管:autopilot-button 常量随钮退役(头部 #700 核销注),通路=自机格弹层
-  //  托管开关 seatPopAutopilot 族(#701;react-online-autopilot 已改写)──
+  // ── 托管:autopilot-button 常量随钮退役(头部 #700 核销注),#1097 起通路=
+  //  设置弹层 settings-autopilot(原自机格弹层开关随 #1096 决议1 退役)──
 
   // ── 覆盖提示 ──
   hint: "hint", // App.tsx(设置屏兜底)也引用本常量,勿裸写字符串
@@ -217,29 +226,15 @@ export const TESTIDS = {
   /** 「尚未开局」卡片的「回到首页」按钮(快照缺失时的引导逃生口)。 */
   notStartedBack: "not-started-back",
 
-  // ── 席位格交互(#701,spec #697 ④):格 tap 单人格弹层 + 格上图标直达明细 ──
-  /** 单人格弹层容器(seat = 座位号;tap 格面开,点外/Esc 关,挂载不夺焦)。 */
-  seatPop: (seat: number) => `seat-pop-${seat}` as const,
-  /** 弹层头现金章(全称裸数带「两」,与格上裸数口径区隔;千分位已退役)。 */
-  seatPopCash: (seat: number) => `seat-pop-cash-${seat}` as const,
-  /** 弹层 reason 印条(#743 判词 E/#751 C 批:目标段不可选席点按放行到弹层时
-   *  禁用原因上屏;仅死区点按的弹层渲染)。 */
-  seatPopNotice: (seat: number) => `seat-pop-notice-${seat}` as const,
-  /** 弹层体力/声望数值本体(纯数文本,e2e 与投影逐字对照)。 */
-  seatPopStamina: (seat: number) => `seat-pop-stamina-${seat}` as const,
-  seatPopRep: (seat: number) => `seat-pop-rep-${seat}` as const,
-  /** 弹层四徽章(attr ∈ city|hand|hero|gem;可点项挂 .click 金描边+尾「›」)。 */
-  seatPopBadge: (seat: number, attr: string) => `seat-pop-badge-${attr}-${seat}` as const,
-  /** 自机弹层托管开关(接现役托管引擎通路,行为=旧托管钮;仅自机格弹层渲染)。 */
-  seatPopAutopilot: (seat: number) => `seat-pop-autopilot-${seat}` as const,
-  /** 格上图标直达三明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望)。 */
+  // ── 席位明细弹层(#701 格上图标直达的明细族;#1097 起唯一入口=诸侯详情四钻入)──
+  /** 明细弹层容器(战盔→名录 / 玉璧→珍宝列表 / 墨竹→声望;PileShell 壳)。 */
   seatHeroModal: "seat-hero-modal",
   seatGemModal: "seat-gem-modal",
   seatRepModal: "seat-rep-modal",
-  /** 声望明细里程碑章(m = 门槛值 30|60|90;已献=金章 .claimed,未献=素章)。 */
-  seatRepMilestone: (m: number) => `seat-rep-milestone-${m}` as const,
 
-  // ── 诸侯详情弹窗(#702,spec #697 ⑥,#732 正名):顶左 ☰ 点开的十列名录直读分板 ──
+  // ── 诸侯详情弹窗(#702,spec #697 ⑥,#732 正名):顶左 ☰ 点开的十列名录直读分板;
+  //  #1097 起四元素可点钻入(#1096 决议3):城池 chips→#622 清单 / 名将 chips→名录 /
+  //  珍宝槽→列表 / 声列→声望明细(金描边+尾「›」,钻入式单层互斥)──
   /** 弹层容器(ui/dialog 底件,题名可拖;打开不暂停对局,行随快照实时重渲)。 */
   warlordsOverview: "warlords-overview",
   /** 总览行(seat = 座位号,座序即行序;十列 grid 一人一行)。状态类挂点:
@@ -250,12 +245,15 @@ export const TESTIDS = {
   warlordsStamina: (seat: number) => `warlords-stamina-${seat}` as const,
   warlordsHand: (seat: number) => `warlords-hand-${seat}` as const,
   warlordsRep: (seat: number) => `warlords-rep-${seat}` as const,
-  /** 城池列(真按钮):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 名下城池清单。 */
+  /** 城池列(可点钻入件):城池名 chips 黛青,超 3 折叠「+N」;点击开 #622 名下城池清单。 */
   warlordsCities: (seat: number) => `warlords-cities-${seat}` as const,
-  /** 名将列:麾下名将名 chips 朱砂 + 空槽(信息公开,纯展示)。 */
+  /** 名将列(可点钻入件):麾下名将名 chips 朱砂 + 空槽(信息公开);点击开名将名录。 */
   warlordsHeroes: (seat: number) => `warlords-heroes-${seat}` as const,
-  /** 珍宝计数槽(槽位=件数示意,空槽画空格;维持计数不开名录)。 */
+  /** 珍宝计数槽(可点钻入件):槽位=件数示意,空槽画空格;点击开珍宝列表。 */
   warlordsGems: (seat: number) => `warlords-gems-${seat}` as const,
+  /** 声列钻入钮(seat = 座位号;数值本体 warlordsRep 单独挂——e2e 纯数断言不受
+   *  钮身「声」字串扰,#1097 四钻入)。 */
+  warlordsRepCell: (seat: number) => `warlords-rep-cell-${seat}` as const,
 
   // ── 联机连接横幅(#664 补登:挂点在 shared/ConnectionBanner,GameScreen/LobbyScreen
   //  顶部长出;断线重连状态条)──

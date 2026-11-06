@@ -86,12 +86,12 @@ test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每�
     window.__dafung.controller().sync();
   `,
   );
-  // 「托管」入口在自机格弹层(#701;教程文档「点右缘自己的席位格开单人格弹层拨托管
-  //  开关」的机器层):格 tap DOM 直派(列首格被顶栏角钮带遮挡,react-seat-pop 同款),
-  // 开关行仅自机格弹层渲染;Esc 收净再收尾
-  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-  await expect(page.getByTestId(TESTIDS.seatPopAutopilot(0))).toBeVisible();
+  // 「托管」入口在设置弹层(#1097 收编,#1096 决议2;原 #701 自机格弹层通路随格
+  //  tap 退役):设置钮 DOM 直派(决策卷轴 z-30 遮罩在挂时真点击会被吞,直派照进
+  //  真实 React onClick);Esc 收净再收尾
+  await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+  await expect(page.getByTestId(TESTIDS.settingsAutopilot)).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId(TESTIDS.seatPop(0))).toBeHidden();
+  await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden();
   await waitSettled(page);
 });

@@ -440,7 +440,7 @@ describe("锦囊渠道(T5)", () => {
     expect(e.log.some((l) => l.detail.includes("jinnangTile"))).toBe(true);
   });
 
-  it("声望献计:+30/+60/+90 各首次向上穿越献一封,回落再升不重复", () => {
+  it("声望跨档不献牌(#1098 否定断言):加声望只累加数值,锦囊渠道只剩锦囊城/机遇授书", () => {
     const e = makeEngine(42);
     finishSetup(e);
     e.players.forEach((p) => {
@@ -449,18 +449,13 @@ describe("锦囊渠道(T5)", () => {
     });
     const handOf = () => e.players[0].jinnangHand.length;
     const h0 = handOf();
-    e.addReputation(0, 30);
-    expect(handOf()).toBe(h0 + 1);
-    e.addReputation(0, 29); // 59 未过 60
-    expect(handOf()).toBe(h0 + 1);
-    e.addReputation(0, 1); // 60
-    expect(handOf()).toBe(h0 + 2);
-    e.addReputation(0, 30); // 90
-    expect(handOf()).toBe(h0 + 3);
-    e.addReputation(0, -90); // 归 0
-    e.addReputation(0, 30); // 再过 30:已领 → 不重发
-    expect(handOf()).toBe(h0 + 3);
-    expect(e.players[0].repMilestones.sort()).toEqual([30, 60, 90]);
+    e.addReputation(0, 30); // 跨 30:不献
+    expect(handOf()).toBe(h0);
+    e.addReputation(0, 30); // 跨 60:不献
+    expect(handOf()).toBe(h0);
+    e.addReputation(0, 30); // 跨 90:不献
+    expect(handOf()).toBe(h0);
+    expect(e.players[0].reputation).toBe(90);
   });
 
   it("机遇目录:圯上授书(好运/grantCard/锦囊标签)存在且权重合法", () => {

@@ -177,18 +177,18 @@ async function driveDecisions(pages: Page[], ms: number): Promise<void> {
   }
 }
 
-/** 开/关本端托管(#701 通路,react-online-autopilot setAutopilot 同配方):tap 自机格
- *  开单人格弹层 → 拨托管开关 → Esc 关层。格 tap DOM 直派(决策卷轴 z-30 遮罩在挂时
+/** 开/关本端托管(#1097 通路,react-online-autopilot setAutopilot 同配方):开设置
+ *  弹层 → 拨「托管」开关 → Esc 关层。设置钮 DOM 直派(决策卷轴 z-30 遮罩在挂时
  *  真点击会被吞,直派照进真实 React onClick);开关态=aria-checked(useAutopilotOn
  *  广播回读,与引擎 autoPilotOn 同源),点前读态防迟到广播双击翻转,点后轮询确认生效。 */
-async function setAutopilot(page: Page, seat: number, on: boolean) {
-  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-  const sw = page.getByTestId(`seat-pop-autopilot-${seat}`);
+async function setAutopilot(page: Page, on: boolean) {
+  await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+  const sw = page.getByTestId(TESTIDS.settingsAutopilot);
   await expect(sw).toBeVisible({ timeout: 10_000 });
   if ((await sw.getAttribute("aria-checked")) !== String(on)) await sw.click();
   await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 15_000 });
   await page.keyboard.press("Escape");
-  await expect(page.getByTestId(`seat-pop-${seat}`)).toBeHidden({ timeout: 5_000 });
+  await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
 }
 
 test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", { tag: "@slow" }, () => {
@@ -208,11 +208,8 @@ test.describe("折叠切换⑥(#388,ADR-0020 终局形态)", { tag: "@slow" }, (
     // 双端开托管(唯一档),有界骑局:推进过两轮即收审计。#580 单节拍 2s/步,全程
     // 骑局=分钟级不进 e2e 预算——终局折叠收敛与双端胜者一致改由 test/ 房间级全程
     // 骑局用例守住(ManualClock 零墙钟),本例守真实 WS 面的下行形状。
-    for (const [p, seat] of [
-      [host, 0],
-      [guest, 1],
-    ] as const) {
-      await setAutopilot(p, seat, true);
+    for (const p of [host, guest]) {
+      await setAutopilot(p, true);
     }
     await expect
       .poll(async () => (await coreState(host)).turnNumber, { timeout: 120_000 })

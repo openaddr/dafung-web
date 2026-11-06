@@ -18,8 +18,9 @@ test("退出对局后主页导出诊断包:帧诊小包复制+文件下载(#973/
   await quickStart(page);
   // 开自机托管:洪流推进到人类回合时购地模态会罩住齿轮(决策模态全屏,click
   // actionability 挂死;align spec 同款前置)。托管后无人值守,弃局路径稳定。
-  await page.getByTestId(TESTIDS.seatSelf).dispatchEvent("click");
-  const sw = page.getByTestId(TESTIDS.seatPopAutopilot(0));
+  // (#1097 通路:设置弹层「托管」开关;设置钮 DOM 直派穿决策卷轴遮罩)
+  await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+  const sw = page.getByTestId(TESTIDS.settingsAutopilot);
   await sw.waitFor({ timeout: 10_000 });
   if ((await sw.getAttribute("aria-checked")) !== "true") await sw.click();
   await page.keyboard.press("Escape");

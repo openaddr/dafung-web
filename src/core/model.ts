@@ -31,8 +31,6 @@ export interface Player {
   reputation: number; // 声望无界,开局 0(#1090 去夹紧):机遇档位 softmax 调制的唯一输入(见 GLOSSARY.md;#121)
   stamina: number; // 体力 0~100:机遇/技能增减,归 0 触发耗竭惩罚(见 GLOSSARY.md;#130)
   jinnangHand: string[]; // 锦囊手牌(#122):暗置牌 id,内容仅本人可见(联机经投影,ADR-0016)
-  /** 已领取的声望献计里程碑(#147):值 ∈ {30,60,90};只认向上穿越且仅首次。 */
-  repMilestones: number[];
   /** 锦囊手牌数(公开信息,引擎状态):与 jinnangHand.length 同步维护于唯一改动点
    *  (抽牌/打牌)。为什么独立成字段:联机客户端经「restore→重新 snapshot」hydrate,
    *  投影层注入的视图字段会在重生成时丢失——数量是全员可见的游戏状态,必须由引擎持有。 */

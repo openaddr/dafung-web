@@ -1,15 +1,14 @@
 // 席位格图标直达明细弹层族(#701,spec #697 ④):格上战盔/玉璧/墨竹点开的
 // 三路只读明细——名将名录与珍宝列表照现役 PileModal 名录/卡面同构装配(PileShell +
 // HeroCardFace/TreasureCardFace 公开件;名将/珍宝是投影全员公开信息,逐件可陈),
-// 声望为轻量数值明细(大数+口径;声望带献计里程碑章,门槛单源
-// core/reputation REP_MILESTONES,已领集=快照 repMilestones)。空陈列照常可开:
+// 声望为轻量数值明细(终态 #1099:大数+三档概率条+三档百分比明文,零冗余文案)。
+// 空陈列照常可开:
 // 计数如实报 0;空网格接 #768 器物空态制式(斜放朱印+短注,单源
 // screens/shared/ArtifactEmpty,PileModal #851 同款);投影没有的数据不造(零兜底)。
 // 壳全收口 shadcn(PileShell→ui/dialog 底件):可拖(ADR-0031)/点外/Esc/不夺焦
-// 全由壳白拿,本件零自写交互语义。轻量明细样式在 seat-pop.css(spop-detail)。
-import type { ReactNode } from "react";
+// 全由壳白拿,本件零自写交互语义。轻量明细样式在 seat-detail.css(sdtl,#1097 起
+// 唯一入口=诸侯详情四钻入——格上图标直达随单人格弹层退役)。
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { REP_MILESTONES } from "@core/reputation";
 import { formatMoney } from "@core/money";
 import { guidePriceOf } from "@core/treasures";
 import { PileShell } from "./PileModal";
@@ -17,8 +16,10 @@ import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
-import { ATTR_TIPS } from "./Tip";
+import { REP_TIER_COLORS, RepProbBar, repTierPct } from "./RepProbBar";
 import { TESTIDS } from "./testids";
+/* 轻量明细补皮(sdtl;导入序在 PileModal 之后——同特异性覆盖壳宽,见 css 头注) */
+import "./seat-detail.css";
 
 /** 格上图标直达的明细种类(城池走现役 #622 CityLedgerModal,不在本族)。 */
 export type SeatDetailKind = "hero" | "gem" | "rep";
@@ -101,32 +102,20 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
   );
 }
 
-/** 轻量数值明细共用排版:大数 + 口径一句(文案单源 ATTR_TIPS,禁第二事实源)。 */
-function NumDetail({
-  value,
-  neg,
-  terms,
-  children,
-}: {
-  value: number;
-  /** 负值朱砂(#556 值色即状态)。 */
-  neg?: boolean;
-  terms: string;
-  children?: ReactNode;
-}) {
+/** 轻量数值明细共用排版:大数(值色即状态,#556)。 */
+function NumDetail({ value, neg }: { value: number; neg?: boolean }) {
   return (
-    <>
-      <div className="spop-numrow">
-        <span className={"spop-bignum" + (neg ? " neg" : "")}>{value}</span>
-      </div>
-      {children}
-      <div className="spop-terms">{terms}</div>
-    </>
+    <div className="sdtl-numrow">
+      <span className={"sdtl-bignum" + (neg ? " neg" : "")}>{value}</span>
+    </div>
   );
 }
 
-/** 声望数值明细(墨竹→):现值大数 + 献计里程碑三档章(已献金章,色变即状态)+ 口径。 */
+/** 声望数值明细(墨竹→)终态(#1099,#1096 决议5):大数+210×10 概率条+三档百分比
+ *  明文一行(色字,档色单源 REP_TIER_COLORS);零冗余文案,不加说明句/caption,
+ *  无浮签。条 aria-hidden,三档语义由明文行承。 */
 function SeatRepModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }) {
+  const pct = repTierPct(p.reputation);
   return (
     <PileShell
       title="声望"
@@ -134,26 +123,18 @@ function SeatRepModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
       sub={`${p.guohao} · 声望明细`}
       testid={TESTIDS.seatRepModal}
       ariaLabel={`声望 · ${p.guohao}`}
-      className="spop-detail"
+      className="sdtl"
       onClose={onClose}
     >
-      <NumDetail value={p.reputation} neg={p.reputation < 0} terms={ATTR_TIPS.rep.detail}>
-        <div className="spop-milestones">
-          {REP_MILESTONES.map((m) => {
-            const claimed = p.repMilestones.includes(m);
-            return (
-              <span
-                key={m}
-                className={"spop-milestone" + (claimed ? " claimed" : "")}
-                data-testid={TESTIDS.seatRepMilestone(m)}
-                title={claimed ? `声望达 +${m},已获名将献计一封` : `未达 +${m}`}
-              >
-                +{m}
-              </span>
-            );
-          })}
+      <NumDetail value={p.reputation} neg={p.reputation < 0} />
+      <div className="sdtl-prob">
+        <RepProbBar reputation={p.reputation} size="modal" />
+        <div className="sdtl-tiers">
+          <span style={{ color: REP_TIER_COLORS.good }}>好运 {pct.good}%</span>
+          <span style={{ color: REP_TIER_COLORS.neutral }}>中性 {pct.neutral}%</span>
+          <span style={{ color: REP_TIER_COLORS.bad }}>霉运 {pct.bad}%</span>
         </div>
-      </NumDetail>
+      </div>
     </PileShell>
   );
 }
