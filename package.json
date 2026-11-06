@@ -20,6 +20,8 @@
     "check:core:baseline:update": "bun scripts/check-core-purity.ts baseline:update",
     "check:goldens": "bun scripts/check-goldens.ts",
     "check:goldens:update": "bun scripts/check-goldens.ts update",
+    "check:sim-bench": "bun scripts/sim-bench.ts",
+    "check:sim-bench:update": "bun scripts/sim-bench.ts update",
     "check:freshness": "bun scripts/check-freshness.ts",
     "check:fmt": "oxfmt --check",
     "check:links": "bun scripts/check-doc-links.ts",
