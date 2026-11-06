@@ -360,14 +360,16 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
     }
   });
 
-  it("钉4:首批共享表与 ADR-0036 逐字一致(池序 + 技属主集)", () => {
+  it("钉4:共享表逐字一致(首批 ADR-0036 四将 + #1142 卧龙;池序 + 技属主集)", () => {
     expect(HEROES.map((h) => [h.id, h.skillPool])).toEqual([
       ["zhouyu", ["jixing", "huogong", "leigu"]], // 周瑜{疾行,火攻,擂鼓}
       ["caopi", ["yuli", "zhijin"]], // 曹丕{渔利,掷金}
       ["zhangxingcai", ["zhijin", "leigu", "jixing"]], // 张星彩{掷金,擂鼓,疾行}
       ["huatuo", ["qingnang", "zhenji"]], // 华佗{青囊,赈济}
+      ["zhugeliang", ["huogong", "yuli"]], // 诸葛亮{火攻,渔利}(池 2 仿华佗非对称)
     ]);
-    // 共享三条:疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、掷金=张星彩↔曹丕;余四条单属主
+    // 共享五条:疾行=周瑜↔张星彩、擂鼓=张星彩↔周瑜、掷金=张星彩↔曹丕、
+    // 火攻=周瑜↔诸葛亮、渔利=曹丕↔诸葛亮(#1142);余两条单属主(青囊/赈济)
     const owners = (id: string) =>
       HEROES.filter((h) => h.skillPool.includes(id))
         .map((h) => h.id)
@@ -375,7 +377,9 @@ describe("技能表/名将池数据完整性(ADR-0036 四钉)", () => {
     expect(owners("jixing")).toEqual(["zhangxingcai", "zhouyu"]);
     expect(owners("leigu")).toEqual(["zhangxingcai", "zhouyu"]);
     expect(owners("zhijin")).toEqual(["caopi", "zhangxingcai"]);
-    for (const single of ["yuli", "qingnang", "huogong", "zhenji"]) {
+    expect(owners("huogong")).toEqual(["zhouyu", "zhugeliang"]);
+    expect(owners("yuli")).toEqual(["caopi", "zhugeliang"]);
+    for (const single of ["qingnang", "zhenji"]) {
       expect(owners(single), `${single} 应单属主`).toHaveLength(1);
     }
   });

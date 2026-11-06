@@ -4,7 +4,7 @@
 // (extensions/hero-taishici)经 main.tsx 顶层 await 注册进 SKILLS/HEROES 单池后,
 // 手册各签直读同一注册面,故卡数随目录数据走、不落死数:
 //   名将 = 与 window.__dafung.heroDefs() 对账(heroDefs 单源 react-extensions 同款),
-//          现 5(核心 4 + 扩展太史慈);技能 = 核心基数下限(主动 3+被动 4)
+//          现 6(核心 5 含卧龙 #1142 + 扩展太史慈);技能 = 核心基数下限(主动 3+被动 4)
 //          + 扩展技「义从」在列实证(扩展技入同池,现 9 行)。
 //   锦囊 9 / 珍宝 6 / 机遇 30(好运 11+中性 8+霉运 11)= core 目录死数(spec 判据原数,
 //   扩展契约只有 skills/heroes/effects,机遇/锦囊/珍宝无扩展通路)。

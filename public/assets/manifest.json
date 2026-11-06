@@ -346,5 +346,13 @@
     "author": "龚贤(Gong Xian,清);Commons 全卷扫描 35195×1987 中段裁带 x8700-24300(弃左题跋尾、纵向弃底部印区)→ 2880×359 webp q80",
     "fetched_at": "2026-10-31",
     "review_required": false
+  },
+  "hero:zhugeliang:composed": {
+    "path": "assets/heroes/hero-zhugeliang.png",
+    "source": "#1142 自绘合成,无外部取材:底=texture:gongxian-shanshui(公共领域)+ 顶部留白/底部沉墨/边缘晕染渐变;题=「卧龙」竖排,字体 'Ma Shan Zheng'(马善政,OFL,项目已捆绑);印=「孔明」朱砂印(仿项目「将」章语言,自绘)",
+    "license": "合成自绘:底材 Public domain、字体 OFL,合成件随本项目(仅限学习与朋友间娱乐,不商用)",
+    "author": "AI 合成(#1142,2026-11-07,playwright 渲染 574×761)",
+    "fetched_at": "2026-11-07",
+    "review_required": false
   }
 }

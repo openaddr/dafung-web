@@ -93,17 +93,17 @@ describe("华佗在池(#133)", () => {
     expect(EFFECTS["regenStamina"]).toBeTypeOf("function"); // 效果已注册
   });
 
-  it("招贤洗牌可抽到华佗(池 3→4,三选一)", () => {
+  it("招贤洗牌可抽到华佗(池 4→5,三选一)", () => {
     let seen = false;
     for (let seed = 1; seed <= 20 && !seen; seed++) {
       const e = makeEngine(seed);
       finishSetup(e);
       testEngine(e).tryRecruitHero(e.activePlayer); // 窄口触达私有招贤步骤(同 game.test.ts)
       expect(e.turnPhase).toBe("AwaitingHeroPick");
-      expect(e.offeredHeroes.length).toBe(3); // 池 4 位 → 三选一
+      expect(e.offeredHeroes.length).toBe(3); // 池 5 位 → 三选一
       if (e.offeredHeroes.some((h) => h.def.id === "huatuo")) seen = true;
     }
-    expect(seen).toBe(true); // 洗牌以 3/4 概率出华佗,20 个种子必中(确定性,无随机逃逸)
+    expect(seen).toBe(true); // 洗牌以 3/5 概率出华佗,20 个种子必中(确定性,无随机逃逸)
   });
 });
 
