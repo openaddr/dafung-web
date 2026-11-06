@@ -17,7 +17,8 @@
 //
 // 统计口径:
 //   对局面 = 终局率 / 回合数(轮)分布 / 终局方式 / 最终身价分布 / 破产人次;
-//   机遇侧 = 触发合计 / 各档出现次数 / 逐条目出现分布(全目录含 0 次条目)/ 抉择选项选择分布。
+//   机遇侧 = 触发合计 / 各档出现次数 / 逐条目出现分布(全目录含 0 次条目)/ 抉择选项选择分布;
+//   技能侧(#1119 技能扩展地图)= 授技分布(全表含 0 次,授 0=池饿死)/ 击发统计(被动+主动+每授击发率)/ 终局构筑多样性。
 //   扩容验收用法:改 ENCOUNTERS 前后各跑一批对比,0 次条目与 0 次选项即死数据;逐局进度走 stderr。
 //
 // 退出码:引擎抛错 = 发现 bug,逐 seed 报告且进程非零;回合上限未终局 = 平衡发现
@@ -25,6 +26,7 @@
 import { resolve } from "node:path";
 import { loadExtensionPackages } from "../src/core/extension-loader";
 import { ENCOUNTER_PRODUCT_DEFAULTS, ENCOUNTERS, type EncounterTier } from "../src/core/encounters";
+import { SKILLS, isTriggerSkill } from "../src/core/skills";
 import { botAct, BOT_ATTENDED_PHASES } from "../src/core/bot";
 import { netWorth } from "../src/core/networth";
 import { formatMoney } from "../src/core/money";
@@ -115,6 +117,16 @@ interface GameStat {
   entries: Map<string, number>;
   /** `${encounterId}#${choiceIndex}` → 选择次数。 */
   choices: Map<string, number>;
+  /** skillId → 被动技击发次数。 */
+  skillFires: Map<string, number>;
+  /** skillId → 主动技发动次数。 */
+  activeFires: Map<string, number>;
+  /** skillId → 授技(招募入槽)次数。 */
+  grants: Map<string, number>;
+  /** 招募人次(授技分母)。 */
+  recruits: number;
+  /** 终局全座位构筑(麾下技能多重集排序拼接;无麾下=「空」)。 */
+  builds: string[];
 }
 
 /** 跑一局到终局(或回合上限)。引擎抛错原样上抛 = 发现 bug,由批循环逐 seed 收账。 */
@@ -134,6 +146,11 @@ function runOne(seed: number): GameStat {
     tiers: { 好运: 0, 中性: 0, 霉运: 0 },
     entries: new Map(),
     choices: new Map(),
+    skillFires: new Map(),
+    activeFires: new Map(),
+    grants: new Map(),
+    recruits: 0,
+    builds: [],
   };
   while (!e.isOver) {
     if (e.turnNumber >= TURN_CAP) break; // 未终局(触顶):终局率行响亮上报
@@ -153,6 +170,13 @@ function runOne(seed: number): GameStat {
       } else if (ev.kind === "encounterChoice") {
         const k = `${ev.encounterId}#${ev.choiceIndex}`;
         stat.choices.set(k, (stat.choices.get(k) ?? 0) + 1);
+      } else if (ev.kind === "skillFired") {
+        stat.skillFires.set(ev.skillId, (stat.skillFires.get(ev.skillId) ?? 0) + 1);
+      } else if (ev.kind === "heroSkillActivated") {
+        stat.activeFires.set(ev.skillId, (stat.activeFires.get(ev.skillId) ?? 0) + 1);
+      } else if (ev.kind === "heroRecruited") {
+        stat.recruits += 1;
+        for (const sid of ev.skillIds) stat.grants.set(sid, (stat.grants.get(sid) ?? 0) + 1);
       }
     }
     if (e.isOver) break;
@@ -165,6 +189,13 @@ function runOne(seed: number): GameStat {
   stat.netWorths = e.players.map((p) => netWorth(p));
   stat.winnerNetWorth = e.winner ? netWorth(e.winner) : null;
   stat.bankrupts = e.players.filter((p) => p.isBankrupt).length;
+  stat.builds = e.players.map(
+    (p) =>
+      p.heroes
+        .flatMap((h) => h.skillIds)
+        .sort()
+        .join("+") || "空",
+  );
   return stat;
 }
 
@@ -282,6 +313,47 @@ if (!ENCOUNTER_ON) {
     }
   }
 }
+
+// ── 技能侧(#1119 技能扩展地图指标)──
+console.log(`\n── 技能侧 ──`);
+const fireAgg = new Map<string, number>();
+const activeAgg = new Map<string, number>();
+const grantAgg = new Map<string, number>();
+let recruitTotal = 0;
+for (const s of stats) {
+  for (const [id, n] of s.skillFires) fireAgg.set(id, (fireAgg.get(id) ?? 0) + n);
+  for (const [id, n] of s.activeFires) activeAgg.set(id, (activeAgg.get(id) ?? 0) + n);
+  for (const [id, n] of s.grants) grantAgg.set(id, (grantAgg.get(id) ?? 0) + n);
+  recruitTotal += s.recruits;
+}
+const grantSum = [...grantAgg.values()].reduce((a, b) => a + b, 0);
+console.log(`招募 ${recruitTotal} 人次 · 授技 ${grantSum} 枚(局均 ${(grantSum / N).toFixed(1)})`);
+const skillRows = SKILLS.map((d) => {
+  const g = grantAgg.get(d.id) ?? 0;
+  const f = fireAgg.get(d.id) ?? 0;
+  const a = activeAgg.get(d.id) ?? 0;
+  return {
+    id: d.id,
+    name: d.name,
+    isPassive: isTriggerSkill(d),
+    g,
+    f: f + a,
+    per: g > 0 ? (f + a) / g : 0,
+  };
+}).sort((x, y) => y.g - x.g || y.f - x.f || x.id.localeCompare(y.id));
+console.log(`授技与击发(全表 ${SKILLS.length} 条含 0 次;授 0=池饿死信号 · 授多发 0=摆设技):`);
+for (const r of skillRows)
+  console.log(
+    `  [${r.isPassive ? "被动" : "主动"}] ${r.id.padEnd(12)} ${r.name} 授 ${String(r.g).padStart(4)} · 发 ${String(r.f).padStart(5)} · 每授 ${r.per.toFixed(2)}`,
+  );
+const buildAgg = new Map<string, number>();
+for (const s of stats) for (const b of s.builds) buildAgg.set(b, (buildAgg.get(b) ?? 0) + 1);
+const buildInstances = [...buildAgg.values()].reduce((a, b) => a + b, 0);
+const topBuild = [...buildAgg.entries()].sort((a, b) => b[1] - a[1])[0] ?? ["—", 0];
+console.log(
+  `终局构筑: ${buildAgg.size} 种 / ${buildInstances} 席 · 众数「${topBuild[0]}」×${topBuild[1]}(${((topBuild[1] / Math.max(buildInstances, 1)) * 100).toFixed(0)}%)`,
+);
+console.log(`技能书/遣散刷书场景待对应功能落地后接入(数值票验收跑)。`);
 
 // ── 崩溃收账(引擎/数据 bug = 进程非零;平衡发现不算工具故障)──
 if (crashed.length > 0) {
