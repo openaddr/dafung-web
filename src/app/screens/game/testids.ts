@@ -26,8 +26,8 @@
 // #1097 退役核销(#1096 决议1/2):seat-pop 系单源常量(seatPop/seatPopCash/
 // seatPopNotice/seatPopStamina/seatPopRep/seatPopBadge/seatPopAutopilot)随单人格
 // 弹层(SeatPopModal)退役——查档收编诸侯详情四钻入(warlords* 族),托管开关
-// 收编设置弹层(settings-autopilot);席位格五图标退化为纯展示挂点(seatAttr 族
-// 不变,名词在 aria-label)。
+// 收编设置弹层(settings-autopilot);席位格行2 后改汉字五账式(#1128:城/牌/
+// 将/宝/望+计数,五枚图标随退),seatAttr 族挂点与 aria 契约不变。
 export const TESTIDS = {
   // ── 全浮层骨架(#700;#732 顶左行序:设置→详情两钮,顶中让给知会槽):
   //  顶部条 / 席位格列 / 手牌区 / 右下三圆钮 ──

@@ -2,8 +2,8 @@
 // 玉璧=珍宝 / 战盔=名将(2026-10-19 中式化改版:勋章/宝石/令旗退役),自绘路径零
 // 素材依赖,currentColor 吃属性色(--color-attr-* token)。
 // 纸色细节线走 --color-paper-hi(SVG 表现属性不吃 var(),经 style 注入)。
-// 手牌徽章不是单图标:迷你牌背组(MiniBacks,漆木底+漆金描边,同锦囊牌背语言;
-// 0 张时出一张虚线空牌背占位,图标恒在)。
+// 席位格消费随 #1128 退役(行2 改汉字五账式,9-10px 下形不可辨):现役消费方
+// =诸侯详情/牌架等放大场;曾同栈的迷你牌背组(MiniBacks)随同票退役删除。
 export type AttrIconKind = "city" | "rep" | "gem" | "hero";
 
 const PAPER = "var(--color-paper-hi)";
@@ -67,21 +67,5 @@ export function AttrIcon({ kind, size = 14 }: { kind: AttrIconKind; size?: numbe
         </>
       )}
     </svg>
-  );
-}
-
-/** 迷你牌背组:手牌计数徽章的「牌背」可视化(暗牌语义;计数本身裸排在外)。
- *  联机他人手牌内容不到端,只显背面 + 数量(ADR-0016 投影口径);
- *  手牌无上限(#250)后背面至多示意 3 张,真实数量以数字为准;
- *  0 张时出一张虚线空牌背,图标恒在、空态可读(2026-10-19 拷问裁决)。 */
-export function MiniBacks({ count }: { count: number }) {
-  const empty = count === 0;
-  const shown = empty ? 1 : Math.min(count, 3);
-  return (
-    <span className="mini-backs" aria-hidden="true">
-      {Array.from({ length: shown }, (_, i) => (
-        <span key={i} className={empty ? "mini-back mini-back-empty" : "mini-back"} />
-      ))}
-    </span>
   );
 }
