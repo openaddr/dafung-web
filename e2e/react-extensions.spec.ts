@@ -1,8 +1,12 @@
-// 扩展系统骨架 e2e(#378,ADR-0022):示例名将包(extensions/hero-taishici)权威侧
-// 全链路——启动装载(贡献进名将池)→ 对局招贤可选到示例名将 → 选定后被动技「义从」
-// 权威结算(+100 两)→ 主动技「破阵」复用 warDrum 结算(步数 +1)。客户端半边断言
-// (动画/将旗/呈现意图)已随客户端扩展面退役删除(#1064);定制问询「信义盲选」
-// 对局断言已随问询线退役删除(#1065)。断言口径:状态断言走引擎 god view(与既有 spec 同款)。
+// 扩展系统骨架 e2e(#378,ADR-0022):示例名将包(extensions/hero-taishici)浏览器侧
+// 装载与招贤接线——启动装载(贡献进名将池)→ 对局招贤可选到示例名将 → 选定后被动技
+// 「义从」结算接线。客户端半边断言(动画/将旗/呈现意图)已随客户端扩展面退役删除
+// (#1064);定制问询「信义盲选」对局断言已随问询线退役删除(#1065)。
+// #1165 瘦身:原「主动技破阵步数 +1」例整删——引擎结算(+1/事件随批/选项可见)与
+// 技能卡交互形制分别由 test/extension-taishici.test.ts「破阵」例与 react-jinnang-use
+// 技能卡例钉死,本文件该例零独占断言面;义从 +100 的结算细则同样归
+// test/extension-taishici.test.ts「义从」例,本文件只留浏览器侧装载可见性(招贤卷轴
+// 陈列太史慈=main.tsx 顶层注册的消费面,无头整局层刻意不装扩展包,替代不了)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -10,7 +14,6 @@ import {
   snap,
   engineState,
   waitSettled,
-  useHalfScale,
   waitFxIdle,
   freezeClock,
 } from "./react-helpers";
@@ -71,51 +74,4 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     );
     await waitSettled(page);
   });
-
-  test(
-    "主动技「破阵」:出牌阶段可发,复用 warDrum 结算步数 +1",
-    { tag: "@slow" },
-    async ({ page }) => {
-      // 慢池(#1026):单例实测 >30s——快池门禁 --grep-invert @slow 跳过。
-      await useHalfScale(page); // 放缓演出:发技后自动起摇前留足断言窗(heroDiceBonus 消费前)
-      await quickStart(page, 7);
-      // #987 冻结闸(同 plantHeroPick):排空演出→冻结,种植的出牌窗不被迟到链步进覆盖
-      await waitFxIdle(page);
-      await freezeClock(page);
-      // 种植:人类麾下带示例名将,停出牌阶段(技能卡承载 SkillCardFace 单技装配,#818)
-      await force(
-        page,
-        `
-      {
-        const taishici = window.__dafung.heroDefs().find((h) => h.id === "taishici");
-        if (!taishici) throw new Error("扩展包未装载:名将池无 taishici");
-        e.phase = "Playing";
-        e.activeIndex = 0;
-        // 麾下槽位行(#785):def 入槽 = {heroId, 已授技(全池), 冷却账},引擎直写种植是既有 e2e 口径
-        e.players[0].heroes.push({ heroId: taishici.id, skillIds: [...taishici.skillPool], lastFired: {} });
-        e.players[0].jinnangHand = [];
-        e.players[0].jinnangHandCount = 0;
-        e.turnPhase = "AwaitingJinnang";
-      }
-    `,
-      );
-      // testid=选项 id 实例形状 skill:<heroId>:<skillId>(#817)
-      const ji = page.getByTestId(TESTIDS.jinnangCard("skill:taishici:taishici-pozhen"));
-      await expect(ji).toBeVisible();
-      await ji.click();
-      await page.getByTestId(TESTIDS.actionbarPlay).click();
-      // 权威结算复用 warDrum 案:本回合步数加成挂账;发技事件随同批产出
-      // (自动起摇开启新批前的事件窗内采样,0.5 倍率下窗口充裕)
-      await expect
-        .poll(
-          () =>
-            engineState(
-              page,
-              "({ bonus: e.heroDiceBonus, fired: e.gameEvents.some((x) => x.kind === 'heroSkillActivated') })",
-            ),
-          { timeout: 10_000, intervals: [50] },
-        )
-        .toEqual({ bonus: 1, fired: true });
-    },
-  );
 });

@@ -1,7 +1,10 @@
-// 锦囊系统冒烟(#122/T1):起手发牌、己方牌面可见、他人只见计数、日志不泄牌。
+// 锦囊系统冒烟(#122/T1):起手发牌、己方牌面可见、他人只见计数。
 // T1 范围=拿在手里看得见藏得住;使用回路(T2 起)在此追加。
 // 单机快照是 god view(引擎在本机),「他人只见计数」的投影逻辑由 room 层单测
 // redactSnapshotForSeat 直测;本 spec 断言 UI 面不泄:他人牌面永不出现在 DOM。
+// #1165 瘦身:原「对局日志与 UI 快照均不落他人牌名」例整删——该例断言面纯引擎日志
+// (无 UI 断言),test/jinnang.test.ts「对局日志不落手牌内容」以全日志 JSON 对 9 牌名
+// 全量扫描,断言更强(本例只扫 jinnangDraw 行),落点完整覆盖。
 // 地图重钉(#949 关中图重钉,huanyou 随 #948 退役):种子离线核算(seed 67 ×
 // guanzhong,进程内直扫复算,与 reaction/jinnang-use/peek 三 spec 同源)——
 // draftOrder=[0,3,2,1] 人类先手;选都候选取 DOM 首格=0 长安
@@ -10,7 +13,7 @@
 // 发牌后、任何掷骰前静止,
 // 牌库 14 / 各手 1 不随对局自走漂移。
 import { test, expect } from "./fixtures";
-import { openSoloSetup, quickStart, waitMyPause } from "./react-helpers";
+import { openSoloSetup, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
@@ -57,33 +60,5 @@ test.describe("锦囊 T1:发牌与可见性", () => {
       "锦囊手牌 1",
     );
     expect(await page.locator("[data-testid^='jinnang-card-']").count()).toBe(1);
-  });
-
-  test("对局日志与 UI 快照均不落他人牌名(ADR-0016 的 UI 面)", async ({ page }) => {
-    // 种子钉死(无种子=每次随机,负载体下成为必挂/偶挂源):断言只看
-    // jinnangDraw 行的 detail 不含牌名(结构性成立,任意种子皆真),钉 67 纯为确定性。
-    await quickStart(page, 67);
-    const probe = await page.evaluate(() => {
-      const e = (window as any).__dafung.getEngine();
-      // ADR-0016 口径(T2 起精确化):抽牌行不得落牌名(重放可推导);用牌/结算公开,牌名入战报是正确行为
-      const names = [
-        "连环计",
-        "军情密探",
-        "缓兵之计",
-        "横征暴敛",
-        "窃玉偷香",
-        "火烧连营",
-        "识破诡计",
-        "半路杀出",
-        "求贤令",
-      ];
-      return {
-        drawRowLeaks: e.log.some(
-          (l: { detail: string }) =>
-            l.detail.includes("jinnangDraw") && names.some((c) => l.detail.includes(c)),
-        ),
-      };
-    });
-    expect(probe.drawRowLeaks).toBe(false);
   });
 });
