@@ -1,6 +1,6 @@
 // 事件批下行通道·客户端接收面单测(#390):stash 语义(整批覆盖暂存 + 到达计数单调
 // 递增 + 空批/未知字段容错)与 reset 清空。通道服务端形状见 scripts/server.ts flush;
-// 线上端到端断言(消息真实到达客户端)归 e2e/react-online-events.spec.ts。
+// 线上协议面断言(消息真实到达客户端)归 test/protocol-online.test.ts(ADR-0055)。
 import { describe, it, expect } from "bun:test";
 import { useNetStore } from "@app/store/netStore";
 import { stashEventBatch } from "@app/net/event-feed";
