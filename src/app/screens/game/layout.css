@@ -407,21 +407,20 @@
 .game-layout .seat .strack.low i {
   background: var(--color-danger);
 }
-/* 行2(#770 分组制):高频组「城+牌」+ 发丝线组分隔 + 低频组四项,space-between
-   把行2 余量分到发丝线两侧成组间隙(旧六项等权均分退役)。#743 判词 A 实证
-   「几何上不可能溢出」前提不成立;#751 C 批 itemSum≤84 判据随分组制更新为全宽
-   出血判据:l2 两侧各吃满 5px 内衬直达边框内沿(可用宽 84→94),量测口径 10px
-   tabular 数字 6px、11px 6.6(实测 #770 探针):
-     hi(城 10 图标+6.6=16.6;牌 3 背组 14+6.6=20.6)≤37.2 + 发丝线 1
-   + lo(四项 8+6=14,声望 -12 档 23.5)≤65.5。
-   典型档 84.2(余 9.8 归组间隙)、9 背封顶档 94.2 贴边容下、负声望档 93.7 容下;
-   「9 背手牌×负声望」同席极端 103.7 越界 9.7——旧等权排布同席即越界 10.5(出
-   边框),本制收敛不加剧,判据按此极端如实登记。
-   #840 ⑤(审计 R2 P2-3「低频四图标 8px 形不可辨」,提档 A 案):低频四图标
-   8→9px(见下 .ai svg),行 gap 2px 兜组间隙下限(松档由 space-between 余量
-   吸收、不可见,紧档保 hi|sep|lo 不贴死)。上记 #770 量测预算未重测,口径平移:
-   lo 四项各 +1px、紧档 gap 计入 +4px,极端档越界随口径放大,仍按登记、不另设防。
-   卷轴/牌背随原型吃淡纸。 */
+/* 行2 汉字五账式(#1128):「城/牌/将/宝/望」+ tabular 计数,单色淡纸,
+   space-between 把行2 余量分到发丝线两侧成组间隙;发丝线组分隔(#770)保留
+   (高频读数|低频藏品)。旧五枚彩色 SVG(城楼/牌背组/战盔/玉璧/墨竹)整线
+   退役——9-10px 下战盔糊团、玉璧环与数字 0 同形、4×6 迷你牌背近隐形致
+   「城1 牌9+」连读成「19+」(844×390 实拍实锤);彩色图标只在放大场在役
+   (AttrIcon 活口:诸侯详情/牌架)。
+   可用宽=94(l2 两侧各吃满 5px 内衬直达边框内沿,口径沿 #751 C 批)。声望无界
+   (#1090 起 ±不夹紧)后三位数是常态——探针实测(tmp/seat-measure.mjs,#1128):
+   账项实宽=汉字 9+数字 6(tabular)、牌9+ 20.5、望130 27、望-12 26;行2 定重
+   =组内气口 2×3+发丝线 1=7(scrollWidth 实证父级 gap 不计入),判据 itemSum≤87:
+     2 位声望典型档(城1 牌9 将0 宝0 望42)84,余 3;3 位声望典型档(望130)87
+   贴额容下;「牌9+×望-12」「牌9+×望130」双极端 98.5/99.5 越界 4.5/5.5——旧
+   图标制同席极端 103.7 越界 9.7(#770 登记),本制收敛,按极端如实登记、
+   不另设防(.seat overflow:hidden 下末项裁切,不出格侵邻)。 */
 .game-layout .seat .l2 {
   display: flex;
   align-items: center;
@@ -429,22 +428,14 @@
   gap: 2px;
   margin: 0 -5px;
 }
-/* 组壳(#770):行2 的两个分组容器(Claim display:contents 不改排版,.ai 是
-   组内直接 flex 项);组内零间隙——项距全归组间隙(space-between),组内凝。 */
+/* 组壳(#770):行2 的两个分组容器;组内 2px 凝距(账目式汉字与计数一组), */
+/* 项距全归组间隙(space-between)。 */
 .game-layout .seat .l2hi,
 .game-layout .seat .l2lo {
   display: flex;
   align-items: center;
+  gap: 2px;
   min-width: 0;
-}
-/* 高频组(城+牌,#770):图标 8→10px、计数 10→11px——开城/看手牌是行2 最高频
-   读数,预算向其倾斜(数字是信息、图标是标识口径不变,#751 C 批)。 */
-.game-layout .seat .l2hi .ai {
-  font-size: 11px;
-}
-.game-layout .seat .l2hi .ai svg {
-  width: 10px;
-  height: 10px;
 }
 /* 发丝线组分隔(#770):1px --hairline 竖线标组界(高频读数|低频藏品),上下
    各让 2px 不触格顶底。 */
@@ -458,69 +449,26 @@
 .game-layout .seat .ai {
   display: inline-flex;
   align-items: center;
-  gap: 0; /* #751 C 批量测收口:10px tabular 数字实宽 6px(判词估算 5px 不实),
-              1px 气口保留会把 12 张封顶态顶到 87>84——气口归零后 82≤84 达标 */
+  gap: 0; /* 账内气口归零(#1128):声望无界后 3 位数是常态,预算给数字 */
   font-size: 10px;
   line-height: 1;
-  color: var(--color-paper-dim);
+  color: var(--color-paper);
   white-space: nowrap;
   font-variant-numeric: tabular-nums;
-  /* 命中区满格高(#743 判词 A:六图标是浮签触发元,原 ≈15×9px 远低于触达下限,
-     且玉璧明细唯一直达路在此):align-self 吃满 l2 截轴,纵向 padding 上探入行1、
-     下探到格底,配负 margin 抵消排版占位——视觉零位移,命中 ≈15×31px。上探段与
-     体力触发元重叠带由 .strack-tip 抬层保位(见上)。 */
-  align-self: stretch;
-  padding: 16px 0 6px;
-  margin: -16px 0 -6px;
 }
-/* 低频四图标(svg 尺寸,#840 ⑤ 提档 8→9px,与 SeatRail size=9 对齐——原先 CSS
-   钉 8px 压过组件属性;形不可辨是审计 R2 P2-3 主诉,命中区满格高通路不变)。 */
-.game-layout .seat .ai svg {
-  width: 9px;
-  height: 9px;
-  flex: 0 0 auto;
+/* 汉字标识(题字字体 9px,≥国号印 8.5 档):数字是信息、标识退后一档
+   (#751 C 批口径),纸色 72% 混底与计数拉开主从——汉字本身即账目分隔,
+   靠明暗差辨标识/数值,不靠气口(账内 gap 归零,见上预算)。 */
+.game-layout .seat .ai .ai-tag {
+  font-family: var(--font-title);
+  font-size: 9px;
+  color: color-mix(in srgb, var(--color-paper) 72%, transparent);
 }
-.game-layout .seat .ai.ai-city {
-  color: var(--color-attr-city);
-}
-/* 负声望警示(#556):值 <0 挂 .rep-neg(SeatRail 侧),值色改朱砂——数值即信息,
-   色变即状态(§4.6,不加文字标牌);图标 fill=currentColor 随值同色。 */
-.game-layout .seat .ai.ai-rep {
-  color: var(--color-attr-rep);
-}
-.game-layout .seat .ai.ai-rep.rep-neg {
+/* 负声望警示(#556):值 <0 挂 .rep-neg(SeatRail 侧),整项(标识+值)改朱砂
+   ——数值即信息,色变即状态(§4.6,不加标牌)。 */
+.game-layout .seat .ai.ai-rep.rep-neg,
+.game-layout .seat .ai.ai-rep.rep-neg .ai-tag {
   color: var(--color-danger);
-}
-.game-layout .seat .ai.ai-gem {
-  color: var(--color-attr-gem);
-}
-.game-layout .seat .ai.ai-hero {
-  color: var(--color-attr-hero);
-}
-/* 迷你牌背组(AttrIcon MiniBacks,唯一消费方=席位格行2 牌背项):漆木底+漆金描边
-   (锦囊牌背语言),格上 4×6 缩比;空牌背=虚线轮廓占位(0 张空态可读,#250 口径)。 */
-.game-layout .mini-backs {
-  display: inline-flex;
-  gap: 1px;
-  align-items: center;
-}
-.game-layout .mini-back {
-  width: 4px;
-  height: 6px;
-  border-radius: 1px;
-  /* 漆木牌背:漆面明暗三段(玄墨鎏金后直接吃面板/漆木/暗纸 token,#510 收口字面量) */
-  background: linear-gradient(
-    160deg,
-    var(--color-panel-hi),
-    var(--color-lacquer) 60%,
-    var(--color-paper-lo)
-  );
-  box-shadow: inset 0 0 0 0.8px rgba(217, 185, 92, 0.5);
-}
-.game-layout .mini-back-empty {
-  background: none;
-  box-shadow: none;
-  border: 0.8px dashed color-mix(in srgb, var(--color-lacquer-gold) 55%, transparent);
 }
 /* 活跃方:金圈呼吸(状态全视觉,§4.6;旧「运筹中」文字微标随席位卡形态退役)——
    静态=金边+1.5px 金圈+外晕,呼吸=外圈 opacity 往复(reduced-motion 退场留静圈)。

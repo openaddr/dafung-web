@@ -2,12 +2,12 @@
 // 右缘单列一人一格(自机入列),原型 tmp/席位侧列原型.html
 // ①全屏语境/②席位格解剖/③状态一览 三节判决移植——行1=国号印(座位色,字符居中)
 // +托管微标(#770,托管中才有)+现金主数(无千分位省「两」)+体力色条(吃行1剩余
-// 宽度,濒耗竭转朱砂);行2=#770 分组制:高频组「城楼+牌背」(图标 10px/计数 11px)
-// +发丝线组分隔+低频组「战盔/玉璧/墨竹」三项(8px/10px 旧规格)——旧六项
-// 等权 space-between 均分退役(#751 C 批容量重排后内宽恒贴边,分组给组界结构;
-// 全宽出血预算判据见 layout.css .l2,量测口径:10px tabular 数字 6px/11px 6.6)。
-// 图标逐路径复刻 AttrIcon.tsx 现役资产(战盔/玉璧走 ATTR_ENTRY_D,牌背=MiniBacks),
-// 零新画。
+// 宽度,濒耗竭转朱砂);行2=汉字五账式(#1128):「城/牌/将/宝/望」汉字当标识
+// (题字字体,纸色退后一档)+tabular 计数,单色淡纸——旧五枚彩色 SVG 图标
+// (城楼/牌背组/战盔/玉璧/墨竹)整线退役:9-10px 下战盔糊团、玉璧环与数字 0
+// 同形、4×6 牌背近隐形「城1 牌9+」连读成「19+」(844×390 实拍实锤);彩色图标
+// 只在放大场在役(AttrIcon 活口:诸侯详情/牌架)。发丝线组分隔(#770)保留,
+// 预算判据见 layout.css .l2。
 // 状态全视觉不用文字(DESIGN §4.6):活跃=金圈呼吸(.active)、目标候选=金圈呼吸
 // (.candidate)+选中实金停持(.picked,#417 统一口径)、破产=降透明印灰(.bankrupt)、
 // 终局胜者=金环(.won)、自机=金描边+左金条+金渐变(.self,无「你」字)、托管(AI
@@ -37,7 +37,6 @@ import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { useDeltaFloat, DeltaFloats } from "./useDeltaFloat";
-import { AttrIcon, MiniBacks } from "./AttrIcon";
 import { ATTR_TIPS } from "./Tip";
 import { TESTIDS } from "./testids";
 import "./layout.css";
@@ -57,9 +56,9 @@ export interface SeatTargetSlot {
   onPick: () => void;
 }
 
-/** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽 84px 预算向数字倾斜后仍容不下
- *  两位数——≥10 显示「9+」(MiniBacks「至多示意 3 张」同款示意口径,数值例外条款
- *  允许,非文字角标);负声望保留真实负值不在封顶族。 */
+/** 手牌计数封顶(#743 判词 A/#751 C 批):行 2 内宽预算容不下两位数——≥10 显示
+ *  「9+」(示意口径,数值例外条款允许,非文字角标);负声望保留真实负值不在
+ *  封顶族。 */
 const HAND_COUNT_CAP = 9;
 const handCountText = (count: number): string =>
   count > HAND_COUNT_CAP ? `${HAND_COUNT_CAP}+` : String(count);
@@ -156,10 +155,10 @@ function SeatCell({
           />
         </span>
       </div>
-      {/* 行2(#770 分组):高频组「城+牌」(图标 10px/计数 11px)+ 发丝线组分隔 +
-          低频组三项(名将/珍宝/声望,维持 8px/10px 旧规格);space-between 把
-          行2 余量分到发丝线两侧成组间隙。#1096 决议1 后五图标纯展示:计数裸排,
-          名词在 aria-label(原浮签触发元退化为 span);查档钻入走诸侯详情四元素。 */}
+      {/* 行2 汉字五账式(#1128):「城/牌/将/宝/望」+ tabular 计数,单色淡纸;
+          发丝线组分隔(#770)保留:高频读数(城/牌)|低频藏品(将/宝/望)。
+          名词在 aria-label,testid 契约不变(e2e 零改);负声望整项朱砂(#556,
+          样式 layout.css .ai.ai-rep.rep-neg)。 */}
       <div className="l2">
         <div className="l2hi">
           <span
@@ -167,7 +166,7 @@ function SeatCell({
             data-testid={TESTIDS.seatAttr(seat, "city")}
             aria-label={`城池 ${p.properties.length}`}
           >
-            <AttrIcon kind="city" size={10} />
+            <i className="ai-tag">城</i>
             {p.properties.length}
           </span>
           <span
@@ -175,16 +174,9 @@ function SeatCell({
             data-testid={TESTIDS.seatAttr(seat, "hand")}
             aria-label={`锦囊手牌 ${p.jinnangHandCount}`}
           >
-            {p.jinnangHandCount > HAND_COUNT_CAP ? (
-              /* 封顶态(#743 判词 A):≥10 只出「9+」不带牌背示意——行 2 全宽预算
-                 容不下背组+双字(判据见 layout.css .l2) */
-              handCountText(p.jinnangHandCount)
-            ) : (
-              <>
-                <MiniBacks count={p.jinnangHandCount} />
-                {p.jinnangHandCount}
-              </>
-            )}
+            <i className="ai-tag">牌</i>
+            {/* 封顶态(#743 判词 A):≥10 只出「9+」,五账式下与常规态同形 */}
+            {handCountText(p.jinnangHandCount)}
           </span>
         </div>
         <span className="l2sep" aria-hidden="true" />
@@ -194,7 +186,7 @@ function SeatCell({
             data-testid={TESTIDS.seatAttr(seat, "hero")}
             aria-label={`名将 ${p.heroes.length}`}
           >
-            <AttrIcon kind="hero" size={9} />
+            <i className="ai-tag">将</i>
             {p.heroes.length}
           </span>
           <span
@@ -202,17 +194,15 @@ function SeatCell({
             data-testid={TESTIDS.seatAttr(seat, "gem")}
             aria-label={`珍宝 ${p.treasures.length}`}
           >
-            <AttrIcon kind="gem" size={9} />
+            <i className="ai-tag">宝</i>
             {p.treasures.length}
           </span>
           <span
-            /* 负声望警示(#556):值 <0 值色改朱砂(数值即信息,色变即状态,§4.6
-               不加标牌);样式 layout.css .ai.ai-rep.rep-neg。 */
             className={"ai ai-rep" + (p.reputation < 0 ? " rep-neg" : "")}
             data-testid={TESTIDS.seatAttr(seat, "rep")}
             aria-label={`声望 ${p.reputation}`}
           >
-            <AttrIcon kind="rep" size={9} />
+            <i className="ai-tag">望</i>
             {p.reputation}
           </span>
         </div>
