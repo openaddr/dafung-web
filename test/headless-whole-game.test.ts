@@ -23,17 +23,11 @@ import {
   wholeGameConfig,
   type WholeGameOptions,
 } from "../scripts/whole-game";
+import { CORPUS_MAPS, GOLDEN_SEEDS, botSeats } from "../scripts/test-corpus";
 
-const MAPS = [
-  { id: "guanzhong", data: guanzhongData },
-  { id: "zhongyuan", data: zhongyuanData },
-  { id: "yanzhou", data: yanzhouData },
-] as const;
-const SEEDS = [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
+const MAPS = CORPUS_MAPS;
+const SEEDS = GOLDEN_SEEDS;
 const TURN_CAP = 3000; // 与 sim-batch 同口径(单玩家回合数)
-
-const botSeats = (): SeatConfig[] =>
-  Array.from({ length: 4 }, (_, i) => ({ name: `诸侯 ${i + 1}`, isBot: true }));
 
 // ── 摘要器单测 ──
 describe("状态摘要器", () => {
@@ -47,7 +41,7 @@ describe("状态摘要器", () => {
   it("同引擎同状态必同哈希;rngState 随摘要走;异状态异哈希", () => {
     const map: LoadedMap = loadMap(guanzhongData);
     const e = new GameEngine(map.board, map.catalog, createDice(7), {
-      seats: botSeats(),
+      seats: botSeats(4),
       targetNetWorth: map.targetNetWorth,
       startingCash: map.startingCash,
     });
@@ -68,7 +62,7 @@ describe("确定性两跑门", () => {
     for (const seed of SEEDS) {
       it(`${m.id} seed ${seed}:两跑逐位一致且终局可达`, () => {
         const map = loadMap(m.data);
-        const opts: WholeGameOptions = { map, mapId: m.id, seed, seats: botSeats() };
+        const opts: WholeGameOptions = { map, mapId: m.id, seed, seats: botSeats(4) };
         const a = runWholeGame(opts);
         const b = runWholeGame(opts);
         expect(a.finished).toBe(true); // 终局可达(触上限 = 平衡发现,红出来人工判读)
@@ -90,7 +84,7 @@ describe("快照往返门", () => {
   for (const c of CASES) {
     it(`${c.id} seed ${c.seed}:第 ${K} 笔摘要截断 → 重建续跑 = 对照逐位`, () => {
       const map = loadMap(c.data);
-      const opts: WholeGameOptions = { map, mapId: c.id, seed: c.seed, seats: botSeats() };
+      const opts: WholeGameOptions = { map, mapId: c.id, seed: c.seed, seats: botSeats(4) };
       const ref = runWholeGame(opts);
       expect(ref.finished).toBe(true);
       expect(ref.digests.length).toBeGreaterThan(K + 2); // 截断点须在局中

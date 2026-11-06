@@ -31,21 +31,14 @@
 // 逐局进度走 stderr(同 sim-batch)。
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
-import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
-import yanzhouData from "../test/fixtures/maps/yanzhou.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
-import type { SeatConfig } from "../src/core/authority";
 import { netWorth } from "../src/core/networth";
 import { runWholeGame } from "./whole-game";
+import { CORPUS_MAPS, botSeats } from "./test-corpus";
 
 // ── 矩阵(座位档 2/4:引擎座位上限 4、国号池四家,sim-batch 校验 2-4;票面「8」
 //    不适用,判词见 ADR-0054)──
-const MAPS = [
-  { id: "guanzhong", data: guanzhongData },
-  { id: "zhongyuan", data: zhongyuanData },
-  { id: "yanzhou", data: yanzhouData },
-] as const;
+const MAPS = CORPUS_MAPS;
 const SEATS_OPTIONS = [2, 4];
 const SEED0 = 4001;
 const SEED_COUNT = 50;
@@ -130,10 +123,6 @@ interface GameOutcome {
   /** 胜者终局身价(未终局 = null;finished 而 null 会在断言处炸)。 */
   winnerNetWorth: number | null;
   bankrupts: number;
-}
-
-function botSeats(n: number): SeatConfig[] {
-  return Array.from({ length: n }, (_, i) => ({ name: `诸侯 ${i + 1}`, isBot: true }));
 }
 
 function runGame(map: LoadedMap, mapId: string, seats: number, seed: number): GameOutcome {

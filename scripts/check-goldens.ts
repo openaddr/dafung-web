@@ -23,29 +23,21 @@
 // 退出码:0 = 全绿/已刷新;1 = 台账漂移(校验模式)
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import guanzhongData from "../public/maps/guanzhong.json" with { type: "json" };
-import zhongyuanData from "../public/maps/zhongyuan.json" with { type: "json" };
-import yanzhouData from "../test/fixtures/maps/yanzhou.json" with { type: "json" };
 import { loadMap, type LoadedMap } from "../src/core/board-loader";
 import type { SeatConfig } from "../src/core/authority";
 import { canonicalize } from "./state-digest";
 import type { TurnDigest } from "./state-digest";
 import { runWholeGame } from "./whole-game";
+import { CORPUS_MAPS, GOLDEN_SEEDS, botSeats } from "./test-corpus";
 
 const GOLDENS_DIR = resolve(import.meta.dir, "../test/goldens");
 const LEDGER_FORMAT = 1;
 const DOC_ANCHOR =
   "docs/how-to/开发与测试.md「黄金台账」节(先红=信号勿逐 spec 排查;确认漂移符合预期后 bun run check:goldens:update 刷新台账)";
 
-// ── 语料(票一同款;两处同步维护,票一测试与台账语料必须同套)──
-const MAPS = [
-  { id: "guanzhong", data: guanzhongData },
-  { id: "zhongyuan", data: zhongyuanData },
-  { id: "yanzhou", data: yanzhouData },
-] as const;
-const SEEDS = [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008, 3009, 3010];
-const botSeats = (): SeatConfig[] =>
-  Array.from({ length: 4 }, (_, i) => ({ name: `诸侯 ${i + 1}`, isBot: true }));
+// ── 语料(单源 scripts/test-corpus.ts:与票一测试/基准工具同套,评审必修收口)──
+const MAPS = CORPUS_MAPS;
+const SEEDS = GOLDEN_SEEDS;
 
 // ── 台账格式(冻结;存储投影,字段语义见 scripts/state-digest.ts)──
 interface LedgerRecord {
@@ -119,7 +111,7 @@ function parseLedger(mapId: string, raw: string): LedgerCorpusEntry[] {
       `${where}:format ${String(file.format)} ≠ ${LEDGER_FORMAT}——台账格式已冻结,漂移走 ADR-0053 update 流程`,
     );
   if (!Array.isArray(file.corpus)) throw new Error(`${where}:corpus 非数组——台账损坏`);
-  const expectedSeats = botSeats();
+  const expectedSeats = botSeats(4);
   for (const entry of file.corpus) {
     if (typeof entry.seed !== "number" || !Number.isInteger(entry.seed))
       throw new Error(`${where}:corpus 条目 seed 非整数——台账损坏`);
@@ -150,7 +142,7 @@ function parseLedger(mapId: string, raw: string): LedgerCorpusEntry[] {
 function runCorpus(mapId: string, map: LoadedMap): LedgerCorpusEntry[] {
   const entries: LedgerCorpusEntry[] = [];
   for (const seed of SEEDS) {
-    const seats = botSeats();
+    const seats = botSeats(4);
     const digests: LedgerRecord[] = [];
     const result = runWholeGame({
       map,

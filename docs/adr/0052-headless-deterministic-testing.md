@@ -6,7 +6,7 @@
 
 「游戏对不对」的验证此前几乎全在浏览器 e2e 层:43 条 spec(实查 40 条)混装 UI 壳与逻辑断言,全量分钟级,断相不可诊断(canary-seed 头注释自证:setup 骰流一变,离线种子整体作废,e2e 侧只看到卷轴不升/驱动超时)。本 ADR 记票一:无头整局驱动器 + 逐回合状态摘要——后续票(黄金差分 / bot 基准 / 协议级故障注入)的确定性前提。
 
-参考仓 vera20k(C:\Users\ning\.zcode\workspace\draft-2a24f3e5-9a1d-4881-bc87-9ed79607e39f\repos\vera20k)。
+参考仓 vera20k(本机克隆路径见 docs/reference/参考仓索引.md 单源)。
 
 ## 参考与取舍
 
@@ -40,7 +40,7 @@
 
 - **gameId 不收编进骰流**:它是实例身份(时间戳+随机后缀),承担 `data/logs/<gameId>.jsonl` 文件名与 IndexedDB key 的**唯一性契约**——种子化会让同 seed 房间撞名;其非确定性属身份非内容,生成不动、摘要排除。快照往返不受影响(restoreFromSnapshot 原样回灌,续跑继承同一 id)。
 - **log / logCount 不整表哈希**:战报随回合线性增长,整表折入 = O(n²);内容是「命令+种子」的派生记录,漂移由链式 logHash 以 O(n) 兜住,覆盖不丢。
-- **dice.ts:43 的 `seed ?? Math.random()` 不算旁路**:那是种子流自身的缺省入口(无种子产品的随机来源),产物记进局头(seed 字段)可重放——复核了全仓,真正绕过骰流的 `Math.random` 仅 authority.ts:432 gameId 一处,判词如上。
+- **dice.ts `createDice` 的 `seed ?? Math.random()` 缺省回退不算旁路**:那是种子流自身的缺省入口(无种子产品的随机来源),产物记进局头(seed 字段)可重放——复核了全仓,真正绕过骰流的 `Math.random` 仅 authority.ts 构造器里的 gameId 生成一处,判词如上。
 
 ## 落地物
 
@@ -52,6 +52,10 @@
 - `test/headless-whole-game.test.ts` — 确定性两跑门(3 图 × 10 种子 × 4 bot,两跑逐位 + 终局可达)、快照往返门(第 8 笔摘要截断 → 同 config 重建 → 续跑与对照逐位)、摘要器单测、人类座缝验证;**实测全文件 9.3s,进默认池**(单局 zhongyuan ~100ms 量级)。
 - `test/fixtures/maps/yanzhou.json` — 第三语料图(兖州 12 城小盘;仓内内置图仅 guanzhong/zhongyuan 两张,夹具补足「≥3 图」,测试工件不入产品清单)。
 - GLOSSARY「测试」节:无头整局 / 状态摘要 / 黄金台账 / 故障注入代理。
+
+## 不变量口径判词(评审收口补记)
+
+票面任务 6 的两条不变量落法:①「netWorth 与组分重算吻合」——netWorth 是纯派生函数(现金+资产单源计算,无存储对偶可「吻合」),该不变量由构造成立;驱动器的 assertEconomySane 钉其有限性(数值泄漏面)。②「破产结算正确」两路覆盖:driveToEnd 相位守卫(停在任何不可驱动相位含破产清算即炸,响亮暴露结算卡死)+ 票三 sim-bench 的 playerBankrupt 事件↔isBankrupt 旗交叉核对(4001-4050 语料);票一语料的巡检面=守卫面,交叉核对归基准语料。
 
 ## 后果
 

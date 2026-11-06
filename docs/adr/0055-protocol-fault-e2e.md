@@ -17,7 +17,7 @@
 | fault_proxy.rs 头注:「转发真实双端字节流,绝不改参与者/模拟状态/可靠性/中继鉴权」 | 故障代理是**哑管道**:只对传输单位做文章,协议语义对它不可见 | `scripts/fault-proxy.ts`:WS→WS 逐帧转发,不 import wire.ts、不解析消息(采纳)                                                                                        |
 | Direction 枚举 HostToGuest/GuestToHost                                           | 故障按**方向**独立配施(双向各一套旋钮)                     | `FaultDirection` = toServer/toClient,dropEveryN 按向独立(采纳,命名对偶)                                                                                            |
 | Notice 观测面(Ready/Armed/Corruption/Stopped,机器可读)                           | 故障发生点必须**可断言**,不靠猜                            | `FaultProxyNotice`(ready/pair-open/dropped/killed/pair-closed)+ `getStats()` 计数器(relayed/dropped/kills/pairs);变体:本仓是同步回调,vera 是 JSON 打印+stdout 通道 |
-| Corruption 一次一帧、落点由 after_frame 序号定                                   | 故障落点是**序号确定**的,同一帧序列下可精确复现            | 变体:verbal20k 损坏「after_frame 之后首个校验帧」;本仓 dropEveryN 按「方向到达序(含被丢帧)%N==0」确定性丢帧,notice 带 ordinal,测试断言可到「第几帧」               |
+| Corruption 一次一帧、落点由 after_frame 序号定                                   | 故障落点是**序号确定**的,同一帧序列下可精确复现            | 变体:vera20k 损坏「after_frame 之后首个校验帧」;本仓 dropEveryN 按「方向到达序(含被丢帧)%N==0」确定性丢帧,notice 带 ordinal,测试断言可到「第几帧」                 |
 | lan-fault-proxy.rs 作为 bin 的存在(94 行参数解析+stdin 控制)                     | 故障面独立于游戏二进制,normal build 零故障钩子             | 变体(见下「不适用」):本仓不需要 bin——测试与代理同进程,直接 import 类;scripts/server.ts 同样零故障钩子                                                              |
 | 双真实客户端经代理对连的组织                                                     | 故障矩阵的受试者=真实协议端点,不是 mock                    | `OnlineClient`(wire.ts 编码单源上行)+ 真 spawn server.ts;每客户端独立代理连接对(采纳)                                                                              |
 | Stopped 汇总计数(corrupted_directions/forwarded/rejected_sources)                | 结账时对账「故障确实发生了几次」                           | getStats() 断言 dropped/kills 计数(采纳)                                                                                                                           |
@@ -87,7 +87,9 @@ spec 计数:4 文件 5 例 → 2 文件 2 例(events/secrecy 整删;cutover 留�
 
 ## 承认的取舍
 
+- **「经故障代理骑到 gameOver 的整局」未落(已知边界,评审收口登记)**:票面场景清单的「整局」在本票落为「中段各相位经代理推进+断线重连续局」;全程骑到终局的墙钟成本由托管单节拍主导(ADR-0028,统一原则禁加速档),全程骑局覆盖现状在 test/room.test.ts 慢池(不经代理)。后续候选:yanzhou 夹具图+短目标价做代理内整局,或服务器侧注入节拍例外(需先过统一原则拷问)。
+
 - **种子局用例(场景十一)绑种子 419 签名**:骰流变动会断相,处置走种子哨兵同款「先红=信号,重钓配方」(开发与测试「种子哨兵与重钓配方」条),不逐例排查。
-- **测试文件间的出处注释漂移**:test/event-feed.test.ts、test/downlink-assembly.test.ts、test/seat-projection.test.ts、test/online-map-rebuild.test.ts 头注仍指 react-online-events/secrecy spec(「发送面接线归 e2e spec」的旧分工);spec 删除后这些指针待后续触到该文件的票顺手改写为指向本 ADR/场景号,不在本票文件所有权内(test/ 其他文件禁碰)。
+- **测试文件间的出处注释漂移(已收口)**:event-feed/downlink-assembly/seat-projection/online-map-rebuild 四文件头注原指 react-online-events/secrecy spec(旧分工),棒二受文件所有权所限未动;主线收口时已以分层跟进提交(#1178 同 PR)改指 test/protocol-online.test.ts 与本 ADR。
 - **冻结类断言的静默阈值(12s)是时长换置信**:阈值必须大于运转时回合间隔上限(托管 2s/拍 × 每回合 2-3 拍 ≈ 6-10s),无决策回合会空转数轮才停在首个含决策的回合——静默只证「推进已停」,停点位置由重连摘要 `decisionOwner`(场景五)/恢复推进反证(场景七)钉死;阈值只影响「若语义被破坏多久能测出」,不影响误报率。
 - **元数据下行断言读态不读车种**:react-online-cutover 原文断言「掉线元数据走 lobby 通道」,Setup/校准流里实测元数据搭校准快照车(server.ts flush 形态:校准拍快照自带 WireRoomFields 且指纹随车更新,lobby 形状只在非校准拍补发)——迁移后断言接受 lobby/snapshot 任一载体,「指纹变化才发」的防重发语义不变。
