@@ -372,7 +372,7 @@ if (!prNumber) {
   });
   if (freshness.exitCode !== 0) {
     console.error(
-      "[pr-merge] check:freshness 红——基线落后(多半是 master 已被并行会话推进),先重定基再收口。",
+      "[pr-merge] check:freshness 红——处置看上方 [freshness] 逐条输出(落后自己的远端书签=改写头后直推;落后 origin/master=并行推进先重定基;主树占用=验归属),勿按单一猜测处置。",
     );
     process.exit(1);
   }

@@ -154,7 +154,15 @@ const failures: string[] = [];
         .find((line) => line.startsWith("default:"))
         ?.match(/^default:\s+\S+\s+(\S+)/)?.[1] ?? null);
   if (mainAt != null) {
-    if (jj("log", "-r", mainAt, "--no-graph", "-T", "empty") === "false") {
+    // 0 附:瞬时句柄残影去抖(2026-11-06 #1096 收口实锤):构建/编辑器握住文件的
+    // 瞬间,快照会呈现「N files 0 insertions 0 deletions」的空壳非空态,片刻自愈
+    // (句柄释放即真净)。隔 2s 复查一次再定性——不是兜底,是去除抖动的一次重读;
+    // 仍非空才红。
+    const mainEmpty = () => jj("log", "-r", mainAt, "--no-graph", "-T", "empty") === "true";
+    if (!mainEmpty()) {
+      Bun.sleepSync(2_000);
+    }
+    if (!mainEmpty()) {
       const statLines = jj("diff", "-r", mainAt, "--stat").split("\n").filter(Boolean);
       failures.push(
         `主树 @ 非空(${statLines[statLines.length - 1]})——有并行会话留活,或写盘工具误落主树` +
@@ -256,7 +264,10 @@ if (conflicted.length > 0) {
 }
 
 if (failures.length > 0) {
-  console.error(`[freshness] 基线过期,先同步再开工(${head.slice(0, 9)}):\n`);
+  // 文案中性(2026-11-06 retro):失败条目各异(落后自己的远端书签=改写头后需直推/
+  // 落后 origin/master=并行推进先 rebase/主树占用/冲突标记),旧头条「基线过期,先
+  // 同步再开工」对非同步类失败是误导性处方——逐条处置以 failures 为准。
+  console.error(`[freshness] 基线检查未过(${head.slice(0, 9)})——按下列条目处置:\n`);
   for (const f of failures) console.error(`  - ${f}`);
   process.exit(1);
 }
