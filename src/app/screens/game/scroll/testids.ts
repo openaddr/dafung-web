@@ -18,6 +18,8 @@ export const SCROLL_TESTIDS = {
   // ── 抉择机遇(#124):容器 + 选项(下标 = def.choices 序,与 snapshot.choices 一致)──
   encounterScroll: "scroll-encounter",
   encounterOption: (index: number) => `scroll-encounter-option-${index}` as const,
+  /** 奇遇金穗纹饰(#1155):宽卷题行两端的金穗侧饰宿主(一对镜像 SVG,纯装饰)。 */
+  encounterSpray: "scroll-encounter-spray",
   exhaustionScroll: "scroll-exhaustion",
   exhaustionOption: (index: number) => `scroll-exhaustion-option-${index}` as const,
 
