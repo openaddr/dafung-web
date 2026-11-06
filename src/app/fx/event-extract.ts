@@ -538,6 +538,26 @@ export function extractBatchEvents(
         });
         break;
       }
+      case "skillLearned": {
+        // 用书学技(#1146):习得文案浮字锚习得者位置(与来投/施展同通路;技名查技表
+        // 单源,书名/消耗随事件不另演——书出册是 fold 面的账,珍宝角标自然回落)。
+        const seat = eventSeat(engine, ev);
+        events_.push(
+          textFloater(
+            engine,
+            seat,
+            `${guohaoOf(engine, seat)} 习得【${skillById(ev.skillId).name}】`,
+          ),
+        );
+        break;
+      }
+      case "heroDismissed": {
+        // 遣散浮字(#1147):锚遣散者位置,与来投/习得同通路;折书入位演出由同批
+        // treasureGained(漆金得印+treasure 音)逐册承担,此处不重复演书账。
+        const seat = eventSeat(engine, ev);
+        events_.push(textFloater(engine, seat, `遣散「${heroDefOf(ev.heroId).name}」,回招贤池`));
+        break;
+      }
       case "jinnangVoided": {
         // 识破生效(#281):线端=应答者 → 被保份/被拆计方(可解析时),字报结果。
         // shareSeat 过座位契约校验(单源 core/event-tiers,#431 移交顺带项):越界座位

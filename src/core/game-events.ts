@@ -186,6 +186,24 @@ export interface PlayerBankruptBody {
   kind: "playerBankrupt";
   creditorSeat: number | null;
 }
+/** 用书学技(#1146):seat=习得者,heroId=槽定位,skillId=习得之技,treasureId=消耗的
+ *  技能书实例(技能书=「此技习得器」,书随学技出册;书名/技名客户端按表回查,不随事件
+ *  重复携带)。折叠面据此槽内池序入技+珍宝位出册。 */
+export interface SkillLearnedBody {
+  kind: "skillLearned";
+  heroId: string;
+  skillId: string;
+  treasureId: string;
+}
+/** 遣散(#1147):seat=遣散者,heroId=麾下槽定位,skillIds=遣散时已学技(=同批逐册
+ *  折书明细;书 id=skillbook-<skillId> 由印书单源 makeSkillBook 派生,不另携带)。
+ *  折叠面据此整槽出麾下+招贤池划名;折书入位由同批 treasureGained 各自折(珍宝现通路
+ *  零特判)。显式 emit(遣散域结算点,非触发时机——不进 MOMENTS、无 scope/冷却语义)。 */
+export interface HeroDismissedBody {
+  kind: "heroDismissed";
+  heroId: string;
+  skillIds: string[];
+}
 /** 名将被动技击发(#384):时机技能经 scope/冷却/条件过滤后效果落账成功的瞬间;
  *  seat=技属主,技参数(步数/金额等)由技表 skills.ts 按 skillId 现查,不入事件。 */
 export interface SkillFiredBody {
@@ -363,6 +381,8 @@ export type GameEventBody =
   | AssetTransferredBody
   | HeroRecruitedBody
   | PlayerBankruptBody
+  | HeroDismissedBody
+  | SkillLearnedBody
   | SkillFiredBody
   | HeroSkillActivatedBody
   | JinnangDrawnBody
@@ -415,6 +435,7 @@ export const GAME_EVENT_KINDS = [
   "heroRecruited",
   "playerBankrupt",
   "skillFired",
+  "skillLearned",
   "heroSkillActivated",
   "jinnangDrawn",
   "jinnangReshuffled",

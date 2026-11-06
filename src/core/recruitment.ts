@@ -10,7 +10,12 @@ import type { Player } from "./model";
 import { HERO_CAPACITY } from "./constants";
 import type { HeroDef } from "./heroes";
 import { HEROES } from "./heroes";
-import { grantHeroSlot, grantedNamesLine, rollGrantedSkills } from "./roster";
+import {
+  foldSkillBookIntoTreasures,
+  grantHeroSlot,
+  grantedNamesLine,
+  rollGrantedSkills,
+} from "./roster";
 import { shuffle } from "./dice";
 
 /** 招贤候选行(#787,ADR-0036 预掷明牌):候选将定义 + 生成时掷定的授技子集(按池序)。
@@ -21,18 +26,67 @@ export interface HeroOffer {
   skillIds: string[];
 }
 
-/** 招贤纳士:从剩余名将池随机抽 3 张(三选一),逐候选预掷授技明牌(#787)。满额/无货
- *  → 返回 "silent"(事件沉默,收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
+/** 位满印书(#1146,spec #1144 拆票 B):该次预掷授技各印一册技能书按普通珍宝入位——
+ *  不再得将、不占招贤池、零折现(位满分叉的账面位移:原先「满编折现」路由本路接替,
+ *  「名将已尽」折现不变,两语义互斥)。战报逐册一行(书名携技名,audit 键 hero/skill/
+ *  treasure);入位宣告走 TreasureGained 时机产 treasureGained 事件(书走珍宝实例现
+ *  通路,fold/表现零特判)。机制环单源=roster.foldSkillBookIntoTreasures(评审 S1,
+ *  与遣散折书共环)。调用方=grantHeroOrBooks 单喉。 */
+function printSkillBooks(
+  g: GameEngine,
+  player: Player,
+  hero: HeroDef,
+  granted: string[],
+  prefix: string,
+): void {
+  for (const skillId of granted) {
+    foldSkillBookIntoTreasures(
+      g,
+      player,
+      skillId,
+      hero.id,
+      (bookName) => `${player.guohao} ${prefix}麾下满编,「${hero.name}」授技化作「${bookName}」`,
+      "skillBook",
+    );
+  }
+}
+
+/** 位满分叉单喉(#1146,四送将路唯一落点——招贤城/求贤令/义士来投/以宝换贤全走此喉):
+ *  麾下未满 → 授技入麾下单点(grantHeroSlot,战报归调用方,三路渠道语境各自成文);
+ *  麾下已满 → 该次预掷授技各印一册技能书按普通珍宝入位(printSkillBooks,战报喉内逐册
+ *  自带)。预掷结果改印书,零新随机——掷骰只走调用方先掷定的 hero/granted。 */
+export function grantHeroOrBooks(
+  g: GameEngine,
+  player: Player,
+  hero: HeroDef,
+  granted: string[],
+  prefix: string,
+): void {
+  if (player.heroes.length < HERO_CAPACITY) {
+    grantHeroSlot(g, player, hero, granted);
+    return;
+  }
+  printSkillBooks(g, player, hero, granted, prefix);
+}
+
+/** 招贤纳士:从剩余名将池随机抽 3 张(三选一),逐候选预掷授技明牌(#787)。无货(名将
+ *  已尽)→ 返回 "silent"(事件沉默,收尾归调用方:都城 endTurn,招贤城续交易链 #824)。
+ *  位满(#1146)→ 同样返回 "silent"(不设候选),但不再空手:盲盒同式现掷(选将 1 掷 +
+ *  授技 1 掷)经单喉印书,该次预掷授技各印一册按普通珍宝入位。
  *  #323 去私有化(ADR-0019 条款 3):落格结算 movement-flow.resolveLanding 经 g. 直调;
  *  testing.ts 白盒窄面照旧。#326 迁出壳内至此域模块。
- *  骰流契约:先整池洗牌定候选序(dice.shuffle),再按候选序逐将 rollGrantedSkills
- *  (基数 + 池内抽取)——顺序固定,同 seed 重放一致;沉默路不耗骰。 */
+ *  骰流契约:位满路先池空判定(零骰),再选将 1 掷 + 授技 1 掷(与盲盒三路同式,零新
+ *  随机);候选路先整池洗牌定候选序(dice.shuffle),再按候选序逐将 rollGrantedSkills
+ *  (基数 + 池内抽取)——顺序固定,同 seed 重放一致;池空沉默路不耗骰。 */
 export function tryRecruitHero(g: GameEngine, mover: Player): "offered" | "silent" {
-  if (mover.heroes.length >= HERO_CAPACITY) {
-    return "silent";
-  }
   const available = HEROES.filter((h) => !g.recruitedHeroIds.has(h.id));
   if (available.length === 0) {
+    return "silent";
+  }
+  if (mover.heroes.length >= HERO_CAPACITY) {
+    const hero = available[Math.floor(g.dice.nextFloat() * available.length)];
+    const granted = rollGrantedSkills(hero.skillPool, g.dice.nextFloat);
+    grantHeroOrBooks(g, mover, hero, granted, ""); // prefix 留空:招贤城无渠道语境词(事件沉默契约不破)
     return "silent";
   }
   g.offeredHeroes = shuffle(available, g.dice.nextFloat)

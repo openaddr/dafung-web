@@ -53,3 +53,6 @@
 - **audio:halt-horn** — CC0 / nanoPlink (Freesound) — 39135B (ogg;「hunting-horn-bass.wav」lq 预览) — [source](https://freesound.org/s/148645/) — 2026-10-29
 - **texture:pingfutie** — Public domain / Lu Ji — 287244B (1920×909, webp) — [source](https://commons.wikimedia.org/wiki/File%3A%E5%B9%B3%E5%A4%8D%E5%B8%96.png) — 2026-10-31
 - **texture:gongxian-shanshui** — Public domain / 龚贤(Gong Xian,清) — 149756B (2880×359, webp;Commons 全卷扫描 35195×1987 中段裁带 x8700-24300,弃左题跋尾、纵向弃底部印区 → webp q80) — [source](https://commons.wikimedia.org/wiki/File%3A%E9%BE%9A%E8%B4%A4%E5%B1%B1%E6%B0%B4%E5%9B%BE%E5%8D%B7.jpg) — 2026-10-31
+- **hero:caoren:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)曹仁-经典形象 · wiki 上传者 359366122 — 210874B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=1017) — 2026-11-06 ⚠️ review_required
+- **hero:mizhu:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)糜竺-经典形象 · wiki 上传者 17981205 — 190090B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=4069) — 2026-11-06 ⚠️ review_required
+- **hero:dengai:sgs** — 三国杀官方原画(游卡桌游;仅学习/朋友娱乐,不商用) / 三国杀(十周年)邓艾-经典形象 · wiki 上传者 359366122 — 230741B (574×761, image/png) — [source](https://wiki.biligame.com/sgs/index.php?curid=11648) — 2026-11-06 ⚠️ review_required

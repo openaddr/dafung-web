@@ -34,6 +34,16 @@ export interface PileButtonsProps {
   nudgePulse?: number;
   /** 锦囊开关回传(GameScreen 写会话内临时态 rackHidden,不落盘,#1006)。 */
   onToggleRack: () => void;
+  /** 用书学技通路(#1146):treasureId+heroId 直落 useBookSkill 命令(GameScreen 包装
+   *  dispatchCommand);缺省=珍宝弹层书恒不可点态(无命令通路的挂载语境)。 */
+  onUseBook?: (treasureId: string, heroId: string) => void;
+  /** 用书可点窗口(#1146):己方出牌阶段卡牌段(GameScreen 计算 junshiUp && !targeting);
+   *  缺省=false——书恒陈列不可点。 */
+  bookPlayReady?: boolean;
+  /** 遣散可点窗口(#1147):己方回合(GameScreen 计算);缺省=false——遣散钮恒禁用态。 */
+  dismissReady?: boolean;
+  /** 遣散命令通路(#1147,dismissHero 直落):缺省=无通路,遣散钮恒禁用态。 */
+  onDismiss?: (heroId: string) => void;
 }
 
 /** 三圆钮(锦囊开关 + 藏品双入口)。
@@ -46,6 +56,10 @@ export const PileButtons = memo(function PileButtons({
   breathe = false,
   nudgePulse,
   onToggleRack,
+  onUseBook,
+  bookPlayReady = false,
+  dismissReady = false,
+  onDismiss,
 }: PileButtonsProps) {
   // 藏品弹层开合态(null=全收;一次一层,点钮开、Esc/点外/X 关)——从牌架迁来
   // (#361 双入口退役):收起手牌后藏品弹层必须仍可达,账本随钮不随架。
@@ -115,9 +129,19 @@ export const PileButtons = memo(function PileButtons({
           )}
         </button>
       </div>
-      {/* 藏品弹层(#361 接替):壳与陈列归 PileModal,标题随入口 */}
+      {/* 藏品弹层(#361 接替):壳与陈列归 PileModal,标题随入口;用书通路(#1146)
+          仅对局屏挂载语境传入,书在己方出牌阶段可点;遣散通路(#1147)同语境传入,
+          遣散钮在己方回合可点 */}
       {pileModal !== null && (
-        <PileModal kind={pileModal} player={player} onClose={() => setPileModal(null)} />
+        <PileModal
+          kind={pileModal}
+          player={player}
+          bookPlayReady={bookPlayReady}
+          onUseBook={onUseBook}
+          dismissReady={dismissReady}
+          onDismiss={onDismiss}
+          onClose={() => setPileModal(null)}
+        />
       )}
     </>
   );

@@ -364,7 +364,9 @@ describe("清算路径 CashLost 口径(#452):非自愿现金支出按实付现�
     finishSetup(e);
     const p = e.activePlayer;
     const caopi = e.players.find((q) => q !== p)!;
-    armHero(e, caopi, CAOPI);
+    // 池收窄到受试技(#1145 曹丕池扩趁火打劫后,致破腿的 PlayerBankrupt 会触发新联动技
+    // +500 干扰渔利精确断言;收窄布场同 test/hero-skill.test.ts armSkill 先例)
+    armHero(e, caopi, CAOPI, ["yuli"]);
     const caopiCash0 = caopi.cash;
     const levy: EncounterDef = {
       id: "假道征粮",

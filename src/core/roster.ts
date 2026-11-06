@@ -6,8 +6,10 @@
 import type { GameEngine } from "./authority";
 import type { Player } from "./model";
 import type { HeroDef } from "./heroes";
+import { heroById } from "./heroes";
 import { shuffle } from "./dice";
 import { skillById } from "./skills";
+import { makeSkillBook } from "./treasures";
 
 /** 麾下槽位:一名诸侯持有的一名名将实例。skillIds=已授技(#787 授技掷骰的实掷子集,
  *  按池声明序存;落槽后终身不改——无补技通道);lastFired 键=技 id、作用域限本槽
@@ -71,4 +73,57 @@ export function heroSlotOf(player: Player, heroId: string): HeroSlot {
   const slot = player.heroes.find((s) => s.heroId === heroId);
   if (slot == null) throw new Error(`麾下槽位:玩家 ${player.id} 无将 ${heroId}(数据 bug)`);
   return slot;
+}
+
+// ──────────────────────────── 技能书·学技(#1146)────────────────────────────
+/** 可学者判定(#1146,用书/印书共用的「谁可习得此技」单源):麾下「池含此技且未习得」
+ *  的槽位,按槽位序返回——bot 贪心取首、UI 三态(0 名禁用/1 名直学/多名弹窗)与引擎
+ *  校验同读本口,防第二套判定漂移。参数取麾下最小结构(快照玩家行/引擎 Player 同构,
+ *  客户端可直调)。技能二元有无:习得与否只看 skillIds 成员。 */
+export function skillBookLearners(player: { heroes: HeroSlot[] }, skillId: string): HeroSlot[] {
+  return player.heroes.filter((slot) => {
+    const pool = heroById(slot.heroId).skillPool;
+    return pool.includes(skillId) && !slot.skillIds.includes(skillId);
+  });
+}
+
+/** 学技入槽(#1146,用书学技的落账单点):按名将池声明序把 skillId 并入槽内 skillIds
+ *  (槽内序恒池序——与授技同款,招贤所得/书学所得在槽内不可分辨);lastFired 不落键
+ *  =照新授技同款(就绪、无冷却负债)。校验:槽在、池含此技、未习得——违反=命令与
+ *  麾下不符,当场抛错(零兜底;可学性判定单源 skillBookLearners,调用方先验)。 */
+export function learnSkillInSlot(player: Player, heroId: string, skillId: string): HeroSlot {
+  const slot = heroSlotOf(player, heroId);
+  const pool = heroById(heroId).skillPool;
+  if (!pool.includes(skillId))
+    throw new Error(`学技入槽:名将 ${heroId} 池不含技 ${skillId}(命令与麾下不符,数据 bug)`);
+  if (slot.skillIds.includes(skillId))
+    throw new Error(`学技入槽:名将 ${heroId} 已习得 ${skillId}(重复习得,数据 bug)`);
+  slot.skillIds = pool.filter((id) => id === skillId || slot.skillIds.includes(id));
+  return slot;
+}
+
+/** 折书入位单环(#1146 位满印书/#1147 遣散折书共用的机制环,评审 S1 归一):印一册
+ *  (makeSkillBook 单源)→ push 珍宝位 → 战报一行 → TreasureGained 时机派发——得宝系
+ *  联动技(得陇望蜀族)照常击发,零特判。战报文案随语境(位满/遣散措辞各异)由调用方
+ *  以 bookName 组装;audit kind 位满=`skillBook`、遣散=`dismissBook`。 */
+export function foldSkillBookIntoTreasures(
+  g: GameEngine,
+  player: Player,
+  skillId: string,
+  heroId: string,
+  logCopy: (bookName: string) => string,
+  auditKind: "skillBook" | "dismissBook",
+): void {
+  const book = makeSkillBook(skillId);
+  player.treasures.push(book);
+  g.logEvent(
+    "system",
+    player.guohao,
+    logCopy(book.name),
+    `${auditKind} player=${player.id} hero=${heroId} skill=${skillId} treasure=${book.id}`,
+  );
+  g.dispatchMoment("TreasureGained", {
+    subject: g.players.indexOf(player),
+    treasureId: book.id,
+  });
 }

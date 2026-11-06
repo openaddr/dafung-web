@@ -147,7 +147,8 @@ export function clientView(r: RoomSession, onlineSeats: Set<number>, seat?: numb
  *      信息:珍宝列表随快照全员可见(ADR-0016「珍宝不裁」),引擎战报公开记名
  *      (jinnang-execution stealTreasure 的 logEvent),窃宝动作本就公开、被窃珍宝对
  *      失主并非未知(失主清点自己公开列表即知丢哪件);
- *    · 名将族 heroRecruited/playerBankrupt/skillFired/heroSkillActivated(麾下名将
+ *    · 名将族 heroRecruited/playerBankrupt/heroDismissed(#1147 遣散:遣散者/名将/
+ *      折书明细皆公开面)/skillFired/heroSkillActivated(麾下名将
  *      是公开信息);
  *    · 锦囊族 jinnangDrawn(count-only 设计,#384:座位+张数口径不写牌名,核实无需改)/
  *      jinnangReshuffled(座位+洗回张数:弃堆本明置、洗回张数公开,洗后牌序不外传——
@@ -204,7 +205,9 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
       case "assetTransferred":
       case "heroRecruited":
       case "playerBankrupt":
+      case "heroDismissed": // #1147 遣散:遣散者/名将/折书明细皆公开面(麾下与招贤池是公开信息,ADR-0016)
       case "skillFired":
+      case "skillLearned": // #1146 用书学技:习得者/技/消耗书皆公开面(麾下与珍宝列表不裁,ADR-0016)
       case "heroSkillActivated":
       case "jinnangDrawn":
       case "jinnangReshuffled":

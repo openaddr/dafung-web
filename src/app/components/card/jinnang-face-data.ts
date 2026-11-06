@@ -3,7 +3,7 @@
 // 本文件只持有「牌面怎么画」的映射——别称剥离、四族色、目标域中文、尺寸档,
 // 消费方:JinnangCardFace.tsx(同目录)与 jinnang-card.css(族色类/尺寸档为镜像)。
 import type { JinnangTag, JinnangTargetDomain } from "@core/jinnang";
-import { TREASURES } from "@core/treasures";
+import { SKILL_BOOK_ID_PREFIX, TREASURES } from "@core/treasures";
 
 /** 画心母题族:一标签一族(方案 §4 P0-A 立,#763 起为自绘墨线画心的族通道键)
  *  ——谋=云 / 攻=火 / 守=盾 / 援=枝 / 即时=电(#281 反应锦囊:电光石火,反应窗
@@ -67,9 +67,12 @@ export function treasureFrameTone(level: number): Exclude<FrameTone, "none"> {
 /** 珍宝画心路径(#521 画心批):快照珍宝实例 id → 目录画心。牌堆实例 id =
  *  「目录 id-序号」(core/treasures.ts createTreasureDeck 展开格式),按目录 id 前缀
  *  回查;目录行有 image 才给路径(缺省=装裱卡远山肌理回退,art 通道既有语义),
- *  目录外 id = 数据 bug 抛错(零兜底)。快照 TreasureRow 不带 image(瘦下行),
- *  故在展示层按 id 回查目录——与 PileModal 经 guidePriceOf 回查同口径。 */
+ *  目录外 id = 数据 bug 抛错(零兜底)。技能书(#1146)是唯一例外:运行时印书单源
+ *  组成(makeSkillBook),不在静态目录是设计内——无画心,恒走远山肌理回退。
+ *  快照 TreasureRow 不带 image(瘦下行),故在展示层按 id 回查目录——与 PileModal
+ *  经 guidePriceOf 回查同口径。 */
 export function treasureImagePath(treasureId: string): string | undefined {
+  if (treasureId.startsWith(SKILL_BOOK_ID_PREFIX)) return undefined;
   const def = TREASURES.find((t) => treasureId === t.id || treasureId.startsWith(`${t.id}-`));
   if (def == null) throw new Error(`珍宝实例 ${treasureId} 不在 TREASURES 目录(数据 bug)`);
   return def.image;

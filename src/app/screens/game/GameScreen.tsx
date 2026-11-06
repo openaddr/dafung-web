@@ -684,6 +684,19 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           breathe={rackBreathe}
           nudgePulse={rackHidden ? playNudge : undefined}
           onToggleRack={toggleRackHidden}
+          bookPlayReady={junshiUp && !junshiTargeting} // 己方出牌阶段卡牌段(#1146 书可点窗口)
+          onUseBook={(treasureId, heroId) => {
+            getAudio().play("stamp");
+            dispatchCommand({ type: "useBookSkill", treasureId, heroId });
+          }}
+          dismissReady={
+            // 己方回合(#1147 遣散钮窗口):本地决策+对局中+自己回合
+            interactive && snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat
+          }
+          onDismiss={(heroId) => {
+            getAudio().play("stamp");
+            dispatchCommand({ type: "dismissHero", heroId });
+          }}
         />
         {/* 设置弹层(#700):音效/演出加速/战报›/版本/回到主页(入口降级收口件) */}
         {settingsOpen && (

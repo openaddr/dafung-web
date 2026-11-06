@@ -12,7 +12,8 @@ import { findHolding } from "./player";
 import { HERO_CAPACITY } from "./constants";
 import { heroById } from "./heroes";
 import { HEROES } from "./heroes";
-import type { HeroSlot } from "./roster";
+import { skillBookLearners, type HeroSlot } from "./roster";
+import { isSkillBook } from "./treasures";
 import type { EncounterChoiceOption, EncounterTier } from "./encounters";
 import { jinnangCardOf, isReactionCard, TARGET_DOMAIN_STAGES, type JinnangEffect } from "./jinnang";
 
@@ -500,12 +501,17 @@ function activeSkillChoices(e: GameEngine): ChoiceOption[] {
   return out;
 }
 
-/** 出牌阶段「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义):锦囊可用牌或就绪主动技
- *  任一存在即 true——相位进入与用牌/出技收尾共用,防两处漂移。纯反应牌(#281)经
- *  「唯反应」灰置 available=false,天然不计入:持唯反应牌不进「出牌阶段」。 */
+/** 出牌阶段「仍有可用项」单源判定(#122/T2 → #188 档 3 扩义 → #1146 再扩):锦囊可用牌、
+ *  就绪主动技、可学技能书三者任一存在即 true——相位进入与用牌/出技/用书收尾共用,防
+ *  两处漂移。纯反应牌(#281)经「唯反应」灰置 available=false,天然不计入:持唯反应牌
+ *  不进「出牌阶段」。技能书不经出牌窗选项集(入口=珍宝弹层,PileModal 一族书可点态),
+ *  可学性判定单源 skillBookLearners——窗口零可用而书可用时,窗内空架+书从珍宝位走。 */
 export function hasUsableJinnang(e: GameEngine): boolean {
-  return computeChoices(e, "AwaitingJinnang").some(
-    (o) => o.available && (o.cardTags != null || isSkillOption(o)),
+  const p = e.activePlayer;
+  return (
+    computeChoices(e, "AwaitingJinnang").some(
+      (o) => o.available && (o.cardTags != null || isSkillOption(o)),
+    ) || p.treasures.some((t) => isSkillBook(t) && skillBookLearners(p, t.skillId).length > 0)
   );
 }
 
