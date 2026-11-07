@@ -7,9 +7,11 @@
 // 变卖武装态进度区恒在(选中+武装+滚底三拍同测)。种植配方照抄 react-scrolls
 // plantTrade/破产清算例与 tmp/audit-r4-*.mjs 审计现场。
 // #1217 波4 直通形制(ADR-0058):两例真实段=真渲染几何断言即被测环(无操作链);
-// 前置布场种植(判词见各例),开局停走 stopAtOpeningHand 直达首停靠(族种 1486)。
+// 前置布场种植(判词见各例),开局停走 quickStart 直达首停靠(族种 1486)。
+// #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场不依赖行军日志/
+// 已推进回合,落都即冻结,显式 freezeClock 随通路退役。
 import { test, expect, type Page } from "./fixtures";
-import { freezeClock, force, quickStart } from "./react-helpers";
+import { force, quickStart } from "./react-helpers";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 
 /** 首个价签格完整在视口内的几何断言:rect 全落在标准档视口内,且底缘不越过体部
@@ -43,12 +45,10 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
   // 由购地结算产出;treasureVisitor 仅落格结算内部挂起)——断言面需 5 件珍宝复刻
   // 审计 12b 现场的坐地双行价签形态,直写。
   test("交涉坐地起价:首帧第一排卡+双行价签完整在视口内", async ({ page }) => {
-    // 城主=人类座位 0,访客=bot 座位 1;5 件珍宝复刻审计 12b 现场(#188 钉决策方)
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    // 冻结推进再动刀(同 test2/#421/#799 口径):种植后到断言间看门狗回调不得动
-    // 现金/牌——本例曾是 spec 内唯一不冻例,图像字节挪首帧绘制时机即竞速假挂
-    // (#879/#880 仲裁实录)
-    await freezeClock(page);
+    // 城主=人类座位 0,访客=bot 座位 1;5 件珍宝复刻审计 12b 现场(#188 钉决策方)。
+    // 冻结推进再动刀(#421/#799/#879 同口径):种植后到断言间看门狗回调不得动现金/牌
+    // ——#1221 L1:preRoll 落都即冻结(点火前已冻),显式 freezeClock 退役。
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(
       page,
       `
@@ -79,9 +79,9 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
   // force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;珍宝无授宝公共
   // 命令——断言面需「6 件珍宝+中额债务」的变卖清单形态,直写。
   test("破产变卖:首帧价签在视口内;选中+武装+滚底进度区恒在", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
     // 冻结推进再动刀(#421/#799 同口径):种植后到断言间看门狗回调不得动 p0 现金
-    await freezeClock(page);
+    // ——#1221 L1:preRoll 落都即冻结(点火前已冻),显式 freezeClock 退役。
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(
       page,
       `

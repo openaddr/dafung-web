@@ -4,20 +4,14 @@
 // #362:交涉选宝/破产变卖走选宝弹层(装裱卡点选=金描边上浮,二段式成交),语义断言
 // 以命令流(ADR-0014 cmd 行)与引擎结算为准,零放宽。
 // #1217 波4 直通形制(ADR-0058 一环一真):全 7 例头注声明「守的那一环」;前置链
-// 种局化——开局停走 quickStart({stopAtOpeningHand}) 直达首停靠(不再付首手整走的
-// 真推回合;族种 1486 谱,城池详情 1217、珍宝城购地 20261105 同谱),被测环前一拍
-// 全部经桥种植抵达。逐例复核:交涉/破产/购地三类前置无真推回合(早经 force 种植,
-// 本波补齐判词 5 处,零裸 force)。
+// 种局化——开局停走 quickStart 直达首停靠(不再付首手整走的真推回合;族种 1486 谱,
+// 城池详情 1217、珍宝城购地 20261105 同谱),被测环前一拍全部经桥种植抵达。逐例复核:
+// 交涉/破产/购地三类前置无真推回合(早经 force 种植,本波补齐判词 5 处,零裸 force)。
+// #1221 L1 残油包:全 7 例前置改 quickStart({advance:"preRoll"})——布场均不依赖
+// 行军日志/已推进回合,落都即冻结(时钟冻在自动起摇点火前,零竞速),显式
+// waitFxIdle/freezeClock/unfreezeClock 随通路退役(返回即已冻)。
 import { test, expect, type Page } from "./fixtures";
-import {
-  quickStart,
-  force,
-  snap,
-  engineState,
-  freezeClock,
-  unfreezeClock,
-  waitFxIdle,
-} from "./react-helpers";
+import { quickStart, force, snap, engineState, waitFxIdle } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -35,12 +29,10 @@ test(
     tag: "@slow", // 慢池(#1026):单例实测 >30s(30.9s,#1026 标定)——快池门禁 --grep-invert @slow 跳过。
   },
   async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    // #987 冻结闸(#943 竞速点清偿):停靠点可能有已到点未投递的看门狗回调(bot 链
-    // 步进/自动起摇),直写种植的 AwaitingHeroPick 会被迟到链步进覆盖、卷轴中途收场——
-    // 先排空演出再冻结(冻结挂起时钟驱动收幕,fx 在途时冻结=waitFxIdle 死等)。
-    await waitFxIdle(page);
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结(时钟冻在自动起摇点火前)——#987/#943 冻结闸的
+    // 竞速点(已到点未投递的看门狗回调覆盖种植态)随「点火前已冻」根除,显式排空/
+    // 冻结两步退役。
+    await quickStart(page, 1486, { advance: "preRoll" });
     // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
     // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
     await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
@@ -102,11 +94,9 @@ test(
  *  指定级」)、treasureVisitor 仅落格结算内部挂起;断言面需「城主持宝+被访城」形态,
  *  直写后走控制器 sync。 */
 async function plantTrade(page: Page): Promise<void> {
-  await quickStart(page, 1486, { stopAtOpeningHand: true });
-  // #987 冻结闸(#943 竞速点清偿,同招贤卷轴例):排空演出→冻结,种植的
-  // AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
-  await waitFxIdle(page);
-  await freezeClock(page);
+  // #1221 L1:preRoll 落都即冻结(同招贤卷轴例,#987/#943 冻结闸随「点火前已冻」退役),
+  // 种植的 AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
+  await quickStart(page, 1486, { advance: "preRoll" });
   await force(
     page,
     `
@@ -221,13 +211,11 @@ test("珍宝交涉:点选金描边 + 二段式成交,确认提交发 resolveTrea
 // force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;珍宝/麾下/持仓
 // 无授给公共命令——断言面需「有宝可卖+巨债挂起」形态,直写。
 test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单刷新", async ({ page }) => {
-  await quickStart(page, 1486, { stopAtOpeningHand: true });
-  // 冻结推进再动刀(#421 冻结→种植→断言;#799):quickStart 停靠点可能残留已到点的
-  // 看门狗回调,种植后到变卖提交前的 firing 会动 p0 现金/相位——「现金实涨=指导价」
-  // 是活态等式断言,吃不起对局自走竞速。冻结后引擎钉死在停靠态;变卖命令链与 UI 收层
-  // 不经时钟照常结算(react-jinnang-peek/react-seat-cells 冻结消漂移同款,页面随例
-  // 终结,无需显式 resume)。
-  await freezeClock(page);
+  // 冻结推进再动刀(#421 冻结→种植→断言;#799):种植后到变卖提交间时钟必须静止——
+  // 「现金实涨=指导价」是活态等式断言,吃不起对局自走竞速。#1221 L1:preRoll 落都即
+  // 冻结,显式 freezeClock 退役;变卖命令链与 UI 收层不经时钟照常结算(react-jinnang-peek
+  // /react-seat-cells 冻结消漂移同款,页面随例终结,无需显式 resume)。
+  await quickStart(page, 1486, { advance: "preRoll" });
   await force(
     page,
     `
@@ -279,7 +267,7 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单
 // force 判词:终局态(isOver/winner)由身价目标结算产生,无「直判胜负」公共命令
 // ——断言面即终局覆盖层与出口,直写。
 test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
-  await quickStart(page, 1486, { stopAtOpeningHand: true });
+  await quickStart(page, 1486, { advance: "preRoll" }); // #1221 L1:布场不依赖首掷
   await force(
     page,
     `
@@ -300,7 +288,8 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
   // 在途时点击会被吞(~40% 竞速挂,#217);开局窗态停靠=人类交互空闲,前置 actIfCan
   // 清卷轴随走局一并退役(它会替人类放行起手牌,破坏停靠);toPass 重试块保留作
   // 交互空闲窗兜底(轮询收紧 #294:单次尝试秒级,30s→15s 仍有十余次重试余量)。
-  await quickStart(page, 1217, { stopAtOpeningHand: true });
+  // #1221 L1:preRoll 落都即冻结——布场只要「人类交互空闲的静止态」,冻结态更静。
+  await quickStart(page, 1217, { advance: "preRoll" });
   // 找一座地产城(0 号格是起点,非地产)
   const propTile = await page.evaluate(() => {
     const e = (window as any).__dafung.getEngine();
@@ -327,46 +316,43 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // 定 seed(#987 处置序③:无 seed 对局下本例买城收口窗内偶发 treasure 留痕,同树
   // 红/绿复现(集成线 4 红 1 绿 vs master 1 绿),概率性不可靠;覆盖不可替代故定 seed
   // 确定性化,#1069 集流收口实测双绿。种子漂移按 how-to 种子重钓配方重钓。波4 复核:
-  // 20261105 在「开局即停」谱内(探针实测),stopAtOpeningHand 直达首停靠。
-  await quickStart(page, 20261105, { stopAtOpeningHand: true });
-  await freezeClock(page); // 钉死看门狗:种植停靠态不被迟到链步进覆盖
-  try {
-    // force 判词:引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算
-    // 改写;断言面需「落无主珍宝城」形态,直写摆位到无主珍宝城邻格,再走与
-    // rollAndMove 掷定 1 步后的同一段引擎路径:途经遍历(marchTraverse)→ 落格结算
-    // (settleMarchLanding;机遇已被 fixtures 归零,珍宝城=event 城本就免掷)。
-    // 落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:可购决策挂起(同权,ADR-0024)。
-    await force(
-      page,
-      `
-      e.phase = "Playing";
-      e.activeIndex = 0;
-      const me = e.players[0];
-      const target = e.board.tiles.find(
-        (t) => t.event === "treasure" && !e.findOwner(t.propertyId),
-      );
-      if (target == null) throw new Error("盘面无无主珍宝城(数据 bug)");
-      const from = (target.index + e.board.count - 1) % e.board.count;
-      me.position = from;
-      const walked = e.marchTraverse(me, [target.index], 1, target.index, from, 1);
-      if (walked !== "landed") throw new Error("marchTraverse=" + walked + "(单格无拦检,契约违反)");
-      e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
-      e.settleMarchLanding(me, target.index);
-    `,
+  // 20261105 在「开局即停」谱内(探针实测),stopAtOpeningHand 直达首停靠)。
+  // #1221 L1:preRoll 落都即冻结(看门狗点火前已冻,显式 freeze/unfreeze 退役——
+  // 页面随例终结,同破产清算例口径)。
+  await quickStart(page, 20261105, { advance: "preRoll" });
+  // force 判词:引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算
+  // 改写;断言面需「落无主珍宝城」形态,直写摆位到无主珍宝城邻格,再走与
+  // rollAndMove 掷定 1 步后的同一段引擎路径:途经遍历(marchTraverse)→ 落格结算
+  // (settleMarchLanding;机遇已被 fixtures 归零,珍宝城=event 城本就免掷)。
+  // 落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:可购决策挂起(同权,ADR-0024)。
+  await force(
+    page,
+    `
+    e.phase = "Playing";
+    e.activeIndex = 0;
+    const me = e.players[0];
+    const target = e.board.tiles.find(
+      (t) => t.event === "treasure" && !e.findOwner(t.propertyId),
     );
-    // 落格即弹购地卷轴(探宝先行、可购决策挂起的 UI 面)
-    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
-    // #1181 棒一缩:链序正典与收口零探宝两段引擎链序 poll 已由 test/treasure.test.ts
-    // 「落无主珍宝城:落格即探宝(先于可购决策),买成收口零探宝(#825 链序)」逐条
-    // 钉死,删已迁断言;留壳=落格卷轴可见 + 差额行契约 + 点买收卷。
-    // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
-    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toContainText("余");
-    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).not.toContainText("差");
-    // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
-    await waitFxIdle(page);
-    await page.getByTestId(TESTIDS.actionButton("buy")).click();
-    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeHidden({ timeout: 15_000 });
-  } finally {
-    await unfreezeClock(page);
-  }
+    if (target == null) throw new Error("盘面无无主珍宝城(数据 bug)");
+    const from = (target.index + e.board.count - 1) % e.board.count;
+    me.position = from;
+    const walked = e.marchTraverse(me, [target.index], 1, target.index, from, 1);
+    if (walked !== "landed") throw new Error("marchTraverse=" + walked + "(单格无拦检,契约违反)");
+    e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
+    e.settleMarchLanding(me, target.index);
+  `,
+  );
+  // 落格即弹购地卷轴(探宝先行、可购决策挂起的 UI 面)
+  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
+  // #1181 棒一缩:链序正典与收口零探宝两段引擎链序 poll 已由 test/treasure.test.ts
+  // 「落无主珍宝城:落格即探宝(先于可购决策),买成收口零探宝(#825 链序)」逐条
+  // 钉死,删已迁断言;留壳=落格卷轴可见 + 差额行契约 + 点买收卷。
+  // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
+  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toContainText("余");
+  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).not.toContainText("差");
+  // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
+  await waitFxIdle(page);
+  await page.getByTestId(TESTIDS.actionButton("buy")).click();
+  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeHidden({ timeout: 15_000 });
 });

@@ -11,17 +11,12 @@
 // 钉死,随删(详见例内注)。
 // #1217 波4 直通形制(ADR-0058):真实段=耗竭卷轴弹出→自选降级→结算留痕→体力条
 // 回满渲染全真;前置链种局化——旅程开局链(首页→设置屏→起兵→选都)换 quickStart
-// 种局 stopAtOpeningHand 直达首停靠(seed 1486 开局即停谱),耗竭前置直写判词见例内。
+// 种局直达首停靠(seed 1486 开局即停谱),耗竭前置直写判词见例内。
+// #1221 L1 残油包:改 quickStart({advance:"preRoll"})——耗竭布场不依赖行军日志/
+// 已推进回合,落都即冻结,停靠/稳定/冻结三连(waitMyPause/waitSettled/freezeClock)
+// 随通路退役(#423 项8 的「种植落在钉死静止态」由 preRoll 返回态直接给出)。
 import { test, expect } from "./fixtures";
-import {
-  quickStart,
-  force,
-  waitSettled,
-  waitMyPause,
-  snap,
-  freezeClock,
-  unfreezeClock,
-} from "./react-helpers";
+import { quickStart, force, waitSettled, snap, unfreezeClock } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
@@ -29,13 +24,9 @@ test.describe("体力系统冒烟", () => {
   // 真实段(波4 #1217):耗竭卷轴弹出 → 自选降级点击 → exhaustionSettle 留痕落账 →
   // 体力条回满渲染的 UI 链全真;耗竭入口 exhaustIfDepleted=引擎公共方法真触发。
   test("体力耗竭:卷轴弹出、自选降级、体力条回满渲染", async ({ page }) => {
-    // 前置种局:开局停走 stopAtOpeningHand 直达首停靠(旅程开局链退役,#1217 波4)
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    // 等轮到人类且停稳(#188:Roll 等待态只存在 ~1s,停靠点改为非 Roll 等待态;
-    // 开局即停谱下近乎零等待,留作停靠谓词保失败可读)
-    await waitMyPause(page, 0);
-    await waitSettled(page);
-    await freezeClock(page); // 钉死停靠态:种植/触发/卷轴断言全程静止(#423 项8)
+    // 前置种局(#1217 波4 旅程开局链退役;#1221 L1):preRoll 落都即冻结——第 1 回合
+    // 人类回合、未掷骰、时钟已冻,停靠/稳定/冻结三连随通路退役(见文件头注)
+    await quickStart(page, 1486, { advance: "preRoll" });
     try {
       // force 判词(波4 #1217 审计):耗竭前置无公共命令可达——城池等级只随建造/
       // 升级/降级结算变动(购地受行军+现金约束,「指定格 2 级城」到不了);体力压 0

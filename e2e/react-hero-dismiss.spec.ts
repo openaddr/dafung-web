@@ -6,14 +6,17 @@
 // #1165 瘦身:原 ③「回池再招=全新实例」例整删——回池划名/重进候选/预掷重新/lastFired
 // 空账全套引擎语义由 test/hero-dismiss.test.ts「回池后重进招贤候选;再招=全新实例」
 // 例钉死;本例 UI 侧仅有的遣散钮点击通路与 ① 重复,零独占断言面。
-// 种植配方照 react-skill-book 先例(quickStart → freezeClock → force 直写引擎),
+// 种植配方照 react-skill-book 先例(quickStart → force 直写引擎),
 // 断言走快照真值(槽/书/池/事件)+ testid 在场性,零语义放宽。
 // #1217 波4 直通形制(ADR-0058):两例真实段=①遣散钮二段式确认→发命令→槽移除/
 // 折书/回池划名/事件随批的完整命令通路、②非己回合 disabled+title 禁用呈现;前置链
-// 种局化——开局停走 stopAtOpeningHand 直达首停靠(族种 1486),布场 force 判词收口
+// 种局化——开局停走 quickStart 直达首停靠(族种 1486),布场 force 判词收口
 // plantOwnTurn(两例同布场)。
+// #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场(plantOwnTurn 全量
+// 重钉相位/座位/挂起载荷)不依赖行军日志/已推进回合,落都即冻结,显式 freezeClock
+// 随通路退役。
 import { test, expect } from "./fixtures";
-import { force, freezeClock, quickStart, snap } from "./react-helpers";
+import { force, quickStart, snap } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 布场:己方(座位 0)自己回合(Roll 相位)+ 麾下周瑜(已学 火攻+擂鼓,火攻挂冷却账)
@@ -57,8 +60,8 @@ test.describe("遣散全链(#1147)@844×390", () => {
   // 槽移除/免费/已学技逐册折书入位/heroDismissed+treasureGained 事件随批/回池划名的
   // 完整命令通路全真。
   test("遣散主链:二段确认→槽移除/免费/折书入位/事件随批/回池划名", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(plantOwnTurn 全量重钉相位/座位)
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(page, plantOwnTurn());
     const cash0 = await snap(page).then((s) => s.players[0].cash); // 遣散前现金(免费判据基准)
     await openHeroModal(page);
@@ -101,8 +104,8 @@ test.describe("遣散全链(#1147)@844×390", () => {
   // 真实段(波4 #1217):非己回合遣散钮 disabled+title 禁用呈现——状态表达原则的
   // 禁用态即被测环,无操作链。
   test("非己回合禁用态:遣散钮 disabled,原因进 title", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(同上例)
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(page, plantOwnTurn(1)); // bot 座位 1 行动:非己回合
     await openHeroModal(page);
     const btn = page.getByTestId(TESTIDS.heroDismiss("zhouyu"));
