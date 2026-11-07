@@ -23,6 +23,10 @@ declare global {
       heroDefs: () => HeroDef[];
       /** 当前控制器(交互入口)。 */
       controller: () => GameController | null;
+      /** 种局式快路径开局(#1211,e2e 专用):复刻 App.handleStart 生产三步(loadMapById →
+       *  LocalController → setController/进 game 屏)+ 程序化选都(公共命令 setupPickCapital),
+       *  缺省逐项对齐设置屏默认,机遇硬关。实现见 registry.ts installDebugHooks。 */
+      seedSolo: (opts?: { seed?: number; mapId?: string; seats?: number }) => Promise<void>;
       /** 房间时钟冻结闸(#421 调试观测面):冻结期间看门狗/自动起摇/托管步进的
        *  到点回调挂起;resume 按到点序补放。仅单机对局可冻结(无 Worker 时钟抛错)。 */
       clockPause: () => void;

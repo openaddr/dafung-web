@@ -10,6 +10,12 @@
 import { useEffect, useState } from "react";
 import type { SeatConfig } from "@core/authority";
 import type { EncounterSwitch } from "@core/encounters";
+import {
+  DEFAULT_GUOHAO,
+  DEFAULT_SEAT_COUNT,
+  DEFAULT_TARGET_NET_WORTH,
+  defaultSetupSeats,
+} from "./setup-defaults";
 import { GUOHAO_POOL, playerColor, playerSealText, rgba } from "@core/theme";
 import { formatMoney } from "@core/money";
 import { isSingleCjk } from "@core/constants";
@@ -86,10 +92,12 @@ export function SoloSetupScreen({
   mapSource = getMapSource(),
   onMapChange,
 }: SoloSetupScreenProps) {
-  const [seatCount, setSeatCount] = useState(4);
-  const [target, setTarget] = useState(30000);
+  const [seatCount, setSeatCount] = useState(DEFAULT_SEAT_COUNT);
+  const [target, setTarget] = useState(DEFAULT_TARGET_NET_WORTH);
   // 单机模式仅首行可编:真人国号默认读上次起兵用的国号(localStorage 无记录则「魏」);bot 国号引擎分配
-  const [guohao, setGuohao] = useState(() => localStorage.getItem(GUOHAO_PREF_KEY) ?? "魏");
+  const [guohao, setGuohao] = useState(
+    () => localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO,
+  );
   // S-8:hint 只承载错误提示(装饰文案上移副标题);null = 无错不渲染
   const [hint, setHint] = useState<string | null>(null);
   // S-3:配置页内嵌换图 —— 本地镜像当前 mapId(prop 不随换图变,显示走本地态)
@@ -134,10 +142,7 @@ export function SoloSetupScreen({
       return;
     }
     setHint(null);
-    const seats: SeatConfig[] = [{ name: "诸侯1", isBot: false, guohao: g }];
-    for (let i = 1; i < seatCount; i++) {
-      seats.push({ name: `诸侯${i + 1}`, isBot: true });
-    }
+    const seats = defaultSetupSeats(g, seatCount);
     setBusy(true);
     try {
       await onStart({

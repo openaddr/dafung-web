@@ -52,6 +52,21 @@ import { catchupCounters } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
 import { collectFrameDiag } from "@app/frameDiag";
 import { HEROES } from "@core/heroes";
+import { loadMapById } from "@core/map-source";
+import { getDefaultMapId, getMapSource } from "@app/map-sources";
+import {
+  DEFAULT_GUOHAO,
+  DEFAULT_TARGET_NET_WORTH,
+  defaultSetupSeats,
+} from "@app/screens/setup/setup-defaults";
+import { LocalController } from "./local";
+
+// 默认链键名与设置屏同字面量(App.tsx MAP_PREF_KEY / SoloSetupScreen GUOHAO_PREF_KEY):
+// 引 App/SoloSetupScreen 模块只为一个字符串会把整屏组件树拖进桥的 import 图,
+// 同字面量+注释指单源是 fixtures.ts 既定先例。缺省值(席位/身价/国号)不走本文件
+// 字面量——单源在 setup-defaults.ts(与设置屏共用,#1211 QC 抽取)。
+const MAP_PREF_KEY = "dafung.mapId";
+const GUOHAO_PREF_KEY = "dafung.guohao";
 
 /** 在 main.tsx 挂载前调用一次;幂等(StrictMode 双调用安全)。
  *  双门禁(timings.ts E2E_DEBUG_BRIDGE_KEY):仅 dev 构建,或 e2e/截图脚手架经
@@ -77,6 +92,48 @@ export function installDebugHooks(): void {
     heroDefs: () => [...HEROES],
     /** 当前控制器(交互入口)。 */
     controller: () => getController(),
+    // ── 种局式快路径开局(#1211,e2e 专用)──
+    // 复刻 App.handleStart 生产三步(加载地图 → LocalController → setController/sync/
+    // 进 game 屏)+ 程序化选都,一步直达对局态。缺省逐项对齐 SoloSetupScreen 默认
+    // (单源 setup-defaults.ts):4 席 / 目标身价标准档 / 地图 = localStorage 记忆→
+    // 清单首项 / 国号 = 记忆→「魏」;机遇硬关(openSoloSetup 的 jiyu.json route 拦截
+    // 同语义)。选都只走公共命令 setupPickCapital(UI「定都于此」确认最终发的那条,
+    // 架构红线 3:不直改引擎内部状态);开局后未停在选择都相位 = 起兵编排有 bug,
+    // 当场抛错不静默(零兜底)。
+    seedSolo: async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
+      const source = getMapSource();
+      const mapId = opts.mapId ?? localStorage.getItem(MAP_PREF_KEY) ?? (await getDefaultMapId());
+      const guohao = localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO;
+      const seats = defaultSetupSeats(guohao, opts.seats);
+      const map = await loadMapById(source, mapId);
+      const controller = new LocalController(map, {
+        seats,
+        targetNetWorth: DEFAULT_TARGET_NET_WORTH,
+        seed: opts.seed,
+        mapId,
+        encounter: { enabled: false }, // 快路径硬关,与 openSoloSetup route 拦截同语义
+      });
+      setController(controller, await source.loadMapData(mapId));
+      useGameStore.getState().syncFromEngine(controller.engine);
+      useGameStore.getState().setScreen("game");
+      const e = controller.engine;
+      if (
+        e.phase !== "Setup" ||
+        e.setupPhase !== "PickCapital" ||
+        e.currentSetupPlayerIndex !== 0 ||
+        e.offeredCapitals.length === 0
+      ) {
+        throw new Error(
+          `seedSolo:开局后未停在选择都相位(phase=${e.phase}/${e.setupPhase} ` +
+            `轮次=${e.currentSetupPlayerIndex} 候选=${e.offeredCapitals.length})`,
+        );
+      }
+      // 选都口径对齐旅程点击语义:pickCapital 助手点的是 DOM 首个可选格(BoardView 按
+      // 格 index 序渲染)= 候选集里棋盘序首个。offeredCapitals 数组序是抽出序、与棋盘
+      // 序不同序(seed 1101 实证 [20,7,25]、DOM 首格=7)——取 [0] 会让同 seed 两路开
+      // 出两局不同的棋,钉种子的用例全数漂移。统一原则:两路同 seed 必须同局。
+      controller.setupPickCapital(Math.min(...e.offeredCapitals));
+    },
     // ── 房间时钟冻结闸(#421,调试观测面)──
     // pause 后看门狗(#188 自动起摇/#281 反应窗/#118 停摆/#380 保留窗)与托管
     // 步进的到点回调全部挂起,resume 按到点序补放——e2e 把对局钉在任意停靠态做
