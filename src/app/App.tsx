@@ -3,15 +3,14 @@
 // 联机流程(阶段 8):首页「联机模式」或 ?online=1 → 占位图 + OnlineController
 // → LobbyScreen(建房/加入);?room=CODE 直连自动加入;开局由服务器首帧 snapshot
 // 驱动 online.ts 切 GameScreen(对照旧 main.ts enterOnline)。
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { loadMapById } from "@core/map-source";
-import { FetchMapSource, getDefaultMapId, getMapSource } from "@app/map-sources";
+import { getDefaultMapId, getMapSource } from "@app/map-sources";
 import { LocalController } from "@app/controllers/local";
 import { OnlineController } from "@app/controllers/online";
 import { setController } from "@app/controllers/registry";
 import { useGameStore } from "@app/store/gameStore";
 import { useNetStore } from "@app/store/netStore";
-import { GameScreen } from "@app/screens/game/GameScreen";
 import { LobbyScreen } from "@app/screens/lobby/LobbyScreen";
 import { HomeScreen } from "@app/screens/home/HomeScreen";
 import { SoloSetupScreen, type SetupConfig } from "@app/screens/setup/SoloSetupScreen";
@@ -19,6 +18,15 @@ import { SoundBoard } from "@app/screens/dev/SoundBoard";
 import { HintBar } from "@app/screens/shared/HintBar";
 // R3-C2(#89) 屏间转场(#771 墨韵化:墨晕盖入+内容浮现):keyed 外壳动画与对局屏棋盘缓推的 keyframes 集中于此
 import "./styles/screen-transition.css";
+
+// 对局屏懒化(#1273):棋盘/对局弹层族/对局独占依赖(@base-ui tooltip/sheet 原语等)
+// 随本屏进异步 chunk,首包(823KB 单体)卸下约 1/4;主页挂载后 idle 预取同 chunk
+// (warmup.ts warmupGameScreenChunk),玩家点「起兵」时已热,进对局零可感延迟。
+// Suspense fallback=null:屏间转场的墨晕盖入幕(screen-ink)本就先行、内容浮现
+// 搭接在 240ms(delay)之后,本地 chunk 拉取藏在这个窗里,无需骨架屏。
+const GameScreen = lazy(() =>
+  import("@app/screens/game/GameScreen").then((m) => ({ default: m.GameScreen })),
+);
 
 /** 旧 main.ts 记忆的 localStorage 键(选中地图)。 */
 const MAP_PREF_KEY = "dafung.mapId";
@@ -67,6 +75,8 @@ export function App() {
           mapId: config.mapId,
           encounter: config.encounter, // 机遇配置(#125):设置屏默认读 jiyu.json,单局覆盖
         });
+        // registry 的 MapData 取同图原始数据(#1273 单源缓存:命中进程内 memo,
+        // 同图不再第二次 fetch+parse)
         setController(controller, await source.loadMapData(config.mapId));
         // 开局首帧直灌(此后由房间下行拍驱动 sync;#398 起选都/行军全走房间编排)
         useGameStore.getState().syncFromEngine(controller.engine);
@@ -83,10 +93,13 @@ export function App() {
   const handleOnline = useCallback(
     async (roomParam?: string | null) => {
       try {
-        const source = new FetchMapSource();
+        // 图源走进程级单例(#1273 归位):绕开单例的那只私有实例退役,清单/地图缓存
+        // 与单机路径共用一份(同图双取双析在此一并消失)
+        const source = getMapSource();
         const mapId = await getDefaultMapId();
         const map = await loadMapById(source, mapId);
-        // registry 的 MapData 用同图原始数据:BoardView 在换图前先有东西可画
+        // registry 的 MapData 取同图原始数据(单源缓存命中,不再二次 fetch):
+        // BoardView 在换图前先有东西可画
         // 服务器地址由 LobbyApi 在调用时取 server-base 单源(#279):默认同源,大厅可改(APK 真机联机)
         const controller = new OnlineController(map, mapId);
         setController(controller, await source.loadMapData(mapId));
@@ -157,7 +170,11 @@ export function App() {
   if (devSound) {
     content = <SoundBoard />;
   } else if (screen === "game") {
-    content = <GameScreen />;
+    content = (
+      <Suspense fallback={null}>
+        <GameScreen />
+      </Suspense>
+    );
   } else if (screen === "lobby") {
     content = <LobbyScreen onExit={handleExitLobby} />;
   } else if ((screen === "setup" || screen === "solo-setup") && !initialMapId) {

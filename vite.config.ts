@@ -49,5 +49,34 @@ export default defineConfig({
     // vite 打包产物(JS/CSS/chunk)输出到 dist/bundles/,避免与游戏素材目录 dist/assets/
     // (manifest.json / heroes/ / treasures/,来自 public/assets/)同名混放。
     assetsDir: "bundles",
+    rollupOptions: {
+      output: {
+        // manualChunks 三分(#1273,与 GameScreen React.lazy 配套):
+        //   vendor = 三方运行时(react/react-dom/zustand/tauri 插件);
+        //   ui     = 弹层原语族(@base-ui/tailwind-merge/floating-ui/clsx)——主页/
+        //           设置屏也消费 dialog/switch/scroll-area,本 chunk 仍随入口加载,
+        //           拆出只为缓存粒度;对局屏独占的 tooltip 原语让 Rollup 自然归入
+        //           GameScreen 异步 chunk(不人为拖回首包);
+        //   core   = 权威引擎 + 进程内房间编排(src/core + scripts/room|wire,零 DOM
+        //           可上服务器的一侧)。
+        // src/app 其余模块按引用关系自然分屏 chunk(GameScreen 懒化后即异步)。
+        manualChunks(id: string) {
+          if (id.includes("node_modules")) {
+            if (id.includes("@base-ui/react/tooltip")) return undefined;
+            if (
+              id.includes("@base-ui") || // @base-ui/react + @base-ui/utils 同族,拆开会造 ui<->vendor 环
+              id.includes("tailwind-merge") ||
+              id.includes("@floating-ui") ||
+              id.includes("clsx")
+            ) {
+              return "ui";
+            }
+            return "vendor";
+          }
+          if (id.includes("/src/core/") || id.includes("/scripts/")) return "core";
+          return undefined;
+        },
+      },
+    },
   },
 });

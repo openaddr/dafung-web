@@ -7,11 +7,12 @@
 //     白名单要维护、漏登记即复发首现卡;
 //   ②idle 分片:主页立刻可交互,族与族之间让出 idle,用户看主页的几秒里拉完,
 //     进对局时全热;一次预热管本次启动会话(进程死即归零,每次启动重征一遍小税,
-//     这是平台天花板——运行态的解码产物/JIT/字形缓存不落盘);
+//     这是平台天花板——运行态的解码产物/JIT/字形缓存不落盘)。#1273 起第一波 =
+//     对局屏 React.lazy chunk 预取(起兵→进对局首切现拉现 eval 会是可感顿点);
 //   ③失败零兜底:预热只是提前触发浏览器原生按需加载——任何一波失败,整链就地停
 //     并 console 留痕,对局内首现走原生路径照常工作,不写第二条容错链;
-//   ④JS 首执行税不归它管:单包代码常驻内存、函数首次执行才编译,加载救不了;
-//     组件隐藏热身收益小侵入大,拍板不做。
+//   ④JS 首执行税不归它管:单包代码常驻内存、函数首次执行才编译,加载救不了
+//     (chunk 级下载+模块求值归它管见 ②;组件隐藏热身收益小侵入大,拍板不做)。
 // 图片清单吃各单源:武将/珍宝 = core 两张数据表的 image 字段;纹理三张无共同
 // 单源(CSS url 两处 + StaticLayers 常量一处),在此誊录,增删纹理两处同查。
 // manifest.json 是授权台账非资产清单(含已退役路径,盘上不存在),预热不吃它。
@@ -41,6 +42,15 @@ function nextIdle(): Promise<void> {
   return new Promise((resolve) => requestIdleCallback(() => resolve(), { timeout: 2000 }));
 }
 
+/** 下两帧动画(#1273):rIC 在首帧绘制定成前也可能判「空闲」并插队——预热链第一波
+ *  (对局屏 chunk 求值,~百 ms 同步段)若抢在首帧前跑,FCP 就被推迟一截(实测
+ *  132→684-1084ms)。先等两帧(帧已提交+上屏)再开预热链,首渲不与 chunk 求值竞速。 */
+function nextPaintedFrame(): Promise<void> {
+  return new Promise((resolve) =>
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+  );
+}
+
 /** 字体族分波 load(fonts.css 全部 @font-face 子集面;同族并取、族间让 idle——
  *  弱 WebView 上解码一波是一顿,分波摊平,主页交互不受损)。 */
 async function warmupFonts(): Promise<void> {
@@ -67,6 +77,15 @@ async function warmupImages(): Promise<void> {
   );
 }
 
+/** 对局屏 chunk 预取(#1273):GameScreen 已 React.lazy(App.tsx),首包不再含对局
+ *  屏——起兵→进对局首切若现拉现 eval,弱 WebView 上是可感顿点。排预热链第一波,
+ *  玩家看主页的头几秒里就把这个 chunk 拉好评好(懒加载记录:import() 即模块求值,
+ *  组件级 JIT 仍按首次调用付,与头注 ④ 不冲突)。与 e2e 无涉:自动化通道整个
+ *  warmup 直返,对局屏 chunk 切屏时按需拉取(web-first 断言自等挂载)。 */
+function warmupGameScreenChunk(): Promise<unknown> {
+  return import("@app/screens/game/GameScreen");
+}
+
 let started = false;
 
 /** 主页挂载即调:排 idle 分片预热链,fire-and-forget;启动后重复调用忽略
@@ -79,7 +98,9 @@ export function startWarmup(): void {
   if (started) return;
   started = true;
   void (async () => {
+    await nextPaintedFrame();
     await nextIdle();
+    await warmupGameScreenChunk();
     await warmupFonts();
     await warmupImages();
   })().catch((err: unknown) => {

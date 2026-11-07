@@ -9,7 +9,20 @@
     <title>群雄逐鹿 · 三国大富翁</title>
     <!-- 古风字体(毛笔/宋体)已离线化(M-6):public/fonts/ 下本地 woff2 子集镜像,
          font-family 名与原 Google Fonts 完全一致(样式零变化),Tauri APK 无网也能出水墨字体。 -->
-    <link href="/fonts/fonts.css" rel="stylesheet" />
+    <!-- #1273 出渲染阻塞:fonts.css(277KB/261 条 @font-face)曾作同步 stylesheet——
+         CSSOM 建完才允许首渲,低端 WebView 白付上百 ms。改 preload+onload 交换
+         (异步 CSS 正典形制):下载仍尽早并行发起,只是不再拦首渲;woff2 本体照旧
+         按 unicode-range 首现懒加载,font-display:swap 语义不变,字形就绪前回退
+         字体先显(换装窗略增,visual:compare 过目口径)。 -->
+    <link
+      href="/fonts/fonts.css"
+      rel="preload"
+      as="style"
+      onload="
+        this.onload = null;
+        this.rel = 'stylesheet';
+      "
+    />
   </head>
   <body>
     <div id="app"></div>
