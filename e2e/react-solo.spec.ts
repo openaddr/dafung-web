@@ -221,9 +221,10 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
 
 // 真实段(ADR-0058):现金注资后的整局真实驱动至胜利屏(掷骰/决策清理/endTurn/
 // checkVictory 全自然链)即被测环,途中不变量巡检为顺带取证。force 判词:身价注资
-// (e.players[0].cash 直写——「现金推过目标身价」无公共通路,胜利判定本身走真链);
-// 循环内 resolveTreasureOwner skip 走 e.submitCommand=引擎公共命令(交涉托管同语义,
-// 非红牌)。
+// (e.players[0].cash 直写——「现金推过目标身价」无公共通路,胜利判定本身走真链)。
+// #1257 死代码退役:循环内旧有 AwaitingTreasureOwner 的 force「不交易」绕行分支
+// (bot 城主珍宝交涉单机死锁缺陷 ⚠ 的绕行)——#398 后引擎对 bot 城主即席代打,分支
+// 永不触发(桥驱动 150 seed 零卡死实证),整段退役;该形态走真实代打,被测环零改动。
 test(
   "加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)",
   { tag: "@slow" },
@@ -240,11 +241,9 @@ test(
     // 人类 3× 目标恒为最高达标者,胜者确定性不变。
     await force(page, `e.players[0].cash = e.targetNetWorth * 3;`);
     // #188:掷骰自动触发——决策点由 actIfCan 清理,行军自走,endTurn 即触发胜利判定。
-    // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定;
-    // 落在 bot 城主的珍宝交涉格会触发单机死锁缺陷(⚠ 已报告:决策方是城主 ownerIdx,而
-    // #398 单机统一后 viewSeat 恒跟 decisionOwner(引擎 getter:珍宝交涉相位=城主),
-    // UI 只渲染访客只读视角,owner 为 bot 时也无驱动方代打),同样以调试钩子按 owner
-    // 身份「不交易」绕过。
+    // 掷骰可能落在决策格(购地/扩军):把余下决策也推完才 endTurn 触发胜利判定。
+    // 落 bot 城主珍宝交涉格零须处理:#398 后引擎即席代打(旧 force「不交易」绕行分支
+    // 已随 #1257 退役,见例头注)。
     // 经济 v2:掷骰后的移步/骰子动画期间决策卷轴尚未挂载,actIfCan 会暂时无按钮可点——
     // 不能立即 break(旧版恰好赶在动画后点到),改为等局面变化后再试,循环上限放宽。
     // 不变量巡检(#293 Q1 承接):原「全程驱动」例下沉 core soak 后,本例驱动到胜利屏途中
@@ -261,13 +260,6 @@ test(
           throw new Error(`不变量违规:T${s.round} ${p.guohao} pos=${p.position}`);
         if (p.isBankrupt && (p.properties.length || p.treasures.length || p.heroes.length))
           throw new Error(`破产残留:${p.guohao}`);
-      }
-      if (s.turnPhase === "AwaitingTreasureOwner" && s.treasureVisitor) {
-        await force(
-          page,
-          `e.submitCommand({ type: "resolveTreasureOwner", action: { type: "skip" } });`,
-        );
-        continue;
       }
       const before = JSON.stringify(s);
       if (!(await actIfCan(page))) {
