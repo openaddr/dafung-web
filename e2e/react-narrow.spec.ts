@@ -15,6 +15,8 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("竖屏手机 390×844(coarse pointer)", () => {
   test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
 
+  // 真实段(ADR-0058):竖屏视口真开局(起兵点击→对局屏真实挂载),提示层全屏接管
+  // 几何(全屏覆盖无缝隙)即被测环——零种植零冻结。
   test("「请横屏」提示层全屏接管,对局被挡", async ({ page }) => {
     // 提示层的职责就是挡住对局屏(连选都点击都会被拦),quickStart 的完整流程在竖屏
     // 下走不完——走到对局屏挂载(start-game)即断言:提示层可见、全屏覆盖,
@@ -44,6 +46,9 @@ test.describe("竖屏手机 390×844(coarse pointer)", () => {
 test.describe("矮横屏 844×390", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
+  // 真实段(ADR-0058):真实开局停靠后真渲染浮层件几何(三圆钮贴右下/席位列零滚动
+  // 零重叠/手牌区不相侵)即被测环。force 判词:钉 AwaitingDecision 空闲态=断言前提
+  // (引擎自转无「钉相位」公共命令,react-float-skeleton 停车坪同判词)。
   test("全浮层件就位:席位右列在上、三圆钮右下,列与钮区互不重叠", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载;react-layout 同款配方)

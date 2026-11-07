@@ -8,6 +8,8 @@
 import { test, expect } from "./fixtures";
 import { quickStart } from "./react-helpers";
 
+// 真实段(ADR-0058):quickStart 真实开局链挂载的棋盘合成层计算样式即被测环
+// (getComputedStyle willChange,呈现态断言零操作链)——零种植零冻结。
 test("棋盘栈+fx/flow 宿主合成层提升契约(#1013)", async ({ page }) => {
   await quickStart(page);
   const wc = await page.evaluate(() => {

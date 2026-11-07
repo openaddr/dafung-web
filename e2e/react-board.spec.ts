@@ -5,6 +5,11 @@
 import { test, expect } from "./fixtures";
 import { quickStart, force, engineState, waitFxIdle, freezeClock } from "./react-helpers";
 
+// 真实段(ADR-0058):真实挂载棋盘 DOM 上等级珠挂点的渲染链即被测环(data-level/
+// 珠数/金框随 property 数据真渲染)。force 判词:满级/半级城引擎到不了——真实升级
+// 路径走 endTurn 会同步放 bot 链(火烧连营可同拍拆城),升级后的活状态断言必竞速
+// (react-solo 扩军实录);持有直接入册=断言面需特定等级形态,排空演出+冻结+直写
+// 种植是确定性到达手段。
 test(
   "城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠",
   { tag: "@slow" },
@@ -51,6 +56,8 @@ test(
 );
 
 test("棋盘景深静态件:纸纤维 pattern 一次生成+远山带双幅+路肩随驿道(#844)", async ({ page }) => {
+  // 真实段(ADR-0058):quickStart 真实开局链后静态件的结构性存在(StaticLayers
+  // memo 确定性渲染,零时序竞速)即被测环——零种植零冻结。
   // 静态件全部确定性存在(StaticLayers memo,无时序竞速):结构断言守住
   // 「深 zoom 肌理/远景衬/路肩」三件套不被后续重构静默摘除。
   await quickStart(page);

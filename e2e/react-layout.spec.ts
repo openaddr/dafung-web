@@ -20,6 +20,10 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 test.use({ viewport: { width: 844, height: 390 } });
 
 test.describe("全浮层骨架", () => {
+  // 真实段(ADR-0058):quickStart 真实开局链走到停靠,四浮层件(顶栏/席位格列/
+  // 手牌区/三圆钮)真实挂载可见即被测环。force 判词:钉 AwaitingDecision 空闲态=
+  // 断言前提(显隐回合联动后 bot 回合手牌区整区卸载;引擎自转无「钉相位」公共命令,
+  // react-float-skeleton 停车坪同判词)。
   test("浮层件可见", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载):等自然停靠再钉
@@ -46,6 +50,8 @@ test.describe("全浮层骨架", () => {
     // 宁缺毋滥;骨架哨兵=上面四个可见面)。
   });
 
+  // 真实段(ADR-0058):真实对局自走中回合胶囊文本与引擎快照轮次的 poll 对账+总览/
+  // 设置钮真实点击开收弹窗,交互链全真——零种植零冻结。
   test("顶部浮层:回合胶囊轮次与快照一致(#853 chip 退役后轮次唯一落胶囊);总览钮点开总览弹窗,设置钮可用", async ({
     page,
   }) => {
@@ -80,6 +86,9 @@ test.describe("全浮层骨架", () => {
   // 一致与自机入列面归 react-seat-cells ① cellsMatchSnapshot + ② 自机挂点,重复例
   // 按宁缺毋滥直删(体力 aria-label 在场断言无独立回归价值,随例退场)。
 
+  // 真实段(ADR-0058):真实挂载渲染的手牌区结构(签面驻左端/架在区内)+退役
+  // testid 零残留即被测环。force 判词:钉 AwaitingDecision 空闲态=断言前提(同
+  // 首例;引擎自转无「钉相位」公共命令)。
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(同上例:显隐回合联动,bot 回合手牌区整区卸载)
@@ -103,6 +112,11 @@ test.describe("全浮层骨架", () => {
     await expect(page.getByTestId("dash-stamina")).toHaveCount(0); // testids:allow 同上(dash 系退役核销)
   });
 
+  // 真实段(ADR-0058):三圆钮计数角标随快照的 poll 对账+点钮开藏品弹层、弹层忠实
+  // 镜像同拍快照、X/Esc 真实关闭的交互链全真。force 判词:珍宝/名将无「授指定件/
+  // 将」公共命令(引擎仅机遇效果 grantTreasure/grantHero 一途,core/encounters.ts,
+  // 无直接授给命令)——珍宝走牌库直写,名将经快照 restoreFromSnapshot 通路回灌
+  // (生产通路本体,联机恢复同一条产线路径,麾下行=槽位全量 #785)。
   test("三圆钮:计数角标随快照,珍宝/名将点开藏品弹层(#361 双入口接替)", async ({ page }) => {
     test.setTimeout(120_000); // 对局自走 + 多段 toPass 轮询,60s 默认档偏紧(前例同口径)
     await quickStart(page);
@@ -235,6 +249,8 @@ test.describe("顶中知会槽·常驻回合胶囊(#732/#958)", () => {
     );
   }
 
+  // 真实段(ADR-0058):真实对局自走 12s 采样窗(引擎自转驱动回合轮换),胶囊换装/
+  // 全幅横幅退役的时线观测即被测环——零种植零冻结,采样拍内真实放行人类决策。
   test("回合宣告只刷常驻胶囊:随轮换换装,全幅横幅永不出现", async ({ page }) => {
     test.slow();
     await quickStart(page);
