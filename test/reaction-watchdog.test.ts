@@ -168,6 +168,14 @@ describe("反应窗超时看门狗(room/watchdogs 直驱,#281/#284,#1181 迁移)
         !e.players.some((p) => p.properties.some((h) => h.propertyId === t.propertyId)),
     )!.propertyId!;
     for (const p of e.players) p.position = p.capitalIndex; // 全员挪回都城,免开局链余波
+    // 起手珍宝波(#1172 连带)布场前提重钉:起手人人 2 件珍宝后,「落他人城」从
+    // 无事发生终端(movement-flow:城主无珍宝 → endTurn)变为珍宝交涉窗(城主三选,
+    // AwaitingTreasureOwner,choices 单源:永不自动执行)。bot 续推掷骰落 seat1 都城
+    // 长沙即挂起等 offline 城主抉择(#118 决策停摆看门狗管辖,本测试 decisionTimeoutMs=0
+    // 关闭),「回合续推」断言随之死等。清空两位真人座位珍宝恢复「落他人城=无事发生」
+    // 旧前提;bot 自带珍宝不参与(交涉看城主持有,bot 不会落自己城开窗),不影响任何断言。
+    e.players[0].treasures = [];
+    e.players[1].treasures = [];
     e.players[1].properties.push({ propertyId: lot, group: "a", level: 1, maxLevel: 3 });
     const turnBefore = e.turnNumber;
 
