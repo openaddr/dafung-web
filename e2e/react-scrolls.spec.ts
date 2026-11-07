@@ -147,7 +147,7 @@ test("珍宝交涉:模式选定弹选宝层,返回回模式步", async ({ page }
   await expect(page.getByTestId(SCROLL_TESTIDS.treasureModePremium)).toBeVisible();
 });
 
-test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算零放宽", async ({ page }) => {
+test("珍宝交涉:点选金描边 + 二段式成交,确认提交发 resolveTreasureOwner 命令", async ({ page }) => {
   await plantTrade(page);
   const scroll = page.getByTestId(SCROLL_TESTIDS.treasureScroll);
   await expect(scroll).toBeVisible();
@@ -160,8 +160,6 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await expect(item).toContainText(`指导价 ${fmtMoney(guidePriceOf(3))}`);
   const confirm = page.getByTestId(SCROLL_TESTIDS.treasureConfirm);
   await expect(confirm).toBeDisabled(); // 未预选不可成交
-  // 被访城 pid(成交后 treasureVisitor 清空,须在提交前取;引擎侧形 = { def, ownerIdx })
-  const pid = await engineState(page, "e.treasureVisitor.def.id");
   // 点选=金描边上浮:aria-pressed 翻真 + 价签转「成交 · 至 N 两」
   await item.click();
   await expect(item).toHaveAttribute("aria-pressed", "true");
@@ -171,53 +169,37 @@ test("珍宝交涉:点选金描边 + 二段式成交,treasureId 命令与结算�
   await expect(confirm).toHaveText("确认成交");
   await expect(pick).toBeVisible();
   expect((await snap(page)).turnPhase).toBe("AwaitingTreasureOwner");
-  // 结算留痕基线(#799):留痕断言只扫「基线后追加段」——对局自走里 bot 间交涉(如
-  // p2 售 p0 青囊)可能在种植前已入账,整局 find 首条会吃自然线(种子走位漂移的实锤
-  // 红因:票上三轮实跑吃到的自然是 buyer=p0/seller=p2/qingnang-9/600);种植交涉停在
-  // 人类决策点,基线到提交间无任何他线可插,切片内首条恒为本例结算线(结算路径内
-  // 同步写入,也先于任何后续自然线)。
+  // 留痕基线(#799):只扫「基线后追加段」——种植交涉停在人类决策点,基线到提交间
+  // 无任何他线可插,切片内首条恒为本例命令线(结算路径内同步写入)。
   const logLenBefore = (await snap(page)).log.length;
   // 第二段=确认提交
   await confirm.click();
-  // 结算留痕断言(#413):交涉成交后对局自走续跑,且 bot 链零步延(stepDelayMs=0)——
-  // 成交拍与后续合法效果(bot 火烧连营随机降城、下一棒交涉扣款)会挤进同一段同步任务,
-  // 负载下任何「拍后读活状态」都能错过结算瞬态(89/91 轮换实证:活状态逐条 poll 读回
-  // +100/+350/+1 级被打回)。改断结算自身的追加留痕(ADR-0014 对局日志,结算路径内
-  // 同步写入,不可回改):cmd 原样入账 + 公道成交升 Lv.2 + 指导价成交未走清算 + 托管
-  // 交割买家付清——「城主入账指导价/珍宝离手入买家/城池 +1 级」三语义逐条对应留痕,
-  // 断言不弱反强(观察从可变活状态移到不可变审计线)。
+  // #1181 棒一缩:结算留痕全字段对账面(fairUpgrade/treasureFair/escrowDeliver 三行
+  // =「城主入账指导价/珍宝离手入买家/城池 +1 级」结算细则)已由 test/treasure.test.ts
+  // 「公道买卖」「坐地起价」等结算例钉死,删已迁断言;留 cmd 行 = 「点确认成交 →
+  // 发 resolveTreasureOwner{fair,treasureId} 这条命令」的接线证据(ADR-0056 接缝
+  // 判据:接线断言是壳,留)。观察走不可变审计线,不吃活状态竞速。
   await expect
     .poll(
       async () =>
         page.evaluate((base) => {
           const s = (window as any).__dafung.snapshot();
-          const lines = s.log.slice(base); // #799:只扫基线后追加段(见上)
-          const line = (cat: string, key: string) =>
-            lines.find(
+          const cmd = s.log
+            .slice(base) // #799:只扫基线后追加段(见上)
+            .find(
               (l: { category: string; detail: string }) =>
-                l.category === cat && l.detail.includes(key),
+                l.category === "cmd" && l.detail.includes("resolveTreasureOwner"),
             );
-          const cmd = line("cmd", "resolveTreasureOwner");
-          return {
-            cmd: cmd ? JSON.parse(cmd.detail) : null,
-            upgrade: line("upgrade", "fairUpgrade")?.detail ?? null,
-            trade: line("trade", "treasureFair")?.detail ?? null,
-            deliver: line("trade", "escrowDeliver")?.detail ?? null,
-          };
+          return cmd ? JSON.parse(cmd.detail) : null;
         }, logLenBefore),
-      { timeout: 30_000, message: "珍宝交涉结算留痕:cmd/fairUpgrade/treasureFair/escrowDeliver" },
+      { timeout: 30_000, message: "确认提交 resolveTreasureOwner{fair} 命令留痕" },
     )
-    .toEqual({
-      cmd: { type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal" } },
-      upgrade: `fairUpgrade prop=${pid} owner=p0 visitor=p1 level=2`,
-      trade: `treasureFair owner=p0 visitor=p1 treasure=seal level=3 price=${guidePriceOf(3)} bankrupt=false`,
-      deliver: `escrowDeliver buyer=p1 seller=p0 treasure=seal price=${guidePriceOf(3)}`,
-    });
-  // 层随结算收口(DOM 契约):结算留痕已被上方钉住,层收跟拍不再吃自走竞速
+    .toEqual({ type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal" } });
+  // 层随结算收口(DOM 契约):命令留痕已被上方钉住,层收跟拍不再吃自走竞速
   await expect(pick).toBeHidden({ timeout: 30_000 });
 });
 
-test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算", async ({ page }) => {
+test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单刷新", async ({ page }) => {
   await quickStart(page);
   // 冻结推进再动刀(#421 冻结→种植→断言;#799):quickStart 停靠点可能残留已到点的
   // 看门狗回调,种植后到变卖提交前的 firing 会动 p0 现金/相位——「现金实涨=指导价」
@@ -260,16 +242,11 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/语义结算
   const confirm = page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasureConfirm);
   await confirm.click();
   await expect(confirm).toHaveText("确认变卖");
-  const cashBefore = (await snap(page)).players[0].cash;
   await confirm.click();
+  // #1181 棒一缩:变卖入账 = 指导价的结算等式已由 test/bankruptcy.test.ts
+  // 「三类变卖入账 = UI 展示价(同一纯函数)」钉死,删已迁活态等式断言;
+  // 层随结算收口(pick 隐藏)即命令落账同步,售出面走下面的重开清单刷新。
   await expect(pick).toBeHidden();
-  // 语义断言零放宽:变卖入账 = 指导价(与引擎同一函数),现金实涨
-  await expect
-    .poll(async () => (await snap(page)).players[0].cash, {
-      timeout: 15_000,
-      message: "变卖珍宝入账指导价",
-    })
-    .toBe(cashBefore + guidePriceOf(3));
   // 售出即收层;重开清单随快照刷新(已卖件消失,余件仍在)
   await page.getByTestId(SCROLL_TESTIDS.bankruptcySellTreasureOpen).click();
   await expect(page.getByTestId(SCROLL_TESTIDS.bankruptcyTreasurePick)).toBeVisible();
@@ -318,18 +295,18 @@ test("城池详情卷轴:对局中点城弹出只读详情", async ({ page }) =>
   await expect(detail.getByText(detailIsCapital ? "都城补给" : "变卖价")).toBeVisible();
 });
 
-test("珍宝城购地:落格先探宝后交易链,买成收口零探宝(#825 链序)", async ({ page }) => {
+test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷", async ({ page }) => {
   // 定 seed(#987 处置序③:无 seed 对局下本例买城收口窗内偶发 treasure 留痕,同树
   // 红/绿复现(集成线 4 红 1 绿 vs master 1 绿),概率性不可靠;覆盖不可替代故定 seed
   // 确定性化,#1069 集流收口实测双绿。种子漂移按 how-to 种子重钓配方重钓。
   await quickStart(page, 20261105);
-  await freezeClock(page); // 钉死看门狗:强制行军/落格不与自动起摇、停摆代驾赛跑
+  await freezeClock(page); // 钉死看门狗:种植停靠态不被迟到链步进覆盖
   try {
     // 摆位到无主珍宝城邻格,直走 rollAndMove 掷定 1 步后的同一段引擎路径:
     // 途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;机遇已被 fixtures 归零,
     // 珍宝城=event 城本就免掷)。落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:
     // 可购决策挂起(同权,ADR-0024)。
-    const tc = await page.evaluate(() => {
+    await page.evaluate(() => {
       const e = (window as any).__dafung.getEngine();
       e.phase = "Playing";
       e.activeIndex = 0;
@@ -344,49 +321,21 @@ test("珍宝城购地:落格先探宝后交易链,买成收口零探宝(#825 链
       const walked = e.marchTraverse(me, [target.index], 1, target.index, from, 1);
       if (walked !== "landed") throw new Error(`marchTraverse=${walked}(单格无拦检,契约违反)`);
       e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
-      // 结算留痕基线(#799 配方):留痕断言只扫「基线后追加段」——探宝/可购两行都在
-      // settleMarchLanding 内同步写入,基线取 settle 前一拍;quickStart 人类落格自走线
-      // (available 行,#827 改图后停靠点漂移恒产)留在基线前,全账 findIndex 的哨兵
-      // 病灶(首批 available 撞自走线)不复发。
-      const logBase = e.log.length;
       e.settleMarchLanding(me, target.index);
       (window as any).__dafung.sync();
-      return { index: target.index, logBase };
     });
+    // 落格即弹购地卷轴(探宝先行、可购决策挂起的 UI 面)
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
-    // 链序正典(#825):探宝已在落格先行——gain/miss 任一留痕,且先于可购留痕(交易链)。
-    await expect
-      .poll(async () => {
-        const lines: { detail: string }[] = (await snap(page)).log.slice(tc.logBase);
-        const treasureAt = lines.findIndex(
-          (l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"),
-        );
-        const availAt = lines.findIndex((l) => l.detail.includes("available"));
-        return { treasure: treasureAt >= 0, order: treasureAt >= 0 && treasureAt < availAt };
-      })
-      .toEqual({ treasure: true, order: true });
+    // #1181 棒一缩:链序正典与收口零探宝两段引擎链序 poll 已由 test/treasure.test.ts
+    // 「落无主珍宝城:落格即探宝(先于可购决策),买成收口零探宝(#825 链序)」逐条
+    // 钉死,删已迁断言;留壳=落格卷轴可见 + 差额行契约 + 点买收卷。
     // 差额行符号语义(#566):买得起记「余」不记「差」;formatMoney 拒负后此行是契约面
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toContainText("余");
     await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).not.toContainText("差");
-    const pid = await engineState(page, `e.board.at(${tc.index}).propertyId`);
+    // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
     await waitFxIdle(page);
-    const logLenBefore = (await snap(page)).log.length;
     await page.getByTestId(TESTIDS.actionButton("buy")).click();
-    // 收口零探宝(#825 语义位移):窗口内只有买城行——探宝不再接链尾(旧链序断言反转重钉)。
-    await expect
-      .poll(
-        async () => {
-          const s = await snap(page);
-          const lines: { detail: string }[] = s.log.slice(logLenBefore);
-          const buyAt = lines.findIndex((l) => l.detail.includes(`buy player=p0 prop=${pid}`));
-          const treasureAt = lines.findIndex(
-            (l) => l.detail.includes("treasureGain") || l.detail.includes("treasureMiss"),
-          );
-          return { buy: buyAt >= 0, treasure: treasureAt >= 0 };
-        },
-        { timeout: 15_000, message: "珍宝城买城收口:链尾零探宝(#825 链序正典)" },
-      )
-      .toEqual({ buy: true, treasure: false });
+    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeHidden({ timeout: 15_000 });
   } finally {
     await unfreezeClock(page);
   }

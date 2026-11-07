@@ -5,10 +5,10 @@
 // → 断言 → clockResume)——旧口径的残余抖动根因(waitMyPause 注释点名)是种植/触发
 // 与自动推进的竞速:冻结后种植落在钉死的静止态,卷轴出现不再依赖「手快」。
 // 点击后的断言面走结算留痕:耗竭收尾 endTurn 同步放出 bot 链(#421 诊断:冻结只钉
-// 看门狗节拍、钉不住 delay=0 的链步进),活态直读属与链的竞速——降级落地改从结算
-// 日志行断言(brief 携处置明细「「城名」降 1 级」、detail 携 skipTurns/stamina 结算
-// 瞬间值,链上不可变);都城等级与体力两处活读链安全:demolish/耗竭两路都城可降
-// 不可失、0 为地板,体力 100 夹紧免疫链上治疗——保留直读。
+// 看门狗节拍、钉不住 delay=0 的链步进),活态直读属与链的竞速——以留痕在场 poll 作
+// 「点选项→处置命令落账」的接线证据兼结算完成同步。#1181 棒一缩:结算字段断言
+// (降 1 级/skipTurns/stamina)与都城地板/体力夹紧两处活读已由 test/stamina.test.ts
+// 钉死,随删(详见例内注)。
 import { test, expect } from "./fixtures";
 import {
   openSoloSetup,
@@ -24,7 +24,7 @@ import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("体力系统冒烟", () => {
-  test("体力耗竭:卷轴弹出、自选降级、体力回 100、跳回合、侧栏渲染", async ({ page }) => {
+  test("体力耗竭:卷轴弹出、自选降级、体力条回满渲染", async ({ page }) => {
     await page.goto("/");
     await openSoloSetup(page);
     await page.getByTestId(SETUP_TID.startGame).click();
@@ -123,25 +123,14 @@ test.describe("体力系统冒烟", () => {
           },
           { logLen: logLenBefore },
         );
+      // #1181 棒一缩:结算字段断言(「都城名」降 1 级/skipTurns=1/stamina=100)与
+      // 活读结算面(都城地板 0、体力夹紧 100)已由 test/stamina.test.ts「惩罚结算:
+      // 降 1 级 + skipTurns+1 + 体力重置 100」「都城规则:可降级、地板 0 级」钉死,
+      // 删已迁断言;留痕在场 poll 保留 = 点降级选项→耗竭处置命令落账的接线证据
+      //(兼结算完成同步,UI 渲染断言的前提)。
       await expect
         .poll(readSettle, { timeout: 15_000, message: "exhaustionSettle 结算留痕落账" })
         .toBeTruthy();
-      const settle = (await readSettle())!;
-      expect(settle.brief).toContain(`「${seatInfo.capitalName}」降 1 级`); // 选中的是都城降级
-      expect(settle.detail).toContain("skipTurns=1"); // 跳过下一回合(+1,结算落账)
-      expect(settle.detail).toContain("stamina=100"); // 体力重置(结算落账)
-
-      // 链安全活读(结算已落账):都城 0 为地板、可降不可失;体力 100 夹紧免疫链上治疗
-      const live = await page.evaluate((info: { seat: number; capitalPropId: string }) => {
-        const e = (window as any).__dafung.getEngine();
-        const p = e.players[info.seat];
-        return {
-          stamina: p.stamina,
-          capitalLevel: p.properties.find((h: any) => h.propertyId === info.capitalPropId)?.level,
-        };
-      }, seatInfo);
-      expect(live.capitalLevel).toBe(0); // 1 → 0(选中降级,地板 0)
-      expect(live.stamina).toBe(100); // 重置
 
       await waitSettled(page); // UI 渲染断言前等表现链走完
       // 体力上仪表(#253 迁移;#700 仪表条退役,体力条在自机格:满值=色条满宽 100%)
