@@ -8,6 +8,7 @@
     "scripts/pr-merge.ts",
     "scripts/procs.ts",
     "scripts/shot.mjs",
+    "scripts/sim-batch.ts",
     "scripts/sim-jinnang.ts",
     "scripts/ws-run.ts",
     "test/**/*.test.{ts,tsx}",
