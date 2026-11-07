@@ -54,12 +54,13 @@ export function snap(page: Page): Promise<any> {
 }
 
 /** UI 快速开局(#1211 起;#1221 增 preRoll 行军前模式;#1252 增 midGameRound 中盘
- *  构造器)。五态通路一句话各:
+ *  构造器;#1254 postRoll 改线构造器+瞬空)。五态通路一句话各:
  *  - journey:全 UI 旅程链(首页→单机设置→起兵→选都→等首手走完)——开局链本身
  *    被走查的用例专用(react-setup / react-home-strip / react-tutorial 同款全 UI 链)。
- *  - 默认(postRoll):seedSolo 种局 → 等人类首手自动走完(waitMyRollDone:锦囊放行
- *    → 自动起摇 → 推进到下一决策点/换人)→ 等局面稳定;返回态=首掷已发生,战报有
- *    行军行、回合可能已推进。
+ *  - 默认(postRoll,#1254 开口吸收):桥内瞬空钉住 → seedSoloToRound 推进过首掷
+ *    (targetRound=1 + afterFirstRoll)→ 解钉停靠——首掷链演出整块弃播、棋盘直切引擎
+ *    终态(旧真播 waitMyRollDone 地板 3.3s 退役);返回态=首掷已发生,战报有行军行,
+ *    到站=首掷后的我方决策停靠(Awaiting* 决策态,旧 postRoll 停靠语义守恒)。
  *  - stopAtOpeningHand(#1217 波4):seedSolo → 停开局第一停靠——起手牌可用 → 停在
  *    AwaitingJinnang 出牌阶段态等输入(setup-flow 入局直调 enterJinnangPhase);不可用
  *    → Roll 等待态 ~1s 自动起摇走局到首个 Awaiting 停靠(waitMyPause 两态通吃且不代
@@ -143,14 +144,37 @@ export async function quickStart(
     );
     return;
   }
-  await page.evaluate((o) => (window as any).__dafung.seedSolo(o), { seed, mapId: opts?.mapId });
   if (opts?.stopAtOpeningHand) {
+    await page.evaluate((o) => (window as any).__dafung.seedSolo(o), { seed, mapId: opts?.mapId });
     await waitMyPause(page, 0);
     await waitFxIdle(page);
     await waitSettled(page);
     return;
   }
-  await waitMyRollDone(page, 0);
+  // postRoll 默认态(#1254 开口吸收,ADR-0059 决策 1):构造器推进过首掷 + 瞬空钉住
+  // 一气呵成——桥内 seedSoloToRound(targetRound=1 + afterFirstRoll,首掷已发生才停)
+  // 包在 setSnapPin(true/false) 里,快进期间演出出队一律吸附档(未播整块弃播、棋盘
+  // 直切引擎终态),旧「真播首掷链 waitMyRollDone」(地板 3.3s,大头 2.3s)退役;到站=
+  // 首掷后的我方决策停靠(Awaiting*,与旧 postRoll 停靠语义守恒)。finally 解钉:快进
+  // 抛错不留常开档污染本页后续演出(零兜底:不静默吞错,evaluate 照常上抛)。
+  await page.evaluate(
+    async (o) => {
+      const d = (window as any).__dafung;
+      d.setSnapPin(true);
+      try {
+        await d.seedSoloToRound({
+          seed: o.seed,
+          mapId: o.mapId,
+          targetRound: 1,
+          afterFirstRoll: true,
+        });
+      } finally {
+        d.setSnapPin(false);
+      }
+    },
+    { seed, mapId: opts?.mapId },
+  );
+  await waitFxIdle(page);
   await waitSettled(page);
 }
 

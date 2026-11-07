@@ -43,12 +43,15 @@ test.describe("全浮层骨架", () => {
     // 宁缺毋滥;骨架哨兵=上面四个可见面)。
   });
 
-  // 真实段(ADR-0058):真实对局自走中回合胶囊文本与引擎快照轮次的 poll 对账+总览/
-  // 设置钮真实点击开收弹窗,交互链全真——零种植零冻结。
+  // 真实段(ADR-0058;#1254 判词:本例守的环=回合宣告管线本身(宣告→fxStore→胶囊),
+  // postRoll 已改瞬空钉档,钉档弃播宣告=胶囊失明属机理必然——故到站换非钉档的
+  // stopAtOpeningHand(开局宣告正常播,胶囊在座);真实段不变:自走对账+真实点击全真。
+  // ):真实对局自走中回合胶囊文本与引擎快照轮次的 poll 对账+总览/
+  // 设置钮真实点击开收弹窗,交互链全真。
   test("顶部浮层:回合胶囊轮次与快照一致(#853 chip 退役后轮次唯一落胶囊);总览钮点开总览弹窗,设置钮可用", async ({
     page,
   }) => {
-    await quickStart(page);
+    await quickStart(page, undefined, { stopAtOpeningHand: true });
     await expect
       .poll(async () => {
         const s = await snap(page);

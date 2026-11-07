@@ -35,6 +35,18 @@ export const catchupCounters = {
   lastRuntimeScale: 1,
 };
 
+// ── 瞬空钉(#1254,ADR-0059 决策 1;词条 GLOSSARY「瞬空」)──
+// 测试可钉死的常开吸附档:钉住期间演出出队点(snapshot-effects dequeueChunk)一律走
+// 吸附档——未播演出整块弃播、棋盘直切引擎终态,引擎状态分毫不动。唯一写入口 = 调试桥
+// __dafung.setSnapPin(双门禁内,生产构建零暴露);产品默认 false 零变化,不钉 = 正常
+// 三档判定,不静默改行为(零兜底);解除即恢复正常三档。脊柱例不用(它们守「开」档
+// 的无缝衔接);消费方 = quickStart postRoll 快进通路与中盘构造器守卫对拍。
+let snapPin = false;
+export const setSnapPin = (on: boolean): void => {
+  snapPin = on;
+};
+export const isSnapPinned = (): boolean => snapPin;
+
 export class LagCalibrator {
   /** 连续超线计数(吸附后重开观察窗归零;steady 归零)。 */
   private streak = 0;

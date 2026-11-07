@@ -3,15 +3,27 @@
 // 走房间命令面(cmd 行留痕)+ 沉降后真实时钟可交互、快进+沉降墙钟与回合数脱钩的宽松
 // 闸;附边界③实证:react-solo.spec 头注「bot 城主珍宝交涉单机死锁」过期——房间驱动链
 // 经 botAct 代打城主决策(该 spec 因本结论可退役其 force 绕行,归后续票)。
+// #1254 增瞬空钩子+开口吸收守卫对(ADR-0059 决策 1;第二个 describe):瞬空钉 on/off
+// 到站引擎态逐位一致(演出弃播不动引擎)+ postRoll 开口吸收新通路到站断言与新地板
+// 读数(旧真播首掷链地板 3.3s 退役)。
 // 种子谱(页内探针同 seed 两跑对拍选定;漂移按 how-to「种子哨兵与重钓配方」重钓):
 // - 1504:快进到第 10 回合到站 turn 11/round 3/AwaitingJinnang(首个人类停靠;人类回合
 //   随 draftOrder/skipTurns 漂移,到站判据=首个 turnNumber≥N 的人类决策停靠,非字面
-//   第 N 回合),途中有人类购地 cmd 行(命令面留痕标记)。
+//   第 N 回合),途中有人类购地 cmd 行(命令面留痕标记)。postRoll 新通路同谱:快进过
+//   首掷后到站=首个我方决策停靠,三元组 turn 3/round 1/AwaitingDecision(人类座次
+//   draftOrder 第 3 位,turnNumber ≡ 3 mod 4;首掷落咸阳停购地抉择)。
 // - 1485:快进途中 bot 城主(座 1)与访客(座 3)珍宝交涉成交(hubing-17/100 两)——
 //   决策方=城主(与访客身份无关)的停相被房间链代打,快进不卡死。
 import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures";
-import { quickStart, snap, waitMyRollDone } from "./react-helpers";
+import {
+  disableEncounters,
+  quickStart,
+  snap,
+  waitFxIdle,
+  waitMyRollDone,
+  waitSettled,
+} from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 到站快照全量摘要(JSON 串):同 seed 两跑逐位对拍用。非确定字段掩码(与确定性无关,
@@ -126,5 +138,77 @@ test.describe("中盘构造器到站守卫(#1252)", () => {
       console.log(`[midgame-cost] seed=1504 N=${n} drive+settle=${ms}ms`);
       expect(ms, `N=${n} 快进+沉降墙钟`).toBeLessThan(60_000);
     }
+  });
+});
+
+// ── 瞬空钩子+开口吸收守卫对(#1254,ADR-0059 决策 1)──
+// 瞬空阀的引擎侧行为守恒:钉住只改演出消费(出队一律吸附档=整块弃播、直切终态),
+// 引擎态(快进应答序 → RNG 流位 → 事件批 → 终态快照)与不钉逐位一致。
+test.describe("瞬空钩子+开口吸收守卫(#1254)", () => {
+  /** 瞬空钉住的中盘构造器到站(对拍钉跑):quickStart(midGameRound) 同款开局链与
+   *  沉降,唯快进包在 setSnapPin(true/false) 里——应答序与不钉完全同一条(同一桥方法
+   *  seedSoloToRound),判据=到站快照对拍逐位一致。finally 解钉:抛错不留常开档。 */
+  async function quickStartPinned(page: Page, seed: number, targetRound: number): Promise<void> {
+    await disableEncounters(page);
+    await page.goto("/");
+    await page.evaluate(
+      async (o) => {
+        const d = (window as any).__dafung;
+        d.setSnapPin(true);
+        try {
+          await d.seedSoloToRound({ seed: o.seed, targetRound: o.targetRound });
+        } finally {
+          d.setSnapPin(false);
+        }
+      },
+      { seed, targetRound },
+    );
+    await waitFxIdle(page, 60_000);
+    await waitSettled(page);
+  }
+
+  test("瞬空钉 on/off 到站引擎态逐位一致(演出弃播不动引擎)", async ({ page }) => {
+    test.setTimeout(120_000);
+    let first = "";
+    for (const pinned of [false, true]) {
+      if (pinned) await quickStartPinned(page, 1504, 10);
+      else await quickStart(page, 1504, { midGameRound: 10 }); // 不钉跑=守卫①同一条锚
+      const s = await snap(page);
+      expect(s.phase).toBe("Playing");
+      expect(s.turnNumber).toBe(11);
+      expect(s.round).toBe(3);
+      expect(s.turnPhase).toBe("AwaitingJinnang");
+      await assertArrivalInvariants(page);
+      const digest = await arrivalDigest(page);
+      if (!pinned) first = digest;
+      else expect(digest, "瞬空 on/off 到站快照逐位一致").toBe(first);
+    }
+  });
+
+  test("postRoll 开口吸收新通路:瞬空过首掷,到站=首掷后我方决策停靠", async ({ page }) => {
+    test.setTimeout(120_000);
+    const t0 = Date.now();
+    await quickStart(page, 1504); // 默认 postRoll = #1254 新通路(构造器+瞬空一气呵成)
+    const ms = Date.now() - t0;
+    // 新地板读数经 console 进测试报告(耗时回顾台账取数口;旧真播 waitMyRollDone 地板 3.3s)。
+    console.log(`[postroll-cost] seed=1504 新通路 quickStart=${ms}ms(旧地板 3.3s 对照)`);
+    const s = await snap(page);
+    // 到站=首掷后的我方决策停靠(parkMyTurn 谓词面;非反应窗瞬态、非未掷 Roll 等待态)。
+    expect(s.phase).toBe("Playing");
+    expect(s.activeIndex).toBe(0);
+    expect(s.decisionOwner).toBe(0);
+    expect(s.turnPhase.startsWith("Awaiting"), `到站非决策停靠(实际 ${s.turnPhase})`).toBe(true);
+    expect(s.turnPhase).not.toBe("AwaitingReaction");
+    // 首掷已发生:战报留有行军命令行(未掷停靠=开口吸收「推进过首掷」语义破坏)。
+    expect(
+      s.log.some((r: { brief: string }) => r.brief.includes("提交命令:行军")),
+      "首掷已发生(战报有行军命令行)",
+    ).toBe(true);
+    // 谱钉三元组(首跑探得钉死;漂移按头注种子谱重钓):人类座次 draftOrder 第 3 位
+    // (turnNumber ≡ 3 mod 4,同 T1 锚 turn 11/round 3 的座次),首掷落咸阳停购地抉择。
+    expect(s.turnNumber).toBe(3);
+    expect(s.round).toBe(1);
+    expect(s.turnPhase).toBe("AwaitingDecision");
+    await assertArrivalInvariants(page);
   });
 });

@@ -48,7 +48,7 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
-import { catchupCounters } from "@app/fx/catchup";
+import { catchupCounters, setSnapPin } from "@app/fx/catchup";
 import { latestWorkerClock } from "@app/net/worker-clock";
 import { collectFrameDiag } from "@app/frameDiag";
 import type { GameCommand, GameEngine } from "@core/authority";
@@ -176,15 +176,19 @@ export function installDebugHooks(): void {
   };
   /** 推进循环:每拍 = 真人决策点应答 → 让出宏任务 → 读回合数,至停靠态(parkMyTurn
    *  谓词:activeIndex/decisionOwner=0 × Awaiting*;另排除 AwaitingReaction——解冻后
-   *  5s 代发看门狗会收窗,非稳定停靠)且 turnNumber ≥ targetRound。命令只在 interactive
-   *  门开启的同一同步块里派(dispatchCommand 的 pending/演出锁会静默吞命令,轮询续拍
-   *  重试);bot 腿由房间驱动链在本命令同步段内推进(e2e botStepMs=0),页内不直调
-   *  botAct。同 seed 两跑确定性:应答表无随机、看门狗冻结不点火、RNG 消耗序由引擎定。 */
-  const driveToRound = async (targetRound: number) => {
+   *  5s 代发看门狗会收窗,非稳定停靠)且 turnNumber ≥ targetRound。afterFirstRoll(#1254
+   *  开口吸收):到站须在首掷之后——开手可用牌时 seedSolo 后即停 AwaitingJinnang(掷骰
+   *  前),不排除会把 postRoll 停在未掷态,违反「首掷已发生」语义;置位后停靠谓词加钉
+   *  「本次快进已应答过 rollAndMove」。命令只在 interactive 门开启的同一同步块里派
+   *  (dispatchCommand 的 pending/演出锁会静默吞命令,轮询续拍重试);bot 腿由房间驱动链
+   *  在本命令同步段内推进(e2e botStepMs=0),页内不直调 botAct。同 seed 两跑确定性:
+   *  应答表无随机、看门狗冻结不点火、RNG 消耗序由引擎定。 */
+  const driveToRound = async (targetRound: number, opts?: { afterFirstRoll?: boolean }) => {
     const deadline = Date.now() + 120_000;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     let lastFp = "";
     let stallBeats = 0;
+    let rolled = false; // 已应答过起摇(首掷在引擎侧随命令同步段落账)
     for (;;) {
       if (Date.now() > deadline)
         throw new Error(`seedSoloToRound:120s 内未推进到第 ${targetRound} 回合(推进停滞)`);
@@ -197,7 +201,8 @@ export function installDebugHooks(): void {
         e.activeIndex === 0 &&
         e.decisionOwner === 0 &&
         e.turnPhase !== "AwaitingReaction" &&
-        e.turnPhase.startsWith("Awaiting");
+        e.turnPhase.startsWith("Awaiting") &&
+        (!opts?.afterFirstRoll || rolled);
       if (parked && e.turnNumber >= targetRound)
         return { turnNumber: e.turnNumber, round: e.round, turnPhase: e.turnPhase };
       const c = getController();
@@ -215,7 +220,9 @@ export function installDebugHooks(): void {
         lastFp = fp;
         stallBeats = 0;
       }
-      c.dispatchCommand(answerAtHumanStop(e));
+      const cmd = answerAtHumanStop(e);
+      if (cmd.type === "rollAndMove") rolled = true;
+      c.dispatchCommand(cmd);
       await sleep(20); // 让出宏任务:命令同步段(引擎结算+bot 链)与下行拍落地
     }
   };
@@ -239,13 +246,15 @@ export function installDebugHooks(): void {
     seedSolo,
     /** 中盘构造器(ADR-0059 示导波,#1252):seedSolo 同款开局 → 冻结房间时钟 → 页内
      *  逐拍应答真人决策点(应答表见 answerAtHumanStop)推进至第 targetRound 回合边界
-     *  (停靠谓词对齐 parkMyTurn)→ 解冻。返回停靠态读数;同 seed 同目标回合两跑逐位
-     *  一致(守卫 spec e2e/react-midgame-constructor.spec.ts 钉 seed 守着)。 */
+     *  (停靠谓词对齐 parkMyTurn;afterFirstRoll=#1254 开口吸收,到站钉在首掷后)→
+     *  解冻。返回停靠态读数;同 seed 同目标回合两跑逐位一致(守卫 spec
+     *  e2e/react-midgame-constructor.spec.ts 钉 seed 守着)。 */
     seedSoloToRound: async (opts: {
       seed?: number;
       mapId?: string;
       seats?: number;
       targetRound: number;
+      afterFirstRoll?: boolean;
     }) => {
       if (!Number.isInteger(opts.targetRound) || opts.targetRound < 1)
         throw new Error(
@@ -255,10 +264,18 @@ export function installDebugHooks(): void {
       const clock = latestWorkerClock();
       if (clock == null) throw new Error("seedSoloToRound:无活动 Worker 时钟(仅单机对局可冻结)");
       clock.pause();
-      const arrival = await driveToRound(opts.targetRound);
+      const arrival = await driveToRound(opts.targetRound, {
+        afterFirstRoll: opts.afterFirstRoll,
+      });
       clock.resume();
       return arrival;
     },
+    /** 瞬空钉(#1254,ADR-0059 决策 1;词条 GLOSSARY「瞬空」):演出层测试阀门——钉住
+     *  期间 SnapshotEffects 出队点一律走吸附档(未播演出整块弃播、棋盘直切引擎终态,
+     *  引擎状态分毫不动),不追帧不等待;解除恢复正常三档。唯一写入口经本桥(双门禁,
+     *  生产构建零暴露);产品默认关闭零变化,不钉=正常三档(零兜底)。实体在
+     *  fx/catchup.ts,消费挂点在 net/snapshot-effects.ts dequeueChunk。 */
+    setSnapPin: setSnapPin,
     // ── 房间时钟冻结闸(#421,调试观测面)──
     // pause 后看门狗(#188 自动起摇/#281 反应窗/#118 停摆/#380 保留窗)与托管
     // 步进的到点回调全部挂起,resume 按到点序补放——e2e 把对局钉在任意停靠态做
