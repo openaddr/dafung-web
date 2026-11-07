@@ -8,13 +8,21 @@
 // 例钉死;本例 UI 侧仅有的遣散钮点击通路与 ① 重复,零独占断言面。
 // 种植配方照 react-skill-book 先例(quickStart → freezeClock → force 直写引擎),
 // 断言走快照真值(槽/书/池/事件)+ testid 在场性,零语义放宽。
+// #1217 波4 直通形制(ADR-0058):两例真实段=①遣散钮二段式确认→发命令→槽移除/
+// 折书/回池划名/事件随批的完整命令通路、②非己回合 disabled+title 禁用呈现;前置链
+// 种局化——开局停走 stopAtOpeningHand 直达首停靠(族种 1486),布场 force 判词收口
+// plantOwnTurn(两例同布场)。
 import { test, expect } from "./fixtures";
 import { force, freezeClock, quickStart, snap } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 布场:己方(座位 0)自己回合(Roll 相位)+ 麾下周瑜(已学 火攻+擂鼓,火攻挂冷却账)
  *  + 清珍宝位(折书判据纯净)。挂起载荷全清(quickStart 停靠点可能是购地决策等)。
- *  occupyPool=true:其余全将占池(桥上 heroDefs 现查,含扩展将)——回池再招候选确定。 */
+ *  occupyPool=true:其余全将占池(桥上 heroDefs 现查,含扩展将)——回池再招候选确定。
+ *  force 判词(#1217 波4 审计):麾下无授将命令(resolveHeroPick 仅招贤卷轴语境可达,
+ *  招贤候选由落招贤城触发)、珍宝无授宝命令、回池占名无公共通路(recruitedHeroIds
+ *  只随招贤/遣散结算变动)、occupyPool 的全将占池更是纯断言前提——断言面需「已学
+ *  双技+冷却账+净珍宝位」形态,直写。 */
 function plantOwnTurn(activeIndex = 0, occupyPool = false): string {
   return `
     e.phase = "Playing";
@@ -45,8 +53,11 @@ async function openHeroModal(page: import("@playwright/test").Page) {
 test.describe("遣散全链(#1147)@844×390", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
+  // 真实段(波4 #1217):遣散钮二段式确认(首点武装「确认遣散」→再点发命令)→
+  // 槽移除/免费/已学技逐册折书入位/heroDismissed+treasureGained 事件随批/回池划名的
+  // 完整命令通路全真。
   test("遣散主链:二段确认→槽移除/免费/折书入位/事件随批/回池划名", async ({ page }) => {
-    await quickStart(page);
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
     await freezeClock(page);
     await force(page, plantOwnTurn());
     const cash0 = await snap(page).then((s) => s.players[0].cash); // 遣散前现金(免费判据基准)
@@ -87,8 +98,10 @@ test.describe("遣散全链(#1147)@844×390", () => {
     expect(s.players[0].cash).toBe(cash0); // 免费(与破产变卖 200 两分流)
   });
 
+  // 真实段(波4 #1217):非己回合遣散钮 disabled+title 禁用呈现——状态表达原则的
+  // 禁用态即被测环,无操作链。
   test("非己回合禁用态:遣散钮 disabled,原因进 title", async ({ page }) => {
-    await quickStart(page);
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
     await freezeClock(page);
     await force(page, plantOwnTurn(1)); // bot 座位 1 行动:非己回合
     await openHeroModal(page);
