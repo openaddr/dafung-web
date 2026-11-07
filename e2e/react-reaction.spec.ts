@@ -54,7 +54,7 @@ import { HOME_TID } from "../src/app/screens/home/testids";
  *  (force 在任何相位可用;此停靠点 engine 停在 AwaitingDecision 等输入)。 */
 async function soloAtBuyAsk(page: Page): Promise<void> {
   await useHalfScale(page);
-  await page.goto("/?seed=1010");
+  await page.goto("/?seed=1026"); // #1100 起手发放改写骰流,#949 同款重钓(探针实测 1026 首回合落购地格)
   await page.getByTestId(HOME_TID.selectMap).click();
   await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
   await page.getByTestId(SETUP_TID.mapConfirm).click();

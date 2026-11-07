@@ -126,6 +126,8 @@ export interface EngineConfig {
   targetNetWorth: number;
   /** 起手现金:地图顶层必配(loadMap 校验),装配层旗标可显式覆盖(ADR-0041 删引擎缺省) */
   startingCash: number;
+  /** 起手珍宝(件/人):地图顶层必配(loadMap 校验),装配层恒随地图无旋钮;0=不发(#1100) */
+  startingTreasures: number;
   seed?: number; // 注入骰子种子,便于确定性测试(?seed= URL 参数)
   /** 地图 id(ADR-0014 对局日志局头重放要素;编辑器试玩等非清单地图缺省为空串,重放脚本对空 id 显式报错) */
   mapId?: string;
@@ -257,6 +259,8 @@ export class GameEngine {
   readonly players: Player[];
   readonly targetNetWorth: number;
   readonly startingCash: number;
+  /** 起手珍宝(件/人,#1100):finishSetup 从统一珍宝牌堆抽 1 级实例发放;0=不发。 */
+  readonly startingTreasures: number;
   /** 地图 id(ADR-0014 局头要素;来自 EngineConfig,空串=非清单地图如编辑器试玩)。 */
   readonly mapId: string;
   /** 初始骰子种子(构造时的 rng 状态 = 有效种子,无论显式注入还是随机生成);
@@ -430,6 +434,7 @@ export class GameEngine {
     this.dice = dice;
     this.targetNetWorth = config.targetNetWorth;
     this.startingCash = config.startingCash;
+    this.startingTreasures = config.startingTreasures;
     this.mapId = config.mapId ?? "";
     this.reactionWindowMsOverride = config.reactionWindowMs ?? 0;
     this.encounter = { enabled: config.encounter?.enabled === true };
@@ -470,7 +475,7 @@ export class GameEngine {
     this.logEvent(
       "header",
       null,
-      `对局开启:${this.players.length} 座,起手 ${formatMoney(this.startingCash)},目标身价 ${formatMoney(this.targetNetWorth)}`,
+      `对局开启:${this.players.length} 座,起手 ${formatMoney(this.startingCash)},珍宝 ${this.startingTreasures} 件/人,目标身价 ${formatMoney(this.targetNetWorth)}`,
       JSON.stringify({
         type: "header",
         gameId: this.gameId,
@@ -478,6 +483,7 @@ export class GameEngine {
         seed: this.seed,
         targetNetWorth: this.targetNetWorth,
         startingCash: this.startingCash,
+        startingTreasures: this.startingTreasures,
         startedAt: Date.now(),
         // 机遇原始配置(#135/#776):档位抽取消耗骰流,重放必须复刻同一配置(缺省=null=
         // 机遇关);重放端 replay-log 原样传回构造 config。

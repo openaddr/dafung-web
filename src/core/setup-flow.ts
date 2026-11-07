@@ -279,6 +279,41 @@ function finishSetup(g: GameEngine): void {
   g.jinnangDeck = buildJinnangDeck(g.dice);
   g.jinnangDeckCount = g.jinnangDeck.length;
   g.players.forEach((_, seat) => g.drawJinnang(seat, JINNANG_STARTING_HAND));
+  // 起手珍宝(#1100):配置 0 整段跳过、零骰流消耗(测试隔离/不发珍宝的地图);
+  // >0 时按座位序逐人逐件从统一牌堆抽 1 级实例、不放回,人内不同款(同名排除仅限
+  // 人内,跨人可同款)。骰流消耗固定(每人 count 次 nextFloat),重放可复现。
+  const stCount = g.startingTreasures;
+  if (stCount > 0) {
+    const need = g.players.length * stCount;
+    const level1Total = g.treasureDeck.filter((t) => t.level === 1).length;
+    if (level1Total < need) {
+      throw new Error(
+        `起手珍宝池不足:1 级实例 ${level1Total} 件 < 需求 ${need} 件(${g.players.length} 座 × 每人 ${stCount} 件)`,
+      );
+    }
+    const perSeat: string[][] = g.players.map(() => []);
+    let pool = g.treasureDeck.filter((t) => t.level === 1); // 剩余可选 1 级实例(元素与牌堆同引用;每抽一件 pool 与牌堆各自显式收缩)
+    for (let seat = 0; seat < g.players.length; seat++) {
+      for (let k = 0; k < stCount; k++) {
+        // 第一件全池均匀抽;其后各件排除本人已得全部款式(人内不同款;同名排除仅限
+        // 人内,跨人可同款。排除后池空 = 目录数据 bug,自然抛错)
+        const candidates = k === 0 ? pool : pool.filter((t) => !perSeat[seat].includes(t.name));
+        const picked = candidates[Math.floor(g.dice.nextFloat() * candidates.length)];
+        perSeat[seat].push(picked.name);
+        pool = pool.filter((t) => t !== picked);
+        g.treasureDeck.splice(g.treasureDeck.indexOf(picked), 1);
+        g.players[seat].treasures.push(picked);
+      }
+    }
+    g.logEvent(
+      "setup",
+      null,
+      `起手珍宝:${g.players
+        .map((p, i) => `${p.guohao || p.name}得 ${perSeat[i].join("、")}`)
+        .join(";")}`,
+      `startingTreasures perSeat=${JSON.stringify(perSeat)}`,
+    );
+  }
   enterJinnangPhase(g); // 首回合掷骰前即可用锦囊(#122/T2)
   g.dispatchMoment("GameStart", { subject: g.roundAnchor }); // 时机·GameStart:对局开始(主体=首动者),先于首个 TurnStart
   g.dispatchMoment("TurnStart", { subject: g.activeIndex }); // 时机·TurnStart:开局首个回合(进 Playing 时)

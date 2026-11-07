@@ -472,6 +472,8 @@ export class RoomRegistry {
         // 起手现金产品面无旋钮,恒随地图顶层(ADR-0041 引擎无缺省)
         targetNetWorth: room.hostConfig.target ?? map.targetNetWorth,
         startingCash: map.startingCash,
+        // 起手珍宝(件/人)同上,恒随地图顶层(#1100)。
+        startingTreasures: map.startingTreasures,
         mapId: room.mapId!,
         // 机遇接线(#135):registry 注入项(服务器读 jiyu.json)开局定稿,存房间记录——
         // 开关直传引擎(#1090 起无归一/回退);undefined = 机遇关(缺省注入)。

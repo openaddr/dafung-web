@@ -7,7 +7,7 @@
 // 钉底 footer 槽)——「购地/不取」恒在视口内(Playwright 点击自动滚入视口,点击型
 // 断言测不出滚出视口,须几何断言钉住)。
 import { test, expect, type Page } from "./fixtures";
-import { useHalfScale, disableEncounters } from "./react-helpers";
+import { useHalfScale, force, disableEncounters } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
@@ -16,17 +16,49 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("决策卷轴拍板钮钉底(#729)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  /** seed 1010 拦检链到购地卷轴(#949 关中重钓:换图后原 50 链作废,
-   *  react-short-stage startShort 同源配方:关中条带选图 + 机遇归零 + 选都,
-   *  人类首个落格即购地抉择)。 */
+  /** 首掷种植(#1170 路线 B,reaction marchQueue 同注入口):一次性 patch dice.roll——
+   *  人类掷骰瞬间现算「当前位置起 1..6 步内首个无主普通城」骰值并自还原;bot 掷骰照走
+   *  种子 rng 不受扰。目标格掷时现算(读 activePlayer 与盘面归属),不赌 seed 考古;
+   *  无主过滤天然排除三家都城(建城即有主,首停落他人城会触发珍宝交涉停靠永久等
+   *  抉择),`!t.event` 再排特殊城(落格走固定事件链会顶掉购地决策)。1..6 步内无
+   *  目标=求解前提破坏,直接抛错(零兜底)。行程骰=dice.roll 口,拼点 rollDie 另口
+   *  不串队;marchQueue 配方出处见 react-reaction.spec。 */
+  const marchToUnownedOnce = `
+    (() => {
+      const o = e.dice.roll.bind(e.dice);
+      e.dice.roll = () => {
+        const m = e.activePlayer;
+        if (m !== e.players[0]) return o();
+        e.dice.roll = o;
+        for (let d = 1; d <= 6; d++) {
+          const t = e.board.at((m.position + d) % e.board.count);
+          if (t?.propertyId && !e.findOwner(t.propertyId) && !t.event) return { die: d };
+        }
+        throw new Error("首掷种植失败:当前位置 1..6 步内无无主普通城");
+      };
+    })();`;
+
+  /** seed 1026 拦检链到购地卷轴(#1170 种植式停靠,#949 同源配料):844 条带选图
+   *  (reaction soloAtBuyAsk 的二级弹层在 844 无确认钮不通)+ 机遇归零(先 route 后
+   *  进屏;#1100 适配期曾漏挂——机遇开的骰流消耗把候选与首停全带漂,多种子重钓
+   *  皆 miss,考古见票面)+ 种植现金 20000(全图最高价 4800,不种则起手净剩不足
+   *  自动不取、卷轴不弹)+ 首掷种植:人类第一停恒落无主普通城,购地决策确定性可达。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
-    await page.goto(`/?seed=1010`);
+    await disableEncounters(page);
+    await page.goto(`/?seed=1026`);
     await page.getByTestId(HOME_TID.mapStripItem("guanzhong")).click();
     await page.getByTestId(HOME_TID.solo).click();
     await page.getByTestId(SETUP_TID.screen).waitFor();
-    await disableEncounters(page);
     await page.getByTestId(SETUP_TID.startGame).click();
+    await page.waitForFunction(() => window.__dafung?.controller() != null);
+    await force(
+      page,
+      `
+      e.players[0].cash = 20000;
+      ${marchToUnownedOnce}
+    `,
+    );
     await page.locator(".bv-tile.bv-selectable").first().click();
     await page.getByTestId(TESTIDS.confirmCapitalOk).click();
     await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });

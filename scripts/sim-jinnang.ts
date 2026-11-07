@@ -38,6 +38,7 @@ const cfg: EngineConfig = {
   seats,
   targetNetWorth: MAP.targetNetWorth,
   startingCash: MAP.startingCash,
+  startingTreasures: MAP.startingTreasures,
 };
 const e = new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 

@@ -27,6 +27,7 @@ function soloEngine(seed: number): GameEngine {
     ],
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
   });
 }
 

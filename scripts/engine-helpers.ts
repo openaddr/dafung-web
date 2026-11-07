@@ -48,6 +48,8 @@ export interface GameConfig {
   /** 胜利线/起手现金:必配(ADR-0041 删引擎缺省);CLI 落盘前按地图顶层解析,旗标可显式覆盖 */
   targetNetWorth: number;
   startingCash: number;
+  /** 起手珍宝(件/人,必配 #1100):CLI 落盘前按地图顶层解析;0=不发。 */
+  startingTreasures: number;
   seed?: number;
   /** 地图 id(ADR-0014:随引擎写入对局日志局头,重放要素)。 */
   mapId?: string;
@@ -82,10 +84,12 @@ export function loadEngineAt(path: string): { engine: GameEngine; config: GameCo
   const raw = JSON.parse(readFileSync(path, "utf-8")) as PersistedState;
   // 按落盘 mapId 重建引擎(readonly 字段就位 + 同一张地图),再覆盖可变状态;
   // 旧格式 state 无 mapId → 显式抛错重开(无兼容负担,零兜底);
-  // 起手现金/目标缺任一同样拒载(旧格式在 DEFAULT_* 缺省时代落盘)。
+  // 起手现金/目标/起手珍宝缺任一同样拒载(旧格式在必配化之前落盘)。
   if (!raw.config.mapId) throw new Error("state 文件缺 mapId(旧格式):请 new 重开");
   if (raw.config.startingCash == null || raw.config.targetNetWorth == null)
     throw new Error("state 文件缺起手现金或目标线(旧格式):请 new 重开");
+  if (raw.config.startingTreasures == null)
+    throw new Error("state 文件缺 startingTreasures(旧格式):请 new 重开");
   const engine = createEngine(raw.config, false, loadBuiltinMapById(raw.config.mapId));
   engine.restoreFromSnapshot(raw.snapshot);
   return { engine, config: raw.config };

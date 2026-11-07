@@ -73,9 +73,9 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await page.getByTestId(MANUAL_TID.tabJinnang).click();
     await expect(cards).toHaveCount(9);
 
-    // 珍宝签:目录 6 种
+    // 珍宝签:目录 16 种(#1100 存量 6 + 起手扩容 10)
     await page.getByTestId(MANUAL_TID.tabTreasures).click();
-    await expect(cards).toHaveCount(6);
+    await expect(cards).toHaveCount(16);
 
     // 机遇签:按档三组陈列,组序=好运/中性/霉运,21/16/23(core 目录死数,#1154 扩容后)
     await page.getByTestId(MANUAL_TID.tabEncounters).click();

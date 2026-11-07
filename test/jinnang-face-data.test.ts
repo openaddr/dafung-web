@@ -174,9 +174,11 @@ describe("treasureFrameTone(珍宝品级 → 框色档,#234/#281)", () => {
 });
 
 describe("treasureImagePath(装裱卡画心查表,#521)", () => {
-  it("目录六件全带画心,且路径指向真实存在的文件(素材批同真,防断链)", () => {
-    expect(TREASURES.length).toBe(6);
-    for (const t of TREASURES) {
+  it("带画心的目录条目路径指向真实存在的文件(素材批同真,防断链)", () => {
+    // #1100 起目录扩容:画心断言只扫 image 非缺省条目(算筹/青梅暂回退远山肌理=合法空态,补图后自动入扫)
+    const withImage = TREASURES.filter((t) => t.image != null);
+    expect(withImage.length).toBe(14);
+    for (const t of withImage) {
       expect(t.image, `${t.id} 缺画心字段`).toStartWith("/assets/treasures/");
       expect(
         existsSync(new URL(`../public${t.image}`, import.meta.url)),

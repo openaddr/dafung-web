@@ -23,7 +23,12 @@ function makeEngine(): GameEngine {
     { name: "B", isBot: false, guohao: "蜀" },
     { name: "C", isBot: false, guohao: "吴" },
   ];
-  const cfg: EngineConfig = { seats, startingCash: START_CASH, targetNetWorth: 30000 };
+  const cfg: EngineConfig = {
+    seats,
+    startingCash: START_CASH,
+    startingTreasures: 0,
+    targetNetWorth: 30000,
+  };
   return new GameEngine(MAP.board, MAP.catalog, createDice(7), cfg);
 }
 

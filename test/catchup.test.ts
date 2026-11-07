@@ -33,6 +33,7 @@ function makeEngine(seed = 1, seats?: SeatConfig[]): GameEngine {
     ],
     targetNetWorth: 8000,
     startingCash: 10000,
+    startingTreasures: 0,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);
 }

@@ -87,6 +87,7 @@ function zhongyuanRoomSnapshot(): RoomSnapshotPayload {
     mapId: "zhongyuan",
     targetNetWorth: ZHONGYUAN.map.targetNetWorth,
     startingCash: ZHONGYUAN.map.startingCash,
+    startingTreasures: 0,
   });
   engine.doDraftRoll();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {
