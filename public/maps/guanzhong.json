@@ -2,6 +2,7 @@
   "version": 1,
   "targetNetWorth": 30000,
   "startingCash": 5000,
+  "startingTreasures": 2,
   "maxLevel": 3,
   "resupply": 1000,
   "tiles": [

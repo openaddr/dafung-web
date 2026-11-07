@@ -74,6 +74,8 @@ export function engineFromRecord(
       // 起手现金产品面无旋钮,恒随地图顶层(与 startGame 同语义,ADR-0041 引擎无缺省)。
       targetNetWorth: rec.hostConfig.target ?? map.targetNetWorth,
       startingCash: map.startingCash,
+      // 起手珍宝(件/人)同上,恒随地图顶层(#1100)。
+      startingTreasures: map.startingTreasures,
       // #135:机遇配置随房间记录恢复(缺省 = 机遇关,与历史记录行为一致)
       ...(rec.encounter ? { encounter: rec.encounter } : {}),
       // #284:反应窗时长覆盖随恢复透传(缺省走 core 常量表)

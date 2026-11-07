@@ -14,6 +14,8 @@ export interface MapData {
   version: number;
   targetNetWorth: number;
   startingCash: number;
+  /** 起手珍宝(件/人,必配;0=不发,#1100 起手珍宝)。 */
+  startingTreasures: number;
   /** 等级上限(逐图必配,loadMap 校验 ≥1 整数;城池持有等级 0..maxLevel)。 */
   maxLevel: number;
   /** 都城补给(两/次)的地图级固定值(必配,loadMap 校验);不随城池等级变化。 */
@@ -57,6 +59,7 @@ export interface LoadedMap {
   catalog: MapCatalog;
   targetNetWorth: number;
   startingCash: number;
+  startingTreasures: number;
 }
 
 function fail(msg: string): never {
@@ -94,6 +97,12 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   }
   if (typeof d.startingCash !== "number") {
     fail("缺顶层 startingCash(起手现金)");
+  }
+  if (typeof d.startingTreasures !== "number") {
+    fail("缺顶层 startingTreasures(起手珍宝,件/人;0=不发)");
+  }
+  if (!Number.isInteger(d.startingTreasures) || d.startingTreasures < 0) {
+    fail(`startingTreasures 必配且须为 ≥0 的整数(当前:${String(d.startingTreasures)})`);
   }
 
   // tiles + 坐标
@@ -207,5 +216,6 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     catalog,
     targetNetWorth: d.targetNetWorth,
     startingCash: d.startingCash,
+    startingTreasures: d.startingTreasures,
   };
 }

@@ -55,6 +55,7 @@ function guanzhongRoomSnapshot(): { msg: Record<string, unknown>; botCapitalInde
     mapId: "guanzhong",
     targetNetWorth: GUANZHONG.map.targetNetWorth,
     startingCash: GUANZHONG.map.startingCash,
+    startingTreasures: 0,
   });
   engine.doDraftRoll();
   for (let i = 0; i < 3 && engine.currentSetupPlayerIndex === 2; i++) {

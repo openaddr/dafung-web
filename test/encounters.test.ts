@@ -51,6 +51,7 @@ function makeEngine(seed = 7, encounter?: EncounterSwitch, seats?: SeatConfig[])
     ],
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
     ...(encounter ? { encounter } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);

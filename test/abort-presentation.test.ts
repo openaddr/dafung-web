@@ -19,6 +19,7 @@ function makeEngine(): GameEngine {
     ],
     targetNetWorth: 8000,
     startingCash: 10000,
+    startingTreasures: 0,
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(1), cfg);
 }

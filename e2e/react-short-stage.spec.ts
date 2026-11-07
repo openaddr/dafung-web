@@ -111,7 +111,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     page,
   }) => {
     test.slow(); // 拦检链:授将放行后等 bot 行军至都城前格开窗
-    await startShort(page, 1010, true); // seed 1010(#949 关中重钓,原 50 链随换图作废):定都剑阁、起手唯反应自动起摇落汉中购地卷轴
+    await startShort(page, 1026, true); // seed 1026(#1100 重钓:起手发放改写骰流,原 1010 链作废,#949 同款):首回合落汉中购地卷轴停靠点
     await plantAmbush(page);
     await grantZhouyuAndPass(page);
     const banner = page.getByTestId(TESTIDS.reactionBanner);
@@ -158,7 +158,7 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
 
   test("拼点签面入视口:双签并排整排落视口内,魏签顶/滇签底双出屏清零", async ({ page }) => {
     test.slow(); // 同拦检链 + 拼点演出全程
-    await startShort(page, 1010, true); // seed 1010(#949 关中重钓,原 50 链随换图作废):定都剑阁、起手唯反应自动起摇落汉中购地卷轴
+    await startShort(page, 1026, true); // seed 1026(#1100 重钓:起手发放改写骰流,原 1010 链作废,#949 同款):首回合落汉中购地卷轴停靠点
     await plantAmbush(page, [6, 1]);
     await grantZhouyuAndPass(page);
     // 页面内原子应答(react-helpers 单源:滤 march 窗/等 fx 排空/点牌落印防互踩)——

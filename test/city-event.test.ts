@@ -46,6 +46,7 @@ function fixtureData(tiles: object[]) {
     version: 1,
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0, // 存量用例隔离:不发起手珍宝(#1100)
     maxLevel: 3,
     resupply: 1000,
     tiles: tiles.map((t) => ({ ...t })), // 逐格浅拷贝:非法值用例的直写改动不泄给共享 FULL_TILES
@@ -64,6 +65,7 @@ function makeEngine(seed = 7, encounter?: { enabled?: boolean }): GameEngine {
     seats: SEATS,
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
     ...(encounter ? { encounter: { enabled: true } } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);

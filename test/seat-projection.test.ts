@@ -251,6 +251,7 @@ function makeEngine(): GameEngine {
     seats,
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
   });
 }
 

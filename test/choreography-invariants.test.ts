@@ -125,6 +125,7 @@ function choreoEngine(seed = 7): GameEngine {
     ],
     targetNetWorth: 8000,
     startingCash: 10000,
+    startingTreasures: 0,
   };
   return new GameEngine(CHOREO_MAP.board, CHOREO_MAP.catalog, createDice(seed), cfg);
 }
