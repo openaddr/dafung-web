@@ -53,7 +53,8 @@ export function snap(page: Page): Promise<any> {
   return page.evaluate(() => (window as any).__dafung.snapshot());
 }
 
-/** UI 快速开局(#1211 起;#1221 增 preRoll 行军前模式)。四态通路一句话各:
+/** UI 快速开局(#1211 起;#1221 增 preRoll 行军前模式;#1252 增 midGameRound 中盘
+ *  构造器)。五态通路一句话各:
  *  - journey:全 UI 旅程链(首页→单机设置→起兵→选都→等首手走完)——开局链本身
  *    被走查的用例专用(react-setup / react-home-strip / react-tutorial 同款全 UI 链)。
  *  - 默认(postRoll):seedSolo 种局 → 等人类首手自动走完(waitMyRollDone:锦囊放行
@@ -67,6 +68,14 @@ export function snap(page: Page): Promise<any> {
  *    clockPause**——选都命令的同步段(beginPlay:入局/发牌/进 Roll)到冻结只隔微任务
  *    续延,自动起摇定时器(AUTO_MARCH.rollAtMs≥sc(1000),worker 时钟回发=宏任务)
  *    冻在点火前,零竞速;跳过 waitMyRollDone/waitSettled 直接返回。
+ *  - midGameRound(#1252 中盘构造器,ADR-0059 示导波):seedSolo 种局 → 桥内
+ *    `seedSoloToRound` 冻结时钟、页内经房间命令面逐拍应答真人决策点(策略钉死:选项
+ *    首个可用/反应窗「不用」/锦囊今不用/珍宝交涉不交易)推进至第 N 回合边界 → 解冻
+ *    沉降(waitFxIdle+waitSettled,演出追帧/吸附自动排空)。回合数=turnNumber(无头
+ *    driveToEnd 同款定界);真人决策只停真人座,N 落在 bot 座时到站=下一个人类停靠
+ *    (turnNumber ≥ N);Roll 停靠不满足停靠谓词会被应答起摇(仍在同回合内),到站恒为
+ *    Awaiting* 决策态(语义对齐 parkMyTurn 谓词)。同 seed 两跑到站逐位一致(守卫 spec
+ *    react-midgame-constructor 钉 seed 守着)。
  *
  *  preRoll 与 postRoll(默认)返回态差异表:
  *  | 维度     | preRoll                                       | postRoll(默认)             |
@@ -83,7 +92,7 @@ export function snap(page: Page): Promise<any> {
  *  `window.__dafung.seedSolo`(直呼生产开局通路 handleStart 三步 + 程序化选都;seed
  *  经 evaluate 参数传入,不拼 URL)。`{ mapId }` 显式钉图(seedSolo 直传,压过
  *  localStorage 记忆;#147 后地图是骰流变量)。advance 与 stopAtOpeningHand 同传时
- *  preRoll 优先(分支先行返回)。 */
+ *  preRoll 优先(分支先行返回);midGameRound 与其余态同传时 midGameRound 优先。 */
 export async function quickStart(
   page: Page,
   seed?: number,
@@ -93,6 +102,8 @@ export async function quickStart(
     stopAtOpeningHand?: boolean;
     /** 缺省 "postRoll"(走完首手);"preRoll"=落都即冻结,返回态见头注差异表(#1221)。 */
     advance?: "postRoll" | "preRoll";
+    /** 中盘构造器目标回合(#1252):快进到第 N 回合边界停靠,见头注五态说明。 */
+    midGameRound?: number;
   },
 ): Promise<void> {
   if (opts?.journey) {
@@ -106,6 +117,19 @@ export async function quickStart(
   }
   await disableEncounters(page);
   await page.goto("/");
+  if (opts?.midGameRound != null) {
+    // 中盘构造器(#1252):桥内 seedSolo→冻结→逐拍应答推进→解冻一气呵成,页外只补
+    // 沉降(解冻后演出积压经追帧/吸附排空;上限放宽——到站成本实测与回合数弱相关,
+    // 见 how-to「中盘构造器到站态」节)。
+    await page.evaluate((o) => (window as any).__dafung.seedSoloToRound(o), {
+      seed,
+      mapId: opts?.mapId,
+      targetRound: opts.midGameRound,
+    });
+    await waitFxIdle(page, 60_000);
+    await waitSettled(page);
+    return;
+  }
   if (opts?.advance === "preRoll") {
     // 同一 evaluate 内 seedSolo→clockPause:evaluate 的 async 续延是微任务,worker
     // 时钟回发(自动起摇到点通知)是宏任务——冻结必落在定时器点火前,真零竞速。
