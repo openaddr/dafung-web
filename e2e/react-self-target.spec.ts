@@ -8,7 +8,9 @@
 // 技/牌走 force 引擎直写;两例均在出牌阶段内收束,不推进回合、不赌自然骰。
 // #1217 波4 直通形制(ADR-0058):两例真实段=目标段选自己交互链全真(候选金圈/实金
 // 停持/不可选轻晃/自疗落账);前置链种局化——旅程开局(选图→起兵→选都)换 seedSolo
-// 种局 stopAtOpeningHand 直达开局出牌阶段态(同 seed 同局口径,#1211 选都序对齐)。
+// 种局直达开局出牌阶段态(同 seed 同局口径,#1211 选都序对齐)。
+// #1221 L1 残油包:改 quickStart({advance:"preRoll"})——两例全程不出牌阶段、不依赖
+// 行军日志/已推进回合,落都即冻结(seed 67 起手求贤令恒可用,返回态=开局出牌阶段态)。
 import { test, expect } from "./fixtures";
 import { force, quickStart, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -16,9 +18,10 @@ import type { Page } from "@playwright/test";
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
-  // 显式钉图(mapId 直传 seedSolo,#147 后地图是骰流变量);stopAtOpeningHand 停在
-  // 开局出牌阶段态等输入(不代放行;67 在开局即停谱内,探针实测)
-  await quickStart(page, seed, { mapId: "guanzhong", stopAtOpeningHand: true });
+  // 显式钉图(mapId 直传 seedSolo,#147 后地图是骰流变量);#1221 L1:preRoll 落都即
+  // 冻结——seed 67 起手求贤令恒可用,返回即停在开局出牌阶段态且时钟已冻(自动起摇
+  // 定时器冻在点火前;67 在开局即停谱内,探针实测)
+  await quickStart(page, seed, { mapId: "guanzhong", advance: "preRoll" });
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }

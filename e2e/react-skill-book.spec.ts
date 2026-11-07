@@ -2,14 +2,17 @@
 //  ① 书可点态(1 名可学):珍宝弹层书格真 button,点即研读——书消耗、池序入槽、窗口停留;
 //  ② 多名可学弹窗:选人叠层(PileShell 制式)点将拍板;
 //  ③ 不可用态:非己方出牌阶段,书格为静态陈列(无交互挂点),禁用原因进 title。
-// 种植配方照 react-treasure-pick-fold 先例(quickStart → freezeClock → force 直写引擎),
+// 种植配方照 react-treasure-pick-fold 先例(quickStart → force 直写引擎),
 // 断言走快照真值(书消耗/入槽/相位)+ testid 在场性,零语义放宽。
 // #1217 波4 直通形制(ADR-0058):三例真实段=①书格真 button 点击→书消耗/池序入槽/
 // skillLearned 事件随批的研读命令通路、②选人叠层点将拍板交互链、③非己方回合禁用
-// 呈现;前置链种局化——开局停走 stopAtOpeningHand 直达首停靠(族种 1486),布场
+// 呈现;前置链种局化——开局停走 quickStart 直达首停靠(族种 1486),布场
 // force 判词收口 plantBook(三例同布场)。
+// #1221 L1 残油包:三例改 quickStart({advance:"preRoll"})——布场(plantBook 全量
+// 重钉相位/座位/挂起载荷)不依赖行军日志/已推进回合,落都即冻结,显式 freezeClock
+// 随通路退役。
 import { test, expect } from "./fixtures";
-import { force, freezeClock, quickStart, snap } from "./react-helpers";
+import { force, quickStart, snap } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 布场:己方(座位 0)出牌阶段卡牌段 + 麾下 heroes(池序 skillIds)+ 珍宝位塞一本书。
@@ -52,8 +55,8 @@ test.describe("技能书全链(#1146)@844×390", () => {
   // 真实段(波4 #1217):珍宝弹层书格真 button 点击 → 书消耗 + 池序入槽 +
   // skillLearned 事件随批的研读命令通路全真(resolveBookSkill 走命令流)。
   test("书可点态(1 名可学):点书研读——书消耗、池序入槽、skillLearned 随批", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(plantBook 全量重钉相位/座位)
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(page, plantBook("leigu", [{ id: "zhouyu", skillIds: ["huogong"] }]));
     await page.getByTestId(TESTIDS.pileTreasures).click();
     const modal = page.getByTestId(TESTIDS.treasureModal);
@@ -84,8 +87,8 @@ test.describe("技能书全链(#1146)@844×390", () => {
   // 真实段(波4 #1217):两名可学 → 选人叠层(PileShell 制式)点将拍板的交互链与
   // 学技落账(书消耗/指定将池序入槽/层随结算收口)全真。
   test("多名可学弹窗:两名池含此技未习得 → 选人叠层点将拍板", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(同上例)
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(
       page,
       plantBook("jixing", [
@@ -118,8 +121,8 @@ test.describe("技能书全链(#1146)@844×390", () => {
   // ——呈现态断言即被测环,无操作链。force 判词:同 plantBook(非己方出牌阶段形态,
   // 布场直写)。
   test("不可用态:非己方出牌阶段,书格静态陈列(无 book-use 挂点)", async ({ page }) => {
-    await quickStart(page, 1486, { stopAtOpeningHand: true });
-    await freezeClock(page);
+    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(同上例)
+    await quickStart(page, 1486, { advance: "preRoll" });
     await force(
       page,
       `
