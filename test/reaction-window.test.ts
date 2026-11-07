@@ -641,8 +641,8 @@ describe("botReactionDecision 纯决策口径(#281)", () => {
   });
 });
 
-// ── 反识破链(识破可被识破,#571/ADR-0027)───────────────────────────────────
-describe("反识破链(#571/ADR-0027)", () => {
+// ── 反识破链(识破可被识破,#571/ADR-0060)───────────────────────────────────
+describe("反识破链(#571/ADR-0060)", () => {
   /** 火烧连营打向 victim、victim 识破自保进链环的双窗布场,返回引擎与座位。 */
   function burnWithCounter(seed = 42) {
     const e = prepared(seed);
@@ -711,7 +711,7 @@ describe("反识破链(#571/ADR-0027)", () => {
     expect(e.players[y].jinnangHand).toEqual([]);
   });
 });
-// ── 反识破链环 bot 决策(#571/ADR-0027:只护己利——救被拆的己计/护被反的己份)──
+// ── 反识破链环 bot 决策(#571/ADR-0060:只护己利——救被拆的己计/护被反的己份)──
 describe("botReactionDecision 链环口径(#571)", () => {
   /** 摆一个反识破链环窗(公开字段直设,同相位摆位口径)。 */
   function armChainWindow(

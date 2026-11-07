@@ -105,7 +105,7 @@ describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系
     expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);
   });
 
-  it("bot 回合配速真实且不快于托管(#730,ADR-0034:bot 是背景演出,可读节奏 ≥ 托管「像人」档)", () => {
+  it("bot 回合配速真实且不快于托管(#730,ADR-0061:bot 是背景演出,可读节奏 ≥ 托管「像人」档)", () => {
     expect(BOT_STEP_MS).toBeGreaterThanOrEqual(AUTOPILOT_STEP_MS);
   });
 

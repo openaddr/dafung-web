@@ -19,7 +19,7 @@ type UpdateFn = (room: RoomSession) => void;
 // 人类待应答座位,不走 botAct)
 
 /** 当前决策点座位步进延迟(#399 步进经注入时钟):bot 座位走注入的 botStepMs 配速
- *  (#730,ADR-0034 产出端配速——bot 连锁逐拍下行,演出队列不再积压;0 = 无配速,
+ *  (#730,ADR-0061 产出端配速——bot 连锁逐拍下行,演出队列不再积压;0 = 无配速,
  *  测试缺省),托管 2s/步(替人玩,节奏像人,#580),真人座位为 0。 */
 function stepDelayMs(r: RoomSession, seat: number, botStepMs: number): number {
   if (r.engine?.players[seat]?.isBot === true) return botStepMs;

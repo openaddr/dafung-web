@@ -51,7 +51,7 @@ export interface SoloRoomConfig {
   mapId?: string;
   /** 机遇开关(#125;#1090 只剩开关):设置屏透传;缺省 = 机遇关(引擎缺省语义,与联机同)。 */
   encounter?: EncounterSwitch;
-  /** bot 步进配速覆盖(#730,ADR-0034):生产缺省链 = e2e localStorage 键 → core
+  /** bot 步进配速覆盖(#730,ADR-0061):生产缺省链 = e2e localStorage 键 → core
    *  BOT_STEP_MS;bun 单测直接构造时显式传 0(测试预算按 0ms bot 连锁书写)。 */
   botStepMs?: number;
 }
@@ -117,7 +117,7 @@ export class LocalController extends GameController {
     // 0/未注入 = 走 core REACTION_WINDOW_MS 常量表(配置缺席不是兜底,server.ts 同模式)。
     const reactionWindowMs = e2eReactionWindowMs();
     // #730 bot 步进配速(单机形态):解析链 = 显式注入(config.botStepMs,bun 单测
-    // 传 0)→ e2e localStorage 键 → core BOT_STEP_MS(ADR-0034 产出端配速)。
+    // 传 0)→ e2e localStorage 键 → core BOT_STEP_MS(ADR-0061 产出端配速)。
     const botStepMs = config.botStepMs ?? e2eBotStepMs() ?? BOT_STEP_MS;
     this.registry = new RoomRegistry(
       new MemoryRoomPersistence(),

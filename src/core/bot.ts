@@ -12,7 +12,7 @@ import { skillBookLearners } from "./roster";
 import { beginGameEventBatch } from "./game-events";
 import { STAMINA_CASH_RATE } from "./constants";
 
-/** bot 可驱动的回合相位正典(bot-driver/replay-log 等消费方 import 此常量,禁再各自抄副本)。
+/** bot 可驱动的回合相位正典(bot-driver/cli/whole-game 等消费方 import 此常量,禁再各自抄副本)。
  *  契约:除 AwaitingReaction 外各相位 botAct switch 直驱;AwaitingReaction 特判——bot
  *  座位由引擎开窗同调用即席代答(ADR-0017「bot 持牌即时代答」,全 bot 被询问时相位不外显),
  *  驱动器只停等人类待应答座位,不得对其调 botAct。 */
