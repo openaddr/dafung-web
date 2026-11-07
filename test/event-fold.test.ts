@@ -837,6 +837,7 @@ describe("折叠投影器 · 锦囊族", () => {
       seats,
       targetNetWorth: 30000,
       startingCash: 10000,
+      startingTreasures: 0,
     });
     // 客户端(座位 1 视角)收到的开窗批就是脱敏批:查询集 [-1, 1]
     foldEventBatch(e, [

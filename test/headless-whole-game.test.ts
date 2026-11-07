@@ -44,6 +44,7 @@ describe("状态摘要器", () => {
       seats: botSeats(4),
       targetNetWorth: map.targetNetWorth,
       startingCash: map.startingCash,
+      startingTreasures: 0,
     });
     const chain = { hash: "", count: 0 };
     const d1 = turnDigestOf(e, [], chain);
