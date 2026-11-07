@@ -12,30 +12,23 @@
 // (seed 67 起手求贤令恒可用 = 开局出牌阶段稳定停靠点);选图走 #707 矮横屏横排条带
 // (home-select-map 入口在本档退役)。断言全走几何与 UI 态,零固定 sleep。
 import { test, expect } from "./fixtures";
-import { answerMarchCounter, disableEncounters, force, useHalfScale } from "./react-helpers";
+import { answerMarchCounter, force, quickStart, useHalfScale } from "./react-helpers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-import { HOME_TID } from "../src/app/screens/home/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("演出层矮横屏三件(#709)@667×375", () => {
   test.use({ viewport: { width: 667, height: 375 } });
 
-  /** 矮横屏选图开局(#707 条带替代二级弹层)→ 定都首候选,回停靠点:
-   *  waitScroll 给定则等购地卷轴(seed 7 拦检链配方),否则等出牌阶段动作条
-   *  (seed 63 起手横征暴敛恒可用,窗必升起)。 */
+  /** 矮横屏开局到停靠点(#1256 到站换装):UI 选图开局链(#707 条带)换装 quickStart
+   *  stopAtOpeningHand 种局式直通——桥路与旧 UI 链同 seed 同局(registry 选都口径
+   *  统一),机遇隔离由 quickStart 内建;本档 667×375 视口只作用渲染断言,到站链不
+   *  点任何首页/设置控件(旧链在本档要绕 #707 条带入口的包袱随之卸下)。
+   *  waitScroll 给定则复核购地卷轴在挂(首停=购地抉择停靠),否则等出牌阶段动作条
+   *  (起手牌可用停 AwaitingJinnang,窗必升起)。 */
   async function startShort(page: Page, seed: number, waitScroll: boolean): Promise<void> {
     await useHalfScale(page);
-    await page.goto(`/?seed=${seed}`);
-    await page.getByTestId(HOME_TID.mapStripItem("guanzhong")).click();
-    await page.getByTestId(HOME_TID.solo).click();
-    await page.getByTestId(SETUP_TID.screen).waitFor();
-    // 机遇归零(#126 同口径):防随机机遇卷轴污染停靠点
-    await disableEncounters(page);
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await page.locator(".bv-tile.bv-selectable").first().click();
-    await page.getByTestId(TESTIDS.confirmCapitalOk).click();
+    await quickStart(page, seed, { mapId: "guanzhong", stopAtOpeningHand: true });
     if (waitScroll) {
       await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
     } else {

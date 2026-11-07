@@ -6,29 +6,25 @@
 // 种子离线核算(react-jinnang-use 同源,seed 67 × 关中):人类先手,选都候选 DOM
 // 首格=0 长安,起手求贤令(自身域恒可用)→ 开局出牌阶段=稳定停靠点;军情密探进
 // 目标段无附加门槛(#477 起卡级才查存活对手,恒可用),手牌内容全走 force 引擎直写。
+// 到站形制(#1256 对账,ADR-0058 种局式直通):startPeekStop 前置链从「goto→选图→
+// 起兵→点城确认」UI 旅程换装 quickStart stopAtOpeningHand(seedSolo 桥路)——桥路与
+// 旧 UI 链同 seed 同局(registry 选都口径统一:两路同 seed 必须同局),waitMyPause
+// 不代发放行(其头注:AwaitingJinnang 本身就是合法停靠点),窗态保留;被测环=出牌
+// 四击链与窥探弹层呈现,到站通路替换零断言改动。3 例均非旅程例,种局式直通是本族应答。
 // #1215 棒2(ADR-0058 一环一真):3 例真实段逐例头注声明;force 判词(全 spec 3 处,
 // 均手牌直写):手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形(窥探
 // 内容/空手/识破布场)。③ 的 resolveJinnang/respondReaction 走引擎公共方法(合法漏斗,
 // 非红牌),唯 isBot 翻转需判词,见该例。
 import { test, expect } from "./fixtures";
-import { force, snap, freezeClock, openSoloSetup, useHalfScale } from "./react-helpers";
+import { force, quickStart, snap, freezeClock, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
 
-/** 开局收口(seed 67 × 关中,react-jinnang-use 同款):选图/起兵/定都(候选 DOM
- *  首格)后停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点。 */
+/** 开局收口(seed 67 × 关中,react-jinnang-use 同款):种局式直通(#1256,判词见
+ *  头注)停稳在人类开局出牌阶段——引擎直写种植的稳定停靠点。 */
 async function startPeekStop(page: Page): Promise<void> {
   await useHalfScale(page);
-  await page.goto("/?seed=67");
-  await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
-  await page.getByTestId(SETUP_TID.mapConfirm).click();
-  await openSoloSetup(page);
-  await page.getByTestId(SETUP_TID.startGame).click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
+  await quickStart(page, 67, { mapId: "guanzhong", stopAtOpeningHand: true });
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 

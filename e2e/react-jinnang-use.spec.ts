@@ -14,9 +14,14 @@
 // 种子复算(#949 换图重钉;seed 67 × 关中图,进程内直扫复算):人类先手
 // (draftOrder=[0,3,2,1]),选都候选取 DOM 首格=0 长安(bot 都:诸侯2=10 长沙、
 // 诸侯3=20 卧龙岗、诸侯4=3 辽东),起手求贤令(自身域恒可用)
-// → **开局出牌阶段=稳定停靠点保留**。不走 pickCapital 共享助手(其收尾会自动「不出」),
-// 本 spec 自行点城+确认以保留窗态。灰置/技能卡局面走 force 引擎直写(#237 无天然种子同时
-// 凑齐)。
+// → **开局出牌阶段=稳定停靠点保留**。灰置/技能卡局面走 force 引擎直写(#237 无天然
+// 种子同时凑齐)。
+// 到站形制(#1256 对账,ADR-0058 种局式直通):startJunshi 前置链从「goto→选图→起兵→
+// 点城确认」UI 旅程换装 quickStart stopAtOpeningHand(seedSolo 桥路)——桥路与旧 UI 链
+// 同 seed 同局(registry 选都口径统一:两路同 seed 必须同局),且 waitMyPause 不代发放行
+// (其头注:AwaitingJinnang 本身就是合法停靠点),旧链「自行点城+确认以保留窗态」的
+// 诉求由停靠语义直接满足;被测环=出牌/目标段/反应窗交互链,到站通路替换零断言改动。
+// 8 例均非旅程例(前门=react-setup/home-strip/tutorial 脊柱①⑤),种局式直通是本族应答。
 // 自然骰钉死(棒 2 口径:Bun 与浏览器 sort 比较器调用数不同,自然骰不可信):识破例放行后
 // 人类自动行军以 marchSteps 钉「二」落 2 幽州无主城(plantDemolishableCity 的种植城=
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
@@ -30,8 +35,8 @@
 import { test, expect } from "./fixtures";
 import {
   force,
+  quickStart,
   waitMyRollDone,
-  openSoloSetup,
   skipUntilNextSeat,
   useHalfScale,
   plantDemolishableCity,
@@ -39,20 +44,11 @@ import {
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
-  await page.goto(`/?seed=${seed}`);
-  // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变候选城/发牌序列
-  await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
-  await page.getByTestId(SETUP_TID.mapConfirm).click();
-  await openSoloSetup(page);
-  await page.getByTestId(SETUP_TID.startGame).click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
+  // 种局式直通到站(#1256,判词见头注):同 seed 同局停开局出牌阶段态,窗态保留。
+  await quickStart(page, seed, { mapId: "guanzhong", stopAtOpeningHand: true });
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
