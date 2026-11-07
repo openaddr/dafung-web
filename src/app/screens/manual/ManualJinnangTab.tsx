@@ -10,6 +10,7 @@ import { useState } from "react";
 import { JINNANG_CARDS, jinnangCardOf } from "@core/jinnang";
 import { JinnangCardFace, JinnangCardDetail } from "@app/components/card/JinnangCardFace";
 import { JINNANG_FAMILY } from "@app/components/card/jinnang-face-data";
+import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { PileShell } from "@app/screens/game/PileModal";
 import { MANUAL_TID } from "./testids";
 
@@ -36,18 +37,16 @@ export default function ManualJinnangTab() {
     <>
       <div className="flex flex-wrap justify-center gap-3">
         {JINNANG_CARDS.map((def) => (
-          <button
+          <SelectableFaceButton
             key={def.id}
-            type="button"
             data-testid={MANUAL_TID.card(def.id)}
             title={`${def.id} · 牌库 ${def.copies} 张`}
             onClick={() => setDetailId(def.id)}
-            className="block cursor-pointer rounded-[0.9em] border-0 bg-transparent p-0 outline-offset-2 transition hover:shadow-[0_0_0_2px_var(--color-gold)]"
           >
             <JinnangCardFace cardId={def.id} size="standard">
               <CopiesNote copies={def.copies} />
             </JinnangCardFace>
-          </button>
+          </SelectableFaceButton>
         ))}
       </div>
       {detail != null && (

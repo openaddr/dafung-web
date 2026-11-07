@@ -2,8 +2,10 @@
 // 网格(装裱形制,art 走 treasureImagePath(id) 回查目录画心,陈列数=目录种数)按
 // level 升序陈列(同级保持目录序,sort 稳定)+ 点卡开 PileShell 大档详情:
 // 画心大图(金框)+ 品级角标 + 指导价(guidePriceOf 带「两」后缀,formatMoney 单源)
-// + 风味描述。陈列档 7.2px em 基(108×144):六件一行恰收进 844×390 体部宽
+// + 风味描述。陈列档 em 基=CARD_WALL_BASE_PX(card-wall.ts 单源,名将签同拍;
+// 108×144):六件一行恰收进 844×390 体部宽
 // (940 弹层内容宽 753px:6×108+5×14=718),更窄 flex-wrap 换行、体部内滚承接。
+// 点击壳=SelectableFaceButton 单源(#1188;text-left 保留旧行为)。
 // 交互语义(开合)归本件;选中语言=hover 金描边光圈(§4.6,名将/锦囊签同款);
 // testid 消费 MANUAL_TID.card(id)/detail(id),id=目录英文 id。
 import { useState } from "react";
@@ -11,7 +13,9 @@ import { TREASURES, guidePriceOf } from "@core/treasures";
 import { formatMoney } from "@core/money";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
+import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { PileShell } from "@app/screens/game/PileModal";
+import { CARD_WALL_BASE_PX } from "./card-wall";
 import { MANUAL_TID } from "./testids";
 
 /** 陈列序:level 升序(同级保持目录序;sort 稳定,模块级只排一次)。 */
@@ -65,14 +69,13 @@ export default function ManualTreasuresTab() {
         {TREASURE_ROWS.map((t) => {
           const image = treasureImagePath(t.id);
           return (
-            <button
+            <SelectableFaceButton
               key={t.id}
-              type="button"
               data-testid={MANUAL_TID.card(t.id)}
               title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}`}
               onClick={() => setDetailId(t.id)}
-              style={{ fontSize: "7.2px" }}
-              className="block cursor-pointer rounded-[0.9em] border-0 bg-transparent p-0 text-left outline-offset-2 transition hover:shadow-[0_0_0_2px_var(--color-gold)]"
+              style={{ fontSize: `${CARD_WALL_BASE_PX}px` }}
+              className="text-left"
             >
               <TreasureCardFace
                 name={t.name}
@@ -80,7 +83,7 @@ export default function ManualTreasuresTab() {
                 desc={t.desc}
                 art={image != null ? <img src={image} alt="" /> : undefined}
               />
-            </button>
+            </SelectableFaceButton>
           );
         })}
       </div>
