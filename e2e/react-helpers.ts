@@ -354,7 +354,9 @@ export async function useHalfScale(page: Page): Promise<void> {
 }
 
 /** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
- *  demolishOnVictim 排除)——bot 火烧连营的 城最多者∩可拆 目标恒人类。 */
+ *  demolishOnVictim 排除)——bot 火烧连营的 城最多者∩可拆 目标恒人类。
+ *  force 判词(#1215 棒2 审计,ADR-0058 红牌清偿):引擎无授城公共命令——购地命令
+ *  受行军路线+现金约束到不了「指定格 0 级城」,断言面需该形态,直写挪入。 */
 export async function plantDemolishableCity(page: Page): Promise<void> {
   await force(
     page,

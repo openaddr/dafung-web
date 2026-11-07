@@ -21,6 +21,10 @@
 // 人类自动行军以 marchSteps 钉「二」落 2 幽州无主城(plantDemolishableCity 的种植城=
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
 // 升级决策同样可清)。
+// #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类(全
+// spec 10 处:plantDemolishableCity/plantBotCity 挪城 2、marchQueue 行程骰 2、手牌直写 6、
+// 珍宝/名将/标签额度布场 3——各在种植点/助手头注写一行「force 判词」,均为引擎到不了
+// 的形态,零迁移;本 spec 断言链的操作段全真,前置种植只造「断言面需要的牌形/布场」)。
 // 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
 // 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 import { test, expect } from "./fixtures";
@@ -56,7 +60,9 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
 /** 行军骰队列(行程):接下来数次 rollAndMove 的行程骰依序取给定值,耗尽自还原
  *  (react-reaction.spec.ts 同款,局部确定性;patch 命中时不消耗种子 rng,还原后种子流
  *  无缝续走)。与拼点 rollDie 队列分属两个注入口互不串队——本 spec 只用行程队列。
- *  尾分号必备:单独作为 fn 传 force 时,表达式语句必须自终止,否则吃掉后续 sync()。 */
+ *  尾分号必备:单独作为 fn 传 force 时,表达式语句必须自终止,否则吃掉后续 sync()。
+ *  force 判词:自然骰经种子仍受 sort 比较器调用数影响(#949,Bun 与浏览器调用数不同),
+ *  停靠落格必须钉骰——骰值无公共设定通路,行程骰注入=确定性钉非兜底。 */
 const marchQueue = (...values: number[]) => `
   (() => {
     const o = e.dice.roll.bind(e.dice);
@@ -70,7 +76,9 @@ const marchQueue = (...values: number[]) => `
 
 /** 给 bot 1 挪一座 1 级非都城(原 jinnang-play-line.spec.ts 随迁,#305):火烧连营的
  *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
- *  不达标——不种则目标段无候选席位。 */
+ *  不达标——不种则目标段无候选席位。
+ *  force 判词:引擎无授城公共命令(购地命令受行军路线+现金约束到不了指定格指定级),
+ *  断言面需「bot 名下恰有一座可拆城」。 */
 async function plantBotCity(page: Page): Promise<void> {
   await force(
     page,
@@ -95,11 +103,16 @@ async function plantBotCity(page: Page): Promise<void> {
 }
 
 test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)", () => {
+  // 真实段:反应窗全应答链真(对方真打出火烧连营→横幅升起→点牌选中/再点取消→落印
+  // 确认→窗收牌离架),引擎结算(双牌皆耗/识破留痕)随之全真。前置种植判词见各种植点
+  // (手牌无公共通路需特定牌形;挪城无授城公共命令;行程骰=确定性钉)。
   test("seed67 识破诡计:架上金边→点选/再点取消→落印→窗收牌耗", async ({ page }) => {
     await startJunshi(page, 67);
     // 种植:人类改持识破诡计 + 一座可失之城(plantDemolishableCity 挪 +1 晋阳@1,0 级);bot 全持
     // 火烧连营(首个行动 bot 回合开始即出,城最多者=人类);行程骰钉「二」:放行后自动
     // 行军落 2 幽州无主城弹购地卷轴(钉「一」落 +1 晋阳自家种植城,升级决策同可清)。
+    // force 判词:手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形;
+    // 挪城/行程骰判词见 plantDemolishableCity 与 marchQueue 注。
     await plantDemolishableCity(page);
     await force(
       page,
@@ -137,6 +150,9 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(page.getByTestId(TESTIDS.jinnangCard("识破诡计"))).toHaveCount(0);
   });
 
+  // 真实段:「不出」放行点击→窗收、牌留架的真命令通路与放行后自动行军接棒全真
+  // (#188 通行链路)。前置:手牌直写判词=手牌无公共通路,断言面需任意可留架牌形;
+  // 行程骰判词见 marchQueue 注(自然骰确定性钉)。
   test("seed67 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
     await startJunshi(page, 67);
     // 直写钉牌(开局起手是横征暴敛,与本例无关——钉火烧连营验「任意手牌放行后留架」);
@@ -156,6 +172,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(page.getByTestId(TESTIDS.jinnangCard("火烧连营"))).toBeVisible();
   });
 
+  // 真实段:出牌两击链全真(点牌选中→「出牌」点亮→打出→牌离架),消耗的 UI 表达
+  // 随真命令通路走。force 判词:手牌无公共通路,断言面需 self 域恒可用牌形。
   test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
     await startJunshi(page, 67);
     await force(page, `e.players[0].jinnangHand = ["求贤令"];`);
@@ -169,6 +187,9 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toHaveCount(0);
   });
 
+  // 真实段:目标段两步链全真(出牌进目标段→点席位选中/再点取消→「出」钮打出→目标
+  // 段收牌离架),金圈呼吸/token 呼吸挂点随真窗态。force 判词:手牌无公共通路需牌形;
+  // 珍宝无授宝公共通路(交涉/探索命令到不了「指定座挂指定宝」),目标门槛需对方有宝。
   test("军情密探:出牌进目标段,点席位选中/再点取消,#417 「出」钮确认打出", async ({ page }) => {
     await startJunshi(page, 67);
     // 先停稳在开局出牌阶段态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
@@ -207,6 +228,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toHaveCount(0);
   });
 
+  // 真实段:作罢链全真(进目标段→「作罢」→收回卡牌段、选中清空、牌未消耗的 UI 面)。
+  // force 判词同上例(手牌无公共通路;珍宝无授宝公共通路,目标门槛需对方有宝)。
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
     await startJunshi(page, 67);
     await force(
@@ -229,6 +252,10 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(opt).toBeVisible(); // 牌回卡牌段(作罢语义的 UI 面)
   });
 
+  // 真实段:点主技名开全览→关闭→点卡体选中→「出牌」打出→发技实例转灰置(引擎原因
+  // 印条)的呈现/交互链全真,冷却判读读真技表。force 判词:手牌/标签额度/麾下将均无
+  // 公共通路(发牌、用牌记账、招贤命令都到不了「本回合已用谋攻+同将双主动技」的布场),
+  // 断言面需该特定布场;城防拉级同 plantBotCity(无授城公共命令,火攻需可毁目标)。
   test("灰置牌印条/多标签双章/技能卡:双标签占额灰置、同将双技双卡可辨、发技转灰置", async ({
     page,
   }) => {
@@ -300,6 +327,10 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     await expect(huo.locator(".hface")).not.toHaveClass(/off/);
   });
 
+  // 真实段:呈现态断言(同名技双卡独立实例 id、卡面载体件各归各将、他将不上卡)——
+  // 无操作链,布场后的真实渲染即被测环。force 判词:麾下将无授将公共通路(招贤命令
+  // 到不了「两槽各持指定技」),断言面需该双将布场;钉 AwaitingJinnang=断言前提
+  // (出牌窗态),引擎自转无「钉相位」公共命令。
   test("异将同名技载体可辨:周瑜/张星彩各持擂鼓,两张擂鼓卡同名同技、载体各归各将", async ({
     page,
   }) => {
@@ -351,6 +382,10 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
 // 联机下行批同一直译函数,jinnangAnnounced/jinnangVoided/reactionAnswered → 同一
 // jinnangPlayed 表现事件);反应窗出牌(识破/拦停)的联机端同款线归 react-reaction-online。
 test.describe("出牌指示线(#281 P2-E)", () => {
+  // 真实段:出牌目标两步链(点席位选中→「出」确认打出)与墨线端点对准几何全真
+  // (rAF 原子采样对引擎现算坐标)。force 判词:手牌无公共通路需火烧牌形;挪城判词见
+  // plantBotCity(无授城公共命令,需 bot 名下可拆城);清他座反应牌=手牌直写同判词
+  // (不开反应窗,线在宣告点即出)。
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
     await startJunshi(page, 67);
     // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1);
