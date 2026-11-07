@@ -325,6 +325,27 @@ if (!prNumber) {
     );
   }
 
+  // 1.20) build 闸(2026-11-07 复盘 P1 拍板,#1202):「本地全绿」机械化——bun test
+  //       结构性不查型,#1191 三处跨型断言 bun test 全绿直达 master,build 红靠下游
+  //       撞上才发觉(#1194 热修)。push 前 tsc --noEmit + vite build 红即停、零 push。
+  //       无豁免旗标:有旗标=「这次小就不跑了」复归纪律态;秒级成本对照 master 破损
+  //       代价(下游票全数被闸+热修一轮)稳赚。快错排序:瞬闸(文件集/冲突/freshness)
+  //       →本闸(秒级)→慢池 canary(分钟级)→push。
+  {
+    console.log("[pr-merge] build 闸:tsc --noEmit + vite build…");
+    const build = Bun.spawnSync(["bun", "run", "build"], {
+      stdout: "inherit",
+      stderr: "inherit",
+    });
+    if (build.exitCode !== 0) {
+      console.error(
+        "[pr-merge] build 闸红——类型/构建破损不许上 master(#1202;冷 workspace 缺依赖先 bun install 再收口)。",
+      );
+      process.exit(1);
+    }
+    console.log("[pr-merge] build 闸绿。");
+  }
+
   // 1.19) 慢池 canary(#1003,#958 会话复盘拍板):慢例池只在收口/批次跑,快票合并
   //       不触达 → 慢例破损静默入库(march-stop-fx-drain 在 master 破损数日无人知,
   //       #971 A/B+探针定罪)。本次 change 触及 test/*.test.ts 且文件含 DAFUNG_SLOW
