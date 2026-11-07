@@ -17,6 +17,7 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import type { GameCommand } from "@core/authority";
 import { skillById } from "@core/skills";
 import { HeroCardFace, heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
+import { SelectableFaceButton } from "@app/components/card/SelectableFaceButton";
 import { FX, UI } from "@app/fx/timings";
 import { BannerShell } from "./BannerShell";
 import { SkillGlossaryDialog, type SkillGlossaryTarget } from "../SkillGlossaryDialog";
@@ -89,14 +90,14 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
             const skip = chipSkip;
             chipSkip += h.skillIds.length;
             return (
-              <button
+              // 位点类 relative:confirming 钤印 span 的锚位根(#850);壳单源 #1188
+              <SelectableFaceButton
                 key={h.id}
-                type="button"
                 data-testid={T.heroPickOption(i)}
                 title={`${h.name}·${h.title} — ${h.skillIds.map((id) => skillById(id).desc).join(";")}`}
                 onClick={(e) => pick(e, i)}
                 style={{ ["--chip-skip" as string]: String(skip) }}
-                className="relative block cursor-pointer rounded-[7px] border-0 bg-transparent p-0 outline-offset-2 transition hover:shadow-[0_0_0_2px_var(--color-gold)]"
+                className="relative"
               >
                 <HeroCardFace heroId={h.id} skillIds={h.skillIds} size="pick" />
                 {confirming === i && (
@@ -110,7 +111,7 @@ export function HeroPickScroll({ offered, onCommand }: HeroPickScrollProps) {
                     将
                   </span>
                 )}
-              </button>
+              </SelectableFaceButton>
             );
           })}
         </div>

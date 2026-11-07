@@ -173,5 +173,12 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(modal).toHaveCount(0);
     await manual.click();
     await expect(modal).toBeVisible();
+    // 遮罩可交互直断(#1188 S3):泄漏态下重开遮罩挂 dialog-overlay-out
+    // (pointer-events:none,「点外关闭」失灵)——重开遮罩不得挂退场类,且点壳外
+    // 真位置(视口左下角;壳体 x≥25.5/y≤370)点外关闭通路必须可达
+    const overlay = page.locator('[data-slot="dialog-overlay"]');
+    await expect(overlay).not.toHaveClass(/dialog-overlay-out/);
+    await page.mouse.click(6, 384);
+    await expect(modal).toHaveCount(0);
   });
 });
