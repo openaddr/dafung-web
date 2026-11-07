@@ -15,6 +15,7 @@
 import { describe, it, expect } from "bun:test";
 import { MAP } from "../scripts/engine-helpers";
 import { LocalController } from "../src/app/controllers/local";
+import { getAuthorityEngine } from "../src/app/controllers/registry";
 import { REACTION_WINDOW_MS } from "../src/core/constants";
 
 // 慢例池开关:DAFUNG_SLOW=1(bun run test:slow)才跑,默认池 skip(skip 行可见);
@@ -56,7 +57,9 @@ describe("拦停截断 × 表现队列排空(#882 回归钉)", () => {
     async () => {
       const c = makeController();
       try {
-        const e = c.engine;
+        // #1241 接缝翻转后 c.engine=玩家侧水合副本:种植与同步段断言必须落权威本体
+        // (副本经水合才有,种植直改不产事件、冻结钟下无排程拍);交互门等待仍走 c.interactive。
+        const e = getAuthorityEngine();
         // 开局:进程内房间编排把对局驱动到人类选都;选盘面序最小候选(seed 59 = 4 襄平,
         // 引擎首候选=环序最小,与 e2e DOM 首格同格)。
         expect(e.phase).toBe("Setup");

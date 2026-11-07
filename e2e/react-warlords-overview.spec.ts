@@ -94,7 +94,9 @@ async function plantSeat1Roster(page: Page) {
   `,
   );
   return page.evaluate(() => {
-    const e = (window as any).__dafung.getEngine();
+    // plantedIds 是种在权威引擎上的测试 expando(#1241 接缝翻转后不随快照水合),
+    // 期望值回读取权威口;其余真实字段(names/guohao/hero)两侧同值。
+    const e = (window as any).__dafung.getAuthorityEngine();
     const p1 = e.players[1];
     // 城池名逐字期望:按棋盘 index 序(行军顺序,与 #622 清单行序/总览 chips 同源)
     const names = p1.properties
