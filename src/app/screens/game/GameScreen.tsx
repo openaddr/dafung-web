@@ -19,7 +19,7 @@
 // 棋盘取景恒总览定格(#946 平移缩放退役);TokenLayer/FxLayer 不动。
 // 数据流:gameStore.snapshot → 声明式渲染;交互统一经 registry 取 controller 下发。
 // 选都/详情流程状态机仍收口 useCapitalPick;本屏只做接线与布局。
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BoardView } from "@app/components/board/BoardView";
 import {
   useGameStore,
@@ -188,6 +188,23 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 已随 #690 退役)——座位缺位 = 快照与座位表不一致(接线 bug),undefined 直通
   // 下游崩出来,不做 `?? null` 静默兜底。
   const selfPlayer = players[selfSeat];
+  // 入手音(#239 T4 语义平移):跟着「手牌集变化」走,不跟架挂载走——显隐改
+  // 回合联动后架每回合重挂,逐卡 mount 音会变成每回合的连响噪音;改为 diff 出
+  // 真入手的牌才逐张轻叩(jinnangDraw)。同名多牌按 multiset 对账(消费一张记
+  // 一张),架收起期间入手照响(入手是事实,与架显隐无关);seen 账本挂 ref,
+  // 生命周期=对局屏生命周期,换局重挂自然重开账。
+  const prevHandRef = useRef<string[]>([]);
+  useEffect(() => {
+    const prev = [...prevHandRef.current];
+    const gained = selfPlayer.jinnangHand.filter((id) => {
+      const at = prev.indexOf(id);
+      if (at < 0) return true;
+      prev.splice(at, 1);
+      return false;
+    });
+    prevHandRef.current = [...selfPlayer.jinnangHand];
+    for (let i = 0; i < gained.length; i++) getAudio().play("jinnangDraw");
+  }, [selfPlayer.jinnangHand]);
   // 托管态单源取值收口 useAutopilotOn(netStore):联机已入座=座位广播,单机=控制器本地
   // 标记(托管以在座为前提,未入座恒 false)。
   const autopilotOn = useAutopilotOn(controller);
@@ -212,11 +229,12 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   // 游标越过总数 = 日志账本已换(换图重开一类):旧游标作废,现有条目全量记未读。
   // 这是游标语义本身(日志只增,变短即新账本),非容错分支。
   const warUnread = warReadCount > warTotal ? warTotal : warTotal - warReadCount;
-  // 锦囊架显隐(#1006 改模,#700 开关位沿用):会话内临时态 rackHidden,默认亮。
-  // 旧 localStorage 持久偏好整线退役,不留兼容读取;「收起」
-  // 只活在本态上,唯一写点=锦囊钮 toggle 回传(点击取反)。唯二复位点=下方两枚
-  // 上升沿 effect(自回合开始/窗态开场,开场必亮);复位点之间持续收着——出牌窗
-  // 里收起后跨掷骰/行军/bot 回合全程收着,全图畅看。
+  // 锦囊架显隐(回合联动+决策保底,2026-11-07 拍板;接替 #1006「默认亮·唯二复位
+  // 点」):会话内临时态 rackHidden 由规则沿自动同步——亮=我的回合 ∪ 决策窗在场
+  // ∪ 手动临时开,其余一律收。#1006 的核心保证(该决策时一定看得见)由亮沿原样
+  // 保留;新增收沿补上「决策毕,架撤」——回合交出去/窗答完即收,bot 回合全图
+  // 畅看,不再要求玩家每轮手动收。旧 localStorage 持久偏好整线退役(#1006)维持:
+  // 「该看见时一定看见」由规则本身保证,常亮默认没有存在理由。
   const [rackHidden, setRackHidden] = useState(false);
   // 回调引用稳定化(#1140 渲染税):settings/锦囊钮弹层族 memo 的前提——闭包体内
   // 经 getState 取当下值,不捕获渲染拍 snapshot,引用恒定。
@@ -459,19 +477,18 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
       />
     ) : null;
 
-  // ── 显隐复位(#1006 唯二复位点,rackHidden 只被这两枚上升沿弹回)──
-  // ①自回合开始上升沿(快照 activeSeat 变为 selfSeat 那一拍):下次轮到你即弹回;
-  // ②窗态开场上升沿(出牌窗 junshiUp / 反应窗 reactBanner 由无到有):任何窗态
-  //   开场必亮——「决策通路不被收走」由通路本身保证(出牌窗=动作条、反应窗=横幅),
-  //   复位只管「看得见架」。上升沿用 dep-array effect(清空重选同款手法)。
+  // ── 显隐规则同步(回合联动+决策保底):rackHidden 被「回合/窗态沿」重同步,
+  // 沿与沿之间锦囊钮 toggle 随便改(手动临时开/收,下一道沿重新对齐)──
+  // 亮沿=我的回合开始(activeIndex 回 selfSeat)/ 任何窗态开场(出牌窗 junshiUp、
+  // 反应窗 reactBanner 由无到有)——决策保底,「决策通路不被收走」由通路本身
+  // 保证(出牌窗=动作条、反应窗=横幅),同步只管「看得见架」;收沿=回合交出
+  // (activeIndex 离席)/ 窗态收场且不在我的回合——决策毕,架撤。dep-array effect
+  // 一枚管四沿(清空重选同款手法;布尔组合幂等,沿间不重跑)。
   const myTurnUp = snapshot.phase === "Playing" && snapshot.activeIndex === selfSeat;
   const windowUp = junshiUp || reactBanner != null;
   useEffect(() => {
-    if (myTurnUp) setRackHidden(false);
-  }, [myTurnUp]);
-  useEffect(() => {
-    if (windowUp) setRackHidden(false);
-  }, [windowUp]);
+    setRackHidden(!(myTurnUp || windowUp));
+  }, [myTurnUp, windowUp]);
   // 窗态+收起的两处派生(呼吸金光/banner-only 形态,消费点见下渲染段):一次推导。
   const rackBreathe = rackHidden && windowUp;
   const rackBannerOnly = rackHidden && reactBanner != null;
@@ -625,10 +642,11 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           }
         />
         {/* 底缘透明手牌区(#700):签面驻左端 + 手牌架。
-          显隐=#1006 会话临时态(默认亮,锦囊钮收起,唯二复位点弹回);窗态不再强制
-          显示。挂载条件 `!rackHidden || reactBanner != null`:纯收起整区卸载(签面
-          随之,卸载零占位,战斗区最大化);收起时若反应窗在场,区壳仍挂载以宿主
-          横幅(banner-only 形态,签面/牌行不挂,横幅失去架体依托后贴底下移)。 */}
+          显隐=回合联动+决策保底(亮=我的回合∪决策窗在场∪手动临时开,规则同步
+          见 rackHidden 声明处)。挂载条件 `!rackHidden || reactBanner != null`:
+          纯收起整区卸载(签面随之,卸载零占位,战斗区最大化);收起时若反应窗
+          在场,区壳仍挂载以宿主横幅(banner-only 形态,签面/牌行不挂,横幅失去
+          架体依托后贴底下移)。 */}
         {(!rackHidden || reactBanner != null) && (
           <HandZone
             snapshot={snapshot}
@@ -644,7 +662,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
                 player={selfPlayer}
                 nudgePulse={playNudge}
                 bannerOnly={rackBannerOnly}
-                capitalPick={snapshot.phase === "Setup" && snapshot.setupPhase === "PickCapital"}
                 junshi={
                   junshiUp
                     ? {

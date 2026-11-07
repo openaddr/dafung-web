@@ -1,13 +1,15 @@
 // 底部常驻手牌架(#238 一期 T3):起手牌在架内、点牌详情弹层(开/关)、长按同效、
-// 他人回合架常驻可见(常驻不收拢,P1-C 拍板)。空态斜牌背不做 DOM 断言(起手必 1 张,
-// 永不空),视觉证据归截图 tmp/ui-shots/t3/(tmp/shot-t3-rack.mjs 构造空手牌)。
+// 他人回合显隐(回合联动+决策保底:bot 回合自动收起,回合回来自动弹回)。
+// 空态斜牌背不做 DOM 断言(起手必 1 张,永不空),视觉证据归截图 tmp/ui-shots/t3/
+// (tmp/shot-t3-rack.mjs 构造空手牌)。
 // 断言口径:牌面文案断牌名(def.id/def.text),不断样式(样式归原型基线);
 // 例外:文末 reduced-motion 用例(#239 T4 验收门)钉计算样式——动效退场是行为
 // 契约不是视觉基线,delay/时长/不透明度只能从 getComputedStyle 取证。
 // #305:入场级联/挥出过渡的固定硬等待(1200/300ms)换几何落定轮询——两拍盒模型全同
 // 即视为落定;长按 700ms 是输入语义(越过 500ms 长按判定窗),全套件唯一保留的硬等待。
-// 另载:出牌窗灰置牌(#715)、锦囊架临时收起重钉四条(#1006,会话临时态/banner-only/
-// 选中态跨收起/呼吸钮;窗态可收起后本 spec 既有用例的「架可见」前提仍恒真——默认亮)。
+// 另载:出牌窗灰置牌(#715)、锦囊架临时收起重钉五条(会话临时态/banner-only/
+// 选中态跨收起/呼吸钮/窗在场压回合归属;窗态可收起后本 spec 既有用例的「架可见」
+// 前提仍恒真——各例均钉在我的回合或窗态在场)。
 import { test, expect } from "./fixtures";
 import {
   force,
@@ -226,19 +228,25 @@ test.describe("锦囊 T3:底部手牌架", () => {
     await expect(detail).toHaveCount(0);
   });
 
-  test("他人回合:架常驻可见(不收拢)", async ({ page }) => {
+  test("他人回合:架自动收起(回合交出即撤);回合回来自动弹回", async ({ page }) => {
     await quickStart(page);
-    // 停车坪封板(#421 时钟缝;#987):quickStart 出清落格决策后交还点在对局动途中
-    // (放行后的 Roll 相位挂着起摇倒计时)——不冻结则 1.8s 后 rollAndMove 到点回调
-    // 掀翻下面直写钉的 activeIndex(decisionOwner 弹回本端,断言连挂)。冻结钉住全部
-    // 到点回调,钉住的权威态真静止;页随测试灭,冻结随上下文销毁,无需解冻对称。
-    await freezeClock(page);
-    // #413 调试钩子种植(react-layout「活跃光效」同款口径):#398 单机统一后对局态只在
-    // 人类停点下行,「决策方=bot」只是自走瞬态——负载下等瞬态的 30s 观察窗与 quickStart
-    // 相加烧穿 60s 测试预算,断言根本没跑到(89/91 轮换实证:poll 30s 超时 + 重试 60s 超时)。
-    // 改把引擎直接钉进「他人回合」停车坪(activeIndex 换 bot 席位,相位维持人类停靠态;
-    // 直写引擎不经房间编排,driveBots 不会被触发,钉住的状态稳定)。断言的仍是同一件事:
-    // 决策方≠本端时架与手牌行常驻可见,只是观察从「抢拍自走瞬态」变「读钉住的权威态」。
+    // 停车坪先钉稳再动刀(pinRackIdle 同款两步,配方出处本文件;2026-11-07 轮实锤:
+    // 裸 freeze+force 会撞 quickStart 交还点的 mid-flight 行军——负载下 waitFxIdle
+    // 死等/拦检卷轴在场,断言连挂;先等自然停靠+钉 AwaitingDecision 空闲态即根除,
+    // float-skeleton #1006 例同款,无需冻结)。
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
+    // #413 调试钩子种植(直写引擎不经房间编排,driveBots 不会被触发,钉住的状态
+    // 稳定)。钉的是回合联动收沿的契约:回合交出(activeIndex 离席)→ 架自动收起,
+    // 手牌区整区卸载,bot 回合全图畅看;回合回来(亮沿)→ 自动弹回。
+    // 2026-11-07 前钉「他人回合架常驻可见」,该语义已随显隐改模翻转。
     await force(
       page,
       `
@@ -248,8 +256,12 @@ test.describe("锦囊 T3:底部手牌架", () => {
     );
     const s = await snap(page);
     expect(s.decisionOwner).not.toBe(0);
-    await expect(page.getByTestId(TESTIDS.jinnangRack)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.jinnangHand)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.jinnangToggle)).not.toHaveClass(/on/);
+    // 回合回来:我的回合亮沿自动弹回(架回场,钮亮态)
+    await force(page, `e.activeIndex = e.players.findIndex((p) => !p.isBot);`);
+    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.jinnangToggle)).toHaveClass(/on/);
   });
 });
 
@@ -446,14 +458,15 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   });
 });
 
-// ── 锦囊架临时收起重钉(#1006;spec=#1006,T1 集成尖)──
-// 会话内临时态 rackHidden(GameScreen 持有,默认亮):窗态不再强制亮架;收起不断
-// 决策通路(出牌窗=动作条、反应窗=横幅贴底下移);选中态跨收起保留;唯二复位点
-// (自回合开始/窗态开场弹回)钉在 react-float-skeleton #1006 例,本组钉收起态的
-// 四个面。新钉四条三问自答:守住什么=T1 改模后「窗内可收、收而不断、选中不丢、
-// 呼吸只挂窗态+收起」四契约(各例头注分答);墙钟≈每例 40-60s(共用两条停车坪
-// 配方,③ 的直种窗免 bot 链长跑);替代=无旧例(全新语义,原 #700 ③ 开关例在
-// react-float-skeleton 已按同 spec 重写,不在此重复)。
+// ── 锦囊架临时收起重钉(#1006 建组;显隐模型 2026-11-07 改「回合联动+决策保底」)──
+// 会话内临时态 rackHidden(GameScreen 持有,规则沿自动同步):亮=我的回合∪决策窗
+// 在场∪手动临时开,其余一律收;收起不断决策通路(出牌窗=动作条、反应窗=横幅贴底
+// 下移),选中态跨收起保留。本组钉收起态与窗态交织的五个面(亮沿/收沿的全沿契约
+// 钉在 react-float-skeleton #1006 例与本文件「他人回合」例);三问自答:守住什么=
+// 「窗内可收、收而不断、选中不丢、呼吸只挂窗态+收起、窗在场压回合归属」五契约
+// (各例头注分答);墙钟≈每例 40-60s(共用两条停车坪配方,③⑤ 的直种窗免 bot 链
+// 长跑);替代=无旧例(全新语义,原 #700 ③ 开关例在 react-float-skeleton 已按同
+// spec 重写,不在此重复)。
 test.describe("锦囊架临时收起重钉(#1006)", () => {
   const PLAYABLE = "求贤令"; // self 域可用牌(出牌窗选中态载体,#715 USABLE 同款口径)
 
@@ -542,7 +555,7 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     await toggle.click();
     await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
     await expect(breathe).toHaveCount(0);
-    // 窗态开场上升沿先弹回(复位点②,弹回语义归 react-float-skeleton #1006 例);
+    // 窗态开场亮沿先弹回(亮沿②,弹回语义归 react-float-skeleton #1006 例);
     // 窗态亮架不呼吸——呼吸=窗态∧收起,非「窗态」单条件
     await toggle.click();
     await force(page, `e.turnPhase = "AwaitingJinnang";`);
@@ -553,10 +566,45 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
     await expect(breathe).toHaveCount(1);
     await expect(toggle).toHaveClass(/breathe/);
-    // 窗落(无上升沿,收起保持):呼吸随窗态退场
+    // 窗落(仍在我的回合):窗落沿按规则重对齐——我的回合=亮,窗内手动收起被
+    // 抹平(手动只活沿间,回合联动语义);呼吸随窗态退场
     await force(page, `e.turnPhase = "AwaitingDecision";`);
-    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
     await expect(breathe).toHaveCount(0);
+  });
+
+  test("⑤他人回合反应窗:窗在场架必亮(决策保底不问回合);窗收架撤(决策毕不赖站)", async ({
+    page,
+  }) => {
+    await pinRackIdle(page);
+    // 直种反应窗(③ 同款形状,windowMs 30s 免与展示档赛跑):窗态开场亮沿,架随横幅回场
+    await force(
+      page,
+      `
+      e.jinnangSeq += 1;
+      e.pendingReaction = {
+        seq: e.jinnangSeq,
+        view: { kind: "jinnang", cardId: "火烧连营", userSeat: 1, targetSeats: [0], queriedBySeat: [0], windowMs: 30000 },
+        answers: [],
+        payload: { kind: "jinnang", userSeat: 1, cardId: "火烧连营", targets: [0] },
+      };
+      e.turnPhase = "AwaitingReaction";
+    `,
+    );
+    const banner = page.getByTestId(TESTIDS.reactionBanner);
+    await expect(banner).toBeVisible();
+    await expect(page.getByTestId(TESTIDS.jinnangHand)).toBeVisible();
+    // 回合交出(activeIndex 钉 bot):窗在场压住回合归属——决策保底不问回合,架仍亮
+    await force(page, `e.activeIndex = e.players.findIndex((p) => p.isBot);`);
+    await expect(page.getByTestId(TESTIDS.jinnangHand)).toBeVisible();
+    await expect(banner).toBeVisible();
+    // 窗收(应答/超时/直写同效——可见性只跟窗走):窗落且不在我的回合 → 架自动收
+    await force(page, `e.turnPhase = "AwaitingDecision";`);
+    await expect(banner).toHaveCount(0);
+    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
+    // 回合回来:我的回合亮沿弹回,循环闭合
+    await force(page, `e.activeIndex = e.players.findIndex((p) => !p.isBot);`);
+    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
   });
 });
 

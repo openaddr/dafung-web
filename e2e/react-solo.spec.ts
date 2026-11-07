@@ -34,6 +34,9 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
   const logsBefore = (await snap(page)).log.length;
   // 自动起摇:锦囊放行后 ~1s(e2e 加速后 ~250ms)引擎自动 rollAndMove,无须点任何按钮
   await waitMyRollDone(page, 0);
+  // 签面显隐随架走(回合联动:bot 回合手牌区整区卸载)——钉回我的停靠态再读数,
+  // 签面重挂初值取快照 lastRoll,揭示过的点数照常在(HandZone 水合口径)
+  await waitMyPause(page, 0, 90_000);
   await expect(page.getByTestId(TESTIDS.diceFace)).toHaveText(/[一二三四五六]/, {
     timeout: 15_000,
   });

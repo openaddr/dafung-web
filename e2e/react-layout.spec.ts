@@ -23,6 +23,18 @@ test.use({ viewport: { width: 844, height: 390 } });
 test.describe("全浮层骨架", () => {
   test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
     await quickStart(page);
+    // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载):等自然停靠再钉
+    // AwaitingDecision 空闲态(float-skeleton #1006 例同款配方),骨架断言才有
+    // 「架亮」的钉住前提。
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
     // 停靠盖板出清(#987):招贤/购地决策面板拦点击,actIfCan 有界清点(warlords ④ 同款)
     for (let i = 0; i < 10; i++) {
       if (!(await actIfCan(page))) break;
@@ -104,6 +116,16 @@ test.describe("全浮层骨架", () => {
 
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
+    // 停车钉我的回合(同上例:显隐回合联动,bot 回合手牌区整区卸载)
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
     const zone = page.getByTestId(TESTIDS.handZone);
     await expect(zone).toBeVisible();
     // 签面(testid dice-face 契约不变):文本 ∈ 签/待/一~六

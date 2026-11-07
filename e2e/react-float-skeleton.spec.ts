@@ -2,8 +2,8 @@
 // 避 safe-area,顶中让给知会横幅槽;#853 起「N 轮」chip 退役,顶中常驻件=回合
 // 胶囊);② 核心几何不变量(满编 8 席 @844×390 矮横屏:
 // 第 8 格下缘 ≤ 右下三圆钮上缘,全列零滚动——spec #697 ③ 的交付判据);③ 锦囊手牌开关
-// (#1006 重钉:会话内临时收起,唯二复位点=自回合开始/窗态开场弹回;localStorage
-// 持久偏好退役,记账/重进恢复断言随行删除);④ 设置弹层(音效开关接
+// (#1006 建组;显隐 2026-11-07 改「回合联动+决策保底」:亮=我的回合∪决策窗在场∪
+// 手动临时开;localStorage 持久偏好退役,记账/重进恢复断言随行删除);④ 设置弹层(音效开关接
 // AudioProvider、战报›入口降级、版本戳、回到主页弃局离屏)。断言全走 testid 单源 +
 // 调试钩子/快照,几何断言收进单次 evaluate。
 import { test, expect } from "./fixtures";
@@ -28,6 +28,17 @@ test.describe("顶部浮层几何(#700 ①)", () => {
   }) => {
     test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
     await quickStart(page);
+    // 停车钉我的回合(显隐回合联动后,bot 回合架自动收、锦囊钮亮态退):等自然停靠
+    // 再钉 AwaitingDecision 空闲态(#1006 例同款配方),「锦囊默认亮」才有钉住前提
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
     const geo = await page.evaluate(
       ({ overview, settings, capsule, buttons, toggle }) => {
         const rect = (id: string) => {
@@ -124,15 +135,17 @@ test.describe("核心几何不变量(#700 ②:满编 8 席全列零滚动)", () 
   });
 });
 
-test.describe("锦囊手牌开关(#1006 重钉:会话内临时收起,唯二复位点)", () => {
+test.describe("锦囊手牌开关(#1006 建组;显隐回合联动+决策保底)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
   // 新钉三问自答:守住什么=「收起是会话内临时态」全语义——收起即隐(手牌区整区
-  // 卸载,签面随之)、再点回亮、收起跨他人回合持续(复位点之间收着)、自回合开始
-  // (复位点①)与窗态开场(复位点②)两枚上升沿自动弹回;持久偏好退役后这是开关
-  // 的唯一契约。墙钟≈40s(单次 quickStart + 停车坪 force,无长链)。替代=原 #700 ③
-  // 「收起/localStorage 记账/重进恢复」单例(记账与重进两段断言随持久偏好退役删除)。
-  test("收起即隐/再点回亮;跨他人回合持续;我回合与窗态开场弹回(#1006)", async ({ page }) => {
+  // 卸载,签面随之)、再点回亮、收起跨他人回合持续(沿与沿之间手动态持续)、四枚
+  // 规则沿自动对齐:亮沿=自回合开始/窗态开场(决策保底,#1006 原保证),收沿=
+  // 回合交出/窗收且非我回合(决策毕架撤,2026-11-07 新增);持久偏好退役后这是
+  // 开关的唯一契约。墙钟≈40s(单次 quickStart + 停车坪 force,无长链)。替代=原
+  // #700 ③「收起/localStorage 记账/重进恢复」单例(记账与重进两段断言随持久偏好
+  // 退役删除)。
+  test("收起即隐/再点回亮;跨他人回合持续;亮收四沿自动对齐(回合联动+决策保底)", async ({ page }) => {
     test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
     await quickStart(page);
     // 停车坪(pinRackIdle 同款钉法,配方出处 react-jinnang-rack):等人类停稳,钉进
@@ -161,24 +174,33 @@ test.describe("锦囊手牌开关(#1006 重钉:会话内临时收起,唯二复�
     await toggle.click();
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
-    // 收起跨他人回合持续(复位点之间收着):钉进 bot 席位(#413 停车坪口径,直写
-    // 引擎不经房间编排,驱动链不触发,钉住的状态稳定)仍收着
+    // 收起跨他人回合持续(沿与沿之间手动态持续):钉进 bot 席位(#413 停车坪口径,
+    // 直写引擎不经房间编排,驱动链不触发,钉住的状态稳定)仍收着
     await toggle.click();
     await expect(zone).toHaveCount(0);
     await force(page, `e.activeIndex = e.players.findIndex((p) => p.isBot);`);
     await expect(zone).toHaveCount(0);
     await expect(toggle).not.toHaveClass(/on/);
-    // 复位点①:自回合开始上升沿(activeIndex 回自席,false→true)自动弹回
+    // 亮沿①:自回合开始上升沿(activeIndex 回自席,false→true)自动弹回
     await force(page, `e.activeIndex = e.players.findIndex((p) => !p.isBot);`);
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
-    // 复位点②:窗态开场上升沿(出牌窗 junshiUp false→true)自动弹回
+    // 亮沿②:窗态开场上升沿(出牌窗 junshiUp false→true)自动弹回
     await toggle.click();
     await expect(zone).toHaveCount(0);
     await force(page, `e.turnPhase = "AwaitingJinnang";`);
     await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
+    // 收沿(回合联动新增):窗落且回合交出(一拍直写,两布尔同落)→ 架自动收,
+    // 决策毕架撤,不再要求玩家每轮手动收
+    await force(
+      page,
+      `e.turnPhase = "AwaitingDecision"; e.activeIndex = e.players.findIndex((p) => p.isBot);`,
+    );
+    await expect(page.getByTestId(TESTIDS.actionbar)).toHaveCount(0);
+    await expect(zone).toHaveCount(0);
+    await expect(toggle).not.toHaveClass(/on/);
   });
 });
 
