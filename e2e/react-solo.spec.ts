@@ -24,6 +24,8 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
+// 真实段(脊柱②,ADR-0058):本例为回合自转链脊柱例——真 UI 开局全链→自动起摇→
+// 签面/战报/推进全真,永不深种。以下其余例各带自己的真实段声明。
 test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
   page,
 }) => {
@@ -55,6 +57,10 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
 // freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
 // 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
 
+// 真实段(ADR-0058):冻结后真点「买地」→真卷轴结算扣款入册即被测环。force 判词:
+// 钉 AwaitingDecision+人类行动方(引擎无「钉相位」公共命令,停靠点随骰流);无主城
+// 落点直选(停靠随骰流漂,断言面需确定无主城);现金注资(购价随地图再平衡,断言面
+// 需确定可购——本例测购地机制不测购地门槛)。
 test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -115,6 +121,9 @@ test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
   }
 });
 
+// 真实段(ADR-0058):冻结后真点「扩军」→真免费升级结算即被测环。force 判词:钉
+// 相位+行动方(同上,无「钉相位」公共命令);己方城种植(升级前提=名下有城,开局
+// 初期自然到不了,断言面需确定己城邻格形态)。
 test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
   await quickStart(page);
   await freezeClock(page);
@@ -178,6 +187,9 @@ test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)"
 // X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
 // bot 回合的等待反馈以 WaitingBar 挂载为断言锚(#732 起宿主在知会槽,#762 起与常驻
 // 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
+// 真实段(ADR-0058):「运筹中」WaitingBar 对决策方=bot 的渲染响应链即被测环。force
+// 判词:钉行动方为 bot(自然停靠随骰流,断言面需确定的 bot 行动方;sync 走控制器
+// 公共重灌,派生量 interactive 随之落 store)。
 test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
   // #987 定 seed 49(实测停靠干净无演出在播)——随机 seed 下
   // quickStart 归还时可能有签面幕在收(收幕走房间时钟),先冻结会把玄墨幕钉死屏上、
@@ -207,6 +219,11 @@ test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…
   }
 });
 
+// 真实段(ADR-0058):现金注资后的整局真实驱动至胜利屏(掷骰/决策清理/endTurn/
+// checkVictory 全自然链)即被测环,途中不变量巡检为顺带取证。force 判词:身价注资
+// (e.players[0].cash 直写——「现金推过目标身价」无公共通路,胜利判定本身走真链);
+// 循环内 resolveTreasureOwner skip 走 e.submitCommand=引擎公共命令(交涉托管同语义,
+// 非红牌)。
 test(
   "加速到胜利:现金推高后掷骰,触发身价达标胜利屏(驱动途顺带不变量巡检)",
   { tag: "@slow" },
