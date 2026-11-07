@@ -1,0 +1,44 @@
+/* 卡面画材与基座单源(C5 瘦身收口):.jinnang-card / .hface 曾两文件同值镜像
+   (各文件头注自认「改一处必改另一处」,#556 改色已被迫双改一次)。经 @import 由
+   jinnang-card.css / hero-card.css 引入,消费面(含 manual EncounterCardFace 复用
+   .jinnang-card 类)自动覆盖。
+   画材色 = 物理宣纸器物色(#511 B 案,豁免登记:随器物不随主题,玄墨鎏金后 theme
+   纸系 token 已整阶反转成深底阶,故落本地变量不升 theme token)。
+   基座 = 3:4 竖笺(15em×20em)+ 漆金描边 + 宣纸渐变 + 双影 + isolate 层叠上下文
+   (标签章不得越过叠在本牌之上的邻牌——手牌架压缩布局会叠牌,无 isolate 章会
+   穿模,2026-09-25 走查)+ --tilt 微旋 + 交互态过渡。
+   两卡面各自的尺寸机制(font-size 档 / --u 档)与装配差量留在
+   jinnang-card.css / hero-card.css。 */
+
+.jinnang-card,
+.hface {
+  --card-paper: #ece1c6; /* #556 双亮区降半档:纸底亮端 #f1e7d0→#ece1c6 */
+  --card-paper-deep: #e3d4b2;
+  --card-xin: #f2e8d2; /* #556:画心 #f9f2e0→#f2e8d2(墨字 ≈12:1 可读红线不动) */
+  --card-ink: #2f2718;
+  --card-ink-dim: #6b5c40;
+  position: relative;
+  isolation: isolate;
+  width: 15em;
+  height: 20em;
+  flex: 0 0 auto;
+  /* 漆金描边 + 纸上墨色发丝衬里(B 案:墨框退役,框归漆金;衬里改纸上淡墨) */
+  border: 0.2em solid color-mix(in srgb, var(--color-lacquer-gold) 38%, transparent);
+  border-radius: 0.9em;
+  background: linear-gradient(168deg, var(--card-paper) 0%, var(--card-paper-deep) 100%);
+  box-shadow:
+    0 0.35em 0.8em rgba(0, 0, 0, 0.4),
+    inset 0 0 0 0.15em color-mix(in srgb, var(--card-ink) 16%, transparent);
+  display: flex;
+  flex-direction: column;
+  /* 出牌阶段/反应窗牌面微旋(#234 P2-E TablePile 质感,±1.5°):rotate 独立属性,
+     与交互态的 transform(sel 上浮放大 / off 下沉)正交叠加;--tilt 由消费方注入
+     (jinnang-face-data.ts rackTilt,确定性伪随机),常态牌不传=0deg。 */
+  rotate: var(--tilt, 0deg);
+  /* 交互态(sel 上浮放大 / off 下沉置灰)的状态过渡;上浮用 --ease-out,
+     1.6× 放大不宜回弹过冲(--ease-out-back 会甩框) */
+  transition:
+    transform var(--dur-med) var(--ease-out),
+    box-shadow var(--dur-med) var(--ease-out),
+    filter var(--dur-med) var(--ease-out);
+}

@@ -14,6 +14,7 @@ import type { MapEntry, MapSource } from "@core/map-source";
 import type { MapData } from "@core/board-loader";
 import { formatMoney } from "@core/money";
 import { getMapSource } from "@app/map-sources";
+import { useMapCatalog } from "./useMapCatalog";
 import { Dialog, DialogContent } from "@app/components/ui/dialog";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { TID } from "./testids";
@@ -161,38 +162,26 @@ export function MapSelectPanel({
   onConfirm,
   onCancel,
 }: MapSelectPanelProps) {
-  const [entries, setEntries] = useState<MapEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  // 清单拉取单源(C6):失败态显式呈现(下方 error 分支「加载失败+重试」,零静默兜底)
+  const { entries, error, reload } = useMapCatalog(mapSource);
   // 临时选中态:确认后才回传(与旧二级屏行为一致,取消不改变外层选择)
   const [picked, setPicked] = useState<string | null>(currentMapId);
   // 预览数据:点选时异步 loadMapData,一次只保留一张
   const [preview, setPreview] = useState<{ id: string; data: MapData } | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
-
-  // 挂载时拉清单一次(fetch 内置清单,可能失败需兜底提示);
-  // S-4:清单拉取收敛为 reload,失败态可点「重试」重新拉取
-  const [reloadKey, setReloadKey] = useState(0);
-  useEffect(() => {
-    let alive = true;
-    setEntries(null);
-    setError(null);
-    mapSource
-      .listMaps()
-      .then((list) => alive && setEntries(list))
-      .catch((err) => alive && setError((err as Error).message));
-    return () => {
-      alive = false;
-    };
-  }, [mapSource, reloadKey]);
+  // 预览数据加载失败(点选/预选拉 loadMapData 一路):与清单错误同位显示,重试一并清
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const displayError = error ?? previewError;
 
   const pick = (entry: MapEntry) => {
     setPicked(entry.id);
     setPreviewLoading(true);
     setPreview(null);
+    setPreviewError(null);
     mapSource
       .loadMapData(entry.id)
       .then((data) => setPreview({ id: entry.id, data }))
-      .catch((err) => setError((err as Error).message))
+      .catch((err) => setPreviewError((err as Error).message))
       .finally(() => setPreviewLoading(false));
   };
 
@@ -207,7 +196,7 @@ export function MapSelectPanel({
     mapSource
       .loadMapData(picked)
       .then((data) => alive && setPreview({ id: picked, data }))
-      .catch((err) => alive && setError((err as Error).message))
+      .catch((err) => alive && setPreviewError((err as Error).message))
       .finally(() => alive && setPreviewLoading(false));
     return () => {
       alive = false;
@@ -255,12 +244,15 @@ export function MapSelectPanel({
             <InkBreathe title="载入地图清单" />
           </div>
         )}
-        {error && (
+        {displayError && (
           <div className="flex items-center gap-3 py-2">
-            <p className="text-danger text-sm">加载失败:{error}</p>
-            {/* S-4:失败态提供重试(重新 listMaps) */}
+            <p className="text-danger text-sm">加载失败:{displayError}</p>
+            {/* S-4:失败态提供重试(清预览错误 + 重新 listMaps) */}
             <button
-              onClick={() => setReloadKey((k) => k + 1)}
+              onClick={() => {
+                setPreviewError(null);
+                reload();
+              }}
               className="note-btn rounded-[3px] px-4 min-h-[40px] font-wenkai text-paper cursor-pointer"
             >
               重试

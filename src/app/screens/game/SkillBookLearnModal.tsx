@@ -4,7 +4,7 @@
 // 的二段式不可逆语境不同权)。壳走 ui/dialog 底件(PileShell 内建,焦点陷阱/Esc/
 // 点外关闭白拿);挂载不夺焦 = PileShell 既有口径。可学者序 = 槽位序
 // (core skillBookLearners 单源,bot 贪心取首同源)。
-import { PileShell } from "./PileModal";
+import { PileShell, PileZone } from "./PileModal";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
 import type { HeroSlot } from "@core/roster";
 import { heroById } from "@core/heroes";
@@ -40,10 +40,9 @@ export function SkillBookLearnModal({
       ariaLabel={`用书学技 · ${bookName}`}
       onClose={onClose}
     >
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
+      <PileZone>
         可学者 · {learners.length} 席<small>(点将习得,书随用随耗)</small>
-      </div>
+      </PileZone>
       <div className="pile-hero-grid">
         {learners.map((slot) => (
           <button

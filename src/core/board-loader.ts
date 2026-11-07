@@ -1,7 +1,7 @@
 // 地图加载器:把 MapData(JSON)校验并构建为运行时对象(Board + catalog + 属性)。
 // 主路 = tiles 数组顺序闭合环。校验失败抛可读错误。
 // 地图 schema 类型随域走(#326 types.ts 解散,ADR-0019):地图 JSON 契约由本文件拥有
-// (loadMap 是它唯一的解释者,编辑器/导入导出消费同一形状)。
+// (loadMap 是它唯一的解释者)。
 import { createBoard, TILE_EVENTS } from "./board";
 import type { Board, BoardPos, TileDef, TileType } from "./board";
 import type { CityTier, PropertyDef } from "./economy";
@@ -9,7 +9,7 @@ import { CITY_TIERS } from "./economy";
 import { MIN_TILE_DIST } from "./constants";
 import { findTooClosePairs } from "./geometry";
 
-// ── 地图 JSON schema(自定义地图 / 编辑器 / 导入导出)──
+// ── 地图 JSON schema(内置图与目录装载)──
 export interface MapData {
   version: number;
   targetNetWorth: number;
@@ -140,8 +140,9 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
     };
   });
 
-  // 坐标不重叠:最小间距(含完全重合),防止城池 UI 互相压盖。阈值与编辑器共用 MIN_TILE_DIST。
-  // lenient(编辑器实时预览用)跳过此项——拖拽中途允许暂时靠近,由编辑器红圈高亮提示。
+  // 坐标不重叠:最小间距(含完全重合),防止城池 UI 互相压盖。阈值 = MIN_TILE_DIST。
+  // lenient 宽松档跳过此项——历史上服务已退役的编辑器实时预览,当前唯一消费者是
+  // 自身测试(产品零消费;去留待裁决票单独拍)。
   if (!opts?.lenient) {
     const tooClose = findTooClosePairs(positions, MIN_TILE_DIST);
     if (tooClose.length) {

@@ -310,8 +310,8 @@ export const VictoryScreen = memo(function VictoryScreen(props: VictoryScreenPro
         </div>
         <div className="victory-step-btn mt-6">
           {showButton && (
-            /* ADR-0014:对局日志终局在此一键导出(完整 jsonl,复盘/重放用);
-               与「再战一局」同挂 showButton 延时,防演出高潮期误触。 */
+            /* 「再战一局」与胜利面板同挂 showButton 延时,防演出高潮期误触。
+               (对局日志导出钮已随导出通路退役,日志走主页「性能诊断」诊断包。) */
             <div className="flex items-center justify-center gap-3">
               <BannerButton primary testid={T.victoryRestart} onClick={onRestart}>
                 再战一局

@@ -53,7 +53,7 @@ export function App() {
 
   // 正式开局:加载地图 → 构造单机控制器(进程内房间编排,#398:引擎在房间 startGame
   // 同步段建好并驱动 bot 选都到轮到人类,不再有本地 doDraftRoll/aiSetupStep 直驱)→
-  // 进 Game 屏。单机热座:guohao 预设在座位表首项,bot 国号由开局编排分配。
+  // 进 Game 屏。单机:guohao 预设在座位表首项,bot 国号由开局编排分配。
   const handleStart = useCallback(
     async (config: SetupConfig) => {
       try {

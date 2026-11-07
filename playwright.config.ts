@@ -80,8 +80,8 @@ export default defineConfig({
         // Windows 用系统 Edge(免下载自带浏览器);Linux/macOS 回退 playwright 自带
         // chromium(~/.cache/ms-playwright 缓存,首次需 npx playwright install chromium)。
         ...(process.platform === "win32" && { channel: "msedge" }),
-        // headless 无 GPU,WebGL 不可用会导致 3D 骰子 fallback。
-        // 强制 swiftshader 软件渲染 WebGL,使 e2e 跑真实 3D 路径(与实机一致)。
+        // headless 软渲:强制 swiftshader 保渲染环境稳定可复现(旧 3D 骰面时代的
+        // 理由已退役;删旗属渲染环境行为变化,去留待裁决票单独拍)。
         launchOptions: {
           args: ["--use-gl=swiftshader", "--enable-unsafe-swiftshader"],
         },

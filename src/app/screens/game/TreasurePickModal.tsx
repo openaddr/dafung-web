@@ -14,7 +14,7 @@
 // 双副本 = 重复 testid(strict mode 定位炸),故任一档只在场一份。
 import { useState, type ReactNode } from "react";
 import { useIsShortLandscape } from "@app/hooks/use-media-query";
-import { PileShell } from "./PileModal";
+import { PileShell, PileZone } from "./PileModal";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import type { SnapshotTreasure } from "@app/store/gameStore";
@@ -138,10 +138,7 @@ export function TreasurePickModal({
       {/* 语境区分档在场(#833):高档在体部顶(变卖进度 sticky 钉视口顶,点选滚卡
           恒在场);矮档不渲染(footer 副本接管),体部首帧让位给整排卡+价签 */}
       {!shortStage && context}
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
-        待选 · {treasures.length} 件
-      </div>
+      <PileZone>待选 · {treasures.length} 件</PileZone>
       <div className="pile-grid">
         {treasures.map((t) => {
           const sel = t.id === pickedId;

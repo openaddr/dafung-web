@@ -26,29 +26,13 @@
   z-index: 45;
   pointer-events: none;
   transform: translateY(-50%); /* top=胶囊竖直中线,签卡半高上提对齐 */
-  animation: dice-overlay-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 入场渐显,DiceOverlay 内联注入 */
-}
-@keyframes dice-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  animation: fx-fade-in var(--dur-med) var(--ease-out); /* 时长=DICE.readyMs 入场渐显,DiceOverlay 内联注入 */
 }
 
 /* 渐隐退场:覆盖入场动画(display:none 硬切的替代);时长=DICE.fadeOutMs,
    DiceOverlay 内联注入(随通道缩放,清理窗与动画全长同源单值)。退场缓动归 --ease-in。 */
 .dice-overlay.dice-overlay-out {
-  animation: dice-overlay-out var(--dur-med) var(--ease-in) forwards;
-}
-@keyframes dice-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  animation: fx-fade-out var(--dur-med) var(--ease-in) forwards;
 }
 
 /* 掷骰小签卡(#927,ADR-0043 缩小制式:64px 字/90px 卡,旧全屏签面 96px 字/132px 卡
@@ -517,26 +501,10 @@
      中心档 0.76(#746 条目 6 幕布穿缝:双签中缝下方出牌窗亮卡脸不再透出,外缘不动
      保棋盘语境) */
   background: radial-gradient(ellipse at center, rgba(24, 18, 9, 0.76), rgba(10, 7, 3, 0.84));
-  animation: duel-overlay-in var(--dur-med) var(--ease-out);
-}
-@keyframes duel-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  animation: fx-fade-in var(--dur-med) var(--ease-out);
 }
 .duel-overlay.duel-overlay-out {
-  animation: duel-overlay-out var(--dur-med) var(--ease-in) forwards;
-}
-@keyframes duel-overlay-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
+  animation: fx-fade-out var(--dur-med) var(--ease-in) forwards;
 }
 
 /* 签面横排(N=2 并排,中缝让位「拼」印;N>2 横排列开不炸)。width:max-content

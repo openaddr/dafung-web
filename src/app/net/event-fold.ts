@@ -44,7 +44,7 @@
 //                 jinnangAnnounced → 出牌扣账(手牌数-1/弃堆+1/标签占名额);
 //                 peekApplied → 零折(窥探即时一次性 #575,无任何客户端状态);
 //                 jinnangVoided → 识破牌扣账
-//                 (反应牌 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
+//                 (反应锦囊 id 出自同批应答,按座位配对;shareSeat 不参与折叠);
 //                 reactionOpened → pendingReaction
 //                 置窗(view/seq 派生,windowMs 单源常量表);reactionAnswered → 应答入账
 //                 + 应答齐闭窗;行军窗闭窗即拦检牌扣账(引擎胜负两路均在结算点扣账,与
@@ -202,7 +202,7 @@ interface FoldCtx {
    *  同型,各自实例化)。 */
   lastAnnounce: AnnounceCursor | null;
   /** 批内刚闭窗的反应窗(应答齐即结算):jinnangVoided 的识破牌 id 出自应答
-   *  (jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应牌)。 */
+   *  (jinnangVoided.cardId=被拆的宣布牌,非识破者打出的反应锦囊)。 */
   closedWindow: { view: ReactionView; answers: ReactionAnswer[] } | null;
   /** 闭窗内已消费的应答(AOE 多张识破逐份对账用,对象身份去重)。 */
   consumedAnswers: Set<ReactionAnswer>;
@@ -297,7 +297,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       case "turnStarted": {
         const active = foldTarget(engine, ev); // subject=新活跃玩家
         engine.activeIndex = seatNo(engine, active);
-        engine.turnPhase = "Roll"; // endTurn 收尾置 Roll;锦囊卷轴挂起(AwaitingJinnang)不可知,水合纠正
+        engine.turnPhase = "Roll"; // endTurn 收尾置 Roll;出牌阶段挂起(AwaitingJinnang)不可知,水合纠正
         engine.pendingLand = null; // endTurn 回合收口清场
         engine.lastLandOutcome = null;
         engine.treasureVisitor = null; // 交涉窗口必在本回合内收口(成交/不交易/破产清算三路)
@@ -578,7 +578,7 @@ export function foldEventBatch(engine: GameEngine, events: readonly GameEvent[])
       }
       case "jinnangVoided": {
         const responder = foldTarget(engine, ev); // 识破者
-        // 扣账锚定:被消耗的是识破者打出的反应牌(id 出自应答),jinnangVoided.cardId=
+        // 扣账锚定:被消耗的是识破者打出的反应锦囊(id 出自应答),jinnangVoided.cardId=
         // 被拆的宣布牌(已随宣布扣账)。份对账:shareSeat 明传按份配对(AOE),缺席取
         // 座位序第一张未消费的生效应答(单份/连环计全作废)。
         const closed = ctx.closedWindow;

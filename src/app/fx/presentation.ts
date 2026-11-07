@@ -123,7 +123,7 @@ export type PresentationEvent =
    *  铭牌墨渍晕开 → 铜钱撒落;bankrupt 长锣/rain 雨床/coinsBox 入匣三音由 sink
    *  按拍发起(x/y=破产者落点,提取期解析,锚墨渍与撒币现场)。 */
   | { kind: "bankruptCeremony"; playerId: string; x: number; y: number }
-  /** 出牌指示线(#281 P2-E,ADR-0010 表现事件流的 UI 侧新事件类型):锦囊/反应牌
+  /** 出牌指示线(#281 P2-E,ADR-0010 表现事件流的 UI 侧新事件类型):锦囊/反应锦囊
    *  生效点由事件批直译(#385 event-extract:jinnangAnnounced/jinnangVoided/
    *  reactionAnswered → 本事件),按「使用者 → 各目标」展开为若干段墨线端点
    *  (棋盘逻辑坐标,提取期按当时牌局状态解析)。播放为同步下发、

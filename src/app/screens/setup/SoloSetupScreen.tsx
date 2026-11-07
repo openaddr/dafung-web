@@ -1,5 +1,5 @@
 // 单机模式配置页(信息架构重构):承接原 SetupScreen 的对局配置部分——
-// 诸侯数/目标身价/AI 难度/国号字盘/座位表 + 起兵。模式入口已上移到首页
+// 诸侯数/目标身价/机遇开关/国号字盘/座位表 + 起兵。模式入口已上移到首页
 // (HomeScreen),此页只关心「怎么开这一局」,顶部回显当前选中地图名
 // (选图在首页完成,记忆仍走 localStorage)。规则与旧实现保持一致:
 // - 单机模式:2–8 诸侯,仅首行为真人,其余全部电脑(bot 国号由引擎在 Guohao 阶段分配)
@@ -314,8 +314,8 @@ export function SoloSetupScreen({
 
   // 诸侯数 / 目标身价 / 机遇折叠:X10(#29)原生 select 全退场——小范围数值走 stepper,
   // 受限档位走分段选择器(role=group+aria-pressed,选中态对齐字盘样式)。
-  // #559:诸侯数与 AI 难度(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高,
-  // 「起兵」CTA 入 1280×800 折叠线;目标身价三档双行签占宽,独占一行保可读。
+  // #559:诸侯数与机遇开关(同为窄控件)并排一行 grid-cols-2 省 ~76px 纵高;
+  // 目标身价三档双行签占宽,独占一行保可读。
   // #751/S1:矮横屏档三档签改单行(横排名+金额)省 12px 级块高,语义零增减。
   const controls = (
     <div className="su-controls flex flex-col gap-2 font-deco text-sm text-paper mb-3">
@@ -392,6 +392,31 @@ export function SoloSetupScreen({
     </div>
   );
 
+  // 当前地图行(C10 收口):矮横屏/桌面两档曾逐字双抄——回显 + 内嵌「更换」就地唤起
+  // 选图面板(S-3),两档同件。
+  const mapRow = (
+    <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
+      <span>当前地图:</span>
+      <span data-testid={TID.currentMapName} className="text-paper">
+        {mapName}
+      </span>
+      <button
+        type="button"
+        onClick={() => setShowMapSelect(true)}
+        className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
+      >
+        更换
+      </button>
+    </div>
+  );
+  // 错误页脚(C10 收口):两档同件,仅间距档差(mt-2/mt-3 由调用点注入)。
+  const hintFooter = (mt: string) =>
+    hint != null ? (
+      <div data-testid={TID.hint} className={`font-deco text-xs text-danger ${mt}`}>
+        {hint}
+      </div>
+    ) : null;
+
   return (
     // E1(#13):根节点只做滚动容器(flex-col overflow-y-auto),内层 m-auto 居中——
     // 8 诸侯时座位表+字盘撑高卡片,666×360 横屏下起兵按钮可滚达,不再被截断。
@@ -436,20 +461,8 @@ export function SoloSetupScreen({
           <div className="su-card scroll-anim-unroll note-card w-[min(780px,94vw)] rounded-[8px] px-5 py-4 mt-3">
             <div className="su-grid">
               <div className="su-col su-col-left">
-                {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-                <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
-                  <span>当前地图:</span>
-                  <span data-testid={TID.currentMapName} className="text-paper">
-                    {mapName}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => setShowMapSelect(true)}
-                    className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
-                  >
-                    更换
-                  </button>
-                </div>
+                {/* 顶部回显当前地图(mapRow 单源,C10);S-3:「更换」就地唤起选图面板 */}
+                {mapRow}
 
                 {/* 诸侯数 / 目标身价 / 机遇折叠(块与桌面档同一份);矮横屏档间距收紧走 setup.css */}
                 {controls}
@@ -474,31 +487,15 @@ export function SoloSetupScreen({
                 {seatsTable(false)}
                 {actions}
                 {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
-                {hint != null && (
-                  <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-2">
-                    {hint}
-                  </div>
-                )}
+                {hintFooter("mt-2")}
               </div>
             </div>
           </div>
         ) : (
           /* ── 桌面档:信息架构零变化(竖屏同构,根容器滚动兜底 E1 #13)── */
           <div className="su-card scroll-anim-unroll note-card w-[min(560px,92vw)] rounded-[8px] px-5 py-4 mt-3">
-            {/* 顶部回显当前地图;S-3:内嵌「更换」按钮就地唤起选图面板,不必回首页 */}
-            <div className="su-map-row font-wenkai text-sm text-paper-dim mb-1 flex items-center gap-2">
-              <span>当前地图:</span>
-              <span data-testid={TID.currentMapName} className="text-paper">
-                {mapName}
-              </span>
-              <button
-                type="button"
-                onClick={() => setShowMapSelect(true)}
-                className="note-btn rounded-[3px] px-2.5 min-h-[40px] font-wenkai text-xs cursor-pointer transition-colors"
-              >
-                更换
-              </button>
-            </div>
+            {/* 顶部回显当前地图(mapRow 单源,C10);S-3:「更换」就地唤起选图面板 */}
+            {mapRow}
             {/* S-8:原页脚装饰文案上移为卡片副标题(页脚只留错误提示) */}
             <p className="su-subtitle font-wenkai text-xs text-paper-dim mb-4 border-b border-paper/20 pb-3">
               立国号、定诸侯,起兵逐鹿天下。
@@ -524,11 +521,7 @@ export function SoloSetupScreen({
             {actions}
 
             {/* S-8:页脚只在出错时出现(e2e 无 setup-hint 常驻断言,testid 保留于错误态) */}
-            {hint != null && (
-              <div data-testid={TID.hint} className="font-deco text-xs text-danger mt-3">
-                {hint}
-              </div>
-            )}
+            {hintFooter("mt-3")}
           </div>
         )}
 

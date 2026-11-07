@@ -6,10 +6,11 @@
 // 交互语义口径:滑动 = 原生 overflow-x + scroll-snap(平台滚动行为,非手搓 swipe);
 // 条目 = 裸钮 aria-pressed 切换语义(同 MapSelectPanel S-9 / SegmentedSelect 先例,
 // 组件收口附表「保留现实现」同族:非弹层/下拉/确认框,不涉 shadcn 底件)。
-import { useCallback, useEffect, useLayoutEffect, useState } from "react";
-import type { MapEntry, MapSource } from "@core/map-source";
+import { useCallback, useLayoutEffect, useState } from "react";
+import type { MapSource } from "@core/map-source";
 import { formatMoney } from "@core/money";
 import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
+import { useMapCatalog } from "@app/screens/setup/useMapCatalog";
 import { HOME_TID } from "./testids";
 
 export interface MapStripProps {
@@ -30,10 +31,8 @@ export interface MapStripProps {
  *  反之(基准排就溢出)维持 280px 封顶。 */
 
 export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) {
-  const [entries, setEntries] = useState<MapEntry[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // S-4 同口径:清单拉取失败给「重试」(显式向用户报错,非静默兜底)
-  const [reloadKey, setReloadKey] = useState(0);
+  // 清单拉取单源(C6):失败态显式呈现(下方 error 分支「加载失败+重试」,零静默兜底)
+  const { entries, error, reload } = useMapCatalog(mapSource);
 
   // 条带容器宽实测(#843):max-w 解除判据(条目数×168≤容器宽)的宽度侧,不复制
   // min(600px,92vw) 算式——safe-area/未来布局调整自动跟随。元素经 callback ref 进
@@ -51,19 +50,6 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
     return () => ro.disconnect();
   }, [stripEl]);
 
-  useEffect(() => {
-    let alive = true;
-    setEntries(null);
-    setError(null);
-    mapSource.listMaps().then(
-      (list) => alive && setEntries(list),
-      (err: Error) => alive && setError(err.message),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [mapSource, reloadKey]);
-
   // 选中卡挂载即滚入可视区:localStorage 记忆的图可能排在条带中后段,不滚则选中态
   // 藏在屏外,违背「选中态清晰」。稳定 callback ref(恒 identity)只在按钮挂载时
   // 触发——换选点选的目标必在可视区内,nearest 即原位 no-op,不劫持用户滚动位置。
@@ -76,7 +62,7 @@ export function MapStrip({ mapSource, selectedMapId, onSelect }: MapStripProps) 
       <div data-testid={HOME_TID.mapStrip} className="flex items-center gap-3 py-2">
         <p className="font-wenkai text-danger text-sm">加载失败:{error}</p>
         <button
-          onClick={() => setReloadKey((k) => k + 1)}
+          onClick={reload}
           className="note-btn min-h-[40px] cursor-pointer rounded-[3px] px-4 font-wenkai text-paper"
         >
           重试

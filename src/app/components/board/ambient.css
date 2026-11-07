@@ -42,30 +42,14 @@
 /* 都城光晕(原 Tile 内 bv-pulse-glow 脉动原样):渐变亮心被城台形 mask 挖孔,
    观感=原「亮心被城台遮挡、只露外圈」。 */
 .bv-amb-capital-glow {
-  animation: bv-pulse-glow var(--dur-ambient) var(--ease-sine) infinite;
-}
-@keyframes bv-pulse-glow {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
-  }
+  --breath-hi: 0.85;
+  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 
 /* 自机微光呼吸(原 board.css bv-mine-halo 原样) */
 .bv-amb-mine-halo {
-  animation: bv-mine-halo var(--dur-ambient) var(--ease-sine) infinite;
-}
-@keyframes bv-mine-halo {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 0.85;
-  }
+  --breath-hi: 0.85;
+  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 
 /* 旌旗摇曳(原 board.css bv-flag-sway 原样;origin=旗杆底,锚盒内 (10,40)) */
@@ -114,16 +98,9 @@
   overflow: visible;
 }
 .bv-amb-select-crown {
-  animation: bv-select-pulse var(--dur-ambient) var(--ease-sine) infinite;
-}
-@keyframes bv-select-pulse {
-  0%,
-  100% {
-    opacity: 0.4;
-  }
-  50% {
-    opacity: 0.95;
-  }
+  --breath-lo: 0.4;
+  --breath-hi: 0.95;
+  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 
 /* ── M-9 降耗:reduced-motion 全量静止(语义与原 SVG 版一致,选择器随层更新):

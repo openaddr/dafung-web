@@ -49,7 +49,7 @@ export interface ChoiceOption {
   /** 耗竭选项专属(#130):结算目标房产与处置方式。 */
   holdingPropertyId?: string;
   exhaustionKind?: "downgrade" | "lose";
-  /** 锦囊卷轴专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
+  /** 出牌阶段专属(#122/T2):牌名/标签/牌面文案随选项派生透出(同 encounterId 通道口径);
    *  id 即 cardId(pass=今不用)。 */
   cardText?: string;
   cardTags?: string[];

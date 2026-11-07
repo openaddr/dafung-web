@@ -22,33 +22,28 @@
 const RULES: Array<{ file: string; allow: RegExp[] }> = [
   {
     file: "src/app/components/board/board.css",
-    // bv-march-ring-rotor/breathe(架构体检 B 批):行军金环原单 keyframes 拆成
-    // HTML 转子双动画(rotate+opacity),同一阶段性环、合成器通路,取舍同 ADR-0039。
-    allow: [/^bv-march-ring-rotor$/, /^bv-march-ring-breathe$/],
+    // bv-march-ring-rotor(架构体检 B 批)+ fx-breathe(C4 收口单源 motion.css):
+    // 行军金环原单 keyframes 拆成 HTML 转子双动画(rotate+opacity),同一阶段性环、
+    // 合成器通路,取舍同 ADR-0039。
+    allow: [/^bv-march-ring-rotor$/, /^fx-breathe$/],
   },
   {
     file: "src/app/components/board/ambient.css",
     // bv-select-pulse(架构体检 B 批):选都候选脉冲自 board.css 迁层(金盘+描边
-    // 金环双通道呼吸出底板进合成层),同一阶段性口径(选都期存活),取舍同 ADR-0039。
-    allow: [
-      /^bv-pulse-glow$/,
-      /^bv-mine-halo$/,
-      /^bv-flag-sway$/,
-      /^bv-token-active-breath$/,
-      /^bv-select-pulse$/,
-    ],
+    // 金环双通道呼吸出底板进合成层),同一阶段性口径(选都期存活),取舍同 ADR-0039;
+    // 呼吸类 C4 起统一走 fx-breathe(motion.css 单源,本文件白名单随之并名)。
+    allow: [/^bv-flag-sway$/, /^bv-token-active-breath$/, /^fx-breathe$/],
   },
   {
     file: "src/app/screens/game/layout.css",
     allow: [
-      /^waiting-dots-breathe$/,
       /^war-dot-breathe$/,
-      /^seat-glow$/,
       /^sign-await-breathe$/,
       /^gbtn-breathe$/, // 锦囊钮呼吸金光(#1006):窗态+架收起态的常驻呼吸,HTML 层按钮小面积辉光
       /^seat-selglow$/,
       /^rotate-hint-turn$/, // 竖屏「请横屏」提示层(全屏 HTML 元素,自失效小件)
       /^bv-token-target-pulse$/,
+      /^fx-breathe$/, // C4:waiting-dots/seat-glow 呼吸并名 motion.css 单源
     ],
   },
 ];

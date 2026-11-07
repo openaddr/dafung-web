@@ -48,10 +48,10 @@ import {
 import { heroDefOf, skillIdFromClick } from "@app/components/card/HeroCardFace";
 import { SkillCardFace } from "@app/components/card/SkillCardFace";
 import { rackTilt } from "@app/components/card/jinnang-face-data";
-import { Dialog, DialogClose, DialogContent, DialogTitle } from "@app/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { ScrollArea } from "@app/components/ui/scroll-area";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
-import { Sym } from "@app/screens/shared/Sym";
+import { RoundClose } from "@app/screens/shared/RoundClose";
 import { useLongPress } from "@app/hooks/use-long-press";
 import { useTapOrLongPress } from "@app/hooks/use-tap-or-long-press";
 import { useDigitKeyPick } from "@app/hooks/use-digit-key-pick";
@@ -114,8 +114,8 @@ interface RackCardJunshi {
 
 /** 详情弹层壳:内容 = JinnangCardDetail 五段面板,壳(定位/遮罩/出口)归本件。
  *  modal=true(默认):焦点陷阱+锁滚+Esc/点遮罩关闭全由底件承担。#530:补 × 关闭钮
- *  (DialogClose 承载交互语义,Sym close 同城池详情制式;此前弹层零按钮,唯一出口
- *  是点背衬,关闭 affordance 与城池详情不一致)。
+ *  (制式单源 shared/RoundClose;此前弹层零按钮,唯一出口是点背衬,关闭 affordance
+ *  与城池详情不一致)。
  *  矮屏规范(#708,弹层族一处口径):最大高 = 视口高 − 64px;壳自身不滚,体部走
  *  ui/scroll-area 内滚(首帧可见滚动提示),牌名行 sticky 钉住(机制在 hand-rack.css)。 */
 function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () => void }) {
@@ -146,20 +146,9 @@ function JinnangDetailSheet({ cardId, onClose }: { cardId: string; onClose: () =
               "jinnang-detail-sheet bottom-[calc(var(--safe-bottom)+16px)] top-auto translate-y-[var(--drag-y,0px)] w-max max-w-[92vw] flex flex-col overflow-hidden max-h-[calc(100dvh-64px)] px-6 pb-5"
         }
       >
-        {/* × 关闭钮(#530):弹层内唯一可见出口,点击语义归底件 DialogClose。
-            制式同城池详情题行关闭钮(BannerShell):44px 热区 + 漆金发丝描边圆钮,
-            hover 用 group 让整个热区点亮;z-10 恒在拖动把手条之上,热区不受遮。 */}
-        <DialogClose
-          aria-label="关闭"
-          className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-paper"
-          >
-            <Sym name="close" size={13} />
-          </span>
-        </DialogClose>
+        {/* × 关闭钮(#530):弹层内唯一可见出口;制式单源 shared/RoundClose(C8)。
+            z-10 恒在拖动把手条之上,热区不受遮。 */}
+        <RoundClose />
         {/* 可达名:牌名即标题(sr-only,视觉由 JinnangCardDetail 的 dt-ming 承担) */}
         <DialogTitle className="sr-only">{def.id}</DialogTitle>
         {isNarrow && <div aria-hidden="true" className="jinnang-detail-grab" />}
@@ -226,7 +215,7 @@ function tiltVars(key: string): CSSProperties {
  *  字段在场)整架退出交互(#256),原生禁用保持。两态共用同一组件与 key:进/出窗态
  *  不重挂、不重播发牌音/入场级联。
  *  反应窗槽(reaction 在场,#281):点牌=选中/再点取消(确认在横幅落印钮),长按开
- *  详情弹层(#751 A1);呼吸金边归 .reactive 类(reaction-banner.css);非反应牌仍走
+ *  详情弹层(#751 A1);呼吸金边归 .reactive 类(reaction-banner.css);非反应锦囊仍走
  *  常态详情。
  *  openKey:本卡稳定键(与手牌行 key 同式)——详情开合态/微光达成态按键对位(#768),
  *  同名双牌只点亮被开那张。index:发牌入场级联的错峰序(--i)。 */
@@ -542,7 +531,7 @@ interface StackVars {
  *  手牌横排(空态斜放牌背占位)——漆木条底/架首竖排章随仪表条一并退役(原型
  *  席位侧列原型.html ①handzone:透明居中浮置,签面驻左端归 HandZone),藏品双入口
  *  (RackEntry)由右下三圆钮接替(PileButtons,#361 明细入口平移);出牌阶段态(#256)
- *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应牌呼吸金边;banner-only 形态
+ *  下架即出牌面,反应窗态(#281)横幅挂架上缘+反应锦囊呼吸金边;banner-only 形态
  *  (#1006)架收起而反应窗在场,只渲横幅贴底。
  *  em 基仍在架体(font-size/降档断点在 hand-rack.css),叠加压缩测量口径不变。 */
 export const HandRack = memo(function HandRack({

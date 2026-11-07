@@ -80,6 +80,24 @@ function tileOfProperty(engine: GameEngine, propertyId: string): number {
   return tileIndexOfProperty(engine.board, propertyId);
 }
 
+/** 拼点线演出件(C10 收口):jinnangPlayed 的「施计者→目标」单段线——识破拆计
+ *  (jinnangVoided)与半路杀出(reactionAnswered)两 case 曾逐字双抄。 */
+function jinnangLine(
+  engine: GameEngine,
+  seat: number,
+  target: number,
+  cardId: string,
+): PresentationEvent {
+  const from = engine.board.positionOf(engine.players[seat].position);
+  const to = engine.board.positionOf(engine.players[target].position);
+  return {
+    kind: "jinnangPlayed",
+    playerId: engine.players[seat].id,
+    cardId,
+    lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
+  };
+}
+
 /** 城池宣告事件(ADR-0015):归属色/等级按提取时刻引擎态解析(建城/购地=Lv0 新归属、
  *  扩军=新等级、变卖回无主=无归属;引擎态即权威,不需要事件另带)。 */
 function propertyChangedEvent(
@@ -565,14 +583,7 @@ export function extractBatchEvents(
         if (ev.shareSeat != null) eventSeatPlayer(engine, ev.shareSeat, "jinnangVoided.shareSeat");
         const target = voidLineTarget(ev, cursors);
         if (target != null && target !== seat) {
-          const from = engine.board.positionOf(engine.players[seat].position);
-          const to = engine.board.positionOf(engine.players[target].position);
-          events_.push({
-            kind: "jinnangPlayed",
-            playerId: engine.players[seat].id,
-            cardId: ev.cardId,
-            lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
-          });
+          events_.push(jinnangLine(engine, seat, target, ev.cardId));
         }
         const text =
           ev.shareSeat != null
@@ -622,14 +633,7 @@ export function extractBatchEvents(
               (e): e is Extract<GameEvent, { kind: "marchArrived" }> => e.kind === "marchArrived",
             );
           if (mover && mover.seat != null && mover.seat !== seat) {
-            const from = engine.board.positionOf(engine.players[seat].position);
-            const to = engine.board.positionOf(engine.players[mover.seat].position);
-            events_.push({
-              kind: "jinnangPlayed",
-              playerId: engine.players[seat].id,
-              cardId: ev.cardId,
-              lines: [{ x1: from.x, y1: from.y, x2: to.x, y2: to.y }],
-            });
+            events_.push(jinnangLine(engine, seat, mover.seat, ev.cardId));
           }
         }
         break;

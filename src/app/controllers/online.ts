@@ -14,7 +14,7 @@ import type { GameCommand } from "@core/authority";
 import { loadMapById } from "@core/map-source";
 import { FetchMapSource } from "@app/map-sources";
 import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
-import { useNetStore, type NetRoomFields } from "@app/store/netStore";
+import { myAutoPilotOn, useNetStore, type NetRoomFields } from "@app/store/netStore";
 import { LobbyApi, type RoomJoinReply } from "@app/net/lobby-api";
 import { ReconnectingSocket } from "@app/net/reconnecting-socket";
 import { stashEventBatch } from "@app/net/event-feed";
@@ -73,10 +73,9 @@ export class OnlineController extends GameController {
   get viewSeat(): number {
     return this.seat;
   }
-  /** 我的座位托管中(从 netStore 的 seats 广播回读,与旧 latestSeats 等价)。 */
+  /** 我的座位托管中(netStore seats 广播回读,公式单源 myAutoPilotOn)。 */
   get autoPilotOn(): boolean {
-    const s = useNetStore.getState();
-    return s.seats[s.mySeat]?.autoPilot ?? false;
+    return myAutoPilotOn(useNetStore.getState());
   }
 
   /** 用一张地图构建占位引擎(联机不掷本地骰,种子随意;座位数随房间,缺省 2 座)。
@@ -136,7 +135,7 @@ export class OnlineController extends GameController {
   }
 
   // ─── REST(建房/加入/选图/开局;协议与旧 network-client 一致)──
-  /** 建房并连接。返回房间信息(供大厅屏渲染)。guohao=host 预设国号(R3-D1 #99,与 joinRoom 同语义)。 */
+  /** 建房并连接。返回房间信息(供大厅屏渲染)。guohao=房主预设国号(R3-D1 #99,与 joinRoom 同语义)。 */
   async createRoom(opts: {
     seats: number;
     target?: number;
@@ -154,13 +153,13 @@ export class OnlineController extends GameController {
     return reply;
   }
 
-  /** host 选图:只发请求;本地换图由 lobby 广播单路径驱动(host/非 host 同路)。 */
+  /** 房主选图:只发请求;本地换图由 lobby 广播单路径驱动(房主/非房主同路)。 */
   async pickMap(mapId: string): Promise<void> {
     if (!this.roomId || !this.seatToken) throw new Error("未入座");
     await this.api.pickMap({ roomId: this.roomId, seatToken: this.seatToken }, mapId);
   }
 
-  /** host 开局:引擎在服务器侧构造,本端只等首帧 snapshot 广播。 */
+  /** 房主开局:引擎在服务器侧构造,本端只等首帧 snapshot 广播。 */
   async startGame(): Promise<void> {
     if (!this.roomId || !this.seatToken) throw new Error("未入座");
     await this.api.startGame({ roomId: this.roomId, seatToken: this.seatToken });
