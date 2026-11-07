@@ -562,11 +562,17 @@ test.describe("反应窗(#281 单机)", () => {
     await answerReactionWindow(page, { mode: "mute" });
     // 第二道窗(同一 mover 途经第二座城)被静默自动代发不用:全程只有一次人工点击,
     // 应答却有两条 = 第二份必出自静默代发(接线面;静默状态机判词已下沉
-    // test/reaction-mute.test.ts,#1181;不用不耗牌的引擎面归 reaction-window 单测)
+    // test/reaction-mute.test.ts,#1181;不用不耗牌的引擎面归 reaction-window 单测)。
+    // 数据源=权威口 log(#1242):对局日志是快照携带字段(折叠契约不带),门控后玩家
+    // 侧副本只在校准点离散更新——玩家侧恰值/时序不可保证,恰两条的确定性读数取权威
+    // 账本(只读,非种植;权威口读断言见 react-helpers force 判词)。
     await expect
       .poll(
         async () =>
-          engineState(page, `e.log.filter((l) => l.detail.includes("reactionRespond")).length`),
+          engineState(
+            page,
+            `window.__dafung.getAuthorityEngine().snapshot().log.filter((l) => l.detail.includes("reactionRespond")).length`,
+          ),
         { timeout: 20_000 },
       )
       .toBe(2);
