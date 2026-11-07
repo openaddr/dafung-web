@@ -29,9 +29,9 @@ import { ConnectionBanner } from "@app/screens/shared/ConnectionBanner";
 import { Stepper } from "@app/screens/shared/Stepper";
 // #766:高级折叠箭头用 Sym(裸排 ▾ 会出 tofu,见 DESIGN §4.3;范式同 setup 机遇折叠)
 import { Sym } from "@app/screens/shared/Sym";
-// #766:矮横屏档 JS 结构分支(双列重排),与 lobby.css 矮横屏档媒体查询同串同步
-// (setup #751/home #707 同款手筋)
-import { useMediaQuery } from "@app/hooks/use-media-query";
+// #766:矮横屏档 JS 结构分支(双列重排),断点串单源 hooks/use-media-query.ts
+// (lobby.css 矮横屏档 media 开口头注同指)
+import { useIsShortLandscape } from "@app/hooks/use-media-query";
 import { LID } from "./testids";
 // W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
 import "./lobby.css";
@@ -45,10 +45,6 @@ export interface LobbyScreenProps {
 
 /** 最近一次入座成功的房间码(dogfood ISSUE-012 修复):加入框预填,刷新丢局后免凭记忆重输。 */
 export const LAST_ROOM_KEY = "dafung.lastRoomCode";
-
-/** 矮横屏档媒体查询(#766:断点串单源口径=对局屏 layout.css A 档/home/setup 同一查询串,
- *  lobby.css 矮横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
-const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
 
 /** 座位行的状态标签(对照旧 renderSeats:你/人/电脑/空 + 房主 + 离线)。L-5:统一全中文,不混排「bot」。 */
 function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {
@@ -125,7 +121,7 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // L-7:复制态自清定时器(卸载必须清,否则离开大厅后仍 setState)
   const copyTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // #766:矮横屏档双列重排开关(未入座/已入座两态各有一套双列分栏;桌面档零重排)
-  const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
+  const isShortLandscape = useIsShortLandscape();
 
   useEffect(() => {
     return () => {

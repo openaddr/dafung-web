@@ -568,7 +568,6 @@ export const HandRack = memo(function HandRack({
   const usablePulse = usePulseOnce(nudgePulse);
   const rackRef = useRef<HTMLElement | null>(null);
   const [box, setBox] = useState<RackBox | null>(null);
-  const mounted = player != null;
 
   // 窗态两段:pendingJinnang/pendingSkill 在场 = 目标段(架退出交互,选目标在席位格)。
   const targeting =
@@ -662,7 +661,6 @@ export const HandRack = memo(function HandRack({
   // 渲染永远同一口径。useLayoutEffect 同步首测(首帧就叠,不闪全展),RO 管后续
   // 窗口缩放/降档。
   useLayoutEffect(() => {
-    if (!mounted) return;
     const el = rackRef.current;
     if (!el) return;
     const read = () => {
@@ -685,7 +683,7 @@ export const HandRack = memo(function HandRack({
     const ro = new ResizeObserver(read);
     ro.observe(el);
     return () => ro.disconnect();
-  }, [mounted]);
+  }, []);
 
   const hand = player.jinnangHand;
   // 渲染张数:卡牌段=options(手牌 + 技能卡混排);常态/目标段=手牌。叠加压缩按渲染

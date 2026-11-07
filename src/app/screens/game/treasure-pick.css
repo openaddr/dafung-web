@@ -215,6 +215,7 @@
    首排「装裱卡+价签」——坐地双行价签格 162px(卡 116@5.8px 基+隙 4+签 42)、变卖
    单行价签格 142px。语境行已随档并入 footer(分档渲染),本块只做让位收档:
    钮行衬距/区签边距/网格顶衬收档,拍板钮触达 ≥40 不再收 36(#751)。 */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .treasure-pick .treasure-pick-foot {
     margin-top: 2px;

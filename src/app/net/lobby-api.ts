@@ -45,13 +45,7 @@ export class LobbyApi {
   }
 
   /** 建房(POST /room/new)。guohao=host 预设国号(R3-D1 #99),重名时开局由服务器加方位前缀(同 joinRoom)。 */
-  createRoom(opts: {
-    seats: number;
-    bot?: number[];
-    seed?: number;
-    target?: number;
-    guohao?: string;
-  }): Promise<RoomJoinReply> {
+  createRoom(opts: { seats: number; target?: number; guohao?: string }): Promise<RoomJoinReply> {
     return this.http("/room/new", opts).then((r) => this.parseRoomReply(r));
   }
 
@@ -70,11 +64,6 @@ export class LobbyApi {
   /** host 开局(POST /room/start;引擎在服务器侧构造,本端只等首帧 snapshot)。 */
   startGame(creds: RoomCreds): Promise<Record<string, unknown>> {
     return this.http("/room/start", creds);
-  }
-
-  /** host 解散房间(POST /room/dismiss;当前 UI 未接,协议侧先备齐)。 */
-  dismissRoom(creds: RoomCreds): Promise<Record<string, unknown>> {
-    return this.http("/room/dismiss", creds);
   }
 
   /** REST 入座回包(/room/new、/room/join)的一次性收窄:

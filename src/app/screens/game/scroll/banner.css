@@ -169,6 +169,7 @@
 /* ── 短横屏遮罩升格(#239 T4 收口,沿旧 scroll-anim-overlay 同款):板区被手牌架
    压到 ~240px 时 absolute 遮罩随板区裁切,决策瞬间模态优先级高于牌架,升格 fixed
    盖全屏;桌面/竖屏维持 absolute 随板区居中。无层级规则天然压过 Tailwind utilities ── */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .banner-overlay {
     position: fixed;

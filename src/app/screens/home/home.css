@@ -171,6 +171,7 @@
    旧 max-height:480px 档(原 dogfood ISSUE-002 的纵向收紧)并入本档——
    桌面大屏与竖屏不进此档,竖屏走根容器既有滚动(E1 #13)。
    #761 ⑥:844×360 零滚动收口——标题 36→30(组件侧)、横带 72→56、条带收带高。 ── */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   /* 根容器底缘让位手势条(#761 ①):py-4 的底档并入 --safe-bottom(env 缺省 0px
      桌面无感;真机横屏地图条带不贴手势条)。取值口=app.css P0-9 唯一变量。 */

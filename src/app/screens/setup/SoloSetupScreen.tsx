@@ -40,8 +40,9 @@ import { Switch } from "@app/components/ui/switch";
 import "@app/screens/game/scroll/scroll.css";
 // #497:本屏局部样式(起兵 busy 呼吸 + 矮横屏双列档),同 home.css 口径(screen 目录内自持)
 import "./setup.css";
-// #751/S1:矮横屏档 JS 结构分支(双列重排),与 setup.css 同串媒体查询同步(home #707 同款)
-import { useMediaQuery } from "@app/hooks/use-media-query";
+// #751/S1:矮横屏档 JS 结构分支(双列重排),断点串单源 hooks/use-media-query.ts
+// (setup.css 矮横屏档 media 开口头注同指;home #707 同款手筋)
+import { useIsShortLandscape } from "@app/hooks/use-media-query";
 
 /** 起兵配置:GameEngine 开局所需全部参数(对照旧 main.ts 的 new App({...}) 入参)。
  *  接线方(main 线)用它 loadMapById(mapSource, mapId) 后 new LocalController(map, config)。
@@ -49,7 +50,6 @@ import { useMediaQuery } from "@app/hooks/use-media-query";
 export interface SetupConfig {
   seats: SeatConfig[];
   targetNetWorth: number;
-  startingCash: number;
   /** 选中的地图 id(延迟加载:起兵时才 loadMapById,与旧行为一致)。 */
   mapId: string;
   /** 骰子种子(可选,注入 EngineConfig)。 */
@@ -76,14 +76,8 @@ export interface SoloSetupScreenProps {
 /** 目标身价档位(旧实现固定三档)。 */
 const TARGET_OPTIONS = [15000, 30000, 60000] as const;
 const TARGET_LABEL: Record<number, string> = { 15000: "速战", 30000: "标准", 60000: "鏖战" };
-/** 起始银两:经济 v2 硬编码 10000(与引擎默认/地图 startingCash 一致)。 */
-const STARTING_CASH = 10000;
 /** 国号预设持久化 key(起兵成功后写入;下次进入默认带入;联机加入也读同一份)。 */
 export const GUOHAO_PREF_KEY = "dafung.guohao";
-
-/** 矮横屏档媒体查询(#751/S1:形态分档断点单源=对局屏 layout.css A 档/home 同一查询串,
- *  setup.css 矮横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
-const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
 
 export function SoloSetupScreen({
   onStart,
@@ -109,7 +103,7 @@ export function SoloSetupScreen({
   // 与首页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, currentMap);
   // #751/S1:矮横屏档双列重排开关(左列配置/右列座位表+操作;桌面档信息架构零变化)
-  const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
+  const isShortLandscape = useIsShortLandscape();
 
   // P0-1:起兵 busy 态 —— await onStart(App 侧 loadMapById 异步)期间禁点防连击
   const [busy, setBusy] = useState(false);
@@ -148,7 +142,6 @@ export function SoloSetupScreen({
       await onStart({
         seats,
         targetNetWorth: target,
-        startingCash: STARTING_CASH,
         mapId: currentMap,
         // 机遇开关透传(#1090 起三档概率为引擎 softmax 常量,配置面无归一/回退)
         encounter: toEncounterConfig(encounter),

@@ -325,6 +325,7 @@
    形态分档口径见 game/layout.css 文件尾)══
    壳夹高后体部可用高随视口收紧,内容单元(卡面/清单行)整体缩档,使审计基准局
    (麾下 1-3 席 / 名下 2 城)首帧完整可见——断头防治;超出仍走体部内滚+滚动提示。 */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .pile-modal {
     padding: 12px 18px 14px;

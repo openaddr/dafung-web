@@ -1,7 +1,7 @@
 import { describe, it, expect } from "bun:test";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
-import { createBoard, type TileDef } from "@core/board";
+import { createBoard, tileIndexOfProperty, type TileDef } from "@core/board";
 
 const loaded = loadMap(guanzhongData);
 const board = loaded.board;
@@ -61,5 +61,17 @@ describe("棋盘路径(单环)", () => {
     const huiji = idx("会稽");
     const p = board.computePath(huiji, 1, -1);
     expect(p.waypoints).toEqual([board.tiles[huiji + 1].position]);
+  });
+});
+
+describe("tileIndexOfProperty(propertyId 反查单源)", () => {
+  it("命中返回格 index(关中图任一城往返)", () => {
+    const from = idx("长安");
+    const pid = board.tiles[from].propertyId!;
+    expect(tileIndexOfProperty(board, pid)).toBe(from);
+  });
+
+  it("缺城响亮炸(零兜底回归锁:五消费面统一契约,「静默回退 id 冒充城名」旧病不复活)", () => {
+    expect(() => tileIndexOfProperty(board, "不存在的城")).toThrow(/不在棋盘/);
   });
 });

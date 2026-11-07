@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import type { MapSource } from "@core/map-source";
 import { getMapSource } from "@app/map-sources";
 import { startWarmup } from "@app/warmup";
-import { useMediaQuery } from "@app/hooks/use-media-query";
+import { useIsShortLandscape } from "@app/hooks/use-media-query";
 import { ManualModal } from "@app/screens/manual/ManualModal";
 import { MapSelectPanel } from "@app/screens/setup/MapSelectPanel";
 import { TID } from "@app/screens/setup/testids";
@@ -23,10 +23,6 @@ import { DiagSheet } from "./DiagSheet";
 import { MapStrip } from "./MapStrip";
 import { VERSION } from "../../../version";
 import "./home.css";
-
-/** 矮横屏档媒体查询(形态分档断点单源=对局屏 game/layout.css A 档同一查询串,
- *  home.css 短横屏档媒体查询同串;JS 分支与 CSS 档必须同步,改一处改两处)。 */
-const SHORT_LANDSCAPE_QUERY = "(orientation: landscape) and (max-height: 500px)";
 
 export interface HomeScreenProps {
   /** 「单机模式」→ 次级配置页。 */
@@ -55,7 +51,7 @@ export function HomeScreen({
   const [manualOpen, setManualOpen] = useState(false);
   // #707:矮横屏档开关(JS 结构分支:条带 ↔ 地图行+弹层入口;间距收紧仍走 home.css
   // 同串媒体查询,JS 与 CSS 各管各的不重复)。桌面档恒 false,信息架构零变化。
-  const isShortLandscape = useMediaQuery(SHORT_LANDSCAPE_QUERY);
+  const isShortLandscape = useIsShortLandscape();
   // 与单机配置页共用同一份地图名解析逻辑(清单失败回退 id 显示)
   const mapName = useMapName(mapSource, selectedMapId);
 

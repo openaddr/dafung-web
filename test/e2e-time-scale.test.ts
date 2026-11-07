@@ -5,7 +5,6 @@
 import { describe, it, expect } from "bun:test";
 import { Motion } from "../src/core/theme";
 import {
-  AUTO_MARCH,
   CEREMONY,
   DESK,
   DICE,
@@ -107,11 +106,6 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(UI.hintTtlMs).toBe(1800);
     expect(UI.victoryButtonMs).toBe(1800);
     expect(UI.copyFeedbackMs).toBe(1000);
-  });
-
-  it("AUTO_MARCH(#188 行军自动化:1s 起摇 + 0.8s 起签)", () => {
-    expect(AUTO_MARCH.rollAtMs).toBe(1000);
-    expect(AUTO_MARCH.qiqianMs).toBe(800);
   });
 
   it("LAG(#610 落后即校准判据,#730/ADR-0034 再定标:阈值高于配速后正常局水位;ageMs 吃 sc,批数/倍率无量纲)", () => {

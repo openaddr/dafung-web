@@ -22,6 +22,7 @@
 import { memo } from "react";
 import { HERO_CAPACITY } from "@core/constants";
 import { heroById } from "@core/heroes";
+import { tileIndexOfProperty } from "@core/board";
 import { playerColor, rgba } from "@core/theme";
 import type { GameSnapshot, SnapshotPlayer } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
@@ -245,10 +246,7 @@ export const WarlordsOverview = memo(function WarlordsOverview({
   const cityNames = players.map((p) =>
     p.properties
       .map((h) => {
-        const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
-        if (tileIndex < 0) {
-          throw new Error(`诸侯详情:propertyId ${h.propertyId} 不在棋盘上(数据 bug)`);
-        }
+        const tileIndex = tileIndexOfProperty(board, h.propertyId);
         return { name: board.at(tileIndex).name, tileIndex };
       })
       .sort((a, b) => a.tileIndex - b.tileIndex)

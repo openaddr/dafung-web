@@ -14,6 +14,7 @@
 import { memo } from "react";
 import { formatMoney } from "@core/money";
 import { sellValueOf } from "@core/economy";
+import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
@@ -61,10 +62,7 @@ export const CityLedgerModal = memo(function CityLedgerModal({
   // index 环绕归一,fallback 进去只会静默错行,不设此闸(零兜底)。
   const rows = player.properties
     .map((h) => {
-      const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
-      if (tileIndex < 0) {
-        throw new Error(`名下城池清单:propertyId ${h.propertyId} 不在棋盘上(数据 bug)`);
-      }
+      const tileIndex = tileIndexOfProperty(board, h.propertyId);
       return { h, tileIndex, tile: board.at(tileIndex), def: catalog.get(h.propertyId)! };
     })
     .sort((a, b) => a.tileIndex - b.tileIndex);

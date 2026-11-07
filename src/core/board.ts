@@ -101,3 +101,14 @@ export function createBoard(tiles: TileDef[]): Board {
     computePath,
   };
 }
+
+/** propertyId → 棋盘格 index 的唯一反查口(城不在棋盘 = 地图数据 bug,响亮炸出)。
+ *  消费面全家福:core 侧=引擎留痕(authority tileName/tileIndexOfProperty 薄委托)、
+ *  耗竭/破产卷标(choices)、拆城结算(jinnang-execution);app 侧=事件提取(fx)、
+ *  名下城池清单、诸侯详情、决策卷轴城名——旧实现曾分「抛错 / 静默回退 id 冒充城名 /
+ *  静默塞 -1」三套失败契约,静默侧违零兜底红线,已收口于此。 */
+export function tileIndexOfProperty(board: Board, propertyId: string): number {
+  const tile = board.tiles.find((t) => t.propertyId === propertyId);
+  if (tile == null) throw new Error(`城 ${propertyId} 不在棋盘(数据 bug)`);
+  return tile.index;
+}

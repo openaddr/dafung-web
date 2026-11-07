@@ -8,6 +8,7 @@
    (setup.css 卡衬收档同语言)、笺头 mb 12→4、清单 38→34vh(两张内置图自然高
    ≈132px 恰容,不切行)、预览段 mt/pt 12→8→本档 4。360 级极矮档属 #765/#708
    家族口径,本票不另调。仅动密度不改结构;桌面档(竖屏/高视口)不进本档。 ── */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .map-select-panel {
     padding-top: 10px;

@@ -73,8 +73,6 @@ export interface GameStoreState {
   hint: string | null;
   /** 提示级别(F4):error = 红底白字 chip(醒目);info = 原灰面板样式。 */
   hintLevel: "error" | "info";
-  /** 思考中标记(旧 setThinking:等待 bot/远程玩家行动时显示"运筹中…")。 */
-  thinking: boolean;
 
   // ── actions ──
   /** 读引擎 snapshot + 派生量写入 state(旧 fullRender 的新等价物)。控制器在每次引擎变化后调用。 */
@@ -86,7 +84,6 @@ export interface GameStoreState {
    *  渲染层不再各自 setTimeout——原来 game 1.5s / lobby 1.8s / App+solo-setup 永不
    *  过期,三套口径同一文案行为不一致。level 决定渲染样式(error=红 chip)。 */
   pushHint: (hint: string | null, level?: "error" | "info") => void;
-  setThinking: (thinking: boolean) => void;
   setScreen: (screen: Screen) => void;
 }
 
@@ -98,7 +95,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
   screen: "setup",
   hint: null,
   hintLevel: "error",
-  thinking: false,
 
   syncFromEngine: (engine) => {
     // core 快照直灌(#786 拆派生读口)。全量替换快照:引擎每次动作都是新的序列化
@@ -116,7 +112,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
     gameHintTimer = hint === null ? null : setTimeout(() => set({ hint: null }), UI.hintTtlMs);
     set({ hint, hintLevel: level });
   },
-  setThinking: (thinking) => set({ thinking }),
   setScreen: (screen) => set({ screen }),
 }));
 
@@ -127,17 +122,6 @@ export const useGameStore = create<GameStoreState>((set) => ({
 export function useLocalPlayer(): SnapshotPlayer {
   // `!` = 挂载门卫的类型面(无快照不进对局屏);座位缺位 = 接线 bug,下游取字段当场炸出。
   return useGameStore((s) => s.snapshot!.players[s.viewSeat]);
-}
-
-/** 当前活跃玩家(轮到谁行动;null = 未开局)。 */
-export function useActivePlayer(): SnapshotPlayer | null {
-  return useGameStore((s) => s.snapshot?.players[s.snapshot.activeIndex] ?? null);
-}
-
-/** 快照玩家的净资产。口径来自 core/networth(serializeGame 内调用),此处只读快照字段,
- *  避免在 React 层重算导致与引擎/联机端三处口径漂移。 */
-export function playerNetWorth(p: SnapshotPlayer): number {
-  return p.netWorth;
 }
 
 /** 玩家行值等(#1140 渲染税):键循环逐字段比,嵌套数组(properties/heroes/

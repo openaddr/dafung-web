@@ -75,8 +75,8 @@ export const setCatchupScale = (scale: number): void => {
 };
 
 /** 界面/节拍时长缩放(模块内约定俗成的 sc):只吃 e2e 键,追帧倍率不进门——反应窗
- *  倒计时弧必须与权威窗同长(scaleReactionMs),UI TTL、GHOST、AUTO_MARCH/AUTOPILOT、
- *  bot 节拍都不是棋盘演出(追帧是播放侧治理,产出端节拍不配套,ADR-0029 判据基调)。
+ *  倒计时弧必须与权威窗同长(scaleReactionMs),UI TTL、GHOST、bot 节拍(core/timings)
+ *  都不是棋盘演出(追帧是播放侧治理,产出端节拍不配套,ADR-0029 判据基调)。
  *  无键时直通(不落地板,80ms 级短拍保持原值)。 */
 export const sc = (ms: number): number => {
   if (S === 1) return ms;
@@ -391,20 +391,6 @@ export const delay = (ms: number): Promise<void> => new Promise((r) => setTimeou
 export const GHOST = {
   get frameMs() {
     return sc(210);
-  },
-} as const;
-
-/** 行军自动化(#188 第 1 步):人类回合 Roll 相位的自动起摇节奏。
- *  进入 Roll 后等 rollAtMs(约 1s,起签的静默酝酿拍)→ 钤「签」印起签 →
- *  再等 qiqianMs(约 0.8s,起签印章的驻留)→ 自动 rollAndMove(与手点同一条命令路径)。
- *  服务器侧(room.ts)的同类定时用固定 1s:scripts 不吃 localStorage 倍率,见 room.ts 注释。
- *  自动起摇 = 命令提交节拍(权威侧配速,非演出时长),只吃 sc 不吃追帧(F4 作用域拆分)。 */
-export const AUTO_MARCH = {
-  get rollAtMs() {
-    return sc(1000);
-  },
-  get qiqianMs() {
-    return sc(800);
   },
 } as const;
 

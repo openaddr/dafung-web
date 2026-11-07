@@ -14,6 +14,7 @@
 import type { GameEngine } from "@core/authority";
 import type { GameEvent, GameEventBody } from "@core/game-events";
 import type { MovePath } from "@core/board";
+import { tileIndexOfProperty } from "@core/board";
 import type { Player } from "@core/model";
 import { findHolding } from "@core/player";
 import { jinnangCardOf } from "@core/jinnang";
@@ -74,11 +75,9 @@ function playerAnchor(engine: GameEngine, seat: number): { x: number; y: number;
   return { x: pos.x, y: pos.y, atTile: p.position };
 }
 
-/** propertyId → 棋盘格(城不在棋盘=数据 bug,炸出)。 */
+/** propertyId → 棋盘格(单源 core/board tileIndexOfProperty,城不在棋盘=数据 bug 炸出)。 */
 function tileOfProperty(engine: GameEngine, propertyId: string): number {
-  const tile = engine.board.tiles.find((t) => t.propertyId === propertyId);
-  if (tile == null) throw new Error(`事件消费:城 ${propertyId} 不在棋盘(数据 bug)`);
-  return tile.index;
+  return tileIndexOfProperty(engine.board, propertyId);
 }
 
 /** 城池宣告事件(ADR-0015):归属色/等级按提取时刻引擎态解析(建城/购地=Lv0 新归属、
