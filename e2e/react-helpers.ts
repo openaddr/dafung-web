@@ -5,6 +5,7 @@ import { expect, type Browser, type BrowserContext, type Page } from "@playwrigh
 // 键名单源:与 registry.ts 双门禁共用同一常量(playwright 侧对 src 路径的解析同 fixtures.ts)。
 import { E2E_DEBUG_BRIDGE_KEY } from "../src/app/fx/timings";
 import { TESTIDS } from "../src/app/screens/game/testids";
+import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
@@ -284,6 +285,13 @@ export async function skipUntilNextSeat(p: Page, seat: number, timeout = 30_000)
   await expect
     .poll(
       async () => {
+        // 起手珍宝(#1172)涟漪承接(#1209):落他人城+城主有宝 → 珍宝抉择卷轴开给城主
+        // (AwaitingTreasureOwner),不处理会永久阻塞 skip。见卷轴即代点「暂不交易」=
+        // 引擎 resolveTreasureOwner skip 分支(托管同语义):不取宝不记账,局面与
+        // 旧版一致。短时限+吞错(卷轴可能随批重挂或已收)。
+        const tSkip = p.getByTestId(SCROLL_TESTIDS.treasureSkip);
+        if (await tSkip.isVisible().catch(() => false))
+          await tSkip.click({ timeout: 2_000 }).catch(() => {});
         const skip = p.getByTestId(TESTIDS.actionButton("skip"));
         if (await skip.isVisible().catch(() => false)) {
           await skip.click({ timeout: 2_000 }).catch(() => {});
