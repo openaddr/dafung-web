@@ -849,9 +849,13 @@ describeSlow("协议级联机 e2e(#1164):真服务器 + 故障代理 + 无头客
       expect(sa.isOver, "A 摘要 isOver 面").toBe(true);
       expect(sb.isOver, "B 摘要 isOver 面").toBe(true);
       expect(sa.winner, "双端 winner 面一致").toBe(sb.winner);
-      expect(sa.winReason, "摘要判据与事件 reason 对账").toBe(ga.reason);
-      expect(sa.players[ga.seat]?.id, "胜者=gameOver 主体座位").toBe(sa.winner);
-      expect(sb.players[ga.seat]?.id, "B 侧同座对账").toBe(sb.winner);
+      // 类型对齐(bun:test toBe 按实际侧定型,跨型即红):reason 从 string 事件侧起比
+      // (VictoryReason 可赋给 string);winner 快照面带 null,已由上行 isOver 断言
+      // 收紧事实,`!` 为文件既有惯用法(gameOverEventOf(a)! 同款)——断言仍逐值比对,
+      // 不变量若破当场红,零静默。
+      expect(ga.reason, "摘要判据与事件 reason 对账").toBe(sa.winReason);
+      expect(sa.players[ga.seat]?.id, "胜者=gameOver 主体座位").toBe(sa.winner!);
+      expect(sb.players[ga.seat]?.id, "B 侧同座对账").toBe(sb.winner!);
 
       // 收尾:对局已终,房仍须解散(服务器侧停驱动+释放)。连接拓扑:重连后 a2/b2
       // 才是座位表里的在册 socket(server open 处理器 set 覆盖,a/b 成孤儿——同样
