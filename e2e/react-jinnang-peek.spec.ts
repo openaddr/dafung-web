@@ -6,6 +6,10 @@
 // 种子离线核算(react-jinnang-use 同源,seed 67 × 关中):人类先手,选都候选 DOM
 // 首格=0 长安,起手求贤令(自身域恒可用)→ 开局出牌阶段=稳定停靠点;军情密探进
 // 目标段无附加门槛(#477 起卡级才查存活对手,恒可用),手牌内容全走 force 引擎直写。
+// #1215 棒2(ADR-0058 一环一真):3 例真实段逐例头注声明;force 判词(全 spec 3 处,
+// 均手牌直写):手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形(窥探
+// 内容/空手/识破布场)。③ 的 resolveJinnang/respondReaction 走引擎公共方法(合法漏斗,
+// 非红牌),唯 isBot 翻转需判词,见该例。
 import { test, expect } from "./fixtures";
 import { force, snap, freezeClock, openSoloSetup, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -39,6 +43,9 @@ async function playPeekAtSeat1(page: Page): Promise<void> {
 }
 
 test.describe("军情密探即时窥探(#575)", () => {
+  // 真实段:出牌四击链(点牌→「出牌」→点席位→「出」打出)与窥探弹层开/内容/遮罩
+  // 关闭/零残留全真——打出命令走真引擎通路,弹层由真实 peekApplied 事件驱动。
+  // force 判词:手牌无公共通路,断言面需「己方军情密探+被窥者两张指定牌」牌形。
   test("主路径:打出→窥探弹层出现→目标牌名可见→关闭后无残留", async ({ page }) => {
     await startPeekStop(page);
     // 种植:人类持军情密探;bot1 手牌钉两张(弹层内容断言口);被窥目标恒 seat 1
@@ -69,6 +76,9 @@ test.describe("军情密探即时窥探(#575)", () => {
     await expect(page.getByTestId(TESTIDS.peekCard("火烧连营"))).toHaveCount(0);
   });
 
+  // 真实段:同款出牌四击链+「囊中空空」空态呈现(目标有效性对手牌数无守卫的引擎
+  // 语义经真弹层呈现)。force 判词:手牌无公共通路,断言面需「己方军情密探+目标空手」
+  // 牌形(空手非自然局面)。
   test("空手牌目标合法可窥:弹层「囊中空空」空态(目标有效性对手牌数无守卫)", async ({ page }) => {
     await startPeekStop(page);
     await force(
@@ -87,6 +97,11 @@ test.describe("军情密探即时窥探(#575)", () => {
     await expect(modal.getByTestId(TESTIDS.peekCard("火烧连营"))).toHaveCount(0);
   });
 
+  // 真实段:呈现面断言真(counter 序列零窥探信号、弹层从未打开);命令序
+  // (resolveJinnang/respondReaction)走引擎公共方法=合法漏斗(ADR-0058 种植合法性
+  // 分层:公共方法必走,局面不变量全保真),非红牌。force 判词:bot 即席代答按 isBot
+  // 判定(ADR-0017),无「挂起代答」公共通路——翻人让窗挂起到应答拍是唯一种植口,
+  // 单拍 evaluate 全同步无超时代答竞速。
   test("被识破:无窥探弹层(识破只护份,窥探从未发生)", async ({ page }) => {
     await startPeekStop(page);
     // bot 识破口径(#281)对 peek 估损恒 0(不抵牌值底价)→ 永不拆——识破军情密探是

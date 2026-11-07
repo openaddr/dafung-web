@@ -12,6 +12,9 @@
 // 起手牌=求贤令(自身域恒可用)→ **开局出牌阶段照常进入**(AwaitingJinnang 停靠点保留):
 // 发牌后、任何掷骰前静止,
 // 牌库 14 / 各手 1 不随对局自走漂移。
+// #1215 棒2(ADR-0058 一环一真):本例=全族唯一零种植全真实例——旅程开局链(goto→
+// 选图→起兵→定都)到发牌呈现全真,无 force 无直写(种子 67 离线核算天然凑齐断言面),
+// 真实段=全链。
 import { test, expect } from "./fixtures";
 import { openSoloSetup, waitMyPause } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
