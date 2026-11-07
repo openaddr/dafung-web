@@ -46,6 +46,10 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
 // ──────────────────────────── window.__dafung 调试钩子 ────────────────────────────
 // 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照、手动触发重同步。
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
+// 分层标注(#1255,ADR-0059 决策 5):本桥面=测试侧四层公共能力的驱动源,e2e 侧
+// 消费封装住 e2e/helpers/drivers.ts(种局/推进/瞬空链 seedSolo 族+force),其上
+// scenes/settle/patrol 三层与旧路径门面见 e2e/helpers/ 各文件契约头注——新测试
+// 能力经层取用,不散装直呼本桥。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
 import { catchupCounters, setSnapPin } from "@app/fx/catchup";
