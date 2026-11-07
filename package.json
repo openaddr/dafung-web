@@ -13,6 +13,7 @@
     "build": "bun run --bun tsc --noEmit && bun run --bun vite build",
     "preview": "bun run --bun vite preview --port 4173",
     "probe:frames": "node scripts/frame-probe.ts",
+    "probe:cost": "node scripts/cost-probe.ts",
     "sim:digest": "bun scripts/sim-digest.ts",
     "typecheck": "bun run --bun tsc --noEmit",
     "check:core": "bun scripts/check-core-purity.ts",
