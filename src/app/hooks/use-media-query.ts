@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 /** 任意媒体查询是否命中;query 变更时重挂监听,卸载时移除(cleanup 齐全)。 */
-export function useMediaQuery(query: string): boolean {
+function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(() => window.matchMedia(query).matches);
   useEffect(() => {
     const mql = window.matchMedia(query);

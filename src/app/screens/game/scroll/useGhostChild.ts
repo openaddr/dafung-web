@@ -31,14 +31,14 @@ export function shouldGhost(
   return prevSig != null && nextSig === null;
 }
 
-export interface UseGhostChildOpts {
+interface UseGhostChildOpts {
   /** 本帧 child 被清空退出时不留幽灵帧。判定条件由调用方按 child 类型算(协议只认
    *  「这一帧的 child 不配退场帧」),hook 把标记随本帧快照存进 prev,等这份 child
    *  真正被清空的那次身份变化时生效。现用例:胜利屏(全屏覆盖,退场帧多压 210ms)。 */
   skip?: boolean;
 }
 
-export interface GhostChildSlot {
+interface GhostChildSlot {
   /** 退场帧(上一帧子节点的原样快照),无则 null。调用方渲染在当前子节点之后,
    *  并包进 BannerGhostContext.Provider 值 true(壳据此挂退场类、禁音、inert)。 */
   ghost: ReactNode | null;

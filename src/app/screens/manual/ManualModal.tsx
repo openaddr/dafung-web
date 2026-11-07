@@ -27,7 +27,7 @@ import ManualJinnangTab from "./ManualJinnangTab";
 import ManualTreasuresTab from "./ManualTreasuresTab";
 import ManualEncountersTab from "./ManualEncountersTab";
 
-export interface ManualModalProps {
+interface ManualModalProps {
   /** 开合(纯受控;关闭由壳内协议走完退场再回调 onClose)。 */
   open: boolean;
   onClose: () => void;

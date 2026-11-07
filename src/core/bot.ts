@@ -71,7 +71,7 @@ export function encounterCashImpact(effect: EncounterEffect | undefined): number
 
 /** 锦囊意图(#148):策略表对单张牌的「用/不用 + 偏好目标序」。exported 供单测
  *  (连环计/军情密探结算未接入,端到端到不了,纯决策直测)。 */
-export interface JinnangIntent {
+interface JinnangIntent {
   use: boolean;
   /** one/two-others 域的偏好目标座位(优先序:排位在前者优先;连环计两段依次取 [0]、[1])。
    *  仅是策略偏好——真正可发性仍以目标段 choicesFor 的 available 为准(ADR-0013 同口径)。 */
@@ -145,7 +145,7 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
 
 /** 反应窗决策出口(#281):use=true 携牌 id;识破根窗 AOE 另携被保护份座位(自保=自己);
  *  反识破链环不带份(争夺份随窗,#571)。 */
-export interface ReactionDecision {
+interface ReactionDecision {
   use: boolean;
   cardId?: string;
   shareSeat?: number;
@@ -277,11 +277,7 @@ export function botReactionDecision(engine: GameEngine, seat: number): ReactionD
  *  相同),实例定位对只为查技表与发动落点。
  *  火攻=城最多者(与火烧连营同则);赈济=自身体力 <70 且付得起时自疗;
  *  擂鼓=可用即用(免费步数 +2,过都城补给更频繁)。 */
-export function heroSkillIntent(
-  engine: GameEngine,
-  heroId: string,
-  skillId: string,
-): JinnangIntent {
+function heroSkillIntent(engine: GameEngine, heroId: string, skillId: string): JinnangIntent {
   const me = engine.activePlayer;
   const mySeat = engine.players.indexOf(me);
   const others = engine.players

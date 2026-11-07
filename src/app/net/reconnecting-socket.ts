@@ -8,7 +8,7 @@
 
 /** socket 生命周期状态:onopen → open;非主动关闭的 onclose → closed(已置 disconnected);
  *  10 次重连耗尽 → gaveUp(由宿主决定如何提示,本层不做 UI)。 */
-export type SocketStatus = "open" | "closed" | "gaveUp";
+type SocketStatus = "open" | "closed" | "gaveUp";
 
 /** 重连进度(#494):attempt = 已排定/正在进行的第 n 次重连尝试(1 起),
  *  max = 放弃上限(退避次数耗尽即 gaveUp)。消费端 ConnectionBanner 显示「第 n/N 次」。 */
@@ -29,12 +29,12 @@ export interface WebSocketLike {
 }
 
 /** 可注入 timer(测试用假 timer 驱动退避序列断言;生产走全局 setTimeout)。 */
-export interface TimerLike {
+interface TimerLike {
   setTimeout(fn: () => void, ms: number): unknown;
   clearTimeout(handle: unknown): void;
 }
 
-export interface ReconnectingSocketOptions {
+interface ReconnectingSocketOptions {
   /** 完整 WS URL(含 query:room/seat/token)——升级换协议与拼参归调用方(lobby-api)。 */
   url: string;
   /** socket 工厂(默认 new WebSocket;测试注入假实现断言建连次数)。 */

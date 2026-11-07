@@ -39,13 +39,13 @@ import "./lobby.css";
 // S1(#34):大厅卡片入场复用现成卷轴展开动画(0.35s;reduced-motion 由 app.css 全局兜层瞬时化)
 import "@app/screens/game/scroll/scroll.css";
 
-export interface LobbyScreenProps {
+interface LobbyScreenProps {
   /** 退出联机回设置屏(接线方负责销毁 controller 与清 store)。 */
   onExit: () => void;
 }
 
 /** 最近一次入座成功的房间码(dogfood ISSUE-012 修复):加入框预填,刷新丢局后免凭记忆重输。 */
-export const LAST_ROOM_KEY = "dafung.lastRoomCode";
+const LAST_ROOM_KEY = "dafung.lastRoomCode";
 
 /** 座位行的状态标签(对照旧 renderSeats:你/人/电脑/空 + 房主 + 离线)。L-5:统一全中文,不混排「bot」。 */
 function seatTag(s: NetSeatMeta, mySeat: number, host: number): string {

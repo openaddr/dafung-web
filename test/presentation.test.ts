@@ -479,7 +479,6 @@ describe("事件→动效映射表(合成批)", () => {
         kind: "turnBanner",
         guohao: e.players[1].guohao,
         colorIndex: e.players[1].colorIndex,
-        isBot: e.players[1].isBot,
         round: e.round,
       },
     ]);
@@ -492,7 +491,6 @@ describe("事件→动效映射表(合成批)", () => {
         kind: "turnBanner",
         guohao: e.players[1].guohao,
         colorIndex: e.players[1].colorIndex,
-        isBot: e.players[1].isBot,
         round: e.round,
       },
     ]);
@@ -1168,7 +1166,7 @@ describe("播放器 present + memorySink(顺序=事件数组顺序)", () => {
           ],
         },
         { kind: "cashDelta", playerId: "p1", amount: -120, x: 10, y: 20, atTile: 1 },
-        { kind: "turnBanner", guohao: "蜀", colorIndex: 1, isBot: false, round: 1 },
+        { kind: "turnBanner", guohao: "蜀", colorIndex: 1, round: 1 },
       ],
       sink,
     );
@@ -1446,7 +1444,7 @@ describe("终局封场 finishPresentation(present 事件边界收队)", () => {
       { kind: "diceRolled", die: 3 },
       { kind: "tokenMoved", playerId: "p1", keyframes: kfOf(2) },
       { kind: "tokenMoved", playerId: "p2", keyframes: kfOf(5) },
-      { kind: "turnBanner", guohao: "蜀", colorIndex: 1, isBot: false, round: 1 },
+      { kind: "turnBanner", guohao: "蜀", colorIndex: 1, round: 1 },
     ];
     const done = present(events, sinkGate);
     await tick(); // 骰子已播,p1 行军挂起中

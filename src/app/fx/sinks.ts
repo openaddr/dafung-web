@@ -110,7 +110,7 @@ export function createEngineSink(): FxSink {
 }
 
 /** memorySink 录制的调用记录(op + 参数):测试断言的就是这个序列。 */
-export type FxSinkCall =
+type FxSinkCall =
   | { op: "sound"; event: SoundEvent }
   | { op: "dice"; die: number }
   | { op: "marchBegin"; playerId: string; keyframes: MarchSegmentFrames[] }

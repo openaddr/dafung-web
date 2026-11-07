@@ -13,7 +13,7 @@ import { InkBreathe, SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { useMapCatalog } from "@app/screens/setup/useMapCatalog";
 import { HOME_TID } from "./testids";
 
-export interface MapStripProps {
+interface MapStripProps {
   /** 地图源(宿主 HomeScreen 透传,与 MapSelectPanel 同一实例)。 */
   mapSource: MapSource;
   /** 当前选中地图 id(外层单一事实源,条带不做临时选中态——点选即生效)。 */

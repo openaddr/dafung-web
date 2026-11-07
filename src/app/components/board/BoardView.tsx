@@ -71,7 +71,7 @@ export interface BoardPlayer {
   properties: { propertyId: string; level: number }[];
 }
 
-export interface BoardViewProps {
+interface BoardViewProps {
   /** 地图数据(MapData JSON);内部经 loadMap 构建 Board/catalog。 */
   map: MapData;
   /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */

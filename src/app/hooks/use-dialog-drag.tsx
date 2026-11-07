@@ -75,7 +75,7 @@ interface DragSession {
   moved: boolean;
 }
 
-export interface DialogDragOptions {
+interface DialogDragOptions {
   /** 弹窗本体元素:CSS 变量的宿主(本体 transform/translate 消费变量,写与读同件)。 */
   popupRef: RefObject<HTMLElement | null>;
   /** 复位键:变化即归零(BannerShell 题名更替 = 内容换新,位置回中心;底件系关闭即
@@ -85,7 +85,7 @@ export interface DialogDragOptions {
 
 /** 一次拖拽原语会话暴露给壳的完整状态(handleProps 摊题名行、dimmed 联动遮罩)。
  *  命名避开局内同名把手组件 DialogDragHandle:类型=State,组件=Handle。 */
-export interface DialogDragState {
+interface DialogDragState {
   /** 摊在题名行元素上的 props:ref + 四个 pointer 事件 + 抓取光标/触屏滚动隔离。
    *  题名行内的 button 自带豁免(起点命中按钮不启动拖),无需另行摘除。 */
   handleProps: {

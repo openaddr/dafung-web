@@ -81,7 +81,7 @@ function heroSlotByHeroId(heroes: HeroSlotRow[], heroId: string): HeroSlotRow {
 }
 
 /** 出牌阶段态载荷(#256;GameScreen 派生,null=常态架)。 */
-export interface JunshiWindow {
+interface JunshiWindow {
   /** 卡牌段选项(锦囊+技能卡,choices 原序,含灰置;目标段传空数组)。 */
   options: ChoiceOption[];
   /** 目标段载荷:pendingJinnang.cardId / pendingSkill.skillId(目标段判定只问在场与否,
@@ -477,14 +477,14 @@ function SkillCard({
  *  「横幅从手牌架上缘长出」);reactiveIds=此刻可打的反应锦囊(呼吸金边,点牌=选中,
  *  确认在横幅落印钮);selectedId/onSelect=选中可逆(再点同牌取消)。与出牌阶段态
  *  (AwaitingJinnang)互斥,不并存。 */
-export interface RackReaction {
+interface RackReaction {
   banner: ReactNode;
   reactiveIds: string[];
   selectedId: string | null;
   onSelect: (id: string) => void;
 }
 
-export interface HandRackProps {
+interface HandRackProps {
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
   /** 出牌阶段态(#256);缺省 = 常态架(点牌开详情)。 */
@@ -505,7 +505,7 @@ const CARD_WIDTH_EM = 15;
 
 /** 临时全展自动回落时长(#768,计数章点按 #751 C2):JS 定时与回落进度线动画
  *  共用单源——进度线经 --spread-dur 内联注入消费本常量,禁两处各写一个数。 */
-export const SPREAD_ALL_MS = 2500;
+const SPREAD_ALL_MS = 2500;
 
 /** 长按微光起辉点(#768):长按判定窗 500ms 单源 use-long-press;300ms(判定窗的
  *  60% 拍)起给牌面上浮+金晕渐显,长按达成保持、提前松手即撤。 */

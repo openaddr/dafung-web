@@ -11,7 +11,7 @@ import { useRef } from "react";
 import type { MouseEvent as ReactMouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import { useLongPress } from "./use-long-press";
 
-export interface TapOrLongPressOptions {
+interface TapOrLongPressOptions {
   /** 轻点(click 且长按未触发)回调。 */
   onTap?: () => void;
   /** 长按满窗回调(参=起按时的触发元素,长按是延迟回调,事后再读事件对象不可靠);

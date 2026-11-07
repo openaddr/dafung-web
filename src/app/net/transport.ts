@@ -1,14 +1,13 @@
-// 统一传输原语(#397 单机统一 A):消息收发/断线通知/座位归属三类原语,两个实现——
-// 真联机 = WsSeatTransport(承载 ReconnectingSocket,与 scripts/server.ts 的 WS 通路
-// 同一建连/重连语义);单机 = MemorySocket(同进程内存双工,「服务器住在本进程」的
-// 对端)。两实现同接口、同消息契约:线上载荷一律是 JSON 字符串(与 WS wire format
-// 逐字对齐),解析归协议消费方(controllers),本层不认识任何消息类型。
+// 统一传输原语(#397 单机统一 A):消息收发/断线通知/座位归属三类原语。
+// 唯一在役实现 = MemorySocket(同进程内存双工,「服务器住在本进程」的单机对端);
+// 联机侧不经本接口,OnlineController 直用 ReconnectingSocket——曾设计的第二实现
+// WsSeatTransport 零生产消费,随裁决删除(联机侧将来若统一到接口再重建)。
+// 线上载荷一律是 JSON 字符串(与 WS wire format 逐字对齐),解析归协议消费方
+// (controllers),本层不认识任何消息类型。
 //
 // 房间编排侧(scripts/room.ts)对端点的最小视图是 SeatEndpoint(seat/send/open 三样,
 // 见该文件传输面节);MemoryHostEnd 结构超集,可直接传入 registry.connectSeat。
 // 设计语境:ADR-0020 事件流同步 + #379 单机统一(单机=联机同架构)。
-
-import { ReconnectingSocket } from "./reconnecting-socket";
 
 /** 座位端点传输原语:一个已入座连接的收发面。
  *  - 消息收发:send(上行)/ onMessage(下行),载荷=原始 JSON 字符串;
@@ -26,39 +25,6 @@ export interface SeatTransport {
   onMessage(cb: (data: string) => void): void;
   /** 订阅断线通知(对端关闭或传输层断开;重连型实现的每次断开各触发一次)。 */
   onClose(cb: () => void): void;
-}
-
-/** 真联机实现:把 ReconnectingSocket(建连/退避重连)适配成座位端点。
- *  断线语义:socket 每次掉线(closed/gaveUp)对 onClose 订阅者各触发一次;
- *  未就绪 send 抛错(调用方以 open 门控,直抛与原生 WS 行为一致,零兜底)。 */
-export class WsSeatTransport implements SeatTransport {
-  constructor(
-    readonly seat: number,
-    private readonly sock: ReconnectingSocket,
-  ) {}
-
-  get open(): boolean {
-    return this.sock.isOpen;
-  }
-
-  send(data: string): void {
-    if (!this.sock.isOpen) throw new Error("WsSeatTransport:socket 未就绪,不可发送");
-    this.sock.send(data);
-  }
-
-  close(): void {
-    this.sock.close();
-  }
-
-  onMessage(cb: (data: string) => void): void {
-    this.sock.onMessage(cb);
-  }
-
-  onClose(cb: () => void): void {
-    this.sock.onStatus((s) => {
-      if (s !== "open") cb();
-    });
-  }
 }
 
 /** 内存双工的宿主侧端点(房间编排把单机连接接到这里):客户端消息回调 + 下行 send。

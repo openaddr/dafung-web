@@ -25,7 +25,7 @@ import { JINNANG_CARDS } from "@core/jinnang";
 import type { JinnangPattern } from "../jinnang-face-data";
 
 /** 目录牌 id 联合类型(core/jinnang.ts JINNANG_CARDS 推导,新增牌自动入型)。 */
-export type JinnangCardId = (typeof JINNANG_CARDS)[number]["id"];
+type JinnangCardId = (typeof JINNANG_CARDS)[number]["id"];
 
 /** 五族墨线母题(键与 JINNANG_FAMILY.pattern 一一对应);每族 = 衬景层(前,低透)+ 主母题(后)。 */
 export const JINNANG_INK_FAMILY: Record<JinnangPattern, ReactNode> = {
@@ -123,7 +123,7 @@ export const JINNANG_INK_FAMILY: Record<JinnangPattern, ReactNode> = {
 };
 
 /** 个别名牌专属画心(族母题语义跑偏时才立此项;键=目录牌 id)。 */
-export const JINNANG_INK_CARDS: Partial<Record<JinnangCardId, ReactNode>> = {
+const JINNANG_INK_CARDS: Partial<Record<JinnangCardId, ReactNode>> = {
   // 军情密探(谋族):细作出探=一只睁开的眼睛(瞳仁点睛)
   军情密探: (
     <>

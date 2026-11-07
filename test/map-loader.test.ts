@@ -39,11 +39,10 @@ describe("地图校验(非法应抛可读错误)", () => {
     d.tiles[1].pos = [...d.tiles[0].pos];
     expect(() => loadMap(d)).toThrow(/重叠/);
   });
-  it("lenient 跳过间距校验(编辑器实时预览用)", () => {
+  it("坐标过近(不足 MIN_TILE_DIST)", () => {
     const d = base();
     d.tiles[1].pos = [d.tiles[0].pos[0] + 10, d.tiles[0].pos[1]]; // 距离 10 < 80
     expect(() => loadMap(d)).toThrow(/重叠/);
-    expect(() => loadMap(d, { lenient: true })).not.toThrow();
   });
   it("价格为负", () => {
     const d = base();

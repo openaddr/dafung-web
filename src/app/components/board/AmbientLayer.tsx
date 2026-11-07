@@ -95,7 +95,7 @@ function AmbientFlag({ slot }: { slot: TokenSlot }) {
   );
 }
 
-export interface AmbientLayerProps {
+interface AmbientLayerProps {
   board: Board;
   players: BoardPlayer[];
   /** 有主都城的格索引集(BoardView 从 tileStates 单源派生)。 */

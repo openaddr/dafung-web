@@ -5,7 +5,7 @@
 // 新增用途先在 docs/reference/界面符号.md 登记,再在此加 path。
 import type { ReactNode } from "react";
 
-export type SymName =
+type SymName =
   | "back"
   | "undo"
   | "redo"

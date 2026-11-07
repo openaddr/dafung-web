@@ -113,7 +113,7 @@ function boardMeetMetrics(svg: SVGSVGElement): {
 /** viewBox→客户端 meet 矩阵(clientWidth 口径,见 ambientMatrix.ts 的 gBCR 教训):
  *  与氛围层同一套换算,抽此单源后 ambientMatrix.ts 退役。#1024 起缩放缓存在此
  *  同拍烤定(所有失效拍的必经点)。 */
-export function syncHostMatrix(svg: SVGSVGElement, el: HTMLElement): void {
+function syncHostMatrix(svg: SVGSVGElement, el: HTMLElement): void {
   const m = boardMeetMetrics(svg);
   if (!m) return;
   pxPerUnitCache = m.scale;

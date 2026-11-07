@@ -4,7 +4,7 @@
 // data-testid 契约:每个选项 = `${testid}-${value}`(e2e 直点选项,不再 selectOption)。
 import type { ReactNode } from "react";
 
-export interface SegmentedOption<T> {
+interface SegmentedOption<T> {
   value: T;
   label: ReactNode;
 }

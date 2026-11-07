@@ -13,7 +13,7 @@ const STORE = "games";
 const LOG_TTL_DAYS = 30;
 
 /** 一局日志的归档记录(IndexedDB value;key = gameId)。header 缺失如实为 null,不造。 */
-export interface ArchivedGame {
+interface ArchivedGame {
   gameId: string;
   header: LogEvent | null;
   lines: LogEvent[];

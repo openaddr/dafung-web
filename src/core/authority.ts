@@ -221,7 +221,7 @@ const CMD_BRIEF: Record<GameCommand["type"], string> = {
  *  经 engine.presentation.drainFloaters() 消费(破坏性读)。
  *  kind="msg" 为无金额的文案浮字(text 必填,amount 恒 0):ADR-0013 唯一选项自动执行的
  *  轻提示(「银两不足,未能购城」等),1.3s 自消,不打断节奏。 */
-export type FloaterEvent =
+type FloaterEvent =
   | {
       playerIndex: number;
       amount: number;

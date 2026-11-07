@@ -2,7 +2,7 @@
 import type { Player, PropertyHolding } from "./model";
 import { STARTING_STAMINA } from "./constants";
 
-export interface CreatePlayerOpts {
+interface CreatePlayerOpts {
   id: string;
   name: string;
   guohao: string;

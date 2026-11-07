@@ -58,7 +58,7 @@ export interface SetupConfig {
   encounter: EncounterSwitch;
 }
 
-export interface SoloSetupScreenProps {
+interface SoloSetupScreenProps {
   /** P0-1:App 侧 handleStart 为 async(loadMapById+开局);允许返回 Promise,
    *  配置页 await 其完成以驱动 busy 态,同步回调也兼容。 */
   onStart: (config: SetupConfig) => void | Promise<void>;

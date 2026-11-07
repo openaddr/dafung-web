@@ -21,7 +21,7 @@ import "./layout.css";
 // 签面数字 → 汉字(原 dice-face 一~六 的展示口径,自 DashboardBar 平移)
 const DIE_FACE = ["一", "二", "三", "四", "五", "六"];
 
-export interface HandZoneProps {
+interface HandZoneProps {
   snapshot: GameSnapshot;
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;

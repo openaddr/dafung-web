@@ -21,7 +21,7 @@ export type NetSeatMeta = WireRoomFields["seats"][number];
  *  WireRoomFields 的客户端别名(原手抄同形接口已退役)。 */
 export type NetRoomFields = WireRoomFields;
 
-export interface NetStoreState extends NetRoomFields {
+interface NetStoreState extends NetRoomFields {
   /** 本端座位(-1 = 未入座)。 */
   mySeat: number;
   /** WS 是否连着(连接屏态的展示位)。 */

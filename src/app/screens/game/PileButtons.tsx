@@ -23,7 +23,7 @@ import { PileModal, type PileModalKind } from "./PileModal";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 
-export interface PileButtonsProps {
+interface PileButtonsProps {
   /** 本地视角玩家(对局屏挂载期恒在座)。 */
   player: SnapshotPlayer;
   /** 牌架当前有效显隐(亮=显示;GameScreen 计算:!rackHidden——窗态不再强制)。 */

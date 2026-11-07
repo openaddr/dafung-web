@@ -58,7 +58,7 @@ export async function buildDiagPerfText(): Promise<string> {
 }
 
 /** 诊断包 JSON 文本(全量;导出面板的下载/桌面复制通路共用同一序列化)。 */
-export async function buildDiagText(): Promise<string> {
+async function buildDiagText(): Promise<string> {
   return JSON.stringify(await buildDiagBundle());
 }
 

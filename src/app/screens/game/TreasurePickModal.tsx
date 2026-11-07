@@ -22,7 +22,7 @@ import "./pile-modal.css";
 import "./treasure-pick.css";
 
 /** 各流程的 testid 族(交涉=treasure*、破产=bankruptcy*;单源 scroll/testids.ts)。 */
-export interface TreasurePickTestids {
+interface TreasurePickTestids {
   /** 弹层容器(DialogContent)。 */
   container: string;
   /** 珍宝卡格(点选=预选)。 */
@@ -37,7 +37,7 @@ export interface TreasurePickTestids {
  *  SHORT_LANDSCAPE_QUERY;#833 语境区分档换位用。JS 渲染分档而非 CSS 双副本的
  *  理由见文件头注)。 */
 
-export interface TreasurePickModalProps {
+interface TreasurePickModalProps {
   /** 题名(交涉=「公道买卖 · 选珍宝」随口径;破产=「变卖自救 · 变卖珍宝」)。 */
   title: string;
   /** 题名朱印小章单字(交/变)。 */

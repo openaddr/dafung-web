@@ -7,7 +7,7 @@
 
 /** 归属/都城推导所需的玩家最小结构(BoardPlayer/SnapshotPlayer 均为其结构超集,可
  *  直接透传;棋盘渲染只消费这几个字段)。 */
-export interface OwnershipPlayer {
+interface OwnershipPlayer {
   guohao: string;
   colorIndex: number;
   capitalIndex: number;

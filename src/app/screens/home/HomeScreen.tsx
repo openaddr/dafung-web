@@ -24,7 +24,7 @@ import { MapStrip } from "./MapStrip";
 import { VERSION } from "../../../version";
 import "./home.css";
 
-export interface HomeScreenProps {
+interface HomeScreenProps {
   /** 「单机模式」→ 次级配置页。 */
   onSolo: () => void;
   /** 「联机模式」→ 大厅(现有 handleOnline,流程零变化)。 */

@@ -31,7 +31,7 @@ import { BannerGhostContext } from "./BannerShell";
 import { useGhostChild } from "./useGhostChild";
 import type { TileDetailRequest } from "../useCapitalPick";
 
-export interface DecisionScrollLayerProps {
+interface DecisionScrollLayerProps {
   snapshot: GameSnapshot;
   viewSeat: number;
   interactive: boolean;

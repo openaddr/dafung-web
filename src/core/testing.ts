@@ -41,7 +41,7 @@ interface EngineTestInternals {
   ): "deciding" | "liquidating" | "bankrupt" | "exhausted";
 }
 
-export class TestEngine {
+class TestEngine {
   /** 被包引擎(公开只读引用,测试沿用原有断言习惯)。 */
   readonly engine: GameEngine;
   private readonly internals: EngineTestInternals;

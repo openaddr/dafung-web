@@ -27,7 +27,7 @@ import "./jinnang-card.css";
 /** 标签 → 族色类已收口进 jinnang-face-data.ts 的 JINNANG_FAMILY.faceClass
  *  (组件不再自备第二份映射——评审 Standards 轴的三重镜像收敛)。 */
 
-export interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+interface JinnangCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   cardId: string;
   size?: JinnangFaceSize;
   frameTone?: FrameTone;
@@ -101,7 +101,7 @@ export function JinnangCardFace({
  *  SVG)。宝章恒朱砂(DESIGN §4.5「章恒朱砂」);数据单源 core/treasures.ts
  *  (TreasureDef),本组件不复制目录;消费方(手牌架珍宝明细行)经 title 自带
  *  指导价浮签。 */
-export interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+interface TreasureCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   name: string;
   /** 品级 1..10(core/treasures.ts TreasureDef.level);越界=数据 bug 显式抛错(零兜底)。 */
   level: number;
@@ -171,7 +171,7 @@ export function TreasureCardFace({
   );
 }
 
-export interface JinnangCardBackProps extends HTMLAttributes<HTMLDivElement> {
+interface JinnangCardBackProps extends HTMLAttributes<HTMLDivElement> {
   size?: JinnangFaceSize;
 }
 
@@ -199,7 +199,7 @@ export function JinnangCardBack({
   );
 }
 
-export interface JinnangCardDetailProps {
+interface JinnangCardDetailProps {
   cardId: string;
   className?: string;
 }

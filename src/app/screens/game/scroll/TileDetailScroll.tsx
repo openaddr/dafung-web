@@ -19,7 +19,7 @@ import { TileThumb } from "../TileThumb";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
-export interface TileDetailScrollProps {
+interface TileDetailScrollProps {
   /** 格索引(仅展示用,引擎定位由主线完成)。 */
   tileIndex: number;
   /** 棋盘格定义(board.at(tileIndex),TileThumb 缩略图渲染源)。 */

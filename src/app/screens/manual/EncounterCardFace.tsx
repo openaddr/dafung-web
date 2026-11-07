@@ -81,7 +81,7 @@ const TIER_INK: Record<EncounterTier, ReactNode> = {
   ),
 };
 
-export interface EncounterCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+interface EncounterCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   encounter: EncounterDef;
 }
 

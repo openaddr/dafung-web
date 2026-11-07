@@ -27,7 +27,7 @@ import "@app/screens/game/scroll/scroll.css";
 // #832:矮横屏档密度收放(清单 34vh/预览段 8px),本面板专属不进共享文件。
 import "./MapSelectPanel.css";
 
-export interface MapSelectPanelProps {
+interface MapSelectPanelProps {
   /** 地图源(默认进程级复合源;测试可注入内存实现)。 */
   mapSource?: MapSource;
   /** 进来时已选中的地图 id;null = 房间尚未选图,无预选(不兜底选第一张)。 */

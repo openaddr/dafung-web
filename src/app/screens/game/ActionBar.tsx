@@ -18,9 +18,9 @@
 import { useState } from "react";
 import { TESTIDS } from "./testids";
 
-export type ActionBarSegment = "card" | "target";
+type ActionBarSegment = "card" | "target";
 
-export interface ActionBarProps {
+interface ActionBarProps {
   segment: ActionBarSegment;
   /** 卡牌段「出牌」/目标段「出」可用性(有选中且可用)。 */
   playEnabled: boolean;

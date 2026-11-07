@@ -4,7 +4,7 @@
 // 消费:PileButtons 锦囊钮 .nudge(收起态脉冲重定向)/ HandRack 可用牌金圈脉冲。
 import { useEffect, useRef, useState } from "react";
 
-export const PULSE_ONCE_MS = 700;
+const PULSE_ONCE_MS = 700;
 
 export function usePulseOnce(count: number | null | undefined): boolean {
   const [on, setOn] = useState(false);

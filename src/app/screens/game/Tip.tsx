@@ -27,7 +27,7 @@ const FLIP_RESERVE_PX = 248;
 const LONG_PRESS_MS = 400;
 
 /** 浮签文案:名词 + 一句话释义(结构化,渲染层零解析)。 */
-export interface TipText {
+interface TipText {
   name: string;
   detail: string;
 }
@@ -45,7 +45,7 @@ export const ATTR_TIPS = {
   sign: { name: "签面", detail: "本回合掷骰点数(一~六)" },
 } as const satisfies Record<string, TipText>;
 
-export interface TipProps {
+interface TipProps {
   /** 浮签文案(名词+一句话;复合文案在调用方拼 detail,本件不做字符串解析)。 */
   tip: TipText;
   /** 触发元内容(图标/血条)。 */
