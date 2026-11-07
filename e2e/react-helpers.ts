@@ -53,15 +53,34 @@ export function snap(page: Page): Promise<any> {
   return page.evaluate(() => (window as any).__dafung.snapshot());
 }
 
-/** UI 快速开局:goto(可选 ?seed=)→ 首页进单机配置页 → 起兵 → 点第一座可选城建都
- *  → 等开局放行并稳定。#188 行军自动化后人类回合不再停在「点行军」,本助手收口为:
- *  等人类的当前一手自动走完(waitMyRollDone:锦囊放行 → 自动起摇 → 推进到下一决策点
- *  /换人),再等局面稳定(连续两次快照一致)。 */
-export async function quickStart(page: Page, seed?: number): Promise<void> {
-  await page.goto(seed != null ? `/?seed=${seed}` : "/");
-  await openSoloSetup(page);
-  await page.getByTestId(SETUP_TID.startGame).click();
-  await pickCapital(page);
+/** UI 快速开局(#1211 起双通路):默认走种局快路径——goto 前先挂 jiyu.json route
+ *  拦截(openSoloSetup 同款)→ 桥内 `window.__dafung.seedSolo`(直呼生产开局通路
+ *  handleStart 三步 + 程序化选都;seed 经 evaluate 参数传入,不拼 URL)→ 等开局
+ *  放行并稳定。`{ journey: true }` = 旅程通路原样:goto(可选 ?seed=)→ 首页进单机
+ *  配置页 → 起兵 → 点第一座可选城建都——开局链本身被走查的用例专用(react-setup /
+ *  react-home-strip / react-tutorial 同款全 UI 链)。两通路收尾一致:#188 行军自动化
+ *  后人类回合不再停在「点行军」,等人类的当前一手自动走完(waitMyRollDone:锦囊放行
+ *  → 自动起摇 → 推进到下一决策点/换人),再等局面稳定(连续两次快照一致)。 */
+export async function quickStart(
+  page: Page,
+  seed?: number,
+  opts?: { journey?: boolean },
+): Promise<void> {
+  if (opts?.journey) {
+    await page.goto(seed != null ? `/?seed=${seed}` : "/");
+    await openSoloSetup(page);
+    await page.getByTestId(SETUP_TID.startGame).click();
+    await pickCapital(page);
+    await waitMyRollDone(page, 0);
+    await waitSettled(page);
+    return;
+  }
+  await disableEncounters(page);
+  await page.goto("/");
+  await page.evaluate(
+    (s) => (window as any).__dafung.seedSolo(s === undefined ? {} : { seed: s }),
+    seed,
+  );
   await waitMyRollDone(page, 0);
   await waitSettled(page);
 }
