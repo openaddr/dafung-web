@@ -95,6 +95,7 @@ function newEngine(seed: number) {
     seats,
     targetNetWorth: map.targetNetWorth,
     startingCash: map.startingCash,
+    startingTreasures: map.startingTreasures,
     seed,
     mapId,
     encounter: ENCOUNTER_ON ? ENCOUNTER_PRODUCT_DEFAULTS : { enabled: false },
