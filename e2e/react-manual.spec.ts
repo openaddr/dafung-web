@@ -152,4 +152,26 @@ test.describe("手册(844×390 横屏标准档)", () => {
     expect(await page.locator('[data-slot="dialog-content"]').count()).toBe(0);
     await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
   });
+
+  test("重开手册:关后再开壳体必须实可见(#1182,真机「点手册没作用」复防)", async ({ page }) => {
+    const manual = page.getByTestId(HOME_TID.manual);
+    const modal = page.getByTestId(MANUAL_TID.modal);
+    await openManual(page);
+    await page.getByTestId(MANUAL_TID.close).click();
+    await expect(modal).toHaveCount(0);
+    // 同页不刷新再开:壳体不得残留收起态。收起态泄漏时壳在 DOM 里但 opacity-0
+    // (且隐形壳挡住首页中部按钮)——Playwright toBeVisible 对 opacity:0 判真,
+    // 必须量计算样式;入场无 opacity 过渡(首帧即终态),toPass 只兜动画余量。
+    await manual.click();
+    await expect(modal).toBeVisible();
+    await expect(async () => {
+      const opacity = await modal.evaluate((el) => getComputedStyle(el).opacity);
+      expect(opacity, "重开壳体 opacity 应为 1(收起态残留=隐形弹层)").toBe("1");
+    }).toPass();
+    // 重开壳可正常关闭,首页按钮回归可点(泄漏态下隐形壳拦截中部点击)
+    await page.getByTestId(MANUAL_TID.close).click();
+    await expect(modal).toHaveCount(0);
+    await manual.click();
+    await expect(modal).toBeVisible();
+  });
 });
