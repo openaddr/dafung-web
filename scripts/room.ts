@@ -12,7 +12,7 @@
 // bot-driver.ts(纯搬)、看门狗 watchdogs.ts(三组收敛为通用工厂);registry 经 ops
 // 对象注入宿主操作面,投影消费方直引 seat-projection.ts(不留再导出转接层)。
 // 设计见 docs/adr/0007-room-module-extraction.md;语义不变量见 ADR-0001/0002/0004/0005。
-import type { GameCommand, GameEngine, SeatConfig } from "../src/core/authority";
+import type { GameCommand, GameEngine, SeatConfig, TurnPhase } from "../src/core/authority";
 import { isSingleCjk } from "../src/core/constants";
 import type { EncounterSwitch } from "../src/core/encounters";
 // 国号重名前缀算法(E7/#19)下沉 core:大厅客户端用同一纯函数做重名预告,开局定稿同源
@@ -22,10 +22,18 @@ import type { RoomPersistence } from "./room-persistence";
 import { createEngine, engineFromRecord } from "./room-record";
 import type { HostConfig, PersistedSeat, RoomRecord } from "./room-record";
 import { EventBatchChannel } from "./event-batch";
-import { assembleDownlinkShot } from "./seat-projection";
+import {
+  assembleDownlinkShot,
+  CALIBRATION_BACKED_KINDS,
+  CALIBRATION_EVENT_KINDS,
+  CALIBRATION_WINDOWS,
+  lobbyView,
+} from "./seat-projection";
 // wire 协议编解码单源(#429):单机传输面下行装配已收口 seat-projection 的
-// assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不再直呼 wire——
-// 双写退役(形状/封装只有一份),本模块只管排空与节流后的发送。
+// assembleDownlinkShot 单口(#431,内用 wire 构造函数),本模块不直呼 wire 的消息
+// 构造面——双写退役(形状/封装只有一份),本模块只管排空与节流后的发送;唯一例外
+// =③元数据指纹旁路(#1242)对 encodeDownlink 的纯序列化复用,与 server.ts 同款。
+import { encodeDownlink } from "./wire";
 import {
   decisionSeatOf,
   driveBots as driveBotsSession,
@@ -139,7 +147,8 @@ const CODE_LEN = 4;
 // 联机通路零改动:server.ts 自持 WS + broadcast/flush,不经本节;单机(src/app 进程内
 // 房间)经 connectSeat 挂上 MemorySocket 的宿主端点,编排每次可见变化经 onUpdate →
 // transportBroadcast 合并成一拍下行——事件批消息先行(因果在前)、整房摘要随后
-// (形状/封装收口 wire.ts #429,单源;消费端为折叠/直译的既有接收面)。
+// (形状/封装收口 wire.ts #429,单源;消费端为折叠/直译的既有接收面;#1242 起摘要
+// 半边走与联机同一份校准窗门控,首连摘要恒发)。
 export interface SeatEndpoint {
   /** 座位归属(入座即绑定;token 鉴权在 connectSeat 入口)。 */
   readonly seat: number;
@@ -234,6 +243,15 @@ export class RoomRegistry {
   /** 事件批累积/去重/排空/合并拍归共享通道(#411,scripts/event-batch.ts)——
    *  与 server.ts 联机通路同一份批语义,双端行为零变化。 */
   private readonly batches = new EventBatchChannel();
+  /** 上次 flush/首连时引擎结算 turnPhase(#1242 校准门控):决策窗退出检测——退出批
+   *  无相位事件(如锦囊「今不用」),靠前后沿夹出。与 server.ts flush 侧同款基线记录
+   *  (恢复登记/解散清残表/首连登记同形),常量单源 seat-projection CALIBRATION_*。 */
+  private readonly settledTurnPhase = new Map<string, TurnPhase | null>();
+  /** 上次下行时房间元数据指纹(#1242,server.ts lastRoomMeta 同款):恒发快照退役后,
+   *  非校准拍的房间行变化(在线集/托管开关/开局态)靠 ③元数据旁路按差异补发 lobby 形
+   *  消息——托管回读(local.ts roomSeats)等房间字段的唯一即时通路;校准/显式拍快照
+   *  自带座位行,指纹随拍登记即可。 */
+  private readonly lastRoomMeta = new Map<string, string>();
 
   constructor(
     persistence: RoomPersistence,
@@ -323,6 +341,13 @@ export class RoomRegistry {
         continue;
       }
       this.rooms.set(rec.roomId, room);
+      // #1242 校准门控基线登记(与 server.ts restoreAll 回调同语义):恢复快照自带的
+      // 结算相位即决策窗退出检测的起点;元数据指纹同步登记(server.ts 同款)。
+      this.settledTurnPhase.set(rec.roomId, room.engine?.turnPhase ?? null);
+      this.lastRoomMeta.set(
+        rec.roomId,
+        encodeDownlink(lobbyView(room, this.transportOnlineSeats(rec.roomId))),
+      );
       onRestored?.(room);
       count++;
     }
@@ -583,8 +608,10 @@ export class RoomRegistry {
     this.watchdogs.reactionWait.clear(id);
     this.watchdogs.retention.clear(id);
     // 传输面残表一并清(#397):端点/在途累积批/已排定的 flush 定时器随房同撤
-    // (#411:批三表与定时器清理归共享通道 dispose)
+    // (#411:批三表与定时器清理归共享通道 dispose);校准基线/元数据指纹同撤(server.ts 同款)
     this.batches.dispose(id);
+    this.settledTurnPhase.delete(id);
+    this.lastRoomMeta.delete(id);
     this.seatEndpoints.delete(id);
     this.rooms.delete(id);
     this.persistence.remove(id);
@@ -729,8 +756,15 @@ export class RoomRegistry {
     }
     eps.set(seat, ep);
     // 首连整房摘要(#431 装配单口):batch=[] 纯摘要拍;viewerSeat=null = 单机显式
-    // god-view(本机单真人无跨设备泄密面,唯一合法退化口)。
+    // god-view(本机单真人无跨设备泄密面,唯一合法退化口)。恒发不随门控(#1242:
+    // 重连语义=整房摘要水合,server.ts open 处理器同款);结算相位基线同拍登记,
+    // 元数据指纹同拍登记(摘要已携带座位行,③旁路自此刻起按差异补发)。
     ep.send(assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, [], true).snapshot);
+    this.settledTurnPhase.set(roomId, room.engine?.turnPhase ?? null);
+    this.lastRoomMeta.set(
+      roomId,
+      encodeDownlink(lobbyView(room, this.transportOnlineSeats(roomId))),
+    );
     return room;
   }
 
@@ -751,24 +785,33 @@ export class RoomRegistry {
   /** 传输面广播(单机通路;由宿主以 onUpdate 回调喂入):引擎当前批以「数组引用换新」
    *  为界累积(#411 起批语义归共享通道 scripts/event-batch.ts,与 server.ts 同一份代码:
    *  引用不变 = 同一转移的重复通知,不重收),本 tick 内合并,setTimeout(0) 统一 flush。
-   *  无端点的房间(联机自持通路)只累积不排定时器,行为即无操作。 */
+   *  无端点的房间(联机自持通路)只累积不排定时器,行为即无操作。
+   *  #1242 起排程拍快照走校准门控(forceSnapshot=false),显式通路经 flushTransportNow
+   *  恒发——「是否带快照」在 flush 单体收成显式参数,自动/显式两通路在此分叉。 */
   transportBroadcast(roomId: string): void {
     const room = this.rooms.get(roomId);
     if (!room) return;
     this.batches.accumulate(roomId, room.engine?.gameEvents);
     if (this.seatEndpoints.get(roomId) == null) return;
-    this.batches.schedule(roomId, () => this.flushTransport(roomId));
+    this.batches.schedule(roomId, () => this.flushTransport(roomId, false));
   }
 
   /** 单拍下行装配单口(#431):①事件批消息(因果在前,空批不发)→ ②整房摘要,
    *  经 seat-projection assembleDownlinkShot 一次配齐——viewerSeat=null = 单机显式
    *  god-view 退化(ADR-0020 决策 2 的显式退化口:本机单真人无跨设备泄密面;将来
    *  观战/回放类消费面复用本装配,传座位默认拿裁剪流),消息形状/封装同收 wire.ts
-   *  构造函数(#429);②的判定在单机退化为恒发(withSnapshot=true)——内存直连无
-   *  带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口
-   *  (单机客户端状态 = #1241 水合副本,每拍快照无条件覆盖,见 controllers/local.ts)。
-   *  批排空幂等(#411 共享通道):重复 flush 袋空不发 events。 */
-  private flushTransport(roomId: string): void {
+   *  构造函数(#429)。
+   *  ②的判定(#1242):与联机 server.ts flushRoom 同判——恒发快照退役,ADR-0020
+   *  决策 3 的关键节点校准门控单机补齐,常量单源 seat-projection CALIBRATION_*
+   *  (类型化 ReadonlySet,phase/kind 改名=编译红)。判定读引擎公开结算态,零启发式;
+   *  批排空幂等(#411 共享通道):重复 flush 袋空不发 events。
+   *  ③元数据旁路(#1242 配套,server.ts 同形):快照缺席的拍按 lastRoomMeta 指纹
+   *  差异补发 lobby 形房间行(托管开关/在线集变化),托管回读通路不随门控断链。
+   *  forceSnapshot:「是否带快照」的显式参数——false = 自动排程拍,快照按校准门控
+   *  判定下发;true = 显式通路恒发(flushTransportNow,种植收口/终局拍)。门控判定
+   *  依赖排空后的批内容(校准 kind/闭沿空批判据),故在排空后求值——自动通路传
+   *  false 即「判定值在此生效」,与 server.ts flushRoom 的判定位置同形。 */
+  private flushTransport(roomId: string, forceSnapshot: boolean): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
     if (!room || !eps || eps.size === 0) {
@@ -776,28 +819,51 @@ export class RoomRegistry {
       return;
     }
     const events = this.batches.drain(roomId);
-    const shot = assembleDownlinkShot(
-      room,
-      this.transportOnlineSeats(roomId),
-      null,
-      events ?? [],
-      true,
-    );
+    // 校准判定(server.ts flushRoom 同形,#388 判定口径):prev=上次 flush/首连的
+    // 结算相位,决策窗退出批无相位事件靠前后沿夹出;#529 闭沿限流——窗闭沿只在
+    // 空批(纯收尾拍)或含校准兜底 kind(折叠面不精确折、状态靠校准覆盖)时落全量。
+    const e = room.engine;
+    const settled = e?.turnPhase ?? null;
+    const prev = this.settledTurnPhase.get(roomId) ?? null;
+    this.settledTurnPhase.set(roomId, settled);
+    const closeEdgeBatch =
+      (events ?? []).length === 0 ||
+      (events ?? []).some((ev) => CALIBRATION_BACKED_KINDS.has(ev.kind));
+    const calibrate =
+      e != null &&
+      (e.phase === "Setup" ||
+        (events ?? []).some((ev) => CALIBRATION_EVENT_KINDS.has(ev.kind)) ||
+        (settled != null && CALIBRATION_WINDOWS.has(settled)) ||
+        (prev != null && CALIBRATION_WINDOWS.has(prev) && closeEdgeBatch));
+    const withSnapshot = forceSnapshot || calibrate;
+    // 元数据指纹旁路(③,server.ts flushRoom 同形):校准/显式拍快照自带房间行,
+    // 指纹随拍登记;非校准拍指纹变化才补发 lobby 形元数据——托管回读等房间字段变化
+    // 不再依赖恒发快照(#1242 门控的配套通路,指纹纯元数据不含对局面,跨拍稳定)。
+    const metaJson = encodeDownlink(lobbyView(room, this.transportOnlineSeats(roomId)));
+    const shot = withSnapshot
+      ? assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, events ?? [], true)
+      : assembleDownlinkShot(room, this.transportOnlineSeats(roomId), null, events ?? [], false);
     if (shot.events != null) {
       for (const ep of eps.values()) if (ep.open) ep.send(shot.events);
     }
-    for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
+    if (shot.snapshot != null) {
+      for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
+      this.lastRoomMeta.set(roomId, metaJson);
+    } else if (this.lastRoomMeta.get(roomId) !== metaJson) {
+      this.lastRoomMeta.set(roomId, metaJson);
+      for (const ep of eps.values()) if (ep.open) ep.send(metaJson);
+    }
   }
 
   /** 显式同步下行一拍(#1241):立即装配并下发(事件批先行、整房摘要随后,恒带快照
-   *  withSnapshot=true——种植不产事件批,玩家副本的唯一知悉通道=水合),不经合并拍
+   *  forceSnapshot=true——种植不产事件批,玩家副本的唯一知悉通道=水合),不经合并拍
    *  定时器。两个调用方:①e2e force 种植段收口(种权威→当拍水合到玩家所见,冻结钟
    *  下不依赖排程拍;经 LocalController.flushDownlinkNow);②时钟挂死终局拍(出口③
    *  #642,LocalController onFatal——作废是单条终局转移,无合并可等,终局态当拍直下)。
-   *  与自动通路 transportBroadcast(排程 flush)正交;T3 起自动通路快照改校准窗门控,
-   *  本显式通路恒带快照不随门控。本体 = flushTransport,零编排行为改动。 */
+   *  与自动通路 transportBroadcast(排程 flush)正交;#1242 起自动通路快照走校准门控,
+   *  本显式通路恒带快照不随门控(语义与 #1241 落地时一致)。本体 = flushTransport。 */
   flushTransportNow(roomId: string): void {
-    this.flushTransport(roomId);
+    this.flushTransport(roomId, true);
   }
 
   // ──────────────────────────── host 移交(ADR-0002)────────────────────────────

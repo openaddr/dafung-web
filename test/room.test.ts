@@ -1365,9 +1365,9 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
   // ── 终局覆盖下沉(#580 托管 cutover e2e 终局覆盖下沉)──
   // cutover e2e 的全程骑局在单节拍 2s/步下超预算不可救,终局折叠收敛与双端胜者一致
   // 下沉本用例:registry 传输面双端点收全下行,ManualClock 手泵骑到 GameOver(零墙钟)。
-  // 面差注记:registry 面 flush 恒发快照(room.ts「单机显式退化口」,ADR-0020 决策 3),
-  // WS 面「逐步快照为零」判据在本面不可满足;同一不变量(状态下行不只靠快照、事件批
-  // 自足)在本面以「流文法恒定 + 事件批折叠收敛到终局」承载,见断言①③。
+  // 面差注记(#1242 起):两传输面下行同一份校准窗门控(常量单源 seat-projection,
+  // 首连摘要恒发)——本面判据 = 门控真实生效(整局存在非校准拍零快照的相邻 events,
+  // 且快照批数远小于事件批数:恒发退役)+ 事件批折叠收敛到终局,见断言①③。
 
   itSlow(
     "托管全程骑局到终局:事件批自足收敛,双端 gameOver、胜者一致(#580 托管 cutover e2e 终局覆盖下沉)",
@@ -1412,18 +1412,26 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
       expect(e.phase).toBe("GameOver");
       for (let i = 0; i < 5; i++) await macroTick();
 
-      // ③ 的折叠收敛副本:首连摘要水合,seat0 端全量事件批逐折(#387 折叠面)
-      const firstSnap = feeds[0]!.msgs[0] as unknown as Record<string, unknown>;
-      const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
-        seats: [
-          { name: "座 1", isBot: false },
-          { name: "座 2", isBot: false },
-        ],
-        targetNetWorth: MAP.targetNetWorth,
-        startingCash: MAP.startingCash,
-        startingTreasures: 0,
-      });
-      replica.restoreFromSnapshot(firstSnap as never);
+      // ③ 的折叠收敛副本(双端各一):首连摘要水合,端内全量事件批逐折(#387 折叠面;
+      // 本面下行批为 god-view,双端同批,双副本 fold 后胜负必须同径收敛)
+      const foldReplicaOf = (f: (typeof feeds)[number]): GameEngine => {
+        const replica = new GameEngine(MAP.board, MAP.catalog, createDice(42), {
+          seats: [
+            { name: "座 1", isBot: false },
+            { name: "座 2", isBot: false },
+          ],
+          targetNetWorth: MAP.targetNetWorth,
+          startingCash: MAP.startingCash,
+          startingTreasures: 0,
+        });
+        replica.restoreFromSnapshot(f.msgs[0] as never);
+        for (const b of f.msgs.filter((m) => m.type === "events") as unknown as {
+          events: Parameters<typeof foldEventBatch>[1];
+        }[]) {
+          foldEventBatch(replica, b.events);
+        }
+        return replica;
+      };
 
       const winners: (string | null)[] = [];
       for (const f of feeds) {
@@ -1432,17 +1440,21 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
           events: { kind: EventKind }[];
         }[];
         // ① 下行形状(本面不变量):消息只有 snapshot|events 两族;flush 单体恒
-        // events 先行、快照随后——events 相邻出现 = 快照半边丢失;校准面(决策窗
-        // 相位快照 / 校准节点批 playerBankrupt 等)随全程骑局在场。
+        // events 先行、快照随后。#1242 起快照只随校准拍——整局必存在非校准拍
+        // (相邻 events,门控生效的流证据),且校准拍远少于普通推进拍。
         expect(
           f.msgs.every((m) => m.type === "snapshot" || m.type === "events"),
           "下行只含 snapshot|events 两族",
         ).toBe(true);
-        let grammarBreak = false;
+        let gatedFlushSeen = false;
         for (let i = 1; i < f.msgs.length; i++) {
-          if (f.msgs[i]!.type === "events" && f.msgs[i - 1]!.type === "events") grammarBreak = true;
+          if (f.msgs[i]!.type === "events" && f.msgs[i - 1]!.type === "events")
+            gatedFlushSeen = true;
         }
-        expect(grammarBreak, "events 必须逐拍伴随快照下行(flush 单体形状)").toBe(false);
+        expect(gatedFlushSeen, "非校准拍零快照:存在相邻 events(门控生效)").toBe(true);
+        expect(snaps.length < batches.length, "恒发退役:快照批数小于事件批数(快照只随校准拍)").toBe(
+          true,
+        );
         expect(
           snaps.some((m) => CALIBRATION_WINDOWS.has((m as { turnPhase: TurnPhase }).turnPhase)),
           "决策窗校准相位快照在场",
@@ -1456,29 +1468,18 @@ describe("代打行为单源(#580):托管(含看门狗代开)同款 bot 策略",
           batches.some((b) => b.events.some((ev) => ev.kind === "gameOver")),
           "终局事件到达",
         ).toBe(true);
-        // ③ 终局快照收敛:末拍 phase=GameOver 且 winner 已定;胜者经座位投影取
-        // (传输面下行的快照消息逐座位 redact,不读引擎 god-view 直取)
-        const last = snaps[snaps.length - 1] as { phase: string; winner: string | null };
-        expect(last.phase, "终局快照收敛到 GameOver").toBe("GameOver");
-        expect(last.winner, "终局快照已定胜者").not.toBeNull();
-        const { type: _t, ...snap } = last as unknown as Record<string, unknown>;
-        winners.push(redactSnapshotForSeat(snap as never, f.seat).winner);
+        // ③ 终局折叠收敛(胜负族,声明性精确折):自首连摘要水合的副本只吃事件批——
+        // 不经任何后续快照水合——即收敛到同一终局(isOver/phase/winner)。折叠精确族
+        // 之外的现金/资产细目不在断言面:fold+calibration 档(#430 档位表)的漂移窗
+        // 本就由校准快照兜,全 run 纯折叠对账超出架构承诺(实测破产清算拍 +200 漂移)。
+        const replica = foldReplicaOf(f);
+        expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
+        expect(replica.phase).toBe("GameOver");
+        expect(replica.winner?.id ?? null, "折叠收敛:终局胜者已定").not.toBeNull();
+        winners.push(replica.winner?.id ?? null);
       }
-      // 双端胜者一致(各端各自投影,不经引擎直取对齐)
-      expect(winners[0], "两端座位投影的胜者一致").toBe(winners[1]);
-
-      // ③ 终局折叠收敛(胜负族,声明性精确折):自首连摘要水合的副本只吃事件批——
-      // 不经任何后续快照水合——即收敛到同一终局(isOver/phase/winner)。折叠精确族之外的
-      // 现金/资产细目不在断言面:fold+calibration 档(#430 档位表)的漂移窗本就由校准
-      // 快照兜,全 run 纯折叠对账超出架构承诺(实测破产清算拍 +200 漂移)。
-      for (const b of feeds[0]!.msgs.filter((m) => m.type === "events") as unknown as {
-        events: Parameters<typeof foldEventBatch>[1];
-      }[]) {
-        foldEventBatch(replica, b.events);
-      }
-      expect(replica.isOver, "事件批折叠收敛:副本终局").toBe(true);
-      expect(replica.phase).toBe("GameOver");
-      expect(replica.winner?.id ?? null, "折叠胜者与投影胜者一致").toBe(winners[0]);
+      // 双端胜者一致(各端自首连摘要+事件批独立折叠,不经引擎直取对齐)
+      expect(winners[0], "两端折叠收敛的胜者一致").toBe(winners[1]);
     },
     120_000,
   );
