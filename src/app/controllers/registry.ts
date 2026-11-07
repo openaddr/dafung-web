@@ -2,6 +2,7 @@
 // 不把 controller 塞进 zustand(实例带方法/WS 连接等非序列化资源,同 engine 的理由,见 gameStore.ts 注释)。
 // 单机开局(setup 屏/临时快速开局)调 setController 注册 LocalController;
 // 联机(后续阶段)注册 OnlineController —— 屏幕组件对两种模式无感。
+import type { GameEngine } from "@core/authority";
 import type { Board } from "@core/board";
 import type { MapCatalog } from "@core/board-loader";
 import type { MapData } from "@core/board-loader";
@@ -43,8 +44,36 @@ export function getControllerContext(): { board: Board; catalog: MapCatalog } | 
   return currentContext;
 }
 
+// ──────────────────────────── 单机权威引擎登记位(#1240 调试桥双口)────────────────────────────
+// 调试桥第二口 getAuthorityEngine 的模块级登记位:独立于状态桥引擎单例(getEngine 的
+// store 侧引用)——T2 接缝翻转后状态桥单例换成水合副本,本登记位直引的房间权威引擎
+// 纹丝不动,种植/注入类 e2e 语义不随翻转漂移。登记时机:单机控制器建房(LocalController
+// 构造)登记、destroy(解散/换局)清除;联机对局/未开局天然无登记,访问口抛错(零兜底,
+// 不返回 undefined 溜过去)。
+let authoritative: GameEngine | null = null;
+
+/** 单机控制器建房时登记房间权威引擎(登记位唯一写入口,单测直调)。 */
+export function registerAuthorityEngine(engine: GameEngine): void {
+  authoritative = engine;
+}
+
+/** 解散/换局时清除登记(权威口随之恢复抛错态)。无所属比对:生产换局序恒为
+ *  「旧 destroy(setController(null)/换局销毁)→ 新控制器构造登记」,清除先于新登记,
+ *  时序错乱若将来出现,force 注入当场抛错暴露(零兜底,不加防御分支)。 */
+export function clearAuthorityEngine(): void {
+  authoritative = null;
+}
+
+/** 调试桥单机权威访问口(与玩家侧 getEngine 并列;force 注入/种植段/abort 类测试
+ *  注入专用,规格 #1239「凡走权威口即种植段」):无登记即抛错。 */
+export function getAuthorityEngine(): GameEngine {
+  if (authoritative == null)
+    throw new Error("getAuthorityEngine:仅单机对局存在权威引擎(联机/未开局无登记)");
+  return authoritative;
+}
+
 // ──────────────────────────── window.__dafung 调试钩子 ────────────────────────────
-// 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照、手动触发重同步。
+// 重建旧 src/render/state.ts 的调试入口:控制台可直接读引擎/快照(玩家侧/单机权威双口)。
 // 类型声明见 src/app/debug.d.ts(declare global,零运行时开销)。
 import { getEngine, setEngine, useGameStore } from "@app/store/gameStore";
 import { E2E_DEBUG_BRIDGE_KEY } from "@app/fx/timings";
@@ -78,14 +107,12 @@ export function installDebugHooks(): void {
   const w = window as typeof window & { __dafung?: unknown };
   w.__dafung = {
     getEngine,
+    /** 单机权威访问口(#1240 双口预置):直取单机房间权威引擎本体,force 注入/种植段
+     *  专用——语义见模块级登记位一节;无登记抛错,联机对局不走此口。 */
+    getAuthorityEngine,
     setEngine,
     /** 当前 store 里的快照(god view;等价旧 __dafung.snapshot)。 */
     snapshot: () => useGameStore.getState().snapshot,
-    /** 手动从引擎重灌快照(怀疑 UI 与引擎脱节时排查用)。 */
-    sync: () => {
-      const e = getEngine();
-      if (e) useGameStore.getState().syncFromEngine(e);
-    },
     /** 名将目录全量 HeroDef(#378):e2e/控制台种植招贤候选用——候选行 = {def, skillIds
      *  (预掷授技,#787)},直写 offeredHeroes 必须给候选行形状;预掷结果由种植者定
      *  (e2e 通常给整池),引擎落定原样入槽不重掷。 */

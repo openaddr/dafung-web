@@ -13,12 +13,14 @@ declare global {
       frameDiag: () => FrameDiagDump | null;
       /** 当前引擎实例(null = 未开局)。 */
       getEngine: () => GameEngine | null;
+      /** 单机权威访问口(#1240 双口预置):直取单机房间权威引擎本体(force 注入/种植段
+       *  专用,凡走此口即种植段);登记位在 controllers/registry.ts,联机对局/未开局
+       *  无登记,调用抛错。 */
+      getAuthorityEngine: () => GameEngine;
       /** 绑定/解绑引擎(调试恢复用)。 */
       setEngine: (e: GameEngine | null) => void;
       /** 当前 zustand store 里的快照。 */
       snapshot: () => GameSnapshot | null;
-      /** 手动从引擎重灌快照到 store。 */
-      sync: () => void;
       /** 名将目录全量 HeroDef(含扩展包注册者;种植招贤候选用)。 */
       heroDefs: () => HeroDef[];
       /** 当前控制器(交互入口)。 */

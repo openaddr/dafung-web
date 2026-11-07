@@ -20,7 +20,9 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
 }
 
 /** 强制引擎进入指定状态并同步 UI(测试专用通道;fn 内以 e 引用引擎)。
- *  #188:收口走控制器 sync(而非 __dafung.sync)——直改引擎后必须连派生量(interactive
+ *  #1240 双口预置:e 取单机权威口 getAuthorityEngine(直改房间权威引擎本体,凡
+ *  force 即种植段),不取玩家侧 getEngine——T2 接缝翻转后后者语义=玩家所见副本。
+ *  #188:收口走控制器 sync——直改引擎后必须连派生量(interactive
  *  /viewSeat)一起重灌,决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点
  *  不再保证 interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴。
  *  #398/#400:单机统一后演出队列与引擎状态解耦(状态随下行拍即时落,动画排队播,
@@ -31,7 +33,7 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
 export async function force(page: Page, fn: string): Promise<void> {
   await waitFxIdle(page);
   await page.evaluate(
-    `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
+    `(() => { const e = window.__dafung.getAuthorityEngine(); ${fn} window.__dafung.controller().sync(); })()`,
   );
   await waitFxIdle(page);
 }

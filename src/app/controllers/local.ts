@@ -38,6 +38,8 @@ import {
   type ServerMsg,
 } from "../../../scripts/wire";
 import { GameController } from "./controller";
+// 权威口登记(#1240 调试桥双口):建房登记/解散清除,登记位在 registry.ts。
+import { clearAuthorityEngine, registerAuthorityEngine } from "./registry";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
  *  isBot 布点与首座(=host 真人)的预设国号——名字/起手银两不进房间通路
@@ -180,6 +182,7 @@ export class LocalController extends GameController {
     if (!engine) throw new Error("单机开局异常:startGame 同步段未产出引擎");
     this._engine = engine;
     setEngine(engine);
+    registerAuthorityEngine(engine); // 调试桥权威口登记(#1240)
     this.prePositions = engine.players.map((p) => p.position);
     this.sync();
   }
@@ -231,6 +234,7 @@ export class LocalController extends GameController {
     super.destroy();
     this.sock.close();
     this.registry.dismissRoom(this.roomId, this.seatToken);
+    clearAuthorityEngine(); // 权威口登记随房间解散清除(#1240)
     this.clock.dispose();
     useNetStore.getState().resetEventFace();
   }
