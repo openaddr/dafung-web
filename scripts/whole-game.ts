@@ -201,7 +201,8 @@ export function wholeGameConfig(opts: WholeGameOptions): GameConfig {
     seats: opts.seats,
     targetNetWorth: opts.map.targetNetWorth,
     startingCash: opts.map.startingCash,
-    startingTreasures: 0,
+    // 起手珍宝随地图(单源 public/maps;硬编码 0 会造成无头跑 0 件、产品跑 2 件的静默第二配置,#1201 连带笔误正)
+    startingTreasures: opts.map.startingTreasures,
     seed: opts.seed,
     mapId: opts.mapId,
     encounter: opts.encounter ?? ENCOUNTER_PRODUCT_DEFAULTS,
