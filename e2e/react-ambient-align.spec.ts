@@ -84,10 +84,16 @@ test("氛围层装饰与棋子槽位像素对位(矩阵同步不变量,ADR-0039)
   await waitSettledFlags(page);
 
   // 静止态:间距比 ≈ 1(±3%:亚像素舍入在 ~200px 间距上 <1%),且全部锚点在自家扩盒内
-  const rest = await measure(page);
-  expect(rest.ratio, "旗锚不足两枚(氛围层未渲染或换装态误判)").not.toBeNull();
-  expect(rest.pairDist).toBeGreaterThan(50); // 取到的对必须真有间距,防全零坐标假绿
-  expect(Math.abs(rest.ratio! - 1)).toBeLessThan(0.03);
-  expect(rest.outside, `旗锚挤出自棋扩盒的棋子:${rest.outside.join(",")}`).toEqual([]);
+  // #1181 诊断:满载下 waitSettledFlags 放行后仍有 ≤300ms 量级的瞬态未稳窗
+  // (矩阵同步尾拍/换装回装的 ratio+outside 同帧违例,实测 10 轮满载 2 轮命中),
+  // 单次取样会撞上——读数+断言整块包 toPass 在 expect 超时窗内轮询重试,
+  // 读到稳定正确才算过;阈值与语义不变。
+  await expect(async () => {
+    const rest = await measure(page);
+    expect(rest.ratio, "旗锚不足两枚(氛围层未渲染或换装态误判)").not.toBeNull();
+    expect(rest.pairDist).toBeGreaterThan(50); // 取到的对必须真有间距,防全零坐标假绿
+    expect(Math.abs(rest.ratio! - 1)).toBeLessThan(0.03);
+    expect(rest.outside, `旗锚挤出自棋扩盒的棋子:${rest.outside.join(",")}`).toEqual([]);
+  }).toPass();
   await unfreezeClock(page);
 });

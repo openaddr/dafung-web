@@ -39,65 +39,70 @@ test.describe("顶部浮层几何(#700 ①)", () => {
       e.turnPhase = "AwaitingDecision";
     `,
     );
-    const geo = await page.evaluate(
-      ({ overview, settings, capsule, buttons, toggle }) => {
-        const rect = (id: string) => {
-          const el = document.querySelector(`[data-testid="${id}"]`);
-          if (el == null) return null;
-          const r = el.getBoundingClientRect();
-          return {
-            x: r.x,
-            y: r.y,
-            w: r.width,
-            h: r.height,
-            cx: r.x + r.width / 2,
-            cy: r.y + r.height / 2,
+    // #1181 诊断:本例是单发 evaluate 几何读数,满载下 quickStart 放行点与浮层首挂/
+    // 回合胶囊重挂入场过渡仍有毫秒级竞速窗——读数幂等,整块包 toPass 轮询重试
+    // (expect 超时窗内读到稳定正确才算过);阈值与断言语义不变。
+    await expect(async () => {
+      const geo = await page.evaluate(
+        ({ overview, settings, capsule, buttons, toggle }) => {
+          const rect = (id: string) => {
+            const el = document.querySelector(`[data-testid="${id}"]`);
+            if (el == null) return null;
+            const r = el.getBoundingClientRect();
+            return {
+              x: r.x,
+              y: r.y,
+              w: r.width,
+              h: r.height,
+              cx: r.x + r.width / 2,
+              cy: r.y + r.height / 2,
+            };
           };
-        };
-        const vw = document.documentElement.clientWidth;
-        const on = document.querySelector(`[data-testid="${toggle}"]`)?.classList.contains("on");
-        return {
-          overview: rect(overview),
-          settingsBtn: rect(settings),
-          capsule: rect(capsule),
-          buttons: rect(buttons),
-          toggleOn: on,
-          vw,
-        };
-      },
-      {
-        overview: TESTIDS.topbarOverview,
-        settings: TESTIDS.settingsButton,
-        capsule: TESTIDS.turnCapsule,
-        buttons: TESTIDS.pileButtons,
-        toggle: TESTIDS.jinnangToggle,
-      },
-    );
-    // 顶左行序(#732):设置 ⚙ 最左,详情 ☰ 其次——两钮 32×32 贴左上
-    // (测试环境 safe-area=0,实现口径 = safe + 8px),同一行(y 互齐)
-    expect(geo.settingsBtn).not.toBeNull();
-    expect(Math.abs(geo.settingsBtn!.w - 32)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(geo.settingsBtn!.h - 32)).toBeLessThanOrEqual(0.5);
-    expect(geo.settingsBtn!.x).toBeLessThanOrEqual(9);
-    expect(geo.settingsBtn!.y).toBeLessThanOrEqual(9);
-    expect(geo.overview).not.toBeNull();
-    expect(Math.abs(geo.overview!.w - 32)).toBeLessThanOrEqual(0.5);
-    expect(Math.abs(geo.overview!.h - 32)).toBeLessThanOrEqual(0.5);
-    expect(geo.overview!.x).toBeGreaterThan(geo.settingsBtn!.x + geo.settingsBtn!.w);
-    expect(Math.abs(geo.overview!.y - geo.settingsBtn!.y)).toBeLessThanOrEqual(1);
-    // 回合胶囊(#853 chip 退役,轮次唯一落胶囊):顶中知会槽行,与钮行垂直居中
-    // 互齐(槽 32px 行内 24px 胶囊居中,槽/钮行同锚 +8);cx 在顶中半场(胶囊
-    // 可融合等待附加信息,宽度随内容,只守「中段、不与顶左两钮相侵」)
-    expect(geo.capsule).not.toBeNull();
-    expect(geo.capsule!.x).toBeGreaterThan(geo.overview!.x + geo.overview!.w);
-    expect(Math.abs(geo.capsule!.cy - geo.settingsBtn!.cy)).toBeLessThanOrEqual(3);
-    expect(geo.capsule!.cx).toBeGreaterThan(geo.vw / 4);
-    expect(geo.capsule!.cx).toBeLessThan(geo.vw * 0.75);
-    // 三圆钮:贴右下(44 + 8 右距 + 10 底距),锦囊钮默认亮(=显示)
-    expect(Math.abs(geo.buttons!.h - 44)).toBeLessThanOrEqual(0.5);
-    expect(geo.buttons!.y + geo.buttons!.h).toBeGreaterThanOrEqual(390 - 55);
-    expect(geo.buttons!.x + geo.buttons!.w).toBeGreaterThanOrEqual(844 - 55);
-    expect(geo.toggleOn).toBe(true);
+          const vw = document.documentElement.clientWidth;
+          const on = document.querySelector(`[data-testid="${toggle}"]`)?.classList.contains("on");
+          return {
+            overview: rect(overview),
+            settingsBtn: rect(settings),
+            capsule: rect(capsule),
+            buttons: rect(buttons),
+            toggleOn: on,
+            vw,
+          };
+        },
+        {
+          overview: TESTIDS.topbarOverview,
+          settings: TESTIDS.settingsButton,
+          capsule: TESTIDS.turnCapsule,
+          buttons: TESTIDS.pileButtons,
+          toggle: TESTIDS.jinnangToggle,
+        },
+      );
+      // 顶左行序(#732):设置 ⚙ 最左,详情 ☰ 其次——两钮 32×32 贴左上
+      // (测试环境 safe-area=0,实现口径 = safe + 8px),同一行(y 互齐)
+      expect(geo.settingsBtn).not.toBeNull();
+      expect(Math.abs(geo.settingsBtn!.w - 32)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(geo.settingsBtn!.h - 32)).toBeLessThanOrEqual(0.5);
+      expect(geo.settingsBtn!.x).toBeLessThanOrEqual(9);
+      expect(geo.settingsBtn!.y).toBeLessThanOrEqual(9);
+      expect(geo.overview).not.toBeNull();
+      expect(Math.abs(geo.overview!.w - 32)).toBeLessThanOrEqual(0.5);
+      expect(Math.abs(geo.overview!.h - 32)).toBeLessThanOrEqual(0.5);
+      expect(geo.overview!.x).toBeGreaterThan(geo.settingsBtn!.x + geo.settingsBtn!.w);
+      expect(Math.abs(geo.overview!.y - geo.settingsBtn!.y)).toBeLessThanOrEqual(1);
+      // 回合胶囊(#853 chip 退役,轮次唯一落胶囊):顶中知会槽行,与钮行垂直居中
+      // 互齐(槽 32px 行内 24px 胶囊居中,槽/钮行同锚 +8);cx 在顶中半场(胶囊
+      // 可融合等待附加信息,宽度随内容,只守「中段、不与顶左两钮相侵」)
+      expect(geo.capsule).not.toBeNull();
+      expect(geo.capsule!.x).toBeGreaterThan(geo.overview!.x + geo.overview!.w);
+      expect(Math.abs(geo.capsule!.cy - geo.settingsBtn!.cy)).toBeLessThanOrEqual(3);
+      expect(geo.capsule!.cx).toBeGreaterThan(geo.vw / 4);
+      expect(geo.capsule!.cx).toBeLessThan(geo.vw * 0.75);
+      // 三圆钮:贴右下(44 + 8 右距 + 10 底距),锦囊钮默认亮(=显示)
+      expect(Math.abs(geo.buttons!.h - 44)).toBeLessThanOrEqual(0.5);
+      expect(geo.buttons!.y + geo.buttons!.h).toBeGreaterThanOrEqual(390 - 55);
+      expect(geo.buttons!.x + geo.buttons!.w).toBeGreaterThanOrEqual(844 - 55);
+      expect(geo.toggleOn).toBe(true);
+    }).toPass();
   });
 });
 
@@ -114,24 +119,28 @@ test.describe("核心几何不变量(#700 ②:满编 8 席全列零滚动)", () 
     // 配置与开局在桌面视口完成,再切矮横屏验收目标形态(真机即此重排路径)
     await page.setViewportSize({ width: 844, height: 390 });
     await page.getByTestId(TESTIDS.seatRail).waitFor();
-    const geo = await page.evaluate((containerId) => {
-      const col = document.querySelector(".seat-rail .seatcol")!;
-      const cells = [...col.querySelectorAll<HTMLElement>(".seat")];
-      const fab = document.querySelector(`[data-testid="${containerId}"]`)!;
-      const fabTop = fab.getBoundingClientRect().top;
-      const last = cells[cells.length - 1]!.getBoundingClientRect();
-      return {
-        count: cells.length,
-        cellH: cells[0]!.getBoundingClientRect().height,
-        lastBottom: last.bottom,
-        fabTop,
-        overflow: (col as HTMLElement).scrollHeight - (col as HTMLElement).clientHeight,
-      };
-    }, TESTIDS.pileButtons);
-    expect(geo.count).toBe(8);
-    expect(Math.abs(geo.cellH - 38)).toBeLessThanOrEqual(0.5);
-    expect(geo.lastBottom).toBeLessThanOrEqual(geo.fabTop + 0.5); // 第 8 格下缘 ≤ 三圆钮上缘
-    expect(geo.overflow).toBeLessThanOrEqual(0); // 全列零滚动
+    // #1181 同族硬化:视口切换后的单发几何读数包 toPass 轮询重试(读数幂等),
+    // 重排尾拍不与断言赛跑;阈值与语义不变。
+    await expect(async () => {
+      const geo = await page.evaluate((containerId) => {
+        const col = document.querySelector(".seat-rail .seatcol")!;
+        const cells = [...col.querySelectorAll<HTMLElement>(".seat")];
+        const fab = document.querySelector(`[data-testid="${containerId}"]`)!;
+        const fabTop = fab.getBoundingClientRect().top;
+        const last = cells[cells.length - 1]!.getBoundingClientRect();
+        return {
+          count: cells.length,
+          cellH: cells[0]!.getBoundingClientRect().height,
+          lastBottom: last.bottom,
+          fabTop,
+          overflow: (col as HTMLElement).scrollHeight - (col as HTMLElement).clientHeight,
+        };
+      }, TESTIDS.pileButtons);
+      expect(geo.count).toBe(8);
+      expect(Math.abs(geo.cellH - 38)).toBeLessThanOrEqual(0.5);
+      expect(geo.lastBottom).toBeLessThanOrEqual(geo.fabTop + 0.5); // 第 8 格下缘 ≤ 三圆钮上缘
+      expect(geo.overflow).toBeLessThanOrEqual(0); // 全列零滚动
+    }).toPass();
   });
 });
 
