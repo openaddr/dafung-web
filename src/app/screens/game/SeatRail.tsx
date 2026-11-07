@@ -49,7 +49,7 @@ export const STAMINA_LOW = 30;
 /** 目标段(#256/#417)单席点击槽:available=候选(金圈呼吸,点选=选中);
  *  selected=已选中(实金停持,再点取消);不可用席位照列不动,点按=轻晃
  *  (见 SeatCell 目标段注)。 */
-export interface SeatTargetSlot {
+interface SeatTargetSlot {
   available: boolean;
   selected?: boolean;
   reason?: string;
@@ -282,7 +282,7 @@ const SeatCell = memo(function SeatCell({
  *  选中/再点同格取消(打出归动作条「出」确认钮,GameScreen 从快照 choices 派生,
  *  本件只呈现)。selfSeat(#453 收口契约):「屏前真人的自我身份」——单机热座恒 0、
  *  联机=本座,勿传「决策视角」viewSeat(热座下随 decisionOwner 轮转)。 */
-export interface SeatRailProps {
+interface SeatRailProps {
   snapshot: GameSnapshot;
   selfSeat: number;
   targets?: {

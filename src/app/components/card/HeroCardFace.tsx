@@ -39,7 +39,7 @@ export function heroDefOf(heroId: string): HeroDef {
  *  - detail:技能全文(技名牌+该技 desc 全文,13px 基)——府库详情档;
  *  - compact:技名 chips 不带描述(10px 基)——出牌阶段确认;点技名开技能全览(#605);
  *  - pick:紧凑装配的招贤档(7.6px 基,与手牌槽位同档)——招贤三选一并排,分流同 #605。 */
-export type HeroCardFaceSize = "detail" | "compact" | "pick";
+type HeroCardFaceSize = "detail" | "compact" | "pick";
 
 /** 技名 chip 点击判定(#605 消费方分流单源):事件目标落在卡面技名 chip 上则返回
  *  技 id,否则 null。chips 挂 data-skill=技 id(本组件渲染),点谁/开合语义归消费方。 */
@@ -48,7 +48,7 @@ export function skillIdFromClick(e: { target: EventTarget | null }): string | nu
   return chip?.getAttribute("data-skill") ?? null;
 }
 
-export interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+interface HeroCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   heroId: string;
   /** 已授技 id 列表(双输入第二输入,#786):技能区只渲染这份——槽位原生读
    *  (SnapshotPlayer.heroes[].skillIds)或招贤候选行的预掷授技(#787);顺序即渲染序

@@ -25,7 +25,7 @@ import { SeatDetailModal, type SeatDetailKind } from "./SeatAttrModals";
 import { CityLedgerModal } from "./CityLedgerModal";
 import "./layout.css";
 
-export interface GameTopBarProps {
+interface GameTopBarProps {
   snapshot: GameSnapshot;
   /** 战报未读条数(#768,GameScreen 本地已读游标对比 warEntriesOf):>0 时 ⚙ 钮
    *  右上挂 6px 呼吸金点(战报入口的未读表达;打开抽屉即清账)。 */

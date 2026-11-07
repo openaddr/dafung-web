@@ -6,7 +6,7 @@
 // 改色改节奏只改这里——旧「与 style.css 双源人工同步」的约定已随 React/Tailwind 迁移作废。
 import type { CityTier } from "./economy";
 
-export interface Rgb {
+interface Rgb {
   r: number;
   g: number;
   b: number;

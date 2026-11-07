@@ -4,7 +4,7 @@
 // (名字与效果互证)。
 
 export type EncounterTier = "好运" | "中性" | "霉运";
-export type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力" | "锦囊";
+type EncounterTag = "银两" | "名将" | "珍宝" | "城池" | "声望" | "玩家" | "体力" | "锦囊";
 
 /** P2 跨事件标记(#1153,即「机遇章」):机遇结算写进玩家章册的封闭枚举——链式典故的
  *  前编凭证(首两枚「元直荐书」「怀玺」,后编条目以 requiresFlags 认章,#1110 奇遇制)。
@@ -953,7 +953,7 @@ export function parseEncounterFile(data: unknown): EncounterSwitch | null {
 }
 
 /** 三档概率(好运/中性/霉运,百分比;三元 softmax 归一,和恒=100)。 */
-export interface TierShares {
+interface TierShares {
   good: number;
   neutral: number;
   bad: number;

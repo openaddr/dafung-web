@@ -66,19 +66,15 @@ function fail(msg: string): never {
   throw new Error(`地图校验失败:${msg}`);
 }
 
-/** 版本迁移:旧存档字段补全/转换。当前 v1→v1 无操作;升版本时在此递增转换,
- *  避免老存档被版本检查直接拒绝(配合 main.ts 的降级兜底,保住自定义地图)。 */
-function migrate(data: MapData): MapData {
-  return data;
-}
-
 /**
  * 把已解析的地图 JSON 校验并构建为运行时对象。
  * 入参用 unknown:JSON import 推断的字面量类型(如 consequence.kind: string)
  * 与判别联合不兼容,内部统一 cast 成 MapData 再校验。
+ * (曾设 opts.lenient 宽松档与 migrate() 版本迁移脚手架,均服务已退役的编辑器/
+ * 自建地图通路,零生产消费随裁决删除;将来真出 v2 schema 时再在此加转换。)
  */
-export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap {
-  const d = migrate(data as MapData);
+export function loadMap(data: unknown): LoadedMap {
+  const d = data as MapData;
   if (d.version !== SUPPORTED_VERSION) {
     fail(`不支持的地图版本 ${d.version}(当前支持 v${SUPPORTED_VERSION})`);
   }
@@ -141,14 +137,10 @@ export function loadMap(data: unknown, opts?: { lenient?: boolean }): LoadedMap 
   });
 
   // 坐标不重叠:最小间距(含完全重合),防止城池 UI 互相压盖。阈值 = MIN_TILE_DIST。
-  // lenient 宽松档跳过此项——历史上服务已退役的编辑器实时预览,当前唯一消费者是
-  // 自身测试(产品零消费;去留待裁决票单独拍)。
-  if (!opts?.lenient) {
-    const tooClose = findTooClosePairs(positions, MIN_TILE_DIST);
-    if (tooClose.length) {
-      const [i, j] = tooClose[0];
-      fail(`第 ${i + 1} 格与第 ${j + 1} 格距离过近,UI 会重叠(需 ≥ ${MIN_TILE_DIST})`);
-    }
+  const tooClose = findTooClosePairs(positions, MIN_TILE_DIST);
+  if (tooClose.length) {
+    const [i, j] = tooClose[0];
+    fail(`第 ${i + 1} 格与第 ${j + 1} 格距离过近,UI 会重叠(需 ≥ ${MIN_TILE_DIST})`);
   }
 
   // properties(全城池制 #826:每格都是城池、全部入册;普城/事件城同口径,ADR-0024/#825)

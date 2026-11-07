@@ -35,7 +35,7 @@ import { playerSlotKey, tokenSlotGroups, tokenSlotOffset } from "./tokenSlots";
 import type { BoardPlayer } from "./BoardView";
 
 /** 玩家当前渲染坐标。 */
-export function tokenRenderPos(p: BoardPlayer, board: Board): BoardPos {
+function tokenRenderPos(p: BoardPlayer, board: Board): BoardPos {
   return board.positionOf(p.position);
 }
 
@@ -89,7 +89,7 @@ export const TOKEN_CROWD_SCALE = 0.85;
  *  经 TOKEN_SCALE 缩放后的并集外扩 2 单位安全边。viewBox 与包装 div 尺寸/负 margin
  *  同源单值(board.css .bv-token 同数);氛围层对位 spec 量的就是包装盒,本盒即其语义
  *  (盒⊃旗锚落点,扩盒 ×1.3 判定语义不变)。 */
-export const TOKEN_ART_BOX = { x: -49, y: -93, w: 121, h: 142 } as const;
+const TOKEN_ART_BOX = { x: -49, y: -93, w: 121, h: 142 } as const;
 
 /** 槽位推导单源(ADR-0039 抽取):本层声明式定位与氛围层装饰落点共用的同一公式体
  *  ——分组/偏移走 tokenSlots 单源,行军接管读 marchPos 当前段坐标。 */

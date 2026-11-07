@@ -44,7 +44,7 @@ export interface AudioPlayer {
  * Web Audio API 合成播放器(默认实现)。程序生成各音效,零文件零依赖零体积。
  * 古风质感:骰子=木质碰撞噪声、铜钱=金属叮、印章=木石 thump、横幅=whoosh。
  */
-export class SynthAudioPlayer implements AudioPlayer {
+class SynthAudioPlayer implements AudioPlayer {
   protected ctx: AudioContext | null = null;
   protected master: GainNode | null = null;
   protected muted = false;

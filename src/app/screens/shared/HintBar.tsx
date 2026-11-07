@@ -6,7 +6,7 @@
 // W2 包E(审计 A5):hint 是运行时动态文案,字族迁 wenkai(新文案不落小薇)。
 import { TESTIDS } from "@app/screens/game/testids";
 
-export interface HintBarProps {
+interface HintBarProps {
   hint: string | null;
   level?: "error" | "info";
   /** 渲染位置变体:overlay = 绝对定位居中(棋盘/整屏浮层,原三处口径);

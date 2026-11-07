@@ -18,7 +18,7 @@ import { getAudio } from "@app/fx/audio";
 import { TESTIDS } from "./testids";
 import "./reaction-banner.css";
 
-export interface ReactionBannerProps {
+interface ReactionBannerProps {
   /** 左段事件文案(单机/联机同构,GameScreen 组装:「X 使用【火烧连营】」等)。 */
   text: string;
   /** 来者锦囊 id(#751 A6):行首 mini 签面锚点(jinnang 窗必有;march 窗无牌不挂)。 */

@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { Motion } from "@core/theme";
 
 /** 一条浮标:跨快照差值 + 自增 id(列表 key 与定时移除用)。 */
-export interface DeltaFloat {
+interface DeltaFloat {
   id: number;
   delta: number;
 }

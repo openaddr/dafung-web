@@ -25,7 +25,7 @@ import { SCROLL_TESTIDS as T } from "./testids";
 
 /** 候选名将的最小展示形状(snapshot.offeredHeroes 行:展示字段 + 预掷授技,#787);
  *  卡面本体与技效描述均按 id 回查 core/heroes.ts 目录单源(#604 快照不落 desc)。 */
-export interface HeroOfferInfo {
+interface HeroOfferInfo {
   id: string;
   name: string;
   title: string;
@@ -33,7 +33,7 @@ export interface HeroOfferInfo {
   skillIds: string[];
 }
 
-export interface HeroPickScrollProps {
+interface HeroPickScrollProps {
   /** 候选名将(通常 3 个)。 */
   offered: HeroOfferInfo[];
   onCommand: (cmd: GameCommand) => void;

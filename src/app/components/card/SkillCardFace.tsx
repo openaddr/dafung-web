@@ -23,7 +23,7 @@ import type { HTMLAttributes } from "react";
 import { heroDefOf, Lihui } from "@app/components/card/HeroCardFace";
 import { isActiveSkill, skillById } from "@core/skills";
 
-export interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
+interface SkillCardFaceProps extends HTMLAttributes<HTMLDivElement> {
   /** 载体名将(#817 实例定位:选项携 skillHeroId,消费方从本地玩家槽位反查后传入)。 */
   heroId: string;
   /** 本卡代表的主动技(主技名/desc/冷却注的唯一依据)。 */

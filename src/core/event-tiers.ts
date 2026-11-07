@@ -34,13 +34,13 @@ import { ENCOUNTERS, type EncounterDef } from "./encounters";
 
 // ─────────────────────── 档位与条目型 ───────────────────────
 /** 折叠面档位(net/event-fold.ts 对表消费)。 */
-export type EventFoldTier = "must-fold" | "fold+calibration" | "declarative" | "calibration-only";
+type EventFoldTier = "must-fold" | "fold+calibration" | "declarative" | "calibration-only";
 
 /** 表现面档位(fx/event-extract.ts 对表消费)。 */
-export type EventFxFace = "presented" | "silent";
+type EventFxFace = "presented" | "silent";
 
 /** 单 kind 消费档位条目:fold/fx 两格 + 判据,词汇缺口显式声明(零消费面登记)。 */
-export interface EventTier {
+interface EventTier {
   /** 折叠面档位。 */
   readonly fold: EventFoldTier;
   /** 表现面档位。 */

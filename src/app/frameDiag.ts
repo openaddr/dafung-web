@@ -17,7 +17,7 @@
 // 收编 lastDump 跨屏存活,导出包=「最近一局」帧诊 + IndexedDB 全部历史对局日志。
 import { useFxStore } from "./fx/fxStore";
 
-export interface FrameWindow {
+interface FrameWindow {
   /** 窗起点(performance.now 相对 ms,导出拍补墙钟锚)。 */
   t0: number;
   /** 完整帧数(帧距样本数)。 */
@@ -37,7 +37,7 @@ export interface FrameWindow {
   ctx: PerfCtx;
 }
 
-export interface PerfCtx {
+interface PerfCtx {
   marching: number;
   floaters: number;
   seals: number;
@@ -47,14 +47,14 @@ export interface PerfCtx {
 }
 
 /** 卡顿事件:帧距超阈的一帧,现场快照当场冻结。 */
-export interface JankEvent {
+interface JankEvent {
   t: number;
   deltaMs: number;
   ctx: PerfCtx;
 }
 
 /** LoAF 慢帧个体(最差 50 条,导出后逐帧看拆分)。 */
-export interface SlowFrame {
+interface SlowFrame {
   t: number;
   durMs: number;
   scriptMs: number;

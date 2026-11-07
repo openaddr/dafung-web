@@ -8,16 +8,16 @@
 // 抛错(零兜底):落后度是确定事实,不是可回退值;吸附是生命周期语义,不掩盖引擎 bug。
 import { LAG } from "./timings";
 
-export type CatchupTier = "steady" | "catchup" | "snap";
+type CatchupTier = "steady" | "catchup" | "snap";
 
-export interface LagInput {
+interface LagInput {
   /** 主尺:未消费批数(到达序游标差;含在队未处置块与到达未入队 surplus)。 */
   gapBatches: number;
   /** 辅尺:本批入队至今的等待毫秒(performance.now 差)。 */
   waitMs: number;
 }
 
-export interface CatchupDecision {
+interface CatchupDecision {
   tier: CatchupTier;
   /** 本拍生效的追帧速度倍率(调用方经 setCatchupScale 写入,消费在 timings.scStage
    *  的时长除法:演出时长 = 基准 ÷ 本值——积压越深播得越快,#570 决议正典方向)。 */

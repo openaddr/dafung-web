@@ -4,13 +4,13 @@
 // 纸色细节线走 --color-paper-hi(SVG 表现属性不吃 var(),经 style 注入)。
 // 席位格消费随 #1128 退役(行2 改汉字五账式,9-10px 下形不可辨):现役消费方
 // =诸侯详情/牌架等放大场;曾同栈的迷你牌背组(MiniBacks)随同票退役删除。
-export type AttrIconKind = "city" | "rep" | "gem" | "hero";
+type AttrIconKind = "city" | "rep" | "gem" | "hero";
 
 const PAPER = "var(--color-paper-hi)";
 
 /** 珍宝/名将几何单源:裸 d 串,绘制属性各消费方自理——AttrIcon 出 fill 面,
  *  牌架入口(HandRack EntryIcon)出漆金线稿。改形只动这里,两处同步。 */
-export const ATTR_ENTRY_D: Record<"gem" | "hero", string[]> = {
+const ATTR_ENTRY_D: Record<"gem" | "hero", string[]> = {
   // 玉璧:外缘 r6.2 + 好孔 r2.5(evenodd 一笔出环)+ 贴缘中圈 r5.05 细线(重圈璧)
   gem: [
     "M8 1.8A6.2 6.2 0 1 0 8 14.2A6.2 6.2 0 1 0 8 1.8ZM8 5.5A2.5 2.5 0 1 1 8 10.5A2.5 2.5 0 1 1 8 5.5Z",

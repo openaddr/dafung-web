@@ -29,7 +29,7 @@ function focusableIn(container: HTMLElement): HTMLElement[] {
   );
 }
 
-export interface DialogFocusScopeProps {
+interface DialogFocusScopeProps {
   /** 把陷阱行为合并到子元素上(BannerShell/VictoryScreen 均以此挂壳,不引入额外 DOM 节点;
    *  子元素自带 ref 时与其组合,不覆盖)。 */
   asChild?: boolean;

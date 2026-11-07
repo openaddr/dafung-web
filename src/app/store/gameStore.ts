@@ -54,9 +54,9 @@ export function setEngine(engine: GameEngine | null): void {
 // ──────────────────────────── store 定义 ────────────────────────────
 
 /** 应用当前屏(setup = 首页;solo-setup = 单机配置页;lobby = 联机大厅;game = 对局)。 */
-export type Screen = "setup" | "solo-setup" | "lobby" | "game";
+type Screen = "setup" | "solo-setup" | "lobby" | "game";
 
-export interface GameStoreState {
+interface GameStoreState {
   // ── 引擎数据(快照;null = 尚未开局)──
   snapshot: GameSnapshot | null;
   /** 本地视角座位(单机=当前活跃人类座位;联机=自己分到的 seat;-1 = 未入座)。 */

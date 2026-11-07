@@ -20,7 +20,7 @@ import { SCROLL_TESTIDS as T } from "./testids";
 import "./victory.css";
 
 /** E4(#16):终榜一行条目(身价降序;破产者带标注)。数据由 DecisionScrollLayer 从快照算好传入。 */
-export interface VictoryStanding {
+interface VictoryStanding {
   guohao: string;
   colorIndex: number;
   netWorthLabel: string;
@@ -29,7 +29,7 @@ export interface VictoryStanding {
 
 /** 终局屏 props(#642 判别联合):正常终局带胜者演出数据;异常作废(reason="aborted")
  *  无胜者,胜者演出数据整体不传——按 winReason 显式分支,不设空值兜底。 */
-export type VictoryScreenProps = {
+type VictoryScreenProps = {
   /** 用时(回合数)。 */
   turnNumber: number;
   onRestart: () => void;

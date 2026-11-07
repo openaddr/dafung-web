@@ -6,7 +6,7 @@ import type { BoardPos } from "@core/board";
 import { TOKEN_SLOT_OFFSETS } from "@core/constants";
 
 /** 槽位分组的玩家结构面(core Player 与 BoardView BoardPlayer 的公共子集)。 */
-export interface SlotPlayer {
+interface SlotPlayer {
   id: string;
   position: number;
   isBankrupt: boolean;

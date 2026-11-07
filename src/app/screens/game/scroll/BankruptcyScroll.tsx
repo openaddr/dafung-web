@@ -18,7 +18,7 @@ import { TreasurePickModal } from "../TreasurePickModal";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
-export interface BankruptcyScrollProps {
+interface BankruptcyScrollProps {
   /** 待清算玩家国号。 */
   guohao: string;
   /** 当前现金(算尚欠缺口;每笔变卖入账已含,随快照实时刷新)。 */

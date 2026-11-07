@@ -48,7 +48,7 @@ export type JinnangEffect =
   | { kind: "peek" } // 军情密探:即时窥探目标锦囊手牌一次(#575,窥探弹层 viewer-only 演出)
   | { kind: "duel"; winnerBankGain: number; loserPaysUser: number }; // 连环计:二虎竞食
 
-export interface JinnangCardDef {
+interface JinnangCardDef {
   id: string; // 中文,自带因果
   tags: JinnangTag[];
   targetDomain: JinnangTargetDomain;

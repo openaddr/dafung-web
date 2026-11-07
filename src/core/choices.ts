@@ -445,7 +445,7 @@ export function activeSkillOf(
 
 /** 冷却剩余轮数(#188 档 3;#785 槽内账:>0 = 仍在冷却,键=active.id,同槽各技/同名技
  *  各槽各账)。 */
-export function skillCooldownLeft(e: GameEngine, slot: HeroSlot, skill: ActiveSkillDef): number {
+function skillCooldownLeft(e: GameEngine, slot: HeroSlot, skill: ActiveSkillDef): number {
   const last = slot.lastFired[skill.id];
   if (last == null) return 0;
   return Math.max(0, skill.cooldown - (e.round - last));

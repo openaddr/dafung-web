@@ -11,7 +11,7 @@ import { heroById } from "@core/heroes";
 import { skillById } from "@core/skills";
 import { TESTIDS } from "./testids";
 
-export interface SkillBookLearnModalProps {
+interface SkillBookLearnModalProps {
   /** 被研读的技能书名(「技能书·X」,题名语境行)。 */
   bookName: string;
   /** 书承载的技 id(副题语境:学的是哪条技)。 */

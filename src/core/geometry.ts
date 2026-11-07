@@ -1,5 +1,5 @@
 // 几何/距离小工具:加载器校验与编辑器重叠高亮共用,避免两处各写一套 O(n²) 循环。
-export interface Pt {
+interface Pt {
   x: number;
   y: number;
 }

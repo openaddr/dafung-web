@@ -29,7 +29,7 @@ import { VERSION } from "../../../version";
 import { TESTIDS } from "./testids";
 import "./layout.css";
 
-export interface SettingsDialogProps {
+interface SettingsDialogProps {
   onClose: () => void;
   /** 战报› 行:开战报抽屉(本弹层先收)。 */
   onOpenWarReport: () => void;

@@ -17,7 +17,7 @@ import { BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
-export interface ConfirmDialogProps {
+interface ConfirmDialogProps {
   title: string;
   children: ReactNode;
   confirmLabel?: string;

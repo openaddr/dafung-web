@@ -58,7 +58,7 @@ const KIND_META = {
 /** 弹层壳参数:题名/朱印小章/副题/容器 testid 显式传入——藏品弹层(KIND_META 给
  *  默认值)与交易选宝弹层(TreasurePickModal,标题随交涉口径/变卖自救语境)共用
  *  同一壳,不复制第二套壳皮。 */
-export interface PileShellProps {
+interface PileShellProps {
   title: string;
   /** 题名右落的朱印小章单字(宝/将/交/变)。 */
   seal: string;

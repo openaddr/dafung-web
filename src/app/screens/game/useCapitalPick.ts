@@ -26,7 +26,7 @@ export interface TileDetailRequest {
   onConfirmCapital: (tileIndex: number) => void;
 }
 
-export interface CapitalPickFlow {
+interface CapitalPickFlow {
   /** X4(#23) 选都候选集(引擎三选一,全座位可见;null = 非选都期)。BoardView candidateTiles。 */
   offeredCapitals: number[] | null;
   /** 轮到本地选都时的可选城集(非决策席位 undefined = 无可点)。BoardView selectableTiles。 */

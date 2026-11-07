@@ -19,7 +19,7 @@ import { TreasurePickModal } from "../TreasurePickModal";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { SCROLL_TESTIDS as T } from "./testids";
 
-export interface TreasureVisitorScrollProps {
+interface TreasureVisitorScrollProps {
   /** 当前视角:owner = 城主(可决策);visitor = 访客(只读等待)。 */
   role: "owner" | "visitor";
   /** 城主国号。 */

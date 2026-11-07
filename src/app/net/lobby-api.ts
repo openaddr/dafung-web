@@ -16,7 +16,7 @@ export interface RoomJoinReply extends NetRoomFields {
 }
 
 /** 入座后的鉴权凭证对(所有需要 seatToken 的端点共用)。 */
-export interface RoomCreds {
+interface RoomCreds {
   roomId: string;
   seatToken: string;
 }

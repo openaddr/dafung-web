@@ -50,7 +50,7 @@ import { TESTIDS } from "../testids";
  *  不重放入场动画、不重播横幅音(它不是新开的弹层,是旧弹层退场的重放帧)。 */
 export const BannerGhostContext = createContext(false);
 
-export interface BannerShellProps {
+interface BannerShellProps {
   title: string;
   children: ReactNode;
   /** #729 footer 槽:三段式的钉底段(题行钉顶 + 正文井内滚 + 拍板钮钉底)。
