@@ -20,11 +20,15 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
 }
 
 /** 强制引擎进入指定状态并同步 UI(测试专用通道;fn 内以 e 引用引擎)。
- *  #1240 双口预置:e 取单机权威口 getAuthorityEngine(直改房间权威引擎本体,凡
- *  force 即种植段),不取玩家侧 getEngine——T2 接缝翻转后后者语义=玩家所见副本。
- *  #188:收口走控制器 sync——直改引擎后必须连派生量(interactive
- *  /viewSeat)一起重灌,决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点
- *  不再保证 interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴。
+ *  凡走 force 即种植段:种权威 → 一拍下行 → 水合到玩家所见(#1241)。
+ *  #1240 双口预置:e 取单机权威口 getAuthorityEngine(直改房间权威引擎本体),
+ *  不取玩家侧 getEngine——T2 接缝翻转后后者语义=玩家所见副本。
+ *  #1241 收口序:直改权威不产事件批,玩家副本的唯一知悉通道=下行水合——种完直呼
+ *  flushDownlinkNow() 同步发一拍(恒带整房快照,MemorySocket 当拍送达,副本与 store
+ *  在本 evaluate 返回前已就位,确定性无盲等),再走 sync 重灌派生量(interactive
+ *  /viewSeat;决策卷轴按 interactive 门控;行军自动化后 quickStart 的停靠点不再保证
+ *  interactive=true(bot 回合动画窗内同样会停),漏刷会让强制相位永远不弹卷轴)。
+ *  冻结钟下此通路照常工作:flush 不吃时钟定时器(flushTransportNow 直调本体)。
  *  #398/#400:单机统一后演出队列与引擎状态解耦(状态随下行拍即时落,动画排队播,
  *  L42 的 fx.playing 锁语义与联机同构)——直写前后各等队列排空一次:写前等排空防
  *  「播放中 sync 重灌打断转场,表现队列永久挂起」(终局 e2e 实测:mid-playback 直写
@@ -33,7 +37,8 @@ export async function newBridgeContext(browser: Browser): Promise<BrowserContext
 export async function force(page: Page, fn: string): Promise<void> {
   await waitFxIdle(page);
   await page.evaluate(
-    `(() => { const e = window.__dafung.getAuthorityEngine(); ${fn} window.__dafung.controller().sync(); })()`,
+    `(() => { const e = window.__dafung.getAuthorityEngine(); ${fn} ` +
+      `const c = window.__dafung.controller(); c.flushDownlinkNow(); c.sync(); })()`,
   );
   await waitFxIdle(page);
 }

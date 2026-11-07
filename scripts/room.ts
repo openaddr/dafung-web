@@ -766,8 +766,8 @@ export class RoomRegistry {
    *  观战/回放类消费面复用本装配,传座位默认拿裁剪流),消息形状/封装同收 wire.ts
    *  构造函数(#429);②的判定在单机退化为恒发(withSnapshot=true)——内存直连无
    *  带宽约束,ADR-0020 决策 3 的关键节点校准每拍天然覆盖,折叠漂移零存活窗口
-   *  (单机客户端状态另有内存直读,见 controllers/local.ts)。批排空幂等(#411
-   *  共享通道):重复 flush 袋空不发 events。 */
+   *  (单机客户端状态 = #1241 水合副本,每拍快照无条件覆盖,见 controllers/local.ts)。
+   *  批排空幂等(#411 共享通道):重复 flush 袋空不发 events。 */
   private flushTransport(roomId: string): void {
     const room = this.rooms.get(roomId);
     const eps = this.seatEndpoints.get(roomId);
@@ -787,6 +787,17 @@ export class RoomRegistry {
       for (const ep of eps.values()) if (ep.open) ep.send(shot.events);
     }
     for (const ep of eps.values()) if (ep.open) ep.send(shot.snapshot);
+  }
+
+  /** 显式同步下行一拍(#1241):立即装配并下发(事件批先行、整房摘要随后,恒带快照
+   *  withSnapshot=true——种植不产事件批,玩家副本的唯一知悉通道=水合),不经合并拍
+   *  定时器。两个调用方:①e2e force 种植段收口(种权威→当拍水合到玩家所见,冻结钟
+   *  下不依赖排程拍;经 LocalController.flushDownlinkNow);②时钟挂死终局拍(出口③
+   *  #642,LocalController onFatal——作废是单条终局转移,无合并可等,终局态当拍直下)。
+   *  与自动通路 transportBroadcast(排程 flush)正交;T3 起自动通路快照改校准窗门控,
+   *  本显式通路恒带快照不随门控。本体 = flushTransport,零编排行为改动。 */
+  flushTransportNow(roomId: string): void {
+    this.flushTransport(roomId);
   }
 
   // ──────────────────────────── host 移交(ADR-0002)────────────────────────────

@@ -26,8 +26,8 @@ export type SnapshotPlayer = CoreSnapshotPlayer;
  *  断言成含价字段的完整 TreasureDef。 */
 export type SnapshotTreasure = SnapshotPlayer["treasures"][number];
 
-/** store 持有的快照 = core 快照本体(零派生):单机 syncFromEngine 直灌,联机
- *  snapshot 消息同构直灌。 */
+/** store 持有的快照 = core 快照本体(零派生):两控制器各持水合副本(单机=建连摘要
+ *  水合 + 事件批折叠,#1241;联机=快照水合同形),经同一 syncFromEngine 灌店。 */
 export type GameSnapshot = CoreGameSnapshot;
 
 // ──────────────────────────── engine 引用管理 ────────────────────────────
@@ -41,12 +41,14 @@ let currentEngine: GameEngine | null = null;
 // F4:hint 过期定时器(见 pushHint 注释;TTL 为三屏统一后的单一口径,常量收编 fx/timings.ts UI.hintTtlMs)。
 let gameHintTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** 取当前引擎实例(无对局时 null)。控制器与调试钩子用它做命令入口。 */
+/** 取当前引擎实例(= 玩家所见的水合副本;无对局时 null)。#1241 起两模式同义:
+ *  单机=建连摘要水合的副本(权威引擎本体在房间编排侧,调试桥权威口 getAuthorityEngine
+ *  另设,#1240),联机=快照水合的只读副本。 */
 export function getEngine(): GameEngine | null {
   return currentEngine;
 }
 
-/** 绑定新引擎(单机开局 / 联机换图重建占位引擎时调用)。 */
+/** 绑定新引擎(控制器建占位引擎时调用:单机/联机构造同形;换图重建同)。 */
 export function setEngine(engine: GameEngine | null): void {
   currentEngine = engine;
 }

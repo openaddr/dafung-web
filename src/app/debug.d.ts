@@ -11,7 +11,8 @@ declare global {
     __dafung?: {
       /** 帧诊读取口(ADR-0047 消费面;scripts/frame-probe.ts 消费,只读不启停)。 */
       frameDiag: () => FrameDiagDump | null;
-      /** 当前引擎实例(null = 未开局)。 */
+      /** 当前引擎实例(null = 未开局)。#1241 接缝翻转后两模式同义 = 玩家所见的水合
+       *  副本(单机权威本体走 getAuthorityEngine,凡走权威口即种植段)。 */
       getEngine: () => GameEngine | null;
       /** 单机权威访问口(#1240 双口预置):直取单机房间权威引擎本体(force 注入/种植段
        *  专用,凡走此口即种植段);登记位在 controllers/registry.ts,联机对局/未开局

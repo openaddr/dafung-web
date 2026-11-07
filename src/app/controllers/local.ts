@@ -6,26 +6,30 @@
 //   推进     = 房间编排引擎/bot 链(driveBots)/看门狗(#188 自动起摇、#281 反应窗),
 //              事件批经 transportBroadcast 合并成单拍下行(events 先行、整房摘要随后);
 //   演出消费 = 与联机同一通路(SnapshotEffects → extractBatchEvents → present);
-//   状态读取 = 内存直连(权威引擎就住同进程,ADR-0020 快照水合/校准/重连语义的单机
-//              对应物 = 天然同步,无网络级重连,故不 hydrate 副本)。
+//   状态读取 = 与联机同形制(#1241 接缝T2:读取缝翻转)——控制器持「水合副本」:
+//              占位引擎起底,建连整房摘要 restoreFromSnapshot 水合,此后每条 events
+//              消息先 foldEventBatch 折进副本再播表现,快照消息无条件覆盖(校准锚)。
+//              权威引擎本体不再被客户端持有(调试桥权威口经 registry 登记单点,#1240),
+//              客户端对引擎的全部依赖收敛到 wire 协议——单机与联机只差传输介质与座位口径。
 // 旧锁步编排已随本票退役:本地 bot 循环(runBots/apLoop)、驱动仲裁器(drive.ts,已删)、
 // 自动起摇/反应窗定时器全部删除——单机与联机从此只差「传输在不在网上」。
 import type { LoadedMap } from "@core/board-loader";
-import type { GameEngine } from "@core/authority";
+import { GameEngine } from "@core/authority";
 import type { GameCommand, SeatConfig } from "@core/authority";
 import type { EncounterSwitch } from "@core/encounters";
-import { setEngine, useGameStore } from "@app/store/gameStore";
-import { useNetStore } from "@app/store/netStore";
+import { createDice } from "@core/dice";
+import { setEngine, useGameStore, type GameSnapshotCore } from "@app/store/gameStore";
+import { useNetStore, type NetSeatMeta } from "@app/store/netStore";
 import { archiveEngineLog } from "@app/gameLogArchive";
 import { stashEventBatch } from "@app/net/event-feed";
+import { foldEventBatch } from "@app/net/event-fold";
 import { e2eBotStepMs, e2eReactionWindowMs } from "@app/fx/timings";
 import { createMemorySocketPair, type SeatTransport } from "@app/net/transport";
 import { createWorkerClock, type WorkerClock } from "@app/net/worker-clock";
 import { BOT_STEP_MS, STALL_ABORT_MS } from "@core/timings";
 // 房间编排双运行时同构(scripts/room.ts 零 node 依赖,见该文件「运行时同构原语」节):
-// 浏览器进程内直接起注册表。持久化/会话类型为纯类型导入(构建期擦除)。
+// 浏览器进程内直接起注册表。持久化/记录类型为纯类型导入(构建期擦除)。
 import { RoomRegistry } from "../../../scripts/room";
-import type { RoomSession } from "../../../scripts/room";
 import type { RoomPersistence } from "../../../scripts/room-persistence";
 import type { RoomRecord } from "../../../scripts/room-record";
 // wire 协议编解码单源(#429):上行编码(cmdMsg 等)+ 解析分发(dispatchInbound)、
@@ -82,16 +86,19 @@ class MemoryRoomPersistence implements RoomPersistence {
 export class LocalController extends GameController {
   /** 房间编排注册表(进程内单实例,随控制器生灭;联机同构的引擎侧宿主)。 */
   private readonly registry: RoomRegistry;
-  /** 本局房间会话(进程内直读元数据:托管态等房间级字段不走传输)。 */
-  private readonly room: RoomSession;
   /** Worker 时钟(#399):看门狗/托管节拍挂 Worker,失焦照跑(后台节流免疫)。 */
   private readonly clock: WorkerClock;
   private readonly roomId: string;
   private readonly seatToken: string;
   /** 内存双工客户端端点(命令上行/消息下行的唯一通路;与联机 WS 传输同接口)。 */
   private readonly sock: SeatTransport;
-  /** 房间权威引擎(内存直连读;构造同步段由 startGame 产出)。 */
+  /** 水合副本(#1241):占位引擎起底,建连整房摘要水合,此后事件批折叠推进、快照
+   *  无条件覆盖。引擎本体对客户端只经协议消息可见,不再内存直读权威态。 */
   private readonly _engine: GameEngine;
+  /** 下行快照房间字段投影(托管回读源):与联机 applyRoomFields 同形,落点=控制器
+   *  私有——netStore 房间字段恒空是 UI 的单机/联机判别位(roomId 门控),单机不写。
+   *  快照消息的 seats 携带托管标记(seat-meta),每拍刷新。 */
+  private roomSeats: NetSeatMeta[] = [];
   /** 单机恒 seat 0(host 真人;createRoom 强约束 seat0=human)。 */
   readonly seat = 0;
   /** 交互策略参数(#433 上收基类单源):热座=true——屏前唯一真人座即 seat,
@@ -100,9 +107,6 @@ export class LocalController extends GameController {
   protected override get mySeat(): number {
     return this.seat;
   }
-  /** 上一拍各座位棋子位置(行军锚定基准):内存直连下引擎已在转移后,「转移前视觉
-   *  停点」取上一拍同步时的位置(联机「折叠前捕获」的单机对应拍,语义等价)。 */
-  private prePositions: ReadonlyArray<number | null>;
   override readonly autopilotSupported = true;
 
   constructor(map: LoadedMap, config: SoloRoomConfig, clockOverride?: WorkerClock) {
@@ -139,9 +143,11 @@ export class LocalController extends GameController {
     );
     // #642 出口③:时钟挂死(worker 崩溃/内部异常)= 编排节拍永久不可靠 → 对局作废
     // 响亮终局,错误摘要进 abort reason 与对局日志(经房间 abortGame 常规 persist/下行)。
+    // 终局拍显式同步直下(flushTransportNow):作废是单条终局转移,无合并可等,副本
+    // 与权威的终局观感同拍成立(#1241 起客户端状态=水合副本,等排程拍即多一拍迟滞)。
     this.clock.onFatal((message) => {
       this.registry.abortGame(this.roomId, `时钟挂死:${message}`, () =>
-        this.registry.transportBroadcast(this.roomId),
+        this.registry.flushTransportNow(this.roomId),
       );
     });
     const created = this.registry.createRoom({
@@ -155,7 +161,6 @@ export class LocalController extends GameController {
     });
     this.roomId = created.room.roomId;
     this.seatToken = created.token;
-    this.room = created.room;
     // 选图+开局:单机地图已在手,合法集就是它自己;mapId 缺省(编辑器试玩)如实空串。
     this.registry.setMap(
       this.roomId,
@@ -163,43 +168,66 @@ export class LocalController extends GameController {
       created.token,
       new Set([config.mapId ?? ""]),
     );
-    // 内存双工:客户端端点收下行;宿主端点挂进编排(上行消息进房间公共入口,
-    // 编排每次可见变化经 onUpdate → transportBroadcast 合并下行)。
-    const pair = createMemorySocketPair(created.seat);
-    this.sock = pair.client;
-    pair.client.onMessage((data) => this.onMessage(JSON.parse(data) as ServerMsg));
-    pair.host.onClientMessage((data) => this.hostDispatch(data));
-    this.registry.connectSeat(this.roomId, created.seat, created.token, pair.host);
-    // 开局:startGame 同步段建引擎(doDraftRoll)+ driveBots 把 bot 选都驱动到轮到
-    // 人类;构造返回时引擎必已就位(同步段直抛 = 起兵失败,App catch 显式报错)。
+    // 占位引擎先于建连就位(渲染壳,照联机 makePlaceholderEngine 形制本地建——共享化
+    // 去重归控制器合并票):board/catalog 随真实地图就位,可变状态由首连摘要覆盖。
+    this._engine = this.makePlaceholderEngine(map, config.seats.length);
+    setEngine(this._engine);
+    // 开局:startGame 同步段建引擎(doDraftRoll)+ driveBots 驱动 bot 选都(配速 0 =
+    // 同步跑完到轮到人类;配速 >0 = 首步落子后链挂步进定时器)。同步段直抛 = 起兵
+    // 失败(App catch 显式报错);引擎未产出 = 同段异常,响亮炸出(零兜底)。
     void this.registry.startGame(
       this.roomId,
       created.token,
       () => this.registry.transportBroadcast(this.roomId),
       () => map,
     );
-    const engine = this.room.engine;
-    if (!engine) throw new Error("单机开局异常:startGame 同步段未产出引擎");
-    this._engine = engine;
-    setEngine(engine);
-    registerAuthorityEngine(engine); // 调试桥权威口登记(#1240)
-    this.prePositions = engine.players.map((p) => p.position);
-    this.sync();
+    const roomEngine = created.room.engine;
+    if (!roomEngine) throw new Error("单机开局异常:startGame 同步段未产出引擎");
+    registerAuthorityEngine(roomEngine); // 调试桥权威口登记(#1240)
+    // 内存双工 + 入座:客户端端点先接下行,再 connectSeat——入座即同步下发首连整房
+    // 摘要(装配单口 god-view),onMessage snapshot 分支当场水合副本:构造返回时副本
+    // 已是当前对局态(含同步段 bot 落子),与旧「构造直读权威引擎」同观感。开局同步段
+    // 的事件批已在传输面累积袋中,随下一拍 flush 下发;其对副本的重复落账由同拍快照
+    // 无条件覆盖纠正(恒发快照,T3 门控前恒真),且该窗内事件仅 capitalSelected 一种
+    // (Setup 期驱动链止步于人类落子),折叠无契约违反面。
+    const pair = createMemorySocketPair(created.seat);
+    this.sock = pair.client;
+    pair.client.onMessage((data) => this.onMessage(JSON.parse(data) as ServerMsg));
+    pair.host.onClientMessage((data) => this.hostDispatch(data));
+    this.registry.connectSeat(this.roomId, created.seat, created.token, pair.host);
+  }
+
+  /** 用一张地图构建占位引擎(水合壳底座):与联机 OnlineController.makePlaceholderEngine
+   *  同形制(本地建,理由见构造注);座位数=本局座位数,玩家可变态由快照原位覆盖
+   *  (isBot 随快照恢复)。只读字段随地图就位(ADR-0041 起手/目标地图必配,起手珍宝
+   *  同随地图,#1100);联机不掷本地骰,种子随意。 */
+  private makePlaceholderEngine(map: LoadedMap, seatCount: number): GameEngine {
+    return new GameEngine(map.board, map.catalog, createDice(), {
+      seats: Array.from({ length: seatCount }, (_, i) => ({
+        name: `诸侯 ${i + 1}`,
+        isBot: i > 0,
+      })),
+      targetNetWorth: map.targetNetWorth,
+      startingCash: map.startingCash,
+      startingTreasures: map.startingTreasures,
+    });
   }
 
   get engine(): GameEngine {
     return this._engine;
   }
 
-  // 热座视角跟随决策方(珍宝交涉相位=城主,其余=activeIndex);与旧锁步同口径,
-  // 内存直连读权威引擎,公式单源引擎 getter。
+  // 热座视角跟随决策方(珍宝交涉相位=城主,其余=activeIndex);公式单源引擎 getter,
+  // 读水合副本。决策归属字段全在折叠覆盖面(turnStarted/marchArrived/reactionOpened
+  // 必折,#387 全覆盖),副本读数与权威同帧,无迟帧。
   get viewSeat(): number {
     return this._engine.decisionOwner;
   }
 
-  /** 我的座位托管中(进程内直读房间会话;房间级元数据不走传输,联机=广播回读)。 */
+  /** 我的座位托管中(下行快照房间字段回读,与联机 seats 广播回读同路,无本地乐观态)。
+   *  首帧摘要未到时座位表未就位,同联机未入座瞬态取 false。 */
   override get autoPilotOn(): boolean {
-    return this.room.autoPilot.has(this.seat);
+    return this.roomSeats[this.seat]?.autoPilot ?? false;
   }
 
   // ─── 命令入口(上行经内存双工,与联机 WS 同一条 wire 编码)───
@@ -211,7 +239,8 @@ export class LocalController extends GameController {
   }
 
   /** Setup(PickCapital)落子:发 WS 同款 {type:"pickCapital"},轮次/候选校验在房间
-   *  编排(room.pickCapital),生效靠下行拍(候选滚换/推进/进 Playing)。 */
+   *  编排(room.pickCapital),生效靠下行拍(候选滚换/推进/进 Playing)。相位字段读
+   *  水合副本(Setup 字段=校准兜底档,恒发快照每拍刷新,#1241 起不再直读权威)。 */
   override setupPickCapital(tileIndex: number): void {
     const e = this._engine;
     if (e.phase !== "Setup" || e.setupPhase !== "PickCapital") return;
@@ -222,9 +251,17 @@ export class LocalController extends GameController {
     this.sync();
   }
 
-  /** 自助托管:发 {type:"autoPilot"},生效态从房间会话回读(无乐观更新,联机同构)。 */
+  /** 自助托管:发 {type:"autoPilot"},生效态从下行快照房间字段回读(无乐观更新,联机同构)。 */
   override setAutoPilot(on: boolean): void {
     this.sock.send(autoPilotMsg(on));
+  }
+
+  /** 显式同步下行一拍(测试专用通路,#1241 force 种植段收口):权威侧直改不产事件批,
+   *  玩家副本的唯一知悉通道 = 下行水合——种完直呼一拍同步 flush(恒带整房快照,见
+   *  RoomRegistry.flushTransportNow),副本与状态桥当拍拿到种植态。生产对局状态只随
+   *  编排转移下行,不经本口。 */
+  flushDownlinkNow(): void {
+    this.registry.flushTransportNow(this.roomId);
   }
 
   /** 销毁 = 进程内房间解散(看门狗/传输面残表随 dismissRoom 一并清)+ 端点关闭
@@ -239,36 +276,59 @@ export class LocalController extends GameController {
     useNetStore.getState().resetEventFace();
   }
 
-  // ─── 下行消费(events 先行、整房摘要随后;与联机 OnlineController 同一形状)───
+  // ─── 下行消费(events 先行、整房摘要随后;与联机 OnlineController 同形,#1241)───
   private onMessage(msg: ServerMsg): void {
-    if (msg.type === "events") {
-      // 演出直译(#385/#388):批入 netStore 暂存 → SnapshotEffects 直译播放,与联机
-      // 同一消费面;锚点=上一拍捕获的位置(转移前视觉停点)。
-      stashEventBatch(msg.events);
-      this.fx.play(this.prePositions);
-      this.pending = false;
-      this.checkRollSeal();
-      this.sync();
+    if (msg.type === "lobby") {
+      // 大厅元数据(开局前首连摘要):单机建连恒在对局就位后(引擎非空 → 摘要恒
+      // snapshot 形),本分支为消息族穷尽位;照联机同形落房间字段。
+      this.applyRoomFields(msg.seats);
       return;
     }
     if (msg.type === "snapshot") {
-      // 整房摘要(首连/校准):内存直连天然同步,不 hydrate 副本(引擎=权威),
-      // 只借拍刷新派生量与起签转入沿。
+      const { type: _t, ...snap } = msg;
+      // 转移前各座位棋子位置(行军锚定基准):hydrate 覆盖引擎态前捕获——反应窗余段
+      // 行军按「视觉停点 → 落点」截短播用(与联机快照帧同口径)。
+      const prePositions = this._engine.players.map((p) => p.position);
+      this.applyRoomFields(msg.seats); // 托管态等房间字段单源下行(不再直查房间会话)
+      // 水合无条件覆盖全部字段(校准锚,ADR-0020 决策 3):折叠漂移在此归零。
+      this._engine.restoreFromSnapshot(snap as GameSnapshotCore);
       this.pending = false;
+      // 演出(#385):netStore 暂存的事件批经 SnapshotEffects 直译播放;本帧无批
+      //(空批 flush)时游标不推进,自然跳过。
+      this.fx.play(prePositions);
+      this.checkRollSeal();
+      this.sync();
+      // 首帧摘要 = 入局(起签转入沿检测自此启用);屏幕切换归 solo 既有流程
+      // (App.handleStart/seedSolo 构造后自切,不照抄联机 setScreen("game") 分支)。
       if (!this.enteredGame) this.enteredGame = true;
+      return;
+    }
+    if (msg.type === "events") {
+      // 折叠(ADR-0020 决策 1):事件批投影进本地副本,经既有 syncFromEngine 通路
+      // 重渲(界面读口不变;一次事件批一次重渲)。折叠前先捕获棋子位置当行军锚点
+      // (「转移前视觉停点」,同联机事件帧口径)。
+      const prePositions = this._engine.players.map((p) => p.position);
+      // 首帧时序门(同联机 #423 项2):水合前(enteredGame=false)的下行批不折叠、
+      // 不即刻播演出——占位壳未经首帧摘要校准,对壳折叠 = 座位越界/目录查无。单机
+      // 首帧摘要随建连同步到达,此门正常恒开;保留同形门 = 消息处理与联机一处形制。
+      const hydrated = this.enteredGame;
+      if (hydrated) foldEventBatch(this._engine, msg.events);
+      // 表现消费(#385):批入 netStore 暂存 → SnapshotEffects 直译播放,与联机同一
+      // 消费面;快照帧的 play 由消费游标去重,同批不会播两次。
+      stashEventBatch(msg.events);
+      if (hydrated) this.fx.play(prePositions);
+      this.pending = false;
       this.checkRollSeal();
       this.sync();
       return;
     }
-    if (msg.type === "lobby") return; // 大厅元数据(开局前首连摘要):单机无大厅读口
     if (msg.type === "dismissed") return; // 单机解散由 destroy 主动发起,无远端解散
     useGameStore.getState().pushHint(msg.error);
   }
 
-  protected override sync(): void {
-    super.sync();
-    // 拍后落锚:本拍位置成为下一拍的「转移前视觉停点」(行军余段截短基准)。
-    this.prePositions = this._engine.players.map((p) => p.position);
+  /** 下行房间字段投影(applyRoomFields 同联机,落点控制器私有,见字段注)。 */
+  private applyRoomFields(seats: NetSeatMeta[]): void {
+    this.roomSeats = seats;
   }
 
   // ─── 宿主侧消息分发(= server.ts ws message 处理器的进程内对应物,同一 codec 本体)───
