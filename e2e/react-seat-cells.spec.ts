@@ -2,10 +2,11 @@
 // ① 满编 8 席与 4 席局:行1 现金主数(无千分位裸数)+ 行2 六图标计数与投影逐席一致;
 // ② 五状态挂点:活跃金圈呼吸(.active)/目标段候选呼吸(.candidate)与选中停持
 //    (.picked)/濒耗竭色条朱砂(.low)/破产降透明印灰(.bankrupt)+ 自机金样式挂点
-//    (seat-self .self,无「你」字);③ 旧席位卡形态退役核销(左右两列/顶行缩微/
-//    属性两行格/「运筹中」微标/血条刻度零残留);④ 托管常驻微标(#770):开=国号印
-//    右齿轮挂点、关=撤,bot 席恒无。断言走 testid 单源 + 调试钩子直写(react-layout/
+//    (seat-self .self,无「你」字);③ 托管常驻微标(#770):开=国号印右齿轮挂点、
+//    关=撤,bot 席恒无。断言走 testid 单源 + 调试钩子直写(react-layout/
 //    react-jinnang-use 同款通路),几何断言收进单次 evaluate。
+// 旧席位卡形态退役核销例已删(2026-11-07 菜单A,原 ③):#698 翻面已久,纯零残留
+// 核销断言价值衰减,宁缺毋滥整删(原 ④ 托管微标升 ③)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -170,23 +171,5 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/picked/);
     await page.getByTestId(TESTIDS.seatTarget(1)).click();
     await expect(page.getByTestId(TESTIDS.seat(1))).not.toHaveClass(/picked/);
-  });
-});
-
-test.describe("旧席位卡形态退役核销(#698 ③)", () => {
-  test("左右两列/顶行缩微/属性两行格/「运筹中」微标/血条刻度零残留", async ({ page }) => {
-    await quickStart(page);
-    const rail = page.locator(`[data-testid=${TESTIDS.seatRail}]`);
-    // 旧三槽位制退役:单列格列,无左列、无顶行缩微
-    await expect(rail.locator(".seatcol")).toHaveCount(1);
-    await expect(page.locator(".seatcol.left")).toHaveCount(0);
-    await expect(page.locator(".seatrow-top")).toHaveCount(0);
-    // 旧卡件退役:属性两行格(vgrid)/「运筹中」微标(think)/带刻度血条(hpbar)
-    await expect(rail.locator(".vgrid")).toHaveCount(0);
-    await expect(rail.locator(".think")).toHaveCount(0);
-    await expect(rail.locator(".hpbar")).toHaveCount(0);
-    await expect(rail.getByText("运筹中")).toHaveCount(0);
-    // 格上无「你」字章(自机=纯视觉金样式,§4.6)
-    await expect(rail.getByText("你")).toHaveCount(0);
   });
 });
