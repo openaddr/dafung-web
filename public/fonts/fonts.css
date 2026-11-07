@@ -323,7 +323,7 @@
    1 号桶最高频,latin/标点独立一片;共 18 片 ~356KB。
    字形扫描(全量 cmap 轮廓级判定,检测器以小薇已知坏字 回圃囄圊 校准 4/4):零实心/空心
    方块,无剔除码位;语料中字体缺字 91 字(「」、《》、帧 等罕用符)不设码位,消费位经
-   下方字栈回退 Ma Shan Zheng/KaiTi 承接(同龙藏先例)。扫描报告:tmp/font-scan-report.json。
+   下方字栈回退 Ma Shan Zheng/KaiTi 承接(同龙藏先例)。扫描报告:临时件,已佚。
    消费:标题位(屏标题/横幅/印文)用 .font-title 或 var(--font-title),城名已退役迁
    font-deco(#925);font-brush(马善政)保留给非标题笔书位。── */
 /* --font-title 变量单源已收编 src/app/styles/tokens.css(gen:theme 产出,#931),
