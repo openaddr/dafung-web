@@ -15,11 +15,9 @@ import {
   openSoloSetup,
   pickCapital,
   force,
-  freezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
 
 /** 行1 现金 + 行2 五计数逐席与快照一致(单次 evaluate 原子采样:DOM 与快照同拍)。
  *  手牌计数 ≥10 格上封顶「9+」(#751 C 批,真实全数在弹层),对照随封顶口径折算。
@@ -92,18 +90,16 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
 test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   // 真实段(ADR-0058):席位格五状态挂点对引擎状态的 CSS 响应链即被测环(.active/
   // .self/.low/.bankrupt 类随状态真渲染)。force 判词:钉行动方=挂点断言前提
-  // (quickStart 停点随骰子落位,引擎无「钉相位」公共命令);濒耗竭走 addStamina
-  // 引擎公共方法(体力变更生产通路,非字段直改),但「体力<三成」形态开局初期到不了
-  // (起手满体力,负增量无自然来源);破产态直写 isBankrupt——破产清算引擎有专属
-  // 通路但需整局推演,断言面需即时破产形态。
+  // (引擎无「钉相位」公共命令);濒耗竭走 addStamina 引擎公共方法(体力变更生产
+  // 通路,非字段直改),但「体力<三成」形态开局初期到不了(起手满体力,负增量无
+  // 自然来源);破产态直写 isBankrupt——破产清算引擎有专属通路但需整局推演,断言面
+  // 需即时破产形态。
   test("活跃金圈呼吸/濒耗竭朱砂条/破产印灰挂点,自机=金样式无文字章", async ({ page }) => {
-    await quickStart(page);
-    // 冻结房间时钟再动刀(#421:直写状态类断言不与自动起摇/bot 链赛跑;快照类
-    // 挂点断言钉 CSS 契约,react-layout 活跃例同款,此处加冻结消 activeIndex 漂移)
-    await freezeClock(page);
-    // 活跃:调试钩子先把行动方钉到 bot 席(quickStart 停靠点随骰子落在「自机落格
-    // 抉择卷轴」或 bot 等待,自机可能真在活跃——钉死行动方,挂点断言才有钉住的
-    // 前提;时钟已冻,无自动推进)→ 该格 .active
+    // 波5b #1218 preRoll 评估采用(种植例):挂点断言不依赖行军日志/回合数——落都
+    // 即冻结(#1221 通路),显式 freezeClock 与随机 seed 停靠漂移一并退役。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 活跃:调试钩子把行动方钉到 bot 席(引擎无「钉相位」公共命令,钉死行动方挂点
+    // 断言才有前提;preRoll 已冻,无自动推进)→ 该格 .active
     await force(page, `e.activeIndex = 1;`);
     await expect(page.getByTestId(TESTIDS.seat(1))).toHaveClass(/active/);
     // 自机格:seat-self 挂点 + .self 类;活跃已钉在 bot 席 → 自机格无 .active/.picked;
@@ -127,28 +123,31 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   // 即被测环——零种植零冻结。
   test("托管常驻微标(#770):开=自机格齿轮挂点、关=撤,对手 bot 席恒无", async ({ page }) => {
     await quickStart(page);
+    // 拨开关到目标态+生效确认,整块短重试(波5b #1218 加网):aria-checked 广播回读
+    // 在负载下丢拍曾挂(「托管微标」签名)。点前读态、已在目标态不点=重试幂等(防
+    // 迟到广播期的重复点击翻转),广播迟到在拍间自愈(配方口径同 react-online-autopilot
+    // setAutopilot:点前读态+点后生效轮询)。
+    async function toggleAutopilot(on: boolean): Promise<void> {
+      await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
+      const sw = page.getByTestId(TESTIDS.settingsAutopilot);
+      await expect(sw).toBeVisible({ timeout: 10_000 });
+      await expect(async () => {
+        if ((await sw.getAttribute("aria-checked")) !== String(on))
+          await sw.click({ timeout: 5_000 });
+        await expect(sw).toHaveAttribute("aria-checked", String(on), { timeout: 5_000 });
+      }).toPass({ timeout: 20_000 });
+      await page.keyboard.press("Escape");
+      await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
+    }
     const badge = page.getByTestId(TESTIDS.seatHosted(0));
     await expect(badge).toHaveCount(0);
-    // 开托管(#1097 通路:设置弹层「托管」开关,ADR-0028 同一引擎通路;设置钮 DOM
-    // 直派 click——决策卷轴 z-30 遮罩在挂时真点击会被吞,直派照进真实 React onClick;
-    // 开关态=aria-checked 广播回读)
-    await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
-    const sw = page.getByTestId(TESTIDS.settingsAutopilot);
-    await expect(sw).toBeVisible({ timeout: 10_000 });
-    await sw.click();
-    await expect(sw).toHaveAttribute("aria-checked", "true", { timeout: 15_000 });
-    await page.keyboard.press("Escape");
-    await expect(page.getByTestId(TESTIDS.settingsDialog)).toBeHidden({ timeout: 5_000 });
+    // 开托管(#1097 通路:设置弹层「托管」开关,ADR-0028 同一引擎通路)
+    await toggleAutopilot(true);
     // 常驻微标现于自机格(纯展示,开关交互唯设置弹层);对手 bot 席非托管恒无
     await expect(badge).toBeVisible();
     await expect(page.getByTestId(TESTIDS.seatHosted(1))).toHaveCount(0);
     // 关托管 → 微标撤(状态随开关往返,§4.6 无文字章)
-    await page.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
-    const swOff = page.getByTestId(TESTIDS.settingsAutopilot);
-    await expect(swOff).toBeVisible({ timeout: 10_000 });
-    await swOff.click();
-    await expect(swOff).toHaveAttribute("aria-checked", "false", { timeout: 15_000 });
-    await page.keyboard.press("Escape");
+    await toggleAutopilot(false);
     await expect(badge).toHaveCount(0);
   });
 
@@ -157,19 +156,12 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
   // (无「发指定牌」公共命令,rack 停车坪同判词),需军情密探特定牌形;seat1 挂
   // 珍宝凑目标门槛同因(珍宝无授给公共命令)。
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {
-    // seed67 关中图开局链停在出牌阶段态(react-jinnang-use startJunshi 同款通路,
-    // 链路内联本 spec:helpers 帮手非本票所有物;seed 67 起手求贤令恒可用,窗必升)。
-    // 军情密探目标段同款:给 seat1 挂珍宝凑目标门槛,直写替换手牌。
-    await page.goto("/?seed=67");
-    await page.getByTestId(HOME_TID.selectMap).click();
-    await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
-    await page.getByTestId(SETUP_TID.mapConfirm).click();
-    await openSoloSetup(page);
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await page.locator(".bv-tile.bv-selectable").first().click();
-    await page.getByTestId(TESTIDS.confirmCapitalOk).click();
-    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-    await freezeClock(page);
+    // seed67 关中图开局链停在出牌阶段态;波5b #1218 preRoll 评估采用(种植例):
+    // quickStart mapId 直传钉图(#147 地图是骰流变量)+preRoll 落都即冻结(#1221
+    // 通路)替代手搓选都 UI 链+显式 freezeClock——断言面=目标段挂点交互,不依赖
+    // 行军日志/回合数(seed 67 起手求贤令恒可用,preRoll 停 AwaitingJinnang 窗必在)。
+    await quickStart(page, 67, { mapId: "guanzhong", advance: "preRoll" });
+    // 军情密探目标段同款:给 seat1 挂珍宝凑目标门槛,直写替换手牌(preRoll 已冻)。
     await force(
       page,
       `

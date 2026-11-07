@@ -2,6 +2,10 @@
 // 跨源段是 APK 真机联机的同款形态:页面在静态源(vite preview),REST+WS 打到引擎源
 // (E2E_GAME_PORT;playwright.config 第二个 webServer,自带 CORS)——证明地址单源与
 // 服务端 CORS 生效。默认路径零改动由 react-online(引擎源自托管)全绿背书。
+// 真实段(ADR-0058)(波5b #1218 标注):全 1 例全真零种植——地址覆写/失焦持久化/
+// 跨源真建房(REST+WS 打到引擎源)/reload 记忆回读/清空恢复默认的真实交互链即被测
+// 环(跨源 CORS 是浏览器事实,无头替代不了)。本 spec 停在大厅层不开对局,走 fixtures
+// 默认 test(时间倍率注入无涉,照实声明,非 testUnscaled)。force 零处。
 import { test, expect, type Page } from "./fixtures";
 import { LID } from "../src/app/screens/lobby/testids";
 

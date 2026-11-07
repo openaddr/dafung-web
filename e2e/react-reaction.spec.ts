@@ -37,7 +37,6 @@ import { test, expect } from "./fixtures";
 import {
   force,
   waitMyRollDone,
-  waitMyPause,
   skipUntilNextSeat,
   engineState,
   snap,
@@ -309,13 +308,15 @@ test.describe("反应窗(#281 单机)", () => {
   // →真拼点→真结算(拦胜止步落格/平局牌白耗续走/放行牌不耗),一例串三环时序语义即
   // 被测环;拼点签面判词/钤落弧/震屏时长通道为真结算的呈现取证。前置判词见
   // soloAtBuyAsk(现金)/plantAmbush(布位/手牌/骰)/grantZhouyuAndPass(授将)与行内。
-  // #1216 判读:分支二/三 waitMyPause 停靠谓词按波2 定性有「bot 回合询问期误停」风险,
-  // 本例窗流驱动下由 5s 看门狗代发+skipUntilNextSeat 自愈;脊柱例零逻辑改动纪律
-  // (ADR-0058 ③)下不升级,严格谓词 parkMyTurn 已上收共享备后续波处置。
+  // #1216 判读:分支二/三停靠谓词按波2 定性有「bot 回合询问期误停」风险,当时脊柱例
+  // 零逻辑改动纪律(ADR-0058 ③)下不升级,严格谓词 parkMyTurn 上收共享备后续波处置
+  // ——波5b #1218 处置(今日负载挂「半路杀出」×2):分支二/三换 parkMyTurn
+  // (freeze:false,窗流续跑口径同唯反应例)。只换停靠谓词,种植与断言面零改动,
+  // 脊柱例「永不深种」纪律不破(误停自愈从「赌 5s 看门狗代发」变为谓词内代发放行)。
   test("半路杀出三分支走查:拦胜止步落格→平局牌白耗续走→点不用放行牌不耗", async ({ page }) => {
     await soloAtBuyAsk(page);
     // 火攻停点钉子:p2 都城升 Lv.1(可降级)→ 周瑜火攻自人类回合 2 起恒可指定,
-    // 每个人类回合开始必停出牌阶段(waitMyPause 停靠点与行程骰解耦,不赌落格)。
+    // 每个人类回合开始必停出牌阶段(parkMyTurn 停靠点与行程骰解耦,不赌落格)。
     // force 判词:扩军命令(upgradeProperty)只作用于活跃座位自身的待决决策,bot 城
     // 升级归 botAct 代答、测试不可直呼;断言面需「p2 都城 Lv1=火攻可指定」形态。
     await force(page, `e.players[2].properties[0].level = 1;`);
@@ -397,7 +398,7 @@ test.describe("反应窗(#281 单机)", () => {
     // 收回,应答交集变空挂死));
     // bot1 骰 5(分支一被拦停剑阁,自 12 续走必迈过 16 落 17 函谷关,16 不被买回)、
     // bot2/3 骰 6(同分支一:自 11 落 17,16/19 停靠格保持无主到分支三),away 不赌自然骰。
-    await waitMyPause(page, 0);
+    await parkMyTurn(page, 60_000, { freeze: false }); // 波5b #1218 加网,见本例头注
     await plantAmbush(page, { duelDice: [3, 3], withSecondCity: false, marchSteps: [2, 5, 6, 6] });
     await skipUntilNextSeat(page, 0);
     const mover2 = await answerMarchCounter(page);
@@ -436,7 +437,7 @@ test.describe("反应窗(#281 单机)", () => {
     // 自锚;放行后续走 2 步落 13(bot1 自家汉中,升级决策 bot 链自清,away=13≠12 恒真)
     // ——不赌 bot 自带疾行等加成(bot 招募/技能是现金决策,加成会挪落格);其余 bot 骰 6
     // 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
-    await waitMyPause(page, 0);
+    await parkMyTurn(page, 60_000, { freeze: false }); // 波5b #1218 加网,见本例头注
     // force 判词:同 plantAmbush 布位(#830 守门自锚——bot 挪位无公共命令,链式调价
     // 漂移下把首位 bot 贴回首都前一格,骰 2 第一步即过首都开窗,前提自锚)。
     await force(

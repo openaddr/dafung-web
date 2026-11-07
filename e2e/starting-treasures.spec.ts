@@ -9,6 +9,13 @@
 // 按冻结闸配方(#987:waitFxIdle→freezeClock)停摆对局再断言,防 bot 自走窃玉漂移。
 // 配方出处:quickStart/冻结闸照抄 react-scrolls.spec;计数断言照抄 react-seat-cells.spec;
 // force position+行军(#1170 评审追加用例)照 react-reaction plantAmbush 的位移种植口径。
+// 真实段(ADR-0058)(波5b #1218 标注):两例断言面全真(单机,fixtures 默认 test)——
+// ①开局日志汇总行+逐席计数=finishSetup 真实发放的呈现取证;②交涉停靠=一次 force 内
+// 钉死一场真实行军(直调 rollAndMove 走 marchTraverse→settleMarchLanding→
+// resolveLanding 引擎真链),AwaitingTreasureOwner 引擎真停+decisionOwner 真投影即被测
+// 环。force 判词(②):行军前提无公共命令(行军命令只归活跃座位自身回合)——访客
+// 摆位/行程骰=环距直写与 patch dice.roll 是确定性到达,落格结算本体不种;清人类手牌
+// 防拦检窗岔路同因。冻结闸(waitFxIdle→freezeClock)是到达手段。
 import { test, expect } from "./fixtures";
 import { quickStart, snap, waitFxIdle, freezeClock, force } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";

@@ -9,6 +9,12 @@
 // 陈列太史慈=main.tsx 顶层注册的消费面,无头整局层刻意不装扩展包,替代不了)。
 // #1181 棒一缩:唯一例内已迁的选定结算断言(义从 +100 poll、taishici 入槽)随删,
 // 留装载陈列 + 先看后选拍板收将的命令接线(卷轴随命令受理收场)。
+// 真实段(ADR-0058)(波5b #1218 标注):装包→装载→招贤陈列→先看后选拍板收将的点击
+// 链全真(装载消费面=main.tsx 顶层注册,无头整局层刻意不装扩展包,替代不了);前置
+// =quickStart(seed 7,postRoll 停靠)种局。force 判词(plantHeroPick):招贤候选无
+// 公共通路——候选只在招贤卷轴语境由引擎产出,断言面需「太史慈居中位+整池预掷」特定
+// 候选形,直写 offeredHeroes/turnPhase 是唯一到达;waitFxIdle+freezeClock(#987 冻结
+// 闸)是到达手段,非字段直改。
 import { test, expect } from "./fixtures";
 import { quickStart, force, waitFxIdle, freezeClock } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";

@@ -6,30 +6,23 @@
 // (#361 双入口接替)
 // + 顶中知会横幅槽(#732:回合横幅入槽/等待条让位回归/同槽互斥排队/都城停条带)。
 import { test, expect, type Page } from "./fixtures";
-import {
-  quickStart,
-  snap,
-  waitMyPause,
-  dismissJinnangIfUp,
-  actIfCan,
-  force,
-} from "./react-helpers";
+import { quickStart, snap, dismissJinnangIfUp, actIfCan, force } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 // 844×390 标准视口(#732):本 spec 全部用例统一在标准档跑。
 test.use({ viewport: { width: 844, height: 390 } });
 
 test.describe("全浮层骨架", () => {
-  // 真实段(ADR-0058):quickStart 真实开局链走到停靠,四浮层件(顶栏/席位格列/
-  // 手牌区/三圆钮)真实挂载可见即被测环。force 判词:钉 AwaitingDecision 空闲态=
-  // 断言前提(显隐回合联动后 bot 回合手牌区整区卸载;引擎自转无「钉相位」公共命令,
-  // react-float-skeleton 停车坪同判词)。
+  // 真实段(ADR-0058):quickStart 真实开局链(谱内 seed 1486,seedSolo 直呼生产
+  // 通路)走到首拍冻结,四浮层件(顶栏/席位格列/手牌区/三圆钮)真实挂载可见即被测
+  // 环。force 判词:钉 AwaitingDecision 空闲态=断言前提(显隐回合联动后 bot 回合
+  // 手牌区整区卸载;引擎自转无「钉相位」公共命令,react-float-skeleton 停车坪同判词)。
   test("浮层件可见", async ({ page }) => {
-    await quickStart(page);
-    // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载):等自然停靠再钉
-    // AwaitingDecision 空闲态(float-skeleton #1006 例同款配方),骨架断言才有
-    // 「架亮」的钉住前提。
-    await waitMyPause(page, 0, 90_000);
+    // 波5b #1218 preRoll 评估采用(种植例):断言面=四浮层件挂载可见,不依赖行军
+    // 日志/已推进回合——落都即冻结(#1221 通路)替代「随机 seed+waitMyPause 自然
+    // 停靠」,停靠点漂移与 bot 链竞速面归零(几何族种植例同批换装)。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 钉 AwaitingDecision 空闲态(preRoll 已冻,手牌区显隐沿无丢拍面)
     await force(
       page,
       `
@@ -90,9 +83,12 @@ test.describe("全浮层骨架", () => {
   // testid 零残留即被测环。force 判词:钉 AwaitingDecision 空闲态=断言前提(同
   // 首例;引擎自转无「钉相位」公共命令)。
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
-    await quickStart(page);
-    // 停车钉我的回合(同上例:显隐回合联动,bot 回合手牌区整区卸载)
-    await waitMyPause(page, 0, 90_000);
+    // 波5b #1218 加网(「手牌区」负载挂签名,hand-zone 显隐沿丢拍→谓词加网):
+    // 显隐沿的竞速本体是「waitMyPause 自然停靠(含 bot 回合询问期假停靠)→force 钉
+    // 相位与真链赛跑→沿触发拍被丢」——preRoll 落都即冻结(#1221 通路,种植例评估
+    // 采用,断言不依赖行军日志/回合数)让对局根本不跑,谓词竞速面整体归零。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 钉 AwaitingDecision 空闲态(preRoll 已冻,同上例)
     await force(
       page,
       `

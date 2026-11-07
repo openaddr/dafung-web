@@ -6,6 +6,10 @@
 // 不持有 DOM/演出面,替代不了)。
 // 观测口 = Playwright 可见性断言;联机 spec 免注入时间倍率(testUnscaled);
 // 跑前需先 build(两 webServer 都消费 dist)。
+// 真实段(ADR-0058)(波5b #1218 标注):全 1 例全真零种植——双端真实开局后裸关底层
+// socket(真断线)→断线横幅真渲染可见→真退避重连→横幅真撤,可见性翻转即被测环
+// (重连摘要/事件续流/双端收敛协议面已迁 test/protocol-online.test.ts,见上)。
+// 联机走 testUnscaled(对局节奏由服务器驱动)。force 零处。
 import { testUnscaled as test, expect, type Page } from "./fixtures";
 import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
