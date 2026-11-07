@@ -1,4 +1,4 @@
-// bot 步进配速接线(#730,ADR-0034):SoloRoomConfig.botStepMs → 房间编排
+// bot 步进配速接线(#730,ADR-0061):SoloRoomConfig.botStepMs → 房间编排
 // driveBots 的步进延迟。观测缝 = 注入时钟收到的 setTimeout 延迟值与链停点:
 //   ① 配速 > 0:bot 落子后驱动链向时钟要一个同值定时器(链在步间挂起,选都
 //      不再同步跑完——构造返回时仍轮到下一位 bot);
@@ -43,7 +43,7 @@ function makeController(clock: RecordingClock, botStepMs: number): LocalControll
   );
 }
 
-describe("bot 步进配速接线(#730,ADR-0034)", () => {
+describe("bot 步进配速接线(#730,ADR-0061)", () => {
   it("配速 >0:bot 落子后驱动链按同值延迟向时钟要步进定时器,选都不再同步跑完", () => {
     const clock = new RecordingClock();
     const c = makeController(clock, 600);

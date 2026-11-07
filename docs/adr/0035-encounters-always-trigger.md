@@ -25,5 +25,5 @@
 ## 后果
 
 - **骰流契约变化**:触发 roll 撤除后,机遇通路每落格固定消耗 2 次 nextFloat(原未中 1 次、命中 3 次)——同 seed 重放整体漂移,`probeNextEncounter`/`seedDrawing` 等骰流探针按新契约改写;历史对局日志按局头 encounter 配置要素区分口径。
-- **事件面**:`encounterMiss` 战报线消失;`encounterTriggered` 每回合必发,演出队列增厚——由既有背压/配速机制(#735,ADR-0034)承接,合入后观察水位。
+- **事件面**:`encounterMiss` 战报线消失;`encounterTriggered` 每回合必发,演出队列增厚——由既有背压/配速机制(#735,ADR-0061)承接,合入后观察水位。
 - **经济水位待观**:体力期望损耗与银两摆动约 ×2.5,经济 v3(#737)调平的收支可能被冲开;数值回调与否走 dogfood 结论,不预先拍。

@@ -193,7 +193,7 @@ export type GameCommand =
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
   // use=true 时 cardId=打出的反应锦囊;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
   // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略);反识破链环窗
-  // 不带份(争夺份随窗载荷,#571 ADR-0027)。
+  // 不带份(争夺份随窗载荷,#571 ADR-0060)。
   | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
 
 /** 命令 → 中文动词(cmd 行 brief 用;机读 detail 为完整命令 JSON)。 */
@@ -486,7 +486,7 @@ export class GameEngine {
         startingTreasures: this.startingTreasures,
         startedAt: Date.now(),
         // 机遇原始配置(#135/#776):档位抽取消耗骰流,重放必须复刻同一配置(缺省=null=
-        // 机遇关);重放端 replay-log 原样传回构造 config。
+        // 机遇关);重建/恢复通路原样传回构造 config(原重放校验器已随 ADR-0021 退役)。
         encounter: config.encounter ?? null,
         seats: config.seats.map((s, i) => ({
           seat: i,
@@ -1063,7 +1063,7 @@ export class GameEngine {
   // ──────────────────────────── 战报 / 浮动反馈 ────────────────────────────
   /** 终局行(ADR-0014):胜利判定与 GameOver 时机之后,记一行机读终态面板
    *  (round/turnNumber/winner/玩家 cash/netWorth/position)。联机落盘、单机 IndexedDB、
-   *  导出 jsonl 的最后一根引擎行;scripts/replay-log.ts 重放完与之逐字段比对。 */
+   *  导出 jsonl 的最后一根引擎行(原重放校验比对锚,校验器退役后归纯归档,ADR-0014/0021)。 */
   private logFinalState(): void {
     const winner = this.winner!;
     this.logEvent(

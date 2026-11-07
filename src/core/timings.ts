@@ -15,7 +15,7 @@ export const AUTO_ROLL_DELAY_MS = 1000;
  *  即停(收回即停,重开续跑)。权威节奏不吃 E2E_TIME_SCALE(见文件头)。 */
 export const AUTOPILOT_STEP_MS = 2000;
 
-/** bot 步进配速(#730,ADR-0034):bot 座位每步决策间隔(ms)——产出端配速,让
+/** bot 步进配速(#730,ADR-0061):bot 座位每步决策间隔(ms)——产出端配速,让
  *  bot 连锁的动作按可读节奏逐拍下行,与客户端实速串行的演出队列同量级,普通对局
  *  不再积压进追帧/吸附档(修正 ADR-0029「产出端已收口、播放侧无需配套」的前提:
  *  ADR-0028 单节拍只覆盖了托管,bot 恒 0ms 连锁)。经 RoomRegistryOptions.botStepMs

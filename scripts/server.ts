@@ -102,7 +102,7 @@ const REACTION_WINDOW_MS_OVERRIDE = Math.max(
   parseInt(process.env.E2E_REACTION_MS ?? "0", 10) || 0,
 );
 
-// bot 步进配速(#730,ADR-0034):bot 座位产出端配速,bot 连锁逐拍下行,与客户端
+// bot 步进配速(#730,ADR-0061):bot 座位产出端配速,bot 连锁逐拍下行,与客户端
 // 实速串行的演出队列同量级,普通对局不再积压进追帧/吸附档。未注入 = core BOT_STEP_MS
 // (生产缺省,单机/联机同值);显式 "0" = 关配速(联机 e2e 提速通道)。
 const BOT_STEP_MS_OVERRIDE: number | null =

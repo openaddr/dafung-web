@@ -78,7 +78,7 @@ export type ReactionPayload =
       targets: number[];
     }
   | {
-      /** 反识破链环(#571,ADR-0027):被公告的是一张识破诡计,站住则其否定生效。 */
+      /** 反识破链环(#571,ADR-0060):被公告的是一张识破诡计,站住则其否定生效。 */
       kind: "counter";
       /** 识破使用者(本环公告者)。 */
       userSeat: number;
@@ -316,7 +316,7 @@ export function respondReaction(
 }
 
 /** 反应窗续结算(pr 已离场 pendingReaction):按窗种类分派。识破窗按载荷分支:根窗
- *  (payload.jinnang)=锦囊宣布的拆招,链环窗(payload.counter,#571 ADR-0027)=反识破,
+ *  (payload.jinnang)=锦囊宣布的拆招,链环窗(payload.counter,#571 ADR-0060)=反识破,
  *  链环经相位窗逐环开问、开窗即返回不加深(「效果内禁同步再派发时机」红线约束的是
  *  effect 帧,窗结算走命令帧,不破);拦检结算(拼点/止步落格)不再询问——续走途经的
  *  「下一座城」是新挂点,不属窗内结算。 */
@@ -333,7 +333,7 @@ function settleCounterWindow(g: GameEngine, pr: PendingReaction): void {
   else throw new Error("识破窗结算:march 载荷挂 jinnang 窗(状态机 bug)"); // 零兜底
 }
 
-/** 反识破链环宣布(#571,ADR-0027):牌已随应答收窗扣账,此处只公开宣布——走
+/** 反识破链环宣布(#571,ADR-0060):牌已随应答收窗扣账,此处只公开宣布——走
  *  JinnangAnnounced 时机(公开事件+出牌线,与根锦囊同口),持识破者(本环打出者除外,
  *  含链根使用者救计)开下一环询问窗;无人可反不开窗,本环立即站住(#281「不开窗直接
  *  结算」同口径)。protects=本环站住时争夺份的待遇:根窗首环恒 true(保住);链环窗
@@ -462,7 +462,7 @@ function settleRootCounterWindow(g: GameEngine, pr: PendingReaction): void {
   }
 }
 
-/** 反识破链环窗结算(#571,ADR-0027):座位序第一张反识破生效=本环识破作废(已扣账
+/** 反识破链环窗结算(#571,ADR-0060):座位序第一张反识破生效=本环识破作废(已扣账
  *  不回手,事件落账),进下一环;同窗其余退回;无有效反识破则本环站住,链终裁定
  *  根锦囊待遇。 */
 function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
@@ -502,7 +502,7 @@ function settleChainCounterWindow(g: GameEngine, pr: PendingReaction): void {
   );
 }
 
-/** 反识破链环站住(#571,ADR-0027):站住识破的否定生效——整计域(连环计/单份计)
+/** 反识破链环站住(#571,ADR-0060):站住识破的否定生效——整计域(连环计/单份计)
  *  protect=true=作废/落空即终局,protect=false=计恢复照常执行;AOE 该份入豁免集
  *  (判定事件逐份落账,protect=false 的环不落账=该份照常受击)。兄弟链未清则续开
  *  下一环(牌已随根窗收窗扣账),清空后按根域收口执行。 */

@@ -40,10 +40,10 @@
 
 对局屏是已过四项门槛的参照物。分包前先看这几处「对的样子」:
 
-- `src/app/screens/game/scroll/ScrollShell.tsx` —— 挂轴双杆、题名朱印、墨钮/笺钮按钮种。
-- `src/app/screens/game/HandPanel.tsx` + `StatusBar.tsx` —— 笺头制式、方印国号、墨钮 CTA、朱印「你」。
+- `src/app/screens/game/scroll/scroll.css` + `DecisionScrolls.tsx` —— 挂轴双杆、题名朱印、墨钮/笺钮按钮种(ScrollShell 已随 #1233 桶退役收编)。
+- `src/app/screens/game/HandZone.tsx` + `SeatRail.tsx` + `shared/RoundClose.tsx` —— 笺头制式、方印国号、墨钮 CTA(HandPanel/StatusBar 已随 #700 浮层骨架退役)。
 - `src/app/screens/home/HomeScreen.tsx` —— 签名件(千里江山装裱横带 + 落款印)。
-- `docs/design/DESIGN.md` §7 —— 前后对比图(历史件散失,现库图见 `ui-reference/current-ui/` 与 `prototype-layout/`)。
+- `docs/design/DESIGN.md` §7 —— 前后对比图(历史件散失,现库图见 `ui-reference/current-ui/` 系列;`prototype-layout/` 已佚(见 ui-reference/README 附表)。。
 
 ## 4. 各屏验收标准(Wave-2 逐屏)
 

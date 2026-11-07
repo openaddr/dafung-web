@@ -173,7 +173,7 @@ export interface CreateRoomConfig {
  *  retentionWindowMs(#380):掉线座位保留窗口——对局中断线座位保留该毫秒,窗口内持
  *  token 重连无缝归座,到期看门狗代开托管(ADR-0028;重连不清托管)。0 = 关闭
  *  (缺省关,单机/测试;server.ts 默认 600000=10 分钟,env RETENTION_WINDOW_MS 可调)。
- *  botStepMs(#730,ADR-0034):bot 座位步进配速(ms)——产出端配速,bot 连锁逐拍
+ *  botStepMs(#730,ADR-0061):bot 座位步进配速(ms)——产出端配速,bot 连锁逐拍
  *  下行,与客户端演出队列同量级,普通对局不再积压进追帧/吸附档。0 = 无配速(缺席同,
  *  测试缺省);生产装配层(local.ts/server.ts)显式传 core BOT_STEP_MS,e2e 经各自
  *  通道显式注入(含 0=关)。

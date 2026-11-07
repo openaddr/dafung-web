@@ -221,7 +221,7 @@ function clonePendingReaction(
         }
       : pr.payload.kind === "counter"
         ? {
-            // 反识破链环(#571,ADR-0027):根上下文/豁免集/兄弟链逐字段克隆
+            // 反识破链环(#571,ADR-0060):根上下文/豁免集/兄弟链逐字段克隆
             kind: "counter",
             userSeat: pr.payload.userSeat,
             cardId: pr.payload.cardId,

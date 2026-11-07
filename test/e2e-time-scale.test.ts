@@ -108,7 +108,7 @@ describe("生产恒等快照(无倍率键时导出常量逐位等于字面量)",
     expect(UI.copyFeedbackMs).toBe(1000);
   });
 
-  it("LAG(#610 落后即校准判据,#730/ADR-0034 再定标:阈值高于配速后正常局水位;ageMs 吃 sc,批数/倍率无量纲)", () => {
+  it("LAG(#610 落后即校准判据,#730/ADR-0061 再定标:阈值高于配速后正常局水位;ageMs 吃 sc,批数/倍率无量纲)", () => {
     expect(LAG.gapBatches).toBe(5);
     expect(LAG.ageMs).toBe(20000);
     expect(LAG.consecutiveForSnap).toBe(6);
