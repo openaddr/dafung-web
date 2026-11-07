@@ -62,20 +62,7 @@
 /* ── 空态:斜放一张漆木牌背占位(暗牌语义,器物空态不写文案;原型 .slash)── */
 .hand-rack-back {
   transform: rotate(-9deg);
-  /* 选都期降档(#841 刀⑥)淡入淡出;transform 过渡由 .jinnang-card 基座既有
-     transition 承担,此处只补 opacity 一轴 */
-  transition: opacity var(--dur-med) var(--ease-out);
   /* 牌背纯装饰:读屏不念「锦囊」双字,空态语义由架首章承担 */
-}
-/* ── 选都相位大牌背降档(#841 刀⑥):Setup PickCapital 期手牌恒空(起手牌在
-     finishSetup 才发),斜牌背横在盘心下缘抢视线(审计 P2「选都期锦囊大牌背」,
-     与空态压盘心同件);相位判据走引擎快照(setupPhase==="PickCapital",
-     GameScreen 与 setupHint 同一口径派生传入)——定都收尾相位离开即复原,
-     零本地状态零「理论上」判断。transform 连 rotate 一起写(基态 -9deg 会被
-     覆盖)。 ── */
-.hand-rack.capital-pick .hand-rack-back {
-  opacity: 0.45;
-  transform: rotate(-9deg) scale(0.85);
 }
 
 /* ── 常态牌悬停微反馈(#490 微档,#510 统一悬停语言):≤3 张全展态的牌悬停

@@ -1,8 +1,8 @@
 // 底部手牌架(#238 一期 T3,方案 §4 P1-C):锦囊手牌从侧栏纸签迁到屏幕下缘
 // 漆木架——横排大牌面(手牌无上限,#250 删满手作废;>3 张叠加压缩 + hover 挥出
 // 全显,#254)、空手牌斜放一张牌背占位(器物空态,无文案)。显隐随 GameScreen 的
-// 会话内临时态(#1006:默认亮、唯二复位点弹回;窗态可收起,banner-only 形态只宿
-// 横幅)。
+// 会话内临时态(回合联动+决策保底:亮=我的回合∪决策窗在场∪手动临时开,其余
+// 一律收;窗态可收起,banner-only 形态只宿横幅)。
 //
 // 视觉基线:tmp/prototype-jinnang-ui.html 其四(.rack / .jia-zhang / .slash),
 // 样式在 hand-rack.css;牌面器物件(JinnangCardFace/Back,card/ 目录只读消费)。
@@ -307,13 +307,9 @@ function RackCard({
       : {},
   );
 
-  // 发牌音(#239 T4):新牌挂载 = 入手,牌落漆木架一声轻叩(jinnangDraw,文件通路
-  // woodblock-hit)。挂载即播惯例同 ScrollShell 的 scrollOpen;音画与 rack-card-in
-  // 入场动画同帧起步。dev StrictMode 双挂载会双响,生产单响——同先例接受。
-  // 窗态切换不重挂(key/组件类型稳定),不重播。
-  useEffect(() => {
-    getAudio().play("jinnangDraw");
-  }, []);
+  // 发牌音不在这里(2026-11-07 迁移):原「新牌挂载即播」(#239 T4)在显隐改
+  // 回合联动后失义——架每回合重挂,逐卡 mount 音成连响噪音;入手音改由 GameScreen
+  // diff 手牌集驱动(真入手才响,与架显隐解耦),挂载只剩 rack-card-in 入场动画。
 
   if (junshi) {
     const s = junshi;
@@ -509,10 +505,6 @@ export interface HandRackProps {
   /** 未选牌点按「出牌」的计数(#751 B1,GameScreen 持账本):变更一次=架上可用牌
    *  金圈脉冲一次(自门控 #715 同款状态语言)。 */
   nudgePulse?: number;
-  /** 选都相位(#841 刀⑥,GameScreen 按引擎快照派生:phase==="Setup" &&
-   *  setupPhase==="PickCapital",与 setupHint 同口径):空态大牌背降档
-   *  (opacity 0.45+scale 0.85,样式在 hand-rack.css),定都收尾相位离开即复原。 */
-  capitalPick?: boolean;
   /** banner-only 形态(#1006):架收起而反应窗在场——只渲横幅,不渲牌行/牌背/
    *  计数章(零中间形态:牌要么整架亮、要么随收起消失);架体盒保留作横幅锚
    *  (ADR-0032「响应件落架缘」,横幅贴底下移后仍是架缘语义)。 */
@@ -558,7 +550,6 @@ export const HandRack = memo(function HandRack({
   junshi,
   reaction,
   nudgePulse = 0,
-  capitalPick = false,
   bannerOnly = false,
 }: HandRackProps) {
   // 详情开合态(#768 改形):按「卡键」(`${id}-${同名序}`)对位——同名双牌只点亮
@@ -850,9 +841,7 @@ export const HandRack = memo(function HandRack({
       ref={rackRef}
       data-testid={TESTIDS.jinnangRack}
       aria-label="锦囊手牌"
-      className={
-        "hand-rack" + (junshi != null ? " junshi" : "") + (capitalPick ? " capital-pick" : "")
-      }
+      className={"hand-rack" + (junshi != null ? " junshi" : "")}
     >
       {/* 反应窗横幅(#281):从手牌架上缘长出(P1-D「牌架即反应窗」);定位归架体
           (reaction-banner.css),挂载/卸载即窗开/窗收,横幅自带入场与倒计时。

@@ -8,7 +8,7 @@
 // isMobile+hasTouch 让 Chromium 设备仿真把 pointer 媒询判成 coarse(桌面窄窗口
 // pointer: fine 不触发提示层,红线保持)。
 import { test, expect } from "./fixtures";
-import { quickStart, openSoloSetup } from "./react-helpers";
+import { quickStart, openSoloSetup, waitMyPause, force } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
@@ -46,6 +46,16 @@ test.describe("矮横屏 844×390", () => {
 
   test("全浮层件就位:席位右列在上、三圆钮右下,列与钮区互不重叠", async ({ page }) => {
     await quickStart(page);
+    // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载;react-layout 同款配方)
+    await waitMyPause(page, 0, 90_000);
+    await force(
+      page,
+      `
+      e.lastLandOutcome = null;
+      e.pendingLand = null;
+      e.turnPhase = "AwaitingDecision";
+    `,
+    );
     const buttons = page.getByTestId(TESTIDS.pileButtons);
     await expect(buttons).toBeVisible();
     const fb = (await buttons.boundingBox())!;
