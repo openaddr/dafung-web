@@ -13,6 +13,10 @@
 // docs/adr/0055-protocol-fault-e2e.md);本文件只留「托管收回」一例,守开关交互通路
 // (设置弹层开合/aria-checked 回读/手选都交互/棋子可见行进——交互与可见性,无头层
 // 替代不了)。
+// 真实段(ADR-0058)(波5b #1218 标注):全 1 例全真零种植——双端真实建房/入座/开局,
+// 托管开/收经设置弹层真点击(ADR-0028 引擎公共通路,aria-checked 广播回读),收回后
+// host 手选都→真行军(位置前进 poll)即被测环。联机走 testUnscaled(对局节奏由服务
+// 器驱动)。force 零处。
 import { testUnscaled as test, expect, type Browser, type Page } from "./fixtures";
 import { dismissJinnangIfUp, newBridgeContext } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";

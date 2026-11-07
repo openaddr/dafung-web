@@ -76,14 +76,20 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   /** 购地卷轴停靠点续局:授周瑜(疾行/火攻多条编排依赖)后「不取」放行,回合交
    *  bot 链——首个 bot 自都城前一格途经人类都城,拦检窗开(react-reaction.spec 同款)。
    *  force 判词:无「授指定将」公共命令(引擎仅机遇效果 grantHero 一途),疾行/
-   *  火攻多条编排依赖周瑜在麾。 */
+   *  火攻多条编排依赖周瑜在麾。
+   *  放行点击短重试(波5b #1218 加网):负载下单发点击被演出锁/重挂吞掉会把整链
+   *  卡死在购地卷轴(answerMarchCounter 空等,「拼点签面」负载挂签名)——toPass
+   *  整块重试,吞点在拍间自愈(点击幂等:skip 只在卷轴在挂时可达,onlinePickCapitals
+   *  同款口径)。 */
   async function grantZhouyuAndPass(page: Page): Promise<void> {
     await force(
       page,
       `{ const d = __dafung.heroDefs().find((h) => h.id === "zhouyu");
          e.players[0].heroes.push({ heroId: d.id, skillIds: [...d.skillPool], lastFired: {} }); }`,
     );
-    await page.getByTestId(TESTIDS.actionButton("skip")).click();
+    await expect(async () => {
+      await page.getByTestId(TESTIDS.actionButton("skip")).click({ timeout: 3_000 });
+    }).toPass({ timeout: 15_000 });
   }
 
   // 真实段(ADR-0058):seed67 开局链真停出牌阶段(窗必升),动作条真实渲染几何
@@ -180,7 +186,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     // 链上更早的异种窗(p2 求贤令)由其窗种过滤自然跳过
     await answerMarchCounter(page);
     const overlay = page.getByTestId(TESTIDS.duelOverlay);
-    await expect(overlay).toBeVisible();
+    // 波5b #1218 加网:签面幕由 fx 编排挂载,负载下演出起播拍后移——可见窗 10s→15s,
+    // 几何读数 toPass 5s→10s(预算加网,断言语义与阈值不变)。
+    await expect(overlay).toBeVisible({ timeout: 15_000 });
     await expect(overlay.getByTestId(TESTIDS.duelVerdict)).toHaveAttribute("data-verdict", "win", {
       timeout: 10_000,
     });
@@ -222,6 +230,6 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
       // 印随首行(#769):构建拍注入 top=首签中点,单行形态印心与首签心同高(≤2px)
       expect(geo!.sealCy, "中缝印读数缺失(印未挂)").not.toBeNull();
       expect(Math.abs(geo!.sealCy! - geo!.signs[0]!.cy)).toBeLessThanOrEqual(2);
-    }).toPass({ timeout: 5_000 });
+    }).toPass({ timeout: 10_000 }); // 波5b #1218 加网:负载预算 5s→10s,阈值语义不变
   });
 });

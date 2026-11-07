@@ -15,7 +15,6 @@ import {
   waitSettled,
   dismissJinnangIfUp,
   force,
-  freezeClock,
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
@@ -23,19 +22,21 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("顶部浮层几何(#700 ①)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
-  // 真实段(ADR-0058):quickStart 真实开局链走到停靠,顶浮层四件(设置/详情/回合
-  // 胶囊/三圆钮)真实挂载渲染的 DOM 盒模型即被测环——单发 evaluate 读真渲染几何,
-  // 无操作链。force 判词:钉 AwaitingDecision 空闲态=断言前提(「锦囊默认亮」需决策
-  // 空闲钉住;引擎自转无「钉相位」公共命令),清 pendingLand/落格投影防决策卷轴弹出
-  // 遮顶栏——「空闲且无遮罩」形态引擎到不了(rack 停车坪同判词)。
+  // 真实段(ADR-0058):quickStart 真实开局链(谱内 seed 1486,seedSolo 直呼生产
+  // 通路)走到首拍冻结,顶浮层四件(设置/详情/回合胶囊/三圆钮)真实挂载渲染的 DOM
+  // 盒模型即被测环——单发 evaluate 读真渲染几何,无操作链。force 判词:钉
+  // AwaitingDecision 空闲态=断言前提(「锦囊默认亮」需决策空闲钉住;引擎自转无
+  // 「钉相位」公共命令),清 pendingLand/落格投影防决策卷轴弹出遮顶栏——「空闲且
+  // 无遮罩」形态引擎到不了(rack 停车坪同判词)。
   test("顶左行序 设置→详情:两钮 32×32 避 safe-area;回合胶囊顶中与钮行同排(#853 chip 退役);三圆钮 44px 贴右下,锦囊默认亮", async ({
     page,
   }) => {
-    test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
-    await quickStart(page);
-    // 停车钉我的回合(显隐回合联动后,bot 回合架自动收、锦囊钮亮态退):等自然停靠
-    // 再钉 AwaitingDecision 空闲态(#1006 例同款配方),「锦囊默认亮」才有钉住前提
-    await waitMyPause(page, 0, 90_000);
+    test.slow(); // 预算放宽同族口径(preRoll 后本例实跑 ~10s)
+    // 波5b #1218 preRoll 评估采用(种植例):断言面=顶浮层几何,不依赖行军日志/
+    // 已推进回合——落都即冻结(#1221 通路)替代「随机 seed+waitMyPause 自然停靠」,
+    // 停靠点漂移与 bot 链竞速面归零(负载根治,几何族种植例同批换装)。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 钉 AwaitingDecision 空闲态(preRoll 已冻,只清落格投影防决策卷轴遮顶栏)
     await force(
       page,
       `
@@ -167,12 +168,15 @@ test.describe("锦囊手牌开关(#1006 建组;显隐回合联动+决策保底)"
   // 行动方」「凭空开/落反应窗」公共命令(rack 同判词)——直写 activeIndex/turnPhase
   // 是触发沿的唯一通路,被测对象是 UI 对该状态的响应链,不是状态本身。
   test("收起即隐/再点回亮;跨他人回合持续;亮收四沿自动对齐(回合联动+决策保底)", async ({ page }) => {
-    test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
-    await quickStart(page);
-    // 停车坪(pinRackIdle 同款钉法,配方出处 react-jinnang-rack):等人类停稳,钉进
-    // AwaitingDecision 空闲态 + 清 pendingLand/落格投影——决策卷轴不拦顶栏命中,
-    // 锦囊钮可点,状态无限期稳定。
-    await waitMyPause(page, 0, 90_000);
+    test.slow(); // 预算放宽同族口径(preRoll 后本例实跑 ~15s)
+    // 波5b #1218 定 seed 根治(「他人回合收起」负载挂签名):原随机 seed+waitMyPause
+    // 自然停靠,bot 回合询问期两类假停靠(反应窗询问/珍宝抉择,decisionOwner=我)会
+    // 让 force 钉相位与真链赛跑;改 preRoll 落都即冻结(#1221 通路,种植例评估采用
+    // ——断言面=开关四沿 UI 响应,不依赖行军日志/回合数),停车与竞速面归零。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 停车坪(pinRackIdle 同款钉法,配方出处 react-jinnang-rack):钉进 AwaitingDecision
+    // 空闲态 + 清 pendingLand/落格投影——决策卷轴不拦顶栏命中,锦囊钮可点,状态
+    // 无限期稳定(preRoll 已冻,无自动推进可竞速)。
     await force(
       page,
       `
@@ -231,16 +235,17 @@ test.describe("签面归组(#840 ④)", () => {
   // 真实段(ADR-0058):单张手牌真实挂载渲染的签面/牌行/架体盒模型几何即被测环。
   // force 判词:手牌无公共通路(引擎只按开局发牌/摸牌时机发牌,无「发指定牌」公共
   // 命令,rack 停车坪同判词),断言面需单张特定牌形(hug 与全宽档差异放大到最大);
-  // 冻结(freezeClock,#421 调试观测面)是到达手段,非字段直改。
+  // 冻结(preRoll 落都即冻结)是到达手段,非字段直改。
   test("签面与手牌架同组居中:签面贴牌行、组中线≈手牌区中线、架体收拢到内容实宽", async ({
     page,
   }) => {
-    test.slow(); // quickStart 全链(对局自走),预算放宽同族口径
-    await quickStart(page);
-    // 冻结时钟再钉单张手牌(bot 链与偶发反应横幅不与几何读数赛跑,react-seat-cells
-    // 挂点断言同款前提);单张把 hug 与旧全宽档的差异放到最大——叠加压缩态架体
-    // 本就近乎吃满,断言无分辨力。
-    await freezeClock(page);
+    test.slow(); // 预算放宽同族口径(preRoll 后本例实跑 ~10s)
+    // 波5b #1218 定 seed 根治(「起手 1 张」负载挂签名):原随机 seed+freezeClock,
+    // 停靠点随骰走漂移、force 与 bot 链赛跑;改 preRoll 落都即冻结(#1221 通路,
+    // 种植例评估采用——断言面=单张签面几何,不依赖行军日志/回合数),零竞速。
+    await quickStart(page, 1486, { advance: "preRoll" });
+    // 钉单张手牌;单张把 hug 与旧全宽档的差异放到最大——叠加压缩态架体本就近乎
+    // 吃满,断言无分辨力。
     await force(page, `e.players[0].jinnangHand = ["军情密探"];`);
     type Geo = {
       gapSealToCard: number;
