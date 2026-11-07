@@ -178,20 +178,26 @@ export function installDebugHooks(): void {
         throw new Error(`seedSoloToRound:不可应答相位 ${e.turnPhase}`);
     }
   };
-  /** 推进循环:每拍 = 真人决策点应答 → 让出宏任务 → 读回合数,至停靠态(parkMyTurn
-   *  谓词:activeIndex/decisionOwner=0 × Awaiting*;另排除 AwaitingReaction——解冻后
-   *  5s 代发看门狗会收窗,非稳定停靠)且 turnNumber ≥ targetRound。afterFirstRoll(#1254
-   *  开口吸收):到站须在首掷之后——开手可用牌时 seedSolo 后即停 AwaitingJinnang(掷骰
-   *  前),不排除会把 postRoll 停在未掷态,违反「首掷已发生」语义;置位后停靠谓词加钉
-   *  「本次快进已应答过 rollAndMove」。命令只在 interactive 门开启的同一同步块里派
-   *  (dispatchCommand 的 pending/演出锁会静默吞命令,轮询续拍重试);bot 腿由房间驱动链
-   *  在本命令同步段内推进(e2e botStepMs=0),页内不直调 botAct。同 seed 两跑确定性:
-   *  应答表无随机、看门狗冻结不点火、RNG 消耗序由引擎定。 */
+  /** 推进循环(#1272 精确 await 形态):每拍 = 真人决策点应答 → 让出一个宏任务 → 读
+   *  回合数,至停靠态(parkMyTurn 谓词:activeIndex/decisionOwner=0 × Awaiting*;另排除
+   *  AwaitingReaction——解冻后 5s 代发看门狗会收窗,非稳定停靠)且 turnNumber ≥
+   *  targetRound。afterFirstRoll(#1254 开口吸收):到站须在首掷之后——开手可用牌时
+   *  seedSolo 后即停 AwaitingJinnang(掷骰前),不排除会把 postRoll 停在未掷态,违反
+   *  「首掷已发生」语义;置位后停靠谓词加钉「本次快进已应答过 rollAndMove」。命令只在
+   *  interactive 门开启的同一同步块里派(dispatchCommand 的 pending/演出锁会静默吞命
+   *  令,interactive 转真即续拍重试);bot 腿由房间驱动链在本命令同步段内推进(e2e
+   *  botStepMs=0,delay=0 不挂时钟定时器,纯微任务链),页内不直调 botAct。
+   *  让出节拍(#1272,旧 20ms 固定轮询退役):一律宏任务短让出(setTimeout 0),与下行
+   *  拍的 transportBroadcast flush(setTimeout 0 统一排泵)同在定时器队列 FIFO——派发后
+   *  等的就是「该命令自己的完成信号」:事件批回流 → pending 解锁+本座演出落定 →
+   *  interactive 转真,首拍即观察到即续,固定税归零,零竞速形态不变(应答序只由引擎态
+   *  定,与拍距无关)。同 seed 两跑确定性:应答表无随机、看门狗冻结不点火、RNG 消耗序
+   *  由引擎定。 */
   const driveToRound = async (targetRound: number, opts?: { afterFirstRoll?: boolean }) => {
     const deadline = Date.now() + 120_000;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
     let lastFp = "";
-    let stallBeats = 0;
+    let stallSince = 0; // 当前 fp 首见的 interactive 拍时刻(无进展守卫墙钟锚;#1272 拍距不再固定,计时从拍数改墙钟)
     let rolled = false; // 已应答过起摇(首掷在引擎侧随命令同步段落账)
     for (;;) {
       if (Date.now() > deadline)
@@ -212,22 +218,24 @@ export function installDebugHooks(): void {
       const c = getController();
       if (c == null) throw new Error("seedSoloToRound:控制器丢失");
       if (!c.interactive) {
-        await sleep(20); // 命令在途/本座行军演出未落定:让出宏任务等下一拍
+        await sleep(0); // 命令在途(等该命令事件拍回流)/本座行军演出未落定/等相位转移:宏任务短让出
         continue;
       }
       const fp = `${e.turnNumber}/${e.round}/${e.turnPhase}/${e.gameEvents.length}`;
-      if (fp === lastFp && ++stallBeats > 150)
+      if (fp !== lastFp) {
+        lastFp = fp;
+        stallSince = Date.now();
+      } else if (Date.now() - stallSince > 3000) {
+        // 只在 interactive 拍计时:行军演出(!interactive 段)不折入,fp 一变即重锚——
+        // 语义与旧 150 拍×20ms 同为「应答无进展 3s+」,演出再慢不误炸。
         throw new Error(
           `seedSoloToRound:应答无进展 3s+(phase=${e.turnPhase} round=${e.round})——命令被吞或驱动断链`,
         );
-      if (fp !== lastFp) {
-        lastFp = fp;
-        stallBeats = 0;
       }
       const cmd = answerAtHumanStop(e);
       if (cmd.type === "rollAndMove") rolled = true;
       c.dispatchCommand(cmd);
-      await sleep(20); // 让出宏任务:命令同步段(引擎结算+bot 链)与下行拍落地
+      await sleep(0); // 精确让出:等该命令事件拍回流(pending 解锁),回流后首拍 interactive 转真即续
     }
   };
   const w = window as typeof window & { __dafung?: unknown };
