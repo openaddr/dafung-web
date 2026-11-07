@@ -53,6 +53,7 @@ function fixtureData(tiles: object[]) {
     version: 1,
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
     maxLevel: 3,
     resupply: 1000,
     tiles: tiles.map((t) => ({ ...t })),
@@ -71,6 +72,7 @@ function makeEngine(seed = 7, encounter?: { enabled?: boolean }): GameEngine {
     seats: SEATS,
     targetNetWorth: 30000,
     startingCash: 10000,
+    startingTreasures: 0,
     ...(encounter ? { encounter: { enabled: true } } : {}),
   };
   return new GameEngine(MAP.board, MAP.catalog, createDice(seed), cfg);

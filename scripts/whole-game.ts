@@ -201,6 +201,7 @@ export function wholeGameConfig(opts: WholeGameOptions): GameConfig {
     seats: opts.seats,
     targetNetWorth: opts.map.targetNetWorth,
     startingCash: opts.map.startingCash,
+    startingTreasures: 0,
     seed: opts.seed,
     mapId: opts.mapId,
     encounter: opts.encounter ?? ENCOUNTER_PRODUCT_DEFAULTS,
