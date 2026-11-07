@@ -16,13 +16,14 @@
 // 弹层托管行随格 tap 退役,开关接同一 ADR-0028 现役引擎通路(useAutopilotOn 回读 +
 // controller.setAutoPilot,行为=旧托管钮);仅自机语义不变(本弹层只属屏前真人)。
 import { memo, useState } from "react";
-import { Dialog, DialogContent, DialogClose, DialogTitle } from "@app/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@app/components/ui/dialog";
 import { Switch } from "@app/components/ui/switch";
 import { DialogDragHandle } from "@app/hooks/use-dialog-drag";
 import { useAudio } from "@app/fx/AudioProvider";
 import { useAutopilotOn, useNetStore } from "@app/store/netStore";
 import { getController } from "@app/controllers/registry";
 import { Sym } from "@app/screens/shared/Sym";
+import { RoundClose } from "@app/screens/shared/RoundClose";
 import { ConfirmDialog } from "./scroll/ConfirmDialog";
 import { VERSION } from "../../../version";
 import { TESTIDS } from "./testids";
@@ -172,20 +173,9 @@ export const SettingsDialog = memo(function SettingsDialog({
             {roomId !== "" ? ",并退出房间" : ""}。
           </ConfirmDialog>
         )}
-        {/* 可达名兜底出口:× 关闭钮(原型无,模态弹层出口口径同城池详情/锦囊详情)。
-            DialogClose 承载交互语义,制式 44px 热区漆金圆钮(HandRack JinnangDetailSheet
-            同族)。 */}
-        <DialogClose
-          aria-label="关闭"
-          className="group absolute right-1 top-1 z-10 flex h-11 w-11 cursor-pointer items-center justify-center"
-        >
-          <span
-            aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-full border border-[rgba(217,185,92,0.45)] bg-[color-mix(in_srgb,var(--color-paper-hi)_85%,transparent)] text-paper-dim transition-colors group-hover:bg-[rgba(217,185,92,0.18)] group-hover:text-paper"
-          >
-            <Sym name="close" size={13} />
-          </span>
-        </DialogClose>
+        {/* 可达名兜底出口:× 关闭钮(原型无,模态弹层出口口径同城池详情/锦囊详情);
+            制式单源 shared/RoundClose(C8)。 */}
+        <RoundClose />
       </DialogContent>
     </Dialog>
   );

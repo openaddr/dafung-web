@@ -14,15 +14,7 @@
    遮罩自身必须显式开启,否则点击穿透到棋盘);#239 T4 窄短横屏升格 fixed 口径保留 ── */
 .banner-overlay {
   pointer-events: auto;
-  animation: banner-fade-in var(--dur-med) var(--ease-out);
-}
-@keyframes banner-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  animation: fx-fade-in var(--dur-med) var(--ease-out);
 }
 
 /* ── 横幅带材质:深墨底(漆木系渐变)+漆金双描边(外 1.5px 实线+内 1px 发丝)+
@@ -130,17 +122,9 @@
 .banner-anim-out {
   animation: banner-lift var(--dur-fast) var(--ease-in) forwards;
 }
-@keyframes banner-fade-out {
-  from {
-    opacity: 1;
-  }
-  to {
-    opacity: 0;
-  }
-}
 .banner-overlay-out {
   pointer-events: none;
-  animation: banner-fade-out var(--dur-fast) var(--ease-in) forwards;
+  animation: fx-fade-out var(--dur-fast) var(--ease-in) forwards;
 }
 
 /* ── 城池详情缩略图(#767 弹窗详情族②):TileThumb 规范类(city-ledger-thumb,

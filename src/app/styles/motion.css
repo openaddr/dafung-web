@@ -1,0 +1,36 @@
+/* 纯 opacity 演出原语单源(C4 瘦身收口):fade-in/out 与 breathe 两形 keyframes 曾
+   逐处手抄 16 份(fx/banner/victory/ambient/board/layout/reaction-banner/setup),
+   收口为两枚参数化,消费方 animation 简写只换首名。
+   - fx-fade-in / fx-fade-out:0↔1 直通;时长/缓动/fill 由消费方简写注入。
+   - fx-breathe:0%,100% 档 = --breath-lo(缺省 0.35),50% 档 = --breath-hi(缺省 1)
+     ——两参只表档位与亮度无关(行军金环反峰 0.55 同法),异值消费方在动画元素上注参。
+   本文件只动 opacity(合成器通路);常驻 infinite 的白名单登记仍在
+   check-board-anim.ts 按 animation-name 把守(ADR-0039)。 */
+
+@keyframes fx-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fx-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes fx-breathe {
+  0%,
+  100% {
+    opacity: var(--breath-lo, 0.35);
+  }
+  50% {
+    opacity: var(--breath-hi, 1);
+  }
+}

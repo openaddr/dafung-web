@@ -82,6 +82,25 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
     }
     flyPend.clear();
   };
+  /** 金额浮字公共段(C10 收口):spawn 延后补发(③ overlay 判据 defer)+ 正向金额
+   *  飞行账本累积——cashDelta/supplyRain 两 case 曾逐字双抄,唯 coins 旗标异;
+   *  来源锚点取该席位最后一笔进账的(合并枚从最后现场起飞)。 */
+  const floatAndBank = (
+    playerId: string,
+    x: number,
+    y: number,
+    amount: number,
+    coins: boolean,
+    defer: boolean,
+  ) => {
+    const spawn = () => sink.spawnFloater(x, y, amount, coins);
+    if (defer) deferred.push(spawn);
+    else spawn();
+    if (amount > 0) {
+      const pend = flyPend.get(playerId);
+      flyPend.set(playerId, { amount: (pend?.amount ?? 0) + amount, x, y });
+    }
+  };
   for (const [i, ev] of events.entries()) {
     if (sealed) {
       for (const rest of events.slice(i)) {
@@ -109,31 +128,11 @@ export async function present(events: PresentationEvent[], sink: FxSink): Promis
       case "cashDelta": {
         // 金额浮字不带铜钱雨(coins 档随税关退役清退 #828,雨唯一通路=supplyRain);
         // ③ 批内仍将开场 overlay 时浮字延后到收场补发(现画在幕下不可见),飞行账本照常累积。
-        const spawn = () => sink.spawnFloater(ev.x, ev.y, ev.amount, false);
-        if (deferSync) deferred.push(spawn);
-        else spawn();
-        if (ev.amount > 0) {
-          const pend = flyPend.get(ev.playerId);
-          flyPend.set(ev.playerId, {
-            amount: (pend?.amount ?? 0) + ev.amount,
-            x: ev.x, // 来源锚点取该席位最后一笔进账的(合并枚从最后现场起飞)
-            y: ev.y,
-          });
-        }
+        floatAndBank(ev.playerId, ev.x, ev.y, ev.amount, false, deferSync);
         break;
       }
       case "supplyRain": {
-        const spawn = () => sink.spawnFloater(ev.x, ev.y, ev.amount, true);
-        if (deferSync) deferred.push(spawn);
-        else spawn();
-        if (ev.amount > 0) {
-          const pend = flyPend.get(ev.playerId);
-          flyPend.set(ev.playerId, {
-            amount: (pend?.amount ?? 0) + ev.amount,
-            x: ev.x,
-            y: ev.y,
-          });
-        }
+        floatAndBank(ev.playerId, ev.x, ev.y, ev.amount, true, deferSync);
         break;
       }
       case "textFloat": {

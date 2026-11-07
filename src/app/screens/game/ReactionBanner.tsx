@@ -32,7 +32,7 @@ export interface ReactionBannerProps {
   onPickShare: (seat: number) => void;
   /** 候选笺文案(座位 → 国号,GameScreen 从快照取)。 */
   seatLabel: (seat: number) => string;
-  /** 落印确认可用性(选中反应牌且份已定)。 */
+  /** 落印确认可用性(选中反应锦囊且份已定)。 */
   confirmEnabled: boolean;
   onConfirm: () => void;
   onDecline: () => void;

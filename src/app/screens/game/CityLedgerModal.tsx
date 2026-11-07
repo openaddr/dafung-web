@@ -1,4 +1,5 @@
-// 名下城池清单弹层(#622,规格 #621):席位格/仪表条城池图标点开的只读清单——
+// 名下城池清单弹层(#622,规格 #621):诸侯详情城池 chips 钻入的只读清单(#1097 起
+// 唯一入口)——
 // 一城一行按棋盘 index 序(行军顺序,合上弹窗扫视方向一致),行首真实格缩略图
 // (#623,TileThumb 与棋盘逐像素同源)+ 五列 = 城名 / 等级 / 购入价 / 变卖价 /
 // 交易加成;城池档位两字名(ADR-0042 决策 6,读数场合口径)小字缀在城名格内,
@@ -18,7 +19,7 @@ import { tileIndexOfProperty } from "@core/board";
 import { Theme } from "@core/theme";
 import type { SnapshotPlayer } from "@app/store/gameStore";
 import { getControllerContext } from "@app/controllers/registry";
-import { PileShell } from "./PileModal";
+import { PileShell, PileZone } from "./PileModal";
 import { TileThumb } from "./TileThumb";
 import { TESTIDS } from "./testids";
 
@@ -77,10 +78,9 @@ export const CityLedgerModal = memo(function CityLedgerModal({
     >
       {rows.length > 0 ? (
         <>
-          <div className="pile-zone">
-            <span className="pile-zdot" aria-hidden="true" />
+          <PileZone>
             名下城池 · {rows.length} 城<small>(行序 = 行军顺序)</small>
-          </div>
+          </PileZone>
           <div
             className={
               GRID_COLS + " city-ledger-head border-b border-gold/25 pb-1.5 font-brush text-paper"

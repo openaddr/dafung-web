@@ -5,7 +5,7 @@
 // #433 交互策略上收:「此刻本地玩家能不能点」(canAct)与起签转入沿检测
 // (checkRollSeal)公式单源在本基类——两个控制器只供参数(mySeat/hotSeat/引擎),
 // 改一条交互规则只动一处,杜绝单机/联机行为分叉(此前 interactive 双写且带
-// 「需推理才能确认」的热座省略,恰是本票要消灭的 bug 族)。
+// 「需推理才能确认」的本地隐式假设,恰是本票要消灭的 bug 族)。
 import type { GameEngine } from "@core/authority";
 import type { GameCommand } from "@core/authority";
 import { useGameStore } from "@app/store/gameStore";
@@ -24,14 +24,14 @@ export abstract class GameController {
   // ─── 抽象成员(子类提供;语义与旧 ClientController 对齐)──
   /** 渲染源:单机=权威引擎;联机=快照重 hydrate 的只读引擎。 */
   abstract get engine(): GameEngine;
-  /** 视角座位:单机=决策方(热座跟随);联机=自己分到的 seat。 */
+  /** 视角座位:单机=决策方(跟随决策方);联机=自己分到的 seat。 */
   abstract get viewSeat(): number;
-  /** 本地玩家座位(交互策略输入):单机恒 0(host 真人);联机=入座分到的 seat
+  /** 本地玩家座位(交互策略输入):单机恒 0(房主真人);联机=入座分到的 seat
    *  (未入座=-1,联机入座前瞬态)。未入座不可操作由 canAct 显式守卫保证——被询问集经脱敏批逐字拷贝
    *  含 -1 匿名占位(见 canAct 反应窗分支),不能靠「集合只含真实座位」的推理。 */
   protected abstract get mySeat(): number;
-  /** 热座语义(#433 显式参数化;单机=true、联机=false):主分支是否豁免
-   *  「决策方===本地座位」判定。热座屏前唯一真人座即 mySeat,决策方是 bot 则
+  /** 单机跟随语义(#433 显式参数化;单机=true、联机=false):主分支是否豁免
+   *  「决策方===本地座位」判定。单机屏前唯一真人座即 mySeat,决策方是 bot 则
    *  本屏无人可操作,isBot 判定即座位匹配;联机各端座位固定,他座决策时不得
    *  解锁本端操作,必须显式判定决策方===自己。 */
   protected abstract readonly hotSeat: boolean;
@@ -130,7 +130,7 @@ export abstract class GameController {
    *    演出,超时兜底在权威侧);命令在途锁仍适用。未入座显式排除:被询问集经
    *    脱敏批逐字拷贝,锦囊窗 queriedBySeat 含 -1 匿名占位(他座身份置换、数量
    *    保留),includes(-1) 可为真——不设守卫未入座也能应答。
-   *  - 主分支:Playing × 决策方轮到本地(热座豁免见 hotSeat)× 决策方非 bot
+   *  - 主分支:Playing × 决策方轮到本地(单机豁免见 hotSeat 字段)× 决策方非 bot
    *    × 无在途命令 × 未托管 × 本座位演出落定(#611 改绑:只等自己的行军会话,
    *    他座棋子照飞、队列积压不进门,ADR-0029 §4;热座分支无需同款守卫:
    *    decisionOwner 恒为真实座位索引,等值判定对 -1 天然不成立)。 */

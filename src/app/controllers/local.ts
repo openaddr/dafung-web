@@ -40,7 +40,7 @@ import {
 import { GameController } from "./controller";
 
 /** 单机开局配置(房间通路):与联机 createRoom/hostConfig 同构。座位表只取
- *  isBot 布点与首座(=host 真人)的预设国号——名字/起手银两不进房间通路
+ *  isBot 布点与首座(=房主真人)的预设国号——名字/起手银两不进房间通路
  *  (引擎座位名恒「座 N」;起手现金/目标线地图顶层必配,room.startGame 解析,单源 map)。 */
 export interface SoloRoomConfig {
   seats: SeatConfig[];
@@ -90,7 +90,7 @@ export class LocalController extends GameController {
   private readonly sock: SeatTransport;
   /** 房间权威引擎(内存直连读;构造同步段由 startGame 产出)。 */
   private readonly _engine: GameEngine;
-  /** 单机恒 seat 0(host 真人;createRoom 强约束 seat0=human)。 */
+  /** 单机恒 seat 0(房主真人;createRoom 强约束 seat0=human)。 */
   readonly seat = 0;
   /** 交互策略参数(#433 上收基类单源):热座=true——屏前唯一真人座即 seat,
    *  决策方是 bot 则无人可操作,isBot 判定即座位匹配,不再要求决策方===本座。 */

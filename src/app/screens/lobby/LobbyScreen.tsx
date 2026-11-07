@@ -32,6 +32,7 @@ import { Sym } from "@app/screens/shared/Sym";
 // #766:矮横屏档 JS 结构分支(双列重排),断点串单源 hooks/use-media-query.ts
 // (lobby.css 矮横屏档 media 开口头注同指)
 import { useIsShortLandscape } from "@app/hooks/use-media-query";
+import { useMapCatalog } from "@app/screens/setup/useMapCatalog";
 import { LID } from "./testids";
 // W2:大厅局部动画(座位点亮 keyframe 定义在此,见文件内注释)
 import "./lobby.css";
@@ -102,7 +103,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // 开局请求失败时在 guard 内显式撤掉(遮罩不能盖着错误提示常驻)。
   const [starting, setStarting] = useState(false);
   const [showMapSelect, setShowMapSelect] = useState(false);
-  const [mapName, setMapName] = useState<string | null>(null);
   // W2:房间码「已复制」小态(1s 自清;不用 pushHint——那是错误/流程通道,复制是即时确认)
   const [copied, setCopied] = useState(false);
   // W2:等待文案轮换下标(3s 一换,制造"大厅还活着"的心跳感)
@@ -110,6 +110,16 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
   // S-5:内置图源每渲染 new 会致 MapSelectPanel 重复拉取;useMemo 缓存(组件生命周期内不变)
   // 联机只支持内置图;#947 自建图通路退役后全仓只剩内置图源,直取进程级单例。
   const mapSource = useMemo(() => getMapSource(), []);
+  // 房间地图展示名(C6 收口):id→name 经 useMapCatalog 单源清单解析;清单未到或
+  // 无此 id 时显示 id(待数据语义,非兜底);拉取失败显式报错(下方 effect,零静默回退)。
+  const { entries: mapEntries, error: mapError } = useMapCatalog(mapSource);
+  useEffect(() => {
+    if (mapError) useNetStore.getState().pushHint(`地图清单加载失败:${mapError}`);
+  }, [mapError]);
+  const mapName = useMemo(
+    () => (mapId ? (mapEntries?.find((e) => e.id === mapId)?.name ?? mapId) : null),
+    [mapEntries, mapId],
+  );
   // #559:服务器探活状态(checking=定性中,不渲染状态点)。挂载时探活一次
   // (GET {base}/health,3s 超时,AbortController 掐断;不重试不轮询,一次定性)。
   // 应答非 {ok:true}(网络死/非引擎服务)一律「未连通」——只给预期,不禁任何操作
@@ -171,27 +181,6 @@ export function LobbyScreen({ onExit }: LobbyScreenProps) {
     // waitLines 按视角二选一后内容固定,长度恒 3,不列入依赖
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [roomId, isHost, needMore]);
-
-  // 房间地图展示名(id → name;失败保留 id 兜底,对照旧 builtinMapName)
-  useEffect(() => {
-    if (!mapId) {
-      setMapName(null);
-      return;
-    }
-    let alive = true;
-    mapSource
-      .listMaps()
-      .then((entries) => {
-        const found = entries.find((e) => e.id === mapId);
-        if (alive) setMapName(found ? found.name : mapId);
-      })
-      .catch(() => {
-        if (alive) setMapName(mapId);
-      });
-    return () => {
-      alive = false;
-    };
-  }, [mapId, mapSource]);
 
   // L-8:座位「空→有人」翻转检测(key 稳定后,入场动画只在此刻加 class;
   // 上/下线、托管等状态翻转不再整行 remount 重放动画)。首帧视为入场,保留挂载点亮。

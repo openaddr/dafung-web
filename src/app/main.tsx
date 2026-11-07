@@ -1,10 +1,12 @@
-// React 层入口(react-rewrite 分支)。原 vanilla 入口 src/main.ts 保留作对照,迁移完成后删除。
+// React 层入口(react-rewrite 分支)。
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
 import { installDebugHooks } from "./controllers/registry";
 import { loadInstalledExtensionPackages } from "./extensions/loader";
 import "./styles/app.css";
+// 纯 opacity 演出原语(fx-fade-in/out、fx-breathe)单源,全屏共用一次导入
+import "./styles/motion.css";
 
 // window.__dafung 调试钩子(getEngine/snapshot/sync,重建旧 render/state.ts 的入口)
 installDebugHooks();

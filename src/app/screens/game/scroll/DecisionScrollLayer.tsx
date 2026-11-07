@@ -261,14 +261,7 @@ export function DecisionScrollLayer({
                 tileName={tile.name}
                 groupLabel={groupLineLabel(def.group)}
                 tierLabel={tierLineLabel(def.tier)}
-                property={{
-                  purchasePrice: def.purchasePrice,
-                  maxLevel: def.maxLevel,
-                  valueByLevel: def.valueByLevel,
-                  tradeMult: def.tradeMult,
-                  tradeAdd: def.tradeAdd,
-                  resupply: def.resupply,
-                }}
+                property={def}
                 cash={p.cash}
                 choices={snapshot.choices}
                 onCommand={dispatch}
@@ -281,13 +274,7 @@ export function DecisionScrollLayer({
                 tileName={tile.name}
                 tierLabel={tierLineLabel(def.tier)}
                 level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
-                property={{
-                  maxLevel: def.maxLevel,
-                  valueByLevel: def.valueByLevel,
-                  tradeMult: def.tradeMult,
-                  tradeAdd: def.tradeAdd,
-                  resupply: def.resupply,
-                }}
+                property={def}
                 isCapital={
                   p.capitalIndex !== null &&
                   p.capitalIndex !== undefined &&

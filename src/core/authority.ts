@@ -151,7 +151,7 @@ export type TurnPhase =
   | "AwaitingDecision"
   | "AwaitingHeroPick"
   | "AwaitingEncounter"
-  | "AwaitingJinnang" // 锦囊卷轴(#122/T2):回合开始掷骰前,主动用牌或今不用
+  | "AwaitingJinnang" // 出牌阶段(#122/T2 立,#256 正名):回合开始掷骰前,主动用牌或今不用
   | "AwaitingExhaustion"
   | "AwaitingTreasureOwner"
   | "AwaitingBankruptcySettle"
@@ -191,7 +191,7 @@ export type GameCommand =
   // 反应窗应答(#281,ADR-0017):被询问座位对当前反应窗表态。seat 必须显式携带——反应窗
   // 天然多属主,decisionOwner 归属不适用(pickCapital 同款:seat 随命令过网/进日志,
   // 重放据此复现)。use=false=「不用」(超时兜底在权威侧代发的也是这条普通命令);
-  // use=true 时 cardId=打出的反应牌;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
+  // use=true 时 cardId=打出的反应锦囊;shareSeat 仅识破根窗 AOE 必带=被保护份的座位(替他人
   // 拆招即指他人份;连环计两份任意一张识破即全计作废,shareSeat 可省略);反识破链环窗
   // 不带份(争夺份随窗载荷,#571 ADR-0027)。
   | { type: "respondReaction"; seat: number; use: boolean; cardId?: string; shareSeat?: number };
@@ -732,7 +732,7 @@ export class GameEngine {
     this.dispatchMoment("TurnStart", { subject: this.activeIndex }); // 时机·TurnStart:新 activeIndex 确定后
     this.turnPhase = "Roll";
     this.turnNumber += 1;
-    // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进锦囊卷轴相位(掷骰前)。
+    // 锦囊回合开账(#122/T2):标签名额清零,随后若有可用牌则进出牌阶段(掷骰前)。
     // (#281:免战盾随免战金牌退役,到期清理一并删除;#575:窥探即时一次性,无到期账。)
     this.jinnangUsedTags = [];
     this.enterJinnangPhase();

@@ -11,7 +11,7 @@
 
    卡面纸底画材色(#511 B 案,豁免登记):玄墨鎏金后 theme 纸系 token 已整阶反转成
    深底阶,「纸底」是物理宣纸画材——随器物不随主题,落本地画材变量而非 theme token;
-   与 jinnang-card.css 的 --card-* 同值镜像(两文件无加载顺序契约,改一处必改另一处)。
+   画材与基座单源 card-face.css(本文件 @import 引入;与 jinnang-card.css 同源)。
 
    裸色豁免登记(#511 后存留):
    - rgba(217,185,92,·):漆金内衬/名带描边(--color-lacquer-gold 的 rgba 形式,
@@ -31,39 +31,15 @@
    卡内不可兼得(全文需 ~13em,40% 带高只留 ~10em),取可辨下限,案语见票 #851。
    卡基 detail 13→16px:藏品网格两卡居中时大留白收敛(同票)。 */
 
-/* ── 基座:宣纸纸底 + 漆金描边(em 制;isolation 让交互态描边不越邻牌,
-   与 .jinnang-card 同口径;rotate 消费 --tilt 微旋通道,jinnang-card.css 同款)── */
+@import "./card-face.css";
+
+/* ── 名将面差量:--u 几何单位机制与 overflow;画材/基座单源 card-face.css。
+   尺寸:卡基 --u 为几何单位——absolute 定位元素的 em 会解析到自身字号(--u 变量
+   锚定卡基,r4 原型同法,前车之鉴);根 font-size = var(--u),15u×20u 即 3:4 竖卡。 ── */
 .hface {
-  /* 卡面纸底画材(#511 B 案,豁免登记见文件头;jinnang-card.css 同值镜像)。
-     #556 双亮区降半档随镜像同步:纸底亮端 #f1e7d0→#ece1c6、画心 #f9f2e0→#f2e8d2 */
-  --card-paper: #ece1c6;
-  --card-paper-deep: #e3d4b2;
-  --card-xin: #f2e8d2;
-  --card-ink: #2f2718;
-  --card-ink-dim: #6b5c40;
-  position: relative;
-  isolation: isolate;
-  width: 15em;
-  height: 20em;
   --u: var(--hface-base, 16px); /* 几何单位=卡基;消费方可经 --hface-base 整档覆写 */
   font-size: var(--u);
-  flex: 0 0 auto;
-  border-radius: 0.9em;
-  /* 漆金描边 + 纸上墨色发丝衬里(同 jinnang-card.css 基座口径) */
-  border: 0.2em solid color-mix(in srgb, var(--color-lacquer-gold) 38%, transparent);
-  background: linear-gradient(168deg, var(--card-paper) 0%, var(--card-paper-deep) 100%);
-  box-shadow:
-    0 0.35em 0.8em rgba(0, 0, 0, 0.4),
-    inset 0 0 0 0.15em color-mix(in srgb, var(--card-ink) 16%, transparent);
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
-  rotate: var(--tilt, 0deg);
-  /* 交互态(sel 上浮放大 / off 下沉置灰)的状态过渡,与 .jinnang-card 同款 */
-  transition:
-    transform var(--dur-med) var(--ease-out),
-    box-shadow var(--dur-med) var(--ease-out),
-    filter var(--dur-med) var(--ease-out);
 }
 /* 紧凑档(--u 10px 基;.pick 在后覆写基)。装配差量(技能区 chips)见下 */
 .hface.compact {

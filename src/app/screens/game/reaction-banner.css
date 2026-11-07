@@ -246,16 +246,8 @@
   pointer-events: none;
   box-shadow: 0 0 6px color-mix(in srgb, var(--color-danger) 65%, transparent);
   opacity: 0;
-  animation: reaction-timer-glow calc(var(--dur-med) * 2) var(--ease-sine) infinite;
-}
-@keyframes reaction-timer-glow {
-  0%,
-  100% {
-    opacity: 0;
-  }
-  50% {
-    opacity: 1;
-  }
+  --breath-lo: 0; /* danger 弧辉光从全透明起呼吸(motion.css fx-breathe) */
+  animation: fx-breathe calc(var(--dur-med) * 2) var(--ease-sine) infinite;
 }
 .reaction-timerbox.danger .reaction-timer .arc {
   stroke: var(--color-danger);
@@ -328,7 +320,8 @@
   border-radius: inherit;
   pointer-events: none;
   opacity: 0;
-  animation: reaction-edge-breathe var(--dur-ambient) var(--ease-sine) infinite;
+  --breath-lo: 0; /* 反应牌金边呼吸从全透明起(motion.css fx-breathe) */
+  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite;
 }
 .hand-rack-hand > button.reactive.sel {
   z-index: 8;

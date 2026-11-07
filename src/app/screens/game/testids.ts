@@ -191,7 +191,7 @@ export const TESTIDS = {
   reactionText: "reaction-text",
   /** 右段朱砂倒计时弧(SVG,随剩余时间收敛)。 */
   reactionTimer: "reaction-timer",
-  /** 落印确认墨钮(选中反应牌且 AOE 份已定时可用)。 */
+  /** 落印确认墨钮(选中反应锦囊且 AOE 份已定时可用)。 */
   reactionConfirm: "reaction-confirm",
   /** 「不用」立即应答钮。 */
   reactionDecline: "reaction-decline",

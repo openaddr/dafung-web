@@ -20,17 +20,9 @@
    仍在全部背景层之上,层级不受影响。层是 background layer 不是独立元素,
    mix-blend-mode 只作用于元素整体(会连渐变层一起与棋盘混合,语义错),故逐层
    指定 background-blend-mode:渐变 normal / 竹影 screen / 径向 normal。── */
-@keyframes victory-overlay-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
 .victory-anim-overlay {
   pointer-events: auto;
-  animation: victory-overlay-in var(--dur-reveal) var(--ease-out);
+  animation: fx-fade-in var(--dur-reveal) var(--ease-out);
   background:
     linear-gradient(
       to top,

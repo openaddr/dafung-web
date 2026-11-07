@@ -15,14 +15,14 @@
 // 不撞口(同处 4100-4159 段,异名撞同 offset 概率 1/60,撞了走 COST_PROBE_PORT 覆盖);
 // **不走 test-lock**,不碰 e2e 测试锁(取数与回归测试互不排队)。测量档:dist 生产
 // 构建(陈旧自动 build,dist-freshness 判新——先 build 后起服,vite preview 空 dist
-// 即退)+ 844×390 DPR3 真机档 + swiftshader 软渲染(playwright.config 同款,headless
-// 无 GPU 也走真实 3D 骰面路径)+ **e2e fixtures 同款五键注入**(倍率 0.25/桥/反应窗
+// 即退)+ 844×390 DPR3 真机档 + swiftshader 软渲染(playwright.config 同款,
+// headless 渲染环境稳定可复现)+ **e2e fixtures 同款五键注入**(倍率 0.25/桥/反应窗
 // 5s/bot 配速 0/默认图钉关中,e2e/fixtures.ts 同值同形制)——waitMyRollDone/
 // waitSettled 就是 e2e 镜头下的形制,bot 配速不归零光 Setup 选都三 bot 就 ≥9s
 // (BOT_STEP_MS=3000 实测),2026-11-07 基线数 271/668/3458 同此口径,同形制才可比。
 // 探针原理(#1222 一次性版实测 271/668/3458ms 后正式化):goto 后 waitForFunction
 // (__dafung) 计挂载链,顺读 navigation/resource timing;performance.now 包 seedSolo
-// evaluate;waitMyRollDone+waitSettled 轮询体逐拍放行锦囊卷轴(react-helpers.ts
+// evaluate;waitMyRollDone+waitSettled 轮询体逐拍放行出牌阶段(react-helpers.ts
 // 同逻辑,本地复刻不 import——e2e/ 面属测试域,工具不反向依赖)。
 import { basename } from "node:path";
 import { spawn, spawnSync } from "node:child_process";
@@ -82,7 +82,7 @@ function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
 // ── waitMyRollDone/waitSettled(react-helpers.ts 同逻辑,本地复刻)──
 const TID_PASS = "actionbar-pass"; // 各屏 testids.ts 单源的现役挂点;scripts 侧不进 testids 闸
 
-/** 等人类当前一手自动走完(#188 行军自动化;seat=0 单机人类):逐拍放行锦囊卷轴,
+/** 等人类当前一手自动走完(#188 行军自动化;seat=0 单机人类):逐拍放行出牌阶段,
  *  直到决策方换人 / 我的回合推进过掷骰 / 终局。 */
 async function waitMyRollDone(page: Page, timeoutMs = 30000): Promise<number> {
   const t0 = Date.now();

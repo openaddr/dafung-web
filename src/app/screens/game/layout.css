@@ -37,16 +37,7 @@
 .waiting-dots::after {
   content: "···";
   margin-left: 2px;
-  animation: waiting-dots-breathe 1.2s ease-in-out infinite;
-}
-@keyframes waiting-dots-breathe {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
+  animation: fx-breathe 1.2s ease-in-out infinite; /* 呼吸档缺省 0.35/1(motion.css) */
 }
 
 /* ── 现金/体力变化浮标(#495,game-hud.css 并入):原文件唯一存留规则随 DashboardBar
@@ -486,17 +477,8 @@
   inset: -2.5px;
   border: 1.5px solid rgba(217, 185, 92, 0.6);
   border-radius: 5.5px;
-  animation: seat-glow var(--dur-ambient) var(--ease-sine) infinite;
+  animation: fx-breathe var(--dur-ambient) var(--ease-sine) infinite; /* 呼吸档缺省 0.35/1(motion.css) */
   pointer-events: none;
-}
-@keyframes seat-glow {
-  0%,
-  100% {
-    opacity: 0.35;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 /* 破产:整格降透明+印灰(原型 .is-bankrupt;旧划名随国号名行退役——格上已无名) */
 .game-layout .seat.bankrupt {

@@ -19,17 +19,10 @@
     0 0 0 2px var(--color-gold),
     0 0 14px rgba(200, 161, 58, 0.5);
   opacity: 0;
-  animation: su-breathe calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
+  --breath-lo: 0.1; /* 起兵 CTA 金圈呼吸档(motion.css fx-breathe) */
+  --breath-hi: 0.85;
+  animation: fx-breathe calc(var(--dur-ambient) / 2) var(--ease-sine) infinite;
   pointer-events: none;
-}
-@keyframes su-breathe {
-  0%,
-  100% {
-    opacity: 0.1;
-  }
-  50% {
-    opacity: 0.85;
-  }
 }
 
 /* ── G1(#751/#742):safe-area 消费 ──

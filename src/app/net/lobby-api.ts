@@ -9,7 +9,7 @@ import { getServerBase } from "@app/net/server-base";
  *  {ok, seat, seatToken, ...lobbyView};lobbyView 房间字段与 WS 广播同构)。 */
 export interface RoomJoinReply extends NetRoomFields {
   ok: true;
-  /** 分到的座位(建房=0 即 host)。 */
+  /** 分到的座位(建房=0 即房主)。 */
   seat: number;
   /** 座位归属凭证(WS 连接与后续 REST 鉴权用)。 */
   seatToken: string;
@@ -44,7 +44,7 @@ export class LobbyApi {
     });
   }
 
-  /** 建房(POST /room/new)。guohao=host 预设国号(R3-D1 #99),重名时开局由服务器加方位前缀(同 joinRoom)。 */
+  /** 建房(POST /room/new)。guohao=房主预设国号(R3-D1 #99),重名时开局由服务器加方位前缀(同 joinRoom)。 */
   createRoom(opts: { seats: number; target?: number; guohao?: string }): Promise<RoomJoinReply> {
     return this.http("/room/new", opts).then((r) => this.parseRoomReply(r));
   }
@@ -56,12 +56,12 @@ export class LobbyApi {
     );
   }
 
-  /** host 选图(POST /room/map;本地换图由 lobby 广播单路径驱动,无乐观更新)。 */
+  /** 房主选图(POST /room/map;本地换图由 lobby 广播单路径驱动,无乐观更新)。 */
   pickMap(creds: RoomCreds, mapId: string): Promise<Record<string, unknown>> {
     return this.http("/room/map", { ...creds, mapId });
   }
 
-  /** host 开局(POST /room/start;引擎在服务器侧构造,本端只等首帧 snapshot)。 */
+  /** 房主开局(POST /room/start;引擎在服务器侧构造,本端只等首帧 snapshot)。 */
   startGame(creds: RoomCreds): Promise<Record<string, unknown>> {
     return this.http("/room/start", creds);
   }

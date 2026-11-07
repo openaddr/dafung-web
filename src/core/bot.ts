@@ -85,7 +85,7 @@ export interface JinnangIntent {
  *  Math.random,重放安全)。
  *  目标候选的可达性预筛(非己/存活/有珍宝/有城)是 choices.ts jinnangTargetOk 的
  *  公开信息镜像,只用于「用不用 + 偏好序」;提交时引擎仍按目标段选项集逐段复验。
- *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应牌不经出牌阶段。) */
+ *  (#281:免战金牌退役,原「现金低于中位数开盾」分支随之删除;反应锦囊不经出牌阶段。) */
 export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent {
   const def = jinnangCardOf(cardId);
   const me = engine.activePlayer;
@@ -138,8 +138,8 @@ export function jinnangIntent(engine: GameEngine, cardId: string): JinnangIntent
     }
     case "counter":
     case "ambush":
-      // 反应牌不经出牌阶段(#281「唯反应」):策略表永不评估,走到这里=调用方数据 bug
-      throw new Error(`反应牌【${cardId}】不经出牌阶段(jinnangIntent 不应评估反应牌)`);
+      // 反应锦囊不经出牌阶段(#281「唯反应」):策略表永不评估,走到这里=调用方数据 bug
+      throw new Error(`反应锦囊【${cardId}】不经出牌阶段(jinnangIntent 不应评估反应锦囊)`);
   }
 }
 
@@ -203,8 +203,8 @@ function counterLossEstimate(engine: GameEngine, seat: number, cardId: string): 
       return 0;
     case "counter":
     case "ambush":
-      // 反应牌不落他人头上(counter 只在非反应锦囊的公告窗评估)
-      throw new Error(`反应牌【${cardId}】不应进入识破估损(counterLossEstimate 数据 bug)`);
+      // 反应锦囊不落他人头上(counter 只在非反应锦囊的公告窗评估)
+      throw new Error(`反应锦囊【${cardId}】不应进入识破估损(counterLossEstimate 数据 bug)`);
   }
 }
 

@@ -72,7 +72,7 @@ export const EVENT_TIERS = {
   turnStarted: {
     fold: "fold+calibration",
     fx: "presented",
-    why: "回合翻页+开账清场;锦囊卷轴挂起(AwaitingJinnang)不可知,水合纠正;表现=批末位 turnBanner",
+    why: "回合翻页+开账清场;出牌阶段挂起(AwaitingJinnang)不可知,水合纠正;表现=批末位 turnBanner",
   },
   roundStarted: { fold: "must-fold", fx: "silent", why: "轮次锚点主体(roundAnchor)" },
   roundEnded: { fold: "must-fold", fx: "silent", why: "轮次锚点主体(roundAnchor)" },

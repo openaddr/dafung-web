@@ -10,12 +10,8 @@
 // 唯一入口=诸侯详情四钻入——格上图标直达随单人格弹层退役)。
 import { memo } from "react";
 import type { SnapshotPlayer } from "@app/store/gameStore";
-import { formatMoney } from "@core/money";
-import { guidePriceOf } from "@core/treasures";
-import { PileShell } from "./PileModal";
+import { PileShell, PileZone, treasureFace, treasurePrice } from "./PileModal";
 import { HeroCardFace } from "@app/components/card/HeroCardFace";
-import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
-import { treasureImagePath } from "@app/components/card/jinnang-face-data";
 import { SealEmpty } from "@app/screens/shared/ArtifactEmpty";
 import { REP_TIER_COLORS, RepProbBar, repTierPct } from "./RepProbBar";
 import { TESTIDS } from "./testids";
@@ -36,10 +32,7 @@ function SeatHeroModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void 
       ariaLabel={`名将 · ${p.guohao}`}
       onClose={onClose}
     >
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {p.heroes.length} 席
-      </div>
+      <PileZone>麾下名将 · {p.heroes.length} 席</PileZone>
       {p.heroes.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="将" note="虚位以待" title="暂无名将" />
@@ -71,32 +64,21 @@ function SeatGemModal({ p, onClose }: { p: SnapshotPlayer; onClose: () => void }
       ariaLabel={`珍宝 · ${p.guohao}`}
       onClose={onClose}
     >
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
+      <PileZone>
         已持有 · {p.treasures.length} 件<small>(名牌=指导价)</small>
-      </div>
+      </PileZone>
       {p.treasures.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />
         </div>
       ) : (
         <div className="pile-grid">
-          {p.treasures.map((t) => {
-            const image = treasureImagePath(t.id);
-            return (
-              <div className="pile-cell" key={t.id}>
-                <TreasureCardFace
-                  name={t.name}
-                  level={t.level}
-                  desc={t.desc}
-                  art={image != null ? <img src={image} alt="" /> : undefined}
-                  className="pile-cell-card"
-                  title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
-                />
-                <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-              </div>
-            );
-          })}
+          {p.treasures.map((t) => (
+            <div className="pile-cell" key={t.id}>
+              {treasureFace(t)}
+              {treasurePrice(t)}
+            </div>
+          ))}
         </div>
       )}
     </PileShell>

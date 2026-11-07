@@ -173,7 +173,10 @@
      --dur-* 档都会读成常驻呼吸;linear 保留(连续旋转,与原单 keyframes 同口径)。 */
   animation:
     bv-march-ring-rotor 0.9s linear infinite,
-    bv-march-ring-breathe 0.9s linear infinite;
+    fx-breathe 0.9s linear infinite;
+  /* 呼吸参数(motion.css fx-breathe):0/100% 档 0.95、50% 档 0.55(反峰,行军环暗一下) */
+  --breath-lo: 0.95;
+  --breath-hi: 0.55;
 }
 .bv-token-ring-art {
   display: block;
@@ -190,15 +193,6 @@
 @keyframes bv-march-ring-rotor {
   to {
     transform: rotate(360deg);
-  }
-}
-@keyframes bv-march-ring-breathe {
-  0%,
-  100% {
-    opacity: 0.95;
-  }
-  50% {
-    opacity: 0.55;
   }
 }
 

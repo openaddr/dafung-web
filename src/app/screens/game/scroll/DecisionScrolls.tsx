@@ -16,7 +16,7 @@ import { formatMoney } from "@core/money";
 import { BannerShell, BannerButton } from "./BannerShell";
 import { EncounterGoldSprays } from "./EncounterSpray";
 import { AffordRow } from "./AffordRow";
-import { ValueTable } from "./ValueTable";
+import { ValueTable, type ValueTableProperty } from "./ValueTable";
 import { SCROLL_TESTIDS as T } from "./testids";
 import { TESTIDS } from "../testids";
 
@@ -188,14 +188,8 @@ export function BuyDecisionScroll({
   groupLabel: string;
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
   tierLabel: string;
-  property: {
-    purchasePrice: number;
-    maxLevel: number;
-    valueByLevel: number[];
-    tradeMult: number[];
-    tradeAdd: number[];
-    resupply: number;
-  };
+  /** 城池定义直传(catalog PropertyDef 结构超集,手工收窄已收口)。 */
+  property: ValueTableProperty & { purchasePrice: number };
   cash: number;
   /** 当前相位选项集(快照透出):buy 项的 available/reason 单源引擎注册表。 */
   choices: ChoiceOption[];
@@ -282,13 +276,8 @@ export function UpgradeDecisionScroll({
   /** 城池档位两字名(Theme.cityTierNames 单源经 DecisionScrollLayer,ADR-0042 决策 6)。 */
   tierLabel: string;
   level: number;
-  property: {
-    maxLevel: number;
-    valueByLevel: number[];
-    tradeMult: number[];
-    tradeAdd: number[];
-    resupply: number;
-  };
+  /** 城池定义直传(catalog PropertyDef 结构超集,手工收窄已收口)。 */
+  property: ValueTableProperty;
   /** 是否城主的都城(#671):都城第二列显示补给(固定值,不随档位;都城不可变卖)。 */
   isCapital: boolean;
   /** 当前相位选项集(快照透传):upgrade 项的 available/reason 单源引擎注册表。 */

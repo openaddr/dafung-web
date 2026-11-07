@@ -12,7 +12,7 @@
 // MutationObserver/fonts.ready;#946 平移缩放退役后 viewBox 恒 computeFitView
 // 总览定格、仅换图变化,同步只剩挂载/容器尺寸/换图/字体就绪几个事件拍)。
 // 层内 z 序(DOM 序,复刻原 SVG 绘制序):光晕 → 自机微光 → 回合金环 → 旌旗。
-import { memo, useRef } from "react";
+import { memo, useRef, type ReactNode } from "react";
 import type { Board } from "@core/board";
 import { Theme, playerColor, rgba } from "@core/theme";
 import { TILE_SCALE } from "./Tile";
@@ -21,6 +21,42 @@ import { useBoardMatrixSync } from "./boardHost";
 import { TOKEN_CROWD_SCALE, TOKEN_SCALE, computeTokenSlots, type TokenSlot } from "./TokenLayer";
 import type { BoardPlayer } from "./BoardView";
 import "./ambient.css";
+
+/** 锚壳小件(C10 收口):bv-amb-anchor 落点 + 定形盒负半边回中 + scale 放大——
+ *  选都脉冲/都城光晕(140,TILE_SCALE)与自机微光/金环(48/44,TOKEN_SCALE·挤档)
+ *  四处同构壳,旌旗除外(origin=旗杆底的特形,见 FLAG_BOX)。 */
+function AmbAnchor({
+  x,
+  y,
+  size,
+  scale,
+  opacity,
+  children,
+}: {
+  x: number;
+  y: number;
+  size: number;
+  scale: number;
+  opacity?: number;
+  children: ReactNode;
+}) {
+  return (
+    <div className="bv-amb-anchor" style={{ left: x, top: y, opacity }}>
+      <div
+        className="bv-amb-fit"
+        style={{
+          width: size,
+          height: size,
+          marginLeft: -size / 2,
+          marginTop: -size / 2,
+          transform: `scale(${scale})`,
+        }}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /** 旗面 SVG 盒(旗面局部坐标):锚点(0,0)= 旗杆底,盒内位置 (10,40)
  *  (ambient.css transform-origin 同值);盒含摇曳 ±1.5° 摆幅余量。 */
@@ -132,47 +168,33 @@ export const AmbientLayer = memo(function AmbientLayer({
         const t = board.tiles[idx];
         if (!t) return null;
         return (
-          <div
+          <AmbAnchor
             key={`sel-${idx}`}
-            className="bv-amb-anchor"
-            style={{ left: t.position.x, top: t.position.y }}
+            x={t.position.x}
+            y={t.position.y}
+            size={140}
+            scale={TILE_SCALE}
           >
-            <div
-              className="bv-amb-fit"
-              style={{
-                width: 140,
-                height: 140,
-                marginLeft: -70,
-                marginTop: -70,
-                transform: `scale(${TILE_SCALE})`,
-              }}
-            >
-              <svg
-                className="bv-amb-select-crown"
-                width={140}
-                height={140}
-                viewBox="-70 -70 140 140"
-              >
-                <circle
-                  className="bv-amb-select-disc"
-                  r={62}
-                  fill={rgba(Theme.gold)}
-                  mask="url(#bv-amb-capital-hole)"
-                />
-                <rect
-                  className="bv-amb-select-ring"
-                  x={-52}
-                  y={-44}
-                  width={104}
-                  height={88}
-                  rx={10}
-                  fill="none"
-                  stroke={rgba(Theme.goldBright)}
-                  strokeWidth={3.5}
-                />
-              </svg>
-            </div>
-          </div>
+            <svg className="bv-amb-select-crown" width={140} height={140} viewBox="-70 -70 140 140">
+              <circle
+                className="bv-amb-select-disc"
+                r={62}
+                fill={rgba(Theme.gold)}
+                mask="url(#bv-amb-capital-hole)"
+              />
+              <rect
+                className="bv-amb-select-ring"
+                x={-52}
+                y={-44}
+                width={104}
+                height={88}
+                rx={10}
+                fill="none"
+                stroke={rgba(Theme.goldBright)}
+                strokeWidth={3.5}
+              />
+            </svg>
+          </AmbAnchor>
         );
       })}
       {/* 都城光晕(原 Tile 内 bv-capital-glow,脉动随层) */}
@@ -180,31 +202,17 @@ export const AmbientLayer = memo(function AmbientLayer({
         const t = board.tiles[idx];
         if (!t) return null;
         return (
-          <div
+          <AmbAnchor
             key={`glow-${idx}`}
-            className="bv-amb-anchor"
-            style={{ left: t.position.x, top: t.position.y }}
+            x={t.position.x}
+            y={t.position.y}
+            size={140}
+            scale={TILE_SCALE}
           >
-            <div
-              className="bv-amb-fit"
-              style={{
-                width: 140,
-                height: 140,
-                marginLeft: -70,
-                marginTop: -70,
-                transform: `scale(${TILE_SCALE})`,
-              }}
-            >
-              <svg
-                className="bv-amb-capital-glow"
-                width={140}
-                height={140}
-                viewBox="-70 -70 140 140"
-              >
-                <circle r={70} fill="url(#bv-capital-glow-grad)" mask="url(#bv-amb-capital-hole)" />
-              </svg>
-            </div>
-          </div>
+            <svg className="bv-amb-capital-glow" width={140} height={140} viewBox="-70 -70 140 140">
+              <circle r={70} fill="url(#bv-capital-glow-grad)" mask="url(#bv-amb-capital-hole)" />
+            </svg>
+          </AmbAnchor>
         );
       })}
       {/* 自机微光(L47,#557 主环加粗 + 同色细外圈) */}
@@ -212,47 +220,33 @@ export const AmbientLayer = memo(function AmbientLayer({
         if (!s.mine) return null;
         const c = playerColor(s.player.colorIndex);
         return (
-          <div
+          <AmbAnchor
             key={`halo-${s.player.id}`}
-            className="bv-amb-anchor"
-            style={{ left: s.x, top: s.y, opacity: s.opacity }}
+            x={s.x}
+            y={s.y}
+            size={48}
+            scale={TOKEN_SCALE * (s.crowded ? TOKEN_CROWD_SCALE : 1)}
+            opacity={s.opacity}
           >
-            <div
-              className="bv-amb-fit"
-              style={{
-                width: 48,
-                height: 48,
-                marginLeft: -24,
-                marginTop: -24,
-                transform: `scale(${TOKEN_SCALE * (s.crowded ? TOKEN_CROWD_SCALE : 1)})`,
-              }}
-            >
-              <svg className="bv-amb-mine-halo" width={48} height={48} viewBox="-24 -24 48 48">
-                <circle r={15} fill="none" stroke={rgba(c, 0.6)} strokeWidth={3.5} />
-                <circle r={20} fill="none" stroke={rgba(c, 0.32)} strokeWidth={1.5} />
-              </svg>
-            </div>
-          </div>
+            <svg className="bv-amb-mine-halo" width={48} height={48} viewBox="-24 -24 48 48">
+              <circle r={15} fill="none" stroke={rgba(c, 0.6)} strokeWidth={3.5} />
+              <circle r={20} fill="none" stroke={rgba(c, 0.32)} strokeWidth={1.5} />
+            </svg>
+          </AmbAnchor>
         );
       })}
       {/* 回合方金呼吸环(#762/#840:呼吸中程不隐形;同时至多一枚) */}
       {activeSlot && (
-        <div className="bv-amb-anchor" style={{ left: activeSlot.x, top: activeSlot.y }}>
-          <div
-            className="bv-amb-fit"
-            style={{
-              width: 44,
-              height: 44,
-              marginLeft: -22,
-              marginTop: -22,
-              transform: `scale(${TOKEN_SCALE * (activeSlot.crowded ? TOKEN_CROWD_SCALE : 1)})`,
-            }}
-          >
-            <svg className="bv-amb-token-ring" width={44} height={44} viewBox="-22 -22 44 44">
-              <circle r={18} fill="none" stroke={rgba(Theme.goldBright, 0.9)} strokeWidth={1.5} />
-            </svg>
-          </div>
-        </div>
+        <AmbAnchor
+          x={activeSlot.x}
+          y={activeSlot.y}
+          size={44}
+          scale={TOKEN_SCALE * (activeSlot.crowded ? TOKEN_CROWD_SCALE : 1)}
+        >
+          <svg className="bv-amb-token-ring" width={44} height={44} viewBox="-22 -22 44 44">
+            <circle r={18} fill="none" stroke={rgba(Theme.goldBright, 0.9)} strokeWidth={1.5} />
+          </svg>
+        </AmbAnchor>
       )}
       {/* 旌旗(原 TokenLayer TokenFlag 逐笔搬迁;z 序最顶,与原旗在 token 内最顶一致) */}
       {resting.map((s) => (

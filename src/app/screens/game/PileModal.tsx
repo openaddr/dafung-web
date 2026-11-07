@@ -150,6 +150,40 @@ export function PileShell({
   );
 }
 
+/** 藏品弹层计数条(R2 残余收口):pile-zone 三行 markup 的单源小件,七处消费
+ *  (PileModal 珍宝/名将、SeatAttrModals 名将/珍宝、CityLedgerModal、
+ *  SkillBookLearnModal、TreasurePickModal)。 */
+export function PileZone({ children }: { children: ReactNode }) {
+  return (
+    <div className="pile-zone">
+      <span className="pile-zdot" aria-hidden="true" />
+      {children}
+    </div>
+  );
+}
+
+/** 珍宝装裱卡陈列件(R2 残余收口):目录画心回查(#521)+ TreasureCardFace(品级
+ *  角标+题签+鉴藏印)+ 指导价浮签。静态 cell 的 face 半件,与价签名牌
+ *  treasurePrice 配对使用;技能书可点态等交互变体在消费面自行组装 cell。 */
+export function treasureFace(t: SnapshotPlayer["treasures"][number]) {
+  const image = treasureImagePath(t.id);
+  return (
+    <TreasureCardFace
+      name={t.name}
+      level={t.level}
+      desc={t.desc}
+      art={image != null ? <img src={image} alt="" /> : undefined}
+      className="pile-cell-card"
+      title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
+    />
+  );
+}
+
+/** 珍宝价签名牌(与 treasureFace 配对,见上)。 */
+export function treasurePrice(t: SnapshotPlayer["treasures"][number]) {
+  return <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>;
+}
+
 /** 珍宝弹层内容:已持有全件的装裱卡大格网格(陈列档 7.6px 基=114×152),
  *  每格 = TreasureCardFace(品级角标+题签+鉴藏印)+ 指导价名牌;画心 = 目录
  *  image(#521 画心批,快照行按 id 回查 TREASURES),目录行缺 image 时走缺省回退
@@ -173,10 +207,9 @@ function TreasureGrid({
   const [learnPick, setLearnPick] = useState<SkillBook | null>(null);
   return (
     <>
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
+      <PileZone>
         已持有 · {player.treasures.length} 件<small>(名牌=指导价)</small>
-      </div>
+      </PileZone>
       {player.treasures.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="宝" note="库中尚空" title="暂无珍宝" />
@@ -184,20 +217,8 @@ function TreasureGrid({
       ) : (
         <div className="pile-grid">
           {player.treasures.map((t, i) => {
-            const image = treasureImagePath(t.id);
-            const face = (
-              <TreasureCardFace
-                name={t.name}
-                level={t.level}
-                desc={t.desc}
-                art={image != null ? <img src={image} alt="" /> : undefined}
-                className="pile-cell-card"
-                title={`${t.name} · 品级 ${t.level} · 指导价 ${formatMoney(guidePriceOf(t.level))}${t.desc ? ` · ${t.desc}` : ""}`}
-              />
-            );
-            const price = (
-              <span className="pile-price">指导价 {formatMoney(guidePriceOf(t.level))}</span>
-            );
+            const face = treasureFace(t);
+            const price = treasurePrice(t);
             if (!isSkillBook(t)) {
               return (
                 <div className="pile-cell" key={`${t.id}:${i}`}>
@@ -272,10 +293,7 @@ function HeroGrid({
   const [armedId, setArmedId] = useState<string | null>(null);
   return (
     <>
-      <div className="pile-zone">
-        <span className="pile-zdot" aria-hidden="true" />
-        麾下名将 · {player.heroes.length} 席
-      </div>
+      <PileZone>麾下名将 · {player.heroes.length} 席</PileZone>
       {player.heroes.length === 0 ? (
         <div className="flex justify-center py-6">
           <SealEmpty char="将" note="虚位以待" title="暂无名将" />
