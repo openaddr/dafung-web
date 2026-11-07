@@ -112,6 +112,7 @@
    (左列机遇展开/右列 8 诸侯时不撑破根容器,4 诸侯根恒零滚动)。
    S1-B(#729 钉底纪律在主屏的延伸):操作区 sticky 钉右列可视底,
    8 诸侯内滚时「起兵/返回」恒在场,墨纱渐隐衬垫承接滚过内容。 ── */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .su-root {
     /* 顶垫 ≥5px(#839 刀②):返回钮 top-1/2 居中于 30px 标题行,40px 命中盒上溢

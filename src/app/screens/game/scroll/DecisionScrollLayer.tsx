@@ -11,21 +11,22 @@ import { Fragment, useCallback, useMemo } from "react";
 import type { GameCommand } from "@core/authority";
 import { formatMoney } from "@core/money";
 import { sellValueOf, type CityTier } from "@core/economy";
+import { tileIndexOfProperty } from "@core/board";
 import { heroById } from "@core/heroes";
 import { Theme } from "@core/theme";
 import { useStablePlayers, type GameSnapshot } from "@app/store/gameStore";
 import { getController, getControllerContext, getControllerMap } from "@app/controllers/registry";
+import { BankruptcyScroll } from "./BankruptcyScroll";
+import { HeroPickScroll } from "./HeroPickScroll";
+import { TileDetailScroll } from "./TileDetailScroll";
+import { TreasureVisitorScroll } from "./TreasureVisitorScroll";
+import { VictoryScreen } from "./VictoryScreen";
 import {
-  BankruptcyScroll,
   BuyDecisionScroll,
   EncounterChoiceScroll,
   ExhaustionChoiceScroll,
-  HeroPickScroll,
-  TileDetailScroll,
-  TreasureVisitorScroll,
   UpgradeDecisionScroll,
-  VictoryScreen,
-} from "./index";
+} from "./DecisionScrolls";
 import { BannerGhostContext } from "./BannerShell";
 import { useGhostChild } from "./useGhostChild";
 import type { TileDetailRequest } from "../useCapitalPick";
@@ -183,15 +184,16 @@ export function DecisionScrollLayer({
           sellableProperties={me.properties
             .filter((h) => h.propertyId !== capitalPropId)
             .map((h) => {
-              // 城名:按 board.at 的 propertyId 反查格索引(MapTile.id 与 propertyId 非同源,勿混用)
-              const tileIndex = board.tiles.findIndex((t) => t.propertyId === h.propertyId);
+              // 城名:反查单源 core/board tileIndexOfProperty(MapTile.id 与 propertyId 非同源,
+              // 勿混用;缺城=数据 bug 炸出,不回退 id 冒充城名——零兜底)
+              const tileIndex = tileIndexOfProperty(board, h.propertyId);
               // #60:展示价与引擎入账同一口径——economy.sellValueOf(def, level),即引擎
               // sellPropertyBankruptcy 的入账函数(不再用购入价,那正是展示 40 实得 16 的根因)。
               // 零兜底:catalog 缺该城 = 数据 bug,非空断言让其抛。
               const def = catalog.get(h.propertyId)!;
               return {
                 propId: h.propertyId,
-                name: tileIndex >= 0 ? board.at(tileIndex).name : h.propertyId,
+                name: board.at(tileIndex).name,
                 sellPrice: sellValueOf(def, h.level),
                 purchasePrice: def.purchasePrice,
                 level: h.level,
@@ -250,13 +252,13 @@ export function DecisionScrollLayer({
           ? catalog.get(snapshot.lastLandOutcomeProperty)
           : null;
         if (def) {
-          // 城名/地域:按 propertyId 反查格索引(MapTile.id 与 propertyId 非同源,勿混用)
-          const tileIndex = board.tiles.findIndex((t) => t.propertyId === def.id);
-          const tile = tileIndex >= 0 ? board.at(tileIndex) : null;
+          // 城名/地域:反查单源 core/board tileIndexOfProperty(MapTile.id 与 propertyId
+          // 非同源,勿混用;缺城=数据 bug 炸出)
+          const tile = board.at(tileIndexOfProperty(board, def.id));
           if (snapshot.lastLandOutcomeKind === "PropertyAvailable") {
             return (
               <BuyDecisionScroll
-                tileName={tile?.name ?? def.id}
+                tileName={tile.name}
                 groupLabel={groupLineLabel(def.group)}
                 tierLabel={tierLineLabel(def.tier)}
                 property={{
@@ -276,7 +278,7 @@ export function DecisionScrollLayer({
           if (snapshot.lastLandOutcomeKind === "OwnProperty") {
             return (
               <UpgradeDecisionScroll
-                tileName={tile?.name ?? def.id}
+                tileName={tile.name}
                 tierLabel={tierLineLabel(def.tier)}
                 level={p.properties.find((x) => x.propertyId === def.id)?.level ?? 1}
                 property={{

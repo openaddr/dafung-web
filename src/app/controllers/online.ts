@@ -73,10 +73,6 @@ export class OnlineController extends GameController {
   get viewSeat(): number {
     return this.seat;
   }
-  /** pending 公开只读(UI F3:HandPanel 据此显示「行军中…」;写仍只发生在本类)。 */
-  get isPending(): boolean {
-    return this.pending;
-  }
   /** 我的座位托管中(从 netStore 的 seats 广播回读,与旧 latestSeats 等价)。 */
   get autoPilotOn(): boolean {
     const s = useNetStore.getState();
@@ -143,8 +139,6 @@ export class OnlineController extends GameController {
   /** 建房并连接。返回房间信息(供大厅屏渲染)。guohao=host 预设国号(R3-D1 #99,与 joinRoom 同语义)。 */
   async createRoom(opts: {
     seats: number;
-    bot?: number[];
-    seed?: number;
     target?: number;
     guohao?: string;
   }): Promise<RoomJoinReply> {
@@ -170,12 +164,6 @@ export class OnlineController extends GameController {
   async startGame(): Promise<void> {
     if (!this.roomId || !this.seatToken) throw new Error("未入座");
     await this.api.startGame({ roomId: this.roomId, seatToken: this.seatToken });
-  }
-
-  /** host 解散房间(当前 UI 未接,协议侧备齐)。 */
-  async dismissRoom(): Promise<void> {
-    if (!this.roomId || !this.seatToken) throw new Error("未入座");
-    await this.api.dismissRoom({ roomId: this.roomId, seatToken: this.seatToken });
   }
 
   /** 从已收窄的入座回包取凭证并建立 WS;房间字段灌 netStore(大厅屏初渲染)。 */

@@ -232,7 +232,6 @@ export function BoardView({
   }, [candidateTiles]);
 
   // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
-  // F1:TileVisualState 按 index 预生成并 memo——原先每次 render 内联新建对象,
   // 击穿 Tile 的 React.memo 导致 40 城全量重渲;现在只有 players/回合/可选集变化
   // 才重建(state 对象身份稳定),hover 重排仅移动 DOM 节点、不触发各城重渲。
   // #1023 链 A:players 每 sync 换新引用,memo 依赖拦不住——照算之后逐城与上一份

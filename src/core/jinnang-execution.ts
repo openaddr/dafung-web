@@ -6,6 +6,7 @@
 // g.settleJinnangExit 壳上委托回调,本域开窗/留痕/拼点则直调 reaction-window 自由函数。
 import type { GameEngine } from "./authority";
 import { activeSkillOf, computeChoices, hasUsableJinnang, skillOptionId } from "./choices";
+import { tileIndexOfProperty } from "./board";
 import { diceShuffle, jinnangCardOf, TARGET_DOMAIN_STAGES } from "./jinnang";
 import { formatMoney } from "./money";
 import { HERO_CAPACITY } from "./constants";
@@ -805,7 +806,7 @@ function demolishOnVictim(
   auditPrefix: string,
 ): DemolishOutcome {
   const upgradable = victim.properties.filter((h) => h.level > 0);
-  const tileIndexOf = (pid: string) => g.board.tiles.findIndex((t) => t.propertyId === pid);
+  const tileIndexOf = (pid: string) => tileIndexOfProperty(g.board, pid);
   if (upgradable.length > 0) {
     const h = upgradable[Math.floor(g.dice.nextFloat() * upgradable.length)];
     h.level -= 1;
@@ -836,7 +837,7 @@ function demolishOnVictim(
     levelChanged: false,
     ownerChanged: true,
   }); // 失城=回无主(ADR-0015)
-  const lostName = g.board.tiles.find((t) => t.propertyId === h.propertyId)!.name; // 地图一致性由 map-economy 守卫
+  const lostName = g.board.at(tileIndexOf(h.propertyId)).name; // 地图一致性由 map-economy 守卫(缺城=反查单源响亮炸)
   g.logEvent(
     "system",
     user.guohao,

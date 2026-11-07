@@ -16,8 +16,6 @@ export const TOKEN_SLOT_OFFSETS = [
 ];
 // 城池最小间距:防止 UI 重叠(加载器校验 + 编辑器红圈高亮共用同一阈值)
 export const MIN_TILE_DIST = 80;
-// 城池"轻点"判定:按下→松手位移超过此值(像素)视为拖动,不触发点击
-export const TAP_MAX_MOVE = 24;
 
 // 名将(英雄):每人最多持有的数量
 export const HERO_CAPACITY = 3;

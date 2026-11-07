@@ -12,7 +12,8 @@
 // 矮档并入 footer 槽(恒钉壳内下缘),体部让位 ~30-45px。分档走 JS 渲染而非 CSS
 // 双副本:context 由调用方注入且自带 testid(scroll-bankruptcy-pick-progress),
 // 双副本 = 重复 testid(strict mode 定位炸),故任一档只在场一份。
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import { useIsShortLandscape } from "@app/hooks/use-media-query";
 import { PileShell } from "./PileModal";
 import { TreasureCardFace } from "@app/components/card/JinnangCardFace";
 import { treasureImagePath } from "@app/components/card/jinnang-face-data";
@@ -32,18 +33,9 @@ export interface TreasurePickTestids {
   back?: string;
 }
 
-/** 矮横屏档判定(断点=对局屏 A 档同一查询串,pile-modal.css 矮档规范块同款):
- *  #833 语境区分档换位用。JS 渲染分档而非 CSS 双副本的理由见文件头注。 */
-const SHORT_STAGE_QUERY = "(orientation: landscape) and (max-height: 500px)";
-
-function useShortStage(): boolean {
-  const subscribe = (onChange: () => void) => {
-    const mq = window.matchMedia(SHORT_STAGE_QUERY);
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
-  };
-  return useSyncExternalStore(subscribe, () => window.matchMedia(SHORT_STAGE_QUERY).matches);
-}
+/** 矮横屏档判定走 useIsShortLandscape 单源(hooks/use-media-query.ts,断点串
+ *  SHORT_LANDSCAPE_QUERY;#833 语境区分档换位用。JS 渲染分档而非 CSS 双副本的
+ *  理由见文件头注)。 */
 
 export interface TreasurePickModalProps {
   /** 题名(交涉=「公道买卖 · 选珍宝」随口径;破产=「变卖自救 · 变卖珍宝」)。 */
@@ -89,7 +81,7 @@ export function TreasurePickModal({
   const [pickedId, setPickedId] = useState<string | null>(null);
   const [armed, setArmed] = useState(false);
   const picked = treasures.find((t) => t.id === pickedId);
-  const shortStage = useShortStage();
+  const shortStage = useIsShortLandscape();
 
   return (
     <PileShell

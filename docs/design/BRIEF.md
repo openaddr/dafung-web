@@ -30,8 +30,8 @@
 
 ## 2. 设计系统速查(细节见 DESIGN.md §4 与源文件)
 
-- **色板语义**:`墨=行动`(lacquer 墨钮 ink-btn)· `朱=权险`(danger/印章/cinnabar-btn)· `金=势`(gold,轮次/选中/珍宝贵重,不再作按钮底)· `笺=次级`(note-btn/note-card)。
-- **控件种(app.css,只读)**:`ink-btn`(漆底金字主行动)、`note-btn`(笺纸底发丝墨边)、`cinnabar-btn`(朱砂确认)、`note-card`(有边有衬里的纸)、`note-head`(单字朱印+标签+发丝线,标签字体落 wenkai——XiaoWei 有空芯字形!)、`note-select`(原生 select 皮肤)。
+- **色板语义**:`墨=行动`(lacquer 墨钮 ink-btn)· `朱=权险`(danger/印章)· `金=势`(gold,轮次/选中/珍宝贵重,不再作按钮底)· `笺=次级`(note-btn/note-card)。
+- **控件种(app.css,只读)**:`ink-btn`(漆底金字主行动)、`note-btn`(笺纸底发丝墨边)、`note-card`(有边有衬里的纸)、`note-head`(单字朱印+标签+发丝线,标签字体落 wenkai——XiaoWei 有空芯字形!)。
 - **字体**:`font-title`(酷黑,标题/横幅题/印文)、`font-brush`(马善政,**按钮字铁律**/骰签/国号字)、`font-wenkai`(文楷,正文+新文案安全位)、`font-deco`(小薇,**只存量维护,新文案禁用**——镜像有空芯字形;城名竖匾专族)。数字挂 `tabular-nums`。符号(←↶↷◎♪×▶▾)一律 `Sym` 组件(src/app/screens/shared/Sym.tsx),不裸排字符。
 - **动效 token**:`--dur-instant/fast/med/slow/reveal/fx/banner/ambient` + `--ease-out/in/out-back/sine`(唯一源 core/theme.ts Motion,gen:theme 产出)。一次性演出只走表现事件管线(ADR-0010/0015);CSS 只承担常驻呼吸与状态样式。
 - **投影**:`var(--ink-shadow-sm/lg)`(墨褐,不用纯黑)。**圆角**:面板 8px/主控件 5px/小控件 3px/印章 2px。

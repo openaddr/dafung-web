@@ -83,6 +83,7 @@
 
 /* ── 短横屏降档(Android 短横屏 844×390 一类):em 基 8→6.4px(牌面 96×128),
    架体 chrome 全 em 随之收紧 ── */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .hand-rack {
     font-size: 6.4px;

@@ -10,7 +10,7 @@ import { FX } from "./timings";
 import type { SkillFloatTone } from "./presentation";
 
 /** 补给铜钱雨定数枚数(曾驻 FxLayer,#1140 散布烤产线后随迁——数量与散布同源)。 */
-export const SUPPLY_COINS = 6;
+const SUPPLY_COINS = 6;
 
 /** 补给雨散布:横向 ±30 逻辑像素、纵向 90~120 落差(原 FxLayer 渲染期随机式原样迁移)。 */
 function supplyCoinScatter(): Array<{ dx: number; dy: number }> {

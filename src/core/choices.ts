@@ -6,6 +6,7 @@
 // 此处计算结果随之变化——与 timing 框架同构,无需改引擎流程。
 import type { GameEngine, TurnPhase } from "./authority";
 import { canUpgrade } from "./economy";
+import { tileIndexOfProperty } from "./board";
 import type { ActiveSkillDef } from "./skills";
 import { isActiveSkill, skillById } from "./skills";
 import { findHolding } from "./player";
@@ -204,7 +205,7 @@ function exhaustionChoices(e: GameEngine): ChoiceOption[] {
   const capitalPropId =
     p.capitalIndex >= 0 ? (e.board.at(p.capitalIndex)?.propertyId ?? null) : null;
   const tileName = (propertyId: string) =>
-    e.board.tiles.find((t) => t.propertyId === propertyId)?.name ?? propertyId;
+    e.board.at(tileIndexOfProperty(e.board, propertyId)).name;
   if (p.properties.some((h) => h.level > 0)) {
     return p.properties
       .filter((h) => h.level > 0)
@@ -235,7 +236,7 @@ function bankruptcyChoices(e: GameEngine): ChoiceOption[] {
   const stillOwing = e.pendingDebt != null && p.cash < e.pendingDebt.amount;
   const capProp = e.board.at(p.capitalIndex)?.propertyId;
   const tileNameOf = (propId: string): string =>
-    e.board.tiles.find((t) => t.propertyId === propId)?.name ?? propId;
+    e.board.at(tileIndexOfProperty(e.board, propId)).name;
   return [
     ...p.treasures.map<ChoiceOption>((t) => ({
       id: `sell-treasure:${t.id}`,

@@ -189,7 +189,7 @@ export class SynthAudioPlayer implements AudioPlayer {
   // ── 合成单元(每个都自检 this.master,防 dispose 后 setTimeout 触发崩溃)──
 
   /** 白噪声 buffer:缓存一份 2 秒(AudioContext 生命周期内复用),各合成单元按需取片段。
-   *  dur 超过缓存长度(当前合成单元最长 0.4s,不会触发)时降级为按需新建。 */
+   *  dur 超过缓存长度(雨床 2.4s)时新建独立 buffer,不与缓存片段混用。 */
   private noiseBuffer(ctx: AudioContext, dur: number): AudioBuffer {
     if (dur <= SynthAudioPlayer.NOISE_CACHE_DUR) {
       if (!this.noiseCache || this.noiseCache.sampleRate !== ctx.sampleRate) {
@@ -201,7 +201,7 @@ export class SynthAudioPlayer implements AudioPlayer {
       }
       return this.noiseCache;
     }
-    // 兜底:超长 dur(当前无此调用)新建独立 buffer
+    // 超长 dur(雨床 2.4s 走此分支)新建独立 buffer
     const len = Math.max(1, Math.floor(ctx.sampleRate * dur));
     const buf = ctx.createBuffer(1, len, ctx.sampleRate);
     const data = buf.getChannelData(0);
@@ -462,8 +462,8 @@ export const AUDIO_FILES: Partial<Record<SoundEvent, string>> = {
 };
 
 /** 文件通路分事件音量(S7 #513「音量克制」):缺省 0.6(既有档),雨床压至 0.3
- *  只做衬底。仅作用于文件通路;合成回退走各自合成单元的内置音量。 */
-export const FILE_GAIN: Partial<Record<SoundEvent, number>> = {
+ *  只做衬底。仅作用于文件通路;合成回退走各自合成单元的内置音量。仅本文件消费。 */
+const FILE_GAIN: Partial<Record<SoundEvent, number>> = {
   rain: 0.3,
 };
 

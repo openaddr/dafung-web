@@ -3,7 +3,7 @@
 // 仅回合状态机收尾与胜负判定(endTurn/checkVictory)、时机派发器(dispatchMoment)与
 // 战报/落账底座(logEvent/pushFloater 级)。机制域流程在各域模块(reaction-window/
 // jinnang-execution/encounter-flow/bankruptcy/treasure-flow/movement-flow/setup-flow/recruitment(见下各 import 区段注释),壳内同名公共方法薄委托。#326 types.ts 解散(ADR-0019 类型随域走):回合状态机类型归本壳,其余各归域模块。
-import type { Board, MovePath } from "./board";
+import { tileIndexOfProperty, type Board, type MovePath } from "./board";
 import type { Dice, DiceRoll } from "./dice";
 import type { Player, LogEvent } from "./model";
 import type { PropertyDef, TransactionResult } from "./economy";
@@ -657,8 +657,7 @@ export class GameEngine {
 
   // #322 去私有化(ADR-0019 条款 3):treasure-flow 交涉 fair 分支留痕经 g.tileName 直调。
   tileName(def: PropertyDef): string {
-    const t = this.board.tiles.find((x) => x.propertyId === def.id);
-    return t ? t.name : def.id;
+    return this.board.at(tileIndexOfProperty(this.board, def.id)).name;
   }
 
   // ──────────────────────────── 落格处理 ────────────────────────────
@@ -845,11 +844,10 @@ export class GameEngine {
   }
 
   /** propertyId → tile 索引(引擎数据不变量:catalog 地产恰在一格;查无 = 数据 bug,当场抛出)。
-   *  #321 去私有化(ADR-0019 条款 3):破产清算域 bankruptcy.ts 留痕路径经 g.tileIndexOfProperty 直调。 */
+   *  #321 去私有化(ADR-0019 条款 3):破产清算域 bankruptcy.ts 留痕路径经 g.tileIndexOfProperty 直调;
+   *  本体单源 core/board 同名自由函数(app 侧五消费面同源)。 */
   tileIndexOfProperty(propertyId: string): number {
-    const t = this.board.tiles.find((x) => x.propertyId === propertyId);
-    if (t == null) throw new Error(`propertyChange:城 ${propertyId} 不在棋盘(数据 bug)`);
-    return t.index;
+    return tileIndexOfProperty(this.board, propertyId);
   }
 
   /** 变卖珍宝抵债(命令):薄委托 → bankruptcy.sellTreasureBankruptcy。 */

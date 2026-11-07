@@ -55,7 +55,6 @@ export interface NetStoreState extends NetRoomFields {
   setRoom: (v: Partial<NetRoomFields> & { roomId: string }) => void;
   setPending: (pending: boolean) => void;
   setMySeat: (seat: number) => void;
-  setConnected: (connected: boolean) => void;
   /** F2:写入 socket 全量状态(open/closed/gaveUp);connected 由其派生同步。 */
   setConnection: (status: "open" | "closed" | "gaveUp") => void;
   /** #494:重连进度入 store(透传,不加工)。 */
@@ -131,7 +130,6 @@ export const useNetStore = create<NetStoreState>((set) => ({
     set(v.started ? { ...v, hint: null } : v);
   },
   setMySeat: (mySeat) => set({ mySeat }),
-  setConnected: (connected) => set({ connected }),
   // F2:socket 全量状态入 store;connected 由此派生(onError 回调按 connected 判断
   // "正常在线"才闪提示,gaveUp 后不该再走在线分支,故一并置 false)。#494:连上即清
   // 重连进度(横幅随 connection 回 open 消失,进度不残留)。

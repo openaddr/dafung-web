@@ -1065,6 +1065,7 @@
    #709 动作条压高:字阶 17→15px、行高钉 1.2、padding 8→5px——条高 43.5→~30px,
    上缘随之下落 ~13px 还给棋盘(缓解底行浮压);锚点 144px 不动(128 牌高 + 8 区底距
    + 8 气口的既有口径,条不得压进牌面决策区)。 */
+/* 断点串 JS 侧单源:src/app/hooks/use-media-query.ts SHORT_LANDSCAPE_QUERY */
 @media (orientation: landscape) and (max-height: 500px) {
   .game-layout .actionbar {
     bottom: calc(144px + var(--safe-bottom));

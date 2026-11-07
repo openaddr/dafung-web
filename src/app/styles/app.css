@@ -132,7 +132,7 @@ body,
 }
 
 /* ── P0-9 safe-area:刘海/圆角/手势条 insets(index.html 已开 viewport-fit=cover)──
-   四个变量是唯一取值口,组件用 .safe-pad 或 var() 消费,不各自写 env()。 */
+   四个变量是唯一取值口,组件用 var() 消费,不各自写 env()。 */
 /* ── A9(#72) 正文默认字体:霞鹜文楷 ──
    无此规则时未挂字体类的正文实走 Tailwind preflight 系统栈,宣纸风在正文层断裂。
    --font-wenkai 由 gen:theme 产出(tokens.css):首选 LXGW WenKai(public/fonts/wenkai/
@@ -149,14 +149,6 @@ body {
   --safe-right: env(safe-area-inset-right, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --safe-left: env(safe-area-inset-left, 0px);
-}
-
-/* 贴边悬浮元素的统一安全区留白:四向 padding = inset + 自身原有留白时用复合写法覆盖。 */
-.safe-pad {
-  padding-top: var(--safe-top);
-  padding-right: var(--safe-right);
-  padding-bottom: var(--safe-bottom);
-  padding-left: var(--safe-left);
 }
 
 /* ── S2(#35) 键盘焦点全局圈:虚线墨圈,与首页 H-4 同一口径 ──
@@ -304,47 +296,6 @@ body[data-screen="game"] #app::after {
 .note-btn:hover:not(:disabled) {
   background: var(--color-panel-hi);
   border-color: color-mix(in srgb, var(--color-gold) 45%, transparent);
-}
-
-/* 笺选:原生 <select> 的皮肤(编辑器「类型」/托管速度等残留下拉)——
-   appearance:none 去系统外观,自绘下拉箭头(Sym expand 同款折角);弹出的选项列表
-   是浏览器绘制,无法主题化,接受。箭头色 = ink-dim 的 URI 编码(深底可见)。 */
-.note-select {
-  appearance: none;
-  -webkit-appearance: none;
-  background:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 16'%3E%3Cpath d='M4 6 L10 11.5 L16 6' fill='none' stroke='%23c6b491' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E")
-      no-repeat right 6px center / 12px auto,
-    var(--color-panel);
-  color: var(--color-paper);
-  border: 1px solid var(--hairline);
-  border-radius: 3px;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
-  padding-right: 22px;
-}
-
-/* 朱钮:沉朱底近白字,不可逆/危险确认(认破产/解散)。danger 亮朱在深底上
-   直接铺白字只有 ~2.9:1(#509 QC),向黑里压两档(color-mix 派生,单源不破)
-   ——深朱衬近白,对比回 4.5:1 以上,朱=权险的分量感反而更重。 */
-.cinnabar-btn {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--color-danger) 82%, black),
-    color-mix(in srgb, var(--color-danger) 55%, black)
-  );
-  color: #ffead9;
-  border: 1px solid color-mix(in srgb, var(--color-danger) 40%, black);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 220, 190, 0.22),
-    var(--ink-shadow-sm);
-}
-.cinnabar-btn:hover:not(:disabled) {
-  background: linear-gradient(
-    180deg,
-    var(--color-danger),
-    color-mix(in srgb, var(--color-danger) 62%, black)
-  );
-  border-color: color-mix(in srgb, var(--color-danger) 55%, black);
 }
 
 /* 漆金印(.seal-gold,#506「印章漆金化」):金箔底 + 玄墨字的小方章。
