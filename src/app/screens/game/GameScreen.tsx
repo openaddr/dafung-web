@@ -28,10 +28,9 @@ import {
   type GameSnapshot,
 } from "@app/store/gameStore";
 import { useNetStore, useAutopilotOn } from "@app/store/netStore";
-import { getController, getControllerMap, setController } from "@app/controllers/registry";
+import { getController, getControllerContext, setController } from "@app/controllers/registry";
 import type { GameCommand } from "@core/authority";
 import { isSkillOption } from "@core/choices";
-import type { MapData } from "@core/board-loader";
 import { jinnangCardOf } from "@core/jinnang";
 import { REACTION_EXPECT } from "@core/reaction-window";
 import { getAudio } from "@app/fx/audio";
@@ -87,12 +86,13 @@ function jinnangTargetNote(
 
 export function GameScreen() {
   const snapshot = useGameStore((s) => s.snapshot);
-  const map = getControllerMap();
-  if (!snapshot || !map) {
+  // #1273:对局静态上下文(board/catalog)由 BoardView 直接吃 registry,本屏门卫只判就位
+  const context = getControllerContext();
+  if (!snapshot || !context) {
     // S9 未开局兜底页:此前只是一行灰字,玩家会卡死在空屏。
-    // 理论上 setScreen("game") 前必有 controller+map(刷新丢快照/路由错误会到这里),
+    // 理论上 setScreen("game") 前必有 controller+上下文(刷新丢快照/路由错误会到这里),
     // 给「回到首页」逃生口而不是让玩家面对空棋盘干瞪眼。
-    // 主体拆到 GameScreenLive:snapshot/map 就位才挂载,空态分支与对局分支不共享 hooks。
+    // 主体拆到 GameScreenLive:snapshot/上下文就位才挂载,空态分支与对局分支不共享 hooks。
     const back = useGameStore.getState().setScreen;
     return (
       <div className="flex h-full w-full items-center justify-center bg-bg p-6">
@@ -111,7 +111,7 @@ export function GameScreen() {
       </div>
     );
   }
-  return <GameScreenLive snapshot={snapshot} map={map} />;
+  return <GameScreenLive snapshot={snapshot} />;
 }
 
 /** 竖屏手机「请横屏」提示层(#276 纠偏定案:移动端只做横屏形态,竖屏不做游戏布局)。
@@ -163,8 +163,8 @@ function RotateHintOverlay() {
 }
 
 /** 已开局主体:棋盘全幅 + 全浮层(顶部条/席位格列/手牌区/三圆钮);hooks 全在此,
- *  snapshot/map 由 GameScreen 门卫。 */
-function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapData }) {
+ *  snapshot 由 GameScreen 门卫(board/catalog 经 registry 上下文自取,#1273)。 */
+function GameScreenLive({ snapshot }: { snapshot: GameSnapshot }) {
   // 模块级取控制器(不在 React 状态里:实例含方法/WS,非渲染数据,见 registry.ts 注释)
   const controller = getController();
   const interactive = useGameStore((s) => s.interactive);
@@ -543,7 +543,6 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
           {/* F2 断线横幅:z-20 压过 hint,断线是对局中优先级最高的状态反馈 */}
           <ConnectionBanner />
           <BoardView
-            map={map}
             players={players}
             /* L47:视角玩家 id 透传——自己棋子加玩家色微光圈(棋盘侧「我是谁」锚点) */
             viewSeat={localPlayer.id}

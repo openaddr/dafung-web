@@ -92,10 +92,20 @@ export function installDebugHooks(): void {
   // 不复制实现——开局语义单源仍在本注释与 how-to「种局式直通」条。
   const seedSolo = async (opts: { seed?: number; mapId?: string; seats?: number } = {}) => {
     const source = getMapSource();
+    // 亚段打点(#1273,常驻轻量诊断;performance.measure 名 df.* 前缀,cost-probe
+    // 回读聚合,不进任何门禁)。段界:resolve(参数解析)/loadMapById(fetch+解析+
+    // 校验建 Board)/ctor(LocalController 构造同步段:Worker 时钟+进程内房间
+    // createRoom+startGame+bot 选都,内部细分在 local.ts,此处整段一量)/setController
+    // (地图缓存命中后≈0)/sync(首帧快照直灌)/pickCapital(选都命令)。
+    const tResolve = performance.now();
     const mapId = opts.mapId ?? localStorage.getItem(MAP_PREF_KEY) ?? (await getDefaultMapId());
     const guohao = localStorage.getItem(GUOHAO_PREF_KEY) ?? DEFAULT_GUOHAO;
     const seats = defaultSetupSeats(guohao, opts.seats);
+    performance.measure("df.seed.resolve", { start: tResolve, end: performance.now() });
+    const tMap = performance.now();
     const map = await loadMapById(source, mapId);
+    performance.measure("df.seed.loadMapById", { start: tMap, end: performance.now() });
+    const tCtor = performance.now();
     const controller = new LocalController(map, {
       seats,
       targetNetWorth: DEFAULT_TARGET_NET_WORTH,
@@ -103,9 +113,15 @@ export function installDebugHooks(): void {
       mapId,
       encounter: { enabled: false }, // 快路径硬关,与 openSoloSetup route 拦截同语义
     });
+    performance.measure("df.seed.ctor", { start: tCtor, end: performance.now() });
+    const tSet = performance.now();
+    // 地图单源缓存(#1273):同图第二次取走 map-sources 进程内 memo,不再双 fetch 双析
     setController(controller, await source.loadMapData(mapId));
+    performance.measure("df.seed.setController", { start: tSet, end: performance.now() });
+    const tSync = performance.now();
     useGameStore.getState().syncFromEngine(controller.engine);
     useGameStore.getState().setScreen("game");
+    performance.measure("df.seed.sync", { start: tSync, end: performance.now() });
     const e = controller.engine;
     if (
       e.phase !== "Setup" ||
@@ -122,7 +138,9 @@ export function installDebugHooks(): void {
     // 格 index 序渲染)= 候选集里棋盘序首个。offeredCapitals 数组序是抽出序、与棋盘
     // 序不同序(seed 1101 实证 [20,7,25]、DOM 首格=7)——取 [0] 会让同 seed 两路开
     // 出两局不同的棋,钉种子的用例全数漂移。统一原则:两路同 seed 必须同局。
+    const tPick = performance.now();
     controller.setupPickCapital(Math.min(...e.offeredCapitals));
+    performance.measure("df.seed.pickCapital", { start: tPick, end: performance.now() });
   };
 
   // ── 中盘构造器(ADR-0059 示导波,#1252)──

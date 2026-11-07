@@ -7,9 +7,8 @@
 //     viewBox 由 React 声明式下发,地图不变则视口不变,无手势无命令式句柄)
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
-import type { MapData } from "@core/board-loader";
-import { loadMap } from "@core/board-loader";
 import type { BoardPos } from "@core/board";
+import { getControllerContext } from "@app/controllers/registry";
 import { AmbientLayer } from "./AmbientLayer";
 import { BoardDefs, RoadsLayer, TerrainLayer, type ViewBox } from "./StaticLayers";
 import { BoardHost } from "./boardHost";
@@ -72,8 +71,6 @@ export interface BoardPlayer {
 }
 
 interface BoardViewProps {
-  /** 地图数据(MapData JSON);内部经 loadMap 构建 Board/catalog。 */
-  map: MapData;
   /** 全体玩家(归属/都城/棋子位置皆由此派生)。 */
   players: BoardPlayer[];
   /** 当前视角玩家 id(L47:自己棋子加玩家色微光圈;未开局不传)。 */
@@ -175,7 +172,6 @@ function holdingsEqual(a: Map<string, TileHolding>, b: Map<string, TileHolding>)
 }
 
 export function BoardView({
-  map,
   players,
   viewSeat,
   onTileClick,
@@ -189,12 +185,16 @@ export function BoardView({
   className,
 }: BoardViewProps) {
   const svgRef = useRef<SVGSVGElement | null>(null);
-  // 地图 → Board/catalog(地图引用不变则不重建;驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
-  const loaded = useMemo(() => loadMap(map), [map]);
+  // Board/catalog 直接吃 registry 现成对局上下文(#1273):两者是引擎构造入参、对局期
+  // 不可变(换局随 setController 整体换新),不再从原始 JSON 第二次全量 loadMap——
+  // 开局链上的同图双析就此消失。仅 GameScreenLive 挂载(已守卫 controller 就位),
+  // 与 CityLedgerModal/WarlordsOverview 同款 `!` 口径。
+  const { board, catalog } = getControllerContext()!;
   // ADR-0027:总览视口按当图城池包围盒动态推导(不再硬编码 FIT_VIEW),地图引用不变
   // 则视口不变;#946 取景恒定格于此——viewBox 由 React 声明式下发(底板 svg 同一
   // fitBox 落 DOM,宿主矩阵同源见 boardHost),拖动/滚轮/捏合全形态删,无第二写入者。
-  const fit = useMemo(() => computeFitView(loaded.board.tiles), [loaded.board.tiles]);
+  // (驿道恒直线 #928/ADR-0044,绘制在 RoadsLayer 内做)
+  const fit = useMemo(() => computeFitView(board.tiles), [board.tiles]);
   const fitBox = useMemo(() => `${fit.x} ${fit.y} ${fit.w} ${fit.h}`, [fit]);
   const [hoverTile, setHoverTile] = useState<number | null>(null);
 
@@ -216,13 +216,13 @@ export function BoardView({
 
   // 悬停的城排到最后(=最上层),其余保持索引序,避免 hover 时整层乱序跳动
   const orderedTiles = useMemo(() => {
-    const list = loaded.board.tiles;
+    const list = board.tiles;
     if (hoverTile == null) return list;
     return [
       ...list.filter((t) => t.index !== hoverTile),
       ...list.filter((t) => t.index === hoverTile),
     ];
-  }, [loaded.board.tiles, hoverTile]);
+  }, [board.tiles, hoverTile]);
 
   // X4(#23) 候选序号表:滚出顺序 → 1 基序号(Tile 内读作 壹/贰/叁 印)。
   const candidateOrder = useMemo(() => {
@@ -241,8 +241,8 @@ export function BoardView({
   const tileStates = useMemo(() => {
     const prev = prevStatesRef.current;
     const m = new Map<number, TileVisualState>();
-    let allReused = prev !== null && prev.size === loaded.board.tiles.length;
-    for (const tile of loaded.board.tiles) {
+    let allReused = prev !== null && prev.size === board.tiles.length;
+    for (const tile of board.tiles) {
       const holding = tile.propertyId ? holdings.get(tile.propertyId) : undefined;
       const capitalP = capitalHolderOf(players, tile.index);
       const next: TileVisualState = {
@@ -271,7 +271,7 @@ export function BoardView({
     prevStatesRef.current = m;
     return m;
   }, [
-    loaded.board.tiles,
+    board.tiles,
     holdings,
     players,
     activeTileIndex,
@@ -287,7 +287,7 @@ export function BoardView({
         {orderedTiles.map((tile) => {
           // 严格 loadMap 下每格 propertyId 必入册(#826 全城池制),def 必非空——
           // 空值是 loader bug,直接炸出来(零兜底;tier 管道顺手收编旧 `??` 档)。
-          const def = loaded.catalog.get(tile.propertyId)!;
+          const def = catalog.get(tile.propertyId)!;
           return (
             <Tile
               key={tile.index}
@@ -301,16 +301,16 @@ export function BoardView({
         })}
       </>
     ),
-    [orderedTiles, loaded.catalog, tileStates],
+    [orderedTiles, catalog, tileStates],
   );
 
   // 有主都城格序(氛围层光晕落点;tileStates 单源派生,与 Tile 的 isCapital 同口径)
   const capitalTileIndexes = useMemo(
     () =>
-      loaded.board.tiles
+      board.tiles
         .filter((t) => tileStates.get(t.index)?.capitalColorIndex != null)
         .map((t) => t.index),
-    [loaded.board.tiles, tileStates],
+    [board.tiles, tileStates],
   );
 
   return (
@@ -331,7 +331,7 @@ export function BoardView({
       >
         <BoardDefs fit={fit} />
         <TerrainLayer fit={fit} />
-        <RoadsLayer board={loaded.board} />
+        <RoadsLayer board={board} />
         <TileLayer onHover={setHoverTile} onTileClick={onTileClick}>
           {tiles}
         </TileLayer>
@@ -339,7 +339,7 @@ export function BoardView({
       {/* 棋子层(HTML 宿主,ADR-0042):每棋子一个合成器提升的包装 div(transform
           过渡走合成器)+ mini-svg 旗面/环原绘;宿主矩阵与底板 viewBox 同拍跟随。 */}
       <TokenLayer
-        board={loaded.board}
+        board={board}
         players={players}
         setupUnselected={isSetupPhase}
         skipTokenIds={skipTokenIds}
@@ -354,13 +354,13 @@ export function BoardView({
       {/* 特效层挂点(HTML 宿主,ADR-0042):浮字/印章/铜钱各自 mini-svg,置于棋子上;
           世界坐标直铺,随宿主矩阵跟随。D1 注释沿革:曾直画进 SVG(坐标系与棋盘一致,
           恒总览取景不脱锚)——HTML 宿主矩阵同步承接同一保证。 */}
-      <BoardFxLayer svgRef={svgRef} board={loaded.board} />
+      <BoardFxLayer svgRef={svgRef} board={board} />
       {/* 驿道流光宿主(#bv-flow 保号):useMarch.highlightSegment 命令式追加 mini-svg。 */}
       <BoardHost id="bv-flow" svgRef={svgRef} />
       {/* 氛围层(ADR-0039):常驻装饰的 HTML 合成层,DOM 序居最上(pointer-events
           none);矩阵同步自持(RO/viewBox MutationObserver/字体就绪,见 AmbientLayer)。 */}
       <AmbientLayer
-        board={loaded.board}
+        board={board}
         players={players}
         capitalTileIndexes={capitalTileIndexes}
         activePlayerId={activePlayerId}
