@@ -19,6 +19,49 @@ const FORBIDDEN_GLOBAL =
 const FORBIDDEN_REACT = /from\s+["']react["']/;
 const FORBIDDEN_IS_LOCAL = /\bisLocal\b/;
 
+// ── 确定性源码闸(#1206,形制学 vera20k architecture_guards.rs「determinism guards
+// pin the engine files that read platform- or process-dependent values」):src/core 是
+// 权威引擎,将来上服务器必须逐位确定性——时钟/随机/环境读取只许经显式注入(seed/时钟
+// 走参数),偷读平台/进程依赖值源码级钉死。ADR-0052 的事后比对(两跑逐位一致/黄金台账)
+// 只能等红再查,本闸是事前拦截层:已知非确定源的模式族直接禁入扫描面。与逐行红线同款
+// 口径:剥注释后扫——禁的是「使用」,注释提及不算;不走 .core-purity-baseline.json,
+// 冻结清单就是确定性面的存量台账(登记动作 = 改本文件的评审变更,update 不掩)。
+const DETERMINISM_PATTERNS: [RegExp, string][] = [
+  [/\bDate\.now\b/, "Date.now"],
+  [/\bnew\s+Date\s*\(/, "new Date("],
+  [/\bDate\.parse\b/, "Date.parse"],
+  [/\bperformance\.now\b/, "performance.now"],
+  [/\bMath\.random\b/, "Math.random"],
+  [/\bcrypto\.getRandomValues\b/, "crypto.getRandomValues"],
+  [/\bcrypto\.randomUUID\b/, "crypto.randomUUID"],
+  [/\bprocess\.env\b/, "process.env"],
+  [/\bprocess\.platform\b/, "process.platform"],
+  [/\bprocess\.cwd\b/, "process.cwd"],
+  [/\blocalStorage\b/, "localStorage"],
+  [/\bsessionStorage\b/, "sessionStorage"],
+  [/\bnavigator\b/, "navigator"],
+  [/\bsetTimeout\b/, "setTimeout"],
+  [/\bsetInterval\b/, "setInterval"],
+  [/\bimport\.meta\.dir\b/, "import.meta.dir"],
+  [/\bBun\.file\b/, "Bun.file"],
+  [/\breaddirSync\b/, "readdirSync"],
+];
+// 冻结例外清单(file 级 → 放行模式集):**只准缩不准长**——新模式命中必先答「引擎为何
+// 要读平台/进程依赖值」,确属合法时钟/随机面才来此登记并写理由(行内注释即评审记录);
+// 条目不再命中 = 存量已清偿,必须同步删条目(stale 检查红提示收紧)。
+const DETERMINISM_FREEZE: Record<string, string[]> = {
+  // gameId 生成(Date.now+Math.random:实例身份唯一性契约,种子化会让同 seed 房间撞名,
+  // ADR-0052 判词)+ startedAt/log ts 墙钟展示戳——无头层 chainLogHash 剥 ts+header
+  // (ADR-0052),均非引擎逻辑输入。
+  "src/core/authority.ts": ["Date.now", "Math.random"],
+  // seed 缺省回退(Math.random)= 无种子本地起局的随机来源,产物记进局头 seed 字段
+  // 可重放;联机路径必传 seed(ADR-0052 判词)。
+  "src/core/dice.ts": ["Math.random"],
+  // ADR-0022 权威侧扩展装载器,bun/node 启动期环境读取,非引擎逻辑面;目录序已显式
+  // 字典序排序钉死(消费方仅 scripts/server.ts 装载与 test/,浏览器禁入)。
+  "src/core/extension-loader.ts": ["readdirSync"],
+};
+
 interface Violation {
   rule: string;
   rel: string;
@@ -28,6 +71,8 @@ interface Violation {
 }
 
 const violations: Violation[] = [];
+const detViolations: Violation[] = []; // 确定性闸违规:硬红不进 baseline(冻结清单即台账)
+const detHits = new Set<string>(); // 已命中的 "rel:label"(含冻结放行),stale 检查原料
 let files = 0;
 
 // ── 壳纪律(#325,ADR-0019 定形):src/core/authority.ts 是引擎权威壳(原 game.ts),
@@ -107,6 +152,10 @@ for (const path of new Glob("**/*.{ts,tsx}").scanSync({ cwd: ROOT })) {
   const code = src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/.*$/gm, "");
   const lines = code.split("\n");
   const rel = `src/core/${path}`;
+  // 确定性闸扫描面不含测试文件(测试自身可吃时钟/随机造语料)。
+  const detScan = !path.endsWith(".test.ts");
+  const frozenLabels = DETERMINISM_FREEZE[rel];
+  const detSeen = new Set<string>(); // 同行同模式去重
   lines.forEach((line, i) => {
     const text = line.trim();
     const push = (rule: string, message: string) =>
@@ -116,7 +165,38 @@ for (const path of new Glob("**/*.{ts,tsx}").scanSync({ cwd: ROOT })) {
     if (FORBIDDEN_IS_LOCAL.test(line)) push("is-local", "player-agnostic 红线(isLocal)");
     const g = FORBIDDEN_GLOBAL.exec(line);
     if (g) push("dom-global", `core 使用 DOM 全局 ${g[1]}`);
+    if (!detScan) return;
+    for (const [re, label] of DETERMINISM_PATTERNS) {
+      if (!re.test(line) || detSeen.has(`${i}:${label}`)) continue;
+      detSeen.add(`${i}:${label}`);
+      detHits.add(`${rel}:${label}`);
+      if (frozenLabels?.includes(label)) continue;
+      detViolations.push({
+        rule: "determinism",
+        rel,
+        line: i + 1,
+        text,
+        message:
+          `确定性闸:core 读取 ${label}(时钟/随机/环境面必须显式注入);` +
+          "确属合法面 → scripts/check-core-purity.ts DETERMINISM_FREEZE 登记并写理由(只准缩不准长)",
+      });
+    }
   });
+}
+
+// 冻结条目 stale 检查(收紧行,vera20k「stale exceptions → delete the entry」同款):
+// 登记的 file:pattern 已零命中 = 存量清偿,条目必须同步删——与新增违规同场红。
+for (const [rel, labels] of Object.entries(DETERMINISM_FREEZE)) {
+  for (const label of labels) {
+    if (detHits.has(`${rel}:${label}`)) continue;
+    detViolations.push({
+      rule: "determinism-stale",
+      rel,
+      line: 1,
+      text: `${label} 于 ${rel} 已零命中`,
+      message: "确定性闸:冻结条目存量已清偿,删 DETERMINISM_FREEZE 条目收紧清单(只准缩)",
+    });
+  }
 }
 
 // 指纹不带行号(行号必漂移);同文件同规则同文本视为同一处,重复出现会被去重登记。
@@ -128,6 +208,14 @@ const updateBaseline = process.argv[2] === "baseline:update";
 if (shellViolations.length > 0) {
   console.error(`core 壳纪律(#325): authority.ts 结构违规 ${shellViolations.length} 处\n`);
   for (const v of shellViolations) console.error(`  ${v.rel}:${v.line}  ${v.message}:${v.text}`);
+  process.exit(1);
+}
+
+// ── 确定性源码闸(#1206)先行:违规与 stale 条目都是「现在坏了」,布尔型不可登记
+// (update 模式也不掩),当场红。
+if (detViolations.length > 0) {
+  console.error(`core 确定性源码闸(#1206): 时钟/随机/环境读取违规 ${detViolations.length} 处\n`);
+  for (const v of detViolations) console.error(`  ${v.rel}:${v.line}  ${v.message}:${v.text}`);
   process.exit(1);
 }
 
@@ -191,10 +279,12 @@ if (shellLineCapViolation != null) {
   );
   process.exit(1);
 }
+// 确定性闸 OK 注脚:让「本闸在场」与冻结例外规模常驻门槛输出(清单只准缩,长了看得见)。
+const detNote = `;确定性源码闸 OK(模式 ${DETERMINISM_PATTERNS.length} 族,冻结例外 ${Object.values(DETERMINISM_FREEZE).flat().length} 条)`;
 if (staleCount > 0) {
   console.log(
-    `core 纯度 OK(新增零违规):${files} 个文件;存量 ${staleCount} 处已登记于 .core-purity-baseline.json,修复后记得清对应条目${shellDebt}`,
+    `core 纯度 OK(新增零违规):${files} 个文件;存量 ${staleCount} 处已登记于 .core-purity-baseline.json,修复后记得清对应条目${shellDebt}${detNote}`,
   );
 } else {
-  console.log(`core 纯度 OK: ${files} 个文件,零 app/DOM/player 依赖${shellDebt}`);
+  console.log(`core 纯度 OK: ${files} 个文件,零 app/DOM/player 依赖${shellDebt}${detNote}`);
 }
