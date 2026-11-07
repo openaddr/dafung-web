@@ -1,6 +1,6 @@
 // window.__dafung 调试钩子类型声明(实现在 src/app/controllers/registry.ts 的 installDebugHooks)。
 // 仅开发/控制台排查用;生产环境同样挂载(旧版行为),不参与渲染。
-import type { GameEngine } from "@core/authority";
+import type { GameEngine, TurnPhase } from "@core/authority";
 import type { HeroDef } from "@core/heroes";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { GameController } from "@app/controllers/controller";
@@ -27,6 +27,17 @@ declare global {
        *  LocalController → setController/进 game 屏)+ 程序化选都(公共命令 setupPickCapital),
        *  缺省逐项对齐设置屏默认,机遇硬关。实现见 registry.ts installDebugHooks。 */
       seedSolo: (opts?: { seed?: number; mapId?: string; seats?: number }) => Promise<void>;
+      /** 中盘构造器(ADR-0059 示导波,#1252):seedSolo 同款开局 → 冻结房间时钟 → 页内
+       *  经房间命令面逐拍应答真人决策点(策略钉死:选项 ≤1 引擎自决/首个可用、反应窗
+       *  「不用」、锦囊今不用、珍宝交涉不交易)推进至第 targetRound 回合边界(parkMyTurn
+       *  谓词停靠态)→ 解冻。返回停靠态读数;沉降(waitFxIdle/waitSettled)归调用方。
+       *  实现见 registry.ts installDebugHooks(answerAtHumanStop/driveToRound)。 */
+      seedSoloToRound: (opts: {
+        seed?: number;
+        mapId?: string;
+        seats?: number;
+        targetRound: number;
+      }) => Promise<{ turnNumber: number; round: number; turnPhase: TurnPhase }>;
       /** 房间时钟冻结闸(#421 调试观测面):冻结期间看门狗/自动起摇/托管步进的
        *  到点回调挂起;resume 按到点序补放。仅单机对局可冻结(无 Worker 时钟抛错)。 */
       clockPause: () => void;
