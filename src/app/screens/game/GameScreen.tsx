@@ -45,6 +45,13 @@ import { startFrameDiag, stopFrameDiag } from "@app/frameDiag";
 import { HandRack } from "./HandRack";
 import { HandZone } from "./HandZone";
 import { ReactionBanner } from "./ReactionBanner";
+import {
+  reactionMuteEngage,
+  reactionMuteInitial,
+  reactionMuteOnActor,
+  reactionMuted,
+  type ReactionMuteState,
+} from "./reaction-mute";
 import { GameTopBar } from "./GameTopBar";
 import { SeatRail } from "./SeatRail";
 import { PileButtons } from "./PileButtons";
@@ -389,9 +396,14 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
   const reactionSeq = snapshot.pendingReaction?.seq ?? null;
   // 降噪口(客户端本地态,ADR-0017 §4):「本回合不再询问」只活到当前行动者回合结束
   //(行动者变更即解除)——静默期间收到询问自动立即代发「不用」,不弹横幅。
-  const [reactMutedSeat, setReactMutedSeat] = useState<number | null>(null);
-  useEffect(() => setReactMutedSeat(null), [snapshot.activeIndex]);
-  const reactMuted = reactMutedSeat === snapshot.activeIndex;
+  // 状态机单源 reaction-mute.ts(纯函数,#1181 自内联态抽出;语义:静默记按下时的
+  // 行动者,换人即解除且回到原行动者不复燃)。
+  const [reactMute, setReactMute] = useState<ReactionMuteState>(reactionMuteInitial);
+  useEffect(
+    () => setReactMute((s) => reactionMuteOnActor(s, snapshot.activeIndex)),
+    [snapshot.activeIndex],
+  );
+  const reactMuted = reactionMuted(reactMute, snapshot.activeIndex);
   // 静默自动应答:窗开且静默中 → 代发不用(单机走驱动链排队,联机走 WS;均与手点同路)。
   // 依赖含窗实例号:静默期间连续两窗(march 续走下一城,seq 递增)时第二窗也要代发。
   useEffect(() => {
@@ -471,7 +483,7 @@ function GameScreenLive({ snapshot, map }: { snapshot: GameSnapshot; map: MapDat
         }}
         onDecline={() => reactRespond(false)}
         onMute={() => {
-          setReactMutedSeat(snapshot.activeIndex); // 先记静默(本回合内后续询问不弹)
+          setReactMute(reactionMuteEngage(snapshot.activeIndex)); // 先记静默(本回合内后续询问不弹)
           reactRespond(false); // 当前窗立即以「不用」应答
         }}
       />

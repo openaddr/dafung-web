@@ -28,14 +28,14 @@
 
 其余 37 个文件的每例均有独占壳面(几何哨兵 / 可见性契约 / 交互通路 / 浏览器侧装载事实)或属无头层暂无落点的应迁候选,按「拿不准归留」全部保留;逐条分类与落点注记见 [e2e-分类表](../reference/e2e-分类表.md)。
 
-## 应迁候选登记(只登记,不迁移)
+## 应迁候选登记(#1181 迁移波:四项全迁,无退回)
 
-以下引擎/协议断言面暂由浏览器 e2e 承载、无头层尚无落点;迁移完成前**不得删例**,处置另开票:
+以下四项原为「只登记,不迁移」候选;#1181(2026-11-07)逐项核对无头层落点可等价断言后全数迁移,处置记录如下(删缩判据同「本票处置」节):
 
-1. **反应窗超时代发看门狗(reactionWait)**——react-reaction「超时兜底」+ react-reaction-online「超时代发」:窗内不应答 → 权威侧定时代发「不用」。候选落点:`scripts/room.ts`+`scripts/watchdogs.ts` 编排层直驱(test/room.test.ts 停摆看门狗先例同构)或 protocol-online 反应窗场景。
-2. **断线座位反应窗超时**——react-reaction-online「断线座位」:窗开即断 → 服务端超时「不用」、对局不冻结。候选落点:断线 × 反应窗组合场景。
-3. **降噪口静默状态机**——react-reaction「降噪口」+ react-reaction-online「联机降噪口」:点「本回合不再询问」→ 当窗代发不用 + 同回合静默 + 换回合解除。静默态在客户端,候选落点:静默判定逻辑抽纯函数后进 `test/`。
-4. **折叠器闭窗算术(#461 面)**——react-reaction-online「非应答端可应答」:校准快照污染 per-seat 投影导致非应答端误闭窗。候选落点:`test/event-fold.test.ts` 客户端折叠单测。
+1. **反应窗超时代发看门狗(reactionWait)**——**已迁**:落点 `test/reaction-watchdog.test.ts`(room/watchdogs 编排层直驱,ManualClock 手泵,room.test.ts 停摆看门狗先例同构);断言面=reaction-decline 观测行 + respondReaction use=0 留痕 + 结算照走 + 窗收续推。浏览器原例(react-reaction「超时兜底」/react-reaction-online「超时代发」)**整删**:残留的横幅收回时机面分不清投影定时收与看门狗收,守不住回归,按「骨架例是负资产」不缩即删。
+2. **断线座位反应窗超时**——**已迁**:落点同文件断线例(markSeatOffline=WS close 的房间编排入口;看门狗武装判定不区分在线/离线,断线者超时即「不用」,ADR-0017 后果节;断言面含回合续推不冻结)。真 WS 关闭的传输面接线归 protocol-online([ADR-0055](./0055-protocol-fault-e2e.md));浏览器原例(react-reaction-online「断线座位」)**整删**——原例读房间落盘记录取证,零独占壳面。
+3. **降噪口静默状态机**——**已迁**:静默判定抽纯函数 `src/app/screens/game/reaction-mute.ts`(零行为变更,状态={mutedSeat,seenActor},行动者任何变更即解除且回到原行动者不复燃),单测 `test/reaction-mute.test.ts`。浏览器例留接线:react-reaction「降噪口」**缩**(删已迁引擎台账断言 keep/wasted——不用不耗牌归 reaction-window 单测;留「一次点击两条应答」的静默代发接线与换回合横幅复显),react-reaction-online「联机降噪口」**缩**(缴银结算面下沉,留「立即代发」横幅即时性、过网留痕与窗收)。
+4. **折叠器闭窗算术(#461 面)**——**已迁**:落点 `test/event-fold.test.ts`「闭窗算术以 per-seat 脱敏询问集为分母」(非应答端首答不误闭窗、应答齐才收;投影形状与快照水合咬合原已在 `test/seat-projection.test.ts` §④)。浏览器原例(react-reaction-online「非应答端可应答」)**缩**:删答齐闭窗 poll(已迁),留「非应答端应答过网入账」接线。
 
 ## 验证分层定案(口径翻面)
 

@@ -19,6 +19,7 @@ import { armHero, testEngine } from "@core/testing";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import { foldEventBatch } from "@app/net/event-fold";
+import { redactEvents } from "../scripts/seat-projection";
 
 const MAP = loadMap(guanzhongData);
 
@@ -812,6 +813,50 @@ describe("折叠投影器 · 锦囊族", () => {
     expect(e.pendingReaction).toBeNull();
     expect(e.players[1].jinnangHandCount).toBe(0); // 拦检牌胜负两路皆扣(折于闭窗应答点)
     expect(e.jinnangDiscard.slice(discard0)).toEqual(["半路杀出"]);
+  });
+
+  it("闭窗算术以 per-seat 脱敏询问集为分母(#461):非应答端首答不误闭窗,应答齐才收", () => {
+    // #461 面:联机下行把查询集投影成「自己保留 + 他人匿名 -1」(redactEvents/
+    // redactReactionView 同口径:身份匿名、数量保留)——折叠器闭窗算术(answers 数 ≥
+    // queriedOf(view).length)按该数组长度收窗:他人首答不得误闭非应答端的窗(修复前
+    // 校准快照把查询集污染成长度 1,host 首答即误闭 guest 的窗、应答入口丢失,玩家被
+    // 超时代发兜底);应答齐(2/2)才收。快照水合路径的咬合另见 seat-projection.test
+    // 「快照投影 × 折叠咬合」,此处钉事件路径与算术本身。
+    const seats: SeatConfig[] = [
+      { name: "甲", isBot: false, guohao: "魏" },
+      { name: "乙", isBot: false, guohao: "蜀" },
+      { name: "丙", isBot: true, guohao: "吴" },
+    ];
+    const e = new GameEngine(MAP.board, MAP.catalog, createDice(7), {
+      seats,
+      targetNetWorth: 30000,
+      startingCash: 10000,
+    });
+    // 客户端(座位 1 视角)收到的开窗批就是脱敏批:查询集 [-1, 1]
+    foldEventBatch(e, [
+      ev(2, { kind: "jinnangAnnounced", cardId: "横征暴敛", targetSeats: [0, 1] }),
+      ...redactEvents(
+        [
+          ev(2, {
+            kind: "reactionOpened",
+            windowKind: "jinnang",
+            cardId: "横征暴敛",
+            queriedSeats: [0, 1],
+          }),
+        ],
+        1,
+      ),
+    ]);
+    const view = e.pendingReaction?.view;
+    expect(view?.kind).toBe("jinnang");
+    expect(view?.kind === "jinnang" && view.queriedBySeat).toEqual([-1, 1]);
+    // 他人(host,座位 0)首答:1 < 2 → 非应答端(guest)窗不得误闭(#461 回归判据)
+    foldEventBatch(e, [ev(0, { kind: "reactionAnswered", use: false })]);
+    expect(e.pendingReaction).not.toBeNull();
+    expect(e.pendingReaction?.answers).toEqual([{ seat: 0, use: false }]);
+    // 自己应答:2 ≥ 2 → 收窗
+    foldEventBatch(e, [ev(1, { kind: "reactionAnswered", use: false })]);
+    expect(e.pendingReaction).toBeNull();
   });
 
   it("事件序契约违反当场炸:识破无同批窗、应答无窗、行军窗非单座询问", () => {
