@@ -30,14 +30,23 @@ declare global {
       /** 中盘构造器(ADR-0059 示导波,#1252):seedSolo 同款开局 → 冻结房间时钟 → 页内
        *  经房间命令面逐拍应答真人决策点(策略钉死:选项 ≤1 引擎自决/首个可用、反应窗
        *  「不用」、锦囊今不用、珍宝交涉不交易)推进至第 targetRound 回合边界(parkMyTurn
-       *  谓词停靠态)→ 解冻。返回停靠态读数;沉降(waitFxIdle/waitSettled)归调用方。
-       *  实现见 registry.ts installDebugHooks(answerAtHumanStop/driveToRound)。 */
+       *  谓词停靠态;afterFirstRoll=#1254 开口吸收,到站钉在首掷后——开手可用牌时
+       *  seedSolo 后即停 AwaitingJinnang,不排除会停在未掷态)→ 解冻。返回停靠态读数;
+       *  沉降(waitFxIdle/waitSettled)归调用方。实现见 registry.ts installDebugHooks
+       *  (answerAtHumanStop/driveToRound)。 */
       seedSoloToRound: (opts: {
         seed?: number;
         mapId?: string;
         seats?: number;
         targetRound: number;
+        afterFirstRoll?: boolean;
       }) => Promise<{ turnNumber: number; round: number; turnPhase: TurnPhase }>;
+      /** 瞬空钉(#1254,ADR-0059 决策 1;词条 GLOSSARY「瞬空」):演出层测试阀门——
+       *  钉住期间 SnapshotEffects 出队点一律走吸附档(未播演出整块弃播、棋盘直切引擎
+       *  终态,引擎状态分毫不动),解除恢复正常三档。经本桥双门禁,生产构建零暴露;
+       *  产品默认关闭零变化。实体 fx/catchup.ts setSnapPin,消费挂点
+       *  net/snapshot-effects.ts dequeueChunk。 */
+      setSnapPin: (on: boolean) => void;
       /** 房间时钟冻结闸(#421 调试观测面):冻结期间看门狗/自动起摇/托管步进的
        *  到点回调挂起;resume 按到点序补放。仅单机对局可冻结(无 Worker 时钟抛错)。 */
       clockPause: () => void;

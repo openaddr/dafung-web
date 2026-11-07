@@ -24,7 +24,7 @@ import { anchorMarches, extractBatchEvents } from "@app/fx/event-extract";
 import { abandonAllMarches } from "@app/fx/useMarch";
 import { present } from "@app/fx/orchestrator";
 import { setCatchupScale } from "@app/fx/timings";
-import { LagCalibrator } from "@app/fx/catchup";
+import { isSnapPinned, LagCalibrator } from "@app/fx/catchup";
 import { useNetStore } from "@app/store/netStore";
 
 /** 待播块:play() 入队的表现单元(一批 = 一块),fxQueue 串行消费。 */
@@ -165,12 +165,21 @@ export class SnapshotEffects {
       });
   }
 
-  /** 出队点判档(#610 落地挂点,present 前):吸附档整块跳过 + 清会话(棋子直切引擎
-   *  终态——快照已 hydrate 批终位置,声明式渲染接管);追帧档经 scStage 时长除法加速
-   *  播(演出仍在,只是更快);steady 照常。吸附≠终局封场:这里只封「本批未播」,
-   *  orchestrator 的全局 sealed 仍是终局专属,两道正交。 */
+  /** 出队点判档(#610 落地挂点,present 前):瞬空钉住(#1254)一律走吸附档;其余按
+   *  落后即校准三档——吸附档整块跳过 + 清会话(棋子直切引擎终态——快照已 hydrate 批终
+   *  位置,声明式渲染接管);追帧档经 scStage 时长除法加速播(演出仍在,只是更快);
+   *  steady 照常。吸附≠终局封场:这里只封「本批未播」,orchestrator 的全局 sealed 仍是
+   *  终局专属,两道正交。 */
   private async dequeueChunk(chunk: QueuedChunk): Promise<void> {
     if (chunk.voided) return; // 边界作废:出队检查即弃(会话已由边界统一收回)
+    // 瞬空钉(#1254,ADR-0059 决策 1;实体与写入口见 catchup.ts setSnapPin):测试
+    // 钉死的常开吸附档——判档直接短路(不进 observe:落后治理是产品语义,钉档期无
+    // 治理对象),未播演出整块弃播、棋子直切声明式终态。钉住=测试常开档,不钉=正常
+    // 三档,产品默认 false 零变化(零兜底:不静默改判档行为)。
+    if (isSnapPinned()) {
+      abandonAllMarches();
+      return;
+    }
     const net = useNetStore.getState();
     const decision = this.calibrator.observe({
       gapBatches: net.eventBatchSeq - this.enqueuedBatchSeq + this.queued.size,
