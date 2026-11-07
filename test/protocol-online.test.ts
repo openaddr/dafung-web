@@ -50,12 +50,13 @@
 // test/server-cmd-error 先例同判)。默认池不留用例(核心确定性已由两跑门 + check:goldens 管)。
 // DAFUNG_SLOW=1 才跑(bun run test:slow),默认池 skip(skip 行可见);用 describe 级
 // skipIf——探针实测(server-cmd-error 同款):it 全跳时文件级 beforeAll 照跑,describe
-// 级才连钩子一起跳,默认池不白起一台 4281 真服务器(并行会话撞口即假红)。
+// 级才连钩子一起跳,默认池不白起一台真服务器(并行会话撞口即假红)。
 import { afterAll, beforeAll, describe, expect, it } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { EVENT_TIERS } from "../src/core/event-tiers";
+import { protocolTestPort } from "../scripts/dev-ports";
 import { FaultProxy, type FaultProxyNotice, type FaultProxyStats } from "../scripts/fault-proxy";
 import { OnlineClient } from "../scripts/online-client";
 import type { SnapshotMsg } from "../scripts/wire";
@@ -63,7 +64,13 @@ import type { SnapshotMsg } from "../scripts/wire";
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
 
-const PORT = "4281"; // 本票专用测试端口(避开 4280 cmd-error / 3010 e2e / 默认 3000)
+// spawn 端口按 workspace 名派生(#1181,单源 scripts/dev-ports.ts,基址 4281 与
+// server-cmd-error 的 4280 保持历史 1 间隔——同 workspace 两测试同跑各占一口):
+// 并行 workspace 同跑慢池不撞口;显式 env DAFUNG_PROTOCOL_PORT 最高优先可覆盖
+// (空串兜派生默认,`||` 同 playwright.config #807 口径)。
+const PORT =
+  process.env.DAFUNG_PROTOCOL_PORT ||
+  String(protocolTestPort(basename(join(import.meta.dir, ".."))));
 const BASE = `http://127.0.0.1:${PORT}`;
 const WS_ORIGIN = `ws://127.0.0.1:${PORT}`;
 const REPO_ROOT = join(import.meta.dir, "..");

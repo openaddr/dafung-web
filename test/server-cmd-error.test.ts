@@ -13,15 +13,23 @@
 // (bun run test:slow),默认池 skip(skip 行可见)。用 describe 级 skipIf:探针实测
 // bun:test 下 it 全跳时文件级 beforeAll 照跑(白起一次服务器),describe 级才连钩子
 // 一起跳;房间临时目录随之挪进 beforeAll(全跳时不再创建,不泄漏),清理在 afterAll 配对。
+// spawn 端口按 workspace 名派生(#1181,单源 scripts/dev-ports.ts,基址 4280 与
+// protocol-online 的 4281 保持历史 1 间隔——同 workspace 两测试同跑各占一口):
+// 并行 workspace 同跑慢池不撞口;显式 env DAFUNG_CMD_ERROR_PORT 最高优先可覆盖。
 import { describe, it, expect, afterAll, beforeAll } from "bun:test";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
+import { cmdErrorTestPort } from "../scripts/dev-ports";
 
 // 慢例池开关:describe 级 skip 连钩子一起跳(默认池不白起服务器);DAFUNG_SLOW=1 才跑,判据见文件头注。
 const describeSlow = describe.skipIf(!process.env.DAFUNG_SLOW);
 
-const PORT = "4280"; // 本票专用测试端口(避开 e2e 的 3021/4184 与默认 3000)
+// 派生端口(#1181):workspace 身份 = 仓库根目录名(test/ 的上级);空串 env 兜派生
+// 默认(`||` 同 playwright.config #807 口径)。
+const PORT =
+  process.env.DAFUNG_CMD_ERROR_PORT ||
+  String(cmdErrorTestPort(basename(join(import.meta.dir, ".."))));
 const BASE = `http://127.0.0.1:${PORT}`;
 
 let proc: Bun.Subprocess<"ignore", "pipe", "pipe"> | undefined;
