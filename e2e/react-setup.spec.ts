@@ -6,6 +6,9 @@ import { snap, waitForEngine, openSoloSetup, pickCapital, waitMyRollDone } from 
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
+// 真实段(脊柱①全 UI 链声明,ADR-0058):首页→单机→准备页真实 UI 链,三配置控件
+// (stepper/分段选择器/默认图回显)与座位表(真人/电脑占位)的真实渲染即被测环
+// ——零种植零冻结。脊柱例禁新增种植化改造。
 test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", async ({ page }) => {
   // #938:本用例验「默认图语义」——解钉 fixtures 的图谱固定(removeItem 回落清单首项单源)
   await page.addInitScript(() => localStorage.removeItem("dafung.mapId"));
@@ -43,6 +46,8 @@ test("设置屏渲染:三配置控件 + 座位表(首行真人,其余电脑)", a
   await expect(page.getByTestId(SETUP_TID.seatRow(2))).toHaveCount(0);
 });
 
+// 真实段(脊柱①,ADR-0058):字盘点选真实点击→真人国号输入联动即被测环——零种植
+// 零冻结。
 test("字盘快选国号:点字更新真人国号", async ({ page }) => {
   await page.goto("/");
   await openSoloSetup(page);
@@ -50,6 +55,9 @@ test("字盘快选国号:点字更新真人国号", async ({ page }) => {
   await expect(page.getByTestId(SETUP_TID.seatGuohaoInput(0))).toHaveValue("蜀");
 });
 
+// 真实段(脊柱①,ADR-0058):表单真实交互(fill 清空),onChange 即时校验链
+// (红边/红字)+起兵禁用+未开局引擎态即被测环——零种植零冻结(校验拦下非法开局
+// 正是本环)。
 test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", async ({ page }) => {
   await page.goto("/");
   await openSoloSetup(page);
@@ -63,6 +71,9 @@ test("国号非法(清空)起兵被拦:内联红字 + 按钮禁用,未开局", a
   await expect(page.evaluate(() => !!(window as any).__dafung?.getEngine?.())).resolves.toBe(false);
 });
 
+// 真实段(脊柱①全 UI 链声明,ADR-0058):起兵→点城→确认定都→进入对局全链真实
+// 操作,引擎结算(3 席座次/国号无重号/都城就位/28 城渲染)全真——零种植零冻结,
+// 开局链脊柱的本体例。
 test("起兵 → 点城定都 → 进入对局:p0 人类 + 其余电脑,国号无重号", async ({ page }) => {
   await page.goto("/?seed=20260815");
   await openSoloSetup(page);

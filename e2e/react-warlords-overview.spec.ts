@@ -67,7 +67,12 @@ function repBarWidths(page: Page, testid: string) {
 
 /** 种植对手席(座位 1)名录载荷:三座无主城 + 一名将 + 两珍宝 + 高声望 +210(#1099
  *  概率条好运段占优断言的种植面;真身份,陈列按 id 回查目录,假 id 当场炸)。
- *  返回逐字期望值(读自引擎 board/hero)。 */
+ *  返回逐字期望值(读自引擎 board/hero)。
+ *  force 判词:高声望 +210/自机钉零=概率条断言面需 softmax 极端形态(声望无「授值」
+ *  公共命令,只随事件自然增减);3 座无主城入册/1 将/2 珍宝=引擎按购地/机遇效果
+ *  通路发放、落点与时机不可控,无「授指定城/将/珍宝」公共命令(名将槽位行经快照
+ *  restoreFromSnapshot 回灌,联机恢复同一条产线路径 #785);冻结(freezeClock)是
+ *  到达手段非字段直改。 */
 async function plantSeat1Roster(page: Page) {
   await force(
     page,
@@ -111,6 +116,9 @@ async function plantSeat1Roster(page: Page) {
 }
 
 test.describe("总览行数据与投影一致(#702 ①)", () => {
+  // 真实段(ADR-0058):真实开局链(seed1010 停靠)+总览真实点开,行数据与投影逐字
+  // 对照/空槽画空格/概率条宽度比/Esc 关闭即被测环(真身份陈列按 id 回查目录,假 id
+  // 当场炸)。force 判词见 plantSeat1Roster 注(声望极端形态+城将宝无授给公共命令)。
   test("十列数值逐字对照;城池/名将名录直读,超 3 折叠 +N,空槽画空格", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
@@ -181,6 +189,9 @@ test.describe("总览行数据与投影一致(#702 ①)", () => {
 });
 
 test.describe("四元素钻入(#1096 决议3,#1097)", () => {
+  // 真实段(ADR-0058):四元素钻入真实点击链(chips/槽/声列→目标弹层,总览先关再开
+  // 的单层互斥真实切换)+明细逐字吃 tierShares 同源现算即被测环。force 判词见
+  // plantSeat1Roster 注(钻入陈列的种植前提同源)。
   test("城池 chips→清单/名将 chips→名录/珍宝槽→列表/声列→明细;单层互斥", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
@@ -249,6 +260,10 @@ test.describe("四元素钻入(#1096 决议3,#1097)", () => {
 });
 
 test.describe("状态挂点(#702 ③)", () => {
+  // 真实段(ADR-0058):总览真实点开后行状态挂点对引擎状态的 CSS 响应链(.self 金
+  // 描边/.dead 灰化/.is-active 金圈)即被测环。force 判词:破产态开局不可达(破产
+  // 清算引擎有专属通路但需整局推演到清算,无「即时破产」公共命令),断言面需破产行
+  // 形态(直写 isBankrupt);.self/.is-active 是真实座位/活跃方的真渲染,零种植。
   test("自机行 .self 金描边;破产行 .dead 灰化;活跃方 .is-active 印金圈", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
@@ -272,6 +287,9 @@ test.describe("状态挂点(#702 ③)", () => {
 });
 
 test.describe("满编 8 行零滚动零截断(#702 ⑤)", () => {
+  // 真实段(ADR-0058):真实 8 诸侯开局全链(准备页起兵→定都→对局自走停靠)+总览
+  // 真实点开,8 行真渲染几何(零滚动/末行不截断/不出视口)即被测环——零 force
+  // (冻结为到达手段,非字段直改)。
   test("8 席 @844×390:8 行全见,容器无滚动,末行下缘不出窗", async ({ page }) => {
     test.setTimeout(240_000); // 8 人选都链路更重(react-seat-cells 满编例同因)
     await page.goto("/");

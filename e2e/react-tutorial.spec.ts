@@ -7,6 +7,14 @@ import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
+// 真实段(脊柱⑤全链声明,ADR-0058):教程文档每句 UI 断言的全链走查——起兵→选都
+// →详情卷轴两钮→出牌放行→自动行军→回合推进→托管入口,逐环真实点击,零种植零冻结
+// (脊柱例禁新增种植化改造);卷轴代答(招贤/珍宝跳过)是教程口径「读文案、挑一条」
+// 的真实操作链本体。
+// force 判词:「运筹中…」等待条按 bot 归属渲染——#398 单机统一后 bot 决策归属在两次
+// 下行拍之间不可观察(decisionOwner 恒人类),文案契约只能种 bot 活跃方钉住(直写
+// activeIndex+controller.sync 广播,第二刀还原);种植是到达手段,等待条对归属状态的
+// 响应链全真。
 test("教程走查:起兵→选都→自动行军→出牌阶段→托管的每句 UI 断言", async ({ page }) => {
   await page.goto("/");
   // 「开一局单机」:首页四入口

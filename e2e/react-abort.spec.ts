@@ -8,6 +8,10 @@ import { quickStart, force, snap } from "./react-helpers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
+// 真实段(ADR-0058):真实对局→引擎公共命令 abortGame 直呼(驱动链三出口的生产
+// 通路本体)→fx 提取/折叠全链→作废面板真实渲染+再战真实点击即被测环。force 判词:
+// 无红牌——force() 此处只是桥直呼公共方法的容器,非字段直改;「作废对局」无 UI
+// 通路(生产由停摆看门狗等驱动链死亡出口触发),断言面=该出口的呈现链。
 test("异常终局:引擎 abortGame → 对局作废面板,无胜者渲染", { tag: "@slow" }, async ({ page }) => {
   // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 39.9s>30s——快池门禁 --grep-invert @slow 跳过。
   await quickStart(page);

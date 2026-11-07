@@ -37,12 +37,15 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
         throw new Error("首掷种植失败:当前位置 1..6 步内无无主普通城");
       };
     })();`;
-
+  // force 判词:首掷落点由骰值决定,引擎无「走到指定格」公共命令——patch dice.roll
+  // 现算确定性到达是唯一通路(bot 掷骰照走种子 rng 不受扰)。
   /** seed 1026 拦检链到购地卷轴(#1170 种植式停靠,#949 同源配料):844 条带选图
    *  (reaction soloAtBuyAsk 的二级弹层在 844 无确认钮不通)+ 机遇归零(先 route 后
    *  进屏;#1100 适配期曾漏挂——机遇开的骰流消耗把候选与首停全带漂,多种子重钓
    *  皆 miss,考古见票面)+ 种植现金 20000(全图最高价 4800,不种则起手净剩不足
-   *  自动不取、卷轴不弹)+ 首掷种植:人类第一停恒落无主普通城,购地决策确定性可达。 */
+   *  自动不取、卷轴不弹)+ 首掷种植:人类第一停恒落无主普通城,购地决策确定性可达。
+   *  force 判词:种现金=卷轴弹出前提(起手净剩不足会自动不取、卷轴不弹;现金无
+   *  「充值」公共命令,引擎只按交易/事件自然增减)。 */
   async function startBuyScroll(page: Page): Promise<void> {
     await useHalfScale(page);
     await disableEncounters(page);
@@ -64,6 +67,10 @@ test.describe("决策卷轴拍板钮钉底(#729)", () => {
     await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
   }
 
+  // 真实段(ADR-0058):真实开局链走到人类首停落无主城触发购地决策(拦检链现算骰值),
+  // 购地卷轴真实弹出的 BannerShell 三段式几何(壳夹高/拍板两钮在视口内且全落壳盒内)
+  // 即被测环。force 判词见 marchToUnownedOnce/startBuyScroll 注(首掷落点无公共通路
+  // +卷轴弹出需现金前提)。
   test("购地卷轴:拍板两钮恒在视口内、壳高 ≤86dvh、钮盒全落壳盒内(#729)", async ({ page }) => {
     await startBuyScroll(page);
     // 入场 banner-drop 带整体位移:几何断言包 toPass 吸收动画中的瞬时盒

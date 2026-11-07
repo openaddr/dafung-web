@@ -46,6 +46,9 @@ test.describe("准备页矮横屏 844×390(双列档)", () => {
     }).toPass({ timeout: 15_000 });
   }
 
+  // 真实段(ADR-0058):首页→单机→准备页真实到达+加人 stepper 真实点击,双列重排
+  // 真渲染几何(根/document 双零滚/CTA 首屏在场/右列内滚成立)即被测环——零种植
+  // 零冻结。
   test("4 诸侯零滚动+起兵首屏在场;8 诸侯右列内滚 CTA 恒在场", async ({ page }) => {
     await page.goto("/");
     // 首页(矮横屏条带档)→ 单机入口进准备页
@@ -71,6 +74,8 @@ test.describe("准备页矮横屏 844×390(双列档)", () => {
     expect(col.dx).toBeGreaterThan(1);
   });
 
+  // 真实段(ADR-0058):准备页真实到达+折叠展开真实点击,左列渐隐 mask 计算样式
+  // 与溢出前提、说明段文案即被测环——零种植零冻结。
   test("机遇折叠展开:左列底缘墨纱渐隐暗示可滚,说明段玩家语(#839 刀①)", async ({ page }) => {
     await page.goto("/");
     await page.getByTestId(HOME_TID.solo).click();
@@ -96,6 +101,8 @@ test.describe("准备页矮横屏 844×390(双列档)", () => {
     );
   });
 
+  // 真实段(ADR-0058):seed49 真实选都链点候选城→详情卷轴真实弹出,正文井内滚
+  // 渐隐带随溢出侧真实切换(真实 scrollTop 操作触发)即被测环——零种植零冻结。
   test("定都确认卷轴:正文井渐隐带随溢出侧浮现,滚到底自动撤(#846 通案)", async ({ page }) => {
     await page.goto("/?seed=49");
     await page.getByTestId(HOME_TID.solo).click();

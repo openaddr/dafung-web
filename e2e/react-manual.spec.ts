@@ -26,6 +26,9 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(page.getByTestId(MANUAL_TID.modal)).toBeVisible();
   }
 
+  // 真实段(ADR-0058):首页「手册」入口真实点击开弹层,顶带让位/桌面视口切换/X 关
+  // 回首页的真实交互链即被测环——全静态 UI(直渲 core 目录,零引擎零机遇随机),
+  // 零种植零冻结。
   test("首页入口:开弹层、顶带让位 ≥44px(ADR-0049)、X 关回首页", async ({ page }) => {
     await openManual(page);
     // 顶带几何(ADR-0049 写死):弹层顶边恒让出 ≥44px 顶带(对局内回合胶囊让位区,
@@ -50,6 +53,9 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
   });
 
+  // 真实段(ADR-0058):五签切换真实点击,陈列数=目录实数对账(名将/技能吃运行时
+  // 注册面,锦囊/珍宝/机遇 core 目录死数)+最深档内滚不溢出即被测环——零种植
+  // 零冻结。
   test("五签切换:陈列数=目录实数(名将/技能运行时口径,机遇三组 11/8/11)", async ({ page }) => {
     await openManual(page);
     const cards = page.locator('[data-testid^="manual-card-"]');
@@ -99,6 +105,8 @@ test.describe("手册(844×390 横屏标准档)", () => {
     }).toPass();
   });
 
+  // 真实段(ADR-0058):点周瑜卡开技能全览只读弹层+关闭的真实交互链即被测环
+  // (无「收为麾下」拍板钮=只读语境契约)——零种植零冻结。
   test("名将详情:点周瑜卡开技能全览只读弹层,可关回", async ({ page }) => {
     await openManual(page);
     await page.getByTestId(MANUAL_TID.card("zhouyu")).click();
@@ -110,6 +118,8 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(glossary).toHaveCount(0);
   });
 
+  // 真实段(ADR-0058):锦囊卡点开叠层(目录 id 参数化 detail)+关闭的真实交互链
+  // 即被测环——零种植零冻结。
   test("锦囊详情:点卡开叠层(目录 id 参数化 detail),可关回", async ({ page }) => {
     await openManual(page);
     await page.getByTestId(MANUAL_TID.tabJinnang).click();
@@ -124,6 +134,8 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(detail).toHaveCount(0);
   });
 
+  // 真实段(ADR-0058):霉运卡点开详情,体力代价注记(effect.staminaDelta 与
+  // choices 同形制)真实渲染+关闭即被测环——零种植零冻结。
   test("机遇详情:霉运即时条注体力代价(粮道被劫),可关回", async ({ page }) => {
     await openManual(page);
     await page.getByTestId(MANUAL_TID.tabEncounters).click();
@@ -137,6 +149,8 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(detail).toHaveCount(0);
   });
 
+  // 真实段(ADR-0058):详情开着点壳 X,叠层先卸/壳随收/零孤儿弹层的退场协议真实
+  // 走查即被测环——零种植零冻结。
   test("收口净空:详情开着点壳 X,叠层随壳同卸不留孤儿(真机裸弹层复)", async ({ page }) => {
     await openManual(page);
     await page.getByTestId(MANUAL_TID.tabEncounters).click();
@@ -153,6 +167,9 @@ test.describe("手册(844×390 横屏标准档)", () => {
     await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
   });
 
+  // 真实段(ADR-0058):关后再开真实往返点击,壳体实可见(opacity 计算样式防
+  // opacity-0 残留假绿)+遮罩不挂退场类+点壳外真位置关闭的真实通路即被测环
+  // ——零种植零冻结。
   test("重开手册:关后再开壳体必须实可见(#1182,真机「点手册没作用」复防)", async ({ page }) => {
     const manual = page.getByTestId(HOME_TID.manual);
     const modal = page.getByTestId(MANUAL_TID.modal);

@@ -45,6 +45,8 @@ function cellsMatchSnapshot(page: import("@playwright/test").Page) {
 }
 
 test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
+  // 真实段(ADR-0058):真实开局对局自走,席位格行2 计数与引擎快照逐席对账(单次
+  // evaluate 原子采样)即被测环——零种植零冻结。
   test("4 席局:现金主数(裸数无千分位)+ 五图标计数逐席一致", async ({ page }) => {
     await quickStart(page);
     await expect.poll(() => cellsMatchSnapshot(page)).toBe(true);
@@ -54,6 +56,8 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
     await expect(page.locator(`[data-testid=${TESTIDS.seatRail}] .seatcol .seat`)).toHaveCount(4);
   });
 
+  // 真实段(ADR-0058):真实 8 诸侯开局全链(准备页起兵→定都→对局自走停靠)+真实
+  // 视口切换重排,格高/零滚动盒模型即被测环——零种植零冻结。
   test("满编 8 席(844×390 矮横屏):计数逐席一致,格高 38、列零滚动", async ({ page }) => {
     test.slow(); // 人类首回合前最多 7 个 bot 回合,预算放宽(react-layout 8 席例同口径)
     await page.goto("/");
@@ -86,6 +90,12 @@ test.describe("席位格行2 计数与投影一致(#698 ①)", () => {
 });
 
 test.describe("席位格五状态与自机挂点(#698 ②)", () => {
+  // 真实段(ADR-0058):席位格五状态挂点对引擎状态的 CSS 响应链即被测环(.active/
+  // .self/.low/.bankrupt 类随状态真渲染)。force 判词:钉行动方=挂点断言前提
+  // (quickStart 停点随骰子落位,引擎无「钉相位」公共命令);濒耗竭走 addStamina
+  // 引擎公共方法(体力变更生产通路,非字段直改),但「体力<三成」形态开局初期到不了
+  // (起手满体力,负增量无自然来源);破产态直写 isBankrupt——破产清算引擎有专属
+  // 通路但需整局推演,断言面需即时破产形态。
   test("活跃金圈呼吸/濒耗竭朱砂条/破产印灰挂点,自机=金样式无文字章", async ({ page }) => {
     await quickStart(page);
     // 冻结房间时钟再动刀(#421:直写状态类断言不与自动起摇/bot 链赛跑;快照类
@@ -112,6 +122,9 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await expect(page.getByTestId(TESTIDS.seat(2))).toHaveClass(/bankrupt/);
   });
 
+  // 真实段(ADR-0058):真实设置弹层「托管」开关交互链(开/关往返,dispatchEvent
+  // 直派穿遮罩照进真实 onClick,ADR-0028 引擎公共通路),微标随开关往返的真渲染
+  // 即被测环——零种植零冻结。
   test("托管常驻微标(#770):开=自机格齿轮挂点、关=撤,对手 bot 席恒无", async ({ page }) => {
     await quickStart(page);
     const badge = page.getByTestId(TESTIDS.seatHosted(0));
@@ -139,6 +152,10 @@ test.describe("席位格五状态与自机挂点(#698 ②)", () => {
     await expect(badge).toHaveCount(0);
   });
 
+  // 真实段(ADR-0058):出牌窗内点牌→目标段候选→点选停持/再点取消的完整真实交互
+  // 链即被测环(窗经 seed67 开局链真升,点击全真)。force 判词:手牌无公共通路
+  // (无「发指定牌」公共命令,rack 停车坪同判词),需军情密探特定牌形;seat1 挂
+  // 珍宝凑目标门槛同因(珍宝无授给公共命令)。
   test("目标段:候选格金圈呼吸(.candidate),点选实金停持(.picked)再点取消", async ({ page }) => {
     // seed67 关中图开局链停在出牌阶段态(react-jinnang-use startJunshi 同款通路,
     // 链路内联本 spec:helpers 帮手非本票所有物;seed 67 起手求贤令恒可用,窗必升)。

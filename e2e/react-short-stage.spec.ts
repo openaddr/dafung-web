@@ -44,7 +44,11 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   }
 
   /** 拦检窗种植(react-reaction.spec plantAmbush 同款精简:半路杀出 + 三 bot 落
-   *  人类都城前一格,掷 ≥1 即途经开窗;duelDice=拼点骰开窗前一次种足)。 */
+   *  人类都城前一格,掷 ≥1 即途经开窗;duelDice=拼点骰开窗前一次种足)。
+   *  force 判词:手牌无公共通路(无「发指定牌」公共命令,rack 停车坪同判词),需
+   *  半路杀出特定牌形;bot 落位直写=拦检开窗前提(真实走位到都城前一格不可控,种植
+   *  是确定性到达);duelDice patch rollDie=拼点骰值无公共命令(引擎无「指定点差」
+   *  命令),大胜分级断言需 [6,1] 点差 5。 */
   async function plantAmbush(page: Page, duelDice?: [number, number]): Promise<void> {
     await force(
       page,
@@ -70,7 +74,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
   }
 
   /** 购地卷轴停靠点续局:授周瑜(疾行/火攻多条编排依赖)后「不取」放行,回合交
-   *  bot 链——首个 bot 自都城前一格途经人类都城,拦检窗开(react-reaction.spec 同款)。 */
+   *  bot 链——首个 bot 自都城前一格途经人类都城,拦检窗开(react-reaction.spec 同款)。
+   *  force 判词:无「授指定将」公共命令(引擎仅机遇效果 grantHero 一途),疾行/
+   *  火攻多条编排依赖周瑜在麾。 */
   async function grantZhouyuAndPass(page: Page): Promise<void> {
     await force(
       page,
@@ -80,6 +86,8 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await page.getByTestId(TESTIDS.actionButton("skip")).click();
   }
 
+  // 真实段(ADR-0058):seed67 开局链真停出牌阶段(窗必升),动作条真实渲染几何
+  // (压高/不压牌面/还棋盘底行)+「不出」放行真实点击收窗即被测环——零种植零冻结。
   test("动作条压高:条高 ≤36 不压牌面,上缘 ≥195 还棋盘底行;不出放行零回归", async ({ page }) => {
     await startShort(page, 67, false);
     const geo = await page.evaluate(
@@ -107,6 +115,9 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await expect(page.getByTestId(TESTIDS.actionbar)).toBeHidden();
   });
 
+  // 真实段(ADR-0058):拦检窗经真实回合交出(「不取」放行)由引擎开窗,反应横幅
+  // 真实浮置几何(扁条/与席位格、回合胶囊零遮挡)+「不用」真实应答收窗即被测环。
+  // force 判词见 plantAmbush/grantZhouyuAndPass 注(手牌/bot 落位/授将无公共通路)。
   test("反应横幅浮置:显示期与席位格、回合胶囊零遮挡;点不用窗收(auto-hide 不回归)", async ({
     page,
   }) => {
@@ -156,6 +167,10 @@ test.describe("演出层矮横屏三件(#709)@667×375", () => {
     await expect(banner).toBeHidden({ timeout: 5_000 });
   });
 
+  // 真实段(ADR-0058):拦检窗→真实应答(answerMarchCounter 点牌应战)→拼点演出
+  // 全程真实播放,签面几何(双签并排整排入视口/印随首行)+大胜分级类接线即被测环。
+  // force 判词见 plantAmbush/grantZhouyuAndPass 注(手牌/落位/授将/拼点点差无公共
+  // 通路)。
   test("拼点签面入视口:双签并排整排落视口内,魏签顶/滇签底双出屏清零", async ({ page }) => {
     test.slow(); // 同拦检链 + 拼点演出全程
     await startShort(page, 1026, true); // seed 1026(#1100 重钓:起手发放改写骰流,原 1010 链作废,#949 同款):首回合落汉中购地卷轴停靠点

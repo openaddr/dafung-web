@@ -17,6 +17,9 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("矮横屏 844×390(条带档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
+  // 真实段(脊柱①全 UI 链声明,ADR-0058):「真人从首页能玩进来」前门专守——条带
+  // 选图→单机→起兵→棋盘挂载全 UI 链逐环真实点击,零种植零冻结(seed 42 只钉骰序,
+  // 开局链本身全真);换图起兵可达正是 #707 交付的本环。脊柱例禁新增种植化改造。
   test("选图+开局全流程:零页面滚动、控件零裁半、换图起兵可达", async ({ page }) => {
     await disableEncounters(page);
     await page.goto("/?seed=42");

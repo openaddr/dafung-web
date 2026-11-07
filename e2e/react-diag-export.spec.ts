@@ -17,6 +17,10 @@ test(
   { tag: "@slow" },
   async ({ page, context }) => {
     // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 43.9s>30s——快池门禁 --grep-invert @slow 跳过。
+    // 真实段(ADR-0058):真实对局自走→托管开关真实拨启(引擎公共通路 ADR-0028)→
+    // 弃局回主页真实确认链→诊断面板复制/下载真实点击,载荷 schema(小包省略语义/
+    // 全量包含本局)与停采定格语义即被测环——零种植零冻结(剪贴板授权是测试环境
+    // 权限,非种植)。
     test.slow();
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await quickStart(page);

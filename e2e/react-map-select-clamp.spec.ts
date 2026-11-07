@@ -12,6 +12,8 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 test.describe("选图弹层矮横屏钉底(#832)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
+  // 真实段(ADR-0058):首页→单机→「更换」全真实点击链到达,选图弹层真实挂载的首帧
+  // 几何(钉底/夹高/预览收幅/与拍板带不相交)+确认实点关闭即被测环——零种植零冻结。
   test("844×390 首帧:确认/取消/预览完整在视口内、预览不越 20vh、与拍板带不相交", async ({
     page,
   }) => {

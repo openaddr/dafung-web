@@ -6,6 +6,8 @@ import { snap, waitForEngine, openSoloSetup } from "./react-helpers";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
+// 真实段(ADR-0058):首页「选择地图」真实点击开面板,内置图清单(城数/目标)与
+// 点选展开的预览真实加载即被测环——零种植零冻结。
 test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId(HOME_TID.selectMap).click();
@@ -18,6 +20,8 @@ test("选图面板:列出内置图(含城数与目标),点选展开 SVG 预览",
   await expect(page.getByTestId(SETUP_TID.mapPreview)).toBeVisible({ timeout: 10_000 });
 });
 
+// 真实段(ADR-0058):点选→确认的真实交互链,地图名刷新+localStorage 记忆写入即
+// 被测环——零种植零冻结。
 test("选 zhongyuan 确认:地图名刷新 + 记忆到 localStorage(dafung.mapId)", async ({ page }) => {
   await page.goto("/");
   await page.getByTestId(HOME_TID.selectMap).click();
@@ -27,6 +31,8 @@ test("选 zhongyuan 确认:地图名刷新 + 记忆到 localStorage(dafung.mapId
   expect(await page.evaluate(() => localStorage.getItem("dafung.mapId"))).toBe("zhongyuan");
 });
 
+// 真实段(ADR-0058):选图→起兵真实开局链,棋盘渲染(8 城小环)+快照健康(Setup
+// 相位/默认 4 席)即被测环——零种植零冻结。
 test("选 zhongyuan 起兵:棋盘为 8 城小环,快照健康", async ({ page }) => {
   await page.goto("/?seed=42");
   await page.getByTestId(HOME_TID.selectMap).click();

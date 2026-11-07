@@ -41,6 +41,11 @@ async function openDrawerRobustly(page: Page): Promise<void> {
   }).toPass({ timeout: 20_000 });
 }
 
+// 真实段(ADR-0058):真实开局+开抽屉真实点击链(设置→战报›,toPass 轮询清决策),
+// 窗口化渲染契约(只渲一窗/截断态追加不涨行数/「加载更早」真实点击按窗放到见底)
+// 即被测环。force 判词:350 条长日志无公共通路(引擎只按真实对局事件落日志,开局
+// 存量约一窗,凑 >2 窗需数百真实回合不可达)——直写 log 与真条目同 schema 同白名单
+// 通道,渲染窗感知的正是同形数据。
 test("战报抽屉窗口化:长日志只渲一窗,截断态追加不涨行数,加载更早按窗放开", async ({ page }) => {
   // 内部预算 quickStart + 开抽屉 toPass(20s)+ 放开循环轮询(4×5s),90s 外层对齐
   // 同族重例(encounters/scrolls);原 120s 是硬等待时代的残值,轮询化后收紧。
@@ -83,6 +88,9 @@ test("战报抽屉窗口化:长日志只渲一窗,截断态追加不涨行数,�
   expect(await page.locator(".war-item").count()).toBeGreaterThan(WAR_WINDOW * 2);
 });
 
+// 真实段(ADR-0058):金点亮/清账/再点亮三段链(抽屉开关真实交互),未读账随打开
+// 清账的 UI 响应即被测环。force 判词:log 只增无「指定时刻追加」公共命令——关抽屉
+// 后的增量沿只能直写触发(金点对该沿的响应即被测对象,与窗口化例同 schema 通路)。
 test("战报未读金点(#768):存量即未读,打开抽屉清账,增量再点亮", async ({ page }) => {
   await quickStart(page, 48);
   const dot = page.getByTestId(TESTIDS.settingsUnreadDot);
