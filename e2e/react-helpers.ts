@@ -145,6 +145,53 @@ export async function waitMyPause(page: Page, seat: number, timeout = 30_000): P
     .toBe(true);
 }
 
+/** 严格「我的回合空闲」停车(#1215 棒1 rack 本地助手,#1216 波3 上收共享):
+ *  等待谓词比 waitMyPause 多钉一条 activeIndex===selfSeat(0)——两类 bot 回合中途态
+ *  都长着「decisionOwner=我」的脸:①反应窗询问期(bot 火烧连营窗开在 bot 回合尾,
+ *  waitMyPause 会当停靠:随后 5s 权威窗看门狗代发「不用」、bot 链走完,force+freeze
+ *  锁进 bot 决策位,架随收沿已收,消费例 toggle/点牌语义整例反转);②珍宝抉择卷轴
+ *  (起手珍宝访客落在人类城,卷轴开在 bot 回合里,引擎等人类输入、bot 链悬停,
+ *  严格条件永不满足=等待死锁)。故轮询体内先代发放行(卷轴「暂不交易」/横幅「不用」
+ *  ,窗看门狗到点同语义;短时限+吞错,skipUntilNextSeat 同款口径),再验严格条件。
+ *  opts.freeze(缺省 true,几何测量类停车):停靠即 freeze,冻结后复核——「条件满足→
+ *  冻结」的 gap 内若被同步链推走,解冻续等下一拍(冻结只钉时钟回调,命令同步链不受
+ *  影响);页随测试灭、冻结随上下文销毁,无需解冻对称。流程续跑类停车(停完还要放行
+ *  /等推进的用例,如反应族窗流)传 { freeze: false }——#188 自动起摇等时钟回调是后续
+ *  流程的本体,冻结会死锁;停靠态本身引擎等输入无自推进,#118 停摆代驾 120s 不构成
+ *  停靠后竞速,无冻结即无竞速面。seat 钉 0:单机人类座位(联机族不停车,窗流驱动)。 */
+export async function parkMyTurn(
+  page: Page,
+  timeout = 90_000,
+  opts?: { freeze?: boolean },
+): Promise<void> {
+  const freeze = opts?.freeze ?? true;
+  const tSkip = page.getByTestId(SCROLL_TESTIDS.treasureSkip);
+  const decline = page.getByTestId(TESTIDS.reactionDecline);
+  const myPark = (s: any) =>
+    s.phase === "Playing" &&
+    s.activeIndex === 0 &&
+    s.decisionOwner === 0 &&
+    s.turnPhase.startsWith("Awaiting");
+  await expect
+    .poll(
+      async () => {
+        if (await tSkip.isVisible().catch(() => false))
+          await tSkip.click({ timeout: 2_000 }).catch(() => {});
+        if (await decline.isVisible().catch(() => false))
+          await decline.click({ timeout: 2_000 }).catch(() => {});
+        if (!myPark(await snap(page))) return false;
+        if (!freeze) return true;
+        await freezeClock(page);
+        const s2 = await snap(page);
+        if (myPark(s2)) return true;
+        await unfreezeClock(page); // 冻结 gap 内被同步链推走:解冻续等下一拍
+        return false;
+      },
+      { timeout, message: "轮到人类且停在其自身回合的 Awaiting 等待态(非 bot 回合询问期)" },
+    )
+    .toBe(true);
+}
+
 // ── #421/#423 时钟缝:冻结→种植→手术→断言→恢复 ──
 // 房间时钟冻结闸(window.__dafung.clockPause/clockResume,#421 调试观测面):冻结期间
 // #188 自动起摇与各组看门狗(含 #118 决策停摆代驾)的到点回调全部挂起(resume 按到点

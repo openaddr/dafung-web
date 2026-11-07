@@ -26,6 +26,13 @@
 // 种植后人类无再手动的回合:窗由 bot 链带到
 // (火烧例=bot1 回合开始即出;拦检例=bot 自首都前一格(11 锦囊城)掷骰途经剑阁)。
 // bot 手牌/位置/骰队列按用例直写。
+// #1216 波3 直通形制(ADR-0058 一环一真):全 7 例头注声明真实段——本族形制=「种局→
+// 真打出→窗真开→真应答」:布场/手牌/骰流按用例种植(前置链,判词见各助手与行内),
+// 窗开本身恒真引擎行为(bot 真打出反应牌,禁种「窗已开」),应答点击链与结算全真。
+// 脊柱例③(识破自保/半路杀出三分支走查)永不深种,零逻辑改动只补声明;force 红牌
+// 审计(9 处)逐处判词,公共命令面核查结论=零处可迁(现金/授将/手牌/布位/授城/钉骰
+// 均无玩家公共命令,详见各判词);唯反应/混排两例停靠谓词升级 parkMyTurn(严格我的
+// 回合+轮询体内代发放行,freeze:false 流程续跑口径,#1216)。
 import { test, expect } from "./fixtures";
 import {
   force,
@@ -34,6 +41,7 @@ import {
   skipUntilNextSeat,
   engineState,
   snap,
+  parkMyTurn,
   plantDemolishableCity,
   awaitReactionWindow,
   answerReactionWindow,
@@ -64,6 +72,9 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
   // 人类回合 1,bot 链不先跑)。起手 5000 扣剑阁建城费 2400 后净剩 2600 不足汉中 3000,
   // 不种则第一停变自动不取,卷轴迟到第二轮——种植大额现金让卷轴与地图价格解耦,
   // 停靠点回第一停。
+  // force 判词:现金无玩家公共命令(grantSkillCash 是效果注册表内部通道、「UI/bot
+  // 不得使用」且直调会派发假技能得银战报污染日志断言面);购地命令只扣不加,到不了
+  // 「种植大额现金」形态。
   // force 前等调试桥 controller 就位(起局瞬间尚为 null,竞态实锤)。
   await page.waitForFunction(() => window.__dafung?.controller() != null);
   await force(page, `e.players[0].cash = 20000;`);
@@ -73,8 +84,10 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
 }
 
 /** 停靠点续局:force 直授周瑜(疾行=行军 +1、火攻=出牌阶段停靠点来源,多条编排依赖,
- *  勿换将;招贤卷轴开局不可达后改走 heroDefs 调试面,槽位行(heroId+全池授技+空冷却账)
- *  进麾下),再「不取」放行购地卷轴——落格结算收尾,回合随即交 bot 链。 */
+ *  勿换将),再「不取」放行购地卷轴——落格结算收尾,回合随即交 bot 链。
+ *  force 判词:引擎无「直接授将」公共命令(resolveHeroPick 只在招贤卷轴语境可达,而
+ *  招贤卷轴(卧龙岗@20)在本图种子下开局不可达)——heroDefs 调试面(#378 双门禁)是
+ *  唯一授将通路,槽位行(heroId+全池授技+空冷却账)进麾下。 */
 async function grantZhouyuAndPass(page: Page): Promise<void> {
   await force(
     page,
@@ -129,7 +142,13 @@ const marchQueue = (...values: number[]) => `
  *  #398 快速链 + 权威 3s 反应窗:骰必须在开窗前种足、窗内零 force——force 等 fx 排空
  *  吃掉秒级预算,看门狗到点代发「不用」后,紧随的应答会落到下一个 bot 的窗上(实测:
  *  读到的 mover1=1,拼点战报 mover=p2)。行程骰=种子 rng(dice.roll 闭包,不吃
- *  diceQueue)。 */
+ *  diceQueue)。
+ *  force 判词(#1216 波3 审计,四类直写一体):①手牌——引擎只按开局发牌/摸牌时机发牌
+ *  (drawJinnang 恒随机抽),无「发指定牌」公共命令,断言面需特定牌形;②bot 布位——
+ *  行军命令只归活跃座位自身回合,无「挪 bot 至指定格」公共命令,拦检窗前提=行人贴
+ *  首都前一格;③第二城——同 plantDemolishableCity 判词(引擎无授城公共命令,购地受
+ *  行军路线+现金约束);④骰队列——种子 rng 是全局流,无「钉骰」公共命令,patch 按值序
+ *  局部确定性、耗尽自还原、不消耗 rng(两注入口分属拼点/行程互不串队)。 */
 async function plantAmbush(
   page: Page,
   opts: {
@@ -192,23 +211,11 @@ async function plantCounterScenario(page: Page): Promise<void> {
   await grantZhouyuAndPass(page);
 }
 
-/** 等人类出牌阶段窗态升起(seed 1010 × 关中 开局无窗:起手唯反应牌;回合 2 起由可选项带到
- *  ——混排例=手牌火烧连营本就可用,唯反应例=火攻引窗,p1 都城升 Lv.1 变「可降级」
- *  使火攻可指定)。poll 带 decisionOwner 守卫:bot 链步进途中的 AwaitingJinnang 瞬拍
- *  (decisionOwner=bot)不误配。 */
-async function waitJinnangStop(page: Page): Promise<void> {
-  await expect
-    .poll(
-      async () => {
-        const s = await snap(page);
-        return s.decisionOwner === 0 && s.turnPhase === "AwaitingJinnang";
-      },
-      { timeout: 60_000, message: "人类出牌阶段未进入" },
-    )
-    .toBe(true);
-}
-
 test.describe("反应窗(#281 单机)", () => {
+  // 真实段(脊柱例③,ADR-0058 永不深种,#1216 只补声明零逻辑改动):反应窗全链全真——
+  // 布场后 bot1 回合开始真打出火烧连营→窗真开(横幅/倒计时弧/架上金边/mini 签面几何锚
+  // 即窗真开的呈现取证)→点牌落印真应答→识破留痕真结算窗收。前置=真实开局链
+  // (soloAtBuyAsk 真 UI 选图开局/选都)+布场种植(判词见 plantCounterScenario 系助手)。
   test("识破自保:横幅+倒计时弧+架上金边→点牌落印→识破留痕窗收(结算下沉单测)", async ({ page }) => {
     await plantCounterScenario(page);
     // 反应窗横幅:事件文案(带目标括注 #921,火烧连营=one 域,目标=城最多者人类)+ 朱砂
@@ -255,6 +262,9 @@ test.describe("反应窗(#281 单机)", () => {
     await pollReactionSettled(page, baseline, { countered: true });
   });
 
+  // 真实段(#1216):窗真开(bot 真打出,前置判词见 plantCounterScenario 系助手)后,
+  // 裸指针长按序列(move→down 700ms→up)+补发 click 抑制的输入语义与详情呈现全真——
+  // 「长按开详情不改选中、不双弹」即被测环。
   test("反应窗长按开牌面详情(#751 A1):既有弹层纯接线,窗内不双弹", async ({ page }) => {
     await plantCounterScenario(page);
     await awaitReactionWindow(page);
@@ -279,6 +289,9 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(detail).toHaveCount(0);
   });
 
+  // 真实段(#1216):窗真开(前置判词见 plantCounterScenario 系助手)后,点「不用」
+  // 单发命令应答→窗收 use=0 留痕全真——decline 应答接线即被测环(城失结算面已下沉
+  // test/reaction-window.test.ts,见分类表)。
   test("不用路径:点「不用」立即应答→窗收留痕(城失结算下沉单测)", async ({ page }) => {
     await plantCounterScenario(page);
     const baseline = await awaitReactionWindow(page);
@@ -291,10 +304,20 @@ test.describe("反应窗(#281 单机)", () => {
   // 残留的横幅收回时机面守不住回归(分不清投影定时收与看门狗收),按 ADR-0056
   // 「骨架例是负资产」整删不缩。
 
+  // 真实段(脊柱例③,ADR-0058 永不深种,#1216 只补声明零逻辑改动):三分支全链全真——
+  // 三 bot 各自行程真途经首都格开拦检窗,页内原子应答(读 mover→选牌落印/点「不用」)
+  // →真拼点→真结算(拦胜止步落格/平局牌白耗续走/放行牌不耗),一例串三环时序语义即
+  // 被测环;拼点签面判词/钤落弧/震屏时长通道为真结算的呈现取证。前置判词见
+  // soloAtBuyAsk(现金)/plantAmbush(布位/手牌/骰)/grantZhouyuAndPass(授将)与行内。
+  // #1216 判读:分支二/三 waitMyPause 停靠谓词按波2 定性有「bot 回合询问期误停」风险,
+  // 本例窗流驱动下由 5s 看门狗代发+skipUntilNextSeat 自愈;脊柱例零逻辑改动纪律
+  // (ADR-0058 ③)下不升级,严格谓词 parkMyTurn 已上收共享备后续波处置。
   test("半路杀出三分支走查:拦胜止步落格→平局牌白耗续走→点不用放行牌不耗", async ({ page }) => {
     await soloAtBuyAsk(page);
     // 火攻停点钉子:p2 都城升 Lv.1(可降级)→ 周瑜火攻自人类回合 2 起恒可指定,
     // 每个人类回合开始必停出牌阶段(waitMyPause 停靠点与行程骰解耦,不赌落格)。
+    // force 判词:扩军命令(upgradeProperty)只作用于活跃座位自身的待决决策,bot 城
+    // 升级归 botAct 代答、测试不可直呼;断言面需「p2 都城 Lv1=火攻可指定」形态。
     await force(page, `e.players[2].properties[0].level = 1;`);
     // 只留首都一道窗:三 bot 各自行程各开一问,顺序吃满三分支(#292 Q1 合并)。
     // #398 快速链 + 权威反应窗(5s):拼点骰开窗前种足、窗内零 force(force 等 fx 排空
@@ -414,6 +437,8 @@ test.describe("反应窗(#281 单机)", () => {
     // ——不赌 bot 自带疾行等加成(bot 招募/技能是现金决策,加成会挪落格);其余 bot 骰 6
     // 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
     await waitMyPause(page, 0);
+    // force 判词:同 plantAmbush 布位(#830 守门自锚——bot 挪位无公共命令,链式调价
+    // 漂移下把首位 bot 贴回首都前一格,骰 2 第一步即过首都开窗,前提自锚)。
     await force(
       page,
       "e.players[1].position = (e.players[0].capitalIndex + e.board.count - 1) % e.board.count;",
@@ -436,6 +461,15 @@ test.describe("反应窗(#281 单机)", () => {
       .toEqual({ away: true, keep: true });
   });
 
+  // 真实段(#1216):火攻引出的真出牌窗态内,唯反应灰置印(禁用态+原因条)呈现与
+  // 放行「不出」→#188 自动起摇→一手自动走完的相位推进全真——「灰置不入可用集」与
+  // 「放行后照常自动起摇」即被测环。前置判词见 soloAtBuyAsk(现金)/grantZhouyuAndPass
+  // (授将)与行内(换牌/升城)。
+  // #1216 停靠升级:waitJinnangStop 换 parkMyTurn(freeze:false)——严格谓词多钉
+  // activeIndex===0 且轮询体内代发放行:关中 startingTreasures=2(#1172),bot 回合
+  // 途中落人类城会把 AwaitingTreasureOwner 卷轴开给人类(引擎等输入、bot 链悬停),
+  // 旧谓词只认相位不代放行 = 等待死锁;火攻钉子下首个我的回合停靠=回合开始出牌窗态,
+  // 窗内灰置断言前提不变。不冻结:放行后的自动起摇是时钟回调本体,冻结即死锁。
   test("出牌阶段「唯反应」:两张反应牌皆灰置不入可用集,放行后照常自动起摇", async ({ page }) => {
     test.setTimeout(90_000); // bot 链(含 p2 求贤令窗 5s 看门狗代发)+ 两段行程,60s 基线偏紧
     await soloAtBuyAsk(page); // 停稳购地卷轴(#303 轻瘦身:手搓开局链路收口 soloAtBuyAsk)
@@ -444,6 +478,8 @@ test.describe("反应窗(#281 单机)", () => {
     // p1 都城升 Lv.1(可降级)使周瑜火攻可指定 → 人类回合 2 出牌阶段窗态必升起,唯反应灰置
     // 得以在活窗内验证。(#303 实测注仍立:窗态对唯反应手牌驻留、等「不出」点击;
     // 「窗不在场」断言本就不成立,可守的本质=灰置印 + 放行后自动起摇。)
+    // force 判词:换牌=手牌无「发指定牌」公共命令(同 plantAmbush ①);升城=扩军命令
+    // 只作用于活跃座位自身待决决策,bot 都城升级测试不可直呼(同三分支火攻钉子)。
     await force(
       page,
       `
@@ -452,7 +488,7 @@ test.describe("反应窗(#281 单机)", () => {
     `,
     );
     await grantZhouyuAndPass(page);
-    await waitJinnangStop(page);
+    await parkMyTurn(page, 60_000, { freeze: false }); // 严格我的回合停靠,见本例头注
     // 灰置即 choices 重算完成的信号(视觉锚;10s:窗升起拍与牌架重灌之间有快照/渲染
     // 节拍差,4s 在满载下实测会踩空)
     const shipo = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
@@ -473,11 +509,17 @@ test.describe("反应窗(#281 单机)", () => {
     await waitMyRollDone(page, 0);
   });
 
+  // 真实段(#1216):火攻引出的真出牌窗态内,混排手牌的灰置印「唯反应」与可用牌照常
+  // 可出(禁用态分域)呈现全真——choices 按域分流的呈现接线即被测环(城最多者目标段
+  // 回窗内再验)。前置判词见 soloAtBuyAsk(现金)/grantZhouyuAndPass(授将)与行内
+  // (换牌/升城);停靠升级同唯反应例(parkMyTurn freeze:false,理由见该例头注)。
   test("出牌阶段混排:反应牌灰置印「唯反应」,可用牌照常可出", async ({ page }) => {
     await soloAtBuyAsk(page); // 停稳购地卷轴
     // 购地停靠点换牌:火烧连营可用(城最多者目标段回窗内再验)→ 人类回合 2 出牌阶段窗态升起。
     // seed 1010 关中:回合 2 时 bot 尚无第二座城(都城 Lv0 不算可毁),唯反应例同款
     // 把 p1 都城升 Lv.1 立起「可降级」目标,火烧连营方入可用集。
+    // force 判词:换牌=手牌无「发指定牌」公共命令(同 plantAmbush ①);升城=扩军命令
+    // 只作用于活跃座位自身待决决策,bot 都城升级测试不可直呼(同三分支火攻钉子)。
     await force(
       page,
       `
@@ -486,7 +528,7 @@ test.describe("反应窗(#281 单机)", () => {
     `,
     );
     await grantZhouyuAndPass(page);
-    await waitJinnangStop(page);
+    await parkMyTurn(page, 60_000, { freeze: false }); // 严格我的回合停靠,同唯反应例
     // 灰置即重算完成的信号(10s 预算,理由同唯反应例);视觉锚:灰置印「唯反应」,
     // 可用牌照常可出
     const shipo = page.getByTestId(TESTIDS.jinnangCard("识破诡计"));
@@ -499,6 +541,10 @@ test.describe("反应窗(#281 单机)", () => {
     await expect(shipo.locator(".reason")).toHaveText("唯反应(反应窗打出)");
   });
 
+  // 真实段(#1216):第一道拦检窗(bot 真途经首都开出,前置判词见 plantAmbush)上点
+  // 「本回合不再询问」→ 当窗立即代发不用+横幅即收;同一 mover 第二道窗被静默自动代发
+  // (全程仅一次人工点击、两条应答留痕=接线证据);回合变更横幅复显后点「不用」收尾
+  // ——降噪口接线即被测环(静默状态机判词已下沉 test/reaction-mute.test.ts)。
   test("降噪口:点「本回合不再询问」后同回合后续询问不弹横幅、下回合恢复", async ({ page }) => {
     await soloAtBuyAsk(page);
     // 第二城=都城 +2(14 街亭):同一 mover 连开两道拦检窗。
