@@ -13,8 +13,10 @@
 //   · 降噪口(#284)→ 点「本回合不再询问」立即代发不用,横幅收回,对局继续;
 //   · 双端时序(#284,降级断言)→ 被询问窗内,观察端对局 UI 全程可用不被阻塞;应答后对局即续。
 // #291 处置:拆份/自保瘦身(按份结算引擎语义下沉 test/reaction-window.test,e2e 只守询问集
-// 真值、点笺接线、出牌线 rAF 原子采样、最小结算 poll);超时/双端时序/降噪口/
-// 断线座位四例保留;六例超时统一 120s。应答流程与引擎结算断言收口 react-helpers 反应窗
+// 真值、点笺接线、出牌线 rAF 原子采样、最小结算 poll);#1181 再迁两例:超时代发与
+// 断线座位(权威侧定时看门狗语义 → test/reaction-watchdog.test.ts 直驱),降噪口/#461
+// 留接线、判词面下沉(test/reaction-mute.test.ts、test/event-fold.test.ts);
+// 六例超时统一 120s。应答流程与引擎结算断言收口 react-helpers 反应窗
 // 三段式(等窗开→应答→结算 poll),本 spec 无固定硬等待。
 // #388 切换后:对局中 log 只随校准快照更新(不再逐步实时),declined/countered 等
 // 权威语义断言改走线级事件批(framereceived 捕获 {type:"events"},#390 唯一状态通路);
@@ -232,28 +234,10 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
     }
   });
 
-  test("超时代发:guest 不应答,服务端加长窗到期代发「不用」,对局继续", async ({ browser }) => {
-    const { host, guest, guestFeed } = await twoClientsWithSeed(browser);
-    try {
-      const before = await awaitReactionWindow(guest);
-      // 不应答:横幅到点自动收回(客户端窗寿投影=view.windowMs),权威侧代发「不用」
-      // ——两份全缴。断言窗略大于窗长(住 helper timeout 模式):横幅收回必发生在
-      // 加长窗拍,3s 旧窗反而不满足。
-      await answerReactionWindow(guest, { mode: "timeout", windowMs: REACTION_MS });
-      await pollReactionSettled(guest, before, { paid: [0, 1] });
-      // 权威代发留痕走线级事件批(#388:对局中 log 不再逐步实时)
-      await pollEventSeen(
-        guestFeed,
-        (ev) => ev.kind === "reactionAnswered" && ev.use === false,
-        "超时代发「不用」经事件批留痕",
-      );
-      await skipUntilNextSeat(host, 0, 60_000);
-      await skipUntilNextSeat(guest, 1, 60_000);
-    } finally {
-      await host.context().close();
-      await guest.context().close();
-    }
-  });
+  // 超时代发例已迁(#1181):窗内不应答 → 权威侧定时代发「不用」的看门狗语义落点
+  // test/reaction-watchdog.test.ts(room/watchdogs 编排层直驱,ManualClock 手泵;
+  // 断线座位同文件)。残留的横幅收回时机面守不住回归(分不清投影定时收与看门狗收),
+  // 按 ADR-0056「骨架例是负资产」整删不缩。
 
   test("双端时序(降级断言):被询问窗内观察端 UI 全程可用不被阻塞;应答后对局即续", async ({
     browser,
@@ -307,9 +291,10 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
       // 若走的是超时代发(整个窗寿)这条断言必挂,「立即」由此钉死(#291:本例灵魂)。
       await answerReactionWindow(guest, { mode: "mute" });
       await expect(banner).not.toBeVisible({ timeout: REACTION_MS - 3_000 });
-      // 权威侧真态:use=0 应答入账,两份全缴(降噪代发与手点同一条普通命令),窗收续推;
-      // 留痕断言走线级事件批(#388)
-      await pollReactionSettled(guest, before, { paid: [0, 1] });
+      // 权威侧真态:use=0 应答过网入账(降噪代发与手点同一条普通命令),窗收续推;
+      // 留痕断言走线级事件批(#388)。缴银结算面已下沉(#1181 → test/reaction-watchdog
+      // .test.ts 看门狗例 + reaction-window 单测),此处只钉窗收。
+      await pollReactionSettled(guest, before, {});
       await pollEventSeen(
         guestFeed,
         (ev) => ev.kind === "reactionAnswered" && ev.use === false,
@@ -395,15 +380,16 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
     const { host, guest, guestFeed } = await twoClientsWithSeed(browser, 2849);
     try {
       await driveToDualWindow(host, guest);
-      const before = await awaitReactionWindow(guest);
+      await awaitReactionWindow(guest);
       await awaitReactionWindow(host);
       await answerReactionWindow(host, { mode: "decline" });
       // guest(非应答端)在 host 应答后必须仍可应答。回归判据走权威留痕而非横幅可视
       // 轮询:横幅是演出层,演出队列积压时渲染可迟于窗寿,可视轮询天然竞态;
       // #461 误闭窗的真故障 = guest 本地挂起态丢失 → guest 应答被客户端拒绝 →
       // seat=1 的应答不会过网。guest 随即点「不用」,留痕到位 = 应答入口健在。
+      // 闭窗算术本体已迁(#1181 → test/event-fold.test.ts per-seat 脱敏询问集分母例;
+      // 投影形状与快照水合咬合另见 test/seat-projection.test.ts §④),此处只留接线。
       await answerReactionWindow(guest, { mode: "decline" });
-      await pollReactionSettled(guest, before, {});
       // 权威留痕:guest 自己的应答(seat=1)过网入账(修复前此痕必缺)
       await pollEventSeen(
         guestFeed,
@@ -416,31 +402,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
     }
   });
 
-  test("断线座位:窗开即断,服务端超时即「不用」,对局不冻结继续推进", async ({ browser }) => {
-    const { host, guest, roomId } = await twoClientsWithSeed(browser);
-    const before = await awaitReactionWindow(guest);
-    // 窗内断线:WS 关闭 → 座位离线。断线端读不到快照,改读房间落盘记录(同机目录)
-    // 观测服务端真态:超时代发照走(两份全缴)+ 对局持续推进(过窗后进下一回合)。
-    await guest.context().close();
-    const recPath = join(roomsDir(), `${roomId}.json`);
-    await expect
-      .poll(
-        async () => {
-          const rec = JSON.parse(readFileSync(recPath, "utf8")) as any;
-          const snap = rec.snapshot;
-          if (!snap) return {};
-          return {
-            declined: snap.log.some(
-              (l: any) => l.detail.includes("reactionRespond") && l.detail.includes("use=0"),
-            ),
-            guestPaid: snap.players[1].cash < before.cash[1],
-            hostPaid: snap.players[0].cash < before.cash[0],
-            advanced: snap.turnNumber >= 2,
-          };
-        },
-        { timeout: 60_000, intervals: [500] },
-      )
-      .toEqual({ declined: true, guestPaid: true, hostPaid: true, advanced: true });
-    await host.context().close();
-  });
+  // 断线座位例已迁(#1181):窗开即断 → 服务端超时「不用」、对局不冻结,落点
+  // test/reaction-watchdog.test.ts 断线例(markSeatOffline=WS close 的房间编排入口,
+  // ManualClock 手泵;真 WS 关闭的传输面接线归 protocol-online,ADR-0055)。
 });

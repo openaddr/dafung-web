@@ -3,8 +3,9 @@
 // - 引擎结算断言接「反应窗应答流程」helper 下沉(单测已在守:reaction-window 22 例
 //   全回路 + jinnang.test 唯反应),e2e 每例只留「横幅→点选/不用→结果」接线冒烟
 //   + 视觉锚(倒计时弧 / 架上金边 / 灰置印「唯反应」);
-// - 超时兜底与降噪口两例原样保留(#292 Q2 立照:守权威侧定时代发 /
-//   静默状态机,非引擎语义);超时例换 helper 的 timeout 模式;
+// - 超时兜底例已迁无头层(#1181 → test/reaction-watchdog.test.ts 看门狗直驱);
+//   降噪口例留接线(点钮→当窗代发+静默自动应答+换回合横幅复显),静默状态机判词
+//   下沉 test/reaction-mute.test.ts(reaction-mute 纯函数,#1181);
 // - 两处硬等待(出牌阶段采样窗 / choices 重算一拍)换条件 poll(#292 Q4)。
 // 权威侧兜底=房间编排反应窗看门狗(#281,room watchdogs)定时代发「不用」(与手点同
 // 一条命令路径;#398 单机统一后单机与联机同走房间编排)。注意:权威窗长=引擎
@@ -285,27 +286,10 @@ test.describe("反应窗(#281 单机)", () => {
     await pollReactionSettled(page, baseline, { declined: true });
   });
 
-  test("超时兜底:窗内不应答,权威侧看门狗归零代发「不用」,计照常结算", async ({ page }) => {
-    await plantCounterScenario(page);
-    await awaitReactionWindow(page); // 横幅升起即停靠点
-    const citiesBefore = await engineState(page, "e.players[0].properties.length");
-    // 横幅 2500ms(权威窗 5000ms × 0.5 倍率,fixtures 注入 E2E_REACTION_MS=5000,
-    // 联机 server env 同款通道)先收回;权威窗到点房间看门狗代发——不点任何钮,等结算
-    await answerReactionWindow(page, { mode: "timeout", windowMs: 2500 });
-    await expect
-      .poll(
-        async () =>
-          engineState(
-            page,
-            `{
-        cities: e.players[0].properties.length,
-        responded: e.log.some((l) => l.detail.includes("reactionRespond") && l.detail.includes("use=0")),
-      }`,
-          ),
-        { timeout: 15_000 },
-      )
-      .toEqual({ cities: citiesBefore - 1, responded: true });
-  });
+  // 超时兜底例已迁(#1181):权威侧定时代发「不用」的看门狗语义落点
+  // test/reaction-watchdog.test.ts(room/watchdogs 编排层直驱,ManualClock 手泵);
+  // 残留的横幅收回时机面守不住回归(分不清投影定时收与看门狗收),按 ADR-0056
+  // 「骨架例是负资产」整删不缩。
 
   test("半路杀出三分支走查:拦胜止步落格→平局牌白耗续走→点不用放行牌不耗", async ({ page }) => {
     await soloAtBuyAsk(page);
@@ -529,22 +513,16 @@ test.describe("反应窗(#281 单机)", () => {
     // 第一道窗:点降噪口=当前窗立即「不用」+本回合静默(应答点击走页面内直派,
     // 与权威看门狗无赛跑)
     await answerReactionWindow(page, { mode: "mute" });
-    // 第二道窗(同一 mover 途经第二座城)被静默自动代发不用:两份应答皆 use=0,
-    // 且全程只有一次人工点击——第二份必出自静默代发;牌不耗(不用不消耗)
+    // 第二道窗(同一 mover 途经第二座城)被静默自动代发不用:全程只有一次人工点击,
+    // 应答却有两条 = 第二份必出自静默代发(接线面;静默状态机判词已下沉
+    // test/reaction-mute.test.ts,#1181;不用不耗牌的引擎面归 reaction-window 单测)
     await expect
       .poll(
         async () =>
-          engineState(
-            page,
-            `{
-        resp: e.log.filter((l) => l.detail.includes("reactionRespond")).length,
-        keep: e.players[0].jinnangHand.includes("半路杀出"),
-        wasted: !e.jinnangDiscard.includes("半路杀出"),
-      }`,
-          ),
+          engineState(page, `e.log.filter((l) => l.detail.includes("reactionRespond")).length`),
         { timeout: 20_000 },
       )
-      .toEqual({ resp: 2, keep: true, wasted: true });
+      .toBe(2);
     // 回合变更(bot 换位)自动解除静默:下一 mover 的拦检窗横幅恢复弹出
     await expect(banner).toBeVisible({ timeout: 45_000 });
     await answerReactionWindow(page, { mode: "decline" }); // 收尾放行,不留悬窗
