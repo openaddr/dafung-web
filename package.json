@@ -12,6 +12,7 @@
     "fmt": "oxfmt",
     "build": "bun run --bun tsc --noEmit && bun run --bun vite build",
     "preview": "bun run --bun vite preview --port 4173",
+    "visual:compare": "node scripts/visual-compare.mjs",
     "probe:frames": "node scripts/frame-probe.ts",
     "probe:cost": "node scripts/cost-probe.ts",
     "sim:digest": "bun scripts/sim-digest.ts",
