@@ -9,10 +9,13 @@
 // 「点选项→处置命令落账」的接线证据兼结算完成同步。#1181 棒一缩:结算字段断言
 // (降 1 级/skipTurns/stamina)与都城地板/体力夹紧两处活读已由 test/stamina.test.ts
 // 钉死,随删(详见例内注)。
+// #1217 波4 直通形制(ADR-0058):真实段=耗竭卷轴弹出→自选降级→结算留痕→体力条
+// 回满渲染全真;前置链种局化——旅程开局链(首页→设置屏→起兵→选都)换 quickStart
+// 种局 stopAtOpeningHand 直达首停靠(seed 1486 开局即停谱),耗竭前置直写判词见例内。
 import { test, expect } from "./fixtures";
 import {
-  openSoloSetup,
-  pickCapital,
+  quickStart,
+  force,
   waitSettled,
   waitMyPause,
   snap,
@@ -21,31 +24,34 @@ import {
 } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("体力系统冒烟", () => {
+  // 真实段(波4 #1217):耗竭卷轴弹出 → 自选降级点击 → exhaustionSettle 留痕落账 →
+  // 体力条回满渲染的 UI 链全真;耗竭入口 exhaustIfDepleted=引擎公共方法真触发。
   test("体力耗竭:卷轴弹出、自选降级、体力条回满渲染", async ({ page }) => {
-    await page.goto("/");
-    await openSoloSetup(page);
-    await page.getByTestId(SETUP_TID.startGame).click();
-    await pickCapital(page);
-    // 等轮到人类且停稳(#188:Roll 等待态只存在 ~1s,停靠点改为非 Roll 等待态)
+    // 前置种局:开局停走 stopAtOpeningHand 直达首停靠(旅程开局链退役,#1217 波4)
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
+    // 等轮到人类且停稳(#188:Roll 等待态只存在 ~1s,停靠点改为非 Roll 等待态;
+    // 开局即停谱下近乎零等待,留作停靠谓词保失败可读)
     await waitMyPause(page, 0);
     await waitSettled(page);
     await freezeClock(page); // 钉死停靠态:种植/触发/卷轴断言全程静止(#423 项8)
     try {
-      // 前置(引擎直写):都城压到 1 级 + 添一座 2 级房产(耗竭选项 = 2,走卷轴不自动),
-      // 体力压到 0。都城持仓直读断言(#226 已修:都城持仓恒在,无自愈兜底)。
-      // 冻结期种植:无自动推进可竞速;城名一并带回(结算日志 brief 按城名对账)。
-      const seatInfo = await page.evaluate(() => {
-        const e = (window as any).__dafung.getEngine();
+      // force 判词(波4 #1217 审计):耗竭前置无公共命令可达——城池等级只随建造/
+      // 升级/降级结算变动(购地受行军+现金约束,「指定格 2 级城」到不了);体力压 0
+      // 走公共方法 addStamina 真入口。断言面需「耗竭选项=2 走卷轴不自动」形态,直写
+      // 补齐(都城持仓直读断言,#226 已修:都城持仓恒在,无自愈兜底)。冻结期种植:
+      // 无自动推进可竞速。
+      await force(
+        page,
+        `
         const seat = e.activeIndex;
         const p = e.players[seat];
         const taken = new Set(
-          e.players.flatMap((pl: any) => pl.properties.map((h: any) => h.propertyId)),
+          e.players.flatMap((pl) => pl.properties.map((h) => h.propertyId)),
         );
         const tile = e.board.tiles.find(
-          (t: any) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+          (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
         );
         const def = e.catalog.get(tile.propertyId);
         p.properties.push({
@@ -56,26 +62,22 @@ test.describe("体力系统冒烟", () => {
           maxLevel: def?.maxLevel ?? 3,
         });
         const capPropId = e.board.tiles[p.capitalIndex].propertyId;
-        const capital = p.properties.find((h: any) => h.propertyId === capPropId);
+        const capital = p.properties.find((h) => h.propertyId === capPropId);
         if (!capital) throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
         capital.level = 1; // 耗竭选项序 = properties 序,都城恒在前
         e.addStamina(seat, -100); // → 0
-        const nameOf = (id: string) =>
-          e.board.tiles.find((t: any) => t.propertyId === id)?.name ?? id;
-        return {
-          seat,
-          capitalPropId: capPropId,
-          capitalName: nameOf(capPropId) as string,
-        };
+      `,
+      );
+      // 座位读种植后的引擎态(#1181 后城名对账面已迁单测,回读只留座位)
+      const seatInfo = await page.evaluate(() => {
+        const e = (window as any).__dafung.getEngine();
+        return { seat: e.activeIndex };
       });
 
-      // 触发耗竭入口 → 相位(直改引擎后必须走控制器 sync:快照与 interactive 派生量
-      // 一起重灌,决策卷轴才按新相位弹出;冻结期相位无人抢,出现即真)
-      await page.evaluate((seatNum: number) => {
-        const e = (window as any).__dafung.getEngine();
-        e.exhaustIfDepleted(seatNum);
-        (window as any).__dafung.controller().sync();
-      }, seatInfo.seat);
+      // force 判词:本处无引擎到不了的改写——exhaustIfDepleted=引擎公共入口(文件头注),
+      // force 仅作「公共方法调用后控制器 sync 重灌派生量」的通道(快照与 interactive
+      // 一起刷,决策卷轴才按新相位弹出;冻结期相位无人抢,出现即真)。
+      await force(page, `e.exhaustIfDepleted(${seatInfo.seat});`);
       try {
         await expect(page.getByTestId(SCROLL_TESTIDS.exhaustionScroll)).toBeVisible({
           timeout: 15_000,

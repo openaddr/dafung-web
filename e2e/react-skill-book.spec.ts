@@ -4,13 +4,20 @@
 //  ③ 不可用态:非己方出牌阶段,书格为静态陈列(无交互挂点),禁用原因进 title。
 // 种植配方照 react-treasure-pick-fold 先例(quickStart → freezeClock → force 直写引擎),
 // 断言走快照真值(书消耗/入槽/相位)+ testid 在场性,零语义放宽。
+// #1217 波4 直通形制(ADR-0058):三例真实段=①书格真 button 点击→书消耗/池序入槽/
+// skillLearned 事件随批的研读命令通路、②选人叠层点将拍板交互链、③非己方回合禁用
+// 呈现;前置链种局化——开局停走 stopAtOpeningHand 直达首停靠(族种 1486),布场
+// force 判词收口 plantBook(三例同布场)。
 import { test, expect } from "./fixtures";
 import { force, freezeClock, quickStart, snap } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
 /** 布场:己方(座位 0)出牌阶段卡牌段 + 麾下 heroes(池序 skillIds)+ 珍宝位塞一本书。
  *  挂起载荷全清(quickStart 停靠点可能是购地决策等,不清会与强制相位失配)+ 开局手牌
- *  清空:书=窗内可用项唯一来源,判据不被开局锦囊牌路污染。 */
+ *  清空:书=窗内可用项唯一来源,判据不被开局锦囊牌路污染。
+ *  force 判词(#1217 波4 审计):布场四件套无公共命令可达——麾下无授将命令(招贤
+ *  候选由落招贤城触发)、珍宝无授宝命令(技能书只随事件入手)、出牌阶段态与挂起
+ *  载荷由引擎内部流转钉不住;断言面需「书在位+麾下池序」形态,直写后走控制器 sync。 */
 function plantBook(skillId: string, heroes: Array<{ id: string; skillIds: string[] }>): string {
   // 麾下布场行在 TS 侧生成(force 脚本=纯字符串 eval,模板字面量里的循环不执行)
   const arm = heroes
@@ -42,8 +49,10 @@ function plantBook(skillId: string, heroes: Array<{ id: string; skillIds: string
 test.describe("技能书全链(#1146)@844×390", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
+  // 真实段(波4 #1217):珍宝弹层书格真 button 点击 → 书消耗 + 池序入槽 +
+  // skillLearned 事件随批的研读命令通路全真(resolveBookSkill 走命令流)。
   test("书可点态(1 名可学):点书研读——书消耗、池序入槽、skillLearned 随批", async ({ page }) => {
-    await quickStart(page);
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
     await freezeClock(page);
     await force(page, plantBook("leigu", [{ id: "zhouyu", skillIds: ["huogong"] }]));
     await page.getByTestId(TESTIDS.pileTreasures).click();
@@ -72,8 +81,10 @@ test.describe("技能书全链(#1146)@844×390", () => {
     expect(s.turnPhase).toBe("AwaitingJinnang");
   });
 
+  // 真实段(波4 #1217):两名可学 → 选人叠层(PileShell 制式)点将拍板的交互链与
+  // 学技落账(书消耗/指定将池序入槽/层随结算收口)全真。
   test("多名可学弹窗:两名池含此技未习得 → 选人叠层点将拍板", async ({ page }) => {
-    await quickStart(page);
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
     await freezeClock(page);
     await force(
       page,
@@ -103,8 +114,11 @@ test.describe("技能书全链(#1146)@844×390", () => {
       .toEqual({ books: 0, zxc: ["leigu", "jixing"], zy: ["huogong"], modalGone: true });
   });
 
+  // 真实段(波4 #1217):非己方回合书格静态陈列(无 book-use 交互挂点)的禁用呈现
+  // ——呈现态断言即被测环,无操作链。force 判词:同 plantBook(非己方出牌阶段形态,
+  // 布场直写)。
   test("不可用态:非己方出牌阶段,书格静态陈列(无 book-use 挂点)", async ({ page }) => {
-    await quickStart(page);
+    await quickStart(page, 1486, { stopAtOpeningHand: true });
     await freezeClock(page);
     await force(
       page,

@@ -58,13 +58,21 @@ export function snap(page: Page): Promise<any> {
  *  handleStart 三步 + 程序化选都;seed 经 evaluate 参数传入,不拼 URL)→ 等开局
  *  放行并稳定。`{ journey: true }` = 旅程通路原样:goto(可选 ?seed=)→ 首页进单机
  *  配置页 → 起兵 → 点第一座可选城建都——开局链本身被走查的用例专用(react-setup /
- *  react-home-strip / react-tutorial 同款全 UI 链)。两通路收尾一致:#188 行军自动化
- *  后人类回合不再停在「点行军」,等人类的当前一手自动走完(waitMyRollDone:锦囊放行
- *  → 自动起摇 → 推进到下一决策点/换人),再等局面稳定(连续两次快照一致)。 */
+ *  react-home-strip / react-tutorial 同款全 UI 链)。`{ mapId }` 显式钉图(seedSolo
+ *  直传,压过 localStorage 记忆;#147 后地图是骰流变量)。`{ stopAtOpeningHand:
+ *  true }`(#1217 波4)= 不走首手整走:seedSolo 回来即等开局第一停靠——起手牌可用
+ *  → setup-flow 入局直调 enterJinnangPhase,停在 AwaitingJinnang 出牌阶段态等输入;
+ *  不可用 → Roll 等待态 ~1s 自动起摇走局到首个 Awaiting 停靠(waitMyPause 两态通吃
+ *  且不代发放行)。后续一手就是 freeze+force 种植的用例(卷轴/系统族)用此通路省掉
+ *  「真推回合」的前置走局;选种需探「开局即停」谱(种子漂移按 how-to 种子重钓配方
+ *  重钓,#1217 波4 实测:1486/1217/20261105/67 谱内,1494/1497/1502 为 bot 先手谱外)。
+ *  两通路收尾一致:#188 行军自动化后人类回合不再停在「点行军」,等人类的当前一手
+ *  自动走完(waitMyRollDone:锦囊放行 → 自动起摇 → 推进到下一决策点/换人),再等
+ *  局面稳定(连续两次快照一致)。 */
 export async function quickStart(
   page: Page,
   seed?: number,
-  opts?: { journey?: boolean },
+  opts?: { journey?: boolean; mapId?: string; stopAtOpeningHand?: boolean },
 ): Promise<void> {
   if (opts?.journey) {
     await page.goto(seed != null ? `/?seed=${seed}` : "/");
@@ -77,10 +85,13 @@ export async function quickStart(
   }
   await disableEncounters(page);
   await page.goto("/");
-  await page.evaluate(
-    (s) => (window as any).__dafung.seedSolo(s === undefined ? {} : { seed: s }),
-    seed,
-  );
+  await page.evaluate((o) => (window as any).__dafung.seedSolo(o), { seed, mapId: opts?.mapId });
+  if (opts?.stopAtOpeningHand) {
+    await waitMyPause(page, 0);
+    await waitFxIdle(page);
+    await waitSettled(page);
+    return;
+  }
   await waitMyRollDone(page, 0);
   await waitSettled(page);
 }

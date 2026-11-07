@@ -6,30 +6,28 @@
 // 含自疗落账=自机格体力色条/现金裸数);结算细则归 test/hero-skill.test.ts。
 // 种局同 react-jinnang-use.spec.ts 口径:seed 67 × 关中图,开局出牌阶段态=稳定停靠点,
 // 技/牌走 force 引擎直写;两例均在出牌阶段内收束,不推进回合、不赌自然骰。
+// #1217 波4 直通形制(ADR-0058):两例真实段=目标段选自己交互链全真(候选金圈/实金
+// 停持/不可选轻晃/自疗落账);前置链种局化——旅程开局(选图→起兵→选都)换 seedSolo
+// 种局 stopAtOpeningHand 直达开局出牌阶段态(同 seed 同局口径,#1211 选都序对齐)。
 import { test, expect } from "./fixtures";
-import { force, openSoloSetup, useHalfScale } from "./react-helpers";
+import { force, quickStart, useHalfScale } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
-import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
-import { HOME_TID } from "../src/app/screens/home/testids";
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
-  await page.goto(`/?seed=${seed}`);
-  // 显式选图(#147 后地图是骰流变量):残留 localStorage 地图会改变发牌序列
-  await page.getByTestId(HOME_TID.selectMap).click();
-  await page.getByTestId(SETUP_TID.mapItem("guanzhong")).click();
-  await page.getByTestId(SETUP_TID.mapConfirm).click();
-  await openSoloSetup(page);
-  await page.getByTestId(SETUP_TID.startGame).click();
-  await page.locator(".bv-tile.bv-selectable").first().click();
-  await page.getByTestId(TESTIDS.confirmCapitalOk).click();
+  // 显式钉图(mapId 直传 seedSolo,#147 后地图是骰流变量);stopAtOpeningHand 停在
+  // 开局出牌阶段态等输入(不代放行;67 在开局即停谱内,探针实测)
+  await quickStart(page, seed, { mapId: "guanzhong", stopAtOpeningHand: true });
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
 // 华佗直写(槽位行 #785:skillIds=全池原序随 core/heroes.ts 华佗条目;技定义查技表):
 // 体力 50(满体力自疗无可见落账)、现金 2000(≥cost,排除整技可用性疑虑)。
+// force 判词(#1217 波4 审计):麾下无授将公共命令(招贤候选由落招贤城触发,
+// resolveHeroPick 仅候选语境可达);体力/现金无玩家公共命令——断言面需「半体力
+// 华佗+足现金」形态(满体力自疗无可见落账),直写。
 const HUATUO = `
   e.players[0].heroes = [{ heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} }];
   e.players[0].cash = 2000;
@@ -37,6 +35,9 @@ const HUATUO = `
 `;
 
 test.describe("目标段选自己(自机格点击层,#700)", () => {
+  // 真实段(波4 #1217):点技能卡 → 「出」→ 自机格候选金圈呼吸 → 点选实金停持 →
+  // (取消回禁用/三点重选)→ 确认打出的目标段完整交互链与自疗落账(体力条 50%→80%、
+  // 现金裸数 2000→1900)全真。
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 67);
     await force(page, HUATUO);
@@ -73,8 +74,12 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
     await expect(page.getByTestId(TESTIDS.seatCash(0))).toHaveText("1900");
   });
 
+  // 真实段(波4 #1217):one 域自机格不可选呈现(aria-disabled+reason 印条)与死区
+  // 点按轻晃反馈(§4.6 位移即状态)全真——「恒在但不可选」的交互语义即被测环。
   test("军情密探(one 域):你印恒在但不可选,点按轻晃(reason 读 aria-label)", async ({ page }) => {
     await startJunshi(page, 67);
+    // force 判词:手牌无「发指定牌」公共命令(发牌只发生在开局/摸牌时机);对方
+    // 持宝无授宝命令——断言面需 one 域牌形+「对方有宝」目标门槛,直写。
     await force(
       page,
       `
