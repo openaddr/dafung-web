@@ -1,5 +1,7 @@
 // window.__dafung 调试钩子类型声明(实现在 src/app/controllers/registry.ts 的 installDebugHooks)。
 // 仅开发/控制台排查用;生产环境同样挂载(旧版行为),不参与渲染。
+// 测试侧分层消费封装(#1255,ADR-0059 决策 5):桥能力经 e2e/helpers/drivers.ts
+// (驱动层)取用,其上 scenes/settle/patrol 与门面见 e2e/helpers/ 契约头注。
 import type { GameEngine, TurnPhase } from "@core/authority";
 import type { HeroDef } from "@core/heroes";
 import type { GameSnapshot } from "@app/store/gameStore";
