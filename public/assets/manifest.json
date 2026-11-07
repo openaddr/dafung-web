@@ -132,7 +132,10 @@
     "license": "SIL OFL 1.1",
     "author": "Long Cang(龙藏)by Chen Xiaomin(google/fonts,24 分片)",
     "fetched_at": "2026-08-30",
-    "review_required": false
+    "review_required": false,
+    "retired": true,
+    "retired_at": "2026-11-01",
+    "retired_reason": "#955 首页字体收敛:国号手书改挂马善政(font-brush,原 font-hand),龙藏整族退役 1.5MB;文件已下架,本条目留档"
   },
   "hero:simayi:sgs": {
     "path": "assets/heroes/hero-simayi-sgs.png",
