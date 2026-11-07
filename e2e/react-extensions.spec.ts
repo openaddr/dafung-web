@@ -7,16 +7,10 @@
 // 技能卡例钉死,本文件该例零独占断言面;义从 +100 的结算细则同样归
 // test/extension-taishici.test.ts「义从」例,本文件只留浏览器侧装载可见性(招贤卷轴
 // 陈列太史慈=main.tsx 顶层注册的消费面,无头整局层刻意不装扩展包,替代不了)。
+// #1181 棒一缩:唯一例内已迁的选定结算断言(义从 +100 poll、taishici 入槽)随删,
+// 留装载陈列 + 先看后选拍板收将的命令接线(卷轴随命令受理收场)。
 import { test, expect } from "./fixtures";
-import {
-  quickStart,
-  force,
-  snap,
-  engineState,
-  waitSettled,
-  waitFxIdle,
-  freezeClock,
-} from "./react-helpers";
+import { quickStart, force, waitFxIdle, freezeClock } from "./react-helpers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 import type { Page } from "@playwright/test";
@@ -47,7 +41,7 @@ async function plantHeroPick(page: Page): Promise<void> {
 }
 
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
-  test("装包→装载→招贤可选→选定权威结算(义从 +100)", { tag: "@slow" }, async ({ page }) => {
+  test("装包→装载→招贤陈列太史慈→先看后选拍板收将", { tag: "@slow" }, async ({ page }) => {
     // 慢池(#1026):单例实测 >30s——快池门禁 --grep-invert @slow 跳过。
     await quickStart(page, 7);
     await plantHeroPick(page);
@@ -57,21 +51,14 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
     await expect(scroll).toBeVisible();
     await expect(scroll.getByTestId(T.heroPickOption(1))).toContainText("太史慈");
 
-    // 选定太史慈(候选中位):被动技「义从」权威结算 +100 两
-    const before = await snap(page);
-    const cashBefore = before.players[0].cash;
-    // 先看后选(2026-11-01 拍板):点卡开全览详情弹框,弹框「收为麾下」拍板
+    // 选定太史慈(候选中位):先看后选(2026-11-01 拍板)拍板通路——点卡开全览
+    // 详情弹框,弹框「收为麾下」拍板,卷轴随命令受理收场。#1181 棒一缩:选定结算面
+    // (义从 +100、taishici 入槽)已由 test/extension-taishici.test.ts「义从」例
+    // 钉死,删已迁断言留装载+拍板接线。
     await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
     const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);
     await expect(pick).toBeVisible();
     await pick.click();
     await expect(scroll).toBeHidden();
-    await expect
-      .poll(async () => engineState(page, "e.players[0].cash"), { timeout: 10_000 })
-      .toBe(cashBefore + 100);
-    expect(await engineState(page, "e.players[0].heroes.map((h) => h.heroId)")).toContain(
-      "taishici",
-    );
-    await waitSettled(page);
   });
 });

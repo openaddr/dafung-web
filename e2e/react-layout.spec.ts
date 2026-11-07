@@ -10,7 +10,6 @@ import {
   quickStart,
   snap,
   waitMyPause,
-  waitSettled,
   dismissJinnangIfUp,
   actIfCan,
   force,
@@ -93,26 +92,9 @@ test.describe("全浮层骨架", () => {
     await expect(page.getByTestId(TESTIDS.settingsButton)).toBeEnabled();
   });
 
-  test("席位格字段:全员一人一格(自机入列),现金/计数随快照", async ({ page }) => {
-    await quickStart(page);
-    await waitMyPause(page, 0);
-    await waitSettled(page);
-    // 自机入列(#698):座位 0 挂 seat-self,对手席挂 seat-N;全部席位同模板
-    await expect(page.getByTestId(TESTIDS.seatSelf)).toBeVisible();
-    await expect
-      .poll(async () => {
-        const s = await snap(page);
-        const ok = [];
-        for (let seat = 0; seat < s.players.length; seat++) {
-          const p = s.players[seat];
-          const cash = await page.getByTestId(`seat-cash-${seat}`).textContent();
-          const stam = await page.getByTestId(`seat-stamina-${seat}`).getAttribute("aria-label");
-          ok.push(cash === String(p.cash) && stam != null);
-        }
-        return ok.every(Boolean);
-      })
-      .toBe(true);
-  });
+  // 「席位格字段:全员一人一格,现金/计数随快照」例已删(#1181 棒一重筛):投影逐席
+  // 一致与自机入列面归 react-seat-cells ① cellsMatchSnapshot + ② 自机挂点,重复例
+  // 按宁缺毋滥直删(体力 aria-label 在场断言无独立回归价值,随例退场)。
 
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     await quickStart(page);
