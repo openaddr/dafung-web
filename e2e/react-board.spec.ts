@@ -5,17 +5,21 @@
 import { test, expect } from "./fixtures";
 import { quickStart, force, engineState, waitFxIdle, freezeClock } from "./react-helpers";
 
-test("城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠", async ({ page }) => {
-  await quickStart(page);
-  // #987 冻结闸(#943 竞速点清偿):种植的两城分属人类/bot 席,不冻则 bot 链继续自走,
-  // 理论上可落自己城升级改 level——先排空演出再冻结,种植态在断言窗内不可变。
-  await waitFxIdle(page);
-  await freezeClock(page);
-  // 种植式零竞速:持有直接入册后断 DOM,不走真实升级路径——升级 endTurn 会同步放
-  // bot 链,火烧连营可同拍拆城,升级后的活状态断言必 flake(实录见 react-solo 扩军用例注)。
-  await force(
-    page,
-    `
+test(
+  "城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠",
+  { tag: "@slow" },
+  async ({ page }) => {
+    // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 52.4s>30s——快池门禁 --grep-invert @slow 跳过。
+    await quickStart(page);
+    // #987 冻结闸(#943 竞速点清偿):种植的两城分属人类/bot 席,不冻则 bot 链继续自走,
+    // 理论上可落自己城升级改 level——先排空演出再冻结,种植态在断言窗内不可变。
+    await waitFxIdle(page);
+    await freezeClock(page);
+    // 种植式零竞速:持有直接入册后断 DOM,不走真实升级路径——升级 endTurn 会同步放
+    // bot 链,火烧连营可同拍拆城,升级后的活状态断言必 flake(实录见 react-solo 扩军用例注)。
+    await force(
+      page,
+      `
     e.phase = "Playing";
     e.activeIndex = 0;
     const unowned = e.board.tiles.filter((t) => t.propertyId && e.findOwner(t.propertyId) == null);
@@ -29,21 +33,22 @@ test("城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 �
     e.players[1].properties.push(mk(unowned[1], 2));
     window.__pipProbe = { full: unowned[0].index, mid: unowned[1].index, empty: unowned[2].index };
   `,
-  );
-  const { full, mid, empty } = await engineState(page, "window.__pipProbe");
-  // 满级城:三珠 + 满贯金框,data-level 随等级
-  const pips = page.locator(`[data-tile="${full}"] .bv-level-pips`);
-  await expect(pips).toHaveAttribute("data-level", "3");
-  await expect(pips.locator(".bv-pip")).toHaveCount(3);
-  await expect(pips.locator(".bv-pips-crown")).toHaveCount(1);
-  // 非满级城:两珠、无金框(满级判据 level>=maxLevel 的反面,防金框误常亮)
-  const midPips = page.locator(`[data-tile="${mid}"] .bv-level-pips`);
-  await expect(midPips).toHaveAttribute("data-level", "2");
-  await expect(midPips.locator(".bv-pip")).toHaveCount(2);
-  await expect(midPips.locator(".bv-pips-crown")).toHaveCount(0);
-  // Lv0=无珠:无主城不出珠组(有珠才看,升级过的城天然突出)
-  await expect(page.locator(`[data-tile="${empty}"] .bv-level-pips`)).toHaveCount(0);
-});
+    );
+    const { full, mid, empty } = await engineState(page, "window.__pipProbe");
+    // 满级城:三珠 + 满贯金框,data-level 随等级
+    const pips = page.locator(`[data-tile="${full}"] .bv-level-pips`);
+    await expect(pips).toHaveAttribute("data-level", "3");
+    await expect(pips.locator(".bv-pip")).toHaveCount(3);
+    await expect(pips.locator(".bv-pips-crown")).toHaveCount(1);
+    // 非满级城:两珠、无金框(满级判据 level>=maxLevel 的反面,防金框误常亮)
+    const midPips = page.locator(`[data-tile="${mid}"] .bv-level-pips`);
+    await expect(midPips).toHaveAttribute("data-level", "2");
+    await expect(midPips.locator(".bv-pip")).toHaveCount(2);
+    await expect(midPips.locator(".bv-pips-crown")).toHaveCount(0);
+    // Lv0=无珠:无主城不出珠组(有珠才看,升级过的城天然突出)
+    await expect(page.locator(`[data-tile="${empty}"] .bv-level-pips`)).toHaveCount(0);
+  },
+);
 
 test("棋盘景深静态件:纸纤维 pattern 一次生成+远山带双幅+路肩随驿道(#844)", async ({ page }) => {
   // 静态件全部确定性存在(StaticLayers memo,无时序竞速):结构断言守住

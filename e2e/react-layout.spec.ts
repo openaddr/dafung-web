@@ -1,9 +1,9 @@
 // 全浮层布局冒烟(#700;前身为 react-sidebar.spec.ts→三区骨架版,仪表条退役再改写;
 // #732 全 spec 迁 844×390 标准视口——移动横屏为视觉与回归的唯一标准档,桌面档不设
 // 专项布局断言,ADR-0032 标准分辨率原则):
-// 浮层件可见(顶部条/席位格列/手牌区/右下三圆钮)+ 退役核销(仪表条/战报把手/
-// 静音复位钮/牌库角标等零残留)+ 席位格字段(自机入列)+ 浮签(hover/长按/贴缘翻面)
-// + 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层(#361 双入口接替)
+// 浮层件可见(顶部条/席位格列/手牌区/右下三圆钮)+ 席位格字段(自机入列)+
+// 浮签(hover/长按/贴缘翻面)+ 签面驻手牌区左端 + 三圆钮计数角标与藏品弹层
+// (#361 双入口接替)
 // + 顶中知会横幅槽(#732:回合横幅入槽/等待条让位回归/同槽互斥排队/都城停条带)。
 import { test, expect, type Page } from "./fixtures";
 import {
@@ -20,7 +20,7 @@ import { TESTIDS } from "../src/app/screens/game/testids";
 test.use({ viewport: { width: 844, height: 390 } });
 
 test.describe("全浮层骨架", () => {
-  test("浮层件可见,仪表条系退役零残留", async ({ page }) => {
+  test("浮层件可见", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载):等自然停靠再钉
     // AwaitingDecision 空闲态(float-skeleton #1006 例同款配方),骨架断言才有
@@ -42,24 +42,8 @@ test.describe("全浮层骨架", () => {
     await expect(page.getByTestId(TESTIDS.seatRail)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
     await expect(page.getByTestId(TESTIDS.pileButtons)).toBeVisible();
-    // 退役容器零残留(#700:仪表条本体/战报把手/旧顶栏角件;#253 迁移清单存档)
-    for (const t of [
-      "dashboard-bar",
-      "log-tab",
-      "mute-button",
-      "reset-view",
-      "topbar-deck",
-      "topbar-target",
-      "topbar-active",
-      "status-bar-panel",
-      "hand-panel",
-      "treasury-panel",
-      "others-panel",
-      "sidebar-panel",
-      "sidebar-collapsed",
-    ]) {
-      await expect(page.locator(`[data-testid="${t}"]`)).toHaveCount(0);
-    }
+    // 13 项退役容器零残留段已删(2026-11-07 菜单A:#700 翻面已久,核销断言价值衰减,
+    // 宁缺毋滥;骨架哨兵=上面四个可见面)。
   });
 
   test("顶部浮层:回合胶囊轮次与快照一致(#853 chip 退役后轮次唯一落胶囊);总览钮点开总览弹窗,设置钮可用", async ({

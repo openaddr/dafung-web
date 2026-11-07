@@ -10,7 +10,8 @@ import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 
 test.describe("机遇系统冒烟", () => {
-  test("开关开局 + 声望渲染 + 抉择机遇卷轴弹出并结算", async ({ page }) => {
+  test("开关开局 + 声望渲染 + 抉择机遇卷轴弹出并结算", { tag: "@slow" }, async ({ page }) => {
+    // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 40.2s>30s——快池门禁 --grep-invert @slow 跳过。
     // 内部预算 90s/120s(waitMyRollDone/抉择循环)本就超过测试级 60s 默认——
     // 全量并行负载下阶段耗时一涨就被外层掐死(#217① 同族,#240 收口实测复现),
     // 标 slow 对齐外层超时至 120s,让内部预算真正生效。

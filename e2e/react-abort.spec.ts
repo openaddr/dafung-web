@@ -8,7 +8,8 @@ import { quickStart, force, snap } from "./react-helpers";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { HOME_TID } from "../src/app/screens/home/testids";
 
-test("异常终局:引擎 abortGame → 对局作废面板,无胜者渲染", async ({ page }) => {
+test("异常终局:引擎 abortGame → 对局作废面板,无胜者渲染", { tag: "@slow" }, async ({ page }) => {
+  // 慢池(#1026;菜单A 2026-11-07 挪入):单例实测 39.9s>30s——快池门禁 --grep-invert @slow 跳过。
   await quickStart(page);
   await force(page, `e.abortGame("e2e:注入作废(驱动链死亡出口语义)");`);
 
