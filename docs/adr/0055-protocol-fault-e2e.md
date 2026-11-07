@@ -87,7 +87,7 @@ spec 计数:4 文件 5 例 → 2 文件 2 例(events/secrecy 整删;cutover 留�
 
 ## 承认的取舍
 
-- **「经故障代理骑到 gameOver 的整局」未落(已知边界,评审收口登记)**:票面场景清单的「整局」在本票落为「中段各相位经代理推进+断线重连续局」;全程骑到终局的墙钟成本由托管单节拍主导(ADR-0028,统一原则禁加速档),全程骑局覆盖现状在 test/room.test.ts 慢池(不经代理)。后续候选:yanzhou 夹具图+短目标价做代理内整局,或服务器侧注入节拍例外(需先过统一原则拷问)。
+- **「经故障代理骑到 gameOver 的整局」已收口(#1181)**:本票当时只骑中段(全程墙钟由托管单节拍主导,ADR-0028 统一原则禁加速档,骑局覆盖在 test/room.test.ts 慢池不经代理);#1181 以「zhongyuan 8 城小盘 + target=6000 短目标价 + 4 座(2 真 bot 即时代打,双真人座开局各托管一次,此后全 bot 代打)」配方落成场景十二——零故障代理从开局骑到 gameOver(中段 50ms 延迟扰动一段),双端 gameOver 事件一致、批序非降、重连整房摘要 isOver/winner 面一致,实测整局 ~31s。当时登记的两条后续候选取其一生效(短目标价);yanzhou 夹具图不经服务器地图清单(VALID_MAP_IDS 只认 public/maps),真 spawn 通路不可用。
 
 - **种子局用例(场景十一)绑种子 419 签名**:骰流变动会断相,处置走种子哨兵同款「先红=信号,重钓配方」(开发与测试「种子哨兵与重钓配方」条),不逐例排查。
 - **测试文件间的出处注释漂移(已收口)**:event-feed/downlink-assembly/seat-projection/online-map-rebuild 四文件头注原指 react-online-events/secrecy spec(旧分工),棒二受文件所有权所限未动;主线收口时已以分层跟进提交(#1178 同 PR)改指 test/protocol-online.test.ts 与本 ADR。

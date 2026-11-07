@@ -31,6 +31,11 @@
 //   ⑨ 掉线元数据 lobby 指纹通道 ← react-online-cutover.spec.ts 用例二。
 //   ⑩ 保密下行常规局 ← react-online-secrecy.spec.ts 用例一;⑪ 种子局询问集 ← 用例二
 //      (两例整文件迁入,spec 删除)。
+//   ⑫ 整局骑局(#1181):4 座(2 真 bot + 双真人座开局托管一次,此后全 bot 代打)经
+//      零故障代理从开局骑到 gameOver(中段 50ms 延迟扰动一段再撤)——双端 gameOver
+//      事件一致、(round,turn) 非降、重连整房摘要 isOver/winner 面一致。gameOver 档位
+//      =must-fold(event-tiers 单源)无校准快照随行,终局状态面唯一通路=重连摘要;
+//      ADR-0055「承认的取舍」的整局边界条就此收口。
 // 确定性纪律(flake 零容忍):所有等待显式超时(超时当场抛,禁裸等);游戏推进全部
 // 服务器驱动(托管=ADR-0028 单一开关,bot 座位服务器代打),客户端不发「赌时序」的
 // 对局命令;故障旋钮全确定性(固定延迟/序号丢帧/编程硬断,禁随机抖动——故障落在
@@ -766,27 +771,145 @@ describeSlow("协议级联机 e2e(#1164):真服务器 + 故障代理 + 无头客
       await teardownDuo(duo, hostToken);
     }
   }, 90000);
+
+  it("场景十二 整局骑局:全 bot 代打局经零故障代理从开局骑到 gameOver,双端事件与终局摘要面一致", async () => {
+    // #1181(ADR-0055「承认的取舍」整局边界条收口):此前 11 场景只骑中段,本例
+    // 从开局骑到 gameOver。座位构成:座位 2/3 真 bot(E2E_BOT_STEP_MS=0 即时代打),
+    // 座位 0/1 真人(host/guest)——createRoom 硬规则「host(Seat 0)必须是真人」
+    // (room.ts),纯 bot 座位房不存在;双真人座开局各托管一次(ADR-0028 单一开关),
+    // 此后四座全为服务器代打,对局推进零人类输入。墙钟主项因此是双真人座的托管单节拍
+    // 2s/拍(core/timings 单源,#927 统一原则无分档),bot 座位零节拍。地图/目标价:
+    // zhongyuan 8 城小盘 + target=6000(地图顶层 30000 的短目标,ADR-0055「短目标价
+    // 做代理内整局」候选落地;yanzhou 夹具图不经服务器地图清单,不可用于真 spawn 通
+    // 路),seed 3001 钉骰流(种子哨兵口径:终局回合/胜者随骰流,骰流变更先红,处置
+    // 走重钓配方)。实测整局 ~31s/8 轮(2026-11-07 探路标定)。
+    const duo = await startTwoHumanGame({
+      seats: 4,
+      bot: "2,3",
+      seed: 3001,
+      mapId: "zhongyuan",
+      target: 6000,
+    });
+    const { roomId, hostToken, guestToken, guestSeat, a, b, proxyA, proxyB } = duo;
+    try {
+      // 双端托管生效后对局自走(回读三律:setAutoPilotEchoed 帧位后缀扫描)
+      await setAutoPilotEchoed(a, 0, true);
+      await setAutoPilotEchoed(b, guestSeat, true);
+
+      // 中段延迟扰动(「带故障骑到终局」):开局托管首冲是一波 bot/托管连锁帧,
+      // 等首冲落定后双代理同挂 50ms/帧,再等 2 个 turnStarted(2s/拍节拍下 ≈4s+
+      // 带故障窗)撤除;撤除前后 relayed 计数差 >0 证故障窗内确有帧经代理转发
+      // (转发计数在延迟睡眠之后落账,fault-proxy.forward 单源)。
+      await waitTurnStartedBeyond(a, countTurnStarted(a), 60000, "托管首冲推进");
+      const relayedAtArm = proxyA.getStats().relayed.toClient;
+      const relayedAtArmB = proxyB.getStats().relayed.toClient;
+      proxyA.setLatencyMs(50);
+      proxyB.setLatencyMs(50);
+      await waitTurnStartedBeyond(a, countTurnStarted(a) + 1, 60000, "带 50ms 延迟推进");
+      proxyA.setLatencyMs(0);
+      proxyB.setLatencyMs(0);
+      expect(proxyA.getStats().relayed.toClient, "A 延迟窗内有帧经代理转发").toBeGreaterThan(
+        relayedAtArm,
+      );
+      expect(proxyB.getStats().relayed.toClient, "B 延迟窗内有帧经代理转发").toBeGreaterThan(
+        relayedAtArmB,
+      );
+
+      // 骑到终局:双端各在事件批流里收到 gameOver(事件时刻戳单源引擎,同批广播
+      // 必同值;超时=骑局失败,当场响亮)
+      await waitForCond(() => gameOverEventOf(a) != null, "A 收 gameOver 事件", 90000);
+      await waitForCond(() => gameOverEventOf(b) != null, "B 收 gameOver 事件", 10000);
+      const ga = gameOverEventOf(a)!;
+      const gb = gameOverEventOf(b)!;
+      expect(gb.seat, "双端 gameOver 主体(胜者座位)一致").toBe(ga.seat);
+      expect(gb.reason, "双端 gameOver 判据一致").toBe(ga.reason);
+      expect(ga.reason, "整局骑完非作废(reason≠aborted)").not.toBe("aborted");
+
+      // 断言面(与零故障基线同口径):(round,turn) 非降 + 零 error 下行
+      assertOrderedDownlink(a, "骑局 A");
+      assertOrderedDownlink(b, "骑局 B");
+      expect(a.errors, "骑局 A 零 error 下行").toEqual([]);
+      expect(b.errors, "骑局 B 零 error 下行").toEqual([]);
+      // 整局帧量经代理搬运(哑管道不是空壳)
+      expect(proxyA.getStats().relayed.toClient, "A 下行有帧").toBeGreaterThan(0);
+      expect(proxyA.getStats().relayed.toServer, "A 上行有帧").toBeGreaterThan(0);
+      expect(proxyB.getStats().relayed.toClient, "B 下行有帧").toBeGreaterThan(0);
+      expect(proxyB.getStats().relayed.toServer, "B 上行有帧").toBeGreaterThan(0);
+
+      // 终局状态面(isOver/winner 面一致):gameOver 档位 must-fold(event-tiers
+      // 单源),无校准快照随行,客户端快照停在终局前——双端各以原座位重连(ADR-0005
+      // token 唯一凭证),首帧整房摘要即终局面;两份摘要 + gameOver 事件 subject
+      // 三方对账。
+      const a2 = await OnlineClient.connect(wsUrl(proxyA.port, roomId, 0, hostToken));
+      const b2 = await OnlineClient.connect(wsUrl(proxyB.port, roomId, guestSeat, guestToken));
+      const sa = (await a2.next(5000, "A 重连终局摘要")) as SnapshotMsg;
+      const sb = (await b2.next(5000, "B 重连终局摘要")) as SnapshotMsg;
+      expect(sa.phase, "A 摘要终局相位").toBe("GameOver");
+      expect(sb.phase, "B 摘要终局相位").toBe("GameOver");
+      expect(sa.isOver, "A 摘要 isOver 面").toBe(true);
+      expect(sb.isOver, "B 摘要 isOver 面").toBe(true);
+      expect(sa.winner, "双端 winner 面一致").toBe(sb.winner);
+      expect(sa.winReason, "摘要判据与事件 reason 对账").toBe(ga.reason);
+      expect(sa.players[ga.seat]?.id, "胜者=gameOver 主体座位").toBe(sa.winner);
+      expect(sb.players[ga.seat]?.id, "B 侧同座对账").toBe(sb.winner);
+
+      // 收尾:对局已终,房仍须解散(服务器侧停驱动+释放)。连接拓扑:重连后 a2/b2
+      // 才是座位表里的在册 socket(server open 处理器 set 覆盖,a/b 成孤儿——同样
+      // 取代关系让 dismiss 前两座位始终在线,transferHostIfNeeded 不触发,hostToken
+      // 解散权不旁落);dismissed 只达在册的 a2/b2,孤儿 a/b 客户端侧优雅关。
+      const dismissed = await post("/room/dismiss", { roomId, seatToken: hostToken });
+      expect(dismissed.ok).toBe(true);
+      await a2.waitFor((m) => m.type === "dismissed", "A2 收解散通知", 5000);
+      await b2.waitFor((m) => m.type === "dismissed", "B2 收解散通知", 5000);
+      await a2.waitClosed(5000);
+      await b2.waitClosed(5000);
+      a.close();
+      b.close();
+      await a.waitClosed(5000);
+      await b.waitClosed(5000);
+    } finally {
+      proxyA.stop();
+      proxyB.stop();
+    }
+  }, 120000);
 });
 
 // ──────────────────────────── 测试本地帮手 ────────────────────────────
 
-/** 双真人座对局基建(棒二场景三/六/七/八/九/十/十一共用):建房(缺省 2 座无 bot,
- *  可带种子/国号/bot 档)→ 选图开局 → 双客户端各经独立零故障代理连入 →(缺省)双端
- *  选都 → 等 Playing。返回句柄与代理,收尾用 teardownDuo。 */
+/** 终局事件提取(事件批流归档里找 gameOver;骑局终局的等待谓词与双端对账口)。
+ *  返回面收窄到断言用的四字段;gameOver 恒带主体座位(胜者;aborted 时=派发主体,
+ *  game-events GameOverBody 头注),GameEventBase 的 number|null 在此 kind 恒为
+ *  number——收窄随 kind 语义,非兜底。 */
+function gameOverEventOf(
+  c: OnlineClient,
+): { seat: number; reason: string; round: number; turn: number } | undefined {
+  const ev = c.batches.flatMap((batch) => batch.events).find((e) => e.kind === "gameOver");
+  return ev
+    ? { seat: ev.seat as number, reason: ev.reason, round: ev.round, turn: ev.turn }
+    : undefined;
+}
+
+/** 双真人座对局基建(棒二场景三/六/七/八/九/十/十一/十二共用):建房(缺省 2 座无 bot,
+ *  可带种子/国号/bot 档/目标价/地图)→ 选图开局 → 双客户端各经独立零故障代理连入 →
+ *  (缺省)双端选都 → 等 Playing。返回句柄与代理,收尾用 teardownDuo。 */
 async function startTwoHumanGame(
   opts: {
     /** 代理启动后、建连前的旋钮预挂(如延迟档)。 */
     armProxy?: (p: FaultProxy) => void;
     /** 是否在本帮手内驱动双端选都(缺省 true;场景九要掉线,免选)。 */
     picks?: boolean;
-    /** 座位数(缺省 2;种子局 3 座 bot2)。 */
+    /** 座位数(缺省 2;种子局 3 座 bot2;整局骑局 4 座 bot=2,3)。 */
     seats?: number;
-    /** bot 座位(仅 seats=3 时用)。 */
+    /** bot 座位(CSV 座位号,如 "2" 或 "2,3")。 */
     bot?: string;
     /** 房间种子(种子局口径:逐字对齐原 spec)。 */
     seed?: number;
     /** host 预设国号(种子局口径:进骰流,一字不差)。 */
     guohao?: string;
+    /** 目标身价(缺省随地图顶层;整局骑局用短目标压墙钟,ADR-0055 候选落地)。 */
+    target?: number;
+    /** 地图(缺省 guanzhong;整局骑局用 zhongyuan 8 城小盘)。 */
+    mapId?: string;
   } = {},
 ): Promise<{
   roomId: string;
@@ -807,6 +930,7 @@ async function startTwoHumanGame(
     ...(opts.bot != null ? { bot: opts.bot } : {}),
     ...(opts.seed != null ? { seed: opts.seed } : {}),
     ...(opts.guohao != null ? { guohao: opts.guohao } : {}),
+    ...(opts.target != null ? { target: opts.target } : {}),
   });
   expect(created.ok).toBe(true);
   const roomId = created.roomId as string;
@@ -815,7 +939,7 @@ async function startTwoHumanGame(
   expect(joined.ok).toBe(true);
   const guestSeat = joined.seat as number;
   const guestToken = joined.seatToken as string;
-  await post("/room/map", { roomId, seatToken: hostToken, mapId: "guanzhong" });
+  await post("/room/map", { roomId, seatToken: hostToken, mapId: opts.mapId ?? "guanzhong" });
   await post("/room/start", { roomId, seatToken: hostToken });
   const a = await OnlineClient.connect(wsUrl(proxyA.port, roomId, 0, hostToken));
   const b = await OnlineClient.connect(wsUrl(proxyB.port, roomId, guestSeat, guestToken));
