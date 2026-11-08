@@ -117,33 +117,8 @@ test.describe("技能书全链(#1146)@844×390", () => {
       .toEqual({ books: 0, zxc: ["leigu", "jixing"], zy: ["huogong"], modalGone: true });
   });
 
-  // 真实段(波4 #1217):非己方回合书格静态陈列(无 book-use 交互挂点)的禁用呈现
-  // ——呈现态断言即被测环,无操作链。force 判词:同 plantBook(非己方出牌阶段形态,
-  // 布场直写)。
-  test("不可用态:非己方出牌阶段,书格静态陈列(无 book-use 挂点)", async ({ page }) => {
-    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(同上例)
-    await quickStart(page, 1486, { advance: "preRoll" });
-    await force(
-      page,
-      `
-      e.phase = "Playing";
-      e.activeIndex = 1; // bot 决策:非己方出牌阶段
-      e.pendingLand = null;
-      e.pendingEncounter = null;
-      e.pendingJinnang = null;
-      e.pendingSkill = null;
-      e.pendingReaction = null;
-      e.treasureVisitor = null;
-      e.pendingDebt = null;
-      const me = e.players[0];
-      me.heroes.push({ heroId: "zhouyu", skillIds: ["huogong"], lastFired: {} });
-      e.recruitedHeroIds.add("zhouyu");
-      me.treasures.push({ id: "skillbook-leigu", name: "技能书", level: 2, desc: "", kind: "book", skillId: "leigu" });
-      e.turnPhase = "Roll";
-      `,
-    );
-    await page.getByTestId(TESTIDS.pileTreasures).click();
-    await expect(page.getByTestId(TESTIDS.treasureModal)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.bookUse("skillbook-leigu"))).toHaveCount(0);
-  });
+  // 「不可用态」例已删(2026-11-08 唯一守环审计 v2):非出牌阶段命令拒绝单测在
+  // test/skill-book.test.ts「非出牌阶段:引擎拒绝」;「书格无挂点」的禁用呈现映射
+  // 与 rack 唯反应灰置例同构(aria/disabled 呈现通路已有通用守卫),单条否定断言
+  // 不值一整个浏览器会话,删。
 });

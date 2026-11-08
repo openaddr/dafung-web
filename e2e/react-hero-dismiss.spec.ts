@@ -101,15 +101,7 @@ test.describe("遣散全链(#1147)@844×390", () => {
     expect(s.players[0].cash).toBe(cash0); // 免费(与破产变卖 200 两分流)
   });
 
-  // 真实段(波4 #1217):非己回合遣散钮 disabled+title 禁用呈现——状态表达原则的
-  // 禁用态即被测环,无操作链。
-  test("非己回合禁用态:遣散钮 disabled,原因进 title", async ({ page }) => {
-    // #1221 L1:preRoll 落都即冻结,显式 freezeClock 退役(同上例)
-    await quickStart(page, 1486, { advance: "preRoll" });
-    await force(page, plantOwnTurn(1)); // bot 座位 1 行动:非己回合
-    await openHeroModal(page);
-    const btn = page.getByTestId(TESTIDS.heroDismiss("zhouyu"));
-    await expect(btn).toBeDisabled();
-    await expect(btn).toHaveAttribute("title", "己方回合可遣散");
-  });
+  // 「非己回合禁用态」例已删(2026-11-08 唯一守环审计 v2):非己回合拒绝单测在
+  // test/hero-dismiss.test.ts;disabled+title 禁用呈现通路由 rack 唯反应灰置例等
+  // 通用守卫,两行断言不值一整个浏览器会话,删。
 });

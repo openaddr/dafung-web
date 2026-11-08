@@ -167,13 +167,8 @@ test(
     // 收敛后再等两端各自局面稳定(连续快照一致),排除"恰好相等"的瞬态假阳性后终判
     await Promise.all([waitSettled(host), waitSettled(guest)]);
     expect(await coreState(guest)).toEqual(await coreState(host));
-
-    // ── 托管入口存在(联机专属;spec: autopilot;#1097 起入口=设置弹层「托管」
-    // 开关,设置钮 DOM 直派穿决策卷轴遮罩,react-online-autopilot setAutopilot 同配方)──
-    await guest.getByTestId(TESTIDS.settingsButton).dispatchEvent("click");
-    await expect(guest.getByTestId(TESTIDS.settingsAutopilot)).toBeVisible();
-    await guest.keyboard.press("Escape");
-    await expect(guest.getByTestId(TESTIDS.settingsDialog)).toBeHidden();
+    // 托管入口搭售段已删(2026-11-08 唯一守环审计 v2):设置弹层托管开关的交互通路
+    // 由 react-online-autopilot 例守,例内搭售断言不值联机全链的重复开收。
 
     await host.context().close();
     await guest.context().close();

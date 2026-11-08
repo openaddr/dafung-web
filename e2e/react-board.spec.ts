@@ -55,17 +55,5 @@ test(
   },
 );
 
-test("棋盘景深静态件:纸纤维 pattern 一次生成+远山带双幅+路肩随驿道(#844)", async ({ page }) => {
-  // 真实段(ADR-0058):quickStart 真实开局链后静态件的结构性存在(StaticLayers
-  // memo 确定性渲染,零时序竞速)即被测环——零种植零冻结。
-  // 静态件全部确定性存在(StaticLayers memo,无时序竞速):结构断言守住
-  // 「深 zoom 肌理/远景衬/路肩」三件套不被后续重构静默摘除。
-  await quickStart(page);
-  // 纸纤维:SVG pattern(feTurbulence 一次生成,零图片资产)
-  await expect(page.locator("#board pattern#bv-fiber")).toHaveCount(1);
-  // 远山衬:龚贤横带上/下缘各一幅(素材 texture:gongxian-shanshui)
-  await expect(page.locator('#board image[href*="texture-gongxian-shanshui"]')).toHaveCount(2);
-  // 路肩:单环闭合,每段驿道垫一条肩线(数 = 格数)
-  const n = await engineState(page, "e.board.count");
-  await expect(page.locator("#board .bv-road-shoulder")).toHaveCount(n);
-});
+// 「棋盘景深静态件」例已删(2026-11-08 唯一守环审计 v2):静态景深件(纸纤维/远山/
+// 路肩)的存在性计数归口 visual-compare 像素对照(发布前),e2e 不再养结构计数哨。
