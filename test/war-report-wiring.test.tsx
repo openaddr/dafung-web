@@ -12,6 +12,10 @@
 //      挂载(探针实锤:空壳渲染零报错)。故 @base-ui 消费组件(GameTopBar/
 //      WarReportDrawer)一律 beforeAll 内 await import 晚绑;@core 纯逻辑与 store/
 //      testids(零 DOM 求值期捕获,模板同款)照旧静态。
+// 【降级注记(#1297 波评审 P1)】WarWiringHost 内「未读账三行+openWarReport 直连」
+// 是 GameScreen 对应接线的抄本替身:生产链(⚙→设置弹层→「战报›」)与 GameScreen
+// 账本改动本例不感知——本例守 GameTopBar 挂点+抽屉投影;账本接线升格走批二整屏
+// 真挂范式或 hook 提取,后续迁移票禁复制本抄本。
 //   1. beforeAll ensureHappyDom()(test/happy-dom-register.ts:文件内局部注册,
 //      afterAll release 还原——preload 全局注册会翻掉既有例的无 DOM 快路,判词见
 //      该文件头注);
