@@ -71,7 +71,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach } from
 // 其模块求值读构建期注入的 __APP_VERSION__——此处按生产同一值源(package.json
 // CalVer version,vite.config define 同源)先行注入,晚绑 import 前生效。
 import pkg from "../package.json";
-(globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version;
+(globalThis as Record<string, unknown>).__APP_VERSION__ = pkg.version; // 留置不还原:值与生产恒同,releaseHappyDom 后无消费面,无害(#1297 波评审备案)
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import guanzhongData from "../public/maps/guanzhong.json";

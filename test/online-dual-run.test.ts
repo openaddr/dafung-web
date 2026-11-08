@@ -451,9 +451,12 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
       else process.env[key] = value;
     }
     if (tmpDir !== null) rmSync(tmpDir, { recursive: true, force: true });
-    // store 复位(可隔离性,见文件头注「store 单例纠缠」盘点)
+    // store 复位(可隔离性,见文件头注「store 单例纠缠」盘点)——双 store 成对 reset
     useNetStore.getState().reset();
-    useGameStore.getState().setScreen("setup");
+    useGameStore.getState().reset();
+    // 全局面拆脚手架:localStorage shim 连同 server-base 覆写 key 随体焚——不拆则
+    // 后跑文件恒见「localStorage 在场+指向已死端口的覆写」(#1297 波评审 P1)
+    Reflect.deleteProperty(globalThis, "localStorage");
   }, 15_000);
 
   it("双栈真 WS 对跑:建房→入座→选图→开局→双端选都→事件折算推进,双端公开投影逐字段收敛", async () => {
@@ -769,7 +772,7 @@ describe("双端对跑(#1283):双客户端栈 × 真 WS × 进程内引擎服务
         }
         await Bun.sleep(50);
       }
-      expect(useNetStore.getState().eventBatchSeq).toBeGreaterThanOrEqual(0); // 续流(首试后 seq 可能已 >0)
+      // 续流证据=上方 turnNumber 闸门+settledTriple 三方复账(eventBatchSeq 重连清批后从 0 重涨,恒真式已删——#1297 波评审 P1)
       await settledTriple("重连后续局收敛"); // 收在下一稳定读数点,三方复账收尾
 
       // ⑧ 收摊(先解散后销毁,判词同 afterAll;清模块变量,afterAll 不重复解散)
