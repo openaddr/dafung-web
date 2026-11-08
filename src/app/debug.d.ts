@@ -4,6 +4,7 @@
 // (驱动层)取用,其上 scenes/settle/patrol 与门面见 e2e/helpers/ 契约头注。
 import type { GameEngine, TurnPhase } from "@core/authority";
 import type { HeroDef } from "@core/heroes";
+import type { PlantOp } from "@core/planter";
 import type { GameSnapshot } from "@app/store/gameStore";
 import type { GameController } from "@app/controllers/controller";
 import type { FrameDiagDump } from "@app/frameDiag";
@@ -23,6 +24,11 @@ declare global {
       sync: () => void;
       /** 名将目录全量 HeroDef(含扩展包注册者;种植招贤候选用)。 */
       heroDefs: () => HeroDef[];
+      /** 种植件分发口(#1298):op=可序列化种植指令(联合单源 @core/planter),桥内
+       *  转发到与单测同一份实现 applyPlant。只应用不重灌——派生量重灌与时序纪律
+       *  (写前后等演出排空)由 e2e 封装 plant()(e2e/helpers/drivers.ts)按 force
+       *  同款脚手架收口;控制台裸用时需手动 __dafung.controller().sync() 刷 UI。 */
+      plant: (op: PlantOp) => void;
       /** 当前控制器(交互入口)。 */
       controller: () => GameController | null;
       /** 种局式快路径开局(#1211,e2e 专用):复刻 App.handleStart 生产三步(loadMapById →

@@ -14,6 +14,9 @@
 import { type Browser, type BrowserContext, type Page } from "@playwright/test";
 // 键名单源:与 registry.ts 双门禁共用同一常量(playwright 侧对 src 路径的解析同 fixtures.ts)。
 import { E2E_DEBUG_BRIDGE_KEY } from "../../src/app/fx/timings";
+// op 联合 type-import(#1298):种植指令字段编译期校验单源=core/planter(桥内转发到
+// 同一份实现,三层共用);只引类型,零运行时依赖。
+import type { PlantOp } from "../../src/core/planter";
 import { waitFxIdle } from "./settle";
 
 /** 联机 spec 的裸 browser context 需自带调试桥键:双门禁(2026-09-25)下生产构建
@@ -47,6 +50,21 @@ export async function force(page: Page, fn: string): Promise<void> {
   await page.evaluate(
     `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
   );
+  await waitFxIdle(page);
+}
+
+/** 种植件分发封装(#1298,#1295 种植件体系):op 经桥 `__dafung.plant` 转发到与单测
+ *  同一份种植实现(core/planter,判词单源=各族种植件头注);时序纪律复用 force 现成
+ *  脚手架(同款三拍:写前等演出排空 → 同一 evaluate 内 plant+controller().sync()
+ *  重灌派生量 → 写后再排空,头注见 force)。op 是结构化对象走 evaluate 参数,不搞
+ *  字符串脚本拼接;族 kind 与字段由 PlantOp 联合编译期校验(字段写错编译期红)。
+ *  退役映射:塞指定锦囊族站点自本封装起迁入,force 本体待 #1303 收口退役。 */
+export async function plant(page: Page, op: PlantOp): Promise<void> {
+  await waitFxIdle(page);
+  await page.evaluate((o) => {
+    (window as any).__dafung.plant(o);
+    (window as any).__dafung.controller().sync();
+  }, op);
   await waitFxIdle(page);
 }
 

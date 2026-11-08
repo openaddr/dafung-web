@@ -26,12 +26,12 @@
 // 人类自动行军以 marchSteps 钉「二」落 2 幽州无主城(plantDemolishableCity 的种植城=
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
 // 升级决策同样可清)。
-// #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类(全
-// spec 10 处:plantDemolishableCity/plantBotCity 挪城 2、marchQueue 行程骰 2、手牌直写 6、
-// 珍宝/名将/标签额度布场 3——各在种植点/助手头注写一行「force 判词」,均为引擎到不了
-// 的形态,零迁移;本 spec 断言链的操作段全真,前置种植只造「断言面需要的牌形/布场」)。
-// 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
-// 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
+// #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类
+// (#1298 后余下:plantDemolishableCity/plantBotCity 挪城 2、marchQueue 行程骰 2、
+// 珍宝/名将/标签额度布场 3、防窗反应牌清除 2——各在种植点/助手头注写一行「force
+// 判词」,均为引擎到不了的形态,零迁移;塞指定锦囊站点已迁 giveJinnang #1298,判词
+// 单源 src/core/planter.ts 头注;本 spec 断言链的操作段全真,前置种植只造「断言面
+// 需要的牌形/布场」)。
 import { test, expect } from "./fixtures";
 import {
   force,
@@ -41,9 +41,13 @@ import {
   useHalfScale,
   plantDemolishableCity,
   snap,
+  freezeClock,
 } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
+// 反应窗时长走 E2E_TIME_SCALE 缩放:本 spec 后挂 init 脚本把倍率提到 0.5(窗 1500ms,
+// 点选从容;useHalfScale 共享助手);fixtures 先注入 0.25,后挂脚本覆盖同键。
 
 async function startJunshi(page: Page, seed: number): Promise<void> {
   await useHalfScale(page);
@@ -110,17 +114,17 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     // force 判词:手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形;
     // 挪城/行程骰判词见 plantDemolishableCity 与 marchQueue 注。
     await plantDemolishableCity(page);
-    await force(
-      page,
-      `
-      e.players[0].jinnangHand = ["识破诡计"];
-      for (let i = 1; i < e.players.length; i++) e.players[i].jinnangHand = ["火烧连营"];
-      ${marchQueue(2)}
-    `,
-    );
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] });
+    for (const seat of [1, 2, 3])
+      await plant(page, { kind: "giveJinnang", seat, cards: ["火烧连营"] }); // bot 全持
+    await force(page, marchQueue(2));
     await page.getByTestId(TESTIDS.actionbarPass).click();
     await waitMyRollDone(page, 0);
     await skipUntilNextSeat(page, 0);
+    // 冻结推进(#987 确定性改造,定向复验实锤:权威窗 5s 与点选链赛跑,落印前窗被
+    // 看门狗代发收走):窗期内看门狗挂起,点选/落印不再赌墙钟;落印确认与窗收牌耗
+    // 结算仍走真引擎通路,#421 冻结闸语义(断言仍失败=真 bug)。冻结先例:react-jinnang-rack ③。
+    await freezeClock(page);
     // 反应窗:架上识破诡计呼吸金边(.reactive);横幅就位(带目标括注 #921,火烧=one 域)
     const banner = page.getByTestId(TESTIDS.reactionBanner);
     await expect(banner).toBeVisible();
@@ -154,13 +158,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     // 直写钉牌(开局起手是横征暴敛,与本例无关——钉火烧连营验「任意手牌放行后留架」);
     // 行程骰钉「一」:放行后自动行军落 1 晋阳(0 长安 +1,自家种植城=升级决策停靠),
     // 断言全程不赌自然骰。(#188 自动起摇由通行链路全程走通——waitMyRollDone 家族全依赖它)
-    await force(
-      page,
-      `
-      e.players[0].jinnangHand = ["火烧连营"];
-      ${marchQueue(1)}
-    `,
-    );
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["火烧连营"] });
+    await force(page, marchQueue(1));
     // 「不出」:窗收(卡牌段离场),架常驻、牌仍在(不消耗;手牌记账归引擎层,
     // 放行后自动起摇由 #188 通行链路全程走通——waitMyRollDone 家族全依赖它)
     await page.getByTestId(TESTIDS.actionbarPass).click();
@@ -172,7 +171,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // 随真命令通路走。force 判词:手牌无公共通路,断言面需 self 域恒可用牌形。
   test("求贤令:点牌→出牌点亮→出牌牌离架", async ({ page }) => {
     await startJunshi(page, 67);
-    await force(page, `e.players[0].jinnangHand = ["求贤令"];`);
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["求贤令"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("求贤令"));
     await expect(opt).toBeVisible();
     await opt.click();
@@ -188,15 +187,11 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // 珍宝无授宝公共通路(交涉/探索命令到不了「指定座挂指定宝」),目标门槛需对方有宝。
   test("军情密探:出牌进目标段,点席位选中/再点取消,#417 「出」钮确认打出", async ({ page }) => {
     await startJunshi(page, 67);
-    // 先停稳在开局出牌阶段态再引擎直写:发牌在进 Playing 时落账,直写抢跑会被发牌覆盖。
+    // 先停稳在开局出牌阶段态再种植:发牌在进 Playing 时落账,抢跑会被发牌覆盖。
     // 军情密探目标门槛=对方有珍宝:给 seat1 挂一件,目标段才有可用候选。
-    await force(
-      page,
-      `
-      e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];
-      e.players[0].jinnangHand = ["军情密探"];
-    `,
-    );
+    // (塞牌经 giveJinnang #1298;珍宝直写归 #1299 塞指定珍宝族,暂留 force)
+    await force(page, `e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];`);
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("军情密探"));
     await expect(opt).toBeVisible();
     await opt.click();
@@ -228,13 +223,9 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // force 判词同上例(手牌无公共通路;珍宝无授宝公共通路,目标门槛需对方有宝)。
   test("军情密探作罢:目标段收回,回卡牌段选中清空、牌未消耗", async ({ page }) => {
     await startJunshi(page, 67);
-    await force(
-      page,
-      `
-      e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];
-      e.players[0].jinnangHand = ["军情密探"];
-    `,
-    );
+    // (塞牌经 giveJinnang #1298;珍宝直写归 #1299 塞指定珍宝族,暂留 force——判词同上例)
+    await force(page, `e.players[1].treasures = [{ id: "gem-1", name: "夜明珠", level: 5 }];`);
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     const opt = page.getByTestId(TESTIDS.jinnangCard("军情密探"));
     await opt.click();
     await page.getByTestId(TESTIDS.actionbarPlay).click();
@@ -260,10 +251,11 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     // 灰置带原因印条;麾下给周瑜双主动技(火攻+擂鼓,#818 同将双技=双卡各显各技)→
     // 实授只给主动技,池内被动疾行不授(全览弹框池对照的灰置行对照组);诸 bot 城防
     // 拉到 Lv1(火攻有可毁目标,卡面金边可用);求贤令(援,标签未占)= 可用对照组。
+    // (塞牌经 giveJinnang #1298;标签额度/名将槽位/城防布场归 #1300,暂留 force)
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["缓兵之计", "求贤令"] });
     await force(
       page,
       `
-      e.players[0].jinnangHand = ["缓兵之计", "求贤令"];
       e.jinnangUsedTags = ["谋", "攻"];
       e.players[0].heroes = [{ heroId: "zhouyu", skillIds: ["huogong", "leigu"],
         lastFired: {} }]; // 槽位行(#785)布场;技定义查技表
@@ -385,13 +377,13 @@ test.describe("出牌指示线(#281 P2-E)", () => {
   test("火烧连营指定目标后,棋盘出现使用者→目标墨线,端点对准双方棋子", async ({ page }) => {
     await startJunshi(page, 67);
     // 种植:人类持火烧连营 + bot 1 有一座可拆城(plantBotCity 挪 +1 晋阳@1,挪入 level 1);
-    // 清他座反应牌(不开反应窗,线在宣告点即出)
+    // 清他座反应牌(不开反应窗,线在宣告点即出)=防窗控制直写(无「给指定牌」语义,
+    // 非塞指定锦囊),归 #1301 反应窗族种植收编
     await plantBotCity(page);
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["火烧连营"] });
     await force(
       page,
       `
-      e.players[0].jinnangHand = ["火烧连营"];
-      e.players[0].jinnangHandCount = 1;
       for (let i = 1; i < e.players.length; i++) {
         e.players[i].jinnangHand = e.players[i].jinnangHand.filter(
           (id) => id !== "识破诡计" && id !== "半路杀出");

@@ -180,3 +180,7 @@ export function armHero(e: GameEngine, p: Player, hero: HeroDef, skillIds?: stri
 export function heroOffer(def: HeroDef, skillIds?: string[]): HeroOffer {
   return { def, skillIds: skillIds ?? [...def.skillPool] };
 }
+
+// 种植件 re-export(#1298):种植件本体住 ./planter(生产可 import——桥转发契约,
+// 判词见该文件头注),此处转出保「单测统一从 testing.ts 取白盒工具」的旧 import 路径。
+export { applyPlant, giveJinnang, type PlantOp } from "./planter";
