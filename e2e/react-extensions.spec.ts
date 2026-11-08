@@ -18,7 +18,7 @@
 // 相位=断言前提,引擎自转无「钉相位」公共命令(相位族 #1301);waitFxIdle+freezeClock
 // (#987 冻结闸)是到达手段,非字段直改。
 import { test, expect } from "./fixtures";
-import { quickStart, force, waitFxIdle, freezeClock } from "./react-helpers";
+import { quickStart, waitFxIdle, freezeClock } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
@@ -26,15 +26,24 @@ import type { Page } from "@playwright/test";
 
 /** 种植招贤候选(示例名将居中位)+ 摆 AwaitingHeroPick:候选走 armHeroOffer 终态
  *  整体替换(候选行 {def, skillIds=全池预掷} 形状单源 recruitment)——种植者定预掷
- *  结果(e2e 给整池),引擎落定原样入槽不重掷。先种候选后钉相位:同一可见过渡拍
- *  呈现完整终态(冻结下中间态无消费者,看门狗挂起不代发)。 */
+ *  结果(e2e 给整池),引擎落定原样入槽不重掷;钉相位/活跃方走 armPhase(#1301,
+ *  判词单源 src/core/planter.ts:引擎自转无「钉相位」公共命令)。先种候选后钉相位:
+ *  同一可见过渡拍呈现完整终态(冻结下中间态无消费者,看门狗挂起不代发)。 */
 async function plantHeroPick(page: Page): Promise<void> {
   // #987 冻结闸(#943 竞速点清偿):排空演出→冻结,种植的 AwaitingHeroPick 假相位
   // 不被停靠点残留的已到点链步进覆盖(冻结挂起时钟驱动收幕,fx 在途时冻结=死等)。
   await waitFxIdle(page);
   await freezeClock(page);
-  await plant(page, { kind: "armHeroOffer", heroIds: ["zhouyu", "taishici", "huatuo"] });
-  await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.turnPhase = "AwaitingHeroPick";`);
+  await plant(page, {
+    kind: "armHeroOffer",
+    heroIds: ["zhouyu", "taishici", "huatuo"],
+  });
+  await plant(page, {
+    kind: "armPhase",
+    phase: "Playing",
+    activeIndex: 0,
+    turnPhase: "AwaitingHeroPick",
+  });
 }
 
 test.describe("扩展系统骨架(#378 示例名将包全链)", () => {

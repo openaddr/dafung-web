@@ -21,9 +21,10 @@ import { HOME_TID } from "../src/app/screens/home/testids";
 
 // 真实段(波4 #1217):点候选技名 chip → 技能全览弹框(池全貌/未授灰置/看将不发
 // 命令)→ 关框 → 点卡开详情 → 「收为麾下」拍板 → 钤印收场、候选清空的完整交互链
-// 与卷轴呈现全真。force 判词:相位/活跃座位无公共命令(由行军结算推进),招贤候选
-// 悬空触发无通路(tryRecruitHero 由落招贤城结算调用,骰流不可钉)——直写钉位后调
-// 公共方法真掷候选(候选行仍引擎真产物,非伪造 offeredHeroes)。
+// 与卷轴呈现全真。钉相位/活跃座位走 armPhase(#1301,判词单源 src/core/planter.ts:
+// 相位/活跃座位无公共命令,由行军结算推进);招贤候选悬空触发无通路(tryRecruitHero
+// 由落招贤城结算调用,骰流不可钉)——钉位后调公共方法真掷候选(候选行仍引擎真产物,
+// 非伪造 offeredHeroes;直呼残块迁桥上直呼归 #1302)。
 test(
   "招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将",
   {
@@ -36,7 +37,8 @@ test(
     await quickStart(page, 1486, { advance: "preRoll" });
     // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
     // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
-    await force(page, `e.phase = "Playing"; e.activeIndex = 0; e.tryRecruitHero(e.activePlayer);`);
+    await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
+    await force(page, `e.tryRecruitHero(e.activePlayer);`);
     const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
     await expect(scroll).toBeVisible();
     await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
@@ -95,9 +97,10 @@ test(
  *  实例 id 回查目录,目录外抛错),level 3 是压价虚构(真玺 level 10),价签数学只认
  *  行内 level);访客(买家)垫足现金走 setCash——防 payOrLiquidate 走清算自救支线
  *  劫持交涉结算断言。
- *  force 判词(#1217 波4 审计):城池归属由购地结算产出(行军+现金约束到不了「指定格
- *  指定级」)、treasureVisitor 仅落格结算内部挂起、相位/活跃座位无公共命令——断言面
- *  需「被访城+交涉挂起」形态,直写后走控制器 sync。 */
+ *  授产走 grantProperty、相位/活跃座位/交涉停相位走 armPhase(#1300/#1301,判词单源
+ *  src/core/planter.ts:城池归属由购地结算产出(行军+现金约束到不了「指定格指定级」)、
+ *  相位/活跃座位无公共命令)。treasureVisitor 仍直写=交涉挂起载荷仅落格结算内部挂起,
+ *  无种植件,直写内联判词(#1303 收口缺口盘点)。 */
 async function plantTrade(page: Page): Promise<void> {
   // #1221 L1:preRoll 落都即冻结(同招贤卷轴例,#987/#943 冻结闸随「点火前已冻」退役),
   // 种植的 AwaitingTreasureOwner 停靠态不被迟到链步进覆盖。
@@ -111,24 +114,34 @@ async function plantTrade(page: Page): Promise<void> {
       { id: "seal", name: "传国玉玺", level: 3, desc: "天命所归" },
     ],
   });
-  await plant(page, { kind: "setCash", seat: 1, cash: Math.max(planted[1].cash, 5000) });
-  // 授产走 grantProperty 种植件(#1300,upsert 判词单源 src/core/planter.ts);相位/
-  // 珍宝窗载荷仍直写=相位族与反应载荷族,#1301 收编前暂驻(余下 force 块只含这两族语义)。
+  await plant(page, {
+    kind: "setCash",
+    seat: 1,
+    cash: Math.max(planted[1].cash, 5000),
+  });
   const visitPropertyId = await page.evaluate(() => {
     const e = (window as any).__dafung.getEngine();
     const tile = e.board.tiles.find((t: any) => t.propertyId && !e.findOwner(t.propertyId));
     return tile?.propertyId as string;
   });
-  await plant(page, { kind: "grantProperty", seat: 0, propertyId: visitPropertyId, level: 1 });
+  await plant(page, {
+    kind: "grantProperty",
+    seat: 0,
+    propertyId: visitPropertyId,
+    level: 1,
+  });
   await force(
     page,
     `
-    e.phase = "Playing";
-    e.activeIndex = 1;
     e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(visitPropertyId)}), ownerIdx: 0 };
-    e.turnPhase = "AwaitingTreasureOwner";
   `,
   );
+  await plant(page, {
+    kind: "armPhase",
+    phase: "Playing",
+    activeIndex: 1,
+    turnPhase: "AwaitingTreasureOwner",
+  });
 }
 
 // 真实段(波4 #1217):点「坐地起价」→ 选宝层开、双行价签(指导价+要价与引擎同
@@ -209,9 +222,15 @@ test("珍宝交涉:点选金描边 + 二段式成交,确认提交发 resolveTrea
             );
           return cmd ? JSON.parse(cmd.detail) : null;
         }, logLenBefore),
-      { timeout: 30_000, message: "确认提交 resolveTreasureOwner{fair} 命令留痕" },
+      {
+        timeout: 30_000,
+        message: "确认提交 resolveTreasureOwner{fair} 命令留痕",
+      },
     )
-    .toEqual({ type: "resolveTreasureOwner", action: { type: "fair", treasureId: "seal" } });
+    .toEqual({
+      type: "resolveTreasureOwner",
+      action: { type: "fair", treasureId: "seal" },
+    });
   // 层随结算收口(DOM 契约):命令留痕已被上方钉住,层收跟拍不再吃自走竞速
   await expect(pick).toBeHidden({ timeout: 30_000 });
 });
@@ -220,8 +239,9 @@ test("珍宝交涉:点选金描边 + 二段式成交,确认提交发 resolveTrea
 // 结算收口 → 重开清单刷新(已卖件消失、余件仍在)的交互链全真。
 // 数值族种植(#1299,判词单源 src/core/planter.ts):变卖清单珍宝走 giveTreasure
 // (终态替换,保起手 2 件=读现值拼全集)。
-// force 判词:破产态(pendingDebt)由缴支结算产生、债务数值不可钉;麾下/持仓无授给
-// 公共命令——断言面需「有宝可卖+巨债挂起」形态,直写。
+// 破产态走 armDebt 种植件(#1301,判词单源 src/core/planter.ts 破产终局族头注:破产
+// 由缴支结算产生、债务数值不可钉——断言面需「巨债挂起」形态);授将/授产/钉相位走
+// armHero/grantProperty/armPhase(#1300/#1301,判词单源同文件)。
 test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单刷新", async ({ page }) => {
   // 冻结推进再动刀(#421 冻结→种植→断言;#799):种植后到变卖提交间时钟必须静止——
   // 「现金实涨=指导价」是活态等式断言,吃不起对局自走竞速。#1221 L1:preRoll 落都即
@@ -238,8 +258,6 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单
       { id: "hat", name: "草帽", level: 1, desc: "x" },
     ],
   });
-  // 授将/授产走 armHero/grantProperty 种植件(#1300,判词单源 src/core/planter.ts);
-  // 破产态(pendingDebt/turnPhase)仍直写=终局族,#1301 收编前暂驻。
   const debtPropertyId = await page.evaluate(() => {
     const e = (window as any).__dafung.getEngine();
     const me = e.players[0];
@@ -254,16 +272,14 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单
     heroId: "zhouyu",
     skillIds: ["jixing", "huogong", "leigu"],
   });
-  await plant(page, { kind: "grantProperty", seat: 0, propertyId: debtPropertyId, level: 1 });
-  await force(
-    page,
-    `
-    e.phase = "Playing";
-    e.activeIndex = 0;
-    e.pendingDebt = { amount: 99999, creditor: null };
-    e.turnPhase = "AwaitingBankruptcySettle";
-  `,
-  );
+  await plant(page, {
+    kind: "grantProperty",
+    seat: 0,
+    propertyId: debtPropertyId,
+    level: 1,
+  });
+  await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
+  await plant(page, { kind: "armDebt", amount: 99999, creditor: null });
   const scroll = page.getByTestId(SCROLL_TESTIDS.bankruptcyScroll);
   await expect(scroll).toBeVisible();
   // 进度行:已凑/债务/尚欠三数同窗(#362 已凑金额口径)
@@ -297,18 +313,12 @@ test("破产清算卷轴:债务进度/选宝弹层(二段式变卖)/售出清单
 });
 
 // 真实段(波4 #1217):GameOver 胜利屏全屏覆盖呈现 + 重开钮点击回首页的出口通路全真。
-// force 判词:终局态(isOver/winner)由身价目标结算产生,无「直判胜负」公共命令
-// ——断言面即终局覆盖层与出口,直写。
+// 终局态走 armGameOver 种植件(#1301,判词单源 src/core/planter.ts 破产终局族头注:
+// 终局态(isOver/winner)由身价目标结算产生,无「直判胜负」公共命令——断言面即终局
+// 覆盖层与出口)。
 test("胜利屏:GameOver 全屏覆盖 + 重开", async ({ page }) => {
   await quickStart(page, 1486, { advance: "preRoll" }); // #1221 L1:布场不依赖首掷
-  await force(
-    page,
-    `
-    e.isOver = true;
-    e.winner = e.players[0];
-    e.phase = "GameOver";
-  `,
-  );
+  await plant(page, { kind: "armGameOver", winnerSeat: 0 });
   await expect(page.getByTestId(SCROLL_TESTIDS.victoryScreen)).toBeVisible();
   await page.getByTestId(SCROLL_TESTIDS.victoryRestart).click();
   await expect(page.getByTestId(HOME_TID.screen)).toBeVisible();
@@ -353,16 +363,16 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // #1221 L1:preRoll 落都即冻结(看门狗点火前已冻,显式 freeze/unfreeze 退役——
   // 页面随例终结,同破产清算例口径)。
   await quickStart(page, 20261105, { advance: "preRoll" });
-  // force 判词:引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算
-  // 改写;断言面需「落无主珍宝城」形态,直写摆位到无主珍宝城邻格,再走与
-  // rollAndMove 掷定 1 步后的同一段引擎路径:途经遍历(marchTraverse)→ 落格结算
-  // (settleMarchLanding;机遇已被 fixtures 归零,珍宝城=event 城本就免掷)。
+  // 钉相位/行动方走 armPhase(#1301,判词单源 src/core/planter.ts);余下 force 块:
+  // 引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算改写;断言面需
+  // 「落无主珍宝城」形态,直写摆位到无主珍宝城邻格,再走与 rollAndMove 掷定 1 步后
+  // 的同一段引擎路径:途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;
+  // 机遇已被 fixtures 归零,珍宝城=event 城本就免掷)。
   // 落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:可购决策挂起(同权,ADR-0024)。
+  await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
   await force(
     page,
     `
-    e.phase = "Playing";
-    e.activeIndex = 0;
     const me = e.players[0];
     const target = e.board.tiles.find(
       (t) => t.event === "treasure" && !e.findOwner(t.propertyId),
@@ -387,5 +397,7 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // 点买 → 命令受理,卷轴收(决策收口的 UI 面;购地结算与链序归引擎单测)
   await waitFxIdle(page);
   await page.getByTestId(TESTIDS.actionButton("buy")).click();
-  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeHidden({ timeout: 15_000 });
+  await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeHidden({
+    timeout: 15_000,
+  });
 });

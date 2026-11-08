@@ -9,7 +9,8 @@
 // 数值族三件判词在各自函数头注(giveTreasure/setCash 各一处;setReputation/
 // setStamina 薄包族共一处),#1299。布景族四件判词在各自函数头注(placePlayer/
 // grantProperty/giveTreasureFromDeck 各一处;armHero/armHeroOffer 名将候选族共一处),
-// #1300。
+// #1300。执行态族三件判词:armPhase 一处、破产终局族(armBankrupt/armDebt/
+// armGameOver)共一处、armReaction 一处,#1301。
 // 生产零 import 本文件不受限(与 testing.ts「仅 test/ 可 import」的区别):桥
 // (src/app/controllers/registry.ts)必须转发到与单测相同的实现,这是三层共用契约
 // 本身;测试专用属性由双门禁桥闸守住,不靠 import 规则。
@@ -17,9 +18,10 @@
 // 形制纪律(#1295):每族一个种植件,形制写死在实现(不设运行时开关);被测环永不
 // 种植件——种植只负责被测环之前的布置。再缺能力=补种植件(op 联合加 kind),force
 // 不复活(#1303 收口退役)。
-import type { GameEngine } from "./authority";
+import type { EnginePhase, GameEngine, TurnPhase } from "./authority";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
+import type { ReactionPayload, ReactionView } from "./reaction-window";
 import type { TreasureDef } from "./treasures";
 
 /** 塞指定锦囊指令(裸写形):把 seat 的锦囊手牌直写为 cards 终态。
@@ -101,6 +103,54 @@ export interface GiveTreasureFromDeckOp {
   count: number;
 }
 
+/** 相位/活跃方补丁(#1301):三字段按需选填,只写给出的字段。 */
+export interface ArmPhasePatch {
+  /** 对局大相位(Setup/Playing/GameOver)。 */
+  phase?: EnginePhase;
+  /** 回合状态机相位(权威 TurnPhase 全集)。 */
+  turnPhase?: TurnPhase;
+  /** 活跃座位(0 基,越界炸)。 */
+  activeIndex?: number;
+}
+
+/** 改相位/活跃方指令(裸写形):把对局钉到指定相位/回合相位/活跃方(#1301,
+ *  判词见 armPhase 函数头注)。 */
+export interface ArmPhaseOp extends ArmPhasePatch {
+  kind: "armPhase";
+}
+
+/** 破产印指令(裸写形):把 seat 玩家置破产印(isBankrupt,#1301,判词见破产终局族
+ *  共同头注)。 */
+export interface ArmBankruptOp {
+  kind: "armBankrupt";
+  seat: number;
+}
+
+/** 挂债清算窗指令(裸写形):pendingDebt 直写(creditor=座位号,过网可序列化,
+ *  实现内解析成 Player 引用)+ turnPhase=AwaitingBankruptcySettle 同拍(#1301,
+ *  判词见破产终局族共同头注)。 */
+export interface ArmDebtOp {
+  kind: "armDebt";
+  amount: number;
+  creditor: number | null;
+}
+
+/** 终局宣告指令(裸写形):isOver+winner+phase=GameOver 一体直写(winnerSeat 解析
+ *  成 Player 引用,#1301,判词见破产终局族共同头注)。 */
+export interface ArmGameOverOp {
+  kind: "armGameOver";
+  winnerSeat: number;
+}
+
+/** 挂反应载荷指令(裸写形):直种 pendingReaction 挂起态(view/payload 由种植者
+ *  给形,seq 引擎自增取号,answers 恒空,turnPhase=AwaitingReaction 同拍,#1301,
+ *  判词见 armReaction 函数头注)。 */
+export interface ArmReactionOp {
+  kind: "armReaction";
+  view: ReactionView;
+  payload: ReactionPayload;
+}
+
 /** 种植指令联合(可序列化,#1298 giveJinnang 族首发;其余 11 族按迁移票逐族扩展
  *  kind,#1299-#1302——联合即扩展位,桥分发 switch 穷尽校验)。 */
 export type PlantOp =
@@ -113,7 +163,12 @@ export type PlantOp =
   | GrantPropertyOp
   | ArmHeroOp
   | ArmHeroOfferOp
-  | GiveTreasureFromDeckOp;
+  | GiveTreasureFromDeckOp
+  | ArmPhaseOp
+  | ArmBankruptOp
+  | ArmDebtOp
+  | ArmGameOverOp
+  | ArmReactionOp;
 
 /** 塞指定锦囊(判词见文件头注):手牌终态=cards,派生量 jinnangHandCount 同步重灌。
  *  目录外牌/越界座位当场炸(零兜底:种错的场要响)。 */
@@ -210,7 +265,12 @@ export function grantProperty(
     held.level = level;
     return;
   }
-  p.properties.push({ propertyId, group: def.group, level, maxLevel: def.maxLevel });
+  p.properties.push({
+    propertyId,
+    group: def.group,
+    level,
+    maxLevel: def.maxLevel,
+  });
 }
 
 /** 【判词(armHero/armHeroOffer 名将候选族共一处,#1300)】塞名将/候选=裸写形:麾下
@@ -228,7 +288,11 @@ export function armHero(e: GameEngine, seat: number, heroId: string, skillIds?: 
   const p = e.players[seat];
   if (p == null) throw new Error(`armHero:座位 ${seat} 不存在(共 ${e.players.length} 席)`);
   const hero = heroById(heroId); // 目录外炸(零兜底)
-  p.heroes.push({ heroId: hero.id, skillIds: skillIds ?? [...hero.skillPool], lastFired: {} });
+  p.heroes.push({
+    heroId: hero.id,
+    skillIds: skillIds ?? [...hero.skillPool],
+    lastFired: {},
+  });
 }
 
 export function armHeroOffer(e: GameEngine, heroIds: string[]): void {
@@ -253,6 +317,109 @@ export function giveTreasureFromDeck(e: GameEngine, seat: number, count: number)
   if (count > e.treasureDeck.length)
     throw new Error(`giveTreasureFromDeck:count ${count} 超牌堆深度 ${e.treasureDeck.length}`);
   p.treasures = e.treasureDeck.slice(0, count);
+}
+
+/** TurnPhase/EnginePhase 联合的运行时影子(op 过桥是无类型 JSON,未知相位要在
+ *  种植点响,不落进 UI 慢性烂);联合增员时此处漏登=种植点当场炸(响,不静默)。 */
+const TURN_PHASES: ReadonlySet<TurnPhase> = new Set([
+  "Roll",
+  "AwaitingDecision",
+  "AwaitingHeroPick",
+  "AwaitingEncounter",
+  "AwaitingJinnang",
+  "AwaitingExhaustion",
+  "AwaitingTreasureOwner",
+  "AwaitingBankruptcySettle",
+  "AwaitingReaction",
+  "Land",
+  "EndTurn",
+  "GameOver",
+]);
+const ENGINE_PHASES: ReadonlySet<EnginePhase> = new Set(["Setup", "Playing", "GameOver"]);
+
+/** 座位界内断言(执行态族共用):越界/非整数当场炸(零兜底:种错的场要响)。 */
+function assertSeat(who: string, e: GameEngine, seat: number): void {
+  if (!Number.isInteger(seat) || seat < 0 || seat >= e.players.length)
+    throw new Error(`${who}:座位 ${seat} 越界(共 ${e.players.length} 席)`);
+}
+
+/** 【判词(armPhase 一处,执行态族 #1301)】改相位/活跃方=裸写形:相位迁移是回合
+ *  引擎状态机的内部结算产物(行军落格/出牌/反应窗各相位各有其到达命令链),「把
+ *  对局钉到任意相位/任意活跃方」无单步公共命令,绕行命令链=假场景——直写+控制器
+ *  sync 重灌派生量(interactive/viewSeat)是唯一通路(单测白盒 forceTurnPhase 同款
+ *  先例)。三字段(phase/turnPhase/activeIndex)一个 kind 归一,按需选填(站点字段
+ *  集不同在调用侧表达,不拆 kind);全空补丁当场炸(空种植=种了个寂寞,响)。
+ *  turnPhase/phase 按运行时全集校验(未知相位当场炸),activeIndex 越界当场炸。 */
+export function armPhase(e: GameEngine, patch: ArmPhasePatch): void {
+  const fields = Object.keys(patch).filter((k) => patch[k as keyof ArmPhasePatch] !== undefined);
+  if (fields.length === 0) throw new Error("armPhase:空补丁(至少指定一个相位字段)");
+  if (patch.phase != null) {
+    if (!ENGINE_PHASES.has(patch.phase)) throw new Error(`armPhase:未知相位 ${patch.phase}`);
+    e.phase = patch.phase;
+  }
+  if (patch.turnPhase != null) {
+    if (!TURN_PHASES.has(patch.turnPhase))
+      throw new Error(`armPhase:未知回合相位 ${patch.turnPhase}`);
+    e.turnPhase = patch.turnPhase;
+  }
+  if (patch.activeIndex != null) {
+    assertSeat("armPhase", e, patch.activeIndex);
+    e.activeIndex = patch.activeIndex;
+  }
+}
+
+/** 【判词(破产终局族 armBankrupt/armDebt/armGameOver 共一处,#1301)】破产由缴支
+ *  结算产生(现金不足触发清算支线,债务数值与终局胜者不可钉),「即时破产印/挂债
+ *  清算窗/直判终局」断言面形态无公共命令可达(清算通路需整局推演到破产)——直写
+ *  是唯一通路。三件按字段集拆细:armBankrupt=玩家破产印(isBankrupt,席位格/总览
+ *  灰化挂点形);armDebt=挂债清算窗(pendingDebt+AwaitingBankruptcySettle 一体直写
+ *  ——引擎破产路径同拍双写,拆开即窗悬相位不自洽;creditor 过网带座位号,实现内
+ *  解析成 Player 引用保 op 可序列化);armGameOver=终局宣告(isOver+winner+phase=
+ *  GameOver 一体,引擎终局写入同款三件套)。越界座位当场炸;amount 数值不校验
+ *  (债务是场景决定,同 setCash 口径)。 */
+export function armBankrupt(e: GameEngine, seat: number): void {
+  assertSeat("armBankrupt", e, seat);
+  e.players[seat].isBankrupt = true;
+}
+
+export function armDebt(e: GameEngine, amount: number, creditor: number | null): void {
+  if (creditor != null) assertSeat("armDebt", e, creditor);
+  e.pendingDebt = {
+    amount,
+    creditor: creditor == null ? null : e.players[creditor],
+  };
+  e.turnPhase = "AwaitingBankruptcySettle";
+}
+
+export function armGameOver(e: GameEngine, winnerSeat: number): void {
+  assertSeat("armGameOver", e, winnerSeat);
+  e.isOver = true;
+  e.winner = e.players[winnerSeat];
+  e.phase = "GameOver";
+}
+
+/** 【判词(armReaction 一处,执行态族 #1301)】挂反应载荷=裸写形:反应窗由持牌+
+ *  时机判定产生(引擎只在对方真实打出反应牌时经 openReactionWindow 挂窗,挂点散在
+ *  结算中段),「凭空开一道窗」无公共命令——直种 pendingReaction 挂起态是窗态唯一
+ *  种植口。字段与 openReactionWindow 产物一一同构:seq=jinnangSeq 自增取号同款、
+ *  answers 恒空、turnPhase=AwaitingReaction 同拍(拆开即窗悬相位不自洽);view/
+ *  payload 由种植者给形(windowMs 显式给值=免与默认展示档赛跑的站点惯例)。bot 即席
+ *  代答**不模拟**(种的是挂起态,应答归被测环真命令链 respondReaction)。view 公开面
+ *  座位(userSeat/targetSeats/queriedBySeat/ownerSeat)越界当场炸;payload 续结算
+ *  载荷不校验(消费面=被测环的续结算,引擎自有断言)。 */
+export function armReaction(e: GameEngine, view: ReactionView, payload: ReactionPayload): void {
+  const seats = (s: number[]) => s.forEach((x) => assertSeat("armReaction", e, x));
+  if (view.kind === "jinnang") {
+    assertSeat("armReaction", e, view.userSeat);
+    seats(view.targetSeats);
+    seats(view.queriedBySeat);
+  } else {
+    assertSeat("armReaction", e, view.userSeat);
+    assertSeat("armReaction", e, view.ownerSeat);
+  }
+  e.jinnangSeq += 1;
+  e.pendingReaction = { seq: e.jinnangSeq, view, answers: [], payload };
+  e.turnPhase = "AwaitingReaction";
 }
 
 /** 种植指令分发单源:桥 plant(op) 与单测共用的唯一入口(未知 kind 当场炸——
@@ -288,6 +455,21 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       return;
     case "giveTreasureFromDeck":
       giveTreasureFromDeck(e, op.seat, op.count);
+      return;
+    case "armPhase":
+      armPhase(e, op);
+      return;
+    case "armBankrupt":
+      armBankrupt(e, op.seat);
+      return;
+    case "armDebt":
+      armDebt(e, op.amount, op.creditor);
+      return;
+    case "armGameOver":
+      armGameOver(e, op.winnerSeat);
+      return;
+    case "armReaction":
+      armReaction(e, op.view, op.payload);
       return;
     default:
       throw new Error(`applyPlant:未知种植指令 kind=${String((op as { kind: unknown }).kind)}`);

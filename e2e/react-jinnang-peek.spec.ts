@@ -48,7 +48,11 @@ test.describe("军情密探即时窥探(#575)", () => {
     await startPeekStop(page);
     // 种植:人类持军情密探;bot1 手牌钉两张(弹层内容断言口);被窥目标恒 seat 1
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
-    await plant(page, { kind: "giveJinnang", seat: 1, cards: ["火烧连营", "求贤令"] });
+    await plant(page, {
+      kind: "giveJinnang",
+      seat: 1,
+      cards: ["火烧连营", "求贤令"],
+    });
     await playPeekAtSeat1(page);
     // 弹层出现:目标牌名可见(竖笺牌面横排)
     const modal = page.getByTestId(TESTIDS.peekModal);
@@ -96,16 +100,18 @@ test.describe("军情密探即时窥探(#575)", () => {
     // respondReaction 应答识破,再翻回(单拍 evaluate 全同步,无超时代答竞速)。
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["军情密探"] });
     await plant(page, { kind: "giveJinnang", seat: 1, cards: ["识破诡计"] });
+    // 只给 seat1 识破诡计(queried 恰 [1]):清走其余座位反应牌,防其他 bot 被询问
+    // 留窗拖尾(窗不闭则结算悬置,断言竞速)。防窗控制(#1301 判词选择):读现值滤
+    // 反应牌后走 giveJinnang 终态组合(handCount 随件重灌)——语义是「去指定牌」
+    // 而非「给指定牌」,但终态件已能表达,不另设 kind。
+    const hands = (await snap(page)).players as { jinnangHand: string[] }[];
+    for (let seat = 2; seat < hands.length; seat++) {
+      const rest = hands[seat]!.jinnangHand.filter((id) => id !== "识破诡计");
+      await plant(page, { kind: "giveJinnang", seat, cards: rest });
+    }
     await force(
       page,
       `
-      // 只给 seat1 识破诡计(queried 恰 [1]):清走其余座位反应牌,防其他 bot 被询问
-      // 留窗拖尾(窗不闭则结算悬置,断言竞速)。清除=防窗控制直写(无「给指定牌」
-      // 语义,非塞指定锦囊),归 #1301 反应窗族种植收编。
-      for (let i = 2; i < e.players.length; i++) {
-        e.players[i].jinnangHand = e.players[i].jinnangHand.filter((id) => id !== "识破诡计");
-        e.players[i].jinnangHandCount = e.players[i].jinnangHand.length;
-      }
       e.players[1].isBot = false; // 暂翻人:窗不即席代答,留给下面的应答
       e.resolveJinnang("军情密探");
       e.resolveJinnang("军情密探", [1]);

@@ -56,21 +56,22 @@ test.describe("全浮层骨架", () => {
   // 按宁缺毋滥直删(体力 aria-label 在场断言无独立回归价值,随例退场)。
 
   // 真实段(ADR-0058):真实挂载渲染的手牌区结构(签面驻左端/架在区内)+退役
-  // testid 零残留即被测环。force 判词:钉 AwaitingDecision 空闲态=断言前提(同
-  // 首例;引擎自转无「钉相位」公共命令)。
+  // testid 零残留即被测环。钉相位走 armPhase(#1301,判词单源 src/core/planter.ts:
+  // 钉 AwaitingDecision 空闲态=断言前提,引擎自转无「钉相位」公共命令);清落格
+  // 投影仍直写=落格结算内部挂起态无种植件,内联判词(同 react-float-skeleton)。
   test("手牌区:签面驻左端,手牌架在区内;现金归席位格零残留", async ({ page }) => {
     // 波5b #1218 加网(「手牌区」负载挂签名,hand-zone 显隐沿丢拍→谓词加网):
-    // 显隐沿的竞速本体是「waitMyPause 自然停靠(含 bot 回合询问期假停靠)→force 钉
-    // 相位与真链赛跑→沿触发拍被丢」——preRoll 落都即冻结(#1221 通路,种植例评估
+    // 显隐沿的竞速本体是「waitMyPause 自然停靠(含 bot 回合询问期假停靠)→钉相位
+    // 与真链赛跑→沿触发拍被丢」——preRoll 落都即冻结(#1221 通路,种植例评估
     // 采用,断言不依赖行军日志/回合数)让对局根本不跑,谓词竞速面整体归零。
     await quickStart(page, 1486, { advance: "preRoll" });
     // 钉 AwaitingDecision 空闲态(preRoll 已冻,同上例)
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
     await force(
       page,
       `
       e.lastLandOutcome = null;
       e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
     `,
     );
     const zone = page.getByTestId(TESTIDS.handZone);
@@ -171,7 +172,9 @@ test.describe("全浮层骨架", () => {
             m.zone.includes(`已持有 · ${m.snapCount} 件`)
           );
         },
-        { message: "珍宝弹层忠实镜像同拍快照(点开即弹+陈列件数/计数行随快照,#799)" },
+        {
+          message: "珍宝弹层忠实镜像同拍快照(点开即弹+陈列件数/计数行随快照,#799)",
+        },
       )
       .toBe(true);
     // 右上 X 关闭,卸载零残留

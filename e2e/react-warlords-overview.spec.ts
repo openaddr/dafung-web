@@ -22,7 +22,6 @@ import {
   snap,
   actIfCan,
   waitFxIdle,
-  force,
   freezeClock,
   unfreezeClock,
   engineState,
@@ -81,7 +80,11 @@ function repBarWidths(page: Page, testid: string) {
 async function plantSeat1Roster(page: Page) {
   await plant(page, { kind: "setReputation", seat: 1, reputation: 210 });
   await plant(page, { kind: "setReputation", seat: 0, reputation: 0 }); // 自机钉零:softmax 零点三段等宽断言的种植面
-  const deck = (await snap(page)).treasureDeck as { id: string; name: string; level: number }[];
+  const deck = (await snap(page)).treasureDeck as {
+    id: string;
+    name: string;
+    level: number;
+  }[];
   await plant(page, {
     kind: "giveTreasure",
     seat: 1,
@@ -97,7 +100,12 @@ async function plantSeat1Roster(page: Page) {
   })()`,
   );
   for (const pid of plantedIds)
-    await plant(page, { kind: "grantProperty", seat: 1, propertyId: pid, level: 0 });
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 1,
+      propertyId: pid,
+      level: 0,
+    });
   const heroId: string = await engineState(page, "window.__dafung.heroDefs()[0].id");
   await plant(page, { kind: "armHero", seat: 1, heroId });
   return page.evaluate((plantedIds) => {
@@ -268,16 +276,17 @@ test.describe("四元素钻入(#1096 决议3,#1097)", () => {
 
 test.describe("状态挂点(#702 ③)", () => {
   // 真实段(ADR-0058):总览真实点开后行状态挂点对引擎状态的 CSS 响应链(.self 金
-  // 描边/.dead 灰化/.is-active 金圈)即被测环。force 判词:破产态开局不可达(破产
-  // 清算引擎有专属通路但需整局推演到清算,无「即时破产」公共命令),断言面需破产行
-  // 形态(直写 isBankrupt);.self/.is-active 是真实座位/活跃方的真渲染,零种植。
+  // 描边/.dead 灰化/.is-active 金圈)即被测环。破产印走 armBankrupt 种植件(#1301,
+  // 判词单源 src/core/planter.ts 破产终局族头注:破产态开局不可达(破产清算引擎有
+  // 专属通路但需整局推演到清算,无「即时破产」公共命令),断言面需破产行形态);
+  // .self/.is-active 是真实座位/活跃方的真渲染,零种植。
   test("自机行 .self 金描边;破产行 .dead 灰化;活跃方 .is-active 印金圈", async ({ page }) => {
     test.setTimeout(180_000); // 重例放宽(见文件头注)
     await quickStart(page, 1010);
     await freezeForOverview(page);
     try {
       // 种植破产(对手席;照排灰化=行仍在,非性质抹除)
-      await force(page, `e.players[1].isBankrupt = true;`);
+      await plant(page, { kind: "armBankrupt", seat: 1 });
       const s = await snap(page);
       await openOverview(page);
       await expect(page.getByTestId(TESTIDS.warlordsRow(0))).toHaveClass(/self/);

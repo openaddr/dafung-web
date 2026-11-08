@@ -4,14 +4,19 @@
 // 三层共用)。#1300 布景族四件(摆位/授房产/名将候选/牌堆源珍宝)同口径。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
-import type { EngineConfig } from "@core/authority";
+import type { EngineConfig, EnginePhase, TurnPhase } from "@core/authority";
 import { createDice } from "@core/dice";
 import guanzhongData from "../public/maps/guanzhong.json";
 import { loadMap } from "@core/board-loader";
 import {
   applyPlant,
+  armBankrupt,
+  armDebt,
+  armGameOver,
   armHero,
   armHeroOffer,
+  armPhase,
+  armReaction,
   giveJinnang,
   giveTreasure,
   giveTreasureFromDeck,
@@ -22,6 +27,7 @@ import {
   setStamina,
   type PlantOp,
 } from "@core/planter";
+import type { ReactionPayload, ReactionView } from "@core/reaction-window";
 import { heroById } from "@core/heroes";
 import { createTreasureDeck } from "@core/treasures";
 
@@ -166,7 +172,11 @@ describe("armHero/armHeroOffer(名将/候选,裸写形;判词共一处)", () => 
     const e = makeEngine();
     armHero(e, 0, "zhouyu"); // 缺省=整池原序(testing.ts armHero 同款签名)
     expect(e.players[0].heroes).toEqual([
-      { heroId: "zhouyu", skillIds: [...heroById("zhouyu").skillPool], lastFired: {} },
+      {
+        heroId: "zhouyu",
+        skillIds: [...heroById("zhouyu").skillPool],
+        lastFired: {},
+      },
     ]);
     armHero(e, 1, "huatuo", ["qingnang"]); // 显式子集(实授只给主动技形,jinnang-use 站点)
     expect(e.players[1].heroes).toEqual([
@@ -206,6 +216,115 @@ describe("giveTreasureFromDeck(牌堆源珍宝,裸写形)", () => {
     e.treasureDeck = createTreasureDeck();
     expect(() => giveTreasureFromDeck(e, 0, e.treasureDeck.length + 1)).toThrow();
     expect(() => giveTreasureFromDeck(e, 9, 1)).toThrow();
+  });
+});
+
+describe("armPhase(改相位/活跃方,裸写形)", () => {
+  it("三字段按需选填直写:turnPhase+activeIndex 钉位(停车坪形)、单 activeIndex 亦达(钉 bot 行动方形)、未选填字段零触碰", () => {
+    const e = makeEngine();
+    expect(e.turnPhase).toBe("Roll"); // 出厂态:断言「钉了才变」
+    armPhase(e, { turnPhase: "AwaitingDecision", activeIndex: 0 });
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    expect(e.activeIndex).toBe(0);
+    armPhase(e, { activeIndex: 1 }); // 单字段补丁(他人回合沿驱动形)
+    expect(e.activeIndex).toBe(1);
+    expect(e.turnPhase).toBe("AwaitingDecision");
+    armPhase(e, { phase: "Playing" });
+    expect(e.phase).toBe("Playing");
+  });
+
+  it("未知相位/越界座位/空补丁当场炸(零兜底:op 过桥是无类型 JSON,种错的场要响)", () => {
+    const e = makeEngine();
+    expect(() => armPhase(e, { turnPhase: "AwaitingDecsion" as TurnPhase })).toThrow();
+    expect(() => armPhase(e, { phase: "Plyaing" as EnginePhase })).toThrow();
+    expect(() => armPhase(e, { activeIndex: 9 })).toThrow();
+    expect(() => armPhase(e, {})).toThrow(); // 空补丁=种了个寂寞
+  });
+});
+
+describe("armBankrupt/armDebt/armGameOver(破产终局族,裸写形;判词共一处)", () => {
+  it("破产印=isBankrupt 置位;挂债窗=pendingDebt+AwaitingBankruptcySettle 一体(creditor 座位解析成 Player 引用);终局=isOver+winner+GameOver 一体", () => {
+    const e = makeEngine();
+    armBankrupt(e, 1);
+    expect(e.players[1].isBankrupt).toBe(true);
+    armDebt(e, 99999, null);
+    expect(e.pendingDebt).toEqual({ amount: 99999, creditor: null });
+    expect(e.turnPhase).toBe("AwaitingBankruptcySettle");
+    armDebt(e, 1500, 1);
+    expect(e.pendingDebt).toEqual({ amount: 1500, creditor: e.players[1] });
+    armGameOver(e, 0);
+    expect(e.isOver).toBe(true);
+    expect(e.winner).toBe(e.players[0]);
+    expect(e.phase).toBe("GameOver");
+  });
+
+  it("越界座位(破产印/creditor/终局胜者)当场炸(零兜底:种错的场要响)", () => {
+    const e = makeEngine();
+    expect(() => armBankrupt(e, 9)).toThrow();
+    expect(() => armDebt(e, 100, 9)).toThrow();
+    expect(() => armGameOver(e, 9)).toThrow();
+  });
+});
+
+describe("armReaction(挂反应载荷,裸写形)", () => {
+  it("pendingReaction 与 openReactionWindow 产物同构:seq=jinnangSeq 自增取号、answers 恒空、turnPhase=AwaitingReaction 同拍;二窗单调再取号", () => {
+    const e = makeEngine();
+    const view: ReactionView = {
+      kind: "jinnang",
+      cardId: "火烧连营",
+      userSeat: 1,
+      targetSeats: [0],
+      queriedBySeat: [0],
+      windowMs: 30000,
+    };
+    const payload: ReactionPayload = {
+      kind: "jinnang",
+      userSeat: 1,
+      cardId: "火烧连营",
+      targets: [0],
+    };
+    armReaction(e, view, payload);
+    expect(e.jinnangSeq).toBe(1);
+    expect(e.pendingReaction).toEqual({ seq: 1, view, answers: [], payload });
+    expect(e.turnPhase).toBe("AwaitingReaction");
+    armReaction(e, view, payload);
+    expect(e.pendingReaction!.seq).toBe(2);
+  });
+
+  it("view 公开面越界座位当场炸(使用者/目标/被询问)", () => {
+    const e = makeEngine();
+    const badUser: ReactionView = {
+      kind: "jinnang",
+      cardId: "火烧连营",
+      userSeat: 9,
+      targetSeats: [0],
+      queriedBySeat: [0],
+      windowMs: 1000,
+    };
+    expect(() =>
+      armReaction(e, badUser, {
+        kind: "jinnang",
+        userSeat: 1,
+        cardId: "火烧连营",
+        targets: [0],
+      }),
+    ).toThrow();
+    const badTarget: ReactionView = {
+      kind: "jinnang",
+      cardId: "火烧连营",
+      userSeat: 1,
+      targetSeats: [9],
+      queriedBySeat: [0],
+      windowMs: 1000,
+    };
+    expect(() =>
+      armReaction(e, badTarget, {
+        kind: "jinnang",
+        userSeat: 1,
+        cardId: "火烧连营",
+        targets: [0],
+      }),
+    ).toThrow();
   });
 });
 
@@ -253,7 +372,12 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     armHeroOffer(a, ["zhouyu", "huatuo"]);
     giveTreasureFromDeck(a, 0, 2);
     applyPlant(b, { kind: "placePlayer", seat: 1, position: 5 });
-    applyPlant(b, { kind: "grantProperty", seat: 0, propertyId: pid, level: 2 });
+    applyPlant(b, {
+      kind: "grantProperty",
+      seat: 0,
+      propertyId: pid,
+      level: 2,
+    });
     applyPlant(b, { kind: "armHero", seat: 1, heroId: "zhouyu" });
     applyPlant(b, { kind: "armHeroOffer", heroIds: ["zhouyu", "huatuo"] });
     applyPlant(b, { kind: "giveTreasureFromDeck", seat: 0, count: 2 });
@@ -262,6 +386,49 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(b.players[1].heroes).toEqual(a.players[1].heroes);
     expect(b.offeredHeroes).toEqual(a.offeredHeroes);
     expect(b.players[0].treasures).toEqual(a.players[0].treasures);
+  });
+
+  it("执行态族指令(armPhase/armBankrupt/armDebt/armGameOver/armReaction)与直呼同一实现", () => {
+    const a = makeEngine();
+    const b = makeEngine();
+    const view: ReactionView = {
+      kind: "jinnang",
+      cardId: "火烧连营",
+      userSeat: 1,
+      targetSeats: [0],
+      queriedBySeat: [0],
+      windowMs: 30000,
+    };
+    const payload: ReactionPayload = {
+      kind: "jinnang",
+      userSeat: 1,
+      cardId: "火烧连营",
+      targets: [0],
+    };
+    armPhase(a, { turnPhase: "AwaitingDecision", activeIndex: 0 });
+    armBankrupt(a, 1);
+    armDebt(a, 99999, null);
+    armGameOver(a, 0);
+    armReaction(a, view, payload);
+    applyPlant(b, {
+      kind: "armPhase",
+      turnPhase: "AwaitingDecision",
+      activeIndex: 0,
+    });
+    applyPlant(b, { kind: "armBankrupt", seat: 1 });
+    applyPlant(b, { kind: "armDebt", amount: 99999, creditor: null });
+    applyPlant(b, { kind: "armGameOver", winnerSeat: 0 });
+    applyPlant(b, { kind: "armReaction", view, payload });
+    expect(b.turnPhase).toBe(a.turnPhase);
+    expect(b.activeIndex).toBe(a.activeIndex);
+    expect(b.players[1].isBankrupt).toBe(a.players[1].isBankrupt);
+    expect(b.pendingDebt).toEqual(a.pendingDebt);
+    expect(b.turnPhase).toBe(a.turnPhase);
+    expect(b.isOver).toBe(a.isOver);
+    expect(a.winner).toBe(a.players[0]); // winner=本引擎座位引用(跨引擎实例不可比)
+    expect(b.winner).toBe(b.players[0]);
+    expect(b.phase).toBe(a.phase);
+    expect(b.pendingReaction).toEqual(a.pendingReaction);
   });
 
   it("未知 kind 当场炸(分发口不吞错)", () => {

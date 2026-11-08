@@ -10,7 +10,7 @@
 // react-narrow「全浮层件就位」同阈值守;独占的「桌面→844×390 视口切换」到达路径是
 // 纯 CSS 重排非 app 代码,且交付形态 APK 锁横屏、桌面 resize 为不设断言的失修面。
 import { test, expect } from "./fixtures";
-import { quickStart, dismissJinnangIfUp, force } from "./react-helpers";
+import { quickStart, dismissJinnangIfUp, force, snap } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 
@@ -19,10 +19,11 @@ test.describe("顶部浮层几何(#700 ①)", () => {
 
   // 真实段(ADR-0058):quickStart 真实开局链(谱内 seed 1486,seedSolo 直呼生产
   // 通路)走到首拍冻结,顶浮层四件(设置/详情/回合胶囊/三圆钮)真实挂载渲染的 DOM
-  // 盒模型即被测环——单发 evaluate 读真渲染几何,无操作链。force 判词:钉
-  // AwaitingDecision 空闲态=断言前提(「锦囊默认亮」需决策空闲钉住;引擎自转无
-  // 「钉相位」公共命令),清 pendingLand/落格投影防决策卷轴弹出遮顶栏——「空闲且
-  // 无遮罩」形态引擎到不了(rack 停车坪同判词)。
+  // 盒模型即被测环——单发 evaluate 读真渲染几何,无操作链。钉相位走 armPhase
+  // (#1301,判词单源 src/core/planter.ts:钉 AwaitingDecision 空闲态=断言前提,
+  // 引擎自转无「钉相位」公共命令);清落格投影(防决策卷轴遮顶栏)仍直写=落格
+  // 结算内部挂起态无种植件,内联判词(「空闲且无遮罩」形态引擎到不了,rack 停车坪
+  // 同判词)。
   test("顶左行序 设置→详情:两钮 32×32 避 safe-area;回合胶囊顶中与钮行同排(#853 chip 退役);三圆钮 44px 贴右下,锦囊默认亮", async ({
     page,
   }) => {
@@ -32,12 +33,12 @@ test.describe("顶部浮层几何(#700 ①)", () => {
     // 停靠点漂移与 bot 链竞速面归零(负载根治,几何族种植例同批换装)。
     await quickStart(page, 1486, { advance: "preRoll" });
     // 钉 AwaitingDecision 空闲态(preRoll 已冻,只清落格投影防决策卷轴遮顶栏)
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
     await force(
       page,
       `
       e.lastLandOutcome = null;
       e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
     `,
     );
     // #1181 诊断:本例是单发 evaluate 几何读数,满载下 quickStart 放行点与浮层首挂/
@@ -119,25 +120,26 @@ test.describe("锦囊手牌开关(#1006 建组;显隐回合联动+决策保底)"
   // 退役删除)。
   // 真实段(ADR-0058):开关显隐的 UI 响应链即被测环——toggle 真实点击(收起/再开/
   // 跨回合持续)与四枚沿(自回合开始/窗态开场/窗落交出)的真 DOM 挂载卸载全真。
-  // force 判词:四枚沿的驱动状态(回合交接/窗态升落)由引擎自转产生,无「指定下一
-  // 行动方」「凭空开/落反应窗」公共命令(rack 同判词)——直写 activeIndex/turnPhase
-  // 是触发沿的唯一通路,被测对象是 UI 对该状态的响应链,不是状态本身。
+  // 相位/活跃方种植走 armPhase(#1301,判词单源 src/core/planter.ts:四枚沿的驱动
+  // 状态(回合交接/窗态升落)由引擎自转产生,无「指定下一行动方」「凭空开/落反应窗」
+  // 公共命令——被测对象是 UI 对该状态的响应链,不是状态本身);清落格投影仍直写
+  // (同上例内联判词)。
   test("收起即隐/再点回亮;跨他人回合持续;亮收四沿自动对齐(回合联动+决策保底)", async ({ page }) => {
     test.slow(); // 预算放宽同族口径(preRoll 后本例实跑 ~15s)
     // 波5b #1218 定 seed 根治(「他人回合收起」负载挂签名):原随机 seed+waitMyPause
     // 自然停靠,bot 回合询问期两类假停靠(反应窗询问/珍宝抉择,decisionOwner=我)会
-    // 让 force 钉相位与真链赛跑;改 preRoll 落都即冻结(#1221 通路,种植例评估采用
+    // 让钉相位与真链赛跑;改 preRoll 落都即冻结(#1221 通路,种植例评估采用
     // ——断言面=开关四沿 UI 响应,不依赖行军日志/回合数),停车与竞速面归零。
     await quickStart(page, 1486, { advance: "preRoll" });
     // 停车坪(pinRackIdle 同款钉法,配方出处 react-jinnang-rack):钉进 AwaitingDecision
     // 空闲态 + 清 pendingLand/落格投影——决策卷轴不拦顶栏命中,锦囊钮可点,状态
     // 无限期稳定(preRoll 已冻,无自动推进可竞速)。
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
     await force(
       page,
       `
       e.lastLandOutcome = null;
       e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
     `,
     );
     const zone = page.getByTestId(TESTIDS.handZone);
@@ -155,29 +157,32 @@ test.describe("锦囊手牌开关(#1006 建组;显隐回合联动+决策保底)"
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
     // 收起跨他人回合持续(沿与沿之间手动态持续):钉进 bot 席位(#413 停车坪口径,
-    // 直写引擎不经房间编排,驱动链不触发,钉住的状态稳定)仍收着
+    // 种植不经房间编排,驱动链不触发,钉住的状态稳定)仍收着
     await toggle.click();
     await expect(zone).toHaveCount(0);
-    await force(page, `e.activeIndex = e.players.findIndex((p) => p.isBot);`);
+    const botIdx = (await snap(page)).players.findIndex((p: { isBot: boolean }) => p.isBot);
+    await plant(page, { kind: "armPhase", activeIndex: botIdx });
     await expect(zone).toHaveCount(0);
     await expect(toggle).not.toHaveClass(/on/);
     // 亮沿①:自回合开始上升沿(activeIndex 回自席,false→true)自动弹回
-    await force(page, `e.activeIndex = e.players.findIndex((p) => !p.isBot);`);
+    const myIdx = (await snap(page)).players.findIndex((p: { isBot: boolean }) => !p.isBot);
+    await plant(page, { kind: "armPhase", activeIndex: myIdx });
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
     // 亮沿②:窗态开场上升沿(出牌窗 junshiUp false→true)自动弹回
     await toggle.click();
     await expect(zone).toHaveCount(0);
-    await force(page, `e.turnPhase = "AwaitingJinnang";`);
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingJinnang" });
     await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
     await expect(zone).toBeVisible();
     await expect(toggle).toHaveClass(/on/);
-    // 收沿(回合联动新增):窗落且回合交出(一拍直写,两布尔同落)→ 架自动收,
+    // 收沿(回合联动新增):窗落且回合交出(一拍种植,两布尔同落)→ 架自动收,
     // 决策毕架撤,不再要求玩家每轮手动收
-    await force(
-      page,
-      `e.turnPhase = "AwaitingDecision"; e.activeIndex = e.players.findIndex((p) => p.isBot);`,
-    );
+    await plant(page, {
+      kind: "armPhase",
+      turnPhase: "AwaitingDecision",
+      activeIndex: botIdx,
+    });
     await expect(page.getByTestId(TESTIDS.actionbar)).toHaveCount(0);
     await expect(zone).toHaveCount(0);
     await expect(toggle).not.toHaveClass(/on/);
@@ -222,7 +227,12 @@ test.describe("签面归组(#840 ④)", () => {
           if (!zoneEl || !sealEl || !rackEl || !cardEl) return null;
           const rect = (el: Element) => {
             const r = el.getBoundingClientRect();
-            return { left: r.x, right: r.x + r.width, cx: r.x + r.width / 2, w: r.width };
+            return {
+              left: r.x,
+              right: r.x + r.width,
+              cx: r.x + r.width / 2,
+              w: r.width,
+            };
           };
           const z = rect(zoneEl);
           const s = rect(sealEl);

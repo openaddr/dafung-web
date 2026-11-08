@@ -10,8 +10,9 @@ import { plant } from "./helpers/drivers";
 // 珠数/金框随 property 数据真渲染)。授房产/等级走 grantProperty 种植件(#1300,判词
 // 单源 src/core/planter.ts:满级/半级城引擎到不了——真实升级路径走 endTurn 会同步放
 // bot 链(火烧连营可同拍拆城),升级后的活状态断言必竞速(react-solo 扩军实录);持有
-// 直接入册=断言面需特定等级形态,冻结+种植是确定性到达手段)。force 判词:钉相位/
-// 活跃方=断言前提(引擎自转无「钉相位」公共命令,相位族 #1301)。
+// 直接入册=断言面需特定等级形态,冻结+种植是确定性到达手段)。钉相位/活跃方走
+// armPhase 种植件(#1301,判词单源 src/core/planter.ts:断言前提,引擎自转无「钉相位」
+// 公共命令)。
 test(
   "城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠",
   { tag: "@slow" },
@@ -44,11 +45,10 @@ test(
       propertyId: unowned[1]!.propertyId,
       level: 2,
     });
+    await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
     await force(
       page,
       `
-    e.phase = "Playing";
-    e.activeIndex = 0;
     window.__pipProbe = { full: ${unowned[0]!.index}, mid: ${unowned[1]!.index}, empty: ${unowned[2]!.index} };
   `,
     );

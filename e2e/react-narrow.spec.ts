@@ -9,11 +9,16 @@
 // pointer: fine 不触发提示层,红线保持)。
 import { test, expect } from "./fixtures";
 import { quickStart, openSoloSetup, waitMyPause, force } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 test.describe("竖屏手机 390×844(coarse pointer)", () => {
-  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+  test.use({
+    viewport: { width: 390, height: 844 },
+    isMobile: true,
+    hasTouch: true,
+  });
 
   // 真实段(ADR-0058):竖屏视口真开局(起兵点击→对局屏真实挂载),提示层全屏接管
   // 几何(全屏覆盖无缝隙)即被测环——零种植零冻结。
@@ -47,18 +52,19 @@ test.describe("矮横屏 844×390", () => {
   test.use({ viewport: { width: 844, height: 390 } });
 
   // 真实段(ADR-0058):真实开局停靠后真渲染浮层件几何(三圆钮贴右下/席位列零滚动
-  // 零重叠/手牌区不相侵)即被测环。force 判词:钉 AwaitingDecision 空闲态=断言前提
-  // (引擎自转无「钉相位」公共命令,react-float-skeleton 停车坪同判词)。
+  // 零重叠/手牌区不相侵)即被测环。钉相位走 armPhase(#1301,判词单源
+  // src/core/planter.ts:钉 AwaitingDecision 空闲态=断言前提,引擎自转无「钉相位」
+  // 公共命令,react-float-skeleton 停车坪同判词);清落格投影仍直写(同其内联判词)。
   test("全浮层件就位:席位右列在上、三圆钮右下,列与钮区互不重叠", async ({ page }) => {
     await quickStart(page);
     // 停车钉我的回合(显隐回合联动后,bot 回合手牌区整区卸载;react-layout 同款配方)
     await waitMyPause(page, 0, 90_000);
+    await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
     await force(
       page,
       `
       e.lastLandOutcome = null;
       e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
     `,
     );
     const buttons = page.getByTestId(TESTIDS.pileButtons);
