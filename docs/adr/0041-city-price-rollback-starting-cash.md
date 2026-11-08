@@ -40,7 +40,7 @@
 - 数据:`public/maps/huanyou.json`(生成器再产)/`zhongyuan.json`;
 - 引擎:`authority.ts`(必配)/`board-loader.ts`(校验);
 - 装配:`scripts/cli.ts`/`room.ts`/`room-record.ts`/`engine-helpers.ts`、`src/app/controllers/online.ts`;
-- 守卫:`test/map-economy-guard.test.ts` 单表化;
+- 守卫:`test/maps/map-economy-guard.test.ts` 单表化;
 - 规则页:01(目标身价锚点)/02(起手现金行)/10(总表两行);
 - e2e 重钉两处(同 #827/#830 先例,谱前提与价格解耦):`react-solo` 购地例种植现金(测机制不测门槛);`react-reaction` 三分支走查开局停靠点种现金回「第一停」+ 分支三行程骰 1→2 不赌 bot 加成(bot 招募/技能是现金决策,裸骰 1 恰落都城格 away 恒假实锤)。
 

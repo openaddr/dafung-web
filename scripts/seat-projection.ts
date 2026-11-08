@@ -248,7 +248,7 @@ export function redactEvents(batch: readonly GameEvent[], seat: number): GameEve
  *  withSnapshot:②是否随拍构造——联机校准判定为真才发(快照含全量 log,非校准
  *  flush 不白付 O(log) 序列化),单机恒发;①恒装配(空批自然产出 null)。
  *  纯函数:不改输入;零兜底——redactEvents 对未登记 kind 当场炸(编译期穷尽 switch
- *  + 运行期双保险,防遗漏机器见 test/downlink-assembly.test.ts)。
+ *  + 运行期双保险,防遗漏机器见 test/online/downlink-assembly.test.ts)。
  *  返回型按 withSnapshot 收窄:要摘要必得摘要(true 恒 string),调用方免空判。 */
 export function assembleDownlinkShot(
   r: RoomSession,

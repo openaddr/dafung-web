@@ -23,8 +23,8 @@ export function wsPortOffset(ws: string): number {
 // 的 cmd-error 与 protocol-online 两测试同跑时各占一口,不互撞。
 const STATIC_PREVIEW_BASE = 4100; // e2e 静态 preview(#658)
 const GAME_SERVER_BASE = 3510; // e2e 引擎服务器(#658)
-const CMD_ERROR_TEST_BASE = 4280; // test/server-cmd-error 真 server(#1181)
-const PROTOCOL_TEST_BASE = 4281; // test/protocol-online 真 server(#1181)
+const CMD_ERROR_TEST_BASE = 4280; // test/online/server-cmd-error 真 server(#1181)
+const PROTOCOL_TEST_BASE = 4281; // test/online/protocol-online 真 server(#1181)
 
 export function staticPreviewPort(ws: string): number {
   return STATIC_PREVIEW_BASE + wsPortOffset(ws);

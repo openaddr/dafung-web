@@ -3,7 +3,7 @@
 // 载体装配拍板点名钉:真渲染才抓得住的载体件归将断言)与出牌墨线(rAF 采样端点对准
 // 几何,单次 evaluate 原子采样);可迁移余量 6 例(点选/取消、不出直发、求贤令点选、
 // 目标段两步、作罢、灰置印条/多标签双章/技能卡)已下放接线层
-// `test/battle-wiring.test.tsx`(ADR-0062 层④,断言面=DOM/store 语义),判词见该
+// `test/wiring/battle-wiring.test.tsx`(ADR-0062 层④,断言面=DOM/store 语义),判词见该
 // 文件头注与 e2e-分类表行注。结算/留痕/记账归引擎层单测(test/jinnang.test.ts、
 // test/reaction-window.test.ts、test/hero-skill.test.ts),本 spec 只留真渲染钉。
 // 种子复算(#949 换图重钉;seed 67 × 关中图,进程内直扫复算):人类先手

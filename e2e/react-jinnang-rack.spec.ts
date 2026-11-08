@@ -16,12 +16,12 @@
 // bot 轮走位与停靠相位随 seed 钉死;真实段声明与种植判词见各例头注(判词单源
 // src/core/planter.ts,ADR-0058 种植合法性分层)。
 // #1289 批二迁移:显隐状态机两例(「他人回合:架自动收起/回合回来自动弹回」「呼吸钮
-// .breathe 四态走查」)迁入接线层 test/popup-state-wiring.test.tsx——断言面纯挂载
+// .breathe 四态走查」)迁入接线层 test/wiring/popup-state-wiring.test.tsx——断言面纯挂载
 // 有无与类名挂点(store 快照驱动+点击→状态机),零几何零真实输入语义。
 // #1315 批T1 迁移:再迁 5 例(13→8)——「起手 1 张点牌详情/Esc 关闭」「唯反应灰置牌
 // 点击开详情/印条」「收起契约①出牌窗收起生效/②选中态跨收起/⑤他人回合反应窗决策保底」
-// 迁入接线层 test/jinnang-wiring.test.tsx(详情/灰置/窥探/secrecy/自机域文件)与
-// test/popup-state-wiring.test.tsx(收起契约族,与 #1289 显隐两例同主题);本 spec
+// 迁入接线层 test/wiring/jinnang-wiring.test.tsx(详情/灰置/窥探/secrecy/自机域文件)与
+// test/wiring/popup-state-wiring.test.tsx(收起契约族,与 #1289 显隐两例同主题);本 spec
 // 存例 8 =几何哨与长按/hover/reduced-motion 真实输入语义(名册地板,永留浏览器)。
 import { test, expect } from "./fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
@@ -196,7 +196,7 @@ async function pinJunshiWindow(page: Page, cards: string[], seed: number): Promi
 test.describe("锦囊 T3:底部手牌架", () => {
   // 「起手 1 张:架可见且牌在架内;点牌详情含牌名全文;Esc 关闭」例已迁(#1315 批T1):
   // 断言面=架/手牌行挂载、详情弹层牌名与牌面全文、Esc 关闭即卸载(点击→详情 DOM 有无
-  // 与文本,零几何零真实输入),迁移落点=接线层 test/jinnang-wiring.test.tsx「点牌
+  // 与文本,零几何零真实输入),迁移落点=接线层 test/wiring/jinnang-wiring.test.tsx「点牌
   // 详情」例;Esc 关闭走底件 document 级 keydown(happy-dom 合成派发即达,非真实输入
   // 时序)。
   // 真实段:裸指针长按序列(move→down 700ms→up)+补发 click 抑制的输入语义全真;
@@ -220,7 +220,7 @@ test.describe("锦囊 T3:底部手牌架", () => {
 
   // 「他人回合:架自动收起(回合交出即撤);回合回来自动弹回」例已迁(#1289 批二):
   // 断言面=handZone 挂载有无+开关 .on 类名挂点(store 快照驱动,零几何零真实输入),
-  // 迁移落点=接线层 test/popup-state-wiring.test.tsx「他人回合」例;本文件存例仅剩
+  // 迁移落点=接线层 test/wiring/popup-state-wiring.test.tsx「他人回合」例;本文件存例仅剩
   // 几何与真实输入语义(长按/hover/reduced-motion,名册地板)。
 });
 
@@ -354,7 +354,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   // 「唯反应灰置牌:点击开详情(aria-disabled 语义保持),选中与出牌零通路」例已迁
   // (#1315 批T1):断言面=aria-disabled/非原生 disabled/灰置类/唯反应印条文本+
   // 点击开详情+出牌钮不亮+引擎零命令快照证伪(全 DOM·store 语义,force:true 点击在
-  // 接线层是合成 click 同义),迁移落点=接线层 test/jinnang-wiring.test.tsx「灰置
+  // 接线层是合成 click 同义),迁移落点=接线层 test/wiring/jinnang-wiring.test.tsx「灰置
   // 印条」例;长按腿(裸指针时序)留浏览器,由本组存例守。
   // 真实段:窗态灰置牌的裸指针长按链(move→down 700ms→up)+补发 click 抑制全真。
   // 种植判词见 pinJunshiWindow(手牌无公共通路,需唯反应牌形;钉窗态=断言前提)。
@@ -412,7 +412,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
 // 会话内临时态 rackHidden(GameScreen 持有,规则沿自动同步):亮=我的回合∪决策窗
 // 在场∪手动临时开,其余一律收;收起不断决策通路(出牌窗=动作条、反应窗=横幅贴底
 // 下移),选中态跨收起保留。五契约的迁移账:①②⑤已迁接线层(#1315 批T1,断言面=
-// 挂载有无/类名挂点/真命令过相位,落点 test/popup-state-wiring.test.tsx「锦囊架收起
+// 挂载有无/类名挂点/真命令过相位,落点 test/wiring/popup-state-wiring.test.tsx「锦囊架收起
 // 契约」组)、④呼吸钮 .breathe 已迁(#1289 批二)、「他人回合」沿联动例已迁(#1289
 // 批二);本组存例=③(收起贴底位移=banner boundingRect 几何+选牌落印真结算链,
 // 名册地板)。
@@ -476,13 +476,13 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
 
   // 「④呼吸钮:.breathe 四态走查」例已迁(#1289 批二):断言面=呼吸钮与开关钮的
   // 类名挂点(窗态∧收起的纯状态机,store 快照驱动),迁移落点=接线层
-  // test/popup-state-wiring.test.tsx「呼吸钮」例;呼吸金光的真实视觉存在归
+  // test/wiring/popup-state-wiring.test.tsx「呼吸钮」例;呼吸金光的真实视觉存在归
   // visual-compare(演出与静态景深的存在性防线统一归口)。
 
   // 「⑤他人回合反应窗:窗在场架必亮(决策保底不问回合);窗收架撤(决策毕不赖站)」
   // 例已迁(#1315 批T1):断言面=横幅/手牌行挂载有无沿三个可见性沿的走查(窗态∧
   // activeIndex 的纯状态机,store 快照驱动+种植布场),零几何零真实输入,迁移落点=
-  // 接线层 test/popup-state-wiring.test.tsx「锦囊架收起契约⑤」例(窗载荷经
+  // 接线层 test/wiring/popup-state-wiring.test.tsx「锦囊架收起契约⑤」例(窗载荷经
   // armReaction、回合交接经 armPhase 种植件直呼)。
 });
 

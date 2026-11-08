@@ -543,7 +543,7 @@ describe("主动技不可被识破(#229/#281 口径)", () => {
 
 // 出牌指示线留痕通道(#281/P2-E 瞬态 jinnangPlays/drainJinnangPlays)已随 #423 项5 退役:
 // 出牌线因果改事件批承载(jinnangAnnounced/jinnangVoided),批面由 test/game-events.test.ts
-// 「识破窗全程」钉死,表现直译(jinnangPlayed)由 test/presentation.test.ts 钉死——
+// 「识破窗全程」钉死,表现直译(jinnangPlayed)由 test/presentation/presentation.test.ts 钉死——
 // 原留痕形状用例按退役处置,不重写(事件管线两层已全覆盖,重写即重复用例)。
 describe("反应窗窗实例号(#284)", () => {
   it("窗实例号随快照恢复推回(#284 残留半边)", () => {

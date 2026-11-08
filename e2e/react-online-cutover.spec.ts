@@ -1,6 +1,6 @@
 // 联机断线重连 UI 通路守卫(#388,ADR-0020 折叠切换⑥;#1164 棒二改组)。
 // 本文件原三道门(零逐步快照审计 / 掉线 lobby 指纹 / 重连摘要投影水合+双端收敛)的
-// **协议面逻辑断言**已整体迁入 test/protocol-online.test.ts 场景八/九与场景二/四/五
+// **协议面逻辑断言**已整体迁入 test/online/protocol-online.test.ts 场景八/九与场景二/四/五
 // (落点总表见 docs/adr/0055-protocol-fault-e2e.md);浏览器侧只留真 UI 断言:
 // 裸关底层 socket 走真实退避重连路径时,断线横幅的可见性翻转(可见性类,无头测试
 // 不持有 DOM/演出面,替代不了)。
@@ -8,7 +8,7 @@
 // 跑前需先 build(两 webServer 都消费 dist)。
 // 真实段(ADR-0058)(波5b #1218 标注):全 1 例全真零种植——双端真实开局后裸关底层
 // socket(真断线)→断线横幅真渲染可见→真退避重连→横幅真撤,可见性翻转即被测环
-// (重连摘要/事件续流/双端收敛协议面已迁 test/protocol-online.test.ts,见上)。
+// (重连摘要/事件续流/双端收敛协议面已迁 test/online/protocol-online.test.ts,见上)。
 // 联机走 testUnscaled(对局节奏由服务器驱动)。零种植。
 import { testUnscaled as test, expect, type Page } from "./fixtures";
 import { newBridgeContext, dismissJinnangIfUp, onlinePickCapitals } from "./react-helpers";
@@ -65,7 +65,7 @@ test.describe("断线重连 UI 通路(#388,#1164 棒二改组)", { tag: "@slow" 
     await expect(guest.getByTestId(TESTIDS.connectionBanner)).toBeVisible({ timeout: 15_000 });
 
     // 重连:退避 ~1s 后自动重连,摘要水合完成 → 横幅消失(可见性翻转即 UI 通路全绿;
-    // 摘要投影/事件续流/双端收敛等协议面断言在 test/protocol-online.test.ts 场景二/四)
+    // 摘要投影/事件续流/双端收敛等协议面断言在 test/online/protocol-online.test.ts 场景二/四)
     await expect(guest.getByTestId(TESTIDS.connectionBanner)).not.toBeVisible({ timeout: 30_000 });
 
     await host.context().close();

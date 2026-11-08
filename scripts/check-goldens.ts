@@ -14,7 +14,7 @@
 // bun run check:goldens:update 刷新台账(update 打印新旧摘要差异,不静默),
 // 流程详见 docs/how-to/开发与测试.md「黄金台账」节。
 //
-// 语料 = 票一同款(test/headless-whole-game.test.ts):guanzhong/zhongyuan/yanzhou
+// 语料 = 票一同款(test/whole-game/headless-whole-game.test.ts):guanzhong/zhongyuan/yanzhou
 // × seed 3001-3010 × 4 bot 座,走 runWholeGame(机遇 = 产品默认,ADR-0035)。
 // 不装扩展包——与票一同口径(装载会把扩展名将灌进全局名将池,bun test 单进程实锤)。
 //

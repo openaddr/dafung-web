@@ -1,6 +1,6 @@
 // React 重构 · 联机托管 UI 守卫(阶段 11;#1164 棒二改组)。
 // 意图来源:旧 online-autopilot.spec(双端托管零输入到终局 / 收回 / 切速)。
-// #306:REST 占座契约例已下沉 test/room.test.ts(room.ts 零 WS,bun test 直打)——
+// #306:REST 占座契约例已下沉 test/online/room.test.ts(room.ts 零 WS,bun test 直打)——
 // lobbyView 即 /room/new·join 响应体,UI 层不再重复守传输契约;本文件只守托管行为 UI。
 // #580 托管归一:单节拍 2s/步(权威节奏不吃 E2E_TIME_SCALE),无速度分档可切;
 // 轮询超时一律按「步数×2s」富余给。
@@ -9,7 +9,7 @@
 // Base UI Switch,态=aria-checked);行为语义=ADR-0028 单一托管开关(接管=自动托管),
 // 断言意图原样平移。
 // #1164 棒二:原用例一「双端托管:推进,host 中途收回即停(冻结),重开推进恢复」的
-// **托管语义逻辑面**已迁 test/protocol-online.test.ts 场景七(落点总表见
+// **托管语义逻辑面**已迁 test/online/protocol-online.test.ts 场景七(落点总表见
 // docs/adr/0055-protocol-fault-e2e.md);本文件只留「托管收回」一例,守开关交互通路
 // (设置弹层开合/aria-checked 回读/手选都交互/棋子可见行进——交互与可见性,无头层
 // 替代不了)。

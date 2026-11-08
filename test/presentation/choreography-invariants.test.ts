@@ -1,0 +1,246 @@
+// 编排不变量锁定(#117 收编批次):JS 侧编排时长唯一收口 fx/timings.ts(演出编排族经
+// scStage、界面/节拍族经 sc 包裹,无 localStorage 键且追帧倍率 1 时逐位等于字面量),
+// CSS 侧时长唯一源 core/theme.ts Motion
+// (经 gen:theme 产出 tokens.css)。本测试钉死常量「之间」的编排关系,防止调参或后续
+// 收编时悄悄破坏演出语义:
+//   骰子 — DICE.holdMs + DICE.fadeOutMs ≥ 300(timings.ts 注释原文:任何掷骰
+//          结束后都有 ≥300ms 可读结果;终局封场豁免:胜利屏挂载即封场
+//          (orchestrator.finishPresentation),终局局的骰子可在事件边界被整体截断,
+//          是生命周期规则不是回归);掷骰签单段式(2026-11-01 拍板:虚位/钤落弧
+//          退役,入场渐显在场,diceFast 半速分档已退役);
+//   S7 仪式 — 破产三拍时间轴递增(墨渍拍 < 撒币拍 < 收口),拼点签面节拍有序
+//          (幕启 < 摇、错拍落 < 判词);
+//   行军/bot — 段时长夹取区间必须有序、bot 回合节奏必须真实等待;
+//   倍率地板 — TIME_SCALE_FLOOR_MS ≥ 100(headless+软渲的可观察下限不被悄悄调低)。
+// 数值本身的逐位锁定在 test/e2e-time-scale.test.ts(生产恒等快照),本文件只管关系。
+//
+// ADR-0029 起(#608)本文件兼守演出自洽不变量的运行时面(类型面守卫 =
+// FxSink 签名编译期摸不到引擎):「提取即定格」——提取完成后引擎继续推进/篡改
+// players,再播放,memorySink 逐帧坐标与提取拍预计算完全一致,防提取器内藏
+// 活引用延迟求值(播放期现算即本不变量禁绝的旧病)。
+import { describe, it, expect } from "bun:test";
+import {
+  CEREMONY,
+  DICE,
+  DUEL,
+  FX,
+  LAG,
+  MARCH,
+  TIME_SCALE_FLOOR_MS,
+  setCatchupScale,
+} from "../../src/app/fx/timings";
+import { AUTOPILOT_STEP_MS, BOT_STEP_MS } from "../../src/core/timings";
+import { GameEngine } from "../../src/core/authority";
+import type { EngineConfig } from "../../src/core/authority";
+import { createDice } from "../../src/core/dice";
+import { TOKEN_SLOT_OFFSETS } from "../../src/core/constants";
+import guanzhongData from "../../public/maps/guanzhong.json";
+import { loadMap } from "../../src/core/board-loader";
+import { testEngine } from "../../src/core/testing";
+import { anchorMarches, extractBatchEvents } from "../../src/app/fx/event-extract";
+import { present, resetFxOrchestration } from "../../src/app/fx/orchestrator";
+import { createMemorySink } from "../../src/app/fx/sinks";
+import type { MarchSegmentFrames, PresentationEvent } from "../../src/app/fx/presentation";
+
+describe("编排不变量(fx/timings.ts 收口与 core/theme.ts Motion 的关系)", () => {
+  it("骰子可读结果:DICE.holdMs + DICE.fadeOutMs >= 300(任何掷骰结束后有 ≥300ms 可读结果)", () => {
+    expect(DICE.holdMs + DICE.fadeOutMs).toBeGreaterThanOrEqual(300);
+  });
+
+  it("掷骰签单段式(2026-11-01 拍板):入场渐显在场,分档/钤落字段不再存在", () => {
+    expect(DICE.readyMs).toBeGreaterThan(0); // 现身拍在(「有一点延迟,但不要再有乱七八糟的动画」)
+  });
+
+  it("破产仪式三拍时间轴递增(S7):墨渍拍 < 撒币拍 < 收口,倒旗全长落在收口窗内", () => {
+    expect(CEREMONY.blotAtMs).toBeLessThan(CEREMONY.coinsAtMs);
+    expect(CEREMONY.coinsAtMs).toBeLessThan(CEREMONY.settleMs);
+    expect(CEREMONY.fallMs).toBeLessThanOrEqual(CEREMONY.settleMs);
+  });
+
+  it("拼点签面节拍有序(#637,ADR-0030):幕启 < 摇,错拍落 < 判词,判词停留与收场渐出俱为正", () => {
+    expect(DUEL.curtainMs).toBeGreaterThan(0); // 幕启:玄墨幕渐入+两签虚位(摇签等幕启后起跑)
+    expect(DUEL.curtainMs).toBeLessThan(DUEL.shakeMs); // 幕启 < 并行起摇
+    expect(DUEL.clackGapMs).toBeLessThan(DUEL.verdictMs); // 座位序错拍落 < 判词拍(错拍=clackGap 间隙,延续既有拼点节拍)
+    expect(DUEL.holdMs).toBeGreaterThan(0); // 判词停留(金圈/金平可读窗)
+    expect(DUEL.fadeOutMs).toBeGreaterThan(0); // 整幕渐出
+  });
+
+  it("大胜峰值冲击波在判词停留窗内放完(#849 棒1):blowoutWaveDelayMs + blowoutWaveMs <= holdMs", () => {
+    // 峰值件(延迟约两拍起爆 + 500ms 涨散)是判词拍的一次性演出,读不到尾=白炸
+    expect(DUEL.blowoutWaveDelayMs + DUEL.blowoutWaveMs).toBeLessThanOrEqual(DUEL.holdMs);
+  });
+
+  it("追帧全域无中途掐断(#849 棒3 + #885 四族):内联动画全长 ≤ 各自清理/编排窗(1→3 顶速逐档)", () => {
+    // fx.css 编排类 keyframe 已全量收口「keyframe 只管形、消费点内联 scStage」
+    // (棒3 票面六处 + #885 desk 震屏/旌旗缓倒/墨渍/浮字铜钱四族)——动画全长与
+    // 清理/编排窗同通道缩放,「追帧 3x 清理掐断在途动画」的失配自除。e2e 无法驱动
+    // 追帧判档(生产 = 联机积压出队点,SnapshotEffects 专有),判据在此机械化:
+    // 逐档断言全长 ≤ 窗(掷骰签已单段式,签卡随 overlay 渐显,无独立弧长窗账)。
+    // 通道本身的除法行为见 test/e2e-time-scale.test.ts。
+    for (const scale of [1, LAG.scaleMin, 2, 2.5, LAG.scaleMax]) {
+      setCatchupScale(scale);
+      const at = `catchup×${scale}`;
+      expect(FX.sealLingerMs, `${at}:印停持消隐超清理窗`).toBeLessThanOrEqual(FX.sealMs);
+      expect(FX.pulseRingMs, `${at}:落格金圈超清理窗`).toBeLessThanOrEqual(FX.landPulseMs);
+      expect(DUEL.landMs, `${at}:签面钤落弧超判词拍`).toBeLessThanOrEqual(DUEL.verdictMs);
+      // #885 四族:震屏无独立窗账(desk.ts 注入与自摘读同一 getter,构造上同值);
+      // 旗倒无窗(类不摘除),钉的是「墨渍尾段开晕不脱拍」的时间轴关系;
+      // 墨渍/撒币与棒3 同式「全长 ≤ 清理窗」,撒币含错拍三步(delay 入通道同向)。
+      expect(CEREMONY.blotAtMs, `${at}:墨渍开晕拍超旗倒全长(尾段开晕脱拍)`).toBeLessThanOrEqual(
+        CEREMONY.fallMs,
+      );
+      expect(FX.inkBloomMs, `${at}:墨渍晕开超清理窗`).toBeLessThanOrEqual(FX.inkBlotMs);
+      expect(
+        FX.coinStaggerMs * 3 + FX.coinRainMs,
+        `${at}:撒币最迟错拍 + 全长超清理窗`,
+      ).toBeLessThanOrEqual(FX.coinBurstMs);
+    }
+    setCatchupScale(1); // 全局态复原,防跨用例泄漏
+  });
+
+  // 大胜负点差档(blowoutMargin)的行为断言归位 test/presentation/presentation.test.ts isBlowout
+  // 边界两支(#639)——此处原「>= 1」近恒真断言已删(测试宁缺毋滥)。
+
+  it("行军段时长夹取区间有序:MARCH.minSegMs < MARCH.maxSegMs", () => {
+    expect(MARCH.minSegMs).toBeLessThan(MARCH.maxSegMs);
+  });
+
+  it("bot 回合配速真实且不快于托管(#730,ADR-0061:bot 是背景演出,可读节奏 ≥ 托管「像人」档)", () => {
+    expect(BOT_STEP_MS).toBeGreaterThanOrEqual(AUTOPILOT_STEP_MS);
+  });
+
+  it("倍率地板不被悄悄调低:TIME_SCALE_FLOOR_MS >= 100", () => {
+    expect(TIME_SCALE_FLOOR_MS).toBeGreaterThanOrEqual(100);
+  });
+});
+
+// ─────────────── 不变量①提取即定格(ADR-0029,#608)───────────────
+const CHOREO_MAP = loadMap(guanzhongData);
+
+function choreoEngine(seed = 7): GameEngine {
+  const cfg: EngineConfig = {
+    seats: [
+      { name: "A", isBot: false, guohao: "魏" },
+      { name: "B", isBot: false, guohao: "蜀" },
+    ],
+    targetNetWorth: 8000,
+    startingCash: 10000,
+    startingTreasures: 0,
+  };
+  return new GameEngine(CHOREO_MAP.board, CHOREO_MAP.catalog, createDice(seed), cfg);
+}
+
+/** 选都到完成(照 presentation.test 的构造:人类选第一个空城,bot 自动)。 */
+function choreoSetup(e: GameEngine) {
+  e.doDraftRoll();
+  let guard = 0;
+  while (e.phase === "Setup" && guard++ < 50) {
+    const idx = e.currentSetupPlayerIndex;
+    if (idx < 0) break;
+    if (e.players[idx].isBot) {
+      e.aiSetupStep();
+    } else {
+      const capIdx = e.firstAvailableCapitalIndex();
+      if (capIdx < 0) break;
+      e.pickCapital(idx, capIdx);
+    }
+  }
+  e.players.forEach((p) => {
+    p.jinnangHand = [];
+    p.jinnangHandCount = 0;
+  });
+  if (e.turnPhase === "AwaitingJinnang") e.resolveJinnang(null);
+}
+
+/** 独立规格:落格槽位偏移(批终占用,分组=剔破产、组内序=玩家数组序、取模槽位圆周)。
+ *  本函数是公式锚:提取烤制与 TokenLayer 声明式分组必须与之同源,任一侧分叉先在此红。 */
+function specSlotOffset(
+  players: readonly { id: string; position: number; isBankrupt: boolean }[],
+  self: { id: string; position: number },
+): { x: number; y: number } {
+  const mates = players
+    .filter((p) => !p.isBankrupt && p.position === self.position)
+    .map((p) => p.id);
+  const idx = Math.max(0, mates.indexOf(self.id));
+  return TOKEN_SLOT_OFFSETS[idx % TOKEN_SLOT_OFFSETS.length];
+}
+
+/** 定格场景(合成批,无掷骰随机性):座 1 行军 4 格,座 0 先占其落格——mover 在
+ *  同格分组中排第 2,槽位偏移取 TOKEN_SLOT_OFFSETS[1] 而非 [0],规格断言才有区分度。 */
+function frozenMarchScene(seed = 7): {
+  e: GameEngine;
+  events: PresentationEvent[];
+  march: Extract<PresentationEvent, { kind: "tokenMoved" }>;
+  startTile: number;
+} {
+  const e = choreoEngine(seed);
+  choreoSetup(e);
+  const mover = e.players[1];
+  const startTile = (mover.capitalIndex + 3) % e.board.count; // 避开己都城:4 格无截断
+  const path = e.board.computePath(startTile, 4, mover.capitalIndex);
+  testEngine(e).place(0, path.landIndex); // 批终占用:座 0 恰在 mover 落格(同格双人)
+  testEngine(e).place(1, path.landIndex);
+  const events = extractBatchEvents(
+    e,
+    [{ kind: "marchArrived", seat: 1, round: 1, turn: 1, tileIndex: path.landIndex, path }],
+    [null, startTile], // 转移前位置:座 1 在路径起点
+  );
+  const march = events.find(
+    (ev): ev is Extract<PresentationEvent, { kind: "tokenMoved" }> => ev.kind === "tokenMoved",
+  );
+  if (march == null) throw new Error("定格场景未产出行军表现(合成 marchArrived 必产)");
+  return { e, events, march, startTile };
+}
+
+describe("不变量①提取即定格(ADR-0029 #608)", () => {
+  it("提取拍烤 keyframes:段序列=起点中心→终点恒直线(#928/ADR-0044),末帧=批终落位中心+槽位偏移(与声明式分组同源规格)", () => {
+    const { e, march, startTile } = frozenMarchScene();
+    const board = e.board;
+    const path = board.computePath(startTile, 4, e.players[1].capitalIndex);
+    // 段数 = 实走格数;首帧 = 起点中心
+    expect(march.keyframes.length).toBe(path.traversed.length);
+    expect(march.keyframes[0].points[0]).toEqual(board.positionOf(path.from));
+    // 逐段:流光折线两端=格中心(不含槽位偏移),恒直线无途经点(每段两点)
+    let prev = path.from;
+    for (const [i, seg] of march.keyframes.entries()) {
+      const tile = path.traversed[i];
+      expect(seg.flow.length).toBe(2);
+      expect(seg.flow[0]).toEqual(board.positionOf(prev));
+      expect(seg.flow[seg.flow.length - 1]).toEqual(board.positionOf(tile));
+      expect(seg.points.length).toBe(seg.flow.length);
+      expect(seg.points[0]).toEqual(board.positionOf(prev));
+      prev = tile;
+    }
+    // 末帧 = 批终落位中心 + 槽位偏移(独立规格复算:mover 与座 0 同格、排位第 2 → 槽 1)
+    const off = specSlotOffset(e.players, e.players[1]);
+    expect(off).toBe(TOKEN_SLOT_OFFSETS[1]); // 场景确有区分度:不是槽 0
+    const last = march.keyframes[march.keyframes.length - 1];
+    expect(last.points[last.points.length - 1]).toEqual({
+      x: board.positionOf(path.landIndex).x + off.x,
+      y: board.positionOf(path.landIndex).y + off.y,
+    });
+    // 末段流光终点仍是格中心(落格槽位偏移不污染驿道流光折线)
+    expect(last.flow[last.flow.length - 1]).toEqual(board.positionOf(path.landIndex));
+  });
+
+  it("定格:提取后引擎继续推进+篡改 players 位置,再播放(marchBegin/marchToken)逐帧坐标与提取拍预计算完全一致", async () => {
+    resetFxOrchestration(); // 防并行测试文件的封场态泄漏(bun test 单进程顺序跑)
+    const { e, events, march } = frozenMarchScene();
+    const frozen = structuredClone(march.keyframes) as MarchSegmentFrames[];
+    expect(Array.isArray(frozen)).toBe(true); // 形状守卫:旧形状(path)在此即红,防空洞通过
+    // 引擎继续推进+篡改:两子改泊他格且再度同格——若 keyframes 内藏活引用或播放期
+    // 现算槽位/路径,此处的占用/位置改写必然泄入播放坐标
+    const far = (e.players[0].position + 9) % e.board.count;
+    testEngine(e).place(0, far);
+    testEngine(e).place(1, far);
+    const sink = createMemorySink();
+    anchorMarches(events, sink); // play() 拍的锚定:与 marchToken 同 keyframes
+    await present(events, sink);
+    const begin = sink.calls.find((c) => c.op === "marchBegin");
+    const played = sink.calls.find((c) => c.op === "march");
+    if (begin == null || played == null) throw new Error("播放未产出行军 sink 调用");
+    if (begin.op !== "marchBegin" || played.op !== "march") throw new Error("unreachable");
+    expect(begin.keyframes).toEqual(frozen);
+    expect(played.keyframes).toEqual(frozen);
+  });
+});

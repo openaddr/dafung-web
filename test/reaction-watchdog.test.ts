@@ -1,7 +1,7 @@
 // 反应窗超时看门狗直驱单测(room/watchdogs 编排层,#281/#284,ADR-0017):
 // 权威语义面「窗内不应答 → 定时代发『不用』,结算照走,对局不冻结」由 #1181 从浏览器
 // e2e 迁入无头层(原承载:e2e/react-reaction.spec.ts「超时兜底」+ e2e/react-reaction-online
-// .spec.ts「超时代发」「断线座位」)。落点=registry 直驱(先例 test/room.test.ts 停摆
+// .spec.ts「超时代发」「断线座位」)。落点=registry 直驱(先例 test/online/room.test.ts 停摆
 // 看门狗例):ManualClock 手泵零墙钟,断言语义等价——reaction-decline 观测行、
 // reactionRespond use=0 对局日志行、结算(份额失效/城防降级)、窗收续推。
 // 断线座位同文件(同族):markSeatOffline 是 WS close 的房间编排入口,看门狗武装
@@ -15,7 +15,7 @@ import type { RoomRecord } from "../scripts/room-record";
 import type { LoadedMap } from "../src/core/board-loader";
 import { MAP } from "../scripts/engine-helpers";
 
-/** 测试用最小地图清单与 provider(同 test/room.test.ts 口径:零 fs,所有 id 返同一图)。 */
+/** 测试用最小地图清单与 provider(同 test/online/room.test.ts 口径:零 fs,所有 id 返同一图)。 */
 const VALID_MAP_IDS = new Set(["guanzhong", "zhongyuan"]);
 const testMapProvider = (_id: string): LoadedMap => MAP;
 
@@ -38,7 +38,7 @@ class InMemoryPersistence implements RoomPersistence {
   }
 }
 
-/** 手动时钟(同 test/room.test.ts):定时全挂表,fireAll 手动泵,零真实等待。 */
+/** 手动时钟(同 test/online/room.test.ts):定时全挂表,fireAll 手动泵,零真实等待。 */
 class ManualClock implements RoomClock {
   private readonly pending = new Map<unknown, () => void>();
   setTimeout(cb: () => void, _ms: number): unknown {
@@ -59,7 +59,7 @@ class ManualClock implements RoomClock {
   }
 }
 
-/** 宏任务让位(同 test/room.test.ts):嵌套 await 的链延续先于下一次泵送落地。 */
+/** 宏任务让位(同 test/online/room.test.ts):嵌套 await 的链延续先于下一次泵送落地。 */
 const macroTick = (): Promise<void> => new Promise((r) => setTimeout(r, 0));
 
 /** 建一个已开局进 Playing 的三人房(seat0=host 真人 / seat1=guest 真人 / seat2=bot),

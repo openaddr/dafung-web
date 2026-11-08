@@ -3,9 +3,9 @@
 // 「义从」结算接线。客户端半边断言(动画/将旗/呈现意图)已随客户端扩展面退役删除
 // (#1064);定制问询「信义盲选」对局断言已随问询线退役删除(#1065)。
 // #1165 瘦身:原「主动技破阵步数 +1」例整删——引擎结算(+1/事件随批/选项可见)与
-// 技能卡交互形制分别由 test/extension-taishici.test.ts「破阵」例与 react-jinnang-use
+// 技能卡交互形制分别由 test/extensions/extension-taishici.test.ts「破阵」例与 react-jinnang-use
 // 技能卡例钉死,本文件该例零独占断言面;义从 +100 的结算细则同样归
-// test/extension-taishici.test.ts「义从」例,本文件只留浏览器侧装载可见性(招贤卷轴
+// test/extensions/extension-taishici.test.ts「义从」例,本文件只留浏览器侧装载可见性(招贤卷轴
 // 陈列太史慈=main.tsx 顶层注册的消费面,无头整局层刻意不装扩展包,替代不了)。
 // #1181 棒一缩:唯一例内已迁的选定结算断言(义从 +100 poll、taishici 入槽)随删,
 // 留装载陈列 + 先看后选拍板收将的命令接线(卷轴随命令受理收场)。
@@ -59,7 +59,7 @@ test.describe("扩展系统骨架(#378 示例名将包全链)", () => {
 
     // 选定太史慈(候选中位):先看后选(2026-11-01 拍板)拍板通路——点卡开全览
     // 详情弹框,弹框「收为麾下」拍板,卷轴随命令受理收场。#1181 棒一缩:选定结算面
-    // (义从 +100、taishici 入槽)已由 test/extension-taishici.test.ts「义从」例
+    // (义从 +100、taishici 入槽)已由 test/extensions/extension-taishici.test.ts「义从」例
     // 钉死,删已迁断言留装载+拍板接线。
     await scroll.locator(`[data-testid="${T.heroPickOption(1)}"]`).click();
     const pick = page.getByTestId(TESTIDS.skillGlossary).getByTestId(TESTIDS.skillGlossaryPick);

@@ -13,7 +13,7 @@
 //      error 下行文本、以及全量下行帧归档(frames;spec 迁移的逐帧审计用)——供测试
 //      断言「按序收到下行/没有错误回报/逐帧形状合规」。
 // 等待语义:waitFor 按 FIFO 扫描缓冲,命中即取出;不命中的帧**保留在缓冲**(滤过式,
-// 照 server-cmd-error.test.ts 的 nextMessageOfType 先例),等待者先到先得。
+// 照 test/online/server-cmd-error.test.ts 的 nextMessageOfType 先例),等待者先到先得。
 import type { GameCommand } from "../src/core/authority";
 import type { EventBatchMsg, ServerMsg, SnapshotMsg } from "./wire";
 import { autoPilotMsg, cmdMsg, pickCapitalMsg } from "./wire";

@@ -8,7 +8,7 @@
 //   players[mySeat].id → useMarch 行军会话查询口,新增会话驱动维度表钉死接线:
 //   本座在途关、他座在途/队列积压(公式无全局队列输入,结构性)开。
 // 两个真实控制器只剩「参数怎么取」:LocalController(热座=true、mySeat=0)由
-// test/local-room.test.ts 既有行为断言守住;OnlineController(热座=false、
+// test/online/local-room.test.ts 既有行为断言守住;OnlineController(热座=false、
 // mySeat=入座分配)参数面在本文件尾部薄测。
 import { describe, it, expect } from "bun:test";
 import type { EnginePhase, GameEngine, TurnPhase } from "@core/authority";

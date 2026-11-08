@@ -15,7 +15,7 @@
 // #291 处置:拆份/自保瘦身(按份结算引擎语义下沉 test/reaction-window.test,e2e 只守询问集
 // 真值、点笺接线、出牌线 rAF 原子采样、最小结算 poll);#1181 再迁两例:超时代发与
 // 断线座位(权威侧定时看门狗语义 → test/reaction-watchdog.test.ts 直驱),降噪口/#461
-// 留接线、判词面下沉(test/reaction-mute.test.ts、test/event-fold.test.ts);
+// 留接线、判词面下沉(test/reaction-mute.test.ts、test/online/event-fold.test.ts);
 // 六例超时统一 120s。应答流程与引擎结算断言收口 react-helpers 反应窗
 // 三段式(等窗开→应答→结算 poll),本 spec 无固定硬等待。
 // #388 切换后:对局中 log 只随校准快照更新(不再逐步实时),declined/countered 等
@@ -32,7 +32,7 @@
 // #1287 慢池迁移批判词:五例判留(名册③真双端应答过网呈现;#461 例双窗到达依赖真
 // 浏览器点击链+路由注入种子,对跑层 LobbyApi 无 seed 缝不可迁)。#1316 批T2 执行
 // 缩腿候裁:「#453 已应答横幅即收」尾部房间落盘留痕腿(权威应答账 readFileSync 两座
-// 各一次+结算执行)下移双端对跑层 `test/online-dual-run.test.ts` 种子直建房应答账例
+// 各一次+结算执行)下移双端对跑层 `test/online/online-dual-run.test.ts` 种子直建房应答账例
 // (纯落盘语义,层③ room-record 直读),兼拆 #1280 观察项二 ENOENT flake 引信(该腿
 // 读盘与服务器落盘拍竞速是历史挂签);浏览器例只留呈现腿(横幅即收不可复显),例数
 // 不变(行注见 docs/reference/e2e-分类表.md 联机行)。
@@ -316,7 +316,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
   // 真实段(#1216,#1316 批T2 缩腿):种子 2849 双人类识破窗(driveToDualWindow 驱动
   // 全真 UI 点击链)上,host 点「不用」应答后横幅即收不可复显(呈现层撤入口)——
   // 已应答座位的呈现面即被测环。权威面(应答齐窗收续结算+两座恰一次应答留痕)已下移
-  // 双端对跑层 `test/online-dual-run.test.ts`「种子直建房应答账」例(#1316;纯落盘/
+  // 双端对跑层 `test/online/online-dual-run.test.ts`「种子直建房应答账」例(#1316;纯落盘/
   // 折算语义,层③),此处不再读房间落盘(#1280 观察项二 ENOENT 引信随腿拆除)。
   test("已应答座位横幅即收、不可复显(#453/B2 呈现腿):host 应答后横幅消失不复发", async ({
     browser,
@@ -351,7 +351,7 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
 
   // 真实段(#1216):同双人类识破窗,host 应答后 guest(非应答端)点「不用」的应答入口
   // 健在、seat=1 应答过网入账全真——per-seat 投影污染不误闭 guest 本地窗(#461 根修)
-  // 的接线证据即被测环(闭窗算术本体已下沉 test/event-fold.test.ts)。
+  // 的接线证据即被测环(闭窗算术本体已下沉 test/online/event-fold.test.ts)。
   test("非应答端可应答(#461):host 应答后 guest 应答入口健在、过网入账,应答齐权威即收窗", async ({
     browser,
   }) => {
@@ -369,8 +369,8 @@ test.describe("反应窗联机(#281 双端,#284 加长窗,#291 整治)", { tag: 
       // 轮询:横幅是演出层,演出队列积压时渲染可迟于窗寿,可视轮询天然竞态;
       // #461 误闭窗的真故障 = guest 本地挂起态丢失 → guest 应答被客户端拒绝 →
       // seat=1 的应答不会过网。guest 随即点「不用」,留痕到位 = 应答入口健在。
-      // 闭窗算术本体已迁(#1181 → test/event-fold.test.ts per-seat 脱敏询问集分母例;
-      // 投影形状与快照水合咬合另见 test/seat-projection.test.ts §④),此处只留接线。
+      // 闭窗算术本体已迁(#1181 → test/online/event-fold.test.ts per-seat 脱敏询问集分母例;
+      // 投影形状与快照水合咬合另见 test/online/seat-projection.test.ts §④),此处只留接线。
       await answerReactionWindow(guest, { mode: "decline" });
       // 权威留痕:guest 自己的应答(seat=1)过网入账(修复前此痕必缺)
       await pollEventSeen(
