@@ -13,7 +13,6 @@
 import { test, expect, type Page } from "./fixtures";
 import { HOME_TID } from "../src/app/screens/home/testids";
 import { MANUAL_TID } from "../src/app/screens/manual/testids";
-import { TESTIDS } from "../src/app/screens/game/testids";
 
 test.describe("手册(844×390 横屏标准档)", () => {
   test.use({ viewport: { width: 844, height: 390 } });
@@ -105,37 +104,13 @@ test.describe("手册(844×390 横屏标准档)", () => {
     }).toPass();
   });
 
-  // 真实段(ADR-0058):点周瑜卡开技能全览只读弹层+关闭的真实交互链即被测环
-  // (无「收为麾下」拍板钮=只读语境契约)——零种植零冻结。
-  test("名将详情:点周瑜卡开技能全览只读弹层,可关回", async ({ page }) => {
-    await openManual(page);
-    await page.getByTestId(MANUAL_TID.card("zhouyu")).click();
-    const glossary = page.getByTestId(TESTIDS.skillGlossary);
-    await expect(glossary).toBeVisible();
-    // 只读浏览语境:不传 onPick → 无「收为麾下」拍板钮(spec 决议⑤)
-    await expect(page.getByTestId(TESTIDS.skillGlossaryPick)).toHaveCount(0);
-    await page.getByTestId(TESTIDS.modalClose).click();
-    await expect(glossary).toHaveCount(0);
-  });
-
+  // 「名将详情」「机遇详情」两例已迁(2026-11-08,#1288 批一):迁移落点=接线层
+  // test/manual-wiring.test.tsx,判层只看断言面——点卡开叠层/只读语境无拍板钮/
+  // 体力代价注记明文全部是「点击→DOM 有无与文本」接线语义(零几何零演出泵);e2e
+  // 到达链(首页入口真实点击)非断言面,随判层换轨。
   // 「锦囊详情」例已删(2026-11-08 唯一守环审计 v2):点卡开参数化叠层的机制由名将
   // 详情(携只读契约)与机遇详情(携内容注记)两例守,锦囊签陈列数由五签切换例守
   // ——本例零内容断言,删。
-
-  // 真实段(ADR-0058):霉运卡点开详情,体力代价注记(effect.staminaDelta 与
-  // choices 同形制)真实渲染+关闭即被测环——零种植零冻结。
-  test("机遇详情:霉运即时条注体力代价(粮道被劫),可关回", async ({ page }) => {
-    await openManual(page);
-    await page.getByTestId(MANUAL_TID.tabEncounters).click();
-    // 粮道被劫 = 霉运即时条(无 choices):详情机读 effect.staminaDelta 注体力代价
-    // (与 choices 注同形制,Q1 拍板;减号 U+2212,现值 −10)
-    await page.getByTestId(MANUAL_TID.card("粮道被劫")).click();
-    const detail = page.getByTestId(MANUAL_TID.detail("粮道被劫"));
-    await expect(detail).toBeVisible();
-    await expect(detail).toContainText("体力 −");
-    await page.getByTestId(TESTIDS.modalClose).click();
-    await expect(detail).toHaveCount(0);
-  });
 
   // 真实段(ADR-0058):详情开着点壳 X,叠层先卸/壳随收/零孤儿弹层的退场协议真实
   // 走查即被测环——零种植零冻结。
