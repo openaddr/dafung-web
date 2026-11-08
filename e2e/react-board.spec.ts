@@ -4,12 +4,14 @@
 // 卷轴范畴,React ScrollShell 无独立 header testid,此处不逐行翻译)。
 import { test, expect } from "./fixtures";
 import { quickStart, force, engineState, waitFxIdle, freezeClock } from "./react-helpers";
+import { plant } from "./helpers/drivers";
 
 // 真实段(ADR-0058):真实挂载棋盘 DOM 上等级珠挂点的渲染链即被测环(data-level/
-// 珠数/金框随 property 数据真渲染)。force 判词:满级/半级城引擎到不了——真实升级
-// 路径走 endTurn 会同步放 bot 链(火烧连营可同拍拆城),升级后的活状态断言必竞速
-// (react-solo 扩军实录);持有直接入册=断言面需特定等级形态,排空演出+冻结+直写
-// 种植是确定性到达手段。
+// 珠数/金框随 property 数据真渲染)。授房产/等级走 grantProperty 种植件(#1300,判词
+// 单源 src/core/planter.ts:满级/半级城引擎到不了——真实升级路径走 endTurn 会同步放
+// bot 链(火烧连营可同拍拆城),升级后的活状态断言必竞速(react-solo 扩军实录);持有
+// 直接入册=断言面需特定等级形态,冻结+种植是确定性到达手段)。force 判词:钉相位/
+// 活跃方=断言前提(引擎自转无「钉相位」公共命令,相位族 #1301)。
 test(
   "城池等级珠:等级=珠数,满级金框加冕,非满级无金框,Lv0 无珠",
   { tag: "@slow" },
@@ -22,21 +24,32 @@ test(
     await freezeClock(page);
     // 种植式零竞速:持有直接入册后断 DOM,不走真实升级路径——升级 endTurn 会同步放
     // bot 链,火烧连营可同拍拆城,升级后的活状态断言必 flake(实录见 react-solo 扩军用例注)。
+    // 选址=测试侧读现值(无主城前三格:头两格授满级/半级,第三格保持无主=Lv0 无珠对照)。
+    const unowned: { propertyId: string; index: number }[] = await engineState(
+      page,
+      `e.board.tiles
+        .filter((t) => t.propertyId && e.findOwner(t.propertyId) == null)
+        .slice(0, 3)
+        .map((t) => ({ propertyId: t.propertyId, index: t.index }))`,
+    );
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 0,
+      propertyId: unowned[0]!.propertyId,
+      level: 3,
+    });
+    await plant(page, {
+      kind: "grantProperty",
+      seat: 1,
+      propertyId: unowned[1]!.propertyId,
+      level: 2,
+    });
     await force(
       page,
       `
     e.phase = "Playing";
     e.activeIndex = 0;
-    const unowned = e.board.tiles.filter((t) => t.propertyId && e.findOwner(t.propertyId) == null);
-    const mk = (t, level) => ({
-      propertyId: t.propertyId,
-      level,
-      maxLevel: 3,
-      group: t.group ?? "a",
-    });
-    e.players[0].properties.push(mk(unowned[0], 3));
-    e.players[1].properties.push(mk(unowned[1], 2));
-    window.__pipProbe = { full: unowned[0].index, mid: unowned[1].index, empty: unowned[2].index };
+    window.__pipProbe = { full: ${unowned[0]!.index}, mid: ${unowned[1]!.index}, empty: ${unowned[2]!.index} };
   `,
     );
     const { full, mid, empty } = await engineState(page, "window.__pipProbe");

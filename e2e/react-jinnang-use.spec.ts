@@ -27,11 +27,11 @@
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
 // 升级决策同样可清)。
 // #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类
-// (#1298 后余下:plantDemolishableCity/plantBotCity 挪城 2、marchQueue 行程骰 2、
-// 珍宝/名将/标签额度布场 3、防窗反应牌清除 2——各在种植点/助手头注写一行「force
-// 判词」,均为引擎到不了的形态,零迁移;塞指定锦囊站点已迁 giveJinnang #1298,判词
-// 单源 src/core/planter.ts 头注;本 spec 断言链的操作段全真,前置种植只造「断言面
-// 需要的牌形/布场」)。
+// (#1300 后余下:marchQueue 行程骰 2(钉骰族 #1302)、jinnangUsedTags 标签额度 1、
+// 防窗反应牌清除 2(归 #1301)——各在种植点/助手头注写一行「force 判词」,均为引擎
+// 到不了的形态;塞指定锦囊站点已迁 giveJinnang #1298,挪城/授等级/名将候选站点已迁
+// grantProperty/armHero #1300,判词单源 src/core/planter.ts 头注;本 spec 断言链的
+// 操作段全真,前置种植只造「断言面需要的牌形/布场」)。
 import { test, expect } from "./fixtures";
 import {
   force,
@@ -42,6 +42,7 @@ import {
   plantDemolishableCity,
   snap,
   freezeClock,
+  engineState,
 } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -77,29 +78,23 @@ const marchQueue = (...values: number[]) => `
 /** 给 bot 1 挪一座 1 级非都城(原 jinnang-play-line.spec.ts 随迁,#305):火烧连营的
  *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
  *  不达标——不种则目标段无候选席位。
- *  force 判词:引擎无授城公共命令(购地命令受行军路线+现金约束到不了指定格指定级),
- *  断言面需「bot 名下恰有一座可拆城」。 */
+ *  #1300 收编:授城走 grantProperty 种植件(判词单源 src/core/planter.ts:引擎无授城
+ *  公共命令,购地命令受行军路线+现金约束到不了指定格指定级;选址=测试侧读现值,
+ *  种植件只收终态行),断言面需「bot 名下恰有一座可拆城」。 */
 async function plantBotCity(page: Page): Promise<void> {
-  await force(
+  const pid: string = await engineState(
     page,
-    `
-    {
-      const capitals = new Set(e.players.map((p) => p.capitalIndex));
-      let idx = -1;
-      for (let k = 1; k < e.board.count - 1; k++) {
-        const c = (e.players[0].capitalIndex + k) % e.board.count;
-        const t = e.board.at(c);
-        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
-      }
-      if (idx < 0) throw new Error("种植失败:无可挪城池格");
-      const pid = e.board.at(idx).propertyId;
-      e.players[1].properties.push({
-        propertyId: pid, group: e.board.at(idx).group ?? "a",
-        purchasePrice: 1000, level: 1, maxLevel: 3,
-      });
+    `(() => {
+    const capitals = new Set(e.players.map((p) => p.capitalIndex));
+    for (let k = 1; k < e.board.count - 1; k++) {
+      const c = (e.players[0].capitalIndex + k) % e.board.count;
+      const t = e.board.at(c);
+      if (t.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) return t.propertyId;
     }
-  `,
+    throw new Error("种植失败:无可挪城池格");
+  })()`,
   );
+  await plant(page, { kind: "grantProperty", seat: 1, propertyId: pid, level: 1 });
 }
 
 test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)", () => {
@@ -248,29 +243,38 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:点主技名开全览→关闭→点卡体选中→「出牌」打出→发技实例转灰置(引擎原因
-  // 印条)的呈现/交互链全真,冷却判读读真技表。force 判词:手牌/标签额度/麾下将均无
-  // 公共通路(发牌、用牌记账、招贤命令都到不了「本回合已用谋攻+同将双主动技」的布场),
-  // 断言面需该特定布场;城防拉级同 plantBotCity(无授城公共命令,火攻需可毁目标)。
+  // 印条)的呈现/交互链全真,冷却判读读真技表。种植判词:手牌经 giveJinnang(#1298)、
+  // 麾下名将经 armHero、bot 城防拉级经 grantProperty(均 #1300,判词单源
+  // src/core/planter.ts);force 判词:标签额度(jinnangUsedTags)无公共通路(用牌
+  // 记账面,招贤/发牌命令都到不了「本回合已用谋攻+攻」的布场),断言面需该特定布场。
   test("灰置牌印条/多标签双章/技能卡:双标签占额灰置、同将双技双卡可辨、发技转灰置", async ({
     page,
   }) => {
     await startJunshi(page, 67);
-    // 引擎直写(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
+    // 种植(停稳已由 startJunshi 保证):缓兵之计(谋+攻)双标签名额已被占 →
     // 灰置带原因印条;麾下给周瑜双主动技(火攻+擂鼓,#818 同将双技=双卡各显各技)→
     // 实授只给主动技,池内被动疾行不授(全览弹框池对照的灰置行对照组);诸 bot 城防
-    // 拉到 Lv1(火攻有可毁目标,卡面金边可用);求贤令(援,标签未占)= 可用对照组。
-    // (塞牌经 giveJinnang #1298;标签额度/名将槽位/城防布场归 #1300,暂留 force)
+    // 拉到 Lv1(火攻有可毁目标,卡面金边可用;开局各座唯都城 Lv0,拉级=都城格授
+    // level 1);求贤令(援,标签未占)= 可用对照组。
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["缓兵之计", "求贤令"] });
-    await force(
+    await plant(page, {
+      kind: "armHero",
+      seat: 0,
+      heroId: "zhouyu",
+      skillIds: ["huogong", "leigu"],
+    });
+    const botCapitalPids: string[] = await engineState(
       page,
-      `
-      e.jinnangUsedTags = ["谋", "攻"];
-      e.players[0].heroes = [{ heroId: "zhouyu", skillIds: ["huogong", "leigu"],
-        lastFired: {} }]; // 槽位行(#785)布场;技定义查技表
-      for (let i = 1; i < e.players.length; i++)
-        for (const h of e.players[i].properties) h.level = Math.max(h.level, 1);
-    `,
+      "e.players.slice(1).map((p) => e.board.at(p.capitalIndex).propertyId)",
     );
+    for (let seat = 1; seat <= botCapitalPids.length; seat++)
+      await plant(page, {
+        kind: "grantProperty",
+        seat,
+        propertyId: botCapitalPids[seat - 1]!,
+        level: 1,
+      });
+    await force(page, `e.jinnangUsedTags = ["谋", "攻"];`);
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)
     const huan = page.getByTestId(TESTIDS.jinnangCard("缓兵之计"));
     await expect(huan).toBeVisible();
@@ -324,26 +328,30 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:呈现态断言(同名技双卡独立实例 id、卡面载体件各归各将、他将不上卡)——
-  // 无操作链,布场后的真实渲染即被测环。force 判词:麾下将无授将公共通路(招贤命令
-  // 到不了「两槽各持指定技」),断言面需该双将布场;钉 AwaitingJinnang=断言前提
-  // (出牌窗态),引擎自转无「钉相位」公共命令。
+  // 无操作链,布场后的真实渲染即被测环。麾下将经 armHero 种植件(#1300,判词单源
+  // src/core/planter.ts:无授将公共通路,招贤命令到不了「两槽各持指定技」,实授子集
+  // 由 skillIds 显式给定);force 判词:钉 AwaitingJinnang=断言前提(出牌窗态),
+  // 引擎自转无「钉相位」公共命令(相位族 #1301)。
   test("异将同名技载体可辨:周瑜/张星彩各持擂鼓,两张擂鼓卡同名同技、载体各归各将", async ({
     page,
   }) => {
     await startJunshi(page, 67);
-    // 引擎直写:两槽各持擂鼓(同名技跨将互为独立实例,#817 选项 id=skill:<heroId>:
+    // 种植:两槽各持擂鼓(同名技跨将互为独立实例,#817 选项 id=skill:<heroId>:
     // <skillId> → 两张卡不合并);张星彩槽的掷金是被动(DieRolled,无牌形)只作池填充,
     // 出牌窗即「横征暴敛 + 周瑜火攻 + 两张擂鼓」的混排架。
-    await force(
-      page,
-      `
-      e.players[0].heroes = [
-        { heroId: "zhouyu", skillIds: ["huogong", "leigu"], lastFired: {} },
-        { heroId: "zhangxingcai", skillIds: ["zhijin", "leigu"], lastFired: {} },
-      ]; // 槽位行(#785)布场;技定义查技表
-      e.turnPhase = "AwaitingJinnang";
-    `,
-    );
+    await plant(page, {
+      kind: "armHero",
+      seat: 0,
+      heroId: "zhouyu",
+      skillIds: ["huogong", "leigu"],
+    });
+    await plant(page, {
+      kind: "armHero",
+      seat: 0,
+      heroId: "zhangxingcai",
+      skillIds: ["zhijin", "leigu"],
+    });
+    await force(page, `e.turnPhase = "AwaitingJinnang";`);
     // 实例 id 各归各槽(#817),同名技 = 两张独立卡
     const leiZy = page.getByTestId(TESTIDS.jinnangCard("skill:zhouyu:leigu"));
     const leiZx = page.getByTestId(TESTIDS.jinnangCard("skill:zhangxingcai:leigu"));

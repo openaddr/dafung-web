@@ -103,33 +103,30 @@ async function soloAtBuyAsk(page: Page): Promise<void> {
  *  draftOrder=[0,3,1,2] 人类先手、起手唯反应「半路杀出」(1010 家族同签名;bot 起手
  *  半路杀出/火烧连营/窃玉偷香全唯反应,无 inline 窗痕)。
  *  到站等价性(与 soloAtBuyAsk「卷轴停靠」同形):人类回合 1、落都剑阁 12 未掷
- *  (preRoll 冻结在自动起摇定时器点火前)+ 现金种 20000(大额现金让首停购地卷轴与
- *  地图价格解耦,判词同 soloAtBuyAsk)+ 行程骰钉 1(marchQueue(1),自 12 落 13 汉中
+ *  (preRoll 冻结在自动起摇定时器点火前)+ 现金种 20000(setCash 种植件,#1299——大额
+ *  现金让首停购地卷轴与地图价格解耦)+ 行程骰钉 1(marchQueue(1),自 12 落 13 汉中
  *  无主城,与旧链自然落格同格)→ 解冻自动起摇 → 购地卷轴升起停靠(引擎等输入,
- *  世界停人类回合 1)。种植前提(现金/都城/手牌)全可 force,窗开恒真不变。
- *  force 判词:同 soloAtBuyAsk(现金无玩家公共命令,grantSkillCash 是效果注册表
- *  内部通道、直调会污染日志断言面;骰队列 patch 判词见 marchQueue)。 */
+ *  世界停人类回合 1)。种植前提(现金/都城/手牌)全可种,窗开恒真不变。
+ *  force 判词(仅骰队列 patch):marchQueue 是测试替身注入,#1302 钉骰族收编前暂驻。 */
 async function soloAtBuyAskQuick(page: Page): Promise<void> {
   await useHalfScale(page);
   await quickStart(page, 49, { mapId: "guanzhong", advance: "preRoll" });
-  // force 前等调试桥 controller 就位(起局瞬间尚为 null,竞速实锤,同 soloAtBuyAsk)
+  // 种植前等调试桥 controller 就位(起局瞬间尚为 null,竞速实锤,同 soloAtBuyAsk)
   await page.waitForFunction(() => window.__dafung?.controller() != null);
-  await force(page, `e.players[0].cash = 20000; ${marchQueue(1)}`);
+  await plant(page, { kind: "setCash", seat: 0, cash: 20000 });
+  await force(page, marchQueue(1));
   await unfreezeClock(page);
   await page.getByTestId(SCROLL_TESTIDS.buyScroll).waitFor({ timeout: 30_000 });
 }
 
 /** 停靠点续局:force 直授周瑜(疾行=行军 +1、火攻=出牌阶段停靠点来源,多条编排依赖,
+/** 停靠点续局:授周瑜(疾行=行军 +1、火攻=出牌阶段停靠点来源,多条编排依赖,
  *  勿换将),再「不取」放行购地卷轴——落格结算收尾,回合随即交 bot 链。
- *  force 判词:引擎无「直接授将」公共命令(resolveHeroPick 只在招贤卷轴语境可达,而
- *  招贤卷轴(卧龙岗@20)在本图种子下开局不可达)——heroDefs 调试面(#378 双门禁)是
- *  唯一授将通路,槽位行(heroId+全池授技+空冷却账)进麾下。 */
+ *  授将走 armHero 种植件(#1300,判词单源 src/core/planter.ts:引擎无「直接授将」
+ *  公共命令,resolveHeroPick 只在招贤卷轴语境可达——招贤卷轴(卧龙岗@20)在本图
+ *  种子下开局不可达;skillIds 缺省=整池原序,同旧 heroDefs 全池写法逐字同形)。 */
 async function grantZhouyuAndPass(page: Page): Promise<void> {
-  await force(
-    page,
-    `{ const d = __dafung.heroDefs().find((h) => h.id === "zhouyu");
-       e.players[0].heroes.push({ heroId: d.id, skillIds: [...d.skillPool], lastFired: {} }); }`,
-  );
+  await plant(page, { kind: "armHero", seat: 0, heroId: "zhouyu" });
   await page.getByTestId(TESTIDS.actionButton("skip")).click();
 }
 
@@ -170,21 +167,23 @@ const marchQueue = (...values: number[]) => `
 /** 拦检窗就绪种植:人类持半路杀出;三 bot 全部落位人类都城前一格(掷 ≥1 即途经,
  *  剑阁前一格=11 锦囊城);
  *  duelDice=拼点骰(开窗前一次种足,拼点是唯一 rollDie 消费者→各取一粒);
- *  withSecondCity=真时(降噪口例):人类在都城 +2..+4 内首个「有城非都」格挪为第二座
- *  城(关中剑阁 +2=14 街亭,无主奇城无宝,同一份行程的第二道询问);
- *  clearBotHands=真时(降噪口例):清 bot 手牌——seed 1010/49 bot 起手全唯反应无
- *  inline 窗痕,清场保窗序纯净(守预算余量,无副作用);
+  *  withSecondCity=真时(降噪口例):人类在都城 +2..+4 内首个「有城非都且无主」格挪为
+  *  第二座城(关中剑阁 +2=14 街亭,无主奇城无宝,同一份行程的第二道询问);
+  *  clearBotHands=真时(降噪口例):清 bot 手牌——seed 1010/49 bot 起手全唯反应无
+  *  inline 窗痕,清场保窗序纯净(守预算余量,无副作用);
  *  marchSteps=行程骰队列(见 marchQueue;分支三专用)。
  *  #398 快速链 + 权威 3s 反应窗:骰必须在开窗前种足、窗内零 force——force 等 fx 排空
  *  吃掉秒级预算,看门狗到点代发「不用」后,紧随的应答会落到下一个 bot 的窗上(实测:
  *  读到的 mover1=1,拼点战报 mover=p2)。行程骰=种子 rng(dice.roll 闭包,不吃
  *  diceQueue)。
- *  force 判词(#1216 波3 审计,四类直写一体):①手牌——引擎只按开局发牌/摸牌时机发牌
- *  (drawJinnang 恒随机抽),无「发指定牌」公共命令,断言面需特定牌形;②bot 布位——
- *  行军命令只归活跃座位自身回合,无「挪 bot 至指定格」公共命令,拦检窗前提=行人贴
- *  首都前一格;③第二城——同 plantDemolishableCity 判词(引擎无授城公共命令,购地受
- *  行军路线+现金约束);④骰队列——种子 rng 是全局流,无「钉骰」公共命令,patch 按值序
- *  局部确定性、耗尽自还原、不消耗 rng(两注入口分属拼点/行程互不串队)。 */
+ *  种植件(#1300,判词单源 src/core/planter.ts):①手牌=giveJinnang(#1298:引擎只按
+ *  开局发牌/摸牌时机发牌,drawJinnang 恒随机抽,无「发指定牌」公共命令);②bot 布位=
+ *  placePlayer(行军命令只归活跃座位自身回合,无「挪 bot 至指定格」公共命令,拦检窗
+ *  前提=行人贴首都前一格;「都城前一格」算式=测试侧读现值拼);③第二城=grantProperty
+ *  (同 plantDemolishableCity 判词:引擎无授城公共命令,购地受行军路线+现金约束;
+ *  选址加「无主」硬条件——旧写法的偷城支线被选址排除,种不出无主态当场炸)。
+ *  force 判词(钉骰族 #1302):④骰队列——种子 rng 是全局流,无「钉骰」公共命令,
+ *  patch 按值序局部确定性、耗尽自还原、不消耗 rng(两注入口分属拼点/行程互不串队)。 */
 async function plantAmbush(
   page: Page,
   opts: {
@@ -195,40 +194,41 @@ async function plantAmbush(
   } = {},
 ): Promise<void> {
   const { duelDice, withSecondCity = true, clearBotHands, marchSteps } = opts;
-  await force(
+  await plant(page, { kind: "giveJinnang", seat: 0, cards: ["半路杀出"] });
+  const { cap, seats, tiles } = await engineState(
     page,
-    `
-    e.players[0].jinnangHand = ["半路杀出"];
-    ${clearBotHands ? `for (let i = 1; i < e.players.length; i++) e.players[i].jinnangHand = [];` : ""}
-    for (let i = 1; i < e.players.length; i++)
-      e.players[i].position =
-        (e.players[0].capitalIndex + e.board.count - 1) % e.board.count;
-    ${
-      withSecondCity
-        ? `
-    {
-      const cap = e.players[0].capitalIndex, n = e.board.count;
-      let idx = -1;
-      for (const k of [2, 3, 4]) {
-        const c = (cap + k) % n;
-        const t = e.board.at(c);
-        if (t?.propertyId && !e.players.some((p) => p.capitalIndex === c)) { idx = c; break; }
-      }
-      if (idx < 0) throw new Error("种植失败:都城 +2..+4 无可挪城池格");
-      const pid = e.board.at(idx).propertyId;
-      const owner = e.findOwner(pid);
-      if (owner) owner.properties = owner.properties.filter((h) => h.propertyId !== pid);
-      e.players[0].properties.push({
-        propertyId: pid, group: e.board.at(idx).group ?? "a",
-        purchasePrice: 1000, level: 1, maxLevel: 3,
-      });
-    }`
-        : ""
-    }
-    ${marchSteps ? marchQueue(...marchSteps) : ""}
-    ${duelDice ? diceQueue(...duelDice) : ""}
-  `,
+    "{ cap: e.players[0].capitalIndex, seats: e.players.length, tiles: e.board.count }",
   );
+  const position = (cap + tiles - 1) % tiles;
+  for (let seat = 1; seat < seats; seat++)
+    await plant(page, { kind: "placePlayer", seat, position });
+  if (clearBotHands)
+    for (let seat = 1; seat < seats; seat++)
+      await plant(page, { kind: "giveJinnang", seat, cards: [] });
+  if (withSecondCity) {
+    const pid: string = await engineState(
+      page,
+      `(() => {
+      for (const k of [2, 3, 4]) {
+        const c = (${cap} + k) % ${tiles};
+        const t = e.board.at(c);
+        if (t.propertyId && !e.players.some((p) => p.capitalIndex === c) && !e.findOwner(t.propertyId))
+          return t.propertyId;
+      }
+      throw new Error("种植失败:都城 +2..+4 无可挪城池格");
+    })()`,
+    );
+    await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 1 });
+  }
+  if (marchSteps || duelDice) {
+    const patches = [
+      marchSteps ? marchQueue(...marchSteps) : "",
+      duelDice ? diceQueue(...duelDice) : "",
+    ]
+      .filter(Boolean)
+      .join("\n");
+    await force(page, patches);
+  }
 }
 
 /** 火烧连营窗种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
@@ -237,13 +237,10 @@ async function plantAmbush(
 async function plantCounterScenario(page: Page): Promise<void> {
   await soloAtBuyAsk(page);
   await plantDemolishableCity(page);
-  await force(
-    page,
-    `
-    e.players[0].jinnangHand = ["识破诡计"];
-    for (let i = 1; i < e.players.length; i++) e.players[i].jinnangHand = ["火烧连营"];
-  `,
-  );
+  await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] });
+  const seats = (await engineState(page, "e.players.length")) as number;
+  for (let seat = 1; seat < seats; seat++)
+    await plant(page, { kind: "giveJinnang", seat, cards: ["火烧连营"] });
   await grantZhouyuAndPass(page);
 }
 
@@ -373,9 +370,14 @@ test.describe("反应窗(#281 单机)", () => {
     await soloAtBuyAsk(page);
     // 火攻停点钉子:p2 都城升 Lv.1(可降级)→ 周瑜火攻自人类回合 2 起恒可指定,
     // 每个人类回合开始必停出牌阶段(parkMyTurn 停靠点与行程骰解耦,不赌落格)。
-    // force 判词:扩军命令(upgradeProperty)只作用于活跃座位自身的待决决策,bot 城
-    // 升级归 botAct 代答、测试不可直呼;断言面需「p2 都城 Lv1=火攻可指定」形态。
-    await force(page, `e.players[2].properties[0].level = 1;`);
+    // 授等级走 grantProperty 种植件(#1300,判词单源 src/core/planter.ts:扩军命令
+    // (upgradeProperty)只作用于活跃座位自身的待决决策,bot 城升级归 botAct 代答、
+    // 测试不可直呼;断言面需「p2 都城 Lv1=火攻可指定」形态)。
+    const p2CapitalPid: string = await engineState(
+      page,
+      "e.board.at(e.players[2].capitalIndex).propertyId",
+    );
+    await plant(page, { kind: "grantProperty", seat: 2, propertyId: p2CapitalPid, level: 1 });
     // 只留首都一道窗:三 bot 各自行程各开一问,顺序吃满三分支(#292 Q1 合并)。
     // #398 快速链 + 权威反应窗(5s):拼点骰开窗前种足、窗内零 force(force 等 fx 排空
     // 会撞看门狗代发,应答落到下一个 bot 的窗上);mover 读取与应答合并为页面内原子
@@ -494,12 +496,14 @@ test.describe("反应窗(#281 单机)", () => {
     // ——不赌 bot 自带疾行等加成(bot 招募/技能是现金决策,加成会挪落格);其余 bot 骰 6
     // 即便跟进过首都也是 #292 合并窗,看门狗代发不用、牌不耗。
     await parkMyTurn(page, 60_000, { freeze: false }); // 波5b #1218 加网,见本例头注
-    // force 判词:同 plantAmbush 布位(#830 守门自锚——bot 挪位无公共命令,链式调价
-    // 漂移下把首位 bot 贴回首都前一格,骰 2 第一步即过首都开窗,前提自锚)。
-    await force(
+    // 布位走 placePlayer 种植件(#1300,判词单源 src/core/planter.ts;#830 守门自锚
+    // ——bot 挪位无公共命令,链式调价漂移下把首位 bot 贴回首都前一格,骰 2 第一步即
+    // 过首都开窗,前提自锚;「都城前一格」算式=测试侧读现值拼)。
+    const { cap, tiles } = await engineState(
       page,
-      "e.players[1].position = (e.players[0].capitalIndex + e.board.count - 1) % e.board.count;",
+      "{ cap: e.players[0].capitalIndex, tiles: e.board.count }",
     );
+    await plant(page, { kind: "placePlayer", seat: 1, position: (cap + tiles - 1) % tiles });
     await plantAmbush(page, { withSecondCity: false, marchSteps: [2, 2, 6, 6] });
     await skipUntilNextSeat(page, 0);
     const mover3 = await answerMarchCounter(page, "decline");
@@ -536,15 +540,16 @@ test.describe("反应窗(#281 单机)", () => {
     // p1 都城升 Lv.1(可降级)使周瑜火攻可指定 → 人类回合 2 出牌阶段窗态必升起,唯反应灰置
     // 得以在活窗内验证。(#303 实测注仍立:窗态对唯反应手牌驻留、等「不出」点击;
     // 「窗不在场」断言本就不成立,可守的本质=灰置印 + 放行后自动起摇。)
-    // force 判词:换牌=手牌无「发指定牌」公共命令(同 plantAmbush ①);升城=扩军命令
-    // 只作用于活跃座位自身待决决策,bot 都城升级测试不可直呼(同三分支火攻钉子)。
-    await force(
+    // 换牌走 giveJinnang、授等级走 grantProperty 种植件(#1300,判词单源
+    // src/core/planter.ts:换牌=手牌无「发指定牌」公共命令(同 plantAmbush ①);
+    // 升城=扩军命令只作用于活跃座位自身待决决策,bot 都城升级测试不可直呼(同三分支
+    // 火攻钉子))。
+    await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计", "半路杀出"] });
+    const p1CapitalPid: string = await engineState(
       page,
-      `
-      e.players[0].jinnangHand = ["识破诡计", "半路杀出"];
-      e.players[1].properties[0].level = 1;
-    `,
+      "e.board.at(e.players[1].capitalIndex).propertyId",
     );
+    await plant(page, { kind: "grantProperty", seat: 1, propertyId: p1CapitalPid, level: 1 });
     await grantZhouyuAndPass(page);
     await parkMyTurn(page, 60_000, { freeze: false }); // 严格我的回合停靠,见本例头注
     // 灰置即 choices 重算完成的信号(视觉锚;10s:窗升起拍与牌架重灌之间有快照/渲染

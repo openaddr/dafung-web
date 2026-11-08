@@ -13,9 +13,9 @@ import { expect, type Page } from "@playwright/test";
 import { TESTIDS } from "../../src/app/screens/game/testids";
 import { HOME_TID } from "../../src/app/screens/home/testids";
 import { TID as SETUP_TID } from "../../src/app/screens/setup/testids";
-import { force, seedSolo, seedSoloFrozen, seedSoloPastFirstRoll, seedSoloToRound } from "./drivers";
+import { plant, seedSolo, seedSoloFrozen, seedSoloPastFirstRoll, seedSoloToRound } from "./drivers";
 import { waitFxIdle, waitMyPause, waitMyRollDone, waitSettled } from "./settle";
-import { dismissJinnangIfUp } from "./patrol";
+import { dismissJinnangIfUp, engineState } from "./patrol";
 
 /** 机遇隔离 route 收编(#1010 家族一;#126 纪律):注册 jiyu.json 路由拦截回
  *  enabled:false——供不走 openSoloSetup 通路的 spec 调用(时机语义同其「先 route
@@ -71,29 +71,22 @@ export async function useHalfScale(page: Page): Promise<void> {
 
 /** 火烧目标确定性种植:人类挪入一座非都城(0 级)= 全场唯一「可失之城」(都城不可拆,
  *  demolishOnVictim 排除)——bot 火烧连营的 城最多者∩可拆 目标恒人类。
- *  force 判词(#1215 棒2 审计,ADR-0058 红牌清偿):引擎无授城公共命令——购地命令
- *  受行军路线+现金约束到不了「指定格 0 级城」,断言面需该形态,直写挪入。 */
+ *  #1300 收编为 grantProperty 种植件薄委托(判词单源 src/core/planter.ts:引擎无授城
+ *  公共命令,购地命令受行军路线+现金约束;选址=测试侧读现值,种植件只收终态行)。 */
 export async function plantDemolishableCity(page: Page): Promise<void> {
-  await force(
+  const pid: string = await engineState(
     page,
-    `
-    {
-      const capitals = new Set(e.players.map((p) => p.capitalIndex));
-      let idx = -1;
-      for (let k = 1; k < e.board.count - 1; k++) {
-        const c = (e.players[0].capitalIndex + k) % e.board.count;
-        const t = e.board.at(c);
-        if (t?.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) { idx = c; break; }
-      }
-      if (idx < 0) throw new Error("种植失败:无可挪城池格");
-      const pid = e.board.at(idx).propertyId;
-      e.players[0].properties.push({
-        propertyId: pid, group: e.board.at(idx).group ?? "a",
-        purchasePrice: 1000, level: 0, maxLevel: 3,
-      });
+    `(() => {
+    const capitals = new Set(e.players.map((p) => p.capitalIndex));
+    for (let k = 1; k < e.board.count - 1; k++) {
+      const c = (e.players[0].capitalIndex + k) % e.board.count;
+      const t = e.board.at(c);
+      if (t.propertyId && !capitals.has(c) && !e.findOwner(t.propertyId)) return t.propertyId;
     }
-  `,
+    throw new Error("种植失败:无可挪城池格");
+  })()`,
   );
+  await plant(page, { kind: "grantProperty", seat: 0, propertyId: pid, level: 0 });
 }
 
 /** 联机开局选都三选一(L41):pages 按座位序传入(页 i = 座位 i),轮流在「轮到选都」
