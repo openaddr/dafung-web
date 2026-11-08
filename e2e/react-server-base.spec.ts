@@ -25,12 +25,14 @@ test("服务器地址:默认同源;覆写后跨源建房成功;持久化;清空�
   await expect(input).toHaveValue(staticOrigin); // 默认 = 页面同源(收起状态下也可读)
 
   // 覆写到引擎源,失焦即存;建房(REST 建房 + WS 入座广播)打到引擎源 = 跨源链路全通
-  // (轮询收紧 #294:REST+WS 建房通常秒级,30s→15s)
+  // (预算 #294 定 30s,后收紧 15s;2026-11-08 #1307 池载实录:W4 快池满载 15s 不够一次
+  // (cpu 71% 峰值、串行 14.3s 绿)——复位 #294 原值 30s。#987 例外条款:本例是全仓唯一
+  // 跨源建房冒烟(CORS 浏览器事实无头替代不了),覆盖不可替代,预算复位=一两行确定性改造)
   await openAdvanced(page);
   await input.fill(ONLINE);
   await input.blur();
   await page.getByTestId(LID.create).click();
-  await expect(page.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 15_000 });
+  await expect(page.getByTestId(LID.roomCode)).toHaveText(/^[A-Z]{4}$/, { timeout: 30_000 });
 
   // 持久化:reload(?online=1 直进大厅)后覆写仍在(折叠复位默认收起,先展开再清空)
   await page.reload();
