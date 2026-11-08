@@ -1,10 +1,16 @@
-// React 重构 · 单机核心流 + 布局断言(阶段 11)。
+// React 重构 · 单机核心流(阶段 11)。
 // 意图来源(旧 spec → 此处):
 // - play.spec / human.spec(掷骰推进、买地扣款、人类按钮可用性)→ 掷骰/买地/选路测试
 // - invariants.spec(全程不变量 + 终局)→ 引擎态部分下沉 test/invariant-soak.test.ts
 //   (GameEngine 直驱多 seed soak,#293 Q1/#304 去浏览器化);UI 显示层由「加速到胜利」
 //   例驱动途中顺带巡检承接
 // - solo-autopilot.spec(单机托管)→ 已过时:React 版托管仅联机支持,见报告
+//
+// #1318 批T4 接线迁移:购地决策/扩军决策/bot 托管思考态三例下放接线层
+// (test/solo-wiring.test.tsx,ADR-0062 层④)——断言面全「按钮→命令→DOM/store 面」,
+// e2e 版为竞速读数服务的 freezeClock+poll 配方随迁失效(接线层零时钟零竞速)。
+// 本文件存例=脊柱②行军自动触发与脊柱⑥加速到胜利(骑局),名册地板永不迁移
+// (ADR-0062 e2e 地板名册)。
 import { test, expect } from "./fixtures";
 import {
   quickStart,
@@ -16,9 +22,6 @@ import {
   pickCapital,
   waitMyRollDone,
   waitMyPause,
-  waitFxIdle,
-  freezeClock,
-  unfreezeClock,
 } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
@@ -26,7 +29,7 @@ import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
 import { TID as SETUP_TID } from "../src/app/screens/setup/testids";
 
 // 真实段(脊柱②,ADR-0058):本例为回合自转链脊柱例——真 UI 开局全链→自动起摇→
-// 签面/战报/推进全真,永不深种。以下其余例各带自己的真实段声明。
+// 签面/战报/推进全真,永不深种。
 test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签面显示点数、战报追加、回合推进不卡死", async ({
   page,
 }) => {
@@ -53,190 +56,9 @@ test("行军自动触发(#188 第 1 步):进入人类回合自动起摇——签
 // 「席位格同步:自机格现金与引擎快照停靠态同步」例已删(#1181 棒一重筛):现金面
 // 被 react-seat-cells ① cellsMatchSnapshot 逐席覆盖(seat-cash-N == 快照现金,
 // 自机格 seat-self/seatRail 结构面同文件 ①② 在守),重复例按宁缺毋滥直删。
-
-// ── #421 时钟缝:冻结→种植→点击→断言→恢复 ──
-// freezeClock/unfreezeClock 已升共享面(react-helpers,#423 项8:react-stamina 同款
-// 口径接入);冻结边界(只钉到点回调、钉不住命令自带同步链)与断言纪律详见彼处注。
-
-// 真实段(ADR-0058):冻结后真点「买地」→真卷轴结算扣款入册即被测环。钉相位+
-// 行动方走 armPhase 种植件(#1301,判词单源 src/core/planter.ts:引擎无「钉相位」
-// 公共命令,停靠点随骰流);无主城落点直选(停靠随骰流漂,断言面需确定无主城)。
-// 现金注资已迁 setCash 种植件(#1299,判词单源 src/core/planter.ts)。
-test("购地决策:卷轴购地扣银两 + 获得地产", async ({ page }) => {
-  await quickStart(page);
-  await freezeClock(page);
-  try {
-    // 强制 AwaitingDecision + 无主城落地(意图同旧 human.spec 的买地用例,相位改为钩子构造)。
-    // C2 起 buyProperty 消费 pendingLand(决策载荷),布场须两态同步:表现(lastLandOutcome)
-    // 归表现,决策上下文(pendingLand)归决策——真实路径由 resolveProperty 一并置值。
-    // #188:先钉活跃座位到人类(0)——行军自动化后停靠点不保证轮到人类,决策方是 bot 时
-    // interactive=false,卷轴恒不弹(#421 起冻结先行,种植在钉死的静止态上做)。
-    // 现金注资走 setCash 种植件(#1299,判词单源 src/core/planter.ts):购价随地图
-    // 再平衡——读引擎现价再种「购价+1000」,别让数值再平衡打真本例(语义同旧直写;
-    // 本例测购地机制不测购地门槛,起手 5000 选都扣建城费后未必买得起首个无主城
-    // ADR-0041)。
-    const price: number = await engineState(
-      page,
-      "e.catalog.get(e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null).propertyId).purchasePrice",
-    );
-    await plant(page, { kind: "setCash", seat: 0, cash: price + 1000 });
-    await plant(page, {
-      kind: "armPhase",
-      turnPhase: "AwaitingDecision",
-      activeIndex: 0,
-    });
-    const landPid: string = await engineState(
-      page,
-      "(e.board.tiles.find((t) => t.propertyId && e.findOwner(t.propertyId) == null)).propertyId",
-    );
-    await plant(page, {
-      kind: "armLanding",
-      landing: { kind: "PropertyAvailable", propertyId: landPid },
-    });
-    // 交互重构:决策一律走卷轴——轮到即自动弹(scroll-buy),按钮 testid 沿用 action-buy
-    await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.actionButton("buy"))).toBeEnabled();
-    const before = (await snap(page)).players[0];
-    const logLenBefore = (await snap(page)).log.length;
-    await page.getByTestId(TESTIDS.actionButton("buy")).click();
-    // 扣银两以 buy 留痕为凭(detail 的 price/cash= 结算瞬间值):
-    // 购地收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金(横征暴敛等)、
-    // 也可正当拆掉本方城(火烧连营/火攻)——#421 冻结只钉看门狗节拍、钉不住命令自带
-    // 的同步连锁,点击后再读快照属与连锁的竞速读数。
-    const buyLine = async (): Promise<{ detail: string } | undefined> =>
-      (await snap(page)).log
-        .slice(logLenBefore)
-        .find(
-          (l: { category: string; detail: string }) =>
-            l.category === "buy" && l.detail.startsWith("buy player=p0 "),
-        );
-    await expect
-      .poll(async () => (await buyLine()) != null, {
-        timeout: 15_000,
-        message: "buy 留痕:购地落地(无主城入册)",
-      })
-      .toBe(true);
-    await expect
-      .poll(
-        async () => {
-          const line = await buyLine();
-          return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
-        },
-        {
-          timeout: 15_000,
-          message: "buy 留痕现金=结算瞬间值,必低于种前现金(扣价)",
-        },
-      )
-      .toBeLessThan(before.cash);
-  } finally {
-    await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
-  }
-});
-
-// 真实段(ADR-0058):冻结后真点「扩军」→真免费升级结算即被测环。授房产走
-// grantProperty 种植件(#1300,判词单源 src/core/planter.ts:己方城种植=升级前提
-// 「名下有城」开局初期自然到不了,断言面需确定己城邻格形态;选址=测试侧读现值)。
-// 钉相位+行动方走 armPhase(#1301,判词单源 src/core/planter.ts,同「购地决策」);
-// 落格询问载荷(lastLandOutcome/pendingLand)走 armLanding(#1303,投影族判词单源
-// src/core/planter.ts)。
-test("扩军决策:己方城升级免费(到达己城可选扩军,现金不变)", async ({ page }) => {
-  await quickStart(page);
-  await freezeClock(page);
-  try {
-    // 己方城选址读现值(非都城无主首格),种植件入册后再钉相位与落格询问载荷。
-    const pid: string = await engineState(
-      page,
-      `(e.board.tiles.find((t) => t.propertyId && t.propertyId !== e.board.at(e.players[0].capitalIndex).propertyId && e.findOwner(t.propertyId) == null)).propertyId`,
-    );
-    await plant(page, {
-      kind: "grantProperty",
-      seat: 0,
-      propertyId: pid,
-      level: 0,
-    });
-    // #188:先钉活跃座位到人类(0),理由同「购地决策」用例(#421 起冻结先行)
-    await plant(page, {
-      kind: "armPhase",
-      turnPhase: "AwaitingDecision",
-      activeIndex: 0,
-    });
-    await plant(page, {
-      kind: "armLanding",
-      landing: { kind: "OwnProperty", propertyId: pid },
-    });
-    await expect(page.getByTestId(SCROLL_TESTIDS.upgradeScroll)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.actionButton("upgrade"))).toBeEnabled();
-    const before = (await snap(page)).players[0].cash;
-    const logLenBefore = (await snap(page)).log.length;
-    await page.getByTestId(TESTIDS.actionButton("upgrade")).click();
-    // 升级免费:等级 +1,现金不变——两者都以 upgrade 留痕为凭(detail 的 level=/cash=
-    // 结算瞬间值):升级收尾 endTurn 同步放出 bot 链,链上他人回合可正当变动本方现金
-    // (横征暴敛等)、也可正当拆掉本方刚升级的城(火烧连营/周瑜火攻专烧城多
-    // 者)——#421 冻结只钉看门狗节拍、钉不住命令自带的同步连锁,点击后再读快照属与
-    // 连锁的竞速读数(失败实录:升级落地同拍被火攻拆回 Lv.0,快照断言永不达)。
-    await expect
-      .poll(
-        async () => {
-          const line = (await snap(page)).log
-            .slice(logLenBefore)
-            .find(
-              (l: { category: string; detail: string }) =>
-                l.category === "upgrade" && l.detail.startsWith("upgrade player=p0 "),
-            );
-          return line == null ? null : Number(/level=(\d+)/.exec(line.detail)![1]);
-        },
-        { timeout: 15_000, message: "upgrade 留痕:扩军落地(等级 +1)" },
-      )
-      .toBe(1);
-    await expect
-      .poll(
-        async () => {
-          const line = (await snap(page)).log
-            .slice(logLenBefore)
-            .find(
-              (l: { category: string; detail: string }) =>
-                l.category === "upgrade" && l.detail.startsWith("upgrade player=p0 "),
-            );
-          return line == null ? null : Number(/cash=(\d+)/.exec(line.detail)![1]);
-        },
-        {
-          timeout: 15_000,
-          message: "upgrade 留痕现金=结算瞬间值,须等于种前现金(免费)",
-        },
-      )
-      .toBe(before);
-  } finally {
-    await unfreezeClock(page); // 挂起的到点回调按序补放,对局恢复自走(页面随后 teardown)
-  }
-});
-
-// X7 #26:等待去重——底部「运筹中…」角标已删,thinking testid 迁到 WaitingBar 文案 span,
-// bot 回合的等待反馈以 WaitingBar 挂载为断言锚(#732 起宿主在知会槽,#762 起与常驻
-// 回合胶囊同槽融合——胶囊管回合方指名,本条断言的是等待附加信息自身,双锚定防回退)。
-// 真实段(ADR-0058):「运筹中」WaitingBar 对决策方=bot 的渲染响应链即被测环。钉
-// 行动方为 bot 走 armPhase 种植件(#1301,判词单源 src/core/planter.ts:自然停靠随
-// 骰流,断言面需确定的 bot 行动方;plant 通路写后走控制器 sync 公共重灌,派生量
-// interactive 随之落 store)。
-test("bot 托管思考态:活跃方为电脑时 WaitingBar 显示「运筹中…」", async ({ page }) => {
-  // #987 定 seed 49(实测停靠干净无演出在播)——随机 seed 下
-  // quickStart 归还时可能有签面幕在收(收幕走房间时钟),先冻结会把玄墨幕钉死屏上、
-  // 种植通路的 waitFxIdle 永不排空(2026-11-02 W4 挂串行绿的负载敏感根因)。
-  await quickStart(page, 49);
-  // #421 冻结闸:quickStart 稳后局面仍自走,改 activeIndex 与自推进竞速——
-  // #928 行军提速后落点撞进人类决策窗(interactive 被决策方压回,WaitingBar
-  // 永不开),钉住世界再动刀(同文件升级用例同款先例)。冻结前先排空演出:
-  // 冻结会挂起时钟驱动的收幕回调,fx 在途时冻结=waitFxIdle 死等(#987)。
-  await waitFxIdle(page);
-  await freezeClock(page);
-  try {
-    const botIdx: number = await engineState(page, "e.players.findIndex((p) => p.isBot)");
-    await plant(page, { kind: "armPhase", activeIndex: botIdx });
-    await expect(page.getByTestId(TESTIDS.waitingBar)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.thinking)).toContainText("运筹中…");
-  } finally {
-    await unfreezeClock(page);
-  }
-});
+// 「购地决策」「扩军决策」「bot 托管思考态」三例已迁接线层(#1318 批T4,
+// test/solo-wiring.test.tsx:冻结+种植+poll 的竞速读数配方在接线层收敛为
+// 零时钟零竞速直读;被测环=按钮→命令→DOM/store 面不变)。
 
 // 真实段(ADR-0058):现金注资后的整局真实驱动至胜利屏(掷骰/决策清理/endTurn/
 // checkVictory 全自然链)即被测环,途中不变量巡检为顺带取证。种植判词(setCash

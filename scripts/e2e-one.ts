@@ -3,7 +3,7 @@
 // 挂例归因先读文件,不再重跑)同时透传到控制台;子进程退出码原样透传——
 // 管道里跑命令吞非零退出码(fmt 假失败险些放行,2026-10-20 实锤)由此杜绝。
 // 用法(package.json 单源):bun scripts/e2e-one.ts [playwright 参数透传]
-//   例:bun run test:e2e:one e2e/react-board.spec.ts
+//   例:bun run test:e2e:one e2e/react-solo.spec.ts
 // 全量入口(test:e2e)经 test-lock 包本脚本,E2E_WORKERS 等环境变量自然流入。
 // 入口水位前置闸(#1003,#958 会话复盘):开跑 CPU≥80% 红字警告负载竞速风险
 // (advisory 不拦跑)——负载期盲跑挂例谱漂移,2 轮纯浪费才想起 A/B 定性,判读机械闸化。
