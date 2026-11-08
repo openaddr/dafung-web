@@ -11,7 +11,10 @@
 // grantProperty/giveTreasureFromDeck 各一处;armHero/armHeroOffer 名将候选族共一处),
 // #1300。执行态族三件判词:armPhase 一处、破产终局族(armBankrupt/armDebt/
 // armGameOver)共一处、armReaction 一处,#1301。确定性族两件判词:pinDice(测试
-// 替身)一处、injectWarLog 一处,#1302。
+// 替身)一处、injectWarLog 一处,#1302。残块收编四件(投影族 armLanding/
+// setJinnangUsedTags 共一处、armVisitor 一处、setBot 一处),#1303——force 逃生口
+// 随 #1303 退役,全仓非常规通道只剩 plant(场景字段种植)+ callEngine(公共方法
+// 直呼)两条。
 // 生产零 import 本文件不受限(与 testing.ts「仅 test/ 可 import」的区别):桥
 // (src/app/controllers/registry.ts)必须转发到与单测相同的实现,这是三层共用契约
 // 本身;测试专用属性由双门禁桥闸守住,不靠 import 规则。
@@ -176,8 +179,41 @@ export interface InjectWarLogOp {
   amount?: number;
 }
 
-/** 种植指令联合(可序列化,#1298 giveJinnang 族首发;其余 11 族按迁移票逐族扩展
- *  kind,#1299-#1302——联合即扩展位,桥分发 switch 穷尽校验)。 */
+/** 落格投影指令(裸写形,#1303):pendingLand(决策上下文)+ lastLandOutcome(表现
+ *  投影)一体置值;landing=null=双字段一体清(停车坪空闲态,判词见 armLanding)。 */
+export interface ArmLandingOp {
+  kind: "armLanding";
+  landing:
+    | null
+    | { kind: "PropertyAvailable"; propertyId: string }
+    | { kind: "OwnProperty"; propertyId: string };
+}
+
+/** 交涉挂起载荷指令(裸写形,#1303):直种 treasureVisitor(判词见 armVisitor)。 */
+export interface ArmVisitorOp {
+  kind: "armVisitor";
+  /** 所访之城(目录内,def 现查)。 */
+  propertyId: string;
+  /** 城主座位号(引擎 ownerIdx 同形)。 */
+  ownerSeat: number;
+}
+
+/** 座位旗标指令(裸写形,#1303):翻/回 seat 的 isBot(判词见 setBot)。 */
+export interface SetBotOp {
+  kind: "setBot";
+  seat: number;
+  bot: boolean;
+}
+
+/** 出牌用过标签投影指令(裸写形,#1303,判词同投影族见 armLanding):把回合内
+ *  已用标签投影直写为 tags 终态。 */
+export interface SetJinnangUsedTagsOp {
+  kind: "setJinnangUsedTags";
+  tags: string[];
+}
+
+/** 种植指令联合(可序列化,#1298 giveJinnang 族首发;其余族按迁移票逐族扩展
+ *  kind,#1299-#1303——联合即扩展位,桥分发 switch 穷尽校验)。 */
 export type PlantOp =
   | GiveJinnangOp
   | GiveTreasureOp
@@ -195,7 +231,11 @@ export type PlantOp =
   | ArmGameOverOp
   | ArmReactionOp
   | PinDiceOp
-  | InjectWarLogOp;
+  | InjectWarLogOp
+  | ArmLandingOp
+  | ArmVisitorOp
+  | SetBotOp
+  | SetJinnangUsedTagsOp;
 
 /** 塞指定锦囊(判词见文件头注):手牌终态=cards,派生量 jinnangHandCount 同步重灌。
  *  目录外牌/越界座位当场炸(零兜底:种错的场要响)。 */
@@ -518,6 +558,62 @@ export function injectWarLog(e: GameEngine, line: Omit<InjectWarLogOp, "kind">):
   e.logEvent(line.category, line.player, line.brief, line.detail, line.amount);
 }
 
+/** 【判词(投影族 armLanding/setJinnangUsedTags 共一处,#1303)】落格投影/用过标签
+ *  投影=裸写形:两者都是结算的派生呈现/决策态——pendingLand(决策上下文)与
+ *  lastLandOutcome(表现投影)由落格结算一并置值(movement-flow 落格分流同拍双写),
+ *  jinnangUsedTags 由出牌结算累积、endTurn 清;「指定投影形态」无生产流程(行军落点
+ *  由骰流驱动,推演到指定落格不可控)——直写是唯一通路。armLanding 两字段**一体置值/
+ *  一体清**(拆开即表现与决策不自洽,react-solo 购地例布场注同判词);停车坪清投影
+ *  (landing=null)=「决策卷轴不遮顶栏」的空闲态形(rack/narrow/layout/float-skeleton
+ *  八站多数派)。propertyId 是唯一句柄(与 pendingLand 同模式),def 目录现查(目录外
+ *  当场炸);形制与归属矛盾当场炸(PropertyAvailable 须无主/OwnProperty 须有主——
+ *  owner 按持有关系解析,与生产 settleMarchLanding 同源,不另设座位参数)。
+ *  setJinnangUsedTags=终态替换,标签文本不校验(渲染面按文本出章,素材由测试作者
+ *  定,同 giveTreasure 口径)。 */
+export function armLanding(e: GameEngine, landing: ArmLandingOp["landing"]): void {
+  if (landing == null) {
+    e.lastLandOutcome = null;
+    e.pendingLand = null;
+    return;
+  }
+  const def = e.catalog.get(landing.propertyId);
+  if (def == null) throw new Error(`armLanding:目录外地块 ${landing.propertyId}`);
+  const owner = e.findOwner(landing.propertyId);
+  if (landing.kind === "PropertyAvailable") {
+    if (owner != null) throw new Error(`armLanding:${landing.propertyId} 已有主,可购投影形制矛盾`);
+    e.pendingLand = { kind: "PropertyAvailable", propertyId: landing.propertyId };
+    e.lastLandOutcome = { kind: "PropertyAvailable", property: def };
+    return;
+  }
+  if (owner == null) throw new Error(`armLanding:${landing.propertyId} 无主,己城投影形制矛盾`);
+  e.pendingLand = { kind: "OwnProperty", propertyId: landing.propertyId };
+  e.lastLandOutcome = { kind: "OwnProperty", property: def, owner };
+}
+
+/** 【判词(armVisitor 一处,#1303)】交涉挂起载荷=裸写形:珍宝交涉窗由落珍宝城
+ *  结算产生(挂点散在落格结算中段),「凭空挂交涉」无公共流程——直写是唯一通路。
+ *  字段与引擎挂点产物同构:def 按目录现查(目录外当场炸),ownerIdx=城主座位号
+ *  (引擎存座位号同形,op 过网可序列化)。越界座位当场炸。 */
+export function armVisitor(e: GameEngine, propertyId: string, ownerSeat: number): void {
+  assertSeat("armVisitor", e, ownerSeat);
+  const def = e.catalog.get(propertyId);
+  if (def == null) throw new Error(`armVisitor:目录外地块 ${propertyId}`);
+  e.treasureVisitor = { def, ownerIdx: ownerSeat };
+}
+
+/** 【判词(setBot 一处,#1303)】座位旗标=裸写形:bot 归属由房间座位构造决定
+ *  (EngineConfig seats.isBot,开局后无改动命令),单机内「改座位归属」无玩家级
+ *  命令——直写是唯一通路(先例 react-jinnang-peek 翻人:bot 即席代答按 isBot 判定
+ *  (reaction-window,ADR-0017),翻人让窗挂起到应答拍)。越界座位当场炸。 */
+export function setBot(e: GameEngine, seat: number, bot: boolean): void {
+  assertSeat("setBot", e, seat);
+  e.players[seat].isBot = bot;
+}
+
+export function setJinnangUsedTags(e: GameEngine, tags: string[]): void {
+  e.jinnangUsedTags = [...tags];
+}
+
 /** 种植指令分发单源:桥 plant(op) 与单测共用的唯一入口(未知 kind 当场炸——
  *  分发口不吞错,零兜底)。 */
 export function applyPlant(e: GameEngine, op: PlantOp): void {
@@ -572,6 +668,18 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       return;
     case "injectWarLog":
       injectWarLog(e, op);
+      return;
+    case "armLanding":
+      armLanding(e, op.landing);
+      return;
+    case "armVisitor":
+      armVisitor(e, op.propertyId, op.ownerSeat);
+      return;
+    case "setBot":
+      setBot(e, op.seat, op.bot);
+      return;
+    case "setJinnangUsedTags":
+      setJinnangUsedTags(e, op.tags);
       return;
     default:
       throw new Error(`applyPlant:未知种植指令 kind=${String((op as { kind: unknown }).kind)}`);

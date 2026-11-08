@@ -3,7 +3,7 @@
 // 棋盘恒 computeFitView 总览定格,无手势通路可测;标题栏拖拽归 react-scrolls 的
 // 卷轴范畴,React ScrollShell 无独立 header testid,此处不逐行翻译)。
 import { test, expect } from "./fixtures";
-import { quickStart, force, engineState, waitFxIdle, freezeClock } from "./react-helpers";
+import { quickStart, engineState, waitFxIdle, freezeClock } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 
 // 真实段(ADR-0058):真实挂载棋盘 DOM 上等级珠挂点的渲染链即被测环(data-level/
@@ -46,11 +46,13 @@ test(
       level: 2,
     });
     await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
-    await force(
-      page,
-      `
-    window.__pipProbe = { full: ${unowned[0]!.index}, mid: ${unowned[1]!.index}, empty: ${unowned[2]!.index} };
-  `,
+    // 探针挂窗(纯测试侧读数,零引擎态):非引擎写入不经 plant/callEngine 通道,
+    // page.evaluate 直挂即可(#1303 棒1)。
+    await page.evaluate(
+      (probe) => {
+        (window as any).__pipProbe = probe;
+      },
+      { full: unowned[0]!.index, mid: unowned[1]!.index, empty: unowned[2]!.index },
     );
     const { full, mid, empty } = await engineState(page, "window.__pipProbe");
     // 满级城:三珠 + 满贯金框,data-level 随等级

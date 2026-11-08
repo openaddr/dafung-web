@@ -5,7 +5,7 @@
 //   import { openShotSession } from "../scripts/shot.mjs";
 //   const s = await openShotSession({ port: 5301 }); // 视口默认 844×390(移动横屏标准档,#733)
 //   await s.enterGame(49);
-//   await s.force(`e.players[0].jinnangHand = ["连环计"];`);
+//   await s.plant({ kind: "giveJinnang", seat: 0, cards: ["连环计"] }); // op 联合单源 src/core/planter.ts
 //   await s.shot("tmp/ui-shots/x/full.png");                     // 整页
 //   await s.shot("tmp/ui-shots/x/scroll.png", '[data-testid="scroll-jinnang"]'); // 元素级
 //   await s.close();
@@ -88,11 +88,15 @@ export async function openShotSession({
       if (waitScroll) await page.getByTestId(waitScroll).waitFor({ timeout: 15000 });
       await page.evaluate(() => document.fonts.ready);
     },
-    /** 引擎直写改局(同步灌回 UI):fn 体内 `e` = GameEngine。 */
-    async force(fn) {
-      await page.evaluate(
-        `(() => { const e = window.__dafung.getEngine(); ${fn} window.__dafung.controller().sync(); })()`,
-      );
+    /** 种植件改局(同步灌回 UI,#1303 起唯一改局通路):op=可序列化种植指令
+     *  (族 kind+参数,联合单源 src/core/planter.ts,判词单源=各族头注;桥 plant
+     *  转发到与单测同一份实现)。缺能力=补 kind,不手写引擎直写脚本。 */
+    async plant(op) {
+      await page.evaluate((o) => {
+        const d = window.__dafung;
+        d.plant(o);
+        d.controller().sync();
+      }, op);
     },
     async close() {
       await browser.close();

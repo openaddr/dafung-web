@@ -11,7 +11,7 @@
 // #1221 L1 残油包:两例改 quickStart({advance:"preRoll"})——布场不依赖行军日志/
 // 已推进回合,落都即冻结,显式 freezeClock 随通路退役。
 import { test, expect, type Page } from "./fixtures";
-import { force, quickStart, snap, engineState } from "./react-helpers";
+import { quickStart, snap, engineState } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { SCROLL_TESTIDS as T } from "../src/app/screens/game/scroll/testids";
 
@@ -71,12 +71,7 @@ test.describe("选宝弹层首帧几何(#833)@844×390", () => {
       propertyId: pid,
       level: 1,
     });
-    await force(
-      page,
-      `
-      e.treasureVisitor = { def: e.catalog.get(${JSON.stringify(pid)}), ownerIdx: 0 };
-    `,
-    );
+    await plant(page, { kind: "armVisitor", propertyId: pid, ownerSeat: 0 });
     await plant(page, {
       kind: "armPhase",
       phase: "Playing",

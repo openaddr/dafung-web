@@ -13,8 +13,8 @@
 // #1215 棒1 确定性改造(#987 处置序;ADR-0058 一环一真):全例 15 例无 seed 曾靠自然
 // 停点(随机停点 7/8 过的存量不可靠户)——现逐例固定 seed(1471-1485,避开既有种子谱
 // 67/1010/1026/42/7/49/63/419/1101),quickStart 快路径经 seedSolo 把种子注入引擎,
-// bot 轮走位与停靠相位随 seed 钉死;真实段声明与各例 force 判词见各例头注(完成线
-// =零未判词 force,ADR-0058 种植合法性分层)。
+// bot 轮走位与停靠相位随 seed 钉死;真实段声明与种植判词见各例头注(判词单源
+// src/core/planter.ts,ADR-0058 种植合法性分层)。
 // #1289 批二迁移:显隐状态机两例(「他人回合:架自动收起/回合回来自动弹回」「呼吸钮
 // .breathe 四态走查」)迁入接线层 test/popup-state-wiring.test.tsx——断言面纯挂载
 // 有无与类名挂点(store 快照驱动+点击→状态机),零几何零真实输入语义;本 spec 存例
@@ -22,7 +22,7 @@
 import { test, expect } from "./fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
 // 全走缺省 freeze=true 停车坪口径)。
-import { force, parkMyTurn, pollReactionSettled, quickStart, snap } from "./react-helpers";
+import { parkMyTurn, pollReactionSettled, quickStart, snap } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { jinnangCardOf } from "../src/core/jinnang";
@@ -120,8 +120,8 @@ const NINE_CARDS = [
  *  手牌种植经 giveJinnang(#1298,判词单源 src/core/planter.ts 头注:生产发牌只有牌堆
  *  顶随机抽,无「发指定牌」流程);钉相位走 armPhase(#1301,判词单源
  *  src/core/planter.ts:引擎自转无「钉相位」公共命令,quickStart 停点是断言前提);
- *  清落格投影(lastLandOutcome/pendingLand,防决策卷轴遮罩)=落格结算内部挂起态,
- *  无种植件,直写内联判词(#1303 收口缺口盘点)。 */
+ *  清落格投影(防决策卷轴遮罩)走 armLanding(null)(#1303,投影族判词单源
+ *  src/core/planter.ts)。 */
 async function rackStandstill(page: Page, cards: string[], seed: number): Promise<void> {
   await quickStart(page, seed);
   // quickStart 末次点击落点随随机种子可能残留在 .many 行上,hover spread 会污染
@@ -134,13 +134,7 @@ async function rackStandstill(page: Page, cards: string[], seed: number): Promis
   await parkMyTurn(page);
   await plant(page, { kind: "giveJinnang", seat: 0, cards });
   await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-  await force(
-    page,
-    `
-    e.lastLandOutcome = null;
-    e.pendingLand = null;
-  `,
-  );
+  await plant(page, { kind: "armLanding", landing: null });
   // 发牌入场级联(错峰 60ms 拍 + 本体动画)以几何落定为准(#305 替代固定 1200ms):
   // 两拍全同 = 级联播完,后续几何断言不再吃动画 transform 污染。级联延迟期误判
   // 落定(主因,rest−before 恒 14px)由 settledRackGeometry 的动画收尾门槛根治,
@@ -167,7 +161,7 @@ async function myFirstCard(page: Page): Promise<string> {
  *  消费例的点/长按/收起点击链全真。
  *  相位种植走 armPhase(#1301,判词单源 src/core/planter.ts):钉 AwaitingDecision
  *  空闲态=断言前提(#653 出牌态点牌语义反转会灭断言),引擎自转无「钉相位」公共
- *  命令;清落格投影仍直写(同 rackStandstill 内联判词)。
+ *  命令;清落格投影走 armLanding(null)(#1303,同 rackStandstill 判词单源)。
  *  #1215 棒1(seed 1483 实锤):等待谓词升级为 parkMyTurn(严格我的回合+停靠即冻结)
  *  ——waitMyPause 只认 decisionOwner,会把「bot 回合的反应窗询问期」当停靠,随后
  *  窗看门狗代发、bot 链走完,钉进的是 bot 决策位(架已随收沿收起,toggle 语义反转)。 */
@@ -176,13 +170,7 @@ async function pinRackIdle(page: Page, seed: number): Promise<void> {
   // 90s:quickStart 收尾可能停在 bot 回合,等一整轮 bot 走回人类停靠点(同 rackStandstill 口径)
   await parkMyTurn(page);
   await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-  await force(
-    page,
-    `
-    e.lastLandOutcome = null;
-    e.pendingLand = null;
-  `,
-  );
+  await plant(page, { kind: "armLanding", landing: null });
 }
 
 /** 出牌窗停车坪(pinRackIdle 同款钉法 + 窗态变体,#715 立配方,#1006 重钉组共用):
@@ -191,21 +179,14 @@ async function pinRackIdle(page: Page, seed: number): Promise<void> {
  *  真实段(共享停车坪,消费例各在头注声明):窗升起后的点选/长按/收起点击链全真。
  *  手牌种植经 giveJinnang(#1298,判词单源 src/core/planter.ts 头注);钉
  *  AwaitingJinnang 走 armPhase(#1301,判词单源 src/core/planter.ts:出牌窗态=断言
- *  前提,引擎自转无「钉相位」公共命令);清落格投影仍直写(同 rackStandstill 内联
- *  判词)。停车谓词同 pinRackIdle 升级 parkMyTurn(#1215 棒1):
+ *  前提,引擎自转无「钉相位」公共命令);清落格投影走 armLanding(null)(#1303,同 rackStandstill 判词单源)。停车谓词同 pinRackIdle 升级 parkMyTurn(#1215 棒1):
  *  窗态依赖 interactive(decisionOwner=我),问到 bot 回合中途态上钉窗必不升。 */
 async function pinJunshiWindow(page: Page, cards: string[], seed: number): Promise<void> {
   await quickStart(page, seed);
   await parkMyTurn(page);
   await plant(page, { kind: "giveJinnang", seat: 0, cards });
   await plant(page, { kind: "armPhase", turnPhase: "AwaitingJinnang" });
-  await force(
-    page,
-    `
-    e.lastLandOutcome = null;
-    e.pendingLand = null;
-  `,
-  );
+  await plant(page, { kind: "armLanding", landing: null });
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
@@ -273,7 +254,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
     });
 
   // 真实段:9 张直写后的真实 DOM 叠加布局(等距窥条/末张全宽/行不出架/笺脚与牌名
-  // 可读性)全量取自真渲染盒模型,无操作链——呈现态断言即被测环。force 判词见
+  // 可读性)全量取自真渲染盒模型,无操作链——呈现态断言即被测环。种植判词见
   // rackStandstill(手牌无公共通路,断言面需 9 张特定牌形)。
   test("9 张(8 种+重复)叠加:每张露等宽窥条且牌名可辨,末张全宽,行不出架", async ({ page }) => {
     // 停车坪等一轮 bot + 发牌级联落定,内部预算 90s > 60s 默认档——W2 负载下标 slow
@@ -323,7 +304,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   });
 
   // 真实段:3 张全展形态(不挂 .many/相邻正间隙)的真实 DOM 几何,呈现态断言即被测环。
-  // force 判词见 rackStandstill(手牌无公共通路,断言面需特定牌形)。
+  // 种植判词见 rackStandstill(手牌无公共通路,断言面需特定牌形)。
   test("3 张全展不叠:相邻牌间留正间隙(一期形态)", async ({ page }) => {
     test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
     await rackStandstill(page, ["连环计", "军情密探", "缓兵之计"], 1475);
@@ -340,7 +321,7 @@ test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
   });
 
   // 真实段:真实指针 hover→挥出→移出回落的完整输入链与挥出过渡几何(上浮/放大/
-  // 邻牌让位/回落 ±2px)全真——交互几何即被测环。force 判词见 rackStandstill
+  // 邻牌让位/回落 ±2px)全真——交互几何即被测环。种植判词见 rackStandstill
   // (手牌无公共通路,断言面需 9 张特定牌形)。
   test("hover 挥出全显:悬停牌上浮放大、邻牌两侧让位,移出回落", async ({ page }) => {
     test.slow(); // 同上:停车坪等待的负载余量(三例共用 rackStandstill)
@@ -388,7 +369,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   const USABLE = "求贤令"; // self 域,出牌窗恒可用(对照组)
 
   // 真实段:灰置牌 force:true 点击→详情弹层→Esc 关闭的点击链与 aria-disabled/印条
-  // 语义呈现全真;「零通路」断言面=出牌钮禁用+引擎零命令(相位/手牌不动)。force 判词
+  // 语义呈现全真;「零通路」断言面=出牌钮禁用+引擎零命令(相位/手牌不动)。种植判词
   // 见 pinJunshiWindow(手牌无公共通路,需唯反应牌形;钉窗态=断言前提)。
   test("唯反应灰置牌:点击开详情(aria-disabled 语义保持),选中与出牌零通路", async ({ page }) => {
     await pinJunshiWindow(page, [LOCKED], 1477);
@@ -418,7 +399,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   });
 
   // 真实段:窗态灰置牌的裸指针长按链(move→down 700ms→up)+补发 click 抑制全真。
-  // force 判词见 pinJunshiWindow(手牌无公共通路,需唯反应牌形;钉窗态=断言前提)。
+  // 种植判词见 pinJunshiWindow(手牌无公共通路,需唯反应牌形;钉窗态=断言前提)。
   test("唯反应灰置牌:长按同效开详情,补发 click 不双弹", async ({ page }) => {
     await pinJunshiWindow(page, [LOCKED], 1478);
     const card = page.getByTestId(TESTIDS.jinnangCard(LOCKED));
@@ -435,7 +416,7 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
   });
 
   // 真实段:available 牌点选→出牌点亮→灰置牌点击不夺选中→长按取消选中的完整
-  // 选中态交互链全真(.sel 放大态/出牌钮启禁随行)。force 判词见 pinJunshiWindow
+  // 选中态交互链全真(.sel 放大态/出牌钮启禁随行)。种植判词见 pinJunshiWindow
   // (手牌无公共通路,需「唯反应+可用」对照牌形;钉窗态=断言前提)。
   test("available 对照零回归:点牌选中出牌点亮、长按取消;灰置牌开详情不动选中", async ({ page }) => {
     await pinJunshiWindow(page, [LOCKED, USABLE], 1479);
@@ -483,7 +464,7 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
   const PLAYABLE = "求贤令"; // self 域可用牌(出牌窗选中态载体,#715 USABLE 同款口径)
 
   // 真实段:呼吸钮点击收起→动作条在场→「不出」真命令放行过相位的交互链全真
-  // (放行走引擎公共命令通路,相位推进是引擎结算)。force 判词见 pinJunshiWindow
+  // (放行走引擎公共命令通路,相位推进是引擎结算)。种植判词见 pinJunshiWindow
   // (手牌无公共通路,需可用牌形;钉窗态=断言前提)。
   test("①出牌窗收起生效:架消失、动作条仍在场、「不出」可点过相位", async ({ page }) => {
     await pinJunshiWindow(page, [PLAYABLE], 1480);
@@ -498,7 +479,7 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
   });
 
   // 真实段:点牌选中→收起→重开→选中态还原续选的完整点击链(选中跨收起的会话态
-  // 契约)全真。force 判词见 pinJunshiWindow(手牌无公共通路,需可用牌形;钉窗态=
+  // 契约)全真。种植判词见 pinJunshiWindow(手牌无公共通路,需可用牌形;钉窗态=
   // 断言前提)。
   test("②出牌窗收起→重开:卡牌段选中态还原续选(选中态跨收起保留)", async ({ page }) => {
     await pinJunshiWindow(page, [PLAYABLE], 1481);
@@ -632,7 +613,7 @@ test.describe("发牌入场级联 reduced-motion(#239 T4)", () => {
   // 真实段:reduce 媒体档下的计算样式取证(animationName/delay/duration/opacity)
   // 全真——动效退场契约只能从 getComputedStyle 取证。手牌种植经 giveJinnang(#1298,
   // 判词单源 src/core/planter.ts 头注),断言面需 3 张特定牌形以验级联 delay 归零;
-  // 钉相位走 armPhase(#1301,判词同 rackStandstill),清落格投影仍直写(同其内联判词)。
+  // 钉相位走 armPhase(#1301,判词同 rackStandstill),清落格投影走 armLanding(null)(#1303,同其判词单源)。
   test("reduce 下入场动画不播放:delay 归零+时长压缩,牌挂载即不透明", async ({ page }) => {
     // emulateMedia 挂在 goto 前:首屏样式计算即按 reduce 生效,无时序缝
     await page.emulateMedia({ reducedMotion: "reduce" });
@@ -643,13 +624,7 @@ test.describe("发牌入场级联 reduced-motion(#239 T4)", () => {
       cards: ["连环计", "军情密探", "缓兵之计"],
     });
     await plant(page, { kind: "armPhase", turnPhase: "AwaitingDecision" });
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-    `,
-    );
+    await plant(page, { kind: "armLanding", landing: null });
     const hand = page.getByTestId(TESTIDS.jinnangHand);
     await expect(hand).toBeVisible();
     const first = hand.getByTestId(TESTIDS.jinnangCard("连环计"));

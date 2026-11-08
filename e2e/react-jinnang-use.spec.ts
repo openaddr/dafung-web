@@ -34,7 +34,6 @@
 // 操作段全真,前置种植只造「断言面需要的牌形/布场」)。
 import { test, expect } from "./fixtures";
 import {
-  force,
   quickStart,
   waitMyRollDone,
   skipUntilNextSeat,
@@ -234,8 +233,8 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   // 真实段:点主技名开全览→关闭→点卡体选中→「出牌」打出→发技实例转灰置(引擎原因
   // 印条)的呈现/交互链全真,冷却判读读真技表。种植判词:手牌经 giveJinnang(#1298)、
   // 麾下名将经 armHero、bot 城防拉级经 grantProperty(均 #1300,判词单源
-  // src/core/planter.ts);force 判词:标签额度(jinnangUsedTags)无公共通路(用牌
-  // 记账面,招贤/发牌命令都到不了「本回合已用谋攻+攻」的布场),断言面需该特定布场。
+  // src/core/planter.ts);标签额度投影走 setJinnangUsedTags(#1303,投影族判词单源
+  // src/core/planter.ts:用牌记账面无「指定投影形态」生产流程)。
   test("灰置牌印条/多标签双章/技能卡:双标签占额灰置、同将双技双卡可辨、发技转灰置", async ({
     page,
   }) => {
@@ -267,7 +266,7 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
         propertyId: botCapitalPids[seat - 1]!,
         level: 1,
       });
-    await force(page, `e.jinnangUsedTags = ["谋", "攻"];`);
+    await plant(page, { kind: "setJinnangUsedTags", tags: ["谋", "攻"] });
     // 灰置牌:下沉置灰(.off)+ 双标签章竖排 + 原因印条文案可见;不可选中(浏览器禁用契约)
     const huan = page.getByTestId(TESTIDS.jinnangCard("缓兵之计"));
     await expect(huan).toBeVisible();
