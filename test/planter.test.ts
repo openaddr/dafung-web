@@ -2,6 +2,8 @@
 // 量正确——塞牌后手牌=指定牌集、jinnangHandCount 派生一致、目录外牌/坏座位/未知指令
 // 当场炸(零兜底)。判词单源 src/core/planter.ts 头注;桥/e2e 经同一实现分发(#1298
 // 三层共用)。#1300 布景族四件(摆位/授房产/名将候选/牌堆源珍宝)同口径。
+// #1302 确定性族两件同口径:钉骰后骰口按值序、耗尽自还原、种子 rng 不消耗、两注入口
+// 不串队;合成行入日志与真行同 schema。
 import { describe, it, expect } from "bun:test";
 import { GameEngine } from "@core/authority";
 import type { EngineConfig, EnginePhase, TurnPhase } from "@core/authority";
@@ -21,6 +23,8 @@ import {
   giveTreasure,
   giveTreasureFromDeck,
   grantProperty,
+  injectWarLog,
+  pinDice,
   placePlayer,
   setCash,
   setReputation,
@@ -328,6 +332,90 @@ describe("armReaction(挂反应载荷,裸写形)", () => {
   });
 });
 
+describe("pinDice(钉骰子,测试替身)", () => {
+  it("行程口:行军按值序(rollAndMove 首骰=钉值)", () => {
+    const e = makeEngine(7);
+    armPhase(e, { phase: "Playing", turnPhase: "Roll", activeIndex: 0 });
+    pinDice(e, "march", [3]);
+    e.rollAndMove(); // 行程骰吃 march 口钉值 3(无拦检/驻跸:出生位起步直落)
+    expect(e.players[0].position).toBe(3);
+  });
+
+  it("值序+耗尽自还原+种子 rng 不消耗:还原后首骰=同种子未钉对照引擎的自然首骰", () => {
+    const firstNatural = makeEngine(7).dice.roll().die; // 独立对照引擎(同种子)
+    const e = makeEngine(7);
+    pinDice(e, "march", [3, 5]);
+    expect(e.dice.roll().die).toBe(3); // 按值序
+    expect(e.dice.roll().die).toBe(5);
+    expect(e.dice.roll().die).toBe(firstNatural); // 已自还原;替身未消耗种子 rng
+  });
+
+  it("拼点口与行程口分属两个注入口互不串队;拼点口耗尽自还原同理", () => {
+    const firstNaturalDie = makeEngine(9).dice.rollDie();
+    const e = makeEngine(9);
+    pinDice(e, "march", [2]);
+    pinDice(e, "duel", [6, 1]);
+    expect(e.dice.roll().die).toBe(2); // 行程口只吃行程队列
+    expect(e.dice.rollDie()).toBe(6); // 拼点口只吃拼点队列
+    expect(e.dice.rollDie()).toBe(1);
+    expect(e.dice.rollDie()).toBe(firstNaturalDie); // 拼点口还原后续走自然骰
+  });
+
+  it("空值队列与非 1..6 整数当场炸(骰面契约,零兜底)", () => {
+    const e = makeEngine();
+    expect(() => pinDice(e, "march", [])).toThrow();
+    expect(() => pinDice(e, "duel", [0])).toThrow();
+    expect(() => pinDice(e, "march", [7])).toThrow();
+    expect(() => pinDice(e, "duel", [2.5])).toThrow();
+  });
+});
+
+describe("injectWarLog(战报注入,合成行直种)", () => {
+  it("追加合成行:与真行同 schema,ts/round/turn 派生戳随引擎唯一写口保真", () => {
+    const e = makeEngine();
+    const before = e.log.length;
+    injectWarLog(e, {
+      category: "roll",
+      player: "魏",
+      brief: "合成战报测试事件",
+      detail: "act=synth i=1",
+    });
+    expect(e.log.length).toBe(before + 1); // 只增不改(日志是产物流)
+    const line = e.log[e.log.length - 1]!;
+    expect(line.category).toBe("roll");
+    expect(line.player).toBe("魏");
+    expect(line.brief).toBe("合成战报测试事件");
+    expect(line.detail).toBe("act=synth i=1");
+    expect(line.ts).toBeGreaterThan(0);
+    expect(line.round).toBe(e.round);
+    expect(line.turn).toBe(e.turnNumber);
+  });
+
+  it("amount 可选携带(现金收付类合成行)", () => {
+    const e = makeEngine();
+    injectWarLog(e, {
+      category: "trade",
+      player: "蜀",
+      brief: "合成交易",
+      detail: "act=synth trade",
+      amount: -300,
+    });
+    expect(e.log[e.log.length - 1]!.amount).toBe(-300);
+  });
+
+  it("未知 category 当场炸(渲染端按类白名单消费,种错类即假场景)", () => {
+    const e = makeEngine();
+    expect(() =>
+      injectWarLog(e, {
+        category: "noSuchCategory" as never,
+        player: null,
+        brief: "x",
+        detail: "y",
+      }),
+    ).toThrow(/noSuchCategory/);
+  });
+});
+
 describe("applyPlant(桥 plant(op) 分发单源)", () => {
   it("giveJinnang 指令与直呼同一实现(终态逐位一致)", () => {
     const a = makeEngine();
@@ -429,6 +517,30 @@ describe("applyPlant(桥 plant(op) 分发单源)", () => {
     expect(b.winner).toBe(b.players[0]);
     expect(b.phase).toBe(a.phase);
     expect(b.pendingReaction).toEqual(a.pendingReaction);
+  });
+
+  it("确定性族指令(pinDice/injectWarLog)与直呼同一实现", () => {
+    const a = makeEngine(11);
+    const b = makeEngine(11);
+    pinDice(a, "march", [4]);
+    applyPlant(b, { kind: "pinDice", channel: "march", values: [4] });
+    expect(a.dice.roll().die).toBe(4);
+    expect(b.dice.roll().die).toBe(4);
+    injectWarLog(a, { category: "system", player: null, brief: "合成A", detail: "act=x" });
+    applyPlant(b, {
+      kind: "injectWarLog",
+      category: "system",
+      player: null,
+      brief: "合成A",
+      detail: "act=x",
+    });
+    const la = a.log[a.log.length - 1]!;
+    const lb = b.log[b.log.length - 1]!;
+    expect(lb.category).toBe(la.category);
+    expect(lb.player).toBe(la.player);
+    expect(lb.brief).toBe(la.brief);
+    expect(lb.detail).toBe(la.detail);
+    expect(lb.round).toBe(la.round);
   });
 
   it("未知 kind 当场炸(分发口不吞错)", () => {

@@ -27,7 +27,7 @@
 // +1 晋阳,落格弹购地卷轴,skipUntilNextSeat 可清;钉「一」落 1 晋阳自家种植城,
 // 升级决策同样可清)。
 // #1215 棒2(ADR-0058 一环一真):全族 8 例真实段逐例头注声明;force 判词审计归类
-// (#1300 后余下:marchQueue 行程骰 2(钉骰族 #1302)、jinnangUsedTags 标签额度 1、
+// (#1302 后余下:jinnangUsedTags 标签额度 1、
 // 防窗反应牌清除 2(归 #1301)——各在种植点/助手头注写一行「force 判词」,均为引擎
 // 到不了的形态;塞指定锦囊站点已迁 giveJinnang #1298,挪城/授等级/名将候选站点已迁
 // grantProperty/armHero #1300,判词单源 src/core/planter.ts 头注;本 spec 断言链的
@@ -57,23 +57,6 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   // 出牌阶段态:动作条(卡牌段)就位 = 停稳在开局窗态(seed 67 起手求贤令恒可用,窗必升起)
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
-
-/** 行军骰队列(行程):接下来数次 rollAndMove 的行程骰依序取给定值,耗尽自还原
- *  (react-reaction.spec.ts 同款,局部确定性;patch 命中时不消耗种子 rng,还原后种子流
- *  无缝续走)。与拼点 rollDie 队列分属两个注入口互不串队——本 spec 只用行程队列。
- *  尾分号必备:单独作为 fn 传 force 时,表达式语句必须自终止,否则吃掉后续 sync()。
- *  force 判词:自然骰经种子仍受 sort 比较器调用数影响(#949,Bun 与浏览器调用数不同),
- *  停靠落格必须钉骰——骰值无公共设定通路,行程骰注入=确定性钉非兜底。 */
-const marchQueue = (...values: number[]) => `
-  (() => {
-    const o = e.dice.roll.bind(e.dice);
-    const q = [${values.join(", ")}];
-    e.dice.roll = () => {
-      const v = q.shift();
-      if (q.length === 0) e.dice.roll = o;
-      return { die: v ?? o().die };
-    };
-  })();`;
 
 /** 给 bot 1 挪一座 1 级非都城(原 jinnang-play-line.spec.ts 随迁,#305):火烧连营的
  *  目标守卫(demolishTargetOk)要求「有 Lv>0 可降或有非都城城」,开局各座只有都城
@@ -111,13 +94,14 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
     // 种植:人类改持识破诡计 + 一座可失之城(plantDemolishableCity 挪 +1 晋阳@1,0 级);bot 全持
     // 火烧连营(首个行动 bot 回合开始即出,城最多者=人类);行程骰钉「二」:放行后自动
     // 行军落 2 幽州无主城弹购地卷轴(钉「一」落 +1 晋阳自家种植城,升级决策同可清)。
-    // force 判词:手牌无公共通路(引擎无「发指定牌」公共命令),断言面需特定牌形;
-    // 挪城/行程骰判词见 plantDemolishableCity 与 marchQueue 注。
+    // 种植判词:手牌=giveJinnang(#1298)、挪城=grantProperty(#1300)、行程骰=pinDice
+    // (#1302:自然骰经种子仍受 sort 比较器调用数影响(#949),停靠落格必须钉骰——骰值
+    // 无公共设定通路,测试替身=确定性钉非兜底;判词单源 src/core/planter.ts)。
     await plantDemolishableCity(page);
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["识破诡计"] });
     for (const seat of [1, 2, 3])
       await plant(page, { kind: "giveJinnang", seat, cards: ["火烧连营"] }); // bot 全持
-    await force(page, marchQueue(2));
+    await plant(page, { kind: "pinDice", channel: "march", values: [2] });
     await page.getByTestId(TESTIDS.actionbarPass).click();
     await waitMyRollDone(page, 0);
     await skipUntilNextSeat(page, 0);
@@ -151,15 +135,15 @@ test.describe("锦囊使用回路(T2,出牌阶段态;#281 识破诡计反应窗)
   });
 
   // 真实段:「不出」放行点击→窗收、牌留架的真命令通路与放行后自动行军接棒全真
-  // (#188 通行链路)。前置:手牌直写判词=手牌无公共通路,断言面需任意可留架牌形;
-  // 行程骰判词见 marchQueue 注(自然骰确定性钉)。
+  // (#188 通行链路)。前置:手牌=giveJinnang(#1298,断言面需任意可留架牌形);
+  // 行程骰=pinDice(#1302,自然骰确定性钉,判词单源 src/core/planter.ts)。
   test("seed67 不出直发:窗放行、牌留架(#188 自动行军接棒)", async ({ page }) => {
     await startJunshi(page, 67);
-    // 直写钉牌(开局起手是横征暴敛,与本例无关——钉火烧连营验「任意手牌放行后留架」);
+    // 钉牌(开局起手是横征暴敛,与本例无关——钉火烧连营验「任意手牌放行后留架」);
     // 行程骰钉「一」:放行后自动行军落 1 晋阳(0 长安 +1,自家种植城=升级决策停靠),
     // 断言全程不赌自然骰。(#188 自动起摇由通行链路全程走通——waitMyRollDone 家族全依赖它)
     await plant(page, { kind: "giveJinnang", seat: 0, cards: ["火烧连营"] });
-    await force(page, marchQueue(1));
+    await plant(page, { kind: "pinDice", channel: "march", values: [1] });
     // 「不出」:窗收(卡牌段离场),架常驻、牌仍在(不消耗;手牌记账归引擎层,
     // 放行后自动起摇由 #188 通行链路全程走通——waitMyRollDone 家族全依赖它)
     await page.getByTestId(TESTIDS.actionbarPass).click();

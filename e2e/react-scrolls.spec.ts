@@ -13,7 +13,7 @@
 import { test, expect, type Page } from "./fixtures";
 import { quickStart, force, snap, engineState, waitFxIdle } from "./react-helpers";
 import { fmtMoney } from "./react-helpers";
-import { plant } from "./helpers/drivers";
+import { callEngine, plant } from "./helpers/drivers";
 import { guidePriceOf, premiumPriceOf } from "../src/core/treasures";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import { SCROLL_TESTIDS } from "../src/app/screens/game/scroll/testids";
@@ -23,8 +23,8 @@ import { HOME_TID } from "../src/app/screens/home/testids";
 // 命令)→ 关框 → 点卡开详情 → 「收为麾下」拍板 → 钤印收场、候选清空的完整交互链
 // 与卷轴呈现全真。钉相位/活跃座位走 armPhase(#1301,判词单源 src/core/planter.ts:
 // 相位/活跃座位无公共命令,由行军结算推进);招贤候选悬空触发无通路(tryRecruitHero
-// 由落招贤城结算调用,骰流不可钉)——钉位后调公共方法真掷候选(候选行仍引擎真产物,
-// 非伪造 offeredHeroes;直呼残块迁桥上直呼归 #1302)。
+// 由落招贤城结算调用,骰流不可钉)——钉位后经 callEngine(#1302 直呼通道,只承载
+// 引擎公共方法调用)调公共方法真掷候选(候选行仍引擎真产物,非伪造 offeredHeroes)。
 test(
   "招贤卷轴:三选一,预掷明牌 chips+全览池对照,点卡/技名开全览先看后选,弹框拍板收将",
   {
@@ -38,7 +38,9 @@ test(
     // #188:行军自动化后 quickStart 停靠点不再保证轮到人类——强制场景一律先钉活跃座位
     // 到人类(0),否则 interactive=false(决策方是 bot)卷轴恒不弹。
     await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
-    await force(page, `e.tryRecruitHero(e.activePlayer);`);
+    // 直呼走 callEngine(#1302):tryRecruitHero=引擎公共方法,mover 引用经 EngineRef
+    // (activePlayer)过网页内解析,封装三拍含 sync 重灌派生量(卷轴按新候选弹出)。
+    await callEngine(page, "tryRecruitHero", [{ $ref: "activePlayer" }]);
     const scroll = page.getByTestId(SCROLL_TESTIDS.heroPickScroll);
     await expect(scroll).toBeVisible();
     await expect(scroll.getByRole("button")).toHaveCount(3); // 无「不取」:引擎相位不接受 endDecision
@@ -363,29 +365,39 @@ test("珍宝城购地:落格弹购地卷轴、差额行「余」、点买收卷"
   // #1221 L1:preRoll 落都即冻结(看门狗点火前已冻,显式 freeze/unfreeze 退役——
   // 页面随例终结,同破产清算例口径)。
   await quickStart(page, 20261105, { advance: "preRoll" });
-  // 钉相位/行动方走 armPhase(#1301,判词单源 src/core/planter.ts);余下 force 块:
-  // 引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算改写;断言面需
-  // 「落无主珍宝城」形态,直写摆位到无主珍宝城邻格,再走与 rollAndMove 掷定 1 步后
-  // 的同一段引擎路径:途经遍历(marchTraverse)→ 落格结算(settleMarchLanding;
-  // 机遇已被 fixtures 归零,珍宝城=event 城本就免掷)。
+  // 钉相位/行动方走 armPhase(#1301,判词单源 src/core/planter.ts)。断言面需「落无主
+  // 珍宝城」形态,原 force 混装块按 #1302 通道归口四拍等价改写:①摆位=placePlayer
+  // 种植件(引擎无「置位」公共命令——行军由骰流驱动,position 只随行军结算改写;
+  // 判词单源 src/core/planter.ts);②③公共方法 marchTraverse→settleMarchLanding 走
+  // callEngine 直呼(与 rollAndMove 掷定 1 步后的同一段引擎路径;机遇已被 fixtures
+  // 归零,珍宝城=event 城本就免掷);④lastMove=行军投影字段直写残块(无种植件亦无
+  // 公共命令,暂驻 force,同 pendingLand/lastLandOutcome 投影族,#1303 缺口盘点裁决)。
   // 落无主珍宝城 → 落格固定事件位先探宝(#825)→ 交易链:可购决策挂起(同权,ADR-0024)。
   await plant(page, { kind: "armPhase", phase: "Playing", activeIndex: 0 });
+  // 无主珍宝城选址读数(只读):落格=城格,起步=贴邻前一格。
+  const spot: { land: number; from: number } = await engineState(
+    page,
+    `(() => {
+      const t = e.board.tiles.find((t) => t.event === "treasure" && !e.findOwner(t.propertyId));
+      if (t == null) throw new Error("盘面无无主珍宝城(数据 bug)");
+      return { land: t.index, from: (t.index + e.board.count - 1) % e.board.count };
+    })()`,
+  );
+  await plant(page, { kind: "placePlayer", seat: 0, position: spot.from });
+  const walked = await callEngine<string>(page, "marchTraverse", [
+    { $ref: "player", seat: 0 },
+    [spot.land],
+    1,
+    spot.land,
+    spot.from,
+    1,
+  ]);
+  if (walked !== "landed") throw new Error("marchTraverse=" + walked + "(单格无拦检,契约违反)");
   await force(
     page,
-    `
-    const me = e.players[0];
-    const target = e.board.tiles.find(
-      (t) => t.event === "treasure" && !e.findOwner(t.propertyId),
-    );
-    if (target == null) throw new Error("盘面无无主珍宝城(数据 bug)");
-    const from = (target.index + e.board.count - 1) % e.board.count;
-    me.position = from;
-    const walked = e.marchTraverse(me, [target.index], 1, target.index, from, 1);
-    if (walked !== "landed") throw new Error("marchTraverse=" + walked + "(单格无拦检,契约违反)");
-    e.lastMove = e.board.computePath(from, 1, me.capitalIndex);
-    e.settleMarchLanding(me, target.index);
-  `,
+    `e.lastMove = e.board.computePath(${spot.from}, 1, e.players[0].capitalIndex);`,
   );
+  await callEngine(page, "settleMarchLanding", [{ $ref: "player", seat: 0 }, spot.land]);
   // 落格即弹购地卷轴(探宝先行、可购决策挂起的 UI 面)
   await expect(page.getByTestId(SCROLL_TESTIDS.buyScroll)).toBeVisible();
   // #1181 棒一缩:链序正典与收口零探宝两段引擎链序 poll 已由 test/treasure.test.ts

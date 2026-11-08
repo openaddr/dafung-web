@@ -10,7 +10,8 @@
 // setStamina 薄包族共一处),#1299。布景族四件判词在各自函数头注(placePlayer/
 // grantProperty/giveTreasureFromDeck 各一处;armHero/armHeroOffer 名将候选族共一处),
 // #1300。执行态族三件判词:armPhase 一处、破产终局族(armBankrupt/armDebt/
-// armGameOver)共一处、armReaction 一处,#1301。
+// armGameOver)共一处、armReaction 一处,#1301。确定性族两件判词:pinDice(测试
+// 替身)一处、injectWarLog 一处,#1302。
 // 生产零 import 本文件不受限(与 testing.ts「仅 test/ 可 import」的区别):桥
 // (src/app/controllers/registry.ts)必须转发到与单测相同的实现,这是三层共用契约
 // 本身;测试专用属性由双门禁桥闸守住,不靠 import 规则。
@@ -21,6 +22,7 @@
 import type { EnginePhase, GameEngine, TurnPhase } from "./authority";
 import { heroById } from "./heroes";
 import { jinnangCardOf } from "./jinnang";
+import type { LogEvent } from "./model";
 import type { ReactionPayload, ReactionView } from "./reaction-window";
 import type { TreasureDef } from "./treasures";
 
@@ -151,6 +153,29 @@ export interface ArmReactionOp {
   payload: ReactionPayload;
 }
 
+/** 钉骰子通道(#1302):行程骰(march=dice.roll,rollAndMove 消费)或拼点骰
+ *  (duel=dice.rollDie,拼点结算消费)——两注入口互不串队(判词见 pinDice)。 */
+export type PinDiceChannel = "march" | "duel";
+
+/** 钉骰子指令(测试替身):channel 注入口接下来 values.length 次掷骰依序取
+ *  values(判词见 pinDice 函数头注)。 */
+export interface PinDiceOp {
+  kind: "pinDice";
+  channel: PinDiceChannel;
+  values: number[];
+}
+
+/** 战报注入指令(合成行直种):向对局日志追加一条 LogEvent(判词见 injectWarLog
+ *  函数头注)。 */
+export interface InjectWarLogOp {
+  kind: "injectWarLog";
+  category: LogEvent["category"];
+  player: string | null;
+  brief: string;
+  detail: string;
+  amount?: number;
+}
+
 /** 种植指令联合(可序列化,#1298 giveJinnang 族首发;其余 11 族按迁移票逐族扩展
  *  kind,#1299-#1302——联合即扩展位,桥分发 switch 穷尽校验)。 */
 export type PlantOp =
@@ -168,7 +193,9 @@ export type PlantOp =
   | ArmBankruptOp
   | ArmDebtOp
   | ArmGameOverOp
-  | ArmReactionOp;
+  | ArmReactionOp
+  | PinDiceOp
+  | InjectWarLogOp;
 
 /** 塞指定锦囊(判词见文件头注):手牌终态=cards,派生量 jinnangHandCount 同步重灌。
  *  目录外牌/越界座位当场炸(零兜底:种错的场要响)。 */
@@ -336,6 +363,24 @@ const TURN_PHASES: ReadonlySet<TurnPhase> = new Set([
   "GameOver",
 ]);
 const ENGINE_PHASES: ReadonlySet<EnginePhase> = new Set(["Setup", "Playing", "GameOver"]);
+/** LogEvent.category 运行时影子(injectWarLog 校验用,同 TURN_PHASES 口径:联合
+ *  增员时此处漏登=种植点当场炸)。 */
+const LOG_CATEGORIES: ReadonlySet<LogEvent["category"]> = new Set([
+  "header",
+  "system",
+  "roll",
+  "buy",
+  "upgrade",
+  "trade",
+  "supply",
+  "halt",
+  "setup",
+  "skill",
+  "victory",
+  "final",
+  "cmd",
+  "room",
+]);
 
 /** 座位界内断言(执行态族共用):越界/非整数当场炸(零兜底:种错的场要响)。 */
 function assertSeat(who: string, e: GameEngine, seat: number): void {
@@ -422,6 +467,57 @@ export function armReaction(e: GameEngine, view: ReactionView, payload: Reaction
   e.turnPhase = "AwaitingReaction";
 }
 
+/** 【判词(pinDice 一处,确定性族 #1302)】钉骰子=**测试替身**(非场景字段):
+ *  骰值单源=种子 rng 全局流(Dice 构造注入,唯一旋钮 seed,局中无「钉骰」公共
+ *  命令),「接下来 N 次掷依序取定值」只能替换骰口——测试替身是唯一通路(先例
+ *  react-reaction marchQueue/diceQueue 局部形态,#303 立配方,本件收编归一)。语义
+ *  三件套:①按值序替换骰口(每次掷取队列下一值);②**耗尽自还原**(只钉接下来
+ *  N 次掷=局部确定性,不钉死后续世界);③**种子 rng 不消耗**(替身命中不触摸
+ *  mulberry32,还原后种子流无缝续走——同种子未钉对照引擎逐位一致)。行程/拼点
+ *  **分属两个注入口互不串队**(既有事实,#303 实锤:行程骰=dice.roll 属性,由
+ *  rollAndMove 消费;拼点骰=dice.rollDie,由拼点结算消费;探宝拼点走 nextFloat
+ *  第三口,两队列都不吃)——钉 march 不改 duel 骰流,反之亦然。种的是运行时替身
+ *  非引擎字段:快照/重灌不动它,对局继续即按值消费。空值队列(钉零骰=种了个寂寞)
+ *  与非 1..6 整数(骰面契约,越界值会静默扭曲行军算术)当场炸。 */
+export function pinDice(e: GameEngine, channel: PinDiceChannel, values: number[]): void {
+  if (values.length === 0) throw new Error("pinDice:空值队列(至少钉一个骰值)");
+  for (const v of values)
+    if (!Number.isInteger(v) || v < 1 || v > 6)
+      throw new Error(`pinDice:骰值 ${v} 出 1..6 契约(单骰 1–6,单源 dice.ts)`);
+  if (channel === "march") {
+    const orig = e.dice.roll.bind(e.dice);
+    const queue = [...values];
+    e.dice.roll = () => {
+      const v = queue.shift()!;
+      if (queue.length === 0) e.dice.roll = orig; // 耗尽自还原(局部确定性)
+      return { die: v }; // 替身命中不触摸种子 rng
+    };
+    return;
+  }
+  const orig = e.dice.rollDie.bind(e.dice);
+  const queue = [...values];
+  e.dice.rollDie = () => {
+    const v = queue.shift()!;
+    if (queue.length === 0) e.dice.rollDie = orig;
+    return v;
+  };
+}
+
+/** 【判词(injectWarLog 一处,确定性族 #1302)】战报注入=合成行直种:对局日志是
+ *  结算产物流(引擎只按真实对局事件落行),「指定内容的任意时刻行」无生产流程
+ *  (开局存量约一窗,凑任意行需数百真实回合不可达)——直种是唯一通路(先例
+ *  react-war-report 的 e.log.push 合成行;行形状单源 LogEvent)。写口走引擎唯一
+ *  落行通道 logEvent:ts/round/turn 派生戳与真行**同源保真**(planter 模块自身禁读
+ *  墙钟——ADR-0057 确定性源码闸冻结清单,ts 唯一合法来源=引擎写口内部),行本体
+ *  字段(category/player/brief/detail/amount)由种植者给形。category 按运行时全集
+ *  校验(未知类当场炸——渲染端按类白名单消费战报,种错类即假场景);文本字段不
+ *  校验(合成行是测试作者的素材,同 giveTreasure 口径)。 */
+export function injectWarLog(e: GameEngine, line: Omit<InjectWarLogOp, "kind">): void {
+  if (!LOG_CATEGORIES.has(line.category))
+    throw new Error(`injectWarLog:未知日志类别 ${String(line.category)}`);
+  e.logEvent(line.category, line.player, line.brief, line.detail, line.amount);
+}
+
 /** 种植指令分发单源:桥 plant(op) 与单测共用的唯一入口(未知 kind 当场炸——
  *  分发口不吞错,零兜底)。 */
 export function applyPlant(e: GameEngine, op: PlantOp): void {
@@ -470,6 +566,12 @@ export function applyPlant(e: GameEngine, op: PlantOp): void {
       return;
     case "armReaction":
       armReaction(e, op.view, op.payload);
+      return;
+    case "pinDice":
+      pinDice(e, op.channel, op.values);
+      return;
+    case "injectWarLog":
+      injectWarLog(e, op);
       return;
     default:
       throw new Error(`applyPlant:未知种植指令 kind=${String((op as { kind: unknown }).kind)}`);
