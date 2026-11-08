@@ -15,6 +15,10 @@
 // 67/1010/1026/42/7/49/63/419/1101),quickStart 快路径经 seedSolo 把种子注入引擎,
 // bot 轮走位与停靠相位随 seed 钉死;真实段声明与各例 force 判词见各例头注(完成线
 // =零未判词 force,ADR-0058 种植合法性分层)。
+// #1289 批二迁移:显隐状态机两例(「他人回合:架自动收起/回合回来自动弹回」「呼吸钮
+// .breathe 四态走查」)迁入接线层 test/popup-state-wiring.test.tsx——断言面纯挂载
+// 有无与类名挂点(store 快照驱动+点击→状态机),零几何零真实输入语义;本 spec 存例
+// =几何哨与长按/hover/reduced-motion 真实输入语义(名册地板,永留浏览器)。
 import { test, expect } from "./fixtures";
 // parkMyTurn(#1216 波3)上收 react-helpers 共享:语义注释随迁见该函数注(本 spec 调用
 // 全走缺省 freeze=true 停车坪口径)。
@@ -245,45 +249,10 @@ test.describe("锦囊 T3:底部手牌架", () => {
     await expect(detail).toHaveCount(0);
   });
 
-  // 真实段:回合交出/回归两沿的架显隐联动(handZone 卸载/回场+开关钮亮态)全真——
-  // UI 对 activeIndex 变化的响应链即被测环。force 判词:回合交接由引擎自转驱动,
-  // 无「把回合让给 bot」公共命令,直写 activeIndex 是回合交接的最小种植;前置钉相位
-  // 判词见 pinRackIdle(引擎自转无「钉相位」公共命令,空闲态=断言前提)。
-  test("他人回合:架自动收起(回合交出即撤);回合回来自动弹回", async ({ page }) => {
-    await quickStart(page, 1473);
-    // 停车坪先钉稳再动刀(pinRackIdle 同款配方,出处本文件;2026-11-07 轮实锤:
-    // 裸 freeze+force 会撞 quickStart 交还点的 mid-flight 行军——负载下 waitFxIdle
-    // 死等/拦检卷轴在场,断言连挂;先等自然停靠+钉 AwaitingDecision 空闲态,#1215
-    // 棒1 升级 parkMyTurn:严格我的回合+停靠即冻结,理由见该函数注)。
-    await parkMyTurn(page);
-    await force(
-      page,
-      `
-      e.lastLandOutcome = null;
-      e.pendingLand = null;
-      e.turnPhase = "AwaitingDecision";
-    `,
-    );
-    // #413 调试钩子种植(直写引擎不经房间编排,driveBots 不会被触发,钉住的状态
-    // 稳定)。钉的是回合联动收沿的契约:回合交出(activeIndex 离席)→ 架自动收起,
-    // 手牌区整区卸载,bot 回合全图畅看;回合回来(亮沿)→ 自动弹回。
-    // 2026-11-07 前钉「他人回合架常驻可见」,该语义已随显隐改模翻转。
-    await force(
-      page,
-      `
-      const botIdx = e.players.findIndex((p) => p.isBot);
-      e.activeIndex = botIdx;
-    `,
-    );
-    const s = await snap(page);
-    expect(s.decisionOwner).not.toBe(0);
-    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
-    await expect(page.getByTestId(TESTIDS.jinnangToggle)).not.toHaveClass(/on/);
-    // 回合回来:我的回合亮沿自动弹回(架回场,钮亮态)
-    await force(page, `e.activeIndex = e.players.findIndex((p) => !p.isBot);`);
-    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
-    await expect(page.getByTestId(TESTIDS.jinnangToggle)).toHaveClass(/on/);
-  });
+  // 「他人回合:架自动收起(回合交出即撤);回合回来自动弹回」例已迁(#1289 批二):
+  // 断言面=handZone 挂载有无+开关 .on 类名挂点(store 快照驱动,零几何零真实输入),
+  // 迁移落点=接线层 test/popup-state-wiring.test.tsx「他人回合」例;本文件存例仅剩
+  // 几何与真实输入语义(长按/hover/reduced-motion,名册地板)。
 });
 
 test.describe("手牌架叠加压缩(#254:手牌无上限 UI 半)", () => {
@@ -499,7 +468,8 @@ test.describe("出牌窗灰置牌可看不可出(#715)", () => {
 // 会话内临时态 rackHidden(GameScreen 持有,规则沿自动同步):亮=我的回合∪决策窗
 // 在场∪手动临时开,其余一律收;收起不断决策通路(出牌窗=动作条、反应窗=横幅贴底
 // 下移),选中态跨收起保留。本组钉收起态与窗态交织的五个面(亮沿/收沿的全沿契约
-// 钉在 react-float-skeleton #1006 例与本文件「他人回合」例);三问自答:守住什么=
+// 钉在 react-float-skeleton #1006 例;「他人回合」沿联动例已迁接线层,#1289 批二);
+// 三问自答:守住什么=
 // 「窗内可收、收而不断、选中不丢、呼吸只挂窗态+收起、窗在场压回合归属」五契约
 // (各例头注分答);墙钟≈每例 40-60s(共用两条停车坪配方,③⑤ 的直种窗免 bot 链
 // 长跑);替代=无旧例(全新语义,原 #700 ③ 开关例在 react-float-skeleton 已按同
@@ -594,34 +564,10 @@ test.describe("锦囊架临时收起重钉(#1006)", () => {
     await pollReactionSettled(page, baseline, { countered: true });
   });
 
-  // 真实段:呼吸钮收/开点击序列的 .breathe 挂点契约(状态表达 §4.6 零文字)全真;
-  // 窗态两拍由 force 钉相位(AwaitingJinnang/AwaitingDecision)——force 判词:引擎
-  // 自转无「钉相位」公共命令,窗态即断言前提。
-  test("④呼吸钮:窗态+收起才挂 .breathe;非窗态收起与窗态亮架均无该 class", async ({ page }) => {
-    await pinRackIdle(page, 1483);
-    const toggle = page.getByTestId(TESTIDS.jinnangToggle);
-    const breathe = page.locator(".game-layout .gbtn.breathe");
-    // 非窗态收起:无呼吸(「有活决策被收起来」只在窗态成立)
-    await toggle.click();
-    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
-    await expect(breathe).toHaveCount(0);
-    // 窗态开场亮沿先弹回(亮沿②,弹回语义归 react-float-skeleton #1006 例);
-    // 窗态亮架不呼吸——呼吸=窗态∧收起,非「窗态」单条件
-    await toggle.click();
-    await force(page, `e.turnPhase = "AwaitingJinnang";`);
-    await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
-    await expect(breathe).toHaveCount(0);
-    // 窗内收起:呼吸金光挂上(状态表达 §4.6,零文字)
-    await toggle.click();
-    await expect(page.getByTestId(TESTIDS.handZone)).toHaveCount(0);
-    await expect(breathe).toHaveCount(1);
-    await expect(toggle).toHaveClass(/breathe/);
-    // 窗落(仍在我的回合):窗落沿按规则重对齐——我的回合=亮,窗内手动收起被
-    // 抹平(手动只活沿间,回合联动语义);呼吸随窗态退场
-    await force(page, `e.turnPhase = "AwaitingDecision";`);
-    await expect(page.getByTestId(TESTIDS.handZone)).toBeVisible();
-    await expect(breathe).toHaveCount(0);
-  });
+  // 「④呼吸钮:.breathe 四态走查」例已迁(#1289 批二):断言面=呼吸钮与开关钮的
+  // 类名挂点(窗态∧收起的纯状态机,store 快照驱动),迁移落点=接线层
+  // test/popup-state-wiring.test.tsx「呼吸钮」例;呼吸金光的真实视觉存在归
+  // visual-compare(演出与静态景深的存在性防线统一归口)。
 
   // 真实段:窗在场压回合归属(决策保底)/窗收架撤/回合回归亮沿弹回的三个可见性沿
   // 全真——UI 对窗态与 activeIndex 的响应链即被测环。force 判词:反应窗无「凭空开窗」
