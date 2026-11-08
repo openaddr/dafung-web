@@ -12,7 +12,7 @@
 // #1221 L1 残油包:改 quickStart({advance:"preRoll"})——两例全程不出牌阶段、不依赖
 // 行军日志/已推进回合,落都即冻结(seed 67 起手求贤令恒可用,返回态=开局出牌阶段态)。
 import { test, expect } from "./fixtures";
-import { force, quickStart, useHalfScale } from "./react-helpers";
+import { quickStart, useHalfScale } from "./react-helpers";
 import { plant } from "./helpers/drivers";
 import { TESTIDS } from "../src/app/screens/game/testids";
 import type { Page } from "@playwright/test";
@@ -27,14 +27,18 @@ async function startJunshi(page: Page, seed: number): Promise<void> {
   await expect(page.getByTestId(TESTIDS.actionbar)).toBeVisible();
 }
 
-// 华佗直写(槽位行 #785:skillIds=全池原序随 core/heroes.ts 华佗条目;技定义查技表)。
-// force 判词(#1217 波4 审计):麾下无授将公共命令(招贤候选由落招贤城触发,
-// resolveHeroPick 仅候选语境可达)——断言面需「半体力华佗」形态,直写。体力/现金
-// 已迁 setStamina/setCash 数值族种植件(#1299,判词单源 src/core/planter.ts:体力 50
-// 满体力自疗无可见落账;现金 2000 ≥cost 排除整技可用性疑虑)。
-const HUATUO = `
-  e.players[0].heroes = [{ heroId: "huatuo", skillIds: ["qingnang", "zhenji"], lastFired: {} }];
-`;
+// 授将走 armHero 种植件(#1300,判词单源 src/core/planter.ts:麾下无授将公共命令,
+// resolveHeroPick 仅招贤候选语境可达;skillIds 显式=华佗全池原序,槽位行 #785)。
+// 体力/现金已迁 setStamina/setCash 数值族种植件(#1299:体力 50 满体力自疗无可见
+// 落账;现金 2000 ≥cost 排除整技可用性疑虑)。
+async function plantHuatu(page: Page): Promise<void> {
+  await plant(page, {
+    kind: "armHero",
+    seat: 0,
+    heroId: "huatuo",
+    skillIds: ["qingnang", "zhenji"],
+  });
+}
 
 test.describe("目标段选自己(自机格点击层,#700)", () => {
   // 真实段(波4 #1217):点技能卡 → 「出」→ 自机格候选金圈呼吸 → 点选实金停持 →
@@ -42,7 +46,7 @@ test.describe("目标段选自己(自机格点击层,#700)", () => {
   // 现金裸数 2000→1900)全真。
   test("赈济(any 域):你印=候选金圈呼吸→点选实金停持→「出」打出自疗", async ({ page }) => {
     await startJunshi(page, 67);
-    await force(page, HUATUO);
+    await plantHuatu(page);
     // 数值族种植(#1299,判词单源 src/core/planter.ts):体力 50/现金 2000 终态直种
     await plant(page, { kind: "setCash", seat: 0, cash: 2000 });
     await plant(page, { kind: "setStamina", seat: 0, stamina: 50 });

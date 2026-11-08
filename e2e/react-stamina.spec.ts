@@ -29,37 +29,30 @@ test.describe("体力系统冒烟", () => {
     // 人类回合、未掷骰、时钟已冻,停靠/稳定/冻结三连随通路退役(见文件头注)
     await quickStart(page, 1486, { advance: "preRoll" });
     try {
-      // force 判词(波4 #1217 审计):耗竭前置无公共命令可达——城池等级只随建造/
-      // 升级/降级结算变动(购地受行军+现金约束,「指定格 2 级城」到不了)。断言面需
-      // 「耗竭选项=2 走卷轴不自动」形态,直写补齐(都城持仓直读断言,#226 已修:都城
-      // 持仓恒在,无自愈兜底)。冻结期种植:无自动推进可竞速。体力压 0 已迁 setStamina
-      // 种植件(#1299,薄包 addStamina 唯一写口,终态语义,判词单源 src/core/planter.ts)。
+      // 耗竭前置授产已迁 grantProperty 种植件(#1300,判词单源 src/core/planter.ts:城池
+      // 等级只随建造/升级/降级结算变动,「指定格 N 级城」生产到不了;行形状单源
+      // PropertyHolding,group/maxLevel 自城目录派生——旧手写 `?? "a"`/`purchasePrice
+      // ?? 1000` 兜底随收编退役)。都城持仓哨兵保留(#226 回归直读断言,非种植);都城
+      // 升 1 级=upsert 改等级形,耗竭选项序=properties 序,都城恒在前。冻结期种植:
+      // 无自动推进可竞速。体力压 0 已迁 setStamina 种植件(#1299,薄包 addStamina
+      // 唯一写口,终态语义)。
       const seat: number = await engineState(page, "e.activeIndex");
-      await force(
-        page,
-        `
-        const seat = e.activeIndex;
-        const p = e.players[seat];
+      const seedIds = await page.evaluate((seat) => {
+        const e = (window as any).__dafung.getEngine();
         const taken = new Set(
-          e.players.flatMap((pl) => pl.properties.map((h) => h.propertyId)),
+          e.players.flatMap((pl: any) => pl.properties.map((h: any) => h.propertyId)),
         );
         const tile = e.board.tiles.find(
-          (t) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
+          (t: any) => t.type === "Property" && t.propertyId && !taken.has(t.propertyId),
         );
-        const def = e.catalog.get(tile.propertyId);
-        p.properties.push({
-          propertyId: tile.propertyId,
-          group: def?.group ?? "a",
-          purchasePrice: def?.buildCost ?? 1000,
-          level: 2,
-          maxLevel: def?.maxLevel ?? 3,
-        });
+        const p = e.players[seat];
         const capPropId = e.board.tiles[p.capitalIndex].propertyId;
-        const capital = p.properties.find((h) => h.propertyId === capPropId);
-        if (!capital) throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
-        capital.level = 1; // 耗竭选项序 = properties 序,都城恒在前
-      `,
-      );
+        if (!p.properties.some((h: any) => h.propertyId === capPropId))
+          throw new Error("都城持仓缺失:开局双写不一致(#226 回归)");
+        return { target: tile.propertyId as string, capPropId: capPropId as string };
+      }, seat);
+      await plant(page, { kind: "grantProperty", seat, propertyId: seedIds.target, level: 2 });
+      await plant(page, { kind: "grantProperty", seat, propertyId: seedIds.capPropId, level: 1 });
       await plant(page, { kind: "setStamina", seat, stamina: 0 }); // → 0
 
       // force 判词:本处无引擎到不了的改写——exhaustIfDepleted=引擎公共入口(文件头注),
